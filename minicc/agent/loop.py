@@ -59,6 +59,7 @@ class TurnResult:
     error: str | None = None
     denied_tools: list[str] = field(default_factory=list)
     cancelled: bool = False
+    completion: dict[str, Any] = field(default_factory=dict)
     metrics: dict[str, Any] = field(default_factory=dict)
 
 
@@ -583,7 +584,8 @@ async def run_agent(
         )
         break
     else:
-        result.answer = f"\n[达到最大轮次 {max_turns}, 中止]"
+        result.error = f"Agent 达到最大执行轮次 {max_turns}，任务未完成"
+        result.answer = f"任务未完成：{result.error}"
         emit_trace("已达到最大执行轮次，停止继续调用工具", phase="failed", status="error", code="max_turns")
 
     result.metrics = {

@@ -610,7 +610,7 @@ function phaseClass(data) {
   const value = TERMINAL_TASK_STATUSES.has(status)
     ? status
     : String(data?.phase || data?.status || "planning").toLowerCase();
-  return ["queued", "planning", "tool", "answering", "merging", "completed", "failed", "cancelled", "interrupted"].includes(value) ? value : "planning";
+  return ["queued", "planning", "tool", "answering", "review", "merging", "completed", "failed", "cancelled", "interrupted"].includes(value) ? value : "planning";
 }
 
 function compactNumber(value) {
@@ -739,9 +739,14 @@ function traceLabel(event) {
         context_compacted: "上下文压缩",
         provider_retry: "传输重试",
         reasoning_fallback: "参数降级",
-        search_circuit_open: "搜索熔断",
-        provider_stream_error: "模型流错误",
-        run_finished: "交付整理",
+         search_circuit_open: "搜索熔断",
+         provider_stream_error: "模型流错误",
+         completion_complete: "完成评估通过",
+         completion_continue: "完成评估继续",
+         completion_blocked: "完成评估阻塞",
+         completion_unknown: "完成评估不可用",
+         completion_judge_retry: "完成评估复查",
+         run_finished: "交付整理",
         stagnation_guard: "循环保护",
         max_turns: "轮次上限",
         batch_started: "并行编排",
@@ -765,9 +770,14 @@ function traceLabel(event) {
         context_compacted: "Context compaction",
         provider_retry: "Transport retry",
         reasoning_fallback: "Parameter fallback",
-        search_circuit_open: "Search circuit breaker",
-        provider_stream_error: "Provider stream error",
-        run_finished: "Delivery summary",
+         search_circuit_open: "Search circuit breaker",
+         provider_stream_error: "Provider stream error",
+         completion_complete: "Completion accepted",
+         completion_continue: "Completion needs work",
+         completion_blocked: "Completion blocked",
+         completion_unknown: "Completion unavailable",
+         completion_judge_retry: "Completion retry",
+         run_finished: "Delivery summary",
         stagnation_guard: "Loop guard",
         max_turns: "Turn limit",
         batch_started: "Parallel orchestration",
@@ -788,9 +798,9 @@ function traceDetail(event) {
   if (typeof detail !== "object") return String(detail);
   const parts = [];
   const labels = state.locale === "zh"
-    ? { turn: "轮次", tool_count: "工具数", tools: "工具", answer_chars: "回答字符", duration_ms: "耗时", count: "数量", names: "名称", statuses: "状态", max_turns: "轮次上限", child_count: "子任务数", child: "子任务", failed: "失败数", retry: "重试", retry_limit: "重试上限", partial_chars: "已输出字符", error_type: "错误类型", requested: "请求", active: "实际", wire_value: "请求值", task_id: "任务", tokens: "tokens", automatic: "自动", complexity_score: "复杂度", complexity_threshold: "触发线", complexity_reasons: "触发原因" }
-    : { turn: "turn", tool_count: "tools", tools: "tools", answer_chars: "answer chars", duration_ms: "duration", count: "count", names: "names", statuses: "statuses", max_turns: "turn limit", child_count: "children", child: "child", failed: "failed", retry: "retry", retry_limit: "retry limit", partial_chars: "partial chars", error_type: "error type", requested: "requested", active: "active", wire_value: "wire", task_id: "task", tokens: "tokens", automatic: "automatic", complexity_score: "complexity", complexity_threshold: "threshold", complexity_reasons: "reasons" };
-  for (const key of ["turn", "tool_count", "tools", "answer_chars", "duration_ms", "count", "names", "statuses", "max_turns", "child_count", "child", "failed", "retry", "retry_limit", "partial_chars", "error_type", "requested", "active", "wire_value", "task_id", "tokens", "automatic", "complexity_score", "complexity_threshold", "complexity_reasons"]) {
+     ? { turn: "轮次", tool_count: "工具数", tools: "工具", answer_chars: "回答字符", duration_ms: "耗时", count: "数量", names: "名称", statuses: "状态", max_turns: "轮次上限", child_count: "子任务数", child: "子任务", failed: "失败数", retry: "重试", retry_limit: "重试上限", partial_chars: "已输出字符", error_type: "错误类型", requested: "请求", active: "实际", wire_value: "请求值", task_id: "任务", tokens: "tokens", automatic: "自动", complexity_score: "复杂度", complexity_threshold: "触发线", complexity_reasons: "触发原因", attempt: "评估次数", confidence: "置信度", rationale: "依据", missing: "缺失", next_action: "下一步", evidence: "证据", error: "错误" }
+     : { turn: "turn", tool_count: "tools", tools: "tools", answer_chars: "answer chars", duration_ms: "duration", count: "count", names: "names", statuses: "statuses", max_turns: "turn limit", child_count: "children", child: "child", failed: "failed", retry: "retry", retry_limit: "retry limit", partial_chars: "partial chars", error_type: "error type", requested: "requested", active: "active", wire_value: "wire", task_id: "task", tokens: "tokens", automatic: "automatic", complexity_score: "complexity", complexity_threshold: "threshold", complexity_reasons: "reasons", attempt: "review attempt", confidence: "confidence", rationale: "rationale", missing: "missing", next_action: "next action", evidence: "evidence", error: "error" };
+  for (const key of ["turn", "tool_count", "tools", "answer_chars", "duration_ms", "count", "names", "statuses", "max_turns", "child_count", "child", "failed", "retry", "retry_limit", "partial_chars", "error_type", "requested", "active", "wire_value", "task_id", "tokens", "automatic", "complexity_score", "complexity_threshold", "complexity_reasons", "attempt", "confidence", "rationale", "missing", "next_action", "evidence", "error"]) {
     if (detail[key] == null) continue;
     const value = Array.isArray(detail[key]) ? detail[key].join(", ") : String(detail[key]);
     parts.push(`${labels[key] || key}: ${value}`);

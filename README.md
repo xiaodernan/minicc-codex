@@ -23,6 +23,7 @@
 - 可观测 StateGraph 运行时：记录 intake / plan / inspect / implement / verify / repair / summarize 节点、trace、预算和可序列化任务指标。
 - 固定 DAG 模板和有界调度：提供 inspect→summarize、inspect→implement→verify、parallel inspect→merge→implement→verify 模板，校验依赖、环和最大并发。
 - 验证器驱动闭环：成功写入后自动运行白名单 pytest，失败最多按 `MINICC_MAX_REPAIR_ATTEMPTS` 回到 repair；验证结果、失败测试、建议和耗时都会写入任务快照。
+- 证据驱动完成评估：验证器之后由独立 LLM completion judge 根据原始需求、工具 trace、修改证据和验证结果返回结构化 `complete` / `continue` / `blocked`；`continue` 会把缺失目标反馈给 Agent 继续执行，评估失败会先触发一次复查，不会直接标绿。
 - 自动并行编排：运行时按需求复杂度和独立工作维度评分；达到阈值后自动创建 2-3 个只读侦察子任务，独立 session 并行执行，父 Agent 收集证据后继续原始实现与验证。任务中心仍保留显式批量入口作为高级控制面板。
 - 推理预算支持 `standard`、`high`、`max`；Web 设置可按任务切换，网关不支持时自动降级并在 trace 中记录原因。修改后会自动要求下一轮检查 diff 和验证。
 - 支持 `AGENTS.md`、`CLAUDE.md`、`MINICC.md` 或 `.minicc/instructions.md` 项目指导文件；内容只作为工作约定，不能覆盖系统指令和权限边界。
@@ -122,6 +123,17 @@ MINICC_REASONING_EFFORT=high
 ## 面试讲解与公开调研
 
 实现取舍和验证证据见 [docs/AGENT_RESEARCH.md](docs/AGENT_RESEARCH.md)。核心可以这样讲：模型负责判断，Agent harness 负责上下文、工具、权限、并发、取消、重试、持久化和验证；实时 UI 展示的是可审计的阶段摘要和工具结果，不是模型的私有思维链。
+
+完成判定的关键链路是：
+
+```text
+模型执行工具 -> Verifier 收集客观证据 -> completion judge 评估原始目标
+                                      | continue
+                                      v
+                              Agent 继续工具循环
+```
+
+judge 只输出短依据、缺失项和下一步，不输出模型私有思维链；完成评估本身的 token 和 trace 也会进入任务快照，便于面试演示和失败复盘。
 
 ## 当前边界
 

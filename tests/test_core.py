@@ -14,6 +14,7 @@ import pytest
 
 import minicc.tools.web as web_tool
 from minicc.agent.context import COMPACTION_MARKER, compact
+from minicc.agent.completion import parse_completion_decision
 from minicc.agent.graph import DAGPlan, GraphValidationError, NodeResult, PlanTask, build_coding_workflow, execute_dag, fixed_plan
 from minicc.agent.orchestration import assess_complexity, build_auto_subtasks
 from minicc.config import load_config, normalize_reasoning_effort
@@ -268,6 +269,17 @@ def test_agent_service_runs_verifier_after_successful_write(tmp_path: Path, monk
 
         async def chat(self, messages, tools, on_delta=None):
             self.calls += 1
+            if tools is None:
+                return LLMResponse(
+                    content=json.dumps({
+                        "status": "complete",
+                        "confidence": 0.98,
+                        "rationale": "修改已写入，工具验证和自动验证均通过。",
+                        "missing": [],
+                        "next_action": "",
+                        "evidence": ["write_file", "pytest"],
+                    }, ensure_ascii=False)
+                )
             if self.calls == 1:
                 return LLMResponse(
                     tool_calls=[
@@ -333,6 +345,106 @@ def test_agent_service_runs_verifier_after_successful_write(tmp_path: Path, monk
     assert (tmp_path / "result.txt").read_text(encoding="utf-8") == "verified\n"
     assert result["metrics"]["verification_runs"] == 1
     assert any(event.get("code") == "verification_passed" for event in result["events"])
+
+
+def test_completion_decision_parser_accepts_fenced_json_and_rejects_unknown() -> None:
+    decision = parse_completion_decision(
+        "```json\n"
+        '{"status":"continue","confidence":92,"rationale":"缺少测试",'
+        '"missing":["运行测试"],"next_action":"运行 pytest",'
+        '"evidence":["发现修改"]}\n```'
+    )
+    assert decision.status == "continue"
+    assert decision.confidence == 0.92
+    assert decision.missing == ["运行测试"]
+    assert parse_completion_decision("模型说了一段普通话").status == "unknown"
+
+
+def test_completion_judge_replans_text_only_reply_until_workspace_is_ready(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeProvider:
+        def __init__(self, **_kwargs) -> None:
+            self.agent_calls = 0
+            self.judge_calls = 0
+
+        async def chat(self, messages, tools, on_delta=None):
+            if tools is None:
+                self.judge_calls += 1
+                status = "continue" if self.judge_calls == 1 else "complete"
+                return LLMResponse(content=json.dumps({
+                    "status": status,
+                    "confidence": 0.95,
+                    "rationale": "首轮没有修改；后续已写入并取得读取证据。" if status == "complete" else "还没有实际创建游戏文件。",
+                    "missing": [] if status == "complete" else ["创建游戏文件"],
+                    "next_action": "创建 game.html" if status == "continue" else "",
+                    "evidence": ["write_file", "read_file"] if status == "complete" else [],
+                }, ensure_ascii=False))
+            self.agent_calls += 1
+            if self.agent_calls == 1:
+                return LLMResponse(content="我先确认一下需求，稍后处理。")
+            if self.agent_calls == 2:
+                return LLMResponse(tool_calls=[{
+                    "id": "write-game",
+                    "type": "function",
+                    "function": {
+                        "name": "write_file",
+                        "arguments": json.dumps({
+                            "path": "game.html",
+                            "content": "<!doctype html><title>Mini game</title>\n",
+                        }),
+                    },
+                }])
+            if self.agent_calls == 3:
+                return LLMResponse(tool_calls=[{
+                    "id": "read-game",
+                    "type": "function",
+                    "function": {
+                        "name": "read_file",
+                        "arguments": '{"path":"game.html"}',
+                    },
+                }])
+            return LLMResponse(content="游戏文件已经创建并检查完成。")
+
+        async def close(self) -> None:
+            return None
+
+    monkeypatch.setattr("minicc.web.OpenAICompatibleProvider", FakeProvider)
+    config = SimpleNamespace(
+        yolo=True,
+        max_concurrent_tasks=1,
+        max_repair_attempts=1,
+        sandbox_mode="host",
+        sandbox_image="python:3.11-slim",
+        base_url="https://example.test/v1",
+        api_key="test-key",
+        model="test-model",
+        timeout=10,
+        tool_mode="auto",
+        reasoning_effort="high",
+        max_turns=12,
+        compact_threshold=300_000,
+        context_window_tokens=300_000,
+    )
+    service = AgentService(tmp_path, config)
+    try:
+        result = service._chat_locked(
+            {
+                "message": "制作一个可打开的小游戏并完成验证",
+                "session_id": "completion-replan",
+                "allow_changes": True,
+                "workspace_path": str(tmp_path),
+            },
+            workspace=tmp_path,
+        )
+    finally:
+        service.shutdown()
+    assert result["error"] is None
+    assert result["completion"]["status"] == "complete"
+    assert (tmp_path / "game.html").is_file()
+    assert any(event.get("code") == "completion_continue" for event in result["events"])
+    assert any(event.get("code") == "completion_complete" for event in result["events"])
 
 
 def test_search_parser_supports_duckduckgo_lite_redirects() -> None:
@@ -714,6 +826,32 @@ def test_agent_loop_replans_once_then_stops_repeated_tool_calls(tmp_path: Path) 
     assert provider.calls < 12
 
 
+def test_agent_marks_max_turns_as_incomplete(tmp_path: Path) -> None:
+    (tmp_path / "hello.txt").write_text("hello\n", encoding="utf-8")
+
+    class FakeProvider:
+        async def chat(self, messages, tools, on_delta=None):
+            return LLMResponse(tool_calls=[{
+                "id": "read-1",
+                "type": "function",
+                "function": {
+                    "name": "read_file",
+                    "arguments": '{"path":"hello.txt"}',
+                },
+            }])
+
+    result = asyncio.run(
+        run_agent(
+            FakeProvider(),
+            build_registry(Editor(tmp_path)),
+            [{"role": "user", "content": "检查 hello.txt"}],
+            max_turns=1,
+            should_allow=lambda _name, _call: True,
+        )
+    )
+    assert result.error == "Agent 达到最大执行轮次 1，任务未完成"
+
+
 def test_session_round_trip_redacts_credentials(tmp_path: Path) -> None:
     store = SessionStore(tmp_path, "interview-1")
     store.save(
@@ -942,6 +1080,29 @@ def test_task_snapshot_repairs_legacy_false_completion() -> None:
     assert restored.phase == "failed"
     assert restored.error == "历史任务没有成功修改工作区，旧记录的完成状态已更正为失败。"
     assert restored.result["completion_guard"] == restored.error
+
+
+def test_task_snapshot_keeps_evidence_backed_no_change_completion() -> None:
+    restored = TaskRecord.from_snapshot(
+        {
+            "task_id": "task-judged-no-change",
+            "prompt": "修复这个问题，如果现状已经正确则说明依据",
+            "status": "completed",
+            "events": [{"name": "read_file", "status": "ok", "write": False}],
+            "answer": "现状已经满足需求。",
+            "result": {
+                "answer": "现状已经满足需求。",
+                "cancelled": False,
+                "completion": {
+                    "status": "complete",
+                    "confidence": 0.94,
+                    "evidence": ["read_file"],
+                },
+            },
+        }
+    )
+    assert restored.status == "completed"
+    assert restored.error is None
 
 
 def test_task_manager_exposes_live_stream_and_phase() -> None:

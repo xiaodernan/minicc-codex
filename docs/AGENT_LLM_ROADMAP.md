@@ -15,7 +15,7 @@ minicc 已经具备：
 - 上下文压缩、停滞检测、一次自动重规划。
 - SQLite 任务持久化、SSE 流式事件、取消、重跑、批量任务。
 - Docker 沙箱、MCP stdio 桥、Git worktree。
-- 当前测试基线：由 `python -m pytest -q` 在本地固定任务集上维护；本轮实现后为 `57 passed`。
+- 当前测试基线：由 `python -m pytest -q` 在本地固定任务集上维护；本轮实现后为 `60 passed`。
 
 当前主要缺口：
 

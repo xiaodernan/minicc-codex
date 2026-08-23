@@ -26,6 +26,7 @@ from typing import Any
 from urllib.parse import parse_qs, unquote, urlsplit
 
 from .agent.graph import build_coding_workflow, fixed_plan
+from .agent.completion import CompletionDecision, judge_completion
 from .agent.loop import TurnResult, run_agent
 from .agent.orchestration import assess_complexity, build_auto_subtasks
 from .agent.state import AgentState, Budget, BudgetExceeded
@@ -179,6 +180,7 @@ def _merge_turn_results(previous: TurnResult | None, current: TurnResult) -> Tur
     for key, value in current.tokens_used.items():
         previous.tokens_used[key] = previous.tokens_used.get(key, 0) + int(value or 0)
     previous.context = dict(current.context)
+    previous.completion = dict(current.completion)
     previous.metrics = dict(current.metrics)
     return previous
 
@@ -202,15 +204,57 @@ def _has_successful_workspace_write(events: object) -> bool:
     )
 
 
-def _completion_guard_message(message: str, result: Any, events: list[dict[str, Any]], allow_changes: bool) -> str | None:
+def _completion_guard_message(
+    message: str,
+    result: Any,
+    events: list[dict[str, Any]],
+    allow_changes: bool,
+    *,
+    ignore_result_error: bool = False,
+) -> str | None:
     """Prevent a change request from becoming green after a text-only reply."""
-    if not _requires_workspace_change(message) or getattr(result, "error", None) or getattr(result, "cancelled", False):
+    if (
+        not _requires_workspace_change(message)
+        or (getattr(result, "error", None) and not ignore_result_error)
+        or getattr(result, "cancelled", False)
+    ):
         return None
     if _has_successful_workspace_write(events):
         return None
     if not allow_changes:
         return "任务要求修改工作区，但当前任务没有开启完全访问权限"
     return "模型在没有完成任何工作区修改前结束了任务"
+
+
+def _completion_review_event(decision: CompletionDecision, attempt: int) -> dict[str, Any]:
+    labels = {
+        "complete": "完成评估通过：证据支持交付",
+        "continue": "完成评估未通过：仍有目标未满足",
+        "blocked": "完成评估发现阻塞：需要说明原因",
+        "unknown": "完成评估不可用：暂不确认完成",
+    }
+    status = "ok" if decision.status == "complete" else "error" if decision.status in {"blocked", "unknown"} else "ok"
+    return {
+        "kind": "trace",
+        "name": "completion_judge",
+        "status": status,
+        "phase": "review",
+        "code": f"completion_{decision.status}",
+        "summary": labels.get(decision.status, labels["unknown"]),
+        "detail": {"attempt": attempt, **decision.to_dict(include_usage=True)},
+    }
+
+
+def _completion_followup(decision: CompletionDecision) -> str:
+    missing = "；".join(decision.missing[:8]) or "请重新检查原始需求和工作区证据"
+    next_action = decision.next_action or "继续检查相关文件，完成必要修改并运行直接相关的验证"
+    return (
+        "[完成评估反馈] 当前任务还不能交付。请继续使用工具完成原始用户需求，"
+        "不要只回复说明已经完成。\n"
+        f"缺失目标：{missing}\n"
+        f"建议下一步：{next_action}\n"
+        "完成后重新检查 diff 和验证结果，再让完成评估器复核。"
+    )
 
 
 @dataclass
@@ -421,6 +465,10 @@ class TaskRecord:
             and not task.error
             and not bool(stored_result.get("error"))
             and not bool(stored_result.get("cancelled"))
+            and not (
+                isinstance(stored_result.get("completion"), dict)
+                and str(stored_result["completion"].get("status") or "") == "complete"
+            )
         ):
             repair_error = "历史任务没有成功修改工作区，旧记录的完成状态已更正为失败。"
             task.status = "failed"
@@ -1331,6 +1379,30 @@ class AgentService:
             try:
                 aggregate: TurnResult | None = None
                 max_repairs = max(0, int(getattr(self.config, "max_repair_attempts", 2)))
+                completion_review_failures = 0
+                completion_review_attempt = 0
+                verification_guard_error = "Agent 在修改工作区后没有完成验证"
+
+                def record_review_usage(decision: CompletionDecision, target: TurnResult) -> bool:
+                    usage = dict(decision.usage or {})
+                    if not usage:
+                        return True
+                    try:
+                        runtime_state.budget.record_usage(usage)
+                    except BudgetExceeded as exc:
+                        target.error = f"Agent 预算超限: {exc}"
+                        target.answer = f"任务未完成：{target.error}"
+                        return False
+                    usage_event = {"kind": "completion_judge", **usage}
+                    target.usage_by_turn.append(usage_event)
+                    for key in ("prompt_tokens", "completion_tokens", "total_tokens", "reasoning_tokens"):
+                        value = usage.get(key)
+                        if isinstance(value, (int, float)):
+                            target.tokens_used[key] = target.tokens_used.get(key, 0) + int(value)
+                    if on_usage is not None:
+                        on_usage(usage_event)
+                    return True
+
                 while True:
                     enter_runtime_node("inspect" if repair_attempts == 0 else "repair", "inspect" if repair_attempts == 0 else "repair")
                     current = await run_agent(
@@ -1353,56 +1425,144 @@ class AgentService:
                     )
                     aggregate = _merge_turn_results(aggregate, current)
                     writes = any(event.get("write") for event in events if isinstance(event, dict))
-                    if not writes or current.cancelled:
+                    if current.cancelled:
                         break
 
-                    enter_runtime_node("verify", "verify")
-                    verification = await asyncio.to_thread(verifier.run, workspace)
-                    verification_data = verification.to_dict()
-                    verification_results.append(verification_data)
-                    runtime_state.add_evidence({"type": "verification", **verification_data})
-                    verification_event = verification.to_event()
-                    events.append(verification_event)
+                    # A provider, budget, permission, or stagnation error is a
+                    # hard runtime outcome.  The only recoverable loop error is
+                    # the old verification gate: the outer deterministic
+                    # verifier can still provide the evidence the loop lacked.
+                    if current.error and (not writes or current.error != verification_guard_error):
+                        break
+
+                    verification = None
+                    if writes:
+                        enter_runtime_node("verify", "verify")
+                        verification = await asyncio.to_thread(verifier.run, workspace)
+                        verification_data = verification.to_dict()
+                        verification_results.append(verification_data)
+                        runtime_state.add_evidence({"type": "verification", **verification_data})
+                        verification_event = verification.to_event()
+                        events.append(verification_event)
+                        if on_event is not None:
+                            on_event(verification_event)
+                        if verification.status == "blocked":
+                            aggregate.error = f"验证器被阻止：{verification.actionable_hint}"
+                            aggregate.answer = f"任务未完成：{aggregate.error}"
+                            break
+                        if verification.status == "failed":
+                            if repair_attempts >= max_repairs:
+                                aggregate.error = f"验证失败，已达到 repair 上限 {max_repairs}"
+                                aggregate.answer = (
+                                    f"任务未完成：{aggregate.error}。\n\n"
+                                    f"验证命令：{verification.command}\n{verification.output[-6000:]}"
+                                )
+                                break
+                            try:
+                                runtime_state.budget.record_retry()
+                            except BudgetExceeded as exc:
+                                aggregate.error = f"Agent 预算超限: {exc}"
+                                aggregate.answer = f"任务未完成：{aggregate.error}"
+                                break
+                            repair_attempts += 1
+                            messages.append(user_msg(
+                                "[验证器反馈] 自动验证没有通过。请只修复验证输出指出的问题，"
+                                "完成后再次检查 diff 并运行验证。\n\n"
+                                f"命令：{verification.command}\n"
+                                f"失败测试：{', '.join(verification.failed_tests) or '未解析到测试名称'}\n"
+                                f"建议：{verification.actionable_hint}\n"
+                                f"输出：{verification.output[-6000:]}"
+                            ))
+                            continue
+
+                        # The verifier can recover the loop's provisional
+                        # "verification required" error.  Do not let that
+                        # implementation detail leak into a successful answer.
+                        if aggregate.error == verification_guard_error:
+                            aggregate.error = None
+                            marker = "模型最后输出："
+                            if marker in aggregate.answer:
+                                aggregate.answer = aggregate.answer.rsplit(marker, 1)[-1].strip()
+                        elif aggregate.error:
+                            break
+
+                    completion_review_attempt += 1
+                    enter_runtime_node("review", "review")
+                    decision = await judge_completion(
+                        provider,
+                        task=message,
+                        answer=aggregate.answer if aggregate is not None else "",
+                        events=events,
+                        verification_results=verification_results,
+                        allow_changes=allow_changes,
+                        workspace=str(workspace),
+                    )
+                    if aggregate is None:
+                        aggregate = TurnResult(answer="模型没有返回结果")
+                    aggregate.completion = decision.to_dict(include_usage=True)
+                    runtime_state.add_evidence({"type": "completion_review", **aggregate.completion})
+                    if not record_review_usage(decision, aggregate):
+                        break
+                    review_event = _completion_review_event(decision, completion_review_attempt)
+                    events.append(review_event)
                     if on_event is not None:
-                        on_event(verification_event)
-                    if verification.status in {"passed", "skipped"}:
+                        on_event(review_event)
+
+                    if decision.status == "complete":
                         break
-                    if verification.status == "blocked":
-                        aggregate.error = f"验证器被阻止：{verification.actionable_hint}"
+                    if decision.status == "continue":
+                        messages.append(user_msg(_completion_followup(decision)))
+                        continue
+                    if decision.status == "blocked":
+                        reason = decision.rationale or "完成评估器无法确认任务可以继续"
+                        aggregate.error = f"完成评估判定受阻：{reason}"
                         aggregate.answer = f"任务未完成：{aggregate.error}"
                         break
-                    if repair_attempts >= max_repairs:
-                        aggregate.error = f"验证失败，已达到 repair 上限 {max_repairs}"
-                        aggregate.answer = (
-                            f"任务未完成：{aggregate.error}。\n\n"
-                            f"验证命令：{verification.command}\n{verification.output[-6000:]}"
-                        )
-                        break
-                    try:
-                        runtime_state.budget.record_retry()
-                    except BudgetExceeded as exc:
-                        aggregate.error = f"Agent 预算超限: {exc}"
-                        aggregate.answer = f"任务未完成：{aggregate.error}"
-                        break
-                    repair_attempts += 1
-                    messages.append(user_msg(
-                        "[验证器反馈] 自动验证没有通过。请只修复验证输出指出的问题，"
-                        "完成后再次检查 diff 并运行验证。\n\n"
-                        f"命令：{verification.command}\n"
-                        f"失败测试：{', '.join(verification.failed_tests) or '未解析到测试名称'}\n"
-                        f"建议：{verification.actionable_hint}\n"
-                        f"输出：{verification.output[-6000:]}"
-                    ))
+
+                    if completion_review_failures < 1:
+                        completion_review_failures += 1
+                        retry_event = {
+                            "kind": "trace",
+                            "name": "completion_judge",
+                            "status": "error",
+                            "phase": "review",
+                            "code": "completion_judge_retry",
+                            "summary": "完成评估暂时不可用，已要求 agent 再次自检",
+                            "detail": {"error": decision.error or "invalid response"},
+                        }
+                        events.append(retry_event)
+                        if on_event is not None:
+                            on_event(retry_event)
+                        messages.append(user_msg(
+                            "[完成评估反馈] 完成评估服务暂时没有返回可解析结论。"
+                            "请重新检查原始需求、相关文件和验证结果；如果还缺少工作，继续使用工具，"
+                            "不要直接宣称完成；如果确实完成，请给出基于证据的简短总结。"
+                        ))
+                        continue
+
+                    aggregate.error = "完成评估不可用，无法确认任务是否达到最终目标"
+                    aggregate.answer = f"任务未完成：{aggregate.error}"
+                    break
                 return aggregate or TurnResult(answer="模型没有返回结果", error="Agent 没有返回结果")
             finally:
                 await provider.close()
 
         result = asyncio.run(execute())
-        completion_guard = (
-            None
-            if str(payload.get("task_kind") or "") == "subtask"
-            else _completion_guard_message(message, result, events, allow_changes)
+        completion_status = str((result.completion or {}).get("status") or "")
+        judge_unavailable = (
+            completion_status == "unknown"
+            and bool(result.error)
+            and str(result.error).startswith("完成评估")
         )
+        completion_guard = None
+        if str(payload.get("task_kind") or "") != "subtask" and completion_status != "complete":
+            completion_guard = _completion_guard_message(
+                message,
+                result,
+                events,
+                allow_changes,
+                ignore_result_error=judge_unavailable,
+            )
         if completion_guard:
             original_answer = str(result.answer or "").strip()
             result.error = completion_guard
@@ -1431,6 +1591,7 @@ class AgentService:
             "usage_by_turn": result.usage_by_turn,
             "compaction_events": result.compaction_events,
             "metrics": result.metrics,
+            "completion": dict(result.completion),
             "events": events,
             "session_id": session_id,
             "cancelled": result.cancelled,
