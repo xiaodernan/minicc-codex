@@ -1,0 +1,24 @@
+# minicc configuration - copy to .env or export as environment variables.
+# Any OpenAI-compatible endpoint works. Path-qualified gateways such as the Z.ai
+# Coding Plan endpoint are accepted as-is; bare API roots get /v1 automatically.
+
+# Required: API key
+MINICC_API_KEY=replace_with_your_key
+
+# Interview gateway supplied for this project.
+MINICC_BASE_URL=https://api.aizzz.xyz/v1
+
+# Model name on that gateway
+MINICC_MODEL=gpt-5.6-luna
+
+# Reasoning budget: standard | high | max. Unsupported gateways auto-downgrade.
+MINICC_REASONING_EFFORT=high
+
+# Tool-calling mode: auto (probe & degrade) | native | envelope
+#MINICC_TOOL_MODE=auto
+
+# Max agent turns (LLM round trips) per user request
+#MINICC_MAX_TURNS=40
+
+# Auto-approve every tool call (dangerous; --yolo sets this too)
+#MINICC_YOLO=0

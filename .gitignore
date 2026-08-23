@@ -1,0 +1,14 @@
+.env
+.venv/
+__pycache__/
+.pytest_cache/
+.playwright-cli/
+.mypy_cache/
+.ruff_cache/
+.minicc/
+output/
+*.sqlite3
+*.log
+dist/
+build/
+*.egg-info/

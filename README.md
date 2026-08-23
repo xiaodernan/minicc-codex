@@ -1,0 +1,118 @@
+# minicc-codex
+
+一个工作区受限、支持工具调用的本地 coding agent。目标是先做出可运行的 Claude Code / Codex 风格核心，再按真实使用反馈扩展，而不是复制一个包含大量平台基础设施的完整验收系统。
+
+## 当前能力
+
+- OpenAI 兼容模型接口，支持原生 tool calls；不支持 tool calls 的网关可降级到 JSON action envelope。
+- `read_file`、`glob`、`grep`、`tree`、`git_status`、`git_diff` 只读工具。
+- `write_file`、`edit_file`：工作区路径约束、原子写入、备份、审计、精确匹配和 digest 过期保护。
+- `bash`：工作区内执行命令；默认每次写入/执行都请求确认，`--yolo` 才自动放行。
+- Web 安全模式会自动放行经过严格命令过滤的 `pytest` 只读验证；写文件和其他命令仍需打开 `Changes allowed`。
+- 可选 Docker 执行器：`MINICC_SANDBOX=auto` 检测 Docker，`MINICC_SANDBOX=docker` 在 Docker 不可用时直接失败，不回退到宿主机。
+- 可选 MCP stdio 工具桥：读取工作区 `.minicc/mcp.json`，工具默认按不可信输出处理。
+- Web 后台任务：持久任务队列、SSE 实时推送（断线自动降级轮询）、取消、重新运行和批量并行任务，避免浏览器请求被长时间模型调用卡住。
+- Web 工作区中心：可切换任意本地目录，记录最近目录，并显示每个任务的父子关系、流式文本、tokens、上下文和压缩次数。
+- Web 多模态输入：支持文件选择、拖拽和粘贴图片；图片以任务附件保存到工作区的 `.minicc/attachments/`，任务历史只保存元数据，恢复任务时再重建模型 payload。
+- 任务详情与可观测性：日志可展开到沉浸式/全屏面板，工具轮次可折叠，阶段事件展示轮次、工具、状态和验证证据；历史任务可直接回到真实会话页面。
+- `web_search`：只读联网搜索最新资料；结果带来源 URL、摘要和不可信数据标记，安全模式也可使用。
+- 搜索适配层优先使用 Bing，DuckDuckGo 作为备用；带超时重试、短期缓存、反爬诊断和连续失败熔断，避免 Agent 原地重复空搜索。
+- Git worktree 管理：在工作区旁的隐藏目录创建和移除受约束的 worktree。
+- 流式输出、工具参数校验、结果脱敏/截断、LLM 重试、上下文压缩和 usage 估算。
+- Agent 执行器带有阶段摘要、短进度输出、只读并行执行、一次自动重规划和重复工具调用停滞保护；不会因模型重复无效调用而无限消耗额度。
+- 并行编排入口：任务中心提供显式批量拆分，子任务使用独立 session 锁并发执行，父任务会记录 fan-out、子任务完成、结果合并和最终交付事件。
+- 推理预算支持 `standard`、`high`、`max`；Web 设置可按任务切换，网关不支持时自动降级并在 trace 中记录原因。修改后会自动要求下一轮检查 diff 和验证。
+- 支持 `AGENTS.md`、`CLAUDE.md`、`MINICC.md` 或 `.minicc/instructions.md` 项目指导文件；内容只作为工作约定，不能覆盖系统指令和权限边界。
+- 交互命令：`/help`、`/tools`、`/status`、`/clear`、`/exit`。
+- 会话断点：`--session-id interview-1` 保存本地脱敏 checkpoint，`--resume` 继续。
+
+## 启动
+
+```powershell
+cd D:\面试项目\minicc-codex
+Copy-Item minicc.config.example .env
+# 编辑 .env，填入 MINICC_API_KEY
+python -m pip install -e ".[dev]"
+python -m minicc.main --workspace D:\面试项目\minicc-codex
+```
+
+一次性任务：
+
+```powershell
+python -m minicc.main --workspace D:\面试项目\minicc-codex "检查项目并补充测试"
+```
+
+Web 工作台：
+
+```powershell
+.\.venv\Scripts\minicc-web.exe --workspace D:\面试项目\minicc-codex --host 127.0.0.1 --port 8765
+# 浏览器打开 http://127.0.0.1:8765/
+```
+
+Docker 执行模式（可选）：
+
+```powershell
+$env:MINICC_SANDBOX="auto"       # 有 Docker 就隔离，没有则保持 host
+# $env:MINICC_SANDBOX="docker"   # 强制隔离；Docker 不可用时拒绝执行
+.\.venv\Scripts\minicc-web.exe --workspace D:\面试项目\minicc-codex --port 8765
+```
+
+MCP stdio 配置示例（可选，保存为 `.minicc/mcp.json`）：
+
+```json
+{
+  "servers": {
+    "docs": {
+      "command": "node",
+      "args": ["path/to/mcp-server.js"],
+      "read_only": true
+    }
+  }
+}
+```
+
+后台批量任务接口：
+
+```powershell
+$body = @{ messages = @("分别检查 Python 测试", "分别检查前端结构") } | ConvertTo-Json
+Invoke-RestMethod http://127.0.0.1:8765/api/tasks/batch -Method Post -ContentType 'application/json' -Body $body
+Invoke-RestMethod http://127.0.0.1:8765/api/tasks
+```
+
+接口默认按本项目当前面试网关配置：
+
+```text
+MINICC_BASE_URL=https://api.aizzz.xyz/v1
+MINICC_MODEL=gpt-5.6-luna
+```
+
+ 也可以换成其他 OpenAI 兼容网关。带完整路径的 endpoint 会原样使用；只有裸 API 根地址才会自动补 `/v1`。
+
+推理预算可以通过环境变量或 Web 工作台顶部的“推理强度”按钮（也可在设置面板）调整：
+
+```text
+MINICC_REASONING_EFFORT=high
+```
+
+`max` 会优先发送 `reasoning_effort=xhigh`；如果兼容网关不接受该参数，Provider 会依次降到 `high`、`standard`，最后关闭该扩展参数并继续请求。
+
+断线后继续：
+
+```powershell
+.\.venv\Scripts\minicc.exe --workspace D:\面试项目\minicc-codex --session-id interview-1
+.\.venv\Scripts\minicc.exe --workspace D:\面试项目\minicc-codex --session-id interview-1 --resume
+```
+
+## 参考仓库评估
+
+`D:\面试项目\specproof-reference` 是从 `xiaodernan/specproof` 克隆的只读参考副本。具体取舍见 [docs/SPECPROOF_ASSESSMENT.md](docs/SPECPROOF_ASSESSMENT.md)。当前判断是：复用其工程边界思想和小块算法有价值，直接搬整个平台没有价值，复杂度会把一个本地 agent 变成分布式验收产品。
+
+## 面试讲解与公开调研
+
+实现取舍和验证证据见 [docs/AGENT_RESEARCH.md](docs/AGENT_RESEARCH.md)。核心可以这样讲：模型负责判断，Agent harness 负责上下文、工具、权限、并发、取消、重试、持久化和验证；实时 UI 展示的是可审计的阶段摘要和工具结果，不是模型的私有思维链。
+
+## 当前边界
+
+这是本地 MVP，不等同于 Claude Code 或 Codex 的完整产品。Docker、MCP、后台任务、批量并行任务、结果合并、SQLite 任务历史和 Git worktree 已提供可运行的本地实现，但仍有明确边界：SQLite 不是 Redis/分布式队列，服务重启会把运行中的任务标记为 interrupted，需要重新运行；批量任务支持显式共享上下文和结果合并，但还没有完整的自动规划器、共享记忆和并行 subagent 调度策略；MCP 只支持 stdio；Docker 需要本机已安装并可用，工作区仍以读写挂载；RAG、OAuth、云端协作、自动提交和生产级权限审计尚未接入。`bash` 在 host 模式仍然是本机子进程，运行不可信仓库时应使用 `MINICC_SANDBOX=docker` 并在隔离环境中使用。
+
+Web 界面的权限开关默认是完全访问，适合本地面试演示；关闭开关可恢复当前任务的只读保护。服务端设置 `MINICC_YOLO=1` 会自动放行所有写入和命令工具，CLI 的 `--yolo` 也会启用同样模式。完全访问模式只应在你信任的本机工作区中使用。
