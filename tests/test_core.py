@@ -1237,6 +1237,49 @@ def test_task_manager_runs_different_sessions_without_blocking() -> None:
         manager.shutdown()
 
 
+def test_task_manager_queues_same_session_but_runs_other_sessions_in_parallel() -> None:
+    entered: list[str] = []
+    first_started = threading.Event()
+    release = threading.Event()
+
+    class FakeService:
+        config = SimpleNamespace(yolo=False, max_concurrent_tasks=2)
+        workspace = Path.cwd()
+
+        @staticmethod
+        def _run_chat(payload, *, on_event=None, on_stream=None, cancel_event=None):
+            session = str(payload["session_id"])
+            entered.append(str(payload["message"]))
+            if payload["message"] == "same-1":
+                first_started.set()
+                release.wait(2)
+            return {"answer": session, "cancelled": False, "events": []}
+
+    manager = TaskManager(FakeService(), max_workers=2)
+    try:
+        first = manager.submit({"message": "same-1", "session_id": "same"})
+        assert first_started.wait(1)
+        second = manager.submit({"message": "same-2", "session_id": "same"})
+        other = manager.submit({"message": "other", "session_id": "other"})
+        assert manager.get(second["task_id"])["status"] == "queued"
+        deadline = time.monotonic() + 1
+        while time.monotonic() < deadline and "other" not in entered:
+            time.sleep(0.01)
+        assert "other" in entered
+        assert "same-2" not in entered
+        release.set()
+        deadline = time.monotonic() + 2
+        while time.monotonic() < deadline:
+            if all(manager.get(item["task_id"])["status"] == "completed" for item in (first, second, other)):
+                break
+            time.sleep(0.01)
+        assert [manager.get(item["task_id"])["status"] for item in (first, second, other)] == ["completed"] * 3
+        assert entered.index("same-1") < entered.index("same-2")
+    finally:
+        release.set()
+        manager.shutdown()
+
+
 def test_task_manager_binds_workspace_from_submission(tmp_path: Path) -> None:
     workspace = tmp_path / "submitted"
     workspace.mkdir()

@@ -10,6 +10,7 @@ import argparse
 import asyncio
 import base64
 import binascii
+from collections import deque
 import inspect
 import json
 import mimetypes
@@ -488,16 +489,114 @@ class TaskManager:
         self.service = service
         worker_count = max_workers or int(getattr(service.config, "max_concurrent_tasks", 8))
         self.executor = ThreadPoolExecutor(max_workers=max(1, worker_count), thread_name_prefix="minicc-task")
-        self.lock = threading.Lock()
+        self.lock = threading.RLock()
         self.tasks: dict[str, TaskRecord] = {}
         self.store = store
         self._last_persist: dict[str, float] = {}
+        self._session_active: dict[str, str] = {}
+        self._session_queues: dict[str, deque[str]] = {}
+        self._batch_children_pending: dict[str, list[str]] = {}
         if self.store:
             for snapshot in self.store.load():
                 task = TaskRecord.from_snapshot(snapshot)
                 self.tasks[task.task_id] = task
                 if task.status != str(snapshot.get("status") or "") or task.error != str(snapshot.get("error") or ""):
                     self._persist_task(task, force=True)
+
+    @staticmethod
+    def _session_key(task: TaskRecord) -> str:
+        return f"{_path_key(task.workspace_path)}:{task.session_id}"
+
+    def _queue_task_locked(self, task: TaskRecord, *, front: bool = False) -> None:
+        key = self._session_key(task)
+        queue = self._session_queues.setdefault(key, deque())
+        if task.task_id not in queue and self._session_active.get(key) != task.task_id:
+            if front:
+                queue.appendleft(task.task_id)
+            else:
+                queue.append(task.task_id)
+        self._schedule_session_locked(key)
+
+    def _schedule_session_locked(self, key: str) -> None:
+        if key in self._session_active:
+            return
+        queue = self._session_queues.get(key)
+        if queue is None:
+            return
+        while queue:
+            task_id = queue.popleft()
+            task = self.tasks.get(task_id)
+            if task is None:
+                continue
+            with task.lock:
+                if task.status in TERMINAL_TASK_STATUSES:
+                    continue
+                if task.cancel_event.is_set():
+                    task.status = "cancelled"
+                    task.phase = "cancelled"
+                    task.finished_at = task.finished_at or time.time()
+            if task.status == "cancelled":
+                self._persist_task(task, force=True)
+                continue
+            self._session_active[key] = task_id
+            if task.task_kind == "batch" and task_id in self._batch_children_pending:
+                threading.Thread(
+                    target=self._start_batch,
+                    args=(task_id,),
+                    name=f"{task_id}-start",
+                    daemon=True,
+                ).start()
+            else:
+                task.future = self.executor.submit(self._run, task)
+            return
+        self._session_queues.pop(key, None)
+
+    def _release_session_slot(self, task: TaskRecord) -> None:
+        key = self._session_key(task)
+        with self.lock:
+            if self._session_active.get(key) == task.task_id:
+                self._session_active.pop(key, None)
+            self._schedule_session_locked(key)
+
+    def _start_batch(self, parent_id: str) -> None:
+        with self.lock:
+            parent = self.tasks.get(parent_id)
+            child_ids = self._batch_children_pending.pop(parent_id, [])
+            if parent is None or parent.status in TERMINAL_TASK_STATUSES or parent.cancel_event.is_set():
+                if parent is not None:
+                    self._release_session_slot(parent)
+                return
+            parent.status = "running"
+            parent.phase = "planning"
+            parent.started_at = parent.started_at or time.time()
+            assessment = parent.context.get("orchestration") if isinstance(parent.context, dict) else None
+            parent.add_event({
+                "kind": "trace",
+                "name": "orchestrator",
+                "status": "ok",
+                "phase": "planning",
+                "code": "auto_orchestration_triggered" if parent.orchestration_mode == "auto" else "batch_started",
+                "summary": (
+                    f"已识别为复杂任务，自动拆分 {len(child_ids)} 个只读侦察子任务"
+                    if parent.orchestration_mode == "auto"
+                    else f"已拆分 {len(child_ids)} 个独立子任务，交给并行执行器"
+                ),
+                "detail": {
+                    "child_count": len(child_ids),
+                    "session_id": parent.session_id,
+                    "automatic": parent.orchestration_mode == "auto",
+                    "complexity_score": assessment.get("score") if isinstance(assessment, dict) else None,
+                    "complexity_threshold": assessment.get("threshold") if isinstance(assessment, dict) else None,
+                    "complexity_reasons": assessment.get("reasons") if isinstance(assessment, dict) else None,
+                    "plan": parent.context.get("plan"),
+                },
+            })
+            self._persist_task(parent, force=True)
+            for child_id in child_ids:
+                child = self.tasks.get(child_id)
+                if child is not None and child.status not in TERMINAL_TASK_STATUSES:
+                    self._queue_task_locked(child)
+        threading.Thread(target=self._watch_batch, args=(parent, child_ids), name=f"{parent_id}-watch", daemon=True).start()
 
     def _workspace_path(self, payload: dict[str, Any]) -> str:
         """Capture the workspace supplied with the request at queue time."""
@@ -550,7 +649,8 @@ class TaskManager:
             self.tasks[task.task_id] = task
             self._prune_locked()
             self._persist_task(task, force=True)
-        task.future = self.executor.submit(self._run, task)
+            if not payload.get("_defer_schedule"):
+                self._queue_task_locked(task)
         return task.snapshot()
 
     def submit_batch(self, payload: dict[str, Any]) -> dict[str, Any]:
@@ -592,35 +692,10 @@ class TaskManager:
         if assessment:
             parent.context = {"orchestration": assessment}
         with self.lock:
-            parent.status = "running"
-            parent.phase = "planning"
-            parent.started_at = time.time()
             parent.update_context({
                 **parent.context,
                 "plan": plan.to_dict(),
                 "max_concurrency": int(getattr(self.service.config, "max_concurrent_tasks", 8)),
-            })
-            parent.add_event({
-                "kind": "trace",
-                "name": "orchestrator",
-                "status": "ok",
-                "phase": "planning",
-                "code": "auto_orchestration_triggered" if orchestration_mode == "auto" else "batch_started",
-                "summary": (
-                    f"已识别为复杂任务，自动拆分 {len(messages)} 个只读侦察子任务"
-                    if orchestration_mode == "auto"
-                    else f"已拆分 {len(messages)} 个独立子任务，交给并行执行器"
-                ),
-                "detail": {
-                    "child_count": len(messages),
-                    "session_id": parent.session_id,
-                    "automatic": orchestration_mode == "auto",
-                    "complexity_score": assessment.get("score") if assessment else None,
-                    "complexity_threshold": assessment.get("threshold") if assessment else None,
-                    "complexity_reasons": assessment.get("reasons") if assessment else None,
-                    "plan": plan.name,
-                    "critical_path": len(plan.validate()),
-                },
             })
             self.tasks[parent.task_id] = parent
             self._persist_task(parent, force=True)
@@ -637,6 +712,7 @@ class TaskManager:
                 item["message"] = f"{prefix if orchestration_mode != 'auto' else '[自动子任务]'}\nShared context:\n{shared_context}\n\nTask:\n{message}"
             item["_skip_auto_orchestration"] = True
             item["_task_kind"] = "subtask"
+            item["_defer_schedule"] = True
             if orchestration_mode == "auto":
                 # Parallel reconnaissance must never race with the parent or
                 # another child while editing the same workspace.
@@ -651,7 +727,9 @@ class TaskManager:
                     self._persist_task(child_record, force=True)
                 parent.child_task_ids.append(child_id)
                 self._persist_task(parent, force=True)
-        threading.Thread(target=self._watch_batch, args=(parent, ids), name=f"{parent.task_id}-watch", daemon=True).start()
+        with self.lock:
+            self._batch_children_pending[parent.task_id] = list(ids)
+            self._queue_task_locked(parent)
         if orchestration_mode == "auto":
             return parent.snapshot()
         return {"task_id": parent.task_id, "parent_task_id": parent.task_id, "task_ids": ids}
@@ -883,6 +961,7 @@ class TaskManager:
                 parent.error = f"{type(exc).__name__}: {exc}"
                 parent.finished_at = time.time()
         self._persist_task(parent, force=True)
+        self._release_session_slot(parent)
 
     def _prune_locked(self) -> None:
         if len(self.tasks) <= 100:
@@ -898,6 +977,7 @@ class TaskManager:
                 task.phase = "cancelled"
                 task.finished_at = time.time()
                 self._persist_task(task, force=True)
+                self._release_session_slot(task)
                 return
             task.status = "running"
             task.phase = "planning"
@@ -985,6 +1065,7 @@ class TaskManager:
                 if task.finished_at is None:
                     task.finished_at = time.time()
         self._persist_task(task, force=True)
+        self._release_session_slot(task)
 
     def get(self, task_id: str) -> dict[str, Any]:
         with self.lock:

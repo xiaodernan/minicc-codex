@@ -121,7 +121,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .connection-status.offline { background: var(--coral-soft); border-color: #6a3a31; color: #ffb39a; }
 .status-pulse { background: var(--mint); border-radius: 50%; box-shadow: 0 0 0 3px rgba(140, 215, 189, .12); height: 6px; width: 6px; }
 .connection-status > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.chat-area { flex: 1; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; position: relative; scrollbar-gutter: stable; }
+.chat-area { flex: 1; min-height: 0; overflow-anchor: none; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; position: relative; scrollbar-gutter: stable; }
 .chat-inner { margin: 0 auto; max-width: 860px; padding: 50px 42px 42px; }
 .session-heading { align-items: flex-end; display: flex; justify-content: space-between; gap: 24px; min-width: 0; }
 .session-heading > div:first-child { min-width: 0; }
@@ -544,6 +544,19 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .seed-card small { color: var(--muted); font-size: 10px; }
 #gameCanvas { background: #8fca68; border-radius: 7px; cursor: crosshair; display: block; height: auto; max-width: 100%; }
 .game-controls { align-items: center; color: var(--muted); display: flex; font-size: 11px; justify-content: space-between; margin-top: 12px; }
+.game-tools { align-items: stretch; display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 12px; }
+.game-tool, .game-sound { align-items: center; background: var(--surface-raised); border: 1px solid var(--line); border-radius: 7px; color: var(--muted); cursor: pointer; display: inline-flex; gap: 7px; min-height: 38px; padding: 6px 10px; text-align: left; }
+.game-tool strong, .game-toggle strong { color: var(--text); font-size: 11px; }
+.game-tool small, .game-toggle small { color: var(--quiet); display: block; font-size: 9px; }
+.game-tool.active, .game-tool:hover, .game-sound:hover { background: var(--coral-soft); border-color: var(--coral); color: var(--text); }
+.game-sound.muted { color: var(--quiet); }
+.game-toggle { align-items: center; background: var(--surface-raised); border: 1px solid var(--line); border-radius: 7px; cursor: pointer; display: inline-flex; gap: 8px; min-height: 38px; padding: 6px 10px; }
+.game-toggle > span:last-child { display: grid; gap: 2px; }
+.game-toggle input { position: absolute; opacity: 0; pointer-events: none; }
+.toggle-track { background: var(--quiet); border-radius: 999px; display: inline-flex; height: 16px; padding: 2px; transition: background .18s ease; width: 28px; }
+.toggle-track::after { background: var(--surface); border-radius: 50%; content: ""; height: 12px; transform: translateX(0); transition: transform .18s ease; width: 12px; }
+.game-toggle input:checked + .toggle-track { background: var(--mint); }
+.game-toggle input:checked + .toggle-track::after { transform: translateX(12px); }
 .panel-modal.promo-modal .panel-card { max-height: calc(100vh - 24px); width: min(1040px, calc(100vw - 32px)); }
 .panel-modal.promo-modal .panel-body { max-height: calc(100vh - 94px); padding: 0; }
 .promo-page { background: #151619; color: var(--text); display: grid; gap: 0; margin: 0; min-width: 0; overflow: hidden; }
@@ -653,4 +666,14 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
   .batch-heading h3 { font-size: 21px; }
   .task-detail-status { align-items: flex-start; flex-wrap: wrap; }
   .task-detail-status > span:last-child { flex: 1 1 100%; margin-left: 16px; }
+  .game-card { max-height: calc(100vh - 16px); max-width: calc(100vw - 16px); padding: 16px; width: calc(100vw - 16px); }
+  .game-card h2 { font-size: 20px; }
+  .game-hud { flex-wrap: wrap; gap: 8px 12px; }
+  .game-status { margin-left: 0; width: 100%; }
+  .seed-bank { margin-left: -2px; margin-right: -2px; overflow-x: auto; }
+  .seed-card { flex: 0 0 104px; }
+  .game-tools { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .game-tool, .game-sound, .game-toggle { min-width: 0; }
+  .game-controls { align-items: stretch; flex-direction: column; gap: 10px; }
+  .game-controls .send-button { width: 100%; }
 }

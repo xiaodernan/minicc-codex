@@ -216,15 +216,23 @@
         <button class="game-close icon-button" id="gameClose" aria-label="关闭小游戏" data-i18n-aria="game.close"><i data-lucide="x"></i></button>
         <div class="game-kicker" data-i18n="game.kicker">MINICC ARCADE · MINI LAWN</div>
         <h2 id="gameTitle" data-i18n="game.title">植物大战僵尸 · 草坪保卫战</h2>
-        <p class="game-subtitle" data-i18n="game.subtitle">收集阳光，选中卡片后点击空草格种植；再次点击卡片或按 Esc 可取消。</p>
-        <div class="game-hud"><span><span data-i18n="game.sun">阳光</span> <strong id="gameSun">150</strong></span><span><span data-i18n="game.score">击退</span> <strong id="gameScore">0</strong></span><span><span data-i18n="game.wave">波次</span> <strong id="gameWave">1</strong></span><span class="game-status" id="gameStatus" data-i18n="game.ready">准备就绪</span></div>
+        <p class="game-subtitle" data-i18n="game.subtitle">8 波战役，先选工具再点草格；铲子可移除已有植物，Esc 取消选择。</p>
+        <div class="game-hud"><span><span data-i18n="game.sun">阳光</span> <strong id="gameSun">150</strong></span><span><span data-i18n="game.score">击退</span> <strong id="gameScore">0</strong></span><span><span data-i18n="game.wave">波次</span> <strong id="gameWave">1/8</strong></span><span><span data-i18n="game.time">时间</span> <strong id="gameTime">00:00</strong></span><span class="game-status" id="gameStatus" data-i18n="game.ready">准备就绪</span></div>
         <div class="seed-bank" id="seedBank">
           <button class="seed-card" data-plant="peashooter"><b>🌱</b><span data-i18n="game.peashooter">豌豆射手</span><small>100 ☀ · <span data-i18n="game.attack">攻击</span></small></button>
           <button class="seed-card" data-plant="sunflower"><b>🌻</b><span data-i18n="game.sunflower">向日葵</span><small>50 ☀ · <span data-i18n="game.produce">产阳光</span></small></button>
           <button class="seed-card" data-plant="wallnut"><b>🥜</b><span data-i18n="game.wallnut">坚果墙</span><small>50 ☀ · <span data-i18n="game.defense">防御</span></small></button>
+          <button class="seed-card" data-plant="repeater"><b>🌿</b><span data-i18n="game.repeater">双发射手</span><small>180 ☀ · <span data-i18n="game.attack">攻击</span></small></button>
+          <button class="seed-card" data-plant="cherrybomb"><b>🍒</b><span data-i18n="game.cherrybomb">爆裂果</span><small>150 ☀ · <span data-i18n="game.burst">爆发</span></small></button>
+          <button class="seed-card" data-plant="icepeashooter"><b>❄️</b><span data-i18n="game.icepeashooter">寒冰射手</span><small>175 ☀ · <span data-i18n="game.slow">减速</span></small></button>
+        </div>
+        <div class="game-tools">
+          <button class="game-tool" id="gameShovel" type="button" aria-pressed="false"><span aria-hidden="true">🪏</span><strong data-i18n="game.shovel">铲子</strong><small data-i18n="game.shovelHint">点击植物移除</small></button>
+          <label class="game-toggle"><input id="gameAutoSun" type="checkbox" checked /><span class="toggle-track" aria-hidden="true"></span><span><strong data-i18n="game.autoSun">自动拾取阳光</strong><small data-i18n="game.autoSunHint">关闭后改为手动点击</small></span></label>
+          <button class="game-sound" id="gameSoundToggle" type="button">♫ 音效开</button>
         </div>
         <canvas id="gameCanvas" width="720" height="420" aria-label="植物大战僵尸迷你游戏画布" data-i18n-aria="game.canvas"></canvas>
-        <div class="game-controls"><span data-i18n="game.instructions">点击草坪种植 · 点击阳光收集</span><button class="send-button" id="gameStart" data-i18n="game.start">开始游戏</button></div>
+        <div class="game-controls"><span data-i18n="game.instructions">点卡片种植 · 铲子移除 · 阳光可自动拾取</span><button class="send-button" id="gameStart" data-i18n="game.start">开始游戏</button></div>
       </div>
     </div>
     <div class="mobile-scrim" id="mobileScrim"></div>

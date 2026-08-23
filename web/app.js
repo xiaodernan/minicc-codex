@@ -7,6 +7,7 @@ const state = {
   contextWindowTokens: 300000,
   reasoningEffort: ["standard", "high", "max"].includes(localStorage.getItem("minicc-reasoning")) ? localStorage.getItem("minicc-reasoning") : "high",
   busy: false,
+  submitting: false,
   activeTaskId: null,
   lastTask: null,
   connection: null,
@@ -46,8 +47,8 @@ const I18N = {
     "panel.export": "导出当前对话", "panel.reload": "刷新工作区状态", "panel.noWorktrees": "当前没有额外 worktree",
     "panel.hostProcess": "宿主机进程", "panel.isolated": "已隔离", "panel.servers": "个服务", "panel.gitWorktrees": "Git worktree", "panel.reasoning": "推理强度", "panel.reasoningNote": "只传递预算档位；界面显示可审计阶段摘要，不展示模型私有思维链", "reasoning.standard": "标准", "reasoning.high": "高", "reasoning.max": "最高",
     "game.close": "关闭小游戏", "game.kicker": "MINICC ARCADE · MINI LAWN", "game.title": "植物大战僵尸 · 草坪保卫战",
-    "game.subtitle": "收集阳光，选中卡片后点击空草格种植；再次点击卡片或按 Esc 可取消。", "game.sun": "阳光", "game.score": "击退", "game.wave": "波次",
-    "game.ready": "准备就绪", "game.running": "战斗中", "game.waveClear": "本波已清场，下一波即将到来", "game.victory": "草坪守住了！", "game.noSun": "阳光不足", "game.recharging": "卡片冷却中", "game.gameOver": "僵尸进屋了", "game.peashooter": "豌豆射手",
+    "game.subtitle": "8 波战役，先选工具再点草格；铲子可移除已有植物，Esc 取消选择。", "game.sun": "阳光", "game.score": "击退", "game.wave": "波次",
+    "game.ready": "准备就绪", "game.running": "战斗中", "game.waveClear": "本波已清场，下一波即将到来", "game.victory": "草坪守住了！", "game.noSun": "阳光不足", "game.recharging": "卡片冷却中", "game.gameOver": "僵尸进屋了", "game.timeUp": "战役超时", "game.time": "时间", "game.shovel": "铲子", "game.shovelHint": "点击植物移除", "game.autoSun": "自动拾取阳光", "game.autoSunHint": "关闭后改为手动点击", "game.repeater": "双发射手", "game.cherrybomb": "爆裂果", "game.icepeashooter": "寒冰射手", "game.burst": "爆发", "game.slow": "减速", "game.peashooter": "豌豆射手", "game.soundOn": "♫ 音效开", "game.soundOff": "♫ 音效关",
     "game.sunflower": "向日葵", "game.wallnut": "坚果墙", "game.attack": "攻击", "game.produce": "产阳光", "game.defense": "防御",
     "game.instructions": "点击草坪种植 · 点击阳光收集", "game.start": "开始游戏", "game.restart": "重开",
     "message.you": "你", "message.now": "现在", "message.agent": "Agent", "game.canvas": "植物大战僵尸迷你游戏画布",
@@ -83,7 +84,7 @@ const I18N = {
     "panel.hostProcess": "host process", "panel.isolated": "isolated", "panel.servers": "servers", "panel.gitWorktrees": "Git worktrees", "panel.reasoning": "Reasoning effort", "panel.reasoningNote": "Only the budget level is sent; the UI shows auditable stage summaries, never private chain-of-thought", "reasoning.standard": "Standard", "reasoning.high": "High", "reasoning.max": "Max",
     "game.close": "Close game", "game.kicker": "MINICC ARCADE · MINI LAWN", "game.title": "Plants vs. Zombies · Mini lawn",
     "game.subtitle": "Collect sun, select a card, then click an empty tile; click the card again or press Esc to cancel.", "game.sun": "Sun", "game.score": "Defeated", "game.wave": "Wave",
-    "game.ready": "Ready", "game.running": "Battle", "game.gameOver": "A zombie reached the house", "game.peashooter": "Peashooter",
+    "game.ready": "Ready", "game.running": "Battle", "game.gameOver": "A zombie reached the house", "game.timeUp": "Time limit reached", "game.time": "Time", "game.shovel": "Shovel", "game.shovelHint": "Remove a plant", "game.autoSun": "Auto-collect sun", "game.autoSunHint": "Turn off for manual clicks", "game.repeater": "Repeater", "game.cherrybomb": "Burst berry", "game.icepeashooter": "Ice shooter", "game.burst": "burst", "game.slow": "slow", "game.peashooter": "Peashooter", "game.soundOn": "♫ Sound on", "game.soundOff": "♫ Sound off",
     "game.sunflower": "Sunflower", "game.wallnut": "Wall-nut", "game.attack": "attack", "game.produce": "sun", "game.defense": "defense",
     "game.instructions": "Click the lawn to plant · click sun to collect", "game.start": "Start game", "game.restart": "Restart",
     "message.you": "You", "message.now": "now", "message.agent": "Agent", "game.canvas": "Plants vs. Zombies mini game canvas",
@@ -163,6 +164,7 @@ const SESSION_PRESETS = {
 
 const sessionMarkup = new Map();
 const taskHistoryBySession = new Map();
+const taskHistoryListBySession = new Map();
 let initialMessageMarkup = "";
 let sessionViewReady = false;
 const SESSION_VIEW_PREFIX = "minicc-session-view:";
@@ -289,7 +291,12 @@ function taskHistoryMarkup(task) {
   return `<article class="message user-message"><div class="message-meta"><span class="avatar user-avatar">Y</span><strong>${escapeHtml(t("message.you"))}</strong><time>${escapeHtml(task.created_at || t("message.now"))}</time></div><div class="message-body"><p>${formatText(prompt)}</p>${attachments}</div></article><article class="message assistant-message"><div class="message-meta"><span class="avatar agent-avatar">m</span><strong>minicc</strong><span class="agent-label">Agent</span><time>${escapeHtml(task.finished_at || task.created_at || t("message.now"))}</time></div><div class="message-body"><div class="history-result-head"><span class="task-state ${task.status === "completed" ? "success" : ["failed", "cancelled", "interrupted"].includes(task.status) ? "cancelled" : "running"}"></span><strong>${escapeHtml(phaseLabel(task))}</strong><span>${escapeHtml(taskMetrics(task))}</span></div><p>${formatText(answer)}</p>${batchSummary}${events ? `<div class="tool-timeline">${events}</div>` : ""}</div></article>`;
 }
 
+function taskHistoryListMarkup(tasks) {
+  return (Array.isArray(tasks) ? [...tasks].reverse() : []).map((task) => taskHistoryMarkup(task)).join("");
+}
+
 function taskHistoryKey(task) {
+  if (Array.isArray(task)) return task.map((item) => taskHistoryKey(item)).join("|");
   return [
     task?.task_id || "",
     task?.status || "",
@@ -308,14 +315,17 @@ function renderSession(sessionId, options = {}) {
     || (options.followLatest !== false && chatIsNearBottom(area));
   const preset = SESSION_PRESETS[sessionId];
   const history = taskHistoryBySession.get(sessionId);
+  const historyItems = taskHistoryListBySession.get(sessionId);
   const defaultTitle = state.locale === "zh" ? "新任务" : "New task";
   const defaultSubtitle = state.locale === "zh" ? "为下一次修改准备一个干净上下文。" : "A clean context for the next change.";
   $("#sessionTitle").textContent = history ? String(history.preview || history.prompt || defaultTitle).slice(0, 72) : (state.locale === "zh" ? (preset?.titleZh || preset?.title || defaultTitle) : (preset?.title || defaultTitle));
   $("#sessionSubtitle").textContent = history ? phaseLabel(history) : (state.locale === "zh" ? (preset?.subtitleZh || preset?.subtitle || defaultSubtitle) : (preset?.subtitle || defaultSubtitle));
-  const markup = history ? taskHistoryMarkup(history) : (cachedSessionView(sessionId) || (sessionId === "interview-1" ? initialMessageMarkup : presetMessageMarkup(sessionId)));
+  const markup = history
+    ? taskHistoryListMarkup(historyItems?.length ? historyItems : [history])
+    : (cachedSessionView(sessionId) || (sessionId === "interview-1" ? initialMessageMarkup : presetMessageMarkup(sessionId)));
   if (markup) $("#messageList").innerHTML = markup;
   updateSessionStatus(history);
-  if (history) renderedHistoryKeys.set(sessionId, taskHistoryKey(history));
+  if (history) renderedHistoryKeys.set(sessionId, taskHistoryKey(historyItems?.length ? historyItems : history));
   else renderedHistoryKeys.delete(sessionId);
   refreshIcons();
   window.requestAnimationFrame(() => {
@@ -343,9 +353,12 @@ function renderTaskHistory(tasks) {
   const previousScrollTop = list.scrollTop;
   const wasAtTop = previousScrollTop <= 4;
   taskHistoryBySession.clear();
+  taskHistoryListBySession.clear();
   for (const task of Array.isArray(tasks) ? tasks : []) {
     const sessionId = String(task.session_id || task.task_id || "web-latest");
     if (!taskHistoryBySession.has(sessionId)) taskHistoryBySession.set(sessionId, task);
+    if (!taskHistoryListBySession.has(sessionId)) taskHistoryListBySession.set(sessionId, []);
+    taskHistoryListBySession.get(sessionId).push(task);
   }
   if (!Array.isArray(tasks) || !tasks.length) {
     $("#taskNavCount").textContent = "0";
@@ -373,7 +386,7 @@ function renderTaskHistory(tasks) {
   if (
     currentHistory
     && !isSessionBusy(state.sessionId)
-    && renderedHistoryKeys.get(state.sessionId) !== taskHistoryKey(currentHistory)
+    && renderedHistoryKeys.get(state.sessionId) !== taskHistoryKey(taskHistoryListBySession.get(state.sessionId) || currentHistory)
   ) {
     renderSession(state.sessionId);
   }
@@ -441,12 +454,12 @@ function setConnection(connected, label = connected ? "Connected" : "Offline") {
 function setBusy(value) {
   state.busy = Boolean(value);
   const sessionBusy = state.busy || isSessionBusy(state.sessionId);
-  $("#sendButton").disabled = sessionBusy;
+  $("#sendButton").disabled = Boolean(state.submitting);
   $("#cancelTaskButton").hidden = !sessionBusy;
   $("#pulseStatus").textContent = sessionBusy ? t("working") : t("ready");
   $("#pulseStatus").style.color = sessionBusy ? "var(--coral)" : "var(--mint)";
-  $("#sendButton").innerHTML = sessionBusy ? icon("loader-circle") : icon("arrow-up");
-  if (sessionBusy) $("#sendButton").firstElementChild.classList.add("spin");
+  $("#sendButton").innerHTML = state.submitting ? icon("loader-circle") : icon("arrow-up");
+  if (state.submitting) $("#sendButton").firstElementChild.classList.add("spin");
   refreshIcons();
 }
 
@@ -478,8 +491,16 @@ function taskSessionKey(sessionId, workspacePath = state.workspacePath) {
   return `${workspacePath || "default"}::${sessionId}`;
 }
 
+function sessionTaskBindings(sessionId, workspacePath = state.workspacePath) {
+  return [...runningTasks.values()].filter((binding) => (
+    binding.sessionId === sessionId
+    && taskSessionKey(binding.sessionId, binding.workspacePath) === taskSessionKey(sessionId, workspacePath)
+    && !isTerminalTask(binding.data)
+  ));
+}
+
 function isSessionBusy(sessionId) {
-  return taskBySession.has(taskSessionKey(sessionId));
+  return sessionTaskBindings(sessionId).length > 0 || taskBySession.has(taskSessionKey(sessionId));
 }
 
 function formatDuration(value) {
@@ -541,20 +562,16 @@ function bindRunningTask(task, loadingId, sessionId = state.sessionId) {
 }
 
 function restoreSessionTask(sessionId) {
-  const taskId = taskBySession.get(taskSessionKey(sessionId));
-  if (!taskId) {
+  const bindings = sessionTaskBindings(sessionId);
+  if (!bindings.length) {
     setBusy(false);
     return;
   }
-  const binding = runningTasks.get(taskId);
-  if (!binding) {
-    taskBySession.delete(taskSessionKey(sessionId));
-    setBusy(false);
-    return;
+  for (const binding of bindings) {
+    if (!document.getElementById(binding.loadingId)) addLoadingMessage(binding.loadingId, binding.data);
+    updateLiveTask(binding.loadingId, binding.data);
   }
-  if (!document.getElementById(binding.loadingId)) addLoadingMessage(binding.loadingId, binding.data);
-  state.activeTaskId = taskId;
-  updateLiveTask(binding.loadingId, binding.data);
+  state.activeTaskId = bindings[bindings.length - 1].taskId;
   setBusy(true);
 }
 
@@ -881,8 +898,15 @@ function toolEventHtml(event, animate = false) {
     </article>`;
 }
 
-function addAssistantMessage(data) {
-  $("#messageList").insertAdjacentHTML("beforeend", assistantMessageMarkup(data));
+function addAssistantMessage(data, loadingId = "") {
+  const loading = loadingId ? document.getElementById(loadingId) : null;
+  if (loading) {
+    const replacement = document.createElement("div");
+    replacement.innerHTML = assistantMessageMarkup(data);
+    loading.replaceWith(replacement.firstElementChild);
+  } else {
+    $("#messageList").insertAdjacentHTML("beforeend", assistantMessageMarkup(data));
+  }
   state.turns += Number(data.turns || 0);
   state.tools += Number(data.tool_calls_total || 0);
   $("#turnMetric").textContent = state.turns;
@@ -928,7 +952,10 @@ function updateLiveStream(loadingId, preview, target) {
     const remaining = stream.target.length - stream.rendered.length;
     const step = Math.max(1, Math.min(12, Math.ceil(remaining / 5)));
     stream.rendered = stream.target.slice(0, stream.rendered.length + step);
+    const area = $("#chatArea");
+    const manualScrollTop = area && state.chatFollow === false ? area.scrollTop : null;
     stream.preview.innerHTML = `${formatText(stream.rendered)}<span class="stream-caret" aria-hidden="true"></span>`;
+    if (manualScrollTop != null && state.chatFollow === false) area.scrollTop = manualScrollTop;
     stream.frame = window.requestAnimationFrame(paint);
   };
   stream.frame = window.requestAnimationFrame(paint);
@@ -955,6 +982,8 @@ function syncLiveEvents(loading, events) {
 function updateLiveTask(loadingId, data) {
   const loading = document.getElementById(loadingId);
   if (!loading) return;
+  const area = $("#chatArea");
+  const manualScrollTop = area && state.chatFollow === false ? area.scrollTop : null;
   const events = Array.isArray(data.events) ? data.events : [];
   let live = loading.querySelector("[data-live-task]");
   if (!live) {
@@ -982,7 +1011,12 @@ function updateLiveTask(loadingId, data) {
   updateTaskDuration(data, loadingId);
   $("#pulseStatus").textContent = phaseText;
   updateTaskDock(data);
-  scrollChat("auto");
+  if (manualScrollTop != null && state.chatFollow === false) {
+    area.scrollTop = manualScrollTop;
+    window.requestAnimationFrame(() => { if (state.chatFollow === false) area.scrollTop = manualScrollTop; });
+  } else {
+    scrollChat("auto");
+  }
 }
 
 function scheduleChangesRefresh() {
@@ -1028,21 +1062,27 @@ async function completeTask(loadingId, data) {
   if (taskBySession.get(taskSessionKey(binding.sessionId, binding.workspacePath)) === taskId) taskBySession.delete(taskSessionKey(binding.sessionId, binding.workspacePath));
 
   if (binding.sessionId === state.sessionId && binding.workspacePath === state.workspacePath) {
-    document.getElementById(binding.loadingId || loadingId)?.remove();
-    addAssistantMessage(finalData);
+    addAssistantMessage(finalData, binding.loadingId || loadingId);
     setBusy(false);
   } else {
     const existing = cachedSessionView(binding.sessionId, binding.workspacePath) || presetMessageMarkup(binding.sessionId);
     const holder = document.createElement("div");
     holder.innerHTML = existing;
-    holder.querySelector(`#${CSS.escape(binding.loadingId || loadingId)}`)?.remove();
-    holder.insertAdjacentHTML("beforeend", assistantMessageMarkup(finalData));
+    const pending = holder.querySelector(`#${CSS.escape(binding.loadingId || loadingId)}`);
+    if (pending) {
+      const replacement = document.createElement("div");
+      replacement.innerHTML = assistantMessageMarkup(finalData);
+      pending.replaceWith(replacement.firstElementChild);
+    } else {
+      holder.insertAdjacentHTML("beforeend", assistantMessageMarkup(finalData));
+    }
     const cacheKey = sessionViewKey(binding.sessionId, binding.workspacePath);
     sessionMarkup.set(cacheKey, holder.innerHTML);
     try { localStorage.setItem(cacheKey, holder.innerHTML); } catch { /* best effort */ }
   }
   if (finalData.status !== "completed") showToast(finalData.error || (finalData.status === "cancelled" ? "任务已取消" : "任务失败"));
   scheduleChangesRefresh();
+  scrollChat();
   await loadTaskHistory();
   return finalData;
 }
@@ -1108,10 +1148,12 @@ function watchTask(taskId) {
 }
 
 async function cancelActiveTask() {
-  const taskId = taskBySession.get(taskSessionKey(state.sessionId)) || state.activeTaskId;
-  if (!taskId) return;
+  const taskIds = sessionTaskBindings(state.sessionId).map((binding) => binding.taskId);
+  const fallback = taskBySession.get(taskSessionKey(state.sessionId)) || state.activeTaskId;
+  if (!taskIds.length && fallback) taskIds.push(fallback);
+  if (!taskIds.length) return;
   try {
-    await requestJson(`/api/tasks/${encodeURIComponent(taskId)}/cancel`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+    await Promise.all(taskIds.map((taskId) => requestJson(`/api/tasks/${encodeURIComponent(taskId)}/cancel`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" })));
     showToast(state.locale === "zh" ? "已请求取消任务" : "Cancellation requested");
   } catch (error) {
     showToast(error.message);
@@ -1178,20 +1220,23 @@ async function sendMessage(event) {
   const message = input.value.trim() || (queuedAttachments.length ? (state.locale === "zh" ? "请分析我上传的图片。" : "Analyze the images I uploaded.") : "");
   const sessionId = state.sessionId;
   const workspacePath = state.workspacePath;
-  if ((!message && !queuedAttachments.length) || isSessionBusy(sessionId)) return;
+  if ((!message && !queuedAttachments.length) || state.submitting) return;
+  state.submitting = true;
+  setBusy(true);
   input.value = "";
   clearAttachments();
   addUserMessage(message, queuedAttachments);
   const loadingId = addLoadingMessage();
-  setBusy(true);
   try {
     const task = await requestJson("/api/tasks", {
      method: "POST",
      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ message, attachments: queuedAttachments.map(({ name, mime_type, data_url }) => ({ name, mime_type, data_url })), session_id: sessionId, allow_changes: state.allowChanges, reasoning_effort: state.reasoningEffort, workspace_path: workspacePath }),
     });
+    state.submitting = false;
     bindRunningTask(task, loadingId, sessionId);
     if (state.sessionId === sessionId) state.activeTaskId = task.task_id;
+    setBusy(true);
     updateTaskDock(task);
     await loadTaskHistory();
     await watchTask(task.task_id);
@@ -1203,7 +1248,8 @@ async function sendMessage(event) {
     showToast(error.message);
     setConnection(false, "API error");
   } finally {
-    if (!taskBySession.has(taskSessionKey(sessionId, workspacePath))) state.activeTaskId = null;
+    state.submitting = false;
+    if (!sessionTaskBindings(sessionId, workspacePath).length) state.activeTaskId = null;
     if (state.sessionId === sessionId) setBusy(false);
     input.focus();
   }
@@ -1214,6 +1260,7 @@ function resetTask() {
   state.activeTaskId = null;
   state.lastTask = null;
   taskHistoryBySession.delete(next);
+  taskHistoryListBySession.delete(next);
   renderedHistoryKeys.delete(next);
   setSession(next);
   const dock = $("#taskDock");
@@ -1285,6 +1332,7 @@ async function loadWorkspace() {
     if (previousPath && previousPath !== state.workspacePath) {
       sessionMarkup.clear();
       taskHistoryBySession.clear();
+      taskHistoryListBySession.clear();
       renderedHistoryKeys.clear();
       setSession(state.sessionId);
     }
@@ -1293,7 +1341,16 @@ async function loadWorkspace() {
     try {
       const taskData = await requestJson(`/api/tasks?limit=100&workspace=${encodeURIComponent(state.workspacePath)}`);
       const tasks = Array.isArray(taskData.tasks) ? taskData.tasks : [];
-      const active = tasks.find((item) => ["queued", "running"].includes(item.status));
+      const activeTasks = tasks.filter((item) => ["queued", "running"].includes(item.status));
+      for (const task of [...activeTasks].reverse()) {
+        if (runningTasks.has(task.task_id)) continue;
+        const sessionId = String(task.session_id || task.task_id);
+        const loadingId = `loading-${task.task_id}`;
+        if (sessionId === state.sessionId) addLoadingMessage(loadingId, task);
+        bindRunningTask(task, loadingId, sessionId);
+        watchTask(task.task_id).catch((error) => showToast(error.message));
+      }
+      const active = activeTasks.find((item) => item.session_id === state.sessionId) || activeTasks[0];
       if (active) updateTaskDock(active);
       else {
         $("#taskDock").hidden = true;
@@ -1425,6 +1482,10 @@ async function openTaskInWorkspace(taskId) {
     }
     const sessionId = String(task.session_id || task.task_id);
     taskHistoryBySession.set(sessionId, task);
+    const historyItems = taskHistoryListBySession.get(sessionId) || [];
+    if (!historyItems.some((item) => item.task_id === task.task_id)) {
+      taskHistoryListBySession.set(sessionId, [task, ...historyItems].sort((left, right) => Number(right.created_at_epoch || 0) - Number(left.created_at_epoch || 0)));
+    }
     closePanel();
     setSession(sessionId);
     updateTaskDock(task);
@@ -1666,24 +1727,58 @@ function closeGame() {
   window.scrollTo(0, 0);
 }
 
-const game = { running: false, frame: 0, score: 0, sun: 150, wave: 1, selected: null, plants: [], zombies: [], suns: [], shots: [], particles: [], last: 0, spawnTimer: 0, spawned: 0, skyTimer: 0, musicOn: localStorage.getItem("minicc-game-sound") !== "off", audio: null };
+const MAX_WAVES = 8;
+const GAME_DURATION = 120000;
+const game = { running: false, frame: 0, score: 0, sun: 150, wave: 1, waveTarget: 6, waveSpawned: 0, totalSpawned: 0, waveClearTimer: 0, elapsed: 0, selected: null, shovel: false, plants: [], zombies: [], suns: [], shots: [], particles: [], last: 0, spawnTimer: 0, skyTimer: 0, autoSun: localStorage.getItem("minicc-game-auto-sun") !== "off", musicOn: localStorage.getItem("minicc-game-sound") !== "off", audio: null };
 const gameLayout = { left: 78, top: 72, cellW: 70, cellH: 65, rows: 5, cols: 9 };
-const plantCost = { peashooter: 100, sunflower: 50, wallnut: 50 };
-const plantHealth = { peashooter: 7, sunflower: 6, wallnut: 24 };
-const plantColor = { peashooter: "#62b5a0", sunflower: "#f6c453", wallnut: "#ad7556" };
+const plantCost = { peashooter: 100, sunflower: 50, wallnut: 50, repeater: 180, cherrybomb: 150, icepeashooter: 175 };
+const plantHealth = { peashooter: 7, sunflower: 6, wallnut: 24, repeater: 8, cherrybomb: 4, icepeashooter: 7 };
+const plantColor = { peashooter: "#62b5a0", sunflower: "#f6c453", wallnut: "#ad7556", repeater: "#75c77b", cherrybomb: "#dd6d73", icepeashooter: "#8bc9e8" };
+const plantProfiles = {
+  peashooter: { interval: 1050, shots: 1, damage: 1, slow: 0 },
+  repeater: { interval: 1250, shots: 2, damage: 1, slow: 0 },
+  icepeashooter: { interval: 1300, shots: 1, damage: 1, slow: 3200 },
+};
+const zombieProfiles = {
+  walker: { hp: 5, speed: .019, growth: .0008, attackInterval: 1050, score: 1 },
+  roadblock: { hp: 12, speed: .012, growth: .0005, attackInterval: 700, score: 3 },
+  runner: { hp: 4, speed: .034, growth: .0005, attackInterval: 1200, score: 2 },
+  bucket: { hp: 21, speed: .010, growth: .0003, attackInterval: 650, score: 5 },
+};
 function clearPlantSelection() {
   game.selected = null;
   $$(".seed-card").forEach((item) => item.classList.remove("selected"));
 }
+function updateShovelButton() {
+  const button = $("#gameShovel");
+  if (!button) return;
+  button.classList.toggle("active", game.shovel);
+  button.setAttribute("aria-pressed", String(game.shovel));
+}
+function toggleShovel() {
+  game.shovel = !game.shovel;
+  if (game.shovel) clearPlantSelection();
+  updateShovelButton();
+  drawGame();
+}
 function selectPlant(card) {
+  if (game.shovel) {
+    game.shovel = false;
+    updateShovelButton();
+  }
   const next = card.dataset.plant;
   game.selected = game.selected === next ? null : next;
   $$(".seed-card").forEach((item) => item.classList.toggle("selected", item.dataset.plant === game.selected));
 }
+function formatGameTime(value) {
+  const total = Math.max(0, Math.floor(value / 1000));
+  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+}
 function updateGameHud() {
   $("#gameSun").textContent = String(game.sun);
   $("#gameScore").textContent = String(game.score);
-  $("#gameWave").textContent = String(game.wave);
+  $("#gameWave").textContent = `${Math.min(game.wave, MAX_WAVES)}/${MAX_WAVES}`;
+  $("#gameTime").textContent = formatGameTime(game.elapsed);
 }
 function cellPosition(row, col) { return { x: gameLayout.left + col * gameLayout.cellW + 35, y: gameLayout.top + row * gameLayout.cellH + 31 }; }
 function addGameParticle(x, y, color, count = 6, speed = 0.08) {
@@ -1717,32 +1812,355 @@ function startGameMusic() {
   }, 620);
 }
 function stopGameMusic() { if (game.audio?.musicTimer) { clearInterval(game.audio.musicTimer); game.audio.musicTimer = null; } }
-function updateSoundButton() { const button = $("#gameSoundToggle"); if (button) { button.textContent = game.musicOn ? "♫ 音效开" : "♫ 音效关"; button.classList.toggle("muted", !game.musicOn); } }
+function updateSoundButton() { const button = $("#gameSoundToggle"); if (button) { button.textContent = t(game.musicOn ? "game.soundOn" : "game.soundOff"); button.classList.toggle("muted", !game.musicOn); } }
 function toggleGameSound() { game.musicOn = !game.musicOn; localStorage.setItem("minicc-game-sound", game.musicOn ? "on" : "off"); if (game.musicOn) { playGameSound("collect"); startGameMusic(); } else stopGameMusic(); updateSoundButton(); }
-function initGame() { stopGameMusic(); game.running = false; game.score = 0; game.sun = 150; game.wave = 1; game.spawned = 0; game.plants = []; game.zombies = []; game.suns = []; game.shots = []; game.particles = []; game.last = 0; game.spawnTimer = 0; game.skyTimer = 0; clearPlantSelection(); updateSoundButton(); updateGameHud(); $("#gameStatus").textContent = t("game.ready"); $("#gameStart").textContent = t("game.start"); drawGame(); }
+function setGameStatus(key) { $("#gameStatus").textContent = t(key); }
+function finishGame(statusKey) {
+  game.running = false;
+  stopGameMusic();
+  setGameStatus(statusKey);
+  if (statusKey === "game.victory") playGameSound("wave");
+  else if (statusKey === "game.gameOver" || statusKey === "game.timeUp") playGameSound("gameover");
+  $("#gameStart").textContent = t("game.restart");
+  updateGameHud();
+  drawGame();
+}
+function initGame() {
+  stopGameMusic();
+  game.running = false;
+  game.score = 0;
+  game.sun = 150;
+  game.wave = 1;
+  game.waveTarget = 6;
+  game.waveSpawned = 0;
+  game.totalSpawned = 0;
+  game.waveClearTimer = 0;
+  game.elapsed = 0;
+  game.shovel = false;
+  game.autoSun = localStorage.getItem("minicc-game-auto-sun") !== "off";
+  game.plants = [];
+  game.zombies = [];
+  game.suns = [];
+  game.shots = [];
+  game.particles = [];
+  game.last = 0;
+  game.spawnTimer = 0;
+  game.skyTimer = 0;
+  $("#gameAutoSun").checked = game.autoSun;
+  clearPlantSelection();
+  updateShovelButton();
+  updateSoundButton();
+  updateGameHud();
+  setGameStatus("game.ready");
+  $("#gameStart").textContent = t("game.start");
+  drawGame();
+}
 function roundedRect(ctx, x, y, width, height, radius) { ctx.beginPath(); ctx.roundRect(x, y, width, height, radius); }
 function drawSun(ctx, sun) { const pulse = 1 + Math.sin(sun.age / 230) * .08; ctx.save(); ctx.translate(sun.x, sun.y); ctx.scale(pulse, pulse); ctx.shadowColor = "rgba(255, 215, 84, .75)"; ctx.shadowBlur = 18; ctx.fillStyle = "#ffd75b"; ctx.beginPath(); ctx.arc(0, 0, 15, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0; ctx.strokeStyle = "#fff3a5"; ctx.lineWidth = 3; for (let i = 0; i < 8; i += 1) { const angle = i * Math.PI / 4; ctx.beginPath(); ctx.moveTo(Math.cos(angle) * 19, Math.sin(angle) * 19); ctx.lineTo(Math.cos(angle) * 25, Math.sin(angle) * 25); ctx.stroke(); } ctx.fillStyle = "#fff4a8"; ctx.beginPath(); ctx.arc(-4, -4, 4, 0, Math.PI * 2); ctx.fill(); ctx.restore(); }
 function drawPlant(ctx, plant, now) { const bob = Math.sin((now + plant.seed) / 480) * 2; const { x, y } = cellPosition(plant.row, plant.col); ctx.save(); ctx.translate(x, y + bob); ctx.fillStyle = "rgba(22, 59, 42, .24)"; ctx.beginPath(); ctx.ellipse(0, 25, 23, 7, 0, 0, Math.PI * 2); ctx.fill();
   if (plant.type === "sunflower") { for (let i = 0; i < 10; i += 1) { const angle = i * Math.PI / 5; ctx.fillStyle = i % 2 ? "#f4b83f" : "#ffd765"; ctx.beginPath(); ctx.ellipse(Math.cos(angle) * 14, Math.sin(angle) * 14 - 5, 7, 13, angle, 0, Math.PI * 2); ctx.fill(); } ctx.fillStyle = "#75482d"; ctx.beginPath(); ctx.arc(0, -5, 10, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = "#9c6a35"; ctx.beginPath(); ctx.arc(-3, -8, 2, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = "#438553"; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(0, 7); ctx.lineTo(0, 22); ctx.stroke(); }
+  else if (plant.type === "cherrybomb") { ctx.fillStyle = "#c94f60"; ctx.beginPath(); ctx.arc(-9, -5, 12, 0, Math.PI * 2); ctx.arc(9, -5, 12, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = "#f49a86"; ctx.beginPath(); ctx.arc(-13, -9, 4, 0, Math.PI * 2); ctx.arc(5, -9, 4, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = "#5f8d4c"; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(0, -14); ctx.quadraticCurveTo(2, -28, 12, -28); ctx.stroke(); ctx.fillStyle = "#f4d27a"; ctx.beginPath(); ctx.arc(13, -28, 4, 0, Math.PI * 2); ctx.fill(); }
   else if (plant.type === "wallnut") { ctx.fillStyle = "#b87b55"; ctx.strokeStyle = "#6d432f"; ctx.lineWidth = 3; ctx.beginPath(); ctx.ellipse(0, 0, 19, 24, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); ctx.fillStyle = "#3f2f27"; ctx.beginPath(); ctx.arc(-7, -5, 2.5, 0, Math.PI * 2); ctx.arc(7, -5, 2.5, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = "#6d432f"; ctx.beginPath(); ctx.arc(0, 5, 8, 0, Math.PI); ctx.stroke(); }
-  else { ctx.strokeStyle = "#438553"; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(0, 19); ctx.lineTo(0, -3); ctx.stroke(); ctx.fillStyle = "#63b98d"; ctx.beginPath(); ctx.ellipse(-12, 12, 13, 6, -.45, 0, Math.PI * 2); ctx.ellipse(11, 14, 13, 6, .45, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = "#74c9a5"; ctx.beginPath(); ctx.arc(0, -14, 14, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = "#244a3d"; ctx.beginPath(); ctx.arc(9, -14, 8, -.4, .4); ctx.fill(); ctx.fillStyle = "#d7f4d0"; ctx.beginPath(); ctx.arc(12, -14, 3, 0, Math.PI * 2); ctx.fill(); }
+  else { ctx.strokeStyle = "#438553"; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(0, 19); ctx.lineTo(0, -3); ctx.stroke(); ctx.fillStyle = plant.type === "icepeashooter" ? "#9cddf1" : plant.type === "repeater" ? "#70c985" : "#63b98d"; ctx.beginPath(); ctx.ellipse(-12, 12, 13, 6, -.45, 0, Math.PI * 2); ctx.ellipse(11, 14, 13, 6, .45, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = plant.type === "icepeashooter" ? "#b9eff7" : "#74c9a5"; ctx.beginPath(); ctx.arc(0, -14, 14, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = plant.type === "icepeashooter" ? "#4385a2" : "#244a3d"; ctx.beginPath(); ctx.arc(9, -14, 8, -.4, .4); ctx.fill(); ctx.fillStyle = "#d7f4d0"; ctx.beginPath(); ctx.arc(12, -14, 3, 0, Math.PI * 2); ctx.fill(); if (plant.type === "repeater") { ctx.fillStyle = "#244a3d"; ctx.beginPath(); ctx.arc(12, -5, 6, 0, Math.PI * 2); ctx.fill(); } }
   if (plant.hp < plantHealth[plant.type]) { ctx.fillStyle = "rgba(25, 33, 26, .7)"; ctx.fillRect(-18, 29, 36, 4); ctx.fillStyle = plant.hp / plantHealth[plant.type] > .4 ? "#80d6a2" : "#f6b35c"; ctx.fillRect(-18, 29, 36 * Math.max(0, plant.hp / plantHealth[plant.type]), 4); } ctx.restore(); }
-function drawZombie(ctx, zombie, now) { const walk = Math.sin((now + zombie.seed) / 170) * 3; const y = zombie.y; ctx.save(); ctx.translate(zombie.x, y + walk); ctx.fillStyle = "rgba(26, 28, 39, .28)"; ctx.beginPath(); ctx.ellipse(0, 25, 23, 7, 0, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = "#262c39"; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(-7, 16); ctx.lineTo(-11 + walk, 29); ctx.moveTo(7, 16); ctx.lineTo(11 - walk, 29); ctx.stroke(); ctx.fillStyle = zombie.type === "roadblock" ? "#485267" : "#556b62"; roundedRect(ctx, -15, -1, 30, 25, 8); ctx.fill(); ctx.fillStyle = "#b8c4aa"; ctx.beginPath(); ctx.arc(0, -16, 15, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = "#29303d"; ctx.beginPath(); ctx.arc(-5, -17, 3, 0, Math.PI * 2); ctx.arc(6, -17, 3, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = "#f0a27e"; ctx.beginPath(); ctx.arc(-6, -9, 3, 0, Math.PI * 2); ctx.arc(6, -9, 3, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = "#29303d"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-8, -2); ctx.lineTo(8, -2); ctx.stroke(); if (zombie.type === "roadblock") { ctx.fillStyle = "#d98258"; ctx.fillRect(-18, -30, 36, 7); ctx.fillStyle = "#f2c05e"; ctx.fillRect(-12, -34, 24, 4); } if (zombie.hp < zombie.maxHp) { ctx.fillStyle = "rgba(25, 33, 26, .7)"; ctx.fillRect(-19, 34, 38, 4); ctx.fillStyle = "#e48374"; ctx.fillRect(-19, 34, 38 * Math.max(0, zombie.hp / zombie.maxHp), 4); } ctx.restore(); }
+function drawZombie(ctx, zombie, now) {
+  const walk = Math.sin((now + zombie.seed) / (zombie.type === "runner" ? 100 : 170)) * 3;
+  const profile = zombie.type === "bucket" ? { body: "#5d6472", head: "#b8c4aa" } : zombie.type === "roadblock" ? { body: "#485267", head: "#b8c4aa" } : zombie.type === "runner" ? { body: "#7c625d", head: "#c5c7a9" } : { body: "#556b62", head: "#b8c4aa" };
+  const y = zombie.y;
+  ctx.save();
+  ctx.translate(zombie.x, y + walk);
+  ctx.fillStyle = "rgba(26, 28, 39, .28)";
+  ctx.beginPath();
+  ctx.ellipse(0, 25, 23, 7, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = "#262c39";
+  ctx.lineWidth = 5;
+  ctx.beginPath();
+  ctx.moveTo(-7, 16);
+  ctx.lineTo(-11 + walk, 29);
+  ctx.moveTo(7, 16);
+  ctx.lineTo(11 - walk, 29);
+  ctx.stroke();
+  ctx.fillStyle = profile.body;
+  roundedRect(ctx, -15, -1, 30, 25, 8);
+  ctx.fill();
+  ctx.fillStyle = profile.head;
+  ctx.beginPath();
+  ctx.arc(0, -16, 15, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#29303d";
+  ctx.beginPath();
+  ctx.arc(-5, -17, 3, 0, Math.PI * 2);
+  ctx.arc(6, -17, 3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#f0a27e";
+  ctx.beginPath();
+  ctx.arc(-6, -9, 3, 0, Math.PI * 2);
+  ctx.arc(6, -9, 3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = "#29303d";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(-8, -2);
+  ctx.lineTo(8, -2);
+  ctx.stroke();
+  if (zombie.type === "roadblock") {
+    ctx.fillStyle = "#d98258";
+    ctx.fillRect(-18, -30, 36, 7);
+    ctx.fillStyle = "#f2c05e";
+    ctx.fillRect(-12, -34, 24, 4);
+  } else if (zombie.type === "bucket") {
+    ctx.fillStyle = "#a6adb5";
+    ctx.fillRect(-17, -31, 34, 14);
+    ctx.fillStyle = "#68717d";
+    ctx.fillRect(-20, -20, 40, 4);
+  } else if (zombie.type === "runner") {
+    ctx.strokeStyle = "#e78366";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(-15, 4);
+    ctx.lineTo(-25, -2);
+    ctx.moveTo(15, 4);
+    ctx.lineTo(25, -2);
+    ctx.stroke();
+  }
+  if (zombie.slowTimer > 0) {
+    ctx.strokeStyle = "#a7e8f3";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(0, -3, 22, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  if (zombie.hp < zombie.maxHp) {
+    ctx.fillStyle = "rgba(25, 33, 26, .7)";
+    ctx.fillRect(-19, 34, 38, 4);
+    ctx.fillStyle = "#e48374";
+    ctx.fillRect(-19, 34, 38 * Math.max(0, zombie.hp / zombie.maxHp), 4);
+  }
+  ctx.restore();
+}
 function drawGame() { const canvas = $("#gameCanvas"); if (!canvas) return; const ctx = canvas.getContext("2d"); const now = performance.now(); const sky = ctx.createLinearGradient(0, 0, 0, 420); sky.addColorStop(0, "#9bd9df"); sky.addColorStop(.35, "#d7e7b2"); sky.addColorStop(.36, "#659b58"); sky.addColorStop(1, "#315744"); ctx.fillStyle = sky; ctx.fillRect(0, 0, 720, 420); ctx.fillStyle = "rgba(255,255,255,.18)"; ctx.beginPath(); ctx.arc(605, 42, 29, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = "#253b45"; ctx.fillRect(0, 0, 720, 58); ctx.fillStyle = "#eef3cf"; ctx.font = "700 12px Manrope, sans-serif"; ctx.fillText("BACKYARD", 18, 23); ctx.fillStyle = "#a8d5a1"; ctx.font = "10px DM Mono, monospace"; ctx.fillText(game.running ? "DEFEND THE LAWN" : "READY FOR BATTLE", 18, 42); ctx.fillStyle = "#d9b16e"; ctx.fillRect(48, 28, 17, 23); ctx.fillStyle = "#693f38"; ctx.beginPath(); ctx.moveTo(44, 29); ctx.lineTo(57, 16); ctx.lineTo(70, 29); ctx.fill(); ctx.fillStyle = "#f4d27a"; ctx.fillRect(53, 39, 7, 12);
   for (let row = 0; row < gameLayout.rows; row += 1) for (let col = 0; col < gameLayout.cols; col += 1) { const x = gameLayout.left + col * gameLayout.cellW, y = gameLayout.top + row * gameLayout.cellH; ctx.fillStyle = (row + col) % 2 ? "#75b866" : "#83c573"; roundedRect(ctx, x + 2, y + 2, 66, 61, 8); ctx.fill(); ctx.strokeStyle = "rgba(221, 246, 151, .18)"; ctx.stroke(); }
-  ctx.fillStyle = "rgba(240, 213, 140, .28)"; ctx.fillRect(674, 60, 3, 360); game.suns.forEach((sun) => drawSun(ctx, sun)); game.plants.forEach((plant) => drawPlant(ctx, plant, now)); game.shots.forEach((shot) => { ctx.fillStyle = "#b5f0a2"; ctx.shadowColor = "#80ed9a"; ctx.shadowBlur = 12; ctx.beginPath(); ctx.arc(shot.x, shot.y, 6, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0; }); game.zombies.forEach((zombie) => drawZombie(ctx, zombie, now)); game.particles.forEach((particle) => { ctx.globalAlpha = Math.max(0, particle.life / particle.maxLife); ctx.fillStyle = particle.color; ctx.beginPath(); ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2); ctx.fill(); }); ctx.globalAlpha = 1; }
-function spawnZombie() { const row = Math.floor(Math.random() * gameLayout.rows); const roadblock = game.wave >= 2 && Math.random() < .18; const hp = roadblock ? 11 + game.wave : 4 + Math.floor(game.wave * .6); game.zombies.push({ x: 704, y: cellPosition(row, 0).y, row, hp, maxHp: hp, type: roadblock ? "roadblock" : "walker", speed: roadblock ? .011 + game.wave * .0005 : .019 + game.wave * .0009, seed: Math.random() * 1000 }); game.spawned += 1; if (game.spawned % 7 === 0) { game.wave = 1 + Math.floor(game.spawned / 7); $("#gameWave").textContent = game.wave; playGameSound("wave"); addGameParticle(360, 60, "#ffe27c", 18, .18); } }
-function produceSun(plant) { const position = cellPosition(plant.row, plant.col); game.suns.push({ x: position.x + (Math.random() - .5) * 24, y: position.y - 28, age: 0, targetY: position.y - 5 }); addGameParticle(position.x, position.y - 22, "#ffe17b", 8, .12); playGameSound("collect"); }
-function gameLoop(now = 0) { if (!game.running) return; const dt = Math.min(40, Math.max(8, now - game.last || 16)); game.last = now; game.spawnTimer += dt; game.skyTimer += dt; if (game.spawned === 0 && game.spawnTimer > 2500) { spawnZombie(); game.spawnTimer = 0; } else if (game.spawnTimer > Math.max(1850, 4100 - game.wave * 190)) { spawnZombie(); game.spawnTimer = 0; } if (game.skyTimer > 5200 && game.suns.length < 9) { game.skyTimer = 0; game.suns.push({ x: 105 + Math.random() * 535, y: 88 + Math.random() * 270, age: 0, targetY: 80 + Math.random() * 240 }); }
+  ctx.fillStyle = "rgba(240, 213, 140, .28)"; ctx.fillRect(674, 60, 3, 360); game.suns.forEach((sun) => drawSun(ctx, sun)); game.plants.forEach((plant) => drawPlant(ctx, plant, now)); game.shots.forEach((shot) => { ctx.fillStyle = shot.color || "#b5f0a2"; ctx.shadowColor = shot.slow ? "#a7e8f3" : "#80ed9a"; ctx.shadowBlur = 12; ctx.beginPath(); ctx.arc(shot.x, shot.y, 6, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0; }); game.zombies.forEach((zombie) => drawZombie(ctx, zombie, now)); game.particles.forEach((particle) => { ctx.globalAlpha = Math.max(0, particle.life / particle.maxLife); ctx.fillStyle = particle.color; ctx.beginPath(); ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2); ctx.fill(); }); ctx.globalAlpha = 1; }
+function zombieTypeForWave() {
+  const roll = Math.random();
+  if (game.wave >= 4 && roll < .1) return "bucket";
+  if (game.wave >= 3 && roll < .24) return "runner";
+  if (game.wave >= 2 && roll < .44) return "roadblock";
+  return "walker";
+}
+function spawnZombie() {
+  if (game.waveSpawned >= game.waveTarget) return;
+  const row = Math.floor(Math.random() * gameLayout.rows);
+  const type = zombieTypeForWave();
+  const profile = zombieProfiles[type];
+  const hp = profile.hp + Math.floor(game.wave * (type === "bucket" ? .9 : .55));
+  game.zombies.push({
+    x: 704,
+    y: cellPosition(row, 0).y,
+    row,
+    hp,
+    maxHp: hp,
+    type,
+    speed: profile.speed + game.wave * profile.growth,
+    attackInterval: profile.attackInterval,
+    slowTimer: 0,
+    seed: Math.random() * 1000,
+  });
+  game.waveSpawned += 1;
+  game.totalSpawned += 1;
+  if (game.waveSpawned === game.waveTarget) {
+    playGameSound("wave");
+    addGameParticle(360, 60, "#ffe27c", 18, .18);
+  }
+  updateGameHud();
+}
+function produceSun(plant) {
+  const position = cellPosition(plant.row, plant.col);
+  game.suns.push({ x: position.x + (Math.random() - .5) * 24, y: position.y - 28, age: 0, targetY: position.y - 5 });
+  addGameParticle(position.x, position.y - 22, "#ffe17b", 8, .12);
+}
+function collectSunAt(index, x, y) {
+  if (index < 0 || !game.suns[index]) return false;
+  game.suns.splice(index, 1);
+  game.sun += 25;
+  updateGameHud();
+  addGameParticle(x, y, "#ffe17b", 12, .16);
+  playGameSound("collect");
+  return true;
+}
+function collectAutomaticSuns() {
+  if (!game.autoSun) return;
+  for (let index = game.suns.length - 1; index >= 0; index -= 1) {
+    const sun = game.suns[index];
+    if (sun.age > 650) collectSunAt(index, sun.x, sun.y);
+  }
+}
+function firePlantShots(plant, profile) {
+  const position = cellPosition(plant.row, plant.col);
+  for (let index = 0; index < profile.shots; index += 1) {
+    game.shots.push({ x: position.x + 20 + index * 8, y: position.y - 5, row: plant.row, damage: profile.damage, slow: profile.slow, color: plant.type === "icepeashooter" ? "#c9f6ff" : "#b5f0a2", hit: false });
+  }
+  playGameSound("shoot");
+}
+function explodeCherryBomb(plant) {
+  const position = cellPosition(plant.row, plant.col);
+  const defeated = game.zombies.filter((zombie) => zombie.row === plant.row && Math.abs(zombie.x - position.x) < 145);
+  defeated.forEach((zombie) => {
+    const index = game.zombies.indexOf(zombie);
+    if (index >= 0) game.zombies.splice(index, 1);
+    game.score += zombieProfiles[zombie.type]?.score || 1;
+  });
+  game.plants.splice(game.plants.indexOf(plant), 1);
+  addGameParticle(position.x, position.y - 5, "#ff8d73", 34, .3);
+  playGameSound("gameover");
+  updateGameHud();
+}
+function advanceWave(dt) {
+  if (game.waveSpawned < game.waveTarget || game.zombies.length) {
+    game.waveClearTimer = 0;
+    return false;
+  }
+  game.waveClearTimer += dt;
+  if (game.waveClearTimer < 1400) return false;
+  if (game.wave >= MAX_WAVES) {
+    finishGame("game.victory");
+    return true;
+  }
+  game.wave += 1;
+  game.waveTarget = 5 + game.wave * 2;
+  game.waveSpawned = 0;
+  game.waveClearTimer = 0;
+  game.spawnTimer = 0;
+  setGameStatus("game.waveClear");
+  addGameParticle(360, 60, "#ffe27c", 18, .18);
+  updateGameHud();
+  return false;
+}
+function gameLoop(now = 0) {
+  if (!game.running) return;
+  const dt = Math.min(40, Math.max(8, now - game.last || 16));
+  game.last = now;
+  game.elapsed += dt;
+  updateGameHud();
+  if (game.elapsed >= GAME_DURATION) {
+    finishGame("game.timeUp");
+    return;
+  }
+  game.spawnTimer += dt;
+  game.skyTimer += dt;
+  const spawnDelay = Math.max(1450, 3900 - game.wave * 210);
+  if (game.waveSpawned < game.waveTarget && ((game.waveSpawned === 0 && game.spawnTimer > 1800) || game.spawnTimer > spawnDelay)) {
+    spawnZombie();
+    game.spawnTimer = 0;
+  }
+  if (game.skyTimer > 4800 && game.suns.length < 10) {
+    game.skyTimer = 0;
+    game.suns.push({ x: 105 + Math.random() * 535, y: 88 + Math.random() * 270, age: 0, targetY: 80 + Math.random() * 240 });
+  }
   game.suns.forEach((sun) => { sun.age += dt; if (sun.y < sun.targetY) sun.y = Math.min(sun.targetY, sun.y + dt * .05); });
-  game.plants.forEach((plant) => { plant.age += dt; if (plant.type === "sunflower") { plant.sunTimer += dt; if (plant.sunTimer > 4800 && game.suns.length < 12) { plant.sunTimer = 0; produceSun(plant); } } if (plant.type === "peashooter") { plant.shotTimer += dt; if (plant.shotTimer > 1050 && game.zombies.some((z) => z.row === plant.row && z.x > cellPosition(plant.row, plant.col).x)) { plant.shotTimer = 0; const position = cellPosition(plant.row, plant.col); game.shots.push({ x: position.x + 20, y: position.y - 5, row: plant.row, hit: false }); playGameSound("shoot"); } } });
-  game.zombies.forEach((zombie) => { zombie.y = cellPosition(zombie.row, 0).y; const blocker = game.plants.find((plant) => plant.row === zombie.row && Math.abs(cellPosition(plant.row, plant.col).x - zombie.x) < 30); if (blocker) { blocker.hp -= dt / (zombie.type === "roadblock" ? 700 : 1050); if (blocker.hp <= 0) { const position = cellPosition(blocker.row, blocker.col); addGameParticle(position.x, position.y, "#c78363", 14, .18); game.plants.splice(game.plants.indexOf(blocker), 1); playGameSound("hit"); } } else zombie.x -= zombie.speed * dt; });
-  game.shots.forEach((shot) => { shot.x += .34 * dt; const hit = game.zombies.find((zombie) => zombie.row === shot.row && zombie.x > shot.x - 12 && zombie.x < shot.x + 23); if (hit) { shot.hit = true; hit.hp -= 1; addGameParticle(shot.x, shot.y, "#b7f3a0", 5, .1); playGameSound("hit"); if (hit.hp <= 0) { const index = game.zombies.indexOf(hit); if (index >= 0) game.zombies.splice(index, 1); game.score += hit.type === "roadblock" ? 3 : 1; updateGameHud(); addGameParticle(hit.x, hit.y, "#f6d681", 18, .2); } } }); game.shots = game.shots.filter((shot) => !shot.hit && shot.x < 735);
-  game.particles.forEach((particle) => { particle.x += particle.vx * dt; particle.y += particle.vy * dt; particle.vy += .00025 * dt; particle.life -= dt; }); game.particles = game.particles.filter((particle) => particle.life > 0); if (game.zombies.some((zombie) => zombie.x < 61)) { game.running = false; stopGameMusic(); $("#gameStatus").textContent = t("game.gameOver"); playGameSound("gameover"); addGameParticle(55, 180, "#ff9f83", 24, .22); } drawGame(); if (game.running) game.frame = requestAnimationFrame(gameLoop); }
-function startGame() { cancelAnimationFrame(game.frame); initGame(); game.running = true; $("#gameStatus").textContent = t("game.running"); $("#gameStart").textContent = t("game.restart"); startGameMusic(); game.frame = requestAnimationFrame(gameLoop); }
+  collectAutomaticSuns();
+  game.plants.slice().forEach((plant) => {
+    plant.age += dt;
+    if (plant.type === "sunflower") {
+      plant.sunTimer += dt;
+      if (plant.sunTimer > 4800 && game.suns.length < 12) { plant.sunTimer = 0; produceSun(plant); }
+      return;
+    }
+    if (plant.type === "cherrybomb") {
+      plant.bombTimer += dt;
+      if (plant.bombTimer > 950) explodeCherryBomb(plant);
+      return;
+    }
+    const profile = plantProfiles[plant.type];
+    if (!profile) return;
+    plant.shotTimer += dt;
+    const position = cellPosition(plant.row, plant.col);
+    if (plant.shotTimer > profile.interval && game.zombies.some((zombie) => zombie.row === plant.row && zombie.x > position.x)) {
+      plant.shotTimer = 0;
+      firePlantShots(plant, profile);
+    }
+  });
+  game.zombies.slice().forEach((zombie) => {
+    zombie.y = cellPosition(zombie.row, 0).y;
+    zombie.slowTimer = Math.max(0, zombie.slowTimer - dt);
+    const blocker = game.plants.find((plant) => plant.row === zombie.row && Math.abs(cellPosition(plant.row, plant.col).x - zombie.x) < 30);
+    if (blocker) {
+      blocker.hp -= dt / zombie.attackInterval;
+      if (blocker.hp <= 0) {
+        const position = cellPosition(blocker.row, blocker.col);
+        addGameParticle(position.x, position.y, "#c78363", 14, .18);
+        game.plants.splice(game.plants.indexOf(blocker), 1);
+        playGameSound("hit");
+      }
+    } else {
+      zombie.x -= zombie.speed * dt * (zombie.slowTimer > 0 ? .48 : 1);
+    }
+  });
+  game.shots.forEach((shot) => {
+    shot.x += .34 * dt;
+    const hit = game.zombies.find((zombie) => zombie.row === shot.row && zombie.x > shot.x - 12 && zombie.x < shot.x + 23);
+    if (!hit) return;
+    shot.hit = true;
+    hit.hp -= shot.damage || 1;
+    if (shot.slow) hit.slowTimer = Math.max(hit.slowTimer, shot.slow);
+    addGameParticle(shot.x, shot.y, shot.color || "#b7f3a0", 5, .1);
+    playGameSound("hit");
+    if (hit.hp <= 0) {
+      const index = game.zombies.indexOf(hit);
+      if (index >= 0) game.zombies.splice(index, 1);
+      game.score += zombieProfiles[hit.type]?.score || 1;
+      updateGameHud();
+      addGameParticle(hit.x, hit.y, "#f6d681", 18, .2);
+    }
+  });
+  game.shots = game.shots.filter((shot) => !shot.hit && shot.x < 735);
+  game.particles.forEach((particle) => { particle.x += particle.vx * dt; particle.y += particle.vy * dt; particle.vy += .00025 * dt; particle.life -= dt; });
+  game.particles = game.particles.filter((particle) => particle.life > 0);
+  if (game.zombies.some((zombie) => zombie.x < 61)) {
+    addGameParticle(55, 180, "#ff9f83", 24, .22);
+    finishGame("game.gameOver");
+    return;
+  }
+  if (advanceWave(dt)) return;
+  drawGame();
+  if (game.running) game.frame = requestAnimationFrame(gameLoop);
+}
+function startGame() { cancelAnimationFrame(game.frame); initGame(); game.running = true; setGameStatus("game.running"); $("#gameStart").textContent = t("game.restart"); startGameMusic(); game.frame = requestAnimationFrame(gameLoop); }
 function canvasPoint(event) { const canvas = $("#gameCanvas"), rect = canvas.getBoundingClientRect(); return { x: (event.clientX - rect.left) * canvas.width / rect.width, y: (event.clientY - rect.top) * canvas.height / rect.height }; }
-function collectSun(event) { const { x, y } = canvasPoint(event); const hit = game.suns.findIndex((sun) => Math.hypot(sun.x - x, sun.y - y) < 32); if (hit < 0) return false; game.suns.splice(hit, 1); game.sun += 25; updateGameHud(); addGameParticle(x, y, "#ffe17b", 12, .16); playGameSound("collect"); drawGame(); return true; }
-function plantAt(event) { if (!game.running || !game.selected) return false; const { x, y } = canvasPoint(event); if (y < gameLayout.top || x < gameLayout.left) return false; const col = Math.floor((x - gameLayout.left) / gameLayout.cellW), row = Math.floor((y - gameLayout.top) / gameLayout.cellH); if (col < 0 || col >= gameLayout.cols || row < 0 || row >= gameLayout.rows || game.plants.some((plant) => plant.row === row && plant.col === col)) return false; const cost = plantCost[game.selected]; if (game.sun < cost) return false; game.sun -= cost; game.plants.push({ type: game.selected, hp: plantHealth[game.selected], row, col, seed: Math.random() * 1000, age: 0, sunTimer: 0, shotTimer: 0 }); updateGameHud(); clearPlantSelection(); addGameParticle(cellPosition(row, col).x, cellPosition(row, col).y, plantColor[game.selected] || "#fff", 12, .12); playGameSound("plant"); drawGame(); return true; }
+function collectSun(event) { const { x, y } = canvasPoint(event); const hit = game.suns.findIndex((sun) => Math.hypot(sun.x - x, sun.y - y) < 32); if (hit < 0) return false; const sun = game.suns[hit]; collectSunAt(hit, sun.x, sun.y); drawGame(); return true; }
+function gameCellAt(x, y) { if (y < gameLayout.top || x < gameLayout.left) return null; const col = Math.floor((x - gameLayout.left) / gameLayout.cellW), row = Math.floor((y - gameLayout.top) / gameLayout.cellH); return col >= 0 && col < gameLayout.cols && row >= 0 && row < gameLayout.rows ? { row, col } : null; }
+function plantAt(event) {
+  if (!game.running) return false;
+  const point = canvasPoint(event);
+  const cell = gameCellAt(point.x, point.y);
+  if (!cell) return false;
+  const existing = game.plants.find((plant) => plant.row === cell.row && plant.col === cell.col);
+  if (game.shovel) {
+    if (!existing) return false;
+    const position = cellPosition(existing.row, existing.col);
+    game.plants.splice(game.plants.indexOf(existing), 1);
+    game.shovel = false;
+    updateShovelButton();
+    addGameParticle(position.x, position.y, "#e7d7a0", 12, .14);
+    playGameSound("hit");
+    drawGame();
+    return true;
+  }
+  if (!game.selected || existing) return false;
+  const type = game.selected;
+  const cost = plantCost[type];
+  if (game.sun < cost) { setGameStatus("game.noSun"); return false; }
+  game.sun -= cost;
+  game.plants.push({ type, hp: plantHealth[type], row: cell.row, col: cell.col, seed: Math.random() * 1000, age: 0, sunTimer: 0, shotTimer: 0, bombTimer: 0 });
+  const position = cellPosition(cell.row, cell.col);
+  updateGameHud();
+  clearPlantSelection();
+  addGameParticle(position.x, position.y, plantColor[type] || "#fff", 12, .12);
+  playGameSound("plant");
+  drawGame();
+  return true;
+}
 function bindUI() {
   $("#chatForm").addEventListener("submit", sendMessage);
   $("#chatArea").addEventListener("scroll", updateChatFollowState, { passive: true });
@@ -1752,6 +2170,12 @@ function bindUI() {
   $("#cancelTaskButton").addEventListener("click", cancelActiveTask);
   $("#gameClose").addEventListener("click", closeGame);
   $("#gameStart").addEventListener("click", startGame);
+  $("#gameShovel").addEventListener("click", toggleShovel);
+  $("#gameAutoSun").addEventListener("change", (event) => {
+    game.autoSun = event.target.checked;
+    localStorage.setItem("minicc-game-auto-sun", game.autoSun ? "on" : "off");
+  });
+  $("#gameSoundToggle").addEventListener("click", toggleGameSound);
   $("#gameModal").addEventListener("click", (event) => { if (event.target.id === "gameModal") closeGame(); });
   $("#gameCanvas").addEventListener("click", (event) => {
     if (collectSun(event)) return;
@@ -1760,7 +2184,7 @@ function bindUI() {
   $$(".seed-card").forEach((card) => card.addEventListener("click", () => selectPlant(card)));
   window.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
-      if (game.selected && $("#gameModal").classList.contains("show")) clearPlantSelection();
+      if ($("#gameModal").classList.contains("show") && (game.selected || game.shovel)) { clearPlantSelection(); game.shovel = false; updateShovelButton(); }
       else { closeGame(); closePanel(); }
     }
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "n") { event.preventDefault(); resetTask(); }
