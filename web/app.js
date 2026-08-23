@@ -301,7 +301,11 @@ function taskHistoryKey(task) {
   ].join(":");
 }
 
-function renderSession(sessionId) {
+function renderSession(sessionId, options = {}) {
+  const area = $("#chatArea");
+  const previousScrollTop = area?.scrollTop || 0;
+  const shouldFollowLatest = options.followLatest === true
+    || (options.followLatest !== false && chatIsNearBottom(area));
   const preset = SESSION_PRESETS[sessionId];
   const history = taskHistoryBySession.get(sessionId);
   const defaultTitle = state.locale === "zh" ? "新任务" : "New task";
@@ -314,7 +318,16 @@ function renderSession(sessionId) {
   if (history) renderedHistoryKeys.set(sessionId, taskHistoryKey(history));
   else renderedHistoryKeys.delete(sessionId);
   refreshIcons();
-  window.requestAnimationFrame(() => scrollChat("auto", true));
+  window.requestAnimationFrame(() => {
+    if (!area?.isConnected) return;
+    // Background history refreshes must not take the user's reading position.
+    if (shouldFollowLatest && (options.followLatest === true || state.chatFollow !== false)) {
+      scrollChat("auto", true);
+      return;
+    }
+    area.scrollTop = Math.min(previousScrollTop, Math.max(0, area.scrollHeight - area.clientHeight));
+    updateChatFollowState();
+  });
   window.requestAnimationFrame(() => restoreSessionTask(sessionId));
 }
 
@@ -449,14 +462,15 @@ function updateReasoningControl() {
 }
 
 function setSession(sessionId) {
-  if (sessionViewReady && state.sessionId !== sessionId) {
+  const sessionChanged = state.sessionId !== sessionId;
+  if (sessionViewReady && sessionChanged) {
     persistSessionView();
   }
   state.sessionId = sessionId;
   localStorage.setItem("minicc-session", sessionId);
   $("#topSession").textContent = sessionId;
   $$(".thread-item").forEach((item) => item.classList.toggle("active", item.dataset.session === sessionId));
-  renderSession(sessionId);
+  renderSession(sessionId, { followLatest: sessionChanged || !sessionViewReady });
   sessionViewReady = true;
 }
 
