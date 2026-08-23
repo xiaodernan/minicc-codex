@@ -296,9 +296,9 @@ Repeated tool rounds：1.8 -> 0.9 (-50%)
 以下链接用于理解公开的 Agent 编排与 coding-agent 设计，不代表项目已完整实现对应产品能力：
 
 - Anthropic — [Building effective agents](https://www.anthropic.com/research/building-effective-agents)
-- Claude Code — [Overview](https://code.claude.com/docs/en/overview)
-- Claude Code — [How Claude Code works](https://code.claude.com/docs/en/how-claude-code-works)
-- Claude Code — [Context window](https://code.claude.com/docs/en/context-window)
+- Claude Code — [Overview](https://docs.anthropic.com/en/docs/claude-code/overview)
+- Claude Code — [How Claude Code works](https://docs.anthropic.com/en/docs/claude-code/how-claude-code-works)
+- Claude Code — [Context window](https://docs.anthropic.com/en/docs/claude-code/context-window)
 - OpenAI — [Agents orchestration](https://developers.openai.com/api/docs/guides/agents/orchestration)
 - Microsoft — [Agentic platform for software development](https://developer.microsoft.com/blog/learn-from-microsoft-transform-software-development-through-an-agentic-platform/)
 - SWE-bench — [Benchmark repository](https://github.com/SWE-bench/SWE-bench)

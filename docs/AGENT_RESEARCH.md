@@ -8,9 +8,9 @@
 
 2026-08-24 通过官方页面重新核验了以下资料：
 
-- [Claude Code Overview](https://code.claude.com/docs/en/overview)：当前文档把 agent、上下文窗口、MCP、子 agent 和并行工作列为核心能力，而不是把产品简化成聊天窗口。
-- [How Claude Code works](https://code.claude.com/docs/en/how-claude-code-works)：强调模型循环要把上下文、工具行动和反馈串起来；这也是本项目把 `run_agent()` 与任务状态、SSE 事件绑定的依据。
-- [Claude Code subagents](https://code.claude.com/docs/en/sub-agents)：子 agent 适合有明确职责的独立工作，结果需要回到主任务；本项目先提供显式 fan-out 和父任务合并，避免无边界递归。
+- [Claude Code Overview](https://docs.anthropic.com/en/docs/claude-code/overview)：当前文档把 agent、上下文窗口、MCP、子 agent 和并行工作列为核心能力，而不是把产品简化成聊天窗口。
+- [How Claude Code works](https://docs.anthropic.com/en/docs/claude-code/how-claude-code-works)：强调模型循环要把上下文、工具行动和反馈串起来；这也是本项目把 `run_agent()` 与任务状态、SSE 事件绑定的依据。
+- [Claude Code subagents](https://docs.anthropic.com/en/docs/claude-code/sub-agents)：子 agent 适合有明确职责的独立工作，结果需要回到主任务；本项目先提供显式 fan-out 和父任务合并，避免无边界递归。
 - [OpenAI Codex](https://developers.openai.com/codex/) 与 [Agents orchestration](https://developers.openai.com/api/docs/guides/agents/orchestration)：编排可以选择 handoff 或 agents-as-tools，取决于专家是否接管任务以及管理器是否保留最终回答；本项目当前采用后者的简化形态，由父任务合并并交付结果。
 
 因此，本轮重点落地的是可验证的产品机制：多模态输入、断线可恢复任务、并行子任务、流式 token/context 指标、阶段事件、验证门禁和不暴露私有思维链的可审计摘要。没有把“展示思考过程”实现为原始 `reasoning_content` 回显，因为那不是稳定的产品协议，也会把内部推理文本与可验证证据混在一起。
@@ -19,9 +19,9 @@
 
 | 来源 | 观察 | 在本项目中的落地 |
 | --- | --- | --- |
-| [Claude Code Overview](https://code.claude.com/docs/en/overview) | 一个 coding agent 不只是聊天，还要能读代码、改文件、运行命令、接入 MCP、并行 agent 和多种工作表面。 | `ToolRegistry`、MCP、后台任务、批量子任务、Web 工作台和 CLI 共用 Agent loop。 |
-| [How Claude Code works](https://code.claude.com/docs/en/how-claude-code-works) | 一个任务循环可以概括为收集上下文、采取行动、验证结果，并根据工具反馈反复纠偏。 | `run_agent()` 统一处理模型轮次、工具执行、工具结果回填、验证和阶段摘要。 |
-| [Claude Code context window](https://code.claude.com/docs/en/context-window) | 长会话的关键是自动压缩、明确上下文用量、把大读取委派到独立上下文，并保留项目级指导。 | `context.py` 做确定性压缩；UI 显示 tokens/context/压缩次数；支持项目指导文件；批量任务拥有独立子任务上下文。 |
+| [Claude Code Overview](https://docs.anthropic.com/en/docs/claude-code/overview) | 一个 coding agent 不只是聊天，还要能读代码、改文件、运行命令、接入 MCP、并行 agent 和多种工作表面。 | `ToolRegistry`、MCP、后台任务、批量子任务、Web 工作台和 CLI 共用 Agent loop。 |
+| [How Claude Code works](https://docs.anthropic.com/en/docs/claude-code/how-claude-code-works) | 一个任务循环可以概括为收集上下文、采取行动、验证结果，并根据工具反馈反复纠偏。 | `run_agent()` 统一处理模型轮次、工具执行、工具结果回填、验证和阶段摘要。 |
+| [Claude Code context window](https://docs.anthropic.com/en/docs/claude-code/context-window) | 长会话的关键是自动压缩、明确上下文用量、把大读取委派到独立上下文，并保留项目级指导。 | `context.py` 做确定性压缩；UI 显示 tokens/context/压缩次数；支持项目指导文件；批量任务拥有独立子任务上下文。 |
 | [OpenAI Agents orchestration](https://developers.openai.com/api/docs/guides/agents/orchestration) | “handoff”适合让专家接管分支；“agents as tools”适合经理保留最终回答。只有职责、工具或策略真正变化时才拆分专家。 | 当前 MVP 使用显式批量子任务 + 父任务合并，避免无必要的 subagent 层级；下一步可在此合同上增加专家路由。 |
 | [Evil Martians: 100 dev tool landing pages](https://evilmartians.com/chronicles/we-studied-100-devtool-landing-pages-here-is-what-actually-works-in-2025) | 开发者工具页面强调真实产品画面、简洁信息层级、明确主次 CTA、可信度区块，以及从用户问题到产品结果的叙事，少用营销空话。 | 宣传页使用真实工作台的“运行中”预览、问题/结果文案、功能证据卡和进入工作台 CTA，并保持响应式布局。 |
 | [Microsoft agentic platform](https://developer.microsoft.com/blog/learn-from-microsoft-transform-software-development-through-an-agentic-platform/) | Agent 平台的价值在于把意图、规范、计划、验证、安全治理和持续改进串成可审计的软件生命周期。 | 项目把 prompt、工具风险、SSE 事件、任务持久化、diff、测试结果和错误恢复串成一条可追溯链路。 |
