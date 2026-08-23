@@ -33,6 +33,7 @@ from ..llm.openai_provider import OpenAICompatibleProvider
 from ..tools.schemas import ToolCall, ToolResult
 from ..tools.registry import ToolRegistry
 from .context import compact, estimate_tokens, message_chars
+from .state import AgentState, Budget, BudgetExceeded
 
 
 STAGNATION_REPLAN_LIMIT = 1
@@ -58,6 +59,7 @@ class TurnResult:
     error: str | None = None
     denied_tools: list[str] = field(default_factory=list)
     cancelled: bool = False
+    metrics: dict[str, Any] = field(default_factory=dict)
 
 
 async def run_agent(
@@ -76,6 +78,8 @@ async def run_agent(
     should_allow: Callable[[str, ToolCall], bool] | None = None,
     should_cancel: Callable[[], bool] | None = None,
     context_limit_tokens: int = 300_000,
+    budget: Budget | None = None,
+    runtime_state: AgentState | None = None,
 ) -> TurnResult:
     """Run the agent loop until a final text answer or max_turns.
 
@@ -85,6 +89,9 @@ async def run_agent(
     """
     result = TurnResult(answer="")
     allow = should_allow or _always_allow
+    runtime_budget = budget or (runtime_state.budget if runtime_state is not None else Budget(max_turns=max_turns))
+    if runtime_budget.max_turns is None:
+        runtime_budget.max_turns = max_turns
     tools_schemas = registry.openai_schemas()
     streamed_text: list[str] = []
     last_round_signature = ""
@@ -117,6 +124,8 @@ async def run_agent(
         if detail is not None:
             event["detail"] = detail
         result.trace_events.append(event)
+        if runtime_state is not None:
+            runtime_state.add_trace(event)
         if on_trace is not None:
             on_trace(event)
 
@@ -153,6 +162,13 @@ async def run_agent(
 
     for turn in range(1, max_turns + 1):
         result.turns = turn
+        try:
+            runtime_budget.record_turn()
+        except BudgetExceeded as exc:
+            result.error = f"Agent 预算超限: {exc}"
+            result.answer = f"任务未完成：{result.error}"
+            emit_trace(result.error, phase="failed", status="error", code="budget_exceeded")
+            break
         if should_cancel is not None and should_cancel():
             result.cancelled = True
             result.error = "任务已取消"
@@ -259,9 +275,23 @@ async def run_agent(
                 result.tokens_used[key] = result.tokens_used.get(key, 0) + int(value)
         if on_usage is not None:
             on_usage(dict(usage))
+        try:
+            runtime_budget.record_usage(usage)
+        except BudgetExceeded as exc:
+            result.error = f"Agent 预算超限: {exc}"
+            result.answer = f"任务未完成：{result.error}"
+            emit_trace(result.error, phase="failed", status="error", code="budget_exceeded")
+            break
 
         # --- tool calls? execute and loop ---
         if response.tool_calls:
+            try:
+                runtime_budget.record_tool_call(len(response.tool_calls))
+            except BudgetExceeded as exc:
+                result.error = f"Agent 预算超限: {exc}"
+                result.answer = f"任务未完成：{result.error}"
+                emit_trace(result.error, phase="failed", status="error", code="budget_exceeded")
+                break
             tool_names = [str((call.get("function") or {}).get("name") or call.get("name") or "tool") for call in response.tool_calls]
             emit_trace(
                 f"模型已完成本轮判断，正在执行可审计计划：{', '.join(tool_names)}",
@@ -556,6 +586,17 @@ async def run_agent(
         result.answer = f"\n[达到最大轮次 {max_turns}, 中止]"
         emit_trace("已达到最大执行轮次，停止继续调用工具", phase="failed", status="error", code="max_turns")
 
+    result.metrics = {
+        "turns": result.turns,
+        "tool_calls": result.tool_calls_total,
+        "trace_events": len(result.trace_events),
+        "tokens": dict(result.tokens_used),
+        "budget": runtime_budget.snapshot(),
+    }
+    if runtime_state is not None:
+        runtime_state.outputs["answer"] = result.answer
+        runtime_state.outputs["error"] = result.error
+        result.metrics.update(runtime_state.metrics())
     return result
 
 

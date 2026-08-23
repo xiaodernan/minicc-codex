@@ -35,7 +35,7 @@ const I18N = {
     "files.main": "CLI 入口", "files.loop": "工具调用循环", "files.styles": "工作台界面", "files.readme": "项目指南",
     "protected.subtitle": "每个任务单独授权写入", "panel.title": "工作台", "cancel": "取消任务", "working": "执行中", "ready": "就绪",
     "phase.queued": "排队中", "phase.planning": "正在规划", "phase.tool": "正在使用工具", "phase.answering": "正在生成回答", "phase.waiting": "等待模型输出", "phase.merging": "正在合并子任务", "phase.completed": "已完成", "phase.failed": "执行失败", "phase.cancelled": "已取消", "phase.interrupted": "服务重启时中断", "stream.live": "实时回答",
-    "tasks.center": "任务中心", "tasks.open": "打开任务", "tasks.resume": "重新运行", "tasks.children": "子任务", "tasks.tokens": "tokens", "tasks.context": "上下文", "tasks.compacted": "次压缩", "tasks.allWorkspaces": "所有工作区", "tasks.noHistory": "还没有任务记录", "tasks.jumpLatest": "跳到最新", "tasks.following": "跟随最新输出", "tasks.paused": "已暂停自动滚动",
+    "tasks.center": "任务中心", "tasks.open": "打开任务", "tasks.resume": "重新运行", "tasks.children": "子任务", "tasks.tokens": "tokens", "tasks.context": "上下文", "tasks.compacted": "次压缩", "tasks.allWorkspaces": "所有工作区", "tasks.noHistory": "还没有任务记录", "tasks.jumpLatest": "跳到最新", "tasks.following": "跟随最新输出", "tasks.paused": "已暂停自动滚动", "tasks.runtime": "运行时指标", "tasks.repairs": "修复次数", "tasks.verifications": "验证次数", "tasks.traces": "Trace 事件", "tasks.workflow": "工作流",
     "tool.ok": "完成", "tool.error": "失败", "tool.denied": "已阻止", "tool.searchResults": "搜索来源", "tool.openSource": "打开来源", "tool.round": "工具轮次", "tool.callCount": "次调用", "tool.reasoning": "阶段摘要",
     "workspace.current": "当前工作区", "workspace.path": "文件夹路径", "workspace.open": "打开文件夹", "workspace.recent": "最近打开", "workspace.switching": "正在切换工作区...", "workspace.selectHint": "输入本机文件夹绝对路径，例如 D:\\Projects\\demo",
     "panel.workspaces": "工作区与 Git worktree", "panel.activity": "任务活动", "panel.settings": "设置", "panel.options": "更多选项", "panel.batch": "并行子智能体",
@@ -47,7 +47,7 @@ const I18N = {
     "panel.hostProcess": "宿主机进程", "panel.isolated": "已隔离", "panel.servers": "个服务", "panel.gitWorktrees": "Git worktree", "panel.reasoning": "推理强度", "panel.reasoningNote": "只传递预算档位；界面显示可审计阶段摘要，不展示模型私有思维链", "reasoning.standard": "标准", "reasoning.high": "高", "reasoning.max": "最高",
     "game.close": "关闭小游戏", "game.kicker": "MINICC ARCADE · MINI LAWN", "game.title": "植物大战僵尸 · 草坪保卫战",
     "game.subtitle": "收集阳光，选中卡片后点击空草格种植；再次点击卡片或按 Esc 可取消。", "game.sun": "阳光", "game.score": "击退", "game.wave": "波次",
-    "game.ready": "准备就绪", "game.running": "战斗中", "game.gameOver": "僵尸进屋了", "game.peashooter": "豌豆射手",
+    "game.ready": "准备就绪", "game.running": "战斗中", "game.waveClear": "本波已清场，下一波即将到来", "game.victory": "草坪守住了！", "game.noSun": "阳光不足", "game.recharging": "卡片冷却中", "game.gameOver": "僵尸进屋了", "game.peashooter": "豌豆射手",
     "game.sunflower": "向日葵", "game.wallnut": "坚果墙", "game.attack": "攻击", "game.produce": "产阳光", "game.defense": "防御",
     "game.instructions": "点击草坪种植 · 点击阳光收集", "game.start": "开始游戏", "game.restart": "重开",
     "message.you": "你", "message.now": "现在", "message.agent": "Agent", "game.canvas": "植物大战僵尸迷你游戏画布",
@@ -71,7 +71,7 @@ const I18N = {
     "files.main": "CLI entrypoint", "files.loop": "Tool calling loop", "files.styles": "Workspace surface", "files.readme": "Project guide",
     "protected.subtitle": "Writes are gated per task", "panel.title": "Workspace", "cancel": "Cancel task", "working": "Working", "ready": "Ready",
     "phase.queued": "Queued", "phase.planning": "Planning", "phase.tool": "Running tools", "phase.answering": "Writing response", "phase.waiting": "Waiting for output", "phase.merging": "Merging subagents", "phase.completed": "Complete", "phase.failed": "Failed", "phase.cancelled": "Cancelled", "phase.interrupted": "Interrupted by restart", "stream.live": "Live response",
-    "tasks.center": "Task center", "tasks.open": "Open task", "tasks.resume": "Run again", "tasks.children": "subtasks", "tasks.tokens": "tokens", "tasks.context": "context", "tasks.compacted": "compactions", "tasks.allWorkspaces": "All workspaces", "tasks.noHistory": "No task history yet", "tasks.jumpLatest": "Jump to latest", "tasks.following": "Following latest output", "tasks.paused": "Auto-scroll paused",
+    "tasks.center": "Task center", "tasks.open": "Open task", "tasks.resume": "Run again", "tasks.children": "subtasks", "tasks.tokens": "tokens", "tasks.context": "context", "tasks.compacted": "compactions", "tasks.allWorkspaces": "All workspaces", "tasks.noHistory": "No task history yet", "tasks.jumpLatest": "Jump to latest", "tasks.following": "Following latest output", "tasks.paused": "Auto-scroll paused", "tasks.runtime": "Runtime metrics", "tasks.repairs": "Repairs", "tasks.verifications": "Verifications", "tasks.traces": "Trace events", "tasks.workflow": "Workflow",
     "tool.ok": "Done", "tool.error": "Failed", "tool.denied": "Blocked", "tool.searchResults": "Search sources", "tool.openSource": "Open source", "tool.round": "Tool round", "tool.callCount": "calls", "tool.reasoning": "Stage summary",
     "workspace.current": "Current workspace", "workspace.path": "Folder path", "workspace.open": "Open folder", "workspace.recent": "Recent folders", "workspace.switching": "Switching workspace...", "workspace.selectHint": "Enter an absolute local path, for example D:\\Projects\\demo",
     "panel.workspaces": "Workspaces & Git worktrees", "panel.activity": "Task activity", "panel.settings": "Settings", "panel.options": "More options", "panel.batch": "Parallel subagents",
@@ -615,6 +615,14 @@ function taskMetrics(data) {
   return `${tokenText} · ${compactNumber(context)}/${compactNumber(limit)} ${t("tasks.context")}`;
 }
 
+function runtimeMetricsMarkup(data) {
+  const metrics = data?.metrics;
+  if (!metrics || typeof metrics !== "object" || (!metrics.workflow && !metrics.verification_runs && !metrics.trace_events)) return "";
+  const budget = metrics.budget && typeof metrics.budget === "object" ? metrics.budget : {};
+  const duration = formatDuration(metrics.duration_seconds || 0);
+  return `<div><div class="panel-section-title">${escapeHtml(t("tasks.runtime"))}</div><div class="status-grid"><div><span>${escapeHtml(t("tasks.workflow"))}</span><strong>${escapeHtml(String(metrics.workflow || "coding"))}</strong><small>${escapeHtml(String(metrics.phase || data.phase || ""))}</small></div><div><span>${escapeHtml(t("tasks.repairs"))}</span><strong>${escapeHtml(String(metrics.repair_attempts || 0))}</strong><small>${escapeHtml(duration)}</small></div><div><span>${escapeHtml(t("tasks.verifications"))}</span><strong>${escapeHtml(String(metrics.verification_runs || 0))}</strong><small>${escapeHtml(String(metrics.verification_status || ""))}</small></div><div><span>${escapeHtml(t("tasks.traces"))}</span><strong>${escapeHtml(String(metrics.trace_events || 0))}</strong><small>${escapeHtml(`${budget.turns || 0} turns · ${budget.tool_calls || 0} tools`)}</small></div></div></div>`;
+}
+
 function updateInspectorMetrics(data) {
   if (!data) return;
   const tokens = Number(data.tokens_used?.total_tokens || 0);
@@ -723,6 +731,8 @@ function traceLabel(event) {
         stagnation_guard: "循环保护",
         max_turns: "轮次上限",
         batch_started: "并行编排",
+        auto_orchestration_triggered: "自动编排",
+        orchestration_parent_resumed: "主 Agent 接管",
         subagent_finished: "子任务完成",
         batch_merge_started: "结果合并",
         batch_finished: "批量交付",
@@ -747,6 +757,8 @@ function traceLabel(event) {
         stagnation_guard: "Loop guard",
         max_turns: "Turn limit",
         batch_started: "Parallel orchestration",
+        auto_orchestration_triggered: "Auto orchestration",
+        orchestration_parent_resumed: "Parent agent resumed",
         subagent_finished: "Subtask finished",
         batch_merge_started: "Result merge",
         batch_finished: "Batch delivery",
@@ -762,9 +774,9 @@ function traceDetail(event) {
   if (typeof detail !== "object") return String(detail);
   const parts = [];
   const labels = state.locale === "zh"
-    ? { turn: "轮次", tool_count: "工具数", tools: "工具", answer_chars: "回答字符", duration_ms: "耗时", count: "数量", names: "名称", statuses: "状态", max_turns: "轮次上限", child_count: "子任务数", child: "子任务", failed: "失败数", retry: "重试", retry_limit: "重试上限", partial_chars: "已输出字符", error_type: "错误类型", requested: "请求", active: "实际", wire_value: "请求值", task_id: "任务", tokens: "tokens" }
-    : { turn: "turn", tool_count: "tools", tools: "tools", answer_chars: "answer chars", duration_ms: "duration", count: "count", names: "names", statuses: "statuses", max_turns: "turn limit", child_count: "children", child: "child", failed: "failed", retry: "retry", retry_limit: "retry limit", partial_chars: "partial chars", error_type: "error type", requested: "requested", active: "active", wire_value: "wire", task_id: "task", tokens: "tokens" };
-  for (const key of ["turn", "tool_count", "tools", "answer_chars", "duration_ms", "count", "names", "statuses", "max_turns", "child_count", "child", "failed", "retry", "retry_limit", "partial_chars", "error_type", "requested", "active", "wire_value", "task_id", "tokens"]) {
+    ? { turn: "轮次", tool_count: "工具数", tools: "工具", answer_chars: "回答字符", duration_ms: "耗时", count: "数量", names: "名称", statuses: "状态", max_turns: "轮次上限", child_count: "子任务数", child: "子任务", failed: "失败数", retry: "重试", retry_limit: "重试上限", partial_chars: "已输出字符", error_type: "错误类型", requested: "请求", active: "实际", wire_value: "请求值", task_id: "任务", tokens: "tokens", automatic: "自动", complexity_score: "复杂度", complexity_threshold: "触发线", complexity_reasons: "触发原因" }
+    : { turn: "turn", tool_count: "tools", tools: "tools", answer_chars: "answer chars", duration_ms: "duration", count: "count", names: "names", statuses: "statuses", max_turns: "turn limit", child_count: "children", child: "child", failed: "failed", retry: "retry", retry_limit: "retry limit", partial_chars: "partial chars", error_type: "error type", requested: "requested", active: "active", wire_value: "wire", task_id: "task", tokens: "tokens", automatic: "automatic", complexity_score: "complexity", complexity_threshold: "threshold", complexity_reasons: "reasons" };
+  for (const key of ["turn", "tool_count", "tools", "answer_chars", "duration_ms", "count", "names", "statuses", "max_turns", "child_count", "child", "failed", "retry", "retry_limit", "partial_chars", "error_type", "requested", "active", "wire_value", "task_id", "tokens", "automatic", "complexity_score", "complexity_threshold", "complexity_reasons"]) {
     if (detail[key] == null) continue;
     const value = Array.isArray(detail[key]) ? detail[key].join(", ") : String(detail[key]);
     parts.push(`${labels[key] || key}: ${value}`);
@@ -1174,8 +1186,17 @@ async function sendMessage(event) {
 }
 
 function resetTask() {
-  const next = `task-${new Date().toISOString().slice(11, 19).replaceAll(":", "")}`;
+  const next = `task-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  state.activeTaskId = null;
+  state.lastTask = null;
+  taskHistoryBySession.delete(next);
+  renderedHistoryKeys.delete(next);
   setSession(next);
+  const dock = $("#taskDock");
+  if (dock) {
+    dock.hidden = true;
+    dock.removeAttribute("data-status");
+  }
   showToast(state.locale === "zh" ? "已创建新任务" : "New task created");
 }
 
@@ -1249,8 +1270,7 @@ async function loadWorkspace() {
       const taskData = await requestJson(`/api/tasks?limit=100&workspace=${encodeURIComponent(state.workspacePath)}`);
       const tasks = Array.isArray(taskData.tasks) ? taskData.tasks : [];
       const active = tasks.find((item) => ["queued", "running"].includes(item.status));
-      const currentSession = tasks.find((item) => item.session_id === state.sessionId && ["completed", "failed", "cancelled", "interrupted"].includes(item.status));
-      if (active || currentSession) updateTaskDock(active || currentSession);
+      if (active) updateTaskDock(active);
       else {
         $("#taskDock").hidden = true;
         state.lastTask = null;
@@ -1415,7 +1435,7 @@ async function openTaskDetail(taskId) {
       ? `<button class="panel-primary" data-resume-task="${escapeHtml(task.task_id)}">${t("tasks.resume")}</button>`
       : "";
     const attachments = attachmentMarkup(task.attachments || []);
-    openPanel(`${t("tasks.open")} · ${task.task_id}`, `<div class="task-detail"><div class="task-detail-status"><span class="task-state ${task.status === "completed" ? "success" : ["failed", "cancelled", "interrupted"].includes(task.status) ? "cancelled" : "running"}"></span><strong>${escapeHtml(phaseLabel(task))}</strong><span>${escapeHtml(taskMetrics(task))}</span></div><div class="task-detail-actions task-detail-top-actions"><button class="panel-secondary" data-open-task="${escapeHtml(task.task_id)}">${icon("arrow-up-right")} ${escapeHtml(t("tasks.openSession"))}</button></div><div class="panel-section-title">${t("workspace.current")}</div><code class="task-detail-path">${escapeHtml(task.workspace_path || "")}</code><div class="panel-section-title">Prompt</div><div class="task-detail-prompt">${formatText(task.prompt || task.preview || "")}</div>${attachments ? `<div class="panel-section-title">Images</div>${attachments}` : ""}<div class="panel-section-title">Response</div><div class="task-detail-answer">${formatText(task.answer || task.stream_text || task.error || "")}</div>${events ? `<div class="panel-section-title">Tools & stage trace</div><div class="task-detail-tools">${events}</div>` : ""}${children}${resume ? `<div class="task-detail-actions">${resume}</div>` : ""}</div>`, { immersive: true });
+    openPanel(`${t("tasks.open")} · ${task.task_id}`, `<div class="task-detail"><div class="task-detail-status"><span class="task-state ${task.status === "completed" ? "success" : ["failed", "cancelled", "interrupted"].includes(task.status) ? "cancelled" : "running"}"></span><strong>${escapeHtml(phaseLabel(task))}</strong><span>${escapeHtml(taskMetrics(task))}</span></div><div class="task-detail-actions task-detail-top-actions"><button class="panel-secondary" data-open-task="${escapeHtml(task.task_id)}">${icon("arrow-up-right")} ${escapeHtml(t("tasks.openSession"))}</button></div>${runtimeMetricsMarkup(task)}<div class="panel-section-title">${t("workspace.current")}</div><code class="task-detail-path">${escapeHtml(task.workspace_path || "")}</code><div class="panel-section-title">Prompt</div><div class="task-detail-prompt">${formatText(task.prompt || task.preview || "")}</div>${attachments ? `<div class="panel-section-title">Images</div>${attachments}` : ""}<div class="panel-section-title">Response</div><div class="task-detail-answer">${formatText(task.answer || task.stream_text || task.error || "")}</div>${events ? `<div class="panel-section-title">Tools & stage trace</div><div class="task-detail-tools">${events}</div>` : ""}${children}${resume ? `<div class="task-detail-actions">${resume}</div>` : ""}</div>`, { immersive: true });
   } catch (error) {
     showToast(error.message);
   }

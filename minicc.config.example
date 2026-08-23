@@ -20,5 +20,8 @@ MINICC_REASONING_EFFORT=high
 # Max agent turns (LLM round trips) per user request
 #MINICC_MAX_TURNS=40
 
+# Maximum automatic test-failure repair cycles after a successful write
+#MINICC_MAX_REPAIR_ATTEMPTS=2
+
 # Auto-approve every tool call (dangerous; --yolo sets this too)
 #MINICC_YOLO=0

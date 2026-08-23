@@ -24,6 +24,7 @@ DEFAULT_SANDBOX_IMAGE = "python:3.11-slim"
 DEFAULT_CONTEXT_WINDOW_TOKENS = 300_000
 DEFAULT_MAX_CONCURRENT_TASKS = 8
 DEFAULT_REASONING_EFFORT = "high"
+DEFAULT_MAX_REPAIR_ATTEMPTS = 2
 # Context compaction trigger, in characters (~chars/4 ≈ tokens).
 DEFAULT_COMPACT_THRESHOLD = 300_000
 
@@ -92,6 +93,7 @@ class Config:
     compact_threshold: int = DEFAULT_COMPACT_THRESHOLD
     context_window_tokens: int = DEFAULT_CONTEXT_WINDOW_TOKENS
     max_concurrent_tasks: int = DEFAULT_MAX_CONCURRENT_TASKS
+    max_repair_attempts: int = DEFAULT_MAX_REPAIR_ATTEMPTS
     sandbox_mode: str = DEFAULT_SANDBOX_MODE
     sandbox_image: str = DEFAULT_SANDBOX_IMAGE
 
@@ -179,6 +181,12 @@ def load_config(
     except ValueError:
         raise ConfigError(f"MINICC_MAX_CONCURRENT_TASKS 不是整数: {raw_max_concurrent!r}") from None
 
+    raw_max_repairs = pick(None, "MINICC_MAX_REPAIR_ATTEMPTS", "max_repair_attempts", str(DEFAULT_MAX_REPAIR_ATTEMPTS))
+    try:
+        max_repair_attempts = max(0, min(8, int(raw_max_repairs)))
+    except ValueError:
+        raise ConfigError(f"MINICC_MAX_REPAIR_ATTEMPTS 不是整数: {raw_max_repairs!r}") from None
+
     if not resolved_key or resolved_key == "sk-replace_me":
         raise ConfigError(
             "MINICC_API_KEY 未设置。复制 minicc.config.example 为 .env 并填入 key，"
@@ -196,6 +204,7 @@ def load_config(
         compact_threshold=compact_threshold,
         context_window_tokens=context_window_tokens,
         max_concurrent_tasks=max_concurrent_tasks,
+        max_repair_attempts=max_repair_attempts,
         sandbox_mode=sandbox_mode,
         sandbox_image=sandbox_image,
     )

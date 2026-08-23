@@ -14,8 +14,12 @@ import pytest
 
 import minicc.tools.web as web_tool
 from minicc.agent.context import COMPACTION_MARKER, compact
+from minicc.agent.graph import DAGPlan, GraphValidationError, NodeResult, PlanTask, build_coding_workflow, execute_dag, fixed_plan
+from minicc.agent.orchestration import assess_complexity, build_auto_subtasks
 from minicc.config import load_config, normalize_reasoning_effort
 from minicc.agent.loop import run_agent
+from minicc.agent.state import AgentState, Budget, BudgetExceeded
+from minicc.agent.verifier import VerificationCommand, Verifier
 from minicc.llm.base import LLMResponse
 from minicc.llm.envelope import extract_json_object, parse_envelope
 from minicc.llm.openai_provider import OpenAICompatibleProvider, _is_stream_retryable
@@ -34,12 +38,105 @@ from minicc.worktree import WorktreeError, WorktreeManager
 from minicc.prompt import build_system_prompt
 
 
+def test_complexity_router_only_fans_out_for_multi_dimension_work() -> None:
+    simple = assess_complexity("读取 README 并告诉我项目用途")
+    assert simple.should_fan_out is False
+    assert simple.child_count == 0
+
+    complex_task = assess_complexity(
+        "请分析前后端现状，修复登录和任务流式输出，同时优化界面，补充测试并运行验证，最后总结风险。"
+    )
+    assert complex_task.should_fan_out is True
+    assert complex_task.child_count >= 2
+    assert len(build_auto_subtasks("复杂需求", complex_task)) == complex_task.child_count
+
+    opted_out = assess_complexity(
+        "请分析前后端并修复问题，但不要拆分子任务，只由一个 Agent 完成。"
+    )
+    assert opted_out.should_fan_out is False
+
+
 def test_compact_builds_valid_summary() -> None:
     messages = [{"role": "system", "content": "rules"}]
     messages.extend({"role": "user", "content": "x" * 50} for _ in range(8))
     compacted = compact(messages, threshold=100, keep_recent=2)
     assert COMPACTION_MARKER in compacted[1]["content"]
     assert len(compacted) == 4
+
+
+def test_budget_tracks_usage_and_stops_at_limits() -> None:
+    budget = Budget(max_turns=1, max_tokens=3, max_tool_calls=1)
+    budget.record_turn()
+    budget.record_usage({"total_tokens": 3})
+    budget.record_tool_call()
+    with pytest.raises(BudgetExceeded):
+        budget.record_turn()
+
+
+def test_state_graph_repairs_verification_failure() -> None:
+    graph = build_coding_workflow()
+    state = AgentState("graph-test", "implement and verify", budget=Budget(max_turns=10))
+    verify_calls = 0
+
+    def handler(node: str):
+        def run(_state: AgentState) -> NodeResult:
+            nonlocal verify_calls
+            if node == "verify":
+                verify_calls += 1
+                return NodeResult("failed" if verify_calls == 1 else "ok", error="test failed" if verify_calls == 1 else None)
+            return NodeResult("ok")
+
+        return run
+
+    handlers = {name: handler(name) for name in graph.nodes}
+    completed = asyncio.run(graph.run(state, handlers, max_steps=20))
+    assert completed.status == "completed"
+    assert verify_calls == 2
+    assert any(event.get("node") == "repair" for event in completed.trace_events)
+
+
+def test_dag_validates_dependencies_and_bounds_concurrency() -> None:
+    plan = fixed_plan("parallel_inspect", task_count=3)
+    running = 0
+    maximum = 0
+
+    async def handler(task):
+        nonlocal running, maximum
+        running += 1
+        maximum = max(maximum, running)
+        await asyncio.sleep(0.01)
+        running -= 1
+        return {"task": task.id}
+
+    result = asyncio.run(execute_dag(plan, handler, max_concurrency=2))
+    assert result.status == "completed"
+    assert result.completed[-1] == "summarize"
+    assert maximum <= 2
+    with pytest.raises(GraphValidationError, match="存在环"):
+        DAGPlan(
+            "cycle",
+            (
+                PlanTask("a", "readonly", ("b",)),
+                PlanTask("b", "readonly", ("a",)),
+            ),
+        ).validate()
+
+
+def test_verifier_returns_structured_failure_and_rejects_shell_composition(tmp_path: Path) -> None:
+    def fake_executor(_command: str, _workspace: Path, _timeout: int):
+        return SimpleNamespace(
+            status="error",
+            exit_code=1,
+            render=lambda: "FAILED tests/test_demo.py::test_one - AssertionError",
+        )
+
+    verifier = Verifier(executor=fake_executor)
+    result = verifier.run(tmp_path, [VerificationCommand("python -m pytest -q")])
+    assert result.status == "failed"
+    assert result.failed_tests == ["tests/test_demo.py::test_one"]
+    assert result.to_event()["code"] == "verification_failed"
+    blocked = verifier.run(tmp_path, [VerificationCommand("python -m pytest -q > report.txt")])
+    assert blocked.status == "blocked"
 
 
 def test_editor_rejects_escape_and_stale_write(tmp_path: Path) -> None:
@@ -159,6 +256,83 @@ def test_agent_service_marks_text_only_change_request_as_incomplete(tmp_path: Pa
     assert result["completion_guard"]
     assert result["error"] == "模型在没有完成任何工作区修改前结束了任务"
     assert result["cancelled"] is False
+
+
+def test_agent_service_runs_verifier_after_successful_write(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "tests" / "test_smoke.py").write_text("def test_smoke():\n    assert True\n", encoding="utf-8")
+
+    class FakeProvider:
+        def __init__(self, **_kwargs) -> None:
+            self.calls = 0
+
+        async def chat(self, messages, tools, on_delta=None):
+            self.calls += 1
+            if self.calls == 1:
+                return LLMResponse(
+                    tool_calls=[
+                        {
+                            "id": "write-1",
+                            "type": "function",
+                            "function": {
+                                "name": "write_file",
+                                "arguments": json.dumps({"path": "result.txt", "content": "verified\n"}),
+                            },
+                        }
+                    ]
+                )
+            if self.calls == 2:
+                return LLMResponse(
+                    tool_calls=[
+                        {
+                            "id": "pytest-1",
+                            "type": "function",
+                            "function": {
+                                "name": "bash",
+                                "arguments": json.dumps({"command": "python -m pytest -q"}),
+                            },
+                        }
+                    ]
+                )
+            return LLMResponse(content="修改和验证都已完成。")
+
+        async def close(self) -> None:
+            return None
+
+    monkeypatch.setattr("minicc.web.OpenAICompatibleProvider", FakeProvider)
+    config = SimpleNamespace(
+        yolo=True,
+        max_concurrent_tasks=1,
+        max_repair_attempts=2,
+        sandbox_mode="host",
+        sandbox_image="python:3.11-slim",
+        base_url="https://example.test/v1",
+        api_key="test-key",
+        model="test-model",
+        timeout=10,
+        tool_mode="auto",
+        reasoning_effort="high",
+        max_turns=8,
+        compact_threshold=300_000,
+        context_window_tokens=300_000,
+    )
+    service = AgentService(tmp_path, config)
+    try:
+        result = service._chat_locked(
+            {
+                "message": "修改 result.txt 并验证",
+                "session_id": "verifier-loop",
+                "allow_changes": True,
+                "workspace_path": str(tmp_path),
+            },
+            workspace=tmp_path,
+        )
+    finally:
+        service.shutdown()
+    assert result["error"] is None
+    assert (tmp_path / "result.txt").read_text(encoding="utf-8") == "verified\n"
+    assert result["metrics"]["verification_runs"] == 1
+    assert any(event.get("code") == "verification_passed" for event in result["events"])
 
 
 def test_search_parser_supports_duckduckgo_lite_redirects() -> None:
@@ -623,6 +797,55 @@ def test_task_manager_runs_batch_in_parallel() -> None:
         assert len(set(child_sessions)) == len(child_sessions)
         assert all("-subagent-" in session for session in child_sessions)
         assert any(event.get("code") == "batch_started" for event in manager.get(batch["parent_task_id"])["events"])
+    finally:
+        manager.shutdown()
+
+
+def test_task_manager_auto_orchestrates_complex_task_then_resumes_parent(tmp_path: Path) -> None:
+    calls: list[tuple[str, bool]] = []
+
+    class FakeService:
+        config = SimpleNamespace(yolo=False, max_concurrent_tasks=4)
+        workspace = tmp_path
+
+        @staticmethod
+        def _run_chat(payload, *, on_event=None, on_stream=None, cancel_event=None):
+            message = str(payload["message"])
+            calls.append((message, bool(payload.get("allow_changes"))))
+            if "自动子任务" in message:
+                if on_event is not None:
+                    on_event({"kind": "trace", "phase": "planning", "status": "ok", "summary": "只读侦察完成"})
+                return {"answer": "已检查 src/app.py；建议先修复状态同步，再运行测试。", "cancelled": False, "events": []}
+            assert "自动编排证据" in message
+            if on_event is not None:
+                on_event({"kind": "trace", "phase": "implementing", "status": "ok", "summary": "主 Agent 已接管"})
+            return {"answer": "主任务已基于侦察证据完成。", "cancelled": False, "events": []}
+
+    manager = TaskManager(FakeService(), max_workers=4)
+    try:
+        created = manager.submit(
+            {
+                "message": "请分析前后端现状，修复登录和任务流式输出，同时优化界面，并补充测试，联网调研最新文档后运行验证。",
+                "session_id": "auto-test",
+                "allow_changes": True,
+                "workspace_path": str(tmp_path),
+            }
+        )
+        assert created["task_kind"] == "batch"
+        assert created["orchestration_mode"] == "auto"
+        assert len(created["child_task_ids"]) >= 2
+
+        deadline = time.monotonic() + 3
+        while time.monotonic() < deadline and manager.get(created["task_id"])["status"] not in {"completed", "failed"}:
+            time.sleep(0.01)
+        parent = manager.get(created["task_id"])
+        assert parent["status"] == "completed"
+        assert "主任务已基于侦察证据完成" in parent["answer"]
+        assert all(manager.get(child_id)["allow_changes"] is False for child_id in created["child_task_ids"])
+        assert any(message.startswith("[自动子任务") for message, _allow_changes in calls)
+        assert any("自动编排证据" in message and allow_changes for message, allow_changes in calls)
+        codes = {event.get("code") for event in parent["events"]}
+        assert {"auto_orchestration_triggered", "orchestration_parent_resumed"} <= codes
     finally:
         manager.shutdown()
 
