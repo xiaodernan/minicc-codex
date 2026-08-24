@@ -1,0 +1,9 @@
+{
+  "private": true,
+  "scripts": {
+    "test:web": "node tests/web_smoke.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.62.1"
+  }
+}

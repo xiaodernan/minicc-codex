@@ -15,7 +15,7 @@
 - Web 工作区中心：可切换任意本地目录，记录最近目录，并显示每个任务的父子关系、流式文本、tokens、上下文和压缩次数。
 - Web 多模态输入：支持文件选择、拖拽和粘贴图片；图片以任务附件保存到工作区的 `.minicc/attachments/`，任务历史只保存元数据，恢复任务时再重建模型 payload。
 - 任务详情与可观测性：日志可展开到沉浸式/全屏面板，工具轮次可折叠，阶段事件展示轮次、工具、状态和验证证据；历史任务可直接回到真实会话页面。
-- `web_search`：只读联网搜索最新资料；结果带来源 URL、摘要和不可信数据标记，安全模式也可使用。
+- `web_search`：只读联网搜索最新资料；结果带来源 URL、摘要和不可信数据标记。联网默认关闭，必须在当前任务显式打开 `allow_network`。
 - 搜索适配层优先使用 Bing，DuckDuckGo 作为备用；带超时重试、短期缓存、反爬诊断和连续失败熔断，避免 Agent 原地重复空搜索。
 - Git worktree 管理：在工作区旁的隐藏目录创建和移除受约束的 worktree。
 - 流式输出、工具参数校验、结果脱敏/截断、LLM 重试、上下文压缩和 usage 估算。
@@ -25,7 +25,11 @@
 - 验证器驱动闭环：成功写入后自动运行白名单 pytest，失败最多按 `MINICC_MAX_REPAIR_ATTEMPTS` 回到 repair；验证结果、失败测试、建议和耗时都会写入任务快照。
 - 证据驱动完成评估：验证器之后由独立 LLM completion judge 根据原始需求、工具 trace、修改证据和验证结果返回结构化 `complete` / `continue` / `blocked`；`continue` 会把缺失目标反馈给 Agent 继续执行，评估失败会先触发一次复查，不会直接标绿。
 - 自动并行编排：运行时按需求复杂度和独立工作维度评分；达到阈值后自动创建 2-3 个只读侦察子任务，独立 session 并行执行，父 Agent 收集证据后继续原始实现与验证。任务中心仍保留显式批量入口作为高级控制面板。
-- 推理预算支持 `standard`、`high`、`max`；Web 设置可按任务切换，网关不支持时自动降级并在 trace 中记录原因。修改后会自动要求下一轮检查 diff 和验证。
+- 推理预算支持 `low`、`mid`、`high`、`xhigh`、`max`；Web 设置可按任务切换，网关不支持时会逐级降档并在 trace 中记录原因。修改后会自动要求下一轮检查 diff 和验证。
+- 受约束动态规划：限制节点数、依赖深度、并发宽度、重试次数和工具白名单；非法计划自动回退固定 DAG，并记录回退原因。
+- 依赖感知修复、本地证据检索和阶段路由：优先定位与失败测试和已写入路径相关的证据，按 inspect/implement/verify/review 阶段收紧预算，但不会覆盖用户显式配置的模型。
+- 任务可靠性基线：SQLite 历史、只读检查点 digest 校验、任务级联网授权、脱敏审计导出和离线 30 条评测 fixture。
+- Web 体验：亮色/暗色主题持久化、阶段摘要与工具轮次折叠、长输出边界、仅在用户已接近底部时自动跟随，避免阅读历史时跳屏。
 - 支持 `AGENTS.md`、`CLAUDE.md`、`MINICC.md` 或 `.minicc/instructions.md` 项目指导文件；内容只作为工作约定，不能覆盖系统指令和权限边界。
 - 交互命令：`/help`、`/tools`、`/status`、`/clear`、`/exit`。
 - 会话断点：`--session-id interview-1` 保存本地脱敏 checkpoint，`--resume` 继续。
@@ -33,7 +37,8 @@
 验证与运行时预算：
 
 ```text
-MINICC_MAX_TURNS=40
+# 可选硬上限；默认不限轮次，设置为 0 表示不限
+MINICC_MAX_TURNS=0
 MINICC_MAX_REPAIR_ATTEMPTS=2
 ```
 
@@ -95,8 +100,8 @@ Invoke-RestMethod http://127.0.0.1:8765/api/tasks
 接口默认按本项目当前面试网关配置：
 
 ```text
-MINICC_BASE_URL=https://api.aizzz.xyz/v1
-MINICC_MODEL=gpt-5.6-luna
+MINICC_BASE_URL=https://api.247kan.com/v1
+MINICC_MODEL=gpt-5.6-terra
 ```
 
  也可以换成其他 OpenAI 兼容网关。带完整路径的 endpoint 会原样使用；只有裸 API 根地址才会自动补 `/v1`。
@@ -107,7 +112,16 @@ MINICC_MODEL=gpt-5.6-luna
 MINICC_REASONING_EFFORT=high
 ```
 
-`max` 会优先发送 `reasoning_effort=xhigh`；如果兼容网关不接受该参数，Provider 会依次降到 `high`、`standard`，最后关闭该扩展参数并继续请求。
+模型请求会原样发送 `reasoning_effort=low|mid|high|xhigh|max`；如果兼容网关不接受该参数，Provider 会依次降档，最后关闭该扩展参数并继续请求。
+
+离线评测和审计导出：
+
+```powershell
+python -m minicc.benchmarks --json-out output\\evaluation.json --markdown-out output\\evaluation.md
+Invoke-RestMethod http://127.0.0.1:8765/api/audit?limit=500
+```
+
+评测命令只生成报告骨架和 30 条脱敏任务 fixture，不会伪造真实模型的成功率、延迟、token 或费用；接入模型运行时再填入原始结果。
 
 断线后继续：
 
@@ -137,6 +151,6 @@ judge 只输出短依据、缺失项和下一步，不输出模型私有思维�
 
 ## 当前边界
 
-这是本地 MVP，不等同于 Claude Code 或 Codex 的完整产品。Docker、MCP、后台任务、批量并行任务、自动复杂度路由、结果合并、SQLite 任务历史和 Git worktree 已提供可运行的本地实现，但仍有明确边界：SQLite 不是 Redis/分布式队列，服务重启会把运行中的任务标记为 interrupted，需要重新运行；自动编排采用确定性的复杂度评分和固定只读侦察模板，还没有让模型自由生成无限 DAG、共享长期记忆或分布式 subagent 调度策略；MCP 只支持 stdio；Docker 需要本机已安装并可用，工作区仍以读写挂载；RAG、OAuth、云端协作、自动提交和生产级权限审计尚未接入。`bash` 在 host 模式仍然是本机子进程，运行不可信仓库时应使用 `MINICC_SANDBOX=docker` 并在隔离环境中使用。
+这是本地 MVP，不等同于 Claude Code 或 Codex 的完整产品。Docker、MCP、后台任务、批量并行任务、自动复杂度路由、结果合并、SQLite 任务历史和 Git worktree 已提供可运行的本地实现，但仍有明确边界：SQLite 不是 Redis/分布式队列；服务重启会把运行中的任务标记为 `interrupted`，只能通过重跑继续，不能声称是精确的模型调用断点续跑。只读且 digest 未变化的检查点可复用事实提示，但写入任务或工作区变化后必须重新检查。动态 planner、repair scope、本地检索和阶段路由目前是受约束的初版，尚无真实模型对比基线或 CI 指标；MCP 只支持 stdio；Docker 需要本机已安装并可用，工作区仍以读写挂载；RAG、OAuth、云端协作、自动提交和生产级多用户权限审计尚未接入。`bash` 在 host 模式仍然是本机子进程，运行不可信仓库时应使用 `MINICC_SANDBOX=docker` 并在隔离环境中使用。
 
 Web 界面的权限开关默认是完全访问，适合本地面试演示；关闭开关可恢复当前任务的只读保护。服务端设置 `MINICC_YOLO=1` 会自动放行所有写入和命令工具，CLI 的 `--yolo` 也会启用同样模式。完全访问模式只应在你信任的本机工作区中使用。

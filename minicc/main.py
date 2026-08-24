@@ -42,9 +42,9 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--base-url", help="OpenAI 兼容接口地址")
     parser.add_argument("--api-key", help="接口密钥；也可通过 MINICC_API_KEY 设置")
     parser.add_argument("--model", help="模型名")
-    parser.add_argument("--reasoning-effort", choices=("standard", "high", "max"), help="推理预算")
+    parser.add_argument("--reasoning-effort", choices=("low", "mid", "high", "xhigh", "max"), help="推理预算")
     parser.add_argument("--tool-mode", choices=("auto", "native", "envelope"), help="工具调用模式")
-    parser.add_argument("--max-turns", type=int, help="单次任务最多模型轮次")
+    parser.add_argument("--max-turns", type=int, help="可选的单次任务模型轮次上限；默认不限，传 0 也表示不限")
     parser.add_argument("--compact-threshold", type=int, help="上下文压缩字符阈值")
     parser.add_argument("--yolo", action="store_true", help="自动允许写文件和执行命令")
     parser.add_argument("--no-stream", action="store_true", help="关闭流式输出")
@@ -188,7 +188,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.compact_threshold is not None:
         config.compact_threshold = max(10_000, args.compact_threshold)
     if args.max_turns is not None:
-        config.max_turns = max(1, args.max_turns)
+        config.max_turns = args.max_turns if args.max_turns > 0 else None
     if args.print_config:
         print(config.describe())
         print(f"workspace={workspace}")
@@ -207,7 +207,9 @@ def main(argv: list[str] | None = None) -> int:
         api_key=config.api_key,
         model=config.model,
         timeout=config.timeout,
+        max_retries=config.provider_retries,
         tool_mode=config.tool_mode,
+        protocol=config.llm_protocol,
         reasoning_effort=config.reasoning_effort,
     )
 

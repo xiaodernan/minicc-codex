@@ -3,6 +3,7 @@
 __pycache__/
 .pytest_cache/
 .playwright-cli/
+node_modules/
 .mypy_cache/
 .ruff_cache/
 .minicc/

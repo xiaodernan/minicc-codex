@@ -13,17 +13,23 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
-# The default is the interview gateway supplied for this project. The provider
-# also accepts any other OpenAI-compatible root or path-qualified endpoint.
-DEFAULT_MODEL = "gpt-5.6-luna"
-DEFAULT_BASE_URL = "https://api.aizzz.xyz/v1"
-DEFAULT_MAX_TURNS = 40
+# Default to the configured OpenAI-compatible gateway; callers can still
+# override it through environment variables or explicit CLI arguments.
+DEFAULT_MODEL = "gpt-5.6-terra"
+DEFAULT_BASE_URL = "https://api.247kan.com/v1"
+# An explicit cap remains available, but normal runs are allowed to continue
+# until the model returns an answer or another runtime guard stops the task.
+DEFAULT_MAX_TURNS: int | None = None
 DEFAULT_TIMEOUT = 180.0
+DEFAULT_LLM_PROTOCOL = "auto"
+DEFAULT_PROVIDER_RETRIES = 4
+DEFAULT_TASK_RECOVERY_RETRIES = 2
 DEFAULT_SANDBOX_MODE = "host"
 DEFAULT_SANDBOX_IMAGE = "python:3.11-slim"
 DEFAULT_CONTEXT_WINDOW_TOKENS = 300_000
 DEFAULT_MAX_CONCURRENT_TASKS = 8
 DEFAULT_REASONING_EFFORT = "high"
+REASONING_EFFORTS = frozenset({"low", "mid", "high", "xhigh", "max"})
 DEFAULT_MAX_REPAIR_ATTEMPTS = 2
 # Context compaction trigger, in characters (~chars/4 ≈ tokens).
 DEFAULT_COMPACT_THRESHOLD = 300_000
@@ -36,23 +42,22 @@ class ConfigError(RuntimeError):
 
 
 def normalize_reasoning_effort(value: str | None, *, default: str = DEFAULT_REASONING_EFFORT) -> str:
-    """Normalize UI/env aliases to the three effort levels exposed by minicc."""
+    """Normalize UI/env aliases to the five provider effort levels."""
     raw = str(value or default).strip().lower().replace("_", "-").replace(" ", "-")
     aliases = {
-        "low": "standard",
-        "medium": "standard",
-        "very-high": "max",
-        "very high": "max",
-        "veryhigh": "max",
-        "xhigh": "max",
+        "standard": "mid",
+        "medium": "mid",
+        "very-high": "xhigh",
+        "very high": "xhigh",
+        "veryhigh": "xhigh",
         "maximum": "max",
         "高": "high",
-        "极高": "max",
+        "极高": "xhigh",
         "最高": "max",
     }
     normalized = aliases.get(raw, raw)
-    if normalized not in {"standard", "high", "max"}:
-        raise ValueError(f"reasoning effort 非法: {value!r} (standard|high|max)")
+    if normalized not in REASONING_EFFORTS:
+        raise ValueError(f"reasoning effort 非法: {value!r} (low|mid|high|xhigh|max)")
     return normalized
 
 
@@ -87,8 +92,11 @@ class Config:
     model: str
     reasoning_effort: str = DEFAULT_REASONING_EFFORT
     tool_mode: str = "auto"  # auto | native | envelope
-    max_turns: int = DEFAULT_MAX_TURNS
+    max_turns: int | None = DEFAULT_MAX_TURNS
     timeout: float = DEFAULT_TIMEOUT
+    llm_protocol: str = DEFAULT_LLM_PROTOCOL  # auto | responses | chat_completions
+    provider_retries: int = DEFAULT_PROVIDER_RETRIES
+    task_recovery_retries: int = DEFAULT_TASK_RECOVERY_RETRIES
     yolo: bool = False
     compact_threshold: int = DEFAULT_COMPACT_THRESHOLD
     context_window_tokens: int = DEFAULT_CONTEXT_WINDOW_TOKENS
@@ -102,7 +110,8 @@ class Config:
         shown = key if len(key) <= 12 else key[:8] + "..." + key[-4:]
         return (
             f"model={self.model} endpoint={self.base_url} "
-            f"tool_mode={self.tool_mode} reasoning={self.reasoning_effort} key={shown}"
+            f"tool_mode={self.tool_mode} protocol={self.llm_protocol} "
+            f"reasoning={self.reasoning_effort} key={shown}"
         )
 
 
@@ -151,11 +160,32 @@ def load_config(
     if resolved_mode not in ("auto", "native", "envelope"):
         raise ConfigError(f"MINICC_TOOL_MODE 非法: {resolved_mode!r} (auto|native|envelope)")
 
-    raw_turns = pick(None, "MINICC_MAX_TURNS", "max_turns", str(DEFAULT_MAX_TURNS))
+    raw_turns = pick(None, "MINICC_MAX_TURNS", "max_turns", str(DEFAULT_MAX_TURNS or "")).strip().lower()
+    if raw_turns in {"", "0", "none", "null", "unlimited", "off", "false"}:
+        max_turns = None
+    else:
+        try:
+            max_turns = max(1, int(raw_turns))
+        except ValueError:
+            raise ConfigError(f"MINICC_MAX_TURNS 不是整数，或使用 0 表示不限轮次: {raw_turns!r}") from None
+
+    resolved_protocol = pick(None, "MINICC_LLM_PROTOCOL", "llm_protocol", DEFAULT_LLM_PROTOCOL).strip().lower()
+    aliases = {"chat": "chat_completions", "completions": "chat_completions", "response": "responses"}
+    resolved_protocol = aliases.get(resolved_protocol, resolved_protocol)
+    if resolved_protocol not in {"auto", "responses", "chat_completions"}:
+        raise ConfigError(
+            f"MINICC_LLM_PROTOCOL 非法: {resolved_protocol!r} (auto|responses|chat_completions)"
+        )
+    raw_provider_retries = pick(None, "MINICC_PROVIDER_RETRIES", "provider_retries", str(DEFAULT_PROVIDER_RETRIES))
     try:
-        max_turns = max(1, int(raw_turns))
+        provider_retries = max(0, min(8, int(raw_provider_retries)))
     except ValueError:
-        raise ConfigError(f"MINICC_MAX_TURNS 不是整数: {raw_turns!r}") from None
+        raise ConfigError(f"MINICC_PROVIDER_RETRIES 不是 0-8 的整数: {raw_provider_retries!r}") from None
+    raw_task_retries = pick(None, "MINICC_TASK_RECOVERY_RETRIES", "task_recovery_retries", str(DEFAULT_TASK_RECOVERY_RETRIES))
+    try:
+        task_recovery_retries = max(0, min(4, int(raw_task_retries)))
+    except ValueError:
+        raise ConfigError(f"MINICC_TASK_RECOVERY_RETRIES 不是 0-4 的整数: {raw_task_retries!r}") from None
 
     raw_yolo = pick(None, "MINICC_YOLO", "yolo", "0")
     resolved_yolo = yolo if yolo is not None else raw_yolo.strip().lower() in TRUTHY
@@ -200,6 +230,9 @@ def load_config(
         reasoning_effort=resolved_reasoning,
         tool_mode=resolved_mode,
         max_turns=max_turns,
+        llm_protocol=resolved_protocol,
+        provider_retries=provider_retries,
+        task_recovery_retries=task_recovery_retries,
         yolo=resolved_yolo,
         compact_threshold=compact_threshold,
         context_window_tokens=context_window_tokens,

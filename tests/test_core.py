@@ -17,6 +17,12 @@ from minicc.agent.context import COMPACTION_MARKER, compact
 from minicc.agent.completion import parse_completion_decision
 from minicc.agent.graph import DAGPlan, GraphValidationError, NodeResult, PlanTask, build_coding_workflow, execute_dag, fixed_plan
 from minicc.agent.orchestration import assess_complexity, build_auto_subtasks
+from minicc.agent.planner import PlannerPolicy, build_plan, validate_dynamic_plan
+from minicc.agent.repair import repair_scope
+from minicc.agent.retrieval import LocalEvidenceIndex
+from minicc.agent.router import StageRouter
+from minicc.audit import authorize_tool
+from minicc.benchmarks import build_report, load_tasks, markdown_report
 from minicc.config import load_config, normalize_reasoning_effort
 from minicc.agent.loop import run_agent
 from minicc.agent.state import AgentState, Budget, BudgetExceeded
@@ -172,6 +178,61 @@ def test_registry_contains_readonly_git_tools(tmp_path: Path) -> None:
     assert registry.risk_of("git_status") == "readonly"
     assert registry.risk_of("git_diff") == "readonly"
     assert registry.risk_of("web_search") == "readonly"
+
+
+def test_authorization_policy_requires_explicit_network_and_write_permission() -> None:
+    readonly = authorize_tool("read_file", "readonly", {}, allow_changes=False, allow_network=False)
+    assert readonly.allowed is True
+    assert authorize_tool("write_file", "write", {}, allow_changes=False, allow_network=False).allowed is False
+    assert authorize_tool("bash", "exec", {"command": "python -m pytest -q"}, allow_changes=False, allow_network=False).allowed is True
+    assert authorize_tool("web_search", "readonly", {"query": "documentation"}, allow_changes=True, allow_network=False).allowed is False
+    assert authorize_tool("web_search", "readonly", {"query": "documentation"}, allow_changes=False, allow_network=True).allowed is True
+    assert authorize_tool("bash", "exec", {"command": "curl https://example.test"}, allow_changes=True, allow_network=False).allowed is False
+
+
+def test_offline_benchmark_report_has_exact_fixtures_and_no_fabricated_results() -> None:
+    tasks = load_tasks()
+    report = build_report(tasks)
+    assert len(tasks) == 30
+    assert report["executed_count"] == 0
+    assert report["metrics"]["pass_at_1"] is None
+    assert all(item["status"] == "not_run" and item["cost_usd"] is None for item in report["results"])
+    assert "N/A" in markdown_report(report)
+
+
+def test_dynamic_planner_rejects_unsafe_tool_and_falls_back_to_fixed_plan() -> None:
+    policy = PlannerPolicy(max_nodes=4, max_depth=3, max_concurrency=2)
+    valid = validate_dynamic_plan({
+        "name": "narrow",
+        "tasks": [
+            {"id": "inspect", "kind": "readonly", "allowed_tools": ["read_file"]},
+            {"id": "verify", "kind": "exec", "depends_on": ["inspect"], "allowed_tools": ["bash"]},
+        ],
+    }, policy=policy)
+    assert valid.name == "narrow"
+    fallback = build_plan({"tasks": [{"id": "bad", "allowed_tools": ["web_search"]}]}, policy=policy)
+    assert fallback.source == "fixed_fallback"
+    assert fallback.plan.name == "inspect_implement_verify"
+
+
+def test_local_evidence_index_and_repair_scope_are_bounded(tmp_path: Path) -> None:
+    (tmp_path / "feature.py").write_text("def parse_widget():\n    return 1\n", encoding="utf-8")
+    (tmp_path / ".env").write_text("MINICC_API_KEY=must-not-index\n", encoding="utf-8")
+    hits = LocalEvidenceIndex(tmp_path).search("parse widget")
+    assert hits and hits[0].path == "feature.py"
+    assert all(".env" not in hit.path for hit in hits)
+    scope = repair_scope(
+        [{"write": True, "path": "feature.py"}, {"write": True, "path": "unrelated.css"}],
+        {"failed_tests": ["tests/test_feature.py::test_parse_widget"]},
+    )
+    assert scope["repair_targets"] == ["feature.py"]
+
+
+def test_stage_router_preserves_explicit_model_and_applies_bounded_budget() -> None:
+    route = StageRouter("terra", 100).route("inspect")
+    assert route.model == "terra"
+    assert route.timeout == 75.0
+    assert route.max_turns == 8
 
 
 def test_bash_output_decodes_windows_code_pages_without_crashing() -> None:
@@ -496,9 +557,12 @@ def test_web_search_caches_results_and_marks_cache_hit(monkeypatch: pytest.Monke
 
 
 def test_reasoning_effort_aliases_are_normalized() -> None:
-    assert normalize_reasoning_effort("standard") == "standard"
+    assert normalize_reasoning_effort("standard") == "mid"
+    assert normalize_reasoning_effort("low") == "low"
+    assert normalize_reasoning_effort("mid") == "mid"
     assert normalize_reasoning_effort("high") == "high"
-    assert normalize_reasoning_effort("very-high") == "max"
+    assert normalize_reasoning_effort("xhigh") == "xhigh"
+    assert normalize_reasoning_effort("very-high") == "xhigh"
 
 
 def test_provider_sends_reasoning_budget() -> None:
@@ -508,6 +572,7 @@ def test_provider_sends_reasoning_budget() -> None:
         "test-key",
         "test-model",
         reasoning_effort="max",
+        protocol="chat_completions",
         sdk_client=object(),
     )
 
@@ -525,7 +590,7 @@ def test_provider_sends_reasoning_budget() -> None:
     provider._create = fake_create  # type: ignore[method-assign]
     response = asyncio.run(provider.chat([{"role": "user", "content": "test"}], tools=None))
     assert response.content == "done"
-    assert seen["reasoning_effort"] == "xhigh"
+    assert seen["reasoning_effort"] == "max"
 
 
 @pytest.mark.parametrize(
@@ -592,6 +657,7 @@ def test_config_file_accepts_boolean_yolo(tmp_path: Path, monkeypatch: pytest.Mo
         encoding="utf-8",
     )
     monkeypatch.setenv("MINICC_HOME", str(tmp_path))
+    monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("MINICC_API_KEY", raising=False)
     monkeypatch.delenv("MINICC_BASE_URL", raising=False)
     monkeypatch.delenv("MINICC_MODEL", raising=False)
@@ -601,6 +667,18 @@ def test_config_file_accepts_boolean_yolo(tmp_path: Path, monkeypatch: pytest.Mo
     assert config.base_url == "https://example.test/v1"
     assert config.model == "test-model"
     assert config.yolo is True
+
+
+def test_config_defaults_to_unlimited_turns(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("MINICC_HOME", str(tmp_path))
+    monkeypatch.setenv("MINICC_API_KEY", "sk-test-config")
+    monkeypatch.delenv("MINICC_MAX_TURNS", raising=False)
+    assert load_config().max_turns is None
+
+    monkeypatch.setenv("MINICC_MAX_TURNS", "0")
+    assert load_config().max_turns is None
+    monkeypatch.setenv("MINICC_MAX_TURNS", "7")
+    assert load_config().max_turns == 7
 
 
 def test_project_guidance_is_loaded_as_non_policy_context(tmp_path: Path) -> None:
@@ -749,6 +827,65 @@ def test_agent_loop_forwards_streaming_text_deltas(tmp_path: Path) -> None:
     assert result.answer == "第一段第二段第三段"
 
 
+def test_agent_loop_disables_streaming_without_output_callback(tmp_path: Path) -> None:
+    seen: list[object] = []
+
+    class FakeProvider:
+        async def chat(self, messages, tools, on_delta=None):
+            seen.append(on_delta)
+            return LLMResponse(content="非流式回答")
+
+    result = asyncio.run(
+        run_agent(
+            FakeProvider(),
+            build_registry(Editor(tmp_path)),
+            [{"role": "user", "content": "给我一个简短回答"}],
+            should_allow=lambda _name, _call: True,
+        )
+    )
+    assert seen == [None]
+    assert result.answer == "非流式回答"
+
+
+def test_agent_emits_public_model_update_before_tool_events(tmp_path: Path) -> None:
+    (tmp_path / "note.txt").write_text("evidence\n", encoding="utf-8")
+
+    class FakeProvider:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        async def chat(self, messages, tools, on_delta=None):
+            self.calls += 1
+            if self.calls == 1:
+                return LLMResponse(
+                    content="我会先读取 note.txt，再根据内容给出结论。",
+                    reasoning_content="private reasoning must never be shown",
+                    tool_calls=[{
+                        "id": "read-note",
+                        "type": "function",
+                        "function": {"name": "read_file", "arguments": '{\"path\":\"note.txt\"}'},
+                    }],
+                )
+            return LLMResponse(content="已读取并完成结论。")
+
+    traces: list[dict[str, object]] = []
+    result = asyncio.run(
+        run_agent(
+            FakeProvider(),
+            build_registry(Editor(tmp_path)),
+            [{"role": "user", "content": "读取 note.txt"}],
+            on_trace=traces.append,
+            should_allow=lambda _name, _call: True,
+        )
+    )
+    codes = [str(event.get("code")) for event in traces]
+    update = next(event for event in traces if event.get("code") == "model_update")
+    assert update["detail"] == {"turn": 1, "text": "我会先读取 note.txt，再根据内容给出结论。"}
+    assert codes.index("model_update") < codes.index("model_decision") < codes.index("tool_round_started")
+    assert "private reasoning" not in json.dumps(traces, ensure_ascii=False)
+    assert result.answer == "已读取并完成结论。"
+
+
 def test_agent_requires_verification_after_a_successful_write(tmp_path: Path) -> None:
     class FakeProvider:
         def __init__(self) -> None:
@@ -850,6 +987,41 @@ def test_agent_marks_max_turns_as_incomplete(tmp_path: Path) -> None:
         )
     )
     assert result.error == "Agent 达到最大执行轮次 1，任务未完成"
+
+
+def test_agent_has_no_default_fixed_turn_cap(tmp_path: Path) -> None:
+    for index in range(1, 42):
+        (tmp_path / f"probe-{index}.txt").write_text(f"probe {index}\n", encoding="utf-8")
+
+    class FakeProvider:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        async def chat(self, messages, tools, on_delta=None):
+            self.calls += 1
+            if self.calls > 41:
+                return LLMResponse(content="完成")
+            return LLMResponse(tool_calls=[{
+                "id": f"read-{self.calls}",
+                "type": "function",
+                "function": {
+                    "name": "read_file",
+                    "arguments": json.dumps({"path": f"probe-{self.calls}.txt"}),
+                },
+            }])
+
+    provider = FakeProvider()
+    result = asyncio.run(
+        run_agent(
+            provider,
+            build_registry(Editor(tmp_path)),
+            [{"role": "user", "content": "逐个检查这些文件"}],
+            should_allow=lambda _name, _call: True,
+        )
+    )
+    assert provider.calls == 42
+    assert result.error is None
+    assert result.answer == "完成"
 
 
 def test_session_round_trip_redacts_credentials(tmp_path: Path) -> None:
@@ -1056,6 +1228,75 @@ def test_task_store_round_trips_redacted_history_and_marks_running_as_interrupte
     assert restored.status == "interrupted"
     assert restored.phase == "interrupted"
     assert restored.error
+
+
+def test_task_manager_resume_reuses_only_unchanged_readonly_checkpoint(tmp_path: Path) -> None:
+    (tmp_path / "evidence.txt").write_text("stable\n", encoding="utf-8")
+    observed_payloads: list[dict[str, object]] = []
+
+    class FakeService:
+        config = SimpleNamespace(yolo=False, max_concurrent_tasks=1)
+        workspace = tmp_path
+
+        @staticmethod
+        def _run_chat(payload, *, on_event=None, on_stream=None, cancel_event=None):
+            observed_payloads.append(payload)
+            if on_event is not None:
+                on_event({"name": "read_file", "path": "evidence.txt", "status": "ok", "write": False})
+            return {"answer": "evidence checked", "cancelled": False, "events": []}
+
+    store = TaskStore(tmp_path / "tasks.sqlite3")
+    manager = TaskManager(FakeService(), max_workers=1, store=store)
+    try:
+        original = manager.submit({"message": "检查证据文件", "session_id": "checkpoint-test"})
+        deadline = time.monotonic() + 2
+        while time.monotonic() < deadline and manager.get(original["task_id"])["status"] != "completed":
+            time.sleep(0.01)
+        completed = manager.get(original["task_id"])
+        assert completed["status"] == "completed"
+        assert completed["allow_network"] is False
+        assert completed["checkpoint"]["safe_readonly"] is True
+        assert completed["checkpoint"]["paths"] == ["evidence.txt"]
+
+        resumed = manager.resume(original["task_id"])
+        assert resumed["context"]["recovery"]["mode"] == "safe_readonly_checkpoint"
+        assert resumed["context"]["recovery"]["workspace_digest_matches"] is True
+        deadline = time.monotonic() + 2
+        while time.monotonic() < deadline and manager.get(resumed["task_id"])["status"] not in {"completed", "failed"}:
+            time.sleep(0.01)
+
+        (tmp_path / "evidence.txt").write_text("changed\n", encoding="utf-8")
+        changed = manager.resume(original["task_id"])
+        assert changed["context"]["recovery"]["mode"] == "reinspect_required"
+        assert changed["context"]["recovery"]["workspace_digest_matches"] is False
+        assert changed["events"][-1]["code"] == "reinspect_required"
+    finally:
+        manager.shutdown()
+
+
+def test_audit_export_redacts_sensitive_detail(tmp_path: Path) -> None:
+    audit_path = tmp_path / ".minicc" / "audit.jsonl"
+    editor = Editor(tmp_path, audit_path=audit_path)
+    editor._audit("write", "note.txt", "sk-secret-value")
+
+    exported = AgentService.audit_export(SimpleNamespace(workspace=tmp_path), limit=10)
+    rendered = json.dumps(exported, ensure_ascii=False)
+    assert exported["count"] == 1
+    assert "sk-secret-value" not in rendered
+    assert "[REDACTED:llm_api_key]" in rendered
+
+
+def test_task_snapshot_and_restore_preserve_network_authorization() -> None:
+    task = TaskRecord(
+        task_id="task-network-flag",
+        session_id="network",
+        message="查询资料",
+        allow_changes=False,
+        allow_network=True,
+    )
+    restored = TaskRecord.from_snapshot(task.snapshot())
+    assert restored.allow_network is True
+    assert restored.snapshot()["allow_network"] is True
 
 
 def test_task_snapshot_without_status_is_not_treated_as_completed() -> None:
@@ -1329,6 +1570,38 @@ def test_task_manager_preserves_trace_phase_while_running() -> None:
 
 def test_stream_transport_error_is_retryable() -> None:
     assert _is_stream_retryable(RuntimeError("peer closed connection without sending complete message body (incomplete chunked read)"))
+    assert _is_stream_retryable(RuntimeError("kernel event source lost: cause=kernel_source_unavailable replay_gap_source=reconnect_floor"))
+
+
+def test_provider_adapts_responses_api_tool_calls() -> None:
+    seen: dict[str, object] = {}
+
+    class FakeResponses:
+        async def create(self, **kwargs):
+            seen.update(kwargs)
+            return SimpleNamespace(
+                model="test-model",
+                status="completed",
+                usage=SimpleNamespace(input_tokens=12, output_tokens=4, total_tokens=16),
+                output=[
+                    SimpleNamespace(
+                        type="message",
+                        content=[SimpleNamespace(type="output_text", text="I will inspect the file.")],
+                    ),
+                    SimpleNamespace(type="function_call", call_id="call-read", name="read_file", arguments='{"path":"README.md"}'),
+                ],
+            )
+
+    provider = OpenAICompatibleProvider(
+        "https://example.com/v1", "test-key", "test-model", protocol="responses", sdk_client=SimpleNamespace(responses=FakeResponses())
+    )
+    tools = [{"type": "function", "function": {"name": "read_file", "description": "Read a file", "parameters": {"type": "object", "properties": {"path": {"type": "string"}}}}}]
+    response = asyncio.run(provider.chat([{"role": "user", "content": "Read README.md"}], tools=tools))
+    assert seen["reasoning"] == {"effort": "high"}
+    assert seen["tools"][0]["type"] == "function"
+    assert response.content == "I will inspect the file."
+    assert response.tool_calls[0]["function"]["name"] == "read_file"
+    assert response.usage["total_tokens"] == 16
 
 
 def test_change_inspector_shows_uncommitted_file_diff(tmp_path: Path) -> None:

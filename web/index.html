@@ -91,6 +91,7 @@
           <div class="topbar-right">
             <div class="connection-status" id="connectionStatus"><span class="status-pulse"></span><span data-i18n="connection.connecting">连接中</span></div>
             <button class="reasoning-control" id="reasoningButton" type="button" aria-label="推理强度" title="推理强度" data-i18n-aria="panel.reasoning" data-i18n-title="panel.reasoning"><i data-lucide="brain-circuit"></i><span data-i18n="panel.reasoning">推理强度</span><strong id="reasoningButtonValue">高</strong></button>
+            <button class="icon-button" id="themeButton" type="button" aria-label="切换到亮色模式" title="切换到亮色模式"><i data-lucide="sun"></i></button>
             <div class="locale-switch" role="group" aria-label="Language" data-i18n-aria="language">
               <button type="button" id="localeZh" class="locale-option active">中</button>
               <button type="button" id="localeEn" class="locale-option">EN</button>
@@ -127,10 +128,9 @@
               <article class="message assistant-message">
                 <div class="message-meta"><span class="avatar agent-avatar">m</span><strong>minicc</strong><span class="agent-label" data-i18n="message.agent">Agent</span><time>10:43</time></div>
                 <div class="message-body">
-                  <p>我先检查了工作区结构，然后把 CLI 核心接到这个本地工作台。现在可以继续加功能、查看 diff，并在安全模式下运行验证。</p>
-                  <details class="tool-round" data-tool-round="0" open>
-                    <summary class="tool-round-summary"><span class="tool-round-title"><span class="tool-round-icon"><i data-lucide="layers-3"></i></span><strong><span data-i18n="tool.round">工具轮次</span> 1</strong><small data-i18n="tool.reasoning">阶段摘要</small></span><span class="tool-round-meta">2 <span data-i18n="tool.callCount">次调用</span><span class="tool-round-chevron"><i data-lucide="chevron-down"></i></span></span></summary>
-                    <div class="tool-round-events">
+                  <details class="agent-round" data-agent-round="0">
+                    <summary class="agent-round-summary"><span class="agent-round-title"><span class="agent-round-icon"><i data-lucide="layers-3"></i></span><strong><span data-i18n="tool.round">工具轮次</span> 1</strong><small data-i18n="tool.reasoning">阶段摘要</small></span><span class="agent-round-meta">2 <span data-i18n="tool.callCount">次调用</span><span class="agent-round-chevron"><i data-lucide="chevron-down"></i></span></span></summary>
+                    <div class="agent-round-events">
                       <div class="tool-event completed">
                         <div class="tool-icon"><i data-lucide="file-search-2"></i></div>
                         <div class="tool-event-copy"><div><strong>read_file</strong><span class="tool-path">README.md</span></div><small>Read 68 lines · 0.18s</small></div>
@@ -143,6 +143,7 @@
                       </div>
                     </div>
                   </details>
+                  <p>我先检查了工作区结构，然后把 CLI 核心接到这个本地工作台。现在可以继续加功能、查看 diff，并在安全模式下运行验证。</p>
                   <div class="answer-callout"><span class="callout-mark"><i data-lucide="sparkles"></i></span><span>Workspace is ready. What should we ship next?</span></div>
                 </div>
               </article>
@@ -171,6 +172,11 @@
                     <input type="checkbox" id="allowChanges" />
                     <span class="toggle-track"><span></span></span>
                     <span id="modeLabel" data-i18n="mode.safe">安全模式</span>
+                  </label>
+                  <label class="safe-toggle" title="允许当前任务联网搜索" data-i18n-title="composer.allowNetwork">
+                    <input type="checkbox" id="allowNetwork" />
+                    <span class="toggle-track" aria-hidden="true"></span>
+                    <span data-i18n="composer.allowNetwork">允许当前任务联网搜索</span>
                   </label>
                   <button class="icon-button cancel-task-button" id="cancelTaskButton" type="button" aria-label="取消任务" title="取消任务" data-i18n-aria="cancel.title" data-i18n-title="cancel.title" hidden><i data-lucide="square"></i></button>
                   <button class="send-button" id="sendButton" type="submit" aria-label="发送任务" title="发送任务" data-i18n-aria="send.title" data-i18n-title="send.title">
@@ -216,8 +222,9 @@
         <button class="game-close icon-button" id="gameClose" aria-label="关闭小游戏" data-i18n-aria="game.close"><i data-lucide="x"></i></button>
         <div class="game-kicker" data-i18n="game.kicker">MINICC ARCADE · MINI LAWN</div>
         <h2 id="gameTitle" data-i18n="game.title">植物大战僵尸 · 草坪保卫战</h2>
-        <p class="game-subtitle" data-i18n="game.subtitle">8 波战役，先选工具再点草格；铲子可移除已有植物，Esc 取消选择。</p>
-        <div class="game-hud"><span><span data-i18n="game.sun">阳光</span> <strong id="gameSun">150</strong></span><span><span data-i18n="game.score">击退</span> <strong id="gameScore">0</strong></span><span><span data-i18n="game.wave">波次</span> <strong id="gameWave">1/8</strong></span><span><span data-i18n="game.time">时间</span> <strong id="gameTime">00:00</strong></span><span class="game-status" id="gameStatus" data-i18n="game.ready">准备就绪</span></div>
+        <p class="game-subtitle" data-i18n="game.subtitle">10 波高压战役，失败只由僵尸进屋触发；战斗用时仅统计活跃帧，切后台和手动暂停均不消耗进度。</p>
+        <div class="game-hud"><span><span data-i18n="game.sun">阳光</span> <strong id="gameSun">175</strong></span><span><span data-i18n="game.score">击退</span> <strong id="gameScore">0</strong></span><span><span data-i18n="game.wave">波次</span> <strong id="gameWave">1/10</strong></span><span><span data-i18n="game.time">战斗用时</span> <strong id="gameTime">00:00</strong></span><span class="game-status" id="gameStatus" data-i18n="game.ready">准备就绪</span></div>
+        <div class="game-wave-progress" aria-label="战役进度" data-i18n-aria="game.progress"><span id="gameThreat" data-i18n="game.threat">威胁：0/9</span><div class="game-progress-track"><i id="gameProgressFill"></i></div><span id="gameWaveHint" data-i18n="game.waveHint">建立防线，下一批僵尸即将抵达</span></div>
         <div class="seed-bank" id="seedBank">
           <button class="seed-card" data-plant="peashooter"><b>🌱</b><span data-i18n="game.peashooter">豌豆射手</span><small>100 ☀ · <span data-i18n="game.attack">攻击</span></small></button>
           <button class="seed-card" data-plant="sunflower"><b>🌻</b><span data-i18n="game.sunflower">向日葵</span><small>50 ☀ · <span data-i18n="game.produce">产阳光</span></small></button>
@@ -229,7 +236,10 @@
         <div class="game-tools">
           <button class="game-tool" id="gameShovel" type="button" aria-pressed="false"><span aria-hidden="true">🪏</span><strong data-i18n="game.shovel">铲子</strong><small data-i18n="game.shovelHint">点击植物移除</small></button>
           <label class="game-toggle"><input id="gameAutoSun" type="checkbox" checked /><span class="toggle-track" aria-hidden="true"></span><span><strong data-i18n="game.autoSun">自动拾取阳光</strong><small data-i18n="game.autoSunHint">关闭后改为手动点击</small></span></label>
+          <label class="game-difficulty"><span data-i18n="game.difficulty">难度</span><select id="gameDifficulty" aria-label="游戏难度" data-i18n-aria="game.difficulty"><option value="normal" data-i18n="game.normal">标准</option><option value="hard" data-i18n="game.hard" selected>高压</option><option value="nightmare" data-i18n="game.nightmare">噩梦</option></select></label>
+          <button class="game-tool" id="gamePause" type="button" aria-pressed="false"><span aria-hidden="true">Ⅱ</span><strong data-i18n="game.pause">暂停</strong><small data-i18n="game.pauseHint">冻结战局</small></button>
           <button class="game-sound" id="gameSoundToggle" type="button">♫ 音效开</button>
+          <label class="game-volume"><span data-i18n="game.volume">音量</span><input id="gameVolume" type="range" min="0" max="100" step="5" value="70" aria-label="游戏音量" data-i18n-aria="game.volume" /></label>
         </div>
         <canvas id="gameCanvas" width="720" height="420" aria-label="植物大战僵尸迷你游戏画布" data-i18n-aria="game.canvas"></canvas>
         <div class="game-controls"><span data-i18n="game.instructions">点卡片种植 · 铲子移除 · 阳光可自动拾取</span><button class="send-button" id="gameStart" data-i18n="game.start">开始游戏</button></div>

@@ -42,6 +42,7 @@ from openai import (
     BadRequestError,
     ConflictError,
     InternalServerError,
+    NotFoundError,
     RateLimitError,
 )
 from tenacity import (
@@ -83,16 +84,37 @@ _STREAM_RETRYABLE = _RETRYABLE + _HTTPX_STREAM_RETRYABLE + _HTTPCORE_STREAM_RETR
 
 TOOLS_REJECTION_HINTS = ("tool", "function")
 REASONING_WIRE_VALUES = {
-    "standard": "medium",
+    "low": "low",
+    "mid": "mid",
     "high": "high",
-    # Some gateways expose OpenAI's xhigh spelling for the maximum budget.
-    # chat() automatically falls back to high when the gateway does not.
+    "xhigh": "xhigh",
+    "max": "max",
+}
+REASONING_FALLBACKS = {
     "max": "xhigh",
+    "xhigh": "high",
+    "high": "mid",
+    "mid": "low",
+    "low": None,
 }
 
 
 def _is_retryable(exc: BaseException) -> bool:
-    return isinstance(exc, _RETRYABLE)
+    return isinstance(exc, _RETRYABLE) or _is_gateway_event_source_error(exc)
+
+
+def _is_gateway_event_source_error(exc: BaseException) -> bool:
+    """Recognize transient event-source failures leaked by compatible gateways."""
+    text = str(exc).lower()
+    return any(
+        marker in text
+        for marker in (
+            "kernel event source lost",
+            "kernel_source_unavailable",
+            "replay_gap_source",
+            "event source lost",
+        )
+    )
 
 
 def _is_stream_retryable(exc: BaseException) -> bool:
@@ -109,6 +131,10 @@ def _is_stream_retryable(exc: BaseException) -> bool:
             "peer closed connection",
             "remote protocol error",
             "connection reset",
+            "kernel event source lost",
+            "kernel_source_unavailable",
+            "replay_gap_source",
+            "event source lost",
         )
     )
 
@@ -140,7 +166,7 @@ def _stream_retry_delay(exc: BaseException, attempt: int) -> float:
     retry_after = _retry_after_seconds(exc)
     if retry_after is not None:
         return min(8.0, retry_after)
-    return min(4.0, float(2 ** max(0, attempt - 1)))
+    return min(12.0, float(2 ** max(0, attempt - 1)))
 
 
 def _merge_stream_text(previous: str, current: str) -> tuple[str, str]:
@@ -171,16 +197,21 @@ def _read_field(obj: Any, name: str, default: Any = None) -> Any:
 def _parse_usage(usage: Any) -> dict[str, Any]:
     if usage is None:
         return {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+    prompt_tokens = _read_field(usage, "prompt_tokens", _read_field(usage, "input_tokens", 0))
+    completion_tokens = _read_field(usage, "completion_tokens", _read_field(usage, "output_tokens", 0))
+    total_tokens = _read_field(usage, "total_tokens", 0)
+    if not total_tokens:
+        total_tokens = (prompt_tokens or 0) + (completion_tokens or 0)
     parsed: dict[str, Any] = {
-        "prompt_tokens": _read_field(usage, "prompt_tokens", 0),
-        "completion_tokens": _read_field(usage, "completion_tokens", 0),
-        "total_tokens": _read_field(usage, "total_tokens", 0),
+        "prompt_tokens": prompt_tokens,
+        "completion_tokens": completion_tokens,
+        "total_tokens": total_tokens,
     }
     for field in ("prompt_cache_hit_tokens", "prompt_cache_miss_tokens"):
         value = _read_field(usage, field)
         if value is not None:
             parsed[field] = value
-    details = _read_field(usage, "completion_tokens_details")
+    details = _read_field(usage, "completion_tokens_details") or _read_field(usage, "output_tokens_details")
     reasoning = _read_field(details, "reasoning_tokens") if details is not None else None
     if reasoning is None:
         reasoning = _read_field(usage, "reasoning_tokens")
@@ -207,8 +238,9 @@ class OpenAICompatibleProvider:
         api_key: str,
         model: str,
         timeout: float = 180.0,
-        max_retries: int = 2,
+        max_retries: int = 4,
         tool_mode: str = "auto",
+        protocol: str = "auto",
         reasoning_effort: str = "high",
         on_status: Callable[[dict[str, Any]], None] | None = None,
         sdk_client: Any = None,
@@ -218,21 +250,24 @@ class OpenAICompatibleProvider:
         self.timeout = timeout
         self._api_key = api_key
         self._max_retries = max(0, max_retries)
+        if protocol not in ("auto", "responses", "chat_completions"):
+            raise ValueError(f"protocol 非法: {protocol!r}")
+        self._protocol = "responses" if protocol in ("auto", "responses") else "chat_completions"
+        self._protocol_locked = protocol != "auto"
         if tool_mode not in ("auto", "native", "envelope"):
             raise ValueError(f"tool_mode 非法: {tool_mode!r}")
         self._mode = "envelope" if tool_mode == "envelope" else "native"
         self._mode_locked = tool_mode != "auto"
         normalized_effort = str(reasoning_effort or "high").strip().lower().replace("_", "-").replace(" ", "-")
         normalized_effort = {
-            "low": "standard",
-            "medium": "standard",
-            "very-high": "max",
-            "very high": "max",
-            "veryhigh": "max",
-            "xhigh": "max",
+            "standard": "mid",
+            "medium": "mid",
+            "very-high": "xhigh",
+            "very high": "xhigh",
+            "veryhigh": "xhigh",
             "maximum": "max",
             "高": "high",
-            "极高": "max",
+            "极高": "xhigh",
             "最高": "max",
         }.get(normalized_effort, normalized_effort)
         if normalized_effort not in REASONING_WIRE_VALUES:
@@ -258,6 +293,13 @@ class OpenAICompatibleProvider:
 
     def tool_mode(self) -> str:
         return self._mode
+
+    def protocol(self) -> str:
+        """Return the active wire protocol after any automatic fallback."""
+        return self._protocol
+
+    def protocol_status(self) -> dict[str, str]:
+        return {"active": self._protocol, "requested": "auto" if not self._protocol_locked else self._protocol}
 
     def reasoning_status(self) -> dict[str, Any]:
         """Expose adapter state without exposing provider reasoning text."""
@@ -287,24 +329,61 @@ class OpenAICompatibleProvider:
         results are replayed as user messages and the model's JSON action
         is returned as a synthetic tool_call.
         """
-        for _ in range(4):
+        # max may negotiate through four lower levels before disabling the
+        # optional parameter, so leave enough attempts for the full chain.
+        for _ in range(6):
             use_native = self._mode == "native" and bool(tools)
             try:
-                return await self._chat_once(messages, tools, on_delta, use_native)
-            except BadRequestError as exc:
+                if self._protocol == "responses":
+                    return await self._responses_once(messages, tools, on_delta, use_native)
+                return await self._chat_completions_once(messages, tools, on_delta, use_native)
+            except Exception as exc:
+                if self._protocol == "responses" and not self._protocol_locked and self._looks_like_responses_rejection(exc):
+                    self._protocol = "chat_completions"
+                    self._emit_protocol_fallback(exc)
+                    continue
+                if not isinstance(exc, BadRequestError):
+                    raise
                 if use_native and self._looks_like_tools_rejection(exc):
                     self._mode = "envelope"
                     continue
                 if self._reasoning_enabled and self._looks_like_reasoning_rejection(exc):
-                    if self._active_reasoning_effort == "max":
-                        self._active_reasoning_effort = "high"
-                    elif self._active_reasoning_effort == "high":
-                        self._active_reasoning_effort = "standard"
-                    else:
+                    fallback = REASONING_FALLBACKS[self._active_reasoning_effort]
+                    if fallback is None:
                         self._reasoning_enabled = False
+                    else:
+                        self._active_reasoning_effort = fallback
                     continue
                 raise
         raise RuntimeError("模型协商失败：工具调用或推理参数无法降级")
+
+    def _emit_protocol_fallback(self, exc: BaseException) -> None:
+        if self._on_status is not None:
+            self._on_status({
+                "kind": "trace",
+                "name": "provider",
+                "status": "error",
+                "phase": "planning",
+                "code": "provider_protocol_fallback",
+                "summary": "当前网关不支持 Responses API，已自动回退到 Chat Completions 并继续任务",
+                "detail": {"protocol": "chat_completions", "error_type": type(exc).__name__},
+            })
+
+    @staticmethod
+    def _looks_like_responses_rejection(exc: BaseException) -> bool:
+        if isinstance(exc, NotFoundError):
+            return True
+        text = str(exc).lower()
+        return any(marker in text for marker in (
+            "responses endpoint", "responses api", "/responses", "unsupported endpoint",
+            "not implemented", "method not allowed", "404", "405",
+        ))
+
+    @staticmethod
+    def is_transient_failure(value: BaseException | str) -> bool:
+        """Whether a failed model turn can be retried without replaying tools."""
+        exc = value if isinstance(value, BaseException) else RuntimeError(str(value))
+        return _is_retryable(exc) or _is_stream_retryable(exc)
 
     @staticmethod
     def _looks_like_tools_rejection(exc: BadRequestError) -> bool:
@@ -326,7 +405,7 @@ class OpenAICompatibleProvider:
             )
         )
 
-    async def _chat_once(
+    async def _chat_completions_once(
         self,
         messages: list[dict[str, Any]],
         tools: list[dict[str, Any]] | None,
@@ -354,6 +433,150 @@ class OpenAICompatibleProvider:
             response = await self._create(kwargs)
             return self._finalize(self._to_response(response), tools)
         return await self._create_stream(kwargs, on_delta, tools)
+
+    async def _responses_once(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None,
+        on_delta: Callable[[str], None] | None,
+        use_native: bool,
+    ) -> LLMResponse:
+        """Run a durable Responses request and adapt it to the agent's wire shape.
+
+        Responses requests deliberately complete atomically here.  This avoids
+        tying a long model turn to a gateway SSE event source; tool progress
+        still streams through the task timeline between model turns.
+        """
+        kwargs: dict[str, Any] = {
+            "model": self.model,
+            "input": self._to_responses_input(messages, tools if not use_native else None),
+            "timeout": self.timeout,
+        }
+        if use_native and tools:
+            kwargs["tools"] = self._to_responses_tools(tools)
+        if self._reasoning_enabled:
+            kwargs["reasoning"] = {"effort": REASONING_WIRE_VALUES[self._active_reasoning_effort]}
+        response = await self._create_responses(kwargs)
+        parsed = self._responses_to_response(response)
+        if on_delta is not None and parsed.content:
+            on_delta(parsed.content)
+        return self._finalize(parsed, tools)
+
+    async def _create_responses(self, kwargs: dict[str, Any]) -> Any:
+        retryer = AsyncRetrying(
+            retry=retry_if_exception(_is_retryable),
+            wait=_wait_retry_after_or_exponential,
+            stop=stop_after_attempt(self._max_retries + 1),
+            reraise=True,
+        )
+
+        async def _attempt() -> Any:
+            return await self.client.responses.create(**kwargs)
+
+        return await retryer(_attempt)
+
+    @staticmethod
+    def _to_responses_tools(tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Convert Chat Completions function schemas to Responses function tools."""
+        converted: list[dict[str, Any]] = []
+        for tool in tools:
+            function = tool.get("function") if isinstance(tool, dict) else None
+            if not isinstance(function, dict):
+                continue
+            converted.append({
+                "type": "function",
+                "name": str(function.get("name") or ""),
+                "description": str(function.get("description") or ""),
+                "parameters": dict(function.get("parameters") or {"type": "object", "properties": {}}),
+            })
+        return converted
+
+    def _to_responses_input(
+        self, messages: list[dict[str, Any]], tools: list[dict[str, Any]] | None
+    ) -> list[dict[str, Any]]:
+        """Convert persisted Chat Completions history into Responses input items."""
+        wire = self._to_envelope_wire(messages, tools) if tools else messages
+        result: list[dict[str, Any]] = []
+        for message in wire:
+            role = str(message.get("role") or "user")
+            if role == "tool":
+                result.append({
+                    "type": "function_call_output",
+                    "call_id": str(message.get("tool_call_id") or ""),
+                    "output": str(message.get("content") or ""),
+                })
+                continue
+            if role == "assistant" and message.get("tool_calls"):
+                content = message.get("content")
+                if content:
+                    result.append({"role": "assistant", "content": self._responses_content(content)})
+                for call in message.get("tool_calls") or ():
+                    function = call.get("function") if isinstance(call, dict) else None
+                    if not isinstance(function, dict):
+                        continue
+                    result.append({
+                        "type": "function_call",
+                        "call_id": str(call.get("id") or ""),
+                        "name": str(function.get("name") or ""),
+                        "arguments": str(function.get("arguments") or "{}"),
+                    })
+                continue
+            result.append({"role": role, "content": self._responses_content(message.get("content") or "")})
+        return result
+
+    @staticmethod
+    def _responses_content(content: Any) -> Any:
+        if not isinstance(content, list):
+            return str(content)
+        parts: list[dict[str, Any]] = []
+        for part in content:
+            if not isinstance(part, dict):
+                continue
+            if part.get("type") == "text":
+                parts.append({"type": "input_text", "text": str(part.get("text") or "")})
+            elif part.get("type") == "image_url":
+                image = part.get("image_url")
+                url = image.get("url") if isinstance(image, dict) else ""
+                if url:
+                    parts.append({"type": "input_image", "image_url": str(url)})
+        return parts or ""
+
+    @staticmethod
+    def _responses_to_response(response: Any) -> LLMResponse:
+        output = _read_field(response, "output", []) or []
+        text_parts: list[str] = []
+        calls: list[dict[str, Any]] = []
+        for item in output:
+            item_type = str(_read_field(item, "type", ""))
+            if item_type == "function_call":
+                calls.append({
+                    "id": str(_read_field(item, "call_id", "") or _read_field(item, "id", "call-0")),
+                    "type": "function",
+                    "function": {
+                        "name": str(_read_field(item, "name", "")),
+                        "arguments": str(_read_field(item, "arguments", "{}")),
+                    },
+                })
+                continue
+            if item_type != "message":
+                continue
+            for part in _read_field(item, "content", []) or []:
+                if str(_read_field(part, "type", "")) == "output_text":
+                    value = _read_field(part, "text", "")
+                    if value:
+                        text_parts.append(str(value))
+        if not text_parts:
+            value = _read_field(response, "output_text", "")
+            if value:
+                text_parts.append(str(value))
+        status = str(_read_field(response, "status", "completed"))
+        return LLMResponse(
+            content="".join(text_parts) or None,
+            tool_calls=calls,
+            usage=_parse_usage(_read_field(response, "usage")),
+            finish_reason="stop" if status == "completed" else status,
+            model=str(_read_field(response, "model", "") or ""),
+        )
 
     # -- request plumbing ------------------------------------------------------
 

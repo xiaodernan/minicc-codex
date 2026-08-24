@@ -12,7 +12,8 @@ This is the heart of minicc — the part that does NOT exist in specproof
 5. On each iteration the caller-supplied *on_stream* callback receives
    text deltas for live terminal rendering.
 6. After every tool-execution round the context is compacted if needed.
-7. The loop is bounded by *max_turns* to prevent runaway.
+7. An optional *max_turns* cap can bound a run; by default the loop continues
+   until the model returns an answer or another runtime guard stops it.
 
 Permission: the *should_allow* callback is consulted before every
 write/exec tool call. It receives the tool name and parsed ToolCall;
@@ -31,7 +32,7 @@ from typing import Any, Callable
 from ..llm.base import LLMResponse, assistant_msg, tool_result_msg
 from ..llm.openai_provider import OpenAICompatibleProvider
 from ..tools.schemas import ToolCall, ToolResult
-from ..tools.registry import ToolRegistry
+from ..tools.registry import ToolRegistry, redact_text
 from .context import compact, estimate_tokens, message_chars
 from .state import AgentState, Budget, BudgetExceeded
 
@@ -41,6 +42,7 @@ STAGNATION_REPEAT_LIMIT = 2
 STAGNATION_CYCLE_LENGTH = 4
 VERIFICATION_RETRY_LIMIT = 1
 SEARCH_FAILURE_LIMIT = 2
+MAX_VISIBLE_MODEL_UPDATE_CHARS = 1200
 WRITE_TOOL_NAMES = frozenset({"write_file", "edit_file", "worktree_create", "worktree_remove"})
 VERIFY_TOOL_NAMES = frozenset({"bash", "git_diff", "git_status", "read_file", "grep"})
 
@@ -63,12 +65,22 @@ class TurnResult:
     metrics: dict[str, Any] = field(default_factory=dict)
 
 
+def _visible_model_update(content: str | None) -> str:
+    """Return a bounded, redacted public assistant message for the task timeline."""
+    if not content:
+        return ""
+    safe, _ = redact_text(content.strip())
+    if len(safe) > MAX_VISIBLE_MODEL_UPDATE_CHARS:
+        safe = safe[:MAX_VISIBLE_MODEL_UPDATE_CHARS].rstrip() + "\n[行动说明已截断]"
+    return safe
+
+
 async def run_agent(
     provider: OpenAICompatibleProvider,
     registry: ToolRegistry,
     messages: list[dict[str, Any]],
     *,
-    max_turns: int = 40,
+    max_turns: int | None = None,
     compact_threshold: int = 300_000,
     on_stream: Callable[[str], None] | None = None,
     on_tool: Callable[[ToolCall, ToolResult], None] | None = None,
@@ -82,12 +94,14 @@ async def run_agent(
     budget: Budget | None = None,
     runtime_state: AgentState | None = None,
 ) -> TurnResult:
-    """Run the agent loop until a final text answer or max_turns.
+    """Run the agent loop until a final text answer or an explicit max_turns cap.
 
     *messages* is mutated in place (tool calls/results are appended).
     The caller is responsible for injecting the initial system prompt
     and the first user message before calling this function.
     """
+    if max_turns is not None and max_turns <= 0:
+        max_turns = None
     result = TurnResult(answer="")
     allow = should_allow or _always_allow
     runtime_budget = budget or (runtime_state.budget if runtime_state is not None else Budget(max_turns=max_turns))
@@ -143,12 +157,21 @@ async def run_agent(
         detail={"max_turns": max_turns, "tool_count": len(tools_schemas)},
     )
     reasoning_status_fn = getattr(provider, "reasoning_status", None)
+    protocol_status_fn = getattr(provider, "protocol_status", None)
+    if callable(protocol_status_fn):
+        protocol_status = dict(protocol_status_fn())
+        emit_trace(
+            f"模型调用协议：{protocol_status.get('active')}",
+            phase="planning",
+            code="provider_protocol",
+            detail=protocol_status,
+        )
     if callable(reasoning_status_fn):
         status = dict(reasoning_status_fn())
         requested = str(status.get("requested") or "")
         active = str(status.get("active") or "")
         if requested:
-            effort_label = {"standard": "标准", "high": "高", "max": "最高"}.get(requested, requested)
+            effort_label = {"low": "低", "mid": "中", "high": "高", "xhigh": "极高", "max": "最高"}.get(requested, requested)
             emit_trace(
                 f"已启用{effort_label}推理预算；界面展示阶段摘要，不展示模型私有思维链",
                 phase="planning",
@@ -161,7 +184,9 @@ async def run_agent(
             )
             last_reasoning_status = (active, str(status.get("wire_value") or ""))
 
-    for turn in range(1, max_turns + 1):
+    turn = 0
+    while max_turns is None or turn < max_turns:
+        turn += 1
         result.turns = turn
         try:
             runtime_budget.record_turn()
@@ -220,7 +245,7 @@ async def run_agent(
             response = await provider.chat(
                 messages=messages,
                 tools=tools_schemas,
-                on_delta=emit_stream,
+                on_delta=emit_stream if on_stream is not None else None,
             )
         except Exception as exc:
             emit_trace(
@@ -294,6 +319,14 @@ async def run_agent(
                 emit_trace(result.error, phase="failed", status="error", code="budget_exceeded")
                 break
             tool_names = [str((call.get("function") or {}).get("name") or call.get("name") or "tool") for call in response.tool_calls]
+            visible_update = _visible_model_update(response.content)
+            if visible_update:
+                emit_trace(
+                    "模型给出了本轮可公开的行动说明，随后执行工具调用",
+                    phase="planning",
+                    code="model_update",
+                    detail={"turn": turn, "text": visible_update},
+                )
             emit_trace(
                 f"模型已完成本轮判断，正在执行可审计计划：{', '.join(tool_names)}",
                 phase="planning",
@@ -323,7 +356,7 @@ async def run_agent(
 
                 # Permission gate.
                 risk = registry.risk_of(tc.tool)
-                if risk in ("write", "exec") and not allow(tc.tool, tc):
+                if (risk in ("write", "exec") or tc.tool == "web_search") and not allow(tc.tool, tc):
                     result.denied_tools.append(tc.tool)
                     denied = ToolResult(
                         status="denied",

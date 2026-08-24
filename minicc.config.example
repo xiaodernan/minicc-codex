@@ -5,20 +5,31 @@
 # Required: API key
 MINICC_API_KEY=replace_with_your_key
 
-# Interview gateway supplied for this project.
-MINICC_BASE_URL=https://api.aizzz.xyz/v1
+# OpenAI-compatible provider endpoint.
+MINICC_BASE_URL=https://api.247kan.com/v1
 
 # Model name on that gateway
-MINICC_MODEL=gpt-5.6-luna
+MINICC_MODEL=gpt-5.6-terra
 
-# Reasoning budget: standard | high | max. Unsupported gateways auto-downgrade.
+# Reasoning budget: low | mid | high | xhigh | max. Unsupported gateways auto-downgrade.
 MINICC_REASONING_EFFORT=high
 
 # Tool-calling mode: auto (probe & degrade) | native | envelope
 #MINICC_TOOL_MODE=auto
 
-# Max agent turns (LLM round trips) per user request
-#MINICC_MAX_TURNS=40
+# Wire protocol: auto prefers Responses API then falls back to Chat Completions
+# when a compatible gateway does not implement /responses.
+#MINICC_LLM_PROTOCOL=auto
+
+# Retries for transient gateway/network failures, including event-source loss.
+#MINICC_PROVIDER_RETRIES=4
+
+# Safe retries for a model turn that still fails after provider-level retries.
+# Recovery retries use a non-streaming request and never replay completed tools.
+#MINICC_TASK_RECOVERY_RETRIES=2
+
+# Optional hard cap for agent turns (LLM round trips); leave unset or use 0 for unlimited
+#MINICC_MAX_TURNS=0
 
 # Maximum automatic test-failure repair cycles after a successful write
 #MINICC_MAX_REPAIR_ATTEMPTS=2

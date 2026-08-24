@@ -11,6 +11,7 @@ import asyncio
 import base64
 import binascii
 from collections import deque
+import hashlib
 import inspect
 import json
 import mimetypes
@@ -30,8 +31,13 @@ from .agent.graph import build_coding_workflow, fixed_plan
 from .agent.completion import CompletionDecision, judge_completion
 from .agent.loop import TurnResult, run_agent
 from .agent.orchestration import assess_complexity, build_auto_subtasks
+from .agent.planner import PlannerPolicy, build_plan
+from .agent.repair import repair_scope
+from .agent.retrieval import LocalEvidenceIndex
+from .agent.router import StageRouter
 from .agent.state import AgentState, Budget, BudgetExceeded
 from .agent.verifier import Verifier
+from .audit import authorize_tool
 from .changes import ChangeError, ChangeInspector
 from .config import ConfigError, home_dir, load_config, normalize_reasoning_effort
 from .llm.base import system_msg, user_msg
@@ -41,7 +47,6 @@ from .prompt import build_system_prompt
 from .sandbox import SandboxRunner
 from .session import SessionError, SessionStore
 from .tools import Editor, ToolCall, ToolResult, build_registry
-from .tools.bash import is_readonly_command
 from .tools.registry import redact_text
 from .task_store import TaskStore
 from .worktree import WorktreeError, WorktreeManager
@@ -264,6 +269,7 @@ class TaskRecord:
     session_id: str
     message: str
     allow_changes: bool
+    allow_network: bool = False
     reasoning_effort: str = "high"
     attachments: list[dict[str, Any]] = field(default_factory=list, repr=False)
     workspace_path: str = ""
@@ -283,6 +289,7 @@ class TaskRecord:
     usage_by_turn: list[dict[str, Any]] = field(default_factory=list)
     compaction_events: list[dict[str, Any]] = field(default_factory=list)
     metrics: dict[str, Any] = field(default_factory=dict)
+    checkpoint: dict[str, Any] = field(default_factory=dict)
     result: dict[str, Any] | None = None
     error: str | None = None
     orchestration_context: str = field(default="", repr=False)
@@ -375,6 +382,7 @@ class TaskRecord:
                 "preview": self.message[:120],
                 "prompt": self.message,
                 "allow_changes": self.allow_changes,
+                "allow_network": self.allow_network,
                 "reasoning_effort": self.reasoning_effort,
                 "attachments": [
                     {
@@ -405,6 +413,7 @@ class TaskRecord:
                 "usage_by_turn": list(self.usage_by_turn),
                 "compaction_events": list(self.compaction_events),
                 "metrics": dict(self.metrics),
+                "checkpoint": dict(self.checkpoint),
                 "error": self.error,
                 "result": dict(self.result) if self.result else None,
             }
@@ -434,6 +443,7 @@ class TaskRecord:
             session_id=str(data.get("session_id") or "web-latest"),
             message=str(data.get("prompt") or data.get("preview") or ""),
             allow_changes=bool(data.get("allow_changes")),
+            allow_network=bool(data.get("allow_network")),
             reasoning_effort=str(data.get("reasoning_effort") or "high"),
             attachments=[dict(item) for item in data.get("attachments") or [] if isinstance(item, dict)],
             workspace_path=str(data.get("workspace_path") or ""),
@@ -455,6 +465,7 @@ class TaskRecord:
             usage_by_turn=[dict(item) for item in data.get("usage_by_turn") or [] if isinstance(item, dict)],
             compaction_events=[dict(item) for item in data.get("compaction_events") or [] if isinstance(item, dict)],
             metrics=dict(data.get("metrics") or {}),
+            checkpoint=dict(data.get("checkpoint") or {}),
             result=dict(data.get("result") or {}) if isinstance(data.get("result"), dict) else None,
             error=str(error) if error else None,
         )
@@ -625,6 +636,7 @@ class TaskManager:
                 return self.submit_batch(auto_payload)
         session_id = str(payload.get("session_id") or "web-latest")
         allow_changes = bool(payload.get("allow_changes")) or self.service.config.yolo
+        allow_network = bool(payload.get("allow_network"))
         try:
             reasoning_effort = normalize_reasoning_effort(
                 payload.get("reasoning_effort"),
@@ -640,6 +652,7 @@ class TaskManager:
             session_id=session_id,
             message=message.strip(),
             allow_changes=allow_changes,
+            allow_network=allow_network,
             reasoning_effort=reasoning_effort,
             attachments=self._persist_attachments(Path(workspace_path), task_id, normalized_attachments),
             workspace_path=workspace_path,
@@ -659,9 +672,17 @@ class TaskManager:
             raise ValueError("messages 必须是非空字符串数组")
         if len(messages) > MAX_BATCH_TASKS:
             raise ValueError(f"一次最多运行 {MAX_BATCH_TASKS} 个子任务")
-        plan = fixed_plan("parallel_inspect", task_count=len(messages))
-        plan.validate()
+        default_plan = fixed_plan("parallel_inspect", task_count=len(messages))
+        requested_plan = payload.get("planner_plan")
+        plan_result = (
+            build_plan(requested_plan, policy=PlannerPolicy(max_nodes=MAX_BATCH_TASKS + 4))
+            if requested_plan is not None
+            else None
+        )
+        plan = plan_result.plan if plan_result is not None else default_plan
+        plan.validate(max_nodes=MAX_BATCH_TASKS + 4)
         allow_changes = bool(payload.get("allow_changes")) or self.service.config.yolo
+        allow_network = bool(payload.get("allow_network"))
         try:
             reasoning_effort = normalize_reasoning_effort(
                 payload.get("reasoning_effort"),
@@ -683,6 +704,7 @@ class TaskManager:
             session_id=str(payload.get("session_id") or "web-batch"),
             message=str(payload.get("message") or "并行执行多个子任务"),
             allow_changes=allow_changes,
+            allow_network=allow_network,
             reasoning_effort=reasoning_effort,
             attachments=self._persist_attachments(Path(workspace_path), parent_task_id, normalized_attachments),
             workspace_path=workspace_path,
@@ -695,8 +717,17 @@ class TaskManager:
             parent.update_context({
                 **parent.context,
                 "plan": plan.to_dict(),
+                "plan_source": plan_result.source if plan_result is not None else "fixed",
+                "plan_fallback_reason": plan_result.reason if plan_result is not None else "",
                 "max_concurrency": int(getattr(self.service.config, "max_concurrent_tasks", 8)),
             })
+            if plan_result is not None and plan_result.source == "fixed_fallback":
+                parent.add_event({
+                    "kind": "trace", "name": "planner", "status": "error", "phase": "planning",
+                    "code": "planner_fixed_fallback",
+                    "summary": "动态计划不符合安全约束，已回退固定执行模板",
+                    "detail": {"reason": plan_result.reason},
+                })
             self.tasks[parent.task_id] = parent
             self._persist_task(parent, force=True)
         ids: list[str] = []
@@ -1024,6 +1055,7 @@ class TaskManager:
                     "session_id": task.session_id,
                     "task_kind": task.task_kind,
                     "allow_changes": task.allow_changes,
+                    "allow_network": task.allow_network,
                     "reasoning_effort": task.reasoning_effort,
                     "attachments": [
                         {
@@ -1098,10 +1130,24 @@ class TaskManager:
         current = str(getattr(self.service, "workspace", ""))
         if task.workspace_path and current and _path_key(task.workspace_path) != _path_key(current):
             raise ValueError("请先切换到任务所属工作区，再重新运行任务")
-        return self.submit({
+        checkpoint = dict(task.checkpoint)
+        workspace = Path(task.workspace_path).expanduser().resolve()
+        checkpoint_digest = str(checkpoint.get("workspace_digest") or "")
+        current_digest = self._workspace_checkpoint_digest(workspace, checkpoint.get("paths") or [])
+        safe_readonly = bool(checkpoint.get("safe_readonly")) and not task.allow_changes
+        digest_matches = bool(checkpoint_digest) and checkpoint_digest == current_digest
+        if safe_readonly and digest_matches:
+            recovery_mode = "safe_readonly_checkpoint"
+            recovery_note = "已验证只读检查点和工作区状态一致；可复用下方事实，但仍需核实后再作结论。"
+        else:
+            recovery_mode = "reinspect_required"
+            cause = "任务包含写入授权" if task.allow_changes else "工作区状态已变化或没有有效检查点"
+            recovery_note = f"{cause}。必须先重新检查相关文件和当前 diff；不得假设此前工具调用仍然成立。"
+        created = self.submit({
             "message": task.message,
             "session_id": task.session_id,
             "allow_changes": task.allow_changes,
+            "allow_network": task.allow_network,
             "reasoning_effort": task.reasoning_effort,
             "attachments": [
                 {
@@ -1114,7 +1160,31 @@ class TaskManager:
             "workspace_path": task.workspace_path,
             "_skip_auto_orchestration": bool(task.parent_id or task.task_kind == "subtask"),
             "_task_kind": "subtask" if task.task_kind == "subtask" else "task",
+            "_defer_schedule": True,
         })
+        with self.lock:
+            resumed = self.tasks[created["task_id"]]
+            resumed.execution_message = f"{resumed.message}\\n\\n[任务恢复]\\n{recovery_note}\\n{self._checkpoint_evidence(task)}"
+            resumed.context = {
+                **resumed.context,
+                "recovery": {
+                    "source_task_id": task.task_id,
+                    "mode": recovery_mode,
+                    "workspace_digest_matches": digest_matches,
+                },
+            }
+            resumed.add_event({
+                "kind": "trace",
+                "name": "recovery",
+                "status": "ok",
+                "phase": "planning",
+                "code": recovery_mode,
+                "summary": "已从安全只读检查点恢复" if recovery_mode == "safe_readonly_checkpoint" else "恢复前需要重新检查工作区",
+                "detail": {"source_task_id": task.task_id, "workspace_digest_matches": digest_matches},
+            })
+            self._persist_task(resumed, force=True)
+            self._queue_task_locked(resumed)
+        return resumed.snapshot()
 
     def cancel(self, task_id: str) -> dict[str, Any]:
         with self.lock:
@@ -1144,7 +1214,54 @@ class TaskManager:
         if not force and now - self._last_persist.get(task.task_id, 0.0) < 0.35:
             return
         self._last_persist[task.task_id] = now
+        self._update_checkpoint(task)
         self.store.upsert(task.snapshot())
+
+    @staticmethod
+    def _workspace_checkpoint_digest(workspace: Path, raw_paths: object) -> str:
+        """Create a bounded digest of files evidenced by a task checkpoint."""
+        digest = hashlib.sha256()
+        digest.update(str(workspace.resolve()).encode("utf-8", "replace"))
+        paths = raw_paths if isinstance(raw_paths, list) else []
+        for raw_path in sorted({str(item) for item in paths if isinstance(item, str)})[:48]:
+            try:
+                target = (workspace / raw_path).resolve()
+                if not target.is_relative_to(workspace) or not target.is_file():
+                    digest.update(f"missing:{raw_path}".encode("utf-8", "replace"))
+                    continue
+                stat = target.stat()
+                digest.update(f"file:{raw_path}:{stat.st_size}:{stat.st_mtime_ns}".encode("utf-8", "replace"))
+                if stat.st_size <= 1_000_000:
+                    digest.update(hashlib.sha256(target.read_bytes()).digest())
+            except OSError:
+                digest.update(f"unreadable:{raw_path}".encode("utf-8", "replace"))
+        return digest.hexdigest()
+
+    def _update_checkpoint(self, task: TaskRecord) -> None:
+        with task.lock:
+            paths = [str(event.get("path")) for event in task.events if isinstance(event, dict) and event.get("path")]
+            writes = any(isinstance(event, dict) and bool(event.get("write")) for event in task.events)
+            workspace = Path(task.workspace_path).expanduser().resolve() if task.workspace_path else None
+            if workspace is None or not workspace.is_dir():
+                return
+            task.checkpoint = {
+                "version": 1,
+                "saved_at": time.time(),
+                "event_count": len(task.events),
+                "paths": paths[-48:],
+                "workspace_digest": self._workspace_checkpoint_digest(workspace, paths[-48:]),
+                "safe_readonly": not task.allow_changes and not writes,
+            }
+
+    @staticmethod
+    def _checkpoint_evidence(task: TaskRecord) -> str:
+        summaries = [
+            str(event.get("summary") or event.get("name") or "")
+            for event in task.events[-12:]
+            if isinstance(event, dict)
+        ]
+        rendered = "；".join(item for item in summaries if item)[:2400]
+        return "已记录的可审计阶段摘要：" + (rendered or "无可复用摘要。")
 
     def shutdown(self) -> None:
         self.executor.shutdown(wait=False, cancel_futures=False)
@@ -1286,7 +1403,9 @@ class AgentService:
                 api_key=self.config.api_key,
                 model=self.config.model,
                 timeout=self.config.timeout,
+                max_retries=int(getattr(self.config, "provider_retries", 4)),
                 tool_mode=self.config.tool_mode,
+                protocol=str(getattr(self.config, "llm_protocol", "auto")),
                 reasoning_effort=str(reasoning_effort or getattr(self.config, "reasoning_effort", "high")),
             )
             try:
@@ -1326,6 +1445,7 @@ class AgentService:
             raise ValueError("message 不能为空")
         session_id = str(payload.get("session_id") or "web-latest")
         allow_changes = bool(payload.get("allow_changes")) or self.config.yolo
+        allow_network = bool(payload.get("allow_network"))
         workspace = Path(str(payload.get("workspace_path") or self.workspace)).expanduser().resolve()
         if not workspace.is_dir():
             raise ValueError(f"工作区不是有效目录: {workspace}")
@@ -1362,10 +1482,21 @@ class AgentService:
         message = str(payload["message"])
         session_id = str(payload.get("session_id") or "web-latest")
         allow_changes = bool(payload.get("allow_changes")) or self.config.yolo
+        allow_network = bool(payload.get("allow_network"))
         attachments = _normalize_attachments(payload.get("attachments"))
         store = SessionStore(workspace, session_id)
         messages = store.load(build_system_prompt(workspace))
         messages.append(user_msg(_multimodal_content(message.strip(), attachments)))
+        evidence_hits = LocalEvidenceIndex(workspace).search(message, limit=8)
+        if evidence_hits:
+            evidence_summary = "\n".join(
+                f"- {hit.path} ({hit.reason}; symbols: {', '.join(hit.symbols[:4]) or 'none'})"
+                for hit in evidence_hits
+            )
+            messages.append(system_msg(
+                "[本地检索索引] 以下为与任务可能相关的路径和符号；它们只是定位提示，"
+                "使用前必须通过工具重新检查。\n" + evidence_summary
+            ))
         editor = Editor(workspace, audit_path=workspace / ".minicc" / "audit.jsonl")
         registry = build_registry(
             editor,
@@ -1383,15 +1514,21 @@ class AgentService:
             workspace_path=str(workspace),
             workflow=workflow.name,
             budget=Budget(
-                max_turns=int(getattr(self.config, "max_turns", 40)),
-                max_retries=max(0, int(getattr(self.config, "max_repair_attempts", 2))),
+                max_turns=getattr(self.config, "max_turns", None),
+                max_retries=(
+                    max(0, int(getattr(self.config, "max_repair_attempts", 2)))
+                    + max(0, int(getattr(self.config, "task_recovery_retries", 2)))
+                ),
             ),
         )
         runtime_state.transition("intake", phase="intake")
         runtime_state.transition("plan", phase="planning")
+        stage_router = StageRouter(str(self.config.model), float(self.config.timeout))
+        initial_route = stage_router.route("planning")
         verifier = Verifier()
         verification_results: list[dict[str, Any]] = []
         repair_attempts = 0
+        provider_recoveries = 0
 
         def enter_runtime_node(node: str, phase: str) -> None:
             event = runtime_state.transition(node, phase=phase).copy()
@@ -1412,6 +1549,26 @@ class AgentService:
             events.append(image_event)
             if on_event is not None:
                 on_event(image_event)
+
+        route_event = {
+            "kind": "trace", "name": "router", "status": "ok", "phase": "planning",
+            "code": "stage_route",
+            "summary": "已应用规划阶段的模型与时间预算策略",
+            "detail": initial_route.to_dict(),
+        }
+        events.append(route_event)
+        if on_event is not None:
+            on_event(route_event)
+        if evidence_hits:
+            retrieval_event = {
+                "kind": "trace", "name": "retrieval", "status": "ok", "phase": "planning",
+                "code": "local_evidence_index",
+                "summary": f"本地索引提供 {len(evidence_hits)} 个候选文件，Agent 会逐项复核",
+                "detail": {"hits": [hit.to_dict() for hit in evidence_hits]},
+            }
+            events.append(retrieval_event)
+            if on_event is not None:
+                on_event(retrieval_event)
 
         def on_tool(call: ToolCall, result: ToolResult) -> None:
             events.append(
@@ -1438,28 +1595,36 @@ class AgentService:
 
         def should_allow(name: str, call: ToolCall) -> bool:
             risk = registry.risk_of(name)
-            # Read-only inspection is always available. The UI toggle grants
-            # writes and arbitrary commands for the current request only.
-            if risk not in ("write", "exec"):
-                return True
-            if risk == "exec" and name == "bash":
-                return is_readonly_command(str(call.arguments.get("command", ""))) or allow_changes
-            return allow_changes
+            decision = authorize_tool(
+                name,
+                risk,
+                call.arguments,
+                allow_changes=allow_changes,
+                allow_network=allow_network,
+            )
+            event = decision.to_event(name)
+            events.append(event)
+            if on_event is not None:
+                on_event(event)
+            return decision.allowed
 
         async def execute() -> Any:
-            nonlocal repair_attempts
+            nonlocal repair_attempts, provider_recoveries
             provider = OpenAICompatibleProvider(
                 base_url=self.config.base_url,
                 api_key=self.config.api_key,
                 model=self.config.model,
-                timeout=self.config.timeout,
+                timeout=initial_route.timeout,
+                max_retries=int(getattr(self.config, "provider_retries", 4)),
                 tool_mode=self.config.tool_mode,
+                protocol=str(getattr(self.config, "llm_protocol", "auto")),
                 reasoning_effort=str(payload.get("reasoning_effort") or getattr(self.config, "reasoning_effort", "high")),
                 on_status=on_event,
             )
             try:
                 aggregate: TurnResult | None = None
                 max_repairs = max(0, int(getattr(self.config, "max_repair_attempts", 2)))
+                max_provider_recoveries = max(0, int(getattr(self.config, "task_recovery_retries", 2)))
                 completion_review_failures = 0
                 completion_review_attempt = 0
                 verification_guard_error = "Agent 在修改工作区后没有完成验证"
@@ -1492,7 +1657,10 @@ class AgentService:
                         messages,
                         max_turns=self.config.max_turns,
                         compact_threshold=self.config.compact_threshold,
-                        on_stream=on_stream,
+                        # A recovery attempt is deliberately non-streaming: an
+                        # interrupted stream may have already reached the UI,
+                        # so an atomic retry avoids duplicated visible text.
+                        on_stream=on_stream if provider_recoveries == 0 else None,
                         on_tool=on_tool,
                         on_usage=on_usage,
                         on_context=on_context,
@@ -1508,6 +1676,34 @@ class AgentService:
                     writes = any(event.get("write") for event in events if isinstance(event, dict))
                     if current.cancelled:
                         break
+
+                    if current.error and OpenAICompatibleProvider.is_transient_failure(current.error):
+                        if provider_recoveries >= max_provider_recoveries:
+                            break
+                        try:
+                            runtime_state.budget.record_retry()
+                        except BudgetExceeded as exc:
+                            aggregate.error = f"Agent 预算超限: {exc}"
+                            aggregate.answer = f"任务未完成：{aggregate.error}"
+                            break
+                        provider_recoveries += 1
+                        recovery_event = {
+                            "kind": "trace",
+                            "name": "provider",
+                            "status": "error",
+                            "phase": "planning",
+                            "code": "task_provider_recovery",
+                            "summary": f"模型网关暂时不可用，已开始第 {provider_recoveries} 次安全恢复",
+                            "detail": {
+                                "retry": provider_recoveries,
+                                "retry_limit": max_provider_recoveries,
+                                "next_mode": "non_streaming",
+                            },
+                        }
+                        events.append(recovery_event)
+                        if on_event is not None:
+                            on_event(recovery_event)
+                        continue
 
                     # A provider, budget, permission, or stagnation error is a
                     # hard runtime outcome.  The only recoverable loop error is
@@ -1546,11 +1742,22 @@ class AgentService:
                                 aggregate.answer = f"任务未完成：{aggregate.error}"
                                 break
                             repair_attempts += 1
+                            scope = repair_scope(events, verification_data)
+                            scope_event = {
+                                "kind": "trace", "name": "repair", "status": "ok", "phase": "repair",
+                                "code": "dependency_aware_repair_scope",
+                                "summary": f"已将修复范围收敛到 {len(scope['repair_targets'])} 个有证据关联的文件",
+                                "detail": scope,
+                            }
+                            events.append(scope_event)
+                            if on_event is not None:
+                                on_event(scope_event)
                             messages.append(user_msg(
                                 "[验证器反馈] 自动验证没有通过。请只修复验证输出指出的问题，"
-                                "完成后再次检查 diff 并运行验证。\n\n"
+                                "优先重新检查下列有证据关联的文件；不要重做独立分支。完成后再次检查 diff 并运行验证。\n\n"
                                 f"命令：{verification.command}\n"
                                 f"失败测试：{', '.join(verification.failed_tests) or '未解析到测试名称'}\n"
+                                f"关联文件：{', '.join(scope['repair_targets']) or '未记录到写入路径，先定位失败测试'}\n"
                                 f"建议：{verification.actionable_hint}\n"
                                 f"输出：{verification.output[-6000:]}"
                             ))
@@ -1656,6 +1863,7 @@ class AgentService:
         result.metrics = {
             **runtime_state.metrics(),
             "repair_attempts": repair_attempts,
+            "provider_recoveries": provider_recoveries,
             "verification_runs": len(verification_results),
             "verification_status": verification_results[-1].get("status") if verification_results else "none",
             "verifications": verification_results,
@@ -1689,6 +1897,30 @@ class AgentService:
         if raw_path:
             return inspector.diff(raw_path)
         return inspector.summary()
+
+    def audit_export(self, *, limit: int = 500) -> dict[str, Any]:
+        """Export redacted local editor audit entries for the active workspace."""
+        audit_path = self.workspace / ".minicc" / "audit.jsonl"
+        if not audit_path.is_file():
+            return {"workspace_path": str(self.workspace), "entries": [], "count": 0}
+        entries: list[dict[str, Any]] = []
+        try:
+            lines = audit_path.read_text(encoding="utf-8").splitlines()
+        except OSError as exc:
+            raise ValueError(f"无法读取审计记录: {exc}") from exc
+        for line in lines[-max(1, min(limit, 2000)):]:
+            try:
+                item = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(item, dict):
+                continue
+            safe = {
+                key: redact_text(str(item.get(key) or ""))[0]
+                for key in ("timestamp", "action", "path", "detail", "before_digest", "after_digest")
+            }
+            entries.append(safe)
+        return {"workspace_path": str(self.workspace), "entries": entries, "count": len(entries)}
 
     def shutdown(self) -> None:
         self.tasks.shutdown()
@@ -1745,6 +1977,14 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
             return
         if path == "/api/workspace":
             self._json(self.server.service.workspace_info())
+            return
+        if path == "/api/audit":
+            query = parse_qs(parsed.query)
+            try:
+                limit = int((query.get("limit") or ["500"])[0])
+            except ValueError:
+                limit = 500
+            self._json(self.server.service.audit_export(limit=limit))
             return
         if path == "/api/tasks":
             query = parse_qs(parsed.query)

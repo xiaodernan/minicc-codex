@@ -1,13 +1,19 @@
 const state = {
   sessionId: localStorage.getItem("minicc-session") || "interview-1",
   allowChanges: localStorage.getItem("minicc-allow") !== "false",
+  allowNetwork: localStorage.getItem("minicc-network") === "true",
   locale: localStorage.getItem("minicc-locale") || "zh",
+  theme: ["light", "dark"].includes(localStorage.getItem("minicc-theme"))
+    ? localStorage.getItem("minicc-theme")
+    : (window.matchMedia?.("(prefers-color-scheme: light)").matches ? "light" : "dark"),
   workspacePath: "",
   workspaceInfo: null,
   contextWindowTokens: 300000,
-  reasoningEffort: ["standard", "high", "max"].includes(localStorage.getItem("minicc-reasoning")) ? localStorage.getItem("minicc-reasoning") : "high",
+  reasoningEffort: ["low", "mid", "high", "xhigh", "max"].includes(localStorage.getItem("minicc-reasoning")) ? localStorage.getItem("minicc-reasoning") : "high",
   busy: false,
   submitting: false,
+  chatRestoreVersion: 0,
+  chatUserScrolledAt: 0,
   activeTaskId: null,
   lastTask: null,
   connection: null,
@@ -23,7 +29,7 @@ const I18N = {
     "search.placeholder": "搜索任务", "nav.main": "主导航", "nav.tasks": "任务", "nav.workspaces": "工作区", "nav.promo": "宣传页", "nav.activity": "活动", "nav.arcade": "小游戏",
     language: "界面语言", "tasks.more": "更多任务", "workspace.connected": "本地服务已连接", "profile.label": "当前模式",
     "inspector.toggle": "切换检查器", "inspector.close": "关闭检查器", "options.open": "更多选项", "composer.inputLabel": "输入任务",
-    "composer.allowChanges": "允许当前任务修改文件或执行命令", "cancel.title": "取消任务", "send.title": "发送任务", "files.refresh": "刷新文件",
+    "composer.allowChanges": "允许当前任务修改文件或执行命令", "composer.allowNetwork": "允许当前任务联网搜索", "cancel.title": "取消任务", "send.title": "发送任务", "files.refresh": "刷新文件",
     "sidebar.close": "关闭侧栏", "sidebar.open": "打开侧栏", "search.shortcut": "搜索快捷键",
     recentTasks: "最近任务", "profile.mode": "面试模式", "profile.local": "仅本地", workspace: "工作区", agentSession: "智能会话", live: "运行中",
     "connection.connecting": "连接中", "connection.connected": "已连接", "connection.offline": "离线", "mode.localSafe": "本地 / 安全", "mode.localFull": "本地 / 完全访问",
@@ -45,10 +51,10 @@ const I18N = {
     "panel.createWorktree": "创建 worktree", "panel.name": "名称", "panel.branch": "分支（可选）", "panel.create": "创建",
     "panel.sandbox": "执行环境", "panel.mcp": "MCP 工具", "panel.language": "界面语言", "panel.clear": "清空当前会话",
     "panel.export": "导出当前对话", "panel.reload": "刷新工作区状态", "panel.noWorktrees": "当前没有额外 worktree",
-    "panel.hostProcess": "宿主机进程", "panel.isolated": "已隔离", "panel.servers": "个服务", "panel.gitWorktrees": "Git worktree", "panel.reasoning": "推理强度", "panel.reasoningNote": "只传递预算档位；界面显示可审计阶段摘要，不展示模型私有思维链", "reasoning.standard": "标准", "reasoning.high": "高", "reasoning.max": "最高",
+    "panel.hostProcess": "宿主机进程", "panel.isolated": "已隔离", "panel.servers": "个服务", "panel.gitWorktrees": "Git worktree", "panel.reasoning": "推理强度", "panel.reasoningNote": "按模型支持传递 low、mid、high、xhigh 或 max；界面显示可审计阶段摘要，不展示模型私有思维链", "reasoning.low": "低", "reasoning.mid": "中", "reasoning.high": "高", "reasoning.xhigh": "极高", "reasoning.max": "最高",
     "game.close": "关闭小游戏", "game.kicker": "MINICC ARCADE · MINI LAWN", "game.title": "植物大战僵尸 · 草坪保卫战",
-    "game.subtitle": "8 波战役，先选工具再点草格；铲子可移除已有植物，Esc 取消选择。", "game.sun": "阳光", "game.score": "击退", "game.wave": "波次",
-    "game.ready": "准备就绪", "game.running": "战斗中", "game.waveClear": "本波已清场，下一波即将到来", "game.victory": "草坪守住了！", "game.noSun": "阳光不足", "game.recharging": "卡片冷却中", "game.gameOver": "僵尸进屋了", "game.timeUp": "战役超时", "game.time": "时间", "game.shovel": "铲子", "game.shovelHint": "点击植物移除", "game.autoSun": "自动拾取阳光", "game.autoSunHint": "关闭后改为手动点击", "game.repeater": "双发射手", "game.cherrybomb": "爆裂果", "game.icepeashooter": "寒冰射手", "game.burst": "爆发", "game.slow": "减速", "game.peashooter": "豌豆射手", "game.soundOn": "♫ 音效开", "game.soundOff": "♫ 音效关",
+    "game.subtitle": "10 波高压战役，失败只由僵尸进屋触发；战斗用时仅统计活跃帧，切后台和手动暂停均不消耗进度。", "game.sun": "阳光", "game.score": "击退", "game.wave": "波次",
+    "game.ready": "准备就绪", "game.running": "战斗中", "game.paused": "已自动暂停，返回页面后继续", "game.manualPaused": "战局已手动暂停", "game.waveClear": "本波已清场，下一波即将到来", "game.waveIncoming": "强化波次来袭，准备迎战", "game.victory": "草坪守住了！", "game.noSun": "阳光不足", "game.recharging": "卡片冷却中", "game.gameOver": "僵尸进屋了", "game.time": "战斗用时", "game.threat": "威胁", "game.waveHint": "建立防线，下一批僵尸即将抵达", "game.wavePressure": "高压波次：优先布置减速与防线", "game.progress": "战役进度", "game.difficulty": "难度", "game.normal": "标准", "game.hard": "高压", "game.nightmare": "噩梦", "game.pause": "暂停", "game.resume": "继续", "game.pauseHint": "冻结战局", "game.resumeHint": "恢复战局", "game.volume": "音量", "game.shovel": "铲子", "game.shovelHint": "点击植物移除", "game.autoSun": "自动拾取阳光", "game.autoSunHint": "关闭后改为手动点击", "game.repeater": "双发射手", "game.cherrybomb": "爆裂果", "game.icepeashooter": "寒冰射手", "game.burst": "爆发", "game.slow": "减速", "game.peashooter": "豌豆射手", "game.soundOn": "♫ 音效开", "game.soundOff": "♫ 音效关",
     "game.sunflower": "向日葵", "game.wallnut": "坚果墙", "game.attack": "攻击", "game.produce": "产阳光", "game.defense": "防御",
     "game.instructions": "点击草坪种植 · 点击阳光收集", "game.start": "开始游戏", "game.restart": "重开",
     "message.you": "你", "message.now": "现在", "message.agent": "Agent", "game.canvas": "植物大战僵尸迷你游戏画布",
@@ -59,7 +65,7 @@ const I18N = {
     "search.placeholder": "Search tasks", "nav.main": "Main navigation", "nav.tasks": "Tasks", "nav.workspaces": "Workspaces", "nav.promo": "Promo", "nav.activity": "Activity", "nav.arcade": "Arcade",
     language: "Language", "tasks.more": "More tasks", "workspace.connected": "Local service connected", "profile.label": "Current mode",
     "inspector.toggle": "Toggle inspector", "inspector.close": "Close inspector", "options.open": "More options", "composer.inputLabel": "Task input",
-    "composer.allowChanges": "Allow this task to modify files or run commands", "cancel.title": "Cancel task", "send.title": "Send task", "files.refresh": "Refresh files",
+    "composer.allowChanges": "Allow this task to modify files or run commands", "composer.allowNetwork": "Allow this task to search the web", "cancel.title": "Cancel task", "send.title": "Send task", "files.refresh": "Refresh files",
     "sidebar.close": "Close sidebar", "sidebar.open": "Open sidebar", "search.shortcut": "Search shortcut",
     recentTasks: "Recent tasks", "profile.mode": "Interview mode", "profile.local": "Local only", workspace: "Workspace", agentSession: "Agent session", live: "Live",
     "connection.connecting": "Connecting", "connection.connected": "Connected", "connection.offline": "Offline", "mode.localSafe": "local / safe", "mode.localFull": "local / full access",
@@ -81,10 +87,10 @@ const I18N = {
     "panel.createWorktree": "Create worktree", "panel.name": "Name", "panel.branch": "Branch (optional)", "panel.create": "Create",
     "panel.sandbox": "Execution", "panel.mcp": "MCP tools", "panel.language": "Interface language", "panel.clear": "Clear current session",
     "panel.export": "Export current chat", "panel.reload": "Refresh workspace status", "panel.noWorktrees": "No extra worktrees",
-    "panel.hostProcess": "host process", "panel.isolated": "isolated", "panel.servers": "servers", "panel.gitWorktrees": "Git worktrees", "panel.reasoning": "Reasoning effort", "panel.reasoningNote": "Only the budget level is sent; the UI shows auditable stage summaries, never private chain-of-thought", "reasoning.standard": "Standard", "reasoning.high": "High", "reasoning.max": "Max",
+    "panel.hostProcess": "host process", "panel.isolated": "isolated", "panel.servers": "servers", "panel.gitWorktrees": "Git worktrees", "panel.reasoning": "Reasoning effort", "panel.reasoningNote": "Sends the supported low, mid, high, xhigh, or max level; the UI shows auditable stage summaries, never private chain-of-thought", "reasoning.low": "Low", "reasoning.mid": "Mid", "reasoning.high": "High", "reasoning.xhigh": "XHigh", "reasoning.max": "Max",
     "game.close": "Close game", "game.kicker": "MINICC ARCADE · MINI LAWN", "game.title": "Plants vs. Zombies · Mini lawn",
-    "game.subtitle": "Collect sun, select a card, then click an empty tile; click the card again or press Esc to cancel.", "game.sun": "Sun", "game.score": "Defeated", "game.wave": "Wave",
-    "game.ready": "Ready", "game.running": "Battle", "game.gameOver": "A zombie reached the house", "game.timeUp": "Time limit reached", "game.time": "Time", "game.shovel": "Shovel", "game.shovelHint": "Remove a plant", "game.autoSun": "Auto-collect sun", "game.autoSunHint": "Turn off for manual clicks", "game.repeater": "Repeater", "game.cherrybomb": "Burst berry", "game.icepeashooter": "Ice shooter", "game.burst": "burst", "game.slow": "slow", "game.peashooter": "Peashooter", "game.soundOn": "♫ Sound on", "game.soundOff": "♫ Sound off",
+    "game.subtitle": "10 high-pressure waves. Only a zombie reaching the house ends the campaign; battle time counts active frames only.", "game.sun": "Sun", "game.score": "Defeated", "game.wave": "Wave",
+    "game.ready": "Ready", "game.running": "Battle", "game.paused": "Paused while this tab is hidden", "game.manualPaused": "Battle paused", "game.waveIncoming": "Reinforced wave incoming", "game.gameOver": "A zombie reached the house", "game.time": "Battle time", "game.threat": "Threat", "game.waveHint": "Build your line; the next pack is approaching", "game.wavePressure": "High-pressure wave: use slows and defenses", "game.progress": "Campaign progress", "game.difficulty": "Difficulty", "game.normal": "Standard", "game.hard": "High pressure", "game.nightmare": "Nightmare", "game.pause": "Pause", "game.resume": "Resume", "game.pauseHint": "Freeze battle", "game.resumeHint": "Resume battle", "game.volume": "Volume", "game.shovel": "Shovel", "game.shovelHint": "Remove a plant", "game.autoSun": "Auto-collect sun", "game.autoSunHint": "Turn off for manual clicks", "game.repeater": "Repeater", "game.cherrybomb": "Burst berry", "game.icepeashooter": "Ice shooter", "game.burst": "burst", "game.slow": "slow", "game.peashooter": "Peashooter", "game.soundOn": "♫ Sound on", "game.soundOff": "♫ Sound off",
     "game.sunflower": "Sunflower", "game.wallnut": "Wall-nut", "game.attack": "attack", "game.produce": "sun", "game.defense": "defense",
     "game.instructions": "Click the lawn to plant · click sun to collect", "game.start": "Start game", "game.restart": "Restart",
     "message.you": "You", "message.now": "now", "message.agent": "Agent", "game.canvas": "Plants vs. Zombies mini game canvas",
@@ -108,6 +114,29 @@ function applyLocale() {
   if ($("#messageList") && !isSessionBusy(state.sessionId)) renderSession(state.sessionId);
   updateMode();
   if (state.connection !== null) setConnection(state.connection);
+  applyTheme();
+}
+
+function applyTheme() {
+  document.documentElement.dataset.theme = state.theme;
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.content = state.theme === "light" ? "#f6f7f9" : "#111214";
+  const button = $("#themeButton");
+  if (!button) return;
+  const isLight = state.theme === "light";
+  const label = isLight
+    ? (state.locale === "zh" ? "切换到暗色模式" : "Switch to dark mode")
+    : (state.locale === "zh" ? "切换到亮色模式" : "Switch to light mode");
+  button.setAttribute("aria-label", label);
+  button.title = label;
+  button.innerHTML = icon(isLight ? "moon" : "sun");
+  refreshIcons();
+}
+
+function setTheme(theme) {
+  state.theme = theme === "light" ? "light" : "dark";
+  localStorage.setItem("minicc-theme", state.theme);
+  applyTheme();
 }
 
 function setLocale(locale) {
@@ -277,18 +306,21 @@ function presetMessageMarkup(sessionId) {
     return `<article class="message assistant-message"><div class="message-meta"><span class="avatar agent-avatar">m</span><strong>minicc</strong><span class="agent-label">Agent</span><time>now</time></div><div class="message-body"><p>Ready when you are. I will inspect the workspace before making a plan.</p></div></article>`;
   }
   const events = eventTimelineMarkup(preset.events || []);
-  return `<article class="message user-message"><div class="message-meta"><span class="avatar user-avatar">Y</span><strong>You</strong><time>now</time></div><div class="message-body"><p>${formatText(preset.user)}</p></div></article><article class="message assistant-message"><div class="message-meta"><span class="avatar agent-avatar">m</span><strong>minicc</strong><span class="agent-label">Agent</span><time>now</time></div><div class="message-body"><p>${formatText(preset.answer)}</p>${events ? `<div class="tool-timeline">${events}</div>` : ""}</div></article>`;
+  return `<article class="message user-message"><div class="message-meta"><span class="avatar user-avatar">Y</span><strong>You</strong><time>now</time></div><div class="message-body"><p>${formatText(preset.user)}</p></div></article><article class="message assistant-message"><div class="message-meta"><span class="avatar agent-avatar">m</span><strong>minicc</strong><span class="agent-label">Agent</span><time>now</time></div><div class="message-body">${events ? `<div class="tool-timeline">${events}</div>` : ""}<p>${formatText(preset.answer)}</p></div></article>`;
 }
 
 function taskHistoryMarkup(task) {
   const prompt = task.prompt || task.preview || "";
-  const answer = task.answer || task.stream_text || task.error || "任务没有返回文字。";
+  const answer = task.answer || task.error || "任务没有返回可交付文字。";
+  const rawStream = !task.answer && task.stream_text ? rawOutputMarkup(task.stream_text) : "";
   const events = Array.isArray(task.events) ? eventTimelineMarkup(task.events) : "";
+  const taskAnchor = escapeHtml(`task-${task.task_id || task.created_at || prompt.slice(0, 40)}`);
   const attachments = attachmentMarkup(task.attachments || []);
   const batchSummary = task.task_kind === "batch" && Array.isArray(task.children)
     ? `<div class="batch-child-summary">${task.children.map((child, index) => `<div class="batch-child"><span class="task-state ${child.status === "completed" ? "success" : ["failed", "cancelled", "interrupted"].includes(child.status) ? "cancelled" : "running"}"></span><strong>${escapeHtml(`${t("batch.task")} ${index + 1}`)}</strong><small>${escapeHtml(phaseLabel(child))}</small></div>`).join("")}</div>`
     : "";
-  return `<article class="message user-message"><div class="message-meta"><span class="avatar user-avatar">Y</span><strong>${escapeHtml(t("message.you"))}</strong><time>${escapeHtml(task.created_at || t("message.now"))}</time></div><div class="message-body"><p>${formatText(prompt)}</p>${attachments}</div></article><article class="message assistant-message"><div class="message-meta"><span class="avatar agent-avatar">m</span><strong>minicc</strong><span class="agent-label">Agent</span><time>${escapeHtml(task.finished_at || task.created_at || t("message.now"))}</time></div><div class="message-body"><div class="history-result-head"><span class="task-state ${task.status === "completed" ? "success" : ["failed", "cancelled", "interrupted"].includes(task.status) ? "cancelled" : "running"}"></span><strong>${escapeHtml(phaseLabel(task))}</strong><span>${escapeHtml(taskMetrics(task))}</span></div><p>${formatText(answer)}</p>${batchSummary}${events ? `<div class="tool-timeline">${events}</div>` : ""}</div></article>`;
+  const execution = events ? `<details class="execution-trail"><summary>${escapeHtml(state.locale === "zh" ? "执行脉络与证据" : "Execution trail and evidence")}<span>${escapeHtml(eventTimelineSummary(task.events || []))}</span></summary><div class="tool-timeline">${events}</div></details>` : "";
+  return `<article class="message user-message" data-chat-anchor="${taskAnchor}-prompt"><div class="message-meta"><span class="avatar user-avatar">Y</span><strong>${escapeHtml(t("message.you"))}</strong><time>${escapeHtml(task.created_at || t("message.now"))}</time></div><div class="message-body"><p>${formatText(prompt)}</p>${attachments}</div></article><article class="message assistant-message" data-chat-anchor="${taskAnchor}-answer"><div class="message-meta"><span class="avatar agent-avatar">m</span><strong>minicc</strong><span class="agent-label">Agent</span><time>${escapeHtml(task.finished_at || task.created_at || t("message.now"))}</time></div><div class="message-body"><div class="history-result-head"><span class="task-state ${task.status === "completed" ? "success" : ["failed", "cancelled", "interrupted"].includes(task.status) ? "cancelled" : "running"}"></span><strong>${escapeHtml(phaseLabel(task))}</strong><span>${escapeHtml(taskMetrics(task))}</span></div><p class="answer-callout">${formatText(answer)}</p>${batchSummary}${execution}${rawStream}</div></article>`;
 }
 
 function taskHistoryListMarkup(tasks) {
@@ -310,9 +342,8 @@ function taskHistoryKey(task) {
 
 function renderSession(sessionId, options = {}) {
   const area = $("#chatArea");
-  const previousScrollTop = area?.scrollTop || 0;
-  const shouldFollowLatest = options.followLatest === true
-    || (options.followLatest !== false && chatIsNearBottom(area));
+  const chatPosition = captureChatPosition(area);
+  if (chatPosition && options.followLatest === true) chatPosition.followLatest = true;
   const preset = SESSION_PRESETS[sessionId];
   const history = taskHistoryBySession.get(sessionId);
   const historyItems = taskHistoryListBySession.get(sessionId);
@@ -328,16 +359,8 @@ function renderSession(sessionId, options = {}) {
   if (history) renderedHistoryKeys.set(sessionId, taskHistoryKey(historyItems?.length ? historyItems : history));
   else renderedHistoryKeys.delete(sessionId);
   refreshIcons();
-  window.requestAnimationFrame(() => {
-    if (!area?.isConnected) return;
-    // Background history refreshes must not take the user's reading position.
-    if (shouldFollowLatest && (options.followLatest === true || state.chatFollow !== false)) {
-      scrollChat("auto", true);
-      return;
-    }
-    area.scrollTop = Math.min(previousScrollTop, Math.max(0, area.scrollHeight - area.clientHeight));
-    updateChatFollowState();
-  });
+  // Preserve the visible message across background history refreshes.
+  restoreChatPosition(chatPosition);
   window.requestAnimationFrame(() => restoreSessionTask(sessionId));
 }
 
@@ -432,9 +455,56 @@ function updateChatFollowState() {
   }
 }
 
+function captureChatPosition(area = $("#chatArea")) {
+  if (!area) return null;
+  const areaRect = area.getBoundingClientRect();
+  const anchorElements = [...area.querySelectorAll(".message[data-chat-anchor]")];
+  const anchor = (anchorElements.length ? anchorElements : [...area.querySelectorAll(".message")])
+    .map((element) => ({ element, rect: element.getBoundingClientRect() }))
+    .filter(({ rect }) => rect.bottom > areaRect.top + 2 && rect.top < areaRect.bottom - 2)
+    .sort((left, right) => Math.max(left.rect.top, areaRect.top) - Math.max(right.rect.top, areaRect.top))[0];
+  return {
+    area, top: area.scrollTop, left: area.scrollLeft, followLatest: chatIsNearBottom(area),
+    anchorElement: anchor?.element || null,
+    anchorKey: anchor?.element?.dataset?.chatAnchor || "",
+    anchorOffset: anchor ? anchor.rect.top - areaRect.top : 0,
+  };
+}
+
+function restoreChatPosition(position, schedule = true) {
+  if (!position?.area?.isConnected) return;
+  const restoreVersion = ++state.chatRestoreVersion;
+  const restore = () => {
+    if (!position.area.isConnected || restoreVersion !== state.chatRestoreVersion) return;
+    if (position.followLatest) {
+      position.area.scrollTop = Math.max(0, position.area.scrollHeight - position.area.clientHeight);
+    } else {
+      const anchor = position.anchorElement?.isConnected
+        ? position.anchorElement
+        : [...position.area.querySelectorAll(".message[data-chat-anchor]")].find((element) => element.dataset.chatAnchor === position.anchorKey);
+      if (anchor) {
+        const currentOffset = anchor.getBoundingClientRect().top - position.area.getBoundingClientRect().top;
+        position.area.scrollTop += currentOffset - position.anchorOffset;
+      } else {
+        position.area.scrollTop = position.top;
+      }
+    }
+    position.area.scrollLeft = position.left;
+    state.chatFollow = Boolean(position.followLatest);
+    const button = $("#jumpLatestButton");
+    if (button) {
+      button.hidden = state.chatFollow;
+      button.title = state.chatFollow ? t("tasks.following") : t("tasks.jumpLatest");
+      button.setAttribute("aria-label", state.chatFollow ? t("tasks.following") : t("tasks.jumpLatest"));
+    }
+  };
+  restore();
+  if (schedule) window.requestAnimationFrame(restore);
+}
+
 function scrollChat(behavior = "auto", force = false) {
   const area = $("#chatArea");
-  if (!area || (!force && state.chatFollow === false)) {
+  if (!area || !force) {
     updateChatFollowState();
     return;
   }
@@ -483,7 +553,7 @@ function setSession(sessionId) {
   localStorage.setItem("minicc-session", sessionId);
   $("#topSession").textContent = sessionId;
   $$(".thread-item").forEach((item) => item.classList.toggle("active", item.dataset.session === sessionId));
-  renderSession(sessionId, { followLatest: sessionChanged || !sessionViewReady });
+  renderSession(sessionId, { followLatest: sessionChanged });
   sessionViewReady = true;
 }
 
@@ -568,7 +638,7 @@ function restoreSessionTask(sessionId) {
     return;
   }
   for (const binding of bindings) {
-    if (!document.getElementById(binding.loadingId)) addLoadingMessage(binding.loadingId, binding.data);
+    if (!document.getElementById(binding.loadingId)) addLoadingMessage(binding.loadingId, binding.data, { scrollToLatest: false });
     updateLiveTask(binding.loadingId, binding.data);
   }
   state.activeTaskId = bindings[bindings.length - 1].taskId;
@@ -578,6 +648,8 @@ function restoreSessionTask(sessionId) {
 function updateMode() {
   const checkbox = $("#allowChanges");
   checkbox.checked = state.allowChanges;
+  const networkCheckbox = $("#allowNetwork");
+  if (networkCheckbox) networkCheckbox.checked = state.allowNetwork;
   $("#modeLabel").textContent = state.allowChanges ? t("mode.changes") : t("mode.safe");
   $("#permissionHint").textContent = state.allowChanges ? t("composer.fullAccess") : t("composer.readOnly");
   $("#modeBadge").textContent = state.allowChanges ? t("mode.localFull") : t("mode.localSafe");
@@ -593,13 +665,13 @@ function addUserMessage(text, attachments = []) {
   scrollChat("auto", true);
 }
 
-function addLoadingMessage(id = `loading-${Date.now()}`, data = { status: "running", phase: "planning", stream_text: "" }) {
+function addLoadingMessage(id = `loading-${Date.now()}`, data = { status: "running", phase: "planning", stream_text: "" }, options = {}) {
   $("#messageList").insertAdjacentHTML("beforeend", `
     <article class="message assistant-message loading" id="${id}">
       <div class="message-meta"><span class="avatar agent-avatar">m</span><strong>minicc</strong><span class="agent-label">Agent</span></div>
       <div class="message-body">${liveTaskMarkup(data)}</div>
     </article>`);
-  scrollChat("auto", true);
+  if (options.scrollToLatest !== false) scrollChat("auto", true);
   return id;
 }
 
@@ -699,9 +771,7 @@ function liveTaskMarkup(data) {
   const streamText = String(data.stream_text || "");
   const currentPhase = phaseClass(data);
   const mascotLabel = state.locale === "zh" ? "Agent 正在工作" : "Agent working";
-  const preview = streamText
-    ? `${formatText(streamText)}<span class="stream-caret" aria-hidden="true"></span>`
-    : `<span class="stream-empty">${escapeHtml(t("phase.waiting"))}</span>`;
+  const preview = streamText ? formatText(streamTail(streamText)) : `<span class="stream-empty">${escapeHtml(t("phase.waiting"))}</span>`;
   return `<div class="live-task live-task-${currentPhase}" data-live-task data-phase="${currentPhase}">
     <div class="live-task-stage">
       <div class="agent-mascot" role="img" aria-label="${escapeHtml(mascotLabel)}">
@@ -720,9 +790,15 @@ function liveTaskMarkup(data) {
     </div>
     <div class="stream-panel">
       <div class="stream-panel-head"><span class="stream-live-dot" aria-hidden="true"></span><span>${escapeHtml(t("stream.live"))}</span><span class="stream-metrics" data-live-metrics>${escapeHtml(taskMetrics(data))}</span><span class="stream-phase" data-live-phase-label>${escapeHtml(phaseLabel(data))}</span><span class="stream-duration" data-live-duration>${escapeHtml(formatDuration(taskDuration(data)))}</span></div>
-      <div class="stream-preview" data-live-preview aria-live="polite">${preview}</div>
+      <details class="live-output"><summary><span>${escapeHtml(state.locale === "zh" ? "查看实时输出" : "Live output")}</span><small data-live-output-count>${escapeHtml(streamText ? `${compactNumber(streamText.length)} ${state.locale === "zh" ? "字符（仅显示最近内容）" : "chars (recent content)"}` : "")}</small><span class="live-output-chevron">${icon("chevron-down")}</span></summary><div class="stream-preview" data-live-preview aria-live="polite">${preview}</div></details>
     </div>
   </div>`;
+}
+
+function streamTail(text, limit = 800) {
+  const value = String(text || "");
+  if (value.length <= limit) return value;
+  return `${state.locale === "zh" ? "…仅显示最近内容…\n" : "…recent content only…\n"}${value.slice(-limit)}`;
 }
 
 function safeExternalUrl(value) {
@@ -747,6 +823,7 @@ function traceLabel(event) {
         reasoning_configured: "推理预算",
         image_attached: "视觉输入",
         model_decision: "模型决策",
+        model_update: "模型行动说明",
         tool_round_started: "执行计划",
         tool_round_finished: "结果汇总",
         replan: "重新规划",
@@ -755,6 +832,9 @@ function traceLabel(event) {
         verification_observed: "验证证据",
         context_compacted: "上下文压缩",
         provider_retry: "传输重试",
+        provider_protocol: "调用协议",
+        provider_protocol_fallback: "协议自动回退",
+        task_provider_recovery: "任务恢复",
         reasoning_fallback: "参数降级",
          search_circuit_open: "搜索熔断",
          provider_stream_error: "模型流错误",
@@ -778,6 +858,7 @@ function traceLabel(event) {
         reasoning_configured: "Reasoning budget",
         image_attached: "Vision input",
         model_decision: "Model decision",
+        model_update: "Model update",
         tool_round_started: "Execution plan",
         tool_round_finished: "Results merged",
         replan: "Re-plan",
@@ -786,6 +867,9 @@ function traceLabel(event) {
         verification_observed: "Verification evidence",
         context_compacted: "Context compaction",
         provider_retry: "Transport retry",
+        provider_protocol: "Protocol",
+        provider_protocol_fallback: "Protocol fallback",
+        task_provider_recovery: "Task recovery",
         reasoning_fallback: "Parameter fallback",
          search_circuit_open: "Search circuit breaker",
          provider_stream_error: "Provider stream error",
@@ -814,6 +898,7 @@ function traceDetail(event) {
   if (Array.isArray(detail)) return detail.map((item) => String(item)).join(", ");
   if (typeof detail !== "object") return String(detail);
   const parts = [];
+  if (typeof detail.text === "string" && detail.text) parts.push(detail.text);
   const labels = state.locale === "zh"
      ? { turn: "轮次", tool_count: "工具数", tools: "工具", answer_chars: "回答字符", duration_ms: "耗时", count: "数量", names: "名称", statuses: "状态", max_turns: "轮次上限", child_count: "子任务数", child: "子任务", failed: "失败数", retry: "重试", retry_limit: "重试上限", partial_chars: "已输出字符", error_type: "错误类型", requested: "请求", active: "实际", wire_value: "请求值", task_id: "任务", tokens: "tokens", automatic: "自动", complexity_score: "复杂度", complexity_threshold: "触发线", complexity_reasons: "触发原因", attempt: "评估次数", confidence: "置信度", rationale: "依据", missing: "缺失", next_action: "下一步", evidence: "证据", error: "错误" }
      : { turn: "turn", tool_count: "tools", tools: "tools", answer_chars: "answer chars", duration_ms: "duration", count: "count", names: "names", statuses: "statuses", max_turns: "turn limit", child_count: "children", child: "child", failed: "failed", retry: "retry", retry_limit: "retry limit", partial_chars: "partial chars", error_type: "error type", requested: "requested", active: "active", wire_value: "wire", task_id: "task", tokens: "tokens", automatic: "automatic", complexity_score: "complexity", complexity_threshold: "threshold", complexity_reasons: "reasons", attempt: "review attempt", confidence: "confidence", rationale: "rationale", missing: "missing", next_action: "next action", evidence: "evidence", error: "error" };
@@ -825,14 +910,65 @@ function traceDetail(event) {
   return parts.join(" · ");
 }
 
-function toolEventHtml(event, animate = false) {
+function shortEventText(event, limit = 150) {
+  const text = String(event?.summary || traceDetail(event) || "").replace(/\s+/g, " ").trim();
+  return text.length > limit ? `${text.slice(0, limit - 1).trimEnd()}…` : text;
+}
+
+function rawOutputMarkup(streamText) {
+  const text = streamTail(String(streamText || ""), 1200);
+  return text ? `<details class="raw-output"><summary>${escapeHtml(state.locale === "zh" ? "原始模型输出" : "Raw model output")}</summary><div>${formatText(text)}</div></details>` : "";
+}
+
+function isToolEvent(event) {
+  return event?.kind === "tool" || (event?.name && event?.kind !== "trace");
+}
+
+function eventImportance(event) {
+  const code = String(event?.code || "");
+  const status = String(event?.status || "").toLowerCase();
+  if (["error", "failed", "denied", "cancelled", "interrupted"].includes(status) || /error|failed|denied|blocked|recovery|retry|fallback|max_turns|stagnation/.test(code)) return "high";
+  if (/model_update|replan|verification|completion_|run_finished|batch_/.test(code)) return "medium";
+  return "low";
+}
+
+function visibleAgentEvents(events) {
+  const visible = [];
+  let previousKey = "";
+  for (const event of Array.isArray(events) ? events : []) {
+    if (!isToolEvent(event) && eventImportance(event) === "low") continue;
+    const key = [event?.kind, event?.code, event?.name, event?.status, shortEventText(event, 90), event?.path || ""].join("|");
+    if (key !== previousKey) visible.push(event);
+    previousKey = key;
+  }
+  return visible;
+}
+
+function eventTimelineSummary(events) {
+  const visible = visibleAgentEvents(events);
+  const tools = visible.filter(isToolEvent).length;
+  const alerts = visible.filter((event) => eventImportance(event) === "high").length;
+  return state.locale === "zh" ? `${tools} 次操作${alerts ? ` · ${alerts} 项需关注` : ""}` : `${tools} actions${alerts ? ` · ${alerts} alerts` : ""}`;
+}
+
+function summarizeRound(items, roundNumber) {
+  const tools = items.filter(isToolEvent);
+  const failed = tools.some((event) => ["error", "failed", "denied"].includes(String(event.status || "").toLowerCase()));
+  const detail = tools.map((event) => shortEventText(event, 72)).find(Boolean) || (state.locale === "zh" ? "整理执行步骤" : "Organized execution steps");
+  return { failed, detail, title: state.locale === "zh" ? `第 ${roundNumber} 轮 · ${tools.length} 次操作` : `Round ${roundNumber} · ${tools.length} actions`, status: failed ? (state.locale === "zh" ? "需处理" : "Needs attention") : (state.locale === "zh" ? "已完成" : "Complete") };
+}
+
+function toolEventHtml(event, animate = false, anchor = "") {
   const name = String(event.name || "tool");
   const status = String(event.status || "ok");
   if (event.kind === "trace") {
     const traceClass = status === "error" ? "trace-error" : "trace-ok";
     const detail = traceDetail(event);
     const tracePhase = event.code === "run_finished" ? "completed" : event.phase;
-    return `<div class="trace-event ${traceClass}${animate ? " event-enter" : ""}"><span class="trace-icon">${icon(status === "error" ? "alert-triangle" : "sparkles")}</span><div class="trace-main"><div class="trace-summary"><span class="trace-code">${escapeHtml(traceLabel(event))}</span><span>${escapeHtml(event.summary || "")}</span></div>${detail ? `<small class="trace-detail">${escapeHtml(detail)}</small>` : ""}</div><span class="trace-phase">${escapeHtml(phaseLabel({ phase: tracePhase }))}</span></div>`;
+    const isModelEvent = ["model_update", "replan"].includes(String(event.code || "")) || String(event.code || "").startsWith("completion_");
+    const summary = shortEventText(event) || traceLabel(event);
+    const evidence = detail && detail !== summary ? `<details class="event-detail"><summary>${escapeHtml(state.locale === "zh" ? "查看依据" : "View evidence")}</summary><div>${formatText(detail)}</div></details>` : "";
+    return `<div class="trace-event stage-summary ${isModelEvent ? "model-event " : ""}${traceClass}${animate ? " event-enter" : ""} data-stage-code="${escapeHtml(event.code || "")}"><span class="trace-icon">${icon(status === "error" ? "alert-triangle" : "sparkles")}</span><div class="trace-main"><div class="trace-summary"><span class="trace-code">${escapeHtml(traceLabel(event))}</span><span>${escapeHtml(summary)}</span></div>${evidence}</div><span class="trace-phase">${escapeHtml(phaseLabel({ phase: tracePhase }))}</span></div>`;
   }
   const denied = status === "denied";
   const failed = ["error", "failed"].includes(status);
@@ -847,58 +983,74 @@ function toolEventHtml(event, animate = false) {
   }).join("")}</div>` : "";
   const path = String(event.path || "");
   const pathMarkup = path ? `<button class="tool-path-button" data-open-diff="${escapeHtml(path)}" type="button">${escapeHtml(path)}</button>` : `<span class="tool-path">${escapeHtml(toolStatusLabel(status))}</span>`;
-  return `<div class="tool-event ${stateClass}${animate ? " event-enter" : ""}">
+  return `<div class="tool-event ${stateClass}${animate ? " event-enter" : ""}${anchor ? ` data-chat-anchor="${escapeHtml(anchor)}"` : ""}>
     <div class="tool-icon ${denied ? "amber-icon" : ""}">${icon(iconName)}</div>
     <div class="tool-event-copy"><div><strong>${escapeHtml(name)}</strong>${pathMarkup}</div><small>${escapeHtml(event.summary || "")}</small>${resultMarkup}</div>
     <span class="tool-check ${denied ? "denied-check" : failed ? "failed-check" : ""}">${icon(stateIcon)}</span>
   </div>`;
 }
 
- function eventTimelineMarkup(events, options = {}) {
-   if (!Array.isArray(events) || !events.length) return "";
-   const groups = [];
-   let current = null;
-   const isStart = (event) => event?.kind === "trace" && event.code === "tool_round_started";
-   const isEnd = (event) => event?.kind === "trace" && event.code === "tool_round_finished";
-   const isTool = (event) => event?.kind === "tool" || (event?.name && event?.kind !== "trace");
-   const pushCurrent = () => { if (current) { groups.push(current); current = null; } };
-   events.forEach((event, index) => {
-     if (isStart(event)) { pushCurrent(); current = { round: true, items: [] }; }
-     else if (current?.implicit && !isTool(event) && !isEnd(event)) pushCurrent();
-     if (!current && isTool(event)) current = { round: true, implicit: true, items: [] };
-     if (current) {
-       current.items.push({ event, index });
-       if (isEnd(event)) pushCurrent();
-     } else groups.push({ round: false, items: [{ event, index }] });
-  });
-  pushCurrent();
-  const roundTotal = groups.filter((group) => group.round).length;
-  let roundIndex = 0;
-   return groups.map((group) => {
-     if (!group.round) return group.items.map(({ event, index }) => toolEventHtml(event, index >= Number(options.animateFrom ?? events.length))).join("");
-     const currentRound = roundIndex++;
-     const toolCount = group.items.filter(({ event }) => event.kind === "tool" || (event.name && event.kind !== "trace")).length;
-     const start = group.items.find(({ event }) => isStart(event));
-     const title = start?.event?.summary || t("tool.reasoning");
-     const openRounds = options.openRounds;
-     const open = openRounds instanceof Set ? openRounds.has(String(currentRound)) : currentRound === roundTotal - 1;
-     const itemMarkup = group.items.map(({ event, index }) => toolEventHtml(event, index >= Number(options.animateFrom ?? events.length))).join("");
-     return "<details class=\"tool-round\" data-tool-round=\"" + currentRound + "\"" + (open ? " open" : "") + "><summary class=\"tool-round-summary\"><span class=\"tool-round-title\"><span class=\"tool-round-icon\">" + icon("layers-3") + "</span><strong>" + escapeHtml(t("tool.round")) + " " + (currentRound + 1) + "</strong><small>" + escapeHtml(title) + "</small></span><span class=\"tool-round-meta\">" + toolCount + " " + escapeHtml(t("tool.callCount")) + "<span class=\"tool-round-chevron\">" + icon("chevron-down") + "</span></span></summary><div class=\"tool-round-events\">" + itemMarkup + "</div></details>";
-   }).join("");
- }
+function eventTimelineMarkup(events, options = {}) {
+  if (!Array.isArray(events) || !events.length) return "";
+  const isTool = isToolEvent;
+  const items = visibleAgentEvents(events).map((event, index) => ({ event, index }));
+  const groups = [];
+  let currentRound = null;
+  let fallbackRound = 0;
+  const eventTurn = (event) => Number(event?.detail?.turn || 0);
+  const closeRound = () => { if (currentRound) { groups.push(currentRound); currentRound = null; } };
+  const startRound = (turn) => {
+    const normalizedTurn = Number(turn || ++fallbackRound);
+    if (!currentRound || currentRound.turn !== normalizedTurn) { closeRound(); currentRound = { round: true, turn: normalizedTurn, items: [] }; }
+    return currentRound;
+  };
+  for (const item of items) {
+    const { event } = item;
+    const code = String(event?.code || "");
+    const turn = eventTurn(event);
+    if (code === "tool_round_started" || turn || (isTool(event) && currentRound)) {
+      startRound(turn || currentRound?.turn);
+      currentRound.items.push(item);
+      if (code === "tool_round_finished") closeRound();
+      continue;
+    }
+    if (isTool(event)) {
+      startRound();
+      currentRound.items.push(item);
+      continue;
+    }
+    if (code === "tool_round_finished" && currentRound) { currentRound.items.push(item); closeRound(); continue; }
+    closeRound();
+    groups.push({ round: false, item });
+  }
+  closeRound();
+  return groups.map((group, groupIndex) => {
+    if (!group.round) return toolEventHtml(group.item.event, group.item.index >= Number(options.animateFrom ?? events.length), `event-${group.item.index}`);
+    const toolItems = group.items.filter(({ event }) => isTool(event));
+    const toolCount = toolItems.length;
+    const roundKey = String(group.turn || groupIndex + 1);
+    const round = summarizeRound(group.items.map(({ event }) => event), roundKey);
+    const open = round.failed || (options.openRounds instanceof Set && options.openRounds.has(roundKey));
+    const itemMarkup = group.items.map(({ event, index }) => toolEventHtml(event, index >= Number(options.animateFrom ?? events.length), `event-${index}`)).join("");
+    return `<details class="agent-round" data-agent-round="${roundKey}"${open ? " open" : ""}><summary class="agent-round-summary"><span class="agent-round-title"><span class="agent-round-icon">${icon(round.failed ? "alert-circle" : "layers-3")}</span><strong>${escapeHtml(round.title)}</strong><small>${escapeHtml(round.detail)}</small></span><span class="agent-round-meta">${escapeHtml(round.status)}<span class="agent-round-chevron">${icon("chevron-down")}</span></span></summary><div class="agent-round-events">${itemMarkup}</div></details>`;
+  }).join("");
+}
 
- function assistantMessageMarkup(data) {
-   const events = Array.isArray(data.events) ? data.events : [];
-   const eventMarkup = eventTimelineMarkup(events);
-  const answer = data.answer || data.stream_text || data.error || "模型没有返回文字。";
+function assistantMessageMarkup(data) {
+  const events = Array.isArray(data.events) ? data.events : [];
+  const eventMarkup = eventTimelineMarkup(events);
+  const answer = data.answer || data.error || "模型没有返回可交付文字。";
+  const rawStream = !data.answer && data.stream_text ? rawOutputMarkup(data.stream_text) : "";
+  const execution = eventMarkup ? `<details class="execution-trail"><summary>${escapeHtml(state.locale === "zh" ? "执行脉络与证据" : "Execution trail and evidence")}<span>${escapeHtml(eventTimelineSummary(events))}</span></summary><div class="tool-timeline">${eventMarkup}</div></details>` : "";
   return `
     <article class="message assistant-message">
       <div class="message-meta"><span class="avatar agent-avatar">m</span><strong>minicc</strong><span class="agent-label">Agent</span><time>now</time></div>
-      <div class="message-body"><p>${formatText(answer)}</p>${eventMarkup ? `<div class="tool-timeline">${eventMarkup}</div>` : ""}</div>
+      <div class="message-body"><p class="answer-callout">${formatText(answer)}</p>${execution}${rawStream}</div>
     </article>`;
 }
 
 function addAssistantMessage(data, loadingId = "") {
+  const chatPosition = captureChatPosition();
   const loading = loadingId ? document.getElementById(loadingId) : null;
   if (loading) {
     const replacement = document.createElement("div");
@@ -914,6 +1066,7 @@ function addAssistantMessage(data, loadingId = "") {
   updateTaskDock(data);
   refreshIcons();
   persistSessionView();
+  restoreChatPosition(chatPosition, false);
 }
 
 async function requestJson(url, options = {}, timeoutMs = 15000) {
@@ -935,11 +1088,10 @@ async function requestJson(url, options = {}, timeoutMs = 15000) {
 function updateLiveStream(loadingId, preview, target) {
   let stream = liveStreamStates.get(loadingId);
   if (!stream) {
-    stream = { rendered: "", target: "", preview, frame: 0 };
+    stream = { rendered: "", target: "", preview, frame: 0, lastPaint: 0 };
     liveStreamStates.set(loadingId, stream);
   }
   stream.preview = preview;
-  if (target.length < stream.rendered.length) stream.rendered = "";
   stream.target = target;
   if (stream.frame) return;
   const paint = () => {
@@ -948,17 +1100,11 @@ function updateLiveStream(loadingId, preview, target) {
       liveStreamStates.delete(loadingId);
       return;
     }
-    if (stream.rendered.length >= stream.target.length) return;
-    const remaining = stream.target.length - stream.rendered.length;
-    const step = Math.max(1, Math.min(12, Math.ceil(remaining / 5)));
-    stream.rendered = stream.target.slice(0, stream.rendered.length + step);
-    const area = $("#chatArea");
-    const manualScrollTop = area && state.chatFollow === false ? area.scrollTop : null;
-    stream.preview.innerHTML = `${formatText(stream.rendered)}<span class="stream-caret" aria-hidden="true"></span>`;
-    if (manualScrollTop != null && state.chatFollow === false) area.scrollTop = manualScrollTop;
-    stream.frame = window.requestAnimationFrame(paint);
+    if (stream.rendered === stream.target) return;
+    stream.rendered = stream.target;
+    stream.preview.innerHTML = `${formatText(streamTail(stream.target))}<span class="stream-caret" aria-hidden="true"></span>`;
   };
-  stream.frame = window.requestAnimationFrame(paint);
+  stream.frame = window.setTimeout(paint, 120);
 }
 
 function syncLiveEvents(loading, events) {
@@ -970,20 +1116,23 @@ function syncLiveEvents(loading, events) {
     loading.querySelector(".message-body")?.append(timeline);
   }
   const previousCount = Number(loading.dataset.eventCount || 0);
+  const fingerprint = JSON.stringify(events.map((event) => [event.kind, event.code, event.name, event.status, event.summary, event.detail]));
+  if (timeline.dataset.eventFingerprint === fingerprint) return;
+  const chatPosition = captureChatPosition();
   const openRounds = timeline.dataset.initialized === "true"
-    ? new Set([...timeline.querySelectorAll("details[open]")].map((item) => item.dataset.toolRound))
+    ? new Set([...timeline.querySelectorAll("details.agent-round[open]")].map((item) => item.dataset.agentRound))
     : null;
   timeline.innerHTML = eventTimelineMarkup(events, { openRounds, animateFrom: previousCount });
   timeline.dataset.initialized = "true";
+  timeline.dataset.eventFingerprint = fingerprint;
   loading.dataset.eventCount = String(events.length);
   refreshIcons();
+  restoreChatPosition(chatPosition, false);
 }
 
 function updateLiveTask(loadingId, data) {
   const loading = document.getElementById(loadingId);
   if (!loading) return;
-  const area = $("#chatArea");
-  const manualScrollTop = area && state.chatFollow === false ? area.scrollTop : null;
   const events = Array.isArray(data.events) ? data.events : [];
   let live = loading.querySelector("[data-live-task]");
   if (!live) {
@@ -1003,6 +1152,7 @@ function updateLiveTask(loadingId, data) {
   live.querySelector("[data-live-metrics]")?.replaceChildren(document.createTextNode(taskMetrics(data)));
   const preview = live.querySelector("[data-live-preview]");
   const streamText = String(data.stream_text || "");
+  live.querySelector("[data-live-output-count]")?.replaceChildren(document.createTextNode(streamText ? `${compactNumber(streamText.length)} ${state.locale === "zh" ? "字符（仅显示最近内容）" : "chars (recent content)"}` : ""));
   if (preview) {
     if (streamText) updateLiveStream(loadingId, preview, streamText);
     else preview.innerHTML = `<span class="stream-empty">${escapeHtml(t("phase.waiting"))}</span>`;
@@ -1011,12 +1161,6 @@ function updateLiveTask(loadingId, data) {
   updateTaskDuration(data, loadingId);
   $("#pulseStatus").textContent = phaseText;
   updateTaskDock(data);
-  if (manualScrollTop != null && state.chatFollow === false) {
-    area.scrollTop = manualScrollTop;
-    window.requestAnimationFrame(() => { if (state.chatFollow === false) area.scrollTop = manualScrollTop; });
-  } else {
-    scrollChat("auto");
-  }
 }
 
 function scheduleChangesRefresh() {
@@ -1029,7 +1173,7 @@ function updateBoundTask(taskId, data) {
   if (!binding) return;
   binding.data = data;
   if (binding.sessionId === state.sessionId) {
-    if (!document.getElementById(binding.loadingId)) addLoadingMessage(binding.loadingId, data);
+    if (!document.getElementById(binding.loadingId)) addLoadingMessage(binding.loadingId, data, { scrollToLatest: false });
     updateLiveTask(binding.loadingId, data);
   }
   if (Array.isArray(data.events) && data.events.some((event) => ["write_file", "edit_file", "move", "delete"].includes(event.name))) scheduleChangesRefresh();
@@ -1082,7 +1226,6 @@ async function completeTask(loadingId, data) {
   }
   if (finalData.status !== "completed") showToast(finalData.error || (finalData.status === "cancelled" ? "任务已取消" : "任务失败"));
   scheduleChangesRefresh();
-  scrollChat();
   await loadTaskHistory();
   return finalData;
 }
@@ -1231,7 +1374,7 @@ async function sendMessage(event) {
     const task = await requestJson("/api/tasks", {
      method: "POST",
      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message, attachments: queuedAttachments.map(({ name, mime_type, data_url }) => ({ name, mime_type, data_url })), session_id: sessionId, allow_changes: state.allowChanges, reasoning_effort: state.reasoningEffort, workspace_path: workspacePath }),
+      body: JSON.stringify({ message, attachments: queuedAttachments.map(({ name, mime_type, data_url }) => ({ name, mime_type, data_url })), session_id: sessionId, allow_changes: state.allowChanges, allow_network: state.allowNetwork, reasoning_effort: state.reasoningEffort, workspace_path: workspacePath }),
     });
     state.submitting = false;
     bindRunningTask(task, loadingId, sessionId);
@@ -1240,7 +1383,6 @@ async function sendMessage(event) {
     updateTaskDock(task);
     await loadTaskHistory();
     await watchTask(task.task_id);
-    scrollChat();
   } catch (error) {
     finishLiveTask(loadingId);
     document.getElementById(loadingId)?.remove();
@@ -1275,18 +1417,22 @@ function runDemoFlow() {
   if (isSessionBusy(state.sessionId)) return;
   const steps = state.locale === "zh"
     ? [
-        ["planning", "收到任务：检查一个小功能并给出结果。"],
-        ["tool", "read_file · 读取 README.md"],
-        ["tool", "grep · 搜索测试入口"],
-        ["tool", "bash · 运行 pytest -q"],
-        ["answering", "整理验证结果与剩余风险"],
+        { phase: "planning", stream: "收到任务：检查一个小功能并给出结果。", event: { kind: "trace", code: "model_update", phase: "planning", summary: "模型给出了本轮可公开的行动说明", detail: { turn: 1, text: "我会先读取 README.md，再定位测试入口并运行针对性验证，最后汇总可确认的结果。" } } },
+        { phase: "tool", stream: "read_file · 读取 README.md", event: { name: "read_file", status: "ok", summary: "读取 README.md" } },
+        { phase: "tool", stream: "grep · 搜索测试入口", event: { name: "grep", status: "ok", summary: "搜索测试入口" } },
+        { phase: "planning", stream: "根据已读取内容调整验证范围", event: { kind: "trace", code: "replan", phase: "planning", summary: "重新规划", detail: { turn: 1, text: "已定位测试入口，下一步只运行与目标功能相关的测试，避免无关耗时。" } } },
+        { phase: "tool", stream: "bash · 运行 pytest -q", event: { name: "bash", status: "ok", summary: "运行 pytest -q" } },
+        { phase: "answering", stream: "整理验证结果与剩余风险", event: { kind: "trace", code: "tool_round_finished", phase: "answering", summary: "结果汇总：已完成 3 次工具调用，验证通过", detail: { turn: 1, tool_count: 3, tools: ["read_file", "grep", "bash"] } } },
+        { phase: "answering", stream: "完成评估：任务目标已满足", event: { kind: "trace", code: "completion_complete", phase: "answering", summary: "完成评估通过", detail: { confidence: "高", evidence: "文档已读取，测试已通过" } } },
       ]
     : [
-        ["planning", "Task received: inspect a small feature and report back."],
-        ["tool", "read_file · reading README.md"],
-        ["tool", "grep · locating test entry points"],
-        ["tool", "bash · running pytest -q"],
-        ["answering", "Summarizing verification and remaining risks"],
+        { phase: "planning", stream: "Task received: inspect a small feature and report back.", event: { kind: "trace", code: "model_update", phase: "planning", summary: "The model provided a public action update", detail: { turn: 1, text: "I will read README.md, locate the test entry points, run focused validation, then summarize confirmed results." } } },
+        { phase: "tool", stream: "read_file · reading README.md", event: { name: "read_file", status: "ok", summary: "Reading README.md" } },
+        { phase: "tool", stream: "grep · locating test entry points", event: { name: "grep", status: "ok", summary: "Locating test entry points" } },
+        { phase: "planning", stream: "Refining the verification scope", event: { kind: "trace", code: "replan", phase: "planning", summary: "Re-plan", detail: { turn: 1, text: "The relevant tests are located, so I will run focused validation and avoid unrelated work." } } },
+        { phase: "tool", stream: "bash · running pytest -q", event: { name: "bash", status: "ok", summary: "Running pytest -q" } },
+        { phase: "answering", stream: "Summarizing verification and remaining risks", event: { kind: "trace", code: "tool_round_finished", phase: "answering", summary: "Results merged: 3 tool calls completed and validation passed", detail: { turn: 1, tool_count: 3, tools: ["read_file", "grep", "bash"] } } },
+        { phase: "answering", stream: "Completion review: objective is met", event: { kind: "trace", code: "completion_complete", phase: "answering", summary: "Completion accepted", detail: { confidence: "high", evidence: "Documentation read and tests passed" } } },
       ];
   const loadingId = addLoadingMessage();
   setBusy(true);
@@ -1299,13 +1445,13 @@ function runDemoFlow() {
       loading?.remove();
       addAssistantMessage({
         answer: state.locale === "zh" ? "演示完成：规划 → 工具调用 → 测试验证 → 总结。真实任务会在这里连接本地 API 和模型。" : "Demo complete: plan → tools → tests → summary. Real tasks connect to the local API and model here.",
-        events: steps.slice(1, 4).map(([name, summary]) => ({ name, status: "ok", summary })),
+        events: steps.map((step) => step.event),
         turns: 1, tool_calls_total: 3, tokens_used: { total_tokens: 420 }, context: { tokens: 420, limit_tokens: state.contextWindowTokens },
       });
       setBusy(false);
       return;
     }
-    updateLiveTask(loadingId, { status: "running", phase: item[0], stream_text: item[1], events: steps.slice(1, index).map(([name, summary]) => ({ name, status: "ok", summary })) });
+    updateLiveTask(loadingId, { status: "running", phase: item.phase, stream_text: item.stream, events: steps.slice(0, index + 1).map((step) => step.event) });
     index += 1;
     window.setTimeout(tick, 850);
   };
@@ -1321,7 +1467,7 @@ async function loadWorkspace() {
     state.workspaceInfo = info;
    state.workspacePath = info.path || state.workspacePath;
    state.contextWindowTokens = Number(info.context_window_tokens || state.contextWindowTokens || 300000);
-    if (!localStorage.getItem("minicc-reasoning") && ["standard", "high", "max"].includes(info.reasoning_effort)) state.reasoningEffort = info.reasoning_effort;
+    if (!localStorage.getItem("minicc-reasoning") && ["low", "mid", "high", "xhigh", "max"].includes(info.reasoning_effort)) state.reasoningEffort = info.reasoning_effort;
     updateReasoningControl();
     const name = info.name || "workspace";
     $("#workspaceName").textContent = name;
@@ -1346,7 +1492,7 @@ async function loadWorkspace() {
         if (runningTasks.has(task.task_id)) continue;
         const sessionId = String(task.session_id || task.task_id);
         const loadingId = `loading-${task.task_id}`;
-        if (sessionId === state.sessionId) addLoadingMessage(loadingId, task);
+        if (sessionId === state.sessionId) addLoadingMessage(loadingId, task, { scrollToLatest: false });
         bindRunningTask(task, loadingId, sessionId);
         watchTask(task.task_id).catch((error) => showToast(error.message));
       }
@@ -1574,7 +1720,7 @@ async function openFilePreview(path) {
 
 function openSettingsPanel() {
   const current = state.locale === "zh" ? "中文" : "English";
-  const effortMarkup = ["standard", "high", "max"].map((effort) => "<option value=\"" + effort + "\" " + (state.reasoningEffort === effort ? "selected" : "") + ">" + escapeHtml(t("reasoning." + effort)) + "</option>").join("");
+  const effortMarkup = ["low", "mid", "high", "xhigh", "max"].map((effort) => "<option value=\"" + effort + "\" " + (state.reasoningEffort === effort ? "selected" : "") + ">" + escapeHtml(t("reasoning." + effort)) + "</option>").join("");
   const languageButtons = "<div class=\"settings-block\"><span>" + t("panel.language") + "</span><strong>" + current + "</strong><div class=\"settings-locale\"><button class=\"locale-option " + (state.locale === "zh" ? "active" : "") + "\" data-set-locale=\"zh\">中文</button><button class=\"locale-option " + (state.locale === "en" ? "active" : "") + "\" data-set-locale=\"en\">English</button></div></div>";
   const reasoningBlock = "<div class=\"settings-block\"><span>" + t("panel.reasoning") + "</span><div class=\"settings-effort\"><select id=\"reasoningEffortSelect\" aria-label=\"" + escapeHtml(t("panel.reasoning")) + "\">" + effortMarkup + "</select></div><small class=\"settings-note\">" + escapeHtml(t("panel.reasoningNote")) + "</small></div>";
   const sandboxBlock = "<div class=\"settings-block\"><span>" + t("panel.sandbox") + "</span><strong>" + (state.locale === "zh" ? "见工作区面板" : "See Workspaces") + "</strong></div>";
@@ -1724,12 +1870,20 @@ function closeGame() {
   $("#gameModal").classList.remove("show");
   $("#gameModal").setAttribute("aria-hidden", "true");
   game.running = false;
+  cancelAnimationFrame(game.frame);
+  stopGameMusic();
   window.scrollTo(0, 0);
 }
 
-const MAX_WAVES = 8;
-const GAME_DURATION = 120000;
-const game = { running: false, frame: 0, score: 0, sun: 150, wave: 1, waveTarget: 6, waveSpawned: 0, totalSpawned: 0, waveClearTimer: 0, elapsed: 0, selected: null, shovel: false, plants: [], zombies: [], suns: [], shots: [], particles: [], last: 0, spawnTimer: 0, skyTimer: 0, autoSun: localStorage.getItem("minicc-game-auto-sun") !== "off", musicOn: localStorage.getItem("minicc-game-sound") !== "off", audio: null };
+const MAX_WAVES = 10;
+const GAME_DIFFICULTIES = {
+  normal: { hpMultiplier: .9, initialSun: 200, speedMultiplier: .9, spawnDelayMultiplier: 1.16, waveBonus: -1 },
+  hard: { hpMultiplier: 1, initialSun: 175, speedMultiplier: 1, spawnDelayMultiplier: 1, waveBonus: 0 },
+  nightmare: { hpMultiplier: 1.28, initialSun: 150, speedMultiplier: 1.16, spawnDelayMultiplier: .8, waveBonus: 2 },
+};
+const savedGameDifficulty = Object.prototype.hasOwnProperty.call(GAME_DIFFICULTIES, localStorage.getItem("minicc-game-difficulty")) ? localStorage.getItem("minicc-game-difficulty") : "hard";
+const WAVE_TARGET = (wave, difficulty = savedGameDifficulty) => 7 + wave * 2 + GAME_DIFFICULTIES[difficulty].waveBonus;
+const game = { running: false, paused: false, pauseReasons: new Set(), frame: 0, score: 0, sun: GAME_DIFFICULTIES[savedGameDifficulty].initialSun, wave: 1, waveTarget: WAVE_TARGET(1), waveSpawned: 0, totalSpawned: 0, waveClearTimer: 0, elapsed: 0, selected: null, shovel: false, plants: [], zombies: [], suns: [], shots: [], particles: [], last: 0, spawnTimer: 0, skyTimer: 0, dangerTimer: 0, difficulty: savedGameDifficulty, autoSun: localStorage.getItem("minicc-game-auto-sun") !== "off", musicOn: localStorage.getItem("minicc-game-sound") !== "off", volume: Math.max(0, Math.min(100, Number(localStorage.getItem("minicc-game-volume")) || 70)), audio: null };
 const gameLayout = { left: 78, top: 72, cellW: 70, cellH: 65, rows: 5, cols: 9 };
 const plantCost = { peashooter: 100, sunflower: 50, wallnut: 50, repeater: 180, cherrybomb: 150, icepeashooter: 175 };
 const plantHealth = { peashooter: 7, sunflower: 6, wallnut: 24, repeater: 8, cherrybomb: 4, icepeashooter: 7 };
@@ -1740,14 +1894,51 @@ const plantProfiles = {
   icepeashooter: { interval: 1300, shots: 1, damage: 1, slow: 3200 },
 };
 const zombieProfiles = {
-  walker: { hp: 5, speed: .019, growth: .0008, attackInterval: 1050, score: 1 },
-  roadblock: { hp: 12, speed: .012, growth: .0005, attackInterval: 700, score: 3 },
-  runner: { hp: 4, speed: .034, growth: .0005, attackInterval: 1200, score: 2 },
-  bucket: { hp: 21, speed: .010, growth: .0003, attackInterval: 650, score: 5 },
+  walker: { hp: 5, speed: .020, growth: .0010, attackInterval: 1000, score: 1 },
+  roadblock: { hp: 12, speed: .013, growth: .00065, attackInterval: 670, score: 3 },
+  runner: { hp: 4, speed: .036, growth: .0008, attackInterval: 1150, score: 2 },
+  bucket: { hp: 21, speed: .011, growth: .00045, attackInterval: 620, score: 5 },
 };
-function clearPlantSelection() {
-  game.selected = null;
-  $$(".seed-card").forEach((item) => item.classList.remove("selected"));
+function gameDifficulty() { return GAME_DIFFICULTIES[game.difficulty] || GAME_DIFFICULTIES.hard; }
+function updatePauseButton() {
+  const button = $("#gamePause");
+  if (!button) return;
+  const paused = game.pauseReasons.has("manual");
+  button.classList.toggle("active", paused);
+  button.setAttribute("aria-pressed", String(paused));
+  button.querySelector("strong").textContent = t(paused ? "game.resume" : "game.pause");
+  button.querySelector("small").textContent = t(paused ? "game.resumeHint" : "game.pauseHint");
+}
+function setGamePauseReason(reason, paused) {
+  if (!game.running) return;
+  if (paused) game.pauseReasons.add(reason);
+  else game.pauseReasons.delete(reason);
+  const nextPaused = game.pauseReasons.size > 0;
+  if (game.paused === nextPaused) {
+    updatePauseButton();
+    if (nextPaused) setGameStatus(game.pauseReasons.has("manual") ? "game.manualPaused" : "game.paused");
+    return;
+  }
+  game.paused = nextPaused;
+  cancelAnimationFrame(game.frame);
+  updatePauseButton();
+  if (nextPaused) {
+    stopGameMusic();
+    setGameStatus(reason === "manual" ? "game.manualPaused" : "game.paused");
+    drawGame();
+    return;
+  }
+  game.last = performance.now();
+  setGameStatus("game.running");
+  startGameMusic();
+  game.frame = requestAnimationFrame(gameLoop);
+}
+function toggleGamePause() { setGamePauseReason("manual", !game.pauseReasons.has("manual")); }
+function setGameDifficulty(value) {
+  if (game.running || !Object.prototype.hasOwnProperty.call(GAME_DIFFICULTIES, value)) return;
+  game.difficulty = value;
+  localStorage.setItem("minicc-game-difficulty", value);
+  initGame();
 }
 function updateShovelButton() {
   const button = $("#gameShovel");
@@ -1760,6 +1951,10 @@ function toggleShovel() {
   if (game.shovel) clearPlantSelection();
   updateShovelButton();
   drawGame();
+}
+function clearPlantSelection() {
+  game.selected = null;
+  $$(".seed-card").forEach((card) => card.classList.remove("selected"));
 }
 function selectPlant(card) {
   if (game.shovel) {
@@ -1779,48 +1974,75 @@ function updateGameHud() {
   $("#gameScore").textContent = String(game.score);
   $("#gameWave").textContent = `${Math.min(game.wave, MAX_WAVES)}/${MAX_WAVES}`;
   $("#gameTime").textContent = formatGameTime(game.elapsed);
+  const pressure = `${t("game.threat")}: ${game.waveSpawned}/${game.waveTarget}`;
+  $("#gameThreat").textContent = pressure;
+  $("#gameProgressFill").style.width = `${Math.round((game.waveSpawned / Math.max(1, game.waveTarget)) * 100)}%`;
+  $("#gameWaveHint").textContent = t(game.wave >= 7 ? "game.wavePressure" : "game.waveHint");
 }
 function cellPosition(row, col) { return { x: gameLayout.left + col * gameLayout.cellW + 35, y: gameLayout.top + row * gameLayout.cellH + 31 }; }
 function addGameParticle(x, y, color, count = 6, speed = 0.08) {
   for (let i = 0; i < count; i += 1) game.particles.push({ x, y, vx: (Math.random() - .5) * speed, vy: (Math.random() - .7) * speed, life: 420 + Math.random() * 360, maxLife: 780, size: 2 + Math.random() * 3, color });
 }
+function gameVolume() { return game.musicOn ? .1 * (game.volume / 100) : .001; }
 function playGameSound(kind) {
-  if (!game.musicOn) return;
+  if (!game.musicOn || !game.volume) return;
   try {
     if (!game.audio) {
       const AudioContext = window.AudioContext || window.webkitAudioContext;
       if (!AudioContext) return;
-      const ctx = new AudioContext(); const master = ctx.createGain(); master.gain.value = .045; master.connect(ctx.destination);
-      game.audio = { ctx, master, musicTimer: null, step: 0 };
+      const ctx = new AudioContext(); const master = ctx.createGain(); master.gain.value = gameVolume(); master.connect(ctx.destination);
+      game.audio = { ctx, master, musicTimer: null, step: 0, lastSound: {} };
     }
     const { ctx, master } = game.audio;
     if (ctx.state === "suspended") ctx.resume();
-    const notes = { collect: 660, plant: 330, shoot: 220, hit: 145, wave: 520, gameover: 90 };
-    const oscillator = ctx.createOscillator(); const gain = ctx.createGain(); oscillator.type = kind === "hit" ? "square" : "sine"; oscillator.frequency.value = notes[kind] || 280;
-    gain.gain.setValueAtTime(kind === "shoot" ? .08 : .16, ctx.currentTime); gain.gain.exponentialRampToValueAtTime(.001, ctx.currentTime + (kind === "gameover" ? .42 : .16)); oscillator.connect(gain); gain.connect(master); oscillator.start(); oscillator.stop(ctx.currentTime + .45);
+    const sounds = {
+      collect: { notes: [660, 880], type: "sine", duration: .16, step: .055, volume: .14 },
+      plant: { notes: [330, 494], type: "triangle", duration: .2, step: .07, volume: .14 },
+      shoot: { notes: [180, 230], type: "square", duration: .1, step: .035, volume: .08 },
+      hit: { notes: [145], type: "square", duration: .08, step: 0, volume: .08 },
+      explode: { notes: [130, 92, 58], type: "sawtooth", duration: .34, step: .07, volume: .2 },
+      wave: { notes: [392, 523, 659], type: "triangle", duration: .42, step: .1, volume: .16 },
+      victory: { notes: [523, 659, 784, 1046], type: "triangle", duration: .7, step: .11, volume: .18 },
+      gameover: { notes: [220, 165, 110], type: "sawtooth", duration: .55, step: .13, volume: .16 },
+      danger: { notes: [110, 98], type: "square", duration: .18, step: .08, volume: .1 },
+    };
+    const sound = sounds[kind] || sounds.hit;
+    const now = ctx.currentTime;
+    const minInterval = { hit: .055, shoot: .08, collect: .04 }[kind] || 0;
+    if (minInterval && now - (game.audio.lastSound[kind] || 0) < minInterval) return;
+    game.audio.lastSound[kind] = now;
+    sound.notes.forEach((frequency, index) => {
+      const start = now + index * sound.step;
+      const oscillator = ctx.createOscillator(); const gain = ctx.createGain();
+      oscillator.type = sound.type; oscillator.frequency.setValueAtTime(frequency, start);
+      gain.gain.setValueAtTime(.001, start); gain.gain.linearRampToValueAtTime(sound.volume, start + .012); gain.gain.exponentialRampToValueAtTime(.001, start + sound.duration);
+      oscillator.connect(gain); gain.connect(master); oscillator.start(start); oscillator.stop(start + sound.duration + .02);
+    });
   } catch { /* Audio is an enhancement, not a gameplay dependency. */ }
 }
 function startGameMusic() {
   if (!game.musicOn || game.audio?.musicTimer) return;
   playGameSound("plant");
   if (!game.audio) return;
-  const melody = [262, 330, 392, 330, 294, 349, 440, 349];
+  const melody = [262, 330, 392, 330, 294, 349, 440, 349, 392, 494, 587, 494];
   game.audio.musicTimer = window.setInterval(() => {
     if (!game.running || !game.musicOn || !game.audio) return;
     const { ctx, master } = game.audio; const oscillator = ctx.createOscillator(); const gain = ctx.createGain();
-    oscillator.type = "triangle"; oscillator.frequency.value = melody[game.audio.step++ % melody.length]; gain.gain.setValueAtTime(.045, ctx.currentTime); gain.gain.exponentialRampToValueAtTime(.001, ctx.currentTime + .3); oscillator.connect(gain); gain.connect(master); oscillator.start(); oscillator.stop(ctx.currentTime + .34);
-  }, 620);
+    const start = ctx.currentTime; oscillator.type = "triangle"; oscillator.frequency.setValueAtTime(melody[game.audio.step++ % melody.length], start); gain.gain.setValueAtTime(.001, start); gain.gain.linearRampToValueAtTime(.05, start + .02); gain.gain.exponentialRampToValueAtTime(.001, start + .3); oscillator.connect(gain); gain.connect(master); oscillator.start(start); oscillator.stop(start + .34);
+  }, 560);
 }
 function stopGameMusic() { if (game.audio?.musicTimer) { clearInterval(game.audio.musicTimer); game.audio.musicTimer = null; } }
-function updateSoundButton() { const button = $("#gameSoundToggle"); if (button) { button.textContent = t(game.musicOn ? "game.soundOn" : "game.soundOff"); button.classList.toggle("muted", !game.musicOn); } }
-function toggleGameSound() { game.musicOn = !game.musicOn; localStorage.setItem("minicc-game-sound", game.musicOn ? "on" : "off"); if (game.musicOn) { playGameSound("collect"); startGameMusic(); } else stopGameMusic(); updateSoundButton(); }
+function updateSoundButton() { const button = $("#gameSoundToggle"); const volume = $("#gameVolume"); if (button) { button.textContent = t(game.musicOn ? "game.soundOn" : "game.soundOff"); button.classList.toggle("muted", !game.musicOn); button.setAttribute("aria-pressed", String(game.musicOn)); } if (volume) volume.value = String(game.volume); }
+function setGameVolume(value) { game.volume = Math.max(0, Math.min(100, Number(value) || 0)); localStorage.setItem("minicc-game-volume", String(game.volume)); if (game.audio?.master) game.audio.master.gain.setTargetAtTime(gameVolume(), game.audio.ctx.currentTime, .02); }
+function toggleGameSound() { game.musicOn = !game.musicOn; localStorage.setItem("minicc-game-sound", game.musicOn ? "on" : "off"); if (game.audio?.master) game.audio.master.gain.setTargetAtTime(gameVolume(), game.audio.ctx.currentTime, .02); if (game.musicOn && game.volume) { playGameSound("collect"); startGameMusic(); } else stopGameMusic(); updateSoundButton(); }
 function setGameStatus(key) { $("#gameStatus").textContent = t(key); }
+function setGamePaused(paused) { setGamePauseReason("visibility", paused); }
 function finishGame(statusKey) {
   game.running = false;
   stopGameMusic();
   setGameStatus(statusKey);
-  if (statusKey === "game.victory") playGameSound("wave");
-  else if (statusKey === "game.gameOver" || statusKey === "game.timeUp") playGameSound("gameover");
+  if (statusKey === "game.victory") playGameSound("victory");
+  else if (statusKey === "game.gameOver") playGameSound("gameover");
   $("#gameStart").textContent = t("game.restart");
   updateGameHud();
   drawGame();
@@ -1828,10 +2050,12 @@ function finishGame(statusKey) {
 function initGame() {
   stopGameMusic();
   game.running = false;
+  game.paused = false;
+  game.pauseReasons.clear();
   game.score = 0;
-  game.sun = 150;
+  game.sun = gameDifficulty().initialSun;
   game.wave = 1;
-  game.waveTarget = 6;
+  game.waveTarget = WAVE_TARGET(game.wave, game.difficulty);
   game.waveSpawned = 0;
   game.totalSpawned = 0;
   game.waveClearTimer = 0;
@@ -1846,9 +2070,12 @@ function initGame() {
   game.last = 0;
   game.spawnTimer = 0;
   game.skyTimer = 0;
+  game.dangerTimer = 0;
   $("#gameAutoSun").checked = game.autoSun;
+  $("#gameDifficulty").value = game.difficulty;
   clearPlantSelection();
   updateShovelButton();
+  updatePauseButton();
   updateSoundButton();
   updateGameHud();
   setGameStatus("game.ready");
@@ -1944,9 +2171,13 @@ function drawGame() { const canvas = $("#gameCanvas"); if (!canvas) return; cons
   ctx.fillStyle = "rgba(240, 213, 140, .28)"; ctx.fillRect(674, 60, 3, 360); game.suns.forEach((sun) => drawSun(ctx, sun)); game.plants.forEach((plant) => drawPlant(ctx, plant, now)); game.shots.forEach((shot) => { ctx.fillStyle = shot.color || "#b5f0a2"; ctx.shadowColor = shot.slow ? "#a7e8f3" : "#80ed9a"; ctx.shadowBlur = 12; ctx.beginPath(); ctx.arc(shot.x, shot.y, 6, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0; }); game.zombies.forEach((zombie) => drawZombie(ctx, zombie, now)); game.particles.forEach((particle) => { ctx.globalAlpha = Math.max(0, particle.life / particle.maxLife); ctx.fillStyle = particle.color; ctx.beginPath(); ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2); ctx.fill(); }); ctx.globalAlpha = 1; }
 function zombieTypeForWave() {
   const roll = Math.random();
-  if (game.wave >= 4 && roll < .1) return "bucket";
-  if (game.wave >= 3 && roll < .24) return "runner";
-  if (game.wave >= 2 && roll < .44) return "roadblock";
+  const pressure = game.difficulty === "nightmare" ? 1.25 : game.difficulty === "normal" ? .82 : 1;
+  const bucketChance = Math.min(.32, (.1 + game.wave * .012) * pressure);
+  const runnerChance = Math.min(.46, (.24 + game.wave * .014) * pressure);
+  const roadblockChance = Math.min(.78, (.44 + game.wave * .018) * pressure);
+  if (game.wave >= 4 && roll < bucketChance) return "bucket";
+  if (game.wave >= 3 && roll < runnerChance) return "runner";
+  if (game.wave >= 2 && roll < roadblockChance) return "roadblock";
   return "walker";
 }
 function spawnZombie() {
@@ -1954,7 +2185,9 @@ function spawnZombie() {
   const row = Math.floor(Math.random() * gameLayout.rows);
   const type = zombieTypeForWave();
   const profile = zombieProfiles[type];
-  const hp = profile.hp + Math.floor(game.wave * (type === "bucket" ? .9 : .55));
+  const difficulty = gameDifficulty();
+  const hpGrowth = type === "bucket" ? 1.2 : type === "roadblock" ? .85 : .7;
+  const hp = Math.max(1, Math.round((profile.hp + Math.floor(game.wave * hpGrowth)) * difficulty.hpMultiplier));
   game.zombies.push({
     x: 704,
     y: cellPosition(row, 0).y,
@@ -1962,13 +2195,14 @@ function spawnZombie() {
     hp,
     maxHp: hp,
     type,
-    speed: profile.speed + game.wave * profile.growth,
+    speed: (profile.speed + game.wave * profile.growth) * difficulty.speedMultiplier,
     attackInterval: profile.attackInterval,
     slowTimer: 0,
     seed: Math.random() * 1000,
   });
   game.waveSpawned += 1;
   game.totalSpawned += 1;
+  if (game.wave > 1 && game.waveSpawned === 1) setGameStatus("game.running");
   if (game.waveSpawned === game.waveTarget) {
     playGameSound("wave");
     addGameParticle(360, 60, "#ffe27c", 18, .18);
@@ -2013,7 +2247,7 @@ function explodeCherryBomb(plant) {
   });
   game.plants.splice(game.plants.indexOf(plant), 1);
   addGameParticle(position.x, position.y - 5, "#ff8d73", 34, .3);
-  playGameSound("gameover");
+  playGameSound("explode");
   updateGameHud();
 }
 function advanceWave(dt) {
@@ -2028,28 +2262,30 @@ function advanceWave(dt) {
     return true;
   }
   game.wave += 1;
-  game.waveTarget = 5 + game.wave * 2;
+  game.waveTarget = WAVE_TARGET(game.wave, game.difficulty);
   game.waveSpawned = 0;
   game.waveClearTimer = 0;
   game.spawnTimer = 0;
-  setGameStatus("game.waveClear");
+  setGameStatus("game.waveIncoming");
+  playGameSound("wave");
   addGameParticle(360, 60, "#ffe27c", 18, .18);
   updateGameHud();
   return false;
 }
 function gameLoop(now = 0) {
-  if (!game.running) return;
-  const dt = Math.min(40, Math.max(8, now - game.last || 16));
+  if (!game.running || game.paused) return;
+  const dt = Math.min(80, Math.max(8, now - game.last || 16));
   game.last = now;
   game.elapsed += dt;
   updateGameHud();
-  if (game.elapsed >= GAME_DURATION) {
-    finishGame("game.timeUp");
-    return;
-  }
   game.spawnTimer += dt;
   game.skyTimer += dt;
-  const spawnDelay = Math.max(1450, 3900 - game.wave * 210);
+  game.dangerTimer += dt;
+  if (game.zombies.some((zombie) => zombie.x < 165) && game.dangerTimer > 850) {
+    game.dangerTimer = 0;
+    playGameSound("danger");
+  }
+  const spawnDelay = Math.max(780, (3300 - game.wave * 240) * gameDifficulty().spawnDelayMultiplier);
   if (game.waveSpawned < game.waveTarget && ((game.waveSpawned === 0 && game.spawnTimer > 1800) || game.spawnTimer > spawnDelay)) {
     spawnZombie();
     game.spawnTimer = 0;
@@ -2126,7 +2362,7 @@ function gameLoop(now = 0) {
   drawGame();
   if (game.running) game.frame = requestAnimationFrame(gameLoop);
 }
-function startGame() { cancelAnimationFrame(game.frame); initGame(); game.running = true; setGameStatus("game.running"); $("#gameStart").textContent = t("game.restart"); startGameMusic(); game.frame = requestAnimationFrame(gameLoop); }
+function startGame() { cancelAnimationFrame(game.frame); initGame(); game.running = true; game.paused = false; game.last = performance.now(); setGameStatus("game.running"); $("#gameStart").textContent = t("game.restart"); startGameMusic(); game.frame = requestAnimationFrame(gameLoop); }
 function canvasPoint(event) { const canvas = $("#gameCanvas"), rect = canvas.getBoundingClientRect(); return { x: (event.clientX - rect.left) * canvas.width / rect.width, y: (event.clientY - rect.top) * canvas.height / rect.height }; }
 function collectSun(event) { const { x, y } = canvasPoint(event); const hit = game.suns.findIndex((sun) => Math.hypot(sun.x - x, sun.y - y) < 32); if (hit < 0) return false; const sun = game.suns[hit]; collectSunAt(hit, sun.x, sun.y); drawGame(); return true; }
 function gameCellAt(x, y) { if (y < gameLayout.top || x < gameLayout.left) return null; const col = Math.floor((x - gameLayout.left) / gameLayout.cellW), row = Math.floor((y - gameLayout.top) / gameLayout.cellH); return col >= 0 && col < gameLayout.cols && row >= 0 && row < gameLayout.rows ? { row, col } : null; }
@@ -2163,7 +2399,11 @@ function plantAt(event) {
 }
 function bindUI() {
   $("#chatForm").addEventListener("submit", sendMessage);
-  $("#chatArea").addEventListener("scroll", updateChatFollowState, { passive: true });
+  $("#chatArea").addEventListener("scroll", () => {
+    state.chatRestoreVersion += 1;
+    state.chatUserScrolledAt = performance.now();
+    updateChatFollowState();
+  }, { passive: true });
   $("#jumpLatestButton").addEventListener("click", () => scrollChat("auto", true));
   $("#newTaskButton").addEventListener("click", resetTask);
   $("#demoFlowButton").addEventListener("click", runDemoFlow);
@@ -2171,11 +2411,15 @@ function bindUI() {
   $("#gameClose").addEventListener("click", closeGame);
   $("#gameStart").addEventListener("click", startGame);
   $("#gameShovel").addEventListener("click", toggleShovel);
+  $("#gamePause").addEventListener("click", toggleGamePause);
+  $("#gameDifficulty").addEventListener("change", (event) => setGameDifficulty(event.target.value));
   $("#gameAutoSun").addEventListener("change", (event) => {
     game.autoSun = event.target.checked;
     localStorage.setItem("minicc-game-auto-sun", game.autoSun ? "on" : "off");
   });
   $("#gameSoundToggle").addEventListener("click", toggleGameSound);
+  $("#gameVolume").addEventListener("input", (event) => setGameVolume(event.target.value));
+  document.addEventListener("visibilitychange", () => setGamePaused(document.hidden));
   $("#gameModal").addEventListener("click", (event) => { if (event.target.id === "gameModal") closeGame(); });
   $("#gameCanvas").addEventListener("click", (event) => {
     if (collectSun(event)) return;
@@ -2196,8 +2440,14 @@ function bindUI() {
     updateMode();
     showToast(state.allowChanges ? (state.locale === "zh" ? "已允许当前任务修改" : "Changes enabled for new requests") : (state.locale === "zh" ? "已启用安全模式" : "Safe mode enabled"));
   });
+  $("#allowNetwork").addEventListener("change", (event) => {
+    state.allowNetwork = event.target.checked;
+    localStorage.setItem("minicc-network", String(state.allowNetwork));
+    showToast(state.allowNetwork ? (state.locale === "zh" ? "已允许当前任务联网搜索" : "Web search enabled for new requests") : (state.locale === "zh" ? "已关闭联网搜索" : "Web search disabled"));
+  });
   $("#localeZh").addEventListener("click", () => setLocale("zh"));
   $("#localeEn").addEventListener("click", () => setLocale("en"));
+  $("#themeButton").addEventListener("click", () => setTheme(state.theme === "light" ? "dark" : "light"));
   $("#moreOptionsButton").addEventListener("click", openOptionsPanel);
   $("#reasoningButton").addEventListener("click", openSettingsPanel);
   $("#moreTasksButton").addEventListener("click", openTaskListPanel);
@@ -2256,7 +2506,7 @@ function bindUI() {
   $("#panelBody").addEventListener("change", (event) => {
     if (event.target.id !== "reasoningEffortSelect") return;
     const value = event.target.value;
-    if (!["standard", "high", "max"].includes(value)) return;
+    if (!["low", "mid", "high", "xhigh", "max"].includes(value)) return;
     state.reasoningEffort = value;
     localStorage.setItem("minicc-reasoning", value);
     updateReasoningControl();
@@ -2319,7 +2569,7 @@ function bindUI() {
       if (messages.length < 2) { showToast(state.locale === "zh" ? "至少填写 2 个子任务" : "Add at least 2 subtasks"); return; }
       try {
         const sharedContext = String(form.elements.namedItem("shared_context")?.value || "").trim();
-        const created = await requestJson("/api/tasks/batch", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages, shared_context: sharedContext, message: state.locale === "zh" ? "并行执行多个独立子任务" : "Run independent subtasks in parallel", session_id: state.sessionId, allow_changes: state.allowChanges, reasoning_effort: state.reasoningEffort, workspace_path: state.workspacePath }) });
+        const created = await requestJson("/api/tasks/batch", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages, shared_context: sharedContext, message: state.locale === "zh" ? "并行执行多个独立子任务" : "Run independent subtasks in parallel", session_id: state.sessionId, allow_changes: state.allowChanges, allow_network: state.allowNetwork, reasoning_effort: state.reasoningEffort, workspace_path: state.workspacePath }) });
         const task = await requestJson(`/api/tasks/${encodeURIComponent(created.task_id)}`);
         closePanel();
         addUserMessage(task.message || (state.locale === "zh" ? "并行执行多个独立子任务" : "Run independent subtasks in parallel"));
