@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import re
 import time
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -205,6 +205,20 @@ class ToolRegistry:
 
     def openai_schemas(self) -> list[dict[str, Any]]:
         return [spec.openai_schema() for spec in self._specs.values()]
+
+    def restrict(self, names: Iterable[str]) -> "ToolRegistry":
+        """Return a registry exposing only the named tools.
+
+        The existing ``ToolSpec`` instances are reused, so validation,
+        redaction, and handlers stay identical while a bounded sub-agent sees
+        a smaller schema surface.
+        """
+        restricted = ToolRegistry()
+        for name in names:
+            spec = self._specs.get(str(name))
+            if spec is not None:
+                restricted.register(spec)
+        return restricted
 
     def _validate(self, name: str, arguments: Mapping[str, Any]) -> dict[str, Any]:
         spec = self._specs[name]

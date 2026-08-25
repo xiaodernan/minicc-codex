@@ -218,30 +218,37 @@ async def execute_dag(
     handler: Callable[[PlanTask], dict[str, Any] | Awaitable[dict[str, Any]]],
     *,
     max_concurrency: int = 4,
+    include_dependency_outputs: bool = False,
 ) -> DAGResult:
-    """Execute ready nodes in bounded waves; failed dependencies skip children."""
+    """Execute ready nodes in bounded waves; failed dependencies skip children.
+
+    Existing one-argument handlers remain supported. When
+    ``include_dependency_outputs`` is enabled, handlers receive a second
+    argument containing bounded outputs from completed dependencies.
+    """
     plan.validate()
     if max_concurrency < 1:
         raise GraphValidationError("max_concurrency 必须至少为 1")
     task_map = {task.id: task for task in plan.tasks}
+    plan_order = {task.id: index for index, task in enumerate(plan.tasks)}
     pending = set(task_map)
     result = DAGResult(status="running")
     while pending:
-        blocked = [
+        blocked = sorted([
             task_id
             for task_id in pending
             if any(dependency in result.failed or dependency in result.skipped for dependency in task_map[task_id].depends_on)
-        ]
+        ], key=plan_order.__getitem__)
         for task_id in blocked:
             pending.remove(task_id)
             result.skipped.append(task_id)
             result.outputs[task_id] = {"status": "skipped", "reason": "dependency_failed"}
 
-        ready = [
+        ready = sorted([
             task_map[task_id]
             for task_id in pending
             if all(dependency in result.completed for dependency in task_map[task_id].depends_on)
-        ]
+        ], key=lambda task: plan_order[task.id])
         if not ready:
             if pending:
                 raise GraphValidationError("DAG 调度停滞：剩余节点没有满足依赖")
@@ -253,17 +260,31 @@ async def execute_dag(
             while True:
                 attempts += 1
                 result.attempts[task.id] = attempts
+                failed_output: dict[str, Any] | None = None
                 try:
-                    raw = handler(task)
+                    dependency_outputs = {
+                        dependency: dict(result.outputs.get(dependency) or {})
+                        for dependency in task.depends_on
+                    }
+                    raw = (
+                        handler(task, dependency_outputs)  # type: ignore[misc]
+                        if include_dependency_outputs
+                        else handler(task)
+                    )
                     output = await raw if inspect.isawaitable(raw) else raw
                     if not isinstance(output, dict):
                         output = {"value": output}
                     if output.get("status", "completed") in {"failed", "error"}:
+                        failed_output = dict(output)
                         raise RuntimeError(str(output.get("error") or output.get("status")))
                     return task, {**output, "status": "completed"}, attempts
                 except Exception as exc:  # noqa: BLE001 - node failure is data
                     if attempts > task.max_retries:
-                        return task, {"status": "failed", "error": f"{type(exc).__name__}: {exc}"}, attempts
+                        return task, {
+                            **(failed_output or {}),
+                            "status": "failed",
+                            "error": str((failed_output or {}).get("error") or f"{type(exc).__name__}: {exc}"),
+                        }, attempts
 
         wave_results = await asyncio.gather(*(run_one(task) for task in wave))
         for task, output, attempts in wave_results:

@@ -17,7 +17,7 @@ from minicc.agent.context import COMPACTION_MARKER, compact
 from minicc.agent.completion import parse_completion_decision
 from minicc.agent.graph import DAGPlan, GraphValidationError, NodeResult, PlanTask, build_coding_workflow, execute_dag, fixed_plan
 from minicc.agent.orchestration import assess_complexity, build_auto_subtasks
-from minicc.agent.planner import PlannerPolicy, build_plan, validate_dynamic_plan
+from minicc.agent.planner import PlannerPolicy, build_plan, parse_planner_response, validate_dynamic_plan
 from minicc.agent.repair import repair_scope
 from minicc.agent.retrieval import LocalEvidenceIndex
 from minicc.agent.router import StageRouter
@@ -129,6 +129,30 @@ def test_dag_validates_dependencies_and_bounds_concurrency() -> None:
         ).validate()
 
 
+def test_dag_can_pass_completed_dependency_outputs_to_handlers() -> None:
+    plan = DAGPlan(
+        "dependency-context",
+        (
+            PlanTask("inspect", "readonly"),
+            PlanTask("review", "review", depends_on=("inspect",)),
+        ),
+    )
+    seen: list[dict[str, dict[str, object]]] = []
+
+    async def handler(task, dependencies):
+        seen.append({key: dict(value) for key, value in dependencies.items()})
+        return {"node": task.id}
+
+    result = asyncio.run(execute_dag(
+        plan,
+        handler,
+        max_concurrency=2,
+        include_dependency_outputs=True,
+    ))
+    assert result.status == "completed"
+    assert seen[-1] == {"inspect": {"node": "inspect", "status": "completed"}}
+
+
 def test_verifier_returns_structured_failure_and_rejects_shell_composition(tmp_path: Path) -> None:
     def fake_executor(_command: str, _workspace: Path, _timeout: int):
         return SimpleNamespace(
@@ -213,6 +237,112 @@ def test_dynamic_planner_rejects_unsafe_tool_and_falls_back_to_fixed_plan() -> N
     fallback = build_plan({"tasks": [{"id": "bad", "allowed_tools": ["web_search"]}]}, policy=policy)
     assert fallback.source == "fixed_fallback"
     assert fallback.plan.name == "inspect_implement_verify"
+
+
+def test_model_planner_parses_wrapped_json_and_rejects_unknown_kind() -> None:
+    policy = PlannerPolicy(max_nodes=4, max_depth=3, max_concurrency=2)
+    parsed = parse_planner_response(
+        "```json\n"
+        '{"plan":{"name":"readonly-review","tasks":['
+        '{"id":"inspect","kind":"readonly","allowed_tools":["read_file"]},'
+        '{"id":"review","kind":"review","depends_on":["inspect"],"allowed_tools":["git_diff"]}'
+        ']}}\n```',
+        fallback_name="inspect_summarize",
+        policy=policy,
+    )
+    assert parsed.source == "dynamic_model"
+    assert parsed.plan.name == "readonly-review"
+    invalid = parse_planner_response(
+        '{"tasks":[{"id":"inspect","kind":"unknown","allowed_tools":["read_file"]}]}',
+        fallback_name="inspect_summarize",
+        policy=policy,
+    )
+    assert invalid.source == "fixed_fallback"
+    assert invalid.plan.name == "inspect_summarize"
+    assert invalid.reason
+
+
+def test_agent_service_preflights_complex_tasks_with_a_safe_model_plan(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = {"planner": 0, "agent": 0, "judge": 0}
+
+    class FakeProvider:
+        def __init__(self, **_kwargs) -> None:
+            pass
+
+        async def chat(self, messages, tools, on_delta=None):
+            rendered = json.dumps(messages, ensure_ascii=False)
+            if "受约束任务规划器" in rendered:
+                calls["planner"] += 1
+                return LLMResponse(
+                    content=json.dumps({
+                        "name": "readonly-review",
+                        "tasks": [
+                            {"id": "inspect", "kind": "readonly", "allowed_tools": ["read_file", "grep"]},
+                            {"id": "review", "kind": "review", "depends_on": ["inspect"], "allowed_tools": ["git_diff"]},
+                        ],
+                    }, ensure_ascii=False),
+                    usage={"prompt_tokens": 10, "completion_tokens": 8, "total_tokens": 18},
+                )
+            if tools is None:
+                calls["judge"] += 1
+                return LLMResponse(content=json.dumps({
+                    "status": "complete",
+                    "confidence": 0.96,
+                    "rationale": "只读检查已完成，证据足够交付。",
+                    "missing": [],
+                    "next_action": "",
+                    "evidence": ["planner", "agent"],
+                }, ensure_ascii=False))
+            calls["agent"] += 1
+            return LLMResponse(content="已完成复杂只读检查并整理风险。")
+
+        async def close(self) -> None:
+            return None
+
+    monkeypatch.setattr("minicc.web.OpenAICompatibleProvider", FakeProvider)
+    config = SimpleNamespace(
+        yolo=False,
+        max_concurrent_tasks=2,
+        sandbox_mode="host",
+        sandbox_image="python:3.11-slim",
+        base_url="https://example.test/v1",
+        api_key="test-key",
+        model="test-model",
+        timeout=10,
+        tool_mode="auto",
+        reasoning_effort="high",
+        max_turns=4,
+        compact_threshold=300_000,
+        context_window_tokens=300_000,
+    )
+    service = AgentService(tmp_path, config)
+    try:
+        result = service._chat_locked(
+            {
+                "message": (
+                    "分析 src/app.py、web/app.js 和 tests/test_core.py 的前后端现状，"
+                    "同时检查界面和测试，运行验证并总结风险。"
+                ),
+                "session_id": "planner-preflight",
+                "allow_changes": False,
+                "workspace_path": str(tmp_path),
+            },
+            workspace=tmp_path,
+        )
+    finally:
+        service.shutdown()
+    assert result["error"] is None
+    assert calls == {"planner": 1, "agent": 3, "judge": 1}
+    assert result["context"]["planner"]["source"] == "dynamic_model"
+    assert result["metrics"]["planner"]["plan"]["name"] == "readonly-review"
+    assert result["metrics"]["planner"]["execution"]["status"] == "completed"
+    assert result["metrics"]["planner"]["execution"]["completed"] == ["inspect", "review"]
+    assert any(event.get("code") == "planner_started" for event in result["events"])
+    assert any(event.get("code") == "planner_dynamic_ready" for event in result["events"])
+    assert any(event.get("code") == "planner_execution_finished" for event in result["events"])
 
 
 def test_local_evidence_index_and_repair_scope_are_bounded(tmp_path: Path) -> None:
@@ -727,17 +857,32 @@ def test_agent_loop_executes_tool_then_returns_answer(tmp_path: Path) -> None:
 
     messages = [{"role": "user", "content": "读取 hello.txt"}]
     registry = build_registry(Editor(tmp_path))
+    traces: list[dict[str, object]] = []
     result = asyncio.run(
         run_agent(
             FakeProvider(),
             registry,
             messages,
+            on_trace=traces.append,
             should_allow=lambda _name, _call: True,
         )
     )
     assert result.answer == "已读取 hello.txt"
     assert result.tool_calls_total == 1
     assert any(message.get("role") == "tool" for message in messages)
+    started = next(event for event in traces if event.get("code") == "run_started")
+    finished = next(event for event in traces if event.get("code") == "tool_round_finished")
+    feedback = next(event for event in traces if event.get("code") == "feedback_observed")
+    replan = next(event for event in traces if event.get("code") == "replan")
+    assert started["detail"]["turn_policy"].startswith("默认不限模型轮次")
+    assert finished["detail"]["results"][0]["tool"] == "read_file"
+    assert "hello" in finished["detail"]["results"][0]["observation"]
+    assert finished["detail"]["results"][0]["structured_data"]["digest"]
+    assert finished["detail"]["basis"]
+    assert feedback["detail"]["observations"]
+    assert feedback["detail"]["basis"]
+    assert replan["detail"]["observed"]
+    assert replan["detail"]["basis"]
 
 
 def test_multimodal_content_keeps_text_and_image_parts() -> None:
@@ -1270,6 +1415,56 @@ def test_task_manager_resume_reuses_only_unchanged_readonly_checkpoint(tmp_path:
         assert changed["context"]["recovery"]["mode"] == "reinspect_required"
         assert changed["context"]["recovery"]["workspace_digest_matches"] is False
         assert changed["events"][-1]["code"] == "reinspect_required"
+    finally:
+        manager.shutdown()
+
+
+def test_interrupted_readonly_resume_continues_from_session_checkpoint(tmp_path: Path) -> None:
+    (tmp_path / "evidence.txt").write_text("stable\n", encoding="utf-8")
+    observed_payloads: list[dict[str, object]] = []
+
+    class FakeService:
+        config = SimpleNamespace(yolo=False, max_concurrent_tasks=1)
+        workspace = tmp_path
+
+        @staticmethod
+        def _run_chat(payload, *, on_event=None, on_stream=None, cancel_event=None):
+            observed_payloads.append(payload)
+            return {"answer": "从会话检查点继续完成", "cancelled": False, "events": []}
+
+    session = SessionStore(tmp_path, "interrupted-session")
+    session.save([
+        {"role": "system", "content": "rules"},
+        {"role": "user", "content": "原始检查请求"},
+        {"role": "assistant", "content": "已读取 evidence.txt"},
+    ])
+    manager = TaskManager(FakeService(), max_workers=1)
+    source = TaskRecord(
+        task_id="task-interrupted",
+        session_id="interrupted-session",
+        message="原始检查请求",
+        allow_changes=False,
+        workspace_path=str(tmp_path),
+        status="interrupted",
+        phase="interrupted",
+        checkpoint={
+            "paths": ["evidence.txt"],
+            "workspace_digest": TaskManager._workspace_checkpoint_digest(tmp_path, ["evidence.txt"]),
+            "safe_readonly": True,
+        },
+    )
+    manager.tasks[source.task_id] = source
+    try:
+        resumed = manager.resume(source.task_id)
+        assert resumed["context"]["recovery"]["mode"] == "session_checkpoint"
+        assert resumed["context"]["recovery"]["resume_session"] is True
+        deadline = time.monotonic() + 2
+        while time.monotonic() < deadline and not observed_payloads:
+            time.sleep(0.01)
+        assert observed_payloads
+        assert observed_payloads[0]["resume_from_checkpoint"] is True
+        assert str(observed_payloads[0]["message"]).startswith("[任务恢复]")
+        assert "原始检查请求" not in str(observed_payloads[0]["message"])
     finally:
         manager.shutdown()
 

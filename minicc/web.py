@@ -27,11 +27,19 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, unquote, urlsplit
 
-from .agent.graph import build_coding_workflow, fixed_plan
+from .agent.graph import DAGPlan, PlanTask, build_coding_workflow, execute_dag, fixed_plan
 from .agent.completion import CompletionDecision, judge_completion
-from .agent.loop import TurnResult, run_agent
+from .agent.loop import TurnResult, build_tool_feedback, run_agent
 from .agent.orchestration import assess_complexity, build_auto_subtasks
-from .agent.planner import PlannerPolicy, build_plan
+from .agent.planner import (
+    DEFAULT_ALLOWED_TOOLS,
+    PLANNER_SYSTEM_PROMPT,
+    PlanBuildResult,
+    PlannerPolicy,
+    build_plan,
+    build_planner_prompt,
+    parse_planner_response,
+)
 from .agent.repair import repair_scope
 from .agent.retrieval import LocalEvidenceIndex
 from .agent.router import StageRouter
@@ -62,6 +70,8 @@ TASK_STREAM_INTERVAL = 0.06
 TASK_STREAM_TIMEOUT = 15 * 60
 TERMINAL_TASK_STATUSES = {"completed", "failed", "cancelled", "interrupted"}
 COMPLETION_WRITE_TOOLS = frozenset({"write_file", "edit_file", "worktree_create", "worktree_remove"})
+READONLY_PLAN_KINDS = frozenset({"readonly", "review", "merge", "exec"})
+READONLY_PLAN_TOOLS = frozenset({"read_file", "grep", "git_status", "git_diff", "bash"})
 CHANGE_INTENT_MARKERS = (
     "修复", "修改", "增加", "添加", "加上", "实现", "开发", "构建", "制作", "创建",
     "补齐", "优化", "重构", "更新", "删除", "移除", "继续做完", "落地", "写入",
@@ -251,6 +261,17 @@ def _completion_review_event(decision: CompletionDecision, attempt: int) -> dict
     }
 
 
+def _is_bounded_readonly_plan(plan: DAGPlan) -> bool:
+    """Allow direct DAG execution only for plans that cannot write files."""
+
+    return all(
+        task.kind in READONLY_PLAN_KINDS
+        and not set(task.allowed_tools) - READONLY_PLAN_TOOLS
+        and not set(task.allowed_tools) & COMPLETION_WRITE_TOOLS
+        for task in plan.tasks
+    )
+
+
 def _completion_followup(decision: CompletionDecision) -> str:
     missing = "；".join(decision.missing[:8]) or "请重新检查原始需求和工作区证据"
     next_action = decision.next_action or "继续检查相关文件，完成必要修改并运行直接相关的验证"
@@ -261,6 +282,30 @@ def _completion_followup(decision: CompletionDecision) -> str:
         f"建议下一步：{next_action}\n"
         "完成后重新检查 diff 和验证结果，再让完成评估器复核。"
     )
+
+
+def _child_result_digest(child: dict[str, Any]) -> dict[str, Any]:
+    """Return bounded evidence for a parallel child without copying its transcript."""
+
+    answer = child.get("answer") or child.get("error") or child.get("stream_text") or ""
+    safe_answer, _ = redact_text(str(answer).strip())
+    if len(safe_answer) > 900:
+        safe_answer = safe_answer[:899].rstrip() + "…"
+    metrics = child.get("metrics") if isinstance(child.get("metrics"), dict) else {}
+    budget = metrics.get("budget") if isinstance(metrics.get("budget"), dict) else {}
+    evidence = [
+        str(event.get("summary") or "")
+        for event in child.get("events") or []
+        if isinstance(event, dict) and event.get("summary")
+    ][-4:]
+    return {
+        "status": child.get("status"),
+        "answer": safe_answer,
+        "turns": int(budget.get("turns") or 0),
+        "tool_calls": int(budget.get("tool_calls") or 0),
+        "duration_seconds": metrics.get("duration_seconds", child.get("duration_seconds", 0)),
+        "evidence": evidence,
+    }
 
 
 @dataclass
@@ -600,6 +645,12 @@ class TaskManager:
                     "complexity_threshold": assessment.get("threshold") if isinstance(assessment, dict) else None,
                     "complexity_reasons": assessment.get("reasons") if isinstance(assessment, dict) else None,
                     "plan": parent.context.get("plan"),
+                    "parallel_mode": "只读侦察并行，主任务串行接管"
+                    if parent.orchestration_mode == "auto"
+                    else "独立子任务并行，结束后统一合并",
+                    "max_concurrency": parent.context.get("max_concurrency"),
+                    "dependency_shape": "children -> merge -> implement -> verify",
+                    "merge_strategy": "主 Agent 基于子任务证据重新核实后继续",
                 },
             })
             self._persist_task(parent, force=True)
@@ -869,6 +920,7 @@ class TaskManager:
                         "task_id": child_id,
                         "status": child.get("status"),
                         "tokens": (child.get("tokens_used") or {}).get("total_tokens", 0),
+                        **_child_result_digest(child),
                     },
                 })
             parent.update_context({"children_completed": completed, "children_total": len(child_ids), "tokens": sum(int((item.get("tokens_used") or {}).get("total_tokens") or 0) for item in snapshots)})
@@ -899,6 +951,9 @@ class TaskManager:
                 "detail": {
                     "child_count": len(child_ids),
                     "failed": sum(item.get("status") in {"failed", "interrupted"} for item in snapshots),
+                    "evidence": [_child_result_digest(item) for item in snapshots],
+                    "merge_basis": "并行子任务的有限摘要和阶段证据；关键结论仍由主 Agent 重新检查",
+                    "next_action": "主 Agent 重新检查关键文件，必要时修改并验证",
                 },
             })
             self._persist_task(parent, force=True)
@@ -929,7 +984,12 @@ class TaskManager:
                     "phase": "merging",
                     "code": "batch_merge_started",
                     "summary": "所有子任务已结束，正在合并结果与验证证据",
-                    "detail": {"child_count": len(child_ids)},
+                    "detail": {
+                        "child_count": len(child_ids),
+                        "parallel_results": [_child_result_digest(item) for item in snapshots],
+                        "merge_basis": "子任务公开回答、工具阶段摘要和任务状态",
+                        "next_action": "合并后向用户交付，并保留失败项和未验证风险",
+                    },
                 })
                 self._persist_task(parent, force=True)
 
@@ -977,6 +1037,11 @@ class TaskManager:
                 "detail": {
                     "child_count": len(child_ids),
                     "failed": sum(item.get("status") in {"failed", "interrupted"} for item in snapshots),
+                    "parallel_results": [_child_result_digest(item) for item in snapshots],
+                    "merge_basis": "已完成子任务结果与合并器输出",
+                    "result_summary": redact_text(str(result.get("answer") or result.get("error") or ""))[
+                        0
+                    ][:1200],
                 },
             })
             parent.apply_result(result)
@@ -1057,6 +1122,10 @@ class TaskManager:
                     "allow_changes": task.allow_changes,
                     "allow_network": task.allow_network,
                     "reasoning_effort": task.reasoning_effort,
+                    "resume_from_checkpoint": bool(
+                        isinstance(task.context.get("recovery"), dict)
+                        and task.context["recovery"].get("resume_session")
+                    ),
                     "attachments": [
                         {
                             "name": item.get("name"),
@@ -1136,7 +1205,15 @@ class TaskManager:
         current_digest = self._workspace_checkpoint_digest(workspace, checkpoint.get("paths") or [])
         safe_readonly = bool(checkpoint.get("safe_readonly")) and not task.allow_changes
         digest_matches = bool(checkpoint_digest) and checkpoint_digest == current_digest
-        if safe_readonly and digest_matches:
+        session_checkpoint = (
+            not task.allow_changes
+            and task.status in {"interrupted", "failed"}
+            and SessionStore(workspace, task.session_id).exists
+        )
+        if session_checkpoint and safe_readonly and digest_matches:
+            recovery_mode = "session_checkpoint"
+            recovery_note = "已验证只读检查点和工作区状态一致；将从最近一次脱敏会话检查点继续，不重复执行已记录的工具轮次。"
+        elif safe_readonly and digest_matches:
             recovery_mode = "safe_readonly_checkpoint"
             recovery_note = "已验证只读检查点和工作区状态一致；可复用下方事实，但仍需核实后再作结论。"
         else:
@@ -1164,13 +1241,15 @@ class TaskManager:
         })
         with self.lock:
             resumed = self.tasks[created["task_id"]]
-            resumed.execution_message = f"{resumed.message}\\n\\n[任务恢复]\\n{recovery_note}\\n{self._checkpoint_evidence(task)}"
+            recovery_context = f"[任务恢复]\n{recovery_note}\n{self._checkpoint_evidence(task)}"
+            resumed.execution_message = recovery_context if recovery_mode == "session_checkpoint" else f"{resumed.message}\n\n{recovery_context}"
             resumed.context = {
                 **resumed.context,
                 "recovery": {
                     "source_task_id": task.task_id,
                     "mode": recovery_mode,
                     "workspace_digest_matches": digest_matches,
+                    "resume_session": recovery_mode == "session_checkpoint",
                 },
             }
             resumed.add_event({
@@ -1179,8 +1258,18 @@ class TaskManager:
                 "status": "ok",
                 "phase": "planning",
                 "code": recovery_mode,
-                "summary": "已从安全只读检查点恢复" if recovery_mode == "safe_readonly_checkpoint" else "恢复前需要重新检查工作区",
-                "detail": {"source_task_id": task.task_id, "workspace_digest_matches": digest_matches},
+                "summary": (
+                    "已从最近一次会话检查点继续"
+                    if recovery_mode == "session_checkpoint"
+                    else "已从安全只读检查点恢复"
+                    if recovery_mode == "safe_readonly_checkpoint"
+                    else "恢复前需要重新检查工作区"
+                ),
+                "detail": {
+                    "source_task_id": task.task_id,
+                    "workspace_digest_matches": digest_matches,
+                    "resume_session": recovery_mode == "session_checkpoint",
+                },
             })
             self._persist_task(resumed, force=True)
             self._queue_task_locked(resumed)
@@ -1486,7 +1575,15 @@ class AgentService:
         attachments = _normalize_attachments(payload.get("attachments"))
         store = SessionStore(workspace, session_id)
         messages = store.load(build_system_prompt(workspace))
-        messages.append(user_msg(_multimodal_content(message.strip(), attachments)))
+        resume_from_checkpoint = bool(payload.get("resume_from_checkpoint")) and store.exists
+        messages.append(
+            user_msg(
+                message.strip()
+                if resume_from_checkpoint
+                else _multimodal_content(message.strip(), attachments)
+            )
+        )
+        store.save(messages)
         evidence_hits = LocalEvidenceIndex(workspace).search(message, limit=8)
         if evidence_hits:
             evidence_summary = "\n".join(
@@ -1529,6 +1626,17 @@ class AgentService:
         verification_results: list[dict[str, Any]] = []
         repair_attempts = 0
         provider_recoveries = 0
+        planner_result: Any | None = None
+        planner_usage: dict[str, Any] = {}
+        planner_policy: PlannerPolicy | None = None
+        planner_execution: dict[str, Any] | None = None
+        complexity = assess_complexity(message, attachment_count=len(attachments))
+        task_kind = str(payload.get("task_kind") or "task")
+        planner_requested = (
+            bool(payload.get("planner_requested"))
+            or task_kind == "batch"
+            or (task_kind != "subtask" and complexity.should_fan_out)
+        )
 
         def enter_runtime_node(node: str, phase: str) -> None:
             event = runtime_state.transition(node, phase=phase).copy()
@@ -1571,17 +1679,23 @@ class AgentService:
                 on_event(retrieval_event)
 
         def on_tool(call: ToolCall, result: ToolResult) -> None:
+            feedback = build_tool_feedback(call, result, risk=registry.risk_of(call.tool))
             events.append(
                 {
                     "name": call.tool,
                     "status": result.status,
                     "summary": result.summary,
-                    "output": result.render()[:6000],
-                    "data": dict(result.data),
-                    "path": call.arguments.get("path"),
-                    "command": call.arguments.get("command"),
+                    "output": redact_text(result.render()[:8000])[0],
+                    "data": feedback.get("structured_data") or {},
+                    "path": feedback.get("path"),
+                    "command": feedback.get("command"),
                     "risk": registry.risk_of(call.tool),
                     "write": call.tool in COMPLETION_WRITE_TOOLS and result.status == "ok",
+                    "observation": feedback.get("observation"),
+                    "exit_code": result.exit_code,
+                    "duration_ms": feedback.get("duration_ms"),
+                    "truncated": bool(result.truncated),
+                    "security_tags": list(result.security_tags),
                     "kind": "tool",
                 }
             )
@@ -1592,6 +1706,15 @@ class AgentService:
             events.append(dict(event))
             if on_event is not None:
                 on_event(events[-1])
+            if event.get("code") in {
+                "tool_round_finished",
+                "verification_required_before_finish",
+                "provider_stream_error",
+                "budget_exceeded",
+                "stagnation_guard",
+                "run_finished",
+            }:
+                store.save(messages)
 
         def should_allow(name: str, call: ToolCall) -> bool:
             risk = registry.risk_of(name)
@@ -1609,18 +1732,23 @@ class AgentService:
             return decision.allowed
 
         async def execute() -> Any:
+            nonlocal planner_result, planner_usage, planner_policy, planner_execution
             nonlocal repair_attempts, provider_recoveries
-            provider = OpenAICompatibleProvider(
-                base_url=self.config.base_url,
-                api_key=self.config.api_key,
-                model=self.config.model,
-                timeout=initial_route.timeout,
-                max_retries=int(getattr(self.config, "provider_retries", 4)),
-                tool_mode=self.config.tool_mode,
-                protocol=str(getattr(self.config, "llm_protocol", "auto")),
-                reasoning_effort=str(payload.get("reasoning_effort") or getattr(self.config, "reasoning_effort", "high")),
-                on_status=on_event,
-            )
+
+            def make_provider(*, timeout: float, status_callback: Any | None) -> OpenAICompatibleProvider:
+                return OpenAICompatibleProvider(
+                    base_url=self.config.base_url,
+                    api_key=self.config.api_key,
+                    model=self.config.model,
+                    timeout=timeout,
+                    max_retries=int(getattr(self.config, "provider_retries", 4)),
+                    tool_mode=self.config.tool_mode,
+                    protocol=str(getattr(self.config, "llm_protocol", "auto")),
+                    reasoning_effort=str(payload.get("reasoning_effort") or getattr(self.config, "reasoning_effort", "high")),
+                    on_status=status_callback,
+                )
+
+            provider = make_provider(timeout=initial_route.timeout, status_callback=on_event)
             try:
                 aggregate: TurnResult | None = None
                 max_repairs = max(0, int(getattr(self.config, "max_repair_attempts", 2)))
@@ -1628,6 +1756,434 @@ class AgentService:
                 completion_review_failures = 0
                 completion_review_attempt = 0
                 verification_guard_error = "Agent 在修改工作区后没有完成验证"
+
+                async def execute_dynamic_plan(plan: DAGPlan, policy: PlannerPolicy) -> dict[str, Any]:
+                    """Run a validated, non-writing plan before the main agent."""
+
+                    if not _is_bounded_readonly_plan(plan):
+                        skipped = {
+                            "status": "skipped",
+                            "reason": "dynamic_plan_contains_write_or_unbounded_tools",
+                            "plan_name": plan.name,
+                            "completed": [],
+                            "failed": [],
+                            "skipped": [task.id for task in plan.tasks],
+                            "outputs": {},
+                        }
+                        event = {
+                            "kind": "trace",
+                            "name": "planner",
+                            "status": "ok",
+                            "phase": "planning",
+                            "code": "planner_execution_skipped",
+                            "summary": "动态计划包含非只读节点，未直接执行，交由主 Agent 按原有权限路径处理",
+                            "detail": skipped,
+                        }
+                        events.append(event)
+                        if on_event is not None:
+                            on_event(event)
+                        return skipped
+
+                    started = {
+                        "kind": "trace",
+                        "name": "planner",
+                        "status": "ok",
+                        "phase": "planning",
+                        "code": "planner_execution_started",
+                        "summary": f"已将验证后的只读计划接入 DAG 执行，共 {len(plan.tasks)} 个节点",
+                        "detail": {
+                            "plan_name": plan.name,
+                            "node_count": len(plan.tasks),
+                            "max_concurrency": policy.max_concurrency,
+                            "execution_mode": "bounded_readonly_dag",
+                        },
+                    }
+                    events.append(started)
+                    if on_event is not None:
+                        on_event(started)
+
+                    def emit_node_event(
+                        task: PlanTask,
+                        node_events: list[dict[str, Any]],
+                        event: dict[str, Any],
+                    ) -> None:
+                        annotated = {
+                            **dict(event),
+                            "plan": plan.name,
+                            "plan_node": task.id,
+                        }
+                        node_events.append(annotated)
+                        if on_event is not None:
+                            on_event(annotated)
+
+                    async def run_node(
+                        task: PlanTask,
+                        dependency_outputs: dict[str, dict[str, Any]],
+                    ) -> dict[str, Any]:
+                        node_events: list[dict[str, Any]] = []
+                        node_summaries: list[str] = []
+
+                        def emit(event: dict[str, Any]) -> None:
+                            emit_node_event(task, node_events, event)
+                            summary = str(event.get("summary") or "").strip()
+                            if summary:
+                                node_summaries.append(summary)
+
+                        started_event = {
+                            "kind": "trace",
+                            "name": "planner",
+                            "status": "ok",
+                            "phase": "planning",
+                            "code": "planner_node_started",
+                            "summary": f"DAG 节点 {task.id} 开始执行",
+                            "detail": {
+                                "kind": task.kind,
+                                "depends_on": list(task.depends_on),
+                                "allowed_tools": sorted(task.allowed_tools),
+                            },
+                        }
+                        emit(started_event)
+
+                        dependency_json = json.dumps(
+                            dependency_outputs,
+                            ensure_ascii=False,
+                            default=str,
+                            separators=(",", ":"),
+                        )
+                        dependency_json, _ = redact_text(dependency_json)
+                        if len(dependency_json) > 6000:
+                            dependency_json = dependency_json[:5999].rstrip() + "…"
+                        goal_json = json.dumps(task.payload, ensure_ascii=False, default=str)
+                        goal_json, _ = redact_text(goal_json)
+                        task_message, _ = redact_text(message[:9000])
+                        instruction = (
+                            "你是主 Agent 的只读计划节点。只完成当前节点目标，不修改工作区，不执行联网或危险操作。\n"
+                            "只能使用计划白名单中的工具；关键结论必须来自工具结果。完成后给出简短证据摘要。\n\n"
+                            f"原始用户任务：\n{task_message}\n\n"
+                            f"当前节点：{task.id}（{task.kind}）\n"
+                            f"节点目标与验收提示：{goal_json or '{}'}\n"
+                            f"依赖节点的已完成摘要：\n{dependency_json or '{}'}\n"
+                            f"计划白名单工具：{', '.join(sorted(task.allowed_tools)) or '无'}"
+                        )
+                        node_messages = [
+                            system_msg(build_system_prompt(workspace)),
+                            user_msg(instruction),
+                        ]
+                        node_registry = registry.restrict(task.allowed_tools)
+
+                        def node_status(status: dict[str, Any]) -> None:
+                            emit({
+                                "kind": "trace",
+                                "name": "provider",
+                                "status": "ok",
+                                "phase": "planning",
+                                "code": "planner_node_provider_status",
+                                "summary": "计划节点模型连接状态已更新",
+                                "detail": status,
+                            })
+
+                        def node_trace(event: dict[str, Any]) -> None:
+                            emit(dict(event))
+
+                        def node_tool(call: ToolCall, tool_result: ToolResult) -> None:
+                            feedback = build_tool_feedback(
+                                call,
+                                tool_result,
+                                risk=node_registry.risk_of(call.tool),
+                            )
+                            emit({
+                                "kind": "tool",
+                                "name": call.tool,
+                                "status": tool_result.status,
+                                "summary": tool_result.summary,
+                                "output": redact_text(tool_result.render()[:8000])[0],
+                                "data": feedback.get("structured_data") or {},
+                                "path": feedback.get("path"),
+                                "command": feedback.get("command"),
+                                "risk": node_registry.risk_of(call.tool),
+                                "write": False,
+                                "observation": feedback.get("observation"),
+                                "exit_code": tool_result.exit_code,
+                                "duration_ms": feedback.get("duration_ms"),
+                                "truncated": bool(tool_result.truncated),
+                                "security_tags": list(tool_result.security_tags),
+                            })
+
+                        def node_allow(name: str, call: ToolCall) -> bool:
+                            if name not in task.allowed_tools:
+                                emit({
+                                    "kind": "authorization",
+                                    "name": name,
+                                    "status": "denied",
+                                    "phase": "permission",
+                                    "code": "planner_tool_out_of_scope",
+                                    "summary": f"计划节点 {task.id} 未将工具 {name} 列入白名单",
+                                    "risk": node_registry.risk_of(name) or "unknown",
+                                    "authorization": "planner_whitelist",
+                                })
+                                return False
+                            decision = authorize_tool(
+                                name,
+                                node_registry.risk_of(name),
+                                call.arguments,
+                                allow_changes=False,
+                                allow_network=allow_network,
+                            )
+                            event = decision.to_event(name)
+                            emit(event)
+                            return decision.allowed
+
+                        node_provider: OpenAICompatibleProvider | None = None
+                        try:
+                            node_provider = make_provider(
+                                timeout=stage_router.route("inspect").timeout,
+                                status_callback=node_status,
+                            )
+                            node_result = await run_agent(
+                                node_provider,
+                                node_registry,
+                                node_messages,
+                                max_turns=None,
+                                compact_threshold=int(getattr(self.config, "compact_threshold", 300_000)),
+                                on_tool=node_tool,
+                                on_trace=node_trace,
+                                should_allow=node_allow,
+                                should_cancel=(cancel_event.is_set if cancel_event is not None else None),
+                                context_limit_tokens=int(getattr(self.config, "context_window_tokens", 300_000)),
+                                budget=Budget(max_turns=None, max_retries=max(0, int(getattr(self.config, "task_recovery_retries", 2)))),
+                            )
+                            answer, _ = redact_text(str(node_result.answer or "").strip())
+                            if len(answer) > 1800:
+                                answer = answer[:1799].rstrip() + "…"
+                            output = {
+                                "status": "failed" if node_result.error else "completed",
+                                "answer": answer,
+                                "error": node_result.error,
+                                "turns": node_result.turns,
+                                "tool_calls": node_result.tool_calls_total,
+                                "tokens_used": dict(node_result.tokens_used),
+                                "evidence": node_summaries[-8:],
+                            }
+                        except Exception as exc:  # noqa: BLE001 - node failure is a DAG result
+                            output = {
+                                "status": "failed",
+                                "error": f"{type(exc).__name__}: {exc}",
+                                "evidence": node_summaries[-8:],
+                            }
+                        finally:
+                            if node_provider is not None:
+                                await node_provider.close()
+
+                        emit({
+                            "kind": "trace",
+                            "name": "planner",
+                            "status": "error" if output.get("status") == "failed" else "ok",
+                            "phase": "planning",
+                            "code": "planner_node_finished",
+                            "summary": (
+                                f"DAG 节点 {task.id} 执行失败"
+                                if output.get("status") == "failed"
+                                else f"DAG 节点 {task.id} 已完成并产出只读证据"
+                            ),
+                            "detail": {
+                                "status": output.get("status"),
+                                "turns": output.get("turns", 0),
+                                "tool_calls": output.get("tool_calls", 0),
+                                "error": output.get("error"),
+                            },
+                        })
+                        return output
+
+                    dag_result = await execute_dag(
+                        plan,
+                        run_node,
+                        max_concurrency=policy.max_concurrency,
+                        include_dependency_outputs=True,
+                    )
+                    output_summaries: dict[str, dict[str, Any]] = {}
+                    token_totals: dict[str, int] = {}
+                    for task_id, output in dag_result.outputs.items():
+                        bounded = {
+                            key: output.get(key)
+                            for key in ("status", "answer", "error", "turns", "tool_calls", "evidence")
+                            if key in output
+                        }
+                        output_summaries[task_id] = bounded
+                        for key, value in (output.get("tokens_used") or {}).items():
+                            if isinstance(value, (int, float)):
+                                token_totals[key] = token_totals.get(key, 0) + int(value)
+                    execution = {
+                        "status": dag_result.status,
+                        "plan_name": plan.name,
+                        "completed": list(dag_result.completed),
+                        "failed": list(dag_result.failed),
+                        "skipped": list(dag_result.skipped),
+                        "attempts": dict(dag_result.attempts),
+                        "outputs": output_summaries,
+                        "tokens_used": token_totals,
+                        "max_concurrency": policy.max_concurrency,
+                    }
+                    finished = {
+                        "kind": "trace",
+                        "name": "planner",
+                        "status": "error" if dag_result.status == "failed" else "ok",
+                        "phase": "planning",
+                        "code": "planner_execution_finished",
+                        "summary": (
+                            f"只读 DAG 执行结束：完成 {len(dag_result.completed)} 个节点"
+                            + (f"，失败 {len(dag_result.failed)} 个" if dag_result.failed else "")
+                            + (f"，跳过 {len(dag_result.skipped)} 个" if dag_result.skipped else "")
+                        ),
+                        "detail": execution,
+                    }
+                    events.append(finished)
+                    if on_event is not None:
+                        on_event(finished)
+                    evidence_json = json.dumps(
+                        execution,
+                        ensure_ascii=False,
+                        default=str,
+                        separators=(",", ":"),
+                    )
+                    if len(evidence_json) > 14_000:
+                        evidence_json = evidence_json[:13_999].rstrip() + "…"
+                    messages.append(system_msg(
+                        "[计划执行证据]\n"
+                        "下面是受白名单、依赖和并发约束的只读 DAG 结果。它是辅助证据，关键结论仍需结合原始任务和当前工具结果复核。\n"
+                        + evidence_json
+                    ))
+                    return execution
+
+                async def prepare_planner() -> None:
+                    """Ask for a bounded plan only when the task merits a preflight."""
+
+                    nonlocal planner_result, planner_usage, planner_policy, planner_execution
+                    if not planner_requested:
+                        return
+                    fallback_name = "inspect_summarize" if not allow_changes else "inspect_implement_verify"
+                    allowed_tools = set(DEFAULT_ALLOWED_TOOLS)
+                    if not allow_network:
+                        allowed_tools.discard("web_search")
+                    policy = PlannerPolicy(
+                        max_nodes=8,
+                        max_depth=6,
+                        max_concurrency=min(4, max(1, int(getattr(self.config, "max_concurrent_tasks", 4)))),
+                        allowed_tools=frozenset(allowed_tools),
+                    )
+                    planner_policy = policy
+                    planner_messages = [
+                        system_msg(PLANNER_SYSTEM_PROMPT),
+                        user_msg(
+                            build_planner_prompt(
+                                message,
+                                workspace=str(workspace),
+                                evidence="\n".join(
+                                    f"- {hit.path}: {hit.reason}"
+                                    for hit in evidence_hits[:8]
+                                ),
+                            )
+                        ),
+                    ]
+                    planner_started = {
+                        "kind": "trace",
+                        "name": "planner",
+                        "status": "ok",
+                        "phase": "planning",
+                        "code": "planner_started",
+                        "summary": "复杂任务已进入结构化规划预检，运行时仍保留最终控制权",
+                        "detail": {
+                            "trigger": "explicit" if payload.get("planner_requested") else "complexity_or_batch",
+                            "complexity": complexity.snapshot(),
+                            "fallback": fallback_name,
+                            "policy": {
+                                "max_nodes": policy.max_nodes,
+                                "max_depth": policy.max_depth,
+                                "max_concurrency": policy.max_concurrency,
+                                "allowed_tools": sorted(policy.allowed_tools),
+                            },
+                        },
+                    }
+                    events.append(planner_started)
+                    if on_event is not None:
+                        on_event(planner_started)
+                    try:
+                        response = await provider.chat(
+                            messages=planner_messages,
+                            tools=None,
+                            on_delta=None,
+                        )
+                        usage = dict(getattr(response, "usage", {}) or {})
+                        if not usage.get("total_tokens"):
+                            prompt_tokens = max(
+                                sum(len(str(item.get("content") or "")) for item in planner_messages) // 4,
+                                1,
+                            )
+                            completion_tokens = max(len(str(getattr(response, "text", "") or "")) // 4, 1)
+                            usage = {
+                                "prompt_tokens": prompt_tokens,
+                                "completion_tokens": completion_tokens,
+                                "total_tokens": prompt_tokens + completion_tokens,
+                                "estimated": True,
+                            }
+                        runtime_state.budget.record_usage(usage)
+                        planner_usage = usage
+                        if on_usage is not None:
+                            on_usage({"stage": "planner", **usage})
+                        planner_result = parse_planner_response(
+                            str(getattr(response, "text", "") or ""),
+                            fallback_name=fallback_name,
+                            policy=policy,
+                        )
+                    except BudgetExceeded:
+                        raise
+                    except Exception as exc:  # noqa: BLE001 - planning failure is a safe fallback
+                        planner_result = build_plan(
+                            None,
+                            fallback_name=fallback_name,
+                            policy=policy,
+                        )
+                        planner_result = PlanBuildResult(
+                            planner_result.plan,
+                            "fixed_fallback",
+                            f"规划器调用失败: {type(exc).__name__}",
+                        )
+                    detail = planner_result.to_dict() if planner_result is not None else {}
+                    if planner_result is not None and planner_result.source == "dynamic_model":
+                        event = {
+                            "kind": "trace",
+                            "name": "planner",
+                            "status": "ok",
+                            "phase": "planning",
+                            "code": "planner_dynamic_ready",
+                            "summary": f"模型已生成受约束执行计划，共 {len(planner_result.plan.tasks)} 个节点",
+                            "detail": detail,
+                        }
+                        messages.append(system_msg(
+                            "[运行时结构化执行计划]\n"
+                            "以下计划已经过服务端 schema、依赖、深度、并发和工具白名单校验。"
+                            "它只是公开执行提示；如果新证据改变目标，主 Agent 必须重新规划。\n"
+                            + json.dumps(planner_result.plan.to_dict(), ensure_ascii=False, separators=(",", ":"))
+                        ))
+                        events.append(event)
+                        if on_event is not None:
+                            on_event(event)
+                        if not allow_changes:
+                            planner_execution = await execute_dynamic_plan(planner_result.plan, policy)
+                    else:
+                        event = {
+                            "kind": "trace",
+                            "name": "planner",
+                            "status": "error",
+                            "phase": "planning",
+                            "code": "planner_preflight_fallback",
+                            "summary": "模型计划未通过安全校验，已回退到固定执行模板",
+                            "detail": detail,
+                        }
+                        events.append(event)
+                        if on_event is not None:
+                            on_event(event)
+
+                await prepare_planner()
 
                 def record_review_usage(decision: CompletionDecision, target: TurnResult) -> bool:
                     usage = dict(decision.usage or {})
@@ -1831,7 +2387,28 @@ class AgentService:
                     aggregate.error = "完成评估不可用，无法确认任务是否达到最终目标"
                     aggregate.answer = f"任务未完成：{aggregate.error}"
                     break
-                return aggregate or TurnResult(answer="模型没有返回结果", error="Agent 没有返回结果")
+                final = aggregate or TurnResult(answer="模型没有返回结果", error="Agent 没有返回结果")
+                if planner_result is not None:
+                    planner_snapshot = planner_result.to_dict()
+                    if planner_execution is not None:
+                        planner_snapshot["execution"] = planner_execution
+                    final.context = {**final.context, "planner": planner_snapshot}
+                    final.metrics = {**final.metrics, "planner": planner_snapshot}
+                    if planner_usage:
+                        final.usage_by_turn.insert(0, {"stage": "planner", **planner_usage})
+                        for key in ("prompt_tokens", "completion_tokens", "total_tokens", "reasoning_tokens"):
+                            value = planner_usage.get(key)
+                            if isinstance(value, (int, float)):
+                                final.tokens_used[key] = final.tokens_used.get(key, 0) + int(value)
+                    if planner_execution and planner_execution.get("tokens_used"):
+                        final.usage_by_turn.insert(1 if planner_usage else 0, {
+                            "stage": "planner_dag",
+                            **dict(planner_execution["tokens_used"]),
+                        })
+                        for key, value in planner_execution["tokens_used"].items():
+                            if isinstance(value, (int, float)):
+                                final.tokens_used[key] = final.tokens_used.get(key, 0) + int(value)
+                return final
             finally:
                 await provider.close()
 
@@ -1868,6 +2445,11 @@ class AgentService:
             "verification_status": verification_results[-1].get("status") if verification_results else "none",
             "verifications": verification_results,
         }
+        if planner_result is not None:
+            planner_snapshot = planner_result.to_dict()
+            if planner_execution is not None:
+                planner_snapshot["execution"] = planner_execution
+            result.metrics["planner"] = planner_snapshot
         store.save(messages)
         return {
             "answer": result.answer,

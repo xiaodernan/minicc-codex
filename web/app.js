@@ -12,6 +12,7 @@ const state = {
   reasoningEffort: ["low", "mid", "high", "xhigh", "max"].includes(localStorage.getItem("minicc-reasoning")) ? localStorage.getItem("minicc-reasoning") : "high",
   busy: false,
   submitting: false,
+  focusMode: localStorage.getItem("minicc-focus-mode") === "true",
   chatRestoreVersion: 0,
   chatUserScrolledAt: 0,
   activeTaskId: null,
@@ -28,7 +29,7 @@ const I18N = {
     "brand.caption": "本地智能工作台", "newTask.label": "新任务", "newTask.title": "创建一个新任务",
     "search.placeholder": "搜索任务", "nav.main": "主导航", "nav.tasks": "任务", "nav.workspaces": "工作区", "nav.promo": "宣传页", "nav.activity": "活动", "nav.arcade": "小游戏",
     language: "界面语言", "tasks.more": "更多任务", "workspace.connected": "本地服务已连接", "profile.label": "当前模式",
-    "inspector.toggle": "切换检查器", "inspector.close": "关闭检查器", "options.open": "更多选项", "composer.inputLabel": "输入任务",
+    "inspector.toggle": "切换检查器", "inspector.close": "关闭检查器", "focus.enter": "专注阅读", "focus.exit": "退出专注阅读", "options.open": "更多选项", "composer.inputLabel": "输入任务",
     "composer.allowChanges": "允许当前任务修改文件或执行命令", "composer.allowNetwork": "允许当前任务联网搜索", "cancel.title": "取消任务", "send.title": "发送任务", "files.refresh": "刷新文件",
     "sidebar.close": "关闭侧栏", "sidebar.open": "打开侧栏", "search.shortcut": "搜索快捷键",
     recentTasks: "最近任务", "profile.mode": "面试模式", "profile.local": "仅本地", workspace: "工作区", agentSession: "智能会话", live: "运行中",
@@ -43,7 +44,7 @@ const I18N = {
     "protected.subtitle": "每个任务单独授权写入", "panel.title": "工作台", "cancel": "取消任务", "working": "执行中", "ready": "就绪",
     "phase.queued": "排队中", "phase.planning": "正在规划", "phase.tool": "正在使用工具", "phase.answering": "正在生成回答", "phase.waiting": "等待模型输出", "phase.merging": "正在合并子任务", "phase.completed": "已完成", "phase.failed": "执行失败", "phase.cancelled": "已取消", "phase.interrupted": "服务重启时中断", "stream.live": "实时回答",
     "tasks.center": "任务中心", "tasks.open": "打开任务", "tasks.resume": "重新运行", "tasks.children": "子任务", "tasks.tokens": "tokens", "tasks.context": "上下文", "tasks.compacted": "次压缩", "tasks.allWorkspaces": "所有工作区", "tasks.noHistory": "还没有任务记录", "tasks.jumpLatest": "跳到最新", "tasks.following": "跟随最新输出", "tasks.paused": "已暂停自动滚动", "tasks.runtime": "运行时指标", "tasks.repairs": "修复次数", "tasks.verifications": "验证次数", "tasks.traces": "Trace 事件", "tasks.workflow": "工作流",
-    "tool.ok": "完成", "tool.error": "失败", "tool.denied": "已阻止", "tool.searchResults": "搜索来源", "tool.openSource": "打开来源", "tool.round": "工具轮次", "tool.callCount": "次调用", "tool.reasoning": "阶段摘要",
+    "tool.ok": "完成", "tool.error": "失败", "tool.denied": "已阻止", "tool.searchResults": "搜索来源", "tool.openSource": "打开来源", "tool.round": "工具轮次", "tool.callCount": "次调用", "tool.reasoning": "阶段摘要", "tool.result": "执行结果", "tool.observation": "观察结果", "tool.structured": "结构化证据", "tool.metadata": "执行元数据", "tool.expand": "展开详情", "tool.empty": "工具没有返回额外文本", "trace.feedback": "自反馈",
     "workspace.current": "当前工作区", "workspace.path": "文件夹路径", "workspace.open": "打开文件夹", "workspace.recent": "最近打开", "workspace.switching": "正在切换工作区...", "workspace.selectHint": "输入本机文件夹绝对路径，例如 D:\\Projects\\demo",
     "panel.workspaces": "工作区与 Git worktree", "panel.activity": "任务活动", "panel.settings": "设置", "panel.options": "更多选项", "panel.batch": "并行子智能体",
     "panel.file": "文件预览", "panel.noTasks": "还没有后台任务", "panel.refresh": "刷新", "panel.close": "关闭", "tasks.detail": "查看详情", "tasks.openSession": "打开会话",
@@ -64,7 +65,7 @@ const I18N = {
     "brand.caption": "LOCAL AGENT STUDIO", "newTask.label": "New task", "newTask.title": "Create a new task",
     "search.placeholder": "Search tasks", "nav.main": "Main navigation", "nav.tasks": "Tasks", "nav.workspaces": "Workspaces", "nav.promo": "Promo", "nav.activity": "Activity", "nav.arcade": "Arcade",
     language: "Language", "tasks.more": "More tasks", "workspace.connected": "Local service connected", "profile.label": "Current mode",
-    "inspector.toggle": "Toggle inspector", "inspector.close": "Close inspector", "options.open": "More options", "composer.inputLabel": "Task input",
+    "inspector.toggle": "Toggle inspector", "inspector.close": "Close inspector", "focus.enter": "Focus reading", "focus.exit": "Exit focus reading", "options.open": "More options", "composer.inputLabel": "Task input",
     "composer.allowChanges": "Allow this task to modify files or run commands", "composer.allowNetwork": "Allow this task to search the web", "cancel.title": "Cancel task", "send.title": "Send task", "files.refresh": "Refresh files",
     "sidebar.close": "Close sidebar", "sidebar.open": "Open sidebar", "search.shortcut": "Search shortcut",
     recentTasks: "Recent tasks", "profile.mode": "Interview mode", "profile.local": "Local only", workspace: "Workspace", agentSession: "Agent session", live: "Live",
@@ -79,7 +80,7 @@ const I18N = {
     "protected.subtitle": "Writes are gated per task", "panel.title": "Workspace", "cancel": "Cancel task", "working": "Working", "ready": "Ready",
     "phase.queued": "Queued", "phase.planning": "Planning", "phase.tool": "Running tools", "phase.answering": "Writing response", "phase.waiting": "Waiting for output", "phase.merging": "Merging subagents", "phase.completed": "Complete", "phase.failed": "Failed", "phase.cancelled": "Cancelled", "phase.interrupted": "Interrupted by restart", "stream.live": "Live response",
     "tasks.center": "Task center", "tasks.open": "Open task", "tasks.resume": "Run again", "tasks.children": "subtasks", "tasks.tokens": "tokens", "tasks.context": "context", "tasks.compacted": "compactions", "tasks.allWorkspaces": "All workspaces", "tasks.noHistory": "No task history yet", "tasks.jumpLatest": "Jump to latest", "tasks.following": "Following latest output", "tasks.paused": "Auto-scroll paused", "tasks.runtime": "Runtime metrics", "tasks.repairs": "Repairs", "tasks.verifications": "Verifications", "tasks.traces": "Trace events", "tasks.workflow": "Workflow",
-    "tool.ok": "Done", "tool.error": "Failed", "tool.denied": "Blocked", "tool.searchResults": "Search sources", "tool.openSource": "Open source", "tool.round": "Tool round", "tool.callCount": "calls", "tool.reasoning": "Stage summary",
+    "tool.ok": "Done", "tool.error": "Failed", "tool.denied": "Blocked", "tool.searchResults": "Search sources", "tool.openSource": "Open source", "tool.round": "Tool round", "tool.callCount": "calls", "tool.reasoning": "Stage summary", "tool.result": "Execution result", "tool.observation": "Observation", "tool.structured": "Structured evidence", "tool.metadata": "Execution metadata", "tool.expand": "Expand details", "tool.empty": "The tool returned no additional text", "trace.feedback": "Self-feedback",
     "workspace.current": "Current workspace", "workspace.path": "Folder path", "workspace.open": "Open folder", "workspace.recent": "Recent folders", "workspace.switching": "Switching workspace...", "workspace.selectHint": "Enter an absolute local path, for example D:\\Projects\\demo",
     "panel.workspaces": "Workspaces & Git worktrees", "panel.activity": "Task activity", "panel.settings": "Settings", "panel.options": "More options", "panel.batch": "Parallel subagents",
     "panel.file": "File preview", "panel.noTasks": "No background tasks yet", "panel.refresh": "Refresh", "panel.close": "Close", "tasks.detail": "Details", "tasks.openSession": "Open session",
@@ -131,6 +132,24 @@ function applyTheme() {
   button.title = label;
   button.innerHTML = icon(isLight ? "moon" : "sun");
   refreshIcons();
+}
+
+function applyFocusMode() {
+  document.documentElement.dataset.focusMode = state.focusMode ? "true" : "false";
+  const button = $("#focusToggle");
+  if (!button) return;
+  const key = state.focusMode ? "focus.exit" : "focus.enter";
+  button.title = t(key);
+  button.setAttribute("aria-label", t(key));
+  button.setAttribute("aria-pressed", String(state.focusMode));
+  button.innerHTML = icon(state.focusMode ? "minimize" : "maximize");
+  refreshIcons();
+}
+
+function setFocusMode(enabled) {
+  state.focusMode = Boolean(enabled);
+  localStorage.setItem("minicc-focus-mode", String(state.focusMode));
+  applyFocusMode();
 }
 
 function setTheme(theme) {
@@ -309,6 +328,11 @@ function presetMessageMarkup(sessionId) {
   return `<article class="message user-message"><div class="message-meta"><span class="avatar user-avatar">Y</span><strong>You</strong><time>now</time></div><div class="message-body"><p>${formatText(preset.user)}</p></div></article><article class="message assistant-message"><div class="message-meta"><span class="avatar agent-avatar">m</span><strong>minicc</strong><span class="agent-label">Agent</span><time>now</time></div><div class="message-body">${events ? `<div class="tool-timeline">${events}</div>` : ""}<p>${formatText(preset.answer)}</p></div></article>`;
 }
 
+function executionTrailMarkup(eventMarkup, events) {
+  if (!eventMarkup) return "";
+  return `<section class="execution-trail"><div class="execution-trail-head"><span>${escapeHtml(state.locale === "zh" ? "执行脉络与证据" : "Execution trail and evidence")}</span><span>${escapeHtml(eventTimelineSummary(events))}</span></div><div class="tool-timeline">${eventMarkup}</div></section>`;
+}
+
 function taskHistoryMarkup(task) {
   const prompt = task.prompt || task.preview || "";
   const answer = task.answer || task.error || "任务没有返回可交付文字。";
@@ -317,10 +341,16 @@ function taskHistoryMarkup(task) {
   const taskAnchor = escapeHtml(`task-${task.task_id || task.created_at || prompt.slice(0, 40)}`);
   const attachments = attachmentMarkup(task.attachments || []);
   const batchSummary = task.task_kind === "batch" && Array.isArray(task.children)
-    ? `<div class="batch-child-summary">${task.children.map((child, index) => `<div class="batch-child"><span class="task-state ${child.status === "completed" ? "success" : ["failed", "cancelled", "interrupted"].includes(child.status) ? "cancelled" : "running"}"></span><strong>${escapeHtml(`${t("batch.task")} ${index + 1}`)}</strong><small>${escapeHtml(phaseLabel(child))}</small></div>`).join("")}</div>`
+    ? `<div class="batch-child-summary"><div class="batch-child-heading"><strong>${escapeHtml(state.locale === "zh" ? "分层并行结果" : "Layered parallel results")}</strong><small>${escapeHtml(state.locale === "zh" ? "只读子任务并行 → 主 Agent 合并与复核" : "Readonly children in parallel -> parent merge and review")}</small></div>${task.children.map((child, index) => {
+        const metrics = child.metrics && typeof child.metrics === "object" ? child.metrics : {};
+        const budget = metrics.budget && typeof metrics.budget === "object" ? metrics.budget : {};
+        const answer = String(child.answer || child.error || child.stream_text || "").replace(/\s+/g, " ").trim();
+        const evidence = (Array.isArray(child.events) ? child.events : []).filter((event) => event?.summary).slice(-2).map((event) => event.summary).join("；");
+        return `<details class="batch-child"><summary><span class="task-state ${child.status === "completed" ? "success" : ["failed", "cancelled", "interrupted"].includes(child.status) ? "cancelled" : "running"}"></span><strong>${escapeHtml(`${t("batch.task")} ${index + 1}`)}</strong><small>${escapeHtml(`${phaseLabel(child)} · ${budget.turns || 0} turns · ${budget.tool_calls || 0} tools`)}</small><span class="batch-child-chevron">${icon("chevron-down")}</span></summary><div class="batch-child-detail">${answer ? `<p>${escapeHtml(answer.slice(0, 900))}</p>` : ""}${evidence ? `<small>${escapeHtml(evidence.slice(0, 700))}</small>` : ""}</div></details>`;
+      }).join("")}</div>`
     : "";
-  const execution = events ? `<details class="execution-trail"><summary>${escapeHtml(state.locale === "zh" ? "执行脉络与证据" : "Execution trail and evidence")}<span>${escapeHtml(eventTimelineSummary(task.events || []))}</span></summary><div class="tool-timeline">${events}</div></details>` : "";
-  return `<article class="message user-message" data-chat-anchor="${taskAnchor}-prompt"><div class="message-meta"><span class="avatar user-avatar">Y</span><strong>${escapeHtml(t("message.you"))}</strong><time>${escapeHtml(task.created_at || t("message.now"))}</time></div><div class="message-body"><p>${formatText(prompt)}</p>${attachments}</div></article><article class="message assistant-message" data-chat-anchor="${taskAnchor}-answer"><div class="message-meta"><span class="avatar agent-avatar">m</span><strong>minicc</strong><span class="agent-label">Agent</span><time>${escapeHtml(task.finished_at || task.created_at || t("message.now"))}</time></div><div class="message-body"><div class="history-result-head"><span class="task-state ${task.status === "completed" ? "success" : ["failed", "cancelled", "interrupted"].includes(task.status) ? "cancelled" : "running"}"></span><strong>${escapeHtml(phaseLabel(task))}</strong><span>${escapeHtml(taskMetrics(task))}</span></div><p class="answer-callout">${formatText(answer)}</p>${batchSummary}${execution}${rawStream}</div></article>`;
+  const execution = executionTrailMarkup(events, task.events || []);
+  return `<article class="message user-message" data-chat-anchor="${taskAnchor}-prompt"><div class="message-meta"><span class="avatar user-avatar">Y</span><strong>${escapeHtml(t("message.you"))}</strong><time>${escapeHtml(task.created_at || t("message.now"))}</time></div><div class="message-body"><p>${formatText(prompt)}</p>${attachments}</div></article><article class="message assistant-message" data-chat-anchor="${taskAnchor}-answer"><div class="message-meta"><span class="avatar agent-avatar">m</span><strong>minicc</strong><span class="agent-label">Agent</span><time>${escapeHtml(task.finished_at || task.created_at || t("message.now"))}</time></div><div class="message-body"><div class="history-result-head"><span class="task-state ${task.status === "completed" ? "success" : ["failed", "cancelled", "interrupted"].includes(task.status) ? "cancelled" : "running"}"></span><strong>${escapeHtml(phaseLabel(task))}</strong><span>${escapeHtml(taskMetrics(task))}</span></div>${execution}<p class="answer-callout">${formatText(answer)}</p>${batchSummary}${rawStream}</div></article>`;
 }
 
 function taskHistoryListMarkup(tasks) {
@@ -667,7 +697,7 @@ function addUserMessage(text, attachments = []) {
 
 function addLoadingMessage(id = `loading-${Date.now()}`, data = { status: "running", phase: "planning", stream_text: "" }, options = {}) {
   $("#messageList").insertAdjacentHTML("beforeend", `
-    <article class="message assistant-message loading" id="${id}">
+    <article class="message assistant-message loading" id="${id}" data-chat-anchor="live-${escapeHtml(id)}">
       <div class="message-meta"><span class="avatar agent-avatar">m</span><strong>minicc</strong><span class="agent-label">Agent</span></div>
       <div class="message-body">${liveTaskMarkup(data)}</div>
     </article>`);
@@ -770,26 +800,18 @@ function updateSessionStatus(data) {
 function liveTaskMarkup(data) {
   const streamText = String(data.stream_text || "");
   const currentPhase = phaseClass(data);
-  const mascotLabel = state.locale === "zh" ? "Agent 正在工作" : "Agent working";
   const preview = streamText ? formatText(streamTail(streamText)) : `<span class="stream-empty">${escapeHtml(t("phase.waiting"))}</span>`;
   return `<div class="live-task live-task-${currentPhase}" data-live-task data-phase="${currentPhase}">
     <div class="live-task-stage">
-      <div class="agent-mascot" role="img" aria-label="${escapeHtml(mascotLabel)}">
-        <span class="mascot-shadow" aria-hidden="true"></span>
-        <span class="mascot-figure" aria-hidden="true">
-          <span class="mascot-antenna"></span><span class="mascot-head"></span><span class="mascot-body"></span>
-          <span class="mascot-arm mascot-arm-left"></span><span class="mascot-arm mascot-arm-right"></span>
-          <span class="mascot-leg mascot-leg-left"></span><span class="mascot-leg mascot-leg-right"></span>
-        </span>
-      </div>
       <div class="task-progress" data-phase="${currentPhase}" role="status">
-        <span class="phase-indicator" aria-hidden="true"><span></span><span></span><span></span></span>
+        <span class="phase-indicator" aria-hidden="true"><span></span></span>
         <span class="phase-label" data-live-phase>${escapeHtml(phaseLabel(data))}</span>
         <span class="phase-line" aria-hidden="true"></span>
+        <span class="live-task-duration" data-live-duration>${escapeHtml(formatDuration(taskDuration(data)))}</span>
       </div>
     </div>
     <div class="stream-panel">
-      <div class="stream-panel-head"><span class="stream-live-dot" aria-hidden="true"></span><span>${escapeHtml(t("stream.live"))}</span><span class="stream-metrics" data-live-metrics>${escapeHtml(taskMetrics(data))}</span><span class="stream-phase" data-live-phase-label>${escapeHtml(phaseLabel(data))}</span><span class="stream-duration" data-live-duration>${escapeHtml(formatDuration(taskDuration(data)))}</span></div>
+      <div class="stream-panel-head"><span class="stream-live-dot" aria-hidden="true"></span><span>${escapeHtml(t("stream.live"))}</span><span class="stream-metrics" data-live-metrics>${escapeHtml(taskMetrics(data))}</span><span class="stream-phase" data-live-phase-label>${escapeHtml(phaseLabel(data))}</span></div>
       <details class="live-output"><summary><span>${escapeHtml(state.locale === "zh" ? "查看实时输出" : "Live output")}</span><small data-live-output-count>${escapeHtml(streamText ? `${compactNumber(streamText.length)} ${state.locale === "zh" ? "字符（仅显示最近内容）" : "chars (recent content)"}` : "")}</small><span class="live-output-chevron">${icon("chevron-down")}</span></summary><div class="stream-preview" data-live-preview aria-live="polite">${preview}</div></details>
     </div>
   </div>`;
@@ -820,12 +842,16 @@ function traceLabel(event) {
   const labels = state.locale === "zh"
     ? {
         run_started: "范围界定",
+        node_entered: "运行节点",
+        stage_route: "阶段路由",
+        local_evidence_index: "本地证据",
         reasoning_configured: "推理预算",
         image_attached: "视觉输入",
         model_decision: "模型决策",
         model_update: "模型行动说明",
         tool_round_started: "执行计划",
         tool_round_finished: "结果汇总",
+        feedback_observed: "自反馈",
         replan: "重新规划",
         stagnation_replan: "停滞纠偏",
         verification_required: "验证门禁",
@@ -841,7 +867,12 @@ function traceLabel(event) {
          completion_complete: "完成评估通过",
          completion_continue: "完成评估继续",
          completion_blocked: "完成评估阻塞",
-         completion_unknown: "完成评估不可用",
+        completion_unknown: "完成评估不可用",
+        verification_passed: "验证通过",
+        verification_failed: "验证失败",
+        verification_skipped: "验证跳过",
+        verification_blocked: "验证阻塞",
+        reinspect_required: "重新检查",
          completion_judge_retry: "完成评估复查",
          run_finished: "交付整理",
         stagnation_guard: "循环保护",
@@ -855,12 +886,16 @@ function traceLabel(event) {
       }
     : {
         run_started: "Scope",
+        node_entered: "Runtime node",
+        stage_route: "Stage route",
+        local_evidence_index: "Local evidence",
         reasoning_configured: "Reasoning budget",
         image_attached: "Vision input",
         model_decision: "Model decision",
         model_update: "Model update",
         tool_round_started: "Execution plan",
         tool_round_finished: "Results merged",
+        feedback_observed: "Self-feedback",
         replan: "Re-plan",
         stagnation_replan: "Stagnation recovery",
         verification_required: "Verification gate",
@@ -876,7 +911,12 @@ function traceLabel(event) {
          completion_complete: "Completion accepted",
          completion_continue: "Completion needs work",
          completion_blocked: "Completion blocked",
-         completion_unknown: "Completion unavailable",
+        completion_unknown: "Completion unavailable",
+        verification_passed: "Verification passed",
+        verification_failed: "Verification failed",
+        verification_skipped: "Verification skipped",
+        verification_blocked: "Verification blocked",
+        reinspect_required: "Re-inspection",
          completion_judge_retry: "Completion retry",
          run_finished: "Delivery summary",
         stagnation_guard: "Loop guard",
@@ -891,27 +931,102 @@ function traceLabel(event) {
   return labels[String(event?.code || "")] || (state.locale === "zh" ? "阶段事件" : "Stage event");
 }
 
-function traceDetail(event) {
+function detailValueText(value, limit = 360) {
+  if (value == null) return "";
+  if (Array.isArray(value)) {
+    if (!value.length) return state.locale === "zh" ? "0 项" : "0 items";
+    if (value.every((item) => item == null || ["string", "number", "boolean"].includes(typeof item))) {
+      return value.map((item) => String(item ?? "")).join(", ");
+    }
+    return state.locale === "zh" ? `${value.length} 项结构化记录` : `${value.length} structured items`;
+  }
+  if (typeof value === "object") {
+    const pairs = Object.entries(value).slice(0, 3).map(([key, item]) => `${key}: ${detailValueText(item, 80)}`);
+    return `{ ${pairs.join("; ")}${Object.keys(value).length > 3 ? "; …" : ""} }`;
+  }
+  const text = String(value).replace(/\s+/g, " ").trim();
+  return text.length > limit ? `${text.slice(0, limit - 1).trimEnd()}…` : text;
+}
+
+function detailJson(value, limit = 12000) {
+  let raw;
+  try {
+    raw = typeof value === "string" ? value : JSON.stringify(value, null, 2);
+  } catch {
+    raw = String(value ?? "");
+  }
+  raw = String(raw || "");
+  return raw.length > limit ? `${raw.slice(0, limit).trimEnd()}\n… ${state.locale === "zh" ? "详情已截断" : "details truncated"} …` : raw;
+}
+
+function structuredDetailMarkup(detail, label = (state.locale === "zh" ? "查看结构化依据" : "View structured evidence")) {
+  if (detail == null || (typeof detail === "object" && !Object.keys(detail).length)) return "";
+  const raw = detailJson(detail);
+  return `<details class="event-detail"><summary>${escapeHtml(label)}<small>${escapeHtml(state.locale === "zh" ? "点击展开" : "click to expand")}</small></summary><pre>${escapeHtml(raw)}</pre></details>`;
+}
+
+function traceDetailPreview(event) {
+  const detail = event?.detail;
+  if (detail == null) return "";
+  if (typeof detail !== "object" || Array.isArray(detail)) return detailValueText(detail, 96);
+  const labels = state.locale === "zh"
+    ? { turn: "轮次", previous_turn: "上一轮", tool_count: "工具", results: "结果", observed: "已观察", observations: "观察", constraints: "约束", failed_tools: "失败", verification_required: "需验证", assessment: "反馈", trigger: "触发", next_action: "下一步" }
+    : { turn: "turn", previous_turn: "previous", tool_count: "tools", results: "results", observed: "observed", observations: "observations", constraints: "constraints", failed_tools: "failed", verification_required: "verify", assessment: "assessment", trigger: "trigger", next_action: "next" };
+  const parts = [];
+  for (const key of ["turn", "previous_turn", "tool_count", "results", "observed", "observations", "constraints", "failed_tools", "verification_required", "assessment", "trigger", "next_action"]) {
+    const value = detail[key];
+    if (value == null || value === "") continue;
+    const compact = Array.isArray(value)
+      ? (state.locale === "zh" ? `${value.length} 项` : `${value.length} items`)
+      : detailValueText(value, 96);
+    if (compact) parts.push(`${labels[key] || key}: ${compact}`);
+  }
+  return parts.slice(0, 4).join(" · ");
+}
+
+function traceEvidenceMarkup(event, detailText, evidenceMarkup) {
+  if (detailText == null && !evidenceMarkup) return "";
+  const labels = state.locale === "zh"
+    ? { feedback_observed: "查看自反馈详情", tool_round_finished: "查看结果汇总详情", replan: "查看重新规划详情", model_decision: "查看模型决策详情" }
+    : { feedback_observed: "View self-feedback", tool_round_finished: "View merged results", replan: "View re-plan", model_decision: "View model decision" };
+  const label = labels[String(event?.code || "")] || (state.locale === "zh" ? "查看阶段详情" : "View stage details");
+  const preview = traceDetailPreview(event);
+  const readable = detailText ? `<div class="trace-detail">${escapeHtml(detailText)}</div>` : "";
+  return `<details class="trace-evidence"><summary><span>${escapeHtml(label)}</span><small>${escapeHtml(preview)}</small><span class="trace-evidence-chevron">${icon("chevron-down")}</span></summary><div class="trace-evidence-body">${readable}${evidenceMarkup || ""}</div></details>`;
+}
+
+function toolResultFoldMarkup(label, content) {
+  return `<details class="tool-result-fold"><summary><span>${escapeHtml(label)}</span><small>${escapeHtml(state.locale === "zh" ? "点击展开" : "click to expand")}</small><span class="tool-result-fold-chevron">${icon("chevron-down")}</span></summary><div class="tool-result-fold-body">${content}</div></details>`;
+}
+
+function traceDetail(event, options = {}) {
   const detail = event?.detail;
   if (detail == null) return "";
   if (typeof detail === "string") return detail;
-  if (Array.isArray(detail)) return detail.map((item) => String(item)).join(", ");
+  if (Array.isArray(detail)) return detailValueText(detail);
   if (typeof detail !== "object") return String(detail);
   const parts = [];
-  if (typeof detail.text === "string" && detail.text) parts.push(detail.text);
+  if (!options.omitText && typeof detail.text === "string" && detail.text) parts.push(detail.text);
   const labels = state.locale === "zh"
-     ? { turn: "轮次", tool_count: "工具数", tools: "工具", answer_chars: "回答字符", duration_ms: "耗时", count: "数量", names: "名称", statuses: "状态", max_turns: "轮次上限", child_count: "子任务数", child: "子任务", failed: "失败数", retry: "重试", retry_limit: "重试上限", partial_chars: "已输出字符", error_type: "错误类型", requested: "请求", active: "实际", wire_value: "请求值", task_id: "任务", tokens: "tokens", automatic: "自动", complexity_score: "复杂度", complexity_threshold: "触发线", complexity_reasons: "触发原因", attempt: "评估次数", confidence: "置信度", rationale: "依据", missing: "缺失", next_action: "下一步", evidence: "证据", error: "错误" }
-     : { turn: "turn", tool_count: "tools", tools: "tools", answer_chars: "answer chars", duration_ms: "duration", count: "count", names: "names", statuses: "statuses", max_turns: "turn limit", child_count: "children", child: "child", failed: "failed", retry: "retry", retry_limit: "retry limit", partial_chars: "partial chars", error_type: "error type", requested: "requested", active: "active", wire_value: "wire", task_id: "task", tokens: "tokens", automatic: "automatic", complexity_score: "complexity", complexity_threshold: "threshold", complexity_reasons: "reasons", attempt: "review attempt", confidence: "confidence", rationale: "rationale", missing: "missing", next_action: "next action", evidence: "evidence", error: "error" };
-  for (const key of ["turn", "tool_count", "tools", "answer_chars", "duration_ms", "count", "names", "statuses", "max_turns", "child_count", "child", "failed", "retry", "retry_limit", "partial_chars", "error_type", "requested", "active", "wire_value", "task_id", "tokens", "automatic", "complexity_score", "complexity_threshold", "complexity_reasons", "attempt", "confidence", "rationale", "missing", "next_action", "evidence", "error"]) {
+    ? {
+        turn: "轮次", previous_turn: "上一轮", tool_count: "工具数", tools: "工具", answer_chars: "回答字符", duration_ms: "耗时", duration_seconds: "耗时", count: "数量", names: "名称", statuses: "状态", max_turns: "轮次上限", turn_policy: "轮次策略", child_count: "子任务数", child: "子任务", failed: "失败数", retry: "重试", retry_limit: "重试上限", partial_chars: "已输出字符", error_type: "错误类型", requested: "请求", active: "实际", wire_value: "请求值", task_id: "任务", tokens: "tokens", automatic: "自动", complexity_score: "复杂度", complexity_threshold: "触发线", complexity_reasons: "触发原因", attempt: "评估次数", confidence: "置信度", rationale: "依据", missing: "缺失", next_action: "下一步", evidence: "证据", error: "错误", trigger: "触发原因", observed: "已观察", observations: "观察结果", constraints: "当前约束", basis: "判断依据", public_plan: "公开计划", results: "工具结果", structured_data: "结构化结果", new_information: "新信息", failed_tools: "失败工具", needs_repair: "需要修复", verification_required: "需要验证", assessment: "反馈判断", replan_trigger: "重规划触发", parallel_mode: "并行模式", max_concurrency: "并发度", dependency_shape: "依赖结构", merge_strategy: "合并策略", parallel_results: "并行结果", merge_basis: "合并依据", result_summary: "结果摘要", turns: "轮次", tool_calls: "工具调用"
+      }
+    : {
+        turn: "turn", previous_turn: "previous turn", tool_count: "tools", tools: "tools", answer_chars: "answer chars", duration_ms: "duration", duration_seconds: "duration", count: "count", names: "names", statuses: "statuses", max_turns: "turn limit", turn_policy: "turn policy", child_count: "children", child: "child", failed: "failed", retry: "retry", retry_limit: "retry limit", partial_chars: "partial chars", error_type: "error type", requested: "requested", active: "active", wire_value: "wire", task_id: "task", tokens: "tokens", automatic: "automatic", complexity_score: "complexity", complexity_threshold: "threshold", complexity_reasons: "reasons", attempt: "review attempt", confidence: "confidence", rationale: "rationale", missing: "missing", next_action: "next action", evidence: "evidence", error: "error", trigger: "trigger", observed: "observed", observations: "observations", constraints: "constraints", basis: "basis", public_plan: "public plan", results: "tool results", structured_data: "structured evidence", new_information: "new information", failed_tools: "failed tools", needs_repair: "needs repair", verification_required: "verification required", assessment: "assessment", replan_trigger: "re-plan trigger", parallel_mode: "parallel mode", max_concurrency: "concurrency", dependency_shape: "dependency shape", merge_strategy: "merge strategy", parallel_results: "parallel results", merge_basis: "merge basis", result_summary: "result summary", turns: "turns", tool_calls: "tool calls"
+      };
+  const keys = ["turn", "previous_turn", "tool_count", "tools", "answer_chars", "duration_ms", "duration_seconds", "count", "names", "statuses", "max_turns", "turn_policy", "child_count", "child", "failed", "retry", "retry_limit", "partial_chars", "error_type", "requested", "active", "wire_value", "task_id", "tokens", "automatic", "complexity_score", "complexity_threshold", "complexity_reasons", "attempt", "confidence", "rationale", "missing", "next_action", "evidence", "error", "trigger", "observed", "observations", "constraints", "basis", "public_plan", "results", "structured_data", "new_information", "failed_tools", "needs_repair", "verification_required", "assessment", "replan_trigger", "parallel_mode", "max_concurrency", "dependency_shape", "merge_strategy", "parallel_results", "merge_basis", "result_summary", "turns", "tool_calls"];
+  for (const key of keys) {
     if (detail[key] == null) continue;
-    const value = Array.isArray(detail[key]) ? detail[key].join(", ") : String(detail[key]);
-    parts.push(`${labels[key] || key}: ${value}`);
+    parts.push(`${labels[key] || key}: ${detailValueText(detail[key])}`);
   }
   return parts.join(" · ");
 }
 
 function shortEventText(event, limit = 150) {
-  const text = String(event?.summary || traceDetail(event) || "").replace(/\s+/g, " ").trim();
+  const publicUpdate = event?.code === "model_update" && typeof event?.detail?.text === "string"
+    ? event.detail.text
+    : "";
+  const text = String(publicUpdate || event?.summary || traceDetail(event) || "").replace(/\s+/g, " ").trim();
   return text.length > limit ? `${text.slice(0, limit - 1).trimEnd()}…` : text;
 }
 
@@ -936,7 +1051,6 @@ function visibleAgentEvents(events) {
   const visible = [];
   let previousKey = "";
   for (const event of Array.isArray(events) ? events : []) {
-    if (!isToolEvent(event) && eventImportance(event) === "low") continue;
     const key = [event?.kind, event?.code, event?.name, event?.status, shortEventText(event, 90), event?.path || ""].join("|");
     if (key !== previousKey) visible.push(event);
     previousKey = key;
@@ -954,21 +1068,60 @@ function eventTimelineSummary(events) {
 function summarizeRound(items, roundNumber) {
   const tools = items.filter(isToolEvent);
   const failed = tools.some((event) => ["error", "failed", "denied"].includes(String(event.status || "").toLowerCase()));
-  const detail = tools.map((event) => shortEventText(event, 72)).find(Boolean) || (state.locale === "zh" ? "整理执行步骤" : "Organized execution steps");
+  const names = [...new Set(tools.map((event) => String(event.name || "tool")).filter(Boolean))];
+  const detail = names.slice(0, 4).join(" · ") || (state.locale === "zh" ? "整理执行步骤" : "Organized execution steps");
   return { failed, detail, title: state.locale === "zh" ? `第 ${roundNumber} 轮 · ${tools.length} 次操作` : `Round ${roundNumber} · ${tools.length} actions`, status: failed ? (state.locale === "zh" ? "需处理" : "Needs attention") : (state.locale === "zh" ? "已完成" : "Complete") };
 }
 
-function toolEventHtml(event, animate = false, anchor = "") {
+function toolResultMarkup(event) {
+  const output = String(event.output || "").trim();
+  const observation = String(event.observation || "").trim();
+  const data = event.data && typeof event.data === "object" ? event.data : null;
+  const metadata = [
+    event.risk ? `${state.locale === "zh" ? "风险" : "risk"}: ${event.risk}` : "",
+    event.exit_code != null ? `exit ${event.exit_code}` : "",
+    event.duration_ms != null ? `${Number(event.duration_ms).toFixed(1)} ms` : "",
+    event.truncated ? (state.locale === "zh" ? "输出已截断" : "output truncated") : "",
+    event.write ? (state.locale === "zh" ? "已写入工作区" : "workspace write") : "",
+    Array.isArray(event.security_tags) && event.security_tags.length ? event.security_tags.join(", ") : "",
+  ].filter(Boolean);
+  const metadataMarkup = metadata.length
+    ? `<div class="tool-result-meta">${metadata.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</div>`
+    : "";
+  const observationMarkup = observation
+    ? toolResultFoldMarkup(t("tool.observation"), `<div class="tool-result-observation">${formatText(observation)}</div>`)
+    : "";
+  const outputMarkup = output
+    ? toolResultFoldMarkup(t("tool.result"), `<div class="tool-result-output">${formatText(output)}</div>`)
+    : `<div class="tool-result-empty">${escapeHtml(t("tool.empty"))}</div>`;
+  const commandMarkup = event.command
+    ? toolResultFoldMarkup(state.locale === "zh" ? "执行命令" : "Command", `<code class="tool-command">${escapeHtml(event.command)}</code>`)
+    : "";
+  const dataMarkup = data && Object.keys(data).length
+    ? toolResultFoldMarkup(t("tool.structured"), `<pre class="tool-result-json">${escapeHtml(detailJson(data, 10000))}</pre>`)
+    : "";
+  const results = Array.isArray(data?.results) ? data.results : [];
+  const resultMarkup = results.length ? toolResultFoldMarkup(t("tool.searchResults"), `<div class="web-results">${results.map((result) => {
+    const href = safeExternalUrl(result.url);
+    return href ? `<a class="web-result" href="${escapeHtml(href)}" target="_blank" rel="noreferrer"><strong>${escapeHtml(result.title || result.url)}</strong><small>${escapeHtml(result.snippet || result.url)}</small><span>${escapeHtml(t("tool.openSource"))} ↗</span></a>` : "";
+  }).join("")}</div>`) : "";
+  return `<div class="tool-event-details">${metadataMarkup}${observationMarkup}${outputMarkup}${commandMarkup}${dataMarkup}${resultMarkup}</div>`;
+}
+
+function toolEventHtml(event, animate = false, anchor = "", open = false) {
   const name = String(event.name || "tool");
   const status = String(event.status || "ok");
-  if (event.kind === "trace") {
+  if (event.kind === "trace" || event.kind === "state") {
     const traceClass = status === "error" ? "trace-error" : "trace-ok";
-    const detail = traceDetail(event);
+    const detail = traceDetail(event, { omitText: event.code === "model_update" });
+    const publicText = event.code === "model_update" && typeof event.detail?.text === "string" ? event.detail.text : "";
     const tracePhase = event.code === "run_finished" ? "completed" : event.phase;
     const isModelEvent = ["model_update", "replan"].includes(String(event.code || "")) || String(event.code || "").startsWith("completion_");
-    const summary = shortEventText(event) || traceLabel(event);
-    const evidence = detail && detail !== summary ? `<details class="event-detail"><summary>${escapeHtml(state.locale === "zh" ? "查看依据" : "View evidence")}</summary><div>${formatText(detail)}</div></details>` : "";
-    return `<div class="trace-event stage-summary ${isModelEvent ? "model-event " : ""}${traceClass}${animate ? " event-enter" : ""} data-stage-code="${escapeHtml(event.code || "")}"><span class="trace-icon">${icon(status === "error" ? "alert-triangle" : "sparkles")}</span><div class="trace-main"><div class="trace-summary"><span class="trace-code">${escapeHtml(traceLabel(event))}</span><span>${escapeHtml(summary)}</span></div>${evidence}</div><span class="trace-phase">${escapeHtml(phaseLabel({ phase: tracePhase }))}</span></div>`;
+    const summary = String(event.summary || traceLabel(event));
+    const publicMarkup = publicText ? `<div class="trace-public-plan"><span>${escapeHtml(state.locale === "zh" ? "公开行动" : "Public action")}</span><div>${formatText(publicText)}</div></div>` : "";
+    const evidence = structuredDetailMarkup(event.detail, state.locale === "zh" ? "查看完整依据" : "View full evidence");
+    const detailMarkup = traceEvidenceMarkup(event, detail, evidence);
+    return `<div class="trace-event stage-summary ${isModelEvent ? "model-event " : ""}${traceClass}${animate ? " event-enter" : ""}" data-stage-code="${escapeHtml(event.code || "")}"><span class="trace-icon">${icon(status === "error" ? "alert-triangle" : "sparkles")}</span><div class="trace-main"><div class="trace-summary"><span class="trace-code">${escapeHtml(traceLabel(event))}</span><span>${escapeHtml(summary)}</span></div>${publicMarkup}${detailMarkup}</div><span class="trace-phase">${escapeHtml(phaseLabel({ phase: tracePhase }))}</span></div>`;
   }
   const denied = status === "denied";
   const failed = ["error", "failed"].includes(status);
@@ -976,88 +1129,90 @@ function toolEventHtml(event, animate = false, anchor = "") {
   const iconName = denied ? "lock" : failed ? "alert-circle" : name === "web_search" ? "globe-2" : lowerName.includes("test") || name === "bash" ? "test-tube-2" : lowerName.includes("git") ? "git-branch" : "file-search-2";
   const stateClass = denied ? "denied" : failed ? "failed" : "completed";
   const stateIcon = denied ? "lock" : failed ? "alert-circle" : "check";
-  const results = name === "web_search" && Array.isArray(event.data?.results) ? event.data.results : [];
-  const resultMarkup = results.length ? `<div class="web-results"><div class="web-results-heading">${icon("globe-2")}<span>${escapeHtml(t("tool.searchResults"))}</span></div>${results.map((result) => {
-    const href = safeExternalUrl(result.url);
-    return href ? `<a class="web-result" href="${escapeHtml(href)}" target="_blank" rel="noreferrer"><strong>${escapeHtml(result.title || result.url)}</strong><small>${escapeHtml(result.snippet || result.url)}</small><span>${escapeHtml(t("tool.openSource"))} ↗</span></a>` : "";
-  }).join("")}</div>` : "";
   const path = String(event.path || "");
-  const pathMarkup = path ? `<button class="tool-path-button" data-open-diff="${escapeHtml(path)}" type="button">${escapeHtml(path)}</button>` : `<span class="tool-path">${escapeHtml(toolStatusLabel(status))}</span>`;
-  return `<div class="tool-event ${stateClass}${animate ? " event-enter" : ""}${anchor ? ` data-chat-anchor="${escapeHtml(anchor)}"` : ""}>
-    <div class="tool-icon ${denied ? "amber-icon" : ""}">${icon(iconName)}</div>
-    <div class="tool-event-copy"><div><strong>${escapeHtml(name)}</strong>${pathMarkup}</div><small>${escapeHtml(event.summary || "")}</small>${resultMarkup}</div>
-    <span class="tool-check ${denied ? "denied-check" : failed ? "failed-check" : ""}">${icon(stateIcon)}</span>
-  </div>`;
+  const pathMarkup = path ? `<span class="tool-path tool-path-button" data-open-diff="${escapeHtml(path)}">${escapeHtml(path)}</span>` : `<span class="tool-path">${escapeHtml(toolStatusLabel(status))}</span>`;
+  const toolAnchor = anchor || `${name}-${event.created_at_epoch || ""}`;
+  return `<details class="tool-event ${stateClass}${animate ? " event-enter" : ""}" data-tool-event="${escapeHtml(toolAnchor)}"${open ? " open" : ""}>
+    <summary class="tool-event-summary"><span class="tool-icon ${denied ? "amber-icon" : ""}">${icon(iconName)}</span><span class="tool-event-copy"><span><strong>${escapeHtml(name)}</strong>${pathMarkup}</span><small>${escapeHtml(event.summary || "")}</small></span><span class="tool-check ${denied ? "denied-check" : failed ? "failed-check" : ""}">${icon(stateIcon)}</span><span class="tool-expand">${icon("chevron-down")}</span></summary>
+    ${toolResultMarkup(event)}
+  </details>`;
 }
 
 function eventTimelineMarkup(events, options = {}) {
   if (!Array.isArray(events) || !events.length) return "";
-  const isTool = isToolEvent;
   const items = visibleAgentEvents(events).map((event, index) => ({ event, index }));
   const groups = [];
   let currentRound = null;
   let fallbackRound = 0;
-  const eventTurn = (event) => Number(event?.detail?.turn || 0);
+  let pendingRound = 0;
   const closeRound = () => { if (currentRound) { groups.push(currentRound); currentRound = null; } };
-  const startRound = (turn) => {
-    const normalizedTurn = Number(turn || ++fallbackRound);
-    if (!currentRound || currentRound.turn !== normalizedTurn) { closeRound(); currentRound = { round: true, turn: normalizedTurn, items: [] }; }
+  const roundNumber = (event) => Number(event?.detail?.turn || pendingRound || currentRound?.turn || ++fallbackRound);
+  const startRound = (event) => {
+    const normalizedTurn = roundNumber(event);
+    if (!currentRound || currentRound.turn !== normalizedTurn) {
+      closeRound();
+      currentRound = { round: true, turn: normalizedTurn, items: [] };
+    }
     return currentRound;
   };
   for (const item of items) {
     const { event } = item;
     const code = String(event?.code || "");
-    const turn = eventTurn(event);
-    if (code === "tool_round_started" || turn || (isTool(event) && currentRound)) {
-      startRound(turn || currentRound?.turn);
-      currentRound.items.push(item);
-      if (code === "tool_round_finished") closeRound();
+    if (code === "tool_round_started") {
+      closeRound();
+      pendingRound = Number(event?.detail?.turn || ++fallbackRound);
       continue;
     }
-    if (isTool(event)) {
-      startRound();
+    if (isToolEvent(event)) {
+      startRound(event);
       currentRound.items.push(item);
       continue;
     }
-    if (code === "tool_round_finished" && currentRound) { currentRound.items.push(item); closeRound(); continue; }
+    if (code === "tool_round_finished") {
+      closeRound();
+      groups.push({ round: false, item });
+      pendingRound = 0;
+      continue;
+    }
     closeRound();
     groups.push({ round: false, item });
+    pendingRound = 0;
   }
   closeRound();
   return groups.map((group, groupIndex) => {
     if (!group.round) return toolEventHtml(group.item.event, group.item.index >= Number(options.animateFrom ?? events.length), `event-${group.item.index}`);
-    const toolItems = group.items.filter(({ event }) => isTool(event));
-    const toolCount = toolItems.length;
     const roundKey = String(group.turn || groupIndex + 1);
     const round = summarizeRound(group.items.map(({ event }) => event), roundKey);
-    const open = round.failed || (options.openRounds instanceof Set && options.openRounds.has(roundKey));
-    const itemMarkup = group.items.map(({ event, index }) => toolEventHtml(event, index >= Number(options.animateFrom ?? events.length), `event-${index}`)).join("");
+    const open = options.openRounds instanceof Set && options.openRounds.has(roundKey);
+    const itemMarkup = group.items.map(({ event, index }) => toolEventHtml(event, index >= Number(options.animateFrom ?? events.length), `event-${index}`, options.openTools instanceof Set && options.openTools.has(`event-${index}`))).join("");
     return `<details class="agent-round" data-agent-round="${roundKey}"${open ? " open" : ""}><summary class="agent-round-summary"><span class="agent-round-title"><span class="agent-round-icon">${icon(round.failed ? "alert-circle" : "layers-3")}</span><strong>${escapeHtml(round.title)}</strong><small>${escapeHtml(round.detail)}</small></span><span class="agent-round-meta">${escapeHtml(round.status)}<span class="agent-round-chevron">${icon("chevron-down")}</span></span></summary><div class="agent-round-events">${itemMarkup}</div></details>`;
   }).join("");
 }
 
-function assistantMessageMarkup(data) {
+function assistantMessageMarkup(data, anchor = "") {
   const events = Array.isArray(data.events) ? data.events : [];
   const eventMarkup = eventTimelineMarkup(events);
   const answer = data.answer || data.error || "模型没有返回可交付文字。";
   const rawStream = !data.answer && data.stream_text ? rawOutputMarkup(data.stream_text) : "";
-  const execution = eventMarkup ? `<details class="execution-trail"><summary>${escapeHtml(state.locale === "zh" ? "执行脉络与证据" : "Execution trail and evidence")}<span>${escapeHtml(eventTimelineSummary(events))}</span></summary><div class="tool-timeline">${eventMarkup}</div></details>` : "";
+  const execution = executionTrailMarkup(eventMarkup, events);
+  const anchorMarkup = anchor ? ` data-chat-anchor="${escapeHtml(anchor)}"` : "";
   return `
-    <article class="message assistant-message">
+    <article class="message assistant-message"${anchorMarkup}>
       <div class="message-meta"><span class="avatar agent-avatar">m</span><strong>minicc</strong><span class="agent-label">Agent</span><time>now</time></div>
-      <div class="message-body"><p class="answer-callout">${formatText(answer)}</p>${execution}${rawStream}</div>
+      <div class="message-body">${execution}<p class="answer-callout">${formatText(answer)}</p>${rawStream}</div>
     </article>`;
 }
 
 function addAssistantMessage(data, loadingId = "") {
   const chatPosition = captureChatPosition();
   const loading = loadingId ? document.getElementById(loadingId) : null;
+  const anchor = loadingId ? `live-${loadingId}` : "";
   if (loading) {
     const replacement = document.createElement("div");
-    replacement.innerHTML = assistantMessageMarkup(data);
+    replacement.innerHTML = assistantMessageMarkup(data, anchor);
     loading.replaceWith(replacement.firstElementChild);
   } else {
-    $("#messageList").insertAdjacentHTML("beforeend", assistantMessageMarkup(data));
+    $("#messageList").insertAdjacentHTML("beforeend", assistantMessageMarkup(data, anchor));
   }
   state.turns += Number(data.turns || 0);
   state.tools += Number(data.tool_calls_total || 0);
@@ -1107,8 +1262,8 @@ function updateLiveStream(loadingId, preview, target) {
   stream.frame = window.setTimeout(paint, 120);
 }
 
-function syncLiveEvents(loading, events) {
-  if (!events.length) return;
+function syncLiveEvents(loading, events, chatPosition = null) {
+  if (!events.length) return false;
   let timeline = loading.querySelector(".tool-timeline");
   if (!timeline) {
     timeline = document.createElement("div");
@@ -1117,22 +1272,27 @@ function syncLiveEvents(loading, events) {
   }
   const previousCount = Number(loading.dataset.eventCount || 0);
   const fingerprint = JSON.stringify(events.map((event) => [event.kind, event.code, event.name, event.status, event.summary, event.detail]));
-  if (timeline.dataset.eventFingerprint === fingerprint) return;
-  const chatPosition = captureChatPosition();
+  if (timeline.dataset.eventFingerprint === fingerprint) return false;
+  const position = chatPosition || captureChatPosition();
   const openRounds = timeline.dataset.initialized === "true"
     ? new Set([...timeline.querySelectorAll("details.agent-round[open]")].map((item) => item.dataset.agentRound))
     : null;
-  timeline.innerHTML = eventTimelineMarkup(events, { openRounds, animateFrom: previousCount });
+  const openTools = timeline.dataset.initialized === "true"
+    ? new Set([...timeline.querySelectorAll("details.tool-event[open]")].map((item) => item.dataset.toolEvent))
+    : null;
+  timeline.innerHTML = eventTimelineMarkup(events, { openRounds, openTools, animateFrom: previousCount });
   timeline.dataset.initialized = "true";
   timeline.dataset.eventFingerprint = fingerprint;
   loading.dataset.eventCount = String(events.length);
   refreshIcons();
-  restoreChatPosition(chatPosition, false);
+  if (!chatPosition) restoreChatPosition(position, false);
+  return true;
 }
 
 function updateLiveTask(loadingId, data) {
   const loading = document.getElementById(loadingId);
   if (!loading) return;
+  const chatPosition = captureChatPosition();
   const events = Array.isArray(data.events) ? data.events : [];
   let live = loading.querySelector("[data-live-task]");
   if (!live) {
@@ -1157,10 +1317,11 @@ function updateLiveTask(loadingId, data) {
     if (streamText) updateLiveStream(loadingId, preview, streamText);
     else preview.innerHTML = `<span class="stream-empty">${escapeHtml(t("phase.waiting"))}</span>`;
   }
-  syncLiveEvents(loading, events);
+  syncLiveEvents(loading, events, chatPosition);
   updateTaskDuration(data, loadingId);
   $("#pulseStatus").textContent = phaseText;
   updateTaskDock(data);
+  restoreChatPosition(chatPosition, false);
 }
 
 function scheduleChangesRefresh() {
@@ -1215,10 +1376,10 @@ async function completeTask(loadingId, data) {
     const pending = holder.querySelector(`#${CSS.escape(binding.loadingId || loadingId)}`);
     if (pending) {
       const replacement = document.createElement("div");
-      replacement.innerHTML = assistantMessageMarkup(finalData);
+      replacement.innerHTML = assistantMessageMarkup(finalData, `live-${binding.loadingId || loadingId}`);
       pending.replaceWith(replacement.firstElementChild);
     } else {
-      holder.insertAdjacentHTML("beforeend", assistantMessageMarkup(finalData));
+      holder.insertAdjacentHTML("beforeend", assistantMessageMarkup(finalData, `live-${binding.loadingId || loadingId}`));
     }
     const cacheKey = sessionViewKey(binding.sessionId, binding.workspacePath);
     sessionMarkup.set(cacheKey, holder.innerHTML);
@@ -2448,6 +2609,7 @@ function bindUI() {
   $("#localeZh").addEventListener("click", () => setLocale("zh"));
   $("#localeEn").addEventListener("click", () => setLocale("en"));
   $("#themeButton").addEventListener("click", () => setTheme(state.theme === "light" ? "dark" : "light"));
+  $("#focusToggle").addEventListener("click", () => setFocusMode(!state.focusMode));
   $("#moreOptionsButton").addEventListener("click", openOptionsPanel);
   $("#reasoningButton").addEventListener("click", openSettingsPanel);
   $("#moreTasksButton").addEventListener("click", openTaskListPanel);
@@ -2633,6 +2795,7 @@ function bindUI() {
 document.addEventListener("DOMContentLoaded", () => {
   bindUI();
   updateMode();
+  applyFocusMode();
   initialMessageMarkup = $("#messageList").innerHTML;
   setSession(state.sessionId);
   applyLocale();

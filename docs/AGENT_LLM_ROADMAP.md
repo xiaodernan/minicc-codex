@@ -15,11 +15,11 @@ minicc 已经具备：
 - 上下文压缩、停滞检测、一次自动重规划。
 - SQLite 任务持久化、SSE 流式事件、取消、重跑、批量任务。
 - Docker 沙箱、MCP stdio 桥、Git worktree。
-- 当前测试基线：由 `python -m pytest -q` 在本地固定任务集上维护；本轮实现后为 `60 passed`。
+- 当前测试基线：由 `python -m pytest -q` 在本地固定任务集上维护；本轮实现后为 `79 passed`。
 
 当前主要缺口：
 
-1. 自动路由目前使用确定性复杂度评分和固定只读职责，尚未让模型生成受 schema 约束的动态 DAG。
+1. 自动并行路由仍使用确定性复杂度评分和固定只读职责；复杂 Web 主任务已经支持受 schema、依赖、并发和工具白名单约束的只读动态 DAG，写入型计划仍回退到主 Agent 的原有权限路径。
 2. 没有统一的 trace、成本、延迟和质量评测数据集。
 3. 现有固定 DAG、验证器和 repair loop 已闭环，但还没有按依赖分支增量重试和跨 worktree 的自动合并策略。
 4. 上下文压缩是确定性摘要，缺少“按任务选择上下文”的检索与记忆策略。
@@ -32,14 +32,15 @@ minicc 已经具备：
 - `minicc/agent/state.py`：`AgentState`、`TraceEvent`、`Budget`，记录节点、阶段、预算、证据、错误和可序列化 metrics。
 - `minicc/agent/graph.py`：带条件转移和有限 repair 回边的 `StateGraph`，以及校验依赖、环、深度、节点数和并发的 `DAGPlan` / `execute_dag`。
 - `minicc/agent/verifier.py`：只执行白名单验证命令，输出 `passed` / `failed` / `blocked` / `skipped` 结构化结果、失败测试和 actionable hint。
+- `minicc/agent/planner.py`：解析模型生成的结构化计划，限制节点 kind、依赖、深度、并发、重试和工具白名单；失败时回退固定模板。
 - 现有 `run_agent`：统一记录轮次、工具调用、token 和预算超限事件；Web 写入任务自动进入验证，失败最多按配置次数 repair。
-- 批量任务：保存固定 DAG 模板、关键路径和最大并发信息；复杂请求的自动侦察仍限制为固定数量的只读子任务。
+- 批量任务：保存固定 DAG 模板、关键路径和最大并发信息；复杂请求的自动侦察仍限制为固定数量的只读子任务。Web 主 Agent 在复杂任务启动前会把模型计划作为受校验的公开上下文；满足只读约束时，动态计划会进入真实 DAG 节点执行，并记录节点状态、依赖摘要、planner token、来源和回退原因。
 
 这部分是工程能力实现，不是性能结论。重复调用率、P50/P95、成本和长任务成功率仍需后续固定 benchmark 多次运行后再报告。
 
 ## 尚未声称完成的部分
 
-- 当前没有让模型自由生成任意 DAG；动态 Planner JSON 的 schema、权限映射和非法计划修正属于后续阶段。
+- 当前没有让模型自由生成并直接执行任意 DAG；已经接入的是只读白名单内的受约束动态 DAG，写节点隔离、依赖节点增量恢复和跨 worktree 合并仍属于后续阶段。
 - 当前没有接入向量数据库或不透明的长期记忆；上下文检索仍以已有确定性压缩和任务证据为主。
 - 当前没有提交 baseline / enhanced 的 10~30 任务 benchmark 原始数据，因此路线图中的百分比仍只是目标格式。
 

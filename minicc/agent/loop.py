@@ -43,6 +43,8 @@ STAGNATION_CYCLE_LENGTH = 4
 VERIFICATION_RETRY_LIMIT = 1
 SEARCH_FAILURE_LIMIT = 2
 MAX_VISIBLE_MODEL_UPDATE_CHARS = 1200
+MAX_PUBLIC_TOOL_OBSERVATION_CHARS = 900
+MAX_PUBLIC_TOOL_DATA_CHARS = 2400
 WRITE_TOOL_NAMES = frozenset({"write_file", "edit_file", "worktree_create", "worktree_remove"})
 VERIFY_TOOL_NAMES = frozenset({"bash", "git_diff", "git_status", "read_file", "grep"})
 
@@ -73,6 +75,97 @@ def _visible_model_update(content: str | None) -> str:
     if len(safe) > MAX_VISIBLE_MODEL_UPDATE_CHARS:
         safe = safe[:MAX_VISIBLE_MODEL_UPDATE_CHARS].rstrip() + "\n[行动说明已截断]"
     return safe
+
+
+def _public_data(value: Any, *, depth: int = 0) -> Any:
+    """Keep structured evidence useful without persisting unbounded output."""
+
+    if depth >= 3:
+        return "[结构化数据已收敛]"
+    if isinstance(value, dict):
+        items = list(value.items())[:16]
+        output: dict[str, Any] = {}
+        for key, item in items:
+            safe_key, _ = redact_text(str(key))
+            output[safe_key] = _public_data(item, depth=depth + 1)
+        if len(value) > len(items):
+            output["…"] = f"其余 {len(value) - len(items)} 个字段已省略"
+        return output
+    if isinstance(value, (list, tuple)):
+        items = list(value)[:16]
+        output = [_public_data(item, depth=depth + 1) for item in items]
+        if len(value) > len(items):
+            output.append(f"其余 {len(value) - len(items)} 项已省略")
+        return output
+    if isinstance(value, str):
+        safe, _ = redact_text(value)
+        if len(safe) > 600:
+            return safe[:599].rstrip() + "…"
+        return safe
+    if value is None or isinstance(value, (bool, int, float)):
+        return value
+    safe, _ = redact_text(str(value))
+    return safe[:599].rstrip() + "…" if len(safe) > 600 else safe
+
+
+def build_tool_feedback(call: ToolCall, result: ToolResult, *, risk: str | None = None) -> dict[str, Any]:
+    """Build a bounded, redacted observation that is safe to show in the UI."""
+
+    rendered, _ = redact_text(result.render().strip())
+    summary, _ = redact_text(str(result.summary or "").strip())
+    observation = rendered
+    if summary and observation.startswith(summary):
+        observation = observation[len(summary):].lstrip(" :\n")
+    if not observation:
+        observation = "工具未返回额外文本，结果以状态和结构化字段为准。"
+    if len(observation) > MAX_PUBLIC_TOOL_OBSERVATION_CHARS:
+        observation = observation[: MAX_PUBLIC_TOOL_OBSERVATION_CHARS - 1].rstrip() + "…"
+    structured_data = _public_data(result.data) if isinstance(result.data, dict) else {}
+    structured_json, _ = redact_text(json.dumps(structured_data, ensure_ascii=False, default=str))
+    if len(structured_json) > MAX_PUBLIC_TOOL_DATA_CHARS:
+        structured_data = {
+            "summary": structured_json[: MAX_PUBLIC_TOOL_DATA_CHARS - 1].rstrip() + "…",
+            "truncated": True,
+        }
+    data_keys = list(structured_data)[:16] if isinstance(structured_data, dict) else []
+    raw_path = str(call.arguments.get("path") or "")
+    raw_command = str(call.arguments.get("command") or "")
+    safe_path, _ = redact_text(raw_path)
+    safe_command, _ = redact_text(raw_command)
+    return {
+        "tool": call.tool,
+        "status": result.status,
+        "summary": summary,
+        "observation": observation,
+        "path": safe_path or None,
+        "command": safe_command or None,
+        "risk": risk,
+        "write": call.tool in WRITE_TOOL_NAMES and result.status == "ok",
+        "exit_code": result.exit_code,
+        "duration_ms": round(max(0.0, float(result.duration or 0.0)) * 1000, 1),
+        "truncated": bool(result.truncated),
+        "security_tags": list(result.security_tags),
+        "data_keys": data_keys,
+        "structured_data": structured_data,
+    }
+
+
+def _replan_constraints(*, verification_required: bool, feedback: list[dict[str, Any]]) -> list[str]:
+    """Describe runtime constraints without exposing hidden model reasoning."""
+
+    constraints: list[str] = []
+    if verification_required:
+        constraints.append("工作区发生过修改，结束前必须取得修改后的 diff/测试证据")
+    failed_tools = [
+        str(item.get("tool") or "tool")
+        for item in feedback
+        if str(item.get("status") or "") in {"error", "failed", "denied", "timed_out"}
+    ]
+    if failed_tools:
+        constraints.append(f"上一轮有失败或被阻止的工具：{', '.join(failed_tools[:6])}")
+    if feedback and all(not str(item.get("observation") or "").strip() for item in feedback):
+        constraints.append("上一轮没有产生可用观察结果，需要更换检查路径")
+    return constraints
 
 
 async def run_agent(
@@ -119,6 +212,8 @@ async def run_agent(
     last_reasoning_status: tuple[str, str] | None = None
     verification_required = False
     verification_retries = 0
+    last_round_feedback: list[dict[str, Any]] = []
+    last_replan_trigger = "初始任务上下文"
 
     def emit_trace(
         summary: str,
@@ -154,7 +249,11 @@ async def run_agent(
         "正在界定任务范围，准备检查工作区",
         phase="planning",
         code="run_started",
-        detail={"max_turns": max_turns, "tool_count": len(tools_schemas)},
+        detail={
+            "max_turns": max_turns,
+            "turn_policy": "默认不限模型轮次；仅由取消、停滞、验证和资源保护结束",
+            "tool_count": len(tools_schemas),
+        },
     )
     reasoning_status_fn = getattr(provider, "reasoning_status", None)
     protocol_status_fn = getattr(provider, "protocol_status", None)
@@ -236,11 +335,29 @@ async def run_agent(
 
         try:
             if turn > 1:
+                observed = [
+                    str(item.get("observation") or item.get("summary") or "")
+                    for item in last_round_feedback
+                    if str(item.get("observation") or item.get("summary") or "").strip()
+                ][:8]
+                constraints = _replan_constraints(
+                    verification_required=verification_required,
+                    feedback=last_round_feedback,
+                )
                 emit_trace(
                     "已收到工具结果，正在判断下一步并保持任务目标",
                     phase="planning",
                     code="replan",
-                    detail={"turn": turn, "context_tokens": result.context.get("tokens", 0)},
+                    detail={
+                        "turn": turn,
+                        "previous_turn": turn - 1,
+                        "context_tokens": result.context.get("tokens", 0),
+                        "trigger": last_replan_trigger,
+                        "observed": observed,
+                        "constraints": constraints,
+                        "basis": "上一轮工具的状态、受控观察和结构化证据；结合原始任务目标与当前运行时约束",
+                        "next_action": "由模型基于上述公开证据重新选择读取、修改、验证或交付动作",
+                    },
                 )
             response = await provider.chat(
                 messages=messages,
@@ -331,7 +448,13 @@ async def run_agent(
                 f"模型已完成本轮判断，正在执行可审计计划：{', '.join(tool_names)}",
                 phase="planning",
                 code="model_decision",
-                detail={"turn": turn, "tool_count": len(tool_names), "tools": tool_names},
+                detail={
+                    "turn": turn,
+                    "tool_count": len(tool_names),
+                    "tools": tool_names,
+                    "basis": "当前任务目标、已记录工具结果和运行时约束",
+                    "public_plan": visible_update or "模型未提供额外的公开行动说明",
+                },
             )
             emit_trace(
                 f"已生成执行计划，本轮准备调用 {len(response.tool_calls)} 个工具：{', '.join(tool_names)}",
@@ -404,6 +527,18 @@ async def run_agent(
                     raw_tc.get("id", ""),
                     tool_result.render(),
                 ))
+
+            round_feedback = [
+                build_tool_feedback(
+                    call,
+                    tool_result,
+                    risk=registry.risk_of(call.tool),
+                )
+                for call, tool_result in (
+                    immediate_results[index]
+                    for index in sorted(immediate_results)
+                )
+            ]
 
             for _index in sorted(immediate_results):
                 search_call, search_result = immediate_results[_index]
@@ -513,6 +648,73 @@ async def run_agent(
                 and recent_observations[-STAGNATION_CYCLE_LENGTH:]
                 == recent_observations[-STAGNATION_CYCLE_LENGTH * 2:-STAGNATION_CYCLE_LENGTH]
             )
+            last_round_feedback = round_feedback
+            failed_tools = [
+                str(item.get("tool") or "tool")
+                for item in round_feedback
+                if str(item.get("status") or "") in {"error", "failed", "denied", "timed_out"}
+            ]
+            feedback_constraints = _replan_constraints(
+                verification_required=verification_required,
+                feedback=round_feedback,
+            )
+            new_information = [
+                f"{item.get('tool')}: {item.get('observation')}"
+                for item in round_feedback
+                if str(item.get("observation") or "").strip()
+            ][:8]
+            if failed_tools:
+                last_replan_trigger = "上一轮工具失败或被阻止，需要处理错误"
+            elif verification_required:
+                last_replan_trigger = "上一轮修改了工作区，需要先完成验证"
+            elif round_unproductive:
+                last_replan_trigger = "上一轮没有产生新信息，需要换路检查"
+            else:
+                last_replan_trigger = "上一轮工具结果已合并"
+            next_action = (
+                "先检查修改后的 diff 并运行直接相关验证"
+                if verification_required
+                else "根据新观察继续定位、修复、验证或结束任务"
+            )
+            emit_trace(
+                "工具结果已合并，继续检查是否需要修复或验证",
+                phase="planning",
+                status="error" if failed_tools else "ok",
+                code="tool_round_finished",
+                detail={
+                    "turn": turn,
+                    "tool_count": len(immediate_results),
+                    "statuses": [
+                        f"{call.tool}:{tool_result.status}"
+                        for call, tool_result in (
+                            immediate_results[index]
+                            for index in sorted(immediate_results)
+                        )
+                    ],
+                    "results": round_feedback,
+                    "new_information": new_information,
+                    "failed_tools": failed_tools,
+                    "needs_repair": bool(failed_tools),
+                    "verification_required": verification_required,
+                    "basis": "工具状态、受控输出、结构化结果以及修改/验证状态",
+                    "next_action": next_action,
+                },
+            )
+            emit_trace(
+                "自反馈已记录：观察结果已转成下一步约束",
+                phase="planning",
+                status="error" if round_unproductive or failed_tools else "ok",
+                code="feedback_observed",
+                detail={
+                    "turn": turn,
+                    "assessment": "本轮产生了新信息" if not round_unproductive else "本轮未产生新信息",
+                    "observations": new_information,
+                    "constraints": feedback_constraints,
+                    "basis": "将本轮工具反馈压缩为观察、失败项和必须遵守的运行时约束",
+                    "next_action": next_action,
+                    "replan_trigger": last_replan_trigger,
+                },
+            )
             if repeated_rounds >= STAGNATION_REPEAT_LIMIT or unproductive_rounds >= STAGNATION_REPEAT_LIMIT or repeated_cycle:
                 if stagnation_replans < STAGNATION_REPLAN_LIMIT:
                     stagnation_replans += 1
@@ -545,22 +747,6 @@ async def run_agent(
                     code="stagnation_guard",
                 )
                 break
-            emit_trace(
-                "工具结果已合并，继续检查是否需要修复或验证",
-                phase="planning",
-                code="tool_round_finished",
-                detail={
-                    "turn": turn,
-                    "tool_count": len(immediate_results),
-                    "statuses": [
-                        f"{call.tool}:{tool_result.status}"
-                        for call, tool_result in (
-                            immediate_results[index]
-                            for index in sorted(immediate_results)
-                        )
-                    ],
-                },
-            )
             continue
 
         # --- plain text answer ---

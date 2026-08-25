@@ -96,6 +96,7 @@
               <button type="button" id="localeZh" class="locale-option active">中</button>
               <button type="button" id="localeEn" class="locale-option">EN</button>
             </div>
+            <button class="icon-button focus-toggle" id="focusToggle" type="button" aria-label="专注阅读" title="专注阅读" data-i18n-aria="focus.enter" data-i18n-title="focus.enter"><i data-lucide="maximize"></i></button>
             <button class="icon-button" id="inspectorToggle" aria-label="切换检查器" title="切换检查器" data-i18n-aria="inspector.toggle" data-i18n-title="inspector.toggle"><i data-lucide="panel-right"></i></button>
             <button class="icon-button" id="moreOptionsButton" aria-label="更多选项" title="更多选项" data-i18n-aria="options.open" data-i18n-title="options.open"><i data-lucide="more-horizontal"></i></button>
           </div>
@@ -110,9 +111,9 @@
         <section class="chat-area" id="chatArea">
           <button class="jump-latest" id="jumpLatestButton" type="button" hidden aria-label="跳到最新" title="跳到最新" data-i18n-aria="tasks.jumpLatest" data-i18n-title="tasks.jumpLatest"><i data-lucide="arrow-down"></i><span data-i18n="tasks.jumpLatest">跳到最新</span></button>
           <div class="chat-inner">
-          <div class="session-heading">
+            <div class="session-heading">
               <div>
-                <div class="eyebrow"><span class="eyebrow-line"></span> <span data-i18n="agentSession">智能会话</span></div>
+                <div class="session-kicker"><span class="session-kicker-dot"></span><span data-i18n="agentSession">智能会话</span></div>
                 <h1 id="sessionTitle">Ship the agent UI</h1>
                 <p id="sessionSubtitle">Build, inspect, and verify inside one focused workspace.</p>
               </div>
