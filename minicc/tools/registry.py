@@ -10,6 +10,7 @@ head/tail truncation. Dropped: envelope versioning and budget cost models
 from __future__ import annotations
 
 import re
+import threading
 import time
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
@@ -17,7 +18,7 @@ from typing import Any
 
 from .schemas import HEAD_CHARS, TAIL_CHARS, ToolCall, ToolResult
 
-Handler = Callable[[dict[str, Any]], ToolResult]
+Handler = Callable[..., ToolResult]
 
 CODE_UNKNOWN_TOOL = "UNKNOWN_TOOL"
 CODE_INVALID_ARGUMENTS = "INVALID_ARGUMENTS"
@@ -143,6 +144,7 @@ class ToolSpec:
     handler: Handler = field(repr=False)
     visible: bool = True  # False → listed for the model but hidden from /tools detail
     input_schema: dict[str, Any] | None = None
+    cancellable: bool = False
 
     def openai_schema(self) -> dict[str, Any]:
         if self.input_schema is not None:
@@ -237,7 +239,12 @@ class ToolRegistry:
             checked[param.name] = param.validate(arguments[param.name])
         return checked
 
-    def execute(self, call: ToolCall) -> ToolResult:
+    def execute(
+        self,
+        call: ToolCall,
+        *,
+        cancel_event: threading.Event | None = None,
+    ) -> ToolResult:
         """Run one tool call; every failure becomes a structured ToolResult."""
         spec = self._specs.get(call.tool)
         if spec is None:
@@ -245,10 +252,21 @@ class ToolRegistry:
                 CODE_UNKNOWN_TOOL,
                 f"未知工具 {call.tool!r} (已注册: {self.names()})",
             )
+        if cancel_event is not None and cancel_event.is_set():
+            return ToolResult(
+                status="cancelled",
+                summary=f"[CANCELLED] 任务已取消，未执行工具 {call.tool}",
+                security_tags=["untrusted", "runtime_guard"],
+            )
         started = time.monotonic()
         try:
+            if call.parse_error:
+                raise ToolParamError(f"[INVALID_TOOL_ARGUMENTS] {call.parse_error}")
             arguments = self._validate(call.tool, call.arguments)
-            result = spec.handler(arguments)
+            if spec.cancellable:
+                result = spec.handler(arguments, cancel_event=cancel_event)
+            else:
+                result = spec.handler(arguments)
         except ToolParamError as exc:
             result = error_result(CODE_INVALID_ARGUMENTS, str(exc))
         except ToolError as exc:

@@ -11,7 +11,7 @@ MINICC_BASE_URL=https://api.247kan.com/v1
 # Model name on that gateway
 MINICC_MODEL=gpt-5.6-terra
 
-# Reasoning budget: low | mid | high | xhigh | max. Unsupported gateways auto-downgrade.
+# Reasoning effort: low | mid | high | xhigh | max. Unsupported gateways auto-downgrade.
 MINICC_REASONING_EFFORT=high
 
 # Tool-calling mode: auto (probe & degrade) | native | envelope
@@ -24,15 +24,25 @@ MINICC_REASONING_EFFORT=high
 # Retries for transient gateway/network failures, including event-source loss.
 #MINICC_PROVIDER_RETRIES=4
 
-# Safe retries for a model turn that still fails after provider-level retries.
+# Safe retries for a model turn or task-level recovery after provider-level retries.
 # Recovery retries use a non-streaming request and never replay completed tools.
 #MINICC_TASK_RECOVERY_RETRIES=2
 
-# Optional hard cap for agent turns (LLM round trips); leave unset or use 0 for unlimited
-#MINICC_MAX_TURNS=0
+# Task execution has no total duration, turn, or tool-call budget. Legacy
+# MINICC_MAX_TURNS / MINICC_MAX_DURATION_SECONDS / MINICC_MAX_TOOL_CALLS values
+# are ignored so stale environment files cannot truncate a long task.
 
 # Maximum automatic test-failure repair cycles after a successful write
 #MINICC_MAX_REPAIR_ATTEMPTS=2
+
+# Bounded replay log and live text tail per task; prevents long runs from
+# growing the browser timeline and SQLite snapshots without a limit.
+#MINICC_TASK_EVENT_LIMIT=768
+#MINICC_TASK_STREAM_LIMIT=16000
+# 最近 usage 与上下文压缩记录的保留条数，以及同一会话排队任务上限
+#MINICC_TASK_USAGE_LIMIT=64
+#MINICC_TASK_COMPACTION_LIMIT=64
+#MINICC_TASK_QUEUE_LIMIT=32
 
 # Auto-approve every tool call (dangerous; --yolo sets this too)
 #MINICC_YOLO=0

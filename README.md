@@ -19,27 +19,36 @@
 - 搜索适配层优先使用 Bing，DuckDuckGo 作为备用；带超时重试、短期缓存、反爬诊断和连续失败熔断，避免 Agent 原地重复空搜索。
 - Git worktree 管理：在工作区旁的隐藏目录创建和移除受约束的 worktree。
 - 流式输出、工具参数校验、结果脱敏/截断、LLM 重试、上下文压缩和 usage 估算。
-- Agent 执行器带有阶段摘要、短进度输出、只读并行执行、一次自动重规划和重复工具调用停滞保护；不会因模型重复无效调用而无限消耗额度。
-- 可观测 StateGraph 运行时：记录 intake / plan / inspect / implement / verify / repair / summarize 节点、trace、预算和可序列化任务指标。
+- 上下文压缩在消息字符数超过 `MINICC_COMPACT_THRESHOLD`（默认 300,000）且可压缩消息多于保留尾部时触发；保留 system 规则和最近 6 条消息，并把旧内容收敛为结构化 checkpoint：任务目标、验收要求、文件路径、digest、验证命令、失败记录、工具统计和归档 hash。checkpoint 会合并到下一次压缩并写入 `AgentState` 快照；完整原文不默认回填，未被提取的细节仍可能丢失，需要重新读取或查看 trace。
+- Agent 执行器带有阶段摘要、短进度输出、只读并行执行、多阶段恢复诊断和重复工具调用保护；重复路径会先复用安全读结果、采集 git/tree 证据并暂缓写入，再重新规划。
+- 可观测 StateGraph 运行时：记录 intake / plan / inspect / implement / verify / repair / summarize 节点、trace、运行统计和可序列化任务指标。
 - 固定 DAG 模板和有界调度：提供 inspect→summarize、inspect→implement→verify、parallel inspect→merge→implement→verify 模板，校验依赖、环和最大并发。
 - 验证器驱动闭环：成功写入后自动运行白名单 pytest，失败最多按 `MINICC_MAX_REPAIR_ATTEMPTS` 回到 repair；验证结果、失败测试、建议和耗时都会写入任务快照。
 - 证据驱动完成评估：验证器之后由独立 LLM completion judge 根据原始需求、工具 trace、修改证据和验证结果返回结构化 `complete` / `continue` / `blocked`；`continue` 会把缺失目标反馈给 Agent 继续执行，评估失败会先触发一次复查，不会直接标绿。
 - 自动并行编排：运行时按需求复杂度和独立工作维度评分；达到阈值后自动创建 2-3 个只读侦察子任务，独立 session 并行执行，父 Agent 收集证据后继续原始实现与验证。任务中心仍保留显式批量入口作为高级控制面板。
-- 推理预算支持 `low`、`mid`、`high`、`xhigh`、`max`；Web 设置可按任务切换，网关不支持时会逐级降档并在 trace 中记录原因。修改后会自动要求下一轮检查 diff 和验证。
+- 推理强度支持 `low`、`mid`、`high`、`xhigh`、`max`；Web 设置可按任务切换，网关不支持时会逐级降档并在 trace 中记录原因。修改后会自动要求下一轮检查 diff 和验证。
 - 受约束动态规划：复杂 Web 任务会先请求模型生成小型 JSON 计划，服务端校验节点数、依赖深度、并发宽度、重试次数和工具白名单；非法或不可用计划自动回退固定 DAG，并记录来源与原因。自动并行子任务仍使用确定性只读职责模板。
-- 依赖感知修复、本地证据检索和阶段路由：优先定位与失败测试和已写入路径相关的证据，按 inspect/implement/verify/review 阶段收紧预算，但不会覆盖用户显式配置的模型。
+- 依赖感知修复、本地证据检索和阶段路由：优先定位与失败测试和已写入路径相关的证据，并按 inspect/implement/verify/review 阶段选择合适的请求策略，不会覆盖用户显式配置的模型。
 - 任务可靠性基线：SQLite 历史、只读检查点 digest 校验、任务级联网授权、脱敏审计导出和离线 30 条评测 fixture。
 - Web 体验：亮色/暗色主题持久化、阶段摘要与工具轮次折叠、长输出边界、仅在用户已接近底部时自动跟随，避免阅读历史时跳屏。
 - 支持 `AGENTS.md`、`CLAUDE.md`、`MINICC.md` 或 `.minicc/instructions.md` 项目指导文件；内容只作为工作约定，不能覆盖系统指令和权限边界。
 - 交互命令：`/help`、`/tools`、`/status`、`/clear`、`/exit`。
 - 会话断点：`--session-id interview-1` 保存本地脱敏 checkpoint，`--resume` 继续。
 
-验证与运行时预算：
+运行与数据策略：
 
 ```text
-# 可选硬上限；默认不限轮次，设置为 0 表示不限
-MINICC_MAX_TURNS=0
+# Web 和 CLI 任务没有总执行时间、模型轮次或工具调用数量上限。
+# 任务会持续到模型交付、用户取消或服务进程结束；断流会自动恢复。
 MINICC_MAX_REPAIR_ATTEMPTS=2
+# 以下是数据保留/并发容量，不会截断正在运行的模型任务。
+MINICC_TASK_HISTORY_LIMIT=24
+MINICC_TASK_HISTORY_MAX_AGE_DAYS=30
+MINICC_TASK_EVENT_LIMIT=768
+MINICC_TASK_STREAM_LIMIT=16000
+MINICC_TASK_USAGE_LIMIT=64
+MINICC_TASK_COMPACTION_LIMIT=64
+MINICC_TASK_QUEUE_LIMIT=32
 ```
 
 运行测试请使用 `python -m pytest -q`；项目已在 pytest 配置中固定工作区导入路径，直接运行 `pytest -q` 也应得到相同结果。
@@ -106,7 +115,7 @@ MINICC_MODEL=gpt-5.6-terra
 
  也可以换成其他 OpenAI 兼容网关。带完整路径的 endpoint 会原样使用；只有裸 API 根地址才会自动补 `/v1`。
 
-推理预算可以通过环境变量或 Web 工作台顶部的“推理强度”按钮（也可在设置面板）调整：
+推理强度可以通过环境变量或 Web 工作台顶部的“推理强度”按钮（也可在设置面板）调整：
 
 ```text
 MINICC_REASONING_EFFORT=high

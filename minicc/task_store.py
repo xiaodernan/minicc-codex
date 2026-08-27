@@ -9,10 +9,14 @@ from __future__ import annotations
 import json
 import sqlite3
 import threading
+import time
 from pathlib import Path
 from typing import Any
 
 from .tools.registry import redact_text
+
+
+TERMINAL_TASK_STATUSES = frozenset({"completed", "failed", "cancelled", "interrupted"})
 
 
 class TaskStore:
@@ -85,6 +89,68 @@ class TaskStore:
                     value["task_id"] = str(row["task_id"])
                 output.append(value)
         return output
+
+    def prune(
+        self,
+        *,
+        keep_terminal: int = 24,
+        max_age_days: int | None = 30,
+        vacuum: bool = False,
+    ) -> list[str]:
+        """Remove old terminal snapshots while preserving active work.
+
+        The newest ``keep_terminal`` terminal records are retained, subject to
+        the age limit. Queued/running records are always retained, and child
+        records referenced by a retained batch are kept for inspectability.
+        Malformed records are left untouched so maintenance cannot destroy
+        data it cannot understand.
+        """
+        keep_terminal = max(0, min(int(keep_terminal), 1000))
+        cutoff = None if max_age_days is None else time.time() - max(1, int(max_age_days)) * 86400
+        deleted: list[str] = []
+        with self._lock, self._connect() as connection:
+            rows = connection.execute(
+                "SELECT task_id, created_at, payload FROM tasks ORDER BY created_at DESC"
+            ).fetchall()
+            terminal: list[sqlite3.Row] = []
+            parsed: dict[str, dict[str, Any]] = {}
+            for row in rows:
+                try:
+                    value = json.loads(row["payload"])
+                except (TypeError, json.JSONDecodeError):
+                    continue
+                if not isinstance(value, dict):
+                    continue
+                parsed[str(row["task_id"])] = value
+                if str(value.get("status") or "") in TERMINAL_TASK_STATUSES:
+                    terminal.append(row)
+
+            retained = {
+                str(row["task_id"])
+                for index, row in enumerate(terminal)
+                if index < keep_terminal and (cutoff is None or float(row["created_at"] or 0) >= cutoff)
+            }
+            # Keep the history needed to explain a retained batch task.
+            pending = list(retained)
+            while pending:
+                parent_id = pending.pop()
+                for child_id in parsed.get(parent_id, {}).get("child_task_ids") or []:
+                    child_key = str(child_id)
+                    if child_key in parsed and child_key not in retained:
+                        retained.add(child_key)
+                        pending.append(child_key)
+
+            for row in terminal:
+                task_id = str(row["task_id"])
+                if task_id not in retained:
+                    deleted.append(task_id)
+            if deleted:
+                connection.executemany("DELETE FROM tasks WHERE task_id = ?", [(task_id,) for task_id in deleted])
+
+        if deleted and vacuum:
+            with self._lock, self._connect() as connection:
+                connection.execute("VACUUM")
+        return deleted
 
 
 _IDENTITY_KEYS = frozenset({"task_id", "session_id", "workspace_path", "parent_id", "child_task_ids"})

@@ -22,6 +22,7 @@ class ToolCall:
     tool: str
     arguments: dict[str, Any] = field(default_factory=dict)
     call_id: str = ""
+    parse_error: str | None = None
 
     @staticmethod
     def from_openai(call: dict[str, Any]) -> ToolCall:
@@ -30,16 +31,31 @@ class ToolCall:
 
         function = call.get("function") or {}
         raw_args = function.get("arguments") or "{}"
+        parse_error: str | None = None
         try:
-            arguments = json.loads(raw_args)
+            if isinstance(raw_args, dict):
+                arguments = raw_args
+            else:
+                arguments = json.loads(raw_args)
         except (json.JSONDecodeError, TypeError):
-            arguments = {"_raw_arguments": raw_args}
+            # Some compatible gateways serialize function arguments with
+            # single quotes.  Accept that narrow Python-literal dialect, but
+            # preserve a structured error when it still cannot be decoded.
+            try:
+                import ast
+
+                arguments = ast.literal_eval(raw_args)
+            except (SyntaxError, ValueError, TypeError, MemoryError, RecursionError):
+                arguments = {}
+                parse_error = "工具参数不是合法 JSON 对象，执行器将把解析错误反馈给模型。"
         if not isinstance(arguments, dict):
-            arguments = {"_raw_arguments": raw_args}
+            arguments = {}
+            parse_error = "工具参数顶层必须是对象，执行器将把解析错误反馈给模型。"
         return ToolCall(
             tool=str(function.get("name") or call.get("name") or ""),
             arguments=arguments,
             call_id=str(call.get("id") or ""),
+            parse_error=parse_error,
         )
 
 

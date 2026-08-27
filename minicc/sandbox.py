@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 import shutil
-import subprocess
-import time
+import threading
 from pathlib import Path
 
-from .tools.bash import run_bash
+from .tools.bash import run_bash, run_process
 from .tools.schemas import ToolResult
 
 
@@ -38,7 +37,13 @@ class SandboxRunner:
             "isolated": backend == "docker",
         }
 
-    def run(self, command: str, workspace: Path, timeout: int = 120) -> ToolResult:
+    def run(
+        self,
+        command: str,
+        workspace: Path,
+        timeout: int = 120,
+        cancel_event: threading.Event | None = None,
+    ) -> ToolResult:
         backend = self.status()["backend"]
         if backend == "unavailable":
             return ToolResult(
@@ -47,31 +52,20 @@ class SandboxRunner:
                 security_tags=["sandbox_unavailable"],
             )
         if backend != "docker":
-            return run_bash(command, workspace, timeout=timeout)
+            return run_bash(command, workspace, timeout=timeout, cancel_event=cancel_event)
 
-        started = time.monotonic()
         args = [
             "docker", "run", "--rm", "--network", "none", "--cap-drop", "ALL",
             "--security-opt", "no-new-privileges", "--pids-limit", "256",
             "--read-only", "--tmpfs", "/tmp", "-v", f"{workspace.resolve()}:/workspace:rw",
             "-w", "/workspace", self.image, "sh", "-lc", command,
         ]
-        try:
-            proc = subprocess.run(args, capture_output=True, text=True, timeout=timeout, check=False)
-        except subprocess.TimeoutExpired:
-            return ToolResult(status="timed_out", summary=f"[TIMED_OUT] Docker 命令超时 ({timeout}s)", security_tags=["sandboxed"])
-        except OSError as exc:
-            return ToolResult(status="error", summary=f"[SANDBOX_ERROR] {exc}", security_tags=["sandbox_error"])
-        output = (proc.stdout or "") + (("\n[stderr]\n" + proc.stderr) if proc.stderr else "")
-        from .tools.registry import split_output
-
-        head, tail, truncated = split_output(output)
-        return ToolResult(
-            status="ok" if proc.returncode == 0 else "error",
-            summary=f"(docker exit {proc.returncode}, {time.monotonic() - started:.1f}s)",
-            head=head,
-            tail=tail,
-            truncated=truncated,
-            exit_code=proc.returncode,
+        return run_process(
+            args,
+            workspace,
+            timeout=timeout,
+            cancel_event=cancel_event,
+            shell=False,
+            summary_label="Docker 命令",
             security_tags=["sandboxed"],
         )

@@ -54,6 +54,7 @@ from tenacity import (
 
 from .base import LLMResponse
 from .envelope import envelope_system_suffix, parse_envelope
+from .usage import cache_summary
 
 _RETRYABLE = (
     RateLimitError,
@@ -81,6 +82,13 @@ _HTTPCORE_STREAM_RETRYABLE = tuple(
     if httpcore is not None and hasattr(httpcore, name)
 )
 _STREAM_RETRYABLE = _RETRYABLE + _HTTPX_STREAM_RETRYABLE + _HTTPCORE_STREAM_RETRYABLE
+_BUILTIN_STREAM_RETRYABLE = (ConnectionError, TimeoutError)
+_MALFORMED_RESPONSE_HINTS = (
+    "expecting value",
+    "expecting property name enclosed",
+    "expecting ',' delimiter",
+    "unterminated string",
+)
 
 TOOLS_REJECTION_HINTS = ("tool", "function")
 REASONING_WIRE_VALUES = {
@@ -99,13 +107,30 @@ REASONING_FALLBACKS = {
 }
 
 
+def _exception_text(exc: BaseException) -> str:
+    """Include wrapped transport/parser causes exposed by compatible SDKs."""
+    parts: list[str] = []
+    seen: set[int] = set()
+    current: BaseException | None = exc
+    while isinstance(current, BaseException) and id(current) not in seen:
+        seen.add(id(current))
+        parts.append(str(current))
+        current = current.__cause__ or current.__context__
+    return " ".join(parts).lower()
+
+
 def _is_retryable(exc: BaseException) -> bool:
-    return isinstance(exc, _RETRYABLE) or _is_gateway_event_source_error(exc)
+    return (
+        isinstance(exc, _RETRYABLE)
+        or isinstance(exc, _BUILTIN_STREAM_RETRYABLE)
+        or _is_gateway_event_source_error(exc)
+        or _is_malformed_response_error(exc)
+    )
 
 
 def _is_gateway_event_source_error(exc: BaseException) -> bool:
     """Recognize transient event-source failures leaked by compatible gateways."""
-    text = str(exc).lower()
+    text = _exception_text(exc)
     return any(
         marker in text
         for marker in (
@@ -113,28 +138,61 @@ def _is_gateway_event_source_error(exc: BaseException) -> bool:
             "kernel_source_unavailable",
             "replay_gap_source",
             "event source lost",
+            "stream disconnected",
+            "disconnected before completion",
         )
     )
 
 
+def _is_malformed_response_error(exc: BaseException) -> bool:
+    """Recognize truncated JSON bodies reported by an SDK decoder."""
+    if isinstance(exc, json.JSONDecodeError):
+        return True
+    text = _exception_text(exc)
+    return any(marker in text for marker in _MALFORMED_RESPONSE_HINTS)
+
+
 def _is_stream_retryable(exc: BaseException) -> bool:
     """The gateway can fail while an already-open chunked body is read."""
-    if isinstance(exc, _STREAM_RETRYABLE):
+    if isinstance(exc, _STREAM_RETRYABLE) or isinstance(exc, _BUILTIN_STREAM_RETRYABLE):
         return True
     # A few compatible gateways leak the transport error as a generic SDK
     # exception while the response body is being consumed.
-    text = str(exc).lower()
+    text = _exception_text(exc)
     return any(
         marker in text
         for marker in (
             "incomplete chunked read",
+            "incomplete read",
             "peer closed connection",
             "remote protocol error",
             "connection reset",
+            "connection closed",
+            "connection aborted",
+            "server disconnected",
+            "reset by peer",
+            "broken pipe",
+            "connection error",
+            "network error",
+            "request timed out",
+            "timed out",
+            "temporarily unavailable",
+            "service unavailable",
+            "bad gateway",
+            "gateway timeout",
+            "read operation timed out",
+            "stream disconnected",
+            "disconnected before completion",
             "kernel event source lost",
             "kernel_source_unavailable",
             "replay_gap_source",
             "event source lost",
+            # Some gateways return a truncated/non-JSON error body. The SDK
+            # exposes only the JSON decoder message, so treat it like a
+            # transient response failure and let the bounded recovery path
+            # decide whether to retry or stop.
+            *_MALFORMED_RESPONSE_HINTS,
+            "stream ended before completion",
         )
     )
 
@@ -196,7 +254,9 @@ def _read_field(obj: Any, name: str, default: Any = None) -> Any:
 
 def _parse_usage(usage: Any) -> dict[str, Any]:
     if usage is None:
-        return {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+        parsed = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+        parsed.update(cache_summary(parsed))
+        return parsed
     prompt_tokens = _read_field(usage, "prompt_tokens", _read_field(usage, "input_tokens", 0))
     completion_tokens = _read_field(usage, "completion_tokens", _read_field(usage, "output_tokens", 0))
     total_tokens = _read_field(usage, "total_tokens", 0)
@@ -207,16 +267,52 @@ def _parse_usage(usage: Any) -> dict[str, Any]:
         "completion_tokens": completion_tokens,
         "total_tokens": total_tokens,
     }
-    for field in ("prompt_cache_hit_tokens", "prompt_cache_miss_tokens"):
-        value = _read_field(usage, field)
-        if value is not None:
-            parsed[field] = value
+    prompt_details = _read_field(usage, "prompt_tokens_details")
+    input_details = _read_field(usage, "input_tokens_details")
+
+    def first_present(*candidates: tuple[Any, str]) -> Any:
+        for obj, field in candidates:
+            value = _read_field(obj, field)
+            if value is not None:
+                return value
+        return None
+
+    cache_hit = first_present(
+        (usage, "prompt_cache_hit_tokens"),
+        (usage, "cache_read_input_tokens"),
+        (prompt_details, "cached_tokens"),
+        (input_details, "cached_tokens"),
+        (usage, "cached_tokens"),
+    )
+    cache_miss = first_present(
+        (usage, "prompt_cache_miss_tokens"),
+        (usage, "cache_miss_input_tokens"),
+        (prompt_details, "cache_miss_tokens"),
+        (input_details, "cache_miss_tokens"),
+    )
+    cache_write = first_present(
+        (usage, "prompt_cache_write_tokens"),
+        (usage, "cache_write_tokens"),
+        (usage, "cache_write_input_tokens"),
+        (usage, "cache_creation_input_tokens"),
+        (prompt_details, "cache_write_tokens"),
+        (input_details, "cache_write_tokens"),
+        (prompt_details, "cache_creation_input_tokens"),
+        (input_details, "cache_creation_input_tokens"),
+    )
+    if cache_hit is not None:
+        parsed["prompt_cache_hit_tokens"] = cache_hit
+    if cache_miss is not None:
+        parsed["prompt_cache_miss_tokens"] = cache_miss
+    if cache_write is not None:
+        parsed["prompt_cache_write_tokens"] = cache_write
     details = _read_field(usage, "completion_tokens_details") or _read_field(usage, "output_tokens_details")
     reasoning = _read_field(details, "reasoning_tokens") if details is not None else None
     if reasoning is None:
         reasoning = _read_field(usage, "reasoning_tokens")
     if reasoning is not None:
         parsed["reasoning_tokens"] = reasoning
+    parsed.update(cache_summary(parsed))
     return parsed
 
 
@@ -311,9 +407,15 @@ class OpenAICompatibleProvider:
         }
 
     async def close(self) -> None:
-        if self._client is not None and hasattr(self._client, "close"):
-            await self._client.close()
-        self._client = None
+        client, self._client = self._client, None
+        if client is not None and hasattr(client, "close"):
+            try:
+                await client.close()
+            except Exception:
+                # A poisoned pool must never prevent task-level recovery from
+                # replacing it. Closing is best effort after cancellation or
+                # a broken event source.
+                pass
 
     # -- public API ------------------------------------------------------------
 
@@ -342,6 +444,14 @@ class OpenAICompatibleProvider:
                     self._protocol = "chat_completions"
                     self._emit_protocol_fallback(exc)
                     continue
+                if (
+                    self._protocol == "responses"
+                    and not self._protocol_locked
+                    and self._looks_like_responses_transport_failure(exc)
+                ):
+                    self._protocol = "chat_completions"
+                    self._emit_transport_protocol_fallback(exc)
+                    continue
                 if not isinstance(exc, BadRequestError):
                     raise
                 if use_native and self._looks_like_tools_rejection(exc):
@@ -369,15 +479,31 @@ class OpenAICompatibleProvider:
                 "detail": {"protocol": "chat_completions", "error_type": type(exc).__name__},
             })
 
+    def _emit_transport_protocol_fallback(self, exc: BaseException) -> None:
+        if self._on_status is not None:
+            self._on_status({
+                "kind": "trace",
+                "name": "provider",
+                "status": "error",
+                "phase": "planning",
+                "code": "provider_transport_fallback",
+                "summary": "Responses 连接在响应体阶段中断，已切换到 Chat Completions 继续任务",
+                "detail": {"protocol": "chat_completions", "error_type": type(exc).__name__},
+            })
+
     @staticmethod
     def _looks_like_responses_rejection(exc: BaseException) -> bool:
         if isinstance(exc, NotFoundError):
             return True
         text = str(exc).lower()
         return any(marker in text for marker in (
-            "responses endpoint", "responses api", "/responses", "unsupported endpoint",
+            "responses endpoint", "responses api", "unsupported endpoint",
             "not implemented", "method not allowed", "404", "405",
         ))
+
+    @staticmethod
+    def _looks_like_responses_transport_failure(exc: BaseException) -> bool:
+        return _is_stream_retryable(exc) or _is_gateway_event_source_error(exc)
 
     @staticmethod
     def is_transient_failure(value: BaseException | str) -> bool:
@@ -429,7 +555,10 @@ class OpenAICompatibleProvider:
         if self._reasoning_enabled:
             kwargs["reasoning_effort"] = REASONING_WIRE_VALUES[self._active_reasoning_effort]
 
-        if on_delta is None:
+        # Envelope actions are machine protocol, not user-facing output.  An
+        # atomic request also prevents malformed JSON from flashing through the
+        # live answer before the loop gets a chance to request a repair.
+        if on_delta is None or (tools and self._mode == "envelope"):
             response = await self._create(kwargs)
             return self._finalize(self._to_response(response), tools)
         return await self._create_stream(kwargs, on_delta, tools)
@@ -458,15 +587,18 @@ class OpenAICompatibleProvider:
             kwargs["reasoning"] = {"effort": REASONING_WIRE_VALUES[self._active_reasoning_effort]}
         response = await self._create_responses(kwargs)
         parsed = self._responses_to_response(response)
-        if on_delta is not None and parsed.content:
+        if on_delta is not None and parsed.content and not (tools and self._mode == "envelope"):
             on_delta(parsed.content)
         return self._finalize(parsed, tools)
 
     async def _create_responses(self, kwargs: dict[str, Any]) -> Any:
         retryer = AsyncRetrying(
-            retry=retry_if_exception(_is_retryable),
+            # Some gateways expose Responses as an event-backed endpoint and
+            # surface a body disconnect as a generic transport exception.
+            retry=retry_if_exception(lambda exc: _is_retryable(exc) or _is_stream_retryable(exc)),
             wait=_wait_retry_after_or_exponential,
             stop=stop_after_attempt(self._max_retries + 1),
+            before_sleep=self._emit_request_retry,
             reraise=True,
         )
 
@@ -582,9 +714,10 @@ class OpenAICompatibleProvider:
 
     async def _create(self, kwargs: dict[str, Any]) -> Any:
         retryer = AsyncRetrying(
-            retry=retry_if_exception(_is_retryable),
+            retry=retry_if_exception(lambda exc: _is_retryable(exc) or _is_stream_retryable(exc)),
             wait=_wait_retry_after_or_exponential,
             stop=stop_after_attempt(self._max_retries + 1),
+            before_sleep=self._emit_request_retry,
             reraise=True,
         )
 
@@ -592,6 +725,30 @@ class OpenAICompatibleProvider:
             return await self.client.chat.completions.create(**kwargs)
 
         return await retryer(_attempt)
+
+    def _emit_request_retry(self, retry_state: RetryCallState) -> None:
+        if self._on_status is None:
+            return
+        outcome = retry_state.outcome
+        exception = outcome.exception() if outcome is not None else None
+        try:
+            self._on_status({
+                "kind": "trace",
+                "name": "provider",
+                "status": "error",
+                "phase": "planning",
+                "code": "provider_request_retry",
+                "summary": f"模型请求暂时失败，正在进行第 {retry_state.attempt_number + 1} 次尝试",
+                "detail": {
+                    "attempt": retry_state.attempt_number + 1,
+                    "retry_limit": self._max_retries + 1,
+                    "error_type": type(exception).__name__ if exception is not None else "unknown",
+                },
+            })
+        except Exception:
+            # Status reporting must never turn a recoverable provider failure
+            # into a task failure.
+            return
 
     async def _create_stream(
         self,
@@ -611,6 +768,7 @@ class OpenAICompatibleProvider:
             tool_acc: dict[int, dict[str, Any]] = {}
             usage: dict[str, Any] = {}
             finish_reason = "stop"
+            stream_completed = False
             model_name = self.model
             try:
                 # Some gateways reject stream_options but support streaming.
@@ -635,18 +793,19 @@ class OpenAICompatibleProvider:
                     choice = choices[0]
                     if getattr(choice, "finish_reason", None):
                         finish_reason = choice.finish_reason
+                        stream_completed = True
                     delta = getattr(choice, "delta", None)
                     if delta is None:
                         continue
                     content = getattr(delta, "content", None)
                     if content:
-                        attempt_text += content
+                        attempt_text, _ = _merge_stream_text(attempt_text, str(content))
                         committed_text, suffix = _merge_stream_text(committed_text, attempt_text)
                         if suffix:
                             on_delta(suffix)
                     reasoning = getattr(delta, "reasoning_content", None)
                     if reasoning:
-                        attempt_reasoning += reasoning
+                        attempt_reasoning, _ = _merge_stream_text(attempt_reasoning, str(reasoning))
                         committed_reasoning, _ = _merge_stream_text(committed_reasoning, attempt_reasoning)
                     for tc in getattr(delta, "tool_calls", None) or ():
                         index = getattr(tc, "index", 0) or 0
@@ -658,10 +817,12 @@ class OpenAICompatibleProvider:
                         function = getattr(tc, "function", None)
                         if function is not None:
                             if getattr(function, "name", None):
-                                slot["name"] += function.name
+                                slot["name"], _ = _merge_stream_text(slot["name"], str(function.name))
                             if getattr(function, "arguments", None):
-                                slot["arguments"] += function.arguments
+                                slot["arguments"], _ = _merge_stream_text(slot["arguments"], str(function.arguments))
 
+                if not stream_completed:
+                    raise RuntimeError("stream ended before completion")
                 response = LLMResponse(
                     content=committed_text or None,
                     reasoning_content=committed_reasoning or None,
@@ -687,6 +848,7 @@ class OpenAICompatibleProvider:
                         "phase": "planning",
                         "code": "provider_retry",
                         "summary": f"模型流中断，正在进行第 {attempt + 1} 次重试",
+                        "detail": {"attempt": attempt + 1, "retry_limit": self._max_retries + 1},
                     })
                 await asyncio.sleep(_stream_retry_delay(exc, attempt))
 

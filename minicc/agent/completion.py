@@ -11,10 +11,12 @@ from __future__ import annotations
 
 import json
 import math
+import threading
 from dataclasses import dataclass, field
 from typing import Any
 
 from ..llm.base import system_msg, user_msg
+from .loop import AgentCancelled, chat_with_cancellation
 from ..tools.registry import redact_text
 
 
@@ -113,11 +115,13 @@ async def judge_completion(
     verification_results: list[dict[str, Any]],
     allow_changes: bool,
     workspace: str,
+    cancel_event: threading.Event | None = None,
 ) -> CompletionDecision:
     """Ask the configured provider for one structured completion decision."""
 
     try:
-        response = await provider.chat(
+        response = await chat_with_cancellation(
+            provider,
             messages=[
                 system_msg(COMPLETION_REVIEW_SYSTEM),
                 user_msg(
@@ -133,7 +137,10 @@ async def judge_completion(
             ],
             tools=None,
             on_delta=None,
+            cancel_event=cancel_event,
         )
+    except AgentCancelled:
+        raise
     except Exception as exc:  # noqa: BLE001 - caller applies conservative fallback
         safe_error, _ = redact_text(f"{type(exc).__name__}: {exc}")
         return CompletionDecision(

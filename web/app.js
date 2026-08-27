@@ -13,6 +13,8 @@ const state = {
   busy: false,
   submitting: false,
   focusMode: localStorage.getItem("minicc-focus-mode") === "true",
+  sidebarCollapsed: localStorage.getItem("minicc-sidebar-collapsed") === "true",
+  inspectorCollapsed: localStorage.getItem("minicc-inspector-collapsed") === "true",
   chatRestoreVersion: 0,
   chatUserScrolledAt: 0,
   activeTaskId: null,
@@ -23,6 +25,10 @@ const state = {
   turns: 12,
   tools: 9,
 };
+
+// Keep only a small client-side detail cache; the durable task index is summary-only.
+const taskDetailsById = new Map();
+const taskDetailLoads = new Map();
 
 const I18N = {
   zh: {
@@ -39,12 +45,12 @@ const I18N = {
     "mode.safe": "只读保护", "mode.changes": "完全访问", "composer.fullAccess": "完全访问：Agent 可以读写文件并执行命令。", "composer.readOnly": "只读保护：写入和命令执行会被跳过。",
     "inspector.overview": "概览", "inspector.changes": "改动", "inspector.files": "关注文件", "protected.title": "受保护工作区",
     "inspector.pulse": "项目状态", "inspector.live": "实时", "inspector.ready": "就绪", "inspector.standingBy": "Agent 正在等待",
-    "inspector.turns": "轮次", "inspector.tools": "工具", "inspector.tokens": "Tokens", "inspector.context": "上下文", "inspector.compactions": "自动压缩", "changes.latest": "最近改动",
+    "inspector.turns": "轮次", "inspector.tools": "工具", "inspector.tokens": "Tokens", "inspector.context": "上下文", "inspector.compactions": "自动压缩", "inspector.cache": "缓存命中", "changes.latest": "最近改动",
     "files.main": "CLI 入口", "files.loop": "工具调用循环", "files.styles": "工作台界面", "files.readme": "项目指南",
     "protected.subtitle": "每个任务单独授权写入", "panel.title": "工作台", "cancel": "取消任务", "working": "执行中", "ready": "就绪",
     "phase.queued": "排队中", "phase.planning": "正在规划", "phase.tool": "正在使用工具", "phase.answering": "正在生成回答", "phase.waiting": "等待模型输出", "phase.merging": "正在合并子任务", "phase.completed": "已完成", "phase.failed": "执行失败", "phase.cancelled": "已取消", "phase.interrupted": "服务重启时中断", "stream.live": "实时回答",
-    "tasks.center": "任务中心", "tasks.open": "打开任务", "tasks.resume": "重新运行", "tasks.children": "子任务", "tasks.tokens": "tokens", "tasks.context": "上下文", "tasks.compacted": "次压缩", "tasks.allWorkspaces": "所有工作区", "tasks.noHistory": "还没有任务记录", "tasks.jumpLatest": "跳到最新", "tasks.following": "跟随最新输出", "tasks.paused": "已暂停自动滚动", "tasks.runtime": "运行时指标", "tasks.repairs": "修复次数", "tasks.verifications": "验证次数", "tasks.traces": "Trace 事件", "tasks.workflow": "工作流",
-    "tool.ok": "完成", "tool.error": "失败", "tool.denied": "已阻止", "tool.searchResults": "搜索来源", "tool.openSource": "打开来源", "tool.round": "工具轮次", "tool.callCount": "次调用", "tool.reasoning": "阶段摘要", "tool.result": "执行结果", "tool.observation": "观察结果", "tool.structured": "结构化证据", "tool.metadata": "执行元数据", "tool.expand": "展开详情", "tool.empty": "工具没有返回额外文本", "trace.feedback": "自反馈",
+    "tasks.center": "任务中心", "tasks.open": "打开任务", "tasks.resume": "重新运行", "tasks.children": "子任务", "tasks.tokens": "tokens", "tasks.context": "上下文", "tasks.cache": "缓存", "tasks.cacheUnreported": "未统计", "tasks.cacheReported": "已返回", "tasks.compacted": "次压缩", "tasks.allWorkspaces": "所有工作区", "tasks.noHistory": "还没有任务记录", "tasks.jumpLatest": "跳到最新", "tasks.following": "跟随最新输出", "tasks.paused": "已暂停自动滚动", "tasks.runtime": "运行时指标", "tasks.repairs": "修复次数", "tasks.verifications": "验证次数", "tasks.traces": "Trace 事件", "tasks.workflow": "工作流",
+    "tool.ok": "完成", "tool.error": "失败", "tool.denied": "已阻止", "tool.searchResults": "搜索来源", "tool.openSource": "打开来源", "tool.round": "工具轮次", "tool.callCount": "次调用", "tool.reasoning": "阶段摘要", "tool.result": "执行结果", "tool.observation": "观察结果", "tool.structured": "结构化证据", "tool.metadata": "执行元数据", "tool.expand": "展开详情", "tool.expandAll": "全部展开", "tool.collapseAll": "全部折叠", "tool.empty": "工具没有返回额外文本", "trace.feedback": "自反馈",
     "workspace.current": "当前工作区", "workspace.path": "文件夹路径", "workspace.open": "打开文件夹", "workspace.recent": "最近打开", "workspace.switching": "正在切换工作区...", "workspace.selectHint": "输入本机文件夹绝对路径，例如 D:\\Projects\\demo",
     "panel.workspaces": "工作区与 Git worktree", "panel.activity": "任务活动", "panel.settings": "设置", "panel.options": "更多选项", "panel.batch": "并行子智能体",
     "panel.file": "文件预览", "panel.noTasks": "还没有后台任务", "panel.refresh": "刷新", "panel.close": "关闭", "tasks.detail": "查看详情", "tasks.openSession": "打开会话",
@@ -56,8 +62,8 @@ const I18N = {
     "game.close": "关闭小游戏", "game.kicker": "MINICC ARCADE · MINI LAWN", "game.title": "植物大战僵尸 · 草坪保卫战",
     "game.subtitle": "10 波高压战役，失败只由僵尸进屋触发；战斗用时仅统计活跃帧，切后台和手动暂停均不消耗进度。", "game.sun": "阳光", "game.score": "击退", "game.wave": "波次",
     "game.ready": "准备就绪", "game.running": "战斗中", "game.paused": "已自动暂停，返回页面后继续", "game.manualPaused": "战局已手动暂停", "game.waveClear": "本波已清场，下一波即将到来", "game.waveIncoming": "强化波次来袭，准备迎战", "game.victory": "草坪守住了！", "game.noSun": "阳光不足", "game.recharging": "卡片冷却中", "game.gameOver": "僵尸进屋了", "game.time": "战斗用时", "game.threat": "威胁", "game.waveHint": "建立防线，下一批僵尸即将抵达", "game.wavePressure": "高压波次：优先布置减速与防线", "game.progress": "战役进度", "game.difficulty": "难度", "game.normal": "标准", "game.hard": "高压", "game.nightmare": "噩梦", "game.pause": "暂停", "game.resume": "继续", "game.pauseHint": "冻结战局", "game.resumeHint": "恢复战局", "game.volume": "音量", "game.shovel": "铲子", "game.shovelHint": "点击植物移除", "game.autoSun": "自动拾取阳光", "game.autoSunHint": "关闭后改为手动点击", "game.repeater": "双发射手", "game.cherrybomb": "爆裂果", "game.icepeashooter": "寒冰射手", "game.burst": "爆发", "game.slow": "减速", "game.peashooter": "豌豆射手", "game.soundOn": "♫ 音效开", "game.soundOff": "♫ 音效关",
-    "game.sunflower": "向日葵", "game.wallnut": "坚果墙", "game.attack": "攻击", "game.produce": "产阳光", "game.defense": "防御",
-    "game.instructions": "点击草坪种植 · 点击阳光收集", "game.start": "开始游戏", "game.restart": "重开",
+    "game.sunflower": "向日葵", "game.wallnut": "坚果墙", "game.attack": "攻击", "game.produce": "产阳光", "game.defense": "防御", "game.firepeashooter": "火焰射手", "game.twinpea": "双发强化", "game.kernelpult": "玉米投手", "game.pumpkin": "南瓜头", "game.spikeweed": "地刺", "game.gloomshroom": "忧郁菇", "game.butter": "黄油定身", "game.armor": "护甲", "game.polevault": "撑杆跳", "game.dancer": "舞王", "game.backup": "伴舞", "game.potatomine": "土豆雷", "game.threepeater": "三线射手", "game.jalapeno": "火爆辣椒", "game.magnetshroom": "磁力菇", "game.garlic": "大蒜", "game.squash": "窝瓜", "game.gatlingpea": "机枪射手", "game.trap": "地雷", "game.utility": "缴械", "game.redirect": "换行", "game.smash": "重击", "game.rapid": "连射", "game.cooldown": "冷却中", "game.newWindow": "新窗口", "game.wideMode": "大屏模式", "game.compactMode": "紧凑模式", "game.fullscreen": "全屏", "game.waveFinal": "终局巨人来袭：用爆发和减速守住最后防线",
+    "game.instructions": "点击卡片选择 · 点击草坪种植 · 每行防线小车仅可触发一次", "game.start": "开始游戏", "game.restart": "重开", "game.mowers": "防线", "game.combo": "连击", "game.energy": "战术能量", "game.skillPulse": "寒冰脉冲", "game.skillPulseHint": "冻结并震击全场僵尸", "game.skillSun": "阳光爆发", "game.skillSunHint": "立即获得 100 阳光", "game.skillRally": "战线超载", "game.skillRallyHint": "植物攻速提升 8 秒", "game.skillReady": "可用", "game.skillCooldown": "冷却中", "game.skillNeedEnergy": "能量不足",
     "message.you": "你", "message.now": "现在", "message.agent": "Agent", "game.canvas": "植物大战僵尸迷你游戏画布",
     "changes.agentCore": "Agent 核心", "changes.webWorkspace": "Web 工作台", "changes.specproof": "Specproof 评估", "changes.filesChanged": "修改 6 个文件", "changes.filesAdded": "新增 3 个文件", "changes.assessmentAdded": "已添加评估", "changes.now": "现在", "changes.minute": "1 分钟前", "changes.clean": "等待变更", "changes.cleanHint": "运行任务后会在这里同步", "changes.modified": "已修改", "changes.added": "已新增", "changes.deleted": "已删除", "changes.renamed": "已重命名", "changes.openDiff": "查看 diff",
   },
@@ -75,12 +81,12 @@ const I18N = {
     "mode.safe": "Read-only", "mode.changes": "Full access", "composer.fullAccess": "Full access: the agent can write files and run commands.", "composer.readOnly": "Read-only: writes and commands are skipped.",
     "inspector.overview": "Overview", "inspector.changes": "Changes", "inspector.files": "Files in focus", "protected.title": "Protected workspace",
     "inspector.pulse": "Project pulse", "inspector.live": "Live", "inspector.ready": "Ready", "inspector.standingBy": "Agent is standing by",
-    "inspector.turns": "Turns", "inspector.tools": "Tools", "inspector.tokens": "Tokens", "inspector.context": "Context", "inspector.compactions": "Compactions", "changes.latest": "Latest changes",
+    "inspector.turns": "Turns", "inspector.tools": "Tools", "inspector.tokens": "Tokens", "inspector.context": "Context", "inspector.compactions": "Compactions", "inspector.cache": "Cache hit", "changes.latest": "Latest changes",
     "files.main": "CLI entrypoint", "files.loop": "Tool calling loop", "files.styles": "Workspace surface", "files.readme": "Project guide",
     "protected.subtitle": "Writes are gated per task", "panel.title": "Workspace", "cancel": "Cancel task", "working": "Working", "ready": "Ready",
     "phase.queued": "Queued", "phase.planning": "Planning", "phase.tool": "Running tools", "phase.answering": "Writing response", "phase.waiting": "Waiting for output", "phase.merging": "Merging subagents", "phase.completed": "Complete", "phase.failed": "Failed", "phase.cancelled": "Cancelled", "phase.interrupted": "Interrupted by restart", "stream.live": "Live response",
-    "tasks.center": "Task center", "tasks.open": "Open task", "tasks.resume": "Run again", "tasks.children": "subtasks", "tasks.tokens": "tokens", "tasks.context": "context", "tasks.compacted": "compactions", "tasks.allWorkspaces": "All workspaces", "tasks.noHistory": "No task history yet", "tasks.jumpLatest": "Jump to latest", "tasks.following": "Following latest output", "tasks.paused": "Auto-scroll paused", "tasks.runtime": "Runtime metrics", "tasks.repairs": "Repairs", "tasks.verifications": "Verifications", "tasks.traces": "Trace events", "tasks.workflow": "Workflow",
-    "tool.ok": "Done", "tool.error": "Failed", "tool.denied": "Blocked", "tool.searchResults": "Search sources", "tool.openSource": "Open source", "tool.round": "Tool round", "tool.callCount": "calls", "tool.reasoning": "Stage summary", "tool.result": "Execution result", "tool.observation": "Observation", "tool.structured": "Structured evidence", "tool.metadata": "Execution metadata", "tool.expand": "Expand details", "tool.empty": "The tool returned no additional text", "trace.feedback": "Self-feedback",
+    "tasks.center": "Task center", "tasks.open": "Open task", "tasks.resume": "Run again", "tasks.children": "subtasks", "tasks.tokens": "tokens", "tasks.context": "context", "tasks.cache": "cache", "tasks.cacheUnreported": "unreported", "tasks.cacheReported": "reported", "tasks.compacted": "compactions", "tasks.allWorkspaces": "All workspaces", "tasks.noHistory": "No task history yet", "tasks.jumpLatest": "Jump to latest", "tasks.following": "Following latest output", "tasks.paused": "Auto-scroll paused", "tasks.runtime": "Runtime metrics", "tasks.repairs": "Repairs", "tasks.verifications": "Verifications", "tasks.traces": "Trace events", "tasks.workflow": "Workflow",
+    "tool.ok": "Done", "tool.error": "Failed", "tool.denied": "Blocked", "tool.searchResults": "Search sources", "tool.openSource": "Open source", "tool.round": "Tool round", "tool.callCount": "calls", "tool.reasoning": "Stage summary", "tool.result": "Execution result", "tool.observation": "Observation", "tool.structured": "Structured evidence", "tool.metadata": "Execution metadata", "tool.expand": "Expand details", "tool.expandAll": "Expand all", "tool.collapseAll": "Collapse all", "tool.empty": "The tool returned no additional text", "trace.feedback": "Self-feedback",
     "workspace.current": "Current workspace", "workspace.path": "Folder path", "workspace.open": "Open folder", "workspace.recent": "Recent folders", "workspace.switching": "Switching workspace...", "workspace.selectHint": "Enter an absolute local path, for example D:\\Projects\\demo",
     "panel.workspaces": "Workspaces & Git worktrees", "panel.activity": "Task activity", "panel.settings": "Settings", "panel.options": "More options", "panel.batch": "Parallel subagents",
     "panel.file": "File preview", "panel.noTasks": "No background tasks yet", "panel.refresh": "Refresh", "panel.close": "Close", "tasks.detail": "Details", "tasks.openSession": "Open session",
@@ -92,8 +98,8 @@ const I18N = {
     "game.close": "Close game", "game.kicker": "MINICC ARCADE · MINI LAWN", "game.title": "Plants vs. Zombies · Mini lawn",
     "game.subtitle": "10 high-pressure waves. Only a zombie reaching the house ends the campaign; battle time counts active frames only.", "game.sun": "Sun", "game.score": "Defeated", "game.wave": "Wave",
     "game.ready": "Ready", "game.running": "Battle", "game.paused": "Paused while this tab is hidden", "game.manualPaused": "Battle paused", "game.waveIncoming": "Reinforced wave incoming", "game.gameOver": "A zombie reached the house", "game.time": "Battle time", "game.threat": "Threat", "game.waveHint": "Build your line; the next pack is approaching", "game.wavePressure": "High-pressure wave: use slows and defenses", "game.progress": "Campaign progress", "game.difficulty": "Difficulty", "game.normal": "Standard", "game.hard": "High pressure", "game.nightmare": "Nightmare", "game.pause": "Pause", "game.resume": "Resume", "game.pauseHint": "Freeze battle", "game.resumeHint": "Resume battle", "game.volume": "Volume", "game.shovel": "Shovel", "game.shovelHint": "Remove a plant", "game.autoSun": "Auto-collect sun", "game.autoSunHint": "Turn off for manual clicks", "game.repeater": "Repeater", "game.cherrybomb": "Burst berry", "game.icepeashooter": "Ice shooter", "game.burst": "burst", "game.slow": "slow", "game.peashooter": "Peashooter", "game.soundOn": "♫ Sound on", "game.soundOff": "♫ Sound off",
-    "game.sunflower": "Sunflower", "game.wallnut": "Wall-nut", "game.attack": "attack", "game.produce": "sun", "game.defense": "defense",
-    "game.instructions": "Click the lawn to plant · click sun to collect", "game.start": "Start game", "game.restart": "Restart",
+    "game.sunflower": "Sunflower", "game.wallnut": "Wall-nut", "game.attack": "attack", "game.produce": "sun", "game.defense": "defense", "game.firepeashooter": "Fire Pea", "game.twinpea": "Twin Pea", "game.kernelpult": "Kernel-pult", "game.pumpkin": "Pumpkin", "game.spikeweed": "Spikeweed", "game.gloomshroom": "Gloom-shroom", "game.butter": "butter stun", "game.armor": "armor", "game.polevault": "Pole Vault", "game.dancer": "Dancer", "game.backup": "backup dancer", "game.potatomine": "Potato Mine", "game.threepeater": "Threepeater", "game.jalapeno": "Jalapeno", "game.magnetshroom": "Magnet-shroom", "game.garlic": "Garlic", "game.squash": "Squash", "game.gatlingpea": "Gatling Pea", "game.trap": "trap", "game.utility": "disarm", "game.redirect": "redirect", "game.smash": "smash", "game.rapid": "rapid fire", "game.cooldown": "recharging", "game.newWindow": "New window", "game.wideMode": "Wide mode", "game.compactMode": "Compact mode", "game.fullscreen": "Fullscreen", "game.waveFinal": "Final wave: use bursts and slows to hold the last line",
+    "game.instructions": "Choose a card · click the lawn to plant · each lane has one safety mower", "game.start": "Start game", "game.restart": "Restart", "game.mowers": "Mowers", "game.combo": "Combo", "game.energy": "Tactical energy", "game.skillPulse": "Frost Pulse", "game.skillPulseHint": "Freeze and shock every zombie", "game.skillSun": "Sun Burst", "game.skillSunHint": "Gain 100 sun instantly", "game.skillRally": "Overdrive", "game.skillRallyHint": "Boost plant fire rate for 8 seconds", "game.skillReady": "Ready", "game.skillCooldown": "Cooling", "game.skillNeedEnergy": "Need energy",
     "message.you": "You", "message.now": "now", "message.agent": "Agent", "game.canvas": "Plants vs. Zombies mini game canvas",
     "changes.agentCore": "Agent core", "changes.webWorkspace": "Web workspace", "changes.specproof": "Specproof review", "changes.filesChanged": "6 files changed", "changes.filesAdded": "3 files added", "changes.assessmentAdded": "assessment added", "changes.now": "now", "changes.minute": "1m", "changes.clean": "Waiting for changes", "changes.cleanHint": "Changes will sync here after a task runs", "changes.modified": "Modified", "changes.added": "Added", "changes.deleted": "Deleted", "changes.renamed": "Renamed", "changes.openDiff": "Open diff",
   },
@@ -111,6 +117,7 @@ function applyLocale() {
   $$(`[data-i18n-aria]`).forEach((element) => { element.setAttribute("aria-label", t(element.dataset.i18nAria)); });
   $("#localeZh")?.classList.toggle("active", state.locale === "zh");
   $("#localeEn")?.classList.toggle("active", state.locale === "en");
+  renderedTaskListKey = "";
   updateReasoningControl();
   if ($("#messageList") && !isSessionBusy(state.sessionId)) renderSession(state.sessionId);
   updateMode();
@@ -150,6 +157,38 @@ function setFocusMode(enabled) {
   state.focusMode = Boolean(enabled);
   localStorage.setItem("minicc-focus-mode", String(state.focusMode));
   applyFocusMode();
+}
+
+function applyPaneLayout() {
+  const root = document.documentElement;
+  root.dataset.sidebarCollapsed = state.sidebarCollapsed ? "true" : "false";
+  root.dataset.inspectorCollapsed = state.inspectorCollapsed ? "true" : "false";
+  const desktop = window.matchMedia?.("(min-width: 1181px)").matches;
+  const sidebarButton = $("#sidebarOpen");
+  const inspectorButton = $("#inspectorToggle");
+  if (sidebarButton && desktop) {
+    sidebarButton.setAttribute("aria-label", state.sidebarCollapsed ? "打开侧栏" : "收起侧栏");
+    sidebarButton.title = state.sidebarCollapsed ? "打开侧栏" : "收起侧栏";
+    sidebarButton.innerHTML = icon(state.sidebarCollapsed ? "panel-left-open" : "panel-left-close");
+  }
+  if (inspectorButton && desktop) {
+    inspectorButton.setAttribute("aria-label", state.inspectorCollapsed ? "打开检查器" : "收起检查器");
+    inspectorButton.title = state.inspectorCollapsed ? "打开检查器" : "收起检查器";
+    inspectorButton.innerHTML = icon(state.inspectorCollapsed ? "panel-right-open" : "panel-right-close");
+  }
+  refreshIcons();
+}
+
+function setSidebarCollapsed(collapsed) {
+  state.sidebarCollapsed = Boolean(collapsed);
+  localStorage.setItem("minicc-sidebar-collapsed", String(state.sidebarCollapsed));
+  applyPaneLayout();
+}
+
+function setInspectorCollapsed(collapsed) {
+  state.inspectorCollapsed = Boolean(collapsed);
+  localStorage.setItem("minicc-inspector-collapsed", String(state.inspectorCollapsed));
+  applyPaneLayout();
 }
 
 function setTheme(theme) {
@@ -217,6 +256,9 @@ let initialMessageMarkup = "";
 let sessionViewReady = false;
 const SESSION_VIEW_PREFIX = "minicc-session-view:";
 const TERMINAL_TASK_STATUSES = new Set(["completed", "failed", "cancelled", "interrupted"]);
+const MAX_SESSION_VIEW_CHARS = 180_000;
+const MAX_SEEN_EVENT_KEYS = 2048;
+const MAX_RENDERED_TIMELINE_EVENTS = 240;
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
@@ -227,6 +269,7 @@ const taskBySession = new Map();
 const taskTimerHandles = new Map();
 const finalizedTaskIds = new Set();
 const renderedHistoryKeys = new Map();
+let renderedTaskListKey = "";
 let changeRefreshTimer = 0;
 
 function escapeHtml(value) {
@@ -282,8 +325,34 @@ function icon(name) {
   return `<i data-lucide="${name}"></i>`;
 }
 
+const LOCAL_ICON_GLYPHS = {
+  "panel-left-close": "‹", plus: "+", search: "⌕", "message-square": "□", "layout-grid": "▦",
+  megaphone: "◢", history: "↶", "gamepad-2": "◇", "more-horizontal": "•••", "chevron-right": "›",
+  "folder-git-2": "□", "settings-2": "⚙", "panel-left": "‹", "brain-circuit": "✦", sun: "☼",
+  maximize: "↗", "panel-right": "›", "arrow-down": "↓", "list-checks": "☷", "chevrons-down": "⇵",
+  "chevrons-up": "⇳", "sparkles": "✦", "alert-triangle": "!", "alert-circle": "!", check: "✓",
+  lock: "□", "globe-2": "◎", "test-tube-2": "◈", "git-branch": "⑂", "file-search-2": "⌕",
+  "layers-3": "▤", "chevron-down": "⌄", "image": "▧", x: "×", "scan-line": "⌁", route: "⌁",
+  "scan-search": "⌕", play: "▶", paperclip: "⌇", "wand-sparkles": "✦", square: "■",
+  "arrow-up": "↑", "refresh-cw": "↻", activity: "•", radio: "◉", "shield-check": "◇",
+  "external-link": "↗", "layout-dashboard": "▦", "book-open": "▤", "maximize-2": "↗",
+  "panel-right-close": "›", "file-code-2": "□", "rotate-ccw": "↶",
+};
+
 function refreshIcons() {
   if (window.lucide) window.lucide.createIcons();
+  else {
+    // The workbench is local-first. Keep controls legible when an optional
+    // icon package is unavailable or a browser has no network access.
+    document.querySelectorAll("[data-lucide]").forEach((node) => {
+      if (node.dataset.iconFallback === "true") return;
+      const name = String(node.dataset.lucide || "");
+      node.textContent = LOCAL_ICON_GLYPHS[name] || "•";
+      node.classList.add("icon-fallback");
+      node.dataset.iconFallback = "true";
+      node.setAttribute("aria-hidden", "true");
+    });
+  }
 }
 
 function sessionViewKey(sessionId, workspacePath = state.workspacePath) {
@@ -291,10 +360,23 @@ function sessionViewKey(sessionId, workspacePath = state.workspacePath) {
   return `${SESSION_VIEW_PREFIX}${workspace}:${encodeURIComponent(sessionId)}`;
 }
 
+function compactSessionMarkup(markup) {
+  const source = String(markup || "");
+  if (source.length <= MAX_SESSION_VIEW_CHARS) return source;
+  const holder = document.createElement("div");
+  holder.innerHTML = source;
+  // Keep the latest messages readable while preventing localStorage from
+  // becoming a second, unbounded transcript database.
+  while (holder.children.length > 2 && holder.innerHTML.length > MAX_SESSION_VIEW_CHARS) {
+    holder.firstElementChild?.remove();
+  }
+  return holder.innerHTML;
+}
+
 function persistSessionView(sessionId = state.sessionId, workspacePath = state.workspacePath) {
   const messageList = $("#messageList");
   if (!messageList) return;
-  const markup = messageList.innerHTML;
+  const markup = compactSessionMarkup(messageList.innerHTML);
   const cacheKey = sessionViewKey(sessionId, workspacePath);
   sessionMarkup.set(cacheKey, markup);
   try {
@@ -308,7 +390,7 @@ function cachedSessionView(sessionId, workspacePath = state.workspacePath) {
   const cacheKey = sessionViewKey(sessionId, workspacePath);
   if (sessionMarkup.has(cacheKey)) return sessionMarkup.get(cacheKey);
   try {
-    const markup = localStorage.getItem(cacheKey);
+    const markup = compactSessionMarkup(localStorage.getItem(cacheKey));
     if (markup) {
       sessionMarkup.set(cacheKey, markup);
       return markup;
@@ -325,12 +407,15 @@ function presetMessageMarkup(sessionId) {
     return `<article class="message assistant-message"><div class="message-meta"><span class="avatar agent-avatar">m</span><strong>minicc</strong><span class="agent-label">Agent</span><time>now</time></div><div class="message-body"><p>Ready when you are. I will inspect the workspace before making a plan.</p></div></article>`;
   }
   const events = eventTimelineMarkup(preset.events || []);
-  return `<article class="message user-message"><div class="message-meta"><span class="avatar user-avatar">Y</span><strong>You</strong><time>now</time></div><div class="message-body"><p>${formatText(preset.user)}</p></div></article><article class="message assistant-message"><div class="message-meta"><span class="avatar agent-avatar">m</span><strong>minicc</strong><span class="agent-label">Agent</span><time>now</time></div><div class="message-body">${events ? `<div class="tool-timeline">${events}</div>` : ""}<p>${formatText(preset.answer)}</p></div></article>`;
+  const execution = executionTrailMarkup(events, preset.events || []);
+  return `<article class="message user-message"><div class="message-meta"><span class="avatar user-avatar">Y</span><strong>You</strong><time>now</time></div><div class="message-body"><p>${formatText(preset.user)}</p></div></article><article class="message assistant-message"><div class="message-meta"><span class="avatar agent-avatar">m</span><strong>minicc</strong><span class="agent-label">Agent</span><time>now</time></div><div class="message-body">${execution}<p>${formatText(preset.answer)}</p></div></article>`;
 }
 
 function executionTrailMarkup(eventMarkup, events) {
   if (!eventMarkup) return "";
-  return `<section class="execution-trail"><div class="execution-trail-head"><span>${escapeHtml(state.locale === "zh" ? "执行脉络与证据" : "Execution trail and evidence")}</span><span>${escapeHtml(eventTimelineSummary(events))}</span></div><div class="tool-timeline">${eventMarkup}</div></section>`;
+  const expandLabel = t("tool.expandAll");
+  const collapseLabel = t("tool.collapseAll");
+  return `<section class="execution-trail" data-agent-timeline data-agent-thread="local"><div class="execution-trail-head"><div class="execution-trail-title"><span class="execution-trail-icon">${icon("list-checks")}</span><span><strong>${escapeHtml(state.locale === "zh" ? "执行脉络与证据" : "Execution trail and evidence")}</strong><small>${escapeHtml(eventTimelineSummary(events))}</small></span></div><div class="execution-trail-actions"><button type="button" class="timeline-control" data-timeline-toggle="expand" aria-label="${escapeHtml(expandLabel)}" title="${escapeHtml(expandLabel)}">${icon("chevrons-down")}<span>${escapeHtml(expandLabel)}</span></button><button type="button" class="timeline-control" data-timeline-toggle="collapse" aria-label="${escapeHtml(collapseLabel)}" title="${escapeHtml(collapseLabel)}">${icon("chevrons-up")}<span>${escapeHtml(collapseLabel)}</span></button></div></div><div class="tool-timeline">${eventMarkup}</div></section>`;
 }
 
 function taskHistoryMarkup(task) {
@@ -366,8 +451,40 @@ function taskHistoryKey(task) {
     task?.finished_at || "",
     String(task?.answer || "").length,
     String(task?.stream_text || "").length,
-    Array.isArray(task?.events) ? task.events.length : 0,
+    Number(task?.stream_length || 0),
+    Number(task?.answer_length || 0),
+    Number(task?.event_cursor || 0),
+    Number(task?.state_version || 0),
+    Array.isArray(task?.events) ? task.events.length : Number(task?.event_count || 0),
   ].join(":");
+}
+
+function cacheTaskDetail(task) {
+  if (!task?.task_id || task.summary_only) return;
+  taskDetailsById.delete(task.task_id);
+  taskDetailsById.set(task.task_id, task);
+  while (taskDetailsById.size > 12) taskDetailsById.delete(taskDetailsById.keys().next().value);
+}
+
+async function hydrateTaskForSession(taskId, sessionId) {
+  if (!taskId) return null;
+  if (taskDetailsById.has(taskId)) return taskDetailsById.get(taskId);
+  if (!taskDetailLoads.has(taskId)) {
+    const load = requestJson(`/api/tasks/${encodeURIComponent(taskId)}`, {}, 12000)
+      .then((task) => {
+        cacheTaskDetail(task);
+        const items = taskHistoryListBySession.get(sessionId) || [];
+        const merged = items.map((item) => item.task_id === task.task_id ? task : item);
+        if (!merged.some((item) => item.task_id === task.task_id)) merged.unshift(task);
+        taskHistoryListBySession.set(sessionId, merged);
+        taskHistoryBySession.set(sessionId, task);
+        if (state.sessionId === sessionId && !isSessionBusy(sessionId)) renderSession(sessionId);
+        return task;
+      })
+      .finally(() => taskDetailLoads.delete(taskId));
+    taskDetailLoads.set(taskId, load);
+  }
+  return taskDetailLoads.get(taskId);
 }
 
 function renderSession(sessionId, options = {}) {
@@ -381,7 +498,7 @@ function renderSession(sessionId, options = {}) {
   const defaultSubtitle = state.locale === "zh" ? "为下一次修改准备一个干净上下文。" : "A clean context for the next change.";
   $("#sessionTitle").textContent = history ? String(history.preview || history.prompt || defaultTitle).slice(0, 72) : (state.locale === "zh" ? (preset?.titleZh || preset?.title || defaultTitle) : (preset?.title || defaultTitle));
   $("#sessionSubtitle").textContent = history ? phaseLabel(history) : (state.locale === "zh" ? (preset?.subtitleZh || preset?.subtitle || defaultSubtitle) : (preset?.subtitle || defaultSubtitle));
-  const markup = history
+  const markup = history && !history.summary_only
     ? taskHistoryListMarkup(historyItems?.length ? historyItems : [history])
     : (cachedSessionView(sessionId) || (sessionId === "interview-1" ? initialMessageMarkup : presetMessageMarkup(sessionId)));
   if (markup) $("#messageList").innerHTML = markup;
@@ -405,48 +522,66 @@ function renderTaskHistory(tasks) {
   if (!list) return;
   const previousScrollTop = list.scrollTop;
   const wasAtTop = previousScrollTop <= 4;
+  const normalizedTasks = Array.isArray(tasks)
+    ? tasks.map((task) => {
+        const cached = taskDetailsById.get(task?.task_id);
+        return cached ? { ...cached, ...task, summary_only: false } : task;
+      })
+    : [];
+  const nextTaskListKey = normalizedTasks.map((task) => taskHistoryKey(task)).join("|");
   taskHistoryBySession.clear();
   taskHistoryListBySession.clear();
-  for (const task of Array.isArray(tasks) ? tasks : []) {
+  for (const task of normalizedTasks) {
     const sessionId = String(task.session_id || task.task_id || "web-latest");
     if (!taskHistoryBySession.has(sessionId)) taskHistoryBySession.set(sessionId, task);
     if (!taskHistoryListBySession.has(sessionId)) taskHistoryListBySession.set(sessionId, []);
     taskHistoryListBySession.get(sessionId).push(task);
   }
-  if (!Array.isArray(tasks) || !tasks.length) {
+  const listChanged = renderedTaskListKey !== nextTaskListKey || list.dataset.historyLoaded !== "true";
+  if (!normalizedTasks.length) {
     $("#taskNavCount").textContent = "0";
-    list.innerHTML = `<div class="thread-empty">${escapeHtml(t("tasks.noHistory"))}</div>`;
+    if (listChanged) list.innerHTML = `<div class="thread-empty">${escapeHtml(t("tasks.noHistory"))}</div>`;
+    renderedTaskListKey = nextTaskListKey;
     list.dataset.historyLoaded = "true";
     return;
   }
-  const visible = tasks.slice(0, 30);
-  list.innerHTML = visible.map((task) => {
-    const sessionId = String(task.session_id || task.task_id || "web-latest");
-    const title = String(task.preview || task.prompt || task.task_id || "Task").replace(/\s+/g, " ").trim();
-    const status = phaseLabel(task);
-    const detail = `${status} · ${task.task_id || ""}`;
-    return `<button class="thread-item ${sessionId === state.sessionId ? "active" : ""}" data-session="${escapeHtml(sessionId)}" data-task-id="${escapeHtml(task.task_id || "")}">
-      <span class="thread-dot ${taskDotClass(task.status)}"></span>
-      <span class="thread-copy"><strong>${escapeHtml(title.slice(0, 72))}</strong><small>${escapeHtml(detail)}</small></span>
-      ${icon("chevron-right")}
-    </button>`;
-  }).join("");
+  const visible = normalizedTasks.slice(0, 30);
+  if (listChanged) {
+    list.innerHTML = visible.map((task) => {
+      const sessionId = String(task.session_id || task.task_id || "web-latest");
+      const title = String(task.preview || task.prompt || task.task_id || "Task").replace(/\s+/g, " ").trim();
+      const status = phaseLabel(task);
+      const detail = `${status} · ${task.task_id || ""}`;
+      return `<button class="thread-item ${sessionId === state.sessionId ? "active" : ""}" data-session="${escapeHtml(sessionId)}" data-task-id="${escapeHtml(task.task_id || "")}">
+        <span class="thread-dot ${taskDotClass(task.status)}"></span>
+        <span class="thread-copy"><strong>${escapeHtml(title.slice(0, 72))}</strong><small>${escapeHtml(detail)}</small></span>
+        ${icon("chevron-right")}
+      </button>`;
+    }).join("");
+  } else {
+    $$(".thread-item").forEach((item) => item.classList.toggle("active", item.dataset.session === state.sessionId));
+  }
+  renderedTaskListKey = nextTaskListKey;
   list.dataset.historyLoaded = "true";
-  $("#taskNavCount").textContent = String(tasks.length);
+  $("#taskNavCount").textContent = String(normalizedTasks.length);
   // A user-created session is intentionally allowed to have no history yet.
   // Do not replace it with the newest durable task during the 5s refresh loop.
   const currentHistory = taskHistoryBySession.get(state.sessionId);
-  if (
+  if (currentHistory?.summary_only && currentHistory.task_id) {
+    hydrateTaskForSession(currentHistory.task_id, state.sessionId).catch(() => {});
+  } else if (
     currentHistory
     && !isSessionBusy(state.sessionId)
     && renderedHistoryKeys.get(state.sessionId) !== taskHistoryKey(taskHistoryListBySession.get(state.sessionId) || currentHistory)
   ) {
     renderSession(state.sessionId);
   }
-  refreshIcons();
-  window.requestAnimationFrame(() => {
-    list.scrollTop = wasAtTop ? 0 : Math.min(previousScrollTop, Math.max(0, list.scrollHeight - list.clientHeight));
-  });
+  if (listChanged) {
+    refreshIcons();
+    window.requestAnimationFrame(() => {
+      list.scrollTop = wasAtTop ? 0 : Math.min(previousScrollTop, Math.max(0, list.scrollHeight - list.clientHeight));
+    });
+  }
 }
 
 async function loadTaskHistory() {
@@ -580,6 +715,12 @@ function setSession(sessionId) {
     persistSessionView();
   }
   state.sessionId = sessionId;
+  if (sessionChanged || !sessionTaskBindings(sessionId).some((binding) => binding.taskId === state.activeTaskId)) {
+    const bindings = sessionTaskBindings(sessionId);
+    state.activeTaskId = bindings.length
+      ? bindings[bindings.length - 1].taskId
+      : taskBySession.get(taskSessionKey(sessionId)) || null;
+  }
   localStorage.setItem("minicc-session", sessionId);
   $("#topSession").textContent = sessionId;
   $$(".thread-item").forEach((item) => item.classList.toggle("active", item.dataset.session === sessionId));
@@ -588,7 +729,8 @@ function setSession(sessionId) {
 }
 
 function taskSessionKey(sessionId, workspacePath = state.workspacePath) {
-  return `${workspacePath || "default"}::${sessionId}`;
+  const normalizedWorkspace = String(workspacePath || "default").replaceAll("\\", "/").replace(/\/+$/, "").toLowerCase();
+  return `${normalizedWorkspace}::${sessionId}`;
 }
 
 function sessionTaskBindings(sessionId, workspacePath = state.workspacePath) {
@@ -600,7 +742,10 @@ function sessionTaskBindings(sessionId, workspacePath = state.workspacePath) {
 }
 
 function isSessionBusy(sessionId) {
-  return sessionTaskBindings(sessionId).length > 0 || taskBySession.has(taskSessionKey(sessionId));
+  if (sessionTaskBindings(sessionId).length > 0) return true;
+  const taskId = taskBySession.get(taskSessionKey(sessionId));
+  const binding = taskId ? runningTasks.get(taskId) : null;
+  return Boolean(binding && !isTerminalTask(binding.data));
 }
 
 function formatDuration(value) {
@@ -625,7 +770,10 @@ function updateTaskDuration(data, loadingId = "") {
   const duration = formatDuration(taskDuration(data));
   if (loadingId) document.getElementById(loadingId)?.querySelectorAll("[data-live-duration]").forEach((item) => { item.textContent = duration; });
   const binding = data?.task_id ? runningTasks.get(data.task_id) : null;
-  if (!binding || binding.sessionId === state.sessionId) {
+  const scopedData = binding
+    ? { ...data, session_id: binding.sessionId, workspace_path: binding.workspacePath }
+    : data;
+  if (isFocusedTask(scopedData)) {
     const dockTimer = $("#taskDockTimer");
     if (dockTimer && (!state.lastTask || state.lastTask.task_id === data?.task_id)) dockTimer.textContent = duration;
   }
@@ -651,11 +799,99 @@ function stopTaskTimer(taskId) {
   taskTimerHandles.delete(taskId);
 }
 
+function eventSequence(value) {
+  const sequence = Number(value);
+  return Number.isFinite(sequence) && sequence > 0 ? Math.floor(sequence) : 0;
+}
+
+function eventIdentity(event) {
+  if (!event || typeof event !== "object") return "";
+  if (event.item_id) return `item:${event.item_id}`;
+  if (event.event_id) return `id:${event.event_id}`;
+  const sequence = eventSequence(event.sequence);
+  if (sequence) return `seq:${sequence}`;
+  return `fallback:${[event.kind, event.code, event.name, event.status, event.summary, event.path].map((item) => String(item || "")).join("|")}`;
+}
+
+function mergeTimelineEvents(current, incoming) {
+  const merged = new Map();
+  for (const event of [...(Array.isArray(current) ? current : []), ...(Array.isArray(incoming) ? incoming : [])]) {
+    if (!event || typeof event !== "object") continue;
+    const key = eventIdentity(event);
+    if (key) merged.set(key, { ...event });
+  }
+  return [...merged.values()]
+    .sort((left, right) => eventSequence(left.sequence) - eventSequence(right.sequence))
+    .slice(-1024);
+}
+
+function markBindingEvents(binding, events) {
+  const remember = (set, value) => {
+    if (!value) return;
+    set.delete(value);
+    set.add(value);
+    while (set.size > MAX_SEEN_EVENT_KEYS) set.delete(set.values().next().value);
+  };
+  for (const event of Array.isArray(events) ? events : []) {
+    if (!event || typeof event !== "object") continue;
+    const sequence = eventSequence(event.sequence);
+    if (sequence) remember(binding.seenSequences, sequence);
+    if (event.event_id) remember(binding.seenEventIds, String(event.event_id));
+    if (event.item_id) remember(binding.seenEventIds, `item:${event.item_id}`);
+  }
+}
+
+function applyTaskSnapshot(binding, snapshot, { replaceEvents = true } = {}) {
+  const incoming = snapshot && typeof snapshot === "object" ? snapshot : {};
+  const previous = binding.data && typeof binding.data === "object" ? binding.data : {};
+  const previousCursor = eventSequence(binding.cursor || previous.event_cursor);
+  const incomingCursor = eventSequence(incoming.event_cursor);
+  if (previousCursor && incomingCursor && incomingCursor < previousCursor) return previous;
+  const next = { ...previous, ...incoming };
+  if (Array.isArray(incoming.events)) {
+    next.events = replaceEvents
+      ? incoming.events.filter((event) => event && typeof event === "object").map((event) => ({ ...event }))
+      : mergeTimelineEvents(previous.events, incoming.events);
+  }
+  binding.cursor = Math.max(previousCursor, incomingCursor);
+  next.event_cursor = binding.cursor;
+  next.session_id = next.session_id || binding.sessionId;
+  next.workspace_path = next.workspace_path || binding.workspacePath;
+  binding.data = next;
+  markBindingEvents(binding, next.events);
+  return next;
+}
+
 function bindRunningTask(task, loadingId, sessionId = state.sessionId) {
+  if (!task?.task_id) return null;
   finalizedTaskIds.delete(task.task_id);
-  const binding = { taskId: task.task_id, sessionId, workspacePath: task.workspace_path || state.workspacePath, loadingId, data: task };
+  const previous = runningTasks.get(task.task_id);
+  const binding = previous || {
+    taskId: task.task_id,
+    sessionId,
+    workspacePath: task.workspace_path || state.workspacePath,
+    loadingId,
+    data: task,
+    cursor: 0,
+    seenSequences: new Set(),
+    seenEventIds: new Set(),
+  };
+  binding.sessionId = sessionId || binding.sessionId || state.sessionId;
+  binding.workspacePath = task.workspace_path || binding.workspacePath || state.workspacePath;
+  binding.loadingId = loadingId || binding.loadingId || `loading-${task.task_id}`;
+  if (previous) applyTaskSnapshot(binding, task, { replaceEvents: true });
+  else {
+    binding.data = task;
+    binding.cursor = eventSequence(task.event_cursor);
+    markBindingEvents(binding, task.events);
+  }
   runningTasks.set(task.task_id, binding);
-  taskBySession.set(taskSessionKey(sessionId, binding.workspacePath), task.task_id);
+  const scopeKey = taskSessionKey(sessionId, binding.workspacePath);
+  const previousId = taskBySession.get(scopeKey);
+  const previousScoped = previousId ? runningTasks.get(previousId) : null;
+  if (!previousScoped || Number(task.created_at_epoch || 0) >= Number(previousScoped.data?.created_at_epoch || 0)) {
+    taskBySession.set(scopeKey, task.task_id);
+  }
   state.activeTaskId = sessionId === state.sessionId ? task.task_id : state.activeTaskId;
   startTaskTimer(task.task_id);
   return binding;
@@ -664,14 +900,16 @@ function bindRunningTask(task, loadingId, sessionId = state.sessionId) {
 function restoreSessionTask(sessionId) {
   const bindings = sessionTaskBindings(sessionId);
   if (!bindings.length) {
+    if (sessionId === state.sessionId) state.activeTaskId = null;
     setBusy(false);
     return;
   }
+  if (sessionId === state.sessionId) state.activeTaskId = bindings[bindings.length - 1].taskId;
   for (const binding of bindings) {
     if (!document.getElementById(binding.loadingId)) addLoadingMessage(binding.loadingId, binding.data, { scrollToLatest: false });
     updateLiveTask(binding.loadingId, binding.data);
   }
-  state.activeTaskId = bindings[bindings.length - 1].taskId;
+  if (sessionId === state.sessionId) state.activeTaskId = bindings[bindings.length - 1].taskId;
   setBusy(true);
 }
 
@@ -739,13 +977,42 @@ function compactNumber(value) {
   return String(Math.round(number));
 }
 
+function cacheMetric(data) {
+  const metrics = data?.metrics && typeof data.metrics === "object" ? data.metrics : {};
+  const tokens = data?.tokens_used && typeof data.tokens_used === "object" ? data.tokens_used : {};
+  const status = String(metrics.cache_status || "");
+  let rate = typeof metrics.cache_hit_rate === "number" ? metrics.cache_hit_rate : NaN;
+  if (!Number.isFinite(rate)) {
+    const hit = Number(tokens.prompt_cache_hit_tokens);
+    const miss = Number(tokens.prompt_cache_miss_tokens);
+    if (Number.isFinite(hit) && Number.isFinite(miss) && hit + miss > 0) rate = hit / (hit + miss);
+  }
+  if (Number.isFinite(rate)) return `${Math.round(rate * 100)}%`;
+  if (status === "reported" || status === "reported_zero") return t("tasks.cacheReported");
+  return t("tasks.cacheUnreported");
+}
+
+function isCurrentTaskScope(data) {
+  if (!data?.task_id) return true;
+  if (String(data.session_id || "") !== String(state.sessionId || "")) return false;
+  if (data.workspace_path && state.workspacePath) {
+    return taskSessionKey(data.session_id, data.workspace_path) === taskSessionKey(state.sessionId, state.workspacePath);
+  }
+  return true;
+}
+
+function isFocusedTask(data) {
+  if (!isCurrentTaskScope(data)) return false;
+  return !data?.task_id || !state.activeTaskId || String(data.task_id) === String(state.activeTaskId);
+}
+
 function taskMetrics(data) {
   const tokens = Number(data.tokens_used?.total_tokens || 0);
   const context = Number(data.context?.tokens || 0);
   const limit = Number(data.context?.limit_tokens || state.contextWindowTokens || 300000);
   const estimated = data.tokens_used?.estimated || data.usage_by_turn?.some((item) => item.estimated);
   const tokenText = `${estimated ? "~" : ""}${compactNumber(tokens)} ${t("tasks.tokens")}`;
-  return `${tokenText} · ${compactNumber(context)}/${compactNumber(limit)} ${t("tasks.context")}`;
+  return `${tokenText} · ${compactNumber(context)}/${compactNumber(limit)} ${t("tasks.context")} · ${t("tasks.cache")} ${cacheMetric(data)}`;
 }
 
 function runtimeMetricsMarkup(data) {
@@ -753,7 +1020,7 @@ function runtimeMetricsMarkup(data) {
   if (!metrics || typeof metrics !== "object" || (!metrics.workflow && !metrics.verification_runs && !metrics.trace_events)) return "";
   const budget = metrics.budget && typeof metrics.budget === "object" ? metrics.budget : {};
   const duration = formatDuration(metrics.duration_seconds || 0);
-  return `<div><div class="panel-section-title">${escapeHtml(t("tasks.runtime"))}</div><div class="status-grid"><div><span>${escapeHtml(t("tasks.workflow"))}</span><strong>${escapeHtml(String(metrics.workflow || "coding"))}</strong><small>${escapeHtml(String(metrics.phase || data.phase || ""))}</small></div><div><span>${escapeHtml(t("tasks.repairs"))}</span><strong>${escapeHtml(String(metrics.repair_attempts || 0))}</strong><small>${escapeHtml(duration)}</small></div><div><span>${escapeHtml(t("tasks.verifications"))}</span><strong>${escapeHtml(String(metrics.verification_runs || 0))}</strong><small>${escapeHtml(String(metrics.verification_status || ""))}</small></div><div><span>${escapeHtml(t("tasks.traces"))}</span><strong>${escapeHtml(String(metrics.trace_events || 0))}</strong><small>${escapeHtml(`${budget.turns || 0} turns · ${budget.tool_calls || 0} tools`)}</small></div></div></div>`;
+  return `<div><div class="panel-section-title">${escapeHtml(t("tasks.runtime"))}</div><div class="status-grid"><div><span>${escapeHtml(t("tasks.workflow"))}</span><strong>${escapeHtml(String(metrics.workflow || "coding"))}</strong><small>${escapeHtml(String(metrics.phase || data.phase || ""))}</small></div><div><span>${escapeHtml(t("tasks.repairs"))}</span><strong>${escapeHtml(String(metrics.repair_attempts || 0))}</strong><small>${escapeHtml(duration)}</small></div><div><span>${escapeHtml(t("tasks.verifications"))}</span><strong>${escapeHtml(String(metrics.verification_runs || 0))}</strong><small>${escapeHtml(String(metrics.verification_status || ""))}</small></div><div><span>${escapeHtml(t("tasks.cache"))}</span><strong>${escapeHtml(cacheMetric(data))}</strong><small>${escapeHtml(String(metrics.cache_status || ""))}</small></div><div><span>${escapeHtml(t("tasks.traces"))}</span><strong>${escapeHtml(String(metrics.trace_events || 0))}</strong><small>${escapeHtml(`${budget.turns || 0} turns · ${budget.tool_calls || 0} tools`)}</small></div></div></div>`;
 }
 
 function updateInspectorMetrics(data) {
@@ -763,12 +1030,14 @@ function updateInspectorMetrics(data) {
   const limit = Number(data.context?.limit_tokens || state.contextWindowTokens || 300000);
   $("#tokenMetric").textContent = compactNumber(tokens);
   $("#contextMetric").textContent = `${compactNumber(context)}/${compactNumber(limit)}`;
+  $("#cacheMetric").textContent = cacheMetric(data);
   $("#compactionMetric").textContent = String(data.compaction_events?.length || 0);
   $("#contextCount").textContent = taskMetrics(data);
 }
 
 function updateTaskDock(data) {
-  if (!data) return;
+  if (!data || !isFocusedTask(data)) return;
+  if (data.task_id && !state.activeTaskId) state.activeTaskId = data.task_id;
   state.lastTask = data;
   const dock = $("#taskDock");
   if (!dock) return;
@@ -845,15 +1114,21 @@ function traceLabel(event) {
         node_entered: "运行节点",
         stage_route: "阶段路由",
         local_evidence_index: "本地证据",
-        reasoning_configured: "推理预算",
+        reasoning_configured: "推理强度",
         image_attached: "视觉输入",
         model_decision: "模型决策",
         model_update: "模型行动说明",
+        model_update_history: "此前行动说明",
         tool_round_started: "执行计划",
         tool_round_finished: "结果汇总",
         feedback_observed: "自反馈",
         replan: "重新规划",
         stagnation_replan: "停滞纠偏",
+        recovery_probe_finished: "恢复诊断",
+        recovery_inspection_passed: "解除写入保护",
+        recovery_required_before_finish: "恢复保护",
+        recovery_guard: "恢复保护",
+        task_stagnation_recovery: "错误路径修复",
         verification_required: "验证门禁",
         verification_observed: "验证证据",
         context_compacted: "上下文压缩",
@@ -889,15 +1164,21 @@ function traceLabel(event) {
         node_entered: "Runtime node",
         stage_route: "Stage route",
         local_evidence_index: "Local evidence",
-        reasoning_configured: "Reasoning budget",
+        reasoning_configured: "Reasoning effort",
         image_attached: "Vision input",
         model_decision: "Model decision",
         model_update: "Model update",
+        model_update_history: "Earlier updates",
         tool_round_started: "Execution plan",
         tool_round_finished: "Results merged",
         feedback_observed: "Self-feedback",
         replan: "Re-plan",
         stagnation_replan: "Stagnation recovery",
+        recovery_probe_finished: "Recovery probe",
+        recovery_inspection_passed: "Write guard released",
+        recovery_required_before_finish: "Recovery guard",
+        recovery_guard: "Recovery guard",
+        task_stagnation_recovery: "Task error recovery",
         verification_required: "Verification gate",
         verification_observed: "Verification evidence",
         context_compacted: "Context compaction",
@@ -970,10 +1251,10 @@ function traceDetailPreview(event) {
   if (detail == null) return "";
   if (typeof detail !== "object" || Array.isArray(detail)) return detailValueText(detail, 96);
   const labels = state.locale === "zh"
-    ? { turn: "轮次", previous_turn: "上一轮", tool_count: "工具", results: "结果", observed: "已观察", observations: "观察", constraints: "约束", failed_tools: "失败", verification_required: "需验证", assessment: "反馈", trigger: "触发", next_action: "下一步" }
-    : { turn: "turn", previous_turn: "previous", tool_count: "tools", results: "results", observed: "observed", observations: "observations", constraints: "constraints", failed_tools: "failed", verification_required: "verify", assessment: "assessment", trigger: "trigger", next_action: "next" };
+    ? { turn: "轮次", previous_turn: "上一轮", tool_count: "工具", results: "结果", observed: "已观察", observations: "观察", constraints: "约束", failed_tools: "失败", verification_required: "需验证", recovery_inspection_required: "写入保护", assessment: "反馈", trigger: "触发", next_action: "下一步" }
+    : { turn: "turn", previous_turn: "previous", tool_count: "tools", results: "results", observed: "observed", observations: "observations", constraints: "constraints", failed_tools: "failed", verification_required: "verify", recovery_inspection_required: "write guard", assessment: "assessment", trigger: "trigger", next_action: "next" };
   const parts = [];
-  for (const key of ["turn", "previous_turn", "tool_count", "results", "observed", "observations", "constraints", "failed_tools", "verification_required", "assessment", "trigger", "next_action"]) {
+  for (const key of ["turn", "previous_turn", "tool_count", "results", "observed", "observations", "constraints", "failed_tools", "verification_required", "recovery_inspection_required", "assessment", "trigger", "next_action"]) {
     const value = detail[key];
     if (value == null || value === "") continue;
     const compact = Array.isArray(value)
@@ -1047,15 +1328,66 @@ function eventImportance(event) {
   return "low";
 }
 
+function normalizeModelUpdateEvents(events) {
+  const normalized = [];
+  let previous = "";
+  for (const source of Array.isArray(events) ? events : []) {
+    if (source?.code !== "model_update" || typeof source?.detail?.text !== "string") {
+      normalized.push(source);
+      continue;
+    }
+    const current = source.detail.text.trim();
+    if (!current) continue;
+    let delta = current;
+    if (previous && current.startsWith(previous)) delta = current.slice(previous.length);
+    else if (previous && previous.startsWith(current)) delta = "";
+    previous = current.length >= previous.length || !current.startsWith(previous) ? current : previous;
+    if (!delta) continue;
+    normalized.push({ ...source, detail: { ...source.detail, text: delta } });
+  }
+  return normalized;
+}
+
 function visibleAgentEvents(events) {
   const visible = [];
   let previousKey = "";
-  for (const event of Array.isArray(events) ? events : []) {
+  for (const event of normalizeModelUpdateEvents(events)) {
     const key = [event?.kind, event?.code, event?.name, event?.status, shortEventText(event, 90), event?.path || ""].join("|");
     if (key !== previousKey) visible.push(event);
     previousKey = key;
   }
   return visible;
+}
+
+function compactModelUpdateEvents(events) {
+  const visible = visibleAgentEvents(events);
+  const updateIndexes = visible
+    .map((event, index) => event?.code === "model_update" ? index : -1)
+    .filter((index) => index >= 0);
+  if (updateIndexes.length <= 1) return visible;
+  const latestIndex = updateIndexes[updateIndexes.length - 1];
+  const firstIndex = updateIndexes[0];
+  const previousUpdates = updateIndexes
+    .slice(0, -1)
+    .map((index) => String(visible[index]?.detail?.text || "").trim())
+    .filter(Boolean);
+  const historyEvent = {
+    ...visible[firstIndex],
+    code: "model_update_history",
+    summary: state.locale === "zh"
+      ? `此前行动说明 · ${previousUpdates.length} 条`
+      : `Earlier action updates · ${previousUpdates.length}`,
+    detail: { count: previousUpdates.length, updates: previousUpdates },
+  };
+  return visible.filter((_event, index) => !updateIndexes.includes(index) || index === firstIndex || index === latestIndex)
+    .map((event, index, compacted) => {
+      // The first retained model slot is the folded history entry; the last
+      // one remains the only public action block shown at full size.
+      if (event?.code === "model_update" && event !== visible[latestIndex]) {
+        return historyEvent;
+      }
+      return event;
+    });
 }
 
 function eventTimelineSummary(events) {
@@ -1070,7 +1402,7 @@ function summarizeRound(items, roundNumber) {
   const failed = tools.some((event) => ["error", "failed", "denied"].includes(String(event.status || "").toLowerCase()));
   const names = [...new Set(tools.map((event) => String(event.name || "tool")).filter(Boolean))];
   const detail = names.slice(0, 4).join(" · ") || (state.locale === "zh" ? "整理执行步骤" : "Organized execution steps");
-  return { failed, detail, title: state.locale === "zh" ? `第 ${roundNumber} 轮 · ${tools.length} 次操作` : `Round ${roundNumber} · ${tools.length} actions`, status: failed ? (state.locale === "zh" ? "需处理" : "Needs attention") : (state.locale === "zh" ? "已完成" : "Complete") };
+  return { failed, detail, title: state.locale === "zh" ? `第 ${roundNumber} 组命令 · ${tools.length} 条` : `Command group ${roundNumber} · ${tools.length} commands`, status: failed ? (state.locale === "zh" ? "需处理" : "Needs attention") : (state.locale === "zh" ? "已完成" : "Complete") };
 }
 
 function toolResultMarkup(event) {
@@ -1116,12 +1448,26 @@ function toolEventHtml(event, animate = false, anchor = "", open = false) {
     const detail = traceDetail(event, { omitText: event.code === "model_update" });
     const publicText = event.code === "model_update" && typeof event.detail?.text === "string" ? event.detail.text : "";
     const tracePhase = event.code === "run_finished" ? "completed" : event.phase;
-    const isModelEvent = ["model_update", "replan"].includes(String(event.code || "")) || String(event.code || "").startsWith("completion_");
-    const summary = String(event.summary || traceLabel(event));
+    const isModelEvent = String(event.code || "") === "model_update";
+    const summary = isModelEvent && event.code === "model_update"
+      ? (state.locale === "zh" ? `行动说明 · 第 ${event.detail?.turn || ""} 轮` : `Action · turn ${event.detail?.turn || ""}`)
+      : String(event.summary || traceLabel(event));
     const publicMarkup = publicText ? `<div class="trace-public-plan"><span>${escapeHtml(state.locale === "zh" ? "公开行动" : "Public action")}</span><div>${formatText(publicText)}</div></div>` : "";
     const evidence = structuredDetailMarkup(event.detail, state.locale === "zh" ? "查看完整依据" : "View full evidence");
     const detailMarkup = traceEvidenceMarkup(event, detail, evidence);
-    return `<div class="trace-event stage-summary ${isModelEvent ? "model-event " : ""}${traceClass}${animate ? " event-enter" : ""}" data-stage-code="${escapeHtml(event.code || "")}"><span class="trace-icon">${icon(status === "error" ? "alert-triangle" : "sparkles")}</span><div class="trace-main"><div class="trace-summary"><span class="trace-code">${escapeHtml(traceLabel(event))}</span><span>${escapeHtml(summary)}</span></div>${publicMarkup}${detailMarkup}</div><span class="trace-phase">${escapeHtml(phaseLabel({ phase: tracePhase }))}</span></div>`;
+    const thinkingLabel = state.locale === "zh" ? "思考" : "Thinking";
+    const blockClass = isModelEvent ? "thinking-block " : "";
+    const historyClass = String(event.code || "") === "model_update_history" ? " thinking-history" : "";
+    const traceAnchor = anchor || event.event_id || event.item_id || `${event.code || "stage"}-${event.created_at_epoch || ""}`;
+    const thinkingMarkup = isModelEvent ? `<span class="thinking-label">${escapeHtml(thinkingLabel)}</span>` : "";
+    const summaryMarkup = `<div class="trace-summary">${thinkingMarkup}<span class="trace-code">${escapeHtml(traceLabel(event))}</span><span>${escapeHtml(summary)}</span>${!isModelEvent && traceDetailPreview(event) ? `<small class="trace-fold-preview">${escapeHtml(traceDetailPreview(event))}</small>` : ""}</div>`;
+    const iconMarkup = `<span class="trace-icon">${icon(status === "error" ? "alert-triangle" : "sparkles")}</span>`;
+    if (!isModelEvent) {
+      const itemKind = String(event.code || "") === "model_update_history" ? "reasoning-history" : "stage";
+      return `<details class="trace-fold trace-event stage-summary${historyClass} ${traceClass}${animate ? " event-enter" : ""}" data-agent-block="${itemKind === "reasoning-history" ? "thinking-history" : "stage"}" data-agent-item="${escapeHtml(traceAnchor)}" data-item-kind="${itemKind}" data-latest-action="false" data-stage-code="${escapeHtml(event.code || "")}"><summary class="trace-fold-summary">${iconMarkup}<span class="trace-main">${summaryMarkup}</span><span class="trace-phase">${escapeHtml(phaseLabel({ phase: tracePhase }))}</span><span class="trace-fold-chevron">${icon("chevron-down")}</span></summary><div class="trace-fold-body">${publicMarkup}${detailMarkup}</div></details>`;
+    }
+    const latestAction = event.code === "model_update" && !event.detail?.history;
+    return `<div class="trace-event stage-summary ${blockClass}model-event ${traceClass}${animate ? " event-enter" : ""}" data-agent-block="thinking" data-agent-item="${escapeHtml(traceAnchor)}" data-item-kind="reasoning" data-latest-action="${latestAction ? "true" : "false"}" data-stage-code="${escapeHtml(event.code || "")}">${iconMarkup}<div class="trace-main">${summaryMarkup}${publicMarkup}${detailMarkup}</div><span class="trace-phase">${escapeHtml(phaseLabel({ phase: tracePhase }))}</span></div>`;
   }
   const denied = status === "denied";
   const failed = ["error", "failed"].includes(status);
@@ -1132,7 +1478,7 @@ function toolEventHtml(event, animate = false, anchor = "", open = false) {
   const path = String(event.path || "");
   const pathMarkup = path ? `<span class="tool-path tool-path-button" data-open-diff="${escapeHtml(path)}">${escapeHtml(path)}</span>` : `<span class="tool-path">${escapeHtml(toolStatusLabel(status))}</span>`;
   const toolAnchor = anchor || `${name}-${event.created_at_epoch || ""}`;
-  return `<details class="tool-event ${stateClass}${animate ? " event-enter" : ""}" data-tool-event="${escapeHtml(toolAnchor)}"${open ? " open" : ""}>
+  return `<details class="tool-event ${stateClass}${animate ? " event-enter" : ""}" data-agent-block="command" data-agent-item="${escapeHtml(event.event_id || event.item_id || toolAnchor)}" data-item-kind="command" data-tool-event="${escapeHtml(toolAnchor)}"${open ? " open" : ""}>
     <summary class="tool-event-summary"><span class="tool-icon ${denied ? "amber-icon" : ""}">${icon(iconName)}</span><span class="tool-event-copy"><span><strong>${escapeHtml(name)}</strong>${pathMarkup}</span><small>${escapeHtml(event.summary || "")}</small></span><span class="tool-check ${denied ? "denied-check" : failed ? "failed-check" : ""}">${icon(stateIcon)}</span><span class="tool-expand">${icon("chevron-down")}</span></summary>
     ${toolResultMarkup(event)}
   </details>`;
@@ -1140,7 +1486,22 @@ function toolEventHtml(event, animate = false, anchor = "", open = false) {
 
 function eventTimelineMarkup(events, options = {}) {
   if (!Array.isArray(events) || !events.length) return "";
-  const items = visibleAgentEvents(events).map((event, index) => ({ event, index }));
+  const sourceEvents = events.length > MAX_RENDERED_TIMELINE_EVENTS
+    ? [
+        {
+          kind: "trace",
+          code: "timeline_truncated",
+          phase: "planning",
+          status: "ok",
+          summary: state.locale === "zh"
+            ? `较早的 ${events.length - MAX_RENDERED_TIMELINE_EVENTS + 1} 条运行记录已收起`
+            : `${events.length - MAX_RENDERED_TIMELINE_EVENTS + 1} earlier runtime records folded`,
+          detail: { count: events.length - MAX_RENDERED_TIMELINE_EVENTS + 1 },
+        },
+        ...events.slice(-(MAX_RENDERED_TIMELINE_EVENTS - 1)),
+      ]
+    : events;
+  const items = compactModelUpdateEvents(sourceEvents).map((event, index) => ({ event, index }));
   const groups = [];
   let currentRound = null;
   let fallbackRound = 0;
@@ -1185,7 +1546,8 @@ function eventTimelineMarkup(events, options = {}) {
     const round = summarizeRound(group.items.map(({ event }) => event), roundKey);
     const open = options.openRounds instanceof Set && options.openRounds.has(roundKey);
     const itemMarkup = group.items.map(({ event, index }) => toolEventHtml(event, index >= Number(options.animateFrom ?? events.length), `event-${index}`, options.openTools instanceof Set && options.openTools.has(`event-${index}`))).join("");
-    return `<details class="agent-round" data-agent-round="${roundKey}"${open ? " open" : ""}><summary class="agent-round-summary"><span class="agent-round-title"><span class="agent-round-icon">${icon(round.failed ? "alert-circle" : "layers-3")}</span><strong>${escapeHtml(round.title)}</strong><small>${escapeHtml(round.detail)}</small></span><span class="agent-round-meta">${escapeHtml(round.status)}<span class="agent-round-chevron">${icon("chevron-down")}</span></span></summary><div class="agent-round-events">${itemMarkup}</div></details>`;
+    const commandGroupLabel = state.locale === "zh" ? "命令组" : "Commands";
+    return `<details class="agent-round command-group" data-agent-block="commands" data-agent-item="round-${escapeHtml(roundKey)}" data-item-kind="command-group" data-command-group="${roundKey}" data-agent-round="${roundKey}"${open ? " open" : ""}><summary class="agent-round-summary"><span class="agent-round-title"><span class="agent-round-icon">${icon(round.failed ? "alert-circle" : "layers-3")}</span><span class="command-group-copy"><span class="command-group-label">${escapeHtml(commandGroupLabel)}</span><strong>${escapeHtml(round.title)}</strong><small>${escapeHtml(round.detail)}</small></span></span><span class="agent-round-meta">${escapeHtml(round.status)}<span class="agent-round-chevron">${icon("chevron-down")}</span></span></summary><div class="agent-round-events">${itemMarkup}</div></details>`;
   }).join("");
 }
 
@@ -1262,6 +1624,34 @@ function updateLiveStream(loadingId, preview, target) {
   stream.frame = window.setTimeout(paint, 120);
 }
 
+function timelineDetailKey(detail) {
+  if (detail.matches("details.agent-round")) return `round:${detail.dataset.agentRound || ""}`;
+  if (detail.matches("details.tool-event")) return `tool:${detail.dataset.toolEvent || ""}`;
+  const owner = detail.closest("details.tool-event, details.agent-round, [data-stage-code]");
+  if (!owner) return "";
+  const ownerKey = owner.matches("details.tool-event")
+    ? `tool:${owner.dataset.toolEvent || ""}`
+    : owner.matches("details.agent-round")
+      ? `round:${owner.dataset.agentRound || ""}`
+      : `stage:${owner.dataset.stageCode || ""}`;
+  const nestedIndex = [...owner.querySelectorAll("details")].indexOf(detail);
+  return `nested:${ownerKey}:${nestedIndex}`;
+}
+
+function captureTimelineOpenDetails(timeline) {
+  return new Set([...timeline.querySelectorAll("details[open]")].map(timelineDetailKey).filter(Boolean));
+}
+
+function restoreTimelineOpenDetails(timeline, openDetails) {
+  if (!(openDetails instanceof Set)) return;
+  timeline.querySelectorAll("details").forEach((detail) => { detail.open = openDetails.has(timelineDetailKey(detail)); });
+}
+
+function setTimelineDetails(timeline, open) {
+  if (!timeline) return;
+  timeline.querySelectorAll("details").forEach((detail) => { detail.open = open; });
+}
+
 function syncLiveEvents(loading, events, chatPosition = null) {
   if (!events.length) return false;
   let timeline = loading.querySelector(".tool-timeline");
@@ -1271,16 +1661,21 @@ function syncLiveEvents(loading, events, chatPosition = null) {
     loading.querySelector(".message-body")?.append(timeline);
   }
   const previousCount = Number(loading.dataset.eventCount || 0);
-  const fingerprint = JSON.stringify(events.map((event) => [event.kind, event.code, event.name, event.status, event.summary, event.detail]));
+  const fingerprint = events.map((event) => [
+    eventSequence(event.sequence),
+    event.item_id || event.event_id || "",
+    event.kind || "",
+    event.code || "",
+    event.name || "",
+    event.status || "",
+    event.summary || "",
+    typeof event.detail?.text === "string" ? event.detail.text.slice(0, 2400) : "",
+  ].join("|")).join("\n");
   if (timeline.dataset.eventFingerprint === fingerprint) return false;
   const position = chatPosition || captureChatPosition();
-  const openRounds = timeline.dataset.initialized === "true"
-    ? new Set([...timeline.querySelectorAll("details.agent-round[open]")].map((item) => item.dataset.agentRound))
-    : null;
-  const openTools = timeline.dataset.initialized === "true"
-    ? new Set([...timeline.querySelectorAll("details.tool-event[open]")].map((item) => item.dataset.toolEvent))
-    : null;
-  timeline.innerHTML = eventTimelineMarkup(events, { openRounds, openTools, animateFrom: previousCount });
+  const openDetails = timeline.dataset.initialized === "true" ? captureTimelineOpenDetails(timeline) : null;
+  timeline.innerHTML = eventTimelineMarkup(events, { animateFrom: previousCount });
+  restoreTimelineOpenDetails(timeline, openDetails);
   timeline.dataset.initialized = "true";
   timeline.dataset.eventFingerprint = fingerprint;
   loading.dataset.eventCount = String(events.length);
@@ -1319,7 +1714,7 @@ function updateLiveTask(loadingId, data) {
   }
   syncLiveEvents(loading, events, chatPosition);
   updateTaskDuration(data, loadingId);
-  $("#pulseStatus").textContent = phaseText;
+  if (isFocusedTask(data)) $("#pulseStatus").textContent = phaseText;
   updateTaskDock(data);
   restoreChatPosition(chatPosition, false);
 }
@@ -1329,15 +1724,73 @@ function scheduleChangesRefresh() {
   changeRefreshTimer = window.setTimeout(() => loadChanges(), 220);
 }
 
-function updateBoundTask(taskId, data) {
+function applyTaskEvent(taskId, envelope) {
+  const binding = runningTasks.get(taskId);
+  if (!binding || !envelope || typeof envelope !== "object") return null;
+  const sequence = eventSequence(envelope.sequence);
+  const eventId = String(envelope.event_id || "");
+  const itemId = String(envelope.item_id || "");
+  if (
+    (sequence && (binding.seenSequences.has(sequence) || sequence <= eventSequence(binding.cursor)))
+    || (eventId && binding.seenEventIds.has(eventId))
+    || (itemId && binding.seenEventIds.has(`item:${itemId}`))
+  ) return null;
+  const payload = envelope.payload && typeof envelope.payload === "object" ? envelope.payload : {};
+  const data = { ...(binding.data || {}) };
+  const kind = String(envelope.kind || "");
+  if (kind === "timeline") {
+    const timelineEvent = { ...payload };
+    if (eventId && !timelineEvent.event_id) timelineEvent.event_id = eventId;
+    if (itemId && !timelineEvent.item_id) timelineEvent.item_id = itemId;
+    if (sequence && !timelineEvent.sequence) timelineEvent.sequence = sequence;
+    data.events = mergeTimelineEvents(data.events, [timelineEvent]);
+  } else if (kind === "stream_delta") {
+    if (payload.stream_text != null) data.stream_text = String(payload.stream_text || "");
+    else if (payload.delta) data.stream_text = `${String(data.stream_text || "")}${String(payload.delta)}`;
+    if (payload.stream_length != null) data.stream_length = Number(payload.stream_length) || String(data.stream_text || "").length;
+    if (payload.phase) data.phase = String(payload.phase);
+  } else if (kind === "state" || kind === "status") {
+    if (payload.status) data.status = String(payload.status);
+    if (payload.phase) data.phase = String(payload.phase);
+    if (payload.finished_at) data.finished_at = payload.finished_at;
+    if (payload.error !== undefined) data.error = payload.error;
+    if (payload.cancel_reason !== undefined) data.cancel_reason = payload.cancel_reason;
+  } else if (kind === "usage") {
+    if (payload.tokens_used && typeof payload.tokens_used === "object") data.tokens_used = { ...payload.tokens_used };
+    if (payload.metrics && typeof payload.metrics === "object") data.metrics = { ...payload.metrics };
+    if (payload.usage && typeof payload.usage === "object") data.usage_by_turn = [...(data.usage_by_turn || []), { ...payload.usage }].slice(-64);
+  } else if (kind === "context") {
+    if (payload.context && typeof payload.context === "object") data.context = { ...payload.context };
+  } else if (kind === "compaction") {
+    if (payload.event && typeof payload.event === "object") data.compaction_events = [...(data.compaction_events || []), { ...payload.event }].slice(-64);
+  } else if (kind === "result") {
+    if (payload.answer !== undefined) data.answer = payload.answer;
+    if (payload.error !== undefined) data.error = payload.error;
+    data.result = { ...(data.result || {}), answer: data.answer, error: data.error };
+  }
+  if (payload.state_version != null) data.state_version = Math.max(Number(data.state_version) || 0, Number(payload.state_version) || 0);
+  binding.cursor = Math.max(eventSequence(binding.cursor), sequence);
+  data.event_cursor = binding.cursor;
+  if (sequence) binding.seenSequences.add(sequence);
+  if (eventId) binding.seenEventIds.add(eventId);
+  binding.data = data;
+  updateBoundTask(taskId, data, { skipSnapshotMerge: true });
+  return data;
+}
+
+function updateBoundTask(taskId, data, options = {}) {
   const binding = runningTasks.get(taskId);
   if (!binding) return;
-  binding.data = data;
-  if (binding.sessionId === state.sessionId) {
-    if (!document.getElementById(binding.loadingId)) addLoadingMessage(binding.loadingId, data, { scrollToLatest: false });
-    updateLiveTask(binding.loadingId, data);
+  const next = options.skipSnapshotMerge
+    ? { ...data, session_id: data.session_id || binding.sessionId, workspace_path: data.workspace_path || binding.workspacePath }
+    : applyTaskSnapshot(binding, data, { replaceEvents: true });
+  binding.data = next;
+  if (isCurrentTaskScope(next)) {
+    if (!document.getElementById(binding.loadingId)) addLoadingMessage(binding.loadingId, next, { scrollToLatest: false });
+    updateLiveTask(binding.loadingId, next);
   }
-  if (Array.isArray(data.events) && data.events.some((event) => ["write_file", "edit_file", "move", "delete"].includes(event.name))) scheduleChangesRefresh();
+  if (Array.isArray(next.events) && next.events.some((event) => ["write_file", "edit_file", "move", "delete"].includes(event.name))) scheduleChangesRefresh();
+  return next;
 }
 
 function finishLiveTask(loadingId) {
@@ -1363,12 +1816,25 @@ async function completeTask(loadingId, data) {
   const finalData = data.status === "completed"
     ? data
     : { ...data, answer: data.answer || data.error || (data.status === "cancelled" ? "任务已取消。" : "任务失败。") };
+  cacheTaskDetail(finalData);
   runningTasks.delete(taskId);
   if (taskBySession.get(taskSessionKey(binding.sessionId, binding.workspacePath)) === taskId) taskBySession.delete(taskSessionKey(binding.sessionId, binding.workspacePath));
 
-  if (binding.sessionId === state.sessionId && binding.workspacePath === state.workspacePath) {
+  const currentScope = isCurrentTaskScope({
+    task_id: taskId,
+    session_id: binding.sessionId,
+    workspace_path: binding.workspacePath,
+  });
+  if (currentScope) {
     addAssistantMessage(finalData, binding.loadingId || loadingId);
-    setBusy(false);
+    const remaining = sessionTaskBindings(binding.sessionId, binding.workspacePath);
+    if (remaining.length) {
+      state.activeTaskId = remaining[remaining.length - 1].taskId;
+      updateTaskDock(remaining[remaining.length - 1].data);
+    } else {
+      state.activeTaskId = null;
+    }
+    setBusy(remaining.length > 0);
   } else {
     const existing = cachedSessionView(binding.sessionId, binding.workspacePath) || presetMessageMarkup(binding.sessionId);
     const holder = document.createElement("div");
@@ -1382,8 +1848,9 @@ async function completeTask(loadingId, data) {
       holder.insertAdjacentHTML("beforeend", assistantMessageMarkup(finalData, `live-${binding.loadingId || loadingId}`));
     }
     const cacheKey = sessionViewKey(binding.sessionId, binding.workspacePath);
-    sessionMarkup.set(cacheKey, holder.innerHTML);
-    try { localStorage.setItem(cacheKey, holder.innerHTML); } catch { /* best effort */ }
+    const compactedMarkup = compactSessionMarkup(holder.innerHTML);
+    sessionMarkup.set(cacheKey, compactedMarkup);
+    try { localStorage.setItem(cacheKey, compactedMarkup); } catch { /* best effort */ }
   }
   if (finalData.status !== "completed") showToast(finalData.error || (finalData.status === "cancelled" ? "任务已取消" : "任务失败"));
   scheduleChangesRefresh();
@@ -1393,13 +1860,21 @@ async function completeTask(loadingId, data) {
 
 async function pollTask(taskId) {
   const binding = runningTasks.get(taskId);
-  for (let attempt = 0; attempt < 900; attempt += 1) {
-    const data = await requestJson(`/api/tasks/${encodeURIComponent(taskId)}`, {}, 12000);
-    updateBoundTask(taskId, data);
-    if (isTerminalTask(data)) return completeTask(binding?.loadingId || "", data);
-    await new Promise((resolve) => window.setTimeout(resolve, 220));
+  let delay = 220;
+  while (true) {
+    try {
+      const data = await requestJson(`/api/tasks/${encodeURIComponent(taskId)}`, {}, 12000);
+      updateBoundTask(taskId, data);
+      if (isTerminalTask(data)) return completeTask(binding?.loadingId || "", data);
+      delay = 220;
+    } catch (error) {
+      // The task is durable on the server. Keep watching through a short API
+      // outage instead of converting a transport blip into a false failure.
+      if (!runningTasks.has(taskId)) throw error;
+      delay = Math.min(5000, Math.max(500, Math.round(delay * 1.6)));
+    }
+    await new Promise((resolve) => window.setTimeout(resolve, delay));
   }
-  throw new Error("任务运行超过 10 分钟，可在活动面板中取消或查看状态。");
 }
 
 function streamTask(taskId) {
@@ -1407,43 +1882,113 @@ function streamTask(taskId) {
   const loadingId = binding?.loadingId || "";
   if (!window.EventSource) return pollTask(taskId);
   return new Promise((resolve, reject) => {
-    let source;
+    let source = null;
     let settled = false;
     let fallbackStarted = false;
     let receivedSnapshot = false;
+    let reconnectAttempts = 0;
+    let reconnectTimer = 0;
+    let snapshotTimer = 0;
+    const sourceKey = loadingId || taskId;
+    const maxReconnectAttempts = 6;
+
+    const closeSource = () => {
+      if (source) source.close();
+      source = null;
+      taskEventSources.delete(sourceKey);
+      window.clearTimeout(reconnectTimer);
+      window.clearTimeout(snapshotTimer);
+    };
 
     const fallback = () => {
       if (settled || fallbackStarted) return;
       fallbackStarted = true;
-      source?.close();
-      taskEventSources.delete(loadingId);
+      closeSource();
       pollTask(taskId).then(resolve, reject);
     };
 
-    const finish = (data) => {
+    const finish = async (data) => {
       if (settled || !isTerminalTask(data)) return;
       settled = true;
-      source?.close();
-      taskEventSources.delete(loadingId);
-      completeTask(loadingId, data).then(resolve, reject);
-    };
-
-    source = new EventSource(`/api/tasks/${encodeURIComponent(taskId)}/events`);
-    taskEventSources.set(loadingId, source);
-    source.onmessage = (event) => {
-      receivedSnapshot = true;
+      closeSource();
       try {
-        const data = JSON.parse(event.data);
-        updateBoundTask(taskId, data);
-        finish(data);
+        // The terminal event contains enough state to render immediately, but
+        // one final snapshot also carries the complete answer/result payload.
+        const latest = await requestJson(`/api/tasks/${encodeURIComponent(taskId)}`, {}, 12000);
+        updateBoundTask(taskId, latest);
+        resolve(await completeTask(loadingId, latest));
       } catch {
-        // A malformed event must not strand the task; the fallback remains available.
+        resolve(await completeTask(loadingId, data));
       }
     };
-    source.onerror = fallback;
-    window.setTimeout(() => {
-      if (!receivedSnapshot) fallback();
-    }, 3500);
+
+    const handleSnapshot = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        receivedSnapshot = true;
+        reconnectAttempts = 0;
+        const latest = updateBoundTask(taskId, data);
+        if (isTerminalTask(latest || data)) finish(latest || data);
+      } catch {
+        // A malformed frame is ignored; the connection error/retry path still
+        // has a chance to recover the task from its durable snapshot.
+      }
+    };
+
+    const handleTaskEvent = (event) => {
+      try {
+        const data = applyTaskEvent(taskId, JSON.parse(event.data));
+        if (data) {
+          reconnectAttempts = 0;
+          if (isTerminalTask(data)) finish(data);
+        }
+      } catch {
+        // The next replay or a polling fallback can still restore the state.
+      }
+    };
+
+    const checkLatestAfterError = () => requestJson(`/api/tasks/${encodeURIComponent(taskId)}`, {}, 8000)
+      .then((latest) => {
+        if (settled) return;
+        const current = updateBoundTask(taskId, latest);
+        if (isTerminalTask(current || latest)) {
+          finish(current || latest);
+          return;
+        }
+        scheduleReconnect();
+      })
+      .catch(() => scheduleReconnect());
+
+    const scheduleReconnect = () => {
+      if (settled || fallbackStarted) return;
+      closeSource();
+      reconnectAttempts += 1;
+      if (reconnectAttempts > maxReconnectAttempts) {
+        fallback();
+        return;
+      }
+      const delay = Math.min(6000, 500 * (2 ** (reconnectAttempts - 1)));
+      reconnectTimer = window.setTimeout(connect, delay);
+    };
+
+    function connect() {
+      if (settled || fallbackStarted) return;
+      const cursor = eventSequence(binding?.cursor || binding?.data?.event_cursor);
+      source = new EventSource(`/api/tasks/${encodeURIComponent(taskId)}/events?after=${cursor}`);
+      taskEventSources.set(sourceKey, source);
+      source.onmessage = handleSnapshot;
+      source.addEventListener("task_event", handleTaskEvent);
+      source.addEventListener("resync", handleSnapshot);
+      source.onerror = checkLatestAfterError;
+      window.clearTimeout(snapshotTimer);
+      if (!receivedSnapshot && cursor === 0) {
+        snapshotTimer = window.setTimeout(() => {
+          if (!receivedSnapshot) scheduleReconnect();
+        }, 3500);
+      }
+    }
+
+    connect();
   });
 }
 
@@ -1453,7 +1998,7 @@ function watchTask(taskId) {
 
 async function cancelActiveTask() {
   const taskIds = sessionTaskBindings(state.sessionId).map((binding) => binding.taskId);
-  const fallback = taskBySession.get(taskSessionKey(state.sessionId)) || state.activeTaskId;
+  const fallback = taskBySession.get(taskSessionKey(state.sessionId)) || null;
   if (!taskIds.length && fallback) taskIds.push(fallback);
   if (!taskIds.length) return;
   try {
@@ -1638,6 +2183,8 @@ async function loadWorkspace() {
     setConnection(true);
     if (previousPath && previousPath !== state.workspacePath) {
       sessionMarkup.clear();
+      taskDetailsById.clear();
+      taskDetailLoads.clear();
       taskHistoryBySession.clear();
       taskHistoryListBySession.clear();
       renderedHistoryKeys.clear();
@@ -1657,11 +2204,12 @@ async function loadWorkspace() {
         bindRunningTask(task, loadingId, sessionId);
         watchTask(task.task_id).catch((error) => showToast(error.message));
       }
-      const active = activeTasks.find((item) => item.session_id === state.sessionId) || activeTasks[0];
+      const active = activeTasks.find((item) => isCurrentTaskScope(item));
       if (active) updateTaskDock(active);
       else {
         $("#taskDock").hidden = true;
         state.lastTask = null;
+        state.activeTaskId = null;
       }
     } catch {
       // The workspace remains usable when the durable task index is unavailable.
@@ -1771,7 +2319,7 @@ function taskRow(task) {
   const cancel = ["queued", "running"].includes(task.status) ? `<button class="panel-icon-action" data-cancel-task="${escapeHtml(task.task_id)}" title="${t("cancel")}">${icon("square")}</button>` : "";
   const resume = ["failed", "cancelled", "interrupted"].includes(task.status) ? `<button class="panel-icon-action" data-resume-task="${escapeHtml(task.task_id)}" title="${t("tasks.resume")}">${icon("rotate-ccw")}</button>` : "";
   const phase = phaseLabel(task);
-  const streamSize = String(task.stream_text || "").length;
+  const streamSize = Number(task.stream_length || String(task.stream_text || "").length);
   const detail = `${phase} · ${formatDuration(taskDuration(task))} · ${streamSize} chars · ${taskMetrics(task)}`;
   const children = task.child_task_ids?.length ? ` · ${task.child_task_ids.length} ${t("tasks.children")}` : "";
   const workspace = task.workspace_path ? task.workspace_path.split(/[\\/]/).filter(Boolean).pop() : "workspace";
@@ -1782,6 +2330,7 @@ function taskRow(task) {
 async function openTaskInWorkspace(taskId) {
   try {
     const task = await requestJson(`/api/tasks/${encodeURIComponent(taskId)}`);
+    cacheTaskDetail(task);
     const targetWorkspace = String(task.workspace_path || "");
     if (targetWorkspace && state.workspacePath && targetWorkspace.replaceAll("\\", "/").toLowerCase() !== state.workspacePath.replaceAll("\\", "/").toLowerCase()) {
       await requestJson("/api/workspace/select", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ path: targetWorkspace }) });
@@ -1790,11 +2339,13 @@ async function openTaskInWorkspace(taskId) {
     const sessionId = String(task.session_id || task.task_id);
     taskHistoryBySession.set(sessionId, task);
     const historyItems = taskHistoryListBySession.get(sessionId) || [];
-    if (!historyItems.some((item) => item.task_id === task.task_id)) {
-      taskHistoryListBySession.set(sessionId, [task, ...historyItems].sort((left, right) => Number(right.created_at_epoch || 0) - Number(left.created_at_epoch || 0)));
-    }
+    const mergedHistory = historyItems.some((item) => item.task_id === task.task_id)
+      ? historyItems.map((item) => item.task_id === task.task_id ? task : item)
+      : [task, ...historyItems];
+    taskHistoryListBySession.set(sessionId, mergedHistory.sort((left, right) => Number(right.created_at_epoch || 0) - Number(left.created_at_epoch || 0)));
     closePanel();
     setSession(sessionId);
+    state.activeTaskId = task.task_id;
     updateTaskDock(task);
     if (isTerminalTask(task)) {
       state.activeTaskId = null;
@@ -1820,6 +2371,7 @@ async function openTaskDetail(taskId) {
   try {
     const task = await requestJson(`/api/tasks/${encodeURIComponent(taskId)}`);
     const events = Array.isArray(task.events) ? eventTimelineMarkup(task.events) : "";
+    const execution = executionTrailMarkup(events, task.events || []);
     const children = Array.isArray(task.child_task_ids) && task.child_task_ids.length
       ? `<div class="task-detail-children">${task.child_task_ids.map((child) => `<button class="panel-session" data-open-task="${escapeHtml(child)}">${escapeHtml(child)}</button>`).join("")}</div>`
       : "";
@@ -1827,7 +2379,7 @@ async function openTaskDetail(taskId) {
       ? `<button class="panel-primary" data-resume-task="${escapeHtml(task.task_id)}">${t("tasks.resume")}</button>`
       : "";
     const attachments = attachmentMarkup(task.attachments || []);
-    openPanel(`${t("tasks.open")} · ${task.task_id}`, `<div class="task-detail"><div class="task-detail-status"><span class="task-state ${task.status === "completed" ? "success" : ["failed", "cancelled", "interrupted"].includes(task.status) ? "cancelled" : "running"}"></span><strong>${escapeHtml(phaseLabel(task))}</strong><span>${escapeHtml(taskMetrics(task))}</span></div><div class="task-detail-actions task-detail-top-actions"><button class="panel-secondary" data-open-task="${escapeHtml(task.task_id)}">${icon("arrow-up-right")} ${escapeHtml(t("tasks.openSession"))}</button></div>${runtimeMetricsMarkup(task)}<div class="panel-section-title">${t("workspace.current")}</div><code class="task-detail-path">${escapeHtml(task.workspace_path || "")}</code><div class="panel-section-title">Prompt</div><div class="task-detail-prompt">${formatText(task.prompt || task.preview || "")}</div>${attachments ? `<div class="panel-section-title">Images</div>${attachments}` : ""}<div class="panel-section-title">Response</div><div class="task-detail-answer">${formatText(task.answer || task.stream_text || task.error || "")}</div>${events ? `<div class="panel-section-title">Tools & stage trace</div><div class="task-detail-tools">${events}</div>` : ""}${children}${resume ? `<div class="task-detail-actions">${resume}</div>` : ""}</div>`, { immersive: true });
+    openPanel(`${t("tasks.open")} · ${task.task_id}`, `<div class="task-detail"><div class="task-detail-status"><span class="task-state ${task.status === "completed" ? "success" : ["failed", "cancelled", "interrupted"].includes(task.status) ? "cancelled" : "running"}"></span><strong>${escapeHtml(phaseLabel(task))}</strong><span>${escapeHtml(taskMetrics(task))}</span></div><div class="task-detail-actions task-detail-top-actions"><button class="panel-secondary" data-open-task="${escapeHtml(task.task_id)}">${icon("arrow-up-right")} ${escapeHtml(t("tasks.openSession"))}</button></div>${runtimeMetricsMarkup(task)}<div class="panel-section-title">${t("workspace.current")}</div><code class="task-detail-path">${escapeHtml(task.workspace_path || "")}</code><div class="panel-section-title">Prompt</div><div class="task-detail-prompt">${formatText(task.prompt || task.preview || "")}</div>${attachments ? `<div class="panel-section-title">Images</div>${attachments}` : ""}<div class="panel-section-title">Response</div><div class="task-detail-answer">${formatText(task.answer || task.stream_text || task.error || "")}</div>${execution ? `<div class="panel-section-title">Tools & stage trace</div>${execution}` : ""}${children}${resume ? `<div class="task-detail-actions">${resume}</div>` : ""}</div>`, { immersive: true });
   } catch (error) {
     showToast(error.message);
   }
@@ -2019,15 +2571,35 @@ function switchInspectorTab(tab) {
   $("#changesSection").hidden = tab !== "changes";
 }
 
+function setGameWideMode(enabled) {
+  const wide = Boolean(enabled);
+  const modal = $("#gameModal");
+  const button = $("#gameWideMode");
+  modal.classList.toggle("wide-mode", wide);
+  button?.classList.toggle("active", wide);
+  button?.setAttribute("aria-pressed", String(wide));
+  if (button) {
+    button.title = t(wide ? "game.compactMode" : "game.wideMode");
+    button.querySelector("span").textContent = t(wide ? "game.compactMode" : "game.wideMode");
+  }
+  localStorage.setItem("minicc-game-wide-mode", wide ? "on" : "off");
+}
+function toggleGameWideMode() {
+  setGameWideMode(!$("#gameModal").classList.contains("wide-mode"));
+}
 function openGame() {
   $("#gameModal").classList.add("show");
   $("#gameModal").setAttribute("aria-hidden", "false");
+  setGameWideMode(localStorage.getItem("minicc-game-wide-mode") === "on");
   initGame();
 }
 
+function openGameWindow() { window.open(location.origin + location.pathname + "?arcade=1", "minicc-arcade", "popup,width=980,height=760"); }
+function toggleGameFullscreen() { const card = $("#gameModal .game-card"); if (!document.fullscreenElement) card.requestFullscreen?.(); else document.exitFullscreen?.(); }
 function closeGame() {
   const active = document.activeElement;
   if (active instanceof HTMLElement && $("#gameModal").contains(active)) active.blur();
+  closeGameCodex();
   $("#gameModal").classList.remove("show");
   $("#gameModal").setAttribute("aria-hidden", "true");
   game.running = false;
@@ -2036,29 +2608,271 @@ function closeGame() {
   window.scrollTo(0, 0);
 }
 
+const codexState = { tab: "plants", plant: "peashooter", zombie: "walker" };
+const codexPlantNames = { peashooter: "豌豆射手", sunflower: "向日葵", wallnut: "坚果墙", repeater: "双发射手", cherrybomb: "樱桃炸弹", icepeashooter: "寒冰射手", firepeashooter: "火焰射手", twinpea: "双发强化", kernelpult: "玉米投手", pumpkin: "南瓜头", spikeweed: "地刺", gloomshroom: "忧郁菇", potatomine: "土豆雷", threepeater: "三线射手", jalapeno: "火爆辣椒", magnetshroom: "磁力菇", garlic: "大蒜", squash: "窝瓜", gatlingpea: "机枪射手" };
+const codexZombieNames = { walker: "普通僵尸", backup: "伴舞僵尸", roadblock: "路障僵尸", conehead: "路锥僵尸", imp: "小鬼僵尸", scout: "侦察僵尸", storm: "风暴僵尸", runner: "奔跑僵尸", polevault: "撑杆僵尸", bucket: "铁桶僵尸", football: "橄榄球僵尸", miner: "矿工僵尸", flag: "旗帜僵尸", dancer: "舞王僵尸", newspaper: "报纸僵尸", gargantuar: "巨人僵尸", witch: "女巫僵尸", dragon: "龙僵尸", shield: "护盾僵尸" };
+const codexPlantIcons = { peashooter: "🌱", sunflower: "🌻", wallnut: "🥜", repeater: "🌿", cherrybomb: "🍒", icepeashooter: "❄️", firepeashooter: "🔥", twinpea: "🌱", kernelpult: "🌽", pumpkin: "🎃", spikeweed: "🌵", gloomshroom: "🍄", potatomine: "🥔", threepeater: "🌾", jalapeno: "🌶️", magnetshroom: "🧲", garlic: "🧄", squash: "🎃", gatlingpea: "🔫" };
+const codexPlantSpecials = { peashooter: "发射普通豌豆，稳定输出。", sunflower: "每隔一段时间生产 25 阳光。", wallnut: "高生命值阻挡，拖延僵尸。", repeater: "每轮发射 2 发豌豆，并可穿透 1 个目标。", cherrybomb: "短延迟后在同一行 145 范围内直接消灭僵尸。", icepeashooter: "命中后减速 3200ms，并可穿透 1 个目标。", firepeashooter: "每发 2 点伤害并施加 2600ms 灼烧，灼烧伤害 3。", twinpea: "每轮发射 2 发强化豌豆，每发 2 点伤害。", kernelpult: "28% 概率用黄油定身，并可穿透 1 个目标。", pumpkin: "为同格植物提供 32 点护罩生命。", spikeweed: "攻击所在格附近 44 范围内的僵尸。", gloomshroom: "近身范围攻击并施加 900ms 减速。", potatomine: "1800ms 后布雷，在同一行 90 范围内爆炸。", threepeater: "同时攻击当前行、上行和下行。", jalapeno: "短延迟后消灭所在行的全部僵尸。", magnetshroom: "周期性吸走僵尸护甲或装备，不直接造成伤害。", garlic: "被咬后将僵尸改道到下一行。", squash: "接近时重击并直接消灭目标。", gatlingpea: "每轮连续发射 4 发豌豆，每发 1 点伤害。" };
+const codexZombieSkills = { walker: "无额外技能，接触植物后啃食。", backup: "伴随舞王召唤，沿行啃食。", roadblock: "路障提供额外防护。", conehead: "路锥提供额外护甲。", imp: "快速移动并跳跃植物。", scout: "间歇冲刺并标记、诅咒附近植物。", storm: "周期性使同一行植物短暂失效。", runner: "沿行快速移动并间歇冲刺。", polevault: "遇到第一株植物时撑杆跳过。", bucket: "铁桶提供高额护甲。", football: "高护甲并可冲锋攻击。", miner: "地下潜行，接近防线后出土。", flag: "为同一行盟友提供移动速度加成。", dancer: "周期性召唤伴舞僵尸。", newspaper: "报纸被破坏后进入狂暴状态。", gargantuar: "缓慢推进，接触植物时重击并造成高额伤害。", witch: "标记并诅咒附近植物。", dragon: "喷吐火焰，对植物施加灼烧。", shield: "周期性恢复护盾。" };
+function codexPlantInfo(type) {
+  const profile = plantProfiles[type] || {};
+  const damage = profile.damage ? `${profile.damage} 点/发` : ["cherrybomb", "jalapeno", "potatomine", "squash"].includes(type) ? "特殊/爆发伤害" : "0（功能型）";
+  const target = profile.rows || type === "jalapeno" ? "群体" : ["cherrybomb", "potatomine", "squash"].includes(type) ? "范围爆发" : "单体";
+  const range = profile.rows ? "当前行及相邻两行" : ["gloomshroom", "spikeweed"].includes(type) ? "近身（约 44）" : ["cherrybomb", "potatomine"].includes(type) ? "同一行范围" : type === "jalapeno" ? "整行" : "所在行直线/所在格";
+  const usage = type === "sunflower" ? "放在后排，持续生产阳光。" : type === "wallnut" || type === "pumpkin" ? "放在僵尸路线前吸收伤害。" : `选中卡片后点击草坪格子，消耗 ${plantCost[type]} 阳光。`;
+  return { name: codexPlantNames[type], icon: codexPlantIcons[type], health: plantHealth[type], cost: plantCost[type], damage, attack: profile.shots ? `${profile.shots} 发/轮` : type === "threepeater" ? "3 条线路" : "特殊逻辑", target, range, usage, special: codexPlantSpecials[type] || "按当前游戏逻辑发挥作用。", raw: Object.keys(profile).length ? JSON.stringify(profile) : "由独立游戏逻辑处理" };
+}
+function codexZombieInfo(type) {
+  const profile = zombieProfiles[type];
+  const movement = profile.burrow ? "地下潜行，接近防线后出土" : profile.vault ? "持杆前进，遇到植物时跳过" : profile.leap ? "快速前进并跳跃植物" : profile.dash ? "沿所在行移动并间歇冲刺" : profile.giant ? "缓慢直线推进" : "沿所在行向左直线移动";
+  return { name: codexZombieNames[type], hp: profile.hp, armor: profile.armor || 0, speed: `${profile.speed.toFixed(3)} + 每波 ${profile.growth.toFixed(4)}`, attack: `${profile.attackInterval} ms`, score: profile.score, movement, skills: codexZombieSkills[type] };
+}
+function codexRows(rows) { return rows.map(([label, value]) => `<div class="codex-row"><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(String(value))}</dd></div>`).join(""); }
+function renderCodex() {
+  const plants = codexState.tab === "plants";
+  const keys = Object.keys(plants ? plantCost : zombieProfiles);
+  const selected = codexState[plants ? "plant" : "zombie"];
+  $("#codexPlantCount").textContent = `（${Object.keys(plantCost).length}）`;
+  $("#codexZombieCount").textContent = `（${Object.keys(zombieProfiles).length}）`;
+  $$(".codex-tab").forEach((tab) => { const active = tab.dataset.codexTab === codexState.tab; tab.classList.toggle("active", active); tab.setAttribute("aria-selected", String(active)); });
+  $("#codexEntryList").innerHTML = keys.map((key) => { const info = plants ? codexPlantInfo(key) : codexZombieInfo(key); return `<button class="codex-entry ${key === selected ? "active" : ""}" type="button" data-codex-entry="${key}"><span class="codex-entry-icon">${info.icon || "🧟"}</span><span>${escapeHtml(info.name)}</span></button>`; }).join("");
+  const info = plants ? codexPlantInfo(selected) : codexZombieInfo(selected);
+  $("#codexDetail").innerHTML = `<div class="codex-detail-title"><span class="codex-detail-icon">${info.icon || "🧟"}</span><div><span class="game-kicker">${plants ? "植物详情" : "僵尸详情"}</span><h4>${escapeHtml(info.name)}</h4></div></div>${plants ? `<dl class="codex-stats">${codexRows([["阳光消耗", `${info.cost} 阳光`], ["植物生命值", `${info.health} HP`], ["伤害", info.damage], ["攻击频率", info.attack], ["伤害类型", info.target], ["攻击范围", info.range]])}</dl><div class="codex-section"><strong>使用方法</strong><p>${escapeHtml(info.usage)}</p></div><div class="codex-section"><strong>特殊效果</strong><p>${escapeHtml(info.special)}</p></div><div class="codex-section"><strong>实际 profile 参数</strong><code>${escapeHtml(info.raw)}</code></div>` : `<dl class="codex-stats">${codexRows([["基础生命值", `${info.hp} HP`], ["护甲", `${info.armor} 点`], ["移动速度", info.speed], ["攻击间隔", info.attack], ["击退积分", info.score]])}</dl><div class="codex-health-bar" aria-label="僵尸基础生命值"><i style="width: 100%"></i></div><div class="codex-section"><strong>移动方式</strong><p>${escapeHtml(info.movement)}</p></div><div class="codex-section"><strong>特殊技能</strong><p>${escapeHtml(info.skills)}</p></div>`}`;
+  $$(".codex-entry").forEach((entry) => entry.addEventListener("click", () => { codexState[plants ? "plant" : "zombie"] = entry.dataset.codexEntry; renderCodex(); }));
+}
+function openGameCodex(tab = "plants") { codexState.tab = tab; $("#gameCodexPanel").classList.add("show"); $("#gameCodexPanel").setAttribute("aria-hidden", "false"); renderCodex(); window.lucide?.createIcons(); }
+function closeGameCodex() { const panel = $("#gameCodexPanel"); if (!panel) return; panel.classList.remove("show"); panel.setAttribute("aria-hidden", "true"); }
+
 const MAX_WAVES = 10;
 const GAME_DIFFICULTIES = {
   normal: { hpMultiplier: .9, initialSun: 200, speedMultiplier: .9, spawnDelayMultiplier: 1.16, waveBonus: -1 },
   hard: { hpMultiplier: 1, initialSun: 175, speedMultiplier: 1, spawnDelayMultiplier: 1, waveBonus: 0 },
-  nightmare: { hpMultiplier: 1.28, initialSun: 150, speedMultiplier: 1.16, spawnDelayMultiplier: .8, waveBonus: 2 },
+  nightmare: { hpMultiplier: 1.58, initialSun: 110, speedMultiplier: 1.28, spawnDelayMultiplier: .56, waveBonus: 6 },
 };
 const savedGameDifficulty = Object.prototype.hasOwnProperty.call(GAME_DIFFICULTIES, localStorage.getItem("minicc-game-difficulty")) ? localStorage.getItem("minicc-game-difficulty") : "hard";
-const WAVE_TARGET = (wave, difficulty = savedGameDifficulty) => 7 + wave * 2 + GAME_DIFFICULTIES[difficulty].waveBonus;
-const game = { running: false, paused: false, pauseReasons: new Set(), frame: 0, score: 0, sun: GAME_DIFFICULTIES[savedGameDifficulty].initialSun, wave: 1, waveTarget: WAVE_TARGET(1), waveSpawned: 0, totalSpawned: 0, waveClearTimer: 0, elapsed: 0, selected: null, shovel: false, plants: [], zombies: [], suns: [], shots: [], particles: [], last: 0, spawnTimer: 0, skyTimer: 0, dangerTimer: 0, difficulty: savedGameDifficulty, autoSun: localStorage.getItem("minicc-game-auto-sun") !== "off", musicOn: localStorage.getItem("minicc-game-sound") !== "off", volume: Math.max(0, Math.min(100, Number(localStorage.getItem("minicc-game-volume")) || 70)), audio: null };
+const WAVE_TARGET = (wave, difficulty = savedGameDifficulty) => 7 + wave * 2 + GAME_DIFFICULTIES[difficulty].waveBonus + (difficulty === "nightmare" ? wave + Math.floor((wave + 1) / 2) : 0);
+const game = { running: false, paused: false, pauseReasons: new Set(), frame: 0, score: 0, sun: GAME_DIFFICULTIES[savedGameDifficulty].initialSun, wave: 1, waveTarget: WAVE_TARGET(1), waveSpawned: 0, totalSpawned: 0, waveClearTimer: 0, elapsed: 0, selected: null, hoverCell: null, shovel: false, seedCooldowns: {}, skillCooldowns: {}, energy: 60, rallyTimer: 0, plants: [], zombies: [], defeated: [], suns: [], shots: [], particles: [], impacts: [], popups: [], mowers: [], combo: 0, comboTimer: 0, bestCombo: 0, bannerTimer: 0, bannerText: "", bannerColor: "#ffe27c", dangerPulse: 0, last: 0, spawnTimer: 0, skyTimer: 0, dangerTimer: 0, difficulty: savedGameDifficulty, autoSun: localStorage.getItem("minicc-game-auto-sun") !== "off", musicOn: localStorage.getItem("minicc-game-sound") !== "off", volume: Math.max(0, Math.min(100, Number(localStorage.getItem("minicc-game-volume")) || 70)), audio: null, hudAt: 0, flagRows: new Uint8Array(5), renderStats: { frames: 0, fps: 0, lastFrameMs: 0, maxFrameMs: 0, longFrames: 0, frameSamples: [], recentSamples: new Array(60), recentSampleIndex: 0, recentSampleCount: 0, recentLongFrames: 0, windowStartedAt: 0, windowFrames: 0, indexRebuilds: 0, rowQueries: 0, rowCandidates: 0, drawCalls: 0, plantDraws: 0, zombieDraws: 0, animationSwitches: 0 } };
+const ZOMBIE_BODY_COLORS = { walker: "#526b5e", roadblock: "#53677d", bucket: "#566273", runner: "#9b5d4f", imp: "#b45d4e", football: "#334b68", miner: "#72574a", polevault: "#57785d", flag: "#754d6c", dancer: "#8d3f68", newspaper: "#806c50", conehead: "#b76b4d", witch: "#563d70", dragon: "#8a453f", gargantuar: "#694450", backup: "#a15c72" };
 const gameLayout = { left: 78, top: 72, cellW: 70, cellH: 65, rows: 5, cols: 9 };
-const plantCost = { peashooter: 100, sunflower: 50, wallnut: 50, repeater: 180, cherrybomb: 150, icepeashooter: 175 };
-const plantHealth = { peashooter: 7, sunflower: 6, wallnut: 24, repeater: 8, cherrybomb: 4, icepeashooter: 7 };
-const plantColor = { peashooter: "#62b5a0", sunflower: "#f6c453", wallnut: "#ad7556", repeater: "#75c77b", cherrybomb: "#dd6d73", icepeashooter: "#8bc9e8" };
+const GAME_LOGICAL_WIDTH = 720;
+const GAME_LOGICAL_HEIGHT = 420;
+const GAME_MAX_PARTICLES = 180;
+const GAME_PARTICLE_DRAW_BUDGET = 120;
+const GAME_MAX_POPUPS = 48;
+const GAME_MOWER_TRIGGER_X = 92;
+const GAME_MOWER_SPEED = .62;
+const GAME_MOWER_CLEAR_RADIUS = 36;
+const GAME_MOWER_EXIT_X = GAME_LOGICAL_WIDTH + 46;
+const GAME_COMBO_WINDOW = 1800;
+const GAME_SKILLS = {
+  pulse: { cost: 25, cooldown: 7000, label: "game.skillPulse", hint: "game.skillPulseHint" },
+  sun: { cost: 35, cooldown: 10000, label: "game.skillSun", hint: "game.skillSunHint" },
+  rally: { cost: 45, cooldown: 14000, label: "game.skillRally", hint: "game.skillRallyHint" },
+};
+const gameRows = {
+  plants: Array.from({ length: gameLayout.rows }, () => []),
+  zombies: Array.from({ length: gameLayout.rows }, () => []),
+};
+function cacheGameEntityPosition(entity) {
+  const row = Number.isInteger(entity?.row) ? entity.row : -1;
+  const col = Number.isInteger(entity?.col) ? entity.col : 0;
+  const position = gameCellPositions[row]?.[col] || gameCellPositions[row]?.[0];
+  if (position) {
+    entity.cellX = position.x;
+    entity.cellY = position.y;
+    if (entity.type && entity.x === undefined) entity.x = position.x;
+    if (entity.type && entity.y === undefined) entity.y = position.y;
+  }
+  return entity;
+}
+function rebuildGameRows(kind, entities) {
+  const rows = gameRows[kind];
+  rows.forEach((row) => { row.length = 0; });
+  entities.forEach((entity) => {
+    cacheGameEntityPosition(entity);
+    if (kind === "plants" && entity.underPlant) cacheGameEntityPosition(entity.underPlant);
+    const row = Number.isInteger(entity.row) ? entity.row : -1;
+    if (row >= 0 && row < gameLayout.rows) rows[row].push(entity);
+  });
+  return rows;
+}
+function firstIndexedEntity(kind, predicate) {
+  const rows = gameRows[kind];
+  for (let row = 0; row < rows.length; row += 1) {
+    const entities = rowEntities(kind, row);
+    for (let index = 0; index < entities.length; index += 1) {
+      if (predicate(entities[index])) return entities[index];
+    }
+  }
+  return null;
+}
+function anyIndexedEntity(kind, predicate) { return Boolean(firstIndexedEntity(kind, predicate)); }
+function rowEntities(kind, row) {
+  const entities = gameRows[kind][row] || [];
+  game.renderStats.rowQueries += 1;
+  game.renderStats.rowCandidates += entities.length;
+  return entities;
+}
+function firstRowEntity(kind, row, predicate) {
+ const entities = rowEntities(kind, row);
+ for (let index = 0; index < entities.length; index += 1) if (predicate(entities[index])) return entities[index];
+ return null;
+}
+function anyRowEntity(kind, row, predicate) { return Boolean(firstRowEntity(kind, row, predicate)); }
+function forEachRowEntity(kind, row, callback) {
+ const entities = rowEntities(kind, row);
+ for (let index = 0; index < entities.length;) {
+  const entity = entities[index];
+  callback(entity);
+  // A callback may remove the current entity; keep the cursor in place.
+  if (entities[index] === entity) index += 1;
+ }
+}
+function trackGameAnimation(entity, state) {
+ if (!entity || entity.animationState === state) return;
+ entity.animationState = state;
+ if (game.renderStats) game.renderStats.animationSwitches = (game.renderStats.animationSwitches || 0) + 1;
+}
+function removeRowEntity(kind, entity, rowOverride = null) {
+ const row = Number.isInteger(rowOverride) ? rowOverride : (Number.isInteger(entity?.row) ? entity.row : -1);
+ const entities = rowEntities(kind, row);
+ const index = entities.indexOf(entity);
+ if (index >= 0) entities.splice(index, 1);
+}
+function moveRowEntity(kind, entity, previousRow) {
+ const nextRow = Number.isInteger(entity?.row) ? entity.row : -1;
+ if (previousRow === nextRow) return;
+ removeRowEntity(kind, entity, previousRow);
+ if (nextRow >= 0 && nextRow < gameLayout.rows) rowEntities(kind, nextRow).push(entity);
+}
+function rebuildGameIndexes() {
+ rebuildGameRows("plants", game.plants);
+ rebuildGameRows("zombies", game.zombies);
+ game.renderStats.indexRebuilds += 1;
+}
+const gameCellPositions = Array.from({ length: gameLayout.rows }, (_, row) =>
+ Array.from({ length: gameLayout.cols }, (_, col) => ({
+   x: gameLayout.left + col * gameLayout.cellW + 35,
+   y: gameLayout.top + row * gameLayout.cellH + 31,
+ })),
+);
+const gameRender = { canvas: null, ctx: null, background: null, dpr: 1, effects: "high", deviceProfile: null };
+function resizeGameCanvas() {
+  const canvas = gameRender.canvas || $("#gameCanvas");
+  if (!canvas) return;
+  gameRender.canvas = canvas;
+  // Keep the logical field sharp without making high-DPR devices rasterize an oversized surface.
+  const dpr = Math.min(1.75, Math.max(1, window.devicePixelRatio || 1));
+  const width = Math.round(GAME_LOGICAL_WIDTH * dpr);
+  const height = Math.round(GAME_LOGICAL_HEIGHT * dpr);
+  if (!gameRender.ctx || canvas.width !== width || canvas.height !== height || gameRender.dpr !== dpr) {
+    canvas.width = width;
+    canvas.height = height;
+    gameRender.dpr = dpr;
+    gameRender.ctx = canvas.getContext("2d", { alpha: false, desynchronized: true }) || canvas.getContext("2d");
+    gameRender.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    gameRender.ctx.imageSmoothingEnabled = true;
+    gameRender.ctx.imageSmoothingQuality = "high";
+    gameRender.background = null;
+  }
+  if (!gameRender.background) buildGameBackground();
+}
+function buildGameBackground() {
+  const background = document.createElement("canvas");
+  background.width = GAME_LOGICAL_WIDTH;
+  background.height = GAME_LOGICAL_HEIGHT;
+  const ctx = background.getContext("2d");
+  const sky = ctx.createLinearGradient(0, 0, 0, GAME_LOGICAL_HEIGHT);
+  sky.addColorStop(0, "#9bd9df"); sky.addColorStop(.35, "#d7e7b2"); sky.addColorStop(.36, "#659b58"); sky.addColorStop(1, "#315744");
+  ctx.fillStyle = sky; ctx.fillRect(0, 0, GAME_LOGICAL_WIDTH, GAME_LOGICAL_HEIGHT);
+  ctx.fillStyle = "rgba(255,255,255,.18)"; ctx.beginPath(); ctx.arc(605, 42, 29, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "#253b45"; ctx.fillRect(0, 0, GAME_LOGICAL_WIDTH, 58);
+  ctx.fillStyle = "#eef3cf"; ctx.font = "700 12px Manrope, sans-serif"; ctx.fillText("BACKYARD", 18, 23);
+  ctx.fillStyle = "#d9b16e"; ctx.fillRect(48, 28, 17, 23); ctx.fillStyle = "#693f38"; ctx.beginPath(); ctx.moveTo(44, 29); ctx.lineTo(57, 16); ctx.lineTo(70, 29); ctx.fill(); ctx.fillStyle = "#f4d27a"; ctx.fillRect(53, 39, 7, 12);
+  for (let row = 0; row < gameLayout.rows; row += 1) for (let col = 0; col < gameLayout.cols; col += 1) { const x = gameLayout.left + col * gameLayout.cellW, y = gameLayout.top + row * gameLayout.cellH; ctx.fillStyle = (row + col) % 2 ? "#75b866" : "#83c573"; roundedRect(ctx, x + 2, y + 2, 66, 61, 8); ctx.fill(); ctx.strokeStyle = "rgba(221, 246, 151, .18)"; ctx.stroke(); }
+  const laneGlow = ctx.createLinearGradient(78, 72, 78, 397);
+  laneGlow.addColorStop(0, "rgba(255,255,255,.06)"); laneGlow.addColorStop(.5, "rgba(255,255,255,0)"); laneGlow.addColorStop(1, "rgba(12,38,29,.14)");
+  ctx.fillStyle = laneGlow; ctx.fillRect(78, 72, 630, 325);
+  ctx.strokeStyle = "rgba(232, 250, 176, .14)"; ctx.lineWidth = 1;
+  for (let row = 0; row <= gameLayout.rows; row += 1) { const y = gameLayout.top + row * gameLayout.cellH; ctx.beginPath(); ctx.moveTo(gameLayout.left, y); ctx.lineTo(708, y); ctx.stroke(); }
+  ctx.fillStyle = "rgba(240, 213, 140, .28)"; ctx.fillRect(674, 60, 3, 360);
+  ctx.fillStyle = "rgba(255,255,255,.07)"; ctx.fillRect(678, 60, 1, 360);
+  gameRender.background = background;
+}
+function recordGameFrame(now, startedAt) {
+  const stats = game.renderStats;
+  const frameMs = Math.max(0, performance.now() - startedAt);
+  const sampleIndex = stats.frames % 240;
+  stats.frames += 1;
+  stats.lastFrameMs = frameMs;
+  stats.maxFrameMs = Math.max(stats.maxFrameMs, frameMs);
+  if (frameMs > 32) stats.longFrames += 1;
+  // Keep the rolling profiler allocation-free; shift() would copy up to 240 entries every frame.
+  if (stats.frameSamples.length < 240) stats.frameSamples.push(frameMs);
+  else stats.frameSamples[sampleIndex] = frameMs;
+  const recentIndex = Number.isInteger(stats.recentSampleIndex) ? stats.recentSampleIndex : 0;
+  const previousSample = stats.recentSamples?.[recentIndex];
+  if (previousSample > 32) stats.recentLongFrames -= 1;
+  if (!stats.recentSamples) stats.recentSamples = new Array(60);
+  stats.recentSamples[recentIndex] = frameMs;
+  if (frameMs > 32) stats.recentLongFrames += 1;
+  stats.recentSampleIndex = (recentIndex + 1) % 60;
+  stats.recentSampleCount = Math.min(60, stats.recentSampleCount + 1);
+  if (stats.recentSampleCount >= 30 && stats.recentLongFrames >= 6) gameRender.effects = "low";
+  else if (gameRender.effects === "low" && stats.recentSampleCount >= 30 && stats.recentLongFrames <= 1) gameRender.effects = "high";
+  if (!stats.windowStartedAt) stats.windowStartedAt = now;
+  stats.windowFrames += 1;
+  if (now - stats.windowStartedAt >= 1000) {
+    stats.fps = stats.windowFrames * 1000 / (now - stats.windowStartedAt);
+    stats.windowFrames = 0;
+    stats.windowStartedAt = now;
+    const performanceNode = $("#gamePerformance");
+    if (performanceNode) {
+      $("#gameFps").textContent = String(Math.round(stats.fps));
+      $("#gameFrameMs").textContent = `${stats.lastFrameMs.toFixed(1)}ms`;
+      $("#gameLongFrames").textContent = String(stats.longFrames);
+      $("#gameObjectCount").textContent = String(game.suns.length + game.plants.length + game.zombies.length + game.shots.length + game.particles.length + game.impacts.length);
+      performanceNode.classList.toggle("warning", stats.lastFrameMs > 32 || stats.recentLongFrames > 0);
+    }
+  }
+}
+const plantCost = { peashooter: 100, sunflower: 50, wallnut: 50, repeater: 180, cherrybomb: 150, icepeashooter: 175, firepeashooter: 175, twinpea: 225, kernelpult: 100, pumpkin: 125, spikeweed: 100, gloomshroom: 150, potatomine: 25, threepeater: 325, jalapeno: 125, magnetshroom: 100, garlic: 50, squash: 50, gatlingpea: 350 };
+const PLANT_TYPES = Object.keys(plantCost);
+const plantHealth = { peashooter: 7, sunflower: 6, wallnut: 24, repeater: 8, cherrybomb: 4, icepeashooter: 7, firepeashooter: 7, twinpea: 10, kernelpult: 8, pumpkin: 32, spikeweed: 10, gloomshroom: 9, potatomine: 3, threepeater: 8, jalapeno: 4, magnetshroom: 7, garlic: 8, squash: 6, gatlingpea: 9 };
+const plantColor = { peashooter: "#62b5a0", sunflower: "#f6c453", wallnut: "#ad7556", repeater: "#75c77b", cherrybomb: "#dd6d73", icepeashooter: "#8bc9e8", firepeashooter: "#f07855", twinpea: "#8bd15f", kernelpult: "#e8bf65", pumpkin: "#e29b45", spikeweed: "#8dbf62", gloomshroom: "#8563aa", potatomine: "#a9bd72", threepeater: "#72c789", jalapeno: "#ef765f", magnetshroom: "#b187d5", garlic: "#f3e1b4", squash: "#e2a848", gatlingpea: "#4db878" };
+const plantCooldown = { peashooter: 250, sunflower: 900, wallnut: 700, repeater: 450, cherrybomb: 900, icepeashooter: 850, firepeashooter: 850, twinpea: 950, kernelpult: 700, pumpkin: 1050, spikeweed: 650, gloomshroom: 1100, potatomine: 650, threepeater: 1100, jalapeno: 1200, magnetshroom: 900, garlic: 800, squash: 800, gatlingpea: 1400 };
 const plantProfiles = {
   peashooter: { interval: 1050, shots: 1, damage: 1, slow: 0 },
-  repeater: { interval: 1250, shots: 2, damage: 1, slow: 0 },
-  icepeashooter: { interval: 1300, shots: 1, damage: 1, slow: 3200 },
+  repeater: { interval: 1250, shots: 2, damage: 1, slow: 0, pierce: 1 },
+  icepeashooter: { interval: 1300, shots: 1, damage: 1, slow: 3200, pierce: 1 },
+  firepeashooter: { interval: 1350, shots: 1, damage: 2, slow: 0, fire: true, burn: 2600, burnDamage: 3 },
+  twinpea: { interval: 1450, shots: 2, damage: 2, slow: 0, pierce: 1 },
+  kernelpult: { interval: 1500, shots: 1, damage: 1, slow: 0, butterChance: .28, pierce: 1 },
+  threepeater: { interval: 1450, shots: 1, damage: 1, slow: 0, rows: true, pierce: 1 },
+  magnetshroom: { interval: 2600, shots: 0, damage: 0, slow: 0, utility: true },
+  gatlingpea: { interval: 1550, shots: 4, damage: 1, slow: 0, pierce: 1 },
+  gloomshroom: { interval: 1200, shots: 1, damage: 1, slow: 900, close: true },
 };
 const zombieProfiles = {
   walker: { hp: 5, speed: .020, growth: .0010, attackInterval: 1000, score: 1 },
-  roadblock: { hp: 12, speed: .013, growth: .00065, attackInterval: 670, score: 3 },
-  runner: { hp: 4, speed: .036, growth: .0008, attackInterval: 1150, score: 2 },
-  bucket: { hp: 21, speed: .011, growth: .00045, attackInterval: 620, score: 5 },
+  backup: { hp: 4, speed: .025, growth: .0008, attackInterval: 900, score: 1 },
+  roadblock: { hp: 12, speed: .013, growth: .00065, attackInterval: 670, score: 3, armor: 5, barricade: true },
+  conehead: { hp: 9, speed: .021, growth: .0009, attackInterval: 900, score: 2, armor: 3, cone: true },
+  imp: { hp: 3, speed: .044, growth: .0011, attackInterval: 1250, score: 2, dash: true, leap: true },
+  scout: { hp: 7, speed: .030, growth: .0009, attackInterval: 820, score: 4, dash: true, mark: true },
+  storm: { hp: 11, speed: .016, growth: .0006, attackInterval: 740, score: 7, storm: true },
+  runner: { hp: 4, speed: .036, growth: .0008, attackInterval: 1150, score: 2, dash: true },
+  polevault: { hp: 10, speed: .025, growth: .0007, attackInterval: 700, score: 5, vault: true },
+  bucket: { hp: 21, speed: .011, growth: .00045, attackInterval: 620, score: 5, armor: 8, bucket: true },
+  football: { hp: 18, speed: .024, growth: .00055, attackInterval: 430, score: 6, armor: 5, charge: true },
+  miner: { hp: 9, speed: .018, growth: .0007, attackInterval: 850, score: 5, burrow: true },
+  flag: { hp: 6, speed: .027, growth: .0010, attackInterval: 900, score: 3, banner: true },
+  dancer: { hp: 13, speed: .019, growth: .00055, attackInterval: 650, score: 7, summon: true },
+  newspaper: { hp: 8, speed: .017, growth: .0008, attackInterval: 760, score: 4, armor: 3, enrage: true },
+  gargantuar: { hp: 48, speed: .008, growth: .00035, attackInterval: 360, score: 12, armor: 8, giant: true, smash: true },
+  witch: { hp: 16, speed: .014, growth: .0005, attackInterval: 800, score: 9, curse: true },
+  dragon: { hp: 26, speed: .010, growth: .00035, attackInterval: 560, score: 10, armor: 2, breath: true },
+  shield: { hp: 14, speed: .016, growth: .0006, attackInterval: 720, score: 6, armor: 12, guard: true },
 };
 function gameDifficulty() { return GAME_DIFFICULTIES[game.difficulty] || GAME_DIFFICULTIES.hard; }
 function updatePauseButton() {
@@ -2118,19 +2932,28 @@ function clearPlantSelection() {
   $$(".seed-card").forEach((card) => card.classList.remove("selected"));
 }
 function selectPlant(card) {
+  const next = card.dataset.plant;
+  if ((game.seedCooldowns[next] || 0) > 0) {
+    setGameStatus("game.cooldown");
+    return;
+  }
   if (game.shovel) {
     game.shovel = false;
     updateShovelButton();
   }
-  const next = card.dataset.plant;
   game.selected = game.selected === next ? null : next;
   $$(".seed-card").forEach((item) => item.classList.toggle("selected", item.dataset.plant === game.selected));
+  drawGame();
 }
 function formatGameTime(value) {
   const total = Math.max(0, Math.floor(value / 1000));
   return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
 }
-function updateGameHud() {
+function updateGameHud(force = true) {
+  const now = performance.now();
+  // HUD text is DOM work; it does not need to be synchronized with every paint.
+  if (!force && now - game.hudAt < 100) return;
+  game.hudAt = now;
   $("#gameSun").textContent = String(game.sun);
   $("#gameScore").textContent = String(game.score);
   $("#gameWave").textContent = `${Math.min(game.wave, MAX_WAVES)}/${MAX_WAVES}`;
@@ -2138,11 +2961,104 @@ function updateGameHud() {
   const pressure = `${t("game.threat")}: ${game.waveSpawned}/${game.waveTarget}`;
   $("#gameThreat").textContent = pressure;
   $("#gameProgressFill").style.width = `${Math.round((game.waveSpawned / Math.max(1, game.waveTarget)) * 100)}%`;
-  $("#gameWaveHint").textContent = t(game.wave >= 7 ? "game.wavePressure" : "game.waveHint");
+  $("#gameWaveHint").textContent = t(game.wave >= 9 ? "game.waveFinal" : game.wave >= 7 ? "game.wavePressure" : "game.waveHint");
+  $("#gameMowers").textContent = String(game.mowers.filter((mower) => !mower.used).length);
+  $("#gameCombo").textContent = String(game.combo || 0);
+  $("#gameCombo").parentElement.classList.toggle("hot", (game.combo || 0) >= 3);
+  const energy = Math.max(0, Math.min(100, Math.round(game.energy || 0)));
+  const energyNode = $("#gameEnergy");
+  const energyFill = $("#gameEnergyFill");
+  if (energyNode) energyNode.textContent = String(energy);
+  if (energyFill) energyFill.style.width = `${energy}%`;
+  $$(".game-skill").forEach((button) => {
+    const skill = GAME_SKILLS[button.dataset.skill];
+    if (!skill) return;
+    const remaining = Math.max(0, game.skillCooldowns[button.dataset.skill] || 0);
+    const cooling = remaining > 0;
+    const unavailable = cooling || energy < skill.cost || !game.running || game.paused;
+    button.classList.toggle("cooling", cooling);
+    button.classList.toggle("ready", !unavailable);
+    button.classList.toggle("unaffordable", energy < skill.cost);
+    button.disabled = unavailable;
+    button.setAttribute("aria-disabled", String(unavailable));
+    button.style.setProperty("--skill-cooldown", `${Math.ceil(remaining / 1000)}s`);
+    button.title = cooling ? `${t(skill.label)} · ${Math.ceil(remaining / 1000)}s` : `${t(skill.label)} · ${energy}/${skill.cost}`;
+  });
+  $$(".seed-card").forEach((card) => {
+    const remaining = Math.max(0, game.seedCooldowns[card.dataset.plant] || 0);
+    const cooling = remaining > 0;
+    const unaffordable = game.sun < (plantCost[card.dataset.plant] || Infinity);
+    card.classList.toggle("cooling", cooling);
+    card.classList.toggle("unaffordable", unaffordable);
+    card.setAttribute("aria-disabled", String(cooling || unaffordable));
+    card.style.setProperty("--seed-cooldown", `${Math.ceil(remaining / 1000)}s`);
+  });
 }
-function cellPosition(row, col) { return { x: gameLayout.left + col * gameLayout.cellW + 35, y: gameLayout.top + row * gameLayout.cellH + 31 }; }
+function activateGameSkill(type) {
+  if (!game.running || game.paused) return false;
+  const skill = GAME_SKILLS[type];
+  if (!skill) return false;
+  const remaining = Math.max(0, game.skillCooldowns[type] || 0);
+  if (remaining > 0) { setGameStatus("game.skillCooldown"); return false; }
+  if ((game.energy || 0) < skill.cost) { setGameStatus("game.skillNeedEnergy"); return false; }
+  game.energy -= skill.cost;
+  game.skillCooldowns[type] = skill.cooldown;
+  const center = { x: 390, y: 230 };
+  if (type === "pulse") {
+    game.skillPulseFlash = 620;
+    game.zombies.slice().forEach((zombie) => {
+      zombie.slowTimer = Math.max(zombie.slowTimer || 0, 4200);
+      zombie.flashTimer = 240;
+      zombie.hp -= zombie.armor > 0 ? 2.5 : 4;
+      game.impacts.push({ x: zombie.x, y: zombie.y, radius: 34, color: "#bdf8ff", life: 260, maxLife: 260 });
+      if (zombie.hp <= 0) defeatZombie(zombie, "skill");
+    });
+    addGameParticle(center.x, center.y, "#bdf8ff", 48, .34);
+    announceGame(state.locale === "zh" ? "寒冰脉冲！" : "FROST PULSE!", "#bdf8ff", 900);
+    playGameSound("explode");
+  } else if (type === "sun") {
+    game.sun += 100;
+    addGameParticle(390, 88, "#ffe17b", 34, .26);
+    addGamePopup(390, 112, "+100 ☀", "#ffe17b", 1000);
+    announceGame(state.locale === "zh" ? "+100 阳光" : "+100 SUN", "#ffe17b", 900);
+    playGameSound("collect");
+  } else {
+    game.rallyTimer = 8000;
+    game.skillPulseFlash = 420;
+    addGameParticle(390, 230, "#f5c96b", 32, .3);
+    announceGame(state.locale === "zh" ? "战线超载！" : "OVERDRIVE!", "#f5c96b", 900);
+    playGameSound("wave");
+  }
+  updateGameHud(true);
+  drawGame();
+  return true;
+}
+function cellPosition(row, col) { return gameCellPositions[row]?.[col] || { x: gameLayout.left + col * gameLayout.cellW + 35, y: gameLayout.top + row * gameLayout.cellH + 31 }; }
+function cachedCellPosition(entity) {
+ const position = gameCellPositions[entity?.row]?.[entity?.col];
+ return position || cellPosition(entity?.row, entity?.col);
+}
+function rowEntitiesWhere(kind, row, predicate) {
+ const entities = rowEntities(kind, row);
+ const matches = [];
+ for (let index = 0; index < entities.length; index += 1) if (predicate(entities[index])) matches.push(entities[index]);
+ return matches;
+}
 function addGameParticle(x, y, color, count = 6, speed = 0.08) {
   for (let i = 0; i < count; i += 1) game.particles.push({ x, y, vx: (Math.random() - .5) * speed, vy: (Math.random() - .7) * speed, life: 420 + Math.random() * 360, maxLife: 780, size: 2 + Math.random() * 3, color });
+  if (game.particles.length > GAME_MAX_PARTICLES) game.particles.splice(0, game.particles.length - GAME_MAX_PARTICLES);
+}
+function addGamePopup(x, y, text, color = "#fff1b0", life = 850) {
+  game.popups.push({ x, y, text, color, life, maxLife: life, vy: -.025 });
+  if (game.popups.length > GAME_MAX_POPUPS) game.popups.splice(0, game.popups.length - GAME_MAX_POPUPS);
+}
+function announceGame(text, color = "#ffe27c", duration = 1500) {
+  game.bannerText = text;
+  game.bannerColor = color;
+  game.bannerTimer = duration;
+}
+function gameWaveBanner(wave) {
+  return state.locale === "zh" ? `第 ${wave} 波` : `WAVE ${wave}`;
 }
 function gameVolume() { return game.musicOn ? .1 * (game.volume / 100) : .001; }
 function playGameSound(kind) {
@@ -2166,6 +3082,7 @@ function playGameSound(kind) {
       victory: { notes: [523, 659, 784, 1046], type: "triangle", duration: .7, step: .11, volume: .18 },
       gameover: { notes: [220, 165, 110], type: "sawtooth", duration: .55, step: .13, volume: .16 },
       danger: { notes: [110, 98], type: "square", duration: .18, step: .08, volume: .1 },
+      mower: { notes: [196, 294, 392], type: "sawtooth", duration: .36, step: .07, volume: .13 },
     };
     const sound = sounds[kind] || sounds.hit;
     const now = ctx.currentTime;
@@ -2222,13 +3139,33 @@ function initGame() {
   game.waveClearTimer = 0;
   game.elapsed = 0;
   game.shovel = false;
+  game.seedCooldowns = {};
+  game.skillCooldowns = {};
+  game.energy = 60;
+  game.rallyTimer = 0;
+  game.skillPulseFlash = 0;
   game.autoSun = localStorage.getItem("minicc-game-auto-sun") !== "off";
   game.plants = [];
   game.zombies = [];
+  game.defeated = [];
   game.suns = [];
   game.shots = [];
   game.particles = [];
+  game.impacts = [];
+  game.popups = [];
+  game.mowers = Array.from({ length: gameLayout.rows }, (_, row) => ({ row, x: 57, active: false, used: false, seed: Math.random() * 1000 }));
+  game.combo = 0;
+  game.comboTimer = 0;
+  game.bestCombo = 0;
+  game.bannerTimer = 0;
+  game.bannerText = "";
+  game.bannerColor = "#ffe27c";
+  game.dangerPulse = 0;
+  game.hoverCell = null;
   game.last = 0;
+  game.hudAt = 0;
+  game.renderStats = { frames: 0, fps: 0, lastFrameMs: 0, maxFrameMs: 0, longFrames: 0, frameSamples: [], recentSamples: new Array(60), recentSampleIndex: 0, recentSampleCount: 0, recentLongFrames: 0, windowStartedAt: 0, windowFrames: 0, indexRebuilds: 0, rowQueries: 0, rowCandidates: 0, drawCalls: 0, plantDraws: 0, zombieDraws: 0, animationSwitches: 0 };
+  resizeGameCanvas();
   game.spawnTimer = 0;
   game.skyTimer = 0;
   game.dangerTimer = 0;
@@ -2244,101 +3181,268 @@ function initGame() {
   drawGame();
 }
 function roundedRect(ctx, x, y, width, height, radius) { ctx.beginPath(); ctx.roundRect(x, y, width, height, radius); }
-function drawSun(ctx, sun) { const pulse = 1 + Math.sin(sun.age / 230) * .08; ctx.save(); ctx.translate(sun.x, sun.y); ctx.scale(pulse, pulse); ctx.shadowColor = "rgba(255, 215, 84, .75)"; ctx.shadowBlur = 18; ctx.fillStyle = "#ffd75b"; ctx.beginPath(); ctx.arc(0, 0, 15, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0; ctx.strokeStyle = "#fff3a5"; ctx.lineWidth = 3; for (let i = 0; i < 8; i += 1) { const angle = i * Math.PI / 4; ctx.beginPath(); ctx.moveTo(Math.cos(angle) * 19, Math.sin(angle) * 19); ctx.lineTo(Math.cos(angle) * 25, Math.sin(angle) * 25); ctx.stroke(); } ctx.fillStyle = "#fff4a8"; ctx.beginPath(); ctx.arc(-4, -4, 4, 0, Math.PI * 2); ctx.fill(); ctx.restore(); }
-function drawPlant(ctx, plant, now) { const bob = Math.sin((now + plant.seed) / 480) * 2; const { x, y } = cellPosition(plant.row, plant.col); ctx.save(); ctx.translate(x, y + bob); ctx.fillStyle = "rgba(22, 59, 42, .24)"; ctx.beginPath(); ctx.ellipse(0, 25, 23, 7, 0, 0, Math.PI * 2); ctx.fill();
-  if (plant.type === "sunflower") { for (let i = 0; i < 10; i += 1) { const angle = i * Math.PI / 5; ctx.fillStyle = i % 2 ? "#f4b83f" : "#ffd765"; ctx.beginPath(); ctx.ellipse(Math.cos(angle) * 14, Math.sin(angle) * 14 - 5, 7, 13, angle, 0, Math.PI * 2); ctx.fill(); } ctx.fillStyle = "#75482d"; ctx.beginPath(); ctx.arc(0, -5, 10, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = "#9c6a35"; ctx.beginPath(); ctx.arc(-3, -8, 2, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = "#438553"; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(0, 7); ctx.lineTo(0, 22); ctx.stroke(); }
-  else if (plant.type === "cherrybomb") { ctx.fillStyle = "#c94f60"; ctx.beginPath(); ctx.arc(-9, -5, 12, 0, Math.PI * 2); ctx.arc(9, -5, 12, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = "#f49a86"; ctx.beginPath(); ctx.arc(-13, -9, 4, 0, Math.PI * 2); ctx.arc(5, -9, 4, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = "#5f8d4c"; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(0, -14); ctx.quadraticCurveTo(2, -28, 12, -28); ctx.stroke(); ctx.fillStyle = "#f4d27a"; ctx.beginPath(); ctx.arc(13, -28, 4, 0, Math.PI * 2); ctx.fill(); }
-  else if (plant.type === "wallnut") { ctx.fillStyle = "#b87b55"; ctx.strokeStyle = "#6d432f"; ctx.lineWidth = 3; ctx.beginPath(); ctx.ellipse(0, 0, 19, 24, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); ctx.fillStyle = "#3f2f27"; ctx.beginPath(); ctx.arc(-7, -5, 2.5, 0, Math.PI * 2); ctx.arc(7, -5, 2.5, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = "#6d432f"; ctx.beginPath(); ctx.arc(0, 5, 8, 0, Math.PI); ctx.stroke(); }
-  else { ctx.strokeStyle = "#438553"; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(0, 19); ctx.lineTo(0, -3); ctx.stroke(); ctx.fillStyle = plant.type === "icepeashooter" ? "#9cddf1" : plant.type === "repeater" ? "#70c985" : "#63b98d"; ctx.beginPath(); ctx.ellipse(-12, 12, 13, 6, -.45, 0, Math.PI * 2); ctx.ellipse(11, 14, 13, 6, .45, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = plant.type === "icepeashooter" ? "#b9eff7" : "#74c9a5"; ctx.beginPath(); ctx.arc(0, -14, 14, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = plant.type === "icepeashooter" ? "#4385a2" : "#244a3d"; ctx.beginPath(); ctx.arc(9, -14, 8, -.4, .4); ctx.fill(); ctx.fillStyle = "#d7f4d0"; ctx.beginPath(); ctx.arc(12, -14, 3, 0, Math.PI * 2); ctx.fill(); if (plant.type === "repeater") { ctx.fillStyle = "#244a3d"; ctx.beginPath(); ctx.arc(12, -5, 6, 0, Math.PI * 2); ctx.fill(); } }
-  if (plant.hp < plantHealth[plant.type]) { ctx.fillStyle = "rgba(25, 33, 26, .7)"; ctx.fillRect(-18, 29, 36, 4); ctx.fillStyle = plant.hp / plantHealth[plant.type] > .4 ? "#80d6a2" : "#f6b35c"; ctx.fillRect(-18, 29, 36 * Math.max(0, plant.hp / plantHealth[plant.type]), 4); } ctx.restore(); }
-function drawZombie(ctx, zombie, now) {
-  const walk = Math.sin((now + zombie.seed) / (zombie.type === "runner" ? 100 : 170)) * 3;
-  const profile = zombie.type === "bucket" ? { body: "#5d6472", head: "#b8c4aa" } : zombie.type === "roadblock" ? { body: "#485267", head: "#b8c4aa" } : zombie.type === "runner" ? { body: "#7c625d", head: "#c5c7a9" } : { body: "#556b62", head: "#b8c4aa" };
-  const y = zombie.y;
+function drawSun(ctx, sun) { const pulse = 1 + Math.sin(sun.age / 230) * .08; const glow = gameRender.effects === "low" ? 0 : 18; ctx.save(); ctx.translate(sun.x, sun.y); ctx.scale(pulse, pulse); ctx.shadowColor = "rgba(255, 215, 84, .75)"; ctx.shadowBlur = glow; ctx.fillStyle = "#ffd75b"; ctx.beginPath(); ctx.arc(0, 0, 15, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0; ctx.strokeStyle = "#fff3a5"; ctx.lineWidth = 3; for (let i = 0; i < 8; i += 1) { const angle = i * Math.PI / 4; ctx.beginPath(); ctx.moveTo(Math.cos(angle) * 19, Math.sin(angle) * 19); ctx.lineTo(Math.cos(angle) * 25, Math.sin(angle) * 25); ctx.stroke(); } ctx.fillStyle = "#fff4a8"; ctx.beginPath(); ctx.arc(-4, -4, 4, 0, Math.PI * 2); ctx.fill(); ctx.restore(); }
+function drawMower(ctx, mower, now) {
+  if (!mower || mower.used && !mower.active) return;
+  const y = cellPosition(mower.row, 0).y + 22;
+  const vibration = mower.active ? Math.sin((now + mower.seed) / 34) * 1.8 : Math.sin((now + mower.seed) / 480) * .6;
   ctx.save();
-  ctx.translate(zombie.x, y + walk);
-  ctx.fillStyle = "rgba(26, 28, 39, .28)";
-  ctx.beginPath();
-  ctx.ellipse(0, 25, 23, 7, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.strokeStyle = "#262c39";
-  ctx.lineWidth = 5;
-  ctx.beginPath();
-  ctx.moveTo(-7, 16);
-  ctx.lineTo(-11 + walk, 29);
-  ctx.moveTo(7, 16);
-  ctx.lineTo(11 - walk, 29);
-  ctx.stroke();
-  ctx.fillStyle = profile.body;
-  roundedRect(ctx, -15, -1, 30, 25, 8);
-  ctx.fill();
-  ctx.fillStyle = profile.head;
-  ctx.beginPath();
-  ctx.arc(0, -16, 15, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = "#29303d";
-  ctx.beginPath();
-  ctx.arc(-5, -17, 3, 0, Math.PI * 2);
-  ctx.arc(6, -17, 3, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = "#f0a27e";
-  ctx.beginPath();
-  ctx.arc(-6, -9, 3, 0, Math.PI * 2);
-  ctx.arc(6, -9, 3, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.strokeStyle = "#29303d";
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(-8, -2);
-  ctx.lineTo(8, -2);
-  ctx.stroke();
-  if (zombie.type === "roadblock") {
-    ctx.fillStyle = "#d98258";
-    ctx.fillRect(-18, -30, 36, 7);
-    ctx.fillStyle = "#f2c05e";
-    ctx.fillRect(-12, -34, 24, 4);
-  } else if (zombie.type === "bucket") {
-    ctx.fillStyle = "#a6adb5";
-    ctx.fillRect(-17, -31, 34, 14);
-    ctx.fillStyle = "#68717d";
-    ctx.fillRect(-20, -20, 40, 4);
-  } else if (zombie.type === "runner") {
-    ctx.strokeStyle = "#e78366";
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.moveTo(-15, 4);
-    ctx.lineTo(-25, -2);
-    ctx.moveTo(15, 4);
-    ctx.lineTo(25, -2);
-    ctx.stroke();
+  ctx.translate(mower.x, y + vibration);
+  if (gameRender.effects !== "low" && mower.active) {
+    ctx.shadowColor = "rgba(255, 180, 83, .72)";
+    ctx.shadowBlur = 13;
   }
-  if (zombie.slowTimer > 0) {
-    ctx.strokeStyle = "#a7e8f3";
-    ctx.lineWidth = 2;
+  ctx.fillStyle = "#c96545";
+  roundedRect(ctx, -18, -13, 34, 18, 4);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = "#e9c06b";
+  ctx.fillRect(-11, -25, 5, 14);
+  ctx.strokeStyle = "#e9c06b";
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(-8, -25);
+  ctx.lineTo(6, -34);
+  ctx.lineTo(12, -33);
+  ctx.stroke();
+  ctx.fillStyle = "#202f32";
+  ctx.beginPath();
+  ctx.arc(-10, 8, 6, 0, Math.PI * 2);
+  ctx.arc(11, 8, 6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#91a8a0";
+  ctx.beginPath();
+  ctx.arc(-10, 8, 2, 0, Math.PI * 2);
+  ctx.arc(11, 8, 2, 0, Math.PI * 2);
+  ctx.fill();
+  if (mower.active) {
+    ctx.fillStyle = "#ffe28a";
     ctx.beginPath();
-    ctx.arc(0, -3, 22, 0, Math.PI * 2);
-    ctx.stroke();
-  }
-  if (zombie.hp < zombie.maxHp) {
-    ctx.fillStyle = "rgba(25, 33, 26, .7)";
-    ctx.fillRect(-19, 34, 38, 4);
-    ctx.fillStyle = "#e48374";
-    ctx.fillRect(-19, 34, 38 * Math.max(0, zombie.hp / zombie.maxHp), 4);
+    ctx.arc(20, -3, 3 + Math.abs(Math.sin(now / 50)) * 2, 0, Math.PI * 2);
+    ctx.fill();
   }
   ctx.restore();
 }
-function drawGame() { const canvas = $("#gameCanvas"); if (!canvas) return; const ctx = canvas.getContext("2d"); const now = performance.now(); const sky = ctx.createLinearGradient(0, 0, 0, 420); sky.addColorStop(0, "#9bd9df"); sky.addColorStop(.35, "#d7e7b2"); sky.addColorStop(.36, "#659b58"); sky.addColorStop(1, "#315744"); ctx.fillStyle = sky; ctx.fillRect(0, 0, 720, 420); ctx.fillStyle = "rgba(255,255,255,.18)"; ctx.beginPath(); ctx.arc(605, 42, 29, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = "#253b45"; ctx.fillRect(0, 0, 720, 58); ctx.fillStyle = "#eef3cf"; ctx.font = "700 12px Manrope, sans-serif"; ctx.fillText("BACKYARD", 18, 23); ctx.fillStyle = "#a8d5a1"; ctx.font = "10px DM Mono, monospace"; ctx.fillText(game.running ? "DEFEND THE LAWN" : "READY FOR BATTLE", 18, 42); ctx.fillStyle = "#d9b16e"; ctx.fillRect(48, 28, 17, 23); ctx.fillStyle = "#693f38"; ctx.beginPath(); ctx.moveTo(44, 29); ctx.lineTo(57, 16); ctx.lineTo(70, 29); ctx.fill(); ctx.fillStyle = "#f4d27a"; ctx.fillRect(53, 39, 7, 12);
-  for (let row = 0; row < gameLayout.rows; row += 1) for (let col = 0; col < gameLayout.cols; col += 1) { const x = gameLayout.left + col * gameLayout.cellW, y = gameLayout.top + row * gameLayout.cellH; ctx.fillStyle = (row + col) % 2 ? "#75b866" : "#83c573"; roundedRect(ctx, x + 2, y + 2, 66, 61, 8); ctx.fill(); ctx.strokeStyle = "rgba(221, 246, 151, .18)"; ctx.stroke(); }
-  ctx.fillStyle = "rgba(240, 213, 140, .28)"; ctx.fillRect(674, 60, 3, 360); game.suns.forEach((sun) => drawSun(ctx, sun)); game.plants.forEach((plant) => drawPlant(ctx, plant, now)); game.shots.forEach((shot) => { ctx.fillStyle = shot.color || "#b5f0a2"; ctx.shadowColor = shot.slow ? "#a7e8f3" : "#80ed9a"; ctx.shadowBlur = 12; ctx.beginPath(); ctx.arc(shot.x, shot.y, 6, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0; }); game.zombies.forEach((zombie) => drawZombie(ctx, zombie, now)); game.particles.forEach((particle) => { ctx.globalAlpha = Math.max(0, particle.life / particle.maxLife); ctx.fillStyle = particle.color; ctx.beginPath(); ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2); ctx.fill(); }); ctx.globalAlpha = 1; }
+function drawPlacementPreview(ctx, now) {
+  const cell = game.hoverCell;
+  if (!game.running || !cell || (!game.selected && !game.shovel)) return;
+  const existing = game.plants.find((plant) => plant.row === cell.row && plant.col === cell.col);
+  const covering = game.selected === "pumpkin" && existing && existing.type !== "pumpkin";
+  const valid = game.shovel
+    ? Boolean(existing)
+    : Boolean(game.selected && (!existing || covering) && game.sun >= (plantCost[game.selected] || Infinity) && !(game.seedCooldowns[game.selected] > 0));
+  const x = gameLayout.left + cell.col * gameLayout.cellW + 2;
+  const y = gameLayout.top + cell.row * gameLayout.cellH + 2;
+  ctx.save();
+  ctx.fillStyle = valid ? "rgba(184, 245, 170, .18)" : "rgba(244, 120, 100, .2)";
+  ctx.strokeStyle = valid ? "rgba(237, 255, 178, .9)" : "rgba(255, 145, 124, .9)";
+  ctx.lineWidth = 2;
+  ctx.setLineDash([6, 4]);
+  roundedRect(ctx, x, y, 66, 61, 8);
+  ctx.fill();
+  ctx.stroke();
+  ctx.setLineDash([]);
+  if (!game.shovel && game.selected && valid) {
+    const preview = { type: game.selected, row: cell.row, col: cell.col, hp: plantHealth[game.selected], seed: 1, age: now, sunTimer: 0, shotTimer: 0, bombTimer: 0, disabledTimer: 0, armed: game.selected !== "potatomine" };
+    ctx.globalAlpha = .46;
+    drawPlant(ctx, preview, now);
+  }
+  ctx.restore();
+}
+function drawGamePopup(ctx, popup) {
+  const alpha = Math.max(0, Math.min(1, popup.life / popup.maxLife));
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.font = "700 11px DM Mono, Consolas, monospace";
+  ctx.textAlign = "center";
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = "rgba(22, 39, 32, .7)";
+  ctx.strokeText(popup.text, popup.x, popup.y);
+  ctx.fillStyle = popup.color;
+  ctx.fillText(popup.text, popup.x, popup.y);
+  ctx.restore();
+}
+function drawPlant(ctx, plant, now) {
+  if (plant.type === "pumpkin" && plant.underPlant) drawPlant(ctx, plant.underPlant, now);
+  const { x, y } = cellPosition(plant.row, plant.col);
+  const breathe = 1 + Math.sin((now + plant.seed) / 620) * .025;
+  const bob = Math.sin((now + plant.seed) / 430) * (plant.type === "spikeweed" ? .7 : 1.8);
+  const leaf = (lx, ly, angle, color = "#3d9b5c") => { ctx.save(); ctx.translate(lx, ly); ctx.rotate(angle); ctx.fillStyle = color; ctx.beginPath(); ctx.ellipse(0, 0, 12, 5, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore(); };
+  const stem = (height = 24, color = "#2f744d") => { ctx.strokeStyle = color; ctx.lineWidth = 5; ctx.lineCap = "round"; ctx.beginPath(); ctx.moveTo(0, 21); ctx.lineTo(0, 21 - height); ctx.stroke(); };
+  const peaFace = (color, mouth = 10) => { ctx.fillStyle = color; ctx.beginPath(); ctx.arc(0, -17, 15, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = "#193c32"; ctx.beginPath(); ctx.arc(10, -17, mouth, -.45, .45); ctx.fill(); ctx.fillStyle = "#f3f4ca"; ctx.beginPath(); ctx.arc(13, -17, 3, 0, Math.PI * 2); ctx.fill(); };
+  ctx.save(); ctx.translate(x, y + bob); ctx.scale(breathe, breathe); ctx.fillStyle = "rgba(17, 51, 32, .3)"; ctx.beginPath(); ctx.ellipse(0, 25, 24, 7, 0, 0, Math.PI * 2); ctx.fill();
+  switch (plant.type) {
+    case "sunflower": stem(); leaf(-12, 13, -.45); leaf(12, 15, .45); for (let i = 0; i < 10; i += 1) { const a = i * Math.PI / 5; ctx.fillStyle = i % 2 ? "#f4b83f" : "#ffd966"; ctx.beginPath(); ctx.ellipse(Math.cos(a) * 15, -8 + Math.sin(a) * 15, 7, 13, a, 0, Math.PI * 2); ctx.fill(); } ctx.fillStyle = "#75482d"; ctx.beginPath(); ctx.arc(0, -8, 11, 0, Math.PI * 2); ctx.fill(); break;
+    case "wallnut": ctx.fillStyle = "#a66a45"; ctx.beginPath(); ctx.ellipse(0, -3, 23, 29, 0, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = "#70452f"; ctx.lineWidth = 2; ctx.stroke(); ctx.fillStyle = "#1d302c"; ctx.beginPath(); ctx.arc(-7, -11, 2, 0, Math.PI * 2); ctx.arc(7, -11, 2, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = "#1d302c"; ctx.beginPath(); ctx.arc(0, -2, 8, .15, Math.PI - .15); ctx.stroke(); break;
+    case "pumpkin": ctx.fillStyle = "#e27d31"; ctx.beginPath(); ctx.ellipse(0, -4, 24, 27, 0, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = "#a94f29"; ctx.lineWidth = 3; ctx.beginPath(); ctx.ellipse(-9, -4, 9, 25, 0, 0, Math.PI * 2); ctx.ellipse(9, -4, 9, 25, 0, 0, Math.PI * 2); ctx.stroke(); ctx.fillStyle = "#28352e"; ctx.beginPath(); ctx.arc(-8, -7, 4, 0, Math.PI * 2); ctx.arc(8, -7, 4, 0, Math.PI * 2); ctx.fill(); ctx.fillRect(-8, 3, 16, 3); break;
+    case "cherrybomb": ctx.strokeStyle = "#4a744a"; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(0, -20); ctx.quadraticCurveTo(4, -34, 14, -36); ctx.stroke(); ctx.fillStyle = "#c94556"; ctx.beginPath(); ctx.arc(-10, -7, 14, 0, Math.PI * 2); ctx.arc(10, -7, 14, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = "#ffb08b"; ctx.beginPath(); ctx.arc(-14, -12, 4, 0, Math.PI * 2); ctx.arc(6, -12, 4, 0, Math.PI * 2); ctx.fill(); break;
+    case "potatomine": ctx.fillStyle = "#ad844e"; ctx.beginPath(); ctx.ellipse(0, 5, 23, 16, 0, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = "#db5a4d"; ctx.beginPath(); ctx.arc(0, -13, 6, Math.PI, 0); ctx.fill(); ctx.fillStyle = "#2d382e"; ctx.beginPath(); ctx.arc(-8, 1, 3, 0, Math.PI * 2); ctx.arc(8, 1, 3, 0, Math.PI * 2); ctx.fill(); break;
+    case "spikeweed": ctx.fillStyle = "#4f9c55"; ctx.beginPath(); ctx.moveTo(-25, 19); ctx.lineTo(-15, -6); ctx.lineTo(-7, 17); ctx.lineTo(0, -11); ctx.lineTo(8, 17); ctx.lineTo(17, -6); ctx.lineTo(25, 19); ctx.closePath(); ctx.fill(); ctx.fillStyle = "#d8eb9c"; for (let i = -18; i <= 18; i += 9) { ctx.beginPath(); ctx.arc(i, 13, 2, 0, Math.PI * 2); ctx.fill(); } break;
+    case "gloomshroom": stem(23, "#624478"); ctx.fillStyle = "#7750a0"; ctx.beginPath(); ctx.arc(0, -17, 21, Math.PI, Math.PI * 2); ctx.lineTo(17, -9); ctx.quadraticCurveTo(0, -1, -17, -9); ctx.closePath(); ctx.fill(); ctx.fillStyle = "#d4a9ef"; ctx.beginPath(); ctx.arc(-9, -16, 3, 0, Math.PI * 2); ctx.arc(5, -21, 3, 0, Math.PI * 2); ctx.arc(12, -10, 2, 0, Math.PI * 2); ctx.fill(); break;
+    case "jalapeno": ctx.fillStyle = "#ef654d"; ctx.beginPath(); ctx.moveTo(-4, 20); ctx.bezierCurveTo(-23, 5, -19, -22, 3, -28); ctx.bezierCurveTo(24, -23, 22, 9, 5, 20); ctx.closePath(); ctx.fill(); ctx.fillStyle = "#3c824d"; ctx.fillRect(-4, -31, 9, 7); ctx.fillStyle = "#fff0b0"; ctx.beginPath(); ctx.arc(-8, -8, 3, 0, Math.PI * 2); ctx.arc(7, -8, 3, 0, Math.PI * 2); ctx.fill(); break;
+    case "garlic": ctx.fillStyle = "#f1e5bc"; ctx.beginPath(); ctx.moveTo(0, -30); ctx.bezierCurveTo(-22, -23, -20, 11, 0, 20); ctx.bezierCurveTo(20, 11, 22, -23, 0, -30); ctx.fill(); ctx.strokeStyle = "#c7b886"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(0, -27); ctx.lineTo(0, 15); ctx.moveTo(-2, -22); ctx.quadraticCurveTo(-11, -4, -7, 10); ctx.moveTo(2, -22); ctx.quadraticCurveTo(11, -4, 7, 10); ctx.stroke(); break;
+    case "squash": ctx.fillStyle = "#e5ad43"; ctx.beginPath(); ctx.ellipse(0, -1, 25, 17, -.1, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = "#9a6434"; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(-10, -1, 9, 16, 0, 0, Math.PI * 2); ctx.ellipse(10, -1, 9, 16, 0, 0, Math.PI * 2); ctx.stroke(); ctx.fillStyle = "#25382e"; ctx.beginPath(); ctx.arc(-8, -4, 3, 0, Math.PI * 2); ctx.arc(8, -4, 3, 0, Math.PI * 2); ctx.fill(); break;
+    case "kernelpult": stem(20); leaf(-13, 13, -.5); leaf(13, 14, .5); ctx.fillStyle = "#e8c54f"; ctx.beginPath(); ctx.ellipse(0, -18, 15, 18, -.2, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = "#6aa84f"; ctx.fillRect(-7, -35, 13, 5); break;
+    case "magnetshroom": stem(21, "#704c80"); ctx.fillStyle = "#bd79b9"; ctx.beginPath(); ctx.arc(0, -14, 20, Math.PI, Math.PI * 2); ctx.fill(); ctx.fillStyle = "#303a4d"; ctx.fillRect(-10, -9, 20, 5); break;
+    case "icepeashooter": stem(); leaf(-12, 13, -.45, "#5da6ba"); leaf(12, 14, .45, "#5da6ba"); peaFace("#87d8e9"); ctx.strokeStyle = "#e9ffff"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, -17, 19, 0, Math.PI * 2); ctx.stroke(); break;
+    case "firepeashooter": stem(); leaf(-12, 13, -.45); leaf(12, 14, .45); peaFace("#e65e49"); ctx.fillStyle = "#ffbf4f"; ctx.beginPath(); ctx.moveTo(-8, -31); ctx.lineTo(0, -43); ctx.lineTo(5, -30); ctx.lineTo(13, -39); ctx.lineTo(11, -22); ctx.closePath(); ctx.fill(); break;
+    case "twinpea": stem(); leaf(-12, 13, -.45); leaf(12, 14, .45); ctx.fillStyle = "#7bc65c"; ctx.beginPath(); ctx.arc(-8, -16, 12, 0, Math.PI * 2); ctx.arc(8, -16, 12, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = "#193c32"; ctx.beginPath(); ctx.arc(-18, -16, 7, -.4, .4); ctx.arc(18, -16, 7, Math.PI - .4, Math.PI + .4); ctx.fill(); break;
+    case "repeater": case "threepeater": case "gatlingpea": case "peashooter": stem(); leaf(-12, 13, -.45); leaf(12, 14, .45); peaFace(plant.type === "gatlingpea" ? "#45a86b" : plant.type === "threepeater" ? "#77c979" : plant.type === "repeater" ? "#70c77b" : "#61b59d", plant.type === "gatlingpea" ? 13 : 10); if (plant.type === "threepeater") { ctx.fillStyle = "#74c979"; ctx.beginPath(); ctx.arc(-12, -13, 10, 0, Math.PI * 2); ctx.arc(12, -13, 10, 0, Math.PI * 2); ctx.fill(); } if (plant.type === "gatlingpea") { ctx.fillStyle = "#214c3e"; ctx.fillRect(5, -28, 25, 7); ctx.fillRect(5, -18, 27, 7); ctx.fillRect(5, -8, 23, 7); } break;
+    default: stem(); leaf(-12, 13, -.45); leaf(12, 14, .45); peaFace(plantColor[plant.type] || "#62b5a0");
+  }
+  if (plant.hp < plantHealth[plant.type]) { ctx.fillStyle = "rgba(18, 28, 24, .8)"; ctx.fillRect(-20, 30, 40, 4); ctx.fillStyle = plant.hp / plantHealth[plant.type] > .4 ? "#78d69b" : "#f6a45e"; ctx.fillRect(-20, 30, 40 * Math.max(0, plant.hp / plantHealth[plant.type]), 4); }
+  ctx.restore();
+}
+function drawZombie(ctx, zombie, now) {
+  const giant = zombie.type === "gargantuar";
+  const cycle = (zombie.age || 0) + zombie.seed;
+  const fast = zombie.type === "runner" || zombie.type === "imp";
+  const gait = Math.sin(cycle / (fast ? 70 : 145));
+  const stride = gait * (fast ? 6 : 4);
+  const bob = Math.abs(gait) * (giant ? 2.4 : 1.6);
+  const armSwing = Math.sin(cycle / (fast ? 70 : 145) + Math.PI) * (fast ? 8 : 5);
+  const actionPulse = zombie.flashTimer > 0 ? Math.sin(now / 18) * 3 : 0;
+  const skillPulse = (zombie.breathTimer > 0 && zombie.breathTimer < 520) || (zombie.smashTimer > 0 && zombie.smashTimer < 520) || (zombie.curseTimer > 0 && zombie.curseTimer < 520) || (zombie.stormTimer > 0 && zombie.stormTimer < 520) || (zombie.summonTimer > 0 && zombie.summonTimer < 520);
+  const scale = giant ? 1.32 : zombie.type === "imp" ? .78 : 1;
+  const body = ZOMBIE_BODY_COLORS[zombie.type] || ZOMBIE_BODY_COLORS.walker;
+  ctx.save(); ctx.translate(zombie.x, zombie.y - bob + actionPulse); ctx.scale(scale, scale);
+  ctx.fillStyle = "rgba(20, 27, 29, .32)"; ctx.beginPath(); ctx.ellipse(0, 27 + bob, 24 + Math.abs(stride) * .25, 7, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = "#26333a"; ctx.lineWidth = 5; ctx.lineCap = "round"; ctx.beginPath(); ctx.moveTo(-7, 14); ctx.lineTo(-12 + stride, 30); ctx.moveTo(7, 14); ctx.lineTo(12 - stride, 30); ctx.stroke();
+  ctx.strokeStyle = body; ctx.lineWidth = giant ? 6 : 4; ctx.beginPath(); ctx.moveTo(-13, 3); ctx.lineTo(-23 - armSwing, 15); ctx.moveTo(13, 3); ctx.lineTo(23 + armSwing, 15); ctx.stroke();
+  if (skillPulse) { ctx.strokeStyle = zombie.type === "dragon" ? "rgba(255,145,84,.72)" : "rgba(195,168,255,.62)"; ctx.lineWidth = 2; ctx.globalAlpha = .45 + Math.abs(Math.sin(now / 90)) * .4; ctx.beginPath(); ctx.arc(0, -8, 28 + Math.abs(gait) * 4, 0, Math.PI * 2); ctx.stroke(); ctx.globalAlpha = 1; }
+  ctx.fillStyle = body; roundedRect(ctx, -16, -1, giant ? 34 : 31, 27, 8); ctx.fill(); ctx.fillStyle = zombie.flashTimer > 0 ? "#fff7d7" : "#b9c7a9"; ctx.beginPath(); ctx.arc(0, -17, giant ? 18 : 15, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = "#29303d"; ctx.beginPath(); ctx.arc(-5, -18, 3, 0, Math.PI * 2); ctx.arc(6, -18, 3, 0, Math.PI * 2); ctx.fill();
+  if (zombie.type === "roadblock") { ctx.fillStyle = "#efbd62"; ctx.fillRect(-20, -33, 40, 7); ctx.fillStyle = "#b95942"; ctx.fillRect(-15, -38, 30, 5); } if (zombie.type === "bucket") { ctx.fillStyle = "#aab4bd"; ctx.fillRect(-18, -34, 36, 16); ctx.fillStyle = "#65717d"; ctx.fillRect(-21, -20, 42, 4); } if (zombie.type === "conehead") { ctx.fillStyle = "#eb873e"; ctx.beginPath(); ctx.moveTo(0, -48); ctx.lineTo(-15, -27); ctx.lineTo(15, -27); ctx.closePath(); ctx.fill(); ctx.fillStyle = "#f4c15f"; ctx.fillRect(-17, -29, 34, 5); } if (zombie.type === "football") { ctx.fillStyle = "#c76c50"; ctx.beginPath(); ctx.ellipse(0, -33, 21, 8, 0, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = "#dbe4ed"; ctx.fillRect(-14, -35, 28, 3); } if (zombie.type === "miner") { ctx.fillStyle = "#d59c3d"; ctx.beginPath(); ctx.arc(0, -32, 18, Math.PI, Math.PI * 2); ctx.fill(); ctx.fillStyle = "#fff0a0"; ctx.beginPath(); ctx.arc(0, -37, 5, 0, Math.PI * 2); ctx.fill(); } if (zombie.type === "flag") { ctx.strokeStyle = "#e0b26e"; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(17, 16); ctx.lineTo(17, -40); ctx.stroke(); ctx.fillStyle = "#ef786c"; ctx.beginPath(); ctx.moveTo(18, -39); ctx.lineTo(36, -32); ctx.lineTo(18, -25); ctx.fill(); } if (zombie.type === "polevault") { ctx.strokeStyle = "#dfad70"; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(-20, 20); ctx.lineTo(23, -40); ctx.stroke(); } if (zombie.type === "dancer") { ctx.strokeStyle = "#f2c2dd"; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(-17, 4); ctx.lineTo(-31, -12); ctx.moveTo(17, 4); ctx.lineTo(31, -12); ctx.stroke(); } if (zombie.type === "newspaper") { ctx.fillStyle = "#f4e2b0"; ctx.fillRect(-24, -3, 15, 20); } if (zombie.type === "witch") { ctx.fillStyle = "#30233d"; ctx.beginPath(); ctx.moveTo(-19, -29); ctx.lineTo(0, -53); ctx.lineTo(19, -29); ctx.closePath(); ctx.fill(); ctx.fillStyle = "#dcb5ff"; ctx.beginPath(); ctx.arc(0, -32, 5, 0, Math.PI * 2); ctx.fill(); } if (zombie.type === "dragon") { ctx.fillStyle = "#d49b50"; ctx.beginPath(); ctx.moveTo(-18, -2); ctx.lineTo(-34, -18); ctx.lineTo(-25, 6); ctx.lineTo(-15, 7); ctx.moveTo(18, -2); ctx.lineTo(34, -18); ctx.lineTo(25, 6); ctx.lineTo(15, 7); ctx.fill(); } if (zombie.type === "gargantuar") { ctx.fillStyle = "#b8c4d1"; ctx.fillRect(17, -2, 8, 31); ctx.fillStyle = "#d99a5e"; ctx.beginPath(); ctx.arc(21, 31, 9, 0, Math.PI * 2); ctx.fill(); }
+  if (zombie.slowTimer > 0) { ctx.strokeStyle = "#a7e8f3"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, -3, 25, 0, Math.PI * 2); ctx.stroke(); } if (zombie.armor > 0) { ctx.strokeStyle = "#e4c36b"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, -17, 20, Math.PI, Math.PI * 2); ctx.stroke(); } if (zombie.hp < zombie.maxHp) { ctx.fillStyle = "rgba(25, 33, 26, .8)"; ctx.fillRect(-21, 35, 42, 4); ctx.fillStyle = zombie.armor > 0 ? "#e9c66a" : "#e48374"; ctx.fillRect(-21, 35, 42 * Math.max(0, zombie.hp / zombie.maxHp), 4); }
+  ctx.restore();
+}
+function drawShot(ctx, shot, now) {
+  const bob = shot.kind === "kernel" ? Math.sin((now + shot.seed) / 80) * 3 : 0;
+  ctx.save();
+  ctx.translate(shot.x, shot.y + bob);
+  ctx.rotate(shot.angle || 0);
+  ctx.globalAlpha = .3;
+  ctx.strokeStyle = shot.color;
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(-Math.min(30, shot.distance || 12), 0);
+  ctx.lineTo(-5, 0);
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+  if (gameRender.effects !== "low") {
+    ctx.shadowColor = shot.glow || shot.color;
+    ctx.shadowBlur = shot.kind === "fire" ? 18 : 11;
+  }
+  ctx.fillStyle = shot.color;
+  if (shot.kind === "kernel") ctx.fillRect(-7, -5, 13, 10);
+  else if (shot.kind === "ice") {
+    ctx.beginPath(); ctx.moveTo(8, 0); ctx.lineTo(0, -8); ctx.lineTo(-8, 0); ctx.lineTo(0, 8); ctx.closePath(); ctx.fill();
+  } else {
+    ctx.beginPath(); ctx.arc(0, 0, shot.kind === "fire" ? 7 : 6, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.restore();
+}
+function drawImpact(ctx, impact) { const progress = 1 - impact.life / impact.maxLife; const radius = impact.radius * (.35 + progress * .9); ctx.save(); ctx.globalAlpha = Math.max(0, impact.life / impact.maxLife); ctx.strokeStyle = impact.color; ctx.lineWidth = Math.max(1, 4 - progress * 3); ctx.beginPath(); ctx.arc(impact.x, impact.y, radius, 0, Math.PI * 2); ctx.stroke(); ctx.restore(); }
+function drawGame() {
+  if (!gameRender.ctx || !gameRender.background) resizeGameCanvas();
+  const canvas = gameRender.canvas;
+  const ctx = gameRender.ctx;
+  if (!canvas || !ctx || !gameRender.background) return;
+  const startedAt = performance.now();
+  const now = startedAt;
+  ctx.drawImage(gameRender.background, 0, 0);
+  ctx.fillStyle = "#a8d5a1";
+  ctx.font = "10px DM Mono, monospace";
+  ctx.fillText(game.running ? "DEFEND THE LAWN" : "READY FOR BATTLE", 18, 42);
+  game.suns.forEach((sun) => drawSun(ctx, sun));
+  game.plants.forEach((plant) => drawPlant(ctx, plant, now));
+  game.shots.forEach((shot) => drawShot(ctx, shot, now));
+  game.zombies.forEach((zombie) => drawZombie(ctx, zombie, now));
+  // The mower is a foreground lane object, so it visibly passes over zombies.
+  game.mowers.forEach((mower) => drawMower(ctx, mower, now));
+  game.impacts.forEach((impact) => drawImpact(ctx, impact));
+  const particleStride = gameRender.effects === "low" ? 2 : 1;
+  for (let index = 0; index < game.particles.length; index += particleStride) {
+    const particle = game.particles[index];
+    ctx.globalAlpha = Math.max(0, particle.life / particle.maxLife);
+    ctx.fillStyle = particle.color;
+    ctx.beginPath();
+    ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  drawPlacementPreview(ctx, now);
+  game.popups.forEach((popup) => drawGamePopup(ctx, popup));
+  if (game.bannerTimer > 0 && game.bannerText) {
+    const alpha = Math.min(1, game.bannerTimer / 260);
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = "rgba(23, 42, 40, .88)";
+    roundedRect(ctx, 250, 10, 220, 34, 9);
+    ctx.fill();
+    ctx.strokeStyle = game.bannerColor;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.fillStyle = game.bannerColor;
+    ctx.font = "700 12px DM Mono, Consolas, monospace";
+    ctx.textAlign = "center";
+    ctx.fillText(game.bannerText, 360, 32);
+    ctx.restore();
+  }
+  if (game.dangerPulse > 0) {
+    ctx.save();
+    const alpha = .16 + Math.abs(Math.sin(now / 85)) * .18;
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = "#ef725f";
+    ctx.fillRect(0, 60, 65, GAME_LOGICAL_HEIGHT - 60);
+    ctx.strokeStyle = "#ff9a77";
+    ctx.lineWidth = 3;
+    ctx.strokeRect(4, 64, 56, GAME_LOGICAL_HEIGHT - 69);
+    ctx.restore();
+  }
+  if (game.skillPulseFlash > 0) {
+    ctx.save();
+    const pulseAlpha = Math.min(.34, game.skillPulseFlash / 620 * .34);
+    ctx.globalAlpha = pulseAlpha;
+    ctx.fillStyle = game.rallyTimer > 0 ? "#f5c96b" : "#bdf8ff";
+    ctx.fillRect(68, 58, GAME_LOGICAL_WIDTH - 68, GAME_LOGICAL_HEIGHT - 58);
+    ctx.globalAlpha = Math.min(.8, pulseAlpha * 2.4);
+    ctx.strokeStyle = game.rallyTimer > 0 ? "#ffe49a" : "#d9fbff";
+    ctx.lineWidth = 4;
+    ctx.strokeRect(72, 62, GAME_LOGICAL_WIDTH - 78, GAME_LOGICAL_HEIGHT - 68);
+    ctx.restore();
+  }
+  recordGameFrame(now, startedAt);
+}
 function zombieTypeForWave() {
   const roll = Math.random();
   const pressure = game.difficulty === "nightmare" ? 1.25 : game.difficulty === "normal" ? .82 : 1;
-  const bucketChance = Math.min(.32, (.1 + game.wave * .012) * pressure);
-  const runnerChance = Math.min(.46, (.24 + game.wave * .014) * pressure);
-  const roadblockChance = Math.min(.78, (.44 + game.wave * .018) * pressure);
-  if (game.wave >= 4 && roll < bucketChance) return "bucket";
-  if (game.wave >= 3 && roll < runnerChance) return "runner";
-  if (game.wave >= 2 && roll < roadblockChance) return "roadblock";
+  const nightmare = game.difficulty === "nightmare";
+  const choices = [
+    [10, Math.min(.18, .07 + (game.wave - 9) * .035) * pressure, "gargantuar"],
+    [8, Math.min(.18, (.035 + game.wave * .012) * pressure), "dragon"],
+    [7, Math.min(.22, (.04 + game.wave * .014) * pressure), "witch"],
+    [6, Math.min(.24, (.05 + game.wave * .016) * pressure), "shield"],
+    [3, Math.min(.24, (.04 + game.wave * .012) * pressure), "conehead"],
+    [2, Math.min(.28, (.07 + game.wave * .016) * pressure), "imp"],
+    [4, Math.min(.18, (.025 + game.wave * .011) * pressure), "scout"],
+    [6, Math.min(.16, (.02 + game.wave * .009) * pressure), "storm"],
+    [4, Math.min(.20, (.05 + game.wave * .01) * pressure), "newspaper"],
+    [7, Math.min(.16, (.025 + game.wave * .01) * pressure), "dancer"],
+    [5, Math.min(.30, (.045 + game.wave * .018) * pressure), "football"],
+    [4, Math.min(.22, (.04 + game.wave * .014) * pressure), "polevault"],
+    [4, Math.min(.25, (.035 + game.wave * .014) * pressure), "miner"],
+    [3, Math.min(.22, (.045 + game.wave * .01) * pressure), "flag"],
+    [3, Math.min(.38, (.11 + game.wave * .014) * pressure), "bucket"],
+    [2, Math.min(.52, (.25 + game.wave * .018) * pressure), "runner"],
+    [2, Math.min(.82, (.42 + game.wave * .022) * pressure), "roadblock"],
+  ];
+  if (nightmare && game.wave >= 6 && game.waveSpawned % 5 === 4) return ["shield", "witch", "dragon", "gargantuar"][game.wave % 4];
+  let threshold = 0;
+  for (const [minimumWave, chance, type] of choices) {
+    if (game.wave < minimumWave) continue;
+    threshold += chance;
+    if (roll < threshold) return type;
+  }
   return "walker";
 }
 function spawnZombie() {
@@ -2347,19 +3451,40 @@ function spawnZombie() {
   const type = zombieTypeForWave();
   const profile = zombieProfiles[type];
   const difficulty = gameDifficulty();
-  const hpGrowth = type === "bucket" ? 1.2 : type === "roadblock" ? .85 : .7;
-  const hp = Math.max(1, Math.round((profile.hp + Math.floor(game.wave * hpGrowth)) * difficulty.hpMultiplier));
+  const hpGrowth = type === "gargantuar" ? 2.2 : type === "dragon" ? 1.55 : type === "witch" ? 1.2 : type === "shield" ? 1.25 : type === "football" ? 1.35 : type === "bucket" ? 1.2 : type === "miner" ? 1 : type === "roadblock" ? .85 : .7;
+  const nightmareElite = game.difficulty === "nightmare" && game.wave >= 6 && ["dragon", "witch", "shield", "football", "gargantuar"].includes(type);
+  const hp = Math.max(1, Math.round((profile.hp + Math.floor(game.wave * hpGrowth)) * difficulty.hpMultiplier * (nightmareElite ? 1.18 : 1)));
   game.zombies.push({
     x: 704,
     y: cellPosition(row, 0).y,
     row,
     hp,
     maxHp: hp,
+    armor: profile.armor || 0,
     type,
     speed: (profile.speed + game.wave * profile.growth) * difficulty.speedMultiplier,
     attackInterval: profile.attackInterval,
     slowTimer: 0,
+    burrowTimer: profile.burrow ? 1000 : 0,
     seed: Math.random() * 1000,
+    age: 0,
+    garlicTimer: 0,
+    vaultTimer: 0,
+    summonTimer: 0,
+    flashTimer: 0,
+    dashTimer: 0,
+    leapTimer: 0,
+    chargeTimer: 0,
+    curseTimer: 0,
+    breathTimer: 0,
+    smashTimer: 0,
+    armorTimer: 0,
+    guardTimer: 0,
+    burnTimer: 0,
+    burnTickTimer: 0,
+    stormTimer: 0,
+    markTimer: 0,
+    elite: nightmareElite,
   });
   game.waveSpawned += 1;
   game.totalSpawned += 1;
@@ -2368,7 +3493,7 @@ function spawnZombie() {
     playGameSound("wave");
     addGameParticle(360, 60, "#ffe27c", 18, .18);
   }
-  updateGameHud();
+  updateGameHud(true);
 }
 function produceSun(plant) {
   const position = cellPosition(plant.row, plant.col);
@@ -2379,7 +3504,7 @@ function collectSunAt(index, x, y) {
   if (index < 0 || !game.suns[index]) return false;
   game.suns.splice(index, 1);
   game.sun += 25;
-  updateGameHud();
+  updateGameHud(true);
   addGameParticle(x, y, "#ffe17b", 12, .16);
   playGameSound("collect");
   return true;
@@ -2392,24 +3517,107 @@ function collectAutomaticSuns() {
   }
 }
 function firePlantShots(plant, profile) {
-  const position = cellPosition(plant.row, plant.col);
-  for (let index = 0; index < profile.shots; index += 1) {
-    game.shots.push({ x: position.x + 20 + index * 8, y: position.y - 5, row: plant.row, damage: profile.damage, slow: profile.slow, color: plant.type === "icepeashooter" ? "#c9f6ff" : "#b5f0a2", hit: false });
-  }
+  const position = cachedCellPosition(plant);
+  const rows = profile.rows ? [plant.row, plant.row - 1, plant.row + 1].filter((row) => row >= 0 && row < gameLayout.rows) : [plant.row];
+  rows.forEach((row) => {
+    const shotY = gameCellPositions[row]?.[plant.col]?.y || cellPosition(row, plant.col).y;
+    for (let index = 0; index < profile.shots; index += 1) {
+      game.shots.push({ x: position.x + 20 + index * 8, y: shotY - 5, row, damage: profile.damage, slow: profile.slow, fire: Boolean(profile.fire), burn: profile.burn || 0, burnDamage: profile.burnDamage || 0, butter: profile.butterChance ? Math.random() < profile.butterChance : false, kind: profile.fire ? "fire" : plant.type === "icepeashooter" ? "ice" : plant.type === "kernelpult" ? "kernel" : "pea", glow: profile.fire ? "#ffb347" : profile.slow ? "#bdf8ff" : "#80ed9a", color: plant.type === "icepeashooter" ? "#c9f6ff" : plant.type === "firepeashooter" ? "#ff815f" : plant.type === "kernelpult" ? "#f3cf63" : "#b5f0a2", angle: profile.fire ? -.12 : 0, seed: Math.random() * 1000, hitsLeft: 1 + (profile.pierce || 0), hitTargets: [], hit: false });
+    }
+  });
   playGameSound("shoot");
 }
 function explodeCherryBomb(plant) {
-  const position = cellPosition(plant.row, plant.col);
+  const position = cachedCellPosition(plant);
+  // Bombs can be triggered immediately after a click, before the next frame
+  // rebuilds the row index. Read the authoritative array for this one-shot.
   const defeated = game.zombies.filter((zombie) => zombie.row === plant.row && Math.abs(zombie.x - position.x) < 145);
-  defeated.forEach((zombie) => {
-    const index = game.zombies.indexOf(zombie);
-    if (index >= 0) game.zombies.splice(index, 1);
-    game.score += zombieProfiles[zombie.type]?.score || 1;
-  });
-  game.plants.splice(game.plants.indexOf(plant), 1);
+  defeated.forEach((zombie) => defeatZombie(zombie));
+  removeGamePlant(plant);
   addGameParticle(position.x, position.y - 5, "#ff8d73", 34, .3);
   playGameSound("explode");
   updateGameHud();
+}
+function defeatZombie(zombie, source = "combat") {
+  if (!zombie || zombie.defeated) return false;
+  zombie.defeated = true;
+  const index = game.zombies.indexOf(zombie);
+  if (index >= 0) {
+    removeRowEntity("zombies", zombie);
+    game.zombies.splice(index, 1);
+  }
+  const points = zombieProfiles[zombie.type]?.score || 1;
+  game.score += points;
+  game.energy = Math.min(100, (game.energy || 0) + (source === "skill" ? 1 : 4));
+  game.defeated.push({ type: zombie.type || "walker", points, source, at: game.elapsed });
+  if (game.defeated.length > 64) game.defeated.splice(0, game.defeated.length - 64);
+  game.combo = game.comboTimer > 0 ? game.combo + 1 : 1;
+  game.comboTimer = GAME_COMBO_WINDOW;
+  game.bestCombo = Math.max(game.bestCombo, game.combo);
+  const x = Number.isFinite(zombie.x) ? zombie.x : cellPosition(zombie.row, 0).x;
+  const y = Number.isFinite(zombie.y) ? zombie.y : cellPosition(zombie.row, 0).y;
+  const comboText = game.combo > 1
+    ? (state.locale === "zh" ? `+${points} · ${game.combo} 连击` : `+${points} · x${game.combo}`)
+    : `+${points}`;
+  addGamePopup(Math.max(78, Math.min(GAME_LOGICAL_WIDTH - 20, x)), y - 35, comboText, source === "mower" ? "#ffcf70" : "#fff1b0");
+  if (source === "mower") addGamePopup(Math.max(78, Math.min(GAME_LOGICAL_WIDTH - 20, x)), y - 52, state.locale === "zh" ? "防线车" : "MOWER", "#ff9b70", 650);
+  if (game.combo >= 3 && (game.combo === 3 || game.combo % 5 === 0)) {
+    announceGame(state.locale === "zh" ? `${game.combo} 连击` : `${game.combo} COMBO`, "#ffcf70", 900);
+  }
+  updateGameHud(false);
+  return true;
+}
+function triggerMower(mower) {
+  if (!mower || mower.used || mower.active) return false;
+  mower.used = true;
+  mower.active = true;
+  mower.x = 57;
+  game.dangerPulse = Math.max(game.dangerPulse, 700);
+  announceGame(state.locale === "zh" ? `${mower.row + 1} 行防线车出动` : `LANE ${mower.row + 1} MOWER`, "#ffb16c", 1200);
+  addGameParticle(mower.x + 12, cellPosition(mower.row, 0).y + 18, "#ffb16c", 16, .22);
+  playGameSound("mower");
+  updateGameHud(false);
+  return true;
+}
+function updateMowers(dt) {
+  for (const mower of game.mowers) {
+    if (!mower || mower.row < 0 || mower.row >= gameLayout.rows) continue;
+    if (!mower.used && !mower.active && anyRowEntity("zombies", mower.row, (zombie) => !zombie.defeated && zombie.x < GAME_MOWER_TRIGGER_X)) {
+      triggerMower(mower);
+    }
+    if (!mower.active) continue;
+    mower.x += GAME_MOWER_SPEED * dt;
+    const caught = rowEntitiesWhere(
+      "zombies",
+      mower.row,
+      (zombie) => !zombie.defeated && zombie.x >= 0 && zombie.x <= mower.x + GAME_MOWER_CLEAR_RADIUS,
+    );
+    caught.forEach((zombie) => defeatZombie(zombie, "mower"));
+    if (mower.x >= GAME_MOWER_EXIT_X) {
+      mower.active = false;
+      mower.x = GAME_MOWER_EXIT_X;
+      addGamePopup(GAME_LOGICAL_WIDTH - 70, cellPosition(mower.row, 0).y - 12, state.locale === "zh" ? "已清场" : "CLEAR", "#9fe0b4", 700);
+    }
+  }
+}
+function updateGameEffects(dt) {
+  const comboWasActive = game.comboTimer > 0;
+  game.comboTimer = Math.max(0, game.comboTimer - dt);
+  if (comboWasActive && game.comboTimer === 0) {
+    game.combo = 0;
+    updateGameHud(false);
+  }
+  game.bannerTimer = Math.max(0, game.bannerTimer - dt);
+  game.dangerPulse = Math.max(0, game.dangerPulse - dt);
+  game.skillPulseFlash = Math.max(0, (game.skillPulseFlash || 0) - dt);
+  let alive = 0;
+  for (const popup of game.popups) {
+    popup.life -= dt;
+    popup.y += (popup.vy || 0) * dt;
+    popup.vy = (popup.vy || 0) - .000015 * dt;
+    if (popup.life > 0) game.popups[alive++] = popup;
+  }
+  game.popups.length = alive;
 }
 function advanceWave(dt) {
   if (game.waveSpawned < game.waveTarget || game.zombies.length) {
@@ -2428,23 +3636,92 @@ function advanceWave(dt) {
   game.waveClearTimer = 0;
   game.spawnTimer = 0;
   setGameStatus("game.waveIncoming");
+  announceGame(gameWaveBanner(game.wave), "#ffe27c", 1650);
   playGameSound("wave");
   addGameParticle(360, 60, "#ffe27c", 18, .18);
   updateGameHud();
   return false;
 }
+function plantContainer(plant) {
+  const entities = rowEntities("plants", plant?.row);
+  for (let index = 0; index < entities.length; index += 1) {
+    const candidate = entities[index];
+    if (candidate === plant || candidate.underPlant === plant) return candidate;
+  }
+  // A click may add or replace a plant between animation frames. Fall back to
+  // the authoritative list instead of treating that plant as nonexistent.
+  return game.plants.find((candidate) => candidate === plant || candidate.underPlant === plant) || null;
+}
+function removeGamePlant(plant) {
+  const container = plantContainer(plant);
+  if (!container) return false;
+  if (container === plant) {
+    const index = game.plants.indexOf(container);
+    if (index < 0) return false;
+    const replacement = container.underPlant || null;
+    removeRowEntity("plants", container);
+    if (replacement) {
+      game.plants.splice(index, 1, replacement);
+      rowEntities("plants", replacement.row).push(replacement);
+    } else game.plants.splice(index, 1);
+  } else {
+    container.underPlant = null;
+  }
+  return true;
+}
+function damagePlant(plant, amount, color = "#c78363") {
+  const container = plant && plantContainer(plant);
+  if (!container) return false;
+  const target = container.type === "pumpkin" ? container : plant;
+  const effectiveAmount = target.type === "pumpkin" ? amount * .5 : amount;
+  target.hp -= effectiveAmount;
+  const position = cellPosition(target.row, target.col);
+  addGameParticle(position.x, position.y - 8, color, 4, .1);
+  if (target.hp > 0) return false;
+  removeGamePlant(target);
+  addGameParticle(position.x, position.y, color, 12, .16);
+  return true;
+}
+function curseNearestPlant(zombie, duration = 3000) {
+  const plants = rowEntities("plants", zombie.row);
+  let target = null;
+  let targetX = -Infinity;
+  for (let index = 0; index < plants.length; index += 1) {
+    const plant = plants[index];
+    const position = cachedCellPosition(plant);
+    if (position.x < zombie.x && position.x > targetX) { target = plant; targetX = position.x; }
+  }
+  if (!target) return false;
+  target.disabledTimer = Math.max(target.disabledTimer || 0, duration);
+  const position = cachedCellPosition(target);
+  addGameParticle(position.x, position.y - 24, "#c99be8", 14, .14);
+  return true;
+}
 function gameLoop(now = 0) {
   if (!game.running || game.paused) return;
   const dt = Math.min(80, Math.max(8, now - game.last || 16));
+  rebuildGameIndexes();
   game.last = now;
   game.elapsed += dt;
-  updateGameHud();
+  updateGameEffects(dt);
+  game.rallyTimer = Math.max(0, (game.rallyTimer || 0) - dt);
+  for (const type of Object.keys(GAME_SKILLS)) {
+    if (game.skillCooldowns[type] > 0) game.skillCooldowns[type] = Math.max(0, game.skillCooldowns[type] - dt);
+  }
+  for (const type of PLANT_TYPES) {
+    if (game.seedCooldowns[type] > 0) game.seedCooldowns[type] = Math.max(0, game.seedCooldowns[type] - dt);
+  }
+  updateGameHud(false);
   game.spawnTimer += dt;
   game.skyTimer += dt;
   game.dangerTimer += dt;
-  if (game.zombies.some((zombie) => zombie.x < 165) && game.dangerTimer > 850) {
+  const nearHouse = anyIndexedEntity("zombies", (zombie) => !zombie.defeated && zombie.x < 165);
+  if (nearHouse) game.dangerPulse = Math.max(game.dangerPulse, 260);
+  if (nearHouse && game.dangerTimer > 850) {
     game.dangerTimer = 0;
     playGameSound("danger");
+  } else if (!nearHouse) {
+    game.dangerPulse = Math.max(0, game.dangerPulse - dt);
   }
   const spawnDelay = Math.max(780, (3300 - game.wave * 240) * gameDifficulty().spawnDelayMultiplier);
   if (game.waveSpawned < game.waveTarget && ((game.waveSpawned === 0 && game.spawnTimer > 1800) || game.spawnTimer > spawnDelay)) {
@@ -2457,8 +3734,17 @@ function gameLoop(now = 0) {
   }
   game.suns.forEach((sun) => { sun.age += dt; if (sun.y < sun.targetY) sun.y = Math.min(sun.targetY, sun.y + dt * .05); });
   collectAutomaticSuns();
-  game.plants.slice().forEach((plant) => {
+  const plantsThisFrame = game._plantsFrame || (game._plantsFrame = []);
+  plantsThisFrame.length = 0;
+  game.plants.forEach((plant) => {
+    plantsThisFrame.push(plant);
+    if (plant.underPlant) plantsThisFrame.push(plant.underPlant);
+  });
+  plantsThisFrame.forEach((plant) => {
+    if (!plantContainer(plant)) return;
     plant.age += dt;
+    plant.disabledTimer = Math.max(0, (plant.disabledTimer || 0) - dt);
+    if (plant.disabledTimer > 0) return;
     if (plant.type === "sunflower") {
       plant.sunTimer += dt;
       if (plant.sunTimer > 4800 && game.suns.length < 12) { plant.sunTimer = 0; produceSun(plant); }
@@ -2469,51 +3755,214 @@ function gameLoop(now = 0) {
       if (plant.bombTimer > 950) explodeCherryBomb(plant);
       return;
     }
+    if (plant.type === "jalapeno") {
+      plant.bombTimer += dt;
+      if (plant.bombTimer > 850) {
+        const position = cachedCellPosition(plant);
+        forEachRowEntity("zombies", plant.row, (zombie) => defeatZombie(zombie));
+        removeGamePlant(plant);
+        addGameParticle(position.x + 180, position.y, "#ff784e", 40, .35);
+        playGameSound("explode");
+        updateGameHud();
+      }
+      return;
+    }
+    if (plant.type === "potatomine") {
+      plant.bombTimer += dt;
+      if (!plant.armed && plant.bombTimer >= 1800) {
+        plant.armed = true;
+        addGameParticle(cellPosition(plant.row, plant.col).x, cellPosition(plant.row, plant.col).y - 18, "#e7c875", 8, .08);
+      }
+      const target = plant.armed && game.zombies.find((zombie) => zombie.row === plant.row && zombie.x < cellPosition(plant.row, plant.col).x + 30);
+      if (target) {
+        game.zombies.filter((zombie) => zombie.row === plant.row && Math.abs(zombie.x - target.x) < 90).forEach((zombie) => defeatZombie(zombie));
+        removeGamePlant(plant);
+        addGameParticle(cellPosition(plant.row, plant.col).x, cellPosition(plant.row, plant.col).y, "#e7c875", 26, .25);
+        playGameSound("explode");
+        updateGameHud();
+      }
+      return;
+    }
+    if (plant.type === "spikeweed") {
+      plant.shotTimer += dt;
+      const position = cellPosition(plant.row, plant.col);
+      const target = game.zombies.find((zombie) => zombie.row === plant.row && Math.abs(zombie.x - position.x) < 44);
+      if (target) { target.hp -= dt / 720; if (target.hp <= 0) { defeatZombie(target); updateGameHud(); } }
+    }
+    if (plant.type === "gloomshroom") {
+      plant.shotTimer += dt;
+      const position = cellPosition(plant.row, plant.col);
+      if (plant.shotTimer > 1050) { plant.shotTimer = 0; const targets = game.zombies.filter((zombie) => Math.abs(zombie.row - plant.row) <= 1 && Math.hypot(zombie.x - position.x, (zombie.row - plant.row) * gameLayout.cellH) < 140); targets.forEach((target) => { target.hp -= 1; addGameParticle(target.x, target.y - 12, "#c79be8", 4, .1); if (target.hp <= 0) defeatZombie(target); }); if (targets.length) playGameSound("shoot"); }
+      return;
+    }
+    if (plant.type === "pumpkin") return;
+    if (plant.type === "squash") {
+      plant.bombTimer += dt;
+      const position = cellPosition(plant.row, plant.col);
+      const target = game.zombies.find((zombie) => zombie.row === plant.row && zombie.x > position.x - 82 && zombie.x < position.x + 130);
+      if (plant.bombTimer > 450 && target) { defeatZombie(target); removeGamePlant(plant); addGameParticle(target.x, target.y, "#f0b653", 28, .28); playGameSound("explode"); updateGameHud(); }
+      return;
+    }
     const profile = plantProfiles[plant.type];
     if (!profile) return;
     plant.shotTimer += dt;
     const position = cellPosition(plant.row, plant.col);
-    if (plant.shotTimer > profile.interval && game.zombies.some((zombie) => zombie.row === plant.row && zombie.x > position.x)) {
+    const rowThreat = profile.rows
+      ? anyRowEntity("zombies", plant.row, (zombie) => zombie.x > position.x)
+        || (plant.row > 0 && anyRowEntity("zombies", plant.row - 1, (zombie) => zombie.x > position.x))
+        || (plant.row + 1 < gameLayout.rows && anyRowEntity("zombies", plant.row + 1, (zombie) => zombie.x > position.x))
+      : anyRowEntity("zombies", plant.row, (zombie) => zombie.x > position.x);
+    const fireInterval = profile.interval * (game.rallyTimer > 0 ? .55 : 1);
+    if (plant.shotTimer > fireInterval && rowThreat) {
       plant.shotTimer = 0;
-      firePlantShots(plant, profile);
+      if (profile.utility) {
+        const armored = firstRowEntity("zombies", plant.row, (zombie) => zombie.x > position.x && zombie.armor > 0);
+        if (armored) {
+          armored.armor = 0;
+          armored.hp = Math.max(1, armored.hp - 2);
+          addGameParticle(armored.x, armored.y - 20, "#dcb7ff", 15, .15);
+          playGameSound("hit");
+        }
+      } else firePlantShots(plant, profile);
     }
   });
-  game.zombies.slice().forEach((zombie) => {
+  game.flagRows.fill(0);
+  game.zombies.forEach((zombie) => { if (zombie.type === "flag") game.flagRows[zombie.row] = 1; });
+  const zombiesThisFrame = game._zombiesFrame || (game._zombiesFrame = []);
+  zombiesThisFrame.length = 0;
+  zombiesThisFrame.push(...game.zombies);
+  zombiesThisFrame.forEach((zombie) => {
     zombie.y = cellPosition(zombie.row, 0).y;
+    zombie.age = (zombie.age || 0) + dt;
     zombie.slowTimer = Math.max(0, zombie.slowTimer - dt);
-    const blocker = game.plants.find((plant) => plant.row === zombie.row && Math.abs(cellPosition(plant.row, plant.col).x - zombie.x) < 30);
+    zombie.flashTimer = Math.max(0, (zombie.flashTimer || 0) - dt);
+    if (zombie.burrowTimer > 0) zombie.burrowTimer -= dt;
+    const burrowed = zombie.type === "miner" && zombie.burrowTimer > 0;
+    zombie.garlicTimer = Math.max(0, (zombie.garlicTimer || 0) - dt);
+    zombie.dashTimer = Math.max(0, (zombie.dashTimer || 0) - dt);
+    zombie.leapTimer = Math.max(0, (zombie.leapTimer || 0) - dt);
+    zombie.chargeTimer = Math.max(0, (zombie.chargeTimer || 0) - dt);
+    zombie.curseTimer = Math.max(0, (zombie.curseTimer || 0) - dt);
+    zombie.breathTimer = Math.max(0, (zombie.breathTimer || 0) - dt);
+    zombie.smashTimer = Math.max(0, (zombie.smashTimer || 0) - dt);
+    zombie.armorTimer = Math.max(0, (zombie.armorTimer || 0) - dt);
+    zombie.guardTimer = Math.max(0, (zombie.guardTimer || 0) - dt);
+    zombie.stormTimer = Math.max(0, (zombie.stormTimer || 0) - dt);
+    zombie.markTimer = Math.max(0, (zombie.markTimer || 0) - dt);
+    zombie.burnTimer = Math.max(0, (zombie.burnTimer || 0) - dt);
+    zombie.burnTickTimer = Math.max(0, (zombie.burnTickTimer || 0) - dt);
+    if (zombie.burnTimer > 0 && zombie.burnTickTimer <= 0) {
+      zombie.burnTickTimer = 500;
+      zombie.hp -= Math.max(1, zombie.burnDamage || 1);
+      addGameParticle(zombie.x, zombie.y - 18, "#ff815f", 4, .08);
+      if (zombie.hp <= 0) { defeatZombie(zombie); updateGameHud(); return; }
+    }
+    if (["runner", "imp", "scout"].includes(zombie.type) && zombie.dashTimer <= 0 && zombie.x < 650) {
+      zombie.dashTimer = zombie.type === "imp" ? 2100 : 3000;
+      zombie.x += zombie.type === "imp" ? 38 : 28;
+      zombie.flashTimer = 140;
+      addGameParticle(zombie.x, zombie.y - 22, zombie.type === "scout" ? "#f5cf63" : "#e57b70", 8, .14);
+    }
+    if (zombie.type === "football" && zombie.chargeTimer <= 0) {
+      zombie.chargeTimer = 3000;
+      zombie.flashTimer = 160;
+      addGameParticle(zombie.x, zombie.y - 20, "#d56c58", 8, .13);
+    }
+    if (zombie.type === "witch" && zombie.curseTimer <= 0) {
+      zombie.curseTimer = 4300;
+      curseNearestPlant(zombie, zombie.elite ? 4200 : 3000);
+    }
+    if (zombie.type === "dragon" && zombie.breathTimer <= 0) {
+      zombie.breathTimer = 3600;
+      game.plants.filter((plant) => plant.row === zombie.row && cellPosition(plant.row, plant.col).x < zombie.x + 20).forEach((plant) => damagePlant(plant, zombie.elite ? 3 : 2, "#ff815f"));
+      addGameParticle(zombie.x - 34, zombie.y - 12, "#ff9b5f", 18, .22);
+    }
+    if (zombie.type === "shield" && zombie.armorTimer <= 0) {
+      zombie.armorTimer = 4200;
+      zombie.armor = Math.min(zombieProfiles.shield.armor, zombie.armor + (zombie.elite ? 5 : 3));
+      addGameParticle(zombie.x, zombie.y - 24, "#9bdcf5", 12, .14);
+    }
+    if (zombie.type === "storm" && zombie.stormTimer <= 0) {
+      zombie.stormTimer = 4000;
+      game.plants.filter((plant) => plant.row === zombie.row).forEach((plant) => { plant.disabledTimer = Math.max(plant.disabledTimer || 0, 1200); });
+      addGameParticle(zombie.x - 24, zombie.y - 28, "#a9c8e8", 20, .2);
+    }
+    if (zombie.type === "scout" && zombie.markTimer <= 0) {
+      zombie.markTimer = 3500;
+      curseNearestPlant(zombie, 1400);
+    }
+    if (zombie.type === "dancer") { zombie.summonTimer += dt; if (zombie.summonTimer > 4200) { zombie.summonTimer = 0; const allyRow = (zombie.row + 1) % gameLayout.rows; const ally = zombieProfiles.backup; game.zombies.push({ x: zombie.x + 34, y: cellPosition(allyRow, 0).y, row: allyRow, hp: ally.hp, maxHp: ally.hp, armor: 0, type: "backup", speed: ally.speed, attackInterval: ally.attackInterval, slowTimer: 0, burrowTimer: 0, seed: Math.random() * 1000, garlicTimer: 0, vaultTimer: 0, summonTimer: 0, flashTimer: 0 }); addGameParticle(zombie.x, zombie.y - 28, "#ef7892", 16, .18); playGameSound("wave"); } }
+    const blocker = burrowed ? null : game.plants.find((plant) => plant.type !== "spikeweed" && plant.row === zombie.row && Math.abs(cellPosition(plant.row, plant.col).x - zombie.x) < 30);
+    if (zombie.type === "imp" && blocker && zombie.leapTimer <= 0) { zombie.x = cellPosition(blocker.row, blocker.col).x - 44; zombie.leapTimer = 1800; addGameParticle(zombie.x, zombie.y - 25, "#e57b70", 12, .16); return; }
+    if (blocker?.type === "spikeweed") { zombie.hp -= dt / 720; if (zombie.hp <= 0) { defeatZombie(zombie); updateGameHud(); return; } }
+    if (zombie.type === "polevault" && blocker && !zombie.vaultTimer) { zombie.x = cellPosition(blocker.row, blocker.col).x - 44; zombie.vaultTimer = 1; addGameParticle(zombie.x, zombie.y - 25, "#d5a15e", 12, .16); return; }
+    if (blocker?.type === "garlic" && zombie.garlicTimer <= 0) { zombie.row = (zombie.row + 1) % gameLayout.rows; zombie.x += 22; zombie.garlicTimer = 3200; addGameParticle(zombie.x, zombie.y, "#f3e1b4", 14, .16); playGameSound("hit"); return; }
+    if (zombie.type === "gargantuar" && blocker && zombie.smashTimer <= 0) {
+      zombie.smashTimer = zombie.elite ? 2200 : 3000;
+      damagePlant(blocker, zombie.elite ? 10 : 7, "#d99a5e");
+      addGameParticle(zombie.x, zombie.y - 20, "#d99a5e", 18, .22);
+      playGameSound("explode");
+      return;
+    }
     if (blocker) {
-      blocker.hp -= dt / zombie.attackInterval;
-      if (blocker.hp <= 0) {
-        const position = cellPosition(blocker.row, blocker.col);
-        addGameParticle(position.x, position.y, "#c78363", 14, .18);
-        game.plants.splice(game.plants.indexOf(blocker), 1);
-        playGameSound("hit");
-      }
+      if (damagePlant(blocker, dt / zombie.attackInterval)) playGameSound("hit");
     } else {
-      zombie.x -= zombie.speed * dt * (zombie.slowTimer > 0 ? .48 : 1);
+      const bannerBoost = game.flagRows[zombie.row] ? 1.18 : 1;
+      const enragedBoost = zombie.type === "newspaper" && zombie.armor <= 0 ? 1.65 : 1;
+      const dashBoost = ["runner", "imp", "scout"].includes(zombie.type) && zombie.dashTimer > 0 ? (zombie.type === "imp" ? 1.45 : 1.3) : 1;
+      const chargeBoost = zombie.type === "football" && zombie.chargeTimer > 0 ? 1.85 : 1;
+      const giantSlow = zombie.type === "gargantuar" ? .72 : 1;
+      zombie.x -= zombie.speed * bannerBoost * enragedBoost * dashBoost * chargeBoost * giantSlow * dt * (zombie.slowTimer > 0 ? .48 : 1);
     }
   });
+  // Mowers are a last-resort lane defense. Resolve them after zombie movement
+  // but before projectiles and the house breach check.
+  updateMowers(dt);
   game.shots.forEach((shot) => {
     shot.x += .34 * dt;
-    const hit = game.zombies.find((zombie) => zombie.row === shot.row && zombie.x > shot.x - 12 && zombie.x < shot.x + 23);
+    const hit = game.zombies.find((zombie) => zombie.row === shot.row && zombie.x > shot.x - 12 && zombie.x < shot.x + 23 && !(zombie.type === "miner" && zombie.burrowTimer > 0) && !(shot.hitTargets || []).includes(zombie));
     if (!hit) return;
-    shot.hit = true;
-    hit.hp -= shot.damage || 1;
+    shot.hitTargets = shot.hitTargets || [];
+    shot.hitTargets.push(hit);
+    shot.hitsLeft = Math.max(0, (shot.hitsLeft || 1) - 1);
+    shot.hit = shot.hitsLeft <= 0;
+    const rawDamage = shot.damage || 1;
+    if (hit.armor > 0) {
+      hit.armor = Math.max(0, hit.armor - rawDamage);
+      hit.hp -= rawDamage * .35;
+    } else hit.hp -= rawDamage;
+    if (shot.fire && shot.burn) {
+      hit.burnTimer = Math.max(hit.burnTimer || 0, shot.burn);
+      hit.burnDamage = Math.max(hit.burnDamage || 0, shot.burnDamage || 1);
+    }
     if (shot.slow) hit.slowTimer = Math.max(hit.slowTimer, shot.slow);
+    if (shot.butter) hit.slowTimer = Math.max(hit.slowTimer, 3200);
+    hit.flashTimer = 120;
+    game.impacts.push({ x: shot.x, y: shot.y, radius: shot.butter ? 24 : shot.fire ? 20 : 16, color: shot.butter ? "#f4d37d" : shot.color || "#b7f3a0", life: 180, maxLife: 180 });
     addGameParticle(shot.x, shot.y, shot.color || "#b7f3a0", 5, .1);
     playGameSound("hit");
     if (hit.hp <= 0) {
-      const index = game.zombies.indexOf(hit);
-      if (index >= 0) game.zombies.splice(index, 1);
-      game.score += zombieProfiles[hit.type]?.score || 1;
+      defeatZombie(hit);
       updateGameHud();
       addGameParticle(hit.x, hit.y, "#f6d681", 18, .2);
     }
   });
   game.shots = game.shots.filter((shot) => !shot.hit && shot.x < 735);
-  game.particles.forEach((particle) => { particle.x += particle.vx * dt; particle.y += particle.vy * dt; particle.vy += .00025 * dt; particle.life -= dt; });
-  game.particles = game.particles.filter((particle) => particle.life > 0);
+  let alive = 0;
+  for (const particle of game.particles) {
+    particle.x += particle.vx * dt;
+    particle.y += particle.vy * dt;
+    particle.vy += .00025 * dt;
+    particle.life -= dt;
+    if (particle.life > 0) game.particles[alive++] = particle;
+  }
+  game.particles.length = alive;
+  alive = 0;
+  for (const impact of game.impacts) {
+    impact.life -= dt;
+    if (impact.life > 0) game.impacts[alive++] = impact;
+  }
+  game.impacts.length = alive;
   if (game.zombies.some((zombie) => zombie.x < 61)) {
     addGameParticle(55, 180, "#ff9f83", 24, .22);
     finishGame("game.gameOver");
@@ -2524,7 +3973,20 @@ function gameLoop(now = 0) {
   if (game.running) game.frame = requestAnimationFrame(gameLoop);
 }
 function startGame() { cancelAnimationFrame(game.frame); initGame(); game.running = true; game.paused = false; game.last = performance.now(); setGameStatus("game.running"); $("#gameStart").textContent = t("game.restart"); startGameMusic(); game.frame = requestAnimationFrame(gameLoop); }
-function canvasPoint(event) { const canvas = $("#gameCanvas"), rect = canvas.getBoundingClientRect(); return { x: (event.clientX - rect.left) * canvas.width / rect.width, y: (event.clientY - rect.top) * canvas.height / rect.height }; }
+function canvasPoint(event) { const canvas = gameRender.canvas || $("#gameCanvas"), rect = canvas.getBoundingClientRect(); return { x: (event.clientX - rect.left) * GAME_LOGICAL_WIDTH / rect.width, y: (event.clientY - rect.top) * GAME_LOGICAL_HEIGHT / rect.height }; }
+function updateGameHover(event) {
+  if (!game.running) return;
+  const point = canvasPoint(event);
+  const next = gameCellAt(point.x, point.y);
+  if (next?.row === game.hoverCell?.row && next?.col === game.hoverCell?.col) return;
+  game.hoverCell = next;
+  drawGame();
+}
+function clearGameHover() {
+  if (!game.hoverCell) return;
+  game.hoverCell = null;
+  drawGame();
+}
 function collectSun(event) { const { x, y } = canvasPoint(event); const hit = game.suns.findIndex((sun) => Math.hypot(sun.x - x, sun.y - y) < 32); if (hit < 0) return false; const sun = game.suns[hit]; collectSunAt(hit, sun.x, sun.y); drawGame(); return true; }
 function gameCellAt(x, y) { if (y < gameLayout.top || x < gameLayout.left) return null; const col = Math.floor((x - gameLayout.left) / gameLayout.cellW), row = Math.floor((y - gameLayout.top) / gameLayout.cellH); return col >= 0 && col < gameLayout.cols && row >= 0 && row < gameLayout.rows ? { row, col } : null; }
 function plantAt(event) {
@@ -2536,7 +3998,7 @@ function plantAt(event) {
   if (game.shovel) {
     if (!existing) return false;
     const position = cellPosition(existing.row, existing.col);
-    game.plants.splice(game.plants.indexOf(existing), 1);
+    removeGamePlant(existing);
     game.shovel = false;
     updateShovelButton();
     addGameParticle(position.x, position.y, "#e7d7a0", 12, .14);
@@ -2544,12 +4006,17 @@ function plantAt(event) {
     drawGame();
     return true;
   }
-  if (!game.selected || existing) return false;
   const type = game.selected;
+  const covering = type === "pumpkin" && existing && existing.type !== "pumpkin";
+  if (!type || (existing && !covering)) return false;
   const cost = plantCost[type];
   if (game.sun < cost) { setGameStatus("game.noSun"); return false; }
+  if ((game.seedCooldowns[type] || 0) > 0) { setGameStatus("game.cooldown"); return false; }
   game.sun -= cost;
-  game.plants.push({ type, hp: plantHealth[type], row: cell.row, col: cell.col, seed: Math.random() * 1000, age: 0, sunTimer: 0, shotTimer: 0, bombTimer: 0 });
+  game.seedCooldowns[type] = plantCooldown[type] || 0;
+  const planted = { type, hp: plantHealth[type], row: cell.row, col: cell.col, seed: Math.random() * 1000, age: 0, sunTimer: 0, shotTimer: 0, bombTimer: 0, disabledTimer: 0, armed: type !== "potatomine" };
+  if (covering) game.plants.splice(game.plants.indexOf(existing), 1, { ...planted, underPlant: existing });
+  else game.plants.push(planted);
   const position = cellPosition(cell.row, cell.col);
   updateGameHud();
   clearPlantSelection();
@@ -2570,8 +4037,16 @@ function bindUI() {
   $("#demoFlowButton").addEventListener("click", runDemoFlow);
   $("#cancelTaskButton").addEventListener("click", cancelActiveTask);
   $("#gameClose").addEventListener("click", closeGame);
+  $("#gameNewWindow").addEventListener("click", openGameWindow);
+  $("#gameWideMode").addEventListener("click", toggleGameWideMode);
+  $("#gameCodex").addEventListener("click", () => openGameCodex("plants"));
+  $("#gameCodexClose").addEventListener("click", closeGameCodex);
+  $$(".codex-tab").forEach((tab) => tab.addEventListener("click", () => openGameCodex(tab.dataset.codexTab)));
+  $("#gameCodexPanel").addEventListener("click", (event) => { if (event.target.id === "gameCodexPanel") closeGameCodex(); });
+  $("#gameFullscreen").addEventListener("click", toggleGameFullscreen);
   $("#gameStart").addEventListener("click", startGame);
   $("#gameShovel").addEventListener("click", toggleShovel);
+  $$(".game-skill").forEach((button) => button.addEventListener("click", () => activateGameSkill(button.dataset.skill)));
   $("#gamePause").addEventListener("click", toggleGamePause);
   $("#gameDifficulty").addEventListener("change", (event) => setGameDifficulty(event.target.value));
   $("#gameAutoSun").addEventListener("change", (event) => {
@@ -2586,6 +4061,8 @@ function bindUI() {
     if (collectSun(event)) return;
     plantAt(event);
   });
+  $("#gameCanvas").addEventListener("pointermove", updateGameHover, { passive: true });
+  $("#gameCanvas").addEventListener("pointerleave", clearGameHover, { passive: true });
   $$(".seed-card").forEach((card) => card.addEventListener("click", () => selectPlant(card)));
   window.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
@@ -2642,6 +4119,13 @@ function bindUI() {
     if (target) openFilePreview(target.dataset.openDiff);
   });
   $("#messageList").addEventListener("click", (event) => {
+    const timelineToggle = event.target.closest("[data-timeline-toggle]");
+    if (timelineToggle) {
+      const timeline = timelineToggle.closest(".execution-trail");
+      setTimelineDetails(timeline, timelineToggle.dataset.timelineToggle === "expand");
+      event.preventDefault();
+      return;
+    }
     const target = event.target.closest("[data-open-diff]");
     if (target) openFilePreview(target.dataset.openDiff);
   });
@@ -2660,11 +4144,24 @@ function bindUI() {
     $("#promptInput").value = button.dataset[promptKey] || button.dataset.prompt || "";
     $("#promptInput").focus();
   }));
-  $("#sidebarOpen").addEventListener("click", () => { $("#sidebar").classList.add("open"); $("#mobileScrim").classList.add("show"); });
-  $("#sidebarClose").addEventListener("click", () => { $("#sidebar").classList.remove("open"); $("#mobileScrim").classList.remove("show"); });
-  $("#mobileScrim").addEventListener("click", () => { $("#sidebar").classList.remove("open"); $("#mobileScrim").classList.remove("show"); });
-  $("#inspectorToggle").addEventListener("click", () => $("#inspector").classList.toggle("open"));
-  $("#inspectorClose").addEventListener("click", () => $("#inspector").classList.remove("open"));
+  $("#sidebarOpen").addEventListener("click", () => {
+    if (window.matchMedia?.("(min-width: 1181px)").matches) setSidebarCollapsed(false);
+    else { $("#sidebar").classList.add("open"); $("#mobileScrim").classList.add("show"); }
+  });
+  $("#sidebarClose").addEventListener("click", () => {
+    if (window.matchMedia?.("(min-width: 1181px)").matches) setSidebarCollapsed(true);
+    else { $("#sidebar").classList.remove("open"); $("#mobileScrim").classList.remove("show"); }
+  });
+  $("#mobileScrim").addEventListener("click", () => { $("#sidebar").classList.remove("open"); $("#inspector").classList.remove("open"); $("#mobileScrim").classList.remove("show"); });
+  $("#inspectorToggle").addEventListener("click", () => {
+    if (window.matchMedia?.("(min-width: 1181px)").matches) setInspectorCollapsed(!state.inspectorCollapsed);
+    else $("#inspector").classList.toggle("open");
+  });
+  $("#inspectorClose").addEventListener("click", () => {
+    if (window.matchMedia?.("(min-width: 1181px)").matches) setInspectorCollapsed(true);
+    else $("#inspector").classList.remove("open");
+  });
+  window.addEventListener("resize", applyPaneLayout);
   $("#panelBody").addEventListener("change", (event) => {
     if (event.target.id !== "reasoningEffortSelect") return;
     const value = event.target.value;
@@ -2672,9 +4169,15 @@ function bindUI() {
     state.reasoningEffort = value;
     localStorage.setItem("minicc-reasoning", value);
     updateReasoningControl();
-    showToast(state.locale === "zh" ? "新的任务将使用 " + t("reasoning." + value) + " 推理预算" : "New tasks will use " + t("reasoning." + value) + " reasoning");
+    showToast(state.locale === "zh" ? "新的任务将使用 " + t("reasoning." + value) + " 推理强度" : "New tasks will use " + t("reasoning." + value) + " reasoning effort");
   });
   $("#panelBody").addEventListener("click", async (event) => {
+    const timelineToggle = event.target.closest("[data-timeline-toggle]");
+    if (timelineToggle) {
+      setTimelineDetails(timelineToggle.closest(".execution-trail"), timelineToggle.dataset.timelineToggle === "expand");
+      event.preventDefault();
+      return;
+    }
     const target = event.target.closest("[data-cancel-task], [data-resume-task], [data-open-task], [data-open-detail], [data-select-workspace], [data-remove-worktree], [data-set-locale], [data-switch-session], [data-panel-action]");
     if (!target) return;
     if (target.dataset.openDetail) { openTaskDetail(target.dataset.openDetail); return; }
@@ -2783,8 +4286,8 @@ function bindUI() {
   $("#threadList").addEventListener("click", (event) => {
     const item = event.target.closest(".thread-item");
     if (!item) return;
-    setSession(item.dataset.session);
     if (item.dataset.taskId) openTaskInWorkspace(item.dataset.taskId);
+    else setSession(item.dataset.session);
   });
   $("#threadSearch").addEventListener("input", (event) => {
     const query = event.target.value.toLowerCase();
@@ -2796,11 +4299,13 @@ document.addEventListener("DOMContentLoaded", () => {
   bindUI();
   updateMode();
   applyFocusMode();
+  applyPaneLayout();
   initialMessageMarkup = $("#messageList").innerHTML;
   setSession(state.sessionId);
   applyLocale();
   refreshIcons();
   loadWorkspace();
+  if (new URLSearchParams(location.search).get("arcade") === "1") openGame();
   // Keep tasks created in another session or browser tab visible in the sidebar.
   window.setInterval(() => { if (!document.hidden) loadTaskHistory(); }, 5000);
   window.addEventListener("beforeunload", persistSessionView);

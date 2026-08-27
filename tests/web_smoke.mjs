@@ -62,6 +62,7 @@ async function runAgentTimelineSmoke(browser) {
       : `round:${node.dataset.agentRound}`);
     const rounds = [...host.querySelectorAll("details.agent-round")];
     const summaryText = [...host.querySelectorAll('[data-stage-code="model_update"]')].map((node) => node.textContent);
+    const modelHistory = host.querySelector('[data-stage-code="model_update_history"]');
     const firstTool = host.querySelector("details.tool-event");
     const toolInitiallyClosed = firstTool?.open === false;
     const toolDetailsInitiallyClosed = [...(firstTool?.querySelectorAll("details.tool-result-fold") || [])].every((detail) => !detail.open);
@@ -73,6 +74,39 @@ async function runAgentTimelineSmoke(browser) {
     const resultDetailsInitiallyClosed = host.querySelector('[data-stage-code="tool_round_finished"] details.trace-evidence')?.open === false;
     const replanDetailsInitiallyClosed = host.querySelector('[data-stage-code="replan"] details.trace-evidence')?.open === false;
     const feedbackDetailsInitiallyClosed = host.querySelector('[data-stage-code="feedback_observed"] details.trace-evidence')?.open === false;
+    const nonActionTraceInitiallyClosed = host.querySelector('[data-stage-code="model_decision"]')?.matches("details.trace-fold") && host.querySelector('[data-stage-code="model_decision"]')?.open === false;
+    const actionUpdateVisible = [...host.querySelectorAll('[data-stage-code="model_update"]')].every((node) => !node.matches("details"));
+    const modelHistoryInitiallyClosed = modelHistory?.matches("details") && modelHistory.open === false;
+    const assistantProbe = document.createElement("div");
+    assistantProbe.innerHTML = assistantMessageMarkup({ answer: "语义标记探针", events });
+    const threadItem = assistantProbe.querySelector("[data-agent-thread=local]");
+    const latestReasoningItem = host.querySelector('[data-item-kind="reasoning"][data-latest-action="true"]');
+    const reasoningHistoryItem = host.querySelector('[data-item-kind="reasoning-history"]');
+    const commandGroupItem = host.querySelector('[data-item-kind="command-group"]');
+    const commandItem = host.querySelector('[data-item-kind="command"]');
+    const cumulativeUpdates = visibleAgentEvents([
+      { kind: "trace", code: "model_update", detail: { text: "aa" } },
+      { kind: "trace", code: "model_update", detail: { text: "aab" } },
+      { kind: "trace", code: "model_update", detail: { text: "aabc" } },
+    ]).map((event) => event.detail.text);
+
+    const eventProbeId = `event-probe-${Date.now()}`;
+    const eventProbeLoadingId = `loading-${eventProbeId}`;
+    addLoadingMessage(eventProbeLoadingId, { task_id: eventProbeId, session_id: state.sessionId, workspace_path: state.workspacePath, status: "running", phase: "planning", events: [] }, { scrollToLatest: false });
+    bindRunningTask({ task_id: eventProbeId, session_id: state.sessionId, workspace_path: state.workspacePath, status: "running", phase: "planning", event_cursor: 0, events: [] }, eventProbeLoadingId, state.sessionId);
+    applyTaskEvent(eventProbeId, { sequence: 1, event_id: "probe-1", kind: "timeline", payload: { kind: "tool", name: "grep", status: "ok", summary: "搜索完成", event_id: "timeline-1" } });
+    const duplicateEvent = applyTaskEvent(eventProbeId, { sequence: 1, event_id: "probe-1", kind: "timeline", payload: { kind: "tool", name: "grep", status: "ok", summary: "搜索完成", event_id: "timeline-1" } });
+    applyTaskEvent(eventProbeId, { sequence: 2, event_id: "probe-2", kind: "stream_delta", payload: { delta: "新增内容", stream_text: "新增内容", stream_length: 4, phase: "answering" } });
+    const eventProbeBinding = runningTasks.get(eventProbeId);
+    const eventProbe = {
+      timelineCount: eventProbeBinding?.data?.events?.length || 0,
+      streamText: eventProbeBinding?.data?.stream_text || "",
+      cursor: eventProbeBinding?.cursor || 0,
+      duplicateIgnored: duplicateEvent === null,
+    };
+    stopTaskTimer(eventProbeId);
+    runningTasks.delete(eventProbeId);
+    document.getElementById(eventProbeLoadingId)?.remove();
 
     const loading = document.createElement("article");
     loading.className = "message assistant-message loading";
@@ -84,9 +118,20 @@ async function runAgentTimelineSmoke(browser) {
     liveRound.open = true;
     const liveTool = loading.querySelector("details.tool-event");
     liveTool.open = true;
+    const liveResult = liveTool.querySelector("details.tool-result-fold");
+    if (liveResult) liveResult.open = true;
     syncLiveEvents(loading, [...events, { kind: "trace", code: "verification_observed", phase: "planning", status: "ok", summary: "已收到验证证据", detail: { turn: 2 } }]);
     const preservedOpen = loading.querySelector("details.agent-round")?.open === true;
     const preservedToolOpen = loading.querySelector("details.tool-event")?.open === true;
+    const preservedResultOpen = loading.querySelector("details.tool-result-fold")?.open === true;
+
+    const homeTimeline = document.querySelector("#messageList .execution-trail");
+    const expandAll = homeTimeline?.querySelector("[data-timeline-toggle=expand]");
+    const collapseAll = homeTimeline?.querySelector("[data-timeline-toggle=collapse]");
+    expandAll?.click();
+    const allExpanded = homeTimeline ? [...homeTimeline.querySelectorAll("details")].every((detail) => detail.open) : false;
+    collapseAll?.click();
+    const allCollapsed = homeTimeline ? [...homeTimeline.querySelectorAll("details")].every((detail) => !detail.open) : false;
 
     const area = document.querySelector("#chatArea");
     const list = document.querySelector("#messageList");
@@ -115,19 +160,34 @@ async function runAgentTimelineSmoke(browser) {
       resultDetailsInitiallyClosed,
       replanDetailsInitiallyClosed,
       feedbackDetailsInitiallyClosed,
+      nonActionTraceInitiallyClosed,
+      actionUpdateVisible,
+      cumulativeUpdates,
       resultSummary,
       replanSummary,
       feedbackSummary,
-      modelSummaryVisible: summaryText.some((text) => text.includes("先读取入口文件")) && summaryText.some((text) => text.includes("证据指向布局层")),
+      modelSummaryVisible: summaryText.length === 1 && summaryText[0].includes("证据指向布局层") && Boolean(modelHistory),
+      modelHistoryInitiallyClosed,
+      itemSemantics: {
+        thread: Boolean(threadItem),
+        latestReasoning: Boolean(latestReasoningItem),
+        reasoningHistory: Boolean(reasoningHistoryItem),
+        commandGroup: Boolean(commandGroupItem),
+        command: Boolean(commandItem),
+      },
+      eventProbe,
       preservedOpen,
       preservedToolOpen,
+      preservedResultOpen,
+      allExpanded,
+      allCollapsed,
       scrollDeltaUpdate: Math.abs(afterUpdate - beforeUpdate),
       scrollDeltaComplete: Math.abs(afterComplete - afterUpdate),
       finalAnchor: Boolean(finalAnchor),
     };
   });
   assert.deepEqual(result.order, [
-    "stage:model_update", "stage:model_decision", "round:1", "stage:tool_round_finished", "stage:feedback_observed",
+    "stage:model_update_history", "stage:model_decision", "round:1", "stage:tool_round_finished", "stage:feedback_observed",
     "stage:replan", "stage:model_update", "round:2", "stage:tool_round_finished", "stage:feedback_observed",
   ], `timeline should preserve stage/tool order: ${JSON.stringify(result)}`);
   assert.equal(result.roundCount, 2, "contiguous tool calls should form two collapsed rounds");
@@ -139,15 +199,78 @@ async function runAgentTimelineSmoke(browser) {
   assert.equal(result.resultDetailsInitiallyClosed, true, "merged result details must start collapsed");
   assert.equal(result.replanDetailsInitiallyClosed, true, "re-plan details must start collapsed");
   assert.equal(result.feedbackDetailsInitiallyClosed, true, "self-feedback details must start collapsed");
+  assert.equal(result.nonActionTraceInitiallyClosed, true, "non-action stages must start collapsed");
+  assert.equal(result.actionUpdateVisible, true, "model action updates should remain visible");
+  assert.equal(result.modelHistoryInitiallyClosed, true, "earlier model updates must start collapsed");
+  assert.deepEqual(result.itemSemantics, {
+    thread: true,
+    latestReasoning: true,
+    reasoningHistory: true,
+    commandGroup: true,
+    command: true,
+  }, "Codex-style thread/turn/item semantics must remain inspectable");
+  assert.deepEqual(result.cumulativeUpdates, ["aa", "b", "c"], "cumulative model updates should render only their new suffix");
+  assert.deepEqual(result.eventProbe, { timelineCount: 1, streamText: "新增内容", cursor: 2, duplicateIgnored: true }, "incremental task events should merge once and advance the cursor");
   assert.match(result.resultSummary, /命中 3 处|新信息|入口和路由/);
   assert.match(result.replanSummary, /上一轮工具结果已合并|检查样式|约束/);
   assert.match(result.feedbackSummary, /产生了新信息|继续检查路由/);
   assert.equal(result.modelSummaryVisible, true, "public model updates should be visible between tool rounds");
   assert.equal(result.preservedOpen, true, "a manually opened tool round should survive live refresh");
   assert.equal(result.preservedToolOpen, true, "a manually opened tool result should survive live refresh");
+  assert.equal(result.preservedResultOpen, true, "a manually opened result fold should survive live refresh");
+  assert.equal(result.allExpanded, true, "the timeline expand control should open every detail");
+  assert.equal(result.allCollapsed, true, "the timeline collapse control should close every detail");
   assert.ok(result.scrollDeltaUpdate <= 1, `live updates should preserve reading position: ${JSON.stringify(result)}`);
   assert.ok(result.scrollDeltaComplete <= 1, `completion replacement should preserve reading position: ${JSON.stringify(result)}`);
   assert.equal(result.finalAnchor, true, "the final message should retain the live message anchor");
+
+  const isolation = await page.evaluate(() => {
+    const original = {
+      sessionId: state.sessionId,
+      workspacePath: state.workspacePath,
+      activeTaskId: state.activeTaskId,
+      lastTask: state.lastTask,
+    };
+    state.sessionId = "isolation-a";
+    state.workspacePath = "workspace-a";
+    state.activeTaskId = "task-a";
+    const taskA = { task_id: "task-a", session_id: "isolation-a", workspace_path: "workspace-a", status: "running", phase: "tool", preview: "当前任务", stream_text: "", events: [] };
+    const taskB = { task_id: "task-b", session_id: "isolation-b", workspace_path: "workspace-b", status: "running", phase: "planning", preview: "后台任务", stream_text: "", events: [] };
+    bindRunningTask(taskA, "isolation-loading-a", "isolation-a");
+    bindRunningTask(taskB, "isolation-loading-b", "isolation-b");
+    updateTaskDock(taskA);
+    const before = {
+      title: document.querySelector("#taskDockTitle")?.textContent,
+      phase: document.querySelector("#taskDockPhase")?.textContent,
+      pulse: document.querySelector("#pulseStatus")?.textContent,
+      active: state.activeTaskId,
+    };
+    updateBoundTask("task-b", { ...taskB, status: "failed", phase: "failed", preview: "后台任务失败" });
+    const after = {
+      title: document.querySelector("#taskDockTitle")?.textContent,
+      phase: document.querySelector("#taskDockPhase")?.textContent,
+      pulse: document.querySelector("#pulseStatus")?.textContent,
+      active: state.activeTaskId,
+      lastTask: state.lastTask?.task_id,
+    };
+    const tasks = [taskA, taskB];
+    renderTaskHistory(tasks);
+    const firstItem = document.querySelector("#threadList .thread-item");
+    renderTaskHistory(tasks);
+    const stableHistoryDom = firstItem === document.querySelector("#threadList .thread-item");
+    ["task-a", "task-b"].forEach((taskId) => stopTaskTimer(taskId));
+    runningTasks.clear();
+    taskBySession.clear();
+    document.querySelector("#isolation-loading-a")?.remove();
+    document.querySelector("#isolation-loading-b")?.remove();
+    state.sessionId = original.sessionId;
+    state.workspacePath = original.workspacePath;
+    state.activeTaskId = original.activeTaskId;
+    state.lastTask = original.lastTask;
+    return { before, after, stableHistoryDom };
+  });
+  assert.deepEqual(isolation.after, { ...isolation.before, lastTask: "task-a" }, `background task must not steal the focused task UI: ${JSON.stringify(isolation)}`);
+  assert.equal(isolation.stableHistoryDom, true, "unchanged task history must not replace sidebar DOM");
   assert.deepEqual(consoleErrors, [], `timeline browser errors: ${consoleErrors.join(" | ")}`);
   await page.close();
 }
@@ -158,7 +281,7 @@ async function runDesktopSmoke(browser) {
   page.on("console", (message) => { if (message.type() === "error") consoleErrors.push(message.text()); });
   page.on("pageerror", (error) => consoleErrors.push(error.message));
 
-  await page.goto(baseUrl, { waitUntil: "networkidle" });
+  await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
   const initialTheme = await state(page, "document.documentElement.dataset.theme");
   await page.locator("#themeButton").click();
   const toggledTheme = await state(page, "document.documentElement.dataset.theme");
@@ -167,7 +290,7 @@ async function runDesktopSmoke(browser) {
   if (toggledTheme !== "light") await page.locator("#themeButton").click();
   assert.equal(await state(page, "document.documentElement.dataset.theme"), "light", "theme control should enable light mode");
   assert.match(await page.locator("#themeButton").getAttribute("aria-label"), /暗色|dark/i);
-  await page.reload({ waitUntil: "networkidle" });
+  await page.reload({ waitUntil: "domcontentloaded" });
   assert.equal(await state(page, "document.documentElement.dataset.theme"), "light", "light preference should survive reload");
   await page.locator("#focusToggle").click();
   assert.equal(await state(page, "document.documentElement.dataset.focusMode"), "true", "focus mode should hide nonessential navigation");
@@ -199,8 +322,180 @@ async function runDesktopSmoke(browser) {
   });
   await page.locator("#gameDifficulty").selectOption("nightmare");
   assert.deepEqual(await state(page, "({ difficulty: game.difficulty, sun: game.sun, target: game.waveTarget })"), {
-    difficulty: "nightmare", sun: 150, target: 11,
+    difficulty: "nightmare", sun: 110, target: 17,
   });
+  const gameMechanics = await state(page, `(() => {
+    const originalRandom = Math.random;
+    const stopTick = () => { game.running = false; cancelAnimationFrame(game.frame); };
+    const tick = (zombies, plants = [], shots = []) => {
+      game.running = true;
+      game.paused = false;
+      game.plants = plants;
+      game.zombies = zombies;
+      game.shots = shots;
+      game.suns = [];
+      game.waveSpawned = game.waveTarget;
+      game.spawnTimer = 0;
+      game.skyTimer = 0;
+      game.dangerTimer = 0;
+      game.last = 1000;
+      gameLoop(1016);
+      stopTick();
+    };
+
+    game.suns = [];
+    produceSun({ row: 0, col: 0 });
+    const sunflower = game.suns.length === 1;
+
+    game.shots = [];
+    firePlantShots({ type: "icepeashooter", row: 0, col: 0 }, plantProfiles.icepeashooter);
+    const iceShot = game.shots[0];
+    game.shots = [];
+    firePlantShots({ type: "firepeashooter", row: 0, col: 0 }, plantProfiles.firepeashooter);
+    const fireShot = game.shots[0];
+    game.shots = [];
+    firePlantShots({ type: "threepeater", row: 1, col: 0 }, plantProfiles.threepeater);
+    const threepeaterRows = [...new Set(game.shots.map((shot) => shot.row))].sort();
+
+    const cherry = { type: "cherrybomb", row: 0, col: 2 };
+    const cherryTarget = { type: "walker", row: 0, x: cellPosition(0, 2).x + 20 };
+    game.plants = [cherry];
+    game.zombies = [cherryTarget];
+    explodeCherryBomb(cherry);
+    const cherryBomb = game.plants.length === 0 && game.zombies.length === 0;
+
+    const runner = { type: "runner", row: 0, x: 600, speed: .05, hp: 5, maxHp: 5, slowTimer: 0, dashTimer: 0, chargeTimer: 0 };
+    tick([runner]);
+    const dash = { triggered: runner.dashTimer > 0, movedWithBoost: runner.x > 625 };
+
+    const football = { type: "football", row: 0, x: 600, speed: .05, hp: 5, maxHp: 5, slowTimer: 0, dashTimer: 0, chargeTimer: 0 };
+    tick([football]);
+    const charge = { triggered: football.chargeTimer > 0, movedWithBoost: football.x < 599 };
+
+    const giantPlant = { type: "wallnut", row: 0, col: 3, hp: 12, disabledTimer: 0 };
+    const giant = { type: "gargantuar", row: 0, x: cellPosition(0, 3).x, speed: 0, hp: 48, maxHp: 48, slowTimer: 0, smashTimer: 0 };
+    tick([giant], [giantPlant]);
+    const giantSmash = { triggered: giant.smashTimer > 0, damagedPlant: giantPlant.hp === 5 };
+
+    const biteWalker = () => ({ type: "walker", row: 0, x: cellPosition(0, 3).x, speed: 0, hp: 5, maxHp: 5, slowTimer: 0, attackInterval: 1000 });
+    const pumpkin = { type: "pumpkin", row: 0, col: 3, hp: 32, disabledTimer: 0 };
+    tick([biteWalker()], [pumpkin]);
+    const pumpkinDamage = 32 - pumpkin.hp;
+    const wallnut = { type: "wallnut", row: 0, col: 3, hp: 24, disabledTimer: 0 };
+    tick([biteWalker()], [wallnut]);
+    const wallnutDamage = 24 - wallnut.hp;
+    const pumpkinDefense = { damaged: pumpkinDamage > 0, halfDamage: Math.abs(pumpkinDamage * 2 - wallnutDamage) < 0.0001 };
+
+    game.running = true;
+    game.paused = false;
+    game.sun = plantCost.pumpkin;
+    game.selected = "pumpkin";
+    game.seedCooldowns = {};
+    game.shovel = false;
+    const coverBase = { type: "sunflower", row: 0, col: 3, hp: 6, maxHp: 6, seed: 1, age: 0, sunTimer: 0, shotTimer: 0, bombTimer: 0, disabledTimer: 0, armed: true };
+    game.plants = [coverBase];
+    const coverCanvas = gameRender.canvas;
+    const coverRect = coverCanvas.getBoundingClientRect();
+    const coverPosition = cellPosition(0, 3);
+    const coverEvent = { clientX: coverRect.left + coverPosition.x * coverRect.width / GAME_LOGICAL_WIDTH, clientY: coverRect.top + coverPosition.y * coverRect.height / GAME_LOGICAL_HEIGHT };
+    const plantedPumpkin = plantAt(coverEvent);
+    const shell = game.plants[0];
+    const pumpkinCover = { planted: plantedPumpkin, oneSlot: game.plants.length === 1, underPlant: shell?.underPlant === coverBase, baseType: shell?.underPlant?.type };
+    const baseBeforeShellHit = coverBase.hp;
+    damagePlant(shell, 2);
+    const pumpkinShell = { shellDamage: shell.hp === plantHealth.pumpkin - 1, baseUntouched: coverBase.hp === baseBeforeShellHit };
+    damagePlant(shell, 100);
+    const pumpkinRestored = game.plants.length === 1 && game.plants[0] === coverBase && !game.plants[0].underPlant;
+
+    const spikeweed = { type: "spikeweed", row: 0, col: 3, hp: 10, maxHp: 10, seed: 1, age: 0, sunTimer: 0, shotTimer: 0, bombTimer: 0, disabledTimer: 0, armed: true };
+    const spikeZombie = { type: "walker", row: 0, x: cellPosition(0, 3).x, speed: .05, hp: 5, maxHp: 5, slowTimer: 0, burrowTimer: 0, attackInterval: 1000 };
+    const spikeBeforeX = spikeZombie.x;
+    tick([spikeZombie], [spikeweed]);
+    const spikeweedBehavior = { movedThrough: spikeZombie.x < spikeBeforeX, damagedZombie: spikeZombie.hp < 5, plantUntouched: spikeweed.hp === 10 };
+
+    const miner = { type: "miner", row: 0, x: cellPosition(0, 3).x, speed: 0, hp: 9, maxHp: 9, slowTimer: 0, attackInterval: 850, burrowTimer: 1000 };
+    const minerShot = { x: miner.x - 10, y: miner.y, row: 0, damage: 1, hitsLeft: 1, hitTargets: [], hit: false };
+    tick([miner], [], [minerShot]);
+    const minerBurrow = { hpUnchanged: miner.hp === 9, shotStillFlying: game.shots.length === 1 };
+
+    const impPlant = { type: "wallnut", row: 0, col: 3, hp: 24, disabledTimer: 0 };
+    const imp = { type: "imp", row: 0, x: cellPosition(0, 3).x, speed: 0, hp: 3, maxHp: 3, slowTimer: 0, attackInterval: 1250, dashTimer: 1000, leapTimer: 0 };
+    tick([imp], [impPlant]);
+    const impLeap = { triggered: imp.leapTimer > 0, movedPastBlocker: imp.x < cellPosition(0, 3).x - 30, plantIntact: game.plants.includes(impPlant) };
+
+    const bucket = { type: "bucket", row: 0, x: cellPosition(0, 3).x, speed: 0, hp: 21, maxHp: 21, armor: 8, slowTimer: 0, attackInterval: 620 };
+    const bucketShot = { x: bucket.x - 10, y: bucket.y, row: 0, damage: 1, hitsLeft: 1, hitTargets: [], hit: false };
+    tick([bucket], [], [bucketShot]);
+    const bucketArmor = { armorConsumed: bucket.armor === 7, reducedHp: Math.abs(bucket.hp - 20.65) < 0.0001 };
+
+    const expectedZombieTypes = ["walker", "backup", "roadblock", "conehead", "imp", "scout", "storm", "runner", "polevault", "bucket", "football", "miner", "flag", "dancer", "newspaper", "gargantuar", "witch", "dragon", "shield"];
+    const zombieProfilesComplete = expectedZombieTypes.every((type) => zombieProfiles[type] && zombieProfiles[type].hp && zombieProfiles[type].speed && zombieProfiles[type].growth && zombieProfiles[type].attackInterval && zombieProfiles[type].score);
+    const waveTargets = [1, 2, 6, 10].map((wave) => WAVE_TARGET(wave, "hard"));
+    const nightmareTargets = [1, 2, 6, 10].map((wave) => WAVE_TARGET(wave, "nightmare"));
+
+    game.difficulty = "nightmare";
+    game.wave = 6;
+    game.waveTarget = WAVE_TARGET(6, "nightmare");
+    game.waveSpawned = 4;
+    game.zombies = [];
+    Math.random = () => .99;
+    const forcedType = zombieTypeForWave();
+    spawnZombie();
+    Math.random = originalRandom;
+    const nightmare = { target: game.waveTarget, forcedType, spawnedType: game.zombies[0]?.type, elite: game.zombies[0]?.elite === true };
+    game.plants = [];
+    game.zombies = [];
+    game.shots = [];
+    game.suns = [];
+    return {
+      catalogComplete: Object.keys(plantCost).every((type) => plantHealth[type] && plantColor[type] && plantCooldown[type]),
+      sunflower,
+      iceShot: Boolean(iceShot?.slow),
+      fireShot: Boolean(fireShot?.fire && fireShot?.burn && fireShot?.burnDamage),
+      threepeaterRows,
+      cherryBomb,
+      dash,
+      charge,
+      giantSmash,
+      pumpkinDefense,
+      pumpkinCover,
+      pumpkinShell,
+      pumpkinRestored,
+      spikeweedBehavior,
+      minerBurrow,
+      impLeap,
+      bucketArmor,
+      zombieProfilesComplete,
+      waveTargets,
+      nightmareTargets,
+      nightmare,
+    };
+  })()`);
+  assert.equal(gameMechanics.catalogComplete, true, "every plant must have cost, health, color, and cooldown data");
+  assert.deepEqual(gameMechanics.threepeaterRows, [0, 1, 2], "threepeater must cover its row and adjacent rows");
+  assert.deepEqual(gameMechanics, {
+    catalogComplete: true,
+    sunflower: true,
+    iceShot: true,
+    fireShot: true,
+    threepeaterRows: [0, 1, 2],
+    cherryBomb: true,
+    dash: { triggered: true, movedWithBoost: true },
+    charge: { triggered: true, movedWithBoost: true },
+    giantSmash: { triggered: true, damagedPlant: true },
+    pumpkinDefense: { damaged: true, halfDamage: true },
+    pumpkinCover: { planted: true, oneSlot: true, underPlant: true, baseType: "sunflower" },
+    pumpkinShell: { shellDamage: true, baseUntouched: true },
+    pumpkinRestored: true,
+    spikeweedBehavior: { movedThrough: true, damagedZombie: true, plantUntouched: true },
+    minerBurrow: { hpUnchanged: true, shotStillFlying: true },
+    impLeap: { triggered: true, movedPastBlocker: true, plantIntact: true },
+    bucketArmor: { armorConsumed: true, reducedHp: true },
+    zombieProfilesComplete: true,
+    waveTargets: [9, 11, 19, 27],
+    nightmareTargets: [17, 20, 34, 48],
+    nightmare: { target: 34, forcedType: "dragon", spawnedType: "dragon", elite: true },
+  }, `game mechanics smoke: ${JSON.stringify(gameMechanics)}`);
 
   await page.locator("#gameStart").click();
   await page.waitForTimeout(120);
@@ -239,7 +534,7 @@ async function runDesktopSmoke(browser) {
   await state(page, "game.elapsed = 3600000; game.zombies = []; game.last = performance.now(); gameLoop(performance.now() + 16); game.paused = true; cancelAnimationFrame(game.frame)");
   assert.equal(await state(page, "game.running"), true, "a long elapsed battle must not fail because time expired");
 
-  await state(page, "game.paused = false; game.last = performance.now(); game.zombies = [{ row: 0, x: 55, y: 0, slowTimer: 0, speed: 0, attackInterval: 1000, hp: 1, maxHp: 1, type: 'basic', seed: 0 }]; gameLoop(performance.now() + 16)");
+  await state(page, "game.paused = false; game.mowers.forEach((mower) => { mower.used = true; mower.active = false; }); game.last = performance.now(); game.zombies = [{ row: 0, x: 55, y: 0, slowTimer: 0, speed: 0, attackInterval: 1000, hp: 1, maxHp: 1, type: 'basic', seed: 0 }]; gameLoop(performance.now() + 16)");
   assert.deepEqual(await state(page, "({ running: game.running, status: document.querySelector('#gameStatus').textContent })"), {
     running: false, status: "僵尸进屋了",
   });

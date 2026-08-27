@@ -14,6 +14,7 @@ from collections import deque
 import hashlib
 import inspect
 import json
+import math
 import mimetypes
 import re
 import threading
@@ -29,7 +30,7 @@ from urllib.parse import parse_qs, unquote, urlsplit
 
 from .agent.graph import DAGPlan, PlanTask, build_coding_workflow, execute_dag, fixed_plan
 from .agent.completion import CompletionDecision, judge_completion
-from .agent.loop import TurnResult, build_tool_feedback, run_agent
+from .agent.loop import AgentCancelled, TurnResult, build_tool_feedback, chat_with_cancellation, run_agent
 from .agent.orchestration import assess_complexity, build_auto_subtasks
 from .agent.planner import (
     DEFAULT_ALLOWED_TOOLS,
@@ -44,12 +45,24 @@ from .agent.repair import repair_scope
 from .agent.retrieval import LocalEvidenceIndex
 from .agent.router import StageRouter
 from .agent.state import AgentState, Budget, BudgetExceeded
+from .agent.protocol import (
+    CancellationToken,
+    EventLog,
+    InvalidStatusTransition,
+    validate_status_transition,
+)
 from .agent.verifier import Verifier
 from .audit import authorize_tool
 from .changes import ChangeError, ChangeInspector
-from .config import ConfigError, home_dir, load_config, normalize_reasoning_effort
+from .config import (
+    ConfigError,
+    home_dir,
+    load_config,
+    normalize_reasoning_effort,
+)
 from .llm.base import system_msg, user_msg
 from .llm.openai_provider import OpenAICompatibleProvider
+from .llm.usage import add_usage_totals, cache_summary
 from .mcp import McpError, McpManager
 from .prompt import build_system_prompt
 from .sandbox import SandboxRunner
@@ -69,6 +82,14 @@ MAX_BATCH_TASKS = 16
 TASK_STREAM_INTERVAL = 0.06
 TASK_STREAM_TIMEOUT = 15 * 60
 TERMINAL_TASK_STATUSES = {"completed", "failed", "cancelled", "interrupted"}
+DEFAULT_TASK_EVENT_LIMIT = 768
+DEFAULT_TASK_STREAM_LIMIT = 16_000
+DEFAULT_TASK_USAGE_LIMIT = 64
+DEFAULT_TASK_COMPACTION_LIMIT = 64
+DEFAULT_TASK_QUEUE_LIMIT = 32
+MAX_SSE_CONNECTIONS = 32
+SSE_WRITE_TIMEOUT = 20.0
+TASK_SHUTDOWN_GRACE_SECONDS = 8.0
 COMPLETION_WRITE_TOOLS = frozenset({"write_file", "edit_file", "worktree_create", "worktree_remove"})
 READONLY_PLAN_KINDS = frozenset({"readonly", "review", "merge", "exec"})
 READONLY_PLAN_TOOLS = frozenset({"read_file", "grep", "git_status", "git_diff", "bash"})
@@ -86,6 +107,22 @@ def _iso(timestamp: float | None) -> str | None:
     if timestamp is None:
         return None
     return datetime.fromtimestamp(timestamp, timezone.utc).isoformat()
+
+
+def _coerce_int(value: object, default: int = 0) -> int:
+    """Read persisted numeric fields without letting one corrupt snapshot break startup."""
+    try:
+        return int(value) if value is not None and value != "" else default
+    except (TypeError, ValueError, OverflowError):
+        return default
+
+
+def _coerce_float(value: object, default: float) -> float:
+    try:
+        parsed = float(value) if value is not None and value != "" else default
+        return parsed if math.isfinite(parsed) else default
+    except (TypeError, ValueError, OverflowError):
+        return default
 
 
 def _path_key(raw_path: str | Path | None) -> str:
@@ -189,12 +226,11 @@ def _merge_turn_results(previous: TurnResult | None, current: TurnResult) -> Tur
     previous.cancelled = current.cancelled
     previous.turns += current.turns
     previous.tool_calls_total += current.tool_calls_total
-    previous.denied_tools.extend(current.denied_tools)
-    previous.trace_events.extend(current.trace_events)
-    previous.usage_by_turn.extend(current.usage_by_turn)
-    previous.compaction_events.extend(current.compaction_events)
-    for key, value in current.tokens_used.items():
-        previous.tokens_used[key] = previous.tokens_used.get(key, 0) + int(value or 0)
+    previous.denied_tools = [*previous.denied_tools, *current.denied_tools][-64:]
+    previous.trace_events = [*previous.trace_events, *current.trace_events][-1024:]
+    previous.usage_by_turn = [*previous.usage_by_turn, *current.usage_by_turn][-64:]
+    previous.compaction_events = [*previous.compaction_events, *current.compaction_events][-64:]
+    add_usage_totals(previous.tokens_used, current.tokens_used)
     previous.context = dict(current.context)
     previous.completion = dict(current.completion)
     previous.metrics = dict(current.metrics)
@@ -308,12 +344,24 @@ def _child_result_digest(child: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _event_fingerprint(event: dict[str, Any]) -> str:
+    """Compare timeline events without treating replay metadata as content."""
+    canonical = {
+        str(key): value
+        for key, value in event.items()
+        if key not in {"event_id", "item_id", "sequence", "created_at_epoch"}
+    }
+    raw = json.dumps(canonical, ensure_ascii=False, sort_keys=True, default=str, separators=(",", ":"))
+    return hashlib.sha256(raw.encode("utf-8", "replace")).hexdigest()
+
+
 @dataclass
 class TaskRecord:
     task_id: str
     session_id: str
     message: str
     allow_changes: bool
+    thread_id: str = ""
     allow_network: bool = False
     reasoning_effort: str = "high"
     attachments: list[dict[str, Any]] = field(default_factory=list, repr=False)
@@ -322,6 +370,10 @@ class TaskRecord:
     orchestration_mode: str = "none"
     parent_id: str | None = None
     child_task_ids: list[str] = field(default_factory=list)
+    event_limit: int = DEFAULT_TASK_EVENT_LIMIT
+    stream_limit: int = DEFAULT_TASK_STREAM_LIMIT
+    usage_limit: int = DEFAULT_TASK_USAGE_LIMIT
+    compaction_limit: int = DEFAULT_TASK_COMPACTION_LIMIT
     created_at: float = field(default_factory=time.time)
     status: str = "queued"
     phase: str = "queued"
@@ -337,17 +389,120 @@ class TaskRecord:
     checkpoint: dict[str, Any] = field(default_factory=dict)
     result: dict[str, Any] | None = None
     error: str | None = None
+    cancel_reason: str | None = None
+    state_version: int = 0
+    event_cursor: int = 0
+    events_truncated: int = 0
+    stream_length: int = 0
     orchestration_context: str = field(default="", repr=False)
     execution_message: str | None = field(default=None, repr=False)
-    cancel_event: threading.Event = field(default_factory=threading.Event, repr=False)
+    cancel_event: CancellationToken = field(default_factory=CancellationToken, repr=False)
     future: Future[Any] | None = field(default=None, repr=False)
-    lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
+    lock: threading.RLock = field(default_factory=threading.RLock, repr=False)
+    event_log: EventLog = field(init=False, repr=False)
+    _event_ids: set[str] = field(init=False, repr=False, default_factory=set)
+    _event_keys: set[str] = field(init=False, repr=False, default_factory=set)
 
-    def add_event(self, event: dict[str, Any]) -> None:
+    def __post_init__(self) -> None:
+        self.thread_id = self.thread_id or f"thread-{hashlib.sha256(self.session_id.encode('utf-8', 'replace')).hexdigest()[:16]}"
+        self.event_limit = max(32, _coerce_int(self.event_limit, DEFAULT_TASK_EVENT_LIMIT))
+        self.stream_limit = max(512, _coerce_int(self.stream_limit, DEFAULT_TASK_STREAM_LIMIT))
+        self.usage_limit = max(8, _coerce_int(self.usage_limit, DEFAULT_TASK_USAGE_LIMIT))
+        self.compaction_limit = max(8, _coerce_int(self.compaction_limit, DEFAULT_TASK_COMPACTION_LIMIT))
+        normalized_events: list[dict[str, Any]] = []
+        highest_sequence = max(0, _coerce_int(self.event_cursor))
+        for source in self.events:
+            if not isinstance(source, dict):
+                continue
+            event = dict(source)
+            event_id = str(event.get("event_id") or "")
+            if not event_id:
+                event_id = f"evt-legacy-{_event_fingerprint(event)[:16]}"
+                event["event_id"] = event_id
+            sequence = _coerce_int(event.get("sequence"))
+            if sequence > highest_sequence:
+                highest_sequence = sequence
+            normalized_events.append(event)
+        self.events = normalized_events[-self.event_limit:]
+        # Only retained events participate in duplicate detection. Keeping
+        # indexes for every historical event defeats the bounded replay
+        # buffer and makes long-lived tasks grow without limit.
+        self._event_ids.clear()
+        self._event_keys.clear()
+        for event in self.events:
+            self._event_ids.add(str(event.get("event_id") or ""))
+            self._event_keys.add(_event_fingerprint(event))
+        self.events_truncated = max(0, _coerce_int(self.events_truncated)) + max(0, len(normalized_events) - len(self.events))
+        self.event_cursor = highest_sequence
+        self.event_log = EventLog(
+            task_id=self.task_id,
+            limit=self.event_limit,
+            start_sequence=self.event_cursor,
+        )
+        self.stream_length = max(_coerce_int(self.stream_length), len(self.stream_text))
+        if len(self.stream_text) > self.stream_limit:
+            self.stream_text = self.stream_text[-self.stream_limit:]
+        self.usage_by_turn = [dict(item) for item in self.usage_by_turn if isinstance(item, dict)][-self.usage_limit:]
+        self.compaction_events = [dict(item) for item in self.compaction_events if isinstance(item, dict)][-self.compaction_limit:]
+
+    def _publish_locked(
+        self,
+        kind: str,
+        payload: dict[str, Any] | None = None,
+        *,
+        event_id: str | None = None,
+        item_id: str | None = None,
+    ) -> None:
+        envelope = self.event_log.append(
+            kind,
+            payload,
+            thread_id=self.thread_id,
+            turn_id=self._current_turn_locked(),
+            event_id=event_id,
+            item_id=item_id,
+        )
+        if envelope is not None:
+            self.event_cursor = envelope.sequence
+
+    def _current_turn_locked(self) -> int:
+        for event in reversed(self.events):
+            detail = event.get("detail") if isinstance(event, dict) else None
+            if isinstance(detail, dict) and detail.get("turn") is not None:
+                try:
+                    return max(0, int(detail.get("turn") or 0))
+                except (TypeError, ValueError):
+                    pass
+        return 0
+
+    def _append_timeline_event_locked(self, event: dict[str, Any], *, allow_terminal: bool = False) -> dict[str, Any] | None:
+        if self.status in TERMINAL_TASK_STATUSES and not allow_terminal:
+            return None
+        candidate = dict(event)
+        event_id = str(candidate.get("event_id") or f"evt-{uuid.uuid4().hex[:16]}")
+        item_id = str(candidate.get("item_id") or f"item-{uuid.uuid4().hex[:16]}")
+        candidate["event_id"] = event_id
+        candidate["item_id"] = item_id
+        candidate.setdefault("created_at_epoch", time.time())
+        fingerprint = _event_fingerprint(candidate)
+        if event_id in self._event_ids or fingerprint in self._event_keys:
+            return None
+        self._event_ids.add(event_id)
+        self._event_keys.add(fingerprint)
+        self._publish_locked("timeline", candidate, event_id=event_id, item_id=item_id)
+        candidate["sequence"] = self.event_cursor
+        self.events.append(candidate)
+        if len(self.events) > self.event_limit:
+            removed = self.events.pop(0)
+            self._event_ids.discard(str(removed.get("event_id") or ""))
+            self._event_keys.discard(_event_fingerprint(removed))
+            self.events_truncated += 1
+        return candidate
+
+    def add_event(self, event: dict[str, Any]) -> dict[str, Any] | None:
         with self.lock:
             if self.cancel_event.is_set() or self.status in TERMINAL_TASK_STATUSES:
-                return
-            self.events.append(dict(event))
+                return None
+            return self._append_timeline_event_locked(event)
 
     def append_stream(self, delta: str) -> None:
         if not delta:
@@ -355,39 +510,147 @@ class TaskRecord:
         with self.lock:
             if self.cancel_event.is_set() or self.status in TERMINAL_TASK_STATUSES:
                 return
-            self.stream_text += str(delta)
+            delta = str(delta)
+            self.stream_length += len(delta)
+            self.stream_text = (self.stream_text + delta)[-self.stream_limit:]
             self.phase = "answering"
+            self.state_version += 1
+            self._publish_locked(
+                "stream_delta",
+                {
+                    "delta": delta,
+                    "stream_text": self.stream_text,
+                    "stream_length": self.stream_length,
+                    "phase": self.phase,
+                },
+            )
 
     def set_phase(self, phase: str) -> None:
         with self.lock:
             if self.cancel_event.is_set() or self.status in TERMINAL_TASK_STATUSES:
                 return
+            phase = str(phase or self.phase)
+            if self.phase == phase:
+                return
             self.phase = phase
+            self.state_version += 1
+            self._publish_locked("state", {"phase": self.phase, "status": self.status, "state_version": self.state_version})
+
+    def transition_status(self, status: str, *, error: str | None = None, reason: str | None = None) -> bool:
+        """Apply one legal lifecycle transition and publish it once."""
+        target = str(status or "")
+        with self.lock:
+            validate_status_transition(self.status, target)
+            if self.status == target:
+                if error and not self.error:
+                    self.error = str(error)
+                return False
+            self.status = target
+            self.phase = target
+            self.state_version += 1
+            if error is not None:
+                self.error = str(error)
+            if reason:
+                self.cancel_reason = str(reason)
+            if target in TERMINAL_TASK_STATUSES:
+                self.finished_at = self.finished_at or time.time()
+            self._publish_locked(
+                "status",
+                {
+                    "status": self.status,
+                    "phase": self.phase,
+                    "state_version": self.state_version,
+                    "finished_at": _iso(self.finished_at),
+                    "error": self.error,
+                    "cancel_reason": self.cancel_reason,
+                },
+            )
+            return True
+
+    def request_cancel(self, reason: str = "user") -> bool:
+        """Cancel the scope first, then make the terminal state observable."""
+        with self.lock:
+            if self.status in TERMINAL_TASK_STATUSES:
+                return False
+            self.cancel_reason = str(reason or "user")
+            self.cancel_event.cancel(self.cancel_reason)
+            self._append_timeline_event_locked(
+                {
+                    "kind": "trace",
+                    "name": "task",
+                    "status": "error",
+                    "phase": "cancelled",
+                    "code": "cancel_requested",
+                    "summary": "已请求取消任务",
+                    "detail": {"reason": self.cancel_reason},
+                },
+                allow_terminal=True,
+            )
+            validate_status_transition(self.status, "cancelled")
+            self.status = "cancelled"
+            self.phase = "cancelled"
+            self.state_version += 1
+            self.finished_at = self.finished_at or time.time()
+            self.error = "任务已取消"
+            if self.result is not None:
+                self.result = {
+                    **self.result,
+                    "answer": "任务已取消。",
+                    "error": self.error,
+                    "cancelled": True,
+                }
+            self._publish_locked(
+                "status",
+                {
+                    "status": self.status,
+                    "phase": self.phase,
+                    "state_version": self.state_version,
+                    "finished_at": _iso(self.finished_at),
+                    "error": "任务已取消",
+                    "cancel_reason": self.cancel_reason,
+                },
+            )
+            return True
 
     def update_usage(self, usage: dict[str, Any]) -> None:
         with self.lock:
-            for key in ("prompt_tokens", "completion_tokens", "total_tokens", "reasoning_tokens"):
-                value = usage.get(key)
-                if isinstance(value, (int, float)):
-                    self.tokens_used[key] = self.tokens_used.get(key, 0) + int(value)
+            if self.cancel_event.is_set() or self.status in TERMINAL_TASK_STATUSES:
+                return
+            add_usage_totals(self.tokens_used, usage)
+            self.metrics.update(cache_summary(self.tokens_used))
             if usage:
-                self.usage_by_turn.append(dict(usage))
+                self.usage_by_turn = [*self.usage_by_turn, dict(usage)][-self.usage_limit:]
+                self.state_version += 1
+                self._publish_locked("usage", {"usage": dict(usage), "tokens_used": dict(self.tokens_used), "metrics": dict(self.metrics)})
 
     def update_context(self, context: dict[str, Any]) -> None:
         with self.lock:
+            if self.cancel_event.is_set() or self.status in TERMINAL_TASK_STATUSES:
+                return
             self.context = dict(context)
+            self.state_version += 1
+            self._publish_locked("context", {"context": dict(self.context), "state_version": self.state_version})
 
     def add_compaction(self, event: dict[str, Any]) -> None:
         with self.lock:
-            self.compaction_events.append(dict(event))
+            if self.cancel_event.is_set() or self.status in TERMINAL_TASK_STATUSES:
+                return
+            self.compaction_events = [*self.compaction_events, dict(event)][-self.compaction_limit:]
+            self.state_version += 1
+            self._publish_locked("compaction", {"event": dict(event), "count": len(self.compaction_events), "state_version": self.state_version})
 
-    def apply_result(self, result: dict[str, Any]) -> None:
+    def apply_result(self, result: dict[str, Any]) -> bool:
         with self.lock:
+            # A provider request can finish after the user or the service has
+            # cancelled the task. Its payload is diagnostic data, never a
+            # reason to replace the authoritative terminal state.
+            if self.status in TERMINAL_TASK_STATUSES:
+                return False
             result_copy = dict(result)
             result_events = result_copy.get("events")
             if isinstance(result_events, list):
                 seen = {
-                    json.dumps(event, ensure_ascii=False, sort_keys=True, default=str)
+                    _event_fingerprint(event)
                     for event in self.events
                     if isinstance(event, dict)
                 }
@@ -395,10 +658,13 @@ class TaskRecord:
                 for event in result_events:
                     if not isinstance(event, dict):
                         continue
-                    key = json.dumps(event, ensure_ascii=False, sort_keys=True, default=str)
-                    if key not in seen:
-                        merged_events.append(dict(event))
-                        seen.add(key)
+                    fingerprint = _event_fingerprint(event)
+                    if fingerprint in seen:
+                        continue
+                    appended = self._append_timeline_event_locked(event, allow_terminal=True)
+                    if appended is not None:
+                        seen.add(fingerprint)
+                        merged_events = list(self.events)
                 self.events = merged_events
                 result_copy["events"] = list(merged_events)
             self.result = result_copy
@@ -410,19 +676,30 @@ class TaskRecord:
                 self.context = dict(result_context)
             result_usage_by_turn = result.get("usage_by_turn")
             if isinstance(result_usage_by_turn, list):
-                self.usage_by_turn = [dict(item) for item in result_usage_by_turn if isinstance(item, dict)]
+                self.usage_by_turn = [dict(item) for item in result_usage_by_turn if isinstance(item, dict)][-self.usage_limit:]
+            result_copy["usage_by_turn"] = list(self.usage_by_turn)
             result_compactions = result.get("compaction_events")
             if isinstance(result_compactions, list):
-                self.compaction_events = [dict(item) for item in result_compactions if isinstance(item, dict)]
+                self.compaction_events = [dict(item) for item in result_compactions if isinstance(item, dict)][-self.compaction_limit:]
+            result_copy["compaction_events"] = list(self.compaction_events)
             result_metrics = result.get("metrics")
             if isinstance(result_metrics, dict):
                 self.metrics = dict(result_metrics)
+            self.metrics.update(cache_summary(self.tokens_used))
+            self.state_version += 1
+            self._publish_locked("result", {"answer": result_copy.get("answer"), "error": result_copy.get("error"), "state_version": self.state_version})
+            return True
+
+    def wait_events(self, after: int = 0, timeout: float | None = None) -> tuple[list[dict[str, Any]], bool]:
+        events, gap = self.event_log.read(after=after, timeout=timeout)
+        return [event.to_dict() for event in events], gap
 
     def snapshot(self) -> dict[str, Any]:
         with self.lock:
             visible_phase = self.status if self.status in TERMINAL_TASK_STATUSES else self.phase
             output: dict[str, Any] = {
                 "task_id": self.task_id,
+                "thread_id": self.thread_id,
                 "session_id": self.session_id,
                 "preview": self.message[:120],
                 "prompt": self.message,
@@ -444,6 +721,13 @@ class TaskRecord:
                 "execution_message": self.execution_message,
                 "parent_id": self.parent_id,
                 "child_task_ids": list(self.child_task_ids),
+                "usage_limit": self.usage_limit,
+                "compaction_limit": self.compaction_limit,
+                "event_protocol": "minicc.events.v1",
+                "event_cursor": self.event_log.cursor,
+                "event_oldest_cursor": self.event_log.oldest_sequence,
+                "state_version": self.state_version,
+                "events_truncated": self.events_truncated,
                 "created_at_epoch": self.created_at,
                 "status": self.status,
                 "phase": visible_phase,
@@ -453,6 +737,7 @@ class TaskRecord:
                 "duration_seconds": _duration_seconds(self.started_at, self.finished_at, self.status),
                 "events": list(self.events),
                 "stream_text": self.stream_text,
+                "stream_length": self.stream_length,
                 "tokens_used": dict(self.tokens_used),
                 "context": dict(self.context),
                 "usage_by_turn": list(self.usage_by_turn),
@@ -460,11 +745,108 @@ class TaskRecord:
                 "metrics": dict(self.metrics),
                 "checkpoint": dict(self.checkpoint),
                 "error": self.error,
+                "cancel_reason": self.cancel_reason,
                 "result": dict(self.result) if self.result else None,
             }
             if self.result:
-                output.update(self.result)
+                result_payload = dict(self.result)
+                if self.status in {"cancelled", "interrupted"}:
+                    result_payload.update(
+                        answer=self.error or ("任务已取消。" if self.status == "cancelled" else "服务重启时任务被中断。"),
+                        error=self.error,
+                        cancelled=self.status == "cancelled",
+                    )
+                elif self.status == "failed":
+                    result_payload["error"] = self.error or result_payload.get("error") or "任务失败"
+                output.update(result_payload)
+            # Result payloads come from a provider and must never be allowed
+            # to overwrite the task lifecycle fields maintained by the host.
+            output.update(
+                {
+                    "status": self.status,
+                    "phase": visible_phase,
+                    "event_cursor": self.event_log.cursor,
+                    "state_version": self.state_version,
+                    "error": self.error,
+                    "cancel_reason": self.cancel_reason,
+                }
+            )
+            if self.status == "cancelled":
+                output["answer"] = self.error or "任务已取消。"
+                output["cancelled"] = True
             return output
+
+    def summary(self) -> dict[str, Any]:
+        """Return the bounded payload used by task indexes and polling lists."""
+        with self.lock:
+            visible_phase = self.status if self.status in TERMINAL_TASK_STATUSES else self.phase
+            metrics = {
+                key: value
+                for key, value in self.metrics.items()
+                if isinstance(value, (str, int, float, bool)) or value is None
+            }
+            budget = self.metrics.get("budget")
+            if isinstance(budget, dict):
+                metrics["budget"] = {
+                    key: value
+                    for key, value in budget.items()
+                    if key in {"turns", "tool_calls", "duration_seconds"}
+                    and isinstance(value, (str, int, float, bool))
+                }
+            context = {
+                key: value
+                for key, value in self.context.items()
+                if key in {"tokens", "limit_tokens", "compactions"}
+                and isinstance(value, (str, int, float, bool))
+            }
+            return {
+                "summary_only": True,
+                "task_id": self.task_id,
+                "thread_id": self.thread_id,
+                "session_id": self.session_id,
+                "preview": self.message[:120],
+                "allow_changes": self.allow_changes,
+                "allow_network": self.allow_network,
+                "reasoning_effort": self.reasoning_effort,
+                "attachments": [
+                    {
+                        key: item.get(key)
+                        for key in ("name", "mime_type", "size_bytes", "path")
+                        if item.get(key) is not None
+                    }
+                    for item in self.attachments
+                ],
+                "workspace_path": self.workspace_path,
+                "task_kind": self.task_kind,
+                "orchestration_mode": self.orchestration_mode,
+                "parent_id": self.parent_id,
+                "child_task_ids": list(self.child_task_ids),
+                "usage_limit": self.usage_limit,
+                "compaction_limit": self.compaction_limit,
+                "event_protocol": "minicc.events.v1",
+                "event_cursor": self.event_log.cursor,
+                "event_oldest_cursor": self.event_log.oldest_sequence,
+                "state_version": self.state_version,
+                "events_truncated": self.events_truncated,
+                "created_at_epoch": self.created_at,
+                "status": self.status,
+                "phase": visible_phase,
+                "created_at": _iso(self.created_at),
+                "started_at": _iso(self.started_at),
+                "finished_at": _iso(self.finished_at),
+                "duration_seconds": _duration_seconds(self.started_at, self.finished_at, self.status),
+                "tokens_used": dict(self.tokens_used),
+                "context": context,
+                "metrics": metrics,
+                "compaction_count": len(self.compaction_events),
+                "usage_count": len(self.usage_by_turn),
+                "event_count": len(self.events),
+                "stream_length": len(self.stream_text),
+                "stream_total_length": self.stream_length,
+                "answer_length": len(str((self.result or {}).get("answer") or "")),
+                "error": self.error,
+                "cancel_reason": self.cancel_reason,
+            }
 
     @classmethod
     def from_snapshot(cls, data: dict[str, Any]) -> "TaskRecord":
@@ -488,6 +870,7 @@ class TaskRecord:
             session_id=str(data.get("session_id") or "web-latest"),
             message=str(data.get("prompt") or data.get("preview") or ""),
             allow_changes=bool(data.get("allow_changes")),
+            thread_id=str(data.get("thread_id") or ""),
             allow_network=bool(data.get("allow_network")),
             reasoning_effort=str(data.get("reasoning_effort") or "high"),
             attachments=[dict(item) for item in data.get("attachments") or [] if isinstance(item, dict)],
@@ -498,13 +881,18 @@ class TaskRecord:
             execution_message=str(data.get("execution_message")) if data.get("execution_message") else None,
             parent_id=data.get("parent_id"),
             child_task_ids=[str(item) for item in data.get("child_task_ids") or []],
-            created_at=float(data.get("created_at_epoch") or time.time()),
+            event_limit=_coerce_int(data.get("event_limit"), DEFAULT_TASK_EVENT_LIMIT),
+            stream_limit=_coerce_int(data.get("stream_limit"), DEFAULT_TASK_STREAM_LIMIT),
+            usage_limit=_coerce_int(data.get("usage_limit"), DEFAULT_TASK_USAGE_LIMIT),
+            compaction_limit=_coerce_int(data.get("compaction_limit"), DEFAULT_TASK_COMPACTION_LIMIT),
+            created_at=_coerce_float(data.get("created_at_epoch"), time.time()),
             status=status,
             phase=phase,
             started_at=None,
             finished_at=None,
             events=[dict(item) for item in data.get("events") or [] if isinstance(item, dict)],
             stream_text=str(data.get("stream_text") or ""),
+            stream_length=_coerce_int(data.get("stream_length") or data.get("stream_total_length")),
             tokens_used={key: int(value or 0) for key, value in (data.get("tokens_used") or {}).items() if isinstance(value, (int, float))},
             context=dict(data.get("context") or {}),
             usage_by_turn=[dict(item) for item in data.get("usage_by_turn") or [] if isinstance(item, dict)],
@@ -513,7 +901,12 @@ class TaskRecord:
             checkpoint=dict(data.get("checkpoint") or {}),
             result=dict(data.get("result") or {}) if isinstance(data.get("result"), dict) else None,
             error=str(error) if error else None,
+            cancel_reason=str(data.get("cancel_reason")) if data.get("cancel_reason") else None,
+            state_version=_coerce_int(data.get("state_version")),
+            event_cursor=_coerce_int(data.get("event_cursor")),
+            events_truncated=_coerce_int(data.get("events_truncated")),
         )
+        task.metrics.update(cache_summary(task.tokens_used))
         stored_result = task.result or {}
         if (
             task.status == "completed"
@@ -546,13 +939,26 @@ class TaskManager:
         worker_count = max_workers or int(getattr(service.config, "max_concurrent_tasks", 8))
         self.executor = ThreadPoolExecutor(max_workers=max(1, worker_count), thread_name_prefix="minicc-task")
         self.lock = threading.RLock()
+        self._closing = False
         self.tasks: dict[str, TaskRecord] = {}
         self.store = store
         self._last_persist: dict[str, float] = {}
         self._session_active: dict[str, str] = {}
         self._session_queues: dict[str, deque[str]] = {}
         self._batch_children_pending: dict[str, list[str]] = {}
+        self.event_limit = max(32, int(getattr(service.config, "task_event_limit", DEFAULT_TASK_EVENT_LIMIT)))
+        self.stream_limit = max(512, int(getattr(service.config, "task_stream_limit", DEFAULT_TASK_STREAM_LIMIT)))
+        self.usage_limit = max(8, int(getattr(service.config, "task_usage_limit", DEFAULT_TASK_USAGE_LIMIT)))
+        self.compaction_limit = max(8, int(getattr(service.config, "task_compaction_limit", DEFAULT_TASK_COMPACTION_LIMIT)))
+        self.queue_limit = max(1, int(getattr(service.config, "task_queue_limit", DEFAULT_TASK_QUEUE_LIMIT)))
+        self.history_limit = max(1, int(getattr(service.config, "task_history_limit", 24)))
+        self.history_max_age_days = max(1, int(getattr(service.config, "task_history_max_age_days", 30)))
         if self.store:
+            self.store.prune(
+                keep_terminal=self.history_limit,
+                max_age_days=self.history_max_age_days,
+                vacuum=True,
+            )
             for snapshot in self.store.load():
                 task = TaskRecord.from_snapshot(snapshot)
                 self.tasks[task.task_id] = task
@@ -563,15 +969,45 @@ class TaskManager:
     def _session_key(task: TaskRecord) -> str:
         return f"{_path_key(task.workspace_path)}:{task.session_id}"
 
-    def _queue_task_locked(self, task: TaskRecord, *, front: bool = False) -> None:
+    @staticmethod
+    def _thread_id(workspace_path: str, session_id: str) -> str:
+        raw = f"{_path_key(workspace_path)}:{session_id}"
+        return f"thread-{hashlib.sha256(raw.encode('utf-8', 'replace')).hexdigest()[:16]}"
+
+    def _queue_task_locked(self, task: TaskRecord, *, front: bool = False) -> bool:
+        if self._closing:
+            task.request_cancel("service_shutdown")
+            self._persist_task(task, force=True)
+            return False
         key = self._session_key(task)
         queue = self._session_queues.setdefault(key, deque())
+        # Discard stale terminal entries before applying the queue bound. A
+        # cancelled queued task must not consume capacity forever.
+        live_queue = deque(
+            queued_id
+            for queued_id in queue
+            if queued_id in self.tasks
+            and self.tasks[queued_id].status not in TERMINAL_TASK_STATUSES
+            and queued_id != self._session_active.get(key)
+        )
+        self._session_queues[key] = queue = live_queue
         if task.task_id not in queue and self._session_active.get(key) != task.task_id:
+            if len(queue) >= self.queue_limit:
+                try:
+                    task.transition_status(
+                        "failed",
+                        error=f"会话任务队列已满（上限 {self.queue_limit}），请稍后再提交。",
+                    )
+                except InvalidStatusTransition:
+                    pass
+                self._persist_task(task, force=True)
+                return False
             if front:
                 queue.appendleft(task.task_id)
             else:
                 queue.append(task.task_id)
         self._schedule_session_locked(key)
+        return True
 
     def _schedule_session_locked(self, key: str) -> None:
         if key in self._session_active:
@@ -588,9 +1024,7 @@ class TaskManager:
                 if task.status in TERMINAL_TASK_STATUSES:
                     continue
                 if task.cancel_event.is_set():
-                    task.status = "cancelled"
-                    task.phase = "cancelled"
-                    task.finished_at = task.finished_at or time.time()
+                    task.request_cancel(task.cancel_event.reason or "parent_cancelled")
             if task.status == "cancelled":
                 self._persist_task(task, force=True)
                 continue
@@ -622,8 +1056,12 @@ class TaskManager:
                 if parent is not None:
                     self._release_session_slot(parent)
                 return
-            parent.status = "running"
-            parent.phase = "planning"
+            try:
+                parent.transition_status("running")
+            except InvalidStatusTransition:
+                self._release_session_slot(parent)
+                return
+            parent.set_phase("planning")
             parent.started_at = parent.started_at or time.time()
             assessment = parent.context.get("orchestration") if isinstance(parent.context, dict) else None
             parent.add_event({
@@ -703,11 +1141,16 @@ class TaskManager:
             session_id=session_id,
             message=message.strip(),
             allow_changes=allow_changes,
+            thread_id=self._thread_id(workspace_path, session_id),
             allow_network=allow_network,
             reasoning_effort=reasoning_effort,
             attachments=self._persist_attachments(Path(workspace_path), task_id, normalized_attachments),
             workspace_path=workspace_path,
             task_kind=task_kind,
+            event_limit=self.event_limit,
+            stream_limit=self.stream_limit,
+            usage_limit=self.usage_limit,
+            compaction_limit=self.compaction_limit,
         )
         with self.lock:
             self.tasks[task.task_id] = task
@@ -755,12 +1198,17 @@ class TaskManager:
             session_id=str(payload.get("session_id") or "web-batch"),
             message=str(payload.get("message") or "并行执行多个子任务"),
             allow_changes=allow_changes,
+            thread_id=self._thread_id(workspace_path, str(payload.get("session_id") or "web-batch")),
             allow_network=allow_network,
             reasoning_effort=reasoning_effort,
             attachments=self._persist_attachments(Path(workspace_path), parent_task_id, normalized_attachments),
             workspace_path=workspace_path,
             task_kind="batch",
             orchestration_mode=orchestration_mode,
+            event_limit=self.event_limit,
+            stream_limit=self.stream_limit,
+            usage_limit=self.usage_limit,
+            compaction_limit=self.compaction_limit,
         )
         if assessment:
             parent.context = {"orchestration": assessment}
@@ -806,6 +1254,7 @@ class TaskManager:
                 child_record = self.tasks.get(child_id)
                 if child_record:
                     child_record.parent_id = parent.task_id
+                    child_record.cancel_event = parent.cancel_event.child()
                     self._persist_task(child_record, force=True)
                 parent.child_task_ids.append(child_id)
                 self._persist_task(parent, force=True)
@@ -1007,6 +1456,7 @@ class TaskManager:
                     on_usage=on_merge_usage,
                     reasoning_effort=parent.reasoning_effort,
                     workspace_path=parent.workspace_path,
+                    cancel_event=parent.cancel_event,
                 )
                 merged_tokens = result.get("tokens_used") if isinstance(result, dict) else None
                 token_totals: dict[str, int] = {}
@@ -1046,39 +1496,55 @@ class TaskManager:
             })
             parent.apply_result(result)
             with parent.lock:
-                parent.error = str(result.get("error")) if result.get("error") else None
-                parent.status = "cancelled" if result.get("cancelled") else "failed" if result.get("error") else "completed"
-                parent.phase = parent.status
-                parent.finished_at = time.time()
+                target = "cancelled" if result.get("cancelled") else "failed" if result.get("error") else "completed"
+                if parent.status not in TERMINAL_TASK_STATUSES:
+                    try:
+                        parent.transition_status(target, error=str(result.get("error")) if result.get("error") else None)
+                    except InvalidStatusTransition:
+                        # A cancellation may win the race while the merge
+                        # provider is returning.  Preserve that terminal fact.
+                        pass
         except Exception as exc:  # noqa: BLE001 - parent state must remain inspectable
             with parent.lock:
-                parent.status = "failed"
-                parent.phase = "failed"
-                parent.error = f"{type(exc).__name__}: {exc}"
-                parent.finished_at = time.time()
+                if parent.status not in TERMINAL_TASK_STATUSES:
+                    try:
+                        parent.transition_status("failed", error=f"{type(exc).__name__}: {exc}")
+                    except InvalidStatusTransition:
+                        pass
         self._persist_task(parent, force=True)
         self._release_session_slot(parent)
 
     def _prune_locked(self) -> None:
-        if len(self.tasks) <= 100:
-            return
-        finished = [item for item in self.tasks.values() if item.status in TERMINAL_TASK_STATUSES]
-        for item in sorted(finished, key=lambda value: value.created_at)[: max(0, len(self.tasks) - 100)]:
-            self.tasks.pop(item.task_id, None)
+        if len(self.tasks) > 100:
+            finished = [item for item in self.tasks.values() if item.status in TERMINAL_TASK_STATUSES]
+            for item in sorted(finished, key=lambda value: value.created_at)[: max(0, len(self.tasks) - 100)]:
+                self.tasks.pop(item.task_id, None)
+        if self.store:
+            deleted = self.store.prune(
+                keep_terminal=self.history_limit,
+                max_age_days=self.history_max_age_days,
+            )
+            for task_id in deleted:
+                self.tasks.pop(task_id, None)
 
     def _run(self, task: TaskRecord) -> None:
+        cancelled_before_start = False
         with task.lock:
             if task.cancel_event.is_set():
-                task.status = "cancelled"
-                task.phase = "cancelled"
-                task.finished_at = time.time()
-                self._persist_task(task, force=True)
-                self._release_session_slot(task)
-                return
-            task.status = "running"
-            task.phase = "planning"
-            if task.started_at is None:
-                task.started_at = time.time()
+                task.request_cancel(task.cancel_event.reason or "parent_cancelled")
+                cancelled_before_start = True
+            else:
+                try:
+                    task.transition_status("running")
+                except InvalidStatusTransition:
+                    cancelled_before_start = True
+                task.set_phase("planning")
+                if task.started_at is None:
+                    task.started_at = time.time()
+        if cancelled_before_start:
+            self._persist_task(task, force=True)
+            self._release_session_slot(task)
+            return
         self._persist_task(task, force=True)
 
         def on_event(event: dict[str, Any]) -> None:
@@ -1150,21 +1616,32 @@ class TaskManager:
             with task.lock:
                 cancelled = cancelled_by_user or bool(result.get("cancelled")) or task.status == "cancelled"
                 failed = bool(result.get("error")) and not cancelled
-                if task.status != "cancelled":
-                    task.status = "cancelled" if cancelled else "failed" if failed else "completed"
-                    task.phase = task.status
-                if failed:
+                if task.status not in TERMINAL_TASK_STATUSES:
+                    target = "cancelled" if cancelled else "failed" if failed else "completed"
+                    try:
+                        task.transition_status(
+                            target,
+                            error="任务已取消" if cancelled else str(result.get("error")) if failed else None,
+                            reason=task.cancel_event.reason if cancelled else None,
+                        )
+                    except InvalidStatusTransition:
+                        pass
+                elif failed and task.status != "cancelled" and not task.error:
                     task.error = str(result.get("error"))
-                if task.finished_at is None:
-                    task.finished_at = time.time()
         except Exception as exc:  # noqa: BLE001 - task state must become observable
             with task.lock:
-                if task.status != "cancelled":
-                    task.status = "cancelled" if task.cancel_event.is_set() else "failed"
-                    task.phase = task.status
-                task.error = "任务已取消" if task.cancel_event.is_set() else f"{type(exc).__name__}: {exc}"
-                if task.finished_at is None:
-                    task.finished_at = time.time()
+                if task.status not in TERMINAL_TASK_STATUSES:
+                    target = "cancelled" if task.cancel_event.is_set() else "failed"
+                    try:
+                        task.transition_status(
+                            target,
+                            error="任务已取消" if target == "cancelled" else f"{type(exc).__name__}: {exc}",
+                            reason=task.cancel_event.reason if target == "cancelled" else None,
+                        )
+                    except InvalidStatusTransition:
+                        pass
+                elif task.status == "cancelled" and not task.error:
+                    task.error = "任务已取消"
         self._persist_task(task, force=True)
         self._release_session_slot(task)
 
@@ -1175,14 +1652,28 @@ class TaskManager:
             raise KeyError(task_id)
         return task.snapshot()
 
-    def list(self, limit: int = 100, workspace_path: str | None = None) -> list[dict[str, Any]]:
+    def events(self, task_id: str, *, after: int = 0, timeout: float | None = None) -> tuple[list[dict[str, Any]], bool]:
+        """Read replayable runtime events for the task SSE transport."""
+        with self.lock:
+            task = self.tasks.get(task_id)
+        if task is None:
+            raise KeyError(task_id)
+        return task.wait_events(after=after, timeout=timeout)
+
+    def list(
+        self,
+        limit: int = 100,
+        workspace_path: str | None = None,
+        *,
+        include_details: bool = False,
+    ) -> list[dict[str, Any]]:
         with self.lock:
             candidates = list(self.tasks.values())
             if workspace_path:
                 requested_key = _path_key(workspace_path)
                 candidates = [item for item in candidates if _path_key(item.workspace_path) == requested_key]
             tasks = sorted(candidates, key=lambda item: item.created_at, reverse=True)[:limit]
-        return [item.snapshot() for item in tasks]
+        return [item.snapshot() if include_details else item.summary() for item in tasks]
 
     def has_active(self, workspace_path: str) -> bool:
         with self.lock:
@@ -1280,13 +1771,7 @@ class TaskManager:
             task = self.tasks.get(task_id)
         if task is None:
             raise KeyError(task_id)
-        with task.lock:
-            if task.status in {"queued", "running"}:
-                task.cancel_event.set()
-                task.status = "cancelled"
-                task.phase = "cancelled"
-                if task.finished_at is None:
-                    task.finished_at = time.time()
+        task.request_cancel("user")
         for child_id in list(task.child_task_ids):
             if child_id != task.task_id:
                 try:
@@ -1352,8 +1837,41 @@ class TaskManager:
         rendered = "；".join(item for item in summaries if item)[:2400]
         return "已记录的可审计阶段摘要：" + (rendered or "无可复用摘要。")
 
-    def shutdown(self) -> None:
-        self.executor.shutdown(wait=False, cancel_futures=False)
+    def shutdown(self, *, wait_timeout: float = TASK_SHUTDOWN_GRACE_SECONDS) -> None:
+        """Cancel work, let admitted requests drain briefly, then close.
+
+        ThreadPoolExecutor cannot force-kill an in-flight SDK request. The
+        bounded grace period mirrors the app-server gate: queued work is
+        dropped immediately, admitted work receives cancellation, and the
+        process never waits forever for a broken provider.
+        """
+        with self.lock:
+            if self._closing:
+                return
+            self._closing = True
+            tasks = list(self.tasks.values())
+            futures = [task.future for task in tasks if task.future is not None]
+        for task in tasks:
+            if task.status in {"queued", "running"}:
+                task.request_cancel("service_shutdown")
+                self._persist_task(task, force=True)
+            if task.future is not None:
+                task.future.cancel()
+            task.event_log.close()
+        deadline = time.monotonic() + max(0.0, float(wait_timeout))
+        for future in futures:
+            if future is None or future.done():
+                continue
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            try:
+                future.result(timeout=remaining)
+            except Exception:
+                # The task snapshot already contains the authoritative error;
+                # shutdown should continue draining other admitted work.
+                pass
+        self.executor.shutdown(wait=False, cancel_futures=True)
 
 
 class AgentService:
@@ -1472,6 +1990,7 @@ class AgentService:
         on_usage: Any | None = None,
         reasoning_effort: str | None = None,
         workspace_path: str | None = None,
+        cancel_event: threading.Event | None = None,
     ) -> dict[str, Any]:
         """Ask the model to merge parallel child results into one answer."""
         reports = []
@@ -1498,13 +2017,15 @@ class AgentService:
                 reasoning_effort=str(reasoning_effort or getattr(self.config, "reasoning_effort", "high")),
             )
             try:
-                response = await provider.chat(
+                response = await chat_with_cancellation(
+                    provider,
                     messages=[
                         system_msg("你是并行 coding agent 的结果合并器，只负责总结已完成的子任务。"),
                         user_msg(prompt),
                     ],
                     tools=None,
                     on_delta=on_stream,
+                    cancel_event=cancel_event,
                 )
                 if on_usage is not None and response.usage:
                     on_usage(dict(response.usage))
@@ -1513,6 +2034,8 @@ class AgentService:
                     "cancelled": False,
                     "tokens_used": dict(response.usage),
                 }
+            except AgentCancelled:
+                return {"answer": "批量任务已取消。", "cancelled": True}
             finally:
                 await provider.close()
 
@@ -1612,10 +2135,12 @@ class AgentService:
             workflow=workflow.name,
             budget=Budget(
                 max_turns=getattr(self.config, "max_turns", None),
-                max_retries=(
-                    max(0, int(getattr(self.config, "max_repair_attempts", 2)))
-                    + max(0, int(getattr(self.config, "task_recovery_retries", 2)))
-                ),
+                max_tool_calls=None,
+                max_duration_seconds=None,
+                # Retry/recovery policy is tracked separately below. It is
+                # not a task budget and must not raise BudgetExceeded during
+                # a long-running coding session.
+                max_retries=None,
             ),
         )
         runtime_state.transition("intake", phase="intake")
@@ -1626,6 +2151,7 @@ class AgentService:
         verification_results: list[dict[str, Any]] = []
         repair_attempts = 0
         provider_recoveries = 0
+        agent_recoveries = 0
         planner_result: Any | None = None
         planner_usage: dict[str, Any] = {}
         planner_policy: PlannerPolicy | None = None
@@ -1661,7 +2187,7 @@ class AgentService:
         route_event = {
             "kind": "trace", "name": "router", "status": "ok", "phase": "planning",
             "code": "stage_route",
-            "summary": "已应用规划阶段的模型与时间预算策略",
+            "summary": "已应用规划阶段的模型与请求策略",
             "detail": initial_route.to_dict(),
         }
         events.append(route_event)
@@ -1733,9 +2259,14 @@ class AgentService:
 
         async def execute() -> Any:
             nonlocal planner_result, planner_usage, planner_policy, planner_execution
-            nonlocal repair_attempts, provider_recoveries
+            nonlocal repair_attempts, provider_recoveries, agent_recoveries
 
-            def make_provider(*, timeout: float, status_callback: Any | None) -> OpenAICompatibleProvider:
+            def make_provider(
+                *,
+                timeout: float,
+                status_callback: Any | None,
+                protocol_override: str | None = None,
+            ) -> OpenAICompatibleProvider:
                 return OpenAICompatibleProvider(
                     base_url=self.config.base_url,
                     api_key=self.config.api_key,
@@ -1743,7 +2274,7 @@ class AgentService:
                     timeout=timeout,
                     max_retries=int(getattr(self.config, "provider_retries", 4)),
                     tool_mode=self.config.tool_mode,
-                    protocol=str(getattr(self.config, "llm_protocol", "auto")),
+                    protocol=str(protocol_override or getattr(self.config, "llm_protocol", "auto")),
                     reasoning_effort=str(payload.get("reasoning_effort") or getattr(self.config, "reasoning_effort", "high")),
                     on_status=status_callback,
                 )
@@ -1753,9 +2284,29 @@ class AgentService:
                 aggregate: TurnResult | None = None
                 max_repairs = max(0, int(getattr(self.config, "max_repair_attempts", 2)))
                 max_provider_recoveries = max(0, int(getattr(self.config, "task_recovery_retries", 2)))
+                max_agent_recoveries = max_provider_recoveries
                 completion_review_failures = 0
                 completion_review_attempt = 0
                 verification_guard_error = "Agent 在修改工作区后没有完成验证"
+
+                async def recreate_provider_after_failure() -> str:
+                    """Refresh a possibly poisoned connection pool before recovery."""
+                    nonlocal provider
+                    current_protocol = provider.protocol()
+                    protocol_status = provider.protocol_status()
+                    next_protocol = current_protocol
+                    if protocol_status.get("requested") == "auto" and current_protocol == "responses":
+                        # A transport failure after the response body starts is
+                        # usually gateway-specific. Keep the retry atomic and
+                        # use the older, broadly supported endpoint next.
+                        next_protocol = "chat_completions"
+                    await provider.close()
+                    provider = make_provider(
+                        timeout=initial_route.timeout,
+                        status_callback=on_event,
+                        protocol_override=next_protocol,
+                    )
+                    return next_protocol
 
                 async def execute_dynamic_plan(plan: DAGPlan, policy: PlannerPolicy) -> dict[str, Any]:
                     """Run a validated, non-writing plan before the main agent."""
@@ -1949,8 +2500,14 @@ class AgentService:
                                 on_trace=node_trace,
                                 should_allow=node_allow,
                                 should_cancel=(cancel_event.is_set if cancel_event is not None else None),
+                                cancel_event=cancel_event,
                                 context_limit_tokens=int(getattr(self.config, "context_window_tokens", 300_000)),
-                                budget=Budget(max_turns=None, max_retries=max(0, int(getattr(self.config, "task_recovery_retries", 2)))),
+                                budget=Budget(
+                                    max_turns=None,
+                                    max_tool_calls=None,
+                                    max_duration_seconds=None,
+                                    max_retries=None,
+                                ),
                             )
                             answer, _ = redact_text(str(node_result.answer or "").strip())
                             if len(answer) > 1800:
@@ -2107,10 +2664,13 @@ class AgentService:
                     if on_event is not None:
                         on_event(planner_started)
                     try:
-                        response = await provider.chat(
+                        response = await chat_with_cancellation(
+                            provider,
                             messages=planner_messages,
                             tools=None,
                             on_delta=None,
+                            cancel_event=cancel_event,
+                            timeout_seconds=runtime_state.budget.remaining_seconds(),
                         )
                         usage = dict(getattr(response, "usage", {}) or {})
                         if not usage.get("total_tokens"):
@@ -2134,7 +2694,7 @@ class AgentService:
                             fallback_name=fallback_name,
                             policy=policy,
                         )
-                    except BudgetExceeded:
+                    except (BudgetExceeded, AgentCancelled):
                         raise
                     except Exception as exc:  # noqa: BLE001 - planning failure is a safe fallback
                         planner_result = build_plan(
@@ -2197,10 +2757,7 @@ class AgentService:
                         return False
                     usage_event = {"kind": "completion_judge", **usage}
                     target.usage_by_turn.append(usage_event)
-                    for key in ("prompt_tokens", "completion_tokens", "total_tokens", "reasoning_tokens"):
-                        value = usage.get(key)
-                        if isinstance(value, (int, float)):
-                            target.tokens_used[key] = target.tokens_used.get(key, 0) + int(value)
+                    add_usage_totals(target.tokens_used, usage)
                     if on_usage is not None:
                         on_usage(usage_event)
                     return True
@@ -2225,8 +2782,10 @@ class AgentService:
                         context_limit_tokens=int(getattr(self.config, "context_window_tokens", 300_000)),
                         should_allow=should_allow,
                         should_cancel=(cancel_event.is_set if cancel_event is not None else None),
+                        cancel_event=cancel_event,
                         budget=runtime_state.budget,
                         runtime_state=runtime_state,
+                        require_recovery_inspection=(agent_recoveries > 0 or repair_attempts > 0),
                     )
                     aggregate = _merge_turn_results(aggregate, current)
                     writes = any(event.get("write") for event in events if isinstance(event, dict))
@@ -2243,6 +2802,7 @@ class AgentService:
                             aggregate.answer = f"任务未完成：{aggregate.error}"
                             break
                         provider_recoveries += 1
+                        recovery_protocol = await recreate_provider_after_failure()
                         recovery_event = {
                             "kind": "trace",
                             "name": "provider",
@@ -2254,6 +2814,7 @@ class AgentService:
                                 "retry": provider_recoveries,
                                 "retry_limit": max_provider_recoveries,
                                 "next_mode": "non_streaming",
+                                "protocol": recovery_protocol,
                             },
                         }
                         events.append(recovery_event)
@@ -2261,11 +2822,57 @@ class AgentService:
                             on_event(recovery_event)
                         continue
 
-                    # A provider, budget, permission, or stagnation error is a
-                    # hard runtime outcome.  The only recoverable loop error is
-                    # the old verification gate: the outer deterministic
-                    # verifier can still provide the evidence the loop lacked.
-                    if current.error and (not writes or current.error != verification_guard_error):
+                    stagnation_error = bool(
+                        current.error
+                        and (
+                            "停滞保护触发" in str(current.error)
+                            or "错误路径恢复阶段" in str(current.error)
+                        )
+                    )
+                    if stagnation_error and agent_recoveries < max_agent_recoveries:
+                        try:
+                            runtime_state.budget.record_retry()
+                        except BudgetExceeded as exc:
+                            aggregate.error = f"Agent 预算超限: {exc}"
+                            aggregate.answer = f"任务未完成：{aggregate.error}"
+                            break
+                        agent_recoveries += 1
+                        recovery_event = {
+                            "kind": "trace",
+                            "name": "repair",
+                            "status": "error",
+                            "phase": "repair",
+                            "code": "task_stagnation_recovery",
+                            "summary": (
+                                f"检测到重复工具路径，已进入第 {agent_recoveries} 次错误恢复"
+                            ),
+                            "detail": {
+                                "attempt": agent_recoveries,
+                                "retry_limit": max_agent_recoveries,
+                                "writes_seen": writes,
+                                "strategy": "保留当前证据，先重新检查状态和 diff，再选择不同路径",
+                            },
+                        }
+                        events.append(recovery_event)
+                        if on_event is not None:
+                            on_event(recovery_event)
+                        messages.append(user_msg(
+                            "[任务级错误恢复] 上一轮 Agent 因重复或无效工具路径暂停，任务还没有完成。"
+                            "不要直接总结或重复相同调用。请回到最近一次有证据的状态，先检查当前工作区、"
+                            "git diff 和相关文件；如果已有修改与目标不符，只修复本任务产生的偏差，"
+                            "不要覆盖用户已有改动。取得新证据后换用不同工具或参数继续，并完成验证。"
+                        ))
+                        continue
+
+                    # Provider, budget and permission errors remain hard
+                    # failures.  A stagnation error after a write still gets a
+                    # deterministic verification pass so the next repair step
+                    # can work from objective evidence instead of stopping with
+                    # an unverified partial edit.
+                    if current.error and (
+                        not writes
+                        or current.error != verification_guard_error
+                    ) and not (stagnation_error and writes):
                         break
 
                     verification = None
@@ -2327,6 +2934,8 @@ class AgentService:
                             marker = "模型最后输出："
                             if marker in aggregate.answer:
                                 aggregate.answer = aggregate.answer.rsplit(marker, 1)[-1].strip()
+                        elif stagnation_error and verification.status in {"passed", "skipped"}:
+                            aggregate.error = None
                         elif aggregate.error:
                             break
 
@@ -2340,7 +2949,15 @@ class AgentService:
                         verification_results=verification_results,
                         allow_changes=allow_changes,
                         workspace=str(workspace),
+                        cancel_event=cancel_event,
                     )
+                    if cancel_event is not None and cancel_event.is_set():
+                        if aggregate is None:
+                            aggregate = TurnResult(answer="任务已取消。")
+                        aggregate.cancelled = True
+                        aggregate.error = "任务已取消"
+                        aggregate.answer = "任务已取消。"
+                        break
                     if aggregate is None:
                         aggregate = TurnResult(answer="模型没有返回结果")
                     aggregate.completion = decision.to_dict(include_usage=True)
@@ -2396,18 +3013,14 @@ class AgentService:
                     final.metrics = {**final.metrics, "planner": planner_snapshot}
                     if planner_usage:
                         final.usage_by_turn.insert(0, {"stage": "planner", **planner_usage})
-                        for key in ("prompt_tokens", "completion_tokens", "total_tokens", "reasoning_tokens"):
-                            value = planner_usage.get(key)
-                            if isinstance(value, (int, float)):
-                                final.tokens_used[key] = final.tokens_used.get(key, 0) + int(value)
+                        add_usage_totals(final.tokens_used, planner_usage)
                     if planner_execution and planner_execution.get("tokens_used"):
                         final.usage_by_turn.insert(1 if planner_usage else 0, {
                             "stage": "planner_dag",
                             **dict(planner_execution["tokens_used"]),
                         })
-                        for key, value in planner_execution["tokens_used"].items():
-                            if isinstance(value, (int, float)):
-                                final.tokens_used[key] = final.tokens_used.get(key, 0) + int(value)
+                        add_usage_totals(final.tokens_used, planner_execution["tokens_used"])
+                final.metrics.update(cache_summary(final.tokens_used))
                 return final
             finally:
                 await provider.close()
@@ -2441,6 +3054,7 @@ class AgentService:
             **runtime_state.metrics(),
             "repair_attempts": repair_attempts,
             "provider_recoveries": provider_recoveries,
+            "agent_recoveries": agent_recoveries,
             "verification_runs": len(verification_results),
             "verification_status": verification_results[-1].get("status") if verification_results else "none",
             "verifications": verification_results,
@@ -2518,12 +3132,27 @@ class MiniccHTTPServer(ThreadingHTTPServer):
     def __init__(self, address: tuple[str, int], service: AgentService) -> None:
         super().__init__(address, MiniccRequestHandler)
         self.service = service
+        worker_count = max(1, int(getattr(service.config, "max_concurrent_tasks", 8)))
+        # A slow browser connection must not consume an unbounded number of
+        # request threads. The task event log remains the recovery source.
+        self.sse_slots = threading.BoundedSemaphore(
+            max(4, min(MAX_SSE_CONNECTIONS, worker_count * 4))
+        )
 
 
 class MiniccRequestHandler(BaseHTTPRequestHandler):
     server: MiniccHTTPServer
     server_version = "minicc-web/0.2"
     protocol_version = "HTTP/1.1"
+
+    def handle(self) -> None:
+        # A browser can close an SSE or in-flight request while switching
+        # sessions. Treat that as normal cancellation instead of logging a
+        # traceback from the socket read loop.
+        try:
+            super().handle()
+        except (BrokenPipeError, ConnectionAbortedError, ConnectionResetError):
+            self.close_connection = True
 
     def log_message(self, format: str, *args: object) -> None:
         # Keep the terminal useful without logging request bodies or secrets.
@@ -2576,11 +3205,25 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
             except ValueError:
                 limit = 100
             workspace_filter = (query.get("workspace") or [""])[0] or None
-            self._json({"tasks": self.server.service.tasks.list(limit=limit, workspace_path=workspace_filter)})
+            include_details = (query.get("detail") or [""])[0].lower() in {"1", "true", "full"}
+            self._json({
+                "tasks": self.server.service.tasks.list(
+                    limit=limit,
+                    workspace_path=workspace_filter,
+                    include_details=include_details,
+                ),
+                "summary_only": not include_details,
+            })
             return
         if path.startswith("/api/tasks/") and path.endswith("/events"):
             task_id = unquote(path.removeprefix("/api/tasks/").removesuffix("/events")).strip("/")
-            self._stream_task(task_id)
+            query = parse_qs(parsed.query)
+            raw_after = (query.get("after") or [self.headers.get("Last-Event-ID", "0")])[0]
+            try:
+                after = max(0, int(raw_after))
+            except ValueError:
+                after = 0
+            self._stream_task(task_id, after=after)
             return
         if path.startswith("/api/tasks/"):
             task_id = unquote(path.removeprefix("/api/tasks/")).strip("/")
@@ -2623,12 +3266,22 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
             return
         self._serve_static(path)
 
-    def _stream_task(self, task_id: str) -> None:
-        """Push changed task snapshots until the task reaches a terminal state."""
+    def _stream_task(self, task_id: str, *, after: int = 0) -> None:
+        """Send one initial snapshot, then replayable incremental task events."""
         try:
             self.server.service.tasks.get(task_id)
         except KeyError:
             self._json({"error": "task not found"}, 404)
+            return
+
+        if not self.server.sse_slots.acquire(blocking=False):
+            self._json(
+                {
+                    "error": "实时任务连接过多，请稍后重试或使用任务查询接口。",
+                    "retryable": True,
+                },
+                429,
+            )
             return
 
         try:
@@ -2639,30 +3292,72 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
             self.send_header("Access-Control-Allow-Origin", "*")
             self.send_header("X-Accel-Buffering", "no")
             self.end_headers()
+            # Like Codex's bounded outbound queue, disconnect a client that
+            # cannot accept data instead of blocking the handler indefinitely.
+            self.connection.settimeout(SSE_WRITE_TIMEOUT)
 
-            last_payload = ""
             last_heartbeat = time.monotonic()
             deadline = time.monotonic() + TASK_STREAM_TIMEOUT
-            while time.monotonic() < deadline:
+            cursor = max(0, int(after or 0))
+
+            # Keep the original default SSE message for clients that only
+            # understand ``onmessage``. New clients consume named events
+            # below and can reconnect with the returned event cursor.
+            if cursor == 0:
                 snapshot = self.server.service.tasks.get(task_id)
                 payload = json.dumps(snapshot, ensure_ascii=False, separators=(",", ":"))
-                if payload != last_payload:
-                    self.wfile.write(f"data: {payload}\n\n".encode("utf-8"))
+                self.wfile.write(f"data: {payload}\n\n".encode("utf-8"))
+                self.wfile.flush()
+                cursor = int(snapshot.get("event_cursor") or 0)
+                if snapshot.get("status") in TERMINAL_TASK_STATUSES:
+                    return
+            while time.monotonic() < deadline:
+                events, replay_gap = self.server.service.tasks.events(task_id, after=cursor, timeout=10.0)
+                if replay_gap:
+                    snapshot = self.server.service.tasks.get(task_id)
+                    payload = json.dumps(snapshot, ensure_ascii=False, separators=(",", ":"))
+                    self.wfile.write(
+                        f"event: resync\ndata: {payload}\n\n".encode("utf-8")
+                    )
                     self.wfile.flush()
-                    last_payload = payload
+                    cursor = int(snapshot.get("event_cursor") or cursor)
                     last_heartbeat = time.monotonic()
                     if snapshot.get("status") in TERMINAL_TASK_STATUSES:
                         break
+                    continue
+                terminal = False
+                for event in events:
+                    payload = json.dumps(event, ensure_ascii=False, separators=(",", ":"))
+                    self.wfile.write(
+                        f"event: task_event\nid: {event.get('sequence', cursor)}\ndata: {payload}\n\n".encode("utf-8")
+                    )
+                    cursor = max(cursor, int(event.get("sequence") or cursor))
+                    terminal = terminal or (
+                        event.get("kind") == "status"
+                        and str((event.get("payload") or {}).get("status") or "") in TERMINAL_TASK_STATUSES
+                    )
+                if events:
+                    self.wfile.flush()
+                    last_heartbeat = time.monotonic()
                 elif time.monotonic() - last_heartbeat >= 10:
                     self.wfile.write(b": keep-alive\n\n")
                     self.wfile.flush()
                     last_heartbeat = time.monotonic()
-                time.sleep(TASK_STREAM_INTERVAL)
+                if not events:
+                    # A reconnect can start after the terminal status event.
+                    # Do not hold the HTTP socket open until the stream
+                    # deadline in that case.
+                    latest = self.server.service.tasks.get(task_id)
+                    if latest.get("status") in TERMINAL_TASK_STATUSES:
+                        break
+                if terminal:
+                    break
         except (BrokenPipeError, ConnectionAbortedError, ConnectionResetError, KeyError, OSError):
             # The browser may close the stream after a task is complete or when
             # it falls back to polling; neither case should create a traceback.
             return
         finally:
+            self.server.sse_slots.release()
             # HTTP/1.1 otherwise keeps the connection alive after the terminal
             # snapshot, leaving simple clients waiting for a content length.
             self.close_connection = True

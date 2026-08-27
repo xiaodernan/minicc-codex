@@ -13,7 +13,7 @@ import asyncio
 import pytest
 
 import minicc.tools.web as web_tool
-from minicc.agent.context import COMPACTION_MARKER, compact
+from minicc.agent.context import COMPACTION_MARKER, compact, compact_with_checkpoint
 from minicc.agent.completion import parse_completion_decision
 from minicc.agent.graph import DAGPlan, GraphValidationError, NodeResult, PlanTask, build_coding_workflow, execute_dag, fixed_plan
 from minicc.agent.orchestration import assess_complexity, build_auto_subtasks
@@ -25,15 +25,16 @@ from minicc.audit import authorize_tool
 from minicc.benchmarks import build_report, load_tasks, markdown_report
 from minicc.config import load_config, normalize_reasoning_effort
 from minicc.agent.loop import run_agent
+from minicc.agent.protocol import CancellationToken, EventLog, InvalidStatusTransition
 from minicc.agent.state import AgentState, Budget, BudgetExceeded
 from minicc.agent.verifier import VerificationCommand, Verifier
 from minicc.llm.base import LLMResponse
-from minicc.llm.envelope import extract_json_object, parse_envelope
-from minicc.llm.openai_provider import OpenAICompatibleProvider, _is_stream_retryable
+from minicc.llm.envelope import EnvelopeParseError, extract_json_object, parse_envelope
+from minicc.llm.openai_provider import OpenAICompatibleProvider, _is_stream_retryable, _merge_stream_text, _parse_usage
 from minicc.session import SessionStore
 from minicc.sandbox import SandboxRunner
 from minicc.mcp import load_mcp_config
-from minicc.tools.bash import decode_process_output, is_readonly_command
+from minicc.tools.bash import decode_process_output, is_readonly_command, run_bash
 from minicc.tools.editor import EditError, Editor, StaleContextError
 from minicc.tools.schemas import ToolCall
 from minicc.tools.web import parse_search_html
@@ -71,6 +72,38 @@ def test_compact_builds_valid_summary() -> None:
     assert len(compacted) == 4
 
 
+def test_structured_compaction_preserves_coding_evidence_and_merges() -> None:
+    messages = [{"role": "system", "content": "rules"}]
+    messages.extend([
+        {"role": "user", "content": "修复 parser.py，必须运行 pytest tests/test_parser.py 并完成验收。"},
+        {
+            "role": "assistant",
+            "tool_calls": [{
+                "id": "call-1",
+                "type": "function",
+                "function": {"name": "read_file", "arguments": '{"path":"minicc/parser.py"}'},
+            }],
+        },
+        {"role": "tool", "name": "read_file", "content": "读取完成，sha256 digest: abcdef1234567890"},
+        {"role": "assistant", "content": "验证失败：pytest tests/test_parser.py 报错。"},
+        {"role": "user", "content": "继续处理 " + "x" * 200},
+        {"role": "user", "content": "最近消息 " + "y" * 200},
+    ])
+    compacted, checkpoint = compact_with_checkpoint(messages, threshold=100, keep_recent=2)
+    assert checkpoint is not None
+    assert "minicc/parser.py" in checkpoint["files"]
+    assert "abcdef1234567890" in checkpoint["digests"]
+    assert any("pytest tests/test_parser.py" in item for item in checkpoint["verification"])
+    assert checkpoint["failures"]
+    assert checkpoint["loss_risk"]
+    assert len(compacted) == 4
+
+    compacted_again, checkpoint_again = compact_with_checkpoint(compacted, threshold=100, keep_recent=1)
+    assert checkpoint_again is not None
+    assert "minicc/parser.py" in checkpoint_again["files"]
+    assert checkpoint_again["archive"]["messages"] >= checkpoint["archive"]["messages"]
+
+
 def test_budget_tracks_usage_and_stops_at_limits() -> None:
     budget = Budget(max_turns=1, max_tokens=3, max_tool_calls=1)
     budget.record_turn()
@@ -78,6 +111,120 @@ def test_budget_tracks_usage_and_stops_at_limits() -> None:
     budget.record_tool_call()
     with pytest.raises(BudgetExceeded):
         budget.record_turn()
+
+
+def test_runtime_protocol_replays_events_detects_gaps_and_closes_cleanly() -> None:
+    log = EventLog(task_id="protocol-test", limit=32)
+    first = log.append("state", {"phase": "planning"})
+    assert first is not None
+    for index in range(40):
+        log.append("trace", {"index": index})
+
+    events, gap = log.read(after=0, timeout=0)
+    assert gap is True
+    assert events[-1].sequence == log.cursor
+    log.close()
+    assert log.closed is True
+    assert log.append("late", {}) is None
+    assert log.read(after=log.cursor, timeout=0) == ([], False)
+
+
+def test_task_runtime_history_indexes_and_counters_stay_bounded() -> None:
+    task = TaskRecord(
+        task_id="bounded-task",
+        session_id="bounded",
+        message="inspect",
+        allow_changes=False,
+        event_limit=32,
+        usage_limit=8,
+        compaction_limit=8,
+    )
+    task.transition_status("running")
+    first_event = None
+    for index in range(80):
+        event = task.add_event({
+            "kind": "trace",
+            "name": "agent",
+            "status": "ok",
+            "phase": "planning",
+            "code": f"step_{index}",
+            "summary": f"step {index}",
+            "detail": {"turn": index + 1},
+        })
+        if index == 0:
+            first_event = event
+    for index in range(20):
+        task.update_usage({"total_tokens": index + 1})
+        task.add_compaction({"turn": index + 1})
+
+    assert len(task.events) == 32
+    assert len(task._event_ids) == 32
+    assert len(task._event_keys) == 32
+    assert len(task.usage_by_turn) == 8
+    assert len(task.compaction_events) == 8
+    assert task.snapshot()["events_truncated"] >= 48
+    assert task.event_log.read(after=0, timeout=0)[1] is True
+    assert first_event is not None
+
+
+def test_restored_task_reports_replay_gap_when_live_events_are_unavailable() -> None:
+    restored = TaskRecord.from_snapshot({
+        "task_id": "restored-gap",
+        "session_id": "restored",
+        "prompt": "inspect",
+        "status": "completed",
+        "event_cursor": 12,
+        "events": [],
+    })
+    events, gap = restored.wait_events(after=0, timeout=0)
+    assert events == []
+    assert gap is True
+
+
+def test_cancellation_token_propagates_to_children_and_status_transitions_are_terminal() -> None:
+    parent = CancellationToken()
+    child = parent.child()
+    parent.cancel("service_shutdown")
+    assert child.is_set() is True
+    assert child.reason == "service_shutdown"
+
+    task = TaskRecord(task_id="protocol-task", session_id="protocol", message="x", allow_changes=False)
+    task.transition_status("running")
+    task.request_cancel("user")
+    with pytest.raises(InvalidStatusTransition):
+        task.transition_status("completed")
+    assert task.apply_result({"answer": "late provider result", "cancelled": False}) is False
+    snapshot = task.snapshot()
+    assert snapshot["status"] == "cancelled"
+    assert snapshot["answer"] == "任务已取消"
+    assert "late provider result" not in snapshot.get("answer", "")
+
+
+def test_task_snapshot_corrupt_numeric_fields_are_recovered_as_interrupted() -> None:
+    restored = TaskRecord.from_snapshot(
+        {
+            "task_id": "corrupt-snapshot",
+            "prompt": "inspect workspace",
+            "status": "running",
+            "created_at_epoch": "not-a-number",
+            "event_limit": "broken",
+            "stream_limit": "broken",
+            "event_cursor": "broken",
+            "state_version": "broken",
+            "events_truncated": "broken",
+        }
+    )
+    assert restored.status == "interrupted"
+    assert restored.event_limit >= 32
+    assert restored.stream_limit >= 512
+    assert restored.snapshot()["event_cursor"] == 0
+
+
+def test_agent_state_snapshot_contains_context_checkpoint() -> None:
+    state = AgentState("checkpoint-test", "repair parser")
+    state.set_context_checkpoint({"version": 1, "files": ["parser.py"]})
+    snapshot = state.snapshot()
+    assert snapshot["context_checkpoint"]["files"] == ["parser.py"]
 
 
 def test_state_graph_repairs_verification_failure() -> None:
@@ -195,6 +342,49 @@ def test_envelope_parser_handles_fenced_json() -> None:
     call = parse_envelope('{"action":"read_file","params":{"path":"a.py"}}')
     assert call is not None
     assert ToolCall.from_openai(call).tool == "read_file"
+
+
+def test_envelope_parser_accepts_model_dict_dialect_and_action_objects() -> None:
+    call = parse_envelope("```json\n{'action': {'command': 'npm run test:web', 'timeout': 180}}\n```")
+    assert call is not None
+    parsed = ToolCall.from_openai(call)
+    assert parsed.tool == "bash"
+    assert parsed.arguments == {"command": "npm run test:web", "timeout": 180}
+    assert parsed.parse_error is None
+
+
+def test_envelope_parser_accepts_nested_named_action_arguments() -> None:
+    call = parse_envelope(
+        "{'action': {'name': 'grep', 'arguments': "
+        "{'pattern': 'function (render|addAssistantMessage|syncLiveEvents|updateLiveTask', "
+        "'path': 'web/app.js'}}}"
+    )
+    assert call is not None
+    parsed = ToolCall.from_openai(call)
+    assert parsed.tool == "grep"
+    assert parsed.arguments == {
+        "pattern": "function (render|addAssistantMessage|syncLiveEvents|updateLiveTask",
+        "path": "web/app.js",
+    }
+    assert parsed.parse_error is None
+
+
+def test_envelope_parser_reports_incomplete_output_as_repairable_error() -> None:
+    with pytest.raises(EnvelopeParseError) as caught:
+        parse_envelope("{'action': 'bash', 'params': {'command': 'npm run test:web'}")
+    assert "不完整" in str(caught.value)
+    assert caught.value.content.startswith("{")
+
+
+def test_invalid_native_tool_arguments_become_model_feedback(tmp_path: Path) -> None:
+    call = ToolCall.from_openai({
+        "id": "bad-args",
+        "type": "function",
+        "function": {"name": "read_file", "arguments": "{'path': 'note.txt'"},
+    })
+    result = build_registry(Editor(tmp_path)).execute(call)
+    assert result.status == "error"
+    assert "INVALID_TOOL_ARGUMENTS" in result.summary
 
 
 def test_registry_contains_readonly_git_tools(tmp_path: Path) -> None:
@@ -358,16 +548,49 @@ def test_local_evidence_index_and_repair_scope_are_bounded(tmp_path: Path) -> No
     assert scope["repair_targets"] == ["feature.py"]
 
 
-def test_stage_router_preserves_explicit_model_and_applies_bounded_budget() -> None:
+def test_stage_router_preserves_explicit_model_without_stage_turn_budget() -> None:
     route = StageRouter("terra", 100).route("inspect")
     assert route.model == "terra"
     assert route.timeout == 75.0
-    assert route.max_turns == 8
+    assert route.max_turns is None
+    assert "max_turns" not in route.to_dict()
 
 
 def test_bash_output_decodes_windows_code_pages_without_crashing() -> None:
     encoded = "中文输出".encode("gb18030")
     assert decode_process_output(encoded) == "中文输出"
+
+
+def test_bash_cancellation_terminates_long_running_process(tmp_path: Path) -> None:
+    cancel_event = threading.Event()
+    command = subprocess.list2cmdline([
+        sys.executable,
+        "-c",
+        'import time; print("started", flush=True); time.sleep(30)',
+    ])
+    result_box: dict[str, object] = {}
+
+    def run() -> None:
+        result_box["result"] = run_bash(
+            command,
+            tmp_path,
+            timeout=30,
+            cancel_event=cancel_event,
+        )
+
+    worker = threading.Thread(target=run)
+    worker.start()
+    try:
+        time.sleep(0.25)
+        cancel_event.set()
+        worker.join(8)
+        assert not worker.is_alive(), "cancelled bash must not leave the task thread blocked"
+        result = result_box["result"]
+        assert result.status == "cancelled"
+        assert "终止进程树" in result.summary
+    finally:
+        cancel_event.set()
+        worker.join(8)
 
 
 def test_change_request_cannot_be_marked_complete_after_text_only_reply() -> None:
@@ -723,6 +946,45 @@ def test_provider_sends_reasoning_budget() -> None:
     assert seen["reasoning_effort"] == "max"
 
 
+def test_provider_normalizes_cache_usage_across_gateway_shapes() -> None:
+    chat_usage = _parse_usage({
+        "prompt_tokens": 2174,
+        "completion_tokens": 18,
+        "total_tokens": 2192,
+        "prompt_tokens_details": {"cached_tokens": 1792},
+    })
+    assert chat_usage["prompt_cache_hit_tokens"] == 1792
+    assert chat_usage["prompt_cache_miss_tokens"] == 382
+    assert chat_usage["cache_hit_rate"] == round(1792 / 2174, 6)
+    assert chat_usage["cache_status"] == "hit"
+
+    responses_usage = _parse_usage(SimpleNamespace(
+        input_tokens=2174,
+        output_tokens=18,
+        total_tokens=2192,
+        input_tokens_details=SimpleNamespace(cached_tokens=0),
+    ))
+    assert responses_usage["prompt_cache_hit_tokens"] == 0
+    assert responses_usage["prompt_cache_miss_tokens"] == 2174
+    assert responses_usage["cache_hit_rate"] == 0.0
+    assert responses_usage["cache_status"] == "miss"
+
+    deepseek_usage = _parse_usage({
+        "prompt_tokens": 100,
+        "completion_tokens": 10,
+        "prompt_cache_hit_tokens": 60,
+        "prompt_cache_miss_tokens": 40,
+        "cache_write_tokens": 12,
+    })
+    assert deepseek_usage["prompt_cache_write_tokens"] == 12
+    assert deepseek_usage["cache_hit_rate"] == 0.6
+
+    unreported = _parse_usage({"prompt_tokens": 100, "completion_tokens": 10, "total_tokens": 110})
+    assert unreported["cache_status"] == "unreported"
+    assert unreported["cache_hit_rate"] is None
+    assert "prompt_cache_hit_tokens" not in unreported
+
+
 @pytest.mark.parametrize(
     "command",
     [
@@ -799,7 +1061,7 @@ def test_config_file_accepts_boolean_yolo(tmp_path: Path, monkeypatch: pytest.Mo
     assert config.yolo is True
 
 
-def test_config_defaults_to_unlimited_turns(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_config_ignores_legacy_execution_budget_settings(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("MINICC_HOME", str(tmp_path))
     monkeypatch.setenv("MINICC_API_KEY", "sk-test-config")
     monkeypatch.delenv("MINICC_MAX_TURNS", raising=False)
@@ -808,7 +1070,20 @@ def test_config_defaults_to_unlimited_turns(tmp_path: Path, monkeypatch: pytest.
     monkeypatch.setenv("MINICC_MAX_TURNS", "0")
     assert load_config().max_turns is None
     monkeypatch.setenv("MINICC_MAX_TURNS", "7")
-    assert load_config().max_turns == 7
+    assert load_config().max_turns is None
+
+
+def test_config_always_disables_task_duration_and_tool_count_budgets(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("MINICC_HOME", str(tmp_path))
+    monkeypatch.setenv("MINICC_API_KEY", "sk-runtime-guard-test")
+    monkeypatch.setenv("MINICC_MAX_DURATION_SECONDS", "12.5")
+    monkeypatch.setenv("MINICC_MAX_TOOL_CALLS", "17")
+    config = load_config()
+    assert config.max_duration_seconds is None
+    assert config.max_tool_calls is None
 
 
 def test_project_guidance_is_loaded_as_non_policy_context(tmp_path: Path) -> None:
@@ -972,6 +1247,138 @@ def test_agent_loop_forwards_streaming_text_deltas(tmp_path: Path) -> None:
     assert result.answer == "第一段第二段第三段"
 
 
+def test_agent_loop_deduplicates_cumulative_public_stream_updates(tmp_path: Path) -> None:
+    class FakeProvider:
+        async def chat(self, messages, tools, on_delta=None):
+            for chunk in ("aa", "aab", "aabc"):
+                if on_delta is not None:
+                    on_delta(chunk)
+            return LLMResponse(content="aabc")
+
+    deltas: list[str] = []
+    result = asyncio.run(
+        run_agent(
+            FakeProvider(),
+            build_registry(Editor(tmp_path)),
+            [{"role": "user", "content": "给我一个简短回答"}],
+            on_stream=deltas.append,
+            should_allow=lambda _name, _call: True,
+        )
+    )
+    assert deltas == ["aa", "b", "c"]
+    assert result.answer == "aabc"
+
+
+def test_provider_deduplicates_cumulative_stream_chunks() -> None:
+    class FakeStream:
+        def __init__(self, chunks: list[object]) -> None:
+            self.chunks = iter(chunks)
+
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            try:
+                return next(self.chunks)
+            except StopIteration as exc:
+                raise StopAsyncIteration from exc
+
+        async def aclose(self) -> None:
+            return None
+
+    chunks = [
+        SimpleNamespace(model="test-model", usage=None, choices=[SimpleNamespace(finish_reason=None, delta=SimpleNamespace(content=value, reasoning_content=None, tool_calls=[]))])
+        for value in ("aa", "aab", "aabc")
+    ] + [SimpleNamespace(model="test-model", usage=None, choices=[SimpleNamespace(finish_reason="stop", delta=SimpleNamespace(content=None, reasoning_content=None, tool_calls=[]))])]
+    provider = OpenAICompatibleProvider(
+        "https://example.com/v1", "test-key", "test-model", protocol="chat_completions", sdk_client=object()
+    )
+
+    async def fake_create(_kwargs: dict[str, object]) -> FakeStream:
+        return FakeStream(chunks)
+
+    provider._create = fake_create  # type: ignore[method-assign]
+    deltas: list[str] = []
+    response = asyncio.run(provider.chat([{"role": "user", "content": "test"}], on_delta=deltas.append))
+    assert deltas == ["aa", "b", "c"]
+    assert response.content == "aabc"
+    assert _merge_stream_text("aa", "aab") == ("aab", "b")
+
+
+def test_provider_retries_silent_incomplete_stream() -> None:
+    class FakeStream:
+        def __init__(self, chunks: list[object]) -> None:
+            self.chunks = iter(chunks)
+
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            try:
+                return next(self.chunks)
+            except StopIteration as exc:
+                raise StopAsyncIteration from exc
+
+        async def aclose(self) -> None:
+            return None
+
+    calls = 0
+    provider = OpenAICompatibleProvider(
+        "https://example.com/v1", "test-key", "test-model", protocol="chat_completions", max_retries=1, sdk_client=object()
+    )
+
+    async def fake_create(_kwargs: dict[str, object]) -> FakeStream:
+        nonlocal calls
+        calls += 1
+        text = "partial" if calls == 1 else "partial complete"
+        terminal = calls > 1
+        return FakeStream([
+            SimpleNamespace(
+                model="test-model",
+                usage=None,
+                choices=[SimpleNamespace(
+                    finish_reason="stop" if terminal else None,
+                    delta=SimpleNamespace(content=text, reasoning_content=None, tool_calls=[]),
+                )],
+            )
+        ])
+
+    provider._create = fake_create  # type: ignore[method-assign]
+    deltas: list[str] = []
+    response = asyncio.run(provider.chat([{"role": "user", "content": "test"}], on_delta=deltas.append))
+    assert calls == 2
+    assert deltas == ["partial", " complete"]
+    assert response.content == "partial complete"
+
+
+def test_agent_repairs_invalid_envelope_instead_of_ending_run(tmp_path: Path) -> None:
+    class FakeProvider:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        async def chat(self, messages, tools, on_delta=None):
+            self.calls += 1
+            if self.calls == 1:
+                raise EnvelopeParseError("信封缺少 action 字段", content="{'params': {}}")
+            return LLMResponse(content="协议已修正，任务完成。")
+
+    traces: list[dict[str, object]] = []
+    provider = FakeProvider()
+    result = asyncio.run(
+        run_agent(
+            provider,
+            build_registry(Editor(tmp_path)),
+            [{"role": "user", "content": "完成一个检查"}],
+            on_trace=traces.append,
+            should_allow=lambda _name, _call: True,
+        )
+    )
+    assert provider.calls == 2
+    assert result.error is None
+    assert result.answer == "协议已修正，任务完成。"
+    assert any(event.get("code") == "protocol_repair" for event in traces)
+
+
 def test_agent_loop_disables_streaming_without_output_callback(tmp_path: Path) -> None:
     seen: list[object] = []
 
@@ -1108,6 +1515,213 @@ def test_agent_loop_replans_once_then_stops_repeated_tool_calls(tmp_path: Path) 
     assert provider.calls < 12
 
 
+def test_agent_loop_recovers_duplicate_path_with_readonly_probe(tmp_path: Path) -> None:
+    (tmp_path / "hello.txt").write_text("hello\n", encoding="utf-8")
+
+    class FakeProvider:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        async def chat(self, messages, tools, on_delta=None):
+            self.calls += 1
+            rendered = json.dumps(messages, ensure_ascii=False)
+            if self.calls <= 3:
+                return LLMResponse(tool_calls=[{
+                    "id": f"read-{self.calls}",
+                    "type": "function",
+                    "function": {
+                        "name": "read_file",
+                        "arguments": '{"path":"hello.txt"}',
+                    },
+                }])
+            if self.calls == 4 and "执行器恢复第" in rendered:
+                return LLMResponse(tool_calls=[{
+                    "id": "glob-after-recovery",
+                    "type": "function",
+                    "function": {
+                        "name": "glob",
+                        "arguments": '{"pattern":"*.txt"}',
+                    },
+                }])
+            return LLMResponse(content="已基于恢复诊断完成检查。")
+
+    traces: list[dict[str, object]] = []
+    provider = FakeProvider()
+    result = asyncio.run(
+        run_agent(
+            provider,
+            build_registry(Editor(tmp_path)),
+            [{"role": "user", "content": "检查 hello.txt"}],
+            max_turns=8,
+            on_trace=traces.append,
+            should_allow=lambda _name, _call: True,
+        )
+    )
+
+    assert result.error is None
+    assert result.answer == "已基于恢复诊断完成检查。"
+    assert provider.calls == 5
+    assert any(event.get("code") == "recovery_probe_finished" for event in traces)
+    assert any(event.get("code") == "stagnation_replan" for event in traces)
+    assert any(event.get("code") == "recovery_inspection_passed" for event in traces)
+
+
+def test_agent_loop_skips_duplicate_calls_in_same_round(tmp_path: Path) -> None:
+    (tmp_path / "hello.txt").write_text("hello\n", encoding="utf-8")
+
+    class FakeProvider:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        async def chat(self, messages, tools, on_delta=None):
+            self.calls += 1
+            if self.calls == 1:
+                call = {
+                    "type": "function",
+                    "function": {
+                        "name": "read_file",
+                        "arguments": '{"path":"hello.txt"}',
+                    },
+                }
+                return LLMResponse(tool_calls=[{**call, "id": "read-1"}, {**call, "id": "read-2"}])
+            return LLMResponse(content="检查完成。")
+
+    traces: list[dict[str, object]] = []
+    result = asyncio.run(
+        run_agent(
+            FakeProvider(),
+            build_registry(Editor(tmp_path)),
+            [{"role": "user", "content": "检查 hello.txt"}],
+            max_turns=4,
+            on_trace=traces.append,
+            should_allow=lambda _name, _call: True,
+        )
+    )
+
+    finished = next(event for event in traces if event.get("code") == "tool_round_finished")
+    statuses = finished["detail"]["statuses"]  # type: ignore[index]
+    assert any("DUPLICATE_TOOL_CALL" in str(item) for item in finished["detail"]["results"])  # type: ignore[index]
+    assert statuses == ["read_file:ok", "read_file:error"]
+    assert result.error is None
+
+
+def test_agent_service_recovers_stagnation_before_verifying_changes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "tests" / "test_smoke.py").write_text(
+        "def test_smoke():\n    assert True\n",
+        encoding="utf-8",
+    )
+
+    class FakeProvider:
+        def __init__(self, **_kwargs) -> None:
+            self.agent_calls = 0
+            self.inspection_call = False
+            self.recovery_write = False
+            self.verification_call = False
+
+        async def chat(self, messages, tools, on_delta=None):
+            rendered = json.dumps(messages, ensure_ascii=False)
+            if tools is None:
+                return LLMResponse(content=json.dumps({
+                    "status": "complete",
+                    "confidence": 0.98,
+                    "rationale": "恢复后已写入目标文件并通过验证。",
+                    "missing": [],
+                    "next_action": "",
+                    "evidence": ["write_file", "pytest"],
+                }, ensure_ascii=False))
+
+            self.agent_calls += 1
+            if "[任务级错误恢复]" not in rendered:
+                return LLMResponse(tool_calls=[{
+                    "id": f"stuck-{self.agent_calls}",
+                    "type": "function",
+                    "function": {
+                        "name": "read_file",
+                        "arguments": '{"path":"missing.txt"}',
+                        },
+                    }])
+            if not self.inspection_call:
+                self.inspection_call = True
+                return LLMResponse(tool_calls=[{
+                    "id": "recovery-tree",
+                    "type": "function",
+                    "function": {
+                        "name": "tree",
+                        "arguments": "{}",
+                    },
+                }])
+            if not self.recovery_write:
+                self.recovery_write = True
+                return LLMResponse(tool_calls=[{
+                    "id": "recovered-write",
+                    "type": "function",
+                    "function": {
+                        "name": "write_file",
+                        "arguments": json.dumps({"path": "result.txt", "content": "recovered\n"}),
+                    },
+                }])
+            if not self.verification_call:
+                self.verification_call = True
+                return LLMResponse(tool_calls=[{
+                    "id": "recovered-test",
+                    "type": "function",
+                    "function": {
+                        "name": "bash",
+                        "arguments": '{"command":"python -m pytest -q"}',
+                    },
+                }])
+            return LLMResponse(content="修改和验证已完成。")
+
+        async def close(self) -> None:
+            return None
+
+        @staticmethod
+        def is_transient_failure(error: str | None) -> bool:
+            return False
+
+    monkeypatch.setattr("minicc.web.OpenAICompatibleProvider", FakeProvider)
+    config = SimpleNamespace(
+        yolo=True,
+        max_concurrent_tasks=1,
+        max_repair_attempts=1,
+        task_recovery_retries=1,
+        sandbox_mode="host",
+        sandbox_image="python:3.11-slim",
+        base_url="https://example.test/v1",
+        api_key="test-key",
+        model="test-model",
+        timeout=10,
+        tool_mode="auto",
+        reasoning_effort="high",
+        max_turns=12,
+        compact_threshold=300_000,
+        context_window_tokens=300_000,
+    )
+    service = AgentService(tmp_path, config)
+    try:
+        result = service._chat_locked(
+            {
+                "message": "修复 result.txt 并验证",
+                "session_id": "stagnation-recovery",
+                "allow_changes": True,
+                "workspace_path": str(tmp_path),
+            },
+            workspace=tmp_path,
+        )
+    finally:
+        service.shutdown()
+
+    assert result["error"] is None
+    assert (tmp_path / "result.txt").read_text(encoding="utf-8") == "recovered\n"
+    assert result["metrics"]["agent_recoveries"] == 1
+    assert any(event.get("code") == "task_stagnation_recovery" for event in result["events"])
+    assert any(event.get("code") == "verification_passed" for event in result["events"])
+
+
 def test_agent_marks_max_turns_as_incomplete(tmp_path: Path) -> None:
     (tmp_path / "hello.txt").write_text("hello\n", encoding="utf-8")
 
@@ -1132,6 +1746,32 @@ def test_agent_marks_max_turns_as_incomplete(tmp_path: Path) -> None:
         )
     )
     assert result.error == "Agent 达到最大执行轮次 1，任务未完成"
+
+
+def test_agent_deadline_cancels_an_inflight_provider_request(tmp_path: Path) -> None:
+    cancelled: list[bool] = []
+
+    class FakeProvider:
+        async def chat(self, messages, tools, on_delta=None):
+            try:
+                await asyncio.sleep(2)
+            except asyncio.CancelledError:
+                cancelled.append(True)
+                raise
+            return LLMResponse(content="迟到的回答")
+
+    result = asyncio.run(
+        run_agent(
+            FakeProvider(),
+            build_registry(Editor(tmp_path)),
+            [{"role": "user", "content": "检查任务"}],
+            budget=Budget(max_duration_seconds=0.08),
+            should_allow=lambda _name, _call: True,
+        )
+    )
+    assert result.error and "最大执行时间" in result.error
+    assert cancelled == [True]
+    assert any(event.get("code") == "budget_exceeded" for event in result.trace_events)
 
 
 def test_agent_has_no_default_fixed_turn_cap(tmp_path: Path) -> None:
@@ -1373,6 +2013,80 @@ def test_task_store_round_trips_redacted_history_and_marks_running_as_interrupte
     assert restored.status == "interrupted"
     assert restored.phase == "interrupted"
     assert restored.error
+
+
+def test_task_store_prunes_old_terminal_history_but_keeps_active_and_batch_children(tmp_path: Path) -> None:
+    store = TaskStore(tmp_path / "tasks.sqlite3")
+    base_time = time.time()
+    for index in range(5):
+        store.upsert(
+            {
+                "task_id": f"task-{index}",
+                "created_at_epoch": base_time + index,
+                "workspace_path": str(tmp_path),
+                "prompt": f"task {index}",
+                "status": "completed",
+                "child_task_ids": ["task-child"] if index == 4 else [],
+                "events": [{"name": "tool", "output": "large history"}],
+            }
+        )
+    store.upsert(
+        {
+            "task_id": "task-child",
+            "created_at_epoch": base_time - 100,
+            "workspace_path": str(tmp_path),
+            "prompt": "child",
+            "status": "completed",
+        }
+    )
+    store.upsert(
+        {
+            "task_id": "task-active",
+            "created_at_epoch": 0,
+            "workspace_path": str(tmp_path),
+            "prompt": "active",
+            "status": "running",
+        }
+    )
+
+    deleted = store.prune(keep_terminal=1, max_age_days=3650)
+    remaining = {item["task_id"] for item in store.load()}
+
+    assert "task-4" not in deleted
+    assert "task-4" in remaining
+    assert "task-child" in remaining
+    assert "task-active" in remaining
+    assert "task-0" in deleted
+
+
+def test_task_manager_list_returns_bounded_summaries(tmp_path: Path) -> None:
+    class FakeService:
+        config = SimpleNamespace(yolo=False, max_concurrent_tasks=1)
+        workspace = tmp_path
+
+    store = TaskStore(tmp_path / "tasks.sqlite3")
+    store.upsert(
+        {
+            "task_id": "task-summary",
+            "created_at_epoch": time.time(),
+            "workspace_path": str(tmp_path),
+            "prompt": "summary",
+            "status": "completed",
+            "events": [{"name": "tool", "output": "do not send this in the index"}],
+            "stream_text": "large stream",
+            "result": {"answer": "full answer"},
+        }
+    )
+    manager = TaskManager(FakeService(), max_workers=1, store=store)
+    try:
+        item = manager.list(limit=1)[0]
+        assert item["summary_only"] is True
+        assert item["event_count"] == 1
+        assert "events" not in item
+        assert "result" not in item
+        assert "stream_text" not in item
+    finally:
+        manager.shutdown()
 
 
 def test_task_manager_resume_reuses_only_unchanged_readonly_checkpoint(tmp_path: Path) -> None:
@@ -1764,8 +2478,125 @@ def test_task_manager_preserves_trace_phase_while_running() -> None:
 
 
 def test_stream_transport_error_is_retryable() -> None:
-    assert _is_stream_retryable(RuntimeError("peer closed connection without sending complete message body (incomplete chunked read)"))
-    assert _is_stream_retryable(RuntimeError("kernel event source lost: cause=kernel_source_unavailable replay_gap_source=reconnect_floor"))
+  assert _is_stream_retryable(RuntimeError("peer closed connection without sending complete message body (incomplete chunked read)"))
+  assert _is_stream_retryable(RuntimeError("kernel event source lost: cause=kernel_source_unavailable replay_gap_source=reconnect_floor"))
+  assert _is_stream_retryable(RuntimeError("stream disconnected before completion: error sending request for url (https://example.test/v1/responses)"))
+
+
+def test_stream_transport_error_checks_wrapped_causes_and_truncated_json() -> None:
+    wrapped = RuntimeError("provider request failed")
+    wrapped.__cause__ = ConnectionResetError("connection reset by peer")
+    assert _is_stream_retryable(wrapped)
+    assert _is_stream_retryable(json.JSONDecodeError("Expecting value", "{", 1))
+    assert OpenAICompatibleProvider.is_transient_failure("LLM 调用失败: Connection error.")
+
+
+def test_auto_provider_falls_back_after_responses_transport_disconnect() -> None:
+    seen: list[str] = []
+
+    class FailingResponses:
+        async def create(self, **kwargs):
+            seen.append("responses")
+            raise RuntimeError("stream disconnected before completion")
+
+    class WorkingCompletions:
+        async def create(self, **kwargs):
+            seen.append("chat_completions")
+            return SimpleNamespace(
+                model="test-model",
+                usage=SimpleNamespace(prompt_tokens=2, completion_tokens=1, total_tokens=3),
+                choices=[SimpleNamespace(
+                    finish_reason="stop",
+                    message=SimpleNamespace(content="recovered", reasoning_content=None, tool_calls=[]),
+                )],
+            )
+
+    provider = OpenAICompatibleProvider(
+        "https://example.com/v1",
+        "test-key",
+        "test-model",
+        protocol="auto",
+        max_retries=0,
+        sdk_client=SimpleNamespace(
+            responses=FailingResponses(),
+            chat=SimpleNamespace(completions=WorkingCompletions()),
+        ),
+    )
+    response = asyncio.run(provider.chat([{"role": "user", "content": "recover"}]))
+    assert response.content == "recovered"
+    assert seen == ["responses", "chat_completions"]
+    assert provider.protocol() == "chat_completions"
+
+
+def test_task_recovers_after_transient_provider_failure(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    instances: list[object] = []
+
+    class FakeProvider:
+        def __init__(self, **_kwargs) -> None:
+            self.calls = 0
+            self.failed_once = len(instances) == 0
+            instances.append(self)
+
+        async def chat(self, messages, tools, on_delta=None):
+            self.calls += 1
+            if self.failed_once and self.calls == 1:
+                raise RuntimeError("stream disconnected before completion: Connection error.")
+            if tools is None:
+                return LLMResponse(content='{"status":"complete","confidence":0.99,"rationale":"已有充分证据。"}')
+            return LLMResponse(content="断流恢复后已完成检查。")
+
+        def protocol(self) -> str:
+            return "chat_completions"
+
+        def protocol_status(self) -> dict[str, str]:
+            return {"active": "chat_completions", "requested": "chat_completions"}
+
+        async def close(self) -> None:
+            return None
+
+        @staticmethod
+        def is_transient_failure(error: str | None) -> bool:
+            return OpenAICompatibleProvider.is_transient_failure(error or "")
+
+    monkeypatch.setattr("minicc.web.OpenAICompatibleProvider", FakeProvider)
+    config = SimpleNamespace(
+        yolo=False,
+        max_concurrent_tasks=1,
+        max_repair_attempts=0,
+        task_recovery_retries=1,
+        sandbox_mode="host",
+        sandbox_image="python:3.11-slim",
+        base_url="https://example.test/v1",
+        api_key="test-key",
+        model="test-model",
+        timeout=10,
+        tool_mode="auto",
+        reasoning_effort="high",
+        max_turns=4,
+        compact_threshold=300_000,
+        context_window_tokens=300_000,
+        max_duration_seconds=20,
+        max_tool_calls=20,
+    )
+    service = AgentService(tmp_path, config)
+    try:
+        result = service._chat_locked(
+            {
+                "message": "检查当前项目并给出结论",
+                "session_id": "provider-recovery",
+                "allow_changes": False,
+                "workspace_path": str(tmp_path),
+            },
+            workspace=tmp_path,
+        )
+    finally:
+        service.shutdown()
+
+    assert result["error"] is None
+    assert result["answer"] == "断流恢复后已完成检查。"
+    assert result["metrics"]["provider_recoveries"] == 1
+    assert len(instances) == 2
+    assert any(event.get("code") == "task_provider_recovery" for event in result["events"])
 
 
 def test_provider_adapts_responses_api_tool_calls() -> None:

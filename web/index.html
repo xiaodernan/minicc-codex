@@ -6,11 +6,7 @@
     <meta name="theme-color" content="#111214" />
     <title>minicc / Workspace</title>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="/styles.css" />
-    <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js" defer></script>
     <script src="/app.js" defer></script>
   </head>
   <body>
@@ -129,21 +125,29 @@
               <article class="message assistant-message">
                 <div class="message-meta"><span class="avatar agent-avatar">m</span><strong>minicc</strong><span class="agent-label" data-i18n="message.agent">Agent</span><time>10:43</time></div>
                 <div class="message-body">
-                  <details class="agent-round" data-agent-round="0">
-                    <summary class="agent-round-summary"><span class="agent-round-title"><span class="agent-round-icon"><i data-lucide="layers-3"></i></span><strong><span data-i18n="tool.round">工具轮次</span> 1</strong><small data-i18n="tool.reasoning">阶段摘要</small></span><span class="agent-round-meta">2 <span data-i18n="tool.callCount">次调用</span><span class="agent-round-chevron"><i data-lucide="chevron-down"></i></span></span></summary>
-                    <div class="agent-round-events">
-                      <div class="tool-event completed">
-                        <div class="tool-icon"><i data-lucide="file-search-2"></i></div>
-                        <div class="tool-event-copy"><div><strong>read_file</strong><span class="tool-path">README.md</span></div><small>Read 68 lines · 0.18s</small></div>
-                        <span class="tool-check"><i data-lucide="check"></i></span>
-                      </div>
-                      <div class="tool-event completed">
-                        <div class="tool-icon mint-icon"><i data-lucide="test-tube-2"></i></div>
-                        <div class="tool-event-copy"><div><strong>pytest</strong><span class="tool-path">tests/</span></div><small>9 passed · 1.42s</small></div>
-                        <span class="tool-check"><i data-lucide="check"></i></span>
-                      </div>
+                  <section class="execution-trail">
+                    <div class="execution-trail-head">
+                      <div class="execution-trail-title"><span class="execution-trail-icon"><i data-lucide="list-checks"></i></span><span><strong>执行脉络与证据</strong><small>2 次操作</small></span></div>
+                      <div class="execution-trail-actions"><button type="button" class="timeline-control" data-timeline-toggle="expand" aria-label="全部展开" title="全部展开" data-i18n-aria="tool.expandAll" data-i18n-title="tool.expandAll"><i data-lucide="chevrons-down"></i><span data-i18n="tool.expandAll">全部展开</span></button><button type="button" class="timeline-control" data-timeline-toggle="collapse" aria-label="全部折叠" title="全部折叠" data-i18n-aria="tool.collapseAll" data-i18n-title="tool.collapseAll"><i data-lucide="chevrons-up"></i><span data-i18n="tool.collapseAll">全部折叠</span></button></div>
                     </div>
-                  </details>
+                    <div class="tool-timeline" data-agent-timeline="codex">
+                      <div class="trace-event thinking-block trace-ok" data-agent-block="thinking"><span class="trace-icon"><i data-lucide="sparkles"></i></span><div class="trace-main"><div class="trace-summary"><span class="thinking-label">THINKING</span><span class="trace-code">行动计划</span><span>先读取入口文件，再根据证据决定检查路径。</span></div></div><span class="trace-phase">planning</span></div>
+                      <details class="agent-round command-group" data-agent-block="commands" data-command-group="1" data-agent-round="1">
+                        <summary class="agent-round-summary"><span class="agent-round-title"><span class="agent-round-icon"><i data-lucide="layers-3"></i></span><span class="command-group-copy"><span class="command-group-label">COMMANDS</span><strong>第 1 组命令 · 2 条</strong><small>read_file · pytest</small></span></span><span class="agent-round-meta">已完成<span class="agent-round-chevron"><i data-lucide="chevron-down"></i></span></span></summary>
+                        <div class="agent-round-events">
+                          <details class="tool-event completed" data-agent-block="command" data-tool-event="initial-readme">
+                            <summary class="tool-event-summary"><span class="tool-icon"><i data-lucide="file-search-2"></i></span><span class="tool-event-copy"><span><strong>read_file</strong><span class="tool-path">README.md</span></span><small>读取 README.md · 68 行 · 0.18s</small></span><span class="tool-check"><i data-lucide="check"></i></span><span class="tool-expand"><i data-lucide="chevron-down"></i></span></summary>
+                            <div class="tool-event-details"><details class="tool-result-fold"><summary><span data-i18n="tool.result">执行结果</span><small>点击展开</small><span class="tool-result-fold-chevron"><i data-lucide="chevron-down"></i></span></summary><div class="tool-result-fold-body"><div class="tool-result-output">读取 68 行，确认工作区入口和启动说明完整。</div></div></details></div>
+                          </details>
+                          <details class="tool-event completed" data-agent-block="command" data-tool-event="initial-pytest">
+                            <summary class="tool-event-summary"><span class="tool-icon mint-icon"><i data-lucide="test-tube-2"></i></span><span class="tool-event-copy"><span><strong>pytest</strong><span class="tool-path">tests/</span></span><small>9 passed · 1.42s</small></span><span class="tool-check"><i data-lucide="check"></i></span><span class="tool-expand"><i data-lucide="chevron-down"></i></span></summary>
+                            <div class="tool-event-details"><details class="tool-result-fold"><summary><span data-i18n="tool.result">执行结果</span><small>点击展开</small><span class="tool-result-fold-chevron"><i data-lucide="chevron-down"></i></span></summary><div class="tool-result-fold-body"><div class="tool-result-output">9 passed · 测试完成，没有发现回归。</div></div></details></div>
+                          </details>
+                        </div>
+                      </details>
+                      <div class="trace-event thinking-block trace-ok" data-agent-block="thinking"><span class="trace-icon"><i data-lucide="sparkles"></i></span><div class="trace-main"><div class="trace-summary"><span class="thinking-label">THINKING</span><span class="trace-code">下一步</span><span>工作区入口和测试状态已确认，可以继续交付。</span></div></div><span class="trace-phase">ready</span></div>
+                    </div>
+                  </section>
                   <p>我先检查了工作区结构，然后把 CLI 核心接到这个本地工作台。现在可以继续加功能、查看 diff，并在安全模式下运行验证。</p>
                   <div class="answer-callout"><span class="callout-mark"><i data-lucide="sparkles"></i></span><span>Workspace is ready. What should we ship next?</span></div>
                 </div>
@@ -197,7 +201,7 @@
 
         <section class="inspector-section" id="overviewSection">
           <div class="section-heading"><span data-i18n="inspector.pulse">项目状态</span><span class="pulse-label"><i data-lucide="activity"></i> <span data-i18n="inspector.live">实时</span></span></div>
-          <div class="pulse-card"><div class="pulse-main"><strong id="pulseStatus" data-i18n="inspector.ready">就绪</strong><span data-i18n="inspector.standingBy">Agent 正在等待</span></div><div class="pulse-ring"><i data-lucide="radio"></i></div><div class="pulse-metrics"><div><span data-i18n="inspector.turns">轮次</span><strong id="turnMetric">12</strong></div><div><span data-i18n="inspector.tools">工具</span><strong id="toolMetric">9</strong></div><div><span data-i18n="inspector.tokens">Tokens</span><strong id="tokenMetric">0</strong></div><div><span data-i18n="inspector.context">上下文</span><strong id="contextMetric">0/300k</strong></div></div><div class="pulse-compaction"><span data-i18n="inspector.compactions">自动压缩</span><strong id="compactionMetric">0</strong></div></div>
+          <div class="pulse-card"><div class="pulse-main"><strong id="pulseStatus" data-i18n="inspector.ready">就绪</strong><span data-i18n="inspector.standingBy">Agent 正在等待</span></div><div class="pulse-ring"><i data-lucide="radio"></i></div><div class="pulse-metrics"><div><span data-i18n="inspector.turns">轮次</span><strong id="turnMetric">12</strong></div><div><span data-i18n="inspector.tools">工具</span><strong id="toolMetric">9</strong></div><div><span data-i18n="inspector.tokens">Tokens</span><strong id="tokenMetric">0</strong></div><div><span data-i18n="inspector.context">上下文</span><strong id="contextMetric">0/300k</strong></div></div><div class="pulse-compaction"><span><span data-i18n="inspector.compactions">自动压缩</span> <strong id="compactionMetric">0</strong></span><span><span data-i18n="inspector.cache">缓存命中</span> <strong id="cacheMetric">未统计</strong></span></div></div>
         </section>
 
         <section class="inspector-section">
@@ -220,19 +224,33 @@
     </div>
     <div class="game-modal" id="gameModal" aria-hidden="true">
       <div class="game-card" role="dialog" aria-modal="true" aria-labelledby="gameTitle">
-        <button class="game-close icon-button" id="gameClose" aria-label="关闭小游戏" data-i18n-aria="game.close"><i data-lucide="x"></i></button>
+        <div class="game-actions"><button class="game-tool icon-text" id="gameNewWindow" type="button" title="在新网页打开"><i data-lucide="external-link"></i><span data-i18n="game.newWindow">新窗口</span></button><button class="game-tool icon-text" id="gameWideMode" type="button" title="大屏模式" aria-pressed="false"><i data-lucide="layout-dashboard"></i><span data-i18n="game.wideMode">大屏模式</span></button><button class="game-tool icon-text" id="gameCodex" type="button" title="打开图鉴"><i data-lucide="book-open"></i><span>图鉴</span></button><button class="game-tool icon-text" id="gameFullscreen" type="button" title="全屏"><i data-lucide="maximize"></i><span data-i18n="game.fullscreen">全屏</span></button><button class="game-close icon-button" id="gameClose" aria-label="关闭小游戏" data-i18n-aria="game.close"><i data-lucide="x"></i></button></div>
         <div class="game-kicker" data-i18n="game.kicker">MINICC ARCADE · MINI LAWN</div>
         <h2 id="gameTitle" data-i18n="game.title">植物大战僵尸 · 草坪保卫战</h2>
         <p class="game-subtitle" data-i18n="game.subtitle">10 波高压战役，失败只由僵尸进屋触发；战斗用时仅统计活跃帧，切后台和手动暂停均不消耗进度。</p>
-        <div class="game-hud"><span><span data-i18n="game.sun">阳光</span> <strong id="gameSun">175</strong></span><span><span data-i18n="game.score">击退</span> <strong id="gameScore">0</strong></span><span><span data-i18n="game.wave">波次</span> <strong id="gameWave">1/10</strong></span><span><span data-i18n="game.time">战斗用时</span> <strong id="gameTime">00:00</strong></span><span class="game-status" id="gameStatus" data-i18n="game.ready">准备就绪</span></div>
-        <div class="game-wave-progress" aria-label="战役进度" data-i18n-aria="game.progress"><span id="gameThreat" data-i18n="game.threat">威胁：0/9</span><div class="game-progress-track"><i id="gameProgressFill"></i></div><span id="gameWaveHint" data-i18n="game.waveHint">建立防线，下一批僵尸即将抵达</span></div>
-        <div class="seed-bank" id="seedBank">
+        <div class="game-hud"><span><span data-i18n="game.sun">阳光</span> <strong id="gameSun">175</strong></span><span><span data-i18n="game.score">击退</span> <strong id="gameScore">0</strong></span><span><span data-i18n="game.wave">波次</span> <strong id="gameWave">1/10</strong></span><span><span data-i18n="game.time">战斗用时</span> <strong id="gameTime">00:00</strong></span><span class="game-status" id="gameStatus" data-i18n="game.ready">准备就绪</span><span class="game-performance" id="gamePerformance" aria-label="渲染性能">FPS <strong id="gameFps">0</strong> · 帧 <strong id="gameFrameMs">0.0ms</strong> · 长帧 <strong id="gameLongFrames">0</strong> · 对象 <strong id="gameObjectCount">0</strong></span></div>
+        <div class="game-wave-progress" aria-label="战役进度" data-i18n-aria="game.progress"><span id="gameThreat" data-i18n="game.threat">威胁：0/9</span><div class="game-progress-track"><i id="gameProgressFill"></i></div><span id="gameWaveHint" data-i18n="game.waveHint">建立防线，下一批僵尸即将抵达</span><span class="game-defense-readout"><span data-i18n="game.mowers">防线</span> <strong id="gameMowers">5</strong> · <span data-i18n="game.combo">连击</span> <strong id="gameCombo">0</strong></span></div>
+        <div class="game-skillbar" aria-label="战术技能" data-i18n-aria="game.energy"><div class="game-energy"><span><span data-i18n="game.energy">战术能量</span> <strong id="gameEnergy">60</strong>/100</span><div class="game-energy-track"><i id="gameEnergyFill"></i></div></div><div class="game-skills"><button class="game-skill" id="gameSkillPulse" data-skill="pulse" type="button"><b>❄️</b><span data-i18n="game.skillPulse">寒冰脉冲</span><small data-i18n="game.skillPulseHint">冻结并震击全场僵尸</small></button><button class="game-skill" id="gameSkillSun" data-skill="sun" type="button"><b>☀️</b><span data-i18n="game.skillSun">阳光爆发</span><small data-i18n="game.skillSunHint">立即获得 100 阳光</small></button><button class="game-skill" id="gameSkillRally" data-skill="rally" type="button"><b>⚡</b><span data-i18n="game.skillRally">战线超载</span><small data-i18n="game.skillRallyHint">植物攻速提升 8 秒</small></button></div></div>
+        <div class="game-wide-layout"><aside class="game-sidebar"><div class="seed-bank" id="seedBank">
           <button class="seed-card" data-plant="peashooter"><b>🌱</b><span data-i18n="game.peashooter">豌豆射手</span><small>100 ☀ · <span data-i18n="game.attack">攻击</span></small></button>
           <button class="seed-card" data-plant="sunflower"><b>🌻</b><span data-i18n="game.sunflower">向日葵</span><small>50 ☀ · <span data-i18n="game.produce">产阳光</span></small></button>
           <button class="seed-card" data-plant="wallnut"><b>🥜</b><span data-i18n="game.wallnut">坚果墙</span><small>50 ☀ · <span data-i18n="game.defense">防御</span></small></button>
           <button class="seed-card" data-plant="repeater"><b>🌿</b><span data-i18n="game.repeater">双发射手</span><small>180 ☀ · <span data-i18n="game.attack">攻击</span></small></button>
           <button class="seed-card" data-plant="cherrybomb"><b>🍒</b><span data-i18n="game.cherrybomb">爆裂果</span><small>150 ☀ · <span data-i18n="game.burst">爆发</span></small></button>
           <button class="seed-card" data-plant="icepeashooter"><b>❄️</b><span data-i18n="game.icepeashooter">寒冰射手</span><small>175 ☀ · <span data-i18n="game.slow">减速</span></small></button>
+          <button class="seed-card" data-plant="firepeashooter"><b>🔥</b><span data-i18n="game.firepeashooter">火焰射手</span><small>175 ☀ · <span data-i18n="game.attack">灼烧</span></small></button>
+          <button class="seed-card" data-plant="twinpea"><b>🌱</b><span data-i18n="game.twinpea">双发强化</span><small>225 ☀ · <span data-i18n="game.attack">双倍伤害</span></small></button>
+          <button class="seed-card" data-plant="kernelpult"><b>🌽</b><span data-i18n="game.kernelpult">玉米投手</span><small>100 ☀ · <span data-i18n="game.butter">黄油定身</span></small></button>
+          <button class="seed-card" data-plant="pumpkin"><b>🎃</b><span data-i18n="game.pumpkin">南瓜头</span><small>125 ☀ · <span data-i18n="game.defense">护罩</span></small></button>
+          <button class="seed-card" data-plant="spikeweed"><b>🌵</b><span data-i18n="game.spikeweed">地刺</span><small>100 ☀ · <span data-i18n="game.attack">反伤</span></small></button>
+          <button class="seed-card" data-plant="gloomshroom"><b>🍄</b><span data-i18n="game.gloomshroom">忧郁菇</span><small>150 ☀ · <span data-i18n="game.attack">近身范围</span></small></button>
+          <button class="seed-card" data-plant="potatomine"><b>🥔</b><span data-i18n="game.potatomine">土豆雷</span><small>25 ☀ · <span data-i18n="game.trap">地雷</span></small></button>
+          <button class="seed-card" data-plant="threepeater"><b>🌾</b><span data-i18n="game.threepeater">三线射手</span><small>325 ☀ · <span data-i18n="game.attack">三线</span></small></button>
+          <button class="seed-card" data-plant="jalapeno"><b>🌶️</b><span data-i18n="game.jalapeno">火爆辣椒</span><small>125 ☀ · <span data-i18n="game.burst">整行爆发</span></small></button>
+          <button class="seed-card" data-plant="magnetshroom"><b>🧲</b><span data-i18n="game.magnetshroom">磁力菇</span><small>100 ☀ · <span data-i18n="game.utility">缴械</span></small></button>
+          <button class="seed-card" data-plant="garlic"><b>🧄</b><span data-i18n="game.garlic">大蒜</span><small>50 ☀ · <span data-i18n="game.redirect">换行</span></small></button>
+          <button class="seed-card" data-plant="squash"><b>🎃</b><span data-i18n="game.squash">窝瓜</span><small>50 ☀ · <span data-i18n="game.smash">重击</span></small></button>
+          <button class="seed-card" data-plant="gatlingpea"><b>🔫</b><span data-i18n="game.gatlingpea">机枪射手</span><small>350 ☀ · <span data-i18n="game.rapid">连射</span></small></button>
         </div>
         <div class="game-tools">
           <button class="game-tool" id="gameShovel" type="button" aria-pressed="false"><span aria-hidden="true">🪏</span><strong data-i18n="game.shovel">铲子</strong><small data-i18n="game.shovelHint">点击植物移除</small></button>
@@ -241,9 +259,17 @@
           <button class="game-tool" id="gamePause" type="button" aria-pressed="false"><span aria-hidden="true">Ⅱ</span><strong data-i18n="game.pause">暂停</strong><small data-i18n="game.pauseHint">冻结战局</small></button>
           <button class="game-sound" id="gameSoundToggle" type="button">♫ 音效开</button>
           <label class="game-volume"><span data-i18n="game.volume">音量</span><input id="gameVolume" type="range" min="0" max="100" step="5" value="70" aria-label="游戏音量" data-i18n-aria="game.volume" /></label>
-        </div>
+        </div></aside><section class="game-board">
         <canvas id="gameCanvas" width="720" height="420" aria-label="植物大战僵尸迷你游戏画布" data-i18n-aria="game.canvas"></canvas>
         <div class="game-controls"><span data-i18n="game.instructions">点卡片种植 · 铲子移除 · 阳光可自动拾取</span><button class="send-button" id="gameStart" data-i18n="game.start">开始游戏</button></div>
+        </section></div>
+        <div class="game-codex" id="gameCodexPanel" aria-hidden="true">
+          <section class="game-codex-card" role="dialog" aria-modal="true" aria-labelledby="gameCodexTitle">
+            <header class="game-codex-header"><div><span class="game-kicker">MINICC ARCADE · FIELD GUIDE</span><h3 id="gameCodexTitle">植物与僵尸图鉴</h3><p>当前小游戏实际使用的数值、技能与战斗行为。</p></div><button class="icon-button" id="gameCodexClose" type="button" aria-label="关闭图鉴"><i data-lucide="x"></i></button></header>
+            <div class="game-codex-tabs" role="tablist" aria-label="图鉴分类"><button class="codex-tab active" type="button" role="tab" aria-selected="true" data-codex-tab="plants">植物图鉴 <span id="codexPlantCount"></span></button><button class="codex-tab" type="button" role="tab" aria-selected="false" data-codex-tab="zombies">僵尸图鉴 <span id="codexZombieCount"></span></button></div>
+            <div class="game-codex-content"><nav class="codex-entry-list" id="codexEntryList" aria-label="图鉴条目"></nav><article class="codex-detail" id="codexDetail" aria-live="polite"></article></div>
+          </section>
+        </div>
       </div>
     </div>
     <div class="mobile-scrim" id="mobileScrim"></div>

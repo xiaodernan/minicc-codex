@@ -13,6 +13,11 @@ from dataclasses import dataclass, field
 from typing import Any
 
 
+MAX_TRACE_EVENTS = 1024
+MAX_EVIDENCE_ITEMS = 256
+MAX_ERROR_ITEMS = 128
+
+
 class BudgetExceeded(RuntimeError):
     """A bounded runtime budget no longer permits another operation."""
 
@@ -34,6 +39,12 @@ class Budget:
 
     def elapsed_seconds(self) -> float:
         return max(0.0, time.monotonic() - self.started_monotonic)
+
+    def remaining_seconds(self) -> float | None:
+        """Return the wall-clock budget left for an in-flight model request."""
+        if self.max_duration_seconds is None:
+            return None
+        return max(0.0, float(self.max_duration_seconds) - self.elapsed_seconds())
 
     def check(self) -> None:
         limits = (
@@ -140,6 +151,7 @@ class AgentState:
     evidence: list[dict[str, Any]] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
     trace_events: list[dict[str, Any]] = field(default_factory=list)
+    context_checkpoint: dict[str, Any] = field(default_factory=dict)
     created_at: float = field(default_factory=time.time)
     started_at: float = field(default_factory=time.time)
     finished_at: float | None = None
@@ -147,6 +159,8 @@ class AgentState:
     def add_trace(self, event: dict[str, Any] | TraceEvent) -> dict[str, Any]:
         payload = event.to_dict() if isinstance(event, TraceEvent) else dict(event)
         self.trace_events.append(payload)
+        if len(self.trace_events) > MAX_TRACE_EVENTS:
+            del self.trace_events[: len(self.trace_events) - MAX_TRACE_EVENTS]
         if payload.get("phase"):
             self.phase = str(payload["phase"])
         if payload.get("node"):
@@ -155,6 +169,8 @@ class AgentState:
             summary = str(payload.get("summary") or "")
             if summary and summary not in self.errors:
                 self.errors.append(summary)
+                if len(self.errors) > MAX_ERROR_ITEMS:
+                    del self.errors[: len(self.errors) - MAX_ERROR_ITEMS]
         return payload
 
     def transition(self, node: str, *, phase: str | None = None, status: str = "ok") -> dict[str, Any]:
@@ -173,6 +189,13 @@ class AgentState:
 
     def add_evidence(self, evidence: dict[str, Any]) -> None:
         self.evidence.append(dict(evidence))
+        if len(self.evidence) > MAX_EVIDENCE_ITEMS:
+            del self.evidence[: len(self.evidence) - MAX_EVIDENCE_ITEMS]
+
+    def set_context_checkpoint(self, checkpoint: dict[str, Any] | None) -> None:
+        """Persist bounded continuation facts without storing the full prompt."""
+        if checkpoint:
+            self.context_checkpoint = dict(checkpoint)
 
     def finish(self, status: str = "completed", error: str | None = None) -> None:
         self.status = status
@@ -208,6 +231,7 @@ class AgentState:
             "evidence": list(self.evidence),
             "errors": list(self.errors),
             "trace_events": list(self.trace_events),
+            "context_checkpoint": dict(self.context_checkpoint),
             "created_at_epoch": self.created_at,
             "started_at_epoch": self.started_at,
             "finished_at_epoch": self.finished_at,

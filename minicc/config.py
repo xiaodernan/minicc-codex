@@ -9,6 +9,7 @@ the user explicitly set something invalid: a malformed .env line is reported.
 from __future__ import annotations
 
 import json
+import math
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -17,13 +18,15 @@ from pathlib import Path
 # override it through environment variables or explicit CLI arguments.
 DEFAULT_MODEL = "gpt-5.6-terra"
 DEFAULT_BASE_URL = "https://api.247kan.com/v1"
-# An explicit cap remains available, but normal runs are allowed to continue
-# until the model returns an answer or another runtime guard stops the task.
+# Task execution has no wall-clock, turn, token, or tool-count budget. Keep
+# these fields as ``None`` for backwards-compatible snapshots/config objects.
 DEFAULT_MAX_TURNS: int | None = None
 DEFAULT_TIMEOUT = 180.0
 DEFAULT_LLM_PROTOCOL = "auto"
 DEFAULT_PROVIDER_RETRIES = 4
 DEFAULT_TASK_RECOVERY_RETRIES = 2
+DEFAULT_MAX_DURATION_SECONDS: float | None = None
+DEFAULT_MAX_TOOL_CALLS: int | None = None
 DEFAULT_SANDBOX_MODE = "host"
 DEFAULT_SANDBOX_IMAGE = "python:3.11-slim"
 DEFAULT_CONTEXT_WINDOW_TOKENS = 300_000
@@ -31,6 +34,13 @@ DEFAULT_MAX_CONCURRENT_TASKS = 8
 DEFAULT_REASONING_EFFORT = "high"
 REASONING_EFFORTS = frozenset({"low", "mid", "high", "xhigh", "max"})
 DEFAULT_MAX_REPAIR_ATTEMPTS = 2
+DEFAULT_TASK_HISTORY_LIMIT = 24
+DEFAULT_TASK_HISTORY_MAX_AGE_DAYS = 30
+DEFAULT_TASK_EVENT_LIMIT = 768
+DEFAULT_TASK_STREAM_LIMIT = 16_000
+DEFAULT_TASK_USAGE_LIMIT = 64
+DEFAULT_TASK_COMPACTION_LIMIT = 64
+DEFAULT_TASK_QUEUE_LIMIT = 32
 # Context compaction trigger, in characters (~chars/4 ≈ tokens).
 DEFAULT_COMPACT_THRESHOLD = 300_000
 
@@ -97,11 +107,20 @@ class Config:
     llm_protocol: str = DEFAULT_LLM_PROTOCOL  # auto | responses | chat_completions
     provider_retries: int = DEFAULT_PROVIDER_RETRIES
     task_recovery_retries: int = DEFAULT_TASK_RECOVERY_RETRIES
+    max_duration_seconds: float | None = DEFAULT_MAX_DURATION_SECONDS
+    max_tool_calls: int | None = DEFAULT_MAX_TOOL_CALLS
     yolo: bool = False
     compact_threshold: int = DEFAULT_COMPACT_THRESHOLD
     context_window_tokens: int = DEFAULT_CONTEXT_WINDOW_TOKENS
     max_concurrent_tasks: int = DEFAULT_MAX_CONCURRENT_TASKS
     max_repair_attempts: int = DEFAULT_MAX_REPAIR_ATTEMPTS
+    task_history_limit: int = DEFAULT_TASK_HISTORY_LIMIT
+    task_history_max_age_days: int = DEFAULT_TASK_HISTORY_MAX_AGE_DAYS
+    task_event_limit: int = DEFAULT_TASK_EVENT_LIMIT
+    task_stream_limit: int = DEFAULT_TASK_STREAM_LIMIT
+    task_usage_limit: int = DEFAULT_TASK_USAGE_LIMIT
+    task_compaction_limit: int = DEFAULT_TASK_COMPACTION_LIMIT
+    task_queue_limit: int = DEFAULT_TASK_QUEUE_LIMIT
     sandbox_mode: str = DEFAULT_SANDBOX_MODE
     sandbox_image: str = DEFAULT_SANDBOX_IMAGE
 
@@ -160,15 +179,12 @@ def load_config(
     if resolved_mode not in ("auto", "native", "envelope"):
         raise ConfigError(f"MINICC_TOOL_MODE 非法: {resolved_mode!r} (auto|native|envelope)")
 
-    raw_turns = pick(None, "MINICC_MAX_TURNS", "max_turns", str(DEFAULT_MAX_TURNS or "")).strip().lower()
-    if raw_turns in {"", "0", "none", "null", "unlimited", "off", "false"}:
-        max_turns = None
-    else:
-        try:
-            max_turns = max(1, int(raw_turns))
-        except ValueError:
-            raise ConfigError(f"MINICC_MAX_TURNS 不是整数，或使用 0 表示不限轮次: {raw_turns!r}") from None
-
+    # Task-level execution budgets remain unlimited.  Keep these legacy
+    # fields for snapshot and API compatibility, but ignore old environment
+    # variables so stale configuration cannot truncate a task.
+    max_turns = None
+    max_duration_seconds = None
+    max_tool_calls = None
     resolved_protocol = pick(None, "MINICC_LLM_PROTOCOL", "llm_protocol", DEFAULT_LLM_PROTOCOL).strip().lower()
     aliases = {"chat": "chat_completions", "completions": "chat_completions", "response": "responses"}
     resolved_protocol = aliases.get(resolved_protocol, resolved_protocol)
@@ -217,6 +233,42 @@ def load_config(
     except ValueError:
         raise ConfigError(f"MINICC_MAX_REPAIR_ATTEMPTS 不是整数: {raw_max_repairs!r}") from None
 
+    raw_history_limit = pick(None, "MINICC_TASK_HISTORY_LIMIT", "task_history_limit", str(DEFAULT_TASK_HISTORY_LIMIT))
+    try:
+        task_history_limit = max(1, min(200, int(raw_history_limit)))
+    except ValueError:
+        raise ConfigError(f"MINICC_TASK_HISTORY_LIMIT 不是 1-200 的整数: {raw_history_limit!r}") from None
+    raw_history_age = pick(None, "MINICC_TASK_HISTORY_MAX_AGE_DAYS", "task_history_max_age_days", str(DEFAULT_TASK_HISTORY_MAX_AGE_DAYS))
+    try:
+        task_history_max_age_days = max(1, min(3650, int(raw_history_age)))
+    except ValueError:
+        raise ConfigError(f"MINICC_TASK_HISTORY_MAX_AGE_DAYS 不是 1-3650 的整数: {raw_history_age!r}") from None
+    raw_event_limit = pick(None, "MINICC_TASK_EVENT_LIMIT", "task_event_limit", str(DEFAULT_TASK_EVENT_LIMIT))
+    try:
+        task_event_limit = max(32, min(10_000, int(raw_event_limit)))
+    except ValueError:
+        raise ConfigError(f"MINICC_TASK_EVENT_LIMIT 不是 32-10000 的整数: {raw_event_limit!r}") from None
+    raw_stream_limit = pick(None, "MINICC_TASK_STREAM_LIMIT", "task_stream_limit", str(DEFAULT_TASK_STREAM_LIMIT))
+    try:
+        task_stream_limit = max(512, min(100_000, int(raw_stream_limit)))
+    except ValueError:
+        raise ConfigError(f"MINICC_TASK_STREAM_LIMIT 不是 512-100000 的整数: {raw_stream_limit!r}") from None
+    raw_usage_limit = pick(None, "MINICC_TASK_USAGE_LIMIT", "task_usage_limit", str(DEFAULT_TASK_USAGE_LIMIT))
+    try:
+        task_usage_limit = max(8, min(512, int(raw_usage_limit)))
+    except ValueError:
+        raise ConfigError(f"MINICC_TASK_USAGE_LIMIT 不是 8-512 的整数: {raw_usage_limit!r}") from None
+    raw_compaction_limit = pick(None, "MINICC_TASK_COMPACTION_LIMIT", "task_compaction_limit", str(DEFAULT_TASK_COMPACTION_LIMIT))
+    try:
+        task_compaction_limit = max(8, min(512, int(raw_compaction_limit)))
+    except ValueError:
+        raise ConfigError(f"MINICC_TASK_COMPACTION_LIMIT 不是 8-512 的整数: {raw_compaction_limit!r}") from None
+    raw_queue_limit = pick(None, "MINICC_TASK_QUEUE_LIMIT", "task_queue_limit", str(DEFAULT_TASK_QUEUE_LIMIT))
+    try:
+        task_queue_limit = max(1, min(256, int(raw_queue_limit)))
+    except ValueError:
+        raise ConfigError(f"MINICC_TASK_QUEUE_LIMIT 不是 1-256 的整数: {raw_queue_limit!r}") from None
+
     if not resolved_key or resolved_key == "sk-replace_me":
         raise ConfigError(
             "MINICC_API_KEY 未设置。复制 minicc.config.example 为 .env 并填入 key，"
@@ -238,6 +290,13 @@ def load_config(
         context_window_tokens=context_window_tokens,
         max_concurrent_tasks=max_concurrent_tasks,
         max_repair_attempts=max_repair_attempts,
+        task_history_limit=task_history_limit,
+        task_history_max_age_days=task_history_max_age_days,
+        task_event_limit=task_event_limit,
+        task_stream_limit=task_stream_limit,
+        task_usage_limit=task_usage_limit,
+        task_compaction_limit=task_compaction_limit,
+        task_queue_limit=task_queue_limit,
         sandbox_mode=sandbox_mode,
         sandbox_image=sandbox_image,
     )

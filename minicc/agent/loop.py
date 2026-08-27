@@ -12,8 +12,11 @@ This is the heart of minicc — the part that does NOT exist in specproof
 5. On each iteration the caller-supplied *on_stream* callback receives
    text deltas for live terminal rendering.
 6. After every tool-execution round the context is compacted if needed.
-7. An optional *max_turns* cap can bound a run; by default the loop continues
-   until the model returns an answer or another runtime guard stops it.
+7. The normal Web/CLI runtime has no task-level duration, turn, token, or
+   tool-count budget; it continues until the model returns an answer or an
+   explicit cancellation/protection condition is reached. The optional
+   *max_turns* argument remains only as a programmatic compatibility hook for
+   focused tests and embedding callers.
 
 Permission: the *should_allow* callback is consulted before every
 write/exec tool call. It receives the tool name and parsed ToolCall;
@@ -25,28 +28,114 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import threading
 import time
+from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
 from ..llm.base import LLMResponse, assistant_msg, tool_result_msg
+from ..llm.envelope import EnvelopeParseError
 from ..llm.openai_provider import OpenAICompatibleProvider
+from ..llm.usage import add_usage_totals, cache_summary
 from ..tools.schemas import ToolCall, ToolResult
 from ..tools.registry import ToolRegistry, redact_text
-from .context import compact, estimate_tokens, message_chars
+from .context import compact_with_checkpoint, estimate_tokens, message_chars
 from .state import AgentState, Budget, BudgetExceeded
 
 
-STAGNATION_REPLAN_LIMIT = 1
+# A repeated path is a recovery signal, not an immediate task failure.  The
+# limit remains finite so a broken provider cannot consume an unbounded run.
+STAGNATION_REPLAN_LIMIT = 3
 STAGNATION_REPEAT_LIMIT = 2
 STAGNATION_CYCLE_LENGTH = 4
 VERIFICATION_RETRY_LIMIT = 1
 SEARCH_FAILURE_LIMIT = 2
+PROTOCOL_REPAIR_LIMIT = 2
+RECOVERY_PROBE_TOOLS = ("git_status", "git_diff", "tree")
+MAX_RESULT_TRACE_EVENTS = 1024
+MAX_RESULT_USAGE_ENTRIES = 64
+MAX_RESULT_COMPACTION_ENTRIES = 64
+MAX_TOOL_CACHE_ENTRIES = 128
 MAX_VISIBLE_MODEL_UPDATE_CHARS = 1200
 MAX_PUBLIC_TOOL_OBSERVATION_CHARS = 900
 MAX_PUBLIC_TOOL_DATA_CHARS = 2400
 WRITE_TOOL_NAMES = frozenset({"write_file", "edit_file", "worktree_create", "worktree_remove"})
 VERIFY_TOOL_NAMES = frozenset({"bash", "git_diff", "git_status", "read_file", "grep"})
+
+
+class AgentCancelled(Exception):
+    """Internal control flow for cancelling an in-flight provider request."""
+
+
+async def _wait_for_cancel(cancel_event: threading.Event) -> None:
+    while not cancel_event.is_set():
+        await asyncio.sleep(0.1)
+
+
+async def chat_with_cancellation(
+    provider: OpenAICompatibleProvider,
+    *,
+    messages: list[dict[str, Any]],
+    tools: list[dict[str, Any]] | None,
+    on_delta: Callable[[str], None] | None,
+    cancel_event: threading.Event | None,
+    timeout_seconds: float | None = None,
+) -> LLMResponse:
+    """Race a model request against cancellation and an optional request deadline."""
+    if cancel_event is None:
+        if timeout_seconds is None:
+            return await provider.chat(messages=messages, tools=tools, on_delta=on_delta)
+        if timeout_seconds <= 0:
+            raise BudgetExceeded("最大执行时间已用尽")
+        try:
+            return await asyncio.wait_for(
+                provider.chat(messages=messages, tools=tools, on_delta=on_delta),
+                timeout=timeout_seconds,
+            )
+        except asyncio.TimeoutError as exc:
+            raise BudgetExceeded("最大执行时间已用尽，已取消当前模型请求") from exc
+    if cancel_event.is_set():
+        raise AgentCancelled
+    request = asyncio.create_task(
+        provider.chat(messages=messages, tools=tools, on_delta=on_delta)
+    )
+    watcher = asyncio.create_task(_wait_for_cancel(cancel_event))
+    deadline = (
+        asyncio.create_task(asyncio.sleep(timeout_seconds))
+        if timeout_seconds is not None
+        else None
+    )
+    try:
+        waiters: set[asyncio.Task[Any]] = {request, watcher}
+        if deadline is not None:
+            waiters.add(deadline)
+        done, _pending = await asyncio.wait(
+            waiters,
+            return_when=asyncio.FIRST_COMPLETED,
+        )
+        if request in done:
+            return request.result()
+        if watcher in done:
+            request.cancel()
+            await asyncio.gather(request, return_exceptions=True)
+            raise AgentCancelled
+        if deadline is not None and deadline in done:
+            request.cancel()
+            await asyncio.gather(request, return_exceptions=True)
+            raise BudgetExceeded("最大执行时间已用尽，已取消当前模型请求")
+        return request.result()
+    finally:
+        if not watcher.done():
+            watcher.cancel()
+        if deadline is not None and not deadline.done():
+            deadline.cancel()
+        if not request.done():
+            request.cancel()
+        pending_tasks: list[asyncio.Task[Any]] = [watcher, request]
+        if deadline is not None:
+            pending_tasks.append(deadline)
+        await asyncio.gather(*pending_tasks, return_exceptions=True)
 
 
 @dataclass
@@ -75,6 +164,39 @@ def _visible_model_update(content: str | None) -> str:
     if len(safe) > MAX_VISIBLE_MODEL_UPDATE_CHARS:
         safe = safe[:MAX_VISIBLE_MODEL_UPDATE_CHARS].rstrip() + "\n[行动说明已截断]"
     return safe
+
+
+def _visible_model_delta(previous: str, content: str | None) -> tuple[str, str]:
+    """Return only the newly appended part of a cumulative public update."""
+    current = _visible_model_update(content)
+    if not current:
+        return previous, ""
+    if not previous:
+        return current, current
+    if current.startswith(previous):
+        return current, current[len(previous):]
+    if previous.startswith(current):
+        return previous, ""
+    # A new turn normally starts a new action explanation.  Do not join it to
+    # the old sentence, otherwise a later cumulative update can grow forever.
+    return current, current
+
+
+def _merge_incremental_text(previous: str, current: str) -> tuple[str, str]:
+    """Accept either delta chunks or cumulative chunks from a gateway."""
+    if not previous:
+        return current, current
+    if not current:
+        return previous, ""
+    if current.startswith(previous):
+        return current, current[len(previous):]
+    if previous.startswith(current):
+        return previous, ""
+    max_overlap = min(len(previous), len(current))
+    for size in range(max_overlap, 0, -1):
+        if previous[-size:] == current[:size]:
+            return previous + current[size:], current[size:]
+    return previous + current, current
 
 
 def _public_data(value: Any, *, depth: int = 0) -> Any:
@@ -183,15 +305,18 @@ async def run_agent(
     on_trace: Callable[[dict[str, Any]], None] | None = None,
     should_allow: Callable[[str, ToolCall], bool] | None = None,
     should_cancel: Callable[[], bool] | None = None,
+    cancel_event: threading.Event | None = None,
     context_limit_tokens: int = 300_000,
     budget: Budget | None = None,
     runtime_state: AgentState | None = None,
+    require_recovery_inspection: bool = False,
 ) -> TurnResult:
-    """Run the agent loop until a final text answer or an explicit max_turns cap.
+    """Run the agent loop until a final text answer or explicit cancellation.
 
     *messages* is mutated in place (tool calls/results are appended).
     The caller is responsible for injecting the initial system prompt
-    and the first user message before calling this function.
+    and the first user message before calling this function. ``max_turns``
+    is retained for embedding/test compatibility; Web tasks pass ``None``.
     """
     if max_turns is not None and max_turns <= 0:
         max_turns = None
@@ -202,18 +327,35 @@ async def run_agent(
         runtime_budget.max_turns = max_turns
     tools_schemas = registry.openai_schemas()
     streamed_text: list[str] = []
+    streamed_output = ""
     last_round_signature = ""
-    last_round_result_signature = ""
     repeated_rounds = 0
     unproductive_rounds = 0
     stagnation_replans = 0
     recent_observations: list[str] = []
+    tool_result_cache: dict[str, ToolResult] = {}
     search_failures = 0
     last_reasoning_status: tuple[str, str] | None = None
     verification_required = False
+    recovery_inspection_required = bool(require_recovery_inspection)
     verification_retries = 0
     last_round_feedback: list[dict[str, Any]] = []
     last_replan_trigger = "初始任务上下文"
+    protocol_repairs = 0
+    last_public_model_update = ""
+
+    def cache_tool_result(key: str, value: ToolResult) -> None:
+        """Keep read-result reuse bounded during an unlimited run."""
+        tool_result_cache.pop(key, None)
+        tool_result_cache[key] = deepcopy(value)
+        while len(tool_result_cache) > MAX_TOOL_CACHE_ENTRIES:
+            tool_result_cache.pop(next(iter(tool_result_cache)))
+
+    def cancellation_requested() -> bool:
+        return bool(
+            (cancel_event is not None and cancel_event.is_set())
+            or (should_cancel is not None and should_cancel())
+        )
 
     def emit_trace(
         summary: str,
@@ -234,16 +376,85 @@ async def run_agent(
         if detail is not None:
             event["detail"] = detail
         result.trace_events.append(event)
+        if len(result.trace_events) > MAX_RESULT_TRACE_EVENTS:
+            del result.trace_events[: len(result.trace_events) - MAX_RESULT_TRACE_EVENTS]
         if runtime_state is not None:
             runtime_state.add_trace(event)
         if on_trace is not None:
             on_trace(event)
 
     def emit_stream(delta: str) -> None:
+        nonlocal streamed_output
         if delta:
-            streamed_text.append(str(delta))
+            streamed_output, suffix = _merge_incremental_text(streamed_output, str(delta))
+            if not suffix:
+                return
+            streamed_text.append(suffix)
             if on_stream is not None:
-                on_stream(str(delta))
+                on_stream(suffix)
+
+    async def run_recovery_probe(attempt: int) -> list[dict[str, Any]]:
+        """Collect fresh, read-only workspace evidence after stagnation.
+
+        The probe is part of the conversation, so the next model turn sees
+        the actual state that caused recovery instead of receiving another
+        abstract request to "try harder".  It never writes files.
+        """
+
+        names = [name for name in RECOVERY_PROBE_TOOLS if registry.spec(name) is not None]
+        if not names:
+            return []
+        if cancellation_requested():
+            result.cancelled = True
+            result.error = "任务已取消"
+            result.answer = "任务已取消。"
+            return []
+        raw_calls = [
+            {
+                "id": f"recovery-{attempt}-{index}",
+                "type": "function",
+                "function": {"name": name, "arguments": "{}"},
+            }
+            for index, name in enumerate(names, start=1)
+        ]
+        try:
+            runtime_budget.record_tool_call(len(raw_calls))
+        except BudgetExceeded as exc:
+            result.error = f"Agent 预算超限: {exc}"
+            result.answer = f"任务未完成：{result.error}"
+            emit_trace(result.error, phase="failed", status="error", code="budget_exceeded")
+            return []
+
+        messages.append(assistant_msg(
+            content="执行器触发恢复诊断，先读取当前工作区状态。",
+            tool_calls=raw_calls,
+        ))
+        probe_results = await asyncio.gather(
+            *(
+                asyncio.to_thread(
+                    registry.execute,
+                    ToolCall.from_openai(raw_call),
+                    cancel_event=cancel_event,
+                )
+                for raw_call in raw_calls
+            )
+        )
+        feedback: list[dict[str, Any]] = []
+        for raw_call, tool_result in zip(raw_calls, probe_results):
+            call = ToolCall.from_openai(raw_call)
+            result.tool_calls_total += 1
+            cache_tool_result(_signature({"tool": call.tool, "arguments": call.arguments}), tool_result)
+            if on_tool is not None:
+                on_tool(call, tool_result)
+            messages.append(tool_result_msg(raw_call["id"], tool_result.render()))
+            feedback.append(build_tool_feedback(call, tool_result, risk=registry.risk_of(call.tool)))
+        emit_trace(
+            "已完成恢复诊断，下一轮将基于当前工作区证据重新选择路径",
+            phase="planning",
+            code="recovery_probe_finished",
+            detail={"attempt": attempt, "results": feedback},
+        )
+        return feedback
 
     emit_trace(
         "正在界定任务范围，准备检查工作区",
@@ -251,7 +462,12 @@ async def run_agent(
         code="run_started",
         detail={
             "max_turns": max_turns,
-            "turn_policy": "默认不限模型轮次；仅由取消、停滞、验证和资源保护结束",
+            "recovery_inspection_required": bool(require_recovery_inspection),
+            # Keep the established prefix for clients that classify this
+            # trace, while retaining the fuller list of termination guards.
+            "turn_policy": (
+                "默认不限模型轮次；任务无总轮次上限" if max_turns is None else f"兼容调用轮次上限 {max_turns}"
+            ) + "；由交付、取消、协议/停滞纠偏、验证和服务生命周期结束",
             "tool_count": len(tools_schemas),
         },
     )
@@ -272,7 +488,7 @@ async def run_agent(
         if requested:
             effort_label = {"low": "低", "mid": "中", "high": "高", "xhigh": "极高", "max": "最高"}.get(requested, requested)
             emit_trace(
-                f"已启用{effort_label}推理预算；界面展示阶段摘要，不展示模型私有思维链",
+                f"已启用{effort_label}推理强度；界面展示阶段摘要，不展示模型私有思维链",
                 phase="planning",
                 code="reasoning_configured",
                 detail={
@@ -294,7 +510,7 @@ async def run_agent(
             result.answer = f"任务未完成：{result.error}"
             emit_trace(result.error, phase="failed", status="error", code="budget_exceeded")
             break
-        if should_cancel is not None and should_cancel():
+        if cancellation_requested():
             result.cancelled = True
             result.error = "任务已取消"
             result.answer = "任务已取消。"
@@ -302,7 +518,7 @@ async def run_agent(
 
         # Possibly compact before the (expensive) API call.
         before_chars = message_chars(messages)
-        compacted = compact(messages, threshold=compact_threshold)
+        compacted, checkpoint = compact_with_checkpoint(messages, threshold=compact_threshold)
         if compacted is not messages:
             # Keep the caller's list object usable for the next interactive
             # turn while replacing its contents with the compacted history.
@@ -313,8 +529,11 @@ async def run_agent(
                 "estimated_before_tokens": max(0, before_chars // 4),
                 "estimated_after_tokens": estimate_tokens(messages),
                 "turn": turn,
+                "checkpoint": checkpoint,
             }
-            result.compaction_events.append(compaction)
+            result.compaction_events = [*result.compaction_events, compaction][-MAX_RESULT_COMPACTION_ENTRIES:]
+            if runtime_state is not None:
+                runtime_state.set_context_checkpoint(checkpoint)
             if on_compaction is not None:
                 on_compaction(compaction)
             emit_trace(
@@ -359,11 +578,62 @@ async def run_agent(
                         "next_action": "由模型基于上述公开证据重新选择读取、修改、验证或交付动作",
                     },
                 )
-            response = await provider.chat(
+            response = await chat_with_cancellation(
+                provider,
                 messages=messages,
                 tools=tools_schemas,
                 on_delta=emit_stream if on_stream is not None else None,
+                cancel_event=cancel_event,
+                timeout_seconds=runtime_budget.remaining_seconds(),
             )
+            protocol_repairs = 0
+        except AgentCancelled:
+            result.cancelled = True
+            result.error = "任务已取消"
+            result.answer = "任务已取消。"
+            emit_trace("任务已取消，已中止模型请求", phase="cancelled", code="cancelled")
+            break
+        except EnvelopeParseError as exc:
+            if protocol_repairs < PROTOCOL_REPAIR_LIMIT:
+                protocol_repairs += 1
+                messages.append(assistant_msg(content=exc.content or None))
+                messages.append({
+                    "role": "user",
+                    "content": (
+                        "[执行器协议纠错] 上一条输出没有形成可执行的工具调用。"
+                        "请立即修正并重新选择动作：工具调用必须是单个合法 JSON 对象，"
+                        '格式为 {"action":"工具名","params":{...}}；也可以直接使用原生工具调用。'
+                        "不要重复输出损坏的 JSON，不要夹带 markdown 或说明文字。"
+                    ),
+                })
+                emit_trace(
+                    "模型工具协议无效，已请求模型修正并重试",
+                    phase="planning",
+                    status="error",
+                    code="protocol_repair",
+                    detail={
+                        "attempt": protocol_repairs,
+                        "limit": PROTOCOL_REPAIR_LIMIT,
+                        "error_type": type(exc).__name__,
+                    },
+                )
+                last_replan_trigger = "上一轮模型工具协议无效，需要先修正输出格式"
+                continue
+            result.error = f"LLM 工具协议连续无效: {exc}"
+            result.answer = f"任务未完成：{result.error}"
+            emit_trace(
+                result.error,
+                phase="failed",
+                status="error",
+                code="protocol_guard",
+                detail={"retry_limit": PROTOCOL_REPAIR_LIMIT, "error_type": type(exc).__name__},
+            )
+            break
+        except BudgetExceeded as exc:
+            result.error = f"Agent 预算超限: {exc}"
+            result.answer = f"任务未完成：{result.error}"
+            emit_trace(result.error, phase="failed", status="error", code="budget_exceeded")
+            break
         except Exception as exc:
             emit_trace(
                 "模型流中断，已保留当前输出并记录可恢复错误",
@@ -393,7 +663,7 @@ async def run_agent(
                 )
             last_reasoning_status = current_reasoning_status
 
-        if should_cancel is not None and should_cancel():
+        if cancellation_requested():
             result.cancelled = True
             result.error = "任务已取消"
             result.answer = "任务已取消。"
@@ -411,11 +681,8 @@ async def run_agent(
                 "total_tokens": prompt_tokens + completion_tokens,
                 "estimated": True,
             })
-        result.usage_by_turn.append(dict(usage))
-        for key in ("prompt_tokens", "completion_tokens", "total_tokens", "reasoning_tokens"):
-            value = usage.get(key, 0)
-            if isinstance(value, (int, float)):
-                result.tokens_used[key] = result.tokens_used.get(key, 0) + int(value)
+        result.usage_by_turn = [*result.usage_by_turn, dict(usage)][-MAX_RESULT_USAGE_ENTRIES:]
+        add_usage_totals(result.tokens_used, usage)
         if on_usage is not None:
             on_usage(dict(usage))
         try:
@@ -436,7 +703,10 @@ async def run_agent(
                 emit_trace(result.error, phase="failed", status="error", code="budget_exceeded")
                 break
             tool_names = [str((call.get("function") or {}).get("name") or call.get("name") or "tool") for call in response.tool_calls]
-            visible_update = _visible_model_update(response.content)
+            last_public_model_update, visible_update = _visible_model_delta(
+                last_public_model_update,
+                response.content,
+            )
             if visible_update:
                 emit_trace(
                     "模型给出了本轮可公开的行动说明，随后执行工具调用",
@@ -468,17 +738,54 @@ async def run_agent(
             ))
             pending_readonly: list[tuple[int, dict[str, Any], ToolCall]] = []
             immediate_results: dict[int, tuple[ToolCall, ToolResult]] = {}
+            batch_signatures: dict[str, int] = {}
             for index, raw_tc in enumerate(response.tool_calls):
-                if should_cancel is not None and should_cancel():
+                if cancellation_requested():
                     result.cancelled = True
                     result.error = "任务已取消"
                     result.answer = "任务已取消。"
                     break
                 tc = ToolCall.from_openai(raw_tc)
                 result.tool_calls_total += 1
+                call_signature = _signature({"tool": tc.tool, "arguments": tc.arguments})
 
                 # Permission gate.
                 risk = registry.risk_of(tc.tool)
+                if call_signature in batch_signatures:
+                    immediate_results[index] = (
+                        tc,
+                        ToolResult(
+                            status="error",
+                            summary="[DUPLICATE_TOOL_CALL] 本轮重复调用已跳过",
+                            output=(
+                                f"工具 {tc.tool} 与本轮第 {batch_signatures[call_signature] + 1} 个调用完全相同。"
+                                "请合并重复调用，或改用能够产生新证据的工具和参数。"
+                            ),
+                            data={"duplicate": True, "duplicate_of": batch_signatures[call_signature]},
+                            security_tags=["untrusted", "runtime_guard"],
+                        ),
+                    )
+                    continue
+                batch_signatures[call_signature] = index
+
+                # After a recovery trigger, prevent another speculative write
+                # until the model has seen fresh workspace evidence.
+                if recovery_inspection_required and risk == "write":
+                    immediate_results[index] = (
+                        tc,
+                        ToolResult(
+                            status="error",
+                            summary="[RECOVERY_GUARD] 已暂缓写入，必须先完成只读状态检查",
+                            output=(
+                                "当前执行器正在从重复/无效路径恢复。请先使用 read_file、git_status、"
+                                "git_diff、grep 或 tree 获取新证据；确认目标和当前 diff 后再修改。"
+                            ),
+                            data={"guard": "recovery_inspection_required"},
+                            security_tags=["untrusted", "runtime_guard"],
+                        ),
+                    )
+                    continue
+
                 if (risk in ("write", "exec") or tc.tool == "web_search") and not allow(tc.tool, tc):
                     result.denied_tools.append(tc.tool)
                     denied = ToolResult(
@@ -500,10 +807,25 @@ async def run_agent(
                                 security_tags=["untrusted", "network"],
                             ),
                         )
+                    elif tc.tool != "web_search" and call_signature in tool_result_cache:
+                        cached = deepcopy(tool_result_cache[call_signature])
+                        cached.summary = (
+                            f"[DUPLICATE_TOOL_CALL] 已复用 {tc.tool} 的最近一次成功结果；"
+                            "不要重复调用相同参数，请基于已有证据继续。"
+                        )
+                        cached.data = {
+                            **(cached.data if isinstance(cached.data, dict) else {}),
+                            "cached": True,
+                            "duplicate": True,
+                        }
+                        immediate_results[index] = (tc, cached)
                     else:
                         pending_readonly.append((index, raw_tc, tc))
                 else:
-                    immediate_results[index] = (tc, registry.execute(tc))
+                    immediate_results[index] = (
+                        tc,
+                        registry.execute(tc, cancel_event=cancel_event),
+                    )
             if result.cancelled:
                 break
 
@@ -511,16 +833,36 @@ async def run_agent(
             # the executor part of the runtime and keeps broad repo scans fast.
             if pending_readonly:
                 readonly_results = await asyncio.gather(
-                    *(asyncio.to_thread(registry.execute, tc) for _, _, tc in pending_readonly)
+                    *(
+                        asyncio.to_thread(
+                            registry.execute,
+                            tc,
+                            cancel_event=cancel_event,
+                        )
+                        for _, _, tc in pending_readonly
+                    )
                 )
                 for (index, _raw_tc, tc), tool_result in zip(pending_readonly, readonly_results):
                     immediate_results[index] = (tc, tool_result)
+
+            if cancellation_requested():
+                result.cancelled = True
+                result.error = "任务已取消"
+                result.answer = "任务已取消。"
+                break
 
             for index, raw_tc in enumerate(response.tool_calls):
                 item = immediate_results.get(index)
                 if item is None:
                     continue
                 tc, tool_result = item
+                if (
+                    registry.risk_of(tc.tool) == "readonly"
+                    and tc.tool != "web_search"
+                    and tool_result.status == "ok"
+                    and not (tool_result.data or {}).get("duplicate")
+                ):
+                    cache_tool_result(_signature({"tool": tc.tool, "arguments": tc.arguments}), tool_result)
                 if on_tool is not None:
                     on_tool(tc, tool_result)
                 messages.append(tool_result_msg(
@@ -564,7 +906,34 @@ async def run_agent(
                 call.tool in VERIFY_TOOL_NAMES and tool_result.status == "ok"
                 for call, tool_result in immediate_results.values()
             )
+            recovery_inspection_observed = any(
+                registry.risk_of(call.tool) == "readonly"
+                and tool_result.status == "ok"
+                and not (tool_result.data or {}).get("duplicate")
+                for call, tool_result in immediate_results.values()
+            )
+            if recovery_inspection_required and recovery_inspection_observed:
+                recovery_inspection_required = False
+                emit_trace(
+                    "恢复阶段已取得新的只读证据，解除临时写入保护",
+                    phase="planning",
+                    code="recovery_inspection_passed",
+                    detail={
+                        "turn": turn,
+                        "tools": [
+                            call.tool
+                            for call, tool_result in immediate_results.values()
+                            if registry.risk_of(call.tool) == "readonly"
+                            and tool_result.status == "ok"
+                            and not (tool_result.data or {}).get("duplicate")
+                        ],
+                    },
+                )
             if successful_writes:
+                # Any cached read may now be stale, including a path the
+                # model did not explicitly mention in the same response.
+                # A write therefore starts the next evidence phase clean.
+                tool_result_cache.clear()
                 verification_required = True
                 verification_retries = 0
                 emit_trace(
@@ -611,21 +980,14 @@ async def run_agent(
                 }
                 for item in (immediate_results[index] for index in sorted(immediate_results))
             ])
-            round_result_signature = _signature([
-                {
-                    "tool": immediate_results[index][0].tool,
-                    "status": immediate_results[index][1].status,
-                    "summary": immediate_results[index][1].summary,
-                    "data": immediate_results[index][1].data,
-                }
-                for index in sorted(immediate_results)
-            ])
-            if round_signature == last_round_signature and round_result_signature == last_round_result_signature:
+            # The call plan itself is the strongest stagnation signal.  A
+            # changing timestamp or nondeterministic output must not disguise
+            # an unchanged tool path as progress.
+            if round_signature == last_round_signature:
                 repeated_rounds += 1
             else:
                 repeated_rounds = 0
             last_round_signature = round_signature
-            last_round_result_signature = round_result_signature
 
             round_unproductive = bool(immediate_results) and all(
                 _is_unproductive_result(tool_result)
@@ -721,24 +1083,40 @@ async def run_agent(
                     repeated_rounds = 0
                     unproductive_rounds = 0
                     recent_observations.clear()
+                    recovery_inspection_required = True
+                    probe_feedback = await run_recovery_probe(stagnation_replans)
+                    if result.error:
+                        break
                     messages.append({
                         "role": "user",
                         "content": (
-                            "[执行器提示] 最近几轮工具调用没有产生新信息，可能陷入重复。"
-                            "请重新检查任务目标，改用不同的路径、参数或实现方案；"
-                            "不要重复刚才已经得到的结果。"
+                            f"[执行器恢复第 {stagnation_replans} 次] 最近几轮工具调用没有产生新信息，"
+                            "当前路径可能判断错误。请回到最近一次有证据的状态，先核对恢复诊断和当前 diff，"
+                            "再重新选择不同的工具、路径或参数；不要重复刚才的调用。"
+                            "如果之前的修改造成偏差，只修复本任务产生的改动，不要覆盖用户已有改动。"
+                            + (
+                                "恢复诊断已经提供了新证据，可以基于它继续。"
+                                if probe_feedback
+                                else "恢复诊断工具不可用，下一轮必须先用现有只读工具取得证据。"
+                            )
                         ),
                     })
                     emit_trace(
-                        "检测到重复或无效工具结果，已触发一次重新规划",
+                        "检测到重复或无效工具结果，已触发恢复诊断和重新规划",
                         phase="planning",
                         code="stagnation_replan",
+                        detail={
+                            "attempt": stagnation_replans,
+                            "limit": STAGNATION_REPLAN_LIMIT,
+                            "recovery_guard": recovery_inspection_required,
+                            "probe_tools": [item.get("tool") for item in probe_feedback],
+                        },
                     )
                     continue
-                result.error = "Agent 停滞保护触发：连续工具调用没有产生新信息"
+                result.error = "Agent 停滞保护触发：恢复诊断后仍连续重复工具调用"
                 result.answer = (
-                    "任务已暂停：连续几轮工具调用返回相同或无效结果，"
-                    "为避免无限循环已停止。请缩小目标、提供明确文件路径，或重新运行任务。"
+                    "任务未完成：连续工具调用没有产生新信息。执行器已经完成多次状态诊断和重新规划，"
+                    "为避免无限循环暂时停止，且没有自动覆盖或回滚用户已有改动。"
                 )
                 emit_trace(
                     result.error,
@@ -753,6 +1131,35 @@ async def run_agent(
         text = response.text.strip()
         if not text and response.reasoning_content:
             text = response.reasoning_content.strip()
+
+        if recovery_inspection_required:
+            if stagnation_replans < STAGNATION_REPLAN_LIMIT:
+                messages.append(assistant_msg(content=text or None))
+                messages.append({
+                    "role": "user",
+                    "content": (
+                        "[执行器恢复保护] 当前仍在错误路径恢复阶段，不能先结束或继续写入。"
+                        "请先使用只读工具核对当前工作区、相关文件和 diff，取得新的事实后再决定下一步。"
+                    ),
+                })
+                emit_trace(
+                    "模型尝试在恢复诊断完成前结束，已要求先取得只读证据",
+                    phase="planning",
+                    status="error",
+                    code="recovery_required_before_finish",
+                    detail={"turn": turn, "attempt": stagnation_replans},
+                )
+                continue
+            result.error = "Agent 在错误路径恢复阶段没有取得新的工作区证据"
+            result.answer = f"任务未完成：{result.error}"
+            emit_trace(
+                result.error,
+                phase="failed",
+                status="error",
+                code="recovery_guard",
+                detail={"turn": turn, "retry_limit": STAGNATION_REPLAN_LIMIT},
+            )
+            break
 
         if verification_required:
             if verification_retries < VERIFICATION_RETRY_LIMIT:
@@ -814,6 +1221,7 @@ async def run_agent(
         "tokens": dict(result.tokens_used),
         "budget": runtime_budget.snapshot(),
     }
+    result.metrics.update(cache_summary(result.tokens_used))
     if runtime_state is not None:
         runtime_state.outputs["answer"] = result.answer
         runtime_state.outputs["error"] = result.error
@@ -836,4 +1244,13 @@ def _is_unproductive_result(result: ToolResult) -> bool:
     if result.status in {"error", "denied", "cancelled", "timed_out"}:
         return True
     text = f"{result.summary}\n{result.head}\n{result.tail}".lower()
-    return any(marker in text for marker in ("无匹配", "命中 0", "扫描 0 文件", "窗口为空", "窗口越界"))
+    return any(marker in text for marker in (
+        "无匹配",
+        "命中 0",
+        "扫描 0 文件",
+        "窗口为空",
+        "窗口越界",
+        "duplicate_tool_call",
+        "重复调用",
+        "recovery_guard",
+    ))

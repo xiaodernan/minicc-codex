@@ -76,12 +76,12 @@ def build_registry(
     reg.register(ToolSpec("edit_file", "精确文本替换: old 必须在文件中唯一匹配。支持空白归一化容错。expected_digest 过期保护。", "write", (path_r, old_p, new_p, digest_p), fs.edit_file))
 
     # -- exec --
-    def _bash_handler(args: dict) -> ToolResult:
+    def _bash_handler(args: dict, *, cancel_event=None) -> ToolResult:
         cmd = str(args["command"])
         timeout = int(args.get("timeout", 120))
-        return sandbox.run(cmd, workspace, timeout=timeout)
+        return sandbox.run(cmd, workspace, timeout=timeout, cancel_event=cancel_event)
 
-    reg.register(ToolSpec("bash", "在项目根目录执行 shell 命令。所有命令都会运行，请确保命令安全。输出自动截断。", "exec", (command_p, timeout_p), _bash_handler))
+    reg.register(ToolSpec("bash", "在项目根目录执行 shell 命令。所有命令都会运行，请确保命令安全。输出自动截断。", "exec", (command_p, timeout_p), _bash_handler, cancellable=True))
 
     def _worktree_list(_args: dict) -> ToolResult:
         return ToolResult(status="ok", summary="Git worktree 列表", output=json.dumps(worktree_manager.list(), ensure_ascii=False, indent=2))

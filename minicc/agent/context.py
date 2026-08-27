@@ -1,33 +1,39 @@
-"""Context window management — deterministic compaction when the conversation grows.
+"""Deterministic, structured context compaction for long agent runs.
 
-Adapted from specproof craft/context.py. When total message characters exceed
-the threshold, older messages are summarised into a single system note so the
-tool-result detail that the model has already acted on does not waste tokens.
-
-The compaction is transparent to the agent loop: compact() returns the new
-message list and the caller just replaces it.
+A coding agent needs more than the last assistant sentence after compaction:
+objectives, file paths, digests, verification commands, and failures are
+continuation-critical facts.  This module keeps those facts in a bounded JSON
+checkpoint while leaving the recent conversation untouched.
 """
 
 from __future__ import annotations
 
 import hashlib
+import json
 import math
+import re
+from collections import Counter
 from typing import Any
 
-# The compaction message itself has a known prefix so it can be detected
-# and excluded from future compaction passes.
+from ..tools.registry import redact_text
+
 COMPACTION_MARKER = "[CONTEXT COMPACTED]"
+CHECKPOINT_VERSION = 1
+_MAX_ITEMS = 24
+_MAX_TEXT = 900
+_MAX_OBJECTIVE = 1800
+_DIGEST_RE = re.compile(r"(?i)(?:digest|sha256|hash)[^a-f0-9]{0,20}([a-f0-9]{12,64})")
 
 
 def _msg_chars(messages: list[dict[str, Any]]) -> int:
     total = 0
-    for m in messages:
+    for message in messages:
         for key in ("content", "tool_calls", "name", "tool_call_id"):
-            val = m.get(key)
-            if isinstance(val, str):
-                total += len(val)
-            elif isinstance(val, list):
-                total += len(str(val))
+            value = message.get(key)
+            if isinstance(value, str):
+                total += len(value)
+            elif isinstance(value, list):
+                total += len(str(value))
     return total
 
 
@@ -47,80 +53,192 @@ def _hash_messages(messages: list[dict[str, Any]]) -> str:
     return hashlib.sha256(raw.encode()).hexdigest()[:16]
 
 
-def compact(
+def _text(value: Any) -> str:
+    if isinstance(value, str):
+        return value
+    if isinstance(value, list):
+        return " ".join(
+            str(item.get("text") or item.get("content") or "")
+            for item in value
+            if isinstance(item, dict) and item.get("type") in {"text", "input_text"}
+        )
+    return ""
+
+
+def _safe(value: Any, limit: int = _MAX_TEXT) -> str:
+    text, _ = redact_text(str(value or "").strip())
+    if len(text) > limit:
+        return text[: limit - 1].rstrip() + "…"
+    return text
+
+
+def _add_unique(items: list[Any], value: Any, *, limit: int = _MAX_ITEMS, text_limit: int = _MAX_TEXT) -> None:
+    item = _safe(value, text_limit) if not isinstance(value, dict) else value
+    if item and item not in items and len(items) < limit:
+        items.append(item)
+
+
+def _walk_values(value: Any, key: str = "") -> list[tuple[str, str]]:
+    found: list[tuple[str, str]] = []
+    if isinstance(value, dict):
+        for child_key, child in value.items():
+            found.extend(_walk_values(child, str(child_key).lower()))
+    elif isinstance(value, list):
+        for child in value:
+            found.extend(_walk_values(child, key))
+    elif isinstance(value, str):
+        found.append((key, value))
+    return found
+
+
+def _message_facts(messages: list[dict[str, Any]]) -> dict[str, Any]:
+    """Extract bounded facts without retaining raw tool output."""
+    objectives: list[str] = []
+    requirements: list[str] = []
+    files: list[str] = []
+    digests: list[str] = []
+    verification: list[str] = []
+    failures: list[str] = []
+    progress: list[str] = []
+    tools: Counter[str] = Counter()
+
+    for message in messages:
+        role = str(message.get("role") or "")
+        content = _text(message.get("content"))
+        if COMPACTION_MARKER in content:
+            continue
+        if role == "user" and content:
+            _add_unique(objectives, content, limit=3, text_limit=_MAX_OBJECTIVE)
+            for line in content.splitlines():
+                if re.search(r"验收|要求|必须|完成|accept|must|should|test", line, re.I):
+                    _add_unique(requirements, line, limit=12, text_limit=400)
+        if role == "assistant" and content:
+            _add_unique(progress, content, limit=8, text_limit=400)
+
+        values: list[tuple[str, str]] = [("message", content)]
+        for tool_call in message.get("tool_calls") or []:
+            function = tool_call.get("function") or {}
+            name = str(function.get("name") or "?")
+            tools[name] += 1
+            raw_arguments = function.get("arguments") or ""
+            parsed: Any = raw_arguments
+            if isinstance(raw_arguments, str):
+                try:
+                    parsed = json.loads(raw_arguments)
+                except json.JSONDecodeError:
+                    pass
+            values.extend(_walk_values(parsed))
+        if role == "tool":
+            tools[str(message.get("name") or "tool")] += 1
+        values.extend(_walk_values(message.get("data")))
+        for key, value in values:
+            key = key.lower()
+            if key in {"path", "file", "file_path", "filename", "workspace_path"}:
+                _add_unique(files, value)
+            for digest in _DIGEST_RE.findall(value):
+                _add_unique(digests, digest, text_limit=64)
+            if re.search(r"pytest(?:\s+[^\s]+)*|(?:python\s+)?-m\s+pytest|ruff|mypy|pyright|compile|lint|typecheck", value, re.I):
+                _add_unique(verification, value, text_limit=500)
+            if re.search(
+                r"失败|错误|error|failed|failure|exception|traceback|timed.?out|denied", value, re.I
+            ):
+                _add_unique(failures, value, limit=10, text_limit=500)
+
+    return {
+        "objectives": objectives,
+        "requirements": requirements,
+        "files": files,
+        "digests": digests,
+        "verification": verification,
+        "failures": failures,
+        "progress": progress[-6:],
+        "tools": [{"name": name, "count": count} for name, count in tools.most_common(12)],
+    }
+
+
+def _parse_checkpoint(message: dict[str, Any]) -> dict[str, Any] | None:
+    content = _text(message.get("content"))
+    if COMPACTION_MARKER not in content:
+        return None
+    try:
+        value = json.loads(content.split(COMPACTION_MARKER, 1)[1].strip())
+    except json.JSONDecodeError:
+        return {"legacy_summary": _safe(content, 500)}
+    return value if isinstance(value, dict) else {"legacy_summary": _safe(content, 500)}
+
+
+def _merge_checkpoint(previous: list[dict[str, Any]], facts: dict[str, Any], middle: list[dict[str, Any]]) -> dict[str, Any]:
+    old = [parsed for message in previous if (parsed := _parse_checkpoint(message))]
+
+    def values(key: str, limit: int = _MAX_ITEMS) -> list[Any]:
+        output: list[Any] = []
+        sources = [item.get(key, []) for item in old] + [facts.get(key, [])]
+        for source in sources:
+            if not isinstance(source, list):
+                continue
+            for value in source:
+                if value not in output and len(output) < limit:
+                    output.append(value)
+        return output
+
+    checkpoint: dict[str, Any] = {"version": CHECKPOINT_VERSION}
+    for key in ("objectives", "requirements", "files", "digests", "verification", "failures", "progress", "tools"):
+        checkpoint[key] = values(key)
+    legacy = values("legacy_summary", limit=3)
+    if legacy:
+        checkpoint["legacy_summary"] = legacy
+    checkpoint["archive"] = {
+        "messages": sum(int(item.get("archive", {}).get("messages", 0) or 0) for item in old) + len(middle),
+        "characters": sum(int(item.get("archive", {}).get("characters", 0) or 0) for item in old) + _msg_chars(middle),
+        "hash": _hash_messages(middle),
+    }
+    checkpoint["loss_risk"] = [
+        "完整工具输出和模型原文已归档，不再默认放入 prompt",
+        "未被提取为路径、digest、验证或失败记录的细节可能丢失",
+        "需要精确原文时应重新读取工作区或查看任务 trace",
+    ]
+    return checkpoint
+
+
+def _checkpoint_message(checkpoint: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "role": "user",
+        "content": COMPACTION_MARKER + "\n" + json.dumps(checkpoint, ensure_ascii=False, separators=(",", ":")),
+    }
+
+
+def compact_with_checkpoint(
     messages: list[dict[str, Any]],
     *,
     threshold: int = 300_000,
     keep_recent: int = 6,
-) -> list[dict[str, Any]]:
-    """If *messages* exceeds *threshold* characters, summarise older turns.
-
-    Strategy:
-    1. Keep all system messages (they are typically short and essential).
-    2. Keep the most recent *keep_recent* messages untouched.
-    3. Replace everything in between with a single user message summarising
-       the turn count, tool calls made, and final assistant answer.
-    4. The summary is never re-compacted (COMPACTION_MARKER guard).
-
-    Returns a (possibly shorter) new list; never mutates the input.
-    """
+) -> tuple[list[dict[str, Any]], dict[str, Any] | None]:
+    """Return compacted messages and a structured checkpoint, if triggered."""
     if _msg_chars(messages) <= threshold:
-        return messages
+        return messages, None
 
-    # Separate system prefix, compactable middle, and recent tail.
     system_msgs: list[dict[str, Any]] = []
     non_system: list[dict[str, Any]] = []
-    for m in messages:
-        if m.get("role") == "system":
-            system_msgs.append(m)
+    prior_checkpoints: list[dict[str, Any]] = []
+    for message in messages:
+        if message.get("role") == "system":
+            system_msgs.append(message)
+        elif _parse_checkpoint(message) is not None:
+            prior_checkpoints.append(message)
         else:
-            non_system.append(m)
+            non_system.append(message)
 
     if len(non_system) <= keep_recent:
-        return messages
-
-    middle = non_system[: -keep_recent]
+        return messages, None
+    middle = non_system[:-keep_recent]
     tail = non_system[-keep_recent:]
+    checkpoint = _merge_checkpoint(prior_checkpoints, _message_facts(middle), middle)
+    return [*system_msgs, _checkpoint_message(checkpoint), *tail], checkpoint
 
-    # Scan the middle for tool calls and assistant answers to build a summary.
-    tool_names: list[str] = []
-    turns = 0
-    last_answer = ""
-    for m in middle:
-        role = m.get("role", "")
-        if role == "assistant":
-            turns += 1
-            content = m.get("content") or ""
-            if isinstance(content, str) and content and not content.startswith("{"):
-                last_answer = content[:200]
-            elif isinstance(content, list):
-                text_parts = [
-                    str(part.get("text") or "")
-                    for part in content
-                    if isinstance(part, dict) and part.get("type") == "text"
-                ]
-                if text_parts:
-                    last_answer = " ".join(text_parts)[:200]
-            for tc in m.get("tool_calls") or []:
-                fn = tc.get("function") or {}
-                tool_names.append(fn.get("name", "?"))
 
-    # Deduplicate and count tool names.
-    from collections import Counter
-    tool_summary = ", ".join(
-        f"{name}({count}x)"
-        for name, count in Counter(tool_names).most_common(10)
-    )
+def compact(messages: list[dict[str, Any]], *, threshold: int = 300_000, keep_recent: int = 6) -> list[dict[str, Any]]:
+    """Backward-compatible wrapper returning only the compacted messages."""
+    return compact_with_checkpoint(messages, threshold=threshold, keep_recent=keep_recent)[0]
 
-    tool_label = tool_summary or "无"
-    summary_text = (
-        f"{COMPACTION_MARKER} 之前的 {len(middle)} 条消息已压缩 (约 {_msg_chars(middle)} 字符)。"
-        f"包含 {turns} 轮对话, 工具调用: {tool_label}。"
-        f"最后回复摘要: {last_answer!r}"
-    )
 
-    return [
-        *system_msgs,
-        {"role": "user", "content": summary_text},
-        *tail,
-    ]
+__all__ = ["CHECKPOINT_VERSION", "COMPACTION_MARKER", "compact", "compact_with_checkpoint", "estimate_tokens", "message_chars"]

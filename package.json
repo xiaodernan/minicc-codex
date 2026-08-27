@@ -1,7 +1,9 @@
 {
   "private": true,
   "scripts": {
-    "test:web": "node tests/web_smoke.mjs"
+    "test:web": "node tests/web_smoke.mjs",
+    "test:game": "node tests/game_upgrade_smoke.mjs",
+    "test:all": "npm run test:web && npm run test:game"
   },
   "devDependencies": {
     "playwright": "1.62.1"

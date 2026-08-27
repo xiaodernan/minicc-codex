@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Callable, NoReturn
 
 from .agent.loop import TurnResult, run_agent
+from .agent.state import Budget
 from .config import Config, ConfigError, load_config
 from .llm.base import system_msg, user_msg
 from .llm.openai_provider import OpenAICompatibleProvider
@@ -42,9 +43,8 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--base-url", help="OpenAI 兼容接口地址")
     parser.add_argument("--api-key", help="接口密钥；也可通过 MINICC_API_KEY 设置")
     parser.add_argument("--model", help="模型名")
-    parser.add_argument("--reasoning-effort", choices=("low", "mid", "high", "xhigh", "max"), help="推理预算")
+    parser.add_argument("--reasoning-effort", choices=("low", "mid", "high", "xhigh", "max"), help="推理强度")
     parser.add_argument("--tool-mode", choices=("auto", "native", "envelope"), help="工具调用模式")
-    parser.add_argument("--max-turns", type=int, help="可选的单次任务模型轮次上限；默认不限，传 0 也表示不限")
     parser.add_argument("--compact-threshold", type=int, help="上下文压缩字符阈值")
     parser.add_argument("--yolo", action="store_true", help="自动允许写文件和执行命令")
     parser.add_argument("--no-stream", action="store_true", help="关闭流式输出")
@@ -113,6 +113,11 @@ async def _turn(
         registry,
         messages,
         max_turns=config.max_turns,
+        budget=Budget(
+            max_turns=config.max_turns,
+            max_tool_calls=config.max_tool_calls,
+            max_duration_seconds=config.max_duration_seconds,
+        ),
         compact_threshold=config.compact_threshold,
         on_stream=writer,
         on_tool=_print_tool,
@@ -187,8 +192,6 @@ def main(argv: list[str] | None = None) -> int:
         _fatal(f"工作区不是目录: {workspace}")
     if args.compact_threshold is not None:
         config.compact_threshold = max(10_000, args.compact_threshold)
-    if args.max_turns is not None:
-        config.max_turns = args.max_turns if args.max_turns > 0 else None
     if args.print_config:
         print(config.describe())
         print(f"workspace={workspace}")
