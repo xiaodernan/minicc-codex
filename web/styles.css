@@ -1749,3 +1749,47 @@ body { display: flex; flex-direction: column; font-family: "Segoe UI", "PingFang
   :root[data-theme="light"] .composer-shell textarea { min-height: 72px; }
   :root[data-theme="light"] .composer-footnote { display: none; }
 }
+
+/* Keep the dark reference surface on the same measured desktop grid as light mode. */
+@media (min-width: 1181px) {
+  :root[data-theme="dark"] .app-shell {
+    grid-template-columns: 286px minmax(0, 1fr) minmax(292px, 330px);
+    gap: 18px;
+    padding: 18px;
+    background: var(--ink);
+  }
+  :root[data-theme="dark"] .sidebar {
+    border: 0;
+    padding: 10px 4px 4px;
+    background: transparent;
+    box-shadow: none;
+  }
+  :root[data-theme="dark"] .main-column {
+    border: 1px solid var(--line);
+    border-radius: 21px;
+    background: var(--surface);
+    box-shadow: 0 10px 34px rgba(0, 0, 0, .16);
+  }
+  :root[data-theme="dark"] .topbar,
+  :root[data-theme="dark"] .chat-area,
+  :root[data-theme="dark"] .composer-wrap { background: var(--surface); }
+  :root[data-theme="dark"] .chat-inner { max-width: 900px; padding: 48px 48px 28px; }
+  :root[data-theme="dark"] .composer-wrap { padding: 12px 30px 20px; }
+  :root[data-theme="dark"] .composer-shell { max-width: 900px; border-radius: 18px; }
+  :root[data-theme="dark"] .inspector {
+    align-self: stretch;
+    height: auto;
+    max-height: none;
+    padding: 0;
+    border: 1px solid var(--line);
+    border-radius: 21px;
+    background: var(--surface);
+    box-shadow: 0 10px 34px rgba(0, 0, 0, .16);
+  }
+}
+
+@media (max-width: 780px) {
+  .app-shell, .main-column, .chat-area, .composer-wrap { max-width: 100%; min-width: 0; }
+  .chat-inner { max-width: 100%; }
+  .inspector { box-sizing: border-box; max-width: calc(100vw - 16px); }
+}

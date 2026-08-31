@@ -14,8 +14,8 @@ const state = {
   submitting: false,
   focusMode: localStorage.getItem("minicc-focus-mode") === "true",
   sidebarCollapsed: localStorage.getItem("minicc-sidebar-collapsed") === "true",
-  // Keep the main work surface open by default; the inspector remains a reversible side panel.
-  inspectorCollapsed: localStorage.getItem("minicc-inspector-collapsed") !== "false",
+  // Keep the reference three-pane surface visible by default; the inspector remains reversible.
+  inspectorCollapsed: localStorage.getItem("minicc-inspector-collapsed") === "true",
   chatRestoreVersion: 0,
   chatUserScrolledAt: 0,
   activeTaskId: null,
@@ -190,6 +190,25 @@ function setInspectorCollapsed(collapsed) {
   state.inspectorCollapsed = Boolean(collapsed);
   localStorage.setItem("minicc-inspector-collapsed", String(state.inspectorCollapsed));
   applyPaneLayout();
+}
+
+function prepareStartupSplash() {
+  const splash = $("#startupSplash");
+  if (!splash) return;
+  splash.dataset.state = "loading";
+  splash.setAttribute("aria-busy", "true");
+  splash.setAttribute("aria-hidden", "false");
+  const status = $("#startupStatus");
+  if (status) status.textContent = state.locale === "zh" ? "正在启动本地工作台" : "Starting local workbench";
+}
+
+function setStartupSplashError() {
+  const splash = $("#startupSplash");
+  if (!splash) return;
+  splash.dataset.state = "error";
+  splash.setAttribute("aria-busy", "false");
+  const status = $("#startupStatus");
+  if (status) status.textContent = state.locale === "zh" ? "离线模式，正在进入工作台" : "Offline mode · entering workbench";
 }
 
 function finishStartupSplash() {
@@ -1524,7 +1543,12 @@ function eventTimelineMarkup(events, options = {}) {
         ...events.slice(-(MAX_RENDERED_TIMELINE_EVENTS - 1)),
       ]
     : events;
-  const items = compactModelUpdateEvents(sourceEvents).map((event, index) => ({ event, index }));
+  // Keep routine lifecycle traces in the task data for audit/replay, but keep
+  // the human-facing transcript focused on the latest public action update.
+  const hiddenRoutineTraceCodes = new Set(["model_decision", "tool_round_finished", "feedback_observed", "replan"]);
+  const items = compactModelUpdateEvents(sourceEvents)
+    .filter((event) => !hiddenRoutineTraceCodes.has(String(event?.code || "")))
+    .map((event, index) => ({ event, index }));
   const groups = [];
   let currentRound = null;
   let fallbackRound = 0;
@@ -2237,8 +2261,10 @@ async function loadWorkspace() {
     } catch {
       // The workspace remains usable when the durable task index is unavailable.
     }
+    return true;
   } catch {
     setConnection(false, "Offline");
+    return false;
   }
 }
 
@@ -4411,8 +4437,20 @@ document.addEventListener("DOMContentLoaded", () => {
   setSession(state.sessionId);
   applyLocale();
   refreshIcons();
-  finishStartupSplash();
-  loadWorkspace();
+  prepareStartupSplash();
+  loadWorkspace()
+    .then((online) => {
+      if (online) {
+        finishStartupSplash();
+        return;
+      }
+      setStartupSplashError();
+      window.setTimeout(finishStartupSplash, 420);
+    })
+    .catch(() => {
+      setStartupSplashError();
+      window.setTimeout(finishStartupSplash, 420);
+    });
   if (new URLSearchParams(location.search).get("arcade") === "1") openGame();
   // Keep tasks created in another session or browser tab visible in the sidebar.
   window.setInterval(() => { if (!document.hidden) loadTaskHistory(); }, 5000);
