@@ -38,6 +38,8 @@ async function runAgentTimelineSmoke(browser) {
   page.on("console", (message) => { if (message.type() === "error") consoleErrors.push(message.text()); });
   page.on("pageerror", (error) => consoleErrors.push(error.message));
   await page.goto(baseUrl, { waitUntil: "networkidle" });
+  await page.evaluate(() => localStorage.clear());
+  await page.reload({ waitUntil: "networkidle" });
   const result = await page.evaluate(async () => {
     const events = [
       { kind: "trace", code: "model_update", phase: "planning", status: "ok", summary: "模型给出了行动说明", detail: { turn: 1, text: "先读取入口文件，再根据证据决定检查路径。" } },
@@ -63,18 +65,23 @@ async function runAgentTimelineSmoke(browser) {
     const rounds = [...host.querySelectorAll("details.agent-round")];
     const summaryText = [...host.querySelectorAll('[data-stage-code="model_update"]')].map((node) => node.textContent);
     const modelHistory = host.querySelector('[data-stage-code="model_update_history"]');
+    const hiddenRoutineTraceCodes = ["tool_round_finished", "feedback_observed", "replan", "model_decision"];
+    const hiddenTraceCards = hiddenRoutineTraceCodes.every((code) => !host.querySelector(`[data-stage-code="${code}"]`));
     const firstTool = host.querySelector("details.tool-event");
+    const failedTool = [...host.querySelectorAll("details.tool-event.failed")].find((node) => node.textContent.includes("移动端检查失败"));
     const toolInitiallyClosed = firstTool?.open === false;
     const toolDetailsInitiallyClosed = [...(firstTool?.querySelectorAll("details.tool-result-fold") || [])].every((detail) => !detail.open);
     firstTool.open = true;
     const toolResultVisible = firstTool?.textContent.includes("入口初始化") && firstTool?.textContent.includes("abc123");
-    const resultSummary = host.querySelector('[data-stage-code="tool_round_finished"]')?.textContent || "";
-    const replanSummary = host.querySelector('[data-stage-code="replan"]')?.textContent || "";
-    const feedbackSummary = host.querySelector('[data-stage-code="feedback_observed"]')?.textContent || "";
-    const resultDetailsInitiallyClosed = host.querySelector('[data-stage-code="tool_round_finished"] details.trace-evidence')?.open === false;
-    const replanDetailsInitiallyClosed = host.querySelector('[data-stage-code="replan"] details.trace-evidence')?.open === false;
-    const feedbackDetailsInitiallyClosed = host.querySelector('[data-stage-code="feedback_observed"] details.trace-evidence')?.open === false;
-    const nonActionTraceInitiallyClosed = host.querySelector('[data-stage-code="model_decision"]')?.matches("details.trace-fold") && host.querySelector('[data-stage-code="model_decision"]')?.open === false;
+    const failedToolVisible = Boolean(failedTool);
+    const hiddenTraceData = hiddenRoutineTraceCodes.every((code) => events.some((event) => event?.code === code));
+    const resultSummary = JSON.stringify(events.find((event) => event?.code === "tool_round_finished")?.detail || "");
+    const replanSummary = JSON.stringify(events.find((event) => event?.code === "replan")?.detail || "");
+    const feedbackSummary = JSON.stringify(events.find((event) => event?.code === "feedback_observed")?.detail || "");
+    const resultDetailsInitiallyClosed = !host.querySelector('[data-stage-code="tool_round_finished"]');
+    const replanDetailsInitiallyClosed = !host.querySelector('[data-stage-code="replan"]');
+    const feedbackDetailsInitiallyClosed = !host.querySelector('[data-stage-code="feedback_observed"]');
+    const nonActionTraceInitiallyClosed = !host.querySelector('[data-stage-code="model_decision"]');
     const actionUpdateVisible = [...host.querySelectorAll('[data-stage-code="model_update"]')].every((node) => !node.matches("details"));
     const modelHistoryInitiallyClosed = modelHistory?.matches("details") && modelHistory.open === false;
     const assistantProbe = document.createElement("div");
@@ -154,9 +161,12 @@ async function runAgentTimelineSmoke(browser) {
       roundCount: rounds.length,
       allRoundsClosed: rounds.every((round) => !round.open),
       failedRoundClosed: rounds.every((round) => !round.open),
+      hiddenTraceCards,
+      hiddenTraceData,
       toolInitiallyClosed,
       toolDetailsInitiallyClosed,
       toolResultVisible,
+      failedToolVisible,
       resultDetailsInitiallyClosed,
       replanDetailsInitiallyClosed,
       feedbackDetailsInitiallyClosed,
@@ -187,19 +197,20 @@ async function runAgentTimelineSmoke(browser) {
     };
   });
   assert.deepEqual(result.order, [
-    "stage:model_update_history", "stage:model_decision", "round:1", "stage:tool_round_finished", "stage:feedback_observed",
-    "stage:replan", "stage:model_update", "round:2", "stage:tool_round_finished", "stage:feedback_observed",
-  ], `timeline should preserve stage/tool order: ${JSON.stringify(result)}`);
+    "stage:model_update_history", "round:1", "stage:model_update", "round:2",
+  ], `timeline should preserve useful stage/tool order: ${JSON.stringify(result)}`);
+  assert.equal(result.hiddenTraceCards, true, "routine result/self-feedback/re-plan/decision cards must not render by default");
   assert.equal(result.roundCount, 2, "contiguous tool calls should form two collapsed rounds");
   assert.equal(result.allRoundsClosed, true, "tool rounds must start collapsed");
   assert.equal(result.failedRoundClosed, true, "failed tool rounds must not auto-expand");
   assert.equal(result.toolInitiallyClosed, true, "individual tool calls must start collapsed");
   assert.equal(result.toolDetailsInitiallyClosed, true, "large tool result blocks must start collapsed");
   assert.equal(result.toolResultVisible, true, "expanded tool calls should show output and structured data");
-  assert.equal(result.resultDetailsInitiallyClosed, true, "merged result details must start collapsed");
-  assert.equal(result.replanDetailsInitiallyClosed, true, "re-plan details must start collapsed");
-  assert.equal(result.feedbackDetailsInitiallyClosed, true, "self-feedback details must start collapsed");
-  assert.equal(result.nonActionTraceInitiallyClosed, true, "non-action stages must start collapsed");
+  assert.equal(result.failedToolVisible, true, "failed tool information must remain visible");
+  assert.equal(result.resultDetailsInitiallyClosed, true, "merged result cards must not render by default");
+  assert.equal(result.replanDetailsInitiallyClosed, true, "re-plan cards must not render by default");
+  assert.equal(result.feedbackDetailsInitiallyClosed, true, "self-feedback cards must not render by default");
+  assert.equal(result.nonActionTraceInitiallyClosed, true, "model decision cards must not render by default");
   assert.equal(result.actionUpdateVisible, true, "model action updates should remain visible");
   assert.equal(result.modelHistoryInitiallyClosed, true, "earlier model updates must start collapsed");
   assert.deepEqual(result.itemSemantics, {
@@ -211,9 +222,9 @@ async function runAgentTimelineSmoke(browser) {
   }, "Codex-style thread/turn/item semantics must remain inspectable");
   assert.deepEqual(result.cumulativeUpdates, ["aa", "b", "c"], "cumulative model updates should render only their new suffix");
   assert.deepEqual(result.eventProbe, { timelineCount: 1, streamText: "新增内容", cursor: 2, duplicateIgnored: true }, "incremental task events should merge once and advance the cursor");
-  assert.match(result.resultSummary, /命中 3 处|新信息|入口和路由/);
-  assert.match(result.replanSummary, /上一轮工具结果已合并|检查样式|约束/);
-  assert.match(result.feedbackSummary, /产生了新信息|继续检查路由/);
+  assert.equal(result.resultSummary, "工具结果已合并", "routine trace evidence remains available in the task event data");
+  assert.equal(result.replanSummary, "已收到工具结果，正在判断下一步", "re-plan evidence remains available in the task event data");
+  assert.equal(result.feedbackSummary, "自反馈已记录", "feedback evidence remains available in the task event data");
   assert.equal(result.modelSummaryVisible, true, "public model updates should be visible between tool rounds");
   assert.equal(result.preservedOpen, true, "a manually opened tool round should survive live refresh");
   assert.equal(result.preservedToolOpen, true, "a manually opened tool result should survive live refresh");
