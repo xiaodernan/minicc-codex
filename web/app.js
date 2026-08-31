@@ -5,7 +5,7 @@ const state = {
   locale: localStorage.getItem("minicc-locale") || "zh",
   theme: ["light", "dark"].includes(localStorage.getItem("minicc-theme"))
     ? localStorage.getItem("minicc-theme")
-    : (window.matchMedia?.("(prefers-color-scheme: light)").matches ? "light" : "dark"),
+    : "light",
   workspacePath: "",
   workspaceInfo: null,
   contextWindowTokens: 300000,
@@ -14,7 +14,8 @@ const state = {
   submitting: false,
   focusMode: localStorage.getItem("minicc-focus-mode") === "true",
   sidebarCollapsed: localStorage.getItem("minicc-sidebar-collapsed") === "true",
-  inspectorCollapsed: localStorage.getItem("minicc-inspector-collapsed") === "true",
+  // Keep the main work surface open by default; the inspector remains a reversible side panel.
+  inspectorCollapsed: localStorage.getItem("minicc-inspector-collapsed") !== "false",
   chatRestoreVersion: 0,
   chatUserScrolledAt: 0,
   activeTaskId: null,
@@ -4232,6 +4233,7 @@ function bindUI() {
     if (window.matchMedia?.("(min-width: 1181px)").matches) setSidebarCollapsed(false);
     else { $("#sidebar").classList.add("open"); $("#mobileScrim").classList.add("show"); }
   });
+  $("#codexMenuToggle")?.addEventListener("click", () => $("#sidebarOpen")?.click());
   $("#sidebarClose").addEventListener("click", () => {
     if (window.matchMedia?.("(min-width: 1181px)").matches) setSidebarCollapsed(true);
     else { $("#sidebar").classList.remove("open"); $("#mobileScrim").classList.remove("show"); }

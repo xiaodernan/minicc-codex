@@ -3,21 +3,33 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#111214" />
+    <meta name="theme-color" content="#eef7fb" />
     <title>minicc / Workspace</title>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="/styles.css" />
     <script src="/app.js" defer></script>
   </head>
   <body>
+    <header class="codex-menubar" aria-label="应用菜单">
+      <div class="codex-menubar-left">
+        <button class="codex-menu-icon" id="codexMenuToggle" type="button" aria-label="切换侧栏"><i data-lucide="panel-left"></i></button>
+        <button class="codex-nav-arrow" type="button" aria-label="后退"><i data-lucide="arrow-left"></i></button>
+        <button class="codex-nav-arrow muted" type="button" aria-label="前进"><i data-lucide="arrow-right"></i></button>
+        <nav class="codex-menu-links" aria-label="主菜单"><button type="button">文件</button><button type="button">编辑</button><button type="button">视图</button><button type="button">帮助</button></nav>
+      </div>
+      <div class="codex-window-actions" aria-hidden="true"><span></span><span></span><span></span></div>
+    </header>
     <div class="app-shell">
       <aside class="sidebar" id="sidebar">
         <div class="brand-row">
           <div class="brand-mark">m<span>·</span></div>
-          <div>
-            <div class="brand-name">minicc</div>
+          <div class="codex-brand-copy">
+            <div class="brand-name">Codex</div>
             <div class="brand-caption" data-i18n="brand.caption">本地智能工作台</div>
           </div>
+          <button class="icon-button codex-brand-button" type="button" aria-label="切换工作区"><i data-lucide="chevron-down"></i></button>
+          <button class="icon-button codex-brand-tool" type="button" aria-label="搜索"><i data-lucide="search"></i></button>
+          <button class="icon-button codex-brand-tool" type="button" aria-label="通知"><i data-lucide="bell"></i></button>
           <button class="icon-button sidebar-close" id="sidebarClose" aria-label="关闭侧栏" title="关闭侧栏" data-i18n-aria="sidebar.close" data-i18n-title="sidebar.close">
             <i data-lucide="panel-left-close"></i>
           </button>
