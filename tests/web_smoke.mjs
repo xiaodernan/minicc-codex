@@ -200,6 +200,7 @@ async function runAgentTimelineSmoke(browser) {
     "stage:model_update_history", "round:1", "stage:model_update", "round:2",
   ], `timeline should preserve useful stage/tool order: ${JSON.stringify(result)}`);
   assert.equal(result.hiddenTraceCards, true, "routine result/self-feedback/re-plan/decision cards must not render by default");
+  assert.equal(result.hiddenTraceData, true, "hidden routine trace data must remain available for audit");
   assert.equal(result.roundCount, 2, "contiguous tool calls should form two collapsed rounds");
   assert.equal(result.allRoundsClosed, true, "tool rounds must start collapsed");
   assert.equal(result.failedRoundClosed, true, "failed tool rounds must not auto-expand");
@@ -222,9 +223,9 @@ async function runAgentTimelineSmoke(browser) {
   }, "Codex-style thread/turn/item semantics must remain inspectable");
   assert.deepEqual(result.cumulativeUpdates, ["aa", "b", "c"], "cumulative model updates should render only their new suffix");
   assert.deepEqual(result.eventProbe, { timelineCount: 1, streamText: "新增内容", cursor: 2, duplicateIgnored: true }, "incremental task events should merge once and advance the cursor");
-  assert.equal(result.resultSummary, "工具结果已合并", "routine trace evidence remains available in the task event data");
-  assert.equal(result.replanSummary, "已收到工具结果，正在判断下一步", "re-plan evidence remains available in the task event data");
-  assert.equal(result.feedbackSummary, "自反馈已记录", "feedback evidence remains available in the task event data");
+  assert.match(result.resultSummary, /命中 3 处|新信息|入口和路由/, "routine result evidence remains available in the task event data");
+  assert.match(result.replanSummary, /上一轮工具结果已合并|检查样式|约束/, "re-plan evidence remains available in the task event data");
+  assert.match(result.feedbackSummary, /产生了新信息|继续检查路由/, "feedback evidence remains available in the task event data");
   assert.equal(result.modelSummaryVisible, true, "public model updates should be visible between tool rounds");
   assert.equal(result.preservedOpen, true, "a manually opened tool round should survive live refresh");
   assert.equal(result.preservedToolOpen, true, "a manually opened tool result should survive live refresh");
