@@ -32,8 +32,8 @@
 - 任务可靠性基线：SQLite 历史、只读检查点 digest 校验、任务级联网授权、脱敏审计导出和离线 30 条评测 fixture。
 - Web 体验：亮色/暗色主题持久化、阶段摘要与工具轮次折叠、长输出边界、仅在用户已接近底部时自动跟随，避免阅读历史时跳屏。
 - 支持 `AGENTS.md`、`CLAUDE.md`、`MINICC.md` 或 `.minicc/instructions.md` 项目指导文件；内容只作为工作约定，不能覆盖系统指令和权限边界。
-- 交互命令：`/help`、`/tools`、`/status`、`/clear`、`/exit`。
-- 会话断点：`--session-id interview-1` 保存本地脱敏 checkpoint，`--resume` 继续。
+- 交互命令：`/help`、`/tools`、`/status`、`/view`、`/compact`、`/collapse`、`/expand [n]`、`/clear`、`/exit`。
+- CLI 阅读位置：工具输出默认只显示人类可读摘要；`/expand [n]` 按需查看单条原始结果，`--verbose-tools` 可启动时展开。`--session-id interview-1` 会保存脱敏的阅读锚点和最近工具索引，`--resume` 恢复会话与显示偏好。
 
 运行与数据策略：
 

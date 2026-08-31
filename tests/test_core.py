@@ -37,7 +37,7 @@ from minicc.sandbox import SandboxRunner
 from minicc.mcp import load_mcp_config
 from minicc.tools.bash import decode_process_output, is_readonly_command, run_bash
 from minicc.tools.editor import EditError, Editor, StaleContextError
-from minicc.tools.schemas import ToolCall
+from minicc.tools.schemas import ToolCall, ToolResult
 from minicc.tools.web import parse_search_html
 from minicc.tools import build_registry
 from minicc.changes import ChangeInspector
@@ -45,6 +45,7 @@ from minicc.task_store import TaskStore
 from minicc.web import AgentService, TaskManager, TaskRecord, _completion_guard_message, _multimodal_content
 from minicc.worktree import WorktreeError, WorktreeManager
 from minicc.prompt import build_system_prompt
+from minicc.main import CliView
 
 
 def test_complexity_router_only_fans_out_for_multi_dimension_work() -> None:
@@ -680,6 +681,33 @@ def test_bash_cancellation_terminates_long_running_process(tmp_path: Path) -> No
     finally:
         cancel_event.set()
         worker.join(8)
+
+
+@pytest.mark.parametrize("command", [
+    "start /b python -m http.server 8765",
+    "Start-Process python -ArgumentList '-m http.server 8765'",
+    "nohup python -m http.server 8765",
+])
+def test_bash_blocks_processes_that_escape_tool_lifecycle(tmp_path: Path, command: str) -> None:
+    result = run_bash(command, tmp_path, timeout=1)
+    assert result.status == "error"
+    assert result.data["code"] == "detached_process_blocked"
+    assert result.data["retryable"] is True
+    assert "未启动" in result.summary
+
+
+def test_bash_does_not_wait_for_child_inherited_output_pipe(tmp_path: Path) -> None:
+    command = subprocess.list2cmdline([
+        sys.executable,
+        "-c",
+        'import subprocess,sys,time; subprocess.Popen([sys.executable, "-c", "import time; time.sleep(1)"]); print("parent", flush=True)',
+    ])
+    started = time.monotonic()
+    result = run_bash(command, tmp_path, timeout=1)
+    elapsed = time.monotonic() - started
+    assert result.status == "ok"
+    assert "parent" in result.render()
+    assert elapsed < 2.5
 
 
 def test_change_request_cannot_be_marked_complete_after_text_only_reply() -> None:
@@ -1914,6 +1942,26 @@ def test_session_round_trip_redacts_credentials(tmp_path: Path) -> None:
     assert "sk-secret-value" not in store.path.read_text(encoding="utf-8")
 
 
+def test_cli_view_persists_reading_anchor_and_compact_preference(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    store = SessionStore(tmp_path, "cli-view")
+    view = CliView(store)
+    view.record_tool(
+        ToolCall(tool="bash", arguments={"command": "echo sk-secret-value"}),
+        ToolResult(status="ok", summary="命令完成", head="人类可读结果"),
+    )
+    view.record_answer()
+    view.set_compact(False)
+
+    restored = CliView(SessionStore(tmp_path, "cli-view"), announce_resume=True)
+    assert restored.last_item == 2
+    assert restored.last_tool == 1
+    assert restored.compact_tools is False
+    assert restored.tool_history[-1]["tool"] == "bash"
+    assert "sk-secret-value" not in store.path.read_text(encoding="utf-8")
+    restored.expand()
+    assert "人类可读结果" in capsys.readouterr().out
+
+
 def test_sandbox_docker_mode_fails_closed_when_docker_is_missing(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("minicc.sandbox.shutil.which", lambda _name: None)
     runner = SandboxRunner("docker")
@@ -2033,6 +2081,33 @@ def test_task_manager_auto_orchestrates_complex_task_then_resumes_parent(tmp_pat
         assert any("自动编排证据" in message and allow_changes for message, allow_changes in calls)
         codes = {event.get("code") for event in parent["events"]}
         assert {"auto_orchestration_triggered", "orchestration_parent_resumed"} <= codes
+    finally:
+        manager.shutdown()
+
+
+def test_batch_watcher_marks_missing_child_interrupted_and_finishes_parent(tmp_path: Path) -> None:
+    class FakeService:
+        config = SimpleNamespace(yolo=False, max_concurrent_tasks=1)
+        workspace = tmp_path
+
+    manager = TaskManager(FakeService(), max_workers=1)
+    parent = TaskRecord(
+        task_id="batch-missing-child",
+        session_id="batch-missing",
+        message="批任务",
+        allow_changes=False,
+        workspace_path=str(tmp_path),
+        status="running",
+        phase="planning",
+    )
+    try:
+        with manager.lock:
+            manager.tasks[parent.task_id] = parent
+        manager._watch_batch(parent, ["missing-child"])
+        snapshot = manager.get(parent.task_id)
+        assert snapshot["status"] == "failed"
+        assert "子任务" in snapshot["error"]
+        assert any(event.get("code") == "batch_finished" for event in snapshot["events"])
     finally:
         manager.shutdown()
 
@@ -2517,6 +2592,48 @@ def test_task_manager_queues_same_session_but_runs_other_sessions_in_parallel() 
             time.sleep(0.01)
         assert [manager.get(item["task_id"])["status"] for item in (first, second, other)] == ["completed"] * 3
         assert entered.index("same-1") < entered.index("same-2")
+    finally:
+        release.set()
+        manager.shutdown()
+
+
+def test_task_manager_cancel_queued_same_session_wakes_next_task() -> None:
+    entered = threading.Event()
+    release = threading.Event()
+    executed: list[str] = []
+
+    class FakeService:
+        config = SimpleNamespace(yolo=False, max_concurrent_tasks=1)
+        workspace = Path.cwd()
+
+        @staticmethod
+        def _run_chat(payload, *, on_event=None, on_stream=None, cancel_event=None):
+            message = str(payload["message"])
+            executed.append(message)
+            if message == "first":
+                entered.set()
+                release.wait(2)
+            return {"answer": message, "cancelled": False, "events": []}
+
+    manager = TaskManager(FakeService(), max_workers=1)
+    try:
+        first = manager.submit({"message": "first", "session_id": "cancel-queue"})
+        assert entered.wait(1)
+        cancelled = manager.submit({"message": "cancel-me", "session_id": "cancel-queue"})
+        assert manager.get(cancelled["task_id"])["status"] == "queued"
+        manager.cancel(cancelled["task_id"])
+        assert manager.get(cancelled["task_id"])["status"] == "cancelled"
+        next_task = manager.submit({"message": "next", "session_id": "cancel-queue"})
+        release.set()
+        deadline = time.monotonic() + 2
+        while time.monotonic() < deadline:
+            if manager.get(next_task["task_id"])["status"] == "completed":
+                break
+            time.sleep(0.01)
+        assert manager.get(first["task_id"])["status"] == "completed"
+        assert manager.get(next_task["task_id"])["status"] == "completed"
+        assert "cancel-me" not in executed
+        assert executed[-1] == "next"
     finally:
         release.set()
         manager.shutdown()

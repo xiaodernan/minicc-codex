@@ -11,16 +11,62 @@ from __future__ import annotations
 import subprocess
 import locale
 import os
+import re
 import signal
 import threading
 import time
 from pathlib import Path
+from typing import Any
 
 from .registry import split_output
 from .schemas import ToolResult
 
 DEFAULT_TIMEOUT = 120
 MAX_OUTPUT_CHARS = 32_000
+MAX_CAPTURE_BYTES = 256_000
+
+_DETACHED_COMMAND_RE = re.compile(
+    r"(?ix)"
+    r"(?:\bstart(?:\.exe)?\b|\bstart-process\b|\bstart-job\b|"
+    r"\bnohup\b|\bsetsid\b|\bdisown\b|\bpythonw(?:\.exe)?\b|"
+    r"\bnodew(?:\.exe)?\b)"
+)
+
+
+def _has_unquoted_background_operator(command: str) -> bool:
+    """Reject a standalone shell '&'; '&&' and '2>&1' remain valid."""
+    quote: str | None = None
+    escaped = False
+    for index, char in enumerate(command):
+        if escaped:
+            escaped = False
+            continue
+        if char == "^" and os.name == "nt":
+            escaped = True
+            continue
+        if char in {"'", '"'}:
+            if quote is None:
+                quote = char
+            elif quote == char:
+                quote = None
+            continue
+        if quote is not None or char != "&":
+            continue
+        previous = command[index - 1] if index else ""
+        following = command[index + 1] if index + 1 < len(command) else ""
+        if previous == ">" or following == ">" or previous == "&" or following == "&":
+            continue
+        return True
+    return False
+
+
+def detached_command_reason(command: str) -> str | None:
+    """Return a stable runtime-guard reason for commands that outlive a tool."""
+    if _DETACHED_COMMAND_RE.search(command) is not None:
+        return "检测到 start/nohup/setsid 等脱离工具生命周期的后台启动"
+    if _has_unquoted_background_operator(command):
+        return "检测到单独的 shell 后台/链式 '&'，请改用前台命令或 '&&'"
+    return None
 
 
 def decode_process_output(value: bytes | str | None) -> str:
@@ -180,26 +226,78 @@ def run_process(
         )
 
     outcome: str | None = None
-    stdout = b""
-    stderr = b""
+    stdout_chunks: list[bytes] = []
+    stderr_chunks: list[bytes] = []
+    output_lock = threading.Lock()
+    output_overflow = {"stdout": False, "stderr": False}
+
+    def drain(pipe: Any, chunks: list[bytes], stream_name: str) -> None:
+        """Drain independently so inherited child handles cannot block the worker."""
+        captured = 0
+        try:
+            while True:
+                reader = getattr(pipe, "read1", None)
+                chunk = reader(8192) if callable(reader) else pipe.read(8192)
+                if not chunk:
+                    return
+                with output_lock:
+                    remaining = MAX_CAPTURE_BYTES - captured
+                    if remaining > 0:
+                        chunks.append(bytes(chunk[:remaining]))
+                        captured += min(len(chunk), remaining)
+                    if len(chunk) > remaining:
+                        output_overflow[stream_name] = True
+        except (OSError, ValueError):
+            return
+
+    readers = [
+        threading.Thread(target=drain, args=(proc.stdout, stdout_chunks, "stdout"), daemon=True),
+        threading.Thread(target=drain, args=(proc.stderr, stderr_chunks, "stderr"), daemon=True),
+    ]
+    for reader in readers:
+        reader.start()
+
     deadline = started + max(0.01, float(timeout))
     while True:
         if cancel_event is not None and cancel_event.is_set():
             outcome = "cancelled"
-            stdout, stderr = _collect_after_termination(proc)
+            terminate_process_tree(proc)
             break
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             outcome = "timed_out"
-            stdout, stderr = _collect_after_termination(proc)
+            terminate_process_tree(proc)
             break
+        if proc.poll() is not None:
+            break
+        # Polling is deliberately independent from pipe draining. A child that
+        # inherits stdout/stderr can keep EOF open after the shell exits, but it
+        # must never keep this tool worker blocked on communicate().
+        time.sleep(min(0.1, remaining))
+
+    if outcome is None:
         try:
-            # communicate() drains both pipes, while the short timeout lets
-            # the task cancellation event be observed without a pipe deadlock.
-            stdout, stderr = proc.communicate(timeout=min(0.2, remaining))
-            break
+            proc.wait(timeout=1)
         except subprocess.TimeoutExpired:
-            continue
+            outcome = "timed_out"
+            terminate_process_tree(proc)
+
+    # Close the parent read handles after a bounded drain. Reader threads are
+    # daemonized as a final defense against a detached child retaining a pipe.
+    for reader in readers:
+        reader.join(timeout=0.25)
+    for pipe in (proc.stdout, proc.stderr):
+        if pipe is not None:
+            try:
+                pipe.close()
+            except OSError:
+                pass
+    for reader in readers:
+        reader.join(timeout=0.25)
+
+    with output_lock:
+        stdout = b"".join(stdout_chunks)
+        stderr = b"".join(stderr_chunks)
 
     duration = time.monotonic() - started
     stdout_text = decode_process_output(stdout)
@@ -208,6 +306,7 @@ def run_process(
     if stderr_text and stderr_text.strip():
         output = output + ("\n" if output else "") + f"[stderr]\n{stderr_text}"
     head, tail, truncated = split_output(output)
+    truncated = truncated or any(output_overflow.values())
     tags = list(security_tags or [])
     if not tags:
         tags.append("untrusted")
@@ -248,6 +347,18 @@ def run_bash(
     """Execute a shell command in the workspace directory."""
     if not command or not command.strip():
         return ToolResult(status="error", summary="[INVALID_ARGUMENTS] command 不能为空")
+    detached_reason = detached_command_reason(command)
+    if detached_reason:
+        return ToolResult(
+            status="error",
+            summary=f"[RUNTIME_GUARD] {detached_reason}；命令未启动",
+            security_tags=["untrusted", "runtime_guard"],
+            data={
+                "code": "detached_process_blocked",
+                "retryable": True,
+                "suggestion": "请以前台方式启动，并让工具生命周期管理进程；已有服务则直接复用其地址。",
+            },
+        )
     return run_process(
         command,
         workspace,

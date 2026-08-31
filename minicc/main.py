@@ -33,6 +33,100 @@ class StreamWriter:
         sys.stdout.flush()
 
 
+class CliView:
+    """Keep a compact, expandable CLI transcript anchored to a session."""
+
+    def __init__(self, session: SessionStore, *, verbose_tools: bool = False, announce_resume: bool = False) -> None:
+        self.session = session
+        saved = session.load_view()
+        self.last_item = int(saved.get("last_item") or 0)
+        self.last_tool = int(saved.get("last_tool") or 0)
+        self.compact_tools = False if verbose_tools else bool(saved.get("compact_tools", True))
+        self.tool_history: list[dict[str, Any]] = list(saved.get("tool_history") or [])
+        if announce_resume and self.last_item:
+            mode = "紧凑工具摘要" if self.compact_tools else "展开工具输出"
+            print(f"[view] 已恢复到第 {self.last_item} 个输出项；当前为{mode}。输入 /view 查看阅读位置。")
+
+    @staticmethod
+    def _shorten(value: object, limit: int = 180) -> str:
+        text = str(value or "").replace("\r", " ").replace("\n", " ").strip()
+        return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"
+
+    def _save(self) -> None:
+        try:
+            self.session.save_view({
+                "last_item": self.last_item,
+                "last_tool": self.last_tool,
+                "compact_tools": self.compact_tools,
+                "tool_history": self.tool_history[-24:],
+            })
+        except SessionError as exc:
+            # A view checkpoint is helpful but must never interrupt the agent.
+            print(f"[view] 阅读位置暂时无法保存：{exc}", file=sys.stderr)
+
+    def record_tool(self, call: ToolCall, result: ToolResult) -> None:
+        self.last_item += 1
+        self.last_tool += 1
+        command = call.arguments.get("command") if call.tool == "bash" else ""
+        entry = {
+            "index": self.last_tool,
+            "tool": call.tool,
+            "summary": result.summary,
+            "command": self._shorten(command, 1000) if command else "",
+            "output": result.render()[:6000],
+        }
+        self.tool_history = [*self.tool_history, entry][-24:]
+        preview = self._shorten(command) if command else self._shorten(call.arguments.get("path") or "")
+        suffix = f" · {preview}" if preview else ""
+        print(f"\n[tool {self.last_tool}] {call.tool}{suffix} · {self._shorten(result.summary)}")
+        if not self.compact_tools:
+            print(result.render())
+        self._save()
+
+    def record_answer(self) -> None:
+        self.last_item += 1
+        self._save()
+
+    def show(self) -> None:
+        mode = "compact" if self.compact_tools else "expanded"
+        print(f"[view] item={self.last_item} tool={self.last_tool} mode={mode} saved={self.session.path}")
+        if self.tool_history:
+            print("最近工具：")
+            for item in self.tool_history[-8:]:
+                print(f"  #{item.get('index', '?')} {item.get('tool', 'tool')} · {self._shorten(item.get('summary'))}")
+        else:
+            print("最近没有工具记录。")
+
+    def set_compact(self, value: bool) -> None:
+        self.compact_tools = bool(value)
+        self._save()
+        print("工具输出已折叠。" if self.compact_tools else "工具输出已展开。")
+
+    def expand(self, raw_index: str = "") -> None:
+        if not self.tool_history:
+            print("没有可展开的工具记录。")
+            return
+        try:
+            index = int(raw_index) if raw_index else int(self.tool_history[-1].get("index") or 0)
+        except ValueError:
+            print("用法：/expand [工具编号]")
+            return
+        item = next((entry for entry in self.tool_history if int(entry.get("index") or 0) == index), None)
+        if item is None:
+            print(f"未找到工具 #{index}；输入 /view 查看最近记录。")
+            return
+        print(f"\n[tool {index}] {item.get('tool', 'tool')} · {item.get('summary', '')}")
+        if item.get("command"):
+            print(f"command: {item['command']}")
+        print(item.get("output") or "（该工具没有额外输出）")
+
+    def reset(self) -> None:
+        self.last_item = 0
+        self.last_tool = 0
+        self.tool_history = []
+        self._save()
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="minicc",
@@ -48,6 +142,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--compact-threshold", type=int, help="上下文压缩字符阈值")
     parser.add_argument("--yolo", action="store_true", help="自动允许写文件和执行命令")
     parser.add_argument("--no-stream", action="store_true", help="关闭流式输出")
+    parser.add_argument("--verbose-tools", action="store_true", help="默认展开工具输出；可在交互中用 /compact 切回摘要")
     parser.add_argument("--resume", action="store_true", help="恢复上次保存的会话")
     parser.add_argument("--session-id", default="latest", help="会话名称，默认 latest")
     parser.add_argument("--print-config", action="store_true", help="打印解析后的配置并退出")
@@ -92,7 +187,10 @@ def _permission_gate(config: Config, registry: ToolRegistry) -> Callable[[str, T
     return should_allow
 
 
-def _print_tool(call: ToolCall, result: ToolResult) -> None:
+def _print_tool(call: ToolCall, result: ToolResult, view: CliView | None = None) -> None:
+    if view is not None:
+        view.record_tool(call, result)
+        return
     print(f"\n[tool] {call.tool}: {result.summary}")
 
 
@@ -103,6 +201,7 @@ async def _turn(
     config: Config,
     prompt: str,
     session: SessionStore | None = None,
+    view: CliView | None = None,
     *,
     stream: bool,
 ) -> TurnResult:
@@ -120,7 +219,7 @@ async def _turn(
         ),
         compact_threshold=config.compact_threshold,
         on_stream=writer,
-        on_tool=_print_tool,
+        on_tool=(lambda call, result: _print_tool(call, result, view)),
         should_allow=_permission_gate(config, registry),
     )
     if writer is None or not writer.started:
@@ -129,6 +228,8 @@ async def _turn(
         print()
     if result.tokens_used.get("total_tokens"):
         print(f"[usage] total_tokens={result.tokens_used['total_tokens']}")
+    if view is not None:
+        view.record_answer()
     if session is not None:
         session.save(messages)
     return result
@@ -140,6 +241,7 @@ async def _interactive(
     messages: list[dict[str, Any]],
     config: Config,
     session: SessionStore | None = None,
+    view: CliView | None = None,
     *,
     stream: bool,
 ) -> None:
@@ -156,7 +258,7 @@ async def _interactive(
         if prompt in {"/exit", "/quit"}:
             return
         if prompt == "/help":
-            print("/help  /tools  /status  /clear  /exit")
+            print("/help  /tools  /status  /view  /compact  /expand [n]  /clear  /exit")
             continue
         if prompt == "/tools":
             print("\n".join(registry.names()))
@@ -168,11 +270,29 @@ async def _interactive(
             continue
         if prompt == "/clear":
             del messages[1:]
+            if view is not None:
+                view.reset()
             if session is not None:
                 session.save(messages)
             print("会话上下文已清空。")
             continue
-        await _turn(provider, registry, messages, config, prompt, session, stream=stream)
+        if prompt == "/view":
+            if view is not None:
+                view.show()
+            continue
+        if prompt == "/compact":
+            if view is not None:
+                view.set_compact(True)
+            continue
+        if prompt == "/collapse":
+            if view is not None:
+                view.set_compact(True)
+            continue
+        if prompt.startswith("/expand"):
+            if view is not None:
+                view.expand(prompt.removeprefix("/expand").strip())
+            continue
+        await _turn(provider, registry, messages, config, prompt, session, view, stream=stream)
 
 
 def _fatal(message: str) -> NoReturn:
@@ -203,6 +323,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         session = SessionStore(workspace, args.session_id)
         messages = session.load(system_prompt) if args.resume else [system_msg(system_prompt)]
+        view = CliView(session, verbose_tools=args.verbose_tools, announce_resume=args.resume)
     except SessionError as exc:
         _fatal(str(exc))
     provider = OpenAICompatibleProvider(
@@ -227,6 +348,7 @@ def main(argv: list[str] | None = None) -> int:
                     config,
                     prompt,
                     session,
+                    view,
                     stream=not args.no_stream,
                 )
             else:
@@ -236,6 +358,7 @@ def main(argv: list[str] | None = None) -> int:
                     messages,
                     config,
                     session,
+                    view,
                     stream=not args.no_stream,
                 )
         finally:

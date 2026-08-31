@@ -1017,6 +1017,20 @@ class TaskManager:
         self._schedule_session_locked(key)
         return True
 
+    def _remove_queued_task_locked(self, task: TaskRecord) -> bool:
+        """Remove a cancelled task so it cannot occupy a session queue slot."""
+        key = self._session_key(task)
+        queue = self._session_queues.get(key)
+        if queue is None:
+            return False
+        filtered = deque(item_id for item_id in queue if item_id != task.task_id)
+        removed = len(filtered) != len(queue)
+        if filtered:
+            self._session_queues[key] = filtered
+        else:
+            self._session_queues.pop(key, None)
+        return removed
+
     def _schedule_session_locked(self, key: str) -> None:
         if key in self._session_active:
             return
@@ -1037,15 +1051,29 @@ class TaskManager:
                 self._persist_task(task, force=True)
                 continue
             self._session_active[key] = task_id
-            if task.task_kind == "batch" and task_id in self._batch_children_pending:
-                threading.Thread(
-                    target=self._start_batch,
-                    args=(task_id,),
-                    name=f"{task_id}-start",
-                    daemon=True,
-                ).start()
-            else:
-                task.future = self.executor.submit(self._run, task)
+            try:
+                if task.task_kind == "batch" and task_id in self._batch_children_pending:
+                    threading.Thread(
+                        target=self._start_batch,
+                        args=(task_id,),
+                        name=f"{task_id}-start",
+                        daemon=True,
+                    ).start()
+                else:
+                    task.future = self.executor.submit(self._run, task)
+            except Exception as exc:  # noqa: BLE001 - a failed admission must not strand the queue
+                self._session_active.pop(key, None)
+                with task.lock:
+                    if task.status not in TERMINAL_TASK_STATUSES:
+                        try:
+                            task.transition_status(
+                                "failed",
+                                error=f"任务无法进入执行器: {type(exc).__name__}: {exc}",
+                            )
+                        except InvalidStatusTransition:
+                            pass
+                self._persist_task(task, force=True)
+                continue
             return
         self._session_queues.pop(key, None)
 
@@ -1057,54 +1085,76 @@ class TaskManager:
             self._schedule_session_locked(key)
 
     def _start_batch(self, parent_id: str) -> None:
-        with self.lock:
-            parent = self.tasks.get(parent_id)
-            child_ids = self._batch_children_pending.pop(parent_id, [])
-            if parent is None or parent.status in TERMINAL_TASK_STATUSES or parent.cancel_event.is_set():
-                if parent is not None:
-                    self._release_session_slot(parent)
-                return
-            try:
+        parent: TaskRecord | None = None
+        child_ids: list[str] = []
+        handed_off = False
+        try:
+            with self.lock:
+                parent = self.tasks.get(parent_id)
+                child_ids = self._batch_children_pending.pop(parent_id, [])
+                if parent is None or parent.status in TERMINAL_TASK_STATUSES or parent.cancel_event.is_set():
+                    return
                 parent.transition_status("running")
-            except InvalidStatusTransition:
-                self._release_session_slot(parent)
-                return
-            parent.set_phase("planning")
-            parent.started_at = parent.started_at or time.time()
-            assessment = parent.context.get("orchestration") if isinstance(parent.context, dict) else None
-            parent.add_event({
-                "kind": "trace",
-                "name": "orchestrator",
-                "status": "ok",
-                "phase": "planning",
-                "code": "auto_orchestration_triggered" if parent.orchestration_mode == "auto" else "batch_started",
-                "summary": (
-                    f"已识别为复杂任务，自动拆分 {len(child_ids)} 个只读侦察子任务"
-                    if parent.orchestration_mode == "auto"
-                    else f"已拆分 {len(child_ids)} 个独立子任务，交给并行执行器"
-                ),
-                "detail": {
-                    "child_count": len(child_ids),
-                    "session_id": parent.session_id,
-                    "automatic": parent.orchestration_mode == "auto",
-                    "complexity_score": assessment.get("score") if isinstance(assessment, dict) else None,
-                    "complexity_threshold": assessment.get("threshold") if isinstance(assessment, dict) else None,
-                    "complexity_reasons": assessment.get("reasons") if isinstance(assessment, dict) else None,
-                    "plan": parent.context.get("plan"),
-                    "parallel_mode": "只读侦察并行，主任务串行接管"
-                    if parent.orchestration_mode == "auto"
-                    else "独立子任务并行，结束后统一合并",
-                    "max_concurrency": parent.context.get("max_concurrency"),
-                    "dependency_shape": "children -> merge -> implement -> verify",
-                    "merge_strategy": "主 Agent 基于子任务证据重新核实后继续",
-                },
-            })
-            self._persist_task(parent, force=True)
-            for child_id in child_ids:
-                child = self.tasks.get(child_id)
-                if child is not None and child.status not in TERMINAL_TASK_STATUSES:
-                    self._queue_task_locked(child)
-        threading.Thread(target=self._watch_batch, args=(parent, child_ids), name=f"{parent_id}-watch", daemon=True).start()
+                parent.set_phase("planning")
+                parent.started_at = parent.started_at or time.time()
+                assessment = parent.context.get("orchestration") if isinstance(parent.context, dict) else None
+                parent.add_event({
+                    "kind": "trace",
+                    "name": "orchestrator",
+                    "status": "ok",
+                    "phase": "planning",
+                    "code": "auto_orchestration_triggered" if parent.orchestration_mode == "auto" else "batch_started",
+                    "summary": (
+                        f"已识别为复杂任务，自动拆分 {len(child_ids)} 个只读侦察子任务"
+                        if parent.orchestration_mode == "auto"
+                        else f"已拆分 {len(child_ids)} 个独立子任务，交给并行执行器"
+                    ),
+                    "detail": {
+                        "child_count": len(child_ids),
+                        "session_id": parent.session_id,
+                        "automatic": parent.orchestration_mode == "auto",
+                        "complexity_score": assessment.get("score") if isinstance(assessment, dict) else None,
+                        "complexity_threshold": assessment.get("threshold") if isinstance(assessment, dict) else None,
+                        "complexity_reasons": assessment.get("reasons") if isinstance(assessment, dict) else None,
+                        "plan": parent.context.get("plan"),
+                        "parallel_mode": "只读侦察并行，主任务串行接管"
+                        if parent.orchestration_mode == "auto"
+                        else "独立子任务并行，结束后统一合并",
+                        "max_concurrency": parent.context.get("max_concurrency"),
+                        "dependency_shape": "children -> merge -> implement -> verify",
+                        "merge_strategy": "主 Agent 基于子任务证据重新核实后继续",
+                    },
+                })
+                self._persist_task(parent, force=True)
+                for child_id in child_ids:
+                    child = self.tasks.get(child_id)
+                    if child is not None and child.status not in TERMINAL_TASK_STATUSES:
+                        self._queue_task_locked(child)
+            threading.Thread(
+                target=self._watch_batch,
+                args=(parent, child_ids),
+                name=f"{parent_id}-watch",
+                daemon=True,
+            ).start()
+            handed_off = True
+        except Exception as exc:  # noqa: BLE001 - never leave a batch parent running without a watcher
+            if parent is not None:
+                with parent.lock:
+                    if parent.status not in TERMINAL_TASK_STATUSES:
+                        try:
+                            parent.transition_status(
+                                "cancelled" if parent.cancel_event.is_set() else "failed",
+                                error="任务已取消" if parent.cancel_event.is_set() else f"批任务启动失败: {type(exc).__name__}: {exc}",
+                                reason=parent.cancel_event.reason if parent.cancel_event.is_set() else None,
+                            )
+                        except InvalidStatusTransition:
+                            pass
+        finally:
+            if parent is not None and not handed_off:
+                try:
+                    self._persist_task(parent, force=True)
+                finally:
+                    self._release_session_slot(parent)
 
     def _workspace_path(self, payload: dict[str, Any]) -> str:
         """Capture the workspace supplied with the request at queue time."""
@@ -1355,69 +1405,96 @@ class TaskManager:
 
     def _watch_batch(self, parent: TaskRecord, child_ids: list[str]) -> None:
         reported_children: set[str] = set()
-        while True:
-            with self.lock:
-                children = [self.tasks.get(task_id) for task_id in child_ids]
-            snapshots = [child.snapshot() for child in children if child is not None]
-            completed = sum(item.get("status") in {"completed", "failed", "cancelled", "interrupted"} for item in snapshots)
-            for index, child in enumerate(snapshots, start=1):
-                child_id = str(child.get("task_id") or "")
-                if child_id in reported_children or child.get("status") not in TERMINAL_TASK_STATUSES:
-                    continue
-                reported_children.add(child_id)
+        snapshots: list[dict[str, Any]] = []
+        handed_off = False
+        try:
+            while True:
+                with self.lock:
+                    children = [(task_id, self.tasks.get(task_id)) for task_id in child_ids]
+                snapshots = []
+                for child_id, child in children:
+                    if child is None:
+                        # A missing child must be observable as a terminal
+                        # failure; otherwise the parent watcher can loop forever.
+                        snapshots.append({
+                            "task_id": child_id,
+                            "status": "interrupted",
+                            "phase": "interrupted",
+                            "error": "子任务记录不存在，按中断处理",
+                            "answer": "",
+                            "tokens_used": {},
+                            "events": [],
+                        })
+                    else:
+                        snapshots.append(child.snapshot())
+                completed = sum(
+                    item.get("status") in TERMINAL_TASK_STATUSES
+                    for item in snapshots
+                )
+                for index, child in enumerate(snapshots, start=1):
+                    child_id = str(child.get("task_id") or "")
+                    if child_id in reported_children or child.get("status") not in TERMINAL_TASK_STATUSES:
+                        continue
+                    reported_children.add(child_id)
+                    parent.add_event({
+                        "kind": "trace",
+                        "name": "orchestrator",
+                        "status": "error" if child.get("status") in {"failed", "interrupted"} else "ok",
+                        "phase": "planning",
+                        "code": "subagent_finished",
+                        "summary": f"子任务 {index} 已{child.get('status')}",
+                        "detail": {
+                            "child": index,
+                            "task_id": child_id,
+                            "status": child.get("status"),
+                            "tokens": (child.get("tokens_used") or {}).get("total_tokens", 0),
+                            **_child_result_digest(child),
+                        },
+                    })
+                parent.update_context({
+                    "children_completed": completed,
+                    "children_total": len(child_ids),
+                    "tokens": sum(
+                        int((item.get("tokens_used") or {}).get("total_tokens") or 0)
+                        for item in snapshots
+                    ),
+                })
+                self._persist_task(parent)
+                if completed >= len(child_ids) or parent.cancel_event.is_set():
+                    if parent.cancel_event.is_set():
+                        for child_id in child_ids:
+                            try:
+                                self.cancel(child_id)
+                            except KeyError:
+                                pass
+                    break
+                time.sleep(0.15)
+
+            if parent.orchestration_mode == "auto" and not parent.cancel_event.is_set():
+                evidence = self._build_auto_evidence(snapshots)
+                parent.orchestration_context = evidence
+                parent.execution_message = f"{parent.message}\n\n{evidence}"
+                parent.set_phase("planning")
                 parent.add_event({
                     "kind": "trace",
                     "name": "orchestrator",
-                    "status": "error" if child.get("status") in {"failed", "interrupted"} else "ok",
+                    "status": "ok",
                     "phase": "planning",
-                    "code": "subagent_finished",
-                    "summary": f"子任务 {index} 已{child.get('status')}",
+                    "code": "orchestration_parent_resumed",
+                    "summary": "只读侦察已完成，主 Agent 接管原始任务并开始实施",
                     "detail": {
-                        "child": index,
-                        "task_id": child_id,
-                        "status": child.get("status"),
-                        "tokens": (child.get("tokens_used") or {}).get("total_tokens", 0),
-                        **_child_result_digest(child),
+                        "child_count": len(child_ids),
+                        "failed": sum(item.get("status") in {"failed", "interrupted"} for item in snapshots),
+                        "evidence": [_child_result_digest(item) for item in snapshots],
+                        "merge_basis": "并行子任务的有限摘要和阶段证据；关键结论仍由主 Agent 重新检查",
+                        "next_action": "主 Agent 重新检查关键文件，必要时修改并验证",
                     },
                 })
-            parent.update_context({"children_completed": completed, "children_total": len(child_ids), "tokens": sum(int((item.get("tokens_used") or {}).get("total_tokens") or 0) for item in snapshots)})
-            self._persist_task(parent)
-            if completed >= len(child_ids):
-                break
-            if parent.cancel_event.is_set():
-                for child_id in child_ids:
-                    try:
-                        self.cancel(child_id)
-                    except KeyError:
-                        pass
-                break
-            time.sleep(0.15)
+                self._persist_task(parent, force=True)
+                parent.future = self.executor.submit(self._run, parent)
+                handed_off = True
+                return
 
-        if parent.orchestration_mode == "auto" and not parent.cancel_event.is_set():
-            evidence = self._build_auto_evidence(snapshots)
-            parent.orchestration_context = evidence
-            parent.execution_message = f"{parent.message}\n\n{evidence}"
-            parent.set_phase("planning")
-            parent.add_event({
-                "kind": "trace",
-                "name": "orchestrator",
-                "status": "ok",
-                "phase": "planning",
-                "code": "orchestration_parent_resumed",
-                "summary": "只读侦察已完成，主 Agent 接管原始任务并开始实施",
-                "detail": {
-                    "child_count": len(child_ids),
-                    "failed": sum(item.get("status") in {"failed", "interrupted"} for item in snapshots),
-                    "evidence": [_child_result_digest(item) for item in snapshots],
-                    "merge_basis": "并行子任务的有限摘要和阶段证据；关键结论仍由主 Agent 重新检查",
-                    "next_action": "主 Agent 重新检查关键文件，必要时修改并验证",
-                },
-            })
-            self._persist_task(parent, force=True)
-            parent.future = self.executor.submit(self._run, parent)
-            return
-
-        try:
             if parent.cancel_event.is_set():
                 result = {"answer": "批量任务已取消。", "cancelled": True, "children": snapshots}
             elif any(item.get("status") in {"failed", "interrupted"} for item in snapshots):
@@ -1497,9 +1574,7 @@ class TaskManager:
                     "failed": sum(item.get("status") in {"failed", "interrupted"} for item in snapshots),
                     "parallel_results": [_child_result_digest(item) for item in snapshots],
                     "merge_basis": "已完成子任务结果与合并器输出",
-                    "result_summary": redact_text(str(result.get("answer") or result.get("error") or ""))[
-                        0
-                    ][:1200],
+                    "result_summary": redact_text(str(result.get("answer") or result.get("error") or ""))[0][:1200],
                 },
             })
             parent.apply_result(result)
@@ -1509,18 +1584,24 @@ class TaskManager:
                     try:
                         parent.transition_status(target, error=str(result.get("error")) if result.get("error") else None)
                     except InvalidStatusTransition:
-                        # A cancellation may win the race while the merge
-                        # provider is returning.  Preserve that terminal fact.
                         pass
         except Exception as exc:  # noqa: BLE001 - parent state must remain inspectable
             with parent.lock:
                 if parent.status not in TERMINAL_TASK_STATUSES:
                     try:
-                        parent.transition_status("failed", error=f"{type(exc).__name__}: {exc}")
+                        parent.transition_status(
+                            "cancelled" if parent.cancel_event.is_set() else "failed",
+                            error="任务已取消" if parent.cancel_event.is_set() else f"批任务 watcher 失败: {type(exc).__name__}: {exc}",
+                            reason=parent.cancel_event.reason if parent.cancel_event.is_set() else None,
+                        )
                     except InvalidStatusTransition:
                         pass
-        self._persist_task(parent, force=True)
-        self._release_session_slot(parent)
+        finally:
+            try:
+                self._persist_task(parent, force=True)
+            finally:
+                if not handed_off:
+                    self._release_session_slot(parent)
 
     def _prune_locked(self) -> None:
         if len(self.tasks) > 100:
@@ -1537,23 +1618,44 @@ class TaskManager:
 
     def _run(self, task: TaskRecord) -> None:
         cancelled_before_start = False
-        with task.lock:
-            if task.cancel_event.is_set():
-                task.request_cancel(task.cancel_event.reason or "parent_cancelled")
-                cancelled_before_start = True
-            else:
-                try:
-                    task.transition_status("running")
-                except InvalidStatusTransition:
+        try:
+            with task.lock:
+                if task.cancel_event.is_set():
+                    task.request_cancel(task.cancel_event.reason or "parent_cancelled")
                     cancelled_before_start = True
-                task.set_phase("planning")
-                if task.started_at is None:
-                    task.started_at = time.time()
+                else:
+                    try:
+                        task.transition_status("running")
+                    except InvalidStatusTransition:
+                        cancelled_before_start = True
+                    task.set_phase("planning")
+                    if task.started_at is None:
+                        task.started_at = time.time()
+        except Exception as exc:  # noqa: BLE001 - admission errors must release the session slot
+            cancelled_before_start = True
+            with task.lock:
+                if task.status not in TERMINAL_TASK_STATUSES:
+                    try:
+                        task.transition_status("failed", error=f"任务启动失败: {type(exc).__name__}: {exc}")
+                    except InvalidStatusTransition:
+                        pass
         if cancelled_before_start:
+            try:
+                self._persist_task(task, force=True)
+            finally:
+                self._release_session_slot(task)
+            return
+        try:
             self._persist_task(task, force=True)
+        except Exception as exc:  # noqa: BLE001 - persistence failure must not strand a queue
+            with task.lock:
+                if task.status not in TERMINAL_TASK_STATUSES:
+                    try:
+                        task.transition_status("failed", error=f"任务状态保存失败: {type(exc).__name__}: {exc}")
+                    except InvalidStatusTransition:
+                        pass
             self._release_session_slot(task)
             return
-        self._persist_task(task, force=True)
 
         def on_event(event: dict[str, Any]) -> None:
             phase = str(event.get("phase") or "")
@@ -1650,8 +1752,12 @@ class TaskManager:
                         pass
                 elif task.status == "cancelled" and not task.error:
                     task.error = "任务已取消"
-        self._persist_task(task, force=True)
-        self._release_session_slot(task)
+        try:
+            self._persist_task(task, force=True)
+        finally:
+            # The release is deliberately in a finally block: a broken SQLite
+            # store or serialization error must not leave later tasks queued.
+            self._release_session_slot(task)
 
     def get(self, task_id: str) -> dict[str, Any]:
         with self.lock:
@@ -1786,6 +1892,19 @@ class TaskManager:
                     self.cancel(child_id)
                 except KeyError:
                     pass
+        # A queued task has no worker that can release its slot later. Remove
+        # it now and wake the next task in the same session immediately.
+        with self.lock:
+            active = self._session_active.get(self._session_key(task)) == task.task_id
+            if not active:
+                self._remove_queued_task_locked(task)
+                self._schedule_session_locked(self._session_key(task))
+            elif task.task_kind == "batch":
+                # A cancelled batch watcher must not block a later task. Its
+                # children use independent session keys and are cancelled
+                # above; _release_session_slot is idempotent when the watcher
+                # eventually exits.
+                self._release_session_slot(task)
         self._persist_task(task, force=True)
         return task.snapshot()
 

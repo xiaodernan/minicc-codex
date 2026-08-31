@@ -49,7 +49,7 @@ const I18N = {
     "inspector.turns": "轮次", "inspector.tools": "工具", "inspector.tokens": "Tokens", "inspector.context": "上下文", "inspector.compactions": "自动压缩", "inspector.cache": "缓存命中", "changes.latest": "最近改动",
     "files.main": "CLI 入口", "files.loop": "工具调用循环", "files.styles": "工作台界面", "files.readme": "项目指南",
     "protected.subtitle": "每个任务单独授权写入", "panel.title": "工作台", "cancel": "取消任务", "working": "执行中", "ready": "就绪",
-    "phase.queued": "排队中", "phase.planning": "正在规划", "phase.tool": "正在使用工具", "phase.answering": "正在生成回答", "phase.waiting": "等待模型输出", "phase.review": "验收中", "phase.merging": "正在合并子任务", "phase.completed": "已完成", "phase.failed": "执行失败", "phase.cancelled": "已取消", "phase.interrupted": "服务重启时中断", "stream.live": "实时回答",
+    "phase.queued": "排队中", "phase.planning": "正在规划", "phase.tool": "正在使用工具", "phase.answering": "正在生成回答", "phase.waiting": "等待模型输出", "phase.review": "验收中", "phase.merging": "正在合并子任务", "phase.completed": "已完成", "phase.failed": "执行失败", "phase.cancelled": "已取消", "phase.interrupted": "服务重启时中断", "stream.live": "实时回答", "stream.connected": "实时连接", "stream.reconnecting": "实时连接中断，正在重连", "stream.polling": "实时连接不可用，正在轮询",
     "tasks.center": "任务中心", "tasks.open": "打开任务", "tasks.resume": "重新运行", "tasks.children": "子任务", "tasks.tokens": "tokens", "tasks.context": "上下文", "tasks.cache": "缓存", "tasks.cacheUnreported": "未统计", "tasks.cacheReported": "已返回", "tasks.compacted": "次压缩", "tasks.allWorkspaces": "所有工作区", "tasks.noHistory": "还没有任务记录", "tasks.jumpLatest": "跳到最新", "tasks.following": "跟随最新输出", "tasks.paused": "已暂停自动滚动", "tasks.runtime": "运行时指标", "tasks.repairs": "修复次数", "tasks.verifications": "验证次数", "tasks.traces": "Trace 事件", "tasks.workflow": "工作流",
     "tool.ok": "完成", "tool.error": "失败", "tool.denied": "已阻止", "tool.searchResults": "搜索来源", "tool.openSource": "打开来源", "tool.round": "工具轮次", "tool.callCount": "次调用", "tool.reasoning": "阶段摘要", "tool.result": "执行结果", "tool.observation": "观察结果", "tool.structured": "结构化证据", "tool.metadata": "执行元数据", "tool.expand": "展开详情", "tool.expandAll": "全部展开", "tool.collapseAll": "全部折叠", "tool.empty": "工具没有返回额外文本", "trace.feedback": "自反馈",
     "workspace.current": "当前工作区", "workspace.path": "文件夹路径", "workspace.open": "打开文件夹", "workspace.recent": "最近打开", "workspace.switching": "正在切换工作区...", "workspace.selectHint": "输入本机文件夹绝对路径，例如 D:\\Projects\\demo",
@@ -85,7 +85,7 @@ const I18N = {
     "inspector.turns": "Turns", "inspector.tools": "Tools", "inspector.tokens": "Tokens", "inspector.context": "Context", "inspector.compactions": "Compactions", "inspector.cache": "Cache hit", "changes.latest": "Latest changes",
     "files.main": "CLI entrypoint", "files.loop": "Tool calling loop", "files.styles": "Workspace surface", "files.readme": "Project guide",
     "protected.subtitle": "Writes are gated per task", "panel.title": "Workspace", "cancel": "Cancel task", "working": "Working", "ready": "Ready",
-    "phase.queued": "Queued", "phase.planning": "Planning", "phase.tool": "Running tools", "phase.answering": "Writing response", "phase.waiting": "Waiting for output", "phase.review": "Pending review", "phase.merging": "Merging subagents", "phase.completed": "Complete", "phase.failed": "Failed", "phase.cancelled": "Cancelled", "phase.interrupted": "Interrupted by restart", "stream.live": "Live response",
+    "phase.queued": "Queued", "phase.planning": "Planning", "phase.tool": "Running tools", "phase.answering": "Writing response", "phase.waiting": "Waiting for output", "phase.review": "Pending review", "phase.merging": "Merging subagents", "phase.completed": "Complete", "phase.failed": "Failed", "phase.cancelled": "Cancelled", "phase.interrupted": "Interrupted by restart", "stream.live": "Live response", "stream.connected": "Live connection", "stream.reconnecting": "Live connection interrupted, reconnecting", "stream.polling": "Live connection unavailable, polling",
     "tasks.center": "Task center", "tasks.open": "Open task", "tasks.resume": "Run again", "tasks.children": "subtasks", "tasks.tokens": "tokens", "tasks.context": "context", "tasks.cache": "cache", "tasks.cacheUnreported": "unreported", "tasks.cacheReported": "reported", "tasks.compacted": "compactions", "tasks.allWorkspaces": "All workspaces", "tasks.noHistory": "No task history yet", "tasks.jumpLatest": "Jump to latest", "tasks.following": "Following latest output", "tasks.paused": "Auto-scroll paused", "tasks.runtime": "Runtime metrics", "tasks.repairs": "Repairs", "tasks.verifications": "Verifications", "tasks.traces": "Trace events", "tasks.workflow": "Workflow",
     "tool.ok": "Done", "tool.error": "Failed", "tool.denied": "Blocked", "tool.searchResults": "Search sources", "tool.openSource": "Open source", "tool.round": "Tool round", "tool.callCount": "calls", "tool.reasoning": "Stage summary", "tool.result": "Execution result", "tool.observation": "Observation", "tool.structured": "Structured evidence", "tool.metadata": "Execution metadata", "tool.expand": "Expand details", "tool.expandAll": "Expand all", "tool.collapseAll": "Collapse all", "tool.empty": "The tool returned no additional text", "trace.feedback": "Self-feedback",
     "workspace.current": "Current workspace", "workspace.path": "Folder path", "workspace.open": "Open folder", "workspace.recent": "Recent folders", "workspace.switching": "Switching workspace...", "workspace.selectHint": "Enter an absolute local path, for example D:\\Projects\\demo",
@@ -190,6 +190,14 @@ function setInspectorCollapsed(collapsed) {
   state.inspectorCollapsed = Boolean(collapsed);
   localStorage.setItem("minicc-inspector-collapsed", String(state.inspectorCollapsed));
   applyPaneLayout();
+}
+
+function finishStartupSplash() {
+  const splash = $("#startupSplash");
+  if (!splash) return;
+  splash.dataset.state = "ready";
+  splash.setAttribute("aria-busy", "false");
+  splash.setAttribute("aria-hidden", "true");
 }
 
 function setTheme(theme) {
@@ -687,6 +695,18 @@ function setConnection(connected, label = connected ? "Connected" : "Offline") {
   status.innerHTML = `<span class="status-pulse"></span><span>${escapeHtml(translated)}</span>`;
 }
 
+function setTaskTransportStatus(taskId, mode) {
+  const binding = runningTasks.get(taskId);
+  if (!binding) return;
+  binding.transport = mode;
+  const loading = document.getElementById(binding.loadingId);
+  const transport = loading?.querySelector("[data-live-transport]");
+  if (!transport) return;
+  const key = mode === "polling" ? "stream.polling" : mode === "reconnecting" ? "stream.reconnecting" : "stream.connected";
+  transport.textContent = t(key);
+  transport.dataset.transport = mode;
+}
+
 function setBusy(value) {
   state.busy = Boolean(value);
   const sessionBusy = state.busy || isSessionBusy(state.sessionId);
@@ -946,9 +966,9 @@ function addLoadingMessage(id = `loading-${Date.now()}`, data = { status: "runni
 
 function phaseLabel(data) {
   const status = String(data?.status || "").toLowerCase();
-  const phase = TERMINAL_TASK_STATUSES.has(status)
+  const phase = TERMINAL_TASK_STATUSES.has(status) || status === "queued"
     ? status
-    : data.phase || (status === "queued" ? "queued" : status);
+    : data.phase || status;
   const key = {
     queued: "phase.queued",
     planning: "phase.planning",
@@ -966,7 +986,7 @@ function phaseLabel(data) {
 
 function phaseClass(data) {
   const status = String(data?.status || "").toLowerCase();
-  const value = TERMINAL_TASK_STATUSES.has(status)
+  const value = TERMINAL_TASK_STATUSES.has(status) || status === "queued"
     ? status
     : String(data?.phase || data?.status || "planning").toLowerCase();
   return ["queued", "planning", "tool", "answering", "review", "merging", "completed", "failed", "cancelled", "interrupted"].includes(value) ? value : "planning";
@@ -1063,9 +1083,10 @@ function updateSessionStatus(data) {
   if (!badge || !label) return;
   const status = String(data?.status || "running").toLowerCase();
   const terminal = TERMINAL_TASK_STATUSES.has(status);
-  badge.dataset.status = terminal ? status : "running";
+  badge.dataset.status = terminal ? status : ["queued", "running"].includes(status) ? status : "running";
   badge.classList.toggle("terminal", terminal);
-  label.textContent = terminal ? phaseLabel(data) : t("live");
+  badge.classList.toggle("queued", status === "queued");
+  label.textContent = terminal || status === "queued" ? phaseLabel(data) : t("live");
 }
 
 function liveTaskMarkup(data) {
@@ -2317,7 +2338,7 @@ function togglePanelFullscreen() {
 }
 
 function taskRow(task) {
-  const statusClass = task.status === "completed" ? "success" : task.status === "failed" ? "error" : ["cancelled", "interrupted"].includes(task.status) ? "cancelled" : "running";
+  const statusClass = task.status === "completed" ? "success" : task.status === "failed" ? "error" : ["cancelled", "interrupted"].includes(task.status) ? "cancelled" : task.status === "queued" ? "queued" : "running";
   const cancel = ["queued", "running"].includes(task.status) ? `<button class="panel-icon-action" data-cancel-task="${escapeHtml(task.task_id)}" title="${t("cancel")}">${icon("square")}</button>` : "";
   const resume = ["failed", "cancelled", "interrupted"].includes(task.status) ? `<button class="panel-icon-action" data-resume-task="${escapeHtml(task.task_id)}" title="${t("tasks.resume")}">${icon("rotate-ccw")}</button>` : "";
   const phase = phaseLabel(task);
@@ -4390,6 +4411,7 @@ document.addEventListener("DOMContentLoaded", () => {
   setSession(state.sessionId);
   applyLocale();
   refreshIcons();
+  finishStartupSplash();
   loadWorkspace();
   if (new URLSearchParams(location.search).get("arcade") === "1") openGame();
   // Keep tasks created in another session or browser tab visible in the sidebar.

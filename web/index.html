@@ -10,7 +10,22 @@
     <script src="/app.js" defer></script>
   </head>
   <body>
-    <header class="codex-menubar" aria-label="应用菜单">
+    <div class="startup-splash" id="startupSplash" data-style="plain" data-state="loading" aria-busy="true" aria-live="polite">
+     <div class="startup-stage">
+       <div class="startup-mark-shell" role="img" aria-label="minicc Agent">
+         <svg class="startup-mark" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+           <circle cx="32" cy="32" r="8" />
+           <path d="M32 8v13M32 43v13M8 32h13M43 32h13M15 15l9 9M40 40l9 9M49 15l-9 9M24 40l-9 9" />
+           <circle cx="32" cy="8" r="3" /><circle cx="32" cy="56" r="3" /><circle cx="8" cy="32" r="3" /><circle cx="56" cy="32" r="3" />
+         </svg>
+       </div>
+       <div class="startup-loading" role="status">
+         <span class="startup-loading-dot" aria-hidden="true"></span>
+         <span id="startupStatus">正在启动本地工作台</span>
+       </div>
+     </div>
+   </div>
+   <header class="codex-menubar" aria-label="应用菜单">
       <div class="codex-menubar-left">
         <button class="codex-menu-icon" id="codexMenuToggle" type="button" aria-label="切换侧栏"><i data-lucide="panel-left"></i></button>
         <button class="codex-nav-arrow" type="button" aria-label="后退"><i data-lucide="arrow-left"></i></button>

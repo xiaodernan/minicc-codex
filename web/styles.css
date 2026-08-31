@@ -70,6 +70,34 @@
 * { box-sizing: border-box; }
 html, body { height: 100%; margin: 0; }
 body { background: var(--ink); color: var(--text); font-family: "Manrope", "Segoe UI", sans-serif; font-size: 14px; overflow: hidden; }
+/* Original local-agent startup surface: a pale canvas, centered mark, and a
+  small active loading state that hands off to the workbench. */
+.startup-splash { align-items: center; background: #f7f0e6; color: #111214; display: flex; inset: 0; justify-content: center; opacity: 1; pointer-events: none; position: fixed; transition: opacity .28s ease, visibility .28s ease; visibility: visible; z-index: 100; }
+.startup-splash[data-state="ready"] { opacity: 0; pointer-events: none; visibility: hidden; }
+.startup-stage { align-items: center; display: flex; flex-direction: column; gap: 17px; justify-content: center; transform: translateY(-4vh); }
+.startup-mark-shell { align-items: center; display: flex; height: 76px; justify-content: center; width: 76px; }
+.startup-mark { animation: startup-mark-breathe 2.1s ease-in-out infinite; fill: none; height: 68px; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 3.2; width: 68px; }
+.startup-mark circle { fill: currentColor; stroke: none; }
+.startup-loading { align-items: center; color: #77736d; display: inline-flex; font: 11px/1.2 "DM Mono", Consolas, monospace; gap: 8px; letter-spacing: .02em; }
+.startup-loading-dot { animation: startup-dot-pulse 1s ease-in-out infinite; background: #77736d; border-radius: 50%; height: 7px; width: 7px; }
+.startup-splash[data-state="ready"] .startup-loading { opacity: 0; }
+.startup-splash[data-style="card"] { background: #f5eee4; }
+.startup-splash[data-style="card"] .startup-stage { background: rgba(255, 255, 255, .7); border: 1px solid rgba(26, 27, 28, .08); border-radius: 17px; box-shadow: 0 12px 34px rgba(36, 31, 24, .08); gap: 12px; min-height: 160px; padding: 28px 30px 24px; width: 160px; }
+.startup-splash[data-style="card"] .startup-mark-shell { height: 70px; width: 70px; }
+.startup-splash[data-style="card"] .startup-mark { height: 58px; width: 58px; }
+.startup-splash[data-style="card"] .startup-loading { font-size: 0; gap: 0; }
+.startup-splash[data-style="card"] .startup-loading-dot { height: 6px; width: 6px; }
+@keyframes startup-mark-breathe {
+ 0%, 100% { opacity: .76; transform: scale(.94); }
+ 50% { opacity: 1; transform: scale(1); }
+}
+@keyframes startup-dot-pulse {
+ 0%, 100% { opacity: .3; transform: scale(.8); }
+ 50% { opacity: 1; transform: scale(1.1); }
+}
+@media (prefers-reduced-motion: reduce) {
+ .startup-splash, .startup-mark, .startup-loading-dot { animation: none; transition: none; }
+}
 button, input, textarea { font: inherit; }
 /* Keep each pane independently scrollable: long sessions must never hide their history. */
 .sidebar, .inspector { overflow-y: auto; scrollbar-color: var(--line-bright) transparent; scrollbar-width: thin; }
