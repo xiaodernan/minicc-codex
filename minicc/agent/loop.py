@@ -34,7 +34,7 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
-from ..llm.base import LLMResponse, assistant_msg, tool_result_msg
+from ..llm.base import LLMResponse, assistant_msg, tool_result_msg, user_msg
 from ..llm.envelope import EnvelopeParseError
 from ..llm.openai_provider import OpenAICompatibleProvider
 from ..llm.usage import add_usage_totals, cache_summary
@@ -60,6 +60,7 @@ MAX_TOOL_CACHE_ENTRIES = 128
 MAX_VISIBLE_MODEL_UPDATE_CHARS = 1200
 MAX_PUBLIC_TOOL_OBSERVATION_CHARS = 900
 MAX_PUBLIC_TOOL_DATA_CHARS = 2400
+VISION_CONTEXT_MARKER = "[持久视觉上下文]"
 WRITE_TOOL_NAMES = frozenset({"write_file", "edit_file", "worktree_create", "worktree_remove"})
 VERIFY_TOOL_NAMES = frozenset({"bash", "git_diff", "git_status", "read_file", "grep"})
 
@@ -199,6 +200,66 @@ def _merge_incremental_text(previous: str, current: str) -> tuple[str, str]:
     return previous + current, current
 
 
+def _normalize_vision_context(parts: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
+    """Normalize image parts to the Chat Completions shape used by history."""
+    normalized: list[dict[str, Any]] = []
+    for raw in parts or []:
+        if not isinstance(raw, dict):
+            continue
+        part_type = str(raw.get("type") or "").lower()
+        if part_type not in {"image_url", "input_image"}:
+            continue
+        image = raw.get("image_url")
+        url = image.get("url") if isinstance(image, dict) else image
+        if not url:
+            continue
+        if any(
+            str(item.get("image_url", {}).get("url") or "") == str(url)
+            for item in normalized
+            if isinstance(item.get("image_url"), dict)
+        ):
+            continue
+        image_payload: dict[str, Any] = {"url": str(url)}
+        if isinstance(image, dict) and image.get("detail"):
+            image_payload["detail"] = str(image["detail"])
+        normalized.append({"type": "image_url", "image_url": image_payload})
+    return normalized
+
+
+def _restore_vision_context(
+    messages: list[dict[str, Any]],
+    vision_context: list[dict[str, Any]],
+) -> int:
+    """Rehydrate images after compaction or session recovery when history lost them."""
+    if not vision_context:
+        return 0
+    existing_urls = {
+        str(part.get("image_url", {}).get("url") or "")
+        for message in messages
+        if isinstance(message.get("content"), list)
+        for part in message["content"]
+        if isinstance(part, dict)
+        and isinstance(part.get("image_url"), dict)
+        and part.get("type") in {"image_url", "input_image"}
+        and part.get("image_url", {}).get("url")
+    }
+    missing = [
+        part
+        for part in vision_context
+        if str(part.get("image_url", {}).get("url") or "") not in existing_urls
+    ]
+    if not missing:
+        return 0
+    messages.append(user_msg([
+        {"type": "text", "text": (
+            f"{VISION_CONTEXT_MARKER}\n"
+            "以下图片来自原始任务，图片内容是持续有效的验收参考；请结合当前任务重新判断。"
+        )},
+        *deepcopy(missing),
+    ]))
+    return len(missing)
+
+
 def _public_data(value: Any, *, depth: int = 0) -> Any:
     """Keep structured evidence useful without persisting unbounded output."""
 
@@ -310,6 +371,7 @@ async def run_agent(
     budget: Budget | None = None,
     runtime_state: AgentState | None = None,
     require_recovery_inspection: bool = False,
+    vision_context: list[dict[str, Any]] | None = None,
 ) -> TurnResult:
     """Run the agent loop until a final text answer or explicit cancellation.
 
@@ -321,6 +383,8 @@ async def run_agent(
     if max_turns is not None and max_turns <= 0:
         max_turns = None
     result = TurnResult(answer="")
+    persistent_vision_context = _normalize_vision_context(vision_context)
+    restored_vision_contexts = 0
     allow = should_allow or _always_allow
     runtime_budget = budget or (runtime_state.budget if runtime_state is not None else Budget(max_turns=max_turns))
     if runtime_budget.max_turns is None:
@@ -469,6 +533,7 @@ async def run_agent(
                 "默认不限模型轮次；任务无总轮次上限" if max_turns is None else f"兼容调用轮次上限 {max_turns}"
             ) + "；由交付、取消、协议/停滞纠偏、验证和服务生命周期结束",
             "tool_count": len(tools_schemas),
+            "vision_context_count": len(persistent_vision_context),
         },
     )
     reasoning_status_fn = getattr(provider, "reasoning_status", None)
@@ -542,12 +607,24 @@ async def run_agent(
                 code="context_compacted",
             )
 
+        restored_count = _restore_vision_context(messages, persistent_vision_context)
+        if restored_count:
+            restored_vision_contexts += restored_count
+            emit_trace(
+                f"已从持久附件恢复 {restored_count} 张图片，继续进行视觉上下文验收",
+                phase="planning",
+                code="vision_context_restored",
+                detail={"count": restored_count, "source": "persistent_task_attachment"},
+            )
+
         result.context = {
             "chars": message_chars(messages),
             "tokens": estimate_tokens(messages),
             "limit_tokens": max(1, int(context_limit_tokens)),
             "ratio": round(estimate_tokens(messages) / max(1, int(context_limit_tokens)), 4),
             "compacted": bool(result.compaction_events),
+            "vision_context_count": len(persistent_vision_context),
+            "vision_context_restored": restored_vision_contexts,
         }
         if on_context is not None:
             on_context(dict(result.context))
@@ -1198,8 +1275,8 @@ async def run_agent(
         result.answer = text or "(模型返回空回复)"
         messages.append(assistant_msg(content=result.answer))
         emit_trace(
-            "任务已完成，正在整理交付摘要和剩余风险",
-            phase="completed",
+            "执行结束，待验收",
+            phase="review",
             code="run_finished",
             detail={
                 "turn": turn,

@@ -18,10 +18,12 @@ from typing import Any
 from ..tools.registry import redact_text
 
 COMPACTION_MARKER = "[CONTEXT COMPACTED]"
-CHECKPOINT_VERSION = 1
+CHECKPOINT_VERSION = 2
 _MAX_ITEMS = 24
 _MAX_TEXT = 900
 _MAX_OBJECTIVE = 1800
+_IMAGE_CONTEXT_CHARS = 1024
+_VISUAL_PART_TYPES = frozenset({"image_url", "input_image"})
 _DIGEST_RE = re.compile(r"(?i)(?:digest|sha256|hash)[^a-f0-9]{0,20}([a-f0-9]{12,64})")
 
 
@@ -33,8 +35,24 @@ def _msg_chars(messages: list[dict[str, Any]]) -> int:
             if isinstance(value, str):
                 total += len(value)
             elif isinstance(value, list):
-                total += len(str(value))
+                # A data URL contains the whole image in base64. Counting it
+                # as prompt text makes one screenshot trigger compaction on
+                # every turn, even though the model receives it as an image.
+                total += _content_chars(value) if key == "content" else len(str(value))
     return total
+
+
+def _content_chars(value: Any) -> int:
+    """Estimate text-equivalent size without counting image base64 payloads."""
+    if isinstance(value, str):
+        return len(value)
+    if isinstance(value, list):
+        return sum(_content_chars(item) for item in value)
+    if isinstance(value, dict):
+        if str(value.get("type") or "").lower() in _VISUAL_PART_TYPES:
+            return _IMAGE_CONTEXT_CHARS
+        return sum(len(str(key)) + _content_chars(item) for key, item in value.items())
+    return len(str(value)) if value is not None else 0
 
 
 def message_chars(messages: list[dict[str, Any]]) -> int:
@@ -63,6 +81,51 @@ def _text(value: Any) -> str:
             if isinstance(item, dict) and item.get("type") in {"text", "input_text"}
         )
     return ""
+
+
+def _visual_parts(value: Any) -> list[dict[str, Any]]:
+    if not isinstance(value, list):
+        return []
+    return [
+        item
+        for item in value
+        if isinstance(item, dict) and str(item.get("type") or "").lower() in _VISUAL_PART_TYPES
+    ]
+
+
+def has_visual_content(messages: list[dict[str, Any]]) -> bool:
+    """Return whether a message history still contains an image part."""
+    return any(_visual_parts(message.get("content")) for message in messages)
+
+
+def _visual_attachment_facts(value: Any) -> list[dict[str, Any]]:
+    """Keep stable visual references in checkpoints, never the image bytes."""
+    facts: list[dict[str, Any]] = []
+    for part in _visual_parts(value):
+        part_type = str(part.get("type") or "image_url")
+        image = part.get("image_url")
+        url = image.get("url") if isinstance(image, dict) else image
+        if not url:
+            continue
+        raw_url = str(url)
+        if raw_url.startswith("data:"):
+            mime_type = raw_url[5:].split(";", 1)[0].lower() or "image/unknown"
+            source = "data_url"
+        else:
+            mime_type = ""
+            source = "url"
+        fact: dict[str, Any] = {
+            "type": part_type,
+            "source": source,
+            "fingerprint": hashlib.sha256(raw_url.encode("utf-8", "replace")).hexdigest()[:16],
+        }
+        if mime_type:
+            fact["mime_type"] = mime_type
+        if isinstance(image, dict) and image.get("detail"):
+            fact["detail"] = str(image["detail"])[:32]
+        if fact not in facts:
+            facts.append(fact)
+    return facts
 
 
 def _safe(value: Any, limit: int = _MAX_TEXT) -> str:
@@ -100,11 +163,14 @@ def _message_facts(messages: list[dict[str, Any]]) -> dict[str, Any]:
     verification: list[str] = []
     failures: list[str] = []
     progress: list[str] = []
+    visual_attachments: list[dict[str, Any]] = []
     tools: Counter[str] = Counter()
 
     for message in messages:
         role = str(message.get("role") or "")
         content = _text(message.get("content"))
+        for visual_fact in _visual_attachment_facts(message.get("content")):
+            _add_unique(visual_attachments, visual_fact)
         if COMPACTION_MARKER in content:
             continue
         if role == "user" and content:
@@ -152,6 +218,7 @@ def _message_facts(messages: list[dict[str, Any]]) -> dict[str, Any]:
         "verification": verification,
         "failures": failures,
         "progress": progress[-6:],
+        "visual_attachments": visual_attachments[:_MAX_ITEMS],
         "tools": [{"name": name, "count": count} for name, count in tools.most_common(12)],
     }
 
@@ -182,7 +249,17 @@ def _merge_checkpoint(previous: list[dict[str, Any]], facts: dict[str, Any], mid
         return output
 
     checkpoint: dict[str, Any] = {"version": CHECKPOINT_VERSION}
-    for key in ("objectives", "requirements", "files", "digests", "verification", "failures", "progress", "tools"):
+    for key in (
+        "objectives",
+        "requirements",
+        "files",
+        "digests",
+        "verification",
+        "failures",
+        "progress",
+        "visual_attachments",
+        "tools",
+    ):
         checkpoint[key] = values(key)
     legacy = values("legacy_summary", limit=3)
     if legacy:
@@ -195,6 +272,7 @@ def _merge_checkpoint(previous: list[dict[str, Any]], facts: dict[str, Any], mid
     checkpoint["loss_risk"] = [
         "完整工具输出和模型原文已归档，不再默认放入 prompt",
         "未被提取为路径、digest、验证或失败记录的细节可能丢失",
+        "视觉附件只在检查点保存引用元数据，原始图片由调用方持久化并在后续请求重新注入",
         "需要精确原文时应重新读取工作区或查看任务 trace",
     ]
     return checkpoint
@@ -241,4 +319,12 @@ def compact(messages: list[dict[str, Any]], *, threshold: int = 300_000, keep_re
     return compact_with_checkpoint(messages, threshold=threshold, keep_recent=keep_recent)[0]
 
 
-__all__ = ["CHECKPOINT_VERSION", "COMPACTION_MARKER", "compact", "compact_with_checkpoint", "estimate_tokens", "message_chars"]
+__all__ = [
+    "CHECKPOINT_VERSION",
+    "COMPACTION_MARKER",
+    "compact",
+    "compact_with_checkpoint",
+    "estimate_tokens",
+    "has_visual_content",
+    "message_chars",
+]

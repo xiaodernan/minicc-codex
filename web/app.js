@@ -48,7 +48,7 @@ const I18N = {
     "inspector.turns": "轮次", "inspector.tools": "工具", "inspector.tokens": "Tokens", "inspector.context": "上下文", "inspector.compactions": "自动压缩", "inspector.cache": "缓存命中", "changes.latest": "最近改动",
     "files.main": "CLI 入口", "files.loop": "工具调用循环", "files.styles": "工作台界面", "files.readme": "项目指南",
     "protected.subtitle": "每个任务单独授权写入", "panel.title": "工作台", "cancel": "取消任务", "working": "执行中", "ready": "就绪",
-    "phase.queued": "排队中", "phase.planning": "正在规划", "phase.tool": "正在使用工具", "phase.answering": "正在生成回答", "phase.waiting": "等待模型输出", "phase.merging": "正在合并子任务", "phase.completed": "已完成", "phase.failed": "执行失败", "phase.cancelled": "已取消", "phase.interrupted": "服务重启时中断", "stream.live": "实时回答",
+    "phase.queued": "排队中", "phase.planning": "正在规划", "phase.tool": "正在使用工具", "phase.answering": "正在生成回答", "phase.waiting": "等待模型输出", "phase.review": "验收中", "phase.merging": "正在合并子任务", "phase.completed": "已完成", "phase.failed": "执行失败", "phase.cancelled": "已取消", "phase.interrupted": "服务重启时中断", "stream.live": "实时回答",
     "tasks.center": "任务中心", "tasks.open": "打开任务", "tasks.resume": "重新运行", "tasks.children": "子任务", "tasks.tokens": "tokens", "tasks.context": "上下文", "tasks.cache": "缓存", "tasks.cacheUnreported": "未统计", "tasks.cacheReported": "已返回", "tasks.compacted": "次压缩", "tasks.allWorkspaces": "所有工作区", "tasks.noHistory": "还没有任务记录", "tasks.jumpLatest": "跳到最新", "tasks.following": "跟随最新输出", "tasks.paused": "已暂停自动滚动", "tasks.runtime": "运行时指标", "tasks.repairs": "修复次数", "tasks.verifications": "验证次数", "tasks.traces": "Trace 事件", "tasks.workflow": "工作流",
     "tool.ok": "完成", "tool.error": "失败", "tool.denied": "已阻止", "tool.searchResults": "搜索来源", "tool.openSource": "打开来源", "tool.round": "工具轮次", "tool.callCount": "次调用", "tool.reasoning": "阶段摘要", "tool.result": "执行结果", "tool.observation": "观察结果", "tool.structured": "结构化证据", "tool.metadata": "执行元数据", "tool.expand": "展开详情", "tool.expandAll": "全部展开", "tool.collapseAll": "全部折叠", "tool.empty": "工具没有返回额外文本", "trace.feedback": "自反馈",
     "workspace.current": "当前工作区", "workspace.path": "文件夹路径", "workspace.open": "打开文件夹", "workspace.recent": "最近打开", "workspace.switching": "正在切换工作区...", "workspace.selectHint": "输入本机文件夹绝对路径，例如 D:\\Projects\\demo",
@@ -63,7 +63,7 @@ const I18N = {
     "game.subtitle": "10 波高压战役，失败只由僵尸进屋触发；战斗用时仅统计活跃帧，切后台和手动暂停均不消耗进度。", "game.sun": "阳光", "game.score": "击退", "game.wave": "波次",
     "game.ready": "准备就绪", "game.running": "战斗中", "game.paused": "已自动暂停，返回页面后继续", "game.manualPaused": "战局已手动暂停", "game.waveClear": "本波已清场，下一波即将到来", "game.waveIncoming": "强化波次来袭，准备迎战", "game.victory": "草坪守住了！", "game.noSun": "阳光不足", "game.recharging": "卡片冷却中", "game.gameOver": "僵尸进屋了", "game.time": "战斗用时", "game.threat": "威胁", "game.waveHint": "建立防线，下一批僵尸即将抵达", "game.wavePressure": "高压波次：优先布置减速与防线", "game.progress": "战役进度", "game.difficulty": "难度", "game.normal": "标准", "game.hard": "高压", "game.nightmare": "噩梦", "game.pause": "暂停", "game.resume": "继续", "game.pauseHint": "冻结战局", "game.resumeHint": "恢复战局", "game.volume": "音量", "game.shovel": "铲子", "game.shovelHint": "点击植物移除", "game.autoSun": "自动拾取阳光", "game.autoSunHint": "关闭后改为手动点击", "game.repeater": "双发射手", "game.cherrybomb": "爆裂果", "game.icepeashooter": "寒冰射手", "game.burst": "爆发", "game.slow": "减速", "game.peashooter": "豌豆射手", "game.soundOn": "♫ 音效开", "game.soundOff": "♫ 音效关",
     "game.sunflower": "向日葵", "game.wallnut": "坚果墙", "game.attack": "攻击", "game.produce": "产阳光", "game.defense": "防御", "game.firepeashooter": "火焰射手", "game.twinpea": "双发强化", "game.kernelpult": "玉米投手", "game.pumpkin": "南瓜头", "game.spikeweed": "地刺", "game.gloomshroom": "忧郁菇", "game.butter": "黄油定身", "game.armor": "护甲", "game.polevault": "撑杆跳", "game.dancer": "舞王", "game.backup": "伴舞", "game.potatomine": "土豆雷", "game.threepeater": "三线射手", "game.jalapeno": "火爆辣椒", "game.magnetshroom": "磁力菇", "game.garlic": "大蒜", "game.squash": "窝瓜", "game.gatlingpea": "机枪射手", "game.trap": "地雷", "game.utility": "缴械", "game.redirect": "换行", "game.smash": "重击", "game.rapid": "连射", "game.cooldown": "冷却中", "game.newWindow": "新窗口", "game.wideMode": "大屏模式", "game.compactMode": "紧凑模式", "game.fullscreen": "全屏", "game.waveFinal": "终局巨人来袭：用爆发和减速守住最后防线",
-    "game.instructions": "点击卡片选择 · 点击草坪种植 · 每行防线小车仅可触发一次", "game.start": "开始游戏", "game.restart": "重开", "game.mowers": "防线", "game.combo": "连击", "game.energy": "战术能量", "game.skillPulse": "寒冰脉冲", "game.skillPulseHint": "冻结并震击全场僵尸", "game.skillSun": "阳光爆发", "game.skillSunHint": "立即获得 100 阳光", "game.skillRally": "战线超载", "game.skillRallyHint": "植物攻速提升 8 秒", "game.skillReady": "可用", "game.skillCooldown": "冷却中", "game.skillNeedEnergy": "能量不足",
+    "game.instructions": "点击卡片选择 · 点击草坪种植 · 每行防线小车仅可触发一次", "game.start": "开始游戏", "game.restart": "重开", "game.mowers": "防线", "game.combo": "连击", "game.energy": "战术能量", "game.skillPulse": "寒冰脉冲", "game.skillPulseHint": "冻结并震击全场僵尸", "game.skillSun": "阳光爆发", "game.skillSunHint": "立即获得 100 阳光", "game.skillRally": "战线超载", "game.skillRallyHint": "植物攻速提升 8 秒", "game.skillTimeStop": "时停领域", "game.skillTimeStopHint": "冻结僵尸 4 秒", "game.skillReady": "可用", "game.skillCooldown": "冷却中", "game.skillNeedEnergy": "能量不足",
     "message.you": "你", "message.now": "现在", "message.agent": "Agent", "game.canvas": "植物大战僵尸迷你游戏画布",
     "changes.agentCore": "Agent 核心", "changes.webWorkspace": "Web 工作台", "changes.specproof": "Specproof 评估", "changes.filesChanged": "修改 6 个文件", "changes.filesAdded": "新增 3 个文件", "changes.assessmentAdded": "已添加评估", "changes.now": "现在", "changes.minute": "1 分钟前", "changes.clean": "等待变更", "changes.cleanHint": "运行任务后会在这里同步", "changes.modified": "已修改", "changes.added": "已新增", "changes.deleted": "已删除", "changes.renamed": "已重命名", "changes.openDiff": "查看 diff",
   },
@@ -84,7 +84,7 @@ const I18N = {
     "inspector.turns": "Turns", "inspector.tools": "Tools", "inspector.tokens": "Tokens", "inspector.context": "Context", "inspector.compactions": "Compactions", "inspector.cache": "Cache hit", "changes.latest": "Latest changes",
     "files.main": "CLI entrypoint", "files.loop": "Tool calling loop", "files.styles": "Workspace surface", "files.readme": "Project guide",
     "protected.subtitle": "Writes are gated per task", "panel.title": "Workspace", "cancel": "Cancel task", "working": "Working", "ready": "Ready",
-    "phase.queued": "Queued", "phase.planning": "Planning", "phase.tool": "Running tools", "phase.answering": "Writing response", "phase.waiting": "Waiting for output", "phase.merging": "Merging subagents", "phase.completed": "Complete", "phase.failed": "Failed", "phase.cancelled": "Cancelled", "phase.interrupted": "Interrupted by restart", "stream.live": "Live response",
+    "phase.queued": "Queued", "phase.planning": "Planning", "phase.tool": "Running tools", "phase.answering": "Writing response", "phase.waiting": "Waiting for output", "phase.review": "Pending review", "phase.merging": "Merging subagents", "phase.completed": "Complete", "phase.failed": "Failed", "phase.cancelled": "Cancelled", "phase.interrupted": "Interrupted by restart", "stream.live": "Live response",
     "tasks.center": "Task center", "tasks.open": "Open task", "tasks.resume": "Run again", "tasks.children": "subtasks", "tasks.tokens": "tokens", "tasks.context": "context", "tasks.cache": "cache", "tasks.cacheUnreported": "unreported", "tasks.cacheReported": "reported", "tasks.compacted": "compactions", "tasks.allWorkspaces": "All workspaces", "tasks.noHistory": "No task history yet", "tasks.jumpLatest": "Jump to latest", "tasks.following": "Following latest output", "tasks.paused": "Auto-scroll paused", "tasks.runtime": "Runtime metrics", "tasks.repairs": "Repairs", "tasks.verifications": "Verifications", "tasks.traces": "Trace events", "tasks.workflow": "Workflow",
     "tool.ok": "Done", "tool.error": "Failed", "tool.denied": "Blocked", "tool.searchResults": "Search sources", "tool.openSource": "Open source", "tool.round": "Tool round", "tool.callCount": "calls", "tool.reasoning": "Stage summary", "tool.result": "Execution result", "tool.observation": "Observation", "tool.structured": "Structured evidence", "tool.metadata": "Execution metadata", "tool.expand": "Expand details", "tool.expandAll": "Expand all", "tool.collapseAll": "Collapse all", "tool.empty": "The tool returned no additional text", "trace.feedback": "Self-feedback",
     "workspace.current": "Current workspace", "workspace.path": "Folder path", "workspace.open": "Open folder", "workspace.recent": "Recent folders", "workspace.switching": "Switching workspace...", "workspace.selectHint": "Enter an absolute local path, for example D:\\Projects\\demo",
@@ -99,7 +99,7 @@ const I18N = {
     "game.subtitle": "10 high-pressure waves. Only a zombie reaching the house ends the campaign; battle time counts active frames only.", "game.sun": "Sun", "game.score": "Defeated", "game.wave": "Wave",
     "game.ready": "Ready", "game.running": "Battle", "game.paused": "Paused while this tab is hidden", "game.manualPaused": "Battle paused", "game.waveIncoming": "Reinforced wave incoming", "game.gameOver": "A zombie reached the house", "game.time": "Battle time", "game.threat": "Threat", "game.waveHint": "Build your line; the next pack is approaching", "game.wavePressure": "High-pressure wave: use slows and defenses", "game.progress": "Campaign progress", "game.difficulty": "Difficulty", "game.normal": "Standard", "game.hard": "High pressure", "game.nightmare": "Nightmare", "game.pause": "Pause", "game.resume": "Resume", "game.pauseHint": "Freeze battle", "game.resumeHint": "Resume battle", "game.volume": "Volume", "game.shovel": "Shovel", "game.shovelHint": "Remove a plant", "game.autoSun": "Auto-collect sun", "game.autoSunHint": "Turn off for manual clicks", "game.repeater": "Repeater", "game.cherrybomb": "Burst berry", "game.icepeashooter": "Ice shooter", "game.burst": "burst", "game.slow": "slow", "game.peashooter": "Peashooter", "game.soundOn": "♫ Sound on", "game.soundOff": "♫ Sound off",
     "game.sunflower": "Sunflower", "game.wallnut": "Wall-nut", "game.attack": "attack", "game.produce": "sun", "game.defense": "defense", "game.firepeashooter": "Fire Pea", "game.twinpea": "Twin Pea", "game.kernelpult": "Kernel-pult", "game.pumpkin": "Pumpkin", "game.spikeweed": "Spikeweed", "game.gloomshroom": "Gloom-shroom", "game.butter": "butter stun", "game.armor": "armor", "game.polevault": "Pole Vault", "game.dancer": "Dancer", "game.backup": "backup dancer", "game.potatomine": "Potato Mine", "game.threepeater": "Threepeater", "game.jalapeno": "Jalapeno", "game.magnetshroom": "Magnet-shroom", "game.garlic": "Garlic", "game.squash": "Squash", "game.gatlingpea": "Gatling Pea", "game.trap": "trap", "game.utility": "disarm", "game.redirect": "redirect", "game.smash": "smash", "game.rapid": "rapid fire", "game.cooldown": "recharging", "game.newWindow": "New window", "game.wideMode": "Wide mode", "game.compactMode": "Compact mode", "game.fullscreen": "Fullscreen", "game.waveFinal": "Final wave: use bursts and slows to hold the last line",
-    "game.instructions": "Choose a card · click the lawn to plant · each lane has one safety mower", "game.start": "Start game", "game.restart": "Restart", "game.mowers": "Mowers", "game.combo": "Combo", "game.energy": "Tactical energy", "game.skillPulse": "Frost Pulse", "game.skillPulseHint": "Freeze and shock every zombie", "game.skillSun": "Sun Burst", "game.skillSunHint": "Gain 100 sun instantly", "game.skillRally": "Overdrive", "game.skillRallyHint": "Boost plant fire rate for 8 seconds", "game.skillReady": "Ready", "game.skillCooldown": "Cooling", "game.skillNeedEnergy": "Need energy",
+    "game.instructions": "Choose a card · click the lawn to plant · each lane has one safety mower", "game.start": "Start game", "game.restart": "Restart", "game.mowers": "Mowers", "game.combo": "Combo", "game.energy": "Tactical energy", "game.skillPulse": "Frost Pulse", "game.skillPulseHint": "Freeze and shock every zombie", "game.skillSun": "Sun Burst", "game.skillSunHint": "Gain 100 sun instantly", "game.skillRally": "Overdrive", "game.skillRallyHint": "Boost plant fire rate for 8 seconds", "game.skillTimeStop": "Time Lock", "game.skillTimeStopHint": "Freeze zombies for 4 seconds", "game.skillReady": "Ready", "game.skillCooldown": "Cooling", "game.skillNeedEnergy": "Need energy",
     "message.you": "You", "message.now": "now", "message.agent": "Agent", "game.canvas": "Plants vs. Zombies mini game canvas",
     "changes.agentCore": "Agent core", "changes.webWorkspace": "Web workspace", "changes.specproof": "Specproof review", "changes.filesChanged": "6 files changed", "changes.filesAdded": "3 files added", "changes.assessmentAdded": "assessment added", "changes.now": "now", "changes.minute": "1m", "changes.clean": "Waiting for changes", "changes.cleanHint": "Changes will sync here after a task runs", "changes.modified": "Modified", "changes.added": "Added", "changes.deleted": "Deleted", "changes.renamed": "Renamed", "changes.openDiff": "Open diff",
   },
@@ -953,6 +953,7 @@ function phaseLabel(data) {
     planning: "phase.planning",
     tool: "phase.tool",
     answering: "phase.answering",
+    review: "phase.review",
     merging: "phase.merging",
     completed: "phase.completed",
     failed: "phase.failed",
@@ -1149,7 +1150,7 @@ function traceLabel(event) {
         verification_blocked: "验证阻塞",
         reinspect_required: "重新检查",
          completion_judge_retry: "完成评估复查",
-         run_finished: "交付整理",
+         run_finished: "执行结束",
         stagnation_guard: "循环保护",
         max_turns: "轮次上限",
         batch_started: "并行编排",
@@ -1199,7 +1200,7 @@ function traceLabel(event) {
         verification_blocked: "Verification blocked",
         reinspect_required: "Re-inspection",
          completion_judge_retry: "Completion retry",
-         run_finished: "Delivery summary",
+         run_finished: "Execution finished",
         stagnation_guard: "Loop guard",
         max_turns: "Turn limit",
         batch_started: "Parallel orchestration",
@@ -1447,7 +1448,7 @@ function toolEventHtml(event, animate = false, anchor = "", open = false) {
     const traceClass = status === "error" ? "trace-error" : "trace-ok";
     const detail = traceDetail(event, { omitText: event.code === "model_update" });
     const publicText = event.code === "model_update" && typeof event.detail?.text === "string" ? event.detail.text : "";
-    const tracePhase = event.code === "run_finished" ? "completed" : event.phase;
+    const tracePhase = event.code === "run_finished" ? "review" : event.phase;
     const isModelEvent = String(event.code || "") === "model_update";
     const summary = isModelEvent && event.code === "model_update"
       ? (state.locale === "zh" ? `行动说明 · 第 ${event.detail?.turn || ""} 轮` : `Action · turn ${event.detail?.turn || ""}`)
@@ -2651,7 +2652,7 @@ const GAME_DIFFICULTIES = {
 };
 const savedGameDifficulty = Object.prototype.hasOwnProperty.call(GAME_DIFFICULTIES, localStorage.getItem("minicc-game-difficulty")) ? localStorage.getItem("minicc-game-difficulty") : "hard";
 const WAVE_TARGET = (wave, difficulty = savedGameDifficulty) => 7 + wave * 2 + GAME_DIFFICULTIES[difficulty].waveBonus + (difficulty === "nightmare" ? wave + Math.floor((wave + 1) / 2) : 0);
-const game = { running: false, paused: false, pauseReasons: new Set(), frame: 0, score: 0, sun: GAME_DIFFICULTIES[savedGameDifficulty].initialSun, wave: 1, waveTarget: WAVE_TARGET(1), waveSpawned: 0, totalSpawned: 0, waveClearTimer: 0, elapsed: 0, selected: null, hoverCell: null, shovel: false, seedCooldowns: {}, skillCooldowns: {}, energy: 60, rallyTimer: 0, plants: [], zombies: [], defeated: [], suns: [], shots: [], particles: [], impacts: [], popups: [], mowers: [], combo: 0, comboTimer: 0, bestCombo: 0, bannerTimer: 0, bannerText: "", bannerColor: "#ffe27c", dangerPulse: 0, last: 0, spawnTimer: 0, skyTimer: 0, dangerTimer: 0, difficulty: savedGameDifficulty, autoSun: localStorage.getItem("minicc-game-auto-sun") !== "off", musicOn: localStorage.getItem("minicc-game-sound") !== "off", volume: Math.max(0, Math.min(100, Number(localStorage.getItem("minicc-game-volume")) || 70)), audio: null, hudAt: 0, flagRows: new Uint8Array(5), renderStats: { frames: 0, fps: 0, lastFrameMs: 0, maxFrameMs: 0, longFrames: 0, frameSamples: [], recentSamples: new Array(60), recentSampleIndex: 0, recentSampleCount: 0, recentLongFrames: 0, windowStartedAt: 0, windowFrames: 0, indexRebuilds: 0, rowQueries: 0, rowCandidates: 0, drawCalls: 0, plantDraws: 0, zombieDraws: 0, animationSwitches: 0 } };
+const game = { running: false, paused: false, pauseReasons: new Set(), frame: 0, score: 0, sun: GAME_DIFFICULTIES[savedGameDifficulty].initialSun, wave: 1, waveTarget: WAVE_TARGET(1), waveSpawned: 0, totalSpawned: 0, waveClearTimer: 0, elapsed: 0, selected: null, hoverCell: null, shovel: false, seedCooldowns: {}, skillCooldowns: {}, energy: 60, rallyTimer: 0, timeStopTimer: 0, plants: [], zombies: [], defeated: [], suns: [], shots: [], particles: [], impacts: [], popups: [], mowers: [], combo: 0, comboTimer: 0, bestCombo: 0, bannerTimer: 0, bannerText: "", bannerColor: "#ffe27c", dangerPulse: 0, last: 0, spawnTimer: 0, skyTimer: 0, dangerTimer: 0, difficulty: savedGameDifficulty, autoSun: localStorage.getItem("minicc-game-auto-sun") !== "off", musicOn: localStorage.getItem("minicc-game-sound") !== "off", volume: Math.max(0, Math.min(100, Number(localStorage.getItem("minicc-game-volume")) || 70)), audio: null, hudAt: 0, flagRows: new Uint8Array(5), renderStats: { frames: 0, fps: 0, lastFrameMs: 0, maxFrameMs: 0, longFrames: 0, frameSamples: [], recentSamples: new Array(60), recentSampleIndex: 0, recentSampleCount: 0, recentLongFrames: 0, windowStartedAt: 0, windowFrames: 0, indexRebuilds: 0, rowQueries: 0, rowCandidates: 0, drawCalls: 0, plantDraws: 0, zombieDraws: 0, animationSwitches: 0 } };
 const ZOMBIE_BODY_COLORS = { walker: "#526b5e", roadblock: "#53677d", bucket: "#566273", runner: "#9b5d4f", imp: "#b45d4e", football: "#334b68", miner: "#72574a", polevault: "#57785d", flag: "#754d6c", dancer: "#8d3f68", newspaper: "#806c50", conehead: "#b76b4d", witch: "#563d70", dragon: "#8a453f", gargantuar: "#694450", backup: "#a15c72" };
 const gameLayout = { left: 78, top: 72, cellW: 70, cellH: 65, rows: 5, cols: 9 };
 const GAME_LOGICAL_WIDTH = 720;
@@ -2668,6 +2669,7 @@ const GAME_SKILLS = {
   pulse: { cost: 25, cooldown: 7000, label: "game.skillPulse", hint: "game.skillPulseHint" },
   sun: { cost: 35, cooldown: 10000, label: "game.skillSun", hint: "game.skillSunHint" },
   rally: { cost: 45, cooldown: 14000, label: "game.skillRally", hint: "game.skillRallyHint" },
+  timeStop: { cost: 55, cooldown: 18000, label: "game.skillTimeStop", hint: "game.skillTimeStopHint" },
 };
 const gameRows = {
   plants: Array.from({ length: gameLayout.rows }, () => []),
@@ -2853,6 +2855,20 @@ const plantProfiles = {
   gatlingpea: { interval: 1550, shots: 4, damage: 1, slow: 0, pierce: 1 },
   gloomshroom: { interval: 1200, shots: 1, damage: 1, slow: 900, close: true },
 };
+function plantHasSunlight(plant) {
+  if (!plant || plant.type === "sunflower") return false;
+  return game.plants.some((container) => [container, container.underPlant].filter(Boolean).some((candidate) => (
+    candidate !== plant
+    && candidate.type === "sunflower"
+    && Math.abs(candidate.row - plant.row) <= 1
+    && Math.abs(candidate.col - plant.col) <= 1
+  )));
+}
+function plantFireInterval(plant, profile) {
+  const sunlightMultiplier = plant.sunlightBoost ? .78 : 1;
+  const rallyMultiplier = game.rallyTimer > 0 ? .55 : 1;
+  return profile.interval * sunlightMultiplier * rallyMultiplier;
+}
 const zombieProfiles = {
   walker: { hp: 5, speed: .020, growth: .0010, attackInterval: 1000, score: 1 },
   backup: { hp: 4, speed: .025, growth: .0008, attackInterval: 900, score: 1 },
@@ -3009,6 +3025,7 @@ function activateGameSkill(type) {
     game.zombies.slice().forEach((zombie) => {
       zombie.slowTimer = Math.max(zombie.slowTimer || 0, 4200);
       zombie.flashTimer = 240;
+      zombie.staggerTimer = Math.max(zombie.staggerTimer || 0, 220);
       zombie.hp -= zombie.armor > 0 ? 2.5 : 4;
       game.impacts.push({ x: zombie.x, y: zombie.y, radius: 34, color: "#bdf8ff", life: 260, maxLife: 260 });
       if (zombie.hp <= 0) defeatZombie(zombie, "skill");
@@ -3022,11 +3039,21 @@ function activateGameSkill(type) {
     addGamePopup(390, 112, "+100 ☀", "#ffe17b", 1000);
     announceGame(state.locale === "zh" ? "+100 阳光" : "+100 SUN", "#ffe17b", 900);
     playGameSound("collect");
-  } else {
+  } else if (type === "rally") {
     game.rallyTimer = 8000;
     game.skillPulseFlash = 420;
     addGameParticle(390, 230, "#f5c96b", 32, .3);
     announceGame(state.locale === "zh" ? "战线超载！" : "OVERDRIVE!", "#f5c96b", 900);
+    playGameSound("wave");
+  } else if (type === "timeStop") {
+    game.timeStopTimer = 4200;
+    game.skillPulseFlash = 620;
+    game.zombies.forEach((zombie) => {
+      zombie.flashTimer = Math.max(zombie.flashTimer || 0, 4200);
+      game.impacts.push({ x: zombie.x, y: zombie.y, radius: 28, color: "#d7c7ff", life: 4200, maxLife: 4200 });
+    });
+    addGameParticle(390, 230, "#d7c7ff", 56, .38);
+    announceGame(state.locale === "zh" ? "时停领域！" : "TIME LOCK!", "#d7c7ff", 1100);
     playGameSound("wave");
   }
   updateGameHud(true);
@@ -3143,6 +3170,7 @@ function initGame() {
   game.skillCooldowns = {};
   game.energy = 60;
   game.rallyTimer = 0;
+  game.timeStopTimer = 0;
   game.skillPulseFlash = 0;
   game.autoSun = localStorage.getItem("minicc-game-auto-sun") !== "off";
   game.plants = [];
@@ -3270,7 +3298,21 @@ function drawPlant(ctx, plant, now) {
   const leaf = (lx, ly, angle, color = "#3d9b5c") => { ctx.save(); ctx.translate(lx, ly); ctx.rotate(angle); ctx.fillStyle = color; ctx.beginPath(); ctx.ellipse(0, 0, 12, 5, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore(); };
   const stem = (height = 24, color = "#2f744d") => { ctx.strokeStyle = color; ctx.lineWidth = 5; ctx.lineCap = "round"; ctx.beginPath(); ctx.moveTo(0, 21); ctx.lineTo(0, 21 - height); ctx.stroke(); };
   const peaFace = (color, mouth = 10) => { ctx.fillStyle = color; ctx.beginPath(); ctx.arc(0, -17, 15, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = "#193c32"; ctx.beginPath(); ctx.arc(10, -17, mouth, -.45, .45); ctx.fill(); ctx.fillStyle = "#f3f4ca"; ctx.beginPath(); ctx.arc(13, -17, 3, 0, Math.PI * 2); ctx.fill(); };
-  ctx.save(); ctx.translate(x, y + bob); ctx.scale(breathe, breathe); ctx.fillStyle = "rgba(17, 51, 32, .3)"; ctx.beginPath(); ctx.ellipse(0, 25, 24, 7, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.save(); ctx.translate(x, y + bob); ctx.scale(breathe, breathe);
+  if (plant.sunlightBoost && gameRender.effects !== "low") {
+    const pulse = 1 + Math.sin((now + plant.seed) / 180) * .08;
+    ctx.save();
+    ctx.globalAlpha = .42;
+    ctx.strokeStyle = "#ffe58a";
+    ctx.lineWidth = 2;
+    ctx.shadowColor = "#ffd76a";
+    ctx.shadowBlur = 10;
+    ctx.beginPath();
+    ctx.arc(0, -8, 28 * pulse, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+  ctx.fillStyle = "rgba(17, 51, 32, .3)"; ctx.beginPath(); ctx.ellipse(0, 25, 24, 7, 0, 0, Math.PI * 2); ctx.fill();
   switch (plant.type) {
     case "sunflower": stem(); leaf(-12, 13, -.45); leaf(12, 15, .45); for (let i = 0; i < 10; i += 1) { const a = i * Math.PI / 5; ctx.fillStyle = i % 2 ? "#f4b83f" : "#ffd966"; ctx.beginPath(); ctx.ellipse(Math.cos(a) * 15, -8 + Math.sin(a) * 15, 7, 13, a, 0, Math.PI * 2); ctx.fill(); } ctx.fillStyle = "#75482d"; ctx.beginPath(); ctx.arc(0, -8, 11, 0, Math.PI * 2); ctx.fill(); break;
     case "wallnut": ctx.fillStyle = "#a66a45"; ctx.beginPath(); ctx.ellipse(0, -3, 23, 29, 0, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = "#70452f"; ctx.lineWidth = 2; ctx.stroke(); ctx.fillStyle = "#1d302c"; ctx.beginPath(); ctx.arc(-7, -11, 2, 0, Math.PI * 2); ctx.arc(7, -11, 2, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = "#1d302c"; ctx.beginPath(); ctx.arc(0, -2, 8, .15, Math.PI - .15); ctx.stroke(); break;
@@ -3300,15 +3342,35 @@ function drawZombie(ctx, zombie, now) {
   const gait = Math.sin(cycle / (fast ? 70 : 145));
   const stride = gait * (fast ? 6 : 4);
   const bob = Math.abs(gait) * (giant ? 2.4 : 1.6);
+  const attackProgress = zombie.attacking ? (zombie.attackTimer || 0) / Math.max(1, zombie.attackInterval) : 0;
+  const attackWindup = zombie.attacking && attackProgress > .52 ? Math.sin(Math.min(1, (attackProgress - .52) / .48) * Math.PI) : 0;
+  const hitStagger = zombie.staggerTimer > 0 ? Math.min(1, zombie.staggerTimer / 180) : 0;
+  const dashPose = ["runner", "imp", "scout"].includes(zombie.type) && zombie.dashTimer > 0 ? 1 : 0;
+  const chargePose = zombie.type === "football" && zombie.chargeTimer > 0 ? 1 : 0;
+  const leapPose = zombie.leapTimer > 0 ? Math.sin(Math.min(1, zombie.leapTimer / 1800) * Math.PI) : 0;
+  const burrowed = zombie.type === "miner" && zombie.burrowTimer > 0;
   const armSwing = Math.sin(cycle / (fast ? 70 : 145) + Math.PI) * (fast ? 8 : 5);
   const actionPulse = zombie.flashTimer > 0 ? Math.sin(now / 18) * 3 : 0;
   const skillPulse = (zombie.breathTimer > 0 && zombie.breathTimer < 520) || (zombie.smashTimer > 0 && zombie.smashTimer < 520) || (zombie.curseTimer > 0 && zombie.curseTimer < 520) || (zombie.stormTimer > 0 && zombie.stormTimer < 520) || (zombie.summonTimer > 0 && zombie.summonTimer < 520);
   const scale = giant ? 1.32 : zombie.type === "imp" ? .78 : 1;
   const body = ZOMBIE_BODY_COLORS[zombie.type] || ZOMBIE_BODY_COLORS.walker;
-  ctx.save(); ctx.translate(zombie.x, zombie.y - bob + actionPulse); ctx.scale(scale, scale);
-  ctx.fillStyle = "rgba(20, 27, 29, .32)"; ctx.beginPath(); ctx.ellipse(0, 27 + bob, 24 + Math.abs(stride) * .25, 7, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = "#26333a"; ctx.lineWidth = 5; ctx.lineCap = "round"; ctx.beginPath(); ctx.moveTo(-7, 14); ctx.lineTo(-12 + stride, 30); ctx.moveTo(7, 14); ctx.lineTo(12 - stride, 30); ctx.stroke();
-  ctx.strokeStyle = body; ctx.lineWidth = giant ? 6 : 4; ctx.beginPath(); ctx.moveTo(-13, 3); ctx.lineTo(-23 - armSwing, 15); ctx.moveTo(13, 3); ctx.lineTo(23 + armSwing, 15); ctx.stroke();
+  const lean = attackWindup * -.13 + dashPose * .08 + chargePose * .12 + hitStagger * .1;
+  const burrowOffset = burrowed ? 10 + Math.sin(cycle / 90) * 2 : 0;
+  ctx.save();
+  ctx.translate(zombie.x + hitStagger * 6 - dashPose * 4, zombie.y - bob - burrowOffset + actionPulse - leapPose * 13);
+  ctx.rotate(lean);
+  ctx.scale(scale * (1 + chargePose * .04), scale * (1 - chargePose * .025));
+  if (burrowed) ctx.globalAlpha = .62;
+  ctx.fillStyle = "rgba(20, 27, 29, .32)"; ctx.beginPath(); ctx.ellipse(0, 27 + bob + leapPose * 13, 24 + Math.abs(stride) * .25, 7, 0, 0, Math.PI * 2); ctx.fill();
+  const legLift = leapPose * 8 + dashPose * 3;
+  const legSwing = stride + leapPose * 9;
+  ctx.strokeStyle = "#26333a"; ctx.lineWidth = 5; ctx.lineCap = "round"; ctx.beginPath(); ctx.moveTo(-7, 14); ctx.lineTo(-12 + legSwing, 30 - legLift); ctx.moveTo(7, 14); ctx.lineTo(12 - legSwing, 30 - legLift * .55); ctx.stroke();
+  const reach = attackWindup * 15 + chargePose * 7;
+  const poseArmSwing = armSwing - attackWindup * 12 + dashPose * 5;
+  ctx.strokeStyle = body; ctx.lineWidth = giant ? 6 : 4; ctx.beginPath(); ctx.moveTo(-13, 3); ctx.lineTo(-23 - poseArmSwing - reach, 15 - attackWindup * 5); ctx.moveTo(13, 3); ctx.lineTo(23 + poseArmSwing + reach, 15 - attackWindup * 5); ctx.stroke();
+  if (dashPose && gameRender.effects !== "low") { ctx.globalAlpha = .22; ctx.strokeStyle = zombie.type === "scout" ? "#f5cf63" : "#e57b70"; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(-10, 10); ctx.lineTo(-42, 16); ctx.moveTo(2, 16); ctx.lineTo(-28, 25); ctx.stroke(); ctx.globalAlpha = 1; }
+  if (zombie.elite && gameRender.effects !== "low") { const elitePulse = 1 + Math.sin((now + zombie.seed) / 160) * .08; ctx.globalAlpha = .2 + Math.abs(Math.sin((now + zombie.seed) / 260)) * .18; ctx.strokeStyle = "#ffcf6b"; ctx.lineWidth = 2; ctx.shadowColor = "#ff9b5f"; ctx.shadowBlur = 12; ctx.beginPath(); ctx.arc(0, -12, 31 * elitePulse, 0, Math.PI * 2); ctx.stroke(); ctx.shadowBlur = 0; ctx.globalAlpha = 1; }
+  if (zombie.attackFlashTimer > 0) { ctx.globalAlpha = Math.min(1, zombie.attackFlashTimer / 90); ctx.strokeStyle = "#ffd47a"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(19 + reach, 12 - attackWindup * 5, 8 + attackWindup * 8, -.7, .7); ctx.stroke(); ctx.globalAlpha = 1; }
   if (skillPulse) { ctx.strokeStyle = zombie.type === "dragon" ? "rgba(255,145,84,.72)" : "rgba(195,168,255,.62)"; ctx.lineWidth = 2; ctx.globalAlpha = .45 + Math.abs(Math.sin(now / 90)) * .4; ctx.beginPath(); ctx.arc(0, -8, 28 + Math.abs(gait) * 4, 0, Math.PI * 2); ctx.stroke(); ctx.globalAlpha = 1; }
   ctx.fillStyle = body; roundedRect(ctx, -16, -1, giant ? 34 : 31, 27, 8); ctx.fill(); ctx.fillStyle = zombie.flashTimer > 0 ? "#fff7d7" : "#b9c7a9"; ctx.beginPath(); ctx.arc(0, -17, giant ? 18 : 15, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = "#29303d"; ctx.beginPath(); ctx.arc(-5, -18, 3, 0, Math.PI * 2); ctx.arc(6, -18, 3, 0, Math.PI * 2); ctx.fill();
   if (zombie.type === "roadblock") { ctx.fillStyle = "#efbd62"; ctx.fillRect(-20, -33, 40, 7); ctx.fillStyle = "#b95942"; ctx.fillRect(-15, -38, 30, 5); } if (zombie.type === "bucket") { ctx.fillStyle = "#aab4bd"; ctx.fillRect(-18, -34, 36, 16); ctx.fillStyle = "#65717d"; ctx.fillRect(-21, -20, 42, 4); } if (zombie.type === "conehead") { ctx.fillStyle = "#eb873e"; ctx.beginPath(); ctx.moveTo(0, -48); ctx.lineTo(-15, -27); ctx.lineTo(15, -27); ctx.closePath(); ctx.fill(); ctx.fillStyle = "#f4c15f"; ctx.fillRect(-17, -29, 34, 5); } if (zombie.type === "football") { ctx.fillStyle = "#c76c50"; ctx.beginPath(); ctx.ellipse(0, -33, 21, 8, 0, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = "#dbe4ed"; ctx.fillRect(-14, -35, 28, 3); } if (zombie.type === "miner") { ctx.fillStyle = "#d59c3d"; ctx.beginPath(); ctx.arc(0, -32, 18, Math.PI, Math.PI * 2); ctx.fill(); ctx.fillStyle = "#fff0a0"; ctx.beginPath(); ctx.arc(0, -37, 5, 0, Math.PI * 2); ctx.fill(); } if (zombie.type === "flag") { ctx.strokeStyle = "#e0b26e"; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(17, 16); ctx.lineTo(17, -40); ctx.stroke(); ctx.fillStyle = "#ef786c"; ctx.beginPath(); ctx.moveTo(18, -39); ctx.lineTo(36, -32); ctx.lineTo(18, -25); ctx.fill(); } if (zombie.type === "polevault") { ctx.strokeStyle = "#dfad70"; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(-20, 20); ctx.lineTo(23, -40); ctx.stroke(); } if (zombie.type === "dancer") { ctx.strokeStyle = "#f2c2dd"; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(-17, 4); ctx.lineTo(-31, -12); ctx.moveTo(17, 4); ctx.lineTo(31, -12); ctx.stroke(); } if (zombie.type === "newspaper") { ctx.fillStyle = "#f4e2b0"; ctx.fillRect(-24, -3, 15, 20); } if (zombie.type === "witch") { ctx.fillStyle = "#30233d"; ctx.beginPath(); ctx.moveTo(-19, -29); ctx.lineTo(0, -53); ctx.lineTo(19, -29); ctx.closePath(); ctx.fill(); ctx.fillStyle = "#dcb5ff"; ctx.beginPath(); ctx.arc(0, -32, 5, 0, Math.PI * 2); ctx.fill(); } if (zombie.type === "dragon") { ctx.fillStyle = "#d49b50"; ctx.beginPath(); ctx.moveTo(-18, -2); ctx.lineTo(-34, -18); ctx.lineTo(-25, 6); ctx.lineTo(-15, 7); ctx.moveTo(18, -2); ctx.lineTo(34, -18); ctx.lineTo(25, 6); ctx.lineTo(15, 7); ctx.fill(); } if (zombie.type === "gargantuar") { ctx.fillStyle = "#b8c4d1"; ctx.fillRect(17, -2, 8, 31); ctx.fillStyle = "#d99a5e"; ctx.beginPath(); ctx.arc(21, 31, 9, 0, Math.PI * 2); ctx.fill(); }
@@ -3484,6 +3546,9 @@ function spawnZombie() {
     burnTickTimer: 0,
     stormTimer: 0,
     markTimer: 0,
+    attackTimer: 0,
+    attacking: false,
+    staggerTimer: 0,
     elite: nightmareElite,
   });
   game.waveSpawned += 1;
@@ -3705,6 +3770,7 @@ function gameLoop(now = 0) {
   game.elapsed += dt;
   updateGameEffects(dt);
   game.rallyTimer = Math.max(0, (game.rallyTimer || 0) - dt);
+  game.timeStopTimer = Math.max(0, (game.timeStopTimer || 0) - dt);
   for (const type of Object.keys(GAME_SKILLS)) {
     if (game.skillCooldowns[type] > 0) game.skillCooldowns[type] = Math.max(0, game.skillCooldowns[type] - dt);
   }
@@ -3742,6 +3808,7 @@ function gameLoop(now = 0) {
   });
   plantsThisFrame.forEach((plant) => {
     if (!plantContainer(plant)) return;
+    plant.sunlightBoost = plantHasSunlight(plant);
     plant.age += dt;
     plant.disabledTimer = Math.max(0, (plant.disabledTimer || 0) - dt);
     if (plant.disabledTimer > 0) return;
@@ -3812,7 +3879,7 @@ function gameLoop(now = 0) {
         || (plant.row > 0 && anyRowEntity("zombies", plant.row - 1, (zombie) => zombie.x > position.x))
         || (plant.row + 1 < gameLayout.rows && anyRowEntity("zombies", plant.row + 1, (zombie) => zombie.x > position.x))
       : anyRowEntity("zombies", plant.row, (zombie) => zombie.x > position.x);
-    const fireInterval = profile.interval * (game.rallyTimer > 0 ? .55 : 1);
+    const fireInterval = plantFireInterval(plant, profile);
     if (plant.shotTimer > fireInterval && rowThreat) {
       plant.shotTimer = 0;
       if (profile.utility) {
@@ -3849,8 +3916,10 @@ function gameLoop(now = 0) {
     zombie.guardTimer = Math.max(0, (zombie.guardTimer || 0) - dt);
     zombie.stormTimer = Math.max(0, (zombie.stormTimer || 0) - dt);
     zombie.markTimer = Math.max(0, (zombie.markTimer || 0) - dt);
+    zombie.staggerTimer = Math.max(0, (zombie.staggerTimer || 0) - dt);
     zombie.burnTimer = Math.max(0, (zombie.burnTimer || 0) - dt);
     zombie.burnTickTimer = Math.max(0, (zombie.burnTickTimer || 0) - dt);
+    if (game.timeStopTimer > 0) return;
     if (zombie.burnTimer > 0 && zombie.burnTickTimer <= 0) {
       zombie.burnTickTimer = 500;
       zombie.hp -= Math.max(1, zombie.burnDamage || 1);
@@ -3891,8 +3960,22 @@ function gameLoop(now = 0) {
       zombie.markTimer = 3500;
       curseNearestPlant(zombie, 1400);
     }
-    if (zombie.type === "dancer") { zombie.summonTimer += dt; if (zombie.summonTimer > 4200) { zombie.summonTimer = 0; const allyRow = (zombie.row + 1) % gameLayout.rows; const ally = zombieProfiles.backup; game.zombies.push({ x: zombie.x + 34, y: cellPosition(allyRow, 0).y, row: allyRow, hp: ally.hp, maxHp: ally.hp, armor: 0, type: "backup", speed: ally.speed, attackInterval: ally.attackInterval, slowTimer: 0, burrowTimer: 0, seed: Math.random() * 1000, garlicTimer: 0, vaultTimer: 0, summonTimer: 0, flashTimer: 0 }); addGameParticle(zombie.x, zombie.y - 28, "#ef7892", 16, .18); playGameSound("wave"); } }
+    if (zombie.type === "dancer") { zombie.summonTimer += dt; if (zombie.summonTimer > 4200) { zombie.summonTimer = 0; const allyRow = (zombie.row + 1) % gameLayout.rows; const ally = zombieProfiles.backup; game.zombies.push({ x: zombie.x + 34, y: cellPosition(allyRow, 0).y, row: allyRow, hp: ally.hp, maxHp: ally.hp, armor: 0, type: "backup", speed: ally.speed, attackInterval: ally.attackInterval, slowTimer: 0, burrowTimer: 0, seed: Math.random() * 1000, garlicTimer: 0, vaultTimer: 0, summonTimer: 0, flashTimer: 0, attackTimer: 0, attacking: false, staggerTimer: 0 }); addGameParticle(zombie.x, zombie.y - 28, "#ef7892", 16, .18); playGameSound("wave"); } }
     const blocker = burrowed ? null : game.plants.find((plant) => plant.type !== "spikeweed" && plant.row === zombie.row && Math.abs(cellPosition(plant.row, plant.col).x - zombie.x) < 30);
+    if (blocker) {
+      zombie.attacking = true;
+      zombie.attackTimer = (zombie.attackTimer || 0) + dt;
+      const attackCycle = Math.max(240, zombie.attackInterval || 900);
+      if (zombie.attackTimer >= attackCycle) {
+        zombie.attackTimer -= attackCycle;
+        zombie.attackFlashTimer = 180;
+        zombie.flashTimer = Math.max(zombie.flashTimer || 0, 90);
+      }
+    } else {
+      zombie.attacking = false;
+      zombie.attackTimer = 0;
+    }
+    zombie.attackFlashTimer = Math.max(0, (zombie.attackFlashTimer || 0) - dt);
     if (zombie.type === "imp" && blocker && zombie.leapTimer <= 0) { zombie.x = cellPosition(blocker.row, blocker.col).x - 44; zombie.leapTimer = 1800; addGameParticle(zombie.x, zombie.y - 25, "#e57b70", 12, .16); return; }
     if (blocker?.type === "spikeweed") { zombie.hp -= dt / 720; if (zombie.hp <= 0) { defeatZombie(zombie); updateGameHud(); return; } }
     if (zombie.type === "polevault" && blocker && !zombie.vaultTimer) { zombie.x = cellPosition(blocker.row, blocker.col).x - 44; zombie.vaultTimer = 1; addGameParticle(zombie.x, zombie.y - 25, "#d5a15e", 12, .16); return; }
@@ -3938,6 +4021,7 @@ function gameLoop(now = 0) {
     if (shot.slow) hit.slowTimer = Math.max(hit.slowTimer, shot.slow);
     if (shot.butter) hit.slowTimer = Math.max(hit.slowTimer, 3200);
     hit.flashTimer = 120;
+    hit.staggerTimer = Math.max(hit.staggerTimer || 0, shot.fire ? 150 : 110);
     game.impacts.push({ x: shot.x, y: shot.y, radius: shot.butter ? 24 : shot.fire ? 20 : 16, color: shot.butter ? "#f4d37d" : shot.color || "#b7f3a0", life: 180, maxLife: 180 });
     addGameParticle(shot.x, shot.y, shot.color || "#b7f3a0", 5, .1);
     playGameSound("hit");

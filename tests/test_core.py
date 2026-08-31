@@ -6,6 +6,7 @@ import subprocess
 import sys
 import threading
 import time
+from copy import deepcopy
 from pathlib import Path
 from types import SimpleNamespace
 import asyncio
@@ -13,8 +14,8 @@ import asyncio
 import pytest
 
 import minicc.tools.web as web_tool
-from minicc.agent.context import COMPACTION_MARKER, compact, compact_with_checkpoint
-from minicc.agent.completion import parse_completion_decision
+from minicc.agent.context import COMPACTION_MARKER, compact, compact_with_checkpoint, message_chars
+from minicc.agent.completion import judge_completion, parse_completion_decision
 from minicc.agent.graph import DAGPlan, GraphValidationError, NodeResult, PlanTask, build_coding_workflow, execute_dag, fixed_plan
 from minicc.agent.orchestration import assess_complexity, build_auto_subtasks
 from minicc.agent.planner import PlannerPolicy, build_plan, parse_planner_response, validate_dynamic_plan
@@ -102,6 +103,94 @@ def test_structured_compaction_preserves_coding_evidence_and_merges() -> None:
     assert checkpoint_again is not None
     assert "minicc/parser.py" in checkpoint_again["files"]
     assert checkpoint_again["archive"]["messages"] >= checkpoint["archive"]["messages"]
+
+
+def test_compaction_keeps_visual_reference_and_agent_restores_it() -> None:
+    image = {
+        "type": "image_url",
+        "image_url": {"url": "data:image/png;base64,cG5nLWJ5dGVz"},
+    }
+    messages = [{"role": "system", "content": "rules"}]
+    messages.append({
+        "role": "user",
+        "content": [{"type": "text", "text": "请根据图片完成任务"}, image],
+    })
+    messages.extend({"role": "user", "content": f"背景 {index} " + "x" * 80} for index in range(7))
+
+    class FakeProvider:
+        def __init__(self) -> None:
+            self.requests: list[list[dict[str, object]]] = []
+
+        async def chat(self, messages, tools, on_delta=None):
+            self.requests.append(deepcopy(messages))
+            return LLMResponse(content="已根据图片完成")
+
+    provider = FakeProvider()
+    result = asyncio.run(
+        run_agent(
+            provider,
+            build_registry(Editor(Path.cwd())),
+            messages,
+            compact_threshold=100,
+            vision_context=[image],
+            should_allow=lambda _name, _call: True,
+        )
+    )
+
+    assert result.answer == "已根据图片完成"
+    assert result.compaction_events
+    checkpoint = result.compaction_events[0]["checkpoint"]
+    assert checkpoint["visual_attachments"][0]["mime_type"] == "image/png"
+    assert message_chars(messages) < 4000
+    assert provider.requests
+    request_images = [
+        part
+        for message in provider.requests[0]
+        for part in message.get("content", [])
+        if isinstance(part, dict) and part.get("type") == "image_url"
+    ]
+    assert len(request_images) == 1
+    assert any(event.get("code") == "vision_context_restored" for event in result.trace_events)
+
+
+def test_completion_judge_receives_persistent_visual_context() -> None:
+    image = {
+        "type": "image_url",
+        "image_url": {"url": "data:image/png;base64,cG5nLWJ5dGVz"},
+    }
+    requests: list[list[dict[str, object]]] = []
+
+    class FakeProvider:
+        async def chat(self, messages, tools, on_delta=None):
+            requests.append(deepcopy(messages))
+            return LLMResponse(content=json.dumps({
+                "status": "complete",
+                "confidence": 0.9,
+                "rationale": "已结合截图和验证证据",
+                "missing": [],
+                "next_action": "",
+                "evidence": ["截图已提供"],
+            }))
+
+    decision = asyncio.run(
+        judge_completion(
+            FakeProvider(),
+            task="按截图实现页面",
+            answer="页面已实现",
+            events=[],
+            verification_results=[],
+            allow_changes=True,
+            workspace="workspace",
+            vision_context=[image],
+        )
+    )
+
+    assert decision.status == "complete"
+    assert requests
+    review_content = requests[0][1]["content"]
+    assert isinstance(review_content, list)
+    assert "已提供 1 张图片" in review_content[0]["text"]
+    assert review_content[1]["type"] == "image_url"
 
 
 def test_budget_tracks_usage_and_stops_at_limits() -> None:
@@ -1149,7 +1238,10 @@ def test_agent_loop_executes_tool_then_returns_answer(tmp_path: Path) -> None:
     finished = next(event for event in traces if event.get("code") == "tool_round_finished")
     feedback = next(event for event in traces if event.get("code") == "feedback_observed")
     replan = next(event for event in traces if event.get("code") == "replan")
+    run_finished = next(event for event in traces if event.get("code") == "run_finished")
     assert started["detail"]["turn_policy"].startswith("默认不限模型轮次")
+    assert run_finished["summary"] == "执行结束，待验收"
+    assert run_finished["phase"] == "review"
     assert finished["detail"]["results"][0]["tool"] == "read_file"
     assert "hello" in finished["detail"]["results"][0]["observation"]
     assert finished["detail"]["results"][0]["structured_data"]["digest"]

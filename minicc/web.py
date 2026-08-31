@@ -197,13 +197,21 @@ def _attachment_data_url(item: dict[str, Any]) -> str:
     return f"data:{mime_type};base64,{base64.b64encode(bytes(content)).decode('ascii')}"
 
 
+def _attachment_content_parts(attachments: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Build reusable image parts without duplicating attachment decoding."""
+    return [
+        {
+            "type": "image_url",
+            "image_url": {"url": _attachment_data_url(item)},
+        }
+        for item in attachments
+    ]
+
+
 def _multimodal_content(message: str, attachments: list[dict[str, Any]]) -> str | list[dict[str, Any]]:
     if not attachments:
         return message
-    parts: list[dict[str, Any]] = [{"type": "text", "text": message}]
-    for item in attachments:
-        parts.append({"type": "image_url", "image_url": {"url": _attachment_data_url(item)}})
-    return parts
+    return [{"type": "text", "text": message}, *_attachment_content_parts(attachments)]
 
 
 def _duration_seconds(started_at: float | None, finished_at: float | None, status: str) -> float:
@@ -2096,6 +2104,7 @@ class AgentService:
         allow_changes = bool(payload.get("allow_changes")) or self.config.yolo
         allow_network = bool(payload.get("allow_network"))
         attachments = _normalize_attachments(payload.get("attachments"))
+        vision_context = _attachment_content_parts(attachments)
         store = SessionStore(workspace, session_id)
         messages = store.load(build_system_prompt(workspace))
         resume_from_checkpoint = bool(payload.get("resume_from_checkpoint")) and store.exists
@@ -2508,6 +2517,7 @@ class AgentService:
                                     max_duration_seconds=None,
                                     max_retries=None,
                                 ),
+                                vision_context=vision_context,
                             )
                             answer, _ = redact_text(str(node_result.answer or "").strip())
                             if len(answer) > 1800:
@@ -2628,18 +2638,17 @@ class AgentService:
                         allowed_tools=frozenset(allowed_tools),
                     )
                     planner_policy = policy
+                    planner_prompt = build_planner_prompt(
+                        message,
+                        workspace=str(workspace),
+                        evidence="\n".join(
+                            f"- {hit.path}: {hit.reason}"
+                            for hit in evidence_hits[:8]
+                        ),
+                    )
                     planner_messages = [
                         system_msg(PLANNER_SYSTEM_PROMPT),
-                        user_msg(
-                            build_planner_prompt(
-                                message,
-                                workspace=str(workspace),
-                                evidence="\n".join(
-                                    f"- {hit.path}: {hit.reason}"
-                                    for hit in evidence_hits[:8]
-                                ),
-                            )
-                        ),
+                        user_msg(_multimodal_content(planner_prompt, attachments)),
                     ]
                     planner_started = {
                         "kind": "trace",
@@ -2786,6 +2795,7 @@ class AgentService:
                         budget=runtime_state.budget,
                         runtime_state=runtime_state,
                         require_recovery_inspection=(agent_recoveries > 0 or repair_attempts > 0),
+                        vision_context=vision_context,
                     )
                     aggregate = _merge_turn_results(aggregate, current)
                     writes = any(event.get("write") for event in events if isinstance(event, dict))
@@ -2950,6 +2960,7 @@ class AgentService:
                         allow_changes=allow_changes,
                         workspace=str(workspace),
                         cancel_event=cancel_event,
+                        vision_context=vision_context,
                     )
                     if cancel_event is not None and cancel_event.is_set():
                         if aggregate is None:
