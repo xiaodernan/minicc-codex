@@ -718,10 +718,11 @@ function setTaskTransportStatus(taskId, mode) {
   const binding = runningTasks.get(taskId);
   if (!binding) return;
   binding.transport = mode;
+  binding.data = { ...(binding.data || {}), transport: mode };
   const loading = document.getElementById(binding.loadingId);
   const transport = loading?.querySelector("[data-live-transport]");
   if (!transport) return;
-  const key = mode === "polling" ? "stream.polling" : mode === "reconnecting" ? "stream.reconnecting" : "stream.connected";
+  const key = mode === "polling" ? "stream.polling" : mode === "reconnecting" ? "stream.reconnecting" : mode === "connecting" ? "connection.connecting" : "stream.connected";
   transport.textContent = t(key);
   transport.dataset.transport = mode;
 }
@@ -1111,6 +1112,8 @@ function updateSessionStatus(data) {
 function liveTaskMarkup(data) {
   const streamText = String(data.stream_text || "");
   const currentPhase = phaseClass(data);
+  const transport = data.transport || (data.status === "queued" ? "connecting" : "connected");
+  const transportLabel = transport === "polling" ? t("stream.polling") : transport === "reconnecting" ? t("stream.reconnecting") : transport === "connecting" ? t("connection.connecting") : t("stream.connected");
   const preview = streamText ? formatText(streamTail(streamText)) : `<span class="stream-empty">${escapeHtml(t("phase.waiting"))}</span>`;
   return `<div class="live-task live-task-${currentPhase}" data-live-task data-phase="${currentPhase}">
     <div class="live-task-stage">
@@ -1122,7 +1125,7 @@ function liveTaskMarkup(data) {
       </div>
     </div>
     <div class="stream-panel">
-      <div class="stream-panel-head"><span class="stream-live-dot" aria-hidden="true"></span><span>${escapeHtml(t("stream.live"))}</span><span class="stream-metrics" data-live-metrics>${escapeHtml(taskMetrics(data))}</span><span class="stream-phase" data-live-phase-label>${escapeHtml(phaseLabel(data))}</span></div>
+      <div class="stream-panel-head"><span class="stream-live-dot" aria-hidden="true"></span><span>${escapeHtml(t("stream.live"))}</span><span class="stream-transport" data-live-transport data-transport="${escapeHtml(transport)}">${escapeHtml(transportLabel)}</span><span class="stream-metrics" data-live-metrics>${escapeHtml(taskMetrics(data))}</span><span class="stream-phase" data-live-phase-label>${escapeHtml(phaseLabel(data))}</span></div>
       <details class="live-output"><summary><span>${escapeHtml(state.locale === "zh" ? "查看实时输出" : "Live output")}</span><small data-live-output-count>${escapeHtml(streamText ? `${compactNumber(streamText.length)} ${state.locale === "zh" ? "字符（仅显示最近内容）" : "chars (recent content)"}` : "")}</small><span class="live-output-chevron">${icon("chevron-down")}</span></summary><div class="stream-preview" data-live-preview aria-live="polite">${preview}</div></details>
     </div>
   </div>`;
@@ -1907,6 +1910,7 @@ async function completeTask(loadingId, data) {
 
 async function pollTask(taskId) {
   const binding = runningTasks.get(taskId);
+  setTaskTransportStatus(taskId, "polling");
   let delay = 220;
   while (true) {
     try {
@@ -1938,6 +1942,7 @@ function streamTask(taskId) {
     let snapshotTimer = 0;
     const sourceKey = loadingId || taskId;
     const maxReconnectAttempts = 6;
+    setTaskTransportStatus(taskId, "connecting");
 
     const closeSource = () => {
       if (source) source.close();
@@ -1950,6 +1955,7 @@ function streamTask(taskId) {
     const fallback = () => {
       if (settled || fallbackStarted) return;
       fallbackStarted = true;
+      setTaskTransportStatus(taskId, "polling");
       closeSource();
       pollTask(taskId).then(resolve, reject);
     };
