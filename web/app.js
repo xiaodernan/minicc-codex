@@ -292,6 +292,7 @@ const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
 const liveStreamStates = new Map();
 const taskEventSources = new Map();
+const taskWatchers = new Map();
 const runningTasks = new Map();
 const taskBySession = new Map();
 const taskTimerHandles = new Map();
@@ -2000,21 +2001,25 @@ function streamTask(taskId) {
       }
     };
 
-    const checkLatestAfterError = () => requestJson(`/api/tasks/${encodeURIComponent(taskId)}`, {}, 8000)
-      .then((latest) => {
-        if (settled) return;
-        const current = updateBoundTask(taskId, latest);
-        if (isTerminalTask(current || latest)) {
-          finish(current || latest);
-          return;
-        }
-        scheduleReconnect();
-      })
-      .catch(() => scheduleReconnect());
+    const checkLatestAfterError = () => {
+      closeSource();
+      requestJson(`/api/tasks/${encodeURIComponent(taskId)}`, {}, 8000)
+        .then((latest) => {
+          if (settled) return;
+          const current = updateBoundTask(taskId, latest);
+          if (isTerminalTask(current || latest)) {
+            finish(current || latest);
+            return;
+          }
+          scheduleReconnect();
+        })
+        .catch(() => scheduleReconnect());
+    };
 
     const scheduleReconnect = () => {
       if (settled || fallbackStarted) return;
       closeSource();
+      setTaskTransportStatus(taskId, "reconnecting");
       reconnectAttempts += 1;
       if (reconnectAttempts > maxReconnectAttempts) {
         fallback();
@@ -2046,7 +2051,15 @@ function streamTask(taskId) {
 }
 
 function watchTask(taskId) {
-  return streamTask(taskId);
+  const existing = taskWatchers.get(taskId);
+  if (existing) return existing;
+  const watcher = streamTask(taskId);
+  taskWatchers.set(taskId, watcher);
+  watcher.then(
+    () => { if (taskWatchers.get(taskId) === watcher) taskWatchers.delete(taskId); },
+    () => { if (taskWatchers.get(taskId) === watcher) taskWatchers.delete(taskId); },
+  );
+  return watcher;
 }
 
 async function cancelActiveTask() {

@@ -51,6 +51,7 @@ from .agent.protocol import (
     InvalidStatusTransition,
     validate_status_transition,
 )
+from .agent.rpc import RpcDispatcher
 from .agent.verifier import Verifier
 from .audit import authorize_tool
 from .changes import ChangeError, ChangeInspector
@@ -2021,6 +2022,18 @@ class AgentService:
         self._session_guard = threading.Lock()
         self._session_locks: dict[str, threading.Lock] = {}
         self.tasks = TaskManager(self, store=TaskStore(home_dir() / "tasks.sqlite3"))
+        self._rpc_thread_guard = threading.RLock()
+        self._rpc_threads: dict[str, dict[str, Any]] = {}
+        self.rpc_dispatcher = RpcDispatcher(
+            {
+                "thread/start": self._rpc_thread_start,
+                "thread/read": self._rpc_thread_read,
+                "turn/start": self._rpc_turn_start,
+                "turn/read": self._rpc_turn_read,
+                "turn/interrupt": self._rpc_turn_interrupt,
+            }
+        )
+        self.rpc = self.rpc_dispatcher
 
     def _mcp_for_workspace(self, workspace: Path) -> McpManager | None:
         key = _path_key(workspace)
@@ -2043,6 +2056,193 @@ class AgentService:
         lock_key = f"{_path_key(workspace)}:{session_id}"
         with self._session_guard:
             return self._session_locks.setdefault(lock_key, threading.Lock())
+
+    def _rpc_workspace_path(self, params: dict[str, Any]) -> Path:
+        raw_path = params.get("workspace_path")
+        if raw_path is None:
+            raw_path = params.get("cwd")
+        if raw_path is None:
+            return self.workspace.resolve()
+        if not isinstance(raw_path, str) or not raw_path.strip():
+            raise ValueError("workspace_path 不能为空")
+        candidate = Path(raw_path).expanduser()
+        if not candidate.is_absolute():
+            candidate = Path.cwd() / candidate
+        candidate = candidate.resolve()
+        if not candidate.is_dir():
+            raise ValueError(f"工作区不是有效目录: {candidate}")
+        return candidate
+
+    @staticmethod
+    def _rpc_session_id(params: dict[str, Any]) -> str:
+        raw = params.get("session_id")
+        if raw is None:
+            return f"rpc-{uuid.uuid4().hex[:12]}"
+        if not isinstance(raw, str) or not raw.strip():
+            raise ValueError("session_id 不能为空")
+        return raw.strip()
+
+    def _rpc_thread_tasks(self, record: dict[str, Any]) -> list[dict[str, Any]]:
+        session_id = str(record["session_id"])
+        workspace_key = _path_key(str(record["workspace_path"]))
+        task_thread_id = str(record.get("task_thread_id") or record["thread_id"])
+        with self.tasks.lock:
+            tasks = [
+                task
+                for task in self.tasks.tasks.values()
+                if task.thread_id == task_thread_id
+                or (
+                    task.session_id == session_id
+                    and _path_key(task.workspace_path) == workspace_key
+                )
+            ]
+        tasks.sort(key=lambda item: item.created_at)
+        return [task.snapshot() for task in tasks]
+
+    def _rpc_thread_record(self, thread_id: str) -> dict[str, Any]:
+        with self._rpc_thread_guard:
+            record = self._rpc_threads.get(thread_id)
+            if record is not None:
+                return dict(record)
+        with self.tasks.lock:
+            matching = [task for task in self.tasks.tasks.values() if task.thread_id == thread_id]
+        if not matching:
+            raise KeyError(thread_id)
+        first = min(matching, key=lambda item: item.created_at)
+        record = {
+            "id": thread_id,
+            "thread_id": thread_id,
+            "session_id": first.session_id,
+            "workspace_path": first.workspace_path,
+            "task_thread_id": first.thread_id,
+            "created_at_epoch": first.created_at,
+        }
+        with self._rpc_thread_guard:
+            self._rpc_threads.setdefault(thread_id, record)
+            return dict(self._rpc_threads[thread_id])
+
+    def _rpc_thread_view(self, record: dict[str, Any]) -> dict[str, Any]:
+        tasks = self._rpc_thread_tasks(record)
+        turns = [self._rpc_turn_payload(item, thread_id=str(record["thread_id"])) for item in tasks]
+        latest = turns[-1] if turns else None
+        result = {
+            "id": record["thread_id"],
+            "thread_id": record["thread_id"],
+            "session_id": record["session_id"],
+            "workspace_path": record["workspace_path"],
+            "created_at_epoch": record.get("created_at_epoch"),
+            "created_at": _iso(float(record["created_at_epoch"])) if record.get("created_at_epoch") else None,
+            "status": latest.get("status", "idle") if latest else "idle",
+            "active": bool(latest and latest.get("status") in {"queued", "running"}),
+            "turn_ids": [item["turn_id"] for item in turns],
+            "turns": turns,
+        }
+        return result
+
+    def _rpc_thread_start(self, params: dict[str, Any]) -> dict[str, Any]:
+        workspace = self._rpc_workspace_path(params)
+        session_id = self._rpc_session_id(params)
+        requested_id = params.get("thread_id")
+        if requested_id is not None and (not isinstance(requested_id, str) or not requested_id.strip()):
+            raise ValueError("thread_id 不能为空")
+        task_thread_id = TaskManager._thread_id(str(workspace), session_id)
+        thread_id = str(requested_id or task_thread_id).strip()
+        with self._rpc_thread_guard:
+            self._rpc_threads.setdefault(
+                thread_id,
+                {
+                    "id": thread_id,
+                    "thread_id": thread_id,
+                    "session_id": session_id,
+                    "workspace_path": str(workspace),
+                    "task_thread_id": task_thread_id,
+                    "created_at_epoch": time.time(),
+                },
+            )
+            record = dict(self._rpc_threads[thread_id])
+        return self._rpc_thread_view(record)
+
+    def _rpc_thread_read(self, params: dict[str, Any]) -> dict[str, Any]:
+        return self._rpc_thread_view(self._rpc_thread_for_params(params))
+
+    def _rpc_turn_payload(self, snapshot: dict[str, Any], *, thread_id: str | None = None) -> dict[str, Any]:
+        task_id = str(snapshot["task_id"])
+        payload = dict(snapshot)
+        payload.update({
+            "id": task_id,
+            "turn_id": task_id,
+            "task_id": task_id,
+            "thread_id": thread_id or snapshot.get("thread_id"),
+        })
+        payload["turn"] = dict(snapshot)
+        return payload
+
+    def _rpc_thread_for_params(self, params: dict[str, Any]) -> dict[str, Any]:
+        raw_thread_id = params.get("thread_id") or params.get("thread")
+        if raw_thread_id is None:
+            raw_thread_id = params.get("id")
+        if not isinstance(raw_thread_id, str) or not raw_thread_id.strip():
+            raise ValueError("thread_id 不能为空")
+        return self._rpc_thread_record(raw_thread_id.strip())
+
+    def _rpc_turn_id(self, params: dict[str, Any]) -> str | None:
+        for key in ("turn_id", "task_id"):
+            value = params.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+        value = params.get("id")
+        return value.strip() if isinstance(value, str) and value.strip() else None
+
+    def _rpc_turn_read(self, params: dict[str, Any]) -> dict[str, Any]:
+        thread = None
+        if params.get("thread_id") or params.get("thread"):
+            thread = self._rpc_thread_for_params(params)
+        task_id = self._rpc_turn_id(params)
+        if task_id is None:
+            if thread is None:
+                raise ValueError("turn_id 不能为空")
+            tasks = self._rpc_thread_tasks(thread)
+            if not tasks:
+                raise KeyError(thread["thread_id"])
+            snapshot = tasks[-1]
+        else:
+            snapshot = self.tasks.get(task_id)
+        return self._rpc_turn_payload(snapshot, thread_id=thread["thread_id"] if thread else None)
+
+    def _rpc_turn_start(self, params: dict[str, Any]) -> dict[str, Any]:
+        if params.get("thread_id") or params.get("thread"):
+            thread = self._rpc_thread_for_params(params)
+        else:
+            thread = self._rpc_thread_start(params)
+        raw_message = params.get("message")
+        if raw_message is None:
+            raw_message = params.get("input")
+        if isinstance(raw_message, list):
+            parts = [
+                str(item.get("text"))
+                for item in raw_message
+                if isinstance(item, dict) and isinstance(item.get("text"), str)
+            ]
+            raw_message = "\n".join(parts)
+        if not isinstance(raw_message, str) or not raw_message.strip():
+            raise ValueError("message 不能为空")
+        task = self.tasks.submit({
+            "message": raw_message,
+            "session_id": thread["session_id"],
+            "workspace_path": thread["workspace_path"],
+            "allow_changes": bool(params.get("allow_changes")),
+            "allow_network": bool(params.get("allow_network")),
+            "reasoning_effort": params.get("reasoning_effort"),
+            "attachments": params.get("attachments") or [],
+        })
+        return self._rpc_turn_payload(task, thread_id=thread["thread_id"])
+
+    def _rpc_turn_interrupt(self, params: dict[str, Any]) -> dict[str, Any]:
+        task_id = self._rpc_turn_id(params)
+        if task_id is None:
+            raise ValueError("turn_id 不能为空")
+        snapshot = self.tasks.cancel(task_id)
+        return self._rpc_turn_payload(snapshot)
 
     def switch_workspace(self, raw_path: str) -> dict[str, Any]:
         if not isinstance(raw_path, str) or not raw_path.strip():
@@ -3500,6 +3700,18 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
                 raise ValueError("请求体大小非法")
             raw = self.rfile.read(size)
             payload = json.loads(raw.decode("utf-8"))
+            if path == "/api/rpc":
+                if not isinstance(payload, (dict, list)):
+                    raise ValueError("RPC 请求体必须是 JSON 对象或数组")
+                response = self.server.service.rpc_dispatcher.dispatch(payload)
+                if response is None:
+                    self.send_response(204)
+                    self.send_header("Content-Length", "0")
+                    self.send_header("Cache-Control", "no-store")
+                    self.end_headers()
+                else:
+                    self._json(response)
+                return
             if not isinstance(payload, dict):
                 raise ValueError("请求体必须是 JSON 对象")
             if path == "/api/chat":
