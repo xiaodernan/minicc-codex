@@ -3,9 +3,12 @@
   "scripts": {
     "test:web": "node tests/web_smoke.mjs",
     "test:game": "node tests/game_upgrade_smoke.mjs",
-    "test:all": "npm run test:web && npm run test:game"
+    "test:all": "npm run test:web && npm run test:game",
+    "build:web": "node scripts/build-web.mjs",
+    "check:web": "node scripts/build-web.mjs --check"
   },
   "devDependencies": {
+    "esbuild": "^0.28.2",
     "playwright": "1.62.1"
   }
 }

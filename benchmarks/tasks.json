@@ -1,5 +1,182 @@
 [
-  {"id":"readme-summary","category":"read"},{"id":"tree-navigation","category":"read"},{"id":"symbol-search","category":"read"},{"id":"config-inspection","category":"read"},{"id":"test-failure-triage","category":"debug"},{"id":"stacktrace-localization","category":"debug"},{"id":"dependency-inspection","category":"read"},{"id":"git-status-review","category":"review"},{"id":"diff-review","category":"review"},{"id":"security-secret-check","category":"security"},
-  {"id":"path-boundary-check","category":"security"},{"id":"stale-edit-protection","category":"security"},{"id":"small-bug-fix","category":"edit"},{"id":"unit-test-addition","category":"edit"},{"id":"regression-test-run","category":"verify"},{"id":"frontend-syntax-check","category":"verify"},{"id":"stream-reconnect-analysis","category":"debug"},{"id":"task-cancellation-review","category":"review"},{"id":"attachment-validation","category":"security"},{"id":"reasoning-effort-routing","category":"routing"},
-  {"id":"provider-retry-analysis","category":"reliability"},{"id":"checkpoint-recovery","category":"reliability"},{"id":"audit-export","category":"security"},{"id":"batch-plan-validation","category":"planning"},{"id":"dag-cycle-rejection","category":"planning"},{"id":"verification-repair","category":"reliability"},{"id":"workspace-switching","category":"workflow"},{"id":"worktree-preflight","category":"workflow"},{"id":"mcp-untrusted-output","category":"security"},{"id":"completion-evidence-review","category":"review"}
+  {
+    "id": "readme-summary",
+    "category": "read",
+    "prompt": "阅读 README.md，用不超过 8 句话总结本项目的定位、核心能力和主要边界。",
+    "verify_command": null
+  },
+  {
+    "id": "tree-navigation",
+    "category": "read",
+    "prompt": "用 tree 工具查看项目结构（深度3），列出 5 个最重要的源码文件并各用一句话说明职责。",
+    "verify_command": null
+  },
+  {
+    "id": "symbol-search",
+    "category": "read",
+    "prompt": "在 minicc/agent/ 下查找 run_agent 函数的定义位置，说明它在哪个文件第几行以及大致职责。",
+    "verify_command": null
+  },
+  {
+    "id": "config-inspection",
+    "category": "read",
+    "prompt": "阅读 minicc/config.py 的 load_config，列出所有支持的 MINICC_ 环境变量名并按功能分组。",
+    "verify_command": null
+  },
+  {
+    "id": "test-failure-triage",
+    "category": "debug",
+    "prompt": "运行 python -m pytest tests/test_web_security.py -q，如果全部通过，分析 tests/test_core.py 里 webauth 相关测试覆盖了哪些安全场景。",
+    "verify_command": "python -m pytest tests/test_web_security.py -q --collect-only"
+  },
+  {
+    "id": "stacktrace-localization",
+    "category": "debug",
+    "prompt": "在 tests/test_core.py 中找到 test_loopback_host_detection 测试，说明它验证的输入输出组合。",
+    "verify_command": null
+  },
+  {
+    "id": "dependency-inspection",
+    "category": "read",
+    "prompt": "阅读 pyproject.toml，列出运行时依赖与开发依赖，说明 minicc 为什么可以零依赖实现 webfetch。",
+    "verify_command": null
+  },
+  {
+    "id": "git-status-review",
+    "category": "review",
+    "prompt": "调用 git_summary 和 git_status，报告当前分支、未提交文件数量和最近一次提交。",
+    "verify_command": null
+  },
+  {
+    "id": "diff-review",
+    "category": "review",
+    "prompt": "调用 git_diff 查看当前未提交改动，按文件分组总结每处改动的意图（不超过 15 行）。",
+    "verify_command": null
+  },
+  {
+    "id": "security-secret-check",
+    "category": "security",
+    "prompt": "检查 minicc/tools/registry.py 的 _REDACT_RULES，说明它覆盖哪些密钥格式，并指出一种可能漏掉的格式。",
+    "verify_command": null
+  },
+  {
+    "id": "path-boundary-check",
+    "category": "security",
+    "prompt": "阅读 minicc/web.py 的 file_tree 方法，说明它如何防止路径越界，指出 where symlink 处理的位置。",
+    "verify_command": null
+  },
+  {
+    "id": "stale-edit-protection",
+    "category": "security",
+    "prompt": "说明 edit_file 的 expected_digest 过期保护机制：digest 从哪来、何时失效、失效后会发生什么。",
+    "verify_command": null
+  },
+  {
+    "id": "small-bug-fix",
+    "category": "edit",
+    "prompt": "阅读 minicc/webauth.py 的 is_loopback_host：若发现对 IPv6 回环字符串（如 '::1'）的判定有冗余分支，写一份只读分析报告说明每条分支的作用（不要改文件）。",
+    "verify_command": null
+  },
+  {
+    "id": "unit-test-addition",
+    "category": "edit",
+    "prompt": "基于 minicc/tools/todo.py 的 normalize_todos，写一个只读分析：列出全部校验规则及其错误信息关键词。",
+    "verify_command": null
+  },
+  {
+    "id": "regression-test-run",
+    "category": "verify",
+    "prompt": "运行 python -m pytest tests/test_todo_tool.py -q 并总结测试覆盖的场景清单。",
+    "verify_command": "python -m pytest tests/test_todo_tool.py -q --collect-only"
+  },
+  {
+    "id": "frontend-syntax-check",
+    "category": "verify",
+    "prompt": "运行 node --check web/app.js 并报告结果；然后统计 web/app.js 的行数。",
+    "verify_command": "node --check web/app.js"
+  },
+  {
+    "id": "stream-reconnect-analysis",
+    "category": "debug",
+    "prompt": "阅读 web/app.js 的 streamTask 函数，说明 SSE 断线后重连与降级轮询的触发条件和最大重试次数。",
+    "verify_command": null
+  },
+  {
+    "id": "task-cancellation-review",
+    "category": "review",
+    "prompt": "追踪 minicc/web.py 里任务取消的链路：/api/tasks/<id>/cancel 之后 cancel_event 如何传播到 agent loop。",
+    "verify_command": null
+  },
+  {
+    "id": "attachment-validation",
+    "category": "security",
+    "prompt": "阅读 minicc/web.py 的 _normalize_attachments，列出图片附件的全部校验规则（数量、大小、格式）。",
+    "verify_command": null
+  },
+  {
+    "id": "reasoning-effort-routing",
+    "category": "routing",
+    "prompt": "说明 reasoning_effort 五档在 minicc/llm/openai_provider.py 中如何降级，降级原因记录在哪里。",
+    "verify_command": null
+  },
+  {
+    "id": "provider-retry-analysis",
+    "category": "reliability",
+    "prompt": "阅读 minicc/llm/openai_provider.py 的重试逻辑：429 与网络错误的处理差异是什么？",
+    "verify_command": null
+  },
+  {
+    "id": "checkpoint-recovery",
+    "category": "reliability",
+    "prompt": "阅读 minicc/session.py 的 rewind 方法，说明备份文件命名、截断语义和边界条件。",
+    "verify_command": null
+  },
+  {
+    "id": "audit-export",
+    "category": "security",
+    "prompt": "调用 GET /api/audit 的服务层等价物（或阅读 audit_export），说明审计事件包含哪些字段、敏感字段如何脱敏。",
+    "verify_command": null
+  },
+  {
+    "id": "batch-plan-validation",
+    "category": "planning",
+    "prompt": "阅读 minicc/agent/planner.py 的 build_plan，列出 planner JSON 计划被服务端校验的全部规则（节点数、深度、并发、工具白名单）。",
+    "verify_command": null
+  },
+  {
+    "id": "dag-cycle-rejection",
+    "category": "planning",
+    "prompt": "在 minicc/agent/graph.py 中找到环检测实现，说明算法和触发时的回退行为。",
+    "verify_command": null
+  },
+  {
+    "id": "verification-repair",
+    "category": "reliability",
+    "prompt": "说明 web.py 中验证器驱动的修复循环：写操作后如何触发验证、失败后最多修复几次、修复范围如何确定。",
+    "verify_command": null
+  },
+  {
+    "id": "workspace-switching",
+    "category": "workflow",
+    "prompt": "阅读 minicc/web.py 的 switch_workspace，说明 workspace_roots 白名单的判定逻辑和错误信息格式。",
+    "verify_command": null
+  },
+  {
+    "id": "worktree-preflight",
+    "category": "workflow",
+    "prompt": "阅读 minicc/worktree.py，说明 worktree 创建的位置约束和名称校验规则。",
+    "verify_command": null
+  },
+  {
+    "id": "mcp-untrusted-output",
+    "category": "security",
+    "prompt": "阅读 minicc/mcp.py 的 tool_specs 与 call_tool，说明 MCP 工具输出的 security_tags 与风险级别映射规则。",
+    "verify_command": null
+  },
+  {
+    "id": "completion-evidence-review",
+    "category": "review",
+    "prompt": "阅读 minicc/agent/completion.py 的 judge_completion，说明 complete/continue/blocked 三种判定分别需要什么证据。",
+    "verify_command": null
+  }
 ]

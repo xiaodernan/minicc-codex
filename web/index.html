@@ -7,6 +7,14 @@
     <title>minicc / Workspace</title>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="/styles.css" />
+    <!-- Vendored highlight.js themes (local-first, no CDN at runtime).
+         app.js toggles `disabled` on these sheets when data-theme changes;
+         the dark sheet is listed last so pre-JS paint still matches the dark base palette. -->
+    <link rel="stylesheet" href="/vendor/github.min.css" id="hljsThemeLight" />
+    <link rel="stylesheet" href="/vendor/github-dark.min.css" id="hljsThemeDark" />
+    <!-- Vendored markdown engine + highlighter, loaded before app.js (defer keeps order). -->
+    <script src="/vendor/marked.min.js" defer></script>
+    <script src="/vendor/highlight.min.js" defer></script>
     <script src="/app.js" defer></script>
   </head>
   <body>
@@ -60,6 +68,7 @@
           <i data-lucide="search"></i>
           <input id="threadSearch" type="search" placeholder="搜索任务" aria-label="搜索任务" data-i18n-placeholder="search.placeholder" data-i18n-aria="search.placeholder" />
           <kbd>/</kbd>
+          <button class="icon-button tiny global-search-button" id="globalSearchButton" type="button" aria-label="全局搜索" title="全局搜索" data-i18n-aria="search.global" data-i18n-title="search.global"><i data-lucide="file-search-2"></i></button>
         </div>
 
         <nav class="sidebar-nav" aria-label="主导航" data-i18n-aria="nav.main">
@@ -189,6 +198,15 @@
             <form id="chatForm">
               <textarea id="promptInput" rows="2" placeholder="让 minicc 检查、构建或验证..." aria-label="输入任务" data-i18n-placeholder="composer.placeholder" data-i18n-aria="composer.inputLabel"></textarea>
               <div class="attachment-tray" id="attachmentTray" hidden aria-live="polite"></div>
+              <div class="perm-mode-row">
+                <div class="perm-mode-group" id="permModeGroup" role="radiogroup" aria-label="权限模式" data-i18n-aria="perm.mode">
+                  <button type="button" class="perm-mode-option" role="radio" aria-checked="false" data-mode="default" data-i18n-title="perm.defaultHint" tabindex="0"><span data-i18n="perm.default">默认</span></button>
+                  <button type="button" class="perm-mode-option" role="radio" aria-checked="false" data-mode="plan" data-i18n-title="perm.planHint" tabindex="-1"><span data-i18n="perm.plan">计划</span></button>
+                  <button type="button" class="perm-mode-option" role="radio" aria-checked="false" data-mode="acceptEdits" data-i18n-title="perm.acceptEditsHint" tabindex="-1"><span data-i18n="perm.acceptEdits">自动写</span></button>
+                  <button type="button" class="perm-mode-option" role="radio" aria-checked="false" data-mode="yolo" data-i18n-title="perm.yoloHint" tabindex="-1"><span data-i18n="perm.yolo">全自动</span></button>
+                </div>
+                <span class="perm-mode-hint" id="permModeHint" aria-live="polite"></span>
+              </div>
               <div class="composer-actions">
                 <div class="composer-tools">
                   <button type="button" class="action-chip" data-prompt-zh="先检查当前项目状态，告诉我下一步最值得做什么。" data-prompt-en="Inspect the current project and tell me the most valuable next step."><i data-lucide="route"></i><span data-i18n="quick.plan">计划</span></button>
@@ -217,6 +235,9 @@
                 </div>
               </div>
             </form>
+            <!-- @-file mention popover: anchored to the composer card, filled by
+                 app.js from the /api/files cache while the user types "@". -->
+            <div class="mention-popover" id="mentionPopover" role="listbox" aria-label="文件引用" data-i18n-aria="at.title" hidden></div>
           </div>
           <div class="composer-footnote"><span id="permissionHint">完全访问：Agent 可以读写文件并执行命令。</span><span class="mono">local agent / v0.3</span></div>
         </section>
@@ -231,13 +252,35 @@
           <div class="pulse-card"><div class="pulse-main"><strong id="pulseStatus" data-i18n="inspector.ready">就绪</strong><span data-i18n="inspector.standingBy">Agent 正在等待</span></div><div class="pulse-ring"><i data-lucide="radio"></i></div><div class="pulse-metrics"><div><span data-i18n="inspector.turns">轮次</span><strong id="turnMetric">12</strong></div><div><span data-i18n="inspector.tools">工具</span><strong id="toolMetric">9</strong></div><div><span data-i18n="inspector.tokens">Tokens</span><strong id="tokenMetric">0</strong></div><div><span data-i18n="inspector.context">上下文</span><strong id="contextMetric">0/300k</strong></div></div><div class="pulse-compaction"><span><span data-i18n="inspector.compactions">自动压缩</span> <strong id="compactionMetric">0</strong></span><span><span data-i18n="inspector.cache">缓存命中</span> <strong id="cacheMetric">未统计</strong></span></div></div>
         </section>
 
-        <section class="inspector-section">
+        <section class="inspector-section todo-section" id="todoSection" hidden>
+          <div class="section-heading">
+            <button type="button" class="todo-section-toggle" id="todoSectionToggle" aria-expanded="true" aria-controls="todoListBody" data-i18n-aria="todo.toggle">
+              <i data-lucide="list-checks"></i>
+              <span data-i18n="todo.title">任务计划</span>
+              <span class="todo-progress-count" id="todoProgressCount">0/0</span>
+              <span class="todo-chevron" aria-hidden="true"><i data-lucide="chevron-down"></i></span>
+            </button>
+          </div>
+          <ul class="todo-list" id="todoListBody" role="list" data-i18n-aria="todo.title" aria-label="任务计划"></ul>
+        </section>
+
+        <section class="inspector-section" id="filesSection">
           <div class="section-heading"><span data-i18n="inspector.files">关注文件</span><button class="icon-button tiny" id="refreshFiles" aria-label="刷新文件" title="刷新文件" data-i18n-aria="files.refresh" data-i18n-title="files.refresh"><i data-lucide="refresh-cw"></i></button></div>
           <div class="file-list" id="fileList">
             <button class="file-row" data-file="minicc/main.py"><span class="file-type py">PY</span><span><strong>minicc/main.py</strong><small data-i18n="files.main">CLI 入口</small></span><i data-lucide="chevron-right"></i></button>
             <button class="file-row" data-file="minicc/agent/loop.py"><span class="file-type py">PY</span><span><strong>minicc/agent/loop.py</strong><small data-i18n="files.loop">工具调用循环</small></span><i data-lucide="chevron-right"></i></button>
             <button class="file-row" data-file="web/styles.css"><span class="file-type css">CSS</span><span><strong>web/styles.css</strong><small data-i18n="files.styles">工作台界面</small></span><i data-lucide="chevron-right"></i></button>
             <button class="file-row" data-file="README.md"><span class="file-type md">MD</span><span><strong>README.md</strong><small data-i18n="files.readme">项目指南</small></span><i data-lucide="chevron-right"></i></button>
+          </div>
+        </section>
+
+        <section class="inspector-section" id="fileTreeSection">
+          <div class="section-heading">
+            <span data-i18n="files.tree">文件树</span>
+            <button class="icon-button tiny" id="refreshFileTree" aria-label="刷新文件" title="刷新文件" data-i18n-aria="files.refresh" data-i18n-title="files.refresh"><i data-lucide="refresh-cw"></i></button>
+          </div>
+          <div class="file-tree" id="fileTree">
+            <div class="file-tree-status" data-i18n="files.loading">正在加载…</div>
           </div>
         </section>
 
@@ -305,6 +348,19 @@
       <section class="panel-card" role="dialog" aria-modal="true" aria-labelledby="panelTitle">
         <header class="panel-header"><div><span class="eyebrow" data-i18n="panel.title">工作台</span><h2 id="panelTitle">工作台</h2></div><div class="panel-header-actions"><button class="icon-button" id="panelExpand" aria-label="展开全屏" title="展开全屏"><i data-lucide="maximize-2"></i></button><button class="icon-button" id="panelClose" aria-label="关闭" data-i18n-aria="panel.close"><i data-lucide="x"></i></button></div></header>
         <div class="panel-body" id="panelBody"></div>
+      </section>
+    </div>
+    <div class="panel-modal auth-modal" id="authModal" aria-hidden="true">
+      <section class="panel-card auth-card" role="dialog" aria-modal="true" aria-labelledby="authTitle">
+        <header class="panel-header"><div><span class="eyebrow">ACCESS</span><h2 id="authTitle" data-i18n="auth.title">访问验证</h2></div></header>
+        <div class="panel-body">
+          <p class="auth-hint" data-i18n="auth.hint">此服务已启用 token 认证。请输入 minicc-web 启动时显示、或保存在工作区 .minicc/web_token.json 中的访问 token。</p>
+          <form id="authForm" class="auth-form">
+            <input id="authTokenInput" type="password" autocomplete="off" spellcheck="false" placeholder="粘贴访问 token" aria-label="访问 token" data-i18n-aria="auth.tokenLabel" />
+            <button class="send-button" type="submit" data-i18n="auth.submit">保存并重试</button>
+          </form>
+          <p class="auth-error" id="authError" role="alert" hidden></p>
+        </div>
       </section>
     </div>
   </body>

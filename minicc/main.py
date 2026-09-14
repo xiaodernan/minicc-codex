@@ -11,6 +11,7 @@ from typing import Any, Callable, NoReturn
 
 from .agent.loop import TurnResult, run_agent
 from .agent.state import Budget
+from .agent.subagent import build_task_tool_spec
 from .config import Config, ConfigError, load_config
 from .llm.base import system_msg, user_msg
 from .llm.openai_provider import OpenAICompatibleProvider
@@ -141,6 +142,12 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--tool-mode", choices=("auto", "native", "envelope"), help="工具调用模式")
     parser.add_argument("--compact-threshold", type=int, help="上下文压缩字符阈值")
     parser.add_argument("--yolo", action="store_true", help="自动允许写文件和执行命令")
+    parser.add_argument(
+        "--permission-mode",
+        choices=("default", "plan", "acceptEdits", "yolo"),
+        default="default",
+        help="权限模式：plan 只读规划；acceptEdits 自动接受文件写入（命令仍需确认）；yolo 全部放行",
+    )
     parser.add_argument("--no-stream", action="store_true", help="关闭流式输出")
     parser.add_argument("--verbose-tools", action="store_true", help="默认展开工具输出；可在交互中用 /compact 切回摘要")
     parser.add_argument("--resume", action="store_true", help="恢复上次保存的会话")
@@ -170,12 +177,21 @@ def _tool_preview(call: ToolCall) -> str:
     return json.dumps(call.arguments, ensure_ascii=False)[:240]
 
 
-def _permission_gate(config: Config, registry: ToolRegistry) -> Callable[[str, ToolCall], bool]:
+def _permission_gate(
+    config: Config,
+    registry: ToolRegistry,
+    permission_mode: str = "default",
+) -> Callable[[str, ToolCall], bool]:
     def should_allow(name: str, call: ToolCall) -> bool:
         risk = registry.risk_of(name)
         if risk not in ("write", "exec"):
             return True
-        if config.yolo:
+        if config.yolo or permission_mode == "yolo":
+            return True
+        if permission_mode == "plan":
+            print(f"\n[minicc] 计划模式已拒绝高风险工具 {name} ({_tool_preview(call)})")
+            return False
+        if permission_mode == "acceptEdits" and risk == "write":
             return True
         print(f"\n[minicc] 即将调用高风险工具 {name} ({_tool_preview(call)})")
         try:
@@ -204,8 +220,14 @@ async def _turn(
     view: CliView | None = None,
     *,
     stream: bool,
+    permission_mode: str = "default",
 ) -> TurnResult:
     messages.append(user_msg(prompt))
+    if permission_mode == "plan":
+        messages.append(system_msg(
+            "[计划模式] 本任务是只读规划模式：写入与命令工具会被拒绝。"
+            "请完成调研后输出实施计划（目标、步骤、涉及文件、验证方式、风险）。"
+        ))
     writer = StreamWriter() if stream else None
     result = await run_agent(
         provider,
@@ -220,7 +242,7 @@ async def _turn(
         compact_threshold=config.compact_threshold,
         on_stream=writer,
         on_tool=(lambda call, result: _print_tool(call, result, view)),
-        should_allow=_permission_gate(config, registry),
+        should_allow=_permission_gate(config, registry, permission_mode),
     )
     if writer is None or not writer.started:
         print(f"\nassistant> {result.answer}")
@@ -244,6 +266,7 @@ async def _interactive(
     view: CliView | None = None,
     *,
     stream: bool,
+    permission_mode: str = "default",
 ) -> None:
     print("minicc 已启动。输入 /help 查看命令，输入 /exit 退出。")
     while True:
@@ -292,7 +315,7 @@ async def _interactive(
             if view is not None:
                 view.expand(prompt.removeprefix("/expand").strip())
             continue
-        await _turn(provider, registry, messages, config, prompt, session, view, stream=stream)
+        await _turn(provider, registry, messages, config, prompt, session, view, stream=stream, permission_mode=permission_mode)
 
 
 def _fatal(message: str) -> NoReturn:
@@ -326,16 +349,37 @@ def main(argv: list[str] | None = None) -> int:
         view = CliView(session, verbose_tools=args.verbose_tools, announce_resume=args.resume)
     except SessionError as exc:
         _fatal(str(exc))
-    provider = OpenAICompatibleProvider(
-        base_url=config.base_url,
-        api_key=config.api_key,
-        model=config.model,
-        timeout=config.timeout,
-        max_retries=config.provider_retries,
-        tool_mode=config.tool_mode,
-        protocol=config.llm_protocol,
-        reasoning_effort=config.reasoning_effort,
-    )
+    if str(getattr(config, "provider_type", "openai")) == "anthropic":
+        from .llm.anthropic_provider import AnthropicProvider
+
+        provider = AnthropicProvider(
+            api_key=config.api_key,
+            model=config.model,
+            base_url=str(getattr(config, "anthropic_base_url", "") or config.base_url),
+            timeout=config.timeout,
+            max_retries=int(getattr(config, "provider_retries", 4)),
+        )
+    else:
+        provider = OpenAICompatibleProvider(
+            base_url=config.base_url,
+            api_key=config.api_key,
+            model=config.model,
+            timeout=config.timeout,
+            max_retries=config.provider_retries,
+            tool_mode=config.tool_mode,
+            protocol=config.llm_protocol,
+            reasoning_effort=config.reasoning_effort,
+        )
+
+    # Bounded Task subagent for the CLI: same restricted readonly toolset and
+    # no recursion, sharing the parent's provider instance (requests are
+    # strictly sequential because the parent loop blocks on the sub-run).
+    registry.register(build_task_tool_spec(
+        provider_factory=lambda: provider,
+        workspace=workspace,
+        system_prompt=system_prompt,
+        base_registry=registry,
+    ))
 
     async def run() -> None:
         try:
@@ -350,6 +394,7 @@ def main(argv: list[str] | None = None) -> int:
                     session,
                     view,
                     stream=not args.no_stream,
+                    permission_mode=args.permission_mode,
                 )
             else:
                 await _interactive(
@@ -360,6 +405,7 @@ def main(argv: list[str] | None = None) -> int:
                     session,
                     view,
                     stream=not args.no_stream,
+                    permission_mode=args.permission_mode,
                 )
         finally:
             await provider.close()

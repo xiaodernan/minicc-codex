@@ -17,15 +17,16 @@ from .graph import DAGPlan, GraphValidationError, PlanTask, fixed_plan
 
 
 DEFAULT_ALLOWED_TOOLS = frozenset({
-    "read_file", "grep", "git_status", "git_diff", "write_file", "edit_file", "bash",
+    "read_file", "grep", "git_status", "git_diff", "git_summary", "git_merge_precheck",
+    "write_file", "edit_file", "bash",
 })
 PLANNER_KINDS = frozenset({"readonly", "write", "exec", "review", "merge"})
 PLANNER_KIND_TOOLS = {
-    "readonly": frozenset({"read_file", "grep", "git_status", "git_diff"}),
-    "review": frozenset({"read_file", "grep", "git_status", "git_diff"}),
+    "readonly": frozenset({"read_file", "grep", "git_status", "git_diff", "git_summary", "git_merge_precheck"}),
+    "review": frozenset({"read_file", "grep", "git_status", "git_diff", "git_summary", "git_merge_precheck"}),
     "write": frozenset({"write_file", "edit_file"}),
-    "exec": frozenset({"read_file", "grep", "git_status", "git_diff", "bash"}),
-    "merge": frozenset({"read_file", "grep", "git_status", "git_diff"}),
+    "exec": frozenset({"read_file", "grep", "git_status", "git_diff", "git_summary", "git_merge_precheck", "bash"}),
+    "merge": frozenset({"read_file", "grep", "git_status", "git_diff", "git_summary", "git_merge_precheck"}),
 }
 PLANNER_SYSTEM_PROMPT = """你是 minicc 的受约束任务规划器，不负责执行工具，也不负责输出最终答案。
 

@@ -594,6 +594,12 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .panel-header-actions { align-items: center; display: flex; gap: 5px; }
 .panel-header h2 { font-size: 20px; letter-spacing: -.4px; margin: 7px 0 0; }
 .panel-body { max-height: calc(100vh - 150px); overflow: auto; padding: 18px 22px 22px; }
+.auth-card { width: min(460px, 92vw); }
+.auth-hint { color: var(--muted); font-size: 12px; line-height: 1.6; margin: 0 0 14px; }
+.auth-form { display: grid; gap: 10px; }
+.auth-form input { background: var(--surface-raised); border: 1px solid var(--line-bright); border-radius: 8px; color: var(--text); font: 13px "DM Mono", Consolas, monospace; padding: 11px 12px; width: 100%; }
+.auth-form input:focus-visible { border-color: var(--mint); outline: 0; }
+.auth-error { color: var(--coral); font-size: 12px; margin: 12px 0 0; }
 .panel-toolbar { align-items: center; color: var(--muted); display: flex; font: 11px "DM Mono", Consolas, monospace; justify-content: space-between; margin-bottom: 10px; }
 .panel-text-action { background: transparent; border: 0; color: var(--mint); cursor: pointer; font: inherit; padding: 4px; }
 .panel-text-action:hover { color: var(--text); }
@@ -1417,10 +1423,12 @@ body { display: flex; flex-direction: column; font-family: "Segoe UI", "PingFang
 .inspector-section { background: var(--codex-card); border-left: 1px solid #dedfdf; border-right: 1px solid #dedfdf; margin: 0; padding: 8px 27px 18px; }
 .inspector-section:first-of-type { padding-top: 0; }
 .inspector-section:first-of-type .section-heading, .inspector-section:first-of-type .pulse-card { display: none; }
-.inspector-section:nth-of-type(2) .section-heading { color: #919394; font-size: 20px; font-weight: 400; margin: 0 0 13px; }
-.inspector-section:nth-of-type(2) .section-heading span:first-child { font-size: 0; }
-.inspector-section:nth-of-type(2) .section-heading span:first-child::after { content: "输出内容"; font-size: 20px; }
-.inspector-section:nth-of-type(2) .section-heading .icon-button { color: #949696; }
+/* The task-plan section (#todoSection) was inserted between the overview and
+   files sections, so the files heading is targeted by id instead of nth-of-type. */
+#filesSection .section-heading { color: #919394; font-size: 20px; font-weight: 400; margin: 0 0 13px; }
+#filesSection .section-heading span:first-child { font-size: 0; }
+#filesSection .section-heading span:first-child::after { content: "输出内容"; font-size: 20px; }
+#filesSection .section-heading .icon-button { color: #949696; }
 .file-list { display: grid; gap: 10px; }
 .file-row { border: 0; border-radius: 0; color: #3f4142; gap: 15px; min-height: 38px; padding: 0; }
 .file-row:hover { background: transparent; }
@@ -1696,11 +1704,11 @@ body { display: flex; flex-direction: column; font-family: "Segoe UI", "PingFang
   :root[data-theme="light"] .inspector-header .eyebrow { font-size: 11px; color: #9aa19d; }
   :root[data-theme="light"] .inspector-header .icon-button::after { font-size: 20px; color: #8e9691; }
   :root[data-theme="light"] .inspector-section { border: 0; padding: 13px 18px 16px; background: transparent; }
-  :root[data-theme="light"] .inspector-section:nth-of-type(2) .section-heading,
+  :root[data-theme="light"] #filesSection .section-heading,
   :root[data-theme="light"] .changes-section .section-heading { color: #9aa19d; font-size: 11px; }
-  :root[data-theme="light"] .inspector-section:nth-of-type(2) .section-heading span:first-child,
+  :root[data-theme="light"] #filesSection .section-heading span:first-child,
   :root[data-theme="light"] .changes-section .section-heading span:first-child { font-size: inherit; }
-  :root[data-theme="light"] .inspector-section:nth-of-type(2) .section-heading span:first-child::after,
+  :root[data-theme="light"] #filesSection .section-heading span:first-child::after,
   :root[data-theme="light"] .changes-section .section-heading span:first-child::after { content: none; }
   :root[data-theme="light"] .inspector-section:first-of-type .section-heading,
   :root[data-theme="light"] .inspector-section:first-of-type .pulse-card { display: block; }
@@ -1793,3 +1801,477 @@ body { display: flex; flex-direction: column; font-family: "Segoe UI", "PingFang
   .chat-inner { max-width: 100%; }
   .inspector { box-sizing: border-box; max-width: calc(100vw - 16px); }
 }
+
+/* ==========================================================================
+   Vendored Markdown + commercial diff view (appended block)
+   --------------------------------------------------------------------------
+   - Markdown typography for message bodies, tool results, and task details
+     (rendered by vendored marked@12; XSS-neutralized before parsing)
+   - highlight.js theme harmonization for both data-theme values
+   - Unified diff: file header with +N/-M badges, hunk headers, old/new
+     line-number gutter (legacy diff-* class names remain in use)
+   ========================================================================== */
+
+/* --- Markdown containers ------------------------------------------------- */
+
+.message-text { min-width: 0; overflow-wrap: break-word; }
+
+.message-text > :first-child, .answer-callout > :first-child, .tool-result-output > :first-child,
+.tool-result-observation > :first-child, .trace-public-plan > div > :first-child,
+.task-detail-answer > :first-child, .task-detail-prompt > :first-child { margin-top: 0; }
+.message-text > :last-child, .answer-callout > :last-child, .tool-result-output > :last-child,
+.tool-result-observation > :last-child, .trace-public-plan > div > :last-child,
+.task-detail-answer > :last-child, .task-detail-prompt > :last-child { margin-bottom: 0; }
+
+.message-text p, .answer-callout p, .tool-result-output p, .tool-result-observation p,
+.trace-public-plan p, .task-detail-answer p, .task-detail-prompt p { margin: 0 0 10px; }
+
+.message-text h1, .message-text h2, .answer-callout h1, .answer-callout h2,
+.tool-result-output h1, .tool-result-output h2, .task-detail-answer h1, .task-detail-answer h2 {
+  border-bottom: 1px solid var(--line); font-size: 1.18em; line-height: 1.4; margin: 16px 0 8px; padding-bottom: 4px;
+}
+.message-text h3, .message-text h4, .answer-callout h3, .answer-callout h4,
+.tool-result-output h3, .tool-result-output h4, .task-detail-answer h3, .task-detail-answer h4 {
+  font-size: 1.06em; margin: 13px 0 6px;
+}
+.message-text h5, .message-text h6, .answer-callout h5, .answer-callout h6 { font-size: 1em; margin: 11px 0 5px; }
+
+.message-text ul, .message-text ol, .answer-callout ul, .answer-callout ol,
+.tool-result-output ul, .tool-result-output ol, .tool-result-observation ul, .tool-result-observation ol,
+.task-detail-answer ul, .task-detail-answer ol, .task-detail-prompt ul, .task-detail-prompt ol {
+  margin: 0 0 10px; padding-left: 1.45em;
+}
+.message-text li, .answer-callout li, .tool-result-output li, .tool-result-observation li,
+.task-detail-answer li, .task-detail-prompt li { margin: 3px 0; }
+.message-text li > ul, .message-text li > ol, .answer-callout li > ul, .answer-callout li > ol,
+.tool-result-output li > ul, .tool-result-output li > ol, .task-detail-answer li > ul, .task-detail-answer li > ol {
+  margin: 4px 0 0; /* nested lists stay indented under their parent item */
+}
+.message-text li > p, .answer-callout li > p, .tool-result-output li > p { margin: 0; }
+.message-text input[type="checkbox"], .answer-callout input[type="checkbox"], .tool-result-output input[type="checkbox"] { margin-right: 6px; }
+
+.message-text blockquote, .answer-callout blockquote, .tool-result-output blockquote,
+.tool-result-observation blockquote, .task-detail-answer blockquote {
+  border-left: 2px solid var(--line-bright); color: var(--muted); margin: 10px 0; padding: 2px 0 2px 12px;
+}
+
+.message-text a, .answer-callout a, .tool-result-output a, .task-detail-answer a {
+  color: var(--blue); text-decoration: underline; text-underline-offset: 2px;
+}
+.message-text a:hover, .answer-callout a:hover, .tool-result-output a:hover { color: var(--mint); }
+
+.message-text img, .answer-callout img, .tool-result-output img, .task-detail-answer img {
+  border: 1px solid var(--line); border-radius: 6px; max-width: 100%;
+}
+
+.message-text hr, .answer-callout hr, .tool-result-output hr { border: 0; border-top: 1px solid var(--line); margin: 12px 0; }
+
+.message-text table, .answer-callout table, .tool-result-output table, .task-detail-answer table {
+  border-collapse: collapse; display: block; margin: 10px 0; max-width: 100%; overflow-x: auto; width: max-content;
+}
+.message-text th, .message-text td, .answer-callout th, .answer-callout td,
+.tool-result-output th, .tool-result-output td, .task-detail-answer th, .task-detail-answer td {
+  border: 1px solid var(--line); padding: 5px 10px; text-align: left; vertical-align: top;
+}
+.message-text th, .answer-callout th, .tool-result-output th, .task-detail-answer th {
+  background: var(--surface-raised); font-weight: 600; white-space: nowrap;
+}
+
+.message-text code, .tool-result-output code, .tool-result-observation code, .task-detail-answer code {
+  background: var(--surface-raised); border: 1px solid var(--line); border-radius: 4px;
+  color: var(--mint); font-family: "DM Mono", Consolas, monospace; font-size: .9em; padding: 2px 5px;
+}
+.message-text pre, .answer-callout pre, .tool-result-output pre, .tool-result-observation pre,
+.task-detail-answer pre, .task-detail-prompt pre {
+  background: #141518; border: 1px solid var(--line); border-radius: 6px; margin: 10px 0;
+  overflow: auto; padding: 10px 12px;
+}
+.message-text pre code, .answer-callout pre code, .tool-result-output pre code,
+.tool-result-observation pre code, .task-detail-answer pre code, .task-detail-prompt pre code {
+  background: transparent; border: 0; padding: 0; white-space: pre;
+}
+
+/* highlight.js: token colors come from the vendored github/github-dark sheets;
+   the block background stays aligned with the workbench theme. */
+.message-text pre code.hljs, .answer-callout pre code.hljs, .tool-result-output pre code.hljs,
+.tool-result-observation pre code.hljs, .task-detail-answer pre code.hljs, .task-detail-prompt pre code.hljs,
+.stream-preview pre code.hljs {
+  background: transparent; display: block; padding: 0;
+}
+:root[data-theme="light"] .message-text pre, :root[data-theme="light"] .answer-callout pre,
+:root[data-theme="light"] .tool-result-output pre, :root[data-theme="light"] .tool-result-observation pre,
+:root[data-theme="light"] .task-detail-answer pre, :root[data-theme="light"] .task-detail-prompt pre { background: #f4f6f8; }
+
+/* --- Unified diff view ---------------------------------------------------- */
+
+.diff-file-head { align-items: center; display: flex; gap: 10px; justify-content: space-between; margin: 2px 0 8px; min-width: 0; }
+.diff-file-path { align-items: center; color: var(--text); display: flex; font: 12px "DM Mono", Consolas, monospace; gap: 7px; min-width: 0; }
+.diff-file-path strong { overflow-wrap: anywhere; }
+.diff-file-badges { align-items: center; display: flex; flex-shrink: 0; gap: 6px; }
+.diff-badge { border-radius: 999px; font: 600 10px/1 "DM Mono", Consolas, monospace; padding: 4px 9px; }
+.diff-badge-status { background: var(--surface-raised); border: 1px solid var(--line); color: var(--muted); }
+.diff-badge-add { background: var(--mint-soft); color: var(--mint); }
+.diff-badge-del { background: var(--coral-soft); color: var(--coral); }
+
+/* One grid row per diff line: old line no. | new line no. | sign | code.
+   width:max-content lets a long row scroll horizontally like GitHub diffs,
+   while min-width:100% keeps row backgrounds full-bleed for short lines. */
+.diff-preview .diff-row {
+  display: grid; grid-template-columns: 3.4em 3.4em 1.1em minmax(0, 1fr);
+  min-width: 100%; width: max-content;
+}
+.diff-preview .diff-row > .diff-ln { color: var(--quiet); padding: 0 .55em 0 .8em; text-align: right; user-select: none; }
+.diff-preview .diff-row > .diff-sign { color: var(--quiet); text-align: center; user-select: none; }
+.diff-preview .diff-row > .diff-code { white-space: pre; }
+
+.diff-preview .diff-add-line .diff-sign { color: var(--mint); font-weight: 700; }
+.diff-preview .diff-del-line .diff-sign { color: var(--coral); font-weight: 700; }
+
+.diff-preview .diff-hunk, .diff-preview .diff-file, .diff-preview .diff-meta, .diff-preview .diff-empty {
+  grid-template-columns: minmax(0, 1fr);
+}
+.diff-preview .diff-hunk .diff-code, .diff-preview .diff-file .diff-code,
+.diff-preview .diff-meta .diff-code, .diff-preview .diff-empty .diff-code { white-space: pre-wrap; word-break: break-word; }
+.diff-preview .diff-file { font-style: italic; }
+.diff-preview .diff-meta { color: var(--quiet); font-style: italic; }
+.diff-preview .diff-empty { color: var(--muted); }
+
+:root[data-theme="light"] .diff-preview { background: #f6f8fa; }
+:root[data-theme="light"] .diff-preview .diff-add-line { background: #e2f3ed; color: #116329; }
+:root[data-theme="light"] .diff-preview .diff-del-line { background: #fbe9e3; color: #8f2812; }
+:root[data-theme="light"] .diff-preview .diff-hunk { background: var(--blue-soft); color: var(--blue); }
+:root[data-theme="light"] .diff-preview .diff-context { color: #3b434d; }
+:root[data-theme="dark"] .diff-preview .diff-hunk { background: rgba(156, 183, 240, .1); }
+
+/* --- Task plan panel (Inspector) & permission mode selector (Composer) -----
+   Both new surfaces reuse the shared CSS variables (--surface/--line/--text,
+   coral/amber/mint accents) so light and dark themes adapt without extra
+   theme-specific rules beyond the small overrides at the end of this block. */
+
+/* Permission mode segmented control in the composer form. */
+.perm-mode-row { align-items: center; display: flex; flex-wrap: wrap; gap: 6px 12px; padding: 8px 17px 0 23px; }
+.perm-mode-group { background: var(--surface-soft); border: 1px solid var(--line); border-radius: 7px; display: inline-flex; gap: 2px; padding: 2px; }
+.perm-mode-option { background: transparent; border: 0; border-radius: 5px; color: var(--quiet); cursor: pointer; font: 10px "DM Mono", Consolas, monospace; padding: 4px 9px; transition: background .15s ease, color .15s ease; white-space: nowrap; }
+.perm-mode-option:hover { color: var(--text); }
+.perm-mode-option.active { background: var(--surface-raised); box-shadow: inset 0 -2px var(--coral); color: var(--text); }
+.perm-mode-option:focus-visible { outline: 2px solid var(--coral); outline-offset: 1px; }
+.perm-mode-hint { color: var(--quiet); flex: 1 1 180px; font-size: 10px; line-height: 1.45; min-width: 0; }
+
+/* The plan/yolo modes own the toggle switches, so show them as locked. */
+.safe-toggle.locked { cursor: not-allowed; opacity: .55; }
+.safe-toggle input:disabled + .toggle-track { filter: saturate(.35); }
+
+/* Task plan section: compact, small-type list matching the inspector style. */
+.todo-section[hidden] { display: none; }
+.todo-section-toggle { align-items: center; background: transparent; border: 0; color: inherit; cursor: pointer; display: flex; flex: 1 1 auto; font: inherit; gap: 7px; justify-content: flex-start; min-width: 0; padding: 0; text-align: left; }
+.todo-section-toggle svg { color: var(--muted); flex: 0 0 auto; height: 13px; width: 13px; }
+.todo-section-toggle:focus-visible { outline: 2px solid var(--coral); outline-offset: 2px; border-radius: 4px; }
+.todo-chevron { color: var(--quiet); display: inline-flex; flex: 0 0 auto; margin-left: auto; transition: transform .16s ease; }
+.todo-chevron svg { height: 13px; width: 13px; }
+.todo-section[data-collapsed="true"] .todo-chevron { transform: rotate(-90deg); }
+.todo-progress-count { background: var(--surface-raised); border: 1px solid var(--line); border-radius: 999px; color: var(--muted); flex: 0 0 auto; font: 9px "DM Mono", Consolas, monospace; padding: 1px 7px; }
+.todo-list { display: grid; gap: 3px; list-style: none; margin: 9px 0 0; padding: 0; }
+.todo-list[hidden] { display: none; }
+.todo-item { align-items: flex-start; border: 1px solid transparent; border-radius: 6px; display: flex; gap: 8px; padding: 5px 6px; }
+.todo-item:hover { background: var(--surface-raised); }
+.todo-status-mark { color: var(--mint); display: inline-flex; flex: 0 0 auto; height: 13px; width: 13px; }
+.todo-status-mark svg { height: 13px; width: 13px; }
+.todo-priority-dot { border-radius: 50%; flex: 0 0 auto; height: 7px; margin-top: 4px; width: 7px; }
+.todo-priority-high { background: var(--coral); }
+.todo-priority-medium { background: var(--amber); }
+.todo-priority-low { background: var(--quiet); }
+.todo-copy { display: grid; gap: 2px; min-width: 0; }
+.todo-content { font-size: 11px; line-height: 1.45; overflow-wrap: anywhere; }
+.todo-status-label { color: var(--quiet); font-size: 9px; }
+.todo-item.todo-completed .todo-content { color: var(--muted); text-decoration: line-through; }
+.todo-item.todo-completed .todo-status-label { color: var(--mint); }
+.todo-item.todo-in_progress { background: var(--surface-raised); border-color: var(--line); }
+.todo-item.todo-in_progress .todo-content { font-weight: 600; }
+.todo-item.todo-in_progress .todo-status-label { color: var(--coral); }
+/* The in-progress item keeps a pulsing priority dot (reduced-motion aware). */
+.todo-item.todo-in_progress .todo-priority-dot { animation: todo-pulse 1.4s ease-in-out infinite; }
+@keyframes todo-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .45; transform: scale(.82); } }
+@media (prefers-reduced-motion: reduce) {
+  .todo-item.todo-in_progress .todo-priority-dot { animation: none; }
+  .todo-chevron { transition: none; }
+}
+
+/* Theme-specific nudges: match the light reskin chrome used by neighboring
+   inspector sections and the composer card. */
+:root[data-theme="light"] .perm-mode-group { background: #f2f4f2; border-color: #e2e4e2; }
+:root[data-theme="light"] .perm-mode-option.active { background: #ffffff; }
+:root[data-theme="light"] .todo-progress-count { background: #f4f6f4; border-color: #e2e4e2; }
+:root[data-theme="light"] .todo-item:hover,
+:root[data-theme="light"] .todo-item.todo-in_progress { background: var(--frakio-soft, #f5f5f3); border-color: #e5e7e5; }
+:root[data-theme="light"] .perm-mode-row { padding: 8px 15px 0; }
+@media (max-width: 780px) {
+  .perm-mode-row { padding: 7px 14px 0; }
+  .perm-mode-hint { flex-basis: 100%; }
+}
+
+/* ==========================================================================
+   File tree inspector section, @-file mention popover, and global history
+   search (appended block)
+   --------------------------------------------------------------------------
+   - The tree rows reuse the shared inspector variables (--line/--quiet/muted)
+     and mirror the existing .file-row / .todo-item look; the 20px heading nudge
+     below matches the neighboring #filesSection / .changes-section headings in
+     the base chrome, and the :root[data-theme="light"] rules reset it for the
+     light reskin.
+   - The mention popover and the search panel are modal-style dark cards built
+     from --surface/--line/--text, so both themes adapt through the existing
+     variable overrides plus the light nudges at the end of this block.
+   ========================================================================== */
+
+.composer-shell { position: relative; }
+
+/* --- File tree (Inspector) ------------------------------------------------ */
+#fileTreeSection .section-heading { color: #919394; font-size: 20px; font-weight: 400; margin: 9px 0 10px; }
+.file-tree { margin-top: 2px; }
+.file-tree-list { display: grid; gap: 1px; max-height: 300px; overflow-y: auto; scrollbar-color: var(--line-bright) transparent; scrollbar-width: thin; }
+.file-tree-row { align-items: center; background: transparent; border: 0; border-radius: 6px; color: inherit; cursor: pointer; display: flex; gap: 6px; min-width: 0; padding: 5px 6px; text-align: left; width: 100%; }
+.file-tree-row:hover { background: var(--surface-raised); }
+.file-tree-row:focus-visible { outline: 2px solid var(--coral); outline-offset: 1px; }
+.file-tree-chevron { color: var(--quiet); display: inline-flex; flex: 0 0 auto; width: 12px; }
+.file-tree-chevron svg { height: 12px; width: 12px; }
+.file-tree-icon { color: var(--muted); display: inline-flex; flex: 0 0 auto; }
+.file-tree-icon svg { height: 13px; width: 13px; }
+.file-tree-name { font-family: "DM Mono", Consolas, monospace; font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-tree-size { color: var(--quiet); flex: 0 0 auto; font: 9px "DM Mono", Consolas, monospace; margin-left: auto; }
+.file-tree-status { color: var(--quiet); font-size: 10px; padding: 6px 0; }
+.file-tree-status[style] { font-family: "DM Mono", Consolas, monospace; }
+.file-tree-error { color: var(--coral); display: grid; gap: 2px; }
+.file-tree-error small { color: var(--quiet); overflow-wrap: anywhere; }
+.file-tree-note { align-items: center; color: var(--amber); display: flex; font-size: 9px; gap: 6px; margin-top: 7px; }
+.file-tree-note svg { flex: 0 0 auto; height: 11px; width: 11px; }
+
+/* --- @-file mention popover (composer) ------------------------------------ */
+.mention-popover { background: var(--surface); border: 1px solid var(--line-bright); border-radius: 10px; box-shadow: var(--shadow); display: grid; gap: 2px; left: 24px; max-height: 264px; max-width: min(440px, calc(100% - 44px)); min-width: 260px; overflow: auto; padding: 6px; position: absolute; top: 96px; width: max-content; z-index: 14; }
+.mention-popover[hidden] { display: none; }
+.mention-option { align-items: center; background: transparent; border: 0; border-radius: 6px; color: var(--text); cursor: pointer; display: flex; gap: 10px; padding: 6px 8px; text-align: left; width: 100%; }
+.mention-option:hover, .mention-option.active { background: var(--surface-raised); }
+.mention-option.active { box-shadow: inset 0 0 0 1px var(--line-bright); }
+.mention-path { font-family: "DM Mono", Consolas, monospace; font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mention-size { color: var(--quiet); flex: 0 0 auto; font: 9px "DM Mono", Consolas, monospace; margin-left: auto; }
+.mention-empty { color: var(--quiet); font-size: 10px; padding: 6px 8px; }
+.mention-hint { border-top: 1px solid var(--line); color: var(--quiet); font-size: 9px; padding: 5px 8px 2px; }
+
+/* --- Global session history search (sidebar button + panel) --------------- */
+.global-search-button { color: var(--quiet); flex: 0 0 auto; }
+.global-search-button:hover { color: var(--text); }
+.global-search-panel { display: grid; gap: 12px; }
+.global-search-box { align-items: center; background: var(--surface-raised); border: 1px solid var(--line-bright); border-radius: 8px; display: flex; gap: 8px; padding: 0 12px; }
+.global-search-box svg { color: var(--quiet); flex: 0 0 auto; height: 14px; width: 14px; }
+.global-search-box input { background: transparent; border: 0; color: var(--text); font: 13px "DM Mono", Consolas, monospace; min-width: 0; padding: 11px 0; width: 100%; }
+.global-search-box input:focus-visible { outline: 0; }
+.global-search-results { display: grid; gap: 8px; }
+.global-search-result { background: var(--surface-raised); border: 1px solid var(--line); border-radius: 8px; color: var(--text); cursor: pointer; display: grid; gap: 7px; padding: 11px 13px; text-align: left; transition: border-color .15s ease; width: 100%; }
+.global-search-result:hover, .global-search-result:focus-visible { border-color: var(--line-bright); outline: 0; }
+.global-search-result-head { align-items: baseline; display: flex; gap: 10px; justify-content: space-between; min-width: 0; }
+.global-search-result-head strong { font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.global-search-matches { background: var(--blue-soft); border-radius: 999px; color: var(--blue); flex: 0 0 auto; font: 9px "DM Mono", Consolas, monospace; padding: 2px 8px; white-space: nowrap; }
+.global-search-snippet { color: var(--muted); font: 10px/1.55 "DM Mono", Consolas, monospace; margin: 0; max-height: 96px; overflow: hidden; overflow-wrap: anywhere; white-space: pre-wrap; }
+.global-search-snippet mark { background: var(--amber-soft); color: var(--amber); padding: 0 1px; }
+.global-search-result-meta { color: var(--quiet); display: flex; flex-wrap: wrap; font: 9px "DM Mono", Consolas, monospace; gap: 4px 12px; }
+
+/* --- Theme nudges ---------------------------------------------------------- */
+:root[data-theme="light"] #fileTreeSection .section-heading { color: #9aa19d; font-size: 11px; }
+:root[data-theme="light"] .file-tree-row:hover { background: var(--frakio-soft, #f5f5f3); }
+:root[data-theme="light"] .mention-popover { background: #ffffff; }
+:root[data-theme="light"] .mention-option:hover,
+:root[data-theme="light"] .mention-option.active { background: var(--frakio-soft, #f5f5f3); }
+:root[data-theme="light"] .global-search-box { background: var(--frakio-soft, #f5f5f3); border-color: #dcdedc; }
+:root[data-theme="light"] .global-search-result { background: #ffffff; border-color: #e2e4e2; }
+:root[data-theme="light"] .global-search-result:hover,
+:root[data-theme="light"] .global-search-result:focus-visible { border-color: #c9cdc9; }
+@media (max-width: 780px) {
+  .mention-popover { left: 12px; max-width: calc(100% - 24px); }
+}
+
+/* ---------------------------------------------------------------------------
+ * Session rewind + long-list virtualization (content-visibility windowing)
+ * ------------------------------------------------------------------------- */
+.settings-rewind .rewind-form { align-items: end; display: grid; gap: 8px; grid-template-columns: 1fr auto; margin-top: 8px; }
+.settings-rewind .rewind-label { color: var(--muted); display: grid; font-size: 11px; gap: 4px; }
+.settings-rewind .rewind-label input { background: var(--surface-raised); border: 1px solid var(--line-bright); border-radius: 7px; color: var(--text); font: inherit; padding: 8px 10px; width: 100%; }
+.settings-rewind .rewind-button { white-space: nowrap; }
+.settings-rewind .rewind-form:focus-within input { border-color: var(--mint); outline: 0; }
+
+/* Long chat/timeline lists skip offscreen rendering work while keeping
+ * scrollbars and anchors stable; intrinsic size approximates one message. */
+#messageList > .message { contain-intrinsic-size: auto 140px; content-visibility: auto; }
+.execution-trail > details { contain-intrinsic-size: auto 96px; content-visibility: auto; }
+
+/* ===========================================================================
+ * THEME REFRESH — warm Claude-inspired palette, Codex-grade component polish.
+ * Appended as an override layer: redefines the shared variables for both
+ * themes and refines key surfaces without touching any class names/JS.
+ * ======================================================================== */
+
+:root {
+  --radius: 12px;
+  --radius-lg: 16px;
+  --font-ui: "Manrope", "Segoe UI", -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-mono: "DM Mono", "Cascadia Code", Consolas, monospace;
+  /* Dark (default): warm charcoal like claude.ai night palette. */
+  --ink: #1a1917;
+  --sidebar: #201f1c;
+  --surface: #242320;
+  --surface-raised: #2c2a26;
+  --surface-soft: #282623;
+  --line: #383631;
+  --line-bright: #46443d;
+  --text: #f2efe9;
+  --muted: #a6a196;
+  --quiet: #7d786d;
+  --coral: #e8825e;
+  --coral-strong: #d97757;
+  --coral-soft: #3d2b22;
+  --mint: #8fd0b8;
+  --mint-soft: #243b32;
+  --blue: #a3b9ee;
+  --blue-soft: #2a3245;
+  --amber: #e8c584;
+  --amber-soft: #3d3625;
+  --shadow: 0 24px 64px rgba(0, 0, 0, .34);
+  --shadow-soft: 0 8px 26px rgba(0, 0, 0, .22);
+  --ring: 0 0 0 3px rgba(217, 119, 87, .28);
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  /* Light: warm cream canvas, ivory sidebar, terracotta accent. */
+  --ink: #faf9f5;
+  --sidebar: #f2f0e9;
+  --surface: #ffffff;
+  --surface-raised: #f4f2ec;
+  --surface-soft: #f8f7f2;
+  --line: #e6e2d8;
+  --line-bright: #d4cfc2;
+  --text: #22201c;
+  --muted: #6b675c;
+  --quiet: #8f8a7d;
+  --coral: #c96442;
+  --coral-strong: #b8563a;
+  --coral-soft: #f8e8df;
+  --mint: #1c7a5f;
+  --mint-soft: #e0f2ea;
+  --blue: #3a62b8;
+  --blue-soft: #e7edfa;
+  --amber: #96690f;
+  --amber-soft: #faf0d5;
+  --shadow: 0 18px 44px rgba(58, 50, 38, .14);
+  --shadow-soft: 0 6px 20px rgba(58, 50, 38, .08);
+  --ring: 0 0 0 3px rgba(201, 100, 66, .22);
+}
+
+/* ---- Base & typography ---- */
+body { font-family: var(--font-ui); font-size: 14px; letter-spacing: .005em; }
+.message-body, .answer-callout, .stream-preview { font-size: 14.5px; line-height: 1.68; }
+.eyebrow { letter-spacing: .14em; text-transform: uppercase; }
+h1, h2, h3 { letter-spacing: -.015em; }
+button, .thread-item, .task-row, .file-tree-row { transition: background .16s ease, border-color .16s ease, box-shadow .16s ease, transform .16s ease; }
+button:focus-visible, input:focus-visible, textarea:focus-visible { box-shadow: var(--ring); outline: 0; }
+
+/* ---- Sidebar: warm pill navigation ---- */
+.sidebar { background: var(--sidebar); }
+.thread-item { border-radius: 9px; }
+.thread-item:hover, .thread-item:focus-visible { background: var(--surface-raised); border-color: transparent; }
+.thread-item.active { background: var(--coral-soft); box-shadow: inset 2px 0 0 var(--coral); }
+.sidebar-search { border-radius: 10px; }
+
+/* ---- Composer: elevated floating card ---- */
+.composer-shell { border: 1px solid var(--line); border-radius: var(--radius-lg); box-shadow: var(--shadow-soft); }
+.composer-shell:focus-within { border-color: var(--coral); box-shadow: var(--shadow-soft), var(--ring); }
+.composer textarea, .composer input[type="text"] { line-height: 1.6; }
+.send-button { border-radius: 10px; background: linear-gradient(135deg, var(--coral), var(--coral-strong)); box-shadow: 0 2px 10px rgba(217, 119, 87, .3); color: #fff; }
+.send-button:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(217, 119, 87, .38); }
+.send-button:disabled { box-shadow: none; transform: none; }
+
+/* ---- Messages: Claude-style flat assistant text, soft user bubble ---- */
+.assistant-message .message-body { background: transparent; }
+.user-message .message-body { background: var(--surface-soft); border: 1px solid var(--line); border-radius: 14px 14px 4px 14px; padding: 12px 15px; }
+.assistant-message, .user-message { border-top: 0; }
+.message-meta { color: var(--muted); }
+.avatar.agent-avatar { background: linear-gradient(135deg, var(--coral), var(--coral-strong)); color: #fff; }
+
+/* ---- Panels, modals, tool rail ---- */
+.panel-card, .game-card { border-radius: var(--radius-lg); }
+.panel-modal, .game-modal { backdrop-filter: blur(7px); }
+.panel-modal.show .panel-card, .game-modal.show .game-card { box-shadow: var(--shadow); }
+.inspector, .task-dock { border-radius: 0; }
+.inspector-section { border-radius: 11px; }
+.file-tree-row { border-radius: 7px; }
+.file-tree-row:hover { background: var(--surface-raised); }
+
+/* ---- Trace / timeline ---- */
+.agent-round, .tool-event, .trace-event, .model-event { border-radius: 10px; }
+.answer-callout { border-radius: 10px; border-left: 2px solid var(--coral); padding-left: 13px; }
+
+/* ---- Code & diff ---- */
+.message-body pre, .file-preview, .diff-preview { border-radius: 10px; }
+.message-body pre { border: 1px solid var(--line); }
+
+/* ---- Chips, badges, toggles ---- */
+.perm-mode-group { border-radius: 10px; }
+.perm-mode-option { border-radius: 7px; }
+.perm-mode-option.active { background: var(--coral-soft); box-shadow: inset 0 0 0 1px var(--coral); color: var(--text); }
+.safe-toggle .toggle-track { border-radius: 999px; }
+
+/* ---- Toast ---- */
+.toast { border-radius: 11px; box-shadow: var(--shadow-soft); }
+
+/* ---- Scrollbars ---- */
+* { scrollbar-width: thin; scrollbar-color: var(--line-bright) transparent; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: var(--line-bright); border-radius: 999px; }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* ---- Light-theme warm overrides for legacy hard-coded grays ---- */
+:root[data-theme="light"] .sidebar-search,
+:root[data-theme="light"] .message-body pre,
+:root[data-theme="light"] .image-attachment img,
+:root[data-theme="light"] .attachment-placeholder,
+:root[data-theme="light"] .task-detail-path,
+:root[data-theme="light"] .workspace-current-path,
+:root[data-theme="light"] .file-preview { background: var(--surface-soft); }
+:root[data-theme="light"] .task-row:hover,
+:root[data-theme="light"] .task-row:focus-visible { background: var(--surface-raised); border-color: var(--line-bright); }
+
+@media (prefers-reduced-motion: reduce) {
+  button, .thread-item, .task-row, .file-tree-row, .send-button { transition: none; }
+}
+
+/* ---- Dark-theme hardening: neutralize unscoped hard-coded light rules ---- */
+:root[data-theme="dark"] .chat-area { background: var(--surface); }
+:root[data-theme="dark"] .message-body { color: var(--text); font-size: 15.5px; }
+:root[data-theme="dark"] .stream-preview { color: var(--text); }
+:root[data-theme="dark"] .user-message .message-body {
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 14px 14px 4px 14px;
+  color: var(--text);
+  font-size: 15px;
+  max-width: 520px;
+  padding: 12px 16px;
+}
+:root[data-theme="dark"] .composer-wrap { background: var(--surface); }
+:root[data-theme="dark"] .composer-shell { background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow-soft); }
+:root[data-theme="dark"] .composer-shell textarea { color: var(--text); font-size: 15px; }
+:root[data-theme="dark"] .composer-shell textarea::placeholder { color: var(--quiet); }
+:root[data-theme="dark"] .send-button { background: linear-gradient(135deg, var(--coral), var(--coral-strong)); color: #fff; }
+:root[data-theme="dark"] .inspector { background: var(--surface); border: 1px solid var(--line); }
+:root[data-theme="dark"] .inspector-section { background: transparent; color: var(--text); }
+:root[data-theme="dark"] .topbar { background: var(--surface); }
+:root[data-theme="dark"] .answer-callout { color: var(--text); }
+
+/* Normalize oversized reskin type in both themes. */
+.message-body { font-size: 15.5px; }
+.user-message .message-body { font-size: 15px; }
+.composer-shell textarea { font-size: 15px; }
+
+/* Codex-card surfaces (inspector header etc.) stay light in both themes:
+ * give dark its own warm card. */
+:root[data-theme="dark"] { --codex-card: var(--surface-raised); }
+:root[data-theme="dark"] .inspector-header { background: var(--surface-raised); border-color: var(--line); }
+:root[data-theme="dark"] .inspector-header .eyebrow { color: var(--muted); }

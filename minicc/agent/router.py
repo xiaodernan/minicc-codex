@@ -30,15 +30,21 @@ class StageRoute:
 class StageRouter:
     """Route stages without overriding an explicitly configured model."""
 
-    def __init__(self, model: str, timeout: float = 180.0) -> None:
+    def __init__(
+        self,
+        model: str,
+        timeout: float = 180.0,
+        fallback_models: tuple[str, ...] = (),
+    ) -> None:
         self.model = str(model)
         self.timeout = max(10.0, float(timeout))
+        self.fallback_models = tuple(str(item) for item in fallback_models if str(item).strip())
 
     def route(self, stage: str) -> StageRoute:
         stage = str(stage or "planning")
         factors = {"inspect": 0.75, "planning": 0.9, "implement": 1.0, "verify": 0.7, "repair": 1.0, "review": 0.8}
         factor = factors.get(stage, 1.0)
-        return StageRoute(stage, self.model, round(self.timeout * factor, 1))
+        return StageRoute(stage, self.model, round(self.timeout * factor, 1), self.fallback_models)
 
 
 __all__ = ["StageRoute", "StageRouter"]

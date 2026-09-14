@@ -65,6 +65,56 @@ class SessionStore:
         }
         self._write_payload(payload)
 
+    def rewind(self, keep_messages: int) -> dict[str, Any]:
+        """Truncate the conversation to ``keep_messages`` entries.
+
+        Message-level rewind: the full current payload is backed up to
+        ``<session>.pre-rewind.json`` (rotating single backup) before the
+        truncation is written, so a mistaken rewind can be recovered manually.
+        The system message at index 0 always survives; ``keep_messages`` counts
+        from the full list including system. Rewinding past the end is a no-op
+        returning ``removed: 0``.
+        """
+        keep = _non_negative_int(keep_messages)
+        if not self.exists:
+            raise SessionError(f"会话不存在: {self.path.name}")
+        try:
+            payload = json.loads(self.path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise SessionError(f"无法读取 session {self.path}: {exc}") from exc
+        if not isinstance(payload, dict) or not isinstance(payload.get("messages"), list):
+            raise SessionError(f"session 格式错误: {self.path}")
+        messages = payload["messages"]
+        total = len(messages)
+        if total == 0 or keep < 1:
+            raise SessionError("keep_messages 至少为 1（保留 system 消息）")
+        if keep >= total:
+            return {"kept": total, "removed": 0, "backup": ""}
+        backup_path = self.path.with_name(f"{self.path.stem}.pre-rewind.json")
+        self._write_payload_at(backup_path, payload)
+        payload["messages"] = messages[:keep]
+        payload["updated_at"] = datetime.now(UTC).isoformat(timespec="seconds")
+        payload["rewound_at"] = payload["updated_at"]
+        payload["rewound_removed"] = total - keep
+        self._write_payload(payload)
+        return {"kept": keep, "removed": total - keep, "backup": backup_path.name}
+
+    def _write_payload_at(self, target: Path, payload: dict[str, Any]) -> None:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        temporary = target.with_suffix(".tmp")
+        try:
+            temporary.write_text(
+                json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+                encoding="utf-8",
+            )
+            os.replace(temporary, target)
+        except OSError as exc:
+            try:
+                temporary.unlink(missing_ok=True)
+            except OSError:
+                pass
+            raise SessionError(f"无法写入 {target}: {exc}") from exc
+
     def load_view(self) -> dict[str, Any]:
         """Load the CLI's small semantic reading anchor, never raw terminal state."""
         if not self.exists:

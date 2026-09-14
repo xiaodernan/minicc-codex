@@ -123,6 +123,18 @@ class Config:
     task_queue_limit: int = DEFAULT_TASK_QUEUE_LIMIT
     sandbox_mode: str = DEFAULT_SANDBOX_MODE
     sandbox_image: str = DEFAULT_SANDBOX_IMAGE
+    # openai | anthropic | auto (auto infers from base_url/model name)
+    provider_type: str = "openai"
+    # Ordered fallback models tried on repeated provider failures (may be empty).
+    fallback_models: tuple[str, ...] = ()
+    # Re-queue interrupted tasks automatically when the web service starts.
+    auto_resume_on_start: bool = False
+    # thread (default, in-process) | process (detached task_worker subprocess)
+    task_executor: str = "thread"
+    # Empty tuple keeps the historical "any local directory" behavior; when
+    # set, /api/workspace/select may only switch to one of these roots or a
+    # subdirectory of them.
+    workspace_roots: tuple[Path, ...] = ()
 
     def describe(self) -> str:
         key = self.api_key
@@ -209,6 +221,37 @@ def load_config(
     if sandbox_mode not in {"host", "docker", "auto"}:
         raise ConfigError(f"MINICC_SANDBOX 非法: {sandbox_mode!r} (host|docker|auto)")
     sandbox_image = pick(None, "MINICC_SANDBOX_IMAGE", "sandbox_image", DEFAULT_SANDBOX_IMAGE)
+
+    raw_roots = pick(None, "MINICC_WORKSPACE_ROOTS", "workspace_roots", "")
+    workspace_roots: list[Path] = []
+    for raw_root in raw_roots.replace(",", os.pathsep).split(os.pathsep):
+        part = raw_root.strip().strip('"')
+        if not part:
+            continue
+        workspace_roots.append(Path(part).expanduser().resolve())
+
+    raw_provider_type = pick(None, "MINICC_PROVIDER_TYPE", "provider_type", "auto").strip().lower()
+    if raw_provider_type not in {"auto", "openai", "anthropic"}:
+        raise ConfigError(f"MINICC_PROVIDER_TYPE 非法: {raw_provider_type!r} (auto|openai|anthropic)")
+    if raw_provider_type == "auto":
+        haystack = f"{resolved_url} {resolved_model}".lower()
+        provider_type = "anthropic" if ("anthropic" in haystack or resolved_model.startswith("claude")) else "openai"
+    else:
+        provider_type = raw_provider_type
+
+    raw_auto_resume = pick(None, "MINICC_AUTO_RESUME_ON_START", "auto_resume_on_start", "0")
+    auto_resume_on_start = raw_auto_resume.strip().lower() in TRUTHY
+
+    task_executor = pick(None, "MINICC_TASK_EXECUTOR", "task_executor", "thread").strip().lower()
+    if task_executor not in {"thread", "process"}:
+        raise ConfigError(f"MINICC_TASK_EXECUTOR 非法: {task_executor!r} (thread|process)")
+
+    raw_fallbacks = pick(None, "MINICC_FALLBACK_MODELS", "fallback_models", "")
+    fallback_models: list[str] = []
+    for raw_model in raw_fallbacks.replace(";", ",").split(","):
+        name = raw_model.strip()
+        if name and name != resolved_model and name not in fallback_models:
+            fallback_models.append(name)
 
     raw_context_window = pick(None, "MINICC_CONTEXT_WINDOW_TOKENS", "context_window_tokens", str(DEFAULT_CONTEXT_WINDOW_TOKENS))
     try:
@@ -299,4 +342,9 @@ def load_config(
         task_queue_limit=task_queue_limit,
         sandbox_mode=sandbox_mode,
         sandbox_image=sandbox_image,
+        workspace_roots=tuple(workspace_roots),
+        provider_type=provider_type,
+        fallback_models=tuple(fallback_models),
+        auto_resume_on_start=auto_resume_on_start,
+        task_executor=task_executor,
     )

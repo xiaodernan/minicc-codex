@@ -46,3 +46,17 @@ MINICC_REASONING_EFFORT=high
 
 # Auto-approve every tool call (dangerous; --yolo sets this too)
 #MINICC_YOLO=0
+
+# ---- Web workbench security (minicc-web) ----
+
+# Access token for the Web API. When bound to a non-loopback host
+# (--host 0.0.0.0) authentication is mandatory; a token is then taken from
+# MINICC_WEB_TOKEN / --token, or auto-generated into <workspace>/.minicc/web_token.json.
+#MINICC_WEB_TOKEN=
+
+# Restrict switchable workspaces to these root directories (os.pathsep or
+# comma separated). Empty = any local directory (historical behavior).
+#MINICC_WORKSPACE_ROOTS=D:\projects;D:\面试项目
+
+# Allow webfetch to reach loopback/private addresses (local testing only).
+#MINICC_ALLOW_PRIVATE_FETCH=0

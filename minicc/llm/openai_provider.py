@@ -119,6 +119,14 @@ def _exception_text(exc: BaseException) -> str:
     return " ".join(parts).lower()
 
 
+class ResponsesPartialError(RuntimeError):
+    """The Responses stream broke after deltas were already delivered.
+
+    Retrying here would replay text the user has already seen, so the
+    task-level recovery path (non-streaming replay) owns this failure.
+    """
+
+
 def _is_retryable(exc: BaseException) -> bool:
     return (
         isinstance(exc, _RETRYABLE)
@@ -585,10 +593,10 @@ class OpenAICompatibleProvider:
             kwargs["tools"] = self._to_responses_tools(tools)
         if self._reasoning_enabled:
             kwargs["reasoning"] = {"effort": REASONING_WIRE_VALUES[self._active_reasoning_effort]}
+        if on_delta is not None and not (tools and self._mode == "envelope"):
+            return await self._create_responses_stream(kwargs, on_delta, tools)
         response = await self._create_responses(kwargs)
         parsed = self._responses_to_response(response)
-        if on_delta is not None and parsed.content and not (tools and self._mode == "envelope"):
-            on_delta(parsed.content)
         return self._finalize(parsed, tools)
 
     async def _create_responses(self, kwargs: dict[str, Any]) -> Any:
@@ -606,6 +614,71 @@ class OpenAICompatibleProvider:
             return await self.client.responses.create(**kwargs)
 
         return await retryer(_attempt)
+
+    async def _create_responses_stream(
+        self,
+        kwargs: dict[str, Any],
+        on_delta: Callable[[str], None],
+        tools: list[dict[str, Any]] | None,
+    ) -> LLMResponse:
+        """Stream Responses text deltas to the UI while returning the final
+        structured response (tool calls, usage) from the completed event.
+
+        Retries only before the first delta is delivered; a mid-stream break
+        raises ResponsesPartialError so the recovery path replays atomically
+        instead of duplicating visible text.
+        """
+        retryer = AsyncRetrying(
+            retry=retry_if_exception(
+                lambda exc: not isinstance(exc, ResponsesPartialError)
+                and (_is_retryable(exc) or _is_stream_retryable(exc))
+            ),
+            wait=_wait_retry_after_or_exponential,
+            stop=stop_after_attempt(self._max_retries + 1),
+            before_sleep=self._emit_request_retry,
+            reraise=True,
+        )
+        emitted = {"chars": 0}
+
+        async def _attempt() -> LLMResponse:
+            emitted["chars"] = 0
+            stream_kwargs = dict(kwargs)
+            stream_kwargs["stream"] = True
+            stream = await self.client.responses.create(**stream_kwargs)
+            final = None
+            try:
+                async for event in stream:
+                    event_type = str(getattr(event, "type", "") or "")
+                    if event_type == "response.output_text.delta":
+                        delta = str(getattr(event, "delta", "") or "")
+                        if delta:
+                            emitted["chars"] += len(delta)
+                            on_delta(delta)
+                    elif event_type in {"response.completed", "response.incomplete", "response.failed"}:
+                        final = getattr(event, "response", None)
+                if final is None:
+                    get_final = getattr(stream, "get_final_response", None)
+                    if get_final is not None:
+                        final = await get_final()
+            except ResponsesPartialError:
+                raise
+            except Exception as exc:
+                if emitted["chars"] == 0:
+                    raise
+                raise ResponsesPartialError(
+                    f"responses stream broke after delivering {emitted['chars']} chars: "
+                    f"{type(exc).__name__}"
+                ) from exc
+            if final is None:
+                if emitted["chars"] == 0:
+                    raise RuntimeError("Responses 流式请求未返回最终响应")
+                raise ResponsesPartialError(
+                    f"responses stream ended without a final response after {emitted['chars']} chars"
+                )
+            return self._responses_to_response(final)
+
+        parsed = await retryer(_attempt)
+        return self._finalize(parsed, tools)
 
     @staticmethod
     def _to_responses_tools(tools: list[dict[str, Any]]) -> list[dict[str, Any]]:

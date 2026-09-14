@@ -21,7 +21,11 @@ import threading
 import time
 import uuid
 from concurrent.futures import Future, ThreadPoolExecutor
+import dataclasses
+import os
+import sys
 from dataclasses import dataclass, field
+from types import SimpleNamespace
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -43,6 +47,15 @@ from .agent.planner import (
 )
 from .agent.repair import repair_scope
 from .agent.retrieval import LocalEvidenceIndex
+from .agent.subagent import build_task_tool_spec
+from .webauth import (
+    WebAuth,
+    WebAuthError,
+    cors_origin,
+    is_loopback_host,
+    load_or_create_token,
+    token_store_path,
+)
 from .agent.router import StageRouter
 from .agent.state import AgentState, Budget, BudgetExceeded
 from .agent.protocol import (
@@ -53,15 +66,17 @@ from .agent.protocol import (
 )
 from .agent.rpc import RpcDispatcher
 from .agent.verifier import Verifier
-from .audit import authorize_tool
+from .audit import authorize_tool, normalize_permission_mode
 from .changes import ChangeError, ChangeInspector
 from .config import (
     ConfigError,
+    TRUTHY,
     home_dir,
     load_config,
     normalize_reasoning_effort,
 )
 from .llm.base import system_msg, user_msg
+from .llm.anthropic_provider import AnthropicProvider
 from .llm.openai_provider import OpenAICompatibleProvider
 from .llm.usage import add_usage_totals, cache_summary
 from .mcp import McpError, McpManager
@@ -72,24 +87,20 @@ from .tools import Editor, ToolCall, ToolResult, build_registry
 from .tools.registry import redact_text
 from .task_store import TaskStore
 from .worktree import WorktreeError, WorktreeManager
+from .webserver import MiniccHTTPServer, MiniccRequestHandler  # noqa: F401 - re-export
 from .workspaces import WorkspaceCatalog
 
-STATIC_ROOT = Path(__file__).resolve().parent.parent / "web"
-MAX_BODY_BYTES = 18_000_000
 MAX_ATTACHMENTS = 4
 MAX_ATTACHMENT_BYTES = 6 * 1024 * 1024
 MAX_ATTACHMENT_TOTAL_BYTES = 12 * 1024 * 1024
 MAX_BATCH_TASKS = 16
 TASK_STREAM_INTERVAL = 0.06
-TASK_STREAM_TIMEOUT = 15 * 60
 TERMINAL_TASK_STATUSES = {"completed", "failed", "cancelled", "interrupted"}
 DEFAULT_TASK_EVENT_LIMIT = 768
 DEFAULT_TASK_STREAM_LIMIT = 16_000
 DEFAULT_TASK_USAGE_LIMIT = 64
 DEFAULT_TASK_COMPACTION_LIMIT = 64
 DEFAULT_TASK_QUEUE_LIMIT = 32
-MAX_SSE_CONNECTIONS = 32
-SSE_WRITE_TIMEOUT = 20.0
 TASK_SHUTDOWN_GRACE_SECONDS = 8.0
 COMPLETION_WRITE_TOOLS = frozenset({"write_file", "edit_file", "worktree_create", "worktree_remove"})
 READONLY_PLAN_KINDS = frozenset({"readonly", "review", "merge", "exec"})
@@ -372,6 +383,7 @@ class TaskRecord:
     allow_changes: bool
     thread_id: str = ""
     allow_network: bool = False
+    permission_mode: str = "default"
     reasoning_effort: str = "high"
     attachments: list[dict[str, Any]] = field(default_factory=list, repr=False)
     workspace_path: str = ""
@@ -714,6 +726,7 @@ class TaskRecord:
                 "prompt": self.message,
                 "allow_changes": self.allow_changes,
                 "allow_network": self.allow_network,
+                "permission_mode": self.permission_mode,
                 "reasoning_effort": self.reasoning_effort,
                 "attachments": [
                     {
@@ -816,6 +829,7 @@ class TaskRecord:
                 "preview": self.message[:120],
                 "allow_changes": self.allow_changes,
                 "allow_network": self.allow_network,
+                "permission_mode": self.permission_mode,
                 "reasoning_effort": self.reasoning_effort,
                 "attachments": [
                     {
@@ -881,6 +895,7 @@ class TaskRecord:
             allow_changes=bool(data.get("allow_changes")),
             thread_id=str(data.get("thread_id") or ""),
             allow_network=bool(data.get("allow_network")),
+            permission_mode=_safe_permission_mode(data.get("permission_mode")),
             reasoning_effort=str(data.get("reasoning_effort") or "high"),
             attachments=[dict(item) for item in data.get("attachments") or [] if isinstance(item, dict)],
             workspace_path=str(data.get("workspace_path") or ""),
@@ -940,6 +955,32 @@ class TaskRecord:
         return task
 
 
+def _safe_permission_mode(raw: object) -> str:
+    """Restore-time parse: corrupt/legacy snapshots fall back to default."""
+    try:
+        return normalize_permission_mode(raw)
+    except ValueError:
+        return "default"
+
+
+def _resolve_task_permissions(
+    payload: dict[str, Any], *, yolo: bool
+) -> tuple[bool, bool, str]:
+    """Normalize task permission inputs into (allow_changes, allow_network, mode).
+
+    ``yolo`` mode implies both flags so a single switch can unlock a task;
+    ``plan``/``acceptEdits`` keep the user's raw flags and let authorize_tool
+    combine mode + flags per tool.
+    """
+    mode = normalize_permission_mode(payload.get("permission_mode"))
+    allow_changes = bool(payload.get("allow_changes")) or yolo
+    allow_network = bool(payload.get("allow_network"))
+    if mode == "yolo":
+        allow_changes = True
+        allow_network = True
+    return allow_changes, allow_network, mode
+
+
 class TaskManager:
     """Bounded background task runner with polling-friendly snapshots."""
 
@@ -973,10 +1014,42 @@ class TaskManager:
                 self.tasks[task.task_id] = task
                 if task.status != str(snapshot.get("status") or "") or task.error != str(snapshot.get("error") or ""):
                     self._persist_task(task, force=True)
+        self._auto_resume_interrupted()
+
+    def _auto_resume_interrupted(self) -> None:
+        """Daemonization step 1: re-queue interrupted tasks on startup.
+
+        Restarted tasks are marked ``interrupted`` by from_snapshot. With
+        ``MINICC_AUTO_RESUME_ON_START=1`` they are re-queued automatically
+        (workspace-matched only; children resume through their parent batch
+        and are not re-queued individually). Failures degrade to the
+        historical manual-rerun behavior.
+        """
+        if str(getattr(self.service.config, "auto_resume_on_start", "")).lower() not in TRUTHY:
+            return
+        for task in list(self.tasks.values()):
+            if task.status != "interrupted" or task.parent_id:
+                continue
+            # A live worker process keeps refreshing its heartbeat; re-queuing
+            # such a task would run it twice, so leave it to the worker.
+            if self.store:
+                stored = self.store.get(task.task_id)
+                if stored and (time.time() - float(stored.get("heartbeat_at_epoch") or 0)) < 45:
+                    continue
+            try:
+                self.resume(task.task_id)
+            except Exception:  # noqa: BLE001 - degraded to manual rerun
+                continue
 
     @staticmethod
     def _session_key(task: TaskRecord) -> str:
         return f"{_path_key(task.workspace_path)}:{task.session_id}"
+
+    def search(self, query: str, *, limit: int = 50, workspace_path: str | None = None) -> list[dict[str, Any]]:
+        """Search the durable store; in-memory-only runs are not searchable."""
+        if self.store is None:
+            return []
+        return self.store.search(query, limit=limit, workspace_path=workspace_path)
 
     @staticmethod
     def _thread_id(workspace_path: str, session_id: str) -> str:
@@ -1183,8 +1256,9 @@ class TaskManager:
                 auto_payload["_orchestration_assessment"] = assessment.snapshot()
                 return self.submit_batch(auto_payload)
         session_id = str(payload.get("session_id") or "web-latest")
-        allow_changes = bool(payload.get("allow_changes")) or self.service.config.yolo
-        allow_network = bool(payload.get("allow_network"))
+        allow_changes, allow_network, permission_mode = _resolve_task_permissions(
+            payload, yolo=self.service.config.yolo
+        )
         try:
             reasoning_effort = normalize_reasoning_effort(
                 payload.get("reasoning_effort"),
@@ -1202,6 +1276,7 @@ class TaskManager:
             allow_changes=allow_changes,
             thread_id=self._thread_id(workspace_path, session_id),
             allow_network=allow_network,
+            permission_mode=permission_mode,
             reasoning_effort=reasoning_effort,
             attachments=self._persist_attachments(Path(workspace_path), task_id, normalized_attachments),
             workspace_path=workspace_path,
@@ -1234,8 +1309,9 @@ class TaskManager:
         )
         plan = plan_result.plan if plan_result is not None else default_plan
         plan.validate(max_nodes=MAX_BATCH_TASKS + 4)
-        allow_changes = bool(payload.get("allow_changes")) or self.service.config.yolo
-        allow_network = bool(payload.get("allow_network"))
+        allow_changes, allow_network, permission_mode = _resolve_task_permissions(
+            payload, yolo=self.service.config.yolo
+        )
         try:
             reasoning_effort = normalize_reasoning_effort(
                 payload.get("reasoning_effort"),
@@ -1259,6 +1335,7 @@ class TaskManager:
             allow_changes=allow_changes,
             thread_id=self._thread_id(workspace_path, str(payload.get("session_id") or "web-batch")),
             allow_network=allow_network,
+            permission_mode=permission_mode,
             reasoning_effort=reasoning_effort,
             attachments=self._persist_attachments(Path(workspace_path), parent_task_id, normalized_attachments),
             workspace_path=workspace_path,
@@ -1306,6 +1383,7 @@ class TaskManager:
                 # Parallel reconnaissance must never race with the parent or
                 # another child while editing the same workspace.
                 item["allow_changes"] = False
+                item["permission_mode"] = "plan"
             child = self.submit(item)
             child_id = child["task_id"]
             ids.append(child_id)
@@ -1617,6 +1695,156 @@ class TaskManager:
             for task_id in deleted:
                 self.tasks.pop(task_id, None)
 
+    def _run_in_worker_process(self, task: TaskRecord) -> dict[str, Any]:
+        """Run one task in a detached ``minicc.task_worker`` subprocess.
+
+        Daemonization step 2: the worker outlives this web process, writes
+        progress snapshots into the shared store, and honors cancellation via
+        a flag file. The monitor loop mirrors status/phase/stream/usage/events
+        from the store into the in-memory record so the SSE transport keeps
+        working unchanged. Fidelity boundary: the mirror covers display state;
+        the durable record in the store is authoritative for restart recovery.
+        """
+        import json as _json
+        import subprocess as _subprocess
+
+        workspace = Path(task.workspace_path).expanduser().resolve()
+        store_path = self.store.path if self.store else workspace / ".minicc" / "tasks.sqlite3"
+        cancel_dir = workspace / ".minicc" / "cancel"
+        cancel_dir.mkdir(parents=True, exist_ok=True)
+        cancel_file = cancel_dir / f"{task.task_id}.flag"
+
+        def _config_payload() -> str | None:
+            config = self.service.config
+            data = dataclasses.asdict(config) if dataclasses.is_dataclass(config) else (
+                dict(vars(config)) if isinstance(config, SimpleNamespace) else None
+            )
+            if data is None:
+                return None
+            clean = {
+                key: (str(value) if isinstance(value, Path) else list(value) if isinstance(value, tuple) else value)
+                for key, value in data.items()
+            }
+            return _json.dumps(clean, ensure_ascii=False, default=str)
+
+        command = [
+            sys.executable, "-m", "minicc.task_worker",
+            "--workspace", str(workspace),
+            "--task-id", task.task_id,
+            "--session-id", task.session_id,
+            "--message", task.execution_message or task.message,
+            "--store-path", str(store_path),
+            "--cancel-file", str(cancel_file),
+            "--permission-mode", task.permission_mode,
+            "--reasoning-effort", task.reasoning_effort,
+        ]
+        if task.allow_changes:
+            command.append("--allow-changes")
+        if task.allow_network:
+            command.append("--allow-network")
+        config_payload = _config_payload()
+        if config_payload:
+            command.extend(["--config-json", config_payload])
+        if os.getenv("MINICC_FAKE_PROVIDER", "").strip().lower() in TRUTHY:
+            command.append("--fake-provider")
+
+        child_env = os.environ.copy()
+        source_root = str(Path(__file__).resolve().parent.parent)
+        existing_pythonpath = child_env.get("PYTHONPATH")
+        child_env["PYTHONPATH"] = (
+            source_root
+            if not existing_pythonpath
+            else source_root + os.pathsep + existing_pythonpath
+        )
+        process = _subprocess.Popen(
+            command, cwd=str(workspace), env=child_env,
+            creationflags=getattr(_subprocess, "CREATE_NO_WINDOW", 0),
+        )
+
+        cancel_writer_stop = threading.Event()
+
+        def _forward_cancel() -> None:
+            while not cancel_writer_stop.is_set():
+                if task.cancel_event.is_set():
+                    try:
+                        cancel_file.write_text("cancelled", encoding="utf-8")
+                    except OSError:
+                        pass
+                    return
+                cancel_writer_stop.wait(0.5)
+
+        threading.Thread(target=_forward_cancel, daemon=True, name=f"cancel-{task.task_id}").start()
+
+        seen_event_keys: set[str] = set()
+        last_stream_len = 0
+        last_usage: dict[str, Any] | None = None
+        last_snapshot: dict[str, Any] | None = None
+
+        def _mirror(snapshot: dict[str, Any]) -> None:
+            nonlocal last_stream_len, last_usage
+            phase = str(snapshot.get("phase") or "")
+            if phase:
+                task.set_phase(phase)
+            stream_text = str(snapshot.get("stream_text") or "")
+            if len(stream_text) > last_stream_len:
+                task.append_stream(stream_text[last_stream_len:])
+                last_stream_len = len(stream_text)
+            usage = snapshot.get("usage")
+            if isinstance(usage, dict) and usage and usage != last_usage:
+                task.update_usage(usage)
+                last_usage = dict(usage)
+            for event in snapshot.get("events") or []:
+                key = _json.dumps(event, ensure_ascii=False, sort_keys=True, default=str)
+                if key not in seen_event_keys:
+                    seen_event_keys.add(key)
+                    task.add_event(event)
+
+        try:
+            while True:
+                if process.poll() is not None:
+                    break
+                snapshot = self.store.get(task.task_id) if self.store else None
+                if snapshot is not None:
+                    last_snapshot = snapshot
+                    _mirror(snapshot)
+                    status = str(snapshot.get("status") or "")
+                    if status in TERMINAL_TASK_STATUSES:
+                        break
+                time.sleep(1.5)
+            returncode = process.poll()
+            while returncode is None:
+                # Grace period: let the worker flush its terminal snapshot.
+                try:
+                    returncode = process.wait(timeout=10)
+                except _subprocess.TimeoutExpired:
+                    break
+            snapshot = self.store.get(task.task_id) or last_snapshot or {}
+            status = str(snapshot.get("status") or "")
+            if status not in TERMINAL_TASK_STATUSES:
+                raise RuntimeError(
+                    f"worker process exited unexpectedly (code {returncode}) before a terminal snapshot"
+                )
+            _mirror(snapshot)
+            cancelled = status == "cancelled" or task.cancel_event.is_set()
+            return {
+                "answer": str((snapshot.get("result") or {}).get("answer") or snapshot.get("stream_text") or ""),
+                "error": str(snapshot.get("error") or ""),
+                "cancelled": cancelled,
+                "tokens_used": dict(snapshot.get("usage") or {}),
+                "events": [],
+            }
+        finally:
+            cancel_writer_stop.set()
+            try:
+                if cancel_file.exists():
+                    cancel_file.unlink(missing_ok=True)
+            except OSError:
+                pass
+            try:
+                cancel_dir.rmdir()
+            except OSError:
+                pass
+
     def _run(self, task: TaskRecord) -> None:
         cancelled_before_start = False
         try:
@@ -1691,7 +1919,10 @@ class TaskManager:
                 kwargs.update(on_usage=on_usage, on_context=on_context, on_compaction=on_compaction)
             if "on_trace" in parameters:
                 kwargs["on_trace"] = on_event
-            result = self.service._run_chat(
+            if str(getattr(self.service.config, "task_executor", "thread")) == "process":
+                result = self._run_in_worker_process(task)
+            else:
+                result = self.service._run_chat(
                 {
                     "message": task.execution_message or task.message,
                     "session_id": task.session_id,
@@ -2005,7 +2236,7 @@ class TaskManager:
 class AgentService:
     """Bridge HTTP requests to isolated agent runs and background tasks."""
 
-    def __init__(self, workspace: Path, config: Any) -> None:
+    def __init__(self, workspace: Path, config: Any, *, task_store: "TaskStore | None" = None) -> None:
         self.workspace = workspace
         self.config = config
         self.system_prompt = build_system_prompt(workspace)
@@ -2021,7 +2252,7 @@ class AgentService:
         self._set_current_mcp(workspace)
         self._session_guard = threading.Lock()
         self._session_locks: dict[str, threading.Lock] = {}
-        self.tasks = TaskManager(self, store=TaskStore(home_dir() / "tasks.sqlite3"))
+        self.tasks = TaskManager(self, store=task_store or TaskStore(home_dir() / "tasks.sqlite3"))
         self._rpc_thread_guard = threading.RLock()
         self._rpc_threads: dict[str, dict[str, Any]] = {}
         self.rpc_dispatcher = RpcDispatcher(
@@ -2253,6 +2484,18 @@ class AgentService:
         candidate = candidate.resolve()
         if not candidate.is_dir():
             raise ValueError(f"工作区不是有效目录: {candidate}")
+        roots = tuple(getattr(self.config, "workspace_roots", ()) or ())
+        if roots:
+            allowed_roots = [Path(root).expanduser().resolve() for root in roots]
+            inside = any(
+                candidate == root or candidate.is_relative_to(root)
+                for root in allowed_roots
+            )
+            if not inside:
+                shown = ", ".join(root.as_posix() for root in allowed_roots)
+                raise ValueError(
+                    f"工作区不在允许的目录白名单内: {candidate.as_posix()}（允许: {shown}）"
+                )
         current = self.workspace.resolve()
         if candidate == current:
             self.workspace_catalog.remember(candidate)
@@ -2264,6 +2507,75 @@ class AgentService:
             self._set_current_mcp(candidate)
             self.workspace_catalog.remember(candidate)
         return self.workspace_info()
+
+    def file_tree(self, rel_path: str = "", depth: int = 3) -> dict[str, Any]:
+        """Structured workspace listing backing /api/files (frontend file tree)."""
+        from .tools.fs import SKIP_DIRS
+
+        root = self.workspace.resolve()
+        raw = str(rel_path or "").strip()
+        target = root if not raw else (root / raw).resolve()
+        if not (target == root or target.is_relative_to(root)):
+            raise ValueError(f"路径越界: {raw}")
+        if not target.is_dir():
+            raise ValueError(f"不是目录: {raw}")
+        try:
+            depth = max(1, min(int(depth), 6))
+        except (TypeError, ValueError):
+            depth = 3
+        max_entries = 2000
+        entries: list[dict[str, Any]] = []
+        truncated = False
+
+        def walk(directory: Path, level: int) -> None:
+            nonlocal truncated
+            if truncated or level > depth:
+                return
+            try:
+                children = sorted(directory.iterdir(), key=lambda item: (item.is_file(), item.name.lower()))
+            except OSError:
+                return
+            for child in children:
+                if child.name in SKIP_DIRS or child.is_symlink():
+                    continue
+                if len(entries) >= max_entries:
+                    truncated = True
+                    return
+                rel = child.relative_to(root).as_posix()
+                if child.is_dir():
+                    entries.append({"name": child.name, "path": rel, "type": "dir", "size": 0})
+                    walk(child, level + 1)
+                else:
+                    try:
+                        size = child.stat().st_size
+                    except OSError:
+                        size = 0
+                    entries.append({"name": child.name, "path": rel, "type": "file", "size": size})
+
+        walk(target, 1)
+        return {
+            "root": root.as_posix(),
+            "path": target.relative_to(root).as_posix() if target != root else "",
+            "depth": depth,
+            "truncated": truncated,
+            "entries": entries,
+        }
+
+    def search_history(self, query: str, limit: int = 50, workspace_path: str | None = None) -> dict[str, Any]:
+        """Global task-history search backing /api/history/search."""
+        results = self.tasks.search(
+            query,
+            limit=limit,
+            workspace_path=workspace_path,
+        )
+        return {"query": str(query or "").strip(), "results": results}
+
+    def rewind_session(self, session_id: str, keep_messages: int) -> dict[str, Any]:
+        """Rewind a stored conversation to a message index (checkpoint UI)."""
+        if not isinstance(session_id, str) or not session_id.strip():
+            raise ValueError("session_id 不能为空")
+        store = SessionStore(self.workspace, session_id.strip())
+        return store.rewind(keep_messages)
 
     def workspace_info(self) -> dict[str, Any]:
         try:
@@ -2303,6 +2615,9 @@ class AgentService:
                 "worktree_create",
                 "worktree_remove",
                 "web_search",
+                "webfetch",
+                "todo_write",
+                "todo_read",
             ],
         }
 
@@ -2383,8 +2698,9 @@ class AgentService:
         if not isinstance(message, str) or not message.strip():
             raise ValueError("message 不能为空")
         session_id = str(payload.get("session_id") or "web-latest")
-        allow_changes = bool(payload.get("allow_changes")) or self.config.yolo
-        allow_network = bool(payload.get("allow_network"))
+        allow_changes, allow_network, _mode = _resolve_task_permissions(
+            payload, yolo=self.config.yolo
+        )
         workspace = Path(str(payload.get("workspace_path") or self.workspace)).expanduser().resolve()
         if not workspace.is_dir():
             raise ValueError(f"工作区不是有效目录: {workspace}")
@@ -2420,8 +2736,9 @@ class AgentService:
     ) -> dict[str, Any]:
         message = str(payload["message"])
         session_id = str(payload.get("session_id") or "web-latest")
-        allow_changes = bool(payload.get("allow_changes")) or self.config.yolo
-        allow_network = bool(payload.get("allow_network"))
+        allow_changes, allow_network, permission_mode = _resolve_task_permissions(
+            payload, yolo=self.config.yolo
+        )
         attachments = _normalize_attachments(payload.get("attachments"))
         vision_context = _attachment_content_parts(attachments)
         store = SessionStore(workspace, session_id)
@@ -2435,6 +2752,13 @@ class AgentService:
             )
         )
         store.save(messages)
+        if permission_mode == "plan":
+            network_note = "联网搜索可用" if allow_network else "联网也不可用"
+            messages.append(system_msg(
+                "[计划模式] 本任务是只读规划模式：文件写入与命令执行已被禁用，"
+                f"{network_note}。请完成调研后输出一份实施计划（目标、步骤、涉及文件、验证方式、风险），"
+                "不要尝试调用写入类工具。"
+            ))
         evidence_hits = LocalEvidenceIndex(workspace).search(message, limit=8)
         if evidence_hits:
             evidence_summary = "\n".join(
@@ -2473,7 +2797,11 @@ class AgentService:
         )
         runtime_state.transition("intake", phase="intake")
         runtime_state.transition("plan", phase="planning")
-        stage_router = StageRouter(str(self.config.model), float(self.config.timeout))
+        stage_router = StageRouter(
+            str(self.config.model),
+            float(self.config.timeout),
+            fallback_models=tuple(getattr(self.config, "fallback_models", ()) or ()),
+        )
         initial_route = stage_router.route("planning")
         verifier = Verifier()
         verification_results: list[dict[str, Any]] = []
@@ -2578,6 +2906,7 @@ class AgentService:
                 call.arguments,
                 allow_changes=allow_changes,
                 allow_network=allow_network,
+                permission_mode=permission_mode,
             )
             event = decision.to_event(name)
             events.append(event)
@@ -2594,11 +2923,21 @@ class AgentService:
                 timeout: float,
                 status_callback: Any | None,
                 protocol_override: str | None = None,
-            ) -> OpenAICompatibleProvider:
+                model_override: str | None = None,
+            ) -> Any:
+                if str(getattr(self.config, "provider_type", "openai")) == "anthropic":
+                    return AnthropicProvider(
+                        api_key=self.config.api_key,
+                        model=str(model_override or self.config.model),
+                        base_url=str(getattr(self.config, "anthropic_base_url", "") or self.config.base_url),
+                        timeout=timeout,
+                        max_retries=int(getattr(self.config, "provider_retries", 4)),
+                        on_status=status_callback,
+                    )
                 return OpenAICompatibleProvider(
                     base_url=self.config.base_url,
                     api_key=self.config.api_key,
-                    model=self.config.model,
+                    model=str(model_override or self.config.model),
                     timeout=timeout,
                     max_retries=int(getattr(self.config, "provider_retries", 4)),
                     tool_mode=self.config.tool_mode,
@@ -2608,6 +2947,22 @@ class AgentService:
                 )
 
             provider = make_provider(timeout=initial_route.timeout, status_callback=on_event)
+            # Bounded Task subagent: registered per task so the model can
+            # spawn readonly research sub-runs; restricted registry keeps it
+            # non-recursive. Sub-tool calls inherit parent permission gating
+            # only through the restricted readonly toolset.
+            try:
+                registry.register(build_task_tool_spec(
+                    provider_factory=lambda: make_provider(
+                        timeout=float(self.config.timeout), status_callback=None
+                    ),
+                    workspace=workspace,
+                    system_prompt=build_system_prompt(workspace),
+                    base_registry=registry,
+                    cancel_event=cancel_event,
+                ))
+            except ValueError:
+                pass
             try:
                 aggregate: TurnResult | None = None
                 max_repairs = max(0, int(getattr(self.config, "max_repair_attempts", 2)))
@@ -2617,8 +2972,11 @@ class AgentService:
                 completion_review_attempt = 0
                 verification_guard_error = "Agent 在修改工作区后没有完成验证"
 
+                fallback_cursor = {"index": 0}
+
                 async def recreate_provider_after_failure() -> str:
-                    """Refresh a possibly poisoned connection pool before recovery."""
+                    """Refresh a poisoned pool; rotate to the next fallback model
+                    after the first recovery attempt has already been used."""
                     nonlocal provider
                     current_protocol = provider.protocol()
                     protocol_status = provider.protocol_status()
@@ -2629,10 +2987,30 @@ class AgentService:
                         # use the older, broadly supported endpoint next.
                         next_protocol = "chat_completions"
                     await provider.close()
+                    fallback_models = tuple(initial_route.fallback_models or ())
+                    model_override: str | None = None
+                    attempt = fallback_cursor["index"]
+                    fallback_cursor["index"] += 1
+                    if fallback_models and attempt >= 1:
+                        # First recovery keeps the primary model and only downgrades
+                        # the protocol; from the second recreation onward rotate
+                        # through the configured fallback models.
+                        index = min(attempt - 1, len(fallback_models) - 1)
+                        model_override = fallback_models[index]
+                        events.append({
+                            "kind": "trace", "name": "provider", "status": "ok",
+                            "phase": "planning", "code": "task_model_fallback",
+                            "summary": f"多次恢复失败，切换到备用模型 {model_override}",
+                            "detail": {"model": model_override, "index": index,
+                                       "fallback_models": list(fallback_models)},
+                        })
+                        if on_event is not None:
+                            on_event(events[-1])
                     provider = make_provider(
                         timeout=initial_route.timeout,
                         status_callback=on_event,
                         protocol_override=next_protocol,
+                        model_override=model_override,
                     )
                     return next_protocol
 
@@ -2950,6 +3328,7 @@ class AgentService:
                     allowed_tools = set(DEFAULT_ALLOWED_TOOLS)
                     if not allow_network:
                         allowed_tools.discard("web_search")
+                        allowed_tools.discard("webfetch")
                     policy = PlannerPolicy(
                         max_nodes=8,
                         max_depth=6,
@@ -3455,333 +3834,21 @@ class AgentService:
                 manager.close()
 
 
-class MiniccHTTPServer(ThreadingHTTPServer):
-    allow_reuse_address = True
-    daemon_threads = True
-
-    def __init__(self, address: tuple[str, int], service: AgentService) -> None:
-        super().__init__(address, MiniccRequestHandler)
-        self.service = service
-        worker_count = max(1, int(getattr(service.config, "max_concurrent_tasks", 8)))
-        # A slow browser connection must not consume an unbounded number of
-        # request threads. The task event log remains the recovery source.
-        self.sse_slots = threading.BoundedSemaphore(
-            max(4, min(MAX_SSE_CONNECTIONS, worker_count * 4))
-        )
-
-
-class MiniccRequestHandler(BaseHTTPRequestHandler):
-    server: MiniccHTTPServer
-    server_version = "minicc-web/0.2"
-    protocol_version = "HTTP/1.1"
-
-    def handle(self) -> None:
-        # A browser can close an SSE or in-flight request while switching
-        # sessions. Treat that as normal cancellation instead of logging a
-        # traceback from the socket read loop.
-        try:
-            super().handle()
-        except (BrokenPipeError, ConnectionAbortedError, ConnectionResetError):
-            self.close_connection = True
-
-    def log_message(self, format: str, *args: object) -> None:
-        # Keep the terminal useful without logging request bodies or secrets.
-        print(f"[web] {self.command} {self.path} - {format % args}")
-
-    def _json(self, payload: dict[str, Any], status: int = 200) -> None:
-        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
-        try:
-            self.send_response(status)
-            self.send_header("Content-Type", "application/json; charset=utf-8")
-            self.send_header("Content-Length", str(len(body)))
-            self.send_header("Cache-Control", "no-store")
-            self.end_headers()
-            self.wfile.write(body)
-        except (BrokenPipeError, ConnectionAbortedError):
-            # The browser may cancel a stale synchronous request after the UI
-            # has moved to the task-polling API. It must not create a second
-            # traceback while trying to report the first failure.
-            return
-
-    def do_OPTIONS(self) -> None:
-        self.send_response(204)
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.end_headers()
-
-    def do_GET(self) -> None:
-        parsed = urlsplit(self.path)
-        path = parsed.path
-        if path == "/api/health":
-            self._json({"ok": True, "service": "minicc"})
-            return
-        if path == "/api/workspace":
-            self._json(self.server.service.workspace_info())
-            return
-        if path == "/api/audit":
-            query = parse_qs(parsed.query)
-            try:
-                limit = int((query.get("limit") or ["500"])[0])
-            except ValueError:
-                limit = 500
-            self._json(self.server.service.audit_export(limit=limit))
-            return
-        if path == "/api/tasks":
-            query = parse_qs(parsed.query)
-            raw_limit = (query.get("limit") or ["100"])[0]
-            try:
-                limit = max(1, min(200, int(raw_limit)))
-            except ValueError:
-                limit = 100
-            workspace_filter = (query.get("workspace") or [""])[0] or None
-            include_details = (query.get("detail") or [""])[0].lower() in {"1", "true", "full"}
-            self._json({
-                "tasks": self.server.service.tasks.list(
-                    limit=limit,
-                    workspace_path=workspace_filter,
-                    include_details=include_details,
-                ),
-                "summary_only": not include_details,
-            })
-            return
-        if path.startswith("/api/tasks/") and path.endswith("/events"):
-            task_id = unquote(path.removeprefix("/api/tasks/").removesuffix("/events")).strip("/")
-            query = parse_qs(parsed.query)
-            raw_after = (query.get("after") or [self.headers.get("Last-Event-ID", "0")])[0]
-            try:
-                after = max(0, int(raw_after))
-            except ValueError:
-                after = 0
-            self._stream_task(task_id, after=after)
-            return
-        if path.startswith("/api/tasks/"):
-            task_id = unquote(path.removeprefix("/api/tasks/")).strip("/")
-            try:
-                self._json(self.server.service.tasks.get(task_id))
-            except KeyError:
-                self._json({"error": "task not found"}, 404)
-            return
-        if path == "/api/file":
-            raw_path = (parse_qs(parsed.query).get("path") or [""])[0]
-            try:
-                self._json(self.server.service.file_preview(raw_path))
-            except Exception as exc:  # noqa: BLE001 - stable read-only API error
-                self._json({"error": str(exc)}, 400)
-            return
-        if path == "/api/changes":
-            try:
-                self._json(self.server.service.changes())
-            except ChangeError as exc:
-                self._json({"error": str(exc)}, 400)
-            return
-        if path == "/api/diff":
-            raw_path = (parse_qs(parsed.query).get("path") or [""])[0]
-            try:
-                self._json(self.server.service.changes(raw_path))
-            except ChangeError as exc:
-                self._json({"error": str(exc)}, 400)
-            return
-        if path == "/api/worktrees":
-            try:
-                self._json({"worktrees": self.server.service.worktrees.list()})
-            except WorktreeError as exc:
-                self._json({"error": str(exc)}, 400)
-            return
-        if path == "/api/mcp":
-            self._json(self.server.service.mcp.status() if self.server.service.mcp else {"configured": 0, "error": self.server.service.mcp_error})
-            return
-        if path == "/favicon.ico":
-            self._serve_static("/favicon.svg")
-            return
-        self._serve_static(path)
-
-    def _stream_task(self, task_id: str, *, after: int = 0) -> None:
-        """Send one initial snapshot, then replayable incremental task events."""
-        try:
-            self.server.service.tasks.get(task_id)
-        except KeyError:
-            self._json({"error": "task not found"}, 404)
-            return
-
-        if not self.server.sse_slots.acquire(blocking=False):
-            self._json(
-                {
-                    "error": "实时任务连接过多，请稍后重试或使用任务查询接口。",
-                    "retryable": True,
-                },
-                429,
-            )
-            return
-
-        try:
-            self.send_response(200)
-            self.send_header("Content-Type", "text/event-stream; charset=utf-8")
-            self.send_header("Cache-Control", "no-cache, no-transform")
-            self.send_header("Connection", "keep-alive")
-            self.send_header("Access-Control-Allow-Origin", "*")
-            self.send_header("X-Accel-Buffering", "no")
-            self.end_headers()
-            # Like Codex's bounded outbound queue, disconnect a client that
-            # cannot accept data instead of blocking the handler indefinitely.
-            self.connection.settimeout(SSE_WRITE_TIMEOUT)
-
-            last_heartbeat = time.monotonic()
-            deadline = time.monotonic() + TASK_STREAM_TIMEOUT
-            cursor = max(0, int(after or 0))
-
-            # Keep the original default SSE message for clients that only
-            # understand ``onmessage``. New clients consume named events
-            # below and can reconnect with the returned event cursor.
-            if cursor == 0:
-                snapshot = self.server.service.tasks.get(task_id)
-                payload = json.dumps(snapshot, ensure_ascii=False, separators=(",", ":"))
-                self.wfile.write(f"data: {payload}\n\n".encode("utf-8"))
-                self.wfile.flush()
-                cursor = int(snapshot.get("event_cursor") or 0)
-                if snapshot.get("status") in TERMINAL_TASK_STATUSES:
-                    return
-            while time.monotonic() < deadline:
-                events, replay_gap = self.server.service.tasks.events(task_id, after=cursor, timeout=10.0)
-                if replay_gap:
-                    snapshot = self.server.service.tasks.get(task_id)
-                    payload = json.dumps(snapshot, ensure_ascii=False, separators=(",", ":"))
-                    self.wfile.write(
-                        f"event: resync\ndata: {payload}\n\n".encode("utf-8")
-                    )
-                    self.wfile.flush()
-                    cursor = int(snapshot.get("event_cursor") or cursor)
-                    last_heartbeat = time.monotonic()
-                    if snapshot.get("status") in TERMINAL_TASK_STATUSES:
-                        break
-                    continue
-                terminal = False
-                for event in events:
-                    payload = json.dumps(event, ensure_ascii=False, separators=(",", ":"))
-                    self.wfile.write(
-                        f"event: task_event\nid: {event.get('sequence', cursor)}\ndata: {payload}\n\n".encode("utf-8")
-                    )
-                    cursor = max(cursor, int(event.get("sequence") or cursor))
-                    terminal = terminal or (
-                        event.get("kind") == "status"
-                        and str((event.get("payload") or {}).get("status") or "") in TERMINAL_TASK_STATUSES
-                    )
-                if events:
-                    self.wfile.flush()
-                    last_heartbeat = time.monotonic()
-                elif time.monotonic() - last_heartbeat >= 10:
-                    self.wfile.write(b": keep-alive\n\n")
-                    self.wfile.flush()
-                    last_heartbeat = time.monotonic()
-                if not events:
-                    # A reconnect can start after the terminal status event.
-                    # Do not hold the HTTP socket open until the stream
-                    # deadline in that case.
-                    latest = self.server.service.tasks.get(task_id)
-                    if latest.get("status") in TERMINAL_TASK_STATUSES:
-                        break
-                if terminal:
-                    break
-        except (BrokenPipeError, ConnectionAbortedError, ConnectionResetError, KeyError, OSError):
-            # The browser may close the stream after a task is complete or when
-            # it falls back to polling; neither case should create a traceback.
-            return
-        finally:
-            self.server.sse_slots.release()
-            # HTTP/1.1 otherwise keeps the connection alive after the terminal
-            # snapshot, leaving simple clients waiting for a content length.
-            self.close_connection = True
-
-    def do_POST(self) -> None:
-        path = urlsplit(self.path).path
-        try:
-            size = int(self.headers.get("Content-Length", "0"))
-            if size <= 0 or size > MAX_BODY_BYTES:
-                raise ValueError("请求体大小非法")
-            raw = self.rfile.read(size)
-            payload = json.loads(raw.decode("utf-8"))
-            if path == "/api/rpc":
-                if not isinstance(payload, (dict, list)):
-                    raise ValueError("RPC 请求体必须是 JSON 对象或数组")
-                response = self.server.service.rpc_dispatcher.dispatch(payload)
-                if response is None:
-                    self.send_response(204)
-                    self.send_header("Content-Length", "0")
-                    self.send_header("Cache-Control", "no-store")
-                    self.end_headers()
-                else:
-                    self._json(response)
-                return
-            if not isinstance(payload, dict):
-                raise ValueError("请求体必须是 JSON 对象")
-            if path == "/api/chat":
-                self._json(self.server.service.chat(payload))
-                return
-            if path == "/api/tasks":
-                self._json(self.server.service.tasks.submit(payload), 202)
-                return
-            if path == "/api/tasks/batch":
-                self._json(self.server.service.tasks.submit_batch(payload), 202)
-                return
-            if path.endswith("/resume") and path.startswith("/api/tasks/"):
-                task_id = unquote(path.removeprefix("/api/tasks/").removesuffix("/resume")).strip("/")
-                self._json(self.server.service.tasks.resume(task_id), 202)
-                return
-            if path.endswith("/cancel") and path.startswith("/api/tasks/"):
-                task_id = unquote(path.removeprefix("/api/tasks/").removesuffix("/cancel")).strip("/")
-                self._json(self.server.service.tasks.cancel(task_id))
-                return
-            if path == "/api/workspace/select":
-                raw_path = payload.get("path")
-                if not isinstance(raw_path, str):
-                    raise ValueError("path 不能为空")
-                self._json(self.server.service.switch_workspace(raw_path))
-                return
-            if path == "/api/worktrees":
-                name = payload.get("name")
-                if not isinstance(name, str):
-                    raise ValueError("name 不能为空")
-                self._json(self.server.service.worktrees.create(name, payload.get("branch")), 201)
-                return
-            if path == "/api/worktrees/remove":
-                name = payload.get("name")
-                if not isinstance(name, str):
-                    raise ValueError("name 不能为空")
-                self._json(self.server.service.worktrees.remove(name, bool(payload.get("force"))))
-                return
-            self._json({"error": "not found"}, 404)
-        except KeyError:
-            self._json({"error": "task not found"}, 404)
-        except (ValueError, json.JSONDecodeError, SessionError, WorktreeError) as exc:
-            self._json({"error": str(exc)}, 400)
-        except Exception as exc:  # noqa: BLE001 - return a stable API error
-            self._json({"error": f"agent failed: {type(exc).__name__}: {exc}"}, 500)
-
-    def _serve_static(self, path: str) -> None:
-        relative = unquote(path.lstrip("/")) or "index.html"
-        target = (STATIC_ROOT / relative).resolve()
-        if not target.is_relative_to(STATIC_ROOT) or not target.is_file():
-            self._json({"error": "not found"}, 404)
-            return
-        content = target.read_bytes()
-        content_type = mimetypes.guess_type(target.name)[0] or "application/octet-stream"
-        if target.suffix == ".js":
-            content_type = "text/javascript; charset=utf-8"
-        self.send_response(200)
-        self.send_header("Content-Type", content_type)
-        self.send_header("Content-Length", str(len(content)))
-        # This is a local development workbench. Never keep stale JS/CSS/HTML
-        # after a source edit; task state is durable through the API instead.
-        self.send_header("Cache-Control", "no-store")
-        self.end_headers()
-        self.wfile.write(content)
-
-
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="minicc-web", description="启动 minicc 本地 Web 工作台")
     parser.add_argument("--workspace", type=Path, default=Path.cwd())
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8765)
+    parser.add_argument(
+        "--token",
+        default=None,
+        help="Web API 访问 token；默认读取 MINICC_WEB_TOKEN 或工作区 .minicc/web_token.json",
+    )
+    parser.add_argument(
+        "--no-auth",
+        action="store_true",
+        help="即使绑定非回环地址也关闭 token 认证（不推荐，仅限隔离网络）",
+    )
     args = parser.parse_args(argv)
     workspace = args.workspace.expanduser().resolve()
     if not workspace.is_dir():
@@ -3790,10 +3857,24 @@ def main(argv: list[str] | None = None) -> int:
         config = load_config()
     except ConfigError as exc:
         parser.error(str(exc))
+    explicit_token = args.token
+    try:
+        token, created = load_or_create_token(workspace, explicit_token)
+    except WebAuthError as exc:
+        parser.error(str(exc))
+    required = not is_loopback_host(args.host) and not args.no_auth
+    auth = WebAuth(token, required=required)
     service = AgentService(workspace, config)
-    server = MiniccHTTPServer((args.host, args.port), service)
+    server = MiniccHTTPServer((args.host, args.port), service, auth=auth)
     print(f"minicc web: http://{args.host}:{args.port}/")
     print(f"workspace: {workspace}")
+    if required:
+        print("auth: required (non-loopback bind)")
+        print(f"token: {token}")
+        if not explicit_token and created:
+            print(f"token saved to: {token_store_path(workspace)}")
+    else:
+        print("auth: open (loopback bind, token accepted but not required)")
     try:
         server.serve_forever()
     except KeyboardInterrupt:

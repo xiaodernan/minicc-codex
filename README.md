@@ -4,7 +4,18 @@
 
 ## 当前能力
 
+- 双协议模型接口：OpenAI 兼容（chat_completions / responses + JSON envelope 降级）与 Anthropic 原生 Messages API（`MINICC_PROVIDER_TYPE=auto|openai|anthropic`，auto 按模型名/端点推断）；Anthropic 路径自带 prompt caching（system 与工具集 cache_control 断点）与缓存命中归一化。
 - OpenAI 兼容模型接口，支持原生 tool calls；不支持 tool calls 的网关可降级到 JSON action envelope。
+- Web 服务安全基线：token 认证（`--token` / `MINICC_WEB_TOKEN` / 自动生成并持久化到 `.minicc/web_token.json`），非回环地址（`--host 0.0.0.0`）强制开启认证；CORS 仅放行本机回环来源；`MINICC_WORKSPACE_ROOTS` 可把可切换工作区限制在目录白名单内。
+- 任务级权限模式：`default`（跟随写入/联网开关）、`plan`（只读规划，写与命令被拒）、`acceptEdits`（自动接受文件写入，命令仍需授权）、`yolo`（全部放行）；CLI 用 `--permission-mode`，Web 提交 payload 传 `permission_mode`。所有模式判定都进入审计事件。
+- `webfetch` 工具：抓取公开网页正文转文本（SSRF 防护默认拒绝内网/回环地址，重定向逐跳校验；`MINICC_ALLOW_PRIVATE_FETCH=1` 可放开本机抓取），与 `web_search` 一样按任务级 `allow_network` 门控，输出标记为不可信。
+- `todo_write` / `todo_read` 工具：模型维护结构化任务清单（持久化到 `.minicc/todos.json`，整体替换语义，同时只允许一项 in_progress），结构化数据随任务事件透传给前端计划面板。
+- `task` 子代理工具：模型可派生受限的只读侦察子代理（独立上下文与预算；无写/命令/联网权限，不能递归派生；并发上限 3，超时与取消可控），结果以不可信工具结果回传。
+- 任务历史全局搜索：`GET /api/history/search?q=&limit=&workspace=`，跨工作区检索历史任务的提示词、回答与流文本，返回匹配计数与上下文摘录（快照入库前已脱敏）。
+- MCP 工具桥支持 stdio 与 streamable HTTP 两种 transport（`mcp.json` 服务器条目配 `command` 或 `url`，HTTP 支持 `headers` 鉴权与 `Mcp-Session-Id` 会话），外部工具输出默认按不可信处理。
+- CI（GitHub Actions）：Windows/Ubuntu 双平台 pytest、前端 JS 语法检查、Playwright web smoke。
+- 任务执行器双模式：`MINICC_TASK_EXECUTOR=thread`（默认，进程内）或 `process`（任务在独立 `minicc.task_worker` 子进程中执行，进度实时写入共享 SQLite，取消经标志文件传播，web 重启后 worker 存活不丢任务）；`MINICC_AUTO_RESUME_ON_START=1` 启动时自动重新排队被中断的任务（带心跳守卫防双跑）。
+- 前端为构建产物：源码在 `web/src/`（9 个有序分片），`npm run build:web` 生成 `web/app.js` 与压缩版 `app.min.js`，`npm run check:web` 校验新鲜度。
 - `read_file`、`glob`、`grep`、`tree`、`git_status`、`git_diff` 只读工具。
 - `write_file`、`edit_file`：工作区路径约束、原子写入、备份、审计、精确匹配和 digest 过期保护。
 - `bash`：工作区内执行命令；默认每次写入/执行都请求确认，`--yolo` 才自动放行。
@@ -93,6 +104,11 @@ MCP stdio 配置示例（可选，保存为 `.minicc/mcp.json`）：
       "command": "node",
       "args": ["path/to/mcp-server.js"],
       "read_only": true
+    },
+    "remote": {
+      "url": "http://127.0.0.1:3000/mcp",
+      "headers": { "Authorization": "Bearer <token>" },
+      "read_only": false
     }
   }
 }

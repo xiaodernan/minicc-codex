@@ -2,6 +2,9 @@ const state = {
   sessionId: localStorage.getItem("minicc-session") || "interview-1",
   allowChanges: localStorage.getItem("minicc-allow") !== "false",
   allowNetwork: localStorage.getItem("minicc-network") === "true",
+  permissionMode: ["default", "plan", "acceptEdits", "yolo"].includes(localStorage.getItem("minicc-permission-mode"))
+    ? localStorage.getItem("minicc-permission-mode")
+    : "default",
   locale: localStorage.getItem("minicc-locale") || "zh",
   theme: ["light", "dark"].includes(localStorage.getItem("minicc-theme"))
     ? localStorage.getItem("minicc-theme")
@@ -31,10 +34,29 @@ const state = {
 const taskDetailsById = new Map();
 const taskDetailLoads = new Map();
 
+// Token auth: the server may require a bearer token (non-loopback bind).
+// EventSource cannot send headers, so the token also travels in the query
+// string for SSE endpoints only.
+const AUTH_STORAGE_KEY = "minicc-web-token";
+
+function getAuthToken() {
+  return (localStorage.getItem(AUTH_STORAGE_KEY) || "").trim();
+}
+function authHeaders() {
+  const token = getAuthToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+function authQuery(url) {
+  const token = getAuthToken();
+  if (!token || url.includes("token=")) return url;
+  return `${url}${url.includes("?") ? "&" : "?"}token=${encodeURIComponent(token)}`;
+}
 const I18N = {
   zh: {
     "brand.caption": "本地智能工作台", "newTask.label": "新任务", "newTask.title": "创建一个新任务",
-    "search.placeholder": "搜索任务", "nav.main": "主导航", "nav.tasks": "任务", "nav.workspaces": "工作区", "nav.promo": "宣传页", "nav.activity": "活动", "nav.arcade": "小游戏",
+    "search.placeholder": "搜索任务", "search.global": "全局搜索", "search.globalPlaceholder": "搜索全部会话历史…", "search.hint": "输入关键词，在所有工作区的任务历史中查找。", "search.searching": "搜索中…", "search.noResults": "没有匹配的历史记录", "search.matches": "处匹配",
+    "nav.main": "主导航", "nav.tasks": "任务", "nav.workspaces": "工作区", "nav.promo": "宣传页", "nav.activity": "活动", "nav.arcade": "小游戏",
     language: "界面语言", "tasks.more": "更多任务", "workspace.connected": "本地服务已连接", "profile.label": "当前模式",
     "inspector.toggle": "切换检查器", "inspector.close": "关闭检查器", "focus.enter": "专注阅读", "focus.exit": "退出专注阅读", "options.open": "更多选项", "composer.inputLabel": "输入任务",
     "composer.allowChanges": "允许当前任务修改文件或执行命令", "composer.allowNetwork": "允许当前任务联网搜索", "cancel.title": "取消任务", "send.title": "发送任务", "files.refresh": "刷新文件",
@@ -44,10 +66,16 @@ const I18N = {
     "composer.workingIn": "工作目录", "context.empty": "0 / 300k 上下文", "context.used": "已使用 tokens", "date.today": "今天",
     "composer.placeholder": "让 minicc 检查、构建或验证...", "composer.attach": "图片", "quick.plan": "计划", "quick.review": "审查", "quick.verify": "验证", "quick.parallel": "并行", "quick.demo": "演示流程",
     "mode.safe": "只读保护", "mode.changes": "完全访问", "composer.fullAccess": "完全访问：Agent 可以读写文件并执行命令。", "composer.readOnly": "只读保护：写入和命令执行会被跳过。",
+    "perm.mode": "权限模式", "perm.default": "默认", "perm.plan": "计划", "perm.acceptEdits": "自动写", "perm.yolo": "全自动",
+    "perm.defaultHint": "默认：写入与命令跟随“完全访问”开关。", "perm.planHint": "计划模式：只读规划，写入与命令会被拒绝。", "perm.acceptEditsHint": "自动写：自动接受文件写入，命令仍需授权。", "perm.yoloHint": "全自动：写入、命令与联网全部放行。",
+    "todo.title": "任务计划", "todo.empty": "暂无任务计划", "todo.toggle": "展开或收起任务计划", "todo.progressAria": "计划进度",
+    "todo.completed": "已完成", "todo.inProgress": "进行中", "todo.pending": "待办",
     "inspector.overview": "概览", "inspector.changes": "改动", "inspector.files": "关注文件", "protected.title": "受保护工作区",
     "inspector.pulse": "项目状态", "inspector.live": "实时", "inspector.ready": "就绪", "inspector.standingBy": "Agent 正在等待",
     "inspector.turns": "轮次", "inspector.tools": "工具", "inspector.tokens": "Tokens", "inspector.context": "上下文", "inspector.compactions": "自动压缩", "inspector.cache": "缓存命中", "changes.latest": "最近改动",
     "files.main": "CLI 入口", "files.loop": "工具调用循环", "files.styles": "工作台界面", "files.readme": "项目指南",
+    "files.tree": "文件树", "files.loading": "正在加载…", "files.empty": "此目录为空", "files.truncated": "条目过多，仅显示部分内容", "files.loadError": "文件树加载失败",
+    "at.title": "文件引用", "at.empty": "没有匹配的文件", "at.hint": "↑↓ 选择 · Enter 补全 · Esc 关闭",
     "protected.subtitle": "每个任务单独授权写入", "panel.title": "工作台", "cancel": "取消任务", "working": "执行中", "ready": "就绪",
     "phase.queued": "排队中", "phase.planning": "正在规划", "phase.tool": "正在使用工具", "phase.answering": "正在生成回答", "phase.waiting": "等待模型输出", "phase.review": "验收中", "phase.merging": "正在合并子任务", "phase.completed": "已完成", "phase.failed": "执行失败", "phase.cancelled": "已取消", "phase.interrupted": "服务重启时中断", "stream.live": "实时回答", "stream.connected": "实时连接", "stream.reconnecting": "实时连接中断，正在重连", "stream.polling": "实时连接不可用，正在轮询",
     "tasks.center": "任务中心", "tasks.open": "打开任务", "tasks.resume": "重新运行", "tasks.children": "子任务", "tasks.tokens": "tokens", "tasks.context": "上下文", "tasks.cache": "缓存", "tasks.cacheUnreported": "未统计", "tasks.cacheReported": "已返回", "tasks.compacted": "次压缩", "tasks.allWorkspaces": "所有工作区", "tasks.noHistory": "还没有任务记录", "tasks.jumpLatest": "跳到最新", "tasks.following": "跟随最新输出", "tasks.paused": "已暂停自动滚动", "tasks.runtime": "运行时指标", "tasks.repairs": "修复次数", "tasks.verifications": "验证次数", "tasks.traces": "Trace 事件", "tasks.workflow": "工作流",
@@ -59,7 +87,7 @@ const I18N = {
     "panel.createWorktree": "创建 worktree", "panel.name": "名称", "panel.branch": "分支（可选）", "panel.create": "创建",
     "panel.sandbox": "执行环境", "panel.mcp": "MCP 工具", "panel.language": "界面语言", "panel.clear": "清空当前会话",
     "panel.export": "导出当前对话", "panel.reload": "刷新工作区状态", "panel.noWorktrees": "当前没有额外 worktree",
-    "panel.hostProcess": "宿主机进程", "panel.isolated": "已隔离", "panel.servers": "个服务", "panel.gitWorktrees": "Git worktree", "panel.reasoning": "推理强度", "panel.reasoningNote": "按模型支持传递 low、mid、high、xhigh 或 max；界面显示可审计阶段摘要，不展示模型私有思维链", "reasoning.low": "低", "reasoning.mid": "中", "reasoning.high": "高", "reasoning.xhigh": "极高", "reasoning.max": "最高",
+    "panel.hostProcess": "宿主机进程", "panel.isolated": "已隔离", "panel.servers": "个服务", "panel.gitWorktrees": "Git worktree", "panel.reasoning": "推理强度", "panel.reasoningNote": "按模型支持传递 low、mid、high、xhigh 或 max；界面显示可审计阶段摘要，不展示模型私有思维链", "reasoning.low": "低", "reasoning.mid": "中", "reasoning.high": "高", "reasoning.xhigh": "极高", "reasoning.max": "最高", "rewind.title": "会话回退", "rewind.keepLabel": "保留到第 N 条消息", "rewind.hint": "把当前会话截断到指定消息数后可重新提问；回退前会自动生成备份文件。", "rewind.action": "执行回退", "rewind.done": "已回退", "rewind.fail": "回退失败",
     "game.close": "关闭小游戏", "game.kicker": "MINICC ARCADE · MINI LAWN", "game.title": "植物大战僵尸 · 草坪保卫战",
     "game.subtitle": "10 波高压战役，失败只由僵尸进屋触发；战斗用时仅统计活跃帧，切后台和手动暂停均不消耗进度。", "game.sun": "阳光", "game.score": "击退", "game.wave": "波次",
     "game.ready": "准备就绪", "game.running": "战斗中", "game.paused": "已自动暂停，返回页面后继续", "game.manualPaused": "战局已手动暂停", "game.waveClear": "本波已清场，下一波即将到来", "game.waveIncoming": "强化波次来袭，准备迎战", "game.victory": "草坪守住了！", "game.noSun": "阳光不足", "game.recharging": "卡片冷却中", "game.gameOver": "僵尸进屋了", "game.time": "战斗用时", "game.threat": "威胁", "game.waveHint": "建立防线，下一批僵尸即将抵达", "game.wavePressure": "高压波次：优先布置减速与防线", "game.progress": "战役进度", "game.difficulty": "难度", "game.normal": "标准", "game.hard": "高压", "game.nightmare": "噩梦", "game.pause": "暂停", "game.resume": "继续", "game.pauseHint": "冻结战局", "game.resumeHint": "恢复战局", "game.volume": "音量", "game.shovel": "铲子", "game.shovelHint": "点击植物移除", "game.autoSun": "自动拾取阳光", "game.autoSunHint": "关闭后改为手动点击", "game.repeater": "双发射手", "game.cherrybomb": "爆裂果", "game.icepeashooter": "寒冰射手", "game.burst": "爆发", "game.slow": "减速", "game.peashooter": "豌豆射手", "game.soundOn": "♫ 音效开", "game.soundOff": "♫ 音效关",
@@ -67,10 +95,13 @@ const I18N = {
     "game.instructions": "点击卡片选择 · 点击草坪种植 · 每行防线小车仅可触发一次", "game.start": "开始游戏", "game.restart": "重开", "game.mowers": "防线", "game.combo": "连击", "game.energy": "战术能量", "game.skillPulse": "寒冰脉冲", "game.skillPulseHint": "冻结并震击全场僵尸", "game.skillSun": "阳光爆发", "game.skillSunHint": "立即获得 100 阳光", "game.skillRally": "战线超载", "game.skillRallyHint": "植物攻速提升 8 秒", "game.skillTimeStop": "时停领域", "game.skillTimeStopHint": "冻结僵尸 4 秒", "game.skillReady": "可用", "game.skillCooldown": "冷却中", "game.skillNeedEnergy": "能量不足",
     "message.you": "你", "message.now": "现在", "message.agent": "Agent", "game.canvas": "植物大战僵尸迷你游戏画布",
     "changes.agentCore": "Agent 核心", "changes.webWorkspace": "Web 工作台", "changes.specproof": "Specproof 评估", "changes.filesChanged": "修改 6 个文件", "changes.filesAdded": "新增 3 个文件", "changes.assessmentAdded": "已添加评估", "changes.now": "现在", "changes.minute": "1 分钟前", "changes.clean": "等待变更", "changes.cleanHint": "运行任务后会在这里同步", "changes.modified": "已修改", "changes.added": "已新增", "changes.deleted": "已删除", "changes.renamed": "已重命名", "changes.openDiff": "查看 diff",
+    "auth.title": "访问验证", "auth.hint": "此服务已启用 token 认证。请输入 minicc-web 启动时显示、或保存在工作区 .minicc/web_token.json 中的访问 token。", "auth.tokenLabel": "访问 token", "auth.submit": "保存并重试",
+    "diff.empty": "当前没有可显示的差异。", "diff.previewAria": "统一差异视图", "diff.oldLine": "旧行号", "diff.newLine": "新行号",
   },
   en: {
     "brand.caption": "LOCAL AGENT STUDIO", "newTask.label": "New task", "newTask.title": "Create a new task",
-    "search.placeholder": "Search tasks", "nav.main": "Main navigation", "nav.tasks": "Tasks", "nav.workspaces": "Workspaces", "nav.promo": "Promo", "nav.activity": "Activity", "nav.arcade": "Arcade",
+    "search.placeholder": "Search tasks", "search.global": "Global search", "search.globalPlaceholder": "Search all session history...", "search.hint": "Type a keyword to search task history across workspaces.", "search.searching": "Searching...", "search.noResults": "No matching history", "search.matches": "matches",
+    "nav.main": "Main navigation", "nav.tasks": "Tasks", "nav.workspaces": "Workspaces", "nav.promo": "Promo", "nav.activity": "Activity", "nav.arcade": "Arcade",
     language: "Language", "tasks.more": "More tasks", "workspace.connected": "Local service connected", "profile.label": "Current mode",
     "inspector.toggle": "Toggle inspector", "inspector.close": "Close inspector", "focus.enter": "Focus reading", "focus.exit": "Exit focus reading", "options.open": "More options", "composer.inputLabel": "Task input",
     "composer.allowChanges": "Allow this task to modify files or run commands", "composer.allowNetwork": "Allow this task to search the web", "cancel.title": "Cancel task", "send.title": "Send task", "files.refresh": "Refresh files",
@@ -80,10 +111,16 @@ const I18N = {
     "composer.workingIn": "Working in", "context.empty": "0 / 300k context", "context.used": "tokens used", "date.today": "Today",
     "composer.placeholder": "Ask minicc to inspect, build, or verify...", "composer.attach": "Image", "quick.plan": "Plan", "quick.review": "Review", "quick.verify": "Verify", "quick.parallel": "Parallel", "quick.demo": "Demo flow",
     "mode.safe": "Read-only", "mode.changes": "Full access", "composer.fullAccess": "Full access: the agent can write files and run commands.", "composer.readOnly": "Read-only: writes and commands are skipped.",
+    "perm.mode": "Permission mode", "perm.default": "Default", "perm.plan": "Plan", "perm.acceptEdits": "Auto-write", "perm.yolo": "Full auto",
+    "perm.defaultHint": "Default: writes and commands follow the full-access switch.", "perm.planHint": "Plan mode: read-only planning; writes and commands are rejected.", "perm.acceptEditsHint": "Auto-write: file writes are accepted automatically; commands still need approval.", "perm.yoloHint": "Full auto: writes, commands, and web access are all allowed.",
+    "todo.title": "Task plan", "todo.empty": "No task plan yet", "todo.toggle": "Expand or collapse the task plan", "todo.progressAria": "Plan progress",
+    "todo.completed": "Completed", "todo.inProgress": "In progress", "todo.pending": "Pending",
     "inspector.overview": "Overview", "inspector.changes": "Changes", "inspector.files": "Files in focus", "protected.title": "Protected workspace",
     "inspector.pulse": "Project pulse", "inspector.live": "Live", "inspector.ready": "Ready", "inspector.standingBy": "Agent is standing by",
     "inspector.turns": "Turns", "inspector.tools": "Tools", "inspector.tokens": "Tokens", "inspector.context": "Context", "inspector.compactions": "Compactions", "inspector.cache": "Cache hit", "changes.latest": "Latest changes",
     "files.main": "CLI entrypoint", "files.loop": "Tool calling loop", "files.styles": "Workspace surface", "files.readme": "Project guide",
+    "files.tree": "File tree", "files.loading": "Loading...", "files.empty": "This folder is empty", "files.truncated": "Too many entries; showing a partial list", "files.loadError": "Failed to load the file tree",
+    "at.title": "File mentions", "at.empty": "No matching files", "at.hint": "Up/Down to choose · Enter to insert · Esc to close",
     "protected.subtitle": "Writes are gated per task", "panel.title": "Workspace", "cancel": "Cancel task", "working": "Working", "ready": "Ready",
     "phase.queued": "Queued", "phase.planning": "Planning", "phase.tool": "Running tools", "phase.answering": "Writing response", "phase.waiting": "Waiting for output", "phase.review": "Pending review", "phase.merging": "Merging subagents", "phase.completed": "Complete", "phase.failed": "Failed", "phase.cancelled": "Cancelled", "phase.interrupted": "Interrupted by restart", "stream.live": "Live response", "stream.connected": "Live connection", "stream.reconnecting": "Live connection interrupted, reconnecting", "stream.polling": "Live connection unavailable, polling",
     "tasks.center": "Task center", "tasks.open": "Open task", "tasks.resume": "Run again", "tasks.children": "subtasks", "tasks.tokens": "tokens", "tasks.context": "context", "tasks.cache": "cache", "tasks.cacheUnreported": "unreported", "tasks.cacheReported": "reported", "tasks.compacted": "compactions", "tasks.allWorkspaces": "All workspaces", "tasks.noHistory": "No task history yet", "tasks.jumpLatest": "Jump to latest", "tasks.following": "Following latest output", "tasks.paused": "Auto-scroll paused", "tasks.runtime": "Runtime metrics", "tasks.repairs": "Repairs", "tasks.verifications": "Verifications", "tasks.traces": "Trace events", "tasks.workflow": "Workflow",
@@ -95,7 +132,7 @@ const I18N = {
     "panel.createWorktree": "Create worktree", "panel.name": "Name", "panel.branch": "Branch (optional)", "panel.create": "Create",
     "panel.sandbox": "Execution", "panel.mcp": "MCP tools", "panel.language": "Interface language", "panel.clear": "Clear current session",
     "panel.export": "Export current chat", "panel.reload": "Refresh workspace status", "panel.noWorktrees": "No extra worktrees",
-    "panel.hostProcess": "host process", "panel.isolated": "isolated", "panel.servers": "servers", "panel.gitWorktrees": "Git worktrees", "panel.reasoning": "Reasoning effort", "panel.reasoningNote": "Sends the supported low, mid, high, xhigh, or max level; the UI shows auditable stage summaries, never private chain-of-thought", "reasoning.low": "Low", "reasoning.mid": "Mid", "reasoning.high": "High", "reasoning.xhigh": "XHigh", "reasoning.max": "Max",
+    "panel.hostProcess": "host process", "panel.isolated": "isolated", "panel.servers": "servers", "panel.gitWorktrees": "Git worktrees", "panel.reasoning": "Reasoning effort", "panel.reasoningNote": "Sends the supported low, mid, high, xhigh, or max level; the UI shows auditable stage summaries, never private chain-of-thought", "reasoning.low": "Low", "reasoning.mid": "Mid", "reasoning.high": "High", "reasoning.xhigh": "XHigh", "reasoning.max": "Max", "rewind.title": "Rewind session", "rewind.keepLabel": "Keep first N messages", "rewind.hint": "Truncates the session to N messages so you can re-ask; a backup is written first.", "rewind.action": "Rewind", "rewind.done": "Rewound", "rewind.fail": "Rewind failed",
     "game.close": "Close game", "game.kicker": "MINICC ARCADE · MINI LAWN", "game.title": "Plants vs. Zombies · Mini lawn",
     "game.subtitle": "10 high-pressure waves. Only a zombie reaching the house ends the campaign; battle time counts active frames only.", "game.sun": "Sun", "game.score": "Defeated", "game.wave": "Wave",
     "game.ready": "Ready", "game.running": "Battle", "game.paused": "Paused while this tab is hidden", "game.manualPaused": "Battle paused", "game.waveIncoming": "Reinforced wave incoming", "game.gameOver": "A zombie reached the house", "game.time": "Battle time", "game.threat": "Threat", "game.waveHint": "Build your line; the next pack is approaching", "game.wavePressure": "High-pressure wave: use slows and defenses", "game.progress": "Campaign progress", "game.difficulty": "Difficulty", "game.normal": "Standard", "game.hard": "High pressure", "game.nightmare": "Nightmare", "game.pause": "Pause", "game.resume": "Resume", "game.pauseHint": "Freeze battle", "game.resumeHint": "Resume battle", "game.volume": "Volume", "game.shovel": "Shovel", "game.shovelHint": "Remove a plant", "game.autoSun": "Auto-collect sun", "game.autoSunHint": "Turn off for manual clicks", "game.repeater": "Repeater", "game.cherrybomb": "Burst berry", "game.icepeashooter": "Ice shooter", "game.burst": "burst", "game.slow": "slow", "game.peashooter": "Peashooter", "game.soundOn": "♫ Sound on", "game.soundOff": "♫ Sound off",
@@ -103,13 +140,14 @@ const I18N = {
     "game.instructions": "Choose a card · click the lawn to plant · each lane has one safety mower", "game.start": "Start game", "game.restart": "Restart", "game.mowers": "Mowers", "game.combo": "Combo", "game.energy": "Tactical energy", "game.skillPulse": "Frost Pulse", "game.skillPulseHint": "Freeze and shock every zombie", "game.skillSun": "Sun Burst", "game.skillSunHint": "Gain 100 sun instantly", "game.skillRally": "Overdrive", "game.skillRallyHint": "Boost plant fire rate for 8 seconds", "game.skillTimeStop": "Time Lock", "game.skillTimeStopHint": "Freeze zombies for 4 seconds", "game.skillReady": "Ready", "game.skillCooldown": "Cooling", "game.skillNeedEnergy": "Need energy",
     "message.you": "You", "message.now": "now", "message.agent": "Agent", "game.canvas": "Plants vs. Zombies mini game canvas",
     "changes.agentCore": "Agent core", "changes.webWorkspace": "Web workspace", "changes.specproof": "Specproof review", "changes.filesChanged": "6 files changed", "changes.filesAdded": "3 files added", "changes.assessmentAdded": "assessment added", "changes.now": "now", "changes.minute": "1m", "changes.clean": "Waiting for changes", "changes.cleanHint": "Changes will sync here after a task runs", "changes.modified": "Modified", "changes.added": "Added", "changes.deleted": "Deleted", "changes.renamed": "Renamed", "changes.openDiff": "Open diff",
+    "auth.title": "Access verification", "auth.hint": "This service requires a token. Paste the token printed by minicc-web on startup, or stored in .minicc/web_token.json.", "auth.tokenLabel": "Access token", "auth.submit": "Save and retry",
+    "diff.empty": "No diff to display.", "diff.previewAria": "Unified diff view", "diff.oldLine": "Old line", "diff.newLine": "New line",
   },
 };
 
 function t(key) {
   return I18N[state.locale]?.[key] || I18N.en[key] || key;
 }
-
 function applyLocale() {
   document.documentElement.lang = state.locale === "zh" ? "zh-CN" : "en";
   $$(`[data-i18n]`).forEach((element) => { element.textContent = t(element.dataset.i18n); });
@@ -122,12 +160,13 @@ function applyLocale() {
   updateReasoningControl();
   if ($("#messageList") && !isSessionBusy(state.sessionId)) renderSession(state.sessionId);
   updateMode();
+  renderTodoPanel();
   if (state.connection !== null) setConnection(state.connection);
   applyTheme();
 }
-
 function applyTheme() {
   document.documentElement.dataset.theme = state.theme;
+  syncHljsTheme();
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta) meta.content = state.theme === "light" ? "#f6f7f9" : "#111214";
   const button = $("#themeButton");
@@ -225,6 +264,16 @@ function setTheme(theme) {
   applyTheme();
 }
 
+// Keep the vendored highlight.js color sheets in sync with the workbench
+// theme. Both ship locally in web/vendor/; the inactive one is disabled so
+// token colors always match the active data-theme.
+function syncHljsTheme() {
+  const light = document.getElementById("hljsThemeLight");
+  const dark = document.getElementById("hljsThemeDark");
+  if (light instanceof HTMLLinkElement) light.disabled = state.theme !== "light";
+  if (dark instanceof HTMLLinkElement) dark.disabled = state.theme !== "dark";
+}
+
 function setLocale(locale) {
   state.locale = locale === "en" ? "en" : "zh";
   localStorage.setItem("minicc-locale", state.locale);
@@ -310,7 +359,136 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
+// ---------------------------------------------------------------------------
+// Markdown rendering pipeline (vendored marked@12 + highlight.js 11.9, local
+// first with no runtime CDN). `formatText` keeps its original name and
+// signature; it now renders commercial-grade Markdown (tables, block quotes,
+// nested lists, links, fenced code with syntax highlighting).
+//
+// XSS strategy: `escapeMarkdownSource` escapes every raw `<` (and `&`) before
+// marked ever sees the input, so model-produced HTML degrades to visible text
+// instead of live markup. `>` is intentionally kept so block quotes still
+// parse; a bare `>` outside a tag is inert text in HTML. Renderers escape all
+// generated attributes and only allow http/https/mailto/relative URLs.
+// ---------------------------------------------------------------------------
+
+let markdownVendorWarned = false;
+
+function markdownVendorReady() {
+  if (typeof marked !== "undefined") return true;
+  if (!markdownVendorWarned) {
+    markdownVendorWarned = true;
+    console.warn("[minicc] web/vendor marked/highlight.js unavailable; using the lightweight fallback renderer.");
+  }
+  return false;
+}
+
+function escapeMarkdownSource(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;");
+}
+
+// marked receives pre-escaped text, so code token text is entity-encoded;
+// decode back to plain text before handing it to highlight.js, which escapes
+// its own output. The &amp; replacement must run last to avoid double decoding.
+function decodeMarkdownEntities(value) {
+  return String(value ?? "")
+    .replaceAll("&#039;", "'")
+    .replaceAll("&#39;", "'")
+    .replaceAll("&quot;", '"')
+    .replaceAll("&lt;", "<")
+    .replaceAll("&gt;", ">")
+    .replaceAll("&amp;", "&");
+}
+
+function safeMarkdownUrl(href) {
+  const value = String(href || "").trim();
+  if (!value) return "";
+  if (value.startsWith("#")) return value;
+  if (!/^[a-z][a-z0-9+.-]*:/i.test(value)) return value; // scheme-less = relative path
+  return /^(https?:|mailto:)/i.test(value) ? value : "";
+}
+
+function highlightFencedCode(code, language) {
+  const source = decodeMarkdownEntities(code);
+  if (typeof hljs !== "undefined") {
+    try {
+      if (language && hljs.getLanguage(language)) {
+        return hljs.highlight(source, { language, ignoreIllegals: true }).value;
+      }
+      if (!language && source.length <= 20000) {
+        return hljs.highlightAuto(source).value;
+      }
+    } catch {
+      // Highlighting is cosmetic; fall through to the escaped plain text.
+    }
+  }
+  return escapeHtml(source);
+}
+
+function configureMarkdownEngine() {
+  if (typeof marked === "undefined" || configureMarkdownEngine.ready) return;
+  configureMarkdownEngine.ready = true;
+  const tokenOf = (value) => (value && typeof value === "object" ? value : null);
+  try {
+    marked.use({
+      gfm: true,
+      breaks: true,
+      renderer: {
+        // marked@12 passes token objects; the legacy signature passes plain
+        // arguments, so both shapes are accepted.
+        code(tokenOrCode, infostring) {
+          const token = tokenOf(tokenOrCode);
+          const raw = String(token ? token.text : tokenOrCode ?? "");
+          const language = String((token ? token.lang : infostring) || "").trim().split(/\s+/)[0].toLowerCase();
+          const highlighted = highlightFencedCode(raw, language);
+          const classes = language ? `hljs language-${escapeHtml(language)}` : "hljs";
+          return `<pre><code class="${classes}">${highlighted}</code></pre>`;
+        },
+        link(tokenOrHref, titleOrTitle, text) {
+          const token = tokenOf(tokenOrHref);
+          const href = safeMarkdownUrl(String(token ? token.href : tokenOrHref || ""));
+          const title = token ? token.title : titleOrTitle;
+          const label = token
+            ? (typeof this?.parser?.parseInline === "function" ? this.parser.parseInline(token.tokens || []) : escapeHtml(token.text || ""))
+            : escapeHtml(text ?? "");
+          if (!href) return label;
+          return `<a href="${escapeHtml(href)}"${title ? ` title="${escapeHtml(title)}"` : ""} target="_blank" rel="noreferrer noopener">${label}</a>`;
+        },
+        image(tokenOrHref, titleOrTitle, text) {
+          const token = tokenOf(tokenOrHref);
+          const href = safeMarkdownUrl(String(token ? token.href : tokenOrHref || ""));
+          const alt = String(token ? token.text : text ?? "");
+          const title = token ? token.title : titleOrTitle;
+          if (!href) return escapeHtml(alt);
+          return `<img src="${escapeHtml(href)}" alt="${escapeHtml(alt)}"${title ? ` title="${escapeHtml(title)}"` : ""} loading="lazy" />`;
+        },
+      },
+    });
+  } catch {
+    // A broken engine configuration must never take message rendering down.
+  }
+}
+function renderMarkdown(source) {
+  configureMarkdownEngine();
+  return marked.parse(source, { async: false, gfm: true, breaks: true });
+}
 function formatText(value) {
+  const source = String(value ?? "");
+  if (!markdownVendorReady()) return formatLightText(source);
+  try {
+    // Pre-escaping the whole document is the XSS boundary; marked then parses
+    // the sanitized Markdown source (tables, quotes, lists survive intact).
+    return renderMarkdown(escapeMarkdownSource(source));
+  } catch {
+    return formatLightText(source);
+  }
+}
+
+// Legacy lightweight renderer. Kept for the streaming preview path (it stays
+// cheap under the 120ms throttle) and as the vendor-degradation fallback.
+function formatLightText(value) {
   const codeBlocks = [];
   let formatted = escapeHtml(value).replace(/```([\s\S]*?)```/g, (_match, code) => {
     const token = `__MINICC_CODE_BLOCK_${codeBlocks.length}__`;
@@ -365,7 +543,7 @@ const LOCAL_ICON_GLYPHS = {
   "scan-search": "⌕", play: "▶", paperclip: "⌇", "wand-sparkles": "✦", square: "■",
   "arrow-up": "↑", "refresh-cw": "↻", activity: "•", radio: "◉", "shield-check": "◇",
   "external-link": "↗", "layout-dashboard": "▦", "book-open": "▤", "maximize-2": "↗",
-  "panel-right-close": "›", "file-code-2": "□", "rotate-ccw": "↶",
+  "panel-right-close": "›", "file-code-2": "□", "rotate-ccw": "↶", folder: "▤", "folder-open": "▦", file: "▪",
 };
 
 function refreshIcons() {
@@ -437,7 +615,7 @@ function presetMessageMarkup(sessionId) {
   }
   const events = eventTimelineMarkup(preset.events || []);
   const execution = executionTrailMarkup(events, preset.events || []);
-  return `<article class="message user-message"><div class="message-meta"><span class="avatar user-avatar">Y</span><strong>You</strong><time>now</time></div><div class="message-body"><p>${formatText(preset.user)}</p></div></article><article class="message assistant-message"><div class="message-meta"><span class="avatar agent-avatar">m</span><strong>minicc</strong><span class="agent-label">Agent</span><time>now</time></div><div class="message-body">${execution}<p>${formatText(preset.answer)}</p></div></article>`;
+  return `<article class="message user-message"><div class="message-meta"><span class="avatar user-avatar">Y</span><strong>You</strong><time>now</time></div><div class="message-body"><div class="message-text">${formatText(preset.user)}</div></div></article><article class="message assistant-message"><div class="message-meta"><span class="avatar agent-avatar">m</span><strong>minicc</strong><span class="agent-label">Agent</span><time>now</time></div><div class="message-body">${execution}<div class="message-text">${formatText(preset.answer)}</div></div></article>`;
 }
 
 function executionTrailMarkup(eventMarkup, events) {
@@ -464,7 +642,7 @@ function taskHistoryMarkup(task) {
       }).join("")}</div>`
     : "";
   const execution = executionTrailMarkup(events, task.events || []);
-  return `<article class="message user-message" data-chat-anchor="${taskAnchor}-prompt"><div class="message-meta"><span class="avatar user-avatar">Y</span><strong>${escapeHtml(t("message.you"))}</strong><time>${escapeHtml(task.created_at || t("message.now"))}</time></div><div class="message-body"><p>${formatText(prompt)}</p>${attachments}</div></article><article class="message assistant-message" data-chat-anchor="${taskAnchor}-answer"><div class="message-meta"><span class="avatar agent-avatar">m</span><strong>minicc</strong><span class="agent-label">Agent</span><time>${escapeHtml(task.finished_at || task.created_at || t("message.now"))}</time></div><div class="message-body"><div class="history-result-head"><span class="task-state ${task.status === "completed" ? "success" : ["failed", "cancelled", "interrupted"].includes(task.status) ? "cancelled" : "running"}"></span><strong>${escapeHtml(phaseLabel(task))}</strong><span>${escapeHtml(taskMetrics(task))}</span></div>${execution}<p class="answer-callout">${formatText(answer)}</p>${batchSummary}${rawStream}</div></article>`;
+  return `<article class="message user-message" data-chat-anchor="${taskAnchor}-prompt"><div class="message-meta"><span class="avatar user-avatar">Y</span><strong>${escapeHtml(t("message.you"))}</strong><time>${escapeHtml(task.created_at || t("message.now"))}</time></div><div class="message-body"><div class="message-text">${formatText(prompt)}</div>${attachments}</div></article><article class="message assistant-message" data-chat-anchor="${taskAnchor}-answer"><div class="message-meta"><span class="avatar agent-avatar">m</span><strong>minicc</strong><span class="agent-label">Agent</span><time>${escapeHtml(task.finished_at || task.created_at || t("message.now"))}</time></div><div class="message-body"><div class="history-result-head"><span class="task-state ${task.status === "completed" ? "success" : ["failed", "cancelled", "interrupted"].includes(task.status) ? "cancelled" : "running"}"></span><strong>${escapeHtml(phaseLabel(task))}</strong><span>${escapeHtml(taskMetrics(task))}</span></div>${execution}<div class="answer-callout">${formatText(answer)}</div>${batchSummary}${rawStream}</div></article>`;
 }
 
 function taskHistoryListMarkup(tasks) {
@@ -534,6 +712,11 @@ function renderSession(sessionId, options = {}) {
   updateSessionStatus(history);
   if (history) renderedHistoryKeys.set(sessionId, taskHistoryKey(historyItems?.length ? historyItems : history));
   else renderedHistoryKeys.delete(sessionId);
+  // Restore the task plan from the last todo_write event in this session's
+  // durable history; hide the section when no checklist can be recovered.
+  const todoSource = historyItems?.length ? [...historyItems].reverse() : (history ? [history] : []);
+  latestTodos = latestTodosFromEvents(todoSource.flatMap((item) => Array.isArray(item?.events) ? item.events : []));
+  renderTodoPanel();
   refreshIcons();
   // Preserve the visible message across background history refreshes.
   restoreChatPosition(chatPosition);
@@ -623,7 +806,6 @@ async function loadTaskHistory() {
     // Static demo sessions remain available when the task index is offline.
   }
 }
-
 function showToast(message) {
   const toast = $("#toast");
   toast.textContent = message;
@@ -631,7 +813,6 @@ function showToast(message) {
   window.clearTimeout(showToast.timer);
   showToast.timer = window.setTimeout(() => toast.classList.remove("show"), 2600);
 }
-
 function chatIsNearBottom(area = $("#chatArea"), threshold = 32) {
   if (!area) return true;
   return area.scrollHeight - area.clientHeight - area.scrollTop <= threshold;
@@ -950,26 +1131,571 @@ function restoreSessionTask(sessionId) {
   for (const binding of bindings) {
     if (!document.getElementById(binding.loadingId)) addLoadingMessage(binding.loadingId, binding.data, { scrollToLatest: false });
     updateLiveTask(binding.loadingId, binding.data);
+    syncTodoPanelFromEvents(binding.data?.events);
   }
   if (sessionId === state.sessionId) state.activeTaskId = bindings[bindings.length - 1].taskId;
   setBusy(true);
 }
 
+const PERMISSION_MODES = ["default", "plan", "acceptEdits", "yolo"];
+
+// Effective per-task permission flags for the selected mode. `plan` forces the
+// read-only flags, `yolo` implies both; `default`/`acceptEdits` honor the
+// user's manual toggles (matching the backend _resolve_task_permissions).
+function effectiveTaskPermissions() {
+  const mode = state.permissionMode;
+  return {
+    mode,
+    allowChanges: mode === "plan" ? false : mode === "yolo" ? true : state.allowChanges,
+    allowNetwork: mode === "yolo" ? true : state.allowNetwork,
+  };
+}
+
 function updateMode() {
+  const effective = effectiveTaskPermissions();
   const checkbox = $("#allowChanges");
-  checkbox.checked = state.allowChanges;
   const networkCheckbox = $("#allowNetwork");
-  if (networkCheckbox) networkCheckbox.checked = state.allowNetwork;
-  $("#modeLabel").textContent = state.allowChanges ? t("mode.changes") : t("mode.safe");
-  $("#permissionHint").textContent = state.allowChanges ? t("composer.fullAccess") : t("composer.readOnly");
-  $("#modeBadge").textContent = state.allowChanges ? t("mode.localFull") : t("mode.localSafe");
+  if (checkbox) {
+    checkbox.checked = effective.allowChanges;
+    checkbox.disabled = state.permissionMode === "plan" || state.permissionMode === "yolo";
+    checkbox.closest(".safe-toggle")?.classList.toggle("locked", checkbox.disabled);
+  }
+  if (networkCheckbox) {
+    networkCheckbox.checked = effective.allowNetwork;
+    networkCheckbox.disabled = state.permissionMode === "yolo";
+    networkCheckbox.closest(".safe-toggle")?.classList.toggle("locked", networkCheckbox.disabled);
+  }
+  const modeLabelText = state.permissionMode === "default"
+    ? (effective.allowChanges ? t("mode.changes") : t("mode.safe"))
+    : t(`perm.${state.permissionMode}`);
+  const modeLabel = $("#modeLabel");
+  if (modeLabel) modeLabel.textContent = modeLabelText;
+  const hint = state.permissionMode === "default"
+    ? (effective.allowChanges ? t("composer.fullAccess") : t("composer.readOnly"))
+    : t(`perm.${state.permissionMode}Hint`);
+  $("#permissionHint").textContent = hint;
+  $("#modeBadge").textContent = effective.allowChanges ? t("mode.localFull") : t("mode.localSafe");
+  renderPermissionSegments();
+}
+
+function renderPermissionSegments() {
+  const group = $("#permModeGroup");
+  if (group) {
+    [...group.querySelectorAll(".perm-mode-option")].forEach((option) => {
+      const active = option.dataset.mode === state.permissionMode;
+      option.classList.toggle("active", active);
+      option.setAttribute("aria-checked", String(active));
+      option.tabIndex = active ? 0 : -1;
+    });
+  }
+  const hint = $("#permModeHint");
+  if (hint) hint.textContent = t(`perm.${state.permissionMode}Hint`);
+}
+
+function setPermissionMode(mode) {
+  const next = PERMISSION_MODES.includes(mode) ? mode : "default";
+  const changed = next !== state.permissionMode;
+  state.permissionMode = next;
+  localStorage.setItem("minicc-permission-mode", next);
+  updateMode();
+  if (changed) {
+    showToast(state.locale === "zh" ? `权限模式：${t(`perm.${next}`)}` : `Permission mode: ${t(`perm.${next}`)}`);
+  }
+}
+
+// --- Task plan panel (Inspector) -------------------------------------------
+// The checklist comes from todo_write / todo_read ToolResult.data payloads that
+// travel inside timeline tool events. The latest list wins; the section stays
+// hidden until a plan exists.
+
+let latestTodos = null;
+
+function normalizeTodoEntries(rawTodos) {
+  if (!Array.isArray(rawTodos)) return null;
+  return rawTodos
+    .filter((todo) => todo && typeof todo === "object" && String(todo.content || "").trim())
+    .map((todo) => ({
+      content: String(todo.content).trim().slice(0, 500),
+      status: ["pending", "in_progress", "completed"].includes(String(todo.status)) ? String(todo.status) : "pending",
+      priority: ["high", "medium", "low"].includes(String(todo.priority)) ? String(todo.priority) : "medium",
+    }))
+    .slice(0, 50);
+}
+
+function todosFromToolEvent(event) {
+  if (!event || typeof event !== "object" || event.kind === "trace") return null;
+  const name = String(event.name || "");
+  if (name !== "todo_write" && name !== "todo_read") return null;
+  const data = event.data && typeof event.data === "object" ? event.data : null;
+  return normalizeTodoEntries(data?.todos);
+}
+
+function latestTodosFromEvents(events) {
+  let found = null;
+  for (const event of Array.isArray(events) ? events : []) {
+    const todos = todosFromToolEvent(event);
+    if (todos) found = todos;
+  }
+  return found;
+}
+
+function syncTodoPanelFromEvents(events) {
+  const todos = latestTodosFromEvents(events);
+  if (todos) latestTodos = todos;
+  renderTodoPanel();
+}
+
+function renderTodoPanel() {
+  const section = $("#todoSection");
+  if (!section) return;
+  const hasTodos = Array.isArray(latestTodos) && latestTodos.length > 0;
+  section.hidden = !hasTodos;
+  if (!hasTodos) return;
+  const completed = latestTodos.filter((todo) => todo.status === "completed").length;
+  const progress = $("#todoProgressCount");
+  if (progress) {
+    progress.textContent = `${completed}/${latestTodos.length}`;
+    progress.setAttribute("aria-label", `${t("todo.progressAria")}: ${completed}/${latestTodos.length}`);
+  }
+  const list = $("#todoListBody");
+  if (!list) return;
+  const statusLabels = { pending: t("todo.pending"), in_progress: t("todo.inProgress"), completed: t("todo.completed") };
+  list.innerHTML = latestTodos.map((todo) => `
+    <li class="todo-item todo-${escapeHtml(todo.status)}" aria-label="${escapeHtml(`${todo.content} · ${statusLabels[todo.status] || todo.status}`)}">
+      <span class="todo-status-mark" aria-hidden="true">${todo.status === "completed" ? icon("check") : ""}</span>
+      <span class="todo-priority-dot todo-priority-${escapeHtml(todo.priority)}" aria-hidden="true"></span>
+      <span class="todo-copy"><span class="todo-content">${escapeHtml(todo.content)}</span><small class="todo-status-label">${escapeHtml(statusLabels[todo.status] || todo.status)}</small></span>
+    </li>`).join("");
+  refreshIcons();
+}
+
+function toggleTodoSection(force) {
+  const section = $("#todoSection");
+  if (!section) return;
+  const collapsed = typeof force === "boolean" ? force : section.dataset.collapsed !== "true";
+  section.dataset.collapsed = collapsed ? "true" : "false";
+  const body = $("#todoListBody");
+  if (body) body.hidden = collapsed;
+  const toggle = $("#todoSectionToggle");
+  if (toggle) toggle.setAttribute("aria-expanded", String(!collapsed));
+}
+
+// --- File tree (Inspector) --------------------------------------------------
+// Lazy workspace tree backed by GET /api/files. The endpoint returns one flat
+// entries array (root-relative paths, dirs filtered server-side), so each
+// request fetches FILE_TREE_DEPTH levels: direct children are rendered and any
+// deeper directories delivered by the same response are pre-seeded into the
+// per-directory cache, so expanding them costs no extra request. Cached file
+// entries also feed the @-mention index in the composer.
+
+const FILE_TREE_DEPTH = 2;             // levels fetched per /api/files request
+const FILE_TREE_RENDER_LIMIT = 800;    // rows rendered per level before truncation
+const FILE_TREE_REFRESH_DELAY = 200;   // coalesce workspace-switch/completion triggers
+
+const fileTreeState = {
+  loaded: false,
+  loading: false,
+  rootEntries: [],
+  rootTruncated: false,
+  rootError: "",
+  children: new Map(),  // dirPath -> { entries, truncated }
+  expanded: new Set(),
+  pending: new Set(),
+  fileIndex: [],        // [{path, size}] for @-mentions
+  requestToken: 0,
+  refreshTimer: 0,
+};
+
+function fileTreeParentOf(path) {
+  const value = String(path || "");
+  const index = value.lastIndexOf("/");
+  return index < 0 ? "" : value.slice(0, index);
+}
+
+function fileTreeSort(entries) {
+  return [...entries].sort((left, right) => {
+    const dirDelta = (left?.type === "dir" ? 0 : 1) - (right?.type === "dir" ? 0 : 1);
+    if (dirDelta) return dirDelta;
+    return String(left?.name || left?.path || "").localeCompare(String(right?.name || right?.path || ""), undefined, { sensitivity: "base", numeric: true });
+  });
+}
+
+function fileTreeIndexFiles(entries) {
+  for (const entry of Array.isArray(entries) ? entries : []) {
+    if (!entry || entry.type !== "file" || !entry.path) continue;
+    if (fileTreeState.fileIndex.some((item) => item.path === entry.path)) continue;
+    fileTreeState.fileIndex.push({ path: String(entry.path), size: Number(entry.size || 0) });
+  }
+  if (fileTreeState.fileIndex.length > 4000) fileTreeState.fileIndex.length = 4000;
+}
+
+// Cache the direct children of dirPath delivered by a flat listing. An empty
+// result is intentionally not cached: the directory is either genuinely empty
+// or was cut off, and a later expand re-fetches to stay correct.
+function fileTreeSeedChildren(dirPath, entries) {
+  const children = [];
+  for (const entry of Array.isArray(entries) ? entries : []) {
+    if (entry?.path && fileTreeParentOf(entry.path) === dirPath) children.push(entry);
+  }
+  fileTreeIndexFiles(children);
+  if (!children.length) return;
+  fileTreeState.children.set(dirPath, { entries: children });
+}
+
+async function fileTreeFetch(dirPath) {
+  const data = await requestJson(`/api/files?path=${encodeURIComponent(dirPath || "")}&depth=${FILE_TREE_DEPTH}`, {}, 12000);
+  return { entries: Array.isArray(data.entries) ? data.entries : [], truncated: Boolean(data.truncated) };
+}
+
+async function loadFileTree() {
+  if (!state.workspacePath) return;
+  const token = ++fileTreeState.requestToken;
+  fileTreeState.loading = true;
+  fileTreeState.rootError = "";
+  renderFileTree();
+  try {
+    const result = await fileTreeFetch("");
+    if (token !== fileTreeState.requestToken) return;
+    fileTreeState.rootEntries = fileTreeSort(result.entries.filter((entry) => entry?.path && fileTreeParentOf(entry.path) === ""));
+    fileTreeState.rootTruncated = result.truncated;
+    fileTreeState.children = new Map();
+    fileTreeState.expanded = new Set();
+    fileTreeState.fileIndex = [];
+    fileTreeState.loaded = true;
+    fileTreeIndexFiles(fileTreeState.rootEntries);
+    // Pre-seed level-1 folders from the same depth=2 response.
+    for (const entry of fileTreeState.rootEntries) {
+      if (entry.type === "dir") fileTreeSeedChildren(entry.path, result.entries);
+    }
+  } catch (error) {
+    if (token !== fileTreeState.requestToken) return;
+    fileTreeState.rootError = String(error?.message || "error");
+    fileTreeState.loaded = true;
+  } finally {
+    if (token === fileTreeState.requestToken) {
+      fileTreeState.loading = false;
+      renderFileTree();
+      if (mentionState.open) updateMentionPopover();
+    }
+  }
+}
+
+async function toggleFileDir(dirPath) {
+  if (fileTreeState.expanded.has(dirPath)) {
+    fileTreeState.expanded.delete(dirPath);
+    renderFileTree();
+    return;
+  }
+  fileTreeState.expanded.add(dirPath);
+  if (!fileTreeState.children.has(dirPath) && !fileTreeState.pending.has(dirPath)) {
+    fileTreeState.pending.add(dirPath);
+    renderFileTree();
+    try {
+      const result = await fileTreeFetch(dirPath);
+      fileTreeSeedChildren(dirPath, result.entries);
+      // Also pre-seed the direct subfolders delivered by this response.
+      for (const entry of result.entries) {
+        if (entry?.type === "dir" && fileTreeParentOf(entry.path) === dirPath) fileTreeSeedChildren(entry.path, result.entries);
+      }
+    } catch (error) {
+      fileTreeState.children.set(dirPath, { entries: [], error: String(error?.message || "error") });
+    } finally {
+      fileTreeState.pending.delete(dirPath);
+    }
+  }
+  renderFileTree();
+  if (mentionState.open) updateMentionPopover();
+}
+
+function fileTreeRowMarkup(entry, level) {
+  const indent = `padding-left:${6 + Math.min(level, 8) * 13}px`;
+  if (entry.type === "dir") {
+    const expanded = fileTreeState.expanded.has(entry.path);
+    return `<button type="button" class="file-tree-row" role="treeitem" aria-expanded="${expanded ? "true" : "false"}" data-tree-dir="${escapeHtml(entry.path)}" style="${indent}" aria-label="${escapeHtml(entry.name)}"><span class="file-tree-chevron" aria-hidden="true">${icon(expanded ? "chevron-down" : "chevron-right")}</span><span class="file-tree-icon" aria-hidden="true">${icon(expanded ? "folder-open" : "folder")}</span><span class="file-tree-name">${escapeHtml(entry.name || entry.path)}</span></button>`;
+  }
+  const size = Number(entry.size || 0);
+  return `<button type="button" class="file-tree-row" role="treeitem" data-open-diff="${escapeHtml(entry.path)}" style="${indent}" aria-label="${escapeHtml(`${entry.name || entry.path} ${formatBytes(size)}`)}"><span class="file-tree-chevron" aria-hidden="true"></span><span class="file-tree-icon" aria-hidden="true">${icon("file-code-2")}</span><span class="file-tree-name">${escapeHtml(entry.name || entry.path)}</span><span class="file-tree-size">${escapeHtml(formatBytes(size))}</span></button>`;
+}
+
+function renderFileTree() {
+  const tree = $("#fileTree");
+  if (!tree) return;
+  if (fileTreeState.loading && !fileTreeState.loaded) {
+    tree.innerHTML = `<div class="file-tree-status">${escapeHtml(t("files.loading"))}</div>`;
+    return;
+  }
+  if (fileTreeState.rootError) {
+    tree.innerHTML = `<div class="file-tree-status file-tree-error"><span>${escapeHtml(t("files.loadError"))}</span><small>${escapeHtml(fileTreeState.rootError)}</small></div>`;
+    return;
+  }
+  const rows = [];
+  const notes = new Set();
+  let remaining = FILE_TREE_RENDER_LIMIT;
+  const walk = (entries, level, dirPath) => {
+    for (const entry of entries) {
+      if (remaining <= 0) { notes.add(t("files.truncated")); return; }
+      remaining -= 1;
+      rows.push(fileTreeRowMarkup(entry, level));
+      if (entry.type !== "dir" || !fileTreeState.expanded.has(entry.path)) continue;
+      const cached = fileTreeState.children.get(entry.path);
+      const childIndent = `padding-left:${6 + Math.min(level + 1, 8) * 13}px`;
+      if (cached?.error) rows.push(`<div class="file-tree-status" style="${childIndent}">${escapeHtml(cached.error)}</div>`);
+      else if (!cached) {
+        // First expansion is still in flight (toggleFileDir triggered the fetch).
+        if (fileTreeState.pending.has(entry.path)) rows.push(`<div class="file-tree-status" style="${childIndent}">${escapeHtml(t("files.loading"))}</div>`);
+      } else {
+        walk(fileTreeSort(cached.entries), level + 1, entry.path);
+        if (cached.truncated) notes.add(t("files.truncated"));
+      }
+    }
+    if (dirPath === "" && fileTreeState.rootTruncated) notes.add(t("files.truncated"));
+  };
+  walk(fileTreeState.rootEntries, 0, "");
+  if (!rows.length) {
+    tree.innerHTML = `<div class="file-tree-status">${escapeHtml(t("files.empty"))}</div>`;
+    return;
+  }
+  const list = `<div class="file-tree-list" role="tree" aria-label="${escapeHtml(t("files.tree"))}">${rows.join("")}</div>`;
+  const noteMarkup = notes.size ? `<div class="file-tree-note">${icon("alert-triangle")}<span>${escapeHtml([...notes].join(" "))}</span></div>` : "";
+  tree.innerHTML = `${list}${noteMarkup}`;
+  refreshIcons();
+}
+
+function refreshFileTreeSoon() {
+  window.clearTimeout(fileTreeState.refreshTimer);
+  fileTreeState.refreshTimer = window.setTimeout(() => { loadFileTree(); }, FILE_TREE_REFRESH_DELAY);
+}
+
+function refreshFileTree() {
+  fileTreeState.requestToken += 1; // discard in-flight loads from the stale workspace
+  fileTreeState.loaded = false;
+  loadFileTree();
+}
+
+// --- @-file mention popover (composer) --------------------------------------
+// Typing "@" opens a listbox fed by the file tree's cached /api/files index.
+// The token spans from the "@" to the caret; options are filtered by prefix
+// (basename matches first) and keyboard navigation never sends the message.
+
+const MENTION_MAX_OPTIONS = 8;
+const mentionState = { open: false, options: [], active: 0, matchStart: -1 };
+
+function mentionTokenAt(text, caret) {
+  const before = String(text || "").slice(0, Math.max(0, caret));
+  const match = /(^|\s)@([^\s@]*)$/.exec(before);
+  if (!match) return null;
+  return { fragment: match[2], start: before.length - match[2].length - 1 };
+}
+
+function mentionCandidates(fragment) {
+  const needle = String(fragment || "").toLowerCase();
+  const starts = [];
+  const contains = [];
+  for (const item of fileTreeState.fileIndex) {
+    const path = item.path.toLowerCase();
+    const name = path.slice(path.lastIndexOf("/") + 1);
+    if (!needle || name.startsWith(needle)) starts.push(item);
+    else if (path.startsWith(needle) || path.includes(needle)) contains.push(item);
+    if (starts.length >= MENTION_MAX_OPTIONS) break;
+  }
+  return [...starts, ...contains].slice(0, MENTION_MAX_OPTIONS);
+}
+
+function ensureMentionIndex() {
+  if (fileTreeState.fileIndex.length || fileTreeState.loading) return;
+  loadFileTree();
+}
+
+function positionMentionPopover() {
+  const shell = $("#composerShell");
+  const input = $("#promptInput");
+  const popover = $("#mentionPopover");
+  if (!shell || !input || !popover) return;
+  const shellRect = shell.getBoundingClientRect();
+  const inputRect = input.getBoundingClientRect();
+  popover.style.left = `${Math.max(10, Math.round(inputRect.left - shellRect.left + 10))}px`;
+  popover.style.top = `${Math.round(inputRect.bottom - shellRect.top + 4)}px`;
+}
+
+function renderMentionPopover() {
+  const popover = $("#mentionPopover");
+  if (!popover) return;
+  const options = mentionState.options;
+  const body = options.length
+    ? options.map((item, index) => `<button type="button" class="mention-option${index === mentionState.active ? " active" : ""}" role="option" aria-selected="${index === mentionState.active ? "true" : "false"}" data-mention-index="${index}" aria-label="${escapeHtml(item.path)}"><span class="mention-path">${escapeHtml(item.path)}</span><small class="mention-size">${escapeHtml(formatBytes(item.size))}</small></button>`).join("")
+    : `<div class="mention-empty">${escapeHtml(t("at.empty"))}</div>`;
+  popover.innerHTML = `${body}<div class="mention-hint" aria-hidden="true">${escapeHtml(t("at.hint"))}</div>`;
+  popover.hidden = false;
+  popover.querySelector(`[data-mention-index="${mentionState.active}"]`)?.scrollIntoView({ block: "nearest" });
+}
+
+function updateMentionPopover() {
+  const input = $("#promptInput");
+  if (!input) return;
+  ensureMentionIndex();
+  const token = mentionTokenAt(input.value, input.selectionStart ?? input.value.length);
+  if (!token) { closeMentionPopover(); return; }
+  mentionState.open = true;
+  mentionState.matchStart = token.start;
+  mentionState.options = mentionCandidates(token.fragment);
+  mentionState.active = Math.min(mentionState.active, Math.max(0, mentionState.options.length - 1));
+  renderMentionPopover();
+  positionMentionPopover();
+}
+
+function closeMentionPopover() {
+  mentionState.open = false;
+  mentionState.options = [];
+  mentionState.active = 0;
+  mentionState.matchStart = -1;
+  const popover = $("#mentionPopover");
+  if (popover) {
+    popover.hidden = true;
+    popover.innerHTML = "";
+  }
+}
+
+function applyMentionOption(index = mentionState.active) {
+  const option = mentionState.options[index];
+  const input = $("#promptInput");
+  if (!option || !input) { closeMentionPopover(); return; }
+  const value = String(input.value || "");
+  const caret = input.selectionStart ?? value.length;
+  const insert = `@${option.path} `;
+  const next = value.slice(0, mentionState.matchStart) + insert + value.slice(caret);
+  input.value = next;
+  const nextCaret = mentionState.matchStart + insert.length;
+  input.setSelectionRange(nextCaret, nextCaret);
+  closeMentionPopover();
+  input.focus();
+}
+
+// Returns true when the key press was consumed by the mention popover so the
+// composer's own Enter-to-send behavior stays out of the way.
+function handleMentionKeydown(event) {
+  if (!mentionState.open || event.isComposing) return false;
+  if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+    event.preventDefault();
+    const count = Math.max(1, mentionState.options.length);
+    mentionState.active = (mentionState.active + (event.key === "ArrowDown" ? 1 : -1) + count) % count;
+    renderMentionPopover();
+    return true;
+  }
+  if (event.key === "Enter" || event.key === "Tab") {
+    if (!mentionState.options.length) { closeMentionPopover(); return false; }
+    event.preventDefault();
+    applyMentionOption();
+    return true;
+  }
+  if (event.key === "Escape") {
+    event.preventDefault();
+    event.stopPropagation(); // keep the window-level Esc from closing the panel
+    closeMentionPopover();
+    return true;
+  }
+  return false;
+}
+
+// --- Global session history search ------------------------------------------
+// A panel that queries GET /api/history/search with a 300ms debounce. Result
+// rows reuse the panelBody data-open-task delegation, which routes the click
+// through openTaskInWorkspace (switching workspace when needed).
+
+const GLOBAL_SEARCH_DEBOUNCE = 300;
+let globalSearchTimer = 0;
+let globalSearchToken = 0;
+
+function relativeTimeFrom(value) {
+  const epoch = Date.parse(String(value || ""));
+  if (!Number.isFinite(epoch)) return "--";
+  const seconds = Math.max(0, Math.round((Date.now() - epoch) / 1000));
+  const zh = state.locale === "zh";
+  if (seconds < 60) return zh ? "刚刚" : "just now";
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return zh ? `${minutes} 分钟前` : `${minutes}m ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return zh ? `${hours} 小时前` : `${hours}h ago`;
+  const days = Math.round(hours / 24);
+  if (days < 30) return zh ? `${days} 天前` : `${days}d ago`;
+  return new Date(epoch).toLocaleDateString(zh ? "zh-CN" : "en-US");
+}
+
+// Snippet text is escaped first; the query is regex-escaped so special
+// characters degrade to "no highlight" instead of throwing.
+function highlightSearchText(text, query) {
+  const escaped = escapeHtml(String(text || ""));
+  if (!query) return escaped;
+  try {
+    const pattern = new RegExp(String(query).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
+    return escaped.replace(pattern, (match) => `<mark>${match}</mark>`);
+  } catch {
+    return escaped;
+  }
+}
+
+function globalSearchResultMarkup(item, query) {
+  const taskLabel = String(item.prompt_preview || "").split("\n")[0].trim().slice(0, 90) || String(item.task_id || "");
+  const workspaceName = String(item.workspace_path || "").split(/[\\/]/).filter(Boolean).pop() || "workspace";
+  const matchCount = Number(item.match_count || 0);
+  return `<button type="button" class="global-search-result" data-open-task="${escapeHtml(item.task_id || "")}">
+    <span class="global-search-result-head"><strong>${escapeHtml(taskLabel)}</strong>${matchCount ? `<span class="global-search-matches">${matchCount} ${escapeHtml(t("search.matches"))}</span>` : ""}</span>
+    <pre class="global-search-snippet">${highlightSearchText(String(item.snippet || item.prompt_preview || ""), query)}</pre>
+    <span class="global-search-result-meta"><span>${escapeHtml(workspaceName)}</span><span>${escapeHtml(String(item.status || ""))}</span><span>${escapeHtml(relativeTimeFrom(item.finished_at || item.created_at))}</span></span>
+  </button>`;
+}
+
+function renderGlobalSearchStatus(kind, detail = "") {
+  const box = $("#globalSearchResults");
+  if (!box) return;
+  if (kind === "hint") box.innerHTML = `<div class="empty-panel">${escapeHtml(t("search.hint"))}</div>`;
+  else if (kind === "searching") box.innerHTML = `<div class="empty-panel">${escapeHtml(t("search.searching"))}</div>`;
+  else if (kind === "noResults") box.innerHTML = `<div class="empty-panel">${escapeHtml(t("search.noResults"))}</div>`;
+  else if (kind === "error") box.innerHTML = `<div class="error-panel">${escapeHtml(detail)}</div>`;
+}
+
+async function runGlobalSearch(query) {
+  const token = ++globalSearchToken;
+  renderGlobalSearchStatus("searching");
+  try {
+    const data = await requestJson(`/api/history/search?q=${encodeURIComponent(query)}&limit=30`, {}, 15000);
+    if (token !== globalSearchToken) return;
+    const results = Array.isArray(data.results) ? data.results : [];
+    const box = $("#globalSearchResults");
+    if (!box) return;
+    box.innerHTML = results.length ? results.map((item) => globalSearchResultMarkup(item, query)).join("") : "";
+    if (!results.length) renderGlobalSearchStatus("noResults");
+    else refreshIcons();
+  } catch (error) {
+    if (token !== globalSearchToken) return;
+    renderGlobalSearchStatus("error", error.message);
+  }
+}
+
+function scheduleGlobalSearch() {
+  const input = $("#globalSearchInput");
+  if (!input) return;
+  window.clearTimeout(globalSearchTimer);
+  const query = input.value.trim();
+  if (!query) {
+    globalSearchToken += 1; // invalidate any in-flight request
+    renderGlobalSearchStatus("hint");
+    return;
+  }
+  globalSearchTimer = window.setTimeout(() => runGlobalSearch(query), GLOBAL_SEARCH_DEBOUNCE);
+}
+
+function openGlobalSearchPanel() {
+  openPanel(t("search.global"), `<div class="global-search-panel"><div class="global-search-box">${icon("search")}<input id="globalSearchInput" type="search" placeholder="${escapeHtml(t("search.globalPlaceholder"))}" aria-label="${escapeHtml(t("search.global"))}" autocomplete="off" /></div><div class="global-search-results" id="globalSearchResults" aria-live="polite"><div class="empty-panel">${escapeHtml(t("search.hint"))}</div></div></div>`);
+  const input = $("#globalSearchInput");
+  input?.addEventListener("input", scheduleGlobalSearch);
+  input?.focus();
 }
 
 function addUserMessage(text, attachments = []) {
   $("#messageList").insertAdjacentHTML("beforeend", `
     <article class="message user-message">
       <div class="message-meta"><span class="avatar user-avatar">Y</span><strong>${escapeHtml(t("message.you"))}</strong><time>${escapeHtml(t("message.now"))}</time></div>
-      <div class="message-body"><p>${formatText(text)}</p>${attachmentMarkup(attachments)}</div>
+      <div class="message-body"><div class="message-text">${formatText(text)}</div>${attachmentMarkup(attachments)}</div>
     </article>`);
   persistSessionView();
   scrollChat("auto", true);
@@ -1115,7 +1841,7 @@ function liveTaskMarkup(data) {
   const currentPhase = phaseClass(data);
   const transport = data.transport || (data.status === "queued" ? "connecting" : "connected");
   const transportLabel = transport === "polling" ? t("stream.polling") : transport === "reconnecting" ? t("stream.reconnecting") : transport === "connecting" ? t("connection.connecting") : t("stream.connected");
-  const preview = streamText ? formatText(streamTail(streamText)) : `<span class="stream-empty">${escapeHtml(t("phase.waiting"))}</span>`;
+  const preview = streamText ? formatLightText(streamTail(streamText)) : `<span class="stream-empty">${escapeHtml(t("phase.waiting"))}</span>`;
   return `<div class="live-task live-task-${currentPhase}" data-live-task data-phase="${currentPhase}">
     <div class="live-task-stage">
       <div class="task-progress" data-phase="${currentPhase}" role="status">
@@ -1359,7 +2085,9 @@ function shortEventText(event, limit = 150) {
 
 function rawOutputMarkup(streamText) {
   const text = streamTail(String(streamText || ""), 1200);
-  return text ? `<details class="raw-output"><summary>${escapeHtml(state.locale === "zh" ? "原始模型输出" : "Raw model output")}</summary><div>${formatText(text)}</div></details>` : "";
+  // The raw stream dump must read as literal text; the light renderer keeps
+  // partial/broken Markdown from being re-parsed into misleading blocks.
+  return text ? `<details class="raw-output"><summary>${escapeHtml(state.locale === "zh" ? "原始模型输出" : "Raw model output")}</summary><div>${formatLightText(text)}</div></details>` : "";
 }
 
 function isToolEvent(event) {
@@ -1612,7 +2340,7 @@ function assistantMessageMarkup(data, anchor = "") {
   return `
     <article class="message assistant-message"${anchorMarkup}>
       <div class="message-meta"><span class="avatar agent-avatar">m</span><strong>minicc</strong><span class="agent-label">Agent</span><time>now</time></div>
-      <div class="message-body">${execution}<p class="answer-callout">${formatText(answer)}</p>${rawStream}</div>
+      <div class="message-body">${execution}<div class="answer-callout">${formatText(answer)}</div>${rawStream}</div>
     </article>`;
 }
 
@@ -1637,13 +2365,67 @@ function addAssistantMessage(data, loadingId = "") {
   restoreChatPosition(chatPosition, false);
 }
 
+function showAuthModal(message) {
+  const modal = $("#authModal");
+  if (!modal) return;
+  modal.classList.add("show");
+  modal.setAttribute("aria-hidden", "false");
+  const errorSlot = $("#authError");
+  if (errorSlot) {
+    errorSlot.hidden = !message;
+    errorSlot.textContent = message || "";
+  }
+  const input = $("#authTokenInput");
+  if (input instanceof HTMLInputElement) {
+    window.setTimeout(() => input.focus(), 30);
+  }
+}
+
+function hideAuthModal() {
+  const modal = $("#authModal");
+  if (!modal) return;
+  modal.classList.remove("show");
+  modal.setAttribute("aria-hidden", "true");
+}
+
+async function submitAuthToken(event) {
+  event.preventDefault();
+  const input = $("#authTokenInput");
+  if (!(input instanceof HTMLInputElement)) return;
+  const token = input.value.trim();
+  if (!token) {
+    showAuthModal(state.locale === "zh" ? "请粘贴 minicc-web 启动时显示的 token。" : "Paste the token printed by minicc-web.");
+    return;
+  }
+  localStorage.setItem(AUTH_STORAGE_KEY, token);
+  // Verify against a guarded route; /api/health is intentionally open.
+  const check = await fetch("/api/workspace", {
+    headers: { Authorization: `Bearer ${token}` },
+  }).catch(() => null);
+  if (!check || !check.ok) {
+    showAuthModal(state.locale === "zh" ? "Token 已保存但验证未通过，请检查后重新粘贴。" : "Token saved but rejected. Check it and retry.");
+    return;
+  }
+  hideAuthModal();
+  location.reload();
+}
 async function requestJson(url, options = {}, timeoutMs = 15000) {
   const controller = new AbortController();
   const timer = window.setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetch(url, { ...options, signal: controller.signal });
+    const response = await fetch(url, {
+      ...options,
+      headers: { ...authHeaders(), ...(options.headers || {}) },
+      signal: controller.signal,
+    });
     const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data.error || `${response.status} ${response.statusText}`);
+    if (!response.ok) {
+      if (response.status === 401 && data.auth_required) {
+        showAuthModal();
+        throw new Error(state.locale === "zh" ? "需要访问 token，请在弹窗中粘贴后重试。" : "Access token required. Paste it in the dialog and retry.");
+      }
+      throw new Error(data.error || `${response.status} ${response.statusText}`);
+    }
     return data;
   } catch (error) {
     if (error.name === "AbortError") throw new Error("请求超时，任务仍可在活动面板中查看。");
@@ -1652,7 +2434,6 @@ async function requestJson(url, options = {}, timeoutMs = 15000) {
     window.clearTimeout(timer);
   }
 }
-
 function updateLiveStream(loadingId, preview, target) {
   let stream = liveStreamStates.get(loadingId);
   if (!stream) {
@@ -1670,7 +2451,10 @@ function updateLiveStream(loadingId, preview, target) {
     }
     if (stream.rendered === stream.target) return;
     stream.rendered = stream.target;
-    stream.preview.innerHTML = `${formatText(streamTail(stream.target))}<span class="stream-caret" aria-hidden="true"></span>`;
+    // Streaming stays on the lightweight renderer so the 120ms throttle and
+    // caret remain cheap; the finished answer gets the full Markdown pass in
+    // addAssistantMessage once the task reaches a terminal state.
+    stream.preview.innerHTML = `${formatLightText(streamTail(stream.target))}<span class="stream-caret" aria-hidden="true"></span>`;
   };
   stream.frame = window.setTimeout(paint, 120);
 }
@@ -1837,6 +2621,7 @@ function updateBoundTask(taskId, data, options = {}) {
     : applyTaskSnapshot(binding, data, { replaceEvents: true });
   binding.data = next;
   if (isCurrentTaskScope(next)) {
+    syncTodoPanelFromEvents(next.events);
     if (!document.getElementById(binding.loadingId)) addLoadingMessage(binding.loadingId, next, { scrollToLatest: false });
     updateLiveTask(binding.loadingId, next);
   }
@@ -1905,6 +2690,7 @@ async function completeTask(loadingId, data) {
   }
   if (finalData.status !== "completed") showToast(finalData.error || (finalData.status === "cancelled" ? "任务已取消" : "任务失败"));
   scheduleChangesRefresh();
+  refreshFileTreeSoon(); // task finished: workspace files may have changed
   await loadTaskHistory();
   return finalData;
 }
@@ -1928,7 +2714,6 @@ async function pollTask(taskId) {
     await new Promise((resolve) => window.setTimeout(resolve, delay));
   }
 }
-
 function streamTask(taskId) {
   const binding = runningTasks.get(taskId);
   const loadingId = binding?.loadingId || "";
@@ -2032,7 +2817,7 @@ function streamTask(taskId) {
     function connect() {
       if (settled || fallbackStarted) return;
       const cursor = eventSequence(binding?.cursor || binding?.data?.event_cursor);
-      source = new EventSource(`/api/tasks/${encodeURIComponent(taskId)}/events?after=${cursor}`);
+      source = new EventSource(authQuery(`/api/tasks/${encodeURIComponent(taskId)}/events?after=${cursor}`));
       taskEventSources.set(sourceKey, source);
       source.onmessage = handleSnapshot;
       source.addEventListener("task_event", handleTaskEvent);
@@ -2139,14 +2924,16 @@ async function sendMessage(event) {
   state.submitting = true;
   setBusy(true);
   input.value = "";
+  closeMentionPopover();
   clearAttachments();
   addUserMessage(message, queuedAttachments);
   const loadingId = addLoadingMessage();
+  const permissions = effectiveTaskPermissions();
   try {
     const task = await requestJson("/api/tasks", {
      method: "POST",
      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message, attachments: queuedAttachments.map(({ name, mime_type, data_url }) => ({ name, mime_type, data_url })), session_id: sessionId, allow_changes: state.allowChanges, allow_network: state.allowNetwork, reasoning_effort: state.reasoningEffort, workspace_path: workspacePath }),
+      body: JSON.stringify({ message, attachments: queuedAttachments.map(({ name, mime_type, data_url }) => ({ name, mime_type, data_url })), session_id: sessionId, permission_mode: permissions.mode, allow_changes: permissions.allowChanges, allow_network: permissions.allowNetwork, reasoning_effort: state.reasoningEffort, workspace_path: workspacePath }),
     });
     state.submitting = false;
     bindRunningTask(task, loadingId, sessionId);
@@ -2232,7 +3019,12 @@ function runDemoFlow() {
 
 async function loadWorkspace() {
   try {
-    const response = await fetch("/api/workspace");
+    const response = await fetch("/api/workspace", { headers: authHeaders() });
+    if (response.status === 401) {
+      const payload = await response.json().catch(() => ({}));
+      if (payload.auth_required) showAuthModal();
+      throw new Error("unauthorized");
+    }
     if (!response.ok) throw new Error("offline");
     const info = await response.json();
     const previousPath = state.workspacePath;
@@ -2258,6 +3050,9 @@ async function loadWorkspace() {
     }
     await loadTaskHistory();
     await loadChanges();
+    // The file tree is workspace-scoped: reload it on the initial load, on
+    // workspace switches, and whenever the workspace view is refreshed.
+    refreshFileTreeSoon();
     try {
       const taskData = await requestJson(`/api/tasks?limit=100&workspace=${encodeURIComponent(state.workspacePath)}`);
       const tasks = Array.isArray(taskData.tasks) ? taskData.tasks : [];
@@ -2484,16 +3279,73 @@ async function openWorkspacesPanel() {
   }
 }
 
+// Commercial unified-diff rendering: one grid row per diff line with an
+// old/new line-number gutter, a sign column, and the code cell. Legacy classes
+// (diff-add-line / diff-del-line / diff-hunk / diff-file / diff-context) are
+// preserved on the row element for CSS and smoke-test compatibility.
+function diffRowMarkup(kind, sign, oldLine, newLine, code) {
+  const oldCell = oldLine ? `<span class="diff-ln diff-ln-old">${oldLine}</span>` : `<span class="diff-ln diff-ln-old"></span>`;
+  const newCell = newLine ? `<span class="diff-ln diff-ln-new">${newLine}</span>` : `<span class="diff-ln diff-ln-new"></span>`;
+  return `<span class="diff-row ${kind}">${oldCell}${newCell}<span class="diff-sign">${escapeHtml(sign || " ")}</span><span class="diff-code">${escapeHtml(code.length ? code : " ")}</span></span>`;
+}
+
+function renderUnifiedDiffRows(patch) {
+  const rows = [];
+  let oldLine = 0;
+  let newLine = 0;
+  let inHunk = false;
+  for (const line of String(patch || "").split("\n")) {
+    if (line.startsWith("@@")) {
+      const header = /@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/.exec(line);
+      if (header) {
+        oldLine = Number(header[1]);
+        newLine = Number(header[2]);
+        inHunk = true;
+      }
+      rows.push(`<span class="diff-row diff-hunk"><span class="diff-code">${escapeHtml(line || " ")}</span></span>`);
+      continue;
+    }
+    if (line.startsWith("diff ") || line.startsWith("index ") || line.startsWith("--- ") || line.startsWith("+++ ") || line.startsWith("old mode") || line.startsWith("new mode") || line.startsWith("similarity ") || line.startsWith("rename ")) {
+      rows.push(`<span class="diff-row diff-file"><span class="diff-code">${escapeHtml(line || " ")}</span></span>`);
+      continue;
+    }
+    if (line.startsWith("\\")) {
+      rows.push(`<span class="diff-row diff-meta"><span class="diff-code">${escapeHtml(line)}</span></span>`);
+      continue;
+    }
+    if (!inHunk) {
+      // Preamble text before the first hunk (raw patches without @@ headers).
+      if (line) rows.push(`<span class="diff-row diff-file"><span class="diff-code">${escapeHtml(line)}</span></span>`);
+      continue;
+    }
+    if (line.startsWith("+")) {
+      rows.push(diffRowMarkup("diff-add-line", "+", 0, newLine, line.slice(1)));
+      newLine += 1;
+    } else if (line.startsWith("-")) {
+      rows.push(diffRowMarkup("diff-del-line", "-", oldLine, 0, line.slice(1)));
+      oldLine += 1;
+    } else if (line) {
+      // Context lines start with a space; a bare "" is the trailing-newline
+      // artifact of split("\n") and is skipped.
+      rows.push(diffRowMarkup("diff-context", " ", oldLine, newLine, line.startsWith(" ") ? line.slice(1) : line));
+      oldLine += 1;
+      newLine += 1;
+    }
+  }
+  return rows.join("");
+}
+
 async function openFilePreview(path) {
   try {
     const diff = await requestJson(`/api/diff?path=${encodeURIComponent(path)}`);
     let data = { content: "" };
     try { data = await requestJson(`/api/file?path=${encodeURIComponent(path)}`); } catch { /* deleted files still have a useful diff */ }
-    const diffLines = String(diff.patch || "").split("\n").map((line) => {
-      const className = line.startsWith("+++") || line.startsWith("---") ? "diff-file" : line.startsWith("+") ? "diff-add-line" : line.startsWith("-") ? "diff-del-line" : line.startsWith("@@") ? "diff-hunk" : "diff-context";
-      return `<span class="${className}">${escapeHtml(line || " ")}</span>`;
-    }).join("\n");
-    openPanel(`${t("panel.file")} · ${path}`, `<div class="diff-toolbar"><span>${escapeHtml(changeStatusLabel(diff.status || "modified"))} · <span class="diff-add">+${Number(diff.additions || 0)}</span> <span class="diff-del">-${Number(diff.deletions || 0)}</span></span><span class="mono">${escapeHtml(diff.source || "diff")}</span></div><pre class="diff-preview">${diffLines || escapeHtml(state.locale === "zh" ? "当前没有可显示的差异。" : "No diff to display.")}</pre><details class="file-current" open><summary>${escapeHtml(state.locale === "zh" ? "当前文件内容" : "Current file")}</summary><pre class="file-preview">${escapeHtml(data.content || "")}</pre></details>`);
+    const additions = Number(diff.additions || 0);
+    const deletions = Number(diff.deletions || 0);
+    const diffRows = renderUnifiedDiffRows(diff.patch);
+    const diffBody = diffRows || `<span class="diff-row diff-empty"><span class="diff-code">${escapeHtml(t("diff.empty"))}</span></span>`;
+    const fileHead = `<div class="diff-file-head"><span class="diff-file-path">${icon("file-code-2")}<strong>${escapeHtml(path)}</strong></span><span class="diff-file-badges"><span class="diff-badge diff-badge-status">${escapeHtml(changeStatusLabel(diff.status || "modified"))}</span><span class="diff-badge diff-badge-add">+${additions}</span><span class="diff-badge diff-badge-del">-${deletions}</span></span></div>`;
+    openPanel(`${t("panel.file")} · ${path}`, `<div class="diff-toolbar"><span>${escapeHtml(t("diff.previewAria"))}</span><span class="mono">${escapeHtml(diff.source || "diff")}</span></div>${fileHead}<pre class="diff-preview" aria-label="${escapeHtml(`${t("diff.previewAria")} · ${t("diff.oldLine")} / ${t("diff.newLine")}`)}">${diffBody}</pre><details class="file-current" open><summary>${escapeHtml(state.locale === "zh" ? "当前文件内容" : "Current file")}</summary><pre class="file-preview">${escapeHtml(data.content || "")}</pre></details>`);
   } catch (error) {
     openPanel(t("panel.file"), `<div class="error-panel">${escapeHtml(error.message)}</div>`);
   }
@@ -2505,7 +3357,33 @@ function openSettingsPanel() {
   const languageButtons = "<div class=\"settings-block\"><span>" + t("panel.language") + "</span><strong>" + current + "</strong><div class=\"settings-locale\"><button class=\"locale-option " + (state.locale === "zh" ? "active" : "") + "\" data-set-locale=\"zh\">中文</button><button class=\"locale-option " + (state.locale === "en" ? "active" : "") + "\" data-set-locale=\"en\">English</button></div></div>";
   const reasoningBlock = "<div class=\"settings-block\"><span>" + t("panel.reasoning") + "</span><div class=\"settings-effort\"><select id=\"reasoningEffortSelect\" aria-label=\"" + escapeHtml(t("panel.reasoning")) + "\">" + effortMarkup + "</select></div><small class=\"settings-note\">" + escapeHtml(t("panel.reasoningNote")) + "</small></div>";
   const sandboxBlock = "<div class=\"settings-block\"><span>" + t("panel.sandbox") + "</span><strong>" + (state.locale === "zh" ? "见工作区面板" : "See Workspaces") + "</strong></div>";
-  openPanel(t("panel.settings"), languageButtons + reasoningBlock + sandboxBlock);
+  const rewindBlock = "<div class=\"settings-block settings-rewind\"><span>" + escapeHtml(t("rewind.title")) + "</span><form id=\"rewindForm\" class=\"rewind-form\"><label class=\"rewind-label\"><span>" + escapeHtml(t("rewind.keepLabel")) + "</span><input id=\"rewindKeep\" type=\"number\" min=\"1\" value=\"3\" required aria-label=\"" + escapeHtml(t("rewind.keepLabel")) + "\" /></label><button class=\"send-button rewind-button\" type=\"submit\">" + escapeHtml(t("rewind.action")) + "</button></form><small class=\"settings-note\">" + escapeHtml(t("rewind.hint")) + "</small></div>";
+  openPanel(t("panel.settings"), languageButtons + reasoningBlock + sandboxBlock + rewindBlock);
+  const rewindForm = $("#rewindForm");
+  if (rewindForm) {
+    rewindForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const keepInput = $("#rewindKeep");
+      if (!(keepInput instanceof HTMLInputElement)) return;
+      const keepMessages = Number(keepInput.value || 0);
+      if (!Number.isFinite(keepMessages) || keepMessages < 1) {
+        showToast(t("rewind.fail"));
+        return;
+      }
+      try {
+        const outcome = await requestJson("/api/sessions/rewind", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ session_id: state.sessionId, keep_messages: keepMessages }),
+        }, 20000);
+        closePanel();
+        showToast(`${t("rewind.done")} -${outcome.removed || 0}`);
+        setSession(state.sessionId);
+      } catch (error) {
+        showToast(`${t("rewind.fail")}: ${error.message}`);
+      }
+    });
+  }
 }
 
 function openPromoPanel() {
@@ -4234,6 +5112,18 @@ function bindUI() {
     localStorage.setItem("minicc-network", String(state.allowNetwork));
     showToast(state.allowNetwork ? (state.locale === "zh" ? "已允许当前任务联网搜索" : "Web search enabled for new requests") : (state.locale === "zh" ? "已关闭联网搜索" : "Web search disabled"));
   });
+  $("#permModeGroup").addEventListener("click", (event) => {
+    const option = event.target.closest(".perm-mode-option[data-mode]");
+    if (option) setPermissionMode(option.dataset.mode);
+  });
+  $("#permModeGroup").addEventListener("keydown", (event) => {
+    if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) return;
+    event.preventDefault();
+    const index = PERMISSION_MODES.indexOf(state.permissionMode);
+    const delta = event.key === "ArrowLeft" || event.key === "ArrowUp" ? -1 : 1;
+    setPermissionMode(PERMISSION_MODES[(index + delta + PERMISSION_MODES.length) % PERMISSION_MODES.length]);
+  });
+  $("#todoSectionToggle").addEventListener("click", () => toggleTodoSection());
   $("#localeZh").addEventListener("click", () => setLocale("zh"));
   $("#localeEn").addEventListener("click", () => setLocale("en"));
   $("#themeButton").addEventListener("click", () => setTheme(state.theme === "light" ? "dark" : "light"));
@@ -4241,6 +5131,7 @@ function bindUI() {
   $("#moreOptionsButton").addEventListener("click", openOptionsPanel);
   $("#reasoningButton").addEventListener("click", openSettingsPanel);
   $("#moreTasksButton").addEventListener("click", openTaskListPanel);
+  $("#globalSearchButton").addEventListener("click", openGlobalSearchPanel);
   $("#taskDockOpen").addEventListener("click", openActivityPanel);
   $("#batchButton").addEventListener("click", openBatchPanel);
   $("#attachButton").addEventListener("click", () => $("#imageInput").click());
@@ -4260,6 +5151,13 @@ function bindUI() {
   $("#panelExpand").addEventListener("click", togglePanelFullscreen);
   $("#panelModal").addEventListener("click", (event) => { if (event.target.id === "panelModal") closePanel(); });
   $("#refreshFiles").addEventListener("click", () => { loadWorkspace(); showToast(state.locale === "zh" ? "工作区状态已刷新" : "Workspace refreshed"); });
+  $("#refreshFileTree").addEventListener("click", refreshFileTree);
+  $("#fileTree").addEventListener("click", (event) => {
+    const dirRow = event.target.closest("[data-tree-dir]");
+    if (dirRow) { toggleFileDir(dirRow.dataset.treeDir); return; }
+    const fileRow = event.target.closest("[data-open-diff]");
+    if (fileRow) openFilePreview(fileRow.dataset.openDiff);
+  });
   $$(".inspector-tab").forEach((button) => button.addEventListener("click", () => switchInspectorTab(button.dataset.inspectorTab)));
   $("#fileList").addEventListener("click", (event) => {
     const target = event.target.closest("[data-open-diff]");
@@ -4386,7 +5284,8 @@ function bindUI() {
       if (messages.length < 2) { showToast(state.locale === "zh" ? "至少填写 2 个子任务" : "Add at least 2 subtasks"); return; }
       try {
         const sharedContext = String(form.elements.namedItem("shared_context")?.value || "").trim();
-        const created = await requestJson("/api/tasks/batch", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages, shared_context: sharedContext, message: state.locale === "zh" ? "并行执行多个独立子任务" : "Run independent subtasks in parallel", session_id: state.sessionId, allow_changes: state.allowChanges, allow_network: state.allowNetwork, reasoning_effort: state.reasoningEffort, workspace_path: state.workspacePath }) });
+        const permissions = effectiveTaskPermissions();
+        const created = await requestJson("/api/tasks/batch", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages, shared_context: sharedContext, message: state.locale === "zh" ? "并行执行多个独立子任务" : "Run independent subtasks in parallel", session_id: state.sessionId, permission_mode: permissions.mode, allow_changes: permissions.allowChanges, allow_network: permissions.allowNetwork, reasoning_effort: state.reasoningEffort, workspace_path: state.workspacePath }) });
         const task = await requestJson(`/api/tasks/${encodeURIComponent(created.task_id)}`);
         closePanel();
         addUserMessage(task.message || (state.locale === "zh" ? "并行执行多个独立子任务" : "Run independent subtasks in parallel"));
@@ -4431,9 +5330,27 @@ function bindUI() {
     } catch (error) { showToast(error.message); }
   });
   $("#promptInput").addEventListener("keydown", (event) => {
+    if (handleMentionKeydown(event)) return;
     if (event.key !== "Enter" || event.shiftKey || event.isComposing) return;
     event.preventDefault();
     sendMessage(event);
+  });
+  $("#promptInput").addEventListener("input", updateMentionPopover);
+  // Arrow-key caret moves do not fire "input"; keep the @-token in sync.
+  $("#promptInput").addEventListener("keyup", (event) => {
+    if (["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) updateMentionPopover();
+  });
+  // preventDefault on mousedown keeps the textarea caret (and its selection)
+  // intact while the user clicks a mention option.
+  $("#mentionPopover").addEventListener("mousedown", (event) => event.preventDefault());
+  $("#mentionPopover").addEventListener("click", (event) => {
+    const option = event.target.closest("[data-mention-index]");
+    if (option) applyMentionOption(Number(option.dataset.mentionIndex));
+  });
+  document.addEventListener("click", (event) => {
+    if (!mentionState.open) return;
+    if (event.target === $("#promptInput") || $("#mentionPopover")?.contains(event.target)) return;
+    closeMentionPopover();
   });
   $("#threadList").addEventListener("click", (event) => {
     const item = event.target.closest(".thread-item");
@@ -4445,6 +5362,8 @@ function bindUI() {
     const query = event.target.value.toLowerCase();
     $$(".thread-item").forEach((item) => { item.hidden = !item.textContent.toLowerCase().includes(query); });
   });
+  const authForm = $("#authForm");
+  if (authForm) authForm.addEventListener("submit", submitAuthToken);
 }
 
 document.addEventListener("DOMContentLoaded", () => {

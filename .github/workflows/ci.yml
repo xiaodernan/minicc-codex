@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  pytest:
+    name: Python tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # Windows matches the primary development machine; Ubuntu guards
+        # against POSIX-only assumptions in path/encoding handling.
+        os: [windows-latest, ubuntu-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install package with dev extras
+        run: pip install -e ".[dev]"
+      - name: Run test suite
+        run: python -m pytest tests/ -q
+
+  js-check:
+    name: JavaScript syntax
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax-check frontend and test scripts
+        run: |
+          node --check web/app.js
+          node --check tests/web_smoke.mjs
+          node --check tests/game_upgrade_smoke.mjs
+          node --check tests/zombie_spawn_smoke.mjs
+
+  web-smoke:
+    name: Playwright web smoke
+    runs-on: ubuntu-latest
+    needs: js-check
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Python package
+        run: pip install -e ".[dev]"
+      - name: Install Playwright and Chromium
+        run: |
+          npm ci
+          npx playwright install chromium --with-deps
+      - name: Start minicc web server
+        env:
+          MINICC_API_KEY: dummy-key-for-smoke
+          MINICC_BASE_URL: https://example.invalid/v1
+        run: |
+          python -m minicc.web --workspace . --port 8765 > server.log 2>&1 &
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8765/api/health > /dev/null; then
+              echo "server ready"; break
+            fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:8765/api/health
+      - name: Run web smoke
+        env:
+          MINICC_WEB_URL: http://127.0.0.1:8765
+        run: npm run test:web
+      - name: Upload server log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-log
+          path: server.log
