@@ -1748,3 +1748,140 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
  * scrollbars and anchors stable; intrinsic size approximates one message. */
 #messageList > .message { contain-intrinsic-size: auto 140px; content-visibility: auto; }
 .execution-trail > details { contain-intrinsic-size: auto 96px; content-visibility: auto; }
+
+/* ---------------------------------------------------------------------------
+ * Visual polish pass (2026-09): depth, gradient accents and calmer surfaces.
+ * Only colors / shadows / borders / motion change — geometry, font metrics and
+ * layout stay identical so viewport, overflow and contrast contracts hold.
+ * ------------------------------------------------------------------------- */
+
+/* Ambient canvas: a faint coral/blue aura keeps the dark surface from reading
+ * as a flat void. The glow scrolls with content, so it never causes overflow. */
+.chat-area {
+  background:
+    radial-gradient(620px 260px at 16% -6%, rgba(242, 141, 109, .08), transparent 70%),
+    radial-gradient(760px 320px at 92% -10%, rgba(156, 183, 240, .07), transparent 72%),
+    var(--surface);
+  background-attachment: local, local, local;
+}
+:root[data-theme="light"] .chat-area {
+  background:
+    radial-gradient(620px 260px at 16% -6%, rgba(185, 79, 52, .05), transparent 70%),
+    radial-gradient(760px 320px at 92% -10%, rgba(53, 95, 190, .05), transparent 72%),
+    var(--surface);
+  background-attachment: local, local, local;
+}
+
+/* Primary actions share one coral gradient with a soft outer glow. */
+.brand-mark,
+.agent-avatar {
+  background: linear-gradient(140deg, #ffb08d 0%, var(--coral) 55%, #e06844 100%);
+  box-shadow: 0 6px 16px rgba(242, 141, 109, .30), inset 0 1px 0 rgba(255, 255, 255, .28);
+}
+.agent-avatar { box-shadow: 0 3px 10px rgba(242, 141, 109, .30), inset 0 1px 0 rgba(255, 255, 255, .22); }
+.new-task-button,
+.send-button {
+  background: linear-gradient(140deg, #ffa37e 0%, var(--coral) 55%, #e06844 100%);
+  box-shadow: 0 5px 14px rgba(242, 141, 109, .24), inset 0 1px 0 rgba(255, 255, 255, .22);
+}
+.new-task-button:hover,
+.send-button:hover {
+  background: linear-gradient(140deg, #ffb593 0%, #f79b78 55%, #ea7350 100%);
+  box-shadow: 0 8px 20px rgba(242, 141, 109, .34), inset 0 1px 0 rgba(255, 255, 255, .26);
+}
+.send-button:disabled { box-shadow: none; }
+:root[data-theme="light"] .brand-mark,
+:root[data-theme="light"] .agent-avatar,
+:root[data-theme="light"] .new-task-button,
+:root[data-theme="light"] .send-button {
+  background: linear-gradient(140deg, #d96347 0%, var(--coral) 55%, #a8442b 100%);
+  box-shadow: 0 5px 14px rgba(185, 79, 52, .26), inset 0 1px 0 rgba(255, 255, 255, .20);
+}
+:root[data-theme="light"] .new-task-button:hover,
+:root[data-theme="light"] .send-button:hover {
+  background: linear-gradient(140deg, #e07052 0%, #c45537 55%, #b04a2f 100%);
+  box-shadow: 0 8px 20px rgba(185, 79, 52, .32), inset 0 1px 0 rgba(255, 255, 255, .24);
+}
+
+/* Connection pill: an explicit, calmer "all good" state instead of invisible. */
+.connection-status:not(.offline) {
+  background: var(--mint-soft);
+  border: 1px solid rgba(140, 215, 189, .34);
+  border-radius: 999px;
+  color: var(--mint);
+  padding: 5px 10px;
+}
+.status-pulse { box-shadow: 0 0 0 3px rgba(140, 215, 189, .14), 0 0 8px rgba(140, 215, 189, .55); }
+
+/* Session heading: tighter tracking for a more deliberate page title. */
+.session-kicker { align-items: center; }
+.session-heading h1 { letter-spacing: -.2px; }
+
+/* Empty-state action cards: lift + warm gradient on hover. */
+.empty-actions button { transition: border-color .18s ease, background .18s ease, box-shadow .18s ease, transform .18s ease; }
+.empty-actions button:hover {
+  background: linear-gradient(160deg, var(--coral-soft), var(--surface-soft) 72%);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, .22);
+  transform: translateY(-2px);
+}
+.empty-actions button:hover svg { color: var(--coral); }
+:root[data-theme="light"] .empty-actions button:hover { box-shadow: 0 10px 22px rgba(31, 40, 55, .12); }
+
+/* Tool timeline cards: rounder, clearer success tint, gentler hover. */
+.tool-event { border-radius: 8px; }
+.tool-event:hover { border-color: var(--line-bright); }
+:root:not([data-theme="light"]) .tool-event.completed { border-color: rgba(140, 215, 189, .30); }
+:root:not([data-theme="light"]) .tool-event.completed:hover { border-color: rgba(140, 215, 189, .52); }
+.tool-check { box-shadow: 0 0 0 2px rgba(140, 215, 189, .10); }
+
+/* Answer callout: fade the accent rule instead of a hard stop. */
+.answer-callout {
+  border-left: 2px solid transparent;
+  border-image: linear-gradient(180deg, var(--mint), rgba(140, 215, 189, .12)) 1;
+}
+:root[data-theme="light"] .answer-callout {
+  border-image: linear-gradient(180deg, var(--mint), rgba(24, 119, 94, .12)) 1;
+}
+
+/* Composer: brighter focus ring with a warm halo. */
+.composer-shell:focus-within {
+  border-color: var(--coral);
+  box-shadow: 0 0 0 3px rgba(242, 141, 109, .16), 0 14px 34px rgba(0, 0, 0, .22);
+}
+:root[data-theme="light"] .composer-shell:focus-within {
+  box-shadow: 0 0 0 3px rgba(185, 79, 52, .15), 0 12px 30px rgba(31, 40, 55, .12);
+}
+
+/* Inspector cards: subtle vertical gradient gives the rail gentle depth. */
+:root:not([data-theme="light"]) .pulse-card {
+  background: linear-gradient(180deg, var(--surface-raised), var(--surface));
+  border-radius: 10px;
+}
+:root:not([data-theme="light"]) .verification-card,
+:root:not([data-theme="light"]) .change-item-button:hover { border-radius: 10px; }
+
+/* Sidebar threads: active item gets a soft coral edge glow. */
+.thread-item.active { box-shadow: inset 0 0 0 1px var(--line), -2px 0 8px -2px rgba(242, 141, 109, .35); }
+
+/* Scrollbars: slimmer thumb with a padded track, brighter on hover. */
+.sidebar::-webkit-scrollbar-thumb,
+.inspector::-webkit-scrollbar-thumb,
+.chat-area::-webkit-scrollbar-thumb {
+  background: var(--line-bright);
+  background-clip: padding-box;
+  border: 2px solid transparent;
+  border-radius: 8px;
+}
+.sidebar::-webkit-scrollbar-thumb:hover,
+.inspector::-webkit-scrollbar-thumb:hover,
+.chat-area::-webkit-scrollbar-thumb:hover {
+  background: var(--quiet);
+  background-clip: padding-box;
+}
+
+/* Live task dock pulse: coral glow so a running task reads at a glance. */
+.task-dock-pulse { box-shadow: 0 0 8px rgba(242, 141, 109, .55); }
+
+@media (prefers-reduced-motion: reduce) {
+  .empty-actions button:hover { transform: none; }
+}

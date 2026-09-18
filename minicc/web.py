@@ -918,6 +918,11 @@ class AgentService:
                 max_agent_recoveries = max_provider_recoveries
                 completion_review_failures = 0
                 completion_review_attempt = 0
+                # Bound completion-judge "continue" loops so a reviewer that keeps
+                # requesting more work cannot re-run the agent until the shared
+                # turn budget is exhausted with nothing new to show.
+                max_completion_continues = max(1, int(getattr(self.config, "max_completion_continues", 3)))
+                completion_continues = 0
                 verification_guard_error = "Agent 在修改工作区后没有完成验证"
 
                 fallback_cursor = {"index": 0}
@@ -1647,6 +1652,31 @@ class AgentService:
                     if decision.status == "complete":
                         break
                     if decision.status == "continue":
+                        completion_continues += 1
+                        if completion_continues > max_completion_continues:
+                            aggregate.error = (
+                                f"完成评估连续 {completion_continues} 轮要求继续但未收敛，已按上限停止；"
+                                "请根据缺失项检查后重新提交任务"
+                            )
+                            aggregate.answer = f"任务未完成：{aggregate.error}"
+                            capped_event = {
+                                "kind": "trace",
+                                "name": "completion_judge",
+                                "status": "error",
+                                "phase": "review",
+                                "code": "completion_continue_capped",
+                                "summary": "完成评估多轮要求继续但未收敛，已停止以避免无限重跑",
+                                "detail": {
+                                    "rounds": completion_continues,
+                                    "limit": max_completion_continues,
+                                    "missing": list(decision.missing),
+                                    "next_action": decision.next_action,
+                                },
+                            }
+                            events.append(capped_event)
+                            if on_event is not None:
+                                on_event(capped_event)
+                            break
                         messages.append(user_msg(_completion_followup(decision)))
                         continue
                     if decision.status == "blocked":

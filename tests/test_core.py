@@ -580,7 +580,7 @@ def test_agent_service_preflights_complex_tasks_with_a_safe_model_plan(
                     "rationale": "只读检查已完成，证据足够交付。",
                     "missing": [],
                     "next_action": "",
-                    "evidence": ["planner", "agent"],
+                    "evidence": _completion_evidence_ids(messages),
                 }, ensure_ascii=False))
             calls["agent"] += 1
             return LLMResponse(content="已完成复杂只读检查并整理风险。")
@@ -997,6 +997,70 @@ def test_completion_judge_replans_text_only_reply_until_workspace_is_ready(
     assert any(event.get("code") == "completion_complete" for event in result["events"])
     assert "game.html" in restore(tmp_path, "completion-rewind")["removed"]
     assert not (tmp_path / "game.html").exists()
+
+def test_completion_continue_loop_is_capped_instead_of_burning_turn_budget(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = {"agent": 0, "judge": 0}
+
+    class FakeProvider:
+        def __init__(self, **_kwargs) -> None:
+            pass
+
+        async def chat(self, messages, tools, on_delta=None):
+            if tools is None:
+                calls["judge"] += 1
+                return LLMResponse(content=json.dumps({
+                    "status": "continue",
+                    "confidence": 0.5,
+                    "rationale": "还差最后一项检查。",
+                    "missing": ["再做一轮检查"],
+                    "next_action": "继续检查",
+                    "evidence": [],
+                }, ensure_ascii=False))
+            calls["agent"] += 1
+            return LLMResponse(content="已完成当前检查。")
+
+        async def close(self) -> None:
+            return None
+
+    monkeypatch.setattr("minicc.web.OpenAICompatibleProvider", FakeProvider)
+    config = SimpleNamespace(
+        yolo=False,
+        max_concurrent_tasks=2,
+        sandbox_mode="host",
+        sandbox_image="python:3.11-slim",
+        base_url="https://example.test/v1",
+        api_key="test-key",
+        model="test-model",
+        timeout=10,
+        tool_mode="auto",
+        reasoning_effort="high",
+        max_turns=40,
+        compact_threshold=300_000,
+        context_window_tokens=300_000,
+    )
+    service = AgentService(tmp_path, config)
+    try:
+        result = service._chat_locked(
+            {
+                "message": "检查当前工作区状态并总结。",
+                "session_id": "completion-capped",
+                "allow_changes": False,
+                "workspace_path": str(tmp_path),
+            },
+            workspace=tmp_path,
+        )
+    finally:
+        service.shutdown()
+    assert result["error"] is not None
+    assert "未收敛" in result["error"]
+    assert "预算超限" not in result["error"]
+    assert calls["judge"] == 4  # initial review + 3 bounded continue rounds
+    assert any(event.get("code") == "completion_continue_capped" for event in result["events"])
+
+
 
 
 def test_search_parser_supports_duckduckgo_lite_redirects() -> None:
