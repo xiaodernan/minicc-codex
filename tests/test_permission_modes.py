@@ -133,9 +133,9 @@ def test_resolve_task_permissions_modes(tmp_path: Path) -> None:
     changes, network, mode = _resolve_task_permissions(
         {"permission_mode": "plan", "allow_changes": True}, yolo=False
     )
-    # plan keeps the raw flag; authorize_tool combines mode + flags, so the
-    # raw flag staying True is safe (write is still denied by mode).
-    assert (changes, network, mode) == (True, False, "plan")
+    # Both transports carry effective permissions. A conflicting raw flag
+    # must not survive plan normalization into a later execution adapter.
+    assert (changes, network, mode) == (False, False, "plan")
 
     with pytest.raises(ValueError, match="permission_mode"):
         _resolve_task_permissions({"permission_mode": "chaos"}, yolo=False)
@@ -150,7 +150,7 @@ def test_snapshot_round_trip_preserves_permission_mode(tmp_path: Path) -> None:
         task_id = submitted["task_id"]
         snapshot = service.tasks.get(task_id)
         assert snapshot["permission_mode"] == "plan"
-        assert snapshot["allow_changes"] is True  # raw flag preserved
+        assert snapshot["allow_changes"] is False
 
         submitted_yolo = service.tasks.submit(
             {"message": "全自动", "permission_mode": "yolo"}

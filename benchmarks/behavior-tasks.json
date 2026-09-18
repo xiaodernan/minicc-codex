@@ -1,0 +1,779 @@
+[
+  {
+    "id": "behavior-clamp",
+    "category": "edit",
+    "suite_version": "behavior-1",
+    "prompt": "修复 solution.py 中的 clamp。要求：将数值限制到闭区间 [lower, upper]，上下界颠倒时抛 ValueError。 请添加有针对性的本地测试，保持函数签名。",
+    "fixture": {
+      "solution.py": "def clamp(value, lower, upper):\n    return max(value, upper)\n",
+      "README.md": "将数值限制到闭区间 [lower, upper]，上下界颠倒时抛 ValueError。\n"
+    },
+    "grader": {
+      "type": "python_behavior",
+      "function": "clamp",
+      "cases": [
+        [
+          [
+            -3,
+            0,
+            10
+          ],
+          0
+        ],
+        [
+          [
+            15,
+            0,
+            10
+          ],
+          10
+        ],
+        [
+          [
+            5,
+            0,
+            10
+          ],
+          5
+        ],
+        [
+          [
+            0,
+            0,
+            0
+          ],
+          0
+        ]
+      ],
+      "raises": [
+        [
+          [
+            0,
+            3,
+            1
+          ],
+          "ValueError"
+        ]
+      ],
+      "preserve_inputs": true
+    }
+  },
+  {
+    "id": "behavior-chunks",
+    "category": "edit",
+    "suite_version": "behavior-1",
+    "prompt": "修复 solution.py 中的 chunks。要求：按正整数 size 分块，保留最后不足一块的数据，空输入返回空列表；size<=0 抛 ValueError。 请添加有针对性的本地测试，保持函数签名。",
+    "fixture": {
+      "solution.py": "def chunks(items, size):\n    return [items[:size]]\n",
+      "README.md": "按正整数 size 分块，保留最后不足一块的数据，空输入返回空列表；size<=0 抛 ValueError。\n"
+    },
+    "grader": {
+      "type": "python_behavior",
+      "function": "chunks",
+      "cases": [
+        [
+          [
+            [
+              1,
+              2,
+              3,
+              4,
+              5
+            ],
+            2
+          ],
+          [
+            [
+              1,
+              2
+            ],
+            [
+              3,
+              4
+            ],
+            [
+              5
+            ]
+          ]
+        ],
+        [
+          [
+            [],
+            3
+          ],
+          []
+        ],
+        [
+          [
+            [
+              1,
+              2
+            ],
+            4
+          ],
+          [
+            [
+              1,
+              2
+            ]
+          ]
+        ]
+      ],
+      "raises": [
+        [
+          [
+            [
+              1
+            ],
+            0
+          ],
+          "ValueError"
+        ],
+        [
+          [
+            [
+              1
+            ],
+            -1
+          ],
+          "ValueError"
+        ]
+      ],
+      "preserve_inputs": true
+    }
+  },
+  {
+    "id": "behavior-dedupe",
+    "category": "edit",
+    "suite_version": "behavior-1",
+    "prompt": "修复 solution.py 中的 dedupe。要求：保持输入顺序去重，支持相等的列表元素（不能要求元素可哈希）。 请添加有针对性的本地测试，保持函数签名。",
+    "fixture": {
+      "solution.py": "def dedupe(items):\n    return sorted(set(items))\n",
+      "README.md": "保持输入顺序去重，支持相等的列表元素（不能要求元素可哈希）。\n"
+    },
+    "grader": {
+      "type": "python_behavior",
+      "function": "dedupe",
+      "cases": [
+        [
+          [
+            [
+              3,
+              1,
+              3,
+              2,
+              1
+            ]
+          ],
+          [
+            3,
+            1,
+            2
+          ]
+        ],
+        [
+          [
+            []
+          ],
+          []
+        ],
+        [
+          [
+            [
+              [
+                1
+              ],
+              [
+                2
+              ],
+              [
+                1
+              ]
+            ]
+          ],
+          [
+            [
+              1
+            ],
+            [
+              2
+            ]
+          ]
+        ]
+      ],
+      "raises": [],
+      "preserve_inputs": true
+    }
+  },
+  {
+    "id": "behavior-median",
+    "category": "edit",
+    "suite_version": "behavior-1",
+    "prompt": "修复 solution.py 中的 median。要求：返回排序后的中位数，偶数项取中间两项均值；不修改原输入；空输入抛 ValueError。 请添加有针对性的本地测试，保持函数签名。",
+    "fixture": {
+      "solution.py": "def median(items):\n    return items[len(items)//2]\n",
+      "README.md": "返回排序后的中位数，偶数项取中间两项均值；不修改原输入；空输入抛 ValueError。\n"
+    },
+    "grader": {
+      "type": "python_behavior",
+      "function": "median",
+      "cases": [
+        [
+          [
+            [
+              9,
+              1,
+              4
+            ]
+          ],
+          4
+        ],
+        [
+          [
+            [
+              4,
+              1,
+              3,
+              2
+            ]
+          ],
+          2.5
+        ],
+        [
+          [
+            [
+              -4,
+              -2
+            ]
+          ],
+          -3
+        ]
+      ],
+      "raises": [
+        [
+          [
+            []
+          ],
+          "ValueError"
+        ]
+      ],
+      "preserve_inputs": true
+    }
+  },
+  {
+    "id": "behavior-slugify",
+    "category": "edit",
+    "suite_version": "behavior-1",
+    "prompt": "修复 solution.py 中的 slugify。要求：生成 URL slug：转小写，连续非 ASCII 字母数字替换为一个横线，去掉首尾横线。 请添加有针对性的本地测试，保持函数签名。",
+    "fixture": {
+      "solution.py": "def slugify(text):\n    return text.lower().replace(' ', '-')\n",
+      "README.md": "生成 URL slug：转小写，连续非 ASCII 字母数字替换为一个横线，去掉首尾横线。\n"
+    },
+    "grader": {
+      "type": "python_behavior",
+      "function": "slugify",
+      "cases": [
+        [
+          [
+            "  Hello, World!  "
+          ],
+          "hello-world"
+        ],
+        [
+          [
+            "A___B"
+          ],
+          "a-b"
+        ],
+        [
+          [
+            "***"
+          ],
+          ""
+        ],
+        [
+          [
+            "One 2 THREE"
+          ],
+          "one-2-three"
+        ]
+      ],
+      "raises": [],
+      "preserve_inputs": true
+    }
+  },
+  {
+    "id": "behavior-merge_counts",
+    "category": "edit",
+    "suite_version": "behavior-1",
+    "prompt": "修复 solution.py 中的 merge_counts。要求：合并多个字典的计数，同键相加；不修改传入字典；空列表返回空字典。 请添加有针对性的本地测试，保持函数签名。",
+    "fixture": {
+      "solution.py": "def merge_counts(items):\n    result = {}\n    for item in items:\n        result.update(item)\n    return result\n",
+      "README.md": "合并多个字典的计数，同键相加；不修改传入字典；空列表返回空字典。\n"
+    },
+    "grader": {
+      "type": "python_behavior",
+      "function": "merge_counts",
+      "cases": [
+        [
+          [
+            [
+              {
+                "a": 2
+              },
+              {
+                "a": 3,
+                "b": 1
+              }
+            ]
+          ],
+          {
+            "a": 5,
+            "b": 1
+          }
+        ],
+        [
+          [
+            []
+          ],
+          {}
+        ],
+        [
+          [
+            [
+              {
+                "x": -2
+              },
+              {
+                "x": 1
+              }
+            ]
+          ],
+          {
+            "x": -1
+          }
+        ]
+      ],
+      "raises": [],
+      "preserve_inputs": true
+    }
+  },
+  {
+    "id": "behavior-parse_bool",
+    "category": "edit",
+    "suite_version": "behavior-1",
+    "prompt": "修复 solution.py 中的 parse_bool。要求：解析布尔字符串，忽略首尾空白及大小写；true/1/yes 为真，false/0/no 为假；其他值抛 ValueError。 请添加有针对性的本地测试，保持函数签名。",
+    "fixture": {
+      "solution.py": "def parse_bool(text):\n    return bool(text)\n",
+      "README.md": "解析布尔字符串，忽略首尾空白及大小写；true/1/yes 为真，false/0/no 为假；其他值抛 ValueError。\n"
+    },
+    "grader": {
+      "type": "python_behavior",
+      "function": "parse_bool",
+      "cases": [
+        [
+          [
+            "false"
+          ],
+          false
+        ],
+        [
+          [
+            " TRUE "
+          ],
+          true
+        ],
+        [
+          [
+            "0"
+          ],
+          false
+        ],
+        [
+          [
+            "Yes"
+          ],
+          true
+        ],
+        [
+          [
+            " no "
+          ],
+          false
+        ]
+      ],
+      "raises": [
+        [
+          [
+            "maybe"
+          ],
+          "ValueError"
+        ],
+        [
+          [
+            ""
+          ],
+          "ValueError"
+        ]
+      ],
+      "preserve_inputs": true
+    }
+  },
+  {
+    "id": "behavior-paginate",
+    "category": "edit",
+    "suite_version": "behavior-1",
+    "prompt": "修复 solution.py 中的 paginate。要求：页码从 1 起，size 必须为正数；返回指定页，超出范围返回空列表；page<1 或 size<1 抛 ValueError。 请添加有针对性的本地测试，保持函数签名。",
+    "fixture": {
+      "solution.py": "def paginate(items, page, size):\n    return items[page*size:(page+1)*size]\n",
+      "README.md": "页码从 1 起，size 必须为正数；返回指定页，超出范围返回空列表；page<1 或 size<1 抛 ValueError。\n"
+    },
+    "grader": {
+      "type": "python_behavior",
+      "function": "paginate",
+      "cases": [
+        [
+          [
+            [
+              1,
+              2,
+              3,
+              4,
+              5
+            ],
+            1,
+            2
+          ],
+          [
+            1,
+            2
+          ]
+        ],
+        [
+          [
+            [
+              1,
+              2,
+              3,
+              4,
+              5
+            ],
+            3,
+            2
+          ],
+          [
+            5
+          ]
+        ],
+        [
+          [
+            [
+              1
+            ],
+            9,
+            2
+          ],
+          []
+        ]
+      ],
+      "raises": [
+        [
+          [
+            [
+              1
+            ],
+            0,
+            2
+          ],
+          "ValueError"
+        ],
+        [
+          [
+            [
+              1
+            ],
+            1,
+            0
+          ],
+          "ValueError"
+        ]
+      ],
+      "preserve_inputs": true
+    }
+  },
+  {
+    "id": "behavior-interval_overlap",
+    "category": "edit",
+    "suite_version": "behavior-1",
+    "prompt": "修复 solution.py 中的 interval_overlap。要求：计算两个半开区间 [start,end) 的重叠长度；不重叠或相接返回 0；任一区间 end<start 抛 ValueError。 请添加有针对性的本地测试，保持函数签名。",
+    "fixture": {
+      "solution.py": "def interval_overlap(a, b):\n    return min(a[1], b[1]) - max(a[0], b[0])\n",
+      "README.md": "计算两个半开区间 [start,end) 的重叠长度；不重叠或相接返回 0；任一区间 end<start 抛 ValueError。\n"
+    },
+    "grader": {
+      "type": "python_behavior",
+      "function": "interval_overlap",
+      "cases": [
+        [
+          [
+            [
+              0,
+              5
+            ],
+            [
+              3,
+              7
+            ]
+          ],
+          2
+        ],
+        [
+          [
+            [
+              0,
+              1
+            ],
+            [
+              2,
+              4
+            ]
+          ],
+          0
+        ],
+        [
+          [
+            [
+              0,
+              3
+            ],
+            [
+              3,
+              6
+            ]
+          ],
+          0
+        ],
+        [
+          [
+            [
+              -4,
+              4
+            ],
+            [
+              -1,
+              1
+            ]
+          ],
+          2
+        ]
+      ],
+      "raises": [
+        [
+          [
+            [
+              4,
+              1
+            ],
+            [
+              0,
+              3
+            ]
+          ],
+          "ValueError"
+        ]
+      ],
+      "preserve_inputs": true
+    }
+  },
+  {
+    "id": "behavior-moving_average",
+    "category": "edit",
+    "suite_version": "behavior-1",
+    "prompt": "修复 solution.py 中的 moving_average。要求：返回每个完整窗口的算术平均值，窗口不足返回空列表，窗口大小<=0 抛 ValueError；不改变输入。 请添加有针对性的本地测试，保持函数签名。",
+    "fixture": {
+      "solution.py": "def moving_average(items, window):\n    return [sum(items)/len(items)]\n",
+      "README.md": "返回每个完整窗口的算术平均值，窗口不足返回空列表，窗口大小<=0 抛 ValueError；不改变输入。\n"
+    },
+    "grader": {
+      "type": "python_behavior",
+      "function": "moving_average",
+      "cases": [
+        [
+          [
+            [
+              1,
+              2,
+              3,
+              4
+            ],
+            2
+          ],
+          [
+            1.5,
+            2.5,
+            3.5
+          ]
+        ],
+        [
+          [
+            [
+              1
+            ],
+            2
+          ],
+          []
+        ],
+        [
+          [
+            [],
+            1
+          ],
+          []
+        ],
+        [
+          [
+            [
+              -2,
+              2
+            ],
+            1
+          ],
+          [
+            -2,
+            2
+          ]
+        ]
+      ],
+      "raises": [
+        [
+          [
+            [
+              1
+            ],
+            0
+          ],
+          "ValueError"
+        ]
+      ],
+      "preserve_inputs": true
+    }
+  },
+  {
+    "id": "behavior-flatten_once",
+    "category": "edit",
+    "suite_version": "behavior-1",
+    "prompt": "修复 solution.py 中的 flatten_once。要求：只展开一层列表；非列表元素原样保留，字符串不能拆开；空列表返回空列表。 请添加有针对性的本地测试，保持函数签名。",
+    "fixture": {
+      "solution.py": "def flatten_once(items):\n    return [value for item in items for value in item]\n",
+      "README.md": "只展开一层列表；非列表元素原样保留，字符串不能拆开；空列表返回空列表。\n"
+    },
+    "grader": {
+      "type": "python_behavior",
+      "function": "flatten_once",
+      "cases": [
+        [
+          [
+            [
+              1,
+              [
+                2,
+                3
+              ],
+              "ab",
+              [],
+              [
+                [
+                  4
+                ]
+              ]
+            ]
+          ],
+          [
+            1,
+            2,
+            3,
+            "ab",
+            [
+              4
+            ]
+          ]
+        ],
+        [
+          [
+            []
+          ],
+          []
+        ],
+        [
+          [
+            [
+              null,
+              false
+            ]
+          ],
+          [
+            null,
+            false
+          ]
+        ]
+      ],
+      "raises": [],
+      "preserve_inputs": true
+    }
+  },
+  {
+    "id": "behavior-safe_divide",
+    "category": "edit",
+    "suite_version": "behavior-1",
+    "prompt": "修复 solution.py 中的 safe_divide。要求：除数为 0 时返回调用者给出的 default（默认 None）；其他情况正常除法，不吞掉类型错误。 请添加有针对性的本地测试，保持函数签名。",
+    "fixture": {
+      "solution.py": "def safe_divide(a, b, default=None):\n    return a / b\n",
+      "README.md": "除数为 0 时返回调用者给出的 default（默认 None）；其他情况正常除法，不吞掉类型错误。\n"
+    },
+    "grader": {
+      "type": "python_behavior",
+      "function": "safe_divide",
+      "cases": [
+        [
+          [
+            6,
+            3
+          ],
+          2
+        ],
+        [
+          [
+            6,
+            0
+          ],
+          null
+        ],
+        [
+          [
+            6,
+            0,
+            "n/a"
+          ],
+          "n/a"
+        ],
+        [
+          [
+            -3,
+            2
+          ],
+          -1.5
+        ]
+      ],
+      "raises": [
+        [
+          [
+            "bad",
+            2
+          ],
+          "TypeError"
+        ]
+      ],
+      "preserve_inputs": true
+    }
+  }
+]

@@ -99,6 +99,38 @@ class SessionStore:
         self._write_payload(payload)
         return {"kept": keep, "removed": total - keep, "backup": backup_path.name}
 
+    def rewind_to_user_index(self, user_index: int) -> dict[str, Any]:
+        """Keep through the Nth user message (1-based), including system.
+
+        Intervening assistant/tool messages before that user turn are kept;
+        everything after it is dropped. ``user_index`` counts only ``role=user``.
+        """
+        n = _non_negative_int(user_index)
+        if n < 1:
+            raise SessionError("user_index 至少为 1")
+        if not self.exists:
+            raise SessionError(f"会话不存在: {self.path.name}")
+        try:
+            payload = json.loads(self.path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise SessionError(f"无法读取 session {self.path}: {exc}") from exc
+        if not isinstance(payload, dict) or not isinstance(payload.get("messages"), list):
+            raise SessionError(f"session 格式错误: {self.path}")
+        messages = payload["messages"]
+        seen = 0
+        keep: int | None = None
+        for index, message in enumerate(messages):
+            if isinstance(message, dict) and message.get("role") == "user":
+                seen += 1
+                if seen == n:
+                    keep = index + 1
+                    break
+        if keep is None:
+            raise SessionError(f"会话中没有第 {n} 条 user 消息")
+        result = self.rewind(keep)
+        result["user_index"] = n
+        return result
+
     def _write_payload_at(self, target: Path, payload: dict[str, Any]) -> None:
         target.parent.mkdir(parents=True, exist_ok=True)
         temporary = target.with_suffix(".tmp")

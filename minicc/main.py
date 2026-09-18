@@ -12,6 +12,8 @@ from typing import Any, Callable, NoReturn
 from .agent.loop import TurnResult, run_agent
 from .agent.state import Budget
 from .agent.subagent import build_task_tool_spec
+from .allowlist import AllowlistError, add_session_rule
+from .audit import authorize_tool
 from .config import Config, ConfigError, load_config
 from .llm.base import system_msg, user_msg
 from .llm.openai_provider import OpenAICompatibleProvider
@@ -138,10 +140,15 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--base-url", help="OpenAI 兼容接口地址")
     parser.add_argument("--api-key", help="接口密钥；也可通过 MINICC_API_KEY 设置")
     parser.add_argument("--model", help="模型名")
-    parser.add_argument("--reasoning-effort", choices=("low", "mid", "high", "xhigh", "max"), help="推理强度")
+    parser.add_argument("--reasoning-effort", choices=("low", "mid", "high", "xhigh", "max", "ultra"), help="推理强度")
     parser.add_argument("--tool-mode", choices=("auto", "native", "envelope"), help="工具调用模式")
     parser.add_argument("--compact-threshold", type=int, help="上下文压缩字符阈值")
     parser.add_argument("--yolo", action="store_true", help="自动允许写文件和执行命令")
+    parser.add_argument(
+        "--allow-network",
+        action="store_true",
+        help="允许本会话的联网工具（web_search / webfetch）",
+    )
     parser.add_argument(
         "--permission-mode",
         choices=("default", "plan", "acceptEdits", "yolo"),
@@ -181,23 +188,53 @@ def _permission_gate(
     config: Config,
     registry: ToolRegistry,
     permission_mode: str = "default",
+    *,
+    allow_network: bool = False,
+    session_id: str = "",
+    workspace: Path | None = None,
 ) -> Callable[[str, ToolCall], bool]:
     def should_allow(name: str, call: ToolCall) -> bool:
         risk = registry.risk_of(name)
-        if risk not in ("write", "exec"):
+        decision = authorize_tool(
+            name,
+            risk,
+            call.arguments,
+            allow_changes=bool(config.yolo),
+            allow_network=bool(allow_network or config.yolo),
+            permission_mode="yolo" if config.yolo else permission_mode,
+            session_id=session_id,
+            workspace=workspace,
+        )
+        if decision.allowed:
             return True
-        if config.yolo or permission_mode == "yolo":
-            return True
-        if permission_mode == "plan":
-            print(f"\n[minicc] 计划模式已拒绝高风险工具 {name} ({_tool_preview(call)})")
+        if decision.authorization in {"plan_mode_write", "plan_mode_exec", "unknown_risk"}:
+            print(f"\n[minicc] 已拒绝 {name} ({_tool_preview(call)}): {decision.reason}")
             return False
-        if permission_mode == "acceptEdits" and risk == "write":
-            return True
+        if decision.authorization == "missing_task_network":
+            print(f"\n[minicc] 联网工具需要 --allow-network：{name} ({_tool_preview(call)})")
+            return False
+        if risk not in {"write", "exec"}:
+            print(f"\n[minicc] 已拒绝 {name} ({_tool_preview(call)}): {decision.reason}")
+            return False
         print(f"\n[minicc] 即将调用高风险工具 {name} ({_tool_preview(call)})")
         try:
-            answer = input("允许此次操作？[y/N] ").strip().lower()
+            answer = input("允许此次操作？[y/N/a] ").strip().lower()
         except EOFError:
             return False
+        if answer in {"a", "always", "always allow"}:
+            if workspace is not None and session_id:
+                try:
+                    kwargs: dict[str, str] = {"tool": name}
+                    if name == "bash":
+                        kwargs["command"] = str(call.arguments.get("command") or "").strip()
+                    path = call.arguments.get("path")
+                    if isinstance(path, str) and path.strip():
+                        kwargs["path"] = path.strip()
+                    add_session_rule(workspace, session_id, **kwargs)
+                    print("[minicc] 已写入本会话 allowlist")
+                except AllowlistError as exc:
+                    print(f"[minicc] allowlist 写入失败: {exc}")
+            return True
         return answer in {"y", "yes", "是"}
 
     return should_allow
@@ -221,6 +258,8 @@ async def _turn(
     *,
     stream: bool,
     permission_mode: str = "default",
+    allow_network: bool = False,
+    workspace: Path | None = None,
 ) -> TurnResult:
     messages.append(user_msg(prompt))
     if permission_mode == "plan":
@@ -229,6 +268,7 @@ async def _turn(
             "请完成调研后输出实施计划（目标、步骤、涉及文件、验证方式、风险）。"
         ))
     writer = StreamWriter() if stream else None
+    session_id = session.path.stem if session is not None else ""
     result = await run_agent(
         provider,
         registry,
@@ -238,11 +278,20 @@ async def _turn(
             max_turns=config.max_turns,
             max_tool_calls=config.max_tool_calls,
             max_duration_seconds=config.max_duration_seconds,
+            soft_max_tokens=getattr(config, "soft_max_tokens", None),
+            soft_max_duration_seconds=getattr(config, "soft_max_duration_seconds", None),
         ),
         compact_threshold=config.compact_threshold,
         on_stream=writer,
         on_tool=(lambda call, result: _print_tool(call, result, view)),
-        should_allow=_permission_gate(config, registry, permission_mode),
+        should_allow=_permission_gate(
+            config,
+            registry,
+            permission_mode,
+            allow_network=allow_network,
+            session_id=session_id,
+            workspace=workspace,
+        ),
     )
     if writer is None or not writer.started:
         print(f"\nassistant> {result.answer}")
@@ -267,6 +316,8 @@ async def _interactive(
     *,
     stream: bool,
     permission_mode: str = "default",
+    allow_network: bool = False,
+    workspace: Path | None = None,
 ) -> None:
     print("minicc 已启动。输入 /help 查看命令，输入 /exit 退出。")
     while True:
@@ -315,7 +366,19 @@ async def _interactive(
             if view is not None:
                 view.expand(prompt.removeprefix("/expand").strip())
             continue
-        await _turn(provider, registry, messages, config, prompt, session, view, stream=stream, permission_mode=permission_mode)
+        await _turn(
+            provider,
+            registry,
+            messages,
+            config,
+            prompt,
+            session,
+            view,
+            stream=stream,
+            permission_mode=permission_mode,
+            allow_network=allow_network,
+            workspace=workspace,
+        )
 
 
 def _fatal(message: str) -> NoReturn:
@@ -395,6 +458,8 @@ def main(argv: list[str] | None = None) -> int:
                     view,
                     stream=not args.no_stream,
                     permission_mode=args.permission_mode,
+                    allow_network=args.allow_network,
+                    workspace=workspace,
                 )
             else:
                 await _interactive(
@@ -406,6 +471,8 @@ def main(argv: list[str] | None = None) -> int:
                     view,
                     stream=not args.no_stream,
                     permission_mode=args.permission_mode,
+                    allow_network=args.allow_network,
+                    workspace=workspace,
                 )
         finally:
             await provider.close()

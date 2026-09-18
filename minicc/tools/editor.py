@@ -167,6 +167,8 @@ class Editor:
         backup_dir: str | Path | None = None,
         audit_path: str | Path | None = None,
         clock: Callable[[], str] | None = None,
+        before_write: Callable[[Path], None] | None = None,
+        after_write: Callable[[Path], None] | None = None,
     ) -> None:
         self.workspace = Path(workspace).resolve()
         self.backup_dir = (
@@ -175,6 +177,8 @@ class Editor:
         self.audit_path = Path(audit_path) if audit_path is not None else None
         self._clock = clock or _default_clock
         self.audit: list[AuditEntry] = []
+        self._before_write = before_write
+        self._after_write = after_write
 
     # -- internals -------------------------------------------------------
 
@@ -255,6 +259,8 @@ class Editor:
         return "CRLF" if b"\r\n" in head else "LF"
 
     def _atomic_write(self, target: Path, content: str, style: str) -> None:
+        if self._before_write is not None:
+            self._before_write(target)
         tmp = target.parent / f".{target.name}.{secrets.token_hex(6)}.tmp"
         normalized = content.replace("\r\n", "\n")
         if style == "CRLF":
@@ -263,6 +269,8 @@ class Editor:
             with tmp.open("w", encoding="utf-8", newline="") as handle:
                 handle.write(normalized)
             os.replace(tmp, target)
+            if self._after_write is not None:
+                self._after_write(target)
         except OSError as exc:
             with suppress(OSError):
                 tmp.unlink()
@@ -469,9 +477,15 @@ class Editor:
             raise EditError(f"目标已存在: {dst}")
         before = self._digest_bytes(source)
         self._backup(source)
+        if self._before_write is not None:
+            self._before_write(source)
+            self._before_write(destination)
         destination.parent.mkdir(parents=True, exist_ok=True)
         try:
             os.replace(source, destination)
+            if self._after_write is not None:
+                self._after_write(source)
+                self._after_write(destination)
         except OSError as exc:
             raise EditError(f"移动失败 ({src} → {dst}): {exc}") from exc
         self._audit("move", src, f"→ {dst}", before_digest=before)
@@ -482,8 +496,12 @@ class Editor:
             raise EditError(f"文件不存在: {path}")
         before = self._digest_bytes(target)
         self._backup(target)
+        if self._before_write is not None:
+            self._before_write(target)
         try:
             target.unlink()
+            if self._after_write is not None:
+                self._after_write(target)
         except OSError as exc:
             raise EditError(f"删除失败 ({path}): {exc}") from exc
         self._audit("delete", path, "", before_digest=before)

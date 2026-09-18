@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -46,6 +47,11 @@ from minicc.web import AgentService, TaskManager, TaskRecord, _completion_guard_
 from minicc.worktree import WorktreeError, WorktreeManager
 from minicc.prompt import build_system_prompt
 from minicc.main import CliView
+
+
+def _completion_evidence_ids(messages) -> list[str]:
+    """Fake reviewers must cite actual IDs from the review evidence packet."""
+    return list(dict.fromkeys(re.findall(r'"id":"((?:event|verification)-\d+)"', str(messages))))[-8:]
 
 
 def test_complexity_router_only_fans_out_for_multi_dimension_work() -> None:
@@ -170,7 +176,7 @@ def test_completion_judge_receives_persistent_visual_context() -> None:
                 "rationale": "已结合截图和验证证据",
                 "missing": [],
                 "next_action": "",
-                "evidence": ["截图已提供"],
+                "evidence": ["event-1"],
             }))
 
     decision = asyncio.run(
@@ -178,7 +184,7 @@ def test_completion_judge_receives_persistent_visual_context() -> None:
             FakeProvider(),
             task="按截图实现页面",
             answer="页面已实现",
-            events=[],
+            events=[{"name": "browser_screenshot", "status": "ok", "summary": "页面和参照图一致"}],
             verification_results=[],
             allow_changes=True,
             workspace="workspace",
@@ -793,6 +799,8 @@ def test_agent_service_marks_text_only_change_request_as_incomplete(tmp_path: Pa
 def test_agent_service_runs_verifier_after_successful_write(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     (tmp_path / "tests").mkdir()
     (tmp_path / "tests" / "test_smoke.py").write_text("def test_smoke():\n    assert True\n", encoding="utf-8")
+    (tmp_path / ".minicc").mkdir()
+    (tmp_path / ".minicc" / "verification.json").write_text(json.dumps({"rules": [{"paths": ["result.txt"], "commands": ["python -m pytest -q tests/test_smoke.py"]}]}), encoding="utf-8")
 
     class FakeProvider:
         def __init__(self, **_kwargs) -> None:
@@ -808,7 +816,7 @@ def test_agent_service_runs_verifier_after_successful_write(tmp_path: Path, monk
                         "rationale": "修改已写入，工具验证和自动验证均通过。",
                         "missing": [],
                         "next_action": "",
-                        "evidence": ["write_file", "pytest"],
+                        "evidence": _completion_evidence_ids(messages),
                     }, ensure_ascii=False)
                 )
             if self.calls == 1:
@@ -895,10 +903,19 @@ def test_completion_judge_replans_text_only_reply_until_workspace_is_ready(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    from minicc.snapshots import capture, restore
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "tests" / "test_game.py").write_text("from pathlib import Path\ndef test_document():\n    assert '<title>Mini game</title>' in Path('game.html').read_text()\n", encoding="utf-8")
+    (tmp_path / ".minicc").mkdir()
+    (tmp_path / ".minicc" / "verification.json").write_text(json.dumps({"rules": [{"paths": ["game.html"], "commands": ["python -m pytest -q tests/test_game.py"]}]}), encoding="utf-8")
     class FakeProvider:
         def __init__(self, **_kwargs) -> None:
             self.agent_calls = 0
             self.judge_calls = 0
+
+        @staticmethod
+        def is_transient_failure(error: object) -> bool:
+            return False
 
         async def chat(self, messages, tools, on_delta=None):
             if tools is None:
@@ -910,7 +927,7 @@ def test_completion_judge_replans_text_only_reply_until_workspace_is_ready(
                     "rationale": "首轮没有修改；后续已写入并取得读取证据。" if status == "complete" else "还没有实际创建游戏文件。",
                     "missing": [] if status == "complete" else ["创建游戏文件"],
                     "next_action": "创建 game.html" if status == "continue" else "",
-                    "evidence": ["write_file", "read_file"] if status == "complete" else [],
+                    "evidence": _completion_evidence_ids(messages) if status == "complete" else [],
                 }, ensure_ascii=False))
             self.agent_calls += 1
             if self.agent_calls == 1:
@@ -960,8 +977,10 @@ def test_completion_judge_replans_text_only_reply_until_workspace_is_ready(
     )
     service = AgentService(tmp_path, config)
     try:
+        capture(tmp_path, "completion-rewind")
         result = service._chat_locked(
             {
+                "task_id": "completion-rewind",
                 "message": "制作一个可打开的小游戏并完成验证",
                 "session_id": "completion-replan",
                 "allow_changes": True,
@@ -976,6 +995,8 @@ def test_completion_judge_replans_text_only_reply_until_workspace_is_ready(
     assert (tmp_path / "game.html").is_file()
     assert any(event.get("code") == "completion_continue" for event in result["events"])
     assert any(event.get("code") == "completion_complete" for event in result["events"])
+    assert "game.html" in restore(tmp_path, "completion-rewind")["removed"]
+    assert not (tmp_path / "game.html").exists()
 
 
 def test_search_parser_supports_duckduckgo_lite_redirects() -> None:
@@ -1729,6 +1750,8 @@ def test_agent_service_recovers_stagnation_before_verifying_changes(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    (tmp_path / ".minicc").mkdir()
+    (tmp_path / ".minicc" / "verification.json").write_text(json.dumps({"rules": [{"paths": ["result.txt"], "commands": ["python -m pytest -q tests/test_smoke.py"]}]}), encoding="utf-8")
     (tmp_path / "tests").mkdir()
     (tmp_path / "tests" / "test_smoke.py").write_text(
         "def test_smoke():\n    assert True\n",
@@ -1751,7 +1774,7 @@ def test_agent_service_recovers_stagnation_before_verifying_changes(
                     "rationale": "恢复后已写入目标文件并通过验证。",
                     "missing": [],
                     "next_action": "",
-                    "evidence": ["write_file", "pytest"],
+                    "evidence": _completion_evidence_ids(messages),
                 }, ensure_ascii=False))
 
             self.agent_calls += 1
@@ -2751,7 +2774,7 @@ def test_task_recovers_after_transient_provider_failure(tmp_path: Path, monkeypa
             if self.failed_once and self.calls == 1:
                 raise RuntimeError("stream disconnected before completion: Connection error.")
             if tools is None:
-                return LLMResponse(content='{"status":"complete","confidence":0.99,"rationale":"已有充分证据。"}')
+                return LLMResponse(content=json.dumps({"status": "complete", "confidence": 0.99, "rationale": "已有充分证据。", "missing": [], "next_action": "", "evidence": _completion_evidence_ids(messages)}))
             return LLMResponse(content="断流恢复后已完成检查。")
 
         def protocol(self) -> str:

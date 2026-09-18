@@ -1,6 +1,13 @@
-// NOTE: 源文件分片（web/src/）。此文件由 `npm run build:web` 按序拼接生成，勿直接编辑。
-const I18N = {
+// ES module source for the minicc workbench. Bundled by scripts/build-web.mjs.
+import { runtime, state } from "./state.js";
+
+export const I18N = {
   zh: {
+    "restore.partial": "已恢复可安全恢复的文件，以下文件有后续修改或无法恢复，已保留",
+    "tasks.historyLoading": "正在加载任务…", "inspector.filesTab": "文件", "inspector.verification": "验证", "capability.executeToggle": "写入与命令", "capability.network": "联网",
+    "start.explore": "了解项目", "start.exploreHint": "定位入口、结构和关键流程", "start.fix": "检查变更", "start.fixHint": "找出潜在回归和改进机会", "start.verify": "验证结果", "start.verifyHint": "对最近改动运行定向检查",
+    "start.explorePrompt": "先阅读当前项目，说明入口、架构和关键业务流程，不修改文件。", "start.fixPrompt": "审查最近的代码变更，定位潜在回归并给出有代码依据的改进建议。", "start.verifyPrompt": "针对最近变更选择必要的定向检查，执行并说明结果，不默认运行全量测试。",
+
     "brand.caption": "本地智能工作台", "newTask.label": "新任务", "newTask.title": "创建一个新任务",
     "search.placeholder": "搜索任务", "search.global": "全局搜索", "search.globalPlaceholder": "搜索全部会话历史…", "search.hint": "输入关键词，在所有工作区的任务历史中查找。", "search.searching": "搜索中…", "search.noResults": "没有匹配的历史记录", "search.matches": "处匹配",
     "nav.main": "主导航", "nav.tasks": "任务", "nav.workspaces": "工作区", "nav.promo": "宣传页", "nav.activity": "活动", "nav.arcade": "小游戏",
@@ -8,13 +15,13 @@ const I18N = {
     "inspector.toggle": "切换检查器", "inspector.close": "关闭检查器", "focus.enter": "专注阅读", "focus.exit": "退出专注阅读", "options.open": "更多选项", "composer.inputLabel": "输入任务",
     "composer.allowChanges": "允许当前任务修改文件或执行命令", "composer.allowNetwork": "允许当前任务联网搜索", "cancel.title": "取消任务", "send.title": "发送任务", "files.refresh": "刷新文件",
     "sidebar.close": "关闭侧栏", "sidebar.open": "打开侧栏", "search.shortcut": "搜索快捷键",
-    recentTasks: "最近任务", "profile.mode": "面试模式", "profile.local": "仅本地", workspace: "工作区", agentSession: "智能会话", live: "运行中",
+    recentTasks: "最近任务", "profile.mode": "工作台设置", "profile.local": "仅本地", workspace: "工作区", agentSession: "智能会话", live: "运行中",
     "connection.connecting": "连接中", "connection.connected": "已连接", "connection.offline": "离线", "mode.localSafe": "本地 / 安全", "mode.localFull": "本地 / 完全访问",
     "composer.workingIn": "工作目录", "context.empty": "0 / 300k 上下文", "context.used": "已使用 tokens", "date.today": "今天",
     "composer.placeholder": "让 minicc 检查、构建或验证...", "composer.attach": "图片", "quick.plan": "计划", "quick.review": "审查", "quick.verify": "验证", "quick.parallel": "并行", "quick.demo": "演示流程",
-    "mode.safe": "只读保护", "mode.changes": "完全访问", "composer.fullAccess": "完全访问：Agent 可以读写文件并执行命令。", "composer.readOnly": "只读保护：写入和命令执行会被跳过。",
+    "mode.safe": "安全模式", "mode.changes": "完全访问", "composer.fullAccess": "完全访问：Agent 可以读写文件并执行命令。", "composer.readOnly": "受保护工作区：写入和命令执行会被跳过，除非你允许当前任务修改。",
     "perm.mode": "权限模式", "perm.default": "默认", "perm.plan": "计划", "perm.acceptEdits": "自动写", "perm.yolo": "全自动",
-    "perm.defaultHint": "默认：写入与命令跟随“完全访问”开关。", "perm.planHint": "计划模式：只读规划，写入与命令会被拒绝。", "perm.acceptEditsHint": "自动写：自动接受文件写入，命令仍需授权。", "perm.yoloHint": "全自动：写入、命令与联网全部放行。",
+    "perm.defaultHint": "默认：文件写入与命令执行跟随下方开关。", "perm.planHint": "计划模式：只读规划，写入与命令会被拒绝。", "perm.acceptEditsHint": "自动写：自动接受文件写入，命令仍需授权。", "perm.yoloHint": "全自动：写入、命令与联网全部放行。",
     "todo.title": "任务计划", "todo.empty": "暂无任务计划", "todo.toggle": "展开或收起任务计划", "todo.progressAria": "计划进度",
     "todo.completed": "已完成", "todo.inProgress": "进行中", "todo.pending": "待办",
     "inspector.overview": "概览", "inspector.changes": "改动", "inspector.files": "关注文件", "protected.title": "受保护工作区",
@@ -34,7 +41,7 @@ const I18N = {
     "panel.createWorktree": "创建 worktree", "panel.name": "名称", "panel.branch": "分支（可选）", "panel.create": "创建",
     "panel.sandbox": "执行环境", "panel.mcp": "MCP 工具", "panel.language": "界面语言", "panel.clear": "清空当前会话",
     "panel.export": "导出当前对话", "panel.reload": "刷新工作区状态", "panel.noWorktrees": "当前没有额外 worktree",
-    "panel.hostProcess": "宿主机进程", "panel.isolated": "已隔离", "panel.servers": "个服务", "panel.gitWorktrees": "Git worktree", "panel.reasoning": "推理强度", "panel.reasoningNote": "按模型支持传递 low、mid、high、xhigh 或 max；界面显示可审计阶段摘要，不展示模型私有思维链", "reasoning.low": "低", "reasoning.mid": "中", "reasoning.high": "高", "reasoning.xhigh": "极高", "reasoning.max": "最高", "rewind.title": "会话回退", "rewind.keepLabel": "保留到第 N 条消息", "rewind.hint": "把当前会话截断到指定消息数后可重新提问；回退前会自动生成备份文件。", "rewind.action": "执行回退", "rewind.done": "已回退", "rewind.fail": "回退失败",
+    "panel.hostProcess": "宿主机进程", "panel.isolated": "已隔离", "panel.servers": "个服务", "panel.gitWorktrees": "Git worktree", "panel.reasoning": "推理强度", "panel.reasoningNote": "按模型支持传递 low、mid、high、xhigh、max 或 ultra；界面显示可审计阶段摘要，不展示模型私有思维链", "reasoning.low": "低", "reasoning.mid": "中", "reasoning.high": "高", "reasoning.xhigh": "极高", "reasoning.max": "最高", "reasoning.ultra": "Ultra", "rewind.title": "会话回退", "rewind.keepLabel": "保留到第 N 条消息", "rewind.hint": "把当前会话截断到指定消息数后可重新提问；回退前会自动生成备份文件。", "rewind.action": "执行回退", "rewind.done": "已回退", "rewind.fail": "回退失败", "rewind.toHere": "回退到此", "rewind.advanced": "高级：按消息条数回退", "session.emptyTitle": "发送一条任务开始", "session.emptyHint": "在下方输入任务，minicc 会检查工作区并给出可验证的结果。", "help.title": "帮助", "help.shortcuts": "快捷键", "help.arcade": "小游戏", "allowlist.title": "会话允许列表", "allowlist.commands": "命令规则", "allowlist.paths": "路径规则", "allowlist.tools": "工具规则", "allowlist.save": "保存允许列表", "allowlist.soon": "即将可用", "allowlist.hint": "每行一条 glob 或工具名；命中后本会话自动放行。", "restore.action": "恢复此任务开始前的文件", "restore.done": "已恢复任务开始前的文件", "restore.fail": "恢复失败", "file.copy": "复制", "file.copied": "已复制文件内容", "file.current": "当前文件内容",
     "game.close": "关闭小游戏", "game.kicker": "MINICC ARCADE · MINI LAWN", "game.title": "植物大战僵尸 · 草坪保卫战",
     "game.subtitle": "10 波高压战役，失败只由僵尸进屋触发；战斗用时仅统计活跃帧，切后台和手动暂停均不消耗进度。", "game.sun": "阳光", "game.score": "击退", "game.wave": "波次",
     "game.ready": "准备就绪", "game.running": "战斗中", "game.paused": "已自动暂停，返回页面后继续", "game.manualPaused": "战局已手动暂停", "game.waveClear": "本波已清场，下一波即将到来", "game.waveIncoming": "强化波次来袭，准备迎战", "game.victory": "草坪守住了！", "game.noSun": "阳光不足", "game.recharging": "卡片冷却中", "game.gameOver": "僵尸进屋了", "game.time": "战斗用时", "game.threat": "威胁", "game.waveHint": "建立防线，下一批僵尸即将抵达", "game.wavePressure": "高压波次：优先布置减速与防线", "game.progress": "战役进度", "game.difficulty": "难度", "game.normal": "标准", "game.hard": "高压", "game.nightmare": "噩梦", "game.pause": "暂停", "game.resume": "继续", "game.pauseHint": "冻结战局", "game.resumeHint": "恢复战局", "game.volume": "音量", "game.shovel": "铲子", "game.shovelHint": "点击植物移除", "game.autoSun": "自动拾取阳光", "game.autoSunHint": "关闭后改为手动点击", "game.repeater": "双发射手", "game.cherrybomb": "爆裂果", "game.icepeashooter": "寒冰射手", "game.burst": "爆发", "game.slow": "减速", "game.peashooter": "豌豆射手", "game.soundOn": "♫ 音效开", "game.soundOff": "♫ 音效关",
@@ -46,6 +53,11 @@ const I18N = {
     "diff.empty": "当前没有可显示的差异。", "diff.previewAria": "统一差异视图", "diff.oldLine": "旧行号", "diff.newLine": "新行号",
   },
   en: {
+    "restore.partial": "Restored safe files; kept later edits or unavailable files",
+    "tasks.historyLoading": "Loading tasks…", "inspector.filesTab": "Files", "inspector.verification": "Checks", "capability.executeToggle": "Write & commands", "capability.network": "Network",
+    "start.explore": "Explore project", "start.exploreHint": "Find entry points and key flows", "start.fix": "Review changes", "start.fixHint": "Find regressions and improvements", "start.verify": "Verify results", "start.verifyHint": "Run focused checks on recent changes",
+    "start.explorePrompt": "Read this project and explain its entry points, architecture, and key flows without changing files.", "start.fixPrompt": "Review recent changes, find potential regressions, and suggest improvements grounded in the code.", "start.verifyPrompt": "Select and run focused checks for recent changes. Explain the results; do not run the full suite by default.",
+
     "brand.caption": "LOCAL AGENT STUDIO", "newTask.label": "New task", "newTask.title": "Create a new task",
     "search.placeholder": "Search tasks", "search.global": "Global search", "search.globalPlaceholder": "Search all session history...", "search.hint": "Type a keyword to search task history across workspaces.", "search.searching": "Searching...", "search.noResults": "No matching history", "search.matches": "matches",
     "nav.main": "Main navigation", "nav.tasks": "Tasks", "nav.workspaces": "Workspaces", "nav.promo": "Promo", "nav.activity": "Activity", "nav.arcade": "Arcade",
@@ -57,7 +69,7 @@ const I18N = {
     "connection.connecting": "Connecting", "connection.connected": "Connected", "connection.offline": "Offline", "mode.localSafe": "local / safe", "mode.localFull": "local / full access",
     "composer.workingIn": "Working in", "context.empty": "0 / 300k context", "context.used": "tokens used", "date.today": "Today",
     "composer.placeholder": "Ask minicc to inspect, build, or verify...", "composer.attach": "Image", "quick.plan": "Plan", "quick.review": "Review", "quick.verify": "Verify", "quick.parallel": "Parallel", "quick.demo": "Demo flow",
-    "mode.safe": "Read-only", "mode.changes": "Full access", "composer.fullAccess": "Full access: the agent can write files and run commands.", "composer.readOnly": "Read-only: writes and commands are skipped.",
+    "mode.safe": "Safe mode", "mode.changes": "Full access", "composer.fullAccess": "Full access: the agent can write files and run commands.", "composer.readOnly": "Protected workspace: writes and commands are skipped unless you allow changes for this task.",
     "perm.mode": "Permission mode", "perm.default": "Default", "perm.plan": "Plan", "perm.acceptEdits": "Auto-write", "perm.yolo": "Full auto",
     "perm.defaultHint": "Default: writes and commands follow the full-access switch.", "perm.planHint": "Plan mode: read-only planning; writes and commands are rejected.", "perm.acceptEditsHint": "Auto-write: file writes are accepted automatically; commands still need approval.", "perm.yoloHint": "Full auto: writes, commands, and web access are all allowed.",
     "todo.title": "Task plan", "todo.empty": "No task plan yet", "todo.toggle": "Expand or collapse the task plan", "todo.progressAria": "Plan progress",
@@ -79,7 +91,7 @@ const I18N = {
     "panel.createWorktree": "Create worktree", "panel.name": "Name", "panel.branch": "Branch (optional)", "panel.create": "Create",
     "panel.sandbox": "Execution", "panel.mcp": "MCP tools", "panel.language": "Interface language", "panel.clear": "Clear current session",
     "panel.export": "Export current chat", "panel.reload": "Refresh workspace status", "panel.noWorktrees": "No extra worktrees",
-    "panel.hostProcess": "host process", "panel.isolated": "isolated", "panel.servers": "servers", "panel.gitWorktrees": "Git worktrees", "panel.reasoning": "Reasoning effort", "panel.reasoningNote": "Sends the supported low, mid, high, xhigh, or max level; the UI shows auditable stage summaries, never private chain-of-thought", "reasoning.low": "Low", "reasoning.mid": "Mid", "reasoning.high": "High", "reasoning.xhigh": "XHigh", "reasoning.max": "Max", "rewind.title": "Rewind session", "rewind.keepLabel": "Keep first N messages", "rewind.hint": "Truncates the session to N messages so you can re-ask; a backup is written first.", "rewind.action": "Rewind", "rewind.done": "Rewound", "rewind.fail": "Rewind failed",
+    "panel.hostProcess": "host process", "panel.isolated": "isolated", "panel.servers": "servers", "panel.gitWorktrees": "Git worktrees", "panel.reasoning": "Reasoning effort", "panel.reasoningNote": "Sends the supported low, mid, high, xhigh, max, or ultra level; the UI shows auditable stage summaries, never private chain-of-thought", "reasoning.low": "Low", "reasoning.mid": "Mid", "reasoning.high": "High", "reasoning.xhigh": "XHigh", "reasoning.max": "Max", "reasoning.ultra": "Ultra", "rewind.title": "Rewind session", "rewind.keepLabel": "Keep first N messages", "rewind.hint": "Truncates the session to N messages so you can re-ask; a backup is written first.", "rewind.action": "Rewind", "rewind.done": "Rewound", "rewind.fail": "Rewind failed", "rewind.toHere": "Rewind to here", "rewind.advanced": "Advanced: keep first N messages", "session.emptyTitle": "Send a task to begin", "session.emptyHint": "Type a task below to inspect, build, or verify this workspace.", "help.title": "Help", "help.shortcuts": "Shortcuts", "help.arcade": "Arcade", "allowlist.title": "Session allowlist", "allowlist.commands": "Command rules", "allowlist.paths": "Path rules", "allowlist.tools": "Tool rules", "allowlist.save": "Save allowlist", "allowlist.soon": "Coming soon", "allowlist.hint": "One glob or tool name per line. Matches are auto-allowed for this session.", "restore.action": "Restore files from before this task", "restore.done": "Restored files from before this task", "restore.fail": "Restore failed", "file.copy": "Copy", "file.copied": "File content copied", "file.current": "Current file",
     "game.close": "Close game", "game.kicker": "MINICC ARCADE · MINI LAWN", "game.title": "Plants vs. Zombies · Mini lawn",
     "game.subtitle": "10 high-pressure waves. Only a zombie reaching the house ends the campaign; battle time counts active frames only.", "game.sun": "Sun", "game.score": "Defeated", "game.wave": "Wave",
     "game.ready": "Ready", "game.running": "Battle", "game.paused": "Paused while this tab is hidden", "game.manualPaused": "Battle paused", "game.waveIncoming": "Reinforced wave incoming", "game.gameOver": "A zombie reached the house", "game.time": "Battle time", "game.threat": "Threat", "game.waveHint": "Build your line; the next pack is approaching", "game.wavePressure": "High-pressure wave: use slows and defenses", "game.progress": "Campaign progress", "game.difficulty": "Difficulty", "game.normal": "Standard", "game.hard": "High pressure", "game.nightmare": "Nightmare", "game.pause": "Pause", "game.resume": "Resume", "game.pauseHint": "Freeze battle", "game.resumeHint": "Resume battle", "game.volume": "Volume", "game.shovel": "Shovel", "game.shovelHint": "Remove a plant", "game.autoSun": "Auto-collect sun", "game.autoSunHint": "Turn off for manual clicks", "game.repeater": "Repeater", "game.cherrybomb": "Burst berry", "game.icepeashooter": "Ice shooter", "game.burst": "burst", "game.slow": "slow", "game.peashooter": "Peashooter", "game.soundOn": "♫ Sound on", "game.soundOff": "♫ Sound off",
@@ -92,6 +104,6 @@ const I18N = {
   },
 };
 
-function t(key) {
+export function t(key) {
   return I18N[state.locale]?.[key] || I18N.en[key] || key;
 }

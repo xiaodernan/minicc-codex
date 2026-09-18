@@ -1,5 +1,16 @@
-// NOTE: 源文件分片（web/src/）。此文件由 `npm run build:web` 按序拼接生成，勿直接编辑。
-function streamTask(taskId) {
+import { requestJson } from "../core/transport.js";
+import { activateDialog, deactivateDialog } from "../core/dialog.js";
+import { openArcade } from "../core/arcade.js";
+import { captureViewScope, isViewScopeCurrent } from "../core/scope.js";
+// ES module source for the minicc workbench. Bundled by scripts/build-web.mjs.
+import { attachmentMarkup, cacheTaskDetail, escapeHtml, executionTrailMarkup, formatText, loadTaskHistory, persistSessionView, renderSession, sessionViewKey } from "./markdown.js";
+import { applyTaskEvent, completeTask, finishLiveTask, isTerminalTask, pollTask, updateBoundTask, updateLiveTask } from "../core/api.js";
+import { t } from "../core/i18n.js";
+import { $, $$, authHeaders, authQuery, renderedHistoryKeys, runtime, runningTasks, sessionMarkup, state, taskBySession, taskDetailLoads, taskDetailsById, taskEventSources, taskHistoryBySession, taskHistoryListBySession, taskWatchers } from "../core/state.js";
+import { icon, refreshIcons } from "../icons.js";
+import { addAssistantMessage, addLoadingMessage, addUserMessage, bindRunningTask, closeMentionPopover, compactNumber, effectiveTaskPermissions, eventSequence, eventTimelineMarkup, formatDuration, isCurrentTaskScope, isSessionBusy, phaseLabel, refreshFileTree, refreshFileTreeSoon, runtimeMetricsMarkup, sessionTaskBindings, setBusy, setConnection, setSession, setTaskTransportStatus, showAuthModal, showToast, taskDuration, taskMetrics, taskSessionKey, updateReasoningControl, updateTaskDock } from "../panels/index.js";
+
+export function streamTask(taskId) {
   const binding = runningTasks.get(taskId);
   const loadingId = binding?.loadingId || "";
   if (!window.EventSource) return pollTask(taskId);
@@ -39,8 +50,10 @@ function streamTask(taskId) {
         // The terminal event contains enough state to render immediately, but
         // one final snapshot also carries the complete answer/result payload.
         const latest = await requestJson(`/api/tasks/${encodeURIComponent(taskId)}`, {}, 12000);
-        updateBoundTask(taskId, latest);
-        resolve(await completeTask(loadingId, latest));
+        // A lagging snapshot must not regress the terminal event to running.
+        const terminal = isTerminalTask(latest) ? latest : data;
+        updateBoundTask(taskId, terminal);
+        resolve(await completeTask(loadingId, terminal));
       } catch {
         resolve(await completeTask(loadingId, data));
       }
@@ -72,6 +85,7 @@ function streamTask(taskId) {
     };
 
     const checkLatestAfterError = () => {
+      if (settled || fallbackStarted) return;
       closeSource();
       requestJson(`/api/tasks/${encodeURIComponent(taskId)}`, {}, 8000)
         .then((latest) => {
@@ -120,7 +134,7 @@ function streamTask(taskId) {
   });
 }
 
-function watchTask(taskId) {
+export function watchTask(taskId) {
   const existing = taskWatchers.get(taskId);
   if (existing) return existing;
   const watcher = streamTask(taskId);
@@ -132,7 +146,7 @@ function watchTask(taskId) {
   return watcher;
 }
 
-async function cancelActiveTask() {
+export async function cancelActiveTask() {
   const taskIds = sessionTaskBindings(state.sessionId).map((binding) => binding.taskId);
   const fallback = taskBySession.get(taskSessionKey(state.sessionId)) || null;
   if (!taskIds.length && fallback) taskIds.push(fallback);
@@ -145,7 +159,7 @@ async function cancelActiveTask() {
   }
 }
 
-function renderAttachmentTray() {
+export function renderAttachmentTray() {
   const tray = $("#attachmentTray");
   if (!tray) return;
   tray.hidden = state.attachments.length === 0;
@@ -153,7 +167,7 @@ function renderAttachmentTray() {
   refreshIcons();
 }
 
-function readImageFile(file) {
+export function readImageFile(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = () => reject(new Error(`无法读取图片：${file.name}`));
@@ -162,7 +176,7 @@ function readImageFile(file) {
   });
 }
 
-async function addImageFiles(fileList) {
+export async function addImageFiles(fileList) {
   const files = [...(fileList || [])].filter((file) => String(file.type || "").startsWith("image/"));
   if (!files.length) return;
   const remaining = Math.max(0, 4 - state.attachments.length);
@@ -191,14 +205,14 @@ async function addImageFiles(fileList) {
   renderAttachmentTray();
 }
 
-function clearAttachments() {
+export function clearAttachments() {
   state.attachments = [];
   const input = $("#imageInput");
   if (input) input.value = "";
   renderAttachmentTray();
 }
 
-async function sendMessage(event) {
+export async function sendMessage(event) {
   event?.preventDefault();
   const input = $("#promptInput");
   const queuedAttachments = state.attachments.map((item) => ({ ...item }));
@@ -206,6 +220,15 @@ async function sendMessage(event) {
   const sessionId = state.sessionId;
   const workspacePath = state.workspacePath;
   if ((!message && !queuedAttachments.length) || state.submitting) return;
+  const submission = {};
+  runtime.submission = submission;
+  const releaseSubmission = () => {
+    if (runtime.submission !== submission) return;
+    runtime.submission = null;
+    state.submitting = false;
+    setBusy(isSessionBusy(state.sessionId));
+  };
+  const isCurrentScope = () => state.sessionId === sessionId && state.workspacePath === workspacePath;
   state.submitting = true;
   setBusy(true);
   input.value = "";
@@ -220,28 +243,28 @@ async function sendMessage(event) {
      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ message, attachments: queuedAttachments.map(({ name, mime_type, data_url }) => ({ name, mime_type, data_url })), session_id: sessionId, permission_mode: permissions.mode, allow_changes: permissions.allowChanges, allow_network: permissions.allowNetwork, reasoning_effort: state.reasoningEffort, workspace_path: workspacePath }),
     });
-    state.submitting = false;
     bindRunningTask(task, loadingId, sessionId);
-    if (state.sessionId === sessionId) state.activeTaskId = task.task_id;
-    setBusy(true);
+    releaseSubmission();
+    if (isCurrentScope()) state.activeTaskId = task.task_id;
     updateTaskDock(task);
     await loadTaskHistory();
     await watchTask(task.task_id);
   } catch (error) {
     finishLiveTask(loadingId);
     document.getElementById(loadingId)?.remove();
-    if (state.sessionId === sessionId) addAssistantMessage({ error: error.message });
+    if (isCurrentScope()) addAssistantMessage({ error: error.message });
     showToast(error.message);
     setConnection(false, "API error");
   } finally {
-    state.submitting = false;
-    if (!sessionTaskBindings(sessionId, workspacePath).length) state.activeTaskId = null;
-    if (state.sessionId === sessionId) setBusy(false);
-    input.focus();
+    releaseSubmission();
+    if (isCurrentScope()) {
+      if (!sessionTaskBindings(sessionId, workspacePath).length) state.activeTaskId = null;
+      setBusy(isSessionBusy(state.sessionId));
+    }
   }
 }
 
-function resetTask() {
+export function resetTask() {
   const next = `task-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   state.activeTaskId = null;
   state.lastTask = null;
@@ -257,7 +280,7 @@ function resetTask() {
   showToast(state.locale === "zh" ? "已创建新任务" : "New task created");
 }
 
-function runDemoFlow() {
+export function runDemoFlow() {
   if (isSessionBusy(state.sessionId)) return;
   const steps = state.locale === "zh"
     ? [
@@ -302,21 +325,17 @@ function runDemoFlow() {
   tick();
 }
 
-async function loadWorkspace() {
+export async function loadWorkspace() {
+  const version = ++runtime.workspaceVersion;
   try {
-    const response = await fetch("/api/workspace", { headers: authHeaders() });
-    if (response.status === 401) {
-      const payload = await response.json().catch(() => ({}));
-      if (payload.auth_required) showAuthModal();
-      throw new Error("unauthorized");
-    }
-    if (!response.ok) throw new Error("offline");
-    const info = await response.json();
+    const info = await requestJson("/api/workspace", {}, 10000);
+    if (version !== runtime.workspaceVersion) return false;
     const previousPath = state.workspacePath;
+    if (previousPath && info.path && previousPath !== info.path) persistSessionView();
     state.workspaceInfo = info;
    state.workspacePath = info.path || state.workspacePath;
    state.contextWindowTokens = Number(info.context_window_tokens || state.contextWindowTokens || 300000);
-    if (!localStorage.getItem("minicc-reasoning") && ["low", "mid", "high", "xhigh", "max"].includes(info.reasoning_effort)) state.reasoningEffort = info.reasoning_effort;
+    if (!localStorage.getItem("minicc-reasoning") && ["low", "mid", "high", "xhigh", "max", "ultra"].includes(info.reasoning_effort)) state.reasoningEffort = info.reasoning_effort;
     updateReasoningControl();
     const name = info.name || "workspace";
     $("#workspaceName").textContent = name;
@@ -333,14 +352,17 @@ async function loadWorkspace() {
       renderedHistoryKeys.clear();
       setSession(state.sessionId);
     }
-    await loadTaskHistory();
-    await loadChanges();
+    // Only metadata belongs to startup. Panels settle independently.
+    const historyReady = loadTaskHistory();
+    void loadChanges();
     // The file tree is workspace-scoped: reload it on the initial load, on
     // workspace switches, and whenever the workspace view is refreshed.
-    refreshFileTreeSoon();
-    try {
-      const taskData = await requestJson(`/api/tasks?limit=100&workspace=${encodeURIComponent(state.workspacePath)}`);
-      const tasks = Array.isArray(taskData.tasks) ? taskData.tasks : [];
+    refreshFileTree();
+    void (async () => { try {
+      const workspacePath = state.workspacePath;
+      const loadedTasks = await historyReady;
+      if (version !== runtime.workspaceVersion || workspacePath !== state.workspacePath) return;
+      const tasks = Array.isArray(loadedTasks) ? loadedTasks : [];
       const activeTasks = tasks.filter((item) => ["queued", "running"].includes(item.status));
       for (const task of [...activeTasks].reverse()) {
         if (runningTasks.has(task.task_id)) continue;
@@ -359,15 +381,16 @@ async function loadWorkspace() {
       }
     } catch {
       // The workspace remains usable when the durable task index is unavailable.
-    }
+    } })();
     return true;
   } catch {
+    if (version !== runtime.workspaceVersion) return false;
     setConnection(false, "Offline");
     return false;
   }
 }
 
-function fileType(path) {
+export function fileType(path) {
   const extension = String(path).split(".").pop()?.toLowerCase();
   if (extension === "py") return "py";
   if (["css", "scss"].includes(extension)) return "css";
@@ -376,11 +399,11 @@ function fileType(path) {
   return "file";
 }
 
-function changeStatusLabel(status) {
+export function changeStatusLabel(status) {
   return t(`changes.${status}`) || status;
 }
 
-function changeFileRow(item) {
+export function changeFileRow(item) {
   const path = String(item.path || "");
   const status = String(item.status || "clean");
   const additions = Number(item.additions || 0);
@@ -388,11 +411,10 @@ function changeFileRow(item) {
   return `<button class="file-row file-row-${escapeHtml(status)}" data-file="${escapeHtml(path)}" data-open-diff="${escapeHtml(path)}"><span class="file-type ${fileType(path)}">${escapeHtml(fileType(path).toUpperCase())}</span><span><strong>${escapeHtml(path)}</strong><small>${escapeHtml(changeStatusLabel(status))} · <span class="diff-add">+${additions}</span> <span class="diff-del">-${deletions}</span></small></span><i data-lucide="chevron-right"></i></button>`;
 }
 
-function renderChanges(data) {
+export function renderChanges(data) {
   const files = Array.isArray(data?.files) ? data.files : [];
   const changed = new Map(files.map((item) => [String(item.path), item]));
-  const focus = ["minicc/main.py", "minicc/agent/loop.py", "minicc/llm/openai_provider.py", "web/app.js", "web/styles.css", "README.md"];
-  const paths = [...new Set([...files.map((item) => String(item.path)), ...focus])].slice(0, 12);
+  const paths = files.map((item) => String(item.path));
   const fileList = $("#fileList");
   if (fileList) {
     fileList.innerHTML = paths.map((path) => changeFileRow(changed.get(path) || { path, status: "clean" })).join("");
@@ -404,24 +426,33 @@ function renderChanges(data) {
   const changeList = $("#changeList");
   if (changeList) {
     changeList.innerHTML = files.length
-      ? files.slice(0, 6).map((item) => `<button class="change-item change-item-button" data-open-diff="${escapeHtml(item.path)}"><span class="change-bar ${item.status === "added" ? "added" : item.status === "deleted" ? "deleted" : "changed"}"></span><span><strong>${escapeHtml(item.path)}</strong><small>${escapeHtml(changeStatusLabel(item.status))} · <span class="diff-add">+${Number(item.additions || 0)}</span> <span class="diff-del">-${Number(item.deletions || 0)}</span></small></span><span class="change-time">${escapeHtml(t("changes.now"))}</span></button>`).join("")
+      ? files.map((item) => `<button class="change-item change-item-button" data-open-diff="${escapeHtml(item.path)}"><span class="change-bar ${item.status === "added" ? "added" : item.status === "deleted" ? "deleted" : "changed"}"></span><span><strong>${escapeHtml(item.path)}</strong><small>${escapeHtml(changeStatusLabel(item.status))} · <span class="diff-add">+${Number(item.additions || 0)}</span> <span class="diff-del">-${Number(item.deletions || 0)}</span></small></span><span class="change-time">${escapeHtml(t("changes.now"))}</span></button>`).join("")
       : `<div class="change-item"><span class="change-bar muted"></span><span><strong>${escapeHtml(t("changes.clean"))}</strong><small>${escapeHtml(t("changes.cleanHint"))}</small></span><span class="change-time">--</span></div>`;
   }
   refreshIcons();
 }
 
-async function loadChanges() {
+export async function loadChanges() {
   if (!state.workspacePath) return;
+  const request = runtime.changesRequest = (runtime.changesRequest || 0) + 1;
+  const path = state.workspacePath;
+  const version = runtime.workspaceVersion;
+  $("#changesSection")?.setAttribute("aria-busy", "true");
   try {
     const data = await requestJson("/api/changes", {}, 12000);
+    if (path !== state.workspacePath || version !== runtime.workspaceVersion || request !== runtime.changesRequest) return;
     state.changes = data;
     renderChanges(data);
   } catch {
-    // The chat remains usable when Git is unavailable.
+    if (path !== state.workspacePath || version !== runtime.workspaceVersion || request !== runtime.changesRequest) return;
+    $("#changeList").innerHTML = `<div class="file-tree-status">${escapeHtml(state.locale === "zh" ? "暂时无法读取变更。可在更多选项中刷新工作区。" : "Changes are unavailable. Refresh the workspace from More options.")}</div>`;
+  } finally {
+    if (path === state.workspacePath && version === runtime.workspaceVersion && request === runtime.changesRequest) $("#changesSection")?.setAttribute("aria-busy", "false");
   }
 }
 
-function openPanel(title, body, options = {}) {
+export function openPanel(title, body, options = {}) {
+  runtime.panelVersion = (runtime.panelVersion || 0) + 1;
   $("#panelTitle").textContent = title;
   $("#panelBody").innerHTML = body;
   const modal = $("#panelModal");
@@ -439,9 +470,18 @@ function openPanel(title, body, options = {}) {
   modal.classList.add("show");
   modal.setAttribute("aria-hidden", "false");
   refreshIcons();
+  activateDialog(modal, { onEscape: closePanel });
 }
 
-function closePanel() {
+export function beginPanelRequest(title) {
+  openPanel(title, `<div class="empty-panel" role="status">${escapeHtml(state.locale === "zh" ? "正在加载…" : "Loading…")}</div>`);
+  const version = runtime.panelVersion;
+  return () => version === runtime.panelVersion && $("#panelModal").classList.contains("show");
+}
+
+export function closePanel() {
+  runtime.panelVersion = (runtime.panelVersion || 0) + 1;
+  deactivateDialog($("#panelModal"));
   const active = document.activeElement;
   if (active instanceof HTMLElement && $("#panelModal").contains(active)) active.blur();
   $("#panelModal").classList.remove("show");
@@ -451,7 +491,7 @@ function closePanel() {
   window.scrollTo(0, 0);
 }
 
-function togglePanelFullscreen() {
+export function togglePanelFullscreen() {
   const modal = $("#panelModal");
   const fullscreen = modal.classList.toggle("fullscreen");
   const button = $("#panelExpand");
@@ -462,7 +502,7 @@ function togglePanelFullscreen() {
   refreshIcons();
 }
 
-function taskRow(task) {
+export function taskRow(task) {
   const statusClass = task.status === "completed" ? "success" : task.status === "failed" ? "error" : ["cancelled", "interrupted"].includes(task.status) ? "cancelled" : task.status === "queued" ? "queued" : "running";
   const cancel = ["queued", "running"].includes(task.status) ? `<button class="panel-icon-action" data-cancel-task="${escapeHtml(task.task_id)}" title="${t("cancel")}">${icon("square")}</button>` : "";
   const resume = ["failed", "cancelled", "interrupted"].includes(task.status) ? `<button class="panel-icon-action" data-resume-task="${escapeHtml(task.task_id)}" title="${t("tasks.resume")}">${icon("rotate-ccw")}</button>` : "";
@@ -472,10 +512,11 @@ function taskRow(task) {
   const children = task.child_task_ids?.length ? ` · ${task.child_task_ids.length} ${t("tasks.children")}` : "";
   const workspace = task.workspace_path ? task.workspace_path.split(/[\\/]/).filter(Boolean).pop() : "workspace";
   const details = `<button class="panel-icon-action" data-open-detail="${escapeHtml(task.task_id)}" title="${escapeHtml(t("tasks.detail"))}" aria-label="${escapeHtml(t("tasks.detail"))}">${icon("maximize-2")}</button>`;
-  return `<div class="task-row" data-open-task="${escapeHtml(task.task_id)}" tabindex="0"><span class="task-state ${statusClass}"></span><div><strong>${escapeHtml(task.task_kind === "batch" ? `${task.task_id} · ${t("tasks.children")}` : task.task_id)}</strong><small>${escapeHtml(workspace)} · ${escapeHtml(detail)}${children}</small></div><div class="task-row-actions">${details}${resume}${cancel}</div></div>`;
+  const restore = task.task_id ? `<button class="panel-icon-action" data-restore-task="${escapeHtml(task.task_id)}" title="${escapeHtml(t("restore.action"))}" aria-label="${escapeHtml(t("restore.action"))}">${icon("rotate-ccw")}</button>` : "";
+  return `<div class="task-row" data-open-task="${escapeHtml(task.task_id)}" tabindex="0"><span class="task-state ${statusClass}"></span><div><strong>${escapeHtml(task.task_kind === "batch" ? `${task.task_id} · ${t("tasks.children")}` : task.task_id)}</strong><small>${escapeHtml(workspace)} · ${escapeHtml(detail)}${children}</small></div><div class="task-row-actions">${details}${restore}${resume}${cancel}</div></div>`;
 }
 
-async function openTaskInWorkspace(taskId) {
+export async function openTaskInWorkspace(taskId) {
   try {
     const task = await requestJson(`/api/tasks/${encodeURIComponent(taskId)}`);
     cacheTaskDetail(task);
@@ -515,9 +556,11 @@ async function openTaskInWorkspace(taskId) {
   }
 }
 
-async function openTaskDetail(taskId) {
+export async function openTaskDetail(taskId) {
+  const current = beginPanelRequest(t("tasks.open"));
   try {
     const task = await requestJson(`/api/tasks/${encodeURIComponent(taskId)}`);
+    if (!current()) return;
     const events = Array.isArray(task.events) ? eventTimelineMarkup(task.events) : "";
     const execution = executionTrailMarkup(events, task.events || []);
     const children = Array.isArray(task.child_task_ids) && task.child_task_ids.length
@@ -526,31 +569,38 @@ async function openTaskDetail(taskId) {
     const resume = ["failed", "cancelled", "interrupted"].includes(task.status)
       ? `<button class="panel-primary" data-resume-task="${escapeHtml(task.task_id)}">${t("tasks.resume")}</button>`
       : "";
+    const restore = `<button class="panel-secondary" data-restore-task="${escapeHtml(task.task_id)}">${icon("rotate-ccw")} ${escapeHtml(t("restore.action"))}</button>`;
     const attachments = attachmentMarkup(task.attachments || []);
-    openPanel(`${t("tasks.open")} · ${task.task_id}`, `<div class="task-detail"><div class="task-detail-status"><span class="task-state ${task.status === "completed" ? "success" : ["failed", "cancelled", "interrupted"].includes(task.status) ? "cancelled" : "running"}"></span><strong>${escapeHtml(phaseLabel(task))}</strong><span>${escapeHtml(taskMetrics(task))}</span></div><div class="task-detail-actions task-detail-top-actions"><button class="panel-secondary" data-open-task="${escapeHtml(task.task_id)}">${icon("arrow-up-right")} ${escapeHtml(t("tasks.openSession"))}</button></div>${runtimeMetricsMarkup(task)}<div class="panel-section-title">${t("workspace.current")}</div><code class="task-detail-path">${escapeHtml(task.workspace_path || "")}</code><div class="panel-section-title">Prompt</div><div class="task-detail-prompt">${formatText(task.prompt || task.preview || "")}</div>${attachments ? `<div class="panel-section-title">Images</div>${attachments}` : ""}<div class="panel-section-title">Response</div><div class="task-detail-answer">${formatText(task.answer || task.stream_text || task.error || "")}</div>${execution ? `<div class="panel-section-title">Tools & stage trace</div>${execution}` : ""}${children}${resume ? `<div class="task-detail-actions">${resume}</div>` : ""}</div>`, { immersive: true });
+    openPanel(`${t("tasks.open")} · ${task.task_id}`, `<div class="task-detail"><div class="task-detail-status"><span class="task-state ${task.status === "completed" ? "success" : ["failed", "cancelled", "interrupted"].includes(task.status) ? "cancelled" : "running"}"></span><strong>${escapeHtml(phaseLabel(task))}</strong><span>${escapeHtml(taskMetrics(task))}</span></div><div class="task-detail-actions task-detail-top-actions"><button class="panel-secondary" data-open-task="${escapeHtml(task.task_id)}">${icon("arrow-up-right")} ${escapeHtml(t("tasks.openSession"))}</button>${restore}</div>${runtimeMetricsMarkup(task)}<div class="panel-section-title">${t("workspace.current")}</div><code class="task-detail-path">${escapeHtml(task.workspace_path || "")}</code><div class="panel-section-title">Prompt</div><div class="task-detail-prompt">${formatText(task.prompt || task.preview || "")}</div>${attachments ? `<div class="panel-section-title">Images</div>${attachments}` : ""}<div class="panel-section-title">Response</div><div class="task-detail-answer">${formatText(task.answer || task.stream_text || task.error || "")}</div>${execution ? `<div class="panel-section-title">Tools & stage trace</div>${execution}` : ""}${children}${resume ? `<div class="task-detail-actions">${resume}</div>` : ""}</div>`, { immersive: true });
   } catch (error) {
-    showToast(error.message);
+    if (!current()) return;
+    openPanel(t("tasks.open"), `<div class="error-panel">${escapeHtml(error.message)}</div>`);
   }
 }
 
-function openBatchPanel() {
+export function openBatchPanel() {
   const taskFields = [1, 2, 3].map((index) => `<label class="batch-field"><span>${escapeHtml(t("batch.task"))} ${index}</span><textarea name="task" rows="3" placeholder="${escapeHtml(state.locale === "zh" ? "例如：检查后端测试并总结风险" : "For example: inspect backend tests and summarize risks")}"></textarea></label>`).join("");
   openPanel(t("panel.batch"), `<form class="batch-form" id="batchForm"><div class="batch-heading"><span class="eyebrow">${escapeHtml(t("batch.title"))}</span><h3>${escapeHtml(t("batch.title"))}</h3><p>${escapeHtml(t("batch.subtitle"))}</p></div><div class="batch-fields">${taskFields}</div><label class="batch-field"><span>${escapeHtml(t("batch.context"))}</span><textarea name="shared_context" rows="3" placeholder="${escapeHtml(t("batch.note"))}"></textarea></label><div class="task-detail-actions"><button class="panel-primary" type="submit">${icon("play")} ${escapeHtml(t("batch.run"))}</button></div></form>`, { wide: true });
 }
 
-async function openActivityPanel() {
+export async function openActivityPanel() {
+  const current = beginPanelRequest(t("tasks.center"));
   try {
     const data = await requestJson("/api/tasks?limit=200");
+    if (!current()) return;
     const tasks = Array.isArray(data.tasks) ? data.tasks : [];
     openPanel(t("tasks.center"), `<div class="panel-toolbar"><span>${tasks.length} ${state.locale === "zh" ? "个任务" : "tasks"}</span><button class="panel-text-action" data-panel-action="activity">${t("panel.refresh")}</button></div><div class="task-filters"><span class="filter-chip active">${t("tasks.allWorkspaces")}</span><span class="filter-chip">${escapeHtml(state.workspacePath ? state.workspacePath.split(/[\\/]/).filter(Boolean).pop() : "workspace")}</span></div><div class="task-list">${tasks.length ? tasks.map(taskRow).join("") : `<div class="empty-panel">${t("tasks.noHistory")}</div>`}</div>`);
   } catch (error) {
+    if (!current()) return;
     openPanel(t("tasks.center"), `<div class="error-panel">${escapeHtml(error.message)}</div>`);
   }
 }
 
-async function openWorkspacesPanel() {
+export async function openWorkspacesPanel() {
+  const current = beginPanelRequest(t("panel.workspaces"));
   try {
     const info = await requestJson("/api/workspace");
+    if (!current()) return;
     const worktrees = Array.isArray(info.worktrees) ? info.worktrees : [];
     const sandbox = info.sandbox || {};
     const mcp = info.mcp || {};
@@ -560,90 +610,21 @@ async function openWorkspacesPanel() {
     const sandboxLabel = sandbox.isolated ? t("panel.isolated") : sandbox.backend === "unavailable" ? t("connection.offline") : t("panel.hostProcess");
     openPanel(t("panel.workspaces"), `<div class="workspace-switcher"><div class="panel-section-title">${t("workspace.current")}</div><code class="workspace-current-path">${escapeHtml(info.path)}</code><form class="workspace-form" id="workspaceSelectForm"><label>${t("workspace.path")}<input id="workspacePathInput" name="path" required value="${escapeHtml(info.path)}" placeholder="${t("workspace.selectHint")}" /></label><button class="panel-primary" type="submit">${t("workspace.open")}</button></form><small class="workspace-hint">${t("workspace.selectHint")}</small><div class="panel-section-title">${t("workspace.recent")}</div><div class="workspace-list">${recentRows}</div></div><div class="status-grid"><div><span>${t("panel.sandbox")}</span><strong>${escapeHtml(String(sandbox.backend || "host"))}</strong><small>${sandboxLabel}</small></div><div><span>${t("panel.mcp")}</span><strong>${escapeHtml(String(mcp.configured || 0))}</strong><small>${t("panel.servers")}</small></div></div><div class="panel-section-title">${t("panel.createWorktree")}</div><form class="worktree-form" id="worktreeForm"><input id="worktreeName" name="name" required maxlength="64" placeholder="${t("panel.name")}" /><input id="worktreeBranch" name="branch" maxlength="128" placeholder="${t("panel.branch")}" /><button class="panel-primary" type="submit">${t("panel.create")}</button></form><div class="panel-section-title">${t("panel.gitWorktrees")}</div><div class="worktree-list">${rows || `<div class="empty-panel">${t("panel.noWorktrees")}</div>`}</div>`);
   } catch (error) {
+    if (!current()) return;
     openPanel(t("panel.workspaces"), `<div class="error-panel">${escapeHtml(error.message)}</div>`);
   }
 }
 
-// Commercial unified-diff rendering: one grid row per diff line with an
-// old/new line-number gutter, a sign column, and the code cell. Legacy classes
-// (diff-add-line / diff-del-line / diff-hunk / diff-file / diff-context) are
-// preserved on the row element for CSS and smoke-test compatibility.
-function diffRowMarkup(kind, sign, oldLine, newLine, code) {
-  const oldCell = oldLine ? `<span class="diff-ln diff-ln-old">${oldLine}</span>` : `<span class="diff-ln diff-ln-old"></span>`;
-  const newCell = newLine ? `<span class="diff-ln diff-ln-new">${newLine}</span>` : `<span class="diff-ln diff-ln-new"></span>`;
-  return `<span class="diff-row ${kind}">${oldCell}${newCell}<span class="diff-sign">${escapeHtml(sign || " ")}</span><span class="diff-code">${escapeHtml(code.length ? code : " ")}</span></span>`;
-}
-
-function renderUnifiedDiffRows(patch) {
-  const rows = [];
-  let oldLine = 0;
-  let newLine = 0;
-  let inHunk = false;
-  for (const line of String(patch || "").split("\n")) {
-    if (line.startsWith("@@")) {
-      const header = /@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/.exec(line);
-      if (header) {
-        oldLine = Number(header[1]);
-        newLine = Number(header[2]);
-        inHunk = true;
-      }
-      rows.push(`<span class="diff-row diff-hunk"><span class="diff-code">${escapeHtml(line || " ")}</span></span>`);
-      continue;
-    }
-    if (line.startsWith("diff ") || line.startsWith("index ") || line.startsWith("--- ") || line.startsWith("+++ ") || line.startsWith("old mode") || line.startsWith("new mode") || line.startsWith("similarity ") || line.startsWith("rename ")) {
-      rows.push(`<span class="diff-row diff-file"><span class="diff-code">${escapeHtml(line || " ")}</span></span>`);
-      continue;
-    }
-    if (line.startsWith("\\")) {
-      rows.push(`<span class="diff-row diff-meta"><span class="diff-code">${escapeHtml(line)}</span></span>`);
-      continue;
-    }
-    if (!inHunk) {
-      // Preamble text before the first hunk (raw patches without @@ headers).
-      if (line) rows.push(`<span class="diff-row diff-file"><span class="diff-code">${escapeHtml(line)}</span></span>`);
-      continue;
-    }
-    if (line.startsWith("+")) {
-      rows.push(diffRowMarkup("diff-add-line", "+", 0, newLine, line.slice(1)));
-      newLine += 1;
-    } else if (line.startsWith("-")) {
-      rows.push(diffRowMarkup("diff-del-line", "-", oldLine, 0, line.slice(1)));
-      oldLine += 1;
-    } else if (line) {
-      // Context lines start with a space; a bare "" is the trailing-newline
-      // artifact of split("\n") and is skipped.
-      rows.push(diffRowMarkup("diff-context", " ", oldLine, newLine, line.startsWith(" ") ? line.slice(1) : line));
-      oldLine += 1;
-      newLine += 1;
-    }
-  }
-  return rows.join("");
-}
-
-async function openFilePreview(path) {
-  try {
-    const diff = await requestJson(`/api/diff?path=${encodeURIComponent(path)}`);
-    let data = { content: "" };
-    try { data = await requestJson(`/api/file?path=${encodeURIComponent(path)}`); } catch { /* deleted files still have a useful diff */ }
-    const additions = Number(diff.additions || 0);
-    const deletions = Number(diff.deletions || 0);
-    const diffRows = renderUnifiedDiffRows(diff.patch);
-    const diffBody = diffRows || `<span class="diff-row diff-empty"><span class="diff-code">${escapeHtml(t("diff.empty"))}</span></span>`;
-    const fileHead = `<div class="diff-file-head"><span class="diff-file-path">${icon("file-code-2")}<strong>${escapeHtml(path)}</strong></span><span class="diff-file-badges"><span class="diff-badge diff-badge-status">${escapeHtml(changeStatusLabel(diff.status || "modified"))}</span><span class="diff-badge diff-badge-add">+${additions}</span><span class="diff-badge diff-badge-del">-${deletions}</span></span></div>`;
-    openPanel(`${t("panel.file")} · ${path}`, `<div class="diff-toolbar"><span>${escapeHtml(t("diff.previewAria"))}</span><span class="mono">${escapeHtml(diff.source || "diff")}</span></div>${fileHead}<pre class="diff-preview" aria-label="${escapeHtml(`${t("diff.previewAria")} · ${t("diff.oldLine")} / ${t("diff.newLine")}`)}">${diffBody}</pre><details class="file-current" open><summary>${escapeHtml(state.locale === "zh" ? "当前文件内容" : "Current file")}</summary><pre class="file-preview">${escapeHtml(data.content || "")}</pre></details>`);
-  } catch (error) {
-    openPanel(t("panel.file"), `<div class="error-panel">${escapeHtml(error.message)}</div>`);
-  }
-}
-
-function openSettingsPanel() {
+export function openSettingsPanel() {
   const current = state.locale === "zh" ? "中文" : "English";
-  const effortMarkup = ["low", "mid", "high", "xhigh", "max"].map((effort) => "<option value=\"" + effort + "\" " + (state.reasoningEffort === effort ? "selected" : "") + ">" + escapeHtml(t("reasoning." + effort)) + "</option>").join("");
+  const effortMarkup = ["low", "mid", "high", "xhigh", "max", "ultra"].map((effort) => "<option value=\"" + effort + "\" " + (state.reasoningEffort === effort ? "selected" : "") + ">" + escapeHtml(t("reasoning." + effort)) + "</option>").join("");
   const languageButtons = "<div class=\"settings-block\"><span>" + t("panel.language") + "</span><strong>" + current + "</strong><div class=\"settings-locale\"><button class=\"locale-option " + (state.locale === "zh" ? "active" : "") + "\" data-set-locale=\"zh\">中文</button><button class=\"locale-option " + (state.locale === "en" ? "active" : "") + "\" data-set-locale=\"en\">English</button></div></div>";
   const reasoningBlock = "<div class=\"settings-block\"><span>" + t("panel.reasoning") + "</span><div class=\"settings-effort\"><select id=\"reasoningEffortSelect\" aria-label=\"" + escapeHtml(t("panel.reasoning")) + "\">" + effortMarkup + "</select></div><small class=\"settings-note\">" + escapeHtml(t("panel.reasoningNote")) + "</small></div>";
   const sandboxBlock = "<div class=\"settings-block\"><span>" + t("panel.sandbox") + "</span><strong>" + (state.locale === "zh" ? "见工作区面板" : "See Workspaces") + "</strong></div>";
-  const rewindBlock = "<div class=\"settings-block settings-rewind\"><span>" + escapeHtml(t("rewind.title")) + "</span><form id=\"rewindForm\" class=\"rewind-form\"><label class=\"rewind-label\"><span>" + escapeHtml(t("rewind.keepLabel")) + "</span><input id=\"rewindKeep\" type=\"number\" min=\"1\" value=\"3\" required aria-label=\"" + escapeHtml(t("rewind.keepLabel")) + "\" /></label><button class=\"send-button rewind-button\" type=\"submit\">" + escapeHtml(t("rewind.action")) + "</button></form><small class=\"settings-note\">" + escapeHtml(t("rewind.hint")) + "</small></div>";
-  openPanel(t("panel.settings"), languageButtons + reasoningBlock + sandboxBlock + rewindBlock);
+  const rewindBlock = "<div class=\"settings-block settings-rewind\"><span>" + escapeHtml(t("rewind.advanced")) + "</span><form id=\"rewindForm\" class=\"rewind-form\"><label class=\"rewind-label\"><span>" + escapeHtml(t("rewind.keepLabel")) + "</span><input id=\"rewindKeep\" type=\"number\" min=\"1\" value=\"3\" required aria-label=\"" + escapeHtml(t("rewind.keepLabel")) + "\" /></label><button class=\"send-button rewind-button\" type=\"submit\">" + escapeHtml(t("rewind.action")) + "</button></form><small class=\"settings-note\">" + escapeHtml(t("rewind.hint")) + "</small></div>";
+  const allowlistBlock = "<div class=\"settings-block\" id=\"allowlistEditor\"><span>" + escapeHtml(t("allowlist.title")) + "</span><small class=\"settings-note\">" + escapeHtml(t("allowlist.hint")) + "</small><form id=\"allowlistForm\" class=\"allowlist-form\"><label><span>" + escapeHtml(t("allowlist.commands")) + "</span><textarea id=\"allowlistCommands\" rows=\"3\"></textarea></label><label><span>" + escapeHtml(t("allowlist.paths")) + "</span><textarea id=\"allowlistPaths\" rows=\"3\"></textarea></label><label><span>" + escapeHtml(t("allowlist.tools")) + "</span><textarea id=\"allowlistTools\" rows=\"2\"></textarea></label><button class=\"send-button\" type=\"submit\">" + escapeHtml(t("allowlist.save")) + "</button></form></div>";
+  openPanel(t("panel.settings"), languageButtons + reasoningBlock + sandboxBlock + rewindBlock + allowlistBlock);
+  bindAllowlistEditor();
   const rewindForm = $("#rewindForm");
   if (rewindForm) {
     rewindForm.addEventListener("submit", async (event) => {
@@ -671,7 +652,7 @@ function openSettingsPanel() {
   }
 }
 
-function openPromoPanel() {
+export function openPromoPanel() {
   const promo = state.locale === "zh"
     ? {
         panel: "minicc · Agent 工作台",
@@ -776,16 +757,16 @@ function openPromoPanel() {
   </article>`);
 }
 
-function openOptionsPanel() {
+export function openOptionsPanel() {
   openPanel(t("panel.options"), `<div class="options-list"><button class="panel-command" data-panel-action="clear"><span>${icon("eraser")}</span>${t("panel.clear")}</button><button class="panel-command" data-panel-action="export"><span>${icon("download")}</span>${t("panel.export")}</button><button class="panel-command" data-panel-action="reload"><span>${icon("refresh-cw")}</span>${t("panel.reload")}</button></div>`);
 }
 
-function openTaskListPanel() {
+export function openTaskListPanel() {
   const items = $$(".thread-item").map((item) => `<button class="panel-session" data-switch-session="${escapeHtml(item.dataset.session)}"><strong>${escapeHtml(item.querySelector("strong")?.textContent || item.dataset.session)}</strong><small>${escapeHtml(item.querySelector("small")?.textContent || "")}</small></button>`).join("");
   openPanel(t("recentTasks"), `<div class="panel-session-list">${items}</div>`);
 }
 
-function exportChat() {
+export function exportChat() {
   const text = $("#messageList").innerText;
   const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
   const link = document.createElement("a");
@@ -796,82 +777,117 @@ function exportChat() {
   showToast(state.locale === "zh" ? "对话已导出" : "Chat exported");
 }
 
-function switchInspectorTab(tab) {
-  $$(".inspector-tab").forEach((item) => item.classList.toggle("active", item.dataset.inspectorTab === tab));
-  $("#overviewSection").hidden = tab !== "overview";
-  $("#changesSection").hidden = tab !== "changes";
+export function switchInspectorTab(tab) {
+  runtime.inspectorTab = ["changes", "files", "verification"].includes(tab) ? tab : "changes";
+  $$(".inspector-tab").forEach((item) => {
+    const active = item.dataset.inspectorTab === runtime.inspectorTab;
+    item.classList.toggle("active", active);
+    item.setAttribute("aria-selected", String(active));
+    item.tabIndex = active ? 0 : -1;
+  });
+  $("#overviewSection").hidden = runtime.inspectorTab !== "verification";
+  $("#changesSection").hidden = runtime.inspectorTab !== "changes";
+  $("#fileTreeSection").hidden = runtime.inspectorTab !== "files";
+  $("#filesSection").hidden = true;
+  $("#verificationSection").hidden = runtime.inspectorTab !== "verification";
 }
 
-function setGameWideMode(enabled) {
-  const wide = Boolean(enabled);
-  const modal = $("#gameModal");
-  const button = $("#gameWideMode");
-  modal.classList.toggle("wide-mode", wide);
-  button?.classList.toggle("active", wide);
-  button?.setAttribute("aria-pressed", String(wide));
-  if (button) {
-    button.title = t(wide ? "game.compactMode" : "game.wideMode");
-    button.querySelector("span").textContent = t(wide ? "game.compactMode" : "game.wideMode");
+export async function rewindToUserIndex(userIndex) {
+  const index = Number(userIndex);
+  if (!Number.isFinite(index) || index < 1) {
+    showToast(t("rewind.fail"));
+    return;
   }
-  localStorage.setItem("minicc-game-wide-mode", wide ? "on" : "off");
-}
-function toggleGameWideMode() {
-  setGameWideMode(!$("#gameModal").classList.contains("wide-mode"));
-}
-function openGame() {
-  $("#gameModal").classList.add("show");
-  $("#gameModal").setAttribute("aria-hidden", "false");
-  setGameWideMode(localStorage.getItem("minicc-game-wide-mode") === "on");
-  initGame();
-}
-
-function openGameWindow() { window.open(location.origin + location.pathname + "?arcade=1", "minicc-arcade", "popup,width=980,height=760"); }
-function toggleGameFullscreen() { const card = $("#gameModal .game-card"); if (!document.fullscreenElement) card.requestFullscreen?.(); else document.exitFullscreen?.(); }
-function closeGame() {
-  const active = document.activeElement;
-  if (active instanceof HTMLElement && $("#gameModal").contains(active)) active.blur();
-  closeGameCodex();
-  $("#gameModal").classList.remove("show");
-  $("#gameModal").setAttribute("aria-hidden", "true");
-  game.running = false;
-  cancelAnimationFrame(game.frame);
-  stopGameMusic();
-  window.scrollTo(0, 0);
+  const scope = captureViewScope();
+  try {
+    const outcome = await requestJson("/api/sessions/rewind", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ session_id: scope.sessionId, user_index: index }),
+    }, 20000);
+    showToast(`${t("rewind.done")} #${outcome.user_index || index}`);
+    const cacheKey = sessionViewKey(scope.sessionId, scope.workspacePath);
+    sessionMarkup.delete(cacheKey);
+    try { localStorage.removeItem(cacheKey); } catch { /* ignore quota */ }
+    if (isViewScopeCurrent(scope)) {
+      await loadTaskHistory();
+      if (isViewScopeCurrent(scope)) renderSession(scope.sessionId);
+    }
+  } catch (error) {
+    showToast(`${t("rewind.fail")}: ${error.message}`);
+  }
 }
 
-const codexState = { tab: "plants", plant: "peashooter", zombie: "walker" };
-const codexPlantNames = { peashooter: "豌豆射手", sunflower: "向日葵", wallnut: "坚果墙", repeater: "双发射手", cherrybomb: "樱桃炸弹", icepeashooter: "寒冰射手", firepeashooter: "火焰射手", twinpea: "双发强化", kernelpult: "玉米投手", pumpkin: "南瓜头", spikeweed: "地刺", gloomshroom: "忧郁菇", potatomine: "土豆雷", threepeater: "三线射手", jalapeno: "火爆辣椒", magnetshroom: "磁力菇", garlic: "大蒜", squash: "窝瓜", gatlingpea: "机枪射手" };
-const codexZombieNames = { walker: "普通僵尸", backup: "伴舞僵尸", roadblock: "路障僵尸", conehead: "路锥僵尸", imp: "小鬼僵尸", scout: "侦察僵尸", storm: "风暴僵尸", runner: "奔跑僵尸", polevault: "撑杆僵尸", bucket: "铁桶僵尸", football: "橄榄球僵尸", miner: "矿工僵尸", flag: "旗帜僵尸", dancer: "舞王僵尸", newspaper: "报纸僵尸", gargantuar: "巨人僵尸", witch: "女巫僵尸", dragon: "龙僵尸", shield: "护盾僵尸" };
-const codexPlantIcons = { peashooter: "🌱", sunflower: "🌻", wallnut: "🥜", repeater: "🌿", cherrybomb: "🍒", icepeashooter: "❄️", firepeashooter: "🔥", twinpea: "🌱", kernelpult: "🌽", pumpkin: "🎃", spikeweed: "🌵", gloomshroom: "🍄", potatomine: "🥔", threepeater: "🌾", jalapeno: "🌶️", magnetshroom: "🧲", garlic: "🧄", squash: "🎃", gatlingpea: "🔫" };
-const codexPlantSpecials = { peashooter: "发射普通豌豆，稳定输出。", sunflower: "每隔一段时间生产 25 阳光。", wallnut: "高生命值阻挡，拖延僵尸。", repeater: "每轮发射 2 发豌豆，并可穿透 1 个目标。", cherrybomb: "短延迟后在同一行 145 范围内直接消灭僵尸。", icepeashooter: "命中后减速 3200ms，并可穿透 1 个目标。", firepeashooter: "每发 2 点伤害并施加 2600ms 灼烧，灼烧伤害 3。", twinpea: "每轮发射 2 发强化豌豆，每发 2 点伤害。", kernelpult: "28% 概率用黄油定身，并可穿透 1 个目标。", pumpkin: "为同格植物提供 32 点护罩生命。", spikeweed: "攻击所在格附近 44 范围内的僵尸。", gloomshroom: "近身范围攻击并施加 900ms 减速。", potatomine: "1800ms 后布雷，在同一行 90 范围内爆炸。", threepeater: "同时攻击当前行、上行和下行。", jalapeno: "短延迟后消灭所在行的全部僵尸。", magnetshroom: "周期性吸走僵尸护甲或装备，不直接造成伤害。", garlic: "被咬后将僵尸改道到下一行。", squash: "接近时重击并直接消灭目标。", gatlingpea: "每轮连续发射 4 发豌豆，每发 1 点伤害。" };
-const codexZombieSkills = { walker: "无额外技能，接触植物后啃食。", backup: "伴随舞王召唤，沿行啃食。", roadblock: "路障提供额外防护。", conehead: "路锥提供额外护甲。", imp: "快速移动并跳跃植物。", scout: "间歇冲刺并标记、诅咒附近植物。", storm: "周期性使同一行植物短暂失效。", runner: "沿行快速移动并间歇冲刺。", polevault: "遇到第一株植物时撑杆跳过。", bucket: "铁桶提供高额护甲。", football: "高护甲并可冲锋攻击。", miner: "地下潜行，接近防线后出土。", flag: "为同一行盟友提供移动速度加成。", dancer: "周期性召唤伴舞僵尸。", newspaper: "报纸被破坏后进入狂暴状态。", gargantuar: "缓慢推进，接触植物时重击并造成高额伤害。", witch: "标记并诅咒附近植物。", dragon: "喷吐火焰，对植物施加灼烧。", shield: "周期性恢复护盾。" };
-function codexPlantInfo(type) {
-  const profile = plantProfiles[type] || {};
-  const damage = profile.damage ? `${profile.damage} 点/发` : ["cherrybomb", "jalapeno", "potatomine", "squash"].includes(type) ? "特殊/爆发伤害" : "0（功能型）";
-  const target = profile.rows || type === "jalapeno" ? "群体" : ["cherrybomb", "potatomine", "squash"].includes(type) ? "范围爆发" : "单体";
-  const range = profile.rows ? "当前行及相邻两行" : ["gloomshroom", "spikeweed"].includes(type) ? "近身（约 44）" : ["cherrybomb", "potatomine"].includes(type) ? "同一行范围" : type === "jalapeno" ? "整行" : "所在行直线/所在格";
-  const usage = type === "sunflower" ? "放在后排，持续生产阳光。" : type === "wallnut" || type === "pumpkin" ? "放在僵尸路线前吸收伤害。" : `选中卡片后点击草坪格子，消耗 ${plantCost[type]} 阳光。`;
-  return { name: codexPlantNames[type], icon: codexPlantIcons[type], health: plantHealth[type], cost: plantCost[type], damage, attack: profile.shots ? `${profile.shots} 发/轮` : type === "threepeater" ? "3 条线路" : "特殊逻辑", target, range, usage, special: codexPlantSpecials[type] || "按当前游戏逻辑发挥作用。", raw: Object.keys(profile).length ? JSON.stringify(profile) : "由独立游戏逻辑处理" };
+export async function restoreTaskSnapshot(taskId) {
+  if (!taskId) return;
+  try {
+    const result = await requestJson("/api/workspace/restore", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ task_id: taskId }),
+    }, 20000);
+    const unresolved = [...(result.conflicts || []), ...(result.skipped || [])];
+    showToast(unresolved.length ? `${t("restore.partial")}: ${unresolved.slice(0, 3).join(", ")}${unresolved.length > 3 ? "…" : ""}` : t("restore.done"));
+    loadChanges();
+    refreshFileTreeSoon();
+  } catch (error) {
+    showToast(`${t("restore.fail")}: ${error.message}`);
+  }
 }
-function codexZombieInfo(type) {
-  const profile = zombieProfiles[type];
-  const movement = profile.burrow ? "地下潜行，接近防线后出土" : profile.vault ? "持杆前进，遇到植物时跳过" : profile.leap ? "快速前进并跳跃植物" : profile.dash ? "沿所在行移动并间歇冲刺" : profile.giant ? "缓慢直线推进" : "沿所在行向左直线移动";
-  return { name: codexZombieNames[type], hp: profile.hp, armor: profile.armor || 0, speed: `${profile.speed.toFixed(3)} + 每波 ${profile.growth.toFixed(4)}`, attack: `${profile.attackInterval} ms`, score: profile.score, movement, skills: codexZombieSkills[type] };
-}
-function codexRows(rows) { return rows.map(([label, value]) => `<div class="codex-row"><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(String(value))}</dd></div>`).join(""); }
-function renderCodex() {
-  const plants = codexState.tab === "plants";
-  const keys = Object.keys(plants ? plantCost : zombieProfiles);
-  const selected = codexState[plants ? "plant" : "zombie"];
-  $("#codexPlantCount").textContent = `（${Object.keys(plantCost).length}）`;
-  $("#codexZombieCount").textContent = `（${Object.keys(zombieProfiles).length}）`;
-  $$(".codex-tab").forEach((tab) => { const active = tab.dataset.codexTab === codexState.tab; tab.classList.toggle("active", active); tab.setAttribute("aria-selected", String(active)); });
-  $("#codexEntryList").innerHTML = keys.map((key) => { const info = plants ? codexPlantInfo(key) : codexZombieInfo(key); return `<button class="codex-entry ${key === selected ? "active" : ""}" type="button" data-codex-entry="${key}"><span class="codex-entry-icon">${info.icon || "🧟"}</span><span>${escapeHtml(info.name)}</span></button>`; }).join("");
-  const info = plants ? codexPlantInfo(selected) : codexZombieInfo(selected);
-  $("#codexDetail").innerHTML = `<div class="codex-detail-title"><span class="codex-detail-icon">${info.icon || "🧟"}</span><div><span class="game-kicker">${plants ? "植物详情" : "僵尸详情"}</span><h4>${escapeHtml(info.name)}</h4></div></div>${plants ? `<dl class="codex-stats">${codexRows([["阳光消耗", `${info.cost} 阳光`], ["植物生命值", `${info.health} HP`], ["伤害", info.damage], ["攻击频率", info.attack], ["伤害类型", info.target], ["攻击范围", info.range]])}</dl><div class="codex-section"><strong>使用方法</strong><p>${escapeHtml(info.usage)}</p></div><div class="codex-section"><strong>特殊效果</strong><p>${escapeHtml(info.special)}</p></div><div class="codex-section"><strong>实际 profile 参数</strong><code>${escapeHtml(info.raw)}</code></div>` : `<dl class="codex-stats">${codexRows([["基础生命值", `${info.hp} HP`], ["护甲", `${info.armor} 点`], ["移动速度", info.speed], ["攻击间隔", info.attack], ["击退积分", info.score]])}</dl><div class="codex-health-bar" aria-label="僵尸基础生命值"><i style="width: 100%"></i></div><div class="codex-section"><strong>移动方式</strong><p>${escapeHtml(info.movement)}</p></div><div class="codex-section"><strong>特殊技能</strong><p>${escapeHtml(info.skills)}</p></div>`}`;
-  $$(".codex-entry").forEach((entry) => entry.addEventListener("click", () => { codexState[plants ? "plant" : "zombie"] = entry.dataset.codexEntry; renderCodex(); }));
-}
-function openGameCodex(tab = "plants") { codexState.tab = tab; $("#gameCodexPanel").classList.add("show"); $("#gameCodexPanel").setAttribute("aria-hidden", "false"); renderCodex(); window.lucide?.createIcons(); }
-function closeGameCodex() { const panel = $("#gameCodexPanel"); if (!panel) return; panel.classList.remove("show"); panel.setAttribute("aria-hidden", "true"); }
 
-const MAX_WAVES = 10;
+export function parseAllowlistLines(value) {
+  return String(value || "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+}
+
+export async function bindAllowlistEditor() {
+  const host = $("#allowlistEditor");
+  const form = $("#allowlistForm");
+  if (!host || !form) return;
+  const fill = (id, items) => {
+    const field = document.getElementById(id);
+    if (field) field.value = (Array.isArray(items) ? items : []).join("\n");
+  };
+  try {
+    const data = await requestJson(`/api/allowlist?session_id=${encodeURIComponent(state.sessionId)}`);
+    fill("allowlistCommands", data.commands);
+    fill("allowlistPaths", data.paths);
+    fill("allowlistTools", data.tools);
+  } catch (error) {
+    const message = String(error.message || "");
+    if (/404|not found/i.test(message)) {
+      host.innerHTML = `<span>${escapeHtml(t("allowlist.title"))}</span><small class="settings-note">${escapeHtml(t("allowlist.soon"))}</small>`;
+      return;
+    }
+    host.insertAdjacentHTML("beforeend", `<small class="settings-note">${escapeHtml(message)}</small>`);
+  }
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    try {
+      await requestJson("/api/allowlist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          session_id: state.sessionId,
+          commands: parseAllowlistLines($("#allowlistCommands")?.value),
+          paths: parseAllowlistLines($("#allowlistPaths")?.value),
+          tools: parseAllowlistLines($("#allowlistTools")?.value),
+        }),
+      });
+      showToast(state.locale === "zh" ? "允许列表已保存" : "Allowlist saved");
+    } catch (error) {
+      showToast(error.message);
+    }
+  });
+}
+
+export function openHelpPanel() {
+  const rows = state.locale === "zh"
+    ? [["发送任务", "Enter"], ["换行", "Shift+Enter"], ["新任务", "Ctrl/⌘ N"], ["搜索任务", "/"], ["关闭面板 / 小游戏", "Esc"]]
+    : [["Send task", "Enter"], ["Newline", "Shift+Enter"], ["New task", "Ctrl/⌘ N"], ["Search tasks", "/"], ["Close panel / game", "Esc"]];
+  const list = rows.map(([label, key]) => `<div class="help-shortcut"><span>${escapeHtml(label)}</span><kbd>${escapeHtml(key)}</kbd></div>`).join("");
+  openPanel(t("help.title"), `<div class="help-panel"><div class="panel-section-title">${escapeHtml(t("help.shortcuts"))}</div>${list}<div class="panel-section-title">${escapeHtml(t("help.arcade"))}</div><button type="button" class="panel-command" id="helpArcadeButton"><span>${icon("gamepad-2")}</span>${escapeHtml(t("help.arcade"))}</button></div>`);
+  $("#helpArcadeButton")?.addEventListener("click", () => {
+    closePanel();
+    openArcade().catch((error) => showToast(error.message));
+  });
+}

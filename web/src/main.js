@@ -1,5 +1,19 @@
-// NOTE: 源文件分片（web/src/）。此文件由 `npm run build:web` 按序拼接生成，勿直接编辑。
-function bindUI() {
+import { requestJson } from "./core/transport.js";
+import { openArcade } from "./core/arcade.js";
+// ES module source for the minicc workbench. Bundled by scripts/build-web.mjs.
+import { escapeHtml, loadTaskHistory, persistSessionView, renderSession, renderTaskHistory, sessionViewKey } from "./chat/markdown.js";
+import { addImageFiles, cancelActiveTask, closePanel, exportChat, loadWorkspace, openActivityPanel, openBatchPanel, openHelpPanel, openOptionsPanel, openPanel, openPromoPanel, openSettingsPanel, openTaskDetail, openTaskInWorkspace, openTaskListPanel, openWorkspacesPanel, renderAttachmentTray, resetTask, restoreTaskSnapshot, rewindToUserIndex, runDemoFlow, sendMessage, switchInspectorTab, togglePanelFullscreen, watchTask } from "./chat/stream.js";
+import { applyTaskEvent, setTimelineDetails, syncLiveEvents, updateBoundTask, updateLiveTask } from "./core/api.js";
+import { t } from "./core/i18n.js";
+import { applyFocusMode, applyLocale, applyPaneLayout, finishStartupSplash, prepareStartupSplash, setFocusMode, setInspectorCollapsed, setLocale, setSidebarCollapsed, setStartupSplashError, setTheme } from "./core/locale.js";
+import { $, $$, runningTasks, runtime, sessionMarkup, state, taskBySession } from "./core/state.js";
+import { copyFilePreviewContent, looksLikeWorkspacePath, openFilePreview } from "./files/preview.js";
+import { applyIcons, icon, refreshIcons } from "./icons.js";
+import { handleFileTreeKeydown } from "./panels/index.js";
+import { PERMISSION_MODES, addAssistantMessage, addLoadingMessage, addUserMessage, applyMentionOption, assistantMessageMarkup, bindRunningTask, closeMentionPopover, effectiveTaskPermissions, eventTimelineMarkup, handleMentionKeydown, mentionState, openGlobalSearchPanel, refreshFileTree, scrollChat, setBusy, setPermissionMode, setSession, showAuthModal, showToast, stopTaskTimer, submitAuthToken, taskSessionKey, toggleFileDir, toggleTodoSection, updateChatFollowState, updateMentionPopover, updateMode, updateReasoningControl, updateTaskDock, visibleAgentEvents } from "./panels/index.js";
+
+export function bindUI() {
+  window.addEventListener("minicc-auth-required", showAuthModal);
   $("#chatForm").addEventListener("submit", sendMessage);
   $("#chatArea").addEventListener("scroll", () => {
     state.chatRestoreVersion += 1;
@@ -10,38 +24,42 @@ function bindUI() {
   $("#newTaskButton").addEventListener("click", resetTask);
   $("#demoFlowButton").addEventListener("click", runDemoFlow);
   $("#cancelTaskButton").addEventListener("click", cancelActiveTask);
-  $("#gameClose").addEventListener("click", closeGame);
-  $("#gameNewWindow").addEventListener("click", openGameWindow);
-  $("#gameWideMode").addEventListener("click", toggleGameWideMode);
-  $("#gameCodex").addEventListener("click", () => openGameCodex("plants"));
-  $("#gameCodexClose").addEventListener("click", closeGameCodex);
-  $$(".codex-tab").forEach((tab) => tab.addEventListener("click", () => openGameCodex(tab.dataset.codexTab)));
-  $("#gameCodexPanel").addEventListener("click", (event) => { if (event.target.id === "gameCodexPanel") closeGameCodex(); });
-  $("#gameFullscreen").addEventListener("click", toggleGameFullscreen);
-  $("#gameStart").addEventListener("click", startGame);
-  $("#gameShovel").addEventListener("click", toggleShovel);
-  $$(".game-skill").forEach((button) => button.addEventListener("click", () => activateGameSkill(button.dataset.skill)));
-  $("#gamePause").addEventListener("click", toggleGamePause);
-  $("#gameDifficulty").addEventListener("change", (event) => setGameDifficulty(event.target.value));
-  $("#gameAutoSun").addEventListener("change", (event) => {
-    game.autoSun = event.target.checked;
-    localStorage.setItem("minicc-game-auto-sun", game.autoSun ? "on" : "off");
+  $("#gameClose")?.addEventListener("click", () => window.closeGame?.());
+  $("#gameNewWindow")?.addEventListener("click", () => window.openGameWindow?.());
+  $("#gameWideMode")?.addEventListener("click", () => window.toggleGameWideMode?.());
+  $("#gameCodex")?.addEventListener("click", () => window.openGameCodex?.("plants"));
+  $("#gameCodexClose")?.addEventListener("click", () => window.closeGameCodex?.());
+  document.querySelectorAll(".codex-tab").forEach((tab) => tab.addEventListener("click", () => window.openGameCodex?.(tab.dataset.codexTab)));
+  $("#gameCodexPanel")?.addEventListener("click", (event) => { if (event.target.id === "gameCodexPanel") window.closeGameCodex?.(); });
+  $("#gameFullscreen")?.addEventListener("click", () => window.toggleGameFullscreen?.());
+  $("#gameStart")?.addEventListener("click", () => window.startGame?.());
+  $("#gameShovel")?.addEventListener("click", () => window.toggleShovel?.());
+  document.querySelectorAll(".game-skill").forEach((button) => button.addEventListener("click", () => window.activateGameSkill?.(button.dataset.skill)));
+  $("#gamePause")?.addEventListener("click", () => window.toggleGamePause?.());
+  $("#gameDifficulty")?.addEventListener("change", (event) => window.setGameDifficulty?.(event.target.value));
+  $("#gameAutoSun")?.addEventListener("change", (event) => {
+    if (window.game) window.game.autoSun = event.target.checked;
+    localStorage.setItem("minicc-game-auto-sun", event.target.checked ? "on" : "off");
   });
-  $("#gameSoundToggle").addEventListener("click", toggleGameSound);
-  $("#gameVolume").addEventListener("input", (event) => setGameVolume(event.target.value));
-  document.addEventListener("visibilitychange", () => setGamePaused(document.hidden));
-  $("#gameModal").addEventListener("click", (event) => { if (event.target.id === "gameModal") closeGame(); });
-  $("#gameCanvas").addEventListener("click", (event) => {
-    if (collectSun(event)) return;
-    plantAt(event);
+  $("#gameSoundToggle")?.addEventListener("click", () => window.toggleGameSound?.());
+  $("#gameVolume")?.addEventListener("input", (event) => window.setGameVolume?.(event.target.value));
+  document.addEventListener("visibilitychange", () => window.setGamePaused?.(document.hidden));
+  $("#gameModal")?.addEventListener("click", (event) => { if (event.target.id === "gameModal") window.closeGame?.(); });
+  $("#gameCanvas")?.addEventListener("click", (event) => {
+    if (window.collectSun?.(event)) return;
+    window.plantAt?.(event);
   });
-  $("#gameCanvas").addEventListener("pointermove", updateGameHover, { passive: true });
-  $("#gameCanvas").addEventListener("pointerleave", clearGameHover, { passive: true });
-  $$(".seed-card").forEach((card) => card.addEventListener("click", () => selectPlant(card)));
+  $("#gameCanvas")?.addEventListener("pointermove", (event) => window.updateGameHover?.(event), { passive: true });
+  $("#gameCanvas")?.addEventListener("pointerleave", () => window.clearGameHover?.(), { passive: true });
+  document.querySelectorAll(".seed-card").forEach((card) => card.addEventListener("click", () => window.selectPlant?.(card)));
   window.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
-      if ($("#gameModal").classList.contains("show") && (game.selected || game.shovel)) { clearPlantSelection(); game.shovel = false; updateShovelButton(); }
-      else { closeGame(); closePanel(); }
+      const arcade = window.game;
+      if ($("#gameModal")?.classList.contains("show") && (arcade?.selected || arcade?.shovel)) {
+        window.clearPlantSelection?.();
+        if (arcade) arcade.shovel = false;
+        window.updateShovelButton?.();
+      } else { window.closeGame?.(); closePanel(); }
     }
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "n") { event.preventDefault(); resetTask(); }
     if (event.key === "/" && document.activeElement?.tagName !== "TEXTAREA" && document.activeElement?.tagName !== "INPUT") { event.preventDefault(); $("#threadSearch").focus(); }
@@ -54,6 +72,7 @@ function bindUI() {
   });
   $("#allowNetwork").addEventListener("change", (event) => {
     state.allowNetwork = event.target.checked;
+    updateMode();
     localStorage.setItem("minicc-network", String(state.allowNetwork));
     showToast(state.allowNetwork ? (state.locale === "zh" ? "已允许当前任务联网搜索" : "Web search enabled for new requests") : (state.locale === "zh" ? "已关闭联网搜索" : "Web search disabled"));
   });
@@ -67,6 +86,7 @@ function bindUI() {
     const index = PERMISSION_MODES.indexOf(state.permissionMode);
     const delta = event.key === "ArrowLeft" || event.key === "ArrowUp" ? -1 : 1;
     setPermissionMode(PERMISSION_MODES[(index + delta + PERMISSION_MODES.length) % PERMISSION_MODES.length]);
+    $("#permModeGroup .perm-mode-option.active")?.focus();
   });
   $("#todoSectionToggle").addEventListener("click", () => toggleTodoSection());
   $("#localeZh").addEventListener("click", () => setLocale("zh"));
@@ -103,7 +123,20 @@ function bindUI() {
     const fileRow = event.target.closest("[data-open-diff]");
     if (fileRow) openFilePreview(fileRow.dataset.openDiff);
   });
-  $$(".inspector-tab").forEach((button) => button.addEventListener("click", () => switchInspectorTab(button.dataset.inspectorTab)));
+  document.querySelectorAll(".inspector-tab").forEach((button) => button.addEventListener("click", () => switchInspectorTab(button.dataset.inspectorTab)));
+  $("#fileTree").addEventListener("keydown", handleFileTreeKeydown);
+  $("#fileTree").addEventListener("focusin", (event) => {
+    const row = event.target.closest('[role="treeitem"]');
+    if (row) $("#fileTree").querySelectorAll('[role="treeitem"]').forEach((item) => { item.tabIndex = item === row ? 0 : -1; });
+  });
+  $(".inspector-tabs").addEventListener("keydown", (event) => {
+    const tabs = $$(".inspector-tab");
+    const index = tabs.indexOf(document.activeElement);
+    if (index < 0 || !["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    const next = event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : (index + (event.key === "ArrowLeft" ? -1 : 1) + tabs.length) % tabs.length;
+    tabs[next].click(); tabs[next].focus();
+  });
   $("#fileList").addEventListener("click", (event) => {
     const target = event.target.closest("[data-open-diff]");
     if (target) openFilePreview(target.dataset.openDiff);
@@ -113,6 +146,13 @@ function bindUI() {
     if (target) openFilePreview(target.dataset.openDiff);
   });
   $("#messageList").addEventListener("click", (event) => {
+    const start = event.target.closest("[data-start-action]");
+    if (start) {
+      $("#promptInput").value = t(`start.${start.dataset.startAction}Prompt`);
+      $("#promptInput").focus();
+      $("#promptInput").dispatchEvent(new Event("input", { bubbles: true }));
+      return;
+    }
     const timelineToggle = event.target.closest("[data-timeline-toggle]");
     if (timelineToggle) {
       const timeline = timelineToggle.closest(".execution-trail");
@@ -120,24 +160,45 @@ function bindUI() {
       event.preventDefault();
       return;
     }
+    const rewind = event.target.closest(".rewind-to-here");
+    if (rewind) {
+      event.preventDefault();
+      rewindToUserIndex(rewind.dataset.userIndex);
+      return;
+    }
+    const restore = event.target.closest("[data-restore-task]");
+    if (restore) {
+      event.preventDefault();
+      restoreTaskSnapshot(restore.dataset.restoreTask);
+      return;
+    }
     const target = event.target.closest("[data-open-diff]");
-    if (target) openFilePreview(target.dataset.openDiff);
+    if (target) {
+      openFilePreview(target.dataset.openDiff);
+      return;
+    }
+    const pathNode = event.target.closest(".tool-path");
+    if (pathNode && looksLikeWorkspacePath(pathNode.textContent)) openFilePreview(pathNode.textContent.trim());
   });
-  $$(".nav-item").forEach((button) => button.addEventListener("click", () => {
+  document.querySelectorAll(".nav-item").forEach((button) => button.addEventListener("click", () => {
     const view = button.dataset.view;
-    $$(".nav-item").forEach((item) => item.classList.toggle("active", item === button));
-    if (view === "tasks") openActivityPanel();
+    document.querySelectorAll(".nav-item").forEach((item) => item.classList.toggle("active", item === button));
+    if (view === "tasks") { closePanel(); }
     else if (view === "workspaces") openWorkspacesPanel();
     else if (view === "promo") openPromoPanel();
     else if (view === "activity") openActivityPanel();
-    else if (view === "arcade") openGame();
+    else if (view === "arcade") openArcade().catch((error) => showToast(error.message));
     else closePanel();
   }));
-  $$(".action-chip").forEach((button) => button.addEventListener("click", () => {
-    const promptKey = state.locale === "zh" ? "promptZh" : "promptEn";
-    $("#promptInput").value = button.dataset[promptKey] || button.dataset.prompt || "";
+  document.querySelectorAll(".action-chip").forEach((button) => button.addEventListener("click", () => {
+    const prompt = state.locale === "zh" ? button.dataset.promptZh : button.dataset.promptEn;
+    if (!prompt && !button.dataset.prompt) return;
+    $("#promptInput").value = prompt || button.dataset.prompt || "";
     $("#promptInput").focus();
   }));
+  $("#brandWorkspaceButton")?.addEventListener("click", openWorkspacesPanel);
+  $("#brandSearchButton")?.addEventListener("click", openGlobalSearchPanel);
+  $("#helpMenuButton")?.addEventListener("click", openHelpPanel);
   $("#sidebarOpen").addEventListener("click", () => {
     if (window.matchMedia?.("(min-width: 1181px)").matches) setSidebarCollapsed(false);
     else { $("#sidebar").classList.add("open"); $("#mobileScrim").classList.add("show"); }
@@ -157,10 +218,16 @@ function bindUI() {
     else $("#inspector").classList.remove("open");
   });
   window.addEventListener("resize", applyPaneLayout);
+  $("#panelBody").addEventListener("keydown", (event) => {
+    if ((event.key === "Enter" || event.key === " ") && event.target.matches('.task-row[data-open-task]')) {
+      event.preventDefault();
+      event.target.click();
+    }
+  });
   $("#panelBody").addEventListener("change", (event) => {
     if (event.target.id !== "reasoningEffortSelect") return;
     const value = event.target.value;
-    if (!["low", "mid", "high", "xhigh", "max"].includes(value)) return;
+    if (!["low", "mid", "high", "xhigh", "max", "ultra"].includes(value)) return;
     state.reasoningEffort = value;
     localStorage.setItem("minicc-reasoning", value);
     updateReasoningControl();
@@ -171,6 +238,33 @@ function bindUI() {
     if (timelineToggle) {
       setTimelineDetails(timelineToggle.closest(".execution-trail"), timelineToggle.dataset.timelineToggle === "expand");
       event.preventDefault();
+      return;
+    }
+    if (event.target.closest("[data-copy-file]")) {
+      event.preventDefault();
+      copyFilePreviewContent();
+      return;
+    }
+    const rewind = event.target.closest(".rewind-to-here");
+    if (rewind) {
+      event.preventDefault();
+      rewindToUserIndex(rewind.dataset.userIndex);
+      return;
+    }
+    const restore = event.target.closest("[data-restore-task]");
+    if (restore) {
+      event.preventDefault();
+      restoreTaskSnapshot(restore.dataset.restoreTask);
+      return;
+    }
+    const fileTarget = event.target.closest("[data-open-diff]");
+    if (fileTarget) {
+      openFilePreview(fileTarget.dataset.openDiff);
+      return;
+    }
+    const pathNode = event.target.closest(".tool-path");
+    if (pathNode && looksLikeWorkspacePath(pathNode.textContent)) {
+      openFilePreview(pathNode.textContent.trim());
       return;
     }
     const target = event.target.closest("[data-cancel-task], [data-resume-task], [data-open-task], [data-open-detail], [data-select-workspace], [data-remove-worktree], [data-set-locale], [data-switch-session], [data-panel-action]");
@@ -217,7 +311,7 @@ function bindUI() {
     if (target.dataset.switchSession) { setSession(target.dataset.switchSession); closePanel(); return; }
     if (target.dataset.panelAction === "activity") { openActivityPanel(); return; }
     if (target.dataset.panelAction === "new-task") { closePanel(); resetTask(); return; }
-    if (target.dataset.panelAction === "clear") { sessionMarkup.delete(state.sessionId); localStorage.removeItem(sessionViewKey(state.sessionId)); renderSession(state.sessionId); closePanel(); showToast(state.locale === "zh" ? "当前视图已清空" : "Current view cleared"); return; }
+    if (target.dataset.panelAction === "clear") { const key = sessionViewKey(state.sessionId); sessionMarkup.delete(key); localStorage.removeItem(key); renderSession(state.sessionId); closePanel(); showToast(state.locale === "zh" ? "当前视图已清空" : "Current view cleared"); return; }
     if (target.dataset.panelAction === "export") { exportChat(); closePanel(); return; }
     if (target.dataset.panelAction === "reload") { loadWorkspace(); closePanel(); return; }
   });
@@ -305,10 +399,14 @@ function bindUI() {
   });
   $("#threadSearch").addEventListener("input", (event) => {
     const query = event.target.value.toLowerCase();
-    $$(".thread-item").forEach((item) => { item.hidden = !item.textContent.toLowerCase().includes(query); });
+    document.querySelectorAll(".thread-item").forEach((item) => { item.hidden = !item.textContent.toLowerCase().includes(query); });
   });
   const authForm = $("#authForm");
   if (authForm) authForm.addEventListener("submit", submitAuthToken);
+}
+
+if (typeof location !== "undefined" && new URLSearchParams(location.search).get("arcade") === "1") {
+  document.documentElement.dataset.arcade = "1";
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -316,7 +414,16 @@ document.addEventListener("DOMContentLoaded", () => {
   updateMode();
   applyFocusMode();
   applyPaneLayout();
-  initialMessageMarkup = $("#messageList").innerHTML;
+  switchInspectorTab(runtime.inspectorTab);
+  const resizeViewport = () => {
+    document.documentElement.style.setProperty("--app-height", `${window.visualViewport?.height || window.innerHeight}px`);
+    document.documentElement.style.setProperty("--viewport-top", `${window.visualViewport?.offsetTop || 0}px`);
+  };
+  resizeViewport();
+  window.visualViewport?.addEventListener("resize", resizeViewport, { passive: true });
+  window.visualViewport?.addEventListener("scroll", resizeViewport, { passive: true });
+  window.addEventListener("resize", resizeViewport, { passive: true });
+  runtime.initialMessageMarkup = $("#messageList").innerHTML;
   setSession(state.sessionId);
   applyLocale();
   refreshIcons();
@@ -334,8 +441,18 @@ document.addEventListener("DOMContentLoaded", () => {
       setStartupSplashError();
       window.setTimeout(finishStartupSplash, 420);
     });
-  if (new URLSearchParams(location.search).get("arcade") === "1") openGame();
+  if (document.documentElement.dataset.arcade === "1") openArcade().catch((error) => showToast(error.message));
   // Keep tasks created in another session or browser tab visible in the sidebar.
   window.setInterval(() => { if (!document.hidden) loadTaskHistory(); }, 5000);
-  window.addEventListener("beforeunload", persistSessionView);
+  window.addEventListener("beforeunload", () => persistSessionView());
 });
+
+export function exposeWorkbenchGlobals() {
+  Object.assign(window, {
+    $, $$, t, state, icon, refreshIcons, applyIcons, showToast, openPanel, closePanel, escapeHtml,
+    eventTimelineMarkup, assistantMessageMarkup, visibleAgentEvents, addLoadingMessage, bindRunningTask,
+    loadWorkspace, openArcade, applyTaskEvent, runningTasks, taskBySession, stopTaskTimer, updateLiveTask, syncLiveEvents,
+    addAssistantMessage, updateTaskDock, renderTaskHistory, updateBoundTask, openFilePreview, openHelpPanel, setTimelineDetails,
+  });
+}
+exposeWorkbenchGlobals();

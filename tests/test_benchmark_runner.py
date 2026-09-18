@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
-from minicc.benchmarks import load_tasks, main, run_benchmark
+from minicc.benchmarks import _write_results, load_tasks, main, run_benchmark
 
 
 def _fake_provider_factory(monkeypatch: pytest.MonkeyPatch, answer: str = "评测任务已完成。") -> None:
@@ -24,7 +25,7 @@ def _fake_provider_factory(monkeypatch: pytest.MonkeyPatch, answer: str = "评�
             if tools is None:
                 decision = _json.dumps({
                     "status": "complete", "confidence": 0.9, "rationale": "fake",
-                    "missing": [], "next_action": "", "evidence": ["fake"],
+                    "missing": [], "next_action": "", "evidence": re.findall(r'"id":"((?:event|verification)-\d+)"', str(messages))[-1:],
                 }, ensure_ascii=False)
                 return SimpleNamespace(text=decision, usage={"total_tokens": 8}, reasoning_content=None, tool_calls=[], finish_reason="stop", model="fake")
             return SimpleNamespace(text=answer, usage={"total_tokens": 42}, reasoning_content=None, tool_calls=[], finish_reason="stop", model="fake")
@@ -142,3 +143,198 @@ def test_main_without_run_never_calls_model(tmp_path: Path, monkeypatch: pytest.
     ])
     assert exit_code == 0
     assert (tmp_path / "eval.json").is_file()
+
+
+def test_targeted_suite_selection_and_unknown_ids(tmp_path, monkeypatch):
+    recorded = {}
+
+    def run(tasks, **kwargs):
+        recorded.update(tasks=tasks, options=kwargs)
+        return []
+
+    monkeypatch.setattr("minicc.benchmarks.run_benchmark", run)
+    assert main(["--suite", "behavior", "--task-id", "behavior-median", "--run", "--no-resume",
+                 "--json-out", str(tmp_path / "report.json"), "--markdown-out", str(tmp_path / "report.md")]) == 0
+    assert [task["id"] for task in recorded["tasks"]] == ["behavior-median"]
+    assert recorded["options"]["resume"] is False
+    with pytest.raises(SystemExit):
+        main(["--suite", "behavior", "--task-id", "does-not-exist"])
+
+
+def test_atomic_results_keep_previous_checkpoint_when_replace_fails(tmp_path, monkeypatch):
+    path = tmp_path / "results.json"
+    _write_results(path, [{"task_id": "first"}])
+
+    def interrupted(*args):
+        raise OSError("interrupted")
+
+    monkeypatch.setattr("minicc.benchmarks.os.replace", interrupted)
+    with pytest.raises(OSError, match="interrupted"):
+        _write_results(path, [{"task_id": "second"}])
+    assert json.loads(path.read_text()) == [{"task_id": "first"}]
+    assert list(tmp_path.iterdir()) == [path]
+
+
+def test_resume_drops_old_configuration_rows_and_reuses_current_rows(tmp_path, monkeypatch):
+    calls = []
+    config = _service_config()
+
+    class Service:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def _chat_locked(self, payload, **kwargs):
+            calls.append(payload["message"])
+            return {"answer": "done", "completion": {"status": "complete"}}
+
+        def shutdown(self):
+            pass
+
+    monkeypatch.setattr("minicc.web.AgentService", Service)
+    monkeypatch.setattr("minicc.config.load_config", lambda: config)
+    tasks = [{"id": "a", "prompt": "a"}, {"id": "b", "prompt": "b"}]
+    path = tmp_path / "results.json"
+    run_benchmark(tasks, workspace=tmp_path, results_path=path)
+    assert calls == ["a", "b"]
+    run_benchmark(tasks, workspace=tmp_path, results_path=path)
+    assert calls == ["a", "b"]
+    config.base_url = "https://different-provider.test/v1"
+    results = run_benchmark(tasks, workspace=tmp_path, results_path=path, max_tasks=1)
+    assert calls == ["a", "b", "a"]
+    assert [item["task_id"] for item in results] == ["a"]
+    assert "different-provider" not in path.read_text()
+
+
+def test_fixture_setup_failure_is_recorded_and_next_task_runs(tmp_path, monkeypatch):
+    class Service:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def _chat_locked(self, payload, **kwargs):
+            return {"answer": "ok"}
+
+        def shutdown(self):
+            pass
+
+    monkeypatch.setattr("minicc.web.AgentService", Service)
+    monkeypatch.setattr("minicc.config.load_config", _service_config)
+    tasks = [{"id": "unsafe-fixture", "prompt": "x", "fixture": {"../escape.py": "x"}}, {"id": "next", "prompt": "ok"}]
+    results = run_benchmark(tasks, workspace=tmp_path)
+    assert results[0]["status"] == "failed"
+    assert "escapes workspace" in results[0]["error"]
+    assert results[1]["status"] == "completed"
+
+
+@pytest.mark.parametrize("outcome, status", [
+    ({"answer": "cancelled", "cancelled": True}, "cancelled"),
+    ({"answer": "partial", "completion": {"status": "continue"}}, "incomplete"),
+    ({"answer": "blocked", "completion": {"status": "blocked"}}, "incomplete"),
+])
+def test_cancelled_and_partial_outcomes_are_not_graded_as_complete(tmp_path, monkeypatch, outcome, status):
+    class Service:
+        def __init__(self, *args, **kwargs): pass
+        def _chat_locked(self, *args, **kwargs): return outcome
+        def shutdown(self): pass
+    monkeypatch.setattr("minicc.web.AgentService", Service)
+    monkeypatch.setattr("minicc.config.load_config", _service_config)
+    monkeypatch.setattr("minicc.benchmarks.grade_behavior", lambda *args: (_ for _ in ()).throw(AssertionError("must not grade")))
+    tasks=[{"id": "case", "prompt": "x", "grader": {"type": "answer_rubric"}}]
+    results=run_benchmark(tasks,workspace=tmp_path)
+    assert results[0]["status"] == status
+    assert results[0]["passed"] is False
+    assert results[0]["claimed_complete"] is False
+
+
+def test_subminute_deadline_cancels_worker(tmp_path, monkeypatch):
+    import time
+
+    class Service:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def _chat_locked(self, payload, cancel_event, **kwargs):
+            cancel_event.wait(3)
+            return {"answer": "cancelled"}
+
+        def shutdown(self):
+            pass
+
+    monkeypatch.setattr("minicc.web.AgentService", Service)
+    monkeypatch.setattr("minicc.config.load_config", _service_config)
+    started = time.monotonic()
+    results = run_benchmark([{"id": "timeout", "prompt": "wait"}], workspace=tmp_path, task_timeout_seconds=0.05)
+    assert time.monotonic() - started < 2
+    assert results[0]["status"] == "failed"
+    assert "timeout" in results[0]["error"]
+
+
+def test_unresponsive_worker_stops_run_without_shutting_down_its_service(tmp_path, monkeypatch):
+    calls = []
+    worker_threads = []
+    cleanup_threads = []
+    shutdown = []
+
+    class Service:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def _chat_locked(self, payload, **kwargs):
+            calls.append(payload["message"])
+
+        def shutdown(self):
+            shutdown.append(True)
+
+    class Thread:
+        def __init__(self, target, name, **kwargs):
+            self.target = target
+            self.name = name
+            self.timeouts = []
+            (cleanup_threads if name == "bench-cleanup" else worker_threads).append(self)
+
+        def start(self):
+            pass
+
+        def join(self, timeout=None):
+            self.timeouts.append(timeout)
+
+        def is_alive(self):
+            return True
+
+    monkeypatch.setattr("minicc.web.AgentService", Service)
+    monkeypatch.setattr("minicc.config.load_config", _service_config)
+    monkeypatch.setattr("minicc.benchmarks.subprocess.run", lambda *args, **kwargs: SimpleNamespace(stdout="revision"))
+    monkeypatch.setattr("minicc.benchmarks.threading.Thread", Thread)
+    results = run_benchmark([{"id": "first", "prompt": "wait"}, {"id": "second", "prompt": "next"}],
+                            workspace=tmp_path, task_timeout_seconds=0.01)
+    assert len(results) == 1
+    assert worker_threads[0].timeouts == [0.01, 5]
+    assert not shutdown
+    assert len(cleanup_threads) == 1
+    cleanup_threads[0].target()
+    assert shutdown == [True]
+
+
+def test_interruption_saves_completed_rows_and_current_cancellation(tmp_path, monkeypatch):
+    shutdown = []
+
+    class Service:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def _chat_locked(self, payload, **kwargs):
+            if payload["message"] == "stop":
+                raise KeyboardInterrupt()
+            return {"answer": "done"}
+
+        def shutdown(self):
+            shutdown.append(True)
+
+    monkeypatch.setattr("minicc.web.AgentService", Service)
+    monkeypatch.setattr("minicc.config.load_config", _service_config)
+    path = tmp_path / "results.json"
+    with pytest.raises(KeyboardInterrupt):
+        run_benchmark([{"id": "done", "prompt": "done"}, {"id": "stop", "prompt": "stop"}],
+                      workspace=tmp_path, results_path=path)
+    results = json.loads(path.read_text())
+    assert [item["status"] for item in results] == ["completed", "interrupted"]
+    assert shutdown == [True]

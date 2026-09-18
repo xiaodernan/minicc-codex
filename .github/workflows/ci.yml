@@ -32,12 +32,25 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Install JS deps
+        run: npm ci
       - name: Syntax-check frontend and test scripts
         run: |
           node --check web/app.js
+          node --check web/game.js
+          node --check ide/vscode/extension.js
           node --check tests/web_smoke.mjs
           node --check tests/game_upgrade_smoke.mjs
           node --check tests/zombie_spawn_smoke.mjs
+          npm run check:web
+      - name: Install browser for focused UI contracts
+        run: npx playwright install chromium --with-deps
+      - name: Verify responsive UI and task protocol
+        run: |
+          npm run test:optimization
+          npm run test:transport
+          npm run test:lifecycle
+          npm run test:scale
 
   web-smoke:
     name: Playwright web smoke
@@ -61,6 +74,7 @@ jobs:
         env:
           MINICC_API_KEY: dummy-key-for-smoke
           MINICC_BASE_URL: https://example.invalid/v1
+          MINICC_FAKE_PROVIDER: "1"
         run: |
           python -m minicc.web --workspace . --port 8765 > server.log 2>&1 &
           for i in $(seq 1 30); do

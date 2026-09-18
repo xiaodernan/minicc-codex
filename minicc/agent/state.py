@@ -31,6 +31,8 @@ class Budget:
     max_tool_calls: int | None = None
     max_duration_seconds: float | None = None
     max_retries: int | None = None
+    soft_max_tokens: int | None = None
+    soft_max_duration_seconds: float | None = None
     started_monotonic: float = field(default_factory=time.monotonic, repr=False)
     turns: int = 0
     tokens: int = 0
@@ -79,6 +81,17 @@ class Budget:
         self.retries += 1
         self.check()
 
+    def soft_limit_hit(self) -> bool:
+        """True when an optional wrap-up budget is exhausted (never raises)."""
+        if self.soft_max_tokens is not None and self.tokens >= self.soft_max_tokens:
+            return True
+        if (
+            self.soft_max_duration_seconds is not None
+            and self.elapsed_seconds() >= float(self.soft_max_duration_seconds)
+        ):
+            return True
+        return False
+
     def snapshot(self) -> dict[str, Any]:
         return {
             "max_turns": self.max_turns,
@@ -86,6 +99,8 @@ class Budget:
             "max_tool_calls": self.max_tool_calls,
             "max_duration_seconds": self.max_duration_seconds,
             "max_retries": self.max_retries,
+            "soft_max_tokens": self.soft_max_tokens,
+            "soft_max_duration_seconds": self.soft_max_duration_seconds,
             "turns": self.turns,
             "tokens": self.tokens,
             "tool_calls": self.tool_calls,

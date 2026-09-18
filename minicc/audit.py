@@ -9,8 +9,10 @@ task history.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
+from .allowlist import match_session_allowlist
 from .tools.bash import is_readonly_command
 
 
@@ -21,6 +23,19 @@ NETWORK_COMMAND_MARKERS = (
 )
 
 NETWORK_TOOL_NAMES = frozenset({"web_search", "webfetch"})
+
+
+def tool_requires_authorization(tool: str, risk: str | None) -> bool:
+    """True when the agent loop must consult ``should_allow`` before running.
+
+    Network tools are registered as ``readonly`` so they stay off the write
+    path, but they still need the task-level ``allow_network`` gate. Matching
+    only ``write``/``exec`` (plus a hardcoded ``web_search`` name) used to
+    let ``webfetch`` skip the policy.
+    """
+    if risk in {"write", "exec"}:
+        return True
+    return str(tool or "") in NETWORK_TOOL_NAMES
 
 # Task-level permission modes, aligned with Claude Code:
 # - default:     readonly auto; writes/exec need the task write authorization.
@@ -83,9 +98,26 @@ def authorize_tool(
     allow_changes: bool,
     allow_network: bool,
     permission_mode: str = "default",
+    session_id: str = "",
+    workspace: Path | None = None,
 ) -> AuthorizationDecision:
     """Return an auditable authorization decision before executing a tool."""
     mode = normalize_permission_mode(permission_mode)
+
+    def _allowlist_override(denied: AuthorizationDecision) -> AuthorizationDecision:
+        if mode == "plan":
+            return denied
+        if workspace is None or not str(session_id or "").strip():
+            return denied
+        if match_session_allowlist(workspace, session_id, tool, arguments):
+            return AuthorizationDecision(
+                True,
+                denied.risk,
+                "本会话 allowlist 已放行",
+                "session_allowlist",
+            )
+        return denied
+
     if mode == "yolo":
         if risk == "readonly" or tool in NETWORK_TOOL_NAMES:
             return AuthorizationDecision(True, risk or "unknown", "任务为 yolo 模式，工具已放行", "task_yolo")
@@ -93,7 +125,9 @@ def authorize_tool(
     if tool in NETWORK_TOOL_NAMES:
         if allow_network:
             return AuthorizationDecision(True, "network_readonly", "本任务已明确授权联网查询", "task_network")
-        return AuthorizationDecision(False, "network_readonly", "联网查询需要当前任务单独授权", "missing_task_network")
+        return _allowlist_override(
+            AuthorizationDecision(False, "network_readonly", "联网查询需要当前任务单独授权", "missing_task_network")
+        )
     if risk == "readonly":
         return AuthorizationDecision(True, "readonly", "只读工具已允许", "default_readonly")
     if risk == "write":
@@ -101,7 +135,9 @@ def authorize_tool(
             return AuthorizationDecision(False, "write", "计划模式只允许只读工具，写入已拒绝", "plan_mode_write")
         if mode == "acceptEdits" or allow_changes:
             return AuthorizationDecision(True, "write", "本任务已明确授权写入", "task_write")
-        return AuthorizationDecision(False, "write", "写入工具需要当前任务明确授权", "missing_task_write")
+        return _allowlist_override(
+            AuthorizationDecision(False, "write", "写入工具需要当前任务明确授权", "missing_task_write")
+        )
     if risk == "exec":
         if mode == "plan":
             return AuthorizationDecision(False, "exec", "计划模式只允许只读工具，命令已拒绝", "plan_mode_exec")
@@ -109,19 +145,25 @@ def authorize_tool(
         if command_uses_network(command):
             if allow_changes and allow_network:
                 return AuthorizationDecision(True, "network_exec", "本任务已明确授权网络命令", "task_network")
-            return AuthorizationDecision(False, "network_exec", "网络命令需要单独授权", "missing_task_network")
+            return _allowlist_override(
+                AuthorizationDecision(False, "network_exec", "网络命令需要单独授权", "missing_task_network")
+            )
         if tool == "bash" and is_readonly_command(str(command)):
             return AuthorizationDecision(True, "readonly_exec", "受限只读验证命令已允许", "safe_verification")
         if allow_changes:
             return AuthorizationDecision(True, "exec", "本任务已明确授权命令执行", "task_exec")
-        return AuthorizationDecision(False, "exec", "命令执行需要当前任务明确授权", "missing_task_exec")
+        return _allowlist_override(
+            AuthorizationDecision(False, "exec", "命令执行需要当前任务明确授权", "missing_task_exec")
+        )
     return AuthorizationDecision(False, "unknown", "未知工具风险，已拒绝执行", "unknown_risk")
 
 
 __all__ = [
+    "NETWORK_TOOL_NAMES",
     "PERMISSION_MODES",
     "AuthorizationDecision",
     "authorize_tool",
     "command_uses_network",
     "normalize_permission_mode",
+    "tool_requires_authorization",
 ]

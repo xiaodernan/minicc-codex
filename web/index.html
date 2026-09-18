@@ -2,7 +2,7 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
     <meta name="theme-color" content="#eef7fb" />
     <title>minicc / Workspace</title>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
@@ -16,6 +16,7 @@
     <script src="/vendor/marked.min.js" defer></script>
     <script src="/vendor/highlight.min.js" defer></script>
     <script src="/app.js" defer></script>
+    <meta name="minicc-game-asset" content="/game.js" />
   </head>
   <body>
     <div class="startup-splash" id="startupSplash" data-style="plain" data-state="loading" aria-busy="true" aria-live="polite">
@@ -36,23 +37,20 @@
    <header class="codex-menubar" aria-label="应用菜单">
       <div class="codex-menubar-left">
         <button class="codex-menu-icon" id="codexMenuToggle" type="button" aria-label="切换侧栏"><i data-lucide="panel-left"></i></button>
-        <button class="codex-nav-arrow" type="button" aria-label="后退"><i data-lucide="arrow-left"></i></button>
-        <button class="codex-nav-arrow muted" type="button" aria-label="前进"><i data-lucide="arrow-right"></i></button>
-        <nav class="codex-menu-links" aria-label="主菜单"><button type="button">文件</button><button type="button">编辑</button><button type="button">视图</button><button type="button">帮助</button></nav>
+        <nav class="codex-menu-links" aria-label="主菜单"><button type="button" id="helpMenuButton">帮助</button></nav>
       </div>
-      <div class="codex-window-actions" aria-hidden="true"><span></span><span></span><span></span></div>
+      <div class="codex-window-actions" aria-hidden="true" tabindex="-1"><span></span><span></span><span></span></div>
     </header>
     <div class="app-shell">
       <aside class="sidebar" id="sidebar">
         <div class="brand-row">
           <div class="brand-mark">m<span>·</span></div>
           <div class="codex-brand-copy">
-            <div class="brand-name">Codex</div>
+            <div class="brand-name">minicc</div>
             <div class="brand-caption" data-i18n="brand.caption">本地智能工作台</div>
           </div>
-          <button class="icon-button codex-brand-button" type="button" aria-label="切换工作区"><i data-lucide="chevron-down"></i></button>
-          <button class="icon-button codex-brand-tool" type="button" aria-label="搜索"><i data-lucide="search"></i></button>
-          <button class="icon-button codex-brand-tool" type="button" aria-label="通知"><i data-lucide="bell"></i></button>
+          <button class="icon-button codex-brand-button" id="brandWorkspaceButton" type="button" aria-label="切换工作区"><i data-lucide="chevron-down"></i></button>
+          <button class="icon-button codex-brand-tool" id="brandSearchButton" type="button" aria-label="搜索"><i data-lucide="search"></i></button>
           <button class="icon-button sidebar-close" id="sidebarClose" aria-label="关闭侧栏" title="关闭侧栏" data-i18n-aria="sidebar.close" data-i18n-title="sidebar.close">
             <i data-lucide="panel-left-close"></i>
           </button>
@@ -72,35 +70,16 @@
         </div>
 
         <nav class="sidebar-nav" aria-label="主导航" data-i18n-aria="nav.main">
-          <button class="nav-item active" data-view="tasks"><i data-lucide="message-square"></i><span data-i18n="nav.tasks">任务</span><b id="taskNavCount">4</b></button>
+          <button class="nav-item active" data-view="tasks"><i data-lucide="message-square"></i><span data-i18n="nav.tasks">任务</span><b id="taskNavCount">0</b></button>
           <button class="nav-item" data-view="workspaces"><i data-lucide="layout-grid"></i><span data-i18n="nav.workspaces">工作区</span></button>
-          <button class="nav-item promo-nav" data-view="promo"><i data-lucide="megaphone"></i><span data-i18n="nav.promo">宣传页</span><b>NEW</b></button>
           <button class="nav-item" data-view="activity"><i data-lucide="history"></i><span data-i18n="nav.activity">活动</span></button>
-          <button class="nav-item arcade-nav" id="arcadeButton" data-view="arcade"><i data-lucide="gamepad-2"></i><span data-i18n="nav.arcade">小游戏</span><b>NEW</b></button>
         </nav>
 
         <div class="section-label"><span data-i18n="recentTasks">最近任务</span><button class="icon-button tiny" id="moreTasksButton" aria-label="更多任务" title="更多任务" data-i18n-aria="tasks.more" data-i18n-title="tasks.more"><i data-lucide="more-horizontal"></i></button></div>
-        <div class="thread-list" id="threadList">
-          <button class="thread-item active" data-session="interview-1">
-            <span class="thread-dot coral"></span>
-            <span class="thread-copy"><strong>Ship the agent UI</strong><small>Just now · 12 turns</small></span>
-            <i data-lucide="chevron-right"></i>
-          </button>
-          <button class="thread-item" data-session="specproof-review">
-            <span class="thread-dot mint"></span>
-            <span class="thread-copy"><strong>Review specproof</strong><small>Yesterday · 8 turns</small></span>
-          </button>
-          <button class="thread-item" data-session="editor-hardening">
-            <span class="thread-dot blue"></span>
-            <span class="thread-copy"><strong>Harden the editor</strong><small>Aug 22 · 16 turns</small></span>
-          </button>
-          <button class="thread-item" data-session="provider-check">
-            <span class="thread-dot amber"></span>
-            <span class="thread-copy"><strong>Provider smoke test</strong><small>Aug 21 · 5 turns</small></span>
-          </button>
-        </div>
+        <div class="thread-list" id="threadList"><div class="thread-empty" data-i18n="tasks.historyLoading">正在加载任务…</div></div>
 
         <div class="sidebar-bottom">
+          <nav class="secondary-nav" aria-label="更多功能">          <button class="nav-item promo-nav" data-view="promo"><i data-lucide="megaphone"></i><span data-i18n="nav.promo">宣传页</span><b>NEW</b></button>          <button class="nav-item arcade-nav" id="arcadeButton" data-view="arcade"><i data-lucide="gamepad-2"></i><span data-i18n="nav.arcade">小游戏</span><b>NEW</b></button></nav>
           <div class="workspace-mini">
             <div class="workspace-icon"><i data-lucide="folder-git-2"></i></div>
             <div class="workspace-mini-copy"><span data-i18n="workspace">工作区</span><strong id="workspaceName">minicc-codex</strong></div>
@@ -154,40 +133,10 @@
 
             <div class="date-divider"><span data-i18n="date.today">今天</span></div>
             <div class="message-list" id="messageList" aria-live="polite">
-              <article class="message user-message">
-                <div class="message-meta"><span class="avatar user-avatar">Y</span><strong data-i18n="message.you">你</strong><time>10:42</time></div>
-                <div class="message-body"><p>把这个 coding agent 做成一个能拿去面试演示的完整工作台。</p></div>
-              </article>
-              <article class="message assistant-message">
-                <div class="message-meta"><span class="avatar agent-avatar">m</span><strong>minicc</strong><span class="agent-label" data-i18n="message.agent">Agent</span><time>10:43</time></div>
-                <div class="message-body">
-                  <section class="execution-trail">
-                    <div class="execution-trail-head">
-                      <div class="execution-trail-title"><span class="execution-trail-icon"><i data-lucide="list-checks"></i></span><span><strong>执行脉络与证据</strong><small>2 次操作</small></span></div>
-                      <div class="execution-trail-actions"><button type="button" class="timeline-control" data-timeline-toggle="expand" aria-label="全部展开" title="全部展开" data-i18n-aria="tool.expandAll" data-i18n-title="tool.expandAll"><i data-lucide="chevrons-down"></i><span data-i18n="tool.expandAll">全部展开</span></button><button type="button" class="timeline-control" data-timeline-toggle="collapse" aria-label="全部折叠" title="全部折叠" data-i18n-aria="tool.collapseAll" data-i18n-title="tool.collapseAll"><i data-lucide="chevrons-up"></i><span data-i18n="tool.collapseAll">全部折叠</span></button></div>
-                    </div>
-                    <div class="tool-timeline" data-agent-timeline="codex">
-                      <div class="trace-event thinking-block trace-ok" data-agent-block="thinking"><span class="trace-icon"><i data-lucide="sparkles"></i></span><div class="trace-main"><div class="trace-summary"><span class="thinking-label">THINKING</span><span class="trace-code">行动计划</span><span>先读取入口文件，再根据证据决定检查路径。</span></div></div><span class="trace-phase">planning</span></div>
-                      <details class="agent-round command-group" data-agent-block="commands" data-command-group="1" data-agent-round="1">
-                        <summary class="agent-round-summary"><span class="agent-round-title"><span class="agent-round-icon"><i data-lucide="layers-3"></i></span><span class="command-group-copy"><span class="command-group-label">COMMANDS</span><strong>第 1 组命令 · 2 条</strong><small>read_file · pytest</small></span></span><span class="agent-round-meta">已完成<span class="agent-round-chevron"><i data-lucide="chevron-down"></i></span></span></summary>
-                        <div class="agent-round-events">
-                          <details class="tool-event completed" data-agent-block="command" data-tool-event="initial-readme">
-                            <summary class="tool-event-summary"><span class="tool-icon"><i data-lucide="file-search-2"></i></span><span class="tool-event-copy"><span><strong>read_file</strong><span class="tool-path">README.md</span></span><small>读取 README.md · 68 行 · 0.18s</small></span><span class="tool-check"><i data-lucide="check"></i></span><span class="tool-expand"><i data-lucide="chevron-down"></i></span></summary>
-                            <div class="tool-event-details"><details class="tool-result-fold"><summary><span data-i18n="tool.result">执行结果</span><small>点击展开</small><span class="tool-result-fold-chevron"><i data-lucide="chevron-down"></i></span></summary><div class="tool-result-fold-body"><div class="tool-result-output">读取 68 行，确认工作区入口和启动说明完整。</div></div></details></div>
-                          </details>
-                          <details class="tool-event completed" data-agent-block="command" data-tool-event="initial-pytest">
-                            <summary class="tool-event-summary"><span class="tool-icon mint-icon"><i data-lucide="test-tube-2"></i></span><span class="tool-event-copy"><span><strong>pytest</strong><span class="tool-path">tests/</span></span><small>9 passed · 1.42s</small></span><span class="tool-check"><i data-lucide="check"></i></span><span class="tool-expand"><i data-lucide="chevron-down"></i></span></summary>
-                            <div class="tool-event-details"><details class="tool-result-fold"><summary><span data-i18n="tool.result">执行结果</span><small>点击展开</small><span class="tool-result-fold-chevron"><i data-lucide="chevron-down"></i></span></summary><div class="tool-result-fold-body"><div class="tool-result-output">9 passed · 测试完成，没有发现回归。</div></div></details></div>
-                          </details>
-                        </div>
-                      </details>
-                      <div class="trace-event thinking-block trace-ok" data-agent-block="thinking"><span class="trace-icon"><i data-lucide="sparkles"></i></span><div class="trace-main"><div class="trace-summary"><span class="thinking-label">THINKING</span><span class="trace-code">下一步</span><span>工作区入口和测试状态已确认，可以继续交付。</span></div></div><span class="trace-phase">ready</span></div>
-                    </div>
-                  </section>
-                  <p>我先检查了工作区结构，然后把 CLI 核心接到这个本地工作台。现在可以继续加功能、查看 diff，并在安全模式下运行验证。</p>
-                  <div class="answer-callout"><span class="callout-mark"><i data-lucide="sparkles"></i></span><span>Workspace is ready. What should we ship next?</span></div>
-                </div>
-              </article>
+              <div class="empty-session">
+                <strong data-i18n="session.emptyTitle">发送一条任务开始</strong>
+                <span data-i18n="session.emptyHint">在下方输入任务，minicc 会检查工作区并给出可验证的结果。</span>
+              </div>
             </div>
           </div>
         </section>
@@ -207,27 +156,31 @@
                 </div>
                 <span class="perm-mode-hint" id="permModeHint" aria-live="polite"></span>
               </div>
+              <div class="permission-capabilities">
+                <span id="permissionSummary" aria-live="polite"></span>
+                <div class="permission-toggles">                  <label class="safe-toggle" title="允许当前任务修改文件或执行命令" data-i18n-title="composer.allowChanges">
+                    <input type="checkbox" id="allowChanges" />
+                    <span class="toggle-track"><span></span></span>
+                    <span id="modeLabel" >安全模式</span>
+                  </label>
+                  <label class="safe-toggle" title="允许当前任务联网搜索" data-i18n-title="composer.allowNetwork">
+                    <input type="checkbox" id="allowNetwork" />
+                    <span class="toggle-track" aria-hidden="true"></span>
+                    <span data-i18n="capability.network">联网</span>
+                  </label>
+</div>
+              </div>
               <div class="composer-actions">
                 <div class="composer-tools">
                   <button type="button" class="action-chip" data-prompt-zh="先检查当前项目状态，告诉我下一步最值得做什么。" data-prompt-en="Inspect the current project and tell me the most valuable next step."><i data-lucide="route"></i><span data-i18n="quick.plan">计划</span></button>
                   <button type="button" class="action-chip" data-prompt-zh="检查当前 git diff，指出可能的回归并给出修复建议。" data-prompt-en="Review the current git diff, flag regressions, and suggest fixes."><i data-lucide="scan-search"></i><span data-i18n="quick.review">审查</span></button>
-                  <button type="button" class="action-chip" data-prompt-zh="运行项目测试并总结结果，不要修改文件。" data-prompt-en="Run the project tests and summarize the result without changing files."><i data-lucide="play"></i><span data-i18n="quick.verify">验证</span></button>
+                  <button type="button" class="action-chip" data-prompt-zh="针对最近变更运行必要的定向检查并总结结果，不默认跑全量测试，不要修改文件。" data-prompt-en="Run focused checks for recent changes and summarize the result. Do not run the full suite by default or modify files."><i data-lucide="play"></i><span data-i18n="quick.verify">验证</span></button>
                   <button type="button" class="action-chip" id="batchButton" title="并行拆分多个独立子任务"><i data-lucide="layers-3"></i><span data-i18n="quick.parallel">并行</span></button>
                   <button type="button" class="action-chip attachment-chip" id="attachButton" title="添加图片"><i data-lucide="paperclip"></i><span data-i18n="composer.attach">图片</span></button>
                   <input id="imageInput" type="file" accept="image/*" multiple hidden />
                   <button type="button" class="action-chip demo-chip" id="demoFlowButton" title="演示一次完整的 Agent 工作流"><i data-lucide="wand-sparkles"></i><span data-i18n="quick.demo">演示流程</span></button>
                 </div>
                 <div class="composer-send-group">
-                  <label class="safe-toggle" title="允许当前任务修改文件或执行命令" data-i18n-title="composer.allowChanges">
-                    <input type="checkbox" id="allowChanges" />
-                    <span class="toggle-track"><span></span></span>
-                    <span id="modeLabel" data-i18n="mode.safe">安全模式</span>
-                  </label>
-                  <label class="safe-toggle" title="允许当前任务联网搜索" data-i18n-title="composer.allowNetwork">
-                    <input type="checkbox" id="allowNetwork" />
-                    <span class="toggle-track" aria-hidden="true"></span>
-                    <span data-i18n="composer.allowNetwork">允许当前任务联网搜索</span>
-                  </label>
                   <button class="icon-button cancel-task-button" id="cancelTaskButton" type="button" aria-label="取消任务" title="取消任务" data-i18n-aria="cancel.title" data-i18n-title="cancel.title" hidden><i data-lucide="square"></i></button>
                   <button class="send-button" id="sendButton" type="submit" aria-label="发送任务" title="发送任务" data-i18n-aria="send.title" data-i18n-title="send.title">
                     <i data-lucide="arrow-up"></i>
@@ -245,11 +198,15 @@
 
       <aside class="inspector" id="inspector">
         <div class="inspector-header"><div><span class="eyebrow" data-i18n="workspace">工作区</span><h2>minicc-codex</h2></div><button class="icon-button tiny" id="inspectorClose" aria-label="关闭检查器" title="关闭检查器" data-i18n-aria="inspector.close" data-i18n-title="inspector.close"><i data-lucide="panel-right-close"></i></button></div>
-        <div class="inspector-tabs"><button class="inspector-tab active" data-inspector-tab="overview" data-i18n="inspector.overview">概览</button><button class="inspector-tab" data-inspector-tab="changes"><span data-i18n="inspector.changes">改动</span> <span id="changeTabCount">0</span></button></div>
+        <div class="inspector-tabs" role="tablist" aria-label="工作区检查器">
+          <button id="tabChanges" class="inspector-tab active" role="tab" aria-selected="true" aria-controls="changesSection" data-inspector-tab="changes"><span data-i18n="inspector.changes">变更</span> <span id="changeTabCount">0</span></button>
+          <button id="tabFiles" class="inspector-tab" role="tab" aria-selected="false" aria-controls="fileTreeSection" tabindex="-1" data-inspector-tab="files" data-i18n="inspector.filesTab">文件</button>
+          <button id="tabVerification" class="inspector-tab" role="tab" aria-selected="false" aria-controls="verificationSection" tabindex="-1" data-inspector-tab="verification" data-i18n="inspector.verification">验证</button>
+        </div>
 
-        <section class="inspector-section" id="overviewSection">
+        <section class="inspector-section" id="overviewSection" hidden>
           <div class="section-heading"><span data-i18n="inspector.pulse">项目状态</span><span class="pulse-label"><i data-lucide="activity"></i> <span data-i18n="inspector.live">实时</span></span></div>
-          <div class="pulse-card"><div class="pulse-main"><strong id="pulseStatus" data-i18n="inspector.ready">就绪</strong><span data-i18n="inspector.standingBy">Agent 正在等待</span></div><div class="pulse-ring"><i data-lucide="radio"></i></div><div class="pulse-metrics"><div><span data-i18n="inspector.turns">轮次</span><strong id="turnMetric">12</strong></div><div><span data-i18n="inspector.tools">工具</span><strong id="toolMetric">9</strong></div><div><span data-i18n="inspector.tokens">Tokens</span><strong id="tokenMetric">0</strong></div><div><span data-i18n="inspector.context">上下文</span><strong id="contextMetric">0/300k</strong></div></div><div class="pulse-compaction"><span><span data-i18n="inspector.compactions">自动压缩</span> <strong id="compactionMetric">0</strong></span><span><span data-i18n="inspector.cache">缓存命中</span> <strong id="cacheMetric">未统计</strong></span></div></div>
+          <div class="pulse-card"><div class="pulse-main"><strong id="pulseStatus" data-i18n="inspector.ready">就绪</strong><span data-i18n="inspector.standingBy">Agent 正在等待</span></div><div class="pulse-ring"><i data-lucide="radio"></i></div><div class="pulse-metrics"><div><span data-i18n="inspector.turns">轮次</span><strong id="turnMetric">0</strong></div><div><span data-i18n="inspector.tools">工具</span><strong id="toolMetric">0</strong></div><div><span data-i18n="inspector.tokens">Tokens</span><strong id="tokenMetric">0</strong></div><div><span data-i18n="inspector.context">上下文</span><strong id="contextMetric">0/300k</strong></div></div><div class="pulse-compaction"><span><span data-i18n="inspector.compactions">自动压缩</span> <strong id="compactionMetric">0</strong></span><span><span data-i18n="inspector.cache">缓存命中</span> <strong id="cacheMetric">未统计</strong></span></div></div>
         </section>
 
         <section class="inspector-section todo-section" id="todoSection" hidden>
@@ -264,17 +221,9 @@
           <ul class="todo-list" id="todoListBody" role="list" data-i18n-aria="todo.title" aria-label="任务计划"></ul>
         </section>
 
-        <section class="inspector-section" id="filesSection">
-          <div class="section-heading"><span data-i18n="inspector.files">关注文件</span><button class="icon-button tiny" id="refreshFiles" aria-label="刷新文件" title="刷新文件" data-i18n-aria="files.refresh" data-i18n-title="files.refresh"><i data-lucide="refresh-cw"></i></button></div>
-          <div class="file-list" id="fileList">
-            <button class="file-row" data-file="minicc/main.py"><span class="file-type py">PY</span><span><strong>minicc/main.py</strong><small data-i18n="files.main">CLI 入口</small></span><i data-lucide="chevron-right"></i></button>
-            <button class="file-row" data-file="minicc/agent/loop.py"><span class="file-type py">PY</span><span><strong>minicc/agent/loop.py</strong><small data-i18n="files.loop">工具调用循环</small></span><i data-lucide="chevron-right"></i></button>
-            <button class="file-row" data-file="web/styles.css"><span class="file-type css">CSS</span><span><strong>web/styles.css</strong><small data-i18n="files.styles">工作台界面</small></span><i data-lucide="chevron-right"></i></button>
-            <button class="file-row" data-file="README.md"><span class="file-type md">MD</span><span><strong>README.md</strong><small data-i18n="files.readme">项目指南</small></span><i data-lucide="chevron-right"></i></button>
-          </div>
-        </section>
+        <section id="filesSection" hidden><button id="refreshFiles" type="button" aria-label="刷新工作区"></button><div id="fileList"></div></section>
 
-        <section class="inspector-section" id="fileTreeSection">
+        <section class="inspector-section" id="fileTreeSection" role="tabpanel" aria-labelledby="tabFiles" hidden>
           <div class="section-heading">
             <span data-i18n="files.tree">文件树</span>
             <button class="icon-button tiny" id="refreshFileTree" aria-label="刷新文件" title="刷新文件" data-i18n-aria="files.refresh" data-i18n-title="files.refresh"><i data-lucide="refresh-cw"></i></button>
@@ -284,11 +233,12 @@
           </div>
         </section>
 
-        <section class="inspector-section changes-section" id="changesSection">
+        <section class="inspector-section changes-section" id="changesSection" role="tabpanel" aria-labelledby="tabChanges">
           <div class="section-heading"><span data-i18n="changes.latest">最近改动</span><span class="change-count" id="changeSummary"><span class="diff-add">+ 0</span><span class="diff-del">- 0</span></span></div>
           <div id="changeList"><div class="change-item"><span class="change-bar muted"></span><span><strong data-i18n="changes.clean">等待变更</strong><small data-i18n="changes.cleanHint">运行任务后会在这里同步</small></span><span class="change-time">--</span></div></div>
         </section>
 
+        <section class="inspector-section" id="verificationSection" role="tabpanel" aria-labelledby="tabVerification" hidden><div class="section-heading" data-i18n="inspector.verification">验证</div><div id="verificationList" class="verification-list" aria-live="polite"></div></section>
         <div class="inspector-footer"><div class="footer-lock"><i data-lucide="shield-check"></i><span><strong data-i18n="protected.title">受保护工作区</strong><small data-i18n="protected.subtitle">每个任务单独授权写入</small></span></div><span class="mono">READY</span></div>
       </aside>
     </div>

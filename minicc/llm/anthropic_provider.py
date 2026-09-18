@@ -16,8 +16,10 @@ Prompt caching is proactive: the system prompt and tool set are marked
 normalized to the shared usage vocabulary (cache_read -> prompt_cache_hit_tokens,
 cache_creation -> prompt_cache_write_tokens).
 
-Streaming is not implemented yet: ``on_delta`` is accepted and ignored (same
-contract as the non-streaming Responses mode of the OpenAI provider).
+Streaming consumes SSE ``content_block_delta.text_delta`` events and calls
+``on_delta``. Tool calls are aggregated from ``content_block_start`` +
+``input_json_delta``. Retries only happen before the first visible delta.
+Without ``on_delta`` the atomic JSON path is unchanged.
 """
 
 from __future__ import annotations
@@ -41,6 +43,10 @@ _RETRYABLE_STATUS = {408, 409, 429, 500, 502, 503, 504, 529}
 
 class AnthropicProviderError(RuntimeError):
     """Anthropic API transport or protocol failure."""
+
+
+class AnthropicPartialError(AnthropicProviderError):
+    """Stream broke after visible text was already delivered; do not retry."""
 
 
 def _endpoint(base_url: str) -> str:
@@ -252,6 +258,11 @@ class AnthropicProvider:
         anthropic_tools = tools_to_anthropic(tools)
         if anthropic_tools:
             payload["tools"] = anthropic_tools
+        if on_delta is None:
+            return await self._create_json(payload)
+        return await self._create_stream(payload, on_delta)
+
+    async def _create_json(self, payload: dict[str, Any]) -> LLMResponse:
         attempt = 0
         while True:
             attempt += 1
@@ -271,6 +282,150 @@ class AnthropicProvider:
                 raise AnthropicProviderError(f"Anthropic HTTP {response.status_code}: {detail}")
             return response_to_llm(response.json(), self.model)
 
+    async def _create_stream(self, payload: dict[str, Any], on_delta: Any) -> LLMResponse:
+        attempt = 0
+        emitted = 0
+        stream_payload = dict(payload)
+        stream_payload["stream"] = True
+        while True:
+            attempt += 1
+            emitted = 0
+            try:
+                async with self._client.stream("POST", _endpoint(self.base_url), json=stream_payload) as response:
+                    if response.status_code in _RETRYABLE_STATUS and attempt <= self.max_retries:
+                        retry_after = response.headers.get("retry-after")
+                        await response.aread()
+                        await _backoff(attempt, retry_after)
+                        continue
+                    if response.status_code >= 400:
+                        detail = (await response.aread())[:500].decode("utf-8", "replace")
+                        raise AnthropicProviderError(f"Anthropic HTTP {response.status_code}: {detail}")
+                    parsed = await _consume_anthropic_sse(response, on_delta, emitted_counter := {"chars": 0})
+                    emitted = int(emitted_counter["chars"])
+                    return _sse_to_llm(parsed, self.model)
+            except AnthropicPartialError:
+                raise
+            except httpx.HTTPError as exc:
+                if emitted > 0:
+                    raise AnthropicPartialError(
+                        f"Anthropic stream broke after delivering {emitted} chars: {type(exc).__name__}"
+                    ) from exc
+                if attempt > self.max_retries:
+                    raise AnthropicProviderError(f"Anthropic 请求失败: {exc}") from exc
+                await _backoff(attempt)
+
+
+async def _consume_anthropic_sse(response: Any, on_delta: Any, emitted: dict[str, int]) -> dict[str, Any]:
+    text_parts: list[str] = []
+    tools: dict[int, dict[str, str]] = {}
+    usage: dict[str, Any] = {}
+    stop_reason = "end_turn"
+    model = ""
+    try:
+        async for line in response.aiter_lines():
+            if not line:
+                continue
+            if line.startswith(":"):
+                continue
+            if not line.startswith("data:"):
+                continue
+            data = line[5:].strip()
+            if not data or data == "[DONE]":
+                continue
+            try:
+                event = json.loads(data)
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(event, dict):
+                continue
+            kind = str(event.get("type") or "")
+            if kind == "message_start":
+                message = event.get("message") or {}
+                model = str(message.get("model") or model)
+                usage.update(message.get("usage") or {})
+            elif kind == "content_block_start":
+                index = int(event.get("index") or 0)
+                block = event.get("content_block") or {}
+                if block.get("type") == "tool_use":
+                    tools[index] = {
+                        "id": str(block.get("id") or ""),
+                        "name": str(block.get("name") or ""),
+                        "json": "",
+                    }
+            elif kind == "content_block_delta":
+                delta = event.get("delta") or {}
+                delta_type = str(delta.get("type") or "")
+                if delta_type == "text_delta":
+                    text = str(delta.get("text") or "")
+                    if text:
+                        emitted["chars"] += len(text)
+                        on_delta(text)
+                        text_parts.append(text)
+                elif delta_type == "input_json_delta":
+                    index = int(event.get("index") or 0)
+                    if index in tools:
+                        tools[index]["json"] += str(delta.get("partial_json") or "")
+            elif kind == "message_delta":
+                stop_reason = str((event.get("delta") or {}).get("stop_reason") or stop_reason)
+                usage.update(event.get("usage") or {})
+            elif kind == "error":
+                err = event.get("error") or event
+                raise AnthropicProviderError(f"Anthropic stream error: {err}")
+    except AnthropicProviderError:
+        raise
+    except Exception as exc:
+        if emitted["chars"] == 0:
+            raise
+        raise AnthropicPartialError(
+            f"Anthropic stream broke after delivering {emitted['chars']} chars: {type(exc).__name__}"
+        ) from exc
+    return {
+        "text": "".join(text_parts),
+        "tools": tools,
+        "usage": usage,
+        "stop_reason": stop_reason,
+        "model": model,
+    }
+
+
+def _sse_to_llm(parsed: dict[str, Any], fallback_model: str) -> LLMResponse:
+    tool_calls: list[dict[str, Any]] = []
+    for index in sorted(parsed.get("tools") or {}):
+        item = parsed["tools"][index]
+        raw_json = item.get("json") or "{}"
+        try:
+            json.loads(raw_json)
+            arguments = raw_json
+        except json.JSONDecodeError:
+            arguments = json.dumps({"_raw": raw_json}, ensure_ascii=False)
+        tool_calls.append({
+            "id": item.get("id") or f"tool-{index}",
+            "type": "function",
+            "function": {"name": item.get("name") or "", "arguments": arguments},
+        })
+    usage = parsed.get("usage") or {}
+    input_tokens = int(usage.get("input_tokens") or 0)
+    output_tokens = int(usage.get("output_tokens") or 0)
+    cache_read = usage.get("cache_read_input_tokens")
+    cache_write = usage.get("cache_creation_input_tokens")
+    normalized: dict[str, Any] = {
+        "prompt_tokens": input_tokens,
+        "completion_tokens": output_tokens,
+        "total_tokens": input_tokens + output_tokens,
+    }
+    if cache_read is not None:
+        normalized["prompt_cache_hit_tokens"] = int(cache_read)
+    if cache_write is not None:
+        normalized["prompt_cache_write_tokens"] = int(cache_write)
+    stop_reason = str(parsed.get("stop_reason") or "end_turn")
+    return LLMResponse(
+        content=str(parsed.get("text") or "") or None,
+        tool_calls=tool_calls,
+        usage=normalized,
+        finish_reason="tool_calls" if stop_reason == "tool_use" or tool_calls else "stop",
+        model=str(parsed.get("model") or fallback_model),
+    )
+
 
 async def _backoff(attempt: int, retry_after: str | None = None) -> None:
     if retry_after:
@@ -283,6 +438,7 @@ async def _backoff(attempt: int, retry_after: str | None = None) -> None:
 
 
 __all__ = [
+    "AnthropicPartialError",
     "AnthropicProvider",
     "AnthropicProviderError",
     "messages_to_anthropic",

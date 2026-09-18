@@ -27,6 +27,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from .netguard import BlockedAddressError, assert_public_http_url
 from .tools.registry import ToolSpec
 from .tools.schemas import ToolResult
 
@@ -73,6 +74,10 @@ def load_mcp_config(workspace: Path) -> list[McpServerConfig]:
             url = str(value["url"]).strip()
             if not url.startswith(("http://", "https://")):
                 raise McpError(f"MCP server {name!r} 的 url 必须是 http/https 地址")
+            try:
+                assert_public_http_url(url, allow_env="MINICC_ALLOW_PRIVATE_MCP")
+            except (BlockedAddressError, ValueError) as exc:
+                raise McpError(f"MCP server {name!r} 的 url 被 SSRF 防护拒绝: {exc}") from exc
         args = value.get("args", [])
         env = value.get("env", {})
         headers = value.get("headers", {})

@@ -14,14 +14,13 @@ Loopback/private targets are rejected unless ``MINICC_ALLOW_PRIVATE_FETCH=1``
 from __future__ import annotations
 
 import html as html_module
-import ipaddress
-import os
-import socket
 import urllib.error
 import urllib.parse
 import urllib.request
 from html.parser import HTMLParser
 from typing import Any
+
+from ..netguard import BlockedAddressError, assert_public_host
 
 from .registry import ToolError, ToolResult, redact_text, split_output
 from .schemas import HEAD_CHARS, TAIL_CHARS
@@ -113,27 +112,10 @@ class _TextExtractor(HTMLParser):
 
 def _check_address(host: str) -> None:
     """Reject hosts that resolve to private, loopback, or reserved ranges."""
-    if os.getenv("MINICC_ALLOW_PRIVATE_FETCH", "").strip().lower() in {"1", "true", "yes", "on"}:
-        return
     try:
-        infos = socket.getaddrinfo(host, None)
-    except OSError as exc:
-        raise FetchDeniedError(f"无法解析主机 {host}: {exc}") from exc
-    for info in infos:
-        address = str(info[4][0])
-        try:
-            ip = ipaddress.ip_address(address.split("%")[0])
-        except ValueError:
-            continue
-        if (
-            ip.is_private
-            or ip.is_loopback
-            or ip.is_link_local
-            or ip.is_multicast
-            or ip.is_reserved
-            or ip.is_unspecified
-        ):
-            raise FetchDeniedError(f"IP {ip} 属于私有/保留地址段，已按 SSRF 防护拒绝")
+        assert_public_host(host, allow_env="MINICC_ALLOW_PRIVATE_FETCH")
+    except BlockedAddressError as exc:
+        raise FetchDeniedError(str(exc)) from exc
 
 
 def _validate_url(url: str) -> urllib.parse.ParseResult:

@@ -136,3 +136,124 @@ async def test_chat_raises_provider_error_on_http_failure() -> None:
     with pytest.raises(Exception, match="401"):
         await provider.chat([user_msg("hi")])
     await provider.close()
+
+
+def _sse_bytes(*events: dict[str, Any]) -> bytes:
+    return "".join(f"data: {json.dumps(event, ensure_ascii=False)}\n\n" for event in events).encode("utf-8")
+
+
+TEXT_SSE = _sse_bytes(
+    {"type": "message_start", "message": {"model": "claude-test", "usage": {"input_tokens": 4}}},
+    {"type": "content_block_start", "index": 0, "content_block": {"type": "text", "text": ""}},
+    {"type": "content_block_delta", "index": 0, "delta": {"type": "text_delta", "text": "hello "}},
+    {"type": "content_block_delta", "index": 0, "delta": {"type": "text_delta", "text": "world"}},
+    {"type": "message_delta", "delta": {"stop_reason": "end_turn"}, "usage": {"output_tokens": 2}},
+    {"type": "message_stop"},
+)
+
+TOOL_SSE = _sse_bytes(
+    {"type": "message_start", "message": {"model": "claude-test", "usage": {"input_tokens": 6}}},
+    {
+        "type": "content_block_start",
+        "index": 0,
+        "content_block": {"type": "tool_use", "id": "tu-1", "name": "read_file", "input": {}},
+    },
+    {"type": "content_block_delta", "index": 0, "delta": {"type": "input_json_delta", "partial_json": "{\"path\":"}},
+    {"type": "content_block_delta", "index": 0, "delta": {"type": "input_json_delta", "partial_json": "\"a.py\"}"}},
+    {"type": "message_delta", "delta": {"stop_reason": "tool_use"}, "usage": {"output_tokens": 8}},
+    {"type": "message_stop"},
+)
+
+
+@pytest.mark.asyncio()
+async def test_stream_calls_on_delta_for_text() -> None:
+    requests: list[httpx.Request] = []
+    deltas: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(200, content=TEXT_SSE, headers={"content-type": "text/event-stream"})
+
+    provider = AnthropicProvider(
+        api_key="sk-ant-test",
+        model="claude-test",
+        transport=httpx.MockTransport(handler),
+        max_retries=0,
+    )
+    response = await provider.chat([user_msg("hi")], on_delta=deltas.append)
+    await provider.close()
+    assert deltas == ["hello ", "world"]
+    assert response.text == "hello world"
+    body = json.loads(requests[0].content.decode("utf-8"))
+    assert body["stream"] is True
+
+
+@pytest.mark.asyncio()
+async def test_stream_aggregates_tool_use_json() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=TOOL_SSE, headers={"content-type": "text/event-stream"})
+
+    provider = AnthropicProvider(
+        api_key="sk-ant-test",
+        model="claude-test",
+        transport=httpx.MockTransport(handler),
+        max_retries=0,
+    )
+    response = await provider.chat([user_msg("hi")], on_delta=lambda _chunk: None)
+    await provider.close()
+    assert response.finish_reason == "tool_calls"
+    assert response.tool_calls[0]["function"]["name"] == "read_file"
+    assert json.loads(response.tool_calls[0]["function"]["arguments"]) == {"path": "a.py"}
+
+
+@pytest.mark.asyncio()
+async def test_stream_retries_only_before_first_delta(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def no_sleep(*_args, **_kwargs) -> None:
+        return None
+
+    monkeypatch.setattr("minicc.llm.anthropic_provider._backoff", no_sleep)
+    calls = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return httpx.Response(500, text="try again")
+        return httpx.Response(200, content=TEXT_SSE, headers={"content-type": "text/event-stream"})
+
+    provider = AnthropicProvider(
+        api_key="sk-ant-test",
+        model="claude-test",
+        transport=httpx.MockTransport(handler),
+        max_retries=2,
+    )
+    response = await provider.chat([user_msg("hi")], on_delta=lambda _chunk: None)
+    await provider.close()
+    assert calls["n"] == 2
+    assert response.text == "hello world"
+
+
+@pytest.mark.asyncio()
+async def test_chat_without_on_delta_stays_on_json_path() -> None:
+    requests: list[httpx.Request] = []
+    payload = {
+        "model": "claude-test",
+        "stop_reason": "end_turn",
+        "content": [{"type": "text", "text": "atomic"}],
+        "usage": {"input_tokens": 3, "output_tokens": 1},
+    }
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(200, json=payload)
+
+    provider = AnthropicProvider(
+        api_key="sk-ant-test",
+        model="claude-test",
+        transport=httpx.MockTransport(handler),
+        max_retries=0,
+    )
+    response = await provider.chat([user_msg("hi")])
+    await provider.close()
+    assert response.text == "atomic"
+    body = json.loads(requests[0].content.decode("utf-8"))
+    assert "stream" not in body or body["stream"] is not True

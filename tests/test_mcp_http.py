@@ -12,6 +12,11 @@ import pytest
 from minicc.mcp import McpError, McpHttpClient, McpManager, load_mcp_config
 
 
+@pytest.fixture(autouse=True)
+def _allow_loopback_mcp(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("MINICC_ALLOW_PRIVATE_MCP", "1")
+
+
 class _FakeMcpHandler(BaseHTTPRequestHandler):
     """Minimal MCP streamable-HTTP server: initialize/tools list/call."""
 
@@ -80,6 +85,18 @@ def test_config_url_must_be_http(tmp_path: Path) -> None:
     config_dir.mkdir()
     (config_dir / "mcp.json").write_text('{"servers": {"x": {"url": "ftp://host/mcp"}}}', encoding="utf-8")
     with pytest.raises(McpError, match="http/https"):
+        load_mcp_config(tmp_path)
+
+
+def test_http_mcp_rejects_loopback_without_override(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("MINICC_ALLOW_PRIVATE_MCP", raising=False)
+    config_dir = tmp_path / ".minicc"
+    config_dir.mkdir()
+    (config_dir / "mcp.json").write_text(
+        '{"servers": {"remote": {"url": "http://127.0.0.1:3117/mcp"}}}',
+        encoding="utf-8",
+    )
+    with pytest.raises(McpError, match="SSRF"):
         load_mcp_config(tmp_path)
 
 

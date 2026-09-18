@@ -1,17 +1,26 @@
-// NOTE: 源文件分片（web/src/）。此文件由 `npm run build:web` 按序拼接生成，勿直接编辑。
-function showToast(message) {
+import { requestJson } from "../core/transport.js";
+import { activateDialog, deactivateDialog } from "../core/dialog.js";
+// ES module source for the minicc workbench. Bundled by scripts/build-web.mjs.
+import { attachmentMarkup, escapeHtml, executionTrailMarkup, formatBytes, formatLightText, formatText, persistSessionView, renderSession } from "../chat/markdown.js";
+import { openPanel, openTaskInWorkspace } from "../chat/stream.js";
+import { isTerminalTask, updateLiveTask } from "../core/api.js";
+import { t } from "../core/i18n.js";
+import { $, $$, AUTH_STORAGE_KEY, MAX_RENDERED_TIMELINE_EVENTS, MAX_SEEN_EVENT_KEYS, TERMINAL_TASK_STATUSES, finalizedTaskIds, runningTasks, runtime, state, taskBySession, taskTimerHandles } from "../core/state.js";
+import { icon, refreshIcons } from "../icons.js";
+
+export function showToast(message) {
   const toast = $("#toast");
   toast.textContent = message;
   toast.classList.add("show");
   window.clearTimeout(showToast.timer);
   showToast.timer = window.setTimeout(() => toast.classList.remove("show"), 2600);
 }
-function chatIsNearBottom(area = $("#chatArea"), threshold = 32) {
+export function chatIsNearBottom(area = $("#chatArea"), threshold = 32) {
   if (!area) return true;
   return area.scrollHeight - area.clientHeight - area.scrollTop <= threshold;
 }
 
-function updateChatFollowState() {
+export function updateChatFollowState() {
   const area = $("#chatArea");
   if (!area) return;
   state.chatFollow = chatIsNearBottom(area);
@@ -23,7 +32,7 @@ function updateChatFollowState() {
   }
 }
 
-function captureChatPosition(area = $("#chatArea")) {
+export function captureChatPosition(area = $("#chatArea")) {
   if (!area) return null;
   const areaRect = area.getBoundingClientRect();
   const anchorElements = [...area.querySelectorAll(".message[data-chat-anchor]")];
@@ -39,7 +48,7 @@ function captureChatPosition(area = $("#chatArea")) {
   };
 }
 
-function restoreChatPosition(position, schedule = true) {
+export function restoreChatPosition(position, schedule = true) {
   if (!position?.area?.isConnected) return;
   const restoreVersion = ++state.chatRestoreVersion;
   const restore = () => {
@@ -70,7 +79,7 @@ function restoreChatPosition(position, schedule = true) {
   if (schedule) window.requestAnimationFrame(restore);
 }
 
-function scrollChat(behavior = "auto", force = false) {
+export function scrollChat(behavior = "auto", force = false) {
   const area = $("#chatArea");
   if (!area || !force) {
     updateChatFollowState();
@@ -81,7 +90,7 @@ function scrollChat(behavior = "auto", force = false) {
   window.requestAnimationFrame(updateChatFollowState);
 }
 
-function setConnection(connected, label = connected ? "Connected" : "Offline") {
+export function setConnection(connected, label = connected ? "Connected" : "Offline") {
   state.connection = connected;
   const status = $("#connectionStatus");
   status.classList.toggle("offline", !connected);
@@ -89,7 +98,7 @@ function setConnection(connected, label = connected ? "Connected" : "Offline") {
   status.innerHTML = `<span class="status-pulse"></span><span>${escapeHtml(translated)}</span>`;
 }
 
-function setTaskTransportStatus(taskId, mode) {
+export function setTaskTransportStatus(taskId, mode) {
   const binding = runningTasks.get(taskId);
   if (!binding) return;
   binding.transport = mode;
@@ -102,7 +111,7 @@ function setTaskTransportStatus(taskId, mode) {
   transport.dataset.transport = mode;
 }
 
-function setBusy(value) {
+export function setBusy(value) {
   state.busy = Boolean(value);
   const sessionBusy = state.busy || isSessionBusy(state.sessionId);
   $("#sendButton").disabled = Boolean(state.submitting);
@@ -114,7 +123,7 @@ function setBusy(value) {
   refreshIcons();
 }
 
-function updateReasoningControl() {
+export function updateReasoningControl() {
   const value = $("#reasoningButtonValue");
   if (value) value.textContent = t("reasoning." + state.reasoningEffort);
   const button = $("#reasoningButton");
@@ -125,9 +134,9 @@ function updateReasoningControl() {
   }
 }
 
-function setSession(sessionId) {
+export function setSession(sessionId) {
   const sessionChanged = state.sessionId !== sessionId;
-  if (sessionViewReady && sessionChanged) {
+  if (runtime.sessionViewReady && sessionChanged) {
     persistSessionView();
   }
   state.sessionId = sessionId;
@@ -141,15 +150,15 @@ function setSession(sessionId) {
   $("#topSession").textContent = sessionId;
   $$(".thread-item").forEach((item) => item.classList.toggle("active", item.dataset.session === sessionId));
   renderSession(sessionId, { followLatest: sessionChanged });
-  sessionViewReady = true;
+  runtime.sessionViewReady = true;
 }
 
-function taskSessionKey(sessionId, workspacePath = state.workspacePath) {
+export function taskSessionKey(sessionId, workspacePath = state.workspacePath) {
   const normalizedWorkspace = String(workspacePath || "default").replaceAll("\\", "/").replace(/\/+$/, "").toLowerCase();
   return `${normalizedWorkspace}::${sessionId}`;
 }
 
-function sessionTaskBindings(sessionId, workspacePath = state.workspacePath) {
+export function sessionTaskBindings(sessionId, workspacePath = state.workspacePath) {
   return [...runningTasks.values()].filter((binding) => (
     binding.sessionId === sessionId
     && taskSessionKey(binding.sessionId, binding.workspacePath) === taskSessionKey(sessionId, workspacePath)
@@ -157,14 +166,14 @@ function sessionTaskBindings(sessionId, workspacePath = state.workspacePath) {
   ));
 }
 
-function isSessionBusy(sessionId) {
+export function isSessionBusy(sessionId) {
   if (sessionTaskBindings(sessionId).length > 0) return true;
   const taskId = taskBySession.get(taskSessionKey(sessionId));
   const binding = taskId ? runningTasks.get(taskId) : null;
   return Boolean(binding && !isTerminalTask(binding.data));
 }
 
-function formatDuration(value) {
+export function formatDuration(value) {
   const total = Math.max(0, Math.floor(Number(value) || 0));
   const hours = Math.floor(total / 3600);
   const minutes = Math.floor((total % 3600) / 60);
@@ -173,7 +182,7 @@ function formatDuration(value) {
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
 
-function taskDuration(data) {
+export function taskDuration(data) {
   const stored = Number(data?.duration_seconds);
   if (data?.started_at && ["queued", "running"].includes(data.status)) {
     const started = Date.parse(data.started_at);
@@ -182,7 +191,7 @@ function taskDuration(data) {
   return Number.isFinite(stored) ? stored : 0;
 }
 
-function updateTaskDuration(data, loadingId = "") {
+export function updateTaskDuration(data, loadingId = "") {
   const duration = formatDuration(taskDuration(data));
   if (loadingId) document.getElementById(loadingId)?.querySelectorAll("[data-live-duration]").forEach((item) => { item.textContent = duration; });
   const binding = data?.task_id ? runningTasks.get(data.task_id) : null;
@@ -195,7 +204,7 @@ function updateTaskDuration(data, loadingId = "") {
   }
 }
 
-function startTaskTimer(taskId) {
+export function startTaskTimer(taskId) {
   if (taskTimerHandles.has(taskId)) return;
   const handle = window.setInterval(() => {
     const binding = runningTasks.get(taskId);
@@ -209,18 +218,18 @@ function startTaskTimer(taskId) {
   taskTimerHandles.set(taskId, handle);
 }
 
-function stopTaskTimer(taskId) {
+export function stopTaskTimer(taskId) {
   const handle = taskTimerHandles.get(taskId);
   if (handle) window.clearInterval(handle);
   taskTimerHandles.delete(taskId);
 }
 
-function eventSequence(value) {
+export function eventSequence(value) {
   const sequence = Number(value);
   return Number.isFinite(sequence) && sequence > 0 ? Math.floor(sequence) : 0;
 }
 
-function eventIdentity(event) {
+export function eventIdentity(event) {
   if (!event || typeof event !== "object") return "";
   if (event.item_id) return `item:${event.item_id}`;
   if (event.event_id) return `id:${event.event_id}`;
@@ -229,7 +238,7 @@ function eventIdentity(event) {
   return `fallback:${[event.kind, event.code, event.name, event.status, event.summary, event.path].map((item) => String(item || "")).join("|")}`;
 }
 
-function mergeTimelineEvents(current, incoming) {
+export function mergeTimelineEvents(current, incoming) {
   const merged = new Map();
   for (const event of [...(Array.isArray(current) ? current : []), ...(Array.isArray(incoming) ? incoming : [])]) {
     if (!event || typeof event !== "object") continue;
@@ -241,7 +250,7 @@ function mergeTimelineEvents(current, incoming) {
     .slice(-1024);
 }
 
-function markBindingEvents(binding, events) {
+export function markBindingEvents(binding, events) {
   const remember = (set, value) => {
     if (!value) return;
     set.delete(value);
@@ -257,7 +266,7 @@ function markBindingEvents(binding, events) {
   }
 }
 
-function applyTaskSnapshot(binding, snapshot, { replaceEvents = true } = {}) {
+export function applyTaskSnapshot(binding, snapshot, { replaceEvents = true } = {}) {
   const incoming = snapshot && typeof snapshot === "object" ? snapshot : {};
   const previous = binding.data && typeof binding.data === "object" ? binding.data : {};
   const previousCursor = eventSequence(binding.cursor || previous.event_cursor);
@@ -278,7 +287,7 @@ function applyTaskSnapshot(binding, snapshot, { replaceEvents = true } = {}) {
   return next;
 }
 
-function bindRunningTask(task, loadingId, sessionId = state.sessionId) {
+export function bindRunningTask(task, loadingId, sessionId = state.sessionId) {
   if (!task?.task_id) return null;
   finalizedTaskIds.delete(task.task_id);
   const previous = runningTasks.get(task.task_id);
@@ -308,12 +317,13 @@ function bindRunningTask(task, loadingId, sessionId = state.sessionId) {
   if (!previousScoped || Number(task.created_at_epoch || 0) >= Number(previousScoped.data?.created_at_epoch || 0)) {
     taskBySession.set(scopeKey, task.task_id);
   }
-  state.activeTaskId = sessionId === state.sessionId ? task.task_id : state.activeTaskId;
+  if (isCurrentTaskScope({ ...task, session_id: binding.sessionId, workspace_path: binding.workspacePath })) state.activeTaskId = task.task_id;
   startTaskTimer(task.task_id);
   return binding;
 }
 
-function restoreSessionTask(sessionId) {
+export function restoreSessionTask(sessionId) {
+  if (sessionId !== state.sessionId) return;
   const bindings = sessionTaskBindings(sessionId);
   if (!bindings.length) {
     if (sessionId === state.sessionId) state.activeTaskId = null;
@@ -330,12 +340,12 @@ function restoreSessionTask(sessionId) {
   setBusy(true);
 }
 
-const PERMISSION_MODES = ["default", "plan", "acceptEdits", "yolo"];
+export const PERMISSION_MODES = ["default", "plan", "acceptEdits", "yolo"];
 
 // Effective per-task permission flags for the selected mode. `plan` forces the
 // read-only flags, `yolo` implies both; `default`/`acceptEdits` honor the
 // user's manual toggles (matching the backend _resolve_task_permissions).
-function effectiveTaskPermissions() {
+export function effectiveTaskPermissions() {
   const mode = state.permissionMode;
   return {
     mode,
@@ -344,7 +354,7 @@ function effectiveTaskPermissions() {
   };
 }
 
-function updateMode() {
+export function updateMode() {
   const effective = effectiveTaskPermissions();
   const checkbox = $("#allowChanges");
   const networkCheckbox = $("#allowNetwork");
@@ -358,20 +368,21 @@ function updateMode() {
     networkCheckbox.disabled = state.permissionMode === "yolo";
     networkCheckbox.closest(".safe-toggle")?.classList.toggle("locked", networkCheckbox.disabled);
   }
-  const modeLabelText = state.permissionMode === "default"
-    ? (effective.allowChanges ? t("mode.changes") : t("mode.safe"))
-    : t(`perm.${state.permissionMode}`);
-  const modeLabel = $("#modeLabel");
-  if (modeLabel) modeLabel.textContent = modeLabelText;
-  const hint = state.permissionMode === "default"
-    ? (effective.allowChanges ? t("composer.fullAccess") : t("composer.readOnly"))
-    : t(`perm.${state.permissionMode}Hint`);
-  $("#permissionHint").textContent = hint;
-  $("#modeBadge").textContent = effective.allowChanges ? t("mode.localFull") : t("mode.localSafe");
+  const zh = state.locale === "zh";
+  const write = effective.mode === "acceptEdits" || effective.allowChanges;
+  const command = effective.allowChanges;
+  const label = $("#modeLabel");
+  if (label) label.textContent = t("capability.executeToggle");
+  const summary = zh
+    ? `文件：${write ? "可写" : "只读"} · 命令：${command ? "允许" : "仅安全检查"} · 联网：${effective.allowNetwork ? "允许" : "关闭"}`
+    : `Files: ${write ? "write" : "read"} · Commands: ${command ? "enabled" : "safe checks"} · Network: ${effective.allowNetwork ? "on" : "off"}`;
+  $("#permissionHint").textContent = summary;
+  $("#permissionSummary").textContent = summary;
+  $("#modeBadge").textContent = t(`perm.${effective.mode}`);
   renderPermissionSegments();
 }
 
-function renderPermissionSegments() {
+export function renderPermissionSegments() {
   const group = $("#permModeGroup");
   if (group) {
     [...group.querySelectorAll(".perm-mode-option")].forEach((option) => {
@@ -385,7 +396,7 @@ function renderPermissionSegments() {
   if (hint) hint.textContent = t(`perm.${state.permissionMode}Hint`);
 }
 
-function setPermissionMode(mode) {
+export function setPermissionMode(mode) {
   const next = PERMISSION_MODES.includes(mode) ? mode : "default";
   const changed = next !== state.permissionMode;
   state.permissionMode = next;
@@ -401,9 +412,7 @@ function setPermissionMode(mode) {
 // travel inside timeline tool events. The latest list wins; the section stays
 // hidden until a plan exists.
 
-let latestTodos = null;
-
-function normalizeTodoEntries(rawTodos) {
+export function normalizeTodoEntries(rawTodos) {
   if (!Array.isArray(rawTodos)) return null;
   return rawTodos
     .filter((todo) => todo && typeof todo === "object" && String(todo.content || "").trim())
@@ -415,7 +424,7 @@ function normalizeTodoEntries(rawTodos) {
     .slice(0, 50);
 }
 
-function todosFromToolEvent(event) {
+export function todosFromToolEvent(event) {
   if (!event || typeof event !== "object" || event.kind === "trace") return null;
   const name = String(event.name || "");
   if (name !== "todo_write" && name !== "todo_read") return null;
@@ -423,7 +432,7 @@ function todosFromToolEvent(event) {
   return normalizeTodoEntries(data?.todos);
 }
 
-function latestTodosFromEvents(events) {
+export function latestTodosFromEvents(events) {
   let found = null;
   for (const event of Array.isArray(events) ? events : []) {
     const todos = todosFromToolEvent(event);
@@ -432,28 +441,28 @@ function latestTodosFromEvents(events) {
   return found;
 }
 
-function syncTodoPanelFromEvents(events) {
+export function syncTodoPanelFromEvents(events) {
   const todos = latestTodosFromEvents(events);
-  if (todos) latestTodos = todos;
+  if (todos) runtime.latestTodos = todos;
   renderTodoPanel();
 }
 
-function renderTodoPanel() {
+export function renderTodoPanel() {
   const section = $("#todoSection");
   if (!section) return;
-  const hasTodos = Array.isArray(latestTodos) && latestTodos.length > 0;
+  const hasTodos = Array.isArray(runtime.latestTodos) && runtime.latestTodos.length > 0;
   section.hidden = !hasTodos;
   if (!hasTodos) return;
-  const completed = latestTodos.filter((todo) => todo.status === "completed").length;
+  const completed = runtime.latestTodos.filter((todo) => todo.status === "completed").length;
   const progress = $("#todoProgressCount");
   if (progress) {
-    progress.textContent = `${completed}/${latestTodos.length}`;
-    progress.setAttribute("aria-label", `${t("todo.progressAria")}: ${completed}/${latestTodos.length}`);
+    progress.textContent = `${completed}/${runtime.latestTodos.length}`;
+    progress.setAttribute("aria-label", `${t("todo.progressAria")}: ${completed}/${runtime.latestTodos.length}`);
   }
   const list = $("#todoListBody");
   if (!list) return;
   const statusLabels = { pending: t("todo.pending"), in_progress: t("todo.inProgress"), completed: t("todo.completed") };
-  list.innerHTML = latestTodos.map((todo) => `
+  list.innerHTML = runtime.latestTodos.map((todo) => `
     <li class="todo-item todo-${escapeHtml(todo.status)}" aria-label="${escapeHtml(`${todo.content} · ${statusLabels[todo.status] || todo.status}`)}">
       <span class="todo-status-mark" aria-hidden="true">${todo.status === "completed" ? icon("check") : ""}</span>
       <span class="todo-priority-dot todo-priority-${escapeHtml(todo.priority)}" aria-hidden="true"></span>
@@ -462,7 +471,7 @@ function renderTodoPanel() {
   refreshIcons();
 }
 
-function toggleTodoSection(force) {
+export function toggleTodoSection(force) {
   const section = $("#todoSection");
   if (!section) return;
   const collapsed = typeof force === "boolean" ? force : section.dataset.collapsed !== "true";
@@ -481,11 +490,11 @@ function toggleTodoSection(force) {
 // per-directory cache, so expanding them costs no extra request. Cached file
 // entries also feed the @-mention index in the composer.
 
-const FILE_TREE_DEPTH = 2;             // levels fetched per /api/files request
-const FILE_TREE_RENDER_LIMIT = 800;    // rows rendered per level before truncation
-const FILE_TREE_REFRESH_DELAY = 200;   // coalesce workspace-switch/completion triggers
+export const FILE_TREE_DEPTH = 2;             // levels fetched per /api/files request
+export const FILE_TREE_RENDER_LIMIT = 800;    // rows rendered per level before truncation
+export const FILE_TREE_REFRESH_DELAY = 200;   // coalesce workspace-switch/completion triggers
 
-const fileTreeState = {
+export const fileTreeState = {
   loaded: false,
   loading: false,
   rootEntries: [],
@@ -499,13 +508,13 @@ const fileTreeState = {
   refreshTimer: 0,
 };
 
-function fileTreeParentOf(path) {
+export function fileTreeParentOf(path) {
   const value = String(path || "");
   const index = value.lastIndexOf("/");
   return index < 0 ? "" : value.slice(0, index);
 }
 
-function fileTreeSort(entries) {
+export function fileTreeSort(entries) {
   return [...entries].sort((left, right) => {
     const dirDelta = (left?.type === "dir" ? 0 : 1) - (right?.type === "dir" ? 0 : 1);
     if (dirDelta) return dirDelta;
@@ -513,11 +522,13 @@ function fileTreeSort(entries) {
   });
 }
 
-function fileTreeIndexFiles(entries) {
+export function fileTreeIndexFiles(entries) {
+  const indexed = new Set(fileTreeState.fileIndex.map((item) => item.path));
   for (const entry of Array.isArray(entries) ? entries : []) {
     if (!entry || entry.type !== "file" || !entry.path) continue;
-    if (fileTreeState.fileIndex.some((item) => item.path === entry.path)) continue;
+    if (indexed.has(entry.path)) continue;
     fileTreeState.fileIndex.push({ path: String(entry.path), size: Number(entry.size || 0) });
+    indexed.add(entry.path);
   }
   if (fileTreeState.fileIndex.length > 4000) fileTreeState.fileIndex.length = 4000;
 }
@@ -525,30 +536,32 @@ function fileTreeIndexFiles(entries) {
 // Cache the direct children of dirPath delivered by a flat listing. An empty
 // result is intentionally not cached: the directory is either genuinely empty
 // or was cut off, and a later expand re-fetches to stay correct.
-function fileTreeSeedChildren(dirPath, entries) {
+export function fileTreeSeedChildren(dirPath, entries, truncated = false) {
   const children = [];
   for (const entry of Array.isArray(entries) ? entries : []) {
     if (entry?.path && fileTreeParentOf(entry.path) === dirPath) children.push(entry);
   }
   fileTreeIndexFiles(children);
   if (!children.length) return;
-  fileTreeState.children.set(dirPath, { entries: children });
+  fileTreeState.children.set(dirPath, { entries: children, truncated });
 }
 
-async function fileTreeFetch(dirPath) {
+export async function fileTreeFetch(dirPath) {
   const data = await requestJson(`/api/files?path=${encodeURIComponent(dirPath || "")}&depth=${FILE_TREE_DEPTH}`, {}, 12000);
   return { entries: Array.isArray(data.entries) ? data.entries : [], truncated: Boolean(data.truncated) };
 }
 
-async function loadFileTree() {
+export async function loadFileTree() {
   if (!state.workspacePath) return;
   const token = ++fileTreeState.requestToken;
+  fileTreeState.pending.clear();
+  const workspacePath = state.workspacePath;
   fileTreeState.loading = true;
   fileTreeState.rootError = "";
   renderFileTree();
   try {
     const result = await fileTreeFetch("");
-    if (token !== fileTreeState.requestToken) return;
+    if (token !== fileTreeState.requestToken || workspacePath !== state.workspacePath) return;
     fileTreeState.rootEntries = fileTreeSort(result.entries.filter((entry) => entry?.path && fileTreeParentOf(entry.path) === ""));
     fileTreeState.rootTruncated = result.truncated;
     fileTreeState.children = new Map();
@@ -558,14 +571,14 @@ async function loadFileTree() {
     fileTreeIndexFiles(fileTreeState.rootEntries);
     // Pre-seed level-1 folders from the same depth=2 response.
     for (const entry of fileTreeState.rootEntries) {
-      if (entry.type === "dir") fileTreeSeedChildren(entry.path, result.entries);
+      if (entry.type === "dir") fileTreeSeedChildren(entry.path, result.entries, result.truncated);
     }
   } catch (error) {
-    if (token !== fileTreeState.requestToken) return;
+    if (token !== fileTreeState.requestToken || workspacePath !== state.workspacePath) return;
     fileTreeState.rootError = String(error?.message || "error");
     fileTreeState.loaded = true;
   } finally {
-    if (token === fileTreeState.requestToken) {
+    if (token === fileTreeState.requestToken && workspacePath === state.workspacePath) {
       fileTreeState.loading = false;
       renderFileTree();
       if (mentionState.open) updateMentionPopover();
@@ -573,7 +586,9 @@ async function loadFileTree() {
   }
 }
 
-async function toggleFileDir(dirPath) {
+export async function toggleFileDir(dirPath) {
+  const token = fileTreeState.requestToken;
+  const workspacePath = state.workspacePath;
   if (fileTreeState.expanded.has(dirPath)) {
     fileTreeState.expanded.delete(dirPath);
     renderFileTree();
@@ -585,34 +600,40 @@ async function toggleFileDir(dirPath) {
     renderFileTree();
     try {
       const result = await fileTreeFetch(dirPath);
-      fileTreeSeedChildren(dirPath, result.entries);
+      if (token !== fileTreeState.requestToken || workspacePath !== state.workspacePath) return;
+      fileTreeSeedChildren(dirPath, result.entries, result.truncated);
       // Also pre-seed the direct subfolders delivered by this response.
       for (const entry of result.entries) {
-        if (entry?.type === "dir" && fileTreeParentOf(entry.path) === dirPath) fileTreeSeedChildren(entry.path, result.entries);
+        if (entry?.type === "dir" && fileTreeParentOf(entry.path) === dirPath) fileTreeSeedChildren(entry.path, result.entries, result.truncated);
       }
     } catch (error) {
+      if (token !== fileTreeState.requestToken || workspacePath !== state.workspacePath) return;
       fileTreeState.children.set(dirPath, { entries: [], error: String(error?.message || "error") });
     } finally {
-      fileTreeState.pending.delete(dirPath);
+      if (token === fileTreeState.requestToken && workspacePath === state.workspacePath) fileTreeState.pending.delete(dirPath);
     }
   }
   renderFileTree();
   if (mentionState.open) updateMentionPopover();
 }
 
-function fileTreeRowMarkup(entry, level) {
+export function fileTreeRowMarkup(entry, level) {
   const indent = `padding-left:${6 + Math.min(level, 8) * 13}px`;
   if (entry.type === "dir") {
     const expanded = fileTreeState.expanded.has(entry.path);
-    return `<button type="button" class="file-tree-row" role="treeitem" aria-expanded="${expanded ? "true" : "false"}" data-tree-dir="${escapeHtml(entry.path)}" style="${indent}" aria-label="${escapeHtml(entry.name)}"><span class="file-tree-chevron" aria-hidden="true">${icon(expanded ? "chevron-down" : "chevron-right")}</span><span class="file-tree-icon" aria-hidden="true">${icon(expanded ? "folder-open" : "folder")}</span><span class="file-tree-name">${escapeHtml(entry.name || entry.path)}</span></button>`;
+    return `<button type="button" class="file-tree-row" role="treeitem" tabindex="-1" aria-level="${level + 1}" aria-expanded="${expanded ? "true" : "false"}" data-tree-dir="${escapeHtml(entry.path)}" style="${indent}" aria-label="${escapeHtml(entry.name)}"><span class="file-tree-chevron" aria-hidden="true">${icon(expanded ? "chevron-down" : "chevron-right")}</span><span class="file-tree-icon" aria-hidden="true">${icon(expanded ? "folder-open" : "folder")}</span><span class="file-tree-name">${escapeHtml(entry.name || entry.path)}</span></button>`;
   }
   const size = Number(entry.size || 0);
-  return `<button type="button" class="file-tree-row" role="treeitem" data-open-diff="${escapeHtml(entry.path)}" style="${indent}" aria-label="${escapeHtml(`${entry.name || entry.path} ${formatBytes(size)}`)}"><span class="file-tree-chevron" aria-hidden="true"></span><span class="file-tree-icon" aria-hidden="true">${icon("file-code-2")}</span><span class="file-tree-name">${escapeHtml(entry.name || entry.path)}</span><span class="file-tree-size">${escapeHtml(formatBytes(size))}</span></button>`;
+  return `<button type="button" class="file-tree-row" role="treeitem" tabindex="-1" aria-level="${level + 1}" data-open-diff="${escapeHtml(entry.path)}" style="${indent}" aria-label="${escapeHtml(`${entry.name || entry.path} ${formatBytes(size)}`)}"><span class="file-tree-chevron" aria-hidden="true"></span><span class="file-tree-icon" aria-hidden="true">${icon("file-code-2")}</span><span class="file-tree-name">${escapeHtml(entry.name || entry.path)}</span><span class="file-tree-size">${escapeHtml(formatBytes(size))}</span></button>`;
 }
 
-function renderFileTree() {
+export function renderFileTree() {
   const tree = $("#fileTree");
   if (!tree) return;
+  const focused = tree.contains(document.activeElement) ? document.activeElement : null;
+  const focusPath = focused?.dataset.treeDir || focused?.dataset.openDiff;
+  const previousStop = tree.querySelector('[role="treeitem"][tabindex="0"]');
+  const stopPath = focusPath || previousStop?.dataset.treeDir || previousStop?.dataset.openDiff;
   if (fileTreeState.loading && !fileTreeState.loaded) {
     tree.innerHTML = `<div class="file-tree-status">${escapeHtml(t("files.loading"))}</div>`;
     return;
@@ -651,17 +672,51 @@ function renderFileTree() {
   const list = `<div class="file-tree-list" role="tree" aria-label="${escapeHtml(t("files.tree"))}">${rows.join("")}</div>`;
   const noteMarkup = notes.size ? `<div class="file-tree-note">${icon("alert-triangle")}<span>${escapeHtml([...notes].join(" "))}</span></div>` : "";
   tree.innerHTML = `${list}${noteMarkup}`;
+  const items = [...tree.querySelectorAll('[role="treeitem"]')];
+  const active = items.find((item) => (item.dataset.treeDir || item.dataset.openDiff) === stopPath) || items[0];
+  items.forEach((item) => { item.tabIndex = item === active ? 0 : -1; });
+  if (active && focused) active.focus({ preventScroll: true });
   refreshIcons();
 }
 
-function refreshFileTreeSoon() {
+export async function handleFileTreeKeydown(event) {
+  const tree = $("#fileTree");
+  const row = event.target.closest('[role="treeitem"]');
+  if (!row || !["ArrowDown", "ArrowUp", "ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+  event.preventDefault();
+  const rows = [...tree.querySelectorAll('[role="treeitem"]')];
+  const index = rows.indexOf(row);
+  let target;
+  if (event.key === "Home") target = rows[0];
+  else if (event.key === "End") target = rows.at(-1);
+  else if (event.key === "ArrowDown") target = rows[Math.min(rows.length - 1, index + 1)];
+  else if (event.key === "ArrowUp") target = rows[Math.max(0, index - 1)];
+  else if (event.key === "ArrowRight" && row.dataset.treeDir && row.getAttribute("aria-expanded") === "false") {
+    await toggleFileDir(row.dataset.treeDir); return;
+  } else if (event.key === "ArrowRight" && row.dataset.treeDir && Number(rows[index + 1]?.getAttribute("aria-level")) > Number(row.getAttribute("aria-level"))) target = rows[index + 1];
+  else if (event.key === "ArrowLeft") {
+    if (row.dataset.treeDir && row.getAttribute("aria-expanded") === "true") { await toggleFileDir(row.dataset.treeDir); return; }
+    const parent = fileTreeParentOf(row.dataset.treeDir || row.dataset.openDiff);
+    target = rows.find((item) => item.dataset.treeDir === parent);
+  }
+  if (target) {
+    rows.forEach((item) => { item.tabIndex = item === target ? 0 : -1; });
+    target.focus();
+  }
+}
+
+export function refreshFileTreeSoon() {
   window.clearTimeout(fileTreeState.refreshTimer);
   fileTreeState.refreshTimer = window.setTimeout(() => { loadFileTree(); }, FILE_TREE_REFRESH_DELAY);
 }
 
-function refreshFileTree() {
+export function refreshFileTree() {
   fileTreeState.requestToken += 1; // discard in-flight loads from the stale workspace
   fileTreeState.loaded = false;
+  fileTreeState.pending.clear();
+  fileTreeState.children.clear();
+  fileTreeState.fileIndex = [];
+  fileTreeState.rootEntries = [];
   loadFileTree();
 }
 
@@ -670,17 +725,17 @@ function refreshFileTree() {
 // The token spans from the "@" to the caret; options are filtered by prefix
 // (basename matches first) and keyboard navigation never sends the message.
 
-const MENTION_MAX_OPTIONS = 8;
-const mentionState = { open: false, options: [], active: 0, matchStart: -1 };
+export const MENTION_MAX_OPTIONS = 8;
+export const mentionState = { open: false, options: [], active: 0, matchStart: -1 };
 
-function mentionTokenAt(text, caret) {
+export function mentionTokenAt(text, caret) {
   const before = String(text || "").slice(0, Math.max(0, caret));
   const match = /(^|\s)@([^\s@]*)$/.exec(before);
   if (!match) return null;
   return { fragment: match[2], start: before.length - match[2].length - 1 };
 }
 
-function mentionCandidates(fragment) {
+export function mentionCandidates(fragment) {
   const needle = String(fragment || "").toLowerCase();
   const starts = [];
   const contains = [];
@@ -694,12 +749,12 @@ function mentionCandidates(fragment) {
   return [...starts, ...contains].slice(0, MENTION_MAX_OPTIONS);
 }
 
-function ensureMentionIndex() {
+export function ensureMentionIndex() {
   if (fileTreeState.fileIndex.length || fileTreeState.loading) return;
   loadFileTree();
 }
 
-function positionMentionPopover() {
+export function positionMentionPopover() {
   const shell = $("#composerShell");
   const input = $("#promptInput");
   const popover = $("#mentionPopover");
@@ -710,7 +765,7 @@ function positionMentionPopover() {
   popover.style.top = `${Math.round(inputRect.bottom - shellRect.top + 4)}px`;
 }
 
-function renderMentionPopover() {
+export function renderMentionPopover() {
   const popover = $("#mentionPopover");
   if (!popover) return;
   const options = mentionState.options;
@@ -722,7 +777,7 @@ function renderMentionPopover() {
   popover.querySelector(`[data-mention-index="${mentionState.active}"]`)?.scrollIntoView({ block: "nearest" });
 }
 
-function updateMentionPopover() {
+export function updateMentionPopover() {
   const input = $("#promptInput");
   if (!input) return;
   ensureMentionIndex();
@@ -736,7 +791,7 @@ function updateMentionPopover() {
   positionMentionPopover();
 }
 
-function closeMentionPopover() {
+export function closeMentionPopover() {
   mentionState.open = false;
   mentionState.options = [];
   mentionState.active = 0;
@@ -748,7 +803,7 @@ function closeMentionPopover() {
   }
 }
 
-function applyMentionOption(index = mentionState.active) {
+export function applyMentionOption(index = mentionState.active) {
   const option = mentionState.options[index];
   const input = $("#promptInput");
   if (!option || !input) { closeMentionPopover(); return; }
@@ -765,7 +820,7 @@ function applyMentionOption(index = mentionState.active) {
 
 // Returns true when the key press was consumed by the mention popover so the
 // composer's own Enter-to-send behavior stays out of the way.
-function handleMentionKeydown(event) {
+export function handleMentionKeydown(event) {
   if (!mentionState.open || event.isComposing) return false;
   if (event.key === "ArrowDown" || event.key === "ArrowUp") {
     event.preventDefault();
@@ -794,11 +849,11 @@ function handleMentionKeydown(event) {
 // rows reuse the panelBody data-open-task delegation, which routes the click
 // through openTaskInWorkspace (switching workspace when needed).
 
-const GLOBAL_SEARCH_DEBOUNCE = 300;
-let globalSearchTimer = 0;
-let globalSearchToken = 0;
+export const GLOBAL_SEARCH_DEBOUNCE = 300;
+export let globalSearchTimer = 0;
+export let globalSearchToken = 0;
 
-function relativeTimeFrom(value) {
+export function relativeTimeFrom(value) {
   const epoch = Date.parse(String(value || ""));
   if (!Number.isFinite(epoch)) return "--";
   const seconds = Math.max(0, Math.round((Date.now() - epoch) / 1000));
@@ -815,7 +870,7 @@ function relativeTimeFrom(value) {
 
 // Snippet text is escaped first; the query is regex-escaped so special
 // characters degrade to "no highlight" instead of throwing.
-function highlightSearchText(text, query) {
+export function highlightSearchText(text, query) {
   const escaped = escapeHtml(String(text || ""));
   if (!query) return escaped;
   try {
@@ -826,7 +881,7 @@ function highlightSearchText(text, query) {
   }
 }
 
-function globalSearchResultMarkup(item, query) {
+export function globalSearchResultMarkup(item, query) {
   const taskLabel = String(item.prompt_preview || "").split("\n")[0].trim().slice(0, 90) || String(item.task_id || "");
   const workspaceName = String(item.workspace_path || "").split(/[\\/]/).filter(Boolean).pop() || "workspace";
   const matchCount = Number(item.match_count || 0);
@@ -837,7 +892,7 @@ function globalSearchResultMarkup(item, query) {
   </button>`;
 }
 
-function renderGlobalSearchStatus(kind, detail = "") {
+export function renderGlobalSearchStatus(kind, detail = "") {
   const box = $("#globalSearchResults");
   if (!box) return;
   if (kind === "hint") box.innerHTML = `<div class="empty-panel">${escapeHtml(t("search.hint"))}</div>`;
@@ -846,12 +901,15 @@ function renderGlobalSearchStatus(kind, detail = "") {
   else if (kind === "error") box.innerHTML = `<div class="error-panel">${escapeHtml(detail)}</div>`;
 }
 
-async function runGlobalSearch(query) {
+export async function runGlobalSearch(query) {
   const token = ++globalSearchToken;
+  const resultsNode = $("#globalSearchResults");
+  const current = () => token === globalSearchToken && resultsNode === $("#globalSearchResults")
+    && $("#panelModal").classList.contains("show");
   renderGlobalSearchStatus("searching");
   try {
     const data = await requestJson(`/api/history/search?q=${encodeURIComponent(query)}&limit=30`, {}, 15000);
-    if (token !== globalSearchToken) return;
+    if (!current()) return;
     const results = Array.isArray(data.results) ? data.results : [];
     const box = $("#globalSearchResults");
     if (!box) return;
@@ -859,42 +917,66 @@ async function runGlobalSearch(query) {
     if (!results.length) renderGlobalSearchStatus("noResults");
     else refreshIcons();
   } catch (error) {
-    if (token !== globalSearchToken) return;
+    if (!current()) return;
     renderGlobalSearchStatus("error", error.message);
   }
 }
 
-function scheduleGlobalSearch() {
+export function scheduleGlobalSearch() {
   const input = $("#globalSearchInput");
   if (!input) return;
   window.clearTimeout(globalSearchTimer);
+  globalSearchToken += 1; // invalidate the previous query during the debounce window
   const query = input.value.trim();
   if (!query) {
-    globalSearchToken += 1; // invalidate any in-flight request
     renderGlobalSearchStatus("hint");
     return;
   }
   globalSearchTimer = window.setTimeout(() => runGlobalSearch(query), GLOBAL_SEARCH_DEBOUNCE);
 }
 
-function openGlobalSearchPanel() {
+export function openGlobalSearchPanel() {
+  window.clearTimeout(globalSearchTimer);
+  globalSearchToken += 1;
   openPanel(t("search.global"), `<div class="global-search-panel"><div class="global-search-box">${icon("search")}<input id="globalSearchInput" type="search" placeholder="${escapeHtml(t("search.globalPlaceholder"))}" aria-label="${escapeHtml(t("search.global"))}" autocomplete="off" /></div><div class="global-search-results" id="globalSearchResults" aria-live="polite"><div class="empty-panel">${escapeHtml(t("search.hint"))}</div></div></div>`);
   const input = $("#globalSearchInput");
   input?.addEventListener("input", scheduleGlobalSearch);
   input?.focus();
 }
 
-function addUserMessage(text, attachments = []) {
+export function userRewindButton(index = 0) {
+  return `<button type="button" class="rewind-to-here" data-user-index="${Number(index) || 0}">${escapeHtml(t("rewind.toHere"))}</button>`;
+}
+
+export function decorateUserRewindButtons(root = $("#messageList")) {
+  if (!root) return;
+  [...root.querySelectorAll(".user-message")].forEach((node, index) => {
+    const userIndex = index + 1;
+    node.dataset.userIndex = String(userIndex);
+    let button = node.querySelector(".rewind-to-here");
+    if (!button) {
+      const meta = node.querySelector(".message-meta") || node;
+      meta.insertAdjacentHTML("beforeend", userRewindButton(userIndex));
+      button = meta.querySelector(".rewind-to-here");
+    }
+    if (button) button.dataset.userIndex = String(userIndex);
+  });
+}
+
+export function addUserMessage(text, attachments = []) {
+  const empty = $("#messageList .empty-session");
+  empty?.remove();
   $("#messageList").insertAdjacentHTML("beforeend", `
     <article class="message user-message">
-      <div class="message-meta"><span class="avatar user-avatar">Y</span><strong>${escapeHtml(t("message.you"))}</strong><time>${escapeHtml(t("message.now"))}</time></div>
+      <div class="message-meta"><span class="avatar user-avatar">Y</span><strong>${escapeHtml(t("message.you"))}</strong><time>${escapeHtml(t("message.now"))}</time>${userRewindButton(0)}</div>
       <div class="message-body"><div class="message-text">${formatText(text)}</div>${attachmentMarkup(attachments)}</div>
     </article>`);
+  decorateUserRewindButtons();
   persistSessionView();
   scrollChat("auto", true);
 }
 
-function addLoadingMessage(id = `loading-${Date.now()}`, data = { status: "running", phase: "planning", stream_text: "" }, options = {}) {
+export function addLoadingMessage(id = `loading-${Date.now()}`, data = { status: "running", phase: "planning", stream_text: "" }, options = {}) {
   $("#messageList").insertAdjacentHTML("beforeend", `
     <article class="message assistant-message loading" id="${id}" data-chat-anchor="live-${escapeHtml(id)}">
       <div class="message-meta"><span class="avatar agent-avatar">m</span><strong>minicc</strong><span class="agent-label">Agent</span></div>
@@ -904,7 +986,7 @@ function addLoadingMessage(id = `loading-${Date.now()}`, data = { status: "runni
   return id;
 }
 
-function phaseLabel(data) {
+export function phaseLabel(data) {
   const status = String(data?.status || "").toLowerCase();
   const phase = TERMINAL_TASK_STATUSES.has(status) || status === "queued"
     ? status
@@ -924,7 +1006,7 @@ function phaseLabel(data) {
   return t(key);
 }
 
-function phaseClass(data) {
+export function phaseClass(data) {
   const status = String(data?.status || "").toLowerCase();
   const value = TERMINAL_TASK_STATUSES.has(status) || status === "queued"
     ? status
@@ -932,14 +1014,14 @@ function phaseClass(data) {
   return ["queued", "planning", "tool", "answering", "review", "merging", "completed", "failed", "cancelled", "interrupted"].includes(value) ? value : "planning";
 }
 
-function compactNumber(value) {
+export function compactNumber(value) {
   const number = Number(value || 0);
   if (number >= 1000000) return `${(number / 1000000).toFixed(number >= 10000000 ? 0 : 1)}m`;
   if (number >= 1000) return `${(number / 1000).toFixed(number >= 10000 ? 0 : 1)}k`;
   return String(Math.round(number));
 }
 
-function cacheMetric(data) {
+export function cacheMetric(data) {
   const metrics = data?.metrics && typeof data.metrics === "object" ? data.metrics : {};
   const tokens = data?.tokens_used && typeof data.tokens_used === "object" ? data.tokens_used : {};
   const status = String(metrics.cache_status || "");
@@ -954,7 +1036,7 @@ function cacheMetric(data) {
   return t("tasks.cacheUnreported");
 }
 
-function isCurrentTaskScope(data) {
+export function isCurrentTaskScope(data) {
   if (!data?.task_id) return true;
   if (String(data.session_id || "") !== String(state.sessionId || "")) return false;
   if (data.workspace_path && state.workspacePath) {
@@ -963,12 +1045,12 @@ function isCurrentTaskScope(data) {
   return true;
 }
 
-function isFocusedTask(data) {
+export function isFocusedTask(data) {
   if (!isCurrentTaskScope(data)) return false;
   return !data?.task_id || !state.activeTaskId || String(data.task_id) === String(state.activeTaskId);
 }
 
-function taskMetrics(data) {
+export function taskMetrics(data) {
   const tokens = Number(data.tokens_used?.total_tokens || 0);
   const context = Number(data.context?.tokens || 0);
   const limit = Number(data.context?.limit_tokens || state.contextWindowTokens || 300000);
@@ -977,7 +1059,19 @@ function taskMetrics(data) {
   return `${tokenText} · ${compactNumber(context)}/${compactNumber(limit)} ${t("tasks.context")} · ${t("tasks.cache")} ${cacheMetric(data)}`;
 }
 
-function runtimeMetricsMarkup(data) {
+export function renderVerification(data = state.lastTask) {
+  const target = $("#verificationList");
+  if (!target) return;
+  const events = (data?.events || []).filter((event) => /verification_|completion_assessed/.test(event.code || ""));
+  const zh = state.locale === "zh";
+  if (!events.length) {
+    target.innerHTML = `<div class="verification-empty">${icon("shield-check")}<strong>${zh ? "尚无验证证据" : "No verification evidence yet"}</strong><span>${zh ? "任务执行的检查和完成评估会显示在这里。" : "Checks and completion assessments will appear here."}</span></div>`;
+    return;
+  }
+  target.innerHTML = events.slice(-12).reverse().map((event) => `<details class="verification-card" data-status="${escapeHtml(event.status || "pending")}"><summary>${icon(event.status === "error" ? "alert-circle" : "list-checks")}<span>${escapeHtml(event.summary || traceLabel(event))}</span></summary><pre>${escapeHtml(JSON.stringify(event.detail || {}, null, 2))}</pre></details>`).join("");
+}
+
+export function runtimeMetricsMarkup(data) {
   const metrics = data?.metrics;
   if (!metrics || typeof metrics !== "object" || (!metrics.workflow && !metrics.verification_runs && !metrics.trace_events)) return "";
   const budget = metrics.budget && typeof metrics.budget === "object" ? metrics.budget : {};
@@ -985,7 +1079,7 @@ function runtimeMetricsMarkup(data) {
   return `<div><div class="panel-section-title">${escapeHtml(t("tasks.runtime"))}</div><div class="status-grid"><div><span>${escapeHtml(t("tasks.workflow"))}</span><strong>${escapeHtml(String(metrics.workflow || "coding"))}</strong><small>${escapeHtml(String(metrics.phase || data.phase || ""))}</small></div><div><span>${escapeHtml(t("tasks.repairs"))}</span><strong>${escapeHtml(String(metrics.repair_attempts || 0))}</strong><small>${escapeHtml(duration)}</small></div><div><span>${escapeHtml(t("tasks.verifications"))}</span><strong>${escapeHtml(String(metrics.verification_runs || 0))}</strong><small>${escapeHtml(String(metrics.verification_status || ""))}</small></div><div><span>${escapeHtml(t("tasks.cache"))}</span><strong>${escapeHtml(cacheMetric(data))}</strong><small>${escapeHtml(String(metrics.cache_status || ""))}</small></div><div><span>${escapeHtml(t("tasks.traces"))}</span><strong>${escapeHtml(String(metrics.trace_events || 0))}</strong><small>${escapeHtml(`${budget.turns || 0} turns · ${budget.tool_calls || 0} tools`)}</small></div></div></div>`;
 }
 
-function updateInspectorMetrics(data) {
+export function updateInspectorMetrics(data) {
   if (!data) return;
   const tokens = Number(data.tokens_used?.total_tokens || 0);
   const context = Number(data.context?.tokens || 0);
@@ -997,8 +1091,9 @@ function updateInspectorMetrics(data) {
   $("#contextCount").textContent = taskMetrics(data);
 }
 
-function updateTaskDock(data) {
+export function updateTaskDock(data) {
   if (!data || !isFocusedTask(data)) return;
+  renderVerification(data);
   if (data.task_id && !state.activeTaskId) state.activeTaskId = data.task_id;
   state.lastTask = data;
   const dock = $("#taskDock");
@@ -1017,10 +1112,12 @@ function updateTaskDock(data) {
   if (["queued", "running"].includes(data.status) && data.task_id) startTaskTimer(data.task_id);
 }
 
-function updateSessionStatus(data) {
+export function updateSessionStatus(data) {
   const badge = $("#sessionLiveBadge");
   const label = $("#sessionLiveLabel");
   if (!badge || !label) return;
+  badge.hidden = !data;
+  if (!data) { label.textContent = t("inspector.ready"); return; }
   const status = String(data?.status || "running").toLowerCase();
   const terminal = TERMINAL_TASK_STATUSES.has(status);
   badge.dataset.status = terminal ? status : ["queued", "running"].includes(status) ? status : "running";
@@ -1029,12 +1126,13 @@ function updateSessionStatus(data) {
   label.textContent = terminal || status === "queued" ? phaseLabel(data) : t("live");
 }
 
-function liveTaskMarkup(data) {
+export function liveTaskMarkup(data) {
   const streamText = String(data.stream_text || "");
   const currentPhase = phaseClass(data);
   const transport = data.transport || (data.status === "queued" ? "connecting" : "connected");
   const transportLabel = transport === "polling" ? t("stream.polling") : transport === "reconnecting" ? t("stream.reconnecting") : transport === "connecting" ? t("connection.connecting") : t("stream.connected");
   const preview = streamText ? formatLightText(streamTail(streamText)) : `<span class="stream-empty">${escapeHtml(t("phase.waiting"))}</span>`;
+  const restore = data.task_id ? `<button type="button" class="live-restore" data-restore-task="${escapeHtml(data.task_id)}">${escapeHtml(t("restore.action"))}</button>` : "";
   return `<div class="live-task live-task-${currentPhase}" data-live-task data-phase="${currentPhase}">
     <div class="live-task-stage">
       <div class="task-progress" data-phase="${currentPhase}" role="status">
@@ -1046,18 +1144,18 @@ function liveTaskMarkup(data) {
     </div>
     <div class="stream-panel">
       <div class="stream-panel-head"><span class="stream-live-dot" aria-hidden="true"></span><span>${escapeHtml(t("stream.live"))}</span><span class="stream-transport" data-live-transport data-transport="${escapeHtml(transport)}">${escapeHtml(transportLabel)}</span><span class="stream-metrics" data-live-metrics>${escapeHtml(taskMetrics(data))}</span><span class="stream-phase" data-live-phase-label>${escapeHtml(phaseLabel(data))}</span></div>
-      <details class="live-output"><summary><span>${escapeHtml(state.locale === "zh" ? "查看实时输出" : "Live output")}</span><small data-live-output-count>${escapeHtml(streamText ? `${compactNumber(streamText.length)} ${state.locale === "zh" ? "字符（仅显示最近内容）" : "chars (recent content)"}` : "")}</small><span class="live-output-chevron">${icon("chevron-down")}</span></summary><div class="stream-preview" data-live-preview aria-live="polite">${preview}</div></details>
+      ${restore}<details class="live-output"><summary><span>${escapeHtml(state.locale === "zh" ? "查看实时输出" : "Live output")}</span><small data-live-output-count>${escapeHtml(streamText ? `${compactNumber(streamText.length)} ${state.locale === "zh" ? "字符（仅显示最近内容）" : "chars (recent content)"}` : "")}</small><span class="live-output-chevron">${icon("chevron-down")}</span></summary><div class="stream-preview" data-live-preview aria-live="polite">${preview}</div></details>
     </div>
   </div>`;
 }
 
-function streamTail(text, limit = 800) {
+export function streamTail(text, limit = 800) {
   const value = String(text || "");
   if (value.length <= limit) return value;
   return `${state.locale === "zh" ? "…仅显示最近内容…\n" : "…recent content only…\n"}${value.slice(-limit)}`;
 }
 
-function safeExternalUrl(value) {
+export function safeExternalUrl(value) {
   try {
     const url = new URL(String(value || ""));
     return ["http:", "https:"].includes(url.protocol) ? url.href : "";
@@ -1066,13 +1164,13 @@ function safeExternalUrl(value) {
   }
 }
 
-function toolStatusLabel(status) {
+export function toolStatusLabel(status) {
   if (status === "denied") return t("tool.denied");
   if (["error", "failed"].includes(status)) return t("tool.error");
   return t("tool.ok");
 }
 
-function traceLabel(event) {
+export function traceLabel(event) {
   const labels = state.locale === "zh"
     ? {
         run_started: "范围界定",
@@ -1177,7 +1275,7 @@ function traceLabel(event) {
   return labels[String(event?.code || "")] || (state.locale === "zh" ? "阶段事件" : "Stage event");
 }
 
-function detailValueText(value, limit = 360) {
+export function detailValueText(value, limit = 360) {
   if (value == null) return "";
   if (Array.isArray(value)) {
     if (!value.length) return state.locale === "zh" ? "0 项" : "0 items";
@@ -1194,7 +1292,7 @@ function detailValueText(value, limit = 360) {
   return text.length > limit ? `${text.slice(0, limit - 1).trimEnd()}…` : text;
 }
 
-function detailJson(value, limit = 12000) {
+export function detailJson(value, limit = 12000) {
   let raw;
   try {
     raw = typeof value === "string" ? value : JSON.stringify(value, null, 2);
@@ -1205,13 +1303,13 @@ function detailJson(value, limit = 12000) {
   return raw.length > limit ? `${raw.slice(0, limit).trimEnd()}\n… ${state.locale === "zh" ? "详情已截断" : "details truncated"} …` : raw;
 }
 
-function structuredDetailMarkup(detail, label = (state.locale === "zh" ? "查看结构化依据" : "View structured evidence")) {
+export function structuredDetailMarkup(detail, label = (state.locale === "zh" ? "查看结构化依据" : "View structured evidence")) {
   if (detail == null || (typeof detail === "object" && !Object.keys(detail).length)) return "";
   const raw = detailJson(detail);
   return `<details class="event-detail"><summary>${escapeHtml(label)}<small>${escapeHtml(state.locale === "zh" ? "点击展开" : "click to expand")}</small></summary><pre>${escapeHtml(raw)}</pre></details>`;
 }
 
-function traceDetailPreview(event) {
+export function traceDetailPreview(event) {
   const detail = event?.detail;
   if (detail == null) return "";
   if (typeof detail !== "object" || Array.isArray(detail)) return detailValueText(detail, 96);
@@ -1230,7 +1328,7 @@ function traceDetailPreview(event) {
   return parts.slice(0, 4).join(" · ");
 }
 
-function traceEvidenceMarkup(event, detailText, evidenceMarkup) {
+export function traceEvidenceMarkup(event, detailText, evidenceMarkup) {
   if (detailText == null && !evidenceMarkup) return "";
   const labels = state.locale === "zh"
     ? { feedback_observed: "查看自反馈详情", tool_round_finished: "查看结果汇总详情", replan: "查看重新规划详情", model_decision: "查看模型决策详情" }
@@ -1241,11 +1339,11 @@ function traceEvidenceMarkup(event, detailText, evidenceMarkup) {
   return `<details class="trace-evidence"><summary><span>${escapeHtml(label)}</span><small>${escapeHtml(preview)}</small><span class="trace-evidence-chevron">${icon("chevron-down")}</span></summary><div class="trace-evidence-body">${readable}${evidenceMarkup || ""}</div></details>`;
 }
 
-function toolResultFoldMarkup(label, content) {
+export function toolResultFoldMarkup(label, content) {
   return `<details class="tool-result-fold"><summary><span>${escapeHtml(label)}</span><small>${escapeHtml(state.locale === "zh" ? "点击展开" : "click to expand")}</small><span class="tool-result-fold-chevron">${icon("chevron-down")}</span></summary><div class="tool-result-fold-body">${content}</div></details>`;
 }
 
-function traceDetail(event, options = {}) {
+export function traceDetail(event, options = {}) {
   const detail = event?.detail;
   if (detail == null) return "";
   if (typeof detail === "string") return detail;
@@ -1268,7 +1366,7 @@ function traceDetail(event, options = {}) {
   return parts.join(" · ");
 }
 
-function shortEventText(event, limit = 150) {
+export function shortEventText(event, limit = 150) {
   const publicUpdate = event?.code === "model_update" && typeof event?.detail?.text === "string"
     ? event.detail.text
     : "";
@@ -1276,18 +1374,18 @@ function shortEventText(event, limit = 150) {
   return text.length > limit ? `${text.slice(0, limit - 1).trimEnd()}…` : text;
 }
 
-function rawOutputMarkup(streamText) {
+export function rawOutputMarkup(streamText) {
   const text = streamTail(String(streamText || ""), 1200);
   // The raw stream dump must read as literal text; the light renderer keeps
   // partial/broken Markdown from being re-parsed into misleading blocks.
   return text ? `<details class="raw-output"><summary>${escapeHtml(state.locale === "zh" ? "原始模型输出" : "Raw model output")}</summary><div>${formatLightText(text)}</div></details>` : "";
 }
 
-function isToolEvent(event) {
+export function isToolEvent(event) {
   return event?.kind === "tool" || (event?.name && event?.kind !== "trace");
 }
 
-function eventImportance(event) {
+export function eventImportance(event) {
   const code = String(event?.code || "");
   const status = String(event?.status || "").toLowerCase();
   if (["error", "failed", "denied", "cancelled", "interrupted"].includes(status) || /error|failed|denied|blocked|recovery|retry|fallback|max_turns|stagnation/.test(code)) return "high";
@@ -1295,7 +1393,7 @@ function eventImportance(event) {
   return "low";
 }
 
-function normalizeModelUpdateEvents(events) {
+export function normalizeModelUpdateEvents(events) {
   const normalized = [];
   let previous = "";
   for (const source of Array.isArray(events) ? events : []) {
@@ -1315,7 +1413,7 @@ function normalizeModelUpdateEvents(events) {
   return normalized;
 }
 
-function visibleAgentEvents(events) {
+export function visibleAgentEvents(events) {
   const visible = [];
   let previousKey = "";
   for (const event of normalizeModelUpdateEvents(events)) {
@@ -1326,7 +1424,7 @@ function visibleAgentEvents(events) {
   return visible;
 }
 
-function compactModelUpdateEvents(events) {
+export function compactModelUpdateEvents(events) {
   const visible = visibleAgentEvents(events);
   const updateIndexes = visible
     .map((event, index) => event?.code === "model_update" ? index : -1)
@@ -1357,14 +1455,14 @@ function compactModelUpdateEvents(events) {
     });
 }
 
-function eventTimelineSummary(events) {
+export function eventTimelineSummary(events) {
   const visible = visibleAgentEvents(events);
   const tools = visible.filter(isToolEvent).length;
   const alerts = visible.filter((event) => eventImportance(event) === "high").length;
   return state.locale === "zh" ? `${tools} 次操作${alerts ? ` · ${alerts} 项需关注` : ""}` : `${tools} actions${alerts ? ` · ${alerts} alerts` : ""}`;
 }
 
-function summarizeRound(items, roundNumber) {
+export function summarizeRound(items, roundNumber) {
   const tools = items.filter(isToolEvent);
   const failed = tools.some((event) => ["error", "failed", "denied"].includes(String(event.status || "").toLowerCase()));
   const names = [...new Set(tools.map((event) => String(event.name || "tool")).filter(Boolean))];
@@ -1372,7 +1470,7 @@ function summarizeRound(items, roundNumber) {
   return { failed, detail, title: state.locale === "zh" ? `第 ${roundNumber} 组命令 · ${tools.length} 条` : `Command group ${roundNumber} · ${tools.length} commands`, status: failed ? (state.locale === "zh" ? "需处理" : "Needs attention") : (state.locale === "zh" ? "已完成" : "Complete") };
 }
 
-function toolResultMarkup(event) {
+export function toolResultMarkup(event) {
   const output = String(event.output || "").trim();
   const observation = String(event.observation || "").trim();
   const data = event.data && typeof event.data === "object" ? event.data : null;
@@ -1407,7 +1505,7 @@ function toolResultMarkup(event) {
   return `<div class="tool-event-details">${metadataMarkup}${observationMarkup}${outputMarkup}${commandMarkup}${dataMarkup}${resultMarkup}</div>`;
 }
 
-function toolEventHtml(event, animate = false, anchor = "", open = false) {
+export function toolEventHtml(event, animate = false, anchor = "", open = false) {
   const name = String(event.name || "tool");
   const status = String(event.status || "ok");
   if (event.kind === "trace" || event.kind === "state") {
@@ -1425,7 +1523,7 @@ function toolEventHtml(event, animate = false, anchor = "", open = false) {
     const thinkingLabel = state.locale === "zh" ? "思考" : "Thinking";
     const blockClass = isModelEvent ? "thinking-block " : "";
     const historyClass = String(event.code || "") === "model_update_history" ? " thinking-history" : "";
-    const traceAnchor = anchor || event.event_id || event.item_id || `${event.code || "stage"}-${event.created_at_epoch || ""}`;
+    const traceAnchor = event.item_id || event.event_id || (event.sequence ? `sequence-${event.sequence}` : "") || anchor || `${event.code || "stage"}-${event.created_at_epoch || ""}`;
     const thinkingMarkup = isModelEvent ? `<span class="thinking-label">${escapeHtml(thinkingLabel)}</span>` : "";
     const summaryMarkup = `<div class="trace-summary">${thinkingMarkup}<span class="trace-code">${escapeHtml(traceLabel(event))}</span><span>${escapeHtml(summary)}</span>${!isModelEvent && traceDetailPreview(event) ? `<small class="trace-fold-preview">${escapeHtml(traceDetailPreview(event))}</small>` : ""}</div>`;
     const iconMarkup = `<span class="trace-icon">${icon(status === "error" ? "alert-triangle" : "sparkles")}</span>`;
@@ -1444,14 +1542,14 @@ function toolEventHtml(event, animate = false, anchor = "", open = false) {
   const stateIcon = denied ? "lock" : failed ? "alert-circle" : "check";
   const path = String(event.path || "");
   const pathMarkup = path ? `<span class="tool-path tool-path-button" data-open-diff="${escapeHtml(path)}">${escapeHtml(path)}</span>` : `<span class="tool-path">${escapeHtml(toolStatusLabel(status))}</span>`;
-  const toolAnchor = anchor || `${name}-${event.created_at_epoch || ""}`;
-  return `<details class="tool-event ${stateClass}${animate ? " event-enter" : ""}" data-agent-block="command" data-agent-item="${escapeHtml(event.event_id || event.item_id || toolAnchor)}" data-item-kind="command" data-tool-event="${escapeHtml(toolAnchor)}"${open ? " open" : ""}>
+  const toolAnchor = event.item_id || event.event_id || (event.sequence ? `sequence-${event.sequence}` : "") || anchor || `${name}-${event.created_at_epoch || ""}`;
+  return `<details class="tool-event ${stateClass}${animate ? " event-enter" : ""}" data-agent-block="command" data-agent-item="${escapeHtml(toolAnchor)}" data-item-kind="command" data-tool-event="${escapeHtml(toolAnchor)}"${open ? " open" : ""}>
     <summary class="tool-event-summary"><span class="tool-icon ${denied ? "amber-icon" : ""}">${icon(iconName)}</span><span class="tool-event-copy"><span><strong>${escapeHtml(name)}</strong>${pathMarkup}</span><small>${escapeHtml(event.summary || "")}</small></span><span class="tool-check ${denied ? "denied-check" : failed ? "failed-check" : ""}">${icon(stateIcon)}</span><span class="tool-expand">${icon("chevron-down")}</span></summary>
     ${toolResultMarkup(event)}
   </details>`;
 }
 
-function eventTimelineMarkup(events, options = {}) {
+export function eventTimelineMarkup(events, options = {}) {
   if (!Array.isArray(events) || !events.length) return "";
   const sourceEvents = events.length > MAX_RENDERED_TIMELINE_EVENTS
     ? [
@@ -1523,7 +1621,7 @@ function eventTimelineMarkup(events, options = {}) {
   }).join("");
 }
 
-function assistantMessageMarkup(data, anchor = "") {
+export function assistantMessageMarkup(data, anchor = "") {
   const events = Array.isArray(data.events) ? data.events : [];
   const eventMarkup = eventTimelineMarkup(events);
   const answer = data.answer || data.error || "模型没有返回可交付文字。";
@@ -1537,7 +1635,7 @@ function assistantMessageMarkup(data, anchor = "") {
     </article>`;
 }
 
-function addAssistantMessage(data, loadingId = "") {
+export function addAssistantMessage(data, loadingId = "") {
   const chatPosition = captureChatPosition();
   const loading = loadingId ? document.getElementById(loadingId) : null;
   const anchor = loadingId ? `live-${loadingId}` : "";
@@ -1558,7 +1656,7 @@ function addAssistantMessage(data, loadingId = "") {
   restoreChatPosition(chatPosition, false);
 }
 
-function showAuthModal(message) {
+export function showAuthModal(message) {
   const modal = $("#authModal");
   if (!modal) return;
   modal.classList.add("show");
@@ -1570,18 +1668,19 @@ function showAuthModal(message) {
   }
   const input = $("#authTokenInput");
   if (input instanceof HTMLInputElement) {
-    window.setTimeout(() => input.focus(), 30);
+    activateDialog(modal, { initialFocus: "#authTokenInput" });
   }
 }
 
-function hideAuthModal() {
+export function hideAuthModal() {
   const modal = $("#authModal");
   if (!modal) return;
+  deactivateDialog(modal);
   modal.classList.remove("show");
   modal.setAttribute("aria-hidden", "true");
 }
 
-async function submitAuthToken(event) {
+export async function submitAuthToken(event) {
   event.preventDefault();
   const input = $("#authTokenInput");
   if (!(input instanceof HTMLInputElement)) return;

@@ -97,8 +97,10 @@ REASONING_WIRE_VALUES = {
     "high": "high",
     "xhigh": "xhigh",
     "max": "max",
+    "ultra": "ultra",
 }
 REASONING_FALLBACKS = {
+    "ultra": "max",
     "max": "xhigh",
     "xhigh": "high",
     "high": "mid",
@@ -439,9 +441,9 @@ class OpenAICompatibleProvider:
         results are replayed as user messages and the model's JSON action
         is returned as a synthetic tool_call.
         """
-        # max may negotiate through four lower levels before disabling the
-        # optional parameter, so leave enough attempts for the full chain.
-        for _ in range(6):
+        # Allow every effort level, disabling reasoning, and the independent
+        # protocol/tool fallbacks to negotiate before exhausting attempts.
+        for _ in range(len(REASONING_FALLBACKS) + 3):
             use_native = self._mode == "native" and bool(tools)
             try:
                 if self._protocol == "responses":
@@ -587,6 +589,7 @@ class OpenAICompatibleProvider:
         kwargs: dict[str, Any] = {
             "model": self.model,
             "input": self._to_responses_input(messages, tools if not use_native else None),
+            "store": False,
             "timeout": self.timeout,
         }
         if use_native and tools:

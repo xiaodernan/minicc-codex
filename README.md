@@ -15,7 +15,7 @@
 - MCP 工具桥支持 stdio 与 streamable HTTP 两种 transport（`mcp.json` 服务器条目配 `command` 或 `url`，HTTP 支持 `headers` 鉴权与 `Mcp-Session-Id` 会话），外部工具输出默认按不可信处理。
 - CI（GitHub Actions）：Windows/Ubuntu 双平台 pytest、前端 JS 语法检查、Playwright web smoke。
 - 任务执行器双模式：`MINICC_TASK_EXECUTOR=thread`（默认，进程内）或 `process`（任务在独立 `minicc.task_worker` 子进程中执行，进度实时写入共享 SQLite，取消经标志文件传播，web 重启后 worker 存活不丢任务）；`MINICC_AUTO_RESUME_ON_START=1` 启动时自动重新排队被中断的任务（带心跳守卫防双跑）。
-- 前端为构建产物：源码在 `web/src/`（9 个有序分片），`npm run build:web` 生成 `web/app.js` 与压缩版 `app.min.js`，`npm run check:web` 校验新鲜度。
+- 前端为 ES 模块构建产物：入口 `web/src/main.js`，按 transport、任务状态、时间线、面板和文件预览分层；`npm run build:web` 生成可调试 bundle 与带内容 hash 的压缩 JS/CSS，`npm run check:web` 校验新鲜度。小游戏按需加载，HTML 与资源别名使用 ETag 校验，版本化资源长期缓存。
 - `read_file`、`glob`、`grep`、`tree`、`git_status`、`git_diff` 只读工具。
 - `write_file`、`edit_file`：工作区路径约束、原子写入、备份、审计、精确匹配和 digest 过期保护。
 - `bash`：工作区内执行命令；默认每次写入/执行都请求确认，`--yolo` 才自动放行。
@@ -32,8 +32,8 @@
 - 流式输出、工具参数校验、结果脱敏/截断、LLM 重试、上下文压缩和 usage 估算。
 - 上下文压缩在消息字符数超过 `MINICC_COMPACT_THRESHOLD`（默认 300,000）且可压缩消息多于保留尾部时触发；保留 system 规则和最近 6 条消息，并把旧内容收敛为结构化 checkpoint：任务目标、验收要求、文件路径、digest、验证命令、失败记录、工具统计和归档 hash。checkpoint 会合并到下一次压缩并写入 `AgentState` 快照；完整原文不默认回填，未被提取的细节仍可能丢失，需要重新读取或查看 trace。
 - Agent 执行器带有阶段摘要、短进度输出、只读并行执行、多阶段恢复诊断和重复工具调用保护；重复路径会先复用安全读结果、采集 git/tree 证据并暂缓写入，再重新规划。
-- 可观测 StateGraph 运行时：记录 intake / plan / inspect / implement / verify / repair / summarize 节点、trace、运行统计和可序列化任务指标。
-- 固定 DAG 模板和有界调度：提供 inspect→summarize、inspect→implement→verify、parallel inspect→merge→implement→verify 模板，校验依赖、环和最大并发。
+- 可观测 StateGraph 阶段轴：记录 intake / plan / inspect / implement / verify / repair / summarize 节点、trace、运行统计和可序列化任务指标。真正的任务执行仍是 `run_agent` 工具循环；StateGraph 不是完整 workflow 引擎。
+- 只读 DAG 可实际调度：inspect→summarize 等只读计划会执行；含写入的 DAG 模板只作为提示，由主循环落地。
 - 验证器驱动闭环：成功写入后自动运行白名单 pytest，失败最多按 `MINICC_MAX_REPAIR_ATTEMPTS` 回到 repair；验证结果、失败测试、建议和耗时都会写入任务快照。
 - 证据驱动完成评估：验证器之后由独立 LLM completion judge 根据原始需求、工具 trace、修改证据和验证结果返回结构化 `complete` / `continue` / `blocked`；`continue` 会把缺失目标反馈给 Agent 继续执行，评估失败会先触发一次复查，不会直接标绿。
 - 自动并行编排：运行时按需求复杂度和独立工作维度评分；达到阈值后自动创建 2-3 个只读侦察子任务，独立 session 并行执行，父 Agent 收集证据后继续原始实现与验证。任务中心仍保留显式批量入口作为高级控制面板。
@@ -176,6 +176,29 @@ judge 只输出短依据、缺失项和下一步，不输出模型私有思维�
 
 ## 当前边界
 
-这是本地 MVP，不等同于 Claude Code 或 Codex 的完整产品。Docker、MCP、后台任务、批量并行任务、自动复杂度路由、结果合并、SQLite 任务历史和 Git worktree 已提供可运行的本地实现，但仍有明确边界：SQLite 不是 Redis/分布式队列；服务重启会把运行中的任务标记为 `interrupted`，只能通过重跑继续，不能声称是精确的模型调用断点续跑。只读且 digest 未变化的检查点可复用事实提示，但写入任务或工作区变化后必须重新检查。模型 planner、repair scope、本地检索和阶段路由目前是受约束的初版；只读、审查和受限验证计划可以进入白名单 DAG 并行执行，含写入节点或不满足只读约束的计划仍只作为主 Agent 提示；尚无真实模型对比基线或 CI 指标；MCP 只支持 stdio；Docker 需要本机已安装并可用，工作区仍以读写挂载；RAG、OAuth、云端协作、自动提交和生产级多用户权限审计尚未接入。`bash` 在 host 模式仍然是本机子进程，运行不可信仓库时应使用 `MINICC_SANDBOX=docker` 并在隔离环境中使用。
+这是本地 coding agent：SQLite 保存任务、租约和可检索历史，适合单机使用。线程模式随服务退出而中断；独立进程模式有定时心跳和原子租约，Web 重启会重连仍存活的 worker。失效任务按安全检查点规则恢复，不能恢复到模型调用内部的精确位置。写入后和工作区变化后仍须重新检查。只读、审查和受限验证计划可以进入白名单 DAG；写入计划由主 Agent 执行。MCP 支持 stdio 和受限 HTTP transport；Docker 需要本机可用。OAuth、云端协作、自动提交和多用户权限体系不在当前范围内。`bash` 的 host 模式使用本机子进程，运行不可信仓库应使用 Docker 隔离。
 
-Web 界面的权限开关默认是完全访问，适合本地面试演示；关闭开关可恢复当前任务的只读保护。服务端设置 `MINICC_YOLO=1` 会自动放行所有写入和命令工具，CLI 的 `--yolo` 也会启用同样模式。完全访问模式只应在你信任的本机工作区中使用。
+Web 默认关闭写入和联网。界面明确显示文件、命令、网络三项有效能力；plan 强制只读，acceptEdits 允许编辑而命令仍受限，yolo 显式放开任务能力。线程与进程共用同一请求契约。
+
+## 优化、验证与评测
+
+完整实施及验收记录见 [优化计划](docs/DEEP_OPTIMIZATION_PLAN.md) 与 [交付说明](docs/OPTIMIZATION_DELIVERY_2026-09-18.md)。检索在遍历时排除依赖与缓存目录，并增量复用索引；上下文按完整工具轮次压缩；完成评估必须引用真实证据，失败检查不能被跳过检查覆盖。
+
+自动验证按变更选择关联测试和前端检查，不再因存在 tests 目录就默认全量 pytest。可在 `.minicc/verification.json` 配置规则；相同依赖 digest 下复用通过结果。未知范围如实显示缺少自动检查。
+
+自动验证响应任务取消并终止测试进程；换命令、权限或依赖会使成功缓存失效，验证期间输入变化不能标为通过。扫描规模或输入无法完整确认时关闭结果复用。配置错误会以验证阻塞状态显示，测试收集和帮助命令不算有效验收。
+
+```json
+{"rules":[{"paths":["web/**"],"commands":["npm run check:web","npm run typecheck"]},{"paths":["minicc/changes.py"],"commands":["python -m pytest tests/test_optimization_core.py -q"]}]}
+```
+
+前端定向验收：`npm run test:optimization`；真实 HTTP 产品链路：启动 fake-provider 本地服务后执行 `npm run test:web`。不需要为每次小改动反复执行全量回归。
+
+新增 12 条隔离行为任务，验收器保留在任务工作区之外，覆盖边界值、异常和输入不变性。报告分别给出完成率、评分覆盖率、验收成功率、错误完成率、延迟及已知 token，用 fake provider 的结果只验证工程链路。
+
+```powershell
+# 仅生成报告，不调用模型
+python -m minicc.benchmarks --suite behavior
+# 使用当前配置的真实模型执行两条任务，可从已完成结果续跑
+python -m minicc.benchmarks --suite behavior --run --max-tasks 2 --task-timeout 360 --results output/behavior-results.json
+```

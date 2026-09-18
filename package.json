@@ -3,6 +3,10 @@
   "scripts": {
     "test:web": "node tests/web_smoke.mjs",
     "test:game": "node tests/game_upgrade_smoke.mjs",
+    "test:optimization": "node tests/frontend_optimization_smoke.mjs",
+    "test:transport": "node tests/frontend_transport_smoke.mjs",
+    "test:lifecycle": "node tests/frontend_lifecycle_smoke.mjs",
+    "test:scale": "node tests/frontend_scale_smoke.mjs",
     "test:all": "npm run test:web && npm run test:game",
     "build:web": "node scripts/build-web.mjs",
     "check:web": "node scripts/build-web.mjs --check"

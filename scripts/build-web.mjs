@@ -1,54 +1,85 @@
-// Build the web workbench's classic-script bundle from ordered source chunks.
+// Bundle the workbench from ES module entry points.
 //
-// web/src/*.js are plain-script chunks that intentionally share one scope
-// (no ES module imports): concatenation in filename order reproduces the
-// original app.js byte for byte. esbuild is optional — when installed we
-// also emit a minified app.min.js next to the readable bundle.
+//   web/src/main.js  -> web/app.js   (IIFE, window globals for the arcade)
+//   web/src/game.js  -> web/game.js  (separate arcade bundle)
 //
 // Usage: node scripts/build-web.mjs [--check]
 
-import { readdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { build } from "esbuild";
+import { createHash } from "node:crypto";
+import { transform } from "esbuild";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const srcDir = join(root, "web", "src");
-const outFile = join(root, "web", "app.js");
-const minFile = join(root, "web", "app.min.js");
-
-const chunks = readdirSync(srcDir).filter((name) => name.endsWith(".js")).sort();
-if (chunks.length === 0) throw new Error("no source chunks found in web/src");
-
-let bundle = "";
-for (const name of chunks) {
-  const raw = readFileSync(join(srcDir, name), "utf8");
-  // The per-chunk provenance note (first line) is stripped so the readable
-  // bundle stays byte-identical to the pre-split original.
-  const lines = raw.split("\n");
-  const body = lines[0].startsWith("// NOTE:") ? lines.slice(1).join("\n") : raw;
-  bundle += body;
-}
-
+const outDir = join(root, "web");
 const check = process.argv.includes("--check");
-if (check) {
-  const current = readFileSync(outFile, "utf8");
-  if (current !== bundle) {
-    console.error("web/app.js is stale — run `npm run build:web`");
-    process.exit(1);
-  }
-  console.log(`web/app.js is up to date (${bundle.length} chars, ${chunks.length} chunks)`);
-} else {
-  writeFileSync(outFile, bundle, "utf8");
-  console.log(`built web/app.js (${bundle.length} chars, ${chunks.length} chunks)`);
+
+async function bundle(entry, outfile) {
+  const result = await build({
+    absWorkingDir: root,
+    entryPoints: [entry],
+    bundle: true,
+    format: "iife",
+    platform: "browser",
+    target: "es2020",
+    outfile,
+    write: false,
+    logLevel: "silent",
+    legalComments: "none",
+  });
+  const file = result.outputFiles[0];
+  if (!file) throw new Error(`esbuild produced no output for ${entry}`);
+  return file.text;
 }
 
-// Optional minified artifact (local-first: readable app.js remains the default).
-try {
-  const { transform } = await import("esbuild");
-  const minified = await transform(bundle, { loader: "js", minify: true, target: "es2020" });
-  writeFileSync(minFile, minified.code, "utf8");
-  console.log(`built web/app.min.js (${minified.code.length} chars, minified)`);
-} catch (error) {
-  if (check) throw error;
-  console.log("esbuild not installed — skipped web/app.min.js");
+function writeIfNeeded(path, content) {
+  mkdirSync(dirname(path), { recursive: true });
+  if (check) {
+    let current = "";
+    try {
+      current = readFileSync(path, "utf8");
+    } catch {
+      current = "";
+    }
+    if (current !== content) {
+      console.error(`${path} is stale — run \`npm run build:web\``);
+      process.exitCode = 1;
+      return false;
+    }
+    return true;
+  }
+  writeFileSync(path, content, "utf8");
+  return true;
 }
+
+const app = await bundle(join(srcDir, "main.js"), join(outDir, "app.js"));
+const game = await bundle(join(srcDir, "game.js"), join(outDir, "game.js"));
+const appOk = writeIfNeeded(join(outDir, "app.js"), app);
+const gameOk = writeIfNeeded(join(outDir, "game.js"), game);
+if (check) {
+  if (appOk && gameOk && process.exitCode !== 1) {
+    console.log(`web/app.js + web/game.js are up to date (${app.length + game.length} chars)`);
+  }
+} else {
+  console.log(`built web/app.js (${app.length} chars)`);
+  console.log(`built web/game.js (${game.length} chars)`);
+}
+
+const manifest = {};
+for (const [name, source, loader] of [
+  ["app.js", app, "js"],
+  ["game.js", game, "js"],
+  ["styles.css", readFileSync(join(outDir, "styles.css"), "utf8"), "css"],
+]) {
+  const { code } = await transform(source, { loader, minify: true, target: "es2020", legalComments: "none" });
+  const hash = createHash("sha256").update(code).digest("hex").slice(0, 16);
+  const dot = name.lastIndexOf(".");
+  const asset = `assets/${name.slice(0, dot)}.${hash}${name.slice(dot)}`;
+  manifest[`/${name}`] = `/${asset}`;
+  writeIfNeeded(join(outDir, asset), code);
+  if (name === "app.js" && !check) writeFileSync(join(outDir, "app.min.js"), code, "utf8");
+}
+writeIfNeeded(join(outDir, "asset-manifest.json"), JSON.stringify(manifest, null, 2) + "\n");

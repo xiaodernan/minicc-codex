@@ -1,4 +1,15 @@
-// NOTE: 源文件分片（web/src/）。此文件由 `npm run build:web` 按序拼接生成，勿直接编辑。
+// Separate arcade bundle. Uses helpers exposed on window by app.js.
+function $(selector) { return window.$(selector); }
+function $$(selector) { return window.$$(selector); }
+function t(key) { return window.t(key); }
+function icon(name) { return window.icon(name); }
+function refreshIcons(root) { return window.refreshIcons?.(root); }
+function showToast(message) { return window.showToast?.(message); }
+function escapeHtml(value) { return window.escapeHtml(value); }
+function closePanel() { return window.closePanel?.(); }
+function openPanel(title, body, options) { return window.openPanel?.(title, body, options); }
+
+const MAX_WAVES = 10;
 const GAME_DIFFICULTIES = {
   normal: { hpMultiplier: .9, initialSun: 200, speedMultiplier: .9, spawnDelayMultiplier: 1.16, waveBonus: -1 },
   hard: { hpMultiplier: 1, initialSun: 175, speedMultiplier: 1, spawnDelayMultiplier: 1, waveBonus: 0 },
@@ -1463,3 +1474,89 @@ function plantAt(event) {
   drawGame();
   return true;
 }
+
+function setGameWideMode(enabled) {
+  const wide = Boolean(enabled);
+  const modal = $("#gameModal");
+  const button = $("#gameWideMode");
+  modal.classList.toggle("wide-mode", wide);
+  button?.classList.toggle("active", wide);
+  button?.setAttribute("aria-pressed", String(wide));
+  if (button) {
+    button.title = t(wide ? "game.compactMode" : "game.wideMode");
+    button.querySelector("span").textContent = t(wide ? "game.compactMode" : "game.wideMode");
+  }
+  localStorage.setItem("minicc-game-wide-mode", wide ? "on" : "off");
+}
+function toggleGameWideMode() {
+  setGameWideMode(!$("#gameModal").classList.contains("wide-mode"));
+}
+function openGame() {
+  $("#gameModal").classList.add("show");
+  $("#gameModal").setAttribute("aria-hidden", "false");
+  setGameWideMode(localStorage.getItem("minicc-game-wide-mode") === "on");
+  initGame();
+}
+
+function openGameWindow() { window.open(location.origin + location.pathname + "?arcade=1", "minicc-arcade", "popup,width=980,height=760"); }
+function toggleGameFullscreen() { const card = $("#gameModal .game-card"); if (!document.fullscreenElement) card.requestFullscreen?.(); else document.exitFullscreen?.(); }
+function closeGame() {
+  const active = document.activeElement;
+  if (active instanceof HTMLElement && $("#gameModal").contains(active)) active.blur();
+  closeGameCodex();
+  $("#gameModal").classList.remove("show");
+  $("#gameModal").setAttribute("aria-hidden", "true");
+  game.running = false;
+  cancelAnimationFrame(game.frame);
+  stopGameMusic();
+  window.scrollTo(0, 0);
+}
+
+const codexState = { tab: "plants", plant: "peashooter", zombie: "walker" };
+const codexPlantNames = { peashooter: "豌豆射手", sunflower: "向日葵", wallnut: "坚果墙", repeater: "双发射手", cherrybomb: "樱桃炸弹", icepeashooter: "寒冰射手", firepeashooter: "火焰射手", twinpea: "双发强化", kernelpult: "玉米投手", pumpkin: "南瓜头", spikeweed: "地刺", gloomshroom: "忧郁菇", potatomine: "土豆雷", threepeater: "三线射手", jalapeno: "火爆辣椒", magnetshroom: "磁力菇", garlic: "大蒜", squash: "窝瓜", gatlingpea: "机枪射手" };
+const codexZombieNames = { walker: "普通僵尸", backup: "伴舞僵尸", roadblock: "路障僵尸", conehead: "路锥僵尸", imp: "小鬼僵尸", scout: "侦察僵尸", storm: "风暴僵尸", runner: "奔跑僵尸", polevault: "撑杆僵尸", bucket: "铁桶僵尸", football: "橄榄球僵尸", miner: "矿工僵尸", flag: "旗帜僵尸", dancer: "舞王僵尸", newspaper: "报纸僵尸", gargantuar: "巨人僵尸", witch: "女巫僵尸", dragon: "龙僵尸", shield: "护盾僵尸" };
+const codexPlantIcons = { peashooter: "🌱", sunflower: "🌻", wallnut: "🥜", repeater: "🌿", cherrybomb: "🍒", icepeashooter: "❄️", firepeashooter: "🔥", twinpea: "🌱", kernelpult: "🌽", pumpkin: "🎃", spikeweed: "🌵", gloomshroom: "🍄", potatomine: "🥔", threepeater: "🌾", jalapeno: "🌶️", magnetshroom: "🧲", garlic: "🧄", squash: "🎃", gatlingpea: "🔫" };
+const codexPlantSpecials = { peashooter: "发射普通豌豆，稳定输出。", sunflower: "每隔一段时间生产 25 阳光。", wallnut: "高生命值阻挡，拖延僵尸。", repeater: "每轮发射 2 发豌豆，并可穿透 1 个目标。", cherrybomb: "短延迟后在同一行 145 范围内直接消灭僵尸。", icepeashooter: "命中后减速 3200ms，并可穿透 1 个目标。", firepeashooter: "每发 2 点伤害并施加 2600ms 灼烧，灼烧伤害 3。", twinpea: "每轮发射 2 发强化豌豆，每发 2 点伤害。", kernelpult: "28% 概率用黄油定身，并可穿透 1 个目标。", pumpkin: "为同格植物提供 32 点护罩生命。", spikeweed: "攻击所在格附近 44 范围内的僵尸。", gloomshroom: "近身范围攻击并施加 900ms 减速。", potatomine: "1800ms 后布雷，在同一行 90 范围内爆炸。", threepeater: "同时攻击当前行、上行和下行。", jalapeno: "短延迟后消灭所在行的全部僵尸。", magnetshroom: "周期性吸走僵尸护甲或装备，不直接造成伤害。", garlic: "被咬后将僵尸改道到下一行。", squash: "接近时重击并直接消灭目标。", gatlingpea: "每轮连续发射 4 发豌豆，每发 1 点伤害。" };
+const codexZombieSkills = { walker: "无额外技能，接触植物后啃食。", backup: "伴随舞王召唤，沿行啃食。", roadblock: "路障提供额外防护。", conehead: "路锥提供额外护甲。", imp: "快速移动并跳跃植物。", scout: "间歇冲刺并标记、诅咒附近植物。", storm: "周期性使同一行植物短暂失效。", runner: "沿行快速移动并间歇冲刺。", polevault: "遇到第一株植物时撑杆跳过。", bucket: "铁桶提供高额护甲。", football: "高护甲并可冲锋攻击。", miner: "地下潜行，接近防线后出土。", flag: "为同一行盟友提供移动速度加成。", dancer: "周期性召唤伴舞僵尸。", newspaper: "报纸被破坏后进入狂暴状态。", gargantuar: "缓慢推进，接触植物时重击并造成高额伤害。", witch: "标记并诅咒附近植物。", dragon: "喷吐火焰，对植物施加灼烧。", shield: "周期性恢复护盾。" };
+function codexPlantInfo(type) {
+  const profile = plantProfiles[type] || {};
+  const damage = profile.damage ? `${profile.damage} 点/发` : ["cherrybomb", "jalapeno", "potatomine", "squash"].includes(type) ? "特殊/爆发伤害" : "0（功能型）";
+  const target = profile.rows || type === "jalapeno" ? "群体" : ["cherrybomb", "potatomine", "squash"].includes(type) ? "范围爆发" : "单体";
+  const range = profile.rows ? "当前行及相邻两行" : ["gloomshroom", "spikeweed"].includes(type) ? "近身（约 44）" : ["cherrybomb", "potatomine"].includes(type) ? "同一行范围" : type === "jalapeno" ? "整行" : "所在行直线/所在格";
+  const usage = type === "sunflower" ? "放在后排，持续生产阳光。" : type === "wallnut" || type === "pumpkin" ? "放在僵尸路线前吸收伤害。" : `选中卡片后点击草坪格子，消耗 ${plantCost[type]} 阳光。`;
+  return { name: codexPlantNames[type], icon: codexPlantIcons[type], health: plantHealth[type], cost: plantCost[type], damage, attack: profile.shots ? `${profile.shots} 发/轮` : type === "threepeater" ? "3 条线路" : "特殊逻辑", target, range, usage, special: codexPlantSpecials[type] || "按当前游戏逻辑发挥作用。", raw: Object.keys(profile).length ? JSON.stringify(profile) : "由独立游戏逻辑处理" };
+}
+function codexZombieInfo(type) {
+  const profile = zombieProfiles[type];
+  const movement = profile.burrow ? "地下潜行，接近防线后出土" : profile.vault ? "持杆前进，遇到植物时跳过" : profile.leap ? "快速前进并跳跃植物" : profile.dash ? "沿所在行移动并间歇冲刺" : profile.giant ? "缓慢直线推进" : "沿所在行向左直线移动";
+  return { name: codexZombieNames[type], hp: profile.hp, armor: profile.armor || 0, speed: `${profile.speed.toFixed(3)} + 每波 ${profile.growth.toFixed(4)}`, attack: `${profile.attackInterval} ms`, score: profile.score, movement, skills: codexZombieSkills[type] };
+}
+function codexRows(rows) { return rows.map(([label, value]) => `<div class="codex-row"><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(String(value))}</dd></div>`).join(""); }
+function renderCodex() {
+  const plants = codexState.tab === "plants";
+  const keys = Object.keys(plants ? plantCost : zombieProfiles);
+  const selected = codexState[plants ? "plant" : "zombie"];
+  $("#codexPlantCount").textContent = `（${Object.keys(plantCost).length}）`;
+  $("#codexZombieCount").textContent = `（${Object.keys(zombieProfiles).length}）`;
+  $$(".codex-tab").forEach((tab) => { const active = tab.dataset.codexTab === codexState.tab; tab.classList.toggle("active", active); tab.setAttribute("aria-selected", String(active)); });
+  $("#codexEntryList").innerHTML = keys.map((key) => { const info = plants ? codexPlantInfo(key) : codexZombieInfo(key); return `<button class="codex-entry ${key === selected ? "active" : ""}" type="button" data-codex-entry="${key}"><span class="codex-entry-icon">${info.icon || "🧟"}</span><span>${escapeHtml(info.name)}</span></button>`; }).join("");
+  const info = plants ? codexPlantInfo(selected) : codexZombieInfo(selected);
+  $("#codexDetail").innerHTML = `<div class="codex-detail-title"><span class="codex-detail-icon">${info.icon || "🧟"}</span><div><span class="game-kicker">${plants ? "植物详情" : "僵尸详情"}</span><h4>${escapeHtml(info.name)}</h4></div></div>${plants ? `<dl class="codex-stats">${codexRows([["阳光消耗", `${info.cost} 阳光`], ["植物生命值", `${info.health} HP`], ["伤害", info.damage], ["攻击频率", info.attack], ["伤害类型", info.target], ["攻击范围", info.range]])}</dl><div class="codex-section"><strong>使用方法</strong><p>${escapeHtml(info.usage)}</p></div><div class="codex-section"><strong>特殊效果</strong><p>${escapeHtml(info.special)}</p></div><div class="codex-section"><strong>实际 profile 参数</strong><code>${escapeHtml(info.raw)}</code></div>` : `<dl class="codex-stats">${codexRows([["基础生命值", `${info.hp} HP`], ["护甲", `${info.armor} 点`], ["移动速度", info.speed], ["攻击间隔", info.attack], ["击退积分", info.score]])}</dl><div class="codex-health-bar" aria-label="僵尸基础生命值"><i style="width: 100%"></i></div><div class="codex-section"><strong>移动方式</strong><p>${escapeHtml(info.movement)}</p></div><div class="codex-section"><strong>特殊技能</strong><p>${escapeHtml(info.skills)}</p></div>`}`;
+  $$(".codex-entry").forEach((entry) => entry.addEventListener("click", () => { codexState[plants ? "plant" : "zombie"] = entry.dataset.codexEntry; renderCodex(); }));
+}
+function openGameCodex(tab = "plants") { codexState.tab = tab; $("#gameCodexPanel").classList.add("show"); $("#gameCodexPanel").setAttribute("aria-hidden", "false"); renderCodex(); refreshIcons(); }
+function closeGameCodex() { const panel = $("#gameCodexPanel"); if (!panel) return; panel.classList.remove("show"); panel.setAttribute("aria-hidden", "true"); }
+
+Object.assign(window, {
+  openGame, closeGame, openGameWindow, toggleGameWideMode, toggleGameFullscreen,
+  openGameCodex, closeGameCodex, startGame, initGame, gameLoop, game,
+  plantAt, collectSun, produceSun, firePlantShots, explodeCherryBomb, damagePlant,
+  cellPosition, toggleShovel, activateGameSkill, toggleGamePause, setGameDifficulty,
+  toggleGameSound, setGameVolume, setGamePaused, updateGameHover, clearGameHover,
+  selectPlant, clearPlantSelection, updateShovelButton, rebuildGameIndexes, defeatZombie,
+  zombieTypeForWave, spawnZombie, plantProfiles, plantCost, plantHealth, plantColor,
+  plantCooldown, zombieProfiles, GAME_LOGICAL_WIDTH, GAME_LOGICAL_HEIGHT, GAME_DIFFICULTIES,
+  WAVE_TARGET, MAX_WAVES, gameLayout, drawGame,
+});
+window.__gameUpgradeProbe = { game, gameLoop, defeatZombie, rebuildGameIndexes, activateGameSkill };
+window.__zombieProbe = { game, zombieProfiles, zombieTypeForWave, spawnZombie, gameLoop, drawGame };

@@ -59,13 +59,14 @@ def fake_provider(monkeypatch: pytest.MonkeyPatch) -> None:
 
         async def chat(self, messages, tools, on_delta=None):
             import json as _json
+            import re
 
             from minicc.llm.base import LLMResponse
 
             if tools is None:
                 decision = _json.dumps({
                     "status": "complete", "confidence": 0.9, "rationale": "fake",
-                    "missing": [], "next_action": "", "evidence": ["fake"],
+                    "missing": [], "next_action": "", "evidence": re.findall(r'"id":"((?:event|verification)-\d+)"', str(messages))[-1:],
                 }, ensure_ascii=False)
                 return LLMResponse(content=decision)
             return LLMResponse(content="恢复后的任务已完成。")

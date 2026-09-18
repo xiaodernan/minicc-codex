@@ -18,13 +18,76 @@ from typing import Any
 from ..tools.registry import redact_text
 
 COMPACTION_MARKER = "[CONTEXT COMPACTED]"
-CHECKPOINT_VERSION = 2
+CHECKPOINT_VERSION = 3
 _MAX_ITEMS = 24
 _MAX_TEXT = 900
 _MAX_OBJECTIVE = 1800
 _IMAGE_CONTEXT_CHARS = 1024
 _VISUAL_PART_TYPES = frozenset({"image_url", "input_image"})
 _DIGEST_RE = re.compile(r"(?i)(?:digest|sha256|hash)[^a-f0-9]{0,20}([a-f0-9]{12,64})")
+
+
+def validate_tool_protocol(messages: list[dict[str, Any]]) -> None:
+    """Reject incomplete or orphaned native tool rounds before network I/O.
+
+    Tool results must immediately follow the assistant round that requested
+    them, including every result from a parallel round. IDs may be reused in
+    separate completed rounds by compatible gateways.
+    """
+    pending: set[str] = set()
+    for position, message in enumerate(messages):
+        if message.get("role") == "tool":
+            call_id = str(message.get("tool_call_id") or "")
+            if call_id not in pending:
+                raise ValueError(f"工具上下文协议无效：第 {position + 1} 条结果没有对应调用")
+            pending.remove(call_id)
+            continue
+        if pending:
+            raise ValueError("工具上下文协议无效：工具轮次缺少结果")
+        calls = message.get("tool_calls") or []
+        if calls:
+            if message.get("role") != "assistant" or not isinstance(calls, list):
+                raise ValueError("工具上下文协议无效：调用必须属于 assistant 轮次")
+            for call in calls:
+                call_id = str(call.get("id") or "") if isinstance(call, dict) else ""
+                if not call_id or call_id in pending:
+                    raise ValueError("工具上下文协议无效：调用 ID 为空或重复")
+                pending.add(call_id)
+    if pending:
+        raise ValueError("工具上下文协议无效：最后一个工具轮次缺少结果")
+
+
+def repair_interrupted_tool_rounds(messages: list[dict[str, Any]]) -> int:
+    """Close interrupted historical rounds without repeating any tool action.
+
+    A crash/cancel/rewind can persist an assistant call before all results.
+    Missing results are explicitly unknown, never invented as successes.
+    Orphaned or duplicate IDs still fail normal validation.
+    """
+    repaired: list[dict[str, Any]] = []
+    pending: dict[str, None] = {}
+    inserted = 0
+
+    def close_pending() -> None:
+        nonlocal inserted
+        for call_id in pending:
+            repaired.append({"role": "tool", "tool_call_id": call_id, "content": "[INTERRUPTED_TOOL_RESULT] 上次执行被中断，未记录结果；执行是否产生副作用未知。先读取当前状态并核对已有修改，不要盲目重复写入。"})
+            inserted += 1
+        pending.clear()
+
+    for message in messages:
+        if message.get("role") == "tool":
+            pending.pop(str(message.get("tool_call_id") or ""), None)
+        else:
+            close_pending()
+            for call in message.get("tool_calls") or []:
+                if isinstance(call, dict) and call.get("id"):
+                    pending[str(call["id"])] = None
+        repaired.append(message)
+    close_pending()
+    if inserted:
+        messages[:] = repaired
+    return inserted
 
 
 def _msg_chars(messages: list[dict[str, Any]]) -> int:
@@ -174,12 +237,19 @@ def _message_facts(messages: list[dict[str, Any]]) -> dict[str, Any]:
         if COMPACTION_MARKER in content:
             continue
         if role == "user" and content:
-            _add_unique(objectives, content, limit=3, text_limit=_MAX_OBJECTIVE)
+            objective = _safe(content, _MAX_OBJECTIVE)
+            if objective not in objectives:
+                objectives.append(objective)
+                # Keep the original goal and newest steering, not the first
+                # three messages forever.
+                objectives = objectives[:1] + objectives[1:][-2:]
             for line in content.splitlines():
                 if re.search(r"验收|要求|必须|完成|accept|must|should|test", line, re.I):
-                    _add_unique(requirements, line, limit=12, text_limit=400)
+                    requirement = _safe(line, 400)
+                    if requirement not in requirements:
+                        requirements = [*requirements, requirement][-12:]
         if role == "assistant" and content:
-            _add_unique(progress, content, limit=8, text_limit=400)
+            progress = [*progress, _safe(content, 400)][-6:]
 
         values: list[tuple[str, str]] = [("message", content)]
         for tool_call in message.get("tool_calls") or []:
@@ -244,9 +314,11 @@ def _merge_checkpoint(previous: list[dict[str, Any]], facts: dict[str, Any], mid
             if not isinstance(source, list):
                 continue
             for value in source:
-                if value not in output and len(output) < limit:
+                if value not in output:
                     output.append(value)
-        return output
+        if key == "objectives":
+            return output[:1] + output[1:][-2:]
+        return output[-limit:]
 
     checkpoint: dict[str, Any] = {"version": CHECKPOINT_VERSION}
     for key in (
@@ -276,6 +348,29 @@ def _merge_checkpoint(previous: list[dict[str, Any]], facts: dict[str, Any], mid
         "需要精确原文时应重新读取工作区或查看任务 trace",
     ]
     return checkpoint
+
+
+def _recent_boundary(messages: list[dict[str, Any]], keep_recent: int) -> int:
+    """Move a cut backwards until every retained result keeps its call.
+
+    A parallel tool round is one indivisible unit; retaining only one of its
+    results would violate the native tool protocol at the next model call.
+    """
+    boundary = max(0, len(messages) - max(1, keep_recent))
+    call_positions: dict[str, int] = {}
+    latest_call: int | None = None
+    for index, message in enumerate(messages):
+        if message.get("role") == "assistant" and message.get("tool_calls"):
+            latest_call = index
+            for call in message["tool_calls"]:
+                if isinstance(call, dict) and call.get("id"):
+                    call_positions[str(call["id"])] = index
+        if message.get("role") == "tool" and index >= boundary:
+            call_id = str(message.get("tool_call_id") or "")
+            position = call_positions.get(call_id) if call_id else latest_call
+            if position is not None:
+                boundary = min(boundary, position)
+    return boundary
 
 
 def _checkpoint_message(checkpoint: dict[str, Any]) -> dict[str, Any]:
@@ -308,8 +403,11 @@ def compact_with_checkpoint(
 
     if len(non_system) <= keep_recent:
         return messages, None
-    middle = non_system[:-keep_recent]
-    tail = non_system[-keep_recent:]
+    boundary = _recent_boundary(non_system, keep_recent)
+    if boundary == 0:
+        return messages, None
+    middle = non_system[:boundary]
+    tail = non_system[boundary:]
     checkpoint = _merge_checkpoint(prior_checkpoints, _message_facts(middle), middle)
     return [*system_msgs, _checkpoint_message(checkpoint), *tail], checkpoint
 
@@ -327,4 +425,6 @@ __all__ = [
     "estimate_tokens",
     "has_visual_content",
     "message_chars",
+    "validate_tool_protocol",
+    "repair_interrupted_tool_rounds",
 ]

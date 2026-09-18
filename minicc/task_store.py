@@ -10,6 +10,7 @@ import json
 import sqlite3
 import threading
 import time
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -27,6 +28,7 @@ class TaskStore:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.RLock()
         with self._connect() as connection:
+            connection.execute("PRAGMA journal_mode=WAL")
             connection.execute(
                 """
                 CREATE TABLE IF NOT EXISTS tasks (
@@ -40,18 +42,116 @@ class TaskStore:
             connection.execute(
                 "CREATE INDEX IF NOT EXISTS idx_tasks_created ON tasks(created_at DESC)"
             )
+            connection.execute("CREATE INDEX IF NOT EXISTS idx_tasks_workspace_created ON tasks(workspace_path, created_at DESC)")
+            connection.execute(
+                "CREATE TABLE IF NOT EXISTS task_leases (task_id TEXT PRIMARY KEY, owner TEXT NOT NULL, "
+                "pid INTEGER NOT NULL, heartbeat REAL NOT NULL, expires REAL NOT NULL)"
+            )
+            self._initialize_search(connection)
 
-    def _connect(self) -> sqlite3.Connection:
+    def _initialize_search(self, connection: sqlite3.Connection) -> None:
+        connection.execute(
+            "CREATE TABLE IF NOT EXISTS task_search (task_id TEXT PRIMARY KEY, created_at REAL NOT NULL, "
+            "workspace_path TEXT NOT NULL, search_text TEXT NOT NULL, folded_text TEXT NOT NULL, summary TEXT NOT NULL)"
+        )
+        connection.execute("CREATE INDEX IF NOT EXISTS idx_task_search_workspace ON task_search(workspace_path, created_at DESC)")
+        connection.execute("CREATE INDEX IF NOT EXISTS idx_task_search_created ON task_search(created_at DESC)")
+        self._search_fts = False
+        try:
+            existing_fts = connection.execute("SELECT 1 FROM sqlite_master WHERE name='task_search_fts'").fetchone()
+            connection.execute("CREATE VIRTUAL TABLE IF NOT EXISTS task_search_fts USING fts5(folded_text, content='task_search', content_rowid='rowid', tokenize='trigram')")
+            connection.execute("CREATE TRIGGER IF NOT EXISTS task_search_ai AFTER INSERT ON task_search BEGIN INSERT INTO task_search_fts(rowid, folded_text) VALUES (new.rowid, new.folded_text); END")
+            connection.execute("CREATE TRIGGER IF NOT EXISTS task_search_ad AFTER DELETE ON task_search BEGIN INSERT INTO task_search_fts(task_search_fts, rowid, folded_text) VALUES ('delete', old.rowid, old.folded_text); END")
+            connection.execute("CREATE TRIGGER IF NOT EXISTS task_search_au AFTER UPDATE ON task_search BEGIN INSERT INTO task_search_fts(task_search_fts, rowid, folded_text) VALUES ('delete', old.rowid, old.folded_text); INSERT INTO task_search_fts(rowid, folded_text) VALUES (new.rowid, new.folded_text); END")
+            if not existing_fts:
+                connection.execute("INSERT INTO task_search_fts(task_search_fts) VALUES ('rebuild')")
+            self._search_fts = True
+        except sqlite3.OperationalError:
+            # Some bundled SQLite builds omit FTS5/trigram. The projection
+            # still avoids searching or decoding large event JSON payloads.
+            pass
+        # Existing databases are migrated once. Corrupt snapshots remain
+        # inspectable but do not enter the user-visible search projection.
+        rows = connection.execute("SELECT task_id, payload FROM tasks WHERE task_id NOT IN (SELECT task_id FROM task_search)").fetchall()
+        for row in rows:
+            try:
+                snapshot = json.loads(row["payload"])
+            except (TypeError, json.JSONDecodeError):
+                continue
+            if isinstance(snapshot, dict):
+                snapshot["task_id"] = str(row["task_id"])
+                self._write_search(connection, _redact(snapshot))
+
+    @staticmethod
+    def _write_search(connection: sqlite3.Connection, snapshot: dict[str, Any]) -> None:
+        visible_text = _searchable_text(snapshot)
+        summary = {key: snapshot.get(key) for key in ("task_id", "workspace_path", "status", "created_at", "finished_at")}
+        summary["prompt_preview"] = str(snapshot.get("preview") or snapshot.get("prompt") or "")[:160]
+        connection.execute(
+            "INSERT INTO task_search(task_id, created_at, workspace_path, search_text, folded_text, summary) VALUES (?, ?, ?, ?, ?, ?) "
+            "ON CONFLICT(task_id) DO UPDATE SET created_at=excluded.created_at, workspace_path=excluded.workspace_path, "
+            "search_text=excluded.search_text, folded_text=excluded.folded_text, summary=excluded.summary "
+            "WHERE task_search.created_at != excluded.created_at OR task_search.workspace_path != excluded.workspace_path "
+            "OR task_search.search_text != excluded.search_text OR task_search.summary != excluded.summary",
+            (str(snapshot["task_id"]), float(snapshot.get("created_at_epoch") or 0), str(snapshot.get("workspace_path") or ""),
+             visible_text, visible_text.casefold(), json.dumps(summary, ensure_ascii=False)),
+        )
+
+    @contextmanager
+    def _connect(self):
+        """Commit/rollback and close every connection; sqlite's context alone leaks it."""
         connection = sqlite3.connect(self.path, timeout=5)
         connection.row_factory = sqlite3.Row
-        return connection
+        try:
+            with connection:
+                yield connection
+        finally:
+            connection.close()
 
-    def upsert(self, snapshot: dict[str, Any]) -> None:
+    def claim_lease(self, task_id: str, owner: str, *, pid: int = 0, ttl: float = 45.0) -> bool:
+        """Atomically reserve execution; a different live owner cannot be replaced."""
+        now = time.time()
+        with self._lock, self._connect() as connection:
+            changed = connection.execute(
+                "INSERT INTO task_leases(task_id, owner, pid, heartbeat, expires) VALUES (?, ?, ?, ?, ?) "
+                "ON CONFLICT(task_id) DO UPDATE SET owner=excluded.owner, pid=excluded.pid, "
+                "heartbeat=excluded.heartbeat, expires=excluded.expires "
+                "WHERE task_leases.expires <= ? OR task_leases.owner = excluded.owner",
+                (task_id, owner, pid, now, now + ttl, now),
+            ).rowcount
+        return changed == 1
+
+    def heartbeat_lease(self, task_id: str, owner: str, *, pid: int, ttl: float = 45.0) -> bool:
+        now = time.time()
+        with self._lock, self._connect() as connection:
+            changed = connection.execute(
+                "UPDATE task_leases SET heartbeat=?, expires=?, pid=? WHERE task_id=? AND owner=?",
+                (now, now + ttl, pid, task_id, owner),
+            ).rowcount
+        return changed == 1
+
+    def get_lease(self, task_id: str) -> dict[str, Any] | None:
+        with self._lock, self._connect() as connection:
+            row = connection.execute("SELECT * FROM task_leases WHERE task_id=?", (task_id,)).fetchone()
+        return dict(row) if row is not None else None
+
+    def release_lease(self, task_id: str, owner: str) -> None:
+        with self._lock, self._connect() as connection:
+            connection.execute("DELETE FROM task_leases WHERE task_id=? AND owner=?", (task_id, owner))
+
+    def upsert(self, snapshot: dict[str, Any], *, lease_owner: str | None = None) -> bool:
         task_id = str(snapshot.get("task_id") or "")
         if not task_id:
-            return
+            return False
         payload = _redact(snapshot)
         with self._lock, self._connect() as connection:
+            if lease_owner is not None:
+                # Fence expired/replaced workers in the same transaction as
+                # the write. An old process must never overwrite its successor.
+                connection.execute("BEGIN IMMEDIATE")
+                lease = connection.execute("SELECT owner, expires FROM task_leases WHERE task_id=?", (task_id,)).fetchone()
+                if lease is None or lease["owner"] != lease_owner or float(lease["expires"]) <= time.time():
+                    return False
             connection.execute(
                 """
                 INSERT INTO tasks(task_id, created_at, workspace_path, payload)
@@ -68,6 +168,8 @@ class TaskStore:
                     json.dumps(payload, ensure_ascii=False),
                 ),
             )
+            self._write_search(connection, payload)
+        return True
 
     def load(self, limit: int = 200) -> list[dict[str, Any]]:
         with self._lock, self._connect() as connection:
@@ -111,49 +213,47 @@ class TaskStore:
         limit: int = 50,
         workspace_path: str | None = None,
     ) -> list[dict[str, Any]]:
-        """Full-text-ish history search over stored task snapshots.
+        """Search redacted visible text without scanning serialized events.
 
-        SQLite ``instr(lower(...), lower(...))`` acts as a cheap ASCII
-        case-insensitive prefilter; the authoritative match, snippet, and
-        match count are computed in Python over the parsed snapshot fields so
-        Unicode folding behaves correctly. Snapshots were redacted at upsert
-        time; snippets are redacted again for defense in depth.
+        Trigram FTS narrows substring queries when available; short queries
+        use the compact projection. Casefolding is identical in both paths.
         """
         needle = str(query or "").strip()
         if not needle:
             return []
         limit = max(1, min(int(limit), 100))
-        sql = "SELECT task_id, created_at, workspace_path, payload FROM tasks WHERE instr(lower(payload), lower(?)) > 0"
-        params: list[Any] = [needle]
+        folded = needle.casefold()
+        sql = "SELECT search_text, summary FROM task_search WHERE instr(folded_text, ?) > 0"
+        params: list[Any] = [folded]
+        if self._search_fts and len(folded) >= 3 and "\x00" not in folded:
+            sql += " AND rowid IN (SELECT rowid FROM task_search_fts WHERE task_search_fts MATCH ?)"
+            params.append('"' + folded.replace('"', '""') + '"')
         if workspace_path:
             sql += " AND workspace_path = ?"
             params.append(workspace_path)
-        # Keep the SQL prefilter broad (LIMIT 400) so Python-side ranking can
-        # fill the user limit even when some rows only match in metadata.
-        sql += " ORDER BY created_at DESC LIMIT 400"
+        sql += " ORDER BY created_at DESC LIMIT ?"
+        params.append(limit)
         results: list[dict[str, Any]] = []
         with self._lock, self._connect() as connection:
             rows = connection.execute(sql, params).fetchall()
         for row in rows:
             try:
-                value = json.loads(row["payload"])
+                value = json.loads(row["summary"])
             except (TypeError, json.JSONDecodeError):
                 continue
             if not isinstance(value, dict):
                 continue
-            if not value.get("task_id") or "[REDACTED:llm_api_key]" in str(value.get("task_id")):
-                value["task_id"] = str(row["task_id"])
-            match = _search_snapshot(value, needle)
+            match = _search_text(str(row["search_text"]), needle)
             if match is None:
                 continue
             results.append(
                 {
                     "task_id": value.get("task_id"),
-                    "workspace_path": str(value.get("workspace_path") or row["workspace_path"] or ""),
+                    "workspace_path": str(value.get("workspace_path") or ""),
                     "status": str(value.get("status") or ""),
                     "created_at": value.get("created_at"),
                     "finished_at": value.get("finished_at"),
-                    "prompt_preview": str(value.get("preview") or value.get("prompt") or "")[:160],
+                    "prompt_preview": str(value.get("prompt_preview") or ""),
                     "snippet": match["snippet"],
                     "match_count": match["match_count"],
                 }
@@ -218,6 +318,8 @@ class TaskStore:
                     deleted.append(task_id)
             if deleted:
                 connection.executemany("DELETE FROM tasks WHERE task_id = ?", [(task_id,) for task_id in deleted])
+                connection.executemany("DELETE FROM task_search WHERE task_id = ?", [(task_id,) for task_id in deleted])
+                connection.executemany("DELETE FROM task_leases WHERE task_id = ?", [(task_id,) for task_id in deleted])
 
         if deleted and vacuum:
             with self._lock, self._connect() as connection:
@@ -244,15 +346,30 @@ def _searchable_text(snapshot: dict[str, Any]) -> str:
 
 def _search_snapshot(snapshot: dict[str, Any], needle: str) -> dict[str, Any] | None:
     """Return snippet + match count for ``needle`` inside one snapshot."""
-    haystack = _searchable_text(snapshot)
+    return _search_text(_searchable_text(snapshot), needle)
+
+
+def _search_text(haystack: str, needle: str) -> dict[str, Any] | None:
     folded_haystack = haystack.casefold()
     folded_needle = needle.casefold()
     first = folded_haystack.find(folded_needle)
     if first < 0:
         return None
     match_count = min(folded_haystack.count(folded_needle), _MAX_MATCH_COUNT)
-    start = max(0, first - _SNIPPET_CONTEXT_CHARS)
-    end = min(len(haystack), first + len(needle) + _SNIPPET_CONTEXT_CHARS)
+    # Casefold can expand one character (Straße -> strasse). Convert offsets
+    # back to original text so a long prefix never pushes the match out.
+    folded_offset = 0
+    original_start, original_end = 0, len(haystack)
+    for index, character in enumerate(haystack):
+        next_offset = folded_offset + len(character.casefold())
+        if folded_offset <= first < next_offset:
+            original_start = index
+        if next_offset >= first + len(folded_needle):
+            original_end = index + 1
+            break
+        folded_offset = next_offset
+    start = max(0, original_start - _SNIPPET_CONTEXT_CHARS)
+    end = min(len(haystack), original_end + _SNIPPET_CONTEXT_CHARS)
     prefix = "…" if start > 0 else ""
     suffix = "…" if end < len(haystack) else ""
     snippet = f"{prefix}{haystack[start:end]}{suffix}"

@@ -1,8 +1,14 @@
-"""Small, bounded StateGraph and DAG primitives for agent orchestration.
+"""Observability primitives for agent phases, plus a bounded readonly DAG.
 
-The graph layer owns transitions and dependency scheduling. Node handlers remain
-ordinary Python callables, so the LLM protocol and existing tools do not need
-to know about the orchestration implementation.
+``StateGraph`` is a **phase axis for traces and metrics**, not the coding-task
+executor. Web/CLI work still runs ``run_agent`` (the tool-calling loop). The
+graph is validated at task start so snapshots can name intake/plan/inspect/
+implement/verify/repair/summarize, but those node handlers are not scheduled
+for write tasks.
+
+``execute_dag`` remains available for bounded **readonly** plans only; write
+plans stay prompts for the main loop. Do not describe this module as a full
+workflow engine.
 """
 
 from __future__ import annotations
@@ -46,7 +52,7 @@ NodeHandler = Callable[[AgentState], NodeResult | Awaitable[NodeResult]]
 
 
 class StateGraph:
-    """A bounded conditional state machine with auditable transitions."""
+    """Bounded phase machine used as an observability axis, not the executor."""
 
     def __init__(self, name: str = "agent", entry: str = "intake") -> None:
         self.name = name
@@ -300,7 +306,7 @@ async def execute_dag(
 
 
 def build_coding_workflow() -> StateGraph:
-    """Return the fixed coding workflow from the roadmap."""
+    """Return the fixed coding *phase axis* used in traces (not an executor)."""
     graph = StateGraph("coding", entry="intake")
     for node, phase, retries in (
         ("intake", "intake", 0),

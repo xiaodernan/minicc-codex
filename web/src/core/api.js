@@ -1,30 +1,16 @@
-// NOTE: 源文件分片（web/src/）。此文件由 `npm run build:web` 按序拼接生成，勿直接编辑。
-async function requestJson(url, options = {}, timeoutMs = 15000) {
-  const controller = new AbortController();
-  const timer = window.setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const response = await fetch(url, {
-      ...options,
-      headers: { ...authHeaders(), ...(options.headers || {}) },
-      signal: controller.signal,
-    });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      if (response.status === 401 && data.auth_required) {
-        showAuthModal();
-        throw new Error(state.locale === "zh" ? "需要访问 token，请在弹窗中粘贴后重试。" : "Access token required. Paste it in the dialog and retry.");
-      }
-      throw new Error(data.error || `${response.status} ${response.statusText}`);
-    }
-    return data;
-  } catch (error) {
-    if (error.name === "AbortError") throw new Error("请求超时，任务仍可在活动面板中查看。");
-    throw error;
-  } finally {
-    window.clearTimeout(timer);
-  }
-}
-function updateLiveStream(loadingId, preview, target) {
+import { requestJson } from "./transport.js";
+export { requestJson } from "./transport.js";
+import { reduceTaskEvent } from "./task-reducer.js";
+import { reconcileTimeline } from "../chat/timeline-dom.js";
+// ES module source for the minicc workbench. Bundled by scripts/build-web.mjs.
+import { cacheTaskDetail, cacheSessionView, cachedSessionView, escapeHtml, formatLightText, loadTaskHistory, presetMessageMarkup } from "../chat/markdown.js";
+import { loadChanges } from "../chat/stream.js";
+import { t } from "./i18n.js";
+import { $, MAX_RENDERED_TIMELINE_EVENTS, finalizedTaskIds, liveStreamStates, runningTasks, runtime, state, taskBySession, taskEventSources } from "./state.js";
+import { refreshIcons } from "../icons.js";
+import { addAssistantMessage, addLoadingMessage, applyTaskSnapshot, assistantMessageMarkup, captureChatPosition, compactNumber, eventTimelineMarkup, isCurrentTaskScope, isFocusedTask, liveTaskMarkup, phaseClass, phaseLabel, refreshFileTreeSoon, restoreChatPosition, sessionTaskBindings, setBusy, setTaskTransportStatus, showToast, stopTaskTimer, streamTail, syncTodoPanelFromEvents, taskMetrics, taskSessionKey, updateTaskDock, updateTaskDuration } from "../panels/index.js";
+
+export function updateLiveStream(loadingId, preview, target) {
   let stream = liveStreamStates.get(loadingId);
   if (!stream) {
     stream = { rendered: "", target: "", preview, frame: 0, lastPaint: 0 };
@@ -49,7 +35,7 @@ function updateLiveStream(loadingId, preview, target) {
   stream.frame = window.setTimeout(paint, 120);
 }
 
-function timelineDetailKey(detail) {
+export function timelineDetailKey(detail) {
   if (detail.matches("details.agent-round")) return `round:${detail.dataset.agentRound || ""}`;
   if (detail.matches("details.tool-event")) return `tool:${detail.dataset.toolEvent || ""}`;
   const owner = detail.closest("details.tool-event, details.agent-round, [data-stage-code]");
@@ -58,26 +44,27 @@ function timelineDetailKey(detail) {
     ? `tool:${owner.dataset.toolEvent || ""}`
     : owner.matches("details.agent-round")
       ? `round:${owner.dataset.agentRound || ""}`
-      : `stage:${owner.dataset.stageCode || ""}`;
+      : `stage:${owner.dataset.agentItem || owner.dataset.stageCode || ""}`;
   const nestedIndex = [...owner.querySelectorAll("details")].indexOf(detail);
   return `nested:${ownerKey}:${nestedIndex}`;
 }
 
-function captureTimelineOpenDetails(timeline) {
+export function captureTimelineOpenDetails(timeline) {
   return new Set([...timeline.querySelectorAll("details[open]")].map(timelineDetailKey).filter(Boolean));
 }
 
-function restoreTimelineOpenDetails(timeline, openDetails) {
+export function restoreTimelineOpenDetails(timeline, openDetails) {
   if (!(openDetails instanceof Set)) return;
   timeline.querySelectorAll("details").forEach((detail) => { detail.open = openDetails.has(timelineDetailKey(detail)); });
 }
 
-function setTimelineDetails(timeline, open) {
+export function setTimelineDetails(timeline, open) {
   if (!timeline) return;
   timeline.querySelectorAll("details").forEach((detail) => { detail.open = open; });
 }
 
-function syncLiveEvents(loading, events, chatPosition = null) {
+const timelineRenderState = new WeakMap();
+export function syncLiveEvents(loading, events, chatPosition = null) {
   if (!events.length) return false;
   let timeline = loading.querySelector(".tool-timeline");
   if (!timeline) {
@@ -85,31 +72,26 @@ function syncLiveEvents(loading, events, chatPosition = null) {
     timeline.className = "tool-timeline";
     loading.querySelector(".message-body")?.append(timeline);
   }
+  const previous = timelineRenderState.get(timeline);
+  // Reducers replace the events array only for timeline changes. Token and
+  // usage deltas must not serialize the entire tool history on every update.
+  if (previous?.events === events && previous.locale === state.locale) return false;
   const previousCount = Number(loading.dataset.eventCount || 0);
-  const fingerprint = events.map((event) => [
-    eventSequence(event.sequence),
-    event.item_id || event.event_id || "",
-    event.kind || "",
-    event.code || "",
-    event.name || "",
-    event.status || "",
-    event.summary || "",
-    typeof event.detail?.text === "string" ? event.detail.text.slice(0, 2400) : "",
-  ].join("|")).join("\n");
-  if (timeline.dataset.eventFingerprint === fingerprint) return false;
+  const fingerprint = `${state.locale}:${events.length}:${JSON.stringify(events.slice(-MAX_RENDERED_TIMELINE_EVENTS))}`;
+  timelineRenderState.set(timeline, { events, locale: state.locale, fingerprint });
+  if (previous?.fingerprint === fingerprint) return false;
   const position = chatPosition || captureChatPosition();
   const openDetails = timeline.dataset.initialized === "true" ? captureTimelineOpenDetails(timeline) : null;
-  timeline.innerHTML = eventTimelineMarkup(events, { animateFrom: previousCount });
+  reconcileTimeline(timeline, eventTimelineMarkup(events, { animateFrom: previousCount }));
   restoreTimelineOpenDetails(timeline, openDetails);
   timeline.dataset.initialized = "true";
-  timeline.dataset.eventFingerprint = fingerprint;
   loading.dataset.eventCount = String(events.length);
-  refreshIcons();
+  refreshIcons(timeline);
   if (!chatPosition) restoreChatPosition(position, false);
   return true;
 }
 
-function updateLiveTask(loadingId, data) {
+export function updateLiveTask(loadingId, data) {
   const loading = document.getElementById(loadingId);
   if (!loading) return;
   const chatPosition = captureChatPosition();
@@ -144,66 +126,23 @@ function updateLiveTask(loadingId, data) {
   restoreChatPosition(chatPosition, false);
 }
 
-function scheduleChangesRefresh() {
-  window.clearTimeout(changeRefreshTimer);
-  changeRefreshTimer = window.setTimeout(() => loadChanges(), 220);
+export function scheduleChangesRefresh() {
+  window.clearTimeout(runtime.changeRefreshTimer);
+  runtime.changeRefreshTimer = window.setTimeout(() => loadChanges(), 220);
 }
 
-function applyTaskEvent(taskId, envelope) {
+export function applyTaskEvent(taskId, envelope) {
   const binding = runningTasks.get(taskId);
   if (!binding || !envelope || typeof envelope !== "object") return null;
-  const sequence = eventSequence(envelope.sequence);
-  const eventId = String(envelope.event_id || "");
-  const itemId = String(envelope.item_id || "");
-  if (
-    (sequence && (binding.seenSequences.has(sequence) || sequence <= eventSequence(binding.cursor)))
-    || (eventId && binding.seenEventIds.has(eventId))
-    || (itemId && binding.seenEventIds.has(`item:${itemId}`))
-  ) return null;
-  const payload = envelope.payload && typeof envelope.payload === "object" ? envelope.payload : {};
-  const data = { ...(binding.data || {}) };
-  const kind = String(envelope.kind || "");
-  if (kind === "timeline") {
-    const timelineEvent = { ...payload };
-    if (eventId && !timelineEvent.event_id) timelineEvent.event_id = eventId;
-    if (itemId && !timelineEvent.item_id) timelineEvent.item_id = itemId;
-    if (sequence && !timelineEvent.sequence) timelineEvent.sequence = sequence;
-    data.events = mergeTimelineEvents(data.events, [timelineEvent]);
-  } else if (kind === "stream_delta") {
-    if (payload.stream_text != null) data.stream_text = String(payload.stream_text || "");
-    else if (payload.delta) data.stream_text = `${String(data.stream_text || "")}${String(payload.delta)}`;
-    if (payload.stream_length != null) data.stream_length = Number(payload.stream_length) || String(data.stream_text || "").length;
-    if (payload.phase) data.phase = String(payload.phase);
-  } else if (kind === "state" || kind === "status") {
-    if (payload.status) data.status = String(payload.status);
-    if (payload.phase) data.phase = String(payload.phase);
-    if (payload.finished_at) data.finished_at = payload.finished_at;
-    if (payload.error !== undefined) data.error = payload.error;
-    if (payload.cancel_reason !== undefined) data.cancel_reason = payload.cancel_reason;
-  } else if (kind === "usage") {
-    if (payload.tokens_used && typeof payload.tokens_used === "object") data.tokens_used = { ...payload.tokens_used };
-    if (payload.metrics && typeof payload.metrics === "object") data.metrics = { ...payload.metrics };
-    if (payload.usage && typeof payload.usage === "object") data.usage_by_turn = [...(data.usage_by_turn || []), { ...payload.usage }].slice(-64);
-  } else if (kind === "context") {
-    if (payload.context && typeof payload.context === "object") data.context = { ...payload.context };
-  } else if (kind === "compaction") {
-    if (payload.event && typeof payload.event === "object") data.compaction_events = [...(data.compaction_events || []), { ...payload.event }].slice(-64);
-  } else if (kind === "result") {
-    if (payload.answer !== undefined) data.answer = payload.answer;
-    if (payload.error !== undefined) data.error = payload.error;
-    data.result = { ...(data.result || {}), answer: data.answer, error: data.error };
-  }
-  if (payload.state_version != null) data.state_version = Math.max(Number(data.state_version) || 0, Number(payload.state_version) || 0);
-  binding.cursor = Math.max(eventSequence(binding.cursor), sequence);
-  data.event_cursor = binding.cursor;
-  if (sequence) binding.seenSequences.add(sequence);
-  if (eventId) binding.seenEventIds.add(eventId);
-  binding.data = data;
+  const next = reduceTaskEvent(binding, envelope);
+  if (!next) return null;
+  Object.assign(binding, next);
+  const data = next.data;
   updateBoundTask(taskId, data, { skipSnapshotMerge: true });
   return data;
 }
 
-function updateBoundTask(taskId, data, options = {}) {
+export function updateBoundTask(taskId, data, options = {}) {
   const binding = runningTasks.get(taskId);
   if (!binding) return;
   const next = options.skipSnapshotMerge
@@ -219,20 +158,20 @@ function updateBoundTask(taskId, data, options = {}) {
   return next;
 }
 
-function finishLiveTask(loadingId) {
+export function finishLiveTask(loadingId) {
   const stream = liveStreamStates.get(loadingId);
-  if (stream?.frame) window.cancelAnimationFrame(stream.frame);
+  if (stream?.frame) window.clearTimeout(stream.frame);
   liveStreamStates.delete(loadingId);
   const source = taskEventSources.get(loadingId);
   source?.close();
   taskEventSources.delete(loadingId);
 }
 
-function isTerminalTask(data) {
+export function isTerminalTask(data) {
   return ["completed", "failed", "cancelled", "interrupted"].includes(data?.status);
 }
 
-async function completeTask(loadingId, data) {
+export async function completeTask(loadingId, data) {
   const taskId = data.task_id;
   if (finalizedTaskIds.has(taskId)) return data;
   finalizedTaskIds.add(taskId);
@@ -273,10 +212,7 @@ async function completeTask(loadingId, data) {
     } else {
       holder.insertAdjacentHTML("beforeend", assistantMessageMarkup(finalData, `live-${binding.loadingId || loadingId}`));
     }
-    const cacheKey = sessionViewKey(binding.sessionId, binding.workspacePath);
-    const compactedMarkup = compactSessionMarkup(holder.innerHTML);
-    sessionMarkup.set(cacheKey, compactedMarkup);
-    try { localStorage.setItem(cacheKey, compactedMarkup); } catch { /* best effort */ }
+    cacheSessionView(binding.sessionId, holder.innerHTML, binding.workspacePath);
   }
   if (finalData.status !== "completed") showToast(finalData.error || (finalData.status === "cancelled" ? "任务已取消" : "任务失败"));
   scheduleChangesRefresh();
@@ -285,11 +221,12 @@ async function completeTask(loadingId, data) {
   return finalData;
 }
 
-async function pollTask(taskId) {
+export async function pollTask(taskId) {
   const binding = runningTasks.get(taskId);
   setTaskTransportStatus(taskId, "polling");
   let delay = 220;
   while (true) {
+    if (!runningTasks.has(taskId)) return null;
     try {
       const data = await requestJson(`/api/tasks/${encodeURIComponent(taskId)}`, {}, 12000);
       updateBoundTask(taskId, data);

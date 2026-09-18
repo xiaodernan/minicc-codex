@@ -18,9 +18,12 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, unquote, urlsplit
 
+from .allowlist import AllowlistError
 from .changes import ChangeError
 from .session import SessionError
+from .snapshots import SnapshotError
 from .task_store import TERMINAL_TASK_STATUSES
+from .static_assets import asset_response
 from .webauth import WebAuth, cors_origin
 
 from typing import TYPE_CHECKING
@@ -261,6 +264,14 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
         if path == "/api/mcp":
             self._json(self.server.service.mcp.status() if self.server.service.mcp else {"configured": 0, "error": self.server.service.mcp_error})
             return
+        if path == "/api/allowlist":
+            query = parse_qs(parsed.query)
+            session_id = (query.get("session_id") or [""])[0].strip()
+            try:
+                self._json(self.server.service.get_allowlist(session_id))
+            except (ValueError, AllowlistError) as exc:
+                self._json({"error": str(exc)}, 400)
+            return
         if path == "/favicon.ico":
             self._serve_static("/favicon.svg")
             return
@@ -415,14 +426,34 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
                 return
             if path == "/api/sessions/rewind":
                 session_id = payload.get("session_id")
-                raw_keep = payload.get("keep_messages")
                 if not isinstance(session_id, str):
                     raise ValueError("session_id 不能为空")
+                raw_user = payload.get("user_index")
+                if raw_user is not None:
+                    try:
+                        user_index = int(raw_user)
+                    except (TypeError, ValueError) as exc:
+                        raise ValueError("user_index 必须是整数") from exc
+                    self._json(self.server.service.rewind_session(session_id, user_index=user_index))
+                    return
+                raw_keep = payload.get("keep_messages")
                 try:
                     keep_messages = int(raw_keep)
                 except (TypeError, ValueError) as exc:
                     raise ValueError("keep_messages 必须是整数") from exc
                 self._json(self.server.service.rewind_session(session_id, keep_messages))
+                return
+            if path == "/api/workspace/restore":
+                task_id = payload.get("task_id")
+                if not isinstance(task_id, str) or not task_id.strip():
+                    raise ValueError("task_id 不能为空")
+                self._json(self.server.service.restore_task_snapshot(task_id.strip()))
+                return
+            if path == "/api/allowlist":
+                session_id = payload.get("session_id")
+                if not isinstance(session_id, str):
+                    raise ValueError("session_id 不能为空")
+                self._json(self.server.service.set_allowlist(session_id, payload))
                 return
             if path == "/api/worktrees":
                 name = payload.get("name")
@@ -439,26 +470,37 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
             self._json({"error": "not found"}, 404)
         except KeyError:
             self._json({"error": "task not found"}, 404)
-        except (ValueError, json.JSONDecodeError, SessionError, WorktreeError) as exc:
+        except (ValueError, json.JSONDecodeError, SessionError, WorktreeError, SnapshotError, AllowlistError) as exc:
             self._json({"error": str(exc)}, 400)
         except Exception as exc:  # noqa: BLE001 - return a stable API error
             self._json({"error": f"agent failed: {type(exc).__name__}: {exc}"}, 500)
 
     def _serve_static(self, path: str) -> None:
         relative = unquote(path.lstrip("/")) or "index.html"
-        target = (STATIC_ROOT / relative).resolve()
-        if not target.is_relative_to(STATIC_ROOT) or not target.is_file():
+        try:
+            accepts_gzip = False
+            for part in self.headers.get("Accept-Encoding", "").split(","):
+                encoding, *parameters = part.strip().lower().split(";")
+                if encoding != "gzip":
+                    continue
+                quality = 1.0
+                for parameter in parameters:
+                    if parameter.strip().startswith("q="):
+                        try:
+                            quality = float(parameter.strip()[2:])
+                        except ValueError:
+                            quality = 0.0
+                accepts_gzip = 0 < quality <= 1
+            content, headers = asset_response(STATIC_ROOT, relative, accept_gzip=accepts_gzip)
+        except (OSError, ValueError):
             self._json({"error": "not found"}, 404)
             return
-        content = target.read_bytes()
-        content_type = mimetypes.guess_type(target.name)[0] or "application/octet-stream"
-        if target.suffix == ".js":
-            content_type = "text/javascript; charset=utf-8"
-        self.send_response(200)
-        self.send_header("Content-Type", content_type)
-        self.send_header("Content-Length", str(len(content)))
-        # This is a local development workbench. Never keep stale JS/CSS/HTML
-        # after a source edit; task state is durable through the API instead.
-        self.send_header("Cache-Control", "no-store")
+        unchanged = self.headers.get("If-None-Match") == headers["ETag"]
+        self.send_response(304 if unchanged else 200)
+        for name, value in headers.items():
+            self.send_header(name, value)
+        if not unchanged:
+            self.send_header("Content-Length", str(len(content)))
         self.end_headers()
-        self.wfile.write(content)
+        if not unchanged:
+            self.wfile.write(content)

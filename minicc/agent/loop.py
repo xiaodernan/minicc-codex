@@ -19,8 +19,9 @@ This is the heart of minicc — the part that does NOT exist in specproof
    focused tests and embedding callers.
 
 Permission: the *should_allow* callback is consulted before every
-write/exec tool call. It receives the tool name and parsed ToolCall;
-returning False produces a 'denied' result.
+write/exec tool call and every network tool (web_search / webfetch).
+It receives the tool name and parsed ToolCall; returning False produces
+a 'denied' result.
 """
 
 from __future__ import annotations
@@ -40,8 +41,9 @@ from ..llm.openai_provider import OpenAICompatibleProvider
 from ..llm.usage import add_usage_totals, cache_summary
 from ..tools.schemas import ToolCall, ToolResult
 from ..tools.registry import ToolRegistry, redact_text
-from .context import compact_with_checkpoint, estimate_tokens, message_chars
+from .context import compact_with_checkpoint, estimate_tokens, message_chars, repair_interrupted_tool_rounds, validate_tool_protocol
 from .state import AgentState, Budget, BudgetExceeded
+from .tool_policy import NETWORK_TOOL_NAMES, is_verification_evidence, tool_requires_authorization
 
 
 # A repeated path is a recovery signal, not an immediate task failure.  The
@@ -62,7 +64,9 @@ MAX_PUBLIC_TOOL_OBSERVATION_CHARS = 900
 MAX_PUBLIC_TOOL_DATA_CHARS = 2400
 VISION_CONTEXT_MARKER = "[持久视觉上下文]"
 WRITE_TOOL_NAMES = frozenset({"write_file", "edit_file", "worktree_create", "worktree_remove"})
-VERIFY_TOOL_NAMES = frozenset({"bash", "git_diff", "git_status", "read_file", "grep"})
+# Inspection tools are not verification. Post-write evidence must come from
+# bash test/lint commands (see ``is_verification_evidence``).
+VERIFY_TOOL_NAMES = frozenset({"bash"})
 
 
 class AgentCancelled(Exception):
@@ -84,6 +88,7 @@ async def chat_with_cancellation(
     timeout_seconds: float | None = None,
 ) -> LLMResponse:
     """Race a model request against cancellation and an optional request deadline."""
+    validate_tool_protocol(messages)
     if cancel_event is None:
         if timeout_seconds is None:
             return await provider.chat(messages=messages, tools=tools, on_delta=on_delta)
@@ -401,6 +406,7 @@ async def run_agent(
     search_failures = 0
     last_reasoning_status: tuple[str, str] | None = None
     verification_required = False
+    soft_wrap_issued = False
     recovery_inspection_required = bool(require_recovery_inspection)
     verification_retries = 0
     last_round_feedback: list[dict[str, Any]] = []
@@ -536,6 +542,14 @@ async def run_agent(
             "vision_context_count": len(persistent_vision_context),
         },
     )
+    repaired_results = repair_interrupted_tool_rounds(messages)
+    if repaired_results:
+        recovery_inspection_required = True
+        emit_trace(
+            "已补全中断轮次的未知结果；继续执行前先核对工作区状态",
+            code="tool_history_recovered",
+            detail={"missing_results": repaired_results},
+        )
     reasoning_status_fn = getattr(provider, "reasoning_status", None)
     protocol_status_fn = getattr(provider, "protocol_status", None)
     if callable(protocol_status_fn):
@@ -575,6 +589,43 @@ async def run_agent(
             result.answer = f"任务未完成：{result.error}"
             emit_trace(result.error, phase="failed", status="error", code="budget_exceeded")
             break
+        if runtime_budget.soft_limit_hit():
+            if not soft_wrap_issued:
+                soft_wrap_issued = True
+                messages.append({
+                    "role": "user",
+                    "content": (
+                        "[执行器提示] 已达到可选软预算上限。请立即给出当前结论、"
+                        "已完成工作和未完成项的摘要，不要再调用工具。"
+                    ),
+                })
+                emit_trace(
+                    "已达到软预算，要求模型先收束再停止",
+                    phase="planning",
+                    code="soft_budget_wrap_up",
+                    detail={
+                        "tokens": runtime_budget.tokens,
+                        "elapsed_seconds": round(runtime_budget.elapsed_seconds(), 3),
+                        "soft_max_tokens": runtime_budget.soft_max_tokens,
+                        "soft_max_duration_seconds": runtime_budget.soft_max_duration_seconds,
+                    },
+                )
+            else:
+                result.answer = (
+                    ("".join(streamed_text).strip() if streamed_text else "")
+                    or result.answer
+                    or "已达到软预算上限，任务已收束。"
+                )
+                emit_trace(
+                    "软预算收束轮次后仍超限，已停止",
+                    phase="summarize",
+                    code="soft_budget_stopped",
+                    detail={
+                        "tokens": runtime_budget.tokens,
+                        "elapsed_seconds": round(runtime_budget.elapsed_seconds(), 3),
+                    },
+                )
+                break
         if cancellation_requested():
             result.cancelled = True
             result.error = "任务已取消"
@@ -863,7 +914,7 @@ async def run_agent(
                     )
                     continue
 
-                if (risk in ("write", "exec") or tc.tool == "web_search") and not allow(tc.tool, tc):
+                if tool_requires_authorization(tc.tool, risk) and not allow(tc.tool, tc):
                     result.denied_tools.append(tc.tool)
                     denied = ToolResult(
                         status="denied",
@@ -873,18 +924,18 @@ async def run_agent(
                     immediate_results[index] = (tc, denied)
                     continue
                 if risk == "readonly":
-                    if tc.tool == "web_search" and search_failures >= SEARCH_FAILURE_LIMIT:
+                    if tc.tool in NETWORK_TOOL_NAMES and search_failures >= SEARCH_FAILURE_LIMIT:
                         immediate_results[index] = (
                             tc,
                             ToolResult(
                                 status="error",
-                                summary="联网搜索熔断：连续失败后已停止重复请求",
-                                output="请改换更具体的关键词，或基于已经取得的项目证据继续；不要重复相同搜索。",
+                                summary="联网工具熔断：连续失败后已停止重复请求",
+                                output="请改换更具体的关键词，或基于已经取得的项目证据继续；不要重复相同的联网请求。",
                                 data={"circuit_open": True, "failures": search_failures},
                                 security_tags=["untrusted", "network"],
                             ),
                         )
-                    elif tc.tool != "web_search" and call_signature in tool_result_cache:
+                    elif tc.tool not in NETWORK_TOOL_NAMES and call_signature in tool_result_cache:
                         cached = deepcopy(tool_result_cache[call_signature])
                         cached.summary = (
                             f"[DUPLICATE_TOOL_CALL] 已复用 {tc.tool} 的最近一次成功结果；"
@@ -935,7 +986,7 @@ async def run_agent(
                 tc, tool_result = item
                 if (
                     registry.risk_of(tc.tool) == "readonly"
-                    and tc.tool != "web_search"
+                    and tc.tool not in NETWORK_TOOL_NAMES
                     and tool_result.status == "ok"
                     and not (tool_result.data or {}).get("duplicate")
                 ):
@@ -961,18 +1012,18 @@ async def run_agent(
 
             for _index in sorted(immediate_results):
                 search_call, search_result = immediate_results[_index]
-                if search_call.tool != "web_search":
+                if search_call.tool not in NETWORK_TOOL_NAMES:
                     continue
                 if search_result.status == "error":
                     search_failures += 1
                     if search_failures == SEARCH_FAILURE_LIMIT:
                         emit_trace(
-                            "联网搜索连续失败，已打开熔断；后续将改换策略而不是原地重试",
+                            "联网工具连续失败，已打开熔断；后续将改换策略而不是原地重试",
                             phase="planning",
                             status="error",
                             code="search_circuit_open",
                         )
-                else:
+                elif search_result.status == "ok":
                     search_failures = 0
 
             successful_writes = any(
@@ -980,7 +1031,7 @@ async def run_agent(
                 for call, tool_result in immediate_results.values()
             )
             successful_verification = any(
-                call.tool in VERIFY_TOOL_NAMES and tool_result.status == "ok"
+                is_verification_evidence(call.tool, call.arguments, tool_result.status)
                 for call, tool_result in immediate_results.values()
             )
             recovery_inspection_observed = any(
@@ -1045,7 +1096,7 @@ async def run_agent(
                         "tools": [
                             call.tool
                             for call, tool_result in immediate_results.values()
-                            if call.tool in VERIFY_TOOL_NAMES and tool_result.status == "ok"
+                            if is_verification_evidence(call.tool, call.arguments, tool_result.status)
                         ],
                     },
                 )
@@ -1235,6 +1286,23 @@ async def run_agent(
                 status="error",
                 code="recovery_guard",
                 detail={"turn": turn, "retry_limit": STAGNATION_REPLAN_LIMIT},
+            )
+            break
+
+        if runtime_budget.soft_limit_hit() and not soft_wrap_issued:
+            messages.append(assistant_msg(content=text or None))
+            continue
+        if runtime_budget.soft_limit_hit() and soft_wrap_issued:
+            result.answer = text or "(模型返回空回复)"
+            messages.append(assistant_msg(content=result.answer))
+            emit_trace(
+                "软预算收束轮次后仍超限，已停止",
+                phase="summarize",
+                code="soft_budget_stopped",
+                detail={
+                    "tokens": runtime_budget.tokens,
+                    "elapsed_seconds": round(runtime_budget.elapsed_seconds(), 3),
+                },
             )
             break
 

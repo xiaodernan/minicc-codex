@@ -27,12 +27,12 @@ DEFAULT_PROVIDER_RETRIES = 4
 DEFAULT_TASK_RECOVERY_RETRIES = 2
 DEFAULT_MAX_DURATION_SECONDS: float | None = None
 DEFAULT_MAX_TOOL_CALLS: int | None = None
-DEFAULT_SANDBOX_MODE = "host"
+DEFAULT_SANDBOX_MODE = "auto"
 DEFAULT_SANDBOX_IMAGE = "python:3.11-slim"
 DEFAULT_CONTEXT_WINDOW_TOKENS = 300_000
 DEFAULT_MAX_CONCURRENT_TASKS = 8
 DEFAULT_REASONING_EFFORT = "high"
-REASONING_EFFORTS = frozenset({"low", "mid", "high", "xhigh", "max"})
+REASONING_EFFORTS = frozenset({"low", "mid", "high", "xhigh", "max", "ultra"})
 DEFAULT_MAX_REPAIR_ATTEMPTS = 2
 DEFAULT_TASK_HISTORY_LIMIT = 24
 DEFAULT_TASK_HISTORY_MAX_AGE_DAYS = 30
@@ -52,7 +52,7 @@ class ConfigError(RuntimeError):
 
 
 def normalize_reasoning_effort(value: str | None, *, default: str = DEFAULT_REASONING_EFFORT) -> str:
-    """Normalize UI/env aliases to the five provider effort levels."""
+    """Normalize UI/env aliases to the supported provider effort levels."""
     raw = str(value or default).strip().lower().replace("_", "-").replace(" ", "-")
     aliases = {
         "standard": "mid",
@@ -67,7 +67,7 @@ def normalize_reasoning_effort(value: str | None, *, default: str = DEFAULT_REAS
     }
     normalized = aliases.get(raw, raw)
     if normalized not in REASONING_EFFORTS:
-        raise ValueError(f"reasoning effort 非法: {value!r} (low|mid|high|xhigh|max)")
+        raise ValueError(f"reasoning effort 非法: {value!r} (low|mid|high|xhigh|max|ultra)")
     return normalized
 
 
@@ -135,6 +135,10 @@ class Config:
     # set, /api/workspace/select may only switch to one of these roots or a
     # subdirectory of them.
     workspace_roots: tuple[Path, ...] = ()
+    # Optional wrap-up-then-stop budgets. None keeps the historical
+    # "no task-level token/duration cap" behavior.
+    soft_max_tokens: int | None = None
+    soft_max_duration_seconds: float | None = None
 
     def describe(self) -> str:
         key = self.api_key
@@ -191,12 +195,42 @@ def load_config(
     if resolved_mode not in ("auto", "native", "envelope"):
         raise ConfigError(f"MINICC_TOOL_MODE 非法: {resolved_mode!r} (auto|native|envelope)")
 
-    # Task-level execution budgets remain unlimited.  Keep these legacy
+    # Hard task-level execution budgets remain unlimited.  Keep these legacy
     # fields for snapshot and API compatibility, but ignore old environment
-    # variables so stale configuration cannot truncate a task.
+    # variables so stale configuration cannot truncate a task. Optional *soft*
+    # caps (wrap-up then stop) are opt-in via MINICC_SOFT_MAX_*.
     max_turns = None
     max_duration_seconds = None
     max_tool_calls = None
+
+    def _optional_positive_int(env_name: str, file_key: str) -> int | None:
+        raw = pick(None, env_name, file_key, "").strip()
+        if not raw or raw.lower() in {"0", "none", "off", "unlimited"}:
+            return None
+        try:
+            value = int(raw)
+        except ValueError as exc:
+            raise ConfigError(f"{env_name} 不是整数: {raw!r}") from exc
+        if value <= 0:
+            return None
+        return value
+
+    def _optional_positive_float(env_name: str, file_key: str) -> float | None:
+        raw = pick(None, env_name, file_key, "").strip()
+        if not raw or raw.lower() in {"0", "none", "off", "unlimited"}:
+            return None
+        try:
+            value = float(raw)
+        except ValueError as exc:
+            raise ConfigError(f"{env_name} 不是数字: {raw!r}") from exc
+        if not math.isfinite(value) or value <= 0:
+            return None
+        return value
+
+    soft_max_tokens = _optional_positive_int("MINICC_SOFT_MAX_TOKENS", "soft_max_tokens")
+    soft_max_duration_seconds = _optional_positive_float(
+        "MINICC_SOFT_MAX_DURATION_SECONDS", "soft_max_duration_seconds"
+    )
     resolved_protocol = pick(None, "MINICC_LLM_PROTOCOL", "llm_protocol", DEFAULT_LLM_PROTOCOL).strip().lower()
     aliases = {"chat": "chat_completions", "completions": "chat_completions", "response": "responses"}
     resolved_protocol = aliases.get(resolved_protocol, resolved_protocol)
@@ -347,4 +381,6 @@ def load_config(
         fallback_models=tuple(fallback_models),
         auto_resume_on_start=auto_resume_on_start,
         task_executor=task_executor,
+        soft_max_tokens=soft_max_tokens,
+        soft_max_duration_seconds=soft_max_duration_seconds,
     )

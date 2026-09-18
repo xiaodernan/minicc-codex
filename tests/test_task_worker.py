@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+import textwrap
 import time
 from pathlib import Path
 from types import SimpleNamespace
@@ -72,7 +73,7 @@ def test_worker_subprocess_completes_and_persists(tmp_path: Path) -> None:
     snapshot = store.get("task-worker-e2e")
     assert snapshot is not None
     assert snapshot["status"] == "completed"
-    assert "worker-fake-answer" in str((snapshot.get("result") or {}).get("answer"))
+    assert "fake-provider-answer" in str((snapshot.get("result") or {}).get("answer"))
     assert snapshot["heartbeat_at_epoch"] > 0
 
 
@@ -134,9 +135,97 @@ def test_manager_process_mode_runs_task_in_subprocess(
             time.sleep(1.0)
         assert snapshot is not None
         assert snapshot["status"] == "completed", snapshot.get("error")
-        assert "worker-fake-answer" in str(snapshot.get("answer") or snapshot.get("stream_text") or "")
+        assert "fake-provider-answer" in str(snapshot.get("answer") or snapshot.get("stream_text") or "")
         # The durable store holds the worker's own terminal snapshot too.
         stored = TaskStore(store_path).get(task_id)
         assert stored is not None and stored["status"] == "completed"
     finally:
         service.shutdown()
+
+
+def test_worker_survives_host_restart_and_continues_long_stream(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Restart the actual host while its actual worker is inside a model call."""
+    from minicc.task_manager import TaskManager
+    from minicc.web import AgentService
+
+    monkeypatch.setenv("MINICC_FAKE_PROVIDER", "1")
+    release_file = tmp_path / "release-provider"
+    started_file = tmp_path / "provider-starts"
+    bootstrap = tmp_path / "controlled_worker.py"
+    bootstrap.write_text(textwrap.dedent(f"""
+        import asyncio
+        import runpy
+        from pathlib import Path
+        from minicc.llm.fake import FakeProvider
+
+        original_chat = FakeProvider.chat
+        async def controlled_chat(self, messages, tools, on_delta=None):
+            if tools is not None:
+                with Path({str(started_file)!r}).open("a", encoding="utf-8") as handle:
+                    handle.write("started\\n")
+                if on_delta:
+                    on_delta("a" * 16050)
+                while not Path({str(release_file)!r}).exists():
+                    await asyncio.sleep(0.05)
+                if on_delta:
+                    on_delta("after-host-restart-")
+            return await original_chat(self, messages, tools, on_delta)
+
+        FakeProvider.chat = controlled_chat
+        runpy.run_module("minicc.task_worker", run_name="__main__")
+    """), encoding="utf-8")
+    original_command = TaskManager._worker_command
+
+    def controlled_command(self, *args, **kwargs):
+        command = original_command(self, *args, **kwargs)
+        return [command[0], str(bootstrap), *command[3:]]
+
+    monkeypatch.setattr(TaskManager, "_worker_command", controlled_command)
+    store = TaskStore(tmp_path / "tasks.sqlite3")
+    config = _service_config(tmp_path, auto_resume_on_start=True)
+    first = AgentService(tmp_path, config, task_store=store)
+    replacement = None
+    task_id = ""
+
+    def wait_until(predicate, timeout=20):
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            value = predicate()
+            if value:
+                return value
+            time.sleep(0.05)
+        raise AssertionError("worker state did not reach the expected checkpoint")
+
+    try:
+        task_id = first.tasks.submit({
+            "message": "Summarize this workspace", "session_id": "restart-session",
+            "workspace_path": str(tmp_path), "allow_changes": False,
+        })["task_id"]
+        wait_until(lambda: (store.get(task_id) or {}).get("stream_length", 0) >= 16050)
+        original = store.get(task_id)
+        original_owner = store.get_lease(task_id)["owner"]
+        first.shutdown()
+        assert store.get(task_id)["status"] == "running"
+        assert not (tmp_path / ".minicc" / "cancel" / f"{task_id}.flag").exists()
+
+        replacement = AgentService(tmp_path, config, task_store=store)
+        assert list(replacement.tasks.tasks) == [task_id]
+        assert replacement.tasks.get(task_id)["status"] == "running"
+        assert store.get_lease(task_id)["owner"] == original_owner
+        assert store.get(task_id)["worker_pid"] == original["worker_pid"]
+
+        release_file.touch()
+        wait_until(lambda: replacement.tasks.get(task_id)["status"] in {"completed", "failed", "cancelled"})
+        final = replacement.tasks.get(task_id)
+        assert final["status"] == "completed", final.get("error")
+        assert final["stream_length"] > 16050
+        assert "after-host-restart-fake-provider-answer" in final["stream_text"]
+        assert started_file.read_text(encoding="utf-8").splitlines() == ["started"]
+        assert store.get(task_id)["status"] == "completed"
+    finally:
+        release_file.touch()
+        first.shutdown()
+        if replacement is not None:
+            replacement.shutdown()

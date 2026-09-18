@@ -1,0 +1,38 @@
+{
+  "name": "minicc",
+  "displayName": "minicc",
+  "description": "Open the local minicc workbench and send the current editor selection.",
+  "version": "0.1.0",
+  "publisher": "minicc",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": ["Other"],
+  "activationEvents": [
+    "onCommand:minicc.openWorkbench",
+    "onCommand:minicc.sendSelection"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "minicc.openWorkbench",
+        "title": "minicc: Open Workbench"
+      },
+      {
+        "command": "minicc.sendSelection",
+        "title": "minicc: Send Selection"
+      }
+    ],
+    "configuration": {
+      "title": "minicc",
+      "properties": {
+        "minicc.workbenchUrl": {
+          "type": "string",
+          "default": "http://127.0.0.1:8765",
+          "description": "Local minicc workbench URL"
+        }
+      }
+    }
+  }
+}

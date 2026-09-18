@@ -27,14 +27,17 @@ extracted as strong extra signals.
 
 from __future__ import annotations
 
+import os
 import re
+import threading
 import time
+from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path
 
 
-SKIP_DIRS = {".git", ".venv", "node_modules", "__pycache__", "output", "tmp", "data", ".minicc"}
-TEXT_SUFFIXES = {".py", ".js", ".ts", ".tsx", ".jsx", ".css", ".html", ".json", ".md", ".yaml", ".yml"}
+SKIP_DIRS = {".git", ".venv", "venv", "node_modules", "__pycache__", "output", "tmp", "data", ".minicc", "dist", "build", "coverage"}
+TEXT_SUFFIXES = {".py", ".js", ".ts", ".tsx", ".jsx", ".mjs", ".cjs", ".css", ".html", ".json", ".md", ".yaml", ".yml", ".toml", ".go", ".rs", ".java", ".sql", ".vue", ".svelte"}
 SECRET_FILENAMES = {".env", ".env.local"}
 JS_SUFFIXES = {".js", ".ts", ".tsx", ".jsx", ".mjs", ".cjs"}
 
@@ -57,7 +60,8 @@ W_PATH_PATTERN_EXACT = 12.0    # query names the exact indexed relative path
 W_PATH_PATTERN_BASENAME = 8.0  # query names the file, e.g. "view.py"
 W_PATH_PATTERN_EXT = 3.0       # query mentions the suffix, e.g. ".py"
 
-MAX_CODE_SYMBOLS = 6           # def/class/function/const names kept per file
+MAX_CODE_SYMBOLS = 256         # bounded search coverage, including later definitions
+MAX_DISPLAY_SYMBOLS = 10       # keep prompt evidence concise
 MAX_MARKER_SYMBOLS = 4         # TODO/FIXME annotations kept per file
 MAX_SYMBOL_TERM_MATCHES = 4    # symbol bonus capped per query
 MAX_PATH_TERM_MATCHES = 6      # path bonus capped per query
@@ -72,7 +76,7 @@ JS_SYMBOL_RE = re.compile(
     r"|\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)"
 )
 MARKER_RE = re.compile(r"\b(TODO|FIXME)\b[:\s]*(.{0,60})", re.I)
-FAILURE_RE = re.compile(r"(?:FAILED|ERROR)\s+([\w./:-]+)", re.I)
+FAILURE_RE = re.compile(r"^\s*(?:FAILED|ERROR)\s+([\w./:-]+)", re.M)
 
 # --- Query tokenization -----------------------------------------------------
 _CJK_RUN_RE = re.compile(r"[\u4e00-\u9fff]+")
@@ -265,7 +269,10 @@ def _score_record(record: _FileRecord, plan: _QueryPlan, now: float) -> tuple[Ev
         score += W_PATH_PATTERN_EXT
         reasons.append("suffix")
 
-    matched = bool(filename_terms or path_terms or content_terms or symbol_terms)
+    matched = bool(filename_terms or path_terms or content_terms or symbol_terms or score)
+    # Freshness is a tie breaker, never evidence of relevance on its own.
+    if not matched and not record.is_guidance:
+        return None
     if record.is_guidance:
         if matched:
             score += W_GUIDANCE
@@ -304,7 +311,7 @@ def _score_record(record: _FileRecord, plan: _QueryPlan, now: float) -> tuple[Ev
             path=record.rel,
             score=round(score, 3),
             reason="+".join(reasons) if reasons else "content",
-            symbols=record.symbols,
+            symbols=tuple(sorted(record.symbols, key=lambda symbol: not any(term in symbol.casefold() for term in plan.terms))[:MAX_DISPLAY_SYMBOLS]),
             test_failures=record.failures,
         ),
         matched,
@@ -312,12 +319,16 @@ def _score_record(record: _FileRecord, plan: _QueryPlan, now: float) -> tuple[Ev
 
 
 class LocalEvidenceIndex:
-    def __init__(self, workspace: Path, *, max_files: int = 240, max_bytes: int = 900_000) -> None:
+    def __init__(self, workspace: Path, *, max_files: int = 1200, max_bytes: int = 900_000, refresh_interval: float = 1.0) -> None:
         self.workspace = workspace.resolve()
         self.max_files = max(1, max_files)
         self.max_bytes = max(10_000, max_bytes)
         self._records: tuple[_FileRecord, ...] = ()
         self._stats: dict[str, object] | None = None
+        self._record_cache: dict[str, tuple[tuple[int, int], _FileRecord]] = {}
+        self._refresh_interval = max(0.0, refresh_interval)
+        self._checked_at = 0.0
+        self._lock = threading.RLock()
 
     def search(self, query: str, *, limit: int = 8) -> list[EvidenceHit]:
         self._ensure_built()
@@ -350,28 +361,60 @@ class LocalEvidenceIndex:
         return dict(self._stats or {})
 
     def _ensure_built(self) -> None:
-        if self._stats is not None:
-            return
+        with self._lock:
+            if self._stats is not None and time.monotonic() - self._checked_at < self._refresh_interval:
+                return
+            self._refresh()
+
+    def refresh(self) -> dict[str, object]:
+        """Refresh changed files immediately; unchanged records are reused."""
+        with self._lock:
+            self._refresh()
+            return dict(self._stats or {})
+
+    def _refresh(self) -> None:
         start = time.perf_counter()
         records: list[_FileRecord] = []
         symbols_extracted = 0
+        cache: dict[str, tuple[tuple[int, int], _FileRecord]] = {}
+        rebuilt = 0
         for path, rel in self._files():
-            record = self._build_record(path, rel)
+            try:
+                stat = path.stat()
+            except OSError:
+                continue
+            signature = (stat.st_mtime_ns, stat.st_size)
+            previous = self._record_cache.get(rel)
+            if previous and previous[0] == signature:
+                record = previous[1]
+            else:
+                record = self._build_record(path, rel)
+                rebuilt += 1
             if record is None:
                 continue
+            cache[rel] = (signature, record)
             symbols_extracted += len(record.symbols)
             records.append(record)
+        self._checked_at = time.monotonic()
+        if self._stats is not None and cache == self._record_cache:
+            self._stats = {**self._stats, "files_rebuilt": 0}
+            return
         elapsed_ms = (time.perf_counter() - start) * 1000.0
+        self._record_cache = cache
         self._records = tuple(records)
         self._stats = {
             "files_indexed": len(records),
             "symbols_extracted": symbols_extracted,
             "last_build_ms": round(elapsed_ms, 2),
+            "files_rebuilt": rebuilt,
+            "file_limit": self.max_files,
+            "truncated": len(records) >= self.max_files,
         }
 
     def _build_record(self, path: Path, rel: str) -> _FileRecord | None:
         try:
-            text = path.read_text(encoding="utf-8", errors="ignore")
+            with path.open("r", encoding="utf-8", errors="ignore") as stream:
+                text = stream.read(min(self.max_bytes, _SNAPSHOT_CHARS))
         except OSError:
             return None
         head = text[: self.max_bytes]
@@ -398,31 +441,55 @@ class LocalEvidenceIndex:
 
         guidance: list[tuple[Path, str]] = []
         regular: list[tuple[Path, str]] = []
-        scanned = 0
-        # Bound the directory walk so pathological trees stay cheap.
-        scan_cap = max(4_000, self.max_files * 8)
-        for path in self.workspace.rglob("*"):
-            if scanned >= scan_cap:
-                break
-            if not path.is_file():
-                continue
-            scanned += 1
-            if path.name in SECRET_FILENAMES or path.suffix.casefold() not in TEXT_SUFFIXES:
+        # Guidance is discovered separately so pruning .minicc never loses it.
+        for parent in (self.workspace, self.workspace / ".minicc"):
+            if parent.is_symlink():
                 continue
             try:
+                for path in parent.iterdir():
+                    rel = path.relative_to(self.workspace).as_posix()
+                    if rel.casefold() in GUIDANCE_PATHS and path.is_file() and not path.is_symlink():
+                        guidance.append((path, rel))
+            except OSError:
+                pass
+        directories = 0
+        # Prune before descent: cached browsers, git objects and dependencies
+        # must never consume the source-file budget. Prefer code over archives.
+        for directory, dirs, files in os.walk(self.workspace, followlinks=False):
+            directories += 1
+            if directories > max(4_000, self.max_files * 4):
+                break
+            dirs[:] = sorted(
+                (name for name in dirs if name.casefold() not in SKIP_DIRS and not name.startswith(".")
+                 and not (Path(directory) / name).is_symlink()),
+                key=lambda name: (name.casefold() in {"docs", "tests", "benchmarks", "scripts"}, name.casefold()),
+            )
+            for name in sorted(files):
+                path = Path(directory) / name
+                if name.startswith(".") or path.suffix.casefold() not in TEXT_SUFFIXES or path.is_symlink():
+                    continue
                 rel = path.relative_to(self.workspace).as_posix()
-            except ValueError:
-                continue
-            rel_cf = rel.casefold()
-            if rel_cf in GUIDANCE_PATHS:
-                # Guidance files bypass skip rules (.minicc) and max_files.
-                guidance.append((path, rel))
-                continue
-            if any(part in SKIP_DIRS for part in rel.split("/")):
-                continue
-            if len(regular) < self.max_files:
+                if rel.casefold() in GUIDANCE_PATHS:
+                    continue
                 regular.append((path, rel))
-        return guidance + regular
+                if len(regular) >= self.max_files:
+                    return sorted(guidance, key=lambda item: item[1]) + regular
+        return sorted(guidance, key=lambda item: item[1]) + regular
 
 
-__all__ = ["EvidenceHit", "LocalEvidenceIndex"]
+_INDEX_CACHE: OrderedDict[str, LocalEvidenceIndex] = OrderedDict()
+_INDEX_CACHE_LOCK = threading.Lock()
+
+
+def get_evidence_index(workspace: Path) -> LocalEvidenceIndex:
+    """Reuse bounded, incrementally refreshed indexes across chat requests."""
+    key = str(workspace.resolve())
+    with _INDEX_CACHE_LOCK:
+        index = _INDEX_CACHE.pop(key, None) or LocalEvidenceIndex(workspace)
+        _INDEX_CACHE[key] = index
+        while len(_INDEX_CACHE) > 8:
+            _INDEX_CACHE.popitem(last=False)
+        return index
+
+
+__all__ = ["EvidenceHit", "LocalEvidenceIndex", "get_evidence_index"]

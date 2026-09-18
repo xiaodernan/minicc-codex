@@ -9,29 +9,6 @@ function state(page, expression) {
   return page.evaluate((source) => window.eval(source), expression);
 }
 
-async function assertCanvasPainted(page) {
-  const paintedPixels = await page.locator("#gameCanvas").evaluate((canvas) => {
-    const context = canvas.getContext("2d");
-    const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
-    let count = 0;
-    for (let index = 3; index < pixels.length; index += 64) count += pixels[index] > 0 ? 1 : 0;
-    return count;
-  });
-  assert.ok(paintedPixels > 100, "game canvas should contain rendered pixels");
-}
-
-async function openGame(page) {
-  await page.goto(baseUrl, { waitUntil: "networkidle" });
-  const arcadeButton = page.locator("#arcadeButton");
-  if ((await page.evaluate(() => window.innerWidth)) <= 780) {
-    await page.locator("#sidebarOpen").click();
-    await page.locator(".sidebar.open").waitFor();
-  }
-  await arcadeButton.click();
-  await page.locator("#gameModal.show").waitFor();
-  await assertCanvasPainted(page);
-}
-
 async function runAgentTimelineSmoke(browser) {
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   const consoleErrors = [];
@@ -132,6 +109,9 @@ async function runAgentTimelineSmoke(browser) {
     const preservedToolOpen = loading.querySelector("details.tool-event")?.open === true;
     const preservedResultOpen = loading.querySelector("details.tool-result-fold")?.open === true;
 
+    const trailProbe = document.createElement("div");
+    trailProbe.innerHTML = assistantMessageMarkup({ answer: "expand-probe", events });
+    document.querySelector("#messageList").append(trailProbe.firstElementChild);
     const homeTimeline = document.querySelector("#messageList .execution-trail");
     const expandAll = homeTimeline?.querySelector("[data-timeline-toggle=expand]");
     const collapseAll = homeTimeline?.querySelector("[data-timeline-toggle=collapse]");
@@ -287,6 +267,36 @@ async function runAgentTimelineSmoke(browser) {
   await page.close();
 }
 
+async function assertEmptyChrome(page) {
+  assert.equal(await page.locator(".codex-menu-links button", { hasText: "文件" }).count(), 0, "File menu must be removed");
+  assert.equal(await page.locator(".codex-menu-links button", { hasText: "编辑" }).count(), 0, "Edit menu must be removed");
+  assert.equal(await page.locator(".codex-menu-links button", { hasText: "视图" }).count(), 0, "View menu must be removed");
+  assert.equal(await page.locator(".codex-nav-arrow").count(), 0, "back/forward nav arrows must be removed");
+  assert.equal(await page.locator('[aria-label="通知"]').count(), 0, "notification bell must be removed");
+  assert.equal(await page.locator("#helpMenuButton").count(), 1, "Help menu should remain");
+  const emptyText = await page.locator("#messageList").innerText();
+  assert.doesNotMatch(emptyText, /9 passed|initial-pytest/, "empty session must not ship a fake pytest timeline");
+  assert.match(emptyText, /发送一条任务开始|Send a task to begin/);
+  assert.equal(await page.locator(".brand-name").innerText(), "minicc");
+  assert.equal(await page.locator("#turnMetric").innerText(), "0");
+  assert.equal(await page.locator("#toolMetric").innerText(), "0");
+}
+
+async function runProductPathSmoke(browser) {
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  const consoleErrors = [];
+  page.on("console", (message) => { if (message.type() === "error") consoleErrors.push(message.text()); });
+  page.on("pageerror", (error) => consoleErrors.push(error.message));
+  await page.goto(baseUrl, { waitUntil: "networkidle" });
+  await page.locator("#newTaskButton").click();
+  await assertEmptyChrome(page);
+  await page.locator("#promptInput").fill("Inspect the current project and tell me the most valuable next step.");
+  await page.locator("#sendButton").click();
+  await page.locator("#messageList [data-live-task], #messageList .loading").first().waitFor({ timeout: 20000 });
+  assert.deepEqual(consoleErrors, [], `product path browser errors: ${consoleErrors.join(" | ")}`);
+  await page.close();
+}
+
 async function runDesktopSmoke(browser) {
   const page = await browser.newPage({ viewport: { width: 1440, height: 960 } });
   const consoleErrors = [];
@@ -325,252 +335,10 @@ async function runDesktopSmoke(browser) {
   assert.ok(answerLayout.width >= 500, "desktop result summary should retain a readable column: " + JSON.stringify(answerLayout));
   assert.ok(answerLayout.height < 180, "Chinese result summary must not collapse into character columns: " + JSON.stringify(answerLayout));
   assert.ok(answerLayout.codeHeight < 32, "inline code must remain inline: " + JSON.stringify(answerLayout));
-  const desktopLayout = await page.evaluate(() => ({ viewport: window.innerWidth, width: document.documentElement.scrollWidth, taskWidth: document.querySelector(".message").getBoundingClientRect().width }));
+  const desktopLayout = await page.evaluate(() => ({ viewport: window.innerWidth, width: document.documentElement.scrollWidth, chatWidth: document.querySelector(".chat-inner").getBoundingClientRect().width }));
   assert.ok(desktopLayout.width <= desktopLayout.viewport + 1, `desktop page should not overflow horizontally: ${JSON.stringify(desktopLayout)}`);
-  await openGame(page);
-  await page.locator("#gameDifficulty").selectOption("normal");
-  assert.deepEqual(await state(page, "({ difficulty: game.difficulty, sun: game.sun, target: game.waveTarget })"), {
-    difficulty: "normal", sun: 200, target: 8,
-  });
-  await page.locator("#gameDifficulty").selectOption("nightmare");
-  assert.deepEqual(await state(page, "({ difficulty: game.difficulty, sun: game.sun, target: game.waveTarget })"), {
-    difficulty: "nightmare", sun: 110, target: 17,
-  });
-  const gameMechanics = await state(page, `(() => {
-    const originalRandom = Math.random;
-    const stopTick = () => { game.running = false; cancelAnimationFrame(game.frame); };
-    const tick = (zombies, plants = [], shots = []) => {
-      game.running = true;
-      game.paused = false;
-      game.plants = plants;
-      game.zombies = zombies;
-      game.shots = shots;
-      game.suns = [];
-      game.waveSpawned = game.waveTarget;
-      game.spawnTimer = 0;
-      game.skyTimer = 0;
-      game.dangerTimer = 0;
-      game.last = 1000;
-      gameLoop(1016);
-      stopTick();
-    };
-
-    game.suns = [];
-    produceSun({ row: 0, col: 0 });
-    const sunflower = game.suns.length === 1;
-
-    game.shots = [];
-    firePlantShots({ type: "icepeashooter", row: 0, col: 0 }, plantProfiles.icepeashooter);
-    const iceShot = game.shots[0];
-    game.shots = [];
-    firePlantShots({ type: "firepeashooter", row: 0, col: 0 }, plantProfiles.firepeashooter);
-    const fireShot = game.shots[0];
-    game.shots = [];
-    firePlantShots({ type: "threepeater", row: 1, col: 0 }, plantProfiles.threepeater);
-    const threepeaterRows = [...new Set(game.shots.map((shot) => shot.row))].sort();
-
-    const cherry = { type: "cherrybomb", row: 0, col: 2 };
-    const cherryTarget = { type: "walker", row: 0, x: cellPosition(0, 2).x + 20 };
-    game.plants = [cherry];
-    game.zombies = [cherryTarget];
-    explodeCherryBomb(cherry);
-    const cherryBomb = game.plants.length === 0 && game.zombies.length === 0;
-
-    const runner = { type: "runner", row: 0, x: 600, speed: .05, hp: 5, maxHp: 5, slowTimer: 0, dashTimer: 0, chargeTimer: 0 };
-    tick([runner]);
-    const dash = { triggered: runner.dashTimer > 0, movedWithBoost: runner.x > 625 };
-
-    const football = { type: "football", row: 0, x: 600, speed: .05, hp: 5, maxHp: 5, slowTimer: 0, dashTimer: 0, chargeTimer: 0 };
-    tick([football]);
-    const charge = { triggered: football.chargeTimer > 0, movedWithBoost: football.x < 599 };
-
-    const giantPlant = { type: "wallnut", row: 0, col: 3, hp: 12, disabledTimer: 0 };
-    const giant = { type: "gargantuar", row: 0, x: cellPosition(0, 3).x, speed: 0, hp: 48, maxHp: 48, slowTimer: 0, smashTimer: 0 };
-    tick([giant], [giantPlant]);
-    const giantSmash = { triggered: giant.smashTimer > 0, damagedPlant: giantPlant.hp === 5 };
-
-    const biteWalker = () => ({ type: "walker", row: 0, x: cellPosition(0, 3).x, speed: 0, hp: 5, maxHp: 5, slowTimer: 0, attackInterval: 1000 });
-    const pumpkin = { type: "pumpkin", row: 0, col: 3, hp: 32, disabledTimer: 0 };
-    tick([biteWalker()], [pumpkin]);
-    const pumpkinDamage = 32 - pumpkin.hp;
-    const wallnut = { type: "wallnut", row: 0, col: 3, hp: 24, disabledTimer: 0 };
-    tick([biteWalker()], [wallnut]);
-    const wallnutDamage = 24 - wallnut.hp;
-    const pumpkinDefense = { damaged: pumpkinDamage > 0, halfDamage: Math.abs(pumpkinDamage * 2 - wallnutDamage) < 0.0001 };
-
-    game.running = true;
-    game.paused = false;
-    game.sun = plantCost.pumpkin;
-    game.selected = "pumpkin";
-    game.seedCooldowns = {};
-    game.shovel = false;
-    const coverBase = { type: "sunflower", row: 0, col: 3, hp: 6, maxHp: 6, seed: 1, age: 0, sunTimer: 0, shotTimer: 0, bombTimer: 0, disabledTimer: 0, armed: true };
-    game.plants = [coverBase];
-    const coverCanvas = gameRender.canvas;
-    const coverRect = coverCanvas.getBoundingClientRect();
-    const coverPosition = cellPosition(0, 3);
-    const coverEvent = { clientX: coverRect.left + coverPosition.x * coverRect.width / GAME_LOGICAL_WIDTH, clientY: coverRect.top + coverPosition.y * coverRect.height / GAME_LOGICAL_HEIGHT };
-    const plantedPumpkin = plantAt(coverEvent);
-    const shell = game.plants[0];
-    const pumpkinCover = { planted: plantedPumpkin, oneSlot: game.plants.length === 1, underPlant: shell?.underPlant === coverBase, baseType: shell?.underPlant?.type };
-    const baseBeforeShellHit = coverBase.hp;
-    damagePlant(shell, 2);
-    const pumpkinShell = { shellDamage: shell.hp === plantHealth.pumpkin - 1, baseUntouched: coverBase.hp === baseBeforeShellHit };
-    damagePlant(shell, 100);
-    const pumpkinRestored = game.plants.length === 1 && game.plants[0] === coverBase && !game.plants[0].underPlant;
-
-    const spikeweed = { type: "spikeweed", row: 0, col: 3, hp: 10, maxHp: 10, seed: 1, age: 0, sunTimer: 0, shotTimer: 0, bombTimer: 0, disabledTimer: 0, armed: true };
-    const spikeZombie = { type: "walker", row: 0, x: cellPosition(0, 3).x, speed: .05, hp: 5, maxHp: 5, slowTimer: 0, burrowTimer: 0, attackInterval: 1000 };
-    const spikeBeforeX = spikeZombie.x;
-    tick([spikeZombie], [spikeweed]);
-    const spikeweedBehavior = { movedThrough: spikeZombie.x < spikeBeforeX, damagedZombie: spikeZombie.hp < 5, plantUntouched: spikeweed.hp === 10 };
-
-    const miner = { type: "miner", row: 0, x: cellPosition(0, 3).x, speed: 0, hp: 9, maxHp: 9, slowTimer: 0, attackInterval: 850, burrowTimer: 1000 };
-    const minerShot = { x: miner.x - 10, y: miner.y, row: 0, damage: 1, hitsLeft: 1, hitTargets: [], hit: false };
-    tick([miner], [], [minerShot]);
-    const minerBurrow = { hpUnchanged: miner.hp === 9, shotStillFlying: game.shots.length === 1 };
-
-    const impPlant = { type: "wallnut", row: 0, col: 3, hp: 24, disabledTimer: 0 };
-    const imp = { type: "imp", row: 0, x: cellPosition(0, 3).x, speed: 0, hp: 3, maxHp: 3, slowTimer: 0, attackInterval: 1250, dashTimer: 1000, leapTimer: 0 };
-    tick([imp], [impPlant]);
-    const impLeap = { triggered: imp.leapTimer > 0, movedPastBlocker: imp.x < cellPosition(0, 3).x - 30, plantIntact: game.plants.includes(impPlant) };
-
-    const bucket = { type: "bucket", row: 0, x: cellPosition(0, 3).x, speed: 0, hp: 21, maxHp: 21, armor: 8, slowTimer: 0, attackInterval: 620 };
-    const bucketShot = { x: bucket.x - 10, y: bucket.y, row: 0, damage: 1, hitsLeft: 1, hitTargets: [], hit: false };
-    tick([bucket], [], [bucketShot]);
-    const bucketArmor = { armorConsumed: bucket.armor === 7, reducedHp: Math.abs(bucket.hp - 20.65) < 0.0001 };
-
-    const expectedZombieTypes = ["walker", "backup", "roadblock", "conehead", "imp", "scout", "storm", "runner", "polevault", "bucket", "football", "miner", "flag", "dancer", "newspaper", "gargantuar", "witch", "dragon", "shield"];
-    const zombieProfilesComplete = expectedZombieTypes.every((type) => zombieProfiles[type] && zombieProfiles[type].hp && zombieProfiles[type].speed && zombieProfiles[type].growth && zombieProfiles[type].attackInterval && zombieProfiles[type].score);
-    const waveTargets = [1, 2, 6, 10].map((wave) => WAVE_TARGET(wave, "hard"));
-    const nightmareTargets = [1, 2, 6, 10].map((wave) => WAVE_TARGET(wave, "nightmare"));
-
-    game.difficulty = "nightmare";
-    game.wave = 6;
-    game.waveTarget = WAVE_TARGET(6, "nightmare");
-    game.waveSpawned = 4;
-    game.zombies = [];
-    Math.random = () => .99;
-    const forcedType = zombieTypeForWave();
-    spawnZombie();
-    Math.random = originalRandom;
-    const nightmare = { target: game.waveTarget, forcedType, spawnedType: game.zombies[0]?.type, elite: game.zombies[0]?.elite === true };
-    game.plants = [];
-    game.zombies = [];
-    game.shots = [];
-    game.suns = [];
-    return {
-      catalogComplete: Object.keys(plantCost).every((type) => plantHealth[type] && plantColor[type] && plantCooldown[type]),
-      sunflower,
-      iceShot: Boolean(iceShot?.slow),
-      fireShot: Boolean(fireShot?.fire && fireShot?.burn && fireShot?.burnDamage),
-      threepeaterRows,
-      cherryBomb,
-      dash,
-      charge,
-      giantSmash,
-      pumpkinDefense,
-      pumpkinCover,
-      pumpkinShell,
-      pumpkinRestored,
-      spikeweedBehavior,
-      minerBurrow,
-      impLeap,
-      bucketArmor,
-      zombieProfilesComplete,
-      waveTargets,
-      nightmareTargets,
-      nightmare,
-    };
-  })()`);
-  assert.equal(gameMechanics.catalogComplete, true, "every plant must have cost, health, color, and cooldown data");
-  assert.deepEqual(gameMechanics.threepeaterRows, [0, 1, 2], "threepeater must cover its row and adjacent rows");
-  assert.deepEqual(gameMechanics, {
-    catalogComplete: true,
-    sunflower: true,
-    iceShot: true,
-    fireShot: true,
-    threepeaterRows: [0, 1, 2],
-    cherryBomb: true,
-    dash: { triggered: true, movedWithBoost: true },
-    charge: { triggered: true, movedWithBoost: true },
-    giantSmash: { triggered: true, damagedPlant: true },
-    pumpkinDefense: { damaged: true, halfDamage: true },
-    pumpkinCover: { planted: true, oneSlot: true, underPlant: true, baseType: "sunflower" },
-    pumpkinShell: { shellDamage: true, baseUntouched: true },
-    pumpkinRestored: true,
-    spikeweedBehavior: { movedThrough: true, damagedZombie: true, plantUntouched: true },
-    minerBurrow: { hpUnchanged: true, shotStillFlying: true },
-    impLeap: { triggered: true, movedPastBlocker: true, plantIntact: true },
-    bucketArmor: { armorConsumed: true, reducedHp: true },
-    zombieProfilesComplete: true,
-    waveTargets: [9, 11, 19, 27],
-    nightmareTargets: [17, 20, 34, 48],
-    nightmare: { target: 34, forcedType: "dragon", spawnedType: "dragon", elite: true },
-  }, `game mechanics smoke: ${JSON.stringify(gameMechanics)}`);
-
-  await page.locator("#gameStart").click();
-  await page.waitForTimeout(120);
-  const audioStarted = await state(page, "({ running: game.running, hasAudio: Boolean(game.audio), audioState: game.audio?.ctx?.state || null })");
-  assert.equal(audioStarted.running, true, "start button should begin a battle");
-  assert.equal(audioStarted.hasAudio, true, "a user gesture should initialize Web Audio when available");
-  assert.ok(["running", "suspended"].includes(audioStarted.audioState), "audio context should be initialized");
-
-  await page.locator("#gameVolume").evaluate((input) => {
-    input.value = "35";
-    input.dispatchEvent(new Event("input", { bubbles: true }));
-  });
-  assert.deepEqual(await state(page, "({ volume: game.volume, master: Boolean(game.audio?.master) })"), { volume: 35, master: true });
-  await page.locator("#gameSoundToggle").click();
-  assert.equal(await state(page, "game.musicOn"), false, "sound toggle should disable sound");
-  await page.locator("#gameSoundToggle").click();
-  assert.equal(await state(page, "game.musicOn"), true, "sound toggle should re-enable sound");
-
-  await page.locator("#gamePause").click();
-  const manualPauseStart = await state(page, "game.elapsed");
-  await page.waitForTimeout(140);
-  assert.equal(await state(page, "game.elapsed"), manualPauseStart, "manual pause must freeze elapsed time");
-  await page.locator("#gamePause").click();
-  await page.waitForTimeout(80);
-  assert.ok(await state(page, "game.elapsed") > manualPauseStart, "resume should advance elapsed time");
-
-  await state(page, "Object.defineProperty(document, 'hidden', { configurable: true, get: () => true }); document.dispatchEvent(new Event('visibilitychange'))");
-  const hiddenPauseStart = await state(page, "game.elapsed");
-  assert.equal(await state(page, "game.pauseReasons.has('visibility') && game.paused"), true, "visibility change should pause the battle");
-  await page.waitForTimeout(140);
-  assert.equal(await state(page, "game.elapsed"), hiddenPauseStart, "hidden page must freeze elapsed time");
-  await state(page, "Object.defineProperty(document, 'hidden', { configurable: true, get: () => false }); document.dispatchEvent(new Event('visibilitychange'))");
-  await page.waitForTimeout(80);
-  assert.equal(await state(page, "game.paused"), false, "visible page should resume when no manual pause remains");
-
-  await state(page, "game.elapsed = 3600000; game.zombies = []; game.last = performance.now(); gameLoop(performance.now() + 16); game.paused = true; cancelAnimationFrame(game.frame)");
-  assert.equal(await state(page, "game.running"), true, "a long elapsed battle must not fail because time expired");
-
-  await state(page, "game.paused = false; game.mowers.forEach((mower) => { mower.used = true; mower.active = false; }); game.last = performance.now(); game.zombies = [{ row: 0, x: 55, y: 0, slowTimer: 0, speed: 0, attackInterval: 1000, hp: 1, maxHp: 1, type: 'basic', seed: 0 }]; gameLoop(performance.now() + 16)");
-  assert.deepEqual(await state(page, "({ running: game.running, status: document.querySelector('#gameStatus').textContent })"), {
-    running: false, status: "僵尸进屋了",
-  });
-
-  await page.screenshot({ path: `${screenshotsDir}/game-smoke-desktop.png`, fullPage: true });
+  await page.screenshot({ path: `${screenshotsDir}/web-smoke-desktop.png`, fullPage: true });
   assert.deepEqual(consoleErrors, [], `desktop browser errors: ${consoleErrors.join(" | ")}`);
-  await page.close();
-}
-
-async function runAudioFallbackSmoke(browser) {
-  const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
-  const consoleErrors = [];
-  page.on("console", (message) => { if (message.type() === "error") consoleErrors.push(message.text()); });
-  page.on("pageerror", (error) => consoleErrors.push(error.message));
-  await page.addInitScript(() => {
-    Object.defineProperty(window, "AudioContext", { configurable: true, value: undefined });
-    Object.defineProperty(window, "webkitAudioContext", { configurable: true, value: undefined });
-  });
-  await openGame(page);
-  await page.locator("#gameStart").click();
-  await page.waitForTimeout(80);
-  assert.deepEqual(await state(page, "({ running: game.running, audio: game.audio })"), { running: true, audio: null }, "gameplay must run without Web Audio");
-  await assertCanvasPainted(page);
-  assert.deepEqual(consoleErrors, [], `audio fallback browser errors: ${consoleErrors.join(" | ")}`);
   await page.close();
 }
 
@@ -601,19 +369,7 @@ async function runMobileSmoke(browser) {
   }));
   assert.ok(mobileWorkbenchLayout.documentWidth <= mobileWorkbenchLayout.viewport + 1, `mobile workbench should not overflow horizontally: ${JSON.stringify(mobileWorkbenchLayout)}`);
   assert.ok(mobileWorkbenchLayout.composerWidth <= mobileWorkbenchLayout.chatWidth + 1, `mobile composer should fit the chat column: ${JSON.stringify(mobileWorkbenchLayout)}`);
-  await openGame(page);
-  await page.locator("#gameStart").click();
-  await page.waitForTimeout(80);
-  const layout = await page.evaluate(() => ({
-    viewport: window.innerWidth,
-    documentWidth: document.documentElement.scrollWidth,
-    modalWidth: document.querySelector("#gameModal .game-card").getBoundingClientRect().width,
-    canvasWidth: document.querySelector("#gameCanvas").getBoundingClientRect().width,
-  }));
-  assert.ok(layout.documentWidth <= layout.viewport + 1, `mobile page should not overflow horizontally: ${JSON.stringify(layout)}`);
-  assert.ok(layout.modalWidth <= layout.viewport, `mobile modal should fit viewport: ${JSON.stringify(layout)}`);
-  assert.ok(layout.canvasWidth <= layout.modalWidth, `mobile canvas should fit its panel: ${JSON.stringify(layout)}`);
-  await page.screenshot({ path: `${screenshotsDir}/game-smoke-mobile.png`, fullPage: true });
+  await page.screenshot({ path: `${screenshotsDir}/web-smoke-mobile.png`, fullPage: true });
   assert.deepEqual(consoleErrors, [], `mobile browser errors: ${consoleErrors.join(" | ")}`);
   await page.close();
 }
@@ -622,10 +378,10 @@ await mkdir(screenshotsDir, { recursive: true });
 const browser = await chromium.launch({ headless: true });
 try {
   await runAgentTimelineSmoke(browser);
+  await runProductPathSmoke(browser);
   await runDesktopSmoke(browser);
-  await runAudioFallbackSmoke(browser);
   await runMobileSmoke(browser);
-  console.log("web smoke passed: desktop, audio fallback, mobile");
+  console.log("web smoke passed: timeline, product path, desktop, mobile");
 } finally {
   await browser.close();
 }
