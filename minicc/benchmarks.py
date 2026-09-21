@@ -25,6 +25,7 @@ from .behavior_bench import behavior_tasks, fixture_digest, grade_behavior, prep
 from . import bench_tasks
 from .bench_tasks import grade_v2
 from . import pricing
+from .cli_io import cli_out
 
 
 DEFAULT_FIXTURES = Path(__file__).resolve().parent.parent / "benchmarks" / "tasks.json"
@@ -322,7 +323,7 @@ def _run_retrieval_suite(args: argparse.Namespace) -> int:
     try:
         dataset = load_retrieval_cases(dataset_path)
     except (OSError, json.JSONDecodeError, ValueError) as exc:
-        print(f"[retrieval] 数据集加载失败: {exc}")
+        cli_out(f"[retrieval] 数据集加载失败: {exc}")
         return 2
     workspace = (REPO_ROOT / dataset["workspace"]).resolve()
     report = evaluate_retrieval(dataset["cases"], workspace=workspace, ks=dataset["ks"])
@@ -333,12 +334,12 @@ def _run_retrieval_suite(args: argparse.Namespace) -> int:
     args.json_out.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     args.markdown_out.write_text(markdown_retrieval(report, decision), encoding="utf-8")
     metrics = report["metrics"]
-    print(
+    cli_out(
         "[retrieval] "
         + " ".join(f"{k}={metrics[k]}" for k in sorted(metrics))
         + f" | cases={report['case_count']}"
     )
-    print(f"[retrieval] 结论: {decision}")
+    cli_out(f"[retrieval] 结论: {decision}")
     # CI records these numbers but does not gate on them in the first round.
     return 0
 

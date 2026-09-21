@@ -85,11 +85,13 @@ from .config import (
     normalize_reasoning_effort,
 )
 from .allowlist import AllowlistError, add_session_rule, replace_session_rules, session_rules
+from .cli_io import cli_out
 from .hooks import HookRunner
 from .llm.base import system_msg, user_msg
 from .llm.anthropic_provider import AnthropicProvider
 from .llm.fake import FakeProvider
 from .llm.openai_provider import OpenAICompatibleProvider
+from .logging_setup import configure_logging, get_logger, register_secret
 from .snapshots import SnapshotError, SnapshotJournal, exists as workspace_snapshot_exists, restore as restore_workspace_snapshot
 from .llm.usage import add_usage_totals, cache_summary
 from .mcp import McpError, McpManager
@@ -97,6 +99,7 @@ from .prompt import build_system_prompt
 from .sandbox import SandboxRunner
 from .session import SessionError, SessionStore, list_sessions
 from .tools import Editor, ToolCall, ToolResult, build_registry
+from .tools.editor import AUDIT_LEVELS, audit_level
 from .tools.registry import redact_text
 from .task_store import TaskStore
 from .worktree import WorktreeError, WorktreeManager
@@ -141,6 +144,7 @@ from .task_manager import (  # noqa: F401 - re-export for tests and AgentService
 # M3-T8: bounded RPC thread cache + thread_id validation.
 _RPC_THREADS_MAX = 512
 _THREAD_ID_MAX_LEN = 256
+LOG = get_logger("service")
 
 # M7-T3: interactive Web approvals wait at most this long, then auto-deny.
 APPROVAL_TIMEOUT_SECONDS = 60.0
@@ -169,12 +173,42 @@ def _validate_thread_id(raw: Any) -> str:
     return thread_id
 
 
+def _audit_level_filter(
+    *,
+    levels: list[str] | None = None,
+    min_level: str | None = None,
+) -> set[str] | None:
+    """Resolve ``/api/audit`` level filters into an allow-list (``None`` = all).
+
+    Unknown level names raise ``ValueError`` (a 400 with ``invalid_request``),
+    never a silent empty result that would look like "no findings".
+    """
+    allowed: set[str] | None = None
+    if levels:
+        allowed = set()
+        for raw in levels:
+            name = str(raw).strip().casefold()
+            if name not in AUDIT_LEVELS:
+                raise ValueError(f"未知审计级别: {raw}（可选：{', '.join(AUDIT_LEVELS)}）")
+            allowed.add(name)
+    if min_level:
+        name = str(min_level).strip().casefold()
+        if name not in AUDIT_LEVELS:
+            raise ValueError(f"未知审计级别: {min_level}（可选：{', '.join(AUDIT_LEVELS)}）")
+        floor = set(AUDIT_LEVELS[AUDIT_LEVELS.index(name):])
+        allowed = floor if allowed is None else allowed & floor
+    return allowed
+
+
 class AgentService:
     """Bridge HTTP requests to isolated agent runs and background tasks."""
 
     def __init__(self, workspace: Path, config: Any, *, task_store: "TaskStore | None" = None) -> None:
         self.workspace = workspace
         self.config = config
+        # M8-T5: the provider key must never reach a log line, and it does not
+        # always match a known secret shape, so register the exact value.
+        register_secret(getattr(config, "api_key", ""))
         self.system_prompt = build_system_prompt(workspace)
         self.workspace_catalog = WorkspaceCatalog()
         self.workspace_catalog.remember(workspace)
@@ -1258,7 +1292,7 @@ class AgentService:
                 model_override: str | None = None,
             ) -> Any:
                 if os.getenv("MINICC_FAKE_PROVIDER", "").strip().lower() in TRUTHY:
-                    return FakeProvider()
+                    return FakeProvider(on_status=status_callback)
                 if str(getattr(self.config, "provider_type", "openai")) == "anthropic":
                     return AnthropicProvider(
                         api_key=self.config.api_key,
@@ -2189,29 +2223,123 @@ class AgentService:
             return inspector.diff(raw_path)
         return inspector.summary()
 
-    def audit_export(self, *, limit: int = 500) -> dict[str, Any]:
-        """Export redacted local editor audit entries for the active workspace."""
+    def audit_export(
+        self,
+        *,
+        limit: int = 500,
+        levels: list[str] | None = None,
+        min_level: str | None = None,
+    ) -> dict[str, Any]:
+        """Export redacted local editor audit entries for the active workspace.
+
+        M8-T5 filtering: ``levels`` is an explicit allow-list, ``min_level`` a
+        severity floor (``info`` < ``notice`` < ``warning``). Filtering runs
+        before the ``limit`` slice so a filtered query still returns up to
+        ``limit`` matches instead of a filtered remainder of the last lines.
+        """
+        keep = _audit_level_filter(levels=levels, min_level=min_level)
         audit_path = self.workspace / ".minicc" / "audit.jsonl"
+        empty = {
+            "workspace_path": str(self.workspace),
+            "entries": [],
+            "count": 0,
+            "total": 0,
+        }
         if not audit_path.is_file():
-            return {"workspace_path": str(self.workspace), "entries": [], "count": 0}
-        entries: list[dict[str, Any]] = []
+            return empty
         try:
             lines = audit_path.read_text(encoding="utf-8").splitlines()
         except OSError as exc:
             raise ValueError(f"无法读取审计记录: {exc}") from exc
-        for line in lines[-max(1, min(limit, 2000)):]:
+        matches: list[dict[str, Any]] = []
+        for line in lines:
             try:
                 item = json.loads(line)
             except json.JSONDecodeError:
                 continue
             if not isinstance(item, dict):
                 continue
+            level = str(item.get("level") or "") or audit_level(
+                str(item.get("action") or ""), str(item.get("detail") or "")
+            )
+            if keep is not None and level not in keep:
+                continue
             safe = {
                 key: redact_text(str(item.get(key) or ""))[0]
                 for key in ("timestamp", "action", "path", "detail", "before_digest", "after_digest")
             }
-            entries.append(safe)
-        return {"workspace_path": str(self.workspace), "entries": entries, "count": len(entries)}
+            safe["level"] = level
+            matches.append(safe)
+        capped = matches[-max(1, min(limit, 2000)):]
+        return {
+            "workspace_path": str(self.workspace),
+            "entries": capped,
+            "count": len(capped),
+            "total": len(matches),
+        }
+
+    def metrics(self, *, limit: int = 500, workspace_path: str | None = None) -> dict[str, Any]:
+        """Aggregate token/cost metrics over the task index (M8-T5).
+
+        The totals are summed from each task's own ``tokens_used`` /
+        ``cost_usd`` snapshot fields, so ``/api/metrics`` can never disagree
+        with ``GET /api/tasks/<id>`` — a re-derivation from raw usage would be
+        free to drift the moment pricing or usage shapes change. Unpriced
+        models contribute tokens but are counted separately instead of being
+        silently billed at zero.
+        """
+        rows = self.tasks.list(limit=max(1, min(limit, 2000)), workspace_path=workspace_path)
+        usage: dict[str, int] = {}
+        by_model: dict[str, dict[str, Any]] = {}
+        by_status: dict[str, int] = {}
+        cost_total = 0.0
+        unpriced_tasks = 0
+        priced_tasks = 0
+        durations: list[float] = []
+        for row in rows:
+            add_usage_totals(usage, row.get("tokens_used") or {})
+            model = str(row.get("model") or "unknown")
+            bucket = by_model.setdefault(
+                model,
+                {"tokens": {}, "cost_usd": 0.0, "tasks": 0, "priced": True},
+            )
+            add_usage_totals(bucket["tokens"], row.get("tokens_used") or {})
+            bucket["tasks"] += 1
+            status = str(row.get("status") or "unknown")
+            by_status[status] = by_status.get(status, 0) + 1
+            cost = row.get("cost_usd")
+            if cost is None:
+                bucket["priced"] = False
+                unpriced_tasks += 1
+            else:
+                value = float(cost)
+                bucket["cost_usd"] += value
+                cost_total += value
+                priced_tasks += 1
+            duration = row.get("duration_seconds")
+            if isinstance(duration, (int, float)) and not isinstance(duration, bool):
+                durations.append(float(duration))
+        for bucket in by_model.values():
+            if not bucket["priced"]:
+                bucket["cost_usd"] = None
+            del bucket["priced"]
+        return {
+            "schema_version": "minicc.metrics.v1",
+            "workspace_path": str(workspace_path or self.workspace),
+            "generated_at": _iso(time.time()),
+            "task_count": len(rows),
+            "tasks_by_status": by_status,
+            "priced_tasks": priced_tasks,
+            "unpriced_tasks": unpriced_tasks,
+            "usage": usage,
+            "cost_usd": round(cost_total, 6),
+            "by_model": by_model,
+            "duration_seconds": {
+                "total": round(sum(durations), 3),
+                "average": round(sum(durations) / len(durations), 3) if durations else 0.0,
+                "max": round(max(durations), 3) if durations else 0.0,
+            },
+        }
 
     def shutdown(self) -> None:
         # Unblock any agent threads parked on an approval prompt first, so
@@ -2239,6 +2367,7 @@ def main(argv: list[str] | None = None) -> int:
         help="即使绑定非回环地址也关闭 token 认证（不推荐，仅限隔离网络）",
     )
     args = parser.parse_args(argv)
+    configure_logging()
     workspace = args.workspace.expanduser().resolve()
     if not workspace.is_dir():
         parser.error(f"工作区不是目录: {workspace}")
@@ -2253,21 +2382,23 @@ def main(argv: list[str] | None = None) -> int:
         parser.error(str(exc))
     required = not is_loopback_host(args.host) and not args.no_auth
     auth = WebAuth(token, required=required)
+    # M8-T5: the web token must not be able to appear in a log line either.
+    register_secret(token)
     service = AgentService(workspace, config)
     server = MiniccHTTPServer((args.host, args.port), service, auth=auth)
-    print(f"minicc web: http://{args.host}:{args.port}/")
-    print(f"workspace: {workspace}")
+    cli_out(f"minicc web: http://{args.host}:{args.port}/")
+    cli_out(f"workspace: {workspace}")
     if required:
-        print("auth: required (non-loopback bind)")
-        print(f"token: {token}")
+        cli_out("auth: required (non-loopback bind)")
+        cli_out(f"token: {token}")
         if not explicit_token and created:
-            print(f"token saved to: {token_store_path(workspace)}")
+            cli_out(f"token saved to: {token_store_path(workspace)}")
     else:
-        print("auth: open (loopback bind, token accepted but not required)")
+        cli_out("auth: open (loopback bind, token accepted but not required)")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
-        print("\nminicc web stopped")
+        cli_out("\nminicc web stopped")
     finally:
         service.shutdown()
         server.server_close()

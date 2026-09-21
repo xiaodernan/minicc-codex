@@ -8,6 +8,7 @@ provider used by ``run_agent`` / ``AgentService.make_provider``.
 from __future__ import annotations
 
 import json
+import os
 import re
 from typing import Any
 
@@ -26,11 +27,37 @@ _FAKE_USAGE: dict[str, dict[str, int]] = {
 
 
 class FakeProvider:
-    """One-shot assistant reply; planner/judge calls get a complete JSON."""
+    """One-shot assistant reply; planner/judge calls get a complete JSON.
+
+    ``MINICC_FAKE_PROVIDER_FAULTS`` (default 0) is a documented fault-injection
+    hook: the first agent turn emits that many ``provider_retry`` traces before
+    answering, mirroring the real stream-retry path in
+    ``OpenAICompatibleProvider._create_stream``. It exists so the logging and
+    event contracts (M8-T5) are testable without a network; it never changes
+    the answer, only the trace events.
+    """
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         self._turn = 0
         self._agent_turn = 0
+        self._on_status = kwargs.get("on_status")
+        self._faults = self._injected_faults()
+
+    @staticmethod
+    def _injected_faults() -> int:
+        raw = os.getenv("MINICC_FAKE_PROVIDER_FAULTS", "").strip()
+        try:
+            return max(0, min(3, int(raw)))
+        except ValueError:
+            return 0
+
+    def _emit(self, payload: dict[str, Any]) -> None:
+        if self._on_status is None:
+            return
+        try:
+            self._on_status(payload)
+        except Exception:  # noqa: BLE001 - tracing must never fail a run
+            return
 
     async def chat(self, messages, tools, on_delta=None):
         self._turn += 1
@@ -54,6 +81,18 @@ class FakeProvider:
             return LLMResponse(content=decision, usage=_FAKE_USAGE["judge"])
         self._agent_turn += 1
         if self._agent_turn == 1:
+            for attempt in range(self._faults):
+                # Same payload shape as the real stream retry, so a log or
+                # event assertion written here describes the production trace.
+                self._emit({
+                    "kind": "trace",
+                    "name": "provider",
+                    "status": "error",
+                    "phase": "planning",
+                    "code": "provider_retry",
+                    "summary": f"模型流中断，正在进行第 {attempt + 1} 次重试",
+                    "detail": {"attempt": attempt + 1, "retry_limit": 2},
+                })
             # M4-T1: a zero-write readonly task still needs at least one
             # citable tool observation, otherwise the completion judge has
             # nothing but trace ids and must refuse to converge. Emit one

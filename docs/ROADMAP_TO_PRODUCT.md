@@ -665,7 +665,7 @@
 | M7-T4 项目级配置层 + config.py 剩余缺陷 | ✅ | `.minicc/config.json` 逐键覆盖 user 级 `~/.minicc/config.json`，`config.load_config()` 的解析顺序为 args > 环境变量 > `.env` > project > user > defaults；新增 10 个 CLI 开关，修 `config.py` 六处解析/钳制缺陷 | `tests/test_project_config.py`；提交 `2b9f7fd` |
 | M7-T5 前端数据丢失修复 + @-提及内容注入 | ✅ | `web/src/chat/stream.js` 失败恢复（提交失败不清空已输入内容），`minicc/mentions.py` 把 `@relative/path` 变成有界内容块附加到 user 消息：只读工作区相对路径（绝对/`~`/盘符拒绝，`resolve()+is_relative_to()` 拦 junction 越界），逐文件与整条消息双上限、截断处标 `[truncated]`，敏感与二进制引用只标注不读取，正文过 `redact_text` | `tests/test_mentions.py`；提交 `8ec2de0` |
 
-### 已完成（M8 可分发与长期演进，M8-T1..T4）
+### 已完成（M8 可分发与长期演进，M8-T1..T5）
 
 | 任务 | 状态 | 落地位置 | 验证 |
 | --- | --- | --- | --- |
@@ -674,8 +674,25 @@
 | （附带）完成评估不收敛与内部 id 泄漏 | ✅ | `agent/completion.py`：证据包补对话记录（`message-N`），`next_action: null` 视为「无事可做」而非协议错误，评估器自身故障走有界重试后归为 `unknown`；不再要求模型引用它看不到的 `event-N` 词汇 | `tests/test_completion_liveness.py`（含 8 条 null/类型回归）+ 真实 API 诊断日志定位；提交 `a0b17e3` |
 | M8-T3 插件 API 稳定化 | ✅ | `tools/registry.py`：`TOOL_API_VERSION` + `ToolSpec.api_version/capabilities`、注册期 `validate_tool_spec`（名字/risk/params/input_schema/能力与风险自相矛盾全部拒绝并报出工具与字段）、同名冲突必须显式 `override=True` 且留 `overrides()` 痕迹；`capabilities` 里 `network` 让第三方只读工具走与内置 `web_search/webfetch` 同一道 `allow_network` 门（`audit.tool_requires_authorization/authorize_tool` + loop/main/web 三处接线）。`docs/PLUGIN_API.md` 为契约文档，示例代码块由测试原样执行 | `tests/test_plugin_api.py`（44 条，含 18 条非法 spec 与文档执行）+ 真实 API E2E（模型自行发现并调用 `line_count` 插件、内置 `read_file` 未被遮蔽、`url_head` 无授权时 `missing_task_network` 拒绝、授权后返回真实 HTTP 200）；提交 `40b9771` |
 | M8-T4 可安装产物 | ✅ | `setup.py` 的 `build_py` 钩子在构建期把仓库根的 `web/`、`ide/` 复制进包内 `minicc/web_static`、`minicc/ide_static`（`MANIFEST.in` 同步进 sdist，保证从 sdist 再构建的 wheel 一致）；`static_assets.web_root()/ide_root()` 先查安装目录再退回 checkout，`webserver.STATIC_ROOT` 改用它；新增 `scripts/build-dist.ps1`（可选 `npm run build:web` → wheel+sdist → 校验 manifest 引用的 bundle 真的在包里）；`build-system` 提到 `setuptools>=70.1`（自带 bdist_wheel）；README 增加安装到别的机器的完整命令，并声明版本单一来源 | `tests/test_packaging.py`（11 条：包载荷、无 node_modules/`.env`/`__pycache__` 垃圾、console scripts 可解析、版本四处一致、README 引用的 npm 脚本全部存在、sdist round-trip 载荷集合相同、安装后从 site-packages 真的返回 index.html 与 bundle）+ 真实安装 E2E（`pip wheel . -w dist` → 干净 venv 安装 → `minicc --version`=`minicc 0.1.0` → `minicc-web --port 8791` 返回 `/` 200 与 3 个 hash bundle 200 → `/api/health` 200） |
+| M8-T5 logging 取代 print + `/api/metrics` + 日志脱敏 | ✅ | 新增 `minicc/cli_io.py`（包内**唯一** `print()`，stdout 只承载 CLI/REPL 协议正文）与 `minicc/logging_setup.py`（默认 `WARNING`→**stderr**，`MINICC_LOG_LEVEL`/`MINICC_LOG_FILE`，每 handler 挂 `SecretRedactionFilter`，启动时 `register_secret()` 注册已解析 api key 与 web token 做精确子串掩码，脱敏幂等：`[REDACTED:…]` 标记内不再二次掩码）。审计事件、provider 重试、预算/事件树、任务生命周期、hook 执行、MCP spawn 统一走结构化日志，且每条都来自生产路径的单点插桩：`task_manager._run.on_event` 与 `task_worker._run_owned_worker.on_event`（thread/process 两个执行器同一词表）、`openai_provider` 的 `_status_logging_callback`（无回调也记，CLI 同样可观测）、`hooks.run()`、`mcp` spawn 审计写入处、`tools/editor._audit()`（`info/notice/warning` → `DEBUG/INFO/WARNING`）。`/api/audit` 增加 `level`/`min_level` 过滤（未知级别 400 并列出可选值，旧记录按 action 回填级别），新增 `/api/metrics`（`minicc.metrics.v1`：逐任务快照累加 `tokens_used`/`cost_usd`，未计价模型单独计 `unpriced_tasks`，不混作 0 成本）；`webserver._fail()` + `ERROR_CODES` 让失败响应带稳定 `code`（`forbidden`/`task_not_found`/`unauthorized`/`invalid_request`/`internal_error`），不再只有一句话的裸 500。`minicc.config.example` 与 README 补日志章节 | `tests/test_logging.py`（22 条）：fake provider 任务在 `MINICC_LOG_LEVEL=DEBUG`+`LOG_FILE` 下 grep 断言含 `provider_retry`/`tool_round_finished`/`run_finished`、不含 api_key 与 web token（两个常量刻意不匹配任何密钥形态，缺席只能由注册式掩码解释）、级别/文件/stdout 纯净、脱敏幂等与 8 种密钥形态、`/api/metrics` 与单任务快照逐项对账、审计级别过滤、错误码映射。print 口径见下方注记。真实 API E2E：CLI 与 `minicc-web` 各跑一次真实任务，日志 299 行（97 DEBUG / 201 INFO / 1 ERROR）中 key 与 token 均无命中，`/api/metrics` 的 token/成本与任务快照精确相等，未计价模型走 `unpriced_tasks` |
+
+### M8-T5 注记：`git grep -c 'print('` 这一验收口径不可信
+
+路线图标的是「55 → ≤5」。实测本次改动前 `git grep -c 'print(' -- minicc` 求和为 **84**（不是 55），
+并且这个数字无法作为门禁，因为它数的是子串出现次数：`event_fingerprint(`、`verification_fingerprint(`
+命中 11 处，`minicc/bench_tasks.py` 里嵌在子进程评分脚本字符串中的 `print(` 命中 15 处（那是被写进
+`_GRADER` 字符串、由子进程执行的代码，不是 minicc 自己的输出）。把这些一起改会造成真实损坏：上一轮
+批量替换确实把 `from .cli_io import cli_out` 注入进了 `_GRADER` 字符串内部。
+
+因此门禁改为 AST 计数的真实 `print()` 调用：`minicc/` 内 **57 → 1**（唯一一处在 `minicc/cli_io.py`，
+即刻意保留的 stdout 汇聚点），子串口径同时从 84 降到 26（全部为上述假阳性）。测试
+`tests/test_logging.py` 以 AST 断言这一上限，子串值只在文档里留档，不作为通过条件。
 
 ### 尚未开始
 
-M8-T5（logging 取代 print + `/api/metrics` + 日志脱敏）与 M8-T6（`tests/test_core.py` 按 domain 拆分）。M6-T4/M6-T5 的落地记录见 `02059ea`、`a97bf13` 等一批提交（对应 `tests/test_background_shell.py`、`tests/test_parallel_writes.py`），本日志未逐条复核，暂不代为背书。M4（证据链与评测可信度）、M5（MCP 桥加固与 CLI 接线）、M6-T1..T3、M7-T1..T5、M8-T1..T4 已完成并逐项验证。
+M8-T6（`tests/test_core.py` 按 domain 拆分）。M6-T4/M6-T5 的落地记录见 `02059ea`、`a97bf13` 等一批提交（对应 `tests/test_background_shell.py`、`tests/test_parallel_writes.py`），本日志未逐条复核，暂不代为背书。M4（证据链与评测可信度）、M5（MCP 桥加固与 CLI 接线）、M6-T1..T3、M7-T1..T5、M8-T1..T5 已完成并逐项验证。
+
+M8-T5 遗留观察（不属于该任务验收，作为后续候选）：一次真实只读小任务在失败前产生 5 个 `run_started`、
+消耗 118,499 tokens，最终以 provider `451 censorship_blocked` 结束。451 属不可重试错误，但任务级恢复
+仍把整个 agent 循环重跑了一遍——恢复重试的错误分类需要复核。
 

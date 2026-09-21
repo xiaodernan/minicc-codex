@@ -30,9 +30,12 @@ from pathlib import Path
 from typing import Any
 
 from . import __version__
+from .logging_setup import get_logger
 from .netguard import BlockedAddressError, assert_public_http_url
 from .tools.registry import ToolSpec, split_output
 from .tools.schemas import ToolResult
+
+LOG = get_logger("mcp")
 
 
 class McpError(RuntimeError):
@@ -92,6 +95,16 @@ def _emit_spawn_audit(
         "env_keys": [str(k) for k in (env_keys or [])],
     }
     path = workspace / ".minicc" / "mcp_audit.jsonl"
+    # Same record, two destinations (M8-T5): the file is the workspace-local
+    # audit trail, the log line is what an operator tailing the log sees. The
+    # redaction filter strips any credential shaped like a token from it.
+    LOG.info(
+        "mcp_spawn name=%s transport=%s command=%s env_keys=%s",
+        entry["name"] or "-",
+        entry["transport"] or "-",
+        entry["command"][:200] or "-",
+        ",".join(entry["env_keys"]) or "-",
+    )
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("a", encoding="utf-8", newline="\n") as handle:

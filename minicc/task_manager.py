@@ -43,6 +43,7 @@ from .agent.protocol import (
 from .audit import normalize_permission_mode
 from .config import TRUTHY, normalize_model_name, normalize_reasoning_effort
 from .llm.usage import add_usage_totals, cache_summary
+from .logging_setup import get_logger, log_task_event
 from . import pricing
 from .session import SessionStore
 from .task_store import TaskStore
@@ -58,6 +59,7 @@ if TYPE_CHECKING:
 MAX_ATTACHMENTS = 4
 MAX_ATTACHMENT_BYTES = 6 * 1024 * 1024
 MAX_ATTACHMENT_TOTAL_BYTES = 12 * 1024 * 1024
+LOG = get_logger("task")
 MAX_BATCH_TASKS = 16
 TASK_STREAM_INTERVAL = 0.06
 TERMINAL_TASK_STATUSES = {"completed", "failed", "cancelled", "interrupted"}
@@ -1983,7 +1985,22 @@ class TaskManager:
             phase = str(event.get("phase") or "")
             task.set_phase(phase if event.get("kind") in {"trace", "state", "verification"} and phase else "tool")
             task.add_event(event)
+            # M8-T5: one DEBUG line per event is the structured trace the
+            # roadmap asks for (provider_retry / tool_round_finished /
+            # run_finished), redacted by the logging layer.
+            log_task_event(event, task_id=task.task_id)
             self._persist_task(task)
+
+        LOG.info(
+            "task_started task_id=%s session_id=%s mode=%s changes=%s network=%s model=%s workspace=%s",
+            task.task_id,
+            task.session_id,
+            task.permission_mode,
+            task.allow_changes,
+            task.allow_network,
+            task.model,
+            task.workspace_path,
+        )
 
         def on_stream(delta: str) -> None:
             task.append_stream(delta)
@@ -2051,6 +2068,18 @@ class TaskManager:
             self._release_session_slot(task)
             return
         except Exception as exc:  # noqa: BLE001 - task state must become observable
+            if task.cancel_event.is_set():
+                LOG.info(
+                    "task_cancelled task_id=%s reason=%s",
+                    task.task_id,
+                    task.cancel_event.reason or "user",
+                )
+            else:
+                # Before M8-T5 this exception vanished with only the status
+                # string left behind; the traceback belongs in the log file.
+                LOG.error(
+                    "task_crashed task_id=%s error=%s", task.task_id, exc, exc_info=exc
+                )
             with task.lock:
                 if task.status not in TERMINAL_TASK_STATUSES:
                     target = "cancelled" if task.cancel_event.is_set() else "failed"
@@ -2064,6 +2093,14 @@ class TaskManager:
                         pass
                 elif task.status == "cancelled" and not task.error:
                     task.error = "任务已取消"
+        finish = LOG.error if task.status == "failed" else LOG.info
+        finish(
+            "task_finished task_id=%s status=%s total_tokens=%s error=%s",
+            task.task_id,
+            task.status,
+            task.tokens_used.get("total_tokens", 0),
+            (task.error or "-")[:200],
+        )
         try:
             self._persist_task(task, force=True)
         finally:

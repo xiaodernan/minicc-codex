@@ -47,7 +47,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from .logging_setup import get_logger
 from .tools.registry import redact_text
+
+LOG = get_logger("hook")
 
 HOOK_EVENTS = ("PreToolUse", "PostToolUse", "UserPromptSubmit", "Stop")
 DEFAULT_HOOK_TIMEOUT = 5.0
@@ -261,6 +264,16 @@ class HookRunner:
                 continue
             entry = self._run_one(spec, payload)
             outcome.outputs.append(entry)
+            # One log line per hook run (M8-T5): the outcome and why, never the
+            # hook's stdout, which is arbitrary user output.
+            LOG.info(
+                "hook_executed event=%s tool=%s decision=%s exit=%s reason=%s",
+                spec.event,
+                tool or "-",
+                entry.get("decision"),
+                entry.get("exit_code", "-"),
+                str(entry.get("reason") or "-")[:200],
+            )
             if entry["decision"] == "deny":
                 outcome.decision = "deny"
         return outcome

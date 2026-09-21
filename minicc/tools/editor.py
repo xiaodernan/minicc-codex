@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 import re
 import secrets
@@ -79,6 +80,36 @@ class FileRead:
     lines: list[tuple[int, str]]
 
 
+#: Audit severities, weakest first. ``warning`` marks a refused operation,
+#: ``notice`` one that changed the workspace, ``info`` a pure read.
+AUDIT_LEVELS: tuple[str, ...] = ("info", "notice", "warning")
+
+#: Child of the ``minicc`` logger, so configure_logging()'s handlers and the
+#: secret-redaction filter apply without importing logging_setup here.
+LOG = logging.getLogger("minicc.editor")
+AUDIT_LEVEL_LOGS: dict[str, int] = {
+    "info": logging.DEBUG,
+    "notice": logging.INFO,
+    "warning": logging.WARNING,
+}
+_MUTATING_ACTIONS = frozenset({"backup", "create", "delete", "edit", "move", "write"})
+_DENIED_PREFIXES = ("拒绝", "refused", "denied")
+
+
+def audit_level(action: str, detail: str = "") -> str:
+    """Severity of one audit line — the ``/api/audit`` filter key (M8-T5).
+
+    A refusal is recognised by its detail prefix because every refusal site
+    records ``before_digest`` only; ``delete``/``move`` legitimately have no
+    after-digest, so digest presence alone cannot separate them from a denial.
+    """
+    text = str(detail or "").strip()
+    folded = text.casefold()
+    if folded.startswith(tuple(prefix.casefold() for prefix in _DENIED_PREFIXES)):
+        return "warning"
+    return "notice" if str(action or "") in _MUTATING_ACTIONS else "info"
+
+
 @dataclass(frozen=True)
 class AuditEntry:
     timestamp: str
@@ -87,6 +118,8 @@ class AuditEntry:
     detail: str = ""
     before_digest: str = ""
     after_digest: str = ""
+    #: M8-T5 severity used by ``/api/audit`` filtering; see :func:`audit_level`.
+    level: str = "info"
 
     def to_dict(self) -> dict[str, str]:
         return {
@@ -96,6 +129,7 @@ class AuditEntry:
             "detail": self.detail,
             "before_digest": self.before_digest,
             "after_digest": self.after_digest,
+            "level": self.level,
         }
 
 
@@ -199,7 +233,9 @@ class Editor:
         *,
         before_digest: str = "",
         after_digest: str = "",
+        level: str | None = None,
     ) -> None:
+        resolved = level or audit_level(action, detail)
         entry = AuditEntry(
             timestamp=self._clock(),
             action=action,
@@ -207,8 +243,19 @@ class Editor:
             detail=detail,
             before_digest=before_digest,
             after_digest=after_digest,
+            level=resolved,
         )
         self.audit.append(entry)
+        LOG.log(
+            AUDIT_LEVEL_LOGS.get(resolved, logging.DEBUG),
+            "audit action=%s path=%s level=%s before=%s after=%s detail=%s",
+            action,
+            path,
+            resolved,
+            before_digest[:12] or "-",
+            after_digest[:12] or "-",
+            detail[:200] or "-",
+        )
         if self.audit_path is None:
             return
         try:

@@ -53,6 +53,7 @@ from tenacity import (
 )
 
 from .base import LLMResponse
+from ..logging_setup import log_provider_event
 from .envelope import _render_envelope_action, envelope_system_suffix, parse_envelope
 from .stream_merge import accumulate_attempt_text, merge_retry_snapshot
 from .usage import cache_summary
@@ -111,6 +112,28 @@ REASONING_FALLBACKS = {
     "mid": "low",
     "low": None,
 }
+
+
+def _status_logging_callback(
+    callback: Callable[[dict[str, Any]], Any] | None,
+    model: Callable[[], str],
+) -> Callable[[dict[str, Any]], Any]:
+    """Mirror every provider trace into the structured log (M8-T5).
+
+    Logging happens before forwarding, so a status callback that raises cannot
+    hide the retry record, and the propagation behaviour of the wrapped
+    callback is unchanged. The wrapper is installed even with *no* callback:
+    the CLI passes none, and without this a CLI provider retry would leave no
+    trace anywhere on disk.
+    """
+
+    def _emit(event: dict[str, Any]) -> Any:
+        log_provider_event(event, model=str(model() or ""))
+        if callback is None:
+            return None
+        return callback(event)
+
+    return _emit
 
 
 def _exception_text(exc: BaseException) -> str:
@@ -420,7 +443,7 @@ class OpenAICompatibleProvider:
         self._requested_reasoning_effort = normalized_effort
         self._active_reasoning_effort = normalized_effort
         self._reasoning_enabled = True
-        self._on_status = on_status
+        self._on_status = _status_logging_callback(on_status, lambda: self.model)
         self._client: Any = sdk_client
 
     # -- client --------------------------------------------------------------

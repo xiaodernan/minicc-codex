@@ -21,6 +21,7 @@ from urllib.parse import parse_qs, unquote, urlsplit
 
 from .allowlist import AllowlistError
 from .changes import ChangeError
+from .logging_setup import get_logger, redact
 from .mcp import McpError
 from .session import SessionError
 from .snapshots import SnapshotError
@@ -34,11 +35,38 @@ if TYPE_CHECKING:  # typing-only; keeps web -> webserver a one-way runtime edge
     from .web import AgentService
 from .worktree import WorktreeError
 
+LOG = get_logger("web")
 STATIC_ROOT = web_root()
 TASK_STREAM_TIMEOUT = 15 * 60
 MAX_SSE_CONNECTIONS = 32
 SSE_WRITE_TIMEOUT = 20.0
 MAX_BODY_BYTES = 18_000_000
+
+#: M8-T5: every API failure carries a machine-readable ``code`` so a client can
+#: branch on it instead of pattern-matching a human-readable message (or
+#: reading a bare 500). Looked up over the exception's MRO.
+ERROR_CODES: dict[type[BaseException], str] = {
+    KeyError: "task_not_found",
+    PermissionError: "forbidden",
+    FileNotFoundError: "not_found",
+    ValueError: "invalid_request",
+    SessionError: "session_error",
+    WorktreeError: "worktree_error",
+    SnapshotError: "snapshot_error",
+    AllowlistError: "allowlist_error",
+    McpError: "mcp_error",
+    ChangeError: "change_error",
+}
+
+
+def error_code_for(exc: BaseException | None) -> str:
+    if exc is None:
+        return "request_failed"
+    for kind in type(exc).__mro__:
+        code = ERROR_CODES.get(kind)
+        if code:
+            return code
+    return "internal_error"
 
 class MiniccHTTPServer(ThreadingHTTPServer):
     allow_reuse_address = True
@@ -82,10 +110,9 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
     )
 
     def log_message(self, format: str, *args: object) -> None:
-        # Keep the terminal useful without logging request bodies or secrets.
+        # Keep the request log useful without logging request bodies or secrets.
         rendered = f"{self.command} {self.path} - {format % args}"
-        redacted = self._SECRET_QUERY_RE.sub(r"\1***", rendered)
-        print(f"[web] {redacted}")
+        LOG.info("%s", self._SECRET_QUERY_RE.sub(r"\1***", rendered))
 
     def _request_origin(self) -> str | None:
         return self.headers.get("Origin") or None
@@ -117,7 +144,12 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
 
     def _deny_cross_origin(self) -> None:
         body = json.dumps(
-            {"error": "forbidden", "detail": "跨站状态变更请求已拒绝"}, ensure_ascii=False
+            {
+                "error": "forbidden",
+                "code": "cross_origin_denied",
+                "detail": "跨站状态变更请求已拒绝",
+            },
+            ensure_ascii=False,
         ).encode("utf-8")
         try:
             self.send_response(403)
@@ -140,7 +172,8 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
 
     def _deny_auth(self) -> None:
         body = json.dumps(
-            {"error": "unauthorized", "auth_required": True}, ensure_ascii=False
+            {"error": "unauthorized", "code": "unauthorized", "auth_required": True},
+            ensure_ascii=False,
         ).encode("utf-8")
         try:
             self.send_response(401)
@@ -171,6 +204,46 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
             # has moved to the task-polling API. It must not create a second
             # traceback while trying to report the first failure.
             return
+
+    def _fail(
+        self,
+        status: int,
+        detail: str,
+        *,
+        code: str | None = None,
+        exc: BaseException | None = None,
+        **extra: Any,
+    ) -> None:
+        """Return a structured error body: ``error`` for humans, ``code`` for clients."""
+        resolved = code or error_code_for(exc)
+        # An exception message can carry a URL or header value, so the client
+        # never sees more than a redacted summary.
+        safe_detail = redact(detail)
+        payload: dict[str, Any] = {"error": safe_detail, "code": resolved}
+        if status >= 500 and exc is not None:
+            payload["error_type"] = type(exc).__name__
+            payload["retryable"] = True
+        payload.update(extra)
+        # 4xx responses are expected client traffic; only a server-side failure
+        # deserves the WARNING level plus the traceback in the log file.
+        if status >= 500:
+            LOG.error(
+                "request_failed status=%s code=%s path=%s detail=%s",
+                status,
+                resolved,
+                urlsplit(self.path).path,
+                safe_detail[:200],
+                exc_info=exc,
+            )
+        else:
+            LOG.info(
+                "request_failed status=%s code=%s path=%s detail=%s",
+                status,
+                resolved,
+                urlsplit(self.path).path,
+                safe_detail[:200],
+            )
+        self._json(payload, status)
 
     def do_OPTIONS(self) -> None:
         headers = self._cors_headers()
@@ -218,7 +291,7 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
             query = parse_qs(parsed.query)
             raw_query = (query.get("q") or [""])[0].strip()
             if not raw_query:
-                self._json({"error": "缺少搜索关键词 q"}, 400)
+                self._fail(400, "缺少搜索关键词 q", code="invalid_request")
                 return
             try:
                 limit = max(1, min(100, int((query.get("limit") or ["50"])[0])))
@@ -236,7 +309,30 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
                 limit = int((query.get("limit") or ["500"])[0])
             except ValueError:
                 limit = 500
-            self._json(self.server.service.audit_export(limit=limit))
+            raw_levels = (query.get("level") or [""])[0]
+            try:
+                self._json(
+                    self.server.service.audit_export(
+                        limit=limit,
+                        levels=[item.strip() for item in raw_levels.split(",") if item.strip()],
+                        min_level=(query.get("min_level") or [""])[0].strip() or None,
+                    )
+                )
+            except ValueError as exc:
+                self._fail(400, str(exc), exc=exc)
+            return
+        if path == "/api/metrics":
+            query = parse_qs(parsed.query)
+            try:
+                limit = max(1, min(2000, int((query.get("limit") or ["500"])[0])))
+            except ValueError:
+                limit = 500
+            self._json(
+                self.server.service.metrics(
+                    limit=limit,
+                    workspace_path=(query.get("workspace") or [""])[0] or None,
+                )
+            )
             return
         if path == "/api/tasks":
             query = parse_qs(parsed.query)
@@ -271,14 +367,14 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
             try:
                 self._json(self.server.service.tasks.get(task_id))
             except KeyError:
-                self._json({"error": "task not found"}, 404)
+                self._fail(404, "task not found", code="task_not_found")
             return
         if path == "/api/file":
             raw_path = (parse_qs(parsed.query).get("path") or [""])[0]
             try:
                 self._json(self.server.service.file_preview(raw_path))
             except Exception as exc:  # noqa: BLE001 - stable read-only API error
-                self._json({"error": str(exc)}, 400)
+                self._fail(400, str(exc), exc=exc)
             return
         if path == "/api/files":
             query = parse_qs(parsed.query)
@@ -287,26 +383,26 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
             try:
                 self._json(self.server.service.file_tree(raw_path, depth=int(raw_depth)))
             except (ValueError, OSError) as exc:
-                self._json({"error": str(exc)}, 400)
+                self._fail(400, str(exc), exc=exc)
             return
         if path == "/api/changes":
             try:
                 self._json(self.server.service.changes())
             except ChangeError as exc:
-                self._json({"error": str(exc)}, 400)
+                self._fail(400, str(exc), exc=exc)
             return
         if path == "/api/diff":
             raw_path = (parse_qs(parsed.query).get("path") or [""])[0]
             try:
                 self._json(self.server.service.changes(raw_path))
             except ChangeError as exc:
-                self._json({"error": str(exc)}, 400)
+                self._fail(400, str(exc), exc=exc)
             return
         if path == "/api/worktrees":
             try:
                 self._json({"worktrees": self.server.service.worktrees.list()})
             except WorktreeError as exc:
-                self._json({"error": str(exc)}, 400)
+                self._fail(400, str(exc), exc=exc)
             return
         if path == "/api/mcp":
             self._json(self.server.service.mcp.status() if self.server.service.mcp else {"configured": 0, "error": self.server.service.mcp_error})
@@ -317,7 +413,7 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
             try:
                 self._json(self.server.service.get_allowlist(session_id))
             except (ValueError, AllowlistError) as exc:
-                self._json({"error": str(exc)}, 400)
+                self._fail(400, str(exc), exc=exc)
             return
         if path == "/api/permissions":
             self._json(self.server.service.permissions_status())
@@ -332,16 +428,15 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
         try:
             self.server.service.tasks.get(task_id)
         except KeyError:
-            self._json({"error": "task not found"}, 404)
+            self._fail(404, "task not found", code="task_not_found")
             return
 
         if not self.server.sse_slots.acquire(blocking=False):
-            self._json(
-                {
-                    "error": "实时任务连接过多，请稍后重试或使用任务查询接口。",
-                    "retryable": True,
-                },
+            self._fail(
                 429,
+                "实时任务连接过多，请稍后重试或使用任务查询接口。",
+                code="too_many_event_streams",
+                retryable=True,
             )
             return
 
@@ -553,13 +648,16 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
                     raise ValueError("name 不能为空")
                 self._json(self.server.service.worktrees.remove(name, bool(payload.get("force"))))
                 return
-            self._json({"error": "not found"}, 404)
+            self._fail(404, "not found", code="not_found")
         except KeyError:
-            self._json({"error": "task not found"}, 404)
+            self._fail(404, "task not found", code="task_not_found")
         except (ValueError, json.JSONDecodeError, SessionError, WorktreeError, SnapshotError, AllowlistError, McpError) as exc:
-            self._json({"error": str(exc)}, 400)
+            self._fail(400, str(exc), exc=exc)
         except Exception as exc:  # noqa: BLE001 - return a stable API error
-            self._json({"error": f"agent failed: {type(exc).__name__}: {exc}"}, 500)
+            # 500 because nothing here was expected, but the code still names
+            # what the service raised: a client can distinguish ``forbidden``
+            # from ``internal_error`` without parsing prose.
+            self._fail(500, f"agent failed: {type(exc).__name__}: {exc}", exc=exc)
 
     def _serve_static(self, path: str) -> None:
         relative = unquote(path.lstrip("/")) or "index.html"
@@ -579,7 +677,7 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
                 accepts_gzip = 0 < quality <= 1
             content, headers = asset_response(STATIC_ROOT, relative, accept_gzip=accepts_gzip)
         except (OSError, ValueError):
-            self._json({"error": "not found"}, 404)
+            self._fail(404, "not found", code="not_found")
             return
         unchanged = self.headers.get("If-None-Match") == headers["ETag"]
         self.send_response(304 if unchanged else 200)

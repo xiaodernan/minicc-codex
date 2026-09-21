@@ -28,6 +28,8 @@ import random
 from pathlib import Path
 from typing import Any, Sequence
 
+from .cli_io import cli_out
+
 # scipy.stats.norm.ppf(0.975) — the two-sided 95% normal quantile.
 Z95 = 1.959963984540054
 MIN_REPEATS_FOR_PASSK = 10
@@ -537,7 +539,7 @@ def main(argv: list[str] | None = None) -> int:
                       "violated": not _gate_holds(actual, parsed["op"], parsed["threshold"])})
     comparison["gates"] = gates
 
-    print(render_delta_table(comparison, gates))
+    cli_out(render_delta_table(comparison, gates))
 
     if args.json_out is not None:
         args.json_out.parent.mkdir(parents=True, exist_ok=True)
@@ -550,10 +552,10 @@ def main(argv: list[str] | None = None) -> int:
 
     violated = [gate for gate in gates if gate["violated"]]
     if violated:
-        print(f"\n[GATE FAILED] {len(violated)} 个门槛被违反：")
+        cli_out(f"\n[GATE FAILED] {len(violated)} 个门槛被违反：")
         for gate in violated:
             actual = "None" if gate["actual"] is None else f"{gate['actual']:g}"
-            print(f"  - {gate['spec']} 实际={actual}")
+            cli_out(f"  - {gate['spec']} 实际={actual}")
         return 1
     return 0
 

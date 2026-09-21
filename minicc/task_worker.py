@@ -26,10 +26,12 @@ from typing import Any
 from .config import TRUTHY
 
 from .agent.loop import AgentCancelled
+from .logging_setup import get_logger, log_task_event, register_secret
 from .task_store import TaskStore
 from .task_contract import TASK_SCHEMA_VERSION, TaskRequest, TaskResult
 from .llm.usage import add_usage_totals
 
+LOG = get_logger("worker")
 WORKER_VERSION = 2
 CANCEL_POLL_SECONDS = 1.0
 STREAM_BOUND = 16_000
@@ -154,6 +156,9 @@ def _run_owned_worker(args: argparse.Namespace, workspace: Path, store: TaskStor
     if config is None:
         config = _config_from_json(args.config_json)
     config = SimpleNamespace(**{**vars(config), "task_worker_runtime": True, "auto_resume_on_start": False})
+    # The worker gets its own process, so it registers the credential to mask
+    # in its own log handlers; the config never reaches the log otherwise.
+    register_secret(getattr(config, "api_key", ""))
     from .web import AgentService
 
     cancel_event = threading.Event()
@@ -247,6 +252,7 @@ def _run_owned_worker(args: argparse.Namespace, workspace: Path, store: TaskStor
                 continue
 
     def on_event(event: dict[str, Any]) -> None:
+        log_task_event(event, task_id=args.task_id)
         with state_lock:
             phase = str(event.get("phase") or "")
             if event.get("kind") in {"trace", "state", "verification"} and phase:
@@ -282,6 +288,15 @@ def _run_owned_worker(args: argparse.Namespace, workspace: Path, store: TaskStor
             dirty.set()
 
     service = AgentService(workspace, config, task_store=store, **service_kwargs)
+    LOG.info(
+        "task_started task_id=%s pid=%s workspace=%s mode=%s changes=%s network=%s",
+        args.task_id,
+        os.getpid(),
+        workspace,
+        request.permission_mode,
+        request.allow_changes,
+        request.allow_network,
+    )
     flusher = threading.Thread(target=_background_flush, daemon=True, name="worker-state-flush")
     watcher = threading.Thread(target=_watch_cancel, daemon=True, name="worker-cancel-watch")
     heartbeat = threading.Thread(target=_heartbeat, daemon=True, name="worker-heartbeat")
@@ -320,11 +335,20 @@ def _run_owned_worker(args: argparse.Namespace, workspace: Path, store: TaskStor
         _flush()
         return 0
     except BaseException as exc:  # noqa: BLE001 - the worker owns its failure record
+        LOG.error(
+            "worker_failed task_id=%s error=%s", args.task_id, exc, exc_info=exc
+        )
         state["status"] = "failed"
         state["error"] = f"{type(exc).__name__}: {exc}"[:500]
         _flush()
         return 1
     finally:
+        LOG.info(
+            "task_finished task_id=%s status=%s error=%s",
+            args.task_id,
+            state["status"],
+            (state.get("error") or "-")[:200],
+        )
         stop_event.set()
         for thread in (flusher, watcher, heartbeat):
             if thread.ident is not None:

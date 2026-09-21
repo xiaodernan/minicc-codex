@@ -60,7 +60,39 @@ MINICC_TASK_STREAM_LIMIT=16000
 MINICC_TASK_USAGE_LIMIT=64
 MINICC_TASK_COMPACTION_LIMIT=64
 MINICC_TASK_QUEUE_LIMIT=32
+# 日志：默认 WARNING 到 stderr；MINICC_LOG_FILE 另存一份 UTF-8 文件
+MINICC_LOG_LEVEL=WARNING
 ```
+
+## 日志与可观测性
+
+minicc 只用一处日志通道：`minicc/logging_setup.py`。CLI/REPL 的正文输出走 `minicc/cli_io.cli_out()`
+（包内唯一 `print()` 所在），日志一律走 stderr 或 `MINICC_LOG_FILE`，因此管道里的协议内容不会被日志打断。
+
+```powershell
+# 复现一次失败任务并留下可 grep 的现场
+$env:MINICC_LOG_LEVEL="DEBUG"
+$env:MINICC_LOG_FILE="D:\logs\minicc.log"
+.\.venv\Scripts\minicc-web.exe --workspace D:\面试项目\minicc-codex --port 8765
+```
+
+事件名与任务快照、SSE 时间线使用同一套词表，方便直接对照：
+
+- 模型侧：`provider_protocol`、`provider_retry`、`provider_stream_error`（由 provider 状态回调写入）。
+- 执行侧：`run_started`、`tool_round_finished`、`budget_exceeded`、`stagnation_guard`、`run_finished`。
+- 任务侧：`task_started`、`task_cancelled`、`task_crashed`、`task_finished`（thread 与 process 两种执行器共用同一事件漏斗）。
+- 外围：`audit action=… path=… level=…`（编辑/命令审计，`info|notice|warning` 映射到 `DEBUG|INFO|WARNING`）、`hook_executed`、`mcp_spawn`。
+
+凭据不会进日志。每个 handler 都过一遍脱敏过滤器：既按标签匹配 `api_key=`、`Authorization:`、`?token=` 等键名，
+也按值形态匹配 `sk-…`、`ghp_…`、`Bearer …`、JWT、PEM 等；启动时还会注册已解析的 `MINICC_API_KEY` 与
+`minicc-web` token，按精确子串掩码（≤3 字符的注册值忽略，否则会抹掉半行普通日志）。脱敏是幂等的：已经脱敏的
+标记不会被二次包裹。
+
+聚合用量与成本查 `/api/metrics`：它按任务快照逐条累加 `tokens_used` 与 `cost_usd`，未计价模型单独计入
+`unpriced_tasks`（不会当作 0 成本混进总额）；`/api/audit` 支持 `?level=warning` 与 `?min_level=notice` 过滤，
+未知级别返回 400 并列出可选值。失败响应带稳定 `code`（`forbidden`、`task_not_found`、`unauthorized`、
+`invalid_request`、`internal_error`），客户端不必解析中文措辞。
+
 
 运行测试请使用 `python -m pytest -q`；项目已在 pytest 配置中固定工作区导入路径，直接运行 `pytest -q` 也应得到相同结果。
 

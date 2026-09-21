@@ -86,7 +86,9 @@ for args, expected_type in data.get("raises", []):
         raise AssertionError("required exception not raised")
     if data.get("preserve_inputs"):
         assert matches(inputs, args), "input mutated on exception"
-print("MINICC_BEHAVIOR_COMPLETE:" + str(len(data["cases"]) + len(data.get("raises", []))))
+# The grader runs as a standalone subprocess script, so it writes its marker to
+# stdout directly instead of importing minicc.cli_io.
+sys.stdout.write("MINICC_BEHAVIOR_COMPLETE:" + str(len(data["cases"]) + len(data.get("raises", []))) + "\\n")
 '''
 
 

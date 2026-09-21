@@ -44,6 +44,17 @@ MINICC_REASONING_EFFORT=high
 #MINICC_TASK_COMPACTION_LIMIT=64
 #MINICC_TASK_QUEUE_LIMIT=32
 
+# ---- 结构化日志 / 可观测性 ----
+
+# 日志级别：DEBUG | INFO | WARNING | ERROR | CRITICAL。默认 WARNING，输出到
+# stderr —— stdout 是 CLI/REPL 的协议通道，日志不能污染它。
+#MINICC_LOG_LEVEL=WARNING
+
+# 追加写入同一个日志文件（UTF-8，与 stderr 同源）。排查失败任务时开 DEBUG：
+# 事件名与任务快照一致（provider_retry / tool_round_finished / run_finished /
+# audit / hook_executed / mcp_spawn / budget_exceeded）。
+#MINICC_LOG_FILE=D:\logs\minicc.log
+
 # Auto-approve every tool call (dangerous; --yolo sets this too)
 #MINICC_YOLO=0
 
