@@ -227,6 +227,9 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
             workspace_filter = (query.get("workspace") or [""])[0] or None
             self._json(self.server.service.search_history(raw_query, limit=limit, workspace_path=workspace_filter))
             return
+        if path == "/api/sessions":
+            self._json(self.server.service.list_stored_sessions())
+            return
         if path == "/api/audit":
             query = parse_qs(parsed.query)
             try:
@@ -497,6 +500,24 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
                 except (TypeError, ValueError) as exc:
                     raise ValueError("keep_messages 必须是整数") from exc
                 self._json(self.server.service.rewind_session(session_id, keep_messages))
+                return
+            if path == "/api/sessions/fork":
+                session_id = payload.get("session_id")
+                if not isinstance(session_id, str):
+                    raise ValueError("session_id 不能为空")
+                point = payload.get("from_message_id")
+                if isinstance(point, str):
+                    point = point.strip()
+                    if not point:
+                        raise ValueError("from_message_id 不能为空")
+                elif not isinstance(point, int):
+                    raise ValueError("from_message_id 必须是消息序号（整数）或消息 id（字符串）")
+                raw_new = payload.get("new_session_id")
+                self._json(
+                    self.server.service.fork_session(
+                        session_id, point, raw_new if isinstance(raw_new, str) else None
+                    )
+                )
                 return
             if path == "/api/workspace/restore":
                 task_id = payload.get("task_id")

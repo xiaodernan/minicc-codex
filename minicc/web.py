@@ -95,7 +95,7 @@ from .llm.usage import add_usage_totals, cache_summary
 from .mcp import McpError, McpManager
 from .prompt import build_system_prompt
 from .sandbox import SandboxRunner
-from .session import SessionError, SessionStore
+from .session import SessionError, SessionStore, list_sessions
 from .tools import Editor, ToolCall, ToolResult, build_registry
 from .tools.registry import redact_text
 from .task_store import TaskStore
@@ -664,6 +664,33 @@ class AgentService:
         if keep_messages is None:
             raise ValueError("keep_messages 或 user_index 必须提供")
         return store.rewind(keep_messages)
+
+    def fork_session(
+        self,
+        session_id: str,
+        from_message_id: int | str,
+        new_session_id: str | None = None,
+    ) -> dict[str, Any]:
+        """M8-T2: branch a stored conversation at one message into a new session."""
+        if not isinstance(session_id, str) or not session_id.strip():
+            raise ValueError("session_id 不能为空")
+        store = SessionStore(self.workspace, session_id.strip())
+        raw_new = str(new_session_id).strip() if new_session_id else ""
+        target = store.fork(from_message_id, new_session_id=raw_new or None)
+        return {
+            "session_id": target.session_id,
+            "forked_from": store.session_id,
+            "from_message_id": from_message_id,
+        }
+
+    def list_stored_sessions(self) -> dict[str, Any]:
+        """M8-T2: the session forest backing /api/sessions (forks are files)."""
+        sessions = list_sessions(self.workspace)
+        return {
+            "workspace_path": str(self.workspace),
+            "count": len(sessions),
+            "sessions": sessions,
+        }
 
     def get_allowlist(self, session_id: str) -> dict[str, Any]:
         sid = str(session_id or "").strip()

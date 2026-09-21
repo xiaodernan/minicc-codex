@@ -21,7 +21,7 @@ from .hooks import HookRunner
 from .llm.base import system_msg, user_msg
 from .llm.openai_provider import OpenAICompatibleProvider
 from .prompt import build_system_prompt
-from .session import SessionError, SessionStore
+from .session import SessionError, SessionStore, list_sessions
 from .tools import Editor, ToolCall, ToolRegistry, ToolResult, build_registry
 
 
@@ -171,6 +171,17 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--no-stream", action="store_true", help="关闭流式输出")
     parser.add_argument("--verbose-tools", action="store_true", help="默认展开工具输出；可在交互中用 /compact 切回摘要")
     parser.add_argument("--resume", action="store_true", help="恢复上次保存的会话")
+    parser.add_argument(
+        "--list-sessions",
+        action="store_true",
+        help="列出已保存的会话与 fork 分支后退出（配合 --session-id <名称> --resume 恢复）",
+    )
+    parser.add_argument(
+        "--fork-from",
+        metavar="MESSAGE",
+        help="从 --session-id 会话的某条消息分叉出新会话后退出：消息序号（保留条数，system=1）或消息 id（m-…）",
+    )
+    parser.add_argument("--new-session-id", metavar="NAME", help="--fork-from 生成的新会话名（可选，默认自动命名）")
     parser.add_argument("--session-id", default="latest", help="会话名称，默认 latest")
     parser.add_argument("--print-config", action="store_true", help="打印解析后的配置并退出")
     parser.add_argument("--version", action="version", version="minicc 0.1.0")
@@ -471,6 +482,33 @@ def _fatal(message: str) -> NoReturn:
     raise SystemExit(2)
 
 
+def _print_sessions(workspace: Path) -> int:
+    """Render the session forest (one line per session; forks show lineage)."""
+    sessions = list_sessions(workspace)
+    if not sessions:
+        print("（该工作区暂无保存的会话）")
+        return 0
+    known = {item["session_id"] for item in sessions}
+    for item in sessions:
+        if item.get("error"):
+            print(f"{item['session_id']:28} [错误] {item['error']}")
+            continue
+        mark = ""
+        lineage = item.get("forked_from")
+        if isinstance(lineage, dict):
+            source = str(lineage.get("session") or "?")
+            at = lineage.get("from_message_id") or lineage.get("keep_messages") or "?"
+            mark = f"   |- fork of {source} @ {at}"
+            if source not in known:
+                mark += "（源会话已不在列表中）"
+        title = str(item.get("title") or "")
+        print(
+            f"{item['session_id']:28} {item['messages']:>4} 条  {item.get('updated_at', '')}"
+            f"{mark}{('  ' + title) if title else ''}"
+        )
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     # M7-T4: resolve the workspace before loading config so the project
@@ -478,6 +516,27 @@ def main(argv: list[str] | None = None) -> int:
     workspace = args.workspace.expanduser().resolve()
     if not workspace.is_dir():
         _fatal(f"工作区不是目录: {workspace}")
+
+    if args.list_sessions:
+        return _print_sessions(workspace)
+
+    if args.fork_from:
+        raw_point = str(args.fork_from).strip()
+        point: int | str = int(raw_point) if raw_point.isdigit() else raw_point
+        try:
+            source_store = SessionStore(workspace, args.session_id)
+            target_store = source_store.fork(
+                point,
+                new_session_id=(str(args.new_session_id).strip() or None)
+                if args.new_session_id
+                else None,
+            )
+        except SessionError as exc:
+            _fatal(str(exc))
+        print(f"已 fork：{source_store.session_id} -> {target_store.session_id}（{target_store.path.name}）")
+        print(f"恢复该分支: minicc --resume --session-id {target_store.session_id}")
+        return 0
+
     try:
         config = _load(args, workspace)
     except ConfigError as exc:
