@@ -13,6 +13,31 @@ from pathlib import Path
 _CACHE: OrderedDict[tuple[str, int, int, bool], tuple[bytes, str]] = OrderedDict()
 _LOCK = threading.Lock()
 
+_PACKAGE_ROOT = Path(__file__).resolve().parent
+_CHECKOUT_ROOT = _PACKAGE_ROOT.parent
+
+
+def _asset_root(packaged: str, checkout: str, marker: str) -> Path:
+    """Pick the asset tree that exists: installed wheel first, checkout second.
+
+    ``setup.py`` copies ``web/`` and ``ide/`` into the package at build time, so
+    an installed ``minicc`` has no sibling checkout directory to fall back on.
+    """
+    for candidate in (_PACKAGE_ROOT / packaged, _CHECKOUT_ROOT / checkout):
+        if (candidate / marker).is_file():
+            return candidate
+    return _CHECKOUT_ROOT / checkout
+
+
+def web_root() -> Path:
+    """Workbench assets served by ``minicc-web``."""
+    return _asset_root("web_static", "web", "index.html")
+
+
+def ide_root() -> Path:
+    """VSCode companion shipped with the package for manual installation."""
+    return _asset_root("ide_static", "ide", "vscode/extension.js")
+
 
 def asset_response(root: Path, relative: str, *, accept_gzip: bool = False) -> tuple[bytes, dict[str, str]]:
     root = root.resolve()

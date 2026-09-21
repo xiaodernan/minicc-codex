@@ -655,7 +655,27 @@
 
 | M6-T3 写/exec 工具并行执行 | ✅ | `minicc/agent/loop.py`：一轮工具调用里，此前只有只读调用 fan-out（`asyncio.to_thread`），`write_file`/`edit_file`/`bash` 全部在 `for index` 循环里**串行阻塞**执行，多文件改造的 latency 全耗在等 IO。改为**写阶段**：新增模块级 `_parallel_write_key(tool, arguments)`（仅 `PARALLEL_SAFE_WRITE_TOOLS={write_file,edit_file}` 且有非空 `path` 时返回 `write:<path>` 作序列化键，键只看 path 让同一文件的 write 与 edit 也互斥）与 `_run_write_phase(...)`/`_execute_and_store(...)`。循环内把非只读调用按是否可并行分流进 `pending_writes`（带 key）与 `serial_writes`（bash/todo_write/worktree_*/MCP 等）；`result.cancelled` 后、只读 fan-out **之前** `await _run_write_phase`：按 path key 分组，每组内按 index 顺序串行、不同组 `asyncio.gather(return_exceptions=True)` 并发，其余非只读工具作为**单个确定性串行组**。这样既让不同文件的写并发，又保住「写先于读」偏序（写阶段整体早于只读 gather）与「同文件写有序」（第二个 edit 看到第一个结果）。`_execute_and_store` 用 try/except 兜底，保证每个 index 一定拿到结果 → 一个写失败不丢其余结果、也不破坏 tool-call/结果对齐 | 新增 `tests/test_parallel_writes.py`（5 条）：假 `write_file`/`edit_file` 各 `sleep`，4 个不同 path 的写断言墙钟 **<0.6s**（串行基线约 1.2s）且 4 个结果全 ok；同 path 两个 `edit_file` 断言事件序列 `start,end,start,end`（无重叠=串行）且都拿到结果；一个 path 故意失败断言 3 个结果齐全、失败项 error、其余 ok；`_parallel_write_key` 对 bash/空 path/非 dict 返回 None；并发计数器断言 3 个不同 path 写的活跃窗口重叠（`peak>=2`，防退化回串行）。回归 `test_core`+`test_p0_p1_p2`+`test_optimization_core`+`test_http_surface` 合计 **196 passed** |
 
+### 已完成（M7 生态与配置，全部）
+
+| 任务 | 状态 | 落地位置 | 验证 |
+| --- | --- | --- | --- |
+| M7-T1 Hooks（PreToolUse / PostToolUse / UserPromptSubmit / Stop） | ✅ | 新增 `minicc/hooks.py`：四事件契约（PreToolUse 只能**拒绝**、不能放行 `authorize_tool` 已拒的调用；Post/Stop 只审计；UserPromptSubmit 可阻断），配置在 `<workspace>/.minicc/hooks.json`（默认关闭、属 M2-T2 敏感文件 ⇒ agent 装不了 hook），子进程 cwd 钉在工作区且环境被清洗（`MINICC_API_KEY`/web token 不外泄），stdout/stderr 先脱敏截断再入 trace，超时 tree-kill、失败默认只记审计不阻断主流程 | `tests/test_hooks.py`；提交 `d88ad63` |
+| M7-T2 自定义 slash 命令 + Skills 发现 | ✅ | `<workspace>/.minicc/commands/<name>.md`（project 优先）与 `~/.minicc/commands/`（user），支持 front matter 与 `$ARGUMENTS`/`$1..$9`，CLI 与 Web 输入均由服务端展开为普通 user 内容（同 AGENTS.md：不能改写系统指令与权限边界）；Skills 从 `.minicc/skills/<name>/SKILL.md` 发现，系统提示只注入 name + description，正文按需由 agent 读取 | `tests/test_slash_commands.py`；提交 `d7b0516` |
+| M7-T3 Web 交互式权限审批 + 声明式 allow/deny | ✅ | Web 端把 `missing_task_write` / `missing_task_exec` 变成前端审批弹窗（允许后继续、拒绝落 `tool_denied_by_policy` 审计）；新增 `minicc/permissions.json` 规则层：`deny` 绝对且在询问前短路、任务开关与 allow 都越不过，`allow` 只跳过交互提示、绝不升级（plan 仍只读、联网仍需任务级授权），文件损坏时忽略规则并把解析错误进审计 | `tests/test_permissions_approval.py`；提交 `1da701a` |
+| M7-T4 项目级配置层 + config.py 剩余缺陷 | ✅ | `.minicc/config.json` 逐键覆盖 user 级 `~/.minicc/config.json`，`config.load_config()` 的解析顺序为 args > 环境变量 > `.env` > project > user > defaults；新增 10 个 CLI 开关，修 `config.py` 六处解析/钳制缺陷 | `tests/test_project_config.py`；提交 `2b9f7fd` |
+| M7-T5 前端数据丢失修复 + @-提及内容注入 | ✅ | `web/src/chat/stream.js` 失败恢复（提交失败不清空已输入内容），`minicc/mentions.py` 把 `@relative/path` 变成有界内容块附加到 user 消息：只读工作区相对路径（绝对/`~`/盘符拒绝，`resolve()+is_relative_to()` 拦 junction 越界），逐文件与整条消息双上限、截断处标 `[truncated]`，敏感与二进制引用只标注不读取，正文过 `redact_text` | `tests/test_mentions.py`；提交 `8ec2de0` |
+
+### 已完成（M8 可分发与长期演进，M8-T1..T4）
+
+| 任务 | 状态 | 落地位置 | 验证 |
+| --- | --- | --- | --- |
+| M8-T1 长期记忆 MEMORY.md + 自动召回 | ✅ | `memory_write/memory_read/memory_list` 写 `~/.minicc/MEMORY.md` 与 `<workspace>/.minicc/MEMORY.md`，落盘前 `redact_text`，系统提示只注入条目索引（≥200 条时最近 50 条） | `tests/test_memory.py`（17 条）+ 真实 API E2E（任务 A 写入的记忆出现在任务 B 的系统提示里）；提交 `45581fb` |
+| M8-T2 会话 fork / 分支 | ✅ | `session.py` message 级事件树 + 稳定 `m-*` id + `fork(from_message_id)` 独立分支文件；CLI `--fork-from/--new-session-id/--list-sessions` 与 `/api/sessions/fork` 共用同一条 lineage；保存改为跨进程锁下重试 `os.replace`（Windows 上无锁读句柄会让替换失败并丢文件） | `tests/test_session_fork.py` + 真实 API E2E（第 2 轮答复处 fork，分支继承基准编号且不动源会话）；提交 `6b220cc` |
+| （附带）完成评估不收敛与内部 id 泄漏 | ✅ | `agent/completion.py`：证据包补对话记录（`message-N`），`next_action: null` 视为「无事可做」而非协议错误，评估器自身故障走有界重试后归为 `unknown`；不再要求模型引用它看不到的 `event-N` 词汇 | `tests/test_completion_liveness.py`（含 8 条 null/类型回归）+ 真实 API 诊断日志定位；提交 `a0b17e3` |
+| M8-T3 插件 API 稳定化 | ✅ | `tools/registry.py`：`TOOL_API_VERSION` + `ToolSpec.api_version/capabilities`、注册期 `validate_tool_spec`（名字/risk/params/input_schema/能力与风险自相矛盾全部拒绝并报出工具与字段）、同名冲突必须显式 `override=True` 且留 `overrides()` 痕迹；`capabilities` 里 `network` 让第三方只读工具走与内置 `web_search/webfetch` 同一道 `allow_network` 门（`audit.tool_requires_authorization/authorize_tool` + loop/main/web 三处接线）。`docs/PLUGIN_API.md` 为契约文档，示例代码块由测试原样执行 | `tests/test_plugin_api.py`（44 条，含 18 条非法 spec 与文档执行）+ 真实 API E2E（模型自行发现并调用 `line_count` 插件、内置 `read_file` 未被遮蔽、`url_head` 无授权时 `missing_task_network` 拒绝、授权后返回真实 HTTP 200）；提交 `40b9771` |
+| M8-T4 可安装产物 | ✅ | `setup.py` 的 `build_py` 钩子在构建期把仓库根的 `web/`、`ide/` 复制进包内 `minicc/web_static`、`minicc/ide_static`（`MANIFEST.in` 同步进 sdist，保证从 sdist 再构建的 wheel 一致）；`static_assets.web_root()/ide_root()` 先查安装目录再退回 checkout，`webserver.STATIC_ROOT` 改用它；新增 `scripts/build-dist.ps1`（可选 `npm run build:web` → wheel+sdist → 校验 manifest 引用的 bundle 真的在包里）；`build-system` 提到 `setuptools>=70.1`（自带 bdist_wheel）；README 增加安装到别的机器的完整命令，并声明版本单一来源 | `tests/test_packaging.py`（11 条：包载荷、无 node_modules/`.env`/`__pycache__` 垃圾、console scripts 可解析、版本四处一致、README 引用的 npm 脚本全部存在、sdist round-trip 载荷集合相同、安装后从 site-packages 真的返回 index.html 与 bundle）+ 真实安装 E2E（`pip wheel . -w dist` → 干净 venv 安装 → `minicc --version`=`minicc 0.1.0` → `minicc-web --port 8791` 返回 `/` 200 与 3 个 hash bundle 200 → `/api/health` 200） |
+
 ### 尚未开始
 
-M6–M8（能力扩展）。这些任务的目标文件、改法与验收标准见上文各里程碑章节。M6 起每个能力 PR 必须附带 `compare` delta 表。**M4（证据链与评测可信度）、M5（MCP 桥加固与 CLI 接线）已全部完成；M6-T1（子代理分层委派有界深度与预算）已完成。**
+M8-T5（logging 取代 print + `/api/metrics` + 日志脱敏）与 M8-T6（`tests/test_core.py` 按 domain 拆分）。M6-T4/M6-T5 的落地记录见 `02059ea`、`a97bf13` 等一批提交（对应 `tests/test_background_shell.py`、`tests/test_parallel_writes.py`），本日志未逐条复核，暂不代为背书。M4（证据链与评测可信度）、M5（MCP 桥加固与 CLI 接线）、M6-T1..T3、M7-T1..T5、M8-T1..T4 已完成并逐项验证。
 

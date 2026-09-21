@@ -25,7 +25,7 @@ from .mcp import McpError
 from .session import SessionError
 from .snapshots import SnapshotError
 from .task_store import TERMINAL_TASK_STATUSES
-from .static_assets import asset_response
+from .static_assets import asset_response, web_root
 from .webauth import WebAuth, cors_origin, origin_allowed
 
 from typing import TYPE_CHECKING
@@ -34,7 +34,7 @@ if TYPE_CHECKING:  # typing-only; keeps web -> webserver a one-way runtime edge
     from .web import AgentService
 from .worktree import WorktreeError
 
-STATIC_ROOT = Path(__file__).resolve().parent.parent / "web"
+STATIC_ROOT = web_root()
 TASK_STREAM_TIMEOUT = 15 * 60
 MAX_SSE_CONNECTIONS = 32
 SSE_WRITE_TIMEOUT = 20.0

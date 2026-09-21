@@ -1,5 +1,7 @@
 [build-system]
-requires = ["setuptools>=68"]
+# setuptools >=70.1 vendors bdist_wheel, so a wheel build needs neither the
+# retired `wheel` package nor network access under --no-build-isolation.
+requires = ["setuptools>=70.1"]
 build-backend = "setuptools.build_meta"
 
 [project]

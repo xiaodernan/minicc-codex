@@ -87,6 +87,31 @@ Web 工作台：
 # 浏览器打开 http://127.0.0.1:8765/
 ```
 
+安装到别的机器（wheel / sdist）：
+
+`pip install -e .` 只适合开发机。要真正把 minicc 装到别的环境，构建 wheel —— 工作台前端与
+VSCode 伴生扩展会在构建期被复制进包目录（`minicc/web_static`、`minicc/ide_static`），
+所以安装后不再依赖仓库布局：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\build-dist.ps1 -Clean
+# 产物：dist\minicc-<version>-py3-none-any.whl 与 dist\minicc-<version>.tar.gz
+# 等价的单行构建：python -m pip wheel . -w dist（只出 wheel，不出 sdist）
+
+python -m venv D:\envs\minicc-clean
+D:\envs\minicc-clean\Scripts\python.exe -m pip install (Get-ChildItem dist\*.whl).FullName
+D:\envs\minicc-clean\Scripts\minicc.exe --version
+D:\envs\minicc-clean\Scripts\minicc-web.exe --workspace D:\some\project --port 8765
+# 打开 http://127.0.0.1:8765/：页面与 bundle 由包内 minicc/web_static 提供
+
+# 可选：VSCode 伴生扩展随包分发，先定位再自行打成 .vsix
+D:\envs\minicc-clean\Scripts\python.exe -c "import minicc.static_assets as s; print(s.ide_root() / 'vscode')"
+```
+
+版本号只有一个来源：`minicc/__init__.py.__version__`。`pyproject.toml`（动态读取）、
+`minicc --version`、MCP `clientInfo`、构建出的 wheel/sdist 文件名以及 `ide/vscode/package.json`
+都必须与它一致，`tests/test_packaging.py` 会逐项比对。
+
 Docker 执行模式（可选）：
 
 ```powershell

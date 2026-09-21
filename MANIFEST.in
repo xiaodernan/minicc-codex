@@ -1,0 +1,16 @@
+# The sdist must carry the asset trees that setup.py copies into the wheel, so
+# that `python -m build` from an unpacked sdist produces the same wheel.
+graft web
+graft ide
+graft docs
+graft benchmarks
+prune web/node_modules
+prune ide/node_modules
+global-exclude *.py[co]
+global-exclude .DS_Store
+exclude .env
+global-exclude *.sqlite3
+prune output
+prune minicc.egg-info
+prune build
+prune dist
