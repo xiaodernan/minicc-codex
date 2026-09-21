@@ -1862,12 +1862,14 @@
     addUserMessage(message, queuedAttachments);
     const loadingId = addLoadingMessage();
     const permissions = effectiveTaskPermissions();
+    let taskCreated = false;
     try {
       const task = await requestJson("/api/tasks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message, model: state.model, attachments: queuedAttachments.map(({ name, mime_type, data_url }) => ({ name, mime_type, data_url })), session_id: sessionId, permission_mode: permissions.mode, allow_changes: permissions.allowChanges, allow_network: permissions.allowNetwork, reasoning_effort: state.reasoningEffort, workspace_path: workspacePath })
       });
+      taskCreated = true;
       bindRunningTask(task, loadingId, sessionId);
       releaseSubmission();
       if (isCurrentScope()) state.activeTaskId = task.task_id;
@@ -1877,8 +1879,18 @@
     } catch (error) {
       finishLiveTask(loadingId);
       document.getElementById(loadingId)?.remove();
-      if (isCurrentScope()) addAssistantMessage({ error: error.message });
-      showToast(error.message);
+      if (isCurrentScope()) {
+        addAssistantMessage({ error: error.message });
+        if (!taskCreated) {
+          if (input && !input.value.trim()) input.value = message;
+          if (!state.attachments.length && queuedAttachments.length) state.attachments = queuedAttachments;
+          renderAttachmentTray();
+          const restoreHint = state.locale === "zh" ? "\uFF08\u8F93\u5165\u4E0E\u9644\u4EF6\u5DF2\u6062\u590D\u5230\u7F16\u8F91\u5668\uFF09" : " (your text and attachments were restored)";
+          showToast(`${error.message}${restoreHint}`);
+        } else {
+          showToast(error.message);
+        }
+      }
       setConnection(false, "API error");
     } finally {
       releaseSubmission();

@@ -75,6 +75,7 @@ from .agent.verification_plan import build_verification_plan, changed_paths_from
 from .audit import AuthorizationDecision, authorize_tool, normalize_permission_mode
 from .changes import ChangeError, ChangeInspector
 from .commands import discover_commands, expand_slash_command
+from .mentions import apply_mentions
 from .permissions import load_permission_rules, match_permission_rule
 from .config import (
     ConfigError,
@@ -946,15 +947,18 @@ class AgentService:
         )
         attachments = _normalize_attachments(payload.get("attachments"))
         vision_context = _attachment_content_parts(attachments)
+        # M7-T5: @-mentions inject bounded heads of referenced workspace
+        # files (junction-safe; oversized files carry a [truncated] marker).
+        model_message, mention_records = apply_mentions(message.strip(), workspace)
         hook_runner = HookRunner(workspace)
         store = SessionStore(workspace, session_id)
         messages = store.load(build_system_prompt(workspace))
         resume_from_checkpoint = bool(payload.get("resume_from_checkpoint")) and store.exists
         messages.append(
             user_msg(
-                message.strip()
+                model_message
                 if resume_from_checkpoint
-                else _multimodal_content(message.strip(), attachments)
+                else _multimodal_content(model_message, attachments)
             )
         )
         store.save(messages)
@@ -1053,6 +1057,25 @@ class AgentService:
             events.append(image_event)
             if on_event is not None:
                 on_event(image_event)
+
+        if mention_records:
+            injected = [item for item in mention_records if item["status"] == "injected"]
+            rejected = [item for item in mention_records if item["status"] == "rejected"]
+            mention_summary = f"已按 @-提及注入 {len(injected)} 个文件内容"
+            if rejected:
+                mention_summary += f"，拒绝 {len(rejected)} 个越界引用"
+            mention_event = {
+                "kind": "trace",
+                "name": "agent",
+                "status": "ok",
+                "phase": "planning",
+                "code": "mentions_resolved",
+                "summary": mention_summary,
+                "detail": {"records": mention_records},
+            }
+            events.append(mention_event)
+            if on_event is not None:
+                on_event(mention_event)
 
         route_event = {
             "kind": "trace", "name": "router", "status": "ok", "phase": "planning",

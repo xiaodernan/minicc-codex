@@ -237,12 +237,14 @@ export async function sendMessage(event) {
   addUserMessage(message, queuedAttachments);
   const loadingId = addLoadingMessage();
   const permissions = effectiveTaskPermissions();
+  let taskCreated = false;
   try {
     const task = await requestJson("/api/tasks", {
      method: "POST",
      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ message, model: state.model, attachments: queuedAttachments.map(({ name, mime_type, data_url }) => ({ name, mime_type, data_url })), session_id: sessionId, permission_mode: permissions.mode, allow_changes: permissions.allowChanges, allow_network: permissions.allowNetwork, reasoning_effort: state.reasoningEffort, workspace_path: workspacePath }),
     });
+    taskCreated = true;
     bindRunningTask(task, loadingId, sessionId);
     releaseSubmission();
     if (isCurrentScope()) state.activeTaskId = task.task_id;
@@ -252,8 +254,20 @@ export async function sendMessage(event) {
   } catch (error) {
     finishLiveTask(loadingId);
     document.getElementById(loadingId)?.remove();
-    if (isCurrentScope()) addAssistantMessage({ error: error.message });
-    showToast(error.message);
+    if (isCurrentScope()) {
+      addAssistantMessage({ error: error.message });
+      // M7-T5: a task that was never created must not swallow the prompt.
+      // Restore only into the same session and never over newer input.
+      if (!taskCreated) {
+        if (input && !input.value.trim()) input.value = message;
+        if (!state.attachments.length && queuedAttachments.length) state.attachments = queuedAttachments;
+        renderAttachmentTray();
+        const restoreHint = state.locale === "zh" ? "（输入与附件已恢复到编辑器）" : " (your text and attachments were restored)";
+        showToast(`${error.message}${restoreHint}`);
+      } else {
+        showToast(error.message);
+      }
+    }
     setConnection(false, "API error");
   } finally {
     releaseSubmission();
