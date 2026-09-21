@@ -40,6 +40,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import signal
 import subprocess
 import threading
 from dataclasses import dataclass, field
@@ -112,6 +113,29 @@ def _scrubbed_env(extra: dict[str, str] | None = None) -> dict[str, str]:
             raise HookConfigError(f"hook env 键名非法: {key!r}")
         env[str(key)] = str(value)
     return env
+
+
+def _kill_process_tree(proc: "subprocess.Popen[str]") -> None:
+    """Terminate a timed-out hook *and its children* (shell=True spawns)."""
+    if os.name == "nt":
+        try:
+            subprocess.run(
+                ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+                capture_output=True,
+                timeout=5.0,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+    else:
+        try:
+            os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+        except (ProcessLookupError, PermissionError, OSError):
+            pass
+    try:
+        proc.wait(timeout=5.0)
+    except subprocess.TimeoutExpired:
+        proc.kill()
 
 
 def _cap(text: str) -> str:
@@ -254,35 +278,62 @@ class HookRunner:
             entry.update(decision="error", reason=str(exc))
             return entry
         body = json.dumps(payload, ensure_ascii=False, default=str)
+        popen_kwargs: dict[str, Any] = {}
+        if os.name == "nt":
+            popen_kwargs["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+        else:
+            # Own process group so a timeout can SIGKILL the whole tree;
+            # killing only the shell would leave grandchildren alive holding
+            # the capture pipes, which blocks communicate() past the timeout.
+            popen_kwargs["start_new_session"] = True
         try:
             with self._env_lock:  # serialize spawns; hooks may mutate workspace
-                proc = subprocess.run(  # noqa: S603 - user-configured command
+                proc = subprocess.Popen(  # noqa: S603 - user-configured command
                     spec.command,
                     shell=True,
                     cwd=str(self.workspace),
                     env=env,
-                    input=body,
-                    capture_output=True,
+                    stdin=subprocess.PIPE,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
                     text=True,
                     encoding="utf-8",
                     errors="replace",
-                    timeout=spec.timeout,
+                    **popen_kwargs,
                 )
-        except subprocess.TimeoutExpired:
-            entry.update(
-                decision="deny" if spec.on_failure == "deny" else "allow",
-                timed_out=True,
-                reason=f"hook 超时（>{spec.timeout:.0f}s），已终止",
-            )
-            return entry
         except OSError as exc:
             entry.update(
                 decision="deny" if spec.on_failure == "deny" else "allow",
                 reason=f"hook 启动失败: {exc}",
             )
             return entry
-        stdout, _ = redact_text(_cap((proc.stdout or "").strip()))
-        stderr, _ = redact_text(_cap((proc.stderr or "").strip()))
+        try:
+            stdout_raw, stderr_raw = proc.communicate(input=body, timeout=spec.timeout)
+        except subprocess.TimeoutExpired:
+            _kill_process_tree(proc)
+            try:
+                stdout_raw, stderr_raw = proc.communicate(timeout=5.0)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                stdout_raw, stderr_raw = "", ""
+            entry.update(
+                decision="deny" if spec.on_failure == "deny" else "allow",
+                exit_code=proc.returncode,
+                timed_out=True,
+                stdout=redact_text(_cap((stdout_raw or "").strip()))[0],
+                stderr=redact_text(_cap((stderr_raw or "").strip()))[0],
+                reason=f"hook 超时（>{spec.timeout:.0f}s），已连同子进程一起终止",
+            )
+            return entry
+        except OSError as exc:
+            _kill_process_tree(proc)
+            entry.update(
+                decision="deny" if spec.on_failure == "deny" else "allow",
+                reason=f"hook 执行失败: {exc}",
+            )
+            return entry
+        stdout, _ = redact_text(_cap((stdout_raw or "").strip()))
+        stderr, _ = redact_text(_cap((stderr_raw or "").strip()))
         entry.update(exit_code=proc.returncode, stdout=stdout, stderr=stderr)
         if proc.returncode == 0:
             entry["decision"] = "allow"

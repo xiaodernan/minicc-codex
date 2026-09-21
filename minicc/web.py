@@ -82,6 +82,7 @@ from .config import (
     normalize_reasoning_effort,
 )
 from .allowlist import AllowlistError, replace_session_rules, session_rules
+from .hooks import HookRunner
 from .llm.base import system_msg, user_msg
 from .llm.anthropic_provider import AnthropicProvider
 from .llm.fake import FakeProvider
@@ -759,6 +760,7 @@ class AgentService:
         )
         attachments = _normalize_attachments(payload.get("attachments"))
         vision_context = _attachment_content_parts(attachments)
+        hook_runner = HookRunner(workspace)
         store = SessionStore(workspace, session_id)
         messages = store.load(build_system_prompt(workspace))
         resume_from_checkpoint = bool(payload.get("resume_from_checkpoint")) and store.exists
@@ -1252,6 +1254,7 @@ class AgentService:
                                     max_retries=None,
                                 ),
                                 vision_context=vision_context,
+                                hooks=hook_runner,
                             )
                             answer, _ = redact_text(str(node_result.answer or "").strip())
                             if len(answer) > 1800:
@@ -1531,6 +1534,7 @@ class AgentService:
                         runtime_state=runtime_state,
                         require_recovery_inspection=(agent_recoveries > 0 or repair_attempts > 0),
                         vision_context=vision_context,
+                        hooks=hook_runner,
                     )
                     aggregate = _merge_turn_results(aggregate, current)
                     writes = any(event.get("write") for event in events if isinstance(event, dict))

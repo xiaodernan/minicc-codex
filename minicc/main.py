@@ -15,6 +15,7 @@ from .agent.subagent import build_task_tool_spec
 from .allowlist import AllowlistError, add_session_rule
 from .audit import authorize_tool
 from .config import Config, ConfigError, load_config
+from .hooks import HookRunner
 from .llm.base import system_msg, user_msg
 from .llm.openai_provider import OpenAICompatibleProvider
 from .prompt import build_system_prompt
@@ -292,6 +293,7 @@ async def _turn(
             session_id=session_id,
             workspace=workspace,
         ),
+        hooks=HookRunner(workspace),
     )
     if writer is None or not writer.started:
         print(f"\nassistant> {result.answer}")
