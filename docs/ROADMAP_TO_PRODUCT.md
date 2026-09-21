@@ -665,7 +665,7 @@
 | M7-T4 项目级配置层 + config.py 剩余缺陷 | ✅ | `.minicc/config.json` 逐键覆盖 user 级 `~/.minicc/config.json`，`config.load_config()` 的解析顺序为 args > 环境变量 > `.env` > project > user > defaults；新增 10 个 CLI 开关，修 `config.py` 六处解析/钳制缺陷 | `tests/test_project_config.py`；提交 `2b9f7fd` |
 | M7-T5 前端数据丢失修复 + @-提及内容注入 | ✅ | `web/src/chat/stream.js` 失败恢复（提交失败不清空已输入内容），`minicc/mentions.py` 把 `@relative/path` 变成有界内容块附加到 user 消息：只读工作区相对路径（绝对/`~`/盘符拒绝，`resolve()+is_relative_to()` 拦 junction 越界），逐文件与整条消息双上限、截断处标 `[truncated]`，敏感与二进制引用只标注不读取，正文过 `redact_text` | `tests/test_mentions.py`；提交 `8ec2de0` |
 
-### 已完成（M8 可分发与长期演进，M8-T1..T9）
+### 已完成（M8 可分发与长期演进，M8-T1..T10）
 
 | 任务 | 状态 | 落地位置 | 验证 |
 | --- | --- | --- | --- |
@@ -720,6 +720,8 @@
 
 | M8-T9 `/api/chat` 同步路径补上事件词表（M8-T5 的漏网旁路） | ✅ | 发现方式就是「按退出标准做真实端到端」：起 `minicc-web`、`MINICC_LOG_LEVEL=DEBUG`+`MINICC_LOG_FILE`、POST `/api/chat` 跑一个真实只读任务。业务结果全对（回答含目标编号、评审一次判 `complete`、会话落盘、`/api/metrics` 有数），但**日志只有 4 行**：两条 HTTP access + 一条 editor audit + 一条 metrics，agent 侧一条都没有。定位：M8-T5 的事件漏斗在 `task_manager.py:1984` 的 `on_event`（`log_task_event`），工作台 UI 走 `/api/tasks`+SSE 所以词表看起来是全的，而 `webserver.py:557 → AgentService.chat → _chat_locked(on_event=None)` 是同进程旁路；CLI 只在 `main.py:383` 给 `on_trace` 打了个补丁，工具事件同样缺。修法刻意不做「每个 `events.append` 处补一行日志」（十几处、且以后新增事件必漏），而是在 `_chat_locked` 入口把漏斗本身当默认汇：`on_event is None` 时指向 `log_task_event(event, task_id=session_id)`。调用方显式传汇（任务路径）时不替换，因此不会重复记账；一处改动覆盖 tool/trace/decision/review/provider-status 全部事件类型 | `tests/test_logging.py` 22 → 23：`test_sync_chat_path_logs_the_same_vocabulary_as_the_task_path` 用同步 `service.chat()` 跑 fake provider，断言日志含 `provider_retry`/`tool_round_finished`/`run_finished` 与 `task_event task_id=s-chat`、且 api key 与 web token 仍不出现。**先红后绿**：把默认汇换成 `if False and on_event is None` 后该断言实测失败（日志内容为空串）。真实网络复跑同一脚本：日志 4 → 19 行、`tool_round_finished`/`run_finished` 到位、密钥零命中；`provider_retry` 本次没出现是这一趟真的一次都没重试（不是插桩缺失），故该词表仍由 fake-provider 注入故障的那条测试钉住 |
 
+| M8-T10 fork/rewind 不得留下没有结果的工具调用；被丢弃的一次性任务要说话 | ✅ | 发现方式仍是「按退出标准真跑」：M8 退出标准第 1 条要求「10 条消息的会话在第 5 条 fork，两个会话文件独立，`--resume` 能恢复 fork」，于是用真实 CLI 对真实 web 会话（11 条、含工具轮）做一次 fork。会话文件层面的独立性、`forked_from` 血缘、稳定 `m-*` 前缀、源文件摘要不变全部成立——但分支只有 4 条消息，**最后一条是带 `tool_calls` 的 assistant，它的 `tool` 结果被切掉了**。这是 M8-T2 的真实缺口：`fork()` 与 `rewind()` 都直接 `messages[:keep]`，切在一轮工具调用的中间就产出一段模型 API 拒收的历史（`tool_calls` 后必须跟对应 `tool` 结果），分支的第一个请求即失败，而用户看到的只是一个「fork 成功」。修法按「文件里不许存在无效历史」而不是「读的时候打补丁」：新增 `_unsatisfied_tool_calls()` 与 `_keep_through_tool_results()`，把切点向后延到本轮工具结果结束（向后而不是向前，因为结果是用户所选那一轮的一部分），无法修复（结果本来就缺）时立即停止延伸、不追逐、不死循环；`fork`/`rewind` 共用它，`forked_from.from_message_id` 仍记录用户选的点、`keep_messages` 记录真正写入的条数。顺带第二个发现：`minicc --fork-from 3 "任务文本"` 只 fork 就 `return 0`（`main.py:538-553`），任务被静默丢弃，脚本读到的退出码是成功——补 `_warn_unrun_prompt()`，`--fork-from`/`--list-sessions` 带任务时打印「只操作会话文件，本次任务文本没有执行（N 字）」，只报长度不回显内容 | `tests/test_session_fork.py` 测试函数 12 → 18（parametrize 展开后收集 23 条，全绿）。新增：以工具轮为样本的 fork/rewind 不变量（`_unsatisfied_tool_calls(kept) == set()`、角色序列 `system,user,assistant,tool`、血缘仍指用户选的点）、切在完整轮次时**不得**多保留（`kept == 2`）、结果本来就缺失的坏历史不追逐不挂死，以及两条 CLI 断言（带任务时提示「没有执行」且原文不回显、不带任务时保持安静）。**先红后绿**：把 `_keep_through_tool_results` 临时改成直接返回原 `keep`，两条不变量测试同时失败（`assert 3 == 4`）。真实 CLI 复跑同一会话：分支 5 条、以 `tool` 结果收尾、`unsatisfied == set()`、源文件摘要不变 |
+
 ### M8-T7 注记：一次真实失败的时间线，以及「不给结论」的边界
 
 一次真实只读小任务消耗 118,499 tokens、跑了 5 轮 `run_agent` 后才以 provider `451 censorship_blocked` 失败。
@@ -746,7 +748,7 @@
 
 ### 尚未开始
 
-路线图 M1..M8 的任务至此全部落地并有逐项验证记录（M8-T7/M8-T8/M8-T9 三条由真实运行与真实失败驱动的附带修复在内）。
+路线图 M1..M8 的任务至此全部落地并有逐项验证记录（M8-T7..T10 四条由真实运行与真实失败驱动的附带修复在内）。
 M6-T4/M6-T5 的落地记录来自 `02059ea`、`a97bf13` 等一批提交（对应 `tests/test_background_shell.py`、
 `tests/test_parallel_writes.py`），本日志未逐条复核，暂不代为背书；下一步是按第三节各里程碑的**退出标准**
 （`## 三` 里每个里程碑自带的检查清单）加上第六节的跟踪指标做一次整体复核（含真实模型端到端），而不是继续

@@ -129,6 +129,46 @@ def _read_text_with_retry(path: Path) -> str:
             time.sleep(_READ_RETRY_DELAY)
 
 
+def _unsatisfied_tool_calls(messages: list[Any]) -> set[str]:
+    """Ids of assistant tool calls whose ``tool`` result is not in this slice."""
+    pending = {
+        str(call.get("id"))
+        for message in messages
+        if isinstance(message, dict)
+        for call in (message.get("tool_calls") or [])
+        if isinstance(call, dict) and call.get("id")
+    }
+    for message in messages:
+        if isinstance(message, dict) and message.get("role") == "tool":
+            pending.discard(str(message.get("tool_call_id") or ""))
+    return pending
+
+
+def _keep_through_tool_results(messages: list[Any], keep: int) -> int:
+    """Grow a cut so no kept assistant turn is left waiting for its tool result.
+
+    Cutting at an assistant message that carries ``tool_calls`` drops the
+    results that follow it, and a history like that is not a conversation the
+    model API accepts - the first request built from it is rejected, so the
+    branch is dead on arrival. The results belong to the turn the user chose
+    to keep, so they come along. The extension stops at the first message that
+    cannot repair the gap, which keeps the loop bounded on already-broken
+    history.
+    """
+    extended = keep
+    while extended < len(messages):
+        pending = _unsatisfied_tool_calls(messages[:extended])
+        if not pending:
+            return extended
+        following = messages[extended]
+        if not isinstance(following, dict) or following.get("role") != "tool":
+            return extended
+        if str(following.get("tool_call_id") or "") not in pending:
+            return extended
+        extended += 1
+    return extended
+
+
 class SessionStore:
     """Persist one conversation under workspace/.minicc/sessions."""
 
@@ -249,7 +289,9 @@ class SessionStore:
         through that message) or a 1-based message count including the system
         turn (same semantics as ``rewind``). The fork inherits the history
         prefix but lives in its own file with ``forked_from`` lineage, so
-        later writes never touch the source session.
+        later writes never touch the source session. Choosing an assistant
+        turn that called a tool also carries that call's result into the
+        branch, which is what keeps the branch's first request valid.
         """
         payload = self._read_payload()
         messages = [item for item in payload["messages"] if isinstance(item, dict)]
@@ -271,6 +313,9 @@ class SessionStore:
             tail = messages[keep - 1]
             if isinstance(tail.get("id"), str):
                 resolved_id = str(tail["id"])
+        # Recorded above is the point the user asked for; what gets written may
+        # run a little further so the branch stays a valid conversation.
+        keep = _keep_through_tool_results(messages, keep)
         target_id = str(new_session_id or f"{self.session_id[:48]}-fork-{secrets.token_hex(2)}")
         store = SessionStore(self.workspace, target_id)
         if store.exists:
@@ -300,7 +345,9 @@ class SessionStore:
         truncation is written, so a mistaken rewind can be recovered manually.
         The system message at index 0 always survives; ``keep_messages`` counts
         from the full list including system. Rewinding past the end is a no-op
-        returning ``removed: 0``.
+        returning ``removed: 0``. Cutting in the middle of a tool round keeps
+        the following tool results as well, so ``kept`` can be larger than
+        asked for - the alternative is a history the model rejects.
         """
         keep = _non_negative_int(keep_messages)
         if not self.exists:
@@ -312,6 +359,9 @@ class SessionStore:
             raise SessionError("keep_messages 至少为 1（保留 system 消息）")
         if keep >= total:
             return {"kept": total, "removed": 0, "backup": ""}
+        # Never leave a kept assistant turn without its tool results: the
+        # truncated history must still be a conversation the model accepts.
+        keep = _keep_through_tool_results(messages, keep)
         backup_path = self.path.with_name(f"{self.path.stem}.pre-rewind.json")
         self._write_payload_at(backup_path, payload)
         payload["messages"] = messages[:keep]

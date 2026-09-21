@@ -14,7 +14,12 @@ from pathlib import Path
 import pytest
 
 from minicc.main import _print_sessions
-from minicc.session import SessionError, SessionStore, list_sessions
+from minicc.session import (
+    SessionError,
+    SessionStore,
+    _unsatisfied_tool_calls,
+    list_sessions,
+)
 
 
 def _conversation(count: int) -> list[dict[str, str]]:
@@ -190,3 +195,107 @@ def test_forked_session_restores_like_any_resume(tmp_path: Path) -> None:
     messages = reopened.load("FRESH-SYSTEM")
     assert messages[0]["content"] == "FRESH-SYSTEM"
     assert len(messages) == 5
+
+
+# --- a cut must not orphan a tool call --------------------------------------
+# Found by forking a real conversation at its first assistant turn: the branch
+# ended with ``assistant.tool_calls`` and no ``tool`` result, i.e. a history
+# the model API rejects, so the branch could not answer its first question.
+
+
+def _tool_round() -> list[dict[str, object]]:
+    return [
+        {"role": "system", "content": "SYS"},
+        {"role": "user", "content": "读一下 CODEBOOK.md"},
+        {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": "call-1",
+                    "type": "function",
+                    "function": {"name": "read_file", "arguments": '{"path":"CODEBOOK.md"}'},
+                }
+            ],
+        },
+        {"role": "tool", "tool_call_id": "call-1", "content": "代号：KX91"},
+        {"role": "assistant", "content": "代号是 KX91"},
+    ]
+
+
+def _stored(store: SessionStore) -> list[dict[str, object]]:
+    return _raw(store)["messages"]
+
+
+def test_forking_at_a_tool_call_carries_its_result(tmp_path: Path) -> None:
+    source = SessionStore(tmp_path, "toolfork")
+    source.save(_tool_round())
+    called = next(item for item in _stored(source) if item.get("tool_calls"))
+    branch = source.fork(str(called["id"]), new_session_id="toolfork-branch")
+
+    kept = _stored(branch)
+    assert [item["role"] for item in kept] == ["system", "user", "assistant", "tool"]
+    assert _unsatisfied_tool_calls(kept) == set(), "branch ends in an unanswered tool call"
+    # Lineage still names the message the user actually picked.
+    assert branch.load("SYS")[-1]["role"] == "tool"
+
+
+def test_rewinding_into_a_tool_round_carries_its_result(tmp_path: Path) -> None:
+    store = SessionStore(tmp_path, "toolrewind")
+    store.save(_tool_round())
+    result = store.rewind(3)
+    assert result["kept"] == 4, "cutting at the call without its result is not a rewind"
+    assert _unsatisfied_tool_calls(_stored(store)) == set()
+
+
+def test_a_cut_at_a_complete_turn_is_not_extended(tmp_path: Path) -> None:
+    store = SessionStore(tmp_path, "clean")
+    store.save(_tool_round())
+    assert store.rewind(2)["kept"] == 2
+    assert len(_stored(SessionStore(tmp_path, "clean"))) == 2
+
+
+def test_an_unrepairable_history_does_not_chase_forever(tmp_path: Path) -> None:
+    """The result is simply missing: extend stops, nothing hangs or raises."""
+    broken = _tool_round()[:3]
+    rewound = SessionStore(tmp_path, "broken-r")
+    rewound.save(broken)
+    assert rewound.rewind(2)["kept"] == 2
+
+    source = SessionStore(tmp_path, "broken-f")
+    source.save(broken)
+    branch = source.fork(3, new_session_id="broken-f-branch")
+    assert len(_stored(branch)) == 3
+
+
+# --- a dropped one-shot task must announce itself ---------------------------
+
+
+def test_cli_fork_with_task_text_says_it_did_not_run(tmp_path: Path, capsys) -> None:
+    from minicc.main import main
+
+    store = SessionStore(tmp_path, "cliforktask")
+    store.save(_conversation(6))
+    code = main(
+        [
+            "--workspace", str(tmp_path), "--session-id", "cliforktask",
+            "--fork-from", "3", "--new-session-id", "cliforktask-b", "顺便把测试跑一遍",
+        ]
+    )
+    out = capsys.readouterr().out
+    assert code == 0
+    assert "已 fork" in out
+    assert "没有执行" in out, "exit 0 with a silently dropped task reads as success"
+    # The text is reported by length only; the terminal never re-echoes it.
+    assert "顺便把测试跑一遍" not in out
+    assert len(_stored(SessionStore(tmp_path, "cliforktask-b"))) == 3
+
+
+def test_cli_fork_without_task_text_stays_quiet(tmp_path: Path, capsys) -> None:
+    from minicc.main import main
+
+    SessionStore(tmp_path, "cliforkplain").save(_conversation(6))
+    assert main(
+        ["--workspace", str(tmp_path), "--session-id", "cliforkplain", "--fork-from", "3"]
+    ) == 0
+    assert "没有执行" not in capsys.readouterr().out

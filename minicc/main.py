@@ -524,6 +524,21 @@ def _print_sessions(workspace: Path) -> int:
     return 0
 
 
+def _warn_unrun_prompt(prompt: list[str], flag: str) -> None:
+    """Say so when a one-shot task is dropped by a session subcommand.
+
+    ``minicc --fork-from 4 "do X"`` used to fork, print a hint and exit 0 while
+    the task never ran - to a script that reads as success.
+    """
+    if not prompt:
+        return
+    text = " ".join(prompt).strip()
+    if not text:
+        return
+    cli_out(f"注意：{flag} 只操作会话文件，本次任务文本没有执行（{len(text)} 字）。")
+    cli_out("要执行它，请在目标分支上重新提交，例如 minicc --resume --session-id <分支名> <任务>")
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     # M7-T4: resolve the workspace before loading config so the project
@@ -533,6 +548,7 @@ def main(argv: list[str] | None = None) -> int:
         _fatal(f"工作区不是目录: {workspace}")
 
     if args.list_sessions:
+        _warn_unrun_prompt(args.prompt, "--list-sessions")
         return _print_sessions(workspace)
 
     if args.fork_from:
@@ -550,6 +566,7 @@ def main(argv: list[str] | None = None) -> int:
             _fatal(str(exc))
         cli_out(f"已 fork：{source_store.session_id} -> {target_store.session_id}（{target_store.path.name}）")
         cli_out(f"恢复该分支: minicc --resume --session-id {target_store.session_id}")
+        _warn_unrun_prompt(args.prompt, "--fork-from")
         return 0
 
     try:
