@@ -236,6 +236,38 @@ def test_task_run_logs_required_events_and_redacts_credentials(
     assert REDACTED in content
 
 
+def test_sync_chat_path_logs_the_same_vocabulary_as_the_task_path(
+    tmp_path: Path,
+    log_file: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``/api/chat`` runs no TaskManager, so it used to log nothing about the run.
+
+    The workbench UI submits tasks and gets one DEBUG line per event; a script
+    or integration calling the synchronous endpoint saw only HTTP access lines,
+    which is exactly the blind spot M8-T5 was meant to close.
+    """
+    monkeypatch.setenv("MINICC_FAKE_PROVIDER_FAULTS", "2")
+    service = _service(tmp_path)
+    try:
+        result = service.chat(
+            {"message": "hello", "session_id": "s-chat", "allow_changes": False}
+        )
+        assert not result.get("error"), result.get("error")
+    finally:
+        service.shutdown()
+
+    for handler in logging.getLogger(logging_setup.ROOT_NAME).handlers:
+        handler.flush()
+    content = log_file.read_text(encoding="utf-8")
+
+    for code in ("provider_retry", "tool_round_finished", "run_finished"):
+        assert code in content, f"missing {code} in sync-path log"
+    assert "task_event task_id=s-chat" in content
+    assert API_KEY not in content
+    assert WEB_TOKEN not in content
+
+
 def test_metrics_endpoint_reconciles_with_task_snapshots(tmp_path: Path) -> None:
     live = _LiveServer(tmp_path)
     try:

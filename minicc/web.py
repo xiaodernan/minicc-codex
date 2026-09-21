@@ -91,7 +91,7 @@ from .llm.base import system_msg, user_msg
 from .llm.anthropic_provider import AnthropicProvider
 from .llm.fake import FakeProvider
 from .llm.openai_provider import OpenAICompatibleProvider
-from .logging_setup import configure_logging, get_logger, register_secret
+from .logging_setup import configure_logging, get_logger, log_task_event, register_secret
 from .snapshots import SnapshotError, SnapshotJournal, exists as workspace_snapshot_exists, restore as restore_workspace_snapshot
 from .llm.usage import add_usage_totals, cache_summary
 from .mcp import McpError, McpManager
@@ -1003,6 +1003,13 @@ class AgentService:
         # share one template engine and the model receives the full prompt.
         message = expand_slash_command(message, workspace) or message
         session_id = str(payload.get("session_id") or "web-latest")
+        if on_event is None:
+            # M8-T5's event funnel lives in TaskManager._run, so the
+            # synchronous /api/chat path logged HTTP access lines and nothing
+            # about the run itself. The same vocabulary has to be greppable
+            # from every entry point, not only the one the workbench UI uses.
+            def on_event(event: dict[str, Any], *, _session_id: str = session_id) -> None:
+                log_task_event(event, task_id=_session_id)
         allow_changes, allow_network, permission_mode = _resolve_task_permissions(
             payload, yolo=self.config.yolo
         )
