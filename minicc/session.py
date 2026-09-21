@@ -60,6 +60,15 @@ _LOCK_RETRY_DELAY = 0.05
 _REPLACE_ATTEMPTS = 24
 _REPLACE_RETRY_DELAY = 0.05
 
+#: The mirror image of the comment above: while a writer holds the target mid
+#: ``os.replace``, the *reader* is the one that gets ``PermissionError``. The
+#: file on disk is always a complete payload (writes are atomic), so waiting a
+#: few milliseconds and re-reading is correct - and without it a reader saw
+#: "session unreadable", while ``save()``'s swallowed variant silently
+#: re-assigned every message id.
+_READ_ATTEMPTS = 24
+_READ_RETRY_DELAY = 0.05
+
 
 @contextlib.contextmanager
 def _cross_process_lock(lock_path: Path):
@@ -109,6 +118,17 @@ def _replace_with_retry(source: Path, target: Path) -> None:
                 raise
             time.sleep(_REPLACE_RETRY_DELAY)
 
+
+def _read_text_with_retry(path: Path) -> str:
+    for attempt in range(_READ_ATTEMPTS):
+        try:
+            return path.read_text(encoding="utf-8")
+        except PermissionError:
+            if attempt == _READ_ATTEMPTS - 1:
+                raise
+            time.sleep(_READ_RETRY_DELAY)
+
+
 class SessionStore:
     """Persist one conversation under workspace/.minicc/sessions."""
 
@@ -155,7 +175,7 @@ class SessionStore:
         if not self.exists:
             raise SessionError(f"会话不存在: {self.path.name}")
         try:
-            payload = json.loads(self.path.read_text(encoding="utf-8"))
+            payload = json.loads(_read_text_with_retry(self.path))
         except (OSError, json.JSONDecodeError) as exc:
             raise SessionError(f"无法读取 session {self.path}: {exc}") from exc
         if not isinstance(payload, dict) or not isinstance(payload.get("messages"), list):
@@ -167,7 +187,7 @@ class SessionStore:
         if not self.exists:
             return None
         try:
-            payload = json.loads(self.path.read_text(encoding="utf-8"))
+            payload = json.loads(_read_text_with_retry(self.path))
         except (OSError, json.JSONDecodeError):
             return None
         return payload if isinstance(payload, dict) else None
@@ -361,7 +381,7 @@ class SessionStore:
         if not self.exists:
             return dict(_DEFAULT_VIEW)
         try:
-            payload = json.loads(self.path.read_text(encoding="utf-8"))
+            payload = json.loads(_read_text_with_retry(self.path))
         except (OSError, json.JSONDecodeError) as exc:
             raise SessionError(f"无法读取 session 视图 {self.path}: {exc}") from exc
         raw = payload.get("view") if isinstance(payload, dict) else None
@@ -386,7 +406,7 @@ class SessionStore:
             payload: dict[str, Any] = {"version": 1, "messages": []}
         else:
             try:
-                raw = json.loads(self.path.read_text(encoding="utf-8"))
+                raw = json.loads(_read_text_with_retry(self.path))
             except (OSError, json.JSONDecodeError) as exc:
                 raise SessionError(f"无法读取 session {self.path}: {exc}") from exc
             payload = raw if isinstance(raw, dict) else {"version": 1, "messages": []}
@@ -491,7 +511,7 @@ def list_sessions(workspace: Path) -> list[dict[str, Any]]:
             continue
         entry: dict[str, Any] = {"session_id": path.stem, "messages": 0}
         try:
-            payload = json.loads(path.read_text(encoding="utf-8"))
+            payload = json.loads(_read_text_with_retry(path))
         except (OSError, json.JSONDecodeError):
             entry["error"] = "无法读取"
             sessions.append(entry)

@@ -665,7 +665,7 @@
 | M7-T4 项目级配置层 + config.py 剩余缺陷 | ✅ | `.minicc/config.json` 逐键覆盖 user 级 `~/.minicc/config.json`，`config.load_config()` 的解析顺序为 args > 环境变量 > `.env` > project > user > defaults；新增 10 个 CLI 开关，修 `config.py` 六处解析/钳制缺陷 | `tests/test_project_config.py`；提交 `2b9f7fd` |
 | M7-T5 前端数据丢失修复 + @-提及内容注入 | ✅ | `web/src/chat/stream.js` 失败恢复（提交失败不清空已输入内容），`minicc/mentions.py` 把 `@relative/path` 变成有界内容块附加到 user 消息：只读工作区相对路径（绝对/`~`/盘符拒绝，`resolve()+is_relative_to()` 拦 junction 越界），逐文件与整条消息双上限、截断处标 `[truncated]`，敏感与二进制引用只标注不读取，正文过 `redact_text` | `tests/test_mentions.py`；提交 `8ec2de0` |
 
-### 已完成（M8 可分发与长期演进，M8-T1..T7）
+### 已完成（M8 可分发与长期演进，M8-T1..T8）
 
 | 任务 | 状态 | 落地位置 | 验证 |
 | --- | --- | --- | --- |
@@ -716,6 +716,8 @@
 是拆分前的行号，对应 `_merge_stream_text` 的测试现在在 `tests/test_core_llm.py`。历史审核文档记录的是
 当时事实，不追改行号。
 
+| M8-T8 会话快照读取侧的共享冲突重试（补齐 M3-T7 另一半） | ✅ | M3-T7 只治了写侧：唯一临时文件名 + 跨进程锁 + `_replace_with_retry`。M8-T7 那次全量回归里 `test_concurrent_process_saves_never_corrupt` 在负载下飘红（Windows `[Errno 13] Permission denied`），顺着读代码发现**读侧完全没有同类处理**：`_read_payload`/`load_view`/`save_view`/`_stored_payload_or_none`/`list_sessions` 五处直接 `path.read_text()`，而写侧注释自己就写着「读者不拿锁会让 `os.replace` 撞上 WinError 5」——镜像方向同样成立：写者正在原子替换时，**读者**会在几毫秒内拿到 `PermissionError`。后果分两种，都真实：`load()`/`load_view()` 把它变成用户可见的「无法读取 session …」；`save()` 里那处是 best-effort 吞掉 OSError 的，于是**静默返回 `stored=None`，整批消息 id 被重新生成**（M8-T2 的事件树靠稳定 `m-*` id 定位 fork 点，等于悄悄改掉了用户可见的锚点）；`list_sessions` 给一个正在被替换的会话标「无法读取」。新增 `_read_text_with_retry()`（24 次 × 50ms，与写侧同一量级），五处读全部走它；不改成「读也上锁」：那会把读串行化到写上，且替换本来就是原子的，等待即可 | 新增两条端到端复现前先红：`test_readers_never_surface_a_transient_sharing_violation`（2 写 + 4 读 spawn 子进程各 60 轮压同一文件，修复前**连续 3 次都失败**并打印 `[Errno 13] Permission denied`，修复后连续 3 次全绿）。`_read_text_with_retry` 单测两条：瞬时失败重试到成功（读 4 次拿到内容）、持续失败仍按上限抛出（不变成无限等待）。`tests/test_session_concurrency.py` 3 → 6 条 |
+
 ### M8-T7 注记：一次真实失败的时间线，以及「不给结论」的边界
 
 一次真实只读小任务消耗 118,499 tokens、跑了 5 轮 `run_agent` 后才以 provider `451 censorship_blocked` 失败。
@@ -742,7 +744,7 @@
 
 ### 尚未开始
 
-路线图 M1..M8 的任务至此全部落地并有逐项验证记录（含 M8-T7 这条由真实失败驱动的附带修复）。
+路线图 M1..M8 的任务至此全部落地并有逐项验证记录（M8-T7/M8-T8 两条由真实失败驱动的附带修复在内）。
 M6-T4/M6-T5 的落地记录来自 `02059ea`、`a97bf13` 等一批提交（对应 `tests/test_background_shell.py`、
 `tests/test_parallel_writes.py`），本日志未逐条复核，暂不代为背书；下一步是按第三节各里程碑的**退出标准**
 （`## 三` 里每个里程碑自带的检查清单）加上第六节的跟踪指标做一次整体复核（含真实模型端到端），而不是继续
