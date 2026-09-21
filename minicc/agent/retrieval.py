@@ -318,6 +318,17 @@ def _score_record(record: _FileRecord, plan: _QueryPlan, now: float) -> tuple[Ev
     )
 
 
+def query_terms(query: str) -> tuple[str, ...]:
+    """Deterministic tokenizer surface for other recall indexes (M8-T1 memory).
+
+    Returns the same normalized terms + path patterns ``search()`` scores
+    with, so keyword recall stays consistent across evidence and memory.
+    """
+
+    plan = _plan_query(query)
+    return plan.terms + plan.path_patterns
+
+
 class LocalEvidenceIndex:
     def __init__(self, workspace: Path, *, max_files: int = 1200, max_bytes: int = 900_000, refresh_interval: float = 1.0) -> None:
         self.workspace = workspace.resolve()

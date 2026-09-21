@@ -27,6 +27,7 @@ def _workspace_guidance(workspace: Path) -> str:
 
 def build_system_prompt(workspace: Path) -> str:
     from .commands import skills_prompt_block
+    from .tools.memory import render_memory_index
 
     root = workspace.as_posix()
     guidance = _workspace_guidance(workspace)
@@ -37,6 +38,9 @@ def build_system_prompt(workspace: Path) -> str:
         else ""
     )
     guidance_block += skills_prompt_block(workspace)
+    # M8-T1: index-only memory injection; "" when no memories exist, so the
+    # prompt (and its tests) stay byte-identical on a memoryless workspace.
+    guidance_block += render_memory_index(workspace)
     return f"""你是 minicc，一个在本地工作区内运行的 coding agent。
 
 当前工作区：{root}

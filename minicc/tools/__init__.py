@@ -18,6 +18,7 @@ from .bash import (
 from .editor import Editor
 from .fs import FsTools
 from .git import GitTools
+from .memory import MemoryTools
 from .registry import Param, ToolRegistry, ToolSpec
 from .schemas import ToolCall, ToolResult
 from .todo import TodoTools
@@ -115,6 +116,18 @@ def build_registry(
         "required": ["todos"],
     }))
     reg.register(ToolSpec("todo_read", "读取当前任务清单。", "readonly", (), todos.read))
+
+    # -- long-term memory (M8-T1): append-only .minicc/MEMORY.md agent state --
+    memory = MemoryTools(workspace)
+    mem_content_p = Param("content", "str", required=True, max_len=500, description="要记住的单行结论（写入前自动脱敏，禁止密钥/隐私/个人信息）")
+    mem_scope_p = Param("scope", "str", max_len=64, description="'user'（~/.minicc/MEMORY.md，跨项目）或 'project'（本工作区 .minicc/MEMORY.md，默认）；这是枚举值，不是路径")
+    mem_source_p = Param("source", "str", max_len=40, description="条目来源标注（默认 model）")
+    mem_id_p = Param("id", "str", required=True, max_len=32, description="记忆条目 id（如 mem-1a2b3c4d）")
+    mem_query_p = Param("query", "str", max_len=200, description="检索关键词（确定性 token 打分，中英混合，非语义检索）")
+    mem_limit_p = Param("limit", "int", min_value=1, max_value=100, description="最多返回条数（默认 20）")
+    reg.register(ToolSpec("memory_write", "追加一条长期记忆。只记录跨任务仍有价值的结论、用户偏好或稳定事实；后续任务的系统提示会注入其索引行（仅摘录），全文需显式召回。", "readonly", (mem_content_p, mem_scope_p, mem_source_p), memory.write))
+    reg.register(ToolSpec("memory_read", "按 id 读取一条长期记忆的全文（系统提示只注入索引行，不含全文）。", "readonly", (mem_id_p, mem_scope_p), memory.read))
+    reg.register(ToolSpec("memory_list", "列出长期记忆条目：默认最新在前；带 query 时用 retrieval 的确定性关键词打分排序。", "readonly", (mem_scope_p, mem_query_p, mem_limit_p), memory.list_entries))
 
     # -- write --
     reg.register(ToolSpec("write_file", "创建或覆盖整个文件。自动原子写入 + 备份。传递 expected_digest 可防止覆盖用户的并发编辑。", "write", (path_r, content_p, digest_p), fs.write_file))
