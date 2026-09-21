@@ -37,6 +37,7 @@ except ModuleNotFoundError:  # pragma: no cover - depends on the HTTP stack.
     httpcore = None  # type: ignore[assignment]
 from openai import (
     APIConnectionError,
+    APIError,
     APITimeoutError,
     AsyncOpenAI,
     BadRequestError,
@@ -242,6 +243,26 @@ def _is_stream_retryable(exc: BaseException) -> bool:
             *_MALFORMED_RESPONSE_HINTS,
         )
     )
+
+
+def classify_provider_failure(exc: BaseException) -> bool | None:
+    """Whether re-issuing a request to the provider could change the outcome.
+
+    ``True`` covers transport and quota failures, ``False`` covers a request the
+    provider rejected on purpose (content policy, bad credentials, unsupported
+    parameter) - resending the same text gets the same answer.  ``None`` means
+    the exception did not come through this HTTP stack at all, e.g. the
+    Anthropic path raises its own ``RuntimeError`` or a caller raised while
+    building the prompt, so no verdict is available and the caller must keep
+    its conservative bounded retry.
+    """
+    if _is_retryable(exc) or _is_stream_retryable(exc):
+        return True
+    if isinstance(exc, APIError):
+        return False
+    if httpx is not None and isinstance(exc, httpx.HTTPError):
+        return False
+    return None
 
 
 def _retry_after_seconds(exc: BaseException) -> float | None:

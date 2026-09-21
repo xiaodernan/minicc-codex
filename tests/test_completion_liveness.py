@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from openai import APIConnectionError, AuthenticationError, BadRequestError
 
 from minicc.agent.completion import (
     MAX_TRANSCRIPT_CHARS_PER_MESSAGE,
@@ -33,6 +34,7 @@ from minicc.agent.completion import (
     parse_completion_decision,
 )
 from minicc.llm.base import LLMResponse
+from minicc.llm.openai_provider import classify_provider_failure
 from minicc.task_manager import _completion_followup
 from minicc.tools.schemas import ToolCall, ToolResult
 
@@ -315,3 +317,157 @@ def test_hallucinating_reviewer_terminates_without_burning_the_budget(tmp_path: 
         if message.get("role") == "user" and ("event-" in str(message.get("content")))
     ]
     assert not leaked, f"internal evidence ids leaked to the worker: {leaked}"
+
+
+# --- a rejected review must not cost a second full agent run ----------------
+# Observed live (M8-T5 real-API run): the reviewer *request* failed, the caller
+# could not tell "the provider refused this text" from "the provider is briefly
+# unavailable", and sent the agent off to redo all its work before asking
+# again. A deterministic rejection gives the identical answer, so that extra
+# run is pure cost; only a transient failure earns the bounded self-check.
+
+def _http_error(cls, message: str):
+    import httpx
+
+    request = httpx.Request("POST", "https://example.invalid/v1/chat/completions")
+    try:
+        return cls(message, body=None, response=httpx.Response(400, request=request))
+    except TypeError:  # connection/timeout errors take no response
+        return cls(message=message, request=request)
+
+
+@pytest.mark.parametrize(
+    "error,expected",
+    [
+        (_http_error(BadRequestError, "Error code: 400 - content policy blocked"), False),
+        (_http_error(AuthenticationError, "Error code: 401 - invalid api key"), False),
+        (_http_error(APIConnectionError, "Connection error."), True),
+        (RuntimeError("Anthropic HTTP 451: unavailable"), None),
+        (ValueError("boom while building the packet"), None),
+    ],
+)
+def test_only_provider_errors_get_a_retry_verdict(error: BaseException, expected: bool | None) -> None:
+    assert classify_provider_failure(error) is expected
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "error,expected",
+    [
+        (_http_error(BadRequestError, "Error code: 400 - content policy blocked"), False),
+        (_http_error(APIConnectionError, "Connection error."), True),
+        (RuntimeError("boom"), None),
+    ],
+)
+async def test_reviewer_failure_reports_whether_a_retry_can_help(
+    error: BaseException, expected: bool | None
+) -> None:
+    from minicc.agent import completion as completion_module
+
+    async def failing(provider: Any, **kwargs: Any) -> LLMResponse:
+        raise error
+
+    original = completion_module.chat_with_cancellation
+    completion_module.chat_with_cancellation = failing  # type: ignore[assignment]
+    try:
+        decision = await judge_completion(
+            provider=None,
+            task="读一下代号",
+            answer="代号是 HARBORLAMP-13",
+            events=list(TOOL_EVENTS),
+            verification_results=[],
+            allow_changes=False,
+            workspace="ws",
+        )
+    finally:
+        completion_module.chat_with_cancellation = original  # type: ignore[assignment]
+    assert decision.status == "unknown"
+    assert decision.review_transient is expected
+    # The verdict is control flow for the caller, not a user-facing field.
+    assert "review_transient" not in decision.to_dict()
+
+
+class _RaisingJudge:
+    """A reviewer whose call raises, standing in for a provider failure."""
+
+    def __init__(self, error: BaseException) -> None:
+        self.error = error
+        self.calls = 0
+
+    async def __call__(self, provider: Any, **kwargs: Any) -> LLMResponse:
+        self.calls += 1
+        raise self.error
+
+
+def _run_service_with_reviewer(tmp_path: Path, monkeypatch, judge: Any) -> tuple[dict[str, Any], int]:
+    """Run one read-only task whose reviewer call is driven by ``judge``.
+
+    Returns the service result plus how many times the agent loop itself ran,
+    which is what the whole distinction is about.
+    """
+    import minicc.web as web_module
+    from minicc.agent.loop import TurnResult
+    from minicc.task_store import TaskStore
+
+    (tmp_path / "CODEBOOK.md").write_text("代号：HARBORLAMP-13\n", encoding="utf-8")
+    agent_runs: list[int] = []
+
+    async def run(provider: Any, registry: Any, messages: list[dict[str, Any]], **kwargs: Any) -> TurnResult:
+        agent_runs.append(len(messages))
+        kwargs["on_tool"](
+            ToolCall("read_file", {"path": "CODEBOOK.md"}),
+            ToolResult(status="ok", summary="读取 CODEBOOK.md", output="代号：HARBORLAMP-13"),
+        )
+        return TurnResult(answer="代号是 HARBORLAMP-13")
+
+    class Provider:
+        def __init__(self, **kwargs: Any) -> None:
+            pass
+
+        async def close(self) -> None:
+            return None
+
+    monkeypatch.setattr(web_module, "run_agent", run)
+    monkeypatch.setattr(web_module, "OpenAICompatibleProvider", Provider)
+    from minicc.agent import completion as completion_module
+
+    monkeypatch.setattr(completion_module, "chat_with_cancellation", judge)
+    service = web_module.AgentService(tmp_path, _service_config(), task_store=TaskStore(tmp_path / "t.sqlite3"))
+    try:
+        result = service._chat_locked(
+            {"message": "CODEBOOK.md 里的代号是什么？", "allow_changes": False}, workspace=tmp_path
+        )
+    finally:
+        service.shutdown()
+    return result, len(agent_runs)
+
+
+def test_deterministically_rejected_review_stops_without_a_second_run(
+    tmp_path: Path, monkeypatch
+) -> None:
+    judge = _RaisingJudge(_http_error(BadRequestError, "Error code: 400 - content policy blocked"))
+    result, runs = _run_service_with_reviewer(tmp_path, monkeypatch, judge)
+
+    assert runs == 1, "a rejection the agent cannot change must not re-run it"
+    assert judge.calls == 1
+    assert "完成评估请求被模型端拒绝" in str(result["error"])
+    codes = [event.get("code") for event in result["events"] if isinstance(event, dict)]
+    assert "completion_judge_rejected" in codes
+    assert "completion_judge_retry" not in codes
+    assert result["completion"]["status"] == "unknown"
+
+
+def test_transient_reviewer_failure_keeps_the_bounded_self_check(
+    tmp_path: Path, monkeypatch
+) -> None:
+    judge = _RaisingJudge(_http_error(APIConnectionError, "Connection error."))
+    result, runs = _run_service_with_reviewer(tmp_path, monkeypatch, judge)
+
+    # Transient is different: asking again can succeed, so the agent gets its
+    # one extra self-check round - exactly one, still bounded.
+    assert runs == 2
+    assert judge.calls == 2
+    codes = [event.get("code") for event in result["events"] if isinstance(event, dict)]
+    assert "completion_judge_retry" in codes
+    assert "completion_judge_rejected" not in codes
+    assert "完成评估" in str(result["error"])

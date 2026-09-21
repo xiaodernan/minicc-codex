@@ -665,7 +665,7 @@
 | M7-T4 项目级配置层 + config.py 剩余缺陷 | ✅ | `.minicc/config.json` 逐键覆盖 user 级 `~/.minicc/config.json`，`config.load_config()` 的解析顺序为 args > 环境变量 > `.env` > project > user > defaults；新增 10 个 CLI 开关，修 `config.py` 六处解析/钳制缺陷 | `tests/test_project_config.py`；提交 `2b9f7fd` |
 | M7-T5 前端数据丢失修复 + @-提及内容注入 | ✅ | `web/src/chat/stream.js` 失败恢复（提交失败不清空已输入内容），`minicc/mentions.py` 把 `@relative/path` 变成有界内容块附加到 user 消息：只读工作区相对路径（绝对/`~`/盘符拒绝，`resolve()+is_relative_to()` 拦 junction 越界），逐文件与整条消息双上限、截断处标 `[truncated]`，敏感与二进制引用只标注不读取，正文过 `redact_text` | `tests/test_mentions.py`；提交 `8ec2de0` |
 
-### 已完成（M8 可分发与长期演进，M8-T1..T6）
+### 已完成（M8 可分发与长期演进，M8-T1..T7）
 
 | 任务 | 状态 | 落地位置 | 验证 |
 | --- | --- | --- | --- |
@@ -676,6 +676,7 @@
 | M8-T4 可安装产物 | ✅ | `setup.py` 的 `build_py` 钩子在构建期把仓库根的 `web/`、`ide/` 复制进包内 `minicc/web_static`、`minicc/ide_static`（`MANIFEST.in` 同步进 sdist，保证从 sdist 再构建的 wheel 一致）；`static_assets.web_root()/ide_root()` 先查安装目录再退回 checkout，`webserver.STATIC_ROOT` 改用它；新增 `scripts/build-dist.ps1`（可选 `npm run build:web` → wheel+sdist → 校验 manifest 引用的 bundle 真的在包里）；`build-system` 提到 `setuptools>=70.1`（自带 bdist_wheel）；README 增加安装到别的机器的完整命令，并声明版本单一来源 | `tests/test_packaging.py`（11 条：包载荷、无 node_modules/`.env`/`__pycache__` 垃圾、console scripts 可解析、版本四处一致、README 引用的 npm 脚本全部存在、sdist round-trip 载荷集合相同、安装后从 site-packages 真的返回 index.html 与 bundle）+ 真实安装 E2E（`pip wheel . -w dist` → 干净 venv 安装 → `minicc --version`=`minicc 0.1.0` → `minicc-web --port 8791` 返回 `/` 200 与 3 个 hash bundle 200 → `/api/health` 200） |
 | M8-T5 logging 取代 print + `/api/metrics` + 日志脱敏 | ✅ | 新增 `minicc/cli_io.py`（包内**唯一** `print()`，stdout 只承载 CLI/REPL 协议正文）与 `minicc/logging_setup.py`（默认 `WARNING`→**stderr**，`MINICC_LOG_LEVEL`/`MINICC_LOG_FILE`，每 handler 挂 `SecretRedactionFilter`，启动时 `register_secret()` 注册已解析 api key 与 web token 做精确子串掩码，脱敏幂等：`[REDACTED:…]` 标记内不再二次掩码）。审计事件、provider 重试、预算/事件树、任务生命周期、hook 执行、MCP spawn 统一走结构化日志，且每条都来自生产路径的单点插桩：`task_manager._run.on_event` 与 `task_worker._run_owned_worker.on_event`（thread/process 两个执行器同一词表）、`openai_provider` 的 `_status_logging_callback`（无回调也记，CLI 同样可观测）、`hooks.run()`、`mcp` spawn 审计写入处、`tools/editor._audit()`（`info/notice/warning` → `DEBUG/INFO/WARNING`）。`/api/audit` 增加 `level`/`min_level` 过滤（未知级别 400 并列出可选值，旧记录按 action 回填级别），新增 `/api/metrics`（`minicc.metrics.v1`：逐任务快照累加 `tokens_used`/`cost_usd`，未计价模型单独计 `unpriced_tasks`，不混作 0 成本）；`webserver._fail()` + `ERROR_CODES` 让失败响应带稳定 `code`（`forbidden`/`task_not_found`/`unauthorized`/`invalid_request`/`internal_error`），不再只有一句话的裸 500。`minicc.config.example` 与 README 补日志章节 | `tests/test_logging.py`（22 条）：fake provider 任务在 `MINICC_LOG_LEVEL=DEBUG`+`LOG_FILE` 下 grep 断言含 `provider_retry`/`tool_round_finished`/`run_finished`、不含 api_key 与 web token（两个常量刻意不匹配任何密钥形态，缺席只能由注册式掩码解释）、级别/文件/stdout 纯净、脱敏幂等与 8 种密钥形态、`/api/metrics` 与单任务快照逐项对账、审计级别过滤、错误码映射。print 口径见下方注记。真实 API E2E：CLI 与 `minicc-web` 各跑一次真实任务，日志 299 行（97 DEBUG / 201 INFO / 1 ERROR）中 key 与 token 均无命中，`/api/metrics` 的 token/成本与任务快照精确相等，未计价模型走 `unpriced_tasks` |
 | M8-T6 `tests/test_core.py` 按 domain 拆分 | ✅ | 2964 行 / 109 个测试的单文件巨块拆成 `test_core_{agent,tools,task,llm,session}.py` 五个领域文件，另有 4 条跨域测试留在 `tests/test_core.py`（原因见下方注记）。测试本体逐字搬迁、断言零修改；每个文件只保留自己用到的 import（AST 名称 + monkeypatch 字符串路径双判据），六个文件均无未使用导入 | `pytest --collect-only -q` 拆分前后同为 **853 tests collected**；全量 `pytest -q` 三次实测：拆分前 230.06s，拆分后 222.08s 与 234.50s，均值 228.3s——差异在单机 ±3% 抖动内，**未观察到系统性上升**（本机非 CI 环境，墙钟本身不是稳定量）；六个文件单跑 116 passed；AST 逐函数比对确认 109 个测试各出现一次且与 `HEAD` 逐字相同；CI 的 `pytest tests/` 不点名本文件，workflow 无需改 |
+| M8-T7 评审器故障分类：确定性拒绝不再重跑 agent | ✅ | 源自 M8-T5 真实运行遗留观察（详见下方注记）。`llm/openai_provider.py` 新增 `classify_provider_failure(exc) -> bool \| None`：`True`=传输/配额类可重试，`False`=提供方按策略拒绝（内容拦截、凭据错误、参数不支持），`None`=异常根本不经过这条 HTTP 栈（Anthropic 路径抛自己的 `RuntimeError`、或调用方构造证据包时就出错）——**不给结论**，调用方保持原保守行为。`agent/completion.py` 的 `CompletionDecision` 新增三态字段 `review_transient`（刻意不进 `to_dict()`：它是给调用方的控制流，不是用户可见数据），兜底 `except Exception` 用**异常对象**判定而非字符串。`web.py` 在 `review_transient is False` 时发 `completion_judge_rejected` 结构化 trace 并以「完成评估请求被模型端拒绝：…」结束任务、直接 `break`，不再走 `completion_judge_retry` 那条「重跑整轮 agent 再问一次」的路；`True`/`None` 保留原有的一次有界自检。错误文案刻意以「完成评估」开头，使 `judge_unavailable → ignore_result_error` 的既有判定继续成立 | `tests/test_completion_liveness.py` 22 → 31 条：异常家族判定表（400/401 → `False`，`APIConnectionError` → `True`，`RuntimeError("Anthropic HTTP 451…")` 与 `ValueError` → `None`）、`judge_completion` 把 verdict 挂到 decision 且不泄漏到用户字典、两条端到端（400 拒绝只跑 **1 轮** agent；`APIConnectionError` 仍得到恰好一次额外自检 = 2 轮）。**反向验证**：把 `web.py` 的新分支临时改成 `if False` 后该断言实测失败于 `2 == 1`，证明确实测到了那次浪费的重跑。**真实网络验证**（一次性脚本，不入库）：用错误 api key 打真实网关，`judge_completion` 收到真实 `AuthenticationError: Error code: 401 - invalid_api_key` → `status=unknown` 且 `review_transient=False`（即线上会走短路），错误文本经脱敏后不含密钥；同一脚本换回真实凭据 → `review_transient=None`、评审器正常返回可用结论（`continue`），确认 happy path 未被改动 |
 
 ### M8-T5 注记：`git grep -c 'print('` 这一验收口径不可信
 
@@ -715,13 +716,36 @@
 是拆分前的行号，对应 `_merge_stream_text` 的测试现在在 `tests/test_core_llm.py`。历史审核文档记录的是
 当时事实，不追改行号。
 
+### M8-T7 注记：一次真实失败的时间线，以及「不给结论」的边界
+
+一次真实只读小任务消耗 118,499 tokens、跑了 5 轮 `run_agent` 后才以 provider `451 censorship_blocked` 失败。
+**根因经日志逐条复核，与最初记录的原因不同**：不是任务级恢复重放了不可重试错误（`web.py` 的恢复分支只在
+`is_transient_failure` 为真时才重跑，451 不在 `_RETRYABLE` 名单里，该分支没有触发）。实际时间线是：
+06:02:44 第 1 轮 agent → 06:02:51 完成评估返回 `completion_unknown`（评审器自己的模型调用被网关拦截）→
+`completion_judge_retry` **重跑整轮 agent**（第 2 轮）→ 第 2/3/4 轮的评审连续返回 `completion_continue`
+「仍有目标未满足」，每次又是一整轮 agent 重跑 → 第 5 轮的模型请求直接被 451 拦掉。也就是说：**评审器侧的
+基础设施故障被当成「任务没完成」处理，代价是整轮 agent 重跑**，而内容一旦被网关拦截，重跑不可能改变结论，
+只会把不断变长的上下文再送 4 次。仓库里已有同类判断的先例——`llm/openai_provider.py::StreamProtocolError`
+的注释写明「重放会重发全部上下文与工具 schema，必须 fail fast」。
+
+判据边界比修复本身更重要，三点记录在案：
+
+1. **`False` 只用于「这个请求被按策略拒绝」**。判定用异常对象而不是错误字符串：`APIError`（含 `APIStatusError`
+   的 4xx/5xx 与连接类）和 `httpx.HTTPError` 之外的异常一律返回 `None`。`RuntimeError("Anthropic HTTP 451…")`
+   走的是 Anthropic 自己的错误类型，不经过这条 HTTP 栈，因此**不越权给结论**，保持原有的有界自检——它也许
+   应该被判为 `False`，但没验证过的推断不会变成新的失控 break。
+2. **`None` 与 `True` 共用原来那条路**：评审器答了但结论不可用（缺 evidence、字段类型错）仍是「要求 agent
+   再自检一次」，这是有效语义——agent 换一版答案，评审器就可能换一份结论。只有请求本身被确定性拒绝才短路。
+3. **保守结论不变**：评审器不可用时依然不允许宣称完成（`任务未完成：完成评估请求被模型端拒绝…`），省下的
+   是那一次整轮重跑，而不是安全边界。文案以「完成评估」开头是有意的：`web.py` 用这个前缀识别
+   `judge_unavailable` 并把 `ignore_result_error` 传给完成守卫，改掉前缀会让守卫覆盖掉真实原因。
+
 ### 尚未开始
 
-路线图 M1..M8 的任务至此全部落地并有逐项验证记录。M6-T4/M6-T5 的落地记录来自 `02059ea`、`a97bf13` 等一批
-提交（对应 `tests/test_background_shell.py`、`tests/test_parallel_writes.py`），本日志未逐条复核，暂不代为
-背书；下一步是按第八节退出标准做一次整体复核（含真实模型端到端），而不是继续加功能。
-
-M8-T5 遗留观察（不属于该任务验收，作为后续候选）：一次真实只读小任务在失败前产生 5 个 `run_started`、
-消耗 118,499 tokens，最终以 provider `451 censorship_blocked` 结束。451 属不可重试错误，但任务级恢复
-仍把整个 agent 循环重跑了一遍——恢复重试的错误分类需要复核。
+路线图 M1..M8 的任务至此全部落地并有逐项验证记录（含 M8-T7 这条由真实失败驱动的附带修复）。
+M6-T4/M6-T5 的落地记录来自 `02059ea`、`a97bf13` 等一批提交（对应 `tests/test_background_shell.py`、
+`tests/test_parallel_writes.py`），本日志未逐条复核，暂不代为背书；下一步是按第三节各里程碑的**退出标准**
+（`## 三` 里每个里程碑自带的检查清单）加上第六节的跟踪指标做一次整体复核（含真实模型端到端），而不是继续
+加功能。注：本文件没有「第八节」，此前此处写的「第八节退出标准」是错的交叉引用——退出标准按里程碑分散在
+第三节（`:44/:88/:131/:178/:229/:269/:302/:335`），一次性列在总表 `:23` 的「退出标准」列。
 

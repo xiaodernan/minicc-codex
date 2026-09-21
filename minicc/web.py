@@ -2109,6 +2109,30 @@ class AgentService:
                         aggregate.answer = f"任务未完成：{aggregate.error}"
                         break
 
+                    if decision.review_transient is False:
+                        # The reviewer request was rejected on purpose (content
+                        # policy, credentials, unsupported parameter), so the
+                        # identical retry returns the identical answer. Asking
+                        # the agent to redo all its work just to be reviewed
+                        # again only burns a full run; stop and report the
+                        # real cause instead.
+                        detail = decision.error or "评审请求被模型端拒绝"
+                        aggregate.error = f"完成评估请求被模型端拒绝：{detail}"
+                        aggregate.answer = f"任务未完成：{aggregate.error}"
+                        rejected_event = {
+                            "kind": "trace",
+                            "name": "completion_judge",
+                            "status": "error",
+                            "phase": "review",
+                            "code": "completion_judge_rejected",
+                            "summary": "完成评估请求被确定性拒绝，重跑 agent 不会改变结论，已停止",
+                            "detail": {"error": detail},
+                        }
+                        events.append(rejected_event)
+                        if on_event is not None:
+                            on_event(rejected_event)
+                        break
+
                     if completion_review_failures < 1:
                         completion_review_failures += 1
                         retry_event = {

@@ -19,6 +19,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from ..llm.base import system_msg, user_msg
+from ..llm.openai_provider import classify_provider_failure
 from .loop import AgentCancelled, chat_with_cancellation
 from ..tools.registry import redact_text
 from .tool_policy import is_verification_evidence
@@ -70,6 +71,12 @@ class CompletionDecision:
     next_action: str = ""
     evidence: list[str] = field(default_factory=list)
     error: str | None = None
+    #: Did the reviewer *call* fail for a reason a retry could change?
+    #: ``None`` means the reviewer answered and only its conclusion was
+    #: unusable; ``False`` means the request itself was rejected
+    #: deterministically (content block, bad credentials), so the caller must
+    #: not re-run the agent to ask again - the same text gets blocked again.
+    review_transient: bool | None = None
     usage: dict[str, Any] = field(default_factory=dict, repr=False)
 
     def to_dict(self, *, include_usage: bool = False) -> dict[str, Any]:
@@ -252,6 +259,7 @@ async def judge_completion(
         return CompletionDecision(
             status="unknown",
             error=safe_error[:2000],
+            review_transient=classify_provider_failure(exc),
         )
 
     decision = parse_completion_decision(getattr(response, "text", ""))
