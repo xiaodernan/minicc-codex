@@ -173,7 +173,14 @@ def test_completion_requires_real_evidence_and_check_after_latest_code_write() -
     write = {"name": "write_file", "path": "app.py", "write": True, "status": "ok"}
     read = {"name": "read_file", "path": "app.py", "status": "ok"}
     check = {"name": "bash", "command": "python -m pytest tests/test_app.py", "status": "ok"}
-    assert _complete([write, check], evidence=["event-999"]).status == "continue"
+    hallucinated = _complete([write, check], evidence=["event-999"])
+    # A citation to evidence that does not exist must never certify completion.
+    assert hallucinated.status != "complete"
+    # ...and it is the *reviewer* that failed, so it must not come back as a
+    # worker instruction to produce internal packet ids (that sent the agent
+    # hunting for files named event-* until the turn budget was gone).
+    assert hallucinated.status == "unknown"
+    assert not any("event-" in text for text in hallucinated.missing)
     assert _complete([write, read]).status == "continue"
     assert _complete([check, write], [{"status": "passed"}]).status == "continue"
     assert _complete([write, check]).status == "complete"

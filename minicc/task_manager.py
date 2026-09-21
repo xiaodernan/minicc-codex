@@ -301,7 +301,8 @@ def _completion_followup(decision: CompletionDecision) -> str:
         "不要只回复说明已经完成。\n"
         f"缺失目标：{missing}\n"
         f"建议下一步：{next_action}\n"
-        "完成后重新检查 diff 和验证结果，再让完成评估器复核。"
+        "完成后针对上面每一项缺失，给出它所对应的工具调用结果，再让完成评估器复核。"
+        "不要为了寻找证据编号而新增与需求无关的只读检查。"
     )
 
 

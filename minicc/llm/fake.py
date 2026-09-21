@@ -79,16 +79,18 @@ class FakeProvider:
     def _select_citable_evidence(messages) -> list[str]:
         """Return one evidence id the completion judge is allowed to cite."""
 
-        marker = "执行证据（工具调用、阶段 trace、修改和验证结果）：\n"
+        marker = re.compile(r"^执行证据（[^）]*）：\n", re.MULTILINE)
         prompt_text = ""
         for message in messages if isinstance(messages, list) else []:
             content = message.get("content") if isinstance(message, dict) else None
-            if isinstance(content, str) and marker in content:
+            if isinstance(content, str) and marker.search(content):
                 prompt_text = content
                 break
         if prompt_text:
-            start = prompt_text.find(marker)
-            rest = prompt_text[start + len(marker):]
+            match = marker.search(prompt_text)
+            assert match is not None
+            start = match.end()
+            rest = prompt_text[start:]
             end = rest.find("\n\n请严格返回 JSON")
             packet_text = rest[:end] if end >= 0 else rest
             try:

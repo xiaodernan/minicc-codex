@@ -2017,6 +2017,7 @@ class AgentService:
                         workspace=str(workspace),
                         cancel_event=cancel_event,
                         vision_context=vision_context,
+                        messages=messages,
                     )
                     if cancel_event is not None and cancel_event.is_set():
                         if aggregate is None:
