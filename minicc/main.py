@@ -15,6 +15,7 @@ from .agent.subagent import build_task_tool_spec
 from .allowlist import AllowlistError, add_session_rule
 from .audit import authorize_tool
 from .config import Config, ConfigError, load_config
+from .commands import discover_commands, expand_slash_command
 from .hooks import HookRunner
 from .llm.base import system_msg, user_msg
 from .llm.openai_provider import OpenAICompatibleProvider
@@ -335,6 +336,12 @@ async def _interactive(
             return
         if prompt == "/help":
             print("/help  /tools  /status  /view  /compact  /expand [n]  /clear  /exit")
+            custom = discover_commands(workspace or Path.cwd())
+            if custom:
+                print("自定义命令：")
+                for command in custom:
+                    hint = f" {command.argument_hint}" if command.argument_hint else ""
+                    print(f"  /{command.name}{hint} — {command.description} [{command.scope}]")
             continue
         if prompt == "/tools":
             print("\n".join(registry.names()))
@@ -368,6 +375,12 @@ async def _interactive(
             if view is not None:
                 view.expand(prompt.removeprefix("/expand").strip())
             continue
+        if prompt.startswith("/"):
+            expanded = expand_slash_command(prompt, workspace or Path.cwd())
+            if expanded is None:
+                print(f"未知命令：{prompt.split(' ', 1)[0]}（/help 查看内置与自定义命令）")
+                continue
+            prompt = expanded
         await _turn(
             provider,
             registry,
@@ -455,7 +468,7 @@ def main(argv: list[str] | None = None) -> int:
                     registry,
                     messages,
                     config,
-                    prompt,
+                    expand_slash_command(prompt, workspace) or prompt,
                     session,
                     view,
                     stream=not args.no_stream,

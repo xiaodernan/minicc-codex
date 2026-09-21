@@ -211,6 +211,9 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
         if path == "/api/models":
             self._json(self.server.service.list_models())
             return
+        if path == "/api/commands":
+            self._json(self.server.service.list_commands())
+            return
         if path == "/api/history/search":
             query = parse_qs(parsed.query)
             raw_query = (query.get("q") or [""])[0].strip()

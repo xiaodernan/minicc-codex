@@ -341,6 +341,7 @@
       "files.loadError": "\u6587\u4EF6\u6811\u52A0\u8F7D\u5931\u8D25",
       "at.title": "\u6587\u4EF6\u5F15\u7528",
       "at.empty": "\u6CA1\u6709\u5339\u914D\u7684\u6587\u4EF6",
+      "at.commandEmpty": "\u6CA1\u6709\u5339\u914D\u7684\u81EA\u5B9A\u4E49\u547D\u4EE4\uFF08\u653E\u5230 .minicc/commands/*.md\uFF09",
       "at.hint": "\u2191\u2193 \u9009\u62E9 \xB7 Enter \u8865\u5168 \xB7 Esc \u5173\u95ED",
       "protected.subtitle": "\u6BCF\u4E2A\u4EFB\u52A1\u5355\u72EC\u6388\u6743\u5199\u5165",
       "panel.title": "\u5DE5\u4F5C\u53F0",
@@ -713,6 +714,7 @@
       "files.loadError": "Failed to load the file tree",
       "at.title": "File mentions",
       "at.empty": "No matching files",
+      "at.commandEmpty": "No custom commands (add .minicc/commands/*.md)",
       "at.hint": "Up/Down to choose \xB7 Enter to insert \xB7 Esc to close",
       "protected.subtitle": "Writes are gated per task",
       "panel.title": "Workspace",
@@ -3032,6 +3034,7 @@
     }, FILE_TREE_REFRESH_DELAY);
   }
   function refreshFileTree() {
+    refreshCommandCatalog();
     fileTreeState.requestToken += 1;
     fileTreeState.loaded = false;
     fileTreeState.pending.clear();
@@ -3041,7 +3044,26 @@
     loadFileTree();
   }
   var MENTION_MAX_OPTIONS = 8;
-  var mentionState = { open: false, options: [], active: 0, matchStart: -1 };
+  var mentionState = { open: false, options: [], active: 0, matchStart: -1, mode: "file" };
+  var commandCatalog = { items: [] };
+  async function refreshCommandCatalog() {
+    try {
+      const data = await requestJson("/api/commands", {}, 1e4);
+      commandCatalog.items = Array.isArray(data?.commands) ? data.commands.filter((item) => item && item.name) : [];
+    } catch {
+      commandCatalog.items = [];
+    }
+  }
+  function commandTokenAt(text, caret) {
+    const before = String(text || "").slice(0, Math.max(0, caret));
+    const match = /^\/([^\s/]*)$/.exec(before);
+    if (!match) return null;
+    return { fragment: match[1], start: 0 };
+  }
+  function commandCandidates(fragment) {
+    const needle = String(fragment || "").toLowerCase();
+    return commandCatalog.items.filter((item) => !needle || String(item.name).toLowerCase().startsWith(needle)).slice(0, MENTION_MAX_OPTIONS);
+  }
   function mentionTokenAt(text, caret) {
     const before = String(text || "").slice(0, Math.max(0, caret));
     const match = /(^|\s)@([^\s@]*)$/.exec(before);
@@ -3079,7 +3101,12 @@
     const popover = $("#mentionPopover");
     if (!popover) return;
     const options = mentionState.options;
-    const body = options.length ? options.map((item, index) => `<button type="button" class="mention-option${index === mentionState.active ? " active" : ""}" role="option" aria-selected="${index === mentionState.active ? "true" : "false"}" data-mention-index="${index}" aria-label="${escapeHtml(item.path)}"><span class="mention-path">${escapeHtml(item.path)}</span><small class="mention-size">${escapeHtml(formatBytes(item.size))}</small></button>`).join("") : `<div class="mention-empty">${escapeHtml(t("at.empty"))}</div>`;
+    const isCommand = mentionState.mode === "command";
+    const body = options.length ? options.map((item, index) => {
+      const label = isCommand ? `/${item.name}` : item.path;
+      const detail = isCommand ? `${item.description || ""}${item.scope === "project" ? " \xB7 project" : ""}` : formatBytes(item.size);
+      return `<button type="button" class="mention-option${index === mentionState.active ? " active" : ""}" role="option" aria-selected="${index === mentionState.active ? "true" : "false"}" data-mention-index="${index}" aria-label="${escapeHtml(label)}"><span class="mention-path">${escapeHtml(label)}</span><small class="mention-size">${escapeHtml(detail)}</small></button>`;
+    }).join("") : `<div class="mention-empty">${escapeHtml(isCommand ? t("at.commandEmpty") : t("at.empty"))}</div>`;
     popover.innerHTML = `${body}<div class="mention-hint" aria-hidden="true">${escapeHtml(t("at.hint"))}</div>`;
     popover.hidden = false;
     popover.querySelector(`[data-mention-index="${mentionState.active}"]`)?.scrollIntoView({ block: "nearest" });
@@ -3087,15 +3114,25 @@
   function updateMentionPopover() {
     const input = $("#promptInput");
     if (!input) return;
-    ensureMentionIndex();
-    const token = mentionTokenAt(input.value, input.selectionStart ?? input.value.length);
-    if (!token) {
-      closeMentionPopover();
-      return;
+    const caret = input.selectionStart ?? input.value.length;
+    const token = mentionTokenAt(input.value, caret);
+    if (token) {
+      ensureMentionIndex();
+      mentionState.open = true;
+      mentionState.mode = "file";
+      mentionState.matchStart = token.start;
+      mentionState.options = mentionCandidates(token.fragment);
+    } else {
+      const slash = commandTokenAt(input.value, caret);
+      if (!slash) {
+        closeMentionPopover();
+        return;
+      }
+      mentionState.open = true;
+      mentionState.mode = "command";
+      mentionState.matchStart = slash.start;
+      mentionState.options = commandCandidates(slash.fragment);
     }
-    mentionState.open = true;
-    mentionState.matchStart = token.start;
-    mentionState.options = mentionCandidates(token.fragment);
     mentionState.active = Math.min(mentionState.active, Math.max(0, mentionState.options.length - 1));
     renderMentionPopover();
     positionMentionPopover();
@@ -3105,6 +3142,7 @@
     mentionState.options = [];
     mentionState.active = 0;
     mentionState.matchStart = -1;
+    mentionState.mode = "file";
     const popover = $("#mentionPopover");
     if (popover) {
       popover.hidden = true;
@@ -3120,7 +3158,7 @@
     }
     const value = String(input.value || "");
     const caret = input.selectionStart ?? value.length;
-    const insert = `@${option.path} `;
+    const insert = mentionState.mode === "command" ? `/${option.name} ` : `@${option.path} `;
     const next = value.slice(0, mentionState.matchStart) + insert + value.slice(caret);
     input.value = next;
     const nextCaret = mentionState.matchStart + insert.length;

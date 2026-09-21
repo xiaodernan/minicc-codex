@@ -26,6 +26,8 @@ def _workspace_guidance(workspace: Path) -> str:
 
 
 def build_system_prompt(workspace: Path) -> str:
+    from .commands import skills_prompt_block
+
     root = workspace.as_posix()
     guidance = _workspace_guidance(workspace)
     guidance_block = (
@@ -34,6 +36,7 @@ def build_system_prompt(workspace: Path) -> str:
         if guidance
         else ""
     )
+    guidance_block += skills_prompt_block(workspace)
     return f"""你是 minicc，一个在本地工作区内运行的 coding agent。
 
 当前工作区：{root}

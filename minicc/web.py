@@ -74,6 +74,7 @@ from .agent.verifier import Verifier, VerificationResult
 from .agent.verification_plan import build_verification_plan, changed_paths_from_events
 from .audit import authorize_tool, normalize_permission_mode
 from .changes import ChangeError, ChangeInspector
+from .commands import discover_commands, expand_slash_command
 from .config import (
     ConfigError,
     TRUTHY,
@@ -595,6 +596,9 @@ class AgentService:
             last_error = "网关返回空模型列表"
         return _local(last_error)
 
+    def list_commands(self) -> dict[str, Any]:
+        return {"commands": [c.to_public_dict() for c in discover_commands(self.workspace)]}
+
     def workspace_info(self) -> dict[str, Any]:
         try:
             worktrees = self.worktrees.list()
@@ -754,6 +758,9 @@ class AgentService:
         cancel_event: threading.Event | None = None,
     ) -> dict[str, Any]:
         message = str(payload["message"])
+        # M7-T2: custom slash commands expand server-side, so CLI and Web
+        # share one template engine and the model receives the full prompt.
+        message = expand_slash_command(message, workspace) or message
         session_id = str(payload.get("session_id") or "web-latest")
         allow_changes, allow_network, permission_mode = _resolve_task_permissions(
             payload, yolo=self.config.yolo

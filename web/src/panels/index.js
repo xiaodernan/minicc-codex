@@ -711,6 +711,7 @@ export function refreshFileTreeSoon() {
 }
 
 export function refreshFileTree() {
+  refreshCommandCatalog();
   fileTreeState.requestToken += 1; // discard in-flight loads from the stale workspace
   fileTreeState.loaded = false;
   fileTreeState.pending.clear();
@@ -726,7 +727,35 @@ export function refreshFileTree() {
 // (basename matches first) and keyboard navigation never sends the message.
 
 export const MENTION_MAX_OPTIONS = 8;
-export const mentionState = { open: false, options: [], active: 0, matchStart: -1 };
+export const mentionState = { open: false, options: [], active: 0, matchStart: -1, mode: "file" };
+
+// M7-T2: custom slash commands reuse the mention popover in "command" mode.
+// The catalog comes from GET /api/commands (names/descriptions only; bodies
+// stay server-side and expand on submit).
+export const commandCatalog = { items: [] };
+
+export async function refreshCommandCatalog() {
+  try {
+    const data = await requestJson("/api/commands", {}, 1e4);
+    commandCatalog.items = Array.isArray(data?.commands) ? data.commands.filter((item) => item && item.name) : [];
+  } catch {
+    commandCatalog.items = [];
+  }
+}
+
+export function commandTokenAt(text, caret) {
+  const before = String(text || "").slice(0, Math.max(0, caret));
+  const match = /^\/([^\s/]*)$/.exec(before);
+  if (!match) return null;
+  return { fragment: match[1], start: 0 };
+}
+
+export function commandCandidates(fragment) {
+  const needle = String(fragment || "").toLowerCase();
+  return commandCatalog.items
+    .filter((item) => !needle || String(item.name).toLowerCase().startsWith(needle))
+    .slice(0, MENTION_MAX_OPTIONS);
+}
 
 export function mentionTokenAt(text, caret) {
   const before = String(text || "").slice(0, Math.max(0, caret));
@@ -769,9 +798,14 @@ export function renderMentionPopover() {
   const popover = $("#mentionPopover");
   if (!popover) return;
   const options = mentionState.options;
+  const isCommand = mentionState.mode === "command";
   const body = options.length
-    ? options.map((item, index) => `<button type="button" class="mention-option${index === mentionState.active ? " active" : ""}" role="option" aria-selected="${index === mentionState.active ? "true" : "false"}" data-mention-index="${index}" aria-label="${escapeHtml(item.path)}"><span class="mention-path">${escapeHtml(item.path)}</span><small class="mention-size">${escapeHtml(formatBytes(item.size))}</small></button>`).join("")
-    : `<div class="mention-empty">${escapeHtml(t("at.empty"))}</div>`;
+    ? options.map((item, index) => {
+      const label = isCommand ? `/${item.name}` : item.path;
+      const detail = isCommand ? `${item.description || ""}${item.scope === "project" ? " · project" : ""}` : formatBytes(item.size);
+      return `<button type="button" class="mention-option${index === mentionState.active ? " active" : ""}" role="option" aria-selected="${index === mentionState.active ? "true" : "false"}" data-mention-index="${index}" aria-label="${escapeHtml(label)}"><span class="mention-path">${escapeHtml(label)}</span><small class="mention-size">${escapeHtml(detail)}</small></button>`;
+    }).join("")
+    : `<div class="mention-empty">${escapeHtml(isCommand ? (t("at.commandEmpty")) : t("at.empty"))}</div>`;
   popover.innerHTML = `${body}<div class="mention-hint" aria-hidden="true">${escapeHtml(t("at.hint"))}</div>`;
   popover.hidden = false;
   popover.querySelector(`[data-mention-index="${mentionState.active}"]`)?.scrollIntoView({ block: "nearest" });
@@ -780,12 +814,22 @@ export function renderMentionPopover() {
 export function updateMentionPopover() {
   const input = $("#promptInput");
   if (!input) return;
-  ensureMentionIndex();
-  const token = mentionTokenAt(input.value, input.selectionStart ?? input.value.length);
-  if (!token) { closeMentionPopover(); return; }
-  mentionState.open = true;
-  mentionState.matchStart = token.start;
-  mentionState.options = mentionCandidates(token.fragment);
+  const caret = input.selectionStart ?? input.value.length;
+  const token = mentionTokenAt(input.value, caret);
+  if (token) {
+    ensureMentionIndex();
+    mentionState.open = true;
+    mentionState.mode = "file";
+    mentionState.matchStart = token.start;
+    mentionState.options = mentionCandidates(token.fragment);
+  } else {
+    const slash = commandTokenAt(input.value, caret);
+    if (!slash) { closeMentionPopover(); return; }
+    mentionState.open = true;
+    mentionState.mode = "command";
+    mentionState.matchStart = slash.start;
+    mentionState.options = commandCandidates(slash.fragment);
+  }
   mentionState.active = Math.min(mentionState.active, Math.max(0, mentionState.options.length - 1));
   renderMentionPopover();
   positionMentionPopover();
@@ -796,6 +840,7 @@ export function closeMentionPopover() {
   mentionState.options = [];
   mentionState.active = 0;
   mentionState.matchStart = -1;
+  mentionState.mode = "file";
   const popover = $("#mentionPopover");
   if (popover) {
     popover.hidden = true;
@@ -809,7 +854,7 @@ export function applyMentionOption(index = mentionState.active) {
   if (!option || !input) { closeMentionPopover(); return; }
   const value = String(input.value || "");
   const caret = input.selectionStart ?? value.length;
-  const insert = `@${option.path} `;
+  const insert = mentionState.mode === "command" ? `/${option.name} ` : `@${option.path} `;
   const next = value.slice(0, mentionState.matchStart) + insert + value.slice(caret);
   input.value = next;
   const nextCaret = mentionState.matchStart + insert.length;
