@@ -1,11 +1,14 @@
-"""Acceptance tests for the P0/P1/P2 implementation plan."""
+"""M1 provider/loop integrity tests (ROADMAP_TO_PRODUCT M1-T1..T7).
+
+Each test pins one fixed defect; where the defect was an always-green
+assertion, the test asserts the corrected behavior (prompt/total/miss
+values, dedup ids, terminal finish_reason handling).
+"""
 
 from __future__ import annotations
 
 import asyncio
 import json
-import os
-import stat
 import subprocess
 import threading
 import types
@@ -243,27 +246,58 @@ def test_worker_command_keeps_api_key_out_of_argv(tmp_path: Path) -> None:
             allow_changes=False,
             workspace_path=str(tmp_path),
         )
-        config_file = service.tasks._write_worker_config(task, tmp_path)
-        assert config_file is not None
-        payload = json.loads(config_file.read_text(encoding="utf-8"))
-        assert payload["api_key"] == "test-key"
-        if os.name != "nt":
-            assert stat.S_IMODE(config_file.stat().st_mode) == 0o600
+        # M3-T6: the config (incl. api_key) now travels over stdin, so the
+        # command must never embed it in argv nor point at a plaintext file.
         command = service.tasks._worker_command(
             task,
             tmp_path,
             tmp_path / "tasks.sqlite3",
             tmp_path / "cancel.flag",
-            config_file,
+            True,
         )
         joined = " ".join(command)
         assert "api_key" not in joined
         assert "test-key" not in joined
         assert "--config-json" not in command
-        assert "--config-file" in command
-        assert str(config_file) in command
+        assert "--config-file" not in command
+        assert "--config-stdin" in command
     finally:
         service.shutdown()
+
+
+def test_sweep_stale_worker_configs_removes_plaintext_residue(tmp_path: Path) -> None:
+    """M3-T6: residue config.json files (with api_key) are swept before spawn."""
+    service = AgentService(tmp_path, _service_config())
+    try:
+        worker_dir = tmp_path / ".minicc" / "worker"
+        worker_dir.mkdir(parents=True, exist_ok=True)
+        stale = worker_dir / "old-task.config.json"
+        stale.write_text(json.dumps({"api_key": "leaked-secret"}), encoding="utf-8")
+        keep = worker_dir / "task.request.json"
+        keep.write_text("{}", encoding="utf-8")
+
+        service.tasks._sweep_stale_worker_configs(tmp_path)
+
+        assert not stale.exists()
+        assert keep.exists()  # only *.config.json is swept
+        assert not list(worker_dir.glob("*.config.json"))
+    finally:
+        service.shutdown()
+
+
+def test_config_from_stdin_reads_payload(monkeypatch: pytest.MonkeyPatch) -> None:
+    """M3-T6: the worker reconstructs its config from stdin (no disk file)."""
+    import io
+
+    from minicc.task_worker import _config_from_stdin
+
+    monkeypatch.setattr(
+        "sys.stdin", io.StringIO(json.dumps({"api_key": "stdin-secret", "model": "m"}))
+    )
+    config = _config_from_stdin()
+    assert config is not None
+    assert config.api_key == "stdin-secret"
+    assert config.model == "m"
 
 
 def test_worker_config_file_is_deleted_after_read(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

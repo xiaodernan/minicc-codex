@@ -8,6 +8,7 @@ raise ToolError so the registry converts them to [TOOL_ERROR] results.
 from __future__ import annotations
 
 import fnmatch
+import json
 import re
 from pathlib import Path
 from typing import Any
@@ -24,7 +25,7 @@ TREE_MAX_ENTRIES = 400
 SKIP_DIRS = {
     ".git", ".hg", ".svn", "__pycache__", ".venv", "venv", "node_modules",
     ".minicc", ".pytest_cache", ".mypy_cache", ".ruff_cache", "dist",
-    "build", ".idea", ".vscode", "target",
+    "build", ".idea", ".vscode", "target", ".graders",
 }
 
 SENSITIVE_NAMES = {
@@ -46,6 +47,79 @@ def _is_sensitive_path(path: str) -> bool:
 def _reject_sensitive(path: str) -> None:
     if _is_sensitive_path(path):
         raise ToolError(f"拒绝访问敏感文件: {path} (请由用户手动处理密钥)")
+
+
+# M4-T5: hidden grader drivers must be invisible AND immutable for the agent —
+# recursive discovery skips the directory (SKIP_DIRS) and any explicit path
+# touching it is rejected at every file-tool entry point.
+GRADER_DIR_NAME = ".graders"
+
+
+def _reject_graders(path: str) -> None:
+    parts = Path(str(path).replace("\\", "/")).parts
+    if any(part.lower() == GRADER_DIR_NAME for part in parts):
+        raise ToolError(f"拒绝访问评测隐藏目录 {GRADER_DIR_NAME}: {path}")
+
+
+# M2-T2: the agent must never bootstrap its own permissions or read its own
+# credentials. Files under .minicc/ that gate authorization are matched by
+# full path suffix (not bare name), denied for both read and write; mcp.json
+# stays readable but with header values redacted.
+_MINICC_DENY_FILES = {"allowlist.json", "web_token.json", "audit.jsonl", "hooks.json"}
+_MINICC_REDACT_FILES = {"mcp.json"}
+
+
+def _minicc_relative_parts(path: str) -> tuple[str, ...]:
+    parts = Path(str(path).replace("\\", "/")).parts
+    lowered = tuple(p.lower() for p in parts)
+    if ".minicc" not in lowered:
+        return ()
+    return tuple(p.lower() for p in lowered[lowered.index(".minicc") + 1:])
+
+
+def _minicc_sensitive_kind(path: str) -> str | None:
+    tail = _minicc_relative_parts(path)
+    if not tail:
+        return None
+    name = "/".join(tail)
+    if name in _MINICC_DENY_FILES or (tail[0] == "worker" and name.endswith(".config.json")):
+        return "deny"
+    if name in _MINICC_REDACT_FILES:
+        return "redact"
+    return None
+
+
+def _reject_minicc_sensitive(path: str) -> None:
+    if _minicc_sensitive_kind(path) is not None:
+        raise ToolError(f"拒绝访问 .minicc 下的认证/授权文件: {path} (请由用户在工作区外手动处理)")
+
+
+MAX_GREP_FILE_BYTES = 2_000_000
+
+
+def _escapes_workspace(path: Path, workspace: Path) -> bool:
+    """True when a directory entry's real target leaves the workspace.
+
+    Windows junctions report is_symlink()==False, so name-based checks miss
+    them; the only honest gate is resolve() + is_relative_to() per entry.
+    """
+    try:
+        return not path.resolve().is_relative_to(workspace)
+    except OSError:
+        return True
+
+
+def _redact_mcp_headers(text: str) -> str:
+    try:
+        data = json.loads(text)
+    except ValueError:
+        return text
+    servers = data.get("servers") if isinstance(data, dict) else None
+    if isinstance(servers, dict):
+        for entry in servers.values():
+            if isinstance(entry, dict) and isinstance(entry.get("headers"), dict):
+                entry["headers"] = {key: "[REDACTED]" for key in entry["headers"]}
+    return json.dumps(data, ensure_ascii=False, indent=2)
 
 
 def _file_result(text: str, summary: str, **data: Any) -> ToolResult:
@@ -71,6 +145,10 @@ class FsTools:
     def read_file(self, args: dict[str, Any]) -> ToolResult:
         path = str(args["path"])
         _reject_sensitive(path)
+        _reject_graders(path)
+        minicc_kind = _minicc_sensitive_kind(path)
+        if minicc_kind == "deny":
+            raise ToolError(f"拒绝读取 .minicc 下的认证/授权文件: {path} (请由用户在工作区外手动处理)")
         offset = int(args.get("offset", 1))
         limit = int(args.get("limit", 2000))
         try:
@@ -80,6 +158,21 @@ class FsTools:
         rendered = "\n".join(
             f"{number:>6}\t{line.rstrip()}" for number, line in lines
         )
+        if minicc_kind == "redact":
+            try:
+                raw_lines: list[str] = []
+                start = 1
+                while True:
+                    chunk = self.editor.read_file(path, offset=start, limit=2000)
+                    if not chunk:
+                        break
+                    raw_lines.extend(line for _number, line in chunk)
+                    start += len(chunk)
+                    if len(chunk) < 2000:
+                        break
+                rendered = _redact_mcp_headers("\n".join(raw_lines))
+            except EditError as exc:
+                raise ToolError(str(exc)) from exc
         if not rendered:
             raise ToolError(
                 f"读取窗口为空或越界: {path} (offset={offset}, limit={limit})；"
@@ -94,6 +187,8 @@ class FsTools:
     def write_file(self, args: dict[str, Any]) -> ToolResult:
         path = str(args["path"])
         _reject_sensitive(path)
+        _reject_graders(path)
+        _reject_minicc_sensitive(path)
         content = str(args["content"])
         expected = args.get("expected_digest") or None
         try:
@@ -114,6 +209,8 @@ class FsTools:
     def edit_file(self, args: dict[str, Any]) -> ToolResult:
         path = str(args["path"])
         _reject_sensitive(path)
+        _reject_graders(path)
+        _reject_minicc_sensitive(path)
         old = str(args["old"])
         new = str(args["new"])
         expected = args.get("expected_digest") or None
@@ -132,6 +229,7 @@ class FsTools:
     def glob(self, args: dict[str, Any]) -> ToolResult:
         pattern = str(args["pattern"])
         base = Path(args["path"]) if args.get("path") else Path(".")
+        _reject_graders(str(base))
         try:
             root = (self.editor.workspace / base).resolve()
             if not root.is_relative_to(self.editor.workspace):
@@ -140,6 +238,7 @@ class FsTools:
                 p.relative_to(self.editor.workspace).as_posix()
                 for p in root.rglob(pattern)
                 if any(part in SKIP_DIRS for part in p.parts[len(root.parts):]) is False
+                and not _escapes_workspace(p, self.editor.workspace.resolve())
             )
         except ToolError:
             raise
@@ -158,6 +257,7 @@ class FsTools:
         include = str(args["include"]) if args.get("include") else None
         max_matches = int(args.get("max_matches", MAX_GREP_MATCHES))
         base = Path(args["path"]) if args.get("path") else Path(".")
+        _reject_graders(str(base))
         root = (self.editor.workspace / base).resolve()
         if not root.is_relative_to(self.editor.workspace):
             raise ToolError(f"路径越界: {base}")
@@ -169,6 +269,7 @@ class FsTools:
             raise ToolError(f"正则非法: {exc}") from exc
         matches: list[str] = []
         files_scanned = 0
+        ws_root = self.editor.workspace.resolve()
         try:
             if root.is_file():
                 candidates = [root] if not include or fnmatch.fnmatch(root.name, include) else []
@@ -183,6 +284,13 @@ class FsTools:
             if any(part in SKIP_DIRS for part in rel.parts[:-1]):
                 continue
             if not path.is_file():
+                continue
+            if _escapes_workspace(path, ws_root):
+                continue
+            try:
+                if path.stat().st_size > MAX_GREP_FILE_BYTES:
+                    continue
+            except OSError:
                 continue
             if _is_sensitive_path(rel.as_posix()):
                 continue
@@ -214,12 +322,14 @@ class FsTools:
 
     def tree(self, args: dict[str, Any]) -> ToolResult:
         base = Path(args["path"]) if args.get("path") else Path(".")
+        _reject_graders(str(base))
         max_depth = int(args.get("max_depth", TREE_MAX_DEPTH))
         max_entries = int(args.get("max_entries", TREE_MAX_ENTRIES))
         root = (self.editor.workspace / base).resolve()
         if not root.is_relative_to(self.editor.workspace):
             raise ToolError(f"路径越界: {base}")
         lines: list[str] = [base.as_posix().rstrip("/") or "."]
+        ws_root = self.editor.workspace.resolve()
 
         def walk(directory: Path, depth: int) -> None:
             if depth > max_depth or len(lines) >= max_entries:
@@ -233,6 +343,8 @@ class FsTools:
                     lines.append("… (达到条目上限)")
                     return
                 if child.name in SKIP_DIRS:
+                    continue
+                if _escapes_workspace(child, ws_root):
                     continue
                 rel = child.relative_to(root)
                 branch = "  " * depth

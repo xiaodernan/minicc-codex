@@ -38,6 +38,7 @@ class TaskRequest:
     task_kind: str = "task"
     resume_from_checkpoint: bool = False
     attachments: list[dict[str, Any]] = field(default_factory=list)
+    model: str = ""
     schema_version: int = TASK_SCHEMA_VERSION
 
     @classmethod
@@ -58,6 +59,7 @@ class TaskRequest:
             allow_network=network,
             permission_mode=mode,
             reasoning_effort=str(payload.get("reasoning_effort") or "high"),
+            model=str(payload.get("model") or ""),
             task_kind=str(payload.get("task_kind") or "task"),
             resume_from_checkpoint=bool(payload.get("resume_from_checkpoint")),
             attachments=[dict(item) for item in payload.get("attachments") or [] if isinstance(item, dict)],

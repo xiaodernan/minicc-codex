@@ -1,0 +1,28 @@
+{
+  "schema_version": "retrieval-1",
+  "workspace": ".",
+  "ks": [1, 5],
+  "note": "Lexical hit-rate baseline for minicc/agent/retrieval.py. Each case is a known-answer localization query: the developer ask plus the repo-relative file(s) that answer it. recall@k = |targets ∩ top-k| / |targets|, averaged over cases; MRR uses the rank of the first target. Per the M4-T7 roadmap this only establishes a baseline — CI records the numbers but does not gate on them.",
+  "cases": [
+    {"id": "r01", "query": "美元成本核算 cost_usd 价格表 ModelPrice 在哪", "targets": ["minicc/pricing.py"], "symbol": "cost_usd"},
+    {"id": "r02", "query": "A/B 对比器 Wilson 置信区间 gate pass_at_1 delta", "targets": ["minicc/bench_compare.py"], "symbol": "compare_reports"},
+    {"id": "r03", "query": "v2 评测任务校验 fixture 路径逃逸 grader 目录 resolve_grader_dir", "targets": ["minicc/bench_tasks.py"], "symbol": "validate_task"},
+    {"id": "r04", "query": "本地证据检索 token 打分 LocalEvidenceIndex search recall", "targets": ["minicc/agent/retrieval.py"], "symbol": "LocalEvidenceIndex"},
+    {"id": "r05", "query": "read_file write_file glob grep tree 文件系统工具 FsTools", "targets": ["minicc/tools/fs.py"], "symbol": "FsTools"},
+    {"id": "r06", "query": "工具注册表 redact_text split_output ToolError error_result", "targets": ["minicc/tools/registry.py"], "symbol": "split_output"},
+    {"id": "r07", "query": "AgentService HTTP 路由 /api/chat /api/tasks make_provider", "targets": ["minicc/web.py"], "symbol": "AgentService"},
+    {"id": "r08", "query": "任务持久化 TaskRecord snapshot 状态机 transition_status", "targets": ["minicc/task_manager.py"], "symbol": "TaskRecord"},
+    {"id": "r09", "query": "MCP stdio 桥 JSON-RPC clientInfo McpManager render", "targets": ["minicc/mcp.py"], "symbol": "McpManager"},
+    {"id": "r10", "query": "normalize_model_name 配置加载 load_config api_key base_url", "targets": ["minicc/config.py"], "symbol": "normalize_model_name"},
+    {"id": "r11", "query": "FakeProvider 假模型 测试响应 _select_citable_evidence", "targets": ["minicc/llm/fake.py"], "symbol": "FakeProvider"},
+    {"id": "r12", "query": "completion 完成判定 可引用证据 citable_ids _is_citable_evidence", "targets": ["minicc/agent/completion.py"], "symbol": "_is_citable_evidence"},
+    {"id": "r13", "query": "verification_plan 指纹 suffixes 验证计划 缓存", "targets": ["minicc/agent/verification_plan.py"], "symbol": "verification_plan"},
+    {"id": "r14", "query": "tool_policy is_workspace_write command_may_modify_workspace 网络门", "targets": ["minicc/agent/tool_policy.py"], "symbol": "is_workspace_write"},
+    {"id": "r15", "query": "agent loop 主循环 工具调用编排 on_tool", "targets": ["minicc/agent/loop.py"], "symbol": "loop"},
+    {"id": "r16", "query": "rpc 分发器 JSON-RPC 错误码 -32601 method 未知", "targets": ["minicc/agent/rpc.py"], "symbol": "dispatch"},
+    {"id": "r17", "query": "SessionStore 会话存储 并发写 rewind keep_messages", "targets": ["minicc/session.py"], "symbol": "SessionStore"},
+    {"id": "r18", "query": "split_command_argv bash 命令分词 argv 网络门", "targets": ["minicc/tools/bash.py"], "symbol": "split_command_argv"},
+    {"id": "r19", "query": "Editor apply_edit expected_digest StaleContextError 文件编辑核心", "targets": ["minicc/tools/editor.py"], "symbol": "Editor"},
+    {"id": "r20", "query": "add_usage_totals token 用量累计 prompt completion", "targets": ["minicc/llm/usage.py"], "symbol": "add_usage_totals"}
+  ]
+}

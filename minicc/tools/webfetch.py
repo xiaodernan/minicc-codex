@@ -13,14 +13,18 @@ Loopback/private targets are rejected unless ``MINICC_ALLOW_PRIVATE_FETCH=1``
 
 from __future__ import annotations
 
+import functools
 import html as html_module
+import http.client
+import socket
+import ssl
 import urllib.error
 import urllib.parse
 import urllib.request
 from html.parser import HTMLParser
 from typing import Any
 
-from ..netguard import BlockedAddressError, assert_public_host
+from ..netguard import BlockedAddressError, resolve_pinned_host
 
 from .registry import ToolError, ToolResult, redact_text, split_output
 from .schemas import HEAD_CHARS, TAIL_CHARS
@@ -47,9 +51,79 @@ class FetchError(RuntimeError):
 
 # Opener without HTTPRedirectHandler: redirects come back as 3xx responses so
 # every hop can pass through the SSRF check before we follow it.
-_OPENER = urllib.request.OpenerDirector()
-_OPENER.add_handler(urllib.request.HTTPHandler())
-_OPENER.add_handler(urllib.request.HTTPSHandler())
+#
+# SSRF pinning: when the guard is active we resolve the host exactly once
+# (netguard.resolve_pinned_host) and dial that IP directly, while keeping the
+# original hostname for the Host header and TLS SNI/cert validation. This
+# closes the DNS-rebinding window between the check and the connect.
+class _PinnedHTTPConnection(http.client.HTTPConnection):
+    def __init__(self, host: str, *, pinned_ip: str, **kwargs: Any) -> None:
+        super().__init__(host, **kwargs)
+        self._pinned_ip = pinned_ip
+
+    def connect(self) -> None:  # noqa: D102 - mirrors base, dials pinned IP
+        self.sock = socket.create_connection(
+            (self._pinned_ip, self.port), self.timeout, self.source_address
+        )
+        if self._tunnel_host:
+            self._tunnel()
+
+
+class _PinnedHTTPSConnection(http.client.HTTPSConnection):
+    def __init__(self, host: str, *, pinned_ip: str, **kwargs: Any) -> None:
+        super().__init__(host, **kwargs)
+        self._pinned_ip = pinned_ip
+
+    def connect(self) -> None:  # noqa: D102 - mirrors base, dials pinned IP
+        sock = socket.create_connection(
+            (self._pinned_ip, self.port), self.timeout, self.source_address
+        )
+        if self._tunnel_host:
+            self.sock = sock
+            self._tunnel()
+        # server_hostname keeps SNI + certificate hostname checks on the real
+        # host even though the socket is connected to the pinned IP.
+        self.sock = self._context.wrap_socket(sock, server_hostname=self.host)
+
+
+class _PinnedHTTPHandler(urllib.request.HTTPHandler):
+    def __init__(self, pinned_ip: str) -> None:
+        super().__init__()
+        self._pinned_ip = pinned_ip
+
+    def http_open(self, req: urllib.request.Request):  # noqa: D102
+        return self.do_open(
+            functools.partial(_PinnedHTTPConnection, pinned_ip=self._pinned_ip), req
+        )
+
+
+class _PinnedHTTPSHandler(urllib.request.HTTPSHandler):
+    def __init__(self, pinned_ip: str) -> None:
+        super().__init__(context=ssl.create_default_context())
+        self._pinned_ip = pinned_ip
+
+    def https_open(self, req: urllib.request.Request):  # noqa: D102
+        return self.do_open(
+            functools.partial(_PinnedHTTPSConnection, pinned_ip=self._pinned_ip),
+            req,
+            context=self._context,
+            check_hostname=self._context.check_hostname,
+        )
+
+
+def _build_opener(pinned_ip: str) -> urllib.request.OpenerDirector:
+    opener = urllib.request.OpenerDirector()
+    if pinned_ip:
+        opener.add_handler(_PinnedHTTPHandler(pinned_ip))
+        opener.add_handler(_PinnedHTTPSHandler(pinned_ip))
+    else:
+        opener.add_handler(urllib.request.HTTPHandler())
+        opener.add_handler(urllib.request.HTTPSHandler())
+    return opener
+
+
+# Unpinned opener used when private fetches are explicitly allowed.
+_OPENER = _build_opener("")
 
 
 class _TextExtractor(HTMLParser):
@@ -110,22 +184,22 @@ class _TextExtractor(HTMLParser):
         return title, text
 
 
-def _check_address(host: str) -> None:
-    """Reject hosts that resolve to private, loopback, or reserved ranges."""
+def _resolve_pinned(host: str) -> str:
+    """Resolve+validate ``host`` once, returning the IP to pin ("" if unpinned)."""
     try:
-        assert_public_host(host, allow_env="MINICC_ALLOW_PRIVATE_FETCH")
+        return resolve_pinned_host(host, allow_env="MINICC_ALLOW_PRIVATE_FETCH")
     except BlockedAddressError as exc:
         raise FetchDeniedError(str(exc)) from exc
 
 
-def _validate_url(url: str) -> urllib.parse.ParseResult:
+def _validate_url(url: str) -> tuple[urllib.parse.ParseResult, str]:
+    """Validate scheme/host and resolve the host to a pinned IP for this hop."""
     parsed = urllib.parse.urlsplit(url)
     if parsed.scheme not in ALLOWED_SCHEMES:
         raise ValueError(f"仅支持 http/https URL: {url!r}")
     if not parsed.hostname:
         raise ValueError(f"URL 缺少主机名: {url!r}")
-    _check_address(parsed.hostname)
-    return parsed
+    return parsed, _resolve_pinned(parsed.hostname)
 
 
 def _charset_of(content_type: str) -> str:
@@ -151,6 +225,7 @@ def _meta_charset(html_bytes: bytes) -> str | None:
 
 def _download(
     current: str,
+    pinned_ip: str,
     *,
     timeout: float,
     max_bytes: int,
@@ -164,8 +239,9 @@ def _download(
         },
         method="GET",
     )
+    opener = _OPENER if not pinned_ip else _build_opener(pinned_ip)
     try:
-        with _OPENER.open(request, timeout=timeout) as response:
+        with opener.open(request, timeout=timeout) as response:
             status = int(response.status)
             if status in (301, 302, 303, 307, 308):
                 location = response.headers.get("Location") or ""
@@ -217,9 +293,9 @@ def fetch_url_text(
         payload = b""
         truncated = False
         for _hop in range(max_redirects + 1):
-            _validate_url(current)
+            _parsed, pinned_ip = _validate_url(current)
             status, content_type, payload, truncated = _download(
-                current, timeout=timeout, max_bytes=max_bytes
+                current, pinned_ip, timeout=timeout, max_bytes=max_bytes
             )
             if status in (301, 302, 303, 307, 308):
                 current = urllib.parse.urljoin(current, payload.decode("utf-8", errors="replace").strip())

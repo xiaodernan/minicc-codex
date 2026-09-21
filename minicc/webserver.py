@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import mimetypes
+import re
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -20,11 +21,12 @@ from urllib.parse import parse_qs, unquote, urlsplit
 
 from .allowlist import AllowlistError
 from .changes import ChangeError
+from .mcp import McpError
 from .session import SessionError
 from .snapshots import SnapshotError
 from .task_store import TERMINAL_TASK_STATUSES
 from .static_assets import asset_response
-from .webauth import WebAuth, cors_origin
+from .webauth import WebAuth, cors_origin, origin_allowed
 
 from typing import TYPE_CHECKING
 
@@ -73,9 +75,17 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
         except (BrokenPipeError, ConnectionAbortedError, ConnectionResetError):
             self.close_connection = True
 
+    #: M3-T2: EventSource cannot send headers, so the SSE routes carry the
+    #: bearer token in the query string. It must never reach the log file.
+    _SECRET_QUERY_RE = re.compile(
+        r"(?i)([?&](?:token|access_token|api_key|key)=)[^&\s\"']+"
+    )
+
     def log_message(self, format: str, *args: object) -> None:
         # Keep the terminal useful without logging request bodies or secrets.
-        print(f"[web] {self.command} {self.path} - {format % args}")
+        rendered = f"{self.command} {self.path} - {format % args}"
+        redacted = self._SECRET_QUERY_RE.sub(r"\1***", rendered)
+        print(f"[web] {redacted}")
 
     def _request_origin(self) -> str | None:
         return self.headers.get("Origin") or None
@@ -90,6 +100,34 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
             ("Access-Control-Allow-Origin", origin),
             ("Vary", "Origin"),
         ]
+
+    def _origin_allowed_for_state_change(self) -> bool:
+        """M3-T1: state-changing methods require a loopback/same-origin Origin.
+
+        `WebAuth` alone cannot stop a cross-site POST: with the default
+        loopback binding `required=False`, `check()` returns True for any
+        caller, so an attacker page could drive `/api/tasks` with
+        `permission_mode: "yolo"`. Browsers always attach Origin on cross-site
+        POSTs; curl/scripts that omit it entirely are still allowed.
+        """
+        origin = self._request_origin()
+        if not origin:
+            return True  # non-browser client (curl, SDK, tests)
+        return origin_allowed(origin)
+
+    def _deny_cross_origin(self) -> None:
+        body = json.dumps(
+            {"error": "forbidden", "detail": "跨站状态变更请求已拒绝"}, ensure_ascii=False
+        ).encode("utf-8")
+        try:
+            self.send_response(403)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(body)
+        except (OSError, BrokenPipeError, ConnectionAbortedError):
+            self.close_connection = True
 
     def _authorized(self, query: dict[str, list[str]] | None = None) -> bool:
         auth = self.server.auth
@@ -169,6 +207,9 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
                 return
         if path == "/api/workspace":
             self._json(self.server.service.workspace_info())
+            return
+        if path == "/api/models":
+            self._json(self.server.service.list_models())
             return
         if path == "/api/history/search":
             query = parse_qs(parsed.query)
@@ -378,12 +419,20 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
         path = urlsplit(self.path).path
         try:
             size = int(self.headers.get("Content-Length", "0"))
+            # Drain the request body before any early return so HTTP/1.1
+            # keep-alive framing stays consistent. Otherwise the server closes
+            # with unread request bytes in flight and Windows clients see a
+            # reset (ConnectionAbortedError) instead of the 403 body.
+            raw = self.rfile.read(size) if 0 < size <= MAX_BODY_BYTES else b""
+            # M3-T1: reject cross-site state changes before doing any work.
+            if not self._origin_allowed_for_state_change():
+                self._deny_cross_origin()
+                return
             if size <= 0 or size > MAX_BODY_BYTES:
                 raise ValueError("请求体大小非法")
-            raw = self.rfile.read(size)
             if not self._authorized():
-                # The body is drained first so HTTP/1.1 keep-alive framing
-                # stays consistent, then the request is rejected.
+                # The body is already drained above, so rejecting here keeps the
+                # connection framing intact.
                 self._deny_auth()
                 return
             payload = json.loads(raw.decode("utf-8"))
@@ -470,7 +519,7 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
             self._json({"error": "not found"}, 404)
         except KeyError:
             self._json({"error": "task not found"}, 404)
-        except (ValueError, json.JSONDecodeError, SessionError, WorktreeError, SnapshotError, AllowlistError) as exc:
+        except (ValueError, json.JSONDecodeError, SessionError, WorktreeError, SnapshotError, AllowlistError, McpError) as exc:
             self._json({"error": str(exc)}, 400)
         except Exception as exc:  # noqa: BLE001 - return a stable API error
             self._json({"error": f"agent failed: {type(exc).__name__}: {exc}"}, 500)

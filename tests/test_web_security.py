@@ -33,7 +33,12 @@ def test_loopback_host_detection() -> None:
     assert is_loopback_host("localhost")
     assert is_loopback_host("::1")
     assert is_loopback_host("[::1]")
-    assert is_loopback_host("localhost.local")
+    # M3-T2: `.local` is mDNS/link-local (RFC 6762), NOT loopback — it can
+    # resolve to other machines on the LAN. Only `.localhost` (RFC 6761)
+    # stays a loopback suffix.
+    assert is_loopback_host("foo.localhost")
+    assert not is_loopback_host("localhost.local")
+    assert not is_loopback_host("evil.local")
     assert not is_loopback_host("0.0.0.0")
     assert not is_loopback_host("192.168.1.8")
     assert not is_loopback_host("")
@@ -206,6 +211,70 @@ def test_open_loopback_auth_not_required() -> None:
         assert status == 200
     finally:
         server.shutdown()
+
+
+# ---------------------------------------------------------------------------
+# M3-T1 / M3-T2: cross-site state changes and log token redaction
+# ---------------------------------------------------------------------------
+
+
+def _post(url: str, body: object | None = None, headers: dict[str, str] | None = None):
+    data = json.dumps(body).encode("utf-8") if body is not None else b""
+    request = urllib.request.Request(url, data=data, headers=headers or {}, method="POST")
+    try:
+        with urllib.request.urlopen(request, timeout=5) as response:
+            return response.status, dict(response.headers), response.read()
+    except urllib.error.HTTPError as exc:
+        return exc.code, dict(exc.headers), exc.read()
+
+
+def test_cross_origin_state_change_rejected_before_any_work() -> None:
+    server = _Server(WebAuth("tok-123", required=False))
+    try:
+        # A browser cross-site POST (simple request, text/plain, no preflight)
+        # with yolo mode must be rejected outright.
+        status, _, body = _post(
+            f"{server.url}/api/tasks",
+            {"prompt": "run", "permission_mode": "yolo"},
+            {"Origin": "http://evil.example", "Content-Type": "text/plain"},
+        )
+        assert status == 403
+        assert b"forbidden" in body
+
+        # M3-T2: `.local` is mDNS, not loopback — must be rejected too.
+        status, _, _ = _post(
+            f"{server.url}/api/tasks",
+            {"prompt": "run"},
+            {"Origin": "http://attacker.local"},
+        )
+        assert status == 403
+
+        # Loopback origins and non-browser clients (no Origin) still pass the
+        # gate; the stub service then fails on the empty body — anything but
+        # 403 proves the gate did not reject.
+        status, _, _ = _post(
+            f"{server.url}/api/tasks", None, {"Origin": "http://127.0.0.1:8765"}
+        )
+        assert status != 403
+        status, _, _ = _post(f"{server.url}/api/tasks", None, {})
+        assert status != 403
+    finally:
+        server.shutdown()
+
+
+def test_log_redaction_masks_query_token() -> None:
+    from minicc.webserver import MiniccRequestHandler
+
+    rendered = (
+        'GET /api/tasks/abc/events?token=super-secret - '
+        '"GET /api/tasks/abc/events?token=super-secret HTTP/1.1" 200 -'
+    )
+    cleaned = MiniccRequestHandler._SECRET_QUERY_RE.sub(r"\1***", rendered)
+    assert "super-secret" not in cleaned
+    assert "token=***" in cleaned
+    # Non-secret query params survive for debuggability.
+    kept = MiniccRequestHandler._SECRET_QUERY_RE.sub(r"\1***", "GET /api/files?depth=2")
+    assert kept == "GET /api/files?depth=2"
 
 
 # ---------------------------------------------------------------------------

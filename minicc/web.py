@@ -32,6 +32,11 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, unquote, urlsplit
 
+try:  # httpx ships with the OpenAI SDK dependency; keep the import guarded.
+    import httpx
+except ModuleNotFoundError:  # pragma: no cover - depends on the HTTP stack.
+    httpx = None  # type: ignore[assignment]
+
 from .agent.graph import DAGPlan, PlanTask, build_coding_workflow, execute_dag, fixed_plan
 from .agent.completion import CompletionDecision, judge_completion
 from .agent.loop import AgentCancelled, TurnResult, build_tool_feedback, chat_with_cancellation, run_agent
@@ -92,7 +97,7 @@ from .tools.registry import redact_text
 from .task_store import TaskStore
 from .worktree import WorktreeError, WorktreeManager
 from .webserver import MiniccHTTPServer, MiniccRequestHandler  # noqa: F401 - re-export
-from .workspaces import WorkspaceCatalog
+from .workspaces import WorkspaceCatalog, resolve_workspace_path
 
 from .task_manager import (  # noqa: F401 - re-export for tests and AgentService
     CHANGE_INTENT_MARKERS,
@@ -128,6 +133,22 @@ from .task_manager import (  # noqa: F401 - re-export for tests and AgentService
     _path_key,
     _resolve_task_permissions,
 )
+
+# M3-T8: bounded RPC thread cache + thread_id validation.
+_RPC_THREADS_MAX = 512
+_THREAD_ID_MAX_LEN = 256
+
+
+def _validate_thread_id(raw: Any) -> str:
+    if not isinstance(raw, str) or not raw.strip():
+        raise ValueError("thread_id 不能为空")
+    thread_id = raw.strip()
+    if len(thread_id) > _THREAD_ID_MAX_LEN:
+        raise ValueError(f"thread_id 超过长度上限 ({_THREAD_ID_MAX_LEN})")
+    if any(ord(ch) < 32 or ord(ch) == 127 for ch in thread_id):
+        raise ValueError("thread_id 含非法控制字符")
+    return thread_id
+
 
 class AgentService:
     """Bridge HTTP requests to isolated agent runs and background tasks."""
@@ -188,17 +209,11 @@ class AgentService:
         raw_path = params.get("workspace_path")
         if raw_path is None:
             raw_path = params.get("cwd")
-        if raw_path is None:
-            return self.workspace.resolve()
-        if not isinstance(raw_path, str) or not raw_path.strip():
-            raise ValueError("workspace_path 不能为空")
-        candidate = Path(raw_path).expanduser()
-        if not candidate.is_absolute():
-            candidate = Path.cwd() / candidate
-        candidate = candidate.resolve()
-        if not candidate.is_dir():
-            raise ValueError(f"工作区不是有效目录: {candidate}")
-        return candidate
+        return resolve_workspace_path(
+            raw_path,
+            roots=tuple(getattr(self.config, "workspace_roots", ()) or ()),
+            default=self.workspace,
+        )
 
     @staticmethod
     def _rpc_session_id(params: dict[str, Any]) -> str:
@@ -226,10 +241,19 @@ class AgentService:
         tasks.sort(key=lambda item: item.created_at)
         return [task.snapshot() for task in tasks]
 
+    def _rpc_thread_put(self, thread_id: str, record: dict[str, Any]) -> None:
+        """Insert/refresh a thread record as most-recently-used, evicting oldest."""
+        self._rpc_threads.pop(thread_id, None)
+        self._rpc_threads[thread_id] = record
+        while len(self._rpc_threads) > _RPC_THREADS_MAX:
+            oldest = next(iter(self._rpc_threads))
+            self._rpc_threads.pop(oldest, None)
+
     def _rpc_thread_record(self, thread_id: str) -> dict[str, Any]:
         with self._rpc_thread_guard:
             record = self._rpc_threads.get(thread_id)
             if record is not None:
+                self._rpc_thread_put(thread_id, record)
                 return dict(record)
         with self.tasks.lock:
             matching = [task for task in self.tasks.tasks.values() if task.thread_id == thread_id]
@@ -245,8 +269,9 @@ class AgentService:
             "created_at_epoch": first.created_at,
         }
         with self._rpc_thread_guard:
-            self._rpc_threads.setdefault(thread_id, record)
-            return dict(self._rpc_threads[thread_id])
+            record = self._rpc_threads.setdefault(thread_id, record)
+            self._rpc_thread_put(thread_id, record)
+            return dict(record)
 
     def _rpc_thread_view(self, record: dict[str, Any]) -> dict[str, Any]:
         tasks = self._rpc_thread_tasks(record)
@@ -269,13 +294,14 @@ class AgentService:
     def _rpc_thread_start(self, params: dict[str, Any]) -> dict[str, Any]:
         workspace = self._rpc_workspace_path(params)
         session_id = self._rpc_session_id(params)
-        requested_id = params.get("thread_id")
-        if requested_id is not None and (not isinstance(requested_id, str) or not requested_id.strip()):
-            raise ValueError("thread_id 不能为空")
         task_thread_id = TaskManager._thread_id(str(workspace), session_id)
-        thread_id = str(requested_id or task_thread_id).strip()
+        requested_id = params.get("thread_id")
+        if requested_id is None:
+            thread_id = task_thread_id
+        else:
+            thread_id = _validate_thread_id(requested_id)
         with self._rpc_thread_guard:
-            self._rpc_threads.setdefault(
+            record = self._rpc_threads.setdefault(
                 thread_id,
                 {
                     "id": thread_id,
@@ -286,7 +312,8 @@ class AgentService:
                     "created_at_epoch": time.time(),
                 },
             )
-            record = dict(self._rpc_threads[thread_id])
+            self._rpc_thread_put(thread_id, record)
+            record = dict(record)
         return self._rpc_thread_view(record)
 
     def _rpc_thread_read(self, params: dict[str, Any]) -> dict[str, Any]:
@@ -310,7 +337,7 @@ class AgentService:
             raw_thread_id = params.get("id")
         if not isinstance(raw_thread_id, str) or not raw_thread_id.strip():
             raise ValueError("thread_id 不能为空")
-        return self._rpc_thread_record(raw_thread_id.strip())
+        return self._rpc_thread_record(_validate_thread_id(raw_thread_id))
 
     def _rpc_turn_id(self, params: dict[str, Any]) -> str | None:
         for key in ("turn_id", "task_id"):
@@ -374,24 +401,9 @@ class AgentService:
     def switch_workspace(self, raw_path: str) -> dict[str, Any]:
         if not isinstance(raw_path, str) or not raw_path.strip():
             raise ValueError("工作区路径不能为空")
-        candidate = Path(raw_path).expanduser()
-        if not candidate.is_absolute():
-            candidate = Path.cwd() / candidate
-        candidate = candidate.resolve()
-        if not candidate.is_dir():
-            raise ValueError(f"工作区不是有效目录: {candidate}")
-        roots = tuple(getattr(self.config, "workspace_roots", ()) or ())
-        if roots:
-            allowed_roots = [Path(root).expanduser().resolve() for root in roots]
-            inside = any(
-                candidate == root or candidate.is_relative_to(root)
-                for root in allowed_roots
-            )
-            if not inside:
-                shown = ", ".join(root.as_posix() for root in allowed_roots)
-                raise ValueError(
-                    f"工作区不在允许的目录白名单内: {candidate.as_posix()}（允许: {shown}）"
-                )
+        candidate = resolve_workspace_path(
+            raw_path, roots=tuple(getattr(self.config, "workspace_roots", ()) or ())
+        )
         current = self.workspace.resolve()
         if candidate == current:
             self.workspace_catalog.remember(candidate)
@@ -406,7 +418,7 @@ class AgentService:
 
     def file_tree(self, rel_path: str = "", depth: int = 3) -> dict[str, Any]:
         """Structured workspace listing backing /api/files (frontend file tree)."""
-        from .tools.fs import SKIP_DIRS
+        from .tools.fs import SKIP_DIRS, _escapes_workspace
 
         root = self.workspace.resolve()
         raw = str(rel_path or "").strip()
@@ -432,7 +444,7 @@ class AgentService:
             except OSError:
                 return
             for child in children:
-                if child.name in SKIP_DIRS or child.is_symlink():
+                if child.name in SKIP_DIRS or _escapes_workspace(child, root):
                     continue
                 if len(entries) >= max_entries:
                     truncated = True
@@ -507,11 +519,80 @@ class AgentService:
         if not tid:
             raise ValueError("task_id 不能为空")
         snapshot = self.tasks.get(tid)
-        workspace = Path(str((snapshot or {}).get("workspace_path") or self.workspace)).expanduser().resolve()
+        workspace = resolve_workspace_path(
+            str((snapshot or {}).get("workspace_path") or self.workspace),
+            roots=tuple(getattr(getattr(self, "config", None), "workspace_roots", ()) or ()),
+        )
         with self.tasks.lock:
             if self.tasks.has_active(str(workspace)):
                 raise SnapshotError("工作区仍有任务运行，请等待结束后再恢复文件")
             return restore_workspace_snapshot(workspace, tid)
+
+    def list_models(self) -> dict[str, Any]:
+        """Catalog for the settings panel: gateway models with local fallback.
+
+        Never raises and never echoes credentials; failures degrade to the
+        configured default + fallback models with a user-facing ``error``.
+        """
+        cfg = self.config
+        default_model = str(getattr(cfg, "model", "") or "")
+        fallbacks = [str(m) for m in (getattr(cfg, "fallback_models", ()) or ()) if str(m)]
+
+        def _local(error: str = "") -> dict[str, Any]:
+            ids: list[str] = []
+            for model in (default_model, *fallbacks):
+                if model and model not in ids:
+                    ids.append(model)
+            payload: dict[str, Any] = {
+                "models": [{"id": model} for model in ids],
+                "default_model": default_model,
+            }
+            if error:
+                payload["error"] = error
+            return payload
+
+        base = str(getattr(cfg, "base_url", "") or "").rstrip("/")
+        api_key = str(getattr(cfg, "api_key", "") or "")
+        if httpx is None or not base or not api_key:
+            return _local("未配置可用的模型网关，仅显示本地模型列表")
+        provider = str(getattr(cfg, "provider_type", "openai") or "openai")
+        if provider == "anthropic":
+            headers = {"x-api-key": api_key, "anthropic-version": "2023-06-01"}
+        else:
+            headers = {"Authorization": f"Bearer {api_key}"}
+        roots = [base] if base.endswith("/v1") else [base, f"{base}/v1"]
+        last_error = "网关未返回模型列表"
+        for root in roots:
+            try:
+                response = httpx.get(f"{root}/models", headers=headers, timeout=5.0)
+            except Exception as exc:
+                last_error = f"模型列表获取失败: {type(exc).__name__}"
+                continue
+            if response.status_code != 200:
+                last_error = f"模型列表请求失败 (HTTP {response.status_code})"
+                continue
+            try:
+                data = response.json()
+            except ValueError:
+                last_error = "模型列表响应不是合法 JSON"
+                continue
+            items = data.get("data") or data.get("models") or []
+            models: list[dict[str, Any]] = []
+            for item in items if isinstance(items, list) else []:
+                if isinstance(item, str) and item:
+                    models.append({"id": item})
+                elif isinstance(item, dict) and item.get("id"):
+                    entry: dict[str, Any] = {"id": str(item["id"])}
+                    for key in ("context_length", "context_window", "max_model_len"):
+                        value = item.get(key)
+                        if isinstance(value, (int, float)) and value > 0:
+                            entry["context_length"] = int(value)
+                            break
+                    models.append(entry)
+            if models:
+                return {"models": models, "default_model": default_model or models[0]["id"]}
+            last_error = "网关返回空模型列表"
+        return _local(last_error)
 
     def workspace_info(self) -> dict[str, Any]:
         try:
@@ -524,7 +605,7 @@ class AgentService:
             "name": self.workspace.name,
             "path": self.workspace.as_posix(),
             "recent_workspaces": self.workspace_catalog.list(),
-                    "model": self.config.model,
+            "model": self.config.model,
             "endpoint": self.config.base_url,
             "sandbox": self.sandbox.status(),
             "mcp": self.mcp.status() if self.mcp else {"configured": 0, "error": self.mcp_error},
@@ -637,9 +718,10 @@ class AgentService:
         allow_changes, allow_network, _mode = _resolve_task_permissions(
             payload, yolo=self.config.yolo
         )
-        workspace = Path(str(payload.get("workspace_path") or self.workspace)).expanduser().resolve()
-        if not workspace.is_dir():
-            raise ValueError(f"工作区不是有效目录: {workspace}")
+        workspace = resolve_workspace_path(
+            payload.get("workspace_path") or self.workspace,
+            roots=tuple(getattr(self.config, "workspace_roots", ()) or ()),
+        )
         session_lock = self._session_lock(workspace, session_id)
         while not session_lock.acquire(timeout=0.25):
             if cancel_event is not None and cancel_event.is_set():

@@ -278,17 +278,48 @@ class Editor:
 
     # -- public toolset --------------------------------------------------
 
+    def _read_window(
+        self, target: Path, path: str, offset: int, limit: int
+    ) -> tuple[list[tuple[int, str]], bytes]:
+        """Single-read windowed line fetch (M2-T6 / appendix A.1).
+
+        Raw bytes are read exactly once and reused for the decoded line
+        window, the audit digest and FileRead metadata — previously a
+        read_file call walked the whole file three times.
+        """
+        try:
+            raw = target.read_bytes()
+        except OSError as exc:
+            raise EditError(f"读取失败 ({path}): {exc}") from exc
+        # Match Path.read_text universal-newline semantics.
+        text = raw.decode("utf-8").replace("\r\n", "\n").replace("\r", "\n")
+        lines = text.split("\n")
+        if lines and lines[-1] == "":
+            lines.pop()
+        window = lines[offset - 1 : offset - 1 + limit]
+        return [(offset + index, line) for index, line in enumerate(window)], raw
+
     def read_file_meta(
         self, path: str, offset: int = 1, limit: int = MAX_READ_LINES
     ) -> FileRead:
         """Line-numbered read PLUS digest/size of the file's raw bytes —
         the freshness anchor for STALE_CONTEXT checks (§8.1)."""
+        if offset < 1:
+            raise EditError(f"offset 必须 ≥ 1 (收到 {offset})")
+        if limit > MAX_READ_LINES:
+            raise EditError(f"limit={limit} 超过单次读取上限 {MAX_READ_LINES}")
         target = self._resolve(path)
         if not target.is_file():
             raise EditError(f"文件不存在: {path}")
-        lines = self.read_file(path, offset=offset, limit=limit)
-        raw = target.read_bytes()
-        return FileRead(path=path, digest=sha256_digest(raw), size=len(raw), lines=lines)
+        lines, raw = self._read_window(target, path, offset, limit)
+        digest = sha256_digest(raw)
+        self._audit(
+            "read",
+            path,
+            f"lines {offset}-{offset + len(lines) - 1} ({len(lines)} 行)",
+            before_digest=digest,
+        )
+        return FileRead(path=path, digest=digest, size=len(raw), lines=lines)
 
     def read_file(
         self, path: str, offset: int = 1, limit: int = MAX_READ_LINES
@@ -305,17 +336,12 @@ class Editor:
         target = self._resolve(path)
         if not target.is_file():
             raise EditError(f"文件不存在: {path}")
-        text = target.read_text(encoding="utf-8")
-        lines = text.split("\n")
-        if lines and lines[-1] == "":
-            lines.pop()
-        window = lines[offset - 1 : offset - 1 + limit]
-        result = [(offset + index, line) for index, line in enumerate(window)]
+        result, raw = self._read_window(target, path, offset, limit)
         self._audit(
             "read",
             path,
-            f"lines {offset}-{offset + len(window) - 1} ({len(window)} 行)",
-            before_digest=self._digest_bytes(target),
+            f"lines {offset}-{offset + len(result) - 1} ({len(result)} 行)",
+            before_digest=sha256_digest(raw),
         )
         return result
 

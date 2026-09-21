@@ -13,14 +13,69 @@ from pathlib import Path
 from typing import Any
 
 from .allowlist import match_session_allowlist
-from .tools.bash import is_readonly_command
+from .tools.bash import is_readonly_command, split_command_argv
 
 
-NETWORK_COMMAND_MARKERS = (
-    "curl", "wget", "invoke-webrequest", "invoke-restmethod", "git clone",
-    "git fetch", "git pull", "npm install", "pnpm install", "yarn add",
-    "pip install", "uv pip install",
-)
+# M3-T4: argv-aware network detection. The old substring blacklist missed
+# ``pip3 install``, ``apt-get install nginx``, ``ssh``, ``nc``, ``rsync`` and
+# matched inside unrelated text (``git log --grep="git clone"``).
+NETWORK_EXECUTABLES = frozenset({
+    "curl", "wget", "http", "httpie", "aria2c", "nc", "ncat", "netcat", "telnet",
+    "ssh", "scp", "sftp", "rsync", "ftp", "tftp", "dig", "nslookup", "host",
+    "invoke-webrequest", "invoke-restmethod", "iwr", "irm",
+})
+# Package managers / build tools that reach the network for specific verbs.
+NETWORK_SUBCOMMANDS = {
+    "pip": {"install", "download", "wheel", "search"},
+    "pip3": {"install", "download", "wheel", "search"},
+    # python/python3/py: only `-m pip|uv|poetry|conda` counts (special-cased
+    # in command_uses_network); `python -m pytest` must stay non-network.
+    "python": set(),
+    "python3": set(),
+    "py": set(),
+    "uv": {"pip", "add", "sync", "tool", "run"},
+    "npm": {"install", "i", "ci", "add", "publish", "update", "exec", "x"},
+    "pnpm": {"install", "add", "i", "update", "dlx", "publish"},
+    "yarn": {"add", "install", "upgrade", "publish", "dlx"},
+    "apt": {"install", "update", "upgrade", "get"},
+    "apt-get": {"install", "update", "upgrade"},
+    "apk": {"add", "update", "upgrade"},
+    "yum": {"install", "update", "upgrade"},
+    "dnf": {"install", "update", "upgrade"},
+    "brew": {"install", "upgrade", "update", "tap"},
+    "choco": {"install", "upgrade"},
+    "winget": {"install", "upgrade"},
+    "scoop": {"install", "update"},
+    "gem": {"install", "update"},
+    "cargo": {"install", "add", "update", "publish", "login"},
+    "go": {"get", "install", "mod", "download"},
+    "dotnet": {"restore", "add", "tool", "nuget"},
+    "git": {"clone", "fetch", "pull", "push", "remote", "submodule", "ls-remote"},
+    "hg": {"clone", "pull", "push", "incoming"},
+    "svn": {"checkout", "update", "commit", "export"},
+    "docker": {"pull", "push", "login", "build"},
+    "kubectl": {"apply", "create", "delete", "get", "logs", "exec"},
+    "helm": {"install", "upgrade", "repo", "pull"},
+    "mvn": {"dependency", "deploy"},
+    "gradle": {"dependencies"},
+    "npx": set(),  # npx always resolves from the registry
+    "pipx": {"install", "run", "upgrade"},
+    "conda": {"install", "update", "create"},
+    "poetry": {"install", "add", "update", "publish"},
+    "powershell": {"invoke-webrequest", "invoke-restmethod", "iwr", "irm"},
+    "pwsh": {"invoke-webrequest", "invoke-restmethod", "iwr", "irm"},
+}
+
+# Wrappers whose arguments are themselves command lines: recurse into them so
+# ``sudo curl …`` / ``cmd /c wget …`` / ``powershell -Command "pip install …"``
+# cannot slip through by hiding the real executable one level down.
+SHELL_WRAPPERS = frozenset({
+    "cmd", "powershell", "pwsh", "sh", "bash", "zsh", "fish",
+    "sudo", "doas", "runas", "wsl", "xargs", "env",
+})
+
+_PYTHON_EXECUTABLES = frozenset({"python", "python3", "py", "pythonw"})
+_PYTHON_NETWORK_MODULES = frozenset({"pip", "pip3", "uv", "poetry", "conda"})
 
 NETWORK_TOOL_NAMES = frozenset({"web_search", "webfetch"})
 
@@ -85,9 +140,47 @@ class AuthorizationDecision:
         }
 
 
+def _executable_name(token: str) -> str:
+    name = str(token).replace("\\", "/").rsplit("/", 1)[-1].casefold()
+    for suffix in (".exe", ".cmd", ".bat", ".com"):
+        if name.endswith(suffix):
+            return name[: -len(suffix)]
+    return name
+
+
 def command_uses_network(command: object) -> bool:
-    normalized = str(command or "").casefold()
-    return any(marker in normalized for marker in NETWORK_COMMAND_MARKERS)
+    """Argv-aware network detection (M3-T4).
+
+    Every shell segment is inspected independently: bare executables in
+    ``NETWORK_EXECUTABLES`` always count; package/build tools count only when
+    one of their network verbs appears as a whole token (``pip3 install``
+    yes; ``git log --grep="git clone"`` no; ``git  clone`` with doubled
+    space yes). Shell wrappers recurse into their arguments so ``sudo curl``
+    cannot hide the real executable.
+    """
+    for argv in split_command_argv(str(command or "")):
+        if not argv:
+            continue
+        executable = _executable_name(argv[0])
+        if executable in NETWORK_EXECUTABLES:
+            return True
+        if executable == "npx":
+            return True
+        rest = [token.casefold() for token in argv[1:]]
+        if executable in _PYTHON_EXECUTABLES:
+            for position, token in enumerate(rest):
+                if token == "-m" and position + 1 < len(rest):
+                    module = rest[position + 1].rsplit(".", 1)[-1]
+                    if module in _PYTHON_NETWORK_MODULES:
+                        return True
+        verbs = NETWORK_SUBCOMMANDS.get(executable)
+        if verbs and any(token in verbs for token in rest):
+            return True
+        if executable in SHELL_WRAPPERS:
+            for token in rest:
+                if command_uses_network(token):
+                    return True
+    return False
 
 
 def authorize_tool(

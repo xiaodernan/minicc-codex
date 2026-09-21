@@ -53,5 +53,15 @@ class TaskSnapshotWriter:
         with self._lock:
             pending = list(self._pending.values())
             self._pending.clear()
+        # M3-T9: one failing flush (e.g. a transient SQLite lock) must not abort
+        # the remaining terminal writes; record the error and keep going. flush()
+        # clears last_error on success, so retain the first failure locally.
+        first_error: Exception | None = None
         for task in pending:
-            self.flush(task)
+            try:
+                self.flush(task)
+            except Exception as exc:  # noqa: BLE001 - surfaced via last_error
+                if first_error is None:
+                    first_error = exc
+        if first_error is not None:
+            self.last_error = first_error

@@ -2,14 +2,27 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import re
+import tempfile
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from .tools.registry import redact_text
+
+try:  # Windows
+    import msvcrt
+except ImportError:  # pragma: no cover - non-Windows
+    msvcrt = None  # type: ignore[assignment]
+
+try:  # POSIX
+    import fcntl
+except ImportError:  # pragma: no cover - Windows
+    fcntl = None  # type: ignore[assignment]
 
 _SESSION_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
 _ALLOWED_ROLES = {"system", "user", "assistant", "tool"}
@@ -21,10 +34,50 @@ _DEFAULT_VIEW = {
     "tool_history": [],
 }
 
+# M3-T7: serialise the atomic replace across processes (and threads). The web
+# process and detached worker subprocesses each have their own in-process locks,
+# so only an OS-level lock on a sidecar file prevents two writers from racing
+# on os.replace and tearing the session JSON.
+_LOCK_ATTEMPTS = 400
+_LOCK_RETRY_DELAY = 0.05
+
+
+@contextlib.contextmanager
+def _cross_process_lock(lock_path: Path):
+    """Best-effort exclusive lock on ``lock_path``; degrades to no-op if unsupported."""
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    handle = open(lock_path, "a+")
+    locked = False
+    try:
+        if msvcrt is not None:
+            handle.seek(0)
+            for _ in range(_LOCK_ATTEMPTS):
+                try:
+                    msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
+                    locked = True
+                    break
+                except OSError:
+                    time.sleep(_LOCK_RETRY_DELAY)
+            if not locked:
+                msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
+                locked = True
+        elif fcntl is not None:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+            locked = True
+        yield
+    finally:
+        try:
+            if locked and msvcrt is not None:
+                handle.seek(0)
+                msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+            elif locked and fcntl is not None:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+        finally:
+            handle.close()
+
 
 class SessionError(RuntimeError):
     """A session checkpoint is invalid or cannot be read/written."""
-
 
 class SessionStore:
     """Persist one conversation under workspace/.minicc/sessions."""
@@ -133,19 +186,31 @@ class SessionStore:
 
     def _write_payload_at(self, target: Path, payload: dict[str, Any]) -> None:
         target.parent.mkdir(parents=True, exist_ok=True)
-        temporary = target.with_suffix(".tmp")
+        data = json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
+        # Per-call unique temp name (mkstemp) so concurrent writers in different
+        # processes never share a ".tmp" path; the replace is serialised by the
+        # cross-process lock and is atomic on the same filesystem.
+        fd, temp_name = tempfile.mkstemp(
+            prefix=f".{target.name}.", suffix=".tmp", dir=str(target.parent)
+        )
+        temp_path = Path(temp_name)
+        consumed = False
         try:
-            temporary.write_text(
-                json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
-                encoding="utf-8",
-            )
-            os.replace(temporary, target)
+            with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                handle.write(data)
+                handle.flush()
+                os.fsync(handle.fileno())
+            with _cross_process_lock(target.with_name(target.name + ".lock")):
+                os.replace(temp_path, target)
+            consumed = True
         except OSError as exc:
-            try:
-                temporary.unlink(missing_ok=True)
-            except OSError:
-                pass
             raise SessionError(f"无法写入 {target}: {exc}") from exc
+        finally:
+            if not consumed:
+                try:
+                    temp_path.unlink(missing_ok=True)
+                except OSError:
+                    pass
 
     def load_view(self) -> dict[str, Any]:
         """Load the CLI's small semantic reading anchor, never raw terminal state."""
@@ -218,20 +283,7 @@ class SessionStore:
         }
 
     def _write_payload(self, payload: dict[str, Any]) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        temporary = self.path.with_suffix(".tmp")
-        try:
-            temporary.write_text(
-                json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
-                encoding="utf-8",
-            )
-            os.replace(temporary, self.path)
-        except OSError as exc:
-            try:
-                temporary.unlink(missing_ok=True)
-            except OSError:
-                pass
-            raise SessionError(f"无法保存 session {self.path}: {exc}") from exc
+        self._write_payload_at(self.path, payload)
 
     @staticmethod
     def _validate_message(message: Any) -> dict[str, Any]:

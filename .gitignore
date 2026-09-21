@@ -13,4 +13,3 @@ output/
 dist/
 build/
 *.egg-info/
-web/app.min.js

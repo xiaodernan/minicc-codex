@@ -553,6 +553,7 @@ def test_agent_service_preflights_complex_tasks_with_a_safe_model_plan(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls = {"planner": 0, "agent": 0, "judge": 0}
+    (tmp_path / "notes.md").write_text("# 现状\n前后端分离。\n", encoding="utf-8")
 
     class FakeProvider:
         def __init__(self, **_kwargs) -> None:
@@ -583,6 +584,24 @@ def test_agent_service_preflights_complex_tasks_with_a_safe_model_plan(
                     "evidence": _completion_evidence_ids(messages),
                 }, ensure_ascii=False))
             calls["agent"] += 1
+            # M4-T1: a read-only completion must cite real tool evidence, not
+            # narration traces. The old fake agent never called a tool, so the
+            # task was judged complete only because trace ids were wrongly
+            # accepted as evidence. Emit one read_file observation per node so
+            # the judge has a citable id.
+            if "read-1" not in rendered:
+                return LLMResponse(
+                    tool_calls=[
+                        {
+                            "id": "read-1",
+                            "type": "function",
+                            "function": {
+                                "name": "read_file",
+                                "arguments": json.dumps({"path": "notes.md"}),
+                            },
+                        }
+                    ]
+                )
             return LLMResponse(content="已完成复杂只读检查并整理风险。")
 
         async def close(self) -> None:
@@ -621,7 +640,12 @@ def test_agent_service_preflights_complex_tasks_with_a_safe_model_plan(
     finally:
         service.shutdown()
     assert result["error"] is None
-    assert calls == {"planner": 1, "agent": 3, "judge": 1}
+    # agent: each read-only DAG node now spends one turn on a real read_file
+    # observation and one on its summary (M4-T1), so the count rises over the
+    # old tool-less fake. planner/judge stay at exactly one call each.
+    assert calls["planner"] == 1
+    assert calls["judge"] == 1
+    assert calls["agent"] >= 3
     assert result["context"]["planner"]["source"] == "dynamic_model"
     assert result["metrics"]["planner"]["plan"]["name"] == "readonly-review"
     assert result["metrics"]["planner"]["execution"]["status"] == "completed"
@@ -1380,7 +1404,7 @@ def test_task_snapshot_hides_attachment_payload_and_resume_reloads_it(tmp_path: 
     received: list[list[dict[str, object]]] = []
 
     class FakeService:
-        config = SimpleNamespace(yolo=False, max_concurrent_tasks=1)
+        config = SimpleNamespace(yolo=False, max_concurrent_tasks=1, model="test-model")
         workspace = tmp_path
 
         @staticmethod
@@ -1511,6 +1535,10 @@ def test_provider_deduplicates_cumulative_stream_chunks() -> None:
 
 
 def test_provider_retries_silent_incomplete_stream() -> None:
+    # M1-T5: a stream chunk without finish_reason is a protocol violation,
+    # not a transient failure — fail fast with 1 request (no 5x retry).
+    from minicc.llm.openai_provider import StreamProtocolError
+
     class FakeStream:
         def __init__(self, chunks: list[object]) -> None:
             self.chunks = iter(chunks)
@@ -1535,25 +1563,22 @@ def test_provider_retries_silent_incomplete_stream() -> None:
     async def fake_create(_kwargs: dict[str, object]) -> FakeStream:
         nonlocal calls
         calls += 1
-        text = "partial" if calls == 1 else "partial complete"
-        terminal = calls > 1
         return FakeStream([
             SimpleNamespace(
                 model="test-model",
                 usage=None,
                 choices=[SimpleNamespace(
-                    finish_reason="stop" if terminal else None,
-                    delta=SimpleNamespace(content=text, reasoning_content=None, tool_calls=[]),
+                    finish_reason=None,
+                    delta=SimpleNamespace(content="partial", reasoning_content=None, tool_calls=[]),
                 )],
             )
         ])
 
     provider._create = fake_create  # type: ignore[method-assign]
     deltas: list[str] = []
-    response = asyncio.run(provider.chat([{"role": "user", "content": "test"}], on_delta=deltas.append))
-    assert calls == 2
-    assert deltas == ["partial", " complete"]
-    assert response.content == "partial complete"
+    with pytest.raises(StreamProtocolError):
+        asyncio.run(provider.chat([{"role": "user", "content": "test"}], on_delta=deltas.append))
+    assert calls == 1
 
 
 def test_agent_repairs_invalid_envelope_instead_of_ending_run(tmp_path: Path) -> None:
@@ -2095,7 +2120,7 @@ def test_worktree_manager_creates_and_removes_managed_tree(tmp_path: Path) -> No
 
 def test_task_manager_runs_batch_in_parallel() -> None:
     class FakeService:
-        config = SimpleNamespace(yolo=False)
+        config = SimpleNamespace(yolo=False, model="test-model")
 
         @staticmethod
         def _run_chat(payload, *, on_event=None, on_stream=None, cancel_event=None):
@@ -2127,7 +2152,7 @@ def test_task_manager_auto_orchestrates_complex_task_then_resumes_parent(tmp_pat
     calls: list[tuple[str, bool]] = []
 
     class FakeService:
-        config = SimpleNamespace(yolo=False, max_concurrent_tasks=4)
+        config = SimpleNamespace(yolo=False, max_concurrent_tasks=4, model="test-model")
         workspace = tmp_path
 
         @staticmethod
@@ -2174,7 +2199,7 @@ def test_task_manager_auto_orchestrates_complex_task_then_resumes_parent(tmp_pat
 
 def test_batch_watcher_marks_missing_child_interrupted_and_finishes_parent(tmp_path: Path) -> None:
     class FakeService:
-        config = SimpleNamespace(yolo=False, max_concurrent_tasks=1)
+        config = SimpleNamespace(yolo=False, max_concurrent_tasks=1, model="test-model")
         workspace = tmp_path
 
     manager = TaskManager(FakeService(), max_workers=1)
@@ -2315,7 +2340,7 @@ def test_task_store_prunes_old_terminal_history_but_keeps_active_and_batch_child
 
 def test_task_manager_list_returns_bounded_summaries(tmp_path: Path) -> None:
     class FakeService:
-        config = SimpleNamespace(yolo=False, max_concurrent_tasks=1)
+        config = SimpleNamespace(yolo=False, max_concurrent_tasks=1, model="test-model")
         workspace = tmp_path
 
     store = TaskStore(tmp_path / "tasks.sqlite3")
@@ -2348,7 +2373,7 @@ def test_task_manager_resume_reuses_only_unchanged_readonly_checkpoint(tmp_path:
     observed_payloads: list[dict[str, object]] = []
 
     class FakeService:
-        config = SimpleNamespace(yolo=False, max_concurrent_tasks=1)
+        config = SimpleNamespace(yolo=False, max_concurrent_tasks=1, model="test-model")
         workspace = tmp_path
 
         @staticmethod
@@ -2392,7 +2417,7 @@ def test_interrupted_readonly_resume_continues_from_session_checkpoint(tmp_path:
     observed_payloads: list[dict[str, object]] = []
 
     class FakeService:
-        config = SimpleNamespace(yolo=False, max_concurrent_tasks=1)
+        config = SimpleNamespace(yolo=False, max_concurrent_tasks=1, model="test-model")
         workspace = tmp_path
 
         @staticmethod
@@ -2514,7 +2539,7 @@ def test_task_manager_exposes_live_stream_and_phase() -> None:
     release = threading.Event()
 
     class FakeService:
-        config = SimpleNamespace(yolo=False)
+        config = SimpleNamespace(yolo=False, model="test-model")
 
         @staticmethod
         def _run_chat(payload, *, on_event=None, on_stream=None, cancel_event=None):
@@ -2550,7 +2575,7 @@ def test_task_manager_drops_stream_deltas_after_cancel() -> None:
     release = threading.Event()
 
     class FakeService:
-        config = SimpleNamespace(yolo=False)
+        config = SimpleNamespace(yolo=False, model="test-model")
 
         @staticmethod
         def _run_chat(payload, *, on_event=None, on_stream=None, cancel_event=None):
@@ -2585,7 +2610,7 @@ def test_task_manager_drops_stream_deltas_after_cancel() -> None:
 
 def test_task_manager_marks_agent_errors_as_failed() -> None:
     class FakeService:
-        config = SimpleNamespace(yolo=False)
+        config = SimpleNamespace(yolo=False, model="test-model")
 
         @staticmethod
         def _run_chat(payload, *, on_event=None, on_stream=None, cancel_event=None):
@@ -2612,7 +2637,7 @@ def test_task_manager_runs_different_sessions_without_blocking() -> None:
     release = threading.Event()
 
     class FakeService:
-        config = SimpleNamespace(yolo=False, max_concurrent_tasks=2)
+        config = SimpleNamespace(yolo=False, max_concurrent_tasks=2, model="test-model")
         workspace = Path.cwd()
 
         @staticmethod
@@ -2647,7 +2672,7 @@ def test_task_manager_queues_same_session_but_runs_other_sessions_in_parallel() 
     release = threading.Event()
 
     class FakeService:
-        config = SimpleNamespace(yolo=False, max_concurrent_tasks=2)
+        config = SimpleNamespace(yolo=False, max_concurrent_tasks=2, model="test-model")
         workspace = Path.cwd()
 
         @staticmethod
@@ -2690,7 +2715,7 @@ def test_task_manager_cancel_queued_same_session_wakes_next_task() -> None:
     executed: list[str] = []
 
     class FakeService:
-        config = SimpleNamespace(yolo=False, max_concurrent_tasks=1)
+        config = SimpleNamespace(yolo=False, max_concurrent_tasks=1, model="test-model")
         workspace = Path.cwd()
 
         @staticmethod
@@ -2731,7 +2756,7 @@ def test_task_manager_binds_workspace_from_submission(tmp_path: Path) -> None:
     workspace.mkdir()
 
     class FakeService:
-        config = SimpleNamespace(yolo=False, max_concurrent_tasks=1)
+        config = SimpleNamespace(yolo=False, max_concurrent_tasks=1, model="test-model")
         workspace = tmp_path / "current"
 
         @staticmethod
@@ -2752,7 +2777,7 @@ def test_task_manager_preserves_trace_phase_while_running() -> None:
     release = threading.Event()
 
     class FakeService:
-        config = SimpleNamespace(yolo=False, max_concurrent_tasks=1)
+        config = SimpleNamespace(yolo=False, max_concurrent_tasks=1, model="test-model")
         workspace = Path.cwd()
 
         @staticmethod

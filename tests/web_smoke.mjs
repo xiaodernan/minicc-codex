@@ -293,6 +293,32 @@ async function runProductPathSmoke(browser) {
   await page.locator("#promptInput").fill("Inspect the current project and tell me the most valuable next step.");
   await page.locator("#sendButton").click();
   await page.locator("#messageList [data-live-task], #messageList .loading").first().waitFor({ timeout: 20000 });
+
+  // M4-T2: a spinner is not a result. Drive the full submit -> provider -> agent
+  // loop -> verifier -> completion judge chain to a real terminal state, then
+  // require both a completed verdict and at least one tool evidence card. The
+  // old check stopped at "a loading element appeared + no console error", so an
+  // unreachable provider still printed "passed" and the broken chain was
+  // invisible. The mutation CI step runs this same smoke against a server whose
+  // provider is unreachable (fake provider disabled) and requires a non-zero
+  // exit; these assertions are what make that step red.
+  const terminalDeadline = Date.now() + 90000;
+  while (Date.now() < terminalDeadline && (await page.locator("#messageList .loading").count()) > 0) {
+    await page.waitForTimeout(500);
+  }
+  assert.equal(
+    await page.locator("#messageList .loading").count(),
+    0,
+    "product path task never reached a terminal state (spinner still present after 90s)",
+  );
+  const completed = await page.locator('#messageList [data-stage-code="completion_complete"]').count();
+  assert.ok(
+    completed >= 1,
+    "product path task must reach completion_complete; an unreachable provider must not silently pass",
+  );
+  const toolEvents = await page.locator("#messageList details.tool-event").count();
+  assert.ok(toolEvents >= 1, `product path task must produce at least one tool evidence card, got ${toolEvents}`);
+  assert.notEqual(await page.locator("#toolMetric").innerText(), "0", "tool metric must reflect at least one executed tool");
   assert.deepEqual(consoleErrors, [], `product path browser errors: ${consoleErrors.join(" | ")}`);
   await page.close();
 }

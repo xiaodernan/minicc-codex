@@ -3,6 +3,11 @@ name: CI
 on:
   push:
   pull_request:
+  # Nightly real-key eval (M4-T8). Keep the cron off the hour to dodge the
+  # GitHub Actions top-of-hour scheduler rush.
+  schedule:
+    - cron: "17 18 * * *"
+  workflow_dispatch:
 
 jobs:
   pytest:
@@ -20,9 +25,34 @@ jobs:
         with:
           python-version: "3.11"
       - name: Install package with dev extras
-        run: pip install -e ".[dev]"
+        run: |
+          pip install -e ".[dev]"
+          # M4-T8: fail if a declared dependency (e.g. httpx in the dev extra)
+          # is missing or conflicts, instead of leaning on a transitive pull-in.
+          pip check
       - name: Run test suite
-        run: python -m pytest tests/ -q
+        # addopts=-ra (pyproject) prints the pass count and warnings summary;
+        # JUnit XML is captured for the artifact below.
+        run: python -m pytest tests/ --junitxml=junit-${{ matrix.os }}.xml
+      - name: Upload pytest JUnit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-junit-${{ matrix.os }}
+          path: junit-${{ matrix.os }}.xml
+
+  reliability-probe:
+    name: M1 reliability probe
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install package with dev extras
+        run: pip install -e ".[dev]"
+      - name: Run reliability probe (red on any M1 regression)
+        run: python scripts/reliability_probe.py
 
   js-check:
     name: JavaScript syntax
@@ -41,6 +71,7 @@ jobs:
           node --check ide/vscode/extension.js
           node --check tests/web_smoke.mjs
           node --check tests/game_upgrade_smoke.mjs
+          node --check tests/codex_smoke.mjs
           node --check tests/zombie_spawn_smoke.mjs
           npm run check:web
       - name: Install browser for focused UI contracts
@@ -88,9 +119,169 @@ jobs:
         env:
           MINICC_WEB_URL: http://127.0.0.1:8765
         run: npm run test:web
+      # M4-T8: the arcade Playwright suites (game/codex/zombie) were checked in
+      # but never executed in CI — codex_smoke.mjs had no runner at all. They
+      # are frontend-only and reuse the fake-provider server already up here.
+      - name: Run arcade Playwright suites (game/codex/zombie)
+        env:
+          MINICC_WEB_URL: http://127.0.0.1:8765
+        run: npm run test:arcade
       - name: Upload server log on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: server-log
           path: server.log
+
+  web-smoke-mutation:
+    name: Playwright web smoke (unreachable provider must fail)
+    runs-on: ubuntu-latest
+    needs: js-check
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Python package
+        run: pip install -e ".[dev]"
+      - name: Install Playwright and Chromium
+        run: |
+          npm ci
+          npx playwright install chromium --with-deps
+      # M4-T2 mutation gate: the fake provider short-circuits MINICC_BASE_URL, so
+      # to prove the product-path smoke actually catches a broken submit ->
+      # provider -> agent -> verifier -> completion chain we start the server with
+      # the fake provider DISABLED and an unreachable base URL. The smoke must then
+      # exit non-zero; if it ever passes here, the end-to-end assertions have gone
+      # stale and this step turns red.
+      - name: Start minicc web server with unreachable provider
+        env:
+          MINICC_API_KEY: dummy-key-for-smoke
+          MINICC_BASE_URL: https://example.invalid/v1
+        run: |
+          python -m minicc.web --workspace . --port 8766 > server-mutation.log 2>&1 &
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8766/api/health > /dev/null; then
+              echo "server ready"; break
+            fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:8766/api/health
+      - name: Run web smoke (expected to fail)
+        env:
+          MINICC_WEB_URL: http://127.0.0.1:8766
+        run: |
+          if npm run test:web; then
+            echo "MUTATION NOT CAUGHT: web smoke passed against an unreachable provider"
+            exit 1
+          fi
+          echo "mutation caught: web smoke correctly failed against an unreachable provider"
+      - name: Upload mutation server log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-mutation-log
+          path: server-mutation.log
+
+  # M4-T8 PR eval gate: fast (<15m), fake provider, no real key, no real cost.
+  # The fake provider cannot solve content graders (pass_at_1 is 0 by design),
+  # so this gates the *flow* — every behavior fixture must execute to completion
+  # and be gradable — not accuracy. Real accuracy is the nightly job's concern.
+  eval-pr:
+    name: PR eval gate (fake provider, <15m)
+    runs-on: ubuntu-latest
+    if: github.event_name != 'schedule'
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install package with dev extras
+        run: |
+          pip install -e ".[dev]"
+          pip check
+      - name: Run behavior eval (fake provider)
+        env:
+          MINICC_API_KEY: dummy-key-for-eval
+          MINICC_BASE_URL: https://example.invalid/v1
+          MINICC_FAKE_PROVIDER: "1"
+        run: >
+          python -m minicc.benchmarks --suite behavior --run --no-resume
+          --task-timeout 120
+          --json-out output/pr-eval.json --markdown-out output/pr-eval.md
+      - name: Assert flow gate (completion + coverage, not accuracy)
+        run: |
+          python - <<'PY'
+          import json, sys
+          m = json.load(open("output/pr-eval.json", encoding="utf-8"))["metrics"]
+          print("PR eval:", {k: m[k] for k in
+                ("execution_completion_rate", "grading_coverage", "pass_at_1")})
+          ok = m["execution_completion_rate"] == 1.0 and m["grading_coverage"] == 1.0
+          sys.exit(0 if ok else 1)
+          PY
+      - name: Upload PR eval report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-eval-report
+          path: |
+            output/pr-eval.json
+            output/pr-eval.md
+
+  # M4-T8 nightly eval: real key, v2 suite, absolute gates. Runs only on the
+  # schedule / manual dispatch so PRs never burn real API budget. The gate is
+  # applied via `compare` self-referentially (baseline == variant) so the
+  # variant's absolute metrics are thresholded; PR jobs do real A/B against
+  # main instead. Setting any gate threshold impossibly high turns this red and
+  # still uploads the JUnit + JSON artifacts (acceptance requirement).
+  eval-nightly:
+    name: Nightly eval (real key, v2 + gate)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install package with dev extras
+        run: |
+          pip install -e ".[dev]"
+          pip check
+      - name: Run v2 eval against the real model
+        env:
+          MINICC_API_KEY: ${{ secrets.MINICC_API_KEY }}
+          MINICC_BASE_URL: ${{ secrets.MINICC_BASE_URL }}
+          MINICC_MODEL: ${{ secrets.MINICC_MODEL }}
+        run: >
+          python -m minicc.benchmarks --suite v2 --run --no-resume
+          --task-timeout 600
+          --json-out output/nightly-v2.json --markdown-out output/nightly-v2.md
+      - name: Apply absolute gates and emit JUnit
+        # Initial floors are deliberately conservative because real-model v2
+        # accuracy is not yet characterized; ratchet pass_at_1 upward as the
+        # nightly history establishes a stable baseline. Lowering any threshold
+        # below the achieved value (or raising it impossibly) turns this red.
+        run: >
+          python -m minicc.benchmarks compare
+          --baseline output/nightly-v2.json --variant output/nightly-v2.json
+          --repeat 2
+          --gate pass_at_1>=0.3
+          --gate grading_coverage>=0.9
+          --gate latency_p95_ms<=600000
+          --json-out output/nightly-compare.json
+          --junit-out output/nightly-junit.xml
+      - name: Upload nightly eval artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-eval
+          path: |
+            output/nightly-v2.json
+            output/nightly-v2.md
+            output/nightly-compare.json
+            output/nightly-junit.xml

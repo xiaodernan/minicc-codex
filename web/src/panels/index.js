@@ -1056,7 +1056,9 @@ export function taskMetrics(data) {
   const limit = Number(data.context?.limit_tokens || state.contextWindowTokens || 300000);
   const estimated = data.tokens_used?.estimated || data.usage_by_turn?.some((item) => item.estimated);
   const tokenText = `${estimated ? "~" : ""}${compactNumber(tokens)} ${t("tasks.tokens")}`;
-  return `${tokenText} · ${compactNumber(context)}/${compactNumber(limit)} ${t("tasks.context")} · ${t("tasks.cache")} ${cacheMetric(data)}`;
+  const cost = typeof data.cost_usd === "number" ? data.cost_usd : NaN;
+  const costText = Number.isFinite(cost) ? ` · $${cost.toFixed(cost < 0.01 ? 4 : 2)}` : "";
+  return `${tokenText}${costText} · ${compactNumber(context)}/${compactNumber(limit)} ${t("tasks.context")} · ${t("tasks.cache")} ${cacheMetric(data)}`;
 }
 
 export function renderVerification(data = state.lastTask) {

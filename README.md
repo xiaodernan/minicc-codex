@@ -129,7 +129,16 @@ MINICC_BASE_URL=https://api.247kan.com/v1
 MINICC_MODEL=gpt-5.6-terra
 ```
 
- 也可以换成其他 OpenAI 兼容网关。带完整路径的 endpoint 会原样使用；只有裸 API 根地址才会自动补 `/v1`。
+也可以换成其他 OpenAI 兼容网关。带完整路径的 endpoint 会原样使用；只有裸 API 根地址才会自动补 `/v1`。
+
+当前工作区的本地 `.env` 已配置为阶跃星辰 OpenAI 兼容网关（`.env` 已被 git 忽略，不会提交 API key）：
+
+```text
+MINICC_BASE_URL=https://api.stepfun.com/v1
+MINICC_MODEL=step-3.7-flash
+```
+
+启动 Web 工作台后，打开左下角设置，在“模型”下拉框中可查看当前网关返回的模型列表（例如 `step-5-preview`），也可以点击刷新。模型和“推理强度”都只影响之后新建的任务；每个任务会把自己的选择保存到快照，恢复或并行执行时不会丢失。模型列表获取失败时仍会保留配置中的默认模型。
 
 推理强度可以通过环境变量或 Web 工作台顶部的“推理强度”按钮（也可在设置面板）调整：
 
@@ -137,7 +146,7 @@ MINICC_MODEL=gpt-5.6-terra
 MINICC_REASONING_EFFORT=high
 ```
 
-模型请求会原样发送 `reasoning_effort=low|mid|high|xhigh|max`；如果兼容网关不接受该参数，Provider 会依次降档，最后关闭该扩展参数并继续请求。
+界面档位使用 `low|mid|high|xhigh|max|ultra`；其中中档会按兼容网关标准发送为 `reasoning_effort=medium`。如果某个模型不支持所选档位，Provider 会依次降档，最后关闭该扩展参数并继续请求。
 
 离线评测和审计导出：
 
@@ -174,6 +183,15 @@ Invoke-RestMethod http://127.0.0.1:8765/api/audit?limit=500
 
 judge 只输出短依据、缺失项和下一步，不输出模型私有思维链；完成评估本身的 token 和 trace 也会进入任务快照，便于面试演示和失败复盘。
 
+## 代码审核与后续路线图
+
+2026-09-20 做了一次全量审核（11 个子系统并行深读 + 逐行复核 + 用项目自身函数复现），结论与后续实施计划：
+
+- [docs/AUDIT_2026-09-20.md](docs/AUDIT_2026-09-20.md)：已确认缺陷清单（P0/P1/P2/P3，全部带 file:line 与复核命令）、安全模型评估、能力差距矩阵，以及一节「已核验为不是缺陷」的防误修清单。
+- [docs/ROADMAP_TO_PRODUCT.md](docs/ROADMAP_TO_PRODUCT.md)：8 个里程碑 / 36 周的逐步实施计划，每条任务带目标文件、具体改法与验收标准。
+
+其中最优先的三项：流式增量重叠合并会静默吞字符并污染 `write_file`/`bash` 参数（`minicc/llm/openai_provider.py:878`）、恢复诊断阶段死循环（`minicc/agent/loop.py:1264`）、agent 可写 `.minicc/allowlist.json` 自我提权（`minicc/allowlist.py:165`）。复核命令见审核文档第十二节。
+
 ## 当前边界
 
 这是本地 coding agent：SQLite 保存任务、租约和可检索历史，适合单机使用。线程模式随服务退出而中断；独立进程模式有定时心跳和原子租约，Web 重启会重连仍存活的 worker。失效任务按安全检查点规则恢复，不能恢复到模型调用内部的精确位置。写入后和工作区变化后仍须重新检查。只读、审查和受限验证计划可以进入白名单 DAG；写入计划由主 Agent 执行。MCP 支持 stdio 和受限 HTTP transport；Docker 需要本机可用。OAuth、云端协作、自动提交和多用户权限体系不在当前范围内。`bash` 的 host 模式使用本机子进程，运行不可信仓库应使用 Docker 隔离。
@@ -189,7 +207,7 @@ Web 默认关闭写入和联网。界面明确显示文件、命令、网络三�
 自动验证响应任务取消并终止测试进程；换命令、权限或依赖会使成功缓存失效，验证期间输入变化不能标为通过。扫描规模或输入无法完整确认时关闭结果复用。配置错误会以验证阻塞状态显示，测试收集和帮助命令不算有效验收。
 
 ```json
-{"rules":[{"paths":["web/**"],"commands":["npm run check:web","npm run typecheck"]},{"paths":["minicc/changes.py"],"commands":["python -m pytest tests/test_optimization_core.py -q"]}]}
+{"rules":[{"paths":["web/**"],"commands":["npm run check:web","npm run test:optimization"]},{"paths":["minicc/changes.py"],"commands":["python -m pytest tests/test_optimization_core.py -q"]}]}
 ```
 
 前端定向验收：`npm run test:optimization`；真实 HTTP 产品链路：启动 fake-provider 本地服务后执行 `npm run test:web`。不需要为每次小改动反复执行全量回归。

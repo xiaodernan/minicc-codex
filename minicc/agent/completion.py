@@ -26,6 +26,9 @@ from .tool_policy import is_verification_evidence
 
 COMPLETION_STATUSES = frozenset({"complete", "continue", "blocked", "unknown"})
 MAX_EVIDENCE_EVENTS = 80
+# Quota of the earliest important (write/verification/error) events always kept;
+# the rest of the budget goes to the most recent events (M4-T1).
+MAX_EARLY_EVIDENCE_EVENTS = 40
 MAX_EVENT_OUTPUT_CHARS = 2800
 MAX_EVIDENCE_CHARS = 28_000
 
@@ -252,8 +255,37 @@ def _enforce_completion_evidence(
         decision.rationale = "后续失败的验证不能被更早的成功记录覆盖。"
         return decision
     packet = json.loads(_evidence_packet(events, verification_results))
-    available_ids = {item["id"] for key in ("events", "verification_results") for item in packet.get(key, [])}
-    if not decision.evidence or any(reference not in available_ids for reference in decision.evidence):
+
+    # M4-T1: a trace/node_entered event is narration, not proof. A completion
+    # must cite at least one real piece of evidence (a write, a verification, an
+    # error, or an actual tool observation) — a zero-tool read-only task cannot
+    # self-certify by pointing at ``event-1`` (a trace). Hallucinated ids that
+    # are absent from the packet entirely are still rejected.
+    def _is_citable_evidence(key: str, item: dict[str, Any]) -> bool:
+        if key == "verification_results":
+            return True
+        if item.get("write") or item.get("kind") == "verification" or item.get("status") == "error":
+            return True
+        if item.get("kind") == "trace":
+            return False
+        return bool(item.get("name")) and item.get("name") != "agent"
+
+    packet_ids = {
+        item["id"]
+        for key in ("events", "verification_results")
+        for item in packet.get(key, [])
+    }
+    citable_ids = {
+        item["id"]
+        for key in ("events", "verification_results")
+        for item in packet.get(key, [])
+        if _is_citable_evidence(key, item)
+    }
+    if (
+        not decision.evidence
+        or any(reference not in packet_ids for reference in decision.evidence)
+        or not any(reference in citable_ids for reference in decision.evidence)
+    ):
         decision.status = "continue"
         decision.missing = ["引用执行证据中真实存在的 event-N 或 verification-N 编号，逐项说明验收依据"]
         decision.next_action = decision.missing[0]
@@ -420,11 +452,23 @@ def _evidence_packet(
     verification_results: list[dict[str, Any]],
 ) -> str:
     items: list[dict[str, Any]] = []
-    # Keep important early writes as well as recent events. A flood of stream
-    # traces must not erase the only evidence that a requirement was met.
+    # M4-T1: keep the EARLIEST important events (write/verification/error) up to
+    # a quota, then fill the remaining budget with the LATEST events. A flood of
+    # stream traces — or of later writes — must not evict ``event-1``, the only
+    # proof that an early requirement was met. The previous priority sort kept
+    # the *latest* writes and dropped the earliest ones.
     candidates = [(index, event) for index, event in enumerate(events) if isinstance(event, dict)]
-    candidates.sort(key=lambda pair: (bool(pair[1].get("write") or pair[1].get("kind") == "verification" or pair[1].get("status") == "error"), pair[0]), reverse=True)
-    selected = sorted(candidates[:MAX_EVIDENCE_EVENTS], key=lambda pair: pair[0])
+
+    def _is_important(event: dict[str, Any]) -> bool:
+        return bool(event.get("write") or event.get("kind") == "verification" or event.get("status") == "error")
+
+    important_indices = [index for index, event in candidates if _is_important(event)]
+    kept = set(important_indices[:MAX_EARLY_EVIDENCE_EVENTS])
+    for index, _event in reversed(candidates):
+        if len(kept) >= MAX_EVIDENCE_EVENTS:
+            break
+        kept.add(index)
+    selected = [(index, event) for index, event in candidates if index in kept]
     for index, event in selected:
         if not isinstance(event, dict):
             continue

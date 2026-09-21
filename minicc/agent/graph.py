@@ -18,7 +18,7 @@ import inspect
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, Iterable
 
-from .state import AgentState, BudgetExceeded
+from .state import AgentState, Budget, BudgetExceeded
 
 
 class GraphValidationError(ValueError):
@@ -361,6 +361,37 @@ def fixed_plan(name: str, *, task_count: int = 0) -> DAGPlan:
     return DAGPlan(name, tasks)
 
 
+def node_budget_from(parent: Budget) -> Budget:
+    """M6-T2: derive a bounded Budget for one DAG node from the session budget.
+
+    A node used to run with an all-``None`` Budget, so ``soft_max_tokens`` /
+    ``soft_max_duration_seconds`` / turn caps never applied during a plan and
+    each concurrent node was an unbounded ``run_agent``. The node inherits the
+    session's soft ceilings and treats the soft token ceiling as a hard stop, so
+    a runaway node returns ``budget_exceeded`` instead of spinning.
+    """
+    return Budget(
+        max_turns=None,
+        max_tool_calls=None,
+        max_duration_seconds=None,
+        max_retries=None,
+        soft_max_tokens=parent.soft_max_tokens,
+        soft_max_duration_seconds=parent.soft_max_duration_seconds,
+        max_tokens=parent.soft_max_tokens,
+    )
+
+
+def aggregate_dag_tokens(outputs: dict[str, Any]) -> dict[str, int]:
+    """Sum per-node ``tokens_used`` across a DAG's outputs (M6-T2)."""
+    totals: dict[str, int] = {}
+    for output in outputs.values():
+        usage = (output or {}).get("tokens_used") or {}
+        for key, value in usage.items():
+            if isinstance(value, (int, float)):
+                totals[key] = totals.get(key, 0) + int(value)
+    return totals
+
+
 __all__ = [
     "DAGPlan",
     "DAGResult",
@@ -370,7 +401,9 @@ __all__ = [
     "NodeResult",
     "PlanTask",
     "StateGraph",
+    "aggregate_dag_tokens",
     "build_coding_workflow",
     "execute_dag",
     "fixed_plan",
+    "node_budget_from",
 ]

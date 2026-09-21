@@ -80,11 +80,14 @@ def test_response_maps_usage_and_tool_use() -> None:
     assert response.tool_calls[0]["function"]["name"] == "read_file"
     assert json.loads(response.tool_calls[0]["function"]["arguments"]) == {"path": "a.py"}
     usage = response.usage
-    assert usage["prompt_tokens"] == 100
+    # M1-T6: Anthropic input_tokens excludes cached tokens, so
+    # prompt = input + read + write = 192, total = 212, miss = input = 100.
+    assert usage["prompt_tokens"] == 192
     assert usage["completion_tokens"] == 20
-    assert usage["total_tokens"] == 120
+    assert usage["total_tokens"] == 212
     assert usage["prompt_cache_hit_tokens"] == 80
     assert usage["prompt_cache_write_tokens"] == 12
+    assert usage["prompt_cache_miss_tokens"] == 100
 
 
 def _transport(recorder: list[httpx.Request], payload: dict[str, Any]) -> httpx.MockTransport:

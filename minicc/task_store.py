@@ -124,9 +124,14 @@ class TaskStore:
     def heartbeat_lease(self, task_id: str, owner: str, *, pid: int, ttl: float = 45.0) -> bool:
         now = time.time()
         with self._lock, self._connect() as connection:
+            # M3-T5: `expires > now` fence — an already-expired lease must NOT
+            # be revivable by a late heartbeat, otherwise has_live_worker keeps
+            # reporting a dead worker as alive and auto-resume refuses to
+            # re-queue the task forever. claim_lease has the same fence.
             changed = connection.execute(
-                "UPDATE task_leases SET heartbeat=?, expires=?, pid=? WHERE task_id=? AND owner=?",
-                (now, now + ttl, pid, task_id, owner),
+                "UPDATE task_leases SET heartbeat=?, expires=?, pid=? "
+                "WHERE task_id=? AND owner=? AND expires > ?",
+                (now, now + ttl, pid, task_id, owner, now),
             ).rowcount
         return changed == 1
 

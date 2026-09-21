@@ -11,7 +11,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from minicc.task_contract import TaskRequest, TaskResult
-from minicc.task_execution import WorkerSnapshotMirror
+from minicc.task_execution import WorkerSnapshotMirror, has_live_worker
 from minicc.task_manager import TaskManager, TaskRecord
 from minicc.task_store import TaskStore
 
@@ -38,6 +38,25 @@ def test_lease_has_single_owner_and_can_recover_after_expiry(tmp_path: Path) -> 
     assert not stores[0].upsert(snapshot, lease_owner=owner)
     assert stores[0].get("task") is None
     assert stores[1].upsert(snapshot, lease_owner="replacement")
+
+
+def test_expired_lease_cannot_be_revived_by_same_owner(tmp_path: Path) -> None:
+    """M3-T5: a late heartbeat must not extend an already-expired lease.
+
+    The owner's heartbeat UPDATE lacked the `expires > now` fence, so a
+    frozen worker revived its own lease forever, has_live_worker kept
+    reporting it alive, and auto-resume refused to re-queue the task.
+    """
+    store = TaskStore(tmp_path / "tasks.sqlite3")
+    assert store.claim_lease("task", "owner-a", pid=1)
+    # Force expiry: negative ttl writes expires into the past.
+    assert store.heartbeat_lease("task", "owner-a", pid=1, ttl=-1)
+    # Same owner, expired lease: the heartbeat must now fail.
+    assert not store.heartbeat_lease("task", "owner-a", pid=1)
+    assert not has_live_worker(store, {"task_id": "task", "status": "running"})
+    # The abandoned lease is claimable and the new owner can heartbeat.
+    assert store.claim_lease("task", "owner-b", pid=2)
+    assert store.heartbeat_lease("task", "owner-b", pid=2)
 
 
 def test_mirror_continues_after_retained_window_and_deduplicates(tmp_path: Path) -> None:
@@ -97,7 +116,7 @@ def test_readonly_task_starts_without_copying_workspace_snapshot(tmp_path, monke
         called.set()
         return {"answer": "read-only summary", "events": []}
     monkeypatch.setattr("minicc.snapshots.capture", capture)
-    service = SimpleNamespace(config=SimpleNamespace(yolo=False), workspace=tmp_path, _run_chat=run)
+    service = SimpleNamespace(config=SimpleNamespace(yolo=False, model="test-model"), workspace=tmp_path, _run_chat=run)
     manager = TaskManager(service)
     try:
         result = manager.submit({"message": "inspect", "permission_mode": "plan", "allow_changes": True})

@@ -13,17 +13,27 @@ import json
 import math
 import os
 import statistics
+import sys
 import time
 import subprocess
 import tempfile
 import threading
 import uuid
 from pathlib import Path
-from typing import Any
+from typing import Any, Sequence
 from .behavior_bench import behavior_tasks, fixture_digest, grade_behavior, prepare_fixture
+from . import bench_tasks
+from .bench_tasks import grade_v2
+from . import pricing
 
 
 DEFAULT_FIXTURES = Path(__file__).resolve().parent.parent / "benchmarks" / "tasks.json"
+REPO_ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_RETRIEVAL = REPO_ROOT / "benchmarks" / "retrieval-hitrate.json"
+# M4-T7 decision rule: only introduce a local embedding model when the lexical
+# baseline cannot reliably localize known answers. The roadmap fixes the bar at
+# recall@5 < 0.6.
+RETRIEVAL_RECALL_FLOOR = 0.6
 
 
 def _measurement(value: object) -> bool:
@@ -115,6 +125,15 @@ def build_report(tasks: list[dict[str, Any]], results: list[dict[str, Any]] | No
     calls = sum(int(row["tool_calls"]) for row in completed if _measurement(row["tool_calls"]))
     total_tokens_known = bool(completed) and all(_measurement((row["usage"] or {}).get("total_tokens")) for row in completed)
     total_cost_known = bool(completed) and all(row["cost_usd"] is not None for row in completed)
+    # A suite is "fully gradable" by construction when every task declares a
+    # grader or a verify_command. With no executed rows (report skeleton, no
+    # --run) grading_coverage falls back to this definitional ratio so
+    # `--suite v2` can assert coverage=1.0 and a pass@1 denominator >= 24
+    # before spending any model calls.
+    definition_gradable = [
+        task for task in tasks
+        if isinstance(task.get("grader"), dict) or task.get("verify_command")
+    ]
     return {
         "schema_version": 2,
         "generated_at_epoch": time.time(),
@@ -127,7 +146,8 @@ def build_report(tasks: list[dict[str, Any]], results: list[dict[str, Any]] | No
             # the pass-rate denominator.
             "pass_at_1": round(len(passed) / len(gradable), 4) if gradable else None,
             "execution_completion_rate": round(sum(row["status"] == "completed" for row in completed) / len(completed), 4) if completed else None,
-            "grading_coverage": round(len(gradable) / len(completed), 4) if completed else None,
+            "grading_coverage": round(len(gradable) / len(completed), 4) if completed else (round(len(definition_gradable) / len(tasks), 4) if tasks else None),
+            "gradable_task_count": len(gradable) if completed else len(definition_gradable),
             "acceptance_success_rate": round(len(passed) / len(gradable), 4) if gradable else None,
             "false_completion_rate": round(sum(row["claimed_complete"] and row["passed"] is False for row in gradable) / len(gradable), 4) if gradable else None,
             "tokens_per_success": round(sum(float(row["usage"]["total_tokens"]) for row in completed) / len(passed), 1) if passed and total_tokens_known else None,
@@ -161,7 +181,7 @@ def markdown_report(report: dict[str, Any]) -> str:
         "| Metric | Value |",
         "| --- | ---: |",
     ]
-    for key in ("execution_completion_rate", "grading_coverage", "acceptance_success_rate", "false_completion_rate", "pass_at_1", "latency_p50_ms", "latency_p95_ms", "tokens_per_success", "cost_per_success_usd", "mean_repair_attempts", "tool_repeat_rate", "token_usage_available", "cost_available"):
+    for key in ("execution_completion_rate", "grading_coverage", "gradable_task_count", "acceptance_success_rate", "false_completion_rate", "pass_at_1", "latency_p50_ms", "latency_p95_ms", "tokens_per_success", "cost_per_success_usd", "mean_repair_attempts", "tool_repeat_rate", "token_usage_available", "cost_available"):
         lines.append(f"| {key} | {value(metrics.get(key))} |")
     lines.extend(["", "| Task | Category | Status | Passed |", "| --- | --- | --- | --- |"])
     for row in report["results"]:
@@ -170,10 +190,171 @@ def markdown_report(report: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+# ---------------------------------------------------------------------------
+# M4-T7: retrieval decision gate (lexical hit-rate baseline)
+# ---------------------------------------------------------------------------
+
+
+def load_retrieval_cases(path: Path = DEFAULT_RETRIEVAL) -> dict[str, Any]:
+    """Load and validate the retrieval hit-rate dataset."""
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(raw, dict):
+        raise ValueError("retrieval 数据集必须是对象")
+    cases = raw.get("cases")
+    if not isinstance(cases, list) or not cases:
+        raise ValueError("retrieval 数据集必须包含至少一条 case")
+    seen: set[str] = set()
+    for case in cases:
+        if not isinstance(case, dict) or not isinstance(case.get("id"), str) or not case["id"]:
+            raise ValueError("每条 retrieval case 必须包含非空 id")
+        if case["id"] in seen:
+            raise ValueError(f"retrieval case id 重复: {case['id']}")
+        seen.add(case["id"])
+        if not isinstance(case.get("query"), str) or not case["query"].strip():
+            raise ValueError(f"retrieval case {case['id']} 缺少非空 query")
+        targets = case.get("targets")
+        if not isinstance(targets, list) or not targets or not all(
+            isinstance(t, str) and t and not t.startswith("/") and ".." not in t.split("/")
+            for t in targets
+        ):
+            raise ValueError(f"retrieval case {case['id']} 的 targets 必须是非空、不逃逸的相对路径列表")
+    ks = raw.get("ks") or [1, 5]
+    if not isinstance(ks, list) or not all(isinstance(k, int) and k >= 1 for k in ks):
+        raise ValueError("retrieval ks 必须是 >=1 的整数列表")
+    return {"workspace": str(raw.get("workspace") or "."), "ks": sorted(set(ks)), "cases": cases}
+
+
+def evaluate_retrieval(
+    cases: list[dict[str, Any]],
+    *,
+    workspace: Path,
+    ks: Sequence[int] = (1, 5),
+) -> dict[str, Any]:
+    """Score the deterministic lexical index against known-answer queries.
+
+    recall@k = |targets ∩ top-k| / |targets| averaged over cases; MRR uses the
+    rank of the first relevant target. Builds the index once and reuses it.
+    """
+    from .agent.retrieval import LocalEvidenceIndex
+
+    ks = sorted({int(k) for k in ks if int(k) >= 1}) or [1]
+    top_k = max(ks)
+    index = LocalEvidenceIndex(workspace)
+    rows: list[dict[str, Any]] = []
+    recall_sums = {k: 0.0 for k in ks}
+    hit_sums = {k: 0 for k in ks}
+    reciprocal_ranks: list[float] = []
+    for case in cases:
+        targets = {str(t).replace("\\", "/") for t in case["targets"]}
+        hits = index.search(str(case["query"]), limit=top_k)
+        ranked = [hit.path.replace("\\", "/") for hit in hits]
+        first_rank = next((i + 1 for i, path in enumerate(ranked) if path in targets), None)
+        reciprocal_ranks.append(1.0 / first_rank if first_rank else 0.0)
+        row: dict[str, Any] = {
+            "id": case["id"],
+            "query": case["query"],
+            "targets": sorted(targets),
+            "first_relevant_rank": first_rank,
+            "top": ranked[:top_k],
+        }
+        for k in ks:
+            window = set(ranked[:k])
+            recall = len(targets & window) / len(targets)
+            recall_sums[k] += recall
+            hit_sums[k] += int(recall > 0.0)
+            row[f"recall@{k}"] = round(recall, 4)
+        rows.append(row)
+    n = len(cases)
+    metrics: dict[str, Any] = {"mrr": round(sum(reciprocal_ranks) / n, 4) if n else None}
+    for k in ks:
+        metrics[f"recall@{k}"] = round(recall_sums[k] / n, 4) if n else None
+        metrics[f"hit@{k}"] = round(hit_sums[k] / n, 4) if n else None
+    return {
+        "schema_version": 1,
+        "workspace": str(workspace),
+        "case_count": n,
+        "ks": ks,
+        "metrics": metrics,
+        "results": rows,
+    }
+
+
+def retrieval_decision(recall_at_5: float | None, floor: float = RETRIEVAL_RECALL_FLOOR) -> str:
+    """Written M4-T7 conclusion: introduce embeddings only below the floor."""
+    if recall_at_5 is None:
+        return "recall@5 不可用（无 case），无法判定；保持现状不引入向量检索。"
+    if recall_at_5 < floor:
+        return (
+            f"recall@5={recall_at_5:.4f} < {floor:.2f}：lexical 基线不达标，"
+            "下一步评估引入本地 embedding（sentence-transformers 本地推理，"
+            "不用外部向量库），且必须附 A/B 对比数据。"
+        )
+    return (
+        f"recall@5={recall_at_5:.4f} >= {floor:.2f}：lexical 基线达标，"
+        "**不引入向量检索**，停止在 embedding 上的投入。"
+    )
+
+
+def markdown_retrieval(report: dict[str, Any], decision: str) -> str:
+    metrics = report["metrics"]
+    lines = [
+        "# minicc Retrieval Hit-Rate (M4-T7 lexical baseline)",
+        "",
+        f"Workspace: {report['workspace']} | Cases: {report['case_count']}",
+        "",
+        "| Metric | Value |",
+        "| --- | ---: |",
+    ]
+    for key in sorted(metrics):
+        lines.append(f"| {key} | {'N/A' if metrics[key] is None else metrics[key]} |")
+    lines.extend(["", "| Case | First rank | recall@1 | recall@5 | Target |", "| --- | ---: | ---: | ---: | --- |"])
+    for row in report["results"]:
+        lines.append(
+            f"| {row['id']} | {row['first_relevant_rank'] if row['first_relevant_rank'] else '—'} "
+            f"| {row.get('recall@1', 'N/A')} | {row.get('recall@5', 'N/A')} | {', '.join(row['targets'])} |"
+        )
+    lines.extend(["", f"## 结论", "", decision, ""])
+    return "\n".join(lines)
+
+
+def _run_retrieval_suite(args: argparse.Namespace) -> int:
+    dataset_path = args.fixtures if args.fixtures != DEFAULT_FIXTURES else DEFAULT_RETRIEVAL
+    try:
+        dataset = load_retrieval_cases(dataset_path)
+    except (OSError, json.JSONDecodeError, ValueError) as exc:
+        print(f"[retrieval] 数据集加载失败: {exc}")
+        return 2
+    workspace = (REPO_ROOT / dataset["workspace"]).resolve()
+    report = evaluate_retrieval(dataset["cases"], workspace=workspace, ks=dataset["ks"])
+    decision = retrieval_decision(report["metrics"].get("recall@5"))
+    report["decision"] = decision
+    args.json_out.parent.mkdir(parents=True, exist_ok=True)
+    args.markdown_out.parent.mkdir(parents=True, exist_ok=True)
+    args.json_out.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    args.markdown_out.write_text(markdown_retrieval(report, decision), encoding="utf-8")
+    metrics = report["metrics"]
+    print(
+        "[retrieval] "
+        + " ".join(f"{k}={metrics[k]}" for k in sorted(metrics))
+        + f" | cases={report['case_count']}"
+    )
+    print(f"[retrieval] 结论: {decision}")
+    # CI records these numbers but does not gate on them in the first round.
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
+    raw = list(sys.argv[1:] if argv is None else argv)
+    # `compare` is a subcommand: `python -m minicc.benchmarks compare ...`.
+    # Dispatch before the report parser so its flags never collide, and import
+    # lazily to avoid a circular import (bench_compare is standalone).
+    if raw and raw[0] == "compare":
+        from . import bench_compare
+        return bench_compare.main(raw[1:])
     parser = argparse.ArgumentParser(description="生成 minicc 离线评测报告")
     parser.add_argument("--fixtures", type=Path, default=DEFAULT_FIXTURES)
-    parser.add_argument("--suite", choices=("legacy", "behavior"), default="legacy")
+    parser.add_argument("--suite", choices=("legacy", "behavior", "v2", "retrieval"), default="legacy")
+    parser.add_argument("--grader-dir", type=Path, help="v2 套件隐藏 grader 脚本目录（默认仓库外 .graders）")
     parser.add_argument("--results", type=Path)
     parser.add_argument("--json-out", type=Path, default=Path("output/evaluation.json"))
     parser.add_argument("--markdown-out", type=Path, default=Path("output/evaluation.md"))
@@ -186,8 +367,20 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--no-resume", action="store_true", help="不复用之前完成的评测结果")
     parser.add_argument("--task-timeout", type=float, default=900, help="每条评测任务的超时秒数")
     parser.add_argument("--workspace", type=Path, default=Path.cwd(), help="配合 --run：评测工作区")
-    args = parser.parse_args(argv)
-    tasks = behavior_tasks() if args.suite == "behavior" else load_tasks(args.fixtures)
+    args = parser.parse_args(raw)
+    if args.suite == "retrieval":
+        return _run_retrieval_suite(args)
+    if args.suite == "behavior":
+        tasks = behavior_tasks()
+    elif args.suite == "v2":
+        tasks = bench_tasks.v2_tasks()
+        for task in tasks:
+            try:
+                bench_tasks.validate_task(task)
+            except ValueError as exc:
+                parser.error(f"tasks.v2.json 校验失败: {exc}")
+    else:
+        tasks = load_tasks(args.fixtures)
     if args.task_id:
         selected_ids = set(args.task_id)
         missing = selected_ids - {task["id"] for task in tasks}
@@ -205,6 +398,7 @@ def main(argv: list[str] | None = None) -> int:
             results_path=args.results,
             task_timeout_seconds=args.task_timeout,
             resume=not args.no_resume,
+            grader_dir=args.grader_dir.expanduser().resolve() if args.grader_dir else None,
         )
     elif args.results:
         results = json.loads(args.results.read_text(encoding="utf-8"))
@@ -232,6 +426,7 @@ def run_benchmark(
     results_path: Path | None = None,
     resume: bool = True,
     task_timeout_seconds: float = 900.0,
+    grader_dir: Path | None = None,
 ) -> list[dict[str, Any]]:
     """Execute fixture tasks against the configured real model.
 
@@ -262,6 +457,7 @@ def run_benchmark(
     from .task_store import TaskStore
     if not math.isfinite(float(task_timeout_seconds)) or task_timeout_seconds <= 0:
         raise ValueError("task_timeout_seconds must be a finite positive number")
+    grader_dir = bench_tasks.resolve_grader_dir(grader_dir)
     try:
         revision = subprocess.run(["git", "rev-parse", "HEAD"], cwd=workspace, capture_output=True, text=True, timeout=5).stdout.strip()
     except (OSError, subprocess.TimeoutExpired):
@@ -384,6 +580,9 @@ def run_benchmark(
                 usage = outcome.get("tokens_used")
                 if isinstance(usage, dict):
                     entry["usage"] = usage
+                    entry["cost_usd"] = pricing.cost_usd(
+                        str(outcome.get("model") or config.model), usage
+                    )
                 if outcome.get("error"):
                     entry["error"] = str(outcome["error"])[:200]
             entry["execution_latency_ms"] = round((time.monotonic() - started) * 1000, 1)
@@ -393,7 +592,14 @@ def run_benchmark(
             if task.get("grader"):
                 if entry["status"] == "completed":
                     try:
-                        entry.update(grade_behavior(task, task_workspace, str(outcome.get("answer") or "")))
+                        grader_type = (task.get("grader") or {}).get("type")
+                        if grader_type in bench_tasks.GRADER_TYPES:
+                            entry.update(grade_v2(
+                                task, task_workspace,
+                                str(outcome.get("answer") or ""), grader_dir=grader_dir,
+                            ))
+                        else:
+                            entry.update(grade_behavior(task, task_workspace, str(outcome.get("answer") or "")))
                     except (ValueError, TypeError, OSError) as exc:
                         entry.update(passed=False, grader_type="invalid", grading_error=f"{type(exc).__name__}: {exc}"[:200])
                 else:

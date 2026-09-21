@@ -29,6 +29,16 @@ class LLMResponse:
         return self.content or ""
 
 
+#: finish_reason values that may end a turn normally. Anything else
+#: (length/content_filter/failed/incomplete/refusal/...) must not be
+#: accepted as a final answer — see M1-T4.
+TERMINAL_FINISH_REASONS = frozenset({"stop", "tool_calls"})
+
+
+class NonTerminalModelTurn(RuntimeError):
+    """A model turn ended without a terminal finish_reason."""
+
+
 def user_msg(content: str | list[dict[str, Any]]) -> dict[str, Any]:
     return {"role": "user", "content": content}
 

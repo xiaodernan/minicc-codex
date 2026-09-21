@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import math
 import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -33,6 +34,7 @@ DEFAULT_CONTEXT_WINDOW_TOKENS = 300_000
 DEFAULT_MAX_CONCURRENT_TASKS = 8
 DEFAULT_REASONING_EFFORT = "high"
 REASONING_EFFORTS = frozenset({"low", "mid", "high", "xhigh", "max", "ultra"})
+_MODEL_NAME_RE = re.compile(r"^[^\x00-\x20\x7f\"'\\]{1,200}$")
 DEFAULT_MAX_REPAIR_ATTEMPTS = 2
 DEFAULT_TASK_HISTORY_LIMIT = 24
 DEFAULT_TASK_HISTORY_MAX_AGE_DAYS = 30
@@ -43,6 +45,9 @@ DEFAULT_TASK_COMPACTION_LIMIT = 64
 DEFAULT_TASK_QUEUE_LIMIT = 32
 # Context compaction trigger, in characters (~chars/4 ≈ tokens).
 DEFAULT_COMPACT_THRESHOLD = 300_000
+# M6-T1: a writable subagent may nest one more level; the depth-2 grandchild
+# is structurally denied the ``task`` tool, so depth 3 is impossible.
+DEFAULT_SUBAGENT_MAX_DEPTH = 2
 
 TRUTHY = frozenset({"1", "true", "yes", "on"})
 
@@ -71,6 +76,24 @@ def normalize_reasoning_effort(value: str | None, *, default: str = DEFAULT_REAS
     return normalized
 
 
+def normalize_model_name(value: object | None, *, default: str | None = None) -> str:
+    """Validate a provider model id before it enters a task or provider call.
+
+    Model ids are gateway-defined, so this intentionally accepts names beyond
+    the built-in StepFun list (for example custom deployments and aliases),
+    while rejecting whitespace/control characters and oversized values.
+    """
+    # An empty/blank value falls back to the default, mirroring
+    # normalize_reasoning_effort. A resumed task whose record predates an
+    # explicit model must inherit the configured default rather than crash.
+    raw = str((value or default) or "").strip()
+    if not raw:
+        raise ValueError("模型名不能为空")
+    if not _MODEL_NAME_RE.fullmatch(raw):
+        raise ValueError("模型名格式非法：不能包含空白、控制字符、引号或反斜杠，长度需为 1-200")
+    return raw
+
+
 def home_dir() -> Path:
     override = os.getenv("MINICC_HOME")
     root = Path(override) if override else Path.home() / ".minicc"
@@ -88,10 +111,26 @@ def _parse_env_file(path: Path) -> dict[str, str]:
         line = raw.strip()
         if not line or line.startswith("#"):
             continue
+        # M2-T8: accept shell-style `export KEY=VALUE`.
+        if line.startswith("export ") or line.startswith("export\t"):
+            line = line[len("export"):].strip()
         if "=" not in line:
             raise ConfigError(f"{path}:{line_no}: expected KEY=VALUE, got {line!r}")
         key, _, value = line.partition("=")
-        values[key.strip()] = value.strip().strip('"').strip("'")
+        value = value.strip()
+        quote = value[:1]
+        if quote in {'"', "'"} and len(value) >= 2 and value.endswith(quote):
+            value = value[1:-1]
+        else:
+            # M2-T8: strip inline comments from unquoted values — a `#` after
+            # whitespace starts a comment (dotenv convention). Previously the
+            # comment text was sent to the gateway as part of the value.
+            for marker in (" #", "\t#"):
+                index = value.find(marker)
+                if index != -1:
+                    value = value[:index]
+            value = value.rstrip().strip('"').strip("'")
+        values[key.strip()] = value
     return values
 
 
@@ -139,14 +178,26 @@ class Config:
     # "no task-level token/duration cap" behavior.
     soft_max_tokens: int | None = None
     soft_max_duration_seconds: float | None = None
+    # M6-T1 bounded writable delegation. Off by default: subagents stay
+    # readonly reconnaissance even in acceptEdits/yolo sessions. When on, a
+    # subagent's tool tier still follows the session's permission_mode
+    # (acceptEdits -> write, yolo -> exec) so writes never happen without an
+    # explicitly authorized session. subagent_max_depth caps nesting (>=1).
+    subagent_writable: bool = False
+    subagent_max_tokens: int | None = None
+    subagent_max_depth: int = DEFAULT_SUBAGENT_MAX_DEPTH
 
     def describe(self) -> str:
         key = self.api_key
         shown = key if len(key) <= 12 else key[:8] + "..." + key[-4:]
+        delegation = (
+            f"subagent=delegated(depth<={self.subagent_max_depth})"
+            if self.subagent_writable else "subagent=readonly"
+        )
         return (
             f"model={self.model} endpoint={self.base_url} "
             f"tool_mode={self.tool_mode} protocol={self.llm_protocol} "
-            f"reasoning={self.reasoning_effort} key={shown}"
+            f"reasoning={self.reasoning_effort} key={shown} {delegation}"
         )
 
 
@@ -170,18 +221,44 @@ def load_config(
 
     env_values = _parse_env_file(Path(".env"))
 
+    def _stringify(value: object) -> str:
+        # M2-T8 (audit P2-5e): a JSON list in config.json used to become its
+        # Python repr ("['C:/a', 'C:/b']"), which downstream parsers split
+        # into garbage paths. Join lists so comma/sep splitting still works.
+        if isinstance(value, (list, tuple)):
+            return ",".join(_stringify(item) for item in value)
+        if isinstance(value, bool):
+            return "1" if value else "0"
+        return str(value)
+
     def pick(arg: str | None, env_name: str, file_key: str, default: str) -> str:
         if arg is not None:
             return arg
+        # M2-T8: only look up `env_name` (the exact MINICC_* spelling) in
+        # os.environ. The old code also probed os.environ with the lowercase
+        # file_key, and on Windows the mapping is case-insensitive — so any
+        # stray `MODEL=` / `API_KEY=` in the environment hijacked the config
+        # and silently overrode `.env` and config.json.
         for source in (os.environ, env_values, file_values):
             value = source.get(env_name)
             if value:
-                return str(value)
-            # config.json uses lowercase keys without the prefix
+                return _stringify(value)
+        # config.json and .env use lowercase keys without the prefix;
+        # os.environ must never be probed with the bare key.
+        for source in (env_values, file_values):
             value = source.get(file_key)
             if value:
-                return str(value)
+                return _stringify(value)
         return default
+
+    # M2-T8: export `.env` values into os.environ so subprocesses (task
+    # worker, Docker sandbox, MCP children via their explicit env) and the
+    # MINICC_* toggles M2/M3 rely on actually take effect from `.env`.
+    for key, value in env_values.items():
+        if key.startswith("MINICC_") or key in {
+            "MINICC_ALLOW_PRIVATE_FETCH", "MINICC_ALLOW_PRIVATE_MCP",
+        }:
+            os.environ.setdefault(key, value)
 
     resolved_url = pick(base_url, "MINICC_BASE_URL", "base_url", DEFAULT_BASE_URL)
     resolved_key = pick(api_key, "MINICC_API_KEY", "api_key", "")
@@ -275,6 +352,15 @@ def load_config(
 
     raw_auto_resume = pick(None, "MINICC_AUTO_RESUME_ON_START", "auto_resume_on_start", "0")
     auto_resume_on_start = raw_auto_resume.strip().lower() in TRUTHY
+
+    # M6-T1: writable subagent delegation is opt-in and defaults to off.
+    subagent_writable = pick(None, "MINICC_SUBAGENT_WRITABLE", "subagent_writable", "0").strip().lower() in TRUTHY
+    subagent_max_tokens = _optional_positive_int("MINICC_SUBAGENT_MAX_TOKENS", "subagent_max_tokens")
+    raw_subagent_depth = pick(None, "MINICC_SUBAGENT_MAX_DEPTH", "subagent_max_depth", str(DEFAULT_SUBAGENT_MAX_DEPTH))
+    try:
+        subagent_max_depth = max(1, min(2, int(raw_subagent_depth)))
+    except ValueError:
+        raise ConfigError(f"MINICC_SUBAGENT_MAX_DEPTH 不是整数: {raw_subagent_depth!r}") from None
 
     task_executor = pick(None, "MINICC_TASK_EXECUTOR", "task_executor", "thread").strip().lower()
     if task_executor not in {"thread", "process"}:
@@ -383,4 +469,7 @@ def load_config(
         task_executor=task_executor,
         soft_max_tokens=soft_max_tokens,
         soft_max_duration_seconds=soft_max_duration_seconds,
+        subagent_writable=subagent_writable,
+        subagent_max_tokens=subagent_max_tokens,
+        subagent_max_depth=subagent_max_depth,
     )

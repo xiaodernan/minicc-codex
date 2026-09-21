@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "minicc"
-version = "0.1.0"
+dynamic = ["version"]
 description = "A minimal Claude Code-style terminal coding agent (core modules adapted from specproof)"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -24,6 +24,10 @@ minicc-web = "minicc.web:main"
 dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.23.0",
+    # Tests exercise both native providers directly (test_anthropic_provider,
+    # test_reasoning_effort); declare httpx so `pip install -e ".[dev]"` does not
+    # rely on openai pulling it in transitively. `pip check` enforces this.
+    "httpx>=0.27.0",
 ]
 # Native Anthropic Messages provider (minicc.llm.anthropic_provider).
 anthropic = [
@@ -33,7 +37,14 @@ anthropic = [
 [tool.setuptools.packages.find]
 include = ["minicc*"]
 
+[tool.setuptools.dynamic]
+# Single source of truth for the version: minicc/__init__.py.__version__.
+# pyproject, `minicc --version` and the MCP clientInfo all derive from it.
+version = { attr = "minicc.__version__" }
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q"
+# -ra: report pass counts and a short summary (skips/xfails/warnings/errors)
+# instead of the previous -q, which hid the warnings summary entirely.
+addopts = "-ra"
 pythonpath = ["."]

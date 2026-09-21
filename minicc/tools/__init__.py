@@ -10,7 +10,11 @@ import json
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from .bash import run_bash
+from .bash import (
+    kill_background_shell,
+    poll_background_shell,
+    run_bash,
+)
 from .editor import Editor
 from .fs import FsTools
 from .git import GitTools
@@ -54,6 +58,11 @@ def build_registry(
     limit_p = Param("limit", "int", min_value=1, max_value=2000, description="最多返回行数")
     command_p = Param("command", "str", required=True, description="要执行的 shell 命令")
     timeout_p = Param("timeout", "int", min_value=1, max_value=600, description="超时秒数")
+    bg_p = Param(
+        "run_in_background", "bool",
+        description="true 则后台运行并立即返回 shell_id（随后用 bash_output 轮询、kill_shell 终止）",
+    )
+    shell_id_p = Param("shell_id", "str", required=True, max_len=64, description="bash 后台任务返回的 shell_id")
     name_p = Param("name", "str", required=True, max_len=64, description="worktree 名称")
     branch_p = Param("branch", "str", max_len=128, description="可选 Git branch 名称")
     force_p = Param("force", "bool", description="是否强制移除")
@@ -115,9 +124,29 @@ def build_registry(
     def _bash_handler(args: dict, *, cancel_event=None) -> ToolResult:
         cmd = str(args["command"])
         timeout = int(args.get("timeout", 120))
+        if bool(args.get("run_in_background", False)):
+            if sandbox.status().get("backend") != "host":
+                return ToolResult(
+                    status="error",
+                    summary="[RUNTIME_GUARD] 后台 shell 仅在 host 沙箱模式下可用；"
+                    "Docker 隔离模式请改用前台 bash，以免后台进程逃逸隔离。",
+                    security_tags=["untrusted", "runtime_guard"],
+                )
+            return run_bash(
+                cmd, workspace, timeout=timeout,
+                cancel_event=cancel_event, run_in_background=True,
+            )
         return sandbox.run(cmd, workspace, timeout=timeout, cancel_event=cancel_event)
 
-    reg.register(ToolSpec("bash", "在项目根目录执行 shell 命令。所有命令都会运行，请确保命令安全。输出自动截断。", "exec", (command_p, timeout_p), _bash_handler, cancellable=True))
+    def _bash_output_handler(args: dict) -> ToolResult:
+        return poll_background_shell(str(args["shell_id"]))
+
+    def _kill_shell_handler(args: dict) -> ToolResult:
+        return kill_background_shell(str(args["shell_id"]))
+
+    reg.register(ToolSpec("bash", "在项目根目录执行 shell 命令。默认前台并阻塞到结束或超时；run_in_background=true 可后台运行（立即返回 shell_id，用 bash_output/kill_shell 轮询与终止）。输出自动截断。", "exec", (command_p, timeout_p, bg_p), _bash_handler, cancellable=True))
+    reg.register(ToolSpec("bash_output", "增量读取后台 shell 自上次轮询以来的新输出（含运行/退出状态）。", "readonly", (shell_id_p,), _bash_output_handler))
+    reg.register(ToolSpec("kill_shell", "终止一个后台 shell 的整个进程树。", "exec", (shell_id_p,), _kill_shell_handler))
 
     def _worktree_list(_args: dict) -> ToolResult:
         return ToolResult(status="ok", summary="Git worktree 列表", output=json.dumps(worktree_manager.list(), ensure_ascii=False, indent=2))

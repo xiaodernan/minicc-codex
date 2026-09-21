@@ -35,15 +35,21 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
-from ..llm.base import LLMResponse, assistant_msg, tool_result_msg, user_msg
+from ..llm.base import LLMResponse, TERMINAL_FINISH_REASONS, assistant_msg, tool_result_msg, user_msg
 from ..llm.envelope import EnvelopeParseError
 from ..llm.openai_provider import OpenAICompatibleProvider
 from ..llm.usage import add_usage_totals, cache_summary
 from ..tools.schemas import ToolCall, ToolResult
 from ..tools.registry import ToolRegistry, redact_text
+from ..hooks import payloads_for_result, payloads_for_tool_call
 from .context import compact_with_checkpoint, estimate_tokens, message_chars, repair_interrupted_tool_rounds, validate_tool_protocol
 from .state import AgentState, Budget, BudgetExceeded
-from .tool_policy import NETWORK_TOOL_NAMES, is_verification_evidence, tool_requires_authorization
+from .tool_policy import (
+    NETWORK_TOOL_NAMES,
+    is_verification_evidence,
+    is_workspace_write,
+    tool_requires_authorization,
+)
 
 
 # A repeated path is a recovery signal, not an immediate task failure.  The
@@ -328,7 +334,7 @@ def build_tool_feedback(call: ToolCall, result: ToolResult, *, risk: str | None 
         "path": safe_path or None,
         "command": safe_command or None,
         "risk": risk,
-        "write": call.tool in WRITE_TOOL_NAMES and result.status == "ok",
+        "write": is_workspace_write(call.tool, call.arguments, result.status),
         "exit_code": result.exit_code,
         "duration_ms": round(max(0.0, float(result.duration or 0.0)) * 1000, 1),
         "truncated": bool(result.truncated),
@@ -377,6 +383,7 @@ async def run_agent(
     runtime_state: AgentState | None = None,
     require_recovery_inspection: bool = False,
     vision_context: list[dict[str, Any]] | None = None,
+    hooks: Any | None = None,
 ) -> TurnResult:
     """Run the agent loop until a final text answer or explicit cancellation.
 
@@ -408,11 +415,14 @@ async def run_agent(
     verification_required = False
     soft_wrap_issued = False
     recovery_inspection_required = bool(require_recovery_inspection)
+    recovery_refusals = 0
+    nonterminal_repairs = 0
     verification_retries = 0
     last_round_feedback: list[dict[str, Any]] = []
     last_replan_trigger = "初始任务上下文"
     protocol_repairs = 0
     last_public_model_update = ""
+    hooks_enabled = hooks is not None and bool(getattr(hooks, "enabled", False))
 
     def cache_tool_result(key: str, value: ToolResult) -> None:
         """Keep read-result reuse bounded during an unlimited run."""
@@ -462,6 +472,25 @@ async def run_agent(
             streamed_text.append(suffix)
             if on_stream is not None:
                 on_stream(suffix)
+
+    def run_hook(event: str, payload: dict[str, Any]) -> Any:
+        """Fire one hook event; returns the outcome or None when disabled.
+
+        Hook failures never raise into the loop — the runner itself is the
+        isolation boundary (timeouts, denials, redaction all stay inside).
+        """
+        if not hooks_enabled:
+            return None
+        outcome = hooks.run(event, payload)
+        for entry in getattr(outcome, "outputs", []):
+            emit_trace(
+                f"Hook {event} 执行完成（{entry.get('decision', 'allow')}）: {entry.get('command', '')}",
+                phase="tool",
+                status="error" if entry.get("decision") == "deny" else "ok",
+                code="hook_executed",
+                detail=dict(entry),
+            )
+        return outcome
 
     async def run_recovery_probe(attempt: int) -> list[dict[str, Any]]:
         """Collect fresh, read-only workspace evidence after stagnation.
@@ -579,6 +608,41 @@ async def run_agent(
             last_reasoning_status = (active, str(status.get("wire_value") or ""))
 
     turn = 0
+    if hooks_enabled:
+        prompt_text = ""
+        for message in reversed(messages):
+            if message.get("role") == "user":
+                content = message.get("content")
+                if isinstance(content, str):
+                    prompt_text = content
+                elif isinstance(content, list):
+                    prompt_text = "\n".join(
+                        str(part.get("text", "")) for part in content if isinstance(part, dict)
+                    )
+                break
+        outcome = run_hook("UserPromptSubmit", {
+            "event": "UserPromptSubmit",
+            "prompt": redact_text(prompt_text[:8000])[0],
+        })
+        if outcome is not None and outcome.denied:
+            reason = outcome.denial_reason()
+            result.error = "UserPromptSubmit hook 拒绝了本次任务"
+            result.answer = f"任务未开始：被 UserPromptSubmit hook 阻止。{reason}"[:2000]
+            emit_trace(
+                result.error,
+                phase="failed",
+                status="error",
+                code="hook_blocked_user_prompt",
+                detail={"reason": reason[:500]},
+            )
+            result.metrics = {
+                "turns": 0,
+                "tool_calls": 0,
+                "trace_events": len(result.trace_events),
+                "tokens": dict(result.tokens_used),
+                "budget": runtime_budget.snapshot(),
+            }
+            return result
     while max_turns is None or turn < max_turns:
         turn += 1
         result.turns = turn
@@ -865,6 +929,8 @@ async def run_agent(
                 tool_calls=response.tool_calls,
             ))
             pending_readonly: list[tuple[int, dict[str, Any], ToolCall]] = []
+            pending_writes: list[tuple[int, ToolCall, str]] = []
+            serial_writes: list[tuple[int, ToolCall]] = []
             immediate_results: dict[int, tuple[ToolCall, ToolResult]] = {}
             batch_signatures: dict[str, int] = {}
             for index, raw_tc in enumerate(response.tool_calls):
@@ -923,6 +989,26 @@ async def run_agent(
                     )
                     immediate_results[index] = (tc, denied)
                     continue
+                if hooks_enabled:
+                    hook_outcome = run_hook(
+                        "PreToolUse",
+                        payloads_for_tool_call("PreToolUse", tc.tool, tc.arguments, risk=risk),
+                    )
+                    # A hook may only *deny*; it can never widen what the
+                    # permission model already decided (M7-T1 contract).
+                    if hook_outcome is not None and hook_outcome.denied:
+                        result.denied_tools.append(tc.tool)
+                        immediate_results[index] = (
+                            tc,
+                            ToolResult(
+                                status="denied",
+                                summary=f"[HOOK_DENIED] PreToolUse hook 拒绝了此操作 ({tc.tool})",
+                                output=hook_outcome.denial_reason()[:2000],
+                                data={"hook": "PreToolUse"},
+                                security_tags=["untrusted"],
+                            ),
+                        )
+                        continue
                 if risk == "readonly":
                     if tc.tool in NETWORK_TOOL_NAMES and search_failures >= SEARCH_FAILURE_LIMIT:
                         immediate_results[index] = (
@@ -950,12 +1036,24 @@ async def run_agent(
                     else:
                         pending_readonly.append((index, raw_tc, tc))
                 else:
-                    immediate_results[index] = (
-                        tc,
-                        registry.execute(tc, cancel_event=cancel_event),
-                    )
+                    write_key = _parallel_write_key(tc.tool, tc.arguments)
+                    if write_key is not None:
+                        pending_writes.append((index, tc, write_key))
+                    else:
+                        serial_writes.append((index, tc))
             if result.cancelled:
                 break
+
+            # Write phase: independent paths fan out, same-path writes stay
+            # ordered, and the whole phase precedes the read-only gather so
+            # inspections still observe freshly written files.
+            await _run_write_phase(
+                registry=registry,
+                pending_writes=pending_writes,
+                serial_writes=serial_writes,
+                immediate_results=immediate_results,
+                cancel_event=cancel_event,
+            )
 
             # Independent inspection calls do not need to serialize. This is
             # the executor part of the runtime and keeps broad repo scans fast.
@@ -993,6 +1091,22 @@ async def run_agent(
                     cache_tool_result(_signature({"tool": tc.tool, "arguments": tc.arguments}), tool_result)
                 if on_tool is not None:
                     on_tool(tc, tool_result)
+                if (
+                    hooks_enabled
+                    and tool_result.status != "denied"
+                    and not (tool_result.data or {}).get("duplicate")
+                    and not (tool_result.data or {}).get("cached")
+                ):
+                    run_hook(
+                        "PostToolUse",
+                        {
+                            **payloads_for_tool_call(
+                                "PostToolUse", tc.tool, tc.arguments,
+                                risk=registry.risk_of(tc.tool),
+                            ),
+                            "result": payloads_for_result(tool_result),
+                        },
+                    )
                 messages.append(tool_result_msg(
                     raw_tc.get("id", ""),
                     tool_result.render(),
@@ -1027,7 +1141,7 @@ async def run_agent(
                     search_failures = 0
 
             successful_writes = any(
-                call.tool in WRITE_TOOL_NAMES and tool_result.status == "ok"
+                is_workspace_write(call.tool, call.arguments, tool_result.status)
                 for call, tool_result in immediate_results.values()
             )
             successful_verification = any(
@@ -1042,6 +1156,7 @@ async def run_agent(
             )
             if recovery_inspection_required and recovery_inspection_observed:
                 recovery_inspection_required = False
+                recovery_refusals = 0
                 emit_trace(
                     "恢复阶段已取得新的只读证据，解除临时写入保护",
                     phase="planning",
@@ -1073,7 +1188,7 @@ async def run_agent(
                         "writes": [
                             call.tool
                             for call, tool_result in immediate_results.values()
-                            if call.tool in WRITE_TOOL_NAMES and tool_result.status == "ok"
+                            if is_workspace_write(call.tool, call.arguments, tool_result.status)
                         ],
                     },
                 )
@@ -1256,12 +1371,44 @@ async def run_agent(
             continue
 
         # --- plain text answer ---
+        finish_reason = str(getattr(response, "finish_reason", "stop") or "stop")
+        if finish_reason not in TERMINAL_FINISH_REASONS:
+            # A failed/truncated/refused turn must never masquerade as a
+            # delivered answer (M1-T4).
+            if nonterminal_repairs < STAGNATION_REPLAN_LIMIT:
+                nonterminal_repairs += 1
+                emit_trace(
+                    f"模型轮次非正常结束（finish_reason={finish_reason}），不作为最终答案，要求重新作答",
+                    phase="planning",
+                    status="error",
+                    code="nonterminal_turn",
+                    detail={"turn": turn, "finish_reason": finish_reason, "attempt": nonterminal_repairs},
+                )
+                messages.append({
+                    "role": "user",
+                    "content": (
+                        f"[执行器保护] 上一轮模型以 {finish_reason} 结束，不是正常完成，之前的输出不作为结果。"
+                        "请基于现有证据重新给出完整的最终回答，或继续必要的工具调用。"
+                    ),
+                })
+                continue
+            result.error = f"模型连续以非正常 finish_reason 结束（{finish_reason}），任务未完成"
+            result.answer = f"任务未完成：{result.error}"
+            emit_trace(
+                result.error,
+                phase="failed",
+                status="error",
+                code="nonterminal_turn_limit",
+                detail={"finish_reason": finish_reason, "retry_limit": STAGNATION_REPLAN_LIMIT},
+            )
+            break
         text = response.text.strip()
         if not text and response.reasoning_content:
             text = response.reasoning_content.strip()
 
         if recovery_inspection_required:
-            if stagnation_replans < STAGNATION_REPLAN_LIMIT:
+            if recovery_refusals < STAGNATION_REPLAN_LIMIT:
+                recovery_refusals += 1
                 messages.append(assistant_msg(content=text or None))
                 messages.append({
                     "role": "user",
@@ -1275,7 +1422,7 @@ async def run_agent(
                     phase="planning",
                     status="error",
                     code="recovery_required_before_finish",
-                    detail={"turn": turn, "attempt": stagnation_replans},
+                    detail={"turn": turn, "attempt": recovery_refusals},
                 )
                 continue
             result.error = "Agent 在错误路径恢复阶段没有取得新的工作区证据"
@@ -1366,6 +1513,13 @@ async def run_agent(
         "tokens": dict(result.tokens_used),
         "budget": runtime_budget.snapshot(),
     }
+    if hooks_enabled:
+        run_hook("Stop", {
+            "event": "Stop",
+            "answer": redact_text((result.answer or "")[:4000])[0],
+            "error": result.error or "",
+            "metrics": dict(result.metrics),
+        })
     result.metrics.update(cache_summary(result.tokens_used))
     if runtime_state is not None:
         runtime_state.outputs["answer"] = result.answer
@@ -1399,3 +1553,82 @@ def _is_unproductive_result(result: ToolResult) -> bool:
         "重复调用",
         "recovery_guard",
     ))
+
+
+# M6-T3: parallel write phase -------------------------------------------------
+
+PARALLEL_SAFE_WRITE_TOOLS = {"write_file", "edit_file"}
+
+
+def _parallel_write_key(tool: str, arguments: Any) -> str | None:
+    """Serialization key for a write tool call, or None if it must stay serial.
+
+    Only path-scoped file writes qualify: the key is the target path alone, so
+    a write and an edit on the same file share one ordered group while
+    different paths run concurrently. bash/todo_write/worktree/MCP tools return
+    None and join the deterministic serial group.
+    """
+    if tool not in PARALLEL_SAFE_WRITE_TOOLS or not isinstance(arguments, dict):
+        return None
+    path = str(arguments.get("path") or "").strip()
+    if not path:
+        return None
+    return f"write:{path}"
+
+
+async def _execute_and_store(
+    registry: ToolRegistry,
+    index: int,
+    tc: ToolCall,
+    immediate_results: dict[int, tuple[ToolCall, ToolResult]],
+    cancel_event: threading.Event | None,
+) -> None:
+    try:
+        tool_result = await asyncio.to_thread(registry.execute, tc, cancel_event=cancel_event)
+    except Exception as exc:  # a failing sibling must not lose the other results
+        tool_result = ToolResult(
+            status="error",
+            summary=f"[TOOL_ERROR] {tc.tool} 执行异常: {exc}",
+            output=str(exc),
+            security_tags=["untrusted"],
+        )
+    immediate_results[index] = (tc, tool_result)
+
+
+async def _run_serial_group(
+    registry: ToolRegistry,
+    group: list[tuple[int, ToolCall]],
+    immediate_results: dict[int, tuple[ToolCall, ToolResult]],
+    cancel_event: threading.Event | None,
+) -> None:
+    for index, tc in sorted(group, key=lambda item: item[0]):
+        await _execute_and_store(registry, index, tc, immediate_results, cancel_event)
+
+
+async def _run_write_phase(
+    *,
+    registry: ToolRegistry,
+    pending_writes: list[tuple[int, ToolCall, str]],
+    serial_writes: list[tuple[int, ToolCall]],
+    immediate_results: dict[int, tuple[ToolCall, ToolResult]],
+    cancel_event: threading.Event | None,
+) -> None:
+    """Run the non-readonly part of one tool round.
+
+    Groups keyed by target path execute concurrently; inside a group calls run
+    in index order so a second edit observes the first. All other non-readonly
+    tools form a single deterministic serial group.
+    """
+    if not pending_writes and not serial_writes:
+        return
+    groups: dict[str, list[tuple[int, ToolCall]]] = {}
+    for index, tc, key in pending_writes:
+        groups.setdefault(key, []).append((index, tc))
+    if serial_writes:
+        groups.setdefault("_serial", []).extend(serial_writes)
+    await asyncio.gather(
+        *(
+            _run_serial_group(registry, group, immediate_results, cancel_event)
+            for group in groups.values()
+        )
+    )

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import socket
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -45,6 +46,12 @@ class _Handler(BaseHTTPRequestHandler):
         elif self.path == "/redirect":
             self.send_response(302)
             self.send_header("Location", "/html")
+            body = b""
+        elif self.path == "/redirect-evil":
+            # Second hop points at a host that resolves to loopback; the guard
+            # must re-validate every hop and refuse to follow it.
+            self.send_response(302)
+            self.send_header("Location", "http://evil.test/html")
             body = b""
         elif self.path == "/server-error":
             body = b"boom"
@@ -167,3 +174,77 @@ def test_webfetch_handler_rejects_empty_url():
 
     with pytest.raises(ToolError):
         webfetch({"url": ""})
+
+
+# ---------------------------------------------------------------------------
+# M3-T3: SSRF IP pinning (resolve once, validate, dial the pinned IP)
+# ---------------------------------------------------------------------------
+
+
+def test_pinning_dials_validated_ip_not_rebind_target(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """DNS rebinding: guard resolves a public IP; connect must dial that exact IP.
+
+    A naive client that re-resolved at connect time could be tricked into hitting
+    loopback. Pinning closes that window, so we assert the socket is created
+    against the validated public address and never 127.0.0.1.
+    """
+    monkeypatch.delenv("MINICC_ALLOW_PRIVATE_FETCH", raising=False)
+    public_ip = "93.184.216.34"
+    monkeypatch.setattr(
+        socket,
+        "getaddrinfo",
+        lambda host, *a, **k: [(2, 1, 6, "", (public_ip, 0))],
+    )
+    dialed: dict[str, object] = {}
+
+    def fake_create_connection(address, *args, **kwargs):
+        dialed["address"] = address
+        raise OSError("test: no real network egress")
+
+    monkeypatch.setattr(socket, "create_connection", fake_create_connection)
+
+    result = fetch_url_text("http://rebind.test/html")
+    assert dialed.get("address", (None,))[0] == public_ip
+    assert result["text"] == ""
+    assert result["error"]  # connection failed, but only after dialing the safe IP
+
+
+def test_redirect_hop_to_loopback_denied_without_env(
+    local_server, monkeypatch: pytest.MonkeyPatch
+):
+    """Every hop is re-validated: a redirect to a loopback host is refused.
+
+    Runs with the guard *enabled* (no MINICC_ALLOW_PRIVATE_FETCH). Hop 1
+    (good.test) is pinned to a public IP that we route to the local server; the
+    302 then points at evil.test, which resolves to 127.0.0.1 and must be denied
+    before any connection is made.
+    """
+    monkeypatch.delenv("MINICC_ALLOW_PRIVATE_FETCH", raising=False)
+    port = local_server.rsplit(":", 1)[1]
+    public_ip = "93.184.216.34"
+    real_getaddrinfo = socket.getaddrinfo
+
+    def fake_getaddrinfo(host, *args, **kwargs):
+        if host == "good.test":
+            return [(2, 1, 6, "", (public_ip, 0))]
+        if host == "evil.test":
+            return [(2, 1, 6, "", ("127.0.0.1", 0))]
+        return real_getaddrinfo(host, *args, **kwargs)
+
+    monkeypatch.setattr(socket, "getaddrinfo", fake_getaddrinfo)
+
+    real_cc = socket.create_connection
+
+    def fake_cc(address, *args, **kwargs):
+        host, target_port = address[0], address[1]
+        if host == public_ip:
+            host = "127.0.0.1"
+        return real_cc((host, target_port), *args, **kwargs)
+
+    monkeypatch.setattr(socket, "create_connection", fake_cc)
+
+    result = fetch_url_text(f"http://good.test:{port}/redirect-evil")
+    assert "SSRF" in result["error"]
+    assert result["text"] == ""

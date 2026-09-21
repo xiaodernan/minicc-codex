@@ -27,9 +27,14 @@ TOKEN_FILE_NAME = "web_token.json"
 TOKEN_BYTES = 32
 
 LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1", "[::1]", "::0"})
-# Hostname suffixes that stay inside the developer's own machine even when the
-# OS resolves several loopback names (localhost.<domain> on macOS, .local).
-LOOPBACK_SUFFIXES = (".localhost", ".local")
+# Hostname suffixes that stay inside the developer's own machine even when
+# the OS resolves several loopback names (``localhost.<domain>`` on macOS).
+#
+# M3-T2: ``.local`` was removed — it is mDNS/Bonjour, not loopback. Any host
+# on the LAN can claim ``evil.local``, and treating it as loopback meant
+# ``Origin: http://evil.local`` was echoed back in Access-Control-Allow-Origin
+# and (via the same predicate) ``--host evil.local`` skipped mandatory auth.
+LOOPBACK_SUFFIXES = (".localhost",)
 
 
 class WebAuthError(RuntimeError):

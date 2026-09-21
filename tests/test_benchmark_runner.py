@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import re
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -15,20 +14,32 @@ from minicc.benchmarks import _write_results, load_tasks, main, run_benchmark
 def _fake_provider_factory(monkeypatch: pytest.MonkeyPatch, answer: str = "评测任务已完成。") -> None:
     """Patch the web service provider so no real model is contacted."""
     from minicc import web as web_module
+    from minicc.llm.fake import FakeProvider as _EvidenceFake
 
     class FakeProvider:
         def __init__(self, *args, **kwargs) -> None:
-            pass
+            self._agent_turn = 0
 
         async def chat(self, messages, tools, on_delta=None):
             import json as _json
             if tools is None:
+                # M4-T1: the completion judge rejects a verdict that cites only
+                # trace ids, so reuse the real fake's citable-evidence picker
+                # instead of grabbing the last id in the packet.
+                evidence = _EvidenceFake._select_citable_evidence(messages)
                 decision = _json.dumps({
-                    "status": "complete", "confidence": 0.9, "rationale": "fake",
-                    "missing": [], "next_action": "", "evidence": re.findall(r'"id":"((?:event|verification)-\d+)"', str(messages))[-1:],
+                    "status": "complete" if evidence else "unknown", "confidence": 0.9, "rationale": "fake",
+                    "missing": [], "next_action": "", "evidence": evidence,
                 }, ensure_ascii=False)
-                return SimpleNamespace(text=decision, usage={"total_tokens": 8}, reasoning_content=None, tool_calls=[], finish_reason="stop", model="fake")
-            return SimpleNamespace(text=answer, usage={"total_tokens": 42}, reasoning_content=None, tool_calls=[], finish_reason="stop", model="fake")
+                return SimpleNamespace(text=decision, content=decision, usage={"total_tokens": 8}, reasoning_content=None, tool_calls=[], finish_reason="stop", model="fake")
+            self._agent_turn += 1
+            if self._agent_turn == 1:
+                # M4-T1: emit one readonly tool call so a zero-write task still
+                # produces citable tool evidence before the final answer.
+                return SimpleNamespace(text="", content="", usage={"total_tokens": 42}, reasoning_content=None,
+                    tool_calls=[{"id": "fake-read-1", "type": "function", "function": {"name": "tree", "arguments": "{}"}}],
+                    finish_reason="tool_calls", model="fake")
+            return SimpleNamespace(text=answer, content=answer, usage={"total_tokens": 42}, reasoning_content=None, tool_calls=[], finish_reason="stop", model="fake")
 
         async def close(self):
             return None

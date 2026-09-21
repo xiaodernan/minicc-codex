@@ -83,7 +83,7 @@ def test_ultra_can_negotiate_full_fallback_chain_after_explicit_rejections():
     )
     response = asyncio.run(provider.chat([{"role": "user", "content": "test"}]))
     assert response.content == "done"
-    assert efforts == ["ultra", "max", "xhigh", "high", "mid", "low", None]
+    assert efforts == ["ultra", "max", "xhigh", "high", "medium", "low", None]
     assert provider.reasoning_status() == {
         "requested": "ultra", "active": "off", "wire_value": None, "fallback": True,
     }

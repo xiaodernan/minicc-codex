@@ -8,6 +8,7 @@ the handler itself just runs and truncates.
 
 from __future__ import annotations
 
+import shlex
 import subprocess
 import locale
 import os
@@ -15,6 +16,9 @@ import re
 import signal
 import threading
 import time
+import uuid
+from collections import deque
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -24,6 +28,12 @@ from .schemas import ToolResult
 DEFAULT_TIMEOUT = 120
 MAX_OUTPUT_CHARS = 32_000
 MAX_CAPTURE_BYTES = 256_000
+# M6-T4: background shells are tracked in a process-wide registry. Retained
+# output per shell is capped (a ring buffer), only a bounded number run at once,
+# and a bounded number of finished shells stay pollable before being pruned.
+MAX_CONCURRENT_BACKGROUND = 8
+MAX_RETAINED_BG_BYTES = 512_000
+MAX_FINISHED_SHELLS_KEPT = 16
 
 _DETACHED_COMMAND_RE = re.compile(
     r"(?ix)"
@@ -69,6 +79,79 @@ def detached_command_reason(command: str) -> str | None:
     return None
 
 
+def _tokenize_segment(segment: str) -> list[str]:
+    """Split one operator-free segment into argv tokens.
+
+    Non-posix shlex keeps Windows backslashes literal and preserves quoted
+    runs as single tokens; quotes are stripped afterwards. Unbalanced quotes
+    degrade to whitespace splitting — callers only inspect token text.
+    """
+    try:
+        lexer = shlex.shlex(segment, posix=False)
+        lexer.whitespace_split = True
+        lexer.commenters = ""
+        raw = list(lexer)
+    except ValueError:
+        raw = segment.split()
+    tokens: list[str] = []
+    for token in raw:
+        cleaned = token.strip()
+        while (
+            len(cleaned) >= 2
+            and cleaned[0] == cleaned[-1]
+            and cleaned[0] in {"'", '"'}
+        ):
+            cleaned = cleaned[1:-1]
+        if cleaned:
+            tokens.append(cleaned)
+    return tokens
+
+
+def split_command_argv(command: str) -> list[list[str]]:
+    """Shared argv tokenizer (M3-T4 / appendix A.3-3).
+
+    Splits a shell command line at unquoted operators (``&&``, ``||``,
+    ``;``, ``|``, ``&``, newlines) and tokenizes each segment. Used by both
+    the readonly-pytest gate and the network gate so there is exactly one
+    tokenizer in the codebase. The result is for inspection only — never
+    execute it.
+    """
+    text = str(command or "")
+    segments: list[str] = []
+    current: list[str] = []
+    quote: str | None = None
+    index = 0
+    while index < len(text):
+        char = text[index]
+        if quote is not None:
+            current.append(char)
+            if char == quote:
+                quote = None
+            index += 1
+            continue
+        if char in {"'", '"'}:
+            quote = char
+            current.append(char)
+            index += 1
+            continue
+        if char in "&|;\n\r":
+            if index + 1 < len(text) and text[index + 1] == char:
+                index += 1
+            segments.append("".join(current))
+            current = []
+            index += 1
+            continue
+        current.append(char)
+        index += 1
+    segments.append("".join(current))
+    argv_segments = []
+    for segment in segments:
+        tokens = _tokenize_segment(segment)
+        if tokens:
+            argv_segments.append(tokens)
+    return argv_segments
+
+
 def decode_process_output(value: bytes | str | None) -> str:
     """Decode command output without crashing on a Windows code page."""
     if value is None:
@@ -88,14 +171,20 @@ def decode_process_output(value: bytes | str | None) -> str:
 
 
 def is_readonly_command(command: str) -> bool:
-    """Allow only a simple pytest invocation in Web safe mode.
+    """Allow only a narrow pytest verification invocation in Web safe mode.
 
-    Tests are still code execution, so this is deliberately narrow: shell
-    composition, redirection, and other interpreters remain blocked.
+    M2-T5: previously ``argv[0]==pytest`` returned True for *any* flags, so
+    ``pytest -p <module>`` (arbitrary code execution) and ``-c <ini>`` /
+    ``--rootdir`` / out-of-workspace paths were auto-approved. Now only
+    bare ``pytest [paths] [safe flags]`` with in-workspace-relative,
+    option-looking-safe arguments passes.
     """
     if not command or any(marker in command for marker in "&|;<>`$()%^!\n\r"):
         return False
-    parts = command.strip().split()
+    segments = split_command_argv(command)
+    if len(segments) != 1:
+        return False
+    parts = segments[0]
     if not parts:
         return False
 
@@ -103,18 +192,83 @@ def is_readonly_command(command: str) -> bool:
         return value.strip('"').replace("/", "\\").rsplit("\\", 1)[-1].lower()
 
     executable = basename(parts[0])
+    rest = parts[1:]
     if executable in {"pytest", "pytest.exe"}:
-        return True
-    if len(parts) >= 3 and parts[1].lower() == "-m" and parts[2].lower() == "pytest":
-        return executable in {
+        pass
+    elif len(parts) >= 3 and parts[1].lower() == "-m" and parts[2].lower() == "pytest":
+        if executable not in {
             "python",
             "python.exe",
             "python3",
             "python3.exe",
             "py",
             "py.exe",
-        }
-    return False
+        }:
+            return False
+        rest = parts[3:]
+    else:
+        return False
+
+    # Flags that load arbitrary code/config or escape the workspace.
+    deny_prefix = ("--rootdir=", "--rootdir:", "--config=", "-c=", "--config:",
+                   "--basetemp=", "--basetemp:", "--cache-dir=", "--cache-dir:",
+                   "--junitxml=", "--junitxml:", "--resultlog=", "--resultlog:",
+                   "--import-mode=", "-o", "--override-ini")
+    deny_standalone = {
+        "--pyargs", "--rootdir", "--config", "--basetemp", "--cache-dir",
+        "--junitxml", "--resultlog", "--override-ini",
+    }
+    allow_flag_prefix = ("-q", "-x", "-k", "--tb", "-v", "--maxfail", "-m", "--lf", "--ff")
+    allow_flag_exact = {
+        "--collect-only", "--dry-run", "-s", "--capture=no",
+        "--tb=short", "--tb=line", "--tb=native",
+    }
+    index = 0
+    while index < len(rest):
+        stripped = rest[index].strip('"')
+        lowered = stripped.lower()
+        # ``-p`` semantics: ``-p no:<plugin>`` and ``-pno:<plugin>`` only
+        # UNLOAD a plugin (safe, used by CI). Any other ``-p<module>`` form
+        # LOADS arbitrary code -> deny.
+        if lowered == "-p":
+            if index + 1 < len(rest) and rest[index + 1].strip('"').lower().startswith("no:"):
+                index += 2
+                continue
+            return False
+        if lowered.startswith("-p"):
+            if lowered.startswith("-pno:"):
+                index += 1
+                continue
+            return False
+        if lowered in deny_standalone:
+            return False
+        if any(lowered == prefix.rstrip("=") or lowered.startswith(prefix) for prefix in deny_prefix):
+            return False
+        if stripped.startswith("-"):
+            if lowered in allow_flag_exact or lowered.startswith(allow_flag_prefix):
+                index += 1
+                continue
+            return False
+        # Positional path args must stay inside the workspace: allow only
+        # relative paths without parent segments or drive/UNC/absolute forms.
+        if stripped in {".", "./", "./tests", "tests", "tests/"}:
+            index += 1
+            continue
+        norm = stripped.replace("\\", "/")
+        if (
+            norm.startswith("/")
+            or ":\\" in stripped
+            or stripped.startswith("\\\\")
+            or (len(stripped) > 1 and stripped[1] == ":")
+            or norm.startswith("../")
+            or "/../" in norm
+            or norm == ".."
+        ):
+            return False
+        if ".." in norm.split("/"):
+            return False
+        index += 1
+    return True
 
 
 def _process_group_kwargs() -> dict[str, int | bool]:
@@ -343,8 +497,17 @@ def run_bash(
     workspace: Path,
     timeout: int = DEFAULT_TIMEOUT,
     cancel_event: threading.Event | None = None,
+    run_in_background: bool = False,
 ) -> ToolResult:
-    """Execute a shell command in the workspace directory."""
+    """Execute a shell command in the workspace directory.
+
+    ``run_in_background`` (M6-T4) is the *supported* way to run a long-lived
+    command: it returns a ``shell_id`` immediately, keeps the process in its own
+    process group, and streams bounded output into a ring buffer the model polls
+    with ``bash_output``. The detached-start guards (``&`` / ``nohup`` /
+    ``start`` / ``setsid``) stay rejected for BOTH modes — backgrounding is
+    explicit and tracked, not an escape from the tool lifecycle.
+    """
     if not command or not command.strip():
         return ToolResult(status="error", summary="[INVALID_ARGUMENTS] command 不能为空")
     detached_reason = detached_command_reason(command)
@@ -356,9 +519,14 @@ def run_bash(
             data={
                 "code": "detached_process_blocked",
                 "retryable": True,
-                "suggestion": "请以前台方式启动，并让工具生命周期管理进程；已有服务则直接复用其地址。",
+                "suggestion": (
+                    "需要长驻或异步执行请改用 run_in_background=true（随后用 bash_output 轮询、"
+                    "kill_shell 终止）；前台命令请直接以前台方式运行。"
+                ),
             },
         )
+    if run_in_background:
+        return start_background_shell(command, workspace)
     return run_process(
         command,
         workspace,
@@ -368,4 +536,216 @@ def run_bash(
         env=dict(os.environ),
         summary_label="命令",
         security_tags=["untrusted"],
+    )
+
+
+@dataclass
+class _BackgroundShell:
+    shell_id: str
+    command: str
+    proc: "subprocess.Popen[bytes]"
+    started: float
+    lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
+    buffer: bytearray = field(default_factory=bytearray, repr=False)
+    dropped: int = 0
+    cursor: int = 0
+    finished: bool = False
+    exit_code: int | None = None
+    killed: bool = False
+
+
+_BG_SHELLS: dict[str, _BackgroundShell] = {}
+_BG_ORDER: deque[str] = deque()  # insertion order, oldest first
+_BG_LOCK = threading.Lock()
+
+
+def _bg_prune_locked() -> None:
+    """Forget the oldest finished shells once too many are retained."""
+    finished = [sid for sid in _BG_ORDER if _BG_SHELLS[sid].finished]
+    excess = len(finished) - MAX_FINISHED_SHELLS_KEPT
+    for sid in finished[:max(0, excess)]:
+        _BG_SHELLS.pop(sid, None)
+        try:
+            _BG_ORDER.remove(sid)
+        except ValueError:
+            pass
+
+
+def _bg_running_count_locked() -> int:
+    return sum(1 for shell in _BG_SHELLS.values() if not shell.finished)
+
+
+def _bg_reader(shell: _BackgroundShell) -> None:
+    """Drain the merged stdout/stderr pipe into the bounded ring buffer."""
+    proc = shell.proc
+    try:
+        while True:
+            pipe = proc.stdout
+            if pipe is None:
+                break
+            reader = getattr(pipe, "read1", None)
+            chunk = reader(8192) if callable(reader) else pipe.read(8192)
+            if not chunk:
+                break
+            with shell.lock:
+                shell.buffer.extend(chunk)
+                overflow = len(shell.buffer) - MAX_RETAINED_BG_BYTES
+                if overflow > 0:
+                    del shell.buffer[:overflow]
+                    shell.dropped += overflow
+    except (OSError, ValueError):
+        pass
+    finally:
+        try:
+            exit_code = proc.wait(timeout=5)
+        except (subprocess.TimeoutExpired, OSError):
+            exit_code = proc.poll()
+        with shell.lock:
+            shell.finished = True
+            shell.exit_code = exit_code
+        for pipe in (proc.stdout, getattr(proc, "stderr", None)):
+            if pipe is not None:
+                try:
+                    pipe.close()
+                except OSError:
+                    pass
+
+
+def start_background_shell(command: str, workspace: Path) -> ToolResult:
+    """Launch a tracked, cancellable background shell (M6-T4)."""
+    with _BG_LOCK:
+        _bg_prune_locked()
+        if _bg_running_count_locked() >= MAX_CONCURRENT_BACKGROUND:
+            return ToolResult(
+                status="error",
+                summary=f"[RUNTIME_GUARD] 后台 shell 已达并发上限（{MAX_CONCURRENT_BACKGROUND}）",
+                output="请先用 kill_shell 结束不再需要的后台 shell，或等待其退出。",
+                data={"code": "background_limit_reached", "retryable": True},
+                security_tags=["untrusted", "runtime_guard", "background_shell"],
+            )
+        try:
+            proc = subprocess.Popen(
+                command,
+                shell=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=False,
+                cwd=str(workspace),
+                env=dict(os.environ),
+                **_process_group_kwargs(),
+            )
+        except OSError as exc:
+            return ToolResult(
+                status="error",
+                summary=f"[TOOL_ERROR] 无法启动后台命令: {exc}",
+                security_tags=["untrusted", "background_shell"],
+            )
+        shell = _BackgroundShell(
+            shell_id=f"bg-{uuid.uuid4().hex[:8]}",
+            command=command,
+            proc=proc,
+            started=time.monotonic(),
+        )
+        _BG_SHELLS[shell.shell_id] = shell
+        _BG_ORDER.append(shell.shell_id)
+    threading.Thread(target=_bg_reader, args=(shell,), daemon=True, name=f"minicc-bg-{shell.shell_id}").start()
+    return ToolResult(
+        status="ok",
+        summary=f"已在后台启动 shell {shell.shell_id}",
+        output=(
+            f"shell_id={shell.shell_id}\n"
+            "用 bash_output(shell_id) 增量读取输出，用 kill_shell(shell_id) 终止整个进程树。"
+        ),
+        data={"shell_id": shell.shell_id, "pid": proc.pid, "background": True},
+        security_tags=["untrusted", "background_shell"],
+    )
+
+
+def _bg_shell_or_error(shell_id: str) -> tuple[_BackgroundShell | None, ToolResult | None]:
+    with _BG_LOCK:
+        shell = _BG_SHELLS.get(str(shell_id))
+    if shell is None:
+        return None, ToolResult(
+            status="error",
+            summary=f"[UNKNOWN_SHELL] 找不到后台 shell {shell_id!r}",
+            data={"available": _bg_known_ids()},
+            security_tags=["untrusted", "background_shell"],
+        )
+    return shell, None
+
+
+def _bg_known_ids() -> list[str]:
+    with _BG_LOCK:
+        return list(_BG_SHELLS)
+
+
+def poll_background_shell(shell_id: str, *, since_start: bool = False) -> ToolResult:
+    """Return new output for a background shell since the last poll."""
+    shell, error = _bg_shell_or_error(shell_id)
+    if shell is None:
+        return error  # type: ignore[return-value]
+    assert shell is not None
+    with shell.lock:
+        if since_start:
+            start = shell.dropped
+        else:
+            start = max(shell.cursor, shell.dropped)
+        offset = start - shell.dropped if start >= shell.dropped else 0
+        payload = bytes(shell.buffer[offset:])
+        shell.cursor = shell.dropped + len(shell.buffer)
+        finished = shell.finished
+        exit_code = shell.exit_code
+        dropped = shell.dropped
+    text = decode_process_output(payload)
+    status_line = (
+        f"状态: 已退出 (exit {exit_code})" if finished else f"状态: 运行中 (pid {shell.proc.pid})"
+    )
+    dropped_note = f"\n[更早的 {dropped} 字节输出已被环形缓冲丢弃]" if (dropped and since_start) else ""
+    body = text if text.strip() else "(暂无新输出)"
+    full_text = f"{status_line}\n{body}{dropped_note}"
+    head, tail, truncated = split_output(full_text)
+    return ToolResult(
+        status="ok",
+        summary=f"后台 shell {shell.shell_id} 输出" + ("（已结束）" if finished else "（运行中）"),
+        head=head,
+        tail=tail,
+        truncated=truncated or (dropped > 0 and since_start),
+        data={
+            "shell_id": shell.shell_id,
+            "finished": finished,
+            "exit_code": exit_code,
+            "new_bytes": len(payload),
+            "dropped_bytes": dropped,
+        },
+        security_tags=["untrusted", "background_shell"],
+    )
+
+
+def kill_background_shell(shell_id: str) -> ToolResult:
+    """Terminate a background shell's whole process group."""
+    shell, error = _bg_shell_or_error(shell_id)
+    if shell is None:
+        return error  # type: ignore[return-value]
+    assert shell is not None
+    already = shell.finished
+    terminate_process_tree(shell.proc)
+    with shell.lock:
+        shell.killed = True
+        finished = shell.finished
+        exit_code = shell.proc.poll()
+        if finished:
+            shell.exit_code = shell.exit_code
+        else:
+            shell.finished = True
+            shell.exit_code = exit_code
+            exit_code = shell.exit_code
+    return ToolResult(
+        status="ok",
+        summary=(
+            f"后台 shell {shell.shell_id} 已结束"
+            if already else f"已终止后台 shell {shell.shell_id} 的进程树"
+        ),
+        data={"shell_id": shell.shell_id, "exit_code": exit_code, "was_running": not already},
+        output=f"shell {shell.shell_id} 进程树已终止，pid {shell.proc.pid} poll={shell.proc.poll()}",
+        security_tags=["untrusted", "runtime_guard", "background_shell"],
     )

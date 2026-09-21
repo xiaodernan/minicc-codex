@@ -59,7 +59,7 @@ def verification_fingerprint(root: Path, changed: list[str], commands: list[Veri
     cacheable = True
     scanned = 0
     total_bytes = 0
-    suffixes = {".py", ".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".json", ".toml", ".css", ".html", ".yaml", ".yml", ".txt", ".csv", ".tsv", ".xml", ".ini", ".cfg", ".lock", ".sql", ".vue", ".svelte"}
+    suffixes = {".py", ".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".json", ".toml", ".css", ".html", ".yaml", ".yml", ".txt", ".csv", ".tsv", ".xml", ".ini", ".cfg", ".lock", ".sql", ".vue", ".svelte", ".md", ".markdown", ".rst", ".adoc", ".sh", ".bash", ".zsh", ".ps1", ".bat", ".cmd", ".svg", ".png", ".jpg", ".jpeg", ".gif", ".ico", ".webp", ".c", ".h", ".cc", ".cpp", ".hpp", ".go", ".rs", ".java", ".kt", ".rb", ".php", ".swift", ".scss", ".sass", ".less", ".diff", ".patch"}
     for current, dirs, files in os.walk(root):
         dirs[:] = sorted(d for d in dirs if d not in {".git", ".venv", ".minicc", ".pytest_cache", ".mypy_cache", ".ruff_cache", ".playwright-cli", "venv", "node_modules", "output", "__pycache__", "dist", "build"} and not (Path(current) / d).is_symlink())
         for name in sorted(files):
@@ -70,7 +70,10 @@ def verification_fingerprint(root: Path, changed: list[str], commands: list[Veri
                 cacheable = False
                 continue
             hidden_config = name.startswith(".") or any(part.startswith(".") for part in path.relative_to(root).parts[:-1])
-            if not hidden_config and path.suffix not in suffixes:
+            # M4-T1: extensionless build files (Makefile/Dockerfile/LICENSE) and
+            # doc/script/binary suffixes must enter the fingerprint too, otherwise
+            # editing them reuses a stale passing cache.
+            if not hidden_config and path.suffix not in suffixes and path.suffix != "":
                 continue
             scanned += 1
             try:

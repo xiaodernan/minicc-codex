@@ -38,6 +38,11 @@ from .base import LLMResponse
 ANTHROPIC_VERSION = "2023-06-01"
 DEFAULT_BASE_URL = "https://api.anthropic.com"
 MAX_RETRIES_DEFAULT = 3
+#: Default cap for one assistant turn. Overridable per request via
+#: ``max_tokens`` constructor arg / ``MINICC_ANTHROPIC_MAX_TOKENS``.
+#: Previously hardcoded at the call site with no clamp and no switch (M1-T4).
+DEFAULT_MAX_TOKENS = 8192
+MAX_TOKENS_HARD_CAP = 64000
 _RETRYABLE_STATUS = {408, 409, 429, 500, 502, 503, 504, 529}
 
 
@@ -164,6 +169,33 @@ def tools_to_anthropic(tools: list[dict[str, Any]] | None) -> list[dict[str, Any
     return converted
 
 
+def _normalize_usage(usage: dict[str, Any] | None) -> dict[str, Any]:
+    """Normalize Anthropic usage counters to the shared vocabulary.
+
+    Anthropic's ``input_tokens`` excludes cached tokens, so
+    ``prompt_tokens = input + cache_read + cache_write`` and the miss
+    count is the uncached ``input_tokens`` itself — never
+    ``prompt - hit`` (M1-T6: that derived a phantom miss=20/total=120
+    from input=100/read=80/write=12).
+    """
+    usage = usage or {}
+    input_tokens = int(usage.get("input_tokens") or 0)
+    output_tokens = int(usage.get("output_tokens") or 0)
+    cache_read = usage.get("cache_read_input_tokens")
+    cache_write = usage.get("cache_creation_input_tokens")
+    normalized: dict[str, Any] = {
+        "prompt_tokens": input_tokens + (int(cache_read) if cache_read is not None else 0) + (int(cache_write) if cache_write is not None else 0),
+        "completion_tokens": output_tokens,
+    }
+    normalized["total_tokens"] = normalized["prompt_tokens"] + output_tokens
+    normalized["prompt_cache_miss_tokens"] = input_tokens
+    if cache_read is not None:
+        normalized["prompt_cache_hit_tokens"] = int(cache_read)
+    if cache_write is not None:
+        normalized["prompt_cache_write_tokens"] = int(cache_write)
+    return normalized
+
+
 def response_to_llm(payload: dict[str, Any], model: str) -> LLMResponse:
     text_parts: list[str] = []
     tool_calls: list[dict[str, Any]] = []
@@ -181,26 +213,18 @@ def response_to_llm(payload: dict[str, Any], model: str) -> LLMResponse:
                     "arguments": json.dumps(block.get("input") or {}, ensure_ascii=False),
                 },
             })
-    usage = payload.get("usage") or {}
-    input_tokens = int(usage.get("input_tokens") or 0)
-    output_tokens = int(usage.get("output_tokens") or 0)
-    cache_read = usage.get("cache_read_input_tokens")
-    cache_write = usage.get("cache_creation_input_tokens")
-    normalized: dict[str, Any] = {
-        "prompt_tokens": input_tokens,
-        "completion_tokens": output_tokens,
-        "total_tokens": input_tokens + output_tokens,
-    }
-    if cache_read is not None:
-        normalized["prompt_cache_hit_tokens"] = int(cache_read)
-    if cache_write is not None:
-        normalized["prompt_cache_write_tokens"] = int(cache_write)
+    usage = _normalize_usage(payload.get("usage"))
     stop_reason = str(payload.get("stop_reason") or "end_turn")
+    finish_reason = (
+        "tool_calls" if stop_reason == "tool_use" or tool_calls
+        else "stop" if stop_reason == "end_turn"
+        else stop_reason
+    )
     return LLMResponse(
         content="\n".join(part for part in text_parts if part) or None,
         tool_calls=tool_calls,
-        usage=normalized,
-        finish_reason="tool_calls" if stop_reason == "tool_use" else "stop",
+        usage=usage,
+        finish_reason=finish_reason,
         model=str(payload.get("model") or model),
     )
 
@@ -218,6 +242,7 @@ class AnthropicProvider:
         max_retries: int = MAX_RETRIES_DEFAULT,
         on_status: Any | None = None,
         transport: Any | None = None,
+        max_tokens: int | None = None,
     ) -> None:
         if httpx is None:  # pragma: no cover - depends on the HTTP stack
             raise AnthropicProviderError("httpx 不可用，无法使用 Anthropic provider")
@@ -227,6 +252,7 @@ class AnthropicProvider:
         self.timeout = float(timeout)
         self.max_retries = max(0, int(max_retries))
         self.on_status = on_status
+        self.max_tokens = self._clamp_max_tokens(max_tokens)
         self._client = httpx.AsyncClient(
             timeout=httpx.Timeout(self.timeout, connect=15.0),
             transport=transport,
@@ -236,6 +262,19 @@ class AnthropicProvider:
                 "Content-Type": "application/json",
             },
         )
+
+    @staticmethod
+    def _clamp_max_tokens(value: Any) -> int:
+        import os as _os
+
+        raw = value
+        if raw is None:
+            raw = _os.getenv("MINICC_ANTHROPIC_MAX_TOKENS", "")
+        try:
+            tokens = int(str(raw).strip() or DEFAULT_MAX_TOKENS)
+        except (TypeError, ValueError):
+            tokens = DEFAULT_MAX_TOKENS
+        return max(1, min(MAX_TOKENS_HARD_CAP, tokens))
 
     async def close(self) -> None:
         await self._client.aclose()
@@ -249,7 +288,7 @@ class AnthropicProvider:
         system, converted = messages_to_anthropic(messages)
         payload: dict[str, Any] = {
             "model": self.model,
-            "max_tokens": 8192,
+            "max_tokens": self.max_tokens,
             "messages": converted,
         }
         if system:
@@ -404,25 +443,18 @@ def _sse_to_llm(parsed: dict[str, Any], fallback_model: str) -> LLMResponse:
             "function": {"name": item.get("name") or "", "arguments": arguments},
         })
     usage = parsed.get("usage") or {}
-    input_tokens = int(usage.get("input_tokens") or 0)
-    output_tokens = int(usage.get("output_tokens") or 0)
-    cache_read = usage.get("cache_read_input_tokens")
-    cache_write = usage.get("cache_creation_input_tokens")
-    normalized: dict[str, Any] = {
-        "prompt_tokens": input_tokens,
-        "completion_tokens": output_tokens,
-        "total_tokens": input_tokens + output_tokens,
-    }
-    if cache_read is not None:
-        normalized["prompt_cache_hit_tokens"] = int(cache_read)
-    if cache_write is not None:
-        normalized["prompt_cache_write_tokens"] = int(cache_write)
+    normalized = _normalize_usage(usage)
     stop_reason = str(parsed.get("stop_reason") or "end_turn")
+    finish_reason = (
+        "tool_calls" if stop_reason == "tool_use" or tool_calls
+        else "stop" if stop_reason == "end_turn"
+        else stop_reason
+    )
     return LLMResponse(
         content=str(parsed.get("text") or "") or None,
         tool_calls=tool_calls,
         usage=normalized,
-        finish_reason="tool_calls" if stop_reason == "tool_use" or tool_calls else "stop",
+        finish_reason=finish_reason,
         model=str(parsed.get("model") or fallback_model),
     )
 

@@ -41,14 +41,16 @@ from .agent.protocol import (
     validate_status_transition,
 )
 from .audit import normalize_permission_mode
-from .config import TRUTHY, normalize_reasoning_effort
+from .config import TRUTHY, normalize_model_name, normalize_reasoning_effort
 from .llm.usage import add_usage_totals, cache_summary
+from . import pricing
 from .session import SessionStore
 from .task_store import TaskStore
 from .task_contract import TASK_SCHEMA_VERSION, TaskRequest, TaskResult, resolve_task_permissions
 from .task_execution import WorkerDetached, WorkerSnapshotMirror, has_live_worker
 from .task_persistence import TaskSnapshotWriter
 from .tools.registry import redact_text
+from .workspaces import resolve_workspace_path
 
 if TYPE_CHECKING:
     from .web import AgentService
@@ -66,8 +68,8 @@ DEFAULT_TASK_COMPACTION_LIMIT = 64
 DEFAULT_TASK_QUEUE_LIMIT = 32
 TASK_SHUTDOWN_GRACE_SECONDS = 8.0
 COMPLETION_WRITE_TOOLS = frozenset({"write_file", "edit_file", "worktree_create", "worktree_remove"})
-READONLY_PLAN_KINDS = frozenset({"readonly", "review", "merge", "exec"})
-READONLY_PLAN_TOOLS = frozenset({"read_file", "grep", "git_status", "git_diff", "bash"})
+READONLY_PLAN_KINDS = frozenset({"readonly", "review", "merge"})
+READONLY_PLAN_TOOLS = frozenset({"read_file", "grep", "git_status", "git_diff"})
 CHANGE_INTENT_MARKERS = (
     "修复", "修改", "增加", "添加", "加上", "实现", "开发", "构建", "制作", "创建",
     "补齐", "优化", "重构", "更新", "删除", "移除", "继续做完", "落地", "写入",
@@ -348,6 +350,7 @@ class TaskRecord:
     allow_network: bool = False
     permission_mode: str = "default"
     reasoning_effort: str = "high"
+    model: str = ""
     attachments: list[dict[str, Any]] = field(default_factory=list, repr=False)
     workspace_path: str = ""
     task_kind: str = "task"
@@ -700,6 +703,7 @@ class TaskRecord:
                 "allow_network": self.allow_network,
                 "permission_mode": self.permission_mode,
                 "reasoning_effort": self.reasoning_effort,
+                "model": self.model,
                 "attachments": [
                     {
                         key: item.get(key)
@@ -735,6 +739,7 @@ class TaskRecord:
                 "schema_version": TASK_SCHEMA_VERSION,
                 **self.worker_metadata,
                 "tokens_used": dict(self.tokens_used),
+                "cost_usd": pricing.cost_usd(self.model, self.tokens_used),
                 "context": dict(self.context),
                 "usage_by_turn": list(self.usage_by_turn),
                 "compaction_events": list(self.compaction_events),
@@ -805,6 +810,7 @@ class TaskRecord:
                 "allow_network": self.allow_network,
                 "permission_mode": self.permission_mode,
                 "reasoning_effort": self.reasoning_effort,
+                "model": self.model,
                 "attachments": [
                     {
                         key: item.get(key)
@@ -833,6 +839,7 @@ class TaskRecord:
                 "finished_at": _iso(self.finished_at),
                 "duration_seconds": _duration_seconds(self.started_at, self.finished_at, self.status),
                 "tokens_used": dict(self.tokens_used),
+                "cost_usd": pricing.cost_usd(self.model, self.tokens_used),
                 "context": context,
                 "metrics": metrics,
                 "compaction_count": len(self.compaction_events),
@@ -871,6 +878,7 @@ class TaskRecord:
             allow_network=bool(data.get("allow_network")),
             permission_mode=_safe_permission_mode(data.get("permission_mode")),
             reasoning_effort=str(data.get("reasoning_effort") or "high"),
+            model=str(data.get("model") or ""),
             attachments=[dict(item) for item in data.get("attachments") or [] if isinstance(item, dict)],
             workspace_path=str(data.get("workspace_path") or ""),
             task_kind=str(data.get("task_kind") or "task"),
@@ -1223,10 +1231,12 @@ class TaskManager:
 
     def _workspace_path(self, payload: dict[str, Any]) -> str:
         """Capture the workspace supplied with the request at queue time."""
-        raw_path = payload.get("workspace_path")
-        candidate = Path(str(raw_path or getattr(self.service, "workspace", ""))).expanduser().resolve()
-        if not candidate.is_dir():
-            raise ValueError(f"工作区不是有效目录: {candidate}")
+        # M2-T1: submit entry shares the single workspace gate.
+        candidate = resolve_workspace_path(
+            payload.get("workspace_path"),
+            roots=tuple(getattr(self.service.config, "workspace_roots", ()) or ()),
+            default=Path(str(getattr(self.service, "workspace", ""))),
+        )
         return str(candidate)
 
     def submit(self, payload: dict[str, Any]) -> dict[str, Any]:
@@ -1257,9 +1267,24 @@ class TaskManager:
             )
         except ValueError as exc:
             raise ValueError(str(exc)) from None
+        try:
+            model = normalize_model_name(
+                payload.get("model"),
+                default=str(getattr(self.service.config, "model", "")),
+            )
+        except ValueError as exc:
+            raise ValueError(str(exc)) from None
         workspace_path = self._workspace_path(payload)
         normalized_attachments = _normalize_attachments(payload.get("attachments"))
         task_id = f"task-{uuid.uuid4().hex[:12]}"
+        # M3-T9: batch children reuse the parent's single persisted copy instead
+        # of writing the same bytes again under their own task_id.
+        if payload.get("_skip_attachment_persist"):
+            persisted_attachments = list(payload.get("_persisted_attachments") or [])
+        else:
+            persisted_attachments = self._persist_attachments(
+                Path(workspace_path), task_id, normalized_attachments
+            )
         task = TaskRecord(
             task_id=task_id,
             session_id=session_id,
@@ -1269,7 +1294,8 @@ class TaskManager:
             allow_network=allow_network,
             permission_mode=permission_mode,
             reasoning_effort=reasoning_effort,
-            attachments=self._persist_attachments(Path(workspace_path), task_id, normalized_attachments),
+            model=model,
+            attachments=persisted_attachments,
             workspace_path=workspace_path,
             task_kind=task_kind,
             event_limit=self.event_limit,
@@ -1310,6 +1336,13 @@ class TaskManager:
             )
         except ValueError as exc:
             raise ValueError(str(exc)) from None
+        try:
+            model = normalize_model_name(
+                payload.get("model"),
+                default=str(getattr(self.service.config, "model", "")),
+            )
+        except ValueError as exc:
+            raise ValueError(str(exc)) from None
         shared_context = str(payload.get("shared_context") or "").strip()
         orchestration_mode = str(payload.get("_orchestration_mode") or "manual")
         if orchestration_mode not in {"manual", "auto"}:
@@ -1328,6 +1361,7 @@ class TaskManager:
             allow_network=allow_network,
             permission_mode=permission_mode,
             reasoning_effort=reasoning_effort,
+            model=model,
             attachments=self._persist_attachments(Path(workspace_path), parent_task_id, normalized_attachments),
             workspace_path=workspace_path,
             task_kind="batch",
@@ -1346,6 +1380,12 @@ class TaskManager:
                 "plan_source": plan_result.source if plan_result is not None else "fixed",
                 "plan_fallback_reason": plan_result.reason if plan_result is not None else "",
                 "max_concurrency": int(getattr(self.service.config, "max_concurrent_tasks", 8)),
+                # M3-T9: persist the raw subtask prompts so an interrupted batch
+                # can be reconstructed exactly on auto-resume (a flattened
+                # single-task resume would lose every child prompt).
+                "batch_messages": list(messages),
+                "batch_shared_context": shared_context,
+                "batch_orchestration_mode": orchestration_mode,
             })
             if plan_result is not None and plan_result.source == "fixed_fallback":
                 parent.add_event({
@@ -1370,6 +1410,10 @@ class TaskManager:
             item["_skip_auto_orchestration"] = True
             item["_task_kind"] = "subtask"
             item["_defer_schedule"] = True
+            # M3-T9: reuse the parent's single persisted attachment copy so a
+            # 16-subtask batch does not write the same bytes 16 times.
+            item["_skip_attachment_persist"] = True
+            item["_persisted_attachments"] = parent.attachments
             if orchestration_mode == "auto":
                 # Parallel reconnaissance must never race with the parent or
                 # another child while editing the same workspace.
@@ -1426,7 +1470,10 @@ class TaskManager:
         if not task.attachments or not task.workspace_path:
             return []
         workspace = Path(task.workspace_path).expanduser().resolve()
-        attachment_root = (workspace / ".minicc" / "attachments" / task.task_id).resolve()
+        # M3-T9: batch children reference the parent's single persisted copy, so
+        # the root is the shared attachments dir (still traversal-safe) rather
+        # than this task's own id.
+        attachment_root = (workspace / ".minicc" / "attachments").resolve()
         output: list[dict[str, Any]] = []
         for item in task.attachments:
             raw_path = Path(str(item.get("path") or ""))
@@ -1610,6 +1657,7 @@ class TaskManager:
                     on_stream=on_merge_stream,
                     on_usage=on_merge_usage,
                     reasoning_effort=parent.reasoning_effort,
+                    model=parent.model,
                     workspace_path=parent.workspace_path,
                     cancel_event=parent.cancel_event,
                 )
@@ -1699,29 +1747,21 @@ class TaskManager:
         }
         return json.dumps(clean, ensure_ascii=False, default=str)
 
-    def _write_worker_config(self, task: TaskRecord, workspace: Path) -> Path | None:
-        """Persist Config to a 0600 file so api_key never appears in argv."""
-        payload = self._config_payload()
-        if not payload:
-            return None
+    def _sweep_stale_worker_configs(self, workspace: Path) -> None:
+        """M3-T6: delete any plaintext worker config left by older/crashed runs.
+
+        Configs (which contain the api_key) now travel over stdin and are never
+        written to disk. Any ``*.config.json`` still present is residue from a
+        prior version or a hard-killed worker, so it is removed before spawning.
+        """
         directory = workspace / ".minicc" / "worker"
-        directory.mkdir(parents=True, exist_ok=True)
-        path = directory / f"{task.task_id}.config.json"
-        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-        try:
-            with os.fdopen(fd, "w", encoding="utf-8") as handle:
-                handle.write(payload)
-        except Exception:
+        if not directory.is_dir():
+            return
+        for path in directory.glob("*.config.json"):
             try:
-                os.close(fd)
+                path.unlink(missing_ok=True)
             except OSError:
                 pass
-            raise
-        try:
-            os.chmod(path, 0o600)
-        except OSError:
-            pass
-        return path
 
     def _worker_command(
         self,
@@ -1729,7 +1769,7 @@ class TaskManager:
         workspace: Path,
         store_path: Path,
         cancel_file: Path,
-        config_file: Path | None,
+        use_config_stdin: bool,
     ) -> list[str]:
         command = [
             sys.executable, "-m", "minicc.task_worker",
@@ -1741,13 +1781,14 @@ class TaskManager:
             "--cancel-file", str(cancel_file),
             "--permission-mode", task.permission_mode,
             "--reasoning-effort", task.reasoning_effort,
+            "--model", task.model or str(getattr(self.service.config, "model", "")),
         ]
         if task.allow_changes:
             command.append("--allow-changes")
         if task.allow_network:
             command.append("--allow-network")
-        if config_file is not None:
-            command.extend(["--config-file", str(config_file)])
+        if use_config_stdin:
+            command.append("--config-stdin")
         if os.getenv("MINICC_FAKE_PROVIDER", "").strip().lower() in TRUTHY:
             command.append("--fake-provider")
         return command
@@ -1762,6 +1803,7 @@ class TaskManager:
             "allow_network": task.allow_network,
             "permission_mode": task.permission_mode,
             "reasoning_effort": task.reasoning_effort,
+            "model": task.model,
             "resume_from_checkpoint": bool(
                 isinstance(task.context.get("recovery"), dict)
                 and task.context["recovery"].get("resume_session")
@@ -1794,7 +1836,10 @@ class TaskManager:
                 if snapshot.get("status") in TERMINAL_TASK_STATUSES:
                     return mirror.result(snapshot)
                 raise RuntimeError(f"worker exited ({process.returncode}) without a terminal snapshot")
-            if process is None and snapshot and not has_live_worker(store, snapshot):
+            # M3-T6: recheck the lease even while the process handle is alive, so
+            # a hung worker that stopped heartbeating is detected and requeued
+            # instead of blocking forever on a live-but-stalled subprocess.
+            if snapshot and not has_live_worker(store, snapshot):
                 raise RuntimeError("worker execution lease expired before completion")
             time.sleep(0.2)
 
@@ -1830,28 +1875,44 @@ class TaskManager:
             return self._monitor_worker(task, store)
         cancel_file = workspace / ".minicc" / "cancel" / f"{task.task_id}.flag"
         request_file = workspace / ".minicc" / "worker" / f"{task.task_id}.request.json"
-        config_file = None
+        # M3-T6: the api_key now travels over stdin, never a 0600 file on disk.
+        self._sweep_stale_worker_configs(workspace)
+        config_payload = self._config_payload()
+        process = None
         try:
             cancel_file.parent.mkdir(parents=True, exist_ok=True)
-            config_file = self._write_worker_config(task, workspace)
             request_file.parent.mkdir(parents=True, exist_ok=True)
             fd = os.open(request_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
             with os.fdopen(fd, "w", encoding="utf-8") as handle:
                 json.dump(self._execution_request(task).to_payload(), handle, ensure_ascii=False)
-            command = self._worker_command(task, workspace, store.path, cancel_file, config_file)
+            command = self._worker_command(
+                task, workspace, store.path, cancel_file, bool(config_payload)
+            )
             command.extend(["--request-file", str(request_file), "--lease-owner", owner])
             child_env = os.environ.copy()
             source_root = str(Path(__file__).resolve().parent.parent)
             child_env["PYTHONPATH"] = source_root + (os.pathsep + child_env["PYTHONPATH"] if child_env.get("PYTHONPATH") else "")
             process = subprocess.Popen(
                 command, cwd=str(workspace), env=child_env,
+                stdin=subprocess.PIPE if config_payload else None,
                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             )
+            if config_payload and process.stdin is not None:
+                try:
+                    process.stdin.write(config_payload.encode("utf-8"))
+                    process.stdin.close()
+                except (BrokenPipeError, OSError):
+                    # The worker may have exited early (e.g. lost the lease race)
+                    # before draining stdin; the monitor loop surfaces that.
+                    pass
         except BaseException:
+            if process is not None and process.stdin is not None:
+                try:
+                    process.stdin.close()
+                except OSError:
+                    pass
             store.release_lease(task.task_id, owner)
             request_file.unlink(missing_ok=True)
-            if config_file:
-                config_file.unlink(missing_ok=True)
             raise
         self._detached_tasks.add(task.task_id)
         task.worker_metadata.update(worker_version=2, worker_pid=process.pid, lease_owner=owner)
@@ -1862,6 +1923,7 @@ class TaskManager:
                 self._detached_tasks.discard(task.task_id)
                 store.release_lease(task.task_id, owner)
                 cancel_file.unlink(missing_ok=True)
+                request_file.unlink(missing_ok=True)
 
     def _run(self, task: TaskRecord) -> None:
         cancelled_before_start = False
@@ -1978,6 +2040,12 @@ class TaskManager:
                         pass
                 elif failed and task.status != "cancelled" and not task.error:
                     task.error = str(result.get("error"))
+                # M2/M1 fix: finalize the checkpoint *while still holding the
+                # lock*, so a status poller can never observe `completed`
+                # with a stale (empty `paths`) checkpoint — the exact race
+                # test_task_manager_resume_reuses_only_unchanged_... hit.
+                if task.status in TERMINAL_TASK_STATUSES and task.checkpoint_dirty:
+                    self._update_checkpoint(task)
         except WorkerDetached:
             self._release_session_slot(task)
             return
@@ -2047,6 +2115,10 @@ class TaskManager:
         current = str(getattr(self.service, "workspace", ""))
         if task.workspace_path and current and _path_key(task.workspace_path) != _path_key(current):
             raise ValueError("请先切换到任务所属工作区，再重新运行任务")
+        if task.task_kind == "batch":
+            # M3-T9: a batch parent must be rebuilt with all subtask prompts,
+            # not flattened into a single task that loses every child.
+            return self._resume_batch(task)
         checkpoint = dict(task.checkpoint)
         workspace = Path(task.workspace_path).expanduser().resolve()
         checkpoint_digest = str(checkpoint.get("workspace_digest") or "")
@@ -2075,6 +2147,7 @@ class TaskManager:
             "allow_network": task.allow_network,
             "permission_mode": task.permission_mode,
             "reasoning_effort": task.reasoning_effort,
+            "model": task.model,
             "attachments": [
                 {
                     "name": item.get("name"),
@@ -2123,6 +2196,66 @@ class TaskManager:
             self._persist_task(resumed, force=True)
             self._queue_task_locked(resumed)
         return resumed.snapshot()
+
+    def _resume_batch(self, task: TaskRecord) -> dict[str, Any]:
+        """M3-T9: reconstruct an interrupted batch with every subtask prompt.
+
+        Flattening a batch parent into a single ``task`` resume loses all child
+        prompts. Rebuild via ``submit_batch`` from the prompts persisted in the
+        parent context, falling back to surviving child records.
+        """
+        context = task.context or {}
+        raw_messages = context.get("batch_messages")
+        if not isinstance(raw_messages, list) or not raw_messages:
+            raw_messages = [
+                self.tasks[child_id].message
+                for child_id in task.child_task_ids
+                if child_id in self.tasks
+            ]
+        messages = [str(item) for item in raw_messages if str(item).strip()]
+        if not messages:
+            raise ValueError("批量任务缺少子任务 prompt，无法恢复")
+        payload = {
+            "messages": messages,
+            "message": task.message,
+            "session_id": task.session_id,
+            "allow_changes": task.allow_changes,
+            "allow_network": task.allow_network,
+            "permission_mode": task.permission_mode,
+            "reasoning_effort": task.reasoning_effort,
+            "model": task.model,
+            "shared_context": context.get("batch_shared_context", ""),
+            "_orchestration_mode": context.get("batch_orchestration_mode", "manual"),
+            "attachments": [
+                {
+                    "name": item.get("name"),
+                    "mime_type": item.get("mime_type"),
+                    "data_url": _attachment_data_url(item),
+                }
+                for item in self._load_attachment_payloads(task)
+            ],
+            "workspace_path": task.workspace_path,
+        }
+        created = self.submit_batch(payload)
+        new_parent_id = str(created.get("task_id") or created.get("parent_task_id") or "")
+        with self.lock:
+            new_parent = self.tasks.get(new_parent_id)
+            if new_parent is not None:
+                new_parent.context = {
+                    **new_parent.context,
+                    "recovery": {"source_task_id": task.task_id, "mode": "batch_resume"},
+                }
+                new_parent.add_event({
+                    "kind": "trace",
+                    "name": "recovery",
+                    "status": "ok",
+                    "phase": "planning",
+                    "code": "batch_resume",
+                    "summary": f"已恢复批量任务，重建 {len(messages)} 个子任务",
+                    "detail": {"source_task_id": task.task_id, "child_count": len(messages)},
+                })
+                self._persist_task(new_parent, force=True)
+        return created
 
     def cancel(self, task_id: str) -> dict[str, Any]:
         with self.lock:

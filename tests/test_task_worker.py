@@ -139,6 +139,11 @@ def test_manager_process_mode_runs_task_in_subprocess(
         # The durable store holds the worker's own terminal snapshot too.
         stored = TaskStore(store_path).get(task_id)
         assert stored is not None and stored["status"] == "completed"
+        # M3-T6: the api_key travels over stdin, so no plaintext config file is
+        # ever written to the worker dir (and the request file is cleaned up).
+        worker_dir = tmp_path / ".minicc" / "worker"
+        assert not list(worker_dir.glob("*.config.json"))
+        assert not list(worker_dir.glob("*.request.json"))
     finally:
         service.shutdown()
 
@@ -222,7 +227,11 @@ def test_worker_survives_host_restart_and_continues_long_stream(
         assert final["status"] == "completed", final.get("error")
         assert final["stream_length"] > 16050
         assert "after-host-restart-fake-provider-answer" in final["stream_text"]
-        assert started_file.read_text(encoding="utf-8").splitlines() == ["started"]
+        # M4-T1: the fake provider now emits one readonly tool call before its
+        # final answer, so a completing task makes exactly two agent-stage model
+        # calls. Asserting the precise count still proves the survived worker
+        # was never re-spawned (a restart would duplicate the whole sequence).
+        assert started_file.read_text(encoding="utf-8").splitlines() == ["started", "started"]
         assert store.get(task_id)["status"] == "completed"
     finally:
         release_file.touch()

@@ -12,6 +12,42 @@ from typing import Any
 from .config import home_dir
 
 
+def resolve_workspace_path(
+    raw: object,
+    *,
+    roots: tuple[object, ...] | list[object] | None = None,
+    default: Path | None = None,
+) -> Path:
+    """Single gate for every workspace entry point (M2-T1).
+
+    Resolves ``raw`` (or ``default`` when empty), requires an existing
+    directory, and enforces ``workspace_roots`` when non-empty. All four
+    entries — switch_workspace, RPC, /api/chat, task submit — must call
+    this so ``workspace_roots=(A,)`` cannot be bypassed with B.
+    """
+    text = str(raw or "").strip()
+    if not text:
+        if default is None:
+            raise ValueError("工作区路径不能为空")
+        candidate = default.expanduser().resolve()
+    else:
+        candidate = Path(text).expanduser()
+        if not candidate.is_absolute():
+            candidate = Path.cwd() / candidate
+        candidate = candidate.resolve()
+    if not candidate.is_dir():
+        raise ValueError(f"工作区不是有效目录: {candidate}")
+    allowed = [Path(r).expanduser().resolve() for r in (roots or ()) if str(r or "").strip()]
+    if allowed and not any(
+        candidate == root or candidate.is_relative_to(root) for root in allowed
+    ):
+        shown = ", ".join(r.as_posix() for r in allowed)
+        raise ValueError(
+            f"工作区不在允许的目录白名单内: {candidate.as_posix()}（允许: {shown}）"
+        )
+    return candidate
+
+
 class WorkspaceCatalog:
     """Remember recently opened folders without storing model credentials."""
 
@@ -71,4 +107,4 @@ class WorkspaceCatalog:
         os.replace(temporary, self.path)
 
 
-__all__ = ["WorkspaceCatalog"]
+__all__ = ["WorkspaceCatalog", "resolve_workspace_path"]

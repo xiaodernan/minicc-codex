@@ -85,6 +85,10 @@
     workspacePath: "",
     workspaceInfo: null,
     contextWindowTokens: 3e5,
+    model: localStorage.getItem("minicc-model") || "",
+    models: [],
+    modelCatalogError: "",
+    modelCatalogLoading: false,
     reasoningEffort: ["low", "mid", "high", "xhigh", "max", "ultra"].includes(localStorage.getItem("minicc-reasoning")) ? localStorage.getItem("minicc-reasoning") : "high",
     busy: false,
     submitting: false,
@@ -429,12 +433,14 @@
       "panel.export": "\u5BFC\u51FA\u5F53\u524D\u5BF9\u8BDD",
       "panel.reload": "\u5237\u65B0\u5DE5\u4F5C\u533A\u72B6\u6001",
       "panel.noWorktrees": "\u5F53\u524D\u6CA1\u6709\u989D\u5916 worktree",
+      "panel.model": "\u6A21\u578B",
+      "panel.modelRefresh": "\u5237\u65B0\u6A21\u578B\u5217\u8868",
       "panel.hostProcess": "\u5BBF\u4E3B\u673A\u8FDB\u7A0B",
       "panel.isolated": "\u5DF2\u9694\u79BB",
       "panel.servers": "\u4E2A\u670D\u52A1",
       "panel.gitWorktrees": "Git worktree",
       "panel.reasoning": "\u63A8\u7406\u5F3A\u5EA6",
-      "panel.reasoningNote": "\u6309\u6A21\u578B\u652F\u6301\u4F20\u9012 low\u3001mid\u3001high\u3001xhigh\u3001max \u6216 ultra\uFF1B\u754C\u9762\u663E\u793A\u53EF\u5BA1\u8BA1\u9636\u6BB5\u6458\u8981\uFF0C\u4E0D\u5C55\u793A\u6A21\u578B\u79C1\u6709\u601D\u7EF4\u94FE",
+      "panel.reasoningNote": "\u6309\u6A21\u578B\u652F\u6301\u4F20\u9012 low\u3001medium\u3001high \u7B49\u6863\u4F4D\uFF08\u754C\u9762\u5185\u90E8\u7528 mid \u8868\u793A medium\uFF09\uFF1B\u4E0D\u652F\u6301\u65F6\u4F1A\u81EA\u52A8\u964D\u6863\uFF0C\u754C\u9762\u663E\u793A\u53EF\u5BA1\u8BA1\u9636\u6BB5\u6458\u8981\uFF0C\u4E0D\u5C55\u793A\u6A21\u578B\u79C1\u6709\u601D\u7EF4\u94FE",
       "reasoning.low": "\u4F4E",
       "reasoning.mid": "\u4E2D",
       "reasoning.high": "\u9AD8",
@@ -799,12 +805,14 @@
       "panel.export": "Export current chat",
       "panel.reload": "Refresh workspace status",
       "panel.noWorktrees": "No extra worktrees",
+      "panel.model": "Model",
+      "panel.modelRefresh": "Refresh model list",
       "panel.hostProcess": "host process",
       "panel.isolated": "isolated",
       "panel.servers": "servers",
       "panel.gitWorktrees": "Git worktrees",
       "panel.reasoning": "Reasoning effort",
-      "panel.reasoningNote": "Sends the supported low, mid, high, xhigh, max, or ultra level; the UI shows auditable stage summaries, never private chain-of-thought",
+      "panel.reasoningNote": "Uses low, medium, high and any supported higher level (the UI uses mid as the internal label for medium); unsupported levels fall back automatically. The UI shows auditable stage summaries, never private chain-of-thought",
       "reasoning.low": "Low",
       "reasoning.mid": "Mid",
       "reasoning.high": "High",
@@ -1738,7 +1746,7 @@
       const task = await requestJson("/api/tasks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message, attachments: queuedAttachments.map(({ name, mime_type, data_url }) => ({ name, mime_type, data_url })), session_id: sessionId, permission_mode: permissions.mode, allow_changes: permissions.allowChanges, allow_network: permissions.allowNetwork, reasoning_effort: state.reasoningEffort, workspace_path: workspacePath })
+        body: JSON.stringify({ message, model: state.model, attachments: queuedAttachments.map(({ name, mime_type, data_url }) => ({ name, mime_type, data_url })), session_id: sessionId, permission_mode: permissions.mode, allow_changes: permissions.allowChanges, allow_network: permissions.allowNetwork, reasoning_effort: state.reasoningEffort, workspace_path: workspacePath })
       });
       bindRunningTask(task, loadingId, sessionId);
       releaseSubmission();
@@ -1830,6 +1838,8 @@
       state.workspaceInfo = info;
       state.workspacePath = info.path || state.workspacePath;
       state.contextWindowTokens = Number(info.context_window_tokens || state.contextWindowTokens || 3e5);
+      if (!localStorage.getItem("minicc-model") && info.model) state.model = String(info.model);
+      void loadModelCatalog({ quiet: true });
       if (!localStorage.getItem("minicc-reasoning") && ["low", "mid", "high", "xhigh", "max", "ultra"].includes(info.reasoning_effort)) state.reasoningEffort = info.reasoning_effort;
       updateReasoningControl();
       const name = info.name || "workspace";
@@ -2084,15 +2094,56 @@
       openPanel(t("panel.workspaces"), `<div class="error-panel">${escapeHtml(error.message)}</div>`);
     }
   }
+  function modelOptionsMarkup() {
+    const current = state.model || "";
+    const models = Array.isArray(state.models) ? [...state.models] : [];
+    if (current && !models.some((item) => String(item?.id || "") === current)) models.unshift({ id: current });
+    if (!models.length) return `<option value="${escapeHtml(current)}">${escapeHtml(current || (state.locale === "zh" ? "\u672A\u52A0\u8F7D\u6A21\u578B" : "No model loaded"))}</option>`;
+    models.sort((left, right) => {
+      const a = String(left?.id || "");
+      const b = String(right?.id || "");
+      return a === current ? -1 : b === current ? 1 : a.localeCompare(b);
+    });
+    return models.map((item) => {
+      const id = String(item?.id || "");
+      const context = item?.context_length ? ` \xB7 ${item.context_length.toLocaleString()} ctx` : "";
+      return `<option value="${escapeHtml(id)}" ${id === current ? "selected" : ""}>${escapeHtml(id + context)}</option>`;
+    }).join("");
+  }
+  async function loadModelCatalog({ quiet = false } = {}) {
+    state.modelCatalogLoading = true;
+    try {
+      const data = await requestJson("/api/models", {}, 2e4);
+      const models = Array.isArray(data.models) ? data.models.filter((item) => item && item.id).map((item) => typeof item === "string" ? { id: item } : item) : [];
+      state.models = models;
+      state.modelCatalogError = String(data.error || "");
+      if (!localStorage.getItem("minicc-model") && data.default_model) state.model = String(data.default_model);
+      const select = $("#modelSelect");
+      if (select) {
+        select.innerHTML = modelOptionsMarkup();
+        select.value = state.model;
+      }
+      if (!quiet && state.modelCatalogError) showToast(state.modelCatalogError);
+      return data;
+    } catch (error) {
+      state.modelCatalogError = error.message;
+      if (!quiet) showToast(error.message);
+      return null;
+    } finally {
+      state.modelCatalogLoading = false;
+    }
+  }
   function openSettingsPanel() {
     const current = state.locale === "zh" ? "\u4E2D\u6587" : "English";
     const effortMarkup = ["low", "mid", "high", "xhigh", "max", "ultra"].map((effort) => '<option value="' + effort + '" ' + (state.reasoningEffort === effort ? "selected" : "") + ">" + escapeHtml(t("reasoning." + effort)) + "</option>").join("");
     const languageButtons = '<div class="settings-block"><span>' + t("panel.language") + "</span><strong>" + current + '</strong><div class="settings-locale"><button class="locale-option ' + (state.locale === "zh" ? "active" : "") + '" data-set-locale="zh">\u4E2D\u6587</button><button class="locale-option ' + (state.locale === "en" ? "active" : "") + '" data-set-locale="en">English</button></div></div>';
+    const modelNote = state.modelCatalogError || (state.locale === "zh" ? "\u4ECE\u5F53\u524D\u7F51\u5173\u8BFB\u53D6\u53EF\u7528\u6A21\u578B\uFF1B\u65B0\u7684\u4EFB\u52A1\u4F1A\u4F7F\u7528\u6B64\u9009\u62E9\u3002" : "Loads models from the configured gateway; new tasks use this choice.");
+    const modelBlock = `<div class="settings-block"><span>${t("panel.model")}</span><div class="settings-model"><select id="modelSelect" aria-label="${escapeHtml(t("panel.model"))}">${modelOptionsMarkup()}</select><button type="button" class="panel-secondary model-refresh" id="refreshModelCatalog" title="${escapeHtml(t("panel.modelRefresh"))}">\u21BB</button></div><small class="settings-note">${escapeHtml(modelNote)}</small></div>`;
     const reasoningBlock = '<div class="settings-block"><span>' + t("panel.reasoning") + '</span><div class="settings-effort"><select id="reasoningEffortSelect" aria-label="' + escapeHtml(t("panel.reasoning")) + '">' + effortMarkup + '</select></div><small class="settings-note">' + escapeHtml(t("panel.reasoningNote")) + "</small></div>";
     const sandboxBlock = '<div class="settings-block"><span>' + t("panel.sandbox") + "</span><strong>" + (state.locale === "zh" ? "\u89C1\u5DE5\u4F5C\u533A\u9762\u677F" : "See Workspaces") + "</strong></div>";
     const rewindBlock = '<div class="settings-block settings-rewind"><span>' + escapeHtml(t("rewind.advanced")) + '</span><form id="rewindForm" class="rewind-form"><label class="rewind-label"><span>' + escapeHtml(t("rewind.keepLabel")) + '</span><input id="rewindKeep" type="number" min="1" value="3" required aria-label="' + escapeHtml(t("rewind.keepLabel")) + '" /></label><button class="send-button rewind-button" type="submit">' + escapeHtml(t("rewind.action")) + '</button></form><small class="settings-note">' + escapeHtml(t("rewind.hint")) + "</small></div>";
     const allowlistBlock = '<div class="settings-block" id="allowlistEditor"><span>' + escapeHtml(t("allowlist.title")) + '</span><small class="settings-note">' + escapeHtml(t("allowlist.hint")) + '</small><form id="allowlistForm" class="allowlist-form"><label><span>' + escapeHtml(t("allowlist.commands")) + '</span><textarea id="allowlistCommands" rows="3"></textarea></label><label><span>' + escapeHtml(t("allowlist.paths")) + '</span><textarea id="allowlistPaths" rows="3"></textarea></label><label><span>' + escapeHtml(t("allowlist.tools")) + '</span><textarea id="allowlistTools" rows="2"></textarea></label><button class="send-button" type="submit">' + escapeHtml(t("allowlist.save")) + "</button></form></div>";
-    openPanel(t("panel.settings"), languageButtons + reasoningBlock + sandboxBlock + rewindBlock + allowlistBlock);
+    openPanel(t("panel.settings"), languageButtons + modelBlock + reasoningBlock + sandboxBlock + rewindBlock + allowlistBlock);
     bindAllowlistEditor();
     const rewindForm = $("#rewindForm");
     if (rewindForm) {
@@ -3285,7 +3336,9 @@
     const limit = Number(data.context?.limit_tokens || state.contextWindowTokens || 3e5);
     const estimated = data.tokens_used?.estimated || data.usage_by_turn?.some((item) => item.estimated);
     const tokenText = `${estimated ? "~" : ""}${compactNumber(tokens)} ${t("tasks.tokens")}`;
-    return `${tokenText} \xB7 ${compactNumber(context)}/${compactNumber(limit)} ${t("tasks.context")} \xB7 ${t("tasks.cache")} ${cacheMetric(data)}`;
+    const cost = typeof data.cost_usd === "number" ? data.cost_usd : NaN;
+    const costText = Number.isFinite(cost) ? ` \xB7 $${cost.toFixed(cost < 0.01 ? 4 : 2)}` : "";
+    return `${tokenText}${costText} \xB7 ${compactNumber(context)}/${compactNumber(limit)} ${t("tasks.context")} \xB7 ${t("tasks.cache")} ${cacheMetric(data)}`;
   }
   function renderVerification(data = state.lastTask) {
     const target = $("#verificationList");
@@ -4877,6 +4930,14 @@
       }
     });
     $("#panelBody").addEventListener("change", (event) => {
+      if (event.target.id === "modelSelect") {
+        const value2 = String(event.target.value || "").trim();
+        if (!value2) return;
+        state.model = value2;
+        localStorage.setItem("minicc-model", value2);
+        showToast(state.locale === "zh" ? "\u65B0\u7684\u4EFB\u52A1\u5C06\u4F7F\u7528 " + value2 : "New tasks will use " + value2);
+        return;
+      }
       if (event.target.id !== "reasoningEffortSelect") return;
       const value = event.target.value;
       if (!["low", "mid", "high", "xhigh", "max", "ultra"].includes(value)) return;
@@ -4886,6 +4947,12 @@
       showToast(state.locale === "zh" ? "\u65B0\u7684\u4EFB\u52A1\u5C06\u4F7F\u7528 " + t("reasoning." + value) + " \u63A8\u7406\u5F3A\u5EA6" : "New tasks will use " + t("reasoning." + value) + " reasoning effort");
     });
     $("#panelBody").addEventListener("click", async (event) => {
+      if (event.target.closest("#refreshModelCatalog")) {
+        event.preventDefault();
+        await loadModelCatalog();
+        openSettingsPanel();
+        return;
+      }
       const timelineToggle = event.target.closest("[data-timeline-toggle]");
       if (timelineToggle) {
         setTimelineDetails(timelineToggle.closest(".execution-trail"), timelineToggle.dataset.timelineToggle === "expand");
@@ -5030,7 +5097,7 @@
         try {
           const sharedContext = String(form2.elements.namedItem("shared_context")?.value || "").trim();
           const permissions = effectiveTaskPermissions();
-          const created = await requestJson("/api/tasks/batch", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages, shared_context: sharedContext, message: state.locale === "zh" ? "\u5E76\u884C\u6267\u884C\u591A\u4E2A\u72EC\u7ACB\u5B50\u4EFB\u52A1" : "Run independent subtasks in parallel", session_id: state.sessionId, permission_mode: permissions.mode, allow_changes: permissions.allowChanges, allow_network: permissions.allowNetwork, reasoning_effort: state.reasoningEffort, workspace_path: state.workspacePath }) });
+          const created = await requestJson("/api/tasks/batch", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages, model: state.model, shared_context: sharedContext, message: state.locale === "zh" ? "\u5E76\u884C\u6267\u884C\u591A\u4E2A\u72EC\u7ACB\u5B50\u4EFB\u52A1" : "Run independent subtasks in parallel", session_id: state.sessionId, permission_mode: permissions.mode, allow_changes: permissions.allowChanges, allow_network: permissions.allowNetwork, reasoning_effort: state.reasoningEffort, workspace_path: state.workspacePath }) });
           const task = await requestJson(`/api/tasks/${encodeURIComponent(created.task_id)}`);
           closePanel();
           addUserMessage(task.message || (state.locale === "zh" ? "\u5E76\u884C\u6267\u884C\u591A\u4E2A\u72EC\u7ACB\u5B50\u4EFB\u52A1" : "Run independent subtasks in parallel"));

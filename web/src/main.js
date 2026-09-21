@@ -2,7 +2,7 @@ import { requestJson } from "./core/transport.js";
 import { openArcade } from "./core/arcade.js";
 // ES module source for the minicc workbench. Bundled by scripts/build-web.mjs.
 import { escapeHtml, loadTaskHistory, persistSessionView, renderSession, renderTaskHistory, sessionViewKey } from "./chat/markdown.js";
-import { addImageFiles, cancelActiveTask, closePanel, exportChat, loadWorkspace, openActivityPanel, openBatchPanel, openHelpPanel, openOptionsPanel, openPanel, openPromoPanel, openSettingsPanel, openTaskDetail, openTaskInWorkspace, openTaskListPanel, openWorkspacesPanel, renderAttachmentTray, resetTask, restoreTaskSnapshot, rewindToUserIndex, runDemoFlow, sendMessage, switchInspectorTab, togglePanelFullscreen, watchTask } from "./chat/stream.js";
+import { addImageFiles, cancelActiveTask, closePanel, exportChat, loadModelCatalog, loadWorkspace, openActivityPanel, openBatchPanel, openHelpPanel, openOptionsPanel, openPanel, openPromoPanel, openSettingsPanel, openTaskDetail, openTaskInWorkspace, openTaskListPanel, openWorkspacesPanel, renderAttachmentTray, resetTask, restoreTaskSnapshot, rewindToUserIndex, runDemoFlow, sendMessage, switchInspectorTab, togglePanelFullscreen, watchTask } from "./chat/stream.js";
 import { applyTaskEvent, setTimelineDetails, syncLiveEvents, updateBoundTask, updateLiveTask } from "./core/api.js";
 import { t } from "./core/i18n.js";
 import { applyFocusMode, applyLocale, applyPaneLayout, finishStartupSplash, prepareStartupSplash, setFocusMode, setInspectorCollapsed, setLocale, setSidebarCollapsed, setStartupSplashError, setTheme } from "./core/locale.js";
@@ -225,6 +225,14 @@ export function bindUI() {
     }
   });
   $("#panelBody").addEventListener("change", (event) => {
+    if (event.target.id === "modelSelect") {
+      const value = String(event.target.value || "").trim();
+      if (!value) return;
+      state.model = value;
+      localStorage.setItem("minicc-model", value);
+      showToast(state.locale === "zh" ? "新的任务将使用 " + value : "New tasks will use " + value);
+      return;
+    }
     if (event.target.id !== "reasoningEffortSelect") return;
     const value = event.target.value;
     if (!["low", "mid", "high", "xhigh", "max", "ultra"].includes(value)) return;
@@ -234,6 +242,12 @@ export function bindUI() {
     showToast(state.locale === "zh" ? "新的任务将使用 " + t("reasoning." + value) + " 推理强度" : "New tasks will use " + t("reasoning." + value) + " reasoning effort");
   });
   $("#panelBody").addEventListener("click", async (event) => {
+    if (event.target.closest("#refreshModelCatalog")) {
+      event.preventDefault();
+      await loadModelCatalog();
+      openSettingsPanel();
+      return;
+    }
     const timelineToggle = event.target.closest("[data-timeline-toggle]");
     if (timelineToggle) {
       setTimelineDetails(timelineToggle.closest(".execution-trail"), timelineToggle.dataset.timelineToggle === "expand");
@@ -324,7 +338,7 @@ export function bindUI() {
       try {
         const sharedContext = String(form.elements.namedItem("shared_context")?.value || "").trim();
         const permissions = effectiveTaskPermissions();
-        const created = await requestJson("/api/tasks/batch", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages, shared_context: sharedContext, message: state.locale === "zh" ? "并行执行多个独立子任务" : "Run independent subtasks in parallel", session_id: state.sessionId, permission_mode: permissions.mode, allow_changes: permissions.allowChanges, allow_network: permissions.allowNetwork, reasoning_effort: state.reasoningEffort, workspace_path: state.workspacePath }) });
+        const created = await requestJson("/api/tasks/batch", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages, model: state.model, shared_context: sharedContext, message: state.locale === "zh" ? "并行执行多个独立子任务" : "Run independent subtasks in parallel", session_id: state.sessionId, permission_mode: permissions.mode, allow_changes: permissions.allowChanges, allow_network: permissions.allowNetwork, reasoning_effort: state.reasoningEffort, workspace_path: state.workspacePath }) });
         const task = await requestJson(`/api/tasks/${encodeURIComponent(created.task_id)}`);
         closePanel();
         addUserMessage(task.message || (state.locale === "zh" ? "并行执行多个独立子任务" : "Run independent subtasks in parallel"));

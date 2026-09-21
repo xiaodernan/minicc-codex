@@ -43,4 +43,16 @@
 .venv/Scripts/python.exe -m pytest tests/test_benchmark_runner.py tests/test_behavior_bench.py -q -o addopts=''
 ```
 
-2026-09-18 本轮结果：23 项通过（9.78 秒），`output/benchmark-hardening-checks.xml` 留存 JUnit；随后补充 Ctrl+C 中断保存与资源生命周期处理，runner 的 12 项定向检查再次通过。没有运行全量回归或使用真实模型生成新的准确率结论。
+2026-09-21 复现结果：上面「评测器定向检查」命令逐字输出 `27 passed in 9.48s`（数字随这两套测试的用例数变化，务必以命令实际输出为准，不要手改本行；如需更新请重跑该命令并原样回填）。`output/benchmark-hardening-checks.xml` 可留存 JUnit。没有运行全量回归或使用真实模型生成新的准确率结论。
+
+## 检索决策门（M4-T7，2026-09-21）
+
+`minicc/agent/retrieval.py` 是确定性的 token + path + symbol 词法打分，自述「不是向量数据库」。M4-T7 不直接上 embedding，而是先用「已知答案定位」数据集 `benchmarks/retrieval-hitrate.json`（20 条，每条 = 开发者提问 + 应答的仓库相对文件）量化词法基线，指标为 `recall@k = |targets ∩ top-k| / |targets|` 按 case 求均值，MRR 取首个命中目标排名倒数。复现命令：
+
+```powershell
+.venv/Scripts/python.exe -m minicc.benchmarks --suite retrieval --json-out output/retrieval.json --markdown-out output/retrieval.md
+```
+
+本轮基线（在本仓库自身上检索）：`recall@1=0.65`、`recall@5=0.90`、`MRR=0.75`、`cases=20`。
+
+**书面结论**：`recall@5=0.90 >= 0.60`（路线图设定的引入门槛），词法基线已能可靠定位已知答案，**不引入向量检索**，停止在 embedding 上的投入。该结论由 `tests/test_retrieval_eval.py::test_real_dataset_clears_floor_backing_the_written_conclusion` 守护——一旦数据集 `recall@5` 跌破门槛，测试即红，提醒重新评估。CI 仅记录这些数值、不门禁（首轮只建基线）。注意 `recall` 受文件 mtime 新鲜度加权影响，跨机器可能在 ±0.05 抖动，但 0.90 对 0.60 的门槛有充足余量。

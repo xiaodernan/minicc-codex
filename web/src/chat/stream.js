@@ -241,7 +241,7 @@ export async function sendMessage(event) {
     const task = await requestJson("/api/tasks", {
      method: "POST",
      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message, attachments: queuedAttachments.map(({ name, mime_type, data_url }) => ({ name, mime_type, data_url })), session_id: sessionId, permission_mode: permissions.mode, allow_changes: permissions.allowChanges, allow_network: permissions.allowNetwork, reasoning_effort: state.reasoningEffort, workspace_path: workspacePath }),
+      body: JSON.stringify({ message, model: state.model, attachments: queuedAttachments.map(({ name, mime_type, data_url }) => ({ name, mime_type, data_url })), session_id: sessionId, permission_mode: permissions.mode, allow_changes: permissions.allowChanges, allow_network: permissions.allowNetwork, reasoning_effort: state.reasoningEffort, workspace_path: workspacePath }),
     });
     bindRunningTask(task, loadingId, sessionId);
     releaseSubmission();
@@ -333,8 +333,10 @@ export async function loadWorkspace() {
     const previousPath = state.workspacePath;
     if (previousPath && info.path && previousPath !== info.path) persistSessionView();
     state.workspaceInfo = info;
-   state.workspacePath = info.path || state.workspacePath;
-   state.contextWindowTokens = Number(info.context_window_tokens || state.contextWindowTokens || 300000);
+    state.workspacePath = info.path || state.workspacePath;
+    state.contextWindowTokens = Number(info.context_window_tokens || state.contextWindowTokens || 300000);
+    if (!localStorage.getItem("minicc-model") && info.model) state.model = String(info.model);
+    void loadModelCatalog({ quiet: true });
     if (!localStorage.getItem("minicc-reasoning") && ["low", "mid", "high", "xhigh", "max", "ultra"].includes(info.reasoning_effort)) state.reasoningEffort = info.reasoning_effort;
     updateReasoningControl();
     const name = info.name || "workspace";
@@ -615,15 +617,58 @@ export async function openWorkspacesPanel() {
   }
 }
 
+function modelOptionsMarkup() {
+  const current = state.model || "";
+  const models = Array.isArray(state.models) ? [...state.models] : [];
+  if (current && !models.some((item) => String(item?.id || "") === current)) models.unshift({ id: current });
+  if (!models.length) return `<option value="${escapeHtml(current)}">${escapeHtml(current || (state.locale === "zh" ? "未加载模型" : "No model loaded"))}</option>`;
+  models.sort((left, right) => {
+    const a = String(left?.id || "");
+    const b = String(right?.id || "");
+    return (a === current ? -1 : b === current ? 1 : a.localeCompare(b));
+  });
+  return models.map((item) => {
+    const id = String(item?.id || "");
+    const context = item?.context_length ? ` · ${item.context_length.toLocaleString()} ctx` : "";
+    return `<option value="${escapeHtml(id)}" ${id === current ? "selected" : ""}>${escapeHtml(id + context)}</option>`;
+  }).join("");
+}
+
+export async function loadModelCatalog({ quiet = false } = {}) {
+  state.modelCatalogLoading = true;
+  try {
+    const data = await requestJson("/api/models", {}, 20000);
+    const models = Array.isArray(data.models) ? data.models.filter((item) => item && item.id).map((item) => typeof item === "string" ? { id: item } : item) : [];
+    state.models = models;
+    state.modelCatalogError = String(data.error || "");
+    if (!localStorage.getItem("minicc-model") && data.default_model) state.model = String(data.default_model);
+    const select = $("#modelSelect");
+    if (select) {
+      select.innerHTML = modelOptionsMarkup();
+      select.value = state.model;
+    }
+    if (!quiet && state.modelCatalogError) showToast(state.modelCatalogError);
+    return data;
+  } catch (error) {
+    state.modelCatalogError = error.message;
+    if (!quiet) showToast(error.message);
+    return null;
+  } finally {
+    state.modelCatalogLoading = false;
+  }
+}
+
 export function openSettingsPanel() {
   const current = state.locale === "zh" ? "中文" : "English";
   const effortMarkup = ["low", "mid", "high", "xhigh", "max", "ultra"].map((effort) => "<option value=\"" + effort + "\" " + (state.reasoningEffort === effort ? "selected" : "") + ">" + escapeHtml(t("reasoning." + effort)) + "</option>").join("");
   const languageButtons = "<div class=\"settings-block\"><span>" + t("panel.language") + "</span><strong>" + current + "</strong><div class=\"settings-locale\"><button class=\"locale-option " + (state.locale === "zh" ? "active" : "") + "\" data-set-locale=\"zh\">中文</button><button class=\"locale-option " + (state.locale === "en" ? "active" : "") + "\" data-set-locale=\"en\">English</button></div></div>";
+  const modelNote = state.modelCatalogError || (state.locale === "zh" ? "从当前网关读取可用模型；新的任务会使用此选择。" : "Loads models from the configured gateway; new tasks use this choice.");
+  const modelBlock = `<div class="settings-block"><span>${t("panel.model")}</span><div class="settings-model"><select id="modelSelect" aria-label="${escapeHtml(t("panel.model"))}">${modelOptionsMarkup()}</select><button type="button" class="panel-secondary model-refresh" id="refreshModelCatalog" title="${escapeHtml(t("panel.modelRefresh"))}">↻</button></div><small class="settings-note">${escapeHtml(modelNote)}</small></div>`;
   const reasoningBlock = "<div class=\"settings-block\"><span>" + t("panel.reasoning") + "</span><div class=\"settings-effort\"><select id=\"reasoningEffortSelect\" aria-label=\"" + escapeHtml(t("panel.reasoning")) + "\">" + effortMarkup + "</select></div><small class=\"settings-note\">" + escapeHtml(t("panel.reasoningNote")) + "</small></div>";
   const sandboxBlock = "<div class=\"settings-block\"><span>" + t("panel.sandbox") + "</span><strong>" + (state.locale === "zh" ? "见工作区面板" : "See Workspaces") + "</strong></div>";
   const rewindBlock = "<div class=\"settings-block settings-rewind\"><span>" + escapeHtml(t("rewind.advanced")) + "</span><form id=\"rewindForm\" class=\"rewind-form\"><label class=\"rewind-label\"><span>" + escapeHtml(t("rewind.keepLabel")) + "</span><input id=\"rewindKeep\" type=\"number\" min=\"1\" value=\"3\" required aria-label=\"" + escapeHtml(t("rewind.keepLabel")) + "\" /></label><button class=\"send-button rewind-button\" type=\"submit\">" + escapeHtml(t("rewind.action")) + "</button></form><small class=\"settings-note\">" + escapeHtml(t("rewind.hint")) + "</small></div>";
   const allowlistBlock = "<div class=\"settings-block\" id=\"allowlistEditor\"><span>" + escapeHtml(t("allowlist.title")) + "</span><small class=\"settings-note\">" + escapeHtml(t("allowlist.hint")) + "</small><form id=\"allowlistForm\" class=\"allowlist-form\"><label><span>" + escapeHtml(t("allowlist.commands")) + "</span><textarea id=\"allowlistCommands\" rows=\"3\"></textarea></label><label><span>" + escapeHtml(t("allowlist.paths")) + "</span><textarea id=\"allowlistPaths\" rows=\"3\"></textarea></label><label><span>" + escapeHtml(t("allowlist.tools")) + "</span><textarea id=\"allowlistTools\" rows=\"2\"></textarea></label><button class=\"send-button\" type=\"submit\">" + escapeHtml(t("allowlist.save")) + "</button></form></div>";
-  openPanel(t("panel.settings"), languageButtons + reasoningBlock + sandboxBlock + rewindBlock + allowlistBlock);
+  openPanel(t("panel.settings"), languageButtons + modelBlock + reasoningBlock + sandboxBlock + rewindBlock + allowlistBlock);
   bindAllowlistEditor();
   const rewindForm = $("#rewindForm");
   if (rewindForm) {

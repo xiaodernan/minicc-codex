@@ -66,6 +66,17 @@ def _config_from_file(path: str | None) -> Any | None:
     return _config_from_json(raw)
 
 
+def _config_from_stdin() -> Any | None:
+    """M3-T6: read the service config (incl. api_key) from stdin, never disk."""
+    try:
+        raw = sys.stdin.read()
+    except (OSError, ValueError):
+        return None
+    if not raw.strip():
+        return None
+    return _config_from_json(raw)
+
+
 def _snapshot(
     task_id: str,
     *,
@@ -82,6 +93,7 @@ def _snapshot(
     allow_network: bool,
     permission_mode: str,
     session_id: str,
+    model: str = "",
     stream_length: int | None = None,
     created_at: float | None = None,
     lease_owner: str = "",
@@ -107,6 +119,7 @@ def _snapshot(
         "allow_changes": allow_changes,
         "allow_network": allow_network,
         "permission_mode": permission_mode,
+        "model": model,
         "worker_version": WORKER_VERSION,
         "worker_pid": os.getpid(),
         "lease_owner": lease_owner,
@@ -133,7 +146,11 @@ def _run_owned_worker(args: argparse.Namespace, workspace: Path, store: TaskStor
         _install_fake_provider()
 
     service_kwargs: dict[str, Any] = {}
-    config = _config_from_file(getattr(args, "config_file", None))
+    config = None
+    if getattr(args, "config_stdin", False):
+        config = _config_from_stdin()
+    if config is None:
+        config = _config_from_file(getattr(args, "config_file", None))
     if config is None:
         config = _config_from_json(args.config_json)
     config = SimpleNamespace(**{**vars(config), "task_worker_runtime": True, "auto_resume_on_start": False})
@@ -168,6 +185,7 @@ def _run_owned_worker(args: argparse.Namespace, workspace: Path, store: TaskStor
             "message": args.message, "session_id": args.session_id, "workspace_path": str(workspace),
             "allow_changes": bool(args.allow_changes), "allow_network": bool(args.allow_network),
             "permission_mode": args.permission_mode, "reasoning_effort": args.reasoning_effort,
+            "model": args.model,
         })
 
     def _flush() -> None:
@@ -190,6 +208,7 @@ def _run_owned_worker(args: argparse.Namespace, workspace: Path, store: TaskStor
                     allow_network=request.allow_network,
                     permission_mode=request.permission_mode,
                     session_id=request.session_id,
+                    model=request.model,
                     stream_length=state["stream_length"], created_at=created_at, lease_owner=lease_owner,
                 )
                 snapshot["reasoning_effort"] = request.reasoning_effort
@@ -323,12 +342,14 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--cancel-file", default=None, help="Poll this file; its creation cancels the task")
     parser.add_argument("--config-json", default=None, help="Inline service config (tests only); defaults to load_config()")
     parser.add_argument("--config-file", default=None, help="Path to a 0600 JSON config written by the web worker launcher")
+    parser.add_argument("--config-stdin", action="store_true", help="Read the service config JSON from stdin (M3-T6: keeps api_key off disk)")
     parser.add_argument("--request-file", default=None, help="Versioned task request including attachments and recovery context")
     parser.add_argument("--lease-owner", default=None, help="Execution lease reserved by the launcher")
     parser.add_argument("--allow-changes", action="store_true")
     parser.add_argument("--allow-network", action="store_true")
     parser.add_argument("--permission-mode", default="default")
     parser.add_argument("--reasoning-effort", default="high")
+    parser.add_argument("--model", default="")
     parser.add_argument("--fake-provider", action="store_true", help="Test-only deterministic provider")
     return parser
 

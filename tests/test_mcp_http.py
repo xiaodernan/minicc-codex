@@ -130,7 +130,10 @@ def test_http_client_handshake_tools_and_call(mcp_url: str) -> None:
     assert [tool["name"] for tool in tools] == ["echo"]
     result = client.call_tool("echo", {"text": "你好"})
     assert result.status == "ok"
-    assert "echo: 你好" in result.output
+    # M5-T1: MCP output now flows through split_output into head/tail (the
+    # model-facing render()), so a 500k-char server reply can't flood the
+    # prompt. Assert on render(), not the now-empty raw .output.
+    assert "echo: 你好" in result.render()
     assert "untrusted" in result.security_tags
     client.close()
 

@@ -26,6 +26,39 @@ When you have the final answer for the user and need no tool, respond with
 plain text (no JSON object)."""
 MAX_REPAIR_CONTENT_CHARS = 12_000
 
+# M1-T7: process-wide monotonic counter for synthetic envelope ids. The old
+# ``id(obj) & 0xFFFFFF`` reused one id per session (same dict address), so
+# compaction could drop early tool rounds and trip protocol validation.
+_envelope_seq = 0
+
+
+def _next_envelope_id() -> str:
+    global _envelope_seq
+    _envelope_seq += 1
+    return f"envelope-{_envelope_seq:08x}"
+
+
+def _render_envelope_action(call: dict[str, Any]) -> str:
+    """Render one assistant tool_call as the JSON action the model sent.
+
+    Used when native tool history must be replayed through the envelope
+    wire format (M1-T7): previously these turns collapsed to empty content
+    and the tool intent was lost.
+    """
+    function = call.get("function") if isinstance(call, dict) else None
+    name = ""
+    params: Any = {}
+    if isinstance(function, dict):
+        name = str(function.get("name") or "")
+        raw_arguments = function.get("arguments") or "{}"
+        try:
+            params = json.loads(raw_arguments) if isinstance(raw_arguments, str) else dict(raw_arguments)
+        except (json.JSONDecodeError, TypeError, ValueError):
+            params = {"_raw": str(raw_arguments)}
+    if not isinstance(params, dict):
+        params = {"_raw": str(params)}
+    return json.dumps({"action": name, "params": params}, ensure_ascii=False)
+
 
 def envelope_system_suffix(tools_json: str) -> str:
     return (
@@ -142,7 +175,7 @@ def parse_envelope(content: str) -> dict[str, Any] | None:
     if not isinstance(params, dict):
         raise EnvelopeParseError(f"信封 params 不是对象: {str(params)[:80]!r}", content=content)
     return {
-        "id": f"envelope-{id(obj) & 0xFFFFFF:x}",
+        "id": _next_envelope_id(),
         "type": "function",
         "function": {"name": action, "arguments": json.dumps(params, ensure_ascii=False)},
     }

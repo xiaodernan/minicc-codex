@@ -53,7 +53,8 @@ from tenacity import (
 )
 
 from .base import LLMResponse
-from .envelope import envelope_system_suffix, parse_envelope
+from .envelope import _render_envelope_action, envelope_system_suffix, parse_envelope
+from .stream_merge import accumulate_attempt_text, merge_retry_snapshot
 from .usage import cache_summary
 
 _RETRYABLE = (
@@ -93,7 +94,10 @@ _MALFORMED_RESPONSE_HINTS = (
 TOOLS_REJECTION_HINTS = ("tool", "function")
 REASONING_WIRE_VALUES = {
     "low": "low",
-    "mid": "mid",
+    # Keep ``mid`` as the internal/UI label, but use the OpenAI/StepFun wire
+    # spelling.  StepFun documents the middle tier as ``medium`` and rejects
+    # ``mid`` instead of treating it as an alias.
+    "mid": "medium",
     "high": "high",
     "xhigh": "xhigh",
     "max": "max",
@@ -162,8 +166,19 @@ def _is_malformed_response_error(exc: BaseException) -> bool:
     return any(marker in text for marker in _MALFORMED_RESPONSE_HINTS)
 
 
+class StreamProtocolError(RuntimeError):
+    """The stream ended without a finish_reason: a protocol violation.
+
+    This is never a transient transport failure — retrying would resend the
+    full context and tool schemas (up to 5x per turn by default) against a
+    gateway that can never complete. Fail fast with one request instead.
+    """
+
+
 def _is_stream_retryable(exc: BaseException) -> bool:
     """The gateway can fail while an already-open chunked body is read."""
+    if isinstance(exc, StreamProtocolError):
+        return False
     if isinstance(exc, _STREAM_RETRYABLE) or isinstance(exc, _BUILTIN_STREAM_RETRYABLE):
         return True
     # A few compatible gateways leak the transport error as a generic SDK
@@ -202,7 +217,6 @@ def _is_stream_retryable(exc: BaseException) -> bool:
             # transient response failure and let the bounded recovery path
             # decide whether to retry or stop.
             *_MALFORMED_RESPONSE_HINTS,
-            "stream ended before completion",
         )
     )
 
@@ -238,20 +252,33 @@ def _stream_retry_delay(exc: BaseException, attempt: int) -> float:
 
 
 def _merge_stream_text(previous: str, current: str) -> tuple[str, str]:
-    """Merge a retried full response and return only the new suffix."""
-    if not previous:
-        return current, current
-    if not current:
-        return previous, ""
-    if current.startswith(previous):
-        return current, current[len(previous):]
-    if previous.startswith(current):
-        return previous, ""
-    max_overlap = min(len(previous), len(current))
-    for size in range(max_overlap, 0, -1):
-        if previous[-size:] == current[:size]:
-            return previous + current[size:], current[size:]
-    return previous + current, current
+    """Merge a retried full response and return only the new suffix.
+
+    Kept for backwards compatibility (tests import it directly); new code
+    should use :mod:`minicc.llm.stream_merge` — ``append_delta`` for
+    incremental fragments, ``merge_retry_snapshot`` for retry snapshots.
+    """
+    return merge_retry_snapshot(previous, current)
+
+
+def _unique_tool_call_id(raw_id: str, fallback: str, seen: set[str] | None = None) -> str:
+    """Return a non-empty, unique tool_call id for one response.
+
+    Gateways may omit ids or reuse one id across calls; the agent loop and
+    ``repair_interrupted_tool_rounds`` key tool results by id, so a
+    duplicate silently drops or misroutes a result. First use wins for a
+    given raw id; later duplicates and empty ids get ``<base>-dup<N>``.
+    """
+    base = (raw_id or "").strip() or fallback
+    if seen is None:
+        return base
+    candidate = base
+    counter = 1
+    while candidate in seen:
+        counter += 1
+        candidate = f"{base}-dup{counter}"
+    seen.add(candidate)
+    return candidate
 
 
 def _read_field(obj: Any, name: str, default: Any = None) -> Any:
@@ -311,17 +338,29 @@ def _parse_usage(usage: Any) -> dict[str, Any]:
         (input_details, "cache_creation_input_tokens"),
     )
     if cache_hit is not None:
-        parsed["prompt_cache_hit_tokens"] = cache_hit
+        try:
+            parsed["prompt_cache_hit_tokens"] = int(cache_hit)
+        except (TypeError, ValueError):
+            pass
     if cache_miss is not None:
-        parsed["prompt_cache_miss_tokens"] = cache_miss
+        try:
+            parsed["prompt_cache_miss_tokens"] = int(cache_miss)
+        except (TypeError, ValueError):
+            pass
     if cache_write is not None:
-        parsed["prompt_cache_write_tokens"] = cache_write
+        try:
+            parsed["prompt_cache_write_tokens"] = int(cache_write)
+        except (TypeError, ValueError):
+            pass
     details = _read_field(usage, "completion_tokens_details") or _read_field(usage, "output_tokens_details")
     reasoning = _read_field(details, "reasoning_tokens") if details is not None else None
     if reasoning is None:
         reasoning = _read_field(usage, "reasoning_tokens")
     if reasoning is not None:
-        parsed["reasoning_tokens"] = reasoning
+        try:
+            parsed["reasoning_tokens"] = int(reasoning)
+        except (TypeError, ValueError):
+            pass
     parsed.update(cache_summary(parsed))
     return parsed
 
@@ -754,11 +793,16 @@ class OpenAICompatibleProvider:
         output = _read_field(response, "output", []) or []
         text_parts: list[str] = []
         calls: list[dict[str, Any]] = []
-        for item in output:
+        seen_ids: set[str] = set()
+        for index, item in enumerate(output):
             item_type = str(_read_field(item, "type", ""))
             if item_type == "function_call":
                 calls.append({
-                    "id": str(_read_field(item, "call_id", "") or _read_field(item, "id", "call-0")),
+                    "id": _unique_tool_call_id(
+                        str(_read_field(item, "call_id", "") or _read_field(item, "id", "")),
+                        f"responses-{index}",
+                        seen_ids,
+                    ),
                     "type": "function",
                     "function": {
                         "name": str(_read_field(item, "name", "")),
@@ -875,14 +919,17 @@ class OpenAICompatibleProvider:
                         continue
                     content = getattr(delta, "content", None)
                     if content:
-                        attempt_text, _ = _merge_stream_text(attempt_text, str(content))
-                        committed_text, suffix = _merge_stream_text(committed_text, attempt_text)
+                        # M1-T3: one attempt may carry incremental fragments
+                        # (append) or cumulative snapshots (prefix-detect).
+                        # Never overlap-dedup incremental fragments (P0-1).
+                        attempt_text, _ = accumulate_attempt_text(attempt_text, str(content))
+                        committed_text, suffix = merge_retry_snapshot(committed_text, attempt_text)
                         if suffix:
                             on_delta(suffix)
                     reasoning = getattr(delta, "reasoning_content", None)
                     if reasoning:
-                        attempt_reasoning, _ = _merge_stream_text(attempt_reasoning, str(reasoning))
-                        committed_reasoning, _ = _merge_stream_text(committed_reasoning, attempt_reasoning)
+                        attempt_reasoning, _ = accumulate_attempt_text(attempt_reasoning, str(reasoning))
+                        committed_reasoning, _ = merge_retry_snapshot(committed_reasoning, attempt_reasoning)
                     for tc in getattr(delta, "tool_calls", None) or ():
                         index = getattr(tc, "index", 0) or 0
                         slot = tool_acc.setdefault(
@@ -893,12 +940,12 @@ class OpenAICompatibleProvider:
                         function = getattr(tc, "function", None)
                         if function is not None:
                             if getattr(function, "name", None):
-                                slot["name"], _ = _merge_stream_text(slot["name"], str(function.name))
+                                slot["name"] = slot["name"] + str(function.name)
                             if getattr(function, "arguments", None):
-                                slot["arguments"], _ = _merge_stream_text(slot["arguments"], str(function.arguments))
+                                slot["arguments"] = slot["arguments"] + str(function.arguments)
 
                 if not stream_completed:
-                    raise RuntimeError("stream ended before completion")
+                    raise StreamProtocolError("stream ended before completion")
                 response = LLMResponse(
                     content=committed_text or None,
                     reasoning_content=committed_reasoning or None,
@@ -933,13 +980,15 @@ class OpenAICompatibleProvider:
     @staticmethod
     def _assembled_tool_calls(acc: dict[int, dict[str, Any]]) -> list[dict[str, Any]]:
         calls: list[dict[str, Any]] = []
+        seen_ids: set[str] = set()
         for index in sorted(acc):
             slot = acc[index]
             if not slot["name"]:
                 continue
+            call_id = _unique_tool_call_id(str(slot["id"] or ""), f"call-{index}", seen_ids)
             calls.append(
                 {
-                    "id": slot["id"] or f"call-{index}",
+                    "id": call_id,
                     "type": "function",
                     "function": {
                         "name": slot["name"],
@@ -968,11 +1017,12 @@ class OpenAICompatibleProvider:
         if not reasoning:
             reasoning = getattr(choice, "reasoning_content", None)
         tool_calls = []
-        for tc in getattr(msg, "tool_calls", None) or ():
+        seen_ids: set[str] = set()
+        for index, tc in enumerate(getattr(msg, "tool_calls", None) or ()):
             function = getattr(tc, "function", None)
             tool_calls.append(
                 {
-                    "id": getattr(tc, "id", None) or "call-0",
+                    "id": _unique_tool_call_id(str(getattr(tc, "id", None) or ""), f"call-{index}", seen_ids),
                     "type": "function",
                     "function": {
                         "name": getattr(function, "name", "") if function else "",
@@ -1025,8 +1075,12 @@ class OpenAICompatibleProvider:
                 continue
             flush_results()
             if role == "assistant" and msg.get("tool_calls"):
-                # The envelope turn's JSON action already lives in content.
-                wire.append({"role": "assistant", "content": msg.get("content") or ""})
+                # M1-T7: the envelope turn's JSON action must survive the
+                # replay — previously this collapsed to empty content.
+                actions = [_render_envelope_action(call) for call in msg.get("tool_calls") or []]
+                prior = str(msg.get("content") or "").strip()
+                body = "\n".join([prior, *actions]) if prior else "\n".join(actions)
+                wire.append({"role": "assistant", "content": body})
                 continue
             wire.append(dict(msg))
         flush_results()

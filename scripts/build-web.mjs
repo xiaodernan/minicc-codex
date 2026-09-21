@@ -5,7 +5,7 @@
 //
 // Usage: node scripts/build-web.mjs [--check]
 
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
@@ -80,6 +80,32 @@ for (const [name, source, loader] of [
   const asset = `assets/${name.slice(0, dot)}.${hash}${name.slice(dot)}`;
   manifest[`/${name}`] = `/${asset}`;
   writeIfNeeded(join(outDir, asset), code);
-  if (name === "app.js" && !check) writeFileSync(join(outDir, "app.min.js"), code, "utf8");
 }
 writeIfNeeded(join(outDir, "asset-manifest.json"), JSON.stringify(manifest, null, 2) + "\n");
+
+// Content-hashed bundles accumulate one file per build. Only the three the
+// manifest references are ever served (static_assets.py resolves logical paths
+// through it), so prune the rest. In --check mode an unreferenced bundle is a
+// freshness failure: CI must catch stale-asset buildup, not just stale app.js.
+const assetsDir = join(outDir, "assets");
+const referenced = new Set(Object.values(manifest).map((asset) => asset.split("/").pop()));
+let stale = [];
+try {
+  stale = readdirSync(assetsDir).filter((name) => !referenced.has(name));
+} catch {
+  stale = [];
+}
+if (check) {
+  if (stale.length) {
+    console.error(
+      `web/assets has ${stale.length} bundle(s) not referenced by asset-manifest.json ` +
+      `(${stale.join(", ")}) — run \`npm run build:web\``,
+    );
+    process.exitCode = 1;
+  } else if (process.exitCode !== 1) {
+    console.log(`web/assets is clean (${referenced.size} referenced bundle(s))`);
+  }
+} else {
+  for (const name of stale) rmSync(join(assetsDir, name), { force: true });
+  if (stale.length) console.log(`pruned ${stale.length} stale asset bundle(s)`);
+}
