@@ -1,9 +1,11 @@
-"""Configuration loading: .env in cwd → environment → ~/.minicc/config.json.
+"""Configuration loading: .env in cwd → environment → project → user config.
 
 Precedence (highest wins): explicit constructor args > environment variables >
-.env file in the current directory > config file > defaults. Values are plain
-strings/ints/bools — no schema machinery, but nothing silently defaults when
-the user explicitly set something invalid: a malformed .env line is reported.
+.env file in the current directory > project config
+(`<workspace>/.minicc/config.json`) > user config (`~/.minicc/config.json`) >
+defaults. Values are plain strings/ints/bools — no schema machinery, but
+nothing silently defaults when the user explicitly set something invalid: a
+malformed .env line or a non-object config.json is reported as ConfigError.
 """
 
 from __future__ import annotations
@@ -14,6 +16,7 @@ import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 # Default to the configured OpenAI-compatible gateway; callers can still
 # override it through environment variables or explicit CLI arguments.
@@ -95,10 +98,35 @@ def normalize_model_name(value: object | None, *, default: str | None = None) ->
 
 
 def home_dir() -> Path:
+    """Resolve the config root (``~/.minicc`` or ``MINICC_HOME``) read-only.
+
+    M7-T4: this getter never creates directories — callers that write under
+    the root mkdir their own target path. A ``MINICC_HOME`` that points at an
+    existing non-directory is a user typo and must surface as ConfigError,
+    not silently relocate (or crash later with FileExistsError).
+    """
     override = os.getenv("MINICC_HOME")
-    root = Path(override) if override else Path.home() / ".minicc"
-    root.mkdir(parents=True, exist_ok=True)
+    if not override:
+        return Path.home() / ".minicc"
+    root = Path(override)
+    if root.exists() and not root.is_dir():
+        raise ConfigError(f"MINICC_HOME 指向的路径不是目录: {root}")
     return root
+
+
+def _read_config_json(path: Path) -> dict[str, Any]:
+    """Load one config.json layer; a non-object top level is a ConfigError."""
+    if not path.is_file():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as exc:
+        raise ConfigError(f"无法读取 {path}: {exc}") from exc
+    if not isinstance(data, dict):
+        raise ConfigError(
+            f"{path}: 顶层必须是 JSON 对象，实际是 {type(data).__name__}"
+        )
+    return data
 
 
 def _parse_env_file(path: Path) -> dict[str, str]:
@@ -188,8 +216,9 @@ class Config:
     subagent_max_depth: int = DEFAULT_SUBAGENT_MAX_DEPTH
 
     def describe(self) -> str:
-        key = self.api_key
-        shown = key if len(key) <= 12 else key[:8] + "..." + key[-4:]
+        # M7-T4: never echo any fragment of the api key — even head+tail
+        # leaked enough to correlate logs with a specific credential.
+        key_state = "set" if self.api_key else "unset"
         delegation = (
             f"subagent=delegated(depth<={self.subagent_max_depth})"
             if self.subagent_writable else "subagent=readonly"
@@ -197,7 +226,7 @@ class Config:
         return (
             f"model={self.model} endpoint={self.base_url} "
             f"tool_mode={self.tool_mode} protocol={self.llm_protocol} "
-            f"reasoning={self.reasoning_effort} key={shown} {delegation}"
+            f"reasoning={self.reasoning_effort} key={key_state} {delegation}"
         )
 
 
@@ -209,15 +238,23 @@ def load_config(
     reasoning_effort: str | None = None,
     tool_mode: str | None = None,
     yolo: bool | None = None,
+    workspace: Path | None = None,
 ) -> Config:
-    """Resolve config from args > env (incl. .env) > config file > defaults."""
-    file_values: dict[str, str] = {}
-    config_file = home_dir() / "config.json"
-    if config_file.is_file():
-        try:
-            file_values = json.loads(config_file.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError) as exc:
-            raise ConfigError(f"无法读取 {config_file}: {exc}") from exc
+    """Resolve config: args > env vars > .env > project > user > defaults.
+
+    M7-T4: when ``workspace`` is given, ``<workspace>/.minicc/config.json``
+    forms a project-level layer that overrides the user-level
+    ``~/.minicc/config.json`` key by key (still below `.env` and the
+    environment, per the documented precedence).
+    """
+    user_values = _read_config_json(home_dir() / "config.json")
+    project_values: dict[str, Any] = {}
+    if workspace is not None:
+        project_values = _read_config_json(
+            Path(workspace) / ".minicc" / "config.json"
+        )
+    # Project keys win over user keys; both stay below env/.env in pick().
+    file_values: dict[str, Any] = {**user_values, **project_values}
 
     env_values = _parse_env_file(Path(".env"))
 
@@ -231,6 +268,18 @@ def load_config(
             return "1" if value else "0"
         return str(value)
 
+    def _present(value: object) -> bool:
+        # M7-T4: `if value:` discarded an explicit JSON 0/false, so a user
+        # could not turn a knob off via config.json. Only None and empty
+        # strings (or empty collections) mean "not configured" here.
+        if value is None:
+            return False
+        if isinstance(value, str):
+            return value != ""
+        if isinstance(value, (list, tuple, dict)):
+            return len(value) > 0
+        return True
+
     def pick(arg: str | None, env_name: str, file_key: str, default: str) -> str:
         if arg is not None:
             return arg
@@ -241,13 +290,13 @@ def load_config(
         # and silently overrode `.env` and config.json.
         for source in (os.environ, env_values, file_values):
             value = source.get(env_name)
-            if value:
+            if _present(value):
                 return _stringify(value)
         # config.json and .env use lowercase keys without the prefix;
         # os.environ must never be probed with the bare key.
         for source in (env_values, file_values):
             value = source.get(file_key)
-            if value:
+            if _present(value):
                 return _stringify(value)
         return default
 

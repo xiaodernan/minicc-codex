@@ -6,6 +6,7 @@ import argparse
 import asyncio
 import json
 import sys
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, Callable, NoReturn
 
@@ -14,7 +15,7 @@ from .agent.state import Budget
 from .agent.subagent import build_task_tool_spec
 from .allowlist import AllowlistError, add_session_rule
 from .audit import authorize_tool
-from .config import Config, ConfigError, load_config
+from .config import Config, ConfigError, load_config, normalize_model_name
 from .commands import discover_commands, expand_slash_command
 from .hooks import HookRunner
 from .llm.base import system_msg, user_msg
@@ -145,6 +146,16 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--reasoning-effort", choices=("low", "mid", "high", "xhigh", "max", "ultra"), help="推理强度")
     parser.add_argument("--tool-mode", choices=("auto", "native", "envelope"), help="工具调用模式")
     parser.add_argument("--compact-threshold", type=int, help="上下文压缩字符阈值")
+    parser.add_argument("--max-turns", type=int, help="显式设置硬轮数预算（默认不限）")
+    parser.add_argument("--timeout", type=float, help="单次 provider 调用超时秒数")
+    parser.add_argument("--context-window", type=int, help="上下文窗口 token 数")
+    parser.add_argument("--soft-max-tokens", type=int, help="软 token 预算（触发收尾，不硬中断）")
+    parser.add_argument("--max-concurrent-tasks", type=int, help="并发任务上限 (1-64)")
+    parser.add_argument("--sandbox", choices=("auto", "host", "docker"), help="命令执行沙箱模式")
+    parser.add_argument("--provider-type", choices=("auto", "openai", "anthropic"), help="provider 协议类型")
+    parser.add_argument("--fallback-models", help="逗号分隔的降级模型列表")
+    parser.add_argument("--task-executor", choices=("thread", "process"), help="任务执行器")
+    parser.add_argument("--auto-resume", action="store_true", help="web 启动时自动重排中断任务")
     parser.add_argument("--yolo", action="store_true", help="自动允许写文件和执行命令")
     parser.add_argument(
         "--allow-network",
@@ -166,15 +177,74 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _load(args: argparse.Namespace) -> Config:
-    return load_config(
+def _load(args: argparse.Namespace, workspace: Path | None = None) -> Config:
+    config = load_config(
         base_url=args.base_url,
         api_key=args.api_key,
         model=args.model,
         reasoning_effort=args.reasoning_effort,
         tool_mode=args.tool_mode,
         yolo=True if args.yolo else None,
+        workspace=workspace,
     )
+    return _apply_cli_overrides(config, args)
+
+
+def _apply_cli_overrides(config: Config, args: argparse.Namespace) -> Config:
+    """M7-T4: explicit CLI flags override any config layer or raise ConfigError."""
+    updates: dict[str, Any] = {}
+
+    def _positive(name: str, value: Any, *, number: type = int) -> Any:
+        try:
+            parsed = number(value)
+        except (TypeError, ValueError):
+            raise ConfigError(f"--{name} 不是有效数字: {value!r}") from None
+        if parsed <= 0:
+            raise ConfigError(f"--{name} 必须为正数，得到 {parsed}")
+        return parsed
+
+    if args.compact_threshold is not None:
+        updates["compact_threshold"] = max(10_000, int(args.compact_threshold))
+    if args.max_turns is not None:
+        updates["max_turns"] = _positive("max-turns", args.max_turns)
+    if args.timeout is not None:
+        updates["timeout"] = _positive("timeout", args.timeout, number=float)
+    if args.context_window is not None:
+        updates["context_window_tokens"] = _positive("context-window", args.context_window)
+    if args.soft_max_tokens is not None:
+        updates["soft_max_tokens"] = _positive("soft-max-tokens", args.soft_max_tokens)
+    if args.max_concurrent_tasks is not None:
+        tasks = _positive("max-concurrent-tasks", args.max_concurrent_tasks)
+        if tasks > 64:
+            raise ConfigError(f"--max-concurrent-tasks 超过上限 64: {tasks}")
+        updates["max_concurrent_tasks"] = tasks
+    if args.sandbox:
+        updates["sandbox_mode"] = args.sandbox
+    if args.task_executor:
+        updates["task_executor"] = args.task_executor
+    if args.provider_type:
+        if args.provider_type == "auto":
+            haystack = f"{config.base_url} {config.model}".lower()
+            updates["provider_type"] = (
+                "anthropic" if "anthropic" in haystack or config.model.startswith("claude")
+                else "openai"
+            )
+        else:
+            updates["provider_type"] = args.provider_type
+    if args.fallback_models:
+        models: list[str] = []
+        for raw_model in args.fallback_models.replace(";", ",").split(","):
+            name = raw_model.strip()
+            if not name or name == config.model or name in models:
+                continue
+            try:
+                models.append(normalize_model_name(name))
+            except ValueError as exc:
+                raise ConfigError(f"--fallback-models 含非法模型名: {exc}") from None
+        updates["fallback_models"] = tuple(models)
+    if args.auto_resume:
+        updates["auto_resume_on_start"] = True
+    return replace(config, **updates) if updates else config
 
 
 def _tool_preview(call: ToolCall) -> str:
@@ -403,16 +473,16 @@ def _fatal(message: str) -> NoReturn:
 
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
-    try:
-        config = _load(args)
-    except ConfigError as exc:
-        _fatal(str(exc))
-
+    # M7-T4: resolve the workspace before loading config so the project
+    # layer (<workspace>/.minicc/config.json) participates in resolution.
     workspace = args.workspace.expanduser().resolve()
     if not workspace.is_dir():
         _fatal(f"工作区不是目录: {workspace}")
-    if args.compact_threshold is not None:
-        config.compact_threshold = max(10_000, args.compact_threshold)
+    try:
+        config = _load(args, workspace)
+    except ConfigError as exc:
+        _fatal(str(exc))
+
     if args.print_config:
         print(config.describe())
         print(f"workspace={workspace}")

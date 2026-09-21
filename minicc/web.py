@@ -1943,7 +1943,7 @@ def main(argv: list[str] | None = None) -> int:
     if not workspace.is_dir():
         parser.error(f"工作区不是目录: {workspace}")
     try:
-        config = load_config()
+        config = load_config(workspace=workspace)
     except ConfigError as exc:
         parser.error(str(exc))
     explicit_token = args.token
