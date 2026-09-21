@@ -267,6 +267,15 @@ def _tool_preview(call: ToolCall) -> str:
     return json.dumps(call.arguments, ensure_ascii=False)[:240]
 
 
+def _describe_tool(registry: ToolRegistry, name: str) -> str:
+    """One /tools line: name plus the declared risk and capabilities."""
+    spec = registry.spec(name)
+    if spec is None:
+        return name
+    caps = f" {'+'.join(spec.capabilities)}" if spec.capabilities else ""
+    return f"{name} [{spec.risk}{caps}]"
+
+
 def _permission_gate(
     config: Config,
     registry: ToolRegistry,
@@ -287,6 +296,7 @@ def _permission_gate(
             permission_mode="yolo" if config.yolo else permission_mode,
             session_id=session_id,
             workspace=workspace,
+            capabilities=registry.capabilities_of(name),
         )
         if decision.allowed:
             return True
@@ -425,7 +435,7 @@ async def _interactive(
                     print(f"  /{command.name}{hint} — {command.description} [{command.scope}]")
             continue
         if prompt == "/tools":
-            print("\n".join(registry.names()))
+            print("\n".join(_describe_tool(registry, name) for name in registry.names()))
             continue
         if prompt == "/status":
             print(config.describe())

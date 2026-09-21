@@ -30,6 +30,7 @@ from minicc.agent.completion import (
     _transcript_items,
     build_completion_review_prompt,
     judge_completion,
+    parse_completion_decision,
 )
 from minicc.llm.base import LLMResponse
 from minicc.task_manager import _completion_followup
@@ -167,6 +168,50 @@ def test_transcript_is_redacted_and_bounded() -> None:
     )
     assert "sk-abcdefgh12345678" not in prompt
     assert "REDACTED" in prompt
+
+
+# --- reviewer JSON dialect: null means "none", not "broken" -----------------
+# Observed live (M8-T3 real-API E2E): the reviewer returned a correctly cited
+# complete verdict with ``"next_action": null``; the strict type check threw
+# that verdict away as ``unknown`` and the task only converged because the
+# caller happened to retry once. Non-string, non-null types stay faults.
+
+def _complete_payload(**overrides: Any) -> str:
+    base: dict[str, Any] = {
+        "status": "complete",
+        "confidence": 0.95,
+        "rationale": "已核对 url_head 的工具结果",
+        "missing": [],
+        "next_action": "",
+        "evidence": ["event-2"],
+    }
+    base.update(overrides)
+    return json.dumps(base, ensure_ascii=False)
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [{"next_action": None}, {"missing": None}, {"next_action": None, "missing": None}],
+)
+def test_null_optional_reviewer_fields_still_certify_completion(overrides: dict) -> None:
+    decision = parse_completion_decision(_complete_payload(**overrides))
+    assert decision.status == "complete", decision.error
+    assert decision.next_action == ""
+    assert decision.missing == []
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"next_action": ["做这个"]},
+        {"next_action": 7},
+        {"missing": "缺少验证"},
+        {"missing": [None]},
+        {"rationale": None},
+    ],
+)
+def test_structurally_wrong_reviewer_fields_stay_evaluator_faults(overrides: dict) -> None:
+    assert parse_completion_decision(_complete_payload(**overrides)).status == "unknown"
 
 
 class _ScriptedJudge:

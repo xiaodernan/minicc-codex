@@ -1189,6 +1189,7 @@ class AgentService:
                 permission_mode=permission_mode,
                 session_id=session_id,
                 workspace=workspace,
+                capabilities=registry.capabilities_of(name),
             )
             if (
                 not decision.allowed
@@ -1525,6 +1526,7 @@ class AgentService:
                                 allow_network=allow_network,
                                 session_id=session_id,
                                 workspace=workspace,
+                                capabilities=node_registry.capabilities_of(name),
                             )
                             event = decision.to_event(name)
                             emit(event)

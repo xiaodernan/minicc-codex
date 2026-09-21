@@ -456,12 +456,20 @@ def parse_completion_decision(text: str) -> CompletionDecision:
         if not required.issubset(payload) or not decision.rationale or not decision.evidence:
             decision.status = "unknown"
             decision.error = "完成评估缺少验收说明、证据或必填字段"
-        elif not isinstance(payload.get("missing"), list) or not all(isinstance(item, str) for item in payload["missing"]):
+        elif payload.get("missing") is not None and (
+            not isinstance(payload["missing"], list)
+            or not all(isinstance(item, str) for item in payload["missing"])
+        ):
             decision.status = "unknown"
             decision.error = "完成评估 missing 必须为字符串数组"
-        elif not isinstance(payload.get("rationale"), str) or not isinstance(payload.get("next_action"), str):
+        elif not isinstance(payload.get("rationale"), str) or not (
+            isinstance(payload.get("next_action"), str) or payload.get("next_action") is None
+        ):
+            # ``next_action: null`` is JSON for "nothing left to do", which is
+            # exactly what a complete verdict means; rejecting it threw away a
+            # correctly cited review and cost a retry round (real-API E2E).
             decision.status = "unknown"
-            decision.error = "完成评估 rationale 和 next_action 必须为字符串"
+            decision.error = "完成评估 rationale 必须为字符串，next_action 必须为字符串或 null"
         elif not isinstance(payload.get("evidence"), list) or not all(isinstance(item, str) and item.strip() for item in payload["evidence"]):
             decision.status = "unknown"
             decision.error = "完成评估 evidence 必须为非空字符串数组"

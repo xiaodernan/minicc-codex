@@ -1,10 +1,17 @@
-"""Versionless tool registry — adapted from specproof craft/tools.py.
+"""Tool registry with a stable, versioned plugin contract (M8-T3).
 
 Kept from the original: strict parameter validation (type / required /
 bounds / max_len) with field-naming errors, risk levels that drive the
 permission policy, stable [CODE] error prefixes, secret redaction and
-head/tail truncation. Dropped: envelope versioning and budget cost models
-(single-user CLI does not need them).
+head/tail truncation. Dropped: specproof's envelope versioning and budget
+cost models (single-user CLI does not need them) — ``api_version`` below is a
+*tool* contract, not a message envelope.
+
+Added here: every ``ToolSpec`` carries an ``api_version`` and a
+``capabilities`` declaration, ``register()`` validates the whole contract
+before a tool becomes callable, and a name conflict never silently replaces
+an existing (typically built-in) tool unless the caller says ``override=True``.
+See ``docs/PLUGIN_API.md``.
 """
 
 from __future__ import annotations
@@ -26,6 +33,33 @@ CODE_TOOL_ERROR = "TOOL_ERROR"
 CODE_DENIED = "DENIED"
 
 RISK_LEVELS = ("readonly", "write", "exec")
+
+# Stable plugin contract. Bump TOOL_API_VERSION only when a field changes
+# meaning; a spec may never assume a *newer* contract than the host runs.
+TOOL_API_VERSION = 1
+_MIN_TOOL_API_VERSION = 1
+
+RISK_ORDER: dict[str, int] = {"readonly": 0, "write": 1, "exec": 2}
+
+# What a tool declares it can touch. The declaration can only ever *tighten*
+# the permission policy (see minicc.audit.authorize_tool); omitting it grants
+# nothing extra. Each capability has a minimum risk level, so a tool that
+# admits to writing files cannot hide behind risk="readonly".
+CAPABILITY_MIN_RISK: dict[str, str] = {
+    "fs_read": "readonly",
+    "network": "readonly",
+    "fs_write": "write",
+    "shell": "exec",
+}
+CAPABILITIES = tuple(CAPABILITY_MIN_RISK)
+
+PARAM_TYPES = ("str", "int", "bool", "list[str]")
+
+# Registry-safe names: what the wire protocol and the MCP bridge
+# (``mcp__server__tool``, truncated at 128, disambiguated with ``~hash``)
+# actually produce.
+_TOOL_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.\-~]{0,127}$")
+_PARAM_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 _REDACT_RULES: tuple[tuple[re.Pattern[str], str], ...] = (
     # Do not match the ``sk-`` substring inside identifiers such as
@@ -75,6 +109,10 @@ class ToolError(RuntimeError):
 
 class ToolParamError(ToolError):
     """Parameter validation failed (INVALID_ARGUMENTS)."""
+
+
+class ToolRegistrationError(ValueError):
+    """A ToolSpec violated the plugin contract; the tool was not registered."""
 
 
 def error_result(code: str, message: str) -> ToolResult:
@@ -145,6 +183,8 @@ class ToolSpec:
     visible: bool = True  # False → listed for the model but hidden from /tools detail
     input_schema: dict[str, Any] | None = None
     cancellable: bool = False
+    api_version: int = TOOL_API_VERSION
+    capabilities: tuple[str, ...] = ()
 
     def openai_schema(self) -> dict[str, Any]:
         if self.input_schema is not None:
@@ -182,17 +222,191 @@ class ToolSpec:
         }
 
 
+def validate_tool_spec(spec: ToolSpec) -> None:
+    """Check the stable contract before a tool becomes callable.
+
+    Every message names the offending field, so a plugin author can fix the
+    spec without reading this module. Raises :class:`ToolRegistrationError`.
+    """
+    if not isinstance(spec.name, str) or not _TOOL_NAME_RE.match(spec.name):
+        raise ToolRegistrationError(
+            f"ToolSpec.name 非法: {spec.name!r}"
+            "（需要 1-128 位，以字母或数字开头，只允许字母、数字、_ . - ~）"
+        )
+    if not isinstance(spec.description, str) or not spec.description.strip():
+        raise ToolRegistrationError(f"工具 {spec.name!r} 的 description 必须是非空字符串")
+    if spec.risk not in RISK_LEVELS:
+        raise ToolRegistrationError(
+            f"工具 {spec.name!r} 的 risk 非法: {spec.risk!r}（可选: {', '.join(RISK_LEVELS)}）"
+        )
+    if isinstance(spec.api_version, bool) or not isinstance(spec.api_version, int):
+        raise ToolRegistrationError(
+            f"工具 {spec.name!r} 的 api_version 必须是整数，收到 {spec.api_version!r}"
+        )
+    if spec.api_version > TOOL_API_VERSION:
+        raise ToolRegistrationError(
+            f"工具 {spec.name!r} 要求工具接口版本 {spec.api_version}，"
+            f"当前 minicc 支持到 {TOOL_API_VERSION}；请升级 minicc 或降低 api_version"
+        )
+    if spec.api_version < _MIN_TOOL_API_VERSION:
+        raise ToolRegistrationError(
+            f"工具 {spec.name!r} 的工具接口版本 {spec.api_version} 已不再支持"
+            f"（当前: {TOOL_API_VERSION}）"
+        )
+    if not callable(spec.handler):
+        raise ToolRegistrationError(
+            f"工具 {spec.name!r} 的 handler 必须可调用，收到 {type(spec.handler).__name__}"
+        )
+    _validate_params(spec)
+    _validate_capabilities(spec)
+    if spec.input_schema is not None:
+        if spec.params:
+            raise ToolRegistrationError(
+                f"工具 {spec.name!r} 同时声明了 params 与 input_schema，只能选一种"
+                "（提供 input_schema 时 params 永远不会生效）"
+            )
+        _validate_input_schema(spec)
+
+
+def _validate_params(spec: ToolSpec) -> None:
+    params = spec.params
+    if isinstance(params, (str, bytes)) or not isinstance(params, (tuple, list)):
+        raise ToolRegistrationError(
+            f"工具 {spec.name!r} 的 params 必须是 Param 元组，收到 {type(params).__name__}"
+        )
+    seen: set[str] = set()
+    for param in params:
+        if not isinstance(param, Param):
+            raise ToolRegistrationError(
+                f"工具 {spec.name!r} 的 params 含非 Param 项: {param!r}"
+            )
+        if not _PARAM_NAME_RE.match(str(param.name)):
+            raise ToolRegistrationError(
+                f"工具 {spec.name!r} 的参数名非法: {param.name!r}"
+                "（需要字母或下划线开头，后接字母、数字、下划线）"
+            )
+        if param.name in seen:
+            raise ToolRegistrationError(
+                f"工具 {spec.name!r} 的参数 {param.name!r} 重复声明"
+            )
+        seen.add(param.name)
+        if param.type not in PARAM_TYPES:
+            raise ToolRegistrationError(
+                f"工具 {spec.name!r} 的参数 {param.name!r} 类型非法: {param.type!r}"
+                f"（可选: {', '.join(PARAM_TYPES)}）"
+            )
+        if param.min_value is not None and param.max_value is not None and param.min_value > param.max_value:
+            raise ToolRegistrationError(
+                f"工具 {spec.name!r} 的参数 {param.name!r} 区间非法: "
+                f"min_value={param.min_value} > max_value={param.max_value}"
+            )
+        if param.max_len is not None and param.max_len < 1:
+            raise ToolRegistrationError(
+                f"工具 {spec.name!r} 的参数 {param.name!r} max_len 必须 ≥ 1，收到 {param.max_len}"
+            )
+
+
+def _validate_capabilities(spec: ToolSpec) -> None:
+    capabilities = spec.capabilities
+    if isinstance(capabilities, (str, bytes)) or not isinstance(capabilities, (tuple, list)):
+        raise ToolRegistrationError(
+            f"工具 {spec.name!r} 的 capabilities 必须是字符串元组，收到 {type(capabilities).__name__}"
+        )
+    for capability in capabilities:
+        if not isinstance(capability, str):
+            raise ToolRegistrationError(
+                f"工具 {spec.name!r} 的 capabilities 含非字符串项: {capability!r}"
+            )
+        minimum = CAPABILITY_MIN_RISK.get(capability)
+        if minimum is None:
+            raise ToolRegistrationError(
+                f"工具 {spec.name!r} 声明了未知能力 {capability!r}"
+                f"（可选: {', '.join(CAPABILITIES)}）"
+            )
+        if RISK_ORDER[spec.risk] < RISK_ORDER[minimum]:
+            raise ToolRegistrationError(
+                f"工具 {spec.name!r} 声明能力 {capability!r} 却使用了 risk={spec.risk!r}"
+                f"；该能力至少需要 risk={minimum!r}"
+            )
+
+
+def _validate_input_schema(spec: ToolSpec) -> None:
+    schema = spec.input_schema
+    name = spec.name
+    if not isinstance(schema, dict):
+        raise ToolRegistrationError(
+            f"工具 {name!r} 的 input_schema 必须是对象，收到 {type(schema).__name__}"
+        )
+    declared_type = schema.get("type", "object")
+    if declared_type != "object":
+        raise ToolRegistrationError(
+            f"工具 {name!r} 的 input_schema 顶层 type 必须是 \"object\"，收到 {declared_type!r}"
+        )
+    properties = schema.get("properties")
+    if properties is not None:
+        if not isinstance(properties, dict):
+            raise ToolRegistrationError(
+                f"工具 {name!r} 的 input_schema.properties 必须是对象"
+            )
+        for key, value in properties.items():
+            if not isinstance(key, str) or not key:
+                raise ToolRegistrationError(
+                    f"工具 {name!r} 的 input_schema.properties 含非法属性名: {key!r}"
+                )
+            if not isinstance(value, dict):
+                raise ToolRegistrationError(
+                    f"工具 {name!r} 的 input_schema.properties[{key!r}] 必须是对象，"
+                    f"收到 {type(value).__name__}"
+                )
+    required = schema.get("required", [])
+    if not isinstance(required, list) or any(not isinstance(item, str) for item in required):
+        raise ToolRegistrationError(
+            f"工具 {name!r} 的 input_schema.required 必须是字符串数组"
+        )
+    if isinstance(properties, dict):
+        unknown = [item for item in required if item not in properties]
+        if unknown:
+            raise ToolRegistrationError(
+                f"工具 {name!r} 的 input_schema.required 引用了未声明的属性: {unknown}"
+            )
+
+
 class ToolRegistry:
     """Name → ToolSpec with validation, redaction and truncation on execute."""
 
     def __init__(self) -> None:
         self._specs: dict[str, ToolSpec] = {}
+        self._builtin_names: set[str] = set()
+        self._overrides: dict[str, str] = {}
 
-    def register(self, spec: ToolSpec) -> None:
-        if spec.risk not in RISK_LEVELS:
-            raise ValueError(f"tool {spec.name!r} risk 非法: {spec.risk!r}")
-        if spec.name in self._specs:
-            raise ValueError(f"工具重复注册: {spec.name}")
+    def declare_builtin(self, names: Iterable[str] | None = None) -> None:
+        """Mark *names* (default: everything registered so far) as built-in.
+
+        ``build_registry`` calls this once, before the MCP bridge adds its own
+        tools, so a later plugin can be told apart from the shipped toolset.
+        """
+        self._builtin_names.update(self._specs if names is None else [str(n) for n in names])
+
+    def register(self, spec: ToolSpec, *, override: bool = False) -> None:
+        """Validate and add *spec*; a name conflict needs an explicit override.
+
+        Raises :class:`ToolRegistrationError` (a ``ValueError``) with a
+        field-naming message when the spec violates the contract, or when it
+        reuses a name that is already callable — a late registration must
+        never silently shadow a built-in tool.
+        """
+        validate_tool_spec(spec)
+        existing = self._specs.get(spec.name)
+        if existing is not None:
+            if not override:
+                kind = "内置工具" if spec.name in self._builtin_names else "已注册工具"
+                raise ToolRegistrationError(
+                    f"工具 {spec.name!r} 与{kind}同名，后注册者不会静默替换它；"
+                    f"确需替换请显式传入 override=True"
+                )
+            self._overrides[spec.name] = (
+                "builtin" if spec.name in self._builtin_names else "plugin"
+            )
         self._specs[spec.name] = spec
 
     def spec(self, name: str) -> ToolSpec | None:
@@ -204,6 +418,14 @@ class ToolRegistry:
     def risk_of(self, name: str) -> str | None:
         spec = self._specs.get(name)
         return spec.risk if spec else None
+
+    def capabilities_of(self, name: str) -> tuple[str, ...]:
+        spec = self._specs.get(name)
+        return spec.capabilities if spec else ()
+
+    def overrides(self) -> dict[str, str]:
+        """Names replaced via ``override=True`` → the kind they replaced."""
+        return dict(self._overrides)
 
     def openai_schemas(self) -> list[dict[str, Any]]:
         return [spec.openai_schema() for spec in self._specs.values()]
@@ -220,6 +442,8 @@ class ToolRegistry:
             spec = self._specs.get(str(name))
             if spec is not None:
                 restricted.register(spec)
+                if str(name) in self._builtin_names:
+                    restricted.declare_builtin([str(name)])
         return restricted
 
     def _validate(self, name: str, arguments: Mapping[str, Any]) -> dict[str, Any]:

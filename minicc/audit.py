@@ -8,6 +8,7 @@ task history.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -80,17 +81,29 @@ _PYTHON_NETWORK_MODULES = frozenset({"pip", "pip3", "uv", "poetry", "conda"})
 NETWORK_TOOL_NAMES = frozenset({"web_search", "webfetch"})
 
 
-def tool_requires_authorization(tool: str, risk: str | None) -> bool:
+def tool_requires_authorization(
+    tool: str,
+    risk: str | None,
+    capabilities: Iterable[str] = (),
+) -> bool:
     """True when the agent loop must consult ``should_allow`` before running.
 
     Network tools are registered as ``readonly`` so they stay off the write
     path, but they still need the task-level ``allow_network`` gate. Matching
     only ``write``/``exec`` (plus a hardcoded ``web_search`` name) used to
     let ``webfetch`` skip the policy.
+
+    A plugin that *declares* the ``network`` capability (M8-T3) is routed
+    through the same gate, so a third-party readonly tool cannot reach the
+    internet without the task's network grant.
     """
     if risk in {"write", "exec"}:
         return True
-    return str(tool or "") in NETWORK_TOOL_NAMES
+    return _is_network_tool(tool, capabilities)
+
+
+def _is_network_tool(tool: str, capabilities: Iterable[str] = ()) -> bool:
+    return str(tool or "") in NETWORK_TOOL_NAMES or "network" in set(capabilities or ())
 
 # Task-level permission modes, aligned with Claude Code:
 # - default:     readonly auto; writes/exec need the task write authorization.
@@ -193,9 +206,17 @@ def authorize_tool(
     permission_mode: str = "default",
     session_id: str = "",
     workspace: Path | None = None,
+    capabilities: Iterable[str] = (),
 ) -> AuthorizationDecision:
-    """Return an auditable authorization decision before executing a tool."""
+    """Return an auditable authorization decision before executing a tool.
+
+    ``capabilities`` is the tool's own declaration from
+    :class:`minicc.tools.registry.ToolSpec`; it can only add constraints, and
+    a tool that declares nothing behaves exactly as before.
+    """
     mode = normalize_permission_mode(permission_mode)
+    declared = set(capabilities or ())
+    network_tool = _is_network_tool(tool, declared)
 
     def _allowlist_override(denied: AuthorizationDecision) -> AuthorizationDecision:
         if mode == "plan":
@@ -215,7 +236,7 @@ def authorize_tool(
         if risk == "readonly" or tool in NETWORK_TOOL_NAMES:
             return AuthorizationDecision(True, risk or "unknown", "任务为 yolo 模式，工具已放行", "task_yolo")
         return AuthorizationDecision(True, risk or "unknown", "任务为 yolo 模式，写入与命令已放行", "task_yolo")
-    if tool in NETWORK_TOOL_NAMES:
+    if network_tool and risk == "readonly":
         if allow_network:
             return AuthorizationDecision(True, "network_readonly", "本任务已明确授权联网查询", "task_network")
         return _allowlist_override(
@@ -226,6 +247,10 @@ def authorize_tool(
     if risk == "write":
         if mode == "plan":
             return AuthorizationDecision(False, "write", "计划模式只允许只读工具，写入已拒绝", "plan_mode_write")
+        if network_tool and not allow_network:
+            return _allowlist_override(
+                AuthorizationDecision(False, "write", "该工具声明了联网能力，需要先获得本任务的联网授权", "missing_task_network")
+            )
         if mode == "acceptEdits" or allow_changes:
             return AuthorizationDecision(True, "write", "本任务已明确授权写入", "task_write")
         return _allowlist_override(
@@ -235,7 +260,7 @@ def authorize_tool(
         if mode == "plan":
             return AuthorizationDecision(False, "exec", "计划模式只允许只读工具，命令已拒绝", "plan_mode_exec")
         command = arguments.get("command", "")
-        if command_uses_network(command):
+        if command_uses_network(command) or network_tool:
             if allow_changes and allow_network:
                 return AuthorizationDecision(True, "network_exec", "本任务已明确授权网络命令", "task_network")
             return _allowlist_override(

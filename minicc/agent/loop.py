@@ -980,7 +980,9 @@ async def run_agent(
                     )
                     continue
 
-                if tool_requires_authorization(tc.tool, risk) and not allow(tc.tool, tc):
+                if tool_requires_authorization(
+                    tc.tool, risk, registry.capabilities_of(tc.tool)
+                ) and not allow(tc.tool, tc):
                     result.denied_tools.append(tc.tool)
                     denied = ToolResult(
                         status="denied",
