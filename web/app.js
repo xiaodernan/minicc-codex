@@ -343,6 +343,14 @@
       "at.empty": "\u6CA1\u6709\u5339\u914D\u7684\u6587\u4EF6",
       "at.commandEmpty": "\u6CA1\u6709\u5339\u914D\u7684\u81EA\u5B9A\u4E49\u547D\u4EE4\uFF08\u653E\u5230 .minicc/commands/*.md\uFF09",
       "at.hint": "\u2191\u2193 \u9009\u62E9 \xB7 Enter \u8865\u5168 \xB7 Esc \u5173\u95ED",
+      "approval.title": "\u9700\u8981\u4F60\u7684\u6279\u51C6",
+      "approval.allow": "\u5141\u8BB8\u4E00\u6B21",
+      "approval.always": "\u672C\u4F1A\u8BDD\u603B\u662F\u5141\u8BB8",
+      "approval.deny": "\u62D2\u7EDD",
+      "approval.expire": "\u79D2\u540E\u81EA\u52A8\u62D2\u7EDD",
+      "approval.reason": "\u539F\u56E0",
+      "approval.tool": "\u5DE5\u5177",
+      "approval.countdown": "\u5BA1\u6279\u5012\u8BA1\u65F6",
       "protected.subtitle": "\u6BCF\u4E2A\u4EFB\u52A1\u5355\u72EC\u6388\u6743\u5199\u5165",
       "panel.title": "\u5DE5\u4F5C\u53F0",
       "cancel": "\u53D6\u6D88\u4EFB\u52A1",
@@ -716,6 +724,14 @@
       "at.empty": "No matching files",
       "at.commandEmpty": "No custom commands (add .minicc/commands/*.md)",
       "at.hint": "Up/Down to choose \xB7 Enter to insert \xB7 Esc to close",
+      "approval.title": "Approval required",
+      "approval.allow": "Allow once",
+      "approval.always": "Always allow (session)",
+      "approval.deny": "Deny",
+      "approval.expire": "s until auto-deny",
+      "approval.reason": "Reason",
+      "approval.tool": "Tool",
+      "approval.countdown": "Approval countdown",
       "protected.subtitle": "Writes are gated per task",
       "panel.title": "Workspace",
       "cancel": "Cancel task",
@@ -1286,6 +1302,107 @@
     return { data, cursor, seenSequences: boundedAdd(binding.seenSequences, sequence), seenEventIds };
   }
 
+  // web/src/core/approvals.js
+  var pending2 = /* @__PURE__ */ new Map();
+  var ticker = 0;
+  function ensureLayer() {
+    let layer = document.getElementById("approvalLayer");
+    if (!layer) {
+      layer = document.createElement("div");
+      layer.id = "approvalLayer";
+      layer.className = "approval-layer";
+      layer.setAttribute("aria-live", "polite");
+      document.body.append(layer);
+    }
+    return layer;
+  }
+  function removeCard(requestId) {
+    const entry = pending2.get(requestId);
+    if (!entry) return;
+    pending2.delete(requestId);
+    entry.node.remove();
+    if (!pending2.size && ticker) {
+      window.clearInterval(ticker);
+      ticker = 0;
+    }
+  }
+  function tick() {
+    const now = Date.now();
+    for (const [requestId, entry] of pending2) {
+      if (entry.busy) continue;
+      if (now >= entry.deadline) {
+        removeCard(requestId);
+        continue;
+      }
+      const label = entry.node.querySelector("[data-approval-count]");
+      if (label) label.textContent = `${Math.ceil((entry.deadline - now) / 1e3)}${t("approval.expire")}`;
+    }
+    if (!pending2.size && ticker) {
+      window.clearInterval(ticker);
+      ticker = 0;
+    }
+  }
+  async function decide(requestId, decision) {
+    const entry = pending2.get(requestId);
+    if (!entry || entry.busy) return;
+    entry.busy = true;
+    entry.node.querySelectorAll("button").forEach((button) => {
+      button.disabled = true;
+    });
+    try {
+      await requestJson("/api/approval", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ request_id: requestId, decision })
+      }, 8e3);
+    } catch (error) {
+    }
+    removeCard(requestId);
+  }
+  function addCard(event) {
+    const layer = ensureLayer();
+    const node = document.createElement("div");
+    node.className = "approval-card";
+    node.setAttribute("role", "alertdialog");
+    node.setAttribute("aria-label", t("approval.title"));
+    const timeoutSeconds = Number(event.timeout_seconds || 60) || 60;
+    node.innerHTML = `
+    <div class="approval-card-head"><strong>${escapeHtml(t("approval.title"))}</strong><span data-approval-count></span></div>
+    <div class="approval-card-body"><b>${escapeHtml(String(event.tool || event.name || ""))}</b><code>${escapeHtml(String(event.preview || "").slice(0, 300))}</code><small>${escapeHtml(t("approval.reason"))}\uFF1A${escapeHtml(String(event.reason || event.summary || ""))}</small></div>
+    <div class="approval-card-actions">
+      <button type="button" data-decision="allow">${escapeHtml(t("approval.allow"))}</button>
+      <button type="button" data-decision="always">${escapeHtml(t("approval.always"))}</button>
+      <button type="button" class="approval-deny" data-decision="deny">${escapeHtml(t("approval.deny"))}</button>
+    </div>`;
+    node.querySelectorAll("button").forEach((button) => {
+      button.addEventListener("click", () => decide(event.request_id, button.dataset.decision));
+    });
+    const entry = {
+      node,
+      deadline: Date.now() + timeoutSeconds * 1e3,
+      busy: false
+    };
+    pending2.set(event.request_id, entry);
+    layer.append(node);
+    node.querySelector("[data-approval-count]").textContent = `${timeoutSeconds}${t("approval.expire")}`;
+    if (!ticker) ticker = window.setInterval(tick, 250);
+  }
+  function syncApprovalRequests(events) {
+    if (!Array.isArray(events)) return;
+    const resolved = new Set(
+      events.filter((event) => event?.kind === "approval_resolved" && event.request_id).map((event) => event.request_id)
+    );
+    for (const requestId of [...pending2.keys()]) {
+      if (resolved.has(requestId)) removeCard(requestId);
+    }
+    for (const event of events) {
+      if (!event || event.kind !== "approval_request" || !event.request_id) continue;
+      if (resolved.has(event.request_id) || pending2.has(event.request_id)) continue;
+      if (event.stale === true) continue;
+      addCard(event);
+    }
+  }
+
   // web/src/chat/timeline-dom.js
   var keyOf = (node) => node.nodeType === 1 ? [node.tagName, node.dataset.agentRound || node.dataset.agentItem || node.dataset.toolEvent || node.dataset.stageCode || ""].join(":") : "";
   function patchNode(current, next) {
@@ -1452,6 +1569,7 @@
     if (!binding) return;
     const next = options.skipSnapshotMerge ? { ...data, session_id: data.session_id || binding.sessionId, workspace_path: data.workspace_path || binding.workspacePath } : applyTaskSnapshot(binding, data, { replaceEvents: true });
     binding.data = next;
+    syncApprovalRequests(next.events);
     if (isCurrentTaskScope(next)) {
       syncTodoPanelFromEvents(next.events);
       if (!document.getElementById(binding.loadingId)) addLoadingMessage(binding.loadingId, next, { scrollToLatest: false });
@@ -1501,11 +1619,11 @@
       const existing = cachedSessionView(binding.sessionId, binding.workspacePath) || presetMessageMarkup(binding.sessionId);
       const holder = document.createElement("div");
       holder.innerHTML = existing;
-      const pending2 = holder.querySelector(`#${CSS.escape(binding.loadingId || loadingId)}`);
-      if (pending2) {
+      const pending3 = holder.querySelector(`#${CSS.escape(binding.loadingId || loadingId)}`);
+      if (pending3) {
         const replacement = document.createElement("div");
         replacement.innerHTML = assistantMessageMarkup(finalData, `live-${binding.loadingId || loadingId}`);
-        pending2.replaceWith(replacement.firstElementChild);
+        pending3.replaceWith(replacement.firstElementChild);
       } else {
         holder.insertAdjacentHTML("beforeend", assistantMessageMarkup(finalData, `live-${binding.loadingId || loadingId}`));
       }
@@ -1807,7 +1925,7 @@
     const loadingId = addLoadingMessage();
     setBusy(true);
     let index = 0;
-    const tick = () => {
+    const tick2 = () => {
       const item = steps[index];
       if (!item) {
         finishLiveTask(loadingId);
@@ -1826,9 +1944,9 @@
       }
       updateLiveTask(loadingId, { status: "running", phase: item.phase, stream_text: item.stream, events: steps.slice(0, index + 1).map((step) => step.event) });
       index += 1;
-      window.setTimeout(tick, 850);
+      window.setTimeout(tick2, 850);
     };
-    tick();
+    tick2();
   }
   async function loadWorkspace() {
     const version = ++runtime.workspaceVersion;
@@ -4403,8 +4521,8 @@
   function loadTaskHistory() {
     const path = state.workspacePath;
     const version = runtime.workspaceVersion;
-    const pending2 = runtime.historyPending;
-    if (pending2?.path === path && pending2.version === version) return pending2.promise;
+    const pending3 = runtime.historyPending;
+    if (pending3?.path === path && pending3.version === version) return pending3.promise;
     const request = runtime.historyRequest = (runtime.historyRequest || 0) + 1;
     const promise = (async () => {
       try {

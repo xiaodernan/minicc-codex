@@ -1,6 +1,7 @@
 import { requestJson } from "./transport.js";
 export { requestJson } from "./transport.js";
 import { reduceTaskEvent } from "./task-reducer.js";
+import { syncApprovalRequests } from "./approvals.js";
 import { reconcileTimeline } from "../chat/timeline-dom.js";
 // ES module source for the minicc workbench. Bundled by scripts/build-web.mjs.
 import { cacheTaskDetail, cacheSessionView, cachedSessionView, escapeHtml, formatLightText, loadTaskHistory, presetMessageMarkup } from "../chat/markdown.js";
@@ -149,6 +150,7 @@ export function updateBoundTask(taskId, data, options = {}) {
     ? { ...data, session_id: data.session_id || binding.sessionId, workspace_path: data.workspace_path || binding.workspacePath }
     : applyTaskSnapshot(binding, data, { replaceEvents: true });
   binding.data = next;
+  syncApprovalRequests(next.events);
   if (isCurrentTaskScope(next)) {
     syncTodoPanelFromEvents(next.events);
     if (!document.getElementById(binding.loadingId)) addLoadingMessage(binding.loadingId, next, { scrollToLatest: false });

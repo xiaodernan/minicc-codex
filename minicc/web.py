@@ -72,9 +72,10 @@ from .agent.protocol import (
 from .agent.rpc import RpcDispatcher
 from .agent.verifier import Verifier, VerificationResult
 from .agent.verification_plan import build_verification_plan, changed_paths_from_events
-from .audit import authorize_tool, normalize_permission_mode
+from .audit import AuthorizationDecision, authorize_tool, normalize_permission_mode
 from .changes import ChangeError, ChangeInspector
 from .commands import discover_commands, expand_slash_command
+from .permissions import load_permission_rules, match_permission_rule
 from .config import (
     ConfigError,
     TRUTHY,
@@ -82,7 +83,7 @@ from .config import (
     load_config,
     normalize_reasoning_effort,
 )
-from .allowlist import AllowlistError, replace_session_rules, session_rules
+from .allowlist import AllowlistError, add_session_rule, replace_session_rules, session_rules
 from .hooks import HookRunner
 from .llm.base import system_msg, user_msg
 from .llm.anthropic_provider import AnthropicProvider
@@ -140,6 +141,21 @@ from .task_manager import (  # noqa: F401 - re-export for tests and AgentService
 _RPC_THREADS_MAX = 512
 _THREAD_ID_MAX_LEN = 256
 
+# M7-T3: interactive Web approvals wait at most this long, then auto-deny.
+APPROVAL_TIMEOUT_SECONDS = 60.0
+
+
+@dataclass
+class _ApprovalGroup:
+    """One pending approval; identical in-flight calls merge into it."""
+
+    request_id: str
+    merge_key: str
+    waiters: list[threading.Event] = field(default_factory=list)
+    decision: str = "deny"
+    resolved: bool = False
+    timed_out: bool = False
+
 
 def _validate_thread_id(raw: Any) -> str:
     if not isinstance(raw, str) or not raw.strip():
@@ -171,6 +187,10 @@ class AgentService:
         self._set_current_mcp(workspace)
         self._session_guard = threading.Lock()
         self._session_locks: dict[str, threading.Lock] = {}
+        # M7-T3: request_id -> pending approval group; merge_key -> group id.
+        self._approval_guard = threading.Lock()
+        self._approval_groups: dict[str, _ApprovalGroup] = {}
+        self._approval_by_key: dict[str, str] = {}
         self.tasks = TaskManager(self, store=task_store or TaskStore(home_dir() / "tasks.sqlite3"))
         self._rpc_thread_guard = threading.RLock()
         self._rpc_threads: dict[str, dict[str, Any]] = {}
@@ -206,6 +226,154 @@ class AgentService:
         lock_key = f"{_path_key(workspace)}:{session_id}"
         with self._session_guard:
             return self._session_locks.setdefault(lock_key, threading.Lock())
+
+    # ------------------------------------------------------------------
+    # M7-T3: interactive Web approvals (approval_request frames over SSE)
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _approval_preview(tool: str, arguments: dict[str, Any]) -> str:
+        raw = str((arguments or {}).get("command") or (arguments or {}).get("path") or "")
+        if not raw:
+            raw = json.dumps(arguments or {}, ensure_ascii=False, sort_keys=True)
+        preview, _ = redact_text(raw)
+        return preview.strip()[:400]
+
+    def request_approval(
+        self,
+        *,
+        session_id: str,
+        task_id: str,
+        tool: str,
+        arguments: dict[str, Any],
+        risk: str,
+        reason: str,
+        on_event: Any = None,
+        cancel_event: "threading.Event | None" = None,
+        timeout: float = APPROVAL_TIMEOUT_SECONDS,
+    ) -> dict[str, Any]:
+        """Block the agent thread until the user (or the timeout) decides.
+
+        Returns {decision: allow|always|deny, timed_out, cancelled, merged,
+        request_id}. The request frame is emitted *before* waiting so the
+        event stream is never blocked by an approval; the wait is sliced so
+        task cancellation exits promptly. Identical in-flight calls (same
+        session/tool/redacted preview) merge into one prompt.
+        """
+        preview = self._approval_preview(tool, arguments)
+        merge_key = f"{session_id}|{tool}|{preview}"
+        waiter = threading.Event()
+        with self._approval_guard:
+            existing = self._approval_groups.get(self._approval_by_key.get(merge_key, ""))
+            merged = existing is not None and not existing.resolved
+            if merged:
+                group = existing
+                group.waiters.append(waiter)
+            else:
+                group = _ApprovalGroup(request_id=uuid.uuid4().hex, merge_key=merge_key)
+                group.waiters.append(waiter)
+                self._approval_groups[group.request_id] = group
+                self._approval_by_key[merge_key] = group.request_id
+        if not merged and on_event is not None:
+            on_event({
+                "kind": "approval_request",
+                "name": tool,
+                "status": "pending",
+                "phase": "permission",
+                "code": "approval_requested",
+                "summary": f"等待用户批准 {tool}：{reason}",
+                "risk": risk,
+                "request_id": group.request_id,
+                "task_id": task_id,
+                "tool": tool,
+                "preview": preview,
+                "reason": reason,
+                "timeout_seconds": float(timeout),
+            })
+        deadline = time.monotonic() + max(0.0, float(timeout))
+        while not group.resolved:
+            if cancel_event is not None and cancel_event.is_set():
+                break
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            waiter.wait(min(remaining, 0.25))
+        cancelled = cancel_event is not None and cancel_event.is_set()
+        timed_out = not group.resolved and not cancelled
+        with self._approval_guard:
+            if group.resolved:
+                decision, group_timed_out = group.decision, group.timed_out
+            elif not merged:
+                # The creator owns the prompt frame: it finalizes and removes
+                # the group. A merged waiter that gives up only detaches
+                # itself and must not clobber the pending prompt.
+                decision, group_timed_out = "deny", timed_out
+                group.resolved = True
+                group.decision = decision
+                group.timed_out = group_timed_out
+                self._approval_groups.pop(group.request_id, None)
+                if self._approval_by_key.get(group.merge_key) == group.request_id:
+                    self._approval_by_key.pop(group.merge_key, None)
+            else:
+                decision, group_timed_out = "deny", timed_out
+                if waiter in group.waiters:
+                    group.waiters.remove(waiter)
+        if not merged and on_event is not None:
+            on_event({
+                "kind": "approval_resolved",
+                "name": tool,
+                "status": "ok" if decision in {"allow", "always"} else "denied",
+                "phase": "permission",
+                "code": "approval_resolved",
+                "summary": (
+                    f"审批结果：{decision}"
+                    + ("（超时自动拒绝）" if group_timed_out else "")
+                    + ("（任务已取消）" if cancelled else "")
+                ),
+                "request_id": group.request_id,
+                "task_id": task_id,
+                "decision": decision,
+                "timed_out": group_timed_out,
+                "cancelled": cancelled,
+            })
+        return {
+            "decision": decision,
+            "timed_out": group_timed_out,
+            "cancelled": cancelled,
+            "merged": merged,
+            "request_id": group.request_id,
+        }
+
+    def resolve_approval(self, request_id: str, decision: str) -> dict[str, Any]:
+        """Apply a user decision to a pending approval (allow|always|deny)."""
+        if decision not in {"allow", "always", "deny"}:
+            raise ValueError("审批决定必须是 allow|always|deny")
+        with self._approval_guard:
+            group = self._approval_groups.get(str(request_id or "").strip())
+            if group is None or group.resolved:
+                return {"resolved": False, "request_id": str(request_id or "")}
+            group.decision = decision
+            group.resolved = True
+            self._approval_groups.pop(group.request_id, None)
+            if self._approval_by_key.get(group.merge_key) == group.request_id:
+                self._approval_by_key.pop(group.merge_key, None)
+            waiters = list(group.waiters)
+        for event in waiters:
+            event.set()
+        return {"resolved": True, "request_id": group.request_id, "decision": decision}
+
+    def _deny_all_approvals(self) -> None:
+        with self._approval_guard:
+            groups = list(self._approval_groups.values())
+            for group in groups:
+                if not group.resolved:
+                    group.resolved = True
+                    group.decision = "deny"
+            self._approval_groups.clear()
+            self._approval_by_key.clear()
+            waiters = [waiter for group in groups for waiter in group.waiters]
+        for event in waiters:
+            event.set()
 
     def _rpc_workspace_path(self, params: dict[str, Any]) -> Path:
         raw_path = params.get("workspace_path")
@@ -515,6 +683,17 @@ class AgentService:
             tools=payload.get("tools"),
         )
         return {"session_id": sid, **rules}
+
+    def permissions_status(self) -> dict[str, Any]:
+        """Effective declarative permission rules + any load error (M7-T3)."""
+        rules, error = load_permission_rules(self.workspace)
+        return {
+            "path": (self.workspace / ".minicc" / "permissions.json").as_posix(),
+            "allow": rules["allow"],
+            "deny": rules["deny"],
+            "error": error,
+            "approval_timeout_seconds": APPROVAL_TIMEOUT_SECONDS,
+        }
 
     def restore_task_snapshot(self, task_id: str) -> dict[str, Any]:
         tid = str(task_id or "").strip()
@@ -933,8 +1112,24 @@ class AgentService:
             }:
                 store.save(messages)
 
+        def emit_decision(name: str, decision: AuthorizationDecision) -> bool:
+            event = decision.to_event(name)
+            events.append(event)
+            if on_event is not None:
+                on_event(event)
+            return decision.allowed
+
         def should_allow(name: str, call: ToolCall) -> bool:
             risk = registry.risk_of(name)
+            # M7-T3: a declarative deny rule is an absolute veto checked before
+            # authorize_tool (and it also covers read-only tools, so denying a
+            # path like `.env` blocks reads too).
+            rule = match_permission_rule(workspace, name, call.arguments)
+            if rule == "deny":
+                return emit_decision(name, AuthorizationDecision(
+                    False, risk or "unknown",
+                    "permissions.json deny 规则拒绝", "permission_rule_deny",
+                ))
             decision = authorize_tool(
                 name,
                 risk,
@@ -945,11 +1140,60 @@ class AgentService:
                 session_id=session_id,
                 workspace=workspace,
             )
-            event = decision.to_event(name)
-            events.append(event)
-            if on_event is not None:
-                on_event(event)
-            return decision.allowed
+            if (
+                not decision.allowed
+                and decision.authorization in {"missing_task_write", "missing_task_exec"}
+            ):
+                # An allow rule only skips the interactive prompt; it can never
+                # change plan/yolo/network semantics.
+                if rule == "allow":
+                    return emit_decision(name, AuthorizationDecision(
+                        True, decision.risk,
+                        "permissions.json allow 规则放行", "permission_rule_allow",
+                    ))
+                # No static rule covers the call → ask the user over the event
+                # stream, auto-deny on timeout/cancel (M7-T3).
+                verdict = self.request_approval(
+                    session_id=session_id,
+                    task_id=snapshot_task_id or session_id,
+                    tool=name,
+                    arguments=call.arguments,
+                    risk=decision.risk,
+                    reason=decision.reason,
+                    on_event=on_event,
+                    cancel_event=cancel_event,
+                )
+                if verdict["decision"] in {"allow", "always"}:
+                    always = verdict["decision"] == "always"
+                    if always:
+                        try:
+                            kwargs: dict[str, str] = {"tool": name}
+                            if name == "bash":
+                                kwargs["command"] = str(
+                                    (call.arguments or {}).get("command") or ""
+                                ).strip()
+                            path_arg = (call.arguments or {}).get("path")
+                            if isinstance(path_arg, str) and path_arg.strip():
+                                kwargs["path"] = path_arg.strip()
+                            if session_id:
+                                add_session_rule(workspace, session_id, **kwargs)
+                        except AllowlistError:
+                            pass
+                    return emit_decision(name, AuthorizationDecision(
+                        True, decision.risk,
+                        "用户已批准" + ("（本会话记住）" if always else ""),
+                        "user_approved",
+                    ))
+                if verdict.get("cancelled"):
+                    why = "任务已取消，审批自动拒绝"
+                elif verdict.get("timed_out"):
+                    why = "审批超时，自动拒绝"
+                else:
+                    why = "用户已拒绝"
+                return emit_decision(name, AuthorizationDecision(
+                    False, decision.risk, why, "user_denied",
+                ))
+            return emit_decision(name, decision)
 
         async def execute() -> Any:
             nonlocal planner_result, planner_usage, planner_policy, planner_execution
@@ -1917,6 +2161,9 @@ class AgentService:
         return {"workspace_path": str(self.workspace), "entries": entries, "count": len(entries)}
 
     def shutdown(self) -> None:
+        # Unblock any agent threads parked on an approval prompt first, so
+        # task workers can drain instead of hitting the 60s auto-deny.
+        self._deny_all_approvals()
         self.tasks.shutdown()
         with self._mcp_guard:
             for manager in {item for item in self._mcp_by_workspace.values() if item is not None}:

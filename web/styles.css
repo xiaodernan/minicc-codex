@@ -1889,3 +1889,19 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 @media (prefers-reduced-motion: reduce) {
   .empty-actions button:hover { transform: none; }
 }
+
+/* M7-T3 interactive approvals */
+.approval-layer { bottom: 16px; display: flex; flex-direction: column; gap: 10px; max-height: calc(100vh - 140px); overflow-y: auto; pointer-events: none; position: fixed; right: 16px; z-index: 40; }
+.approval-card { background: var(--surface-raised); border: 1px solid var(--coral); border-radius: var(--radius); box-shadow: var(--shadow); display: grid; gap: 8px; padding: 12px 14px; pointer-events: auto; width: min(380px, calc(100vw - 32px)); }
+.approval-card-head { align-items: baseline; color: var(--coral); display: flex; justify-content: space-between; }
+.approval-card-head span { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.approval-card-body { display: grid; gap: 4px; min-width: 0; }
+.approval-card-body b { color: var(--text); font-size: 13px; }
+.approval-card-body code { background: var(--surface-soft); border: 1px solid var(--line); border-radius: 6px; color: var(--ink); font-size: 12px; max-height: 76px; overflow: auto; padding: 6px 8px; user-select: all; white-space: pre-wrap; word-break: break-all; }
+:root[data-theme="light"] .approval-card-body code { color: #1b1b1d; }
+.approval-card-body small { color: var(--muted); font-size: 12px; }
+.approval-card-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.approval-card-actions button { background: var(--mint-soft); border: 1px solid var(--mint); border-radius: 6px; color: var(--mint); cursor: pointer; font: inherit; font-size: 12px; padding: 5px 10px; }
+.approval-card-actions button:hover:not(:disabled) { filter: brightness(1.15); }
+.approval-card-actions button:disabled { cursor: default; opacity: .55; }
+.approval-card-actions .approval-deny { background: var(--coral-soft); border-color: var(--coral); color: var(--coral); }

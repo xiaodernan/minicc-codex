@@ -316,6 +316,9 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
             except (ValueError, AllowlistError) as exc:
                 self._json({"error": str(exc)}, 400)
             return
+        if path == "/api/permissions":
+            self._json(self.server.service.permissions_status())
+            return
         if path == "/favicon.ico":
             self._serve_static("/favicon.svg")
             return
@@ -506,6 +509,16 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
                 if not isinstance(session_id, str):
                     raise ValueError("session_id 不能为空")
                 self._json(self.server.service.set_allowlist(session_id, payload))
+                return
+            if path == "/api/approval":
+                # M7-T3: the user answered a pending approval_request frame.
+                request_id = payload.get("request_id")
+                decision = payload.get("decision")
+                if not isinstance(request_id, str) or not request_id.strip():
+                    raise ValueError("request_id 不能为空")
+                if not isinstance(decision, str):
+                    raise ValueError("decision 不能为空")
+                self._json(self.server.service.resolve_approval(request_id.strip(), decision))
                 return
             if path == "/api/worktrees":
                 name = payload.get("name")
