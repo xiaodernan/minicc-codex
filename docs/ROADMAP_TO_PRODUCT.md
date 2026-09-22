@@ -738,6 +738,10 @@
 
 | M8-T14 宿主关闭时 worker 句柄不得成为泄漏、且关闭语义要说得清（已按选项 A 实施） | ✅ | 干净关闭 = 写 cancel 标志 → 有界等待 5s → `terminate()` → 回收句柄 → 用租约围栏把记录落成 `cancelled`（并清掉 cancel 标志，避免复用它 id 的重试被瞬间取消）；崩溃 = 完全不碰 worker，留给 auto-resume 接管。`pytest -q -W error` 全量 **904 passed**（此前同一命令 6 failed / 7 errors）。契约测试改写成**真崩溃模拟**（宿主跑在子进程里被 `kill()`）。完整取舍、先红证据与那条「在测试里短路 `shutdown()` 不叫崩溃模拟」的教训见「第四批」第 1、5 行 |
 
+| M8-T16 429 配额窗口不得把任务打成失败（M6-4 真跑暴露） | ✅ | 根因是可测量的一句话：**整个重试预算只有 15 秒，而限流窗口是 60 秒**。`openai_provider._wait_retry_after_or_exponential` 对 429 也走 `min(60, 2^(n-1))` → `max_retries=4` 时累计睡眠 1+2+4+8=15s，五次尝试全部落在同一个未完成的一分钟窗口内，`reraise=True` 把它原样抛给 `agent/loop.py:840` 的 `LLM 调用失败: …`，任务判死。用假网关（`httpx.MockTransport`，不消耗真实配额）量出边界：限流器 3s/15s 后解除时能恢复，**60s 后解除则 15.06s 就放弃**，错误串与 bench 现场逐字相同。修法按错误类别分开退避：速率限制类走 `_RATE_LIMIT_BACKOFF_BASE_SECONDS=15` 起底的指数（15/30/60/60，累计 165s，仍受 60s 单次上限与尝试次数上界约束），其它瞬时错误保持 1/2/4/8 不变，`Retry-After` 头仍然优先。修复后同一探测 60s 窗口 **105s 恢复成功**（4 次 HTTP 尝试） | 新增 `tests/test_rate_limit_retry.py`（6 条）：预算断言 `sum(waits) >= 60` 且逐项 `[15,30,60,60]`（**短路修复后此条报 `retry budget 15.0s is shorter than the limiter window`，即红→绿判据**）、非限流错误仍是 `[1,2,4,8]`（防过度修正）、`retry-after: 3` 覆盖底值、`_is_rate_limit` 认被包装成 `RuntimeError` 的 429 文本且不认 500、e2e 假网关 429→429→200 恢复且恰好 3 次尝试、持续 429 仍在 `max_retries+1` 次后报错（等得久 ≠ 无限等）。LLM 域回归 `test_rate_limit_retry`+`test_core_llm`+`test_responses_streaming` **26 passed** |
+
+| M8-T17 评测里唯一的真实能力失败：`v2-license-mit` 不收敛（未结案） | ⏳ 待处理 | 干净样本 4 条里唯一没通过的那条，且**不是配额问题**：15 轮、110.2s、122 345 tokens，最终 `完成评估连续 4 轮要求继续但未收敛，已按上限停止；请根据缺失项检查后重新提交任务`。同一 fixture 是「改 LICENSE 措辞」级别的小任务，122k tokens 说明它在自评-继续循环里反复重读同一批内容。与 M8-T7（评审器故障分类）相邻但不同：那次是评委确定性拒绝后不该重跑，这次是**评委连续四轮说「继续」而没有新的判据**。下一步应先取该次运行的评审事件序列（哪四轮、每轮缺什么）再定改法，不要在只有 1 个样本时下结论 | 记录于 M6-4 真跑（`output/m6_4_sample.results.json`，`code_revision 0856114`）。尚无测试——需要先复现（同一 fixture 再跑一次，看是否稳定不收敛）再决定判据 |
+
 ### M1-M3 退出标准真跑记录（第一批，2026-09-22）
 
 按第三节原文逐条执行，不走附录 D 的自评：
@@ -767,7 +771,7 @@ M3-3 的处理不是把标准删掉，而是把它变成可执行、可证伪的
 | M4-2 `npm run test:web` 离线基线 | ✅（照标准原文跑通） | 起 `minicc-web --port 8791` 且 `MINICC_FAKE_PROVIDER=1 MINICC_BASE_URL=http://127.0.0.1:9/v1`（不可达），再 `MINICC_WEB_URL=http://127.0.0.1:8791 npm run test:web` → **exit 0**、`web smoke passed: timeline, product path, desktop, mobile`。标准文本漏了前置条件：这条**必须先起服务**（脚本读 `MINICC_WEB_URL`，默认 8765），不起服务时它是 navigation 失败而不是退出码 0 |
 | M4-1 证据链回归 | ✅ | `test_m4_evidence_chain + test_verifier_lifecycle + test_verification_command_variants + test_http_surface + test_mcp_stdio + test_mcp_http` 共 **98 passed**（`test_mcp_stdio.py` 11 个测试函数 ≥ 标准要求的 8） |
 | M4-3 rpc 分派器 ≥10 method 有测试 | ✅（2026-09-22 补齐后复测） | 曾不成立：分派表 `minicc/web.py:238-246` 只有 **5 个 method**（`thread/start`、`thread/read`、`turn/start`、`turn/read`、`turn/interrupt`）+ `initialize` 内建。现在补了 5 个只读检查 method（`workspace/read`、`models/list`、`changes/read`、`sessions/list`、`permissions/read`），合计 **10 个可注册 method**（`initialize` 另计），每个一条测试、共用同一套 `workspace_roots` 越界校验，并由 `test_rpc_dispatcher_exposes_ten_methods` 把「≥10」变成可执行断言而不是文档口径 |
-| M4-3 `POST /api/*` 由 Python 测试覆盖 100% | ❌ 本机不可测，且有反证 | `pytest-cov`/`coverage` **都未安装**、CI 也不跑覆盖率 → 这条在本环境无法验证，不能声称。代理指标：26 个 `/api/*` 路由里有 6 个在任何 Python 测试里**连路径字符串都没出现**（`approval`、`changes`、`mcp`、`models`、`permissions`、`sessions/fork`）——它们可能经 service 方法或前端 smoke 覆盖，但至少说明「Python 测试 100% 覆盖 POST 路由」不成立 |
+| M4-3 `POST /api/*` 由 Python 测试覆盖 100% | ✅（按实测口径改写，2026-09-22） | 原写法不可执行：`pytest-cov`/`coverage` 都未安装、CI 不跑覆盖率，「100%」这个百分比在本环境**算不出来**，不能声称。按决策改成可执行清单门 `tests/test_http_surface.py::test_every_api_route_is_named_by_a_python_test`：用 AST 从 `minicc/webserver.py` 的 `do_GET/do_POST/do_PUT/do_PATCH/do_DELETE` 里抽出服务器自己比较的路径字面量（实测 **28 条**，含审计点名的 6 条），逐条要求在 `tests/*.py` 里出现；另有 `>=25` 的下限，防止将来路由换一种写法后清单变空、门变成**假绿**。反方向也验过：喂给 walker 两条合成新路由，门立刻点名。诚实边界：这条门证明「这条路由有测试提到它」，不证明「有真请求打到它并断言终态」——后者仍由本文件里那批 `_LiveServer` 契约测试承担 |
 
 `-W error` 那条失败的性质（下一步要定的设计问题，不是简单的测试脏）：`task_manager.py:1824-1826` 的
 `_monitor_worker` 在 `self._closing` 时直接 `raise WorkerDetached()`，**既不 terminate 也不保留 `Popen` 引用**，
@@ -788,12 +792,12 @@ token 的 worker 负责」——A 让干净关闭成为真正的停止，代价�
 | M5-1 MCP stdio ≥8 个回归 | ✅ | `tests/test_mcp_stdio.py` 有 **11** 个测试函数，与 `test_mcp_http`/`test_http_surface` 等一起 98 passed |
 | M5-2 巨量输出截断 / string id 回传 / stdout 不可解码时快速失败 / dead 服务 | ✅ | 逐条点名可查：`test_half_million_char_output_is_truncated`、`test_small_output_not_truncated`、`test_string_id_response_is_matched`、`test_undecodable_stdout_fails_fast_not_30s`（断言 `client.dead is True`）、`test_dead_server_marked_in_health` |
 | M5-3 CLI 配置的 MCP 工具出现在 `/tools` | ✅（间接） | `test_build_registry_lists_mcp_tools`；`/tools` 本身由 `test_http_surface` 一路覆盖 |
-| M5-4 坏 `mcp.json` 走结构化 McpError 而非 500 | ✅（服务层） | `test_manager_negative_cache_does_not_respawn` + `test_failure_paths_return_structured_error_codes`；`mcp` 路由仍**没有**按路径字符串出现在 Python 测试里（见 M4-3 反证清单） |
+| M5-4 坏 `mcp.json` 走结构化 McpError 而非 500 | ✅（服务层） | `test_manager_negative_cache_does_not_respawn` + `test_failure_paths_return_structured_error_codes`；`/api/mcp` 此前在任何 Python 测试里连路径字符串都没出现，现已由 M4-3 的清单门与 `test_http_surface` 的 mcp 契约测试覆盖 |
 | M6-3 `bash start /m &` 被拒 | ✅ | `test_background_shell.py:121` `detached_command_reason("start /min notepad &") is not None` |
 | M6-1/2/5 委托、软预算、写档默认只读 | ✅（测试层） | `test_subagent_delegation.py`(16) + `test_subagent_streaming.py`(5) + `test_parallel_writes.py` + `test_permissions_approval.py` 等合计 **91 passed**；写档需显式授权由 `WRITABLE_PERMISSION_MODES` 结构断言钉住 |
 | M7-3 审批 60s 超时自动 deny | ✅ | 生产常量 `web.py:156 APPROVAL_TIMEOUT_SECONDS = 60.0`，测试 `test_approval_timeout_auto_denies` 用 5s 走同一分支并断言 `decision == "deny"` 且 `timed_out is True`（不为此把测试拖到 60s） |
 | M7-1/2/4/5 hooks、slash、项目配置、composer 恢复 | ✅（测试层 + 前端真跑） | `test_hooks/test_slash_commands/test_project_config/test_mentions` 全绿；起 fake-provider 服务后 `node tests/frontend_{transport,lifecycle,scale,optimization}_smoke.mjs` **逐个 exit 0**（composer 恢复与取消在 transport/lifecycle 内） |
-| M6-4 30 个 fixture 性能 P95 不超 M4 基线 15% | ❌ **未验证** | 分位数机制在（`benchmarks.py`/`bench_compare.py` 计算 `latency_p50/p95`），但今天只真跑过 2 个 fixture（p50=66.7s、p95=120.2s）。30-fixture 基线一次都没跑过 → 这条标准**没有数据支撑**，附录 D 若记为已完成即为不实；要补需要一次全量真模型评测（成本可观，已列入待决策） |
+| M6-4 30 个 fixture 性能 P95 不超 M4 基线 15% | 🟡 **只有区间，不是 30-fixture 基线** | 真模型跑了 **8 个** v2 fixture（`-m minicc.benchmarks --suite v2 --run --max-tasks 8 --results output/m6_4_sample.results.json`，串行 runner，无并发）。**按是否被配额污染分组**：① 干净 4 条（无 429）：`latency_ms` = 5 188 / 34 344 / 41 250 / 110 219，中位 **37.8s**、最大 110.2s；`total_tokens` = 9 789 / 30 523 / 32 426 / 122 345，中位 31 475；通过 3/4。② 429 污染 4 条：22 172 / 22 328 / 51 828 / 60 860 ms，通过 **0/4**，全部死在同一句 `request limited RPM reached, current: 11, limit: 10`——这是配额死亡不是能力失败，混进分位数会把基线整体抬高。**明确不成立的部分**：8 条样本算不出可信的 p50/p95（`benchmarks.py`/`bench_compare.py` 的分位数机制在，但 n=8 时 p95 ≈ 最大值），所以「P95 ≤ M4 基线 115s/826s 的 +15%」这条标准**仍未验证**；对照可信的部分：干净组里 3 条通过的任务 5.2–41.3s，量级与 M4 基线不矛盾。附带产出：这次真跑暴露了一个真实缺陷（见 M8-T16），且 30-fixture 全量在本机配额下**修复前不可能跑成**（一半任务会被 429 打死） |
 
 附带发现（对 M8-T14 的判断有用）：MCP 侧**已经**做对了这件事——`test_close_reaps_child_process` 明确钉住「关闭时回收子进程」。
 也就是说「子进程必须被 reap」在本仓库不是新概念，只有 task worker 的 `Popen` 没走这条路（`task_manager.py:1824-1826`
@@ -816,9 +820,21 @@ token 的 worker 负责」——A 让干净关闭成为真正的停止，代价�
 - **rpc ≥10 method**：把只读协议面补全（`workspace/read`、`models/list`、`changes/read`、`sessions/list`、`permissions/read`），与既有 5 个生命周期 method 合计 **10 个**，每个一条测试，并复用同一套 `workspace_roots` 越界校验。
 - **POST `/api/*` 的 Python 覆盖**：为审计点名「连路径字符串都没出现」的 6 个路由（`approval`、`changes`、`mcp`、`models`、`permissions`、`sessions/fork`）补契约测试（成功路径 + 校验失败 + 越界拒绝）。
 
-**仍然未达成的两条（不掩盖）**：M6-4 的 30-fixture 性能基线依旧没有数据（需要一次全量真模型评测）；M4-3 的「POST `/api/*` 覆盖率 100%」本机仍无法测量（未安装 coverage 工具），只把「有测试」的范围补到 26 个路由里的绝大多数。
+**仍然未达成的部分（不掩盖）**：M6-4 的 30-fixture 性能基线依旧没有可信分位数——第五批跑到了 8 条并给出分组区间，但 n=8 算不出 p95，且本机配额（10 RPM）下 30 条要付出可观的等待；M4-3 的「POST `/api/*` 覆盖率 100%」本机仍无法测量（未安装 coverage 工具），只把「有测试」的范围补到 28 个路由全部被点名（`tests/test_http_surface.py` 的清单门，含防空清单的下限）。
 
 **一条过程教训（写给下一个跑套件的人）**：这两次全量跑都与我并发编辑源码重叠，而 `tests/test_packaging.py` 的 module 级 fixture 会在构建期读取整个源码树 —— 边改边跑时它报的 `AssertionError` 可能是「构建快照撞上正在写入的文件」，不是打包缺陷。判定打包是否真的坏了，必须在不改任何文件的窗口里重跑。
+
+### M6-4 真跑：8 条样本、一个配额事实、一个真实缺陷（第五批，2026-09-23）
+
+用户选择「先跑小样本给区间」，所以这一批的目标不是补基线，而是**把能测到的测准、并如实标注测不准的部分**。三条结论：
+
+| # | 结论 | 证据 |
+| --- | --- | --- |
+| 1 | **本机网关是 stepfun `step-3.7-flash`，配额 10 RPM**，而 8 条串行任务里 4 条死于 `request limited RPM reached, current: 11, limit: 10` | `output/m6_4_sample.results.json` 逐行 `error` 字段。runner 本身**没有并发**（`minicc/behavior_bench.py` 里 grep 不到 `concurrency/ThreadPool/max_workers`），也就是说**单个任务自己的多轮请求就能打满一分钟 10 次**——不是"跑太快"，是配额太小 |
+| 2 | **429 是可重试错误，但预算比窗口短 → 由配额直接判死任务**（修完即 M8-T16） | 探测脚本（假 `MockTransport` 网关，零配额消耗）：限流器在 3s/15s 后解除时任务恢复；在 **60s** 后解除时 `ok=false, elapsed=15.06s, http_attempts=5`，错误串与 bench 现场逐字相同。修后同一探测 `elapsed=105.05s, attempts=4, ok=true`。代价也量出来了：**解除得快的限流现在多等 15s**（`window=3` 从 3.03s 变 15.02s），因为无法凭一次 429 区分窗口长度——用一次保守等待换整条任务不被判死 |
+| 3 | **8 条样本给的是区间，不是分位数**；写进标准必须分组 | 干净 4 条：5.2 / 34.3 / 41.3 / 110.2s，通过 3/4，tokens 中位 31 475。429 污染 4 条：22.2 / 22.3 / 51.8 / 60.9s，通过 **0/4**。把污染组合进去算 p95 会得到一个既不代表能力、也不代表性能的数字 → 第三节 M6-4 行改为 🟡，并明确「P95 ≤ 基线 +15%」这条**仍未验证** |
+
+另外记一笔方法论：这批的失败样本里只有 `v2-license-mit` 是真实能力信号（M8-T17，未结案）。判据是**错误串是否来自配额/环境**——来自 429 的四条不进能力账，122k tokens 的连续四轮"要求继续"才进。
 
 ### M8-T7 注记：一次真实失败的时间线，以及「不给结论」的边界
 

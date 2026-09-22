@@ -305,13 +305,35 @@ def _retry_after_seconds(exc: BaseException) -> float | None:
         return None
 
 
+# A per-minute quota cannot be cleared by waiting seconds - the window itself is
+# 60s. Plain exponential backoff (1+2+4+8) spends the whole attempt budget before
+# the limiter resets, so a 10-RPM gateway turned tasks into hard failures.
+_BACKOFF_CAP_SECONDS = 60.0
+_RATE_LIMIT_BACKOFF_BASE_SECONDS = 15.0
+
+
+def _is_rate_limit(exc: BaseException) -> bool:
+    if isinstance(exc, RateLimitError):
+        return True
+    text = _exception_text(exc).lower()
+    return "429" in text and any(
+        marker in text for marker in ("rate limit", "too many requests", "rpm", "qps")
+    )
+
+
 def _wait_retry_after_or_exponential(retry_state: RetryCallState) -> float:
     outcome = retry_state.outcome
     exception = outcome.exception() if outcome is not None else None
     retry_after = _retry_after_seconds(exception) if exception is not None else None
     if retry_after is not None:
         return retry_after
-    return min(60.0, float(2 ** max(0, retry_state.attempt_number - 1)))
+    attempts_so_far = max(0, retry_state.attempt_number - 1)
+    if exception is not None and _is_rate_limit(exception):
+        return min(
+            _BACKOFF_CAP_SECONDS,
+            _RATE_LIMIT_BACKOFF_BASE_SECONDS * float(2**attempts_so_far),
+        )
+    return min(_BACKOFF_CAP_SECONDS, float(2**attempts_so_far))
 
 
 def _stream_retry_delay(exc: BaseException, attempt: int) -> float:
