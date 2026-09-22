@@ -754,6 +754,25 @@ M3-3 的处理不是把标准删掉，而是把它变成可执行、可证伪的
 `scan_credentials()`，只认真正的凭据形状（`sk-[A-Za-z0-9_-]{20,}`、AKIA、PEM 头、`.env` 里那把 key 的原文），
 **只报文件路径与规则名、绝不打印命中内容**（PEM 字面量在脚本里拼接，避免本仓库自己的 pre-commit 钩子把它当泄漏）。
 验证：真实状态目录 0 命中 `exit=0`；把一条长 `sk-…` 和一条 `AKIA…` 放进临时目录后 **2 命中、`exit=1`**（先红后绿做完再删临时文件）。
+### M4 退出标准真跑记录（第二批，2026-09-22）—— 含一条**未达成**
+
+| 标准 | 结论 | 证据 |
+| --- | --- | --- |
+| M4-4 `benchmarks --suite v2` 的 `grading_coverage=1.0`、分母 ≥24、edit 类 ≥10 | ✅ | 真跑 `--suite v2`（不 `--run`）：`fixture_count=24`、`grading_coverage=1.0`、按类 `write 12 / multi-file 6 / test-fix 6`（edit 类 12 ≥10）；`pass_at_1=None`（未运行，符合「not_run 既不算通过也不算失败」的注记） |
+| M4-5 A/B gate 违规时 exit code 1 | ✅ | 同一份结果 `--gate pass_at_1>=0.5 --gate grading_coverage>=1.0` → **exit 0**；把 variant 换成未运行那份（`pass_at_1=None`）→ **exit 1 + `[GATE FAILED] pass_at_1>=0.5 实际=None`**。两个方向都验；且它把 None 当 None（`不可计算（None，而非 0）`），不拿 0 冒充结论 |
+| M4-6 未知模型 `cost_usd=None` 且 `cost_available` 如实 | ✅（真机 2 条） | `--run --max-tasks 2` 真跑：`cost_available=0`、逐任务 `cost_usd=None`、`token_usage_available=2`，同时 `latency_p50_ms=66695.5 / p95=120182.05 / tokens_per_success=179683` 都有值 |
+| M4-7 `pytest -q -W error` 全绿 | ❌ **未达成** | `python -m pytest tests/ -q -W error` → **2 failed, 878 passed**：`tests/test_task_worker.py::test_manager_process_mode_runs_task_in_subprocess`、`::test_worker_survives_host_restart_and_continues_long_stream`，均为 `ResourceWarning: subprocess NNNN is still running`（`subprocess.Popen.__del__` 经 pytest 的 unraisable hook 升级为错误）。同一条标准还要求「PR 门禁 ≤15 分钟」——实测 178s ✅，所以**只有 `-W error` 这半条没过**；附录 D 把 M4 记为已落地，这一项与该记录不符 |
+| M4-2 `npm run test:web` 离线基线 | 未复核 | `test:web = node tests/web_smoke.mjs`（`node_modules` 已在），本批未跑，排下一批 |
+| M4-1 证据链回归 / M4-3 `/api/*` 覆盖与 rpc ≥10 method | 未复核 | 下一批 |
+
+`-W error` 那条失败的性质（下一步要定的设计问题，不是简单的测试脏）：`task_manager.py:1824-1826` 的
+`_monitor_worker` 在 `self._closing` 时直接 `raise WorkerDetached()`，**既不 terminate 也不保留 `Popen` 引用**，
+于是子进程活着而句柄被 GC → `ResourceWarning`。这正是「宿主关闭时把 worker 脱管交给 auto-resume」的既定语义，
+但实现上留下两个后果：(1) 解释器关闭期抛 unraisable 警告（任何开 `-W error` 的门禁都会红）；
+(2) 关掉宿主真的会留下孤儿进程。修法有两种、语义不同，需要产品决策：**A** 关闭时先写 cancel 标志、有界等待
+（例如 ≤5s）后再 terminate，把「脱管」限定给真正的崩溃恢复；**B** 保留 `self._worker_processes` 注册表并在
+shutdown 末尾统一 reap（不改变「让它继续跑完」的语义，只消掉警告与句柄泄漏）。A 改变可观察行为（正在跑的任务
+会被中止），B 不改。
 ### M8-T7 注记：一次真实失败的时间线，以及「不给结论」的边界
 
 一次真实只读小任务消耗 118,499 tokens、跑了 5 轮 `run_agent` 后才以 provider `451 censorship_blocked` 失败。
