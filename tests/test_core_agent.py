@@ -388,12 +388,13 @@ def test_completion_decision_parser_accepts_fenced_json_and_rejects_unknown() ->
 def test_completion_judge_replans_text_only_reply_until_workspace_is_ready(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    suite_python_bin: str,
 ) -> None:
     from minicc.snapshots import capture, restore
     (tmp_path / "tests").mkdir()
     (tmp_path / "tests" / "test_game.py").write_text("from pathlib import Path\ndef test_document():\n    assert '<title>Mini game</title>' in Path('game.html').read_text()\n", encoding="utf-8")
     (tmp_path / ".minicc").mkdir()
-    (tmp_path / ".minicc" / "verification.json").write_text(json.dumps({"rules": [{"paths": ["game.html"], "commands": ["python -m pytest -q tests/test_game.py"]}]}), encoding="utf-8")
+    (tmp_path / ".minicc" / "verification.json").write_text(json.dumps({"rules": [{"paths": ["game.html"], "commands": [f"{suite_python_bin} -m pytest -q tests/test_game.py"]}]}), encoding="utf-8")
     class FakeProvider:
         def __init__(self, **_kwargs) -> None:
             self.agent_calls = 0

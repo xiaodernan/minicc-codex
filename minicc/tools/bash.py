@@ -331,12 +331,11 @@ def _collect_after_termination(proc: subprocess.Popen[bytes]) -> tuple[bytes, by
             stdout, stderr = proc.communicate(timeout=1)
             return stdout or b"", stderr or b""
         except (OSError, subprocess.TimeoutExpired):
-            for pipe in (proc.stdout, proc.stderr):
-                if pipe is not None:
-                    try:
-                        pipe.close()
-                    except OSError:
-                        pass
+            # M4-7 follow-up: do NOT close the pipes here. A parked reader makes
+            # ``close()`` wait for the in-flight read to finish (see
+            # run_process), which is how a detached child used to stall this
+            # path for its whole lifetime. The daemon readers own the handles and
+            # release them when the write end finally closes.
             return bytes(exc.output or b""), bytes(exc.stderr or b"")
 
 
@@ -403,6 +402,14 @@ def run_process(
                         output_overflow[stream_name] = True
         except (OSError, ValueError):
             return
+        finally:
+            # This thread owns the read side, so closing here can never wait on
+            # an in-flight read. The main thread must not close a pipe while a
+            # reader is parked in it (see run_process below).
+            try:
+                pipe.close()
+            except (OSError, ValueError):
+                pass
 
     readers = [
         threading.Thread(target=drain, args=(proc.stdout, stdout_chunks, "stdout"), daemon=True),
@@ -440,12 +447,20 @@ def run_process(
     # daemonized as a final defense against a detached child retaining a pipe.
     for reader in readers:
         reader.join(timeout=0.25)
-    for pipe in (proc.stdout, proc.stderr):
-        if pipe is not None:
-            try:
-                pipe.close()
-            except OSError:
-                pass
+    # M4-7 follow-up: never close a pipe whose reader is still parked in
+    # read1(). On Windows ``BufferedReader.close()`` waits for the in-flight
+    # read to finish, which silently re-introduced the exact stall this
+    # function promises to avoid: measured on a command whose grandchild held
+    # the pipe for 20s, the shell exited at 3.7s but ``run_bash`` returned at
+    # 22s. Each reader now closes its own pipe when it reaches EOF, so the
+    # handle is still released — by the thread that owns the read.
+    for pipe, reader in ((proc.stdout, readers[0]), (proc.stderr, readers[1])):
+        if pipe is None or reader.is_alive():
+            continue
+        try:
+            pipe.close()
+        except OSError:
+            pass
     for reader in readers:
         reader.join(timeout=0.25)
 

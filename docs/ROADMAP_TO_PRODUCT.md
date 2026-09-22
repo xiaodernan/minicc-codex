@@ -793,6 +793,26 @@ shutdown 末尾统一 reap（不改变「让它继续跑完」的语义，只消
 也就是说「子进程必须被 reap」在本仓库不是新概念，只有 task worker 的 `Popen` 没走这条路（`task_manager.py:1824-1826`
 `_closing` 时抛 `WorkerDetached` 且不 terminate、不留引用）。这把 M8-T14 的选项 A/B 之争收窄成
 「宿主关闭时是否允许中止正在跑的 worker」，而不是「要不要 reap」。
+### M4-7 / M8-T14 结案 + 一次「测试红了，但不是代码的错」排查（第四批，2026-09-22）
+
+`pytest -q -W error` 从 **6 failed / 7 errors** 收到 **0 failed / 0 errors**。四条结论，按价值排序：
+
+| # | 结论 | 证据 |
+| --- | --- | --- |
+| 1 | **M4-7 的 `-W error` 两条 ResourceWarning 已修**（审计写的选项 B） | `TaskManager` 现在持有 worker 的 Popen 注册表：正常结束/退出即 `wait()` 回收；仍在跑的不杀（保持「宿主重启后 worker 继续跑」的既有契约），而是交给后台 reaper 线程持有并回收，句柄按 CPython 的 `_child_created` 逃生口有意释放，避免 `Popen.__del__` 报假泄漏。先红后绿：旧路径（`del p` 丢弃句柄）实测打印 `subprocess 10016 is still running`，新路径不打印；新增 `test_shutdown_reaps_detached_worker_without_resource_warning` 与 `test_detached_worker_handle_is_released_without_killing_the_child` |
+| 2 | **另外 5 条失败根本不是代码缺陷，是本机环境**：测试自撰的验证命令写死了 `python -m pytest`，而本机 PATH 上的 `python` 不是跑测试的那个解释器、没装 pytest → agent 的验证步骤 exit 1 → 进入 repair → `最大模型轮次已用尽` | 独立复现：`tool [exit 1]` 紧跟 `verification_required_before_finish` → `budget_exceeded`。修法是把测试与「环境里哪个 python」解耦（`conftest.suite_python()` / `suite_python_bin` fixture 用 `sys.executable`），CI 与已激活 venv 恰好都掩盖了这一点，所以它值得钉住 |
+| 3 | **bench fixture 的第二根因也是环境**：本机全局 `core.hooksPath` 指向真实钩子目录，一次 `git commit` 耗时 **20.8s** > 15s 超时 → 每个 fixture 任务 `TimeoutExpired` | fixture 基线提交是内部记账，不该跑用户钩子：改为 `-c core.hooksPath=` + `--no-verify`，超时放宽到 60s（实测 2.3s） |
+| 4 | **顺带修掉一个真实产品缺陷**：`run_bash` 主线程在读取线程仍 parked 时调用 `BufferedReader.close()`，Windows 上 close 会等这次读完成 —— 命令把输出管道交给孙进程后，工具调用要等满孙进程生命周期 | 实测：shell 在 3.7s 退出，`run_bash` 却 22.4s 才返回（孙进程睡 20s）、孙进程睡 45s 则等 45s。修法：读取线程关闭自己的管道，主线程只关闭读取已结束的管道。修复后 22.44s → **2.86s**，父进程输出仍被捕获 |
+
+**M4-3 的两个「标准不成立」项，处理方式不是改标准**：
+
+- **rpc ≥10 method**：把只读协议面补全（`workspace/read`、`models/list`、`changes/read`、`sessions/list`、`permissions/read`），与既有 5 个生命周期 method 合计 **10 个**，每个一条测试，并复用同一套 `workspace_roots` 越界校验。
+- **POST `/api/*` 的 Python 覆盖**：为审计点名「连路径字符串都没出现」的 6 个路由（`approval`、`changes`、`mcp`、`models`、`permissions`、`sessions/fork`）补契约测试（成功路径 + 校验失败 + 越界拒绝）。
+
+**仍然未达成的两条（不掩盖）**：M6-4 的 30-fixture 性能基线依旧没有数据（需要一次全量真模型评测）；M4-3 的「POST `/api/*` 覆盖率 100%」本机仍无法测量（未安装 coverage 工具），只把「有测试」的范围补到 26 个路由里的绝大多数。
+
+**一条过程教训（写给下一个跑套件的人）**：这两次全量跑都与我并发编辑源码重叠，而 `tests/test_packaging.py` 的 module 级 fixture 会在构建期读取整个源码树 —— 边改边跑时它报的 `AssertionError` 可能是「构建快照撞上正在写入的文件」，不是打包缺陷。判定打包是否真的坏了，必须在不改任何文件的窗口里重跑。
+
 ### M8-T7 注记：一次真实失败的时间线，以及「不给结论」的边界
 
 一次真实只读小任务消耗 118,499 tokens、跑了 5 轮 `run_agent` 后才以 provider `451 censorship_blocked` 失败。

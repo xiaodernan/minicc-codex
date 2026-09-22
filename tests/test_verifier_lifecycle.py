@@ -52,14 +52,14 @@ def test_cancel_is_forwarded_and_stops_subsequent_checks(tmp_path):
     assert result.to_event()["status"] == "cancelled"
 
 
-def test_real_check_process_is_cancelled_promptly(tmp_path):
+def test_real_check_process_is_cancelled_promptly(tmp_path, suite_python_bin):
     (tmp_path / "test_wait.py").write_text("import time\ndef test_wait():\n    time.sleep(30)\n")
     cancel = threading.Event()
     timer = threading.Timer(1, cancel.set)
     started = time.monotonic()
     timer.start()
     try:
-        result = Verifier().run(tmp_path, [VerificationCommand("python -m pytest test_wait.py -q", timeout=40)], cancel_event=cancel)
+        result = Verifier().run(tmp_path, [VerificationCommand(f"{suite_python_bin} -m pytest test_wait.py -q", timeout=40)], cancel_event=cancel)
     finally:
         timer.cancel()
     assert result.status == "cancelled"

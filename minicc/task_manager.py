@@ -69,6 +69,12 @@ DEFAULT_TASK_USAGE_LIMIT = 64
 DEFAULT_TASK_COMPACTION_LIMIT = 64
 DEFAULT_TASK_QUEUE_LIMIT = 32
 TASK_SHUTDOWN_GRACE_SECONDS = 8.0
+# M4-7 / M8-T14: how long shutdown waits for a still-running detached worker
+# before releasing its handle to the background reaper. Deliberately short: the
+# worker is a supervised daemon (its lease lives in SQLite), so shutdown must
+# not block on it — but the handle must not be dropped into CPython's
+# ResourceWarning path either.
+WORKER_REAP_GRACE_SECONDS = 0.5
 COMPLETION_WRITE_TOOLS = frozenset({"write_file", "edit_file", "worktree_create", "worktree_remove"})
 READONLY_PLAN_KINDS = frozenset({"readonly", "review", "merge"})
 READONLY_PLAN_TOOLS = frozenset({"read_file", "grep", "git_status", "git_diff"})
@@ -973,6 +979,14 @@ class TaskManager:
         self.tasks: dict[str, TaskRecord] = {}
         self.store = store
         self._detached_tasks: set[str] = set()
+        # M4-7 / M8-T14: live worker Popen handles, keyed by task id. A worker
+        # that outlives its host is *intentionally* not killed (see
+        # test_worker_survives_host_restart_and_continues_long_stream), so its
+        # handle must be reaped or explicitly released — never silently dropped,
+        # which is what produced "ResourceWarning: subprocess N is still running"
+        # under `pytest -W error`.
+        self._worker_processes: dict[str, Any] = {}
+        self._worker_processes_lock = threading.RLock()
         self._snapshot_write_lock = threading.Lock()
         self._snapshot_serials: dict[str, int] = {}
         self._snapshot_committed: dict[str, int] = {}
@@ -1818,6 +1832,71 @@ class TaskManager:
             "workspace_path": task.workspace_path,
         })
 
+    def _register_worker_process(self, task_id: str, process: Any) -> None:
+        with self._worker_processes_lock:
+            self._worker_processes[task_id] = process
+
+    def _release_worker_process(self, task_id: str, *, grace: float = WORKER_REAP_GRACE_SECONDS) -> None:
+        """Reap a worker handle if it already exited, else hand it to a reaper.
+
+        M4-7 / M8-T14. Option B of the audit: shutdown must not change the
+        observable "a detached worker keeps running" contract, so a still-live
+        worker is never terminated here. Two things still have to happen:
+
+        1. ``wait()`` is attempted first so an exited child is reaped properly
+           (on POSIX an unreaped child stays a zombie until the parent exits).
+        2. If the child is genuinely still running, a daemon reaper thread keeps
+           waiting on it in the background, so the handle stays referenced and
+           its exit status is collected when it finally ends. The handle is
+           additionally marked as not owning a child (CPython's ``Popen.__del__``
+           emits ``ResourceWarning`` whenever ``returncode is None``) — without
+           that, a worker that outlives the interpreter turns a deliberate
+           design choice into a spurious warning under ``pytest -W error``.
+        """
+        with self._worker_processes_lock:
+            process = self._worker_processes.pop(task_id, None)
+        if process is None:
+            return
+        try:
+            process.wait(timeout=max(0.0, float(grace)))
+            LOG.debug("worker_process_reaped", extra={"task_id": task_id, "pid": getattr(process, "pid", None)})
+            return
+        except Exception:  # noqa: BLE001 - TimeoutExpired or a platform quirk
+            pass
+        if process.poll() is not None:
+            return
+        LOG.info(
+            "worker_process_detached",
+            extra={"task_id": task_id, "pid": getattr(process, "pid", None)},
+        )
+        threading.Thread(
+            target=self._reap_detached_worker,
+            args=(task_id, process),
+            name=f"minicc-worker-reaper-{task_id[:8]}",
+            daemon=True,
+        ).start()
+        self._detach_worker_handle(process)
+
+    @staticmethod
+    def _reap_detached_worker(task_id: str, process: Any) -> None:
+        """Wait on a deliberately detached worker so its exit status is collected."""
+        try:
+            process.wait()
+        except Exception:  # noqa: BLE001 - a reaper thread must never raise
+            return
+        LOG.debug("worker_process_reaped_late", extra={"task_id": task_id, "pid": getattr(process, "pid", None)})
+
+    def _detach_worker_handle(self, process: Any) -> None:
+        """Relinquish ownership of a worker handle without killing the child.
+
+        Called only after a reaper thread owns the ``wait()`` call, so the child
+        is still reaped; this just stops CPython from reporting the deliberate
+        detachment as a leak. Guarded by ``hasattr`` because ``_child_created``
+        is an implementation detail of ``subprocess.Popen``.
+        """
+        if hasattr(process, "_child_created"):
+            process._child_created = False  # noqa: SLF001 - documented escape hatch
+
     def _monitor_worker(self, task: TaskRecord, store: TaskStore, process: Any = None) -> dict[str, Any]:
         mirror = WorkerSnapshotMirror(task)
         cancel_file = Path(task.workspace_path) / ".minicc" / "cancel" / f"{task.task_id}.flag"
@@ -1919,9 +1998,15 @@ class TaskManager:
             raise
         self._detached_tasks.add(task.task_id)
         task.worker_metadata.update(worker_version=2, worker_pid=process.pid, lease_owner=owner)
+        self._register_worker_process(task.task_id, process)
         try:
             return self._monitor_worker(task, store, process)
         finally:
+            # M4-7 / M8-T14: always reap the handle. A still-running worker is
+            # left alive on purpose (its lease in SQLite is the real supervisor),
+            # but its handle is handed to a background reaper instead of being
+            # dropped — that is what `pytest -W error` was catching.
+            self._release_worker_process(task.task_id)
             if not self._closing:
                 self._detached_tasks.discard(task.task_id)
                 store.release_lease(task.task_id, owner)
@@ -2445,3 +2530,11 @@ class TaskManager:
         self.executor.shutdown(wait=False, cancel_futures=True)
         if self._snapshot_writer is not None:
             self._snapshot_writer.close()
+        # M4-7 / M8-T14: a worker whose monitor thread is still parked in its
+        # poll loop (or exited the loop by raising) would otherwise leave its
+        # Popen unreferenced. Reap what already exited; hand the rest to the
+        # reaper so the process handle is never dropped while still running.
+        with self._worker_processes_lock:
+            pending = list(self._worker_processes)
+        for task_id in pending:
+            self._release_worker_process(task_id, grace=WORKER_REAP_GRACE_SECONDS)

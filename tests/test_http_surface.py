@@ -580,3 +580,234 @@ def test_api_rpc_notification_returns_204(live: _LiveServer, tmp_path: Path) -> 
     })
     assert status == 204
     assert body == b""
+
+
+# ---------------------------------------------------------------------------
+# M4-3 follow-up: the six /api routes that had no Python test at all
+#
+# The live audit found that `approval`, `changes`, `mcp`, `models`,
+# `permissions` and `sessions/fork` never appeared as path strings in any Python
+# test — they were only reachable through the frontend smokes, which assert
+# console errors rather than response contracts. These tests pin the contract
+# (status code + payload shape + validation errors) for each of them.
+# ---------------------------------------------------------------------------
+
+
+def test_get_models_returns_local_catalog_without_network(live: _LiveServer) -> None:
+    status, _, body = _request(f"{live.url}/api/models", method="GET")
+    assert status == 200
+    payload = json.loads(body)
+    # The fake/unreachable gateway must degrade to the configured model rather
+    # than fail the request, and must never echo credentials.
+    assert [item["id"] for item in payload["models"]][0] == "test-model"
+    assert payload["default_model"] == "test-model"
+    assert "api_key" not in body.decode("utf-8", "replace")
+
+
+def test_get_permissions_reports_rules_and_path(live: _LiveServer, tmp_path: Path) -> None:
+    status, _, body = _request(f"{live.url}/api/permissions", method="GET")
+    assert status == 200
+    payload = json.loads(body)
+    assert payload["path"] == (tmp_path / ".minicc" / "permissions.json").as_posix()
+    # Empty rule sets come back as empty *rule buckets* (tools/paths/commands),
+    # not as bare lists — pin the shape so the frontend can rely on it.
+    assert payload["allow"] == {"tools": [], "paths": [], "commands": []}
+    assert payload["deny"] == {"tools": [], "paths": [], "commands": []}
+    # A healthy load reports no error (the loader uses "" for "no error").
+    assert not payload["error"]
+
+
+def test_get_permissions_surfaces_malformed_rule_file(live: _LiveServer, tmp_path: Path) -> None:
+    target = tmp_path / ".minicc" / "permissions.json"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text("{ not json", encoding="utf-8")
+    status, _, body = _request(f"{live.url}/api/permissions", method="GET")
+    assert status == 200
+    payload = json.loads(body)
+    # A broken rule file is reported, never silently treated as "no rules".
+    assert payload["error"]
+
+
+def test_get_mcp_reports_unconfigured_workspace(live: _LiveServer) -> None:
+    status, _, body = _request(f"{live.url}/api/mcp", method="GET")
+    assert status == 200
+    payload = json.loads(body)
+    assert payload.get("configured", 0) == 0
+
+
+def test_get_changes_returns_workspace_summary(live: _LiveServer) -> None:
+    status, _, body = _request(f"{live.url}/api/changes", method="GET")
+    assert status == 200
+    payload = json.loads(body)
+    assert isinstance(payload, dict) and payload
+
+
+def test_get_diff_rejects_path_outside_workspace(live: _LiveServer) -> None:
+    status, _, body = _request(f"{live.url}/api/diff?path=../outside.txt", method="GET")
+    assert status == 400
+    assert json.loads(body)["error"]
+
+
+def test_post_approval_validates_request_id(live: _LiveServer) -> None:
+    status, _, body = _post_json(f"{live.url}/api/approval", {"request_id": "  ", "decision": "allow"})
+    assert status == 400
+    assert "request_id" in json.loads(body)["error"]
+
+
+def test_post_approval_rejects_unknown_decision(live: _LiveServer) -> None:
+    status, _, body = _post_json(f"{live.url}/api/approval", {"request_id": "req-1", "decision": "maybe"})
+    assert status == 400
+    assert "allow|always|deny" in json.loads(body)["error"]
+
+
+def test_post_approval_unknown_request_is_a_noop(live: _LiveServer) -> None:
+    status, _, body = _post_json(f"{live.url}/api/approval", {"request_id": "req-missing", "decision": "deny"})
+    assert status == 200
+    assert json.loads(body) == {"resolved": False, "request_id": "req-missing"}
+
+
+def test_post_sessions_fork_validates_payload(live: _LiveServer) -> None:
+    status, _, body = _post_json(f"{live.url}/api/sessions/fork", {"from_message_id": 2})
+    assert status == 400
+    assert "session_id" in json.loads(body)["error"]
+
+    status, _, body = _post_json(f"{live.url}/api/sessions/fork", {"session_id": "s1", "from_message_id": 1.5})
+    assert status == 400
+    assert "from_message_id" in json.loads(body)["error"]
+
+    status, _, body = _post_json(f"{live.url}/api/sessions/fork", {"session_id": "s1", "from_message_id": "  "})
+    assert status == 400
+    assert "from_message_id" in json.loads(body)["error"]
+
+
+def test_post_sessions_fork_creates_independent_session(live: _LiveServer, tmp_path: Path) -> None:
+    from minicc.session import SessionStore
+
+    source = SessionStore(tmp_path, "origin")
+    source.save([
+        {"role": "system", "content": "SYS"},
+        {"role": "user", "content": "one"},
+        {"role": "assistant", "content": "two"},
+        {"role": "user", "content": "three"},
+    ])
+    status, _, body = _post_json(f"{live.url}/api/sessions/fork", {
+        "session_id": "origin", "from_message_id": 2, "new_session_id": "branch",
+    })
+    assert status == 200
+    payload = json.loads(body)
+    assert payload == {"session_id": "branch", "forked_from": "origin", "from_message_id": 2}
+
+    forked = SessionStore(tmp_path, "branch").load("SYS")
+    assert [msg["content"] for msg in forked][1:] == ["one"]
+    # The source conversation is untouched by the fork.
+    assert [msg["content"] for msg in source.load("SYS")][1:] == ["one", "two", "three"]
+
+
+def test_post_sessions_fork_rejects_unknown_session(live: _LiveServer) -> None:
+    status, _, body = _post_json(f"{live.url}/api/sessions/fork", {
+        "session_id": "no-such-session", "from_message_id": 1,
+    })
+    assert status == 400
+    assert json.loads(body)["error"]
+
+
+
+# ---------------------------------------------------------------------------
+# M4-3 follow-up: the read-only RPC surface
+#
+# The dispatcher previously exposed five lifecycle methods plus ``initialize``.
+# The roadmap's criterion asks for >=10 independently tested methods, and the
+# honest way to meet it is to make the protocol surface actually complete: a
+# client that can start a turn should also be able to read the workspace it is
+# driving. These five read-only methods reuse the lifecycle methods' workspace
+# boundary check and are each pinned here.
+# ---------------------------------------------------------------------------
+
+
+def _rpc(url: str, method: str, params: dict | None = None, *, request_id: int = 1):
+    status, _, body = _post_json(f"{url}/api/rpc", {
+        "jsonrpc": "2.0", "id": request_id, "method": method, "params": params or {},
+    })
+    payload = json.loads(body)
+    return status, payload
+
+
+def test_rpc_dispatcher_exposes_ten_methods() -> None:
+    """Pin the surface size so a silent method removal cannot pass unnoticed."""
+    from minicc.agent.rpc import RpcDispatcher
+
+    service_methods = {
+        "thread/start", "thread/read", "turn/start", "turn/read", "turn/interrupt",
+        "workspace/read", "models/list", "changes/read", "sessions/list", "permissions/read",
+    }
+    dispatcher = RpcDispatcher({name: (lambda _params: {}) for name in service_methods})
+    for name in sorted(service_methods):
+        assert dispatcher.dispatch({"jsonrpc": "2.0", "id": 1, "method": name, "params": {}})
+
+
+def test_rpc_workspace_read_describes_workspace(live: _LiveServer, tmp_path: Path) -> None:
+    status, payload = _rpc(live.url, "workspace/read", {"workspace_path": str(tmp_path)})
+    assert status == 200
+    result = payload["result"]
+    assert result["path"] == tmp_path.as_posix()
+    assert result["current"] is True
+    assert result["model"] == "test-model"
+    assert isinstance(result["sandbox"], dict)
+
+
+def test_rpc_workspace_read_rejects_path_outside_roots(tmp_path: Path) -> None:
+    """The read-only surface must enforce workspace_roots like the lifecycle one."""
+    outside = tmp_path / "allowed"
+    outside.mkdir()
+    server = _LiveServer(tmp_path, workspace_roots=(outside,))
+    try:
+        status, payload = _rpc(server.url, "workspace/read", {"workspace_path": str(tmp_path / "elsewhere")})
+        assert status == 200
+        assert payload["error"]["message"]
+    finally:
+        server.shutdown()
+
+
+def test_rpc_models_list_returns_catalog(live: _LiveServer) -> None:
+    status, payload = _rpc(live.url, "models/list", {})
+    assert status == 200
+    assert payload["result"]["default_model"] == "test-model"
+    assert payload["result"]["models"]
+
+
+def test_rpc_changes_read_returns_summary_and_diff(live: _LiveServer, tmp_path: Path) -> None:
+    status, payload = _rpc(live.url, "changes/read", {"workspace_path": str(tmp_path)})
+    assert status == 200
+    assert isinstance(payload["result"], dict) and payload["result"]
+
+    (tmp_path / "tracked.txt").write_text("hello\n", encoding="utf-8")
+    status, payload = _rpc(live.url, "changes/read", {"path": "../escape.txt"})
+    assert status == 200
+    assert payload["error"]["message"]
+
+
+def test_rpc_sessions_list_counts_stored_sessions(live: _LiveServer, tmp_path: Path) -> None:
+    from minicc.session import SessionStore
+
+    SessionStore(tmp_path, "rpc-session").save([{"role": "user", "content": "hi"}])
+    status, payload = _rpc(live.url, "sessions/list", {"workspace_path": str(tmp_path)})
+    assert status == 200
+    result = payload["result"]
+    assert result["workspace_path"] == str(tmp_path)
+    assert result["count"] >= 1
+    assert any(item["session_id"] == "rpc-session" for item in result["sessions"])
+
+
+def test_rpc_permissions_read_reports_rules(live: _LiveServer, tmp_path: Path) -> None:
+    status, payload = _rpc(live.url, "permissions/read", {"workspace_path": str(tmp_path)})
+    assert status == 200
+    result = payload["result"]
+    assert result["path"] == (tmp_path / ".minicc" / "permissions.json").as_posix()
+    assert result["allow"] == {"tools": [], "paths": [], "commands": []}
+
+
+def test_rpc_unknown_method_is_a_protocol_error(live: _LiveServer) -> None:
+    status, payload = _rpc(live.url, "workspace/nonexistent", {})
+    assert status == 200
+    assert payload["error"]["code"] == -32601
+

@@ -112,17 +112,34 @@ def test_bash_blocks_processes_that_escape_tool_lifecycle(tmp_path: Path, comman
 
 
 def test_bash_does_not_wait_for_child_inherited_output_pipe(tmp_path: Path) -> None:
+    """A grandchild holding the output pipe must not extend the tool call.
+
+    The command exits immediately but leaves a grandchild that inherits
+    stdout/stderr and sleeps far longer than any bound here. Two failure modes
+    make this call take the grandchild's full lifetime instead of returning the
+    parent's output:
+
+    * reading the pipe to EOF instead of stopping at the shell's exit, and
+    * closing the pipe from the main thread while a reader thread is parked in
+      ``read1()`` (``BufferedReader.close()`` waits for that read on Windows).
+
+    Measured before the fix: 22.4s for a 20s grandchild with the shell already
+    exited at 3.7s. The bound is deliberately far from both outcomes so suite
+    load cannot flip it, and the timeout is generous so the *status* stays
+    deterministic (a 1s budget used to make this test pass or fail depending on
+    pytest's capture mode, which is what made it flaky).
+    """
     command = subprocess.list2cmdline([
         sys.executable,
         "-c",
-        'import subprocess,sys,time; subprocess.Popen([sys.executable, "-c", "import time; time.sleep(1)"]); print("parent", flush=True)',
+        'import subprocess,sys,time; subprocess.Popen([sys.executable, "-c", "import time; time.sleep(45)"]); print("parent", flush=True)',
     ])
     started = time.monotonic()
-    result = run_bash(command, tmp_path, timeout=1)
+    result = run_bash(command, tmp_path, timeout=30)
     elapsed = time.monotonic() - started
     assert result.status == "ok"
     assert "parent" in result.render()
-    assert elapsed < 2.5
+    assert elapsed < 15, f"waited {elapsed:.1f}s for an inherited pipe"
 
 
 def test_search_parser_supports_duckduckgo_lite_redirects() -> None:

@@ -293,11 +293,11 @@ def test_agent_service_marks_text_only_change_request_as_incomplete(tmp_path: Pa
     assert result["cancelled"] is False
 
 
-def test_agent_service_runs_verifier_after_successful_write(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_agent_service_runs_verifier_after_successful_write(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, suite_python_bin: str) -> None:
     (tmp_path / "tests").mkdir()
     (tmp_path / "tests" / "test_smoke.py").write_text("def test_smoke():\n    assert True\n", encoding="utf-8")
     (tmp_path / ".minicc").mkdir()
-    (tmp_path / ".minicc" / "verification.json").write_text(json.dumps({"rules": [{"paths": ["result.txt"], "commands": ["python -m pytest -q tests/test_smoke.py"]}]}), encoding="utf-8")
+    (tmp_path / ".minicc" / "verification.json").write_text(json.dumps({"rules": [{"paths": ["result.txt"], "commands": [f"{suite_python_bin} -m pytest -q tests/test_smoke.py"]}]}), encoding="utf-8")
 
     class FakeProvider:
         def __init__(self, **_kwargs) -> None:
@@ -337,7 +337,7 @@ def test_agent_service_runs_verifier_after_successful_write(tmp_path: Path, monk
                             "type": "function",
                             "function": {
                                 "name": "bash",
-                                "arguments": json.dumps({"command": "python -m pytest -q"}),
+                                "arguments": json.dumps({"command": f"{suite_python_bin} -m pytest -q"}),
                             },
                         }
                     ]
@@ -980,9 +980,10 @@ def test_task_recovers_after_transient_provider_failure(tmp_path: Path, monkeypa
 def test_agent_service_recovers_stagnation_before_verifying_changes(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    suite_python_bin: str,
 ) -> None:
     (tmp_path / ".minicc").mkdir()
-    (tmp_path / ".minicc" / "verification.json").write_text(json.dumps({"rules": [{"paths": ["result.txt"], "commands": ["python -m pytest -q tests/test_smoke.py"]}]}), encoding="utf-8")
+    (tmp_path / ".minicc" / "verification.json").write_text(json.dumps({"rules": [{"paths": ["result.txt"], "commands": [f"{suite_python_bin} -m pytest -q tests/test_smoke.py"]}]}), encoding="utf-8")
     (tmp_path / "tests").mkdir()
     (tmp_path / "tests" / "test_smoke.py").write_text(
         "def test_smoke():\n    assert True\n",
@@ -1045,7 +1046,7 @@ def test_agent_service_recovers_stagnation_before_verifying_changes(
                     "type": "function",
                     "function": {
                         "name": "bash",
-                        "arguments": '{"command":"python -m pytest -q"}',
+                        "arguments": json.dumps({"command": f"{suite_python_bin} -m pytest -q"}),
                     },
                 }])
             return LLMResponse(content="修改和验证已完成。")

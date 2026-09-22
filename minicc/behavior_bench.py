@@ -124,5 +124,22 @@ def prepare_fixture(task: dict[str, Any], workspace: Path, *, initialize_git: bo
     if initialize_git:
         # A baseline lets the agent inspect its actual diff without unrelated
         # failures from git tools. No global Git identity/config is changed.
-        for args in (["init", "-q"], ["add", "--", "."], ["-c", "user.name=MiniCC Benchmark", "-c", "user.email=benchmark@example.invalid", "-c", "commit.gpgsign=false", "commit", "-qm", "Behavior fixture baseline"]):
-            subprocess.run(["git", *args], cwd=workspace, check=True, capture_output=True, timeout=15)
+        # The baseline commit is internal bookkeeping, so it must never run the
+        # user's hooks: on a machine whose global `core.hooksPath` points at a
+        # real hook directory, a single `git commit` took 20.8s and every
+        # fixture task died with `TimeoutExpired` at the old 15s budget.
+        # `core.hooksPath=` (empty) disables the hook lookup and `--no-verify`
+        # skips pre-commit/commit-msg; the timeout now tolerates a slow
+        # filesystem instead of assuming a fast one.
+        for args in (
+            ["init", "-q"],
+            ["add", "--", "."],
+            [
+                "-c", "core.hooksPath=",
+                "-c", "user.name=MiniCC Benchmark",
+                "-c", "user.email=benchmark@example.invalid",
+                "-c", "commit.gpgsign=false",
+                "commit", "-qm", "Behavior fixture baseline", "--no-verify",
+            ],
+        ):
+            subprocess.run(["git", *args], cwd=workspace, check=True, capture_output=True, timeout=60)

@@ -238,3 +238,83 @@ def test_worker_survives_host_restart_and_continues_long_stream(
         first.shutdown()
         if replacement is not None:
             replacement.shutdown()
+
+
+def test_shutdown_reaps_detached_worker_without_resource_warning(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """M4-7 / M8-T14: a worker that outlives its host must not leak its handle.
+
+    ``pytest -W error`` used to fail with "ResourceWarning: subprocess N is
+    still running" because ``_monitor_worker`` raised ``WorkerDetached`` during
+    shutdown and the Popen handle was dropped unreferenced. Option B of the
+    audit is pinned here: the worker is deliberately *not* killed (the lease in
+    SQLite is the real supervisor), but its handle is reaped or handed to a
+    background reaper, so no warning is emitted and the registry drains.
+    """
+    import gc
+    import warnings
+
+    from minicc.web import AgentService
+
+    monkeypatch.setenv("MINICC_FAKE_PROVIDER", "1")
+    store_path = tmp_path / "tasks.sqlite3"
+    store = TaskStore(store_path)
+    service = AgentService(tmp_path, _service_config(tmp_path), task_store=store)
+    try:
+        task_id = service.tasks.submit({
+            "message": "reap me",
+            "session_id": "reap-session",
+            "workspace_path": str(tmp_path),
+            "allow_changes": False,
+        })["task_id"]
+        deadline = time.time() + 120
+        while time.time() < deadline and (store.get(task_id) or {}).get("status") not in {
+            "completed", "failed", "cancelled",
+        }:
+            time.sleep(0.2)
+        assert (store.get(task_id) or {}).get("status") == "completed"
+
+        manager = service.tasks
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            service.shutdown()
+            gc.collect()
+        leaked = [str(item.message) for item in caught if "still running" in str(item.message)]
+        assert leaked == [], leaked
+        # Every handle is either reaped or owned by a reaper thread: nothing is
+        # left registered for this manager.
+        assert manager._worker_processes == {}
+    finally:
+        service.shutdown()
+
+
+def test_detached_worker_handle_is_released_without_killing_the_child(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The release path must not terminate the child (the restart test depends on it)."""
+    import subprocess
+    import sys
+
+    from minicc.web import AgentService
+
+    monkeypatch.setenv("MINICC_FAKE_PROVIDER", "1")
+    service = AgentService(
+        tmp_path, _service_config(tmp_path), task_store=TaskStore(tmp_path / "tasks.sqlite3")
+    )
+    child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
+    try:
+        manager = service.tasks
+        manager._register_worker_process("task-reaper", child)
+        manager._release_worker_process("task-reaper", grace=0.1)
+        assert manager._worker_processes == {}
+        # The child is still alive: shutdown releases the handle, it never kills.
+        assert child.poll() is None
+    finally:
+        child.terminate()
+        try:
+            child.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            child.kill()
+            child.wait(timeout=5)
+        service.shutdown()

@@ -242,6 +242,13 @@ class AgentService:
                 "turn/start": self._rpc_turn_start,
                 "turn/read": self._rpc_turn_read,
                 "turn/interrupt": self._rpc_turn_interrupt,
+                # M4-3: read-only inspection surface (10 methods total, each
+                # with its own test in tests/test_http_surface.py).
+                "workspace/read": self._rpc_workspace_read,
+                "models/list": self._rpc_models_list,
+                "changes/read": self._rpc_changes_read,
+                "sessions/list": self._rpc_sessions_list,
+                "permissions/read": self._rpc_permissions_read,
             }
         )
         self.rpc = self.rpc_dispatcher
@@ -608,6 +615,74 @@ class AgentService:
             raise ValueError("turn_id 不能为空")
         snapshot = self.tasks.cancel(task_id)
         return self._rpc_turn_payload(snapshot)
+
+    # ------------------------------------------------------------------
+    # M4-3: read-only RPC surface.
+    #
+    # The dispatcher only exposed thread/turn *lifecycle* methods, so a client
+    # could start and poll work but could not read anything about the workspace
+    # it was driving — every inspection had to go through a separate HTTP route
+    # with a different response shape. These five methods close that gap and
+    # reuse the same workspace-boundary check (`_rpc_workspace_path`, which
+    # enforces ``workspace_roots``) as the lifecycle methods. All five are
+    # strictly read-only: none of them mutates task, session or workspace state.
+    # ------------------------------------------------------------------
+
+    def _rpc_workspace_read(self, params: dict[str, Any]) -> dict[str, Any]:
+        """Describe the resolved workspace without switching the service to it."""
+        workspace = self._rpc_workspace_path(params)
+        return {
+            "name": workspace.name,
+            "path": workspace.as_posix(),
+            "exists": workspace.is_dir(),
+            "is_git": (workspace / ".git").exists(),
+            "current": _path_key(workspace) == _path_key(self.workspace),
+            "model": self.config.model,
+            "endpoint": self.config.base_url,
+            "sandbox": self.sandbox.status(),
+            "context_window_tokens": int(getattr(self.config, "context_window_tokens", 300_000)),
+            "recent_workspaces": self.workspace_catalog.list(),
+        }
+
+    def _rpc_models_list(self, params: dict[str, Any]) -> dict[str, Any]:
+        """Gateway model catalog for the resolved workspace (never raises)."""
+        self._rpc_workspace_path(params)
+        return self.list_models()
+
+    def _rpc_changes_read(self, params: dict[str, Any]) -> dict[str, Any]:
+        """Workspace change summary, or one file's diff when ``path`` is given."""
+        workspace = self._rpc_workspace_path(params)
+        raw_path = params.get("path")
+        if raw_path is not None and (not isinstance(raw_path, str) or not raw_path.strip()):
+            raise ValueError("path 不能为空")
+        try:
+            inspector = ChangeInspector(workspace)
+            if raw_path:
+                return inspector.diff(str(raw_path).strip())
+            return inspector.summary()
+        except ChangeError as exc:
+            raise ValueError(str(exc)) from exc
+
+    def _rpc_sessions_list(self, params: dict[str, Any]) -> dict[str, Any]:
+        """Stored conversations in the resolved workspace (forks are files too)."""
+        workspace = self._rpc_workspace_path(params)
+        sessions = list_sessions(workspace)
+        return {
+            "workspace_path": str(workspace),
+            "count": len(sessions),
+            "sessions": sessions,
+        }
+
+    def _rpc_permissions_read(self, params: dict[str, Any]) -> dict[str, Any]:
+        """Effective declarative permission rules for the resolved workspace."""
+        workspace = self._rpc_workspace_path(params)
+        rules, error = load_permission_rules(workspace)
+        return {
+            "path": (workspace / ".minicc" / "permissions.json").as_posix(),
+            "allow": rules["allow"],
+            "deny": rules["deny"],
+            "error": error,
+        }
 
     def switch_workspace(self, raw_path: str) -> dict[str, Any]:
         if not isinstance(raw_path, str) or not raw_path.strip():
