@@ -33,6 +33,11 @@ MINICC_REASONING_EFFORT=high
 # Retries for transient gateway/network failures, including event-source loss.
 #MINICC_PROVIDER_RETRIES=4
 
+# 单次 provider 调用的超时秒数（默认 180，上限 3600，必须为正数）。慢网关上
+# 一次非流式推理可能超过 180s，这里调大；Web 服务与它派生的任务 worker 走的是
+# 同一个值（以前只有 CLI 的 --timeout 能改，服务侧改不了）。
+#MINICC_TIMEOUT=180
+
 # Safe retries for a model turn or task-level recovery after provider-level retries.
 # Recovery retries use a non-streaming request and never replay completed tools.
 #MINICC_TASK_RECOVERY_RETRIES=2

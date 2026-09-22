@@ -52,6 +52,8 @@
 # Web 和 CLI 任务没有总执行时间、模型轮次或工具调用数量上限。
 # 任务会持续到模型交付、用户取消或服务进程结束；断流会自动恢复。
 MINICC_MAX_REPAIR_ATTEMPTS=2
+# 单次 provider 调用超时（秒，默认 180，上限 3600）。慢网关上把这一项调大即可，Web 服务与任务 worker 同受生效。
+MINICC_TIMEOUT=180
 # 验收评审最多把“看起来已完成”的答案退回重跑几次；每次是一整轮 agent，属于成本上限（1..8 夹紧）。
 MINICC_MAX_COMPLETION_CONTINUES=3
 # 以下是数据保留/并发容量，不会截断正在运行的模型任务。

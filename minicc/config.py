@@ -26,6 +26,10 @@ DEFAULT_BASE_URL = "https://api.247kan.com/v1"
 # these fields as ``None`` for backwards-compatible snapshots/config objects.
 DEFAULT_MAX_TURNS: int | None = None
 DEFAULT_TIMEOUT = 180.0
+# A mistyped timeout of 1e9 would hang a task forever instead of failing; the
+# largest legitimate single provider call (long non-streaming reasoning) is well
+# under an hour.
+MAX_TIMEOUT_SECONDS = 3600.0
 DEFAULT_LLM_PROTOCOL = "auto"
 DEFAULT_PROVIDER_RETRIES = 4
 DEFAULT_TASK_RECOVERY_RETRIES = 2
@@ -318,6 +322,18 @@ def load_config(
 
     resolved_url = pick(base_url, "MINICC_BASE_URL", "base_url", DEFAULT_BASE_URL)
     anthropic_base_url = pick(None, "MINICC_ANTHROPIC_BASE_URL", "anthropic_base_url", "").rstrip("/")
+    # The provider HTTP timeout used to be reachable only through the CLI's
+    # --timeout flag, so the Web workbench and every task worker it spawned ran
+    # at the compiled-in default forever - a slow reasoning gateway has no way
+    # to ask for a longer single-call budget.
+    raw_timeout = pick(None, "MINICC_TIMEOUT", "timeout", str(DEFAULT_TIMEOUT))
+    try:
+        resolved_timeout = float(raw_timeout)
+    except ValueError:
+        raise ConfigError(f"MINICC_TIMEOUT 不是数字: {raw_timeout!r}") from None
+    if not math.isfinite(resolved_timeout) or resolved_timeout <= 0:
+        raise ConfigError(f"MINICC_TIMEOUT 必须是正数秒: {raw_timeout!r}")
+    timeout = min(resolved_timeout, MAX_TIMEOUT_SECONDS)
     resolved_key = pick(api_key, "MINICC_API_KEY", "api_key", "")
     resolved_model = pick(model, "MINICC_MODEL", "model", DEFAULT_MODEL)
     raw_reasoning = pick(reasoning_effort, "MINICC_REASONING_EFFORT", "reasoning_effort", DEFAULT_REASONING_EFFORT)
@@ -511,6 +527,7 @@ def load_config(
         model=resolved_model,
         reasoning_effort=resolved_reasoning,
         tool_mode=resolved_mode,
+        timeout=timeout,
         max_turns=max_turns,
         llm_protocol=resolved_protocol,
         provider_retries=provider_retries,

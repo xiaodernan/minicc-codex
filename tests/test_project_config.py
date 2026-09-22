@@ -239,3 +239,40 @@ def test_the_anthropic_endpoint_can_differ_from_the_openai_one(config_env) -> No
         assert load_config().anthropic_base_url == "https://claude.internal/v1"
     finally:
         os.environ.pop("MINICC_ANTHROPIC_BASE_URL", None)
+
+
+def test_the_provider_timeout_is_reachable_from_every_layer(config_env) -> None:
+    """``Config.timeout`` was passed to the HTTP client in five places but no
+    config layer ever resolved it, so it sat at the compiled-in 180s for the Web
+    service and every task worker it spawned; only the CLI could move it."""
+    _cwd, home, workspace = config_env
+    assert load_config().timeout == 180.0
+    _write(home / "config.json", {"timeout": 45})
+    assert load_config().timeout == 45.0
+    os.environ["MINICC_TIMEOUT"] = "60"
+    try:
+        assert load_config().timeout == 60.0
+    finally:
+        os.environ.pop("MINICC_TIMEOUT", None)
+    _write(workspace / ".minicc" / "config.json", {"timeout": 90})
+    assert load_config(workspace=workspace).timeout == 90.0
+
+
+@pytest.mark.parametrize("raw", ["several", "0", "-5", "inf", "nan"])
+def test_a_timeout_that_cannot_be_honored_is_a_config_error(config_env, raw: str) -> None:
+    _cwd, _home, _workspace = config_env
+    os.environ["MINICC_TIMEOUT"] = raw
+    try:
+        with pytest.raises(ConfigError):
+            load_config()
+    finally:
+        os.environ.pop("MINICC_TIMEOUT", None)
+
+
+def test_an_absurd_timeout_is_clamped_instead_of_hanging_forever(config_env) -> None:
+    _cwd, _home, _workspace = config_env
+    os.environ["MINICC_TIMEOUT"] = "999999"
+    try:
+        assert load_config().timeout == 3600.0
+    finally:
+        os.environ.pop("MINICC_TIMEOUT", None)

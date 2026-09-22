@@ -16,7 +16,7 @@ from .agent.subagent import build_task_tool_spec
 from .allowlist import AllowlistError, add_session_rule
 from .audit import authorize_tool
 from .cli_io import cli_out
-from .config import Config, ConfigError, load_config, normalize_model_name
+from .config import MAX_TIMEOUT_SECONDS, Config, ConfigError, load_config, normalize_model_name
 from .commands import discover_commands, expand_slash_command
 from .hooks import HookRunner
 from .llm.base import system_msg, user_msg
@@ -237,7 +237,10 @@ def _apply_cli_overrides(config: Config, args: argparse.Namespace) -> Config:
     if args.max_turns is not None:
         updates["max_turns"] = _positive("max-turns", args.max_turns)
     if args.timeout is not None:
-        updates["timeout"] = _positive("timeout", args.timeout, number=float)
+        seconds = _positive("timeout", args.timeout, number=float)
+        if seconds > MAX_TIMEOUT_SECONDS:
+            raise ConfigError(f"--timeout 超过上限 {MAX_TIMEOUT_SECONDS:g} 秒: {seconds}")
+        updates["timeout"] = seconds
     if args.context_window is not None:
         updates["context_window_tokens"] = _positive("context-window", args.context_window)
     if args.soft_max_tokens is not None:

@@ -71,6 +71,38 @@ def _config_env_keys() -> set[str]:
     return set(re.findall(r'"(MINICC_[A-Z0-9_]+)"', text))
 
 
+def _loader_assigned_fields() -> set[str]:
+    """Field names the ``Config(...)`` construction inside ``config.py`` passes."""
+    tree = ast.parse((PACKAGE_ROOT / "config.py").read_text(encoding="utf-8"))
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and getattr(node.func, "id", None) == "Config":
+            return {keyword.arg for keyword in node.keywords if keyword.arg}
+    return set()
+
+
+# Pinned to "unlimited" by the loader on purpose: a stale env file must not be
+# able to truncate a running task. The CLI keeps an explicit escape hatch.
+_CONSTANT_FIELDS = frozenset({"max_duration_seconds", "max_tool_calls"})
+
+
+def test_the_loader_construction_is_actually_scanned() -> None:
+    assert len(_loader_assigned_fields()) >= 30
+
+
+def test_every_config_field_is_resolved_by_a_config_layer() -> None:
+    """A field nothing assigns is a constant wearing a dataclass costume.
+
+    ``timeout`` was read by five HTTP call sites and set by nobody: no
+    ``MINICC_TIMEOUT``, no ``config.json`` key, only the CLI's ``--timeout``. So
+    the Web workbench and every task worker it spawned ran at the compiled-in
+    default and had no way to ask for more.
+    """
+    unreachable = sorted(_config_fields() - _loader_assigned_fields() - _CONSTANT_FIELDS)
+    assert not unreachable, (
+        "这些字段没有任何配置层会给它赋值，永远只能用 dataclass 默认值：" + "；".join(unreachable)
+    )
+
+
 def test_the_env_key_scan_covers_the_real_surface() -> None:
     # ``load_config`` reads every user-facing key through one literal; a scan that
     # suddenly returns a handful of names means the pattern broke, not the config.
