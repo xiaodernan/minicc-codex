@@ -8,7 +8,13 @@ from pathlib import Path
 
 import pytest
 
-from minicc.config import Config, ConfigError, home_dir, load_config
+from minicc.config import (
+    DEFAULT_COMPACT_THRESHOLD,
+    Config,
+    ConfigError,
+    home_dir,
+    load_config,
+)
 from minicc.main import _load, _parser
 
 
@@ -276,3 +282,73 @@ def test_an_absurd_timeout_is_clamped_instead_of_hanging_forever(config_env) -> 
         assert load_config().timeout == 3600.0
     finally:
         os.environ.pop("MINICC_TIMEOUT", None)
+
+
+def test_a_stray_key_in_the_user_layer_is_reported_not_silently_dropped(
+    config_env, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A key nothing reads used to load a clean, unrelated config in silence.
+
+    ``config.py``'s own docstring promises "nothing silently defaults when the
+    user explicitly set something" - that held for bad *values* but not for bad
+    *names*, which is the half a typo lands in.
+    """
+    _cwd, home, _workspace = config_env
+    _write(home / "config.json", {"compact_threshhold": 1000})
+    config = load_config()
+    assert config.compact_threshold == DEFAULT_COMPACT_THRESHOLD
+    assert config.unrecognized_config_keys == ("compact_threshhold",)
+    assert any("compact_threshhold" in line and "compact_threshold" in line for line in caplog.messages)
+
+
+def test_a_retired_budget_key_explains_itself(config_env, caplog: pytest.LogCaptureFixture) -> None:
+    _cwd, home, _workspace = config_env
+    _write(home / "config.json", {"max_turns": 40})
+    config = load_config()
+    assert config.max_turns is None
+    assert config.unrecognized_config_keys == ("max_turns",)
+    reasons = [line for line in caplog.messages if "max_turns" in line]
+    assert any("已废弃" in line and "SOFT_MAX" in line for line in reasons)
+    # A retired name gets a reason, not a guess at what the user meant.
+    assert not any("是否想写" in line for line in reasons)
+
+
+def test_the_project_layer_reports_its_own_stray_keys(
+    config_env, caplog: pytest.LogCaptureFixture
+) -> None:
+    _cwd, _home, workspace = config_env
+    _write(workspace / ".minicc" / "config.json", {"provider_typer": "openai"})
+    config = load_config(workspace=workspace)
+    assert config.unrecognized_config_keys == ("provider_typer",)
+    line = next(entry for entry in caplog.messages if "provider_typer" in entry)
+    assert "项目配置" in line
+    assert "用户配置" not in line
+    assert "是否想写 'provider_type'" in line
+
+
+@pytest.mark.parametrize("spelling", ["sandbox", "sandbox_mode"])
+def test_sandbox_mode_is_reachable_under_both_spellings(config_env, spelling: str) -> None:
+    """``MINICC_SANDBOX`` is the one documented name that does not strip onto its
+    field, so the file accepts both the env-derived and the field-derived key."""
+    _cwd, home, _workspace = config_env
+    _write(home / "config.json", {spelling: "host"})
+    config = load_config()
+    assert config.sandbox_mode == "host"
+    assert config.unrecognized_config_keys == ()
+
+
+def test_a_dotenv_file_is_not_audited_for_stray_keys(config_env) -> None:
+    _cwd, _home, _workspace = config_env
+    (_cwd / ".env").write_text(
+        "PATH=/usr/local/bin\nSOME_UNRELATED_TOOL=1\nMINICC_MODEL=dotenv-model\n",
+        encoding="utf-8",
+    )
+    config = load_config()
+    assert config.model == "dotenv-model"
+    assert config.unrecognized_config_keys == ()
+
+
+def test_the_stray_key_report_is_visible_in_print_config(config_env) -> None:
+    _cwd, home, _workspace = config_env
+    _write(home / "config.json", {"max_concurrent_task": 4})
+    assert "ignored_keys=max_concurrent_task" in load_config().describe()

@@ -10,13 +10,17 @@ malformed .env line or a non-object config.json is reported as ConfigError.
 
 from __future__ import annotations
 
+import difflib
 import json
+import logging
 import math
 import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+_LOGGER = logging.getLogger("minicc.config")
 
 # Default to the configured OpenAI-compatible gateway; callers can still
 # override it through environment variables or explicit CLI arguments.
@@ -136,6 +140,34 @@ def _read_config_json(path: Path) -> dict[str, Any]:
     return data
 
 
+# Read by nothing in the resolver on purpose: task-level hard budgets are
+# pinned to "unlimited" so a stale file cannot truncate a running task.  They
+# stay `Config` fields for snapshot/API compatibility, which is exactly how a
+# user ends up typing them into config.json again.
+RETIRED_BUDGET_KEYS = ("max_turns", "max_duration_seconds", "max_tool_calls")
+
+
+def _unrecognized_layer_keys(
+    values: dict[str, Any], known: set[str]
+) -> list[tuple[str, str | None]]:
+    """Keys a config.json layer sets that no resolver lookup ever consulted.
+
+    Only config.json is inspected: a `.env` legitimately carries unrelated
+    variables (`PATH`, `HOME`, proxy settings), so reporting the leftovers
+    there would be noise rather than a diagnosis.
+    """
+    vocabulary = sorted(known)
+    found: list[tuple[str, str | None]] = []
+    for key in values:
+        if not isinstance(key, str) or key in known:
+            continue
+        # A loose cutoff invented suggestions no user could act on
+        # (`MINICC_LOG_LEVEL` -> "did you mean MINICC_MODEL?").
+        hint = difflib.get_close_matches(key, vocabulary, n=1, cutoff=0.78)
+        found.append((key, hint[0] if hint else None))
+    return found
+
+
 def _parse_env_file(path: Path) -> dict[str, str]:
     values: dict[str, str] = {}
     if not path.is_file():
@@ -225,6 +257,10 @@ class Config:
     subagent_writable: bool = False
     subagent_max_tokens: int | None = None
     subagent_max_depth: int = DEFAULT_SUBAGENT_MAX_DEPTH
+    # Not a knob - diagnostics.  Keys the user set in a config.json layer that
+    # no resolver lookup ever consulted (typo, retired name, renamed field).
+    # Before this, such a key silently ran at its default.
+    unrecognized_config_keys: tuple[str, ...] = ()
 
     def describe(self) -> str:
         # M7-T4: never echo any fragment of the api key — even head+tail
@@ -234,10 +270,15 @@ class Config:
             f"subagent=delegated(depth<={self.subagent_max_depth})"
             if self.subagent_writable else "subagent=readonly"
         )
+        ignored = (
+            " ignored_keys=" + ",".join(self.unrecognized_config_keys)
+            if self.unrecognized_config_keys else ""
+        )
         return (
             f"model={self.model} endpoint={self.base_url} "
             f"tool_mode={self.tool_mode} protocol={self.llm_protocol} "
             f"reasoning={self.reasoning_effort} key={key_state} {delegation}"
+            f"{ignored}"
         )
 
 
@@ -258,14 +299,20 @@ def load_config(
     ``~/.minicc/config.json`` key by key (still below `.env` and the
     environment, per the documented precedence).
     """
-    user_values = _read_config_json(home_dir() / "config.json")
-    project_values: dict[str, Any] = {}
-    if workspace is not None:
-        project_values = _read_config_json(
-            Path(workspace) / ".minicc" / "config.json"
-        )
+    user_path = home_dir() / "config.json"
+    user_values = _read_config_json(user_path)
+    project_path = (
+        Path(workspace) / ".minicc" / "config.json" if workspace is not None else None
+    )
+    project_values: dict[str, Any] = (
+        _read_config_json(project_path) if project_path is not None else {}
+    )
     # Project keys win over user keys; both stay below env/.env in pick().
     file_values: dict[str, Any] = {**user_values, **project_values}
+    # Every key this resolver actually consulted.  Derived from the lookups
+    # themselves rather than a hand-kept list, so a knob can be added without
+    # remembering to register it here - and a key nothing reads is reported.
+    consulted_keys: set[str] = set()
 
     env_values = _parse_env_file(Path(".env"))
 
@@ -291,7 +338,15 @@ def load_config(
             return len(value) > 0
         return True
 
-    def pick(arg: str | None, env_name: str, file_key: str, default: str) -> str:
+    def pick(
+        arg: str | None,
+        env_name: str,
+        file_key: str,
+        default: str,
+        *,
+        alt_file_keys: tuple[str, ...] = (),
+    ) -> str:
+        consulted_keys.update((env_name, file_key, *alt_file_keys))
         if arg is not None:
             return arg
         # M2-T8: only look up `env_name` (the exact MINICC_* spelling) in
@@ -306,9 +361,10 @@ def load_config(
         # config.json and .env use lowercase keys without the prefix;
         # os.environ must never be probed with the bare key.
         for source in (env_values, file_values):
-            value = source.get(file_key)
-            if _present(value):
-                return _stringify(value)
+            for key in (file_key, *alt_file_keys):
+                value = source.get(key)
+                if _present(value):
+                    return _stringify(value)
         return default
 
     # M2-T8: export `.env` values into os.environ so subprocesses (task
@@ -401,7 +457,13 @@ def load_config(
 
     raw_yolo = pick(None, "MINICC_YOLO", "yolo", "0")
     resolved_yolo = yolo if yolo is not None else raw_yolo.strip().lower() in TRUTHY
-    sandbox_mode = pick(None, "MINICC_SANDBOX", "sandbox", DEFAULT_SANDBOX_MODE).strip().lower()
+    # `MINICC_SANDBOX` is the one documented env name that does not map onto
+    # its `Config` field (`sandbox_mode`) by stripping the prefix, so both
+    # bare spellings are accepted: `sandbox` matches the env name, `sandbox_mode`
+    # matches every other key's convention and the field/CLI spelling.
+    sandbox_mode = pick(
+        None, "MINICC_SANDBOX", "sandbox", DEFAULT_SANDBOX_MODE, alt_file_keys=("sandbox_mode",)
+    ).strip().lower()
     if sandbox_mode not in {"host", "docker", "auto"}:
         raise ConfigError(f"MINICC_SANDBOX 非法: {sandbox_mode!r} (host|docker|auto)")
     sandbox_image = pick(None, "MINICC_SANDBOX_IMAGE", "sandbox_image", DEFAULT_SANDBOX_IMAGE)
@@ -520,8 +582,32 @@ def load_config(
             "或设置环境变量 MINICC_API_KEY / MINICC_BASE_URL / MINICC_MODEL。"
         )
 
+    # Report keys a config.json layer sets that no lookup above ever read.
+    # Without this the file's own promise - "nothing silently defaults when the
+    # user explicitly set something" - held for bad *values* but not for bad
+    # *names*: {"max_truns": 40} used to load a clean, unrelated config.
+    layers: list[tuple[str, Path, dict[str, Any]]] = [("用户配置", user_path, user_values)]
+    if project_path is not None:
+        layers.append(("项目配置", project_path, project_values))
+    unrecognized: list[str] = []
+    for label, path, values in layers:
+        for key, hint in _unrecognized_layer_keys(values, consulted_keys):
+            if key in RETIRED_BUDGET_KEYS:
+                line = (
+                    f"{label} {path} 中的键 {key!r} 已废弃：任务级硬预算恒为不限"
+                    "（要让模型主动收尾请用 MINICC_SOFT_MAX_TOKENS / "
+                    "MINICC_SOFT_MAX_DURATION_SECONDS）"
+                )
+            else:
+                line = f"{label} {path} 中的键 {key!r} 不会被读取（已按默认值运行）"
+                if hint:
+                    line += f"，是否想写 {hint!r}？"
+            _LOGGER.warning(line)
+            unrecognized.append(key)
+
     return Config(
         base_url=resolved_url.rstrip("/"),
+        unrecognized_config_keys=tuple(sorted(set(unrecognized))),
         anthropic_base_url=anthropic_base_url,
         api_key=resolved_key,
         model=resolved_model,

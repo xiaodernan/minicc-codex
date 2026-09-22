@@ -74,7 +74,8 @@ MINICC_REASONING_EFFORT=high
 #MINICC_SUBAGENT_MAX_TOKENS=
 
 # 执行位置：host（直接用宿主 Python）| docker | auto（默认，能容器化就容器化）。
-# 取其它值会在启动时报 ConfigError。
+# 取其它值会在启动时报 ConfigError。写进 config.json 时两种拼法都认：`sandbox`
+# （对齐本文件的环境变量名）与 `sandbox_mode`（对齐 Config 字段名与 --sandbox）。
 #MINICC_SANDBOX=auto
 #MINICC_SANDBOX_IMAGE=python:3.11-slim
 

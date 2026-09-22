@@ -209,6 +209,25 @@ MINICC_REASONING_EFFORT=high
 
 界面档位使用 `low|mid|high|xhigh|max|ultra`；其中中档会按兼容网关标准发送为 `reasoning_effort=medium`。如果某个模型不支持所选档位，Provider 会依次降档，最后关闭该扩展参数并继续请求。
 
+### 配置文件层（`config.json`）
+
+除了环境变量和当前目录的 `.env`，配置还可以写在两层 JSON 文件里：
+
+```text
+<workspace>/.minicc/config.json   # 项目层，只对这个工作区生效
+~/.minicc/config.json             # 用户层，所有工作区共用
+```
+
+完整优先级：显式参数 > 环境变量 > `.env` > 项目层 > 用户层 > 内置默认值。键名写去掉 `MINICC_` 前缀的小写形式，也可以直接写完整的环境变量名：
+
+```json
+{"model": "step-3.7-flash", "timeout": 300, "sandbox_mode": "host"}
+```
+
+`MINICC_HOME`、`MINICC_LOG_LEVEL`、`MINICC_LOG_FILE`、`MINICC_WEB_TOKEN`、`MINICC_ALLOW_PRIVATE_FETCH`、`MINICC_ALLOW_PRIVATE_MCP` 只从环境变量或 `.env` 读取（它们决定去哪里读配置、或在使用它们的模块里直接读 `os.environ`），写进 `config.json` 不生效。
+
+写进 `config.json` 却没有任何解析逻辑读取的键——拼错的、改过名的、已废弃的——现在会在启动时逐条报 WARNING，说明它正按默认值运行，并给出最接近的正确键名；`minicc --print-config` 也会把它们列在 `ignored_keys=` 之后。在这之前这类键完全静默，用户看到的是一份和自己的想法无关的配置。
+
 离线评测和审计导出：
 
 ```powershell

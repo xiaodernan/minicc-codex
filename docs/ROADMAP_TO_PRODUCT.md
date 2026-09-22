@@ -745,6 +745,7 @@
 | M8-T19 封顶仍是「同一句要求重复四轮才停」（待观察，未动） | ⏳ 挂起 | M8-T17 结案后这条失去了触发样本，记录以免被当成已修。「两轮相同就停」会误杀「agent 第一轮没听懂、第二轮才去做」的正常收敛；要做须带活动信号（评审要求与上一轮相同 **且** 本轮没有新增检查类工具调用）。另有一条口径：bench 的 `code_revision` 记 HEAD，工作区未提交的改动不会改变它，可区分代码版本的只有 `runtime_source_sha256` | **口径纠正（本批实测）**：这条当时写的「还没有样本」**不成立**——`tests/test_core_agent.py::test_completion_continue_loop_is_capped_instead_of_burning_turn_budget` 早就是一个**确定性失速样本**：假 provider 让评审连返 4 次**逐字相同**的判定（同一 `missing`/`rationale`/`next_action`），实测 `calls["agent"] == 4`，也就是**评委复读一次，就多烧一整轮 agent**（默认上限 3 次 continue → 4 轮）。已把这条断言补进该测试，把成本从隐含变成钉住。仍然不动收敛判据，因为缺的不是样本而是**可满足性见证**：样本里的要求（「再做一轮检查」）本身没有客观判据说它已被满足，在它上面改「两轮相同就停」依旧是凭 1 个 fixture 调收敛策略。下一步该用的是 M8-T17 那种「客观 grader 已通过、评委仍在复读」的组合 |
 | M8-T20 配置面另一半：旋钮拧得动，但没人查得到它存在（文档漂移） | ✅ | M8-T18 自己就是触发者：这一批新加的两个键先只写进了 `config.py`，`minicc.config.example` 一字未提——**「可达」有两半，能被读到和能被查到是两件事**。于是把第二半也做成门：扫 `config.py` 里出现的每个 `"MINICC_*"` 字面量，要求它同时出现在 `minicc.config.example` 中，并带读取面下限（键数 ≥30，防正则失效后对着空清单假绿）。**门第一次运行报出 17/37 个键从未被文档提到**，其中全是真实用户开关：`MINICC_HOME`、`MINICC_SANDBOX` / `_IMAGE`、`MINICC_TASK_EXECUTOR`、`MINICC_MAX_CONCURRENT_TASKS`、`MINICC_CONTEXT_WINDOW_TOKENS` / `MINICC_COMPACT_THRESHOLD`、`MINICC_SOFT_MAX_TOKENS` / `_DURATION_SECONDS`、`MINICC_SUBAGENT_WRITABLE` / `_MAX_DEPTH` / `_MAX_TOKENS`、`MINICC_FALLBACK_MODELS`、`MINICC_AUTO_RESUME_ON_START`、`MINICC_TASK_HISTORY_LIMIT` / `_MAX_AGE_DAYS`、`MINICC_ALLOW_PRIVATE_MCP`。17 条**逐条回到代码里读语义再写文档**（默认值与夹紧取自 `load_config` 原文：并发 1..64、历史 1..200 条 / 1..3650 天、子代理深度 1..2；`_optional_positive_*` 的「留空/0/off/unlimited/非正数＝不设」而不是「报错」；`soft_max_*` 只经 `Budget.soft_limit_hit()` 提示收尾、**永不中止任务**；`prune()` 只删已终结快照，排队/运行中永不清理），写完 37/37 覆盖、清单可空。**故意不扩到全包**：`minicc/**/*.py` 另有 7 个开发者开关（`MINICC_FAKE_PROVIDER`、`MINICC_FAKE_PROVIDER_FAULTS`、`MINICC_EVAL_GRADER_DIR`、`MINICC_HOOKS`、`MINICC_KEEP_WORKER_CONFIG`、`MINICC_PRICING_JSON`、`MINICC_ANTHROPIC_MAX_TOKENS`）不属于用户示例文件，门的作用域就停在 `config.py` 这个用户面边界 | `tests/test_config_surface.py` 2 → 4 条（AST 门 + 读取面下限 + 文档门 + 文档扫描下限）。**双向红→绿都量过**：把新加的 2 个键从示例文件里删掉 → 报 `MINICC_ANTHROPIC_BASE_URL；MINICC_MAX_COMPLETION_CONTINUES`；给一个尚未文档化的键补上文档 → 当时的「只缩不涨」版本立刻报 `请把它们从 _UNDOCUMENTED_KEYS 删掉：MINICC_HOME`（这条测的是清单会腐烂，比「新键必须写文档」更容易被漏掉）。`tests/test_config_surface.py` + `tests/test_project_config.py` **22 passed**，`-W error` |
 | M8-T21 配置面第三半：字段挂着，但没有任何配置层会给它赋值（`timeout` 一直只有 CLI 能改） | ✅ | 前两批分别查「读处有没有这个字段」和「文档有没有提到这个键」，这次反过来查 **字段有没有人写**：AST 取 `config.py` 里 `Config(...)` 构造的关键字集合，要求覆盖 `dataclasses.fields(Config)`，另加 `>= 30` 防空扫描假绿。**门报出一个真缺陷**：`timeout` 是 `Config` 字段、被 5 处 HTTP 调用读走（`main.py:619/627`、`web.py:1000/1170/1415`），但 `load_config` 从不解析它——仓库里既没有 `MINICC_TIMEOUT`，`config.json` 里也没有 `timeout` 键，唯一入口是 CLI 的 `--timeout`。按运行方式分组看后果：交互 CLI 能改；**Web 工作台（`web.py:2489` 裸调 `load_config`）和它派生的每个 task worker（`task_worker.py:53` 同样裸调）永远锁在编译期默认 180s**，而慢推理网关上一次非流式请求就可能超过它，用户无从调整。修法与 M8-T18 同型：`MINICC_TIMEOUT` env + `timeout` 文件键走同一个 `pick`，非数字与非正数抛 `ConfigError`，上界夹 3600s（`1e9` 这类笔误会把「超时保护」变成「永久挂起」），`--timeout` 也收到同一上界以免两条路口径不一 | `tests/test_config_surface.py` 4 → 6 条（字段可达门 + 构造扫描下限），`tests/test_project_config.py` 20 → 25（三层可达、`several/0/-5/inf/nan` 参数化报错、`999999 → 3600`）。**红→绿是摘掉构造里的 `timeout=timeout,` 量的**：门与两条 timeout 测试同时红（`3 failed, 28 passed`），接回即绿。**这条门的边界要说清**：它查的是「字段完全没进构造」，不查「进了构造但值是常量」——`max_turns` 属于后者（`load_config` 里恒为 `None`，是刻意的 legacy 忽略，见 `config.py:331-338` 注释，CLI 保留显式逃生口），因此 `max_duration_seconds` / `max_tool_calls` 与它一起进了 `_CONSTANT_FIELDS` 例外表；把例外写成表而不是把门调松，是为了让「谁在豁免」可审 |
+| M8-T22 配置面第四格：用户写进 `config.json` 的键如果没有任何一处读取，全程零输出 | ✅ | 前三格尺子（读处有字段 / 文档有键 / 字段有人写）都站在**开发者**一侧；用户这一侧的同一件事是「我把旋钮写进了配置文件，它没生效，也没人告诉我」。`config.py` 的文档字符串本来承诺 *"nothing silently defaults when the user explicitly set something"*——对**坏值**成立（每个键都有 `ConfigError`），对**坏键名**不成立：`{"max_truns": 40}`、`{"compact_threshhold": 100}`、已废弃的 `max_turns` 全部静默按默认值跑完。**量化发现**：AST 扫 `config.py` 的 34 个 `pick()` 调用点，33 个满足 `MINICC_X ↔ 裸键 x ↔ Config 字段 x`，唯一例外是 `MINICC_SANDBOX` 的裸键 `sandbox`（字段叫 `sandbox_mode`）；而 `sandbox` 这个拼法在全仓库只出现在 `tests/test_core.py:24` 的 fixture 里，**那条测试断言了 api_key/base_url/model/yolo 却从未断言 sandbox_mode**——「这个键有覆盖」的错觉正来自一行没人读的 fixture（已补断言）。修法是把静默换成一次可核对的报告：① `pick()` 记下自己真正查过的每个键名（env 名 + 裸键 + 别名），词表来自解析器的**实际行为**而不是手抄清单，新增旋钮不必记得登记；② 解析全部完成后比对两层 `config.json`，未识别键逐条 WARNING，区分「用户配置 / 项目配置」并给路径，`difflib` 建议的 cutoff 定在 0.78（0.62 会把 `MINICC_LOG_LEVEL` 建议成 `MINICC_MODEL`，一条没人能照做的提示）；③ 结果同时挂到 `Config.unrecognized_config_keys` 与 `describe()` 的 `ignored_keys=`，`--print-config` 那一路也看得见；④ 三个刻意恒为不限的硬预算键走**单独的说明**（「已废弃，要收尾提示请用 `MINICC_SOFT_MAX_*`」），而不是给一个已经没人读的键猜拼写；⑤ `MINICC_SANDBOX` 补 `sandbox_mode` 第二拼法（两种都认，`sandbox` 优先），示例文件同步。**边界**：`.env` 不做这项审计（它合法地装着 `PATH` 之类的无关变量），豁免清单另有一条门守着——被停在这里的键必须**确实不经过 `config.py` 解析**，否则「MINICC_LOG_LEVEL 其实已经接进 resolver 了」这种漂移会立刻报红 | `tests/test_config_surface.py` 6 → 43 条（AST 词表扫描 + `_resolver_env_names()` 下限 25 + 豁免清单合法性 + 参数化「示例文件里每个旋钮的两种拼法都可写」，每条 payload 都塞一个哨兵键 `zz_not_a_config_key` 并断言它是**唯一**被报出的键——否则 `unrecognized == ()` 会被一个坏掉的报告器永远满足）；`tests/test_project_config.py` 25 → 31 条（用户层/项目层各报各的、废弃键给理由不给猜测、两种拼法、`.env` 保持静默、`describe()` 可见）。**红→绿**：把 `_unrecognized_layer_keys` 短路成 `return []` → 4 条红（stray / retired / 项目层 / print-config），另 3 条按构造仍绿（它们防的是假阳性那一侧，不是报告本身）。**真机**：`.venv/Scripts/minicc.exe --print-config` 配一份含 `max_truns` / `compact_threshhold` / `sandbox_mode` 的 `config.json` → stderr 两条 WARNING（第二条带「是否想写 'compact_threshold'？」），`sandbox_mode` 不再被误报，stdout 两行协议输出干净、尾行 `ignored_keys=compact_threshhold,max_truns` |
 
 ### M1-M3 退出标准真跑记录（第一批，2026-09-22）
 
@@ -752,7 +753,7 @@
 
 | 标准 | 结论 | 证据 |
 | --- | --- | --- |
-| M1-1 `pytest -q` 全绿 | ✅（Windows 这条腿） | 最新基线 `.venv` 全量 **938 passed**（`-W error`，264.4s；同批上一基线 929、927、919、917、913）；Ubuntu 那条腿本机不可用，只有 CI 能证，**不在此声明** |
+| M1-1 `pytest -q` 全绿 | ✅（Windows 这条腿） | 最新基线 `.venv` 全量 **982 passed**（`-W error`；同批上一基线 938、929、927、919、917、913）。**这次 wall time 518.39s，不要当性能基线引用**：平时同规模 260-310s，本批新增的 44 条只有 1.8s + 21.9s（`test_config_surface.py` / 四个配置相关文件的合跑），差额不来自我的改动；运行期间 tasklist 里另有若干并存 python 进程（本仓库允许多 run 共用 `~/.minicc/tasks.sqlite3` 与固定测试端口），**归因未证实**，所以这里只记「时长被外部因素影响，计数有效」。Ubuntu 那条腿本机不可用，只有 CI 能证，**不在此声明** |
 | M1-2 `scripts/reliability_probe.py` 一键复现、退出码 0 | ✅ | 真跑：9 个 M1 target 全绿，`exit=0` |
 | M1-3 人工核查（只认 text delta 与 `[DONE]`、空答案不算成功） | ✅（**查出并修掉一条真实缺陷**） | 三条子判据分别处理。**① 只认 text delta**：两条协议分支各自独立核过——`chat_completions` 分支里 `delta.content` 与 `delta.reasoning_content` 走**两个不同的 assembler**，reasoning 永远进不了 `committed_text`（`openai_provider.py:1017-1040`）；`responses` 分支只消费 `response.output_text.delta` 一种事件类型，其余事件不产生可见文本（`:784-791`）。**② 假网关只发 delta + `[DONE]`、从不发 finish_reason**：这条原本写着「人工核查」，其实**可以在 wire 上执行**，新测试用 `httpx.MockTransport` 返回真实 SSE 字节（一条 content delta + `data: [DONE]`，无 finish_reason），断言 **HTTP 请求恰好 1 次**（不是 5 次重放）、`run_agent` 以 `LLM 调用失败: stream ended before completion` 明确结束、且已经流出去的「半句话」保留在 answer 里。顺带纠正一处口径：旧测试 `test_m1t5_stream_without_finish_reason_fails_fast` 数的「1 次」是**被打桩的 `_create` 调用次数**，不是 HTTP 请求数。`[DONE]` 在 openai 路径由 SDK 自己消化，仓库里唯一手写 SSE 解析的是 anthropic 路径（`anthropic_provider.py:372` 对 `[DONE]` 有防护）。**③ 空答案不算成功 → 此前不成立**：`loop.py` 有两个交付点写 `result.answer = text or "(模型返回空回复)"` 而 `result.error` 保持为空，也就是**一轮既无内容又无工具调用的完成会被当作成功交付**，且此前没有任何测试引用过那个占位串（grep 全仓库只命中 loop.py 自己）。两处都改成显式失败（`code="empty_answer"`，answer 写成「任务未完成：…」）。保留的判断：`text` 为空时仍会先取 `reasoning_content`（`:1409-1411`），部分模型只把答案写在推理段里，所以「空答案」的判据是**两者都空** | `tests/test_m1_integrity.py` 15 → **17**：`test_m1t3_delta_only_gateway_costs_one_request_and_errors`（wire 级，修复前后均绿——它验证的是已经成立的部分）、`test_m1t3_an_empty_final_answer_is_not_reported_as_success`（**先红**：`assert None` 于 `TurnResult(answer='(模型返回空回复)'…)`；改完转绿）。全量 `-W error` **913 passed / 233.81s**，语义变更未打破任何既有交付契约 |
 | M1-4 golden delta 序列：streamed text 必须与 answer 一致 | ✅（今天才真正成立） | 判据落在 M8-T13 的两条新测试（增量逐字到达 surface；`StreamWriter.matches`）+ `visible-equals-stored` 真机 3/3。**此前这条标准是靠终端肉眼看的**，实际一直在丢字 |
@@ -1013,6 +1014,60 @@ out.`**；同一提示词改 `MINICC_TIMEOUT=120` 则 3.34s 正常返回。也�
 后者（`load_config` 里恒为 `None`，是刻意的 legacy 忽略，见 `config.py:331-338` 的注释，CLI 保留显式逃生口），
 所以它和 `max_duration_seconds` / `max_tool_calls` 一起进 `_CONSTANT_FIELDS` 例外表。**豁免写成表而不是把门调松**，
 是为了让「谁被豁免、为什么」可审——一条不会失败的门没有价值，一条看不出自己边界的门有害。
+
+
+### M8-T22：三格尺子全是开发者视角，第四格要站在写配置的那个人那侧（第九批，2026-09-23）
+
+触发点是上一批留下的未结案观察项：`MINICC_SANDBOX` 的裸键是 `sandbox`，字段却叫 `sandbox_mode`。回去
+triage 时先把命名约定量化，而不是直接改这一处：AST 扫 `config.py` 的 34 个 `pick()` 调用点，**33 个满足
+`MINICC_X ↔ 裸键 x ↔ Config 字段 x`，只有 1 个例外**。如果视线停在这个例外上，改法就是给一个键补个别名——
+一行的价值。真正值钱的是顺手问的那句「用户还能怎么把它写坏」：任何拼错的键。而 `load_config` 对一个不存在
+的键的输出是**零字节**，`config.py` 文档字符串里那句 *"nothing silently defaults when the user explicitly
+set something"* 只对**坏值**成立（每个键都有 `ConfigError`），对**坏键名**从来没成立过。
+
+还有一条来自同一处的证据：`sandbox` 这个拼法在全仓库只出现在 `tests/test_core.py:24` 的 fixture 里，而那条
+测试断言了 `api_key` / `base_url` / `model` / `yolo`，**唯独没断言 `sandbox_mode`**。也就是说「这个键有测试覆盖」
+的错觉，来源是一行没人读的 fixture 数据。已补断言。
+
+**词表从哪里来，决定这条改法会不会腐烂。** 没有手写键名清单，而是让 `pick()` 记下自己真正查过的每个键名
+（env 名 + 裸键 + 别名），解析完再回头比对两层 `config.json`。理由是 M8-T20 刚刚量过的：清单式的文档会漂
+（17/37 个键没人写），而「解析器实际查过的键」就是定义本身，新增旋钮不需要记得登记。附带好处是一个反腐蚀
+探针——某个键哪天不再被读取（改名或废弃），它会立刻出现在启动报告里，而不是安静地变成默认值。
+
+**假绿防御用的是哨兵键**：参数化门对示例文件里每个旋钮都断言「报告出来的键**恰好等于**哨兵」，而不是
+「报告为空」。「没报错」类断言是「不打印」类断言的镜像问题——报告器一旦坏掉，36 行门会同时变成永远满足。
+红→绿量的就是这个：把 `_unrecognized_layer_keys` 短路成 `return []`，stray / retired / 项目层 / print-config
+四条测试立刻红（另外三条按构造仍绿，它们防的是假阳性那一侧：两种拼法都要能用、`.env` 必须保持静默）。
+
+**建议阈值是量出来的**：`difflib` 的 cutoff 取 0.62 时会输出「`MINICC_LOG_LEVEL` 是否想写 `MINICC_MODEL`？」——
+用户照做只会更糟。判据写成一句可操作的话：**建议必须能让用户的下一步真的做错事变成对事，否则宁可不给**。
+提到 0.78 后这类跨语义误配消失，`compact_threshhold → compact_threshold` 这种同词根误配保留。三个刻意废弃的
+硬预算键（`max_turns` / `max_duration_seconds` / `max_tool_calls`）单独走「已废弃 + 替代键」文案，不参与猜测。
+
+**三条边界都必须写在案上，否则后人会把它当噪音拆掉**：① `.env` 不做这项审计（它合法地装着 `PATH` 之类的
+无关变量，报出来就是噪声工厂）；② 「只能走环境变量」的豁免清单要有一条反向门守着——停在清单里的键必须
+**确实不经过 `config.py` 解析**，否则豁免表会变成藏污处；③ `MINICC_SANDBOX` 两种拼法都认，`sandbox` 优先。
+
+其中②这条门上线第一次运行就把**我自己的扫描器**判红了：第一版用正则 `_config_env_keys()` 判断「有没有被
+config.py 读取」，于是 `MINICC_HOME`（出现在 `os.getenv`）、`MINICC_ALLOW_PRIVATE_FETCH` / `_MCP`（出现在
+M2-T8 的导出清单）被当成「已被解析」，豁免被驳回。换成按 AST 读 `pick()` / `_optional_positive_*()` 的
+**字面量参数位置**才得到正确答案。这是本会话第二次撞到同一个错误：**字面 grep 不是读取语义**（第一次见
+M4-3 的验收门）。以后凡是「某键/某路由有没有被处理」的判断，第一版就按调用点的参数位置扫，别按字符串扫。
+
+**顺带一条独立的文档发现**：README **从来没有提到 `config.json` 存在**。M7-T4 的退出标准第 4 条写的是
+「项目级覆盖生效**且优先级文档化**」，当时的证据是 `config.py` 的文档字符串——那是开发者文档；用户会打开的是
+README。已补一节「配置文件层（`config.json`）」，含两层路径、完整优先级、键名两种写法、只走环境变量的六个
+键，以及新的 `ignored_keys=` 报告。**判据**：标准里出现「文档化」时，要问「用户会打开的那个文件里有没有」。
+
+真机核对（`.venv/Scripts/minicc.exe --print-config`，一份含 `max_truns` / `compact_threshhold` / `sandbox_mode`
+的用户层文件）：stderr 两条 WARNING，后者带「是否想写 `'compact_threshold'`？」；`sandbox_mode` 不再被误报；
+stdout 只有两行协议输出，末行为 `... ignored_keys=compact_threshhold,max_truns`——日志没有污染 stdout，
+这条是 M8-T5「stdout 是协议通道」的既有契约，本次新增的输出必须继续满足它。
+
+本批最终基线：`pytest -q -W error` **982 passed**（938 → 982，+44 全部来自 `tests/test_config_surface.py`
+6 → 43 与 `tests/test_project_config.py` 25 → 32）。同一批的 wall time 是 518.39s，而本仓库平时同规模是
+260-310s：新增 44 条自己量出来只有 1.8s / 21.9s，差额不在我这边，运行期间机器上另有并存的 python 进程，
+**归因未证实**，因此这个数字只用来记「这次跑了多久」，不进性能口径（见第四节 M1-1 行）。
 
 
 ### M8-T7 注记：一次真实失败的时间线，以及「不给结论」的边界

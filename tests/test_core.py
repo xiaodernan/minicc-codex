@@ -45,6 +45,9 @@ def test_config_file_accepts_boolean_yolo(tmp_path: Path, monkeypatch: pytest.Mo
     assert config.base_url == "https://example.test/v1"
     assert config.model == "test-model"
     assert config.yolo is True
+    # This key has been in the fixture since the audit; nothing ever asserted it
+    # resolved, so the one "proof" the file key worked was a line nobody read.
+    assert config.sandbox_mode == "host"
 
 
 def test_config_ignores_legacy_execution_budget_settings(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

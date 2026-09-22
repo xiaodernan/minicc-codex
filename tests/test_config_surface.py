@@ -10,16 +10,26 @@ project config file or environment variable could move it.
 The second gate covers the other half of "reachable": a key that works but is
 written nowhere a human reads. That one exists because this same increment added
 two knobs and shipped them undocumented until the scan caught it.
+
+The third pair closes the loop from the human's side: ``minicc.config.example``
+is the contract a user actually copies from, so every knob it names has to be
+settable through ``config.json`` under both spellings - and a name that is not
+a knob at all has to say so instead of loading a clean, unrelated config in
+silence (``{"max_truns": 40}`` used to be indistinguishable from success).
 """
 
 from __future__ import annotations
 
 import ast
+import json
+import os
 import re
 from dataclasses import fields
 from pathlib import Path
 
-from minicc.config import Config
+import pytest
+
+from minicc.config import Config, load_config
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 PACKAGE_ROOT = REPO_ROOT / "minicc"
@@ -123,4 +133,151 @@ def test_a_new_config_key_ships_documented_in_the_example_file() -> None:
     assert not undocumented, (
         "这些环境变量在 config.py 里会被读取，但 minicc.config.example 从未提到，"
         "用户无从知道它们存在：" + "；".join(undocumented)
+    )
+
+
+# Documented in the example file but read straight from os.environ by another
+# module (`logging_setup`, `webauth`, `netguard`, `mcp`, and `home_dir()`
+# itself), so a config.json layer is genuinely not where they work.  The gate
+# below forbids a key from parking here that config.py does in fact read, so
+# this cannot become a dumping ground for names nobody wants to fix.
+_ENV_ONLY_KEYS: dict[str, str] = {
+    "MINICC_HOME": "决定去哪儿读 config.json，只能来自环境变量",
+    "MINICC_LOG_LEVEL": "logging_setup 直接读 os.environ",
+    "MINICC_LOG_FILE": "logging_setup 直接读 os.environ",
+    "MINICC_WEB_TOKEN": "webauth 读环境变量 / --token / web_token.json",
+    "MINICC_ALLOW_PRIVATE_FETCH": "netguard 直接读 os.environ",
+    "MINICC_ALLOW_PRIVATE_MCP": "mcp 直接读 os.environ",
+}
+
+# `MINICC_SANDBOX` is the one documented name that does not strip onto its
+# `Config` field (`sandbox_mode`).  The resolver accepts both bare spellings
+# for it; every other knob needs no such exception.
+_IRREGULAR_ENV_NAMES = frozenset({"MINICC_SANDBOX"})
+
+# A name no resolver lookup can produce, and not close enough to one to be
+# rescued by the suggestion matcher.
+_SENTINEL_KEY = "zz_not_a_config_key"
+
+
+def _resolver_env_names() -> set[str]:
+    """Names the resolver consults, read off the call sites that pass literals.
+
+    Stricter than grepping ``MINICC_*`` out of ``config.py``: that regex also
+    matches ``os.getenv("MINICC_HOME")`` and the M2-T8 export list, neither of
+    which makes a key settable from ``config.json``.
+    """
+    tree = ast.parse((PACKAGE_ROOT / "config.py").read_text(encoding="utf-8"))
+    positions = {"pick": 1, "_optional_positive_int": 0, "_optional_positive_float": 0}
+    names: set[str] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Name):
+            continue
+        index = positions.get(node.func.id)
+        if index is None or len(node.args) <= index:
+            continue
+        argument = node.args[index]
+        if isinstance(argument, ast.Constant) and isinstance(argument.value, str):
+            names.add(argument.value)
+    return names
+
+
+def _documented_keys() -> dict[str, str]:
+    """`MINICC_*` keys the example file documents, with the value it suggests."""
+    keys: dict[str, str] = {}
+    pattern = re.compile(r"^#?\s*(MINICC_[A-Z0-9_]+)=(.*)$")
+    for line in EXAMPLE_FILE.read_text(encoding="utf-8").splitlines():
+        match = pattern.match(line.strip())
+        if match:
+            keys[match.group(1)] = match.group(2).strip()
+    return keys
+
+
+def _documented_knobs() -> dict[str, str]:
+    return {
+        key: value
+        for key, value in _documented_keys().items()
+        if key not in _ENV_ONLY_KEYS
+    }
+
+
+@pytest.fixture()
+def isolated_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.chdir(tmp_path)
+    for key in [k for k in os.environ if k.startswith("MINICC_")]:
+        monkeypatch.delenv(key, raising=False)
+    # Credentials come from the environment so the row under test is the only
+    # thing the config.json file contributes.
+    monkeypatch.setenv("MINICC_HOME", str(home))
+    monkeypatch.setenv("MINICC_API_KEY", "sk-gate-key")
+    monkeypatch.setenv("MINICC_BASE_URL", "https://gateway.test/v1")
+    monkeypatch.setenv("MINICC_MODEL", "gate-model")
+    yield home
+    for key in [k for k in os.environ if k.startswith("MINICC_")]:
+        os.environ.pop(key, None)
+
+
+def _load_from(home: Path, payload: dict[str, object]) -> Config:
+    (home / "config.json").write_text(json.dumps(payload), encoding="utf-8")
+    return load_config()
+
+
+def test_the_documented_key_inventory_is_actually_scanned() -> None:
+    assert len(_documented_knobs()) >= 25
+
+
+def test_env_only_keys_are_parked_for_a_real_reason() -> None:
+    """An allowlisted name must be documented and must genuinely bypass config.py."""
+    assert len(_resolver_env_names()) >= 25
+    documented = set(_documented_keys())
+    read_by_config = _resolver_env_names()
+    assert set(_ENV_ONLY_KEYS) <= documented, (
+        "这些键不在 minicc.config.example 里，不该出现在豁免清单上："
+        + "；".join(sorted(set(_ENV_ONLY_KEYS) - documented))
+    )
+    parked_but_read = sorted(set(_ENV_ONLY_KEYS) & read_by_config)
+    assert not parked_but_read, (
+        "这些键其实由 config.py 解析，config.json 应当生效，不能再用「只能走环境变量」豁免："
+        + "；".join(parked_but_read)
+    )
+
+
+@pytest.mark.parametrize("key,value", sorted(_documented_knobs().items()))
+def test_a_documented_key_works_from_config_json_under_both_spellings(
+    isolated_home: Path, key: str, value: str
+) -> None:
+    """The example file is a contract: every knob it names must be settable in
+    the file layer, under the env spelling and the bare spelling.
+
+    A key nobody in the resolver consults used to be invisible - `{"max_truns":
+    40}` loaded a clean, unrelated config with no message at all.
+    """
+    bare = key.removeprefix("MINICC_").lower()
+    # The sentinel keeps this gate honest: it rides in every payload, so if the
+    # stray-key reporter ever stops reporting, "recognized" can no longer be
+    # satisfied by an always-empty list.
+    via_env = _load_from(isolated_home, {key: value, _SENTINEL_KEY: "x"})
+    via_bare = _load_from(isolated_home, {bare: value, _SENTINEL_KEY: "x"})
+    assert via_env.unrecognized_config_keys == (_SENTINEL_KEY,), (
+        f"{key} 写进 config.json 会被当作不认识的键"
+    )
+    assert via_bare.unrecognized_config_keys == (_SENTINEL_KEY,), (
+        f"{bare} 写进 config.json 会被当作不认识的键"
+    )
+    assert via_env == via_bare, f"{key} 与 {bare} 两种拼法解析出了不同的配置"
+
+
+def test_documented_env_names_strip_onto_config_fields() -> None:
+    """Naming is the only documentation a key has once the file is open."""
+    declared = _config_fields()
+    irregular = {
+        key
+        for key in _documented_knobs()
+        if key.removeprefix("MINICC_").lower() not in declared
+    }
+    assert irregular == set(_IRREGULAR_ENV_NAMES), (
+        "这些文档化的环境变量剥掉前缀后对不上任何 Config 字段（用户按字段名写键会静默失效）："
+        + "；".join(sorted(irregular ^ _IRREGULAR_ENV_NAMES))
     )
