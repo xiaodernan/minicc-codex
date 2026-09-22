@@ -358,6 +358,100 @@ def test_metrics_answers_unknown_cost_as_unknown_in_every_field(
         assert filtered["task_count"] == 0
         assert filtered["cost_usd"] is None
         assert filtered["cost_is_partial"] is False
+        # An empty scope must be empty in every breakdown, not just in the
+        # total — otherwise "0 tasks, 3 models" reads as a working aggregator.
+        assert filtered["by_model"] == {}
+        assert filtered["tasks_by_status"] == {}
+        assert filtered["usage"] == {}
+        assert filtered["subtask_rows"] == 0
+    finally:
+        service.shutdown()
+
+
+def test_metrics_breakdowns_add_up_to_the_totals_they_are_shown_next_to(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The payload's own parts must agree with each other, not only with the rows.
+
+    ``/api/metrics`` answers five aggregates over the same rows — ``usage``,
+    ``cost_usd``, ``by_model``, ``tasks_by_status``, ``subtask_rows`` — and a
+    reader compares them side by side ("which model spent this?"). M8-T23 caught
+    the total disagreeing with the per-task snapshots; nothing here checked that
+    the *breakdowns* sum to the total they decorate, or that the batch fold is
+    counted once in both. Measured first: it holds today, so this is a fence,
+    not a fix.
+    """
+    monkeypatch.setenv("MINICC_FAKE_PROVIDER", "1")
+    monkeypatch.setenv(
+        "MINICC_PRICING_JSON", json.dumps({"priced-model": {"input": 1.0, "output": 2.0}})
+    )
+    service = _service(tmp_path)
+    try:
+        def terminal(task_id: str) -> dict[str, Any]:
+            deadline = time.time() + 90.0
+            while time.time() < deadline:
+                snapshot = service.tasks.get(task_id)
+                if str(snapshot.get("status")) in TERMINAL_TASK_STATUSES:
+                    return snapshot
+                time.sleep(0.05)
+            raise AssertionError(f"task {task_id} never finished")
+
+        _run_task(service, tmp_path, "未计价的根任务")
+        _run_task(service, tmp_path, "有计价的根任务", model="priced-model")
+        created = service.tasks.submit_batch({
+            "messages": ["分解一", "分解二"],
+            "session_id": "breakdown",
+            "workspace_path": str(tmp_path),
+            "allow_changes": False,
+        })
+        parent_id = str(created.get("parent_task_id") or created.get("task_id"))
+        parent = terminal(parent_id)
+        children = [terminal(str(cid)) for cid in created["task_ids"]]
+        assert parent["status"] == "completed", parent.get("error")
+
+        metrics = service.metrics(limit=500, workspace_path=str(tmp_path))
+        rows = service.tasks.list(limit=500, workspace_path=str(tmp_path))
+        usage = metrics["usage"]
+        by_model = metrics["by_model"]
+
+        # The shape has to be non-trivial before any of this means anything.
+        assert metrics["task_count"] == 3
+        assert set(by_model) == {"test-model", "priced-model"}, sorted(by_model)
+        assert metrics["unpriced_tasks"] == 2 and metrics["priced_tasks"] == 1
+        assert int(usage["total_tokens"]) > 0
+
+        # 1. every token counter: sum over models == the top-level total
+        for key, value in usage.items():
+            assert sum(int((bucket["tokens"].get(key) or 0)) for bucket in by_model.values()) == int(
+                value
+            ), f"{key} does not add up across by_model"
+        # 2. one row per root task, in exactly one model bucket
+        assert sum(int(bucket["tasks"]) for bucket in by_model.values()) == metrics["task_count"]
+        # 3. cost: the total is the sum of the buckets that have a number, and
+        #    the buckets without one are the reason cost_is_partial is true.
+        assert metrics["cost_usd"] == pytest.approx(
+            sum(float(b["cost_usd"]) for b in by_model.values() if b["cost_usd"] is not None)
+        )
+        assert metrics["cost_usd"] > 0.0
+        assert metrics["cost_is_partial"] is True
+        assert by_model["test-model"]["cost_usd"] is None
+        # 4. status counts cover the same rows the totals cover...
+        assert sum(metrics["tasks_by_status"].values()) == metrics["task_count"]
+        # 5. ...and the excluded subtask rows stay countable, so "3 tasks" cannot
+        #    be read as "3 rows in the index".
+        assert metrics["task_count"] + metrics["subtask_rows"] == len(rows)
+        assert metrics["subtask_rows"] == len(children)
+        # 6. the folded parent is billed once, in both the total and its bucket.
+        parent_tokens = int((parent.get("tokens_used") or {})["total_tokens"])
+        assert parent_tokens > 0
+        bucket_total = sum(
+            int((bucket["tokens"].get("total_tokens") or 0))
+            for name, bucket in by_model.items()
+            if name == str(parent.get("model"))
+        )
+        assert bucket_total >= parent_tokens
+        child_total = sum(int((c.get("tokens_used") or {}).get("total_tokens") or 0) for c in children)
+        assert int(usage["total_tokens"]) >= parent_tokens + child_total
     finally:
         service.shutdown()
 
