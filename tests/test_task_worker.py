@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import textwrap
 import time
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
 
@@ -35,6 +37,87 @@ def _service_config(tmp_path: Path, **extra) -> SimpleNamespace:
     )
     base.update(extra)
     return SimpleNamespace(**base)
+
+
+def _wait_until(predicate, *, timeout: float = 30.0, message: str = "condition") -> Any:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        value = predicate()
+        if value:
+            return value
+        time.sleep(0.05)
+    raise AssertionError(f"timed out waiting for {message}")
+
+
+def _parked_worker(tmp_path: Path) -> dict[str, Path]:
+    """A worker bootstrap whose *model call* never returns until released.
+
+    The provider is patched inside the worker process, so the cancel flag and
+    the lease keep working while the request is parked — which is exactly the
+    state a real SDK request puts a worker in. ``alive`` is appended to on every
+    tick, so a reader can tell whether this process is still executing without
+    owning its handle.
+    """
+    paths = {
+        "release": tmp_path / "release-provider",
+        "started": tmp_path / "provider-starts",
+        "alive": tmp_path / "worker-alive.log",
+    }
+    script = tmp_path / "parked_worker.py"
+    script.write_text(textwrap.dedent(f"""
+        import asyncio
+        import runpy
+        from pathlib import Path
+        from minicc.llm.fake import FakeProvider
+
+        RELEASE = Path({str(paths['release'])!r})
+        STARTED = Path({str(paths['started'])!r})
+        ALIVE = Path({str(paths['alive'])!r})
+
+        original_chat = FakeProvider.chat
+        async def controlled_chat(self, messages, tools, on_delta=None):
+            if tools is not None:
+                with STARTED.open("a", encoding="utf-8") as handle:
+                    handle.write("started\\n")
+                if on_delta:
+                    on_delta("a" * 16050)
+                while not RELEASE.exists():
+                    with ALIVE.open("a", encoding="utf-8") as handle:
+                        handle.write("tick\\n")
+                    await asyncio.sleep(0.05)
+                if on_delta:
+                    on_delta("after-host-restart-")
+            return await original_chat(self, messages, tools, on_delta)
+
+        FakeProvider.chat = controlled_chat
+        runpy.run_module("minicc.task_worker", run_name="__main__")
+    """), encoding="utf-8")
+    paths["script"] = script
+    return paths
+
+
+def _spawn_parked_worker(command: list[str], script: Path) -> list[str]:
+    """Replace ``python -m minicc.task_worker`` with the parked bootstrap."""
+    return [command[0], str(script), *command[3:]]
+
+
+def _submit_parked_task(service: Any, tmp_path: Path, session_id: str) -> str:
+    return service.tasks.submit({
+        "message": "Summarize this workspace",
+        "session_id": session_id,
+        "workspace_path": str(tmp_path),
+        "allow_changes": False,
+    })["task_id"]
+
+
+def _inside_parked_model_call(store: TaskStore, task_id: str, alive: Path) -> dict:
+    snapshot = _wait_until(
+        lambda: (store.get(task_id) or {}) if (store.get(task_id) or {}).get("stream_length", 0) >= 16050 else None,
+        timeout=120,
+        message=f"worker {task_id} to reach the parked model call",
+    )
+    _wait_until(lambda: alive.is_file() and alive.stat().st_size > 0, message="parked worker heartbeat")
+    return snapshot
 
 
 def test_config_parses_task_executor(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -148,94 +231,189 @@ def test_manager_process_mode_runs_task_in_subprocess(
         service.shutdown()
 
 
-def test_worker_survives_host_restart_and_continues_long_stream(
+def test_clean_shutdown_aborts_a_worker_that_ignores_cancellation(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Restart the actual host while its actual worker is inside a model call."""
+    """M8-T14 (option A): shutting down must stop the work it launched.
+
+    The worker is parked inside a model request, so it cannot observe its cancel
+    flag and the cooperative path cannot finish — escalation to ``terminate()``
+    is the only way out. Three observable consequences are pinned here:
+
+    * the process really stops appending to its liveness log,
+    * the durable record reads ``cancelled`` (a record left ``running`` would be
+      adopted by auto-resume on the next start, i.e. shutdown would restart the
+      work the user just stopped),
+    * a replacement host does not pick the task up at all.
+    """
     from minicc.task_manager import TaskManager
     from minicc.web import AgentService
 
     monkeypatch.setenv("MINICC_FAKE_PROVIDER", "1")
-    release_file = tmp_path / "release-provider"
-    started_file = tmp_path / "provider-starts"
-    bootstrap = tmp_path / "controlled_worker.py"
-    bootstrap.write_text(textwrap.dedent(f"""
-        import asyncio
-        import runpy
-        from pathlib import Path
-        from minicc.llm.fake import FakeProvider
-
-        original_chat = FakeProvider.chat
-        async def controlled_chat(self, messages, tools, on_delta=None):
-            if tools is not None:
-                with Path({str(started_file)!r}).open("a", encoding="utf-8") as handle:
-                    handle.write("started\\n")
-                if on_delta:
-                    on_delta("a" * 16050)
-                while not Path({str(release_file)!r}).exists():
-                    await asyncio.sleep(0.05)
-                if on_delta:
-                    on_delta("after-host-restart-")
-            return await original_chat(self, messages, tools, on_delta)
-
-        FakeProvider.chat = controlled_chat
-        runpy.run_module("minicc.task_worker", run_name="__main__")
-    """), encoding="utf-8")
+    parked = _parked_worker(tmp_path)
     original_command = TaskManager._worker_command
-
-    def controlled_command(self, *args, **kwargs):
-        command = original_command(self, *args, **kwargs)
-        return [command[0], str(bootstrap), *command[3:]]
-
-    monkeypatch.setattr(TaskManager, "_worker_command", controlled_command)
+    monkeypatch.setattr(
+        TaskManager, "_worker_command",
+        lambda self, *args, **kwargs: _spawn_parked_worker(
+            original_command(self, *args, **kwargs), parked["script"]
+        ),
+    )
     store = TaskStore(tmp_path / "tasks.sqlite3")
-    config = _service_config(tmp_path, auto_resume_on_start=True)
-    first = AgentService(tmp_path, config, task_store=store)
-    replacement = None
+    service = AgentService(tmp_path, _service_config(tmp_path), task_store=store)
     task_id = ""
-
-    def wait_until(predicate, timeout=20):
-        deadline = time.monotonic() + timeout
-        while time.monotonic() < deadline:
-            value = predicate()
-            if value:
-                return value
-            time.sleep(0.05)
-        raise AssertionError("worker state did not reach the expected checkpoint")
-
     try:
-        task_id = first.tasks.submit({
-            "message": "Summarize this workspace", "session_id": "restart-session",
-            "workspace_path": str(tmp_path), "allow_changes": False,
-        })["task_id"]
-        wait_until(lambda: (store.get(task_id) or {}).get("stream_length", 0) >= 16050)
-        original = store.get(task_id)
-        original_owner = store.get_lease(task_id)["owner"]
-        first.shutdown()
-        assert store.get(task_id)["status"] == "running"
+        task_id = _submit_parked_task(service, tmp_path, "abort-session")
+        snapshot = _inside_parked_model_call(store, task_id, parked["alive"])
+        assert snapshot["status"] == "running"
+
+        started = time.monotonic()
+        service.shutdown()
+        # Bounded: cooperative grace + terminate wait, not the worker's lifetime.
+        assert time.monotonic() - started < 40, "shutdown waited on the worker forever"
+
+        ticks = parked["alive"].stat().st_size
+        time.sleep(1.0)
+        assert parked["alive"].stat().st_size == ticks, "worker kept running after shutdown"
+
+        final = store.get(task_id) or {}
+        assert final.get("status") == "cancelled", final
+        assert store.get_lease(task_id) is None
         assert not (tmp_path / ".minicc" / "cancel" / f"{task_id}.flag").exists()
 
-        replacement = AgentService(tmp_path, config, task_store=store)
+        replacement = AgentService(
+            tmp_path, _service_config(tmp_path, auto_resume_on_start=True), task_store=store
+        )
+        try:
+            # History is loaded on startup either way; what must NOT happen is
+            # adopting it as live work or re-queuing it.
+            assert replacement.tasks.get(task_id)["status"] == "cancelled"
+            assert task_id not in replacement.tasks._detached_tasks
+        finally:
+            replacement.shutdown()
+        parked["release"].touch()
+    finally:
+        parked["release"].touch()
+        service.shutdown()
+
+
+def test_worker_survives_host_crash_and_continues_long_stream(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A host that dies *without* shutting down must not take its worker down.
+
+    This is the other half of the M8-T14 decision: option A aborts workers on a
+    clean ``shutdown()``, and that must not cost the crash-recovery contract, so
+    the host here is a real child process that is killed outright. It cannot run
+    any cleanup, which is the only faithful way to produce a crash — patching
+    ``shutdown()`` out in-process would only simulate the absence of cleanup.
+    """
+    monkeypatch.setenv("MINICC_FAKE_PROVIDER", "1")
+    parked = _parked_worker(tmp_path)
+    store_path = tmp_path / "tasks.sqlite3"
+    task_id_file = tmp_path / "task-id.txt"
+    host_script = tmp_path / "crashing_host.py"
+    host_script.write_text(textwrap.dedent(f"""
+        import json, sys, time
+        from pathlib import Path
+        from types import SimpleNamespace
+
+        from minicc.task_manager import TaskManager
+        from minicc.task_store import TaskStore
+        from minicc.web import AgentService
+
+        spec = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+        config = SimpleNamespace(**spec["config"])
+        script = spec["bootstrap"]
+        original_command = TaskManager._worker_command
+
+        def controlled_command(self, *args, **kwargs):
+            command = original_command(self, *args, **kwargs)
+            return [command[0], script, *command[3:]]
+
+        TaskManager._worker_command = controlled_command
+        service = AgentService(
+            Path(spec["workspace"]), config, task_store=TaskStore(Path(spec["store_path"]))
+        )
+        task_id = service.tasks.submit({{
+            "message": "Summarize this workspace", "session_id": "crash-session",
+            "workspace_path": spec["workspace"], "allow_changes": False,
+        }})["task_id"]
+        Path(spec["task_id_file"]).write_text(task_id, encoding="utf-8")
+        while True:
+            time.sleep(0.2)
+    """), encoding="utf-8")
+    spec = tmp_path / "host-spec.json"
+    spec.write_text(json.dumps({
+        "workspace": str(tmp_path),
+        "store_path": str(store_path),
+        "task_id_file": str(task_id_file),
+        "bootstrap": str(parked["script"]),
+        "config": {**vars(_service_config(tmp_path)), "auto_resume_on_start": True},
+    }), encoding="utf-8")
+    source_root = str(Path(__file__).resolve().parent.parent)
+    env = os.environ.copy()
+    env["PYTHONPATH"] = source_root + os.pathsep + env.get("PYTHONPATH", "")
+    # Logging from the host goes to a file, not a pipe: nobody reads a pipe while
+    # the test drives the worker, and a full pipe would block the very process
+    # whose crash we are simulating.
+    host_log = (tmp_path / "host.log").open("ab")
+    host = subprocess.Popen(
+        [sys.executable, str(host_script), str(spec)],
+        cwd=str(tmp_path), env=env, stdout=host_log, stderr=host_log,
+    )
+    replacement = None
+    try:
+        task_id = _wait_until(
+            lambda: task_id_file.read_text(encoding="utf-8") if task_id_file.is_file() else None,
+            timeout=90, message="crash host to submit its task",
+        )
+        store = TaskStore(store_path)
+        original = _inside_parked_model_call(store, task_id, parked["alive"])
+        original_owner = store.get_lease(task_id)["owner"]
+
+        # Kill the host outright: no atexit, no shutdown, no cancel flag.
+        host.kill()
+        assert host.wait(timeout=30) != 0
+        assert (store.get(task_id) or {}).get("status") == "running"
+        assert not (tmp_path / ".minicc" / "cancel" / f"{task_id}.flag").exists()
+        ticks = parked["alive"].stat().st_size
+        time.sleep(1.0)
+        assert parked["alive"].stat().st_size > ticks, "worker died with its host"
+
+        from minicc.web import AgentService
+
+        replacement = AgentService(
+            tmp_path, _service_config(tmp_path, auto_resume_on_start=True), task_store=store
+        )
         assert list(replacement.tasks.tasks) == [task_id]
         assert replacement.tasks.get(task_id)["status"] == "running"
         assert store.get_lease(task_id)["owner"] == original_owner
         assert store.get(task_id)["worker_pid"] == original["worker_pid"]
 
-        release_file.touch()
-        wait_until(lambda: replacement.tasks.get(task_id)["status"] in {"completed", "failed", "cancelled"})
+        parked["release"].touch()
+        _wait_until(
+            lambda: replacement.tasks.get(task_id)["status"] in {"completed", "failed", "cancelled"},
+            timeout=120, message="survived worker to finish",
+        )
         final = replacement.tasks.get(task_id)
         assert final["status"] == "completed", final.get("error")
         assert final["stream_length"] > 16050
         assert "after-host-restart-fake-provider-answer" in final["stream_text"]
-        # M4-T1: the fake provider now emits one readonly tool call before its
-        # final answer, so a completing task makes exactly two agent-stage model
-        # calls. Asserting the precise count still proves the survived worker
-        # was never re-spawned (a restart would duplicate the whole sequence).
-        assert started_file.read_text(encoding="utf-8").splitlines() == ["started", "started"]
+        # M4-T1: the fake provider emits one readonly tool call before its final
+        # answer, so a completing task makes exactly two agent-stage model
+        # calls. Asserting the precise count still proves the survived worker was
+        # never re-spawned (a restart would duplicate the whole sequence).
+        assert parked["started"].read_text(encoding="utf-8").splitlines() == ["started", "started"]
         assert store.get(task_id)["status"] == "completed"
     finally:
-        release_file.touch()
-        first.shutdown()
+        parked["release"].touch()
+        if host.poll() is None:
+            host.kill()
+        try:
+            host.wait(timeout=30)
+        except subprocess.TimeoutExpired:
+            pass
+        host_log.close()
         if replacement is not None:
             replacement.shutdown()
 
@@ -243,14 +421,13 @@ def test_worker_survives_host_restart_and_continues_long_stream(
 def test_shutdown_reaps_detached_worker_without_resource_warning(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """M4-7 / M8-T14: a worker that outlives its host must not leak its handle.
+    """M4-7 / M8-T14: a worker must never be dropped while its handle is live.
 
     ``pytest -W error`` used to fail with "ResourceWarning: subprocess N is
     still running" because ``_monitor_worker`` raised ``WorkerDetached`` during
-    shutdown and the Popen handle was dropped unreferenced. Option B of the
-    audit is pinned here: the worker is deliberately *not* killed (the lease in
-    SQLite is the real supervisor), but its handle is reaped or handed to a
-    background reaper, so no warning is emitted and the registry drains.
+    shutdown and the Popen handle was dropped unreferenced. Handles are now
+    reaped or handed to a background reaper on every exit path, so no warning is
+    emitted and the registry drains.
     """
     import gc
     import warnings
@@ -289,32 +466,65 @@ def test_shutdown_reaps_detached_worker_without_resource_warning(
         service.shutdown()
 
 
-def test_detached_worker_handle_is_released_without_killing_the_child(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """The release path must not terminate the child (the restart test depends on it)."""
-    import subprocess
-    import sys
+def test_release_path_leaves_a_running_worker_alive(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Only a shutdown aborts; retiring a handle off the normal path must not.
 
+    A monitor that returns while its worker is still running (lost lease, an
+    expired snapshot read) hands the handle to the reaper and leaves execution
+    to the lease in SQLite — the crash-recovery contract above depends on that
+    distinction, so the same registry entry point is checked in both modes.
+    """
     from minicc.web import AgentService
 
     monkeypatch.setenv("MINICC_FAKE_PROVIDER", "1")
     service = AgentService(
         tmp_path, _service_config(tmp_path), task_store=TaskStore(tmp_path / "tasks.sqlite3")
     )
+    manager = service.tasks
     child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
     try:
-        manager = service.tasks
-        manager._register_worker_process("task-reaper", child)
-        manager._release_worker_process("task-reaper", grace=0.1)
+        manager._register_worker_process("task-alive", child)
+        manager._retire_worker_process("task-alive")
         assert manager._worker_processes == {}
-        # The child is still alive: shutdown releases the handle, it never kills.
-        assert child.poll() is None
+        assert child.poll() is None, "normal retirement must not kill the worker"
     finally:
         child.terminate()
         try:
             child.wait(timeout=5)
         except subprocess.TimeoutExpired:
+            child.kill()
+            child.wait(timeout=5)
+        service.shutdown()
+
+
+def test_shutdown_abort_path_terminates_a_worker_it_cannot_cancel(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The unit form of option A, without a task record to cancel through.
+
+    An unresolvable workspace means no cancel flag, so escalation to
+    ``terminate()`` must be what stops the child — and the handle must still be
+    reaped rather than dropped.
+    """
+    from minicc.web import AgentService
+
+    monkeypatch.setenv("MINICC_FAKE_PROVIDER", "1")
+    service = AgentService(
+        tmp_path, _service_config(tmp_path), task_store=TaskStore(tmp_path / "tasks.sqlite3")
+    )
+    manager = service.tasks
+    manager._closing = True
+    child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
+    try:
+        manager._register_worker_process("task-dead", child)
+        started = time.monotonic()
+        manager._retire_worker_process("task-dead")
+        assert child.poll() is not None, "shutdown left the worker running"
+        # No cancel flag was possible, so the wait must be the terminate bound.
+        assert time.monotonic() - started < 15
+        assert manager._worker_processes == {}
+    finally:
+        if child.poll() is None:
             child.kill()
             child.wait(timeout=5)
         service.shutdown()

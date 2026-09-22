@@ -75,6 +75,13 @@ TASK_SHUTDOWN_GRACE_SECONDS = 8.0
 # not block on it — but the handle must not be dropped into CPython's
 # ResourceWarning path either.
 WORKER_REAP_GRACE_SECONDS = 0.5
+# M8-T14 (option A): a clean shutdown first asks the worker to cancel itself, so
+# it can commit an accurate terminal snapshot (usage, partial stream, files it
+# already wrote). This is how long that cooperation is allowed to take before
+# the process is terminated. A model request parked in the SDK cannot observe the
+# flag, so this bound is what a shutdown pays for a worker that is mid-request.
+WORKER_SHUTDOWN_GRACE_SECONDS = 5.0
+WORKER_TERMINATE_WAIT_SECONDS = 5.0
 COMPLETION_WRITE_TOOLS = frozenset({"write_file", "edit_file", "worktree_create", "worktree_remove"})
 READONLY_PLAN_KINDS = frozenset({"readonly", "review", "merge"})
 READONLY_PLAN_TOOLS = frozenset({"read_file", "grep", "git_status", "git_diff"})
@@ -1836,12 +1843,33 @@ class TaskManager:
         with self._worker_processes_lock:
             self._worker_processes[task_id] = process
 
+    def _retire_worker_process(self, task_id: str) -> None:
+        """Dispose of a worker handle: abort it on shutdown, else reap it.
+
+        M8-T14 (option A). Two different exits must not be conflated:
+
+        * **Clean shutdown** runs this while ``_closing`` is set, and the user
+          asked the machine to stop, so the worker we launched is cancelled and,
+          if it cannot get out of a model request in time, terminated. A worker
+          left running after that spends tokens nobody is watching.
+        * **Host crash** runs no shutdown code at all, so the worker keeps its
+          lease and the next start adopts it (``has_live_worker`` + auto-resume).
+
+        Either way the ``Popen`` must be reaped or explicitly handed over:
+        dropping a live handle is what ``pytest -W error`` reported as
+        "subprocess N is still running".
+        """
+        if self._closing:
+            self._abort_worker_process(task_id)
+        else:
+            self._release_worker_process(task_id)
+
     def _release_worker_process(self, task_id: str, *, grace: float = WORKER_REAP_GRACE_SECONDS) -> None:
         """Reap a worker handle if it already exited, else hand it to a reaper.
 
-        M4-7 / M8-T14. Option B of the audit: shutdown must not change the
-        observable "a detached worker keeps running" contract, so a still-live
-        worker is never terminated here. Two things still have to happen:
+        Used when the host is *not* shutting down, so a worker that is still
+        running is running on purpose (its lease in SQLite is the real
+        supervisor) and must not be killed. Two things still have to happen:
 
         1. ``wait()`` is attempted first so an exited child is reaped properly
            (on POSIX an unreaped child stays a zombie until the parent exits).
@@ -1896,6 +1924,114 @@ class TaskManager:
         """
         if hasattr(process, "_child_created"):
             process._child_created = False  # noqa: SLF001 - documented escape hatch
+
+    def _worker_cancel_file(self, task_id: str) -> Path | None:
+        """The flag file this task's worker polls, or None if it is unresolvable."""
+        task = self.tasks.get(task_id)
+        workspace = str(getattr(task, "workspace_path", "") or "") if task is not None else ""
+        if not workspace and self.store is not None:
+            workspace = str((self.store.get(task_id) or {}).get("workspace_path") or "")
+        if not workspace:
+            return None
+        return Path(workspace).expanduser() / ".minicc" / "cancel" / f"{task_id}.flag"
+
+    def _abort_worker_process(
+        self, task_id: str, *, grace: float = WORKER_SHUTDOWN_GRACE_SECONDS
+    ) -> None:
+        """Cancel and, if needed, terminate the worker this host launched.
+
+        Cooperative first: the worker polls its cancel flag, commits
+        ``cancelled`` with the usage and partial stream it actually has, and
+        exits. A request already parked in the SDK cannot observe the flag, so
+        the wait is bounded and ``terminate()`` follows.
+        """
+        with self._worker_processes_lock:
+            process = self._worker_processes.pop(task_id, None)
+        if process is None:
+            return
+        cancel_file = self._worker_cancel_file(task_id) if process.poll() is None else None
+        if cancel_file is not None:
+            try:
+                cancel_file.parent.mkdir(parents=True, exist_ok=True)
+                cancel_file.write_text("cancelled", encoding="utf-8")
+            except OSError:
+                LOG.warning("worker_cancel_file_unwritable", extra={"task_id": task_id})
+            try:
+                process.wait(timeout=max(0.0, float(grace)))
+            except Exception:  # noqa: BLE001 - TimeoutExpired: escalate to terminate
+                pass
+        if process.poll() is None:
+            LOG.info(
+                "worker_process_terminated",
+                extra={"task_id": task_id, "pid": getattr(process, "pid", None)},
+            )
+            try:
+                process.terminate()
+            except OSError:
+                pass
+            try:
+                process.wait(timeout=WORKER_TERMINATE_WAIT_SECONDS)
+            except Exception:  # noqa: BLE001 - handled by the liveness check below
+                pass
+        if process.poll() is None:
+            # Still alive: never drop the handle, so a reaper thread keeps owning
+            # the wait even though we could not stop the child.
+            LOG.error(
+                "worker_process_survived_terminate",
+                extra={"task_id": task_id, "pid": getattr(process, "pid", None)},
+            )
+            threading.Thread(
+                target=self._reap_detached_worker,
+                args=(task_id, process),
+                name=f"minicc-worker-reaper-{task_id[:8]}",
+                daemon=True,
+            ).start()
+            self._detach_worker_handle(process)
+        else:
+            LOG.debug(
+                "worker_process_aborted",
+                extra={
+                    "task_id": task_id,
+                    "pid": getattr(process, "pid", None),
+                    "returncode": process.returncode,
+                },
+            )
+        self._finalize_aborted_snapshot(task_id)
+        if cancel_file is not None:
+            # The flag belongs to this run only. Left behind it would cancel a
+            # later retry that happened to reuse the task id.
+            cancel_file.unlink(missing_ok=True)
+
+    def _finalize_aborted_snapshot(self, task_id: str) -> None:
+        """Commit ``cancelled`` for a worker that was killed before it could.
+
+        A worker that noticed its cancel flag writes its own terminal snapshot.
+        A terminated one never gets the chance, and a record still marked
+        ``running`` would be adopted by auto-resume on the next start — the
+        opposite of what a shutdown asked for. The write is lease-fenced, so a
+        successor that already re-claimed the task is never overwritten.
+        """
+        store = self.store
+        if store is None:
+            return
+        snapshot = store.get(task_id)
+        if snapshot is None or str(snapshot.get("status") or "") in TERMINAL_TASK_STATUSES:
+            return
+        owner = str(snapshot.get("lease_owner") or "")
+        if not owner:
+            return
+        result = snapshot.get("result")
+        result = dict(result) if isinstance(result, dict) else {}
+        snapshot.update({
+            "status": "cancelled",
+            "error": "宿主已关闭，工作进程被中止",
+            "result": {**result, "answer": str(result.get("answer") or ""), "cancelled": True},
+            "heartbeat_at_epoch": time.time(),
+        })
+        if not store.upsert(snapshot, lease_owner=owner):
+            LOG.info("worker_abort_snapshot_rejected", extra={"task_id": task_id})
+            return
+        store.release_lease(task_id, owner)
 
     def _monitor_worker(self, task: TaskRecord, store: TaskStore, process: Any = None) -> dict[str, Any]:
         mirror = WorkerSnapshotMirror(task)
@@ -2002,11 +2138,11 @@ class TaskManager:
         try:
             return self._monitor_worker(task, store, process)
         finally:
-            # M4-7 / M8-T14: always reap the handle. A still-running worker is
-            # left alive on purpose (its lease in SQLite is the real supervisor),
-            # but its handle is handed to a background reaper instead of being
-            # dropped — that is what `pytest -W error` was catching.
-            self._release_worker_process(task.task_id)
+            # M4-7 / M8-T14: the handle is never dropped. Off a clean shutdown
+            # the worker is cancelled and reaped here; otherwise a still-running
+            # worker is left alive on purpose (its lease in SQLite is the real
+            # supervisor) and only its handle goes to the background reaper.
+            self._retire_worker_process(task.task_id)
             if not self._closing:
                 self._detached_tasks.discard(task.task_id)
                 store.release_lease(task.task_id, owner)
@@ -2532,9 +2668,9 @@ class TaskManager:
             self._snapshot_writer.close()
         # M4-7 / M8-T14: a worker whose monitor thread is still parked in its
         # poll loop (or exited the loop by raising) would otherwise leave its
-        # Popen unreferenced. Reap what already exited; hand the rest to the
-        # reaper so the process handle is never dropped while still running.
+        # Popen unreferenced. We are closing, so this aborts it: cancel flag,
+        # bounded wait, terminate, then reap.
         with self._worker_processes_lock:
             pending = list(self._worker_processes)
         for task_id in pending:
-            self._release_worker_process(task_id, grace=WORKER_REAP_GRACE_SECONDS)
+            self._retire_worker_process(task_id)

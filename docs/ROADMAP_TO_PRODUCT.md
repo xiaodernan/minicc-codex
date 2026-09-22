@@ -736,6 +736,8 @@
 > suffix、只把缓冲重定基到快照」，`deltas == ["aa","aab","c"]` + `content == "aabc"` 钉住这个形状。
 | M8-T13 CLI 可见输出必须等于落盘答案（已修，两层各占一半） | ✅ | 真机 3/3 复现「终端打印 `7.7`/`7.7.`，会话文件里存的是 `7.7.7`」后分两层定位。**第一层（数据）**：`agent/loop.py:_merge_incremental_text` 对**增量**片段跑了完整的累积折叠——`previous.startswith(current)` 直接返回 `("", drop)`，于是 `"7",".","7"` 的第三个 `7` 被丢掉（离线可复现：旧规则把 `7.7.7` 只发出 `7.`）。规则收窄成**只吸收「完整重复已累积前缀并且更长」这一种**，其余一律原样追加，`test_agent_loop_deduplicates_cumulative_public_stream_updates` 的 `["aa","b","c"]` 旧契约与新用例同时通过（第一次尝试是整层删除折叠，被这条既有契约挡下——它对应的是 provider 直接吐累积块的路径，不能顺手拆）。**第二层（显示）**：`main.py:395` 只要 `writer.started` 就**无条件**不打印最终答案，所以流式一旦短一截，屏幕上的错答案就永久留着、而落盘内容是对的。`StreamWriter` 现在记住自己写过什么并暴露 `matches()`，只在「看到的 == 落盘答案」时才省略最终打印。**M8-T12 仍未结案**：修完这两层后真机 `visible == stored` 3/3 成立，但 stderr 仍有 1501 字节的 httpcore 关闭栈，泄漏体从 `HTTP11ConnectionByteStream` 变成更内层的 `PoolByteStream`（说明我们持有的两层已经关对了，剩下的在 httpx/httpcore 内部） | `tests/test_m1_integrity.py` 13 → 15：`test_m1t3_stream_deltas_reach_the_surface_verbatim`（假 provider 逐段 `"7",".","7",".","7"`，断言 `"".join(on_stream) == result.answer == "7.7.7"`）与 `test_stream_writer_knows_when_the_screen_fell_short`（短流不得抑制最终打印、补齐后不得重复打印、尾部空白不算差异）。旧契约 `test_agent_loop_deduplicates_cumulative_public_stream_updates` 保持绿色。**真机验收门**：`visible_stream_check.py` 的 `RESULT visible-equals-stored` 从 0/3 变成 **3/3**（同一 workspace、同一问句、3 次独立进程）。全量 `.venv` **879 passed** |
 
+| M8-T14 宿主关闭时 worker 句柄不得成为泄漏、且关闭语义要说得清（已按选项 A 实施） | ✅ | 干净关闭 = 写 cancel 标志 → 有界等待 5s → `terminate()` → 回收句柄 → 用租约围栏把记录落成 `cancelled`（并清掉 cancel 标志，避免复用它 id 的重试被瞬间取消）；崩溃 = 完全不碰 worker，留给 auto-resume 接管。`pytest -q -W error` 全量 **904 passed**（此前同一命令 6 failed / 7 errors）。契约测试改写成**真崩溃模拟**（宿主跑在子进程里被 `kill()`）。完整取舍、先红证据与那条「在测试里短路 `shutdown()` 不叫崩溃模拟」的教训见「第四批」第 1、5 行 |
+
 ### M1-M3 退出标准真跑记录（第一批，2026-09-22）
 
 按第三节原文逐条执行，不走附录 D 的自评：
@@ -761,10 +763,10 @@ M3-3 的处理不是把标准删掉，而是把它变成可执行、可证伪的
 | M4-4 `benchmarks --suite v2` 的 `grading_coverage=1.0`、分母 ≥24、edit 类 ≥10 | ✅ | 真跑 `--suite v2`（不 `--run`）：`fixture_count=24`、`grading_coverage=1.0`、按类 `write 12 / multi-file 6 / test-fix 6`（edit 类 12 ≥10）；`pass_at_1=None`（未运行，符合「not_run 既不算通过也不算失败」的注记） |
 | M4-5 A/B gate 违规时 exit code 1 | ✅ | 同一份结果 `--gate pass_at_1>=0.5 --gate grading_coverage>=1.0` → **exit 0**；把 variant 换成未运行那份（`pass_at_1=None`）→ **exit 1 + `[GATE FAILED] pass_at_1>=0.5 实际=None`**。两个方向都验；且它把 None 当 None（`不可计算（None，而非 0）`），不拿 0 冒充结论 |
 | M4-6 未知模型 `cost_usd=None` 且 `cost_available` 如实 | ✅（真机 2 条） | `--run --max-tasks 2` 真跑：`cost_available=0`、逐任务 `cost_usd=None`、`token_usage_available=2`，同时 `latency_p50_ms=66695.5 / p95=120182.05 / tokens_per_success=179683` 都有值 |
-| M4-7 `pytest -q -W error` 全绿 | ❌ **未达成** | `python -m pytest tests/ -q -W error` → **2 failed, 878 passed**：`tests/test_task_worker.py::test_manager_process_mode_runs_task_in_subprocess`、`::test_worker_survives_host_restart_and_continues_long_stream`，均为 `ResourceWarning: subprocess NNNN is still running`（`subprocess.Popen.__del__` 经 pytest 的 unraisable hook 升级为错误）。同一条标准还要求「PR 门禁 ≤15 分钟」——实测 178s ✅，所以**只有 `-W error` 这半条没过**；附录 D 把 M4 记为已落地，这一项与该记录不符 |
+| M4-7 `pytest -q -W error` 全绿 | ✅（2026-09-22 修复后复测） | 曾失败：`python -m pytest tests/ -q -W error` → **2 failed, 878 passed**：`tests/test_task_worker.py::test_manager_process_mode_runs_task_in_subprocess`、`::test_worker_survives_host_restart_and_continues_long_stream`，均为 `ResourceWarning: subprocess NNNN is still running`（`subprocess.Popen.__del__` 经 pytest 的 unraisable hook 升级为错误）。修复后复测：`.venv` 下 `pytest -q -W error` → **904 passed / 0 failed**（893 + packaging 11；149s + 13s）。同一条标准还要求「PR 门禁 ≤15 分钟」——实测 149s ✅ |
 | M4-2 `npm run test:web` 离线基线 | ✅（照标准原文跑通） | 起 `minicc-web --port 8791` 且 `MINICC_FAKE_PROVIDER=1 MINICC_BASE_URL=http://127.0.0.1:9/v1`（不可达），再 `MINICC_WEB_URL=http://127.0.0.1:8791 npm run test:web` → **exit 0**、`web smoke passed: timeline, product path, desktop, mobile`。标准文本漏了前置条件：这条**必须先起服务**（脚本读 `MINICC_WEB_URL`，默认 8765），不起服务时它是 navigation 失败而不是退出码 0 |
 | M4-1 证据链回归 | ✅ | `test_m4_evidence_chain + test_verifier_lifecycle + test_verification_command_variants + test_http_surface + test_mcp_stdio + test_mcp_http` 共 **98 passed**（`test_mcp_stdio.py` 11 个测试函数 ≥ 标准要求的 8） |
-| M4-3 rpc 分派器 ≥10 method 有测试 | ❌ **标准不成立** | 分派表在 `minicc/web.py:238-246` 装配，实际只有 **5 个 method**（`thread/start`、`thread/read`、`turn/start`、`turn/read`、`turn/interrupt`）+ `initialize` 内建 = 6，**远低于 10**。要么补 4+ 个 method 及其测试，要么把标准改成「按实际协议面为每个 method 配测试」——这是产品决策，不自行改 |
+| M4-3 rpc 分派器 ≥10 method 有测试 | ✅（2026-09-22 补齐后复测） | 曾不成立：分派表 `minicc/web.py:238-246` 只有 **5 个 method**（`thread/start`、`thread/read`、`turn/start`、`turn/read`、`turn/interrupt`）+ `initialize` 内建。现在补了 5 个只读检查 method（`workspace/read`、`models/list`、`changes/read`、`sessions/list`、`permissions/read`），合计 **10 个可注册 method**（`initialize` 另计），每个一条测试、共用同一套 `workspace_roots` 越界校验，并由 `test_rpc_dispatcher_exposes_ten_methods` 把「≥10」变成可执行断言而不是文档口径 |
 | M4-3 `POST /api/*` 由 Python 测试覆盖 100% | ❌ 本机不可测，且有反证 | `pytest-cov`/`coverage` **都未安装**、CI 也不跑覆盖率 → 这条在本环境无法验证，不能声称。代理指标：26 个 `/api/*` 路由里有 6 个在任何 Python 测试里**连路径字符串都没出现**（`approval`、`changes`、`mcp`、`models`、`permissions`、`sessions/fork`）——它们可能经 service 方法或前端 smoke 覆盖，但至少说明「Python 测试 100% 覆盖 POST 路由」不成立 |
 
 `-W error` 那条失败的性质（下一步要定的设计问题，不是简单的测试脏）：`task_manager.py:1824-1826` 的
@@ -775,6 +777,10 @@ M3-3 的处理不是把标准删掉，而是把它变成可执行、可证伪的
 （例如 ≤5s）后再 terminate，把「脱管」限定给真正的崩溃恢复；**B** 保留 `self._worker_processes` 注册表并在
 shutdown 末尾统一 reap（不改变「让它继续跑完」的语义，只消掉警告与句柄泄漏）。A 改变可观察行为（正在跑的任务
 会被中止），B 不改。
+
+**决策：A**（2026-09-22 由用户选定，已实施，见第四批第 1、5 行）。取舍点是「用户关掉宿主之后，谁替这批正在烧
+token 的 worker 负责」——A 让干净关闭成为真正的停止，代价是崩溃恢复与关闭恢复不再是同一套语义，因此那条契约测试
+必须改写成真崩溃模拟（第四批第 5 行）。
 ### M5-M7 退出标准真跑记录（第三批，2026-09-22）
 
 | 标准 | 结论 | 证据 |
@@ -799,10 +805,11 @@ shutdown 末尾统一 reap（不改变「让它继续跑完」的语义，只消
 
 | # | 结论 | 证据 |
 | --- | --- | --- |
-| 1 | **M4-7 的 `-W error` 两条 ResourceWarning 已修**（审计写的选项 B） | `TaskManager` 现在持有 worker 的 Popen 注册表：正常结束/退出即 `wait()` 回收；仍在跑的不杀（保持「宿主重启后 worker 继续跑」的既有契约），而是交给后台 reaper 线程持有并回收，句柄按 CPython 的 `_child_created` 逃生口有意释放，避免 `Popen.__del__` 报假泄漏。先红后绿：旧路径（`del p` 丢弃句柄）实测打印 `subprocess 10016 is still running`，新路径不打印；新增 `test_shutdown_reaps_detached_worker_without_resource_warning` 与 `test_detached_worker_handle_is_released_without_killing_the_child` |
+| 1 | **M4-7 的 `-W error` 两条 ResourceWarning 已修；M8-T14 按选项 A 结案** | `TaskManager` 持有 worker 的 Popen 注册表，任何退出路径都必须处置句柄（`_retire_worker_process` 是唯一入口）：任务正常结束即 `wait()` 回收；宿主**干净关闭**（`_closing`）时先写 cancel 标志让 worker 自己收尾、有界等待 `WORKER_SHUTDOWN_GRACE_SECONDS=5s` 后 `terminate()`，再由 `_finalize_aborted_snapshot` 用租约围栏把记录写成 `cancelled` 并释放租约（否则下次启动会把一条用户已经停掉的任务当活任务接管）；**崩溃**脱管路径不杀（SQLite 里的 lease 才是监工），只把句柄交给后台 reaper 并按 CPython 的 `_child_created` 逃生口有意释放。先红后绿：把 `_retire_worker_process` 短路成「一律不杀」时 `test_clean_shutdown_aborts_a_worker_that_ignores_cancellation` 报 `worker kept running after shutdown`（心跳文件 108→210 字节）、`test_shutdown_abort_path_terminates_a_worker_it_cannot_cancel` 报 `shutdown left the worker running`；恢复实现后两条转绿，`pytest -q -W error` 全量 **904 passed** |
 | 2 | **另外 5 条失败根本不是代码缺陷，是本机环境**：测试自撰的验证命令写死了 `python -m pytest`，而本机 PATH 上的 `python` 不是跑测试的那个解释器、没装 pytest → agent 的验证步骤 exit 1 → 进入 repair → `最大模型轮次已用尽` | 独立复现：`tool [exit 1]` 紧跟 `verification_required_before_finish` → `budget_exceeded`。修法是把测试与「环境里哪个 python」解耦（`conftest.suite_python()` / `suite_python_bin` fixture 用 `sys.executable`），CI 与已激活 venv 恰好都掩盖了这一点，所以它值得钉住 |
 | 3 | **bench fixture 的第二根因也是环境**：本机全局 `core.hooksPath` 指向真实钩子目录，一次 `git commit` 耗时 **20.8s** > 15s 超时 → 每个 fixture 任务 `TimeoutExpired` | fixture 基线提交是内部记账，不该跑用户钩子：改为 `-c core.hooksPath=` + `--no-verify`，超时放宽到 60s（实测 2.3s） |
 | 4 | **顺带修掉一个真实产品缺陷**：`run_bash` 主线程在读取线程仍 parked 时调用 `BufferedReader.close()`，Windows 上 close 会等这次读完成 —— 命令把输出管道交给孙进程后，工具调用要等满孙进程生命周期 | 实测：shell 在 3.7s 退出，`run_bash` 却 22.4s 才返回（孙进程睡 20s）、孙进程睡 45s 则等 45s。修法：读取线程关闭自己的管道，主线程只关闭读取已结束的管道。修复后 22.44s → **2.86s**，父进程输出仍被捕获 |
+| 5 | **选了 A 之后，「宿主重启后 worker 继续存活」这条既有契约被重新定义**：继续存活的是**崩溃**后的 worker，不再是干净关闭后的 worker | 原测试 `test_worker_survives_host_restart_and_continues_long_stream` 用 `first.shutdown()` 模拟重启，正好踩在 A 要改掉的那条语义上。改成**真崩溃**（`test_worker_survives_host_crash_and_continues_long_stream`）：宿主跑在子进程里、被 `kill()` 直接打死，不跑任何清理，于是 worker 心跳文件继续增长、记录仍是 `running`、cancel 标志不存在，替换宿主按同一 lease owner/worker_pid 接管并跑到 `completed`，模型调用次数仍恰好 2 次（证明没被重新 spawn）。**教训**：只有真子进程崩溃才叫崩溃模拟——在测试里把 `shutdown()` 短路成 no-op 只是「假装没有清理」，它会连同 `_closing` 分支一起被跳过，什么也证明不了 |
 
 **M4-3 的两个「标准不成立」项，处理方式不是改标准**：
 
