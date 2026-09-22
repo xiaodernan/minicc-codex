@@ -297,7 +297,7 @@ Web 默认关闭写入和联网。界面明确显示文件、命令、网络三�
 
 ## 优化、验证与评测
 
-完整实施及验收记录见 [优化计划](docs/DEEP_OPTIMIZATION_PLAN.md) 与 [交付说明](docs/OPTIMIZATION_DELIVERY_2026-09-18.md)。检索在遍历时排除依赖与缓存目录，并增量复用索引；上下文按完整工具轮次压缩；完成评估必须引用真实证据，失败检查不能被跳过检查覆盖。
+完整实施及验收记录见 [优化计划](docs/DEEP_OPTIMIZATION_PLAN.md) 与 [交付说明](docs/OPTIMIZATION_DELIVERY_2026-09-18.md)。检索在遍历时排除依赖与缓存目录，并增量复用索引；凭据类文件按**名字**排除（`.env*`、`secrets.json`、`credentials.toml`、`service-account*.json`、`*.pem`/`*.key` 这类数据文件；`credentials.rs`、`secrets_store.py` 这样的源码不在排除范围内），因为一条命中本身就是「叫 agent 去读它」的指针，等同于把凭据库端上桌；上下文按完整工具轮次压缩；完成评估必须引用真实证据，失败检查不能被跳过检查覆盖。
 
 自动验证按变更选择关联测试和前端检查，不再因存在 tests 目录就默认全量 pytest。可在 `.minicc/verification.json` 配置规则；相同依赖 digest 下复用通过结果。未知范围如实显示缺少自动检查。
 

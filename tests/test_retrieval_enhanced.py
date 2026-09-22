@@ -187,3 +187,53 @@ def test_thousand_file_index_builds_within_budget(tmp_path: Path) -> None:
     assert stats["last_build_ms"] < 8000.0
     hits = index.search("handler_7_7")
     assert hits and hits[0].path == "pkg007/mod_7.py"
+
+
+def test_credential_stores_are_never_offered_as_evidence(tmp_path: Path) -> None:
+    """A hit is a pointer, so pointing at ``secrets.json`` *is* the leak path.
+
+    The index never copies file bodies into a result, which made it easy to
+    believe it was safe: measured before the name rule existed, a query for
+    "api key token secret" ranked ``secrets.json`` first with reason
+    "filename+path+content+fresh" - the agent is told to go read it, and the
+    ``SECRET_FILENAMES`` constant written to prevent that was referenced
+    nowhere. So the guarantee is now by name, and this gate pins both
+    directions: credential stores out, ordinary sources in.
+    """
+    sentinel = "SENTINEL-VALUE-9f3a7c2b"
+    for name in (
+        ".env",
+        "secrets.json",
+        "credentials.toml",
+        "service-account.json",
+        "deploy.pem",
+        "nested/secrets.yaml",
+    ):
+        _write(tmp_path / name, "api_key = " + sentinel + "\ntoken: " + sentinel + "\n")
+    # Ordinary code that mentions secrets must stay findable, or the rule is
+    # just an over-broad substring filter.
+    for name in ("app.py", "secrets_store.py", "test_credentials.py", "config.py", "README.md"):
+        _write(tmp_path / name, "handler = 1\nvalue = '" + sentinel + "'\n")
+
+    index = LocalEvidenceIndex(tmp_path)
+    indexed = {rel for _path, rel in index._files()}
+
+    assert indexed == {"app.py", "secrets_store.py", "test_credentials.py", "config.py", "README.md"}
+    hits = index.search("api key token secret credentials", limit=20)
+    paths = {hit.path for hit in hits}
+    assert not (paths & {"secrets.json", "credentials.toml", "service-account.json", "nested/secrets.yaml"})
+    assert sentinel not in str([hit.to_dict() for hit in hits])
+    assert index.stats()["files_indexed"] == 5, index.stats()
+
+
+def test_the_secret_name_rule_is_exact_not_a_substring() -> None:
+    """The boundary of the filter, stated as data."""
+    from minicc.agent.retrieval import is_secret_filename
+
+    blocked = ["secrets.json", "Secrets.yaml", "credentials.toml", "service-account.json",
+               "gcp-service-account-key.json", "deploy.pem", "tls.key", "my-api-key.json",
+               ".env", ".env.production", ".ENV"]
+    allowed = ["app.py", "secrets_store.py", "secret_rotation.py", "test_credentials.py",
+               "credentials.rs", "secrets.go", "api_keys.py", "config.py", "README.md", "keys.md"]
+    assert [name for name in blocked if not is_secret_filename(name)] == []
+    assert [name for name in allowed if is_secret_filename(name)] == []

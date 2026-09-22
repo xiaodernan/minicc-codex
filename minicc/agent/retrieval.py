@@ -3,8 +3,11 @@
 This module intentionally indexes filenames, symbols, guidance notes and test
 failure markers only. It is a small context aid, not a vector database:
 recall is fully deterministic (token + substring matching against a locally
-built snapshot with explicit scoring weights) and secret files such as
-``.env`` are never indexed.
+built snapshot with explicit scoring weights) and credential material is kept
+out by name (``is_secret_filename``). A hit is a *pointer* the agent is told to
+go and read, so surfacing ``secrets.json`` as the top match for an "api key"
+query has the same outcome as indexing its contents — which is why the name
+rule exists rather than relying on the text-suffix whitelist to skip dotfiles.
 
 Scoring formula per file (all weights are module-level constants):
 
@@ -39,6 +42,39 @@ from pathlib import Path
 SKIP_DIRS = {".git", ".venv", "venv", "node_modules", "__pycache__", "output", "tmp", "data", ".minicc", "dist", "build", "coverage"}
 TEXT_SUFFIXES = {".py", ".js", ".ts", ".tsx", ".jsx", ".mjs", ".cjs", ".css", ".html", ".json", ".md", ".yaml", ".yml", ".toml", ".go", ".rs", ".java", ".sql", ".vue", ".svelte"}
 SECRET_FILENAMES = {".env", ".env.local"}
+#: Basenames (casefolded, no suffix) that hold credentials rather than code.
+#: Matched exactly, and only on data files — see ``_SECRET_STORE_SUFFIXES``.
+SECRET_STEMS = {"secret", "secrets", "credential", "credentials"}
+#: Suffixes that are key material in their own right.
+SECRET_SUFFIXES = {".pem", ".key", ".p12", ".pfx", ".kdbx"}
+#: A name like ``credentials`` is a credential *store* when it holds data and
+#: ordinary code when it holds source. Without this split ``credentials.rs``
+#: and ``secrets.go`` would silently vanish from the index — measured, because
+#: the boundary test lists them on the allowed side.
+_SECRET_STORE_SUFFIXES = {
+    "", ".json", ".yaml", ".yml", ".toml", ".ini", ".conf", ".cfg",
+    ".properties", ".txt", ".env", ".csv",
+}
+
+
+def is_secret_filename(name: str) -> bool:
+    """Would indexing this basename put credential material into the evidence set?
+
+    The index answers *queries with pointers*: it does not copy file contents,
+    but a hit tells the agent to go and read that file, and the reason string
+    claims its content matched. For a credential store that is the same outcome
+    as indexing the store, so these names stay out entirely.
+    """
+    folded = name.casefold()
+    if folded in SECRET_FILENAMES or folded.startswith(".env"):
+        return True
+    path = Path(folded)
+    if path.suffix in SECRET_SUFFIXES:
+        return True
+    if path.suffix not in _SECRET_STORE_SUFFIXES:
+        return False
+    return path.stem in SECRET_STEMS or "service-account" in folded or "-api-key" in folded
+
 JS_SUFFIXES = {".js", ".ts", ".tsx", ".jsx", ".mjs", ".cjs"}
 
 # Guidance files carry project conventions ("context engineering"): they are
@@ -478,6 +514,8 @@ class LocalEvidenceIndex:
             for name in sorted(files):
                 path = Path(directory) / name
                 if name.startswith(".") or path.suffix.casefold() not in TEXT_SUFFIXES or path.is_symlink():
+                    continue
+                if is_secret_filename(name):
                     continue
                 rel = path.relative_to(self.workspace).as_posix()
                 if rel.casefold() in GUIDANCE_PATHS:
