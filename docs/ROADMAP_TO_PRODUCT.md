@@ -1064,6 +1064,12 @@ README。已补一节「配置文件层（`config.json`）」，含两层路径�
 stdout 只有两行协议输出，末行为 `... ignored_keys=compact_threshhold,max_truns`——日志没有污染 stdout，
 这条是 M8-T5「stdout 是协议通道」的既有契约，本次新增的输出必须继续满足它。
 
+**真实模型复核（REPL 一条只读指令，非 `--print-config` 那条旁路）**：临时 `MINICC_HOME` 放一份
+`{"max_truns": 3, "sandbox_mode": "host"}`，cwd 用仓库真实 `.env` 的阶跃网关 → 启动即 stderr 一条
+`用户配置 ... 中的键 'max_truns' 不会被读取（已按默认值运行）`；会话本身正常交付（回答 `收到`，
+`total_tokens=3658`），`sandbox_mode` 那一项不再被误报，stdout 全程只有 REPL 内容。两个入口（离线
+`--print-config` 与真实一次运行）各自量过，才算这条标准落地——只量一个正是 M8-T9 记录过的老毛病。
+
 本批最终基线：`pytest -q -W error` **982 passed**（938 → 982，+44 全部来自 `tests/test_config_surface.py`
 6 → 43 与 `tests/test_project_config.py` 25 → 32）。同一批的 wall time 是 518.39s，而本仓库平时同规模是
 260-310s：新增 44 条自己量出来只有 1.8s / 21.9s，差额不在我这边，运行期间机器上另有并存的 python 进程，
