@@ -7,6 +7,8 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 from minicc.agent.loop import run_agent
 from minicc.llm.base import LLMResponse
 from minicc.llm.envelope import _render_envelope_action, parse_envelope
@@ -73,6 +75,26 @@ def test_m1t3_incremental_deltas_concatenated_byte_for_byte() -> None:
     assert (merged, suffix) == ("aab", "b")
     assert append_delta("hel", "lo") == ("hello", "lo")
     assert merge_retry_snapshot("aa", "aab") == ("aab", "b")
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "M8-T11, open decision: the snapshot guess in accumulate_attempt_text cannot "
+        "tell a cumulative gateway from an incremental fragment that happens to repeat "
+        "the text so far, and it resolves the tie by dropping characters. Remove this "
+        "marker when the tie is resolved the other way round (see the live '7.7.7' -> "
+        "'7.7' case recorded in docs/ROADMAP_TO_PRODUCT.md)."
+    ),
+)
+def test_a_repeated_prefix_in_incremental_deltas_must_not_lose_characters() -> None:
+    # Each of these is a byte-for-byte incremental stream; the merged text must
+    # be their concatenation, exactly like the two cases asserted above.
+    for fragments in (["7.", "7.7"], ["def", "define"], ["x=", "x=1"]):
+        attempt = ""
+        for fragment in fragments:
+            attempt, _ = accumulate_attempt_text(attempt, fragment)
+        assert attempt == "".join(fragments), fragments
 def test_m1t4_nonterminal_finish_reason_never_accepted(tmp_path: Path) -> None:
     class FailedProvider:
         def __init__(self) -> None:
