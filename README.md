@@ -93,7 +93,10 @@ $env:MINICC_LOG_FILE="D:\logs\minicc.log"
 标记不会被二次包裹。
 
 聚合用量与成本查 `/api/metrics`：它按任务快照逐条累加 `tokens_used` 与 `cost_usd`，未计价模型单独计入
-`unpriced_tasks`（不会当作 0 成本混进总额）；`/api/audit` 支持 `?level=warning` 与 `?min_level=notice` 过滤，
+`unpriced_tasks`（不会当作 0 成本混进总额）。并行批任务的父任务快照已经把子任务的用量汇总进去，所以总额只累加
+根任务，被汇总掉的子任务行数放在 `subtask_rows`（不是偷偷丢掉）。不带 `?workspace=` 时统计范围是共享任务索引里的
+**所有**工作区，此时 `workspace_path` 为 `null`、`scope` 为 `all_workspaces`；带上过滤时 `scope` 回显该路径。
+`/api/audit` 支持 `?level=warning` 与 `?min_level=notice` 过滤，
 未知级别返回 400 并列出可选值。失败响应带稳定 `code`（`forbidden`、`task_not_found`、`unauthorized`、
 `invalid_request`、`internal_error`），客户端不必解析中文措辞。
 

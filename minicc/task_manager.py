@@ -1544,6 +1544,31 @@ class TaskManager:
         )
         return "\n".join(sections)
 
+    def _roll_up_children(self, task: TaskRecord, result: dict[str, Any]) -> dict[str, Any]:
+        """Fold every subtask's usage into the parent's own number.
+
+        A parent is what the user counts as one task, and the reconnaissance
+        children it spawned are real spend against the same gateway. Without
+        the fold the parent under-reports, and ``/api/metrics`` — which bills
+        each subtree once, at its root — loses those tokens entirely.
+        """
+        with task.lock:
+            child_ids = list(task.child_task_ids)
+        if not child_ids:
+            return result
+        usage = {
+            key: int(value or 0)
+            for key, value in (result.get("tokens_used") or {}).items()
+            if isinstance(value, (int, float))
+        }
+        for child_id in child_ids:
+            with self.lock:
+                child = self.tasks.get(child_id)
+            if child is None:
+                continue
+            add_usage_totals(usage, child.snapshot().get("tokens_used") or {})
+        return {**result, "tokens_used": usage}
+
     def _watch_batch(self, parent: TaskRecord, child_ids: list[str]) -> None:
         reported_children: set[str] = set()
         snapshots: list[dict[str, Any]] = []
@@ -2263,7 +2288,7 @@ class TaskManager:
                     "error": "任务已取消",
                     "cancelled": True,
                 }
-            task.apply_result(result)
+            task.apply_result(self._roll_up_children(task, result))
             with task.lock:
                 cancelled = cancelled_by_user or bool(result.get("cancelled")) or task.status == "cancelled"
                 failed = bool(result.get("error")) and not cancelled

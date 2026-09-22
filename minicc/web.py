@@ -968,6 +968,46 @@ class AgentService:
     def chat(self, payload: dict[str, Any]) -> dict[str, Any]:
         return self._run_chat(payload)
 
+    def _make_provider(
+        self,
+        *,
+        timeout: float,
+        status_callback: Any | None = None,
+        protocol_override: str | None = None,
+        model_override: str | None = None,
+        reasoning_effort: str | None = None,
+    ) -> Any:
+        """Build the provider client one call should use.
+
+        The single place that maps config onto a provider, so a call outside
+        the agent loop cannot quietly pick a different wire protocol, ignore
+        the per-task model, or bypass the offline test provider.
+        """
+        if os.getenv("MINICC_FAKE_PROVIDER", "").strip().lower() in TRUTHY:
+            return FakeProvider(on_status=status_callback)
+        if str(getattr(self.config, "provider_type", "openai")) == "anthropic":
+            return AnthropicProvider(
+                api_key=self.config.api_key,
+                model=str(model_override or self.config.model),
+                base_url=str(getattr(self.config, "anthropic_base_url", "") or self.config.base_url),
+                timeout=timeout,
+                max_retries=int(getattr(self.config, "provider_retries", 4)),
+                on_status=status_callback,
+            )
+        return OpenAICompatibleProvider(
+            base_url=self.config.base_url,
+            api_key=self.config.api_key,
+            model=str(model_override or self.config.model),
+            timeout=timeout,
+            max_retries=int(getattr(self.config, "provider_retries", 4)),
+            tool_mode=self.config.tool_mode,
+            protocol=str(protocol_override or getattr(self.config, "llm_protocol", "auto")),
+            reasoning_effort=str(
+                reasoning_effort or getattr(self.config, "reasoning_effort", "high")
+            ),
+            on_status=status_callback,
+        )
+
     def merge_batch(
         self,
         children: list[dict[str, Any]],
@@ -975,6 +1015,7 @@ class AgentService:
         on_stream: Any | None = None,
         on_usage: Any | None = None,
         reasoning_effort: str | None = None,
+        model: str | None = None,
         workspace_path: str | None = None,
         cancel_event: threading.Event | None = None,
     ) -> dict[str, Any]:
@@ -993,15 +1034,10 @@ class AgentService:
 
         async def execute() -> dict[str, Any]:
             quiet_loop_teardown()
-            provider = OpenAICompatibleProvider(
-                base_url=self.config.base_url,
-                api_key=self.config.api_key,
-                model=self.config.model,
-                timeout=self.config.timeout,
-                max_retries=int(getattr(self.config, "provider_retries", 4)),
-                tool_mode=self.config.tool_mode,
-                protocol=str(getattr(self.config, "llm_protocol", "auto")),
-                reasoning_effort=str(reasoning_effort or getattr(self.config, "reasoning_effort", "high")),
+            provider = self._make_provider(
+                timeout=float(self.config.timeout),
+                model_override=model,
+                reasoning_effort=str(reasoning_effort or ""),
             )
             try:
                 response = await chat_with_cancellation(
@@ -1381,27 +1417,12 @@ class AgentService:
                 protocol_override: str | None = None,
                 model_override: str | None = None,
             ) -> Any:
-                if os.getenv("MINICC_FAKE_PROVIDER", "").strip().lower() in TRUTHY:
-                    return FakeProvider(on_status=status_callback)
-                if str(getattr(self.config, "provider_type", "openai")) == "anthropic":
-                    return AnthropicProvider(
-                        api_key=self.config.api_key,
-                        model=str(model_override or self.config.model),
-                        base_url=str(getattr(self.config, "anthropic_base_url", "") or self.config.base_url),
-                        timeout=timeout,
-                        max_retries=int(getattr(self.config, "provider_retries", 4)),
-                        on_status=status_callback,
-                    )
-                return OpenAICompatibleProvider(
-                    base_url=self.config.base_url,
-                    api_key=self.config.api_key,
-                    model=str(model_override or self.config.model),
+                return self._make_provider(
                     timeout=timeout,
-                    max_retries=int(getattr(self.config, "provider_retries", 4)),
-                    tool_mode=self.config.tool_mode,
-                    protocol=str(protocol_override or getattr(self.config, "llm_protocol", "auto")),
-                    reasoning_effort=str(payload.get("reasoning_effort") or getattr(self.config, "reasoning_effort", "high")),
-                    on_status=status_callback,
+                    status_callback=status_callback,
+                    protocol_override=protocol_override,
+                    model_override=model_override,
+                    reasoning_effort=str(payload.get("reasoning_effort") or ""),
                 )
 
             provider = make_provider(timeout=initial_route.timeout, status_callback=on_event)
@@ -2401,8 +2422,15 @@ class AgentService:
         free to drift the moment pricing or usage shapes change. Unpriced
         models contribute tokens but are counted separately instead of being
         silently billed at zero.
+
+        Only root tasks are summed: a batch or auto-orchestration parent rolls
+        its subtasks' usage into its own snapshot, so adding the subtask rows
+        on top would bill the same model calls twice. ``subtask_rows`` keeps
+        the excluded rows countable instead of invisible.
         """
         rows = self.tasks.list(limit=max(1, min(limit, 2000)), workspace_path=workspace_path)
+        roots = [row for row in rows if not row.get("parent_id")]
+        subtask_rows = len(rows) - len(roots)
         usage: dict[str, int] = {}
         by_model: dict[str, dict[str, Any]] = {}
         by_status: dict[str, int] = {}
@@ -2410,7 +2438,7 @@ class AgentService:
         unpriced_tasks = 0
         priced_tasks = 0
         durations: list[float] = []
-        for row in rows:
+        for row in roots:
             add_usage_totals(usage, row.get("tokens_used") or {})
             model = str(row.get("model") or "unknown")
             bucket = by_model.setdefault(
@@ -2439,9 +2467,14 @@ class AgentService:
             del bucket["priced"]
         return {
             "schema_version": "minicc.metrics.v1",
-            "workspace_path": str(workspace_path or self.workspace),
+            "workspace_path": str(workspace_path) if workspace_path else None,
+            # Without an explicit filter the index spans every workspace in
+            # the shared task store, so the payload must not name one of them
+            # as if the totals belonged to it.
+            "scope": str(workspace_path) if workspace_path else "all_workspaces",
             "generated_at": _iso(time.time()),
-            "task_count": len(rows),
+            "task_count": len(roots),
+            "subtask_rows": subtask_rows,
             "tasks_by_status": by_status,
             "priced_tasks": priced_tasks,
             "unpriced_tasks": unpriced_tasks,

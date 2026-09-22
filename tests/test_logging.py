@@ -269,7 +269,14 @@ def test_sync_chat_path_logs_the_same_vocabulary_as_the_task_path(
     assert WEB_TOKEN not in content
 
 
-def test_metrics_endpoint_reconciles_with_task_snapshots(tmp_path: Path) -> None:
+def test_metrics_endpoint_reconciles_with_task_snapshots(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Without a price the whole cost half of this test compares 0.0 with 0.0 and
+    # passes no matter what the aggregation does.
+    monkeypatch.setenv(
+        "MINICC_PRICING_JSON", json.dumps({"test-model": {"input": 1.0, "output": 2.0}})
+    )
     live = _LiveServer(tmp_path)
     try:
         first = _run_task(live.service, tmp_path, "first prompt")
@@ -278,6 +285,7 @@ def test_metrics_endpoint_reconciles_with_task_snapshots(tmp_path: Path) -> None
         assert status == 200
         assert payload["schema_version"] == "minicc.metrics.v1"
         assert payload["task_count"] == 2
+        assert payload["subtask_rows"] == 0
 
         # The reconciliation the roadmap asks for: aggregate == sum of the
         # single-task snapshots, key by key.
@@ -289,7 +297,9 @@ def test_metrics_endpoint_reconciles_with_task_snapshots(tmp_path: Path) -> None
             per_task_cost += float(snapshot["cost_usd"] or 0.0)
         assert payload["usage"] == per_task_tokens
         assert payload["cost_usd"] == pytest.approx(per_task_cost)
-        assert payload["priced_tasks"] + payload["unpriced_tasks"] == 2
+        assert per_task_cost > 0.0
+        assert payload["priced_tasks"] == 2
+        assert payload["unpriced_tasks"] == 0
 
         bucket = payload["by_model"]["test-model"]
         assert bucket["tasks"] == 2
@@ -304,12 +314,19 @@ def test_metrics_limit_and_workspace_filter(tmp_path: Path) -> None:
     try:
         _run_task(live.service, tmp_path)
         _, all_rows = live.get("/api/metrics")
-        _, none_rows = live.get("/api/metrics?workspace=" + urllib.parse.quote(str(tmp_path / "elsewhere")))
+        other = str(tmp_path / "elsewhere")
+        _, none_rows = live.get("/api/metrics?workspace=" + urllib.parse.quote(other))
         _, first_row = live.get("/api/metrics?limit=1")
         assert all_rows["task_count"] == 1
         assert none_rows["task_count"] == 0
         assert none_rows["usage"] == {}
         assert first_row["task_count"] == 1
+        # An unfiltered total spans every workspace in the shared task store,
+        # so it must not come back labelled with one workspace's path.
+        assert all_rows["scope"] == "all_workspaces"
+        assert all_rows["workspace_path"] is None
+        assert none_rows["scope"] == other
+        assert none_rows["workspace_path"] == other
     finally:
         live.shutdown()
 

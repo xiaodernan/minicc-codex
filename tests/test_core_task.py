@@ -501,7 +501,9 @@ def test_batch_watcher_marks_missing_child_interrupted_and_finishes_parent(tmp_p
         manager.shutdown()
 
 
-def test_batch_merge_passes_reasoning_effort_to_provider(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_batch_merge_passes_reasoning_effort_to_provider(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     seen: dict[str, object] = {}
 
     class FakeProvider:
@@ -514,20 +516,27 @@ def test_batch_merge_passes_reasoning_effort_to_provider(monkeypatch: pytest.Mon
         async def close(self) -> None:
             return None
 
+    monkeypatch.delenv("MINICC_FAKE_PROVIDER", raising=False)
     monkeypatch.setattr("minicc.web.OpenAICompatibleProvider", FakeProvider)
-    service = SimpleNamespace(
-        config=SimpleNamespace(
+    # A ``SimpleNamespace`` receiver let the real call site drift until it
+    # crashed: merge_batch now builds its provider through the service, so this
+    # exercises the same bound method the batch watcher calls.
+    service = AgentService(
+        tmp_path,
+        SimpleNamespace(
             base_url="https://example.test/v1",
             api_key="test-key",
             model="test-model",
             timeout=30,
             tool_mode="auto",
             reasoning_effort="high",
-        )
+            yolo=False,
+            sandbox_mode="host",
+            sandbox_image="python:3.11-slim",
+        ),
     )
 
-    result = AgentService.merge_batch(
-        service,
+    result = service.merge_batch(
         [{"status": "completed", "answer": "child result"}],
         reasoning_effort="max",
     )
