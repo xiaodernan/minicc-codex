@@ -740,7 +740,8 @@
 
 | M8-T16 429 配额窗口不得把任务打成失败（M6-4 真跑暴露） | ✅ | 根因是可测量的一句话：**整个重试预算只有 15 秒，而限流窗口是 60 秒**。`openai_provider._wait_retry_after_or_exponential` 对 429 也走 `min(60, 2^(n-1))` → `max_retries=4` 时累计睡眠 1+2+4+8=15s，五次尝试全部落在同一个未完成的一分钟窗口内，`reraise=True` 把它原样抛给 `agent/loop.py:840` 的 `LLM 调用失败: …`，任务判死。用假网关（`httpx.MockTransport`，不消耗真实配额）量出边界：限流器 3s/15s 后解除时能恢复，**60s 后解除则 15.06s 就放弃**，错误串与 bench 现场逐字相同。修法按错误类别分开退避：速率限制类走 `_RATE_LIMIT_BACKOFF_BASE_SECONDS=15` 起底的指数（15/30/60/60，累计 165s，仍受 60s 单次上限与尝试次数上界约束），其它瞬时错误保持 1/2/4/8 不变，`Retry-After` 头仍然优先。修复后同一探测 60s 窗口 **105s 恢复成功**（4 次 HTTP 尝试） | 新增 `tests/test_rate_limit_retry.py`（6 条）：预算断言 `sum(waits) >= 60` 且逐项 `[15,30,60,60]`（**短路修复后此条报 `retry budget 15.0s is shorter than the limiter window`，即红→绿判据**）、非限流错误仍是 `[1,2,4,8]`（防过度修正）、`retry-after: 3` 覆盖底值、`_is_rate_limit` 认被包装成 `RuntimeError` 的 429 文本且不认 500、e2e 假网关 429→429→200 恢复且恰好 3 次尝试、持续 429 仍在 `max_retries+1` 次后报错（等得久 ≠ 无限等）。LLM 域回归 `test_rate_limit_retry`+`test_core_llm`+`test_responses_streaming` **26 passed** |
 
-| M8-T17 评测里唯一的真实能力失败：`v2-license-mit` 不收敛（判据已就位，改法待定） | ⏳ 待处理 | **已稳定复现**：同一 fixture 两次独立运行 15 轮/110.2s/122 345 tokens 与 16 轮/134.5s/127 487 tokens，错误串完全相同（`output/m6_4_sample.results.json`、`output/m8_t17_repro.results.json`），且**不是配额问题**。同一 fixture 是「改 LICENSE 措辞」级别的小任务，12 万 tokens 说明它在自评-继续循环里反复重读同一批内容。与 M8-T7 相邻但不同：那次是评委确定性拒绝后不该重跑，这次是**评委连续四轮说「继续」而没有新的判据**。**本批已补判据**：runner 之前把 `_chat_locked` 返回的事件整份丢弃、并且非 completed 一律跳过评分，所以「四轮各缺什么」和「文件契约其实过不过」都无处可查——现在 `review_rounds`（有界 8 轮）+ `objective_oracle`（诊断性重跑确定性 grader，不改 `passed`）会落在结果文件里，另附一条 `max_completion_continues` 实为不可配置旋钮的发现。详见「第七批」 | 下一步：用一次真跑读这两个字段（`--suite v2 --run --task-id v2-license-mit`），再在失速检测 / 配置化上限 / 让封顶任务进入正式评分三条路里选一条；只有 1 个 fixture 的信号不足以改判据 |
+| M8-T17 评测里唯一的真实能力失败：`v2-license-mit` 不收敛（**结案：不是能力失败，是一条按构造不可满足的确定性门**） | ✅ | 判据（`review_rounds` + `objective_oracle`）接出来后一次真跑就定案：四轮评审的 `missing` **一字不差**，且 `objective_oracle.passed=true`——交付物本来就对。根因在 `agent/completion.py` 的写后检查门：`LICENSE` 没有后缀 → 被当作源码改动 → 要求跑 `tool_policy` 白名单里的真检查器，而该 fixture 没有任何可跑的东西（跑 `pytest` 非 0 退出同样不清门）。修法：`suffixless_prose`（license/copying/notice/authors/…）认回文档，走 `read_file`/`git_diff` 这条本来就客观的支路；**改代码要跑检查器的规则没有放松**（`Makefile` 由回归测试钉住）。真跑同一条命令：16 轮/127 487 tokens/134.5s/failed → **6 轮/33 078 tokens/31.2s/completed 且 passed** | `tests/test_check_selection.py` 2 → 4 条：`test_a_suffixless_prose_write_demands_a_demand_that_can_be_met`（**先红**：桩回 HEAD 版本即报 `为最近的代码修改运行相关测试…`）、`test_extensionless_build_file_still_demands_a_real_checker`（防放松）。证据：`output/m8_t17_repro.results.json`、`output/m8_t17_oracle.results.json`、`output/m8_t17_after_fix.results.json`；分析见「第七批」 |
+| M8-T18 封顶与旋钮：失速检测、`max_completion_continues` 不可配置、`code_revision` 不区分工作区（待观察，未动） | ⏳ 挂起 | M8-T17 结案后这两条失去了触发样本，记录以免被当成已修：① `web.py:2170` 仍是「同一句要求重复 4 轮才停」，两次相同就停会误杀正常收敛，要做须带活动信号（要求相同**且**本轮无新增检查类工具调用）；② `max_completion_continues` 只被 `getattr(self.config, ..., 3)` 读取而 `Config` 没有该字段，这条上限目前**不可配置**；③ bench 的 `code_revision` 记 HEAD，工作区未提交改动不会改变它，可区分版本的只有 `runtime_source_sha256` | 尚无测试——①需要新的失速样本，②是配置面补口，③是文档口径；三条都不阻塞当前退出标准 |
 
 ### M1-M3 退出标准真跑记录（第一批，2026-09-22）
 
@@ -748,7 +749,7 @@
 
 | 标准 | 结论 | 证据 |
 | --- | --- | --- |
-| M1-1 `pytest -q` 全绿 | ✅（Windows 这条腿） | 最新基线 `.venv` 全量 **917 passed**（`-W error`，271.6s；上一基线 913）；Ubuntu 那条腿本机不可用，只有 CI 能证，**不在此声明** |
+| M1-1 `pytest -q` 全绿 | ✅（Windows 这条腿） | 最新基线 `.venv` 全量 **919 passed**（`-W error`，215.6s；同批上一基线 917、913）；Ubuntu 那条腿本机不可用，只有 CI 能证，**不在此声明** |
 | M1-2 `scripts/reliability_probe.py` 一键复现、退出码 0 | ✅ | 真跑：9 个 M1 target 全绿，`exit=0` |
 | M1-3 人工核查（只认 text delta 与 `[DONE]`、空答案不算成功） | ✅（**查出并修掉一条真实缺陷**） | 三条子判据分别处理。**① 只认 text delta**：两条协议分支各自独立核过——`chat_completions` 分支里 `delta.content` 与 `delta.reasoning_content` 走**两个不同的 assembler**，reasoning 永远进不了 `committed_text`（`openai_provider.py:1017-1040`）；`responses` 分支只消费 `response.output_text.delta` 一种事件类型，其余事件不产生可见文本（`:784-791`）。**② 假网关只发 delta + `[DONE]`、从不发 finish_reason**：这条原本写着「人工核查」，其实**可以在 wire 上执行**，新测试用 `httpx.MockTransport` 返回真实 SSE 字节（一条 content delta + `data: [DONE]`，无 finish_reason），断言 **HTTP 请求恰好 1 次**（不是 5 次重放）、`run_agent` 以 `LLM 调用失败: stream ended before completion` 明确结束、且已经流出去的「半句话」保留在 answer 里。顺带纠正一处口径：旧测试 `test_m1t5_stream_without_finish_reason_fails_fast` 数的「1 次」是**被打桩的 `_create` 调用次数**，不是 HTTP 请求数。`[DONE]` 在 openai 路径由 SDK 自己消化，仓库里唯一手写 SSE 解析的是 anthropic 路径（`anthropic_provider.py:372` 对 `[DONE]` 有防护）。**③ 空答案不算成功 → 此前不成立**：`loop.py` 有两个交付点写 `result.answer = text or "(模型返回空回复)"` 而 `result.error` 保持为空，也就是**一轮既无内容又无工具调用的完成会被当作成功交付**，且此前没有任何测试引用过那个占位串（grep 全仓库只命中 loop.py 自己）。两处都改成显式失败（`code="empty_answer"`，answer 写成「任务未完成：…」）。保留的判断：`text` 为空时仍会先取 `reasoning_content`（`:1409-1411`），部分模型只把答案写在推理段里，所以「空答案」的判据是**两者都空** | `tests/test_m1_integrity.py` 15 → **17**：`test_m1t3_delta_only_gateway_costs_one_request_and_errors`（wire 级，修复前后均绿——它验证的是已经成立的部分）、`test_m1t3_an_empty_final_answer_is_not_reported_as_success`（**先红**：`assert None` 于 `TurnResult(answer='(模型返回空回复)'…)`；改完转绿）。全量 `-W error` **913 passed / 233.81s**，语义变更未打破任何既有交付契约 |
 | M1-4 golden delta 序列：streamed text 必须与 answer 一致 | ✅（今天才真正成立） | 判据落在 M8-T13 的两条新测试（增量逐字到达 surface；`StreamWriter.matches`）+ `visible-equals-stored` 真机 3/3。**此前这条标准是靠终端肉眼看的**，实际一直在丢字 |
@@ -869,6 +870,45 @@ M1-3 是唯一还挂着「未复核」的行。逐行读两条协议分支 + 一
 把已被丢弃的中间证据接出来。下一批用一次真跑读这两个字段，再决定 M8-T17 的改法（候选：`missing` 集合
 连续重复即判停的失速检测、把 `max_completion_continues` 真做成配置项、以及是否让封顶任务也进入正式评分——
 最后这条会改 `passed` 语义，不在本批范围内）。
+
+判据接出来之后，同一批就把 M8-T17 结掉了，结论比原候选三条都更靠前：**那句要求根本不是模型给的。**
+
+真跑读数（`output/m8_t17_oracle.results.json`，`runtime_source_sha256 c4ec2331`）只有两行有意义：
+
+```
+review_rounds: 4 × {"code": "completion_continue",
+                    "missing": ["为最近的代码修改运行相关测试或检查，记录结果后再验收"],
+                    "rationale": "已修改文件，但没有修改后的客观检查记录。"} + 1 × completion_continue_capped
+objective_oracle: {"passed": true, "case_count": 2, "exit_code": 0}
+```
+
+| # | 结论 | 证据 |
+| --- | --- | --- |
+| 1 | **交付物本来就是对的**：文件契约两条 `contains` 全过，`passed:false` 完全来自「没走到评分」这一步 | 于是这条一直记作「能力失败」的样本真实身份是**评审链路的假阴性**。只跑一次、只看 `passed` 列的话，这个结论永远拿不到 |
+| 2 | 四轮一字不差的 `missing` 来自 `agent/completion.py:415-419` 的**确定性后置门**，不来自模型 | 规则：最后一个成功写事件之后必须出现客观检查事件。`is_documentation()` 只认 `.md/.rst/.txt/.adoc`，而 `LICENSE` **没有后缀** → `needs_execution=True` → 唯一能满足它的是 `is_verification_evidence` 认可的真检查器（`tool_policy.py:142-150`：pytest/mypy/tsc/ruff check/npm test…）。该 fixture 只有一个 README 和一个 LICENSE，没有任何可跑的东西；即便去跑 `pytest`，非 0 退出码会让事件 `status != "ok"`，同样不清门。**这条要求在它触发的场景里按构造不可满足** |
+| 3 | 修法只有一句：把「无后缀的法律/说明类文本」归回文档 | `suffixless_prose = {license, licence, copying, notice, authors, contributors, acknowledgements, patents}` 命中即走本来就客观的「读回来看」支路（`read_file`/`git_diff`）。**没有放松「改代码要跑检查器」**：`Makefile`/`Dockerfile` 这类无后缀构建文件仍然必须跑真检查器，由 `test_extensionless_build_file_still_demands_a_real_checker` 钉住 |
+
+**同一 fixture、同一网关、同一条命令的真跑复核**：
+
+| 运行 | 源码哈希 | 轮次 | tokens | 延迟 | 结果 |
+| --- | --- | --- | --- | --- | --- |
+| `m8_t17_repro`（修复前） | `237ad7a2` | 16 | 127 487 | 134.5s | failed / passed False |
+| `m8_t17_oracle`（修复前 + 判据） | `c4ec2331` | 15 | 125 518 | 151.3s | failed / passed False，**oracle True** |
+| `m8_t17_after_fix`（修复后） | `10381ccc` | **6** | **33 078** | **31.2s** | **completed / passed True** |
+
+约 3.8 倍 token 差、2.4 倍轮次差，而且第三行是「走完正常验收路径通过」，不是靠封顶侥幸。一条口径提醒：
+三行的 `code_revision` 有两行同为 `71328f3`（HEAD 的提交号），**工作区里未提交的改动不会改变它**，
+能区分代码版本的只有 `runtime_source_sha256`——引用 bench 证据要引后者。
+
+**本批方法论**：一个「看起来像模型能力上限」的失败，先问它的判据**能不能被满足**。确定性后置门 + 有界重试
+这个组合最容易产出这类失败：模型侧怎么看都在原地打转，代码侧其实只是在一遍遍执行一条永远为真的规则。
+判据接出来以后，答案在 5 行 JSON 里就写完了。原候选里的失速检测与配置化上限因此**降级为待观察**，记入 M8-T18。
+
+**为什么不当场做失速检测**：最直觉的版本是「`missing` 连续相同就提前停」，但两次相同就停会误杀
+「agent 第一轮没听懂、第二轮才去做」的正常收敛；要做就得带上活动信号（要求相同**且**本轮没有新增检查类工具调用）。
+本批已经消灭了不可满足的要求，这条改法失去了触发样本，凭 1 个 fixture 去改收敛判据正是这份文档一路在避免的事。
+
+本批最终基线：`pytest -q -W error` **919 passed in 215.55s**（判据两条 + 门修复两条，913 → 917 → 919）。
 
 ### M8-T7 注记：一次真实失败的时间线，以及「不给结论」的边界
 

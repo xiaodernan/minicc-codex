@@ -396,11 +396,21 @@ def _enforce_completion_evidence(
     if last_write >= 0:
         written_paths = {str(event.get("path")) for event in events if isinstance(event, dict) and event.get("write") and event.get("status") == "ok" and event.get("path")}
         # Only clear documentation formats can use inspection alone. Build
-        # files and runtime configuration (including extensionless files)
-        # need a real checker just as source changes do.
+        # files and runtime configuration need a real checker just as source
+        # changes do - the exception is the suffixless prose listed below, for
+        # which no checker exists.
         documentation_suffixes = {".md", ".rst", ".txt", ".adoc"}
+        # Legal/prose files that conventionally ship without a suffix. No checker
+        # in the allowlist can say anything about a license text, so classifying
+        # them as "needs a real checker" made the demand unsatisfiable: every
+        # review round came back byte-identical until the continue cap fired
+        # (roadmap M8-T17 - four rounds, 125k tokens, deliverable actually correct).
+        suffixless_prose = {"license", "licence", "copying", "notice", "authors",
+                            "contributors", "acknowledgements", "patents"}
         def is_documentation(path: str) -> bool:
             name = path.replace("\\", "/").rsplit("/", 1)[-1].lower()
+            if name in suffixless_prose:
+                return True
             return any(name.endswith(suffix) for suffix in documentation_suffixes) and not (name == "cmakelists.txt" or name.startswith("requirements"))
         needs_execution = not written_paths or not all(is_documentation(path) for path in written_paths)
         observed_after_write = any(

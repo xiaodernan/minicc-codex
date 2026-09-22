@@ -25,6 +25,40 @@ def test_equivalent_recheck_resolves_failure_but_other_selection_does_not():
     assert _enforce_completion_evidence(decision(), events, []).status == "complete"
 
 
+def test_a_suffixless_prose_write_demands_a_demand_that_can_be_met():
+    """M8-T17. ``LICENSE`` has no suffix, so it was classed with source changes and
+    the reviewer demanded a real checker. In a fixture with no test suite that
+    demand cannot be met by anything the agent can do, so all four rounds came
+    back byte-identical and the run capped out at 125k tokens - on a task whose
+    file contract actually passed."""
+
+    def decision():
+        return CompletionDecision(status="complete", rationale="done", evidence=["event-1"])
+
+    events = [{"name": "write_file", "path": "LICENSE", "status": "ok", "write": True}]
+    bare = _enforce_completion_evidence(decision(), events, [])
+    assert bare.status == "continue", "an unchecked write is still not deliverable"
+    assert bare.missing == ["为最近的文件修改取得对应读取或差异检查证据"]
+    assert _enforce_completion_evidence(
+        decision(), events + [{"name": "read_file", "path": "LICENSE", "status": "ok"}], []
+    ).status == "complete"
+
+
+def test_extensionless_build_file_still_demands_a_real_checker():
+    """The prose exception must not swallow files a checker can actually judge."""
+
+    def decision():
+        return CompletionDecision(status="complete", rationale="done", evidence=["event-1"])
+
+    events = [
+        {"name": "write_file", "path": "Makefile", "status": "ok", "write": True},
+        {"name": "read_file", "path": "Makefile", "status": "ok"},
+    ]
+    held = _enforce_completion_evidence(decision(), events, [])
+    assert held.status == "continue"
+    assert held.missing == ["为最近的代码修改运行相关测试或检查，记录结果后再验收"]
+
+
 def test_ast_discovery_handles_src_layout_multiline_alias_and_ignores_comments(tmp_path):
     (tmp_path / "tests").mkdir()
     fixtures = {
