@@ -665,7 +665,7 @@
 | M7-T4 项目级配置层 + config.py 剩余缺陷 | ✅ | `.minicc/config.json` 逐键覆盖 user 级 `~/.minicc/config.json`，`config.load_config()` 的解析顺序为 args > 环境变量 > `.env` > project > user > defaults；新增 10 个 CLI 开关，修 `config.py` 六处解析/钳制缺陷 | `tests/test_project_config.py`；提交 `2b9f7fd` |
 | M7-T5 前端数据丢失修复 + @-提及内容注入 | ✅ | `web/src/chat/stream.js` 失败恢复（提交失败不清空已输入内容），`minicc/mentions.py` 把 `@relative/path` 变成有界内容块附加到 user 消息：只读工作区相对路径（绝对/`~`/盘符拒绝，`resolve()+is_relative_to()` 拦 junction 越界），逐文件与整条消息双上限、截断处标 `[truncated]`，敏感与二进制引用只标注不读取，正文过 `redact_text` | `tests/test_mentions.py`；提交 `8ec2de0` |
 
-### 已完成（M8 可分发与长期演进，M8-T1..T10）
+### 已完成（M8 可分发与长期演进，M8-T1..T11）
 
 | 任务 | 状态 | 落地位置 | 验证 |
 | --- | --- | --- | --- |
@@ -722,6 +722,8 @@
 
 | M8-T10 fork/rewind 不得留下没有结果的工具调用；被丢弃的一次性任务要说话 | ✅ | 发现方式仍是「按退出标准真跑」：M8 退出标准第 1 条要求「10 条消息的会话在第 5 条 fork，两个会话文件独立，`--resume` 能恢复 fork」，于是用真实 CLI 对真实 web 会话（11 条、含工具轮）做一次 fork。会话文件层面的独立性、`forked_from` 血缘、稳定 `m-*` 前缀、源文件摘要不变全部成立——但分支只有 4 条消息，**最后一条是带 `tool_calls` 的 assistant，它的 `tool` 结果被切掉了**。这是 M8-T2 的真实缺口：`fork()` 与 `rewind()` 都直接 `messages[:keep]`，切在一轮工具调用的中间就产出一段模型 API 拒收的历史（`tool_calls` 后必须跟对应 `tool` 结果），分支的第一个请求即失败，而用户看到的只是一个「fork 成功」。修法按「文件里不许存在无效历史」而不是「读的时候打补丁」：新增 `_unsatisfied_tool_calls()` 与 `_keep_through_tool_results()`，把切点向后延到本轮工具结果结束（向后而不是向前，因为结果是用户所选那一轮的一部分），无法修复（结果本来就缺）时立即停止延伸、不追逐、不死循环；`fork`/`rewind` 共用它，`forked_from.from_message_id` 仍记录用户选的点、`keep_messages` 记录真正写入的条数。顺带第二个发现：`minicc --fork-from 3 "任务文本"` 只 fork 就 `return 0`（`main.py:538-553`），任务被静默丢弃，脚本读到的退出码是成功——补 `_warn_unrun_prompt()`，`--fork-from`/`--list-sessions` 带任务时打印「只操作会话文件，本次任务文本没有执行（N 字）」，只报长度不回显内容 | `tests/test_session_fork.py` 测试函数 12 → 18（parametrize 展开后收集 23 条，全绿）。新增：以工具轮为样本的 fork/rewind 不变量（`_unsatisfied_tool_calls(kept) == set()`、角色序列 `system,user,assistant,tool`、血缘仍指用户选的点）、切在完整轮次时**不得**多保留（`kept == 2`）、结果本来就缺失的坏历史不追逐不挂死，以及两条 CLI 断言（带任务时提示「没有执行」且原文不回显、不带任务时保持安静）。**先红后绿**：把 `_keep_through_tool_results` 临时改成直接返回原 `keep`，两条不变量测试同时失败（`assert 3 == 4`）。真实 CLI 复跑同一会话：分支 5 条、以 `tool` 结果收尾、`unsatisfied == set()`、源文件摘要不变 |
 
+| M8-T11 流式合并不再静默丢字符（A 方向：永不丢字 + 连续证据才认累积） | ✅ | 见下方「M8-T11 注记」。`llm/stream_merge.py` 删掉 `accumulate_attempt_text`，改为 `AttemptTextAssembler`（**默认按字节追加**；只有**连续两个片段都是「完整重复前一个片段并且更长」**（`CUMULATIVE_STREAK=2`）才改判为累积快照流；改判那一刻用快照**覆盖**已累积文本，并通过 `latched_now` 让 `openai_provider` 把 `committed_text` 一并**重定基**（rebase），因此交付出去的 `response.content` 是精确快照，只有**流式回调**里可能已经显示了重复）。判定基准刻意用「上一个片段」而不是「已累积缓冲」：增量模式下缓冲可能已经含重复，真快照永远以片段为单位单调增长，因此真累积流必定攒够这条连击、误判只是延后而不是丢失。`openai_provider.py` 每次尝试为 content/reasoning 各持一个 assembler（原来是两个 `str` 局部量） | `tests/test_m1_integrity.py`：M1-T3 的三条 pin 改写并扩到 3 个用例——增量含前缀重复（`"7."+"7.7"→"7.7.7"`、`"def"+"define"→"defdefine"`、`"x="+"x=1"→"x=x=1"`）；真累积 4 段后 `cumulative is True` 且文本恰等于最后一段快照、latch 后继续以快照覆盖；两次前缀重复**不足以**改判（`"a","ab","abc"→"aababc"`）。上一提交留下的 `xfail(strict=True)` 表征测试改为直接断言并删除标记 |
+
 ### M8-T7 注记：一次真实失败的时间线，以及「不给结论」的边界
 
 一次真实只读小任务消耗 118,499 tokens、跑了 5 轮 `run_agent` 后才以 provider `451 censorship_blocked` 失败。
@@ -748,7 +750,7 @@
 
 ### 尚未开始
 
-路线图 M1..M8 的任务至此全部落地并有逐项验证记录（M8-T7..T10 四条由真实运行与真实失败驱动的附带修复在内）。
+路线图 M1..M8 的任务至此全部落地并有逐项验证记录（M8-T7..T11 五条由真实运行与真实失败驱动的附带修复在内）。
 M6-T4/M6-T5 的落地记录来自 `02059ea`、`a97bf13` 等一批提交（对应 `tests/test_background_shell.py`、
 `tests/test_parallel_writes.py`），本日志未逐条复核，暂不代为背书；下一步是按第三节各里程碑的**退出标准**
 （`## 三` 里每个里程碑自带的检查清单）加上第六节的跟踪指标做一次整体复核（含真实模型端到端），而不是继续
@@ -756,7 +758,7 @@ M6-T4/M6-T5 的落地记录来自 `02059ea`、`a97bf13` 等一批提交（对应
 第三节（`:44/:88/:131/:178/:229/:269/:302/:335`），一次性列在总表 `:23` 的「退出标准」列。
 
 
-### 遗留风险（M8-T11，需要先定方向再动手）
+### M8-T11 注记：为什么改成「宁可重复，绝不丢字」
 
 复核 M8 退出标准第 2 条（长期记忆跨任务召回）时：真实模型确实把记忆写进了
 `<workspace>/.minicc/MEMORY.md`，后续任务也确实召回了——但**存进会话的最终答复是 `7.7`，而记忆里明明写着
@@ -779,6 +781,20 @@ M6-T4/M6-T5 的落地记录来自 `02059ea`、`a97bf13` 等一批提交（对应
 - **B：保持现状，但累积识别只在显式开关下启用**。代价是未被开关覆盖的兼容网关回到重复，改动面最小。
 
 不选「加长度阈值」这类第三条：`"def"/"define"` 与真快照在长度上不可分，只是把误判换个尺寸而已。
-当前状态：`tests/test_m1_integrity.py::test_a_repeated_prefix_in_incremental_deltas_must_not_lose_characters`
-以 `xfail(strict=True)` 钉住该缺陷——今天它是预期失败，一旦按 A 或 B 修好就会变 XPASS 报错，提醒摘掉标记。
-方向待定，所以**不占用**任何里程碑的退出标准，也不计入已完成。
+**已按 A 落地**（用户选定方向：永不静默丢字，代价换成看得见的重复）。实现要点与残余风险：
+
+1. `AttemptTextAssembler` 默认按字节追加；改判累积需要**连续 3 个**「完整重复前一片段且更长」的片段，
+   判据比较的是**上一个片段**而不是已累积缓冲（增量模式下缓冲可能已含重复，真快照永远以片段为单位增长，
+   所以真累积流一定攒得够这条连击——误判只会延后，不会漏判）。
+2. 改判那一刻用快照**覆盖**缓冲，并让 provider 把 `committed_text` 重定基到该快照；此后每个快照直接替换。因此
+   真累积网关的**交付文本依旧精确**，代价只在流式回调里可能已经把前几段重复渲染过一次（可见、可事后修）。
+   阈值取 2 而不是 3 是因为确实存在只有三段快照的累积流（`tests/test_core_llm.py` 钉着的
+   `"aa","aab","aabc"`）——阈值 3 对它永远攒不够证据，会把最终文本弄脏。
+3. 残余风险方向相反且很小：增量流若恰好连来 2 个「完整重复前一片段并增长」的片段会被改判为累积、在重定基时丢字。
+   真实增量协议的片段互不重叠，这类连击概率远低于旧写法在**单个**片段上就误判的概率——这正是本次改动
+   要买到的东西。
+4. 上一提交那个 `xfail(strict=True)` 表征测试已按约定删除标记、改成直接断言（`tests/test_m1_integrity.py`
+   M1-T3 共 3 个用例：单片段前缀重复仍是增量、真累积被识别并自正、一次重复不足以改判）。被**故意改掉**的旧
+   契约有两条、都不是回归：`accumulate_attempt_text("aa","aab") -> ("aab","b")`（单片段前缀猜，正是丢字的根源）
+   随该函数一起删除；`test_provider_deduplicates_cumulative_stream_chunks` 的 `deltas == ["aa","b","c"]` 改为
+   `["aa","aab"]` 并保留 `content == "aabc"`，把「流式可见重复、交付文本精确」直接写进断言。

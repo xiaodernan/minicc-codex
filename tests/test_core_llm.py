@@ -175,7 +175,11 @@ def test_provider_deduplicates_cumulative_stream_chunks() -> None:
     provider._create = fake_create  # type: ignore[method-assign]
     deltas: list[str] = []
     response = asyncio.run(provider.chat([{"role": "user", "content": "test"}], on_delta=deltas.append))
-    assert deltas == ["aa", "b", "c"]
+    # M8-T11 (decision A): cumulative snapshots are only reinterpreted after a
+    # second consecutive whole-prefix grow, so the visible stream may repeat
+    # text - that is the accepted cost of never dropping characters. The
+    # delivered response must still be exactly the gateway's snapshot.
+    assert deltas == ["aa", "aab"]
     assert response.content == "aabc"
     assert _merge_stream_text("aa", "aab") == ("aab", "b")
 

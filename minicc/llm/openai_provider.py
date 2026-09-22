@@ -56,7 +56,7 @@ from tenacity import (
 from .base import LLMResponse
 from ..logging_setup import log_provider_event
 from .envelope import _render_envelope_action, envelope_system_suffix, parse_envelope
-from .stream_merge import accumulate_attempt_text, merge_retry_snapshot
+from .stream_merge import AttemptTextAssembler, merge_retry_snapshot
 from .usage import cache_summary
 
 _RETRYABLE = (
@@ -927,8 +927,8 @@ class OpenAICompatibleProvider:
 
         for attempt in range(1, self._max_retries + 2):
             stream = None
-            attempt_text = ""
-            attempt_reasoning = ""
+            attempt_text = AttemptTextAssembler()
+            attempt_reasoning = AttemptTextAssembler()
             tool_acc: dict[int, dict[str, Any]] = {}
             usage: dict[str, Any] = {}
             finish_reason = "stop"
@@ -964,16 +964,27 @@ class OpenAICompatibleProvider:
                     content = getattr(delta, "content", None)
                     if content:
                         # M1-T3: one attempt may carry incremental fragments
-                        # (append) or cumulative snapshots (prefix-detect).
+                        # (append) or cumulative snapshots (streak-detected).
                         # Never overlap-dedup incremental fragments (P0-1).
-                        attempt_text, _ = accumulate_attempt_text(attempt_text, str(content))
-                        committed_text, suffix = merge_retry_snapshot(committed_text, attempt_text)
-                        if suffix:
-                            on_delta(suffix)
+                        merged = attempt_text.feed(str(content))
+                        if attempt_text.latched_now:
+                            # The snapshot is the truth; anything appended
+                            # before the latch may repeat, so rebase rather
+                            # than merge and let the exact text stand.
+                            committed_text = merged
+                        else:
+                            committed_text, suffix = merge_retry_snapshot(committed_text, merged)
+                            if suffix:
+                                on_delta(suffix)
                     reasoning = getattr(delta, "reasoning_content", None)
                     if reasoning:
-                        attempt_reasoning, _ = accumulate_attempt_text(attempt_reasoning, str(reasoning))
-                        committed_reasoning, _ = merge_retry_snapshot(committed_reasoning, attempt_reasoning)
+                        merged_reasoning = attempt_reasoning.feed(str(reasoning))
+                        if attempt_reasoning.latched_now:
+                            committed_reasoning = merged_reasoning
+                        else:
+                            committed_reasoning, _ = merge_retry_snapshot(
+                                committed_reasoning, merged_reasoning
+                            )
                     for tc in getattr(delta, "tool_calls", None) or ():
                         index = getattr(tc, "index", 0) or 0
                         slot = tool_acc.setdefault(
