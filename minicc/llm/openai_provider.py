@@ -22,6 +22,7 @@ assistant tool_calls collapse to their text content.
 from __future__ import annotations
 
 import asyncio
+import inspect
 import json
 from collections.abc import Callable
 from typing import Any
@@ -263,6 +264,31 @@ def classify_provider_failure(exc: BaseException) -> bool | None:
     if httpx is not None and isinstance(exc, httpx.HTTPError):
         return False
     return None
+
+
+async def _close_stream(stream: Any) -> None:
+    """Close a stream we may have stopped consuming early.
+
+    Two spellings exist across the SDK's own types and both must be tried:
+    async generators expose ``aclose()``, while ``AsyncStream`` only has an
+    async ``close()`` that releases the underlying httpx response. An object
+    left unclosed is closed later by ``asyncio.run()``'s shutdown hook, and
+    httpcore2 answers that with "RuntimeError: generator didn't stop after
+    athrow()" dumped to stderr - after an otherwise correct, exit-0 answer, so
+    it reads as a crash. Teardown never propagates: it must not mask the real
+    outcome.
+    """
+    for name in ("aclose", "close"):
+        closer = getattr(stream, name, None)
+        if closer is None:
+            continue
+        try:
+            result = closer()
+            if inspect.isawaitable(result):
+                await result
+        except Exception:  # noqa: BLE001 - teardown noise is not the user's error
+            pass
+        return
 
 
 def _retry_after_seconds(exc: BaseException) -> float | None:
@@ -755,6 +781,8 @@ class OpenAICompatibleProvider:
                     f"responses stream broke after delivering {emitted['chars']} chars: "
                     f"{type(exc).__name__}"
                 ) from exc
+            finally:
+                await _close_stream(stream)
             if final is None:
                 if emitted["chars"] == 0:
                     raise RuntimeError("Responses 流式请求未返回最终响应")
@@ -927,6 +955,7 @@ class OpenAICompatibleProvider:
 
         for attempt in range(1, self._max_retries + 2):
             stream = None
+            iterator: Any = None
             attempt_text = AttemptTextAssembler()
             attempt_reasoning = AttemptTextAssembler()
             tool_acc: dict[int, dict[str, Any]] = {}
@@ -946,7 +975,10 @@ class OpenAICompatibleProvider:
                     request_kwargs.pop("stream_options", None)
                     stream = await self._create(request_kwargs)
 
-                async for chunk in stream:
+                # AsyncStream.__aiter__ is itself an async generator, so the
+                # object iterated here is a second thing that must be closed.
+                iterator = stream.__aiter__() if hasattr(stream, "__aiter__") else stream
+                async for chunk in iterator:
                     model_name = getattr(chunk, "model", None) or model_name
                     chunk_usage = getattr(chunk, "usage", None)
                     if chunk_usage is not None:
@@ -967,15 +999,15 @@ class OpenAICompatibleProvider:
                         # (append) or cumulative snapshots (streak-detected).
                         # Never overlap-dedup incremental fragments (P0-1).
                         merged = attempt_text.feed(str(content))
+                        committed_text, suffix = merge_retry_snapshot(committed_text, merged)
                         if attempt_text.latched_now:
-                            # The snapshot is the truth; anything appended
-                            # before the latch may repeat, so rebase rather
-                            # than merge and let the exact text stand.
+                            # The snapshot is the truth for this attempt, so
+                            # rebase the buffer onto it; the suffix above is
+                            # still emitted, because hiding what was already
+                            # streamed would shorten the visible answer.
                             committed_text = merged
-                        else:
-                            committed_text, suffix = merge_retry_snapshot(committed_text, merged)
-                            if suffix:
-                                on_delta(suffix)
+                        if suffix:
+                            on_delta(suffix)
                     reasoning = getattr(delta, "reasoning_content", None)
                     if reasoning:
                         merged_reasoning = attempt_reasoning.feed(str(reasoning))
@@ -1011,11 +1043,6 @@ class OpenAICompatibleProvider:
                 )
                 return self._finalize(response, tools)
             except Exception as exc:
-                if stream is not None and hasattr(stream, "aclose"):
-                    try:
-                        await stream.aclose()
-                    except Exception:
-                        pass
                 if attempt > self._max_retries or not _is_stream_retryable(exc):
                     raise
                 if self._on_status is not None:
@@ -1029,6 +1056,12 @@ class OpenAICompatibleProvider:
                         "detail": {"attempt": attempt + 1, "retry_limit": self._max_retries + 1},
                     })
                 await asyncio.sleep(_stream_retry_delay(exc, attempt))
+            finally:
+                # Every exit path - delivered response, raised protocol error,
+                # retry - abandons this attempt's stream, so close both the
+                # iteration and the stream that produced it.
+                await _close_stream(iterator)
+                await _close_stream(stream)
 
         raise RuntimeError("stream retry loop exhausted")
 

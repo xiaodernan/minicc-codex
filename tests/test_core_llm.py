@@ -177,11 +177,104 @@ def test_provider_deduplicates_cumulative_stream_chunks() -> None:
     response = asyncio.run(provider.chat([{"role": "user", "content": "test"}], on_delta=deltas.append))
     # M8-T11 (decision A): cumulative snapshots are only reinterpreted after a
     # second consecutive whole-prefix grow, so the visible stream may repeat
-    # text - that is the accepted cost of never dropping characters. The
-    # delivered response must still be exactly the gateway's snapshot.
-    assert deltas == ["aa", "aab"]
+    # text - that is the accepted cost of never dropping characters. Nothing is
+    # ever withheld from the stream, and the delivered response is exactly the
+    # gateway's snapshot.
+    assert deltas == ["aa", "aab", "c"]
     assert response.content == "aabc"
     assert _merge_stream_text("aa", "aab") == ("aab", "b")
+
+
+def _content_chunk(text: str):
+    return SimpleNamespace(
+        model="test-model",
+        usage=None,
+        choices=[SimpleNamespace(
+            finish_reason=None,
+            delta=SimpleNamespace(content=text, reasoning_content=None, tool_calls=[]),
+        )],
+    )
+
+
+def _stop_chunk():
+    return SimpleNamespace(
+        model="test-model",
+        usage=None,
+        choices=[SimpleNamespace(
+            finish_reason="stop",
+            delta=SimpleNamespace(content=None, reasoning_content=None, tool_calls=[]),
+        )],
+    )
+
+
+class _WatchedStream:
+    """Faithful stand-in for the SDK's ``AsyncStream``.
+
+    Two details matter and were both wrong in the first version of this
+    double: ``__aiter__`` is an *async generator function*, so the object being
+    iterated is a second thing that can leak; and the only closer is an async
+    ``close()`` - there is no ``aclose()`` to call.
+    """
+
+    def __init__(self, chunks: list[object]) -> None:
+        self._chunks = list(chunks)
+        self.closed = False
+        self.iterators_closed = 0
+
+    async def __aiter__(self):
+        try:
+            for chunk in self._chunks:
+                yield chunk
+        finally:
+            self.iterators_closed += 1
+
+    async def close(self) -> None:
+        self.closed = True
+
+
+def _chat_completions_provider(stream_factory):
+    class Completions:
+        async def create(self, **kwargs):
+            return stream_factory()
+
+    return OpenAICompatibleProvider(
+        "https://example.test/v1", "test-key", "test-model",
+        protocol="chat_completions", max_retries=0,
+        sdk_client=SimpleNamespace(chat=SimpleNamespace(completions=Completions())),
+    )
+
+
+def test_provider_closes_a_stream_even_after_a_clean_response() -> None:
+    """The live symptom: a correct answer, exit code 0, then a teardown traceback.
+
+    ``asyncio.run()`` closes whatever stream is still open when the loop ends,
+    and httpcore2 answers with "generator didn't stop after athrow()" on
+    stderr - which reads as a crash to anyone who just got a good answer.
+    """
+    stream = _WatchedStream([_content_chunk("KX91"), _content_chunk("-DELTA"), _stop_chunk()])
+    provider = _chat_completions_provider(lambda: stream)
+
+    async def deltas():
+        seen: list[str] = []
+        response = await provider.chat(
+            [{"role": "user", "content": "编号？"}], on_delta=seen.append
+        )
+        return response, seen
+
+    response, seen = asyncio.run(deltas())
+    assert response.content == "KX91-DELTA"
+    assert stream.closed, "an unclosed stream leaks into loop teardown"
+    assert stream.iterators_closed == 1, "the async generator __aiter__ created also leaks"
+
+
+def test_provider_closes_a_stream_it_abandons_on_error() -> None:
+    from minicc.llm.openai_provider import StreamProtocolError
+
+    stream = _WatchedStream([_content_chunk("half a sentence")])
+    provider = _chat_completions_provider(lambda: stream)
+    with pytest.raises(StreamProtocolError):
+        asyncio.run(provider.chat([{"role": "user", "content": "hi"}], on_delta=lambda text: None))
+    assert stream.closed and stream.iterators_closed == 1
 
 
 def test_provider_retries_silent_incomplete_stream() -> None:

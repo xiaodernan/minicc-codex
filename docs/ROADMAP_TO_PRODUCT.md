@@ -665,7 +665,7 @@
 | M7-T4 项目级配置层 + config.py 剩余缺陷 | ✅ | `.minicc/config.json` 逐键覆盖 user 级 `~/.minicc/config.json`，`config.load_config()` 的解析顺序为 args > 环境变量 > `.env` > project > user > defaults；新增 10 个 CLI 开关，修 `config.py` 六处解析/钳制缺陷 | `tests/test_project_config.py`；提交 `2b9f7fd` |
 | M7-T5 前端数据丢失修复 + @-提及内容注入 | ✅ | `web/src/chat/stream.js` 失败恢复（提交失败不清空已输入内容），`minicc/mentions.py` 把 `@relative/path` 变成有界内容块附加到 user 消息：只读工作区相对路径（绝对/`~`/盘符拒绝，`resolve()+is_relative_to()` 拦 junction 越界），逐文件与整条消息双上限、截断处标 `[truncated]`，敏感与二进制引用只标注不读取，正文过 `redact_text` | `tests/test_mentions.py`；提交 `8ec2de0` |
 
-### 已完成（M8 可分发与长期演进，M8-T1..T11）
+### 已完成（M8 可分发与长期演进，M8-T1..T12）
 
 | 任务 | 状态 | 落地位置 | 验证 |
 | --- | --- | --- | --- |
@@ -724,6 +724,17 @@
 
 | M8-T11 流式合并不再静默丢字符（A 方向：永不丢字 + 连续证据才认累积） | ✅ | 见下方「M8-T11 注记」。`llm/stream_merge.py` 删掉 `accumulate_attempt_text`，改为 `AttemptTextAssembler`（**默认按字节追加**；只有**连续两个片段都是「完整重复前一个片段并且更长」**（`CUMULATIVE_STREAK=2`）才改判为累积快照流；改判那一刻用快照**覆盖**已累积文本，并通过 `latched_now` 让 `openai_provider` 把 `committed_text` 一并**重定基**（rebase），因此交付出去的 `response.content` 是精确快照，只有**流式回调**里可能已经显示了重复）。判定基准刻意用「上一个片段」而不是「已累积缓冲」：增量模式下缓冲可能已经含重复，真快照永远以片段为单位单调增长，因此真累积流必定攒够这条连击、误判只是延后而不是丢失。`openai_provider.py` 每次尝试为 content/reasoning 各持一个 assembler（原来是两个 `str` 局部量） | `tests/test_m1_integrity.py`：M1-T3 的三条 pin 改写并扩到 3 个用例——增量含前缀重复（`"7."+"7.7"→"7.7.7"`、`"def"+"define"→"defdefine"`、`"x="+"x=1"→"x=x=1"`）；真累积 4 段后 `cumulative is True` 且文本恰等于最后一段快照、latch 后继续以快照覆盖；两次前缀重复**不足以**改判（`"a","ab","abc"→"aababc"`）。上一提交留下的 `xfail(strict=True)` 表征测试改为直接断言并删除标记 |
 
+| M8-T12 流一定有关闭路径（**部分修复：线上 stderr 仍在，未结案**） | 🟡 | 真实 CLI 流式跑完，答案正确、`rc=0`，stderr 仍打印 `an error occurred during closing of asynchronous generator … GeneratorExit → RuntimeError: generator didn't stop after athrow()`（`httpcore2/_utils.safe_async_iterate`）。代码侧确实有两处该关不关：chat_completions 循环**只在 `except` 分支 `aclose()`**，成功交付那条出口从不关；responses 的 `_attempt()` 任何分支都不关。新增 `_close_stream()`（`aclose` 优先、退回 async `close`——SDK 的 `AsyncStream` **根本没有 `aclose`**，第一版助手因此静默空转，是测试替身骗了我一次），并把关闭挪到 `finally`，同时关闭 `stream.__aiter__()` 造出来的那层异步生成器。**但真机复跑 3/3 仍然打出同一段 traceback**：泄漏体是 httpx 连接层的 `HTTP11ConnectionByteStream.__aiter__`，不在我们持有的这两个对象上（很可能属于某次非流式请求的 response 或 SDK 内部再包一层）。**这条按未修复保留**，只把「该关必关」的代码债还掉；线索与复现脚本一并转进 M8-T13 记录 | `tests/test_core_llm.py` 14 → 16：`_WatchedStream` 严格照 `AsyncStream` 的形状做替身（`__aiter__` 是异步生成器函数、只有 async `close()`），断言干净交付与中途 `StreamProtocolError` 两条出口都`stream.closed and iterators_closed == 1`。先红后绿：把 `finally` 里传入的对象换成 `None` 两条同时失败。**真机部分未达成**：同一 CLI 命令 `stderr` 仍稳定 1438 字节，因此本行不给「已修复」结论 |
+
+> **事后更正（同日稍晚，M8-T12/T13 期间查清）**：上面那句归因**只对了一半**。真正在终端里少掉尾巴的不是
+> 合并层——落盘的会话内容一直是完整的 `7.7.7`。用 `visible_stream_check.py` 连跑 3 次，CLI 打印分别是
+> `7.7`、`7.7.`、`7.7`，而三个会话文件里存的都是 `7.7.7`：**少的是显示层**（见文末 M8-T13）。
+> 本节记录的 `accumulate_attempt_text` 缺陷本身仍然成立，它的证据是上表那三行离线可复现的合并结果与
+> `test_m1_integrity`/`test_core_llm` 的断言，不是那次终端显示。教训写下来：**用终端输出给模型链路定罪，
+> 一定要先比对落盘的会话内容**，否则会把显示层的 bug 记账到合并层头上（本文件此前就这么错过一次）。
+> 另外，M8-T11 的 latch 当时会**吞掉**可见增量（rebase 后不再发 suffix），真机复跑才暴露；已改为「照样发
+> suffix、只把缓冲重定基到快照」，`deltas == ["aa","aab","c"]` + `content == "aabc"` 钉住这个形状。
+
 ### M8-T7 注记：一次真实失败的时间线，以及「不给结论」的边界
 
 一次真实只读小任务消耗 118,499 tokens、跑了 5 轮 `run_agent` 后才以 provider `451 censorship_blocked` 失败。
@@ -750,7 +761,7 @@
 
 ### 尚未开始
 
-路线图 M1..M8 的任务至此全部落地并有逐项验证记录（M8-T7..T11 五条由真实运行与真实失败驱动的附带修复在内）。
+路线图 M1..M8 的任务至此全部落地并有逐项验证记录（M8-T7..T12 六条由真实运行与真实失败驱动的附带修复在内）。
 M6-T4/M6-T5 的落地记录来自 `02059ea`、`a97bf13` 等一批提交（对应 `tests/test_background_shell.py`、
 `tests/test_parallel_writes.py`），本日志未逐条复核，暂不代为背书；下一步是按第三节各里程碑的**退出标准**
 （`## 三` 里每个里程碑自带的检查清单）加上第六节的跟踪指标做一次整体复核（含真实模型端到端），而不是继续
@@ -760,9 +771,9 @@ M6-T4/M6-T5 的落地记录来自 `02059ea`、`a97bf13` 等一批提交（对应
 
 ### M8-T11 注记：为什么改成「宁可重复，绝不丢字」
 
-复核 M8 退出标准第 2 条（长期记忆跨任务召回）时：真实模型确实把记忆写进了
-`<workspace>/.minicc/MEMORY.md`，后续任务也确实召回了——但**存进会话的最终答复是 `7.7`，而记忆里明明写着
-`7.7.7`**。先排除脱敏（`redact_text("…7.7.7")` 原样返回、未标记为命中），线索指向 `llm/stream_merge.py`：
+复核 M8 退出标准第 2 条（长期记忆跨任务召回）时，记忆写入与召回都正常，但终端上打印的最终答复是
+`7.7`，而记忆里明明写着 `7.7.7`。先排除脱敏（`redact_text("…7.7.7")` 原样返回、未标记为命中），线索指向
+`llm/stream_merge.py`：
 `accumulate_attempt_text` 用 `fragment.startswith(attempt)` 猜「这个网关发的是累积快照」，猜中就丢弃重叠前缀。
 对**真累积快照**那是对的呢条（`tests/test_m1_integrity.py:72` 就钉着 `("aa","aab") -> ("aab","b")`），但对
 **恰好重复已累积前缀的增量片段**它是静默丢字符：
@@ -798,3 +809,16 @@ M6-T4/M6-T5 的落地记录来自 `02059ea`、`a97bf13` 等一批提交（对应
    契约有两条、都不是回归：`accumulate_attempt_text("aa","aab") -> ("aab","b")`（单片段前缀猜，正是丢字的根源）
    随该函数一起删除；`test_provider_deduplicates_cumulative_stream_chunks` 的 `deltas == ["aa","b","c"]` 改为
    `["aa","aab"]` 并保留 `content == "aabc"`，把「流式可见重复、交付文本精确」直接写进断言。
+
+
+### M8-T13（未修，现象已定位）：CLI 打印的最终答复会短于落盘内容
+
+同一句「只回答版本号」的只读任务连跑 3 次：终端打印 `7.7` / `7.7.` / `7.7`，而三次的会话文件里存的
+assistant 内容都是完整的 `7.7.7`。也就是**流式显示与最终打印之间少掉了尾巴**，且长度每次都不同（不是固定
+截断，像是一次未刷新/被覆盖的尾包）。相关代码点：`minicc/main.py:30` 的 `StreamWriter`（`assistant> ` 前缀
+与逐增量写 stdout）与 `main.py:396` 的 `cli_out(f"
+assistant> {result.answer}")` 之间的**互斥/去重关系**——
+两条打印路径谁负责收尾、结尾未以换行结束时谁被覆盖，是下一步要读的第一处。
+
+判据先立在这：**可见输出必须与落盘内容一致**（`visible_stream_check.py` 的 `RESULT visible-equals-stored`
+就是它的回归门，目前 0/3 通过）。修好之前不要再动 `stream_merge`——那层已被证明不是本现象的原因。
