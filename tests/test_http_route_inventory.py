@@ -152,6 +152,52 @@ def assert_answered(label: str, status: int, payload: Any) -> None:
     )
 
 
+#: Routes dispatched by prefix (``path.startswith("/api/tasks/")``) cannot be
+#: enumerated as a finite list, so the per-route probe above silently does not
+#: cover them. Listing them as data is the point: the gate below fails when a new
+#: prefix family appears and nobody decided whether it needs its own probe.
+#:
+#: ``/api/tasks/<id>/events`` is deliberately left unprobed by the generic
+#: driver: it is a streaming route, and a plain request would sit on the socket
+#: until timeout. It needs a streaming-aware probe, which is why it is named
+#: here rather than quietly added to the loop.
+_UNPROBED_FAMILIES = {"/api/tasks/"}
+
+#: The catch-all guard that answers 404 for anything under /api/ that matched no
+#: route. Not a family with endpoints of its own.
+_CATCH_ALL = "/api/"
+
+
+def _prefix_families() -> set[str]:
+    """Every ``path.startswith("/api/...")`` family inside the verb handlers."""
+    tree = ast.parse(WEBSERVER.read_text(encoding="utf-8"))
+    verbs = {"do_GET", "do_POST"}
+    found: set[str] = set()
+    for fn in (node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef) and node.name in verbs):
+        for node in ast.walk(fn):
+            if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                    and node.func.attr == "startswith"):
+                continue
+            receiver = node.func.value
+            if not (isinstance(receiver, ast.Name) and receiver.id == "path"):
+                continue
+            if node.args and isinstance(node.args[0], ast.Constant) and isinstance(node.args[0].value, str):
+                value = node.args[0].value
+                if value.startswith("/api/") and value != _CATCH_ALL:
+                    found.add(value)
+    return found
+
+
+def test_prefix_dispatched_families_are_declared_not_silently_omitted() -> None:
+    """The hole in the 100 % above is recorded, and cannot grow quietly."""
+    families = _prefix_families()
+    assert "/api/tasks/" in families, families
+    assert families == _UNPROBED_FAMILIES, (
+        "a prefix-dispatched route family appeared that this gate does not probe; "
+        "either probe it or record why not: " + json.dumps(sorted(families ^ _UNPROBED_FAMILIES))
+    )
+
+
 def test_the_route_inventory_is_actually_a_route_inventory() -> None:
     routes = _route_table()
     assert len(routes["GET"]) >= _MIN_GET_ROUTES, routes
