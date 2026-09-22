@@ -843,6 +843,10 @@ class TaskRecord:
                     # result was stored.
                     "tokens_used": dict(self.tokens_used),
                     "cost_usd": pricing.cost_usd(self.model, self.tokens_used),
+                    # Same reason: the flag decides whether the subtree still
+                    # needs folding, and a model-authored payload must not be
+                    # able to suppress that billing step.
+                    "children_rolled_up": self.children_rolled_up,
                 }
             )
             if self.status == "cancelled":
@@ -1646,11 +1650,7 @@ class TaskManager:
                 # bolted onto the worker mirror: both executors then produce
                 # identical result shapes, which is what the durability contract
                 # test requires.
-                task.result = {
-                    **task.result,
-                    "tokens_used": dict(task.tokens_used),
-                    "children_rolled_up": True,
-                }
+                task.result = {**task.result, "tokens_used": dict(task.tokens_used)}
 
     def _watch_batch(self, parent: TaskRecord, child_ids: list[str]) -> None:
         reported_children: set[str] = set()

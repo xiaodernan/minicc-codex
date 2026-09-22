@@ -659,24 +659,19 @@ def test_a_reconnected_worker_parent_folds_once_even_though_the_mirror_already_d
         manager._roll_up_tokens(plain)
         assert _total(plain.tokens_used) == 525, plain.tokens_used
 
-        # (c) The declaration is written by the fold itself and rides inside the
-        #     result payload, so both executors produce the same shape (the
-        #     durability contract compares them key for key) and a reconnect
-        #     cannot silently degrade (a) into a double count.
+        # (c) The declaration is host billing bookkeeping: it travels from the
+        #     snapshot's own field through the mirror, and a produced payload
+        #     cannot smuggle it (that would let a model suppress its own bill).
         from minicc.task_contract import TaskResult
         from minicc.task_execution import WorkerSnapshotMirror
 
-        assert mirrored.result.get("children_rolled_up") is True
-        declared = TaskResult.from_payload({"tokens_used": dict(own_only), "children_rolled_up": True})
-        assert declared.to_payload().get("children_rolled_up") is True
+        smuggled = TaskResult.from_payload({"tokens_used": dict(own_only), "children_rolled_up": True})
+        assert "children_rolled_up" not in smuggled.to_payload()
         mirrored_payload = WorkerSnapshotMirror.result({
             "status": "completed",
             "usage": dict(already_folded),
-            "result": {
-                "answer": "done",
-                "tokens_used": dict(already_folded),
-                "children_rolled_up": True,
-            },
+            "children_rolled_up": True,
+            "result": {"answer": "done", "tokens_used": dict(already_folded)},
         })
         assert mirrored_payload["children_rolled_up"] is True
         assert _total(mirrored_payload["tokens_used"]) == 525
@@ -684,7 +679,15 @@ def test_a_reconnected_worker_parent_folds_once_even_though_the_mirror_already_d
             "status": "completed", "usage": dict(own_only), "result": {"answer": "done"},
         })
         assert "children_rolled_up" not in undeclared
-        # ...and feeding that payload back must fold, because it declares nothing.
+        # A snapshot whose *body* claims the fold but whose host field does not
+        # must not be trusted — this is the suppression attempt itself.
+        spoofed = WorkerSnapshotMirror.result({
+            "status": "completed",
+            "usage": dict(already_folded),
+            "result": {"answer": "done", "children_rolled_up": True},
+        })
+        assert "children_rolled_up" not in spoofed
+        # ...and feeding an undeclared payload back must fold, because it says nothing.
         again = parent("mirror-parent-mirrored-plain")
         assert again.apply_result(undeclared) is True
         manager._roll_up_tokens(again)

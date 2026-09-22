@@ -87,7 +87,14 @@ class TaskResult:
             error=str(payload.get("error") or ""),
             cancelled=bool(payload.get("cancelled")),
             tokens_used=dict(usage) if isinstance(usage, dict) else {},
-            metadata={key: value for key, value in payload.items() if key not in {"answer", "error", "cancelled", "tokens_used"}},
+            metadata={
+                key: value
+                for key, value in payload.items()
+                # ``children_rolled_up`` is host billing bookkeeping: a
+                # produced payload must not be able to claim the subtree was
+                # already folded and so skip the fold.
+                if key not in {"answer", "error", "cancelled", "tokens_used", "children_rolled_up"}
+            },
         )
 
     def to_payload(self) -> dict[str, Any]:

@@ -81,10 +81,16 @@ class WorkerSnapshotMirror:
     @staticmethod
     def result(snapshot: dict[str, Any]) -> dict[str, Any]:
         result = dict(snapshot.get("result") or {})
-        return TaskResult.from_payload({
+        payload = TaskResult.from_payload({
             **result,
             "answer": str(result.get("answer") or snapshot.get("stream_text") or ""),
             "error": str(snapshot.get("error") or result.get("error") or ("worker task was interrupted" if snapshot.get("status") == "interrupted" else "")),
             "cancelled": snapshot.get("status") == "cancelled",
             "tokens_used": dict(snapshot.get("usage") or snapshot.get("tokens_used") or {}),
         }).to_payload()
+        # The fold flag is host-owned bookkeeping, so it travels from the
+        # snapshot field rather than from the (model-authored) result body — and
+        # only when set, otherwise the two executors would not normalise alike.
+        if snapshot.get("children_rolled_up"):
+            payload["children_rolled_up"] = True
+        return payload
