@@ -37,6 +37,52 @@ DEFAULT_RETRIEVAL = REPO_ROOT / "benchmarks" / "retrieval-hitrate.json"
 RETRIEVAL_RECALL_FLOOR = 0.6
 
 
+#: How much of the completion judge's verdict history a failed task keeps.
+#: Without this the objective grader is the only signal left, and it is skipped
+#: for tasks the judge capped - so a non-converging run produces a failure
+#: message with no record of what the reviewer kept asking for.
+_REVIEW_ROUNDS_KEPT = 8
+_REVIEW_TEXT_CHARS = 200
+
+
+def _review_rounds(events: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Bounded digest of each completion-judge round, for post-mortem reading."""
+    rounds: list[dict[str, Any]] = []
+    for event in events or ():
+        if not isinstance(event, dict) or event.get("name") != "completion_judge":
+            continue
+        detail = event.get("detail") if isinstance(event.get("detail"), dict) else {}
+        rounds.append({
+            "code": str(event.get("code") or ""),
+            "status": str(detail.get("status") or ""),
+            "rationale": str(detail.get("rationale") or "")[:_REVIEW_TEXT_CHARS],
+            "missing": [str(item)[:_REVIEW_TEXT_CHARS] for item in (detail.get("missing") or [])[:6]],
+            "next_action": str(detail.get("next_action") or "")[:_REVIEW_TEXT_CHARS],
+        })
+    return rounds[-_REVIEW_ROUNDS_KEPT:]
+
+
+def _objective_oracle(task: dict[str, Any], workspace: Path, grader_dir: Path | None,
+                      worker: threading.Thread | None) -> dict[str, Any] | None:
+    """What the deterministic grader sees when the run never reached grading.
+
+    Grading is skipped unless the agent reported completion, so a task the
+    completion judge capped is recorded as failed without ever being checked: a
+    reviewer false negative looks exactly like missing work. Diagnostic only -
+    this never writes ``passed``, so suite scores stay unchanged.
+    """
+    if worker is not None and worker.is_alive():
+        return None  # an abandoned thread may still be writing the workspace
+    grader = task.get("grader") or {}
+    if grader.get("type") not in bench_tasks.GRADER_TYPES:
+        return None
+    try:
+        result = grade_v2(task, workspace, grader_dir=grader_dir)
+    except (ValueError, TypeError, OSError) as exc:
+        return {"error": f"{type(exc).__name__}: {exc}"[:200]}
+    return {key: value for key, value in result.items() if key != "grader_type"}
+
+
 def _measurement(value: object) -> bool:
     """Metrics accept actual finite, nonnegative measurements, not bools."""
     return type(value) in (int, float) and math.isfinite(value) and value >= 0
@@ -586,6 +632,8 @@ def run_benchmark(
                     )
                 if outcome.get("error"):
                     entry["error"] = str(outcome["error"])[:200]
+                if entry["status"] != "completed":
+                    entry["review_rounds"] = _review_rounds(outcome.get("events") or ())
             entry["execution_latency_ms"] = round((time.monotonic() - started) * 1000, 1)
             grading_started = time.monotonic()
 
@@ -605,6 +653,9 @@ def run_benchmark(
                         entry.update(passed=False, grader_type="invalid", grading_error=f"{type(exc).__name__}: {exc}"[:200])
                 else:
                     entry.update(passed=False, grader_type=task["grader"].get("type", "behavior"))
+                    oracle = _objective_oracle(task, task_workspace, grader_dir, worker)
+                    if oracle:
+                        entry["objective_oracle"] = oracle
             elif verify_command and entry["status"] == "completed":
                 try:
                     completed = _subprocess.run(

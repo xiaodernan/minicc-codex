@@ -740,7 +740,7 @@
 
 | M8-T16 429 配额窗口不得把任务打成失败（M6-4 真跑暴露） | ✅ | 根因是可测量的一句话：**整个重试预算只有 15 秒，而限流窗口是 60 秒**。`openai_provider._wait_retry_after_or_exponential` 对 429 也走 `min(60, 2^(n-1))` → `max_retries=4` 时累计睡眠 1+2+4+8=15s，五次尝试全部落在同一个未完成的一分钟窗口内，`reraise=True` 把它原样抛给 `agent/loop.py:840` 的 `LLM 调用失败: …`，任务判死。用假网关（`httpx.MockTransport`，不消耗真实配额）量出边界：限流器 3s/15s 后解除时能恢复，**60s 后解除则 15.06s 就放弃**，错误串与 bench 现场逐字相同。修法按错误类别分开退避：速率限制类走 `_RATE_LIMIT_BACKOFF_BASE_SECONDS=15` 起底的指数（15/30/60/60，累计 165s，仍受 60s 单次上限与尝试次数上界约束），其它瞬时错误保持 1/2/4/8 不变，`Retry-After` 头仍然优先。修复后同一探测 60s 窗口 **105s 恢复成功**（4 次 HTTP 尝试） | 新增 `tests/test_rate_limit_retry.py`（6 条）：预算断言 `sum(waits) >= 60` 且逐项 `[15,30,60,60]`（**短路修复后此条报 `retry budget 15.0s is shorter than the limiter window`，即红→绿判据**）、非限流错误仍是 `[1,2,4,8]`（防过度修正）、`retry-after: 3` 覆盖底值、`_is_rate_limit` 认被包装成 `RuntimeError` 的 429 文本且不认 500、e2e 假网关 429→429→200 恢复且恰好 3 次尝试、持续 429 仍在 `max_retries+1` 次后报错（等得久 ≠ 无限等）。LLM 域回归 `test_rate_limit_retry`+`test_core_llm`+`test_responses_streaming` **26 passed** |
 
-| M8-T17 评测里唯一的真实能力失败：`v2-license-mit` 不收敛（未结案） | ⏳ 待处理 | 干净样本 4 条里唯一没通过的那条，且**不是配额问题**：15 轮、110.2s、122 345 tokens，最终 `完成评估连续 4 轮要求继续但未收敛，已按上限停止；请根据缺失项检查后重新提交任务`。同一 fixture 是「改 LICENSE 措辞」级别的小任务，122k tokens 说明它在自评-继续循环里反复重读同一批内容。与 M8-T7（评审器故障分类）相邻但不同：那次是评委确定性拒绝后不该重跑，这次是**评委连续四轮说「继续」而没有新的判据**。下一步应先取该次运行的评审事件序列（哪四轮、每轮缺什么）再定改法，不要在只有 1 个样本时下结论 | 记录于 M6-4 真跑（`output/m6_4_sample.results.json`，`code_revision 0856114`）。尚无测试——需要先复现（同一 fixture 再跑一次，看是否稳定不收敛）再决定判据 |
+| M8-T17 评测里唯一的真实能力失败：`v2-license-mit` 不收敛（判据已就位，改法待定） | ⏳ 待处理 | **已稳定复现**：同一 fixture 两次独立运行 15 轮/110.2s/122 345 tokens 与 16 轮/134.5s/127 487 tokens，错误串完全相同（`output/m6_4_sample.results.json`、`output/m8_t17_repro.results.json`），且**不是配额问题**。同一 fixture 是「改 LICENSE 措辞」级别的小任务，12 万 tokens 说明它在自评-继续循环里反复重读同一批内容。与 M8-T7 相邻但不同：那次是评委确定性拒绝后不该重跑，这次是**评委连续四轮说「继续」而没有新的判据**。**本批已补判据**：runner 之前把 `_chat_locked` 返回的事件整份丢弃、并且非 completed 一律跳过评分，所以「四轮各缺什么」和「文件契约其实过不过」都无处可查——现在 `review_rounds`（有界 8 轮）+ `objective_oracle`（诊断性重跑确定性 grader，不改 `passed`）会落在结果文件里，另附一条 `max_completion_continues` 实为不可配置旋钮的发现。详见「第七批」 | 下一步：用一次真跑读这两个字段（`--suite v2 --run --task-id v2-license-mit`），再在失速检测 / 配置化上限 / 让封顶任务进入正式评分三条路里选一条；只有 1 个 fixture 的信号不足以改判据 |
 
 ### M1-M3 退出标准真跑记录（第一批，2026-09-22）
 
@@ -748,7 +748,7 @@
 
 | 标准 | 结论 | 证据 |
 | --- | --- | --- |
-| M1-1 `pytest -q` 全绿 | ✅（Windows 这条腿） | 最新基线 `.venv` 全量 **913 passed**（`-W error`，233.8s）；Ubuntu 那条腿本机不可用，只有 CI 能证，**不在此声明** |
+| M1-1 `pytest -q` 全绿 | ✅（Windows 这条腿） | 最新基线 `.venv` 全量 **917 passed**（`-W error`，271.6s；上一基线 913）；Ubuntu 那条腿本机不可用，只有 CI 能证，**不在此声明** |
 | M1-2 `scripts/reliability_probe.py` 一键复现、退出码 0 | ✅ | 真跑：9 个 M1 target 全绿，`exit=0` |
 | M1-3 人工核查（只认 text delta 与 `[DONE]`、空答案不算成功） | ✅（**查出并修掉一条真实缺陷**） | 三条子判据分别处理。**① 只认 text delta**：两条协议分支各自独立核过——`chat_completions` 分支里 `delta.content` 与 `delta.reasoning_content` 走**两个不同的 assembler**，reasoning 永远进不了 `committed_text`（`openai_provider.py:1017-1040`）；`responses` 分支只消费 `response.output_text.delta` 一种事件类型，其余事件不产生可见文本（`:784-791`）。**② 假网关只发 delta + `[DONE]`、从不发 finish_reason**：这条原本写着「人工核查」，其实**可以在 wire 上执行**，新测试用 `httpx.MockTransport` 返回真实 SSE 字节（一条 content delta + `data: [DONE]`，无 finish_reason），断言 **HTTP 请求恰好 1 次**（不是 5 次重放）、`run_agent` 以 `LLM 调用失败: stream ended before completion` 明确结束、且已经流出去的「半句话」保留在 answer 里。顺带纠正一处口径：旧测试 `test_m1t5_stream_without_finish_reason_fails_fast` 数的「1 次」是**被打桩的 `_create` 调用次数**，不是 HTTP 请求数。`[DONE]` 在 openai 路径由 SDK 自己消化，仓库里唯一手写 SSE 解析的是 anthropic 路径（`anthropic_provider.py:372` 对 `[DONE]` 有防护）。**③ 空答案不算成功 → 此前不成立**：`loop.py` 有两个交付点写 `result.answer = text or "(模型返回空回复)"` 而 `result.error` 保持为空，也就是**一轮既无内容又无工具调用的完成会被当作成功交付**，且此前没有任何测试引用过那个占位串（grep 全仓库只命中 loop.py 自己）。两处都改成显式失败（`code="empty_answer"`，answer 写成「任务未完成：…」）。保留的判断：`text` 为空时仍会先取 `reasoning_content`（`:1409-1411`），部分模型只把答案写在推理段里，所以「空答案」的判据是**两者都空** | `tests/test_m1_integrity.py` 15 → **17**：`test_m1t3_delta_only_gateway_costs_one_request_and_errors`（wire 级，修复前后均绿——它验证的是已经成立的部分）、`test_m1t3_an_empty_final_answer_is_not_reported_as_success`（**先红**：`assert None` 于 `TurnResult(answer='(模型返回空回复)'…)`；改完转绿）。全量 `-W error` **913 passed / 233.81s**，语义变更未打破任何既有交付契约 |
 | M1-4 golden delta 序列：streamed text 必须与 answer 一致 | ✅（今天才真正成立） | 判据落在 M8-T13 的两条新测试（增量逐字到达 surface；`StreamWriter.matches`）+ `visible-equals-stored` 真机 3/3。**此前这条标准是靠终端肉眼看的**，实际一直在丢字 |
@@ -847,6 +847,28 @@ M1-3 是唯一还挂着「未复核」的行。逐行读两条协议分支 + 一
 | 3 | **「空答案不算成功」当场不成立**：一轮既无内容又无工具调用的完成会被当成功交付 | `loop.py` 两个交付点写 `result.answer = text or "(模型返回空回复)"` 而 `result.error` 留空；全仓库 grep 那个占位串**只命中 loop.py 自己**——从来没有测试引用过它。新断言先红（`assert None` 于 `TurnResult(answer='(模型返回空回复)')`），两处改成显式 `empty_answer` 失败后转绿，全量 `-W error` **913 passed** |
 
 **这批最值得留下的一条方法论**：写着「人工核查」的验收项，先问一句「它能不能表达成一次函数调用」。M1-3 三条子里两条能（第 1、3 条），而且第 3 条正是靠"能"才被发现的——一旦要去写那个断言，就不得不去找"成功"在代码里的确切定义，然后发现它对空答案根本没有定义。
+
+### M8-T17 判据就位：失败的任务从来没被客观判据看过一眼（第七批，2026-09-23）
+
+先确认它不是偶发：同一 fixture 独立重跑第二次 **16 轮 / 127 487 tokens / 134.5s**（第一次 15 / 122 345 / 110.2s），
+错误串一字不差（`完成评估连续 4 轮要求继续但未收敛`），证据落在 `output/m8_t17_repro.results.json`。
+
+但重跑没有回答那个真正要回答的问题，因为评测器有一条结构性盲区：
+
+| # | 结论 | 证据 |
+| --- | --- | --- |
+| 1 | **被评委封顶的任务永远不会走到客观评分**：`benchmarks.py:621` 的评分分支前置条件是 `entry["status"] == "completed"`，非 completed 直接 `entry.update(passed=False, grader_type=...)` 了事 | 于是「评委假阴性（文件其实已经写对了）」和「真的没做完」在结果文件里长成同一个样子。M8-T17 上一版写的「先取评审事件序列再定改法」其实取不到——事件列表 `_chat_locked` 返回了（`web.py:2323`），但 runner 把它整份丢弃 |
+| 2 | **`max_completion_continues` 是一个不可配置的旋钮**：`web.py:1434` 写 `getattr(self.config, "max_completion_continues", 3)`，而 `Config` 里根本没有这个字段 | `getattr` 的默认值 3 因此永远生效，`max(1, int(...))` 也永远不可能被用户改到。与 M8-T16 那类「文档声称可配、代码里读不到」同类，但这次是**读取端伪装成可配** |
+| 3 | 判据补齐：`review_rounds` + `objective_oracle` 两个诊断字段 | 前者把每轮 `completion_judge` 事件的 `code/status/rationale/missing/next_action` 收成有界尾巴（留 8 轮、每条文本截 200 字符、`missing` 留 6 项），只在非 completed 时写；后者在同一个前提下**照跑一次确定性 grader**，把结果塞进 `objective_oracle`，`passed` 与 `false_completion_rate` 一律不动。竞态守卫：`worker.is_alive()`（超时后被抛弃的线程还在写工作区）时直接不看，返回 `None` |
+
+**红→绿证伪**：把 `minicc.benchmarks._objective_oracle` 桩成返回 `None`，参数化的两条断言立刻
+`KeyError: 'objective_oracle'`（`reviewer-false-negative` 与 `genuinely-incomplete` 双红）；接回真实现后
+`tests/test_benchmark_runner.py` 16 → 19 passed。全量 `pytest -q -W error` **917 passed in 271.56s**（上一基线 913）。
+
+**这批的方法论收获**：一条「待查的能力失败」如果落在只看结果的评测器里，真正缺的往往不是更多样本，而是
+把已被丢弃的中间证据接出来。下一批用一次真跑读这两个字段，再决定 M8-T17 的改法（候选：`missing` 集合
+连续重复即判停的失速检测、把 `max_completion_continues` 真做成配置项、以及是否让封顶任务也进入正式评分——
+最后这条会改 `passed` 语义，不在本批范围内）。
 
 ### M8-T7 注记：一次真实失败的时间线，以及「不给结论」的边界
 

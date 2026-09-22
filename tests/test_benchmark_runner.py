@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import json
+import threading
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
-from minicc.benchmarks import _write_results, load_tasks, main, run_benchmark
+from minicc.benchmarks import _objective_oracle, _write_results, load_tasks, main, run_benchmark
 
 
 def _fake_provider_factory(monkeypatch: pytest.MonkeyPatch, answer: str = "评测任务已完成。") -> None:
@@ -349,3 +350,118 @@ def test_interruption_saves_completed_rows_and_current_cancellation(tmp_path, mo
     results = json.loads(path.read_text())
     assert [item["status"] for item in results] == ["completed", "interrupted"]
     assert shutdown == [True]
+
+
+def test_a_run_capped_by_the_judge_keeps_what_the_judge_asked_for(tmp_path, monkeypatch):
+    """A capped task used to be undiagnosable: the grader is skipped, so the
+    only record of why it failed was one truncated error line."""
+    long_text = "缺" * 500
+    judge_events = [
+        {
+            "kind": "trace", "name": "completion_judge", "phase": "review",
+            "code": f"completion_{status}",
+            "detail": {
+                "status": status,
+                "rationale": long_text,
+                "missing": [f"缺失项 {index}" for index in range(9)],
+                "next_action": long_text,
+            },
+        }
+        for index, status in enumerate(["continue"] * 6 + ["unknown"] * 4)
+    ]
+
+    class Service:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def _chat_locked(self, payload, **kwargs):
+            if payload["message"] == "fine":
+                return {"answer": "done"}
+            return {
+                "answer": "任务未完成",
+                "error": "完成评估连续 4 轮要求继续但未收敛",
+                "turns": 15,
+                "tool_calls_total": 9,
+                "events": [{"kind": "trace", "name": "tool", "code": "tool_started", "detail": {}}] + judge_events,
+            }
+
+        def shutdown(self):
+            pass
+
+    monkeypatch.setattr("minicc.web.AgentService", Service)
+    monkeypatch.setattr("minicc.config.load_config", _service_config)
+    results = run_benchmark(
+        [{"id": "capped", "prompt": "改 LICENSE"}, {"id": "fine", "prompt": "fine"}],
+        workspace=tmp_path,
+    )
+    row, clean = results
+    assert row["status"] == "failed"
+    rounds = row["review_rounds"]
+    assert len(rounds) == 8, "keeps a bounded tail, not the whole transcript"
+    assert [entry["code"] for entry in rounds][-1] == "completion_unknown"
+    assert rounds[0]["missing"] == [f"缺失项 {index}" for index in range(6)]
+    assert len(rounds[0]["rationale"]) == 200 and len(rounds[0]["next_action"]) == 200
+    assert "review_rounds" not in clean
+
+
+LICENSE_TASK = {
+    "id": "capped-license",
+    "prompt": "创建 LICENSE 文件",
+    "category": "write",
+    "fixture": {"README.md": "# demo-project\n"},
+    "grader": {"type": "file_contract", "files": [
+        {"path": "LICENSE", "contains": "MIT License"},
+        {"path": "LICENSE", "contains": "Copyright (c) 2026 MiniCC"},
+    ]},
+}
+
+
+def _judge_capped_service(write_license: bool):
+    class Service:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def _chat_locked(self, payload, **kwargs):
+            if write_license:
+                # The agent did the work; only the reviewer refused to sign it off.
+                (Path(kwargs["workspace"]) / "LICENSE").write_text(
+                    "MIT License\n\nCopyright (c) 2026 MiniCC\n", encoding="utf-8")
+            return {
+                "answer": "任务未完成",
+                "error": "完成评估连续 4 轮要求继续但未收敛",
+                "turns": 16,
+                "tool_calls_total": 12,
+                "events": [],
+            }
+
+        def shutdown(self):
+            pass
+
+    return Service
+
+
+@pytest.mark.parametrize("write_license,oracle_passed", [(True, True), (False, False)],
+                         ids=["reviewer-false-negative", "genuinely-incomplete"])
+def test_a_capped_run_is_still_read_by_the_objective_grader(tmp_path, monkeypatch,
+                                                           write_license, oracle_passed):
+    """Grading used to be unreachable for a non-completed task, so the suite could
+    not tell a reviewer false negative apart from missing work. ``passed`` stays
+    False - the deliverable was never signed off - and the oracle only reports."""
+    monkeypatch.setattr("minicc.web.AgentService", _judge_capped_service(write_license))
+    monkeypatch.setattr("minicc.config.load_config", _service_config)
+    row = run_benchmark([dict(LICENSE_TASK)], workspace=tmp_path)[0]
+    assert row["status"] == "failed"
+    assert row["passed"] is False, "the oracle must not resurrect the suite score"
+    assert row["objective_oracle"]["passed"] is oracle_passed
+    assert "grader_type" not in row["objective_oracle"]
+
+
+def test_the_objective_oracle_defers_while_an_abandoned_worker_owns_the_workspace(tmp_path):
+    release = threading.Event()
+    worker = threading.Thread(target=release.wait, daemon=True, name="bench-abandoned")
+    worker.start()
+    try:
+        assert _objective_oracle(dict(LICENSE_TASK), tmp_path, None, worker) is None
+    finally:
+        release.set()
+        worker.join(timeout=5)
