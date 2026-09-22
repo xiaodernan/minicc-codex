@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import ast
 import json
+import asyncio
 import logging
 import sys
 import threading
@@ -595,3 +596,42 @@ def test_only_cli_io_writes_stdout_through_print() -> None:
     # go through it (or a logger, which writes to stderr).
     assert counts == {"minicc/cli_io.py": 1}, counts
     assert sum(counts.values()) <= 5
+
+
+_LEAKED_GENERATORS: list = []
+
+
+def test_loop_teardown_noise_goes_to_the_log_not_the_terminal(
+    log_file: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Upstream bug, our stderr: a correct answer must not end in a traceback.
+
+    httpcore2's response-body iterator does not stop on ``athrow()``, so asyncio
+    reports it while shutting the loop down. We cannot patch the transport, so
+    the event is routed to the log - and everything else still reaches the
+    default handler, which this test also proves.
+    """
+
+    async def scenario() -> None:
+        logging_setup.quiet_loop_teardown()
+
+        async def stubborn():
+            try:
+                yield 1
+            except GeneratorExit:
+                raise RuntimeError("generator didn't stop after athrow()") from None
+
+        # Held where the loop cannot forget it before shutdown, the way httpx
+        # holds its response body iterator: a generator that dies with the
+        # coroutine is finalised without ever reporting to this loop.
+        _LEAKED_GENERATORS.append(stubborn().__aiter__())
+        await _LEAKED_GENERATORS[-1].__anext__()
+
+    asyncio.run(scenario())
+    for handler in logging.getLogger(logging_setup.ROOT_NAME).handlers:
+        handler.flush()
+
+    assert "closing of asynchronous generator" not in capsys.readouterr().err
+    content = log_file.read_text(encoding="utf-8")
+    assert "loop_teardown" in content
+    assert "RuntimeError" in content

@@ -21,7 +21,12 @@ from .commands import discover_commands, expand_slash_command
 from .hooks import HookRunner
 from .llm.base import system_msg, user_msg
 from .llm.openai_provider import OpenAICompatibleProvider
-from .logging_setup import configure_logging, log_task_event, register_secret
+from .logging_setup import (
+    configure_logging,
+    log_task_event,
+    quiet_loop_teardown,
+    register_secret,
+)
 from .prompt import build_system_prompt
 from .session import SessionError, SessionStore, list_sessions
 from .tools import Editor, ToolCall, ToolRegistry, ToolResult, build_registry
@@ -637,6 +642,7 @@ def main(argv: list[str] | None = None) -> int:
     ))
 
     async def run() -> None:
+        quiet_loop_teardown()
         try:
             prompt = " ".join(args.prompt).strip()
             if prompt:

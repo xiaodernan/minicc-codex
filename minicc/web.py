@@ -91,7 +91,13 @@ from .llm.base import system_msg, user_msg
 from .llm.anthropic_provider import AnthropicProvider
 from .llm.fake import FakeProvider
 from .llm.openai_provider import OpenAICompatibleProvider
-from .logging_setup import configure_logging, get_logger, log_task_event, register_secret
+from .logging_setup import (
+    configure_logging,
+    get_logger,
+    log_task_event,
+    quiet_loop_teardown,
+    register_secret,
+)
 from .snapshots import SnapshotError, SnapshotJournal, exists as workspace_snapshot_exists, restore as restore_workspace_snapshot
 from .llm.usage import add_usage_totals, cache_summary
 from .mcp import McpError, McpManager
@@ -911,6 +917,7 @@ class AgentService:
         )
 
         async def execute() -> dict[str, Any]:
+            quiet_loop_teardown()
             provider = OpenAICompatibleProvider(
                 base_url=self.config.base_url,
                 api_key=self.config.api_key,
@@ -1288,6 +1295,7 @@ class AgentService:
             return emit_decision(name, decision)
 
         async def execute() -> Any:
+            quiet_loop_teardown()
             nonlocal planner_result, planner_usage, planner_policy, planner_execution
             nonlocal repair_attempts, provider_recoveries, agent_recoveries
 

@@ -15,6 +15,7 @@ Before this module ``minicc/`` contained zero ``logging`` usage and ~70
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import re
@@ -197,6 +198,47 @@ def configure_logging(
     return logger
 
 
+#: A third-party transport whose response-body async generator does not stop on
+#: ``athrow()`` (httpcore2's ``safe_async_iterate``) makes asyncio print a
+#: multi-frame traceback while shutting the loop down - after an answer that was
+#: perfectly correct, so the user reads it as a crash. The defect is upstream and
+#: we cannot patch a dependency's teardown; the event still has to reach the log,
+#: because stdout is the CLI protocol channel (M8-T5) and a stray traceback there
+#: is indistinguishable from a failed run.
+TEARDOWN_NOISE = "closing of asynchronous generator"
+
+
+def quiet_loop_teardown() -> None:
+    """Route loop-shutdown async-generator errors to the log instead of stderr.
+
+    Call it from inside the coroutine passed to ``asyncio.run``; outside a running
+    loop it does nothing, so a caller cannot accidentally install it on the
+    wrong loop.
+    """
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return
+    previous = loop.get_exception_handler()
+
+    def handler(running_loop: Any, context: Mapping[str, Any]) -> None:
+        message = str(context.get("message") or "")
+        if TEARDOWN_NOISE in message:
+            exception = context.get("exception")
+            get_logger("runtime").debug(
+                "loop_teardown %s exception=%s",
+                message,
+                type(exception).__name__ if exception is not None else "-",
+            )
+            return
+        if callable(previous):
+            previous(running_loop, context)
+        else:
+            running_loop.default_exception_handler(context)
+
+    loop.set_exception_handler(handler)
+
+
 def get_logger(name: str | None = None) -> logging.Logger:
     """Return a module-scoped logger under the ``minicc`` namespace."""
     configure_logging()
@@ -245,6 +287,8 @@ def log_provider_event(event: Mapping[str, Any] | None, *, model: str = "") -> N
 
 
 __all__ = [
+    "TEARDOWN_NOISE",
+    "quiet_loop_teardown",
     "DEFAULT_LEVEL",
     "FILE_ENV",
     "LEVEL_ENV",

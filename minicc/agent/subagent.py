@@ -39,6 +39,7 @@ from typing import Any, Callable
 
 from .loop import AgentCancelled, Budget, run_agent
 from .state import BudgetExceeded
+from ..logging_setup import quiet_loop_teardown
 from ..tools.registry import ToolError, ToolRegistry, ToolSpec
 from ..tools.schemas import ToolResult
 
@@ -383,6 +384,7 @@ class _SubagentRunner:
 
         def worker() -> None:
             async def execute() -> Any:
+                quiet_loop_teardown()
                 provider = self.provider_factory()
                 try:
                     return await run_agent(
