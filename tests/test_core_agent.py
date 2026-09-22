@@ -546,6 +546,9 @@ def test_completion_continue_loop_is_capped_instead_of_burning_turn_budget(
     assert "未收敛" in result["error"]
     assert "预算超限" not in result["error"]
     assert calls["judge"] == 4  # initial review + 3 bounded continue rounds
+    # The cost the cap is protecting: every continue re-runs the whole agent, so
+    # a reviewer that repeats itself verbatim buys 4 identical agent turns.
+    assert calls["agent"] == 4
     assert any(event.get("code") == "completion_continue_capped" for event in result["events"])
 
 
