@@ -248,3 +248,47 @@ def test_m2t4_allowlist_redacts_and_matches_redacted_command(tmp_path: Path) -> 
     assert match_session_allowlist(tmp_path, "s1", "bash", {"command": "echo sk-abcdefgh12345678"}) is True
 
 
+
+
+def test_m1t3_stream_deltas_reach_the_surface_verbatim(tmp_path: Path) -> None:
+    """The loop must not re-dedup chunks the provider already reconciled.
+
+    Deltas "7", ".", "7", ".", "7" went through a second overlap merge here, and
+    a chunk that was a prefix of what the loop had already collected was
+    dropped outright - so the terminal printed "7." for an answer that was
+    stored, correctly, as "7.7.7".
+    """
+
+    class DeltaProvider:
+        async def chat(self, messages, tools=None, on_delta=None, **kwargs):
+            for piece in ("7", ".", "7", ".", "7"):
+                if on_delta is not None:
+                    on_delta(piece)
+            return LLMResponse(content="7.7.7", finish_reason="stop")
+
+    seen: list[str] = []
+    result = asyncio.run(
+        run_agent(
+            DeltaProvider(),
+            build_registry(Editor(tmp_path)),
+            [{"role": "user", "content": "编号？"}],
+            on_stream=seen.append,
+            should_allow=lambda _n, _c: True,
+        )
+    )
+    assert "".join(seen) == "7.7.7"
+    assert result.answer == "7.7.7"
+
+
+def test_stream_writer_knows_when_the_screen_fell_short() -> None:
+    """A short stream used to silence the final print, so the screen stayed wrong."""
+    from minicc.main import StreamWriter
+
+    writer = StreamWriter()
+    assert not writer.started and writer.written == ""
+    writer("7.7")
+    assert writer.started
+    assert not writer.matches("7.7.7"), "a stream that fell short must not suppress the answer"
+    writer(".7")
+    assert writer.matches("7.7.7")
+    assert writer.matches("  7.7.7  "), "trailing whitespace from the stream is not a difference"

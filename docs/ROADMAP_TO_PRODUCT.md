@@ -665,7 +665,7 @@
 | M7-T4 项目级配置层 + config.py 剩余缺陷 | ✅ | `.minicc/config.json` 逐键覆盖 user 级 `~/.minicc/config.json`，`config.load_config()` 的解析顺序为 args > 环境变量 > `.env` > project > user > defaults；新增 10 个 CLI 开关，修 `config.py` 六处解析/钳制缺陷 | `tests/test_project_config.py`；提交 `2b9f7fd` |
 | M7-T5 前端数据丢失修复 + @-提及内容注入 | ✅ | `web/src/chat/stream.js` 失败恢复（提交失败不清空已输入内容），`minicc/mentions.py` 把 `@relative/path` 变成有界内容块附加到 user 消息：只读工作区相对路径（绝对/`~`/盘符拒绝，`resolve()+is_relative_to()` 拦 junction 越界），逐文件与整条消息双上限、截断处标 `[truncated]`，敏感与二进制引用只标注不读取，正文过 `redact_text` | `tests/test_mentions.py`；提交 `8ec2de0` |
 
-### 已完成（M8 可分发与长期演进，M8-T1..T12）
+### 已完成（M8 可分发与长期演进，M8-T1..T13）
 
 | 任务 | 状态 | 落地位置 | 验证 |
 | --- | --- | --- | --- |
@@ -734,6 +734,7 @@
 > 一定要先比对落盘的会话内容**，否则会把显示层的 bug 记账到合并层头上（本文件此前就这么错过一次）。
 > 另外，M8-T11 的 latch 当时会**吞掉**可见增量（rebase 后不再发 suffix），真机复跑才暴露；已改为「照样发
 > suffix、只把缓冲重定基到快照」，`deltas == ["aa","aab","c"]` + `content == "aabc"` 钉住这个形状。
+| M8-T13 CLI 可见输出必须等于落盘答案（已修，两层各占一半） | ✅ | 真机 3/3 复现「终端打印 `7.7`/`7.7.`，会话文件里存的是 `7.7.7`」后分两层定位。**第一层（数据）**：`agent/loop.py:_merge_incremental_text` 对**增量**片段跑了完整的累积折叠——`previous.startswith(current)` 直接返回 `("", drop)`，于是 `"7",".","7"` 的第三个 `7` 被丢掉（离线可复现：旧规则把 `7.7.7` 只发出 `7.`）。规则收窄成**只吸收「完整重复已累积前缀并且更长」这一种**，其余一律原样追加，`test_agent_loop_deduplicates_cumulative_public_stream_updates` 的 `["aa","b","c"]` 旧契约与新用例同时通过（第一次尝试是整层删除折叠，被这条既有契约挡下——它对应的是 provider 直接吐累积块的路径，不能顺手拆）。**第二层（显示）**：`main.py:395` 只要 `writer.started` 就**无条件**不打印最终答案，所以流式一旦短一截，屏幕上的错答案就永久留着、而落盘内容是对的。`StreamWriter` 现在记住自己写过什么并暴露 `matches()`，只在「看到的 == 落盘答案」时才省略最终打印。**M8-T12 仍未结案**：修完这两层后真机 `visible == stored` 3/3 成立，但 stderr 仍有 1501 字节的 httpcore 关闭栈，泄漏体从 `HTTP11ConnectionByteStream` 变成更内层的 `PoolByteStream`（说明我们持有的两层已经关对了，剩下的在 httpx/httpcore 内部） | `tests/test_m1_integrity.py` 13 → 15：`test_m1t3_stream_deltas_reach_the_surface_verbatim`（假 provider 逐段 `"7",".","7",".","7"`，断言 `"".join(on_stream) == result.answer == "7.7.7"`）与 `test_stream_writer_knows_when_the_screen_fell_short`（短流不得抑制最终打印、补齐后不得重复打印、尾部空白不算差异）。旧契约 `test_agent_loop_deduplicates_cumulative_public_stream_updates` 保持绿色。**真机验收门**：`visible_stream_check.py` 的 `RESULT visible-equals-stored` 从 0/3 变成 **3/3**（同一 workspace、同一问句、3 次独立进程）。全量 `.venv` **879 passed** |
 
 ### M8-T7 注记：一次真实失败的时间线，以及「不给结论」的边界
 
@@ -811,14 +812,14 @@ M6-T4/M6-T5 的落地记录来自 `02059ea`、`a97bf13` 等一批提交（对应
    `["aa","aab"]` 并保留 `content == "aabc"`，把「流式可见重复、交付文本精确」直接写进断言。
 
 
-### M8-T13（未修，现象已定位）：CLI 打印的最终答复会短于落盘内容
+### M8-T13 已修：判据留下，别再拿终端输出给合并层定罪
 
-同一句「只回答版本号」的只读任务连跑 3 次：终端打印 `7.7` / `7.7.` / `7.7`，而三次的会话文件里存的
-assistant 内容都是完整的 `7.7.7`。也就是**流式显示与最终打印之间少掉了尾巴**，且长度每次都不同（不是固定
-截断，像是一次未刷新/被覆盖的尾包）。相关代码点：`minicc/main.py:30` 的 `StreamWriter`（`assistant> ` 前缀
-与逐增量写 stdout）与 `main.py:396` 的 `cli_out(f"
-assistant> {result.answer}")` 之间的**互斥/去重关系**——
-两条打印路径谁负责收尾、结尾未以换行结束时谁被覆盖，是下一步要读的第一处。
+判据保留在这里，因为它比这次的结论更长寿：**可见输出必须等于落盘内容**，回归门是
+`visible_stream_check.py` 的 `RESULT visible-equals-stored`（修之前 0/3，修之后 3/3）。
+两条过程教训也留在案上：
 
-判据先立在这：**可见输出必须与落盘内容一致**（`visible_stream_check.py` 的 `RESULT visible-equals-stored`
-就是它的回归门，目前 0/3 通过）。修好之前不要再动 `stream_merge`——那层已被证明不是本现象的原因。
+1. 一开始我把「终端显示 `7.7`」直接归罪给 `llm/stream_merge` 的累积启发式并据此改了那层。合并层的缺陷
+   本身是真的（离线三行证据 + 单测钉住），但**那次终端现象不是它造成的**——落盘内容一直是对的。以后先比对
+   落盘会话内容，再决定给哪一层记账。
+2. 真正在丢字的是 `agent/loop.py` 里**第二份**同样的折叠逻辑。同一类启发式在两个层各写一遍，就要在两个层
+   各判一次代价；`stream_merge` 的收口当时没有覆盖到 loop 这份，这是「单点实现」名义下的漏网。

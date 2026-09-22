@@ -32,13 +32,24 @@ class StreamWriter:
 
     def __init__(self) -> None:
         self.started = False
+        self.written = ""
 
     def __call__(self, delta: str) -> None:
         if not self.started:
             sys.stdout.write("\nassistant> ")
             self.started = True
+        self.written += delta
         sys.stdout.write(delta)
         sys.stdout.flush()
+
+    def matches(self, answer: str) -> bool:
+        """Whether what the user already saw is the answer that got stored.
+
+        Once anything had streamed, the CLI used to suppress the final print
+        unconditionally - so a stream that fell short left a wrong answer on
+        screen while the session file held the right one.
+        """
+        return self.written.strip() == str(answer or "").strip()
 
 
 class CliView:
@@ -392,7 +403,7 @@ async def _turn(
         ),
         hooks=HookRunner(workspace),
     )
-    if writer is None or not writer.started:
+    if writer is None or not writer.started or not writer.matches(result.answer):
         cli_out(f"\nassistant> {result.answer}")
     else:
         cli_out()

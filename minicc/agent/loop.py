@@ -195,19 +195,22 @@ def _visible_model_delta(previous: str, content: str | None) -> tuple[str, str]:
 
 
 def _merge_incremental_text(previous: str, current: str) -> tuple[str, str]:
-    """Accept either delta chunks or cumulative chunks from a gateway."""
+    """Fold a cumulative update into what we have; never delete a chunk.
+
+    Exactly one shape is safe to absorb: the new chunk repeating everything so
+    far *and extending it*, which is what a gateway resending the whole attempt
+    text looks like. The old rule also discarded a chunk that was a prefix of,
+    or merely overlapped, what we already had - so streaming "7", ".", "7",
+    ".", "7" lost the third piece and the terminal showed "7." for an answer
+    that was stored as "7.7.7". Anything uncertain is appended verbatim: a
+    repeated fragment is visible and fixable, a dropped one is neither.
+    """
     if not previous:
         return current, current
     if not current:
         return previous, ""
     if current.startswith(previous):
         return current, current[len(previous):]
-    if previous.startswith(current):
-        return previous, ""
-    max_overlap = min(len(previous), len(current))
-    for size in range(max_overlap, 0, -1):
-        if previous[-size:] == current[:size]:
-            return previous + current[size:], current[size:]
     return previous + current, current
 
 
