@@ -292,3 +292,79 @@ def test_stream_writer_knows_when_the_screen_fell_short() -> None:
     writer(".7")
     assert writer.matches("7.7.7")
     assert writer.matches("  7.7.7  "), "trailing whitespace from the stream is not a difference"
+
+
+def test_m1t3_an_empty_final_answer_is_not_reported_as_success(tmp_path: Path) -> None:
+    """The stream completed properly; only the answer is missing."""
+
+    class EmptyAnswerProvider:
+        async def chat(self, messages, tools, on_delta=None):
+            return LLMResponse(content=None, finish_reason="stop")
+
+    result = asyncio.run(
+        run_agent(
+            EmptyAnswerProvider(),
+            build_registry(Editor(tmp_path)),
+            [{"role": "user", "content": "做点事"}],
+            should_allow=lambda _n, _c: True,
+        )
+    )
+    assert result.error, "an answer-less turn must not be delivered as a completed task"
+    assert "空" in result.error
+
+
+def test_m1t3_delta_only_gateway_costs_one_request_and_errors(tmp_path: Path) -> None:
+    """M1-3 as written: a fake gateway that only sends text deltas plus ``[DONE]``.
+
+    The whole criterion lives on the wire, so the check does too: no chunk ever
+    carries ``finish_reason``, and the run must end with one HTTP request and an
+    explicit error - not a replay of five requests, not an empty success.
+    """
+    import httpx
+    from openai import AsyncOpenAI
+
+    from minicc.llm.openai_provider import OpenAICompatibleProvider
+
+    requests: list[httpx.Request] = []
+    chunk = json.dumps({
+        "id": "chatcmpl-1",
+        "object": "chat.completion.chunk",
+        "created": 1,
+        "model": "test-model",
+        "choices": [{"index": 0, "delta": {"content": "半句话"}, "finish_reason": None}],
+    }, ensure_ascii=False)
+    body = f"data: {chunk}\n\ndata: [DONE]\n\n".encode("utf-8")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(200, content=body, headers={"content-type": "text/event-stream"})
+
+    provider = OpenAICompatibleProvider(
+        "https://gateway.test",
+        "test-key",
+        "test-model",
+        protocol="chat_completions",
+        max_retries=4,
+        sdk_client=AsyncOpenAI(
+            base_url="https://gateway.test/v1",
+            api_key="test-key",
+            max_retries=0,
+            timeout=10,
+            http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
+        ),
+    )
+    streamed: list[str] = []
+    result = asyncio.run(
+        run_agent(
+            provider,
+            build_registry(Editor(tmp_path)),
+            [{"role": "user", "content": "讲个笑话"}],
+            on_stream=streamed.append,
+            should_allow=lambda _n, _c: True,
+        )
+    )
+    asyncio.run(provider.close())
+    assert len(requests) == 1, f"a broken stream was replayed {len(requests)} times"
+    assert result.error and "stream ended before completion" in result.error
+    assert "".join(streamed) == "半句话", "what reached the surface must be kept in the error answer"
+    assert "半句话" in result.answer

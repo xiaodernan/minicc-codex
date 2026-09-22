@@ -583,7 +583,7 @@
 | M1-T2 非流式 tool_call id 复用 | ✅ | 新增 `_unique_tool_call_id()`（`openai_provider.py:261`），应用于 `_assembled_tool_calls` / `_to_response` / `_responses_to_response` 三处，各自独立 `seen_ids` | `test_m1t2_tool_call_ids_deduplicated` |
 | M1-T3 流式增量吞字符 | ✅ | 新增 `minicc/llm/stream_merge.py`：`append_delta`（纯拼接）/ `accumulate_attempt_text`（前缀识别累积快照）/ `merge_retry_snapshot`（仅重试对齐）。`_create_stream` 的 delta 与 tool 参数分片改为纯拼接；`loop.emit_stream` 改用 `accumulate_attempt_text` | `test_m1t3_incremental_deltas_concatenated_byte_for_byte`；`_merge_stream_text` 保留为兼容 shim |
 | M1-T4 失败/截断伪装成功 | ✅ | `llm/base.py` 新增 `TERMINAL_FINISH_REASONS` / `NonTerminalModelTurn`；`loop.py:1261` 新增独立 `nonterminal_repairs` 计数器守护；Anthropic 的 `stop_reason` 不再被归一为 `stop` | `test_m1t4_nonterminal_finish_reason_never_accepted`、`…_persistent_nonterminal_fails` |
-| M1-T5 缺 finish_reason 整段重放 | ✅ | 新增 `StreamProtocolError`（`openai_provider.py:166`），`_is_stream_retryable` 对它返回 False；`"stream ended before completion"` 从可重试子串列表移除 | `test_m1t5_stream_without_finish_reason_fails_fast`（断言只发 1 次请求） |
+| M1-T5 缺 finish_reason 整段重放 | ✅ | 新增 `StreamProtocolError`（`openai_provider.py:166`），`_is_stream_retryable` 对它返回 False；`"stream ended before completion"` 从可重试子串列表移除 | `test_m1t5_stream_without_finish_reason_fails_fast`。**口径修正（第五批复核时发现的表述不准）**：这里写的「断言只发 1 次请求」数的是被打桩的 `provider._create` 调用次数，不是真实 HTTP 请求数——它证明的是「我们这一层没有重放」，不证明网关侧只收到一次。真 HTTP 计数由 `test_m1t3_delta_only_gateway_costs_one_request_and_errors` 用 `MockTransport` 钉住（恰好 1 次） |
 | M1-T6 缓存记账 | ✅ | Anthropic 新增 `_normalize_usage()`：`prompt = input + cache_read + cache_write`、`miss = input`（不再 `prompt - hit`）；`_sse_to_llm` 与 `response_to_llm` 共用；`_parse_usage` 的 cache 计数强制 `int` | `tests/test_anthropic_provider.py::test_response_maps_usage_and_tool_use` 已更新为 192/212/100 |
 | M1-T7 envelope id 与降级丢 tool_calls | ✅ | `envelope.py` 改用进程内单调计数 `_next_envelope_id()`；新增 `_render_envelope_action()`；`_to_envelope_wire` 的 assistant tool_calls 不再折叠为空 content | `test_m1t6_and_t7_envelope_roundtrip` |
 | M1-T4 附带：Anthropic max_tokens | ✅ | `DEFAULT_MAX_TOKENS` / `MAX_TOKENS_HARD_CAP` + `_clamp_max_tokens()`（支持 `MINICC_ANTHROPIC_MAX_TOKENS`），替换硬编码 `8192` | 由 `_clamp_max_tokens` 单测覆盖（见 `test_anthropic_provider.py`） |
@@ -748,9 +748,9 @@
 
 | 标准 | 结论 | 证据 |
 | --- | --- | --- |
-| M1-1 `pytest -q` 全绿 | ✅（Windows 这条腿） | `.venv` 全量 **880 passed**；Ubuntu 那条腿本机不可用，只有 CI 能证，**不在此声明** |
+| M1-1 `pytest -q` 全绿 | ✅（Windows 这条腿） | 最新基线 `.venv` 全量 **913 passed**（`-W error`，233.8s）；Ubuntu 那条腿本机不可用，只有 CI 能证，**不在此声明** |
 | M1-2 `scripts/reliability_probe.py` 一键复现、退出码 0 | ✅ | 真跑：9 个 M1 target 全绿，`exit=0` |
-| M1-3 人工核查（只认 text delta 与 `[DONE]`、空答案不算成功） | 未复核 | 需要逐行读协议分支，本批未做 |
+| M1-3 人工核查（只认 text delta 与 `[DONE]`、空答案不算成功） | ✅（**查出并修掉一条真实缺陷**） | 三条子判据分别处理。**① 只认 text delta**：两条协议分支各自独立核过——`chat_completions` 分支里 `delta.content` 与 `delta.reasoning_content` 走**两个不同的 assembler**，reasoning 永远进不了 `committed_text`（`openai_provider.py:1017-1040`）；`responses` 分支只消费 `response.output_text.delta` 一种事件类型，其余事件不产生可见文本（`:784-791`）。**② 假网关只发 delta + `[DONE]`、从不发 finish_reason**：这条原本写着「人工核查」，其实**可以在 wire 上执行**，新测试用 `httpx.MockTransport` 返回真实 SSE 字节（一条 content delta + `data: [DONE]`，无 finish_reason），断言 **HTTP 请求恰好 1 次**（不是 5 次重放）、`run_agent` 以 `LLM 调用失败: stream ended before completion` 明确结束、且已经流出去的「半句话」保留在 answer 里。顺带纠正一处口径：旧测试 `test_m1t5_stream_without_finish_reason_fails_fast` 数的「1 次」是**被打桩的 `_create` 调用次数**，不是 HTTP 请求数。`[DONE]` 在 openai 路径由 SDK 自己消化，仓库里唯一手写 SSE 解析的是 anthropic 路径（`anthropic_provider.py:372` 对 `[DONE]` 有防护）。**③ 空答案不算成功 → 此前不成立**：`loop.py` 有两个交付点写 `result.answer = text or "(模型返回空回复)"` 而 `result.error` 保持为空，也就是**一轮既无内容又无工具调用的完成会被当作成功交付**，且此前没有任何测试引用过那个占位串（grep 全仓库只命中 loop.py 自己）。两处都改成显式失败（`code="empty_answer"`，answer 写成「任务未完成：…」）。保留的判断：`text` 为空时仍会先取 `reasoning_content`（`:1409-1411`），部分模型只把答案写在推理段里，所以「空答案」的判据是**两者都空** | `tests/test_m1_integrity.py` 15 → **17**：`test_m1t3_delta_only_gateway_costs_one_request_and_errors`（wire 级，修复前后均绿——它验证的是已经成立的部分）、`test_m1t3_an_empty_final_answer_is_not_reported_as_success`（**先红**：`assert None` 于 `TurnResult(answer='(模型返回空回复)'…)`；改完转绿）。全量 `-W error` **913 passed / 233.81s**，语义变更未打破任何既有交付契约 |
 | M1-4 golden delta 序列：streamed text 必须与 answer 一致 | ✅（今天才真正成立） | 判据落在 M8-T13 的两条新测试（增量逐字到达 surface；`StreamWriter.matches`）+ `visible-equals-stored` 真机 3/3。**此前这条标准是靠终端肉眼看的**，实际一直在丢字 |
 | M2-1 / M2-2 四份安全测试文件全绿 | ✅ | `test_web_security + test_permission_modes + test_allowlist + test_file_tree_api + test_security_perimeter + test_task_durability` 共 **63 passed** |
 | M3-1 Origin/CSRF 与会话持久化全绿 | ✅ | 同上（含 `test_web_security`、`test_task_durability`） |
@@ -835,6 +835,18 @@ token 的 worker 负责」——A 让干净关闭成为真正的停止，代价�
 | 3 | **8 条样本给的是区间，不是分位数**；写进标准必须分组 | 干净 4 条：5.2 / 34.3 / 41.3 / 110.2s，通过 3/4，tokens 中位 31 475。429 污染 4 条：22.2 / 22.3 / 51.8 / 60.9s，通过 **0/4**。把污染组合进去算 p95 会得到一个既不代表能力、也不代表性能的数字 → 第三节 M6-4 行改为 🟡，并明确「P95 ≤ 基线 +15%」这条**仍未验证** |
 
 另外记一笔方法论：这批的失败样本里只有 `v2-license-mit` 是真实能力信号（M8-T17，未结案）。判据是**错误串是否来自配额/环境**——来自 429 的四条不进能力账，122k tokens 的连续四轮"要求继续"才进。
+
+### M1-3 复核：一条写着「人工核查」的标准其实在 wire 上可执行，而且当场不成立（第六批，2026-09-23）
+
+M1-3 是唯一还挂着「未复核」的行。逐行读两条协议分支 + 一条 wire 级测试，产出三条结论：
+
+| # | 结论 | 证据 |
+| --- | --- | --- |
+| 1 | **「假网关只发 delta + `[DONE]`、不发 finish_reason」根本不需要人工核查**，它有确定的可执行判据 | 新测试用 `httpx.MockTransport` 返回真 SSE 字节（一条 content delta + `data: [DONE]`），断言真实 HTTP 计数 == 1、`run_agent` 以明确 error 结束、已流出的文本保留在 answer 里。全绿 |
+| 2 | **旧测试的「只发 1 次请求」数的不是 HTTP 请求** | `test_m1t5_stream_without_finish_reason_fails_fast` 把 `provider._create` 整个换成假函数，`calls["n"]` 计的是**我们这一层**被调了几次。它证明「没有重放」，但不证明网关只收到一次——附录 D 那句括号因此被改写成口径修正，而不是当缺陷修 |
+| 3 | **「空答案不算成功」当场不成立**：一轮既无内容又无工具调用的完成会被当成功交付 | `loop.py` 两个交付点写 `result.answer = text or "(模型返回空回复)"` 而 `result.error` 留空；全仓库 grep 那个占位串**只命中 loop.py 自己**——从来没有测试引用过它。新断言先红（`assert None` 于 `TurnResult(answer='(模型返回空回复)')`），两处改成显式 `empty_answer` 失败后转绿，全量 `-W error` **913 passed** |
+
+**这批最值得留下的一条方法论**：写着「人工核查」的验收项，先问一句「它能不能表达成一次函数调用」。M1-3 三条子里两条能（第 1、3 条），而且第 3 条正是靠"能"才被发现的——一旦要去写那个断言，就不得不去找"成功"在代码里的确切定义，然后发现它对空答案根本没有定义。
 
 ### M8-T7 注记：一次真实失败的时间线，以及「不给结论」的边界
 

@@ -1445,7 +1445,19 @@ async def run_agent(
             messages.append(assistant_msg(content=text or None))
             continue
         if runtime_budget.soft_limit_hit() and soft_wrap_issued:
-            result.answer = text or "(模型返回空回复)"
+            if not text:
+                result.error = "软预算收束后模型返回空答案，没有可交付内容"
+                result.answer = f"任务未完成：{result.error}"
+                emit_trace(
+                    result.error,
+                    phase="failed",
+                    status="error",
+                    code="empty_answer",
+                    detail={"turn": turn, "tokens": runtime_budget.tokens},
+                )
+                messages.append(assistant_msg(content=result.answer))
+                break
+            result.answer = text
             messages.append(assistant_msg(content=result.answer))
             emit_trace(
                 "软预算收束轮次后仍超限，已停止",
@@ -1492,7 +1504,20 @@ async def run_agent(
             )
             break
 
-        result.answer = text or "(模型返回空回复)"
+        if not text:
+            result.error = "模型以空答案结束本轮，没有可交付内容"
+            result.answer = f"任务未完成：{result.error}"
+            emit_trace(
+                result.error,
+                phase="failed",
+                status="error",
+                code="empty_answer",
+                detail={"turn": turn, "finish_reason": finish_reason},
+            )
+            messages.append(assistant_msg(content=result.answer))
+            break
+
+        result.answer = text
         messages.append(assistant_msg(content=result.answer))
         emit_trace(
             "执行结束，待验收",
