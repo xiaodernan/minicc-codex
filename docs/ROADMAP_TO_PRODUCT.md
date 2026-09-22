@@ -775,6 +775,24 @@ M3-3 的处理不是把标准删掉，而是把它变成可执行、可证伪的
 （例如 ≤5s）后再 terminate，把「脱管」限定给真正的崩溃恢复；**B** 保留 `self._worker_processes` 注册表并在
 shutdown 末尾统一 reap（不改变「让它继续跑完」的语义，只消掉警告与句柄泄漏）。A 改变可观察行为（正在跑的任务
 会被中止），B 不改。
+### M5-M7 退出标准真跑记录（第三批，2026-09-22）
+
+| 标准 | 结论 | 证据 |
+| --- | --- | --- |
+| M5-1 MCP stdio ≥8 个回归 | ✅ | `tests/test_mcp_stdio.py` 有 **11** 个测试函数，与 `test_mcp_http`/`test_http_surface` 等一起 98 passed |
+| M5-2 巨量输出截断 / string id 回传 / stdout 不可解码时快速失败 / dead 服务 | ✅ | 逐条点名可查：`test_half_million_char_output_is_truncated`、`test_small_output_not_truncated`、`test_string_id_response_is_matched`、`test_undecodable_stdout_fails_fast_not_30s`（断言 `client.dead is True`）、`test_dead_server_marked_in_health` |
+| M5-3 CLI 配置的 MCP 工具出现在 `/tools` | ✅（间接） | `test_build_registry_lists_mcp_tools`；`/tools` 本身由 `test_http_surface` 一路覆盖 |
+| M5-4 坏 `mcp.json` 走结构化 McpError 而非 500 | ✅（服务层） | `test_manager_negative_cache_does_not_respawn` + `test_failure_paths_return_structured_error_codes`；`mcp` 路由仍**没有**按路径字符串出现在 Python 测试里（见 M4-3 反证清单） |
+| M6-3 `bash start /m &` 被拒 | ✅ | `test_background_shell.py:121` `detached_command_reason("start /min notepad &") is not None` |
+| M6-1/2/5 委托、软预算、写档默认只读 | ✅（测试层） | `test_subagent_delegation.py`(16) + `test_subagent_streaming.py`(5) + `test_parallel_writes.py` + `test_permissions_approval.py` 等合计 **91 passed**；写档需显式授权由 `WRITABLE_PERMISSION_MODES` 结构断言钉住 |
+| M7-3 审批 60s 超时自动 deny | ✅ | 生产常量 `web.py:156 APPROVAL_TIMEOUT_SECONDS = 60.0`，测试 `test_approval_timeout_auto_denies` 用 5s 走同一分支并断言 `decision == "deny"` 且 `timed_out is True`（不为此把测试拖到 60s） |
+| M7-1/2/4/5 hooks、slash、项目配置、composer 恢复 | ✅（测试层 + 前端真跑） | `test_hooks/test_slash_commands/test_project_config/test_mentions` 全绿；起 fake-provider 服务后 `node tests/frontend_{transport,lifecycle,scale,optimization}_smoke.mjs` **逐个 exit 0**（composer 恢复与取消在 transport/lifecycle 内） |
+| M6-4 30 个 fixture 性能 P95 不超 M4 基线 15% | ❌ **未验证** | 分位数机制在（`benchmarks.py`/`bench_compare.py` 计算 `latency_p50/p95`），但今天只真跑过 2 个 fixture（p50=66.7s、p95=120.2s）。30-fixture 基线一次都没跑过 → 这条标准**没有数据支撑**，附录 D 若记为已完成即为不实；要补需要一次全量真模型评测（成本可观，已列入待决策） |
+
+附带发现（对 M8-T14 的判断有用）：MCP 侧**已经**做对了这件事——`test_close_reaps_child_process` 明确钉住「关闭时回收子进程」。
+也就是说「子进程必须被 reap」在本仓库不是新概念，只有 task worker 的 `Popen` 没走这条路（`task_manager.py:1824-1826`
+`_closing` 时抛 `WorkerDetached` 且不 terminate、不留引用）。这把 M8-T14 的选项 A/B 之争收窄成
+「宿主关闭时是否允许中止正在跑的 worker」，而不是「要不要 reap」。
 ### M8-T7 注记：一次真实失败的时间线，以及「不给结论」的边界
 
 一次真实只读小任务消耗 118,499 tokens、跑了 5 轮 `run_agent` 后才以 provider `451 censorship_blocked` 失败。
