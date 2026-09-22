@@ -10,6 +10,7 @@ real ``urllib`` requests, plus focused unit tests for ``RpcDispatcher``.
 
 from __future__ import annotations
 
+import ast
 import json
 import shutil
 import subprocess
@@ -810,4 +811,74 @@ def test_rpc_unknown_method_is_a_protocol_error(live: _LiveServer) -> None:
     status, payload = _rpc(live.url, "workspace/nonexistent", {})
     assert status == 200
     assert payload["error"]["code"] == -32601
+
+
+# ---------------------------------------------------------------------------
+# M4-3: the route-coverage criterion, made measurable.
+#
+# The roadmap asked for "POST /api/* covered 100% by Python tests". No coverage
+# tool is installed here and CI does not run one, so that percentage cannot be
+# computed - and a number nobody can measure is how an untested surface gets
+# documented as done. What *can* be checked cheaply is the failure mode the
+# audit actually found: six routes whose path string appeared in no test file at
+# all. This gate compares the server's own route inventory, read out of the
+# source, against the test sources.
+#
+# What it does not prove: that a route is exercised by a real request with a
+# terminal assertion. A test that merely mentions the literal satisfies it. That
+# is still a strict improvement over an unmeasurable percentage - it fails the
+# moment someone adds a route and forgets every test for it.
+# ---------------------------------------------------------------------------
+
+_HTTP_HANDLERS = ("do_GET", "do_POST", "do_PUT", "do_PATCH", "do_DELETE")
+#: Floor for the inventory itself. If routing ever moves out of the
+#: ``path == "/api/..."`` idiom this walker reads, the set would come back small
+#: or empty and the gate would pass for the wrong reason.
+_MIN_ROUTE_INVENTORY = 25
+
+
+def _route_literals_from_source(server_file: Path) -> set[str]:
+    tree = ast.parse(server_file.read_text(encoding="utf-8"))
+    handlers = {
+        node.name: node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.FunctionDef) and node.name in _HTTP_HANDLERS
+    }
+    literals: set[str] = set()
+    for handler in handlers.values():
+        for node in ast.walk(handler):
+            value: object
+            if (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr in ("startswith", "endswith")
+                and isinstance(node.func.value, ast.Name)
+                and node.func.value.id == "path"
+                and node.args
+            ):
+                value = getattr(node.args[0], "value", None)
+            elif (
+                isinstance(node, ast.Compare)
+                and isinstance(node.left, ast.Name)
+                and node.left.id == "path"
+                and len(node.comparators) == 1
+            ):
+                value = getattr(node.comparators[0], "value", None)
+            else:
+                continue
+            if isinstance(value, str) and value.startswith("/api/"):
+                literals.add(value)
+    return literals
+
+
+def test_every_api_route_is_named_by_a_python_test() -> None:
+    repo_root = Path(__file__).resolve().parent.parent
+    literals = _route_literals_from_source(repo_root / "minicc" / "webserver.py")
+    assert len(literals) >= _MIN_ROUTE_INVENTORY, sorted(literals)
+    corpus = "\n".join(
+        path.read_text(encoding="utf-8", errors="replace")
+        for path in sorted((repo_root / "tests").glob("*.py"))
+    )
+    untested = sorted(route for route in literals if route not in corpus)
+    assert untested == [], f"routes no Python test even names: {untested}"
 
