@@ -762,8 +762,10 @@ M3-3 的处理不是把标准删掉，而是把它变成可执行、可证伪的
 | M4-5 A/B gate 违规时 exit code 1 | ✅ | 同一份结果 `--gate pass_at_1>=0.5 --gate grading_coverage>=1.0` → **exit 0**；把 variant 换成未运行那份（`pass_at_1=None`）→ **exit 1 + `[GATE FAILED] pass_at_1>=0.5 实际=None`**。两个方向都验；且它把 None 当 None（`不可计算（None，而非 0）`），不拿 0 冒充结论 |
 | M4-6 未知模型 `cost_usd=None` 且 `cost_available` 如实 | ✅（真机 2 条） | `--run --max-tasks 2` 真跑：`cost_available=0`、逐任务 `cost_usd=None`、`token_usage_available=2`，同时 `latency_p50_ms=66695.5 / p95=120182.05 / tokens_per_success=179683` 都有值 |
 | M4-7 `pytest -q -W error` 全绿 | ❌ **未达成** | `python -m pytest tests/ -q -W error` → **2 failed, 878 passed**：`tests/test_task_worker.py::test_manager_process_mode_runs_task_in_subprocess`、`::test_worker_survives_host_restart_and_continues_long_stream`，均为 `ResourceWarning: subprocess NNNN is still running`（`subprocess.Popen.__del__` 经 pytest 的 unraisable hook 升级为错误）。同一条标准还要求「PR 门禁 ≤15 分钟」——实测 178s ✅，所以**只有 `-W error` 这半条没过**；附录 D 把 M4 记为已落地，这一项与该记录不符 |
-| M4-2 `npm run test:web` 离线基线 | 未复核 | `test:web = node tests/web_smoke.mjs`（`node_modules` 已在），本批未跑，排下一批 |
-| M4-1 证据链回归 / M4-3 `/api/*` 覆盖与 rpc ≥10 method | 未复核 | 下一批 |
+| M4-2 `npm run test:web` 离线基线 | ✅（照标准原文跑通） | 起 `minicc-web --port 8791` 且 `MINICC_FAKE_PROVIDER=1 MINICC_BASE_URL=http://127.0.0.1:9/v1`（不可达），再 `MINICC_WEB_URL=http://127.0.0.1:8791 npm run test:web` → **exit 0**、`web smoke passed: timeline, product path, desktop, mobile`。标准文本漏了前置条件：这条**必须先起服务**（脚本读 `MINICC_WEB_URL`，默认 8765），不起服务时它是 navigation 失败而不是退出码 0 |
+| M4-1 证据链回归 | ✅ | `test_m4_evidence_chain + test_verifier_lifecycle + test_verification_command_variants + test_http_surface + test_mcp_stdio + test_mcp_http` 共 **98 passed**（`test_mcp_stdio.py` 11 个测试函数 ≥ 标准要求的 8） |
+| M4-3 rpc 分派器 ≥10 method 有测试 | ❌ **标准不成立** | 分派表在 `minicc/web.py:238-246` 装配，实际只有 **5 个 method**（`thread/start`、`thread/read`、`turn/start`、`turn/read`、`turn/interrupt`）+ `initialize` 内建 = 6，**远低于 10**。要么补 4+ 个 method 及其测试，要么把标准改成「按实际协议面为每个 method 配测试」——这是产品决策，不自行改 |
+| M4-3 `POST /api/*` 由 Python 测试覆盖 100% | ❌ 本机不可测，且有反证 | `pytest-cov`/`coverage` **都未安装**、CI 也不跑覆盖率 → 这条在本环境无法验证，不能声称。代理指标：26 个 `/api/*` 路由里有 6 个在任何 Python 测试里**连路径字符串都没出现**（`approval`、`changes`、`mcp`、`models`、`permissions`、`sessions/fork`）——它们可能经 service 方法或前端 smoke 覆盖，但至少说明「Python 测试 100% 覆盖 POST 路由」不成立 |
 
 `-W error` 那条失败的性质（下一步要定的设计问题，不是简单的测试脏）：`task_manager.py:1824-1826` 的
 `_monitor_worker` 在 `self._closing` 时直接 `raise WorkerDetached()`，**既不 terminate 也不保留 `Popen` 引用**，
