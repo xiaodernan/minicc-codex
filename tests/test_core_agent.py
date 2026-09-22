@@ -550,6 +550,87 @@ def test_completion_continue_loop_is_capped_instead_of_burning_turn_budget(
     # a reviewer that repeats itself verbatim buys 4 identical agent turns.
     assert calls["agent"] == 4
     assert any(event.get("code") == "completion_continue_capped" for event in result["events"])
+    capped = next(
+        event for event in result["events"] if event.get("code") == "completion_continue_capped"
+    )
+    # This task wrote nothing, so there was never an objective check to agree or
+    # disagree with the reviewer — the message has to say that, not just "go
+    # check the missing items".
+    assert capped["detail"]["verification_runs"] == 0
+    assert capped["detail"]["last_verification_status"] is None
+    assert "没有运行客观验证" in result["error"]
+
+
+def test_a_capped_review_names_the_verifier_s_verdict_instead_of_only_the_reviewer_s(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Three different endings used to print one message.
+
+    A task that wrote files ran the verifier and got ``skipped`` — the workspace
+    has no runnable check — and the reviewer then repeated itself to the cap.
+    The old text told the user to go re-check the reviewer's missing items, which
+    sends them at the judge when the actionable fact is that nothing executable
+    was ever in place.
+    """
+    calls = {"agent": 0, "judge": 0}
+
+    class WriteThenStall:
+        def __init__(self, **_kwargs) -> None:
+            pass
+
+        async def chat(self, messages, tools, on_delta=None):
+            if tools is None:
+                calls["judge"] += 1
+                return LLMResponse(content=_repeating_verdict())
+            calls["agent"] += 1
+            if calls["agent"] == 1:
+                return LLMResponse(tool_calls=[{
+                    "id": "write-1",
+                    "type": "function",
+                    "function": {
+                        "name": "write_file",
+                        "arguments": json.dumps({"path": "out.txt", "content": "hello\n"}),
+                    },
+                }])
+            return LLMResponse(content="已经写好并检查过。")
+
+        async def close(self) -> None:
+            return None
+
+    monkeypatch.setattr("minicc.web.OpenAICompatibleProvider", WriteThenStall)
+    config = _review_loop_config()
+    config.yolo = True
+    service = AgentService(tmp_path, config)
+    try:
+        result = service._chat_locked(
+            {
+                "message": "在工作区写入 out.txt 并确认内容。",
+                "session_id": "capped-verified",
+                "allow_changes": True,
+                "workspace_path": str(tmp_path),
+            },
+            workspace=tmp_path,
+        )
+    finally:
+        service.shutdown()
+
+    assert (tmp_path / "out.txt").read_text(encoding="utf-8") == "hello\n"
+    capped = next(
+        event for event in result["events"] if event.get("code") == "completion_continue_capped"
+    )
+    # Measured, not assumed: the verifier ran and had nothing to execute, once
+    # per review round (the workspace keeps its write from round one).
+    assert capped["detail"]["verification_runs"] == calls["judge"] == 4
+    assert capped["detail"]["last_verification_status"] == "skipped"
+    assert "验证被跳过" in result["error"]
+    # And it is a different sentence from the no-write case above.
+    assert "没有运行客观验证" not in result["error"]
+    assert calls["judge"] == 4
+    # Each continue re-runs the agent, and the first round needed two model
+    # calls (write, then finish) — so the stall costs more turns than the
+    # read-only fixture's four.
+    assert calls["agent"] == 6
+    assert any(event.get("code") == "verification_skipped" for event in result["events"])
 
 
 def _review_loop_config() -> SimpleNamespace:

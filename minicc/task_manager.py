@@ -321,6 +321,36 @@ def _completion_followup(decision: CompletionDecision) -> str:
     )
 
 
+def _unconverged_verification_note(verification_results: list[dict[str, Any]]) -> str:
+    """Say what the *objective* checks concluded, not only what the reviewer thought.
+
+    A capped review used to read identically in three unrelated situations: the
+    checks passed and the reviewer disagreed, the checks failed, and there was
+    nothing runnable to check at all. Only the last one is fixed by writing an
+    acceptance command, so the message has to name which one happened.
+    """
+    if not verification_results:
+        return (
+            "本次任务没有运行客观验证（没有产生工作区改动）；"
+            "如果缺失项需要证据，请把它写成一条可执行的验收命令后重新提交"
+        )
+    status = str(verification_results[-1].get("status") or "unknown")
+    if status == "passed":
+        return (
+            f"客观验证已通过（本次任务运行 {len(verification_results)} 次），"
+            "未收敛来自完成评估的判断而非检查失败；请核对评估器列出的缺失项是否各有对应验收命令"
+        )
+    if status == "skipped":
+        return (
+            "当前工作区没有可运行的客观检查，验证被跳过——完成评估只能依据文本判断；"
+            "请为任务补一条可执行的验收条件（测试或命令）后重新提交"
+        )
+    return (
+        f"最近一次客观验证的状态是 {status}，请先处理它指出的问题再重新提交"
+        f"（本次任务运行 {len(verification_results)} 次）"
+    )
+
+
 def _child_result_digest(child: dict[str, Any]) -> dict[str, Any]:
     """Return bounded evidence for a parallel child without copying its transcript."""
 

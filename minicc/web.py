@@ -135,6 +135,7 @@ from .task_manager import (  # noqa: F401 - re-export for tests and AgentService
     _attachment_content_parts,
     _child_result_digest,
     _completion_followup,
+    _unconverged_verification_note,
     _completion_guard_message,
     _completion_review_event,
     _event_fingerprint,
@@ -2251,7 +2252,7 @@ class AgentService:
                         if completion_continues > max_completion_continues:
                             aggregate.error = (
                                 f"完成评估连续 {completion_continues} 轮要求继续但未收敛，已按上限停止；"
-                                "请根据缺失项检查后重新提交任务"
+                                + _unconverged_verification_note(verification_results)
                             )
                             aggregate.answer = f"任务未完成：{aggregate.error}"
                             capped_event = {
@@ -2266,6 +2267,15 @@ class AgentService:
                                     "limit": max_completion_continues,
                                     "missing": list(decision.missing),
                                     "next_action": decision.next_action,
+                                    # What the objective checks concluded, so the
+                                    # record can tell "grader disagreed" apart from
+                                    # "there was nothing to run".
+                                    "verification_runs": len(verification_results),
+                                    "last_verification_status": (
+                                        verification_results[-1].get("status")
+                                        if verification_results
+                                        else None
+                                    ),
                                 },
                             }
                             events.append(capped_event)
