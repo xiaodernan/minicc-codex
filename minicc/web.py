@@ -2426,7 +2426,10 @@ class AgentService:
         Only root tasks are summed: a batch or auto-orchestration parent rolls
         its subtasks' usage into its own snapshot, so adding the subtask rows
         on top would bill the same model calls twice. ``subtask_rows`` keeps
-        the excluded rows countable instead of invisible.
+        the excluded rows countable instead of invisible. The fold runs on
+        every path that finishes a parent — merged, failed, cancelled or
+        crashed — and exactly once per parent, which is what makes "summed from
+        each task's own snapshot fields" above a fact rather than a hope.
         """
         rows = self.tasks.list(limit=max(1, min(limit, 2000)), workspace_path=workspace_path)
         roots = [row for row in rows if not row.get("parent_id")]

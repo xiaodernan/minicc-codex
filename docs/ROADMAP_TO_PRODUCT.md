@@ -746,7 +746,9 @@
 | M8-T20 配置面另一半：旋钮拧得动，但没人查得到它存在（文档漂移） | ✅ | M8-T18 自己就是触发者：这一批新加的两个键先只写进了 `config.py`，`minicc.config.example` 一字未提——**「可达」有两半，能被读到和能被查到是两件事**。于是把第二半也做成门：扫 `config.py` 里出现的每个 `"MINICC_*"` 字面量，要求它同时出现在 `minicc.config.example` 中，并带读取面下限（键数 ≥30，防正则失效后对着空清单假绿）。**门第一次运行报出 17/37 个键从未被文档提到**，其中全是真实用户开关：`MINICC_HOME`、`MINICC_SANDBOX` / `_IMAGE`、`MINICC_TASK_EXECUTOR`、`MINICC_MAX_CONCURRENT_TASKS`、`MINICC_CONTEXT_WINDOW_TOKENS` / `MINICC_COMPACT_THRESHOLD`、`MINICC_SOFT_MAX_TOKENS` / `_DURATION_SECONDS`、`MINICC_SUBAGENT_WRITABLE` / `_MAX_DEPTH` / `_MAX_TOKENS`、`MINICC_FALLBACK_MODELS`、`MINICC_AUTO_RESUME_ON_START`、`MINICC_TASK_HISTORY_LIMIT` / `_MAX_AGE_DAYS`、`MINICC_ALLOW_PRIVATE_MCP`。17 条**逐条回到代码里读语义再写文档**（默认值与夹紧取自 `load_config` 原文：并发 1..64、历史 1..200 条 / 1..3650 天、子代理深度 1..2；`_optional_positive_*` 的「留空/0/off/unlimited/非正数＝不设」而不是「报错」；`soft_max_*` 只经 `Budget.soft_limit_hit()` 提示收尾、**永不中止任务**；`prune()` 只删已终结快照，排队/运行中永不清理），写完 37/37 覆盖、清单可空。**故意不扩到全包**：`minicc/**/*.py` 另有 7 个开发者开关（`MINICC_FAKE_PROVIDER`、`MINICC_FAKE_PROVIDER_FAULTS`、`MINICC_EVAL_GRADER_DIR`、`MINICC_HOOKS`、`MINICC_KEEP_WORKER_CONFIG`、`MINICC_PRICING_JSON`、`MINICC_ANTHROPIC_MAX_TOKENS`）不属于用户示例文件，门的作用域就停在 `config.py` 这个用户面边界 | `tests/test_config_surface.py` 2 → 4 条（AST 门 + 读取面下限 + 文档门 + 文档扫描下限）。**双向红→绿都量过**：把新加的 2 个键从示例文件里删掉 → 报 `MINICC_ANTHROPIC_BASE_URL；MINICC_MAX_COMPLETION_CONTINUES`；给一个尚未文档化的键补上文档 → 当时的「只缩不涨」版本立刻报 `请把它们从 _UNDOCUMENTED_KEYS 删掉：MINICC_HOME`（这条测的是清单会腐烂，比「新键必须写文档」更容易被漏掉）。`tests/test_config_surface.py` + `tests/test_project_config.py` **22 passed**，`-W error` |
 | M8-T21 配置面第三半：字段挂着，但没有任何配置层会给它赋值（`timeout` 一直只有 CLI 能改） | ✅ | 前两批分别查「读处有没有这个字段」和「文档有没有提到这个键」，这次反过来查 **字段有没有人写**：AST 取 `config.py` 里 `Config(...)` 构造的关键字集合，要求覆盖 `dataclasses.fields(Config)`，另加 `>= 30` 防空扫描假绿。**门报出一个真缺陷**：`timeout` 是 `Config` 字段、被 5 处 HTTP 调用读走（`main.py:619/627`、`web.py:1000/1170/1415`），但 `load_config` 从不解析它——仓库里既没有 `MINICC_TIMEOUT`，`config.json` 里也没有 `timeout` 键，唯一入口是 CLI 的 `--timeout`。按运行方式分组看后果：交互 CLI 能改；**Web 工作台（`web.py:2489` 裸调 `load_config`）和它派生的每个 task worker（`task_worker.py:53` 同样裸调）永远锁在编译期默认 180s**，而慢推理网关上一次非流式请求就可能超过它，用户无从调整。修法与 M8-T18 同型：`MINICC_TIMEOUT` env + `timeout` 文件键走同一个 `pick`，非数字与非正数抛 `ConfigError`，上界夹 3600s（`1e9` 这类笔误会把「超时保护」变成「永久挂起」），`--timeout` 也收到同一上界以免两条路口径不一 | `tests/test_config_surface.py` 4 → 6 条（字段可达门 + 构造扫描下限），`tests/test_project_config.py` 20 → 25（三层可达、`several/0/-5/inf/nan` 参数化报错、`999999 → 3600`）。**红→绿是摘掉构造里的 `timeout=timeout,` 量的**：门与两条 timeout 测试同时红（`3 failed, 28 passed`），接回即绿。**这条门的边界要说清**：它查的是「字段完全没进构造」，不查「进了构造但值是常量」——`max_turns` 属于后者（`load_config` 里恒为 `None`，是刻意的 legacy 忽略，见 `config.py:331-338` 注释，CLI 保留显式逃生口），因此 `max_duration_seconds` / `max_tool_calls` 与它一起进了 `_CONSTANT_FIELDS` 例外表；把例外写成表而不是把门调松，是为了让「谁在豁免」可审 |
 | M8-T22 配置面第四格：用户写进 `config.json` 的键如果没有任何一处读取，全程零输出 | ✅ | 前三格尺子（读处有字段 / 文档有键 / 字段有人写）都站在**开发者**一侧；用户这一侧的同一件事是「我把旋钮写进了配置文件，它没生效，也没人告诉我」。`config.py` 的文档字符串本来承诺 *"nothing silently defaults when the user explicitly set something"*——对**坏值**成立（每个键都有 `ConfigError`），对**坏键名**不成立：`{"max_truns": 40}`、`{"compact_threshhold": 100}`、已废弃的 `max_turns` 全部静默按默认值跑完。**量化发现**：AST 扫 `config.py` 的 34 个 `pick()` 调用点，33 个满足 `MINICC_X ↔ 裸键 x ↔ Config 字段 x`，唯一例外是 `MINICC_SANDBOX` 的裸键 `sandbox`（字段叫 `sandbox_mode`）；而 `sandbox` 这个拼法在全仓库只出现在 `tests/test_core.py:24` 的 fixture 里，**那条测试断言了 api_key/base_url/model/yolo 却从未断言 sandbox_mode**——「这个键有覆盖」的错觉正来自一行没人读的 fixture（已补断言）。修法是把静默换成一次可核对的报告：① `pick()` 记下自己真正查过的每个键名（env 名 + 裸键 + 别名），词表来自解析器的**实际行为**而不是手抄清单，新增旋钮不必记得登记；② 解析全部完成后比对两层 `config.json`，未识别键逐条 WARNING，区分「用户配置 / 项目配置」并给路径，`difflib` 建议的 cutoff 定在 0.78（0.62 会把 `MINICC_LOG_LEVEL` 建议成 `MINICC_MODEL`，一条没人能照做的提示）；③ 结果同时挂到 `Config.unrecognized_config_keys` 与 `describe()` 的 `ignored_keys=`，`--print-config` 那一路也看得见；④ 三个刻意恒为不限的硬预算键走**单独的说明**（「已废弃，要收尾提示请用 `MINICC_SOFT_MAX_*`」），而不是给一个已经没人读的键猜拼写；⑤ `MINICC_SANDBOX` 补 `sandbox_mode` 第二拼法（两种都认，`sandbox` 优先），示例文件同步。**边界**：`.env` 不做这项审计（它合法地装着 `PATH` 之类的无关变量），豁免清单另有一条门守着——被停在这里的键必须**确实不经过 `config.py` 解析**，否则「MINICC_LOG_LEVEL 其实已经接进 resolver 了」这种漂移会立刻报红 | `tests/test_config_surface.py` 6 → 43 条（AST 词表扫描 + `_resolver_env_names()` 下限 25 + 豁免清单合法性 + 参数化「示例文件里每个旋钮的两种拼法都可写」，每条 payload 都塞一个哨兵键 `zz_not_a_config_key` 并断言它是**唯一**被报出的键——否则 `unrecognized == ()` 会被一个坏掉的报告器永远满足）；`tests/test_project_config.py` 25 → 31 条（用户层/项目层各报各的、废弃键给理由不给猜测、两种拼法、`.env` 保持静默、`describe()` 可见）。**红→绿**：把 `_unrecognized_layer_keys` 短路成 `return []` → 4 条红（stray / retired / 项目层 / print-config），另 3 条按构造仍绿（它们防的是假阳性那一侧，不是报告本身）。**真机**：`.venv/Scripts/minicc.exe --print-config` 配一份含 `max_truns` / `compact_threshhold` / `sandbox_mode` 的 `config.json` → stderr 两条 WARNING（第二条带「是否想写 'compact_threshold'？」），`sandbox_mode` 不再被误报，stdout 两行协议输出干净、尾行 `ignored_keys=compact_threshhold,max_truns` |
-| M8-T23 `metrics` 的「不可能不同意」拿去真跑：批任务合并接缝断裂 + 双计 + 恒真断言 + 标签说谎 | ✅ | 见下方「第十批 M8-T23」。**四条互相独立**：① `task_manager.py:1679` 传 `model=parent.model`，`AgentService.merge_batch` 从没接受它 → **凡子任务全成功的并行批都在合并步死掉**（`批任务 watcher 失败: TypeError`），README 里还留着 `POST /api/tasks/batch` 示例；982 测试全绿是因为两半边各对着不像对方的替身测（批测试的 fake service 没有 `merge_batch`，`hasattr` 守卫整段跳过；`merge_batch` 测试用不绑定的 `AgentService.merge_batch(SimpleNamespace)` 假 self），修好签名后那条老测试反而红——它必须换成真 service。② 父任务快照本已汇总子任务用量，`metrics()` 却逐行相加 → 同一批调用记两次（离线实测 1315 vs 逐行 2405，+83%）；改为「每棵子树只在根上记一次」+ `subtask_rows` 可见，并反向补 `_roll_up_children()` 让自动编排那一支不再**少记**。③ `test_metrics_endpoint_reconciles_with_task_snapshots` 的成本断言两边都是 `0.0`（`test-model` 未计价 → `cost_usd=None`，而 `priced+unpriced==2` 把「全部未计价」算通过）→ 挂 `MINICC_PRICING_JSON` 才第一次比非零数。④ 不带 `?workspace=` 的 `/api/metrics` 累加所有工作区却把 `workspace_path` 填成服务自己的目录 → `workspace_path: null` + 新增 `scope` | 新增 `tests/test_batch_wiring.py` 5 条：AST 扫 `task_manager.py` 每个 `self.service.X(...)` 并用 `inspect.signature` 对**真实** `AgentService` 方法 bind（防的是整类「接缝两侧各自正确」的漂移，不只有 `model` 这一个参数；带 `_MIN_CALL_SITES=2` 与接缝名下限防空清单假绿；`_run_chat` 那处 `**kwargs` 动态调用显式跳过并说明）；批任务经真实 `AgentService` 跑到 `completed`；`merge_batch` 的 `model`/`provider_type` 落到 provider 构造参数；`metrics` 对批任务只记一次。**红→绿逐字**：`task_manager.py:1679 calls self.service.merge_batch(..., model, ...): got an unexpected keyword argument 'model'`。把 `merge_batch` 里第三份手写 provider 构造抽成 `AgentService._make_provider()`（此前合并器既不认 `MINICC_FAKE_PROVIDER` 也无法端到端测，也不认 `provider_type=anthropic`）。**真机（阶跃 `step-3.7-flash` 经 HTTP）**：批 `completed`、父 rolled-up `total_tokens=50323`、`cost_usd=null`（未计价不当 0）、`/api/metrics` 报 `task_count=23 / subtask_rows=4 / usage.total_tokens=50323`，与只读 SQLite 复核逐字节相等（逐行求和会到 99688）。**探针自身的坑**：第一趟 8791 端口早有别的进程在听，我 spawn 的服务因端口占用退出，`/api/health` 200 被误当成「我的代码在应答」→ 那趟 TypeError 是**假归因**；第二趟加了两道闸（先 bind 证明端口空、再用新字段 `subtask_rows` 做应答者身份探测）。**边界**：父任务被取消/崩溃时子任务用量仍只在子行，`metrics()` 排除子行会少记——口径未定（被丢弃的一次性任务算不算用户可见成本），不在修 TypeError 的同一次改动里替用户决定。全量 **987 passed** |
+| M8-T23 `metrics` 的「不可能不同意」拿去真跑：批任务合并接缝断裂 + 双计 + 恒真断言 + 标签说谎 | ✅ | 见下方「第十批 M8-T23」。**四条互相独立**：① `task_manager.py:1679` 传 `model=parent.model`，`AgentService.merge_batch` 从没接受它 → **凡子任务全成功的并行批都在合并步死掉**（`批任务 watcher 失败: TypeError`），README 里还留着 `POST /api/tasks/batch` 示例；982 测试全绿是因为两半边各对着不像对方的替身测（批测试的 fake service 没有 `merge_batch`，`hasattr` 守卫整段跳过；`merge_batch` 测试用不绑定的 `AgentService.merge_batch(SimpleNamespace)` 假 self），修好签名后那条老测试反而红——它必须换成真 service。② 父任务快照本已汇总子任务用量，`metrics()` 却逐行相加 → 同一批调用记两次（离线实测 1315 vs 逐行 2405，+83%）；改为「每棵子树只在根上记一次」+ `subtask_rows` 可见，并反向补 `_roll_up_children()` 让自动编排那一支不再**少记**。③ `test_metrics_endpoint_reconciles_with_task_snapshots` 的成本断言两边都是 `0.0`（`test-model` 未计价 → `cost_usd=None`，而 `priced+unpriced==2` 把「全部未计价」算通过）→ 挂 `MINICC_PRICING_JSON` 才第一次比非零数。④ 不带 `?workspace=` 的 `/api/metrics` 累加所有工作区却把 `workspace_path` 填成服务自己的目录 → `workspace_path: null` + 新增 `scope` | 新增 `tests/test_batch_wiring.py` 5 条：AST 扫 `task_manager.py` 每个 `self.service.X(...)` 并用 `inspect.signature` 对**真实** `AgentService` 方法 bind（防的是整类「接缝两侧各自正确」的漂移，不只有 `model` 这一个参数；带 `_MIN_CALL_SITES=2` 与接缝名下限防空清单假绿；`_run_chat` 那处 `**kwargs` 动态调用显式跳过并说明）；批任务经真实 `AgentService` 跑到 `completed`；`merge_batch` 的 `model`/`provider_type` 落到 provider 构造参数；`metrics` 对批任务只记一次。**红→绿逐字**：`task_manager.py:1679 calls self.service.merge_batch(..., model, ...): got an unexpected keyword argument 'model'`。把 `merge_batch` 里第三份手写 provider 构造抽成 `AgentService._make_provider()`（此前合并器既不认 `MINICC_FAKE_PROVIDER` 也无法端到端测，也不认 `provider_type=anthropic`）。**真机（阶跃 `step-3.7-flash` 经 HTTP）**：批 `completed`、父 rolled-up `total_tokens=50323`、`cost_usd=null`（未计价不当 0）、`/api/metrics` 报 `task_count=23 / subtask_rows=4 / usage.total_tokens=50323`，与只读 SQLite 复核逐字节相等（逐行求和会到 99688）。**探针自身的坑**：第一趟 8791 端口早有别的进程在听，我 spawn 的服务因端口占用退出，`/api/health` 200 被误当成「我的代码在应答」→ 那趟 TypeError 是**假归因**；第二趟加了两道闸（先 bind 证明端口空、再用新字段 `subtask_rows` 做应答者身份探测）。**边界**：父任务被取消/崩溃时子任务用量仍只在子行，`metrics()` 排除子行会少记——口径未定（被丢弃的一次性任务算不算用户可见成本），不在修 TypeError 的同一次改动里替用户决定。**（这条边界已在 M8-T24 关闭，见下一行）** 全量 **987 passed** |
+| M8-T24 把「父任务拥有整棵子树」做成四条终态路径都成立的事实：一处汇总、幂等、五视图同一个数 | ✅ | 见下方「第十一批 M8-T24」。M8-T23 只让**合并成功**那一条路汇总，剩下的三条（子任务失败、父任务被取消、watcher 抛错）各自把子任务真花掉的 token 丢在聚合之外。量法：把汇总抽成 `TaskManager._roll_up_tokens()` 单一收敛点，然后**逐条把它的调用点删掉**看有几条测试变红。发现：① 汇总必须发生在 `apply_result` **之后**而不是把数塞进结果负载——被取消的父任务 `apply_result` 会因终态门槛整段拒绝负载，塞在负载里的汇总跟着一起被丢掉（实测：合并器抛错时父任务 `tokens_used == {}`，1090 tokens 从 `/api/metrics` 消失）；② `snapshot()` 末尾 `output.update(result_payload)` 会用结果里的 `tokens_used` **盖掉**记录字段，于是同一时刻用户看快照是 225、聚合看索引是 1315（差 5.8 倍），修法两处：汇总时同步写回 `result["tokens_used"]`，并把 `tokens_used`/`cost_usd` 一起加进 `snapshot()` 已有的「主机维护的字段不接受负载覆写」保护块；③ 新字段必须能往返：`children_rolled_up` 进 `snapshot()` 也进 `from_snapshot()`，否则重启后恢复的父任务下一次收尾会**再汇总一次**（实测 1315 → 2405）；④ 顺带撞出来的独立缺陷：`TaskResult.to_payload()` 永远带 `tokens_used` 键，生产者没填时它是 `{}`，而 `apply_result` 把「键存在」当成权威 → 逐轮上报过 500 tokens 的运行被最后一步清零。改成**空 = 没有信息**（与 `cache_summary` 已有的 missing ≠ 0 同一条原则），全零负载不再覆盖非零记录，非零负载仍然权威 | 新增 6 条到 `tests/test_batch_wiring.py`（5 → 11）：合并器抛错 / 一个子任务失败 / 父任务在合并期间被取消 / 自动编排的父任务在侦察后崩溃 —— 四条终态形状各自断言「父任务 == 子树之和」且聚合 `cost_usd > 0`；幂等（`_roll_up_tokens` 连调两次数字不动）；**五视图一致**（快照、索引摘要、`/api/metrics`、落盘行、落盘行的 result 负载必须同为「子任务之和 + 合并自身」，ground truth 用合并返回前的用量快照独立算出来）；重启不再汇总（`from_snapshot` + 再调一次）。`tests/test_core_task.py` +1 条守④。**红→绿逐字**：删 except 路径的汇总 → `assert 0 == 1090`；删幂等门槛 → `1315 → 3495`；删 result 同步 → `{"snapshot": 225, "summary": 1315, "metrics": 1315, "persisted": 225, "persisted_result": 225}`（五个视图分裂成两个数）；删 `from_snapshot` 那行 → `assert 2405 == 1315`；删 watcher 成功路径的汇总 → 5 条同时红。**测试自身撞出的第二个坑**：`_wait(service, id)` 以「状态进入终态」为返回条件，但取消是**从 watcher 外面**把状态变终态的，汇总发生在合并器返回之后 → 首读会拿到 `{}`（这条竞态在空载下不复现、全量负载下必现），补 `_wait_billed`；同理 SQLite 行是 write-behind 镜像，最后一次强制落盘在状态之后，故落盘视图改用 `_wait_row` 轮询镜像追上再比。**边界**：被取消那次合并**自己**花的 100 tokens 不归属（终态门槛整体拒绝负载，测试记录这一事实而不是改动状态机语义）；`WorkerDetached` / `_reconnect_worker` 那条支路不汇总（worker 自己的用量由镜像负责）。**真机（阶跃 `step-3.7-flash`，一条只读两子任务批）**：子 `9178+7186=16364`、父 `16884`，快照 / 索引摘要 / 落盘行 / 落盘行的 result **四个视图逐字节相同**，只读 SQL 在工作区与全仓库两个口径上都与 `/api/metrics` 相等（`67207 == 67207`；逐行相加会多算 `65729`），`from_snapshot()` 重建后再汇总一次是 `16884 → 16884`；真实网关才送的 `prompt_cache_*` 走的也是这条加法。顺带撞出「未计价时单任务报 `null`、聚合报 `0.0`」这条新的撒谎字段 → 记在下一行 M8-T25。全量 **994 passed** |
+| M8-T25 `/api/metrics` 在**全部**未计价时报 `cost_usd: 0.0`，而单任务报 `null`（待办，真机撞出） | ⏳ 挂起 | 同一份未计价数据两种答案：父任务快照 `cost_usd=null`（M8-T23 立的规矩：未知不当 0），聚合 `cost_usd=0.0` 配 `priced_tasks=0 / unpriced_tasks=2`。0.0 读起来是「这批没花钱」，真话是「没人在计价表里」——能靠相邻字段推出来，但那个字段本身在说谎，和 M8-T23④ 的 `workspace_path` 同一大类。**待定的不是代码是口径**：全部未计价 → `null` 是明确的；**部分**未计价时（一条计价一条没有）报「已知的这部分小计」还是报 `null`，要先定客户端拿这个数做什么——预算对账要的是下界（小计 + `unpriced_tasks` 说明它不完整），成本汇总要的是「别拿它当总额」。改法随口径走，不在复核汇总的这批里替客户端决定 |
 
 ### M1-M3 退出标准真跑记录（第一批，2026-09-22）
 
@@ -754,7 +756,7 @@
 
 | 标准 | 结论 | 证据 |
 | --- | --- | --- |
-| M1-1 `pytest -q` 全绿 | ✅（Windows 这条腿） | 最新基线 `.venv` 全量 **987 passed**（`-W error`；同批上一基线 982、938、929、927、919、917、913）。上一批那次 wall time 518.39s 的异常，本批同命令、测试数还多 5 条却跑了 **238.58s** 与 **280.65s** 两次（都在 260-310s 口径附近），因此更像外部负载而不是代码变慢——单次时长仍不做性能结论。Ubuntu 那条腿本机不可用，只有 CI 能证，**不在此声明** |
+| M1-1 `pytest -q` 全绿 | ✅（Windows 这条腿） | 最新基线 `.venv` 全量 **994 passed**（`-W error`，exit 0；同批上一基线 987、982、938、929、927、919、917、913）。本批另两次同命令测量：**238.58s**、**280.65s**（上一批 5 条时）与本批 **222.92s**、**230.90s** 两次（同一份代码连着量两遍，第二遍是提交前复跑）——同一规模在 220-280s 之间摆动，仍**只用来记「这次跑了多久」**，单次时长不做性能结论（上一批 518.39s 那次归因未证实，见第十批记录）。Ubuntu 那条腿本机不可用，只有 CI 能证，**不在此声明** |
 | M1-2 `scripts/reliability_probe.py` 一键复现、退出码 0 | ✅ | 真跑：9 个 M1 target 全绿，`exit=0` |
 | M1-3 人工核查（只认 text delta 与 `[DONE]`、空答案不算成功） | ✅（**查出并修掉一条真实缺陷**） | 三条子判据分别处理。**① 只认 text delta**：两条协议分支各自独立核过——`chat_completions` 分支里 `delta.content` 与 `delta.reasoning_content` 走**两个不同的 assembler**，reasoning 永远进不了 `committed_text`（`openai_provider.py:1017-1040`）；`responses` 分支只消费 `response.output_text.delta` 一种事件类型，其余事件不产生可见文本（`:784-791`）。**② 假网关只发 delta + `[DONE]`、从不发 finish_reason**：这条原本写着「人工核查」，其实**可以在 wire 上执行**，新测试用 `httpx.MockTransport` 返回真实 SSE 字节（一条 content delta + `data: [DONE]`，无 finish_reason），断言 **HTTP 请求恰好 1 次**（不是 5 次重放）、`run_agent` 以 `LLM 调用失败: stream ended before completion` 明确结束、且已经流出去的「半句话」保留在 answer 里。顺带纠正一处口径：旧测试 `test_m1t5_stream_without_finish_reason_fails_fast` 数的「1 次」是**被打桩的 `_create` 调用次数**，不是 HTTP 请求数。`[DONE]` 在 openai 路径由 SDK 自己消化，仓库里唯一手写 SSE 解析的是 anthropic 路径（`anthropic_provider.py:372` 对 `[DONE]` 有防护）。**③ 空答案不算成功 → 此前不成立**：`loop.py` 有两个交付点写 `result.answer = text or "(模型返回空回复)"` 而 `result.error` 保持为空，也就是**一轮既无内容又无工具调用的完成会被当作成功交付**，且此前没有任何测试引用过那个占位串（grep 全仓库只命中 loop.py 自己）。两处都改成显式失败（`code="empty_answer"`，answer 写成「任务未完成：…」）。保留的判断：`text` 为空时仍会先取 `reasoning_content`（`:1409-1411`），部分模型只把答案写在推理段里，所以「空答案」的判据是**两者都空** | `tests/test_m1_integrity.py` 15 → **17**：`test_m1t3_delta_only_gateway_costs_one_request_and_errors`（wire 级，修复前后均绿——它验证的是已经成立的部分）、`test_m1t3_an_empty_final_answer_is_not_reported_as_success`（**先红**：`assert None` 于 `TurnResult(answer='(模型返回空回复)'…)`；改完转绿）。全量 `-W error` **913 passed / 233.81s**，语义变更未打破任何既有交付契约 |
 | M1-4 golden delta 序列：streamed text 必须与 answer 一致 | ✅（今天才真正成立） | 判据落在 M8-T13 的两条新测试（增量逐字到达 surface；`StreamWriter.matches`）+ `visible-equals-stored` 真机 3/3。**此前这条标准是靠终端肉眼看的**，实际一直在丢字 |
@@ -1143,6 +1145,75 @@ usage **整份替换** `tokens_used`，侦察子任务的 token 只留在子行�
 先定「被丢弃的一次性任务要不要计入用户可见成本」这个口径，不该在修 TypeError 的同一次改动里顺手替用户决定。
 
 **基线**：全量 `.venv/Scripts/python.exe -m pytest -q -W error` **987 passed**（982 + 5 条新门），exit 0。
+
+
+### M8-T24：一条边界不修就是「只在成功时算账」——把汇总抽成一个收敛点，再逐条删掉它数有几条门变红（第十一批，2026-09-23）
+
+**起点**：M8-T23 自己写下的那句边界。上一批把汇总抽成了 `_roll_up_children(task, result)`，但只在**父任务正常
+收尾**时调用，并在文档里诚实地记了「取消/崩溃时子任务用量仍只留在子行里」。这一批要做的就是那句话：把它从
+「一条已知边界」变成「一条不成立的命题」。做法不是先写新功能，而是先问「有几条路会走到终态」，再逐条删掉汇总
+调用数红条数——**门的强度用删代码量出来，不用自述**。
+
+**四条终态路径**（`_watch_batch` 三条 + `_run` 一条）：合并成功、有子任务失败（父任务 `error`）、合并期间被取消、
+自动编排的父任务交回 `_run` 后崩溃。旧的 `_roll_up_children` 把数**塞进结果负载**，于是它天然只能覆盖前一条半：
+
+1. **汇总必须发生在 `apply_result` 之后，而不是作为它的输入**。被取消的父任务在 `apply_result` 第一行就撞
+   终态门槛（`if self.status in TERMINAL_TASK_STATUSES: return False`）——负载整体被拒，藏在负载里的汇总跟着
+   一起被丢；藏在 `result` 里的汇总还依赖 `result` 存在，而 watcher 抛错那条路连 `result` 都没有。抽成
+   `_roll_up_tokens(task)` 之后它只依赖记录本身，四条路共用一处。
+   **实测（fake provider，两子任务）**：合并器抛错时父任务 `tokens_used == {}`，子任务真花掉的 **1090** tokens
+   从 `/api/metrics` 里凭空消失——`metrics()` 按根计费、排除子行，而根上没有数。
+2. **`snapshot()` 的末尾会用结果负载覆写记录字段**（`output.update(result_payload)`）。这条是读代码时发现的
+   嫌疑，量出来是真的：只更新记录字段时，同一批同一时刻**用户看快照是 225、聚合看索引是 1315**（5.8 倍）。
+   同一个坑在这个文件里已经有解药——`snapshot()` 后面就写着「结果负载不许覆盖主机维护的生命周期字段」，
+   于是把 `tokens_used` / `cost_usd` 一起纳入那个保护块，并在汇总时同步 `result["tokens_used"]`，让落盘的
+   行本身也带正确的数（重启后 `from_snapshot` 读的就是它）。
+3. **新字段必须能往返**。`children_rolled_up` 进 `snapshot()` 也进 `from_snapshot()`；少进后者，重启恢复的
+   父任务下一次收尾会**再汇总一次**——实测 `1315 → 2405`。幂等门槛（`folded` 早退 + 持锁二次检查）挡住的是
+   「同一个父任务被收尾多次」这件事，而它真的会发生：watcher 交接、重试、后面还有 force-persist。
+4. **顺带撞出来的独立缺陷（比前三条更像产品 bug）**：自动编排那条测试第一次跑就红在 `assert spent > 0`，
+   因为子任务的 `tokens_used` 是 0——`TaskResult.to_payload()` **永远**输出 `tokens_used` 这个键，生产者没填时
+   它是 `{}`，而 `apply_result` 把「键存在」当成权威，于是把这次运行逐轮上报过的 500 tokens 清成 0。
+   判据换成**空负载 = 没有信息**（和 `cache_summary` 里已经写明的「missing ≠ 0」同一条原则）：非零负载仍然
+   权威（包括它声明的归零结论由 fresh 记录自己覆盖），零/空负载不再抹掉已上报的量。
+
+**门的强度（逐字红→绿）**：删 except 路径的汇总 → `assert 0 == 1090`；删幂等门槛 → `1315 → 3495`（两次额外
+汇总各 1090）；删 `result` 同步 → 五视图分裂成
+`{"snapshot": 225, "summary": 1315, "metrics": 1315, "persisted": 225, "persisted_result": 225}`；
+删 `from_snapshot` 那行 → `assert 2405 == 1315`；删 watcher 成功路径的汇总 → **5 条同时红**。
+
+**测试自己撞出的两个坑（值得单独记，因为它们会让断言为错误的理由通过/失败）**：
+① `_wait()` 以「状态进入终态」为返回条件，可取消是**从 watcher 外面**把状态变终态的，汇总要等合并器返回之后
+才发生 → 首读拿到 `{}`。空载下不复现、全量负载下必现，补 `_wait_billed`。
+② SQLite 行是 write-behind 镜像，最后一次强制落盘排在状态变更之后 → 落盘视图必须轮询镜像追上再比（`_wait_row`），
+一次性读取在全量负载下失败过一次（`persisted: 0`）。这两条都不是产品缺陷，而是**「等哪个信号」这件事本身需要被测
+试写清楚**；判据没变（仍然是求和相等），变的只是别在中间状态取值。
+
+**边界（这条没覆盖什么）**：被取消那一次里**合并器自己**花的 100 tokens 不归属——终态门槛拒绝的是整个负载，
+要接住它得改「已终态任务能否接收迟到结果」这条状态机语义，比记账严重，不该顺路改；测试把这件事写成断言
+（父任务 == 子任务之和，不含那 100）而不是留成口头说明。另外 `WorkerDetached` / `_reconnect_worker` 那条支路
+不汇总：进程执行器下 worker 自己写镜像，父任务由镜像恢复，两处都汇总就会双计。
+
+**基线**：全量 `.venv/Scripts/python.exe -m pytest -q -W error` **994 passed**（987 + 6 条批任务终态门 + 1 条负载用量门），exit 0。
+
+**真机复核（阶跃网关，真实模型，一条只读两子任务批）**：汇总第一次带着**真实 cache 计数**跑通——两个子任务
+`9178 + 7186 = 16364`，父任务 `total_tokens=16884`（差额 520 = 父 − 子之和；把它归给「合并器自己那一次调用」是
+**算术推断**，真机这一趟没有独立打印合并器自己的用量，独立测量在离线那条门里用 spy 拿到），父快照的
+`prompt_cache_hit_tokens=512 / prompt_cache_miss_tokens=11879` 是子任务与自己的**逐项相加**（真实网关会送
+`prompt_cache_*`，离线 fake provider 不送，所以这条腿不能省）。同一时刻四个视图逐字节相同：
+`{"snapshot": 16884, "summary": 16884, "persisted": 16884, "persisted_result": 16884}`；`/api/metrics` 报该工作区
+`task_count=2 / subtask_rows=4 / usage.total_tokens=67207`（另一条根任务属于上一批的真实运行，不是本批）。
+只读 SQL 复核在**两个口径**上都与 API 相等（工作区：root_sum 67207 == api 67207；全仓库：21 根 / 6 子行同样相等），
+而**逐行相加会多算 65729**（工作区口径）——这正是 M8-T23 修掉的那一类双计，如今是量出来而不是推出来的。
+把落盘行用 `from_snapshot()` 重建后再调一次 `_roll_up_tokens`：`16884 → 16884`，`restart_fold_is_noop: true`。
+父任务 `cost_usd=null`（未计价不当 0）。**这一趟顺手撞出的新事实，留给 M8-T25**：同一份未计价数据，单任务说
+`null`、聚合说 `cost_usd: 0.0`——两个数说的是同一件事却写成两种答案，聚合那个 0.0 读起来像「这批没花钱」，
+而真话是「没人在计价表里」（`priced_tasks=0 / unpriced_tasks=2` 能推出来，但字段本身在说谎）。
+
+**为什么这条腿必须真跑**：④ 那条「空负载 = 没有信息」的修法，风险在于真实 provider 会不会**合法地**送一个
+全零 `tokens_used`。离线 fake provider 永远给不出这个形状；真机这一趟 `completion_tokens` 与
+`prompt_cache_hit_tokens` 都是非零真实值，且父任务的 cache 项只能由「子 + 己」相加得到，说明真实链路走的
+正是被门守住的那条路，而不是绕过去。
 
 
 ### M8-T7 注记：一次真实失败的时间线，以及「不给结论」的边界

@@ -121,6 +121,37 @@ def test_cancellation_token_propagates_to_children_and_status_transitions_are_te
     assert "late provider result" not in snapshot.get("answer", "")
 
 
+def test_a_result_payload_without_usage_never_erases_the_usage_already_reported() -> None:
+    """An empty ``tokens_used`` means "no information", not "cost nothing".
+
+    ``TaskResult.to_payload()`` emits the key even when the producer never
+    filled it in, so treating it as authoritative resets a run that already
+    reported every turn's usage to zero — and ``/api/metrics``, which bills the
+    root row, then reports a free task that really cost money.
+    """
+    task = TaskRecord(task_id="usage-task", session_id="usage", message="x", allow_changes=False)
+    task.transition_status("running")
+    task.update_usage({"prompt_tokens": 400, "completion_tokens": 100, "total_tokens": 500})
+
+    assert task.apply_result({"answer": "provider forgot the usage", "tokens_used": {}}) is True
+    assert dict(task.tokens_used) == {"prompt_tokens": 400, "completion_tokens": 100, "total_tokens": 500}
+    assert task.snapshot()["tokens_used"]["total_tokens"] == 500
+
+    # A real cumulative figure still wins.
+    assert task.apply_result({"answer": "final", "tokens_used": {"total_tokens": 700}}) is True
+    assert task.tokens_used["total_tokens"] == 700
+
+    # ...and an all-zero payload stays "no information": a run that reported
+    # 700 tokens turn by turn is not retroactively free.
+    assert task.apply_result({"answer": "final", "tokens_used": {"total_tokens": 0}}) is True
+    assert task.tokens_used["total_tokens"] == 700
+
+    fresh = TaskRecord(task_id="usage-task-2", session_id="usage", message="x", allow_changes=False)
+    fresh.transition_status("running")
+    assert fresh.apply_result({"answer": "final", "tokens_used": {"total_tokens": 0}}) is True
+    assert fresh.tokens_used.get("total_tokens", 0) == 0
+
+
 def test_task_snapshot_corrupt_numeric_fields_are_recovered_as_interrupted() -> None:
     restored = TaskRecord.from_snapshot(
         {

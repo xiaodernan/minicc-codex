@@ -94,7 +94,10 @@ $env:MINICC_LOG_FILE="D:\logs\minicc.log"
 
 聚合用量与成本查 `/api/metrics`：它按任务快照逐条累加 `tokens_used` 与 `cost_usd`，未计价模型单独计入
 `unpriced_tasks`（不会当作 0 成本混进总额）。并行批任务的父任务快照已经把子任务的用量汇总进去，所以总额只累加
-根任务，被汇总掉的子任务行数放在 `subtask_rows`（不是偷偷丢掉）。不带 `?workspace=` 时统计范围是共享任务索引里的
+根任务，被汇总掉的子任务行数放在 `subtask_rows`（不是偷偷丢掉）。汇总发生在父任务的**每一条终态路径**上——
+合并成功、子任务失败、合并器抛错、父任务被取消或崩溃，都算；这份汇总幂等（记录带 `children_rolled_up`，重启
+后从任务索引恢复也不会再加一次），所以同一个子树既不会少记也不会双计。另一条同向的口径：结果为空的
+`tokens_used` 视为「没有上报」而不是「成本为零」，不会抹掉这次运行逐轮已经上报过的用量。不带 `?workspace=` 时统计范围是共享任务索引里的
 **所有**工作区，此时 `workspace_path` 为 `null`、`scope` 为 `all_workspaces`；带上过滤时 `scope` 回显该路径。
 `/api/audit` 支持 `?level=warning` 与 `?min_level=notice` 过滤，
 未知级别返回 400 并列出可选值。失败响应带稳定 `code`（`forbidden`、`task_not_found`、`unauthorized`、

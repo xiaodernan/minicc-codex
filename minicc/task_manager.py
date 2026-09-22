@@ -373,6 +373,7 @@ class TaskRecord:
     orchestration_mode: str = "none"
     parent_id: str | None = None
     child_task_ids: list[str] = field(default_factory=list)
+    children_rolled_up: bool = False
     event_limit: int = DEFAULT_TASK_EVENT_LIMIT
     stream_limit: int = DEFAULT_TASK_STREAM_LIMIT
     usage_limit: int = DEFAULT_TASK_USAGE_LIMIT
@@ -627,6 +628,9 @@ class TaskRecord:
                 return
             if cumulative:
                 self.tokens_used = {key: int(value) for key, value in usage.items() if isinstance(value, (int, float))}
+                # A cumulative figure replaces the record's number, so any
+                # earlier subtask fold inside it is gone with it.
+                self.children_rolled_up = False
             else:
                 add_usage_totals(self.tokens_used, usage)
             self.metrics.update(cache_summary(self.tokens_used))
@@ -681,8 +685,21 @@ class TaskRecord:
                 result_copy["events"] = list(merged_events)
             self.result = result_copy
             result_usage = result.get("tokens_used")
-            if isinstance(result_usage, dict):
+            if isinstance(result_usage, dict) and any(
+                isinstance(value, (int, float)) and int(value or 0) > 0
+                for value in result_usage.values()
+            ):
                 self.tokens_used = {key: int(value or 0) for key, value in result_usage.items() if isinstance(value, (int, float))}
+                # The incoming number is this task's own spend, so the record
+                # no longer contains any subtask fold.
+                self.children_rolled_up = False
+            # An empty ``tokens_used`` is *absence of evidence*, not evidence of
+            # zero: ``TaskResult.to_payload()`` always emits the key, so a
+            # producer that never filled it in would otherwise erase every
+            # ``on_usage`` report the run already made and bill the task as free.
+            # The stored payload echoes the host's number so no reader has to
+            # know which of the two to trust.
+            result_copy["tokens_used"] = dict(self.tokens_used)
             result_context = result.get("context")
             if isinstance(result_context, dict):
                 self.context = dict(result_context)
@@ -735,6 +752,7 @@ class TaskRecord:
                 "execution_message": self.execution_message,
                 "parent_id": self.parent_id,
                 "child_task_ids": list(self.child_task_ids),
+                "children_rolled_up": self.children_rolled_up,
                 "usage_limit": self.usage_limit,
                 "compaction_limit": self.compaction_limit,
                 "event_protocol": "minicc.events.v1",
@@ -786,6 +804,12 @@ class TaskRecord:
                     "state_version": self.state_version,
                     "error": self.error,
                     "cancel_reason": self.cancel_reason,
+                    # Billing is host accounting too: whatever a payload
+                    # claims, the number the user is charged for is the one the
+                    # record keeps — including a subtask fold applied after the
+                    # result was stored.
+                    "tokens_used": dict(self.tokens_used),
+                    "cost_usd": pricing.cost_usd(self.model, self.tokens_used),
                 }
             )
             if self.status == "cancelled":
@@ -903,6 +927,7 @@ class TaskRecord:
             execution_message=str(data.get("execution_message")) if data.get("execution_message") else None,
             parent_id=data.get("parent_id"),
             child_task_ids=[str(item) for item in data.get("child_task_ids") or []],
+            children_rolled_up=bool(data.get("children_rolled_up")),
             event_limit=_coerce_int(data.get("event_limit"), DEFAULT_TASK_EVENT_LIMIT),
             stream_limit=_coerce_int(data.get("stream_limit"), DEFAULT_TASK_STREAM_LIMIT),
             usage_limit=_coerce_int(data.get("usage_limit"), DEFAULT_TASK_USAGE_LIMIT),
@@ -1544,30 +1569,47 @@ class TaskManager:
         )
         return "\n".join(sections)
 
-    def _roll_up_children(self, task: TaskRecord, result: dict[str, Any]) -> dict[str, Any]:
-        """Fold every subtask's usage into the parent's own number.
+    def _roll_up_tokens(self, task: TaskRecord) -> None:
+        """Fold every subtask's usage into the parent's own number, exactly once.
 
         A parent is what the user counts as one task, and the reconnaissance
-        children it spawned are real spend against the same gateway. Without
-        the fold the parent under-reports, and ``/api/metrics`` — which bills
-        each subtree once, at its root — loses those tokens entirely.
+        children it spawned are real spend against the same gateway.
+        ``/api/metrics`` bills each subtree once — at its root — so the root is
+        the only place those tokens can surface, and it has to carry them on
+        *every* terminal path, not just when the batch merge succeeds.
+
+        Idempotent by contract: a parent can be finalised more than once
+        (watcher handoff, retry, a later force-persist), and folding twice
+        would invent tokens nobody spent. Call it after ``apply_result``,
+        which resets the flag because it replaces the record's own number.
         """
         with task.lock:
             child_ids = list(task.child_task_ids)
-        if not child_ids:
-            return result
-        usage = {
-            key: int(value or 0)
-            for key, value in (result.get("tokens_used") or {}).items()
-            if isinstance(value, (int, float))
-        }
+            folded = task.children_rolled_up
+        if not child_ids or folded:
+            return
+        usage: dict[str, int] = {}
         for child_id in child_ids:
             with self.lock:
                 child = self.tasks.get(child_id)
             if child is None:
                 continue
             add_usage_totals(usage, child.snapshot().get("tokens_used") or {})
-        return {**result, "tokens_used": usage}
+        if not usage:
+            # Nothing observable to fold yet: leave the flag clear so a child
+            # that finishes after this call is still counted when the parent is
+            # finalised again.
+            return
+        with task.lock:
+            if task.children_rolled_up:
+                return
+            add_usage_totals(task.tokens_used, usage)
+            task.children_rolled_up = True
+            task.metrics.update(cache_summary(task.tokens_used))
+            if isinstance(task.result, dict):
+                # ``snapshot()`` re-applies the stored result payload, so an
+                # unfolded number in it would silently win over the fold.
+                task.result = {**task.result, "tokens_used": dict(task.tokens_used)}
 
     def _watch_batch(self, parent: TaskRecord, child_ids: list[str]) -> None:
         reported_children: set[str] = set()
@@ -1710,18 +1752,10 @@ class TaskManager:
                     workspace_path=parent.workspace_path,
                     cancel_event=parent.cancel_event,
                 )
-                merged_tokens = result.get("tokens_used") if isinstance(result, dict) else None
-                token_totals: dict[str, int] = {}
-                for child in snapshots:
-                    for key, value in (child.get("tokens_used") or {}).items():
-                        if isinstance(value, (int, float)):
-                            token_totals[key] = token_totals.get(key, 0) + int(value)
-                if isinstance(merged_tokens, dict):
-                    for key, value in merged_tokens.items():
-                        if isinstance(value, (int, float)):
-                            token_totals[key] = token_totals.get(key, 0) + int(value)
-                if token_totals:
-                    result["tokens_used"] = token_totals
+                # The subtask fold is not done here any more: it belongs to
+                # ``_roll_up_tokens``, which every terminal path below calls.
+                # Doing it in only one branch is how a failed merge lost its
+                # children's spend.
                 result["children"] = snapshots
             else:
                 answer = "\n\n".join(
@@ -1745,6 +1779,7 @@ class TaskManager:
                 },
             })
             parent.apply_result(result)
+            self._roll_up_tokens(parent)
             with parent.lock:
                 target = "cancelled" if result.get("cancelled") else "failed" if result.get("error") else "completed"
                 if parent.status not in TERMINAL_TASK_STATUSES:
@@ -1753,6 +1788,11 @@ class TaskManager:
                     except InvalidStatusTransition:
                         pass
         except Exception as exc:  # noqa: BLE001 - parent state must remain inspectable
+            # A parent that dies here (a broken merger, an unreachable merge
+            # gateway) still owns its subtree: ``metrics()`` bills the root and
+            # drops the subtask rows, so skipping the fold would make real
+            # spend vanish from the aggregate.
+            self._roll_up_tokens(parent)
             with parent.lock:
                 if parent.status not in TERMINAL_TASK_STATUSES:
                     try:
@@ -2288,7 +2328,8 @@ class TaskManager:
                     "error": "任务已取消",
                     "cancelled": True,
                 }
-            task.apply_result(self._roll_up_children(task, result))
+            task.apply_result(result)
+            self._roll_up_tokens(task)
             with task.lock:
                 cancelled = cancelled_by_user or bool(result.get("cancelled")) or task.status == "cancelled"
                 failed = bool(result.get("error")) and not cancelled
@@ -2326,6 +2367,11 @@ class TaskManager:
                 LOG.error(
                     "task_crashed task_id=%s error=%s", task.task_id, exc, exc_info=exc
                 )
+            # Same rule as the watcher's handler: a root that dies while its
+            # subtasks already paid still has to carry their spend, or the
+            # aggregate loses it. ``apply_result`` above skipped the fold
+            # because the crash happened before any result existed.
+            self._roll_up_tokens(task)
             with task.lock:
                 if task.status not in TERMINAL_TASK_STATUSES:
                     target = "cancelled" if task.cancel_event.is_set() else "failed"
