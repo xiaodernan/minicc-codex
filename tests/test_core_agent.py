@@ -552,6 +552,160 @@ def test_completion_continue_loop_is_capped_instead_of_burning_turn_budget(
     assert any(event.get("code") == "completion_continue_capped" for event in result["events"])
 
 
+def _review_loop_config() -> SimpleNamespace:
+    return SimpleNamespace(
+        yolo=False,
+        max_concurrent_tasks=2,
+        sandbox_mode="host",
+        sandbox_image="python:3.11-slim",
+        base_url="https://example.test/v1",
+        api_key="test-key",
+        model="test-model",
+        timeout=10,
+        tool_mode="auto",
+        reasoning_effort="high",
+        max_turns=40,
+        compact_threshold=300_000,
+        context_window_tokens=300_000,
+    )
+
+
+def _repeating_verdict() -> str:
+    """Word-for-word the same requirement, which is what a stalled reviewer emits."""
+    return json.dumps({
+        "status": "continue",
+        "confidence": 0.5,
+        "rationale": "还差最后一项检查。",
+        "missing": ["再做一轮检查"],
+        "next_action": "继续检查",
+        "evidence": [],
+    }, ensure_ascii=False)
+
+
+def test_a_repeated_verdict_with_no_new_activity_becomes_a_visible_event(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """M8-T19: the stall the cap pays for has to be observable per task.
+
+    The reviewer asks for the same thing four times and each continue re-runs
+    the whole agent. Nothing in the record said *why* that was wasted work —
+    the requirement repeated AND the round produced no tool call and no
+    verification. That pair is now an event, with the stop decision left exactly
+    where it was: an observation is not a convergence rule.
+    """
+    calls = {"agent": 0, "judge": 0}
+
+    class FakeProvider:
+        def __init__(self, **_kwargs) -> None:
+            pass
+
+        async def chat(self, messages, tools, on_delta=None):
+            if tools is None:
+                calls["judge"] += 1
+                return LLMResponse(content=_repeating_verdict())
+            calls["agent"] += 1
+            return LLMResponse(content="已完成当前检查。")
+
+        async def close(self) -> None:
+            return None
+
+    monkeypatch.setattr("minicc.web.OpenAICompatibleProvider", FakeProvider)
+    service = AgentService(tmp_path, _review_loop_config())
+    try:
+        result = service._chat_locked(
+            {
+                "message": "检查当前工作区状态并总结。",
+                "session_id": "repeat-observed",
+                "allow_changes": False,
+                "workspace_path": str(tmp_path),
+            },
+            workspace=tmp_path,
+        )
+    finally:
+        service.shutdown()
+
+    repeats = [event for event in result["events"] if event.get("code") == "completion_verdict_repeated"]
+    # Four reviews: the first cannot repeat anything, so three of them can.
+    assert calls["judge"] == 4 and len(repeats) == 3, [event.get("code") for event in result["events"]]
+    detail = repeats[0]["detail"]
+    assert detail["missing"] == ["再做一轮检查"]
+    assert detail["next_action"] == "继续检查"
+    assert detail["tool_events"] == 0 and detail["verification_runs"] == 0
+    assert detail["last_verification_status"] is None
+    assert detail["action"] == "observe_only"
+    # The behaviour this event deliberately does NOT change.
+    assert calls["agent"] == 4
+    assert "未收敛" in str(result["error"])
+    assert any(event.get("code") == "completion_continue_capped" for event in result["events"])
+
+
+def test_a_repeated_verdict_that_came_with_new_tool_activity_is_not_a_stall(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The false-positive guard: "didn't understand, did it next round" must survive.
+
+    Same reviewer text every round, but each round really reads a file it had
+    not read before — new tool calls, so there is no basis to call it stalled.
+    Without this half the observation would fire on exactly the converging runs
+    the roadmap warns against cutting short.
+
+    (A round that only *repeats* failing reads never gets this far: the agent
+    loop's own recovery guard ends the task with "错误路径恢复阶段没有取得新的
+    工作区证据" before the reviewer is ever consulted.)
+    """
+    for name in ("r1.md", "r2.md", "r3.md", "r4.md"):
+        (tmp_path / name).write_text(f"content of {name}\n", encoding="utf-8")
+    seen = {"agent": 0, "judge": 0}
+
+    class BusyProvider:
+        def __init__(self, **_kwargs) -> None:
+            pass
+
+        async def chat(self, messages, tools, on_delta=None):
+            if tools is None:
+                seen["judge"] += 1
+                return LLMResponse(content=_repeating_verdict())
+            seen["agent"] += 1
+            if seen["agent"] % 2 == 0:
+                return LLMResponse(content="本轮重新检查完毕。")
+            path = f"r{(seen['agent'] + 1) // 2}.md"
+            return LLMResponse(tool_calls=[{
+                "id": f"read-{seen['agent']}",
+                "type": "function",
+                "function": {"name": "read_file", "arguments": json.dumps({"path": path})},
+            }])
+
+        async def close(self) -> None:
+            return None
+
+    monkeypatch.setattr("minicc.web.OpenAICompatibleProvider", BusyProvider)
+    service = AgentService(tmp_path, _review_loop_config())
+    try:
+        result = service._chat_locked(
+            {
+                "message": "逐个检查这些文件并总结。",
+                "session_id": "repeat-busy",
+                "allow_changes": False,
+                "workspace_path": str(tmp_path),
+            },
+            workspace=tmp_path,
+        )
+    finally:
+        service.shutdown()
+
+    read_paths = [
+        str((event.get("data") or {}).get("path") or event.get("path") or "")
+        for event in result["events"]
+        if event.get("kind") == "tool"
+    ]
+    assert len(read_paths) >= 3, read_paths
+    assert not [
+        event for event in result["events"] if event.get("code") == "completion_verdict_repeated"
+    ], [event.get("code") for event in result["events"]]
+    # The reviewer did repeat verbatim, four times over; only the activity grew.
+    assert seen["judge"] == 4, seen
+
+
 def test_project_guidance_is_loaded_as_non_policy_context(tmp_path: Path) -> None:
     (tmp_path / "AGENTS.md").write_text("Use pytest before delivery.\n", encoding="utf-8")
     prompt = build_system_prompt(tmp_path)

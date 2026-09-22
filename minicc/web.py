@@ -1454,6 +1454,14 @@ class AgentService:
                 # turn budget is exhausted with nothing new to show.
                 max_completion_continues = max(1, int(getattr(self.config, "max_completion_continues", 3)))
                 completion_continues = 0
+                # Observation only, not a second stop rule (M8-T19): what the
+                # reviewer asked for last round, and how much activity had
+                # happened when it asked. A verbatim repeat with nothing new
+                # done since is the stall the cap above eventually pays for,
+                # and until it is visible per task the cost is only inferable
+                # from a fixture.
+                last_review_request: dict[str, Any] | None = None
+                activity_at_last_review: tuple[int, int] | None = None
                 verification_guard_error = "Agent 在修改工作区后没有完成验证"
 
                 fallback_cursor = {"index": 0}
@@ -2187,6 +2195,58 @@ class AgentService:
                     if decision.status == "complete":
                         break
                     if decision.status == "continue":
+                        request = {
+                            "missing": [str(item) for item in decision.missing],
+                            "next_action": str(decision.next_action),
+                        }
+                        activity = (
+                            sum(
+                                1
+                                for item in events
+                                if isinstance(item, dict) and item.get("kind") == "tool"
+                            ),
+                            len(verification_results),
+                        )
+                        repeats = last_review_request == request
+                        nothing_new = activity_at_last_review == activity
+                        last_review_request = request
+                        activity_at_last_review = activity
+                        if repeats and nothing_new:
+                            # Records the cost the cap is about to pay for: this
+                            # verdict is word-for-word the previous one and the
+                            # round added no tool call and no verification run,
+                            # so re-running the agent cannot produce anything the
+                            # reviewer has not already seen.
+                            repeat_event = {
+                                "kind": "trace",
+                                "name": "completion_judge",
+                                "status": "ok",
+                                "phase": "review",
+                                "code": "completion_verdict_repeated",
+                                "summary": "完成评估逐字重复上一轮要求，且本轮没有新增工具调用或验证",
+                                "detail": {
+                                    "review_attempt": completion_review_attempt,
+                                    "continues": completion_continues,
+                                    "limit": max_completion_continues,
+                                    "missing": list(request["missing"]),
+                                    "next_action": request["next_action"],
+                                    "tool_events": activity[0],
+                                    "verification_runs": activity[1],
+                                    "last_verification_status": (
+                                        verification_results[-1].get("status")
+                                        if verification_results
+                                        else None
+                                    ),
+                                    # Deliberately an observation: stopping earlier
+                                    # would need a satisfiable witness that the
+                                    # requirement really is unmeetable, and that
+                                    # is what this event exists to collect.
+                                    "action": "observe_only",
+                                },
+                            }
+                            events.append(repeat_event)
+                            if on_event is not None:
+                                on_event(repeat_event)
                         completion_continues += 1
                         if completion_continues > max_completion_continues:
                             aggregate.error = (

@@ -271,6 +271,11 @@ Invoke-RestMethod http://127.0.0.1:8765/api/audit?limit=500
 ```
 
 judge 只输出短依据、缺失项和下一步，不输出模型私有思维链；完成评估本身的 token 和 trace 也会进入任务快照，便于面试演示和失败复盘。
+当 judge 逐字重复上一轮的缺失项与下一步、**且**那一整轮没有产生任何新的工具调用或验证时，任务事件里会多出一条
+`completion_verdict_repeated` 观测（`detail` 带第几轮、复读的要求原文、工具/验证计数、`action: "observe_only"`）：它把「评委
+每复读一次就多烧一整轮 agent」这件事变成每条任务可查的事实。**它不改变停止时机**——停止仍只由
+`max_completion_continues`（默认 3 次 continue）决定，因为「更早停」需要客观判据已满足而评委仍在复读这类可满足的见证，
+那是收敛策略而非记账。
 
 ## 代码审核与后续路线图
 
