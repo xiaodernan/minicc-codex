@@ -720,9 +720,12 @@ class TaskRecord:
                 for value in result_usage.values()
             ):
                 self.tokens_used = {key: int(value or 0) for key, value in result_usage.items() if isinstance(value, (int, float))}
-                # The incoming number is this task's own spend, so the record
-                # no longer contains any subtask fold.
-                self.children_rolled_up = False
+                # The incoming number is this task's own spend, so the record no
+                # longer contains any subtask fold — unless the producer says it
+                # does. The worker-process mirror hands back a parent snapshot
+                # whose total already owns the subtree; trusting that declaration
+                # is what keeps a reconnect from folding a second time.
+                self.children_rolled_up = bool(result.get("children_rolled_up"))
             # An empty ``tokens_used`` is *absence of evidence*, not evidence of
             # zero: ``TaskResult.to_payload()`` always emits the key, so a
             # producer that never filled it in would otherwise erase every
@@ -1638,8 +1641,16 @@ class TaskManager:
             task.metrics.update(cache_summary(task.tokens_used))
             if isinstance(task.result, dict):
                 # ``snapshot()`` re-applies the stored result payload, so an
-                # unfolded number in it would silently win over the fold.
-                task.result = {**task.result, "tokens_used": dict(task.tokens_used)}
+                # unfolded number in it would silently win over the fold. The
+                # declaration travels in the same payload rather than being
+                # bolted onto the worker mirror: both executors then produce
+                # identical result shapes, which is what the durability contract
+                # test requires.
+                task.result = {
+                    **task.result,
+                    "tokens_used": dict(task.tokens_used),
+                    "children_rolled_up": True,
+                }
 
     def _watch_batch(self, parent: TaskRecord, child_ids: list[str]) -> None:
         reported_children: set[str] = set()
@@ -2160,6 +2171,11 @@ class TaskManager:
         try:
             result = self._monitor_worker(task, self.store)
             task.apply_result(result)
+            # Same rule as every other finalisation: the root owns the subtree.
+            # A mirror payload that already declares the fold leaves this a
+            # no-op; one that does not (a worker that only ran the parent's own
+            # turns) would otherwise reconnect with the children's spend lost.
+            self._roll_up_tokens(task)
             if task.status not in TERMINAL_TASK_STATUSES:
                 task.transition_status(
                     "cancelled" if result.get("cancelled") else "failed" if result.get("error") else "completed",

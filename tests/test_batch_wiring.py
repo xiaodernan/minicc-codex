@@ -602,3 +602,110 @@ def test_the_folded_number_is_the_same_number_every_reader_sees(
         assert _total(restored.tokens_used) == expected
     finally:
         service.shutdown()
+
+
+def test_a_reconnected_worker_parent_folds_once_even_though_the_mirror_already_did(
+    tmp_path: Path
+) -> None:
+    """The last finalisation path: a parent mirrored back from a worker process.
+
+    M8-T24 documented this one as "not folded". Fixing it naively is worse than
+    the gap: ``WorkerSnapshotMirror.result()`` rebuilds ``tokens_used`` from the
+    *snapshot*, which for a folded parent already contains the subtree — so
+    re-folding there invents spend. The declaration has to travel with the
+    payload, which is what this test pins from both sides.
+    """
+    class FakeService:
+        config = SimpleNamespace(yolo=False, max_concurrent_tasks=1, model="test-model")
+        workspace = tmp_path
+
+    manager = TaskManager(FakeService(), max_workers=1)
+    try:
+        child = TaskRecord(
+            task_id="mirror-child", session_id="mirror", message="子任务",
+            allow_changes=False, workspace_path=str(tmp_path), parent_id="mirror-parent",
+        )
+        child.update_usage({"prompt_tokens": 300, "completion_tokens": 100, "total_tokens": 400})
+        # The fold reads subtasks out of the manager, so an unregistered child
+        # would make every assertion below pass for the wrong reason.
+        with manager.lock:
+            manager.tasks[child.task_id] = child
+
+        def parent(task_id: str) -> TaskRecord:
+            record = TaskRecord(
+                task_id=task_id, session_id="mirror", message="批任务", allow_changes=False,
+                workspace_path=str(tmp_path), child_task_ids=[child.task_id],
+                status="running", phase="running",
+            )
+            with manager.lock:
+                manager.tasks[task_id] = record
+            return record
+
+        own_only = {"prompt_tokens": 100, "completion_tokens": 25, "total_tokens": 125}
+        already_folded = {"prompt_tokens": 400, "completion_tokens": 125, "total_tokens": 525}
+
+        # (a) The worker folded before it died: mirroring must not add again.
+        mirrored = parent("mirror-parent-declared")
+        assert mirrored.apply_result({
+            "answer": "worker 已完成", "tokens_used": dict(already_folded), "children_rolled_up": True,
+        }) is True
+        manager._roll_up_tokens(mirrored)
+        assert _total(mirrored.tokens_used) == 525, mirrored.tokens_used
+
+        # (b) A worker that only ran the parent's own turns still loses the
+        #     subtree unless the fold runs here too.
+        plain = parent("mirror-parent-plain")
+        assert plain.apply_result({"answer": "worker 已完成", "tokens_used": dict(own_only)}) is True
+        manager._roll_up_tokens(plain)
+        assert _total(plain.tokens_used) == 525, plain.tokens_used
+
+        # (c) The declaration is written by the fold itself and rides inside the
+        #     result payload, so both executors produce the same shape (the
+        #     durability contract compares them key for key) and a reconnect
+        #     cannot silently degrade (a) into a double count.
+        from minicc.task_contract import TaskResult
+        from minicc.task_execution import WorkerSnapshotMirror
+
+        assert mirrored.result.get("children_rolled_up") is True
+        declared = TaskResult.from_payload({"tokens_used": dict(own_only), "children_rolled_up": True})
+        assert declared.to_payload().get("children_rolled_up") is True
+        mirrored_payload = WorkerSnapshotMirror.result({
+            "status": "completed",
+            "usage": dict(already_folded),
+            "result": {
+                "answer": "done",
+                "tokens_used": dict(already_folded),
+                "children_rolled_up": True,
+            },
+        })
+        assert mirrored_payload["children_rolled_up"] is True
+        assert _total(mirrored_payload["tokens_used"]) == 525
+        undeclared = WorkerSnapshotMirror.result({
+            "status": "completed", "usage": dict(own_only), "result": {"answer": "done"},
+        })
+        assert "children_rolled_up" not in undeclared
+        # ...and feeding that payload back must fold, because it declares nothing.
+        again = parent("mirror-parent-mirrored-plain")
+        assert again.apply_result(undeclared) is True
+        manager._roll_up_tokens(again)
+        assert _total(again.tokens_used) == 525
+
+        # (d) And the reconnect path actually calls the fold — testing the
+        #     helper alone would leave the call site free to drift.
+        tree = ast.parse(TASK_MANAGER.read_text(encoding="utf-8"))
+        body = next(
+            node
+            for node in ast.walk(tree)
+            if isinstance(node, ast.FunctionDef) and node.name == "_reconnect_worker"
+        )
+        wired = [
+            str(node.func.attr)
+            for node in ast.walk(body)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and isinstance(node.func.value, ast.Name)
+            and node.func.value.id == "self"
+        ]
+        assert "_roll_up_tokens" in wired, wired
+    finally:
+        manager.shutdown()
