@@ -1008,7 +1008,7 @@ class TaskManager:
         self.queue_limit = max(1, int(getattr(service.config, "task_queue_limit", DEFAULT_TASK_QUEUE_LIMIT)))
         self.history_limit = max(1, int(getattr(service.config, "task_history_limit", 24)))
         self.history_max_age_days = max(1, int(getattr(service.config, "task_history_max_age_days", 30)))
-        if self.store and not getattr(service.config, "task_worker_runtime", False):
+        if self.store:
             self.store.prune(
                 keep_terminal=self.history_limit,
                 max_age_days=self.history_max_age_days,

@@ -4,7 +4,7 @@
 
 ## 当前能力
 
-- 双协议模型接口：OpenAI 兼容（chat_completions / responses + JSON envelope 降级）与 Anthropic 原生 Messages API（`MINICC_PROVIDER_TYPE=auto|openai|anthropic`，auto 按模型名/端点推断）；Anthropic 路径自带 prompt caching（system 与工具集 cache_control 断点）与缓存命中归一化。
+- 双协议模型接口：OpenAI 兼容（chat_completions / responses + JSON envelope 降级）与 Anthropic 原生 Messages API（`MINICC_PROVIDER_TYPE=auto|openai|anthropic`，auto 按模型名/端点推断；Anthropic 可用 `MINICC_ANTHROPIC_BASE_URL` 指向独立网关，留空则复用 `MINICC_BASE_URL`）；Anthropic 路径自带 prompt caching（system 与工具集 cache_control 断点）与缓存命中归一化。
 - OpenAI 兼容模型接口，支持原生 tool calls；不支持 tool calls 的网关可降级到 JSON action envelope。
 - Web 服务安全基线：token 认证（`--token` / `MINICC_WEB_TOKEN` / 自动生成并持久化到 `.minicc/web_token.json`），非回环地址（`--host 0.0.0.0`）强制开启认证；CORS 仅放行本机回环来源；`MINICC_WORKSPACE_ROOTS` 可把可切换工作区限制在目录白名单内。
 - 任务级权限模式：`default`（跟随写入/联网开关）、`plan`（只读规划，写与命令被拒）、`acceptEdits`（自动接受文件写入，命令仍需授权）、`yolo`（全部放行）；CLI 用 `--permission-mode`，Web 提交 payload 传 `permission_mode`。所有模式判定都进入审计事件。
@@ -52,6 +52,8 @@
 # Web 和 CLI 任务没有总执行时间、模型轮次或工具调用数量上限。
 # 任务会持续到模型交付、用户取消或服务进程结束；断流会自动恢复。
 MINICC_MAX_REPAIR_ATTEMPTS=2
+# 验收评审最多把“看起来已完成”的答案退回重跑几次；每次是一整轮 agent，属于成本上限（1..8 夹紧）。
+MINICC_MAX_COMPLETION_CONTINUES=3
 # 以下是数据保留/并发容量，不会截断正在运行的模型任务。
 MINICC_TASK_HISTORY_LIMIT=24
 MINICC_TASK_HISTORY_MAX_AGE_DAYS=30

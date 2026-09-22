@@ -741,7 +741,9 @@
 | M8-T16 429 配额窗口不得把任务打成失败（M6-4 真跑暴露） | ✅ | 根因是可测量的一句话：**整个重试预算只有 15 秒，而限流窗口是 60 秒**。`openai_provider._wait_retry_after_or_exponential` 对 429 也走 `min(60, 2^(n-1))` → `max_retries=4` 时累计睡眠 1+2+4+8=15s，五次尝试全部落在同一个未完成的一分钟窗口内，`reraise=True` 把它原样抛给 `agent/loop.py:840` 的 `LLM 调用失败: …`，任务判死。用假网关（`httpx.MockTransport`，不消耗真实配额）量出边界：限流器 3s/15s 后解除时能恢复，**60s 后解除则 15.06s 就放弃**，错误串与 bench 现场逐字相同。修法按错误类别分开退避：速率限制类走 `_RATE_LIMIT_BACKOFF_BASE_SECONDS=15` 起底的指数（15/30/60/60，累计 165s，仍受 60s 单次上限与尝试次数上界约束），其它瞬时错误保持 1/2/4/8 不变，`Retry-After` 头仍然优先。修复后同一探测 60s 窗口 **105s 恢复成功**（4 次 HTTP 尝试） | 新增 `tests/test_rate_limit_retry.py`（6 条）：预算断言 `sum(waits) >= 60` 且逐项 `[15,30,60,60]`（**短路修复后此条报 `retry budget 15.0s is shorter than the limiter window`，即红→绿判据**）、非限流错误仍是 `[1,2,4,8]`（防过度修正）、`retry-after: 3` 覆盖底值、`_is_rate_limit` 认被包装成 `RuntimeError` 的 429 文本且不认 500、e2e 假网关 429→429→200 恢复且恰好 3 次尝试、持续 429 仍在 `max_retries+1` 次后报错（等得久 ≠ 无限等）。LLM 域回归 `test_rate_limit_retry`+`test_core_llm`+`test_responses_streaming` **26 passed** |
 
 | M8-T17 评测里唯一的真实能力失败：`v2-license-mit` 不收敛（**结案：不是能力失败，是一条按构造不可满足的确定性门**） | ✅ | 判据（`review_rounds` + `objective_oracle`）接出来后一次真跑就定案：四轮评审的 `missing` **一字不差**，且 `objective_oracle.passed=true`——交付物本来就对。根因在 `agent/completion.py` 的写后检查门：`LICENSE` 没有后缀 → 被当作源码改动 → 要求跑 `tool_policy` 白名单里的真检查器，而该 fixture 没有任何可跑的东西（跑 `pytest` 非 0 退出同样不清门）。修法：`suffixless_prose`（license/copying/notice/authors/…）认回文档，走 `read_file`/`git_diff` 这条本来就客观的支路；**改代码要跑检查器的规则没有放松**（`Makefile` 由回归测试钉住）。真跑同一条命令：16 轮/127 487 tokens/134.5s/failed → **6 轮/33 078 tokens/31.2s/completed 且 passed** | `tests/test_check_selection.py` 2 → 4 条：`test_a_suffixless_prose_write_demands_a_demand_that_can_be_met`（**先红**：桩回 HEAD 版本即报 `为最近的代码修改运行相关测试…`）、`test_extensionless_build_file_still_demands_a_real_checker`（防放松）。证据：`output/m8_t17_repro.results.json`、`output/m8_t17_oracle.results.json`、`output/m8_t17_after_fix.results.json`；分析见「第七批」 |
-| M8-T18 封顶与旋钮：失速检测、`max_completion_continues` 不可配置、`code_revision` 不区分工作区（待观察，未动） | ⏳ 挂起 | M8-T17 结案后这两条失去了触发样本，记录以免被当成已修：① `web.py:2170` 仍是「同一句要求重复 4 轮才停」，两次相同就停会误杀正常收敛，要做须带活动信号（要求相同**且**本轮无新增检查类工具调用）；② `max_completion_continues` 只被 `getattr(self.config, ..., 3)` 读取而 `Config` 没有该字段，这条上限目前**不可配置**；③ bench 的 `code_revision` 记 HEAD，工作区未提交改动不会改变它，可区分版本的只有 `runtime_source_sha256` | 尚无测试——①需要新的失速样本，②是配置面补口，③是文档口径；三条都不阻塞当前退出标准 |
+| M8-T18 配置面：`getattr` 兜底读出一个 `Config` 上根本不存在的键（「旋钮」永远拧不动） | ✅ | M8-T17 结案时顺手发现 `max_completion_continues` 是 `getattr(self.config, ..., 3)` 而 `Config` 无此字段。**这条不是孤例，是一类**，所以先把它变成可执行门再修：`tests/test_config_surface.py` 用 AST 扫 `minicc/**/*.py` 里所有「target 末段是 `config` 的三参数 `getattr(obj, "字面量", 默认)`」，要求字面量必须是 `dataclass fields(Config)` 之一，并带 `_MIN_SITES = 30` 下限防空清单假绿。**门第一次运行就报出三个死旋钮**：`max_completion_continues`（web.py:1434）、`anthropic_base_url`（main.py:618 + web.py:1390，两处都是 `or self.config.base_url`，所以 Anthropic 网关挂在自己域名下这件事一直配不了）、`task_worker_runtime`（task_manager.py:1011，全仓库仅此一处引用、没有任何实现语义 → 条件恒真）。修法分别对应三种判断：前两个**声明成真字段并接上 env + 项目层键**（`MINICC_MAX_COMPLETION_CONTINUES` 夹在 1..8、`MINICC_ANTHROPIC_BASE_URL` 空串仍回退 `base_url`，行为不变）；第三个**删掉幽灵条件**而不是新造一个旋钮（删除后的行为与今天逐字节相同，比"补一个没人实现的开关"诚实）。 | `tests/test_config_surface.py` 2 条（门 + 下限），`tests/test_project_config.py` 16 → 20：默认/项目层/环境变量三层可达、`0/-4/99` 夹到 `1/1/8`、非整数抛 `ConfigError`、`anthropic_base_url` 去掉尾斜杠。**门的红→绿是拿 HEAD 版 `config.py` 量的**：桩回去即报 `anthropic_base_url at minicc/main.py:618；... at minicc/web.py:1390；max_completion_continues at minicc/web.py:1434` |
+| M8-T19 封顶仍是「同一句要求重复四轮才停」（待观察，未动） | ⏳ 挂起 | M8-T17 结案后这条失去了触发样本，记录以免被当成已修。「两轮相同就停」会误杀「agent 第一轮没听懂、第二轮才去做」的正常收敛；要做须带活动信号（评审要求与上一轮相同 **且** 本轮没有新增检查类工具调用）。另有一条口径：bench 的 `code_revision` 记 HEAD，工作区未提交的改动不会改变它，可区分代码版本的只有 `runtime_source_sha256` | 尚无测试——需要先有一个「判据可满足但仍失速」的样本，凭 1 个 fixture 改收敛判据正是这份文档一路在避免的事 |
+| M8-T20 配置面另一半：旋钮拧得动，但没人查得到它存在（文档漂移） | ✅ | M8-T18 自己就是触发者：这一批新加的两个键先只写进了 `config.py`，`minicc.config.example` 一字未提——**「可达」有两半，能被读到和能被查到是两件事**。于是把第二半也做成门：扫 `config.py` 里出现的每个 `"MINICC_*"` 字面量，要求它同时出现在 `minicc.config.example` 中，并带读取面下限（键数 ≥30，防正则失效后对着空清单假绿）。**门第一次运行报出 17/37 个键从未被文档提到**，其中全是真实用户开关：`MINICC_HOME`、`MINICC_SANDBOX` / `_IMAGE`、`MINICC_TASK_EXECUTOR`、`MINICC_MAX_CONCURRENT_TASKS`、`MINICC_CONTEXT_WINDOW_TOKENS` / `MINICC_COMPACT_THRESHOLD`、`MINICC_SOFT_MAX_TOKENS` / `_DURATION_SECONDS`、`MINICC_SUBAGENT_WRITABLE` / `_MAX_DEPTH` / `_MAX_TOKENS`、`MINICC_FALLBACK_MODELS`、`MINICC_AUTO_RESUME_ON_START`、`MINICC_TASK_HISTORY_LIMIT` / `_MAX_AGE_DAYS`、`MINICC_ALLOW_PRIVATE_MCP`。17 条**逐条回到代码里读语义再写文档**（默认值与夹紧取自 `load_config` 原文：并发 1..64、历史 1..200 条 / 1..3650 天、子代理深度 1..2；`_optional_positive_*` 的「留空/0/off/unlimited/非正数＝不设」而不是「报错」；`soft_max_*` 只经 `Budget.soft_limit_hit()` 提示收尾、**永不中止任务**；`prune()` 只删已终结快照，排队/运行中永不清理），写完 37/37 覆盖、清单可空。**故意不扩到全包**：`minicc/**/*.py` 另有 7 个开发者开关（`MINICC_FAKE_PROVIDER`、`MINICC_FAKE_PROVIDER_FAULTS`、`MINICC_EVAL_GRADER_DIR`、`MINICC_HOOKS`、`MINICC_KEEP_WORKER_CONFIG`、`MINICC_PRICING_JSON`、`MINICC_ANTHROPIC_MAX_TOKENS`）不属于用户示例文件，门的作用域就停在 `config.py` 这个用户面边界 | `tests/test_config_surface.py` 2 → 4 条（AST 门 + 读取面下限 + 文档门 + 文档扫描下限）。**双向红→绿都量过**：把新加的 2 个键从示例文件里删掉 → 报 `MINICC_ANTHROPIC_BASE_URL；MINICC_MAX_COMPLETION_CONTINUES`；给一个尚未文档化的键补上文档 → 当时的「只缩不涨」版本立刻报 `请把它们从 _UNDOCUMENTED_KEYS 删掉：MINICC_HOME`（这条测的是清单会腐烂，比「新键必须写文档」更容易被漏掉）。`tests/test_config_surface.py` + `tests/test_project_config.py` **22 passed**，`-W error` |
 
 ### M1-M3 退出标准真跑记录（第一批，2026-09-22）
 
@@ -749,7 +751,7 @@
 
 | 标准 | 结论 | 证据 |
 | --- | --- | --- |
-| M1-1 `pytest -q` 全绿 | ✅（Windows 这条腿） | 最新基线 `.venv` 全量 **919 passed**（`-W error`，215.6s；同批上一基线 917、913）；Ubuntu 那条腿本机不可用，只有 CI 能证，**不在此声明** |
+| M1-1 `pytest -q` 全绿 | ✅（Windows 这条腿） | 最新基线 `.venv` 全量 **929 passed**（`-W error`，239.3s；同批上一基线 927、919、917、913）；Ubuntu 那条腿本机不可用，只有 CI 能证，**不在此声明** |
 | M1-2 `scripts/reliability_probe.py` 一键复现、退出码 0 | ✅ | 真跑：9 个 M1 target 全绿，`exit=0` |
 | M1-3 人工核查（只认 text delta 与 `[DONE]`、空答案不算成功） | ✅（**查出并修掉一条真实缺陷**） | 三条子判据分别处理。**① 只认 text delta**：两条协议分支各自独立核过——`chat_completions` 分支里 `delta.content` 与 `delta.reasoning_content` 走**两个不同的 assembler**，reasoning 永远进不了 `committed_text`（`openai_provider.py:1017-1040`）；`responses` 分支只消费 `response.output_text.delta` 一种事件类型，其余事件不产生可见文本（`:784-791`）。**② 假网关只发 delta + `[DONE]`、从不发 finish_reason**：这条原本写着「人工核查」，其实**可以在 wire 上执行**，新测试用 `httpx.MockTransport` 返回真实 SSE 字节（一条 content delta + `data: [DONE]`，无 finish_reason），断言 **HTTP 请求恰好 1 次**（不是 5 次重放）、`run_agent` 以 `LLM 调用失败: stream ended before completion` 明确结束、且已经流出去的「半句话」保留在 answer 里。顺带纠正一处口径：旧测试 `test_m1t5_stream_without_finish_reason_fails_fast` 数的「1 次」是**被打桩的 `_create` 调用次数**，不是 HTTP 请求数。`[DONE]` 在 openai 路径由 SDK 自己消化，仓库里唯一手写 SSE 解析的是 anthropic 路径（`anthropic_provider.py:372` 对 `[DONE]` 有防护）。**③ 空答案不算成功 → 此前不成立**：`loop.py` 有两个交付点写 `result.answer = text or "(模型返回空回复)"` 而 `result.error` 保持为空，也就是**一轮既无内容又无工具调用的完成会被当作成功交付**，且此前没有任何测试引用过那个占位串（grep 全仓库只命中 loop.py 自己）。两处都改成显式失败（`code="empty_answer"`，answer 写成「任务未完成：…」）。保留的判断：`text` 为空时仍会先取 `reasoning_content`（`:1409-1411`），部分模型只把答案写在推理段里，所以「空答案」的判据是**两者都空** | `tests/test_m1_integrity.py` 15 → **17**：`test_m1t3_delta_only_gateway_costs_one_request_and_errors`（wire 级，修复前后均绿——它验证的是已经成立的部分）、`test_m1t3_an_empty_final_answer_is_not_reported_as_success`（**先红**：`assert None` 于 `TurnResult(answer='(模型返回空回复)'…)`；改完转绿）。全量 `-W error` **913 passed / 233.81s**，语义变更未打破任何既有交付契约 |
 | M1-4 golden delta 序列：streamed text 必须与 answer 一致 | ✅（今天才真正成立） | 判据落在 M8-T13 的两条新测试（增量逐字到达 surface；`StreamWriter.matches`）+ `visible-equals-stored` 真机 3/3。**此前这条标准是靠终端肉眼看的**，实际一直在丢字 |
@@ -902,13 +904,87 @@ objective_oracle: {"passed": true, "case_count": 2, "exit_code": 0}
 
 **本批方法论**：一个「看起来像模型能力上限」的失败，先问它的判据**能不能被满足**。确定性后置门 + 有界重试
 这个组合最容易产出这类失败：模型侧怎么看都在原地打转，代码侧其实只是在一遍遍执行一条永远为真的规则。
-判据接出来以后，答案在 5 行 JSON 里就写完了。原候选里的失速检测与配置化上限因此**降级为待观察**，记入 M8-T18。
+判据接出来以后，答案在 5 行 JSON 里就写完了。原候选里的失速检测因此**降级为待观察**（记入 M8-T19），
+而「`max_completion_continues` 不可配置」那条被追成了一整类缺陷，见下一段与 M8-T18 行。
 
 **为什么不当场做失速检测**：最直觉的版本是「`missing` 连续相同就提前停」，但两次相同就停会误杀
 「agent 第一轮没听懂、第二轮才去做」的正常收敛；要做就得带上活动信号（要求相同**且**本轮没有新增检查类工具调用）。
 本批已经消灭了不可满足的要求，这条改法失去了触发样本，凭 1 个 fixture 去改收敛判据正是这份文档一路在避免的事。
 
 本批最终基线：`pytest -q -W error` **919 passed in 215.55s**（判据两条 + 门修复两条，913 → 917 → 919）。
+
+### M8-T18：一条「旋钮拧不动」的报告，先变成门再修，门第一次运行就报出三个（第八批，2026-09-23）
+
+M8-T17 结案时顺带记下一条：`max_completion_continues` 被 `getattr(self.config, ..., 3)` 读取，而 `Config`
+没有这个字段。如果当时直接给这一处补字段，它就只是第 884 个补丁。先问「这类缺陷能不能表达成一次函数调用」，
+答案是可以，而且代价极低：AST 扫 `minicc/**/*.py`，凡「target 末段是 `config` 的三参数 `getattr(obj, "字面量", 默认)`」
+都要求那个字面量出现在 `dataclasses.fields(Config)` 里，另加 `_MIN_SITES = 30` 防空清单假绿
+（见 `tests/test_config_surface.py`，也见第四节 M4-3 那条同类先例）。
+
+**门第一次运行报出三个死旋钮**，其中一个是我原本没在看的：
+
+| 键 | 读处 | 后果 |
+| --- | --- | --- |
+| `max_completion_continues` | `web.py:1434` | 完成评估的续跑上限一直恒为 3，用户/项目层/环境变量三层都拧不动 |
+| `anthropic_base_url` | `main.py:618`、`web.py:1390` | 两处都写 `or self.config.base_url` → Anthropic 协议永远只能跟 OpenAI 用同一个端点，自建/代理网关配不出来 |
+| `task_worker_runtime` | `task_manager.py:1011` | 全仓库仅此一处引用，没有任何实现语义 → `not getattr(..., False)` 恒真，条件形同注释 |
+
+三种后果对应三种不同修法，这一点比"三个都补字段"重要：前两个**声明成真字段并接上 env + 项目层键**
+（上限夹在 1..8，未设的 `anthropic_base_url` 仍回退 `base_url`，行为不变）；第三个**删掉幽灵条件**——
+给它补一个字段等于新造一个没人实现的开关，而删除后的运行行为与今天逐字节相同。
+
+`tests/test_project_config.py` 16 → 20 覆盖可达性与夹取（`0/-4/99` → `1/1/8`、非整数抛 `ConfigError`）；
+门的红→绿是拿 HEAD 版 `config.py` 桩回去量的，三条同时报红，接回即绿。全量基线见本批末尾。
+
+**一次必须记下的偶发**：本批第一次全量是 `6 failed, 921 passed`，可见的两条都在 `tests/test_web_security.py`
+（`test_open_loopback_auth_not_required`、`test_cross_origin_state_change_rejected_before_any_work`），
+另 4 条名字被管道截断没取到；单独重跑该文件 **17 passed**，同一份工作区代码第二次全量 **927 passed in 297.41s**。
+所以它**没有**被当成缺陷修，但也**没有**被当成不存在：这些测试绑固定端口，本机当时还留着一小时前 bench 真跑的资源，
+在改完 config 数据类字段顺序的同一次运行里出现，光看结果无法排除因果。下次再见到同一批失败要先按
+「同代码两次全量 + 单跑」定性和它划清界限，别直接把「偶发」写进结论。
+
+**可迁移的一条**：`getattr(obj, "key", default)` 这种"防御式读取"在任何一个字段缺失时都会安静地返回默认值，
+所以**它把配置缺陷伪装成了配置成功**。缺一个字段只会在很久以后表现为"用户说他设了但没生效"。
+凡有这种写法，就该有一条门把字面量和真实字段清单对起来——这比修掉当次那一个更便宜。
+
+### M8-T20：同一批自己踩到的第二半——旋钮拧得动，但没人查得到（第八批续，2026-09-23）
+
+M8-T18 收尾时我准备直接提交，被一个反问拦住：这两个新旋钮**除了代码，还有哪里说它们存在**？
+`minicc.config.example` 和 `README.md` 都逐条列举 `MINICC_*`，而我只写了 `config.py`。也就是说，
+如果用户不知道一个键的名字，"可配置"和"不可配置"在他那一侧是同一个状态——**可达性有两半**。
+
+把第二半也做成门（扫 `config.py` 里每个 `"MINICC_*"` 字面量，要求同时出现在示例文件；另加读取面下限
+`键数 >= 30`，防正则失效后对着空清单假绿），**第一次运行报出 17/37**——缺口不是我这两个键，而是整个
+配置面长期没人对过账。清单里有 `MINICC_HOME`、`MINICC_SANDBOX` / `_IMAGE`、`MINICC_TASK_EXECUTOR`、
+`MINICC_MAX_CONCURRENT_TASKS`、`MINICC_CONTEXT_WINDOW_TOKENS` / `MINICC_COMPACT_THRESHOLD`、
+`MINICC_SOFT_MAX_TOKENS` / `_DURATION_SECONDS`、`MINICC_SUBAGENT_WRITABLE` / `_MAX_DEPTH` / `_MAX_TOKENS`、
+`MINICC_FALLBACK_MODELS`、`MINICC_AUTO_RESUME_ON_START`、`MINICC_TASK_HISTORY_LIMIT` / `_MAX_AGE_DAYS`、
+`MINICC_ALLOW_PRIVATE_MCP`，全是有真实语义的用户开关。
+
+补文档的过程本身就是复核，而且**纠正了三次凭印象的写法**：① `MINICC_HOME` 不要求目录已存在
+（`home_dir` 只在"指向已存在的非目录"时报 `ConfigError`，缺失由写入方创建）；② `_optional_positive_*`
+系列里"留空 / 0 / off / unlimited / 非正数"一律表示**不设**，只有非数字才报错——写成"必须正数"是错的；
+③ `soft_max_*` 只经 `Budget.soft_limit_hit()` 提示模型收尾，**永不中止任务**（和示例文件里那句"没有总时长
+上限"一致），而历史保留的 `prune()` 只删已终结快照、排队与运行中的记录永不清理。三条都是读实现才写得出的。
+
+**门的作用域刻意停在 `config.py`**：全包扫还有 7 个开发者开关（`MINICC_FAKE_PROVIDER`、
+`MINICC_FAKE_PROVIDER_FAULTS`、`MINICC_EVAL_GRADER_DIR`、`MINICC_HOOKS`、`MINICC_KEEP_WORKER_CONFIG`、
+`MINICC_PRICING_JSON`、`MINICC_ANTHROPIC_MAX_TOKENS`）不该出现在用户示例文件里，扩大作用域只会逼文档掺进
+内部实现细节，或者反过来把内部开关伪装成用户接口。
+
+**双向红→绿都量过**（这条门的两个失败方向不对称，只测一个会漏掉一半）：从示例文件删掉那两个新键 →
+报 `MINICC_ANTHROPIC_BASE_URL；MINICC_MAX_COMPLETION_CONTINUES`；反过来给一个尚未文档化的键补文档 →
+当时那个"清单只缩不涨"的版本立刻报 `请把它们从 _UNDOCUMENTED_KEYS 删掉：MINICC_HOME`。
+文档补齐之后清单可空，实现因此收成一个不带例外的断言；保留的那条测试改测扫描下限。
+`tests/test_config_surface.py` 4 条 + `tests/test_project_config.py` 20 条 **22 passed（-W error）**。
+
+**同一把尺子顺手量过 CLI，结论是「没有缺陷」，也一并记下免得重复查**：`_apply_cli_overrides` 写进 `updates`
+的 12 个键全部是 `dataclasses.fields(Config)` 的成员，桥是 `replace(config, **updates)`（不是
+`load_config(**updates)`——后者只接 7 个显式参数，会把这 12 个键全炸掉，这条路径本来就是对的）；
+`--sandbox` / `--provider-type` / `--task-executor` 靠 argparse `choices` 挡住非法值，
+`--max-concurrent-tasks` 另有一条与 resolver 同界的显式检查；`config.max_turns` 确实被
+`main.py:387`、`web.py:1155/1945` 读走，不是"设了就忘"的死旋钮。**"没有缺陷"不等于"没查"**——
+这一圈的价值在于把 CLI 这条第二路径从待查清单里划掉。
 
 ### M8-T7 注记：一次真实失败的时间线，以及「不给结论」的边界
 

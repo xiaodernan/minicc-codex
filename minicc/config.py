@@ -35,6 +35,9 @@ DEFAULT_SANDBOX_MODE = "auto"
 DEFAULT_SANDBOX_IMAGE = "python:3.11-slim"
 DEFAULT_CONTEXT_WINDOW_TOKENS = 300_000
 DEFAULT_MAX_CONCURRENT_TASKS = 8
+# Each extra continue is a whole agent re-run, so this is a cost ceiling and is
+# clamped rather than trusted: a typo here costs tens of thousands of tokens.
+DEFAULT_MAX_COMPLETION_CONTINUES = 3
 DEFAULT_REASONING_EFFORT = "high"
 REASONING_EFFORTS = frozenset({"low", "mid", "high", "xhigh", "max", "ultra"})
 _MODEL_NAME_RE = re.compile(r"^[^\x00-\x20\x7f\"'\\]{1,200}$")
@@ -167,6 +170,9 @@ class Config:
     base_url: str
     api_key: str
     model: str
+    # Empty means "use base_url" - the Anthropic path historically had no way to
+    # point at a different endpoint than the OpenAI one.
+    anthropic_base_url: str = ""
     reasoning_effort: str = DEFAULT_REASONING_EFFORT
     tool_mode: str = "auto"  # auto | native | envelope
     max_turns: int | None = DEFAULT_MAX_TURNS
@@ -181,6 +187,7 @@ class Config:
     context_window_tokens: int = DEFAULT_CONTEXT_WINDOW_TOKENS
     max_concurrent_tasks: int = DEFAULT_MAX_CONCURRENT_TASKS
     max_repair_attempts: int = DEFAULT_MAX_REPAIR_ATTEMPTS
+    max_completion_continues: int = DEFAULT_MAX_COMPLETION_CONTINUES
     task_history_limit: int = DEFAULT_TASK_HISTORY_LIMIT
     task_history_max_age_days: int = DEFAULT_TASK_HISTORY_MAX_AGE_DAYS
     task_event_limit: int = DEFAULT_TASK_EVENT_LIMIT
@@ -310,6 +317,7 @@ def load_config(
             os.environ.setdefault(key, value)
 
     resolved_url = pick(base_url, "MINICC_BASE_URL", "base_url", DEFAULT_BASE_URL)
+    anthropic_base_url = pick(None, "MINICC_ANTHROPIC_BASE_URL", "anthropic_base_url", "").rstrip("/")
     resolved_key = pick(api_key, "MINICC_API_KEY", "api_key", "")
     resolved_model = pick(model, "MINICC_MODEL", "model", DEFAULT_MODEL)
     raw_reasoning = pick(reasoning_effort, "MINICC_REASONING_EFFORT", "reasoning_effort", DEFAULT_REASONING_EFFORT)
@@ -445,6 +453,15 @@ def load_config(
     except ValueError:
         raise ConfigError(f"MINICC_MAX_REPAIR_ATTEMPTS 不是整数: {raw_max_repairs!r}") from None
 
+    raw_max_continues = pick(
+        None, "MINICC_MAX_COMPLETION_CONTINUES", "max_completion_continues",
+        str(DEFAULT_MAX_COMPLETION_CONTINUES),
+    )
+    try:
+        max_completion_continues = max(1, min(8, int(raw_max_continues)))
+    except ValueError:
+        raise ConfigError(f"MINICC_MAX_COMPLETION_CONTINUES 不是整数: {raw_max_continues!r}") from None
+
     raw_history_limit = pick(None, "MINICC_TASK_HISTORY_LIMIT", "task_history_limit", str(DEFAULT_TASK_HISTORY_LIMIT))
     try:
         task_history_limit = max(1, min(200, int(raw_history_limit)))
@@ -489,6 +506,7 @@ def load_config(
 
     return Config(
         base_url=resolved_url.rstrip("/"),
+        anthropic_base_url=anthropic_base_url,
         api_key=resolved_key,
         model=resolved_model,
         reasoning_effort=resolved_reasoning,
@@ -502,6 +520,7 @@ def load_config(
         context_window_tokens=context_window_tokens,
         max_concurrent_tasks=max_concurrent_tasks,
         max_repair_attempts=max_repair_attempts,
+        max_completion_continues=max_completion_continues,
         task_history_limit=task_history_limit,
         task_history_max_age_days=task_history_max_age_days,
         task_event_limit=task_event_limit,

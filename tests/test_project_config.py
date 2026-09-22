@@ -192,3 +192,50 @@ def test_cli_flag_beats_project_layer(config_env) -> None:
     _write(workspace / ".minicc" / "config.json", {"model": "project-model"})
     config = _load(_args(["--model", "cli-model"]), workspace)
     assert config.model == "cli-model"
+
+
+def test_completion_continue_ceiling_is_reachable(config_env) -> None:
+    """The web loop read this through ``getattr(config, ..., 3)`` while ``Config``
+    declared no such field, so no layer could move it - every release capped the
+    reviewer at 3 re-runs regardless of what the user wrote."""
+    _cwd, home, workspace = config_env
+    assert load_config(workspace=workspace).max_completion_continues == 3
+    _write(home / "config.json", {"max_completion_continues": 1})
+    assert load_config(workspace=workspace).max_completion_continues == 1
+    os.environ["MINICC_MAX_COMPLETION_CONTINUES"] = "5"
+    try:
+        assert load_config(workspace=workspace).max_completion_continues == 5
+    finally:
+        os.environ.pop("MINICC_MAX_COMPLETION_CONTINUES", None)
+
+
+@pytest.mark.parametrize("raw,expected", [("0", 1), ("-4", 1), ("99", 8)])
+def test_the_ceiling_stays_bounded_when_someone_types_it_wrong(config_env, raw, expected) -> None:
+    """Unbounded would mean a typo costs tens of thousands of tokens per round."""
+    os.environ["MINICC_MAX_COMPLETION_CONTINUES"] = raw
+    try:
+        assert load_config().max_completion_continues == expected
+    finally:
+        os.environ.pop("MINICC_MAX_COMPLETION_CONTINUES", None)
+
+
+def test_a_non_integer_ceiling_is_a_config_error(config_env) -> None:
+    os.environ["MINICC_MAX_COMPLETION_CONTINUES"] = "several"
+    try:
+        with pytest.raises(ConfigError):
+            load_config()
+    finally:
+        os.environ.pop("MINICC_MAX_COMPLETION_CONTINUES", None)
+
+
+def test_the_anthropic_endpoint_can_differ_from_the_openai_one(config_env) -> None:
+    """Both construction sites read ``anthropic_base_url`` with a default, and no
+    config layer could set it, so an Anthropic gateway on its own host was
+    unreachable - it always inherited ``base_url``."""
+    _cwd, _home, _workspace = config_env
+    assert load_config().anthropic_base_url == ""
+    os.environ["MINICC_ANTHROPIC_BASE_URL"] = "https://claude.internal/v1/"
+    try:
+        assert load_config().anthropic_base_url == "https://claude.internal/v1"
+    finally:
+        os.environ.pop("MINICC_ANTHROPIC_BASE_URL", None)

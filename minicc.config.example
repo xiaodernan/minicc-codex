@@ -5,8 +5,17 @@
 # Required: API key
 MINICC_API_KEY=replace_with_your_key
 
+# 用户级配置根目录（config.json / 任务库 / 会话快照都在里面），默认 ~/.minicc。
+# 只能通过环境变量给出（它决定了去哪儿读配置文件）。目录不存在时由写入方创建；
+# 指向一个已存在的文件是笔误，会在启动时报 ConfigError 而不是静默换位置。
+#MINICC_HOME=D:\minicc-home
+
 # OpenAI-compatible provider endpoint.
 MINICC_BASE_URL=https://api.247kan.com/v1
+
+# Separate endpoint when MINICC_PROVIDER_TYPE=anthropic. Empty (the default)
+# reuses MINICC_BASE_URL, so single-gateway setups need no change.
+#MINICC_ANTHROPIC_BASE_URL=https://claude.internal/v1
 
 # Model name on that gateway
 MINICC_MODEL=gpt-5.6-terra
@@ -35,6 +44,43 @@ MINICC_REASONING_EFFORT=high
 # Maximum automatic test-failure repair cycles after a successful write
 #MINICC_MAX_REPAIR_ATTEMPTS=2
 
+# How many times the completion reviewer may send a finished-looking answer back
+# for another full agent re-run. A cost ceiling: each extra continue costs a whole
+# run. Values are clamped to 1..8; a non-integer is a startup ConfigError.
+#MINICC_MAX_COMPLETION_CONTINUES=3
+
+# 备用模型：逗号或分号分隔，按顺序降级；空 = 不降级。非法模型名会在启动时报 ConfigError。
+#MINICC_FALLBACK_MODELS=gpt-5.6-terra,gpt-5.6-lite
+
+# 上下文窗口与自动压缩阈值（token）。窗口默认 300000（至少 1）；会话记录超过
+# compact_threshold 后触发压缩检查点，默认与窗口相同。
+#MINICC_CONTEXT_WINDOW_TOKENS=300000
+#MINICC_COMPACT_THRESHOLD=300000
+
+# 可选的“收尾”软预算：只让模型知道该收尾了，永远不会中止任务（硬性上限一律没有）。
+# 留空、0、off、unlimited 或非正数都表示不设软目标；写成非数字才报 ConfigError。
+#MINICC_SOFT_MAX_TOKENS=200000
+#MINICC_SOFT_MAX_DURATION_SECONDS=1800
+
+# 子代理委派（M6-T1）：可写委派默认关闭，需要显式打开；深度只允许 1..2（更深的
+# 嵌套没有收益）；token 上限的“留空即不限”规则同上。
+#MINICC_SUBAGENT_WRITABLE=0
+#MINICC_SUBAGENT_MAX_DEPTH=2
+#MINICC_SUBAGENT_MAX_TOKENS=
+
+# 执行位置：host（直接用宿主 Python）| docker | auto（默认，能容器化就容器化）。
+# 取其它值会在启动时报 ConfigError。
+#MINICC_SANDBOX=auto
+#MINICC_SANDBOX_IMAGE=python:3.11-slim
+
+# Web 任务的执行载体：thread（默认）| process。process 隔离更彻底但快照与流式
+# 通道的跨进程开销更高。其它值报 ConfigError。
+#MINICC_TASK_EXECUTOR=thread
+
+# 服务启动时自动恢复被中断的任务（默认关，避免重启时意外重跑）。
+# 真值写法：1 / true / yes / on。
+#MINICC_AUTO_RESUME_ON_START=0
+
 # Bounded replay log and live text tail per task; prevents long runs from
 # growing the browser timeline and SQLite snapshots without a limit.
 #MINICC_TASK_EVENT_LIMIT=768
@@ -43,6 +89,14 @@ MINICC_REASONING_EFFORT=high
 #MINICC_TASK_USAGE_LIMIT=64
 #MINICC_TASK_COMPACTION_LIMIT=64
 #MINICC_TASK_QUEUE_LIMIT=32
+
+# 任务历史保留：条数夹在 1..200（默认 24），天数夹在 1..3650（默认 30）。
+# 只删已终结（完成/失败/取消）的旧快照；排队中与运行中的记录永不清理。
+#MINICC_TASK_HISTORY_LIMIT=24
+#MINICC_TASK_HISTORY_MAX_AGE_DAYS=30
+
+# 同时在跑的任务数，夹在 1..64（默认 8）。超出的任务排队，不会被丢弃。
+#MINICC_MAX_CONCURRENT_TASKS=8
 
 # ---- 结构化日志 / 可观测性 ----
 
@@ -71,3 +125,7 @@ MINICC_REASONING_EFFORT=high
 
 # Allow webfetch to reach loopback/private addresses (local testing only).
 #MINICC_ALLOW_PRIVATE_FETCH=0
+
+# 同上，但作用于 MCP 服务器的 URL 校验（mcp.py 里 assert_public_http_url）。
+# 本机跑的 MCP 服务需要打开；默认拒绝私网/回环地址。
+#MINICC_ALLOW_PRIVATE_MCP=0
