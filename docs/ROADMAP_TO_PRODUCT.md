@@ -736,6 +736,24 @@
 > suffix、只把缓冲重定基到快照」，`deltas == ["aa","aab","c"]` + `content == "aabc"` 钉住这个形状。
 | M8-T13 CLI 可见输出必须等于落盘答案（已修，两层各占一半） | ✅ | 真机 3/3 复现「终端打印 `7.7`/`7.7.`，会话文件里存的是 `7.7.7`」后分两层定位。**第一层（数据）**：`agent/loop.py:_merge_incremental_text` 对**增量**片段跑了完整的累积折叠——`previous.startswith(current)` 直接返回 `("", drop)`，于是 `"7",".","7"` 的第三个 `7` 被丢掉（离线可复现：旧规则把 `7.7.7` 只发出 `7.`）。规则收窄成**只吸收「完整重复已累积前缀并且更长」这一种**，其余一律原样追加，`test_agent_loop_deduplicates_cumulative_public_stream_updates` 的 `["aa","b","c"]` 旧契约与新用例同时通过（第一次尝试是整层删除折叠，被这条既有契约挡下——它对应的是 provider 直接吐累积块的路径，不能顺手拆）。**第二层（显示）**：`main.py:395` 只要 `writer.started` 就**无条件**不打印最终答案，所以流式一旦短一截，屏幕上的错答案就永久留着、而落盘内容是对的。`StreamWriter` 现在记住自己写过什么并暴露 `matches()`，只在「看到的 == 落盘答案」时才省略最终打印。**M8-T12 仍未结案**：修完这两层后真机 `visible == stored` 3/3 成立，但 stderr 仍有 1501 字节的 httpcore 关闭栈，泄漏体从 `HTTP11ConnectionByteStream` 变成更内层的 `PoolByteStream`（说明我们持有的两层已经关对了，剩下的在 httpx/httpcore 内部） | `tests/test_m1_integrity.py` 13 → 15：`test_m1t3_stream_deltas_reach_the_surface_verbatim`（假 provider 逐段 `"7",".","7",".","7"`，断言 `"".join(on_stream) == result.answer == "7.7.7"`）与 `test_stream_writer_knows_when_the_screen_fell_short`（短流不得抑制最终打印、补齐后不得重复打印、尾部空白不算差异）。旧契约 `test_agent_loop_deduplicates_cumulative_public_stream_updates` 保持绿色。**真机验收门**：`visible_stream_check.py` 的 `RESULT visible-equals-stored` 从 0/3 变成 **3/3**（同一 workspace、同一问句、3 次独立进程）。全量 `.venv` **879 passed** |
 
+### M1-M3 退出标准真跑记录（第一批，2026-09-22）
+
+按第三节原文逐条执行，不走附录 D 的自评：
+
+| 标准 | 结论 | 证据 |
+| --- | --- | --- |
+| M1-1 `pytest -q` 全绿 | ✅（Windows 这条腿） | `.venv` 全量 **880 passed**；Ubuntu 那条腿本机不可用，只有 CI 能证，**不在此声明** |
+| M1-2 `scripts/reliability_probe.py` 一键复现、退出码 0 | ✅ | 真跑：9 个 M1 target 全绿，`exit=0` |
+| M1-3 人工核查（只认 text delta 与 `[DONE]`、空答案不算成功） | 未复核 | 需要逐行读协议分支，本批未做 |
+| M1-4 golden delta 序列：streamed text 必须与 answer 一致 | ✅（今天才真正成立） | 判据落在 M8-T13 的两条新测试（增量逐字到达 surface；`StreamWriter.matches`）+ `visible-equals-stored` 真机 3/3。**此前这条标准是靠终端肉眼看的**，实际一直在丢字 |
+| M2-1 / M2-2 四份安全测试文件全绿 | ✅ | `test_web_security + test_permission_modes + test_allowlist + test_file_tree_api + test_security_perimeter + test_task_durability` 共 **63 passed** |
+| M3-1 Origin/CSRF 与会话持久化全绿 | ✅ | 同上（含 `test_web_security`、`test_task_durability`） |
+| M3-3 `grep -rn sk-` 在 `.minicc/` 与日志里零命中 | ❌ **标准本身不成立** | 仓库自身 `.minicc/web-8765.stdout.log` 命中 **19,167 次**，全部是 **`task-<hex>` 里含子串 `sk-`**（真实密钥字符串不在其中、文件 gitignored 且 mtime 早于 M1 开工一个月）。和 M8-T5 的 `git grep -c 'print('` 同一类：**字面 grep 口径不可信**。 |
+
+M3-3 的处理不是把标准删掉，而是把它变成可执行、可证伪的门：`scripts/reliability_probe.py` 现在多跑一段
+`scan_credentials()`，只认真正的凭据形状（`sk-[A-Za-z0-9_-]{20,}`、AKIA、PEM 头、`.env` 里那把 key 的原文），
+**只报文件路径与规则名、绝不打印命中内容**（PEM 字面量在脚本里拼接，避免本仓库自己的 pre-commit 钩子把它当泄漏）。
+验证：真实状态目录 0 命中 `exit=0`；把一条长 `sk-…` 和一条 `AKIA…` 放进临时目录后 **2 命中、`exit=1`**（先红后绿做完再删临时文件）。
 ### M8-T7 注记：一次真实失败的时间线，以及「不给结论」的边界
 
 一次真实只读小任务消耗 118,499 tokens、跑了 5 轮 `run_agent` 后才以 provider `451 censorship_blocked` 失败。
