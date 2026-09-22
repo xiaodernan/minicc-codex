@@ -98,7 +98,9 @@ def _service(workspace: Path) -> AgentService:
     )
 
 
-def _run_task(service: AgentService, workspace: Path, message: str = "hello") -> dict[str, Any]:
+def _run_task(
+    service: AgentService, workspace: Path, message: str = "hello", model: str | None = None
+) -> dict[str, Any]:
     """Submit one fake-provider task and wait for its terminal snapshot."""
     submitted = service.tasks.submit(
         {
@@ -107,6 +109,7 @@ def _run_task(service: AgentService, workspace: Path, message: str = "hello") ->
             "workspace_path": str(workspace),
             "allow_changes": False,
             "_skip_auto_orchestration": True,
+            **({"model": model} if model else {}),
         }
     )
     task_id = str(submitted["task_id"])
@@ -307,6 +310,56 @@ def test_metrics_endpoint_reconciles_with_task_snapshots(
         assert payload["tasks_by_status"]["completed"] == 2
     finally:
         live.shutdown()
+
+
+def test_metrics_answers_unknown_cost_as_unknown_in_every_field(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """One payload may not say ``null`` and ``0.0`` about the same fact.
+
+    ``by_model`` already answered ``cost_usd: None`` for an unpriced model, but
+    the total kept ``0.0`` — and a per-task snapshot for that same model said
+    ``None`` too. ``0.0`` reads as "this cost nothing" when the truth is
+    "nothing in the price table covers it", which is the M8-T23 ``workspace_path``
+    failure mode one field over.
+    """
+    monkeypatch.setenv("MINICC_FAKE_PROVIDER", "1")
+    monkeypatch.setenv(
+        "MINICC_PRICING_JSON", json.dumps({"priced-model": {"input": 1.0, "output": 2.0}})
+    )
+    service = _service(tmp_path)
+    try:
+        # (a) Nothing priced: no number at all, but the tokens are still real.
+        _run_task(service, tmp_path, "没有价格的一条")
+        metrics = service.metrics(limit=100)
+        assert (metrics["priced_tasks"], metrics["unpriced_tasks"]) == (0, 1)
+        assert metrics["cost_usd"] is None
+        assert metrics["cost_is_partial"] is False
+        assert int(metrics["usage"]["total_tokens"]) > 0
+        assert metrics["by_model"]["test-model"]["cost_usd"] is None
+
+        # (b) Half priced: the number is a floor, and it has to say so.
+        priced = _run_task(service, tmp_path, "有价格的一条", model="priced-model")
+        metrics = service.metrics(limit=100)
+        assert (metrics["priced_tasks"], metrics["unpriced_tasks"]) == (1, 1)
+        assert metrics["cost_usd"] is not None
+        assert float(metrics["cost_usd"]) == pytest.approx(float(priced["cost_usd"]))
+        assert metrics["cost_usd"] > 0.0
+        assert metrics["cost_is_partial"] is True
+        assert metrics["by_model"]["test-model"]["cost_usd"] is None
+        assert metrics["by_model"]["priced-model"]["cost_usd"] == pytest.approx(metrics["cost_usd"])
+        # Tokens are never withheld because a price is missing.
+        assert int(metrics["usage"]["total_tokens"]) > int(
+            metrics["by_model"]["priced-model"]["tokens"]["total_tokens"]
+        )
+
+        # (c) Every field agrees once nothing is unpriced anymore.
+        filtered = service.metrics(limit=100, workspace_path=str(tmp_path / "elsewhere"))
+        assert filtered["task_count"] == 0
+        assert filtered["cost_usd"] is None
+        assert filtered["cost_is_partial"] is False
+    finally:
+        service.shutdown()
 
 
 def test_metrics_limit_and_workspace_filter(tmp_path: Path) -> None:

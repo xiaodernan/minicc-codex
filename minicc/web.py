@@ -2421,7 +2421,10 @@ class AgentService:
         with ``GET /api/tasks/<id>`` — a re-derivation from raw usage would be
         free to drift the moment pricing or usage shapes change. Unpriced
         models contribute tokens but are counted separately instead of being
-        silently billed at zero.
+        silently billed at zero. That rule reaches the total as well: with
+        nothing priced ``cost_usd`` is ``null`` (not ``0.0``), and when only
+        part of the index is priced ``cost_is_partial`` marks the number as a
+        floor rather than the bill.
 
         Only root tasks are summed: a batch or auto-orchestration parent rolls
         its subtasks' usage into its own snapshot, so adding the subtask rows
@@ -2482,7 +2485,16 @@ class AgentService:
             "priced_tasks": priced_tasks,
             "unpriced_tasks": unpriced_tasks,
             "usage": usage,
-            "cost_usd": round(cost_total, 6),
+            # "Nothing is priced" is not the same fact as "this cost nothing":
+            # ``by_model`` below already answers None for an unpriced model, and
+            # a total of 0.0 next to a per-task ``cost_usd: null`` made one
+            # payload say both things at once.
+            "cost_usd": round(cost_total, 6) if priced_tasks else None,
+            # When some roots are priced and some are not, the number is real
+            # but it is a floor, not the bill — say so instead of letting the
+            # reader assume ``priced_tasks`` was part of the total. With nothing
+            # priced at all there is no number to be partial about.
+            "cost_is_partial": bool(priced_tasks and unpriced_tasks),
             "by_model": by_model,
             "duration_seconds": {
                 "total": round(sum(durations), 3),
