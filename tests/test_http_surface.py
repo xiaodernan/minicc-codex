@@ -816,18 +816,23 @@ def test_rpc_unknown_method_is_a_protocol_error(live: _LiveServer) -> None:
 # ---------------------------------------------------------------------------
 # M4-3: the route-coverage criterion, made measurable.
 #
-# The roadmap asked for "POST /api/* covered 100% by Python tests". No coverage
-# tool is installed here and CI does not run one, so that percentage cannot be
-# computed - and a number nobody can measure is how an untested surface gets
-# documented as done. What *can* be checked cheaply is the failure mode the
-# audit actually found: six routes whose path string appeared in no test file at
-# all. This gate compares the server's own route inventory, read out of the
-# source, against the test sources.
+# The roadmap asks for "POST /api/* covered 100% by Python tests". Two separate
+# gates carry that criterion now, and this is the weaker of the two by design:
 #
-# What it does not prove: that a route is exercised by a real request with a
-# terminal assertion. A test that merely mentions the literal satisfies it. That
-# is still a strict improvement over an unmeasurable percentage - it fails the
-# moment someone adds a route and forgets every test for it.
+#   * here, every route the dispatcher compares `path` against must be *named* by
+#     some Python test - it fails the moment someone adds a route and forgets
+#     every test for it;
+#   * `scripts/route_coverage.py --check` measures whether a request actually
+#     *entered* each route branch, over a named test selection. `tests/
+#     test_route_coverage_measurement.py` keeps that measurement honest.
+#
+# The distinction matters because "the route's comparison line executed" is not
+# coverage on this code shape: the handlers are flat `if path == ...: return`
+# chains, so one request that falls through to the 404 runs every comparison
+# above it. Measured: a single `POST /api/nope` scores 14/14 on that reading and
+# 0/14 on the entry reading.
+#
+# What neither gate proves: that a route's success path is asserted somewhere.
 # ---------------------------------------------------------------------------
 
 _HTTP_HANDLERS = ("do_GET", "do_POST", "do_PUT", "do_PATCH", "do_DELETE")

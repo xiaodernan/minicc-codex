@@ -32,10 +32,13 @@ dev = [
     "httpx>=0.27.0",
     # M4-3's criterion ("POST /api/* 路由 Python 测试覆盖率") was recorded as
     # unmeasurable for three audit batches because no coverage tool was
-    # installed. Declared here so the number is reproducible:
-    #   python -m coverage run --source=minicc.webserver -m pytest \
-    #       tests/test_http_surface.py tests/test_http_route_inventory.py
-    #   python -m coverage report --include="*webserver*"
+    # installed. Declared here so the number is reproducible. One command
+    # reproduces the criterion (it runs the selection under coverage itself):
+    #   python scripts/route_coverage.py --check
+    # and `python -m coverage run --source=minicc -m pytest <selection>` followed
+    # by `python -m coverage report --include="*webserver*"` gives the module's
+    # line percentage, which is a different and weaker question - see the script's
+    # docstring for why "the route's comparison line ran" is not coverage.
     "coverage[toml]>=7.0",
 ]
 # Native Anthropic Messages provider (minicc.llm.anthropic_provider).
@@ -65,9 +68,10 @@ source = ["minicc"]
 branch = false
 
 [tool.coverage.report]
-# Keep the default report readable; the per-route dispatch number is produced by
-# driving every route (see tests/test_http_route_inventory.py) and reading the
-# JSON report, not by this percentage.
+# Keep the default report readable. The number M4-3 is quoted against is not
+# this percentage: scripts/route_coverage.py maps each route branch to its own
+# lines and asks whether a request entered it (see that file for why the naive
+# per-line reading is gameable on an if/return chain).
 show_missing = true
 exclude_also = [
     "if TYPE_CHECKING:",

@@ -308,6 +308,8 @@ Web 默认关闭写入和联网。界面明确显示文件、命令、网络三�
 
 前端定向验收：`npm run test:optimization`；真实 HTTP 产品链路：启动 fake-provider 本地服务后执行 `npm run test:web`。不需要为每次小改动反复执行全量回归。
 
+HTTP 路由覆盖用一条命令复现：`python scripts/route_coverage.py --check`（把选定的两个测试跑在 coverage 下，再逐条问「这条路由的分支体有没有被请求进过」）。不要用「这条路由的比较行执行过没有」当覆盖率：`do_GET`/`do_POST` 是平铺的 `if path == ...: return` 链，任何一条落到 404 的请求都会把整条链的比较行点亮——实测只跑一条 `POST /api/nope` 就得到 14/14 = 100%，而真正进入分支体的是 0/14。模块行覆盖率是另一个数，单独报，不冒充前者。
+
 新增 12 条隔离行为任务，验收器保留在任务工作区之外，覆盖边界值、异常和输入不变性。报告分别给出完成率、评分覆盖率、验收成功率、错误完成率、延迟及已知 token，用 fake provider 的结果只验证工程链路。
 
 ```powershell
