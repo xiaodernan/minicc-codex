@@ -215,3 +215,157 @@ def test_a_pointer_written_inside_a_code_span_is_a_quotation_not_a_claim() -> No
     # nothing about which complaint fired.
     assert sum("指向不存在的段落" in p.detail for p in prose_problems) == 1
     assert sum("没有这个编号" in p.detail for p in prose_problems) == 1
+
+
+# --------------------------------------------------------------------------- #
+# M8-T37: the evidence reader — files, line numbers and test names cited inside
+# inline code. Each gate below is written against a red the tool actually threw
+# on the shipped docs, so none of them is a hypothetical.
+# --------------------------------------------------------------------------- #
+
+_ROADMAP = REPO_ROOT / "docs" / "ROADMAP_TO_PRODUCT.md"
+
+
+def _evidence(*spans: str, claims: int | None = None) -> list[str]:
+    """Run the reader over synthetic citations, the way roadmap writes them.
+
+    ``claims`` is how many of the spans the reader should treat as location
+    claims at all. Passing ``claims=0`` says "this shape must be *refused*, not
+    merely tolerated" — without it, a reader that checked every backtick would
+    satisfy an empty-problems assertion just as happily as one that knows its
+    business.
+    """
+    text = "# T\n\n" + "\n".join(f"结论见 `{span}`。" for span in spans) + "\n"
+    problems, checked = dp.check_evidence(_ROADMAP, text)
+    expected = len(spans) if claims is None else claims
+    assert checked == expected, list(zip(spans, [checked] * len(spans)))
+    return [p.detail for p in problems]
+
+
+def test_a_citation_to_a_moved_test_says_where_it_actually_lives() -> None:
+    # Verbatim from roadmap M1-3's acceptance line: the test exists, just not in
+    # that file and not without the m1t1_ prefix. "The file is real" is not a
+    # reason to let a citation that lands nowhere stand.
+    assert _evidence(
+        "tests/test_p0_p1_p2.py::test_recovery_required_does_not_loop_on_plain_text"
+    ) == [
+        "tests/test_p0_p1_p2.py::test_recovery_required_does_not_loop_on_plain_text 没有这个测试："
+        "它定义在 test_m1t1_recovery_required_does_not_loop_on_plain_text"
+    ]
+    assert _evidence(
+        "tests/test_m1_integrity.py::test_m1t1_recovery_required_does_not_loop_on_plain_text"
+    ) == []
+
+
+def test_a_bare_test_name_may_be_a_module_or_a_function_but_nothing_else() -> None:
+    # `test_grader_unreadable` is how roadmap:207 cited the gate; the real name
+    # has a suffix, and test_core is a module, not a function — both accepted.
+    assert _evidence("test_grader_unreadable")[0].startswith("test_grader_unreadable 既不是测试文件名")
+    assert _evidence("test_grader_unreadable_by_file_tools", "test_core") == []
+
+
+def test_an_abbreviation_is_a_claim_and_a_method_name_is_not() -> None:
+    # The docs cite minicc's packages by their package-relative name, and web's
+    # by theirs; both resolve. `tools/call` is an MCP method and `loop.py` alone
+    # is a name, not a location — admitting either would flood the reader.
+    assert _evidence("agent/loop.py", "core/scope.js", "llm/stream_merge.py") == []
+    assert _evidence("agent/no_such_module.py") == ["agent/no_such_module.py 指向的路径在仓库里不存在"]
+    # Refused, not merely silent: a shape the reader declines must never reach
+    # the counter, or the inventory number is prose style rather than eyesight.
+    assert _evidence("127.0.0.0/8", "--session-id/--resume", "tools/call", "loop.py", claims=0) == []
+
+
+def test_a_line_number_is_checked_against_the_file_it_claims() -> None:
+    assert _evidence("tests/test_doc_pointers.py:99999")[0].startswith(
+        "tests/test_doc_pointers.py:99999 在第"
+    )
+    assert _evidence("tests/test_doc_pointers.py:1") == []
+    # A dated snapshot records where the line was on its date; rewriting that
+    # would falsify the record, so the line check is what steps down — not the
+    # existence check, which still catches a path that never existed.
+    audit = REPO_ROOT / "docs" / "AUDIT_2026-09-20.md"
+    problems, checked = dp.check_evidence(audit, "# T\n\n`minicc/config.py:99999` `minicc/nope.py`\n")
+    assert checked == 2 and [p.detail for p in problems] == ["minicc/nope.py 指向的路径在仓库里不存在"]
+
+
+def test_an_attribute_citation_has_to_appear_in_that_file() -> None:
+    assert _evidence("minicc/config.py.Config") == []
+    assert _evidence("minicc/config.py.definitely_not_in_this_file") == [
+        "minicc/config.py.definitely_not_in_this_file 说 minicc/config.py 里有 definitely_not_in_this_file，那里没有"
+    ]
+
+
+def test_every_exemption_pays_for_itself_with_a_reason_and_a_live_reference() -> None:
+    for table in dp._EVIDENCE_TABLES:
+        assert table, "an empty exemption table is not a fence"
+    # Empty reason: a name in a set is how an exemption quietly outlives the
+    # thing it excuses. Stale reference: the day the docs stop citing it, the
+    # entry must go, or nobody can tell a granted exception from a dead one.
+    documents = [d for d in dp.DEFAULT_DOCS if d.exists()]
+    assert dp.check_exempt_tables(documents) == []
+    key = "web/never_mentioned_anywhere.js"
+    original = dp._RETIRED_PATH
+    monkey = dict(original)
+    monkey[key] = ""
+    dp._EVIDENCE_TABLES = tuple(monkey if t is original else t for t in dp._EVIDENCE_TABLES)
+    try:
+        problems = dp.check_exempt_tables(documents)
+    finally:
+        dp._EVIDENCE_TABLES = tuple(original if t is monkey else t for t in dp._EVIDENCE_TABLES)
+    # Both complaints fire, from two independent checks: the entry has no reason,
+    # and no document cites it any more. My first version asserted one problem and
+    # was wrong — a fake key earns both, and only asserting the pair keeps the two
+    # rules from being quietly collapsed into one.
+    assert {p.detail for p in problems} == {
+        f"豁免 {key} 没有理由",
+        f"豁免 {key} 已无任何文档引用，是陈旧登记",
+    }, problems
+    # And the real tables are clean again: the restore above is not a no-op.
+    assert dp.check_exempt_tables(documents) == []
+
+
+def test_exempted_citations_still_count_as_considered() -> None:
+    # If the exemption check ran before the counter, a document whose pointers
+    # are mostly exempt would report the same inventory as one with none — and
+    # the floor meant to catch a blind reader would be catching prose style.
+    assert _evidence(".minicc/config.json", "workspace/app.py", "minicc/config.py") == []
+    # A bare name with no slash is not a location claim even when it is exempt:
+    # counting it would let the inventory floor be met by words.
+    assert _evidence("AGENTS.md", claims=0) == []
+    _, stats = dp.check_document(REPO_ROOT / "README.md")
+    assert stats.evidence >= 12, "README's floor must stay under what it actually holds"
+
+
+def test_each_resolve_root_answers_a_shipped_citation() -> None:
+    """A root no document reaches is dead code in a table that looks like policy."""
+    answered: dict[str, str] = {}
+    for document in dp.DEFAULT_DOCS:
+        relative = document.relative_to(REPO_ROOT).as_posix()
+        if relative in dp._OUT_OF_SCOPE_DOCS:
+            continue
+        for _, span in dp._code_spans(document.read_text(encoding="utf-8")):
+            match = dp._PATH_REF.match(span) or dp._DIR_REF.match(span) or dp._TEST_REF.match(span)
+            if match is None or dp._evidence_shape(span) is None:
+                continue
+            rel = match.groupdict().get("path") or match.groupdict().get("file")
+            if not rel or (REPO_ROOT / rel).exists():
+                continue
+            for base in dp._RESOLVE_ROOTS[1:]:
+                if (REPO_ROOT / base / rel).exists():
+                    answered.setdefault(base, f"{relative}: {span}")
+                    break
+    for base in dp._RESOLVE_ROOTS[1:]:
+        assert base in answered, f"_{base} 没有任何 shipped 引用走到，是死行"
+    assert len(answered) == len(dp._RESOLVE_ROOTS) - 1
+
+
+def test_a_path_claim_written_outside_backticks_gets_its_own_reader() -> None:
+    # The evidence reader only looks inside code spans, so dropping the backticks
+    # would be a way to write a dangling path that no gate sees. This is that
+    # other half: bare names are still shorthand, a slash makes it a claim.
+    assert dp.prose_path_claims("见 docs/NOPE_XYZ.md 与 loop.py，还有 minicc/config.py。") == [
+        "docs/NOPE_XYZ.md",
+        "minicc/config.py",
+    ]
+    problems, stats = dp.check_document(_ROADMAP)
+    assert stats.prose_paths >= 1 and problems == []
