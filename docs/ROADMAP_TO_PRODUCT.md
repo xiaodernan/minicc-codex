@@ -1476,6 +1476,36 @@ verifier/verification_skipped → completion_judge/completion_continue ×4 → c
 **基线**：全量 `.venv/Scripts/python.exe -m pytest -q -W error` **1006 passed**（1002 + 4 条路由总表门），exit 0。
 
 
+### M8 退出标准真跑记录（第十八批，2026-09-23）
+
+M1-M7 各有真跑批次，M8 的六条一直只有「任务落地」没有「标准复核」。本批按第三节 `:335-341` 逐条跑：
+
+| 标准 | 结论 | 证据 |
+| --- | --- | --- |
+| M8-1 10 条消息在第 5 条 fork，两文件独立，`--resume` 能列出并恢复 | ✅ | `tests/test_session_fork.py`（与 `test_memory`/`test_plugin_api`/`test_logging` 同批 **110 passed**）；fork 独立性由 `test_two_forks_diverge_without_cross_talk` 钉住，列表面是 `minicc.main._print_sessions` |
+| M8-2 任务 A 写记忆、任务 B 系统提示出现索引行；可手工编辑删除；无记忆时行为不变 | ✅ | `tests/test_memory.py`；注入面是**索引行**不是全文（M8-T1 的 token 纪律） |
+| M8-3 `docs/PLUGIN_API.md` 示例原样跑通；同名注册被拒（除非 `override=True`） | ✅ | `test_plugin_api.py::test_every_doc_example_runs_verbatim` 逐 ```python``` 块 exec（不是「看起来像能跑」）、`test_late_registration_never_silently_replaces_a_builtin`、`test_override_is_explicit_and_leaves_an_audit_trail` |
+| M8-4 干净 venv 装 wheel 后两个入口可用、UI 200、版本号三处一致 | ✅ | `tests/test_packaging.py` **11 passed**（含 `test_installed_wheel_serves_the_workbench`、`test_version_is_single_sourced`、`test_console_scripts_are_declared_and_resolve`），真构建 wheel+sdist，137s |
+| M8-5 DEBUG 日志含 `provider_retry`/`tool_round_finished`/`run_finished` 且不含 api_key 与 web token | ✅ | `tests/test_logging.py`（含 grep 断言） |
+| M8-5 `minicc/` 下 `print()` 下降 ≥80% | ✅ **98.2%**，且口径已换 | 旧注记自己说过 `grep -c 'print('` 不可信（会数到 docstring 与字符串）。本批改用 **AST 数真实 `print(...)` 调用**：`minicc/` 下 **1** 处（`cli_io.py` 的 CLI 输出漏斗），基线 55。命令：`python -c "import ast,pathlib;..."`（见下方注记） |
+| M8-5 `/api/metrics` 的 token/成本与单任务快照对得上 | ✅ | 第十批 M8-T23 + 第十四批 M8-T27（分项求和=总数） |
+| M8-6 `tests/test_core.py` 拆分完成、测试数不降 | ✅（一处有意残留） | 已拆成 `test_core_{agent,tools,task,llm,session}.py`（1237/309/1137/406/270 行）；残留 `test_core.py` **75 行**，文件头写明理由：`minicc.config`/`minicc.benchmarks` 不属于那五个域任一，硬塞会让文件名说谎。测试本体逐字搬迁、断言未改 |
+
+**口径注记（`print()` 计数怎么才算数）**：`grep -rn 'print(' minicc/` 会把注释、docstring、字符串一起数进去，所以它给出的「下降 80%」既可能虚高也可能虚低。可复现的计数方式是 AST：
+
+```bash
+.venv/Scripts/python.exe -c "
+import ast,pathlib
+n=0
+for p in pathlib.Path('minicc').rglob('*.py'):
+    t=ast.parse(p.read_text(encoding='utf-8'))
+    n+=sum(1 for x in ast.walk(t) if isinstance(x,ast.Call) and isinstance(x.func,ast.Name) and x.func.id=='print')
+print(n)"
+```
+
+**本批结论**：M8 六条退出标准全部成立，没有一条需要改写标准来迁就实现；唯一与标准字面不同的地方（`test_core.py` 仍在）已在文件头自述理由，属于**有意保留**而不是漏拆。
+
+
 ### M8-T7 注记：一次真实失败的时间线，以及「不给结论」的边界
 
 一次真实只读小任务消耗 118,499 tokens、跑了 5 轮 `run_agent` 后才以 provider `451 censorship_blocked` 失败。
@@ -1508,6 +1538,15 @@ M6-T4/M6-T5 的落地记录来自 `02059ea`、`a97bf13` 等一批提交（对应
 （`## 三` 里每个里程碑自带的检查清单）加上第六节的跟踪指标做一次整体复核（含真实模型端到端），而不是继续
 加功能。注：本文件没有「第八节」，此前此处写的「第八节退出标准」是错的交叉引用——退出标准按里程碑分散在
 第三节（`:44/:88/:131/:178/:229/:269/:302/:335`），一次性列在总表 `:23` 的「退出标准」列。
+
+**2026-09-23 更新**：那次整体复核已经做起来了——第一到第四批覆盖 M1-M3、M4、M5-M7，第十八批覆盖 M8。
+当前只剩**一条**退出标准没有数据支撑，且它需要的是一次真模型全量评测（成本可观、受本机 10 RPM 配额约束）：
+
+| 未达成项 | 现状 | 需要什么才能结案 |
+| --- | --- | --- |
+| M6-4「30 个 fixture 的性能 P95 不超 M4 基线 +15%」 | 🟡 第五批跑了 8 条：干净 4 条 5.2/34.3/41.3/110.2s（通过 3/4），429 污染 4 条 22.2/22.3/51.8/60.9s（通过 0/4）。**n=8 算不出 p95**，且把污染组混进去会得到一个既不代表能力也不代表性能的数字 | 一次 30 条的干净全量评测（≈30 次真模型任务），或明确把标准改成「分组区间 + 通过率」并说明为什么不报 p95 |
+| M3-3「`grep -rn sk-` 零命中」 | ❌ 标准本身不成立（命中 19 167 次全是 `task-<hex>` 里的子串），已由 `scan_credentials()` 换成形状判据结案 | 无（已用可执行判据替代） |
+| M4-3「POST `/api/*` 覆盖率 100%」 | ✅ 已从「算不出来」转为实测通过（`coverage[toml]` 进 dev extra；分派点 GET 20/20、POST 14/14） | 无（已结案） |
 
 
 ### M8-T11 注记：为什么改成「宁可重复，绝不丢字」
