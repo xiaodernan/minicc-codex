@@ -22,6 +22,7 @@ import ast
 import json
 import re
 import threading
+import time
 import types
 import urllib.error
 import urllib.parse
@@ -51,9 +52,28 @@ _MIN_POST_ROUTES = 10
 #: one, so the rule here is only the shape a code must have.
 _CODE_SHAPE = re.compile(r"^[a-z][a-z0-9_]{2,40}$")
 
+#: Routes dispatched by prefix/``endswith`` and carrying a task id. The AST scan
+#: for ``path == "..."`` cannot see them, so they are declared here: the
+#: inventory keeps them (floors + named-route assertions still bite) and
+#: :func:`_probe_dynamic_routes` drives each one with a real id.
+_DYNAMIC_ROUTES: dict[str, list[str]] = {
+    "GET": ["/api/tasks/{task_id}", "/api/tasks/{task_id}/events"],
+    "POST": ["/api/tasks/{task_id}/resume", "/api/tasks/{task_id}/cancel"],
+}
+
+#: A template placeholder the generic per-route loops must not send literally.
+_TEMPLATE = "{task_id}"
+
 
 def _route_table() -> dict[str, list[str]]:
-    """Every exact ``/api/...`` path compared against ``path`` in each handler."""
+    """Every exact ``/api/...`` path compared against ``path`` in each handler.
+
+    Exact paths are enumerated from the dispatcher's own AST. Dynamic routes
+    (dispatched by ``path.startswith``/``path.endswith`` and carrying a task id)
+    are merged in from :data:`_DYNAMIC_ROUTES`, because no scan of ``path ==
+    "..."`` can ever see them — M8-T32's 100 % measured exactly that set and
+    nothing more.
+    """
     tree = ast.parse(WEBSERVER.read_text(encoding="utf-8"))
     verbs = {"do_GET": "GET", "do_POST": "POST"}
     routes: dict[str, set[str]] = {"GET": set(), "POST": set()}
@@ -71,6 +91,8 @@ def _route_table() -> dict[str, list[str]]:
                     and comparator.value.startswith("/api/")
                 ):
                     routes[verb].add(comparator.value)
+    for verb, paths in _DYNAMIC_ROUTES.items():
+        routes[verb].update(paths)
     return {verb: sorted(paths) for verb, paths in routes.items()}
 
 
@@ -104,11 +126,25 @@ class _Live:
         self.thread.start()
         self.origin = f"http://127.0.0.1:{self.server.server_address[1]}"
 
-    def call(self, method: str, path: str) -> tuple[int, Any]:
-        body = b"{}" if method == "POST" else None
+    def _target(self, path: str) -> str:
+        """Quote the path but keep a query string intact.
+
+        ``quote(path)`` would percent-encode the ``?`` of ``.../events?after=0``,
+        which the server then reads as part of the task id — the probe has to
+        build the URL from its parts, not quote the whole string.
+        """
+        parsed = urllib.parse.urlsplit(path)
+        target = self.origin + urllib.parse.quote(parsed.path)
+        return f"{target}?{parsed.query}" if parsed.query else target
+
+    def call(self, method: str, path: str, body: Any = None) -> tuple[int, Any]:
+        if body is None:
+            data = b"{}" if method == "POST" else None
+        else:
+            data = json.dumps(body).encode("utf-8")
         headers = {"Content-Type": "application/json"} if method == "POST" else {}
         request = urllib.request.Request(
-            self.origin + urllib.parse.quote(path), data=body, headers=headers, method=method
+            self._target(path), data=data, headers=headers, method=method
         )
         try:
             with urllib.request.urlopen(request, timeout=30) as response:
@@ -117,6 +153,63 @@ class _Live:
             return exc.code, _decode(exc.read())
         except OSError as exc:  # a route that kills the connection is a defect too
             pytest.fail(f"{method} {path} never answered: {exc}")
+
+    def submit(self, workspace: Path, *, session_id: str = "route-probe") -> str:
+        """Create a real, *unscheduled* task so the dynamic routes have an id.
+
+        ``_defer_schedule`` is what the rest of the suite uses for this: the
+        record exists (so the routes have something to address) but no worker
+        starts, so the probe never races a real agent run.
+        """
+        status, payload = self.call(
+            "POST",
+            "/api/tasks",
+            {
+                "message": "route inventory probe",
+                "session_id": session_id,
+                "workspace_path": str(workspace),
+                "allow_changes": False,
+                "_defer_schedule": True,
+            },
+        )
+        assert status == 202, payload
+        task_id = str(payload.get("task_id") or "")
+        assert task_id, payload
+        return task_id
+
+    def read_sse_prefix(self, path: str, *, limit: int = 4096, timeout: float = 10.0) -> tuple[int, str]:
+        """Read a bounded prefix of a streaming response, then hang up.
+
+        A streaming route cannot be driven by :meth:`call`: ``read()`` would sit
+        on the socket until the stream's own timeout (``TASK_STREAM_TIMEOUT``),
+        which is how a healthy route becomes a hung test. This stops as soon as
+        one frame is complete (or the byte budget / deadline is spent) and
+        always closes the connection.
+        """
+        request = urllib.request.Request(self._target(path), method="GET")
+        try:
+            response = urllib.request.urlopen(request, timeout=timeout)
+        except urllib.error.HTTPError as exc:
+            return exc.code, exc.read().decode("utf-8", "replace")
+        except OSError as exc:
+            pytest.fail(f"GET {path} never answered: {exc}")
+        try:
+            status = int(response.status)
+            buffer = b""
+            deadline = time.monotonic() + timeout
+            # ``read(256)`` on an ``HTTPResponse`` waits for the full 256 bytes,
+            # so a short first frame would block until the socket timeout.
+            # ``read1`` returns whatever has arrived, which is what "read one
+            # frame and hang up" needs.
+            reader = getattr(response, "read1", None)
+            while b"\n\n" not in buffer and len(buffer) < limit and time.monotonic() < deadline:
+                chunk = reader(256) if callable(reader) else response.read(256)
+                if not chunk:
+                    break
+                buffer += chunk
+            return status, buffer.decode("utf-8", "replace")
+        finally:
+            response.close()
 
     def shutdown(self) -> None:
         self.server.shutdown()
@@ -152,16 +245,21 @@ def assert_answered(label: str, status: int, payload: Any) -> None:
     )
 
 
-#: Routes dispatched by prefix (``path.startswith("/api/tasks/")``) cannot be
-#: enumerated as a finite list, so the per-route probe above silently does not
-#: cover them. Listing them as data is the point: the gate below fails when a new
-#: prefix family appears and nobody decided whether it needs its own probe.
+#: Prefix-dispatched route families (``path.startswith("/api/tasks/")``). They
+#: cannot be enumerated as a finite list, so the exact-path inventory above
+#: cannot cover them — and M8-T33's whole point is that this hole is *data*
+#: rather than a sentence in a boundary note.
 #:
-#: ``/api/tasks/<id>/events`` is deliberately left unprobed by the generic
-#: driver: it is a streaming route, and a plain request would sit on the socket
-#: until timeout. It needs a streaming-aware probe, which is why it is named
-#: here rather than quietly added to the loop.
-_UNPROBED_FAMILIES = {"/api/tasks/"}
+#: M8-T34 closed the hole instead of parking it: ``/api/tasks/`` now has a
+#: streaming-aware probe (:func:`_probe_dynamic_routes` plus the two
+#: ``test_dynamic_*`` gates), so it moved from "unprobed" to "probed". A family
+#: that genuinely cannot be probed safely belongs in :data:`_PARKED_FAMILIES`
+#: **with its reason**, never silently dropped.
+_PROBED_FAMILIES = {"/api/tasks/"}
+
+#: family -> why it cannot be probed. Empty on purpose: nothing is parked today,
+#: and the gate below fails if a new family arrives without a decision.
+_PARKED_FAMILIES: dict[str, str] = {}
 
 #: The catch-all guard that answers 404 for anything under /api/ that matched no
 #: route. Not a family with endpoints of its own.
@@ -188,14 +286,18 @@ def _prefix_families() -> set[str]:
     return found
 
 
-def test_prefix_dispatched_families_are_declared_not_silently_omitted() -> None:
-    """The hole in the 100 % above is recorded, and cannot grow quietly."""
+def test_prefix_dispatched_families_are_probed_or_parked_with_a_reason() -> None:
+    """The hole outside the 100 % is recorded, and cannot grow quietly."""
     families = _prefix_families()
     assert "/api/tasks/" in families, families
-    assert families == _UNPROBED_FAMILIES, (
+    declared = _PROBED_FAMILIES | set(_PARKED_FAMILIES)
+    assert families == declared, (
         "a prefix-dispatched route family appeared that this gate does not probe; "
-        "either probe it or record why not: " + json.dumps(sorted(families ^ _UNPROBED_FAMILIES))
+        "either probe it or record why not: " + json.dumps(sorted(families ^ declared))
     )
+    # A family may only be parked with a reason; an empty-string reason is how a
+    # silent drop would look once it has been written into the dict.
+    assert all(reason.strip() for reason in _PARKED_FAMILIES.values()), _PARKED_FAMILIES
 
 
 def test_the_route_inventory_is_actually_a_route_inventory() -> None:
@@ -206,12 +308,15 @@ def test_the_route_inventory_is_actually_a_route_inventory() -> None:
     # later per-route assertion pass by covering nothing.
     assert {"/api/chat", "/api/tasks", "/api/tasks/batch"} <= set(routes["POST"]), routes["POST"]
     assert "/api/metrics" in routes["GET"], routes["GET"]
+    # The dynamic family is part of the inventory, not a footnote beside it.
+    for verb, templates in _DYNAMIC_ROUTES.items():
+        assert set(templates) <= set(routes[verb]), (verb, templates, routes[verb])
 
 
 def test_every_get_route_answers_or_refuses_with_a_code(tmp_path: Path) -> None:
     live = _Live(tmp_path)
     try:
-        routes = _route_table()["GET"]
+        routes = [path for path in _route_table()["GET"] if _TEMPLATE not in path]
         probed = 0
         for path in routes:
             status, payload = live.call("GET", path)
@@ -230,7 +335,7 @@ def test_every_post_route_answers_or_refuses_with_a_code(tmp_path: Path) -> None
     """
     live = _Live(tmp_path)
     try:
-        routes = _route_table()["POST"]
+        routes = [path for path in _route_table()["POST"] if _TEMPLATE not in path]
         probed = 0
         for path in routes:
             status, payload = live.call("POST", path)
@@ -271,3 +376,83 @@ def test_the_inventory_reports_the_criterion_s_number(tmp_path: Path, capsys: py
         assert all(item["percent"] == 100.0 for item in result.values()), result
     finally:
         live.shutdown()
+
+
+# ---------------------------------------------------------------------------
+# M8-T34: the streaming-aware probe for the prefix-dispatched family
+#
+# M8-T33 turned "the 100 % has a hole" into data. This closes the hole: each
+# route under ``/api/tasks/`` is driven with a real task id, including the SSE
+# endpoint, which is read as a stream and hung up on as soon as one frame is
+# complete. Nothing here may block on a socket until a timeout.
+# ---------------------------------------------------------------------------
+
+
+def test_dynamic_task_routes_answer_or_refuse_with_a_code(tmp_path: Path) -> None:
+    """GET detail, POST resume and POST cancel, all addressed to a real id."""
+    live = _Live(tmp_path)
+    try:
+        task_id = live.submit(tmp_path)
+        for method, path in (
+            ("GET", f"/api/tasks/{task_id}"),
+            ("POST", f"/api/tasks/{task_id}/resume"),
+            ("POST", f"/api/tasks/{task_id}/cancel"),
+        ):
+            status, payload = live.call(method, path)
+            assert_answered(f"{method} {path}", status, payload)
+    finally:
+        live.shutdown()
+
+
+def test_dynamic_task_routes_refuse_an_unknown_id_with_a_stable_code(tmp_path: Path) -> None:
+    """An unknown id is refused *by code*, not by a 500 or a hang.
+
+    ``task_not_found`` is the documented shape for this family; pinning the
+    exact code is what makes the assertion more than "something happened".
+    """
+    live = _Live(tmp_path)
+    try:
+        status, payload = live.call("GET", "/api/tasks/task-does-not-exist")
+        assert status == 404, payload
+        assert payload.get("code") == "task_not_found", payload
+
+        status, payload = live.call("GET", "/api/tasks/task-does-not-exist/events")
+        assert status == 404, payload
+        assert payload.get("code") == "task_not_found", payload
+    finally:
+        live.shutdown()
+
+
+def test_event_stream_yields_a_frame_without_hanging(tmp_path: Path) -> None:
+    """The SSE route is read as a stream: one frame, then hang up.
+
+    This is the route M8-T33 named as the reason the family could not be probed
+    by the generic driver. The probe asserts the two acceptable outcomes — a
+    frame arrives, or the route refuses with a structured body — and the byte
+    budget plus deadline make a hung socket a failure rather than a slow test.
+    """
+    live = _Live(tmp_path)
+    try:
+        task_id = live.submit(tmp_path)
+        started = time.monotonic()
+        status, text = live.read_sse_prefix(f"/api/tasks/{task_id}/events")
+        elapsed = time.monotonic() - started
+        assert status == 200, (status, text[:400])
+        assert "data:" in text, f"stream produced no frame: {text[:400]!r}"
+        assert elapsed < 10, f"stream probe took {elapsed:.1f}s; it must not wait for the stream to end"
+    finally:
+        live.shutdown()
+
+
+def test_event_stream_replay_from_a_cursor_also_answers(tmp_path: Path) -> None:
+    """Reconnecting with ``?after=`` is the documented replay path; probe it too."""
+    live = _Live(tmp_path)
+    try:
+        task_id = live.submit(tmp_path)
+        status, text = live.read_sse_prefix(f"/api/tasks/{task_id}/events?after=0")
+        assert status == 200, (status, text[:400])
+        assert "data:" in text, f"replay produced no frame: {text[:400]!r}"
+    finally:
+        live.shutdown()
+
+
