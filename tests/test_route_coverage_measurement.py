@@ -22,6 +22,7 @@ denominator shrinks, and the documented command must reproduce the number.
 
 from __future__ import annotations
 
+import ast
 import importlib.util
 import subprocess
 import sys
@@ -185,3 +186,148 @@ def test_the_documented_command_reproduces_the_number() -> None:
         assert f"{verb}: A(compare-line-ran)" in output, output
     assert "NOT ENTERED" not in output, output
     assert "INVENTORY PROBLEM" not in output, output
+
+
+# ---------------------------------------------------------------------------
+# M8-T36: reconcile the two route readers against each other.
+#
+# ``tests/test_http_route_inventory.py`` builds its own inventory: an AST scan of
+# ``path == "..."`` plus a **hand-copied** ``_DYNAMIC_ROUTES`` list, because that
+# scan cannot see prefix dispatch. ``scripts/route_coverage.py`` reads the same
+# file with a different walker that *does* see ``startswith``/``endswith``.
+# Neither reader notices the other going stale: add ``if
+# path.startswith("/api/jobs/")`` to webserver.py and the inventory test keeps
+# reporting a full, green table, because nothing compares its hand-copied list to
+# what the source now says. A list copied by hand is exactly the failure M8-T32
+# recorded ("a vocabulary read from the wrong pattern is as misleading as a
+# hand-copied one"), so the two have to be reconciled in both directions:
+# no prefix family without a template, no template without a family behind it.
+
+
+#: The dispatcher's catch-all is not a route family to probe; like
+#: ``_PARKED_FAMILIES`` in the inventory test, an exception has to carry a reason,
+#: and an exception whose pattern no longer matches anything is stale and reported.
+_CATCH_ALL = {("GET", "/api/*"): "unknown /api/ 404 fallback, not a real route"}
+
+_TEMPLATE_MARK = "{task_id}"
+
+
+def _declared_dynamic_routes() -> dict[str, list[str]]:
+    """Read ``_DYNAMIC_ROUTES`` out of the inventory test without importing it.
+
+    The declaration is annotated (``_DYNAMIC_ROUTES: dict[str, list[str]] = { … }``)
+    so it is an ``AnnAssign``; reading only bare ``Assign`` made this extractor
+    report the list as missing, which is the same self-inflicted blindness the
+    script's own walker had once.
+    """
+    source = (REPO_ROOT / "tests" / "test_http_route_inventory.py").read_text(encoding="utf-8")
+    for node in ast.parse(source).body:
+        targets = []
+        if isinstance(node, ast.Assign):
+            targets = node.targets
+        elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+            targets = [node.target]
+        if any(isinstance(target, ast.Name) and target.id == "_DYNAMIC_ROUTES" for target in targets):
+            assert node.value is not None
+            return ast.literal_eval(node.value)
+    raise AssertionError("_DYNAMIC_ROUTES 没了：手抄清单被删掉也要被这门看见")
+
+
+def _prefix_labels(source_text: str) -> dict[str, set[str]]:
+    """Raw ``verb -> route label`` pairs for every prefix/suffix dispatch site."""
+    labels: dict[str, set[str]] = {}
+    for site in rc.dispatch_sites(source_text):
+        if "*" in site.route:
+            labels.setdefault(site.verb, set()).add(site.route)
+    return labels
+
+
+def _prefix_families(source_text: str) -> dict[str, set[frozenset[str]]]:
+    """Route families the AST reader reaches by prefix/suffix, as literal sets."""
+    families: dict[str, set[frozenset[str]]] = {}
+    for site in rc.dispatch_sites(source_text):
+        if "*" not in site.route:
+            continue
+        if (site.verb, site.route) in _CATCH_ALL:
+            continue
+        parts = {token.strip("*") for token in site.route.split()}
+        families.setdefault(site.verb, set()).add(frozenset(parts))
+    return families
+
+
+def _literal_parts(template: str) -> frozenset[str]:
+    """The fixed segments of a declared template: ``/api/tasks/{id}/events`` -> two.
+
+    A template with no ``{task_id}`` is not dynamic at all; the inventory test's
+    generic probe skips those, so claiming one here would be a phantom.
+    """
+    assert _TEMPLATE_MARK in template, f"{template} 不是动态路由模板，不该出现在手抄清单里"
+    prefix, _, suffix = template.partition(_TEMPLATE_MARK)
+    return frozenset({piece for piece in (prefix, suffix) if piece})
+
+
+def _reconcile(
+    families: dict[str, set[frozenset[str]]],
+    declared: dict[str, list[str]],
+    labels: dict[str, set[str]] | None = None,
+) -> list[str]:
+    """Complain about every disagreement between the two readers."""
+    complaints: list[str] = []
+    verbs = sorted(set(families) | set(declared))
+    for verb in verbs:
+        group = families.get(verb, set())
+        templates = declared.get(verb, [])
+        for parts in sorted(group, key=lambda p: sorted(p)):
+            if any(parts == _literal_parts(template) for template in templates):
+                continue
+            complaints.append(f"{verb} 源码里有前缀分派 {sorted(parts)}，手抄清单没有对应模板：它不会被任何探针驱动")
+        for template in sorted(templates):
+            parts = _literal_parts(template)
+            if any(parts == declared_parts for declared_parts in group):
+                continue
+            complaints.append(f"{verb} 手抄清单声明了 {template}，源码里已没有这条前缀分派：幻影探针")
+    if labels is not None:
+        for verb, route in _CATCH_ALL:
+            if route not in labels.get(verb, set()):
+                complaints.append(f"{verb} {route} 这条豁免已经对不上源码里的任何前缀分派：豁免也会过期")
+    return complaints
+
+
+def test_the_dynamic_route_list_still_matches_the_source() -> None:
+    """The load-bearing one: run the reconciliation over the real files."""
+    source = (REPO_ROOT / "minicc" / "webserver.py").read_text(encoding="utf-8")
+    labels = _prefix_labels(source)
+    families = _prefix_families(source)
+    declared = _declared_dynamic_routes()
+    assert families, "前缀分派一族都没读到，这门就空转了"
+    assert sum(len(paths) for paths in declared.values()) >= 4, declared
+    assert _reconcile(families, declared, labels) == []
+    # An exception without a reason is not an exception, it is an unrecorded hole.
+    assert all(reason.strip() for reason in _CATCH_ALL.values()), _CATCH_ALL
+
+
+def test_an_undeclared_prefix_family_is_reported() -> None:
+    source = _MINI_DISPATCHER + '''
+class More:
+    def do_GET(self):
+        path = self.path
+        if path.startswith("/api/jobs/"):
+            return 200
+'''
+    families = _prefix_families(source)
+    complaints = _reconcile(families, {"GET": []})
+    assert any("/api/jobs/" in text for text in complaints), complaints
+
+
+def test_a_template_without_a_branch_behind_it_is_reported() -> None:
+    families = _prefix_families(_MINI_DISPATCHER)
+    complaints = _reconcile({"POST": {frozenset({"/api/tasks/"})}}, {"POST": ["/api/reports/{task_id}/export"]})
+    assert any("幻影探针" in text for text in complaints), complaints
+    assert families  # the mini dispatcher still exercises the reader
+
+
+def test_an_exemption_that_no_longer_matches_anything_is_reported() -> None:
+    """The catch-all the test excuses has to still exist in the dispatcher."""
+    complaints = _reconcile({"GET": set()}, {"GET": []}, {"GET": {"/api/somewhere-else/*"}})
+    assert any("豁免也会过期" in text for text in complaints), complaints
+    assert _reconcile({"GET": set()}, {"GET": []}, {"GET": {"/api/*"}}) == []
