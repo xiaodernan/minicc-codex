@@ -28,8 +28,11 @@ Two classes are checked, both mechanically:
     wrong.
 
 ``link``
-    ``[text](target)`` with a non-URL target must resolve on disk, relative to
-    the document's directory or the repository root.
+    ``[text](target)`` with a non-URL target must resolve **inside what git
+    tracks**. A target git ignores is a run's own output, so it is counted
+    separately as ``generated`` rather than reported as broken; a target that
+    exists only on this machine — present, untracked, not ignored — is red, which
+    is the dangling link the author is the last person able to see.
 
 Counts for both are printed, and ``--check`` fails when the inventory is
 suspiciously small too: an empty harvest means the extractor went blind, which
@@ -43,6 +46,7 @@ import argparse
 import ast
 import difflib
 import re
+import subprocess
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -100,6 +104,7 @@ class Stats:
     links: int
     evidence: int = 0
     prose_paths: int = 0
+    links_generated: int = 0
 
 
 def sections(text: str) -> list[Section]:
@@ -314,26 +319,55 @@ def _appendix_section(token: str, headings: list[Section]) -> Section | None:
     return None
 
 
-def check_links(document: Path, text: str) -> tuple[list[Problem], int]:
+def check_links(document: Path, text: str) -> tuple[list[Problem], int, int]:
+    """Resolve markdown links, separating ``missing`` from ``generated``.
+
+    Returns ``(problems, checked, generated)``. A link is a claim about this
+    repository, so three outcomes are possible and only one of them is red:
+
+    * the target is tracked → satisfied;
+    * the target is ignored by git (``output/playwright/*.png``) → the sentence is
+      about an artifact a run produces, which a fresh clone cannot show and the
+      repository was never going to hold. Counted, printed, not red — M8-T38
+      opened on exactly these two links being red here and green there;
+    * anything else → red, including the case ``exists on this disk but git has
+      never seen it``, which is the dangling link that only the author can't see.
+
+    A candidate outside the repository is judged by plain existence: outside the
+    work tree there is no index to consult, and that is how a synthetic document
+    in a temp directory still gets checked.
+    """
     problems: list[Problem] = []
     checked = 0
+    generated = 0
     for match in _LINK.finditer(text):
         target = match.group(2).split("#")[0].strip()
         if not target or target.startswith(("http://", "https://", "mailto:", "#")):
             continue
         checked += 1
-        if (document.parent / target).exists() or (REPO_ROOT / target).exists():
+        candidates = [(c, _inside_repo(c)) for c in (document.parent / target, REPO_ROOT / target)]
+        inside = [(c, rel) for c, rel in candidates if rel is not None]
+        if any(_holds(rel) for _, rel in inside):
             continue
-        problems.append(
-            Problem("LINK", document.name, _line_of(text, match.start()), f"链接目标 {target} 不存在")
+        if any(_git_ignored(rel) for _, rel in inside):
+            generated += 1
+            continue
+        if any(c.exists() for c, rel in candidates if rel is None):
+            continue
+        here = next((rel for c, rel in inside if c.exists()), None)
+        detail = (
+            f"链接目标 {target} 本机有（{here}），但 git 没有跟踪它，干净检出里这条链接是断的"
+            if here
+            else f"链接目标 {target} 不存在"
         )
-    return problems, checked
+        problems.append(Problem("LINK", document.name, _line_of(text, match.start()), detail))
+    return problems, checked, generated
 
 
 def check_document(document: Path) -> tuple[list[Problem], Stats]:
     text = document.read_text(encoding="utf-8")
     pointer_problems, pointers, unresolved = check_pointers(document, text)
-    link_problems, links = check_links(document, text)
+    link_problems, links, links_generated = check_links(document, text)
     evidence_problems, evidence = check_evidence(document, text)
     relative = document.relative_to(REPO_ROOT).as_posix()
     problems = pointer_problems + link_problems + evidence_problems
@@ -362,10 +396,23 @@ def check_document(document: Path) -> tuple[list[Problem], Stats]:
         )
     prose = [claim for claim in prose_path_claims(text) if _is_path_claim(claim)]
     for claim in prose:
-        if _resolve_path(re.sub(r"^\./", "", claim)) is None and _exemption(claim) is None:
-            problems.append(Problem("PROSE", relative, 1, f"散文里（反引号之外）写着路径 {claim}，仓库里没有，而且阅读器看不见它"))
+        rel = re.sub(r"^\./", "", claim)
+        if _resolve_path(rel) is None and _exemption(rel) is None:
+            problems.append(
+                Problem(
+                    "PROSE",
+                    relative,
+                    1,
+                    f"散文里（反引号之外）写着路径 {claim}，仓库里没有，而且阅读器看不见它{_untracked_here(rel)}",
+                )
+            )
     return problems, Stats(
-        pointers=pointers, unresolved=unresolved, links=links, evidence=evidence, prose_paths=len(prose)
+        pointers=pointers,
+        unresolved=unresolved,
+        links=links,
+        evidence=evidence,
+        prose_paths=len(prose),
+        links_generated=links_generated,
     )
 
 
@@ -407,16 +454,16 @@ _PROSE_PATH = re.compile(r"[\w.\-/]+\.(?:py|md|toml|json|txt|example)\b")
 #: Not files in this repository: the product reads or writes them at run time,
 #: in the *user's* workspace. A reason is mandatory — a bare name in a set is
 #: how an exemption quietly outlives the thing it excuses.
+#:
+#: M8-T38's ``exemption_usage`` reported five dead rows here, shipped by M8-T37
+#: one batch after that batch wrote "a policy table row nobody reaches is a dead
+#: row": a citation with no slash is never a location claim, so those five keys
+#: could not be consulted. Deleted, not defended.
 _NOT_A_REPO_PATH: dict[str, str] = {
     ".minicc/": "运行时在用户工作区读写的配置目录，不是本仓库的文件",
     "workspace/": "示例里用户的工作区路径",
     "out/": "示例输出目录",
     "src/": "被 agent 操作的用户项目文件示例",
-    "AGENTS.md": "从用户工作区读取的指令文件，本仓库刻意不内置",
-    "CLAUDE.md": "同上：其它 agent 的指令文件名",
-    "MINICC.md": "同上：本产品的指令文件名",
-    "review.md": "示例中 agent 要写的产物文件",
-    "keys.md": "凭据哨兵文件名，只出现在测试夹具的描述里",
 }
 
 #: Created by the build, absent from a clean checkout (M8-T4).
@@ -507,26 +554,37 @@ def _test_definitions(path: Path) -> dict[str, int]:
 
 
 def _all_test_names() -> dict[str, str]:
-    """Every test function name under ``tests/``, mapped to the file holding it."""
+    """Every test function name under tracked ``tests/*.py``, mapped to its file.
+
+    An untracked test module is excluded for the same reason an untracked source
+    file is: citing a test that only exists on this machine is a citation that
+    resolves in neither a fresh clone nor CI.
+    """
     found: dict[str, str] = {}
     for module in sorted((REPO_ROOT / "tests").glob("*.py")):
+        if not _holds(f"tests/{module.name}"):
+            continue
         for name in _test_definitions(module):
             found.setdefault(name, module.name)
     return found
 
 
 def _resolve_path(rel: str) -> Path | None:
-    """Resolve a citation against the repo root, then each abbreviation root.
+    """Resolve a citation against what the repository holds, not against this disk.
 
     No document-relative root: every claim that reaches here carries a slash (see
     ``_is_path_claim``), so a path written by a doc in ``docs/`` is still written
     from the repository root. The links reader is the one that resolves relative
     to the file, because markdown links really are relative.
+
+    A file that exists here but is not tracked resolves to ``None`` on purpose:
+    the citation would be dangling for everyone who clones this commit, and the
+    red is emitted with ``_untracked_here`` saying which of the two it is.
     """
     for base in _RESOLVE_ROOTS:
-        candidate = REPO_ROOT / base / rel if base else REPO_ROOT / rel
-        if candidate.exists():
-            return candidate
+        key = f"{base}/{rel}" if base else rel
+        if _holds(key):
+            return REPO_ROOT / key
     return None
 
 
@@ -545,11 +603,84 @@ def _code_spans(text: str) -> list[tuple[int, str]]:
     return [(match.start(), match.group(1).strip()) for match in _CODE_SPAN.finditer(fenced)]
 
 
+# --------------------------------------------------------------------------- #
+# What the repository holds. Read from git, not from the working directory.
+#
+# Every set below is the answer to "would a fresh clone agree?" — which is the
+# only question an exit standard can be checked against. ``iterdir()`` answers a
+# different question: "what happened to be built here?"
+# --------------------------------------------------------------------------- #
+
+
+def _git_output(*args: str) -> list[str]:
+    proc = subprocess.run(
+        ("git", "-C", str(REPO_ROOT), *args), capture_output=True, text=True, encoding="utf-8"
+    )
+    if proc.returncode:
+        return []
+    return [line.replace("\\", "/").strip() for line in proc.stdout.splitlines() if line.strip()]
+
+
+@lru_cache(maxsize=1)
+def _tracked_files() -> frozenset[str]:
+    """Every path git tracks, repo-relative, posix-separated."""
+    return frozenset(_git_output("ls-files"))
+
+
+@lru_cache(maxsize=1)
+def _tracked_dirs() -> frozenset[str]:
+    """Directories implied by tracked paths — git tracks files, not folders."""
+    dirs: set[str] = set()
+    for path in _tracked_files():
+        parts = path.split("/")
+        for cut in range(1, len(parts)):
+            dirs.add("/".join(parts[:cut]))
+    return frozenset(dirs)
+
+
+def _holds(rel: str) -> bool:
+    """Does the repository itself hold this path (file or implied directory)?"""
+    return rel in _tracked_files() or rel in _tracked_dirs()
+
+
+@lru_cache(maxsize=None)
+def _git_ignored(rel: str) -> bool:
+    """Would git refuse to track this path? That marks it as generated, not missing."""
+    return subprocess.run(
+        ("git", "-C", str(REPO_ROOT), "check-ignore", "-q", rel), capture_output=True
+    ).returncode == 0
+
+
+def _inside_repo(candidate: Path) -> str | None:
+    """Repo-relative form of a resolved path, or ``None`` if it is outside."""
+    try:
+        return candidate.resolve().relative_to(REPO_ROOT.resolve()).as_posix()
+    except ValueError:
+        return None
+
+
+def _untracked_here(rel: str) -> str:
+    """Suffix for a red that only makes sense on this machine: the file exists, git has it not."""
+    for base in _RESOLVE_ROOTS:
+        key = f"{base}/{rel}" if base else rel
+        if (REPO_ROOT / key).exists():
+            return f"（本机有 {key}，但 git 没有跟踪它，所以干净检出里这条引用是悬空的）"
+    return ""
+
+
 @lru_cache(maxsize=1)
 def _top_level() -> frozenset[str]:
-    return frozenset(
-        entry.name for entry in REPO_ROOT.iterdir() if entry.is_dir() and entry.name != "__pycache__"
-    )
+    """Top-level directories the repository holds — from git, never from ``iterdir``.
+
+    M8-T37 measured the same HEAD reporting 811 evidence pointers on the machine
+    that had been building and running things here, and 782 in a clean checkout.
+    Nothing in the documents differed: this set came from the working directory,
+    so ``output/``, ``.minicc/`` and ``.venv/`` — which exist only because
+    something ran here — silently turned non-claims into claims. A tool whose
+    inventory depends on which machine cloned the repository cannot back an exit
+    standard, so the claim set is now a function of what git tracks.
+    """
+    return frozenset(path.split("/", 1)[0] for path in _tracked_files() if "/" in path)
 
 
 @lru_cache(maxsize=1)
@@ -558,13 +689,16 @@ def _abbreviation_heads() -> frozenset[str]:
 
     Derived from the same ``_ABBREVIATION_ROOTS`` the resolver tries, so a head
     cannot be admitted as a claim by one function and then fail to resolve
-    because the other list forgot it.
+    because the other list forgot it. Tracked content only, for the same reason
+    ``_top_level`` is.
     """
     heads: set[str] = set()
     for base in _ABBREVIATION_ROOTS:
-        root = REPO_ROOT / base
-        if root.is_dir():
-            heads.update(entry.name for entry in root.iterdir() if entry.is_dir())
+        prefix = base + "/"
+        for path in _tracked_files():
+            rest = path[len(prefix) :] if path.startswith(prefix) else ""
+            if "/" in rest:
+                heads.add(rest.split("/", 1)[0])
     return frozenset(heads)
 
 
@@ -617,7 +751,7 @@ def check_evidence(document: Path, text: str) -> tuple[list[Problem], int]:
         return [], 0
     problems: list[Problem] = []
     names = _all_test_names()
-    stems = {module.stem for module in (REPO_ROOT / "tests").glob("*.py")}
+    stems = {module.stem for module in (REPO_ROOT / "tests").glob("*.py") if _holds(f"tests/{module.name}")}
     checked = 0
     for offset, span in _code_spans(text):
         line = _line_of(text, offset)
@@ -635,7 +769,9 @@ def check_evidence(document: Path, text: str) -> tuple[list[Problem], int]:
             target = _resolve_path(ref.group("file"))
             if target is None:
                 if _exemption(ref.group("file")) is None:
-                    problems.append(Problem("EVIDENCE", document.name, line, f"{span} 指向的文件不存在"))
+                    problems.append(
+                        Problem("EVIDENCE", document.name, line, f"{span} 指向的文件不存在{_untracked_here(ref.group('file'))}")
+                    )
                 continue
             if ref.group("test") not in _test_definitions(target):
                 hint = difflib.get_close_matches(ref.group("test"), names, n=1, cutoff=0.78)
@@ -660,7 +796,9 @@ def check_evidence(document: Path, text: str) -> tuple[list[Problem], int]:
         target = _resolve_path(rel)
         if target is None:
             if _exemption(rel) is None:
-                problems.append(Problem("EVIDENCE", document.name, line, f"{span} 指向的路径在仓库里不存在"))
+                problems.append(
+                    Problem("EVIDENCE", document.name, line, f"{span} 指向的路径在仓库里不存在{_untracked_here(rel)}")
+                )
             continue
         if path_ref is None:
             continue
@@ -685,6 +823,37 @@ def prose_path_claims(text: str) -> list[str]:
     return [m.group(0) for m in _PROSE_PATH.finditer(_mask_code(text)) if "/" in m.group(0)]
 
 
+def exemption_usage(documents: list[Path]) -> dict[str, int]:
+    """How many shipped citations each exemption key actually answered.
+
+    An exemption nobody reaches is the same defect M8-T29 found in a constant and
+    M8-T37 found in a resolve root: a table that looks like policy. This one is
+    easy to grow stale, because a rule change elsewhere in the reader — say,
+    heads that no longer come from ``iterdir()`` — can silently make a key
+    unreachable while its reason and its document reference both stay intact.
+    """
+    hits: dict[str, int] = {key: 0 for table in _EVIDENCE_TABLES for key in table}
+    for document in documents:
+        if not document.exists():
+            continue
+        relative = document.relative_to(REPO_ROOT).as_posix() if document.is_relative_to(REPO_ROOT) else ""
+        if relative in _OUT_OF_SCOPE_DOCS:
+            continue
+        text = document.read_text(encoding="utf-8")
+        spans = [span for _, span in _code_spans(text)]
+        spans += [claim for claim in prose_path_claims(text) if _is_path_claim(claim)]
+        for span in spans:
+            if _evidence_shape(span) is None:
+                continue
+            reason = _exemption(span)
+            if reason is None:
+                continue
+            for key in hits:
+                if key == span or (key.endswith("/") and span.startswith(key)):
+                    hits[key] += 1
+    return hits
+
+
 def check_exempt_tables(documents: list[Path]) -> list[Problem]:
     """Every exemption must still be earning its place in at least one document."""
     haystack = "\n".join(path.read_text(encoding="utf-8") for path in documents if path.exists())
@@ -700,6 +869,16 @@ def check_exempt_tables(documents: list[Path]) -> list[Problem]:
             problems.append(Problem("EXEMPT", "doc_pointers.py", 1, f"快照文档豁免 {doc} 没有理由"))
         elif not (REPO_ROOT / doc).exists():
             problems.append(Problem("EXEMPT", "doc_pointers.py", 1, f"快照文档 {doc} 已不存在，豁免是空的"))
+    if problems:
+        # An empty reason makes ``_exemption`` raise on purpose, so hit counting
+        # cannot run against a malformed table. The shape complaint is the
+        # dominant one; liveness is measured only by a working instrument.
+        return problems
+    for key, hits in exemption_usage(documents).items():
+        if hits == 0:
+            problems.append(
+                Problem("EXEMPT", "doc_pointers.py", 1, f"豁免 {key} 没有命中任何在仓引用：这条规则现在挡不到东西，是死行")
+            )
     return problems
 
 
@@ -711,7 +890,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     problems: list[Problem] = []
-    totals = {"pointers": 0, "unresolved": 0, "links": 0, "evidence": 0, "prose_paths": 0}
+    totals = {"pointers": 0, "unresolved": 0, "links": 0, "evidence": 0, "prose_paths": 0, "links_generated": 0}
     for document in args.documents:
         if not document.exists():
             problems.append(Problem("MISSING", document.name, 1, "文档不存在"))
@@ -725,13 +904,23 @@ def main(argv: list[str] | None = None) -> int:
                 f"{document.name}: pointers={stats.pointers} unresolved={stats.unresolved} "
                 f"links={stats.links} evidence={stats.evidence} prose-paths={stats.prose_paths}"
             )
+    if not _tracked_files():
+        problems.append(
+            Problem(
+                "INVENTORY",
+                "doc_pointers.py",
+                1,
+                "git ls-files 一条都没返回：这个目录不是仓库，或 git 不可用，于是「在仓库里存在」全部判否",
+            )
+        )
     problems.extend(check_exempt_tables(list(args.documents)))
     for problem in problems:
         print(f"DANGLING {problem}")
     print(
         f"checked {totals['pointers']} pointers ({totals['unresolved']} spans name no locator), "
-        f"{totals['links']} links and {totals['evidence']} evidence pointers "
-        f"({totals['prose_paths']} path claims sit outside code spans) in {len(args.documents)} documents"
+        f"{totals['links']} links ({totals['links_generated']} of them into git-ignored generated output) "
+        f"and {totals['evidence']} evidence pointers ({totals['prose_paths']} path claims sit outside code spans) "
+        f"in {len(args.documents)} documents, over {len(_tracked_files())} tracked files"
     )
     return 1 if (problems and args.check) else 0
 
