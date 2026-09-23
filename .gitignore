@@ -13,3 +13,9 @@ output/
 dist/
 build/
 *.egg-info/
+# Coverage artifacts (M4-3's measurement is reproducible, its data file is not
+# something to commit).
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml

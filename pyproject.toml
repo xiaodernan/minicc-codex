@@ -30,6 +30,13 @@ dev = [
     # test_reasoning_effort); declare httpx so `pip install -e ".[dev]"` does not
     # rely on openai pulling it in transitively. `pip check` enforces this.
     "httpx>=0.27.0",
+    # M4-3's criterion ("POST /api/* 路由 Python 测试覆盖率") was recorded as
+    # unmeasurable for three audit batches because no coverage tool was
+    # installed. Declared here so the number is reproducible:
+    #   python -m coverage run --source=minicc.webserver -m pytest \
+    #       tests/test_http_surface.py tests/test_http_route_inventory.py
+    #   python -m coverage report --include="*webserver*"
+    "coverage[toml]>=7.0",
 ]
 # Native Anthropic Messages provider (minicc.llm.anthropic_provider).
 anthropic = [
@@ -50,3 +57,19 @@ testpaths = ["tests"]
 # instead of the previous -q, which hid the warnings summary entirely.
 addopts = "-ra"
 pythonpath = ["."]
+
+[tool.coverage.run]
+# Measure the package, not the test suite: the M4-3 number is about the HTTP
+# surface in minicc/webserver.py.
+source = ["minicc"]
+branch = false
+
+[tool.coverage.report]
+# Keep the default report readable; the per-route dispatch number is produced by
+# driving every route (see tests/test_http_route_inventory.py) and reading the
+# JSON report, not by this percentage.
+show_missing = true
+exclude_also = [
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+]
