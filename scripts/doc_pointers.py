@@ -16,9 +16,11 @@ Two classes are checked, both mechanically:
     ``第N节``, ``附录 X``) or an id (``M8-T34``, ``M4-3``, ``P0-1``). Chinese
     prose is full of ``见`` that is merely a suffix (可见, 意见, 预见, 见证, 见收益),
     so the marker alone cannot harvest references; requiring an id-shaped token
-    is what makes the extraction precise. Skipped spans are counted and printed
-    as ``unresolved``, because "this pointer names no locator" is a real gap in
-    what the tool guards — e.g. ``口径见下方注记`` cannot be checked at all.
+    is what makes the extraction precise. Every marker still lands in exactly one
+    printed box (see ``POINTER_BOXES``), because "this pointer names no locator"
+    was one opaque integer covering three different things — a word-internal 见, a
+    citation another reader already resolves, and a real pointer that names a place
+    by nickname (``口径见下方注记``) and stays unchecked.
     A locator must resolve to a heading, and any id in the same pointer must be
     **declared** inside that locator's section — as a heading or as a table row's
     label cell, not merely mentioned. Mentioning cannot work: 「见下方「第十八批
@@ -66,14 +68,49 @@ _POINTER = re.compile(
     r"(?:见|参见)\s*(下方|上方|文末|上一段|下一段|上一行|下一行|本节|本批末尾|该批)?\s*[「『]([^」』\n]{1,60})[」』]"
     r"|(?:见|参见)\s*(下方|上方|文末|上一段|下一段|上一行|下一行|本节|本批末尾|该批)?([^」『\n，。；：|`]{0,60})"
 )
+#: What a citation may start with, right after the marker. Longer alternatives come
+#: first because ``re`` keeps the leftmost match: 下方 before 下.
+_CITATION_HEAD = re.compile(
+    r"^(?:下方|上文|下文|上方|上一段|下一段|上一行|下一行|本批末尾|本节|本批|该批|文末|上表|下表|下|上|第|附录"
+    r"|[「『\[`]|[MP]\d|[A-Za-z0-9_.\-]+/)"
+)
 _SECTION = re.compile(r"第([一二三四五六七八九十]+)节")
 _BATCH = re.compile(r"第([一二三四五六七八九十]+)批(续二|续)?")
 _APPENDIX = re.compile(r"附录\s*([A-Z])")
-_ID = re.compile(r"\b([MP]\d+(?:-[A-Z]?\d+|\.\d+)?)\b")
+#: ``\b`` treats Chinese as a word character, so ``见下方M8-T26`` — an id glued
+#: straight onto the prose, with no space — had no boundary in front of it and was
+#: invisible to this pattern: the pointer was silently never checked. The lookarounds
+#: spell out the only boundary wanted here: an id is not part of a longer ASCII word
+#: (``XM8-T34`` stays unmatched), and CJK on either side is fine.
+_ID = re.compile(r"(?<![A-Za-z0-9_])([MP]\d+(?:-[A-Z]?\d+|\.\d+)?)(?![A-Za-z0-9_])")
 _HEADING = re.compile(r"^(#{1,6})\s+(.+?)\s*#*\s*$", re.M)
 _ROW = re.compile(r"^\|(.+)$", re.M)
 _LINK = re.compile(r"\[([^\]\n]{1,120})\]\(([^)\s]{1,160})\)")
 _DIGITS = {"一": 1, "二": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9}
+
+#: Every 「见」 marker is sorted into exactly one of these, and the counts are
+#: printed per box. Before M8-T39 the tool reported one integer — "N spans name no
+#: locator" — which mixed 65 word-internal 见 (可见, 意见, 见证: not references at
+#: all), 9 pointers another reader already resolves, and ~15 real pointers that name
+#: a place without a checkable locator (「口径见下方注记」). Those three need different
+#: responses, so they must not share a number — and one of them was not merely
+#: skipped: 「可见价值低于 M6–M8 任何一项」 *passed* as a checked pointer, because both
+#: ids exist somewhere in the file. A box that can hold a fabricated pointer is worse
+#: than a box that admits it guards nothing.
+BOX_CHECKED = "checked"
+BOX_NO_LOCATOR = "citation-without-locator"
+BOX_LINK_TEXT = "carried-by-link-reader"
+BOX_CODE_SPAN = "carried-by-evidence-reader"
+BOX_PATH = "path-in-prose"
+BOX_WORD = "word-interior"
+POINTER_BOXES = (
+    BOX_CHECKED,
+    BOX_NO_LOCATOR,
+    BOX_LINK_TEXT,
+    BOX_CODE_SPAN,
+    BOX_PATH,
+    BOX_WORD,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -100,7 +137,8 @@ class Problem:
 @dataclass(frozen=True, slots=True)
 class Stats:
     pointers: int
-    unresolved: int
+    markers: int
+    boxes: dict[str, int]
     links: int
     evidence: int = 0
     prose_paths: int = 0
@@ -237,35 +275,82 @@ def _mask_code(text: str) -> str:
     return re.sub(r"`[^`\n]*`", lambda m: " " * len(m.group(0)), blanked)
 
 
-def _pointer_spans(text: str) -> list[tuple[int, str]]:
-    """(offset, span) for every ``见`` marker, quote-delimited forms first."""
-    out: list[tuple[int, str]] = []
-    for match in _POINTER.finditer(_mask_code(text)):
+def _locator(span: str) -> bool:
+    """Does this span name anything the tool can resolve — a section, batch, appendix or id?"""
+    return bool(_BATCH.search(span) or _SECTION.search(span) or _APPENDIX.search(span) or _ID.findall(span))
+
+
+def _pointer_box(gap: str, span: str) -> str:
+    """Sort one 「见」 marker into the account.
+
+    ``gap`` is the *unmasked* text between the marker and where the harvest began;
+    offsets survive masking, so it says whether a locator was there all along and got
+    blanked out (a code span, which the evidence reader already resolves) or never was.
+
+    A locator-shaped span still has to be a *citation*: 「可见价值低于 M6–M8 任何一项」
+    contains two ids and is 可见 plus unrelated prose, so an id alone does not make a
+    pointer — it has to sit where a cited place would. A span that names a section,
+    batch or appendix is exempt from that test, because 第N节/第N批 are place-words a
+    sentence does not trip over by accident: 「复核命令见审核文档第十二节」 is a real
+    pointer even though 见 is glued to a noun, and it is the one shape whose file name
+    the rule below still requires.
+    """
+    has_place = bool(_BATCH.search(span) or _SECTION.search(span) or _APPENDIX.search(span))
+    cited = bool(span) and (has_place or _CITATION_HEAD.match(span) is not None)
+    if cited and _locator(span):
+        return BOX_CHECKED
+    if "`" in gap:
+        return BOX_CODE_SPAN
+    if "[" in gap or span.startswith("["):
+        return BOX_LINK_TEXT
+    if cited and "/" in span:
+        return BOX_PATH
+    if cited:
+        return BOX_NO_LOCATOR
+    # Both halves of this box are real and neither is a reference this tool can look
+    # up: 可见收益 (a suffix) and 见交付说明第8节 (a verb pointing at a nickname).
+    return BOX_WORD
+
+
+def _pointer_spans(text: str) -> list[tuple[int, str, str]]:
+    """(offset, span, box) for every ``见`` marker, quote-delimited forms first."""
+    masked = _mask_code(text)
+    out: list[tuple[int, str, str]] = []
+    for match in _POINTER.finditer(masked):
         quoted = match.group(2)
+        after = match.start() + (2 if masked.startswith("参见", match.start()) else 1)
         if quoted is not None:
-            out.append((match.start(), quoted.strip()))
+            span = quoted.strip()
+            out.append((match.start(), span, _pointer_box(text[after:match.start(2)], span)))
             continue
         direction = match.group(3) or ""
-        out.append((match.start(), f"{direction}{match.group(4) or ''}".strip()))
+        span = f"{direction}{match.group(4) or ''}".strip()
+        # The gap ends where the harvest ended, not where the match ended: the span
+        # itself is *part of* the match, and asking it whether it holds a backtick
+        # would file every 可见…-plus-code-further-along line as a code-span pointer.
+        out.append((match.start(), span, _pointer_box(text[after:match.start(4)], span)))
     return out
 
 
-def check_pointers(document: Path, text: str) -> tuple[list[Problem], int, int]:
-    """Return problems, the number of checked pointers, and unresolved spans."""
+def check_pointers(document: Path, text: str) -> tuple[list[Problem], int, dict[str, int]]:
+    """Return problems, the number of checked pointers, and the per-box counts."""
     headings = sections(text)
     numbered = _numbered_headings(headings)
     batch_labels = _batch_labels(headings)
     problems: list[Problem] = []
     checked = 0
-    unresolved = 0
-    for offset, span in _pointer_spans(text):
+    boxes = {box: 0 for box in POINTER_BOXES}
+    for offset, span, box in _pointer_spans(text):
+        boxes[box] += 1
+        if box != BOX_CHECKED:
+            # Every non-checked box is counted and named in the summary: that is the
+            # whole point of the account. ``citation-without-locator`` is the only one
+            # holding *real* pointers this tool cannot resolve, and it stays open.
+            continue
         batches = list(_BATCH.finditer(span))
         secs = list(_SECTION.finditer(span))
         appendices = list(_APPENDIX.finditer(span))
         ids = _ID.findall(span)
-        if not (batches or secs or appendices or ids):
-            unresolved += 1  # a marker naming no locator: a gap in what is guarded
-            continue
         checked += 1
         line = _line_of(text, offset)
         target: Section | None = None
@@ -308,7 +393,21 @@ def check_pointers(document: Path, text: str) -> tuple[list[Problem], int, int]:
             problems.append(
                 Problem("POINTER", document.name, line, f"「{span}」 说 {identifier} 在{where}里，那里没有这个编号")
             )
-    return problems, checked, unresolved
+    harvested = len(list(_POINTER.finditer(_mask_code(text))))
+    if harvested != sum(boxes.values()):
+        # The account has to add up against an *independent* count of the markers.
+        # Recomputing the total from the boxes would reconcile by construction, which
+        # is exactly how a box that stops incrementing (a ``continue`` moved one line
+        # too early) survives as a clean run.
+        problems.append(
+            Problem(
+                "RECONCILE",
+                document.name,
+                1,
+                f"抽到 {harvested} 个「见」标记，分箱只落下 {sum(boxes.values())} 个：有一箱在计数前就跳过了",
+            )
+        )
+    return problems, checked, boxes
 
 
 def _appendix_section(token: str, headings: list[Section]) -> Section | None:
@@ -366,7 +465,7 @@ def check_links(document: Path, text: str) -> tuple[list[Problem], int, int]:
 
 def check_document(document: Path) -> tuple[list[Problem], Stats]:
     text = document.read_text(encoding="utf-8")
-    pointer_problems, pointers, unresolved = check_pointers(document, text)
+    pointer_problems, pointers, boxes = check_pointers(document, text)
     link_problems, links, links_generated = check_links(document, text)
     evidence_problems, evidence = check_evidence(document, text)
     relative = document.relative_to(REPO_ROOT).as_posix()
@@ -408,7 +507,8 @@ def check_document(document: Path) -> tuple[list[Problem], Stats]:
             )
     return problems, Stats(
         pointers=pointers,
-        unresolved=unresolved,
+        markers=sum(boxes.values()),
+        boxes=boxes,
         links=links,
         evidence=evidence,
         prose_paths=len(prose),
@@ -890,7 +990,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     problems: list[Problem] = []
-    totals = {"pointers": 0, "unresolved": 0, "links": 0, "evidence": 0, "prose_paths": 0, "links_generated": 0}
+    totals = {"pointers": 0, "markers": 0, "links": 0, "evidence": 0, "prose_paths": 0, "links_generated": 0}
+    account = {box: 0 for box in POINTER_BOXES}
     for document in args.documents:
         if not document.exists():
             problems.append(Problem("MISSING", document.name, 1, "文档不存在"))
@@ -899,11 +1000,20 @@ def main(argv: list[str] | None = None) -> int:
         problems.extend(found)
         for key in totals:
             totals[key] += getattr(stats, key)
+        for box, count in stats.boxes.items():
+            account[box] = account.get(box, 0) + count
         if not args.quiet:
+            boxes = " ".join(f"{box}={stats.boxes.get(box, 0)}" for box in POINTER_BOXES)
             print(
-                f"{document.name}: pointers={stats.pointers} unresolved={stats.unresolved} "
+                f"{document.name}: markers={stats.markers} {boxes} "
                 f"links={stats.links} evidence={stats.evidence} prose-paths={stats.prose_paths}"
             )
+    unknown = sorted(set(account) - set(POINTER_BOXES))
+    if unknown:
+        # A box that exists but is never printed is an account with a page torn out.
+        problems.append(
+            Problem("INVENTORY", "doc_pointers.py", 1, f"分箱出现了没登记的名字：{'、'.join(unknown)}")
+        )
     if not _tracked_files():
         problems.append(
             Problem(
@@ -916,8 +1026,9 @@ def main(argv: list[str] | None = None) -> int:
     problems.extend(check_exempt_tables(list(args.documents)))
     for problem in problems:
         print(f"DANGLING {problem}")
+    tally = " ".join(f"{box}={account[box]}" for box in POINTER_BOXES)
     print(
-        f"checked {totals['pointers']} pointers ({totals['unresolved']} spans name no locator), "
+        f"checked {totals['pointers']} of {totals['markers']} 「见」 markers ({tally}), "
         f"{totals['links']} links ({totals['links_generated']} of them into git-ignored generated output) "
         f"and {totals['evidence']} evidence pointers ({totals['prose_paths']} path claims sit outside code spans) "
         f"in {len(args.documents)} documents, over {len(_tracked_files())} tracked files"

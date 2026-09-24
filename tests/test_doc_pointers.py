@@ -19,6 +19,7 @@ about *where* the id lives — the exact claim that was wrong.
 from __future__ import annotations
 
 import importlib.util
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -136,17 +137,24 @@ _BAD_DOC = """\
 
 
 def _pointer_problems(text: str) -> list[str]:
-    problems, checked, unresolved = dp.check_pointers(Path("synthetic.md"), text)
-    assert checked or unresolved
+    problems, checked, boxes = dp.check_pointers(Path("synthetic.md"), text)
+    assert checked or sum(boxes.values())
     return [f"{p.detail}" for p in problems]
 
 
 def test_prose_that_merely_ends_with_the_marker_is_not_harvested() -> None:
-    problems, checked, unresolved = dp.check_pointers(Path("synthetic.md"), _GOOD_DOC)
+    problems, checked, boxes = dp.check_pointers(Path("synthetic.md"), _GOOD_DOC)
     assert problems == []
-    # 「见下方注记」 and friends are counted as a *gap*, not silently dropped.
-    assert unresolved >= 2
-    assert checked >= 2, "the doc must actually exercise the locator paths"
+    # The fixture is the box table in miniature. Measured, not assumed: the five
+    # suffixes on one line collapse into *one* harvested span, because 、 does not
+    # terminate a span the way ，。 do — so 「word-interior」 counts marker runs, not
+    # occurrences of the character. Writing ``== 5`` here would have been an
+    # expectation about the character rather than about this extractor.
+    assert boxes[dp.BOX_WORD] == 1
+    assert boxes[dp.BOX_NO_LOCATOR] == 1
+    assert boxes[dp.BOX_CHECKED] == 2 == checked
+    # Counted, not silently dropped: 「口径见下方注记」 is a gap in what is guarded.
+    assert sum(boxes.values()) == len(dp._pointer_spans(_GOOD_DOC)) == 4
 
 
 def test_locator_plus_id_is_a_claim_about_where_the_id_lives() -> None:
@@ -271,14 +279,14 @@ def test_a_pointer_written_inside_a_code_span_is_a_quotation_not_a_claim() -> No
     dispatch is invisible to a ``path ==`` scan.
     """
     quoted = "# T\n\n缺陷长这样：`见「第十八批 M8-T34」`。\n"
-    problems, checked, unresolved = dp.check_pointers(Path("synthetic.md"), quoted)
+    problems, checked, boxes = dp.check_pointers(Path("synthetic.md"), quoted)
     assert problems == [] and checked == 0
     # Masking blanks the whole span, marker included, so the quotation is never
     # harvested at all — it is not an unresolved marker, it is absent. My first
     # version of this gate asserted ``unresolved == 1`` and was wrong: the tool
     # was already right, and an expectation written from what I wanted the tool
     # to do is the same mistake as a self-satisfying id check.
-    assert unresolved == 0
+    assert sum(boxes.values()) == 0
 
     prose = "# T\n\n结论见「第十八批 M8-T34」。\n"
     prose_problems = dp.check_pointers(Path("synthetic.md"), prose)[0]
@@ -563,3 +571,129 @@ def test_an_unreachable_exemption_reports_itself_as_dead(tmp_path: Path) -> None
     assert uncited == [f"豁免 {key} 已无任何文档引用，是陈旧登记"], uncited
     assert cited == [f"豁免 {key} 没有命中任何在仓引用：这条规则现在挡不到东西，是死行"], cited
     assert dp.check_exempt_tables(documents) == []
+
+
+#: Prose that must never be read as a pointer. The last one is not hypothetical:
+#: it is a line this repository's own roadmap shipped, and until M8-T39 it *passed*
+#: as a checked pointer — 「可见价值低于 M6–M8 任何一项」 is 可见 plus an unrelated id,
+#: and both ids exist somewhere in the file, so the old rule had nothing to complain
+#: about. A skipped span is merely unguarded; a fabricated one is a green tick on a
+#: sentence that never claimed anything.
+_NOT_POINTERS = [
+    "这是典型的一个月重构、零用户可见收益，且这两个文件正是 M2/M3 的。",
+    "控制台未见错误。",
+    "| 长回答体验与进度可见性 | 中 |",
+    "**：这条缺的「可满足性见证」现在有了。",
+    "使用方法和口径见收益表。",
+    "可见价值低于 M6–M8 任何一项，排在 M8 之后。",
+]
+
+
+def test_a_word_internal_marker_is_not_a_pointer_even_when_prose_holds_an_id() -> None:
+    for line in _NOT_POINTERS:
+        text = f"# T\n\n## 一、x\n\n{line}\n| M8-T34 探针 | ✅ | 结论 |\n"
+        problems, checked, boxes = dp.check_pointers(Path("synthetic.md"), text)
+        assert checked == 0, f"这条被当成了指针：{line} → {boxes}"
+        assert boxes[dp.BOX_WORD] == 1, boxes
+        assert problems == []
+    # Anti-vacuity: the list must actually contain the case it was written for.
+    assert any("M6–M8" in line for line in _NOT_POINTERS)
+
+
+#: Every citation shape the tool claims to read. Written as one document with an
+#: expected count, so a shape that quietly stops being harvested shows up as a
+#: number moving rather than as a green run nobody checks.
+_CITATION_DOC = """\
+# T
+
+## 三、第三节
+
+## 附录 B：注记
+
+### 记录（第二批）
+
+| M4-3 覆盖 | ✅ | 细节 |
+| M8-T16 探针 | ✅ | 细节 |
+
+详见「第三节」。见 M8-T16 行。见「第二批 M4-3 行」。见附录 B。
+参见 M4-3。结论见下方M8-T16 那条。
+"""
+
+
+def test_every_citation_shape_the_tool_reads_is_harvested() -> None:
+    problems, checked, boxes = dp.check_pointers(Path("synthetic.md"), _CITATION_DOC)
+    assert problems == []
+    assert checked == boxes[dp.BOX_CHECKED] == 6, boxes
+    assert sum(boxes.values()) == 6, "多出来的标记没有被任何一箱接住"
+    assert boxes[dp.BOX_WORD] == 0, boxes
+
+
+def test_an_id_glued_onto_chinese_is_still_an_id() -> None:
+    """``\\b`` reads Chinese as a word character, so 「见下方M8-T26」 had no boundary.
+
+    The pointer was not skipped-and-counted: it was never harvested as a claim at
+    all, because the id inside it was invisible. Measured on the shipped corpus,
+    the fix moves 0 ids (every existing pointer happens to have a space), so this
+    gate is the only thing standing between that class and a silent return.
+    """
+    assert dp._ID.findall("见下方M8-T26 那条") == ["M8-T26"]
+    assert dp._ID.findall("上方M4-3 行的第三格") == ["M4-3"]
+    assert dp._ID.findall("XM8-T34 与 minicc_m8") == [], "编号不能从半个词里长出来"
+    spans = {span for _, span, _ in dp._pointer_spans("# T\n\n结论见下方M8-T26 那条。\n")}
+    assert spans == {"下方M8-T26 那条"}, spans
+    _, checked, boxes = dp.check_pointers(Path("synthetic.md"), _CITATION_DOC)
+    assert boxes[dp.BOX_CHECKED] == checked >= 1
+
+
+def test_the_box_account_is_printed_and_adds_up_on_the_shipped_documents() -> None:
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT), "--check"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        cwd=REPO_ROOT,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    summary = result.stdout.strip().splitlines()[-1]
+    markers = int(re.search(r"(\d+) 「见」 markers", summary).group(1))
+    assert "markers=" in result.stdout
+    counted = 0
+    for box in dp.POINTER_BOXES:
+        assert f"{box}=" in summary, f"总账里没有 {box} 这一箱"
+        counted += int(re.search(rf"{box}=(\d+)", summary).group(1))
+    # The printed account must add up to the printed denominator: a box the reader
+    # cannot see, or a marker that fell between two boxes, breaks one of these two.
+    assert counted == markers, (counted, markers, summary)
+
+
+def test_boxes_have_floors_because_a_box_that_goes_blind_is_a_clean_run() -> None:
+    account = {box: 0 for box in dp.POINTER_BOXES}
+    markers = 0
+    for document in dp.DEFAULT_DOCS:
+        _, stats = dp.check_document(document)
+        markers += stats.markers
+        for box, count in stats.boxes.items():
+            account[box] += count
+    assert markers == sum(account.values()) > 100, account
+    floors = {
+        dp.BOX_CHECKED: 25,
+        dp.BOX_NO_LOCATOR: 10,
+        dp.BOX_LINK_TEXT: 5,
+        dp.BOX_CODE_SPAN: 5,
+        dp.BOX_PATH: 1,
+        dp.BOX_WORD: 40,
+    }
+    assert set(floors) == set(dp.POINTER_BOXES)
+    for box, floor in floors.items():
+        assert account[box] >= floor > 0, f"{box} 只有 {account[box]} 条，低于下限 {floor}"
+
+
+def test_a_box_that_stops_counting_is_a_complaint_not_a_clean_run(monkeypatch) -> None:
+    """The reconciliation is checked against an independent recount of markers."""
+    spans = dp._pointer_spans(_GOOD_DOC)
+    assert len(spans) >= 3
+    monkeypatch.setattr(dp, "_pointer_spans", lambda text: spans[1:])
+    problems, _checked, boxes = dp.check_pointers(Path("synthetic.md"), _GOOD_DOC)
+    assert [p.kind for p in problems] == ["RECONCILE"], problems
+    assert len(spans) == sum(boxes.values()) + 1
+    assert "计数前就跳过" in problems[0].detail
