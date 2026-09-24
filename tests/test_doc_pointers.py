@@ -790,6 +790,12 @@ def test_a_link_shape_inside_a_code_span_is_a_quotation(tmp_path: Path) -> None:
     assert checked == 1 and problems == [] and generated == 0, (checked, problems)
     # The unmasked shape is still a claim: the mask cannot be a blanket exemption.
     assert len(dp.check_links(tmp_path / "doc.md", "[假的](不存在.md)\n")[0]) == 1
+    # And the pointer reader consults the same mask: a link that only exists inside
+    # backticks buys no hand-off, while its unquoted twin does. (The quoted one lands in
+    # 「word-interior」 because 说明… is not a citation position — M8-T39's rule, and this
+    # batch leaves it alone.)
+    assert _first_box("结论见「说明 `[README](README.md)` 那段」。\n") == dp.BOX_WORD
+    assert _first_box("结论见「说明 [README](README.md) 那段」。\n") == dp.BOX_LINK_TEXT
 
 
 def test_the_link_reader_actually_has_quotations_to_ignore() -> None:
@@ -853,3 +859,69 @@ def test_the_name_reader_has_work_in_the_shipped_corpus() -> None:
                 assert names, (document.name, _offset)
                 resolved += [(document.name, name) for name in names]
     assert len(resolved) >= 4, f"名字箱只剩 {len(resolved)} 条，这条门已经是空的：{resolved}"
+
+
+def test_a_bracket_that_is_not_a_judged_link_buys_no_hand_off() -> None:
+    """``carried-by-link-reader`` used to mean "a square bracket is somewhere nearby".
+
+    The link reader walks ``[text](target)`` and then *declines* four targets: empty, an
+    in-page anchor, an external URL, and — because a space breaks its grammar — a path it
+    never parses at all. A citation landing on any of those was booked as checked while
+    both readers disclaimed it, which is M8-T41's defect in the other hand-off box. Each
+    shape is asserted from both sides: the box it lands in, and the link reader's own
+    count of links it examined.
+    """
+    shapes = [
+        "结论见 [待定] 的说明。\n",  # a bracket that is not a link at all
+        "详见 [本节](#t) 的说明。\n",  # an in-page anchor
+        "用法见 [官网](https://example.com/x)。\n",  # not a claim about this repository
+        "细节见 [说明]()。\n",  # empty target
+        "细节见 [说明](a b.md)。\n",  # a space the grammar will not parse
+        "详见 `[说明](README.md)`。\n",  # only inside backticks: a quotation, masked both sides
+    ]
+    for text in shapes:
+        assert _first_box(text) == dp.BOX_NO_LOCATOR, text
+        _problems, checked, _generated = dp.check_links(Path("synthetic.md"), text)
+        assert checked == 0, f"{text} 被记成已托管，可链接阅读器一条都没看"
+    # A real hand-off is a real verdict — even the red kind. The box promises the reader
+    # *answers*, not that the answer is pleasant.
+    dangling = "详见 [说明](不存在.md)。\n"
+    assert _first_box(dangling) == dp.BOX_LINK_TEXT
+    assert len(dp.check_links(Path("synthetic.md"), dangling)[0]) == 1
+
+
+def test_a_link_that_starts_after_the_marker_words_is_still_handed_over() -> None:
+    """The mirror defect: a resolvable link the old rule *missed* because the bracket
+    was not the span's first character. It sat in 「no criterion」 — the account the tool
+    admits it cannot check — while a fully checkable target was one space away.
+    """
+    text = "见下方 [说明](README.md) 一条。\n"
+    assert _first_box(text) == dp.BOX_LINK_TEXT
+    assert dp.check_links(Path("synthetic.md"), text)[1] == 1
+
+
+def test_every_shipped_link_hand_off_shrinks_the_link_reader_when_removed() -> None:
+    """Reconcile the box against its creditor, through the creditor's own return.
+
+    For each marker filed as ``carried-by-link-reader`` the region is blanked and the
+    link reader asked how many links it now sees. If that number does not fall, the
+    reader never looked at what the pointer reader just promised it. The invariant is
+    measured from ``check_links``, not from the pointer side's copy of the grammar, so
+    the two skip lists cannot drift apart unnoticed.
+    """
+    handed_off = 0
+    for document in dp.DEFAULT_DOCS:
+        text = document.read_text(encoding="utf-8")
+        masked = dp._mask_code(text)
+        baseline = dp.check_links(document, text)[1]
+        matches = list(dp._POINTER.finditer(masked))
+        spans = dp._pointer_spans(text)
+        assert len(matches) == len(spans), (document.name, len(matches), len(spans))
+        for (offset, span, box, _targets), match in zip(spans, matches):
+            if box != dp.BOX_LINK_TEXT:
+                continue
+            handed_off += 1
+            after = offset + (2 if masked.startswith("参见", offset) else 1)
+            blanked = masked[:after] + " " * (match.end() - after) + masked[match.end() :]
+            assert dp.check_links(document, blanked)[1] < baseline, (document.name, span)
+    assert handed_off >= 5, f"交接箱只剩 {handed_off} 条，这条门已经是空的"

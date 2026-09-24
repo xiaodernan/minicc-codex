@@ -760,6 +760,7 @@
 | M8-T39 那 102 条「没指名定位符」的标记不是一件事，是六件事——而其中一件根本不是指针却**通过了检查** | ✅ | 见下方「第二十三批 M8-T39」。上一批的总结行写着 `41 pointers (102 spans name no locator)`，那个括号读了二十年也不会告诉任何人下一步该做什么。把 102 条逐条摊开：其中 **69 条是「见」作为词素或动词接在普通散文后面**（可见流式答案、未见修复记录、零用户可见收益…），**9 条的落点是一个 markdown 链接**（链接阅读器已经在查它的目标），**7 条的落点是一个代码片段**（证据阅读器在查），**3 条指向一个散文里的路径**，剩下 **15 条是货真价实的指针但没有可解析定位符**（`口径见下方注记`、`全量数字见上表末格`、`见本批末尾`）。**最值钱的一条不在这个括号里**：`可见价值低于 M6–M8 任何一项` 被抽成了指针、并且**绿着通过**——M6、M8 两个编号确实都在这个文件里。一条假指针比一个未覆盖的缺口更糟：它往"已核验"那一栏里记了一笔 | **红→绿逐字**（四条变异，基线 sha256 `41efad1eaf6f`，每次跑完字节还原并复验，还原后 `32 passed`）：① 取消「必须是引用」判据 → `3 failed`，红在词内标记门、夹具分箱门与分箱下限门；② `_ID` 退回 `\b` → `2 failed`，红在"每种引用形状都被抽到"与"中文旁边粘着的编号仍是编号"；③ 把 `boxes[box] += 1` 移到"是指针才计"之后（一箱停止计数） → **`13 failed`**，包括那条新写的 `RECONCILE` 门；④ 总账里少印一箱 → `1 failed`，红在"打印出来的账要加得起来"。**这条判据是被两条旧门教出来的**：第一版只认「引用词开头」，`test_appendix_pointers_resolve_by_letter` 当场红——`附录` 不在引用词表里；第二版把 `见审核文档第十二节` 也判成散文，`test_cross_document_section_pointer_needs_the_file_named` 又红——于是定稿规则是：**带节号/批号/附录号的 span 一律算引用**（散文不会 accidentally 长出「第十二节」），**只带编号的 span 必须站在引用位置**（`可见…M6–M8` 里的编号只是句子里提到的另一个话题）。落地：`_POINTER` 后加 `_CITATION_HEAD`，每个标记落进 `POINTER_BOXES` 六箱之一，`Stats` 从 `unresolved: int` 换成 `markers + boxes`，总结行打印 `checked 40 of 143 「见」 markers (checked=40 citation-without-locator=15 …)`，并新增一条 `RECONCILE`：分箱之和必须等于**独立重数**的标记数 | 本批新增 6 条门（`tests/test_doc_pointers.py` 26 → 32）；全量 `.venv/Scripts/python.exe -m pytest -q -W error` 见第二十三批的承重量。**两条量到的边界，写清楚免得被当成已解决**：① `_ID` 的 `\b` 修复在今天的语料上移动的编号数是 **0**（`old=915 new=915`，全仓 19 个文档一个都没粘着中文）——这条修复现在只由合成门撑着，语料里还没有它的用例；② 「见」后面接普通散文（`见交付说明第8节`、`详见总交付第9节`、`见注释`）落在词内箱，**它确实是指针，只是这台量具查不了**：阿拉伯数字的 `第8节` 不在 `_SECTION` 的中文数字表里，而那两份文档没把文件名写进指针。此外 `可见、意见、预见、见证、见收益` 一整行只算 **1** 个标记（`、` 不终止 span，五个后缀被一次吞掉），所以词内箱的量是"标记串"不是"字数" |
 | M8-T40 上一批写在「边界」里的那句「这台量具查不了」，本批结案：定位符两侧都认阿拉伯数字，两条真断言从「没人查」变成「查得过」；顺手补上链接阅读器缺的那层掩码 | ✅ | 见下方「第二十四批 M8-T40」。**先量的结论把任务改了方向**：这批原本要问 `citation-without-locator` 那 16 条能不能有判据，逐条摊开的答案是**一条都不能**——4 条指向「注记」、3 条指向表格某一格、6 条指向相对位置（本批末尾/下一行/上一条/下面这一行/下/下表）、1 条指向占位符 `第N批`（N 不是数字，判据答它就是说谎）。所以那箱维持「有名字、有条数、没有判据」。价值在词内箱：77 条里有 **2 条**是真指针（`见交付说明第8节`、`详见总交付第9节`），掉进去只因为 `_SECTION`/`_BATCH` 的数字表没有阿拉伯数字；**而这两条断言本身是真的**——落点文档的 level-2 标题自己写着 `## 8. 继续实施：第二轮边界收敛`。改法三处缺一不可：`_NUM`（散文侧认数字）、`_numeral`（原 `_cn_numeral`，改完名字不再说谎）、`_numbered_headings` 认 `^(数字|中文)[.、]`（标题侧）。启用数字后第一次实跑红 2 条——昵称不是可查文件，红是对的，于是按老规矩**改落点不放宽门**：那两行写成 `[交付说明第8节](OPTIMIZATION_DELIVERY_2026-09-18.md)` 形式，同段 line 56 早就用了这个写法。**第二条缺陷是这段记录自己撞出来的**：把链接形状写进反引号当例子，`--check` 立刻报 `DANGLING LINK … 链接目标 文件 不存在`——指针阅读器从 M8-T37 起就尊重「反引号内是引用不是断言」，链接阅读器根本没有掩码这一步；补上 `check_links` 的掩码，并留下非空守卫：语料里有 **5** 个链接形状是**被引用**的而不是被声明的（撤掉掩码，它们全被当成断言） | **四条变异**（基线 sha256：文档 `0b132c831943`、脚本 `d0e34c21f76a`；锚点强制命中 1 次、`.py` 先 `compile()` 再落盘、字节还原并复验）：M1 把 `第9节` 改成不存在的 `第17节` → `--check` exit=1，逐字 `「[总交付第17节](OPTIMIZATION_DELIVERY_2026-09-18.md)」 指向不存在的第17节`；M2 **同一个编号**换指向只有 4 节的 `GAP_ANALYSIS_AND_ROADMAP.md` → exit=1 `指向不存在的第9节`（文件名真的被咨询了，不是「哪个 md 都行」）；M3 撤掉散文侧数字分支 → `3 failed, 35 passed`；M4 只撤标题侧 → `5 failed, 33 passed`，其中包含 `test_shipped_documents_have_no_dangling_references`——**半改比不改更糟**：读得懂「第8节」却没有标题能答它，两条真断言立刻变两条假红。**还有一次红是红在量具上**：第一版 `mutate()` 用文本往返，磁盘上的 CRLF 被写成 LF，sha256 复验当场抓住；换成字节快照/字节还原后四条一致。分箱前后（在未插入本批记录的文档上量）：`checked 42→44`、`word-interior 77→75`、标记 154 不变；链接侧补掩码后 28→23 | 本批新增 6 条门（`tests/test_doc_pointers.py` 32 → 38）；全量 `.venv/Scripts/python.exe -m pytest -q -W error` 见第二十四批的承重量。定稿实测写在第二十四批末段（`--check` exit 0） |
 | M8-T41 有一箱写着「另一个阅读器已经接手」，实测 7 条里 5 条根本没人接手——交接判据看的是反引号在不在，不是对方认不认那个形状 | ✅ | 见下方「第二十五批 M8-T41」。起点是上一批挂在边界里的那句「一条「见」跟两个代码片段只计 1 个标记」；先量的结果是**语料里一个都没有**（全仓 gap 带代码片段的标记总共只有 7 条），洞在更下面一层：分箱只问「gap 里有没有反引号」，于是裸文件名（`README.md`、`test_anthropic_provider.py`、`config.py:331-338` 两条）和头部不被跟踪的路径（`output/playwright/frontend-scale-metrics.json`）全被记成「证据阅读器会查」，而证据阅读器**故意**不把它们当断言——两台阅读器一台说「这不是断言」、另一台说「这不是我的事」，5 条真实断言就这样在账上算已托管 | **改法：交接要验发票。** `_gap_targets` 给 gap 里每个代码片段定形状（`evidence`／`name`／什么都不是），只有 `evidence` 才准落交接箱（语料 7→2）；`name` 进新的第七箱 `code-span-names-a-file`，由指针阅读器自己回答——带目录的按链接阅读器那套 `_holds` 问，裸名允许命中任意一个被跟踪同名文件（`config.py:331-338` 说的是位置不是导入路径，要求唯一只会教人补目录名），git 忽略的名字算生成物不算缺失，行号范围还不得超过被引文件行数。**五条变异全部落红**（脚本 sha256 `dbb05e722347`，锚点强制命中 1 次、字节快照还原复验）：退回「有反引号就算交接」→ `4 failed, 37 passed`；存在性判定留个空候选兜底 → `1 failed`；撤掉行号判定 → `1 failed`；把「形状像文件」的要求去掉（任何片段都算名字）→ `1 failed`，红在那条 `answer` 门；撤掉 gitignore 分支 → **`4 failed`**，其中 `test_shipped_documents_have_no_dangling_references` 与端到端门一起红——那条生成物豁免不是纸面上的宽容，是语料在用的判据 | 契约改动要一起改账：`_pointer_spans` 从三元组变四元组（多带 targets），三条既有门在同一提交内改；分箱从六变七，`set(floors) == set(POINTER_BOXES)` 那条门会把「只加箱不改账」当场抓住。**gap 里是代码片段但什么都不是**（一个只写着字段名的片段）既不许留在交接箱、也不许落进词内箱（那箱的含义是「根本不是引用」），落 `citation-without-locator`；这条今天语料移动 **0** 条，只由合成门撑着，照上一批的规矩写明。本批新增 3 条门（38 → 41）、定稿实测见第二十五批末段 |
+| M8-T42 另一个交接箱也没验发票：判据问的是「句子里有没有方括号」，链接阅读器认的是「完整链接＋它愿意判的目标」 | ✅ | 见下方「第二十六批 M8-T42」。上一批把「别人会查」这条承诺在证据阅读器那边验了一遍，同一句话在另一个箱子里还挂着：`carried-by-link-reader` 的受理条件是一个方括号，而链接阅读器走的是 `[文字](目标)` 这条语法，并且**主动跳过**四类目标（空、页内锚点、外链、被空格打断的形状）。逐条量：语料 9 条今天全部兑付（把标记自身区域抹掉后，链接阅读器的计数会掉下来），但合成形状一探即破——`[待定]`、`[说明]()`、`[说明](a b.md)`、`[本节](#t)`、`[官网](https://…)` 五条全被记成「别人会查」，而 `check_links` 实报 `checked=0`，两台阅读器一台说「这不是我的事」、另一台说「这不值得查」。反向也错：`见下方 [说明](README.md) 一条` 这种方括号不在 span 首位的真链接，被记进「有名字没判据」那一格 | **改法：判据换成对方自己的语法，并且两张跳过表合成一份。** `_link_judged` 成为唯一副本（链接阅读器自己走它，指针侧问的也是它）——上一批那条「改一处两边同变」的教训在这里以结构而非以门的形式落地；`_pointer_box` 多收一个 `region` 参数，取**掩码后**的标记区域，于是「只在反引号里出现的链接」两边一致地看不见。**四条变异全落红**（脚本 sha256 `1a74a5f09524`，锚点强制命中、字节快照还原复验）：退回「有方括号就算托管」→ `3 failed`；交接箱永远不受理 → `5 failed`（含下限门与语料对账门）；放宽跳过表让外链也算 → `5 failed`，红法里有两条是老门（`test_relative_links_must_resolve_and_urls_are_left_alone`、端到端门），说明这条规则不是本批新门独撑；把区域换成未掩码文本 → `1 failed`，红在那条「反引号里的链接是引用不是断言」的老门 | 语料两侧各移动 **0** 条：交接箱仍 9、`citation-without-locator` 仍 16，读数 `checked 48 of 163` 与上一批逐字节相同——所以本批改的是判据的强度，不是文档的错误，这一类今天只由合成门撑着，照 M8-T40/T41 的规矩写明。**新门 3 条**（41 → 44）：五个形状的两侧同判（箱＋对方实报的 `checked`）、反向那条真链接、以及语料级对账「每个交接标记抹掉自己的区域后链接阅读器看到的链接必须变少」——后者读的是 `check_links` 的返回值，不是指针侧对同一规则的第二份拷贝，否则就成了自我满足。**边界**：被掩码护住的那条「引号里再套反引号」的形状落 `word-interior` 而非 `citation-without-locator`，因为它的 span 不以引用位置开头——那是 M8-T39 定稿的 `cited` 规则，本批不动它，写在这里而不是藏起来（形状见第二十六批的围栏块例子，围栏内容对三台阅读器都是引用不是断言） |
 
 > **下一批更正（M8-T31）**：上面这个「声明写在 `result` 负载里」的落点是错的——`result` 的内容来自模型，等于让被计费的一方自己说「我已经汇总过了」。声明已改由**主机字段**承载（快照顶层 `children_rolled_up`），镜像只在主机字段为真时把它补进负载，`TaskResult` 则一律丢弃负载里夹带的这个键。 | **这个形状是被一条老门逼出来的**：第一版把声明加在 `WorkerSnapshotMirror.result()` 的输出上，立刻红在 `tests/test_task_durability.py::test_result_contract_preserves_verification_and_normalizes_both_executors`（`Left contains 1 more item: {'children_rolled_up': False}`）——那条门要求**两种执行器归一化后的结果逐键相同**，我却在进程那一侧凭空多出一个字段。改为「由汇总写进 result 负载」之后，两种执行器自然同形，门不需要被放宽一行。新门四段各挡一种漂移：(a) 声明已汇总 → 不再相加；(b) worker 只跑了父任务自己那部分 → 子树必须补进来（525）；(c) 声明能穿过 `TaskResult` 与镜像、且**没有声明的负载确实不带键**（`"children_rolled_up" not in undeclared`）并仍会汇总；(d) **AST 断言 `_reconnect_worker` 函数体里真有 `self._roll_up_tokens(...)` 调用点**——只测 helper 会让调用点自由漂移，这是 M8-T23 那条接缝门手法的第二次使用。**测试自身的假绿也被抓一次**：第一版忘了把子任务注册进 `manager.tasks`，(a) 段就以「谁都没汇总」的姿态通过。**承重量**：忽略声明 → `assert 925 == 525`；把声明放回镜像输出 → 老契约门红；删调用点 → 红在 `['_monitor_worker', '_persist_task', '_release_session_slot']`。**同时回头更正记录**：M8-T24 那句「这条支路不汇总」就地改成「已由 M8-T30 关闭」并写清关法——过期却不改的边界句，读起来和还在的缺口一模一样。全量 **1002 passed** |
 | M8-T20 配置面另一半：旋钮拧得动，但没人查得到它存在（文档漂移） | ✅ | M8-T18 自己就是触发者：这一批新加的两个键先只写进了 `config.py`，`minicc.config.example` 一字未提——**「可达」有两半，能被读到和能被查到是两件事**。于是把第二半也做成门：扫 `config.py` 里出现的每个 `"MINICC_*"` 字面量，要求它同时出现在 `minicc.config.example` 中，并带读取面下限（键数 ≥30，防正则失效后对着空清单假绿）。**门第一次运行报出 17/37 个键从未被文档提到**，其中全是真实用户开关：`MINICC_HOME`、`MINICC_SANDBOX` / `_IMAGE`、`MINICC_TASK_EXECUTOR`、`MINICC_MAX_CONCURRENT_TASKS`、`MINICC_CONTEXT_WINDOW_TOKENS` / `MINICC_COMPACT_THRESHOLD`、`MINICC_SOFT_MAX_TOKENS` / `_DURATION_SECONDS`、`MINICC_SUBAGENT_WRITABLE` / `_MAX_DEPTH` / `_MAX_TOKENS`、`MINICC_FALLBACK_MODELS`、`MINICC_AUTO_RESUME_ON_START`、`MINICC_TASK_HISTORY_LIMIT` / `_MAX_AGE_DAYS`、`MINICC_ALLOW_PRIVATE_MCP`。17 条**逐条回到代码里读语义再写文档**（默认值与夹紧取自 `load_config` 原文：并发 1..64、历史 1..200 条 / 1..3650 天、子代理深度 1..2；`_optional_positive_*` 的「留空/0/off/unlimited/非正数＝不设」而不是「报错」；`soft_max_*` 只经 `Budget.soft_limit_hit()` 提示收尾、**永不中止任务**；`prune()` 只删已终结快照，排队/运行中永不清理），写完 37/37 覆盖、清单可空。**故意不扩到全包**：`minicc/**/*.py` 另有 7 个开发者开关（`MINICC_FAKE_PROVIDER`、`MINICC_FAKE_PROVIDER_FAULTS`、`MINICC_EVAL_GRADER_DIR`、`MINICC_HOOKS`、`MINICC_KEEP_WORKER_CONFIG`、`MINICC_PRICING_JSON`、`MINICC_ANTHROPIC_MAX_TOKENS`）不属于用户示例文件，门的作用域就停在 `config.py` 这个用户面边界 | `tests/test_config_surface.py` 2 → 4 条（AST 门 + 读取面下限 + 文档门 + 文档扫描下限）。**双向红→绿都量过**：把新加的 2 个键从示例文件里删掉 → 报 `MINICC_ANTHROPIC_BASE_URL；MINICC_MAX_COMPLETION_CONTINUES`；给一个尚未文档化的键补上文档 → 当时的「只缩不涨」版本立刻报 `请把它们从 _UNDOCUMENTED_KEYS 删掉：MINICC_HOME`（这条测的是清单会腐烂，比「新键必须写文档」更容易被漏掉）。`tests/test_config_surface.py` + `tests/test_project_config.py` **22 passed**，`-W error` |
@@ -1912,6 +1913,82 @@ if "`" in gap:
 **下一步还剩什么**（不写成已解决）：`citation-without-locator` 仍是那 16 条有名字没判据的账；行号范围只答了「不越界」，没答「那一行真的是被引内容」——那是另一台阅读器（`::` 测试名门）才有的语义，这里不冒充；裸名匹配接受多个候选，所以 `README.md` 指向 `ide/vscode/README.md` 也不会红，这是「宁要存在、不要唯一」换来的代价，写在这里而不是藏在判据里。
 
 **【提交后复验】** 68317cb 的干净检出（临时 worktree）里同一条命令读出逐字节相同的总结行，41 条门同处通过。这一段刻意不含新的引用标记：写完复测仍是 `48 of 163`——上一批已经教过，解释性散文自己就会改分母。
+
+### 第二十六批 M8-T42：另一个交接箱同样该验发票——这次量出来是干净的，破口在合成形状里（2026-09-24）
+
+**起点与上一批不同**。上一批量出一箱假交接（7 条里 5 条没人接手）；这一批按同一条尺子量另一个箱子 `carried-by-link-reader`，**量出来的结果是它今天全部兑付**：9 条标记，逐条把该标记自己的区域抹掉、再问链接阅读器还剩几条链接可看，计数条条掉落，一条虚报都没有。九个落点逐条列在下表，第三列是链接阅读器对那个目标的判定：
+
+| 文档：行 | 交接目标 | 阅读器判定 |
+|---|---|---|
+| `AUDIT_2026-09-20.md:509` | `ROADMAP_TO_PRODUCT.md` | tracked |
+| `DEEP_OPTIMIZATION_PLAN.md:56` | `OPTIMIZATION_DELIVERY_2026-09-18.md` | tracked |
+| `OPTIMIZATION_DELIVERY_2026-09-18.md:27` | `BACKEND_OPTIMIZATION_DELIVERY.md` | tracked |
+| `OPTIMIZATION_DELIVERY_2026-09-18.md:148` | `BENCHMARK_EVALUATION.md` | tracked |
+| `OPTIMIZATION_DELIVERY_2026-09-18.md:158` | `FRONTEND_HARDENING_DELIVERY.md` | tracked |
+| `OPTIMIZATION_DELIVERY_2026-09-18.md:174` | `SNAPSHOT_COMPLETION_HARDENING.md` | tracked |
+| `README.md:257` | `docs/SPECPROOF_ASSESSMENT.md` | tracked |
+| `README.md:261` | `docs/AGENT_RESEARCH.md` | tracked |
+| `README.md:299` | 两条：`docs/DEEP_OPTIMIZATION_PLAN.md`、`docs/OPTIMIZATION_DELIVERY_2026-09-18.md` | tracked |
+
+**这不足以判它没问题**——九条都是同一种形状（`见 [文字](目标)`，方括号紧贴在标记后面），语料只教了判据的一种情形。用合成句子探边界，判据立刻两头都错：
+
+| 合成句子（去掉外层反引号即是原文） | 分箱给出的承诺 | `check_links` 实报的 `checked` |
+|---|---|---|
+| 一个方括号，根本不是链接：`[待定]` | 已托管 | 0 |
+| 页内锚点：`[本节](#t)` | 已托管 | 0 |
+| 外链：`[官网](https://example.com/x)` | 已托管 | 0 |
+| 空目标：`[说明]()` | 已托管 | 0 |
+| 目标里带空格：`[说明](a b.md)` | 已托管 | 0 |
+| 方括号不在 span 首位的真链接：`见下方 [说明](README.md) 一条` | **没判据**（那格明写着「本工具查不了」） | 1 |
+
+前五行的意思是：一台阅读器说「这不是我的事」（它的语法不收这些形状），另一台说「别人会查」（分箱收了这些形状）——一条断言就在两台互相推诿中记成了已核验。最后一行是同一个洞的另一面：一个**一秒可核**的目标被写进了那格「有名字、有条数、没有判据」的明账，等于把可查的东西谎报成不可查。**两个方向的错在总数上互相抵消**，所以这条洞在语料里活到今天。
+
+**改法：判据换成对方自己的语法，两张跳过表合成一份。**
+
+```
+旧：if "[" in gap or span.startswith("["):     # 只问有没有方括号
+        return BOX_LINK_TEXT
+新：if _region_has_judged_link(region):        # region = 掩码后的标记自身区域
+        return BOX_LINK_TEXT
+    if "[" in gap or span.startswith("["):     # 有括号但对方不判 → 不许白拿托管
+        return BOX_NO_LOCATOR if cited else BOX_WORD
+```
+
+`_link_judged` 是那条跳过表的**唯一副本**：链接阅读器判不判一个目标要走它，指针侧要不要托管一个标记也要走它。上一批的教训是「两台阅读器各持一份规则就会漂移」，这次不是加一条门去盯漂移，而是让漂移无处发生。区域取**掩码后**的文本，于是「只在反引号里出现的链接」在两台阅读器里一致地不判（M8-T40 的那条口径第一次真正传到指针侧）。
+
+**四条变异（脚本 sha256 `1a74a5f09524`；锚点强制命中、字节快照还原复验，四条一致）**：
+
+| 变异 | 结果 |
+|---|---|
+| 退回「有方括号就算托管」 | `3 failed`：五个形状门、反向那条真链接、以及 M8-T40 的反引号门 |
+| 交接箱永远不受理 | `5 failed`：除上述两条外，还有下限门与语料对账门——9 条交接一夜清零会被当场抓住 |
+| 放宽跳过表（外链也算） | `5 failed`，其中 `test_relative_links_must_resolve_and_urls_are_left_alone`、`test_shipped_documents_have_no_dangling_references` 与端到端门都是**本批之前就有的门**：这条规则不是新门独撑 |
+| 区域换成未掩码文本 | `1 failed`，红在那条「反引号里的链接形状是引用不是断言」的老门（本批给它补了两条指针侧断言，就是本小节末尾围栏里的两条） |
+
+**语料影响：两侧各移动 0 条。** `carried-by-link-reader` 仍是 9、`citation-without-locator` 仍是 16、总结行仍是 `checked 48 of 163`——本批改的是判据的强度，不是文档的错误。所以这一类的守护今天**只由合成门撑着**，照 M8-T40 那条「语料移动 0，门是唯一的墙」的规矩写在这里。为了让它不是一句自我表扬，第三条新门做成语料级的对账而不是合成夹具：每个落进交接箱的标记，都把它自己的区域抹掉后**重新问一遍链接阅读器**，计数不掉即红——判据读的是 `check_links` 的返回值，不是指针侧对同一条规则的第二份拷贝。
+
+**顺带修好的一条老门**：M8-T40 的「反引号里的链接形状是引用」那条门从前只断言链接阅读器，本批给它加上指针侧的孪生断言——同一条句子带反引号不得落交接箱、去掉反引号必须落交接箱。两条形状写在下面的围栏里（围栏内容对三台阅读器都是引用，不是断言；把它们抄进散文的代价本批实测到一次：那条链接形状会自己变成一条新断言，进链接阅读器的账）：
+
+```markdown
+结论见「说明 `[README](README.md)` 那段」。    # 掩码护住 → 不落交接箱（落 word-interior）
+结论见「说明 [README](README.md) 那段」。      # 真链接   → 落交接箱
+```
+
+**边界照写**：那条落 `word-interior` 而不是 `citation-without-locator`，是因为它的 span 不以引用位置开头——`cited` 规则是 M8-T39 定稿的，本批不动它，但它意味着「掩码挡住了假交接」这件事的落点仍不是最贴切的那一格。
+
+**下一步还剩什么**（不写成已解决）。① 交接箱问的是「这个区域里有没有一条对方会判的链接」，不是「这个标记指的就是那条链接」——一个同时点了两样东西的标记只会被链接那半答到，名字那半不再做行号对账。四种连写形状实测如下（前三条今天就已经是这个落点，本批没改它）：
+
+```markdown
+口径见下方表格，另参 [README](README.md)。        # 仍是「没判据」——逗号截断了 span
+口径见 README.md 与 [说明](nope_missing_file.md)。  # 落交接箱：链接被答，裸名那半没被行号对账
+详见 [说明](README.md) 那一段，口径同上。           # 落交接箱
+参见 [说明](README.md) 与下方表格。                 # 落交接箱：「下方表格」那半没人答
+```
+
+② `citation-without-locator` 仍是那 16 条有名字没判据的账；③ 掩码护住的那条形如「引号里再套反引号」的标记落 `word-interior` 而不是 `citation-without-locator`，落点仍不贴切（本批按 M8-T39 的 `cited` 规则原样保留）；④ 一个只在代码片段里出现的坏链接，两台阅读器今天都不判它——这是掩码的既定代价，不是本批新增的洞。
+
+**承重量**：新增 3 条门（`tests/test_doc_pointers.py` 41 → 44），全量 `.venv/Scripts/python.exe -m pytest -q -W error` **1066 passed**（exit 0；上一基线 1063，差额=新增门数 3；用时两次实测 233.62s／397.17s，与内容无关，只作记录）。定稿实测：`checked 50 of 166`，七箱 `checked=50`／`citation-without-locator=16`／`carried-by-link-reader=9`／`carried-by-evidence-reader=2`／`code-span-names-a-file=6`／`path-in-prose=3`／`word-interior=80`，23 条链接、828 条证据断言、19 个文档、228 个被跟踪文件，`--check` exit 0。**这份读数里 3 个标记是这段记录自己写下的**（表格行 126→129）：2 条指向本批新章节的标题（落 `checked`，两侧编号都在标题里声明过），1 条是表格行里 `看不见` 那个后缀（落 `word-interior`）；证据断言 820→828 的 8 条全部出自本批那张九行落点表——每一条形如 `文档.md:行号` 的引用都被被引文件的真实行数答过一遍，这也是它们进账而非进红的原因。**所以本批那句「两侧各移动 0 条」要这样读**：把这段记录撤掉，语料读数回到 `48 of 163` 且七箱逐格相同；`carried-by-link-reader` 从头到尾是 9，`citation-without-locator` 从头到尾是 16。
+
 
 ### M8-T7 注记：一次真实失败的时间线，以及「不给结论」的边界
 

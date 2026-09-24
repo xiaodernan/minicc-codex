@@ -315,13 +315,39 @@ def _gap_targets(gap: str) -> list[tuple[str, str]]:
     return targets
 
 
-def _pointer_box(gap: str, span: str) -> str:
+def _link_target(match: re.Match[str]) -> str:
+    return match.group(2).split("#")[0].strip()
+
+
+def _link_judged(match: re.Match[str]) -> bool:
+    """Does the link reader form a verdict about this link at all?
+
+    ``check_links`` skips an empty target, an in-page anchor and an external URL: those
+    are not claims about this repository, so nobody checks them and a citation landing on
+    one cannot be booked as someone else's work. This is the *only* copy of that skip
+    list — the link reader consults it too, so the two sides cannot drift.
+    """
+    target = _link_target(match)
+    return bool(target) and not target.startswith(("http://", "https://", "mailto:"))
+
+
+def _region_has_judged_link(region: str) -> bool:
+    """``carried-by-link-reader`` is a promise that another reader answers for this
+    marker, so the test is that reader's own grammar over the region it actually sees —
+    not merely "a bracket is somewhere in the sentence".
+    """
+    return any(_link_judged(match) for match in _LINK.finditer(region))
+
+
+def _pointer_box(gap: str, span: str, region: str) -> str:
     """Sort one 「见」 marker into the account.
 
     ``gap`` is the *unmasked* text between the marker and where the harvest began;
     offsets survive masking, so it says whether a locator was there all along and got
     blanked out (a code span, which is either handed to the evidence reader or resolved
-    here — see ``_gap_targets``) or never was.
+    here — see ``_gap_targets``) or never was. ``region`` is the *masked* text the marker
+    actually covers, which is what the link reader sees when it decides whether a link
+    there is one it judges.
 
     A locator-shaped span still has to be a *citation*: 「可见价值低于 M6–M8 任何一项」
     contains two ids and is 可见 plus unrelated prose, so an id alone does not make a
@@ -345,8 +371,14 @@ def _pointer_box(gap: str, span: str) -> str:
         # whose target has no locatable shape. It belongs in the same open account as
         # 「口径见下方注记」, never in 「word-interior」, whose meaning is "not a reference".
         return BOX_NO_LOCATOR
-    if "[" in gap or span.startswith("["):
+    if _region_has_judged_link(region):
         return BOX_LINK_TEXT
+    if "[" in gap or span.startswith("["):
+        # A bracket that is not a link the reader judges (「见 [待定]」「见 [说明](a b.md)」,
+        # an in-page anchor, an external URL) is still a citation pointing somewhere the
+        # tool cannot look up. It must not buy its way into the hand-off box, and it must
+        # not land in 「word-interior」 either — that box means "not a reference".
+        return BOX_NO_LOCATOR if cited else BOX_WORD
     if cited and "/" in span:
         return BOX_PATH
     if cited:
@@ -364,7 +396,15 @@ def _pointer_spans(text: str) -> list[tuple[int, str, str, list[tuple[str, str]]
         after = match.start() + (2 if masked.startswith("参见", match.start()) else 1)
         if (quoted := match.group(2)) is not None:
             gap = text[after : match.start(2)]
-            out.append((match.start(), quoted.strip(), _pointer_box(gap, quoted.strip()), _gap_targets(gap)))
+            span = quoted.strip()
+            out.append(
+                (
+                    match.start(),
+                    span,
+                    _pointer_box(gap, span, masked[after : match.end()]),
+                    _gap_targets(gap),
+                )
+            )
             continue
         direction = match.group(3) or ""
         span = f"{direction}{match.group(4) or ''}".strip()
@@ -372,7 +412,14 @@ def _pointer_spans(text: str) -> list[tuple[int, str, str, list[tuple[str, str]]
         # itself is *part of* the match, and asking it whether it holds a backtick
         # would file every 可见…-plus-code-further-along line as a code-span pointer.
         gap = text[after : match.start(4)]
-        out.append((match.start(), span, _pointer_box(gap, span), _gap_targets(gap)))
+        out.append(
+            (
+                match.start(),
+                span,
+                _pointer_box(gap, span, masked[after : match.end()]),
+                _gap_targets(gap),
+            )
+        )
     return out
 
 
@@ -540,9 +587,9 @@ def check_links(document: Path, text: str) -> tuple[list[Problem], int, int]:
     checked = 0
     generated = 0
     for match in _LINK.finditer(_mask_code(text)):
-        target = match.group(2).split("#")[0].strip()
-        if not target or target.startswith(("http://", "https://", "mailto:", "#")):
+        if not _link_judged(match):
             continue
+        target = _link_target(match)
         checked += 1
         candidates = [(c, _inside_repo(c)) for c in (document.parent / target, REPO_ROOT / target)]
         inside = [(c, rel) for c, rel in candidates if rel is not None]
