@@ -1989,6 +1989,8 @@ if "`" in gap:
 
 **承重量**：新增 3 条门（`tests/test_doc_pointers.py` 41 → 44），全量 `.venv/Scripts/python.exe -m pytest -q -W error` **1066 passed**（exit 0；上一基线 1063，差额=新增门数 3；用时两次实测 233.62s／397.17s，与内容无关，只作记录）。定稿实测：`checked 50 of 166`，七箱 `checked=50`／`citation-without-locator=16`／`carried-by-link-reader=9`／`carried-by-evidence-reader=2`／`code-span-names-a-file=6`／`path-in-prose=3`／`word-interior=80`，23 条链接、828 条证据断言、19 个文档、228 个被跟踪文件，`--check` exit 0。**这份读数里 3 个标记是这段记录自己写下的**（表格行 126→129）：2 条指向本批新章节的标题（落 `checked`，两侧编号都在标题里声明过），1 条是表格行里 `看不见` 那个后缀（落 `word-interior`）；证据断言 820→828 的 8 条全部出自本批那张九行落点表——每一条形如 `文档.md:行号` 的引用都被被引文件的真实行数答过一遍，这也是它们进账而非进红的原因。**所以本批那句「两侧各移动 0 条」要这样读**：把这段记录撤掉，语料读数回到 `48 of 163` 且七箱逐格相同；`carried-by-link-reader` 从头到尾是 9，`citation-without-locator` 从头到尾是 16。
 
+**【提交后复验】** fe53f3c 的干净检出（临时 worktree）里同一条命令读出逐字节相同的总结行，44 条门同处通过。这一段刻意不含新的引用标记：写完复测仍是 `50 of 166`，七箱逐格相同——上一批已经教过一次，解释性散文自己就会改分子。
+
 
 ### M8-T7 注记：一次真实失败的时间线，以及「不给结论」的边界
 
