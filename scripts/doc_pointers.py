@@ -21,6 +21,11 @@ Two classes are checked, both mechanically:
     was one opaque integer covering three different things — a word-internal 见, a
     citation another reader already resolves, and a real pointer that names a place
     by nickname (``口径见下方注记``) and stays unchecked.
+    A marker may assert more than a locator: it can name a file, or name the document that
+    owns the section (``见 README.md 第8节``). Both halves are answered here — a named
+    document is resolved *in that document*, and a bare file name in prose goes through the
+    name rule, because the prose-path reader only invoices names carrying a directory.
+
     A locator must resolve to a heading, and any id in the same pointer must be
     **declared** inside that locator's section — as a heading or as a table row's
     label cell, not merely mentioned. Mentioning cannot work: 「见下方「第十八批
@@ -100,9 +105,20 @@ _POINTER = re.compile(
     r"(?:见|参见)\s*(" + _DIRECTIONS + r")?\s*[「『]([^」』\n]{1,60})[」』]"
     r"|(?:见|参见)\s*(" + _DIRECTIONS + r")?([^」『\n，。；：|`]{0,60})"
 )
+#: A file-shaped name written in prose (outside backticks). One pattern, three decisions:
+#: what the prose reader invoices, what may *start* a citation, and which name inside a
+#: marker's own span belongs to nobody else. It used to be the prose reader's private
+#: business, and that privacy is exactly the hole M8-T44 measured: ``_prose_path_claims``
+#: keeps only claims carrying a directory (``if "/" in claim``), so a bare ``nope.md`` in
+#: prose was invoiced by no reader at all — including the pointer reader that had just
+#: harvested the 「见」 in front of it.
+_PROSE_PATH = re.compile(r"[\w.\-/]+\.(?:py|md|toml|json|txt|example)\b")
 #: What a citation may start with, right after the marker (the words are ``_DIRECTION``).
+#: The last alternative is a bare file name: 「见 nope.md」 is a reference even with no
+#: directory in front of it, so filing it as 「word-interior」 — whose whole meaning is "not
+#: a reference" — let a live citation out of the account that admits it guards nothing.
 _CITATION_HEAD = re.compile(
-    r"^(?:" + _DIRECTIONS + r"|第|附录|[「『\[`]|[MP]\d|[A-Za-z0-9_.\-]+/)"
+    r"^(?:" + _DIRECTIONS + r"|第|附录|[「『\[`]|[MP]\d|[A-Za-z0-9_.\-]+/|" + _PROSE_PATH.pattern + r")"
 )
 #: Where a pointer says to look, right after the marker - used to honour the direction
 #: a quoted-name pointer claims (「见下文」 must be declared *below*).
@@ -259,6 +275,17 @@ def _numbered_headings(headings: list[Section]) -> dict[int, Section]:
     return out
 
 
+@lru_cache(maxsize=None)
+def _numbered_sections(path: Path) -> dict[int, Section]:
+    """Read another document's section table the same way this document's is read.
+
+    Memoised because a pointer may name the same file dozens of times, and because
+    ``_numbered_headings`` is the *only* rule for what owns a number — a second,
+    hand-written notion of "does document X have a 第N节" is where drift starts.
+    """
+    return _numbered_headings(sections(path.read_text(encoding="utf-8")))
+
+
 def _batch_labels(headings: list[Section]) -> dict[str, Section]:
     """Every ``第N批`` a heading declares about itself, keyed by its exact label.
 
@@ -358,6 +385,54 @@ def _gap_targets(gap: str) -> list[tuple[str, str]]:
         elif _NAME_REF.match(span):
             targets.append(("name", span))
     return targets
+
+
+def _span_names(span: str) -> list[str]:
+    """File-shaped names a marker asserts about *itself*, minus its own link target.
+
+    ``span`` arrives masked, so a name inside backticks is not here — the gap readers own
+    that half. The link's target is dropped because ``check_links`` already judges it;
+    re-checking it would invoice one claim twice, and a slashed name is dropped for the
+    same reason: the prose reader requires a directory and therefore already owns it.
+    """
+    return [
+        match.group(0)
+        for match in _PROSE_PATH.finditer(_LINK.sub(" ", span))
+        if "/" not in match.group(0)
+    ]
+
+
+def _span_documents(span: str) -> list[tuple[str, Path | None]]:
+    """(``written``, resolved path or None) per markdown document the marker names itself.
+
+    Resolution follows ``_named_documents`` (repo root, then ``docs/``) so a pointer cannot
+    mean one thing to its own reader and another to its sentence. ``None`` stays ``None``:
+    a document that is not there is reported, not silently swapped for this one.
+    """
+    out: list[tuple[str, Path | None]] = []
+    for match in _PROSE_PATH.finditer(_LINK.sub(" ", span)):
+        name = match.group(0)
+        if not name.endswith(".md"):
+            continue
+        direct = REPO_ROOT / name
+        path = direct if direct.is_file() else REPO_ROOT / "docs" / name
+        entry = (name, path if path.is_file() else None)
+        if entry not in out:
+            out.append(entry)
+    return out
+
+
+def _span_name_claims(document: Path, text: str, offset: int, span: str) -> list[Problem]:
+    """Answer the bare file names a marker asserts, using the name rule that already exists.
+
+    ``carried-by-link-reader`` and ``citation-without-locator`` are each a promise about who
+    collects the citation, and both were written against one claim per marker. A second,
+    prose-shaped name in the same span — 「口径见 nope_missing_file.md 与 [说明](README.md)」 —
+    belonged to no reader at all: the link reader stops at its own parentheses, the evidence
+    reader only parses code spans, and the prose-path reader requires a slash. That is the
+    same gap M8-T41 closed for names *inside* backticks, so the same resolver is reused.
+    """
+    return _check_name_targets(document, text, offset, [("name", name) for name in _span_names(span)])
 
 
 def _link_target(match: re.Match[str]) -> str:
@@ -609,10 +684,18 @@ def check_pointers(document: Path, text: str) -> tuple[list[Problem], int, dict[
             # "a locator-shaped target resolved" for every reader of the summary line.
             problems += _check_quoted_name(document, text, offset, span, labels)
             continue
+        if box in (BOX_LINK_TEXT, BOX_NO_LOCATOR):
+            # The hand-off is only for the claim the other reader parses. A name written in
+            # prose beside it stays this marker's business, and answering it here keeps the
+            # box's meaning intact: 「carried-by-link-reader」 still says *the link* is
+            # someone else's work, not that the whole span is.
+            problems += _span_name_claims(document, text, offset, span)
+            continue
         if box != BOX_CHECKED:
             # Every non-checked box is counted and named in the summary: that is the
             # whole point of the account. ``citation-without-locator`` is the only one
-            # holding *real* pointers this tool cannot resolve, and it stays open.
+            # holding *real* pointers this tool cannot resolve, and it stays open — for
+            # its locator half, which is what this box is an apology for.
             continue
         batches = list(_BATCH.finditer(span))
         secs = list(_SECTION.finditer(span))
@@ -620,10 +703,36 @@ def check_pointers(document: Path, text: str) -> tuple[list[Problem], int, dict[
         ids = _ID.findall(span)
         checked += 1
         line = _line_of(text, offset)
+        problems += _span_name_claims(document, text, offset, span)
+        owners = _span_documents(span)
         target: Section | None = None
         remote: list[Section] = []
         for sec in secs:
             numeral = _numeral(sec.group(1))
+            if owners:
+                # 「结论见 README.md 第8节」 names the file that owns the section, and this
+                # used to look here first: with README.md holding no numbered section at all
+                # the pointer read green off *this* document's 「## 8. …」 heading, which is a
+                # different answer to a different question. Measured before the change: that
+                # false green and the control case (the section really is here) produced
+                # byte-identical readings, so nothing in the account could tell them apart.
+                hit: Section | None = None
+                for _, path in owners:
+                    if path is not None and (section := _numbered_sections(path).get(numeral)) is not None:
+                        hit = section
+                        break
+                if hit is not None:
+                    remote.append(hit)
+                    continue
+                problems.append(
+                    Problem(
+                        "POINTER",
+                        document.name,
+                        line,
+                        f"「{span}」 说{sec.group(0)}在 {owners[-1][0]} 里，那里查不到这个编号的章节",
+                    )
+                )
+                continue
             target = numbered.get(numeral) if numeral is not None else None
             if target is not None:
                 continue
@@ -822,7 +931,6 @@ _PATH_REF = re.compile(
 )
 _BARE_TEST = re.compile(r"^test_[a-z0-9_]+$")
 _DIR_REF = re.compile(r"^(?P<path>[\w.\-]+(?:/[\w.\-]+)+)/?$")
-_PROSE_PATH = re.compile(r"[\w.\-/]+\.(?:py|md|toml|json|txt|example)\b")
 #: A code span that names a file with an optional line range: what a citation points
 #: at when the evidence reader's "is this a path claim?" test says no (bare names, and
 #: paths whose head is a directory git ignores).

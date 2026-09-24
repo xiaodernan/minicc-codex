@@ -1017,3 +1017,108 @@ def test_the_script_recompiles_from_source_with_warnings_escalated() -> None:
     with escalation.catch_warnings():
         escalation.simplefilter("error")
         compile(SCRIPT.read_text(encoding="utf-8"), str(SCRIPT), "exec")
+
+
+def test_a_pointer_that_names_a_document_is_answered_in_that_document() -> None:
+    """「结论见 README.md 第8节」 must not be answered by *this* document's 第8节.
+
+    The pair is the whole point: a lone green reading proves nothing until the same number
+    resolves for the reason the pointer gives. Measured before the change, these two texts
+    produced byte-identical accounts (checked=1, no problems), which is how a pointer at a
+    document with no numbered section at all survived every gate.
+    """
+    head = "## 8. 继续实施\n\n正文。\n\n"
+    readme = dp.REPO_ROOT / "README.md"
+    assert 8 not in dp._numbered_sections(readme), (
+        "门的前提没了：README.md 现在有了编号二级标题，换成一个确实没有的文档再跑"
+    )
+    assert dp._numbered_sections(dp.REPO_ROOT / "docs" / "PLUGIN_API.md").get(3) is not None, (
+        "门的前提没了：docs/PLUGIN_API.md 的第3节不在了，正向控制组就只是句空话"
+    )
+
+    pointed_elsewhere = head + "结论见 README.md 第8节。\n"
+    problems, checked, _boxes = dp.check_pointers(Path("synthetic.md"), pointed_elsewhere)
+    assert checked == 1, "它仍在 checked 箱里：一个点名了别处、又答错了地方的指针必须计入总分"
+    assert [p.detail for p in problems] == [
+        "「README.md 第8节」 说第8节在 README.md 里，那里查不到这个编号的章节"
+    ], problems
+
+    really_here = head + "结论见第8节。\n"
+    assert dp.check_pointers(Path("synthetic.md"), really_here)[0] == []
+
+    owns_it = head + "结论见 docs/PLUGIN_API.md 第3节。\n"
+    assert dp.check_pointers(Path("synthetic.md"), owns_it)[0] == [], "点名的文档真有这一节，必须绿"
+
+
+def test_a_bare_file_name_beside_a_link_is_still_this_markers_claim() -> None:
+    """The link reader answers the link; a second name in the same span answers to nobody.
+
+    ``carried-by-link-reader`` was written against one claim per marker. The control (a name
+    that does exist, so the whole line is still green) is what makes this a gate rather than a
+    complaint about any file name in prose.
+    """
+    missing = "口径见 nope_missing_file.md 与 [说明](README.md)。\n"
+    problems, checked, boxes = dp.check_pointers(Path("synthetic.md"), missing)
+    assert checked == 0 and boxes[dp.BOX_LINK_TEXT] == 1, boxes
+    assert [p.detail for p in problems] == ["指针引用的 `nope_missing_file.md` 在仓库里没有任何同名文件"]
+
+    present = "口径见 README.md 与 [说明](docs/ROADMAP_TO_PRODUCT.md)。\n"
+    problems, checked, boxes = dp.check_pointers(Path("synthetic.md"), present)
+    assert problems == [] and boxes[dp.BOX_LINK_TEXT] == 1, problems
+
+
+def test_a_bare_file_name_after_see_is_a_citation_not_a_word() -> None:
+    """「口径见 nope.md」 points at something; 「可见收益」 does not, and the boxes mean it.
+
+    Filing the first in ``word-interior`` was self-contradicting: that box exists to say "no
+    reference was made here", and it was also the box with no reader at all.
+    """
+    text = "口径见 nope_missing_file.md。\n"
+    problems, _checked, boxes = dp.check_pointers(Path("synthetic.md"), text)
+    assert boxes[dp.BOX_WORD] == 0 and boxes[dp.BOX_NO_LOCATOR] == 1, boxes
+    assert [p.detail for p in problems] == ["指针引用的 `nope_missing_file.md` 在仓库里没有任何同名文件"]
+    # The old exemption still holds: a 见 that is a suffix is not a citation, name or not.
+    assert dp._pointer_box("", "可见 nope_missing_file.md", "") == dp.BOX_WORD
+
+
+def test_the_pointer_reader_leaves_slashed_names_to_the_prose_reader() -> None:
+    """One claim, one invoice: a name carrying a directory is the prose reader's business.
+
+    ``_prose_path_claims`` keeps only claims with a slash, so the pointer reader picks up
+    exactly the complement of that test - not a superset, or every path-shaped citation in a
+    pointer would start showing up twice, which is the accounting error M8-T41 was about.
+    """
+    assert dp._span_names("docs/nope_missing_x.md 第8节") == []
+    assert dp._span_names("nope_missing_x.md 第8节") == ["nope_missing_x.md"]
+    # A link's own target is already judged by check_links, so it is never re-invoiced here.
+    assert dp._span_names("[说明](docs/nope_missing_x.md)") == []
+    # ...but a document written in the marker's own text still owns the section claim.
+    assert [name for name, _ in dp._span_documents("docs/nope_missing_x.md 第8节")] == [
+        "docs/nope_missing_x.md"
+    ]
+    assert dp._span_documents("[说明](docs/nope_missing_x.md)") == []
+
+
+def test_a_blamed_document_is_named_in_the_complaint() -> None:
+    """A red that says "第8节 不存在" would teach a writer to fix the wrong file.
+
+    The section *does* exist - here. Only the sentence naming the document makes the failure
+    actionable, so the name is part of the gate, not decoration.
+    """
+    text = "## 8. 继续实施\n\n结论见 README.md 第8节。\n"
+    details = [p.detail for p in dp.check_pointers(Path("synthetic.md"), text)[0]]
+    assert len(details) == 1 and "README.md" in details[0], details
+
+
+def test_the_bare_name_shape_is_defined_exactly_once() -> None:
+    """The extension list must not become a fourth copy - M8-T43's whole lesson.
+
+    ``_CITATION_HEAD`` is built from ``_PROSE_PATH.pattern`` rather than re-typed, so the
+    decision "this is a file name" cannot drift from the decision "this name belongs to the
+    pointer reader". A re-typed copy would compile and pass every other gate here.
+    """
+    source = SCRIPT.read_text(encoding="utf-8")
+    assert dp._PROSE_PATH.pattern in dp._CITATION_HEAD.pattern
+    assert source.count("py|md|toml|json|txt|example") == 1, (
+        "裸文件名形状又出现了一份手抄副本：谁改了其中一份，另一份就会安静地不同意"
+    )
