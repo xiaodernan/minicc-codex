@@ -107,6 +107,10 @@ BOX_CHECKED = "checked"
 BOX_NO_LOCATOR = "citation-without-locator"
 BOX_LINK_TEXT = "carried-by-link-reader"
 BOX_CODE_SPAN = "carried-by-evidence-reader"
+#: A citation whose gap holds a file name the evidence reader will not parse (bare
+#: ``config.py:331-338``, or a path under an ignored directory). The pointer reader
+#: answers for these itself instead of booking them as someone else's.
+BOX_CODE_NAME = "code-span-names-a-file"
 BOX_PATH = "path-in-prose"
 BOX_WORD = "word-interior"
 POINTER_BOXES = (
@@ -114,6 +118,7 @@ POINTER_BOXES = (
     BOX_NO_LOCATOR,
     BOX_LINK_TEXT,
     BOX_CODE_SPAN,
+    BOX_CODE_NAME,
     BOX_PATH,
     BOX_WORD,
 )
@@ -290,12 +295,33 @@ def _locator(span: str) -> bool:
     return bool(_BATCH.search(span) or _SECTION.search(span) or _APPENDIX.search(span) or _ID.findall(span))
 
 
+def _gap_targets(gap: str) -> list[tuple[str, str]]:
+    """``(kind, span)`` for each code span in a citation gap that points at something.
+
+    ``evidence`` is a shape the evidence reader parses on its own. ``name`` is the
+    case M8-T41 found: a bare file name (``config.py:331-338``, ``test_x.py``) or a
+    path under a directory git ignores, which the evidence reader *deliberately*
+    skips — so the promise in ``carried-by-evidence-reader`` was never collected.
+    Anything else in a gap (``answer``, ``task_search``) is a field or identifier,
+    not a target, and must not be filed as if another reader had it.
+    """
+    targets: list[tuple[str, str]] = []
+    for match in _CODE_SPAN.finditer(gap):
+        span = match.group(1).strip()
+        if _evidence_shape(span) is not None:
+            targets.append(("evidence", span))
+        elif _NAME_REF.match(span):
+            targets.append(("name", span))
+    return targets
+
+
 def _pointer_box(gap: str, span: str) -> str:
     """Sort one 「见」 marker into the account.
 
     ``gap`` is the *unmasked* text between the marker and where the harvest began;
     offsets survive masking, so it says whether a locator was there all along and got
-    blanked out (a code span, which the evidence reader already resolves) or never was.
+    blanked out (a code span, which is either handed to the evidence reader or resolved
+    here — see ``_gap_targets``) or never was.
 
     A locator-shaped span still has to be a *citation*: 「可见价值低于 M6–M8 任何一项」
     contains two ids and is 可见 plus unrelated prose, so an id alone does not make a
@@ -309,8 +335,16 @@ def _pointer_box(gap: str, span: str) -> str:
     cited = bool(span) and (has_place or _CITATION_HEAD.match(span) is not None)
     if cited and _locator(span):
         return BOX_CHECKED
-    if "`" in gap:
+    kinds = {kind for kind, _ in _gap_targets(gap)}
+    if "evidence" in kinds:
         return BOX_CODE_SPAN
+    if "name" in kinds:
+        return BOX_CODE_NAME
+    if _CODE_SPAN.search(gap):
+        # A citation pointing at a field or a flag (「见 `answer`」) is a real pointer
+        # whose target has no locatable shape. It belongs in the same open account as
+        # 「口径见下方注记」, never in 「word-interior」, whose meaning is "not a reference".
+        return BOX_NO_LOCATOR
     if "[" in gap or span.startswith("["):
         return BOX_LINK_TEXT
     if cited and "/" in span:
@@ -322,24 +356,71 @@ def _pointer_box(gap: str, span: str) -> str:
     return BOX_WORD
 
 
-def _pointer_spans(text: str) -> list[tuple[int, str, str]]:
-    """(offset, span, box) for every ``见`` marker, quote-delimited forms first."""
+def _pointer_spans(text: str) -> list[tuple[int, str, str, list[tuple[str, str]]]]:
+    """(offset, span, box, gap targets) for every ``见`` marker, quote-delimited forms first."""
     masked = _mask_code(text)
-    out: list[tuple[int, str, str]] = []
+    out: list[tuple[int, str, str, list[tuple[str, str]]]] = []
     for match in _POINTER.finditer(masked):
-        quoted = match.group(2)
         after = match.start() + (2 if masked.startswith("参见", match.start()) else 1)
-        if quoted is not None:
-            span = quoted.strip()
-            out.append((match.start(), span, _pointer_box(text[after:match.start(2)], span)))
+        if (quoted := match.group(2)) is not None:
+            gap = text[after : match.start(2)]
+            out.append((match.start(), quoted.strip(), _pointer_box(gap, quoted.strip()), _gap_targets(gap)))
             continue
         direction = match.group(3) or ""
         span = f"{direction}{match.group(4) or ''}".strip()
         # The gap ends where the harvest ended, not where the match ended: the span
         # itself is *part of* the match, and asking it whether it holds a backtick
         # would file every 可见…-plus-code-further-along line as a code-span pointer.
-        out.append((match.start(), span, _pointer_box(text[after:match.start(4)], span)))
+        gap = text[after : match.start(4)]
+        out.append((match.start(), span, _pointer_box(gap, span), _gap_targets(gap)))
     return out
+
+
+def _check_name_targets(
+    document: Path, text: str, offset: int, targets: list[tuple[str, str]]
+) -> list[Problem]:
+    """Resolve the file names a citation points at that no other reader parses.
+
+    A name carrying a directory is asked of the index directly; a bare name is
+    satisfied by *any* tracked file with that name, because ``config.py:331-338``
+    cites a location rather than an import path — the docs use that shorthand
+    dozens of times, and demanding a unique match would only teach writers to type
+    a directory. A name git ignores is a run's own output: still a citation, but
+    judged the way the link reader judges products, not as a missing file.
+    """
+    line = _line_of(text, offset)
+    problems: list[Problem] = []
+    for kind, span in targets:
+        if kind != "name":
+            continue
+        ref = _NAME_REF.match(span)
+        assert ref is not None, span  # _gap_targets only files what it matches
+        path = ref.group("path")
+        if _git_ignored(path):
+            continue
+        if "/" in path:
+            candidates = [path] if _holds(path) else []
+        else:
+            candidates = list(_basenames().get(path, ()))
+        if not candidates:
+            problems.append(
+                Problem("POINTER", document.name, line, f"指针引用的 `{span}` 在仓库里没有任何同名文件")
+            )
+            continue
+        numbering = ref.group("lines")
+        if numbering and (target := REPO_ROOT / candidates[0]).exists():
+            total = len(target.read_text(encoding="utf-8", errors="replace").splitlines())
+            high = max(int(n) for n in re.split(r"[,\-]", numbering) if n.isdigit())
+            if high > total:
+                problems.append(
+                    Problem(
+                        "POINTER",
+                        document.name,
+                        line,
+                        f"指针引用的 `{span}` 超出 {candidates[0]} 的行数 {total}",
+                    )
+                )
+    return problems
 
 
 def check_pointers(document: Path, text: str) -> tuple[list[Problem], int, dict[str, int]]:
@@ -350,8 +431,11 @@ def check_pointers(document: Path, text: str) -> tuple[list[Problem], int, dict[
     problems: list[Problem] = []
     checked = 0
     boxes = {box: 0 for box in POINTER_BOXES}
-    for offset, span, box in _pointer_spans(text):
+    for offset, span, box, targets in _pointer_spans(text):
         boxes[box] += 1
+        if box == BOX_CODE_NAME:
+            problems += _check_name_targets(document, text, offset, targets)
+            continue
         if box != BOX_CHECKED:
             # Every non-checked box is counted and named in the summary: that is the
             # whole point of the account. ``citation-without-locator`` is the only one
@@ -566,6 +650,12 @@ _PATH_REF = re.compile(
 _BARE_TEST = re.compile(r"^test_[a-z0-9_]+$")
 _DIR_REF = re.compile(r"^(?P<path>[\w.\-]+(?:/[\w.\-]+)+)/?$")
 _PROSE_PATH = re.compile(r"[\w.\-/]+\.(?:py|md|toml|json|txt|example)\b")
+#: A code span that names a file with an optional line range: what a citation points
+#: at when the evidence reader's "is this a path claim?" test says no (bare names, and
+#: paths whose head is a directory git ignores).
+_NAME_REF = re.compile(
+    r"^(?P<path>[\w.\-/]+?\.\w{1,8})(?::(?P<lines>\d+(?:[,\-]\d+)*))?(?P<attr>\.\w+)?$"
+)
 
 #: Not files in this repository: the product reads or writes them at run time,
 #: in the *user's* workspace. A reason is mandatory — a bare name in a set is
@@ -752,6 +842,15 @@ def _tracked_dirs() -> frozenset[str]:
         for cut in range(1, len(parts)):
             dirs.add("/".join(parts[:cut]))
     return frozenset(dirs)
+
+
+@lru_cache(maxsize=1)
+def _basenames() -> dict[str, tuple[str, ...]]:
+    """Tracked paths grouped by file name — what a bare-name citation can land on."""
+    grouped: dict[str, list[str]] = {}
+    for path in _tracked_files():
+        grouped.setdefault(path.rsplit("/", 1)[-1], []).append(path)
+    return {name: tuple(sorted(paths)) for name, paths in grouped.items()}
 
 
 def _holds(rel: str) -> bool:

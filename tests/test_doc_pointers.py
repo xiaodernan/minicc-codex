@@ -639,7 +639,7 @@ def test_an_id_glued_onto_chinese_is_still_an_id() -> None:
     assert dp._ID.findall("见下方M8-T26 那条") == ["M8-T26"]
     assert dp._ID.findall("上方M4-3 行的第三格") == ["M4-3"]
     assert dp._ID.findall("XM8-T34 与 minicc_m8") == [], "编号不能从半个词里长出来"
-    spans = {span for _, span, _ in dp._pointer_spans("# T\n\n结论见下方M8-T26 那条。\n")}
+    spans = {span for _, span, _, _ in dp._pointer_spans("# T\n\n结论见下方M8-T26 那条。\n")}
     assert spans == {"下方M8-T26 那条"}, spans
     _, checked, boxes = dp.check_pointers(Path("synthetic.md"), _CITATION_DOC)
     assert boxes[dp.BOX_CHECKED] == checked >= 1
@@ -679,7 +679,13 @@ def test_boxes_have_floors_because_a_box_that_goes_blind_is_a_clean_run() -> Non
         dp.BOX_CHECKED: 25,
         dp.BOX_NO_LOCATOR: 10,
         dp.BOX_LINK_TEXT: 5,
-        dp.BOX_CODE_SPAN: 5,
+        # M8-T41 split the old hand-off box: only a gap span the evidence reader really
+        # parses may stay here, so the count fell 7→2 and the remainder moved to
+        # ``code-span-names-a-file``. Both floors sit under what the corpus holds today
+        # (2 and 5) because a floor at the current count would red on the next prose
+        # edit and teach nobody anything.
+        dp.BOX_CODE_SPAN: 1,
+        dp.BOX_CODE_NAME: 4,
         dp.BOX_PATH: 1,
         dp.BOX_WORD: 40,
     }
@@ -738,7 +744,7 @@ def test_the_corpus_holds_arabic_pointers_and_the_tool_now_reads_every_one() -> 
     in_word = []
     for document in dp.DEFAULT_DOCS:
         text = document.read_text(encoding="utf-8")
-        for offset, span, box in dp._pointer_spans(text):
+        for offset, span, box, _targets in dp._pointer_spans(text):
             line = dp._line_of(text, offset)
             if re.search(r"第\d+(?:节|批)", span):
                 arabic.append((document.name, line, span, box))
@@ -793,3 +799,57 @@ def test_the_link_reader_actually_has_quotations_to_ignore() -> None:
         text = document.read_text(encoding="utf-8")
         quoted += len(list(dp._LINK.finditer(text))) - len(list(dp._LINK.finditer(dp._mask_code(text))))
     assert quoted >= 3, f"语料里只有 {quoted} 个被引用的链接形状，这条门的落点已经消失"
+
+
+_NAME_DOC = "# T\n\n具体口径见 `config.py:331-338` 的注释。\n"
+_FIELD_DOC = "# T\n\n字段口径见 `answer` 那一段。\n"
+
+
+def _first_box(text: str) -> str:
+    *_, box, _targets = dp._pointer_spans(text)[0]
+    return box
+
+
+def test_a_citation_at_a_bare_file_name_is_resolved_rather_than_deferred() -> None:
+    """``carried-by-evidence-reader`` used to mean "there is a backtick nearby".
+
+    A bare name is exactly the shape the evidence reader refuses on purpose — so the
+    pointer reader booked the hand-off and nobody showed up. It now answers for those
+    citations itself: existence, and a line range that fits the file it names.
+    """
+    assert _first_box(_NAME_DOC) == dp.BOX_CODE_NAME
+    assert _pointer_problems(_NAME_DOC) == []
+    typo = _NAME_DOC.replace("config.py:331-338", "config_typo_xyz.py")
+    problems = _pointer_problems(typo)
+    assert len(problems) == 1 and "没有任何同名文件" in problems[0], problems
+    assert len(_pointer_problems(_NAME_DOC.replace("331-338", "99999-100000"))) == 1
+    # A name under a directory git ignores is a run's own output: same three-state
+    # answer the link reader gives, so it is counted and not reported.
+    ignored = _NAME_DOC.replace("config.py:331-338", "output/playwright/whatever.json")
+    assert _pointer_problems(ignored) == [] and _first_box(ignored) == dp.BOX_CODE_NAME
+
+
+def test_the_hand_off_box_requires_the_other_reader_to_actually_parse_the_span() -> None:
+    """The gap's code span must be a target, and a target-less one is not 「not a reference」."""
+    assert _first_box("证据见 `docs/ROADMAP_TO_PRODUCT.md` 一段。\n") == dp.BOX_CODE_SPAN
+    # A field name is neither an evidence shape nor a file: it is a real pointer whose
+    # target cannot be looked up, which belongs with 口径见下方注记, not with 可见.
+    assert _first_box(_FIELD_DOC) == dp.BOX_NO_LOCATOR
+    handed_off = []
+    for document in dp.DEFAULT_DOCS:
+        for _offset, span, box, targets in dp._pointer_spans(document.read_text(encoding="utf-8")):
+            if box == dp.BOX_CODE_SPAN and not any(kind == "evidence" for kind, _ in targets):
+                handed_off.append((document.name, span))
+    assert handed_off == [], f"这些指针被记成别人会查，其实没人查：{handed_off}"
+
+
+def test_the_name_reader_has_work_in_the_shipped_corpus() -> None:
+    """Non-vacuity: the new box has to be load-bearing on the documents as shipped."""
+    resolved: list[tuple[str, str]] = []
+    for document in dp.DEFAULT_DOCS:
+        for _offset, _span, box, targets in dp._pointer_spans(document.read_text(encoding="utf-8")):
+            if box == dp.BOX_CODE_NAME:
+                names = [span for kind, span in targets if kind == "name"]
+                assert names, (document.name, _offset)
+                resolved += [(document.name, name) for name in names]
+    assert len(resolved) >= 4, f"名字箱只剩 {len(resolved)} 条，这条门已经是空的：{resolved}"
