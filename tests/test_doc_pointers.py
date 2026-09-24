@@ -686,6 +686,7 @@ def test_boxes_have_floors_because_a_box_that_goes_blind_is_a_clean_run() -> Non
         # edit and teach nobody anything.
         dp.BOX_CODE_SPAN: 1,
         dp.BOX_CODE_NAME: 4,
+        dp.BOX_QUOTED_NAME: 1,
         dp.BOX_PATH: 1,
         dp.BOX_WORD: 40,
     }
@@ -925,3 +926,94 @@ def test_every_shipped_link_hand_off_shrinks_the_link_reader_when_removed() -> N
             blanked = masked[:after] + " " * (match.end() - after) + masked[match.end() :]
             assert dp.check_links(document, blanked)[1] < baseline, (document.name, span)
     assert handed_off >= 5, f"交接箱只剩 {handed_off} 条，这条门已经是空的"
+
+
+def test_a_quoted_pointer_is_answered_only_by_a_label_on_the_side_it_claims() -> None:
+    """「见下文「X」」 is a two-part assertion: a label named X exists, *and* it is below.
+
+    M8-T43 harvested these pointers for the first time, and a harvest without a reader
+    would move a marker out of the honest open account into 「word-interior」, whose meaning
+    is "this is not a reference" (M8-T40). So the reader is pinned in both directions and
+    against all three ways a passage in this repository gets a name.
+    """
+    declared = "#### 基线统计口径\n"
+    assert _pointer_problems("口径见下文「基线」一条。\n")  # nothing declares it
+    assert _pointer_problems(declared + "口径见下文「基线」一条。\n")  # 下文: above is the wrong side
+    assert _pointer_problems("口径见下文「基线」一条。\n" + declared) == []
+    assert _pointer_problems(declared + "口径见上文「基线」一条。\n") == []
+    assert _pointer_problems("口径见下文「基线」一条。\n**基线口径**：略。\n") == []
+    assert _pointer_problems("口径见下表「基线」一条。\n| 基线口径 | 说明 |\n|---|---|\n") == []
+
+
+def test_every_word_in_the_shared_place_word_list_harvests_its_quoted_form() -> None:
+    """One tuple now feeds both patterns; the loop is over that tuple, not a copy of it.
+
+    The lists used to drift: the harvest's directional group knew ten place-words and
+    ``_CITATION_HEAD`` knew the same notion with seventeen, so 「见下文「X」」 - whose word was
+    in the longer list - never took the quote-delimited branch. Its name arrived glued
+    inside a raw span and no reader was asked about it. A hand-copied list here would go
+    stale exactly the same way and stay green.
+    """
+    for word in dp._DIRECTION:
+        text = f"口径见{word}「基线」一条。\n#### 基线统计口径\n"
+        assert _first_box(text) == dp.BOX_QUOTED_NAME, word
+
+
+def test_a_pointer_wrapped_in_its_own_bold_label_cannot_answer_itself() -> None:
+    """``**当前实测口径见本节「当前实测」一段**`` - the only declaration is the sentence itself.
+
+    M8-T36 settled that a target has to *declare* a name; keeping the label's extent is
+    what makes that checkable here. Remove the self-quote guard and this line turns green,
+    which is how the mutation proof shows the guard carries weight.
+    """
+    text = "- **当前实测口径见本节「当前实测」一段**\n"
+    assert _first_box(text) == dp.BOX_QUOTED_NAME
+    assert _pointer_problems(text)
+    assert _pointer_problems(text + "## 当前实测读数\n") == []
+
+
+def test_a_quoted_pointer_without_a_place_word_is_not_a_locative_citation() -> None:
+    """The narrowing that keeps M8-T39/T40 alive: only 见<place-word>「X」 cites a location.
+
+    「结论见「基线」这里。」 quotes a description, not a place, so the head test still decides
+    it and it lands in 「word-interior」 even where a heading declares the name. Giving the
+    benefit of the doubt to *every* quoted span would re-file M8-T40's mask shape here, and
+    that gate's point is that a quotation is not an assertion.
+    """
+    assert _first_box("结论见「基线」这里。\n#### 基线统计口径\n") == dp.BOX_WORD
+
+
+def test_every_shipped_quoted_name_pointer_answers_for_itself() -> None:
+    """The new box must hold real tenants, and each one must be answered by its own document.
+
+    The count is the M8-T42 lesson in the other direction: a box nobody lives in is a rule
+    that only exists in its own tests. Each shipped marker is re-asked here so the reading
+    cannot be held up by the summary line alone.
+    """
+    tenants = 0
+    for document in dp.DEFAULT_DOCS:
+        text = document.read_text(encoding="utf-8")
+        labels = dp._declared_labels(text)
+        for offset, span, box, _targets in dp._pointer_spans(text):
+            if box != dp.BOX_QUOTED_NAME:
+                continue
+            tenants += 1
+            problems = dp._check_quoted_name(document, text, offset, span, labels)
+            assert problems == [], (document.name, span)
+    assert tenants >= 1, f"引号命名箱只剩 {tenants} 条，这条门已经是空的"
+
+
+def test_the_script_recompiles_from_source_with_warnings_escalated() -> None:
+    """``-W error`` only bites when the source is really compiled - and a fresh .pyc hides it.
+
+    M8-T43 wrote an escaped backtick inside a plain docstring: an invalid escape sequence,
+    which CPython reports while compiling. The suite stayed green because the cached
+    bytecode was newer than the source, so no ``-W error`` process ever re-read the file -
+    the mutation run of this batch found it only because rewriting the source invalidated
+    that cache. Recompiling the bytes on disk is the one way this file's warnings surface.
+    """
+    import warnings as escalation
+
+    with escalation.catch_warnings():
+        escalation.simplefilter("error")
+        compile(SCRIPT.read_text(encoding="utf-8"), str(SCRIPT), "exec")

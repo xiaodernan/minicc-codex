@@ -64,16 +64,54 @@ DEFAULT_DOCS = tuple(sorted((REPO_ROOT / "docs").glob("*.md"))) + (REPO_ROOT / "
 MIN_POINTERS = {"docs/ROADMAP_TO_PRODUCT.md": 15}
 MIN_LINKS = {"docs/ROADMAP_TO_PRODUCT.md": 1, "README.md": 3}
 
+#: The words that say *where* a pointer looks. This list used to exist twice: the
+#: harvest's directional group knew ten of them, ``_CITATION_HEAD`` knew the same
+#: notion with seventeen, and the seven extra words decided how a quoted pointer was
+#: read — 「见下文「当前实测」段」 could not reach the quote-delimited branch, so its name
+#: arrived glued inside a raw span and no reader was ever asked about it. One tuple now
+#: builds both patterns. Longest first, because ``re`` keeps the leftmost alternative:
+#: 本批末尾 before 本批, 下方 before 下.
+_DIRECTION = (
+    "本批末尾",
+    "上一段",
+    "下一段",
+    "上一行",
+    "下一行",
+    "上方",
+    "下方",
+    "上文",
+    "下文",
+    "上表",
+    "下表",
+    "本节",
+    "本批",
+    "该批",
+    "文末",
+    "上",
+    "下",
+)
+_DIRECTIONS = "|".join(_DIRECTION)
+#: ``{1,60}`` and friends are quantifiers, so these patterns are *concatenated*, not
+#: f-fields: an f-string reads ``{1, 60}`` as a format field, compiles a pattern that
+#: matches nothing, and the harvest goes blind (it happened once here, and the
+#: floor that says 「fewer than 15 pointers means the extractor is broken」 is what
+#: caught it - a floor is the only kind of gate that catches a silent zero).
 _POINTER = re.compile(
-    r"(?:见|参见)\s*(下方|上方|文末|上一段|下一段|上一行|下一行|本节|本批末尾|该批)?\s*[「『]([^」』\n]{1,60})[」』]"
-    r"|(?:见|参见)\s*(下方|上方|文末|上一段|下一段|上一行|下一行|本节|本批末尾|该批)?([^」『\n，。；：|`]{0,60})"
+    r"(?:见|参见)\s*(" + _DIRECTIONS + r")?\s*[「『]([^」』\n]{1,60})[」』]"
+    r"|(?:见|参见)\s*(" + _DIRECTIONS + r")?([^」『\n，。；：|`]{0,60})"
 )
-#: What a citation may start with, right after the marker. Longer alternatives come
-#: first because ``re`` keeps the leftmost match: 下方 before 下.
+#: What a citation may start with, right after the marker (the words are ``_DIRECTION``).
 _CITATION_HEAD = re.compile(
-    r"^(?:下方|上文|下文|上方|上一段|下一段|上一行|下一行|本批末尾|本节|本批|该批|文末|上表|下表|下|上|第|附录"
-    r"|[「『\[`]|[MP]\d|[A-Za-z0-9_.\-]+/)"
+    r"^(?:" + _DIRECTIONS + r"|第|附录|[「『\[`]|[MP]\d|[A-Za-z0-9_.\-]+/)"
 )
+#: Where a pointer says to look, right after the marker - used to honour the direction
+#: a quoted-name pointer claims (「见下文」 must be declared *below*).
+#: No ``^``: this one is matched at a position inside the document, where an anchor
+#: could never hold (it silently read every pointer as claiming no direction).
+_AFTER_MARKER = re.compile(r"\s*(" + "|".join(_DIRECTION) + r")?")
+#: A whole gap that is nothing but a place-word: 「见下文「X」」 cites a location, while
+#: 「见「X」」 only quotes a description.
+_PLACE_WORD = re.compile("(?:" + _DIRECTIONS + ")")
 #: A section number may be written either way, and both spellings occur in this
 #: repository pointing at real things: 「第十二节」 and 「证据见交付说明第8节」. Reading
 #: only the Chinese one left two live pointers in the word-interior box — never checked,
@@ -111,6 +149,12 @@ BOX_CODE_SPAN = "carried-by-evidence-reader"
 #: ``config.py:331-338``, or a path under an ignored directory). The pointer reader
 #: answers for these itself instead of booking them as someone else's.
 BOX_CODE_NAME = "code-span-names-a-file"
+#: A pointer that names its target with 「X」 instead of an id or 第N批. The quote
+#: itself makes it a citation — 见 inside 「可见收益」 does not, which is what
+#: ``word-interior`` is for — so it must not be filed there, and it is not the target
+#: of any other reader. This reader answers for it: the name has to be *declared* by
+#: this document (heading, bold label, table row label) on the side the pointer claims.
+BOX_QUOTED_NAME = "cites-a-quoted-name"
 BOX_PATH = "path-in-prose"
 BOX_WORD = "word-interior"
 POINTER_BOXES = (
@@ -119,6 +163,7 @@ POINTER_BOXES = (
     BOX_LINK_TEXT,
     BOX_CODE_SPAN,
     BOX_CODE_NAME,
+    BOX_QUOTED_NAME,
     BOX_PATH,
     BOX_WORD,
 )
@@ -339,7 +384,7 @@ def _region_has_judged_link(region: str) -> bool:
     return any(_link_judged(match) for match in _LINK.finditer(region))
 
 
-def _pointer_box(gap: str, span: str, region: str) -> str:
+def _pointer_box(gap: str, span: str, region: str, quoted: bool = False) -> str:
     """Sort one 「见」 marker into the account.
 
     ``gap`` is the *unmasked* text between the marker and where the harvest began;
@@ -356,11 +401,23 @@ def _pointer_box(gap: str, span: str, region: str) -> str:
     sentence does not trip over by accident: 「复核命令见审核文档第十二节」 is a real
     pointer even though 见 is glued to a noun, and it is the one shape whose file name
     the rule below still requires.
+
+    ``quoted`` says the harvest took 「X」 form *and* the gap is a place-word — 见下文「X」,
+    见上方「X」. That combination is a locative citation by its own shape, so it does not
+    have to pass the head test, and when it holds no locator it lands in this reader's
+    own account instead of 「word-interior」, whose meaning is "not a reference". Widen
+    the grammar without this rule and 「当前实测」 walks out of the open account and into
+    the box that denies it exists. A bare 见「X」 is *not* given that benefit of the
+    doubt: 「结论见「说明 `…` 那段」」 describes a passage rather than naming a location, and
+    M8-T39's head test still decides it — which is the only reason that older gate keeps
+    its teeth after this batch.
     """
     has_place = bool(_BATCH.search(span) or _SECTION.search(span) or _APPENDIX.search(span))
-    cited = bool(span) and (has_place or _CITATION_HEAD.match(span) is not None)
+    cited = bool(span) and (quoted or has_place or _CITATION_HEAD.match(span) is not None)
     if cited and _locator(span):
         return BOX_CHECKED
+    if quoted:
+        return BOX_QUOTED_NAME
     kinds = {kind for kind, _ in _gap_targets(gap)}
     if "evidence" in kinds:
         return BOX_CODE_SPAN
@@ -401,7 +458,15 @@ def _pointer_spans(text: str) -> list[tuple[int, str, str, list[tuple[str, str]]
                 (
                     match.start(),
                     span,
-                    _pointer_box(gap, span, masked[after : match.end()]),
+                    # A place-word in the gap is what turns 「X」 into a locative citation.
+                    _pointer_box(
+                        gap,
+                        span,
+                        masked[after : match.end()],
+                        # The gap still holds the opening bracket (it ends where the name
+                        # starts), so strip the quote before asking if it is only a place-word.
+                        quoted=_PLACE_WORD.fullmatch(gap.strip(" 「『")) is not None,
+                    ),
                     _gap_targets(gap),
                 )
             )
@@ -421,6 +486,60 @@ def _pointer_spans(text: str) -> list[tuple[int, str, str, list[tuple[str, str]]
             )
         )
     return out
+
+
+def _declared_labels(text: str) -> list[tuple[int, int, str]]:
+    """(start, end, label) for every name this document declares for a part of itself.
+
+    M8-T36 settled that a target has to *declare* a name for a pointer to land on it;
+    these are the three ways a passage in this repository gets labelled. The extent is
+    kept for two reasons: 「见下文」 and 「见上文」 are different claims about *where* to
+    look, and a label that wraps the pointer itself is the pointer quoting its own
+    sentence — 「**口径见本节「基线」一条**」 must not answer itself.
+    """
+    found = [(m.start(), m.end(), m.group(2).strip()) for m in _HEADING.finditer(text)]
+    found += [
+        (m.start(), m.end(), m.group(1))
+        for m in re.finditer(r"\*\*([^*\n]{1,60})\*\*", text)
+    ]
+    found += [
+        (m.start(), m.end(), m.group(1).strip())
+        for m in re.finditer(r"^\|([^|\n]{1,80})\|", text, re.M)
+    ]
+    return [(start, end, label) for start, end, label in found if label]
+
+
+def _check_quoted_name(
+    document: Path, text: str, offset: int, name: str, labels: list[tuple[int, int, str]]
+) -> list[Problem]:
+    """Answer a pointer that names its target 「X」 with a place-word in front.
+
+    The direction word is part of the assertion, not filler: 「见下文「X」」 says a label
+    containing X occurs *after* this marker. A pointer saying 本节/本批/文末 (or no
+    direction at all beyond the place-word) only claims the label exists in this
+    document — which is exactly the case where the self-quote rule has to hold, since
+    nothing else orders the two ends of the sentence.
+    """
+    tail = _AFTER_MARKER.match(text, offset + (2 if text.startswith("参见", offset) else 1))
+    direction = (tail.group(1) or "") if tail else ""
+    line = _line_of(text, offset)
+    hits = [start for start, end, label in labels if name in label and not start <= offset < end]
+    if direction.startswith("上"):
+        hits = [start for start in hits if start < offset]
+    elif direction.startswith("下"):
+        hits = [start for start in hits if start > offset]
+    if hits:
+        return []
+    where = "之前" if direction.startswith("上") else "之后" if direction.startswith("下") else "里"
+    return [
+        Problem(
+            "POINTER",
+            document.name,
+            line,
+            f"指针「{name}」说{direction or '本文'}有一段叫这个名字，"
+            f"但本文档的标题/粗体标签/表格行{where}没有它",
+        )
+    ]
 
 
 def _check_name_targets(
@@ -475,6 +594,7 @@ def check_pointers(document: Path, text: str) -> tuple[list[Problem], int, dict[
     headings = sections(text)
     numbered = _numbered_headings(headings)
     batch_labels = _batch_labels(headings)
+    labels = _declared_labels(text)
     problems: list[Problem] = []
     checked = 0
     boxes = {box: 0 for box in POINTER_BOXES}
@@ -482,6 +602,12 @@ def check_pointers(document: Path, text: str) -> tuple[list[Problem], int, dict[
         boxes[box] += 1
         if box == BOX_CODE_NAME:
             problems += _check_name_targets(document, text, offset, targets)
+            continue
+        if box == BOX_QUOTED_NAME:
+            # Counted in its own box and answered here; it is *not* added to the
+            # ``checked`` headline total, which would make that integer no longer mean
+            # "a locator-shaped target resolved" for every reader of the summary line.
+            problems += _check_quoted_name(document, text, offset, span, labels)
             continue
         if box != BOX_CHECKED:
             # Every non-checked box is counted and named in the summary: that is the
