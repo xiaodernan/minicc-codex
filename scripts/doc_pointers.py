@@ -74,8 +74,14 @@ _CITATION_HEAD = re.compile(
     r"^(?:下方|上文|下文|上方|上一段|下一段|上一行|下一行|本批末尾|本节|本批|该批|文末|上表|下表|下|上|第|附录"
     r"|[「『\[`]|[MP]\d|[A-Za-z0-9_.\-]+/)"
 )
-_SECTION = re.compile(r"第([一二三四五六七八九十]+)节")
-_BATCH = re.compile(r"第([一二三四五六七八九十]+)批(续二|续)?")
+#: A section number may be written either way, and both spellings occur in this
+#: repository pointing at real things: 「第十二节」 and 「证据见交付说明第8节」. Reading
+#: only the Chinese one left two live pointers in the word-interior box — never checked,
+#: never reported as unchecked-by-design. ``## 8. 继续实施`` is a heading that *answers*
+#: 第8节, so the pair is checkable once the digit is admitted on both sides.
+_NUM = r"(\d+|[一二三四五六七八九十]+)"
+_SECTION = re.compile(rf"第{_NUM}节")
+_BATCH = re.compile(rf"第{_NUM}批(续二|续)?")
 _APPENDIX = re.compile(r"附录\s*([A-Z])")
 #: ``\b`` treats Chinese as a word character, so ``见下方M8-T26`` — an id glued
 #: straight onto the prose, with no space — had no boundary in front of it and was
@@ -166,7 +172,10 @@ def _line_of(text: str, offset: int) -> int:
     return text.count("\n", 0, offset) + 1
 
 
-def _cn_numeral(word: str) -> int | None:
+def _numeral(word: str) -> int | None:
+    """Read a section number written either way: 十二, or 8."""
+    if re.fullmatch(r"\d+", word):
+        return int(word)
     if word in _DIGITS:
         return _DIGITS[word]
     if word == "十":
@@ -181,21 +190,22 @@ def _cn_numeral(word: str) -> int | None:
 
 
 def _numbered_headings(headings: list[Section]) -> dict[int, Section]:
-    """Map ``N`` to the level-2 heading whose title starts ``N、``.
+    """Map ``N`` to the level-2 heading that declares itself section N.
 
-    The roadmap writes ``## 四、明确不做什么`` while prose says 「第四节」, so the
-    two spellings have to be tied together before a section pointer means
-    anything.
+    Two spellings are in use here: the roadmap writes ``## 四、明确不做什么`` while
+    prose says 「第四节」, and the delivery record writes ``## 8. 继续实施`` while prose
+    says 「第8节」. Both have to be tied to their number before a section pointer means
+    anything; a heading that declares no number cannot be pointed at.
     """
     out: dict[int, Section] = {}
     for section in headings:
         if section.level != 2:
             continue
-        match = re.match(r"^([一二三四五六七八九十]+)、", section.title)
+        match = re.match(r"^([一二三四五六七八九十]+|\d+)[.、]", section.title)
         if match:
-            numeral = _cn_numeral(match.group(1))
+            numeral = _numeral(match.group(1))
             if numeral is not None:
-                out[numeral] = section
+                out.setdefault(numeral, section)
     return out
 
 
@@ -356,7 +366,7 @@ def check_pointers(document: Path, text: str) -> tuple[list[Problem], int, dict[
         target: Section | None = None
         remote: list[Section] = []
         for sec in secs:
-            numeral = _cn_numeral(sec.group(1))
+            numeral = _numeral(sec.group(1))
             target = numbered.get(numeral) if numeral is not None else None
             if target is not None:
                 continue
@@ -435,11 +445,17 @@ def check_links(document: Path, text: str) -> tuple[list[Problem], int, int]:
     A candidate outside the repository is judged by plain existence: outside the
     work tree there is no index to consult, and that is how a synthetic document
     in a temp directory still gets checked.
+
+    Links written inside backticks or a fenced block are quotations, not claims — the
+    same rule the pointer reader has honoured since M8-T37, and M8-T40 caught this
+    reader without it: a batch record that *quoted* a link shape to explain itself was
+    reported as a dangling link. The cost is the accepted one: a broken link that only
+    ever appears inside code is invisible here too.
     """
     problems: list[Problem] = []
     checked = 0
     generated = 0
-    for match in _LINK.finditer(text):
+    for match in _LINK.finditer(_mask_code(text)):
         target = match.group(2).split("#")[0].strip()
         if not target or target.startswith(("http://", "https://", "mailto:", "#")):
             continue

@@ -697,3 +697,99 @@ def test_a_box_that_stops_counting_is_a_complaint_not_a_clean_run(monkeypatch) -
     assert [p.kind for p in problems] == ["RECONCILE"], problems
     assert len(spans) == sum(boxes.values()) + 1
     assert "计数前就跳过" in problems[0].detail
+
+
+def test_an_arabic_section_number_is_a_locator_and_a_heading_answers_it() -> None:
+    """``第8节`` and ``## 8. 继续实施`` are one fact written two ways.
+
+    Both halves had to be taught at once. Reading the digit in prose but not in a
+    heading would make every such pointer red; reading the heading but not the prose
+    is what this repository shipped until M8-T40, and it left the pointer in the
+    word-interior box — the same place 可见 lives, so it was counted as "not a
+    reference" rather than "a reference nobody checked".
+    """
+    assert dp._numeral("8") == 8 and dp._numeral("十二") == 12
+    assert dp._SECTION.search("交付说明第8节") and dp._BATCH.search("第3批")
+    resolved = "# T\n\n## 8. 继续实施\n\n内容。见第8节。\n"
+    assert _pointer_problems(resolved) == []
+    problems, checked, boxes = dp.check_pointers(Path("synthetic.md"), resolved)
+    assert checked == boxes[dp.BOX_CHECKED] == 1, (checked, boxes)
+    assert boxes[dp.BOX_WORD] == 0, "指针掉进词内箱就是没人查"
+    assert len(_pointer_problems("# T\n\n## 8. 继续实施\n\n见第7节。\n")) == 1
+    # A number with no separator is a title, not a claim about being section N.
+    assert len(_pointer_problems("# T\n\n## 8 继续实施\n\n见第8节。\n")) == 1
+
+
+def test_an_arabic_pointer_to_a_nickname_still_needs_the_file_named() -> None:
+    """The new locator inherits the old doctrine: a nickname is not a findable file."""
+    assert _pointer_problems("接口见 [docs/PLUGIN_API.md](docs/PLUGIN_API.md) 第3节。\n") == []
+    assert len(_pointer_problems("证据见交付说明第8节。\n")) == 1
+    assert len(_pointer_problems("证据见交付说明第99节。\n")) == 1
+
+
+def test_the_corpus_holds_arabic_pointers_and_the_tool_now_reads_every_one() -> None:
+    """Not a synthetic-only fix: the digit spelling is in use, and it now resolves.
+
+    The counter-example is M8-T39's glued-id change, whose corpus impact measured 0.
+    Here it is 2 — and 0 spans naming a numbered place may sit in the word box, which
+    is what makes this a closing gate rather than an opening one.
+    """
+    arabic = []
+    in_word = []
+    for document in dp.DEFAULT_DOCS:
+        text = document.read_text(encoding="utf-8")
+        for offset, span, box in dp._pointer_spans(text):
+            line = dp._line_of(text, offset)
+            if re.search(r"第\d+(?:节|批)", span):
+                arabic.append((document.name, line, span, box))
+                if box == dp.BOX_WORD:
+                    in_word.append((document.name, line, span))
+    assert len(arabic) == 2, arabic
+    assert {box for *_x, box in arabic} == {dp.BOX_CHECKED}, arabic
+    assert in_word == [], f"仍有编号指针躺在词内箱：{in_word}"
+
+
+def test_no_two_level_two_headings_claim_the_same_number() -> None:
+    """A tie is resolved by ``setdefault``, so the corpus has to say ties do not exist.
+
+    Otherwise one pointer would silently stand for whichever section a dict happened
+    to keep — the same single-number-covering-two-things failure M8-T39 opened.
+    """
+    claims: dict[tuple[str, int], list[str]] = {}
+    for document in dp.DEFAULT_DOCS:
+        for section in dp.sections(document.read_text(encoding="utf-8")):
+            if section.level != 2:
+                continue
+            match = re.match(r"^([一二三四五六七八九十]+|\d+)[.、]", section.title)
+            if match:
+                claims.setdefault((document.name, dp._numeral(match.group(1))), []).append(
+                    section.title[:30]
+                )
+    assert claims, "没有编号标题可查，这条门就是空的"
+    ties = {key: titles for key, titles in claims.items() if len(titles) > 1}
+    assert ties == {}, f"同一个编号被两个标题认领：{ties}"
+
+
+def test_a_link_shape_inside_a_code_span_is_a_quotation(tmp_path: Path) -> None:
+    """M8-T40 wrote a record that *quoted* a link to explain itself, and the gate went red.
+
+    The pointer reader has treated backticks as quotation since M8-T37; this reader had
+    no mask at all, so ```[总交付第9节](不存在.md)``` was a claim about a file that does
+    not exist. Fixing the prose would have hidden a rule that only existed in one of the
+    two readers.
+    """
+    (tmp_path / "real.md").write_text("# real\n", encoding="utf-8")
+    text = "举例 `[总交付第9节](不存在.md)` 只是形状说明。\n\n再来一次 `[某节]( Nope.md)`。\n\n[真的](real.md)\n"
+    problems, checked, generated = dp.check_links(tmp_path / "doc.md", text)
+    assert checked == 1 and problems == [] and generated == 0, (checked, problems)
+    # The unmasked shape is still a claim: the mask cannot be a blanket exemption.
+    assert len(dp.check_links(tmp_path / "doc.md", "[假的](不存在.md)\n")[0]) == 1
+
+
+def test_the_link_reader_actually_has_quotations_to_ignore() -> None:
+    """Non-vacuity: if no shipped document quoted a link, the gate above would be decorative."""
+    quoted = 0
+    for document in dp.DEFAULT_DOCS:
+        text = document.read_text(encoding="utf-8")
+        quoted += len(list(dp._LINK.finditer(text))) - len(list(dp._LINK.finditer(dp._mask_code(text))))
+    assert quoted >= 3, f"语料里只有 {quoted} 个被引用的链接形状，这条门的落点已经消失"
