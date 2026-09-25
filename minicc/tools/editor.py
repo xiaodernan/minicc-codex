@@ -95,6 +95,12 @@ AUDIT_LEVEL_LOGS: dict[str, int] = {
 _MUTATING_ACTIONS = frozenset({"backup", "create", "delete", "edit", "move", "write"})
 _DENIED_PREFIXES = ("拒绝", "refused", "denied")
 
+# P2-8（2026-09-25 复核确认仍在）：每次编辑都往 .minicc/backup/ 落一份副本且
+# 全仓没有任何保留策略——200 次编辑一个 300KB 模块 ≈ 60MB 永久残留，还污染
+# git status。写后裁剪到这个上限，最旧的先走；裁剪是卫生工作，失败只记日志，
+# 绝不能让「删旧备份」绊倒正在发生的编辑。
+MAX_BACKUP_FILES = 200
+
 
 def audit_level(action: str, detail: str = "") -> str:
     """Severity of one audit line — the ``/api/audit`` filter key (M8-T5).
@@ -284,6 +290,43 @@ class Editor:
             f"→ {name}",
             before_digest=digest,
         )
+        self._prune_backups()
+
+    def _prune_backups(self) -> None:
+        """Keep only the newest MAX_BACKUP_FILES copies; best-effort by design.
+
+        A locked or undeletable file must never break the edit whose backup
+        triggered pruning, so per-file failures are swallowed and a whole-dir
+        failure only logs. Order is (mtime, name): copy2 preserves the source
+        mtime, so same-source snapshots tie on mtime and the embedded clock
+        stamp in the name breaks the tie chronologically.
+        """
+        try:
+            entries = [p for p in self.backup_dir.iterdir() if p.is_file()]
+        except OSError as exc:
+            LOG.warning("backup prune skipped (%s): %s", self.backup_dir, exc)
+            return
+        excess = len(entries) - MAX_BACKUP_FILES
+        if excess <= 0:
+            return
+        try:
+            entries.sort(key=lambda p: (p.stat().st_mtime_ns, p.name))
+        except OSError as exc:
+            LOG.warning("backup prune skipped (stat failed): %s", exc)
+            return
+        pruned = 0
+        for victim in entries[:excess]:
+            try:
+                victim.unlink()
+                pruned += 1
+            except OSError as exc:
+                LOG.warning("backup prune could not remove %s: %s", victim.name, exc)
+        if pruned:
+            self._audit(
+                "backup_prune",
+                self.backup_dir.name,
+                f"pruned {pruned} oldest of {len(entries)} (cap {MAX_BACKUP_FILES})",
+            )
 
     @staticmethod
     def _digest_bytes(target: Path) -> str:

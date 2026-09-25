@@ -44,6 +44,58 @@ def test_editor_requires_unique_edit(tmp_path: Path) -> None:
         editor.apply_edit("note.txt", "same", "new")
 
 
+def test_editor_prunes_old_backups_to_a_cap(tmp_path: Path) -> None:
+    """P2-8（2026-09-25 复核）：per-edit 备份必须有保留上限，不能永久堆积。
+
+    未修复代码上这里红：205 次编辑会留下 205 份备份，断言 ==200 失败。
+    注意 _audit 与 _backup 共用同一个 clock，所以断言全部用观察到的文件名，
+    不与时间戳格式耦合。
+    """
+    from datetime import datetime, timedelta
+
+    base = datetime(2026, 9, 25, 12, 0, 0)
+    counter = {"i": 0}
+
+    def counting_clock() -> str:
+        counter["i"] += 1
+        return (base + timedelta(seconds=counter["i"])).isoformat()
+
+    backup_dir = tmp_path / ".minicc" / "backup"
+    editor = Editor(tmp_path, backup_dir=backup_dir, clock=counting_clock)
+    editor.write_file("note.txt", "v0\n")  # 新建文件不产生备份（_backup 只备份已存在文件）
+    editor.write_file("note.txt", "v1\n")  # 第一份备份（v0 的内容）
+    first_backup = next(backup_dir.iterdir()).name  # 时间戳最小的一份
+    for i in range(2, 11):
+        editor.write_file("note.txt", f"v{i}\n")
+    mid_backup = max(p.name for p in backup_dir.iterdir())  # 第 10 份备份，必然幸存
+    for i in range(11, 207):
+        editor.write_file("note.txt", f"v{i}\n")  # 备份总数 206 ⇒ 裁掉最旧 6 份
+
+    backups = sorted(p.name for p in backup_dir.iterdir())
+    assert len(backups) == 200, f"备份应被裁剪到 200 份，实际 {len(backups)}"
+    # 时钟逐次递增 ⇒ 名字里的时间戳按生成次序单调：最旧的一份必不在，中间的必在。
+    assert first_backup not in backups
+    assert mid_backup in backups
+    # 裁剪本身进审计。
+    assert any(entry.action == "backup_prune" for entry in editor.audit)
+
+
+def test_editor_prune_failure_never_breaks_the_edit(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """裁剪是卫生工作：目录不可枚举时只降级，绝不能绊倒正在发生的编辑。"""
+    import pathlib
+
+    editor = Editor(tmp_path, backup_dir=tmp_path / ".minicc" / "backup")
+    editor.write_file("note.txt", "v0\n")
+
+    def broken_iterdir(self):
+        raise OSError("locked")
+
+    monkeypatch.setattr(pathlib.Path, "iterdir", broken_iterdir)
+    editor.write_file("note.txt", "v1\n")  # 不得抛 EditError
+    monkeypatch.undo()
+    assert (tmp_path / "note.txt").read_text(encoding="utf-8") == "v1\n"
+
+
 def test_registry_contains_readonly_git_tools(tmp_path: Path) -> None:
     registry = build_registry(Editor(tmp_path))
     assert registry.risk_of("git_status") == "readonly"
