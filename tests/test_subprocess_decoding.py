@@ -55,6 +55,24 @@ environment.  Two additions follow from that: a behavioral gate that grades the
 same workspace under three parent codecs and requires the same verdict three
 times, and a structural rule for embedded grader scripts, where "name no codec on
 either end" is not a safe shape because the ambient environment names one for us.
+
+M8-T60 took the last thing this file still delegated to the machine.  One gate here
+was written as ``skipif(host locale is UTF-8)`` on the theory that a UTF-8 host
+cannot produce a codec mismatch - true of the *host*, and therefore a gate that ran
+nowhere on CI (measured: with ``PYTHONUTF8=1`` the shipped version reports
+``1 skipped``).  The rewrite drops the skip and asserts the invariant instead of the
+incident: git's own bytes say what a path is, and production's answer must equal
+those bytes read as UTF-8.  That is checkable on every host, and it covers a class
+the keyword-shape rule above cannot see at all - right kwarg, wrong answer.
+Two claims died in the measuring, and they are recorded here rather than quietly
+dropped: a text-mode reader's *default* codec is not taken from
+``locale.getpreferredencoding`` at call time (patching it, and patching
+``io.text_encoding``, which answers ``'locale'`` for ``None``, moved the decoding on
+neither a cp936 host nor a UTF-8-mode one), so a test cannot manufacture a codec
+mismatch at will; and a *writer's* codec can be, which is what makes M8-T58's
+three-parent-codec gate work wherever it runs.  Consequence, measured on both hosts:
+deleting the worktree pin reddens the structural git rule everywhere but reddens the
+behavioral gate only on a host whose default is not UTF-8.
 """
 
 from __future__ import annotations
@@ -62,7 +80,6 @@ from __future__ import annotations
 import ast
 import io
 import json
-import locale
 import re
 import subprocess
 import tempfile
@@ -87,7 +104,53 @@ ENTRY_POINTS = frozenset({"run", "Popen", "check_output", "check_call"})
 _MIN_TEXT_CAPTURES = 29
 _MIN_EMBEDDED_CAPTURES = 2
 
-_LOCALE_IS_UTF8 = "utf" in locale.getpreferredencoding(False).lower()
+#: Counted on the tree that registered M8-T60: 14 text-mode captures whose child is
+#: git, every one of them pinned. The offenders list is empty by two possible causes
+#: - nothing violates, or ``runs_git`` sees nothing - and only this floor tells them
+#: apart.
+_MIN_GIT_CAPTURES = 14
+
+#: A codec that is always the wrong answer for the bytes git writes, and one of
+#: Python's built-ins, so it is present on every platform.  It is named explicitly
+#: rather than inherited from the machine: the reading it produces is the comparison
+#: the worktree gates below need, and a gate may not depend on which code page the
+#: host happens to carry.
+_ALIEN_READER_CODEC = "cp936"
+
+#: A directory name that cannot survive a wrong reader codec: these UTF-8 bytes read
+#: as ``_ALIEN_READER_CODEC`` come back as different characters, which is the shape
+#: the worktree gates count on.  That it stays true is itself gated
+#: (``test_the_alien_reader_is_the_one_that_disagrees``), because an accidentally
+#: ASCII-only fixture would make every claim above it vacuous.
+_NON_ASCII_DIR = "工作区 项目"
+
+#: Production text-mode captures that name no codec on the reader's end, each with a
+#: proof this file checks rather than a sentence it is asked to trust:
+#:
+#:   ``ascii-marker:NAME`` - the only text that has to cross this boundary is the
+#:   literal ``NAME``, and the string piece carrying it must still be pure ASCII;
+#:   ``no-consumer:NAME`` - the object the call is bound to is never read for
+#:   ``stdout`` or ``stderr``, so nothing decoded here reaches anything.
+#:
+#: Keyed by call site on purpose: moving or renaming a capture voids its exemption and
+#: makes the next reader re-earn it, the same friction ``doc_pointers.py`` applies to
+#: its own exemption table.
+_VERDICT_NEUTRAL_CAPTURES: dict[str, list[str]] = {
+    "minicc/behavior_bench.py:105 subprocess.run": ["ascii-marker:MINICC_BEHAVIOR_COMPLETE"],
+    "minicc/bench_tasks.py:229 subprocess.run": [
+        "ascii-marker:MINICC_FILE_CONTRACT_COMPLETE",
+        "ascii-marker:MINICC_COMMAND_CONTRACT_COMPLETE",
+    ],
+    "minicc/benchmarks.py:661 subprocess.run": ["no-consumer:completed"],
+}
+
+#: Production text-mode captures - the domain of the exemption rule below.  13 of
+#: the 29 counted above ship; of the 7 that name no reader codec, 3 are under
+#: ``minicc/`` and are that rule's whole content, and 4 are test harnesses, where a
+#: wrong read shows up as a red gate instead of as a wrong answer handed to a user.
+#: The split is by failure mode, not by importance: M8-T57's handler rule still
+#: covers all three roots.
+_MIN_PRODUCTION_TEXT_CAPTURES = 13
 
 #: ``PYTHONIOENCODING`` reaching an assignment, a ``dict(...)`` keyword or a
 #: subscript store - the shapes that actually set a child's codec.
@@ -119,6 +182,77 @@ def _code_only(source: str) -> str:
             line = lines[index]
             lines[index] = line[:start_col] + line[end_col:]
     return "".join(lines)
+
+
+def _string_pieces(text: str) -> list[str] | None:
+    """Every string literal in ``text``, f-string parts included.
+
+    Pieces rather than expressions: an f-string's parts are separate constants,
+    and what has to survive a codec boundary is the bytes one literal carries.
+    ``None`` means the text would not parse, which a caller must report as
+    "unverifiable" - never as "holds".
+    """
+
+    try:
+        tree = ast.parse(text)
+    except SyntaxError:
+        return None
+    return [
+        node.value
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Constant) and isinstance(node.value, str)
+    ]
+
+
+def _proof_context(capture: Capture) -> tuple[ast.AST, ast.Call] | None:
+    """``(tree, call node)`` for a capture, from the source the scanner kept.
+
+    ``capture.node`` cannot be reused: it belongs to the parse of the *commented*
+    file, so the two trees share no objects and position is the only available
+    identity.  A position resolving to zero or two calls yields ``None`` instead
+    of a guess - an exemption checked against the wrong call is worse than none,
+    because it reads as a pass.
+    """
+
+    try:
+        tree = ast.parse(capture.code)
+    except SyntaxError:
+        return None
+    found = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and node.lineno == capture.node.lineno
+        and node.col_offset == capture.node.col_offset
+    ]
+    if len(found) != 1:
+        return None
+    return tree, found[0]
+
+
+def _bound_to(tree: ast.AST, call: ast.Call) -> str | None:
+    """The single name this call's result was assigned to, if it was assigned."""
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign) and node.value is call:
+            if len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
+                return node.targets[0].id
+            return None
+        if isinstance(node, ast.AnnAssign) and node.value is call and isinstance(node.target, ast.Name):
+            return node.target.id
+    return None
+
+
+def _attribute_reads(tree: ast.AST, name: str) -> set[str]:
+    """Attribute names read off a bare ``name`` anywhere in ``tree``."""
+
+    return {
+        node.attr
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Attribute)
+        and isinstance(node.value, ast.Name)
+        and node.value.id == name
+    }
 
 
 class Capture:
@@ -295,12 +429,14 @@ def strict_text_captures(captures: list[Capture]) -> list[Capture]:
     return [item for item in captures if item.text_mode and not item.has_errors]
 
 
+def git_captures(captures: list[Capture]) -> list[Capture]:
+    """Text-mode calls whose child is git: the rule's domain, not its offenders."""
+
+    return [item for item in text_captures(captures) if item.runs_git]
+
+
 def git_captures_without_utf8(captures: list[Capture]) -> list[Capture]:
-    return [
-        item
-        for item in text_captures(captures)
-        if item.runs_git and str(item.encoding).lower().replace("-", "") != "utf8"
-    ]
+    return [item for item in git_captures(captures) if not item.pins_utf8]
 
 
 def utf8_pinned_python_children(captures: list[Capture]) -> list[Capture]:
@@ -343,6 +479,99 @@ def embedded_grader_unpaired_codec(captures: list[Capture]) -> list[Capture]:
         for item in embedded_grader_captures(captures)
         if not (item.pins_utf8 and item.declares_child_codec_in_source)
     ]
+
+
+def production_captures(captures: list[Capture]) -> list[Capture]:
+    """Calls that ship, as opposed to calls that only ever run at test time.
+
+    The domain of the exemption rule below, and the reason it is this domain and
+    not all three roots is in ``_MIN_PRODUCTION_TEXT_CAPTURES``.
+    """
+
+    return [item for item in captures if item.origin.startswith("minicc/")]
+
+
+def unpinned_outside_the_table(
+    captures: list[Capture], table: dict[str, list[str]] = _VERDICT_NEUTRAL_CAPTURES
+) -> list[Capture]:
+    """Production text-mode captures that name no reader codec and claim no exemption.
+
+    ``pins_utf8`` rather than "names a codec at all": a capture pinned to some
+    other codec is not covered by this rule either, and leaving it out of both the
+    pin and the table must not read as compliant.
+    """
+
+    return [
+        item
+        for item in text_captures(production_captures(captures))
+        if not item.pins_utf8 and item.label() not in table
+    ]
+
+
+def _proof_failure(capture: Capture, proof: str) -> str | None:
+    """Why ``proof`` does not hold for ``capture``, or ``None`` when it does."""
+
+    kind, _, name = proof.partition(":")
+    pieces = _string_pieces(capture.code)
+    if kind == "ascii-marker":
+        if pieces is None:
+            return "the source does not parse, so the marker cannot be checked"
+        carriers = [piece for piece in pieces if name in piece]
+        if not carriers:
+            return f"nothing on this seam carries {name!r}"
+        non_ascii = [piece for piece in carriers if not piece.isascii()]
+        if non_ascii:
+            return f"{name!r} travels beside non-ASCII text: {non_ascii[0]!r}"
+        return None
+    if kind == "no-consumer":
+        context = _proof_context(capture)
+        if context is None:
+            return "the source does not parse, or this call is not uniquely located in it"
+        tree, node = context
+        if _bound_to(tree, node) != name:
+            return f"this call's result is not bound to {name!r}"
+        read = {"stdout", "stderr"} & _attribute_reads(tree, name)
+        if read:
+            return f"{name}.{sorted(read)[0]} is read"
+        return None
+    return f"unknown proof shape {proof!r}"
+
+
+def exemption_failures(
+    captures: list[Capture], table: dict[str, list[str]] = _VERDICT_NEUTRAL_CAPTURES
+) -> list[str]:
+    """Why each entry of the exemption table does, or does not, still hold.
+
+    Three independent ways an exemption rots, each checked here:
+
+      * the call site moves or gets pinned, so the key is dead weight - the next
+        reader would inherit a claim about code that no longer exists;
+      * the proof it carries stops holding (the marker grows non-ASCII text, or
+        somebody starts reading the stream it claims nobody consumes);
+      * the proof cannot be checked at all, which counts as a failure.
+
+    A key with an empty proof list is a sentence, and this file's rule about
+    sentences is in ``_code_only``.
+    """
+
+    table = _VERDICT_NEUTRAL_CAPTURES if table is None else table
+    production = text_captures(production_captures(captures))
+    failures: list[str] = []
+    for label, proofs in table.items():
+        matches = [item for item in production if item.label() == label]
+        if len(matches) != 1:
+            failures.append(f"{label}: {len(matches)} production text-mode captures here")
+            continue
+        capture = matches[0]
+        if capture.pins_utf8:
+            failures.append(f"{label}: the reader is pinned now, so the exemption is dead weight")
+        if not proofs:
+            failures.append(f"{label}: an exemption with no proof is a sentence")
+        for proof in proofs:
+            failure = _proof_failure(capture, proof)
+            if failure is not None:
+                failures.append(f"{label}: {proof} -> {failure}")
+    return failures
 
 
 SYNTHETIC_STRICT = "import subprocess\nsubprocess.run(['echo', 'hi'], capture_output=True, text=True)\n"
@@ -413,11 +642,43 @@ SYNTHETIC_EMBEDDED_COMMENTED_PIN = (
 )
 
 
-def _scan_source(text: str) -> list[Capture]:
+#: Production-shaped sources for the exemption table's witnesses.  The rule's
+#: domain is decided by the origin (a capture that *ships*), so these are scanned
+#: under ``minicc/``, and every one of them keeps its capture on line 2 so a single
+#: label can name it.  The marker literal comes after the call on purpose: the
+#: proof reads the whole module, so the order must not matter - and if it did, that
+#: would be a hole in the proof rather than a reason to write the fixture again.
+_SYNTHETIC_PRODUCTION_UNPINNED = (
+    "import subprocess\n"
+    "out = subprocess.run(cmd, capture_output=True, text=True, errors='replace')\n"
+)
+_SYNTHETIC_PRODUCTION_ASCII_MARKER = (
+    "import subprocess\n"
+    "out = subprocess.run(cmd, capture_output=True, text=True, errors='replace')\n"
+    "MARKER = 'MINICC_PLANTED_COMPLETE'\n"
+)
+#: The proof that rotted: the marker still travels, but it now travels beside text
+#: that cannot survive a codec mismatch, so "only ASCII crosses" is false.
+_SYNTHETIC_PRODUCTION_NON_ASCII_MARKER = (
+    "import subprocess\n"
+    "out = subprocess.run(cmd, capture_output=True, text=True, errors='replace')\n"
+    "MARKER = '构建完成 MINICC_PLANTED_COMPLETE'\n"
+)
+#: And here somebody started reading the stream the exemption claimed nobody
+#: consumes.
+_SYNTHETIC_PRODUCTION_CONSUMED = (
+    "import subprocess\n"
+    "completed = subprocess.run(cmd, capture_output=True, text=True, errors='replace')\n"
+    "print(completed.stdout)\n"
+)
+_PLANTED = "minicc/planted.py:2 subprocess.run"
+
+
+def _scan_source(text: str, origin: str = "synthetic.py") -> list[Capture]:
     with tempfile.TemporaryDirectory() as raw:
         module = Path(raw) / "synthetic.py"
         module.write_text(text, encoding="utf-8")
-        return _module_captures(module, "synthetic.py")
+        return _module_captures(module, origin)
 
 
 def test_the_scanned_inventory_is_big_enough_to_be_the_real_one() -> None:
@@ -428,6 +689,11 @@ def test_the_scanned_inventory_is_big_enough_to_be_the_real_one() -> None:
     embedded = [item for item in captures if "#embedded@" in item.origin]
     assert len(embedded) >= _MIN_EMBEDDED_CAPTURES, (
         "the embedded grader scripts fell out of view; the file AST alone cannot see them"
+    )
+    git = git_captures(captures)
+    assert len(git) >= _MIN_GIT_CAPTURES, (
+        f"only {len(git)} text-mode git captures are visible; the floor is {_MIN_GIT_CAPTURES}, "
+        "and 'nothing violates' is only reassuring while the rule can still see the domain"
     )
 
 
@@ -792,20 +1058,205 @@ def test_a_comment_about_the_codec_pin_does_not_satisfy_the_pin_rule() -> None:
     assert embedded_grader_unpaired_codec(production) == []
 
 
-@pytest.mark.skipif(_LOCALE_IS_UTF8, reason="a UTF-8 locale cannot produce the mojibake half of this defect")
+_PORCELAIN = ["git", "worktree", "list", "--porcelain"]
+
+
+def _git_repo(path: Path) -> Path:
+    """An initialized repository at ``path``, for ``git worktree list``."""
+
+    path.mkdir(parents=True)
+    subprocess.run(["git", "init", "-q", str(path)], capture_output=True, check=True, timeout=120)
+    return path
+
+
+def _porcelain_bytes(repo: Path) -> bytes:
+    """The bytes git wrote - the one reading no codec can disagree with."""
+
+    return subprocess.run(_PORCELAIN, cwd=repo, capture_output=True, timeout=120, check=True).stdout
+
+
+def _porcelain_text(repo: Path, encoding: str | None) -> str:
+    """The same bytes through a reader, with ``encoding`` named or not named.
+
+    The other keywords mirror ``WorktreeManager._run``, so two readings of one
+    repository differ in exactly one thing: the codec the caller declared.
+    """
+
+    result = subprocess.run(
+        _PORCELAIN,
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        errors="replace",
+        encoding=encoding,
+        timeout=120,
+        check=True,
+    )
+    return result.stdout
+
+
+def _worktree_line(text: str) -> str:
+    """The one path in a ``--porcelain`` listing."""
+
+    lines = [line[len("worktree ") :] for line in text.splitlines() if line.startswith("worktree ")]
+    assert len(lines) == 1, lines
+    return lines[0]
+
+
 def test_a_non_ascii_worktree_path_survives_the_reader(tmp_path: Path) -> None:
     """``worktree list`` must hand back the path git printed, not a locale guess.
 
-    Measured on the machine that registered this batch: the main worktree path
-    came back two characters longer than it is, because four Chinese characters
-    were decoded as six mojibake ones - a wrong answer that no exception marks.
+    Measured on the cp936 machine that registered this batch: the path came back
+    longer than it is, because git's UTF-8 bytes had been read with the machine code
+    page - a wrong answer that no exception marks.  The gate used to demand that
+    machine, through ``skipif(host locale is UTF-8)``, so on CI it reported nothing
+    at all: not a pass, not a failure, just one test fewer than the file had.
+
+    What is asserted now is the invariant the skip threw away, and it holds on every
+    host: git's own bytes say what the path is, and production's answer has to equal
+    those bytes read as UTF-8.  Deleting the ``encoding`` keyword reddens this gate
+    only where the default codec differs from UTF-8; the structural git-capture rule
+    is what catches it on both hosts.  So the coverage this gate owns alone is the
+    class a keyword shape cannot see - right keyword, wrong answer - measured with
+    that mutation (keep ``encoding="utf-8"``, return ``str(path)`` instead of
+    ``path.as_posix()`` from ``_decorate``): this gate reddens on a cp936 host and on
+    a UTF-8-mode one alike, and the structural rule stays green on both.
     """
 
     from minicc.worktree import WorktreeManager
 
-    repo = tmp_path / "工作区 项目"
-    repo.mkdir()
-    subprocess.run(["git", "init", "-q", str(repo)], capture_output=True, check=True, timeout=120)
+    repo = _git_repo(tmp_path / _NON_ASCII_DIR)
+    git_says = _worktree_line(_porcelain_bytes(repo).decode("utf-8"))
     entries = WorktreeManager(repo).list()
     assert len(entries) == 1, entries
-    assert entries[0]["path"].endswith("工作区 项目"), entries[0]["path"]
+    # Both sides go through the same path normalization ``_decorate`` applies, so the
+    # only thing left for them to disagree about is the decoding.
+    expected = Path(git_says).resolve().as_posix()
+    returned = entries[0]["path"]
+    assert returned == expected, (
+        f"git wrote {expected!r} in UTF-8; production returned {returned!r}, and reading the "
+        f"same bytes as {_ALIEN_READER_CODEC} gives "
+        f"{_worktree_line(_porcelain_text(repo, _ALIEN_READER_CODEC))!r}"
+    )
+
+
+def test_the_alien_reader_is_the_one_that_disagrees(tmp_path: Path) -> None:
+    """The fixture's non-vacuity, and the exact boundary of the gate above.
+
+    Three readings of one byte string, all host-independent in what they prove:
+      * UTF-8 gives the directory back, so the repository really is where the test
+        put it;
+      * ``_ALIEN_READER_CODEC`` gives something *else*, so the bytes are UTF-8-only -
+        without this, a green "production agrees with UTF-8" could be an artifact of
+        an ASCII-only path, which is how a codec gate quietly stops being one;
+      * the unnamed reading is this host's own default.  Where it agrees with UTF-8,
+        this gate cannot see a deleted pin at all - which is recorded as a boundary
+        instead of hidden behind a skip, and is why the structural git-capture rule
+        stays load-bearing.  Measured, the default is not taken from
+        ``locale.getpreferredencoding`` at call time (patching it, or
+        ``io.text_encoding``, changed the decoding on neither a cp936 host nor a
+        UTF-8-mode one), so a test cannot manufacture the mismatch on demand.
+    """
+
+    repo = _git_repo(tmp_path / _NON_ASCII_DIR)
+    utf8 = _worktree_line(_porcelain_text(repo, "utf-8"))
+    alien = _worktree_line(_porcelain_text(repo, _ALIEN_READER_CODEC))
+    default = _worktree_line(_porcelain_text(repo, None))
+    assert utf8.endswith(_NON_ASCII_DIR), utf8
+    assert alien != utf8, (
+        f"reading git's bytes as {_ALIEN_READER_CODEC} returned them unchanged: the fixture has "
+        "no non-ASCII bytes left, so every claim in this file about a wrong reader is vacuous"
+    )
+    print(
+        "this host's default reader codec agrees with utf-8 (True means a deleted pin is "
+        f"invisible to this gate): {default == utf8}"
+    )
+
+
+def _assert_failure(failures: list[str], needle: str) -> None:
+    assert any(needle in item for item in failures), f"{needle!r} is not among {failures}"
+
+
+def test_every_production_capture_names_its_reader_or_carries_a_checked_proof() -> None:
+    """Reading a child in the machine locale is allowed only where it cannot matter.
+
+    Three shipping captures take that exemption (``_VERDICT_NEUTRAL_CAPTURES``):
+    two compare an ASCII marker, so a parent and child that both follow the locale
+    agree wherever the machine is, and one never reads the stream at all.  Each of
+    those reasons is re-derived from the AST on every run, not quoted from here.
+
+    The domain gets a floor of its own because both lists below are empty on a
+    clean tree: if ``production_captures`` went blind, the gate would report the
+    suite's most compliant finding about an inventory it could no longer see.
+    """
+
+    scanned = scanned_captures()
+    production = text_captures(production_captures(scanned))
+    assert len(production) >= _MIN_PRODUCTION_TEXT_CAPTURES, (
+        f"only {len(production)} production text-mode captures are visible; "
+        f"the floor is {_MIN_PRODUCTION_TEXT_CAPTURES}"
+    )
+    offenders = [item.label() for item in unpinned_outside_the_table(scanned)]
+    assert offenders == [], f"shipping code at the mercy of the machine locale: {offenders}"
+    failures = exemption_failures(scanned)
+    assert failures == [], f"exemptions that no longer hold: {failures}"
+
+
+def test_an_exemption_is_a_claim_this_file_can_falsify() -> None:
+    """Every shape of rot the table is exposed to, planted and caught.
+
+    A witness per hole, because each one fails differently: a table that silently
+    stops matching its call site would keep the offending capture exempt forever,
+    a proof with no body is prose (see ``_code_only``), and a checker that only
+    ever returns "holds" is the same gate with extra steps.
+    """
+
+    planted = _scan_source(_SYNTHETIC_PRODUCTION_UNPINNED, "minicc/planted.py")
+    assert [item.label() for item in planted] == [_PLANTED], planted
+    assert [item.label() for item in unpinned_outside_the_table(planted, table={})] == [
+        _PLANTED
+    ], "an unpinned shipping capture with no exemption must be an offender"
+    assert unpinned_outside_the_table(planted, table={_PLANTED: []}) == [], (
+        "the table is the escape hatch; if listing a call changes nothing, the "
+        "offender list and the table are not the same mechanism"
+    )
+    assert exemption_failures(planted, table={_PLANTED: []}) == [
+        f"{_PLANTED}: an exemption with no proof is a sentence"
+    ]
+
+    ascii_marker = {_PLANTED: ["ascii-marker:MINICC_PLANTED_COMPLETE"]}
+    holds = _scan_source(_SYNTHETIC_PRODUCTION_ASCII_MARKER, "minicc/planted.py")
+    assert exemption_failures(holds, table=ascii_marker) == [], "the compliant shape must not read as a violation"
+    rotted = _scan_source(_SYNTHETIC_PRODUCTION_NON_ASCII_MARKER, "minicc/planted.py")
+    _assert_failure(
+        exemption_failures(rotted, table=ascii_marker),
+        "travels beside non-ASCII text",
+    )
+
+    consumed = _scan_source(_SYNTHETIC_PRODUCTION_CONSUMED, "minicc/planted.py")
+    _assert_failure(exemption_failures(consumed, table={_PLANTED: ["no-consumer:completed"]}), "is read")
+    _assert_failure(
+        exemption_failures(holds, table={_PLANTED: ["no-consumer:output"]}),
+        "is not bound to",
+    )
+    _assert_failure(
+        exemption_failures(holds, table={_PLANTED: ["nothing-of-this-shape:x"]}),
+        "unknown proof shape",
+    )
+    stale = {_PLANTED.replace(":2 ", ":99 "): ["ascii-marker:MINICC_PLANTED_COMPLETE"]}
+    _assert_failure(exemption_failures(holds, table=stale), "0 production text-mode captures")
+
+
+def test_the_real_table_names_the_code_that_ships() -> None:
+    """The table's own keys, spelled out where a reader can check one against git.
+
+    ``exemption_failures`` proves each key still resolves and still holds; this
+    pins the set, so a new exemption cannot arrive as an extra dictionary entry
+    without also arriving here, where it has a line to be argued about.
+    """
+
+    assert sorted(_VERDICT_NEUTRAL_CAPTURES) == [
+        "minicc/behavior_bench.py:105 subprocess.run",
+        "minicc/bench_tasks.py:229 subprocess.run",
+        "minicc/benchmarks.py:661 subprocess.run",
+    ], sorted(_VERDICT_NEUTRAL_CAPTURES)

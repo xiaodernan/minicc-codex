@@ -2977,3 +2977,170 @@ marker（`MINICC_*_COMPLETE:<n>`）全 ASCII，非 ASCII 只会出现在失败�
 6 条红没有一条落在 `tests/test_subprocess_decoding.py`。
 也就是说，这句「全绿」是被污染的运行里唯一还站得住的部分，
 而那条干净的 1129 基线不能和本批的数逐项相减——两个数之间隔着一次内存饥饿。
+
+---
+
+## 第三十四批（M8-T60）：全仓唯一一条 `skipif` 门在 CI 上从不运行，而它写在理由里的那句机制是错的
+
+### 1. 这一批是上一批登记的那笔
+
+第三十三批收口时把「一条门的牙齿由宿主机器的 locale 决定」登记成 M8-T60：
+`tests/test_subprocess_decoding.py:795` 挂着 `@pytest.mark.skipif(_LOCALE_IS_UTF8, ...)`，
+也就是说 M8-T58 修的那条 codec 接缝，在**任何 UTF-8 机器（包括 CI）上根本没有门在守**。
+这批做两件事：把这条门的牙齿从宿主手里拿回来；给普查发现的另外 7 条不钉 reader
+codec 的文本捕获各自一个决定。交付物只有测试文件（16 → 20 条门）和这份记录，
+**没有改生产代码**——M8-T58 已经把接缝修好了，本批做的是「让保护它的东西真的存在」。
+
+### 2. 先量：开工之前的四次读数
+
+| 量 | 读数 |
+| --- | --- |
+| 全仓 `pytest.mark.skipif` | **只有 1 条**，就是这条 locale 门（另有 6 处运行时 `pytest.skip`：5 处 junction 周界 + 1 处「git 不可用」，那 6 处不是本批的对象） |
+| subprocess 捕获普查（直接 `import` 已出厂的扫描器，避免普查与门两套口径） | 58 处调用 / 29 处文本模式 / 其中 **13 处在 `minicc/`** / **7 处没钉 reader codec**（全部带 `errors=`） |
+| 那 7 处的分布 | 3 处生产（`minicc/behavior_bench.py:105`、`minicc/bench_tasks.py:229`、`minicc/benchmarks.py:661`）+ 4 处测试工装（`tests/test_cleanup_version.py:54`、`tests/test_packaging.py:34`、`tests/test_task_worker.py:136` 与 `:170`）；`scripts/` 下 **0 处** |
+| git 文本捕获 | 14 处，全部已钉 UTF-8 |
+
+反事实测量（立项依据）：把 HEAD 的那份文件复制到临时目录，在 `PYTHONUTF8=1` 下跑
+`-k worktree`，得到的不是绿也不是红，是 `1 skipped`，理由逐字为
+`a UTF-8 locale cannot produce the mojibake half of this defect`。
+一条在 CI 上从不运行的门，报告里既不算通过也不算失败，只是少了一条。
+
+### 3. 本批最值钱的一条：我上一批写下的机制被实测推翻
+
+登记 M8-T60 时我写下的理由是「`subprocess.run(text=True)` 在调用时刻经
+`locale.getpreferredencoding` 解析默认 codec，所以 monkeypatch 它就能在任意宿主造出不一致」。
+**这条不存在。** 测法与读数：
+
+| 宿主 | 不钉不补 | 钉 `utf-8` | 钉 `cp936` | patch `locale.getpreferredencoding` → utf-8 / cp936 / latin-1 | patch `io.text_encoding` → cp936 |
+| --- | --- | --- | --- | --- | --- |
+| cp936（`sys.flags.utf8_mode == 0`） | ALIEN | EXACT | ALIEN | **仍然 ALIEN**（三个方向都试了） | ALIEN（本来就 ALIEN，不构成证据） |
+| UTF-8 mode（`PYTHONUTF8=1`） | EXACT | EXACT | ALIEN | **仍然 EXACT** | **仍然 EXACT** |
+
+判定要的是**反向测量**：在 cp936 宿主上把 lookup 改成明确不同的 `utf-8`，如果 patch 真在
+那条路径上，不钉的读法就会变成 EXACT——它没有变；在 UTF-8 mode 宿主上改成 `cp936`，也没有变。
+`io.text_encoding(None)` 只是返回哨兵 `'locale'`，真正决定默认 codec 的是 `sys.flags.utf8_mode`
+与 C 层，Python 测试改不动。
+
+为什么上一批「量到了」相反结论：那台机器默认就是 cp936，不钉就是 ALIEN，patch 与否读数一样——
+**相关不是因果**，缺的正是「把 patch 改到与宿主默认不同的方向再看一次」这一步。
+
+推论，对后面所有 codec 类门有用：**writer 端的 codec 可从 Python 控制**
+（给子进程 `PYTHONIOENCODING`，M8-T58 的三 parent-codec 门因此在任何宿主都有牙齿），
+**reader 端的默认 codec 不可控制**。要造父子不一致，只能变 writer，或者显式命名 reader。
+
+### 4. 改了什么（逐处）
+
+`tests/test_subprocess_decoding.py`：
+
+- **删掉那条 `skipif`**，连带删掉 `_LOCALE_IS_UTF8`、`_force_reader_codec`、`_worktree_list`
+  和整条建在被推翻机制上的门（它的名字是 test_naming_the_reader_is_what_saves_it；这里不写成
+  引证形状，是因为它已经不存在，而本仓库的 evidence 阅读器会把反引号里的测试名当作
+  「这个测试现在存在」的断言）。
+- **`test_a_non_ascii_worktree_path_survives_the_reader` 重写为字节不变量**：断言不再是
+  `endswith(中文目录名)`（那只看尾巴），而是「git 自己写出的字节按 UTF-8 读出来的那行路径，
+  经 `WorktreeManager._decorate` 同款规范化后，逐字等于 `list()` 的答案」。两侧同源，
+  门就不再问宿主默认 codec 是什么。
+- **新增 `test_the_alien_reader_is_the_one_that_disagrees`**：同一份字节三种读法
+  （utf-8 / cp936 / 不命名）。它是上一条的**非空洞见证**（cp936 读出来若与 utf-8 相同，
+  说明夹具早就不非 ASCII，上面所有断言都是空的），同时把「本机默认 reader 是否已等于 UTF-8」
+  这个制度事实 `print` 进日志——因为在那样的宿主上，删掉一个钉，这一条抓不到。
+- **新增豁免表 `_VERDICT_NEUTRAL_CAPTURES`**（3 条生产捕获 / 4 张发票）与三条门：
+  `test_every_production_capture_names_its_reader_or_carries_a_checked_proof`、
+  见证门 `test_an_exemption_is_a_claim_this_file_can_falsify`、名单门
+  `test_the_real_table_names_the_code_that_ships`。
+- **两条域地板** `_MIN_GIT_CAPTURES = 14`、`_MIN_PRODUCTION_TEXT_CAPTURES = 13`，
+  普查门里补上 git 域那条。地板的作用是：报「豁免表覆盖了全部 N 处」之前，
+  先证明扫描器真的看见了 N 处。
+- **四个新的 AST 工具**：`_string_pieces`（遇到 `SyntaxError` 返回 `None`，
+  即「无法核验」在本文件等于失败）、`_proof_context`（在剥掉注释的源码里用
+  `(lineno, col_offset)` 唯一定位那次调用，命中 0 个或 2 个都返回 `None`）、
+  `_bound_to`、`_attribute_reads`。它们存在的意义是：发票的内容现场算出来，不信表里写的散文。
+
+### 5. 两种发票，各自被机器复核
+
+- `ascii-marker:NAME`——这个接缝上唯一需要跨过的文本就是字面量 `NAME`，且**承载它的每一个
+  字符串片段都必须是纯 ASCII**（按 `ast.Constant` 取片段，f-string 只取其组成部分，所以
+  `f"MINICC_BEHAVIOR_COMPLETE:{count}"` 检查的是 `'MINICC_BEHAVIOR_COMPLETE:'` 那一段）。
+  这条形状与宿主无关：ASCII 在任何 codec 下都不变。
+- `no-consumer:NAME`——这次调用的结果**绑定到的那个名字**（由 `_bound_to` 从 AST 现场推出，
+  不是表里写死的）在整个模块里没有被读过 `stdout` / `stderr`。实测
+  `minicc/benchmarks.py:661` 绑到 `completed`，读过的属性只有 `returncode`。
+
+表按**调用点**作键，键里带行号：挪一行、改个名字，豁免自动作废——M4 就是实测这一点。
+
+### 6. 变异见证（对照 + 六条，两种宿主）
+
+| 编号 | 改什么 | cp936 宿主（本机） | `PYTHONUTF8=1` 宿主 |
+| --- | --- | --- | --- |
+| M1 | 删掉 `minicc/worktree.py:32` 的 `encoding="utf-8"` | 行为门 **红** + 结构门 **红** | 行为门 绿 + 结构门 **红** |
+| M2 | 钉的 codec 换成 `cp936`（对钉位、错 codec） | 行为门 **红** + 结构门 **红** | 行为门 **红** + 结构门 **红** |
+| M6 | codec 不动，把 `_decorate` 的 `path.as_posix()` 换成 `str(path)`（对钉、错答案） | 行为门 **红** / 结构门 绿 | 行为门 **红** / 结构门 绿 |
+| M3 | 让 `minicc/benchmarks.py` 开始读 `completed.stdout` | 表门 **红**：`no-consumer:completed -> completed.stdout is read` | 同 |
+| M4 | 在 `behavior_bench.py` 被豁免的调用上方插一个空行 | 表门 **红**：offender `minicc/behavior_bench.py:106 subprocess.run` | 同 |
+| M5 | 把豁免标记写成带中文的 f-string | 表门 **红**：`ascii-marker ... travels beside non-ASCII text` | 同 |
+
+每条变异跑完都用 `git diff --exit-code` 确认工作树恢复干净。这张表读出来的结论：
+旧门在任何 UTF-8 宿主上连 M2（钉错 codec）都抓不到，因为它根本不跑；新门在两种宿主上都
+抓得到 M2 与 M6。M1 在 UTF-8 宿主上只剩结构门能抓——这是本批明确写下来的边界，
+不是被 `skip` 藏起来的。
+
+### 7. 明确没做什么（边界）
+
+- ① M1 类回归在 UTF-8 宿主上**不再由行为门负责**，由结构门
+  `test_captures_of_git_output_name_the_codec` 负责（实测两种宿主都红）。行为门的独占价值是
+  「对钉、错答案」那一格（M6）。
+- ② 测试工装那 4 条不钉的捕获**没有进门**，逐条决定：`tests/test_cleanup_version.py:54`
+  断言 `out.stdout.strip() == f"minicc {minicc.__version__}"`（纯 ASCII）；
+  `tests/test_packaging.py:34` 只取 sdist/wheel 文件名与 ASCII 脏标记；
+  `tests/test_task_worker.py:136` 与 `:170` 的中文只出现在 **argv** 里
+  （`--message "worker 子进程任务"`），reader 侧只读 `returncode` 与失败分支的诊断文本
+  `stderr[-800:]`，裁决字段全部来自 sqlite store。四条都属于「两端都不命名 + 消费端只读 ASCII」
+  这一族，正是本文件早已明确接受的形状。**这条决定不覆盖「将来有人在测试里断言捕获输出里的中文」**：
+  那种门会像旧的那条一样依赖宿主，届时要么登记进表，要么按 M8-T58 的样子去变 writer 端。
+- ③ 表里的豁免只解释「为什么读错了也不影响裁决」，不解释「为什么这样读是对的」；
+  后者仍由 `test_no_text_mode_capture_asks_for_a_strict_decoder`（M8-T57）负责。
+- ④ 没有给 `scripts/` 立「必须钉 codec」的门：实测那里未钉 codec 的文本捕获是空集，
+  现在立门是空集门。地板与普查保证「空集是因为干净」而不是「空集因为看不见」。
+- ⑤ 没有跑 30 夹具的 M6-4 真模型基线（配额与老规矩：那需要显式决定）。
+
+### 8. 基线与本批踩到的测量陷阱
+
+- 单文件：`tests/test_subprocess_decoding.py` **20 passed / 289.07s / exit 0**（`-W error` 由 pytest 参数给，本机 cp936 宿主）
+- `scripts/doc_pointers.py --check`（默认 19 份文档）：**exit 0**，evidence 指针 924 条、
+  `见` 标记 244 条中检查 64 条、覆盖 233 个被跟踪文件（这是**追加本批记录之前**的读数；
+  追加之后再跑同一条命令：仍然 exit 0，ROADMAP 自己的 evidence 指针 712 → 737、
+  `见` 标记总数 244 → 250，其余计数不变）
+- `scripts/route_coverage.py --check`：**exit 0**（86 passed / 158.25s；dispatch sites 34，
+  GET 20/20、POST 14/14，A/B 两个口径都 100%）
+- **全量冷跑：本批没有可交付的数字。** 起跑后 6 分钟走到 4%（同一段在安静机器上是 5 分钟跑完），
+  起跑前实测内存占用 96%、可用 0.62GB，中止之后数到 17 个 python 进程（其他项目的会话在跑自己的门），
+  且 `tests/test_background_shell.py` 这类负载敏感门已经在报红。读数无信息量，所以把它**中止**而不是记进基线——
+  第三十三批第 9 节已经写过一次「47 分半对 5 分钟是 9 倍减速」，那次的 6 条红里只有 1 条是真的。
+  本批的可核对预测写在这里：收集数实测 **1138**（`--collect-only -q`，25.68s，
+  = 上一批的 1134 + 本批净新增 4 条门，与事先写的预测一致），
+  冷跑等机器安静时补，补上之前这句「全绿」不算说过。
+
+五条陷阱，写给下一批读：
+
+1. **「patch 有牙齿」必须先做反向测量**：把被 patch 的值改成与宿主默认**明确不同**的值，
+   看读数是否跟着动。只测「patch 成宿主已有的值」等于什么都没测——本批的立项理由就是这么立不住的。
+2. **门的见证不能只跑一种宿主**：`test_the_alien_reader_is_the_one_that_disagrees` 的第一版
+   （改 `locale` 那版）在 cp936 宿主绿、在 `PYTHONUTF8=1` 宿主红，是那次红揪出了假机制。
+   **在 UTF-8 mode 下复跑一遍**从今天起是本类门的固定动作。
+3. **别用散文写断言的反义词**：`endswith(中文目录名)` 看起来在测 codec，实际只测了尾巴；
+   换成「与 git 自己字节的 UTF-8 读法逐字相等」之后 M6 才被抓到。凡是「测解码」的门，
+   两侧必须来自同一份字节。
+4. **「一次 pytest 一个」这条老规矩本批又被我违反了一次，代价是一条假红**：
+   `scripts/route_coverage.py --check` 自己会 `subprocess.run` 一个 pytest 子进程
+   （`--source=minicc.webserver` 跑那两个 HTTP 文件），它和全量冷跑并发时撞了固定测试端口，
+   exit 1 并抛 `CalledProcessError`。单独复跑同一对文件是 **86 passed / 168.74s**，
+   `--check` 单独跑则 exit 0（就是本节上面那个数）。
+   也就是说这批第一个「route 红」不是代码红，是我自己造的仪器红——判据仍然是：
+   **任何一条红在写进记录之前，先单独复跑一次。**
+5. **本节自己踩到的：抄下来的计数会在你抄它的那一刻改变。** 第一版把上面那条
+   标记总数抄成 251，而那一句本身就带着一个被数的标记——定稿后重跑是 250。
+   所以「实测数字」那一句必须是最后一次复跑之后写的，否则记录里就存了一个慢一步的数。
+
+
+M8-T61（`tests/test_background_shell.py` 那条 3.0s 墙钟门在负载下红且没有诊断文字）仍然挂着，
+上一批已登记，本批不顺手改——它是第二件事，而 M8-T44 已经教过不要把两件事塞进一批。
