@@ -499,12 +499,14 @@ def test_completion_continue_loop_is_capped_instead_of_burning_turn_budget(
         async def chat(self, messages, tools, on_delta=None):
             if tools is None:
                 calls["judge"] += 1
+                # M8-T19 之后，逐字复读的评审会在重复判定分支提前停止；要测
+                # 「多样性异议 legitimate 地走满上限」，评审必须每轮换一个说法。
                 return LLMResponse(content=json.dumps({
                     "status": "continue",
                     "confidence": 0.5,
                     "rationale": "还差最后一项检查。",
-                    "missing": ["再做一轮检查"],
-                    "next_action": "继续检查",
+                    "missing": [f"第 {calls['judge']} 轮要求：再做一轮检查"],
+                    "next_action": f"继续检查（第 {calls['judge']} 轮）",
                     "evidence": [],
                 }, ensure_ascii=False))
             calls["agent"] += 1
@@ -663,16 +665,17 @@ def _repeating_verdict() -> str:
     }, ensure_ascii=False)
 
 
-def test_a_repeated_verdict_with_no_new_activity_becomes_a_visible_event(
+def test_a_repeated_verdict_with_no_new_activity_stops_before_burning_the_cap(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """M8-T19: the stall the cap pays for has to be observable per task.
+    """M8-T19 stop policy (2026-09-25): the witness arrived, observation becomes a stop.
 
-    The reviewer asks for the same thing four times and each continue re-runs
-    the whole agent. Nothing in the record said *why* that was wasted work —
-    the requirement repeated AND the round produced no tool call and no
-    verification. That pair is now an event, with the stop decision left exactly
-    where it was: an observation is not a convergence rule.
+    The reviewer asks for the same thing twice in a row and the second round
+    produced no tool call and no verification. The 24-task full eval showed
+    what waiting for the cap costs: 8 tasks died at the cap with the hidden
+    grader actually passing, each burning 2-3 extra agent rounds on exactly
+    this signature. The stop keeps the cap's semantics — "not converged",
+    never a completion — it just arrives two rounds earlier.
     """
     calls = {"agent": 0, "judge": 0}
 
@@ -696,7 +699,7 @@ def test_a_repeated_verdict_with_no_new_activity_becomes_a_visible_event(
         result = service._chat_locked(
             {
                 "message": "检查当前工作区状态并总结。",
-                "session_id": "repeat-observed",
+                "session_id": "repeat-stopped",
                 "allow_changes": False,
                 "workspace_path": str(tmp_path),
             },
@@ -706,18 +709,26 @@ def test_a_repeated_verdict_with_no_new_activity_becomes_a_visible_event(
         service.shutdown()
 
     repeats = [event for event in result["events"] if event.get("code") == "completion_verdict_repeated"]
-    # Four reviews: the first cannot repeat anything, so three of them can.
-    assert calls["judge"] == 4 and len(repeats) == 3, [event.get("code") for event in result["events"]]
+    # Two reviews: the first cannot repeat anything, the second repeats into
+    # the stop. The old contract burned four reviews and three observations
+    # before the cap did the same job.
+    assert calls["judge"] == 2 and len(repeats) == 1, [event.get("code") for event in result["events"]]
     detail = repeats[0]["detail"]
     assert detail["missing"] == ["再做一轮检查"]
     assert detail["next_action"] == "继续检查"
     assert detail["tool_events"] == 0 and detail["verification_runs"] == 0
     assert detail["last_verification_status"] is None
-    assert detail["action"] == "observe_only"
-    # The behaviour this event deliberately does NOT change.
-    assert calls["agent"] == 4
-    assert "未收敛" in str(result["error"])
-    assert any(event.get("code") == "completion_continue_capped" for event in result["events"])
+    assert detail["action"] == "stop"
+    assert repeats[0]["status"] == "error"
+    # One agent round per review — the second repeat stops instead of re-running.
+    assert calls["agent"] == 2
+    assert "逐字重复" in str(result["error"]) and "已停止" in str(result["error"])
+    # 客观验证一次都没跑过，note 必须把这件事说出来，而不是只复述评审要求。
+    assert "没有运行客观验证" in str(result["error"])
+    # The stop is its own ending: the cap event must not be synthesized on top.
+    assert not [event for event in result["events"] if event.get("code") == "completion_continue_capped"], [
+        event.get("code") for event in result["events"]
+    ]
 
 
 def test_a_repeated_verdict_that_came_with_new_tool_activity_is_not_a_stall(

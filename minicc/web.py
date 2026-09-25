@@ -2226,18 +2226,30 @@ class AgentService:
                         last_review_request = request
                         activity_at_last_review = activity
                         if repeats and nothing_new:
-                            # Records the cost the cap is about to pay for: this
-                            # verdict is word-for-word the previous one and the
-                            # round added no tool call and no verification run,
-                            # so re-running the agent cannot produce anything the
-                            # reviewer has not already seen.
+                            # M8-T19 stop policy (2026-09-25). The 24-task full
+                            # eval (M6-4 closure) supplied the witness this
+                            # observe-only event had been waiting for since
+                            # M8-T26: 8 of 11 failures died at the cap with the
+                            # hidden grader actually passing, each burning 2-3
+                            # extra agent rounds on a word-for-word repeated
+                            # demand with zero new tool calls and zero new
+                            # verifications. Re-running cannot produce anything
+                            # the reviewer has not already seen, so stop now —
+                            # with the cap's semantics: this is "not converged",
+                            # never a completion.
+                            aggregate.error = (
+                                "完成评估连续两轮逐字重复同一要求，且本轮没有新增工具调用或验证"
+                                "——继续重跑不会产生评审未见过的证据，已停止；"
+                                + _unconverged_verification_note(verification_results)
+                            )
+                            aggregate.answer = f"任务未完成：{aggregate.error}"
                             repeat_event = {
                                 "kind": "trace",
                                 "name": "completion_judge",
-                                "status": "ok",
+                                "status": "error",
                                 "phase": "review",
                                 "code": "completion_verdict_repeated",
-                                "summary": "完成评估逐字重复上一轮要求，且本轮没有新增工具调用或验证",
+                                "summary": "完成评估逐字重复上一轮要求且无新增活动，提前停止以免继续空转",
                                 "detail": {
                                     "review_attempt": completion_review_attempt,
                                     "continues": completion_continues,
@@ -2251,16 +2263,16 @@ class AgentService:
                                         if verification_results
                                         else None
                                     ),
-                                    # Deliberately an observation: stopping earlier
-                                    # would need a satisfiable witness that the
-                                    # requirement really is unmeetable, and that
-                                    # is what this event exists to collect.
-                                    "action": "observe_only",
+                                    # The previous value, "observe_only", is how
+                                    # this branch spent three batches collecting
+                                    # the witness that justified stopping.
+                                    "action": "stop",
                                 },
                             }
                             events.append(repeat_event)
                             if on_event is not None:
                                 on_event(repeat_event)
+                            break
                         completion_continues += 1
                         if completion_continues > max_completion_continues:
                             aggregate.error = (
