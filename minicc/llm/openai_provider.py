@@ -457,6 +457,48 @@ def _parse_usage(usage: Any) -> dict[str, Any]:
     return parsed
 
 
+#: Error codes the gateway returns when a quota pool is empty (docs:
+#: api-reference/error-codes — 402 insufficient balance, 429 credit-limit
+#: variants). A plain rate-limit 429 is NOT here: it means "slow down", not
+#: "this channel has no money left", and must keep its own retry semantics.
+_QUOTA_EXHAUSTED_CODES = (
+    "insufficient_credit",
+    "project_credit_limit_exceeded",
+    "member_project_credit_limit_exceeded",
+)
+
+
+def _exc_body_text(exc: BaseException) -> str:
+    body = getattr(exc, "body", None)
+    if isinstance(body, str):
+        text = body
+    elif body is not None:
+        try:
+            text = json.dumps(body, ensure_ascii=False)
+        except (TypeError, ValueError):
+            text = str(body)
+    else:
+        text = str(exc)
+    message = str(getattr(exc, "message", "") or "")
+    return f"{text}\n{message}"
+
+
+def _is_quota_exhausted(exc: BaseException) -> bool:
+    """True when the error says this channel's quota pool is empty.
+
+    402 is unambiguous (余额不足). A 429 only counts when the body carries one
+    of the credit-limit codes — a bare rate-limit 429 means the caller should
+    retry slower, not that the channel is dead.
+    """
+    status = getattr(exc, "status_code", None)
+    if status == 402:
+        return True
+    if status == 429 or type(exc).__name__ == "RateLimitError":
+        text = _exc_body_text(exc)
+        return any(code in text for code in _QUOTA_EXHAUSTED_CODES)
+    return False
+
+
 def _sdk_base_url(base_url: str) -> str:
     """Normalize a provider root without breaking path-qualified gateways."""
     value = base_url.rstrip("/")
@@ -481,6 +523,8 @@ class OpenAICompatibleProvider:
         reasoning_effort: str = "high",
         on_status: Callable[[dict[str, Any]], None] | None = None,
         sdk_client: Any = None,
+        plan_base_url: str = "",
+        plan_api_key: str = "",
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.model = model
@@ -514,6 +558,119 @@ class OpenAICompatibleProvider:
         self._reasoning_enabled = True
         self._on_status = _status_logging_callback(on_status, lambda: self.model)
         self._client: Any = sdk_client
+        self._init_plan_channel(plan_base_url, plan_api_key)
+
+    # -- dual channel (M8-T55) ------------------------------------------------
+
+    def _init_plan_channel(self, plan_base_url: str, plan_api_key: str) -> None:
+        """Optional second channel that takes over when the primary quota dies.
+
+        Step Plan (subscription Credit pool) and the pay-as-you-go API share
+        the same API key type but live on different base URLs with independent
+        quotas. ``paid`` exhausts mid-task with HTTP 402 / credit-flavoured
+        429; the provider then flips to the plan channel sticky for the rest
+        of the process instead of killing the task.
+        """
+        self._plan_base_url = (plan_base_url or "").rstrip("/")
+        self._plan_api_key = plan_api_key or ""
+        self._channel = "paid"
+        self._plan_client: Any = None
+        self._channel_usage: dict[str, dict[str, int]] = {
+            "paid": {"requests": 0, "total_tokens": 0},
+            "plan": {"requests": 0, "total_tokens": 0},
+        }
+
+    def _has_plan_channel(self) -> bool:
+        return bool(getattr(self, "_plan_base_url", "")) and bool(getattr(self, "_plan_api_key", ""))
+
+    @property
+    def active_channel(self) -> str:
+        return getattr(self, "_channel", "paid")
+
+    def channel_status(self) -> dict[str, Any]:
+        """Mirror protocol_status(): what the wire is doing right now."""
+        return {
+            "active": self.active_channel,
+            "plan_available": self._has_plan_channel(),
+            "usage": {k: dict(v) for k, v in getattr(self, "_channel_usage", {}).items()},
+        }
+
+    def _active_client(self) -> Any:
+        if self.active_channel == "plan":
+            if self._plan_client is None:
+                self._plan_client = AsyncOpenAI(
+                    base_url=_sdk_base_url(self._plan_base_url),
+                    api_key=self._plan_api_key,
+                    timeout=self.timeout,
+                    max_retries=0,
+                )
+            return self._plan_client
+        return self.client
+
+    def _record_channel_usage(self, response: LLMResponse) -> None:
+        usage = response.usage if isinstance(response.usage, dict) else {}
+        usage["channel"] = self.active_channel
+        try:
+            tokens = int(usage.get("total_tokens") or 0)
+        except (TypeError, ValueError):
+            tokens = 0
+        counters = self._channel_usage.setdefault(self.active_channel, {"requests": 0, "total_tokens": 0})
+        counters["requests"] += 1
+        if tokens > 0:
+            counters["total_tokens"] += tokens
+
+    def _emit_channel_switch(self, exc: BaseException) -> None:
+        if self._on_status is not None:
+            self._on_status({
+                "kind": "trace",
+                "name": "provider",
+                "status": "ok",
+                "phase": "planning",
+                "code": "provider_channel_switched",
+                "summary": "主通道额度已用尽（402/Credit 上限），本次任务改用 Step Plan 套餐通道",
+                "detail": {
+                    "from": "paid",
+                    "to": "plan",
+                    "error_type": type(exc).__name__,
+                    "status_code": getattr(exc, "status_code", None),
+                },
+            })
+
+    async def _attempt_once(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None,
+        on_delta: Callable[[str], None] | None,
+        use_native: bool,
+    ) -> LLMResponse:
+        """One negotiation attempt, with a one-shot sticky flip to the plan channel.
+
+        The flip lives here rather than in the negotiation loop above so a
+        quota death cannot be mistaken for a protocol/tool fallback, and so
+        the plan retry inherits the same loop guards.
+        """
+        try:
+            if self._protocol == "responses":
+                response = await self._responses_once(messages, tools, on_delta, use_native)
+            else:
+                response = await self._chat_completions_once(messages, tools, on_delta, use_native)
+            self._record_channel_usage(response)
+            return response
+        except Exception as exc:
+            if (
+                self.active_channel != "paid"
+                or not self._has_plan_channel()
+                or not _is_quota_exhausted(exc)
+            ):
+                raise
+            self._channel = "plan"
+            self._emit_channel_switch(exc)
+            if self._protocol == "responses":
+                response = await self._responses_once(messages, tools, on_delta, use_native)
+            else:
+                response = await self._chat_completions_once(messages, tools, on_delta, use_native)
+            self._record_channel_usage(response)
+            return response
 
     # -- client --------------------------------------------------------------
 
@@ -549,14 +706,16 @@ class OpenAICompatibleProvider:
 
     async def close(self) -> None:
         client, self._client = self._client, None
-        if client is not None and hasattr(client, "close"):
-            try:
-                await client.close()
-            except Exception:
-                # A poisoned pool must never prevent task-level recovery from
-                # replacing it. Closing is best effort after cancellation or
-                # a broken event source.
-                pass
+        plan_client, self._plan_client = getattr(self, "_plan_client", None), None
+        for candidate in (client, plan_client):
+            if candidate is not None and hasattr(candidate, "close"):
+                try:
+                    await candidate.close()
+                except Exception:
+                    # A poisoned pool must never prevent task-level recovery
+                    # from replacing it. Closing is best effort after
+                    # cancellation or a broken event source.
+                    pass
 
     # -- public API ------------------------------------------------------------
 
@@ -577,9 +736,7 @@ class OpenAICompatibleProvider:
         for _ in range(len(REASONING_FALLBACKS) + 3):
             use_native = self._mode == "native" and bool(tools)
             try:
-                if self._protocol == "responses":
-                    return await self._responses_once(messages, tools, on_delta, use_native)
-                return await self._chat_completions_once(messages, tools, on_delta, use_native)
+                return await self._attempt_once(messages, tools, on_delta, use_native)
             except Exception as exc:
                 if self._protocol == "responses" and not self._protocol_locked and self._looks_like_responses_rejection(exc):
                     self._protocol = "chat_completions"
@@ -745,7 +902,7 @@ class OpenAICompatibleProvider:
         )
 
         async def _attempt() -> Any:
-            return await self.client.responses.create(**kwargs)
+            return await self._active_client().responses.create(**kwargs)
 
         return await retryer(_attempt)
 
@@ -778,7 +935,7 @@ class OpenAICompatibleProvider:
             emitted["chars"] = 0
             stream_kwargs = dict(kwargs)
             stream_kwargs["stream"] = True
-            stream = await self.client.responses.create(**stream_kwargs)
+            stream = await self._active_client().responses.create(**stream_kwargs)
             final = None
             try:
                 async for event in stream:
@@ -936,7 +1093,7 @@ class OpenAICompatibleProvider:
         )
 
         async def _attempt() -> Any:
-            return await self.client.chat.completions.create(**kwargs)
+            return await self._active_client().chat.completions.create(**kwargs)
 
         return await retryer(_attempt)
 

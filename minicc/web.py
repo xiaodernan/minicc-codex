@@ -1007,6 +1007,8 @@ class AgentService:
             base_url=self.config.base_url,
             api_key=self.config.api_key,
             model=str(model_override or self.config.model),
+            plan_base_url=str(getattr(self.config, "plan_base_url", "") or ""),
+            plan_api_key=str(getattr(self.config, "plan_api_key", "") or ""),
             timeout=timeout,
             max_retries=int(getattr(self.config, "provider_retries", 4)),
             tool_mode=self.config.tool_mode,
@@ -2382,6 +2384,18 @@ class AgentService:
                 final.metrics.update(cache_summary(final.tokens_used))
                 return final
             finally:
+                # M8-T55: 记录本任务走了哪条通道（paid/plan）与各通道请求数，
+                # 让 /api/metrics 与任务快照能分通道对账。
+                channel_status = getattr(provider, "channel_status", None)
+                if callable(channel_status):
+                    try:
+                        status = channel_status()
+                        # 标量进 summary()（任务列表与 /api/metrics 可见），
+                        # 明细 dict 只在全量快照里。
+                        final.metrics["channel"] = status.get("active")
+                        final.metrics["channels"] = status
+                    except Exception:
+                        pass
                 await provider.close()
 
         result = asyncio.run(execute())
@@ -2535,6 +2549,9 @@ class AgentService:
         usage: dict[str, int] = {}
         by_model: dict[str, dict[str, Any]] = {}
         by_status: dict[str, int] = {}
+        # M8-T55: 每个根任务最终由哪条通道服务（paid=付费 API / plan=Step Plan
+        # 套餐）。切换事件本身在任务事件流里（provider_channel_switched）。
+        by_channel: dict[str, int] = {}
         cost_total = 0.0
         unpriced_tasks = 0
         priced_tasks = 0
@@ -2550,6 +2567,8 @@ class AgentService:
             bucket["tasks"] += 1
             status = str(row.get("status") or "unknown")
             by_status[status] = by_status.get(status, 0) + 1
+            channel = str(((row.get("metrics") or {}).get("channel")) or "paid")
+            by_channel[channel] = by_channel.get(channel, 0) + 1
             cost = row.get("cost_usd")
             if cost is None:
                 bucket["priced"] = False
@@ -2577,6 +2596,7 @@ class AgentService:
             "task_count": len(roots),
             "subtask_rows": subtask_rows,
             "tasks_by_status": by_status,
+            "tasks_by_channel": by_channel,
             "priced_tasks": priced_tasks,
             "unpriced_tasks": unpriced_tasks,
             "usage": usage,

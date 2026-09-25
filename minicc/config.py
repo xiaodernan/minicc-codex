@@ -209,6 +209,10 @@ class Config:
     # Empty means "use base_url" - the Anthropic path historically had no way to
     # point at a different endpoint than the OpenAI one.
     anthropic_base_url: str = ""
+    # M8-T55: optional second channel (e.g. Step Plan subscription Credit pool)
+    # that takes over when the primary channel's quota is exhausted.
+    plan_base_url: str = ""
+    plan_api_key: str = ""
     reasoning_effort: str = DEFAULT_REASONING_EFFORT
     tool_mode: str = "auto"  # auto | native | envelope
     max_turns: int | None = DEFAULT_MAX_TURNS
@@ -378,6 +382,8 @@ def load_config(
 
     resolved_url = pick(base_url, "MINICC_BASE_URL", "base_url", DEFAULT_BASE_URL)
     anthropic_base_url = pick(None, "MINICC_ANTHROPIC_BASE_URL", "anthropic_base_url", "").rstrip("/")
+    plan_base_url = pick(None, "MINICC_PLAN_BASE_URL", "plan_base_url", "").rstrip("/")
+    plan_api_key = pick(None, "MINICC_PLAN_API_KEY", "plan_api_key", "")
     # The provider HTTP timeout used to be reachable only through the CLI's
     # --timeout flag, so the Web workbench and every task worker it spawned ran
     # at the compiled-in default forever - a slow reasoning gateway has no way
@@ -609,6 +615,8 @@ def load_config(
         base_url=resolved_url.rstrip("/"),
         unrecognized_config_keys=tuple(sorted(set(unrecognized))),
         anthropic_base_url=anthropic_base_url,
+        plan_base_url=plan_base_url,
+        plan_api_key=plan_api_key,
         api_key=resolved_key,
         model=resolved_model,
         reasoning_effort=resolved_reasoning,
