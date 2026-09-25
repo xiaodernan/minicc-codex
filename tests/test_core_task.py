@@ -18,6 +18,7 @@ from minicc.llm.openai_provider import OpenAICompatibleProvider
 from minicc.tools.editor import Editor
 from minicc.task_store import TaskStore
 from minicc.web import AgentService, TaskManager, TaskRecord
+from minicc.agent.loop import TurnResult
 
 
 def _completion_evidence_ids(messages) -> list[str]:
@@ -277,6 +278,112 @@ def test_agent_service_preflights_complex_tasks_with_a_safe_model_plan(
     assert any(event.get("code") == "planner_started" for event in result["events"])
     assert any(event.get("code") == "planner_dynamic_ready" for event in result["events"])
     assert any(event.get("code") == "planner_execution_finished" for event in result["events"])
+
+
+def test_planner_dag_nodes_run_with_a_bounded_budget(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """P2-8 漏网复核（2026-09-25 全量评测批次登记）：DAG 节点不得拿到全 None 预算。
+
+    捕获每一次 run_agent 调用的 budget/max_turns 后直接返回合成结果——这样在
+    未修复代码上也不会挂死，红法是断言「没有任何一次调用带着 12 轮的界」。
+    """
+    (tmp_path / "notes.md").write_text("# 现状\n前后端分离。\n", encoding="utf-8")
+    captured: list[dict[str, object]] = []
+
+    class FakeProvider:
+        def __init__(self, **_kwargs) -> None:
+            pass
+
+        async def chat(self, messages, tools, on_delta=None):
+            rendered = json.dumps(messages, ensure_ascii=False)
+            if "受约束任务规划器" in rendered:
+                return LLMResponse(
+                    content=json.dumps({
+                        "name": "readonly-review",
+                        "tasks": [
+                            {"id": "inspect", "kind": "readonly", "allowed_tools": ["read_file", "grep"]},
+                            {"id": "review", "kind": "review", "depends_on": ["inspect"], "allowed_tools": ["git_diff"]},
+                        ],
+                    }, ensure_ascii=False),
+                    usage={"prompt_tokens": 10, "completion_tokens": 8, "total_tokens": 18},
+                )
+            if tools is None:
+                return LLMResponse(content=json.dumps({
+                    "status": "complete",
+                    "confidence": 0.9,
+                    "rationale": "只读检查完成。",
+                    "missing": [],
+                    "next_action": "",
+                    "evidence": _completion_evidence_ids(messages) or ["event-1"],
+                }, ensure_ascii=False))
+            return LLMResponse(content="节点执行已由捕获桩接管。")
+
+        async def close(self) -> None:
+            return None
+
+    async def capturing_run_agent(provider, registry, messages, *, budget=None, max_turns=None, **kwargs):
+        captured.append({"max_turns": max_turns, "budget": budget})
+        return TurnResult(answer="节点完成")
+
+    monkeypatch.setattr("minicc.web.OpenAICompatibleProvider", FakeProvider)
+    monkeypatch.setattr("minicc.web.run_agent", capturing_run_agent)
+    config = SimpleNamespace(
+        yolo=False,
+        max_concurrent_tasks=2,
+        sandbox_mode="host",
+        sandbox_image="python:3.11-slim",
+        base_url="https://example.test/v1",
+        api_key="test-key",
+        model="test-model",
+        timeout=10,
+        tool_mode="auto",
+        reasoning_effort="high",
+        max_turns=4,
+        compact_threshold=300_000,
+        context_window_tokens=300_000,
+        soft_max_tokens=5000,
+        soft_max_duration_seconds=120.0,
+    )
+    service = AgentService(tmp_path, config)
+    try:
+        result = service._chat_locked(
+            {
+                "message": (
+                    "分析 src/app.py 和 web/app.js 的现状，运行验证并总结风险。"
+                ),
+                "session_id": "node-budget-capture",
+                "allow_changes": False,
+                "workspace_path": str(tmp_path),
+            },
+            workspace=tmp_path,
+        )
+    finally:
+        service.shutdown()
+
+    assert captured, "DAG 执行应当发起至少一次 run_agent"
+    node_budgets = [
+        entry for entry in captured
+        if isinstance(entry["budget"], Budget)
+        and getattr(entry["budget"], "max_turns", None) == 12
+        and getattr(entry["budget"], "max_duration_seconds", None) == 300.0
+    ]
+    # 未修复代码上这里红：所有调用要么 max_turns=None，要么没有 300s 的墙钟界。
+    assert node_budgets, (
+        "DAG 节点必须带 12 轮 / 300s 的界运行；当前捕获到 "
+        + "; ".join(
+            f"max_turns={entry['max_turns']!r}, budget={entry['budget']!r}" for entry in captured[:6]
+        )
+    )
+    node_budget = node_budgets[0]["budget"]
+    assert node_budget.max_retries is None, "重试策略不是节点预算，与 chat 路径同一立场"
+    assert node_budget.soft_max_tokens == 5000
+    assert node_budget.soft_max_duration_seconds == 120.0
+    assert any(entry["max_turns"] == 12 for entry in captured), (
+        "run_agent 的 max_turns 兼容参数也要设界：while 循环读的是它，不是 Budget"
+    )
+    assert result is not None
 
 
 def test_agent_service_marks_text_only_change_request_as_incomplete(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

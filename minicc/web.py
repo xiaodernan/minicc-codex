@@ -156,6 +156,14 @@ LOG = get_logger("service")
 # M7-T3: interactive Web approvals wait at most this long, then auto-deny.
 APPROVAL_TIMEOUT_SECONDS = 60.0
 
+# Planner DAG nodes are single-responsibility units (inspect / summarize /
+# one focused review), so they get a tighter bound than subagents (24 turns /
+# 600 s in agent/subagent.py) and than main tasks (deliberately unbounded,
+# bounded instead by the stagnation guards). Before this bound each node was
+# an unbounded run_agent: 4 concurrent nodes × no turn/wall-clock cap.
+NODE_AGENT_MAX_TURNS = 12
+NODE_AGENT_MAX_DURATION_SECONDS = 300.0
+
 
 @dataclass
 class _ApprovalGroup:
@@ -1696,7 +1704,7 @@ class AgentService:
                                 node_provider,
                                 node_registry,
                                 node_messages,
-                                max_turns=None,
+                                max_turns=NODE_AGENT_MAX_TURNS,
                                 compact_threshold=int(getattr(self.config, "compact_threshold", 300_000)),
                                 on_tool=node_tool,
                                 on_trace=node_trace,
@@ -1705,10 +1713,15 @@ class AgentService:
                                 cancel_event=cancel_event,
                                 context_limit_tokens=int(getattr(self.config, "context_window_tokens", 300_000)),
                                 budget=Budget(
-                                    max_turns=None,
+                                    max_turns=NODE_AGENT_MAX_TURNS,
                                     max_tool_calls=None,
-                                    max_duration_seconds=None,
+                                    max_duration_seconds=NODE_AGENT_MAX_DURATION_SECONDS,
+                                    # Same stance as the chat path below: retry
+                                    # policy is not a task budget and must not
+                                    # raise BudgetExceeded mid-node.
                                     max_retries=None,
+                                    soft_max_tokens=getattr(self.config, "soft_max_tokens", None),
+                                    soft_max_duration_seconds=getattr(self.config, "soft_max_duration_seconds", None),
                                 ),
                                 vision_context=vision_context,
                                 hooks=hook_runner,
