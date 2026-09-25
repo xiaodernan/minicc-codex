@@ -35,6 +35,20 @@ def test_httpx_is_declared_dev_dependency():
     assert any(entry.split("[")[0].strip().lower().startswith("httpx") for entry in dev), dev
 
 
+def test_wheel_is_declared_because_packaging_builds_in_process():
+    """The packaging tests build a wheel with setuptools' build_meta in-process.
+
+    They therefore need the ``bdist_wheel`` command in the *test* environment,
+    and GitHub's Python 3.11 image ships setuptools older than 70.1, which does
+    not vendor it - so both CI legs errored with "invalid command 'bdist_wheel'"
+    while the development machine passed on an incidentally installed ``wheel``.
+    Declared (not relied upon transitively), and pinned by this gate so it cannot
+    be dropped again without a red test.
+    """
+    dev = _pyproject()["project"]["optional-dependencies"]["dev"]
+    assert any(entry.split("[")[0].strip().lower().startswith("wheel") for entry in dev), dev
+
+
 def test_pytest_addopts_reports_summary_not_quiet():
     addopts = _pyproject()["tool"]["pytest"]["ini_options"]["addopts"]
     assert "-ra" in addopts

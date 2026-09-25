@@ -2268,6 +2268,30 @@ m4 第一轮是**零证据变异**：heredoc 把 `\b` 吃成退格符，引用�
 
 **基线**：`tests/test_bench_tasks.py` **13 passed**；`test_bench_tasks + test_resource_hygiene + test_ci_hygiene + test_http_surface + test_http_route_inventory` 合计 **108 passed**（`-W error`，无 scandir 误报）。
 
+**C. 主干 CI 红了十几个小时，原因是 CI 里少一个包，而开发机上恰好有**
+
+查项目状态时顺手看了流水线：最近若干次 push 的 `CI` 全是 **failure**，红的不是新代码，是 `Python tests` 这一条的两个腿都红。
+`gh run view --log-failed` 取到逐字原因：
+
+```
+E  usage: -c [global_opts] cmd1 [cmd1_opts] [cmd2 [cmd2_opts] ...]
+E  error: invalid command 'bdist_wheel'
+```
+
+`tests/test_packaging.py` 用 `setuptools.build_meta` **在测试进程内**构建 wheel，所以 `bdist_wheel` 这个命令必须在**测试环境本身**存在。
+GitHub 的 Python 3.11 镜像自带 setuptools 低于 70.1（那个版本还没把 bdist_wheel 收进自己），而 dev extra 里没有 `wheel`——
+于是两个腿全红；开发机上因为 `wheel` 恰好装着（0.48.0），11 条打包测试一直是绿的。
+
+**先复现再修**（不靠推断）：一次性 venv + `setuptools==69.5.1` + 不装 `wheel` → 同一条构建命令逐字复现
+`error: invalid command 'bdist_wheel'`；装上 `wheel>=0.41` → 同一命令立刻打出 `wheel: minicc-0.1.0-py3-none-any.whl` / `sdist: minicc-0.1.0.tar.gz`。
+
+落地：`wheel>=0.41` 进 dev extra（与 `httpx` 同一类缺陷——**测试在依赖一个碰巧装着的包**），
+并加 `test_wheel_is_declared_because_packaging_builds_in_process` 把这条钉住，防止下次被当作「多余依赖」删掉。
+`pip check` 通过；`pip install -e ".[dev]"` 通过；本机 `tests/test_packaging.py` **11 passed**。
+
+**这条的教训比修复值钱**：**开发机上的绿，证明不了 CI 的绿**——凡是"构建/打包/版本"这类判据，
+只要它读的是环境里碰巧存在的东西，就必须在声明文件里写死，或者干脆在干净环境里跑一次。
+
 
 
 ### M8-T7 注记：一次真实失败的时间线，以及「不给结论」的边界

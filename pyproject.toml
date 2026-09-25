@@ -40,6 +40,15 @@ dev = [
     # line percentage, which is a different and weaker question - see the script's
     # docstring for why "the route's comparison line ran" is not coverage.
     "coverage[toml]>=7.0",
+    # tests/test_packaging.py builds a wheel *in-process* (setuptools
+    # build_meta), so the bdist_wheel command has to exist in the test
+    # environment itself. GitHub's Python 3.11 image ships setuptools older than
+    # 70.1, which does not vendor that command, so every packaging test errored
+    # with `error: invalid command 'bdist_wheel'` on BOTH CI legs while passing
+    # on the development machine, where `wheel` happened to be installed.
+    # Reproduced in a throwaway venv with setuptools 69.5.1 and no wheel;
+    # installing wheel fixes it. Same class of defect as httpx above.
+    "wheel>=0.41",
 ]
 # Native Anthropic Messages provider (minicc.llm.anthropic_provider).
 anthropic = [
