@@ -2773,7 +2773,7 @@ assert all(Path(hit.path).name != "notes.md" for hit in noisy), [hit.path for hi
 - ② `seen == records` 依赖 `search()` 按表顺序遍历。将来若换成倒排索引做候选裁剪，
   **放宽这批门是一次显式决定，不是默认**；届时合同应改成「凡含任一查询词的记录都必须在候选里」。
 - ③ 真跑只有一次请求（配额 10 RPM），且模型只有 `step-3.7-flash` 一个口径。
-- ④ M8-T58（父子 codec 不一致时非 ASCII `stdout_contains` 仍误判）仍未收口，状态见任务队列。
+- ④ M8-T58（父子 codec 不一致时非 ASCII `stdout_contains` 仍误判）**已在第三十三批收口**：内嵌 grader 两端都钉 UTF-8，裁决不再随 `PYTHONIOENCODING` 漂移（实测读数在那一批的第 3 节）。
 
 ### 9. 基线
 
