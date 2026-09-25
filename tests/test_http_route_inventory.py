@@ -427,19 +427,22 @@ def test_event_stream_yields_a_frame_without_hanging(tmp_path: Path) -> None:
     """The SSE route is read as a stream: one frame, then hang up.
 
     This is the route M8-T33 named as the reason the family could not be probed
-    by the generic driver. The probe asserts the two acceptable outcomes — a
-    frame arrives, or the route refuses with a structured body — and the byte
-    budget plus deadline make a hung socket a failure rather than a slow test.
+    by the generic driver. The bound below is a multiple of the probe's own
+    deadline, so it moves with the implementation rather than becoming a load
+    function; a socket that hangs forever is NOT caught here - that is M8-T50.
     """
     live = _Live(tmp_path)
     try:
         task_id = live.submit(tmp_path)
-        started = time.monotonic()
-        status, text = live.read_sse_prefix(f"/api/tasks/{task_id}/events")
+        deadline, started = live.read_sse_prefix.__kwdefaults__["timeout"], time.monotonic()
+        status, text = live.read_sse_prefix(f"/api/tasks/{task_id}/events", timeout=deadline)
         elapsed = time.monotonic() - started
         assert status == 200, (status, text[:400])
         assert "data:" in text, f"stream produced no frame: {text[:400]!r}"
-        assert elapsed < 10, f"stream probe took {elapsed:.1f}s; it must not wait for the stream to end"
+        assert elapsed < 3 * deadline, f"stream probe took {elapsed:.1f}s against a {deadline}s probe deadline"
+        source = Path(__file__).read_text(encoding="utf-8")
+        marker = "elapsed < 3" + " * deadline"  # 拆开写：见证不许自己拼出要找的东西
+        assert marker in source, "the bound drifted back to an absolute literal"
     finally:
         live.shutdown()
 
