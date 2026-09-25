@@ -798,6 +798,97 @@ def test_a_repeated_verdict_that_came_with_new_tool_activity_is_not_a_stall(
     assert seen["judge"] == 4, seen
 
 
+def test_a_no_runnable_check_workspace_lets_an_obedient_reviewer_finish(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """M8-T54: the satisfiability note must reach the judge and unblock delivery.
+
+    M6-4 主导失败模式的端到端形状：写文件成功、验证器报告「工作区没有可运行
+    的客观检查」、评审器逐字复读「运行测试」到上限——而产物实际是对的。修复
+    后评审器在提示词里收到这条客观事实，服从它的评审器第一轮就能放行。未修复
+    代码上这里红：note 永不出现在提示词里，评审器一路 continue 到帽。
+    """
+    calls = {"agent": 0, "judge": 0}
+
+    class WriteThenObeys:
+        def __init__(self, **_kwargs) -> None:
+            pass
+
+        async def chat(self, messages, tools, on_delta=None):
+            if tools is None:
+                calls["judge"] += 1
+                if "不可满足的要求" in str(messages):
+                    # 引用包内出现的全部 id——证据门（M4-T1/P2-3）要求 complete
+                    # 的 evidence 里必须真的有那条写文件事件，末尾 8 个 id 的
+                    # 滑窗可能把它挤出去。
+                    all_ids = list(dict.fromkeys(
+                        re.findall(r'"id":"((?:event|verification)-\d+)"', str(messages))
+                    ))
+                    return LLMResponse(content=json.dumps({
+                        "status": "complete",
+                        "confidence": 0.9,
+                        "rationale": "修改证据已覆盖需求；工作区没有可运行检查，验证要求不可满足。",
+                        "missing": [],
+                        "next_action": "",
+                        "evidence": all_ids or ["event-1"],
+                    }, ensure_ascii=False))
+                return LLMResponse(content=_repeating_verdict())
+            calls["agent"] += 1
+            if calls["agent"] == 1:
+                return LLMResponse(tool_calls=[{
+                    "id": "write-1",
+                    "type": "function",
+                    "function": {
+                        "name": "write_file",
+                        "arguments": json.dumps({"path": "out.txt", "content": "hello" + chr(10)}),
+                    },
+                }])
+            if calls["agent"] == 2:
+                # 写入后的检视：工作区没有可运行检查时，读回是唯一可能的证据
+                # 类别（M8-T54 的门回退）。
+                return LLMResponse(tool_calls=[{
+                    "id": "read-1",
+                    "type": "function",
+                    "function": {
+                        "name": "read_file",
+                        "arguments": json.dumps({"path": "out.txt"}),
+                    },
+                }])
+            return LLMResponse(content="已经写好并读回确认。")
+
+        async def close(self) -> None:
+            return None
+
+    monkeypatch.setattr("minicc.web.OpenAICompatibleProvider", WriteThenObeys)
+    config = _review_loop_config()
+    config.yolo = True
+    service = AgentService(tmp_path, config)
+    try:
+        result = service._chat_locked(
+            {
+                "message": "在工作区写入 out.txt。",
+                "session_id": "no-check-obedient",
+                "allow_changes": True,
+                "workspace_path": str(tmp_path),
+            },
+            workspace=tmp_path,
+        )
+    finally:
+        service.shutdown()
+
+    assert (tmp_path / "out.txt").read_text(encoding="utf-8") == "hello" + chr(10)
+    assert result["error"] is None, result["error"]
+    # 评审第一次就带着检视证据放行；未修复代码上这里是 4 轮评审 + 帽路径判死。
+    # agent 轮数只设下界：写后「检查 diff/验证」的强制跟进修数是循环内部行为，
+    # 对断言者不可见也不该可见。
+    assert calls["judge"] == 1
+    assert calls["agent"] >= 2
+    assert not [
+        event for event in result["events"]
+        if event.get("code") in {"completion_continue_capped", "completion_verdict_repeated"}
+    ], [event.get("code") for event in result["events"]]
+
+
 def test_project_guidance_is_loaded_as_non_policy_context(tmp_path: Path) -> None:
     (tmp_path / "AGENTS.md").write_text("Use pytest before delivery.\n", encoding="utf-8")
     prompt = build_system_prompt(tmp_path)

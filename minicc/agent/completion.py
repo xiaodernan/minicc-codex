@@ -164,6 +164,7 @@ def build_completion_review_prompt(
         if visual_parts
         else "视觉附件：本次没有可用图片。"
     )
+    no_check_note = _no_runnable_check_note(verification_results)
     prompt = f"""请评估下面这次 coding agent 运行是否达到原始用户目标。
 
 原始用户需求：
@@ -178,12 +179,62 @@ agent 最终回答：
 
 执行证据（工具调用、阶段 trace、修改、对话记录和验证结果）：
 {evidence}
-
+{no_check_note}
 请严格返回 JSON，例如：
 {{"status":"continue","confidence":0.92,"rationale":"还缺少...","missing":["..."],"next_action":"...","evidence":["...","..."]}}
 """
     redacted, _ = redact_text(prompt)
     return redacted
+
+
+#: Stable fragments of the two "nothing runnable" reasons the verifier emits
+#: (verification_plan.py "没有与改动匹配的自动检查…" and verifier.py
+#: "工作区没有配置可识别的验证命令"). A new no-check reason must be added
+#: here too, or the reviewer will keep demanding checks that cannot exist.
+_NO_CHECK_REASON_FRAGMENTS = (
+    "没有与改动匹配的自动检查",
+    "没有配置可识别的验证命令",
+)
+
+
+def _no_runnable_check_reason(verification_results: list[dict[str, Any]] | None) -> str:
+    """The verifier's "nothing runnable" reason, or "" when checks exist/ran.
+
+    Only the *latest* verification entry decides: once something actually ran,
+    later rounds are ordinary reviews and the usual evidence rules apply.
+    """
+    for item in reversed(verification_results or []):
+        if not isinstance(item, dict):
+            continue
+        if str(item.get("status") or "") != "skipped":
+            return ""
+        reason = str(item.get("skipped_reason") or "")
+        if any(fragment in reason for fragment in _NO_CHECK_REASON_FRAGMENTS):
+            return reason
+        return ""
+    return ""
+
+
+def _no_runnable_check_note(verification_results: list[dict[str, Any]] | None) -> str:
+    """Satisfiability note (M8-T54) when the verifier found nothing runnable.
+
+    The M6-4 full eval isolated the dominant failure mode: 8 of 11 failures
+    died at the cap in a "run the tests" loop while the hidden grader passed —
+    the workspace simply has no runnable check, so the demand is unsatisfiable
+    and no amount of agent rounds can satisfy it. The verifier's skipped
+    reason is an objective workspace fact (not agent behaviour), so it is safe
+    to hand the reviewer as a fact.
+    """
+    reason = _no_runnable_check_reason(verification_results)
+    if not reason:
+        return ""
+    return (
+        f"\n客观验证状态（事实，不是要求）：{reason}。\n"
+        "验证器已经在工作区内寻找过可运行的客观检查，一无所获——「运行测试/运行检查」"
+        "在这份工作区里是不可满足的要求。不要把「没有运行验证」或「缺少验证记录」"
+        "当作 missing 或 continue 的理由；如果文件修改证据本身已覆盖原始需求，"
+        "就依据这些证据判定（missing 留空，evidence 引用具体的修改事件 id）。\n"
+    )
 
 
 def _normalize_vision_context(parts: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
@@ -413,12 +464,19 @@ def _enforce_completion_evidence(
                 return True
             return any(name.endswith(suffix) for suffix in documentation_suffixes) and not (name == "cmakelists.txt" or name.startswith("requirements"))
         needs_execution = not written_paths or not all(is_documentation(path) for path in written_paths)
+        # M8-T54: when the verifier objectively found no runnable check in this
+        # workspace, "run a real checker after the write" is unsatisfiable —
+        # the M6-4 full eval showed that demand looping 8 tasks to the cap with
+        # the deliverables actually correct. The gate then falls back to what
+        # IS available: post-write inspection (read back or git diff). The
+        # write must still be examined; only the checker class is unavailable.
+        inspection_suffices = not needs_execution or bool(_no_runnable_check_reason(verification_results))
         observed_after_write = any(
             isinstance(event, dict) and event.get("status") == "ok"
             and (
                 (event.get("kind") == "verification" and isinstance(event.get("detail"), dict) and event["detail"].get("status") == "passed")
                 or is_verification_evidence(str(event.get("name") or ""), {"command": event.get("command")}, str(event.get("status")))
-                or (not needs_execution and event.get("name") in {"read_file", "git_diff"})
+                or (inspection_suffices and event.get("name") in {"read_file", "git_diff"})
             )
             for event in events[last_write + 1:]
         )
