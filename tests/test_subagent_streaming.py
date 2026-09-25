@@ -132,11 +132,13 @@ def test_parent_waits_bounded_and_cancels_promptly(tmp_path: Path) -> None:
     elapsed = time.monotonic() - started
 
     assert result.status == "cancelled"
-    # The two endings are distinguishable by text, so the text carries the
-    # claim; the timer is left as a liveness bound that still sits under the
-    # 30s timeout it is meant to rule out.
+    # The two endings are distinguishable by text, so the text carries the claim.
     assert "[TIMEOUT]" not in result.summary, result.summary
-    assert elapsed < 15.0, f"waited {elapsed:.1f}s after a 0.5s cancel signal"
+    # Liveness only, and it has to sit *outside* the implementation's own budget:
+    # the cancel branch contains ``thread.join(timeout=15.0)``, so a bound near 15s
+    # measures that join plus machine load rather than any regression.  That is how
+    # this line reddened in a clean checkout of HEAD under parallel load (M8-T45).
+    assert elapsed < 60.0, f"never returned after a 0.5s cancel signal ({elapsed:.1f}s)"
 
 
 def test_subagent_still_reports_usage_when_it_completes(tmp_path: Path) -> None:
