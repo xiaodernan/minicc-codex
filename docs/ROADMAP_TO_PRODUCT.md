@@ -2409,3 +2409,39 @@ version-exact（恢复阶段无新证据）与 fix-uppercase（修改后未验�
 不在评审器修复的射程内。它们量的是另一件事：产物正确但执行路径不满足守卫对「新鲜证据」的要求。
 是否值得为它们放宽守卫，需要先回答「守卫是否在保护真实用户场景」——留作候选，不做无据放宽。
 
+### M8-T56 结案：给守卫一条能走到证据的路，而不是放宽守卫（2026-09-25）
+
+两条残余量的是同一件事：守卫对「新鲜证据」的要求没错，缺的是模型对「什么算证据」的知情权。
+原来两条执行器提示只有「运行最小且直接相关的测试或验证」——不点名任何一条
+`is_verification_evidence` 认得的命令；fixture 工作区没有测试套件时，这句话指向的检查根本不存在，
+模型于是要么直接结束（判死），要么跑一个不算证据的脚本（还是判死）。修法是把提示词接到门上：
+
+1. 写后提示与「未验证就想结束」的提示抽成 `POST_WRITE_VERIFICATION_NUDGE` /
+   `PRE_FINISH_VERIFICATION_NUDGE`，共用同一份 `VERIFICATION_CHECKER_EXAMPLES`
+   （pytest / compileall / mypy / `node --check` / `npm run test`）；
+2. pre-finish 提示补上守卫认得的退路：**工作区没有任何可运行的检查时，用
+   `python -m compileall` 校验改动文件语法**；
+3. 明写「直接执行脚本不算验证证据」，不给 `python shout.py` 当交付证明的机会。
+
+**判据（先红后绿）**：`tests/test_verification_nudge_contract.py` 3 条，全部从一次真实 `run_agent`
+运行里读回注入的用户消息——**不 import 那两个常量**，否则测的只是常量还在不在——再把括号里的示例
+逐条代入占位符后交给 `is_verification_evidence` 验。把 `loop.py` stash 回 HEAD 重跑：2 条红
+（提示里没有任何示例 / 没有退路）、1 条绿（第三条是门本身的性质，本来就该恒绿）；修复后 3/3。
+全量 `.venv` 下 `python -m pytest -q`：**1100 passed / 321.42s**。
+
+**真模型复测**（`--task-id v2-version-exact --task-id v2-fix-uppercase`，与登记时同两条）：
+
+| | 登记时（M6-4 全量） | 修复后 |
+| --- | --- | --- |
+| 通过 | 0/2 | **2/2**（两次独立运行均 2/2） |
+| 轮次 | 判死在 22 轮上限 | 16 轮 / 9 轮 |
+
+边界如实记录：n=2、每种口径各一次。两次运行的 `runtime_source_sha256` 分别是 `a548e861…`
+（提示词改完、尚未抽常量）与 `1d536c1c…`（抽常量后），内容差异只有示例排版与多出的两条示例，
+故并列入册而不是只记最新一次。这证明的是「这两条不再判死」，**不证明守卫变松**：
+`test_git_status_does_not_clear_post_write_verification` 等既有守卫用例一条未改、全绿。
+
+**顺带量到的环境事实**：`.venv` 才是这套门的解释器。用系统 Python（`C:\Program Files\...`）跑全量
+得到 2 failed + 7 errors，三条失败指向同一件事——`{python}` 占位符替换后没有加引号，见 M8-T57。
+
+

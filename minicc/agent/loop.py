@@ -74,6 +74,37 @@ WRITE_TOOL_NAMES = frozenset({"write_file", "edit_file", "worktree_create", "wor
 # bash test/lint commands (see ``is_verification_evidence``).
 VERIFY_TOOL_NAMES = frozenset({"bash"})
 
+# M8-T56: the model cannot guess which commands the completion gate accepts.
+# These examples are the same whitelist ``is_verification_evidence`` enforces,
+# so a nudge can never name a checker the gate would then reject. The fallback
+# (``compileall``) is what a fixture workspace with no test suite can still run:
+# without it the guard asks for evidence that does not exist and the task dies
+# with the artifact already correct.
+VERIFICATION_CHECKER_EXAMPLES = (
+    "python -m pytest",
+    "python -m compileall <改动的.py文件>",
+    "mypy <改动的.py文件>",
+    "node --check <改动的.js文件>",
+    "npm run test",
+)
+_VERIFICATION_EXAMPLE_HINT = "、".join(VERIFICATION_CHECKER_EXAMPLES)
+
+# Injected after a write, and again when the model tries to finish without
+# post-write evidence (``VERIFICATION_RETRY_LIMIT`` keeps that to one nudge).
+POST_WRITE_VERIFICATION_NUDGE = (
+    "[执行器提示] 本轮已经修改工作区。下一轮必须先检查相关 diff，"
+    "再运行最小且直接相关的测试或验证（例如 " + _VERIFICATION_EXAMPLE_HINT + "）；"
+    "只有白名单检查器的成功运行算验证证据，直接执行脚本不算。"
+    "如果验证失败，继续修复。"
+)
+PRE_FINISH_VERIFICATION_NUDGE = (
+    "[执行器提示] 你已经修改了工作区，但还没有收到修改后的验证证据。"
+    "不能先结束任务；请先检查相关 diff，再运行最小且直接相关的验证，然后总结结果。"
+    "验证证据必须是 bash 成功运行白名单检查器之一（" + _VERIFICATION_EXAMPLE_HINT + "）；"
+    "直接执行脚本或只打印输出不算验证证据。"
+    "如果工作区没有任何可运行的检查，运行 python -m compileall 校验改动的 Python 文件语法即可。"
+)
+
 
 class AgentCancelled(Exception):
     """Internal control flow for cancelling an in-flight provider request."""
@@ -1199,10 +1230,7 @@ async def run_agent(
                 )
                 messages.append({
                     "role": "user",
-                    "content": (
-                        "[执行器提示] 本轮已经修改工作区。下一轮必须先检查相关 diff，"
-                        "再运行最小且直接相关的测试或验证；如果验证失败，继续修复。"
-                    ),
+                    "content": POST_WRITE_VERIFICATION_NUDGE,
                 })
             elif verification_required and successful_verification:
                 verification_required = False
@@ -1476,11 +1504,7 @@ async def run_agent(
                 messages.append(assistant_msg(content=text or None))
                 messages.append({
                     "role": "user",
-                    "content": (
-                        "[执行器提示] 你已经修改了工作区，但还没有收到修改后的验证证据。"
-                        "不能先结束任务；请先检查相关 diff，并运行最小且直接相关的测试或验证，"
-                        "然后再总结结果。"
-                    ),
+                    "content": PRE_FINISH_VERIFICATION_NUDGE,
                 })
                 emit_trace(
                     "模型尝试提前结束，已要求先完成修改后的验证",
