@@ -14,6 +14,7 @@ Three things these tests pin down:
 from __future__ import annotations
 
 import asyncio
+import json
 import threading
 import time
 from pathlib import Path
@@ -53,6 +54,30 @@ class ScriptedProvider:
 
     async def close(self) -> None:
         self.closed = True
+
+
+class SlowerThanDeadlineProvider:
+    """Endless, and each turn costs a full second.
+
+    The subagent runner clamps its deadline to max(5.0, timeout) and the default
+    turn budget lets a 0.4s-per-turn child finish inside that floor, so witnessing the
+    timeout branch needs a child that is still working when the deadline arrives.
+    """
+
+    def __init__(self) -> None:
+        self.turns = 0
+
+    async def chat(self, messages, tools, on_delta=None):
+        self.turns += 1
+        await asyncio.sleep(1.0)
+        return LLMResponse(tool_calls=[{
+            "id": f"call-{self.turns}",
+            "type": "function",
+            "function": {"name": "read_file", "arguments": json.dumps({"path": "README.md"})},
+        }])
+
+    async def close(self) -> None:
+        return None
 
 
 class EndlessSlowProvider:
@@ -139,6 +164,37 @@ def test_parent_waits_bounded_and_cancels_promptly(tmp_path: Path) -> None:
     # measures that join plus machine load rather than any regression.  That is how
     # this line reddened in a clean checkout of HEAD under parallel load (M8-T45).
     assert elapsed < 60.0, f"never returned after a 0.5s cancel signal ({elapsed:.1f}s)"
+
+
+def test_a_timed_out_subagent_labels_itself_as_timeout(tmp_path: Path) -> None:
+    """The positive witness for the absence claim in the cancel test above.
+
+    ``assert "[TIMEOUT]" not in result.summary`` is only evidence once something can
+    make it red, and no test in this repository had ever asserted that the timeout
+    branch labels its result at all (``test_subagent_task.py`` accepts any of the
+    three endings).  Reaching that branch needs a child slower than the runner's
+    ``max(5.0, ...)`` floor, so the turn budget is widened and the deadline set to
+    6s: the red cannot be produced by the clamp alone.
+    """
+    workspace = _workspace(tmp_path)
+    spec = build_task_tool_spec(
+        provider_factory=lambda: SlowerThanDeadlineProvider(),
+        workspace=workspace,
+        system_prompt="sys",
+        base_registry=build_registry(Editor(workspace)),
+        cancel_event=threading.Event(),
+        max_turns=200,
+        timeout_seconds=6.0,
+    )
+    started = time.monotonic()
+    result = spec.handler({"description": "永不结束的任务", "prompt": "反复读取 README.md。"})
+    elapsed = time.monotonic() - started
+
+    assert result.status == "timed_out", result.summary
+    assert "[TIMEOUT]" in result.summary, result.summary
+    assert result.data["timed_out"] is True
+    # No cancel was ever set: the deadline is the only way this can end.
+    assert elapsed < 60.0, f"never returned after a 6s deadline ({elapsed:.1f}s)"
 
 
 def test_subagent_still_reports_usage_when_it_completes(tmp_path: Path) -> None:
