@@ -68,8 +68,12 @@ def test_stopwords_are_removed_from_queries(tmp_path: Path) -> None:
     assert plain and noisy
     # Stopword noise must not change the ranking.
     assert [hit.path for hit in plain] == [hit.path for hit in noisy]
-    # "the" must not pull in notes.md ("the theory of everything").
-    assert all("notes.md" != hit.path for hit in noisy)
+    # "the" must not pull in docs/notes.md ("the theory of everything").  The
+    # comparison is on the file *name*, because the indexed path is
+    # ``docs/notes.md``: the bare ``"notes.md" != hit.path`` shape this line used
+    # to carry can never fire, and M8-T48 measured it staying green while a
+    # mutation handed out exactly the fabricated hit the comment forbids.
+    assert all(Path(hit.path).name != "notes.md" for hit in noisy), [hit.path for hit in noisy]
 
 
 def test_path_pattern_basename_and_suffix_are_strong_signals(tmp_path: Path) -> None:
@@ -428,3 +432,145 @@ def test_the_secret_name_rule_is_exact_not_a_substring() -> None:
                "credentials.rs", "secrets.go", "api_keys.py", "config.py", "README.md", "keys.md"]
     assert [name for name in blocked if not is_secret_filename(name)] == []
     assert [name for name in allowed if is_secret_filename(name)] == []
+
+
+def _scorer_spy(index: LocalEvidenceIndex, query: str, *, limit: int = 20) -> tuple[list[str], list[object]]:
+    """Run one search and return ``(records handed to the scorer, hits)``.
+
+    ``search()`` looks the scorer up as a module attribute on every iteration, so
+    wrapping ``retrieval._score_record`` is the only instrument that sees the
+    *candidate set* rather than its output - a pre-filter or an early exit is
+    invisible in the hit list but obvious here.  The uninstall is checked, because
+    a leaked spy would silently re-define what the next test measures.
+    """
+
+    import minicc.agent.retrieval as retrieval
+
+    original = retrieval._score_record
+    seen: list[str] = []
+
+    def spy(record, plan, now):
+        seen.append(record.rel)
+        return original(record, plan, now)
+
+    retrieval._score_record = spy  # type: ignore[assignment]
+    try:
+        hits = index.search(query, limit=limit)
+    finally:
+        retrieval._score_record = original  # type: ignore[assignment]
+    assert retrieval._score_record is original, "the scorer spy leaked a patch"
+    return seen, hits
+
+
+def test_every_search_scores_the_whole_table_regardless_of_the_answer(tmp_path: Path) -> None:
+    """Retrieval cost is a function of the table, never of the query's luck.
+
+    Measured here (120 records) and on a 300-record tree: a query that hits once,
+    one that hits twenty and one that hits nothing all hand every record to the
+    scorer, in table order; only the empty
+    query scores zero, because ``plan.is_empty`` returns before the loop.  Wall
+    time read 3.85ms per query at 300 synthetic records and 9-12ms over the 227
+    records of this repository.  The truncation witness below is what turns the
+    number from a constant the code prints into a measurement of the table.
+    """
+    tree = tmp_path / "tree"
+    _package_tree(tree, 12)
+    index = LocalEvidenceIndex(tree, max_files=1500, refresh_interval=3600.0)
+    # The table is built lazily, so stats() has to run before it exists.
+    indexed = int(index.stats()["files_indexed"])
+    assert indexed == 120
+    records = [record.rel for record in index._records]
+    # The reported table and the walked table have to be one number.  Reading
+    # ``index._records`` alone is self-referential - it is the very list the loop
+    # walks - so a build that stored a truncated table while still reporting the
+    # full count would slide through; probe N2 in the batch record is that shape.
+    assert len(records) == indexed, (len(records), indexed)
+    for query in ("handler_13_3", "handler_7", "no_such_term_at_all"):
+        seen, _hits = _scorer_spy(index, query)
+        assert seen == records, query
+    empty_seen, empty_hits = _scorer_spy(index, "")
+    assert empty_seen == [] and empty_hits == []
+    original_records = index._records
+    for keep in (60, 20, 5, 1):
+        index._records = original_records[:keep]
+        try:
+            seen, _hits = _scorer_spy(index, "handler_7")
+            assert len(seen) == keep, keep
+        finally:
+            index._records = original_records
+
+
+def test_a_match_beyond_the_limit_is_still_offered(tmp_path: Path) -> None:
+    """A ranking cap must never quietly become a scan cap.
+
+    60 files, one unique term in the record that is *last* in scan order - the
+    carrier is picked from ``index._records`` instead of assumed, so the gate does
+    not depend on ``os.walk``'s order.  Measured: that file is the 60th record
+    handed to the scorer and comes back with reason "content+fresh".  Slicing the
+    loop to ``self._records[:limit]`` - the change that would make search cost
+    constant - is *not* an invisible defect: measured here it reddened three
+    pre-existing gates.  What those infer from the result set, this gate measures
+    on the candidate set, and that quantity is the per-query CPU term M8-T45
+    declared invisible to the filesystem counter.
+    """
+    _package_tree(tmp_path, 6)
+    index = LocalEvidenceIndex(tmp_path, max_files=1500, refresh_interval=3600.0)
+    assert index.stats()["files_indexed"] == 60
+    last = index._records[-1].rel
+    target = tmp_path / last
+    target.write_text(target.read_text(encoding="utf-8") + "\n# UNSEENDEEPTERM\n", encoding="utf-8")
+    index.refresh()
+    assert index._records[-1].rel == last, "the scan order moved under the test"
+    seen, hits = _scorer_spy(index, "UNSEENDEEPTERM", limit=8)
+    assert seen.index(last) + 1 == 60
+    assert [hit.path for hit in hits] == [last]
+    assert hits[0].reason == "content+fresh"
+
+
+def test_freshness_alone_never_fabricates_a_hit(tmp_path: Path) -> None:
+    """A brand-new file sharing no term is still not evidence.
+
+    ``_score_record`` adds the mtime bonus *after* the "not matched" guard
+    (retrieval.py:310), and this pins that order by behaviour: ``src/alpha.py`` is
+    touched this very second, is still handed to the scorer, and is not returned
+    for a query it shares nothing with.  Replacing that guard with ``if False``
+    made the fresh file come back as real-looking evidence; the worker would then
+    be told to go read it.  Mutation reading in the batch record.
+
+    Running that mutation is also what exposed the unfireable assertion in
+    ``test_stopwords_are_removed_from_queries``, which claimed this exact
+    contract and could not see the hit.
+    """
+    alpha = _write(tmp_path / "src" / "alpha.py", "alpha beta gamma\n")
+    _write(tmp_path / "src" / "widget.py", "def widget_factory():\n    return 1\n")
+    now = time.time()
+    os.utime(alpha, (now, now))
+    index = LocalEvidenceIndex(tmp_path, refresh_interval=3600.0)
+    seen, hits = _scorer_spy(index, "widget", limit=20)
+    assert "src/alpha.py" in seen, "the guard has to be reached, not skipped by pre-filtering"
+    assert [hit.path for hit in hits] == ["src/widget.py"]
+    assert all("alpha" not in hit.path for hit in hits)
+
+
+def test_resident_guidance_is_a_last_resort_not_a_top_hit(tmp_path: Path) -> None:
+    """The one documented exception, and the half that makes it safe.
+
+    A guidance file with zero term overlap still gets the constant resident boost:
+    measured ``AGENTS.md`` at 5.0 with reason "guidance-resident+fresh", which is
+    *more* than a genuine single-term content match (4.0, see the deep-match gate
+    above).  That stays harmless only because ``search()`` falls back to resident
+    guidance when the real list is empty - so with one genuine match in the
+    workspace the guidance file is dropped, not ranked second.  Neither direction
+    was tested at all before M8-T48.
+    """
+    _write(tmp_path / "AGENTS.md", "# 项目约定\n\n保持简短。\n")
+    _write(tmp_path / "src" / "widget.py", "def widget_factory():\n    return 1\n")
+    index = LocalEvidenceIndex(tmp_path, refresh_interval=3600.0)
+    matched_seen, matched_hits = _scorer_spy(index, "widget", limit=20)
+    assert len(matched_seen) == 2
+    assert [hit.path for hit in matched_hits] == ["src/widget.py"]
+    stray_seen, stray_hits = _scorer_spy(index, "zzzqqx", limit=20)
+    assert len(stray_seen) == 2
+    assert [hit.path for hit in stray_hits] == ["AGENTS.md"]
+    assert stray_hits[0].reason == "guidance-resident+fresh"
+    assert 4.9 < stray_hits[0].score <= 5.0

@@ -2641,3 +2641,142 @@ content part 的 `text/type` 全部同名——**假形状是真形状的子集�
 ③ responses 流式的**真实事件序列**没有被门覆盖（门用的是单条 delta + completed 的合成形状），
 真模型那一次只证明「跑得通、形状对得上」。④ 全量冷跑（`-W error`、无 `PYTHONIOENCODING`）：
 **1125 passed / 363.25s**，与上一批的 1118 恰好差本批新增的 7 条。
+
+---
+
+## 第三十二批（M8-T48）：检索的候选集第一次有了度量，而一条老门被证明永远不会响
+
+### 1. 这一批是在还上一批的债
+
+M8-T45 把检索的计时门换成「每文件系统调用次数」之后，自己在 docstring 里写了一句定义域：
+这套仪器看不见**不花 syscall 的慢**，并把下一批登记成 M8-T48。这批就是那笔债：
+把「一次查询到底碰了多少条记录」变成仓库里可执行的量，而不是我此刻口头承诺的线性。
+
+### 2. 先量，再改（改代码之前读到的数）
+
+真实仓库（`get_evidence_index(D:\面试项目\minicc-codex)`，未改任何文件）：
+
+| 量 | 读数 |
+| --- | --- |
+| `files_indexed` / `symbols_extracted` | 227 / 4874 |
+| `last_build_ms` | 464.72ms（同一台机器另一次 725.93ms） |
+| 每次查询交给打分器的记录数 | 227（三条查询全是 227，包括返回 0 条命中的那条） |
+| 把表截到 113 条后 | 113 —— 计数跟着表走 |
+| 单查询墙钟（227 条真记录） | 约 9–12ms |
+| 单查询墙钟（300 条合成小文件） | 3.85ms |
+
+合成树（300 条记录）上，命中 1 次的查询、命中 20 次的查询、命中 0 次的查询，
+打分次数都是 300；只有空查询是 0（`plan.is_empty` 在进入循环之前返回）。
+这两组数一起决定了这批门的口径：**每查询成本是表的函数，不是答案的函数**。
+
+### 3. 落地的四条门和一个仪表
+
+全部在 `tests/test_retrieval_enhanced.py`，24 条（原 20 条）。仪表是 `_scorer_spy`：
+把 `minicc.agent.retrieval._score_record` 换成记录参数的替身，`finally` 还原并**复验还原成功**——
+`search()` 每次迭代都按模块属性取打分器，所以这是唯一能看见**候选集**而不是它输出的仪器；
+命中列表里看不见的东西（预筛、提前退出、重复打分）在这里都藏不住。
+
+| 门 | 钉住的合同 |
+| --- | --- |
+| `test_every_search_scores_the_whole_table_regardless_of_the_answer` | 三种命中数的查询都走完整表；空查询 0 次；把表截到 60/20/5/1 条时计数跟着表走；**报表条数 == 被走的表条数** |
+| `test_a_match_beyond_the_limit_is_still_offered` | 排序上限不得变成扫描上限：命中文件在扫描顺序最后一名（从 `index._records` 里取，不靠 `os.walk` 的运气），`limit=8` 仍要返回它 |
+| `test_freshness_alone_never_fabricates_a_hit` | 零词重叠的新文件会被打分、但不会被返回；新鲜度只是同分时的加分，不是相关性证据 |
+| `test_resident_guidance_is_a_last_resort_not_a_top_hit` | guidance 的常驻加分（实测 `AGENTS.md` 5.0，reason `guidance-resident+fresh`）**高于**一条真实的 content 命中（4.0），它之所以无害，仅仅因为 `search()` 只在真实命中为空时才采用常驻证据 |
+
+后两条合同此前一条测试都没有：`grep guidance-resident tests/` 在落地前是 0 命中。
+
+### 4. 仪表自己的洞，是变异抓出来的
+
+第一版把 spy 的读数与 `index._records` 比——这是**自我指涉**：那个列表正是循环走的东西，
+所以「build 时把表截断到前 100 条、`stats` 照报全量」这一形状（N2）照样绿。
+补的是一条恒等式，不是一个新的绝对数：`len(index._records) == stats()["files_indexed"]`，
+同时把样本表从 40 条提到 120 条，让截断点真的落在表中间。
+
+### 5. 七条变异读数（每条只改一个字节级锚点，跑完整文件，还原后复验 sha256）
+
+| 变异 | 红在哪 | 谁在守 |
+| --- | --- | --- |
+| M1 扫描被排序上限截断（`self._records[:limit]`） | 5 红：新门 2 条 + 老门 `test_limit_boundaries_and_empty_query`、`test_thousand_file_index_builds_within_budget`、`test_searching_a_built_index_touches_no_disk` | 老门已在守——诚实记录：新门的增量是把「从结果集推断」换成「对候选集测量」 |
+| M2 去掉「未命中即返回 None」的守卫 | 4 红：新门 3 条 + **老门 `test_stopwords_are_removed_from_queries`** | 见第 6 节，这条是老门修好之后才红的 |
+| M3 常驻 guidance 永不出场 | 1 红：`test_resident_guidance_is_a_last_resort_not_a_top_hit` | 只有新门 |
+| M4 常驻 guidance 混进真实证据参与排序 | 2 红：新门 1 条 + `test_cjk_bigram_query_hits_expected_file` | 新门是正面见证 |
+| M5 去掉空查询短路 | 1 红：`test_every_search_scores_the_whole_table_regardless_of_the_answer` | 只有新门 |
+| N1 每条记录打分两次 | 3 红：全部是新门 | 只有新门——这是「不花 syscall 的浪费」第一次有名字 |
+| N2 build 时截断表、报表照报全量 | 2 红：新门恒等式 + `test_searching_a_built_index_touches_no_disk` | 补恒等式之前这条**全绿** |
+
+不红的变异等于零证据，所以每条都记了它到底让谁变红。
+
+### 6. 真发现：一条声称了这个合同、却永远不可能响的老门
+
+`tests/test_retrieval_enhanced.py` 里 `test_stopwords_are_removed_from_queries` 最后一行原本是
+
+```python
+assert all("notes.md" != hit.path for hit in noisy)
+```
+
+它上面的注释写着「"the" 不得把 notes.md 拉进来」。但被索引的键带目录，`hit.path` 是
+相对路径而不是文件名，所以这个断言恒真。证据不是推理，是两次实测：
+
+```text
+状态            noisy 的返回                                     该行结果
+源码干净        2 条命中                                          绿（应当绿）
+M2 去掉守卫     6 条命中，含 ('docs/notes.md', 'fresh', 3.0)      仍然绿
+```
+
+（那两条路径只出现在上面的围栏输出里，故意不写成反引号指针：它们指向 `tmp_path`
+夹具中的临时文件，不在仓库里，写成证据指针就会被发票门正确地判成悬空。）
+
+也就是说：这条门一直在声称它看守「别把无关文件当证据」，而 M2 恰好把那个无关文件
+当作证据端了出来，它一个字都没说。修法是让比较落在**名字**上而不是路径上，
+并把命中列表打进失败信息：
+
+```python
+assert all(Path(hit.path).name != "notes.md" for hit in noisy), [hit.path for hit in noisy]
+```
+
+修完之后：干净绿、M2 红（就是第 5 节 M2 那一行的第四条）。
+全仓 grep 同一形状（裸名 `!=` / `==` 对 `hit.path`）只有这一处，没有第二批。
+
+**入册的规矩**：凡「某文件不该出现在结果里」的断言，必须先确认被比较的那个字段
+装的是相对路径还是文件名，并当场造一次它**该红**的变异——恒真的排除式断言
+比没有断言更糟，因为它让「有人守过」这句话可以一直写下去。
+
+### 7. 真跑（真实大模型，一次请求）
+
+门保护的是一条真实的生产接缝：`minicc/web.py:1169` 起，`/api/chat` 把
+`get_evidence_index(workspace).search(message, limit=8)` 的结果拼成
+`[本地检索索引]` 系统消息，而 `minicc/web.py:1170` 的 `if evidence_hits:` 意味着
+**0 命中就不追加这一块**——这批门钉的正是「追加进去的每一行都是真证据」。
+
+按生产同样的拼法对真实仓库发一次请求（`protocol=chat_completions`，key 只经
+`config.describe()` 输出 `key=set`）：
+
+| 读数 | 结果 |
+| --- | --- |
+| 提示里的证据块 | 8 条路径，首条 `docs/ROADMAP_TO_PRODUCT.md`（content+fresh 8.999） |
+| 模型答 | `minicc/web.py` |
+| 答里出现的、不在证据块中的文件路径 | 0 条 |
+| 空白消息 `"   "` 的命中 | `[]` → 证据块不追加（已实测） |
+| 纯 ASCII 乱码 `qzxjvbwk` | 0 命中 |
+| `qzxjvbwk zzzqqq jjkk` | 2 命中——`grep -rn zzzqqq` 证实该串字面存在于 `tests/test_memory.py:229` 与 `tests/test_retrieval_eval.py:98`，**是证据不是捏造** |
+| 中文 bigram「意义」 | 命中 ROADMAP，同样 grep 证实 |
+
+一次请求不构成统计，只构成「这条接缝今天真的在把命中喂给模型」的见证。
+乱码那一行是本批第二次踩同一个坑之前的量法：上一批我曾把「乱码有命中」当成捏造嫌疑，
+这次先 grep 再下结论。
+
+### 8. 边界（诚实的、可执行的）
+
+- ① 这批门量的是**被打分的记录条数**，不是打分本身的成本。若有人把 `_score_record`
+  写成每条记录再扫一遍全表（O(n²) 且不花 syscall），本批所有门照绿——这正是 M8-T45
+  定义域的另一半，登记为下一批候选。
+- ② `seen == records` 依赖 `search()` 按表顺序遍历。将来若换成倒排索引做候选裁剪，
+  **放宽这批门是一次显式决定，不是默认**；届时合同应改成「凡含任一查询词的记录都必须在候选里」。
+- ③ 真跑只有一次请求（配额 10 RPM），且模型只有 `step-3.7-flash` 一个口径。
+- ④ M8-T58（父子 codec 不一致时非 ASCII `stdout_contains` 仍误判）仍未收口，状态见任务队列。
+
+### 9. 基线
+
+落地前（HEAD `018ee53`，上一批收口时冷跑）：**1125 passed / 363.25s / exit 0**。
+本批后冷跑：**1129 passed / 311.16s / exit 0**（`-W error`、单进程、不设 `PYTHONIOENCODING` 之外的环境改动）。
+两个数不可逐项相减：本批只新增 4 条测试并改了 1 条老断言，秒数差异来自机器负载。
