@@ -2224,6 +2224,52 @@ m4 第一轮是**零证据变异**：heredoc 把 `\b` 吃成退格符，引用�
 
 **【提交后复验】** 本批定稿提交之后，在一个只含 HEAD 的临时 worktree 里（那里没有任何 `__pycache__`，也没有本会话留在 Temp 的探针）重跑同一条检查命令与这批新写的门：读数与本段之前那句定稿逐字节相同，新门全部通过。这一步对本批不是仪式，理由和上一批同形但内容不同——本批改的是**判据用什么量**，而旧判据的红法依赖外部负载：只有从 HEAD 重新检出、重新编译，才知道这些门在一台没有并行负载、也没有我这台磁盘状态的机器上照样绿。反过来，本批记录里那些秒数（构建耗时、全量套件用时）不指望在这里复现，它们被写成机器负载的函数而不是内容的函数——这正是本批把判据搬离秒数的原因。这一段刻意不含处所引用与裸文件名标记：解释性散文自己会改分子，这件事上一批已经付过一次账。
 
+### 第二十三批：两个「不是我们代码的错」的失败——一个真 bug 藏在半成品修复里，一个上游泄漏在会话末尾误报（2026-09-25）
+
+**A. `{python}` 在 `shell=True` 下没加引号：真 bug，而且已经有一份半成品修复躺在工作树里**
+
+工作树里有一份未提交的改动，加了 `render_python_command()`（用 `subprocess.list2cmdline` 加引号）和一个 `python_executable` 缝，
+但三处都缺：① 没有任何调用点传这个参数；② docstring 写着「默认 `sys.executable`」，实现却只在显式传入时才渲染；
+③ 嵌入的 grader 仍然自己做**未加引号**的替换。于是 bug 原地不动：默认 Windows 安装的
+`C:\Program Files\...\python.exe` 被 `shell=True` 在空格处切断，cmd.exe 报 `'C:\Program' 不是内部或外部命令`，
+**正确的工作区被判失败**（v2 里 7 条 `command_contract` 任务全中，全是 test-fix 类）。
+
+完成口径：渲染一律发生在宿主侧（`python_executable or sys.executable`）；嵌入 grader 不再替换，改成
+**看到未渲染的 `{python}` 就 `exit 2` 并打印原因**——同一个错不再有第二次机会。红→绿两半都钉进
+`test_command_contract_quotes_an_interpreter_path_with_a_space`：加引号 → `passed`；同一条路径内联不加引号 → `failed`。
+
+**测试自己踩的坑也记一笔**：第一版把 `sys.executable` 直接写进 `.cmd` 包装器，但本仓库路径含中文，而 `.cmd`
+由 cmd.exe 按 OEM 代码页读取 → 路径先被弄坏，测试红得与引号无关。改成包装器只引用环境变量（纯 ASCII 文本）后正常。
+这类「测试的脚手架比被测对象更脆」的失败，必须先把脚手架修到不可能误报，再谈红绿。
+
+**B. 会话末尾那次强制 GC 会把 pytest 自己的 scandir 泄漏算到我们头上（上游缺陷）**
+
+现象：`pytest -q -W error` 偶发 `PytestUnraisableExceptionWarning: unclosed scandir iterator`，把一次全绿的运行判红
+（2026-09-22 一次、2026-09-25 两次，此前被当成「环境偶发」放过）。开 tracemalloc 后分配点明确落在
+`_pytest/pathlib.py:177 find_prefixed`——它是个**生成器**，`os.scandir` 没进上下文管理器，pytest 的数字临时目录清理
+（`cleanup_candidates`）会把它半途丢弃，迭代器只能等 GC。
+
+两条**走不通**的路先排掉，避免后人重走：
+- **ini `filterwarnings` 豁免无效**：pytest 源码写着过滤器优先级「命令行 > ini」，`-W error` 会盖掉 ini 里的 `ignore`；
+- **钩子豁免不存在**：`pytest_unraisable_exception` 在 pytest 9 已被移除。
+
+落地口径：在 `conftest.pytest_configure` 里把上游自己留出的 stash 键 `gc_collect_iterations_key` 设为 0，
+**只跳过会话末尾那一次强制 GC**（`pytest_unconfigure` 里的 `gc_collect_harder`），每测试阶段的 `collect_unraisable`
+（setup/call/teardown 三处）一字未动。
+
+**承重量（这条最要紧）**：临时写一个**真的泄漏 scandir 的测试**（`next(os.scandir("."))` 后丢弃）→ 仍然红，
+`1 failed`，警告归属到那个测试本身。也就是说这次豁免**只**拿掉了「会话末尾把 pytest 自己的垃圾算到会话上」那一格，
+没有把真信号一起吞掉。
+
+**配套不变式**（否则豁免就成了一张空白支票）：新增 `tests/test_resource_hygiene.py` 两条 AST 门——
+`minicc/` 与 `scripts/` 不得出现 `os.scandir`；每处 `iterdir()` 必须在同一表达式里被消费（`for`/推导式/`list()`/`sorted()` 等），
+带 `>= 4` 的下限防空扫描。**变异验证**：临时放一个同时犯两种错的 `scripts/tmp_violation.py` → 两条门同时红并点名
+`scripts/tmp_violation.py:12`，删除后绿。
+
+**基线**：`tests/test_bench_tasks.py` **13 passed**；`test_bench_tasks + test_resource_hygiene + test_ci_hygiene + test_http_surface + test_http_route_inventory` 合计 **108 passed**（`-W error`，无 scandir 误报）。
+
+
+
 ### M8-T7 注记：一次真实失败的时间线，以及「不给结论」的边界
 
 一次真实只读小任务消耗 118,499 tokens、跑了 5 轮 `run_agent` 后才以 provider `451 censorship_blocked` 失败。

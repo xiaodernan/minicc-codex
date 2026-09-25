@@ -155,7 +155,13 @@ from pathlib import Path
 
 root = Path(sys.argv[1]).resolve()
 spec = json.loads(sys.stdin.read())
-command = spec["command"].replace("{python}", sys.executable)
+command = spec["command"]
+if "{python}" in command:
+    # Rendering belongs to the host (see render_python_command): an unquoted
+    # interpreter path is split by shell=True, which graded correct workspaces
+    # as failures. Fail loudly instead of quietly repeating that bug.
+    print("command still carries an unrendered {python} placeholder", file=sys.stderr)
+    raise SystemExit(2)
 expect = int(spec.get("expect_exit", 0))
 timeout = float(spec.get("timeout", 180))
 marker = spec.get("stdout_contains")
@@ -237,10 +243,43 @@ def grade_file_contract(
     }
 
 
+def render_python_command(command: str, python_executable: str) -> str:
+    """Substitute ``{python}`` with an interpreter path that survives a shell.
+
+    The command contract runs through ``shell=True``, where an unquoted path is
+    split at its first space - and Windows installs Python under
+    ``C:\\Program Files\\`` by default, so the default install turned into
+    ``'C:\\Program' 不是内部或外部命令`` and graded a correct workspace as failed.
+    Quoting lives here, in-process and once, so the embedded grader carries no
+    substitution logic of its own.
+    """
+    return command.replace("{python}", subprocess.list2cmdline([python_executable]))
+
+
 def grade_command_contract(
-    task: dict[str, Any], workspace: Path, *, grader_dir: Path | None = None
+    task: dict[str, Any],
+    workspace: Path,
+    *,
+    grader_dir: Path | None = None,
+    python_executable: str | None = None,
 ) -> dict[str, Any]:
+    """Grade a shell command; ``python_executable`` is what ``{python}`` becomes.
+
+    Defaults to ``sys.executable``. The keyword is the seam a test uses to pin
+    an interpreter path containing a space - the one shape the default Windows
+    install has, and the one ``shell=True`` splits.
+    """
     spec = task.get("grader") or {}
+    command = spec.get("command")
+    if isinstance(command, str):
+        # Render here, in-process and once. The embedded grader used to do this
+        # itself, unquoted, which is how a correct workspace came back failed on
+        # a default Windows install: ``C:\Program Files\...\python.exe`` was
+        # split at the space and cmd.exe reported "C:\Program 不是内部或外部命令".
+        spec = {
+            **spec,
+            "command": render_python_command(command, python_executable or sys.executable),
+        }
     try:
         result = _run_grader(
             "command_contract.py", _COMMAND_CONTRACT_GRADER,

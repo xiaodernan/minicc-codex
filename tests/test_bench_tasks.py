@@ -13,6 +13,7 @@ Covers the acceptance criteria:
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -167,6 +168,78 @@ def test_command_contract_discriminates_bug_fix(tmp_path: Path) -> None:
     fixed.mkdir()
     _write(fixed, {**task["fixture"], "calc.py": "def add(a, b):\n    return a + b\n"})
     assert grade_v2(task, fixed, grader_dir=grader_dir)["passed"] is True
+
+
+def _spaced_interpreter(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """An interpreter entry point whose path contains a space.
+
+    Not an exotic shape: the default Windows install lives under
+    ``C:\\Program Files\\``, and the command contract runs through ``shell=True``,
+    which splits an unquoted path at that space. Copying ``python.exe`` alone
+    would not run (it needs its DLLs beside it), so this writes a forwarding
+    wrapper instead - enough to prove what the shell does with the path, which
+    is the whole question.
+
+    The wrapper forwards through an environment variable rather than embedding
+    the interpreter path, because this repository's own checkout path is not
+    ASCII and a ``.cmd`` file is read in the console's OEM code page: an
+    embedded non-ASCII path is mangled before it ever reaches the shell, which
+    would make the test fail for a reason that has nothing to do with quoting.
+    """
+    monkeypatch.setenv("MINICC_TEST_PYTHON", sys.executable)
+    if sys.platform == "win32":
+        wrapper = tmp_path / "Program Files" / "Python 3" / "python.cmd"
+        wrapper.parent.mkdir(parents=True)
+        wrapper.write_text('@"%MINICC_TEST_PYTHON%" %*\n', encoding="ascii")
+        return wrapper
+    wrapper = tmp_path / "Program Files" / "Python 3" / "python.sh"
+    wrapper.parent.mkdir(parents=True)
+    wrapper.write_text('#!/bin/sh\nexec "$MINICC_TEST_PYTHON" "$@"\n', encoding="ascii")
+    wrapper.chmod(0o755)
+    return wrapper
+
+
+def test_command_contract_quotes_an_interpreter_path_with_a_space(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A spaced interpreter path must survive ``shell=True``.
+
+    The grader used to substitute ``{python}`` with an unquoted path, so on a
+    default Windows install a *correct* workspace was graded as failed. Both
+    directions are pinned here against the same code path: rendered (quoted) it
+    passes, and the same path inlined unquoted still fails - which is the
+    behaviour this fix removes, kept as the red half of the pair.
+
+    The task is synthetic (``{python} -c``) on purpose: the assertion is about
+    how the path is handed to the shell, so the check must not also depend on
+    the interpreter having pytest installed.
+    """
+    task = {
+        "id": "quote-check",
+        "grader": {
+            "type": "command_contract",
+            "command": '{python} -c "import sys; print(sys.version_info[0])"',
+            "expect_exit": 0,
+        },
+    }
+    interpreter = _spaced_interpreter(tmp_path, monkeypatch)
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    grader_dir = tmp_path / ".graders"
+
+    rendered = bench_tasks.grade_command_contract(
+        task, workspace, grader_dir=grader_dir, python_executable=str(interpreter)
+    )
+    assert rendered["passed"] is True, rendered
+
+    unquoted = {
+        **task,
+        "grader": {
+            **task["grader"],
+            "command": f'{interpreter} -c "import sys; print(sys.version_info[0])"',
+        },
+    }
+    assert bench_tasks.grade_command_contract(unquoted, workspace, grader_dir=grader_dir)["passed"] is False
 
 
 # ---------------------------------------------------------------------------

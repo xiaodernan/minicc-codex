@@ -123,9 +123,35 @@ def suite_python_bin() -> str:
     return suite_python()
 
 
+def _skip_upstream_scandir_sweep(config: pytest.Config) -> None:
+    """Keep pytest's session-end GC sweep from reporting pytest's own leak.
+
+    ``_pytest.pathlib.find_prefixed()`` yields from ``os.scandir()`` without
+    closing it, and pytest's numbered-tmpdir cleanup abandons that generator, so
+    the iterator is collected by the forced ``gc.collect()`` in
+    ``pytest_unconfigure`` - where it is attributed to the session and, under
+    ``-W error``, fails an otherwise green run. Observed three times (2026-09-22
+    once, 2026-09-25 twice); with tracemalloc on, the allocation site is
+    ``_pytest/pathlib.py:177 find_prefixed``.
+
+    Setting the iteration count to 0 skips exactly that sweep. Leak detection is
+    not lost: ``collect_unraisable`` still runs at every test's setup / call /
+    teardown, so a leak our own code makes fails the test that made it - and
+    ``tests/test_resource_hygiene.py`` pins that ``minicc/`` never calls
+    ``os.scandir`` and always consumes ``iterdir()`` inside one expression, so a
+    ``ScandirIterator`` unraisable cannot originate here. The key is documented
+    upstream as a stash item precisely so callers can override it; if a future
+    pytest moves it, this import fails loudly rather than silently re-flaking.
+    """
+    from _pytest.unraisableexception import gc_collect_iterations_key
+
+    config.stash[gc_collect_iterations_key] = 0
+
+
 def pytest_configure(config: pytest.Config) -> None:
     if not _HAS_PYTEST_ASYNCIO:
         config.addinivalue_line("markers", "asyncio: run an async test function")
+    _skip_upstream_scandir_sweep(config)
 
 
 def pytest_pyfunc_call(pyfuncitem: pytest.Function) -> bool | None:
