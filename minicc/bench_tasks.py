@@ -167,11 +167,21 @@ timeout = float(spec.get("timeout", 180))
 marker = spec.get("stdout_contains")
 # Never write .pyc: a stale bytecode file from an earlier import of the buggy
 # source can shadow the agent's fix on same-mtime filesystems (Windows).
-env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1")
+#
+# PYTHONIOENCODING pins the *graded command's* stdout codec to the decoder the
+# line below names. Leaving it out is the defect M8-T58 measured: on a cp936
+# host the same correct workspace that prints one Chinese line graded passed
+# with no PYTHONIOENCODING in the environment and failed with
+# PYTHONIOENCODING=utf-8 in it - the child switched to UTF-8, this read stayed
+# cp936, and the marker came back as mojibake. A criterion whose verdict moves
+# with an environment variable nobody is required to set measures the host,
+# not the work.
+env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1", PYTHONIOENCODING="utf-8")
 try:
     proc = subprocess.run(
         command, shell=True, cwd=str(root), env=env,
-        capture_output=True, text=True, errors="replace", timeout=timeout,
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+        timeout=timeout,
     )
 except subprocess.TimeoutExpired:
     print("MINICC_COMMAND_CONTRACT_COMPLETE:0")

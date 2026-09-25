@@ -2780,3 +2780,200 @@ assert all(Path(hit.path).name != "notes.md" for hit in noisy), [hit.path for hi
 落地前（HEAD `018ee53`，上一批收口时冷跑）：**1125 passed / 363.25s / exit 0**。
 本批后冷跑：**1129 passed / 311.16s / exit 0**（`-W error`、单进程、不设 `PYTHONIOENCODING` 之外的环境改动）。
 两个数不可逐项相减：本批只新增 4 条测试并改了 1 条老断言，秒数差异来自机器负载。
+
+## 第三十三批（M8-T58）：判据的裁决跟着宿主环境走，而我的第一版仪表被一句注释骗过
+
+### 1. 这一批是上一批登记的那笔
+
+M8-T57 收口时给命令契约的 grader 加了 `errors="replace"`——流不再被整条吞掉——
+并把「父子 codec 不一致时，非 ASCII 的 `stdout_contains` 仍会误判」登记成 M8-T58。
+这批就是那条，也就是第三十二批边界④里唯一还挂着编号的欠账。
+
+### 2. 先量：这条接缝今天咬到谁了（改代码之前的读数）
+
+| 量 | 读数 |
+| --- | --- |
+| `benchmarks/tasks.v2.json` 任务数 | 24：17 条 `file_contract` + 7 条 `command_contract` |
+| 7 条 `command_contract` 里带 `stdout_contains` 的 | **0 条**——全部是 `{python} -m pytest -q <file>`，判据只有退出码 |
+| 24 条任务里非 ASCII 的 `contains` / `stdout_contains` 值 | 0 |
+| 那 7 条 fixture 的源文件里含非 ASCII 的 | 0 |
+| `_run_grader` 递给 grader 的 spec | `json.dumps`，默认 `ensure_ascii=True` → 纯 ASCII，跨 codec 安全 |
+
+所以这批不是一次「今天正在错判」的事故修复，而是一次**潜在类**的收口：咬到的是
+「任何人在语料里加一条中文 marker」或「任何一台把 `PYTHONIOENCODING` 写进 profile 的机器」。
+我没有去动语料（那只会让门更容易绿），改的是判据本身，并且把「当前 0 处暴露」写进边界①。
+
+### 3. 决定性实测：同一个正确工作区，两个裁决
+
+工作区里没有任何不确定的东西：被评分命令就是 `print('构建完成')`，
+`stdout_contains` 就是那四个字。变的只有跑判分的那个进程的环境变量。
+
+| 父进程 `PYTHONIOENCODING` | 修复前 | 修复后 |
+| --- | --- | --- |
+| 未设置 | passed | passed |
+| `utf-8` | **failed** | passed |
+| `cp936` | passed | passed |
+| 三个裁决是否一致 | **False** | True |
+
+机制：子进程的输出 codec 由 `PYTHONIOENCODING` 决定，而 grader 的文本读取用
+`locale.getpreferredencoding()`——环境变量只推动其中一端，比较就错。
+错的方式不是抛异常（M8-T57 已经堵掉了那种），是**把对的判成错的**：
+marker 回来是乱码，`stdout_contains` 不匹配，`COMPLETE:0`。
+
+### 4. 改了什么：一处接缝，两端同时声明
+
+`minicc/bench_tasks.py` 的内嵌 `_COMMAND_CONTRACT_GRADER`：捕获加上
+`encoding="utf-8"`，同一脚本里给子进程的 env 加上 `PYTHONIOENCODING="utf-8"`，
+M8-T57 那一半（`errors="replace"`）保持不动。
+
+**没有改的外科**：外层 `_run_grader` 的捕获仍然走 locale。理由是实测，不是省事——
+marker（`MINICC_*_COMPLETE:<n>`）全 ASCII，非 ASCII 只会出现在失败分支被原样转述的
+诊断文本里，所以那一段不承载裁决；改它只会把「崩溃」换成「乱码」，
+反而制造 M8-T57 里那种「看起来对、其实错」的字符串。这条判断写在这里，
+是为了下一个以为「这里漏了」的人不必重新量一遍。
+
+### 5. 落地的门（`tests/test_subprocess_decoding.py`，11 条 → 16 条）
+
+| 门 | 钉住的合同 |
+| --- | --- |
+| `test_a_non_ascii_command_verdict_does_not_move_with_the_parent_environment` | 同一个正确工作区在三种 parent codec 下的裁决**全等且全过**；docstring 里就是第 3 节那张实测表 |
+| `test_an_embedded_grader_names_the_codec_on_both_ends` | 内嵌 grader 脚本里的 text-mode 捕获必须两端都声明 codec；带域下限断言——否则「没有违规」和「一个捕获都没看见」读起来一模一样 |
+| `test_a_comment_about_the_codec_pin_does_not_satisfy_the_pin_rule` | 注释里写着 codec、代码里没有 ⇒ 判不合规；而生产 grader 注释长、赋值也在 ⇒ 仍判合规（防挖空过度把规则弄瞎） |
+| `test_the_scanner_sees_an_embedded_capture_that_pins_only_its_own_reader` | 三条合成见证：只钉自己那一端 / 两端都不钉 / 两端齐 |
+| `test_a_non_ascii_file_contract_verdict_is_stable_because_the_spec_travels_as_ascii` | 定义域边界：文件契约本来就环境无关，原因是 `json.dumps` 的 ASCII 运输——这条写成断言而不是叙述 |
+
+三条 parent codec 而不是两条，是为了让门在任何语言环境上都有牙齿：
+未设置那一端等于宿主 locale，那么 `utf-8` / `cp936` 里至少有一条与宿主不同，
+修复前那一端必红；两端同型的门在另一台机器上就变成恒真。
+
+### 6. 变异读数，以及被抓的是我自己的仪表
+
+| 变异（每条一个字节级锚点，跑完还原并复验 sha256） | 六条门里的读数 |
+| --- | --- |
+| M1 去掉内层 `encoding="utf-8"` | 3 红：行为门、结构门、注释见证门 |
+| M2 去掉 env 里的 `PYTHONIOENCODING="utf-8"` | 3 红——**第一版只有 1 红**，见第 6 节 |
+| M3 回到修复前的整段形状 | 3 红 |
+| 控制（未变异） | 6/6 绿 |
+| M8-T57 那条 `test_a_graded_command_that_emits_undecodable_bytes_is_not_graded_as_failed` | 三条变异下全绿——诚实记录：「吞流」和「错判」是两件事，这批的门不互相覆盖，那批的也不覆盖这批 |
+
+**M2 那一行是本批的真发现**，而且发现的不是我改的那行代码，是我新写的仪器。
+第一版结构规则判断「子端声明了吗」的方式是：这段脚本文本里有没有
+`PYTHONIOENCODING` 这个字面量。而我给这次修复写的注释里，正好逐字写着
+`PYTHONIOENCODING=utf-8`。于是 M2（把 env 里的那个键删掉、注释留在原地）
+让行为门变红、**结构门却读成合规**——一份「代码已回滚、说明书还挂着」的文件，
+在它声称看守的那条规则下是干净的。
+
+修法两层：`_code_only()` 用 `tokenize` 把注释按跨度挖空（行结构不变，
+所以 `lineno` 与命中位置仍可比），规则改成只认**赋值形状**
+（`PYTHONIOENCODING` 后允许 `"` `'` `]` 与空白，再跟 `=`）。同时补一条反面见证，
+防止挖空过度把规则弄瞎：生产 grader 注释长、赋值也在，必须仍判合规。
+
+**入册的规矩**：凡是「读源码文本」而不是「读 AST 节点」的门，
+都必须过一次变异——把那句话从代码搬进注释。搬得动，说明门在读说明书。
+
+### 7. 真跑（真实大模型，一次请求；外加隔壁接缝的对照）
+
+门保护的是判分流水，而用户能看见的是模型收到的那串字符。所以真跑量的是**产品自己那条接缝**：
+把父进程设成第 3 节里那个敌意环境（宿主 locale 是 cp936，环境里塞 `PYTHONIOENCODING=utf-8`），
+用生产 CLI（provider、工具循环、会话落盘全真，只加 `--yolo --no-stream --max-turns 6`）
+让它跑 `python -c "print('构建完成')"` 并把标准输出原样带回来：
+
+| 读数 | 结果 |
+| --- | --- |
+| CLI 退出码 | 0 |
+| 工具行 | `[tool 1] bash · python -c "print('构建完成')" · (exit 0, 2.4s)` |
+| 工具返回给模型的正文 | `(exit 0, 2.4s)` 换行后 `构建完成` |
+| 模型答 | `构建完成`（一字不差，未翻译未解释） |
+| 转写里是否出现乱码（`鏋` / `瀹` / `锟`） | 否 |
+| 会话记录 | `.minicc/sessions/latest.json` 含那四个字（同目录的 `.json.lock` 是 0 字节，不含正文，别把「锁文件里没有」读成丢失） |
+| 用量 | `total_tokens=7483` |
+
+一次请求不构成统计，只构成「这条接缝今天真的把完整的中文递到了模型面前」的见证。
+
+**隔壁接缝的对照**（同一批必量的第二件事：修了一处，旁边那处是不是同一个病）：
+`minicc/tools/bash.py:155` 的 `decode_process_output` 按字节捕获、再用 `[utf-8, gb18030, cp936, locale]`
+的回退链解码。三种 parent codec 各跑一次真实子进程：
+
+| 父进程 `PYTHONIOENCODING` | 子进程原始字节 | 解码结果 |
+| --- | --- | --- |
+| 未设置 | `b'\xb9\xb9\xbd\xa8\xcd\xea\xb3\xc9\r\n'`（GBK） | `构建完成\r\n` |
+| `utf-8` | `b'\xe6\x9e\x84\xe5\xbb\xba\xe5\xae\x8c\xe6\x88\x90\r\n'` | `构建完成\r\n` |
+| `cp936` | 与第一行同 | `构建完成\r\n` |
+
+字节确实随环境变了（这正是第 3 节的机制在低一层的样子），解码串却是三条全等且正确——
+所以那一处**不需要改**，这是负结果，记下来是为了省下一个人重新量一遍的时间。
+
+顺便记一次我自己的量法错误：脚本里期望值写成 `构建完成 + '\n'`，实测全等 `False`，
+而真实子进程在 Windows 下吐的是 `\r\n`。**一次 False 先怀疑判据，再怀疑被测物**——
+把 `exact=` 那一列留着不是为了说明有缺陷，是为了说明数怎么错的。
+
+### 8. 边界（诚实的、可执行的）
+
+- ① 当前 shipped 语料 0 处暴露（7 条命令契约没有一条用 `stdout_contains`，
+  fixture 全 ASCII）。这批的门的牙齿在「下一个人加一条中文 marker」之前不会咬到语料，
+  它咬的是**判据形状**。
+- ② 修复把「裁决随宿主环境漂移」换成了「裁决假定被评分者说 UTF-8」。
+  如果被评分的是非 Python 命令、且它写 GBK 字节、且 marker 是非 ASCII，
+  仍然不匹配。要真正覆盖那一形，需要字节比较或 codec 回退链，
+  而那会让内嵌 grader 从「读 spec 判分」变成「猜编解码」——本批判它不值。
+- ③ 结构门的域是 embedded 脚本里的 text-mode 捕获，实测 1 条；
+  域外那条（父层 `_run_grader`）由第 4 节的实测显式豁免，不是没看见。
+- ④ 下一批登记为 **M8-T60**（不是 T59：那个编号已被第三十一批的双通道工作占用，
+   我在任务队列里登记时撞了号，改在这里而不是改那一批的标题——标题是历史，编号是账）。
+   内容是：`test_a_non_ascii_worktree_path_survives_the_reader` 这类
+   `skipif(_LOCALE_IS_UTF8)` 的门，在 UTF-8 机器（含 CI）上等于不存在——
+   而本批已经证明不需要宿主 locale 配合就能造出不一致（显式设 codec 即可）。
+   先量的数在这里（未改任何文件，用仓库自带的扫描器，不是另写一份）：
+   全仓 `skipif` 门**只有 1 条**，就是这个；`minicc/` 与 `scripts/` 里 text-mode 捕获
+   29 条，22 条显式钉了 UTF-8，剩下 7 条**每一条都带 `errors=`**（M8-T57 那一族的形状），
+   其中生产侧 3 条：`minicc/behavior_bench.py:105`、`minicc/bench_tasks.py:229`
+   （第 4 节已用实测豁免的那条）、`minicc/benchmarks.py:661`。
+   所以 M8-T60 不是「扫全仓」，是把这 1 条门的牙齿从宿主手里拿回来，并给那 7 条各自一个决定。
+- ⑤ M8-T61（第 9 节末尾那条墙）不在本批做，理由写在那里。
+
+### 9. 基线，以及量基线时踩到的三个坑
+
+落地前（HEAD `4d5afe1`，第三十二批收口时冷跑）：**1129 passed / 311.16s / exit 0**。
+本批后冷跑（同一台机器，`-W error`、单进程、不改 `PYTHONIOENCODING` 之外的环境）：
+**1128 passed / 6 failed / 2847.95s / exit 1**，收集总数 1134 = 1129 + 本批新增 5 条。
+
+三个坑都记录在这里，因为每一个都能让下一次「冷跑」读出一个假数：
+
+1. **`-W error` 必须作为 pytest 的参数，不能作为解释器的参数。** 解释器层的
+   `-W error` 会让 pytest-asyncio 在 configure 阶段那条 `PytestDeprecationWarning`
+   变成 INTERNALERROR（exit 3，一条测试都没跑）。第一次冷跑就是这么死的。
+2. **`doc_pointers.py --check` 只对「你递给它的文档集合」负责。** 只传 ROADMAP 一份时它
+   exit 1，报 `DANGLING EXEMPT ... docs/PROJECT_REVIEW_2026-09-18.md:1413 已无任何文档引用`——
+   而那条豁免的引用文字在另一份文档里。`check_exempt_tables` 的 haystack 就是形参列表，
+   所以同一份内容被两种量法读出两个数（M8-T44 那句话的又一次实例）。用默认集合
+   （19 份文档）重跑：HEAD 干净 exit 0，HEAD+本批记录也 exit 0（evidence 900 → 924，
+   `见` 标记 237 → 245，检查项 64 → 64）。
+3. **这台机器当时没有内存可分配**：冷跑期间实测空闲物理内存约 0.0007GB（不到 1MB），
+   机器上另有 8 个 pytest 进程（其他项目的会话）。47 分半对 5 分钟，是 9 倍的减速。
+
+那 6 条红的归因做了单独复跑（一次一个进程，只跑这 6 条）：**5 绿 1 红**。
+逐条的冷跑读数在这里，因为「都是负载」这句话必须能被核对：
+
+| 冷跑里红的这条 | 冷跑读数 | 单独复跑 |
+| --- | --- | --- |
+| `test_store_with_flag_requeues_interrupted` | `assert False`，`False = any(<generator ...>)`（轮询等状态） | 绿 |
+| `test_bash_output_reads_incrementally` | `assert (None is not None)`（等增量输出） | 绿 |
+| `test_clean_shutdown_aborts_a_worker_that_ignores_cancellation` | `timed out waiting for worker task-1da0… to reach the parked model call` | 绿 |
+| `test_worker_survives_host_crash_and_continues_long_stream` | 同一句 timeout，另一个 task id | 绿 |
+| `test_shutdown_reaps_detached_worker_without_resource_warning` | `assert 'failed' == 'completed'`（worker 租约到期） | 绿 |
+| `test_background_output_is_bounded` | `assert None is not None`（`tests/test_background_shell.py:111`） | **仍然红** |
+
+五条是负载形状：全是 M8-T45 那一族「门内秒数」的墙，9 倍减速下必然塌。
+第 6 条不同——它给 Python 子进程**启动并写出 20000 字节**的预算是 3.0 秒，
+而第 7 节那次真实的 `python -c "print(...)"` 在同样的机器状态下花了 2.4 秒：
+预算没被超过多少，但它红的信息量是零，因为这条断言**没有失败说明文字**，
+而同文件隔壁那条 1.5s 的（`test_kill_shell_reaps_process_within_a_second`）有。
+
+**因此登记 M8-T61**：把 3.0s 那条墙改成同一次运行内的比值判据（M8-T45 的口径），
+并给这一族每条 `assert ... is not None` 补上「等了多久、在等什么」的文字。
+本批不顺手改它——它是第二件事，而 M8-T44 已经教过不要把两件事塞进一批。
+
+本批自己的 16 条门（含新增 5 条）在这一次慢到 47 分钟的冷跑里**全绿**：
+6 条红没有一条落在 `tests/test_subprocess_decoding.py`。
+也就是说，这句「全绿」是被污染的运行里唯一还站得住的部分，
+而那条干净的 1129 基线不能和本批的数逐项相减——两个数之间隔着一次内存饥饿。
