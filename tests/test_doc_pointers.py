@@ -1122,3 +1122,45 @@ def test_the_bare_name_shape_is_defined_exactly_once() -> None:
     assert source.count("py|md|toml|json|txt|example") == 1, (
         "裸文件名形状又出现了一份手抄副本：谁改了其中一份，另一份就会安静地不同意"
     )
+
+
+def test_tracked_text_files_hold_no_bare_control_bytes() -> None:
+    """A control byte in tracked markdown is invisible everywhere it matters.
+
+    M8-T47 was opened by this very class: two real backspaces (0x08) lived in the
+    roadmap inside the sentence describing a backspace that a heredoc had eaten.  It
+    renders as nothing, an editor hides it, and the pointer reader never complains -
+    so the only thing that can see it is a scan that knows what "control" means.
+
+    The character set has been wrong in both directions across two batches: too narrow
+    (bytes below 0x20, which misses DEL 0x7F, the byte this batch actually produced in a
+    scratch script) and too wide (everything below 0x80, which flags every printable
+    character and reports 228 dirty files).  Hence the non-vacuity guard below: the scan
+    must find nothing in the repository and must still find a planted backspace.
+    """
+    import subprocess
+
+    bad = {c for c in range(0x20) if c not in (9, 10, 13)} | {0x7F}
+    names = subprocess.run(
+        ["git", "ls-files", "-z"], cwd=REPO_ROOT, capture_output=True, check=True
+    ).stdout.split(b"\0")
+    tracked = [n.decode() for n in names if n]
+    assert len(tracked) >= 200, f"the inventory collapsed: {len(tracked)} files"
+
+    def scan(blob: bytes) -> dict[int, int]:
+        return {c: blob.count(bytes([c])) for c in sorted(bad) if c in blob}
+
+    offenders = {}
+    for name in tracked:
+        blob = (REPO_ROOT / name).read_bytes()
+        if b"\0" in blob:
+            continue  # binary is out of scope for a text-hygiene claim
+        found = scan(blob)
+        if found:
+            offenders[name] = found
+    assert offenders == {}, offenders
+
+    # 量具自己坏成恒 0 时，上面那条断言会永远满足；这里给它一个必须能红起来的反例。
+    assert scan(b"a\x08b") == {8: 1}
+    assert scan(b"del\x7f here") == {127: 1}
+    assert scan(b"tab\tand\r\n and space are fine") == {}
