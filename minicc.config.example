@@ -17,6 +17,15 @@ MINICC_BASE_URL=https://api.247kan.com/v1
 # reuses MINICC_BASE_URL, so single-gateway setups need no change.
 #MINICC_ANTHROPIC_BASE_URL=https://claude.internal/v1
 
+# Optional second quota channel (e.g. Step Plan subscription Credit pool at
+# https://api.stepfun.com/step_plan/v1). When the primary channel's quota is
+# exhausted (HTTP 402, or a 429 carrying an insufficient_credit style code),
+# the provider flips to this channel sticky for the rest of the process and
+# emits a provider_channel_switched event. Leave MINICC_PLAN_API_KEY empty to
+# disable. Plain rate-limit 429s never trigger the switch.
+#MINICC_PLAN_BASE_URL=https://api.stepfun.com/step_plan/v1
+#MINICC_PLAN_API_KEY=
+
 # Model name on that gateway
 MINICC_MODEL=gpt-5.6-terra
 
