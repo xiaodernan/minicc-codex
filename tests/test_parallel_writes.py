@@ -4,8 +4,8 @@ These assert the executor's write phase directly (the mechanism ``run_agent``
 calls once per tool round), which is where the wall-clock win and the ordering
 guarantees live:
 
-- four writes to *different* paths run concurrently (wall clock < 0.6s, versus
-  a > 1.2s serial baseline for four 0.3s tools);
+- four writes to *different* paths run concurrently (proven by an in-flight
+  counter, not by a stopwatch: see ``test_parallel_writes_are_actually_overlapping``);
 - two edits to the *same* path stay serialized so the second observes the first;
 - one failing write does not lose the results of its concurrent siblings;
 - non-write tools (bash) never run alongside a concurrent edit.
@@ -49,6 +49,20 @@ def _write_registry(sleep: float, events: list[str], failures: set[str]) -> Tool
     return registry
 
 
+def _max_in_flight(events: list[str]) -> int:
+    """Peak number of writes open at the same instant, read off the event log."""
+
+    inflight = peak = 0
+    for event in events:
+        if event.startswith("start:"):
+            inflight += 1
+            peak = max(peak, inflight)
+        elif event.startswith(("end:", "fail:")):
+            inflight -= 1
+    assert inflight == 0, events  # every open window was closed
+    return peak
+
+
 def _call(tool: str, path: str) -> ToolCall:
     return ToolCall(tool=tool, arguments={"path": path}, call_id=path)
 
@@ -70,8 +84,12 @@ def test_four_distinct_path_writes_run_in_parallel() -> None:
     ))
     elapsed = time.monotonic() - started
 
-    # Serial baseline would be ~1.2s; four parallel writes ≈ 0.3s.
-    assert elapsed < 0.6, f"expected concurrent writes, took {elapsed:.2f}s"
+    # The concurrency claim lives in `_max_in_flight` below and in
+    # `test_parallel_writes_are_actually_overlapping`; a stopwatch that turns red
+    # after 0.3s of scheduler hiccup measures the machine, not this code.  What a
+    # timer is still good for is the one thing it can decide honestly: it finished.
+    assert elapsed < 15.0, f"write phase took {elapsed:.2f}s; it should not hang"
+    assert _max_in_flight(events) >= 2, events
     assert len(immediate) == 4
     assert all(result.status == "ok" for _tc, result in immediate.values())
 

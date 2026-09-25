@@ -167,26 +167,217 @@ def test_to_dict_keeps_consumer_contract(tmp_path: Path) -> None:
     assert isinstance(payload["reason"], str) and payload["reason"]
 
 
-def test_thousand_file_index_builds_within_budget(tmp_path: Path) -> None:
-    for package in range(100):
-        directory = tmp_path / f"pkg{package:03d}"
+def _package_tree(root: Path, packages: int) -> None:
+    for package in range(packages):
+        directory = root / f"pkg{package:03d}"
         for number in range(10):
             _write(directory / f"mod_{number}.py", f"def handler_{package}_{number}(payload):\n    return payload\n")
+
+
+def _count_filesystem_calls(run) -> dict[str, int]:
+    """Count the filesystem calls ``run()`` makes, then restore every patch.
+
+    Python 3.11 binds ``os.stat`` into pathlib's accessor at import time, so
+    wrapping the ``os`` module would silently miss every ``Path.stat()`` the
+    indexer makes.  The counters therefore wrap the methods it actually calls.
+    """
+
+    counters = {"stat": 0, "open": 0, "is_symlink": 0, "iterdir": 0, "walk": 0}
+    original = {
+        "stat": Path.stat,
+        "open": Path.open,
+        "is_symlink": Path.is_symlink,
+        "iterdir": Path.iterdir,
+        "walk": os.walk,
+    }
+
+    def wrap(key: str):
+        real = original[key]
+
+        def counted(*args, **kwargs):
+            counters[key] += 1
+            return real(*args, **kwargs)
+
+        return counted
+
+    Path.stat = wrap("stat")  # type: ignore[method-assign]
+    Path.open = wrap("open")  # type: ignore[method-assign]
+    Path.is_symlink = wrap("is_symlink")  # type: ignore[method-assign]
+    Path.iterdir = wrap("iterdir")  # type: ignore[method-assign]
+    os.walk = wrap("walk")  # type: ignore[assignment]
+    try:
+        run()
+    finally:
+        Path.stat = original["stat"]  # type: ignore[method-assign]
+        Path.open = original["open"]  # type: ignore[method-assign]
+        Path.is_symlink = original["is_symlink"]  # type: ignore[method-assign]
+        Path.iterdir = original["iterdir"]  # type: ignore[method-assign]
+        os.walk = original["walk"]  # type: ignore[assignment]
+    assert Path.stat is original["stat"], "the counter leaked a patch"
+    return counters
+
+
+def _cold_build_counts(root: Path) -> tuple[dict[str, int], int]:
+    seen: dict[str, int] = {}
+
+    def build() -> None:
+        index = LocalEvidenceIndex(root, max_files=1500)
+        seen["files"] = int(index.stats()["files_indexed"])
+
+    calls = _count_filesystem_calls(build)
+    return calls, seen["files"]
+
+
+def test_thousand_file_index_builds_within_budget(tmp_path: Path) -> None:
+    """A liveness bound.  The performance judgement moved to the call counter.
+
+    The stopwatch used to carry that judgement by itself and it was
+    unschedulable: the same 1000-file shape measured 3.06s, 19.90s and 45.05s
+    minutes apart on one machine, because per-file cost here is dominated by
+    file creation and virus scanning rather than by this code.
+    ``test_index_build_makes_a_constant_number_of_filesystem_calls_per_file``
+    now decides whether the indexer got worse *at the filesystem*, and that
+    judgement is a function of the code alone.  A build that got slower purely
+    on CPU reddens nothing here - measured in M8-T45, see the batch record.  What
+    stays in this test is the one thing a timer can honestly decide: that a build
+    finishes.
+    """
+    _package_tree(tmp_path, 100)
     start = time.perf_counter()
     index = LocalEvidenceIndex(tmp_path, max_files=1500)
     stats = index.stats()
     elapsed = time.perf_counter() - start
     assert stats["files_indexed"] == 1000
     assert stats["symbols_extracted"] == 1000
-    # 3.0s used to be the bound and it was unschedulable on Windows: the same
-    # code measured 2.4s (pass) and 3.4s (fail) minutes apart on an idle disk,
-    # because per-file cost is dominated by file creation and AV scanning.
-    # The ceiling keeps its purpose - catching a quadratic scan - while the
-    # headroom stops it from failing on ordinary machine jitter.
-    assert elapsed < 8.0
-    assert stats["last_build_ms"] < 8000.0
+    # 120s is ~15x the slowest reading this shape has ever produced on this
+    # machine.  It is deliberately not a regression detector - a build that
+    # reopens every file should redden the call counter, not this line.
+    assert elapsed < 120.0
+    assert stats["last_build_ms"] < 120_000.0
     hits = index.search("handler_7_7")
     assert hits and hits[0].path == "pkg007/mod_7.py"
+
+
+def test_index_build_makes_a_constant_number_of_filesystem_calls_per_file(tmp_path: Path) -> None:
+    """Two scales, one ratio: the quantity has to stop being a stopwatch.
+
+    Measured for this exact code: 250 files -> 5.232 calls per file, 1000 files
+    -> 5.208, ratio 0.9954, and those per-file figures were identical across all
+    six probe runs; the wall time of the very same 250-file build read 0.74,
+    0.99, 1.27, 0.82, 1.91 and 0.94 seconds (the batch record's table).  The
+    ceiling catches a constant that grew (more syscalls per file), the ratio
+    catches syscalls growing *with* the file count; different failure modes, so
+    both stay.  What neither sees is work that costs CPU and no syscalls: with
+    an ``O(n^2 log n)`` scan on ``_refresh`` they moved by zero calls.
+    """
+    small = tmp_path / "small"
+    big = tmp_path / "big"
+    _package_tree(small, 25)
+    _package_tree(big, 100)
+    small_calls, small_files = _cold_build_counts(small)
+    big_calls, big_files = _cold_build_counts(big)
+    assert (small_files, big_files) == (250, 1000)
+    # Every indexed body is opened exactly once per build...
+    assert small_calls["open"] == small_files
+    assert big_calls["open"] == big_files
+    # ...and the tree is walked once per build, not once per file.
+    assert small_calls["walk"] == 1
+    assert big_calls["walk"] == 1
+    per_small = sum(small_calls.values()) / small_files
+    per_big = sum(big_calls.values()) / big_files
+    assert per_big <= 7.0, (per_small, per_big)
+    assert per_big / per_small <= 1.25, (per_small, per_big)
+
+
+def test_the_call_counter_is_the_same_number_on_every_rebuild(tmp_path: Path) -> None:
+    """Load-independence stated as an identity, not as a margin.
+
+    The instrument is deterministic to the last call, which is exactly what the
+    seconds reading never was; it also proves the counters reset between builds
+    instead of accumulating.
+    """
+    tree = tmp_path / "tree"
+    _package_tree(tree, 25)
+    first, first_files = _cold_build_counts(tree)
+    second, second_files = _cold_build_counts(tree)
+    assert first == second, (first, second)
+    assert (first_files, second_files) == (250, 250)
+    assert sum(first.values()) > 250, "the build indexed nothing and the counter is vacuous"
+
+
+def test_the_counter_can_see_quadratic_growth(tmp_path: Path) -> None:
+    """A "no growth" reading is only evidence after growth has been witnessed.
+
+    Every two-scale gate above would also pass with a counter that never fires,
+    so the same harness is run over a deliberately quadratic rescan at 20 and 50
+    files, with a linear one-file-one-stat loop as the control group.
+    """
+    small = tmp_path / "q_small"
+    big = tmp_path / "q_big"
+    _package_tree(small, 2)
+    _package_tree(big, 5)
+
+    def per_file(root: Path, quadratic: bool) -> float:
+        files = sorted(root.rglob("*.py"))
+        assert len(files) in (20, 50)
+
+        def run() -> None:
+            if quadratic:
+                for _ in files:
+                    for path in files:
+                        path.stat()
+            else:
+                for path in files:
+                    path.stat()
+
+        calls = _count_filesystem_calls(run)
+        return sum(calls.values()) / len(files)
+
+    assert per_file(small, False) == per_file(big, False) == 1.0
+    growth = per_file(big, True) / per_file(small, True)
+    assert growth > 2.0, growth
+
+
+def test_searching_a_built_index_touches_no_disk(tmp_path: Path) -> None:
+    """Twenty queries must not cost twenty workspace scans.
+
+    ``refresh_interval`` is pinned high on purpose: the claim under test is
+    about retrieval, and letting the freshness tick fire inside the counted
+    window would make this gate load-sensitive - the very defect M8-T45 is about.
+    """
+    tree = tmp_path / "tree"
+    _package_tree(tree, 25)
+    index = LocalEvidenceIndex(tree, max_files=1500, refresh_interval=3600.0)
+    assert index.stats()["files_indexed"] == 250
+    results: list[list[object]] = []
+
+    def run() -> None:
+        for offset in range(20):
+            results.append(index.search(f"handler_{offset}_3", limit=20))
+
+    calls = _count_filesystem_calls(run)
+    assert calls == {"stat": 0, "open": 0, "is_symlink": 0, "iterdir": 0, "walk": 0}, calls
+    # The window was not empty: the queries really matched.
+    assert results and all(hits for hits in results), results
+    assert len(results) == 20
+
+
+def test_refreshing_an_unchanged_tree_reopens_no_file_body(tmp_path: Path) -> None:
+    """The one-second tick has to stay cheap on a live workspace.
+
+    ``_refresh`` reuses records whose (mtime, size) signature is unchanged, so a
+    keystroke must not re-read 250 bodies.  The walk and the stats still happen
+    - that is how change is detected - so this asserts exactly which half is free.
+    """
+    tree = tmp_path / "tree"
+    _package_tree(tree, 25)
+    index = LocalEvidenceIndex(tree, max_files=1500, refresh_interval=3600.0)
+    assert index.stats()["files_indexed"] == 250
+    calls = _count_filesystem_calls(index.refresh)
+    assert calls["open"] == 0, calls
+    assert calls["walk"] == 1, calls
+    assert calls["stat"] >= 250, calls
+    assert index.stats()["files_rebuilt"] == 0
 
 
 def test_credential_stores_are_never_offered_as_evidence(tmp_path: Path) -> None:

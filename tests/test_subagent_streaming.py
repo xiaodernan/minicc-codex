@@ -132,8 +132,11 @@ def test_parent_waits_bounded_and_cancels_promptly(tmp_path: Path) -> None:
     elapsed = time.monotonic() - started
 
     assert result.status == "cancelled"
-    # Bounded wait: a 30s timeout must NOT be what we wait on after cancel.
-    assert elapsed < 5.0
+    # The two endings are distinguishable by text, so the text carries the
+    # claim; the timer is left as a liveness bound that still sits under the
+    # 30s timeout it is meant to rule out.
+    assert "[TIMEOUT]" not in result.summary, result.summary
+    assert elapsed < 15.0, f"waited {elapsed:.1f}s after a 0.5s cancel signal"
 
 
 def test_subagent_still_reports_usage_when_it_completes(tmp_path: Path) -> None:
