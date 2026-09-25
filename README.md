@@ -207,6 +207,20 @@ MINICC_BASE_URL=https://api.stepfun.com/v1
 MINICC_MODEL=step-3.7-flash
 ```
 
+### 双通道：付费 API + Step Plan 套餐自动切换
+
+Step Plan（订阅 Credit 月池）与付费 API 用同一类 Step API Key，但 base URL 不同、额度独立：
+
+```text
+MINICC_BASE_URL=https://api.stepfun.com/v1              # 付费 API 通道（按量计费）
+MINICC_PLAN_BASE_URL=https://api.stepfun.com/step_plan/v1  # Step Plan 套餐通道（Credit 月池）
+MINICC_PLAN_API_KEY=<Step API Key>                      # 未设置则不启用双通道
+```
+
+主通道（付费 API）在任务中途耗尽额度（HTTP 402，或带 `insufficient_credit` / Credit 上限错误码的 429）时，provider 会**粘性**切换到套餐通道继续当前任务，并在任务时间线里发 `provider_channel_switched` 事件。普通限流 429 不会触发切换（那是「慢下来」不是「没钱了」）。切换后本进程后续调用直达套餐通道；套餐通道也失败时如实报错。
+
+用量按通道记账：任务快照与 `/api/metrics`（`tasks_by_channel`）能区分每个任务最终由哪条通道服务。Step Plan 的剩余 Credit 官方暂无 API-Key 可调的查询端点（用量在平台控制台网页查看）；两个通道的 base URL 换算见 [Step Plan 文档](https://platform.stepfun.com/docs/zh/step-plan/overview)。
+
 启动 Web 工作台后，打开左下角设置，在“模型”下拉框中可查看当前网关返回的模型列表（例如 `step-5-preview`），也可以点击刷新。模型和“推理强度”都只影响之后新建的任务；每个任务会把自己的选择保存到快照，恢复或并行执行时不会丢失。模型列表获取失败时仍会保留配置中的默认模型。
 
 推理强度可以通过环境变量或 Web 工作台顶部的“推理强度”按钮（也可在设置面板）调整：
