@@ -54,6 +54,35 @@ jobs:
       - name: Run reliability probe (red on any M1 regression)
         run: python scripts/reliability_probe.py
 
+  # M8-T36..T38 built two executable claim checkers and left both un-wired for
+  # three consecutive batches, each time noting that touching the pipeline is the
+  # repo owner's call. They are wired here, because a checker nobody runs is the
+  # same thing as the hand-copied list it replaced.
+  #
+  # Both are cheap and need no key: doc_pointers reads tracked files and the git
+  # index (seconds), route_coverage runs the two HTTP test modules under coverage
+  # (~1 min). They gate different claims, so they fail independently.
+  #
+  # Linux is deliberately the only leg: doc_pointers resolves paths
+  # case-sensitively here, so a reference that only works on the Windows dev
+  # machine turns red instead of passing quietly.
+  claims:
+    name: Claim checkers (doc pointers + route coverage)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install package with dev extras
+        run: |
+          pip install -e ".[dev]"
+          pip check
+      - name: Every documentation cross-reference must land
+        run: python scripts/doc_pointers.py --check
+      - name: Every HTTP dispatch site must be entered by a test
+        run: python scripts/route_coverage.py --check
+
   js-check:
     name: JavaScript syntax
     runs-on: ubuntu-latest
