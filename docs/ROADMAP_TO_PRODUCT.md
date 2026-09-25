@@ -828,7 +828,7 @@ token 的 worker 负责」——A 让干净关闭成为真正的停止，代价�
 | M6-1/2/5 委托、软预算、写档默认只读 | ✅（测试层） | `test_subagent_delegation.py`(16) + `test_subagent_streaming.py`(5) + `test_parallel_writes.py` + `test_permissions_approval.py` 等合计 **91 passed**；写档需显式授权由 `WRITABLE_PERMISSION_MODES` 结构断言钉住 |
 | M7-3 审批 60s 超时自动 deny | ✅ | 生产常量 `web.py:156 APPROVAL_TIMEOUT_SECONDS = 60.0`，测试 `test_approval_timeout_auto_denies` 用 5s 走同一分支并断言 `decision == "deny"` 且 `timed_out is True`（不为此把测试拖到 60s） |
 | M7-1/2/4/5 hooks、slash、项目配置、composer 恢复 | ✅（测试层 + 前端真跑） | `test_hooks/test_slash_commands/test_project_config/test_mentions` 全绿；起 fake-provider 服务后 `node tests/frontend_{transport,lifecycle,scale,optimization}_smoke.mjs` **逐个 exit 0**（composer 恢复与取消在 transport/lifecycle 内） |
-| M6-4 30 个 fixture 性能 P95 不超 M4 基线 15% | 🟡 **只有区间，不是 30-fixture 基线** | 真模型跑了 **8 个** v2 fixture（`-m minicc.benchmarks --suite v2 --run --max-tasks 8 --results output/m6_4_sample.results.json`，串行 runner，无并发）。**按是否被配额污染分组**：① 干净 4 条（无 429）：`latency_ms` = 5 188 / 34 344 / 41 250 / 110 219，中位 **37.8s**、最大 110.2s；`total_tokens` = 9 789 / 30 523 / 32 426 / 122 345，中位 31 475；通过 3/4。② 429 污染 4 条：22 172 / 22 328 / 51 828 / 60 860 ms，通过 **0/4**，全部死在同一句 `request limited RPM reached, current: 11, limit: 10`——这是配额死亡不是能力失败，混进分位数会把基线整体抬高。**明确不成立的部分**：8 条样本算不出可信的 p50/p95（`benchmarks.py`/`bench_compare.py` 的分位数机制在，但 n=8 时 p95 ≈ 最大值），所以「P95 ≤ M4 基线 115s/826s 的 +15%」这条标准**仍未验证**；对照可信的部分：干净组里 3 条通过的任务 5.2–41.3s，量级与 M4 基线不矛盾。附带产出：这次真跑暴露了一个真实缺陷（见 M8-T16），且 30-fixture 全量在本机配额下**修复前不可能跑成**（一半任务会被 429 打死） |
+| M6-4 30 个 fixture 性能 P95 不超 M4 基线 15% | ✅ **已按 24 条全量结案（2026-09-25）** | 套件实际为 24 条（v2 定义即 24，路线图写作 30 是老口径）。干净全量零 429 死亡（M8-T16 退避修复生效）：p50 **50.2s** / p95 **~107s** / 最大 186.9s，全部落在 M4 基线（115s/826s）的 +15% 线内，性能标准通过。pass@1 **13/24 = 0.5417**、grading_coverage 1.0、false_completion_rate 0；总 tokens 2 097 337。**失败分解（11 条）**：完成守卫循环判死但隐藏 grader 实际通过 ×8、其他守卫判死但 grader 通过 ×2（version-exact 恢复证据、fix-uppercase 未验证）、真编码失败仅 ×1（multi-config）。交付正确率按 grader 单独算是 23/24。主导失败模式不是编码能力而是「评审要求运行测试 → 工作区无可运行检查 → 循环到上限」的不可满足循环，已作为新候选登记（见 2026-09-25 节）：评审可满足性注入与 M8-T19 重复判定提前停止。数据：`output/m6_4_full.results.json`（gitignored，报告在 `output/m6_4_full.{json,md}`） |
 
 附带发现（对 M8-T14 的判断有用）：MCP 侧**已经**做对了这件事——`test_close_reaps_child_process` 明确钉住「关闭时回收子进程」。
 也就是说「子进程必须被 reap」在本仓库不是新概念，只有 task worker 的 `Popen` 没走这条路（`task_manager.py:1824-1826`
@@ -2262,7 +2262,7 @@ M6-T4/M6-T5 的落地记录来自 `02059ea`、`a97bf13` 等一批提交（对应
 
 | 未达成项 | 现状 | 需要什么才能结案 |
 | --- | --- | --- |
-| M6-4「30 个 fixture 的性能 P95 不超 M4 基线 +15%」 | 🟡 第五批跑了 8 条：干净 4 条 5.2/34.3/41.3/110.2s（通过 3/4），429 污染 4 条 22.2/22.3/51.8/60.9s（通过 0/4）。**n=8 算不出 p95**，且把污染组混进去会得到一个既不代表能力也不代表性能的数字 | 一次 30 条的干净全量评测（≈30 次真模型任务），或明确把标准改成「分组区间 + 通过率」并说明为什么不报 p95 |
+| M6-4「30 个 fixture 的性能 P95 不超 M4 基线 +15%」 | ✅ 2026-09-25 结案：24 条干净全量（零 429 死亡），p50 50.2s / p95 ~107s 在基线 +15% 线内；pass@1 13/24，失败 11 条里 10 条 grader 实际通过（详见状态表该行与 2026-09-25 节） | 无（已结案；主导失败模式转为两条新候选：评审可满足性、重复判定提前停止） |
 | M3-3「`grep -rn sk-` 零命中」 | ❌ 标准本身不成立（命中 19 167 次全是 `task-<hex>` 里的子串），已由 `scan_credentials()` 换成形状判据结案 | 无（已用可执行判据替代） |
 | M4-3「POST `/api/*` 覆盖率 100%」 | ✅ 已从「算不出来」转为实测通过（`coverage[toml]` 进 dev extra；分派点 GET 20/20、POST 14/14）。**M8-T35 换了口径再确认一次**：原来的分派点数问的是「比较行执行过没有」，一条走到链尾的请求就能喂满（实测 14/14 对 0/14），现在问「分支体进过没有」，两个口径同为 100%，且量法已进仓库（`scripts/route_coverage.py --check`） | 无（已结案；把 `--check` 接进 CI 需要动流水线，留给用户定） |
 
@@ -2320,3 +2320,51 @@ M6-T4/M6-T5 的落地记录来自 `02059ea`、`a97bf13` 等一批提交（对应
    落盘会话内容，再决定给哪一层记账。
 2. 真正在丢字的是 `agent/loop.py` 里**第二份**同样的折叠逻辑。同一类启发式在两个层各写一遍，就要在两个层
    各判一次代价；`stream_merge` 的收口当时没有覆盖到 loop 这份，这是「单点实现」名义下的漏网。
+
+## 2026-09-25：M6-4 全量结案（24 条干净真模型评测），并登记四条由数据指证的候选
+
+第五批留下的唯一未结退出标准 M6-4 在本日结案。这是**第一次**在 M8-T16 限流退避修复之后跑全量，
+也是本仓库第一次拿到 n=24 的可信分位数。
+
+### 量法与读数
+
+- 命令：`python -m minicc.benchmarks --suite v2 --run --results output/m6_4_full.results.json`，分三批
+  （`--max-tasks 8 / 16 / 全量`）串行执行；runner 逐条落盘、按 metadata（code_revision + config hash +
+  runtime source hash）匹配续跑，三批共用同一 `code_revision=46a9a8ab8`，无版本混杂。
+- 零 429 死亡：M8-T16 的 15/30/60/60 退避在 10 RPM 配额下全程兜住（第五批 4 条 429 全灭的场景未再出现）。
+- 单任务消耗：`total_tokens` 均值 87 389 / 中位 95 527，全程 2 097 337 tokens（step-3.7-flash，reasoning=high）。
+- 延迟：p50 **50.2s**、p95 **~107s**（nearest-rank）、最大 186.9s——全部在 M4 基线（115s/826s）+15% 线内，
+  **性能标准通过**，M6 fan-out 护栏从此有了真正的全量基线。
+- pass@1 **13/24 = 0.5417**、grading_coverage 1.0、false_completion_rate 0、执行完成率 0.5417。
+
+### 失败分解（11 条）——主导模式不是编码能力
+
+| 类别 | 条数 | 任务 |
+| --- | --- | --- |
+| 完成守卫循环判死，隐藏 grader 实际通过 | 8 | config-json / greet-function / env-example / dockerignore / package-init / package-manifest / gitignore / schema-json |
+| 其他守卫判死，grader 实际通过 | 2 | version-exact（恢复阶段无新证据）、fix-uppercase（修改后未验证） |
+| 真编码失败（grader 不过） | 1 | multi-config |
+
+「grader 实际通过」的判据是任务记录里的 `objective_oracle`（`passed=true` 且 case/exit 干净）。按这个口径，
+**交付正确率 23/24 = 0.958，而严格验收 pass@1 只有 0.5417**——两者之间 10 个百分点的差全部消耗在
+「评审要求运行测试 → fixture 工作区没有可运行的客观检查 → 验证跳过 → 评审继续要求 → 循环到上限」这条
+不可满足循环上（9 条死在同一句上限文案）。5 条的 `review_rounds` 逐字重复同一个 `missing`，单条最多烧掉
+179 239 tokens（package-init，22 轮）。
+
+### 由此登记的四条候选（按预期收益排序）
+
+1. **评审可满足性注入**：验证计划客观判定「工作区没有可运行检查」（`verifier.py:124` 的 `skipped_reason`）
+   时，把这一事实注入完成评审提示词——不得把「运行测试」当作 `missing`，应基于修改证据判断。这是根因修复：
+   `objective_oracle` 已经证明这 8 条的产物是对的，只是永远无法让评审满意。
+2. **M8-T19 重复判定提前停止**：本轮评测提供了该条等了三批的「可满足性见证」——`greet-function` 等 5 条
+   `completion_verdict_repeated` 场景（逐字复读 + 零新增活动）真实出现且代价可测（每条多烧 2-3 个 agent 轮）。
+   停止策略从 `observe_only` 升级为「重复即按上限停止」，语义仍是「未收敛」而非「完成」。
+3. **DAG 节点预算旁路**（P2-8 漏网复核确认仍在）：`web.py` 的 `run_node` 给节点 Agent 全 `None` 的
+   `Budget`，与 chat 路径（config 驱动 + soft 限制）不一致。修法：kwarg 与 Budget 双设 12 轮 / 300s 硬界
+   （比子代理 24 轮 / 600s 更紧，节点是单职责单元），soft 限制沿用 config。
+4. **per-edit 备份永不清理**（P2-8 漏网复核确认仍在）：`editor.py` 的 `_backup` 每次编辑落盘
+   `.minicc/backup/` 且全仓无任何保留策略。修法：写后裁剪，保留最近 200 份，裁剪失败降级为警告不阻断编辑。
+
+顺带如实记录：version-exact（恢复守卫）与 fix-uppercase（修改后未验证）两条走的是**另外两条**守卫路径，
+不在上面两条评审修复的射程内，留作后续候选；它们的 grader 同样通过，说明守卫语义（没有新鲜证据就不许交付）
+在按设计工作，只是对「产物已正确」的场景偏保守。
