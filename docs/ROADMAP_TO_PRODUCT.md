@@ -2592,3 +2592,52 @@ version-exact（恢复阶段无新证据）与 fix-uppercase（修改后未验�
 ⑤ 中途一次定点填充把 `env=` 加成了重复关键字，`SyntaxError` 在收集期就炸——
 它不是变异的红、是零证据，因此每次定点填充之后补了一道 `compile()` 复验（15 个被改文件全过）。
 
+### 第三十一批 M8-T59：双通道此前只有 grep 撑着，两条请求路径零行为见证（2026-09-26）
+
+**发现方式**：M8-T57 收尾时复核 M8-T55，问的是「三条请求路径真的都走 `_active_client()` 吗」。
+答案今天是对的——但复核过程暴露了另一件事：**这个「对」字此前没有任何一条测试能回答**。
+`tests/test_plan_channel.py` 原有的 6 条测试全部写死 `protocol="chat_completions"`、
+全部把 `_plan_client` 直接注入进去，于是 responses 的两条路径（非流与流）
+和「套餐客户端到底是用什么凭据建出来的」这段惰性构造，全是零行为见证。
+
+**先量的三个数**：provider 里的 SDK 请求点 3 个；仓库里带套餐参数的测试文件 1 个，
+其中 `protocol=` 只出现 1 次（就是那条 chat_completions）；把 `plan_base_url` 交给 provider
+的构造点 2 个（`minicc/main.py:626` 与 `minicc/web.py:1006`），而 `MINICC_PLAN_BASE_URL`
+这个键名在 tests/ 里**一次都没被读过**。
+
+**判据**：`tests/test_plan_channel.py` 6 条 → 13 条，新增的 7 条分三层。
+结构层用 AST 扫请求点（地板常量 3），要求每一点的客户端表达式里出现 `_active_client()`；
+构造层把 `AsyncOpenAI` 换成记录用的假类、provider 一个客户端都不注入，断言
+「建了两次、第二次带的是套餐 key 与套餐 base_url、且 `max_retries=0`」；
+行为层给 responses 非流与 responses 流各一条 402 切换，假客户端记录**调用落在哪个面**，
+所以「悄悄退回 chat 面并且绿」这条路被堵死。再加扫描器自身的两向反证：
+前缀更长的违规写法必须被抓到，无关的 `session.create()` 必须不被误抓。
+
+**扫描器第一次跑就红了一次，红的是我自己写的门**：初版把「整条属性链等于已知链」当作请求点判据，
+于是植入见证里的 `self.client.responses.create(...)` 扫出来是空——这条门最该抓的形状恰恰看不见。
+改成尾链匹配后，`self.client.` / `self._client.` / 局部变量 `client.` 三种写法各自被抓，
+合规孪生与无关 `.create()` 不误抓。
+
+**变异自证 9 次**（每次还原后字节级一致）：非流请求点改用固定客户端 → 2 红（结构 + 该路径行为）；
+流请求点 → 2 红；chat 请求点 → 4 红（结构 + 构造 + 两条旧测试）；
+`_active_client` 整体短路 → 5 红（4 条行为 + 1 条旧）；
+**套餐客户端改用付费 base_url → 只有构造见证 1 红、结构门全绿**——这条是本批的关键读数，
+它证明新写的行为见证不是 grep 的复读机；套餐客户端改用付费 key → 3 红；
+两个构造点改用不再传它的名字：CLI 的 `plan_base_url`、web 的 `plan_base_url`、web 的
+`plan_api_key` 各改一处 → 三次各自 1 红（都落在构造门上）。
+
+**真模型复测**（stepfun，`protocol="responses"` 锁定，2 次请求）：非流与流都跑通，
+`protocol()` 事后仍是 responses（没有回退），`channel_status()` 记到 paid 2 requests / 307 tokens。
+顺带拿真实 SDK 对象的属性名对齐了新写的假响应形状：顶层 `id/status/model/output/usage`、
+usage 的 `input_tokens/output_tokens/input_tokens_details`、output item 的 `content/type`、
+content part 的 `text/type` 全部同名——**假形状是真形状的子集，不是照想象写的**。
+`.env` 一侧读到的事实（只打印布尔、不打印值）：套餐通道的两个键在本机都已配置，
+所以 M8-T55 那条腿不是装饰。
+
+**边界照写**：① 构造门只验「参数被交出去了」，不验「交出去的值非空」——空串照样过门，
+运行时判空发生在 `_has_plan_channel()`；本机实测两键均非空。
+② `AnthropicProvider` 的两个构造点（`minicc/main.py:618`、`minicc/web.py:998`）没有套餐通道，
+额度耗尽时它没有第二条腿；本批只把这件事量出来记在册上，不替它决定语义。
+③ responses 流式的**真实事件序列**没有被门覆盖（门用的是单条 delta + completed 的合成形状），
+真模型那一次只证明「跑得通、形状对得上」。④ 全量冷跑（`-W error`、无 `PYTHONIOENCODING`）：
+**1125 passed / 363.25s**，与上一批的 1118 恰好差本批新增的 7 条。
