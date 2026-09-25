@@ -2263,8 +2263,10 @@ m4 第一轮是**零证据变异**：heredoc 把 `\b` 吃成退格符，引用�
 
 **配套不变式**（否则豁免就成了一张空白支票）：新增 `tests/test_resource_hygiene.py` 两条 AST 门——
 `minicc/` 与 `scripts/` 不得出现 `os.scandir`；每处 `iterdir()` 必须在同一表达式里被消费（`for`/推导式/`list()`/`sorted()` 等），
-带 `>= 4` 的下限防空扫描。**变异验证**：临时放一个同时犯两种错的 `scripts/tmp_violation.py` → 两条门同时红并点名
-`scripts/tmp_violation.py:12`，删除后绿。
+带 `>= 4` 的下限防空扫描。**变异验证**：临时在 `scripts/` 下放一个同时犯两种错的脚本（两种错各一处：未进上下文管理器的
+`os.scandir`、绑定后未耗尽的 `iterdir()`；跑完即删，不在仓库里）→ 两条门同时红并逐字点名该文件与第 12 行，删除后绿。
+**这条记录自己踩了一次文档指针门**：第一版把那个临时文件的路径写进了本段，而它已经删了，于是 `doc_pointers --check`
+在 CI 上判它悬空（见第二十三批 C 段的收尾）——**证据里的路径也是一条断言**，写"我删过一个文件"时不能顺手留下它的路径形状。
 
 **基线**：`tests/test_bench_tasks.py` **13 passed**；`test_bench_tasks + test_resource_hygiene + test_ci_hygiene + test_http_surface + test_http_route_inventory` 合计 **108 passed**（`-W error`，无 scandir 误报）。
 
@@ -2291,6 +2293,13 @@ GitHub 的 Python 3.11 镜像自带 setuptools 低于 70.1（那个版本还没�
 
 **这条的教训比修复值钱**：**开发机上的绿，证明不了 CI 的绿**——凡是"构建/打包/版本"这类判据，
 只要它读的是环境里碰巧存在的东西，就必须在声明文件里写死，或者干脆在干净环境里跑一次。
+
+**接线后的第一次真跑还顺手抓出三处悬空声明**（都是文档侧，不是代码）：两处是本批 A/B 段自己写的
+——把那个"跑完即删"的临时验证文件按路径写进了记录，而它已经不存在；第三处是别人写的一句指向
+**本文档并不存在的编号**的「见」。三类都由 `doc_pointers --check` 在 CI 上判红并逐字给出文件与行号。
+修法不是加豁免，而是把话说准：删掉不存在的路径形状、把「见」改成指向真实存在的段落。
+**顺带得到一条写作纪律**：连"我删过一个文件"这种话，只要留下路径形状就变成一条断言——
+证据写得越具体，越要保证它指向的东西此刻真的存在。
 
 
 
@@ -2512,6 +2521,7 @@ version-exact（恢复阶段无新证据）与 fix-uppercase（修改后未验�
 `test_git_status_does_not_clear_post_write_verification` 等既有守卫用例一条未改、全绿。
 
 **顺带量到的环境事实**：`.venv` 才是这套门的解释器。用系统 Python（`C:\Program Files\...`）跑全量
-得到 2 failed + 7 errors，三条失败指向同一件事——`{python}` 占位符替换后没有加引号，见 M8-T57。
+得到 2 failed + 7 errors，三条失败指向同一件事——`{python}` 占位符替换后没有加引号
+（完整修复与两半红绿见下方「第二十三批」A 段）。
 
 
