@@ -19,6 +19,7 @@ about *where* the id lives — the exact claim that was wrong.
 from __future__ import annotations
 
 import importlib.util
+import os
 import re
 import subprocess
 import sys
@@ -76,6 +77,7 @@ def _git(root: Path, *args: str) -> str:
         capture_output=True,
         text=True,
         encoding="utf-8",
+        errors="replace",
     )
     assert proc.returncode == 0, f"git {' '.join(args)}: {proc.stdout}{proc.stderr}"
     return proc.stdout
@@ -262,6 +264,10 @@ def test_documented_command_runs_end_to_end() -> None:
         capture_output=True,
         text=True,
         encoding="utf-8",
+        errors="replace",
+        # the report this test parses is Chinese: pinning only the parent's
+        # decoder leaves the child writing the machine code page
+        env=dict(os.environ, PYTHONIOENCODING="utf-8"),
         cwd=REPO_ROOT,
     )
     assert result.returncode == 0, result.stdout + result.stderr
@@ -465,7 +471,7 @@ def test_a_path_claim_written_outside_backticks_gets_its_own_reader() -> None:
 
 def test_the_head_set_is_a_function_of_the_index_not_of_this_directory() -> None:
     listed = subprocess.run(
-        ["git", "-C", str(REPO_ROOT), "ls-files"], capture_output=True, text=True, encoding="utf-8"
+        ["git", "-C", str(REPO_ROOT), "ls-files"], capture_output=True, text=True, encoding="utf-8", errors="replace"
     ).stdout
     recomputed = {line.replace("\\", "/").split("/")[0] for line in listed.splitlines() if "/" in line}
     heads = set(dp._top_level())
@@ -651,6 +657,10 @@ def test_the_box_account_is_printed_and_adds_up_on_the_shipped_documents() -> No
         capture_output=True,
         text=True,
         encoding="utf-8",
+        errors="replace",
+        # the report this test parses is Chinese: pinning only the parent's
+        # decoder leaves the child writing the machine code page
+        env=dict(os.environ, PYTHONIOENCODING="utf-8"),
         cwd=REPO_ROOT,
     )
     assert result.returncode == 0, result.stdout + result.stderr

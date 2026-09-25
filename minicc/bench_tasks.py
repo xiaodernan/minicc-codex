@@ -171,7 +171,7 @@ env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1")
 try:
     proc = subprocess.run(
         command, shell=True, cwd=str(root), env=env,
-        capture_output=True, text=True, timeout=timeout,
+        capture_output=True, text=True, errors="replace", timeout=timeout,
     )
 except subprocess.TimeoutExpired:
     print("MINICC_COMMAND_CONTRACT_COMPLETE:0")
@@ -217,7 +217,7 @@ def _run_grader(
         argv.append("-I")
     argv += [str(script), str(workspace)]
     return subprocess.run(
-        argv, input=json.dumps(spec), capture_output=True, text=True,
+        argv, input=json.dumps(spec), capture_output=True, text=True, errors="replace",
         cwd=str(workspace), timeout=timeout,
     )
 

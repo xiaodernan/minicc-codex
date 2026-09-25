@@ -1101,7 +1101,7 @@ def _code_spans(text: str) -> list[tuple[int, str]]:
 
 def _git_output(*args: str) -> list[str]:
     proc = subprocess.run(
-        ("git", "-C", str(REPO_ROOT), *args), capture_output=True, text=True, encoding="utf-8"
+        ("git", "-C", str(REPO_ROOT), *args), capture_output=True, text=True, encoding="utf-8", errors="replace"
     )
     if proc.returncode:
         return []

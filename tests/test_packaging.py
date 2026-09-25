@@ -32,7 +32,7 @@ JUNK_MARKERS = (".env", "node_modules", "__pycache__", ".sqlite3", ".log")
 
 def _build(args: list[str], cwd: Path, timeout: int = 900) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        [sys.executable, *args], cwd=str(cwd), capture_output=True, text=True, timeout=timeout
+        [sys.executable, *args], cwd=str(cwd), capture_output=True, text=True, errors="replace", timeout=timeout
     )
 
 

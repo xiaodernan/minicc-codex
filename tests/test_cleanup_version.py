@@ -53,7 +53,7 @@ def test_cli_version_flag_matches():
 
     out = subprocess.run(
         [sys.executable, "-m", "minicc.main", "--version"],
-        capture_output=True, text=True, cwd=str(REPO_ROOT), timeout=60,
+        capture_output=True, text=True, errors="replace", cwd=str(REPO_ROOT), timeout=60,
     )
     assert out.returncode == 0
     assert out.stdout.strip() == f"minicc {minicc.__version__}"

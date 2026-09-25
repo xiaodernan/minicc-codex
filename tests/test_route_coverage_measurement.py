@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import ast
 import importlib.util
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -178,6 +179,7 @@ def test_the_documented_command_reproduces_the_number() -> None:
         text=True,
         encoding="utf-8",
         errors="replace",
+        env=dict(os.environ, PYTHONIOENCODING="utf-8"),
         timeout=900,
     )
     output = result.stdout + result.stderr

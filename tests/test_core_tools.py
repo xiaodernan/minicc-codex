@@ -328,12 +328,12 @@ def test_mcp_config_loads_opt_in_servers(tmp_path: Path) -> None:
 
 
 def test_worktree_manager_creates_and_removes_managed_tree(tmp_path: Path) -> None:
-    subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True, text=True)
+    subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True, text=True, encoding="utf-8", errors="replace")
     subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=tmp_path, check=True)
     subprocess.run(["git", "config", "user.name", "minicc test"], cwd=tmp_path, check=True)
     (tmp_path / "README.md").write_text("test\n", encoding="utf-8")
     subprocess.run(["git", "add", "README.md"], cwd=tmp_path, check=True)
-    subprocess.run(["git", "commit", "-m", "init"], cwd=tmp_path, check=True, capture_output=True, text=True)
+    subprocess.run(["git", "commit", "-m", "init"], cwd=tmp_path, check=True, capture_output=True, text=True, encoding="utf-8", errors="replace")
 
     manager = WorktreeManager(tmp_path)
     try:
@@ -349,7 +349,7 @@ def test_worktree_manager_creates_and_removes_managed_tree(tmp_path: Path) -> No
 
 
 def test_change_inspector_shows_uncommitted_file_diff(tmp_path: Path) -> None:
-    subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True, text=True)
+    subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True, text=True, encoding="utf-8", errors="replace")
     target = tmp_path / "demo.txt"
     target.write_text("line one\nline two\n", encoding="utf-8")
     inspector = ChangeInspector(tmp_path)

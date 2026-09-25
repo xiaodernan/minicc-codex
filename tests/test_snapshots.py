@@ -13,7 +13,7 @@ from minicc.tools.editor import Editor
 
 
 def _git(tmp_path: Path, *args: str) -> None:
-    subprocess.run(["git", *args], cwd=tmp_path, check=True, capture_output=True, text=True)
+    subprocess.run(["git", *args], cwd=tmp_path, check=True, capture_output=True, text=True, encoding="utf-8", errors="replace")
 
 
 def _init_repo(tmp_path: Path) -> None:

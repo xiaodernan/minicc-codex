@@ -2525,3 +2525,70 @@ version-exact（恢复阶段无新证据）与 fix-uppercase（修改后未验�
 （完整修复与两半红绿见下方「第二十三批」A 段）。
 
 
+### 第三十批 M8-T57：文本模式捕获把「读不到」伪装成「读到了空」（2026-09-25）
+
+**发现方式**：不是崩在功能上，是崩在「全量跑一次」上。不带 `PYTHONIOENCODING` 的冷跑里，
+`tests/test_bench_tasks.py::test_command_contract_quotes_an_interpreter_path_with_a_space`
+先红——`subprocess.run(..., text=True)` 不写 `errors=` 时，子进程的字节用**父进程的语言代码页**解码，
+遇到非法字节异常抛在 subprocess 自己的读线程里，`run()` 照样返回 `returncode=0`，
+而 stdout 已经被吞成空。`-W error` 把线程异常变成 `PytestUnhandledThreadExceptionWarning` 才让它显形。
+
+**三条实测读数**（本机 `locale.getpreferredencoding(False) == cp936`）：
+
+| 生产者 | 字节 | >0x7F | 不写解码器 | 写 utf-8 |
+| --- | --- | --- | --- | --- |
+| `git log -8 --format=%s` | 739 | 291 | rc=0、0 个字符 | 545 字符 |
+| bench grader 的 stdout | 178 | 78 | 标记行整条丢失 | 完好 |
+| `git worktree list --porcelain` | 108 | 12 | 路径 22 字符（真值 20） | 20 字符 |
+
+第三行是这个类里最坏的一半：字节**恰好能被 cp936 解出来**时不抛任何异常，调用方拿到一个
+看起来合理的错答案（四个汉字被解成六个乱码字）。第二行是用户可见的危害：被评分的命令回显一条
+中文报错，`_COMMAND_CONTRACT_GRADER` 的 `proc.stdout` 变 `None`，`stdout_contains` 判不过，
+一个退出码正确、标记也打印了的产物被判 `COMPLETE:0`。
+
+**修法按生产者是谁分两类**（抄的是仓库已有的形状，见 `minicc/tools/git.py` 的
+`encoding="utf-8", errors="replace"`）：git 输出的编码是已知的 → 点名 codec；子进程是别人的
+（shell 命令、任意 verify 脚本）→ 只声明 `errors="replace"`，不替孩子挑编码。
+落地 22 处：`minicc/` 5 处文本模式捕获加嵌入 grader 脚本里的 1 处、`scripts/` 1 处、
+`tests/` 15 处（其中 2 处补的是子端编码声明）。
+
+**门扩到三个根，因为门自己也是受害者**：把 `errors=` 只加到 `minicc/` 之后，同一场冷跑里
+`tests/test_doc_pointers.py` 的两条仍然红——它们写了 `encoding="utf-8"` 却没写 `errors=`，
+孩子按 cp936 写报告、父亲按 utf-8 读，整份报告被吞：一条读到
+`assert "DANGLING" not in result.stdout` 抛 `TypeError: argument of type 'NoneType' is not iterable`，
+另一条在 `result.stdout.strip()` 上抛 `AttributeError`，而 **`returncode` 那一条断言是先通过的**
+（检查器确实跑成功了，被丢掉的只是它的报告）。补上 `errors=` 后流回来了，
+但 `re.search(r"(\d+) 「见」 markers")` 还是返回 `None`——报告末行那对中文引号被解成了替换字符。
+**一条门的绿不该依赖一个没人被要求设置的环境变量**，所以 `scripts/` 与 `tests/` 一起进射程。
+
+**新增的第二条判据是从这条链里长出来的**，不是预设的：`encoding="utf-8"` 只钉父端解码器、
+孩子是 `sys.executable`、又没声明 `PYTHONIOENCODING` ⇒ 半个修复。它当场又抓到两处
+先前任何判据都看不见的站点（`tests/test_hang_watchdog.py`、
+`tests/test_route_coverage_measurement.py`——它们有 `errors=`，因此逃过了第一条判据）。
+
+**判据**：`tests/test_subprocess_decoding.py` 11 条。AST 清单而非 grep（grep 分不开字节模式与
+文本模式，字节模式不可能误解码）；模块级字符串里再解析一次 AST（嵌入 grader 是唯一能看见
+`bench_tasks.py` 里那一处的办法，且由合成见证钉住"这一趟是承重的"）；地板常量按实测钉死
+（29 条文本模式捕获、2 条嵌入），清单只有一条根有贡献时另一条根判红；植入违规 + 合规孪生 +
+字节模式不报，三向对照。行为见证三条，全部打生产宿主：非法字节后标记行仍要读得到（吞流那半）、
+被评分命令回显非法字节时 `grade_command_contract` 仍要判过（grader 内那半）、
+中文 worktree 路径原样返回（乱码那半，语言环境相关）。
+
+**变异自证 6 次，每次都被对应判据抓住**：去掉 `_run_grader` 的 `errors=` → 2 红（结构 + 行为，
+`result.stdout` 读回 `None`）；去掉嵌入 grader 的 → 2 红，行为那条读出
+`{'passed': False, 'exit_code': 1}`（正是"正确产物被判失败"的原始症状）；去掉 worktree 的
+`encoding="utf-8"` → 2 红，中文 worktree 路径判红 + 结构判据判红（上表第三行是同一现象的读数）；去掉 `benchmarks.py` 与
+`behavior_bench.py` 的 `errors=` → 各 1 红（结构判据，二者形状与已具行为见证的宿主相同）；
+去掉子端编码声明 → 1 红，还原后字节级一致。
+
+**边界照写**：① 只声明 `errors="replace"` 的站点，中文输出会变成替换字符——吞流没了，
+乱码还在，这就是 M8-T58 那条候选的同一件事，本批三组读数里第 2 组就是它。
+② `tests/` 里剩下的文本模式捕获由判据覆盖，但 `minicc/` 之外**没有任何行为见证**——
+它们的绿目前是结构判据 + 合成门撑着。③ 本门文件自我豁免（它是唯一故意写违规字符串的地方），
+代价是往里加一条真捕获不会被抓。④ 两次冷跑读数分别是「修复前 2 failed + 1113 passed + 2 errors / 541.22s」与
+「修复后 1118 passed / 350.03s（exit 0）」，但**这两个数不可逐条相减**：前一次运行里本门文件还
+没有第二条判据与它的三条合成见证，两次收集的测试数本来就不同。可比的是同一件事——
+两条 `tests/test_doc_pointers.py` 的红在无 `PYTHONIOENCODING` 的冷跑里从「有」变成「无」。
+⑤ 中途一次定点填充把 `env=` 加成了重复关键字，`SyntaxError` 在收集期就炸——
+它不是变异的红、是零证据，因此每次定点填充之后补了一道 `compile()` 复验（15 个被改文件全过）。
+

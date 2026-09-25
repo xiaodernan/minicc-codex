@@ -30,12 +30,12 @@ def _nested_session(sleep_seconds: float, limit: str) -> subprocess.CompletedPro
         return subprocess.run(
             [sys.executable, "-m", "pytest", "-q", "--no-header", "-p", "no:cacheprovider", str(PROBE)],
             cwd=str(REPO_ROOT),
-            env=env,
             capture_output=True,
             text=True,
             timeout=180,
             encoding="utf-8",
             errors="replace",
+            env={**env, "PYTHONIOENCODING": "utf-8"},
         )
     finally:
         PROBE.unlink(missing_ok=True)

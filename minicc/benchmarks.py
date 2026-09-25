@@ -506,7 +506,7 @@ def run_benchmark(
         raise ValueError("task_timeout_seconds must be a finite positive number")
     grader_dir = bench_tasks.resolve_grader_dir(grader_dir)
     try:
-        revision = subprocess.run(["git", "rev-parse", "HEAD"], cwd=workspace, capture_output=True, text=True, timeout=5).stdout.strip()
+        revision = subprocess.run(["git", "rev-parse", "HEAD"], cwd=workspace, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=5).stdout.strip()
     except (OSError, subprocess.TimeoutExpired):
         revision = ""
     source_hash = hashlib.sha256()
@@ -660,7 +660,7 @@ def run_benchmark(
                 try:
                     completed = _subprocess.run(
                         str(verify_command), cwd=str(task_workspace), shell=True,
-                        capture_output=True, text=True, timeout=300,
+                        capture_output=True, text=True, errors="replace", timeout=300,
                     )
                     entry["passed"] = completed.returncode == 0
                 except (_subprocess.TimeoutExpired, OSError):

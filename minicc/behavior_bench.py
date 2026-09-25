@@ -104,7 +104,7 @@ def grade_behavior(task: dict[str, Any], workspace: Path, answer: str = "") -> d
     try:
         result = subprocess.run(
             [sys.executable, "-I", "-c", _GRADER, str(workspace.resolve())],
-            input=json.dumps(grader), capture_output=True, text=True,
+            input=json.dumps(grader), capture_output=True, text=True, errors="replace",
             cwd=workspace, timeout=20,
         )
         count = len(grader.get("cases", [])) + len(grader.get("raises", []))

@@ -150,7 +150,7 @@ def test_worker_subprocess_completes_and_persists(tmp_path: Path) -> None:
             }),
             "--fake-provider",
         ],
-        capture_output=True, text=True, timeout=180,
+        capture_output=True, text=True, errors="replace", timeout=180,
     )
     assert result.returncode == 0, result.stderr[-800:]
     snapshot = store.get("task-worker-e2e")
@@ -184,7 +184,7 @@ def test_worker_cancellation_via_flag_file(tmp_path: Path) -> None:
             }),
             "--fake-provider",
         ],
-        capture_output=True, text=True, timeout=180,
+        capture_output=True, text=True, errors="replace", timeout=180,
     )
     assert result.returncode == 0, result.stderr[-800:]
     snapshot = store.get("task-c")
