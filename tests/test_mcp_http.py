@@ -119,6 +119,11 @@ def mcp_url():
     server.shutdown()
     server.server_close()
     thread.join(timeout=5)
+    assert not thread.is_alive(), (
+        f"the MCP test server thread {thread.name!r} was still alive 5s after "
+        f"shutdown() at {url}; its socket can still answer POST /mcp behind this "
+        "fixture's back"
+    )
 
 
 def test_config_requires_command_or_url(tmp_path: Path) -> None:
@@ -211,6 +216,11 @@ def test_http_client_sends_auth_header(mcp_url: str, tmp_path: Path) -> None:
         server.shutdown()
         server.server_close()
         thread.join(timeout=5)
+        assert not thread.is_alive(), (
+            f"the recording test server thread {thread.name!r} was still alive 5s after "
+            f"shutdown() at {url}; it can still answer, so which headers were seen "
+            "above could still change"
+        )
 
 
 def test_manager_registers_http_tools(tmp_path: Path, mcp_url: str) -> None:

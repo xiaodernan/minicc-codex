@@ -246,6 +246,11 @@ class _Live:
         self.server.server_close()
         self.thread.join(timeout=5)
         self.service.shutdown()
+        assert not self.thread.is_alive(), (
+            f"the route-inventory test HTTP server thread {self.thread.name!r} was still "
+            f"alive 5s after shutdown() on port {self.server.server_address[1]}; its "
+            "socket can still answer, and the service behind it is still writing"
+        )
 
 
 def _decode(raw: bytes) -> Any:

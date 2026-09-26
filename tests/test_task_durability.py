@@ -183,6 +183,11 @@ def test_sqlite_write_does_not_block_stream_callbacks_and_final_wins(tmp_path: P
         release.set()
         manager._persist_task(task, force=True)
         callback.join(2)
+        assert not callback.is_alive(), (
+            f"the streaming callback thread {callback.name!r} was still alive 2s after it "
+            "signalled completion, so the stored read below would be racing a thread "
+            "this test is meant to have finished"
+        )
         stored = store.get(task.task_id)
         assert stored["status"] == "completed"
         assert stored["stream_text"] == "first-second"

@@ -393,6 +393,11 @@ def test_rewind_http_accepts_user_index(tmp_path: Path) -> None:
         server.server_close()
         thread.join(timeout=5)
         service.shutdown()
+        assert not thread.is_alive(), (
+            f"the rewind test server thread {thread.name!r} was still alive 5s "
+            f"after shutdown() at {url}; its socket can still answer and the "
+            "service behind it is still writing the session store"
+        )
 
 
 def test_cli_parser_exposes_allow_network() -> None:

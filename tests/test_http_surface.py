@@ -108,6 +108,11 @@ class _LiveServer:
         self.server.shutdown()
         self.server.server_close()
         self.thread.join(timeout=5)
+        assert not self.thread.is_alive(), (
+            f"the surface test HTTP server thread {self.thread.name!r} was still "
+            f"alive 5s after shutdown() at {self.url}; its socket can still answer, "
+            "and the service behind it is still writing"
+        )
         self.service.shutdown()
 
 

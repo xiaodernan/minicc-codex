@@ -113,6 +113,11 @@ def local_server():
     server.shutdown()
     server.server_close()
     thread.join(timeout=5)
+    assert not thread.is_alive(), (
+        f"the fetch-target test server thread {thread.name!r} was still alive 5s after "
+        f"shutdown() at {url}; a request still being served past this fixture can "
+        "still move the counter another test reads"
+    )
 
 
 def test_ssrf_guard_rejects_loopback_by_default(local_server):

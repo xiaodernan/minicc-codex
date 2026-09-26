@@ -486,3 +486,10 @@ def test_the_objective_oracle_defers_while_an_abandoned_worker_owns_the_workspac
     finally:
         release.set()
         worker.join(timeout=5)
+    # After the try/finally, not inside it: a raise in `finally` re-headlines the
+    # body's own failure (measured), and here the body is the judgement while this
+    # is only the cleanup of the deliberately abandoned worker.
+    assert not worker.is_alive(), (
+        f"the abandoned worker {worker.name!r} never stopped after its event was set, "
+        "so it still owns this workspace while the next test runs"
+    )

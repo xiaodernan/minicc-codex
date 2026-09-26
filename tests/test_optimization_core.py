@@ -282,3 +282,8 @@ def test_http_asset_conditional_request_and_fractional_gzip(monkeypatch, tmp_pat
         server.shutdown()
         server.server_close()
         thread.join(3)
+        assert not thread.is_alive(), (
+            f"the static-asset test server thread {thread.name!r} was still alive 3s "
+            f"after shutdown() at {url}; it could still answer, so the conditional-GET "
+            "and gzip assertions above would hold for a server nobody stopped"
+        )

@@ -65,6 +65,12 @@ def test_concurrent_thread_saves_never_corrupt(tmp_path: Path) -> None:
     for thread in threads:
         thread.join(timeout=30)
 
+    alive = [thread.name for thread in threads if thread.is_alive()]
+    assert not alive, (
+        f"writers {alive} were still running 30s after being asked to stop; the "
+        "errors count below would then only be the errors a blocked writer got to "
+        "raise"
+    )
     assert not errors, f"concurrent save raised: {errors!r}"
     _assert_intact(store.path)
     # No stray temp files left behind.
