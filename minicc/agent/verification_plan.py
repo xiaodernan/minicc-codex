@@ -17,14 +17,7 @@ _DIGEST_CACHE: OrderedDict[str, tuple[tuple[int, int, int], bytes]] = OrderedDic
 _DIGEST_LOCK = threading.Lock()
 
 
-def _file_digest(path: Path, *, use_cache: bool = True) -> bytes:
-    """Hash one file, optionally refusing to answer from the memo.
-
-    use_cache=False is for the paths a task actually changed: the verifier's
-    before/after guard compares two fingerprints, so a memo hit on a changed file makes
-    the staleness symmetric and the guard passes while never having hashed the current
-    bytes at all. Those paths are few, so re-reading them is the cheap side of the trade.
-    """
+def _file_digest(path: Path) -> bytes:
     stat = path.stat()
     # st_ino leads the signature: on a volume where the write timestamp is coarse, a
     # deleted-and-recreated file can present the same (mtime_ns, ctime_ns, size) as the
@@ -32,12 +25,11 @@ def _file_digest(path: Path, *, use_cache: bool = True) -> bytes:
     # are no longer the ones it hashed. st_ino is what distinguishes those two lives.
     signature = (stat.st_ino, stat.st_mtime_ns, stat.st_ctime_ns, stat.st_size)
     key = str(path)
-    if use_cache:
-        with _DIGEST_LOCK:
-            cached = _DIGEST_CACHE.get(key)
-            if cached and cached[0] == signature:
-                _DIGEST_CACHE.move_to_end(key)
-                return cached[1]
+    with _DIGEST_LOCK:
+        cached = _DIGEST_CACHE.get(key)
+        if cached and cached[0] == signature:
+            _DIGEST_CACHE.move_to_end(key)
+            return cached[1]
     value = hashlib.sha256(path.read_bytes()).digest()
     after = path.stat()
     if (after.st_ino, after.st_mtime_ns, after.st_ctime_ns, after.st_size) != signature:
@@ -108,7 +100,7 @@ def verification_fingerprint(root: Path, changed: list[str], commands: list[Veri
             if not path.exists():
                 digest.update(b"deleted")
             elif path.is_file() and not path.is_symlink() and path.resolve().is_relative_to(root) and path.stat().st_size <= 2_000_000:
-                digest.update(_file_digest(path, use_cache=False))
+                digest.update(_file_digest(path))
             else:
                 cacheable = False
         except OSError:
