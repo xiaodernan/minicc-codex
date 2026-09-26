@@ -132,16 +132,23 @@ _NON_ASCII_DIR = "工作区 项目"
 #:   ``no-consumer:NAME`` - the object the call is bound to is never read for
 #:   ``stdout`` or ``stderr``, so nothing decoded here reaches anything.
 #:
-#: Keyed by call site on purpose: moving or renaming a capture voids its exemption and
-#: makes the next reader re-earn it, the same friction ``doc_pointers.py`` applies to
-#: its own exemption table.
+#: Keyed by *site* - file, enclosing def, callee - rather than by line number.
+#: The line-number form was the original design ("moving a capture voids its
+#: exemption"), and M8-T72 measured what that costs: a commit that added 71 lines
+#: above one of these calls reddened the whole suite over a capture nobody had
+#: touched, because the key and the proof were the same thing no longer pointing
+#: at the same thing.  The proofs below are re-derived from the AST on every run,
+#: so a line shift carries no new information and the friction was ceremony.
+#: A key still dies when the call moves into a different def, when a second call
+#: appears in the same def (the match stops being unique), or when its proof stops
+#: holding - see ``test_an_exemption_is_a_claim_this_file_can_falsify``.
 _VERDICT_NEUTRAL_CAPTURES: dict[str, list[str]] = {
-    "minicc/behavior_bench.py:105 subprocess.run": ["ascii-marker:MINICC_BEHAVIOR_COMPLETE"],
-    "minicc/bench_tasks.py:229 subprocess.run": [
+    "minicc/behavior_bench.py::grade_behavior subprocess.run": ["ascii-marker:MINICC_BEHAVIOR_COMPLETE"],
+    "minicc/bench_tasks.py::_run_grader subprocess.run": [
         "ascii-marker:MINICC_FILE_CONTRACT_COMPLETE",
         "ascii-marker:MINICC_COMMAND_CONTRACT_COMPLETE",
     ],
-    "minicc/benchmarks.py:661 subprocess.run": ["no-consumer:completed"],
+    "minicc/benchmarks.py::run_benchmark subprocess.run": ["no-consumer:completed"],
 }
 
 #: Production text-mode captures - the domain of the exemption rule below.  13 of
@@ -258,11 +265,12 @@ def _attribute_reads(tree: ast.AST, name: str) -> set[str]:
 class Capture:
     """One subprocess call, as the AST saw it."""
 
-    def __init__(self, origin: str, node: ast.Call, code: str) -> None:
+    def __init__(self, origin: str, node: ast.Call, code: str, *, scope: str = "") -> None:
         self.origin = origin
         self.node = node
         self.line = node.lineno
         self.code = code
+        self.scope = scope
         self.callee = str(getattr(node.func, "attr", None) or getattr(node.func, "id", None))
         self.keywords = {keyword.arg: keyword.value for keyword in node.keywords if keyword.arg}
         self.segment = ast.get_source_segment(code, node) or ""
@@ -353,8 +361,50 @@ class Capture:
     def label(self) -> str:
         return f"{self.origin}:{self.line} subprocess.{self.callee}"
 
+    def site_key(self) -> str:
+        """The stable identity an exemption is written against: file, scope, callee.
+
+        ``label()`` carries the line number because a reader needs it to find the
+        call; a table key must not, because the line is the first thing any edit
+        above the call changes.
+        """
+
+        return f"{self.origin}::{self.scope or '<module>'} subprocess.{self.callee}"
+
+
+def _parent_map(tree: ast.AST) -> dict[int, ast.AST]:
+    """``id(node) -> parent`` for one parse; a Call carries no back-pointer."""
+
+    parents: dict[int, ast.AST] = {}
+    for node in ast.walk(tree):
+        for child in ast.iter_child_nodes(node):
+            parents[id(child)] = node
+    return parents
+
+
+def _scope_of(parents: dict[int, ast.AST], node: ast.AST) -> str:
+    """Dotted path of the defs enclosing ``node``, ``''`` at module level.
+
+    This is the identity an exemption table has to use.  The table used to key on
+    ``file:line``, and M8-T72 added 71 lines above one of its three call sites:
+    the key silently stopped resolving, the exemption stopped exempting, and the
+    suite's next full run was red on a capture that had been compliant for a
+    fortnight.  A scope path survives that edit; it dies only when the call moves
+    into a different def, which is the moment its exemption should be re-argued.
+    """
+
+    parts: list[str] = []
+    current: ast.AST | None = node
+    while current is not None:
+        parent = parents.get(id(current))
+        if isinstance(parent, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            parts.append(parent.name)
+        current = parent
+    return ".".join(reversed(parts))
+
 
 def _captures_from_tree(tree: ast.AST, origin: str, code: str) -> list[Capture]:
+    parents = _parent_map(tree)
     found: list[Capture] = []
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
@@ -366,7 +416,7 @@ def _captures_from_tree(tree: ast.AST, origin: str, code: str) -> list[Capture]:
             owner = getattr(node.func.value, "id", None) or getattr(node.func.value, "attr", None)
             if owner not in {"subprocess", "_subprocess"}:
                 continue
-        found.append(Capture(origin, node, code))
+        found.append(Capture(origin, node, code, scope=_scope_of(parents, node)))
     return found
 
 
@@ -491,6 +541,19 @@ def production_captures(captures: list[Capture]) -> list[Capture]:
     return [item for item in captures if item.origin.startswith("minicc/")]
 
 
+def _needing_exemption(captures: list[Capture]) -> list[Capture]:
+    """Production text-mode captures with no UTF-8 pin: the domain of the table.
+
+    A call that already names its reader is not what an exemption speaks about, so
+    it must not count against an exemption's uniqueness either.  Without this the
+    key for ``minicc/benchmarks.py::run_benchmark`` matched two captures - the
+    exempted one and a sibling that pins ``encoding`` - and the table looked
+    ambiguous about a call that had nothing to be ambiguous about.
+    """
+
+    return [item for item in text_captures(production_captures(captures)) if not item.pins_utf8]
+
+
 def unpinned_outside_the_table(
     captures: list[Capture], table: dict[str, list[str]] = _VERDICT_NEUTRAL_CAPTURES
 ) -> list[Capture]:
@@ -503,8 +566,8 @@ def unpinned_outside_the_table(
 
     return [
         item
-        for item in text_captures(production_captures(captures))
-        if not item.pins_utf8 and item.label() not in table
+        for item in _needing_exemption(captures)
+        if item.site_key() not in table
     ]
 
 
@@ -544,8 +607,9 @@ def exemption_failures(
 
     Three independent ways an exemption rots, each checked here:
 
-      * the call site moves or gets pinned, so the key is dead weight - the next
-        reader would inherit a claim about code that no longer exists;
+      * the call moves into a different def, or gets pinned, so the key is dead
+        weight - the next reader would inherit a claim about code that no longer
+        exists;
       * the proof it carries stops holding (the marker grows non-ASCII text, or
         somebody starts reading the stream it claims nobody consumes);
       * the proof cannot be checked at all, which counts as a failure.
@@ -555,22 +619,37 @@ def exemption_failures(
     """
 
     table = _VERDICT_NEUTRAL_CAPTURES if table is None else table
-    production = text_captures(production_captures(captures))
+    domain = _needing_exemption(captures)
+    pinned = [item for item in text_captures(production_captures(captures)) if item.pins_utf8]
     failures: list[str] = []
-    for label, proofs in table.items():
-        matches = [item for item in production if item.label() == label]
+    for key, proofs in table.items():
+        matches = [item for item in domain if item.site_key() == key]
         if len(matches) != 1:
-            failures.append(f"{label}: {len(matches)} production text-mode captures here")
+            twins = [item for item in pinned if item.site_key() == key]
+            if not matches and len(twins) == 1:
+                failures.append(
+                    f"{key} ({twins[0].label()}): the reader is pinned now, so the exemption is dead weight"
+                )
+                continue
+            location, _, call = key.partition(" subprocess.")
+            origin, _, scope = location.partition("::")
+            moved = sorted(
+                {
+                    item.label()
+                    for item in domain
+                    if item.origin == origin and item.callee == call.split(".")[-1] and item.scope != scope
+                }
+            )
+            hint = f" (the same file and callee now live at {moved})" if moved else ""
+            failures.append(f"{key}: {len(matches)} production captures needing an exemption there{hint}")
             continue
         capture = matches[0]
-        if capture.pins_utf8:
-            failures.append(f"{label}: the reader is pinned now, so the exemption is dead weight")
         if not proofs:
-            failures.append(f"{label}: an exemption with no proof is a sentence")
+            failures.append(f"{key} ({capture.label()}): an exemption with no proof is a sentence")
         for proof in proofs:
             failure = _proof_failure(capture, proof)
             if failure is not None:
-                failures.append(f"{label}: {proof} -> {failure}")
+                failures.append(f"{key} ({capture.label()}): {proof} -> {failure}")
     return failures
 
 
@@ -672,6 +751,44 @@ _SYNTHETIC_PRODUCTION_CONSUMED = (
     "print(completed.stdout)\n"
 )
 _PLANTED = "minicc/planted.py:2 subprocess.run"
+_PLANTED_KEY = "minicc/planted.py::<module> subprocess.run"
+#: The same call, five lines further down the file.  This is the edit that reddened
+#: the whole suite in M8-T72 - an unrelated insertion above a captured call site -
+#: so its compliance is planted rather than asserted only in prose.
+_SYNTHETIC_PRODUCTION_PADDED = (
+    "import subprocess\n"
+    "PAD_1 = 1\n"
+    "PAD_2 = 2\n"
+    "PAD_3 = 3\n"
+    "PAD_4 = 4\n"
+    "PAD_5 = 5\n"
+    "out = subprocess.run(cmd, capture_output=True, text=True, errors='replace')\n"
+    "MARKER = 'MINICC_PLANTED_COMPLETE'\n"
+)
+#: The call moved into a def: the site is a different site, and the exemption has to
+#: say so instead of quietly following the call.
+_SYNTHETIC_PRODUCTION_IN_DEF = (
+    "import subprocess\n"
+    "def _grade(cmd):\n"
+    "    out = subprocess.run(cmd, capture_output=True, text=True, errors='replace')\n"
+    "    MARKER = 'MINICC_PLANTED_COMPLETE'\n"
+    "    return out\n"
+)
+#: Two module-level calls, one site key: the exemption cannot decide which one it
+#: covers, so it covers neither.
+_SYNTHETIC_PRODUCTION_TWO_CALLS = (
+    "import subprocess\n"
+    "out = subprocess.run(cmd, capture_output=True, text=True, errors='replace')\n"
+    "other = subprocess.run(cmd2, capture_output=True, text=True, errors='replace')\n"
+    "MARKER = 'MINICC_PLANTED_COMPLETE'\n"
+)
+#: The call stayed in its scope and named its reader: the exemption is now the thing
+#: that no longer describes any code.
+_SYNTHETIC_PRODUCTION_PINNED = (
+    "import subprocess\n"
+    "out = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', errors='replace')\n"
+    "MARKER = 'MINICC_PLANTED_COMPLETE'\n"
+)
 
 
 def _scan_source(text: str, origin: str = "synthetic.py") -> list[Capture]:
@@ -1208,23 +1325,29 @@ def test_an_exemption_is_a_claim_this_file_can_falsify() -> None:
     A witness per hole, because each one fails differently: a table that silently
     stops matching its call site would keep the offending capture exempt forever,
     a proof with no body is prose (see ``_code_only``), and a checker that only
-    ever returns "holds" is the same gate with extra steps.
+    ever returns "holds" is the same gate with extra steps.  The key is a site, not
+    a line, so the two ends of that choice are both planted below: five padding
+    lines must not void an exemption, and moving the call into a def must.
     """
 
     planted = _scan_source(_SYNTHETIC_PRODUCTION_UNPINNED, "minicc/planted.py")
     assert [item.label() for item in planted] == [_PLANTED], planted
+    assert [item.site_key() for item in planted] == [_PLANTED_KEY], (
+        "a module-level planted call must key on its scope, not its line: "
+        f"{[item.site_key() for item in planted]} != [{_PLANTED_KEY!r}]"
+    )
     assert [item.label() for item in unpinned_outside_the_table(planted, table={})] == [
         _PLANTED
     ], "an unpinned shipping capture with no exemption must be an offender"
-    assert unpinned_outside_the_table(planted, table={_PLANTED: []}) == [], (
+    assert unpinned_outside_the_table(planted, table={_PLANTED_KEY: []}) == [], (
         "the table is the escape hatch; if listing a call changes nothing, the "
         "offender list and the table are not the same mechanism"
     )
-    assert exemption_failures(planted, table={_PLANTED: []}) == [
-        f"{_PLANTED}: an exemption with no proof is a sentence"
+    assert exemption_failures(planted, table={_PLANTED_KEY: []}) == [
+        f"{_PLANTED_KEY} ({_PLANTED}): an exemption with no proof is a sentence"
     ]
 
-    ascii_marker = {_PLANTED: ["ascii-marker:MINICC_PLANTED_COMPLETE"]}
+    ascii_marker = {_PLANTED_KEY: ["ascii-marker:MINICC_PLANTED_COMPLETE"]}
     holds = _scan_source(_SYNTHETIC_PRODUCTION_ASCII_MARKER, "minicc/planted.py")
     assert exemption_failures(holds, table=ascii_marker) == [], "the compliant shape must not read as a violation"
     rotted = _scan_source(_SYNTHETIC_PRODUCTION_NON_ASCII_MARKER, "minicc/planted.py")
@@ -1234,17 +1357,56 @@ def test_an_exemption_is_a_claim_this_file_can_falsify() -> None:
     )
 
     consumed = _scan_source(_SYNTHETIC_PRODUCTION_CONSUMED, "minicc/planted.py")
-    _assert_failure(exemption_failures(consumed, table={_PLANTED: ["no-consumer:completed"]}), "is read")
+    _assert_failure(exemption_failures(consumed, table={_PLANTED_KEY: ["no-consumer:completed"]}), "is read")
     _assert_failure(
-        exemption_failures(holds, table={_PLANTED: ["no-consumer:output"]}),
+        exemption_failures(holds, table={_PLANTED_KEY: ["no-consumer:output"]}),
         "is not bound to",
     )
     _assert_failure(
-        exemption_failures(holds, table={_PLANTED: ["nothing-of-this-shape:x"]}),
+        exemption_failures(holds, table={_PLANTED_KEY: ["nothing-of-this-shape:x"]}),
         "unknown proof shape",
     )
-    stale = {_PLANTED.replace(":2 ", ":99 "): ["ascii-marker:MINICC_PLANTED_COMPLETE"]}
-    _assert_failure(exemption_failures(holds, table=stale), "0 production text-mode captures")
+
+    # One end: the site survives an edit above it, so a line shift cannot redden a
+    # capture nobody touched - the M8-T72 failure this table used to produce.
+    padded = _scan_source(_SYNTHETIC_PRODUCTION_PADDED, "minicc/planted.py")
+    moved_line = padded[0].label()
+    assert moved_line != _PLANTED and moved_line.startswith("minicc/planted.py:"), padded
+    assert exemption_failures(padded, table=ascii_marker) == [], (
+        f"the call only moved down the file ({_PLANTED} -> {moved_line}); "
+        "an exemption keyed on the line would void itself here and redden the suite"
+    )
+    assert unpinned_outside_the_table(padded, table=ascii_marker) == [], (
+        f"the same call at {moved_line} is still covered by {_PLANTED_KEY}"
+    )
+
+    # Other end: a real change of site voids the exemption and says where it went.
+    in_def = _scan_source(_SYNTHETIC_PRODUCTION_IN_DEF, "minicc/planted.py")
+    assert [item.site_key() for item in in_def] == ["minicc/planted.py::_grade subprocess.run"], [
+        item.site_key() for item in in_def
+    ]
+    _assert_failure(
+        exemption_failures(in_def, table=ascii_marker),
+        "0 production captures needing an exemption there",
+    )
+    _assert_failure(exemption_failures(in_def, table=ascii_marker), "minicc/planted.py:3 subprocess.run")
+    _assert_failure(
+        [item.label() for item in unpinned_outside_the_table(in_def, table=ascii_marker)],
+        "minicc/planted.py:3 subprocess.run",
+    )
+
+    # A third shape: the call stayed put and named its reader, so the exemption is
+    # the dead weight - and it has to be called that, not "0 captures".
+    pinned = _scan_source(_SYNTHETIC_PRODUCTION_PINNED, "minicc/planted.py")
+    assert unpinned_outside_the_table(pinned, table={}) == [], (
+        "a capture that pins its reader is compliant with or without the table"
+    )
+    _assert_failure(exemption_failures(pinned, table=ascii_marker), "the reader is pinned now")
+
+    # And a key that matches two calls exempts neither.
+    two = _scan_source(_SYNTHETIC_PRODUCTION_TWO_CALLS, "minicc/planted.py")
+    assert len({item.site_key() for item in two}) == 1, [item.site_key() for item in two]
+    _assert_failure(exemption_failures(two, table=ascii_marker), "2 production captures needing an exemption there")
 
 
 def test_the_real_table_names_the_code_that_ships() -> None:
@@ -1256,7 +1418,7 @@ def test_the_real_table_names_the_code_that_ships() -> None:
     """
 
     assert sorted(_VERDICT_NEUTRAL_CAPTURES) == [
-        "minicc/behavior_bench.py:105 subprocess.run",
-        "minicc/bench_tasks.py:229 subprocess.run",
-        "minicc/benchmarks.py:661 subprocess.run",
+        "minicc/behavior_bench.py::grade_behavior subprocess.run",
+        "minicc/bench_tasks.py::_run_grader subprocess.run",
+        "minicc/benchmarks.py::run_benchmark subprocess.run",
     ], sorted(_VERDICT_NEUTRAL_CAPTURES)
