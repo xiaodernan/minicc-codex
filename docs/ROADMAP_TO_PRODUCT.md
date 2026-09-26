@@ -4598,3 +4598,52 @@ A 与 C 的差别（`[RuntimeError(...)]` vs `[]`／`it raised: None`）本身�
 另有一条仍未决的旧登记：`minicc/agent/router.py` 的在飞改动里 `DEFAULT_MODELS: dict[...] = {…}` 是
 dataclass 可变默认，会让**任何 import 到 router 的门在收集期红**（第五十一批 §4）。那是别人未提交的在飞代码，
 本批不代改；如果它进了 HEAD，收集期红会自己说话——届时不要用「先提交再修」绕过。
+
+## 第五十四批（M8-T69：把「用了 stdlib 名字却没 import」变成收集期就红的门）
+
+起点 HEAD：`3040f5c`（第五十三批，M8-T68 收口，已 push；全量 1148 passed / 903.81s——
+机器被另一个 run 压到 15 分钟，第三十九批同内容是 398.84s。**判据是条数与 exit，时长只登记**）。
+
+### 1. 先量，再写门
+
+第五十二、五十三批两次踩到同一个坑：探测代码写了 `time.monotonic()`，所在文件却没有 `import time`。
+第一次靠整文件跑才发现，第二次靠一个手写的 `ast.parse` 检查当场逮到。本批把它写成门。
+
+写之前先量（判据不能由门自己发明）：临时脚本 `t71_measure.py` 按同一套规则扫全仓——
+`tests/` 77 个模块、`minicc/` 递归 75 个模块、`scripts/` 3 个模块，**违规 0 条**（修完自己那两处之后）。
+所以门可以钉死成「零容忍」，不需要基线豁免表。
+
+### 2. 门的内容（`tests/test_import_hygiene.py`，两个测试）
+
+1. `test_the_scanner_answers_both_ways_on_synthetic_source`：接受/拒绝表——
+   `import os` + `os.sep` 干净；`import time as clock` 干净；`import os.path` 后读 `os.path` 干净；
+   **函数参数叫 `time` 时读 `time.time()` 不算缺 import**（局部遮蔽）；
+   裸 `time.monotonic()` 报 `{'time'}`；两个缺的名字都要报出来。
+2. `test_no_module_reads_a_stdlib_name_it_does_not_import`：扫 `tests/`、`minicc/`、`scripts/` 全部 `.py`，
+   违规必须为空，且**扫描文件数 > 100**（156 实测）——防止「root 挪了 ⇒ 门扫到 0 个文件 ⇒ 白拿一个绿」。
+
+名字表 `STDLIB_BASES` 是显式的：表外的基名一律不管。这样表本身是可审的，
+将来加一类（例如 `datetime`）只需加一个词，不会悄悄扩大判据。
+
+### 3. 双向见证：4 支变异 + 2 次控制，全部命中预期的那一条断言
+
+`t71_teeth.py`（临时目录）在干净 worktree 上做：
+
+| 编号 | 破坏的东西 | 结果 | 门说的话（逐字） |
+| --- | --- | --- | --- |
+| 控制 | — | `2 passed in 5.44s` | — |
+| M1 | 把 `import time` 从 `tests/test_allowlist.py` 删掉（就是本门要抓的那个真实缺陷形状） | exit=1，红在全仓那条 | `modules using a stdlib name they never import: {'tests\\test_allowlist.py': ['time']}` |
+| M2 | 让扫描器认为所有表内名字都已 import（机制致盲） | exit=1，红在合成表那条 | `assert set() == {'time'}` |
+| M3 | 让扫描器忘掉局部绑定 | exit=1，**两条断言都红** | 合成表：`a parameter shadowing the module name is not a missing import`；全仓：`{'minicc\\impact.py': ['queue'], 'minicc\\session.py': ['queue'], 'minicc\\task_manager.py': [...]}` |
+| 还原后控制 | — | `2 passed in 3.35s` | — |
+
+M3 是意外收获：**局部遮蔽在这仓里是真实存在的**（`minicc/impact.py`、`minicc/session.py`、
+`minicc/task_manager.py` 都用 `queue` 当局部名字），所以 `_bound_names` 那一半不是装饰——
+没有它，门一上岗就会报 3 条假红。判据的两侧都由源码给出，不是由门自己写的数字给出。
+
+### 4. 边界
+
+* 门只看 `base.attr` 形状的属性读法；`from x import y` 后单用 `y` 的缺导入不在本门范围（那是另一类，
+  而且 pyflakes 的 `undefined name` 需要完整作用域分析）。登记而不扩张。
+* `tests/` 之外还带 `minicc/` 与 `scripts/`，是因为 M3 证明产品代码里遮蔽同名模块是常态——
+  只扫 `tests/` 会放过产品代码里同类的一半错误。
