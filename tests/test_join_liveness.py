@@ -2,28 +2,29 @@
 
 ``thread.join(timeout=5)`` returns whether or not the thread stopped.  Reading
 the answer back is the only way a test can say "the server is down" or "that
-worker is gone" - and until this batch, 15 of the 18 places in ``tests/`` that
-join a thread never read it again.
+worker is gone" - and until this batch, 16 of the 20 (function, receiver) pairs
+in ``tests/`` that join a thread never read it again.
 
 M8-T68 made the HTTP fixtures prove the server thread was alive *before*
 publishing its url.  The same reasoning applies at the other end and was missed
 there: a fixture that reports a stopped-looking server it never verified as
 stopped can keep answering on its socket, and the service behind it keeps
 writing the shared task store, after the test that owns it has finished.  Five
-of the 15 read ``is_alive()`` at startup and then never again, which is exactly
+of the 16 read ``is_alive()`` at startup and then never again, which is exactly
 the shape this gate exists to catch: the claim was made about the beginning of
 the window and never about the end.
 
 Census, measured on this tree by the AST walk below (``tests/`` only, run
-2026-09-26 against ``916a31c``):
+2026-09-26 against ``741d645``, the commit before this batch):
 
-  19 join calls on a resolved thread receiver, in 18 (function, receiver) pairs.
-  Resolved means the receiver names something bound to ``threading.Thread(...)``:
-  directly, as the element of a list/comprehension of them, or as ``self.thread``
-  in a fixture class.  Counting joins by attribute name alone also counts
+  21 join calls on a resolved thread receiver, in 20 (function, receiver) pairs
+  across 79 modules.  Resolved means the receiver names something bound to
+  ``threading.Thread(...)``: directly, as the element of a list/comprehension of
+  them, as the loop variable over such a list, or as ``self.thread`` in a
+  fixture class.  Counting joins by attribute name alone also counts
   ``", ".join(...)``, which is how an earlier pass at this census reported 49.
-  All 19 are bounded (none is a bare ``join()``), and only 3 pairs read
-  ``is_alive()`` at a line after their first join.  15 did not; this batch gives
+  All 21 are bounded (none is a bare ``join()``), and only 4 pairs read
+  ``is_alive()`` at a line after their first join.  16 did not; this batch gives
   every one of them that read.
 
 The rule is per (function, receiver), not per call: a test that joins once to
@@ -147,20 +148,24 @@ def join_claims(source: str) -> list[dict[str, object]]:
     return records
 
 
+def label(record: dict[str, object]) -> str:
+    return f"{record['function']}:{record['receiver']}@{record['first_join']}"
+
+
+def is_unclaimed(record: dict[str, object]) -> bool:
+    """The judgement itself, written once.  The synthetic fixtures assert on this
+    in both directions, so the suite-level test has no second copy of the
+    comparison that could quietly stop comparing."""
+    return not record["claims"]
+
+
 def labels(source: str) -> list[str]:
     """The join sites this source reports, claimed or not."""
-    return [
-        f"{record['function']}:{record['receiver']}@{record['first_join']}"
-        for record in join_claims(source)
-    ]
+    return [label(record) for record in join_claims(source)]
 
 
 def unclaimed(source: str) -> list[str]:
-    return [
-        f"{record['function']}:{record['receiver']}@{record['first_join']}"
-        for record in join_claims(source)
-        if not record["claims"]
-    ]
+    return [label(record) for record in join_claims(source) if is_unclaimed(record)]
 
 
 def line_of(source: str, needle: str) -> int:
@@ -304,9 +309,11 @@ def test_every_thread_join_in_the_suite_is_followed_by_a_liveness_read() -> None
     for path in files:
         source = path.read_text(encoding="utf-8")
         for record in join_claims(source):
-            records.append(f"{path}:{record['function']}:{record['receiver']}@{record['first_join']}")
-            if not record["claims"]:
-                reported.append(f"{path}:{record['function']}@join-line-{record['first_join']}")
+            records.append(f"{path}:{label(record)}")
+            if is_unclaimed(record):
+                reported.append(
+                    f"{path}:{record['function']}@join-line-{record['first_join']}"
+                )
     assert len(records) >= 15, (
         f"only {len(records)} thread joins were resolved across {len(files)} modules; "
         f"the receiver rule has stopped matching the real fixtures ({records})"
