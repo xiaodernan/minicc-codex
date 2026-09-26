@@ -48,6 +48,11 @@ from minicc.web import AgentService
 # provenance instead of a bare number appearing in a failure message.
 PUBLISH_BUDGET_S = 2.0
 JOIN_BUDGET_S = 2.0
+# The merge wait needs two thread starts to reach the service, not one frame
+# append, so it sits above PUBLISH_BUDGET_S.  It cannot usefully go past the
+# workers' own 5.0s park timeout below: past that the group resolves by itself,
+# the second waiter detaches, and a longer patience only delays the red.
+MERGE_BUDGET_S = 5.0
 
 
 
@@ -255,7 +260,15 @@ def test_approval_cancel_exits_fast(tmp_path: Path) -> None:
         on_event=frames.append, cancel_event=cancel, timeout=30.0,
     )))
     thread.start()
-    time.sleep(0.1)
+    # The 0.1s beat stood in for "the prompt is on screen and the thread is parked
+    # on it"; cancel before that and this test measures cancelling an idle
+    # request.  The prompt frame is the same fact, written by the thread itself,
+    # so wait for it instead of assuming it (M8-T70).
+    frame = _wait_for(
+        "the approval request frame that parks the thread",
+        lambda: _frame(frames, "approval_request"),
+    )
+    assert frame["name"] == "bash" and frame["status"] == "pending"
     cancel.set()
     _joined("a bash approval cancelled by the task", thread)
     assert box["decision"] == "deny"
@@ -289,14 +302,45 @@ def test_similar_inflight_calls_merge_into_one_prompt(tmp_path: Path) -> None:
     threads = [threading.Thread(target=worker) for _ in range(2)]
     for t in threads:
         t.start()
+
+    def merged_waiters() -> int:
+        """How many callers are parked on the single pending group, or 0.
+
+        0 while there is not exactly one group, so "two waiters" cannot be
+        satisfied by two unmerged groups of one waiter each - which is the other
+        thing a fixed beat used to be unable to tell apart.
+        """
+        with service._approval_guard:
+            groups = list(service._approval_groups.values())
+        if len(groups) != 1:
+            return 0
+        return len(groups[0].waiters)
+
     # Both threads park on the identical merge_key → exactly one pending group.
-    _wait_for("exactly one pending approval group", lambda: len(service._approval_groups) == 1)
-    time.sleep(0.1)  # give the second worker a beat to merge in
+    # The beat used to be ``sleep(0.1)`` followed by ``len(group.waiters) >= 1``.
+    # Measured against planted mechanisms in a scratch worktree (three lags for
+    # the second caller: 0.0s, 0.3s, 1.2s; the beat checks at ~0.11s):
+    #   merge lookup disabled      -> old red, new red   (2 prompts shown)
+    #   merged caller never attaches to the group -> old GREEN, new red (1 prompt)
+    #   nothing planted            -> old green, new green
+    # So the old shape's ``len(groups) == 1`` was watching the merge itself; the
+    # part the beat could not see was whether the second caller is *in* the group
+    # it merged into - which is the difference between one prompt waking two
+    # callers and one prompt waking none of the parked ones.  The waiter count is
+    # that fact, it is readable here, so wait for it and assert the number this
+    # test's own name claims (M8-T70).
+    # budget_s is widened from the module default because this predicate waits on
+    # two thread starts reaching the service, not on one frame being appended.
+    _wait_for(
+        "both identical calls parked on one approval group",
+        lambda: merged_waiters() == 2,
+        budget_s=MERGE_BUDGET_S,
+    )
     with service._approval_guard:
         assert len(service._approval_groups) == 1, "identical calls must merge"
         request_id = next(iter(service._approval_groups))
         group = service._approval_groups[request_id]
-        assert len(group.waiters) >= 1
+        assert len(group.waiters) == 2, "both identical calls must be parked on the group"
     service.resolve_approval(request_id, "allow")
     for index, t in enumerate(threads):
         _joined(f"merged waiter #{index}", t, budget_s=3.0)

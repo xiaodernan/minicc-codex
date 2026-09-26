@@ -34,7 +34,9 @@ def _write_registry(sleep: float, events: list[str], failures: set[str]) -> Tool
         def handler(args: dict[str, Any]) -> ToolResult:
             path = str(args["path"])
             events.append(f"start:{tool_name}:{path}")
-            time.sleep(sleep)
+            # This sleep is not waiting for anything - it *is* the critical
+            # section whose width the overlap assertions measure.
+            time.sleep(sleep)  # wait-claim: this write is still open, so a peer can overlap it
             if path in failures:
                 events.append(f"fail:{path}")
                 return ToolResult(status="error", summary=f"[ERR] {path}", security_tags=["untrusted"])
@@ -157,7 +159,9 @@ def test_parallel_writes_are_actually_overlapping() -> None:
         with lock:
             active["n"] += 1
             peak["n"] = max(peak["n"], active["n"])
-        time.sleep(0.2)
+        # Hold the slot open: without a window inside which a second writer can
+        # arrive, a serial implementation would still see peak == 1 and pass.
+        time.sleep(0.2)  # wait-claim: this writer is still active, so a peer can raise the peak
         with lock:
             active["n"] -= 1
         return ToolResult(status="ok", summary="ok")

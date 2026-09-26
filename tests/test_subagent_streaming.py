@@ -28,6 +28,11 @@ from minicc.llm.base import LLMResponse
 from minicc.tools import build_registry
 from minicc.tools.editor import Editor
 
+# How long the cancelling thread is willing to wait for the subagent to reach a
+# state worth cancelling.  Generous on purpose: it is a ceiling on patience, not
+# a claim about speed, and the test reports the value it actually observed.
+CANCEL_SIGNAL_BUDGET_S = 10.0
+
 
 class ScriptedProvider:
     """One tool-use turn (read_file) then a final answer, reporting usage."""
@@ -145,17 +150,38 @@ def test_parent_waits_bounded_and_cancels_promptly(tmp_path: Path) -> None:
         timeout_seconds=30.0,
     )
 
-    def cancel_soon() -> None:
-        time.sleep(0.5)
+    def cancel_when_running() -> None:
+        # The beat used to be ``time.sleep(0.5)`` before signalling, so the test
+        # proved "a running subagent stops" only on the condition that the child
+        # had reached its first provider call inside that half second.  ``turns``
+        # is that fact, observable from here, so wait for it and remember what was
+        # true when the signal went out (M8-T70).
+        begun = time.monotonic()
+        while provider.turns == 0 and time.monotonic() - begun < CANCEL_SIGNAL_BUDGET_S:
+            time.sleep(0.01)
+        box["turns_at_signal"] = provider.turns
         cancel.set()
 
-    timer = threading.Thread(target=cancel_soon, daemon=True)
+    box: dict[str, int] = {"turns_at_signal": -1}
+    timer = threading.Thread(target=cancel_when_running, daemon=True)
     timer.start()
     started = time.monotonic()
     result = spec.handler({"description": "持续调研任务", "prompt": "反复读取 README.md 直到取消。"})
     timer.join(timeout=2.0)
     elapsed = time.monotonic() - started
 
+    # -1 is not "the child was idle", it is "the cancelling thread never got to
+    # record anything", and those are different bugs, so name them apart.
+    assert box["turns_at_signal"] != -1 or not timer.is_alive(), (
+        f"cancelling thread {timer.name!r} was still waiting for the first provider call "
+        f"when the subagent returned (budget {CANCEL_SIGNAL_BUDGET_S}s)"
+    )
+    assert box["turns_at_signal"] >= 1, (
+        f"the cancel was signalled with turns={box['turns_at_signal']}, i.e. before the "
+        f"subagent had made a provider call, even after waiting "
+        f"{CANCEL_SIGNAL_BUDGET_S}s - so this run measured cancelling an idle task, not "
+        f"aborting one that was working"
+    )
     assert result.status == "cancelled"
     # The two endings are distinguishable by text, so the text carries the claim.
     assert "[TIMEOUT]" not in result.summary, result.summary

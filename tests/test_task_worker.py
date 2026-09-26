@@ -289,7 +289,10 @@ def test_clean_shutdown_aborts_a_worker_that_ignores_cancellation(
         assert time.monotonic() - started < 40, "shutdown waited on the worker forever"
 
         ticks = parked["alive"].stat().st_size
-        time.sleep(1.0)
+        # The negative twin of the growth check below: an absence can only be
+        # proven over a window, and the worker ticks every 0.05s while parked, so
+        # one second is ten chances for it to write if it were still running.
+        time.sleep(1.0)  # wait-claim: a worker still running would have ticked by now
         assert parked["alive"].stat().st_size == ticks, "worker kept running after shutdown"
 
         final = store.get(task_id) or {}
@@ -394,8 +397,16 @@ def test_worker_survives_host_crash_and_continues_long_stream(
         assert (store.get(task_id) or {}).get("status") == "running"
         assert not (tmp_path / ".minicc" / "cancel" / f"{task_id}.flag").exists()
         ticks = parked["alive"].stat().st_size
-        time.sleep(1.0)
-        assert parked["alive"].stat().st_size > ticks, "worker died with its host"
+        # The worker ticks every 0.05s while parked, so the claim is observable as
+        # growth.  A fixed 1s beat asked "did it tick inside my window", which a
+        # loaded machine can answer "no" to for a worker that is alive (M8-T70);
+        # polling against a budget returns as fast and names the budget when it
+        # really does give up.
+        _wait_until(
+            lambda: parked["alive"].stat().st_size > ticks,
+            timeout=10.0,
+            message=f"the orphaned worker to outlive its host (alive log to grow past {ticks} bytes)",
+        )
 
         from minicc.web import AgentService
 

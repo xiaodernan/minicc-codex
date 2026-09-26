@@ -138,12 +138,23 @@ def test_bash_cancellation_terminates_long_running_process(tmp_path: Path) -> No
     worker = threading.Thread(target=run)
     worker.start()
     try:
-        time.sleep(0.25)
+        time.sleep(0.25)  # wait-claim: the child has had time to launch before the signal
         cancel_event.set()
         worker.join(8)
         assert not worker.is_alive(), "cancelled bash must not leave the task thread blocked"
         result = result_box["result"]
         assert result.status == "cancelled"
+        # This beat is the one the census could not turn into a poll: run_process
+        # owns the child's pipe, so "it had started" is only visible once it
+        # returns.  So it is checked afterwards, from the child's own first line.
+        # If the signal had landed first, the summary would read 未启动进程 and
+        # this test would be proving a different branch than its name claims.
+        printed = f"{result.head}{result.tail}"
+        assert "started" in printed, (
+            f"cancelled a bash child that never printed its first line "
+            f"(head={result.head!r} tail={result.tail!r} summary={result.summary!r}) - "
+            f"the 0.25s beat above was too short to reach the running-and-killed branch"
+        )
         assert "终止进程树" in result.summary
     finally:
         cancel_event.set()

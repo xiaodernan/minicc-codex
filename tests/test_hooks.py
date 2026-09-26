@@ -180,7 +180,7 @@ def test_pre_tool_use_timeout_denies_and_does_not_hang(tmp_path: Path) -> None:
     # The hook now leaves evidence 3s into its own sleep, so "it is still alive" is
     # observable instead of inferred from a stopwatch.  The grace wait below is setup,
     # not a judgement: it only has to outlast the hook's sleep.
-    time.sleep(4.0)
+    time.sleep(4.0)  # wait-claim: a hook left running would have slept to completion
     assert not (tmp_path / "hook_outlived_its_timeout").exists(), (
         "the timed-out hook was abandoned, not terminated: it slept to completion and "
         "left its marker"

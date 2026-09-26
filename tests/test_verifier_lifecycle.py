@@ -76,7 +76,7 @@ def test_real_check_process_is_cancelled_promptly(tmp_path, suite_python_bin):
     # process abandoned at 1s satisfies it just as well as one killed at 1s, and one
     # killed at 9s fails it for the wrong reason. The grace wait only has to outlast the
     # check's own 3s sleep - it is setup, not the judgement.
-    time.sleep(4.0)
+    time.sleep(4.0)  # wait-claim: a check left running would have slept to completion
     assert not (tmp_path / "check_outlived_the_cancel").exists(), (
         "the cancelled check was abandoned rather than stopped: it finished its sleep "
         "and wrote its marker"
