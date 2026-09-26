@@ -11,11 +11,12 @@ them was attached to it (measured: tests/test_permissions_approval.py).
 Census, measured on this tree by the AST walk below (``tests/`` only, run
 2026-09-26 against ``3f4f221``):
 
-  61 lines mention ``time.sleep(`` and 51 of them are real calls.  The other 10
-  put a sleep inside a string handed to a child process - there it *is* the
-  behaviour under test, so no rule here applies to it.
-  Of the 51 calls, 4 are ``asyncio.sleep`` and out of scope, leaving 47 blocking
-  sleeps: 37 sit inside a loop that names a budget, so they poll, and 10 are
+  61 lines mention ``time.sleep(``.  47 of them are real blocking calls; the
+  other 14 put a sleep inside a string handed to a child process, where it *is*
+  the behaviour under test, so no rule here applies to it.  A separate
+  population, not part of either count: 4 ``asyncio.sleep`` calls, out of scope
+  because a coroutine yielding is not a thread parking itself.
+  Of the 47, 37 sit inside a loop that names a budget, so they poll, and 10 are
   flat - a beat in a straight line.  Each of those 10 was read:
 
     4 replaced by a bounded wait on the observable fact -
@@ -36,8 +37,12 @@ Census, measured on this tree by the AST walk below (``tests/`` only, run
       tests/test_task_worker.py (the negative twin of the growth check: prove
       the orphan did stop ticking - an absence needs a window, not a poll).
 
-This file now measures 6 flat sleeps of its own making, and the count that was
-10 is the number the four replacements removed.
+After the batch the same walk measures 44 blocking sleeps in 79 modules: 38 poll,
+6 are flat, and the gate reports none of them.  The arithmetic is visible rather
+than assumed - four flat beats disappeared and one new polling sleep was written
+in ``test_subagent_streaming.py``, so 47 - 4 + 1 = 44 and 10 - 4 = 6.  Run this
+file against ``3f4f221``'s ``tests/`` and it names all ten sites verbatim; that
+red is the thing this gate exists to make impossible.
 
 The rule is deliberately about *declaration*, not about shape: deciding whether
 a beat could be replaced by a poll needs a reader, and this batch is what that
