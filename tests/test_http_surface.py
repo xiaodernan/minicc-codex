@@ -370,13 +370,23 @@ def test_roots_allow_inside_path(rooted) -> None:
 
 def test_concurrent_task_submits(live: _LiveServer, tmp_path: Path) -> None:
     results: list[tuple[int, str]] = []
+    failures: list[str] = []
     lock = threading.Lock()
 
     def submit(index: int) -> None:
-        status, _, body = _post_json(f"{live.url}/api/tasks", {
-            "message": f"task {index}", "session_id": f"conc-{index}",
-            "workspace_path": str(tmp_path), "_defer_schedule": True,
-        })
+        try:
+            status, _, body = _post_json(f"{live.url}/api/tasks", {
+                "message": f"task {index}", "session_id": f"conc-{index}",
+                "workspace_path": str(tmp_path), "_defer_schedule": True,
+            })
+        except BaseException as exc:  # noqa: BLE001 - the point is to report it
+            # An exception raised in a thread used to vanish here: it never reached
+            # results and never propagated, so the only evidence left was
+            # "assert 0 == 8" - a sentence about a list length, on a machine where
+            # the real cause was eight connection refusals.
+            with lock:
+                failures.append(f"submit {index}: {type(exc).__name__}: {exc}")
+            return
         task_id = json.loads(body).get("task_id", "") if status == 202 else ""
         with lock:
             results.append((status, task_id))
@@ -384,9 +394,18 @@ def test_concurrent_task_submits(live: _LiveServer, tmp_path: Path) -> None:
     threads = [threading.Thread(target=submit, args=(i,)) for i in range(8)]
     for thread in threads:
         thread.start()
-    for thread in threads:
+    for index, thread in enumerate(threads):
         thread.join(timeout=30)
-    assert len(results) == 8
+        if thread.is_alive():
+            raise AssertionError(
+                f"submitter thread #{index} ({thread.name}) was still running after a "
+                f"30s join; the server never answered it, and no result can be read "
+                f"from a thread that did not return"
+            )
+    # Cause first, count second: if this gate ever reddens, the sentence has to name
+    # what the eight threads hit rather than that a list is short.
+    assert not failures, "concurrent submits raised: " + "; ".join(failures)
+    assert len(results) == 8, results
     assert all(status == 202 for status, _ in results), results
     ids = [task_id for _, task_id in results]
     assert len(set(ids)) == 8 and all(ids)
