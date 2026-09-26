@@ -4755,3 +4755,173 @@ exit 0**——1150 + 本批 2 条新门，条数与 exit 就是判据。时长�
   2 个在测试体内）。顺带把一条想当然的危险证伪：本仓所有测试内 HTTP 服务都绑 **端口 0**，
   所以「没停掉的线程会抢走下一个测试的端口」不成立；剩下的危险是「teardown 声称已停却从未验证」
   和「服务线程在断言之后继续写共享 task store」。
+
+## 第五十六批（M8-T71：`join(timeout=N)` 回来了，不等于线程停了）
+
+批次：本批两个提交 —— 门与 16 处声明（`6b1651b`），普查数字与判断式收敛的自纠（`e775a22`）。
+基线：见文末第 8 节（一定带平面与时数）。
+
+### 0 这一类缺陷是什么
+
+`thread.join(timeout=5)` 在两件事上都返回：线程真的停了，以及 5 秒到了它还在跑。
+返回值是 `None`，所以调用者唯一能问的是 `is_alive()`。第五十五批处理的是「等外部事实」
+的那一侧（睡够时长就当对方到了状态）；这一批处理另一侧：**有界等待结束了，没人读结果**。
+后果不是「测试少断言一句」那么轻：HTTP 夹具的 `shutdown()` 里 join 超时，就意味着
+这个 socket 还能应答、它背后的服务还在写共享任务库，而拥有它的测试已经结束了 ——
+下一个测试读到的是谁写的行，没人说得清。这跟 M8-T68 立的是同一条理，只是方向相反：
+T68 要求「发布 url 之前证明服务线程活着」，本批要求「宣称关停之后证明它死了」。
+
+### 1 先量，并且让门先在旧树上红
+
+新门：`tests/test_join_liveness.py`（3 项）。它不数属性名，它解 AST：
+接收者必须是绑到 `threading.Thread(...)` 的名字（直接赋值、列表/推导式的元素、
+以该列表为 `iter` 的 `for` 循环变量、夹具类里的 `self.thread`），
+然后按 (函数, 接收者) 配对：该函数内、**首 join 之后**、同一接收者上的 `is_alive()` 读
+才算声明。判据跑在补丁前的旧树（`741d645` 的 `tests/`）上，量出来是：
+
+  79 个模块、21 次对已解析线程接收者的 join、20 个 (函数, 接收者) 对、
+  其中 4 对已有 join 之后的存活读、**16 对没有**、裸 `join()`（无上限）0 处。
+
+任务登记时写的是「10 处收尾 join」；门跑起来是 16 处。两个口径不同：手数只算了
+夹具的收尾，门的单位是 (函数, 接收者) 对，所以测试函数体内的 server join 也算。
+本批以门为准，10 那个数字不再出现在任何文档里。
+
+16 处按证据形状分四类，本批逐类补的东西不同：
+
+| 类 | 处数 | 站点 | 补的声明 |
+| --- | --- | --- | --- |
+| 夹具类的 `shutdown()`（`self.thread`） | 6 | file_tree / history / route_inventory / http_surface / logging / web_security | 「该测试 HTTP 服务线程 5s 后仍在」+ 它仍能干什么（socket 仍可应答、背后的服务仍在写） |
+| yield 夹具里的局部 `thread` | 2 | mcp_http 的 `mcp_url`、webfetch 的 `local_server` | 同上，并点名「夹具收尾之后它还能回一个 POST」 |
+| 测试函数体内的 server 线程 | 5 | allowlist、mcp_http 的鉴权头测试、optimization_core、p0_p1_p2、session_rewind | 点名「上面断言过的那批响应仍可能被这个线程改写」 |
+| 被测 worker / callback 线程 | 3 | benchmark_runner 的被弃 worker、session_concurrency 的 8 个写线程、task_durability 的流式回调 | 写线程用「还活着的就是哪些名字」列表；被弃 worker 的声明放在 `try/finally` **之后** |
+
+其中有 5 处正是本门要抓的形状：**只在 join 之前读过 `is_alive()`**（M8-T68 的启动轮询），
+之后再也没有读 —— 声明是关于窗口起点的，不是关于终点的。旧树上的配对是：
+allowlist 启动读 106 / join 145，optimization_core 244 / 284，p0_p1_p2 364 / 394，
+session_rewind 105 / 151，webfetch 96 / 115。
+
+本批没有把任何一处换成轮询：这些站点等的不是「对方到达某状态」，而是「对方已经离开」，
+而离开本身没有可轮询的中间事实；能轮询的东西（端口、url）在关停后必须**变红**，
+把它当作等待条件等于把「失败」当「成功」用。所以按 T70 的三分法，这一格落到
+「确实需要窗口 → 写明假设并读回结果」。
+
+### 2 变异见证：7/7，控制组两端都绿，逐字节还原
+
+跑法：`t76_teeth.py` 在 `e775a22` 的干净 worktree 上；每个变异要求 needle 命中恰好一次、
+文件仍可导入（`SyntaxError` / `IndentationError` / `ImportError` / `ERROR collecting`
+四类产物一律判为「不是红」）、红落在指定测试上且带指定报错片段、`finally` 里
+字节比对还原。控制组：跑前 `3 passed in 1.31s`，全部变异跑完再跑一次
+`3 passed in 1.18s exit 0`。
+
+| # | 变异 | 期望落点 | 结果 |
+| --- | --- | --- | --- |
+| M1 | 真站点删声明：把 file_tree 夹具里那段 `assert not self.thread.is_alive()` 摘掉（还原成 741d645 的样子） | 套件级判定测试，报错含 `test_file_tree_api.py:shutdown@join-line-146` | RED-AS-CLAIMED（1 红） |
+| M2 | 接受 join 之前的读：`kind == "is_alive" and lineno > first` → 去掉 `lineno > first` | 合成判定测试，报错含「is a claim about startup」 | RED-AS-CLAIMED（1 红） |
+| M3 | 不解析 `for` 循环变量：`node.iter.id in lists` → `in ()` | 合成判定测试，报错含「the loop variable was not resolved」 | RED-AS-CLAIMED（1 红） |
+| M4 | 不把 `self.thread` 当线程接收者 | 套件级判定测试，报错含「the receiver rule has stopped matching the real fixtures」（可达性地板：20→14 触发） | RED-AS-CLAIMED（1 红） |
+| M5 | 只按属性名匹配（去掉接收者过滤） | 合成判定测试，报错含「is not a thread join」 | RED-AS-CLAIMED（2 红） |
+| M6 | 所有声明都不算数（CLEAN 夹具必须保持绿） | 合成判定测试，报错含「one claim after the first join covers」 | RED-AS-CLAIMED（2 红） |
+| M7 | 判定式恒答「已声明」：`return not record["claims"]` → `return False` | 合成判定测试，报错含「must be reported」 | RED-AS-CLAIMED（1 红） |
+
+M5/M6 各出两红是**一致而非噪声**：放宽接收者规则会让真套件凭空多出违规，
+收紧到不信任何声明会让真套件把 20 对全报出来 —— 两红都是「合成 + 套件」这一对，
+不是同一条断言重复。七条全部 `restored=True`。
+
+### 3 反向控制：判据不自行发明
+
+把 `e775a22` 的门原样拷进 `git archive 741d645` 解出来的旧 `tests/` 里跑：
+`1 failed, 2 passed`，报错逐字列出 **16** 个站点（每个都是 `文件:函数@join-line-N`），
+与本批补丁前的量法完全一致。这一步的意义：门的红来自被扫的源码，
+不是门自己造的一个数；同时它也是「这 16 处在补丁前确实无声明」的可复现凭证。
+（跑完把拷进去的门删掉，旧树不留东西。）
+
+### 4 两处自我纠正（都写在提交的 docstring 里）
+
+1. **誊来的普查数字是错的**。第一个提交的 docstring 写「19 次 join / 18 对 / 3 对已声明 /
+   15 对未声明」—— 那是上一批手量脚本的数字。把**随本批提交的那扇门**跑在 `741d645` 上，
+   实测 21 / 20 / 4 / 16。手量少掉的两格里能指认的一处是
+   `for thread in threads:` 的循环变量（M3 就是钉这一格）；第二处没有再复现手量脚本
+   去逐格对账，因此本批只登记一条：**口径以门为准，手量数字不进文档**。
+   门的报错数（16）与 docstring（16）与反向控制（16）三方一致后才落文档。
+2. **判断式有两份副本，其中一份没见证**。套件级测试原先自己写了一遍
+   `if not record["claims"]`。探针把这一句改成 `if False` 之后，门**全绿** ——
+   也就是说「有没有声明」这个比较可以在无人察觉的情况下被删掉。修法不是再补一条测试，
+   而是把比较收敛成单一 `is_unclaimed(record)`，让合成夹具（CLEAN 必须 []、
+   DIRTY 必须点名）从两侧钉它；改完再跑同一族变异，M7 就是这条探针，现在会红。
+   形状：**同一句判断写两遍，就有一遍是无人负责的**。
+
+### 5 收尾声明会不会把真失败顶掉（实测，不是推测）
+
+被弃 worker 那处必须在 `try/finally` **之后**而不是之内。两种形状在同一台机器上跑出来的
+差别（探针 `t76_masking.py`：测试体自己失败 + 一处收尾声明，以及 yield 夹具收尾声明）：
+
+- 声明写在测试体自己的 `finally` 里：pytest 打 `During handling of the above exception,
+  another exception occurred:`，短摘要里这条测试显示的是**收尾声明**
+  （`AssertionError: teardown claim: the stuck-body thread never stopped`，行号指向 finally 那行），
+  测试体真正的 `assert 1 == 2` 被压到下面。判断在读，收尾把判断的标题抢走了。
+- 声明写在 yield 夹具的收尾里：测试的 `FAILED` 仍然显示体内那条真失败
+  （`the real failure in the test body`），收尾声明另起一条 `ERROR` ——
+  本次输出是 `2 failed, 1 error`。
+
+⇒ 结论落到写法上：夹具/收尾函数里的声明安全（它天生是另一个条目）；
+测试体 `try/finally` 里的声明会把 judgement 的归因换掉，所以 benchmark_runner 那条放在
+`finally` 之后，并在代码里写明理由。M8-T71 的 16 处补丁只有这一处原来在 `finally` 内。
+
+### 6 行尾与工具陷阱
+
+- 16 处补丁跨 15 个文件（mcp_http 两处）。打补丁前先量纯度：4 个文件 CRLF
+  （http_surface 941 / logging 831 / route_inventory 491 / benchmark_runner 488 且 lone_lf 全 0），
+  11 个文件纯 LF。因为每文件只有一种行尾，「按多数选 unit」这一步不会顺手把别人的
+  孤行 LF 改写掉；打完逐文件复量，CRLF 文件各 +5 行 CRLF、`lone_lf` 仍为 0。
+- 补丁脚本第一次跑就**编译失败**：`f"...{'CRLF' if unit == '\r\n' else 'LF  '}"` 在
+  Python 3.11 是 `SyntaxError: f-string expression part cannot include a backslash`。
+  这件事的正面是：编译期死亡 ⇒ 15 个文件一个字节都没被改，第二次跑才是真跑。
+  反面教训照旧：把 label 先在 f-string 外算好。
+- worktree 检出是 CRLF（`core.autocrlf`），而主树工作副本里这 11 个文件是 LF：
+  门的 AST 与行尾无关，所以同一份门在两个平面上给出同一张 16 格表（第 3 节实测）。
+
+### 7 提交树上的直接验证
+
+在 `6b1651b` 的 worktree（`minicc.__file__` 已打印核对为 worktree 内）分两批跑被改的 16 个文件：
+`175 passed in 46.62s` + `57 passed in 31.52s` = 232 项，全绿。这一步必须在变异见证之前，
+否则「声明永远成立」是空的：新加的 16 条断言里任何一条在真机器上不稳，
+门就只是把一种不确定性换成了另一种。
+
+### 8 基线（数字要带平面，这条是本批最大的教训）
+
+第一次整跑（worktree + `-W error` + `--basetemp=./full`）：**4 failed, 1151 passed in 819.45s**
+（收集数 1155 = 上一批 1152 + 本批 3）。四条红逐条读原文后，**全部是本批跑法的产物，不是被提交树的缺陷**：
+
+- 2 条 `test_doc_pointers`：报错是「链接目标 real.md 本机有（`full/test_.../real.md`），但 git 没有跟踪它」。
+  这两条测试把临时文档写在 `tmp_path` 里，而 `--basetemp=./full` 把 `tmp_path` 搬进了 git 工作树，
+  于是「本机有 / git 无」这条**正确的**干净检出判定被触发。
+- 1 条 `test_retrieval_eval` 地板（`recall@5=0.0`）：`LocalEvidenceIndex` 有 `max_files=1200` 的截断，
+  被 `full/` 里上一次运行留下的几千个临时文件吃满。清掉之后同一条测试在干净 worktree 上是
+  `files_indexed=230, truncated=False, recall@5=0.9`。
+- 1 条 `test_core_task` 的编排超时（墙钟 deadline），隔离重跑 `4 passed in 5.67s`。
+
+⇒ 登记为可复用的规矩：**`--basetemp` 永远放在被测树外面**。任何「问 git 某路径跟不跟踪」
+或「走目录数文件」的门，都会把落在树内的临时目录读成真实世界的一部分。
+第二次整跑（同一提交 `e775a22`、干净 worktree、`--basetemp` 在树外、`-W error`、单进程）：
+**1155 passed in 661.42s (0:11:01)，exit 0**。收集数 1155 = 上一批 1152 + 本批新增 3 项，
+对得上。整跑的命令形式（cwd 在 worktree、`PYTHONPATH=<worktree>`）单独核对过解析结果：
+`attribution: C:\Users\18414\AppData\Local\Temp\t76wt\minicc\__init__.py`，worktree 干净且
+`git rev-parse HEAD` 就是 `e775a22` —— 主树的 `.pth` 指的是 `D:\面试项目\minicc-codex`，
+不设这个变量的整跑量的是别人的树。
+
+### 9 下一批候选与仍挂着的事
+
+- **M8-T72（候选，今日已量化）**：一个测量门的分母来自**被截断的目录遍历**
+  （`max_files=1200`，`truncated` 只进 stats 不进报错）。今天 `recall@5=0.0` 看起来像
+  「词法检索塌了」，真因是索引里 1200 个名额被临时文件占满。判据应当要求：
+  凡指标可能因截断而失真，报错里必须自带 `files_indexed / file_limit / truncated`，
+  使 0.0 可归因。反向控制：往工作树里放 N 个垃圾 `.md`/`.py`，门必须说出「截断」而不是「recall 掉了」。
+- 同一族里剩下的两格：`join()`（无上限）今天实测 0 处，门已把「无上限」单独记账，
+  出现时 M8-T71 的可达性与 unbounded 两条都会点名；13 个 `serve_forever` 夹具的
+  存活声明由 M8-T68 看着。
+- 仍等用户点头（本批没有自行动）：把 `scripts/doc_pointers.py --check` 与
+  `scripts/route_coverage.py --check` 接进 CI；M6-4 的 30 条真模型基线（配额）；
+  M8-T11 流式合并语义；M8-T25 成本 null 与 0.0 的口径。
+- 提醒：同一目录并存的另一个 run 目前把 `minicc/agent/router.py` 的 `DEFAULT_MODELS`
+  改成了 dataclass 的可变默认值，主树 `pytest` 在收集期就 `ValueError: mutable default ...`，
+  所以**主树整跑今天不可用**，本批全部数字都取自提交树的 worktree；那条红是别人的现场，不归本批修。
