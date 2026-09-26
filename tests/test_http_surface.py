@@ -15,6 +15,7 @@ import json
 import shutil
 import subprocess
 import threading
+import time
 import types
 import urllib.error
 import urllib.request
@@ -63,13 +64,45 @@ class _LiveServer:
             task_store=TaskStore(tmp_path / "tasks.sqlite3"),
         )
         self.server = MiniccHTTPServer(("127.0.0.1", 0), self.service, auth=auth)
+        self.error: BaseException | None = None
+        self.url = f"http://127.0.0.1:{self.server.server_address[1]}"
         # A small poll_interval keeps server.shutdown() (which waits one poll
         # cycle) cheap; this module boots ~30 short-lived servers.
         self.thread = threading.Thread(
-            target=self.server.serve_forever, kwargs={"poll_interval": 0.05}, daemon=True
+            target=self._serve, kwargs={"poll_interval": 0.05}, daemon=True,
+            name="minicc-test-server",
         )
         self.thread.start()
-        self.url = f"http://127.0.0.1:{self.server.server_address[1]}"
+        # M8-T68: when this server died, the suite said "connection refused" and left it at
+        # that - one contended run produced 73 such failures across these fixtures plus an
+        # "assert 0 == 8" and a teardown ExceptionGroup, none of which named the dead thread.
+        # So the fixture now proves it is serving before handing out its url, and reports the
+        # thread's own exception if it is not.
+        deadline = time.monotonic() + 10.0
+        while True:
+            if self.error is not None or not self.thread.is_alive():
+                raise AssertionError(
+                    f"the test HTTP server thread {self.thread.name!r} died before serving "
+                    f"{self.url}; it raised: {self.error!r}"
+                )
+            try:
+                status, _, _ = _request(f"{self.url}/api/health", method="GET")
+            except OSError:
+                status = -1
+            if status == 200:
+                return
+            if time.monotonic() >= deadline:
+                raise AssertionError(
+                    f"the test HTTP server at {self.url} never answered /api/health within "
+                    f"10s; thread alive={self.thread.is_alive()}, its exception={self.error!r}"
+                )
+            time.sleep(0.02)
+
+    def _serve(self, **kwargs) -> None:
+        try:
+            self.server.serve_forever(**kwargs)
+        except BaseException as exc:  # noqa: BLE001 - reported by the constructor
+            self.error = exc
 
     def shutdown(self) -> None:
         self.server.shutdown()
