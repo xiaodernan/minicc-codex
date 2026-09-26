@@ -80,6 +80,11 @@ def test_fixtures_have_prompts_and_only_readonly_verify() -> None:
 
 def test_run_benchmark_executes_and_records(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     _fake_provider_factory(monkeypatch)
+    # run_benchmark resolves its own config before it builds the service, so
+    # patching AgentService alone leaves a real load_config() call behind. That
+    # passed on a development machine (a .env or ~/.minicc/config.json supplied a
+    # key) and failed on CI with "评测需要真实模型配置（load_config 失败）".
+    monkeypatch.setattr("minicc.config.load_config", _service_config)
     from minicc.web import AgentService
 
     original_init = AgentService.__init__
@@ -102,6 +107,7 @@ def test_run_benchmark_executes_and_records(tmp_path: Path, monkeypatch: pytest.
 
 def test_run_benchmark_grades_verify_command(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     _fake_provider_factory(monkeypatch)
+    monkeypatch.setattr("minicc.config.load_config", _service_config)
     from minicc.web import AgentService
 
     original_init = AgentService.__init__
@@ -117,6 +123,7 @@ def test_run_benchmark_grades_verify_command(tmp_path: Path, monkeypatch: pytest
 
 def test_run_benchmark_survives_single_task_failure(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     _fake_provider_factory(monkeypatch)
+    monkeypatch.setattr("minicc.config.load_config", _service_config)
     from minicc.web import AgentService
 
     original_chat_locked = AgentService._chat_locked

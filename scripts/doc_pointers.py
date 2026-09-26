@@ -54,6 +54,7 @@ import ast
 import difflib
 import re
 import subprocess
+import sys
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -1378,7 +1379,33 @@ def check_exempt_tables(documents: list[Path]) -> list[Problem]:
     return problems
 
 
+def ensure_utf8_output() -> None:
+    """Print Chinese without dying on a legacy code page.
+
+    This report is mostly Chinese (document names, reasons, box labels). Piped
+    output on Windows is encoded with the *locale* code page, so GitHub's
+    Windows runner (cp1252) killed the script mid-report with
+    ``UnicodeEncodeError: 'charmap' codec can't encode characters`` - and every
+    caller then saw exit 1, which reads exactly like "the documents have
+    dangling references". Two CI tests failed that way while the same command
+    passed on Linux and on the development machine's UTF-8 console.
+
+    ``errors="replace"`` is deliberate: a mangled glyph in a diagnostic report
+    is recoverable, a crashed report is not. The exit code is what callers gate
+    on, and it must mean "I checked", never "I could not print".
+    """
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if not callable(reconfigure):
+            continue
+        try:
+            reconfigure(encoding="utf-8", errors="replace")
+        except (OSError, ValueError):  # a stream that cannot be reconfigured
+            continue
+
+
 def main(argv: list[str] | None = None) -> int:
+    ensure_utf8_output()
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("documents", nargs="*", type=Path, default=DEFAULT_DOCS)
     parser.add_argument("--check", action="store_true", help="exit non-zero on any dangling reference")
