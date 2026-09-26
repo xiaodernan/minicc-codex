@@ -24,6 +24,14 @@ def _file_digest(path: Path, *, use_cache: bool = True) -> bytes:
     before/after guard compares two fingerprints, so a memo hit on a changed file makes
     the staleness symmetric and the guard passes while never having hashed the current
     bytes at all. Those paths are few, so re-reading them is the cheap side of the trade.
+
+    Residual window, accepted deliberately: an equal-length in-place rewrite that does not
+    advance st_mtime_ns (measured at ~32% of rapid writes on one volume, and ~0 outside a
+    sub-millisecond gap) is invisible to this key even with st_ino, because the identity
+    term only separates different incarnations of a path. The web loop cannot produce it -
+    a memo entry is installed inside the verify step, and every later write to that file is
+    separated from it by a model round trip - so the exposure is bounded by that ordering
+    rather than by the timestamp. Widening the key further would cost the memo its purpose.
     """
     stat = path.stat()
     # st_ino leads the signature: on a volume where the write timestamp is coarse, a
