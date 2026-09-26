@@ -5,6 +5,7 @@ import gzip
 import json
 import os
 import subprocess
+import time
 import threading
 import http.client
 
@@ -226,8 +227,41 @@ def test_http_asset_conditional_request_and_fractional_gzip(monkeypatch, tmp_pat
     (tmp_path / "styles.css").write_text("body { color: black; }\n" * 200)
     monkeypatch.setattr(webserver, "STATIC_ROOT", tmp_path)
     server = webserver.MiniccHTTPServer(("127.0.0.1", 0), SimpleNamespace(config=SimpleNamespace(max_concurrent_tasks=1)))
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    served: list[BaseException] = []
+
+    def _serve() -> None:
+        try:
+            server.serve_forever(poll_interval=0.05)
+        except BaseException as exc:
+            served.append(exc)
+
+    thread = threading.Thread(target=_serve, daemon=True, name="minicc-test-server")
     thread.start()
+    # M8-T68: this test's own route is the probe; a dead thread must name itself
+    # rather than hand the first request a WinError 10061.
+    deadline = time.monotonic() + 10.0
+    while True:
+        if served or not thread.is_alive():
+            raise AssertionError(
+                f"the test HTTP server thread {thread.name!r} died before serving "
+                f"/styles.css: {served!r}"
+            )
+        probe = http.client.HTTPConnection("127.0.0.1", server.server_port, timeout=5)
+        try:
+            probe.request("GET", "/styles.css")
+            status = probe.getresponse().status
+        except OSError:
+            status = -1
+        finally:
+            probe.close()
+        if status == 200:
+            break
+        if time.monotonic() >= deadline:
+            raise AssertionError(
+                f"the test HTTP server thread {thread.name!r} never answered GET /styles.css "
+                f"with 200 within 10s (last status {status}) on port {server.server_port}"
+            )
+        time.sleep(0.02)
     connection = http.client.HTTPConnection("127.0.0.1", server.server_port, timeout=5)
     try:
         connection.request("GET", "/styles.css", headers={"Accept-Encoding": "gzip;q=0.5"})

@@ -132,11 +132,41 @@ class _LiveServer:
         self.server = MiniccHTTPServer(
             ("127.0.0.1", 0), self.service, auth=WebAuth(WEB_TOKEN, required=False)
         )
+        self.error: BaseException | None = None
         self.thread = threading.Thread(
-            target=self.server.serve_forever, kwargs={"poll_interval": 0.05}, daemon=True
+            target=self._serve, kwargs={"poll_interval": 0.05}, daemon=True, name="minicc-test-server"
         )
         self.thread.start()
         self.url = f"http://127.0.0.1:{self.server.server_address[1]}"
+        # M8-T68: publish the url only after the accept loop has answered once.
+        deadline = time.monotonic() + 10.0
+        while True:
+            if self.error is not None or not self.thread.is_alive():
+                raise AssertionError(
+                    f"the test HTTP server thread {self.thread.name!r} died before serving "
+                    f"{self.url}; it raised: {self.error!r}"
+                )
+            try:
+                with urllib.request.urlopen(f"{self.url}/api/health", timeout=5) as probe:
+                    status = probe.status
+            except urllib.error.HTTPError as exc:
+                status = exc.code
+            except OSError:
+                status = -1
+            if status == 200:
+                return
+            if time.monotonic() >= deadline:
+                raise AssertionError(
+                    f"the test HTTP server thread {self.thread.name!r} never answered GET "
+                    f"/api/health with 200 within 10s (last status {status}) at {self.url}"
+                )
+            time.sleep(0.02)
+
+    def _serve(self, **kwargs) -> None:
+        try:
+            self.server.serve_forever(**kwargs)
+        except BaseException as exc:
+            self.error = exc
 
     def get(self, path: str, token: str | None = None):
         headers = {"Authorization": f"Bearer {token}"} if token else {}

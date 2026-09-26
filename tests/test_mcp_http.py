@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import json
 import threading
+import time
+import urllib.error
+import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -61,12 +64,58 @@ class _FakeMcpHandler(BaseHTTPRequestHandler):
         return
 
 
+def _start_serving(server: ThreadingHTTPServer) -> tuple[str, threading.Thread]:
+    """Start the accept loop and hand back the url only once it has answered.
+
+    M8-T68: the fake MCP handler speaks POST-only JSON-RPC, so the readiness
+    request is an initialize — any reply below 500 proves the thread accepted.
+    """
+    served: list[BaseException] = []
+
+    def _serve() -> None:
+        try:
+            server.serve_forever(poll_interval=0.05)
+        except BaseException as exc:
+            served.append(exc)
+
+    thread = threading.Thread(target=_serve, daemon=True, name="minicc-test-server")
+    thread.start()
+    url = f"http://127.0.0.1:{server.server_address[1]}/mcp"
+    deadline = time.monotonic() + 10.0
+    while True:
+        if served or not thread.is_alive():
+            raise AssertionError(
+                f"the test HTTP server thread {thread.name!r} died before answering "
+                f"POST /mcp at {url}: {served!r}"
+            )
+        request = urllib.request.Request(
+            url,
+            data=json.dumps({"jsonrpc": "2.0", "id": 0, "method": "initialize", "params": {}}).encode(),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=5) as probe:
+                answered = probe.status < 500
+        except urllib.error.HTTPError as exc:
+            answered = exc.code < 500
+        except OSError:
+            answered = False
+        if answered:
+            return url, thread
+        if time.monotonic() >= deadline:
+            raise AssertionError(
+                f"the test HTTP server thread {thread.name!r} never answered POST /mcp "
+                f"within 10s at {url}"
+            )
+        time.sleep(0.02)
+
+
 @pytest.fixture()
 def mcp_url():
     server = ThreadingHTTPServer(("127.0.0.1", 0), _FakeMcpHandler)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    yield f"http://127.0.0.1:{server.server_address[1]}/mcp"
+    url, thread = _start_serving(server)
+    yield url
     server.shutdown()
     server.server_close()
     thread.join(timeout=5)
@@ -149,9 +198,7 @@ def test_http_client_sends_auth_header(mcp_url: str, tmp_path: Path) -> None:
             super().do_POST()
 
     server = ThreadingHTTPServer(("127.0.0.1", 0), _RecordingHandler)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    url = f"http://127.0.0.1:{server.server_address[1]}/mcp"
+    url, thread = _start_serving(server)
     try:
         http_config = McpServerConfig(name="authed", url=url, headers={"Authorization": "Bearer tok-1"})
         client = McpHttpClient(http_config, tmp_path)

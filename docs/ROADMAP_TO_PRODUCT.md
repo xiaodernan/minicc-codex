@@ -4545,3 +4545,56 @@ A/C 两支的区别（有捕获异常 vs 空列表/None）本身就是「捕获�
 `test_http_route_inventory.py:124`、`test_logging.py:136`、`test_mcp_http.py:67` 与 `:152`
 （这两处是 MCP 私有 handler，探测要选它自己的 `/mcp` 路由而不是 `/api/health`）、
 `test_optimization_core.py:229`、`test_p0_p1_p2.py:348`。
+
+## 第五十三批（M8-T68 收口：最后六处夹具，13/13 站点全部带存活见证）
+
+起点 HEAD：`c47ad59`（第五十二批，已 push，全量 1148 passed / 675.76s——机器被另一个 run 压着，
+时间比第三十九批的 398.84s 慢 1.7 倍，但**条数与 exit 才是判据**，时长只登记不判断）。
+
+### 1. 本批改的最后六处（同一文件两处则共用一个 helper）
+
+| 文件 | 形状 | 探测 |
+| --- | --- | --- |
+| `tests/test_http_route_inventory.py::_Live` | 类（属性叫 `self.origin`） | `GET /api/health` |
+| `tests/test_logging.py::_LiveServer` | 类 | `GET /api/health` |
+| `tests/test_mcp_http.py`（`mcp_url` 夹具 + `test_http_client_sends_auth_header`） | **共用**新增的 `_start_serving(server) -> (url, thread)` | `POST /mcp` 的 `initialize`（假 handler 只实现 `do_POST`，GET 会 501，所以判据是「任意 <500 的答复」而不是 200） |
+| `tests/test_optimization_core.py::test_http_asset_conditional_request_and_fractional_gzip` | 体内联 + `http.client` | `GET /styles.css`（这题没有 `/api/health` 语义，探自己的路由） |
+| `tests/test_p0_p1_p2.py`（rewind HTTP 那条） | 体内联 | `GET /api/health` |
+
+`mcp_http` 用共用 helper 而不是抄两遍：一处 needle 破坏即同时覆盖两个调用点，
+变异表里它的 `4 passed, 1 error` 就是「夹具在两个门里都先红」的形状。
+探测请求不带 `Authorization`/`Mcp-Session-Id`，所以 `_RecordingHandler` 记录的仍是客户端那次的头。
+
+### 2. 双向见证：5 个 needle × 3 支变异 = 15/15 命中新断言
+
+| 文件 | 控制 | A raise | B 不 accept | C 静默 return |
+| --- | --- | --- | --- | --- |
+| test_http_route_inventory | 9 passed | died（带 RuntimeError） | never answered (status -1) | died：`it raised: None` |
+| test_logging | 26 passed | died | never answered | died：`None` |
+| test_mcp_http | 8 passed | died before answering POST /mcp：`[RuntimeError(...)]` | never answered POST /mcp | died：`[]` |
+| test_optimization_core | 10 passed | died serving /styles.css | never answered GET /styles.css | died：`[]` |
+| test_p0_p1_p2 | 16 passed | died | never answered | died：`[]` |
+
+`artifact=[]` 全绿（无 SyntaxError/IndentationError/ImportError 伪证），每处 `restored: True`。
+A 与 C 的差别（`[RuntimeError(...)]` vs `[]`／`it raised: None`）本身就是「异常有没有被接到线程外面」的见证；
+若哪天有人把 `except BaseException` 删掉，A 会退化成像 C，两支仍可分辨。
+
+### 3. M8-T68 总账
+
+13 处 / 12 文件全部收口：站点 1 `test_http_surface.py`（`0a56174`）、站点 2 `test_web_security.py`（`1d0062f`）、
+站点 3–7 五文件（`c47ad59`）、站点 8–13 本批五文件。判据（第五十批 §3）三条全部满足：
+每个夹具在第一个请求前证明线程活着并带捕获异常；机制变异红在本批新断言；没有引入 sleep 重试来适应负载。
+53 批累计做机制变异 **34 支**（站点 1 一支 raiser、站点 2 三支、第五十二批 15 支、本批 15 支），
+命中新断言 34/34，落到下游 `URLError`/下游断言 0 支。
+
+### 4. 下一批候选（M8-T69）：把「用了 `time.` 却没 `import time`」变成一条判据
+
+本批与第五十二批各踩一次：改完夹具漏 `import time`，第一次靠整文件跑、第二次靠一个手写的
+`ast.parse` + 字符串检查才抓到（第五十二批 §3 已登记）。这类错误的代价是「一红几十项」，
+而检测成本极低：**扫 `tests/` 里出现 `time.` 但模块没有 `import time`（或 `from … import time`）的文件，
+直接判红**。写成一个测试文件即可进 CI（CI 只跑 `pytest tests/`）。
+形状上照第三十八批的反省：判据要锚在源码声明上（import 节点），不是锚在我记得查。
+
+另有一条仍未决的旧登记：`minicc/agent/router.py` 的在飞改动里 `DEFAULT_MODELS: dict[...] = {…}` 是
+dataclass 可变默认，会让**任何 import 到 router 的门在收集期红**（第五十一批 §4）。那是别人未提交的在飞代码，
+本批不代改；如果它进了 HEAD，收集期红会自己说话——届时不要用「先提交再修」绕过。
