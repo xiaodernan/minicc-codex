@@ -290,11 +290,24 @@ def test_dead_server_marked_in_health(tmp_path):
             manager.tool_specs()
         health = {row["name"]: row["state"] for row in manager.health()}
         assert health["srv"] == "dead"
-        # A dead server is negatively cached: the next call fails immediately.
-        started = time.monotonic()
+        # A dead server is negatively cached, which is a countable fact: every spawn
+        # appends one record to .minicc/mcp_audit.jsonl (minicc/mcp.py).  This used to
+        # be `assert time.monotonic() - started < 1.0` - a stopwatch judging "did it
+        # re-spawn".  Measured here: the *spawning* call costs 282ms median / 891ms
+        # worst, so the wall was ~1.1x above the very failure it was meant to catch,
+        # and the cached call is below 0.05ms - the wall could neither fail safely
+        # nor succeed informatively.
+        audit = workspace / ".minicc" / "mcp_audit.jsonl"
+        spawns = lambda: len(audit.read_text(encoding="utf-8").splitlines()) if audit.exists() else 0
+        before = spawns()
         with pytest.raises(McpError):
             manager.tool_specs()
-        assert time.monotonic() - started < 1.0
+        with pytest.raises(McpError):
+            manager.tool_specs()
+        assert spawns() == before, (
+            f"a negatively cached server re-spawned: audit records went {before} -> {spawns()}"
+        )
+        assert before == 1, f"the first call should have spawned exactly once, audit says {before}"
     finally:
         manager.close()
 

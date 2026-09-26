@@ -260,12 +260,16 @@ def test_cancelled_and_partial_outcomes_are_not_graded_as_complete(tmp_path, mon
 def test_subminute_deadline_cancels_worker(tmp_path, monkeypatch):
     import time
 
+    observed: list[bool] = []
+
     class Service:
         def __init__(self, *args, **kwargs):
             pass
 
         def _chat_locked(self, payload, cancel_event, **kwargs):
-            cancel_event.wait(3)
+            # wait()'s return value IS the delivery witness: True means the runner set
+            # the event, False means this worker parked out its own 3s untouched.
+            observed.append(cancel_event.wait(3))
             return {"answer": "cancelled"}
 
         def shutdown(self):
@@ -275,9 +279,19 @@ def test_subminute_deadline_cancels_worker(tmp_path, monkeypatch):
     monkeypatch.setattr("minicc.config.load_config", _service_config)
     started = time.monotonic()
     results = run_benchmark([{"id": "timeout", "prompt": "wait"}], workspace=tmp_path, task_timeout_seconds=0.05)
-    assert time.monotonic() - started < 2
+    elapsed = time.monotonic() - started
+    # M8-T63: this gate decided "the deadline cancelled the worker" with
+    # `elapsed < 2` while the fake parks for 3s - a stopwatch standing in for a
+    # yes/no fact, and one a loaded machine can redden for the wrong reason.  The
+    # delivery witness above is exact and free, so it carries the judgement now.
+    assert observed == [True], (
+        f"the deadline never reached the worker: cancel_event.wait() returned {observed}"
+    )
     assert results[0]["status"] == "failed"
     assert "timeout" in results[0]["error"]
+    # Kept purely as "this comes back": the fake's own park is 3s, so any bound
+    # small enough to discriminate would also sit inside the noise.
+    assert elapsed < 30, f"the run did not come back: {elapsed:.2f}s"
 
 
 def test_unresponsive_worker_stops_run_without_shutting_down_its_service(tmp_path, monkeypatch):
