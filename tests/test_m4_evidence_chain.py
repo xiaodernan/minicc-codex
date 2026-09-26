@@ -59,6 +59,20 @@ def test_markdown_and_extensionless_edit_invalidates_fingerprint(tmp_path: Path)
 
     (root / "notes.md").write_text("# v1\n", encoding="utf-8")
     (root / "Makefile").write_text("all:\n\techo two\n", encoding="utf-8")
+    # M8-T67: both rewrites above are the same length as what they replace, so this gate used
+    # to pass only when the filesystem happened to advance st_mtime_ns - measured at ~32% of
+    # rapid writes on this volume, which made it redden in roughly one full run in five for a
+    # reason that had nothing to do with the code under test. The timestamps are pushed
+    # forward explicitly so the precondition is established rather than gambled on.
+    # What this gate therefore does NOT cover: an equal-length edit that lands inside a single
+    # timestamp tick. That window is the open M8-T65 / M8-T66 question, and it is stated here
+    # rather than papered over by making the edits different lengths.
+    import os
+
+    for name in ("notes.md", "Makefile"):
+        path = root / name
+        stamp = path.stat()
+        os.utime(path, ns=(stamp.st_atime_ns, stamp.st_mtime_ns + 2_000_000))
     after_makefile = verification_fingerprint(root, [], [])
     assert after_makefile != first, "editing an extensionless build file must change the fingerprint"
 
