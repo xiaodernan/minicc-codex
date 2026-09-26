@@ -38,6 +38,13 @@ def _cmd(code: str) -> str:
 EXIT_ALLOW = _cmd("import sys;sys.exit(0)")
 EXIT_DENY = _cmd("import sys;sys.exit(2)")
 SLEEP_10 = _cmd("import time;time.sleep(10)")
+# A hook that outlives its own timeout: it sleeps only 3s, then leaves evidence.
+# If the runner kills the process, the file never appears; if the runner merely
+# stops waiting for it, the file appears ~3s later, so a check made after a grace
+# wait says "terminated" rather than "we stopped looking".
+SLEEP_THEN_MARK = _cmd(
+    "import time;time.sleep(3);open('hook_outlived_its_timeout','a').close()"
+)
 MARKER = _cmd("open('hook_ran','a').close()")
 # The secret must never appear in the command itself: hook commands are
 # echoed verbatim into traces, which would make the redaction assertion
@@ -166,8 +173,20 @@ def test_pre_tool_use_timeout_denies_and_does_not_hang(tmp_path: Path) -> None:
     })
     started = time.monotonic()
     result, _before, _after = _run(tmp_path, ToolThenAnswerProvider(), hooks)
-    assert time.monotonic() - started < 8.0, "timeout did not terminate the hook"
-    assert "read_file" in result.denied_tools
+    assert "read_file" in result.denied_tools, "a timed-out hook with on_failure=deny must deny the tool"
+    # M8-T63: the judgement used to be `elapsed < 8.0`, which said nothing about the
+    # claim written in its own message ("timeout did not terminate the hook") - a hook
+    # killed at 9s would blow that wall, and one abandoned at 1s would sail through it.
+    # The hook now leaves evidence 3s into its own sleep, so "it is still alive" is
+    # observable instead of inferred from a stopwatch.  The grace wait below is setup,
+    # not a judgement: it only has to outlast the hook's sleep.
+    time.sleep(4.0)
+    assert not (tmp_path / "hook_outlived_its_timeout").exists(), (
+        "the timed-out hook was abandoned, not terminated: it slept to completion and "
+        "left its marker"
+    )
+    # Kept purely as "this comes back". It discriminates nothing - see above.
+    assert time.monotonic() - started < 30, "the run never returned at all"
 
 
 def test_timeout_with_continue_policy_allows_the_tool(tmp_path: Path) -> None:

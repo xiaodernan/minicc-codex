@@ -53,7 +53,16 @@ def test_cancel_is_forwarded_and_stops_subsequent_checks(tmp_path):
 
 
 def test_real_check_process_is_cancelled_promptly(tmp_path, suite_python_bin):
-    (tmp_path / "test_wait.py").write_text("import time\ndef test_wait():\n    time.sleep(30)\n")
+    # The check leaves evidence 3s in. Cancelling at 1s therefore has an observable
+    # consequence - "the marker never appears" - instead of only a shorter wall clock.
+    (tmp_path / "test_wait.py").write_text(
+        "import time\n"
+        "\n"
+        "\n"
+        "def test_wait():\n"
+        "    time.sleep(3)\n"
+        "    open('check_outlived_the_cancel', 'w').close()\n"
+    )
     cancel = threading.Event()
     timer = threading.Timer(1, cancel.set)
     started = time.monotonic()
@@ -63,7 +72,16 @@ def test_real_check_process_is_cancelled_promptly(tmp_path, suite_python_bin):
     finally:
         timer.cancel()
     assert result.status == "cancelled"
-    assert time.monotonic() - started < 8
+    # M8-T63: `elapsed < 8` used to stand in for "the check process was stopped", but a
+    # process abandoned at 1s satisfies it just as well as one killed at 1s, and one
+    # killed at 9s fails it for the wrong reason. The grace wait only has to outlast the
+    # check's own 3s sleep - it is setup, not the judgement.
+    time.sleep(4.0)
+    assert not (tmp_path / "check_outlived_the_cancel").exists(), (
+        "the cancelled check was abandoned rather than stopped: it finished its sleep "
+        "and wrote its marker"
+    )
+    assert time.monotonic() - started < 30, "the verifier never came back at all"
 
 
 def test_invalid_rule_is_clear_and_large_dependency_disables_reuse(tmp_path):
