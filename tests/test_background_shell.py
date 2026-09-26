@@ -79,7 +79,9 @@ def _bare_child_start_cost() -> float:
     if not _START_COST:
         command = _py("print(1)")
         started = time.monotonic()
-        subprocess.run(command, shell=True, capture_output=True, text=True)
+        # errors= is not decoration: a text-mode capture without it is what
+        # tests/test_subprocess_decoding.py counts as an offender.
+        subprocess.run(command, shell=True, capture_output=True, text=True, errors="replace")
         _START_COST.append(time.monotonic() - started)
     return _START_COST[0]
 

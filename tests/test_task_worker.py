@@ -40,13 +40,30 @@ def _service_config(tmp_path: Path, **extra) -> SimpleNamespace:
 
 
 def _wait_until(predicate, *, timeout: float = 30.0, message: str = "condition") -> Any:
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
+    """Poll until ``predicate`` returns something truthy, and return *that value*.
+
+    The raise used to write down only what was waited for.  It now also names how
+    long the wait lasted, the budget it ran out of, how many times it looked, and
+    the last falsy value it saw - the four things that decide whether a red here
+    is a hung worker or a slow machine.  M8-T62's measurement says these waits are
+    bounded by a real subprocess, so unlike the in-process waits in
+    tests/test_permissions_approval.py the constant is not the suspect; the
+    message is what was missing.
+    """
+    begun = time.monotonic()
+    polls = 0
+    while True:
+        polls += 1
         value = predicate()
         if value:
             return value
+        elapsed = time.monotonic() - begun
+        if elapsed >= timeout:
+            raise AssertionError(
+                f"gave up on {message} after {elapsed:.2f}s of a {timeout:.2f}s budget "
+                f"({polls} polls, last value {value!r})"
+            )
         time.sleep(0.05)
-    raise AssertionError(f"timed out waiting for {message}")
 
 
 def _parked_worker(tmp_path: Path) -> dict[str, Path]:
@@ -528,3 +545,29 @@ def test_shutdown_abort_path_terminates_a_worker_it_cannot_cancel(
             child.kill()
             child.wait(timeout=5)
         service.shutdown()
+
+
+def test_the_worker_wait_writes_down_its_own_patience() -> None:
+    """M8-T62: ``timed out waiting for X`` was the whole message, and it was thin.
+
+    These gates wait on a real worker subprocess, so their 30-120s budgets are not
+    the suspect that the in-process 2.0s budgets in
+    tests/test_permissions_approval.py turned out to be.  What was missing is the
+    reading that decides whether a red here is a hung worker or a slow machine:
+    how long it waited, what it allowed itself, how many times it looked, and the
+    last falsy value it saw.  This forces the miss with no subprocess involved, so
+    the failure branch is the only thing under test.
+    """
+    begun = time.monotonic()
+    with pytest.raises(AssertionError) as caught:
+        _wait_until(lambda: None, timeout=0.2, message="a value that never arrives")
+    message = str(caught.value)
+    assert "gave up on a value that never arrives" in message, message
+    assert "of a 0.20s budget" in message, message
+    assert "last value None" in message, message
+    polls = int(message.split("(")[1].split(" polls")[0])
+    assert polls >= 2, f"the wait never polled: {message}"
+    elapsed = time.monotonic() - begun
+    assert 0.2 <= elapsed < 5.0, (
+        f"the message claims a 0.20s budget but the wait lasted {elapsed:.2f}s"
+    )

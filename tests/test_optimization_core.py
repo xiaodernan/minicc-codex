@@ -3,6 +3,7 @@ from pathlib import Path
 from types import SimpleNamespace
 import gzip
 import json
+import os
 import subprocess
 import threading
 import http.client
@@ -119,6 +120,12 @@ def test_nested_rules_and_jsx_or_fixture_edits_invalidate_cache(tmp_path):
     before = build_verification_plan(tmp_path, ["web/src/app.jsx"])
     assert before.commands
     target.write_text("export const value = 2;")
+    # NTFS coarsens write timestamps, and the digest memo is keyed by
+    # (mtime_ns, ctime_ns, size): a same-length edit can land in the same tick and
+    # serve the old hash.  Advance the stamp so this gate asks "does an edit
+    # invalidate?" instead of "what is this host's clock resolution today?".
+    stamp = target.stat().st_mtime_ns + 1_000_000
+    os.utime(target, ns=(stamp, stamp))
     after = build_verification_plan(tmp_path, ["web/src/app.jsx"])
     assert after.fingerprint != before.fingerprint
     (tmp_path / "fixtures").mkdir()

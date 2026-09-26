@@ -3344,3 +3344,278 @@ M8-T62 登记两件事：把那 4 处 bool 返回的 `assert` 换成带 what 的
    随后往同一节补一条单文件门的读数，那句补文自己就是一次新引证，于是变成 971 / 759。
    第三十四批的陷阱 #5 是同一件事（marker 总数 251 → 250）。口径：**计数只在最后一次改动之后
    量一次**，句子里只描述「追加本批这一次」的 delta，不复述总量。
+
+## 第三十六批（M8-T62）：登记写的是「2.0s 比本批拆掉的 3.0s 更薄」，量完之后是这 2.0s 从来没参与过判断
+
+### 1. 上一批登记的那笔，以及它错在哪
+
+第三十五批 §9 留给本批的原话是：「M8-T62 登记两件事：把那 4 处 bool 返回的 `assert` 换成带 what 的
+raise；给已有的 raise 补 elapsed/budget。**是否把 2.0s 也做成比值，那一批先量再定**」。
+两件事都做了，第三条量完否决了——但否决的方式和登记的前提都不一样，所以这一节先把前提本身改掉。
+
+登记的理由是「2.0s 比 3.0s 更薄，所以更危险」。这句话把两族等待混成了一族：M8-T61 那三条墙等的是一次
+**子进程启动**（本机 1.14–7.47s 的量级），而本批这四处等的是**同一个进程里的一个线程往一个 list 里
+append 一项**。后者在本机安静时快到来不及看一眼（探针读数 0.0ms），所以在「秒数 ÷ 它等的那件事」这个
+口径上，它不是更薄，是厚了一千倍。真正的问题在别处，而且比薄墙更难看：**这个预算不参与判断**。
+把它从 2.0 改成 0.0，HEAD 的 15 项门一条都不会红（§4 第 2 读）。
+
+### 2. 先量：分母换了两次，最后一次没有换成
+
+三只 scratch 探针（文件名以 t62_probe 开头，落在本机 Temp，不进仓），同一台机器、同一状态、
+每轮都在量之前先起一个裸子进程当作负载标尺：
+
+| 探针 | 机器负载（裸子进程启动 s） | publish 等帧 med/max | 2.0s 余量 | 备注 |
+| --- | --- | --- | --- | --- |
+| 一（12 轮，重负载） | min 4.09 med 7.74 **max 31.50** | 78ms / **969ms** | 2.1x | polls med=1 max=1 |
+| 二（14 轮，中等） | 0.64 – 4.22 | 0.0ms / 187ms | 9.7x | 单个裸线程启动 0–16ms |
+| 三（16 轮，安静） | 0.12 – 1.33 | 0.0ms / **0.0ms** | >1000x | 200 线程批量启动 78–2000ms |
+
+三条结论，一条比一条重要：
+
+1. **重负载那次 969ms 不是「事件来得晚」，是「量它的尺子睡过了」。** 那一轮 `polls=1`：等待方只睡了
+   一次 `time.sleep(0.001)` 就看见了帧，而那次 sleep 实际睡掉了约 1s。也就是说 969ms 这个数是
+   **轮询线程自己的调度延迟**，不是审批发布的延迟。这直接影响 §5 里 `polls=` 这个字段的含义：
+   数字小不等于没等，它可能是「一次都没醒」。
+2. **比值做不出来，因为没有可用的同种分母。** 单种参照（一次线程启动）落在打印精度之下；
+   批量参照（200 次 start+join）能动到 13x，而同一轮里 publish 一动不动。算出来的
+   Spearman ρ(ref, publish) = **−0.08**、ρ(child, publish) = +0.04。这个 −0.08 自己也要打折：
+   那一轮分子没有可测方差，ρ 是在一堆并列名次上算的，它能说的是「没有可建模的耦合」，
+   不能当强证据；强证据是 ref 动了 13 倍而 publish 一步没动。
+3. **2.0s 不是测量，是保险。** 于是本批不动常数（动它只会把真挂住的审批失败时间一起拉长），
+   改的是**失败时会说什么**，并且补一条门把常数和量出来的包络钉在一起（:434）——因为在补这条门之前，
+   把常数改成 0.0 是全绿的，即没有任何东西对这个数负责。
+
+### 3. 改了什么（逐处，行号是今天的字节）
+
+- **`_wait_for`（`tests/test_permissions_approval.py:132`）**：签名从 `(predicate, timeout=2.0) -> bool`
+  变成 `(what, predicate, *, budget_s=None) -> Any`。三处改动：miss 时 **raise** 而不是返回 falsy；
+  返回**谓词亲眼看见的那个值**而不是循环外再看一次；失败文字带 elapsed、预算、预算来路、`polls=`。
+  旧写法最后一行是 `return predicate()`——它在 deadline **之后**又求值一次，所以「断言依据的真」
+  可以是距上次观察一个轮询间隔之后的东西。
+- **`_joined`（:165）**：新增。`thread.join(timeout=2.0)` 在线程还活着时**照样返回**，紧接着的
+  `result["decision"]` 就报 `KeyError: 'decision'`——一句关于字典的话，而该说的是那个没回来的线程。
+  现在先 join 再验 `is_alive()`，文字里带 elapsed、join 预算、来路和线程自己的 `thread.name`。
+- **`_frame`（:185）**：新增，替掉两处「等待用一次判断、取用再扫一遍 list」的二次扫描
+  （旧 :114 与 :136 的 `next(f for f in frames ...)`）。等待和取用现在是同一次观察。
+- **4 个等待站点**（:200、:223、:284、:321）与 **5 个 join 站点**（:206、:227、:260、:283、:323）
+  全部改名换姓：每一处都带上一句「在等什么」。
+- **常数 :49/:50**：`PUBLISH_BUDGET_S = 2.0`、`JOIN_BUDGET_S = 2.0`。数字没变，但第一次有了名字，
+  也因此第一次可被 :434 那条门质疑。
+- **新增 5 条门**：`test_a_wait_that_misses_names_the_wait_not_the_assert`（:342，逼一次真 miss，
+  读全文，验 `polls>=2` 与 `elapsed >= budget`）、
+  `test_the_default_budget_is_the_one_named_when_no_caller_supplies_it`（:379，另一条 provenance 分支，
+  并且拿墙钟复核文字里那个数——它声称等了 2.0s 就必须真的等了 2.0s）、
+  `test_a_wait_returns_the_value_the_predicate_saw`（:400）、
+  `test_the_two_budgets_are_what_the_measurement_concludes`（:434，常数 ≥ 2× 量出来的 1.0s 包络）、
+  `test_a_thread_that_never_returns_is_reported_as_a_thread`（:457，故意不 resolve，
+  并且先断言 `box == {}`——那个空字典就是旧消息为什么会提到字典）。
+- **`tests/test_task_worker.py:42` 的 `_wait_until`**：它的 raise 早就在了，缺的是内容。
+  现在写 `gave up on {message} after {elapsed}s of a {timeout}s budget ({polls} polls, last value {value!r})`。
+  这一族的预算（30–120s）不是本批的嫌疑人（它们等的是真子进程），所以只补文字，
+  并加见证门 `test_the_worker_wait_writes_down_its_own_patience`（:550）。
+
+### 4. 反事实：六读，同一份 HEAD 文件与今天的文件
+
+同一脚本、同一台机器、六个一次性临时模块写在 `tests/` 里（这样它们的 import 能解析），跑完立刻删除；
+这些临时文件名以 `_t62_` 开头，只存在于本机的这一轮，所以这里用散文点名而不用反引号——
+反引号给一个已删除的路径就是悬空引证。
+
+| 读法 | 改动 | 结果 |
+| --- | --- | --- |
+| 1 old 原样 | 无 | `15 passed in 2.52s` |
+| 2 old 预算 2.0→0.0 | `_wait_for` 默认值 | **`15 passed in 2.79s`**：预算不参与判断 |
+| 3 old 帧永远不来 | 首站点找 `approval_request_absent` | `assert []` ＋ `where [] = _wait_for(<function …<lambda> at 0x…>)`，`1 failed, 6 passed` |
+| 4 new 帧永远不来 | 同一处 | `gave up after 2.00s of a 2.00s budget (the module default, polls=194) waiting for the approval_request frame` |
+| 5 old 线程不返回 | `join(timeout=0.0)` | `KeyError: 'decision'`（旧 :120） |
+| 6 new 线程不返回 | `budget_s=0.0` | `the agent thread for a bash approval the user allowed was still running 0.00s after a 0.00s join (fixed by the caller, not the default); the live thread is Thread-8 (<lambda>)…` |
+
+第 3 读把本批**自己写错的一句话**抓了出来：第一版 §3 与两处 docstring 都写着「旧代码失败时打印
+`assert False is True`」。真跑起来不是——那四个站点里有一个的谓词返回的是 **list**，
+旧 helper 在 deadline 之后 `return predicate()` 就把空 list 原样交了出去，于是 pytest 打印
+`assert []`；只有那三个返回 bool 的站点才是 `assert False is True`。两种都名不上「在等什么、等了多久」，
+但记录里不能写一种然后声称涵盖了四种。docstring 与 §4 现在按实测分列两种。
+
+### 5. 九条变异 ＋ 对照（全部在最终字节上重跑）
+
+对照：`tests/test_permissions_approval.py` 20 passed in 5.38s，`tests/test_task_worker.py` 10 passed in 26.68s。
+每条变异改一个值或一个字符串，跑完立刻按字节还原并核对 `bytes_back_to_start=True`。
+
+| # | 变异 | 红了谁 | 抓住它的断言 |
+| --- | --- | --- | --- |
+| M1 | `_wait_for` 返回 `True` 而非值 | 4 项 | `test_a_wait_returns_the_value_the_predicate_saw` 的 `isinstance` ＋ 两个既有站点 |
+| M2 | miss 不再 raise（改回 `return None`） | 2 项 | 「the tight budget did not fire」 |
+| M3 | 文字里去掉 `polls=` | 1 项 | `int(message.split("polls=")…) >= 2` |
+| M4a | `_wait_for` 的来路恒称「default」 | 1 项 | `assert "fixed by the caller, not the default" in message` |
+| M4b | `_joined` 的来路恒称「default」 | 1 项 | 同上，落在 join 那条门 |
+| M5 | `_joined` 不再验活（`if False:`） | 1 项 | `pytest.raises(AssertionError)` → DID NOT RAISE |
+| M6 | `PUBLISH_BUDGET_S = 0.0` | **只有 1 项**（:434） | 其余 19 项全绿——见下 |
+| M7 | worker 的 raise 去掉 elapsed/budget | 1 项 | `"of a 0.20s budget" in message` |
+| M8 | worker 的 raise 去掉 last value | 1 项 | `"last value None" in message` |
+
+M4 原本是一条，脚本第一次跑它时 `REFUSED: needle matched 2 times`——两个 helper 共用同一行
+`source = …`。拆成 M4a/M4b 分别定位（各自动一处），顺便说明这条针如果只算一次就会静默改掉两个 helper。
+**M6 是本批最有信息量的一条红**：把预算清零，只有那条形而上的政策门红了，四个真实站点依然全绿——
+这与 §4 第 2 读是同一件事的两个方向（HEAD 全绿 / 今天也只有政策门红）。也就是说这四个站点
+**永远不会因为机器慢而红，也永远不会因为机器快而绿**，它们的耐心只在「事情确实没发生」时才会被花掉。
+
+### 6. 冷跑抓到的不是本批，是上一批的自己
+
+追加本批之前的第一次全量冷跑（`-W error`，7 分 14 秒）读数：**1 failed, 1145 passed**，
+唯一一条红是 `tests/test_subprocess_decoding.py:709`
+（`test_no_text_mode_capture_asks_for_a_strict_decoder`），被告是
+`tests/test_background_shell.py:82 subprocess.run`——也就是**第三十五批为量分母而新写的
+`_bare_child_start_cost`**。它的 `text=True` 没有带 `errors=`，正好落进
+`strict_text_captures` 的判据（`item.text_mode and not item.has_errors`）。
+
+这条红值得记两件事：
+
+1. 第三十五批的 §8 只跑了本文件（8 passed）与文档门，**没跑全量**，所以一个仓库级门被新代码
+   违反这件事，隔了一批才被发现。文件级门给不出这个读数——这正是 #59 那笔「机器安静时补全量冷跑」
+   挂着不值钱、一跑就值钱的原因。
+2. 修法是把形状留住、把解码器写明（`errors="replace"`），而不是改成 `stdout=DEVNULL`。
+   后者更干净，但它会**悄悄改掉分母的涵义**：M8-T61 的包络（1.14–7.47s）是在「读两条管道」的
+   形状下量出来的，换了形状就得重测包络，而本批没有重测包络的额度。于是 :82 上方留了一行注释，
+   说明 `errors=` 不是装饰——否则下一个人会把它当噪声删掉，回到同一条红。
+   修完单点复核：`tests/test_subprocess_decoding.py` ＋ `tests/test_background_shell.py`
+   合跑 28 passed in 127.82s；随后整仓再冷跑一次，读数在 §8。
+
+### 7. 边界（做不到的、没做的、以及为什么）
+
+1. **没把 2.0s 做成比值**，理由见 §2 第 2 条。这不是「以后再说」：这一族的分母在本机不可测
+   （一次线程启动落在打印精度之下），除非引入一个能被量到的同种参照，比值就没有落脚点。
+2. **`test_approval_timeout_auto_denies` 的 `0.2 <= elapsed < 3.0`（:242）本批一字未动。**
+   它量的是**生产**的 0.3s 审批超时，不是测试的耐心；3.0s 是那个固定数的 10 倍。
+   探针测到的同种最坏调度延迟（约 1s）加在 0.3s 上是 1.3s，仍在界内。它属于 M8-T61 那句
+   「退出标准写着秒数就留着秒数」的例外族。
+3. **重负载下 publish 只有约 2x 余量**（969ms / 2.0s），而那 969ms 是 sleep 过冲。
+   没有同种分母可依赖，这个余量只能作为边界记录，不能声称安全。
+4. **cancel 路径有 0.25s 的下界**（`minicc/web.py:357` 的 `waiter.wait(min(remaining, 0.25))`）：
+   探针里 cancelled 等待 min 203ms、med 304ms，那个 0 就是切片，不是调度抖动。
+   本批只记录，不改生产语义。
+5. **收集数 1146**（上一批 1140 ＋ 本批 6：审批文件 15→20、worker 文件 +1）。
+   `--collect-only` 在本机安静时 2.26s——第三十五批记录过负载下 275.82s，两次相差约 122 倍，
+   这本身就是「collection 慢是负载不是套件」的读数。
+
+### 8. 基线与门
+
+本批一共起了**三次**全量冷跑，只有其中两次能当基线用，这个区别本身就是这一节的内容：
+
+| 次 | 树 | 读数 | 能用吗 |
+| --- | --- | --- | --- |
+| 一 | 含本批三处测试改动，不含 §6 的解码器修复 | `1 failed, 1145 passed in 433.93s` | 能——一条红且归因清楚（§6） |
+| 二 | 含解码器修复 | `73 failed, 1073 passed, 1 error in 1410.83s` | **不能**——见下 |
+| 三 | 与二同一棵树，重跑 | `1 failed, 1145 passed in 281.40s` | 解码器那条红确实消失了，但掉出来**另一条**——见下 |
+
+第三次那一条红不是环境塌方，是一个**真的产品缺陷**，而且它在本批之前已经在这台机器上跑绿过多次：
+`tests/test_optimization_core.py::test_nested_rules_and_jsx_or_fixture_edits_invalidate_cache`
+（:123）报 `assert '0d72daa1…' != '0d72daa1…'`（两个指纹一模一样）。
+读实现才知道为什么：`minicc/agent/verification_plan.py:20` 的 `_file_digest` 把内容哈希
+**记备忘在 `(st_mtime_ns, st_ctime_ns, st_size)` 这个键上**（:22，命中直接返回旧哈希 :26-28），
+而那条门连着写的两段内容恰好**等长**（23 字节）。NTFS 的写入时间戳是被粗化过的，
+两次快速写完全可以落在同一个 tick 里——此时 :31 那个「哈希期间被改」的守卫不会触发，
+因为它只在**未命中**路径上跑。后果不是测试红，而是**验证复用可以服务旧内容的哈希**：
+一次等长编辑若发生在同一 tick 内，`build_verification_plan` 会给出与编辑前相同的指纹，
+于是「这段改动已经验过」这句话可以是真的而内容已经变了。
+
+本批的处理是**分开的两半**，因为合起来做要越权：
+
+- 测试侧先确定性化：第二次写之后用 `os.utime` 把 mtime 明确推后 1ms（:121 起）。
+  这条门要问的是「编辑会不会让指纹失效」，不是「这台机器的时间戳精度今天是多少」。
+  它没有配变异，因为它的红不是人造的——第三次冷跑里它就是红的。
+- 产品侧登记为 **M8-T65**（需要口径决策）：备忘键的分辨率比它识别的对象粗。
+  可选方向有三个，本批一个都不选：把内容前缀进键（还是要读文件，备忘就白做）、
+  给「同一 tick 内的第二次命中」判不确定并走 :56 那条 `cacheable=False` 出口
+  （机制现成，但会把复用率打掉多少没量过）、或者接受并把这个窗口写进文档
+  （最省，但「等长编辑不触发重验」这条静默失败是用户可见的）。
+  下一批先量窗口有多宽（同一 tick 实际是多少毫秒）再定。
+
+第二次为什么作废，理由必须写在数旁边：73 条红**没有一条落在产品断言上**，全部集中在自己用
+`("127.0.0.1", 0)` 起临时监听器的那八个文件（`tests/test_http_surface.py`、
+`tests/test_http_route_inventory.py`、`tests/test_web_security.py`、`tests/test_logging.py`、
+`tests/test_file_tree_api.py`、`tests/test_history_search.py`、`tests/test_p0_p1_p2.py`、
+`tests/test_mcp_http.py`），原因分布只有一种：日志里 87 处
+`urlopen error [WinError 10061]`（目标计算机积极拒绝）。唯一一条以 assert 形式出现的红
+（`test_concurrent_task_submits` 的 `assert 0 == 8`，外加它自己的 teardown ExceptionGroup，
+就是那 1 个 error）也是同一个下游形状：8 个提交线程一个都没往 `results` 里 append，
+因为线程里抛的是 URLError，被线程吞了，主线程只看见计数是 0。
+
+同一秒里 `git log` 显示 HEAD 没动（还是第一跑那棵树的 `4fa2462`），把其中一份单独拎出来重跑是
+`17 passed in 6.08s`，而整跑的墙钟从 433.93s 涨到 1410.83s（3.3 倍减速）。所以它读的是
+「这台机器在那 23 分钟里不能同时托住 1146 项门和别的会话的负载」，不是「代码有 73 条缺陷」。
+第三十四批 §8 面对同样的情形选择中止，本批的这次是**跑完了才判定**，两者的区别只在于中止要人当场决定，
+而跑完的诱导性强得多——它会给出一条看起来合法的「73 failed」基线。
+
+- 本批两文件系统：`30 passed in 26.88s`（审批 20 ＋ worker 10）。
+- **上表三次冷跑都不是最终提交的树**：第三次之后本批又改了两处——见证门的显式预算 0.05s→0.25s
+  （0.05s 那版留着一个负载相关的假红：若第一次求值就跨过预算，`polls` 会是 1，而见证要求 ≥2），
+  以及 §8 那半页的 `os.utime` 去时钟依赖。改完之后单文件复跑是审批 20 ＋ optimization_core 8
+  ＝ `28 passed in 19.76s`，九条变异与两条 provenance 变异也全在**最终字节**上重跑过一遍。
+  全量第四次冷跑没有跑，所以「1146 项全绿」这句话本批仍然没说，也仍然不算说过。
+- §6 修复的定点复核：`tests/test_subprocess_decoding.py` ＋ `tests/test_background_shell.py`
+  合跑 `28 passed in 127.82s`。
+- 收集数 **1146**（`--collect-only -q`，安静机器 2.26s）。
+- `scripts/doc_pointers.py --check`：**exit 0**。追加本批记录之前的读数是 **971 / 759 / 261 / 223**（依次是：全仓 evidence 指针数、本文档同一项、全仓「见」标记总数、本文档标记数）——这四个数既写在第三十五批 §8 的「之后」里，也在本批动手前用同一条命令在这棵树上复核过。追加这段记录、并把本句里的数字打完之后再量：**1011 / 799 / 277 / 239**，即本批的 delta 是 +40 条 evidence 指针与 +15 个标记，全部落在本文档；文档数 19 与被跟踪文件数 233 不变。这条命令自己也被本批读了一遍：它在追加前后都是 exit 0，所以「文档没被这次追加弄坏」不是推断。
+
+### 9. 下一批登记（M8-T63）：两处用秒表判「快」的门，它们要判的事都有非时间的见证
+
+普查 `tests/` 里剩下的 `time.monotonic() - X < N` 形态，六条，两条是这一族里判得最假的：
+
+- `tests/test_mcp_stdio.py:297`：`< 1.0`。注释写着「dead server 被负缓存，下一次调用立刻失败」。
+  「立刻」是这句话里唯一的时间词，而它想主张的是**没有再连接一次**——同一个文件里
+  `test_manager_negative_cache_does_not_respawn`（:200）已经在用「spawns (and audits) once」的说法
+  表达这件事（:215-216 的注释），也就是说这一族里有可数的见证，而 :297 选了秒表。
+  下一批要回答的第一个问题：那个见证能不能直接搬到 :297（能，就不该再谈比值）。
+- `tests/test_benchmark_runner.py:278`：`< 2`，配置里 `task_timeout_seconds=0.05`（40x 余量）。
+  假 provider 里 `cancel_event.wait(3)`——如果取消信号没送达，这个 wait 会睡满 3s，于是红。
+  所以这条门真正判的是「取消送达了」，而 `cancel_event.is_set()` 是一个直接见证。
+- `tests/test_hooks.py:169`：`< 8.0` 与它要区分的东西只差 2s——那个 hook 跑的是 `SLEEP_10`，
+  生产 timeout 配 1s。也就是说这条墙只在「8s 内被杀掉」与「睡满 10s」之间留了 2s 缝隙；
+  一次负载抖动就能把它判红，而它旁边的 `assert "read_file" in result.denied_tools`（:170）
+  才是「超时确实拒绝了」的非时间见证。
+- 其余三条同族、余量待量：`tests/test_task_worker.py:289`（`< 40`）、
+  `tests/test_task_worker.py:541`（`< 15`）、`tests/test_verifier_lifecycle.py:66`（`< 8`，
+  1s 时 set 取消事件、子进程自己配 40s 超时，所以它判的是「取消在 8s 内穿透到一个真子进程」）。
+  它们的分子分母各是什么，下一批先量再定；
+  本批的证据只支持一句：**先看有没有非时间的见证可用，有就用它，没有再谈比值。**
+
+顺带一笔（跑 §8 第二次冷跑时掉出来的，登记为 M8-T64）：
+`tests/test_http_surface.py::test_concurrent_task_submits` 起 8 个线程 POST，每个线程
+`results.append((status, task_id))`，判据是 `assert len(results) == 8`。
+线程里抛出的异常没有任何人接——它既不进 `results`，也不上抛，于是主线程只看到
+`assert 0 == 8`。这是本批 `_joined`/`KeyError` 那一族的第三种形状：
+**一个并发门把一个线程的失败折叠成了一个计数**，读的人只能猜是「慢」还是「死」。
+修法与本批同路：`submit` 里 try/except 把异常本身放进 `results`，判据先要求
+「8 个结果里没有异常」再要求状态码，失败文字里带每个线程的原因。
+
+### 10. 这批踩到的陷阱
+
+1. **登记语里的「更薄」可以是错的方向。** 「2.0s 比 3.0s 更薄」听起来是同一族，实际两族等的是
+   不同的东西（子进程 vs 进程内线程）。核对一个登记前提的成本是一次探针；照抄它的成本是一批白做。
+2. **探针的 sleep 过冲会被读成事件延迟。** 第一轮 publish「969ms」，polls=1——晚的是量它的线程，
+   不是被量的事。任何带轮询的探针都要把 poll 次数和事件次数一起打出来，否则这两个数长得一样。
+3. **分子没有方差时，相关系数是名次噪声。** ρ = −0.08 看着像结论，实际是 publish 全轮 0.0ms 之上
+   算出的并列名次。能写的是「动 13 倍 vs 一步不动」，不能把 ρ 单独搬进记录。
+4. **失败文字里的一行可以属于两个 helper。** M4 那条针命中两次——同一句 `source = …` 被复制进
+   `_wait_for` 与 `_joined`。这既是变异脚本的歧义，也是**代码里的一份重复**；本批选择不抽公共
+   helper（两处默认常数不同、语义不同），但因此必须有两条变异分别钉住它们。
+5. **`print("x ->\n" + 多行值)` 会把第一行藏进前缀。** 变异脚本最后打印 `git status --short` 时，
+   第一个改动文件和 `->` 同行，grep 过滤后就「少了一个文件」，看起来像丢了改动。打印多行值之前
+   先单独换行。
+6. **这个仓库只有两道门，别引用第三道。** .venv 里 ruff/mypy/flake8/pylint/black 五个全部 import
+   失败（逐个试过），CI 的 `.github/workflows` 里唯一的测试命令是 python -m pytest 加一份
+   junitxml 报告——所以「格式过不过」根本不是一道门，能引用的只有 pytest 与
+   `scripts/doc_pointers.py --check`。顺带一提，后者今天仍然**不在** CI 里（那是那笔挂着待决的旧账）。
+7. **旧代码的注释也可能是半对的。** §4 第 3 读推翻的正是本批自己几小时前写下的两句 docstring。
+   红与绿都能推翻一句话，这是本批唯一一次靠红来纠文字。
+8. **heredoc 追加会把 LF 带进一个 CRLF 工作树。** 用 shell 追加给 `tests/test_task_worker.py`
+   添的那 26 行是 LF，而这个文件在工作树里是 547 行 CRLF（`core.autocrlf=true`、没有
+   `.gitattributes`，所以索引里仍是 LF、`git diff --stat` 只有 46/3 行，提交不受影响）。
+   受影响的是「这个文件从此混着两种行尾」，而下一个用字节脚本改它的人会被绊住。
+   记法：动手之前先数一次 EOL，别事后从 git 的 warning 里发现。
+9. **`$?` 在管道后面量的是 `tail`。** 第三十五批的陷阱清单里已经有这条，本批又踩了一次：
+   doc_pointers 的退出码是先带 `| tail` 跑了一遍、看到 0 才发现那不是它的。
+   补跑了一次不带管道的版本才敢写 §8 的那句 exit 0。
+10. **记录里不许出现「刚刚完成了 X」而 X 的产物没被读过。** 本批写记录的过程中，
+    有一次把一条从未启动过的后台读数当成事实来引用（一个凭空的 task id）。
+    发现它的唯一动作就是去读那个输出文件——它不存在。凡是「已完成」的说法，
+    落笔前先跑一条真命令看它的产物；这一条比任何一条都便宜，也最容易被跳过。
