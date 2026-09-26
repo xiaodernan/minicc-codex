@@ -19,7 +19,11 @@ _DIGEST_LOCK = threading.Lock()
 
 def _file_digest(path: Path) -> bytes:
     stat = path.stat()
-    signature = (stat.st_mtime_ns, stat.st_ctime_ns, stat.st_size)
+    # st_ino leads the signature: on a volume where the write timestamp is coarse, a
+    # deleted-and-recreated file can present the same (mtime_ns, ctime_ns, size) as the
+    # incarnation whose digest is cached, and the cache would then answer for bytes that
+    # are no longer the ones it hashed. st_ino is what distinguishes those two lives.
+    signature = (stat.st_ino, stat.st_mtime_ns, stat.st_ctime_ns, stat.st_size)
     key = str(path)
     with _DIGEST_LOCK:
         cached = _DIGEST_CACHE.get(key)
@@ -28,7 +32,7 @@ def _file_digest(path: Path) -> bytes:
             return cached[1]
     value = hashlib.sha256(path.read_bytes()).digest()
     after = path.stat()
-    if (after.st_mtime_ns, after.st_ctime_ns, after.st_size) != signature:
+    if (after.st_ino, after.st_mtime_ns, after.st_ctime_ns, after.st_size) != signature:
         raise OSError("verification input changed while hashing")
     with _DIGEST_LOCK:
         _DIGEST_CACHE[key] = (signature, value)

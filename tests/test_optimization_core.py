@@ -111,6 +111,41 @@ def test_frontend_plan_requires_script_authorization(tmp_path):
     assert verifier.run(tmp_path, plan=plan).status == "blocked"
 
 
+def test_a_recreated_file_is_not_answered_by_the_previous_incarnation(tmp_path):
+    """M8-T65: the digest memo must be able to tell two lives of one path apart.
+
+    Measured, not assumed: deleting and recreating a file on this volume can leave
+    (mtime_ns, ctime_ns, size) exactly as the cached entry recorded - 6 recreations shared
+    one ctime, and 4 stale digests came from that in 60 rounds. Waiting for that coincidence
+    would make a gate that reddens on someone else's machine and not on yours, so the
+    collision is constructed: the cache is seeded with an entry recorded under an identity
+    model that has no file identity in it, and the plan must not answer from it.
+
+    Falsified both ways on purpose: against a signature without st_ino this is red (that is
+    the pre-fix behaviour), against the current one it is green.
+    """
+    from minicc.agent.verification_plan import _DIGEST_CACHE
+
+    source = tmp_path / "app.py"
+    source.write_text("a = 1\n", encoding="utf-8")
+    (tmp_path / "test_app.py").write_text("def test_app():\n    assert True\n", encoding="utf-8")
+
+    before = build_verification_plan(tmp_path, ["app.py"])
+    assert before.commands and before.fingerprint, "no rule matched; this gate would be vacuous"
+
+    stat = source.stat()
+    stale_digest = bytes.fromhex("00" * 32)
+    # the shape an entry has when the key does not carry file identity
+    _DIGEST_CACHE[str(source)] = ((stat.st_mtime_ns, stat.st_ctime_ns, stat.st_size), stale_digest)
+
+    build_verification_plan(tmp_path, ["app.py"])
+    assert _DIGEST_CACHE[str(source)][1] != stale_digest, (
+        "the memo served an entry whose signature omits the file's identity; a "
+        "deleted-and-recreated file can be answered with the digest of bytes that no "
+        "longer exist at this path"
+    )
+
+
 def test_nested_rules_and_jsx_or_fixture_edits_invalidate_cache(tmp_path):
     (tmp_path / "web/src").mkdir(parents=True)
     (tmp_path / ".minicc").mkdir()
