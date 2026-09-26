@@ -4419,3 +4419,76 @@ test_session_rewind.py:88          test_web_security.py:131        test_webfetch
 13 处同形改动 + 13 次双向见证，不是收尾轮次能验证完的规模；
 而**未验证的改动比没有改动更贵**——本 session 已付过一次（误归因的回滚，第四十六→四十七批）。
 所以本批交付的是普查、后果链和判据，不是一堆没被证过的 diff。
+
+## 第五十一批（M8-T68 落地：两处 serve_forever 夹具补上存活/就绪见证）
+
+HEAD 起点：`0a56174`（站点 1）→ `0690ece`（另一 run 的 CI 提交）。
+
+### 1. 交付了两处，形状完全照第五十批 §3 的判据
+
+**站点 1 — `tests/test_http_surface.py::_LiveServer`（`0a56174`，上一轮已提交但漏记）**
+`target` 换成 `self._serve`，`try: serve_forever(**kwargs) except BaseException as exc: self.error = exc`；
+线程起名 `minicc-test-server`；**发布 url 之前**用 `GET /api/health` 做有界探测（10s 上限、0.02s 轮询），
+三条分叉各自说话：线程死/无异常退出 ⇒ `died before serving …; it raised: <捕获到的异常>`；
+线程活着但不答复 ⇒ `never answered GET /api/health with 200 within 10s (last status …)`。
+没有加任何「适应负载」的 `sleep` 重试（判据 3）。
+
+**站点 2 — `tests/test_web_security.py::_Server`（本批）**
+同一形状，线程名 `minicc-test-web-server`。该文件 5 个调用点（`required=True` 三处、`required=False` 两处）
+全部经过这个夹具，探测路由选 `/api/health` 是因为它在两种 auth 配置下都开放（`minicc/webserver.py:272`）。
+`import time` 一并补上（上一批因漏这条 import 瞬间红了 46 项，见第五十批的陷阱登记）。
+
+### 2. 双向见证：三个机制变异红在两条**不同**的新断言上
+
+脚本 `t68_m2_teeth.py`（临时目录，不入 git）把 `serve_forever(**kwargs)` 整行换成三种坏法，
+逐字打印子进程里的 `AssertionError` 文字：
+
+| 变异 | 破坏的机制 | exit | 门说的话（逐字） |
+| --- | --- | --- | --- |
+| 控制（未变异） | — | 0 | `17 passed in 5.72s` |
+| A | 线程立刻 raise | 1 | `the test HTTP server thread 'minicc-test-web-server' died before serving http://127.0.0.1:57708; it raised: RuntimeError('simulated dead server')` |
+| B | 线程活着但不进 accept 循环（sleep 11s） | 1 | `the test HTTP server thread 'minicc-test-web-server' never answered GET /api/health with 200 within 10s (last status -1) at http://127.0.0.1:57734` |
+| C | 线程静默 return（不 raise） | 1 | `the test HTTP server thread 'minicc-test-web-server' died before serving http://127.0.0.1:57761; it raised: None` |
+
+A/C 红在「死了 + 带不带捕获异常」那一支，B 红在「活着但不答复」那一支——**3/3 命中新断言，0 次落到下游
+`URLError`**，所以第五十批判据 2 里那种「红错分支的无效变异」没有发生。三支消息各不相同，
+说明这不是万能报错句。脚本 `finally` 还原，`restored: True` 且与主树拷贝 `cmp` 逐字节相同。
+
+### 3. 一次自伤：变异脚本把控制也弄红了
+
+第一版 teeth 脚本给 pytest 子进程传了一个手写的极简 env（只留 SYSTEMROOT/PATH），丢掉了 `HOME`/`USERPROFILE`，
+于是**未变异的控制**先红了：`RuntimeError: Could not determine home directory.`（`pathlib.py:1385`，
+`Path.home()` 在无 HOME 的进程里抛错）。变异证据本身仍指向新断言，但「控制红」使整组对比不成立。
+如实记下来的规则：**变异脚本的环境必须与该门平日的运行环境同源**，否则控制红会被误读成「门太严」，
+就像第四十九批那条「判据过严反而判自己 NOT proven」的镜像。修正方式不是把 19/20 这种数字改掉，
+而是继承真实 env 重跑控制（得到 `17 passed`）。
+
+### 4. 本批的边界：工作区被另一个 run 占着，门改在 worktree 里跑
+
+本批开工时 `git status` 显示 12 个文件 / +1328 行**未提交**的在飞改动（`minicc/agent/router.py`、
+`main.py`、`session.py`、`task_store.py`、`tools/git.py`、`ide/vscode/*`、`benchmarks/tasks.v2.json`、
+`conftest.py`、`tests/test_git_workflow.py`、未跟踪的 `add_tasks.py`），mtime 落在开工前 55~70 分钟。
+其中 `router.py` 新增的 `DEFAULT_MODELS: dict[str, ModelConfig] = {…}` 是 dataclass 的可变默认，
+**任何 import 到 router 的门在收集期就红**：
+`ValueError: mutable default <class 'dict'> for field DEFAULT_MODELS is not allowed: use default_factory`
+（同文件 138 行还引用了不存在的 `_DEFAULT_MODELS`）。
+
+因此本批**不在主树跑门**——那会把数字归到别人的在飞代码上。改按既有做法取一棵干净树：
+`git worktree add --detach %TEMP%/t68wt HEAD`，只把本批那一个测试文件拷进去（`PYTHONPATH` 指向 worktree，
+并验证 `minicc.__file__` 确实解析到 worktree 而不是主树），在里面上面所有门与全量。
+边界结论：本批数字属于「HEAD(`0690ece`) + 本批 1 个测试文件」，**不属于主树当前工作状态**；
+那 +1328 行的 run 继续拥有它自己的改动，本批不代提交、不代 revert、不碰 `git checkout`。
+
+### 5. M8-T68 剩余 11 处与逐处配方
+
+`test_allowlist.py:90`、`test_file_tree_api.py:102`、`test_history_search.py:127`、
+`test_http_route_inventory.py:124`、`test_logging.py:136`、`test_mcp_http.py:67` 与 `:152`、
+`test_optimization_core.py:229`、`test_p0_p1_p2.py:348`、`test_session_rewind.py:88`、`test_webfetch.py:79`。
+
+配方（本批两处都是这么走的，逐处照抄）：
+1. 读模块 import 清单（缺 `time` 就补，别在跑完才发现）；
+2. `target` 包一层捕获 `self.error` + 线程命名；
+3. 发布 url 前对**该夹具必然开放**的路由做有界探测（探测前先看 auth/allowlist 语义，选一条恒定 200 的路）；
+4. 跑该文件（干净 worktree）；
+5. 机制变异 ≥3 支：raise / 静默 return / 活着不 accept，要求红在本批新断言，红在下游 `URLError` 判无效并回炉；
+6. push 前一次全量。

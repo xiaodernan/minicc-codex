@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import threading
+import time
 import types
 import urllib.error
 import urllib.request
@@ -128,9 +129,43 @@ class _Server:
 
     def __init__(self, auth: WebAuth) -> None:
         self.server = MiniccHTTPServer(("127.0.0.1", 0), _service_stub(), auth=auth)
-        self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
+        self.error: BaseException | None = None
+        self.thread = threading.Thread(
+            target=self._serve,
+            kwargs={"poll_interval": 0.05},
+            daemon=True,
+            name="minicc-test-web-server",
+        )
         self.thread.start()
         self.url = f"http://127.0.0.1:{self.server.server_address[1]}"
+        # M8-T68: an unstarted server used to be discovered by whichever request
+        # happened to be first, so the report was a connection error naming the
+        # route, not the cause. Prove the thread serves before publishing its url.
+        deadline = time.monotonic() + 10.0
+        while True:
+            if self.error is not None or not self.thread.is_alive():
+                raise AssertionError(
+                    f"the test HTTP server thread {self.thread.name!r} died before "
+                    f"serving {self.url}; it raised: {self.error!r}"
+                )
+            try:
+                status, _, _ = _get(f"{self.url}/api/health")
+            except OSError:
+                status = -1
+            if status == 200:
+                return
+            if time.monotonic() >= deadline:
+                raise AssertionError(
+                    f"the test HTTP server thread {self.thread.name!r} never answered "
+                    f"GET /api/health with 200 within 10s (last status {status}) at {self.url}"
+                )
+            time.sleep(0.02)
+
+    def _serve(self, **kwargs) -> None:
+        try:
+            self.server.serve_forever(**kwargs)
+        except BaseException as exc:
+            self.error = exc
 
     def shutdown(self) -> None:
         self.server.shutdown()
