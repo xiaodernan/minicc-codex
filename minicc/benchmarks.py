@@ -268,7 +268,17 @@ def load_retrieval_cases(path: Path = DEFAULT_RETRIEVAL) -> dict[str, Any]:
     ks = raw.get("ks") or [1, 5]
     if not isinstance(ks, list) or not all(isinstance(k, int) and k >= 1 for k in ks):
         raise ValueError("retrieval ks 必须是 >=1 的整数列表")
-    return {"workspace": str(raw.get("workspace") or "."), "ks": sorted(set(ks)), "cases": cases}
+    # Scoring under a stated budget is how the truncation behaviour stays testable
+    # without a 1200-file fixture; it has to be an explicit number, never a typo.
+    budget: dict[str, int] = {}
+    for key in ("max_files", "max_directories"):
+        value = raw.get(key)
+        if value is None:
+            continue
+        if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+            raise ValueError(f"retrieval {key} 必须是 >=1 的整数")
+        budget[key] = value
+    return {"workspace": str(raw.get("workspace") or "."), "ks": sorted(set(ks)), "cases": cases, **budget}
 
 
 def evaluate_retrieval(
@@ -276,17 +286,26 @@ def evaluate_retrieval(
     *,
     workspace: Path,
     ks: Sequence[int] = (1, 5),
+    max_files: int | None = None,
+    max_directories: int | None = None,
 ) -> dict[str, Any]:
     """Score the deterministic lexical index against known-answer queries.
 
     recall@k = |targets ∩ top-k| / |targets| averaged over cases; MRR uses the
-    rank of the first relevant target. Builds the index once and reuses it.
+    rank of the first relevant target. Builds the index once and reuses it, and
+    publishes that index's walk census under ``index`` so the numbers below can
+    be read as either a retrieval result or a truncated scan.
     """
     from .agent.retrieval import LocalEvidenceIndex
 
     ks = sorted({int(k) for k in ks if int(k) >= 1}) or [1]
     top_k = max(ks)
-    index = LocalEvidenceIndex(workspace)
+    budget: dict[str, int] = {}
+    if max_files is not None:
+        budget["max_files"] = max_files
+    if max_directories is not None:
+        budget["max_directories"] = max_directories
+    index = LocalEvidenceIndex(workspace, **budget)
     rows: list[dict[str, Any]] = []
     recall_sums = {k: 0.0 for k in ks}
     hit_sums = {k: 0 for k in ks}
@@ -321,15 +340,42 @@ def evaluate_retrieval(
         "workspace": str(workspace),
         "case_count": n,
         "ks": ks,
+        "index": index.stats(),
         "metrics": metrics,
         "results": rows,
     }
 
 
-def retrieval_decision(recall_at_5: float | None, floor: float = RETRIEVAL_RECALL_FLOOR) -> str:
-    """Written M4-T7 conclusion: introduce embeddings only below the floor."""
+def retrieval_decision(
+    recall_at_5: float | None,
+    floor: float = RETRIEVAL_RECALL_FLOOR,
+    *,
+    index: dict[str, Any] | None = None,
+) -> str:
+    """Written M4-T7 conclusion: introduce embeddings only below the floor.
+
+    ``index`` is the census of the walk that scored the cases.  Without it the
+    denominator is unknown, and an unknown denominator gets neither branch:
+    a metric over a prefix of the workspace cannot recommend a vector stack
+    either (measured: 1250 files against a 1200 budget produced recall@5=0.0 and
+    this function printed the "introduce embeddings" sentence).
+    """
     if recall_at_5 is None:
         return "recall@5 不可用（无 case），无法判定；保持现状不引入向量检索。"
+    from .agent.retrieval import census_is_complete
+
+    if not census_is_complete(index):
+        keys = ("files_indexed", "files_seen", "files_skipped", "file_limit",
+                "directories_walked", "directory_budget", "truncated")
+        bits = " ".join(
+            f"{key}={'未知' if not index or index.get(key) is None else index.get(key)}" for key in keys
+        )
+        return (
+            f"recall@5={recall_at_5:.4f} 但索引遍历口径不完整（截断或分母未知：{bits}）："
+            "这个数字衡量的是工作区的一个前缀，既不能判定 lexical 基线达标，"
+            "也不能据此启动向量检索的投入；先把候选收集恢复成完整遍历"
+            "（调大 max_files/max_directories，或把工作区内的临时目录移走）再重跑。"
+        )
     if recall_at_5 < floor:
         return (
             f"recall@5={recall_at_5:.4f} < {floor:.2f}：lexical 基线不达标，"
@@ -342,12 +388,28 @@ def retrieval_decision(recall_at_5: float | None, floor: float = RETRIEVAL_RECAL
     )
 
 
+def _census_line(index: dict[str, Any] | None) -> str:
+    """The denominator the metrics were computed over, in the quotable report."""
+    from .agent.retrieval import census_is_complete
+
+    if not index:
+        return "Index census: 未知（报告里没有索引 stats） | 口径完整=False"
+    return (
+        f"Index census: files_indexed={index.get('files_indexed')} "
+        f"files_seen={index.get('files_seen')} files_skipped={index.get('files_skipped')} "
+        f"file_limit={index.get('file_limit')} "
+        f"directories={index.get('directories_walked')}/{index.get('directory_budget')} "
+        f"truncated={index.get('truncated')} | 口径完整={census_is_complete(index)}"
+    )
+
+
 def markdown_retrieval(report: dict[str, Any], decision: str) -> str:
     metrics = report["metrics"]
     lines = [
         "# minicc Retrieval Hit-Rate (M4-T7 lexical baseline)",
         "",
         f"Workspace: {report['workspace']} | Cases: {report['case_count']}",
+        _census_line(report.get("index")),
         "",
         "| Metric | Value |",
         "| --- | ---: |",
@@ -372,8 +434,9 @@ def _run_retrieval_suite(args: argparse.Namespace) -> int:
         cli_out(f"[retrieval] 数据集加载失败: {exc}")
         return 2
     workspace = (REPO_ROOT / dataset["workspace"]).resolve()
-    report = evaluate_retrieval(dataset["cases"], workspace=workspace, ks=dataset["ks"])
-    decision = retrieval_decision(report["metrics"].get("recall@5"))
+    budget = {key: dataset[key] for key in ("max_files", "max_directories") if key in dataset}
+    report = evaluate_retrieval(dataset["cases"], workspace=workspace, ks=dataset["ks"], **budget)
+    decision = retrieval_decision(report["metrics"].get("recall@5"), index=report["index"])
     report["decision"] = decision
     args.json_out.parent.mkdir(parents=True, exist_ok=True)
     args.markdown_out.parent.mkdir(parents=True, exist_ok=True)
@@ -385,6 +448,7 @@ def _run_retrieval_suite(args: argparse.Namespace) -> int:
         + " ".join(f"{k}={metrics[k]}" for k in sorted(metrics))
         + f" | cases={report['case_count']}"
     )
+    cli_out(_census_line(report.get("index")))
     cli_out(f"[retrieval] 结论: {decision}")
     # CI records these numbers but does not gate on them in the first round.
     return 0

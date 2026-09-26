@@ -53,6 +53,9 @@
 .venv/Scripts/python.exe -m minicc.benchmarks --suite retrieval --json-out output/retrieval.json --markdown-out output/retrieval.md
 ```
 
-本轮基线（在本仓库自身上检索）：`recall@1=0.65`、`recall@5=0.90`、`MRR=0.75`、`cases=20`。
+本轮基线（在本仓库自身上检索，2026-09-26 复跑；上一轮记录为 `recall@5=0.90`、`MRR=0.75`，差值在下文所说的抖动范围内）：`recall@1=0.65`、`recall@5=0.95`、`MRR=0.7683`、`cases=20`。
+口径（M8-T72 起由报告自己带出来，键 `report["index"]`）：`files_indexed=232 / file_limit=1200 / files_seen=232 / files_skipped=0 / directories_walked=21 / directory_budget=4800 / truncated=False`，本次 `last_build_ms=804.46`（缓存已热）——也就是说遍历确实走完了整仓，上面四个数字是关于本仓库的陈述，而不是关于它某个前缀的陈述。
 
-**书面结论**：`recall@5=0.90 >= 0.60`（路线图设定的引入门槛），词法基线已能可靠定位已知答案，**不引入向量检索**，停止在 embedding 上的投入。该结论由 `tests/test_retrieval_eval.py::test_real_dataset_clears_floor_backing_the_written_conclusion` 守护——一旦数据集 `recall@5` 跌破门槛，测试即红，提醒重新评估。CI 仅记录这些数值、不门禁（首轮只建基线）。注意 `recall` 受文件 mtime 新鲜度加权影响，跨机器可能在 ±0.05 抖动，但 0.90 对 0.60 的门槛有充足余量。
+**书面结论**：`recall@5=0.90 >= 0.60`（路线图设定的引入门槛），词法基线已能可靠定位已知答案，**不引入向量检索**，停止在 embedding 上的投入。该结论由 `tests/test_retrieval_eval.py::test_real_dataset_clears_floor_backing_the_written_conclusion` 守护——一旦数据集 `recall@5` 跌破门槛，测试即红，提醒重新评估；并由 `tests/test_index_census.py` 守住另一半：出这个数字的那次遍历必须确实覆盖整仓（`minicc/agent/retrieval.py::census_is_complete`），口径不完整时 `retrieval_decision` 两个分支都不给。CI 仅记录这些数值、不门禁（首轮只建基线）。注意 `recall` 受文件 mtime 新鲜度加权影响，跨机器可能在 ±0.05 抖动，但 0.90 对 0.60 的门槛有充足余量。
+
+**为什么分母要写进报告（M8-T72 的实测）**：`LocalEvidenceIndex` 有两道预算——`max_files` 个候选文件，以及 `max(4000, max_files * 4)` 个目录——任何一道先到，指标就算在工作区的一个前缀上。在 `ac76061` 上量过：1250 个 `.py` 对 1200 的预算、目标文件排在切点之后，`--suite retrieval` 照样 exit 0，并且打出「lexical 基线不达标，下一步评估引入本地 embedding」——一次预算截断被读成了架构建议；反过来，4300 个目录、20 个文件全在目录切点之后（`max_files=900`，目录预算 `max(4000, 3600)=4000`）时，`stats()` 报 `files_indexed=0, truncated=false`，因为旧判据是 `len(records) >= max_files`，它恰好在这种「没填满预算」的截断上答反方向。现在 `truncated` 说遍历有没有走完，`files_seen`/`files_skipped` 说差多少，报告与 markdown 都带这一行。

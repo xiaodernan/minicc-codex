@@ -366,10 +366,29 @@ def query_terms(query: str) -> tuple[str, ...]:
 
 
 class LocalEvidenceIndex:
-    def __init__(self, workspace: Path, *, max_files: int = 1200, max_bytes: int = 900_000, refresh_interval: float = 1.0) -> None:
+    def __init__(
+        self,
+        workspace: Path,
+        *,
+        max_files: int = 1200,
+        max_bytes: int = 900_000,
+        refresh_interval: float = 1.0,
+        max_directories: int | None = None,
+    ) -> None:
         self.workspace = workspace.resolve()
         self.max_files = max(1, max_files)
         self.max_bytes = max(10_000, max_bytes)
+        # Directories are walked even when they hold nothing, so this budget is
+        # what stops a deep tree from costing unbounded time - and what can make
+        # the candidate list a prefix.  Callers must be able to test that cut.
+        self.max_directories = (
+            max(4_000, self.max_files * 4) if max_directories is None else max(1, max_directories)
+        )
+        self._walk: dict[str, object] = {
+            "files_seen": 0,
+            "directories_walked": 0,
+            "stopped_early": False,
+        }
         self._records: tuple[_FileRecord, ...] = ()
         self._stats: dict[str, object] | None = None
         self._record_cache: dict[str, tuple[tuple[int, int], _FileRecord]] = {}
@@ -402,7 +421,12 @@ class LocalEvidenceIndex:
         return hits[: max(1, min(20, limit))]
 
     def stats(self) -> dict[str, object]:
-        """Return {files_indexed, symbols_extracted, last_build_ms}."""
+        """Return the build metrics plus the census of the walk that produced them.
+
+        ``files_seen`` is what the walk offered, ``files_skipped`` what it could
+        not read, ``truncated`` whether the walk stopped before the tree ended.
+        See ``census_is_complete`` for the one judgement those add up to.
+        """
 
         self._ensure_built()
         return dict(self._stats or {})
@@ -425,10 +449,12 @@ class LocalEvidenceIndex:
         symbols_extracted = 0
         cache: dict[str, tuple[tuple[int, int], _FileRecord]] = {}
         rebuilt = 0
+        skipped = 0
         for path, rel in self._files():
             try:
                 stat = path.stat()
             except OSError:
+                skipped += 1
                 continue
             signature = (stat.st_mtime_ns, stat.st_size)
             previous = self._record_cache.get(rel)
@@ -438,25 +464,39 @@ class LocalEvidenceIndex:
                 record = self._build_record(path, rel)
                 rebuilt += 1
             if record is None:
+                skipped += 1
                 continue
             cache[rel] = (signature, record)
             symbols_extracted += len(record.symbols)
             records.append(record)
         self._checked_at = time.monotonic()
-        if self._stats is not None and cache == self._record_cache:
-            self._stats = {**self._stats, "files_rebuilt": 0}
-            return
         elapsed_ms = (time.perf_counter() - start) * 1000.0
-        self._record_cache = cache
-        self._records = tuple(records)
-        self._stats = {
+        walk = self._walk
+        # `truncated` used to be `len(records) >= max_files`, i.e. "did I fill the
+        # file budget".  That answers no in both directions the denominator can be
+        # short: a walk that dies on the directory budget indexes too few to look
+        # truncated, and candidates that were offered and then refused to open
+        # leave the record count below the limit too.  The flag now reports the
+        # walk's own stopping, and `files_skipped` carries what disappeared
+        # between collection and indexing.
+        census: dict[str, object] = {
             "files_indexed": len(records),
+            "files_seen": walk["files_seen"],
+            "files_skipped": skipped,
             "symbols_extracted": symbols_extracted,
             "last_build_ms": round(elapsed_ms, 2),
             "files_rebuilt": rebuilt,
             "file_limit": self.max_files,
-            "truncated": len(records) >= self.max_files,
+            "directories_walked": walk["directories_walked"],
+            "directory_budget": self.max_directories,
+            "truncated": bool(walk["stopped_early"]),
         }
+        if self._stats is not None and cache == self._record_cache:
+            self._stats = {**census, "files_rebuilt": 0}
+            return
+        self._record_cache = cache
+        self._records = tuple(records)
+        self._stats = census
 
     def _build_record(self, path: Path, rel: str) -> _FileRecord | None:
         try:
@@ -500,12 +540,14 @@ class LocalEvidenceIndex:
             except OSError:
                 pass
         directories = 0
+        stopped_early = False
         # Prune before descent: cached browsers, git objects and dependencies
         # must never consume the source-file budget. Prefer code over archives.
         for directory, dirs, files in os.walk(self.workspace, followlinks=False):
-            directories += 1
-            if directories > max(4_000, self.max_files * 4):
+            if directories >= self.max_directories:
+                stopped_early = True
                 break
+            directories += 1
             dirs[:] = sorted(
                 (name for name in dirs if name.casefold() not in SKIP_DIRS and not name.startswith(".")
                  and not (Path(directory) / name).is_symlink()),
@@ -522,8 +564,38 @@ class LocalEvidenceIndex:
                     continue
                 regular.append((path, rel))
                 if len(regular) >= self.max_files:
-                    return sorted(guidance, key=lambda item: item[1]) + regular
-        return sorted(guidance, key=lambda item: item[1]) + regular
+                    collected = sorted(guidance, key=lambda item: item[1]) + regular
+                    self._record_walk(collected, directories, stopped_early=True)
+                    return collected
+        collected = sorted(guidance, key=lambda item: item[1]) + regular
+        self._record_walk(collected, directories, stopped_early=stopped_early)
+        return collected
+
+    def _record_walk(self, collected: list[tuple[Path, str]], directories: int, *, stopped_early: bool) -> None:
+        """Publish the walk's own denominator, not one inferred from records."""
+        self._walk = {
+            "files_seen": len(collected),
+            "directories_walked": directories,
+            "stopped_early": stopped_early,
+        }
+
+
+def census_is_complete(stats: dict[str, object] | None) -> bool:
+    """Can a metric built on this index be read as a statement about the workspace?
+
+    False whenever the walk stopped at a budget, whenever a candidate it did
+    offer could not be read, and whenever the census is absent - an unknown
+    denominator is not a proven complete one.  This is the only place the
+    question is answered, so the report, the written conclusion and the tests
+    cannot drift into three different definitions of "whole tree".
+    """
+    if not stats:
+        return False
+    if stats.get("truncated"):
+        return False
+    if stats.get("files_seen") is None or stats.get("files_indexed") is None:
+        return False
+    return not stats.get("files_skipped")
 
 
 _INDEX_CACHE: OrderedDict[str, LocalEvidenceIndex] = OrderedDict()
@@ -541,4 +613,4 @@ def get_evidence_index(workspace: Path) -> LocalEvidenceIndex:
         return index
 
 
-__all__ = ["EvidenceHit", "LocalEvidenceIndex", "get_evidence_index"]
+__all__ = ["EvidenceHit", "LocalEvidenceIndex", "census_is_complete", "get_evidence_index"]

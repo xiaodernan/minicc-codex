@@ -16,6 +16,7 @@ from pathlib import Path
 import pytest
 
 from minicc import benchmarks
+from minicc.agent.retrieval import LocalEvidenceIndex, census_is_complete
 from minicc.benchmarks import (
     DEFAULT_RETRIEVAL,
     REPO_ROOT,
@@ -76,6 +77,17 @@ def test_load_rejects_bad_datasets(tmp_path):
         load_retrieval_cases(_write({"ks": [0], "cases": [
             {"id": "a", "query": "q", "targets": ["x.py"]},
         ]}))
+    # A stated index budget has to be a real number: a typo there silently
+    # changes the denominator of every metric in the report (M8-T72).
+    for bad in (0, -3, "10", 1.5, True):
+        with pytest.raises(ValueError):
+            load_retrieval_cases(_write({"max_files": bad, "cases": [
+                {"id": "a", "query": "q", "targets": ["x.py"]},
+            ]}))
+    loaded = load_retrieval_cases(_write({"max_files": 10, "cases": [
+        {"id": "a", "query": "q", "targets": ["x.py"]},
+    ]}))
+    assert loaded["max_files"] == 10
 
 
 # --- metric math on a synthetic workspace ---------------------------------
@@ -127,12 +139,17 @@ def test_evaluate_retrieval_recall_counts_partial_multi_target(tmp_path):
 # --- decision rule ---------------------------------------------------------
 
 
-def test_retrieval_decision_thresholds():
-    assert "不引入向量检索" in retrieval_decision(0.9)
-    assert "不引入向量检索" in retrieval_decision(RETRIEVAL_RECALL_FLOOR)  # == floor passes
-    below = retrieval_decision(0.59)
+def test_retrieval_decision_thresholds(tmp_path):
+    # The conclusion is only about the metric when the walk that produced it
+    # covered the workspace, so a census has to be supplied (M8-T72).
+    (tmp_path / "one.py").write_text("def one():\n    pass\n", encoding="utf-8")
+    census = LocalEvidenceIndex(tmp_path).stats()
+    assert census_is_complete(census) is True, census
+    assert "不引入向量检索" in retrieval_decision(0.9, index=census)
+    assert "不引入向量检索" in retrieval_decision(RETRIEVAL_RECALL_FLOOR, index=census)  # == floor passes
+    below = retrieval_decision(0.59, index=census)
     assert "embedding" in below and "A/B" in below
-    assert "无法判定" in retrieval_decision(None)
+    assert "无法判定" in retrieval_decision(None, index=census)
 
 
 def test_real_dataset_clears_floor_backing_the_written_conclusion():
@@ -140,11 +157,20 @@ def test_real_dataset_clears_floor_backing_the_written_conclusion():
     workspace = (REPO_ROOT / dataset["workspace"]).resolve()
     report = evaluate_retrieval(dataset["cases"], workspace=workspace, ks=dataset["ks"])
     recall5 = report["metrics"]["recall@5"]
-    assert recall5 >= RETRIEVAL_RECALL_FLOOR, (
-        f"committed dataset recall@5={recall5} fell below the floor; the "
-        "「不引入向量检索」 conclusion is no longer backed by the baseline"
+    census = report["index"]
+    assert census_is_complete(census), (
+        f"the baseline walk did not cover the workspace ({census}); the number "
+        "below measures a prefix of the tree and cannot back any conclusion"
     )
-    assert "不引入向量检索" in retrieval_decision(recall5)
+    assert recall5 >= RETRIEVAL_RECALL_FLOOR, (
+        f"committed dataset recall@5={recall5} fell below the floor with a "
+        f"complete walk over {census['files_indexed']} files "
+        f"(limit {census['file_limit']}, seen {census['files_seen']}, "
+        f"skipped {census['files_skipped']}, dirs {census['directories_walked']}/"
+        f"{census['directory_budget']}); the 「不引入向量检索」 conclusion is no "
+        "longer backed by the baseline"
+    )
+    assert "不引入向量检索" in retrieval_decision(recall5, index=census)
 
 
 # --- CLI wiring ------------------------------------------------------------
@@ -170,8 +196,14 @@ def test_main_suite_retrieval_writes_reports(tmp_path):
     assert payload["case_count"] == 1
     assert payload["metrics"]["recall@1"] == 1.0
     assert "decision" in payload
+    # The report has to carry the walk it scored with (M8-T72).
+    assert census_is_complete(payload["index"]) is True
+    assert payload["index"]["files_indexed"] == LocalEvidenceIndex(ws).stats()["files_indexed"]
     md = md_out.read_text(encoding="utf-8")
     assert "Retrieval Hit-Rate" in md and "结论" in md
+    # What the census line has to look like is judged once, in
+    # tests/test_index_census.py; checking the same shape here would leave one
+    # copy without a witness.
 
 
 def test_main_suite_retrieval_bad_dataset_returns_2(tmp_path):
