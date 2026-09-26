@@ -146,6 +146,38 @@ def test_a_recreated_file_is_not_answered_by_the_previous_incarnation(tmp_path):
     )
 
 
+def test_a_same_tick_rewrite_of_a_changed_file_is_still_seen_by_the_fingerprint(tmp_path):
+    """M8-T66: the paths a task changed must never be answered from the digest memo.
+
+    This window cannot be waited for: measured on this volume an in-place rewrite advances
+    st_mtime_ns only about two thirds of the time, so a gate that hoped to catch it
+    naturally would pass most days and lie on the others. The state is therefore
+    constructed - a same-length rewrite whose mtime is pinned back to exactly what the memo
+    recorded, which is what a same-tick edit looks like from inside the key.
+    """
+    from minicc.agent.verification_plan import _DIGEST_CACHE
+
+    source = tmp_path / "app.py"
+    source.write_text("value = 1  # pad\n", encoding="utf-8")
+    (tmp_path / "test_app.py").write_text("def test_app():\n    assert True\n", encoding="utf-8")
+    before = build_verification_plan(tmp_path, ["app.py"])
+    assert before.commands and before.fingerprint, "no rule matched; this gate would be vacuous"
+
+    entry = _DIGEST_CACHE[str(source)]
+    stat = source.stat()
+    source.write_text("value = 2  # pad\n", encoding="utf-8")
+    os.utime(source, ns=(stat.st_atime_ns, entry[0][1]))
+    assert source.stat().st_size == entry[0][3] and source.stat().st_mtime_ns == entry[0][1], (
+        "the pinned state was not achieved, so this gate would be asserting nothing"
+    )
+
+    after = build_verification_plan(tmp_path, ["app.py"])
+    assert after.fingerprint != before.fingerprint, (
+        "a changed file was answered from the digest memo: the verifier's before/after "
+        "comparison then reads the same stale digest twice and credits bytes it never hashed"
+    )
+
+
 def test_nested_rules_and_jsx_or_fixture_edits_invalidate_cache(tmp_path):
     (tmp_path / "web/src").mkdir(parents=True)
     (tmp_path / ".minicc").mkdir()
