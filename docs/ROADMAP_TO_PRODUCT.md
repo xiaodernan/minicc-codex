@@ -4647,3 +4647,111 @@ M3 是意外收获：**局部遮蔽在这仓里是真实存在的**（`minicc/im
   而且 pyflakes 的 `undefined name` 需要完整作用域分析）。登记而不扩张。
 * `tests/` 之外还带 `minicc/` 与 `scripts/`，是因为 M3 证明产品代码里遮蔽同名模块是常态——
   只扫 `tests/` 会放过产品代码里同类的一半错误。
+
+## 第五十五批（M8-T70：把「睡一觉当作某个外部事实已成立」换成可轮询的事实，再让门要求声明）
+
+起点 HEAD：`3f4f221`（第五十四批，M8-T69 收口，已 push）。本批代码提交 `916a31c`
+（8 个测试文件，+363/−15）。基线在该提交的干净 worktree 上跑：**1152 passed in 892.40s /
+exit 0**——1150 + 本批 2 条新门，条数与 exit 就是判据。时长只登记：同一台机器上同时还有
+另一个 run 的 pytest 在跑（安静时同一批约 400s 量级）。
+
+### 1. 先量，并且更正上一批自己数错的那个数
+
+普查问题：**除了 serve_forever，还有哪些夹具在「等待某个外部事实成立」之前就开始使用它**——
+最朴素的形状就是 `time.sleep(X)` 写在需要「对方已经到达状态 Y」的地方。固定节拍不能证明 Y，
+它只能恰好撞上 Y；本仓它就撞上过一次：两个调用者声称共享同一个审批提示，其中一个从未 attach 上。
+
+按 AST 而不是按 grep 数（`tests/`，run 2026-09-26 against `3f4f221`）：
+
+* 61 行文本里出现 `time.sleep(`，其中 **47 行是真调用**，另外 **14 行的 `time.sleep(` 是写进
+  字符串、交给子进程去执行的文本**——那里 sleep 本身就是被测行为，任何规则都不该碰它。
+* 另有 4 处 `asyncio.sleep`，是「协程让出」而不是「线程把自己停住」，不在上面任何总体里。
+* 47 处里 **37 处位于循环体内**（它们在轮询），**10 处是平铺的一拍**。
+
+更正一条：上一批我用 `t74_threads.py` 按属性名统计 `join`，把 `", ".join(...)` 一起算了进去，
+当时报出的 `joined=49` 是错的。本批改用接收者解析（绑定到 `threading.Thread(...)` 的名字、
+其列表/推导元素、以及夹具里的 `self.thread`）后，真实线程 join 是 **19 次 / 18 个函数**。
+这条更正是下一批（M8-T71）的选题依据，写在这里以免 49 继续被人引用。
+
+同一把尺子也量了自己：本批门文件的 docstring 初版写着「61 行提到 `time.sleep(`，其中 51 行是
+真调用」——那是把两个总体加在了一起。三个总体分开才是实测：61 行文本 = 47 行真调用 + 14 行
+字符串里的文本，另有 4 处 `asyncio.sleep` 两者都不属于。已由 `9cea3ae` 改正，并把「47 → 44、
+10 → 6」的算术写进 docstring，让下一位读者不必重新数一遍才能信任这两个数。
+
+10 处平铺 sleep 逐条读过，处置分三类：
+
+| 处置 | 数量 | 站点与依据 |
+| --- | --- | --- |
+| 换成对可观察事实的有界等待 | 4 | `tests/test_subagent_streaming.py`（等 `provider.turns`，原来是发取消信号前睡 0.5s）、`tests/test_permissions_approval.py` ×2（等 `approval_request` 帧、等合并后的 waiter 数，原来各睡 0.1s）、`tests/test_task_worker.py`（等孤儿 worker 的 alive 日志继续变长，原来睡 1.0s） |
+| 只能事后见证，于是补一条事后见证 | 1 | `tests/test_core_tools.py`（管道由 `run_process` 独占，子进程「已经起来」只有它返回后才看得见；于是保留 0.25s 一拍，事后从子进程自己打印的首行验一遍落进了哪个分支） |
+| 保留并就地写明假设 | 6 | `tests/test_parallel_writes.py` ×2（这一拍**制造**并发窗口而不是等待事实）、`tests/test_hooks.py`、`tests/test_verifier_lifecycle.py`（跨过已声明的 3s 超时，好让「没有标记文件」这句话有意义）、`tests/test_task_worker.py`（生长检查的反面：缺席需要一个窗口，不需要轮询） |
+
+### 2. 门的内容（`tests/test_blind_wait.py`，两条测试）
+
+判据全部是结构问法，不是表面计数：
+
+* **flat** = 调用点到最近的外层函数之间没有 `while`/`for`（用 parent map  climb 出来）。
+  在循环里就是轮询，直接豁免。
+* **声明** = sleep 自己那一行、或紧邻其上的连续注释串里有 `# wait-claim:`，且后面是一句
+  ≥12 字符、含空格的短语。这个词不达标的目的是逼作者去找那个可轮询的事实——往往找得到，
+  于是那一拍就消失了（本批 10 → 6 就是这么来的）。
+* 只看 `time` 这个名字上的 `sleep` 调用节点，所以字符串里的那 14 处天然不在射程内。
+* 自我不豁免：本文件自己也进扫描（它没有真 flat sleep，因为字符串提及不是调用节点）。
+* 两条 reach 断言防「root 挪了 ⇒ 扫到 0 个文件 ⇒ 白拿一个绿」：模块数 ≥ 70（实测 79）、
+  扫描到的 flat 数 ≥ 5。
+
+`test_the_scanner_answers_both_ways_on_synthetic_source` 是接受/拒绝表：循环里的 sleep 干净、
+已声明的干净、上一行注释里的声明干净；无声明的脏、空声明的脏、一个词的脏；混合场景要求
+被点名的那一行确实含 `time.sleep(0.3)`，且补上声明之后就干净。
+
+### 3. 双向见证：5 支变异全部命中预期断言，两次控制绿，逐字节还原
+
+| 编号 | 破坏的东西 | 结果（逐字取自 `t75_teeth.log`） |
+| --- | --- | --- |
+| 控制 | — | `2 passed in 2.07s` |
+| M1 | 抹掉 `tests/test_hooks.py` 里一处真实声明 | exit=1，artifact=None，red_on=1，红在全仓那条，消息含 `test_hooks.py:183` |
+| M2 | 把本批删掉的那拍 0.1s 塞回去 | exit=1，red_on=1，红在全仓那条，消息含 `test_permissions_approval.py` |
+| M3 | 让「在循环里」不再豁免任何东西 | exit=1，red_on=2，消息含 `flat time.sleep call(s)` |
+| M4 | 让装饰性声明也被接受（只判 None） | exit=1，red_on=1，红在合成表那条，消息含 `decorative claim` |
+| M5 | 撤掉 parent map，于是没有任何 sleep 看起来在循环里 | exit=1，red_on=2，红在合成表那条，消息含 `loop poll needs no claim` |
+| 还原后控制 | — | `2 passed in 6.37s`，exit 0，五支全部 `restored=True` |
+
+另配一条**反向对照**（判据不由门自己发明）：把这份门文件原样拷到 `3f4f221` 的 `tests/` 上跑，
+得到 `1 failed, 1 passed in 7.64s`，红的那条逐字点名本批处理掉的 10 个站点：
+
+> `AssertionError: 10 flat time.sleep call(s) wait on an undeclared assumption:
+> ['tests\\test_core_tools.py:141', 'tests\\test_hooks.py:183', 'tests\\test_parallel_writes.py:160',
+> 'tests\\test_parallel_writes.py:37', 'tests\\test_permissions_approval.py:258',
+> 'tests\\test_permissions_approval.py:294', 'tests\\test_subagent_streaming.py:149',
+> 'tests\\test_task_worker.py:292', 'tests\\test_task_worker.py:397', 'tests\\test_verifier_lifecycle.py:79']`
+
+同一份代码在旧树上报 10 条、在新树上报 0 条，这个差值就是本批的全部主张。
+
+### 4. 一次被证伪的预言，登记而不遮盖
+
+合并实验里我预言「关掉合并查找之后，旧断言仍然绿」。实测**旧断言会红**（它自己的
+`len(groups) == 1` 抓到了）。真正的缺陷比我讲的更窄：**被合并的那个调用者从未 attach 到组上**
+（提示只出现一次，waiter 却是 0）。测试注释和门的 docstring 都改写成实测表，而不是保留我那个
+更好讲故事的说法。
+
+### 5. 两条归因教训（都真踩过）
+
+* **CRLF**：worktree 里的 `minicc/web.py` 是 2686 个 CRLF / 0 个 lone LF，多行 needle 必须先
+  `\r\n`→`\n` 归一化再匹配，写回时再转换；`bytes.decode()` **不**做通用换行转换，只有
+  `read_text()` 做。第一版 needle 命中 0 次就是这个原因。
+* **可编辑安装**：仓库 `.venv` 带一个 `.pth` 指向 `D:\面试项目\minicc-codex`，任何要跑 worktree
+  代码的子进程都必须显式 `PYTHONPATH=<worktree>`，并且先打印 `minicc.__file__` 再信任数字
+  （否则会把主树的脏改动算成本批的结论）。本批的全量基线也做了同样的归属检查：
+  `minicc C:\Users\18414\AppData\Local\Temp\t68wt\minicc\__init__.py`，
+  而主树当时有另一个 agent 的 9 个未提交文件——它们没有进这条基线。
+
+### 6. 边界
+
+* 门管「声明」，不管「形状」。判断某一拍能否换成轮询需要读者；门能强制的是：作者必须写下
+  自己假设了什么。本批消灭的 4 处，是那次阅读而非这条规则的产物。
+* 只扫 `tests/`。产品代码里的 sleep 是运行时行为，不是测试夹具，不在本门射程（登记而不扩张）。
+* 下一批候选 M8-T71 已先量：19 处真线程 join **全部有界**，但只有 8 个函数读过 `is_alive()`，
+  10 个函数一次也没读（6 个是 HTTP 夹具的 `shutdown()`，2 个是 `tests/test_mcp_http.py` 的服务线程，
+  2 个在测试体内）。顺带把一条想当然的危险证伪：本仓所有测试内 HTTP 服务都绑 **端口 0**，
+  所以「没停掉的线程会抢走下一个测试的端口」不成立；剩下的危险是「teardown 声称已停却从未验证」
+  和「服务线程在断言之后继续写共享 task store」。
