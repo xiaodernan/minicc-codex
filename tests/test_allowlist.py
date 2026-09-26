@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import threading
+import time
 import types
 import urllib.request
 from pathlib import Path
@@ -87,9 +88,37 @@ def test_allowlist_can_unlock_network_tools(tmp_path: Path) -> None:
 def test_allowlist_http_roundtrip(tmp_path: Path) -> None:
     service = AgentService(tmp_path, _config())
     server = MiniccHTTPServer(("127.0.0.1", 0), service, auth=WebAuth("t", required=False))
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    served: list[BaseException] = []
+
+    def _serve() -> None:
+        try:
+            server.serve_forever(poll_interval=0.05)
+        except BaseException as exc:
+            served.append(exc)
+
+    thread = threading.Thread(target=_serve, daemon=True, name="minicc-test-server")
     thread.start()
     url = f"http://127.0.0.1:{server.server_address[1]}"
+    # M8-T68: the url is published only once the thread has actually served, so a
+    # dead server names itself instead of showing up as a later connection refusal.
+    deadline = time.monotonic() + 10.0
+    while True:
+        if served or not thread.is_alive():
+            raise AssertionError(
+                f"the test HTTP server thread {thread.name!r} died before serving {url}: {served!r}"
+            )
+        try:
+            with urllib.request.urlopen(f"{url}/api/health", timeout=5) as probe:
+                if probe.status == 200:
+                    break
+        except OSError:
+            pass
+        if time.monotonic() >= deadline:
+            raise AssertionError(
+                f"the test HTTP server thread {thread.name!r} never answered GET /api/health "
+                f"within 10s at {url}"
+            )
+        time.sleep(0.02)
     try:
         with urllib.request.urlopen(f"{url}/api/allowlist?session_id=web-1", timeout=5) as response:
             empty = json.loads(response.read())

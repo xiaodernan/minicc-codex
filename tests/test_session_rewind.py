@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import threading
+import time
 import types
 import urllib.error
 import urllib.request
@@ -85,9 +86,42 @@ def test_service_and_http_route(tmp_path: Path) -> None:
     )
     service = AgentService(tmp_path, config)
     server = MiniccHTTPServer(("127.0.0.1", 0), service, auth=WebAuth("t", required=False))
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    served_error: BaseException | None = None
+
+    def _serve() -> None:
+        nonlocal served_error
+        try:
+            server.serve_forever(poll_interval=0.05)
+        except BaseException as exc:
+            served_error = exc
+
+    thread = threading.Thread(target=_serve, daemon=True, name="minicc-test-server")
     thread.start()
     url = f"http://127.0.0.1:{server.server_address[1]}"
+    # M8-T68: publish the url only after the thread has answered once, so a dead
+    # server names itself instead of surfacing as a downstream connection refusal.
+    deadline = time.monotonic() + 10.0
+    while True:
+        if served_error is not None or not thread.is_alive():
+            raise AssertionError(
+                f"the test HTTP server thread {thread.name!r} died before serving "
+                f"{url}; it raised: {served_error!r}"
+            )
+        try:
+            with urllib.request.urlopen(f"{url}/api/health", timeout=5) as probe:
+                probe_status = probe.status
+        except urllib.error.HTTPError as exc:
+            probe_status = exc.code
+        except OSError:
+            probe_status = -1
+        if probe_status == 200:
+            break
+        if time.monotonic() >= deadline:
+            raise AssertionError(
+                f"the test HTTP server thread {thread.name!r} never answered GET /api/health "
+                f"with 200 within 10s (last status {probe_status}) at {url}"
+            )
+        time.sleep(0.02)
     try:
         request = urllib.request.Request(
             f"{url}/api/sessions/rewind",

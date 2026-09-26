@@ -4492,3 +4492,56 @@ A/C 红在「死了 + 带不带捕获异常」那一支，B 红在「活着但�
 4. 跑该文件（干净 worktree）；
 5. 机制变异 ≥3 支：raise / 静默 return / 活着不 accept，要求红在本批新断言，红在下游 `URLError` 判无效并回炉；
 6. push 前一次全量。
+
+## 第五十二批（M8-T68 落地：再五处夹具，15/15 支机制变异命中新断言）
+
+起点 HEAD：`1d0062f`（第五十一批站点 2，已 push）。本批一次改五个文件，逐处仍按第五十一批 §5 的配方走。
+
+### 1. 改了哪五处
+
+| 站点 | 夹具形状 | 探测路由 |
+| --- | --- | --- |
+| `tests/test_session_rewind.py`（HTTP 路由那条） | 测试体内联 | `/api/health` |
+| `tests/test_allowlist.py::test_allowlist_http_roundtrip` | 测试体内联 | `/api/health` |
+| `tests/test_webfetch.py::local_server` | pytest fixture（`ThreadingHTTPServer` + 自带 handler，没有 `/api/health`） | `/html` |
+| `tests/test_file_tree_api.py::_Server` | 类 | `/api/health` |
+| `tests/test_history_search.py::_Server` | 类 | `/api/health` |
+
+内联形状与类形状各一份，语义一致：`_serve` 捕获 `BaseException` 进 `served`/`self.error`，线程命名，
+发布 url 前做「有界（10s）+ 0.02s 轮询」的一次成功请求；两支消息分别是
+`died before serving …`（带捕获到的异常）与 `never answered GET … within 10s`。没有加任何“适应负载”的 sleep。
+
+### 2. 双向见证：控制 + 3 支变异 × 5 处 = 20 次运行，15/15 命中
+
+`t68_teeth.py`（临时目录）对每处把 `serve_forever(...)` 那一行换成三种坏法，脚本先要求 needle **恰好命中 1 次**
+（命中 0 或 >1 直接退出，这是第四十九批 M4a/M4b 的教训），并在输出里检测 `SyntaxError/IndentationError/ImportError`
+作为“红得无效”的伪证标记（本次 5×3 全部 `artifact=[]`）：
+
+| 站点 | 控制 | A 立即 raise | B 活着但不 accept | C 静默 return |
+| --- | --- | --- | --- | --- |
+| test_allowlist | 4 passed | died（带 `RuntimeError('simulated dead server')`） | never answered | died：`[]` |
+| test_webfetch | 13 passed | died（fixture error） | never answered GET /html | died：`[]` |
+| test_session_rewind | 4 passed | died | never answered（last status -1） | died：`it raised: None` |
+| test_file_tree_api | 4 passed | died | never answered | died：`it raised: None` |
+| test_history_search | 7 passed | died | never answered | died：`it raised: None` |
+
+15 支变异全部红在本批新写的断言上，0 支落到下游 `URLError`/`assert` —— 满足第五十批判据 2。
+A/C 两支的区别（有捕获异常 vs 空列表/None）本身就是「捕获链是否接上」的见证。
+每处跑完 `finally` 还原并逐字节比对（`restored: True` ×5）。
+
+### 3. 两处本可避免的自伤，都在跑之前被抓到
+
+1. `test_file_tree_api.py` 第一版探测里写了 `_get(...)`——那是 `test_web_security.py` 才有的私有 helper，
+   本文件从来没有；语法检查（`ast.parse`）过不了 NameError 这一关，因为它只在运行时炸。
+   改成直接 `urllib.request.urlopen`，并记住：**跨文件抄形状时，helper 不随行**。
+2. `test_history_search.py` 补了探测代码却漏了 `import time`——正是第五十一批登记过的同一格。
+   于是本批把检查写成一个固定动作：改完所有文件先跑一遍
+   `ast.parse` + `print('import time' in src)`，五处里当场逮到一处缺 import。
+   登记为下一批的候选门（M8-T69）：**「测试里出现 `time.` 而没有 `import time`」应当是一条判据，
+   而不是靠人记得查**——它能在收集期就红，比任何运行期见证都便宜。
+
+### 4. 剩余 6 处（下一批）
+
+`test_http_route_inventory.py:124`、`test_logging.py:136`、`test_mcp_http.py:67` 与 `:152`
+（这两处是 MCP 私有 handler，探测要选它自己的 `/mcp` 路由而不是 `/api/health`）、
+`test_optimization_core.py:229`、`test_p0_p1_p2.py:348`。

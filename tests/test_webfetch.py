@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import socket
 import threading
+import time
+import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -76,9 +78,38 @@ class _Handler(BaseHTTPRequestHandler):
 @pytest.fixture()
 def local_server():
     server = ThreadingHTTPServer(("127.0.0.1", 0), _Handler)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    served: list[BaseException] = []
+
+    def _serve() -> None:
+        try:
+            server.serve_forever(poll_interval=0.05)
+        except BaseException as exc:
+            served.append(exc)
+
+    thread = threading.Thread(target=_serve, daemon=True, name="minicc-test-server")
     thread.start()
-    yield f"http://127.0.0.1:{server.server_address[1]}"
+    url = f"http://127.0.0.1:{server.server_address[1]}"
+    # M8-T68: a fixture that yields before its thread serves hands every test a
+    # connection refusal; prove one request lands, and say which branch failed.
+    deadline = time.monotonic() + 10.0
+    while True:
+        if served or not thread.is_alive():
+            raise AssertionError(
+                f"the test HTTP server thread {thread.name!r} died before serving {url}: {served!r}"
+            )
+        try:
+            with urllib.request.urlopen(f"{url}/html", timeout=5) as probe:
+                if probe.status == 200:
+                    break
+        except OSError:
+            pass
+        if time.monotonic() >= deadline:
+            raise AssertionError(
+                f"the test HTTP server thread {thread.name!r} never answered GET /html "
+                f"within 10s at {url}"
+            )
+        time.sleep(0.02)
+    yield url
     server.shutdown()
     server.server_close()
     thread.join(timeout=5)
