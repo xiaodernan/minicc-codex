@@ -824,7 +824,7 @@ token 的 worker 负责」——A 让干净关闭成为真正的停止，代价�
 | M5-2 巨量输出截断 / string id 回传 / stdout 不可解码时快速失败 / dead 服务 | ✅ | 逐条点名可查：`test_half_million_char_output_is_truncated`、`test_small_output_not_truncated`、`test_string_id_response_is_matched`、`test_undecodable_stdout_fails_fast_not_30s`（断言 `client.dead is True`）、`test_dead_server_marked_in_health` |
 | M5-3 CLI 配置的 MCP 工具出现在 `/tools` | ✅（间接） | `test_build_registry_lists_mcp_tools`；`/tools` 本身由 `test_http_surface` 一路覆盖 |
 | M5-4 坏 `mcp.json` 走结构化 McpError 而非 500 | ✅（服务层） | `test_manager_negative_cache_does_not_respawn` + `test_failure_paths_return_structured_error_codes`；`/api/mcp` 此前在任何 Python 测试里连路径字符串都没出现，现已由 M4-3 的清单门与 `test_http_surface` 的 mcp 契约测试覆盖 |
-| M6-3 `bash start /m &` 被拒 | ✅ | `test_background_shell.py:121` `detached_command_reason("start /min notepad &") is not None` |
+| M6-3 `bash start /m &` 被拒 | ✅ | `tests/test_background_shell.py:231` `detached_command_reason("start /min notepad &") is not None` |
 | M6-1/2/5 委托、软预算、写档默认只读 | ✅（测试层） | `test_subagent_delegation.py`(16) + `test_subagent_streaming.py`(5) + `test_parallel_writes.py` + `test_permissions_approval.py` 等合计 **91 passed**；写档需显式授权由 `WRITABLE_PERMISSION_MODES` 结构断言钉住 |
 | M7-3 审批 60s 超时自动 deny | ✅ | 生产常量 `web.py:156 APPROVAL_TIMEOUT_SECONDS = 60.0`，测试 `test_approval_timeout_auto_denies` 用 5s 走同一分支并断言 `decision == "deny"` 且 `timed_out is True`（不为此把测试拖到 60s） |
 | M7-1/2/4/5 hooks、slash、项目配置、composer 恢复 | ✅（测试层 + 前端真跑） | `test_hooks/test_slash_commands/test_project_config/test_mentions` 全绿；起 fake-provider 服务后 `node tests/frontend_{transport,lifecycle,scale,optimization}_smoke.mjs` **逐个 exit 0**（composer 恢复与取消在 transport/lifecycle 内） |
@@ -3144,3 +3144,203 @@ codec 的文本捕获各自一个决定。交付物只有测试文件（16 → 2
 
 M8-T61（`tests/test_background_shell.py` 那条 3.0s 墙钟门在负载下红且没有诊断文字）仍然挂着，
 上一批已登记，本批不顺手改——它是第二件事，而 M8-T44 已经教过不要把两件事塞进一批。
+
+---
+
+## 第三十五批（M8-T61）：一条门的秒数比它等的那个东西本身还短，而它失败时只说 `assert None is not None`
+
+### 1. 这一批是上一批登记的那笔
+
+第三十三批收口时把这一笔登记成 M8-T61，第三十四批拒绝顺手改它（M8-T44 的教训：不要把两件事塞进一批）。
+这批就做那一笔：`tests/test_background_shell.py` 里有三条靠日历常数的轮询，改前那份文件的三个常数是
+3.0s、1.5s、3.0s。本批把它们改成同一次运行内可核对的预算，并给这一族的超时失败补齐
+「等了多久、在等什么、这个预算从哪来」。交付物 = 测试文件（6 → 8 条门）+ 这份记录，
+**生产代码一行未改**——`minicc/tools/bash.py:727` 与 `minicc/tools/bash.py:732` 只是变异针扎过的地方，
+扎完按字节恢复，收口前再用 `git diff --exit-code -- minicc/tools/bash.py` 复核一次。
+
+### 2. 先量：这台机器上「3.0 秒」到底是什么
+
+探针量三个量，每次 5 轮：`ref` 是一个裸 `python -c "print(1)"` 子进程的启动 + 写一行 + 退出；
+`bound` 与 `incr` 就是这两条门**真的在等的东西**——不是别的，正是这个文件里 `new_bytes > 0` 与
+`"first" in render()` 这两个条件第一次成立所要的时间。
+
+| 哪一次 | `ref`（裸子进程） | `bound` | `incr` | 对 3.0s 旧墙 |
+| --- | --- | --- | --- | --- |
+| 早前一次（内存吃紧，free 0.0007GB 那种状态） | 1.14 / 1.86 / 4.70 | 峰值 3.38 | 峰值 3.64 | 两条都越过 3.0 |
+| 本次留档的一次 | min 4.11 / med 5.72 / max 6.05 | min 2.80 / med 3.19 / max 5.26（polls 45–105） | min 2.44 / med 3.26 / max 5.22（polls 41–86） | **RED**，最多分别超出 2.26s 与 2.22s |
+
+留档那次要看的不是秒数，是**同一轮的比值**：`bound / ref` 的 med 0.72、max 0.92，`incr / ref` 的
+med 0.59、max 0.95。一句话——**这条门要等的东西，从来没有超过「起一个子进程」本身的代价**。
+这就给出改法的正当性：预算的分母必须就是它等的那件事。同一个日历常数在 `ref=1.14` 的机器上宽 2.6 倍，
+在 `ref=6.05` 的机器上比子进程启动本身还短；它在两端分别是「宽松」和「必塌」，
+也就是说它没有在这段代码上判断任何东西，它在判断这台机器几点钟。
+
+第四个数留给 §6 用：留档那次的 ref 最大值 6.05s 是**同一次探针里量到的**，而 §6 会给出这台机器在
+ref=4.70s 那段时间里旧文件真实红了、在 ref 掉回 2s 量级之后旧文件又绿了。
+
+### 3. 改了什么（逐处，行号是今天的字节）
+
+- **`_bare_child_start_cost`（:73）**：每个测试进程量一次并复用。量的动作在计时开始**之前**完成——
+  「问这台机器多快」这件事本身的代价不允许算进等待里，否则分母把自己吃掉。
+- **`_wait_budget`（:87）**：`min(45, max(6, 12 × ref))`。三段各有一条门钉住，M3、M5 就是它们被拆掉时的红。
+- **`_wait_for`（:110）**：返回**值**。第一版返回 `(value, elapsed, polls)`，两处调用点因此各留了一个没人读的
+  局部变量——等待的秒数要么进失败文字，要么就不存在，不要留在原地假装它有用。
+- **`_budget_note`（:91）**：本批第二个缺陷的修法，单独一节讲（§4）。
+- **`test_bash_output_reads_incrementally`**：`assert first is not None` 换成 `_wait_for(...)`，并补上
+  `assert first.data["new_bytes"] > 0, first.data`（:176）。这是本批第二条真正长牙齿的改动：
+  **等待证明的是「文字出现了」，「它是作为新字节出现的」是另一半，而循环自己的条件不决定那一半。**
+  补之前，一个「每次 poll 都从头重读」的实现可以在这条门上绿——而那正是 M6-T4 退出标准里
+  「no re-read」要挡的东西。§5 的 M1 就是这个断言独立抓住的。
+- **`test_background_output_is_bounded`**：探针条件仍是 `new_bytes > 0`，判据 `assert result.truncated is True`
+  与 `len(result.render()) <= 7000`（:223）**一字未动**。非时间的判断一条都没放松。
+- **`test_kill_shell_reaps_process_within_a_second`：故意保留日历常数**（`budget_s=OLD_FIXED_WALL_S / 2`，:203）。
+  退出标准写的就是「kill 之后一秒内报 finished」，把这句话比值化等于把它作废。
+  它现在是一个**显式**预算，而失败文字会说明这个数不是机器给的。
+- **新增 `test_the_wait_budget_follows_the_measured_child`（:249）**：制度门。地板（快机器不能拿到 0 预算）、
+  天花板（「有限」这件事本身是判据）、`budget(1) < budget(2) ≤ 2·budget(1)`（单调且亚线性）、
+  `budget > reference`（文字里带着「本机已越过天花板就抬 `WAIT_CEILING_S`，不要删掉它」）、
+  `ceiling > floor > OLD_FIXED_WALL_S`、`reference > 0.0`（分母必须是量出来的，不能是桩），
+  以及 §4 那两条 provenance 断言（:273、:276）。
+- **新增 `test_a_shell_that_never_answers_reddens_with_the_wait_written_out`（:281）**：正面见证。起一个
+  真后台 shell（20s 之后才 print），用 0.4s 的预算**逼超时分支真的发生一次**，再断言那句文字里同时出现
+  等了多少秒、预算多少、在等什么、分母几秒（:316 再断言 provenance 那半）。必要性：比值预算是一条
+  没有失败分支的耐心，不逼一次没人知道它报出来的是什么——而「报出来的是什么」正是这一批立项的文字部分。
+
+### 4. 本批第二个缺陷：失败文字会谎报自己预算的来路
+
+这条不是跑出来的，是写完 §3 那版之后重读自己的门发现的，并且**修之前的代码就是错的**：
+`_wait_for` 的失败文字不论预算从哪来，都打印 `budget=12x the {reference}s bare-child start`。
+可是有两处调用点传的是**显式**预算（kill 那条 1.5s，见证那条 0.4s），此时这句话是关于这个数的一个假话。
+见证门自己的红就长这样——§5 的 M6 逐字复现了它：
+
+```
+gave up after 0.42s of a 0.40s budget (budget=12x the 4.98s bare-child start, floor=6s, ceiling=45s, polls=7) waiting for output from a shell that writes nothing
+```
+
+括号里的 `4.98s bare-child start` 与那次等待**没有任何因果关系**：它就是 0.40s，调用点写的。
+诊断文字里带着一个不属于它的来源的数，比没有数更糟——读的人会去调那个数。
+
+改法是 `_budget_note`（:91）：derived 分支报 `12x the {}s bare-child start, floor=…, ceiling=…`；
+explicit 分支报 `budget={}s fixed by the caller, not derived from the {}s bare-child start`。
+两条分支由制度门直接断言（毫秒级，不需要真等），explicit 那半的判据是
+`f"{WAIT_RATIO:g}x" not in explicit`——**「不说」也是一条断言**；端到端那一侧由见证门补
+`"fixed by the caller" in message`。两半分别由 M6（:275 与 :316 双红）和 M7（只有 :316 红）抓到，
+这个分工是刻意的：M7 证明的是**接线**，不是 helper 自己。
+
+为什么值得为一个措辞单开一节：M8-T50 那批已经付过一次学费——门红了而文字里只有一个 `None`，
+于是整个第三十三批只能靠复跑去猜「是负载还是代码」。这一批如果只修秒数、留着谎报来路的文字，
+下次还要再付一次。
+
+### 5. 变异表（七条 + 对照；逐字取自留档日志，`bytes_back_to_start` 全为 True）
+
+| 变异 | 扎在哪 | 结果 |
+| --- | --- | --- |
+| 对照（未扎） | — | 四条相关门 `4 passed in 19.11s` |
+| M1 | `minicc/tools/bash.py:732` `"new_bytes": len(payload)` → `0` | **2 failed in 58.90s**。bounded 撞在新写的超时文字上（`gave up after 45.00s of a 45.00s budget (budget=12x the 3.78s bare-child start, floor=6s, ceiling=45s, polls=413) waiting for any new byte to reach the poller`，:135）；incremental 撞在 `assert 0 > 0`（:176）。**顺带在真机上证明天花板收得住**：ref=3.78 → 12×=45.36 被夹到 45.00 |
+| M2 | `minicc/tools/bash.py:727` `truncated=truncated or (dropped > 0 and since_start)` → `False` | `assert False is True`（:223），`1 failed in 9.67s` |
+| M3 | `_wait_budget` 去掉 `min(WAIT_CEILING_S, …)` | `assert 120000.0 == 45.0`（:258），`1 failed in 5.52s` |
+| M4 | 失败文字首行 `gave up after {elapsed}s of a {budget}s budget` → `timed out` | `'0.40s budget' missing from …`（:314），`1 failed in 19.36s` |
+| M5 | `WAIT_RATIO = 12.0` → `0.05` | **1 failed, 2 passed**：`assert 6.0 < 6.0`（:259），`7.83s` |
+| M6 | `_budget_note` 的 `if budget_s is not None:` → `if False:` | **2 failed in 14.69s**：制度门 `assert 'budget=1.50s fixed by the caller' in 'budget=12x the 7.47s bare-child start, floor=6s, ceiling=45s'`（:275）；见证门 :316 同红 |
+| M7 | 调用点 `_budget_note(budget_s, …)` → `_budget_note(None, …)` | **1 failed, 1 passed in 9.32s**：只有见证门红（:316），制度门绿 |
+
+M5 要如实记下它**没**抓到的部分：比值归零之后，`test_background_output_is_bounded` 与
+`test_bash_output_reads_incrementally` 两条行为门**仍然是绿的**。原因是这台机器的数——
+`12 × ref` 会被夹到天花板 45，`0.05 × ref` 会被夹到地板 6，两种预算都够这次等待。
+**本机承担行为的是地板，不是比值。** 抓到归零的是制度门的单调性那句。这不是「那条门没用」，
+而是两条门量的对象不同：一条量本机这一次会不会红，一条量策略还剩不剩形状。
+把 M5 的空手而归写在这里，就是为了让下一个读记录的人不再以为比值是这台机器上的承重件——
+「变异见证要连它没抓到什么一起写」这条口径的执行。
+
+M1 那一次里 `git_dirty=False`（生产文件恢复后与 HEAD 一致），M2 同；M3–M7 因为测试文件本身带着
+未提交改动，`git_dirty=True` 是常态，所以恢复检查看的是 `bytes_back_to_start`（陷阱见 §10 第 5 条）。
+
+### 6. 反事实：同一份旧文件，两次跑，结论相反
+
+只换判据不换机器的配对实验：把 HEAD 的那份文件复制进 `tests/`（临时文件名以 `_t63_old_` 开头，
+跑完立刻 `rm -f` 并用 `git status --short` 复核工作区只剩
+`M tests/test_background_shell.py`），在这台机器上跑了两次：
+
+| 机器状态 | 旧文件（HEAD 的 3.0s 墙） | 新文件（本批的比值预算） |
+| --- | --- | --- |
+| 负载重（§2 早前那次同一时段） | **`1 failed, 5 passed in 38.79s`**，红的是 `test_bash_output_reads_incrementally`，读数逐字 `E assert (None is not None)` | `8 passed in 42.78s`（同一状态下） |
+| 机器空下来之后（本批收口时） | `6 passed in 17.45s` | `8 passed in 22.03s` |
+
+第二行才是这一批真正的立项依据：**同一份代码、同一条判据，两次给出不同结论**。
+一条门的 verdict 取决于你几点跑它，那它报红的时候没有人能据此说这段代码坏了——
+第三十三批那 6 条红就是靠逐条复跑才敢归因的（那批 §8 记着）。旧文件在空机器上绿，
+不是「其实没缺陷」，是「这次骰子站在你这边」。
+
+为什么不能在仓库外跑：第一次我把旧文件放在临时目录里 `pytest` 它，拿到的不是红也不是绿，
+是 collection 阶段的 `FileNotFoundError`（它要 `tests/` 相对路径上的夹具）。按本仓库口径那是**零证据**。
+搬进 `tests/` 才有上面这两行。
+
+### 7. 边界（明确没做的，以及为什么）
+
+① **没有去造负载证明它会红。** 8 个 `range(10**9)` 的 CPU 燃烧进程不足以让这一族塌——第三十三批那些红的
+成因是内存饥饿（free 0.0007GB），不是 CPU。而故意把内存逼到饥饿会饿死同一台机器上正在工作的其他 agent。
+**所以本批的立项依据是「这台机器刚才真的红了，稍后又绿了」（§6），不是「我能让它红」。**
+这两句话的差别很重要：前者是可复现的观察，后者是拿别人的代价换一次演示。
+② `test_kill_shell_reaps_process_within_a_second` 保留 1.5s 常数墙（理由 §3），不做比值化。
+③ 这套预算只活在测试文件里：`minicc/`、`scripts/` 一行未动（§1 的 `git diff --exit-code` 复核）。
+④ 做了全仓等待墙的**计数**（§8），没做**改造**；改谁、分母换成什么，由 §9 那一批先量再定。
+⑤ **本批没有可交付的全量冷跑数字**——机器不在可交付状态，理由与第三十四批 §8 同一条，登记在任务 #59。
+只留一条能核对的预测：第三十四批登记收集数 1138，本批在这份文件里加 2 条测试函数、不删任何一条，
+今天实测 **1140**（`--collect-only -q` 同一条口径），下一次冷跑应当收满 1140；收不满就是有人删了东西。
+顺带一条能说明「为什么没有冷跑数字」的读数：同一条收集命令第三十四批用 25.68s，本批用 275.82s——
+11 倍减速，与 §2 的探针看到的是同一件事。
+
+### 8. 基线与门
+
+- `tests/test_background_shell.py` 单文件、`-W error`：**8 passed / 22.03s / exit 0**（门数 6 → 8）。
+- 对照与七条变异：§5，逐字取自留档日志；每一针前后文件按字节相等，生产文件恢复后 `git diff --exit-code` 干净。
+- 只读普查（AST + 正则）：`tests/` 下形如 `time.monotonic()`/`time.time()` 加**常数**的墙还剩
+  **19 处 / 5 个文件**——`test_core_task.py` 7 处（2–3s）、`test_core_session.py` 7 处（1–2s）、
+  `test_task_worker.py` 2 处（120s）、`test_logging.py` 2 处（90s）、`test_batch_wiring.py` 1 处（20s）。
+  其中住在**也会起子进程**的文件里的只有 **2 处**（都在 `test_task_worker.py`，预算 120s）。
+  另有 **6 处**是参数化形状（`+ timeout` 而不是 `+ 常数`），分布在 `test_batch_wiring.py`（3 处）、
+  `tests/test_http_route_inventory.py:199`、`tests/test_permissions_approval.py:95`、`tests/test_task_worker.py:43`。
+  普查跑在**改完的**这份文件上，所以本批换掉的三条不计入 19（改前这个文件自己贡献 3 处）。
+  结论要说得比「还有很多」更准：**这一族（等的是子进程、墙又比子进程启动本身还短）在 `tests/` 下
+  今天已经没有别的成员。** 剩下的暴露面是另一族（§9）——这句话是本批普查的全部价值：
+  它把「还剩一堆要改」这个错觉消掉了。
+- `scripts/doc_pointers.py --check`：**exit 0**（默认 19 份文档那套清单）。追加本批记录之前的读数
+  与之后：全仓 evidence 950 → 971、本文件 evidence 738 → 759、marker 计数 250 → 261、
+  本文件 marker 212 → 223，文档数 19 与被跟踪文件数 233 不变。两侧各记两个轴，
+  是因为第三十四批记的是「全仓的追加前」加「本文件的追加后」——两组数不同轴，接起来只能回读措辞。
+- `tests/test_doc_pointers.py` 单文件：**57 passed / 15.87s / exit 0**（本批改的就是这份文档，而那条门是它的读者）
+
+### 9. 下一批登记（M8-T62）：返回 bool 的等待，2.0s 比本批拆掉的 3.0s 更薄
+
+`tests/test_permissions_approval.py:94` 的 `_wait_for(predicate, timeout: float = 2.0) -> bool`
+**返回 bool**，4 处调用点全部写成 `assert _wait_for(...)`（:113、:135、:195、:232），
+错过时的报错是 `assert False is True`——既没有「等了多久」也没有「在等什么」，
+与本批修掉的 `assert None is not None` 是同一个诊断空洞；而它的默认预算 2.0s 比本批替换掉的 3.0s 更薄。
+同仓库已有好形状可抄：`tests/test_task_worker.py:42` 的 `_wait_until` 带 `message=` 参数，超时会
+`raise AssertionError(f"timed out waiting for {message}")`——但它的文字里只有 in what，
+没有 elapsed 与 budget 两个数，而 §4 的教训正是「数从哪来」也要一起写。
+
+M8-T62 登记两件事：把那 4 处 bool 返回的 `assert` 换成带 what 的 raise；给已有的 raise 补 elapsed/budget。
+**是否把 2.0s 也做成比值，那一批先量再定**——本批的证据只支持「分母必须是它等的那件事」这一句，
+而那一族等的是线程和一次 `request_approval` 的阻塞，不是子进程启动；分母换成什么，得由量出来的人定。
+
+### 10. 这批踩到的陷阱
+
+1. **一次红的 provenance 会随注释改动而漂移。** 改完 `WAIT_RATIO` 上方那段注释，整份文件行号 +1，
+   §5 里的 `:135/:176/:223/:258/:259/:314/:316` 若拿旧日志来核就全是错引。做法是在最终字节上把变异脚本
+   **重跑一遍**，让记录里每个行号都指向今天的文件（这一批跑了三轮变异才敢写 §5）。
+2. **「我观察到的最坏比值」不能只留一个数。** 早前那次探针给 3.19x，留档那次给 0.95x，两个都真——
+   机器状态不同。注释里只写一个，它就成了一个无法复核的数；现在两个都在，且指明哪个有日志。
+3. **返回三元组的 helper 会把数留在原地没人读。** 见 §3 的 `_wait_for`。
+4. **collection error 不是红。** 见 §6。
+5. **`git diff --exit-code` 不能当变异脚本的恢复检查。** 测试文件本来带着未提交改动进场，
+   「不干净」是它的常态；真检查是字节相等（`bytes_back_to_start`），生产文件才另外单独报 `git_dirty=False`。
+6. **反事实会因机器状态而翻面。** §6 第二次跑旧文件是绿的——如果只跑这一次并据此写「旧文件也没红，
+   所以本批立错了项」，那就是拿一个骰子点数的样本去否定 §2 的分布。两条都要记。
+   同一条陷阱反过来也成立：只在负载重的时候跑一次并写「它必红」，也是假话。
+7. **诊断文字里的数要能说明自己从哪来。** 见 §4——这条不是跑出来的，是重读出来的，
+   所以它不会被任何一次绿灯提示；能提示它的是「把失败文字打印出来读一遍」这个动作。
+8. **记录里写的计数会被「写记录」这个动作改掉。** §8 那两个 evidence 数最初写的是 970 / 758，
+   随后往同一节补一条单文件门的读数，那句补文自己就是一次新引证，于是变成 971 / 759。
+   第三十四批的陷阱 #5 是同一件事（marker 总数 251 → 250）。口径：**计数只在最后一次改动之后
+   量一次**，句子里只描述「追加本批这一次」的 delta，不复述总量。
