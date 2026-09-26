@@ -266,14 +266,23 @@ def test_similar_inflight_calls_merge_into_one_prompt(tmp_path: Path) -> None:
     service = _service(tmp_path)
     frames: list[dict] = []
     results: list[dict] = []
+    errors: list[BaseException] = []
     lock = threading.Lock()
 
     def worker() -> None:
-        verdict = service.request_approval(
-            session_id="s1", task_id="t1", tool="bash",
-            arguments={"command": "make all"}, risk="exec", reason="x",
-            on_event=lambda e: frames.append(e), timeout=5.0,
-        )
+        try:
+            verdict = service.request_approval(
+                session_id="s1", task_id="t1", tool="bash",
+                arguments={"command": "make all"}, risk="exec", reason="x",
+                on_event=lambda e: frames.append(e), timeout=5.0,
+            )
+        except BaseException as exc:  # noqa: BLE001 - collected so the gate can name it
+            # Same shape as test_concurrent_thread_saves_never_corrupt above: without this,
+            # a worker that raises leaves results short and the only message is
+            # "assert 1 == 2", which is about a list, not about the merge that failed.
+            with lock:
+                errors.append(exc)
+            return
         with lock:
             results.append(verdict)
 
@@ -291,7 +300,8 @@ def test_similar_inflight_calls_merge_into_one_prompt(tmp_path: Path) -> None:
     service.resolve_approval(request_id, "allow")
     for index, t in enumerate(threads):
         _joined(f"merged waiter #{index}", t, budget_s=3.0)
-    assert len(results) == 2
+    assert not errors, f"a merged waiter raised: {errors!r}"
+    assert len(results) == 2, results
     assert all(r["decision"] == "allow" for r in results)
     # Only one prompt was shown to the user for two identical calls.
     assert len([f for f in frames if f["kind"] == "approval_request"]) == 1
