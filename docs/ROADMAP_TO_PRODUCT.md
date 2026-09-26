@@ -3805,3 +3805,71 @@ M8-T44「0 要先证明量具看得见」同一族。）
    本批只补记录与口径，不动代码——但**必须写下来谁在判别**，否则它们会被下一个人当判据去调。
 4. **间歇红不当场改绿**：合跑红了一条与本批无关的门，正确的动作是把它做成确定性演示并登记，
    而不是调顺序、加 sleep 或改断言让它闭嘴。第三十四批那次「跑完的污染整跑」是同一条纪律的另一面。
+
+## 第三十九批（M8-T64）：一个并发门把八个线程的失败折叠成了一个计数
+
+提交：`dd25538`（一条门）与本段。收集数不变（1146）。
+
+### 1. 形状
+
+`tests/test_http_surface.py::test_concurrent_task_submits` 起 8 个线程 POST `/api/tasks`，
+每个线程把 `(status, task_id)` 记进一个共享 list，判据是 `assert len(results) == 8`。
+线程体内抛出的异常**既不进 list，也不上抛**（`threading.Thread` 的默认行为就是把它交给
+`threading.excepthook` 印到 stderr，测试断言看不见它）。于是 2026-09-26 那次被负载污染的整跑里
+（第三十六批 §8 第 2 次冷跑，73 条红全部源于 `WinError 10061`），这条门报的是：
+
+```
+>       assert len(results) == 8
+E       AssertionError: assert 0 == 8
+```
+
+**一句话关于列表长度，而该说的是八个线程各自撞上了什么。** 这是 M8-T62 那一族
+（`assert False is True` / `KeyError: 'decision'`）的第三个形状：前两族是「等待失败时说不出在等什么」，
+这一族是「**并发失败时说不出谁失败**」。它的 teardown 里那条 ExceptionGroup（整跑的 1 个 error）
+也是同一件事的另一半。
+
+### 2. 改了什么（只改判据形状，不改被测语义）
+
+- 线程体包 `try/except BaseException`，把 `submit {i}: {类型}: {文本}` 记进 `failures` 后返回；
+- join 之后逐个数活着的线程，还活着就报「第 N 个提交线程 join 30s 之后仍在运行」，
+  不再让它无声消失（与第三十六批 `_joined` 同一口径）；
+- **断言顺序：原因先、计数后**。`assert not failures` 在前，`assert len(results) == 8` 在后。
+  顺序在这条门上是判据的一部分：先报计数就永远只看得到计数。
+
+### 3. 证据，以及一条「过严的判据也会假否」
+
+承重的读数必须由一次真失败给出，所以临时把那 8 个 submit 强制成抛 `ConnectionResetError`
+（改的是这条门自己，产品一字未动；跑完按字节还原，`bytes_back_to_start=True`）：
+
+```
+AssertionError: concurrent submits raised: submit 0: ConnectionResetError: simulated:
+nothing was listening; submit 1: ...
+```
+
+未变异的整文件：**77 passed in 29.94s**。
+
+但验证脚本当场给了 **VERDICT: NOT proven**，而它是错的：脚本除了要求「红 + 说出原因 + 按线程归因」，
+还额外要求整份 pytest 输出里**不能出现** `assert 0 == 8` 这个子串——而这句话会在报告的其他位置出现，
+于是三条真读数全过、脚本仍判不成立。**这条陷阱与前面几批的「假绿变异=零证据」正好对称：
+判据过严不会造假绿，但会假否，从而让人以为见证没起作用、下一步去改见证本身。**
+写验证脚本时，「不能出现某字符串」这类否定式判据必须问一句：除了它坏掉的那种情况，
+这句话还有可能在别处出现吗？（本次的正确答案是：只检查失败断言那一段，不检查整份 stdout。）
+
+### 4. 边界
+
+1. 这条门现在能说出异常**类型与文本**，但不能区分「哪个请求慢」——那需要时间戳，本批刻意不加
+   （第三十五/三十六批的口径：秒表只当兜底，不做判别）。
+2. `threading.excepthook` 仍会把异常打到 stderr，也就是说**信息一直都在，只是没有进断言**。
+   这一族的通用查法：看到 `assert len(shared_list) == N`，先问「线程里抛的东西去了哪」。
+3. 记录本段之后未再跑单文件门；全量归因读数以 §5 为准。
+
+### 5. 基线与门
+
+- `tests/test_http_surface.py`：77 passed / 29.94s。
+- 本批之后的全量冷跑（`-W error`，跑在含 `dd25538` 的树上）：**1146 passed in 422.87s，exit 0**，
+  无一条红、无跳过。这条是「本批的改动没有把套件弄坏」的归因读数。
+  顺带把 §1 那条间歇门（`test_inputs_changed_during_check_do_not_get_cached_or_passed`）的账写清：
+  它在 `8862961` 那两文件合跑时红过一次，之后的三次整跑（`0e4e1ad` 433.52s、`8862961` 253.63s、
+  本批 `dd25538` 422.87s）**分别来自三棵不同的树，不是一棵树跑了三次**，
+  所以三次绿只说明「窗口没被踩到」，不构成 M8-T65 已修。
+- `scripts/doc_pointers.py --check`：exit 0（按 M8-T39/T41 口径不复述分箱数，本段自己就是分母）。
