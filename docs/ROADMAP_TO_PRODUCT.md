@@ -4339,3 +4339,36 @@ ExceptionGroup: multiple thread exception warnings (8 sub-exceptions)   ← tear
 （`tests/test_task_worker.py` 里那两处「会回来」兜底已在注释里分工，但未逐个核过邻居有没有 status 判别），
 以及把 #66 这条「线程异常由运行时在 teardown 替你报告」的形状推广到全仓：
 grep 所有 `threading.Thread(target=` 且回调里没有 try/except 的测试。
+
+## 第四十九批（M8-T64 普查补漏）：判「一族已清空」之前，先怀疑普查问的是不是这个问题
+
+第三十八批结案 M8-T64 之后，下一批候选里写着「把『线程异常由运行时替你报告』这个形状推广到全仓」。
+本批做那次普查，结论是**那一族当时并没有清空，还剩一处**。
+
+### 1. 两次普查，第一次是错的
+
+第一版按文件数 `except` 的出现次数：`tests/` 里 18 个文件起线程，多数 `excepts=0`，
+看起来「有一堆门没收线程异常」。但那个数**问的是别的问题**——那些线程大多是
+`serve_forever` 的服务线程，它们的异常本来就不该被门收集。
+真正要问的是结构：**多个往集合里塞结果的线程 ＋ 一条长度断言**。
+换成窄 grep（`Thread(target=` 去掉 `serve_forever`，再看有没有 `assert len(`）之后，
+候选只剩三处：`tests/test_http_surface.py`（第三十八批已修）、
+`tests/test_session_concurrency.py`（**本来就做对了**）、
+`tests/test_permissions_approval.py::test_similar_inflight_calls_merge_into_one_prompt`（**漏网**）。
+
+### 2. 漏网那处与修法
+
+两个 worker 线程把 `request_approval` 的结果 append 进共享 `results`，回调里没有 try/except：
+任一抛错 ⇒ `results` 少一项 ⇒ 唯一证据是 `assert len(results) == 2`——
+一句关于列表的话，而该说的是那两个等待同一 merge_key 的调用有没有真的合并。
+修法照抄同套里已经正确的 `test_concurrent_thread_saves_never_corrupt`：
+收集 `errors`，**先断言「没有异常」再断言计数**。
+（顺序是判据的一部分：先报计数，就永远只看得到计数——第三十八批同一句话。）
+
+### 3. 入账
+
+提交 `a5b91a1`，收集数不变（改的是既有门内部），该文件 20 passed / 4.98s。
+本段的 `--check` 在最终字节上复测 exit 0。
+**推论入册**：以后判「这一族还剩几处」要用**结构判据**（谁产出、断言在数什么），
+不要用「有没有写 except」这种表面判据——表面判据会把干净的说成脏、把脏的说成干净，
+而两种错都会让人停止寻找。
