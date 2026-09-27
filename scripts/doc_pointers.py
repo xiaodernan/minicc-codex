@@ -851,7 +851,16 @@ def check_document(document: Path) -> tuple[list[Problem], Stats]:
     pointer_problems, pointers, boxes = check_pointers(document, text)
     link_problems, links, links_generated = check_links(document, text)
     evidence_problems, evidence = check_evidence(document, text)
-    relative = document.relative_to(REPO_ROOT).as_posix()
+    # ``is_relative_to`` rather than a bare ``relative_to``: a document outside
+    # this repository (or a relative path the caller resolved somewhere else) is
+    # still a document to check, and an unguarded mapping killed the whole report
+    # with a ValueError whose exit code read exactly like findings. The two other
+    # readers of a document's repo-relative name already guard this way.
+    relative = (
+        document.relative_to(REPO_ROOT).as_posix()
+        if document.is_relative_to(REPO_ROOT)
+        else document.name
+    )
     problems = pointer_problems + link_problems + evidence_problems
     minimum_pointers = MIN_POINTERS.get(relative)
     if minimum_pointers is not None and pointers < minimum_pointers:
@@ -1411,11 +1420,21 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--check", action="store_true", help="exit non-zero on any dangling reference")
     parser.add_argument("--quiet", action="store_true", help="print only problems and the totals")
     args = parser.parse_args(argv)
+    # An argument says which documents to *print*; it must not decide what the
+    # exemption tables are matched against. Resolving first also makes a
+    # relative path usable: check_document maps each document back onto
+    # REPO_ROOT, and a relative argument is not a subpath of an absolute root,
+    # so `python scripts/doc_pointers.py --check docs/PLUGIN_API.md` used to die
+    # with an uncaught ValueError and exit 1 - which reads to a caller exactly
+    # like 「dangling references found」 while nothing at all was checked. The
+    # same reason ``ensure_utf8_output`` already gives for never letting a
+    # printing problem become an exit-code problem.
+    documents = [path.resolve() for path in args.documents]
 
     problems: list[Problem] = []
     totals = {"pointers": 0, "markers": 0, "links": 0, "evidence": 0, "prose_paths": 0, "links_generated": 0}
     account = {box: 0 for box in POINTER_BOXES}
-    for document in args.documents:
+    for document in documents:
         if not document.exists():
             problems.append(Problem("MISSING", document.name, 1, "文档不存在"))
             continue
@@ -1446,7 +1465,14 @@ def main(argv: list[str] | None = None) -> int:
                 "git ls-files 一条都没返回：这个目录不是仓库，或 git 不可用，于是「在仓库里存在」全部判否",
             )
         )
-    problems.extend(check_exempt_tables(list(args.documents)))
+    # 「Does this exemption still earn its place」 is answered by the shipped
+    # corpus, never by the caller's subset: handing the checker one document
+    # reported every cross-document exemption as a dead row (measured: 1-14 such
+    # rows per single-document run, all 19 of them, against a corpus run with
+    # none). Extra documents still count as citations, so a caller can only
+    # widen the evidence, never shrink it below the shipped set.
+    liveness_corpus = list(dict.fromkeys([*DEFAULT_DOCS, *documents]))
+    problems.extend(check_exempt_tables(liveness_corpus))
     for problem in problems:
         print(f"DANGLING {problem}")
     tally = " ".join(f"{box}={account[box]}" for box in POINTER_BOXES)
@@ -1454,7 +1480,8 @@ def main(argv: list[str] | None = None) -> int:
         f"checked {totals['pointers']} of {totals['markers']} 「见」 markers ({tally}), "
         f"{totals['links']} links ({totals['links_generated']} of them into git-ignored generated output) "
         f"and {totals['evidence']} evidence pointers ({totals['prose_paths']} path claims sit outside code spans) "
-        f"in {len(args.documents)} documents, over {len(_tracked_files())} tracked files"
+        f"in {len(documents)} documents (exemption liveness answered against "
+        f"{len(liveness_corpus)} corpus documents), over {len(_tracked_files())} tracked files"
     )
     return 1 if (problems and args.check) else 0
 
