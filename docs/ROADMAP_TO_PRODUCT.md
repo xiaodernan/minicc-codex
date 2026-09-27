@@ -5785,3 +5785,97 @@ basetemp 在树外，`minicc.__file__` 当场核对。
 
 - 版本别名词表：`version` 之外还有哪些形状承载版本（`apiVersion`、f-string、kwarg），先扫再决定长门。
 - 聚合报告怎么区分「无法判断(2)」与「失败(1)」——第 6 节那一格的下游。
+
+## 第六十三批（M8-T82：盘上格式的版本号有六个写主、零个读主）
+
+代码与门在 `ae646ae`（已推送）。这条从第六十二批那次「版本形状普查」里长出来。
+
+### 0 这一类缺陷是什么
+
+`minicc/session.py` 把 `"version": 1` 手抄在六处（默认视图、`save`、快照分支、
+`save_view` 的两处兜底 + 一处覆盖、`load_view_payload`），**没有任何一处读它**。
+同一个包里健康的样子是 `minicc/snapshots.py`：`manifest.get("version") == 2` 真的决定怎么读盘。
+一个没人读的版本号不是元数据，是一句**没人兑现也没人检查的承诺**：
+下一个不兼容的写主会把旧文件当成自己能读的样子继续改写，而不是拒绝。
+
+### 1 先量（含一个我自己造的测量假象）
+
+第一版普查把「六写」数成了「六写一读」。原因是 `ast.Subscript` 同时覆盖 `Load` 与 `Store`，
+于是 `payload["version"] = 1` 这行**写**被当成了一次读。
+修法：读侧必须判 `node.ctx is ast.Load`。重数之后真实形状是 **6 写 / 0 读**。
+⇒ 这条写进记录，因为「普查把写当成读」会让下一位得出完全相反的结论（还以为有人管）。
+
+普查里另外两点分类，别一把梭：
+- `agent/rpc.py` / `mcp.py` / `agent/context.py` / `llm/anthropic_provider.py` 写的 `version`
+  是**协议握手字段**，消费者是对端进程；`web.py` 的 `anthropic-version` 是 HTTP 头。
+  「minicc 内部没人读」≠「没人读」，这些不在本批口径内。
+- 真正可判的是自家盘上格式：本批动了 `session.py`；
+  `bench_compare.py` / `impact.py` / `web.py` 的 `schema_version` 仍是「写了没人分支」的形状，留着。
+
+### 2 改动
+
+- `minicc/session.py`：新增 `SESSION_FORMAT_VERSION`（全文件唯一一处把格式版本写成字面量的地方），
+  六个写主全部改成从它取；`_read_payload` 补上读主——声明的版本不认识就
+  `SessionError`，报错同时给出「声明的是几、本代码只认几」；
+  **缺字段按当前版本放行**（那是这个字段还不 Meaning 时写下的旧文件，拒掉等于把用户数据判死）。
+- `tests/test_session_format_version.py`（新，6 条）：
+  派生（把常量 monkeypatch 成 7，盘上字节必须跟着变）、六写归一（`save` 与 `save_view`
+  落盘的版本号都等于常量）、不认识的未来版本被拒、无版本旧文件仍可读、
+  源码普查（`version` 键下不许再有字面量、常量声明必须恰好一处）、
+  以及一条**消费者存在性**断言（读侧 `Load` 次数 ≥ 1——正是本批开工时的零）。
+
+### 3 变异见证：3/3（平面 = `c24a1b5` worktree + 本批两个文件；对照 `6 passed`）
+
+| # | 破坏的机制 | 预期红在哪 | 判决 |
+| --- | --- | --- | --- |
+| W1 | 六个写主退回字面量 1 | 派生那条（常量改成 7 而盘上还是 1）+ 普查那条 | RED-AS-CLAIMED（2 红） |
+| W2 | 读主不再分支（`if False`） | 未来版本被拒那条 | RED-AS-CLAIMED |
+| W3 | 读主对缺字段变苛刻（`payload["version"]`） | 旧文件仍可读那条 | RED-AS-CLAIMED |
+
+W1 值得单看：它证明「盘上版本 == 常量」这种**等式断言**测不到什么——
+把常量改成 7 而写主还抄 1，等式照样在默认值下成立，只有派生断言会红。
+（与第五十八批 `--version` 那条同一个教训的第二次兑现。）
+
+### 4 回归面
+
+`-k "session or checkpoint"` 在干净 worktree：**50 passed**（改动前后同数，
+说明「不认识就拒」没有伤到既有读写路径）；本批新门 6 条全绿。
+
+### 5 基线
+
+平面 = worktree `t89fullWT`（HEAD = `ae646ae`），形状 B（`-W error` 跟在 pytest 后面），
+basetemp 在树外，`minicc.__file__` 当场核对。
+
+**1 failed, 1193 passed in 873.98s (0:14:33)，exit 1。** 项数 1194 = 上一批 1188 + 本批 6 条。
+
+唯一那条红不是本批的文件，而是既有的解码门又点了一个新站点：
+
+```
+FAILED tests/test_subprocess_decoding.py::test_captures_of_git_output_name_the_codec
+E E       MemoryError
+```
+
+本批只动了 `minicc/session.py` 与一个新测试文件（新测试不起子进程），所以这条红要单独归因：它点的是那条测试把 git 输出读进内存时**没有上限**：死法是 `MemoryError`。
+本批不认领这条红，也不销账：一个能把整台机器打到 MemoryError 的捕获本身就是没设顶的读取。
+下一格先重跑定性质（偶发资源 vs 无上限读取），再决定动不动它。
+⇒ **本批没有 exit 0 的整套基线可引**，本节只登记这一跑的原始读数与这条待归因的红。
+
+
+### 6 这一格之后仍然空着
+
+- 本批只让 `session.py` 的版本号有了读主。**没有**实现「读到旧版本怎么迁移」——
+  现在唯一合法的版本就是当前版本，将来真要升版，这条 `SessionError` 得换成迁移分支，
+  而那一步的判据（迁移后必须能读回同样的消息树）还没有。
+- `bench_compare.py` / `impact.py` / `web.py` 的 `schema_version` 仍是写了不分支的形状；
+  普查门只覆盖 `session.py`（按文件点名），没有推广成整仓门——推广要先把
+  「协议字段 / HTTP 头」这两类外部契约分类钉住，否则会把二十多个合法常量一起冤枉。
+- 测量工具（普查脚本）留在 scratch，没有进门：它对 `Store/Load` 的区分是对的，
+  但只在我这一台机器上跑过一次；要进门得先有自己的两侧断言。
+- 仍等用户点头：CI 接 `doc_pointers.py --check` / `route_coverage.py --check`；
+  M6-4 的 30 条真模型基线（配额）；M8-T11 流式合并语义；M8-T25 成本 null 与 0.0 口径。
+
+### 7 下一批候选
+
+- 把「盘上格式必须有读主」从 `session.py` 推广成一条整仓门，前提是先给
+  协议字段与 HTTP 头两类做出分类账（分类要由「写不写得出这一臂」验证，不按词形猜）。
+- `benchmarks.py` 读 `suite_version` 但不分支：要么让它因版本分支，要么承认那是注释字段并改名。
