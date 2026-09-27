@@ -125,7 +125,20 @@ for item in spec.get("files", []):
             print(f"missing file: {rel}", file=sys.stderr)
             raise SystemExit(1)
         continue
-    text = target.read_text(encoding="utf-8", errors="replace")
+    raw = target.read_bytes()
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        # A criterion evaluated over replacement characters measures nothing:
+        # a non-utf-8 file makes a non-ascii `contains` fail while making the
+        # same non-ascii `not_contains` pass with the text physically present.
+        # Refuse the verdict instead of guessing it (exit 2 = cannot judge).
+        print(
+            f"cannot judge content of {rel}: not valid utf-8 at byte {exc.start}; "
+            "refusing to match markers over replacement text",
+            file=sys.stderr,
+        )
+        raise SystemExit(2)
     if "contains" in item and str(item["contains"]) not in text:
         print(f"missing substring in {rel}", file=sys.stderr)
         raise SystemExit(1)
