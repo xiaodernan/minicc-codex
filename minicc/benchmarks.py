@@ -164,6 +164,9 @@ def build_report(tasks: list[dict[str, Any]], results: list[dict[str, Any]] | No
             # downstream unless it is copied here (M8-T81 gate).
             "grading_refused": bool(recorded.get("grading_refused")),
             "refusal": (str(recorded.get("refusal") or "")[:300] or None),
+            # A failed/interrupted task records WHY in `entry["error"]`; without this
+            # copy the report prints a bare "failed" and the reason vanishes (M8-T81 shape).
+            "error": (str(recorded.get("error") or "")[:200] or None),
             "metadata": recorded.get("metadata"),
         }
         rows.append(row)
@@ -245,6 +248,9 @@ def markdown_report(report: dict[str, Any]) -> str:
     for row in report["results"]:
         detail = str(row.get("refusal") or "")[:60]
         verdict = value(row["passed"], row) + (f" ({detail})" if row.get("grading_refused") and detail else "")
+        # A non-completed row must show the recorded reason, not just "failed".
+        if row.get("error"):
+            verdict += f" [{str(row['error'])[:120]}]"
         lines.append(f"| {row['task_id']} | {row['category']} | {row['status']} | {verdict} |")
     lines.extend(["", *[f"- {note}" for note in report["notes"]], ""])
     return "\n".join(lines)
