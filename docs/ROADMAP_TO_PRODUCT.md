@@ -5434,3 +5434,104 @@ pytest 自己在配置校验期就报未知键，在 `-W error` 下连收集都�
   「本地证据 / Local evidence」）。双向门 + 读者清单用 AST 枚举。
 - **M8-T76（任务 #74）**：`test_cli_version_flag_matches` 的 60s 秒表（第五十八批另一条红）。
 - M8-T58（已量化候选）：非 ASCII `stdout_contains` 判据在父子 codec 不一致时仍会误判。
+
+## 第六十批（M8-T74：交互路径把「遍历被预算截断」说成了「工作区里没有了」）
+
+承接第五十七批（M8-T72 把分母写进评测报告）与第五十八批登记的候选。代码在 `30bc57d`。
+
+### 0 这一类缺陷是什么
+
+`LocalEvidenceIndex` 的 `os.walk` 有两个预算（`max_files`、`max_directories`），到点就
+`stopped_early=True`；`_files()` 收集完还可能有个别文件 `stat`/读不动而进 `files_skipped`。
+`census_is_complete` 是唯一判断点。**评测路径**第五十七批已经收口；**交互路径**上同一份索引
+被读三次，三次都不问口径，于是：
+
+- 给模型的 `[本地检索索引]` 提示——命中为空时**整段不出现**，模型把「没线索」当成「工作区里没有」；
+- 给人的 trace——`本地索引提供 N 个候选文件，Agent 会逐项复核`，N 是前缀时这句话是完整性语气；
+- 给 planner 的 `evidence=`——在已经截过的列表上再切 8。
+
+### 1 先量（全部只读，平面 = 改动之前的 `bd44823`；行号是当时的行号）
+
+- 三个读者的位置：`minicc/web.py:1169`（取命中）→ `:1170-1178`（模型消息）、
+  `:1286-1292`（trace）、`:1851-1858`（planner）。`stats()` 与 `search()` 是同文件
+  （`minicc/agent/retrieval.py:399` / `:423`）的**两个**方法 ⇒ 只调 `search()` 的读者拿不到分母。
+- 那句 summary 是**界面文字**不是内部日志：`web/src/panels/index.js:1226/1276` 给它标签
+  「本地证据 / Local evidence」，打包产物 `web/assets/app.bd4afd1956047ea6.js` 里事件按
+  `<small>${u(e.summary||"")}</small>` 逐字进 DOM。
+- 交互路径上 `census_is_complete` 的调用次数：**0**（改前）。
+
+### 2 改动
+
+- `minicc/agent/retrieval.py`：新增 `census_notice(stats)`——`census_is_complete` 说完整时返回
+  空串，否则返回一句带 `seen/indexed/file_limit/dirs/dir_budget/skipped` 的话，
+  并把「没出现在清单里 ≠ 工作区里没有」写进去。判断仍然只有 `census_is_complete` 一处。
+  未知分母（`stats` 缺失）按**不完整**处理，与 `census_is_complete` 同一方向。
+- `minicc/web.py`：三个**模块级**构造器 `_evidence_model_note` / `_evidence_trace_event` /
+  `_evidence_for_planner`，三个调用点改为读一次 `evidence_index.stats()` 并传给它们。
+  空命中 + 截断 ⇒ 现在**会**发一条只含口径说明的模型消息（这是本批最要紧的一格）。
+  trace 的 `detail` 多出 `census` 与 `census_complete`，`summary` 在不完整时换成
+  「本地索引未走完工作区，只提供 N 个候选文件（清单可能不全）」。`status` 仍为 `ok`
+  （事件词表不在本批口径内，不偷偷扩词表）。
+
+### 3 见证：4/4（平面：`bd44823` worktree + 本批三个文件；对照 `7 passed in 22.09s`）
+
+| # | 变异（改值/改分支，不动语法） | 预期红在哪 | 判决 |
+| --- | --- | --- | --- |
+| W1 | 空命中时不发口径说明（`return ""`） | `test_an_empty_list_from_a_truncated_walk_...` 的 `NOTICE_MARK in _evidence_model_note` | RED-AS-CLAIMED |
+| W2 | trace 不完整时仍说「提供 N 个候选文件」 | `test_a_truncated_walk_tells_the_model_and_the_human_aloud` 的 summary 断言 | RED-AS-CLAIMED |
+| W3 | 未知分母被当成完整（`census_notice(None)` 返回空） | `test_the_census_predicates_agree_with_the_notice` | RED-AS-CLAIMED |
+| W4 | 消费者不再读 `stats()`（改成 `{}`） | 结构那条（AST 枚举出的站点） | RED-AS-CLAIMED |
+
+W4 是两半独立性的证据：把分母读掉只弄红结构那一半，三条行为测试照旧绿——
+它们喂给构造器的是自己从真索引拿到的 census。
+
+**门的两半**：行为半用真索引、真 `EvidenceHit`（不手写桩，桩的形状必须和生产一致）；
+结构半 `uncredited_index_sites(tree)` 按 (函数, 形状) 判，不按行号键定，
+植入面写在源码字符串里由 `ast.parse` 读（同时钉住「合规的读者不该被报」，否则门变成噪声）。
+
+### 4 自我纠正（两条，都当场兑现）
+
+1. 本批第一刀把 `retrieval.py` 里 `_INDEX_CACHE = OrderedDict()` 与下一行合并成了一行，
+   造成 `SyntaxError`。它是被**收集期报错**抓到的，不是被我读到——所以这条不记成「门抓住了我」，
+   只记成：整行 old_string 少写一个换行 = 删掉换行；Edit 之后要跑一次收集。
+2. 「门先在旧树红」这一格本批**不成立**：HEAD 里没有这三个构造器，旧树上跑新门是
+   `ImportError`，不是红。按本仓一贯口径，这种不算证据，所以反向控制改由
+   第 3 节的变异 + 结构半的植入面承担，旧树那一跑不写进数字。
+
+### 5 基线
+
+平面：worktree `t77fullWT`（HEAD = `79dba80`），形状 B（`-W error` 跟在 pytest 后面），
+basetemp 在树外，`minicc.__file__` 当场核对指向该 worktree。
+
+**1180 passed in 1823.60s (0:30:23)，exit 0。**
+
+- **1180 = 第五十九批的 1173 + 本批新增 7 项**，逐项对得上。
+- 时数是负载读数：1823.60s ÷ 第五十七批的 533.92s ≈ 3.4 倍（并发 run 仍在压这台机器），
+  只当「负载下的时数」读，不当回归读。
+- 这一跑之前先有一次 `6 failed, 1174 passed in 1639.35s`（平面 `30bc57d`）：六条红全是
+  `tests/test_doc_pointers.py`，根因**不在本批代码**，而在第五十九批记录引用了
+  `minicc/agent/router.py:68` —— 那个行号只存在于并发 run **未提交**的工作副本里
+  （HEAD 那版只有 50 行）。我在主树跑 `doc_pointers.py --check` 是绿的，
+  恰恰因为我跑在那棵脏树里。⇒ `79dba80` 把行号定位降成文件级，并在干净 worktree 里
+  验证 `64 passed`（全部 doc_pointers + 本批新门 7 项）。
+  **可复用的规矩：门要在它所描述的那个平面上跑；描述「干净检出」的门，
+  在有未提交改写的树上过等于没过。** 本批代码一项没变，所以重取的那跑才是本批基线。
+
+### 6 这一格之后仍然空着
+
+- 结构半只问「这个函数读没读 `stats()`」，不问「读了之后有没有真的说给谁听」。
+  它防的是新增读者不接口径，防不了「读了但丢掉」。后者由行为半看着那三个构造器，
+  看着**不到**未来的第四个构造器——那要靠第 3 节的 W4 形状去长。
+- `status` 仍是 `ok`：截断在事件词表里没有自己的取值，UI 图标因此不区分。要不要开一个
+  `partial`，属于词表决策（M8-T9 那一族），本批没自行动。
+- 前端只渲染 `summary` 文本，`detail.census` 目前没人画——数据已经在那儿，画不画是设计选择。
+- 仍等用户点头：CI 接 `doc_pointers.py --check` / `route_coverage.py --check`；
+  M6-4 的 30 条真模型基线（配额）；M8-T11 流式合并语义；M8-T25 成本 null 与 0.0 口径。
+
+### 7 下一批候选
+
+- **M8-T76（任务 #74）**：`test_cli_version_flag_matches` 的 60s 秒表（第五十八批那条红，
+  第五十九批一跑没红只是负载降到 2.5 倍，不销账）。
+- M8-T58（已量化候选）：非 ASCII `stdout_contains` 判据在父子 codec 不一致时仍会误判。
+- 现场提醒：主树仍被并发 run 的未提交 `minicc/agent/router.py` 打成收集期 `ValueError`，
+  本批所有读数取自 worktree。
