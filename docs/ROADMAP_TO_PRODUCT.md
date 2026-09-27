@@ -6052,3 +6052,79 @@ run 改着（+905 行新任务），我只 stage 自己的四个文件，数据�
 下一步要把「N 条无法判定」印进摘要，否则读者只看到分母变小；(2) 超时/OSError 与 exit 2 的
 三分口径要不要在 `benchmarks.py` 里显式命名；(3) 词表门（M8-T79）目前只覆盖 `*VERSION`
 常量，`case_count`/`exit_code` 这类「被写的字段」还没有同类 census。
+
+## 第六十七批（M8-T81：评分器的拒绝走到了报告门口，报告读不到它）
+
+代码与门在 `2f6a66f`（已推送）。这一批是第六十六批（M8-T80）欠下的另一半。
+
+（编号说明：追加前在 `origin/main`＝`2f6a66f` 上量过——文档标题级用掉的编号是 M8-T77 / T79 / T80 / T82（`M8-T78` 在文档里出现 0 次，那一格是第六十二批之前以其他方式记的），`M8-T81` 无人使用，本批认领它（代码 `2f6a66f` 与提交信息同号）。`M8-T82` 已被另一个 run 在 `ae646ae` 占走（第六十三批＝盘上格式版本号的读主），所以本批不往后续号、只填前面的空号；批次号 第六十七批 是追加时的 HEAD 空号。）
+
+### 0 这一类缺陷是什么
+
+M8-T80 给评分器开了「我判不了」这条通道：grader 以 exit 2 退出 ⇒ `passed=None` 外加 `grading_refused` / `refusal` 两个字段。但那一批见证只打到了**写主**这一侧。往下一层看：
+
+`build_report` 不是把结果行原样传给报告，它是**按 key 逐字段重建**行（`minicc/benchmarks.py:147-167`）。重建的清单里没有这两个字段。于是拒绝在离读者最近的地方又被丢了：
+
+- `markdown_report` 的 `value()` 只看 `item is None` ⇒ 一次拒绝和「这条任务根本没有评分器」印成同一个 `N/A`；
+- 报告读者只会看到分母变小（`gradable_task_count` 降了一格），永远看不到**为什么**降。
+
+这就是 M8-T79 普查出的那一类——**有写主、无读主的字段**。但比版本号更糟一格：`N/A` 在报告里有既定含义，把拒绝印成 `N/A` 是**主动**说了一句假话，而不仅仅是一句没人兑现的承诺。
+
+### 1 先量
+
+- `grep -rn "grading_refused\|refusal" minicc/` 在 `57db4bd` 平面：只命中写主那两行（`minicc/bench_tasks.py:280-281`），**读者 0 个**。
+- 真实 runner 这一侧不是问题：`minicc/benchmarks.py:723` 用 `entry.update(grade_v2(...))` 整包合并，字段确实到了 results 行。**唯一丢字段的地方就是 `build_report` 的重建清单**——这条是本轮读源码才确认的，M8-T80 那批我以为通道是通的。
+
+### 2 改法（一处传播 + 三处读者）
+
+1. `build_report` 的行清单里补 `"grading_refused"` / `"refusal"`（拒绝原因截 300 字，跟写主同界）。
+2. 新指标 `grading_refusal_count`，从行里推导（不是第二处手写计数）。
+3. `value(item, row=None)`：`None` 一格现在分三种——拒绝印 `REFUSED`，真无评分器印 `N/A`，其余照旧印布尔值。
+4. 任务行在 `REFUSED` 后面带上原因首 60 字；摘要表把 `grading_refusal_count` 印出来；`notes` 里给 `REFUSED` 一个定义（一个印出来的指标不该要读者猜）。
+
+### 3 门
+
+`tests/test_refusal_is_visible_in_report.py`（11 项）把三种形状分开钉：
+
+- 拒绝既不算通过也不算「无评分器」（计数 1、可评分数 1）；
+- 计数随行移动（1 → 2 → 0），不许是写死的；
+- `REFUSED` 行与 `N/A` 行必须**不是同一行文本**，且原因要出现在表里；
+- 通过/失败仍然印成 `True`/`False`，任务行里不许混进 `REFUSED`（新格不能反过来吃掉旧的可见性）；
+- 读者普查：`minicc/` 里除了写主自己，必须有模块点名这个 flag，而且点名模块就是 `minicc/benchmarks.py`；再用 AST 要求**至少两处按 key 索引**（`.get("grading_refused")` 或 `["grading_refused"]`），配参数化反向控制：字典字面量里写这个 key、或者只在注释里提这个词 ⇒ 计数为 0（散文不算读者）。
+
+### 4 变异见证：7 臂，全中，控制组绿
+
+同机快照整文件、`finally` 还原（还原后字节相等 `restored: true`），每臂打印跑了多少案例：
+
+| 臂 | 破坏的机制 | 结果 |
+| --- | --- | --- |
+| 控制 | 未变异 | 11 passed |
+| A1 | 删掉 `build_report` 的传播（=M8-T80 当时的世界） | 4 failed, 7 passed ✅ |
+| A2 | 计数规则换成 `passed is None`（把拒绝当成「无评分器」） | 1 failed, 10 passed ✅ |
+| A3 | `REFUSED` 折回 `N/A` | 1 failed, 10 passed ✅ |
+| A4 | 任务行不再带原因 | 1 failed, 10 passed ✅ |
+| A5 | 指标算出来但摘要表不印 | 1 failed, 10 passed ✅ |
+| A6 | 读者改名（`grading_refused` → `refusal_flag`），写主不动 | 6 failed, 5 passed ✅ |
+| A7 | 指标印出来但 `notes` 里没有定义 | 1 failed, 10 passed ✅ |
+
+A1 就是「追加前一层的旧世界」，A6 一次抓 6 条：普查门与行为门在同一个断裂上会师，说明这两条不是各写一遍的两套判断。
+
+### 5 计划里没写、量出来才发现的两处
+
+- **`build_report` 才是丢字段的那一层**。M8-T80 的计划写的是「让拒绝到达 `build_report`」，实际上它到达的是 `build_report` 的**输入**；`results` 行在函数里被重建，字段就在重建清单外。看函数名会以为通道是通的。
+- **同形状的字段还有一大片**：修完这一格顺手用 AST 量了一次（脚本在树外，读 `2f6a66f` 平面）：runner 往结果行写 **21 个 key**，`build_report` 的读取清单只有 **15 个**，剩下 8 个从不被读——`cleanup_error`(760)、`error`(674/677/689/711)、`grading_error`(730)、`objective_oracle`(735)、`retained_workspace`(755/761)、`review_rounds`(713)、`task_id`(632)、`turns`(700)，外加 1 个 `entry.update(<调用>)` 的动态写。
+  这 8 个不能照抄成「8 个死字段」：`task_id` 是普查语法产物（`build_report` 用 `item.get("task_id")` 建索引，我的脚本只统计 `recorded.*`）；而 `error` / `retained_workspace` 这类会随 results JSON 落盘，读者可能是离线审计而不是报告。**下一单位的第一个问题不是「有没有读者」，而是「在哪个平面上、由谁读」**——这一格留给下一批，本批不动。
+
+### 6 我这一批造出来的两个测量假象
+
+- 新门第一次跑红 4 条。逐条看之前很容易把这 4 条全记成代码缺陷（或者全记成我的夹具问题）。真相：4 条**全部**由「不传播」造成，而报错文字里那句 `uncategorized` 是我夹具只喂了 `task_id`（`category` 由 fixture 侧取）——**一个缺陷 + 一个夹具噪声，长得像两个缺陷**。先补夹具再重跑，才确认红归属只有一处。
+- 见证脚本 A2 的锚点我按 `sed` 输出抄了 12 格缩进，第一次跑就在 `assert anchor` 处停住。那是抄行号的老毛病换个形态：**锚点要从文件读，不要从终端截图抄**。同一次还暴露出那行本来缩进就错了（8 格 vs 12 格），补了一处纯格式化修正。
+
+### 7 基线与平面
+
+- 代码平面：`2f6a66f`（干净 worktree，`PYTHONPATH` 指向 worktree 并核对 `minicc.__file__`；树外 `--basetemp`；`python -m pytest -q -W error`，pytest 侧形状）。整套：**1222 passed / 504.31s / exit 0**。这条数要能对账：上一批（`57db4bd`）1211 ＋ 本批新门 11 ＝ 1222，一条不多一条不少——没有一个测试因为这次改动变成红或消失。
+- 本批落地前那组局部读数：门本身 11 passed；同层邻居 `test_core/test_pricing/test_bench_compare/test_bench_tasks/test_version_vocabulary` 61 passed；`test_refusal… + test_grader_no_result_channel + test_behavior_bench` 31 passed。
+- 旧平面反向控制：把新门文件复制到 `d9c4419` 的 worktree 跑 ⇒ **8 failed, 3 passed**，三条绿的正是「通过/失败仍印成布尔」与两条散文反向控制——旧世界红的就是这一格该红的地方。
+- 记录追加前先在同 ref 的临时 worktree 里把整份文档过一遍指针门：`scripts/doc_pointers.py --check` 追加前后都是 **exit 0**。总数（一次真实运行里读回的，不是抄上一批）：「见」标记 374→380，全部落在 `word-interior` 一格（254→260），`checked` 一侧 65 不动——本节没造出新的「见 X」指针；证据指针 1185→1188。
+  这里差点写错一次：**没有把 1188−1185=3 摊派给「本节 4 条路径声明」**。探针实测（临时文档里三处不同的 code span 路径声明只 harvest 到 1 条）说明这个总数不是按出现次数累加的；`_evidence_shape` 的注释也讲明它数的是「阅读器考虑过的东西」。所以本节能负责的只有两句话：**新增 3 条、红 0 条**。
+- **新指标的边界（问出来的，不是假设的）**：`bench_compare` 的 `GATE_METRICS` 只有 4 个名字（`pass_at_1`/`cost_per_success_usd`/`latency_p95_ms`/`grading_coverage`），`grading_refusal_count` 与 `gradable_task_count` 都不在其中 ⇒ 本批的指标只进报告、不进跨 run 的回归门。这一格**不是静默漏洞**：`minicc/bench_compare.py:377-378` 对未登记的 gate 指标直接抛 `ValueError`，写错名字会当场炸而不是悄悄不比。要把拒绝数做成回归门，得先定方向与阈值（两条套件评分器不同，绝对数不可比，比率又和 `grading_coverage` 分母纠缠）——那是另一个单位的口径决策，不在本批偷做。
