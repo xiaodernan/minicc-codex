@@ -5997,3 +5997,58 @@ run 改着（+905 行新任务），我只 stage 自己的四个文件，数据�
 **队列（下一批读这段就能接上）：** grader `exit 2`（读不懂的文件）在聚合报告里怎么算——现在是
 静默折进失败计数；`test_git_workflow.py`/`mcp.py`/`cli_io.py` 等主树未提交改动不属于本 run，
 不要 stage。
+
+## 第六十六批（M8-T80：评分器说「我判不了」的时候，聚合报告不许把它当成失败）
+
+（编号说明：批次号在 HEAD 上被另一个 run 占到 第六十四批，本批记为 第六十六批；M8-T80 落在文档未使用的 T77..T81 空段里，代码与提交信息已用此号。）
+
+**先量（平面＝b70af51 的干净 worktree）。** 第六十二批让文件契约评分器在遇到解不开的
+文件时 `raise SystemExit(2)`（用 `errors="replace"` 把中文替换成乱码再比对，会把
+`not_contains` 判成假绿）。本批顺着 exit 码往下读，量到两件事：
+
+1. 评分脚本确实会返回 2——**两条**独立路径：解不开（utf-8 解码失败，报 byte 偏移）和
+   契约路径越出工作区（`contract path escapes workspace`）。
+2. 宿主侧 `grade_file_contract` 只写了一句
+   `passed = result.returncode == 0 and marker in stdout`，`grade_command_contract` 同形。
+   也就是说 **exit 2 被折进 `passed=False`**。而 `benchmarks.build_report` 早就备好了
+   NO-RESULT 通道：`gradable = [row for row in completed if row["passed"] is not None]`，
+   `pass_at_1`/`acceptance_success_rate`/`false_completion_rate` 全部分母都取 `gradable`。
+   结论不是「要新发明一个口径」，而是「已有的那条空道没人写」——一次评分器自己的无能，
+   被记成 agent 的一次假完成（`claimed_complete and passed is False`），还把分母撑大。
+
+**改法。** `bench_tasks._refused()`：`passed=None` + `grading_refused=True` +
+`exit_code` + stderr 第一条非空行（`refusal`），文件契约与命令契约两个评分器共用；
+只在 `returncode == _GRADER_REFUSED`（=2）时走这条路。超时/OSError 仍旧是 `passed=False`
+加 `error`——那是「跑都没跑完」，不是「跑完了但判不了」，本批不动它，也照实记在这段里。
+
+**门（`tests/test_grader_no_result_channel.py`，8 条）。** 两条真 exit 2 用**已发布的评分器
+源码**跑真子进程（GBK 字节 + 越界路径），一条断言 `passed is None`；两条「消失控制」是
+这批的关键：合法通过必须是 `True`、exit 1 的真失败必须是 `False` 且不带
+`grading_refused`——否则 NO-RESULT 就变成了让红消失的后门。命令契约与文件契约的映射各用
+一个 in-process 假 `_run_grader` 钉住（两条评分器共用一个出口，不能只测一条）。
+
+**变异见证（5 臂全红 + 未变异对照）：** 把 `_GRADER_REFUSED` 从 2 挪到 3 → 三条臂红
+（解码拒绝、越界拒绝、宿主映射），报错里直接印出 `{'passed': False, ..., 'exit_code': 2}`；
+把 `_refused` 改写成 `passed=False` → 红；把 2 换成 1（让 exit 1 也折进拒绝）→ 红，
+且报错印出 `'passed': None ... 'refusal': 'boom'`。对照四条未变异声明全部成立。
+
+**自我纠正（见证工具自己的两个 bug，不藏在结果后面）：** 第一版见证把四条未变异声明
+跑在同一个临时目录里，而每条测试都会在自己的 `tmp_path` 下建 `ws/`——第二次调用直接
+`FileExistsError`；另一臂需要 `monkeypatch` 参数却被当成无参函数调用，报 TypeError。
+两条都是**我的夹具**坏了，不是门坏了；改成每臂一个新目录 + 显式实例化
+`pytest.MonkeyPatch()` 之后，5/5 红、对照绿。这也是「先读失败快照」又一次兑现：
+ traceback 第一行就写着目录已存在。
+
+**基线（平面＝57db4bd 的干净 worktree）：** 1211 passed in 516.71s (0:08:36)，exit 0，平面＝从 57db4bd 新建的 worktree wt66（PYTHONPATH 已核对 minicc.__file__）；与上一批 1203 正好相差本批新增的 8 条门，这条对账是事后核对而非预测。
+
+**边界。** (a) `refusal` 只留 stderr 首行 300 字，完整原文仍在评分器自己的输出里，本批没有
+新增落盘字段以外的存储。(b) 命令契约里那条「还没渲染的 `{python}` 占位符」检查，现在宿主
+已经把渲染挪到自己这边（`render_python_command` 一次性替换所有出现），所以脚本侧的 exit 2
+分支在正常调用路径上**够不到**；这条门是靠 in-process 假 `_run_grader` 证明映射存在，而不是
+证明那条分支可达——这是两件事，分开记。(c) 主树里另一个存活 run 正在改
+`benchmarks/tasks.v2.json`、`minicc/mcp.py`、`cli_io.py`、`ide/vscode/*`，本批一律没碰。
+
+**队列：** (1) `grading_refused` 的行在 Markdown 报告表格里现在印成什么（`value(None)`）——
+下一步要把「N 条无法判定」印进摘要，否则读者只看到分母变小；(2) 超时/OSError 与 exit 2 的
+三分口径要不要在 `benchmarks.py` 里显式命名；(3) 词表门（M8-T79）目前只覆盖 `*VERSION`
+常量，`case_count`/`exit_code` 这类「被写的字段」还没有同类 census。
