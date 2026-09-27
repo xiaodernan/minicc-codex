@@ -17,10 +17,30 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 PROBE = REPO_ROOT / "tests" / "test_hang_watchdog_probe_tmp.py"
 
 
+def _probe_path(sleep_seconds: float) -> Path:
+    """A probe filename unique per sleep value, so no import cache can be stale.
+
+    CPython validates a cached ``.pyc`` against the source's mtime **in whole
+    seconds** plus its size. This file writes the probe twice in one session -
+    ``time.sleep(0.2)`` and ``time.sleep(3.0)`` - and those two literals are the
+    same length, so when both writes land in the same second the cache looks
+    valid and the nested pytest imports the *previous* probe's bytecode. The
+    overshoot test then really runs a 0.2s sleep under a 1s bound, and reports
+    "1 passed in 0.22s" while its watchdog never arms. Measured on both CI legs
+    (the nested run finished in 0.22s), and it is why this file passed or failed
+    depending on how long the earlier test took.
+    """
+    return PROBE.with_name(f"test_hang_watchdog_probe_tmp_{int(sleep_seconds * 1000)}.py")
+
+
 def _nested_session(sleep_seconds: float, limit: str) -> subprocess.CompletedProcess[str]:
     env = dict(os.environ)
     env["MINICC_TEST_HANG_LIMIT"] = limit
-    PROBE.write_text(
+    # Belt and braces with the unique filename: never leave a .pyc behind for a
+    # probe that is deleted right after it runs.
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
+    probe = _probe_path(sleep_seconds)
+    probe.write_text(
         "import time\n\n\ndef test_probe_sleep() -> None:\n    time.sleep("
         + repr(sleep_seconds)
         + ")\n",
@@ -28,7 +48,7 @@ def _nested_session(sleep_seconds: float, limit: str) -> subprocess.CompletedPro
     )
     try:
         return subprocess.run(
-            [sys.executable, "-m", "pytest", "-q", "--no-header", "-p", "no:cacheprovider", str(PROBE)],
+            [sys.executable, "-m", "pytest", "-q", "--no-header", "-p", "no:cacheprovider", str(probe)],
             cwd=str(REPO_ROOT),
             capture_output=True,
             text=True,
@@ -38,6 +58,7 @@ def _nested_session(sleep_seconds: float, limit: str) -> subprocess.CompletedPro
             env={**env, "PYTHONIOENCODING": "utf-8"},
         )
     finally:
+        probe.unlink(missing_ok=True)
         PROBE.unlink(missing_ok=True)
 
 
