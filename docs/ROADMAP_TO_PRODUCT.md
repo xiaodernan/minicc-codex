@@ -5921,3 +5921,19 @@ E E       MemoryError
 3. **safe-delete 垫片会拦 `Path.unlink`**：`tests/test_hang_watchdog.py` 的 `PROBE.unlink(missing_ok=True)` 在本机抛
    `SystemExit`（`[safe-delete][SAFE_DELETE_BULK_GUARD_ERROR] state lock timeout`）；同一文件带 `--junitxml` 跑却 3 passed。
    垫片是**时序相关**的，所以本机看到的那两条失败不是代码问题——**判"某个门坏了"之前先看垫片有没有插手**。
+
+### 4 结案：CI 全绿（`cb5c4b4`，8/8 job 通过）
+
+上面第 2 节的两条「都通过、都只挂 CI」的失败，最后都定位到**测试自己的脚手架**，不是产品：
+
+| 失败 | 真因 | 修法 | 证据 |
+| --- | --- | --- | --- |
+| `test_hang_watchdog.py` 嵌套会话全绿 | **嵌套会话跑的不是刚写下的探针**。该文件每个会话写两次同一个探针路径（`time.sleep(0.2)` 与 `time.sleep(3.0)`），而 CPython 用**整秒 mtime + 文件大小**校验 `.pyc`，`"0.2"` 与 `"3.0"` 等长 —— 两次写落在同一秒时，第二次 import 命中第一次的字节码，于是「睡 3 秒」的探针实际只睡 0.2 秒 | 探针文件名带上 sleep 值（每次调用一个不同路径）+ `PYTHONDONTWRITEBYTECODE=1`（不给一个跑完即删的文件留缓存）；顺手清掉旧命名的残留 pyc | 改断言顺序后 CI 直接给出 `1 passed in 0.22s`（睡 3 秒的探针不可能 0.22 秒跑完），**一句话定位**。本机修后 3 passed / 16.95s |
+| `test_auto_resume.py::test_store_with_flag_requeues_interrupted` | 断言写的是 `{queued, running, completed}`，这个集合额外要求「恢复后的任务**没有失败**」——那是**完成评估器**的判据，不是 auto-resume 的。CI 日志逐字给出：`task_finished ... status=failed error=完成评估不可用，无法确认任务是否达到最终目标`（假 provider 的评委用正则从 packet 里找可引用事件 id，那次没找到） | 改成断言注释里写的那条不变式：① 被中断的记录仍在且仍是 `interrupted`（留档）；② 确实新生成了一个任务；③ 新任务**没有停在 interrupted** | 本机 2 passed。三条断言比原来那条更贴注释，且不再跨子系统 |
+
+**这三条的共同形状**：失败信息只说了「断言不成立」，而真相是「测试的脚手架/断言写错了对象」。
+把断言改成**先问前提、再问结论**（看门狗那条），和把断言**收回到它自己声称的不变式**（auto_resume 那条），
+是这一批唯一真正的修法——没有放宽任何产品判据。
+
+**顺带**：这次能一路查到底，靠的是 `gh` 已登录后**每推一次就看一眼 CI**；`Python tests (windows-latest)` 从 6 条失败一路降到 1 条再到 0 条，
+每一步的红名单都在上面几张表里，而不是靠记忆。
