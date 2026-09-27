@@ -5535,3 +5535,122 @@ basetemp 在树外，`minicc.__file__` 当场核对指向该 worktree。
 - M8-T58（已量化候选）：非 ASCII `stdout_contains` 判据在父子 codec 不一致时仍会误判。
 - 现场提醒：主树仍被并发 run 的未提交 `minicc/agent/router.py` 打成收集期 `ValueError`，
   本批所有读数取自 worktree。
+
+## 第六十一批（M8-T76 起手，收口在别处：门手挑了一个消费者，版本就有了第二处真话）
+
+登记时这条叫「`--version` 门的 60s 秒表在负载下假红」。量完之后主矛盾换了：
+秒表只是症状，真正没人守的是**版本字符串的第二处拷贝**。代码在 `d799386`。
+
+### 0 这一类缺陷是什么
+
+M4-T9 的原话是「版本只活在一个地方（`minicc.__version__`），每个消费者都从它派生」。
+守这句话的门只做了两件事：把 `mcp.py` 的源码文本按名字看一眼（`'"version": __version__'`），
+以及比对 CLI 的**输出**等于 `f"minicc {minicc.__version__}"`。
+
+于是：输出等于当前值 ≠ 输出派生于当前值。只要 `__version__` 恰好还是 `0.1.0`，
+写死的 `"minicc 0.1.0"` 就能一路过——**下次 bump 才炸，而炸的时候门是绿的**。
+「手挑一个消费者来证明『每个消费者』」是这一类的根。
+
+### 1 先量（只读，平面 = `d799386` 之前）
+
+`git grep` 出来的三处，形状各不相同：
+
+| 位置 | 写法 | 派生？ | 旧门看得见吗 |
+| --- | --- | --- | --- |
+| `minicc/__init__.py:3` | `__version__ = "0.1.0"` | 是（单源本身） | — |
+| `minicc/mcp.py:270/480` | `"version": __version__` | 是 | 看得见（按名字读源码） |
+| `minicc/main.py:205` | `version="minicc 0.1.0"` | **否** | 看不见（等式在 0.1.0 期间恒成立） |
+| `minicc/agent/rpc.py:105` | `"serverInfo": {..., "version": "0.1.0"}` | **否** | 根本不在口径内（RPC 握手报的版本） |
+
+⇒ 两处不派生的版本声明，其中一个还是**协议字段**（`serverInfo`），比 CLI 更要紧。
+
+顺带把登记的那格量清楚：`tests/test_cleanup_version.py` 里 `timeout=60` 同时承担
+「会不会终止」与「这台机器快不快」两件事——第五十八批整套（4.7 倍负载）它就是那么红的，
+第五十九批（2.5 倍）它绿了**不是被修了**。
+
+### 2 改动
+
+- `minicc/main.py`：加 `minicc_version()`（调用时才读 `from . import __version__`），
+  `--version` 的 `version=` 改成 f-string 派生 ⇒ 字面量无处可藏。
+- `minicc/agent/rpc.py`：`serverInfo.version` 改 `__version__`（顶部 `from .. import __version__`；
+  `minicc/__init__.py` 自己不 import 任何东西，无环）。
+- `tests/test_cleanup_version.py`：
+  ① `test_cli_version_action_derives_from_the_single_source`——问 parser **自己的 action 对象**
+  （不起进程、不掐秒表），外加一条「`version="minicc 0.` 别再出现在源码里」的引线；
+  ② `test_cli_version_flag_prints_the_derived_line_in_process`——`parse_args(["--version"])`
+  + `capsys`，接线在本进程里走通；
+  ③ `test_no_production_dict_announces_a_version_literal`——**枚举**而非手挑：AST 扫
+  `minicc/**/*.py`，任何 `dict` 里键为 `"version"` 且值是字符串字面量的条目都算不派生
+  （`__init__.py` 是单源本身，豁免按**文件名**这一实现事实，不按行号）；
+  ④ 子进程那半的预算改成 `max(60, S * 40)`，`S` 是同一次运行里实测的「起一个解释器要多久」，
+  超时报错自带 `S`、预算和「过了这个比值它答的是终止性，不是快慢」。
+
+### 3 反向控制：旧缺陷 + 新门 = 该红的红、不该看见的仍然看不见
+
+平面 `t76rc1wt`（HEAD 之前的 `main.py`/`rpc.py` 字面量都还在）只把新测试文件拷进去：
+
+```
+[RC1] 2 failed, 8 passed in 64.02s
+  defect visible: OK
+```
+
+红的正是 ①派生 与 ③枚举两条；而**旧的等式检查与进程内打印照旧绿**——
+这两条一起构成证据：「CLI 输出等于 `minicc 0.1.0`」这件事，从来没有在测派生。
+把巧合本身复现出来，比补一条断言更有用。
+
+### 4 变异见证：3/3（平面 = 修复后的 worktree，未变异对照 `10 passed in 25.62s`）
+
+| # | 变异 | 预期 | 判决 |
+| --- | --- | --- | --- |
+| W1 | 派生出来的串再拼一个 `-beta`（`__version__` 不动） | 派生 / 进程内 / 子进程三条一起红 | OK |
+| W2 | 字面量 `"minicc 0.1.0"` 回来 | 只有派生那条红，等式与进程内**必须仍绿**（否则等于没复现巧合） | OK |
+| W3 | `minicc_version()` 里 `sleep(75)` | 只有子进程那条红（比值预算到点），且报错带 `S` 与预算 | OK（223.60s 那一跑） |
+
+W2 是这批最讲究的一条：它钉的不是「能抓到」，而是「**旧门为什么抓不到**」。
+
+### 5 基线
+
+平面：worktree `t78fullWT`（HEAD = `d799386`，本批代码已提交进去），形状 B，basetemp 在树外。
+
+**6 failed, 1177 passed in 1232.41s (0:20:32)，exit 1。项数 1183 = 上一批 1180 + 本批 3 条新测试。**
+
+六条红**全部**在 `tests/test_doc_pointers.py`，而且根因不在本批代码：
+第五十九批更正过的那条「`router.py` 里只有一个未提交副本才有的行号」定位，
+又被我在第六十批记录的 §6 抄了一遍——那个行号只存在于并发 run 未提交的工作副本里
+（HEAD 那版只有 50 行）。也就是说，我在 `79dba80` 刚为同一件事写过更正、
+在第五十九批的更正里刚写下「门要在它所描述的那个平面上跑」，然后在**同一晚**
+把同一个引用抄进了第六十批的 §6，并且又一次是在脏树里跑 `doc_pointers.py --check`
+所以看不见（那一跑确实 exit 0）。
+
+一条更正记录不足以让教训生效：**这条检查必须在干净 worktree 里跑**，
+主树的 `--check` 绿不证明 HEAD 绿。
+
+- 修正：`5de74b4`（把行号降成文件级），当场在 `d799386` 的干净 worktree 里验证
+  `tests/test_doc_pointers.py` ⇒ **57 passed**（那六条红全消）。
+- 本批**还缺**一格：`5de74b4` 之后的整套重跑（登记为任务 #76）。没有那一跑，
+  本节不能写成 exit 0；本批代码自己带的三条测试（派生 / 进程内 / 枚举）
+  的未变异对照是 `10 passed in 25.62s`，反向控制是 `2 failed, 8 passed`，
+  两者都取自 `t76*wt` 干净 worktree，只覆盖本批口径，不等于整套基线。
+
+### 6 这一格之后仍然空着
+
+- 枚举半只认 `dict` 里键名恰好是 `"version"` 的字面量。别的别名（`"ver"`、`apiVersion`、
+  f-string 拼接、`argparse` 之外的 `version=` kwarg）不在口径内——那是下一格的量，
+  不是这一格的推广（先量再写，别按词形猜）。
+- `ide/vscode/README.md` 里有一处 `minicc-0.1.0.vsix`：那是打包产物的文件名，随构建生成，
+  本批没动它，也没有判据要求它派生。要不要一起收，先量谁生成它。
+  （顺带记一笔：我最初从 `git grep` 抄来的那条行号定位属于**第三处**同一类脏平面引用——
+  HEAD 那版 README 只有 17 行，更大的行号只出现在并发 run 未提交的副本里。
+  凡是「从这棵树上量到的行号」要写进记录，落笔前要在 HEAD 上复算一遍。）
+- 秒表那格本批只做到「比值 + 会说话」，没有换成纯非时间见证：子进程终止性确实需要超时，
+  硬去掉它会丢掉真挂死的信号。
+- 仍等用户点头：CI 接 `doc_pointers.py --check` / `route_coverage.py --check`；
+  M6-4 的 30 条真模型基线（配额）；M8-T11 流式合并语义；M8-T25 成本 null 与 0.0 口径。
+- 现场提醒：主树仍被并发 run 未提交的 `minicc/agent/router.py`（可变 dataclass 默认值）
+  打成收集期 `ValueError`，本批读数全部取自 worktree。
+
+### 7 下一批候选
+
+- M8-T58（已量化候选）：非 ASCII `stdout_contains` 判据在父子 codec 不一致时仍会误判。
+- 版本别名词表：把第 6 节那格从「没守」变成「量过之后决定不守」——先扫出所有承载版本的
+  键名/kwarg 形状，再决定枚举半要不要跟着长。
