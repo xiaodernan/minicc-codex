@@ -5134,3 +5134,192 @@ S1 那一格第一轮判 MISFIRED，原因值得单独记：变异确实让门�
   的 `DEFAULT_MODELS` 改成 dataclass 可变默认值，主树收集期即 `ValueError`；
   本批所有数字取自提交树的 worktree（`--basetemp` 在树外、`PYTHONPATH=<worktree>`，
   归因先核对过 `minicc.__file__`）。
+
+## 第五十八批（M8-T73：一条门在某种调用形状下从不运行，而不是运行并变红）
+
+批次：一个提交（`pyproject.toml` 补 ini 键 + 新门 `tests/test_pytest_invocation.py`），本记录随后单独提交。
+基线：见本批第 5 节（一定带平面与时数）。
+
+### 0 这一类缺陷是什么
+
+第五十七批的整跑第一次按 `python -W error -m pytest tests` 跑（`-W error` 交给解释器），
+30 秒后日志里是 `INTERNALERROR ... pytest_asyncio/plugin.py, in pytest_configure
+warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))`，
+exit 3，**一条测试都没跑**。换成历史记录的形状 `python -m pytest -q -W error`（`-W error`
+交给 pytest）就正常出数字。两条形如一致的命令只有一条能出数字，差别是**参数位置**，
+与代码无关。
+
+这一族的形状与 M8-T60 相同：**门在某种调用形状下从不运行**，而不是运行并变红。
+区别在成因：T60 是 locale 相关的 `skipif`，本批是插件在 `pytest_configure` 期发一条
+弃用警告，而解释器级 `-W error` 把警告变成致命错误。任何按 CI 常见写法
+（`-W error` 在解释器侧）跑的流水线，拿到的都是「没有测试结果」而不是「测试结果」。
+
+根因是配置层的一格空缺：`pytest-asyncio` 要求显式声明 `asyncio_default_fixture_loop_scope`，
+不声明就用 fixture 缓存作用域并把「未来默认改成 function」写成一条 configure 期警告。
+本仓库的 `[tool.pytest.ini_options]` 里从来没有这个键，依赖只写 `>=0.23.0`，
+装的是 1.4.0。
+
+### 1 先量（平面：`c3b70ce` 的干净 worktree，四个读数都是当场跑出来的）
+
+| 调用形状 | 结果 |
+| --- | --- |
+| `python -W error -m pytest tests/test_mcp_http.py` | INTERNALERROR（`plugin.py:299 pytest_configure`），exit 3，0 条 |
+| `python -W error -m pytest --collect-only -q tests/test_index_census.py` | 同上，exit 3 —— 死在收集之前，与选哪个文件无关 |
+| 上一条再加 `-o asyncio_default_fixture_loop_scope=function` | `11 tests collected in 3.05s`，exit 0 |
+| `python -m pytest --collect-only -q tests/test_index_census.py -W error` | `11 tests collected in 3.04s`，exit 0 |
+
+第二个读数说明「这不是某个测试文件的问题」，第三个读数在**动配置文件之前**就把药方量清楚了
+（临时进程里补 `-o`，而不是改了 `pyproject.toml` 再赌）。
+另外 `grep -rl "pytest.mark.asyncio" tests` 是 4 个文件，声明键之后把这 4 个文件单独跑：
+`51 passed in 9.79s` —— 把默认作用域写成 `function` 不改变任何 async 测试的结局，
+这条必须在落地前量，因为 `function` 相对旧默认（`fixture`）确实是语义变更。
+
+### 2 改动
+
+- `pyproject.toml`：`[tool.pytest.ini_options]` 补 `asyncio_default_fixture_loop_scope = "function"`，
+  注释写明它为什么必须在配置层而不是某个人的命令行习惯里。
+- 新门 `tests/test_pytest_invocation.py`（6 项，全用 `--collect-only`，不起服务不占端口）：
+  1. 记录形状（`-W error` 在 pytest 侧）必须仍能收集且退出码 0 —— 这是**控制组**，本批之前它就绿，
+     它绿不证明任何事，它红证明我把命令写坏了；
+  2. 解释器形状（`-W error` 在 `-m pytest` 之前）必须到达收集，报错文字点名那个 ini 键；
+  3. 两种形状必须报出**同一个收集条数**（一个「能跑」但跑的是另一个子集，等于没跑同一套门）；
+  4. 配置里声明的值必须是 `function`（读 `pyproject.toml` 本身，不是读我的记忆）；
+  5. **植入缺陷**：在 `tmp_path` 里造一个不含该键的 rootdir + 一个平凡测试，解释器形状必须当场
+     INTERNALERROR —— 这一条是上面那条绿的的门，它保证「绿」不是因为探针看不见；
+  6. **argv 形状**：两个 helper 构造出的命令行必须一个把 `-W error` 放在 `-m pytest` 前、
+     一个放在后面，且互不相等。行为断言在这里帮不上忙：键补齐之后两种形状都通过，
+     于是「CI 探针悄悄退化成记录形状」这件事只能从 argv 上读出来。
+
+### 3 反向控制：门先在本批之前的树上红
+
+平面仍是 `c3b70ce` 的 worktree（本批两个文件按原样拷进去，`pyproject.toml` 用 `git checkout --` 还原成
+HEAD 的样子）：**`3 failed, 3 passed in 16.68s`**。三条红即第 2 节的 2/3/4 条；
+两条绿的正是应当绿的：记录形状（控制组）与植入缺陷探针（那时缺陷还在，探针必须能看见）。
+主树没有参与这次判定：并存 run 的 `minicc/agent/router.py` 可变默认值会在收集期就报
+`ValueError`，那种红与我这条 claim 无关，所以整批判定都在干净 worktree 上做。
+
+补上 ini 键之后：`6 passed in 36.32s`。36 秒里是五次子进程 pytest 的收集（两条形状各一次、
+对账那条两次、植入缺陷一次），全在 `--collect-only`，不起服务不占端口。本批接受这个代价
+（全量基线的时数量级是 9 分钟），并把它写在记录里而不是藏在门后面。
+
+### 4 变异见证：6/6，其中 C3 第一轮被我的评分器判错
+
+`t78_teeth.py` 跑在 `c3b70ce` 的干净 worktree（本批两个文件按原样拷进去）；每个变异要求
+needle 命中恰好一次、文件仍可导入、红落在指定测试并带指定报错片段、`finally` 逐字节还原。
+控制组：`6 passed in 22.18s` / `6 passed in 21.68s`，`restored pyproject.toml /
+test_pytest_invocation.py: byte-identical=True`。
+
+| # | 变异 | 期望落点 | 结果 |
+| --- | --- | --- | --- |
+| C1 | 把 ini 键注释掉（配置层回到本批之前） | CI 形状探针，报错含「never reached collection」 | RED-AS-CLAIMED（3 红 3 绿） |
+| C2 | 键留着，值换成另一个**合法**作用域 `session` | 配置值判定，报错含 `= 'session'` | RED-AS-CLAIMED（1 红） |
+| C3 | 键名少一个字母（`..._loops`） | CI 形状探针，报错含「never reached collection」 | 第一轮 NO-RESULT（外层跑自己死了）→ 外层去掉 `-W error` 后 RED-AS-CLAIMED（4 红 2 绿 1 warning） |
+| C4 | `_argv_interpreter` 被降级成记录形状（`-W error` 挪到 `-m pytest` 之后） | argv 形状判定，报错含「no longer puts the flag on the interpreter」 | RED-AS-CLAIMED（1 红） |
+| C5 | `_reached_collection` 不再认 INTERNALERROR（恒答「到了收集」） | 植入缺陷探针，报错含「cannot detect the defect」 | RED-AS-CLAIMED（1 红） |
+| C6 | 两个探针收集一个不存在的文件 | CI 形状探针的非空守卫，报错含「collected nothing」 | RED-AS-CLAIMED（3 红 3 绿） |
+
+C4 不是事后补的：设计时先问「哪一条变异会是 INVISIBLE」，答案是「探针悄悄退化成同一种形状」——
+键补齐之后两种形状都通过，任何行为断言都看不出差别，所以第 2 节第 6 条（argv 形状）是先加的，
+C4 是它的见证。
+
+C3 那一格要照实写两层。**第一层的错在我这边**：评分器原来只区分「有 FAILED」与「没有 FAILED」，
+而「没有 FAILED」被它写成 `INVISIBLE`（套件全绿）。实际发生的是外层 pytest 带着 `-W error`
+跑到配置校验就死了：`pytest.PytestConfigWarning: Unknown config option:
+asyncio_default_fixture_loop_scopes`，exit 3，`no tests ran`。那是**没有结果**，不是绿。
+改成三条判据（有摘要才算绿；无摘要 = `NO-RESULT`），并把外层命令的 `-W error` 撤掉重跑，
+同一个变异红在指定落点上。第二层是产品事实，而且是好消息：ini 键名打错一个字母不会静默失效，
+pytest 自己在配置校验期就报未知键，在 `-W error` 下连收集都不给 —— 与 M8-T22
+「写错/废弃的键不再静默失效」同一条，但这一次是别人（pytest）守的，我不必再加一条门，
+只需在记录里写明「谁来守」。
+
+### 5 基线
+
+平面：worktree `t79wt`（HEAD = `35c3704`，本批代码已提交进去），`minicc.__file__` 当场打印为
+`C:\Users\18414\AppData\Local\Temp\t79wt\minicc\__init__.py`。调用形状就是本批声称的那一种：
+
+```
+.venv/Scripts/python.exe -W error -m pytest -q -p no:cacheprovider --basetemp=<树外>
+```
+
+读数：**2 failed, 1170 passed in 2488.79s (0:41:28)**，exit 1。
+
+- 收集 **1172** 项 = 第五十七批的 1166 + 本批新增 6 条，逐项对得上。
+- 「解释器侧 `-W error` 会不会整套死在收集前」这一格：**绿**。整套跑完了，
+  两条红都是**行为红**（有 test 名、有断言差异），不是 `INTERNALERROR`、不是 `no tests ran`。
+  这正是本批要的那件事：形状不再致命。
+- 用时 2488.79s ÷ 上一批同套件的 533.92s ≈ **4.7 倍**。这台机器当时正被并发的 run 压着，
+  这个数只能当「负载下的时数」读，不能当回归读。
+
+两条红的归因（都做了当场验证，没有靠猜）：
+
+| # | 测试 | 是不是调用形状造成的 | 证据 |
+| --- | --- | --- | --- |
+| 1 | `tests/test_cleanup_version.py::test_cli_version_flag_matches` | 不是 | 单独在形状 A（`-W error` 在解释器上）跑：**2 passed in 26.78s** |
+| 2 | `tests/test_core_agent.py::test_agent_deadline_cancels_an_inflight_provider_request` | 不是 | 同上；且机制在下面 |
+
+第 1 条：`subprocess.run([... "-m", "minicc.main", "--version"], timeout=60)` 抛
+`TimeoutExpired`。一条 `--version` 在 60 秒里没有返回 ⇒ 这个门量的是**这台机器起一个解释器要多久**，
+不是产品性质。属于第（三十四/三十六）批已经收过的那一族（M8-T45/T61/T63：拿秒表判快慢）。
+
+第 2 条更值得写下来，因为它有一条**零负载的复现**（`Temp/t79_probe_deadline.py`，跑在 `t79wt`）：
+
+```
+[already-exhausted] budget=0.0s  provider_entered=0 cancelled=0 a1=True a3=True a2=False
+                    error='Agent 预算超限: 最大执行时间已用尽'
+[in-flight-cancel]  budget=0.08s provider_entered=1 cancelled=1 a1=True a3=True a2=True
+                    error='Agent 预算超限: 最大执行时间已用尽，已取消当前模型请求'
+```
+
+机制：`minicc/agent/loop.py:684` 在**调用 provider 之前**先 `runtime_budget.record_turn()`，
+它在 `minicc/agent/state.py:61-64` 报的也是「最大执行时间已用尽」。测试用
+`Budget(max_duration_seconds=0.08)`，而它断言的三件事里，`a1`（报错含「最大执行时间」）与
+`a3`（trace 里有 `budget_exceeded`）**在两条分支上都成立**，只有 `a2`（`cancelled == [True]`）
+需要请求真的发出去过。测试只比了前缀，没比那条真正区分分支的后缀
+「已取消当前模型请求」。机器被压到起 setup 就要超过 0.08s 时，运行落在
+`a2` 没有主体的那条分支上，于是 `assert [] == [True]` ——一次和一个产品性质无关的红，
+而且报错文字（`[] == [True]`）不说机制。
+
+⇒ 可复用的规则：**断言「某主体被怎样了」之前，要先断言那个主体存在过**；否则这条断言
+实际是在测机器有没有负载。本批没动这两条测试（不在本批口径内），登记为
+第 7 节的候选。
+
+自我纠正：本批开工时我以为「基线 = 解释器侧整套全绿」。实际拿到的是 exit 1。
+第 3 节的反向控制与第 4 节的见证 6/6 仍然成立（本批 6 条测试自己全绿），
+但「整套在这个形状下是绿的」这句话我不能写，写的是上面这段。
+
+### 6 这一格之后仍然空着什么
+
+- 本批的门守的是「解释器侧 `-W error` 这一种调用形状能不能进收集」。它**不**守别的致命形状
+  （例如 CI 里 `pytest -x --timeout=…` 在没装 pytest-timeout 时的用法错误），那一族仍按
+  「谁撞到谁登记」处理。
+- `pytest-asyncio` 的依赖下限仍是 `>=0.23.0`：装 0.23 时这个键也存在且不警告，
+  所以本批的门不会因为某人环境里装了旧版而红——但同样地，旧版里「默认作用域」的差别
+  不在本批的口径内。
+- 仍等用户点头（本批没有自行动）：把 `scripts/doc_pointers.py --check` 与
+  `scripts/route_coverage.py --check` 接进 CI；M6-4 的 30 条真模型基线（配额）；
+  M8-T11 流式合并语义；M8-T25 成本 null 与 0.0 的口径。
+
+### 7 下一批候选
+
+- `minicc/web.py` 的交互检索路径读同一个 `evidence_hits` **三次**，一次都没问口径：
+  `:1169` 取命中 → `:1170-1178` 拼成 `[本地检索索引]` 系统消息喂模型（空列表时整段不出现，
+  模型读到的是「没有更多线索」而不是「收集被截断」）；`:1286-1292` 给人的 trace
+  `summary = f"本地索引提供 {len(evidence_hits)} 个候选文件…"`；`:1851-1858` planner prompt 的
+  `evidence=` 段（在已经截过的列表上再切 8）。这三个读者都不调 `stats()`
+  （`minicc/agent/retrieval.py:423`，与 `search()` 同文件 `:399` 是两个方法），
+  所以 `census_is_complete` 在交互路径上的调用次数是 **0**。
+  而那句 summary 是**给人看的界面文字**：`web/src/panels/index.js:1226/1276` 给它标签
+  「本地证据 / Local evidence」，打包产物 `web/assets/app.bd4afd1956047ea6.js` 里事件按
+  `<small>${u(e.summary||"")}</small>` 逐字渲染进 DOM。
+  下一批（M8-T74）：双向门——不完整时人与模型都要收到截断声明，完整时不得出现；
+  读者清单用 AST 从源码枚举（第五十七批已经证明按行号 keyed 的表会被无关改动打红）。
+- M8-T75（本批基线的第 2 条红，机制已有零负载复现）：
+  `test_agent_deadline_cancels_an_inflight_provider_request` 断言 provider 被取消，却没断言
+  provider 被调用过；「到期于请求之前」与「取消在途请求」两条分支共享它比的那个前缀。
+  改法：比后缀「已取消当前模型请求」+ 先断言 `provider_entered == 1`（并把机制写进报错），
+  使负载问题以「这是负载不是回归」的形式暴露。
+- M8-T76（本批基线的第 1 条红）：`test_cli_version_flag_matches` 用 60s 秒表判一条 `--version`
+  能否返回。要换成非时间见证（比对 `--version` 输出与 `minicc.__version__` 这件事本身不需要
+  60s 预算；秒表只应测「有没有终止」，不该测「机器快不快」）。
+- M8-T58（已量化候选）：非 ASCII `stdout_contains` 判据在父子 codec 不一致时仍会误判。
+
