@@ -52,9 +52,16 @@ def test_a_test_inside_the_bound_is_left_alone() -> None:
 def test_a_test_that_overshoots_the_bound_is_reported_as_failed() -> None:
     """The positive half: the run keeps its report, and the slow test turns red."""
     proc = _nested_session(sleep_seconds=3.0, limit="1")
+    # Assert the watchdog *armed* before asserting its verdict. On the Windows CI
+    # leg this test failed with `returncode == 0` while the whole job log carried
+    # no "still running after" dump at all - i.e. the nested session ran with no
+    # watchdog, not with a lenient one. Those are different defects, and the old
+    # ordering reported both as the same bare `assert 0 != 0`.
+    assert "MINICC_TEST_HANG_LIMIT" in proc.stdout + proc.stderr, (
+        "the nested session never armed the watchdog: " + (proc.stdout[-400:], proc.stderr[-400:])[0]
+    )
     assert proc.returncode != 0, (proc.returncode, proc.stdout[-400:])
     assert "1 failed" in proc.stdout, proc.stdout[-400:]
-    assert "MINICC_TEST_HANG_LIMIT" in proc.stdout + proc.stderr, (proc.stdout[-400:], proc.stderr[-400:])
 
 
 def test_the_watchdog_can_be_switched_off_but_never_invented(monkeypatch) -> None:

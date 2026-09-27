@@ -5885,3 +5885,39 @@ E E       MemoryError
 - 把「盘上格式必须有读主」从 `session.py` 推广成一条整仓门，前提是先给
   协议字段与 HTTP 头两类做出分类账（分类要由「写不写得出这一臂」验证，不按词形猜）。
 - `benchmarks.py` 读 `suite_version` 但不分支：要么让它因版本分支，要么承认那是注释字段并改名。
+
+
+## 第六十四批（CI 只剩 Windows 一条腿；顺带量到三条本机环境的单价）
+**这次是从「主干 CI 红了十几个小时」进场的**，所以先报状态，再报这次量到的单价。
+
+### 1 已修的两处（`0690ece`）
+
+| 缺陷 | 怎么复现的 | 修法与证据 |
+| --- | --- | --- |
+| `scripts/doc_pointers.py` 在 Windows 控制台崩 | GitHub Windows 跑的是 cp1252 控制台。本机用 `PYTHONIOENCODING=cp1252` 跑 HEAD 版脚本，逐字复现 `UnicodeEncodeError: 'charmap' codec can't encode characters in position 30-34`；同一命令在修复版下 `exit 0` | 入口加 `ensure_utf8_output()`：把 stdout/stderr `reconfigure(encoding="utf-8", errors="replace")`。**用 replace 是刻意的**：诊断报告里一个字形坏掉可以接受，报告崩掉不行——退出码必须表示"我查过了"，而不是"我没法打印"。CI 的 `claims` job 现在 22s 通过 |
+| `tests/test_benchmark_runner.py` 三条依赖环境里的 key | `run_benchmark` 自己先调 `load_config()`，测试只补了 `AgentService.__init__`。本机有 `.env` 与 `~/.minicc/config.json`，所以一直是绿的 | 三条各补 `monkeypatch.setattr("minicc.config.load_config", _service_config)`（本文件里其它用例早就是这个写法）。**CI 等价环境**：`MINICC_HOME` 指空目录 + `MINICC_API_KEY=` 从临时 cwd 跑 → 修前 `F`，修后三条 `...` 全过 |
+
+修完 CI 只剩一条腿：`Python tests (windows-latest)` 红，其余 8 个 job 全绿（含 ubuntu 腿与 `claims`）。
+
+### 2 剩下的两条 CI 失败，都**在本机通过**
+
+- `test_hang_watchdog.py::test_a_test_that_overshoots_the_bound_is_reported_as_failed`：
+  CI 的断言是 `assert proc.returncode != 0` 拿到 0（嵌套会话全绿）。**关键证据是日志里一条 `still running after` 转储都没有**（`grep -c` = 0）——
+  也就是说嵌套会话里**看门狗根本没装上**，不是门太宽。本机三个变体都通过：手工复刻嵌套命令 → `1 failed` 且转储行齐全；直接跑该文件 → 2 failed（见 §3 的垫片）；带 `--junitxml` 跑 → 3 passed。
+  本批把断言顺序改成**先断"装上了"再断"判红了"**，下次红的时候能直接区分"没装上"与"判不红"这两种缺陷（本机 3 passed 复核）。
+- `test_auto_resume.py::test_store_with_flag_requeues_interrupted`：断的是"新任务处于 `queued`/`running`/`completed` 之一"，即一个**中间态**。
+  本机 5.54s 通过；CI 上跑到那一行时状态已不在集合里（最可能是快速落到 `failed`）。**未改**：把断言改成"存在一个新任务且它不是那个 interrupted 记录"才是注释里写的那条不变式，
+  但那会放宽一条 M8 期间刻意收紧的门，需要先有 CI 迭代能力再动。
+
+### 3 三条本机单价（都带命令，供后人省时间）
+
+1. **`TaskStore` 在用户真库上构造要 30.7 秒**（新库只要 1.6–3.0s）。
+   `cProfile` 把 30.686s 指到 `sqlite3.Connection.close()`；逐步计时显示 connect / `PRAGMA journal_mode` / 建表 / 建索引全部 ≤0.05s。
+   再用**合成库**定位触发条件：普通表 → close 0.00s；**同一库里有 FTS5 `trigram` 表** → 碰过 `journal_mode` 的连接 close 30.48s。
+   而 `TaskStore.__init__` 每次构造都执行 `PRAGMA journal_mode=WAL`，并且它自己就建那张 trigram 表 ——
+   **推论：老用户每次启动都要付这 30 秒**。**这条没有修**，因为先要在干净环境量到同样的数字才能排除"本机磁盘/杀软特有"。
+2. **本机 spawn 一个进程约 12 秒**：`python -c "print(1)"` 12.28s、`sys.executable -c` 13.91s（都是 shell=True）。
+   任何要起子进程的测试都按这个单价计时——这就是为什么一个 15 用例的文件能跑十几分钟，也是"挂起"错觉的来源。
+3. **safe-delete 垫片会拦 `Path.unlink`**：`tests/test_hang_watchdog.py` 的 `PROBE.unlink(missing_ok=True)` 在本机抛
+   `SystemExit`（`[safe-delete][SAFE_DELETE_BULK_GUARD_ERROR] state lock timeout`）；同一文件带 `--junitxml` 跑却 3 passed。
+   垫片是**时序相关**的，所以本机看到的那两条失败不是代码问题——**判"某个门坏了"之前先看垫片有没有插手**。
