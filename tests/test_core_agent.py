@@ -1278,29 +1278,109 @@ def test_agent_marks_max_turns_as_incomplete(tmp_path: Path) -> None:
     assert result.error == "Agent 达到最大执行轮次 1，任务未完成"
 
 
-def test_agent_deadline_cancels_an_inflight_provider_request(tmp_path: Path) -> None:
-    cancelled: list[bool] = []
+def test_agent_never_starts_a_request_when_the_duration_budget_is_spent(tmp_path: Path) -> None:
+    """The "budget already gone" branch must not claim it cancelled a request.
 
-    class FakeProvider:
+    Zero load on purpose: ``max_duration_seconds=0.0`` reaches
+    ``chat_with_cancellation``'s pre-request refusal on any machine, and that
+    message shares its whole prefix with the cancellation message below.
+    """
+    entered: list[int] = []
+
+    class NeverReached:
         async def chat(self, messages, tools, on_delta=None):
-            try:
-                await asyncio.sleep(2)
-            except asyncio.CancelledError:
-                cancelled.append(True)
-                raise
+            entered.append(1)
+            await asyncio.sleep(5)
             return LLMResponse(content="迟到的回答")
 
     result = asyncio.run(
         run_agent(
-            FakeProvider(),
+            NeverReached(),
             build_registry(Editor(tmp_path)),
             [{"role": "user", "content": "检查任务"}],
-            budget=Budget(max_duration_seconds=0.08),
+            budget=Budget(max_duration_seconds=0.0),
             should_allow=lambda _name, _call: True,
         )
     )
-    assert result.error and "最大执行时间" in result.error
-    assert cancelled == [True]
+    assert entered == [], "a spent duration budget must not start a provider request"
+    assert result.error and "最大执行时间" in result.error, result.error
+    assert "已取消当前模型请求" not in result.error, (
+        f"nothing was in flight, so reporting a cancellation is a lie: {result.error!r}"
+    )
+    assert any(event.get("code") == "budget_exceeded" for event in result.trace_events)
+
+
+def test_agent_deadline_cancels_an_inflight_provider_request(tmp_path: Path) -> None:
+    """The deadline expires *inside* a request, and the request is really there.
+
+    A fixed 0.08s budget made this a coin flip on machine load: ``record_turn()``
+    checks the duration budget before the provider is called
+    (minicc/agent/loop.py:684), so a slow setup took the pre-request branch above
+    and left ``cancelled == []`` with nothing to cancel.  The budget is now a
+    multiple of the setup cost measured on this machine in this run.
+    """
+    margin = 8.0
+    setup_cost: list[float] = []
+    probe_budget = Budget(max_duration_seconds=None)
+
+    class Reached:
+        async def chat(self, messages, tools, on_delta=None):
+            setup_cost.append(probe_budget.elapsed_seconds())
+            return LLMResponse(content="完成")
+
+    probe = asyncio.run(
+        run_agent(
+            Reached(),
+            build_registry(Editor(tmp_path)),
+            [{"role": "user", "content": "检查任务"}],
+            budget=probe_budget,
+            should_allow=lambda _name, _call: True,
+        )
+    )
+    assert setup_cost and probe.error is None, (
+        f"the setup-cost measurement did not reach the provider: {probe.error!r}"
+    )
+
+    budget_seconds = (setup_cost[0] + 0.05) * margin
+    cancelled: list[bool] = []
+    entered: list[float] = []
+    returned: dict[str, bool] = {"done": False}
+
+    class Late:
+        async def chat(self, messages, tools, on_delta=None):
+            entered.append(1.0)
+            try:
+                await asyncio.sleep(budget_seconds * 10)
+            except asyncio.CancelledError:
+                # Records *when* the request died: True means the agent had
+                # already returned and the event loop's teardown cancelled it,
+                # which is not the claim under test.
+                cancelled.append(returned["done"])
+                raise
+            return LLMResponse(content="迟到的回答")
+
+    async def drive():
+        result = await run_agent(
+            Late(),
+            build_registry(Editor(tmp_path)),
+            [{"role": "user", "content": "检查任务"}],
+            budget=Budget(max_duration_seconds=budget_seconds),
+            should_allow=lambda _name, _call: True,
+        )
+        returned["done"] = True
+        return result
+
+    result = asyncio.run(drive())
+    assert entered, (
+        "the request never started, so this run measured setup against budget "
+        f"rather than cancellation: setup={setup_cost[0]:.3f}s "
+        f"budget={budget_seconds:.3f}s ({margin}x margin) error={result.error!r}"
+    )
+    assert result.error and "已取消当前模型请求" in result.error, result.error
+    assert cancelled == [False], (
+        f"the request died during event-loop teardown, not on the agent's "
+        f"deadline: cancelled-after-return={cancelled}"
+    )
     assert any(event.get("code") == "budget_exceeded" for event in result.trace_events)
 
 
