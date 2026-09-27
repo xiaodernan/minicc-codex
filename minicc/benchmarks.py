@@ -160,6 +160,10 @@ def build_report(tasks: list[dict[str, Any]], results: list[dict[str, Any]] | No
             "cost_usd": recorded.get("cost_usd") if _measurement(recorded.get("cost_usd")) else None,
             "claimed_complete": recorded.get("claimed_complete", recorded.get("status") == "completed"),
             "grader_type": recorded.get("grader_type", "command" if task.get("verify_command") else "ungraded"),
+            # Rows are rebuilt key by key, so a field the grader added is invisible
+            # downstream unless it is copied here (M8-T81 gate).
+            "grading_refused": bool(recorded.get("grading_refused")),
+            "refusal": (str(recorded.get("refusal") or "")[:300] or None),
             "metadata": recorded.get("metadata"),
         }
         rows.append(row)
@@ -195,6 +199,10 @@ def build_report(tasks: list[dict[str, Any]], results: list[dict[str, Any]] | No
             "execution_completion_rate": round(sum(row["status"] == "completed" for row in completed) / len(completed), 4) if completed else None,
             "grading_coverage": round(len(gradable) / len(completed), 4) if completed else (round(len(definition_gradable) / len(tasks), 4) if tasks else None),
             "gradable_task_count": len(gradable) if completed else len(definition_gradable),
+            # A grader that could not judge is not a failed task and not an
+            # ungraded one either; without its own column a report reader only
+            # sees the denominator shrink (M8-T80 wrote the field, nothing read it).
+            "grading_refusal_count": sum(1 for row in completed if row.get("grading_refused")),
             "acceptance_success_rate": round(len(passed) / len(gradable), 4) if gradable else None,
             "false_completion_rate": round(sum(row["claimed_complete"] and row["passed"] is False for row in gradable) / len(gradable), 4) if gradable else None,
             "tokens_per_success": round(sum(float(row["usage"]["total_tokens"]) for row in completed) / len(passed), 1) if passed and total_tokens_known else None,
@@ -212,14 +220,17 @@ def build_report(tasks: list[dict[str, Any]], results: list[dict[str, Any]] | No
             "Command graders and fake-provider runs do not establish real-world coding accuracy.",
             "Token and cost metrics remain null when the provider does not expose usage or pricing.",
             "Tokens and cost per success include expenditure on failed attempts; missing measurements keep these metrics null.",
+            "REFUSED means the grader exited 2 and declined to judge; it is not a pass, a failure, or a task without a grader.",
         ],
     }
 
 
 def markdown_report(report: dict[str, Any]) -> str:
     metrics = report["metrics"]
-    def value(item: object) -> str:
-        return "N/A" if item is None else str(item)
+    def value(item: object, row: dict[str, Any] | None = None) -> str:
+        if item is None:
+            return "REFUSED" if row and row.get("grading_refused") else "N/A"
+        return str(item)
     lines = [
         "# minicc Evaluation Report",
         "",
@@ -228,11 +239,13 @@ def markdown_report(report: dict[str, Any]) -> str:
         "| Metric | Value |",
         "| --- | ---: |",
     ]
-    for key in ("execution_completion_rate", "grading_coverage", "gradable_task_count", "acceptance_success_rate", "false_completion_rate", "pass_at_1", "latency_p50_ms", "latency_p95_ms", "tokens_per_success", "cost_per_success_usd", "mean_repair_attempts", "tool_repeat_rate", "token_usage_available", "cost_available"):
+    for key in ("execution_completion_rate", "grading_coverage", "gradable_task_count", "grading_refusal_count", "acceptance_success_rate", "false_completion_rate", "pass_at_1", "latency_p50_ms", "latency_p95_ms", "tokens_per_success", "cost_per_success_usd", "mean_repair_attempts", "tool_repeat_rate", "token_usage_available", "cost_available"):
         lines.append(f"| {key} | {value(metrics.get(key))} |")
     lines.extend(["", "| Task | Category | Status | Passed |", "| --- | --- | --- | --- |"])
     for row in report["results"]:
-        lines.append(f"| {row['task_id']} | {row['category']} | {row['status']} | {value(row['passed'])} |")
+        detail = str(row.get("refusal") or "")[:60]
+        verdict = value(row["passed"], row) + (f" ({detail})" if row.get("grading_refused") and detail else "")
+        lines.append(f"| {row['task_id']} | {row['category']} | {row['status']} | {verdict} |")
     lines.extend(["", *[f"- {note}" for note in report["notes"]], ""])
     return "\n".join(lines)
 
