@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 from pathlib import Path
 
@@ -16,6 +17,30 @@ from minicc.config import (
     load_config,
 )
 from minicc.main import _load, _parser
+
+
+@pytest.fixture(autouse=True)
+def _reset_config_logger():
+    """Reset minicc.config logger to work with pytest caplog.
+
+    The logger is created at module import time and propagates to root.
+    caplog replaces root handlers at test setup, but the module-level
+    logger may have already propagated to the original stderr handler.
+    This fixture clears handlers and ensures propagation works with caplog.
+    """
+    logger = logging.getLogger("minicc.config")
+    # Clear any existing handlers
+    for handler in logger.handlers[:]:
+        logger.removeHandler(handler)
+    # Ensure propagation to root (which caplog captures)
+    logger.propagate = True
+    logger.setLevel(logging.NOTSET)
+    yield
+    # Cleanup after test
+    for handler in logger.handlers[:]:
+        logger.removeHandler(handler)
+    logger.propagate = True
+    logger.setLevel(logging.NOTSET)
 
 
 @pytest.fixture()

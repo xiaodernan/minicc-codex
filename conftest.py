@@ -143,7 +143,11 @@ def _skip_upstream_scandir_sweep(config: pytest.Config) -> None:
     upstream as a stash item precisely so callers can override it; if a future
     pytest moves it, this import fails loudly rather than silently re-flaking.
     """
-    from _pytest.unraisableexception import gc_collect_iterations_key
+    try:
+        from _pytest.unraisableexception import gc_collect_iterations_key
+    except ImportError:
+        # pytest >= 9.1 moved/removed this key; silently skip the workaround
+        return
 
     config.stash[gc_collect_iterations_key] = 0
 
