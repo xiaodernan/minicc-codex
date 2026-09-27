@@ -6128,3 +6128,113 @@ A1 就是「追加前一层的旧世界」，A6 一次抓 6 条：普查门与�
 - 记录追加前先在同 ref 的临时 worktree 里把整份文档过一遍指针门：`scripts/doc_pointers.py --check` 追加前后都是 **exit 0**。总数（一次真实运行里读回的，不是抄上一批）：「见」标记 374→380，全部落在 `word-interior` 一格（254→260），`checked` 一侧 65 不动——本节没造出新的「见 X」指针；证据指针 1185→1188。
   这里差点写错一次：**没有把 1188−1185=3 摊派给「本节 4 条路径声明」**。探针实测（临时文档里三处不同的 code span 路径声明只 harvest 到 1 条）说明这个总数不是按出现次数累加的；`_evidence_shape` 的注释也讲明它数的是「阅读器考虑过的东西」。所以本节能负责的只有两句话：**新增 3 条、红 0 条**。
 - **新指标的边界（问出来的，不是假设的）**：`bench_compare` 的 `GATE_METRICS` 只有 4 个名字（`pass_at_1`/`cost_per_success_usd`/`latency_p95_ms`/`grading_coverage`），`grading_refusal_count` 与 `gradable_task_count` 都不在其中 ⇒ 本批的指标只进报告、不进跨 run 的回归门。这一格**不是静默漏洞**：`minicc/bench_compare.py:377-378` 对未登记的 gate 指标直接抛 `ValueError`，写错名字会当场炸而不是悄悄不比。要把拒绝数做成回归门，得先定方向与阈值（两条套件评分器不同，绝对数不可比，比率又和 `grading_coverage` 分母纠缠）——那是另一个单位的口径决策，不在本批偷做。
+
+## 第六十八批（M8-T83：评分器自己跑不起来的时候，这笔账记在谁头上）
+
+### 1. 缺陷类：同一格「判不了」只修了一条入口
+
+第六十六批（M8-T80）给评分器的第三种结论开了通道：子进程 `exit 2` ⇒ `passed=None +
+grading_refused + refusal`。第六十七批（M8-T81）让报告学会读它。本批量到的是**同一个结论
+的其余入口仍然没有接上**——「判不了」有四条来路，只有第一条被当回事：
+
+| 来路 | 站点（`e4a648b` 平面） | 修之前记成什么 |
+| --- | --- | --- |
+| 评分器自己拒绝（读不懂 / 越界） | `bench_tasks._refused` | ✅ `passed=None`（第六十六批） |
+| 评分器进程起不来（OSError） | `grade_file_contract` / `grade_command_contract` 的 `except (OSError, subprocess.TimeoutExpired)` | ❌ `passed=False` |
+| 评分器超过自己的墙钟（TimeoutExpired） | 同上两条 | ❌ `passed=False` |
+| 评分调用抛出别的异常（ValueError/TypeError） | `benchmarks.run_benchmark` 的 `except` 兜底 | ❌ `passed=False` + `grader_type="invalid"` |
+
+后果不是「分数低一点」这么轻：`passed=False` 会进 `gradable` 分母、会进
+`false_completion_rate`（那条指标的定义是「自称完成却没通过」），也就是说**宿主自己的
+故障被写成了一次「智能体谎报完成」**。
+
+### 2. 先量（全部在 `e4a648b` 干净 worktree 上量）
+
+- `grading_error`：全仓（`minicc/`、`tests/`、`docs/`）**一个写主、零个读主**——正是上一批
+  刚立门的那一类「有写无读」，只不过它写在异常兜底里，上一批的 census 按模块级常量与
+  结果字段扫，没覆盖到它。
+- `grader_type="invalid"`：没有任何测试构造过这条分支——本批第一次给它一个案例。
+- 评分器分支里的 `error` 键：`run_benchmark` 先 `entry["error"] = 智能体自己的报错`（截断
+  200 字），随后 `entry.update(grade_v2(...))` 又把 `error` 覆盖成异常名（`"TimeoutExpired"`）。
+  也就是说智能体那一条唯一的自述文字，在「评分器也出问题」的那一行里被**静默替换**了。
+  这一格是我在写见证时读旧平面报错才看见的，不在原计划里。
+- 站点计数 4（上表），改后仍然 4 条来路，但只有 1 个构造点。
+
+### 3. 改法：一个构造点，四条来路都走它
+
+`minicc/bench_tasks.py`：
+
+- 新增 `_no_result(grader_type, reason, *, case_count=None, exit_code=None)`——**唯一**写
+  `grading_refused: True` 的地方；
+- `_refused`（exit 2）改为调用它，`exit_code` 仍写（`tests/test_grader_no_result_channel.py`
+  钉着 `== 2`）；
+- 新增公开函数 `grader_unable(grader_type, exc)`，`reason = f"{类型名}: {exc}"`；两个
+  `grade_*` 的 `except (OSError, subprocess.TimeoutExpired)` 各自改调它，`error` 键**退役**
+  （于是覆盖智能体 `error` 的那条路同时消失）；
+- `minicc/benchmarks.py` 兜底 `except` 改调 `bench_tasks.grader_unable(attempted, exc)`。
+  `attempted` 是「本行本来要报的评分器类型」，由分派处**推导**（`file_contract` /
+  `command_contract` / `behavior`），不是再抄一遍字面量；`grader_type="invalid"` 一并退役。
+- 报告里那句说明跟着改：`REFUSED means nobody judged this workspace: the grader declined
+  (exit 2) or could not be run; ...`——原文只提 exit 2，改完就变成一句**错的解释**。
+
+### 4. 门：`tests/test_grader_cannot_run_is_no_result.py`，15 条
+
+- 行为门（4 臂参数化）：两个评分器 × {OSError, TimeoutExpired} ⇒ `passed is None`、
+  `grading_refused is True`、`refusal` 含异常类型名、`grader_type` 报的是真的那个；
+- 覆盖门：不可运行的评分器**不再往行里写 `error`**，且键集恰为
+  `{passed, grader_type, grading_refused, refusal}`（智能体的自述不再被顶掉）；
+- 同形门：exit-2 与「跑不起来」两条入口共享键完全相同，差别的只有 `exit_code`/`case_count`；
+- **不许把红洗掉**：真通过仍 `True`、真失败仍 `False`，两者都不带 `grading_refused`；
+- 端到端门（`run_benchmark`）：`grader.timeout = "60s"` 让 `float()` 在评分器自己的
+  `try` 里抛 `ValueError` ⇒ 行是 `None`+REFUSED、`refusal` 含 `ValueError`、`grading_error`
+  不存在；报告里 `grading_refusal_count == 1`、`gradable_task_count == 0`、表格行印
+  `REFUSED (ValueError...)`；
+- 说明书门：`notes` 里那句必须同时点名两条入口；
+- census 门（AST，种群从源码枚举）：`grading_refused: True` 常量**恰好 1 处**、
+  `grading_error` 零写主、`grader_type` 的字面值集合里没有 `"invalid"`（并且必须看得见
+  `file_contract`，否则 census 根本没在读评分器）；
+- 反向控制：把「字典字面量写 `grading_error`」「关键字参数写 `grader_type='invalid'`」
+  「第二处 `grading_refused: True`」各种进一段字符串喂给同一个 census 函数，必须数得出来；
+  纯注释里出现字段名必须数不出来。
+
+计数（都要带平面）：新平面 `c161e7d` **15 passed**；旧平面 `e4a648b` **12 failed / 3 passed**
+（绿的 3 条是「真通过/真失败仍出结论」与「构造点唯一」——旧代码本来就只有一处构造，门没有
+自夸）；变异见证 **8/8 全部被抓**（A1 退回 `passed=False`：9 红；A2 `attempted` 不推导：1 红；
+A3 漏掉 TimeoutExpired：1 红；A4 标志不置位：8 红；A5 报告不读标志：1 红；A6 印成 N/A：1 红；
+A7 说明书退回只提 exit 2：1 红；A8 第二处手写拒绝行：1 红），每臂 finally 里按 sha256 还原，
+未变异对照 15 passed。
+
+### 5. 计划外发现两条
+
+1. **`run_benchmark` 在校验阶段就把「不可序列化」挡住了**（`benchmarks.py:633` 的
+   `fixture_digest(task)` 会 `json.dumps` 整个任务）。我原本打算用「spec 里放一个 set」
+   构造评分器异常，结果异常发生在评分之前、根本到不了那四个站点。⇒ 换成 `"timeout": "60s"`：
+   它可序列化，`float()` 在 `grade_file_contract` 自己的 `try` 内抛 `ValueError`，正好是
+   兜底 `except` 要处理的那一类。**教训：端到端夹具要量一下「异常实际发生在哪一层」。**
+2. **census 的种群被我定错了**：门一开始要求「只有 `bench_tasks.py` 提到
+   `grading_refused`」，被 `build_report` 的合法读主（`bool(recorded.get(...))`，上一批
+   刚立的）绊红。这不是门太严，是我把「点名一个键」和「造一条拒绝」当成同一件事。
+   ⇒ 判据改成「**写常量 `True`** 的位置唯一」，并补一条反向控制证明读者写法不会被计入。
+
+### 6. 我自己造的测量假象一条
+
+第一次「绿跑」打印的仍是旧报错（`more than one module hand-builds a refusal row`）。
+真相：我改的是 Temp 里的草稿，忘了重新 `cp` 进 worktree——那 15 passed 之后我又跑了第二遍，
+两遍测的是不同文件。**⇒ 改完草稿必须立刻同步到被测平面，并且让报错文字自报版本**
+（旧报错成了我的哨兵：看到不认识的断言消息就先怀疑拷贝）。
+
+### 7. 基线与平面
+
+- 代码与门：`c161e7d`（`minicc/bench_tasks.py`、`minicc/benchmarks.py`、
+  `tests/test_grader_cannot_run_is_no_result.py` 15 条）。同一条拒绝通道的另外两个文件
+  （`tests/test_grader_no_result_channel.py`、`tests/test_refusal_is_visible_in_report.py`）
+  共 19 条，与本批 15 条一起在同一次运行里全绿（`--collect-only` 量到三文件 34 条）。
+- 全量基线：在干净 worktree `wt68base` @ `c161e7d` 单进程跑完整套，实测 **1237 passed in 784.68s（1222 + 本批 15 条精确对账；机器同一时间还在跑另外两个 run 的测试，所以比上一批的 504.31s 慢）**（上一批基线 1222 条；本批新增 15 条，差值要在跑完后对账，不许预告）。
+- 编号说明：追加前在 `origin/main`＝`c161e7d` 上量过——文档标题级批次号用到
+  「第六十七批」，`M8-T` 序列为 T79 / T80 / T81（我）与 T82（另一个 run 的第六十三批，
+  盘上格式版本号读主）；`M8-T83` 无人使用，本批认领它（与提交 `c161e7d` 同号），批次号
+  「第六十八批」是追加时的 HEAD 空号。
+- 留给后面：`benchmarks.py` 里 legacy `verify_command` 的 `except (TimeoutExpired, OSError)`
+  仍记 `passed=False`——那里两种来路**含义不同**（验证命令超时可能是工作区自己的错），
+  要不要拆开是一个口径决定，本批不动；`grading_refusal_count` 进 `bench_compare.GATE_METRICS`
+  同样等一个方向/阈值口径；结果行「有写无读」的通用 census（写入键 21 / 被读 15）继续排队。
