@@ -10,6 +10,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Callable, Mapping
 
+from .. import __version__
+
 JSONRPC_VERSION = "2.0"
 
 _MISSING = object()
@@ -102,7 +104,7 @@ class RpcDispatcher:
             if request.method == "initialize":
                 result: Mapping[str, Any] = {
                     "protocolVersion": "minicc.rpc.v1",
-                    "serverInfo": {"name": self.server_name, "version": "0.1.0"},
+                    "serverInfo": {"name": self.server_name, "version": __version__},
                     "capabilities": {
                         "threads": True,
                         "turns": True,

@@ -151,6 +151,13 @@ class CliView:
         self._save()
 
 
+def minicc_version() -> str:
+    """Read the single source at call time so the CLI can never freeze a literal."""
+    from . import __version__
+
+    return __version__
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="minicc",
@@ -202,7 +209,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--new-session-id", metavar="NAME", help="--fork-from 生成的新会话名（可选，默认自动命名）")
     parser.add_argument("--session-id", default="latest", help="会话名称，默认 latest")
     parser.add_argument("--print-config", action="store_true", help="打印解析后的配置并退出")
-    parser.add_argument("--version", action="version", version="minicc 0.1.0")
+    parser.add_argument("--version", action="version", version=f"minicc {minicc_version()}")
     return parser
 
 
@@ -477,6 +484,23 @@ async def _interactive(
         if prompt == "/view":
             if view is not None:
                 view.show()
+            continue
+        if prompt == "/cost":
+            if session is not None:
+                try:
+                    snapshots = session.list_snapshots()
+                    if snapshots:
+                        total_tokens = sum(s.get("tokens_used", {}).get("total_tokens", 0) for s in snapshots)
+                        total_cost = sum(s.get("cost_usd", 0) or 0 for s in snapshots)
+                        cli_out(f"本会话累计: {len(snapshots)} 个任务快照")
+                        cli_out(f"  total_tokens: {total_tokens}")
+                        cli_out(f"  cost_usd: ${total_cost:.6f}" if total_cost > 0 else "  cost_usd: 无价格数据（模型未计价）")
+                    else:
+                        cli_out("本会话暂无任务快照")
+                except Exception as exc:
+                    cli_out(f"读取快照失败: {exc}")
+            else:
+                cli_out("非会话模式无累计成本")
             continue
         if prompt == "/compact":
             if view is not None:
