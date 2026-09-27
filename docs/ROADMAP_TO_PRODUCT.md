@@ -5937,3 +5937,63 @@ E E       MemoryError
 
 **顺带**：这次能一路查到底，靠的是 `gh` 已登录后**每推一次就看一眼 CI**；`Python tests (windows-latest)` 从 6 条失败一路降到 1 条再到 0 条，
 每一步的红名单都在上面几张表里，而不是靠记忆。
+
+## 第六十五批（M8-T79：版本常量词表 census — 十个 *VERSION，五个从没被比较过）
+
+（编号说明：文档里 第六十四批 已被另一个存活 run 的 CI 批次占用——HEAD 6f97c3c 实测；M8-T77..T81 在文档中不存在（doc 里最大是 T82，序列 …T75、T76、T82），本批沿用代码与提交信息里已经写下的 M8-T79，批次号顺延到 第六十五批。）
+
+
+**先量（平面＝HEAD 6f97c3c 的干净 worktree，不是我这台脏树）。** 用 AST 枚举 `minicc/**.py`
+里模块级名字以 `VERSION` 结尾的常量，逐个统计「是否出现在 Compare 节点里」与「是否作为
+被写出的值出现」：共 10 条，其中 5 条从未在任何比较里出现——
+`agent/context.py::CHECKPOINT_VERSION=3`、`bench_tasks.py::SUITE_VERSION='v2-1'`、
+`behavior_bench.py::SUITE_VERSION='behavior-1'`、`task_worker.py::WORKER_VERSION=2`、
+`llm/anthropic_provider.py::ANTHROPIC_VERSION='2023-06-01'`。这五条不是同一种病，所以本批
+先把它们分型，再决定谁必须补读者：
+
+1. **盘上格式有写无读**（真缺陷）：`CHECKPOINT_VERSION` 被 `_merge_checkpoint` 写进检查点，
+   而 `_parse_checkpoint` 把整个 payload 原样返回、合并函数按 key 名单照抄，没有任何一处问
+   过「这个检查点是按哪一版语义写的」。这是第六十三批 session.py 那一类缺陷的第二个实例。
+2. **身份靠手抄**（真缺陷）：`bench_tasks.SUITE_VERSION` 在自己的模块里 **loads=0**——它只被
+   `__all__` 导出，从没被盖到任何任务上。真正进入结果的是 `benchmarks/tasks.v2.json` 里
+   24 份手抄的字面量 `"suite_version": "v2-1"`，加上 `benchmarks.py` 第三个凭空发明的
+   fallback 字面量 `"legacy-1"`。常量升到 v2-2 时，磁盘上那份数据和那个 fallback 都不会跟着
+   动，报告里的套件身份仍是旧的——正是「相等不是推导」（第六十一批）在数据文件里的形状。
+
+其余三条是**故意只宣告不分支**的：provider 必须按 API 要求宣告协议版本，worker 与 behavior
+套件只是给结果盖身份。它们该进词表，不该被强行长出分支。
+
+**改法。** `agent/context.py` 新增 `_checkpoint_is_mergeable()`：声明版本不等于当前版本的检查点
+**不再贡献事实字段**，但它的 `archive.messages/characters` 仍然计入（把计数也一起丢掉会是
+第二句更安静的谎），并且跳过这件事被写进 `loss_risk`——那正是模型读到「什么丢了」的地方。
+`bench_tasks.py` 给出词表 `SUITE_VERSIONS = {SUITE_VERSION, LEGACY_SUITE_VERSION}`，
+`validate_task` 拒绝词表之外的 `suite_version`，`v2_tasks` 在任务自己没写的时候**从常量盖章**；
+`benchmarks.py` 的 fallback 改成 import 那个名字，不再重打字面量。
+
+**门（`tests/test_version_vocabulary.py`，9 条）。** census 由 AST 现场枚举，表按
+`(模块相对路径, 常量名)` 索引——绝不按 `file:line`；每行声明的角色要被重新验证：
+`branched` 要求常量真的出现在 Compare 里，`announced` 要求它从未被比较但确实被写出去，
+两头都不满足就判 `dead`（只被 `__all__` 导出正是这种）。另加三条专项：
+`DURABLE_FORMAT_MODULES`（session.py、agent/context.py）里的版本必须是 `branched`；
+植入源码的逆向控制证明分类器真的会说 `dead`；盖章那条是**推导见证**——把常量改成
+`v9-derived`，盖出来的值必须跟着改（只比「现在等于现在」的那条门抓不到手抄）。
+
+**变异见证（5 条行为臂 + 对照，全部在进程内改对象，没动过任何被跟踪文件）：**
+A1 读者恒真 → 红（“foreign facts merged”）；A2 从源码里删掉读者 → census 把它降级成
+`announced`（门不再承认它有读者）；A3 表里把 context.py 那行谎称 `announced` → 红（role drift）；
+A3b 删掉一行未登记常量的表 → 红（unlisted version constants）；A4 词表放大到接受一切 → 红
+（pytest DID NOT RAISE）；A5 装载器停止盖章 → 红。未变异对照四条声明全部成立。
+第一次运行还当场抓到我自己新增的 `LEGACY_SUITE_VERSION` 没有登记，必须补一行才绿——
+这条门对新写的代码也在生效，不只对旧代码。
+
+**基线（平面＝b70af51 的干净 worktree wt65，系统 .venv 解释器）：** 1203 passed in 550.97s (0:09:10)，exit 0，平面＝从 b70af51 新建的 worktree wt65；1188 是上一批的数字，中间另一个 run 推了 4 个提交也加了测试，所以这里只登记不比较。
+
+**如实记录两处边界。** (a) 本批没有动 `benchmarks/tasks.v2.json`：主树里它正被另一个存活
+run 改着（+905 行新任务），我只 stage 自己的四个文件，数据里那 24 份手抄字面量如今由词表
+和盖章门管住，但没有被删掉——删除属于那个 run 的领地。(b) `task_worker.WORKER_VERSION=2`
+和 provider 的协议版本只宣告不分支，本批判定为「按设计」，如果将来出现按它们分支的消费者，
+这张表必须改行而不是加豁免。
+
+**队列（下一批读这段就能接上）：** grader `exit 2`（读不懂的文件）在聚合报告里怎么算——现在是
+静默折进失败计数；`test_git_workflow.py`/`mcp.py`/`cli_io.py` 等主树未提交改动不属于本 run，
+不要 stage。
