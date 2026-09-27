@@ -5670,3 +5670,118 @@ W2 是这批最讲究的一条：它钉的不是「能抓到」，而是「**旧
   文档 + 待追加内容跑了一遍 `tests/test_doc_pointers.py` ⇒ `57 passed`；
   前两次（第五十九批、第六十批）都是「先追加、后在脏树里检查」，所以同一晚踩了三次
   「门没在它描述的平面上跑」。少写行号、写符号名，落笔前在 HEAD 上复算。
+
+## 第六十二批（M8-T58 的邻格：评分器不能判断自己读不懂的文件）
+
+代码与门在 `a820b6a`（已推送）。登记时这条叫「M8-T58 待办」，量完发现 M8-T58 那一格
+（命令契约里 `stdout_contains` 随父子 codec 漂移）**早就收口了**——
+`minicc/bench_tasks.py` 的命令 grader 显式把子进程 `PYTHONIOENCODING` 钉成自己解码用的那个，
+注释里点名 M8-T58；门在 `tests/test_subprocess_decoding.py`。所以本批做的是**同一族里
+还开着的那一格**：文件契约那一侧。
+
+### 0 这一类缺陷是什么
+
+文件契约 grader 用 `read_text(encoding="utf-8", errors="replace")` 读**被评分的作业文件**，
+然后把 `contains` / `not_contains` / `equals` / `regex` 比对在这段被替换过的文本上。
+`errors="replace"` 的语义是「读不懂就换成 U+FFFD」——它把「读不懂」这件事**从判据里抹掉了**，
+于是判据评的是替换字符，不是文件内容。
+
+### 1 先量（形状当场复现，不是推理）
+
+植入面：把一句中文禁词用 **GBK** 写进被评分文件（Windows 上默认 codecs 就是这一类，
+`encoding=` 不写的 `write_text` 会造出这种文件）。旧读法实测：
+
+| 判据 | 文件里禁词实际在不在 | 旧读法判成 |
+| --- | --- | --- |
+| `not_contains("禁止标记")` | **在**（GBK 字节） | **通过** ——假绿 |
+| `contains("禁止标记")` | 在 | 失败 ——假红 |
+
+替换后的文本是 `'prefix ֹ suffix\n'`：禁词的字节全被换成 U+FFFD，
+`marker in text` 因此为 False ⇒ 「不含禁词」这条**安全类**判据被编码问题满足。
+
+同时量了「今天会不会真的踩到」：`benchmarks/tasks.v2.json` 里 `grader.files` 的形状是
+`path 33 / contains 22 / json_equals 4 / regex 4 / exists 2 / not_contains 1 / equals 1`
+（干净平面上是 **28** 条，见第 4 节），**非 ASCII 标记 0 个**；
+又实测 ASCII 标记在四种相邻形状（纯 ASCII、GBK 前缀、GBK 紧贴、UTF-8 紧贴）下都能存活。
+⇒ 假绿当时是**潜伏**的：仓库文风就是中文，谁写一条中文 `not_contains` 就当场被踩。
+
+### 2 改动
+
+- `minicc/bench_tasks.py`：文件契约 grader 改为读字节 + **严格** UTF-8 解码；解不开就
+  报 `cannot judge content of <file>: not valid utf-8 at byte <n>; refusing to match
+  markers over replacement text` 并 `SystemExit(2)`。
+  `2` 是这条 grader 既有的「无法判断」出口（路径逃逸也用 `2`），不是「失败」也不是「通过」——
+  **宁可不判，也不拿替换字符判。**
+- `tests/test_contract_codec_census.py`（新）：**直接跑 grader 字符串本身**
+  （`from minicc.bench_tasks import _FILE_CONTRACT_GRADER` 写进临时脚本再 `subprocess`），
+  所以它跟着 grader 一起烂一起好；五条：控制用例（UTF-8 正常通过）、
+  GBK 禁词不得判通过、GBK 不得把正确作业判成缺串、报错必须带文件名与字节偏移、
+  以及一条钉机制本身的（源码里不许再出现 `errors="replace"` 且必须走 `raw.decode(`）。
+
+### 3 反向控制（旧代码 + 新门）
+
+平面 = `3ed6cac` 的 worktree，只把新测试文件拷进去（grader 仍是旧的）：
+
+```
+4 failed, 1 passed
+```
+
+红的是三条行为断言 + 一条机制钉子；**绿的恰好是那条「正常 UTF-8 作业不该被误伤」的控制**——
+即新判据没有把能判的情况一起拒掉。
+
+### 4 自我纠正：我自己把脏平面数到的 33 写进了测试
+
+第一版里有一条 `assert len(file_items) == 33`。在干净 worktree 里第一次跑就红：
+`shipped file-contract items moved: 28`。33 是我在**主树**（并发 run 未提交的
+`benchmarks/tasks.v2.json`）里数到的数 ⇒ 又是同一族错误（引用/数字来自它不该来的平面），
+这一条被**门自己**在同一轮里抓住了。改法不是把 33 换成 28（那还是钉死一个会变的外部数），
+而是**只报不钉**：断言 `file_items` 非空、断言「非 ASCII 标记 == []」，
+并把 `len(file_items)` 写进那条断言的报错文字里。
+
+### 5 基线
+
+先在 `a820b6a`（本批代码 + 门）上整套跑过一轮：**1 failed, 1187 passed in 517.70s (0:08:37)**，
+项数 1188 = 上一批 1183 + 本批 5 条。那唯一一条红**是本批自己带进来的**，而且是被
+**仓库里既有的门**抓住的，不是新门：
+
+```
+FAILED tests/test_subprocess_decoding.py::test_a_pinned_parent_decoder_over_our_own_python_child_pins_the_child_too
+AssertionError: half-pinned captures (parent utf-8, child undeclared):
+  ['tests/test_contract_codec_census.py:35 subprocess.run']
+```
+
+我新写的 `_grade()` 给父侧钉了 `encoding="utf-8"`，却没给子进程钉 `PYTHONIOENCODING`——
+也就是说，**这一批正在拒绝的那只半钉，被这一批自己的测试犯了一次**，
+而枚举半钉捕获的那条既有门（第五十七批那一族）在整套里点了名。
+修法就是把两端都钉上；针对性验证：`tests/test_contract_codec_census.py` +
+`tests/test_subprocess_decoding.py` + `tests/test_bench_tasks.py` ⇒ **38 passed in 60.80s**
+（平面 = `a820b6a` 的干净 worktree 拷入两份改过的文件）。
+
+平面 = worktree `t86fullWT`（HEAD = 修半钉那一条提交），形状 B（`-W error` 跟在 pytest 后面），
+basetemp 在树外，`minicc.__file__` 当场核对。
+
+实际读数：**1188 passed in 559.99s (0:09:19)，exit 0**
+（平面 = `33bfce3` 的干净 worktree；1188 = 上一批 1183 + 本批 5 条，逐项对得上；
+559.99s ≈ 第五十七批 533.92s 的 1.05 倍，这台机器今晚第一次接近空闲，所以时数可比的口径也回来了）。
+
+两条基线数都在这一节里：`a820b6a` 那一跑（1 红 = 我自己带的半钉捕获，被既有门点名）
+不是本批基线，只是过程；`33bfce3` 这一跑才是。
+
+
+### 6 这一格之后仍然空着
+
+- `exit 2` 让「无法判断」和「作业失败」在**聚合报告**里必须被分开数；
+  聚合侧有没有把 2 归进失败，本批没量（只量了 grader 自己的出口）。要量再改。
+- 严格解码只对 **UTF-8** 宽松度为零。真有任务需要评 GBK 文件时，正确做法是
+  spec 里声明 `encoding`，不是把 replace 换回来——那个键现在不存在。
+- `equals` / `regex` / `json_equals` 三条判据同样在 `text` 上跑，因此一并被这次改动保护；
+  本批没有为它们单独造植入面（同一读法，同一根因）。
+- 仍等用户点头：CI 接 `doc_pointers.py --check` / `route_coverage.py --check`；
+  M6-4 的 30 条真模型基线（配额）；M8-T11 流式合并语义；M8-T25 成本 null 与 0.0 口径。
+- 现场提醒：主树仍被并发 run 未提交的 `minicc/agent/router.py`（可变 dataclass 默认值）
+  打成收集期 `ValueError` ⇒ 读数一律走干净 worktree；本批连「数一个外部数」都被这条救了一次。
+
+### 7 下一批候选
+
+- 版本别名词表：`version` 之外还有哪些形状承载版本（`apiVersion`、f-string、kwarg），先扫再决定长门。
+- 聚合报告怎么区分「无法判断(2)」与「失败(1)」——第 6 节那一格的下游。
