@@ -5323,3 +5323,114 @@ pytest 自己在配置校验期就报未知键，在 `-W error` 下连收集都�
   60s 预算；秒表只应测「有没有终止」，不该测「机器快不快」）。
 - M8-T58（已量化候选）：非 ASCII `stdout_contains` 判据在父子 codec 不一致时仍会误判。
 
+
+## 第五十九批（M8-T75：一条断言主体的命运，却没断言主体到过那里）
+
+承接第五十八批基线里的那条红。那一批的证据链在 `35c3704`/`3c079e0`，本批只处理它登记出来的
+两件事之一（另一件 = M8-T76，任务 #74）。
+
+### 0 这一类缺陷是什么
+
+一条测试同时断言三件事：报错含「最大执行时间」、trace 里有 `budget_exceeded`、
+在途请求被取消（`cancelled == [True]`）。前两件事**在两条分支上都成立**，第三件需要请求真的
+发出去过。而产品里到期有三种收尾：
+
+| 分支 | 出处 | 报错 | provider 进过吗 |
+| --- | --- | --- | --- |
+| 预算在请求之前就没了 | `minicc/agent/loop.py:132-133` | `最大执行时间已用尽` | 没有 |
+| 轮次检查先拒 | `minicc/agent/state.py:61-64` | `最大执行时间已用尽 (x.x s/y.y s)` | 没有 |
+| 在途请求被取消 | `minicc/agent/loop.py:135-140` / `:166-169` | `最大执行时间已用尽，已取消当前模型请求` | 有 |
+
+测试只比了三种都共享的前缀，于是它把「机器慢到 setup 就吃掉了 0.08s」这件事
+报成了「产品没取消在途请求」。⇒ 规矩：**断言「主体被怎样了」之前，先断言主体到过那个状态**。
+
+### 1 先量（零负载复现，先于任何改动）
+
+`Temp/t79_probe_deadline.py` 在 `35c3704` 的干净 worktree 上跑：
+
+```
+[already-exhausted] budget=0.0s  provider_entered=0 cancelled=0 a1=True a3=True a2=False
+                    error='Agent 预算超限: 最大执行时间已用尽'
+[in-flight-cancel]  budget=0.08s provider_entered=1 cancelled=1 a1=True a3=True a2=True
+                    error='Agent 预算超限: 最大执行时间已用尽，已取消当前模型请求'
+```
+
+第一行就是基线那条红的观察三元组（`assert [] == [True]`），而且**不需要负载**——把预算写成 0
+就能稳定落进那条分支。这一点很重要：不用「多跑几次看看是不是偶发」去猜。
+
+顺带纠正本批开工前的一个口头判断：`budget=0.0` 时报的是 `loop.py:133` 那条**裸**文字，
+不是 `state.py:63` 那条带 `(x/y)` 的——`record_turn()` 用严格 `>`，`elapsed` 恰好等于 0 时不触发。
+三种收尾各有自己的文字，这一格是量出来的而不是推出来的。
+
+### 2 改动（只动 `tests/test_core_agent.py`，产品零改动）
+
+拆成两条：
+
+1. `test_agent_never_starts_a_request_when_the_duration_budget_is_spent`——零负载。
+   断言 provider **一次都没进**、报错含前缀、且**不含**「已取消当前模型请求」
+   （「什么都没在途，却说取消了它」本身是一个可以说谎的地方）。
+2. `test_agent_deadline_cancels_an_inflight_provider_request`——预算改成
+   `(同一次运行实测的 setup 成本 + 0.05) * 8`，即先跑一次无边框的 run 量本机 setup，
+   再按它的 8 倍设预算（M8-T45 的比值形状，不再拿绝对秒数赌机器快慢）。
+   断言顺序：先进入（报错文字直接写「这是在测 setup 对预算，不是测取消」+ 三个数字），
+   再比**后缀**，最后 `cancelled == [False]`。
+
+`cancelled` 里存的不是 `True` 而是「取消发生时 `run_agent` 是否已经返回」——见第 4 节，
+这是本批被见证逼出来的。
+
+### 3 变异见证：3/3（平面：`3c079e0` 干净 worktree + 拷入本文件）
+
+| # | 变异（只改值/分支，不动语法） | 预期红在哪 | 判决 |
+| --- | --- | --- | --- |
+| W1 | 删掉 `loop.py:132-133` 的事前拒绝，让它照样发请求 | 零负载那条的 `entered == []` | RED-AS-CLAIMED |
+| W2 | 取消分支的报错换成裸前缀（丢掉「，已取消当前模型请求」） | 在途那条的后缀断言 | RED-AS-CLAIMED |
+| W3 | `asyncio.wait_for` 包 `asyncio.shield`（不真取消内层） | `cancelled == [False]` | RED-AS-CLAIMED |
+
+未变异对照：`[control A] 1 passed in 11.66s`、`[control B] 1 passed in 5.40s`。
+每个 case 跑完做 sha256 字节比对还原，评分器把 `SyntaxError` / `ERROR collecting` /
+`no tests ran` 一律判「不是红」。
+
+### 4 自我纠正：W3 第一轮是 INVISIBLE，而且它是真话
+
+第一轮 W3（`shield`）**没让任何东西变红**：`asyncio.run` 收尾会 `_cancel_all_tasks` 并把
+剩下的任务 gather 到底，于是被抛弃的请求**照样**在断言之前收到了 `CancelledError`。
+⇒ 「取消发生过」这条断言把**事件循环的收尾**当成了**产品的行为**。
+这不是变异选得不好，是测试薄。改法就是第 2 节说的：记录取消发生的**时机**，
+而不是记录它发生过。改完 W3 才红在该红的那行。
+
+### 5 基线
+
+平面：worktree `t75fullWT`（HEAD = `8471b10`，本批代码已提交进去），`minicc.__file__` 已核对指向
+该 worktree。形状 B（`-W error` 跟在 pytest 后面），basetemp 在树外。
+
+**1173 passed in 1351.88s (0:22:31)，exit 0。**
+
+- 收集/通过数 **1173** = 上一批的 1172 + 本批拆出来的那 1 条，逐项对得上。
+- 1351.88s ÷ 第五十七批的 533.92s ≈ 2.5 倍；这台机器仍被并发 run 压着，这个时数只能当
+  「负载下的时数」读。
+- 第五十八批那两条红：`test_agent_deadline_cancels_an_inflight_provider_request` 这一条现在是
+  本批两条测试（零负载 + 在途），整套里全绿；`test_cli_version_flag_matches` 这一条**这一跑没红**，
+  但原因不是它被修了——2.5 倍负载下 60s 够用而已。所以 M8-T76（任务 #74）照旧登记，
+  不能因为一跑绿就销账。
+
+### 6 这一格之后仍然空着什么
+
+- 主树此刻**什么都跑不了**：并发 run 的未提交改动把 `minicc/agent/router.py:68` 写成
+  可变 dataclass 默认值，收集期 `ValueError: mutable default <class 'dict'> for field
+  DEFAULT_MODELS is not allowed`。本批全部读数都取自干净 worktree。那一格不属于本批，
+  也不该由我替它改。
+- 本批只修了测试，**没有**改产品对「预算在请求之前就用尽」的处理策略（现在是不发请求、
+  报裸前缀文字）。这条策略本身要不要一句话说明（例如「未发起请求」）没有判据要求，留着。
+- 仍等用户点头（本批没有自行动）：把 `scripts/doc_pointers.py --check` 与
+  `scripts/route_coverage.py --check` 接进 CI；M6-4 的 30 条真模型基线（配额）；
+  M8-T11 流式合并语义；M8-T25 成本 null 与 0.0 的口径。
+
+### 7 下一批候选
+
+- **M8-T74（任务 #72）**：`minicc/web.py` 读同一个 `evidence_hits` 三次
+  （`:1169→1170-1178` 给模型、`:1286-1292` 给人的 trace summary、`:1851-1858` planner prompt
+  再切 8），**零次**调 `stats()` ⇒ 目录遍历被预算截断时，人读到的是「本地索引提供 N 个候选文件」
+  这种完整性语气（那句 summary 确实进 DOM：`web/src/panels/index.js:1226/1276` 标签
+  「本地证据 / Local evidence」）。双向门 + 读者清单用 AST 枚举。
+- **M8-T76（任务 #74）**：`test_cli_version_flag_matches` 的 60s 秒表（第五十八批另一条红）。
+- M8-T58（已量化候选）：非 ASCII `stdout_contains` 判据在父子 codec 不一致时仍会误判。
