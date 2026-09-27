@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Any, Sequence
 from .behavior_bench import behavior_tasks, fixture_digest, grade_behavior, prepare_fixture
 from . import bench_tasks
-from .bench_tasks import grade_v2
+from .bench_tasks import LEGACY_SUITE_VERSION, grade_v2
 from . import pricing
 from .cli_io import cli_out
 
@@ -617,7 +617,7 @@ def run_benchmark(
             interrupted: BaseException | None = None
             outcome: dict[str, Any] = {}
             entry: dict[str, Any] = {"task_id": task["id"], "status": "failed", "passed": None,
-                "metadata": {**run_metadata, "suite_version": task.get("suite_version", "legacy-1"), "fixture_sha256": fixture_digest(task)}}
+                "metadata": {**run_metadata, "suite_version": task.get("suite_version", LEGACY_SUITE_VERSION), "fixture_sha256": fixture_digest(task)}}
             try:
                 if temporary:
                     prepare_fixture(task, task_workspace, initialize_git=True)

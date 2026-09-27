@@ -304,8 +304,26 @@ def _parse_checkpoint(message: dict[str, Any]) -> dict[str, Any] | None:
     return value if isinstance(value, dict) else {"legacy_summary": _safe(content, 500)}
 
 
+def _checkpoint_is_mergeable(parsed: dict[str, Any]) -> bool:
+    """Can the merge below interpret this checkpoint's fact fields?
+
+    The key list and the objective/digest caps are written for
+    CHECKPOINT_VERSION. A checkpoint that declares another version may use the
+    same keys for different things, so only its archive counters are trusted.
+    A missing field is read as the current version, exactly like the session
+    checkpoint reader.
+    """
+    declared = parsed.get("version", CHECKPOINT_VERSION)
+    try:
+        return int(declared) == CHECKPOINT_VERSION
+    except (TypeError, ValueError):
+        return False
+
+
 def _merge_checkpoint(previous: list[dict[str, Any]], facts: dict[str, Any], middle: list[dict[str, Any]]) -> dict[str, Any]:
-    old = [parsed for message in previous if (parsed := _parse_checkpoint(message))]
+    parsed_items = [parsed for message in previous if (parsed := _parse_checkpoint(message))]
+    old = [item for item in parsed_items if _checkpoint_is_mergeable(item)]
+    unread = len(parsed_items) - len(old)
 
     def values(key: str, limit: int = _MAX_ITEMS) -> list[Any]:
         output: list[Any] = []
@@ -337,8 +355,8 @@ def _merge_checkpoint(previous: list[dict[str, Any]], facts: dict[str, Any], mid
     if legacy:
         checkpoint["legacy_summary"] = legacy
     checkpoint["archive"] = {
-        "messages": sum(int(item.get("archive", {}).get("messages", 0) or 0) for item in old) + len(middle),
-        "characters": sum(int(item.get("archive", {}).get("characters", 0) or 0) for item in old) + _msg_chars(middle),
+        "messages": sum(int(item.get("archive", {}).get("messages", 0) or 0) for item in parsed_items) + len(middle),
+        "characters": sum(int(item.get("archive", {}).get("characters", 0) or 0) for item in parsed_items) + _msg_chars(middle),
         "hash": _hash_messages(middle),
     }
     checkpoint["loss_risk"] = [
@@ -347,6 +365,10 @@ def _merge_checkpoint(previous: list[dict[str, Any]], facts: dict[str, Any], mid
         "视觉附件只在检查点保存引用元数据，原始图片由调用方持久化并在后续请求重新注入",
         "需要精确原文时应重新读取工作区或查看任务 trace",
     ]
+    if unread:
+        checkpoint["loss_risk"].append(
+            f"{unread} 个历史检查点声明了别的 version，只计入归档计数，其事实字段没有被合并"
+        )
     return checkpoint
 
 

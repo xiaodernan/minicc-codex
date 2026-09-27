@@ -33,6 +33,8 @@ from typing import Any
 
 __all__ = [
     "SUITE_VERSION",
+    "LEGACY_SUITE_VERSION",
+    "SUITE_VERSIONS",
     "GRADER_TYPES",
     "DEFAULT_TASKS_V2",
     "resolve_grader_dir",
@@ -44,6 +46,12 @@ __all__ = [
 ]
 
 SUITE_VERSION = "v2-1"
+# The vocabulary of suite identities a result may carry. A task file that names
+# anything outside this table is refused instead of reporting a suite nobody
+# produced - and a task that names nothing gets SUITE_VERSION stamped on it
+# here, so the value in benchmarks/tasks.v2.json can never be the only source.
+LEGACY_SUITE_VERSION = "legacy-1"
+SUITE_VERSIONS = frozenset({SUITE_VERSION, LEGACY_SUITE_VERSION})
 GRADER_TYPES = frozenset({"file_contract", "command_contract"})
 DEFAULT_TASKS_V2 = Path(__file__).resolve().parent.parent / "benchmarks" / "tasks.v2.json"
 GRADER_DIR_NAME = ".graders"
@@ -69,6 +77,9 @@ def v2_tasks(path: Path | str = DEFAULT_TASKS_V2) -> list[dict[str, Any]]:
     tasks = json.loads(Path(path).read_text(encoding="utf-8"))
     if not isinstance(tasks, list):
         raise ValueError("tasks.v2.json 必须是任务数组")
+    for task in tasks:
+        if isinstance(task, dict) and "suite_version" not in task:
+            task["suite_version"] = SUITE_VERSION
     return tasks
 
 
@@ -85,6 +96,12 @@ def validate_task(task: dict[str, Any]) -> None:
             raise ValueError(f"任务缺少字段: {key}")
     if not isinstance(task["id"], str) or not task["id"].strip():
         raise ValueError("任务 id 必须是非空字符串")
+    declared = task.get("suite_version", SUITE_VERSION)
+    if declared not in SUITE_VERSIONS:
+        raise ValueError(
+            f"任务 {task['id']} 的 suite_version 不认识: {declared!r}"
+            f"（本版本只认 {sorted(SUITE_VERSIONS)}）"
+        )
     if not isinstance(task["prompt"], str) or not task["prompt"].strip():
         raise ValueError(f"任务 {task['id']} prompt 不能为空")
     fixture = task["fixture"]
