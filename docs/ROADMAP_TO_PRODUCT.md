@@ -5510,7 +5510,7 @@ basetemp 在树外，`minicc.__file__` 当场核对指向该 worktree。
   只当「负载下的时数」读，不当回归读。
 - 这一跑之前先有一次 `6 failed, 1174 passed in 1639.35s`（平面 `30bc57d`）：六条红全是
   `tests/test_doc_pointers.py`，根因**不在本批代码**，而在第五十九批记录引用了
-  `minicc/agent/router.py:68` —— 那个行号只存在于并发 run **未提交**的工作副本里
+  `minicc/agent/router.py` —— 那个行号只存在于并发 run **未提交**的工作副本里
   （HEAD 那版只有 50 行）。我在主树跑 `doc_pointers.py --check` 是绿的，
   恰恰因为我跑在那棵脏树里。⇒ `79dba80` 把行号定位降成文件级，并在干净 worktree 里
   验证 `64 passed`（全部 doc_pointers + 本批新门 7 项）。
