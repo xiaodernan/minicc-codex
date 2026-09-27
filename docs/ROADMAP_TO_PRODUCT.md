@@ -4925,3 +4925,212 @@ M5/M6 各出两红是**一致而非噪声**：放宽接收者规则会让真套�
 - 提醒：同一目录并存的另一个 run 目前把 `minicc/agent/router.py` 的 `DEFAULT_MODELS`
   改成了 dataclass 的可变默认值，主树 `pytest` 在收集期就 `ValueError: mutable default ...`，
   所以**主树整跑今天不可用**，本批全部数字都取自提交树的 worktree；那条红是别人的现场，不归本批修。
+
+## 第五十七批（M8-T72：指标算在一条有预算的遍历上，分母就得跟着数字走）
+
+批次：本批两个提交 —— 产品 census + 门 + 文档口径（`2a5deab`），豁免表键的形状（见第 5 节，单独提交）。
+基线：见本批第 6 节（一定带平面与时数）。
+
+### 0 这一类缺陷是什么
+
+`LocalEvidenceIndex` 有**两道**预算：候选文件上限 `max_files`，以及目录上限
+`max(4000, max_files * 4)`。任何一道先到，遍历就在工作区的一个前缀上停下；
+而 `evaluate_retrieval` 照样把 `recall@k` 写成「关于这个工作区」的陈述，
+`retrieval_decision` 照样从那个数字推出架构建议。这一批之前报告里根本没有分母
+—— `report["index"]` 这个键不存在。
+
+同一份代码里已经有正确形状的先例：`minicc/impact.py` 的
+`truncated` / `analysis_incomplete` / `limitations` 三件套。检索侧没跟上。
+
+旧 `truncated` 判据是 `len(records) >= max_files`，它答的是「预算填满没有」，
+不是「遍历走完没有」。两者的方向恰好在「没填满」的截断上相反：目录先到时
+索引了 0 个文件，`truncated` 仍然是 `false`。
+
+### 1 先量：反向控制跑在补丁前的树（`ac76061`）上，四条全红
+
+`t77_reverse.py` 只用旧 API 论证（不 import 本批新增的符号），逐条原文：
+
+1. `truncated` 在「走完了预算但记录数低于上限」时说谎：12 个文件、预算 10、
+   2 个拒读 → `files_indexed=8 < file_limit=10` 而 `truncated=False`；
+   旧 stats 的键里没有任何「遍历看到了什么」：缺
+   `['directories_walked', 'directory_budget', 'files_seen', 'files_skipped']`。
+2. 目录预算在旧 API 上**不可达也不可报**：`LocalEvidenceIndex.__init__() got an
+   unexpected keyword argument 'max_directories'` —— 也就是说旧代码里连
+   「构造一次死于目录预算的遍历」都做不到，更谈不上报告它。
+3. 报告不 publishes 分母：`report keys = ['case_count', 'ks', 'metrics',
+   'results', 'schema_version', 'workspace']`。
+4. 预算截断被读成 recall 故障：1250 个 `.py` 对 1200 的预算、目标文件在切点之后，
+   `--suite retrieval` 照样 exit 0，`recall@5=0.0`，结论是
+   「lexical 基线不达标，下一步评估引入本地 embedding」。
+
+补充的两格（同一台机器实测，不是推断）：4300 个目录、20 个文件全在目录切点之后
+（`max_files=900` ⇒ 目录预算 `max(4000, 3600)=4000`）时旧 `stats()` 报
+`files_indexed=0, truncated=false`；而默认 `max_files=1200`（预算 4800）时同样的
+4300 目录能走完 —— 所以「目录预算会不会先炸」是预算与形状的函数，不能靠猜。
+
+「读不了的文件」这一族先排除三种假象：chmod-000 在本机仍可读、`os.symlink` 创建被拒、
+189 字符深路径 `stat` 正常。因此 `except OSError` 的两个分支只能通过替换
+`Path.open` / `Path.stat` 到达 —— 门里就是这样做的（`unreadable()` / `vanishing()`），
+两个计数器各有自己的见证案例（R2 / R2b），不是靠一个 `skipped` 总数折叠。
+
+### 2 改动：分母进报告，判断式只写一遍
+
+- `minicc/agent/retrieval.py`：新增 `max_directories` 构造参数（不传则
+  `max(4000, max_files*4)`，与旧行为一致；加它是因为默认目录预算在真实仓库上
+  每次 build 都要重扫，测试需要一个能构造出「死于目录预算」的接缝）；
+  `_files()` 在两条退出路径上都调 `_record_walk()`，发布 `files_seen` /
+  `directories_walked` / `stopped_early`；`_refresh()` 在两个 `except OSError`
+  分支各 `skipped += 1`；`stats()` 返回 10 键 census（含 `file_limit` /
+  `directory_budget` / `truncated`）；新增模块函数 `census_is_complete(stats)`
+  作为**唯一**判据，报告、结论、测试都读它（第五十六批的教训：同一判断写两遍
+  就有一遍无人负责）。
+- `minicc/benchmarks.py`：`evaluate_retrieval(..., max_files=, max_directories=)`
+  把预算传下去并把 `index.stats()` 放进报告；`retrieval_decision(..., index=)`
+  在口径不完整时两个分支都不给，报错文字点名四个数（`files_indexed` /
+  `files_seen` / `files_skipped` / `file_limit`）加目录两个和 `truncated`，
+  并且**不出现**「embedding」；`load_retrieval_cases` 校验数据集里可选的
+  `max_files` / `max_directories`（bool、非 int、<1 都拒）；`_census_line()`
+  同时进 markdown 第二行与 `cli_out`。
+- `tests/test_retrieval_eval.py`：门槛测试先断 `census_is_complete(census)` 再断数字；
+  坏数据集表加 `max_files` 的五种坏值与一个正例；markdown census 的重复断言删掉，
+  换成一条注释指向 `tests/test_index_census.py`（形状只在一处判）。
+- 新门 `tests/test_index_census.py`（11 项）。
+
+### 3 变异见证：14/14，第一轮的两个「没红」是我门的洞
+
+`t77_teeth.py`（A 组产品判据 / B 组报告与 CLI / R 组反向控制），每个变异要求
+needle 命中恰好一次、文件仍可导入、红落在指定测试并带指定报错片段、`finally`
+逐字节还原。控制组：跑前 `19 passed`、跑完 `19 passed exit 0`，
+`restored retrieval.py / benchmarks.py: byte-identical=True`。
+
+第一轮：`14 cases: INVISIBLE=1, MISFIRED=1, RED-AS-CLAIMED=12`。
+
+| 洞 | 变异 | 为什么没抓到 | 修法 |
+| --- | --- | --- | --- |
+| B3 | CLI 调 `retrieval_decision` 时丢掉 `index=` | 我只断言「结论里没有 embedding 才算拒绝」，而 unknown-census 分支的文字里同样没有「embedding」 | decision 必须**引用它拒绝时用的那个预算**（`"file_limit=10" in payload["decision"]`） |
+| B4 | markdown 的 `Index census:` 整行消失 | 我断言的是「整份文件里出现过 `files_indexed`」，结论段落那句话把它满足了 | 改成「恰好一行以 `Index census:` 开头」+ 该行必须带 `files_indexed=10`、`file_limit=10`、`truncated=True`、`口径完整=False` 四个 token |
+
+修完：`=== 14 cases: RED-AS-CLAIMED=14`。教训并入既有那一条：**断言要写成
+「这一行独有的形状」，不是「文件里出现过某个子串」**；一个只反面断言（「不能有 X」）
+的门，会被恰好也不含 X 的另一种失败绕过去。
+
+### 4 真实 CLI 复跑（文档里的数字全部取自这一跑）
+
+`python -m minicc.benchmarks --suite retrieval`（输出重定向到 Temp，不落树内）：
+
+    [retrieval] hit@1=0.65 hit@5=0.95 mrr=0.7683 recall@1=0.65 recall@5=0.95 | cases=20
+    Index census: files_indexed=232 files_seen=232 files_skipped=0 file_limit=1200 directories=21/4800 truncated=False | 口径完整=True
+    [retrieval] 结论: recall@5=0.9500 >= 0.60：lexical 基线达标，**不引入向量检索**，停止在 embedding 上的投入。
+
+JSON 报告里的 `index`：`files_indexed=232, files_seen=232, files_skipped=0,
+files_rebuilt=232, symbols_extracted=5021, last_build_ms=804.46,
+file_limit=1200, directories_walked=21, directory_budget=4800, truncated=false`。
+`docs/BENCHMARK_EVALUATION.md` 的基线数字因此更新为本次读数（`recall@5` 0.90→0.95、
+`MRR` 0.75→0.7683），并写明「上一轮记录为 0.90/0.75」—— 不留一次无解释的改动。
+`last_build_ms` 从上一批记录的 ~9852 降到 804.46：这台机器当时被其他 run 压满，
+这个数字现在只作为「一次 build 的量级」引用，不作回归判据（M8-T45 的口径）。
+
+### 5 整跑出来的第一条红不是本批的门红，是另一张门的键的形状
+
+整跑命令的形状这次也是证据的一部分。第一次按 `python -W error -m pytest tests`
+跑（把 `-W error` 交给解释器），30 秒后日志里是
+`INTERNALERROR ... pytest_asyncio/plugin.py, in pytest_configure
+warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))`
+—— 插件在 configure 期发的弃用警告，被解释器级的 `-W error` 变成致命错误，
+收集都没开始。历史记录里的形状是 `python -m pytest -q -W error`（交给 pytest），
+它跑起来了。两条形如一致的命令只有一条能出数字，而失败原因是**参数位置**，
+与代码无关，所以本批把形状写进记录：`-W error` 跟在 pytest 后面。
+根因（`pyproject.toml` 里没有任何 `asyncio_*` 配置，装的 pytest-asyncio 是 1.4.0
+而依赖只写 `>=0.23.0`）登记为下一批候选，见第 7 节。
+
+第二次整跑的红只有一条，原文：
+`shipping code at the mercy of the machine locale: ['minicc/benchmarks.py:725 subprocess.run']`
+（`tests/test_subprocess_decoding.py::test_every_production_capture_names_its_reader_or_carries_a_checked_proof`）。
+这条 capture 不是本批写的：`git blame` 到 `f1a380db`（2026-09-14），它从 M8-T57 起
+就在豁免表里。它红是因为**表里的键是 `minicc/benchmarks.py:661 subprocess.run`**，
+而本批在那一行之上加了 71 行。也就是说这条红的意思不是「树变差了」，
+而是「一次 600 行之外的无关编辑让一条没人碰过的门判红」。
+
+那张表的注释原本写着这是故意的（「moving a capture voids its exemption and makes
+the next reader re-earn it」）。实测下来这条摩擦不买任何东西：表里每个理由
+（`ascii-marker` / `no-consumer`）每次运行都从 AST 重新推导，行号移动不带任何新信息，
+读者要做的只是重新抄一个数字。所以本批把它改成实现的函数：
+
+- `Capture.site_key()` = 文件 + 所在 def 的 dotted 路径 + callee（`minicc/benchmarks.py::run_benchmark
+  subprocess.run`）；`label()` 继续带行号，因为那是给人找代码用的。
+- 匹配域换成 `_needing_exemption()`（production、text-mode、且没有钉 UTF-8）。不加这一层
+  `run_benchmark` 里两个 text-mode 调用会共用一个键——其中一个钉了 `encoding="utf-8"`，
+  它本来就不需要豁免，不该让别人的键变歧义。
+- 四种腐烂各有植入见证：调用挪进一个 def（报「0 production captures needing an exemption
+  there」并把现在的位置一起印出来）；同域里出现第二个待豁免调用（报「2 …」，一个键盖不住
+  两个调用就一个都不盖）；调用自己钉了 reader（报「the reader is pinned now, so the
+  exemption is dead weight」，不是「找不到」）；键完全没有对应调用。
+- 正面见证就是本批踩到的那一格：同一份源码上面垫 5 行，豁免必须仍然成立
+  （`_SYNTHETIC_PRODUCTION_PADDED`）。这一条在改之前是必红的——那正是整跑读到的东西。
+
+`t77_teeth2.py` 五例（每个变异要求 needle 命中恰好一次、文件仍可导入、红落在指定
+测试并带指定报错片段、`finally` 逐字节还原）；控制组跑前 `20 passed in 62.42s`、
+跑完 `20 passed in 88.95s exit 0`，`restored test_subprocess_decoding.py:
+byte-identical=True`。
+
+| # | 变异 | 期望落点 | 结果 |
+| --- | --- | --- | --- |
+| S1 | `site_key()` 退回 `label()`（也就是键回到 `file:line`） | 植入见证测试，报错含「must key on its scope, not its line」 | 第一轮 MISFIRED → 修报错文字后 RED-AS-CLAIMED（2 红） |
+| S2 | 键里不含作用域（`_scope_of` 恒答 `""`） | 植入见证测试，报错含 `_grade`（调用挪进 def 必须换键） | RED-AS-CLAIMED（2 红） |
+| S3 | 匹配域把已钉 reader 的调用也算进去 | 套件级判定测试，报错含「2 production captures needing an exemption there」 | RED-AS-CLAIMED（2 红） |
+| S4 | 表不再是逃生口（`site_key() not in table` → `if True`） | 植入见证测试，报错含「the table is the escape hatch」 | RED-AS-CLAIMED（2 红） |
+| S5 | 钉住的调用被报成「找不到」而不是「多余」 | 植入见证测试，报错含「the reader is pinned now」 | RED-AS-CLAIMED（1 红） |
+
+S1 那一格第一轮判 MISFIRED，原因值得单独记：变异确实让门红了（两条测试都红），
+但红在**更早**的一条断言上 —— `assert [item.site_key() for item in planted] ==
+[_PLANTED_KEY], planted`，而它的报错消息就是裸的 `planted`，打出来是一列
+`<...Capture object at 0x...>`。门红得不说明白：读者看到的是两个列表不相等，
+要自己回源码才能知道「键退回了行号」。修法不是把预测改成实际落点（那是给变异
+拟合），而是把那处报错改成声明本身：
+
+    "a module-level planted call must key on its scope, not its line: [...] != [...]"
+
+复跑（`t77_teeth3.py`，控制组 `20 passed in 72.24s` / `20 passed in 49.62s`，
+同样逐字节还原）落点即 RED-AS-CLAIMED。这与第 3 节 B3/B4 是同一课的两面：
+**断言要写成「这一格独有的形状」，报错要写成「这一格独有的声明」**——
+前者决定门会不会被绕过去，后者决定红了之后有没有人能只读报错就定位机制。
+
+合并两轮：**5/5 RED-AS-CLAIMED**。
+
+登记为可复用的规矩：**任何以「实现里的位置」为键的豁免表，键要写成实现的函数
+（所在声明、形状、声明式），位置只用于诊断**。位置当键的代价不是漏判而是错判：
+它把无关的改动说成违规，读者学会忽略这条门的那天，它真正要挡的东西也就没人看了。
+
+### 6 基线
+
+平面是干净检出，不是本机工作区：worktree `t77wt2` @ `e0bd64b`，归因先核对过
+（`minicc.__file__` = `...\Temp\t77wt2\minicc\__init__.py`，Python 3.11.1）。
+命令形状即第 5 节那条：`-m pytest -q --no-header -p no:cacheprovider -W error`
+（`-W error` 在 pytest 侧），`--basetemp` 在树外。
+
+    1166 passed in 533.92s (0:08:53)      exit 0
+
+对账：收集 1166 = 上一批的 1155 + 本批新门 `tests/test_index_census.py` 的 11 项。
+上一条基线（`2a5deab`，同一形状）是 `1 failed, 1165 passed in 561.57s` —— 同一条
+收集 1166，那条 `1 failed` 就是第 5 节的豁免表键，本跑它绿了，测试条数没有增减。
+时数只作量级引用：这一跑的进行中，同一台机器上还有别的 run 在跑自己的 pytest
+（足球项目的 club 测试等），所以 533.92s 不是回归判据（M8-T45 的口径）。
+平面、时数、命令三者缺一，这个数字就不可归因。
+
+### 7 下一批候选
+
+- **配置层的一格（本批整跑第一手撞到的）**：`pyproject.toml` 没写
+  `asyncio_default_fixture_loop_scope`，装的 pytest-asyncio 1.4.0 在 configure 期发
+  弃用警告，于是任何把 `-W error` 交给解释器的跑法（`python -W error -m pytest`，
+  CI 里很常见的一种写法）在收集前就 INTERNALERROR。这一格与 M8-T60 同族：
+  门在某种调用形状下**从不运行**，而不是运行并变红。
+- `minicc/web.py:1169` 的 `get_evidence_index(workspace).search(...)` 走同一个有预算的
+  索引，但不向用户报任何口径：证据列表短了，用户读到的是「没有更多证据」而不是
+  「遍历被截断」。门这一批只覆盖评测路径，交互路径同一格仍空。
+- 仍等用户点头（本批没有自行动）：把 `scripts/doc_pointers.py --check` 与
+  `scripts/route_coverage.py --check` 接进 CI；M6-4 的 30 条真模型基线（配额）；
+  M8-T11 流式合并语义；M8-T25 成本 null 与 0.0 的口径。
+- 提醒（不是本批的现场）：同一目录并存的另一个 run 会把 `minicc/agent/router.py`
+  的 `DEFAULT_MODELS` 改成 dataclass 可变默认值，主树收集期即 `ValueError`；
+  本批所有数字取自提交树的 worktree（`--basetemp` 在树外、`PYTHONPATH=<worktree>`，
+  归因先核对过 `minicc.__file__`）。
