@@ -69,6 +69,12 @@ testpaths = ["tests"]
 # instead of the previous -q, which hid the warnings summary entirely.
 addopts = "-ra"
 pythonpath = ["."]
+# pytest-asyncio warns at configure time when this is unset, and that warning is
+# fatal under `python -W error -m pytest` (the flag on the interpreter, the common CI
+# shape): the run died in pytest_configure with exit 3 and named not one test.
+# Declared here so the suite is runnable under either shape.  See
+# tests/test_pytest_invocation.py.
+asyncio_default_fixture_loop_scope = "function"
 
 [tool.coverage.run]
 # Measure the package, not the test suite: the M4-3 number is about the HTTP
