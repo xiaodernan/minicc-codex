@@ -220,7 +220,7 @@ def build_report(tasks: list[dict[str, Any]], results: list[dict[str, Any]] | No
             "Command graders and fake-provider runs do not establish real-world coding accuracy.",
             "Token and cost metrics remain null when the provider does not expose usage or pricing.",
             "Tokens and cost per success include expenditure on failed attempts; missing measurements keep these metrics null.",
-            "REFUSED means the grader exited 2 and declined to judge; it is not a pass, a failure, or a task without a grader.",
+            "REFUSED means nobody judged this workspace: the grader declined (exit 2) or could not be run; it is not a pass, a failure, or a task without a grader.",
         ],
     }
 
@@ -717,9 +717,11 @@ def run_benchmark(
             verify_command = task.get("verify_command")
             if task.get("grader"):
                 if entry["status"] == "completed":
+                    attempted = "behavior"
                     try:
                         grader_type = (task.get("grader") or {}).get("type")
                         if grader_type in bench_tasks.GRADER_TYPES:
+                            attempted = str(grader_type)
                             entry.update(grade_v2(
                                 task, task_workspace,
                                 str(outcome.get("answer") or ""), grader_dir=grader_dir,
@@ -727,7 +729,9 @@ def run_benchmark(
                         else:
                             entry.update(grade_behavior(task, task_workspace, str(outcome.get("answer") or "")))
                     except (ValueError, TypeError, OSError) as exc:
-                        entry.update(passed=False, grader_type="invalid", grading_error=f"{type(exc).__name__}: {exc}"[:200])
+                        # The grader blew up, not the workspace: same NO-RESULT
+                        # shape, and the row keeps the agent's own error.
+                        entry.update(bench_tasks.grader_unable(attempted, exc))
                 else:
                     entry.update(passed=False, grader_type=task["grader"].get("type", "behavior"))
                     oracle = _objective_oracle(task, task_workspace, grader_dir, worker)

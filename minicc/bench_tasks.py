@@ -265,10 +265,29 @@ def _run_grader(
 _GRADER_REFUSED = 2
 
 
+def _no_result(grader_type: str, reason: str, *, case_count: int | None = None,
+               exit_code: int | None = None) -> dict[str, Any]:
+    """The one constructor for "nobody judged this workspace".
+
+    A grader that exited 2 and a grader the host could not run are the same
+    verdict, so they have to be built in one place: a second literal is where
+    the two drift apart, and where one of them slides back to passed=False.
+    """
+    out: dict[str, Any] = {
+        "passed": None, "grader_type": grader_type, "grading_refused": True,
+        "refusal": reason[:300],
+    }
+    if exit_code is not None:
+        out["exit_code"] = exit_code
+    if case_count is not None:
+        out["case_count"] = case_count
+    return out
+
+
 def _refused(
     result: "subprocess.CompletedProcess[str]", grader_type: str, case_count: int | None = None
 ) -> dict[str, Any]:
-    """The grader exited 2: it could not judge this workspace at all.
+    """The grader exited 2: it declined to judge this workspace at all.
 
     That is neither a pass nor a fail. ``build_report`` keeps rows with
     ``passed is None`` out of ``gradable``, so a refusal must arrive as None -
@@ -276,13 +295,19 @@ def _refused(
     inflates ``false_completion_rate`` with a claim nobody verified.
     """
     first = next((line for line in result.stderr.splitlines() if line.strip()), "")
-    out: dict[str, Any] = {
-        "passed": None, "grader_type": grader_type, "grading_refused": True,
-        "exit_code": result.returncode, "refusal": first[:300],
-    }
-    if case_count is not None:
-        out["case_count"] = case_count
-    return out
+    return _no_result(
+        grader_type, first, case_count=case_count, exit_code=result.returncode)
+
+
+def grader_unable(grader_type: str, exc: BaseException) -> dict[str, Any]:
+    """The grader process could not be run, or hung past its own clock.
+
+    M8-T80 gave the exit-2 refusal a NO-RESULT channel; this is the same
+    verdict arriving as an exception in the host instead - interpreter gone,
+    grader directory unwritable, workspace removed mid-grade. Nobody looked at
+    the work, so it is not a failure either.
+    """
+    return _no_result(grader_type, f"{type(exc).__name__}: {exc}")
 
 
 def grade_file_contract(
@@ -297,7 +322,7 @@ def grade_file_contract(
             isolated=True, timeout=float(spec.get("timeout", 60)),
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
-        return {"passed": False, "grader_type": "file_contract", "error": type(exc).__name__}
+        return grader_unable("file_contract", exc)
     if result.returncode == _GRADER_REFUSED:
         return _refused(result, "file_contract", len(files))
     marker = f"MINICC_FILE_CONTRACT_COMPLETE:{len(files)}"
@@ -352,7 +377,7 @@ def grade_command_contract(
             isolated=False, timeout=float(spec.get("timeout", 200)) + 30,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
-        return {"passed": False, "grader_type": "command_contract", "error": type(exc).__name__}
+        return grader_unable("command_contract", exc)
     if result.returncode == _GRADER_REFUSED:
         return _refused(result, "command_contract")
     passed = result.returncode == 0 and "MINICC_COMMAND_CONTRACT_COMPLETE:1" in result.stdout.splitlines()
