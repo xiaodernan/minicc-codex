@@ -15,6 +15,7 @@ The tests drive the shipped grader string itself, so they break when it drifts.
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -39,6 +40,10 @@ def _grade(workspace: Path, spec: dict) -> subprocess.CompletedProcess[str]:
         text=True,
         encoding="utf-8",
         errors="replace",
+        # The child writes the refusal (file name, byte offset) to stderr and this
+        # parent decodes it as utf-8: owning only one end is the defect this file
+        # exists to refuse, and tests/test_subprocess_decoding.py says so.
+        env={**os.environ, "PYTHONIOENCODING": "utf-8"},
         cwd=str(workspace),
         timeout=120,
     )
