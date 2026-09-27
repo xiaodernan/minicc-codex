@@ -262,6 +262,29 @@ def _run_grader(
     )
 
 
+_GRADER_REFUSED = 2
+
+
+def _refused(
+    result: "subprocess.CompletedProcess[str]", grader_type: str, case_count: int | None = None
+) -> dict[str, Any]:
+    """The grader exited 2: it could not judge this workspace at all.
+
+    That is neither a pass nor a fail. ``build_report`` keeps rows with
+    ``passed is None`` out of ``gradable``, so a refusal must arrive as None -
+    folding it into False charges the agent for the grader's own inability and
+    inflates ``false_completion_rate`` with a claim nobody verified.
+    """
+    first = next((line for line in result.stderr.splitlines() if line.strip()), "")
+    out: dict[str, Any] = {
+        "passed": None, "grader_type": grader_type, "grading_refused": True,
+        "exit_code": result.returncode, "refusal": first[:300],
+    }
+    if case_count is not None:
+        out["case_count"] = case_count
+    return out
+
+
 def grade_file_contract(
     task: dict[str, Any], workspace: Path, *, grader_dir: Path | None = None
 ) -> dict[str, Any]:
@@ -275,6 +298,8 @@ def grade_file_contract(
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         return {"passed": False, "grader_type": "file_contract", "error": type(exc).__name__}
+    if result.returncode == _GRADER_REFUSED:
+        return _refused(result, "file_contract", len(files))
     marker = f"MINICC_FILE_CONTRACT_COMPLETE:{len(files)}"
     passed = result.returncode == 0 and marker in result.stdout.splitlines()
     return {
@@ -328,6 +353,8 @@ def grade_command_contract(
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         return {"passed": False, "grader_type": "command_contract", "error": type(exc).__name__}
+    if result.returncode == _GRADER_REFUSED:
+        return _refused(result, "command_contract")
     passed = result.returncode == 0 and "MINICC_COMMAND_CONTRACT_COMPLETE:1" in result.stdout.splitlines()
     return {"passed": passed, "grader_type": "command_contract", "exit_code": result.returncode}
 
