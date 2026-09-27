@@ -5415,7 +5415,7 @@ pytest 自己在配置校验期就报未知键，在 `-W error` 下连收集都�
 
 ### 6 这一格之后仍然空着什么
 
-- 主树此刻**什么都跑不了**：并发 run 的未提交改动把 `minicc/agent/router.py:68` 写成
+- 主树此刻**什么都跑不了**：并发 run 的未提交改动把 `minicc/agent/router.py`（HEAD 那版只有 50 行，68 只存在于那棵未提交的工作副本里）写成
   可变 dataclass 默认值，收集期 `ValueError: mutable default <class 'dict'> for field
   DEFAULT_MODELS is not allowed`。本批全部读数都取自干净 worktree。那一格不属于本批，
   也不该由我替它改。
