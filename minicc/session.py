@@ -38,8 +38,9 @@ except ImportError:  # pragma: no cover - Windows
 
 _SESSION_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
 _ALLOWED_ROLES = {"system", "user", "assistant", "tool"}
+SESSION_FORMAT_VERSION = 1  # the only place this file's format version is written down
 _DEFAULT_VIEW = {
-    "version": 1,
+    "version": SESSION_FORMAT_VERSION,
     "last_item": 0,
     "last_tool": 0,
     "compact_tools": True,
@@ -169,6 +170,43 @@ def _keep_through_tool_results(messages: list[Any], keep: int) -> int:
     return extended
 
 
+def list_sessions(workspace: Path) -> list[dict[str, Any]]:
+    """Describe every stored session (a fork is just another session file).
+
+    The message-level event tree spans files: each entry carries
+    ``forked_from`` lineage so callers can render the forest; unreadable or
+    malformed checkpoints are reported with an ``error`` field instead of
+    raising, so listing never breaks on one bad file. Backup sidecars
+    (``*.pre-rewind.json``) are not sessions and are skipped.
+    """
+    root = Path(workspace) / ".minicc" / "sessions"
+    sessions: list[dict[str, Any]] = []
+    if not root.is_dir():
+        return sessions
+    for path in sorted(root.glob("*.json")):
+        if path.name.endswith(".pre-rewind.json") or path.name.startswith("."):
+            continue
+        entry: dict[str, Any] = {"session_id": path.stem, "messages": 0}
+        try:
+            payload = json.loads(_read_text_with_retry(path))
+        except (OSError, json.JSONDecodeError):
+            entry["error"] = "无法读取"
+            sessions.append(entry)
+            continue
+        if not isinstance(payload, dict) or not isinstance(payload.get("messages"), list):
+            entry["error"] = "格式错误"
+            sessions.append(entry)
+            continue
+        messages = payload["messages"]
+        entry["messages"] = len(messages)
+        entry["updated_at"] = str(payload.get("updated_at") or "")
+        lineage = payload.get("forked_from")
+        entry["forked_from"] = lineage if isinstance(lineage, dict) else None
+        entry["title"] = _first_user_title(messages)
+        sessions.append(entry)
+    return sessions
+
+
 class SessionStore:
     """Persist one conversation under workspace/.minicc/sessions."""
 
@@ -197,7 +235,7 @@ class SessionStore:
     def save(self, messages: list[dict[str, Any]]) -> None:
         stored = self._stored_payload_or_none()
         payload = {
-            "version": 1,
+            "version": SESSION_FORMAT_VERSION,
             "updated_at": datetime.now(UTC).isoformat(timespec="seconds"),
             "messages": self._with_message_ids(messages, stored),
             "view": self.load_view() if self.exists else dict(_DEFAULT_VIEW),
@@ -208,6 +246,12 @@ class SessionStore:
                 if stored.get(key) is not None:
                     payload[key] = stored[key]
         self._write_payload(payload)
+
+    def list_snapshots(self) -> list[dict[str, Any]]:
+        """List task snapshots for this session (reads from task index)."""
+        from .task_store import TaskStore
+        store = TaskStore(self.workspace)
+        return store.list_by_session(self.session_id)
 
     # -- message-level event tree (M8-T2) ------------------------------------
 
@@ -220,6 +264,14 @@ class SessionStore:
             raise SessionError(f"无法读取 session {self.path}: {exc}") from exc
         if not isinstance(payload, dict) or not isinstance(payload.get("messages"), list):
             raise SessionError(f"session 格式错误: {self.path}")
+        declared = payload.get("version", SESSION_FORMAT_VERSION)
+        if declared != SESSION_FORMAT_VERSION:
+            # A version this code cannot interpret must not be reshaped into
+            # something readable: the field existed for six writers and no reader.
+            raise SessionError(
+                f"session 格式版本不支持: {self.path} 声明 version={declared}，"
+                f"本版本只认 version={SESSION_FORMAT_VERSION}（缺字段按 {SESSION_FORMAT_VERSION} 处理）"
+            )
         return payload
 
     def _stored_payload_or_none(self) -> dict[str, Any] | None:
@@ -322,7 +374,7 @@ class SessionStore:
             raise SessionError(f"目标会话已存在: {target_id}")
         now = datetime.now(UTC).isoformat(timespec="seconds")
         fork_payload = {
-            "version": 1,
+            "version": SESSION_FORMAT_VERSION,
             "created_at": now,
             "updated_at": now,
             "messages": json.loads(json.dumps(messages[:keep], ensure_ascii=False)),
@@ -453,14 +505,14 @@ class SessionStore:
     def save_view(self, view: dict[str, Any]) -> None:
         """Persist view preferences and the bounded expandable tool index."""
         if not self.exists:
-            payload: dict[str, Any] = {"version": 1, "messages": []}
+            payload: dict[str, Any] = {"version": SESSION_FORMAT_VERSION, "messages": []}
         else:
             try:
                 raw = json.loads(_read_text_with_retry(self.path))
             except (OSError, json.JSONDecodeError) as exc:
                 raise SessionError(f"无法读取 session {self.path}: {exc}") from exc
-            payload = raw if isinstance(raw, dict) else {"version": 1, "messages": []}
-        payload["version"] = 1
+            payload = raw if isinstance(raw, dict) else {"version": SESSION_FORMAT_VERSION, "messages": []}
+        payload["version"] = SESSION_FORMAT_VERSION
         payload["updated_at"] = datetime.now(UTC).isoformat(timespec="seconds")
         payload["view"] = self.load_view_payload(view)
         self._write_payload(payload)
@@ -470,7 +522,7 @@ class SessionStore:
         raw = view if isinstance(view, dict) else {}
         history = raw.get("tool_history")
         return {
-            "version": 1,
+            "version": SESSION_FORMAT_VERSION,
             "last_item": _non_negative_int(raw.get("last_item")),
             "last_tool": _non_negative_int(raw.get("last_tool")),
             "compact_tools": bool(raw.get("compact_tools", True)),
