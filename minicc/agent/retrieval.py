@@ -598,6 +598,35 @@ def census_is_complete(stats: dict[str, object] | None) -> bool:
     return not stats.get("files_skipped")
 
 
+def census_notice(stats: dict[str, object] | None) -> str:
+    """One sentence saying the candidate list may be incomplete, or nothing.
+
+    Empty exactly when ``census_is_complete`` says the walk covered the
+    workspace.  Every reader of a bounded index quotes this instead of writing
+    its own confidence claim, so the model note, the browser trace and the
+    planner prompt cannot drift into three different definitions of "whole tree".
+    """
+    if census_is_complete(stats):
+        return ""
+    census = stats or {}
+    parts = ", ".join(
+        f"{label}={census.get(key, 'unknown')}"
+        for label, key in (
+            ("seen", "files_seen"),
+            ("indexed", "files_indexed"),
+            ("file_limit", "file_limit"),
+            ("dirs", "directories_walked"),
+            ("dir_budget", "directory_budget"),
+            ("skipped", "files_skipped"),
+        )
+    )
+    truncated = "；遍历提前停止" if census.get("truncated") else ""
+    return (
+        f"[检索口径] 本地索引没有走完整个工作区（{parts}{truncated}）。"
+        "候选清单可能不全：没出现在清单里，不等于工作区里没有相关文件。"
+    )
+
+
 _INDEX_CACHE: OrderedDict[str, LocalEvidenceIndex] = OrderedDict()
 _INDEX_CACHE_LOCK = threading.Lock()
 
@@ -613,4 +642,4 @@ def get_evidence_index(workspace: Path) -> LocalEvidenceIndex:
         return index
 
 
-__all__ = ["EvidenceHit", "LocalEvidenceIndex", "census_is_complete", "get_evidence_index"]
+__all__ = ["EvidenceHit", "LocalEvidenceIndex", "census_is_complete", "census_notice", "get_evidence_index"]

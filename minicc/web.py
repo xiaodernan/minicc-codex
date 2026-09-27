@@ -51,7 +51,7 @@ from .agent.planner import (
     parse_planner_response,
 )
 from .agent.repair import repair_scope
-from .agent.retrieval import LocalEvidenceIndex, get_evidence_index
+from .agent.retrieval import LocalEvidenceIndex, census_is_complete, census_notice, get_evidence_index
 from .agent.subagent import build_task_tool_spec
 from .webauth import (
     WebAuth,
@@ -213,6 +213,58 @@ def _audit_level_filter(
         floor = set(AUDIT_LEVELS[AUDIT_LEVELS.index(name):])
         allowed = floor if allowed is None else allowed & floor
     return allowed
+
+
+def _evidence_model_note(hits: list[Any], census: dict[str, Any]) -> str:
+    """The system message naming candidate files, plus the walk's own denominator.
+
+    An empty hit list is the case that needs the sentence most: without the
+    census the model reads "no candidates" as "nothing relevant in the
+    workspace", when it may only mean the walk stopped at a budget.
+    """
+    notice = census_notice(census)
+    lines = "\n".join(
+        f"- {hit.path} ({hit.reason}; symbols: {', '.join(hit.symbols[:4]) or 'none'})"
+        for hit in hits
+    )
+    if not lines:
+        return notice
+    body = (
+        "[本地检索索引] 以下为与任务可能相关的路径和符号；它们只是定位提示，"
+        "使用前必须通过工具重新检查。\n" + lines
+    )
+    return f"{body}\n{notice}" if notice else body
+
+
+def _evidence_trace_event(hits: list[Any], census: dict[str, Any]) -> dict[str, Any] | None:
+    """The browser-facing trace row for the same candidate list."""
+    if not hits:
+        return None
+    complete = census_is_complete(census)
+    summary = (
+        f"本地索引提供 {len(hits)} 个候选文件，Agent 会逐项复核"
+        if complete
+        else f"本地索引未走完工作区，只提供 {len(hits)} 个候选文件（清单可能不全）"
+    )
+    return {
+        "kind": "trace", "name": "retrieval", "status": "ok", "phase": "planning",
+        "code": "local_evidence_index",
+        "summary": summary,
+        "detail": {
+            "hits": [hit.to_dict() for hit in hits],
+            "census": dict(census),
+            "census_complete": complete,
+        },
+    }
+
+
+def _evidence_for_planner(hits: list[Any], census: dict[str, Any]) -> str:
+    """The planner prompt's evidence block, capped and labelled the same way."""
+    lines = [f"- {hit.path}: {hit.reason}" for hit in hits[:8]]
+    notice = census_notice(census)
+    if notice:
+        lines.append(notice)
+    return "\n".join(lines)
 
 
 class AgentService:
@@ -1166,16 +1218,12 @@ class AgentService:
                 f"{network_note}。请完成调研后输出一份实施计划（目标、步骤、涉及文件、验证方式、风险），"
                 "不要尝试调用写入类工具。"
             ))
-        evidence_hits = get_evidence_index(workspace).search(message, limit=8)
-        if evidence_hits:
-            evidence_summary = "\n".join(
-                f"- {hit.path} ({hit.reason}; symbols: {', '.join(hit.symbols[:4]) or 'none'})"
-                for hit in evidence_hits
-            )
-            messages.append(system_msg(
-                "[本地检索索引] 以下为与任务可能相关的路径和符号；它们只是定位提示，"
-                "使用前必须通过工具重新检查。\n" + evidence_summary
-            ))
+        evidence_index = get_evidence_index(workspace)
+        evidence_hits = evidence_index.search(message, limit=8)
+        evidence_census = evidence_index.stats()
+        evidence_note = _evidence_model_note(evidence_hits, evidence_census)
+        if evidence_note:
+            messages.append(system_msg(evidence_note))
         snapshot_task_id = str(payload.get("task_id") or "")
         journal = SnapshotJournal(workspace, snapshot_task_id) if snapshot_task_id and workspace_snapshot_exists(workspace, snapshot_task_id) else None
         editor = Editor(
@@ -1283,13 +1331,8 @@ class AgentService:
         events.append(route_event)
         if on_event is not None:
             on_event(route_event)
-        if evidence_hits:
-            retrieval_event = {
-                "kind": "trace", "name": "retrieval", "status": "ok", "phase": "planning",
-                "code": "local_evidence_index",
-                "summary": f"本地索引提供 {len(evidence_hits)} 个候选文件，Agent 会逐项复核",
-                "detail": {"hits": [hit.to_dict() for hit in evidence_hits]},
-            }
+        retrieval_event = _evidence_trace_event(evidence_hits, evidence_census)
+        if retrieval_event is not None:
             events.append(retrieval_event)
             if on_event is not None:
                 on_event(retrieval_event)
@@ -1851,10 +1894,7 @@ class AgentService:
                     planner_prompt = build_planner_prompt(
                         message,
                         workspace=str(workspace),
-                        evidence="\n".join(
-                            f"- {hit.path}: {hit.reason}"
-                            for hit in evidence_hits[:8]
-                        ),
+                        evidence=_evidence_for_planner(evidence_hits, evidence_census),
                     )
                     planner_messages = [
                         system_msg(PLANNER_SYSTEM_PROMPT),
