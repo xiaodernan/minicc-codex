@@ -7250,3 +7250,44 @@ F2 的多出来三条是好事：两扇门措辞相同不是注释承诺，是�
 3. `build_report:180` 的 `grader_type` 兜底（要口径）；GATE_METRICS 方向阈值；三分口径统一命名；`review_rounds` 的 markdown 印法。
 4. **等用户口径**（task #83）：`repeated_tool_calls` 有人读、没人写 ⇒ `tool_repeat_rate` 恒 null。
 5. harness 卫生（连续两批应验）：预测名一律 `--collect-only` 读回；断言常量要有辨识度；**新写的对账门要先用变异自测它的走查覆盖**（本批的 `Eq`-only 盲区就是自己抓自己的例子）。
+## 第八十三批 M8-T98：一个任务只能声明一份客观检查
+
+代码 `f924a6c`（本记录随其后追加）。编号说明：`M8-T98` 之前只在第八十二批 §7 作为前向引用出现。
+
+### 1 缺陷：两份检查并存时，其中一份被静默丢掉
+
+`load_tasks` 今天只查 id 与重复（`minicc/benchmarks.py`），实测（`9e4a8d6`）一个同时带 `grader` 与 `verify_command` 的任务能被装载。而 `run_benchmark` 的分派是 `if task.get("grader"): ... elif verify_command ...` ⇒ grader 分支先走，**verify_command 永远不执行**，行上只留一个 `ungraded` 之类的结果，且不说有任何检查被丢。对 v2 的 grader 与 legacy 的 verify_command 都成立——一个任务声明了两份客观检查时，作者以为的覆盖面比实际评分的大。
+
+出厂语料同时量过：`benchmarks/tasks.json` 30 条里 **3 条带 `verify_command`、0 条带 `grader`** ⇒ 冲突 0 条，这条洞是**产品可构造、语料未 populate**，不写成已在危害。
+
+### 2 改法：装载期拒绝并存，报错点名三方
+
+`load_tasks` 现在对同时声明两者的任务抛 `ValueError`，消息点名任务 id、被选中的 grader 类型、以及会被丢掉的 `verify_command`。放在装载期而不是判分期，是因为判分期已经跑完一整轮 agent；两扇门之间这道最便宜。
+
+### 3 门（`tests/test_task_may_declare_only_one_objective_check.py`，5 函数 / 7 格）
+
+- 两种 grader 类型（未知 `magic_oracle` 与合法 `file_contract`）都拒绝 ⇒ 证明守的是「并存」而不是「类型不认识」。
+- 单声明任一份仍能装载（正向）。
+- **分派顺序见证**（AST）：`run_benchmark` 里以 `task.get('grader')` 为条件的那个 `if`，其 else 分支必须仍含 `verify_command` ⇒ 拒绝的理由由代码结构支撑；哪天两支改成都会跑，这条要求更新而不是永真。
+- **语料 census**：30 条 legacy 任务、冲突 0、并断言「带 verify_command 的条数在 0 与总数之间」（不是「全都有」）。
+- **缝隙门**：`main` 的默认支路确实调用 `load_tasks`，且 v2／行为两条支路仍各自的门（`validate_task`／`validate_behavior_task`）在。
+
+### 4 我自己两条新 witness 第一轮就是错的（登记，不悄悄改）
+
+1. 分派顺序那条用 `ast.unparse` 的文本去匹配 `get("grader")`，但 **unparse 输出单引号** ⇒ 匹配不到，门反而报「run_benchmark 不再分派 grader」这种假话。改成匹配 `get('grader')` 后才说真话。
+2. 语料那条我凭上一批的印象写了「27 of 30 带 verify_command」，实际量出来是 **3 of 30**（我上一轮打印的表达式口径也读反过一次）。⇒ 注释里的数字必须来自当场测量；抄自己上一轮的数仍然是抄。
+
+### 5 反向对照与变异
+
+未修平面 `9e4a8d6`：**2 failed / 5 passed**，红在点名的两条命名断言上（其余 5 条本来就在旧平面成立）。变异 2 臂（定向 2 文件 26 格，控制 `26 passed`、`restored: True`）：G1 关掉这道门 ⇒ 2 红；G2 报错里去掉 grader 类型 ⇒ 2 红（同一对具名格，措辞与门各自都被钉住）。预测名全部先 `--collect-only -q` 读回，两臂都没有漏报或意外红。
+
+### 6 基线
+
+干净平面**单独**跑（worktree 显式建在 sha `f924a6c`，一个 pytest 进程、独立 basetemp `bt99full`、独立日志）：**1382 passed in 354.79s (0:05:54)**，`PYTEST_EXIT=0`，FAILED 行数 0；数字取自日志自己的页脚。上一批 1375 ⇒ +7 正好等于本批新门收集的 7 格。这是上一批自造重叠教训之后的第一次单跑全量：一次通过，没有再出现「无关套件染红」。
+
+### 7 下一批候选（M8-T99 起）
+
+1. 同一函数 `load_tasks` 仍不校验任务其它字段（`prompt`、`category`、`fixture` 等），legacy 支路里一条缺 `prompt` 的任务要等 agent 空跑才知道；把 `validate_task` 里那几条不变量按套件来源分档复用。
+2. 行为任务的 `function` 与 fixture `solution.py` 中函数名一致性（不一致时判分期已拒，但仍白跑一轮）。
+3. `build_report:180` 的 `grader_type` 兜底（要口径）；GATE_METRICS 方向与阈值；三分口径统一命名；`review_rounds` 的 markdown 印法。
+4. **等用户口径**（task #83）：`repeated_tool_calls` 有人读、没人写 ⇒ `tool_repeat_rate` 恒 null。
