@@ -7960,3 +7960,201 @@ finder 上，**静默量了主树**。⇒ 那次探针的四节数字全部作�
 4. 要口径决定（不变）：`build_report:180` 的 `grader_type` 兜底、`bench_compare.GATE_METRICS` 里
    `grading_refusal_count` 的方向与阈值、三种判决（pass／fail／NO-RESULT）要不要有名字、
    `review_rounds` 的 markdown 印法、恒 null 的 `tool_repeat_rate`（task #83）。
+## 第九十三批 M8-T108：两条 fixture 键必须在工作区里指向两个位置
+
+### 1 编号说明
+
+追加前在被追加上游平面 `bd212a5`（＝本批代码提交）上量：文档里最后的批次标题是
+`## 第九十二批`，`第九十三批` 出现 **0 次**、`M8-T108` 出现 **0 次**（本批既不是前向引用也没有占位），
+哨兵 `M8-T999` 仍在（8 次），全文批次标题共 61 个。
+本批＝第九十三批＝`M8-T108`，接第九十二批 §2 的那条线：那批把「两条键合起来放不进同一个目录」
+交给唯一主人比较，但比较的是**归一化之后的拼写**；本批问的是「两条拼写在**这块卷**上是不是同一个位置」，
+因为那已经不是字节的属性，而是宿主文件系统的属性。
+
+### 2 缺陷：同位判断按字节，同位与否由卷决定
+
+第九十二批之后，`minicc/bench_tasks.py:122` 的 `require_writable_fixture` 会把每条键归一化成
+`segments`（`minicc/bench_tasks.py:178` 收 `(归一化路径, 作者拼写)` 进表），再做全对比较
+（`minicc/bench_tasks.py:192` 同位、`:197`/`:202` 父子目录）。**同位那一格比的是字符串相等**，
+于是它只在「两条拼写字节相同」时说话。写点 `minicc/behavior_bench.py:284` 一行没变，
+它把键直接交给宿主：`target.mkdir(parents=True, exist_ok=True)` 之后 `target.write_text(...)`，
+**同一个位置**由卷决定。
+
+本批在 `b771eb0` 平面实测（`Temp/scratch108/probe108.py` ＋ `Temp/scratch108/probe108b.py`，
+两份都带平面守卫，打印 `minicc resolves to: ...\wt110\minicc\__init__.py` 并逐个断言
+`bench_tasks`/`behavior_bench`/`benchmarks` 的 `__file__` 在该平面内；守卫这一条是第九十二批 §5 ⚠️
+的直接产物——那次探针的 `sys.path` 落回 venv 的 editable 安装指针，量到了主树）：
+
+1. **静默盖掉，而且一声不吭。** `{"A.txt": "upper", "a.txt": "lower"}` ⇒ 三条装载门
+   （v2 `validate_task`、legacy `load_tasks`、行为 `validate_behavior_task`）**全部 ACCEPT**，
+   `prepare_fixture` **不抛异常**，工作区最后只有 `['A.txt']`，内容 `'lower'`——作者写的第一个键的
+   内容消失了。同一形状换个层级也一样：`{"p/q.txt": "one", "P/Q.txt": "two"}` ⇒
+   `tree=['p', 'p/q.txt']`、内容 `'two'`，同样无异常。
+2. **抛异常，但已经写了一半。** `{"P": "is-a-file", "p/q.txt": "child"}` ⇒
+   `FileExistsError: [WinError 183] 当文件已存在时，无法创建该文件`，盘上剩 `['P']`（内容是 `'is-a-file'`，
+   即 `p/q.txt` 那一份从未写出来）；反序 `{"p/q.txt": "child", "P": "is-a-file"}` ⇒
+   `PermissionError: [Errno 13] Permission denied`，盘上剩 `['p', 'p/q.txt']`。
+   这与第九十二批量的 `{"a.txt","a.txt/b.txt"}`/`{"d/x","d"}` 是**同一类故障的另一种拼法**，
+   只是触发的等号两边大小写不同。
+
+宿主侧的证据不靠平台名：`os.path.normcase('CaseFoldProbe')` 在本卷返回 `'casefoldprobe'`，
+而 temp 目录里先写 `CaseFoldProbe` 再写 `casefoldprobe` 之后 `iterdir()` 只剩 **1** 项、
+`os.path.samefile` 报 `True` ⇒ 本卷把两种拼写当成同一位置。
+
+⚠️本批自己的探针有两处缺陷，都在记录里留名（不是代码缺陷）：
+第一版 §1 的折叠标签写成 `normcase('A.txt') != normcase('a.txt')`——两个**已经折叠过**的值互相比较必然
+相等，于是在折叠卷上印出「folds case: False」；同一段里 `iterdir()` 只剩 1 项、`samefile` 为 True
+已经给出正确答案，是标签问错了问题。第一版的门表用合成任务形状问三条装载门，那两条任务因
+**别的**必需键被拒（`grader 类型非法: python_behavior`、`spec has keys nobody reads`），
+所以那两格对 fixture 配对**什么也没说**——本批正式的门改用 `_shipped_task(door)` 在真实 shipped 任务的
+fixture 上**追加**这一对键，拒绝只可能来自这对键（第九十二批 §4 的同一条纪律）。
+
+语料 census：本批把 census 的判据换成**问主人**（`_fixture_refusals` 逐条调
+`require_writable_fixture`），实测三套人口（`Temp/scratch108/probe108c.py`，带平面守卫）：
+legacy **30 条任务／0 条带 fixture**、v2 **24 条／24 条（39 项）**、行为 **12 条／12 条（24 项）**，
+全人口 fixture 项 **63**（与第九十二批量的同一人口、同一数），主人在新规则下**一条都不拒**（拒绝 0 条），
+同一段还打印 `os.path.normcase('Probe') != 'Probe'` ⇒ 本卷折叠为真。
+因此「每套都得有 fixture」这种下限是**假**的——第一版门里那样写过，被自己的运行否证（红字
+`legacy: no task carries a fixture, so the census audited nothing`），本条按实测改回
+「每套 ≥10 条任务 ＋ 全人口 fixture 项 ≥30」。
+
+### 3 改法：同位问宿主自己的函数
+
+- 比较升成**逐路径段折叠**：`minicc/bench_tasks.py:185` 新增 `location()`，
+  返回 `tuple(os.path.normcase(segment) for segment in path.split("/"))`；
+  `:189`/`:191` 把两条键各自算成 `here`/`there`，`:192` 同位、`:197`/`:202` 父子目录三格比的都是
+  这个元组。**逐段**而非整条：本卷上 `os.path.normcase` 顺带把 `/` 改成 `\`，整条折叠会让父子目录的
+  前缀比较永远配不上（变异臂 W3 专门证明这一格会退化）。
+- 报错文字与作者拼写不变：三分支仍点名 `relative`/`other_relative`（`minicc/bench_tasks.py:192-206`），
+  折叠只用于判断，不用于展示——否则作者会去任务文件里找一个自己没写过的键。
+- 规则仍然只有一个主人，三条装载门一行没改：v2 `validate_task`（`minicc/bench_tasks.py:232`）、
+  legacy `load_tasks`（`minicc/benchmarks.py:153`）、行为 `validate_behavior_task`
+  （`minicc/behavior_bench.py:225`）。
+- 写点 `minicc/behavior_bench.py:284` 继续不动，理由与第九十二批相同：门的存在由 §4 那条宿主见证钉住。
+- 没有引入「大小写不敏感」这种平台分支，也没有 `.lower()`：判据是**问宿主的身份函数**。本批**不**声称
+  别的卷上 `os.path.normcase` 一定恒等——门测的是条件本身：测试**供给**一个恒等政策
+  （`monkeypatch`，不是从某个平台的实现抄来的），此时那 4 个形状必须被接受；供给折叠政策时必须被拒。
+  所以两种卷的答案在同一趟运行里都被判过，本机的卷是哪一种都不影响这条结论（§4 前两组）。
+
+### 4 门（`tests/test_two_fixture_keys_must_name_different_locations.py`，10 函数 / 28 格）
+
+- **供给政策的 8 格**：4 个形状 × {折叠政策 ⇒ 必须拒、恒等政策 ⇒ 必须接受}。政策是测试
+  `monkeypatch` 供给 `os.path.normcase` 的实现（`str.lower` 与恒等），生产代码在决策时问它，
+  所以**同一趟运行里两个平面的答案都被判过**，不依赖这台机器是哪一种卷。
+- **问卷的 12 格矩阵**：4 形状 × 3 装载门，每格的期望由 `_host_folds_case()` **实测**得到
+  （往 temp 目录写 `CaseFoldProbe` 再写 `casefoldprobe`，数剩几项，并要求剩的那项内容是后写的 `'2'`），
+  折叠卷上期望拒绝、区分大小写卷上期望接受。
+- **正反控制**：`NOT_A_PAIR`（`{"A.txt","a.md"}`，差的不只是大小写）在**两种政策下都**必须接受（1 格）；
+  `SPELLING_VARIANT`（`{"A\\B.txt","A/B.txt"}`，第九十二批那一类，与大小写无关）在恒等政策下也必须拒，
+  且报错含「同一个位置」（1 格）。
+- **宿主见证**（1 格）：`prepare_fixture` 的盘上结果按卷分支——折叠卷上 `tree == ["A.txt"]` 且内容是
+  后写的 `'lower'`（这就是静默丢失本身），区分大小写卷上 `["A.txt", "a.txt"]`。两种情形都写死了断言，
+  所以这条门在任一平面上都不会「因为不匹配而空过」。
+- **报错点名作者拼写**（1 格）：折叠政策下逐个形状断言 `repr(key) in message` 与任务 id 在文字里。
+- **身份函数不能是手抄的**（1 格）：AST 找 `require_writable_fixture` 的函数体，含「同一个位置」的那位
+  主人必须出现 `normcase` 且**不得**出现 `.lower(`，并且全树主人唯一（`owners == ["bench_tasks.py"]`）。
+  这一格同时否证「用 `.lower()` 也能过本机」的 tempting 改法：那会在区分大小写的卷上误拒合法任务。
+- **census 两格 ＋ 触达 2 格**：`test_no_shipped_task_names_one_location_twice` 问主人审计 shipped 人口
+  （下限与 offenders 同趟扫描）；`test_the_census_detector_has_reach_over_the_class_it_audits`
+  用**测试自己供给的合成人口**（1 条折叠冲突、1 条干净、1 条拼写变体冲突）证明「0 offenders」不是空读——
+  折叠政策下必须点名两条植物任务，恒等政策下只准点名拼写变体那条。
+- 单跑（本批门 ＋ 第九十二批 ＋ 第九十一批三个 fixture 文件，平面 `bd212a5`，`-W error`，
+  `--basetemp`/`--junitxml` 在平面外）：**93 passed in 9.46s**，退出码 0。
+  数字可推导：93 ＝ 本批 28 ＋ 第九十二批 26 ＋ 第九十一批 39。
+
+### 5 反向对照
+
+在 `b771eb0`（＝本批代码提交的父）新开平面 `Temp/wt112rev`，只把本批的门文件复制过去
+（复制后的 sha256 前缀 `ee3f8d7757ca`）。那一个 ref 上 `minicc/bench_tasks.py` 里 `normcase` 出现
+**0 次**、手抄的 `startswith` 配对比较仍在 **1 处**——也就是说门是在「规则还没变宽」的平面上被问的，
+不是在复制我此刻的实现。实测 **19 红 / 9 绿**，与本批事前写的 `EXPECTED_RED=19`/`EXPECTED_GREEN=9`
+**MATCHED**（`Temp/leg_rev108c.log`、`Temp/rev108.log`、`Temp/rev108.xml`）。
+红的名字里能看到 `test_the_identity_question_is_the_hosts_own_function`、
+`test_the_census_detector_has_reach_over_the_class_it_audits[fold]`，以及
+`test_every_load_door_answers_what_the_volume_actually_does[case-* × v2/behavior/legacy]` 那 12 格
+⇒ 这些格子确实在问盘面上的实现，而不是把我这台折叠卷的答案写死成字面量。
+（腿第一次跑死在我自己的调用上：两条腿给 pytest 子进程 `env={"PATH": "C:\\Windows\\system32;..."}`，
+把 venv 解释器要用的 DLL/套接字提供程序一起剥掉了，收集期即
+`OSError: [WinError 10106] 无法加载或初始化请求的服务提供程序`，于是 4 条臂全部报
+「NO JUNIT / SURVIVED」而红的名单一个都没跑过。改成 `{**os.environ, PYTHONIOENCODING}` 之后才是上面这份数字。）
+
+### 6 变异见证
+
+臂在被测平面上原地改值、跑完按 sha256 全长比对复原（`Temp/mut108.py`，人口＝本批三条 fixture 门文件、
+93 例，预测名单事先从 `--collect-only` 的 id 按规则生成）：
+
+| 臂 | 改的是什么 | 跑了 | 红 | 事前预测 | 判定 |
+| --- | --- | --- | --- | --- | --- |
+| 对照 | 不改 | 93 | 0 | 0 | 门在跑之前是绿的 |
+| W1 `location_stops_asking_the_host` | 逐段归一化不再问宿主 | 93 | 18 | 19 | CAUGHT |
+| W2 `host_function_replaced_by_lower` | `os.path.normcase(segment)` → `segment.lower()` | 93 | 6 | 6 | CAUGHT |
+| W3 `whole_path_folded_so_separators_move` | 整条路径一起归一化 | 93 | 20 | 20 | CAUGHT |
+| W4 `census_re_implements_the_pair_check` | 普查判据换回上一批那种手抄 `startswith` | 93 | 1 | 1 | CAUGHT |
+| 复原后 | 不改 | 93 | 0 | 0 | `restore: all bytes identical` |
+
+⚠️ W1 少来了一格，而且这一格是本批的账：预测会红、实际绿的正是
+`test_the_identity_question_is_the_hosts_own_function`。原因是那条门用 AST 判的是
+「主人的身体里有没有 `normcase` 这个词、有没有 `.lower(`」，而 W1 只把 `location` 里的调用换成不归一化，
+`normcase` 这个词还留在同一个函数体里 ⇒ 它对「不再问宿主」是**盲**的。
+本批关于这条门的证据因此只有它的一半（禁手写 `.lower(`），「必须问宿主」那一半是靠 W2/W3 两臂（6 红、20 红）撑住的。
+W2/W3/W4 三臂的红**名单**都与事前预测逐格相等（日志里各自印 `red names == predicted`），
+W1 是「预测 19、实到 18」且 `only-red` 为空（多出来的红一个都没有，少的那一格就是上面那条门）。
+W3 那 20 格（比 W1 多 2 格）事先就是按「整条路径归一化会把 `/` 改写成 `\`，于是父子前缀比较悄悄不再匹配」
+这条机制写出来的预测名单，跑出来逐格相等 ⇒ `location` 必须逐段的理由有名字级别的证据，不是数数对上就算。
+W4 只红 1 格也符合预测，而且从 `Temp/mut108_W4_census_re_implements_the_pair_check.xml` 读到的红名
+正是 `test_the_census_detector_has_reach_over_the_class_it_audits[fold]`：手抄判据在折叠卷上把
+`{"A.txt","a.txt"}` 看成两个位置，于是普查的触达见证点不出名。
+
+### 7 全量基线
+
+平面 `Temp/wt110`，HEAD `bd212a5`，跑前 `git status --porcelain` 为 `<clean>`（这两个数字由腿自己打印，
+HEAD 不等于 `bd212a5` 或有脏文件时它拒绝开跑）。命令是仓库 `.venv` 的解释器 `-m pytest`，
+`-p no:cacheprovider -W error -q --tb=line`，junit 落在平面外。末行原文：
+
+```
+2 failed, 1537 passed in 1880.61s (0:31:20)
+PYTEST_EXIT=1
+junit: tests=1539 failures=2 errors=0 skipped=0 time=1874.765
+```
+
+分母对得上：上一批记录的 1511 ＋ 本批新增 28 格 = 1539 = junit 的 `tests`，本批的门（93 例）一格都没红。
+两条红都在 `tests/test_task_worker.py`，且都不是 fixture 族：
+`test_worker_survives_host_crash_and_continues_long_stream`、
+`test_shutdown_reaps_detached_worker_without_resource_warning`；服务自己印出的第一句原因是
+`task_crashed ... error=worker execution lease expired before completion`（worker 子进程里的墙钟租约），
+断言落点是 `tests/test_task_worker.py:481: AssertionError: assert 'failed' == 'completed'`。
+
+⚠️ 归因没有做完，本批不假装做完：第九十一批以前整套是 1511 passed / exit 0，所以这两条红是**本次运行新出现的**，
+但「新出现」不等于「本批造成」。为此写了 `Temp/flaky108.py`（本批平面 `bd212a5` 与父平面 `b771eb0` 各把这两条
+单独重跑 3 次）。截至本记录写下时读到的只有本批平面那两跑：`run 1` 红
+`test_shutdown_reaps_detached_worker_without_resource_warning`、`run 2` 红
+`test_worker_survives_host_crash_and_continues_long_stream`——两跑各红 1 条而红的**不是同一条**，
+这是轮流倒下的形状，不是一条确定性失败；父平面那三跑的数字还没落地。
+因此本批只登记三件事：(1) 全量基线 `2 failed / 1537 passed / exit 1`，(2) 两条红的名字与它们自己印出的租约原因，
+(3) 单独重跑里倒下的是哪两条、以什么顺序。把它们写成「负载造成的」或「与本批无关」都超出证据，
+`Temp/flaky108.log` 落地后由下一批补一句归因，或在下一批的干净基线上再看这两条是否仍然出现。
+另外这一跑期间机器上还有别的存活 run（同一时刻数到 8 个 python 进程），所以 1880.61s 这个秒数不参与任何判据。
+
+### 8 下一批候选
+
+1. **§2 那半条记账仍等口径**（task #101）：`minicc/benchmarks.py:760`/`:821` 把宿主故障写成
+   `passed=False`。本批把「宿主根本建不出工作区」的形状又拓宽了一类（大小写折叠的同位键），
+   而 §2 已实测「模型一次都没跑、判决已经写成失败」那一格在 `e88aa4e` 上量过——需要用户定 NO-RESULT
+   口径才能动。
+2. **两条 shipped census 的分工要命名**（承第九十二批 §8 第 2 条）：第九十二批那条 census
+   自己实现判据（`tests/test_two_fixture_keys_must_share_one_workspace.py:178` 的
+   `path == other_path or other_path.startswith(path + "/") or …`），本批那条问主人；
+   第九十一批那条也已经问主人（`tests/test_a_fixture_must_be_text_the_workspace_can_hold.py:204-217`
+   收 `offenders[task["id"]] = str(exc)`），所以全仓库**只剩 `:178` 这一处手抄的配对判据**。
+   今天两人口结论一致（冲突 0 条），但**主人变宽时只有问主人的那条会跟着变宽**——本批的 W4 臂证的
+   就是这一点。下一步要么让 `:178` 去委托本批的检测器，要么在文档里写清两条各问哪种问题、各自的人口。
+3. **卷的身份关系不止大小写**（本批**未量**，不许写成结论）：macOS 的 APFS 还会折叠 Unicode
+   NFC/NFD 等价形式，`os.path.normcase` 不管这一层。要动必须先在同一纪律下实测「写两个等价拼法剩几项」，
+   再决定规则是否扩到那里。
+4. **重建污染**（承第九十二批 §8 第 3 条）：全量跑自己会刷新 `build/lib/`（第九十二批量到 75 份 `.py`），
+   未清理的重建是否会把删改名前的源带进 wheel，本批未量。
+5. **`test_the_identity_question_is_the_hosts_own_function` 问的是词，不是行为**（本批 W1 臂实测到的洞）：
+   那条门用 AST 判「主人的身体里有没有 `normcase` 这个词、有没有 `.lower(`」，W1 只把 `location` 里的
+   调用换成不归一化，词还留在同一个函数体里，于是它预测红、实际绿（§6 表里少的那一格）。
+   改法是让它问行为：同一份 fixture 在「身份」与「折叠」两种供给政策下必须给出不同答案、
+   且每个答案与主人的一致；禁手写 `.lower(` 那一半保留不动。
