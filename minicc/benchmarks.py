@@ -144,6 +144,14 @@ def load_tasks(path: Path = DEFAULT_FIXTURES) -> list[dict[str, Any]]:
             raise ValueError("每个评测任务必须包含非空 id")
         if task["id"] in seen:
             raise ValueError(f"评测任务 id 重复: {task['id']}")
+        # A task may declare one objective check, not two: the runner's grader branch wins
+        # and the other is dropped without a word, so a task carrying both scores less than
+        # its author thinks it does.
+        if task.get("grader") and task.get("verify_command"):
+            raise ValueError(
+                f"评测任务 {task['id']} 同时声明 grader 与 verify_command，"
+                f"其中 verify_command 会被 grader({(task['grader'] or {}).get('type')!r}) 静默丢弃"
+            )
         seen.add(task["id"])
     return raw
 
