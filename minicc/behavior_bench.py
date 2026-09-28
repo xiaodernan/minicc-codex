@@ -94,18 +94,41 @@ sys.stdout.write("MINICC_BEHAVIOR_COMPLETE:" + str(len(data["cases"]) + len(data
 '''
 
 
+#: Keys the answer-rubric grader reads for itself. ``HOST_READ_KEYS`` covers what the
+#: dispatcher reads off the same dict. Reconciled against this function's own AST by
+#: tests/test_rubric_vocabulary_is_branch_scoped.py - a declaration nobody checks is how
+#: the merged list started out.
+RUBRIC_SPEC_KEYS = frozenset({"required_any"})
+
+
+def grade_answer_rubric(task: dict[str, Any], answer: str = "") -> dict[str, Any]:
+    """Grade a text answer against required-any groups; the only reader of the rubric spec.
+
+    Split out of ``grade_behavior`` so its vocabulary has a branch-sized subject: while
+    both graders shared one function, the only list derivable from it was the union of
+    their keys, which silently accepted ``cases`` in a rubric and ``required_any`` in a
+    behaviour spec.
+    """
+    grader = task.get("grader") or {}
+    unknown = sorted(set(grader) - RUBRIC_SPEC_KEYS - bench_tasks.HOST_READ_KEYS)
+    if unknown:
+        return bench_tasks.spec_verifies_nothing(
+            "answer_rubric", f"answer_rubric spec has keys nobody reads: {unknown}")
+    folded = answer.casefold()
+    groups = grader.get("required_any") or []
+    if not groups:
+        # An empty rubric verified nothing and answered passed=False, charging the
+        # agent for the grader's own blank spec.
+        return bench_tasks.spec_verifies_nothing(
+            "answer_rubric", "answer_rubric lists no required_any groups: nothing was checked")
+    passed = all(any(str(term).casefold() in folded for term in group) for group in groups)
+    return {"passed": passed, "grader_type": "answer_rubric", "case_count": len(groups)}
+
+
 def grade_behavior(task: dict[str, Any], workspace: Path, answer: str = "") -> dict[str, Any]:
     grader = task.get("grader") or {}
     if grader.get("type") == "answer_rubric":
-        folded = answer.casefold()
-        groups = grader.get("required_any") or []
-        if not groups:
-            # An empty rubric verified nothing and answered passed=False, charging the
-            # agent for the grader's own blank spec.
-            return bench_tasks.spec_verifies_nothing(
-                "answer_rubric", "answer_rubric lists no required_any groups: nothing was checked")
-        passed = all(any(str(term).casefold() in folded for term in group) for group in groups)
-        return {"passed": passed, "grader_type": "answer_rubric", "case_count": len(groups)}
+        return grade_answer_rubric(task, answer)
     if grader.get("type") != "python_behavior":
         return {"passed": None, "grader_type": "ungraded"}
     unknown = bench_tasks.unverifiable_spec_keys("python_behavior", _GRADER, grader)
