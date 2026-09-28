@@ -6739,3 +6739,82 @@ census 用 AST 从源码推导，两个方向都答：
 4. `tool_repeat_rate` 恒 null（task #83），等用户口径：删干净，还是真算并写主。
 5. `grading_refusal_count`／`reviewer_false_negative_count` 进 `bench_compare.GATE_METRICS`，需要方向与阈值口径。
 6. 「通过／判不了／没评分器」三分口径在文档里还没有一处统一命名；判决路径的 `grader_type` 只有第七十三批新写的那一条读者（`tests/test_benchmark_runner.py:108` 从不读它）。
+## 第七十五批 M8-T90：规格里没东西可查的合同，既不许判 pass 也不许判 fail
+
+代码 `d7cbc2a`（本记录随其后追加）。编号说明：`M8-T90` 这个号是第七十四批 §7 我自己预留的前向引用（HEAD 上没有任何标题用过它，`M8-T999` 是文档里的哨兵），本批填的就是它。
+
+### 1 缺陷：空合同自己给自己发通过标记
+
+在 `2a6dd09` 平面**直接调用出厂的生产者**量到两条：
+
+| 规格 | 旧平面返回 | 这句话的意思 |
+| --- | --- | --- |
+| `{"command": ""}` | `{'passed': True, 'grader_type': 'command_contract', 'exit_code': 0}` | `cmd /c ""` 退出 0，嵌入式评分器照样印标记 ⇒ 什么都没干的目录被判「做对了」 |
+| `{"command": "   "}` | 同上 `passed: True` | 同一扇门 |
+| 没有 `command` 键 | `{'passed': False, ..., 'exit_code': 1}` | 评分器读不懂规格，却记在智能体头上＝M8-T83 那一族 |
+
+`file_contract` 的 `files=[]` 是同一形状（第七十二批已量到 `{'passed': True, 'case_count': 0}`），当时只在**指标层**加了守卫，生产者照旧说 pass。本批把这扇门在生产者处关掉。
+
+语料 populate 情况：`benchmarks/tasks.v2.json` 24 条里 file_contract 17、command_contract 7（7 条的 command 都是 `{python} -m pytest -q test_*.py`，非空）。⇒ 空规格今天没有任务用到，但它是 `validate_task` 放得进来的形状（`minicc/bench_tasks.py:86` 只查 `grader.type` 在不在 `GRADER_TYPES`，不查规格里有没有活要干）。所以登记为**产品可构造、语料未 populate**，不是已在危害。
+
+### 2 改法：判不了就说判不了，并且说清是哪一半空着
+
+两条合同生产者在派子进程**之前**返回 `_no_result(...)`，理由里点名空的键（`files` / `command`）——不点名的拒绝是一句耸肩，读者没法修任务。文件：`minicc/bench_tasks.py:318`（守 `files`，返回在 `minicc/bench_tasks.py:321`）、`minicc/bench_tasks.py:368`（守 `command`，返回在 `minicc/bench_tasks.py:371`）。
+
+`grade_command_contract` 里原来的 `if isinstance(command, str):` 分支随守卫消失（能过守卫的一定是 str），顺手收成无条件渲染，少一个不会再出现的形状。
+
+### 3 三条老夹具是修掉的，不是顺手改的
+
+`tests/test_grader_no_result_channel.py:99`、`tests/test_grader_cannot_run_is_no_result.py:84` 原来用 `files=[]`（或一个同时带 `files` 与 `command` 的怪 task）当「便宜的规格」去走 **exit-2 通道**与**宿主故障通道**。新守卫会在它们要测的那一步之前先把规格拒了 ⇒ 这两条测试会继续绿，但绿的是我的新门，不是它们声明的那条通道（＝第六十九批记的「两个修复会互相掩盖」）。现在两处都按 `grader_name` 给真规格（一条存在的文件 / 一条可跑的命令），旧平面与新平面都绿，测的还是自己那条门。
+
+### 4 门：`tests/test_grader_with_nothing_to_check_is_no_result.py`（6 个函数 / 10 条案例）
+
+- 三种空形状 × 两条合同（缺键、空值、空白值）走 `grade_v2` 的真实分派，不许出现在 `passed` 上的任何值；`refusal` 必须点名空的键；键集合仍是 `NO_RESULT_KEYS`。
+- **生产者名单由出厂常量推导**：`test_every_shipped_contract_kind_is_covered_by_the_empty_spec_table` 拿 `bench_tasks.GRADER_TYPES` 与表里的类型集合对账，第三种合同类型加进来而没带空规格见证 ⇒ 当场红。
+- **拒绝不许碰子进程**：把 `bench_tasks._run_grader` 替成「一被调用就抛」，拒绝路径必须根本不调它。
+- 正面控制两条（一条真文件、一条真命令）仍然拿到 `passed=True` 且没有 refusal——拒绝不许变成抹掉绿字段的门。
+- 报告读者那条：真生产者产出的 refusal 行进 `build_report` 后 `grading_refusal_count == 1`、`gradable_task_count == 0`、`false_completion_rate is None`（M8-T81 的老规矩：判不了必须有读者）。
+- 第七十二批那条「生产者不变异就交回 passed=True」的见证**按新事实改写**：现在断言真生产者拒绝，同时保留指标层对「手造/历史 oracle 报 0 case」的拒绝（那条路径仍然可达，历史 results JSON 里的行没人重写）。
+
+### 5 反向对照与变异
+
+未修平面（`2a6dd09` 的 worktree + 最终四个测试文件）：**8 failed / 43 passed**，8 条红＝6 个形状 + 报告读者那条 + 改写后的第七十二批见证。⚠️第一版是 8 红但名单不对：我把 `pytest.param` 套在里层列表里，展平后传给测试的是 `ParameterSet` 对象（`'ParameterSet' object has no attribute 'get'`），另有一条正面控制我给了 `files: ["notes.md"]`——合同项要求的是 `{"path": ...}` 字典，我凭空发明的形状让控制格红了。两次都是我的夹具，不是代码。
+
+变异 5 臂，定向集 4 个文件 51 条案例，未变异控制 `51 passed`、`rc=0`，`restored: True`：
+
+| 臂 | 改动 | 红数 | 备注 |
+| --- | --- | --- | --- |
+| N1 | 关掉 `files` 守卫 | 4 | 3 个形状 + 改写后的第七十二批见证 |
+| N2 | 关掉 `command` 守卫 | 4 | 3 个形状 + 报告读者那条 |
+| N3 | 拒绝理由不再点名 `files` | 3 | 只有三个形状红 ⇒ 「说了哪一半空着」是独立一条判据 |
+| N4 | `command` 守卫改记 `passed=False` | 4 | 恢复旧缺陷形状仍可抓 |
+| N5 | 只查类型、不查 `strip()` | 3 | 预测 2 条，**多 1 条**：报告读者那条也红了 |
+
+⚠️N5 的多出来那条不是噪声：把空白命令当命令，`test_a_refused_empty_contract_reaches_the_report_as_a_refusal` 就拿不到 refusal。⇒ 一个合取项失效会同时打到「形状表」和「报告有读者」两层，预测要按「谁读这个值」列，而不是按「哪条测试名字相关」。
+
+### 5.5 一次改名把已发布记录的证据指针扯断了（9 红，一个原因）
+
+第一次全量跑（`d7cbc2a`）红 9 条：`tests/test_doc_pointers.py` 六条 + `tests/test_pointer_liveness_corpus.py` 三条，报错全指向同一行
+——`DANGLING EVIDENCE ROADMAP_TO_PRODUCT.md:6553`，即第七十二批 §4 里那条见证的名字。本批把它的语义从「生产者交回
+vacuous pass」改成「生产者拒绝空合同」并改了名，于是**文档引用了一个仓库里已经不存在的测试名**。这是「新写的测试
+自己就是一个站点」的反向形态：**改名的测试也是站点**，而且它的读者在上游文档里。
+
+修法不是把名字改回去（旧名字现在会撒谎），也不是把那一节删掉（历史要留着读）：`f30a5b4` 只动一行（1 insertion /
+1 deletion，lone_lf 仍 0），把引用换成新名并注明「旧证名已退役，所以这里也不能再写它」——**注释里重复一个死名字
+仍然是死名字**，所以退役的标识符不能再进任何 code span。改后 `doc_pointers --check` rc=0，两条指针套件
+**65 passed**（跑测 84.05s）。
+
+### 6 基线
+
+干净平面（worktree 于 `f30a5b4`，即代码 `d7cbc2a` + 那一行文档更正）+ `PYTHONPATH` 指过去、独立 basetemp 与独立日志：**1311 passed in 523.16s (0:08:43)**，`PYTEST_EXIT=0`，数字取自日志自己的页脚。上一批 1301 ⇒ +10 正好等于新门文件收集的 10 格。
+
+⚠️第一次全量（代码 `d7cbc2a` 之后、文档更正之前）是 **9 failed / 1302 passed / PYTEST_EXIT=1**，那一轮不许当基线引用：9 条红的唯一原因是 §5.5 那条被改名的见证名在已发布记录里悬空。修完才拿到上面那一行。
+
+### 7 下一批候选（M8-T91 起）
+
+1. **`validate_task` 与生产者各管一半**：任务加载允许空 `files`/空 `command` 进来，是生产者在本批把它挡住。要么让加载期就拒（早、便宜、报错点名任务 id），要么把「生产者挡住」写成正式边界并让 census 要求每条合同生产者都有空规格见证（现在只有 `GRADER_TYPES` 两个）。
+2. 合同项的形状没人名：`files: ["notes.md"]`（字符串而非 `{"path": ...}`）在我这次实验里得到 `passed=False, exit_code=1`——评分器读不懂规格又记在智能体头上，与第 1 条同一族。现网 populate 情况刚量过：`benchmarks/tasks.v2.json` 的 17 条 file_contract 一共 **28 个合同项，畸形 0 个**，键集合是 `path` + `contains`/`equals`/`exists`/`json_equals`/`not_contains`/`regex` ⇒ 这条是**构造可达、语料 0 条**。要不要收进加载期校验（`validate_task` 今天只看 `grader.type`）是下一步的题，不许写成已在危害。
+3. `_objective_oracle`（`minicc/benchmarks.py:83`）仍把 `grader_type` 摘掉 ⇒ M8-T87 的零 case 判据只能靠「有没有 `case_count`」分支；`command_contract` 不报 `case_count`（标记只在渲染出的命令真跑过之后才印），那支是信任不是门。本批之后这条信任多了一条支撑（空命令已被拒绝），但「谁判的」这个信息仍然在 oracle 里失踪。
+4. `build_report:180` 的 `grader_type` 兜底会凭任务规格发明评分器名（构造可达、语料未 populate）；改法要口径。
+5. 判决路径的 `grader_type` 只有第七十三批那条新读者；`grading_refusal_count`／`reviewer_false_negative_count` 进 `GATE_METRICS` 要方向与阈值口径；三分口径在文档里没有统一命名。
+6. **等用户口径**（task #83）：`repeated_tool_calls` 有人读、没人写 ⇒ `tool_repeat_rate` 恒 null；本批它继续作为行 census 的唯一活豁免被双向守着。
