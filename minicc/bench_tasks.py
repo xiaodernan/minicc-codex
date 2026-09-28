@@ -134,6 +134,14 @@ def require_writable_fixture(task: dict[str, Any]) -> None:
     agent got one file where the author wrote two, and no error anywhere),
     ``"a.txt"`` together with ``"a.txt/b.txt"`` left a half-built workspace holding only
     ``a.txt``, and ``"d/x"`` together with ``"d"`` raised ``PermissionError``.
+
+    Two keys are compared by the **location they name**, not by their spelling, because identity
+    is the host's own property: measured on this plane (case-insensitive volume) ``"A.txt"`` with
+    ``"a.txt"`` left a workspace holding one file whose content was the later value and raised
+    nothing, and ``"p/q.txt"`` with ``"P/Q.txt"`` did the same, while ``"P"`` with ``"p/q.txt"``
+    raised ``FileExistsError`` after writing ``P`` and ``"p/q.txt"`` with ``"P"`` raised
+    ``PermissionError``. ``os.path.normcase`` is therefore asked per segment for the comparison
+    only; the refusal still quotes the two spellings the author wrote.
     """
     task_id = task.get("id") if isinstance(task, dict) else None
     fixture = task.get("fixture") if isinstance(task, dict) else None
@@ -171,19 +179,27 @@ def require_writable_fixture(task: dict[str, Any]) -> None:
 
     # Every pair, in both directions, over the whole set: dict order must never decide whether
     # a task loads, and one position may only be written once.
+    #
+    # `normcase` is applied per segment, never to the whole path: on a Windows volume it also
+    # rewrites "/" to "\\", which would make the parent/child prefixes below stop matching.
+    def location(path: str) -> tuple[str, ...]:
+        return tuple(os.path.normcase(segment) for segment in path.split("/"))
+
     for position, (path, relative) in enumerate(authored):
+        here = location(path)
         for other_path, other_relative in authored[position + 1:]:
-            if path == other_path:
+            there = location(other_path)
+            if here == there:
                 raise ValueError(
                     f"任务 {task_id!r} fixture 键 {relative!r} 与 {other_relative!r} 在工作区里是同一个位置，"
                     "后写的会静默盖掉先写的"
                 )
-            if other_path.startswith(path + "/"):
+            if there[: len(here)] == here:
                 raise ValueError(
                     f"任务 {task_id!r} fixture 键 {relative!r} 占用了 {other_relative!r} 的父目录，"
                     "两份内容写不进同一个工作区"
                 )
-            if path.startswith(other_path + "/"):
+            if here[: len(there)] == there:
                 raise ValueError(
                     f"任务 {task_id!r} fixture 键 {other_relative!r} 占用了 {relative!r} 的父目录，"
                     "两份内容写不进同一个工作区"
