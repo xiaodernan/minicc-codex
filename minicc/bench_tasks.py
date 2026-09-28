@@ -315,6 +315,10 @@ def grade_file_contract(
 ) -> dict[str, Any]:
     spec = task.get("grader") or {}
     files = spec.get("files") or []
+    if not files:
+        # An empty list prints its own completion marker for zero files, so the
+        # contract would grade a workspace it never opened.
+        return _no_result("file_contract", "file_contract lists no files: nothing was checked")
     try:
         result = _run_grader(
             "file_contract.py", _FILE_CONTRACT_GRADER,
@@ -361,15 +365,18 @@ def grade_command_contract(
     """
     spec = task.get("grader") or {}
     command = spec.get("command")
-    if isinstance(command, str):
-        # Render here, in-process and once. The embedded grader used to do this
-        # itself, unquoted, which is how a correct workspace came back failed on
-        # a default Windows install: ``C:\Program Files\...\python.exe`` was
-        # split at the space and cmd.exe reported "C:\Program 不是内部或外部命令".
-        spec = {
-            **spec,
-            "command": render_python_command(command, python_executable or sys.executable),
-        }
+    if not isinstance(command, str) or not command.strip():
+        # ``cmd /c ""`` exits 0 and the embedded grader prints its marker, so an
+        # empty command graded an untouched workspace as correct work.
+        return _no_result("command_contract", "command_contract has no command to run")
+    # Render here, in-process and once. The embedded grader used to do this
+    # itself, unquoted, which is how a correct workspace came back failed on
+    # a default Windows install: ``C:\Program Files\...\python.exe`` was
+    # split at the space and cmd.exe reported "C:\Program 不是内部或外部命令".
+    spec = {
+        **spec,
+        "command": render_python_command(command, python_executable or sys.executable),
+    }
     try:
         result = _run_grader(
             "command_contract.py", _COMMAND_CONTRACT_GRADER,

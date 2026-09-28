@@ -96,7 +96,13 @@ def test_exit_2_maps_to_no_result_for_both_graders(
         return subprocess.CompletedProcess(args=[], returncode=2, stdout="", stderr="refusal line")
 
     monkeypatch.setattr(bench_tasks, "_run_grader", refused)
-    task = {"grader": {"type": "command_contract", "files": [], "command": "python x.py"}}
+    # A spec with work in it: since M8-T90 an empty files list / missing command is
+    # refused before the subprocess, which would test this mapping with the wrong door.
+    task = {"grader": (
+        {"type": "file_contract", "files": [{"path": "a.txt", "exists": True}]}
+        if grader_name == "grade_file_contract"
+        else {"type": "command_contract", "command": "python x.py"}
+    )}
     graded = getattr(bench_tasks, grader_name)(task, tmp_path, grader_dir=tmp_path / "graders")
     assert graded["passed"] is None, graded
     assert graded["grading_refused"] is True

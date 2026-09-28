@@ -80,8 +80,13 @@ def test_an_unrunnable_grader_stops_writing_the_key_that_shadowed_the_agent_erro
         raise OSError("cannot start")
 
     monkeypatch.setattr(bench_tasks, "_run_grader", unable)
+    # The task has to carry work for the grader under test: since M8-T90 an empty
+    # spec is refused before the subprocess, so a bare files=[] / no-command task
+    # would measure that guard instead of this host-failure channel.
+    task = (_file_task(files=[{"path": "a.txt", "exists": True}])
+            if grader_name == "grade_file_contract" else _command_task())
     graded = getattr(bench_tasks, grader_name)(
-        _file_task(), tmp_path, grader_dir=tmp_path / "graders")
+        task, tmp_path, grader_dir=tmp_path / "graders")
     assert "error" not in graded, graded
     assert set(graded) == NO_RESULT_KEYS, graded
 

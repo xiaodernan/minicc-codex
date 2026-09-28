@@ -151,17 +151,24 @@ def test_a_case_count_that_is_not_a_measurement_does_not_qualify(broken: object)
     assert metrics["reviewer_false_negative_count"] == 0, broken
 
 
-def test_the_vacuous_pass_comes_from_the_real_grader_not_from_my_dict(tmp_path: Path) -> None:
-    """The producer, unmutated, hands back passed=True having checked nothing."""
+def test_the_real_producer_refuses_an_empty_contract(tmp_path: Path) -> None:
+    """M8-T87 guarded the metric; M8-T90 closes the same vacuous pass at the source.
+
+    The claim changed: on ``2a6dd09`` this producer handed back ``passed=True`` with
+    ``case_count == 0`` for ``files=[]``, so the metric guard was the only thing
+    standing. Now the contract is refused before the grader runs, and the metric
+    still refuses a hand-built or legacy oracle that reports zero cases.
+    """
     workspace = tmp_path / "ws"
     workspace.mkdir()
     graded = bench_tasks.grade_file_contract(
         {"id": "t", "grader": {"type": "file_contract", "files": []}},
         workspace, grader_dir=tmp_path / "graders",
     )
-    assert graded["passed"] is True and graded["case_count"] == 0, graded
-    metrics = _report([_capped("t", graded)])["metrics"]
-    assert metrics["reviewer_false_negative_count"] == 0, metrics
+    assert graded["passed"] is None and graded["grading_refused"] is True, graded
+    assert _report([_capped("t", graded)])["metrics"]["reviewer_false_negative_count"] == 0
+    legacy = _capped("t", {"passed": True, "case_count": 0})
+    assert _report([legacy])["metrics"]["reviewer_false_negative_count"] == 0
 
 
 def test_the_zero_case_rule_reads_a_key_the_producer_really_emits() -> None:
