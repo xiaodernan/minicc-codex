@@ -7010,3 +7010,68 @@ A4 的教训写下来：**「某种读形是某批键的唯一来源」这种断
 2. `grading_refusal_count`／`reviewer_false_negative_count` 进 `bench_compare.GATE_METRICS`：要方向与阈值口径。
 3. 三分口径（通过／判不了／没评分器）在文档里仍无统一命名；`review_rounds` 进了报告行但 markdown 一格没印。
 4. **等用户口径**（task #83）：`repeated_tool_calls` 有人读、没人写 ⇒ `tool_repeat_rate` 恒 null；它是行 census 的唯一活豁免。
+## 第七十九批 M8-T94：行为评分器的空规格与拼错的键，同样是「没人看过这份工作区」
+
+代码 `4075cfa`（本记录随其后追加）。编号说明：`M8-T94` 之前只在任务队列里出现，HEAD 文档中无任何标题占用。
+
+### 1 缺陷：两条空规格各朝一个方向撒谎
+
+在 `756b24d` 平面**调出厂的 `grade_behavior`**（python_behavior 那条配了真的 `solution.py`，避免把「没有解答文件」混进来）：
+
+| 规格 | 旧平面返回 | 这句话的意思 |
+| --- | --- | --- |
+| `answer_rubric`，`required_any: []` | `{'passed': False, 'grader_type': 'answer_rubric', 'case_count': 0}` | 空白评分标准被记成智能体失败 |
+| `answer_rubric`，缺 `required_any` | 同上 `passed: False` | 同一条门 |
+| `python_behavior`，`cases: []` | `{'passed': True, 'case_count': 0, 'exit_code': 0}` | 零个用例也印得出完成标记 ⇒ 空目录被判「做对了」 |
+| `python_behavior`，`casez: []`（拼错） | `{'passed': True, 'case_count': 1}` | 少跑一项而没人说＝M8-T92 同形 |
+
+`bool(groups) and all(...)` 那句把「没标准」和「标准没满足」压成同一个 False；`count` 为 0 时标记是 `MINICC_BEHAVIOR_COMPLETE:0`，宿主照样按 `count` 拼出同一串去匹配。⇒ 这是 M8-T87／M8-T90／M8-T92 那条弧的第三、第四个入口。
+
+语料 populate：`benchmarks/behavior-tasks.json` 12 条全是 python_behavior，每条 `cases` 3–5 个、`raises` 0–2 个、`function`/`preserve_inputs` 齐（census 亲量）；`answer_rubric` 在两份任务文件里 **0 条** ⇒ 空 rubric 与空 cases 是**产品可构造、语料 0 条**，不写成已在危害。
+
+### 2 改法：三种形状都在派子进程之前关门，构造仍只有一处
+
+`minicc/behavior_bench.py:102`（空 rubric）、`minicc/behavior_bench.py:112`（不认识键）、`minicc/behavior_bench.py:116`（cases+raises 皆空）三条都返回 `minicc/bench_tasks.py:412` 的 `spec_verifies_nothing`，它内部走 `_no_result` ⇒ M8-T83 那条「`grading_refused=True` 字面量只能出现在一处」的 census 照旧成立（新构造函数是委托，不是第二处字面量）。
+
+两处共用改造：
+- `_unverifiable_keys` 公开成 `minicc/bench_tasks.py:363` 的 `unverifiable_spec_keys`，行为模块复用同一份读形走查，不再抄第二个键清单；
+- `minicc/bench_tasks.py:355` 的走查学到一个新名字：行为脚本把 stdin 载荷叫 `data` 而不是 `spec`。不补这个，`python_behavior` 的词表是**空集**，12 条真任务会全部被判「不可验证」。
+
+### 3 门：`tests/test_behavior_spec_that_checks_nothing_is_no_result.py`（6 个函数 / 10 条案例）
+
+- 五种空/错形状 ⇒ `passed is None`、`grading_refused is True`、`refusal` 点名是哪一个键或哪一句「nothing was checked」、键集合恰好等于 NO-RESULT 四键。
+- 两条正面控制：一条真 `python_behavior`（2 cases + 1 raises + preserve_inputs）仍 `passed=True, case_count=3`；一条真 rubric（两组任一命中）仍 `passed=True, case_count=2`。拒绝不许变成吞掉合法评分。
+- 共用词表门：`grader_vocabulary("python_behavior", _GRADER)` 必须含 `function/cases/raises/preserve_inputs`，且明写「叫 `data` 不叫 `spec`」这一条是防自己退化成空词表。
+- 语料 census：12 条出厂行为任务全部可验证且非空（并断言读到 ≥10 条，防止 census 自己看不见东西就绿）。
+- 报告读者门：拒绝行进 `build_report` ⇒ `grading_refusal_count == 1`、`gradable_task_count == 0`。
+
+### 4 反向对照与变异（两处预测错都留下）
+
+未修平面（`756b24d` + 最终门文件）：**8 failed / 2 passed**。⚠️比预测多 1 条：出厂任务 census `test_every_shipped_behavior_task_is_verifiable` 在旧平面也红——旧词表对 `data` 一无所知，于是 12 条真任务全被判「不可验证」。⇒ 这条红不是缺陷证据而是**旧代码本来就看不见这个变量名**的证据，正向支持第 2 节的必要性。
+
+变异 4 臂，定向集 4 个文件 48 条案例，未变异控制 `48 passed` / `rc=0`，`restored: True`：
+
+| 臂 | 改动 | 红数 | 备注 |
+| --- | --- | --- | --- |
+| C1 | 关掉空 rubric 那条 | 2 | 两个 rubric 参数 |
+| C2 | 关掉零用例那条 | 3 | 两个参数 + 报告读者 |
+| C3 | 关掉不认识键那条 | 1 | ⚠️预测 2：census 不会红——**它调的是函数，不是那道门** |
+| C4 | 撤掉 `data` 变量名（回到只认 `spec`） | **8** | 除预测的 3 条外，另有 4 条**既有**行为测试与 1 条正面对照红 ⇒ 这个修复是承重的，而且被既有套件共同守着 |
+
+C4 是本批最强的证据：一个只被我新门点名的改动，同时让四条跑真子进程的老测试翻红——说明「词表为空 ⇒ 全部误拒」不是理论风险。
+
+### 5 这条弧到这里收口
+
+四种出厂评分器（`file_contract`、`command_contract`、`python_behavior`、`answer_rubric`）现在都在**判据之前**回答同一句话：规格里没有东西可查，或者规格里有谁也不读的键 ⇒ 判不了（NO-RESULT），既不算通过也不算失败，且报告里看得见。
+
+### 6 基线
+
+干净平面（worktree 显式建在 sha `4075cfa`）+ `PYTHONPATH` 指过去、独立 basetemp 与独立日志：**1349 passed in 403.19s (0:06:43)**，`PYTEST_EXIT=0`，数字取自日志自己的页脚。上一批 1339 ⇒ +10 正好等于新门文件收集的 10 格。
+
+### 7 下一批候选（M8-T95 起）
+
+1. **rubric 的键没人管**：本批只把词表门装在 `python_behavior`（它有嵌入式脚本，读形可精确扫出来）。`answer_rubric` 的读发生在进程内、与 `python_behavior` 同居一个函数，直接对函数做走查会把两支的键混成一份名单（实测 `grade_behavior` 里读到的键集合是 `required_any/cases/raises/function/preserve_inputs/type` 的并集）。要么拆函数各扫各的，要么把「词表按分支取」写成明确边界——不许用一份混合名单冒充严格。
+2. `build_report:180` 的 `grader_type` 兜底凭任务规格发明评分器名（显示层的谎；判据侧因名字对不上而不受骗）⇒ 要口径。
+3. `grading_refusal_count`／`reviewer_false_negative_count` 进 `bench_compare.GATE_METRICS`：要方向与阈值口径。
+4. 三分口径（通过／判不了／没评分器）在文档里仍无统一命名；`review_rounds` 进了报告行但 markdown 一格没印。
+5. **等用户口径**（task #83）：`repeated_tool_calls` 有人读、没人写 ⇒ `tool_repeat_rate` 恒 null；行 census 的唯一活豁免。
