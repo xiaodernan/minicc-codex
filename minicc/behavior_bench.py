@@ -121,8 +121,19 @@ def spec_blockers(task: dict[str, Any]) -> list[str]:
         unknown = sorted(set(grader) - RUBRIC_SPEC_KEYS - bench_tasks.HOST_READ_KEYS)
         if unknown:
             blockers.append(f"answer_rubric spec has keys nobody reads: {unknown}")
-        if not (grader.get("required_any") or []):
+        groups = grader.get("required_any") or []
+        if not groups:
             blockers.append("answer_rubric lists no required_any groups: nothing was checked")
+        for index, group in enumerate(groups):
+            if not isinstance(group, list) or not group:
+                blockers.append(
+                    f"answer_rubric required_any[{index}] 必须是非空 list，收到 {group!r}")
+                continue
+            for term in group:
+                if not isinstance(term, str) or not term.strip():
+                    blockers.append(
+                        f"answer_rubric required_any[{index}] 每一项必须是非空字符串，收到 {term!r}")
+                    break
     elif kind == "python_behavior":
         dead = bench_tasks.unverifiable_spec_keys("python_behavior", _GRADER, grader)
         if dead:
