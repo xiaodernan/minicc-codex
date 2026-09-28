@@ -6550,7 +6550,7 @@ T 号在 `HEAD` 上量到 `M8-T80..T84` 已用、`M8-T82` 归另一个存活 run
 
 ### 4. 门与见证
 
-`tests/test_metric_and_oracle_reach_report.py` 从 8 条函数扩到 14 条、收集 18 格（一条参数化占 5 格）。新增的六条各自只抓一个判据：零 case 不计数（`test_an_oracle_that_checked_zero_cases_is_not_a_false_negative`）、缺键不等于零 case（`test_a_missing_case_count_is_not_read_as_zero_cases`）、非测量的 case 数不配（`test_a_case_count_that_is_not_a_measurement_does_not_qualify` ×5）、**空合同见证走真评分器而不是我手造的 dict**（`test_the_vacuous_pass_comes_from_the_real_grader_not_from_my_dict`）、AST 对账 `case_count` 确实由 `minicc/bench_tasks.py` 里某个 `grade_*` 产出（`test_the_zero_case_rule_reads_a_key_the_producer_really_emits`）、note 必须把排除规则告诉读者（`test_the_zero_case_exclusion_is_told_to_the_reader`）。
+`tests/test_metric_and_oracle_reach_report.py` 从 8 条函数扩到 14 条、收集 18 格（一条参数化占 5 格）。新增的六条各自只抓一个判据：零 case 不计数（`test_an_oracle_that_checked_zero_cases_is_not_a_false_negative`）、缺键不等于零 case（`test_a_missing_case_count_is_not_read_as_zero_cases`）、非测量的 case 数不配（`test_a_case_count_that_is_not_a_measurement_does_not_qualify` ×5）、**空合同见证走真评分器而不是我手造的 dict**（`test_the_real_producer_refuses_an_empty_contract`（第七十五批 M8-T90 把这一格的前提从「生产者交回 vacuous pass」改成「生产者拒绝空合同」，因此改名；旧证名已退役，不再出现在仓库里，所以这里也不能再写它））、AST 对账 `case_count` 确实由 `minicc/bench_tasks.py` 里某个 `grade_*` 产出（`test_the_zero_case_rule_reads_a_key_the_producer_really_emits`）、note 必须把排除规则告诉读者（`test_the_zero_case_exclusion_is_told_to_the_reader`）。
 
 反向对照跑在 ac5dc88 的 `benchmarks.py` 原文上：**8 红 10 绿**，红格名单与预测逐条一致 —— 上面六条新门（含 5 个参数化格）全红，另两红是既有门 `test_the_false_negative_count_moves_with_the_rows` 与 `test_the_new_aggregate_is_explained_to_the_reader`（旧 note 没有 zero-case 那句）。
 
