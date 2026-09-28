@@ -6818,3 +6818,75 @@ vacuous pass」改成「生产者拒绝空合同」并改了名，于是**文档
 4. `build_report:180` 的 `grader_type` 兜底会凭任务规格发明评分器名（构造可达、语料未 populate）；改法要口径。
 5. 判决路径的 `grader_type` 只有第七十三批那条新读者；`grading_refusal_count`／`reviewer_false_negative_count` 进 `GATE_METRICS` 要方向与阈值口径；三分口径在文档里没有统一命名。
 6. **等用户口径**（task #83）：`repeated_tool_calls` 有人读、没人写 ⇒ `tool_repeat_rate` 恒 null；本批它继续作为行 census 的唯一活豁免被双向守着。
+## 第七十六批 M8-T91：嵌入式评分器的下标读，是上游欠下的承诺
+
+代码 `8f71343`（本记录随其后追加）。这是第七十五批 §7 第 2 条落地：那条当时只登记了现象（`files: ["notes.md"]` 得到 `passed=False`），本批把它变成一条从评分器源码推导的门。
+
+### 1 缺陷：评分器读不懂规格，判决却记在智能体头上
+
+`minicc/bench_tasks.py` 里两份合同评分器是以字符串形态出厂的子进程脚本，它们从 stdin 拿到 spec 之后这样读：
+
+```
+rel = str(item["path"]).replace("\\", "/")      # file_contract
+command = spec["command"]                       # command_contract
+```
+
+**下标读**意味着：键不在、或项不是 dict，子进程当场 TypeError/KeyError 退出非零，而宿主把它翻译成「工作区没过」。实测（`e8c3db5` 平面，调真生产者）：
+
+```
+grade_file_contract({'files': ['notes.md']}) ->
+    {'passed': False, 'grader_type': 'file_contract', 'case_count': 1, 'exit_code': 1}
+```
+
+`command` 那一半第七十五批已经关掉了；`path` 这一半当时留在账上（本记录 §7 第 2 条），现在关掉。
+
+语料 populate 同时量了：`benchmarks/tasks.v2.json` 17 条 file_contract 共 **28 个合同项，畸形 0**，出现过的键是 `path` 加 `contains`/`equals`/`exists`/`json_equals`/`not_contains`/`regex` ⇒ **构造可达、语料 0 条**，不写成已在危害。
+
+### 2 改法：生产者保证自己即将下标读的键
+
+`grade_file_contract`（`minicc/bench_tasks.py:313`）在 `if not files`（`minicc/bench_tasks.py:318`）之后加一条：每个 `files` 项必须是带非空字符串 `path` 的 dict，否则在派子进程**之前**返回 `_no_result("file_contract", "file_contract items need a non-empty string path")`（`minicc/bench_tasks.py:322`、`minicc/bench_tasks.py:327`）。拒绝理由继续点名是哪个键——第七十五批立的规矩。
+
+### 3 门：`tests/test_grader_spec_reads_have_keepers.py`（9 个函数 / 10 条案例）
+
+判据两端都从源码取，不手抄清单：
+
+- **种群**：所有模块级、名字以 `_GRADER` 结尾的字符串常量，逐个 `ast.parse`（今天恰好两份，取不到就断言失败而不是空过）。
+- **承诺**：脚本里对 `spec`／`item`／`grader` 的**下标读**键名；先用同一函数里 `if "k" in item` 的**自我保护**排除（这排掉 6 个检查键，实测排除表由代码给出，不是我写的白名单）；剩下的量出 `{path, command}`。
+- ** Keeper 账本**：每个承诺要点名一个上游门（`grade_file_contract`／`grade_command_contract`），并且**那个门自己的源码必须提到这个键**——只把名字写进账本、门里已经不再提它，判红；反过来账本里列了一个评分器已经不再下标的键，也判红（陈行）。K5 那条变异（把 `item["path"]` 改成 `item.get("path")`）就是被这条抓住的。
+- **盲区**：读不懂的下标形状（例如 `spec[var]`）报 blind spot 并判红，沿用第七十四批的规矩。
+- 行为见证：字符串项／缺 `path`／空白 `path`／`None` 项都要 NO-RESULT 且 `refusal` 里出现 `path`；一条真文件 + `contains` 的合同仍然 `passed=True`（严格守卫不许吞掉合法的可选键，K3 就是试这个）；拒绝行进 `build_report` 后 `grading_refusal_count == 1`、`gradable_task_count == 0`。
+
+### 4 反向对照与变异
+
+未修平面（`e8c3db5` 的 worktree + 最终门文件，连第七十五批那 10 格一起跑）：**4 failed / 16 passed**。4 条红＝keeper 主门、账本命名门、畸形项 NO-RESULT、报告读者；第七十五批的 10 格在全绿（它们要的门本来就在 `e8c3db5`）。
+
+变异 5 臂，定向集 6 个文件 74 条案例，未变异控制 `74 passed` / `rc=0`，`restored: True`：
+
+| 臂 | 改动 | 红数 | 备注 |
+| --- | --- | --- | --- |
+| K1 | 关掉 `path` 守卫 | 4 | keeper 主门 + 账本命名 + 两条行为见证 |
+| K2 | 拒绝理由不再点名 `path` | 1 | 只有「refusal 里要出现 path」那条 |
+| K3 | 守卫过严（要求项里只有 `path`） | 19 | 见下条 ⚠️ |
+| K4 | `strip()` 换成 `is not None`（空白 path 仍放行） | 1 | 畸形项见证 |
+| K5 | 评分器把 `item["path"]` 改成 `.get` | 1 | 账本陈行那条 ⇒ 承诺消失时账本必须跟着销 |
+
+⚠️**两处预测错，都登记不藏**：
+1. K2 我预测 2 条红，实际 1 条——报告读者那条只断言 `grading_refusal_count`，它**不读 refusal 文本**。⇒ 预测要按「谁读这个值」列， metrics 层不读文字，就不该为文字红。
+2. K3 我预测 1 条红，实际 **19 条**，其中 18 条是既有门（`test_bench_tasks.py`、`test_grader_no_result_channel.py`、假 provider 那条端到端等）。这不是失控，是**过严守卫的爆炸半径本来就大**：仓库里大量门用「带可选检查键的项」当正例。⇒ 记成一条正向证据：新守卫的形状选择被既有门广泛覆盖。
+
+### 5 一条流程教训（写进 memory 的用户级规矩）
+
+`git worktree add --detach <path> HEAD` 我这次是在**主树**里跑的，而主树的 HEAD 是另一个存活 run 的 checkout（`ef5c1b5`）——建出来的「干净平面」根本不是我要验证的 `8f71343`。发现后立即 `worktree remove` + 重建，并改为**显式写 sha**。⇒ 在共享主树旁边建平面时，基线 commit 一律写 sha，不写 `HEAD`。
+
+### 6 基线
+
+干净平面（worktree 显式建在 sha `8f71343`）+ `PYTHONPATH` 指过去、独立 basetemp 与独立日志：**1321 passed in 513.24s (0:08:33)**，`PYTEST_EXIT=0`，数字取自日志自己的页脚。上一批 1311 ⇒ +10 正好等于新门文件收集的 10 格。
+
+### 7 下一批候选（M8-T92 起）
+
+1. 同一 census 的另一半还没做：**加载期 vs 评分期谁来保这些键**。今天 `path`/`command` 由生产者保，`validate_task`（`minicc/bench_tasks.py:86`）仍然只看 `grader.type`。要么把 census 的 keeper 账本逐步迁到加载期（早失败、报错点名任务 id），要么写成正式边界「评分承诺由生产者保」——现在这条边界是隐式的。
+2. `files` 里出现**未知检查键**（`{"path": "a", "typo_contains": "x"}`）今天会被静默忽略 ⇒ 合同少检查一项而没人说。同一族：`command` 里 `expect_exit`／`stdout_contains` 拼错也静默走默认。
+3. `_objective_oracle`（`minicc/benchmarks.py:83`）仍摘掉 `grader_type` ⇒ M8-T87 的零 case 判据只能靠「有没有 `case_count`」分支，`command_contract` 那支是信任不是门。
+4. `build_report:180` 的 `grader_type` 兜底凭任务规格发明评分器名（要口径）；判决路径的 `grader_type` 只有第七十三批那条新读者。
+5. `grading_refusal_count`／`reviewer_false_negative_count` 进 `bench_compare.GATE_METRICS`（要方向与阈值口径）；三分口径在文档里没有统一命名。
+6. **等用户口径**（task #83）：`repeated_tool_calls` 有人读、没人写 ⇒ `tool_repeat_rate` 恒 null；它是行 census 的唯一活豁免。
