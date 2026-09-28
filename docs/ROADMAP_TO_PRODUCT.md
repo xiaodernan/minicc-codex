@@ -6369,3 +6369,103 @@ A7 说明书退回只提 exit 2：1 红；A8 第二处手写拒绝行：1 红）
   「有写无读」的通用 census（写入键 21 / 被读 15）继续排队；legacy
   `verify_command` 的 `except (TimeoutExpired, OSError)` 仍记 `passed=False`，
   等一个口径决定。
+
+## 第七十批（M8-T85：失败原因走到了报告门口，报告读不到它 —— `error` 字段的读者）
+
+### 1 先量：上一批 §7 那张「8 个从不被读」的表，有一半是错的
+
+第六十九批收尾时我用 AST 顺手量了一次结果行的键（记在 第六十八批 §7），说 `build_report`
+只读 15 个键、剩下 8 个「从不被读」。这一批开头先把那张表按**三层**重问一遍（有没有读者 →
+读者在哪个平面 → 中间是否逐键重建把它挡在半路），逐条 grep 全仓核对。三条被自己的粗判绊倒：
+
+- `task_id`（写 632）**不是死字段**：`build_report` 第 142 行就用 `item.get("task_id")` 建
+  `by_id` 索引。我的普查脚本只统计行字典里的 `recorded.*` 读法，把「索引读」漏在了语法外。
+  ⇒ 又一次「**等式≠派生**」：判断「谁读这个键」的谓词，枚举的是我允许的语法形状，不是代码事实。
+- `grading_error`（原写 730）**早在 第六十八批就被删了**：全仓只剩文档与测试提到它，
+  `tests/test_grader_cannot_run_is_no_result.py` 的 `test_grading_error_has_no_writer_left`
+  正在守「零写主」。那张表把一条陈行当成待办。
+- `retained_workspace`／`cleanup_error`：前者写在 `docs/BENCHMARK_EVALUATION.md` 的承诺里
+  （超时后 fixture 目录保留并记这个键，供离线审计），**读者不在 `build_report` ≠ 没有读者**。
+
+真正剩下的两型，形状不同，别混在一起修：
+
+1. **有读者、但读者在落盘 JSON 那一层，报告看不见**：`error`／`review_rounds`／`objective_oracle`。
+   三者都被 146-167 的**逐键重建**丢弃——正是 M8-T81 已经点名的那格。
+2. **孤儿写（无平面的读者）**：`turns`（写 700）、`cleanup_error`（写 764）。其余 `["turns"]`
+   读的是 agent outcome／child 另一个字典，不是这条结果行。
+
+### 2 缺陷：一条 `failed` 不告诉你为什么失败
+
+`run_benchmark` 在四条终态路径上都写了原因——超时（`task timeout > Ns`）、`Exception`、
+`BaseException`（Ctrl+C 记 `interrupted`）、以及 outcome 自带的 agent error——写进
+`entry["error"]`。但 `build_report` 重建行时没有 `error` 这一格，`markdown_report` 的表只有
+`Task | Category | Status | Passed` 四列。于是人和模型读到的都是：
+
+```
+| t | regression | failed | False |
+```
+
+原因只活在 `results.json` 里，而那份 JSON 的读者是**测试**（`tests/test_benchmark_runner.py`
+150／243／298 直接读 `results[0]["error"]`），不是报告。**测试绿着，恰恰掩盖了报告少一列**：
+断言原因在的地方，不检查原因有没有走到人眼前。
+
+### 3 改法：抄送 + 渲染，两处各一行，复用已有形状
+
+- `build_report` 的行字典补 `"error": (str(recorded.get("error") or "")[:200] or None)`
+  —— 200 是**写主自己的界**（`entry["error"]` 三处都 `[:200]`），报告不另定一套截断口径。
+- `markdown_report` 的行循环里，非完成行把原因并进同一格：`verdict += f" [{str(row['error'])[:120]}]"`。
+  沿用该函数既有的「把细节并进 Passed 格」做法（评分拒绝的 `refusal` 已经这么印），**不加新列**，
+  免得改表头去动别的读者。
+
+范围只 `error`。`review_rounds`／`objective_oracle` 是**诊断深度**而非**真相缺失**（它们有落盘
+读者，且缺了不会把成功说成失败），留作后续；`turns`／`cleanup_error` 要先定口径（露出还是删写），
+不在本批替用户决定。
+
+### 4 门与见证
+
+新门 `tests/test_error_reaches_report.py`（4 条，纯 in-process，不起子进程——避免自己变成
+「新增需要钉两端父钉子」的站点）：
+
+| 断言 | 主张 |
+| --- | --- |
+| failed 行 | `row["error"] == "task timeout > 60s"` 且 markdown 那一行含同串 |
+| interrupted 行 | `KeyboardInterrupt` 同行可见 |
+| completed 行 | `error is None` 且单元格里**没有** `[`（不给成功行添噪） |
+| 400 字符原因 | 行里被截成 200，跟写主的界一致 |
+
+- **反向对照**：把 `benchmarks.py` 还原到未修平面（`git checkout HEAD -- ...`，只在 `wt70` 里做），
+  4 条全红，报 `KeyError: 'error'`。
+- **行为变异第一版是废的**：我先删掉 `verdict += ...` 整条语句，`if row.get("error"):` 下面没有体，
+  收集期 `IndentationError` → 0 条红。**语法错造成的红不算证据**（老规矩）。换成「语句留着、
+  追加内容改成空串」这一语法合法的变异后：2 条 markdown 断言红、2 条行断言绿——正是预测的分裂，
+  证明**渲染那一格自己承重**，不是搭行抄送的便车。
+- 未变异对照：还原后 4 绿。连同既有 `test_benchmark_runner.py`／`test_behavior_bench.py`／
+  `test_grader_cannot_run_is_no_result.py` 定向跑 **50 passed**。
+
+### 5 基线（在 `a02eafe` 的干净 worktree `wt70` 平面上量，单进程）
+
+**1249 passed**（`0 failed`，2020.26s）。对账：第六十九批基线 1245 + 本批 4 条新门 = 1249。
+`pytest -q` 不印通过用例名，所以「新文件跑到了」的证据是**计数 +4**，不是 grep 文件名（我先 grep
+到 0 命中，差点把一次真绿跑当成「没收集」）。
+
+### 6 编号说明
+
+批次：第六十九批 = M8-T84（上一批），本批 = **第七十批 / M8-T85**。
+T 号在 `HEAD` 上量到 `M8-T80..T84` 已用、`M8-T82` 归另一个存活 run（盘上格式版本读主那批），
+本批续到 **T85**。文档里另有一条 `M8-T999`（占位/哨兵，非真实任务号）。
+
+### 7 队列（下一批按顺序做）
+
+1. **`review_rounds`／`objective_oracle` 的同一条缝**：同形（逐键重建丢弃），但先想清楚报告里
+   该印什么——它们是「为什么不收敛」的诊断尾巴，不是对错结论，塞进 Passed 格会串味。
+2. **孤儿写 `turns`／`cleanup_error` 的口径**：`turns` 与已在行的 `tool_calls` 是兄弟，露出成本低；
+   `cleanup_error` 没有 `retained_workspace` 那样的文档承诺。要么补读者要么删写，别留着当装饰。
+3. **`tool_repeat_rate` 是恒 null 的死指标**（本批顺手量实）：`build_report` 在 158／175／213
+   读 `repeated_tool_calls` 并聚合成该指标，但**全 `minicc/` 没有写主**，agent 侧也只有
+   `tool_calls_total`，没有「重复」计数源。唯一碰它的 `tests/test_behavior_bench.py:38` 手工造
+   `{"tool_calls": 2, "repeated_tool_calls": 3}` 并断言结果为 `None`——**只测丢弃分支**，且造出来
+   的值本身是拒绝例（3 > 2）。⇒ 真实 run 里这个指标永远为 null，而报告把它当活指标列着。
+   改法是**口径/产品决定**（真算并写重复计数 vs 把读+指标+伪造字段一起删净），要用户点头。
+4. legacy `verify_command` 的 `except (TimeoutExpired, OSError)` 仍记 `passed=False`：两条来路
+   含义不同，拆不拆要先写口径。
+5. `grading_refusal_count` 进 `bench_compare.GATE_METRICS`：需要方向/阈值口径。
