@@ -190,6 +190,20 @@ def build_report(tasks: list[dict[str, Any]], results: list[dict[str, Any]] | No
             # show a reviewer false negative to a human.
             "objective_oracle": (recorded.get("objective_oracle")
                                  if isinstance(recorded.get("objective_oracle"), dict) else None),
+            # The rebuild is a second master of "which fields exist", so every key
+            # the runner can write has to appear here; a forgotten one is on disk
+            # and nowhere a human reads (M8-T89 census).
+            "turns": recorded.get("turns") if _measurement(recorded.get("turns")) else None,
+            "review_rounds": recorded.get("review_rounds")
+                             if _measurement(recorded.get("review_rounds")) else None,
+            "case_count": recorded.get("case_count")
+                          if _measurement(recorded.get("case_count")) else None,
+            # A grader killed by a signal reports a negative code, so this must not
+            # go through the nonnegative measurement guard the counts use.
+            "exit_code": recorded.get("exit_code")
+                         if type(recorded.get("exit_code")) is int else None,
+            "retained_workspace": (str(recorded.get("retained_workspace") or "")[:300] or None),
+            "cleanup_error": (str(recorded.get("cleanup_error") or "")[:200] or None),
             "metadata": recorded.get("metadata"),
         }
         rows.append(row)
