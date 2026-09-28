@@ -6666,3 +6666,76 @@ M6 的预测是 2 条，实测 1 条：既有那条测试从不读 `grader_type`
 4. `grading_refusal_count`／`reviewer_false_negative_count` 进 `bench_compare.GATE_METRICS`，需要方向与阈值口径。
 5. 未收口的小账：`turns`、`cleanup_error` 两条孤儿写；`review_rounds` 的印法；「通过／判不了／没评分器」三分口径在文档里还没有一处统一命名。
 6. 本批 M6 暴露的读欠：判决路径的 `grader_type` 只有 `tests/test_host_failure_is_not_a_verdict.py` 一个新读者，既有 runner 测试从不读它。要么给 `tests/test_benchmark_runner.py:108` 那条补读者（同一个字段两个路径各有各的读者才算收口），要么把它并进第 2 条那种「报告逐键重建时字段归属」的门一起处理。
+## 第七十四批 M8-T89：报告行不许是结果行的手抄子集
+
+代码 `716c5f7`（本记录随其后追加）。这是第七十批 census 那条「逐键重建会把字段丢掉」的收尾：把剩下的六个丢掉字段抄回来，并且把「谁丢的」变成一条按源码推导的门。
+
+### 1 缺陷：`build_report` 的行是结果行的手抄子集
+
+`build_report` 一个键一个键地重建每行（`minicc/benchmarks.py:164`），于是「结果行有哪些字段」这份知识有了第二个主人。在 `d784d2c` 平面用门自己的 census 量（写点的行号按本批平面 `716c5f7` 引，那之后多了 14 行）：
+
+| 层 | 数量 | 内容 |
+| --- | --- | --- |
+| runner 能写到结果行上的键 | 23 | 静态写点 19 个 + 4 个动态载体另带 `case_count`、`exit_code`、`grading_refused`、`refusal`（`passed`/`grader_type` 与静态重合） |
+| 修之前 `build_report` 的行抄走 | 19 | 缺下面六个 |
+| 修之后行抄走 | 25 | 19 + 六个，其中 `category`/`task_id` 来自任务规格而非 `recorded` |
+
+被丢掉的六个：`turns`（写 `minicc/benchmarks.py:759`）、`review_rounds`（写 `minicc/benchmarks.py:772`）、`case_count` 与 `exit_code`（经 `grade_v2`／`grade_behavior`／`grader_unable` 落到行上）、`retained_workspace`（写 `minicc/benchmarks.py:824` 与 `minicc/benchmarks.py:830`）、`cleanup_error`（写 `minicc/benchmarks.py:829`）。
+
+`retained_workspace` 不是装饰：`docs/BENCHMARK_EVALUATION.md:21` 明写「仍在运行的 fixture 目录会保留，并在结果中记录 `retained_workspace`」——承诺落在一句文档和一个 JSON 字段上，人读的那份报告里看不见。
+
+### 2 修法：六个都抄回来，守卫按字段自己的种类选
+
+计数类走模块自己的 `_measurement`（`minicc/benchmarks.py:86`）；两个文本类按 `error`／`refusal` 已有的办法截断；`exit_code` **故意不走非负守卫**：
+
+> 被信号杀掉的评分器返回的是负数退出码。用 `_measurement` 守它，抹掉的正好是人最需要看的那一例。
+
+这条选择不是审美：变异 M1 就是把它换成 `_measurement`，当场被 `test_a_recorded_field_reaches_the_report_row[exit_code]` 抓住。
+
+修完再量：行抄走 25 个键（六个 + 来自任务规格的 `category`/`task_id`），census 报「没人抄的写＝0」、「读了没人写＝只有 `repeated_tool_calls`」。
+
+### 3 门：`tests/test_result_row_reaches_report.py`（11 个函数 / 21 条案例）
+
+census 用 AST 从源码推导，两个方向都答：
+
+- **写了就必须抄走**。写点三种形状都数：`entry[k] = ...`、`entry = {...}`（含 `entry: dict[...] = {...}` 这种 **AnnAssign**）、`entry.update(...)`（字面量、关键字、以及动态载体）。
+- **动态载体要能展开**。`entry.update(grade_v2(...))` 的键要去 `minicc/bench_tasks.py` 读：返回字面量、返回局部变量（`_no_result` 的 `out: dict[str, Any] = {...}` 再 `out["exit_code"] = ...`）、返回另一个调用，三种都跟；`seen` 防递归。展不开的一律记成 **blind spot 并判红**——一条藏自己盲区的 census 就是空 grep 当绿的形状。
+- **读了就必须有人写**。报告从 `recorded` 读走的键要有人写，否则点名。只认 `.get()` 的**第一个**位置参数：`recorded.get("status", "not_run")` 里的 `"not_run"` 是默认值，把它当键会凭空发明一个字段（这是我第一版 census 的错，由门自己照红）。
+- **豁免必须活着**。`repeated_tool_calls` 是唯一被点名的洞：报告读它、喂 `tool_repeat_rate`，全仓库没有写主 ⇒ 该指标恒 null（task #83，改法是删还是真算，等用户口径）。豁免条目必须仍然「被读且不被人写」，洞补上了还留着豁免同样判红。
+- 行为见证：六个字段各自的类型样本要能从 `build_report` 的行里读到；没记过的行必须还是 `None`（不许把「没人记」印成 0 或空串）；`turns="12"`、`case_count=True` 这种非测量不许冒充。
+- 植入控制四条：写了没抄走的键要点名、展不开的载体要报盲区、读了没写的键要点名、已经不再描述洞的豁免要被拒。
+
+### 4 反向对照与变异
+
+未修平面（`d784d2c` 的 worktree + 最终门文件）：**14 failed / 7 passed**。7 条绿是盲区门、死读门、豁免活门和四条植入控制；14 条红＝1 条 census + 13 条行为见证（六个字段 × 两类见证 + 非测量那条）。
+
+⚠️第一版报的是 **18 failed / 3 passed**，其中 4 条红是我的 census 自己坏了两次：漏了 AnnAssign（于是 `metadata` 被当成「读了没人写」）、把 `.get` 的默认值当成键（于是 `not_run` 也被发明出来）。这两条红不证明生产缺陷，修门之后才有资格报数。
+
+定向集 9 个文件 133 条案例，未变异控制 `133 passed`、`rc=0`；5 臂全被抓，`restored: True`：
+
+| 臂 | 改动 | 红数 | 抓住它的门 |
+| --- | --- | --- | --- |
+| M1 | `exit_code` 改用非负守卫 | 1 | `reaches[exit_code]`（负退出码被抹成 None） |
+| M2 | `turns` 不守卫直接抄 | 1 | 非测量冒充那条 |
+| M3 | 整行删掉 `cleanup_error` | 3 | census + 两条 `cleanup_error` 见证 |
+| M4 | `review_rounds` 读一个错拼的源键 | 2 | 死读门 + `reaches[review_rounds]` |
+| M5 | `retained_workspace` 截断成 5 字符 | 1 | `reaches[retained_workspace]` |
+
+⚠️M4 我预测 3 条红、实际 2 条：漏预测的那条是「写了没抄走」那方向——行上的**键名**还在，只有取值读错了源键，所以那一门本来就管不着。这不是洞：两个方向合起来才覆盖「键名存在但永远取不到值」，M4 正是被另一个方向抓住的那条。登记为归属预测错，不改口径。
+
+### 5 基线
+
+干净 worktree（`git worktree add --detach` 于 `716c5f7`）+ `PYTHONPATH` 指过去，独立 basetemp 与独立日志：**1301 passed in 507.58s (0:08:27)**，`PYTEST_EXIT=0`，数字取自日志自己的页脚行。上一批 1280 ⇒ +21 正好等于新门文件收集的案例数。时长只作参考（本批定向集里同一套臂在 25s 与 45s 之间摆动），计数才是证据。
+
+### 6 口径
+
+报告行现在与结果行同宽（除 `category`/`task_id` 来自任务规格）。 markdown 表格仍只印 7 个键，其余走 `--json-out` 的报告 JSON——那是产品输出，不是调试文件；「印不印进 markdown」是另一个口径问题，见第 7 节第 3 条。
+
+### 7 下一批候选（M8-T90 起）
+
+1. `_objective_oracle` 把 `grader_type` 摘掉（`minicc/benchmarks.py:83`）：oracle 里「谁判的」没有读者，而 M8-T87 的零 case 判据只覆盖带 `case_count` 的合同——`command_contract` 型 oracle 没有 `case_count`，走「无键即算数」那条分支，它的 vacuous 情况现在没判据。
+2. `build_report` 的 `grader_type` 兜底（`minicc/benchmarks.py:180`）会凭**任务规格**发明一个没跑过的评分器名。实测 `run_benchmark` 每条路径都自己写这个键，唯一来路是 `--resume` 读入的历史 JSON（`minicc/benchmarks.py:653`）而 `_resume_matches`（`minicc/benchmarks.py:128`）要求 metadata 全等 ⇒ 构造可达、尚未 populate；改法要口径（兜底报 `ungraded` 还是替历史行猜）。
+3. 六个新字段进了报告 JSON，但 markdown 一行没印。要不要给 `retained_workspace`/`cleanup_error` 一格（超时保留目录正是人要处理的），是印法口径。
+4. `tool_repeat_rate` 恒 null（task #83），等用户口径：删干净，还是真算并写主。
+5. `grading_refusal_count`／`reviewer_false_negative_count` 进 `bench_compare.GATE_METRICS`，需要方向与阈值口径。
+6. 「通过／判不了／没评分器」三分口径在文档里还没有一处统一命名；判决路径的 `grader_type` 只有第七十三批新写的那一条读者（`tests/test_benchmark_runner.py:108` 从不读它）。
