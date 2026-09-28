@@ -7462,3 +7462,43 @@ F2 的多出来三条是好事：两扇门措辞相同不是注释承诺，是�
 2. `build_report:180` 的 `grader_type` 兜底（要口径）。
 3. GATE_METRICS 方向与阈值（要口径）；三分口径统一命名；`review_rounds` 的 markdown 印法。
 4. **等用户口径**（task #83）：`repeated_tool_calls` 恒 null。
+## 第八十八批 M8-T103：评分标准的一组必须是字符串列表，不能是裸字符串
+
+代码 `d695e91`（本记录随其后追加）。编号说明：`M8-T103` 之前只在第八十七批 §7 作为前向引用出现。
+
+### 1 缺陷：这条弧里第一个「变松而不是崩」的形状
+
+`grade_answer_rubric` 判的是 `any(str(term).casefold() in folded for term in group)`。于是：
+
+| 规格 | 旧平面实测 | 意思 |
+| --- | --- | --- |
+| `[["好"], "完成"]` | `passed=True, case_count=2` | 裸字符串被**按字符**迭代 ⇒ 答案里只要含其中一个字就算满足一组 |
+| `[[]]` | `passed=False` | 空组永远不满足 ⇒ 不可满足的要求记在智能体头上 |
+| `[[123]]`、`[{"term": "好"}]`、`[["   "]]` | `passed=False` | 非字符串成员/字典组/空白成员同样永不匹配 |
+
+前四批的形状要么崩要么静默少查，这一条是**静默变宽**：没有任何报错、也没有退出码异常，只有判定悄悄变松——最不容易被发现的一类，因此必须由门来说。出厂语料里 `answer_rubric` 任务 **0 条** ⇒ 构造可达、语料未 populate。
+
+### 2 改法：同一扇门（`spec_blockers`）继续做唯一主人
+
+`spec_blockers` 的 rubric 分支逐组检查：组必须是**非空 list**，组内每项必须是**非空字符串**，理由里点名 `required_any[下标]` 与实际值。装载门与判分门本来就同问 `spec_blockers`，所以两扇门一起获得这条规则，不需要新机制。
+
+### 3 门（`tests/test_rubric_groups_are_lists_of_strings.py`，4 函数 / 12 格）
+
+- 5 种坏形状 × 两扇门（装载期 `ValueError` 点名组下标与任务 id；判分期给 NO-RESULT 而不是判决）。
+- 良形状仍判：命中 ⇒ `passed=True`；不相关回答 ⇒ `passed=False` ⇒ 门不许把评分变成只会拒绝。
+- **本批最关键的一格**：一个单字答案不再满足「完成」这个两字要求，且裸字符串规格直接被拒——这条断言就是「变宽」的反例本身。
+
+### 4 反向对照与变异
+
+未修平面 `f2d9e4d`：**11 failed / 1 passed**（唯一绿是良形状那一格，旧平面本来就成立）。变异 2/2（定向 2 文件 20 格，控制 `20 passed`、`restored: True`）：P1 摘掉逐组循环 ⇒ 11 红；P2 摘掉成员检查 ⇒ 恰好 4 红（空白成员与非字符串成员在两扇门上的格）。预测名先 `--collect-only -q` 读回 ⇒ 连续第四批零幽灵差。
+
+### 5 基线
+
+干净平面**单独**跑（worktree 显式建在 sha `d695e91`，一个 pytest 进程、独立 basetemp `bt104full`、独立日志）：**1437 passed in 516.76s (0:08:36)**，`PYTEST_EXIT=0`，FAILED 行数 0；数字取自日志自己的页脚。上一批 1425 ⇒ +12 正好等于本批新门收集的 12 格。
+
+### 6 下一批候选（M8-T104 起）
+
+1. `python_behavior` 的 `args` 内容今天只查「是 list」，不查它是否可 JSON 序列化（评分器通过 stdin 传 JSON，集合/生成器会让子进程在 `json.dumps` 崩 ⇒ 又一格「评分器自己跑不动却记 passed=False」）。
+2. `build_report:180` 的 `grader_type` 兜底（要口径）。
+3. GATE_METRICS 方向与阈值（要口径）；三分口径统一命名；`review_rounds` 的 markdown 印法。
+4. **等用户口径**（task #83）：`repeated_tool_calls` 恒 null。
