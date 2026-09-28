@@ -7291,3 +7291,48 @@ F2 的多出来三条是好事：两扇门措辞相同不是注释承诺，是�
 2. 行为任务的 `function` 与 fixture `solution.py` 中函数名一致性（不一致时判分期已拒，但仍白跑一轮）。
 3. `build_report:180` 的 `grader_type` 兜底（要口径）；GATE_METRICS 方向与阈值；三分口径统一命名；`review_rounds` 的 markdown 印法。
 4. **等用户口径**（task #83）：`repeated_tool_calls` 有人读、没人写 ⇒ `tool_repeat_rate` 恒 null。
+## 第八十四批 M8-T99：任何装载门都不许收下「什么都没问」的任务
+
+代码 `894bdb8`（本记录随其后追加）。编号说明：`M8-T99` 之前只在第八十三批 §7 作为前向引用出现。
+
+### 1 缺陷：空 prompt 照样买单
+
+`run_benchmark` 把提示词读成 `str(current_task.get("prompt") or "")`（`minicc/benchmarks.py:725`）——**缺失、空串、纯空白、null、非字符串统统变成一条空消息**，然后照常起一轮 agent。`validate_task`（v2）早就拒绝这种任务，但那句检查是**内联**的，legacy 装载（`load_tasks`，今天只查 id 与重复）一点也没分到。
+
+出厂语料量过：三份任务文件（30 / 24 / 12 条）**prompt 全非空 ⇒ 静默任务 0 条** ⇒ 构造可达、语料未 populate。
+
+### 2 改法：规则搬进唯一主人 `require_prompt`
+
+`minicc/bench_tasks.py` 新增 `require_prompt(task)`（拒绝时点名任务 id 与「prompt 不能为空」）；`validate_task` 改成调用它（不再自己读 `task["prompt"]`），`load_tasks` 也调用它。于是这道规则只有一个主人，两扇门共用；门的位置仍然各套件自己决定（v2 还要求 `prompt` 在必备键里，所以缺键那一支会先报「任务缺少字段: prompt」——**两条消息都说 prompt**，结构门负责证明共享主人确实被走）。
+
+### 3 门（`tests/test_every_suite_requires_a_prompt.py`，6 函数 / 14 格）
+
+- 五种坏 prompt × legacy 装载 ⇒ 拒绝且点名 id（上一批教训：id 常量必须有辨识度，这里用 `quiet-task`）。
+- 同五形状 × v2 装载 ⇒ 同样拒绝（消息含 prompt）。
+- 正例：会提问的任务照样装载。
+- **唯一主人（AST）**：`load_tasks` 里确有 `require_prompt` 调用、`validate_task` 里确有 `require_prompt(...)` 且**不再出现自己下标读 `task["prompt"]`** ⇒ 第二个主人一旦出现就红。
+- **为什么需要这道门（AST）**：`run_benchmark` 里那句防御性 `get("prompt")` 必须还在 ⇒ 若有人改成硬失败，这条见证要求同步更新，而不是悄悄让门失去理由。
+- 语料 census：三份文件各 ≥10 条且 0 条静默；legacy 装载条数与文件条数相等。
+
+### 4 反向对照与变异
+
+未修平面 `d08b476`：**6 failed / 8 passed** —— 5 条 legacy 形状 + 唯一主人门；v2 的五条在旧平面**照绿**（那扇门本来就拒 ⇒ 旧缺口只在 legacy，登记清楚免得把绿当成覆盖）。
+
+变异 3 臂（定向 3 文件 34 格，控制 `34 passed`、`restored: True`）：
+
+| 臂 | 改动 | 红数 | 备注 |
+| --- | --- | --- | --- |
+| H1 | `load_tasks` 不再问主人 | 6 | 5 形状 + **唯一主人门**（我预测漏了这条：结构门本该同批炸） |
+| H2 | 去掉 `.strip()`（只剩真假判断） | 2 | 恰好 legacy[whitespace] 与 v2[whitespace] |
+| H3 | 在 `validate_task` 里再加一份内联检查 | 1 | 唯一主人门单独抓到 ⇒「第二个主人」是可侦测事件而不是风格 |
+
+### 5 基线
+
+干净平面**单独**跑（worktree 显式建在 sha `894bdb8`，一个 pytest 进程、独立 basetemp `bt100full`、独立日志）：**1396 passed in 361.80s (0:06:01)**，`PYTEST_EXIT=0`，FAILED 行数 0；数字取自日志自己的页脚。上一批 1382 ⇒ +14 正好等于本批新门收集的 14 格。
+
+### 6 下一批候选（M8-T100 起）
+
+1. 同一条思路还剩一处：`load_tasks` 不查 `category`（缺它时报告把任务归入 `uncategorized`，是**显示层的静默**）与 `verify_command` 的类型（非字符串会变成 `str()` 后的怪命令）。要么逐条收进 `require_*` 家族，要么把「legacy 只保证 id/prompt」写成明确边界。
+2. 行为任务 `function` 与 fixture `solution.py` 内函数名一致性（不一致时判分期已拒，但仍白跑一轮）。
+3. `build_report:180` 的 `grader_type` 兜底（要口径）；GATE_METRICS 方向与阈值；三分口径统一命名；`review_rounds` 的 markdown 印法。
+4. **等用户口径**（task #83）：`repeated_tool_calls` 有人读、没人写 ⇒ `tool_repeat_rate` 恒 null。
