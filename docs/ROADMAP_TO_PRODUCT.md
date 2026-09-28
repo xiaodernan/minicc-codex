@@ -7389,3 +7389,46 @@ F2 的多出来三条是好事：两扇门措辞相同不是注释承诺，是�
 3. `grading_refusal_count`／`reviewer_false_negative_count` 进 `bench_compare.GATE_METRICS`：要方向与阈值口径。
 4. 三分口径（通过／判不了／没评分器）在文档里统一命名；`review_rounds` 进了报告行但 markdown 一格没印。
 5. **等用户口径**（task #83）：`repeated_tool_calls` 有人读、没人写 ⇒ `tool_repeat_rate` 恒 null。
+## 第八十六批 M8-T101：行为任务的 fixture 必须定义它自己要评的函数
+
+代码 `d5aecd2`（本记录随其后追加）。编号说明：`M8-T101` 之前只在第八十五批 §7 作为前向引用出现。
+
+### 1 缺陷：任务要求修 X，可它发的 `solution.py` 里根本没有 X
+
+`minicc/behavior_bench.py` 的评分器会 `importlib` 载入工作区的 `solution.py` 再 `getattr(module, data["function"])`。若**出厂 fixture** 本身没有绑定那个名字，任务从写下的一刻就不可能通过：任何智能体都会被 `getattr` 的失败记成 `passed=False`。实测（`290037e`）：
+
+- 12 条出厂行为任务的 fixture **全部**绑定了被评函数 ⇒ 今天无实害；
+- 手工造一个没绑定的：`grade_behavior` 回 `{'passed': False, 'grader_type': 'python_behavior', 'case_count': 1, 'exit_code': 1}` ⇒ 评分器自己的失败记在智能体头上（M8-T83 族）。⇒ **构造可达、语料 0 条**。
+
+### 2 改法：装载期读 fixture，判分期不读——这条界线是被测出来的
+
+- `defined_names(code)`：模块顶层 `def`／`async def`／`class`／`X = …` 都算绑定（不只是 `def`，所以 `clamp = functools.partial(...)` 也成立）。
+- `fixture_blockers(task)`：没有 `solution.py`、解析不了、或没绑定被评函数 ⇒ 各给一条理由（点名函数与任务 id）。
+- `validate_behavior_task` 把它并进来 ⇒ **装载期**就拒；`grade_behavior` **不查**这条规则：智能体自己把函数删掉是真的失败，必须继续是判决。这条不对称由结构门用 AST 钉住（装载门必须同时调 `spec_blockers` 与 `fixture_blockers`；`grade_behavior` 里不许出现 `fixture_blockers`）。
+
+### 3 门（`tests/test_behavior_fixture_defines_its_graded_function.py`，6 函数 / 7 格）
+
+三种坏 fixture（未绑定／解析不了／没有 `solution.py`）各拒一条；绑定名算数；**智能体删函数仍是判决不是拒绝**；12 条出厂任务全部可解（含 ≥10 读数下限）；装载门/评分门职责不对称的结构门。
+
+### 4 反向对照与变异
+
+未修平面 `290037e`：**6 failed / 1 passed** —— 唯一那条绿恰好是「智能体删函数仍给判决」，它在旧平面本来就成立：这条正好说明本批**没有**越过去改变判分期语义。
+
+变异 2 臂（定向 3 文件 30 格，控制 `30 passed`、`restored: True`）：M1 让装载门不再问 fixture 规则 ⇒ 4 红；M2 把 `defined_names` 退化成只认 `def` ⇒ 1 红（正是绑定名那条）。预测按真实 id 写（先 `--collect-only -q`），两臂都落在点名用例上。
+
+### 5 基线
+
+干净平面**单独**跑（worktree 显式建在 sha `d5aecd2`，一个 pytest 进程、独立 basetemp `bt102full`、独立日志）：**1417 passed in 533.50s (0:08:53)**，`PYTEST_EXIT=0`，FAILED 行数 0；数字取自日志自己的页脚。上一批 1410 ⇒ +7 正好等于本批新门收集的 7 格。
+
+### 6 本批我自己的两处错（都改在测试侧，没有放宽规则）
+
+1. ⚠️**第四次踩「便宜夹具」**：第八十二批装载门的三条夹具任务**根本没有 `fixture`**，被新规则正确拒了 ⇒ 红的是夹具不诚实，不是门过严。给它们补真 `solution.py`（定义 `f`）。连续四批同形（75 批两条、81 批一条、本批三条），已写进规矩：**新增装载期/判分期规则时，先把所有走这条路的既有夹具列出来量一遍**，别等它们变红。
+2. ⚠️我自己第一版的绑定名测试顺手断言了 `grade_behavior(...)["passed"] is True`——那是关于评分器运行时的**我没测过的**主张（partial 与类型严格比较怎么互动，我不知道）。改成只断言门真正决定的事（`defined_names` 认得这个名字、`fixture_blockers` 为空）。
+
+### 7 下一批候选（M8-T102 起）
+
+1. `raise`/`cases` 每一项的形状（`[args, expected]` 两元）今天不查：写成三元或字典会让评分器 `for args, expected in ...` 当场崩 ⇒ 与 M8-T83 同族的又一入口，且新门可以顺手在装载期查掉。
+2. `build_report:180` 的 `grader_type` 兜底（要口径）。
+3. `grading_refusal_count`／`reviewer_false_negative_count` 进 `bench_compare.GATE_METRICS`（要方向与阈值口径）。
+4. 三分口径统一命名；`review_rounds` 的 markdown 印法。
+5. **等用户口径**（task #83）：`repeated_tool_calls` 恒 null。
