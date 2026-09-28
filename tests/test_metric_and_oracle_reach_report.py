@@ -79,8 +79,14 @@ def test_the_false_negative_count_moves_with_the_rows() -> None:
         return _report(rows)["metrics"]["reviewer_false_negative_count"]  # type: ignore[index]
 
     assert count([agree, blind]) == 0
-    assert count([_capped("t", {"passed": True})]) == 1
-    assert count([_capped("a", {"passed": True}), _capped("b", {"passed": True}), agree]) == 2
+    # The passing oracles here carry no case count, so since M8-T93 they need the grader
+    # name that justifies trusting them - exactly the work this branch used to do silently.
+    assert count([_capped("t", {"passed": True}, grader_type="command_contract")]) == 1
+    assert count([_capped("a", {"passed": True}, grader_type="command_contract"),
+                  _capped("b", {"passed": True}, grader_type="command_contract"), agree]) == 2
+    assert count([_capped("anon", {"passed": True})]) == 0, (
+        "an oracle that names no grader must not borrow a shipped grader's justification"
+    )
 
 
 def test_a_row_the_reviewer_never_doubled_does_not_count() -> None:
@@ -116,13 +122,17 @@ def test_a_metric_that_nobody_hand_copied_is_still_printed() -> None:
 
 
 def test_the_false_negative_count_is_visible_to_a_human() -> None:
-    text = benchmarks.markdown_report(_report([_capped("capped-task", {"passed": True})]))  # type: ignore[arg-type]
+    # grader_type is what the count is about: since M8-T93 an oracle with no case count
+    # is only trusted for a shipped grader, and command_contract is the one that reports none.
+    text = benchmarks.markdown_report(_report([_capped(
+        "capped-task", {"passed": True}, grader_type="command_contract")]))  # type: ignore[arg-type]
     assert "| reviewer_false_negative_count | 1 |" in text, text
     assert "capped-task" in text
 
 
 def test_the_new_aggregate_is_explained_to_the_reader() -> None:
-    text = benchmarks.markdown_report(_report([_capped("t", {"passed": True})]))  # type: ignore[arg-type]
+    text = benchmarks.markdown_report(_report([_capped(
+        "t", {"passed": True}, grader_type="command_contract")]))  # type: ignore[arg-type]
     line = next(note for note in text.splitlines()
                 if "reviewer_false_negative_count" in note and note.startswith("- "))
     assert "diagnostic" in line, line
@@ -140,8 +150,52 @@ def test_an_oracle_that_checked_zero_cases_is_not_a_false_negative() -> None:
 
 
 def test_a_missing_case_count_is_not_read_as_zero_cases() -> None:
-    """``command_contract`` oracles carry no case count: absence is not vacuity."""
-    metrics = _report([_capped("cmd", {"passed": True, "exit_code": 0})])["metrics"]
+    """A shipped command_contract oracle reports no count: absence is not vacuity."""
+    metrics = _report([_capped("cmd", {"passed": True, "exit_code": 0},
+                               grader_type="command_contract")])["metrics"]
+    assert metrics["reviewer_false_negative_count"] == 1, metrics
+
+
+@pytest.mark.parametrize("grader_type,expected", [
+    ("command_contract", 1),      # shipped: its marker prints only after real work ran
+    ("mystery_oracle", 0),        # unknown producer cannot borrow that trust
+    (None, 0),                    # a row that never says who judged it
+])
+def test_an_oracle_without_a_case_count_is_trusted_only_for_a_shipped_grader(
+    grader_type: str | None, expected: int
+) -> None:
+    """M8-T93: the trust branch is a claim about a grader, so it needs a name."""
+    extra = {} if grader_type is None else {"grader_type": grader_type}
+    metrics = _report([_capped("t", {"passed": True, "exit_code": 0}, **extra)])["metrics"]
+    assert metrics["reviewer_false_negative_count"] == expected, (grader_type, metrics)
+
+
+def test_the_trust_branch_asks_the_shipped_vocabulary_not_a_copied_list() -> None:
+    """Otherwise the branch is a second hand-written copy of GRADER_TYPES."""
+    tree = ast.parse((REPO_ROOT / "minicc" / "benchmarks.py").read_text(encoding="utf-8"))
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef) and node.name == "_oracle_says_pass":
+            body = ast.dump(node)
+            assert "GRADER_TYPES" in body, ast.unparse(node)
+            literals = {n.value for n in ast.walk(node)
+                        if isinstance(n, ast.Constant) and isinstance(n.value, str)}
+            assert not (literals & set(bench_tasks.GRADER_TYPES)), (
+                f"the predicate names grader types by hand: {sorted(literals)}"
+            )
+            return
+    raise AssertionError("_oracle_says_pass is gone from benchmarks.py")
+
+
+def test_a_real_command_contract_oracle_is_counted_through_that_branch(tmp_path: Path) -> None:
+    """The producer, not my dict: a passing command contract has no case_count."""
+    graded = bench_tasks.grade_command_contract(
+        {"grader": {"type": "command_contract", "command": '{python} -c "print(1)"'}},
+        tmp_path, grader_dir=tmp_path / "graders",
+    )
+    assert graded["passed"] is True, graded
+    assert "case_count" not in graded, graded
+    oracle = {k: v for k, v in graded.items() if k != "grader_type"}
+    metrics = _report([_capped("cmd", oracle, **{"grader_type": graded["grader_type"]})])["metrics"]
     assert metrics["reviewer_false_negative_count"] == 1, metrics
 
 
@@ -187,3 +241,6 @@ def test_the_zero_case_rule_reads_a_key_the_producer_really_emits() -> None:
 def test_the_zero_case_exclusion_is_told_to_the_reader() -> None:
     text = benchmarks.markdown_report(_report([_capped("t", {"passed": True, "case_count": 0})]))  # type: ignore[arg-type]
     assert "zero cases" in text, text
+    # M8-T93: the other half of the rule has to be readable too, or a reader who sees a
+    # command oracle not counted wonders whether the metric is broken.
+    assert "no known grader" in text, text

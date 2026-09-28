@@ -94,8 +94,11 @@ def _oracle_says_pass(row: dict[str, Any]) -> bool:
     A ``file_contract`` with an empty ``files`` list prints its own completion
     marker for zero cases (measured: ``{'passed': True, 'case_count': 0}``), so
     its pass judges nothing. When the oracle reports a case count it therefore
-    has to report at least one case; the command grader reports no count at all
-    because its marker is emitted only after the rendered command ran.
+    has to report at least one case. When it reports none, the trust is not free:
+    it is only extended to a grader type the shipped vocabulary knows, whose
+    marker is printed after real work ran. An oracle from a producer nobody knows
+    - a legacy results row, or a grader type added later that forgot to count -
+    cannot borrow that justification.
     """
     oracle = row.get("objective_oracle")
     if not isinstance(oracle, dict) or oracle.get("passed") is not True:
@@ -103,7 +106,7 @@ def _oracle_says_pass(row: dict[str, Any]) -> bool:
     if "case_count" in oracle:
         count = oracle["case_count"]
         return _measurement(count) and count >= 1
-    return True
+    return row.get("grader_type") in bench_tasks.GRADER_TYPES
 
 
 def _write_results(path: Path, results: list[dict[str, Any]]) -> None:
@@ -271,7 +274,7 @@ def build_report(tasks: list[dict[str, Any]], results: list[dict[str, Any]] | No
             "Token and cost metrics remain null when the provider does not expose usage or pricing.",
             "Tokens and cost per success include expenditure on failed attempts; missing measurements keep these metrics null.",
             "REFUSED means nobody judged this workspace: the grader declined (exit 2) or could not be run; it is not a pass, a failure, or a task without a grader.",
-            "reviewer_false_negative_count counts rows recorded failed whose objective grader, re-run only as a diagnostic, reports passed; it measures the reviewer, not the suite score. An oracle that reports zero cases checked nothing, so its pass does not count.",
+            "reviewer_false_negative_count counts rows recorded failed whose objective grader, re-run only as a diagnostic, reports passed; it measures the reviewer, not the suite score. An oracle that reports zero cases checked nothing, so its pass does not count, and one that names no known grader is not trusted either.",
         ],
     }
 
