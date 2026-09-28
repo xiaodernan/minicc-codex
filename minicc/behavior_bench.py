@@ -107,6 +107,20 @@ RUBRIC_SPEC_KEYS = frozenset({"required_any"})
 BEHAVIOR_GRADER_TYPES = frozenset({"python_behavior", "answer_rubric"})
 
 
+def _json_roundtrips(value: object) -> bool:
+    """Whether a value survives the ``json.dumps`` that hands the spec to the grader.
+
+    That encode happens in the host and ``grade_behavior`` catches only ``OSError`` and
+    ``TimeoutExpired``, so a non-serialisable arg would raise out of the grader call - one
+    malformed task could abort an entire run instead of yielding a row.
+    """
+    try:
+        json.loads(json.dumps(value))
+    except (TypeError, ValueError):
+        return False
+    return True
+
+
 def spec_blockers(task: dict[str, Any]) -> list[str]:
     """Why a behaviour grader spec can judge nothing - the single owner for both doors.
 
@@ -184,6 +198,10 @@ def fixture_blockers(task: dict[str, Any]) -> list[str]:
             blockers.append(
                 f"python_behavior cases[{index}] 必须是 [args, expected] 且 args 为 list，收到 {case!r}"
             )
+        elif not _json_roundtrips(case[0]):
+            blockers.append(
+                f"python_behavior cases[{index}] 的 args 必须能通过 JSON 传递，收到 {case[0]!r}"
+            )
     for index, case in enumerate(grader.get("raises") or []):
         if not (isinstance(case, list) and len(case) == 2 and isinstance(case[0], list)
                 and isinstance(case[1], str)):
@@ -237,9 +255,17 @@ def grade_behavior(task: dict[str, Any], workspace: Path, answer: str = "") -> d
         return bench_tasks.spec_verifies_nothing("python_behavior", "; ".join(blockers))
     count = len(grader.get("cases") or []) + len(grader.get("raises") or [])
     try:
+        payload = json.dumps(grader)
+    except (TypeError, ValueError) as exc:
+        # The spec is encoded here, in the host. If that fails, nobody looked at the
+        # workspace at all, so there is no verdict to give - and the alternative is a
+        # TypeError travelling up through run_benchmark and taking the whole suite down.
+        return bench_tasks.spec_verifies_nothing(
+            "python_behavior", f"python_behavior 规格无法编码送进评分器: {type(exc).__name__}: {exc}")
+    try:
         result = subprocess.run(
             [sys.executable, "-I", "-c", _GRADER, str(workspace.resolve())],
-            input=json.dumps(grader), capture_output=True, text=True, errors="replace",
+            input=payload, capture_output=True, text=True, errors="replace",
             cwd=workspace, timeout=20,
         )
         marker = f"MINICC_BEHAVIOR_COMPLETE:{count}"
