@@ -6954,3 +6954,59 @@ A4 的教训写下来：**「某种读形是某批键的唯一来源」这种断
 4. `grading_refusal_count`／`reviewer_false_negative_count` 进 `bench_compare.GATE_METRICS`：要方向与阈值口径。
 5. 三分口径（通过／判不了／没评分器）在文档里仍无统一命名；`review_rounds` 进了报告行但 markdown 一格没印（印法口径）。
 6. **等用户口径**（task #83）：`repeated_tool_calls` 有人读、没人写 ⇒ `tool_repeat_rate` 恒 null；它是行 census 的唯一活豁免。
+## 第七十八批 M8-T93：没有 case 数的 oracle，信任必须叫得出是谁判的
+
+代码 `071ec57`（本记录随其后追加）。
+
+### 1 缺陷：一条无人命名的信任
+
+`_objective_oracle`（`minicc/benchmarks.py:83`）在返回前把 `grader_type` 摘掉——那是**有主的选择**，`tests/test_benchmark_runner.py:477` 明明白白断言 oracle 字典里不许有它（行上已经有同名的键，两份就是两个主人）。代价留在 `_oracle_says_pass`（`minicc/benchmarks.py:91`）：报了 `case_count` 就查数字，没报就 `return True`。
+
+于是那一支的语义是「任何不报数的生产者说什么我都信」。它原本只服务一个事实：`command_contract` 的标记是**渲染出的命令真跑过之后**才印，所以它没有 case 数。但历史上任何一条行——旧 results JSON、以后新加但忘了计数的合同、手造的行——走进这一支都会被算成「评审掐死了客观评分器通过的任务」。
+
+### 2 改法：向出厂词表要名字，而不是往 oracle 里塞回第二个主人
+
+```
+    return row.get("grader_type") in bench_tasks.GRADER_TYPES
+```
+
+名单来自模块自己的常量（`GRADER_TYPES = {file_contract, command_contract}`），不抄第二份；用的是**行上**已有的 `grader_type`（`minicc/benchmarks.py:180` 一路带着它），所以 `:477` 那条契约不变。真 `command_contract` 仍被算：它的标记要有意义，前提已由第七十五批（空/缺命令被拒）与第七十七批（拼错的 `stdout_contains`／`expct_exit` 被拒）守住；匿名或未知类型不算。读者那一侧，note 补了后半句规则（`…and one that names no known grader is not trusted either.`）。
+
+### 3 三条既有夹具其实一直在测这条无名信任
+
+`test_the_false_negative_count_moves_with_the_rows`、`test_the_false_negative_count_is_visible_to_a_human`、`test_the_new_aggregate_is_explained_to_the_reader` 都用 `_capped(id, {"passed": True})`（不带 grader_type）并期望计数。改完它们当场红——这不是回归，是**它们依赖的那件事从来没有名字**。处理方式是让夹具说真话（补 `grader_type="command_contract"`），而不是放宽判据；并给「moves with the rows」加一条新断言：匿名 oracle 记 0。
+
+⚠️我自己的普查漏了入口：动手前我以为「只有 `test_a_missing_case_count_is_not_read_as_zero_cases` 依赖那一支」，第一轮定向跑就红了 2 条我没改过的既有测试。⇒ 数入口原则又一次适用：一条规则被几个夹具依赖，要先量依赖面（这次是 3 个夹具 + 1 条正面）。
+
+### 4 门（`tests/test_metric_and_oracle_reach_report.py` 从 18 格长到 23 格）
+
+- 参数化三条：`command_contract` ⇒ 1；`mystery_oracle` ⇒ 0；没有 `grader_type` ⇒ 0。
+- 真生产者走这一支：调 `grade_command_contract` 跑一条真命令，确认它 `passed=True` 且**没有** `case_count`，把它的字典按 oracle/行两份形状喂进 `build_report` ⇒ 仍记 1。⇒ 「信任」是绑在出厂行为上的，不是我手造的 dict。
+- 结构门：谓词必须引用 `GRADER_TYPES`，且谓词里**不许出现任何出厂类型名的字符串字面量**——手抄名单今天行为完全等价，只有这条门能区分两者（B2 变异就是证明）。
+- 读者门：markdown 的 note 里必须同时有 `zero cases` 与 `no known grader` 两半句。
+
+### 5 反向对照与变异
+
+未修平面（`f5c1cfc` + 最终门文件，只跑该文件）：**3 failed / 20 passed**——两个未知类型参数 + 结构门。三条被补过的既有夹具在旧平面照绿（我改的只是它们的前提声明，不是它们断的规则）。
+
+变异 4 臂，定向集 3 个文件 57 条案例，未变异控制 `57 passed` / `rc=0`，`restored: True`：
+
+| 臂 | 改动 | 红数 | 备注 |
+| --- | --- | --- | --- |
+| B1 | 回到无条件信任 | 4 | 两个参数 + 结构门 + 「moves with the rows」的匿名断言 |
+| B2 | 词表手抄成字面量集合 | 1 | **只有结构门能抓**：行为与今天完全相同 |
+| B3 | 只点名 `command_contract` | 1 | 同上，抓它的还是结构门 |
+| B4 | note 去掉后半句 | 1 | 读者门 |
+
+四臂预测逐格命中，无意外红也无漏红。⇒ 「等价变异只能被结构门抓」这一类第二次出现（第一次是第七十一批的手抄打印名单），差别是这次我把结构门写在了同一批里。
+
+### 6 基线
+
+干净平面（worktree 显式建在 sha `071ec57`）+ `PYTHONPATH` 指过去、独立 basetemp 与独立日志：**1339 passed in 360.42s (0:06:00)**，`PYTEST_EXIT=0`，数字取自日志自己的页脚。上一批 1334 ⇒ +5 正好等于本批新增的 5 格（该文件从 18 格长到 23 格）。360s 对上一批 483s 只是负载差，不作证据。
+
+### 7 下一批候选（M8-T94 起）
+
+1. `build_report:180` 的 `grader_type` 兜底：`recorded.get("grader_type", "command" if task.get("verify_command") else "ungraded")` ⇒ 报告可以凭**任务规格**给一条从没评分过的行发明评分器名。现在行上每个写路径都会自己写这个键，唯一来路是 `--resume` 读入的历史 JSON（`minicc/benchmarks.py:653`）而 `_resume_matches`（`minicc/benchmarks.py:128`）要求 metadata 全等 ⇒ 构造可达、语料未 populate；改法要口径（报 `ungraded` 还是替历史行猜）。顺带一条实测关系：兜底产生的字符串是 `"command"`，而 `GRADER_TYPES` 里是 `"command_contract"` ⇒ 本批那条信任**不会**被这个兜底骗到（名字对不上），但报告仍然照印一个没跑过的评分器名——这是显示层的谎，不是判据的洞。
+2. `grading_refusal_count`／`reviewer_false_negative_count` 进 `bench_compare.GATE_METRICS`：要方向与阈值口径。
+3. 三分口径（通过／判不了／没评分器）在文档里仍无统一命名；`review_rounds` 进了报告行但 markdown 一格没印。
+4. **等用户口径**（task #83）：`repeated_tool_calls` 有人读、没人写 ⇒ `tool_repeat_rate` 恒 null；它是行 census 的唯一活豁免。
