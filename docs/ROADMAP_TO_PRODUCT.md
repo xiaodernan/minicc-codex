@@ -7776,3 +7776,187 @@ legacy 30 条里 **0** 条带 `fixture`，v2 **24/24** 带（39 个文件项）�
    （一条答门放不放行，一条答宿主编码路径用不用得到）。先量再定要不要并表，本批不预先写结论。
 3. 要口径决定：`build_report:180` 的 `grader_type` 兜底、`bench_compare.GATE_METRICS` 里
    `grading_refusal_count` 的方向与阈值、`review_rounds` 的印法、恒 null 的 `tool_repeat_rate`（task #83）。
+## 第九十二批 M8-T107：两份 fixture 键必须能在同一个工作区里放得下
+
+### 1 编号说明
+
+追加前在被追加上游平面 `e88aa4e`（＝本批代码提交的父）上量：文档里最后的批次标题是
+`## 第九十一批`，`第九十二批` 出现 **0 次**、`M8-T107` 出现 **0 次**（本批既不是前向引用也没有占位），
+哨兵 `M8-T999` 仍在（7 次），全文批次标题共 60 个。
+本批＝第九十二批＝`M8-T107`，兑现第九十一批 §8 第 1 条挂着的那格的一半：那条写的是「宿主写不出工作区
+仍记在智能体头上」，本批先把**为什么宿主会写不出来**——两条各自合法的键合起来放不进同一个目录——
+堵住；记账那一半仍留在 §8 第 1 条等口径。
+
+### 2 缺陷：每条键单独合法，两条键合起来写不出工作区
+
+第九十一批把「值必须是文本、键必须是能落盘的名字」交给了唯一主人 `minicc/bench_tasks.py:122`，
+三条装载门都去问它。但那位主人**一次只看一条键**：`for relative, content in fixture.items()` 里
+每个键各自过关，键与键之间的关系没人比过。写点 `minicc/behavior_bench.py:284-293` 是
+`target.mkdir(parents=True, exist_ok=True)` 紧跟 `target.write_text(...)`，于是配对错误有两种后果，
+两种都在本批实测（`Temp/scratch107host/probe107host.py`，直接调当前写点，量盘上真实剩下什么）：
+
+1. **静默盖掉，宿主一声不吭。** `{"a.txt": "one", "./a.txt": "two"}` ⇒ `NO ERROR`，工作区最后只有
+   `a.txt[file]='two'`：作者写的第一份文件消失了，内容是后写的那份，**没有任何异常、没有任何记录**。
+   同一形状的另外两种拼法也一样静默：`{"p//q.txt","p/q.txt"}` ⇒ `p/q.txt='two'`；
+   `{"d\\f.txt","d/f.txt"}` ⇒ `d/f.txt='two'`。三条都是「任务文件里的两个键，落到工作区是同一个位置」。
+2. **抛异常，但已经写了一半。** `{"a.txt": "one", "a.txt/b.txt": "two"}` ⇒
+   `FileExistsError: [WinError 183] 当文件已存在时，无法创建该文件`，盘上留下 `a.txt='one'`——
+   智能体拿到一份**缺文件的半个工作区**；`{"d/x": "one", "d": "two"}` ⇒
+   `PermissionError: [Errno 13] Permission denied: ...\d`（`d` 已经被 `d/x` 建成目录），
+   盘上留下 `d/` 与 `d/x='one'`。
+
+静默那三条比抛异常那两条更坏：作者写的第一份文件在工作区里**根本不存在**，判分期读的是这份错的工作区，
+而宿主一行错误都不留——判决内容取决于合同恰好读到什么，唯一能肯定的是它与作者写的规格无关。
+抛异常那两条则走 `run_benchmark` 的兜底：本批用 `Temp/probe107seam.py`（带平面守卫，见 §5 的 ⚠️）
+在 `e88aa4e` 上真跑了 `run_benchmark`（守卫打印 `minicc from ...\wt111rev`、`HEAD=e88aa4e`），
+记录的那一行是 `status='failed'`、
+`error="FileExistsError: [WinError 183] 当文件已存在时，无法创建该文件。: '...\\a.txt'"`、
+**`passed=False`**、`grader_type='python_behavior'`、`execution_latency_ms=78.0`、`grading_latency_ms=0.0`，
+行里**没有** `grading_refused`，也**没有** `turns`/`tool_calls` 这两个键，而 fake provider 的 `chat()`
+被调用 **0 次** ⇒ 模型一次都没跑过，判决已经写成智能体失败了（这一半留给 §8 第 1 条）。
+
+装载侧：这两类形状在 `e88aa4e` 上**三条装载门全部放行**。这条归属不来自我早先的 scratch 探针
+（见 §5 的 ⚠️，那次探针量错了平面），而来自本批的反向对照：未修的平面上跑本批的门矩阵
+**6 形状 × 3 门 = 18 格全红**＝每一条门都没看见配对冲突。
+
+语料 census（本批门里的 `test_no_shipped_task_carries_a_colliding_pair`，自己实现判据、不走门）：
+legacy 30 条／v2 24 条／行为 12 条，fixture 项 **63**（v2 39 ＋ 行为 24 ＋ legacy 0，与第九十一批
+量的同一人口、同一数），**冲突配对 0 条**
+⇒ 又是「构造可达、语料 0 条」，本批不写成已经在危害谁。下限（每套 ≥10 条、项 ≥30）与 offenders
+由同一趟扫描计数，不是手抄的数。
+
+### 3 改法：把「键」的检查升成「键的两两配对」的检查
+
+- 规则仍然只有一个主人：`minicc/bench_tasks.py:122` 的 `require_writable_fixture` 先把每条键归一化成
+  `segments`（`minicc/bench_tasks.py:163`），归一化后什么都不剩就当场拒（`:165`，`"."`/`"//"` 这类
+  键以前会一路走到写点），然后把 `(归一化路径, 作者拼写的键)` 收进一张**表**（`minicc/bench_tasks.py:170`），
+  而不是收进以归一化路径为键的字典——字典会把重复**吞掉**，重复正是本批要抓的东西。
+- 之后做全对配对、双向比较（`minicc/bench_tasks.py:174-190`）：同位（`:176`）⇒「在工作区里是同一个位置，
+  后写的会静默盖掉先写的」；前者是后者的父目录（`:181`）与后者是前者的父目录（`:186`）⇒「占用了 …
+  的父目录，两份内容写不进同一个工作区」。三个分支的报错都点名**作者写下的两种拼法**（不是归一化后的），
+  因为要能拿去改任务文件。
+- 三条装载门一行都没改：v2 `validate_task`（`minicc/bench_tasks.py:216`）、legacy `load_tasks`
+  （`minicc/benchmarks.py:153`）、行为 `validate_behavior_task`（`minicc/behavior_bench.py:225`）
+  本来就问那位主人，本批让主人的规则变宽，三门同时得到。
+- 写点没动（`minicc/behavior_bench.py:284-293` 保持第九十一批的原样落盘）。判据是：挡在装载期，
+  智能体才不会收到半份或错的工作区；写点保持简单，而门的存在由 §4 那条宿主见证钉住
+  ——它实测的正是「没有门时写点会留下什么」。
+
+### 4 门（`tests/test_two_fixture_keys_must_share_one_workspace.py`，7 函数 / 26 格）
+
+- 18 格矩阵：6 个冲突形状 × 3 条装载门各一格。每个形状都是**加在一条真实 shipped 任务自己的 fixture 上**
+  （`_shipped_task(door)`），所以拒绝只可能来自这对键，不可能来自别的必需键——这是第九十一批 §4
+  那条教训（矩阵按 (形状, 门) 分格，别把三门写进一个测试）的直接沿用。
+- 3 格正向对照：`{"pkg/__init__.py","pkg/mod.py","a.txt"}`（目录与其中的文件同时存在）三门都必须放行
+  ⇒ 规则抓的是冲突，不是嵌套。
+- 1 格 `test_dict_order_does_not_change_the_answer`：`{d, d/x}` 与 `{d/x, d}` 两种字典顺序都必须拒
+  ——本批第一版实现只比较「新插入键的前缀」，于是第二种顺序放行，dict 顺序决定了任务能不能装载。
+- 1 格 `test_the_refusal_names_the_task_and_both_keys`：6 个形状的报错都要点名任务 id 与**两个键的作者拼法**
+  （`repr(key) in message`，第九十一批那条空键恒正的教训沿用）。
+- 1 格唯一主人 AST 门：全仓扫 `minicc/*.py` 的函数体，同时含「父目录」与「同一个位置」两个词的
+  `require_writable_fixture` 只能住在 `bench_tasks.py` 一个文件里。
+- 1 格宿主见证 `test_the_host_still_leaves_a_half_built_workspace`：直接调 `prepare_fixture`，
+  断言它仍然抛 `FileExistsError` 且盘上只剩 `['a.txt']` ⇒ 门是唯一那道防线，写点没被偷偷改聪明。
+- 1 格语料 census（每套 ≥10 条、fixture 项 ≥30、冲突 0）。
+
+⚠️**门的范围要写清楚**：那条唯一主人 AST 门扫的是**源树** `minicc/*.py`。本批量到平面上另有
+`build/lib/**/*.py` 共 **75** 个 `.py`（`git ls-files build` = 0 条、`.gitignore:14` 忽略 `build/`），
+它是全量跑里的打包测试在 02:12 刷新的构建产物（与 `minicc/bench_tasks.py` 同摘要 `b9faf4b89bc0`，
+所以今天没有漂移）。⇒ 两条记账：(a)「唯一主人」这句话量的是源树，不许被读成整棵磁盘；
+(b) **全量跑不是只读的**——它会往平面的未跟踪目录里写 75 份 `.py`，同一平面上两个重叠 run 会抢它。
+
+### 5 反向对照
+
+`Temp/rev107.py`：在 `e88aa4e` 上开一块全新的 detached worktree（`wt111rev`），只把本批门文件原样
+拷过去跑（拷贝后 sha `934f84bceeb7`，`git status --porcelain` 在那块平面上只有 `?? tests/test_two_fixture_keys_must_share_one_workspace.py`
+一行＝除拷贝的门以外没有第二处差异）。**26 格 = 21 红 / 5 绿 / 0 skip**，与事前预测逐格一致（junit
+`t107rev.xml`，不是终端艺术）：
+
+- 21 红＝矩阵 18 格（6 形状 × 3 门，旧平面全部**没拒**）＋ `test_dict_order_does_not_change_the_answer`
+  ＋ `test_the_refusal_names_the_task_and_both_keys`（旧主人没有配对规则 ⇒ 根本不抛）
+  ＋ `test_the_pair_rule_has_one_owner_across_the_module_tree`（旧平面的函数体里找不到那两个词）。
+- 5 绿都有归属，不是漏网：3 格正向对照（合法的 `pkg/__init__.py` ＋ `pkg/mod.py` 在旧平面也放行——
+  这条正是「新规则没有把合法形状一起拒掉」的反证）；`test_the_host_still_leaves_a_half_built_workspace`
+  量的是**写点**，本批没改写点，两平面必然相同；`test_no_shipped_task_carries_a_colliding_pair`
+  语料两平面同一份。
+
+⇒ 「三条装载门都放行配对冲突」这句 §2 的话，现在是由未修平面上的 18 格红**量出来**的。
+
+反向对照读的到底是哪棵树，本批用两条可区分的实测钉住（不靠「pytest 应该会这样」）：
+在 `wt111rev` 目录里 `python -B -c "from minicc import bench_tasks"` 打印
+`...\wt111rev\minicc\bench_tasks.py`，且**主人存在、配对规则不存在**——这正是 `e88aa4e` 的形状
+（主树连 `require_writable_fixture` 都没有，会 `AttributeError`，两者可区分）；
+而在 scratch 目录里跑同样一句，打印的是 `D:\面试项目\minicc-codex\minicc\__init__.py`。
+两条门/见证的 pytest 都是用 `python -m pytest` 从被量平面目录起的（`-m` 与 `-c` 一样把 cwd 摆在
+`sys.path` 前面），所以读的是自己的平面。
+
+⚠️**我自己的探针归属缺陷，记在这里而不是悄悄改掉**：本批早上第一次量这些形状用的是
+`Temp/probe107.py`，那是 `python script.py` 的形状——`sys.path[0]` 是**脚本所在的 scratch 目录**，
+那里没有 `minicc`，于是导入落到了仓库 `.venv` 里 `__editable__.minicc-0.1.0.pth` 生成的 meta-path
+finder 上，**静默量了主树**。⇒ 那次探针的四节数字全部作废：「红／放行／记成 passed=False」
+可能是别人平面的事实，而它当时看起来完全正常。本批之后所有探针都带**平面守卫**（解析出的每个
+`minicc.*.__file__` 必须落在指定平面下，否则拒绝打印任何东西），§2 末那一行就是用带守卫的
+`probe107seam.py` 重量的。
+
+### 6 变异见证
+
+`Temp/mut107.py`：每臂先恢复 pristine 字节、只改**值**（文件必须还能 compile）、跑**两份**fixture
+门文件（第九十一批的 39 格也一起跑，因为「某条门不再问主人」在两批的门里都看得见）——
+控制臂 **65 格 0 红**，收尾臂 **65 格 0 红**，`restore: all bytes identical`（四个文件全 sha256 对得上，
+含本批的门文件，因为 A7 那臂改的是测试自己）。预测名先由 `--collect-only -q` 的 65 个 id 推导。
+
+| 臂 | 破坏了什么 | 预测红 | 实测红 | 结果 |
+| --- | --- | --- | --- | --- |
+| A1 | 同位（`path == other_path`）⇒ `if False:` | 10 | 10 | CAUGHT：3 个重复形状 × 三门 ＋ 点名键那格 |
+| A2 | 前者占用后者父目录（`other.startswith(path+"/")`）⇒ `if False:` | 5 | 5 | CAUGHT：`file-then-child` × 三门 ＋ 字典顺序格 ＋ 点名格 |
+| A3 | 反向那条（`path.startswith(other+"/")`）⇒ `if False:` | 8 | 8 | CAUGHT：`child-then-file`、`deep-then-shallow` × 三门 ＋ 同上两格 |
+| A4 | 重复键在进入配对循环**之前**就被折叠（pass-1 的形状） | 10 | 10 | CAUGHT：与 A1 同一批 10 格 |
+| A5 | 报错改用归一化拼写代替作者写下的键 | 1 | 1 | CAUGHT：只有点名两键那格红 |
+| A6 | 行为门不再问主人 | 18 | 18 | CAUGHT：本批 6 格 ＋ 第九十一批 11 格 behavior ＋ 三门问主人那格 |
+| A7 | 普查去读一个没人写的键 `fixtures` | 1 | 1 | CAUGHT：`test_no_shipped_task_carries_a_colliding_pair`（下限 `items >= 30` 抓住空转） |
+
+**7/7 全 CAUGHT，零「预测到却没红」、零「没预测却红」**。
+
+两条值得单独记的读法：
+
+1. **A1 与 A4 预测同一批 10 格，但不是重复臂。** A1 拆的是「比较之后拒不拒」，A4 拆的是
+   「这两条键有没有进过那张表」（用归一化路径当 dict 键 ⇒ 第二条在插入时就被吞掉，等值分支完好也白搭）。
+   ⇒ 同一批格子由两个独立决定守着，本批 §3 那条「收进表而不是收进字典」的写法就是 A4 要抓的东西。
+2. **A6 是本批第一次把两批门一起跑**，所以它的 18 格里有 11 格属于第九十一批——这正是 §4 里
+   「三门都问同一个主人」这句承诺的代价面：主人宽一处，两批门同时变瞎。
+
+⚠️A6 的红名在日志里被我截到 1400 字符（打印窗口，不是数字）；计数 18/预测 18、且脚本自己的
+`PREDICTED BUT STILL GREEN` 与 `UNPREDICTED RED` 两行都没出现，才是这一臂成立的依据。
+
+### 7 全量基线
+
+平面 `wt110`（detached，HEAD `fdf9cd5`，跑前跑后 `git status --porcelain` 皆空），仓库 `.venv`，
+单进程，`-p no:cacheprovider -W error -q --tb=line`，`--basetemp`／`--junitxml` 都在平面外，
+后台跑且**不接管道**：
+
+**1511 passed in 893.41s (0:14:53)**，退出码 0，junit `t107full.xml` 自报 **1511 格 / 0 失败 / 0 错误 / 0 skip**
+（`time=892.050`）。数字可推导：上一基线 1485 ＋ 本批 26 格 = 1511。
+
+⚠️**时长不可与上一批比较**：起跑前 40 秒同一台机器上还有另一个存活 run 在跑它自己那棵树的
+契约测试与 `mypy`（18:16 的进程表为证，那是**另一个项目**的文件，不是本仓库的路径），
+并且如 §4 末所量，本仓库的全量跑自己会刷新 `build/lib/`（75 份 `.py`）。0 红与 rc=0 与被拖慢的
+计时无关，但 893.41s 不是冷跑数，别当基线引用。
+
+### 8 下一批候选
+
+1. 宿主写不出工作区仍然记在智能体头上（第九十一批 §8 第 1 条，本批没做完的那一半）：
+   `minicc/benchmarks.py:721` 在 try 里调 `prepare_fixture`，异常由 `minicc/benchmarks.py:760` 的
+   `except Exception` 接住只写 `status="failed"`，随后 `minicc/benchmarks.py:821` 给这一行
+   `passed=False`＋`grader_type`。本批实测的那一行见 §2 末（`grading_refused` 缺席、
+   `objective_oracle=None`）。要做的改动与 M8-T83/T104 那一族同形（NO-RESULT 而不是判决），
+   但**先要口径决定**：「装载门已拒」与「运行期宿主写不出」是同一格还是两格。已挂 task #101，不占号。
+2. 两个 shipped 普查的分工仍未写进名字：第九十一批的 `test_no_shipped_task_needs_the_new_rule`
+   **拿门去跑语料**（问「门放不放行」），本批的 `test_no_shipped_task_carries_a_colliding_pair`
+   **自己实现判据**（问「语料里有没有这种配对」）。两条都有下限，但一条变宽（门不再被问）只有前者看得见，
+   一条判据写错（本批 A7 臂）只有后者看得见。先量这种普查在仓库里一共几条、各自答哪个问题，再定并不并表。
+3. 新量到的一条前置事实（本批 §4 末）：全量跑会写 `build/lib/`，而 `setup.py:61` 的注释说
+   `bdist_wheel` 的载荷就是**走 build/lib 收集**的。⇒ 下一单位可以量：一次不干净的重建会不会把
+   已删除／改名的源文件带进 wheel（今天实测无漂移，所以这条是**问题**不是结论）。
+4. 要口径决定（不变）：`build_report:180` 的 `grader_type` 兜底、`bench_compare.GATE_METRICS` 里
+   `grading_refusal_count` 的方向与阈值、三种判决（pass／fail／NO-RESULT）要不要有名字、
+   `review_rounds` 的 markdown 印法、恒 null 的 `tool_repeat_rate`（task #83）。
