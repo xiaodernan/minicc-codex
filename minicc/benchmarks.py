@@ -789,9 +789,15 @@ def run_benchmark(
                         capture_output=True, text=True, errors="replace", timeout=300,
                     )
                     entry["passed"] = completed.returncode == 0
-                except (_subprocess.TimeoutExpired, OSError):
-                    entry["passed"] = False
-                entry["grader_type"] = "command"
+                    # Inside the try, not after the handler: a write below the
+                    # except would re-master grader_type and make the refusal's
+                    # own declared type unobservable.
+                    entry["grader_type"] = "command"
+                except (_subprocess.TimeoutExpired, OSError) as exc:
+                    # The host could not start or finish the verify command, so
+                    # nobody looked at this workspace: NO-RESULT, the same
+                    # channel the contract graders use, not the agent's verdict.
+                    entry.update(bench_tasks.grader_unable("command", exc))
             elif verify_command:
                 entry.update(passed=False, grader_type="command")
             entry["grading_latency_ms"] = round((time.monotonic() - grading_started) * 1000, 1)

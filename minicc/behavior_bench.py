@@ -13,6 +13,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from . import bench_tasks
+
 SUITE_VERSION = "behavior-1"
 
 # Each task specifies user-visible starter code and independent input/output
@@ -111,7 +113,11 @@ def grade_behavior(task: dict[str, Any], workspace: Path, answer: str = "") -> d
         marker = f"MINICC_BEHAVIOR_COMPLETE:{count}"
         return {"passed": result.returncode == 0 and marker in result.stdout.splitlines(), "grader_type": "python_behavior", "case_count": count, "exit_code": result.returncode}
     except (OSError, subprocess.TimeoutExpired) as exc:
-        return {"passed": False, "grader_type": "python_behavior", "error": type(exc).__name__}
+        # The grader subprocess could not be started or hung: nobody looked at
+        # the workspace, so this row has no verdict. M8-T83 removed the
+        # passed=False + error shape from the contract graders for the same
+        # reason - "error" also shadowed the agent's own diagnosis.
+        return bench_tasks.grader_unable("python_behavior", exc)
 
 
 def prepare_fixture(task: dict[str, Any], workspace: Path, *, initialize_git: bool = False) -> None:
