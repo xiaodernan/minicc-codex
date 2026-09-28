@@ -88,6 +88,24 @@ def _measurement(value: object) -> bool:
     return type(value) in (int, float) and math.isfinite(value) and value >= 0
 
 
+def _oracle_says_pass(row: dict[str, Any]) -> bool:
+    """Did the objective grader re-run this row and pass it on real work?
+
+    A ``file_contract`` with an empty ``files`` list prints its own completion
+    marker for zero cases (measured: ``{'passed': True, 'case_count': 0}``), so
+    its pass judges nothing. When the oracle reports a case count it therefore
+    has to report at least one case; the command grader reports no count at all
+    because its marker is emitted only after the rendered command ran.
+    """
+    oracle = row.get("objective_oracle")
+    if not isinstance(oracle, dict) or oracle.get("passed") is not True:
+        return False
+    if "case_count" in oracle:
+        count = oracle["case_count"]
+        return _measurement(count) and count >= 1
+    return True
+
+
 def _write_results(path: Path, results: list[dict[str, Any]]) -> None:
     """Keep the previous complete checkpoint if a write is interrupted."""
     from .tools.registry import redact_text
@@ -217,10 +235,11 @@ def build_report(tasks: list[dict[str, Any]], results: list[dict[str, Any]] | No
             # agent claimed completion, so a task the completion judge capped is
             # recorded failed without ever being checked. `objective_oracle` re-runs
             # the deterministic grader as a diagnostic, so this counts the rows the
-            # reviewer said no about while the grader says yes (M8-T86).
+            # reviewer said no about while the grader says yes (M8-T86). An oracle
+            # that looked at zero cases is not a yes about anything (M8-T87).
             "reviewer_false_negative_count": sum(
                 1 for row in completed
-                if row["passed"] is False and (row.get("objective_oracle") or {}).get("passed") is True
+                if row["passed"] is False and _oracle_says_pass(row)
             ),
             "tokens_per_success": round(sum(float(row["usage"]["total_tokens"]) for row in completed) / len(passed), 1) if passed and total_tokens_known else None,
             "cost_per_success_usd": round(sum(row["cost_usd"] for row in completed) / len(passed), 6) if passed and total_cost_known else None,
@@ -238,7 +257,7 @@ def build_report(tasks: list[dict[str, Any]], results: list[dict[str, Any]] | No
             "Token and cost metrics remain null when the provider does not expose usage or pricing.",
             "Tokens and cost per success include expenditure on failed attempts; missing measurements keep these metrics null.",
             "REFUSED means nobody judged this workspace: the grader declined (exit 2) or could not be run; it is not a pass, a failure, or a task without a grader.",
-            "reviewer_false_negative_count counts rows recorded failed whose objective grader, re-run only as a diagnostic, reports passed; it measures the reviewer, not the suite score.",
+            "reviewer_false_negative_count counts rows recorded failed whose objective grader, re-run only as a diagnostic, reports passed; it measures the reviewer, not the suite score. An oracle that reports zero cases checked nothing, so its pass does not count.",
         ],
     }
 

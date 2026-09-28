@@ -13,11 +13,26 @@ looks exactly like missing work") could never be aggregated anywhere.
 These gates hold both directions: every metric key gets a table row, a key that
 nobody hand-copied still gets a row, and the false-negative count is derived
 from the rows the report itself carries.
+
+M8-T87 is the other half of the same promise: the count has to be as strong as
+the human judgement it replaces. The record at
+`docs/ROADMAP_TO_PRODUCT.md:2427` required "passed=true with a clean case and
+exit count", but a ``file_contract`` with an empty ``files`` list prints its own
+completion marker for zero cases, so a bare ``passed is True`` would credit the
+reviewer with a false negative that nobody ever disproved.
 """
 
 from __future__ import annotations
 
+import ast
+from pathlib import Path
+
+import pytest
+
+import minicc.bench_tasks as bench_tasks
 import minicc.benchmarks as benchmarks
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
 def _report(rows: list[dict[str, object]]) -> dict[str, object]:
@@ -112,3 +127,56 @@ def test_the_new_aggregate_is_explained_to_the_reader() -> None:
                 if "reviewer_false_negative_count" in note and note.startswith("- "))
     assert "diagnostic" in line, line
     assert "suite score" in line, line
+
+
+# --- M8-T87: a pass over zero cases is not a pass over the work ---------------
+
+
+def test_an_oracle_that_checked_zero_cases_is_not_a_false_negative() -> None:
+    vacuous = _capped("empty-contract", {"passed": True, "case_count": 0})
+    checked = _capped("one-case", {"passed": True, "case_count": 1})
+    assert _report([vacuous])["metrics"]["reviewer_false_negative_count"] == 0
+    assert _report([vacuous, checked])["metrics"]["reviewer_false_negative_count"] == 1
+
+
+def test_a_missing_case_count_is_not_read_as_zero_cases() -> None:
+    """``command_contract`` oracles carry no case count: absence is not vacuity."""
+    metrics = _report([_capped("cmd", {"passed": True, "exit_code": 0})])["metrics"]
+    assert metrics["reviewer_false_negative_count"] == 1, metrics
+
+
+@pytest.mark.parametrize("broken", [True, "3", -1, None, 0.5])
+def test_a_case_count_that_is_not_a_measurement_does_not_qualify(broken: object) -> None:
+    metrics = _report([_capped("t", {"passed": True, "case_count": broken})])["metrics"]
+    assert metrics["reviewer_false_negative_count"] == 0, broken
+
+
+def test_the_vacuous_pass_comes_from_the_real_grader_not_from_my_dict(tmp_path: Path) -> None:
+    """The producer, unmutated, hands back passed=True having checked nothing."""
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    graded = bench_tasks.grade_file_contract(
+        {"id": "t", "grader": {"type": "file_contract", "files": []}},
+        workspace, grader_dir=tmp_path / "graders",
+    )
+    assert graded["passed"] is True and graded["case_count"] == 0, graded
+    metrics = _report([_capped("t", graded)])["metrics"]
+    assert metrics["reviewer_false_negative_count"] == 0, metrics
+
+
+def test_the_zero_case_rule_reads_a_key_the_producer_really_emits() -> None:
+    """Otherwise the rule is my invention: ``case_count`` must come out of a grader."""
+    tree = ast.parse((REPO_ROOT / "minicc" / "bench_tasks.py").read_text(encoding="utf-8"))
+    emitted: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef) and node.name.startswith("grade_"):
+            for inner in ast.walk(node):
+                if isinstance(inner, ast.Dict):
+                    emitted.update(key.value for key in inner.keys
+                                   if isinstance(key, ast.Constant) and isinstance(key.value, str))
+    assert "case_count" in emitted, sorted(emitted)
+
+
+def test_the_zero_case_exclusion_is_told_to_the_reader() -> None:
+    text = benchmarks.markdown_report(_report([_capped("t", {"passed": True, "case_count": 0})]))  # type: ignore[arg-type]
+    assert "zero cases" in text, text
