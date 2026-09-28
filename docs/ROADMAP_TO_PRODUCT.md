@@ -7432,3 +7432,33 @@ F2 的多出来三条是好事：两扇门措辞相同不是注释承诺，是�
 3. `grading_refusal_count`／`reviewer_false_negative_count` 进 `bench_compare.GATE_METRICS`（要方向与阈值口径）。
 4. 三分口径统一命名；`review_rounds` 的 markdown 印法。
 5. **等用户口径**（task #83）：`repeated_tool_calls` 恒 null。
+## 第八十七批 M8-T102：一条用例必须是评分器要解包的那个二元组
+
+代码 `20da1c3`（本记录随其后追加）。编号说明：`M8-T102` 之前只在第八十六批 §7 作为前向引用出现。
+
+### 1 缺陷：形状错一项，任务就从不可能通过变成智能体的失败
+
+嵌入式评分器写的是 `for args, expected in data["cases"]` 与 `for args, expected_type in data.get("raises", [])`。实测（`688ed2d`）：出厂 12 条行为任务的每一项都是「二元 list，args 为 list」；但把任一项写成三元、字典、args 不为 list，或 `raises` 少异常名，`grade_behavior` 一律回 `{"passed": False, ..., "exit_code": 1}`——评分器在解包处崩，被判分的是智能体。⇒ **构造可达、语料 0 条**。
+
+### 2 改法：装载门继续查 fixture，判分期照旧不查
+
+`fixture_blockers` 在函数绑定检查之后逐项查 `cases`/`raises` 形状，拒绝理由点名**下标与实际值**（`cases[0] 必须是 [args, expected] 且 args 为 list，收到 ...`）。第八十六批定下的不对称保持：`validate_behavior_task` 查形状，`grade_behavior` 不查——这条不是靠注释，而是被一条测试钉住：装载门拒过的形状，判分期仍须给判决（`passed=False` 且没有 `grading_refused`）。
+
+### 3 门（`tests/test_behavior_cases_are_the_pair_the_grader_unpacks.py`，5 函数 / 8 格）
+
+三种坏 case、两种坏 raise（各点名 `cases[0]`/`raises[0]` 与任务 id）、良形状仍通过且 `fixture_blockers` 为空、不对称仍在、12 条出厂任务全部良形状（含 ≥10 读数下限）。
+
+### 4 反向对照、变异与基线
+
+未修平面 `688ed2d`：**6 failed / 2 passed**——两条绿正是良形状装载与出厂 census（旧平面本来就成立）。变异 2/2（控制 25 passed、`restored: True`，预测名先 `--collect-only` 读回，**零漏零意外**）：关掉 case 检查 ⇒ 3 个参数 + 不对称测试红；关掉 raise 检查 ⇒ 恰好 2 个参数红。相关定向选择 286 passed（= 上一批 278 + 本批 8）。
+
+### 5 基线
+
+干净平面**单独**跑（worktree 显式建在 sha ，一个 pytest 进程、独立 basetemp 、独立日志）：**1425 passed in 544.36s (0:09:04)**，，FAILED 行数 0；数字取自日志自己的页脚。上一批 1417 ⇒ +8 正好等于本批新门收集的 8 格。
+
+### 6 下一批候选（M8-T103 起）
+
+1. `answer_rubric` 的 `required_any` 同样没查形状（每组必须是非空 list、项为字符串）：`[["好"], "完成"]` 这种会让 `any(str(term) ... for term in group)` 把字符串按字符拆开 ⇒ 判定悄悄变宽（不是崩，是**更松**），比崩更难发现。
+2. `build_report:180` 的 `grader_type` 兜底（要口径）。
+3. GATE_METRICS 方向与阈值（要口径）；三分口径统一命名；`review_rounds` 的 markdown 印法。
+4. **等用户口径**（task #83）：`repeated_tool_calls` 恒 null。
