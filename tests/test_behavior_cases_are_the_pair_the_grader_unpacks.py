@@ -77,8 +77,19 @@ def test_the_grader_does_not_become_a_second_owner_of_the_shape_rule() -> None:
 
 
 def test_every_shipped_behaviour_task_has_well_shaped_items() -> None:
+    """The census runs the load door, not one named helper.
+
+    Measured at 第九十批: mutation arm E2 moved the shape rule from ``fixture_blockers`` into
+    ``spec_blockers`` and the previous version of this census stayed green while checking
+    nothing about shape - it read a function that no longer held the rule. A census keyed to
+    a helper's *name* reports vacuity as a pass.
+    """
     tasks = behavior_bench.behavior_tasks()
     assert len(tasks) >= 10, f"only {len(tasks)} tasks read - the census saw nothing"
-    offenders = {t["id"]: behavior_bench.fixture_blockers(t) for t in tasks
-                 if behavior_bench.fixture_blockers(t)}
-    assert offenders == {}, f"shipped behaviour tasks carry ill-shaped items: {offenders}"
+    offenders: dict[str, str] = {}
+    for task in tasks:
+        try:
+            behavior_bench.validate_behavior_task(task)
+        except ValueError as exc:
+            offenders[task["id"]] = str(exc)
+    assert offenders == {}, f"shipped behaviour tasks are refused by their own load door: {offenders}"

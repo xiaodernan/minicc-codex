@@ -70,22 +70,41 @@ def test_an_unknown_grader_type_is_named_by_the_door() -> None:
     assert "magic" in str(exc.value), exc.value
 
 
+def _message_head(node: ast.expr) -> str:
+    """The literal opening of a blocker message, used as its identity."""
+    if isinstance(node, ast.JoinedStr):
+        return next((value.value.strip() for value in node.values
+                     if isinstance(value, ast.Constant) and isinstance(value.value, str)), "")
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return node.value.strip()
+    return ""
+
+
 def test_the_owner_of_the_rule_is_one_function_per_domain() -> None:
-    """Each wording lives in exactly one place, so the doors cannot drift apart."""
+    """Each wording lives in exactly one place, and the wording list is derived, not typed.
+
+    The previous version checked two hand-typed phrases; the module actually appends seven
+    blocker wordings, so five of them could gain a second owner in silence. Mutation arm E2
+    at 第九十批 moved a wording's home and nothing except the grade-door wording assertions
+    noticed - which is how this census came to be derived from the AST instead of my memory.
+    """
     tree = ast.parse(BEHAVIOR_SOURCE)
-    homes: dict[str, list[str]] = {}
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.FunctionDef):
-            continue
-        for inner in ast.walk(node):
-            if isinstance(inner, ast.Constant) and isinstance(inner.value, str) \
-                    and "nothing was checked" in inner.value:
-                homes.setdefault("nothing was checked", []).append(node.name)
-            if isinstance(inner, ast.Constant) and isinstance(inner.value, str) \
-                    and "keys nobody reads" in inner.value:
-                homes.setdefault("keys nobody reads", []).append(node.name)
-    for phrase, functions in homes.items():
-        assert set(functions) == {"spec_blockers"}, (phrase, sorted(functions))
+    homes: dict[str, set[str]] = {}
+    for function in (node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)):
+        for node in ast.walk(function):
+            if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                    and node.func.attr == "append"
+                    and isinstance(node.func.value, ast.Name)
+                    and node.func.value.id == "blockers"):
+                continue
+            head = _message_head(node.args[0]) if node.args else ""
+            if head:
+                homes.setdefault(head, set()).add(function.name)
+    assert len(homes) >= 7, (
+        f"the scan found {len(homes)} blocker wordings; the module has 7 at this revision, "
+        f"so a narrower scan would make 'one owner each' a claim about an empty set")
+    duplicated = {head: sorted(functions) for head, functions in homes.items() if len(functions) > 1}
+    assert duplicated == {}, f"a blocker wording has more than one owner: {duplicated}"
 
 
 def test_the_declared_behaviour_types_match_what_the_grader_dispatches() -> None:
