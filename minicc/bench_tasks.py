@@ -24,6 +24,7 @@ isolated workspace, so the oracle is hidden from the run under test.
 
 from __future__ import annotations
 
+import ast
 import json
 import os
 import subprocess
@@ -310,6 +311,62 @@ def grader_unable(grader_type: str, exc: BaseException) -> dict[str, Any]:
     return _no_result(grader_type, f"{type(exc).__name__}: {exc}")
 
 
+#: Keys the host reads off a grader spec before the embedded script ever sees it.
+#: The gate reconciles this against the shipped dispatch and producers by AST, so a
+#: drift here is a red rather than a spec key that starts being silently rejected.
+HOST_READ_KEYS = frozenset({"type", "timeout"})
+
+_VOCAB_CACHE: dict[str, dict[str, frozenset[str]]] = {}
+
+
+def _keys_read(tree: "ast.AST", base: str) -> set[str]:
+    """Every key this code reads off ``base`` - subscript, ``.get``, or ``"k" in base``."""
+    out: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) \
+                and node.func.attr == "get" and isinstance(node.func.value, ast.Name) \
+                and node.func.value.id == base and node.args \
+                and isinstance(node.args[0], ast.Constant) and isinstance(node.args[0].value, str):
+            out.add(node.args[0].value)
+        elif isinstance(node, ast.Subscript) and isinstance(node.value, ast.Name) \
+                and node.value.id == base and isinstance(node.slice, ast.Constant) \
+                and isinstance(node.slice.value, str):
+            out.add(node.slice.value)
+        elif isinstance(node, ast.Compare) and len(node.ops) == 1 and isinstance(node.ops[0], ast.In) \
+                and isinstance(node.left, ast.Constant) and isinstance(node.left.value, str) \
+                and isinstance(node.comparators[0], ast.Name) and node.comparators[0].id == base:
+            out.add(node.left.value)
+    return out
+
+
+def grader_vocabulary(grader_type: str, script: str) -> dict[str, frozenset[str]]:
+    """What a contract spec may contain, read out of the grader that will consume it.
+
+    Handing a spec key nobody reads back as a pass is how a mistyped ``contains``
+    silently deletes a check: the contract reports success having verified one fewer
+    thing than the task author wrote.
+    """
+    cached = _VOCAB_CACHE.get(grader_type)
+    if cached is None:
+        tree = ast.parse(script)
+        cached = {
+            "spec": frozenset(_keys_read(tree, "spec") | HOST_READ_KEYS),
+            "item": frozenset(_keys_read(tree, "item")),
+        }
+        _VOCAB_CACHE[grader_type] = cached
+    return cached
+
+
+def _unverifiable_keys(grader_type: str, script: str, spec: dict[str, Any]) -> list[str]:
+    """Spec and per-item keys that neither the host nor the embedded grader reads."""
+    vocab = grader_vocabulary(grader_type, script)
+    unknown = sorted(set(spec) - vocab["spec"])
+    for item in spec.get("files") or []:
+        if isinstance(item, dict):
+            unknown += [f"files[].{key}" for key in sorted(set(item) - vocab["item"])]
+    return sorted(set(unknown))
+
+
 def grade_file_contract(
     task: dict[str, Any], workspace: Path, *, grader_dir: Path | None = None
 ) -> dict[str, Any]:
@@ -325,6 +382,12 @@ def grade_file_contract(
         # item or a missing path kills the child, and a dead grader is not the
         # agent's failure. Guaranteeing it here is what makes that read a promise.
         return _no_result("file_contract", "file_contract items need a non-empty string path")
+    unverifiable = _unverifiable_keys("file_contract", _FILE_CONTRACT_GRADER, spec)
+    if unverifiable:
+        return _no_result(
+            "file_contract",
+            f"file_contract asks for checks nobody reads: {unverifiable}",
+        )
     try:
         result = _run_grader(
             "file_contract.py", _FILE_CONTRACT_GRADER,
@@ -375,6 +438,12 @@ def grade_command_contract(
         # ``cmd /c ""`` exits 0 and the embedded grader prints its marker, so an
         # empty command graded an untouched workspace as correct work.
         return _no_result("command_contract", "command_contract has no command to run")
+    unverifiable = _unverifiable_keys("command_contract", _COMMAND_CONTRACT_GRADER, spec)
+    if unverifiable:
+        return _no_result(
+            "command_contract",
+            f"command_contract asks for checks nobody reads: {unverifiable}",
+        )
     # Render here, in-process and once. The embedded grader used to do this
     # itself, unquoted, which is how a correct workspace came back failed on
     # a default Windows install: ``C:\Program Files\...\python.exe`` was
