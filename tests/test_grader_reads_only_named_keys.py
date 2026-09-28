@@ -163,7 +163,7 @@ def test_every_shipped_task_spec_is_verifiable() -> None:
                 continue
             checked += 1
             script = _source_of(SCRIPTS[kind])
-            dead = bench_tasks._unverifiable_keys(kind, script, spec)
+            dead = bench_tasks.unverifiable_spec_keys(kind, script, spec)
             if dead:
                 offenders.append(f"{task.get('id')}: {dead}")
     assert checked >= 20, f"only {checked} contract tasks were read - the census saw nothing"

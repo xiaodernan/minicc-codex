@@ -350,14 +350,17 @@ def grader_vocabulary(grader_type: str, script: str) -> dict[str, frozenset[str]
     if cached is None:
         tree = ast.parse(script)
         cached = {
-            "spec": frozenset(_keys_read(tree, "spec") | HOST_READ_KEYS),
+            # The embedded scripts call their stdin payload "spec" or "data"; both are
+            # the spec-level dictionary, so the walk must know either name.
+            "spec": frozenset(_keys_read(tree, "spec") | _keys_read(tree, "data")
+                               | HOST_READ_KEYS),
             "item": frozenset(_keys_read(tree, "item")),
         }
         _VOCAB_CACHE[grader_type] = cached
     return cached
 
 
-def _unverifiable_keys(grader_type: str, script: str, spec: dict[str, Any]) -> list[str]:
+def unverifiable_spec_keys(grader_type: str, script: str, spec: dict[str, Any]) -> list[str]:
     """Spec and per-item keys that neither the host nor the embedded grader reads."""
     vocab = grader_vocabulary(grader_type, script)
     unknown = sorted(set(spec) - vocab["spec"])
@@ -382,7 +385,7 @@ def grade_file_contract(
         # item or a missing path kills the child, and a dead grader is not the
         # agent's failure. Guaranteeing it here is what makes that read a promise.
         return _no_result("file_contract", "file_contract items need a non-empty string path")
-    unverifiable = _unverifiable_keys("file_contract", _FILE_CONTRACT_GRADER, spec)
+    unverifiable = unverifiable_spec_keys("file_contract", _FILE_CONTRACT_GRADER, spec)
     if unverifiable:
         return _no_result(
             "file_contract",
@@ -404,6 +407,16 @@ def grade_file_contract(
         "passed": passed, "grader_type": "file_contract",
         "case_count": len(files), "exit_code": result.returncode,
     }
+
+
+def spec_verifies_nothing(grader_type: str, reason: str) -> dict[str, Any]:
+    """The spec named nothing to check, so nobody judged this workspace.
+
+    Same verdict as a grader that could not run, reached through the one constructor:
+    an empty contract, an unreadable one and a host-side refusal are three roads to "no
+    look was taken", and none of them is the agent claiming work it did not do.
+    """
+    return _no_result(grader_type, reason)
 
 
 def render_python_command(command: str, python_executable: str) -> str:
@@ -438,7 +451,7 @@ def grade_command_contract(
         # ``cmd /c ""`` exits 0 and the embedded grader prints its marker, so an
         # empty command graded an untouched workspace as correct work.
         return _no_result("command_contract", "command_contract has no command to run")
-    unverifiable = _unverifiable_keys("command_contract", _COMMAND_CONTRACT_GRADER, spec)
+    unverifiable = unverifiable_spec_keys("command_contract", _COMMAND_CONTRACT_GRADER, spec)
     if unverifiable:
         return _no_result(
             "command_contract",

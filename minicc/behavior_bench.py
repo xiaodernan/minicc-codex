@@ -98,18 +98,32 @@ def grade_behavior(task: dict[str, Any], workspace: Path, answer: str = "") -> d
     grader = task.get("grader") or {}
     if grader.get("type") == "answer_rubric":
         folded = answer.casefold()
-        groups = grader.get("required_any", [])
-        passed = bool(groups) and all(any(str(term).casefold() in folded for term in group) for group in groups)
+        groups = grader.get("required_any") or []
+        if not groups:
+            # An empty rubric verified nothing and answered passed=False, charging the
+            # agent for the grader's own blank spec.
+            return bench_tasks.spec_verifies_nothing(
+                "answer_rubric", "answer_rubric lists no required_any groups: nothing was checked")
+        passed = all(any(str(term).casefold() in folded for term in group) for group in groups)
         return {"passed": passed, "grader_type": "answer_rubric", "case_count": len(groups)}
     if grader.get("type") != "python_behavior":
         return {"passed": None, "grader_type": "ungraded"}
+    unknown = bench_tasks.unverifiable_spec_keys("python_behavior", _GRADER, grader)
+    if unknown:
+        return bench_tasks.spec_verifies_nothing(
+            "python_behavior", f"python_behavior spec has keys nobody reads: {unknown}")
+    count = len(grader.get("cases") or []) + len(grader.get("raises") or [])
+    if count == 0:
+        # Zero cases still prints the completion marker for zero, which graded an
+        # untouched workspace as correct work.
+        return bench_tasks.spec_verifies_nothing(
+            "python_behavior", "python_behavior spec has no cases or raises: nothing was checked")
     try:
         result = subprocess.run(
             [sys.executable, "-I", "-c", _GRADER, str(workspace.resolve())],
             input=json.dumps(grader), capture_output=True, text=True, errors="replace",
             cwd=workspace, timeout=20,
         )
-        count = len(grader.get("cases", [])) + len(grader.get("raises", []))
         marker = f"MINICC_BEHAVIOR_COMPLETE:{count}"
         return {"passed": result.returncode == 0 and marker in result.stdout.splitlines(), "grader_type": "python_behavior", "case_count": count, "exit_code": result.returncode}
     except (OSError, subprocess.TimeoutExpired) as exc:
