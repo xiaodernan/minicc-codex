@@ -6526,3 +6526,71 @@ T 号在 `HEAD` 上量到 `M8-T80..T84` 已用、`M8-T82` 归另一个存活 run
 4. `review_rounds` 在报告里怎么印——留 8 轮、每格截 200 字这些界现在是写代码的人定的，没人声明它是给人看的口径还是门。
 5. legacy `verify_command` 分支的 `except (TimeoutExpired, OSError)` 仍记 `passed=False`（M8-T83 同形，还没换到 NO-RESULT 通道）。
 6. `turns`、`cleanup_error` 两处孤儿写的处置。
+## 第七十二批（M8-T87：新指标的判据不许比它替换掉的人肉判据弱 —— 零 case 的 pass 不是通过）
+
+### 1. 先量
+
+四条读数全部当场跑在 e2f9b44 平面（本批代码），行号以该平面为准：
+
+- **空合同真的会自己判自己通过**。直接调用出厂的 `minicc.bench_tasks.grade_file_contract`，`grader` 只给 `{"type": "file_contract", "files": []}`，返回 `{'passed': True, 'grader_type': 'file_contract', 'case_count': 0, 'exit_code': 0}`。原因在生产者身上且是结构性的：完成标记是 `f"MINICC_FILE_CONTRACT_COMPLETE:{len(files)}"`（`minicc/bench_tasks.py:328`），0 个文件也印得出标记，`passed` 于是只看 exit code（`minicc/bench_tasks.py:329`）。**但语料今天没有一条踩到**：`benchmarks/tasks.v2.json` 24 条里 `file_contract` 17 条、`command_contract` 7 条，`files` 为空的 0 条；`benchmarks/tasks.json` 30 条全都没有 `grader` 键，压根不走这条路 ⇒ 这是「构造可达、当前未 populate」，不是已经发生的误判，记账时不许写成后者。
+- **到达指标的 dict 有几个键，是量出来的不是猜的**。`file_contract` 报 4 键（含 `case_count`），`command_contract` 报 3 键（`minicc/bench_tasks.py:383`，没有 case 概念）；而 `_objective_oracle`（`minicc/benchmarks.py:65`）返回前把 `grader_type` 剔掉。所以 `reviewer_false_negative_count` 拿到的 oracle 只可能是 3 键或 2 键，「没有 `case_count`」这一格在两种来源下都成立 —— 我的规则只能对「报了 case 数」那支负责，另一支是信任，本批如实保留并在 §7 记成待办的门。
+- **人肉判据的第三条是蕴含的，不是本批新增的**。`docs/ROADMAP_TO_PRODUCT.md:2427` 那句「`objective_oracle`（`passed=true` 且 case/exit 干净）」里，`exit 干净` 已经被 `passed` 吞掉了：两条 grader 的 `passed` 表达式都是 `returncode == 0 and marker in ...`（`minicc/bench_tasks.py:329`、`minicc/bench_tasks.py:383`）。因此本批只补 `case` 那一半，note 里也不写「已完整实现人肉判据」这种话。
+- **上一批那条指标只查 `passed is True`**（ac5dc88 平面 `minicc/benchmarks.py:221`），对着上面第一条就是弱判据。
+
+### 2. 缺陷
+
+第七十一批把「谁掐死了 grader 通过的任务」从人肉分类收成指标行，但收得比原判据松：**零个 case 的复查通过也算一次评审误杀**。这条指标一进报告就是结论的来源，它一旦比被它替代的判断更宽，报告就在制造一种新的人肉时代没有的错误。同一类缺陷在第七十批记过一次（`error` 格），那时是「有写无读」，这次是「有读但判得太松」。
+
+### 3. 改法
+
+- 判据收成模块里的一个谓词 `_oracle_says_pass`（`minicc/benchmarks.py:91`）：`passed is True`，且**报了** `case_count` 时必须 `_measurement(case_count) and case_count >= 1`。case 数走 `_measurement`（`minicc/benchmarks.py:86`）而不是另写一份 `isfinite/非负/非 bool` 的判据 —— 同一模块里两条对「什么算测量」的理解不许有两个主人（M8-T79 的等式≠派生）。
+- 缺 `case_count` 明确**不**当成 0：docstring 写明 command 评分器的标记只在渲染出的命令真跑过之后才印，所以它没有 case 可数。缺键与零键是两件事，`_oracle_says_pass` 分开处理，门也分开抓。
+- 指标行改成调用它（`minicc/benchmarks.py:240`），`notes` 追加「An oracle that reports zero cases checked nothing, so its pass does not count.」（`minicc/benchmarks.py:260`）：读者从报告本身就能看到这个数排除了什么，不用读源码。
+- `entry["objective_oracle"]` 的写主从 765 行挪到 784 行（本批新增谓词占了 19 行），本批没动它。
+
+### 4. 门与见证
+
+`tests/test_metric_and_oracle_reach_report.py` 从 8 条函数扩到 14 条、收集 18 格（一条参数化占 5 格）。新增的六条各自只抓一个判据：零 case 不计数（`test_an_oracle_that_checked_zero_cases_is_not_a_false_negative`）、缺键不等于零 case（`test_a_missing_case_count_is_not_read_as_zero_cases`）、非测量的 case 数不配（`test_a_case_count_that_is_not_a_measurement_does_not_qualify` ×5）、**空合同见证走真评分器而不是我手造的 dict**（`test_the_vacuous_pass_comes_from_the_real_grader_not_from_my_dict`）、AST 对账 `case_count` 确实由 `minicc/bench_tasks.py` 里某个 `grade_*` 产出（`test_the_zero_case_rule_reads_a_key_the_producer_really_emits`）、note 必须把排除规则告诉读者（`test_the_zero_case_exclusion_is_told_to_the_reader`）。
+
+反向对照跑在 ac5dc88 的 `benchmarks.py` 原文上：**8 红 10 绿**，红格名单与预测逐条一致 —— 上面六条新门（含 5 个参数化格）全红，另两红是既有门 `test_the_false_negative_count_moves_with_the_rows` 与 `test_the_new_aggregate_is_explained_to_the_reader`（旧 note 没有 zero-case 那句）。
+
+行为变异 4 条，全部改值、语法保持合法，未变异对照 rc=0 才计数：
+
+| 变异 | 改的是什么 | 预测红格 | 实跑 |
+| --- | --- | --- | --- |
+| m1 | `return _measurement(count) and count >= 1` → 去掉 `and count >= 1` | 零 case、真评分器、非测量 `[0.5]` 共 3 格 | 3 红，名单一致 |
+| m2 | `if "case_count" in oracle` → `"case_counts"`（打错键名） | 上述 3 格 + 4 个非测量格 = 7 红 | 7 红，名单一致 |
+| m3 | 非 pass 的 oracle 从 `return False` 改成 `return True` | `test_the_false_negative_count_moves_with_the_rows` | 1 红，仅此 |
+| m4 | note 里 `zero cases` 换成 `no cases` | `test_the_zero_case_exclusion_is_told_to_the_reader` | 1 红，仅此 |
+
+4/4 与预测一致，脚本 finally 里按字节还原并核对 `restored: True`。两个如实登记：
+
+1. **m3 第一次 MISFIRED，且是我的命令错不是代码错**。工作副本是 CRLF（git autocrlf），我那条两行 `old` 用 `\n` 写 ⇒ 命中 0 次。脚本的 `hits != 1` 守卫直接拒绝，没有留下一个「红 0 格」的假见证；改成按 LF 匹配、写回时换回平面自己的行尾后 4/4 全中。⇒ 变异子串必须匹配被测平面的行尾，这条写进方法账。
+2. m1 之后仍有 4 个非测量格保持绿，是设计如此：`_measurement` 与 `>= 1` 是两个判据，m1 只拆后者，前者由 m2 的 7 红覆盖。三个判据（pass 与否、是否测量、是否至少一格）各被独立抓住，说明它们不是同一断言的三种写法。
+
+定向回归：`tests/test_metric_and_oracle_reach_report.py` + `tests/test_benchmark_runner.py` + `tests/test_bench_compare.py` 一次跑完 **59 passed in 15.78s**。
+
+### 5. 基线
+
+代码平面 e2f9b44 的干净 worktree（`git worktree add --detach`，basetemp 在树外，单进程，`-W error`）整套跑完：
+
+```
+1267 passed in 450.12s (0:07:30)
+```
+
+`PYTEST_EXIT=0`，零红零错。第七十一批的基线是 1257，本批在同一文件里把 8 条函数扩到 14 条、收集格 +10 ⇒ 1267，这行数字抄自日志汇总行，算式只是事后核对，不是预告。
+
+**前两次尝试作废，作废原因是我自己的命令，不是代码**（如实登记，免得下一个接手的人以为这批曾经真红过）：第一次启动打印 `No module named pytest` 后秒退——那是一个并发安装窗口把 venv 的 `pytest` 短暂摘掉了；我改用同一 `--basetemp` 与同一日志文件重跑，而第一次那个进程树其实还活着（Windows 的 `.venv\Scripts\python.exe` 是转壳，子进程以基础解释器带同一 argv 复现，`Get-CimInstance` 看到两个 PID 是**一个**会话的正常形状），于是两个会话同时清抢一棵 basetemp。同一个日志里因此出现了两条页脚：`2 failed, 1260 passed, 5 errors`（另一会话在启动时清了这棵临时树）与 `1192 passed, 75 errors`。这些红的报错文本全是「目录在我脚下没了」：`fatal: Unable to read current working directory: No such file or directory`、`fatal: not a git repository`、`FileNotFoundError: ...bt88full\test_an_unreachable_exemption_0\CITED.md`——没有一条指向本批改的判据。第三次换唯一 basetemp（`bt88x`）+ 唯一日志，一次跑完就是上面这行。教训两条：每次尝试都要**独立**的 basetemp 和日志，判页脚要用它的形状（`in [0-9]+\.[0-9]+s (0:`）而不是 `failed|error` 这种会撞上测试文件名的词（我第一次就撞在 `tests\test_error_reaches_report.py` 上，等 10 秒就以为跑完了）。
+
+### 6. 编号说明
+
+第七十二批 = M8-T87，用的正是第七十一批 §7 第 1 条留的号（那一条写明「两者都要做，先量再定号」，本批两条都做了）。定号在推送平面上重数：`origin/main` = 0a388b3，文档里真实出现的最大号是 `M8-T86`；`M8-T87` 在 0a388b3 上只以「候选/留号」出现 2 次，被本批兑现为结论；`M8-T82` 仍是另一条流占的号；`M8-T999` 是文档哨兵。下一空号 **M8-T88** 给 §7 第 1 条。
+
+### 7. 队列
+
+1. **legacy `verify_command` 把宿主故障写成智能体谎报**（M8-T88）。`minicc/benchmarks.py:792` 那条 `except (_subprocess.TimeoutExpired, OSError)` 后面紧跟 `entry["passed"] = False`（`minicc/benchmarks.py:793`），与同一函数里 v2 分支（`minicc/benchmarks.py:779` 走 `bench_tasks.grader_unable` 的 NO-RESULT）口径相反 —— 这是 M8-T83 记过的同一件事，只是这条来路没换。改法不需要新口径，照 M8-T83 的决定办；门要答 timeout 与 OSError 两条入口、`grader_type` 仍为 `command`、NO-RESULT 不进 `gradable` 分母，外加一条「同一异常在两条来路上不许一条记判决一条记拒绝」的对账。实测影响不是纸面的：`benchmarks/tasks.json` 的 30 条任务**全部**没有 `grader` 键，其中 3 条带 `verify_command`（`test-failure-triage`、`regression-test-run`、`frontend-syntax-check`）今天就在跑这段；另有 0 条同时带 `grader` 与 `verify_command`（即带 grader 的任务永远碰不到 `minicc/benchmarks.py:792`）。
+2. **`_oracle_says_pass` 的「无 `case_count`」那一支是信任，不是门**。要把它变成门，指标得知道这条 oracle 出自哪个评分器 —— 而 `_objective_oracle` 恰好把 `grader_type` 剔掉了（`minicc/benchmarks.py:65` 的 dict comprehension）。这是 M8-T86 的反向形状：一个读者会需要的键被生产者自己丢了。先量「保留 `grader_type` 会不会破坏现有断言」，再决定是补键还是让谓词按 `exit_code`/`error` 形状分派。
+3. `tool_repeat_rate` 恒 null（待用户口径：真算重复计数并写盘，还是把读＋指标＋`tests/test_behavior_bench.py:38` 手造的那个字段一起删净）。
+4. 指标全集与 `bench_compare.GATE_METRICS` 没有对账门（实测：它只是 `--gate-metric` 的参数校验器）；`grading_refusal_count` 与 `reviewer_false_negative_count` 都还没有「变差方向 + 阈值」。
+5. `review_rounds` 在报告里怎么印——留 8 轮、每格截 200 字这些界现在是写代码的人定的，没人声明它是给人看的口径还是门。
+6. `turns`、`cleanup_error` 两处孤儿写的处置：要么补读者要么删写。
