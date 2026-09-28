@@ -144,6 +144,8 @@ def load_tasks(path: Path = DEFAULT_FIXTURES) -> list[dict[str, Any]]:
             raise ValueError("每个评测任务必须包含非空 id")
         if task["id"] in seen:
             raise ValueError(f"评测任务 id 重复: {task['id']}")
+        # Same owner the v2 door uses: a blank prompt would still buy a full agent run.
+        bench_tasks.require_prompt(task)
         # A task may declare one objective check, not two: the runner's grader branch wins
         # and the other is dropped without a word, so a task carrying both scores less than
         # its author thinks it does.

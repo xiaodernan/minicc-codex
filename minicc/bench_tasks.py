@@ -41,6 +41,7 @@ __all__ = [
     "resolve_grader_dir",
     "v2_tasks",
     "validate_task",
+    "require_prompt",
     "spec_blockers",
     "GRADER_SCRIPTS",
     "grade_file_contract",
@@ -86,6 +87,18 @@ def v2_tasks(path: Path | str = DEFAULT_TASKS_V2) -> list[dict[str, Any]]:
     return tasks
 
 
+def require_prompt(task: dict[str, Any]) -> None:
+    """Every suite's task must actually ask something - one owner for that rule.
+
+    The runner turns a missing prompt into an empty message and still pays for the
+    agent turn, so "no question" cannot be allowed to reach a run from either loader.
+    """
+    task_id = task.get("id") if isinstance(task, dict) else None
+    prompt = task.get("prompt") if isinstance(task, dict) else None
+    if not isinstance(prompt, str) or not prompt.strip():
+        raise ValueError(f"任务 {task_id!r} prompt 不能为空")
+
+
 def validate_task(task: dict[str, Any]) -> None:
     """Schema gate used by tests and by ``--suite v2`` loading.
 
@@ -105,8 +118,7 @@ def validate_task(task: dict[str, Any]) -> None:
             f"任务 {task['id']} 的 suite_version 不认识: {declared!r}"
             f"（本版本只认 {sorted(SUITE_VERSIONS)}）"
         )
-    if not isinstance(task["prompt"], str) or not task["prompt"].strip():
-        raise ValueError(f"任务 {task['id']} prompt 不能为空")
+    require_prompt(task)
     fixture = task["fixture"]
     if not isinstance(fixture, dict) or not fixture:
         raise ValueError(f"任务 {task['id']} fixture 必须是非空对象")
