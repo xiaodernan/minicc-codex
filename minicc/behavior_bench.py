@@ -167,7 +167,19 @@ def fixture_blockers(task: dict[str, Any]) -> list[str]:
         return [f"python_behavior 任务 fixture solution.py 无法解析: {exc.msg}"]
     if not isinstance(function, str) or function not in names:
         return [f"python_behavior 任务的 fixture 未定义被评函数 {function!r}，任何智能体都无从通过"]
-    return []
+    blockers: list[str] = []
+    for index, case in enumerate(grader.get("cases") or []):
+        if not (isinstance(case, list) and len(case) == 2 and isinstance(case[0], list)):
+            blockers.append(
+                f"python_behavior cases[{index}] 必须是 [args, expected] 且 args 为 list，收到 {case!r}"
+            )
+    for index, case in enumerate(grader.get("raises") or []):
+        if not (isinstance(case, list) and len(case) == 2 and isinstance(case[0], list)
+                and isinstance(case[1], str)):
+            blockers.append(
+                f"python_behavior raises[{index}] 必须是 [args, 异常名] 且 args 为 list，收到 {case!r}"
+            )
+    return blockers
 
 
 def validate_behavior_task(task: dict[str, Any]) -> None:
