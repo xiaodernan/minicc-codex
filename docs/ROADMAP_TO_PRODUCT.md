@@ -7075,3 +7075,61 @@ C4 是本批最强的证据：一个只被我新门点名的改动，同时让�
 3. `grading_refusal_count`／`reviewer_false_negative_count` 进 `bench_compare.GATE_METRICS`：要方向与阈值口径。
 4. 三分口径（通过／判不了／没评分器）在文档里仍无统一命名；`review_rounds` 进了报告行但 markdown 一格没印。
 5. **等用户口径**（task #83）：`repeated_tool_calls` 有人读、没人写 ⇒ `tool_repeat_rate` 恒 null；行 census 的唯一活豁免。
+## 第八十批 M8-T95：跨两支的键名单看着严格、其实放行
+
+代码 `e138572`（本记录随其后追加）。编号说明：`M8-T95` 之前只在第七十九批 §7 作前向引用出现，HEAD 无标题占用。
+
+### 1 缺陷：一支函数的走查只能给出两支键的并集
+
+第七十七批把词表钉成「从评分器源码推导」，第七十九批把 `python_behavior` 的读形走查接上——但 `answer_rubric` 的读发生在**进程内**，且与 `python_behavior` 的读同居 `grade_behavior` 一个函数。对这种函数做走查，能得到的只有两支键的并集：
+
+```
+拆之前 `grade_behavior` 对 "grader" 的读（在 `dced4ad` 平面量）：required_any, cases, raises, type
+拆之后 `grade_answer_rubric` 对 "grader" 的读（同一走查）：required_any
+```
+
+一份并集名单看着是严格清单，实际两处都放行：rubric 规格里塞一个 `cases: []`（另一支的键）被接受且被忽略；反之 `python_behavior` 规格里塞 `required_any` 也一样。**这是「等号不是派生」的第三种形态**（前两种：手抄打印名单、手抄类型名）——并集是从源码来的，但来源的**范围**比它要管的对象宽。
+
+### 2 改法：给词表一个和它一样大的主语
+
+`grade_answer_rubric` 拆成独立函数（`minicc/behavior_bench.py:104`），`RUBRIC_SPEC_KEYS = {"required_any"}`（`minicc/behavior_bench.py:101`）就有了与它同范围的推导主语；`minicc/behavior_bench.py:113` 用它减 `HOST_READ_KEYS` 拒绝别人家的键，`minicc/behavior_bench.py:131` 是 `grade_behavior` 的委托点。声明仍然由门反向对账（不靠人维护）：
+
+- **正向**：`_keys_read(grade_answer_rubric, "grader")` 必须恰好等于声明集合；
+- **反向（防门空转）**：留一条见证断言 `grade_behavior` 读到的键比声明**多**（`merged - declared` 非空且含 `cases`）——哪天两支合回去或 `grade_behavior` 不再读别人家的键，这条就会红并要求更新，而不是悄悄变成永真。
+
+### 3 门：`tests/test_rubric_vocabulary_is_branch_scoped.py`（7 个函数 / 8 格）
+
+- 声明 = 该函数实际读到的键（双向）。
+- 并集见证：`merged - declared` 非空、`cases ∈ merged` 且 `cases ∉ declared`。
+- 两个跨支键（`cases`、`preserve_inputs`）塞进 rubric ⇒ NO-RESULT 且点名是哪个键。
+- 真 rubric（两组任一命中）仍 `passed=True, case_count=2`——严格不许吃掉合法规格。
+- 反向也堵：`python_behavior` 规格里塞 `required_any` ⇒ 走真门被拒（复用第七十九批那道 `unverifiable_spec_keys`）。
+- 拒绝行进 `build_report` ⇒ `grading_refusal_count 1 / gradable_task_count 0`。
+- 委托见证：`grade_behavior` 体内必须真的调用 `grade_answer_rubric`，否则严格名单保护的是没人走的路径。
+
+### 4 反向对照、变异，以及一次我自己的记录错
+
+未修平面 `dced4ad` + 最终门文件：**7 failed / 1 passed**。这批不假装那是行为证据——`grade_answer_rubric`/`RUBRIC_SPEC_KEYS` 在旧平面不存在，所以红里是门的 `AssertionError`（推导主语缺失）与直接调新函数的 `AttributeError` 两种，都不是对旧行为的判据。行为反事实照旧由变异臂承担。
+
+变异 3 臂（定向集 3 个文件 30 格；未变异控制 `30 passed` / `rc=0`；`restored: True`）：
+
+| 臂 | 改动 | 红数 | 抓住它的门 |
+| --- | --- | --- | --- |
+| D1 | 声明放宽成并集 | 5 | 两支跨键参数、正向对账、并集见证、报告读者 |
+| D2 | 声明清空 | 3 | 真 rubric 正面对照 + 正向对账 + 报告读者 |
+| D3 | 去掉委托 | 4 | 委托见证 + 走真门的三条 rubric 行为格 |
+
+⚠️**我的预测表自己错了两次，登记不藏**：脚本里我给参数化案例写了手造 id（`[cases]`），pytest 生成的是 `[spec0-cases]`，于是 D1/D2 的报告里出现「预测漏 + 意外红」各一条——实为同一格。这是「测试名要从跑测器读回、不要凭印象写」这条老规矩**第一次在变异 harness 上应验**。修正在下一批 harness 里：先 `--collect-only -q` 拿真实 id 再写预测表。
+
+### 5 基线
+
+干净平面（worktree 显式建在 sha `e138572`）+ `PYTHONPATH` 指过去、独立 basetemp 与独立日志：**1357 passed in 358.98s (0:05:58)**，`PYTEST_EXIT=0`，数字取自日志自己的页脚。上一批 1349 ⇒ +8 正好等于新门文件收集的 8 格。
+
+### 6 下一批候选（M8-T96 起）
+
+1. 同族最后一格：`grade_file_contract`／`grade_command_contract` 的 `spec` 读也在**同一模块不同函数**里，词表已按类型分开（第七十七批），但没有像本批这样留「并集见证」。补一条对称的维护见证，成本一分钟；不做则这两支只有正向对账。
+2. `build_report:180` 的 `grader_type` 兜底（要口径）。
+3. `grading_refusal_count`／`reviewer_false_negative_count` 进 `bench_compare.GATE_METRICS`：要方向与阈值口径。
+4. 三分口径统一命名；`review_rounds` 进了报告行但 markdown 没印。
+5. **等用户口径**（task #83）：`repeated_tool_calls` 恒 null。
+6. harness 自我修正：变异预测表的 id 一律从 `--collect-only` 读回。
