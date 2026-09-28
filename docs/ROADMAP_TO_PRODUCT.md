@@ -7645,3 +7645,134 @@ PYTEST_EXIT=0
 2. `load_tasks` 的 legacy 支路除 `category`/`prompt`/`verify_command` 外仍不校验行为套件用得到的 `fixture` 形状。
 3. `bench_compare.GATE_METRICS` 里 `grading_refusal_count` 的方向与阈值（要口径决定）。
 4. 恒 null 的 `tool_repeat_rate`（task #83，要口径决定：真算并写，还是删干净不再呈现）。
+## 第九十一批 M8-T106：智能体的工作区必须是作者写下的那些字节
+
+### 1 编号说明
+
+追加前在被追加上游平面 `d62ed1b` 上量：文档里最后的批次标题是 `## 第九十批 M8-T105`，`M8-T106`
+在整份文档出现 **0 次**（本批既不是前向引用也没有占位），`M8-T999` 仍是文档哨兵。
+本批＝第九十一批＝`M8-T106`，兑现第九十批 §7 第 2 条挂着的那格（`load_tasks` 除 `category`/`prompt`/
+`verify_command` 外不校验 `fixture`）。
+
+### 2 缺陷：写进工作区的不是作者写的那份内容
+
+`benchmarks.py` 对任何带 `fixture` 的任务都调 `prepare_fixture`（`minicc/benchmarks.py:718`，在
+try 里），而写点做了一件「帮忙」的事。下面每条都在 `d62ed1b` 上真调用量得，不是推理：
+
+1. **值不是文本时被兜成 Python repr。** 旧写点是 `str(content)`（该平面 `minicc/behavior_bench.py:287`）。
+   实测 `{"data.json": {"items": [1, 2], "note": "hello"}}` 落盘字节是 `b"{'items': [1, 2], 'note': 'hello'}"`，
+   `json.loads` 回答 `Expecting property name enclosed in double quotes: line 1 column 2`。
+   任务文件本身就是 JSON，所以「把 fixture 写成嵌套对象」是**作者能合法写出来的形状**，装载门照收，
+   智能体收到一个任何解析器都读不了的文件，然后因为没做到这件事被记 `passed=False`。
+2. **文本模式翻译换行。** 同一写点用默认 `newline` 写文本：作者写 `"第一行\nsecond\r\nthird\n"`，
+   读回是 `'第一行\nsecond\n\nthird\n'`——每个 LF 变成 CRLF，作者自己写的 CRLF 变成两个换行。
+   这条是本批写门的时候当场发现的，不是我预先假设的。
+3. **键只查了两种越界。** 旧装载门只拒「以 `/` 开头」与「含 `..` 段」。实测仍放行的形状与其后果：
+   `""` 与 `"."` ⇒ 写点在目录上 `PermissionError`；`"nested/"` ⇒ 建出目录后 `write_text` 打死；
+   `"C:/Windows/probe.txt"` ⇒ 装载门放行（它不以 `/` 开头），写点 `is_relative_to` 抛
+   `ValueError: fixture path escapes workspace`。四种都是**宿主写不出这份工作区**，
+   但异常被 `run_benchmark` 的兜底接住后走进 `entry["passed"] = False`（M8-T83 那一族）。
+
+语料 census（同一平面上真调 `load_tasks`／读 `tasks.v2.json`／`behavior_tasks()`）：
+legacy 30 条里 **0** 条带 `fixture`，v2 **24/24** 带（39 个文件项）、行为套件 **12/12** 带（24 项），
+合计 **63** 个 fixture 项，值全是字符串、键全是普通相对路径 ⇒ **构造可达、语料 0 条**，
+本批不写成已经在危害谁。门里的 census 下限写 ≥30 项（比实测 63 松，但由同一趟扫描计数，
+不是手抄的数）。
+
+### 3 改法：规则住一处，三条装载门都去问
+
+- `minicc/bench_tasks.py:122` 新增 `require_writable_fixture(task)`＝这条规则唯一的主人：
+  键必须是字符串（`minicc/bench_tasks.py:139`）、归一化后不许逃逸——现在连盘符绝对路径也认
+  （`minicc/bench_tasks.py:144`、拒绝在 `:146`）、不许命名目录（空键／`.`／尾分隔符，拒绝在
+  `minicc/bench_tasks.py:149`）、值必须是文本（`minicc/bench_tasks.py:153`）。理由都点名任务 id 与那个键。
+- 三条装载门同问这一个主人：v2 `validate_task` 委托（`minicc/bench_tasks.py:182`，替掉它原先内联的
+  两行越界检查）、legacy `load_tasks`（`minicc/benchmarks.py:153`）、行为 `validate_behavior_task`
+  （`minicc/behavior_bench.py:225`）。
+- 写点不再自作聪明：`minicc/behavior_bench.py:293` 写 `target.write_text(content, encoding="utf-8", newline="")`
+  ——作者给的字节原样落盘，兜底与翻译一起撤掉。判分期没动：坏形状根本进不到工作区。
+
+### 4 门（`tests/test_a_fixture_must_be_text_the_workspace_can_hold.py`，8 函数 / 39 格）
+
+11 个坏形状 × 三条装载门各一格（矩阵按「形状＋门」两轴参数化）、良形状三门仍装载、写点字节保真
+（含中文与 CRLF 的样例，断言 `read_bytes()` 恰等于作者字节）、写点不许再把值兜成 repr
+（`TypeError` 而不是静默落盘）、唯一主人＋三门都问主人的 AST 门、写点无 `str(content)` 且带
+`newline=''` 的结构门、语料 census（每套 ≥10 条、fixture 项 ≥30、违规 0）。
+
+⚠️**两个我自己的门缺陷，都是这一批里最值钱的两条**：
+
+1. 第一版把三条门写成**一个**测试里的连续 `pytest.raises`：第一个 `ValueError` 就退出，于是
+   legacy 门对所有 11 个形状**从没被跑到**。证据不是我的检讨而是变异臂——A6（把 legacy 门的问话断开）
+   在这种写法下**实测 0 红**。把矩阵拆成 (形状, 门) 两轴之后，这一格才有名字。
+   ⇒ 「一条测试里有几个断言」不等于「有几个案例」；装载门矩阵要按门分格。
+2. 「报错点名了那个键」我第一版写成 `str(key) in message`——对空键 `""` 这是**永真**的
+   （空串在任何字符串里）。改成 `repr(key) in message` 优先、只有非空键才允许走 `str` 分支。
+   这是「缺席门要先归一化」同族：判据必须在自己声称的主语上不恒真。
+
+### 5 反向对照
+
+未修平面 `d62ed1b`（临时 worktree，只把本批门文件原样拷过去跑，与修后平面字节一致 9811B）：
+**39 格里 36 红 / 3 绿 / 0 skip**（junit `t106rev.xml` 计数，不是终端艺术）。三条绿的归属**实测点名**：
+
+1. `test_an_honest_fixture_still_loads_through_all_three_doors`——良形状在旧平面也放行，本来就该绿。
+2. `test_every_load_door_refuses_a_fixture_the_workspace_cannot_hold[escaping key-v2]`——旧 v2 门里那两行
+   内联越界检查本来就拒 `../`，所以这一格在旧平面成立；本批把它交给主人（`minicc/bench_tasks.py:122`），
+   语义没变。
+3. `test_every_load_door_refuses_a_fixture_the_workspace_cannot_hold[non-string key-legacy]`——JSON 任务文件
+   表达不出非字符串键，legacy 门提前 return（该格在门文件里带注释说明为什么不能测）。
+
+红的分布：矩阵 31 格（11 形状 × 3 门，减去上面两条绿与一条 skip 形状）＋ 5 格非矩阵门
+（`census`／唯一主人 AST／写点结构／两条写点行为门），后者在旧平面是 `AttributeError`
+（`require_writable_fixture` 不存在）＝机制在旧平面不存在 ⇒ 行为反事实一律由 §6 的变异臂承担
+（与第八十九、九十批同一形状）。
+
+⚠️我第一版 §5 把第 2、3 条写成「另两条都是非字符串键提前 return 那格」——**错了**，那种格子只有一条。
+是这一批唯一一次「凭印象写归属」，靠 junit 里的名字纠正。
+
+### 6 变异见证
+
+`Temp/mut106.py`：每臂先恢复 pristine 字节、只改**值**（文件必须还能 compile＋import）、
+跑本批门文件、红名从 junit XML 读回，预测名先由 `--collect-only -q` 的 39 个 id 推导。
+控制臂 **39 格 0 红**，收尾臂 **39 格 0 红**，`restore: all bytes identical`（三个源文件全 sha256 对得上）。
+
+| 臂 | 破坏了什么 | 预测红 | 实测红 | 结果 |
+| --- | --- | --- | --- | --- |
+| A1 | 值必须是文本 ⇒ 放宽成也收 dict | 3 | 3 | CAUGHT，恰好 `nested object` × 三门 |
+| A2 | 目录键拒绝 ⇒ `if False:` | 9 | 9 | CAUGHT，`empty/dot/directory key` × 三门 |
+| A3 | 盘符绝对路径识别 ⇒ `drive_absolute = False` | 3 | 3 | CAUGHT，`drive absolute key` × 三门 |
+| A4 | 写点重新 `str(content)` | 2 | 2 | CAUGHT：repr 门＋写点结构门 |
+| A5 | 写点去掉 `newline=""` | 2 | 2 | CAUGHT：字节保真门＋写点结构门 |
+| A6 | legacy 门不再问主人 | 11 | 11 | CAUGHT：10 个 legacy 形状格＋唯一主人 AST 门 |
+| A7 | 行为门不再问主人 | 12 | 12 | CAUGHT：11 个 behavior 形状格＋唯一主人 AST 门 |
+
+**7/7 全 CAUGHT，零「预测到却没红」、零「没预测却红」**——这一批的预测之所以能全中，
+是因为 §4 那条缺陷（三门写在一个测试里 ⇒ A6 实测 0 红）在起草阶段就被自己抓出来并改成 (形状, 门) 两轴；
+否则这张表会有两行是瞎的。
+
+⚠**见证脚本自己的一个缺陷，也记在这里**：第一版把 pristine 的 sha256 存成前 12 位、
+收尾却拿完整 64 位去比 ⇒ `restore:` 那一行**永远**报 DIRTY。它没有污染任何一臂的数字（臂只用 `PRISTINE`
+的字节恢复，不参与比较），但一个「永远不会通过」的恢复见证等于没有恢复见证。改成完整摘要后**整套重跑**，
+上表数字与第一次逐字一致。
+
+### 7 全量基线
+
+平面 `wt109`（detached，HEAD `1ad42e5`，跑前跑后 `git status --porcelain` 皆空），仓库 `.venv`，
+单进程，`-p no:cacheprovider -W error -q --tb=line`，`--basetemp`／`--junitxml` 都在平面外：
+
+**1485 passed in 796.75s (0:13:16)**，退出码 0，junit `t106full.xml` 自报 **1485 格 / 0 红 / 0 skip**。
+数字可推导：上一基线 1446 ＋ 本批 39 格 = 1485。
+
+⚠**时长不可与上一批比较**：这段时间里另一个存活 run 在同一台机器上跑它自己的两条 leg
+（`leg_p38_postgres.xml`），我这轮是重叠期跑的。0 红与 rc=0 与被拖慢的计时无关，
+但 796.75s 不是冷跑数，别当基线引用。
+
+### 8 下一批候选
+
+1. 宿主写不出工作区仍然记在智能体头上：`prepare_fixture` 抛出的异常被 `minicc/benchmarks.py:760` 的
+   `except Exception` 接住并只写 `status="failed"`，随后 `minicc/benchmarks.py:821` 给这一行
+   `passed=False`＋`grader_type`——本批让坏形状进不到那里（装载门先拒），但**同一条兜底对别的宿主故障
+   还在捏造判决**（M8-T83 族剩下的一格）；要做的是把「装载门已拒」与「运行期写不出」分开记账。
+2. 第九十批 §7 第 1 条仍未做：`test_every_shipped_behaviour_task_has_well_shaped_items` 与本批
+   `test_no_shipped_task_needs_the_new_rule` 都是「拿 shipped 人口跑一遍」的普查，但两条的**分工**没写进名字
+   （一条答门放不放行，一条答宿主编码路径用不用得到）。先量再定要不要并表，本批不预先写结论。
+3. 要口径决定：`build_report:180` 的 `grader_type` 兜底、`bench_compare.GATE_METRICS` 里
+   `grading_refusal_count` 的方向与阈值、`review_rounds` 的印法、恒 null 的 `tool_repeat_rate`（task #83）。
