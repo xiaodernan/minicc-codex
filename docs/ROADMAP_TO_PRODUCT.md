@@ -7532,3 +7532,116 @@ F2 的多出来三条是好事：两扇门措辞相同不是注释承诺，是�
 1. 本批没做的**变异表**（预算用完，如实记为缺口）：摘掉 encode 的 `except` ⇒ 宿主侧 3 格红；把形状检查搬进 `spec_blockers` ⇒ 不对称格与 86 批的域唯一主人格红。下一轮先补这两臂再往前。
 2. `--suite legacy` 的「不该有 grader」不变量与 `category`/`prompt` 之外字段仍无人守（八十三批留的题）。
 3. **要口径**：`build_report:180` 的 `grader_type` 兜底、GATE_METRICS 方向与阈值、三分口径命名、`review_rounds` 印法、`tool_repeat_rate`（task #83）。
+## 第九十批 M8-T105：补上第八十九批欠的变异表，并把它暴露的两处「名字比内容响」的门改成派生
+
+### 1 编号说明
+
+追加前在推送平面 `origin/main`（＝`39a2e2a`）上量：文档里最后的批次标题是 `## 第八十九批 M8-T104`，
+真实出现的最大 T 号是 `M8-T104`，`M8-T105` 在 `39a2e2a` 上只以第八十九批 §5「下一批候选」的前向引用出现
+（那一节标题是「下一批候选（M8-T105 起）」），本批把它兑现成结论；`M8-T999` 仍是文档哨兵。
+本批＝第九十批＝`M8-T105`。
+
+### 2 本批先还债：第八十九批记下了缺口，没跳过去
+
+第八十九批 §5 的原话是「本批没做的**变异表**（预算用完，如实记为缺口）：摘掉 encode 的 `except` ⇒ 宿主侧 3 格红；
+把形状检查搬进 `spec_blockers` ⇒ 不对称格与 86 批的域唯一主人格红。下一轮先补这两臂再往前。」
+本轮在 `39a2e2a` 的干净 worktree（`$env:TEMP/wt109`）上跑了这两臂：每个臂先把文件还原成对照字节，
+改的是**值**不是语法，改完先 `compile()` 再跑，判据一律读 junit XML，命令与对照同一条。
+
+| 臂 | 改法 | 事前预测 | 实测红（arm − control） | 结论 |
+| --- | --- | --- | --- | --- |
+| E1 | `minicc/behavior_bench.py:259` 的 `except (TypeError, ValueError) as exc:` → `except (OSError,) as exc:` | `test_grading_such_a_spec_refuses_instead_of_raising` 的三个参数化格 | 3/3，正是那三格 | 摘掉守卫后 `TypeError` 逃出评分器，宿主侧三格判红 |
+| E2 | 把 `minicc/behavior_bench.py:196` 起的两个 `for index, case in enumerate(...)` 循环整段从 `fixture_blockers` 搬进 `spec_blockers` 的 `python_behavior` 分支 | 不对称格 1 | 4：不对称格 **加上未预料的 3 格** | 见 §3 |
+
+对照跑（未改动的平面）与还原后的复跑都是 `34 passed`（收集 34，红 0），
+被改文件还原后 sha256 与落盘前逐字节相同。
+
+### 3 §2 的两条偏差都是关于测试的事实
+
+**没预测到的三条红**：`tests/test_behavior_args_that_cannot_be_encoded_are_no_result.py:47` 的三格
+除了要求 `passed is None` 与 `grading_refused is True`，还要求 `assert "编码" in graded["refusal"]`（同一函数第 53 行）。
+E2 搬动之后评分门先撞上形状规则，回绝理由变成「args 必须能通过 JSON 传递」，那句 `编码` 就不再出现。
+于是「评分门只该由宿主编码路径说话」这件事其实是从两个方向被钉住的。
+第八十九批 §5 只写了不对称格——那是按「谁读这个值」推的；按「谁断言这段文字」重推就该算上它们。
+
+**预测错的一条**：`86 批的域唯一主人格`（`test_the_owner_of_the_rule_is_one_function_per_domain`）
+**没有**因 E2 变红，而记录断言它会红。读代码才知道为什么不会：它只检查两条手打的短语
+（`nothing was checked`、`keys nobody reads`），而模块真正往 `blockers` 里 append 的措辞有 7 条，
+措辞搬家后仍是一处主人，两条手抄短语看不见它。
+
+### 4 把 §3 暴露的两个洞改掉
+
+1. **点名某个 helper 的普查，会在规则搬家时把空转报成通过。**
+   `tests/test_behavior_cases_are_the_pair_the_grader_unpacks.py` 的
+   `test_every_shipped_behaviour_task_has_well_shaped_items` 名字声称普查「项的形状」，实现却是
+   `{t["id"]: fixture_blockers(t)}`。E2 实测它**绿色**，而它读的那个函数当时已经不再持有形状规则。
+   普查现在改跑**门本身**（`validate_behavior_task` 不许抛，把每个 `ValueError` 记成 offender），
+   规则住在哪个函数都与它无关。
+2. **手抄的措辞清单只覆盖 7 条里的 2 条。**
+   `tests/test_behavior_suite_is_validated_at_load.py` 的 `test_the_owner_of_the_rule_is_one_function_per_domain`
+   改成从 AST 派生：遍历每个函数里 `blockers.append(<f-string>)` 的字面量头部当作措辞身份，
+   要求每条措辞的主人集合恰好一个，并加下限 `len(homes) >= 7`。量到的 7 来自本平面的派生脚本
+   （逐条打印 7 条措辞、各 1 个主人）；没有下限的话把扫描条件写错就变成「关于空集的伟大结论」。
+
+### 5 固定后的见证表（5 臂 + 对照 + 复跑）
+
+命令 `-W error --tb=line -q`，7 个 behavior 系文件，收集 60 条；对照 `60 passed`（红 0）；
+还原后复跑 `60 passed`；两处被改的文件逐字节还原（`all bytes identical`）。
+
+| 臂 | 改法 | 预测 | 实测 | 判据 |
+| --- | --- | --- | --- | --- |
+| E1 | 编码守卫换成 `except (OSError,)` | 宿主侧 3 格 | 3/3 | CAUGHT |
+| E2 | 形状规则搬进 `spec_blockers` | 那 3 格＋不对称格 | 4/4 | CAUGHT |
+| E4 | 形状规则**复制**进 `spec_blockers`（原处保留） | 唯一主人格＋不对称格＋3 格 | 5/5 | CAUGHT |
+| E5 | 只动测试：把扫描主语 `"blockers"` 改名成 `"problems"` | 唯一主人格靠下限说话 | 1/1 | CAUGHT |
+| E6 | E2 的搬动 **＋** 把 shipped `_CASES` 的 clamp 首项改成三元组 | 新普查＋门普查＋E2 的 4 格 | 6/6 命中，另多红 3 格 | CAUGHT |
+
+E6 的三条额外红是从 `--tb=line` 的原文读出来的，不是我的推测：
+`shipped tasks would hit the encode guard: {'behavior-clamp': [... cases[0] 必须是 [args, expected] ...]}`、
+`assert None is False`（评分门把 shipped 的三元组当规格问题回绝，不再给判决）、
+以及同一条 shipped 三元组触发的另一格 shipped 普查。**共同点：它们都是「拿 shipped 任务走评分门」的测试**——
+shipped 数据一旦坏，规则住在哪个门里都会响；而 E2（shipped 数据完好）里新普查保持绿色，
+因为那时它确实没有可报的 offender。这正是把普查改成跑门之后该有的行为差别。
+
+### 6 全量基线
+
+**第一次尝试作废，原因是我的调用而不是代码。** 那一跑把 `--basetemp` 指到了平面里面
+（`wt109/bt110full`），并把见证产物（`mut*_*.xml/.log`、七个 `bt111_*` basetemp 目录）留在了工作树里，
+结果 `4 failed, 1442 passed in 1017.03s`／`PYTEST_EXIT=1`。四条红的原文自己指认了凶手：
+
+- `test_doc_pointers.py::test_relative_links_must_resolve_and_urls_are_left_alone` 与
+  `::test_a_link_shape_inside_a_code_span_is_a_quotation`：
+  `链接目标 real.md 本机有（bt110full/test_relative_links_must_resol0/real.md），但 git 没有跟踪它`——
+  **别的测试的临时文件**被我的 basetemp 放进了被测的树，链接门于是看见一个「本机有／git 无」的目标。
+- `test_retrieval_eval.py::test_real_dataset_clears_floor_backing_the_written_conclusion`：
+  `{'files_indexed': 1200, 'file_limit': 1200, 'truncated': True}`——遍历在我自己的产物上撞了上限，
+  这条门本来就拒绝「用前缀量出的数字支撑结论」，它做对了。
+- `test_core_task.py:604` `assert 'running' == 'completed'`：编排状态在负载下没跑完；
+  同机此刻确实还有别的 run 在跑同一个仓库（进程表里 `minicc-codex/.venv … pytest tests/test_grader_clock_attribution.py -k no_result`），
+  这一格只能靠干净重跑归因，不能靠解释。
+
+第二次把 basetemp 与 junit 全部放到平面之外重跑，一次通过：
+
+```
+1446 passed in 621.91s (0:10:21)
+PYTEST_EXIT=0
+```
+
+零 `FAILED`／零 `ERROR`（判据读 junit XML 与末行汇总，不读进度条）。总数与第八十九批的 1446 相同：
+本批只重写了两条既有门的内容，没有新增格数——这也正是「普查读 helper 的名字」那种洞的形态：
+它不需要变长，只需要跑门。跑法：`-p no:cacheprovider -W error -q`，仓库 `.venv` 的解释器，
+单进程，`--basetemp` 与 `--junitxml` 都在 `$env:TEMP` 下（平面 `wt109`，代码 `4f56a49`）。
+
+教训已写进长期记忆：**工作树是被测的种群**，见证的临时目录必须落在平面之外，
+且诊断要先从失败原文里找路径，再决定是不是回归。
+
+
+### 7 下一批候选
+
+1. `test_every_shipped_behaviour_task_has_well_shaped_items`（本批改成跑门）与
+   `test_no_shipped_task_needs_the_new_host_path` 现在构成两条跑 shipped 人口的普查（E6 让它们同时红）。
+   两条的**分工**没写进名字：一条答「门放不放行」，一条答「宿主编码路径用不用得到」。
+   要不要并成一张 shipped 普查表，先量再定，本批不预先写结论。
+2. `load_tasks` 的 legacy 支路除 `category`/`prompt`/`verify_command` 外仍不校验行为套件用得到的 `fixture` 形状。
+3. `bench_compare.GATE_METRICS` 里 `grading_refusal_count` 的方向与阈值（要口径决定）。
+4. 恒 null 的 `tool_repeat_rate`（task #83，要口径决定：真算并写，还是删干净不再呈现）。
