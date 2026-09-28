@@ -120,14 +120,20 @@ def require_objective_shape(task: dict[str, Any]) -> None:
 
 
 def require_writable_fixture(task: dict[str, Any]) -> None:
-    """A fixture must be text the workspace can actually hold.
+    """A fixture must be text the workspace can actually hold, and its keys must fit together.
 
     Three host faults turn into an agent's failure when they reach the write path: a
     non-string value is written as Python repr (``str({'a': 1})`` is not valid JSON, so the
     agent is handed a file no parser reads), a key that is not a string makes the runner's
-    path join raise, and a key naming a directory (an empty key, a bare dot, or a trailing
-    separator) makes ``write_text`` fail on that directory. Escaping keys are refused as
-    before, now including a Windows drive absolute one, which the leading-slash test missed.
+    path join raise, and a key naming a directory (``""``, ``"."``, ``"dir/"``) makes
+    ``write_text`` fail on that directory. Escaping keys are refused as before, now including
+    a Windows drive absolute one, which the leading-slash test did not see.
+
+    Keys are also checked against **each other**, which no earlier door did. Measured on the
+    unmodified plane: ``"./a.txt"`` after ``"a.txt"`` silently overwrote the first file (the
+    agent got one file where the author wrote two, and no error anywhere),
+    ``"a.txt"`` together with ``"a.txt/b.txt"`` left a half-built workspace holding only
+    ``a.txt``, and ``"d/x"`` together with ``"d"`` raised ``PermissionError``.
     """
     task_id = task.get("id") if isinstance(task, dict) else None
     fixture = task.get("fixture") if isinstance(task, dict) else None
@@ -135,6 +141,7 @@ def require_writable_fixture(task: dict[str, Any]) -> None:
         return
     if not isinstance(fixture, dict):
         raise ValueError(f"任务 {task_id!r} fixture 必须是非空对象")
+    authored: list[tuple[str, str]] = []
     for relative, content in fixture.items():
         if not isinstance(relative, str):
             raise ValueError(
@@ -153,7 +160,34 @@ def require_writable_fixture(task: dict[str, Any]) -> None:
                 f"任务 {task_id!r} fixture {relative!r} 的内容必须是文本，"
                 f"收到 {type(content).__name__}（写进工作区会变成 Python repr）"
             )
+        segments = [segment for segment in rel.split("/") if segment and segment != "."]
+        if not segments:
+            raise ValueError(
+                f"任务 {task_id!r} fixture 键 {relative!r} 归一化之后什么都不剩，写不出文件"
+            )
+        # The authored spelling is kept, not the normalised one: the pair checks below have to
+        # be able to point at the two keys the author actually wrote in the task file.
+        authored.append(("/".join(segments), relative))
 
+    # Every pair, in both directions, over the whole set: dict order must never decide whether
+    # a task loads, and one position may only be written once.
+    for position, (path, relative) in enumerate(authored):
+        for other_path, other_relative in authored[position + 1:]:
+            if path == other_path:
+                raise ValueError(
+                    f"任务 {task_id!r} fixture 键 {relative!r} 与 {other_relative!r} 在工作区里是同一个位置，"
+                    "后写的会静默盖掉先写的"
+                )
+            if other_path.startswith(path + "/"):
+                raise ValueError(
+                    f"任务 {task_id!r} fixture 键 {relative!r} 占用了 {other_relative!r} 的父目录，"
+                    "两份内容写不进同一个工作区"
+                )
+            if path.startswith(other_path + "/"):
+                raise ValueError(
+                    f"任务 {task_id!r} fixture 键 {other_relative!r} 占用了 {relative!r} 的父目录，"
+                    "两份内容写不进同一个工作区"
+                )
 
 def validate_task(task: dict[str, Any]) -> None:
     """Schema gate used by tests and by ``--suite v2`` loading.
