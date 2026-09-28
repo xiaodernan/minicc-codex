@@ -7502,3 +7502,33 @@ F2 的多出来三条是好事：两扇门措辞相同不是注释承诺，是�
 2. `build_report:180` 的 `grader_type` 兜底（要口径）。
 3. GATE_METRICS 方向与阈值（要口径）；三分口径统一命名；`review_rounds` 的 markdown 印法。
 4. **等用户口径**（task #83）：`repeated_tool_calls` 恒 null。
+## 第八十九批 M8-T104：宿主编码失败的规格是「判不了」，不是崩
+
+代码 `517403a`（本记录随其后追加）。编号说明：`M8-T104` 之前只在第八十八批 §7 作为前向引用出现。
+
+### 1 缺陷：崩在宿主，不在子进程
+
+`grade_behavior` 用 `input=json.dumps(grader)` 把规格送进评分器——**这次编码发生在宿主**，而它只捕 `(OSError, subprocess.TimeoutExpired)`。实测（`43472a7`）：args 里放一个 set，`grade_behavior` 直接抛 `TypeError: Object of type set is not JSON serializable`，绕过第七十九批建的 NO-RESULT 机制，一路逃出 `run_benchmark` ⇒ 一条坏任务能让整轮评测消失。出厂 12 条行为任务的 args 全是可编码值（census 量过）⇒ 构造可达、语料 0 条。
+
+### 2 改法（本批走的是「两扇门各自负责」）
+
+- args 的**形状**规则留在装载门：`fixture_blockers` 里 `elif not _json_roundtrips(case[0])`（第八十六批定的不对称不破——智能体把函数删掉是真失败，判分期不该改用「规格不可读」）。
+- 判分期只补**缺的那一层**：编码失败 ⇒ `spec_verifies_nothing("python_behavior", ...)`。理由是「没人看过这份工作区」，而不是给形状检查开第二个主人。
+
+### 3 门（`tests/test_behavior_args_that_cannot_be_encoded_are_no_result.py`，5 函数 / 9 格）
+
+三种不可编码 args（set／frozenset／嵌套 set）× **两条门各一格**：装载期 `ValueError` 点名 `cases[0]`+`JSON`+任务 id；直接调 `grade_behavior` 得到 refusal 而不是异常。另有正向控制（`clamp(1)` 真判 `passed=True`）、「args 必须是 list」仍排在 JSON 检查之前、出厂 12 条不落到新守卫上（≥10 下限）。
+
+⚠️本批真正的收获是一句方法：**「装载门会拒」不是「宿主不会再逃」的证据**——两条路径必须各有见证；我第一版只写了前者，是探针逼出了第二格。
+
+### 4 反向、变异、基线
+
+未修平面 `43472a7`：新门文件整文件红在装载/宿主两侧（宿主侧是未捕 `TypeError`），红名先 `--collect-only -q` 读回。定向族 5 个文件 **46 passed**、受影响选择 **308 passed**。基线**单跑**干净平面（worktree 显式建在 sha `517403a`，独立 basetemp 与日志）：**1446 passed in 588.15s (0:09:48)**，`PYTEST_EXIT=0`，FAILED/ERROR 行数 0——上一批 1437 ⇒ +9 正好等于新门 9 格。
+
+两处我自己的错都改在测试侧：锚点按 12 空格写导致 REFUSE（没半改文件）；正向控制先写成 `clamp(1)==0`，而正确答案是 1。
+
+### 5 下一批候选（M8-T105 起）
+
+1. 本批没做的**变异表**（预算用完，如实记为缺口）：摘掉 encode 的 `except` ⇒ 宿主侧 3 格红；把形状检查搬进 `spec_blockers` ⇒ 不对称格与 86 批的域唯一主人格红。下一轮先补这两臂再往前。
+2. `--suite legacy` 的「不该有 grader」不变量与 `category`/`prompt` 之外字段仍无人守（八十三批留的题）。
+3. **要口径**：`build_report:180` 的 `grader_type` 兜底、GATE_METRICS 方向与阈值、三分口径命名、`review_rounds` 印法、`tool_repeat_rate`（task #83）。
