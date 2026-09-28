@@ -8352,3 +8352,149 @@ sha256 前 12 位 `5c40becdd1d3`，与 `git show HEAD:<file>` 逐字节相等，
    所以本批只有第一条有变异臂（W2 红字 `walked only 75`）。后两条今天**没有任何臂单独打破过**。
    ⇒ 下一批要么把它拆成三格（每格一个臂），要么把名单那一格提到最前面并补一条臂：
    把 `_layout_audits` 的顶层函数收集改成只看 `test_` 前缀之外的函数，预测「被审 ≥8」红而文件数仍绿。
+
+## 第九十五批 M8-T110：宿主写不出的工作区，不是智能体的判决
+
+### 1 编号说明
+
+追加前在被追加上游平面 `55f49ac` 上量：文档里最后的批次标题是 `## 第九十三批 M8-T108`，
+`M8-T109` 已经以**代码提交**出现（`55f49ac`，它的批次记录还没落到文档里），`M8-T110` 在整份文档
+出现 **0** 次，`M8-T999` 仍是文档哨兵。第九十一批 §8 第 1 条挂着的那格（「同一条兜底对别的宿主
+故障还在捏造判决（M8-T83 族剩下的一格）；要做的是把「装载门已拒」与「运行期写不出」分开记账」）
+**没有**被第九十二、九十三批认领：那两批走的是 fixture 键的身份与容量（M8-T107／T108），T109 走的
+是手抄的 fixture 布局普查。⇒ 另一条流把 T107–T109 连着占了，本批取**下一个空号 M8-T110**；
+批次号取 **第九十五批** 而不是第九十四批：94 留给 T109 那条尚未落地的记录，留一个空号比在同一份
+文档里出现两个「第九十四批」便宜。
+（本批 rebase 落到上游之后，第九十四批确实就是 T109 的记录——这个空号留对了。）
+
+### 2 缺陷：写工作区的人和被判的人，被同一个 `try` 绑在一起
+
+`run_benchmark` 把两件事放进**同一个 `try`**：宿主写 fixture（该平面 `minicc/benchmarks.py:721`）
+与跑智能体（`:730`）。这个 `try` 的 `except Exception`（该平面 `:760`）只写 `status="failed"` 和
+`error`，紧接着的评分块 else 分支（该平面 `:821`）再补上 `passed=False` 与 `grader_type`。于是
+**任何**从 `prepare_fixture` 抛出的异常都变成一条关于「智能体没做到」的判决——而那个智能体连工作区
+都没拿到。
+
+测量（平面 `e88aa4e`，`_probe107.py`：把 `benchmarks.prepare_fixture` 钉成抛
+`OSError(28, "No space left on device")`，任务带 fixture 与 `file_contract`）：
+
+1. 行：`status="failed"`、`passed=False`、`grader_type="file_contract"`、
+   `error="OSError: [Errno 28] No space left on device"`；
+2. 报告：`gradable_task_count=1`、`pass_at_1=0.0`——一个没人跑过的任务进了通过率分母；
+3. 诊断用 oracle 在**空目录**上重跑了评分器：同一趟把契约换成
+   `{"path": "gone.txt", "exists": false}` 的任务给出
+   `objective_oracle={"passed": true, "case_count": 1, "exit_code": 0}`，于是
+   `reviewer_false_negative_count=1`——一条关于「评审员漏判」的信号，而没有任何人看过任何东西。
+
+第 3 条不是第 1 条的直接后果，而是它下游那条「非 completed 行也要跑 oracle」的支路（第八十六批
+引入）在同一个坏工作区上再判一次；起草时才量到，不是假设。
+
+语料（同平面真调 `load_tasks`／`v2_tasks`／`behavior_tasks`）：legacy 30 条里 **0** 条带 fixture；
+v2 **24/24** 带；行为套件 **12/12** 带 ⇒ 合计 **36** 条 fixture 任务，且 **36/36** 都声明了
+`grader.type`（`file_contract`／`command_contract`／`python_behavior`），**0** 条是「fixture + 只有
+`verify_command`」。构造可达、当前语料 36 条全部命中，所以门把 36 条一起跑，而不是手搓一条。
+
+### 3 改法：把「宿主写工作区」从「跑智能体」那一级里拆出来
+
+1. `minicc/bench_tasks.py` 新增 `workspace_unwritable(grader_type, exc)`：与 `grader_unable` 同一
+   判决（都经 `_no_result`，都是 `passed=None` + `grading_refused`），但分开命名——那边是「工作区在、
+   评分器跑不起来」，这边是「工作区压根没写出来，连智能体都没跑」。两笔账分开，才不会第二次被合并。
+2. `minicc/benchmarks.py` 新增 `_declared_grader_type(task)`：这一列的**唯一主人**。`build_report`
+   重建行时的兜底（`:213`）与 runner 的拒绝都问它，于是一份任务只有一个「本该由谁看」的答案。这一改
+   顺带结掉了第九十一批 §8 第 3 条列的第一项（`build_report:180` 的兜底待口径决定）。
+3. runner 记 `host_stage`（`"prepare"` → `"run"`）：`except Exception` 里若停在 prepare 阶段，
+   走 NO-RESULT 分支（`entry.update(bench_tasks.workspace_unwritable(...))`），**不写** `error`——
+   它是智能体自己的诊断字段，而这里没有智能体；run 阶段照旧写 `error`。评分块随后用
+   `refused = bool(entry.get("grading_refused"))` 门住两处 `passed=False`（grader 支路与 legacy
+   `verify_command` 支路），并跳过诊断 oracle：一条没有工作区的行，没有任何东西可以被再判一次。
+
+### 4 门：`tests/test_a_workspace_the_host_cannot_write_is_no_result.py`，11 条
+
+- 行为门 ×2 参数（`OSError` / `subprocess.TimeoutExpired`，后者正是 `prepare_fixture` 里 `git init`
+  的 `timeout=60` 会抛的那类）：行必须是 `passed=None` + `grading_refused` + 理由含异常名 +
+  `grader_type=file_contract` + `status="failed"`，且 `error` 为空；
+- oracle 门 ×2 参数：契约是「`gone.txt` 不存在」的任务（空目录满足）必须**没有** `objective_oracle`；
+- 第三条写入点：`fixture + verify_command + 无 grader` 的任务也必须拒绝（这条分支今天没有 shipped
+  任务走到，是给数据文件留的规则，所以单独一条门陪它，见 §5 的 W3）；
+- 人口普查 ×2 参数：36 条 shipped fixture 任务**一趟**跑完，0 条带判决、0 条缺拒绝、每条
+  `grader_type` 等于它自己声明的类型（下限 `MINIMUM_FIXTURE_TASKS = 30`，防空转）；
+- 报告门：`grading_refusal_count=1`、`gradable_task_count=0`、`pass_at_1 is None`、
+  `reviewer_false_negative_count=0`，markdown 里出现 `REFUSED` 和理由；
+- 列的主人门：`build_report` 的兜底对「有 grader 的任务」答声明类型、对 legacy 只带
+  `verify_command` 的任务答 `command`、对两者都没有的任务答 `ungraded`；
+- 反向控制 ×2：真的失败的智能体（`_chat_locked` 抛 `RuntimeError`）仍记 `passed=False` 且无
+  `grading_refused`（通道不能变成抹红的方式）；`prepare_fixture` 确实被调用且确实写出了作者写的
+  字节（否则上面所有断言都会为错误的理由成立）。
+
+### 5 见证（5 臂，`_mut107.py`，逐臂红完恢复）
+
+每臂先恢复 pristine 字节、只改**值**（文件必须还能 compile），红名从 junit XML 读回。控制臂
+**11 格 0 红**，收尾 `restore: all bytes identical`（两个源文件合并 sha256 一致）。
+
+| 臂 | 变异 | 红（条） | 结果 |
+| --- | --- | --- | --- |
+| W1 | prepare 阶段不再走拒绝（`if host_stage == "prepare":` → `if False:`） | 8 | CAUGHT |
+| W2 | 评分块对拒绝行照样写判决（`elif not refused:` → `else:`） | 7 | CAUGHT |
+| W3 | legacy `verify_command` 支路不再看 `refused` | 1 | CAUGHT（只有「fixture + verify_command」那条门抓得住） |
+| W4 | 报告列回到自己的兜底（不再问 `_declared_grader_type`） | 1 | CAUGHT |
+| W5 | `workspace_unwritable` 退回 `{"passed": False, ...}` | 8 | CAUGHT |
+
+5/5 全 CAUGHT，零「预测到却没红」、零「没预测却红」。W3 与 W4 各只红一条，是**对的**：它们各自
+只有一个主人，别的门不该因为这条规则变了而红。
+
+### 6 计划外三条
+
+1. **一条既有门钉的是旧契约**：`tests/test_benchmark_runner.py:243` 断言
+   `"escapes workspace" in results[0]["error"]`。它测的形状（fixture 键逃出工作区）本批改走拒绝，
+   理由从 `error` 搬到 `refusal`；门的名字与「下一个任务照跑」的主张没动，只把断言改到新字段。
+   ⇒ 「同一句话换了个字段」也是契约变更，必须在那条门里留字，否则下一个人只会看到一条红。
+2. **见证脚本第一次跑把未提交的修复抹掉了**：恢复步骤写的是 `git checkout -- minicc/benchmarks.py`，
+   而那个文件当时**还没提交** ⇒ 「恢复」= 回到 HEAD = 丢掉正好在测的那份编辑，W2 随即报
+   「针找不到（0 次而不是 1 次）」并终止。改成把 pristine 字节留在内存里写回后整套重跑，五臂数字
+   与第一次逐字一致。教训与第八十九批同源：**见证脚本自己也是被测代码**，「恢复」这个词不等于
+   「回到我开始时的状态」。
+3. **`docs/BENCHMARK_EVALUATION.md` 两处与代码不符**：`独立评分异常记录为失败`（第八十、八十三批
+   之后那是「判不了」，不进通过率分母），以及那条被要求「重跑后原样回填」的复现行仍是
+   `27 passed in 9.48s`（本批实跑 `31 passed in 240.77s`，条数差 4 来自这两份测试之后的批次）。
+   两处都按实测改了。⇒ 一份写着「可复现」的文档里，漂移本身就是缺陷，不是措辞问题。
+
+### 7 基线与平面
+
+- 代码面：`minicc/benchmarks.py`（新 `_declared_grader_type`、`host_stage`、`refused` 门）、
+  `minicc/bench_tasks.py`（新 `workspace_unwritable`）；门面新增
+  `tests/test_a_workspace_the_host_cannot_write_is_no_result.py`（已 `git add`），改
+  `tests/test_benchmark_runner.py` 一条既有断言；文档面 `docs/BENCHMARK_EVALUATION.md` 两处。
+- 定向读数（都不是全量，前三条在 rebase 前的平面上量）：新门 **11 passed（112.45s）**；
+  同族 16 份（新门 + `test_bench_tasks`
+  + `test_benchmark_runner` + `test_error_reaches_report` + `test_every_suite_requires_a_prompt`
+  + `test_grader_cannot_run_is_no_result` + `test_host_failure_is_not_a_verdict`
+  + `test_no_field_is_invented_by_the_report_or_the_shell` + `test_pricing`
+  + `test_refusal_is_visible_in_report` + `test_result_row_reaches_report` +
+  `test_subprocess_decoding` + `test_task_may_declare_only_one_objective_check` +
+  `test_behavior_bench` + `test_metric_and_oracle_reach_report` + `test_grader_no_result_channel`）
+  **218 passed（1070.63s）**；`test_benchmark_runner.py` 单跑 **19 passed（76.11s）**。落到上游
+  `55f49ac` 之后，把最相关的九份重跑一遍（本批新门 + 另一条流本批新加的两份 fixture 键门 +
+  `test_benchmark_runner` + `test_bench_tasks` + `test_grader_cannot_run_is_no_result` +
+  `test_host_failure_is_not_a_verdict` + `test_result_row_reaches_report` +
+  `test_metric_and_oracle_reach_report`）：**173 passed（454.94s）**。
+  ⚠️这三处时长都不是冷跑数：此刻同一台机器上还有别的会话在跑（`specproof-reference` 的 pytest 与
+  几条常驻 uvicorn）。能比的是**条数**，不是秒数。
+- 文档面：`scripts/doc_pointers.py --check` **rc=0**；本节数字是**追加之后**读回来的：「见」标记
+  458→**463**、链接 23（不动）、证据指针 1470→**1504**、19 份文档、受跟踪文件 267→**268**
+  （增量只有本批新门那一份；267 里已经包含另一条流第九十二、九十三批新收的两份门，所以与第九十一批
+  记下的 411／1299 不可直接比——两条流之间落了别人的批次）。
+- 编号说明：追加前在 `55f49ac` 上量——文档标题级批次号最高「第九十三批」，`M8-T` 序列盘上最高 T109
+  （T107／T108／T109 都已被另一条流占用），`M8-T110` 无人使用 ⇒ 本批认领它；「第九十五批」是
+  追加时的 HEAD 空号（94 留给 T109 尚未落地的记录）。
+
+### 8 下一批候选
+
+1. **被中断的准备阶段仍记 `passed=False`**（本批只量不判）：把 `prepare_fixture` 钉成抛
+   `KeyboardInterrupt`（`_probe107b.py`）量到 `status="interrupted"`、`passed=false`、
+   `grader_type="file_contract"`、`error="KeyboardInterrupt"`，并且同样跑了 oracle。中断是第三类
+   （既不是宿主故障，也不是智能体失败），要不要进 `gradable`、要不要有自己的状态值，需要口径决定。
+2. 第九十一批 §8 第 2 条仍未做：两条 shipped 人口普查的**分工**没写进名字
+   （`test_every_shipped_behaviour_task_has_well_shaped_items` 答「门放不放行」，
+   `test_no_shipped_task_needs_the_new_rule` 答「宿主编码路径用不用得到」）。先量再定要不要并表。
+3. 要口径决定：`bench_compare.GATE_METRICS` 里 `grading_refusal_count` 的方向与阈值、
+   `review_rounds` 的印法、恒 null 的 `tool_repeat_rate`（task #83）。
