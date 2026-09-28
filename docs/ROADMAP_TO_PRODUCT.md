@@ -6890,3 +6890,67 @@ grade_file_contract({'files': ['notes.md']}) ->
 4. `build_report:180` 的 `grader_type` 兜底凭任务规格发明评分器名（要口径）；判决路径的 `grader_type` 只有第七十三批那条新读者。
 5. `grading_refusal_count`／`reviewer_false_negative_count` 进 `bench_compare.GATE_METRICS`（要方向与阈值口径）；三分口径在文档里没有统一命名。
 6. **等用户口径**（task #83）：`repeated_tool_calls` 有人读、没人写 ⇒ `tool_repeat_rate` 恒 null；它是行 census 的唯一活豁免。
+## 第七十七批 M8-T92：谁也不读的规格键，是一条悄悄消失的检查
+
+代码 `88b00e4`（本记录随其后追加）。第七十六批的门只数**下标读**；这批补上剩下两种读形（`.get`、`if "k" in item`），并把「这个规格里哪些键有人读」变成从评分器源码推导的词表。
+
+### 1 缺陷：拼错的键不报错，它让合同少查一项然后报成功
+
+在 `150559f` 平面直接调出厂生产者：
+
+```
+grade_file_contract({'files': [{'path': 'a.txt', 'typo_contains': 'goodbye'}]})
+    -> {'passed': True, 'grader_type': 'file_contract', 'case_count': 1, 'exit_code': 0}
+grade_command_contract({'command': …, 'expct_exit': 9})
+    -> {'passed': True, 'grader_type': 'command_contract', 'exit_code': 0}
+```
+
+第一条：作者想检查 `goodbye` 不该出现，实际**什么都没查**，合同报了通过。第二条：`expect_exit` 拼错 ⇒ 默认 0 悄悄生效，作者要求的「这条命令应该失败」被换成「应该成功」。两者都不是智能体的行为，也不是评分器跑不动，而是**规格写了一个没人读的键**。
+
+### 2 改法：词表从评分器源码来，不是另抄一份清单
+
+`grader_vocabulary(kind, script)` 把 `_FILE_CONTRACT_GRADER`／`_COMMAND_CONTRACT_GRADER` 两个字符串常量 `ast.parse`，收三种读形的键（`x["k"]`、`x.get("k")`、`if "k" in x`），结果实测：
+
+| 类型 | spec 键 | item 键 |
+| --- | --- | --- |
+| file_contract | `files`、`timeout`、`type` | `contains`、`equals`、`exists`、`json_equals`、`not_contains`、`path`、`regex` |
+| command_contract | `command`、`expect_exit`、`stdout_contains`、`timeout`、`type` | （无） |
+
+宿主自己读的键由 `HOST_READ_KEYS = {"type", "timeout"}` 声明——它被两条方向相反的门钉住：宿主实际读的键必须落在它自己那类的词表里（漏声明就会把合法规格判成unread），声明里的键必须确实有人读（多声明就是白放行）。两条生产者都在**派子进程之前**拒绝不可验证的规格，拒绝理由点名具体键（`files[].typo_contains`、`expct_exit`），走 `_no_result` 所以仍是 M8-T80 那条「判不了」通道。
+
+### 3 门：`tests/test_grader_reads_only_named_keys.py`（12 个函数 / 13 条案例）
+
+- 4 个不可验证形状（两个层级的键、两种合同）走 `grade_v2` 真分派 ⇒ `passed is None`、`grading_refused is True`、理由点名那个键。
+- 正面控制：一项真文件带 `contains` + `exists` + `timeout` 的规格仍 `passed=True`——词表门不许吃掉合法键。
+- 报告读者那条（M8-T81 规矩）：拒绝行 `grading_refusal_count == 1`、`gradable_task_count == 0`。
+- **出厂语料 census**：两份任务文件里所有合同规格都必须「可验证」，并断言读到的合同任务数 ≥20（否则 census 等于什么都没读）。实测违规 **0 例**。⇒ 这条把「今天的任务不受影响」钉成门，而不是我的一句话。
+- 走查本身的植入：三种读形各计一次；`spec[var]` 这种动态下标**不许**被算成具名键，且必须仍然能在 AST 里被指认（盲区要可见，沿用第七十四批的规矩）。
+
+### 4 反向对照与变异（两处预测错，都登记）
+
+未修平面 `150559f` + 最终门文件：**12 failed / 1 passed**。⚠️诚实说明：这批多数红是 `AttributeError`——本批新增的机制（`grader_vocabulary`／`_keys_read`／`_unverifiable_keys`）在旧平面根本不存在，所以「旧行为长什么样」不由反向对照证明，而由变异臂证明（A2/A3 就是在平面上把两道门拆掉）。这是与第七十五批不同的一种反向对照失效形状：**门的证据来自反事实臂，不来自旧平面**。
+
+变异 5 臂，定向集 4 个文件 46 条案例，未变异控制 `46 passed` / `rc=0`，`restored: True`：
+
+| 臂 | 改动 | 红数 | 备注 |
+| --- | --- | --- | --- |
+| A1 | `HOST_READ_KEYS` 丢掉 `timeout` | 2 | ⚠️预测 3：语料 census 不会红——**没有任何出厂任务用 `timeout`**，把声明当成语料事实是预测错 |
+| A2 | 拆掉 file 那道门 | 3 | 两个 file 形状 + 报告读者 |
+| A3 | 拆掉 command 那道门 | 2 | 两个 command 形状 |
+| A4 | 词表不再读 `if "k" in item` 形 | 1 | ⚠️预测 3：那 6 个检查键还有第二种读形被词表看见 ⇒ 冗余覆盖；只有专门钉 `in` 的走查植物红 |
+| A5 | 词表不再读 `.get` 形 | 12 | 预测 2；爆炸半径大：`expect_exit`/`stdout_contains`/`timeout` 全从词表消失，合法规格被判 unread |
+
+A4 的教训写下来：**「某种读形是某批键的唯一来源」这种断言要用门钉**（现在只由那条走查植物负责），而 A5 的 12 红提醒另一种危险——词表收窄会把合法规格误判，所以 census 用出厂语料做「不误伤」的下限。
+
+### 5 基线
+
+干净平面（worktree 显式建在 sha `88b00e4`）+ `PYTHONPATH` 指过去、独立 basetemp 与独立日志：**1334 passed in 483.28s (0:08:03)**，`PYTEST_EXIT=0`，数字取自日志自己的页脚。上一批 1321 ⇒ +13 正好等于新门文件收集的案例数。时长只作参考，计数才是证据。
+
+### 6 下一批候选（M8-T93 起）
+
+1. `_objective_oracle`（`minicc/benchmarks.py:83`）仍摘掉 `grader_type` ⇒ M8-T87 的零 case 判据只能靠「有没有 `case_count`」，`command_contract` 那支是信任不是门。本批之后又多一层支撑（拼错的 `stdout_contains` 现在会被拒），但「谁判的」这个信息在 oracle 里仍然失踪。
+2. `build_report:180` 的 `grader_type` 兜底会凭任务规格发明一个没跑过的评分器名（构造可达、语料未 populate）；要口径：报 `ungraded` 还是替历史行猜。
+3. 判决路径的 `grader_type` 只有第七十三批那条新读者（既有 `tests/test_benchmark_runner.py:108` 从不读它）。
+4. `grading_refusal_count`／`reviewer_false_negative_count` 进 `bench_compare.GATE_METRICS`：要方向与阈值口径。
+5. 三分口径（通过／判不了／没评分器）在文档里仍无统一命名；`review_rounds` 进了报告行但 markdown 一格没印（印法口径）。
+6. **等用户口径**（task #83）：`repeated_tool_calls` 有人读、没人写 ⇒ `tool_repeat_rate` 恒 null；它是行 census 的唯一活豁免。
