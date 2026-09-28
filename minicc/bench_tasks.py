@@ -319,6 +319,12 @@ def grade_file_contract(
         # An empty list prints its own completion marker for zero files, so the
         # contract would grade a workspace it never opened.
         return _no_result("file_contract", "file_contract lists no files: nothing was checked")
+    if not all(isinstance(item, dict) and isinstance(item.get("path"), str)
+               and item["path"].strip() for item in files):
+        # ``item["path"]`` is a subscript read inside the embedded grader: a string
+        # item or a missing path kills the child, and a dead grader is not the
+        # agent's failure. Guaranteeing it here is what makes that read a promise.
+        return _no_result("file_contract", "file_contract items need a non-empty string path")
     try:
         result = _run_grader(
             "file_contract.py", _FILE_CONTRACT_GRADER,
