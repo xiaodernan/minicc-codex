@@ -167,6 +167,11 @@ def build_report(tasks: list[dict[str, Any]], results: list[dict[str, Any]] | No
             # A failed/interrupted task records WHY in `entry["error"]`; without this
             # copy the report prints a bare "failed" and the reason vanishes (M8-T81 shape).
             "error": (str(recorded.get("error") or "")[:200] or None),
+            # M8-T81 shape again: this dict is written by the runner and read by
+            # tests off the results JSON, but a row that does not copy it cannot
+            # show a reviewer false negative to a human.
+            "objective_oracle": (recorded.get("objective_oracle")
+                                 if isinstance(recorded.get("objective_oracle"), dict) else None),
             "metadata": recorded.get("metadata"),
         }
         rows.append(row)
@@ -208,6 +213,15 @@ def build_report(tasks: list[dict[str, Any]], results: list[dict[str, Any]] | No
             "grading_refusal_count": sum(1 for row in completed if row.get("grading_refused")),
             "acceptance_success_rate": round(len(passed) / len(gradable), 4) if gradable else None,
             "false_completion_rate": round(sum(row["claimed_complete"] and row["passed"] is False for row in gradable) / len(gradable), 4) if gradable else None,
+            # The mirror image of false_completion_rate: grading is skipped unless the
+            # agent claimed completion, so a task the completion judge capped is
+            # recorded failed without ever being checked. `objective_oracle` re-runs
+            # the deterministic grader as a diagnostic, so this counts the rows the
+            # reviewer said no about while the grader says yes (M8-T86).
+            "reviewer_false_negative_count": sum(
+                1 for row in completed
+                if row["passed"] is False and (row.get("objective_oracle") or {}).get("passed") is True
+            ),
             "tokens_per_success": round(sum(float(row["usage"]["total_tokens"]) for row in completed) / len(passed), 1) if passed and total_tokens_known else None,
             "cost_per_success_usd": round(sum(row["cost_usd"] for row in completed) / len(passed), 6) if passed and total_cost_known else None,
             "latency_p50_ms": _quantile(latencies, 0.5),
@@ -224,6 +238,7 @@ def build_report(tasks: list[dict[str, Any]], results: list[dict[str, Any]] | No
             "Token and cost metrics remain null when the provider does not expose usage or pricing.",
             "Tokens and cost per success include expenditure on failed attempts; missing measurements keep these metrics null.",
             "REFUSED means nobody judged this workspace: the grader declined (exit 2) or could not be run; it is not a pass, a failure, or a task without a grader.",
+            "reviewer_false_negative_count counts rows recorded failed whose objective grader, re-run only as a diagnostic, reports passed; it measures the reviewer, not the suite score.",
         ],
     }
 
@@ -242,7 +257,12 @@ def markdown_report(report: dict[str, Any]) -> str:
         "| Metric | Value |",
         "| --- | ---: |",
     ]
-    for key in ("execution_completion_rate", "grading_coverage", "gradable_task_count", "grading_refusal_count", "acceptance_success_rate", "false_completion_rate", "pass_at_1", "latency_p50_ms", "latency_p95_ms", "tokens_per_success", "cost_per_success_usd", "mean_repair_attempts", "tool_repeat_rate", "token_usage_available", "cost_available"):
+    # The printed list is derived from the metrics dict, not hand-written beside it:
+    # a hand-written copy is a second owner of "which metrics exist" and silently
+    # drops any key added to only one of the two places (M8-T86). The declared
+    # reading order is honoured, then every remaining key is printed in sorted order.
+    preferred = ("execution_completion_rate", "grading_coverage", "gradable_task_count", "grading_refusal_count", "acceptance_success_rate", "false_completion_rate", "reviewer_false_negative_count", "pass_at_1", "latency_p50_ms", "latency_p95_ms", "tokens_per_success", "cost_per_success_usd", "mean_repair_attempts", "tool_repeat_rate", "token_usage_available", "cost_available")
+    for key in [k for k in preferred if k in metrics] + sorted(set(metrics) - set(preferred)):
         lines.append(f"| {key} | {value(metrics.get(key))} |")
     lines.extend(["", "| Task | Category | Status | Passed |", "| --- | --- | --- | --- |"])
     for row in report["results"]:
