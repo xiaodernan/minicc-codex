@@ -434,6 +434,20 @@ def grader_unable(grader_type: str, exc: BaseException) -> dict[str, Any]:
     return _no_result(grader_type, f"{type(exc).__name__}: {exc}")
 
 
+def workspace_unwritable(grader_type: str, exc: BaseException) -> dict[str, Any]:
+    """The host could not write the workspace this task is judged in.
+
+    Same verdict as ``grader_unable``, different account: there a workspace
+    existed and the grader could not be run on it; here nothing was ever
+    written, so no agent ran either. Folding this into ``passed=False`` charged
+    the agent for the host's own disk - measured on the plane before the fix:
+    an ``OSError`` out of ``prepare_fixture`` booked ``pass_at_1=0.0`` for a
+    task no agent ever attempted, and the diagnostic grader then re-judged the
+    empty directory (M8-T107).
+    """
+    return _no_result(grader_type, f"{type(exc).__name__}: {exc}")
+
+
 #: Keys the host reads off a grader spec before the embedded script ever sees it.
 #: The gate reconciles this against the shipped dispatch and producers by AST, so a
 #: drift here is a red rather than a spec key that starts being silently rejected.

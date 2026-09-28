@@ -35,7 +35,7 @@
 
 费用没有可靠来源时维持 `null`；fake provider 结果带元数据标识，仅用于协议和流程验收。不要将 fake 结果或本仓库的单元测试通过率描述为真实模型准确率。
 
-明确取消的结果记录为 `cancelled`；完成评估返回 continue/blocked/unknown 等结果时记录为 `incomplete`，不运行 grader 来伪装完成。独立评分异常记录为失败，fixture 清理失败保留路径供检查。失败运行的 token 同样计入每次成功的总成本，不能只统计成功样本的花费。
+明确取消的结果记录为 `cancelled`；完成评估返回 continue/blocked/unknown 等结果时记录为 `incomplete`，不运行 grader 来伪装完成。评分器自己跑不起来（异常、超时、退出码 2）记录为「判不了」（`passed=null` + `grading_refused`），不计入通过率分母；宿主写不出 fixture（磁盘、权限、`git init` 超时）同样记「判不了」，因为那是宿主的账，不是智能体的判决。fixture 清理失败保留路径供检查。失败运行的 token 同样计入每次成功的总成本，不能只统计成功样本的花费。
 
 评测器定向检查：
 
@@ -43,7 +43,7 @@
 .venv/Scripts/python.exe -m pytest tests/test_benchmark_runner.py tests/test_behavior_bench.py -q -o addopts=''
 ```
 
-2026-09-21 复现结果：上面「评测器定向检查」命令逐字输出 `27 passed in 9.48s`（数字随这两套测试的用例数变化，务必以命令实际输出为准，不要手改本行；如需更新请重跑该命令并原样回填）。`output/benchmark-hardening-checks.xml` 可留存 JUnit。没有运行全量回归或使用真实模型生成新的准确率结论。
+2026-09-29 复现结果：上面「评测器定向检查」命令输出 `31 passed in 240.77s`。可比的读数是**条数**——它随这两套测试的用例数变化，务必以命令实际输出为准，不要手改本行；需要更新时请重跑该命令并原样回填。墙钟时间在同机并发时会大幅偏高（本次读数期间同一台机器上另有会话在跑），不要当作基线。`output/benchmark-hardening-checks.xml` 可留存 JUnit。没有运行全量回归或使用真实模型生成新的准确率结论。
 
 ## 检索决策门（M4-T7，2026-09-21）
 

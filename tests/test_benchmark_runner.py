@@ -240,7 +240,13 @@ def test_fixture_setup_failure_is_recorded_and_next_task_runs(tmp_path, monkeypa
     tasks = [{"id": "unsafe-fixture", "prompt": "x", "fixture": {"../escape.py": "x"}}, {"id": "next", "prompt": "ok"}]
     results = run_benchmark(tasks, workspace=tmp_path)
     assert results[0]["status"] == "failed"
-    assert "escapes workspace" in results[0]["error"]
+    # M8-T107: this row used to carry the reason in ``error`` plus a
+    # ``passed=False``. ``error`` is the agent's own diagnostic and no agent ran
+    # here, so the record moved to the NO-RESULT channel the report already reads.
+    assert results[0]["grading_refused"] is True, results[0]
+    assert results[0]["passed"] is None, results[0]
+    assert "escapes workspace" in results[0]["refusal"], results[0]
+    assert not results[0].get("error"), results[0]
     assert results[1]["status"] == "completed"
 
 

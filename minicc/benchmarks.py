@@ -89,6 +89,20 @@ def _measurement(value: object) -> bool:
     return type(value) in (int, float) and math.isfinite(value) and value >= 0
 
 
+def _declared_grader_type(task: dict[str, Any]) -> str:
+    """Who would have judged this task, for the rows where nobody got to.
+
+    One owner for the column's fallback: ``build_report`` uses it as the default
+    for a recorded row that carries no ``grader_type``, and the runner uses it
+    when the host could not write the workspace at all, so the report's rebuild
+    and the runner's refusal cannot name two different graders for one task.
+    """
+    kind = (task.get("grader") or {}).get("type")
+    if isinstance(kind, str) and kind:
+        return kind
+    return "command" if task.get("verify_command") else "ungraded"
+
+
 def _oracle_says_pass(row: dict[str, Any]) -> bool:
     """Did the objective grader re-run this row and pass it on real work?
 
@@ -196,7 +210,7 @@ def build_report(tasks: list[dict[str, Any]], results: list[dict[str, Any]] | No
             "usage": recorded.get("usage") if isinstance(recorded.get("usage"), dict) else None,
             "cost_usd": recorded.get("cost_usd") if _measurement(recorded.get("cost_usd")) else None,
             "claimed_complete": recorded.get("claimed_complete", recorded.get("status") == "completed"),
-            "grader_type": recorded.get("grader_type", "command" if task.get("verify_command") else "ungraded"),
+            "grader_type": recorded.get("grader_type", _declared_grader_type(task)),
             # Rows are rebuilt key by key, so a field the grader added is invisible
             # downstream unless it is copied here (M8-T81 gate).
             "grading_refused": bool(recorded.get("grading_refused")),
@@ -716,9 +730,14 @@ def run_benchmark(
             outcome: dict[str, Any] = {}
             entry: dict[str, Any] = {"task_id": task["id"], "status": "failed", "passed": None,
                 "metadata": {**run_metadata, "suite_version": task.get("suite_version", LEGACY_SUITE_VERSION), "fixture_sha256": fixture_digest(task)}}
+            # Which stage the host itself got to. ``prepare_fixture`` writes the
+            # workspace this task is judged in, so an exception there means no
+            # workspace ever existed - and that is nobody's verdict (M8-T107).
+            host_stage = "prepare" if temporary else "run"
             try:
                 if temporary:
                     prepare_fixture(task, task_workspace, initialize_git=True)
+                host_stage = "run"
                 # The chat call is sync; bound it with a daemon worker so a
                 # stalled model request cannot freeze the whole evaluation.
                 # A daemon thread is abandoned on timeout instead of blocking
@@ -759,7 +778,15 @@ def run_benchmark(
                 entry["error"] = f"task timeout > {task_timeout_seconds:g}s"
             except Exception as exc:  # noqa: BLE001 - one task must not kill the run
                 entry["status"] = "failed"
-                entry["error"] = f"{type(exc).__name__}: {exc}"[:200]
+                if host_stage == "prepare":
+                    # The host could not write the fixture, so no agent ran and
+                    # no grader looked at anything: NO-RESULT, not a failure.
+                    # The reason goes to ``refusal`` - the field the report
+                    # prints - while ``error`` stays the agent's own diagnostic.
+                    entry.update(bench_tasks.workspace_unwritable(
+                        _declared_grader_type(task), exc))
+                else:
+                    entry["error"] = f"{type(exc).__name__}: {exc}"[:200]
             except BaseException as exc:
                 # Ctrl+C is still propagated, after a durable cancellation
                 # record. It must not close providers or remove a fixture that
@@ -800,6 +827,10 @@ def run_benchmark(
             grading_started = time.monotonic()
 
             verify_command = task.get("verify_command")
+            # A row that never had a workspace has no grader to ask and no
+            # diagnostic to re-run: the oracle below would judge an empty
+            # directory and invent a reviewer false negative (M8-T107).
+            refused = bool(entry.get("grading_refused"))
             if task.get("grader"):
                 if entry["status"] == "completed":
                     attempted = "behavior"
@@ -817,7 +848,7 @@ def run_benchmark(
                         # The grader blew up, not the workspace: same NO-RESULT
                         # shape, and the row keeps the agent's own error.
                         entry.update(bench_tasks.grader_unable(attempted, exc))
-                else:
+                elif not refused:
                     entry.update(passed=False, grader_type=task["grader"].get("type", "behavior"))
                     oracle = _objective_oracle(task, task_workspace, grader_dir, worker)
                     if oracle:
@@ -838,7 +869,7 @@ def run_benchmark(
                     # nobody looked at this workspace: NO-RESULT, the same
                     # channel the contract graders use, not the agent's verdict.
                     entry.update(bench_tasks.grader_unable("command", exc))
-            elif verify_command:
+            elif verify_command and not refused:
                 entry.update(passed=False, grader_type="command")
             entry["grading_latency_ms"] = round((time.monotonic() - grading_started) * 1000, 1)
             entry["latency_ms"] = round((time.monotonic() - started) * 1000, 1)
