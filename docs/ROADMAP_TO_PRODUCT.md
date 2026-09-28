@@ -6594,3 +6594,75 @@ T 号在 `HEAD` 上量到 `M8-T80..T84` 已用、`M8-T82` 归另一个存活 run
 4. 指标全集与 `bench_compare.GATE_METRICS` 没有对账门（实测：它只是 `--gate-metric` 的参数校验器）；`grading_refusal_count` 与 `reviewer_false_negative_count` 都还没有「变差方向 + 阈值」。
 5. `review_rounds` 在报告里怎么印——留 8 轮、每格截 200 字这些界现在是写代码的人定的，没人声明它是给人看的口径还是门。
 6. `turns`、`cleanup_error` 两处孤儿写的处置：要么补读者要么删写。
+## 第七十三批 M8-T88：宿主跑不动验证命令，不是智能体撒谎
+
+代码 `836a5cf`（本记录随其后追加）。这一批把「判不了」这条通道补到最后一处还在把宿主故障写成判决的地方。
+
+### 1 缺陷：两条入口把「没人跑成这条命令」记成「智能体谎报完成」
+
+- `minicc/benchmarks.py:796` 的 `except (_subprocess.TimeoutExpired, OSError)` 在旧平面上直接 `entry["passed"] = False`。
+- `minicc/behavior_bench.py:115` 的同款 handler 旧平面返回 `{"passed": False, "grader_type": "python_behavior", "error": 异常类名}`。那个 `error` 键正是 M8-T83 量出来的形状：它既写判决又抢走智能体自己的诊断。
+
+M8-T80 开了 NO-RESULT 通道，M8-T81 给它配了报告读者，M8-T83 把契约评分器的两条入口搬过去；这批补剩下两条。
+
+### 2 先量：第一条入口在真实语料上可达，第二条只能靠门
+
+- `benchmarks/tasks.json` 共 30 条，其中 3 条带 `verify_command` 且没有 `grader`：`test-failure-triage`、`regression-test-run`、`frontend-syntax-check`。宿主一次超时或 `OSError` 就把这三条记成谎报。
+- `benchmarks/tasks.v2.json` 共 24 条，这种任务 0 条。
+- `python_behavior` 这个 `grader.type` 在两份语料里没有任何任务使用，所以 `minicc/behavior_bench.py:115` 是**结构入口、当前 reach 0**。它照样要修，但不许写成「已在危害」。
+
+### 3 改法被既有门钉死
+
+两条入口都改成调用 `bench_tasks.grader_unable`。这不是审美选择：M8-T83 的
+`tests/test_grader_cannot_run_is_no_result.py::test_the_no_result_shape_is_constructed_in_exactly_one_place`
+把 `grading_refused=True` 字面量的写点钉成 `{"minicc/bench_tasks.py": 1}`，任何自己手写形状的第四条入口当场判红。
+
+判决路径的 `grader_type` 写点从 `try/except` 之后挪进 `minicc/benchmarks.py:795`：写在 handler 之后会重新覆盖构造函数刚写的字段，让 refusal 自己声明的评分器名变成没有读者的死键（第 6 节 M1 存活就是这么暴露的）。
+
+### 4 门：`tests/test_host_failure_is_not_a_verdict.py`（9 个函数 / 13 条案例）
+
+- 两条入口 × {timeout, oserror}：`passed is None`、`grading_refused is True`、异常类名进 `refusal`、`grader_type` 保持。
+- 正面控制 `test_a_verify_command_that_really_ran_is_still_a_verdict`（`tests/test_host_failure_is_not_a_verdict.py:97`）：真跑出非零退出仍是 `passed=False` 且没有 refusal，并且断言判决路径的 `grader_type`——修复不许变成抹红。
+- `test_the_legacy_refusal_keeps_the_agent_own_error_field`：拒绝写进 `refusal`（有读者），不许占用智能体的 `error`。
+- `test_a_legacy_refusal_is_counted_as_a_refusal_not_as_a_graded_row`：`grading_refusal_count == 1` 且 `gradable_task_count == 0`，即这条行不进分母。
+- census `test_no_exception_handler_for_a_host_failure_emits_a_verdict`：扫 `minicc` 包里的每个模块，任何点名 `OSError`／`TimeoutExpired` 的 handler 不许写判决。判决的三种写法各有植入控制（下标赋值、dict 字面量、`update(passed=...)` 关键字），另有两条反向控制：只 refusal 的 handler 不算红、handler 之外写的判决不算红。
+- 旧平面这条 census 报错时直接印出站点：`['minicc/behavior_bench.py:113', 'minicc/benchmarks.py:792']`，改法不用再靠人猜行号。
+
+### 5 反向对照与一次我自己的测量错
+
+旧平面 `64a82f9` 上跑这个新文件：第一版 **9 failed / 4 passed**。其中 3 条红不是代码缺陷，是我的夹具坏：
+两条植入体缩进不合法（`IndentationError` 不是「检测到了」），三条把站点钉成 `planted.py:2` 而 `ast.ExceptHandler.lineno` 其实是 4——按行号钉「这是哪个站点」正是我自己登记过的规矩（位置键表要钉身份不钉位置）。改成数站点条数、模块名前缀匹配。
+修好夹具后 **6 failed / 7 passed**，6 条红逐条对应第 4 节的六条真门。
+
+### 6 变异：6 臂，其中一臂先存活再被抓
+
+定向集＝9 个 bench/评分文件共 131 条案例；未变异控制 `131 passed`、`rc=0`；脚本 `finally` 逐字节还原，`restored: True`。
+
+| 臂 | 改动 | 红数 | 抓住它的门 |
+| --- | --- | --- | --- |
+| M1 | refusal 的 `"command"` → `"verify"` | 第一轮 **0（存活）**，改结构后 2 | `test_a_verify_command_the_host_could_not_run_is_no_result` 两个参数 |
+| M2 | behavior refusal 的 `"python_behavior"` → `"behavior"` | 2 | `test_the_python_behavior_grader_the_host_could_not_run_is_no_result` |
+| M3 | behavior 回到 `return {"passed": False, ...}` | 3 | 上一条 + census |
+| M4 | verify 回到 `entry["passed"] = False` | 4 | 两条 refusal 门 + `error` 归属 + census |
+| M5 | 真命令判决反转 `== 0` → `!= 0` | 2 | 正面控制 + 既有 `tests/test_benchmark_runner.py:108` 那条 |
+| M6 | 判决路径 `grader_type` 改名 | 1 | 只有正面控制 |
+
+M1 的存活是这批真正的收获：`entry["grader_type"] = "command"` 原本写在 `try/except` 之后，等于这个字段有两个主人，而下面那位把构造函数写的值盖掉了——于是 refusal 声明的评分器名从来没有读者。把写点挪进判决路径并给它配读者之后，M1 立刻变成 2 红。
+
+M6 的预测是 2 条，实测 1 条：既有那条测试从不读 `grader_type`（`grep -n grader_type tests/test_benchmark_runner.py` 只有 `tests/test_benchmark_runner.py:477` 那条 oracle 断言）。所以「判决路径的 `grader_type` 只有一个读者，且是本批新写的」＝登记成读欠，见第 8 节第 6 条。
+
+### 7 基线与结论口径
+
+干净 worktree（`git worktree add --detach` 于 `836a5cf`）+ `PYTHONPATH` 指过去：
+**1280 passed in 480.68s，`PYTEST_EXIT=0`**。上一批 1267 ⇒ +13 正好等于新文件收集的案例数。时长只作参考，计数才是证据。
+
+口径：`grading_refused=True` 的行不进 `gradable_task_count`，所以本批之后同一份语料的 `false_completion_rate` 分母不会因宿主故障被灌水；这是把 M8-T80 的三分口径（通过／判不了／没评分器）落到最后一处 `passed=False` 的宿主分支上。
+
+### 8 下一批候选（M8-T89 起）
+
+1. 报告可以凭任务规格发明一个没跑过的评分器：`build_report` 逐键重建里 `recorded.get("grader_type", "command" if task.get("verify_command") else "ungraded")`（`minicc/benchmarks.py:180`）。实测 `run_benchmark` 的三条分支都会自己写这个键（`minicc/benchmarks.py:781`、`minicc/benchmarks.py:795`、`minicc/benchmarks.py:802`），唯一能造出不带它的行的是 `--resume` 读入历史 results JSON（`minicc/benchmarks.py:653`），而 `_resume_matches`（`minicc/benchmarks.py:128`）要求 metadata 全等 ⇒ 当前版本产不出这种行。所以状态是**构造可达、尚未 populate**，改法要口径：兜底该报 `ungraded` 还是留着替历史行猜。
+2. `_objective_oracle` 把 `grader_type` 摘掉（`minicc/benchmarks.py:83`）：oracle 里「谁判的」没有读者，且 M8-T87 的零 case 判据只覆盖带 `case_count` 的合同；`command_contract` 型 oracle 走「无 case_count 直接算数」那条分支，它的 vacuous 情况现在没判据。
+3. `tool_repeat_rate` 恒 null（`repeated_tool_calls` 在 `minicc/` 无写主），改法等用户口径。
+4. `grading_refusal_count`／`reviewer_false_negative_count` 进 `bench_compare.GATE_METRICS`，需要方向与阈值口径。
+5. 未收口的小账：`turns`、`cleanup_error` 两条孤儿写；`review_rounds` 的印法；「通过／判不了／没评分器」三分口径在文档里还没有一处统一命名。
+6. 本批 M6 暴露的读欠：判决路径的 `grader_type` 只有 `tests/test_host_failure_is_not_a_verdict.py` 一个新读者，既有 runner 测试从不读它。要么给 `tests/test_benchmark_runner.py:108` 那条补读者（同一个字段两个路径各有各的读者才算收口），要么把它并进第 2 条那种「报告逐键重建时字段归属」的门一起处理。
