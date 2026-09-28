@@ -34,7 +34,10 @@ GOOD = {"type": "python_behavior", "function": "f",
 
 
 def _task(spec: dict) -> dict:
-    return {"id": "behaviour-task-needing-a-door", "grader": spec}
+    # the fixture must define what the grader imports: an unsolvable task is refused at load
+    # time since M8-T101, so these fixtures carry a real solution.py instead of the rule bending
+    return {"id": "behaviour-task-needing-a-door", "grader": spec,
+            "fixture": {"solution.py": "def f(a, b):\n    return a + b\n"}}
 
 
 @pytest.mark.parametrize("spec", BAD_SPECS)
@@ -52,7 +55,8 @@ def test_the_two_behaviour_doors_refuse_the_same_spec(spec: dict) -> None:
 
 
 def test_a_scoreable_behaviour_task_passes_both_doors(tmp_path: Path) -> None:
-    task = {"id": "ok-task", "grader": GOOD}
+    task = {"id": "ok-task", "grader": GOOD,
+            "fixture": {"solution.py": "def f(a, b):\n    return a + b\n"}}
     behavior_bench.validate_behavior_task(task)
     (tmp_path / "solution.py").write_text("def f(a, b):\n    return a + b\n", encoding="utf-8")
     graded = behavior_bench.grade_behavior(task, tmp_path)

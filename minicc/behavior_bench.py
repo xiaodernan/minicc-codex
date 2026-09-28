@@ -6,6 +6,7 @@ Passing this suite measures these cases, not general coding capability.
 """
 from __future__ import annotations
 
+import ast
 import hashlib
 import json
 import subprocess
@@ -131,13 +132,51 @@ def spec_blockers(task: dict[str, Any]) -> list[str]:
     return blockers
 
 
+def defined_names(code: str) -> set[str]:
+    """Names a module binds at top level: defs, classes and plain assignments."""
+    names: set[str] = set()
+    for node in ast.parse(code).body:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            names.add(node.name)
+        elif isinstance(node, (ast.Assign, ast.AnnAssign)):
+            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+            for target in targets:
+                if isinstance(target, ast.Name):
+                    names.add(target.id)
+    return names
+
+
+def fixture_blockers(task: dict[str, Any]) -> list[str]:
+    """Why this behaviour task can never be graded as written - read from its own fixture.
+
+    The grader imports ``solution.py`` and looks up ``grader.function``. If the shipped fixture
+    never binds that name, no agent action can make the task scoreable, so the refusal belongs at
+    load time - while an agent that deletes the function from *its* workspace has really failed
+    and must still get a verdict.
+    """
+    grader = task.get("grader") or {}
+    if grader.get("type") != "python_behavior":
+        return []
+    function = grader.get("function")
+    code = (task.get("fixture") or {}).get("solution.py")
+    if not isinstance(code, str):
+        return [f"python_behavior 任务缺少 fixture solution.py，无法校验被评函数 {function!r}"]
+    try:
+        names = defined_names(code)
+    except SyntaxError as exc:
+        return [f"python_behavior 任务 fixture solution.py 无法解析: {exc.msg}"]
+    if not isinstance(function, str) or function not in names:
+        return [f"python_behavior 任务的 fixture 未定义被评函数 {function!r}，任何智能体都无从通过"]
+    return []
+
+
 def validate_behavior_task(task: dict[str, Any]) -> None:
     """Load-time door: an unscoreable behaviour task must not reach the agent."""
     grader = task.get("grader") or {}
     kind = grader.get("type")
     if kind not in BEHAVIOR_GRADER_TYPES:
         raise ValueError(f"任务 {task.get('id')} grader 类型非法: {kind}")
-    blockers = spec_blockers(task)
+    blockers = spec_blockers(task) + fixture_blockers(task)
     if blockers:
         raise ValueError(f"任务 {task.get('id')} grader 规格无法判分: {'; '.join(blockers)}")
 
