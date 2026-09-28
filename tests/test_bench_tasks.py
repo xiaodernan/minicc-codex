@@ -84,7 +84,9 @@ def test_validate_task_rejects_non_positive_max_minutes() -> None:
     bad = {
         "id": "m", "category": "write", "prompt": "x", "max_minutes": 0,
         "fixture": {"a.txt": ""},
-        "grader": {"type": "file_contract", "files": []},
+        # a real spec: since M8-T96 an unusable one is refused first, which would make
+        # this test measure the spec door instead of the max_minutes door,
+        "grader": {"type": "file_contract", "files": [{"path": "a.txt"}]},
     }
     with pytest.raises(ValueError, match="max_minutes"):
         validate_task(bad)

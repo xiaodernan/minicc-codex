@@ -54,6 +54,8 @@ HOST_SCOPE = {
     "grade_v2": None,
     "grade_file_contract": "file_contract",
     "grade_command_contract": "command_contract",
+    # M8-T96: the spec-shape guarantees now live here, read off ``spec``.
+    "spec_blockers": None,
 }
 
 

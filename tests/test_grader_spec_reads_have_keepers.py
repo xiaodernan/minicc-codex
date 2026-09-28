@@ -31,11 +31,11 @@ SOURCE = (REPO_ROOT / "minicc" / "bench_tasks.py").read_text(encoding="utf-8")
 
 KEEPERS = {
     # key -> the upstream door that guarantees it, by name, so a reader can go look.
-    # Measured on e8c3db5, these are the only two subscript reads in the shipped graders:
-    # ``spec["command"]`` (kept since M8-T90 by the producer refusing a blank command) and
-    # ``item["path"]`` (the hole this batch closes).
-    "command": "grade_command_contract",
-    "path": "grade_file_contract",
+    # M8-T96 moved both guarantees into one function so the loader and the grader cannot
+    # disagree; this ledger follows them, because a ledger naming a door that no longer
+    # mentions the key is exactly the dead row this gate exists to catch.
+    "command": "spec_blockers",
+    "path": "spec_blockers",
 }
 
 

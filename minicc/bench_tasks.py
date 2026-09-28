@@ -41,6 +41,8 @@ __all__ = [
     "resolve_grader_dir",
     "v2_tasks",
     "validate_task",
+    "spec_blockers",
+    "GRADER_SCRIPTS",
     "grade_file_contract",
     "grade_command_contract",
     "grade_v2",
@@ -115,6 +117,11 @@ def validate_task(task: dict[str, Any]) -> None:
     grader = task["grader"]
     if not isinstance(grader, dict) or grader.get("type") not in GRADER_TYPES:
         raise ValueError(f"任务 {task['id']} grader 类型非法: {grader.get('type') if isinstance(grader, dict) else grader}")
+    # Same rule the grader applies, applied before the agent is paid: a spec nobody can
+    # execute is a broken task file, not a workspace that failed.
+    blockers = spec_blockers(grader["type"], grader)
+    if blockers:
+        raise ValueError(f"任务 {task['id']} grader 规格无法判分: {'; '.join(blockers)}")
     minutes = task.get("max_minutes")
     if not isinstance(minutes, (int, float)) or isinstance(minutes, bool) or minutes <= 0:
         raise ValueError(f"任务 {task['id']} max_minutes 必须为正数")
@@ -375,22 +382,9 @@ def grade_file_contract(
 ) -> dict[str, Any]:
     spec = task.get("grader") or {}
     files = spec.get("files") or []
-    if not files:
-        # An empty list prints its own completion marker for zero files, so the
-        # contract would grade a workspace it never opened.
-        return _no_result("file_contract", "file_contract lists no files: nothing was checked")
-    if not all(isinstance(item, dict) and isinstance(item.get("path"), str)
-               and item["path"].strip() for item in files):
-        # ``item["path"]`` is a subscript read inside the embedded grader: a string
-        # item or a missing path kills the child, and a dead grader is not the
-        # agent's failure. Guaranteeing it here is what makes that read a promise.
-        return _no_result("file_contract", "file_contract items need a non-empty string path")
-    unverifiable = unverifiable_spec_keys("file_contract", _FILE_CONTRACT_GRADER, spec)
-    if unverifiable:
-        return _no_result(
-            "file_contract",
-            f"file_contract asks for checks nobody reads: {unverifiable}",
-        )
+    blockers = spec_blockers("file_contract", spec)
+    if blockers:
+        return _no_result("file_contract", "; ".join(blockers))
     try:
         result = _run_grader(
             "file_contract.py", _FILE_CONTRACT_GRADER,
@@ -407,6 +401,41 @@ def grade_file_contract(
         "passed": passed, "grader_type": "file_contract",
         "case_count": len(files), "exit_code": result.returncode,
     }
+
+
+#: Which embedded script consumes which shipped grader type. The gate reconciles its
+#: keys against GRADER_TYPES, so a new contract type cannot be added without a script.
+GRADER_SCRIPTS = {
+    "file_contract": "_FILE_CONTRACT_GRADER",
+    "command_contract": "_COMMAND_CONTRACT_GRADER",
+}
+
+
+def spec_blockers(grader_type: str, spec: dict[str, Any]) -> list[str]:
+    """Why this spec cannot be judged at all - one answer for both enforcement doors.
+
+    The loader raises and the grader refuses NO-RESULT from the same list, so neither can
+    grow a private idea of "unusable" (which is how a malformed task ended up costing a
+    full agent run before anything complained).
+    """
+    blockers: list[str] = []
+    if grader_type == "file_contract":
+        files = spec.get("files") or []
+        if not files:
+            blockers.append("file_contract lists no files: nothing was checked")
+        elif not all(isinstance(item, dict) and isinstance(item.get("path"), str)
+                     and item["path"].strip() for item in files):
+            blockers.append("file_contract items need a non-empty string path")
+    elif grader_type == "command_contract":
+        command = spec.get("command")
+        if not isinstance(command, str) or not command.strip():
+            blockers.append("command_contract has no command to run")
+    script = globals().get(GRADER_SCRIPTS.get(grader_type, ""), None)
+    if isinstance(script, str):
+        dead = unverifiable_spec_keys(grader_type, script, spec)
+        if dead:
+            blockers.append(f"{grader_type} spec has keys nobody reads: {dead}")
+    return blockers
 
 
 def spec_verifies_nothing(grader_type: str, reason: str) -> dict[str, Any]:
@@ -447,16 +476,11 @@ def grade_command_contract(
     """
     spec = task.get("grader") or {}
     command = spec.get("command")
-    if not isinstance(command, str) or not command.strip():
-        # ``cmd /c ""`` exits 0 and the embedded grader prints its marker, so an
-        # empty command graded an untouched workspace as correct work.
-        return _no_result("command_contract", "command_contract has no command to run")
-    unverifiable = unverifiable_spec_keys("command_contract", _COMMAND_CONTRACT_GRADER, spec)
-    if unverifiable:
-        return _no_result(
-            "command_contract",
-            f"command_contract asks for checks nobody reads: {unverifiable}",
-        )
+    blockers = spec_blockers("command_contract", spec)
+    if blockers:
+        # ``cmd /c ""`` exits 0 and prints the marker, so an empty command used to
+        # grade an untouched workspace as correct work.
+        return _no_result("command_contract", "; ".join(blockers))
     # Render here, in-process and once. The embedded grader used to do this
     # itself, unquoted, which is how a correct workspace came back failed on
     # a default Windows install: ``C:\Program Files\...\python.exe`` was
