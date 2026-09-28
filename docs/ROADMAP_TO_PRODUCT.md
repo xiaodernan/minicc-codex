@@ -8158,3 +8158,197 @@ junit: tests=1539 failures=2 errors=0 skipped=0 time=1874.765
    调用换成不归一化，词还留在同一个函数体里，于是它预测红、实际绿（§6 表里少的那一格）。
    改法是让它问行为：同一份 fixture 在「身份」与「折叠」两种供给政策下必须给出不同答案、
    且每个答案与主人的一致；禁手写 `.lower(` 那一半保留不动。
+## 第九十四批 M8-T109：最后一处手抄的同位判据改成问主人，并给「测试侧不许抄判据」补一条有触达的门
+
+### 1 编号说明
+
+追加前在被追加上游平面上量（`git status --porcelain` 为 `<clean>`，HEAD＝本批代码提交）：
+文档里最后的批次标题是 `## 第九十三批`（出现 **1** 次），`第九十四批` 出现 **0** 次、
+`M8-T109` 出现 **0** 次（本批既不是前向引用也没有占位），哨兵 `M8-T999` 仍在（9 次），
+全文批次标题共 **62** 个。
+本批＝第九十四批＝`M8-T109`，接第九十三批 §8 的第 1 条候选：那批评了「测试侧还剩一处把主人的
+比较抄了一遍」——普查自己判路径同位，而不是问主人。
+
+### 2 缺陷：抄下来的判据会静默地比主人松
+
+`tests/test_two_fixture_keys_must_share_one_workspace.py` 的
+`test_no_shipped_task_carries_a_colliding_pair` 自己归一化每条键（把 `\` 换成 `/`、丢掉空段与 `.`），
+再两两比 `path == other` / `other.startswith(path + "/")` / `path.startswith(other + "/")`。
+主人 `minicc/bench_tasks.py:122` 的 `require_writable_fixture` 在第九十三批之后比的是
+**逐段问过宿主身份函数**的位置元组（`minicc/bench_tasks.py:185`），两者不是同一个判据。
+
+`eead5ea` 平面实测（`Temp/scratch109/probe109f.py`，把被抄走的那段判据逐字复制进探针，
+主人一侧则供给两种政策各判一次）：
+
+| 植入人口 | 手抄判据 | 主人／折叠卷 | 主人／区分大小写卷 |
+| --- | --- | --- | --- |
+| `{"A.txt", "a.txt"}` | 接受 | 拒（同一个位置） | 接受 |
+| `{"p/q.txt", "P/Q.txt"}` | 接受 | 拒（同一个位置） | 接受 |
+| `{"P", "p/q.txt"}` | 接受 | 拒（占用父目录） | 接受 |
+| `{"./a.txt", "a.txt"}` | 拒 | 拒 | 拒 |
+| `{"README.md", "readme.md"}` | 接受 | 拒（同一个位置） | 接受 |
+
+⇒ 手抄版在 **3** 个形状上比主人松，且在测过的 5 个形状上从不更严。也就是说这条普查的结论
+「语料里没有一对键会相撞」可以在**三条装载门已经拒绝某条任务**的情况下继续印「0 条违规」——
+门与普查各拿一套判据，绿色不代表它们说的是同一件事。⚠️注意这一格**不是**「今天的语料已经出错」：
+`Temp/scratch109/probe109e.py`（同一平面、同一人口，逐条问主人）实测三套语料
+legacy **30 条任务／0 条带 fixture**、v2 **24 条／24 条（39 项）**、行为 **12 条／12 条（24 项）**，
+全人口 fixture 项 **63**，主人在新规则下**一条都不拒**（0 条），手抄版同样 0 条——
+今天两者答案相同，差别只在**未来谁改判据时另一个人不会跟着红**。所以本批的定性是「判据漂移的窗口」，
+不是「现存假账」。
+
+### 3 改法：普查问主人，测试侧再补一条结构门
+
+- 同文件 `:160` 新增 `_fixture_refusals(tasks)`：逐条任务 `try: require_writable_fixture(task)`
+  收 `ValueError`，与第九十二/三批在另一文件里的同名审计器同一形状——抄的是**调用**，不是**判断**。
+  `:149` 新增 `_shipped_populations()`，三套语料各自走自己的装载器（legacy `load_tasks`、
+  v2 读 `benchmarks/tasks.v2.json`、行为 `behavior_tasks`）。
+  普查 `:174` 现在只写「人口 ≥10 条／全人口 fixture 项 ≥50／违规名单为空」，
+  下限来自**同一段循环**自己数的量（实测 63），不是另一次扫描抄来的数。
+- 「零违规」必须有触达：`:208` `test_the_layout_census_names_a_planted_pair` 走 `@pytest.mark.parametrize`
+  两格，测试供给 `os.path.normcase` 的两种实现，判一份自己写的人口（`_fixture_refusals` 只喂内存里的
+  3 条任务）：折叠政策 ⇒ **两**条点名（`planted-case-duplicate` 与 `planted-file-over-its-own-child`），
+  恒等政策 ⇒ **一**条点名。于是普查把主人对宿主的依赖一起继承下来，而不是假定其中一种答案。
+  ⚠️点名顺序无关，比的是 `sorted` 后的名单；两条任务各自只有一对冲突，因此名单**必须**恰好是那两个 id。
+- 新门 `:296` `test_no_layout_check_in_the_repo_re_types_the_owner_s_comparison`：
+  census 扫 `CENSUS_DIRS = ("tests", "minicc", "scripts")` 里每个模块的**顶层函数**，三问
+  （`:256` `_layout_audit_shape`）——(a) 会不会走到装载语料的函数（`load_tasks`/`behavior_tasks`，
+  经同模块辅助函数链也算，`:245` `_reaches`）、(b) 身体里有没有读 `"fixture"`、
+  (c) 是不是**自己**判路径同位（身体里有 `startswith` 调用或 `.replace(`）。
+  三问都为真却没问主人 ⇒ 记名。**(c) 是这条门的关键**：只读 fixture 的报表满仓库都是，
+  自己比较路径才是第二个实现。
+  实测（编辑之后、下限之前，在同一平面用门自己的函数跑）：走查 **189** 个 `.py`、
+  被审的布局判断 **11** 处（全在 `tests/`，`minicc/` 与 `scripts/` 为 0）、抄判据的 **0** 处；
+  门里下限因此写成「文件 ≥180、被审 ≥8」，并额外声明**本文件自己那条普查必须在被审名单里**
+  （否则「11 处」也可以是空集的别名）。
+
+### 4 门（`tests/test_two_fixture_keys_must_share_one_workspace.py`，10 个测试函数 / 30 格）
+
+本批把该文件从 **26** 格加到 **30** 格（父提交那一份是 7 个测试函数：18＋3＋1＋1＋1＋1＋1）：
+新增 `test_the_layout_census_names_a_planted_pair` 两格（fold／identity）、
+`test_no_layout_check_in_the_repo_re_types_the_owner_s_comparison` 一格、
+`test_the_layout_gate_names_a_hand_copied_census` 一格；census 那一格的名字与三条断言形状不变，
+只有 fixture 项下限从 ≥30 提到 **≥50**（同一段循环实测 63）。
+单跑该文件：`30 passed in 52.96s`（平面 `55f49ac`，`-p no:cacheprovider -W error -q`）。
+
+`test_the_layout_gate_names_a_hand_copied_census`（`:329`）是拒绝的一侧：往 temp 目录写一份
+`PLANTED_CENSUS`（`:312`，形状与被本批删掉的那段一模一样：装载语料、读 `task["fixture"]`、
+`replace` 分隔符、`startswith` 比前缀，没问主人），再用**同一个** `_layout_audits` 走它，
+要求 `walked == 1`、被审名单恰好是 `planted/test_planted_census.py::census_of_shipped_layout`、
+记名恰好 1 处。接受的一侧是 §3 那条真树（记名 0 处）。
+
+### 5 反向对照
+
+不是「拿新代码跑一遍看它绿」，而是**让本批新门去读父提交那一份文件**：把
+`git show eead5ea:tests/test_two_fixture_keys_must_share_one_workspace.py` 原样落到
+`Temp/parent109/`（1 个文件，182 行／8438 字节），再用**已提交的那只** `_layout_audits`
+走这个目录（`Temp/` 里的一次性调用，门本身一行没改）：
+
+```
+walked 1  audited 4  hand_copied 1
+  A parent109/test_two_fixture_keys_must_share_one_workspace.py::_shipped_task
+  A parent109/test_two_fixture_keys_must_share_one_workspace.py::_run_door
+  A parent109/test_two_fixture_keys_must_share_one_workspace.py::test_the_legitimate_nested_layout_still_loads_through_every_door
+  A parent109/test_two_fixture_keys_must_share_one_workspace.py::test_no_shipped_task_carries_a_colliding_pair
+  H parent109/test_two_fixture_keys_must_share_one_workspace.py::test_no_shipped_task_carries_a_colliding_pair:148
+```
+
+⇒ 门点名的正是本批转换的那一格（父文件里它自己判同位），其余三格是只读不判的管道。
+同一只门跑在 `tests/` 的已提交版本上：`hand_copied == []`（§3 实测 189 文件／11 处被审）。
+两侧都量过一次，才可以说 §6 的 W1/W2 不是「门只会对植入件响」。
+
+⚠️这一腿第一次尝试走的是「抄 token 数」：父 blob 里 `require_writable_fixture` 出现 **5** 次、
+新 blob **7** 次、`startswith` 2→3、`.replace(` 1→2——草稿里我据此写过「父 blob 里主人 0 次」，
+那是**错的**（那 5 次是三条装载门的调用与 `test_the_pair_rule_has_one_owner_across_the_module_tree`
+的 AST 字符串），token 计数根本不回答「谁在判同位」，因此删掉换成本节这条真文件走真门的量法。
+
+### 6 变异见证
+
+`Temp/mut109.py`（平面 `55f49ac`，跑前 `git status --porcelain` 为 `<clean>`；备份 16285 字节、
+sha256 前 12 位 `5c40becdd1d3`，与 `git show HEAD:<file>` 逐字节相等，否则拒绝开跑）。
+每臂改一处锚点、锚点命中数必须恰好为 1；预测在跑之前写进脚本，比的是**案例名字集合**。
+末行 `restore: all bytes identical` 与 `plane status: <clean>`。
+
+| 臂 | 改的是什么 | 跑了 | 红 | 事前预测 | 判定 |
+| --- | --- | --- | --- | --- | --- |
+| 对照 | 不改 | 30 | 0 | 0 | 门在跑之前是绿的 |
+| W1 `census_re_types_the_owners_comparison` | 把普查那一行换回上一批那种手抄两两比较 | 30 | 1 | 1 | CAUGHT |
+| W2 `gate_stops_walking_tests_and_scripts` | `CENSUS_DIRS` 只留 `minicc` | 30 | 1 | 1 | CAUGHT |
+| W3 `planted_census_loses_its_fixture_key` | 植入件读 `task["files"]` 而不是 `task["fixture"]` | 30 | 1 | 1 | CAUGHT |
+| W4 `auditor_reads_only_the_first_task` | 审计器只看人口里第一条任务 | 30 | 1 | 1 | CAUGHT |
+
+四臂的红**名单**都与事前预测逐格相等（脚本自己印 `reds` 与 `predicted` 两个集合并比对）。
+- W1：只有结构门红，而且它点名的正是本批转换的那一格——从该臂的 junit 原文读到
+  `these decide fixture layout by hand: ['tests/…::test_no_shipped_task_carries_a_colliding_pair:174']`。
+  普查自己仍绿——因为今天的语料在两副判据下答案相同（§2 ⚠️），这条正是「判据漂移窗口」而不是
+  「现存假账」的机械证明：能红的只有那条不许漂移的门。
+- W2：红的仍是这一格，但报错停在**第一个**断言：`the gate walked only 75 python files`
+  （`minicc/` 自己 75 个 `.py`）⇒ `assert 75 >= 180` 先失败。也就是说这条门里的「被审 ≥8」与
+  「本文件普查必须在名单里」两格**这一臂没跑到**——W2 只证到文件数下限会响，不证三条下限一起响。
+  ⚠️这一格是本记录先写下「三条同时失效」再去读 junit 才发现多说的：断言按顺序短路，
+  一条红字不能替后两条背书。
+- W3：红的只有拒绝侧那一格，原文 `the plant must land inside the audited population, got []`
+  ⇒ 植入件一旦不再读 `task["fixture"]` 就**退出被审名单**，门与它的触达见证各自都会沉默。
+- W4 是本批最尖的一臂：红的只有 `[fold]` 一格，原文
+  `a folding volume must show both collisions, named ['planted-file-over-its-own-child']`，
+  `[identity]` 那格仍绿。恒等政策期望点名 `planted-file-over-its-own-child`，而那正好是植入人口的
+  第 0 条任务；折叠政策要多认出第 1 条任务的同名冲突，才需要「看完整个种群」。
+  ⇒ 两格确实在判两种不同的量。
+
+### 7 全量基线（追加本记录时**仍在跑**，数字待后续一笔 docs 提交补齐）
+
+命令与被测平面：平面 `wt110`＝代码提交 `55f49ac`，跑前 `git status --porcelain` 为 `<clean>`；
+仓库 `.venv` 的解释器 `-m pytest`，`-p no:cacheprovider -W error -q --tb=line`，
+`--basetemp` 与 `--junitxml` 都落在平面外（`Temp/bt109full`、`Temp/t109_full.xml`），
+输出进 `Temp/t109_full.log`（末行会自己印 `PYTEST_EXIT=`）。起跑 2026-09-28 20:12:35Z。
+
+追加记录时的读数（只有进度，没有总账）：
+
+| 时刻 (Z) | 读数 |
+| --- | --- |
+| 20:21:40 | 进度行到 `[ 9%]`，已跑 144 格 |
+| 20:24 | `[ 13%]` |
+| 20:33 | 约 `[ 27%]`，进度行里出现 **1 个 `F`**（此刻还没读它的名字） |
+
+按 13%→27% 这段速度外推，整套还要一个小时以上；本批不为了凑一段文字先把它掐掉，
+也不把「还在跑」写成「已经绿」。⇒ **§7 目前是半开的**，补齐动作记在 §8-5：
+读 `Temp/t109_full.xml` 的 `tests` / `failures` / `errors` 与日志末行，把原文与两条 `test_task_worker.py`
+租约红的归属一起补成单独一笔 docs 提交。
+
+跑前写下的预测（现在原样留着，供补齐时对账，不是事后编的）：
+分母 **1543** ＝ 上一批 §7 的 1539 ＋ 本批该文件新增 4 格（26→30，§4）；
+`tests/test_task_worker.py` 的
+`test_worker_survives_host_crash_and_continues_long_stream` 与
+`test_shutdown_reaps_detached_worker_without_resource_warning` 可能再现——它们在父平面
+`b771eb0` 的独立复跑里也红过（第九十三批 §7），因此**不归属本批**；
+本批的门（那 30 格）在单跑里全绿，若全量里它们任何一格红，那是本批的账，必须回来看。
+
+⚠️进度读数本身不能当证据用：`F` 出现在第几格、整套几个 `F`，都要从 junit 读，
+不能从 `tail` 的百分数猜（第九十三批 §7 记过一次「末行没读就报数」的教训）。
+
+### 8 下一批候选
+
+1. （原第九十三批 §8-5，仍未做）`test_the_identity_question_is_the_hosts_own_function` 问的是**词**
+   不是行为：删掉 `location()` 里的 `normcase` 调用而把 `normcase` 这个词留在同一个函数体里，
+   那一格仍然绿（第九十三批 W1 因此预测 19、实到 18）。改成供给两种政策并问主人是否**同意**。
+2. 本批新门的 (c) 只认两种拼写（`startswith` 调用、`.replace(`）。用 `os.path.commonprefix`、
+   `PurePosixPath.parts` 比较或切片前缀判同位的代码今天**不会**被点名。⇒ 要么把 (c) 换成
+   「比的是不是位置」这类语义问法，要么补一个用别的写法的植入件，让 (c) 的覆盖面有名字。
+3. 被审的 11 处**全在** `tests/`，`minicc/` 与 `scripts/` 是 0（实测）。因此 (a) 那一问在生产侧
+   从没被真东西命中过：只有植入件证明它会命中。⇒ 若将来 `scripts/` 里出现一份语料报表，
+   这条门的第二个平面才算有行为证据；现在要么在 `scripts/` 造一条真实的读，要么把「0 处」
+   写进门自己的报错文字里。
+4. 原第九十三批 §8 其余候选（宿主故障写成 `passed=False` 的口径、`tool_repeat_rate` 恒 null、
+   `build_report` 的 `grader_type` 措辞、`bench_compare.GATE_METRICS` 的拒绝计数方向、
+   三种判决的命名、`review_rounds` 的渲染）仍在，前两条要用户定口径。
+5. **§7 还欠着的**：本批全量基线在追加记录时仍在跑（§7 表里只有进度读数）。跑完之后
+   读 `Temp/t109_full.xml` 的 `tests` / `failures` / `errors` 与 `Temp/t109_full.log` 末行的
+   `PYTEST_EXIT`，把原文补成单独一笔 docs 提交；同时按 §7 那份跑前预测对账——分母应为 **1543**，
+   `tests/test_task_worker.py` 那两格若在，就按「父平面 `b771eb0` 已复现过的既有租约红」归档，
+   不再逐批追认；要真正收口需要单独一批量那条 worker 的墙钟租约。**本批那 30 格若在全部里红，
+   就是本批的账**，必须回到 §4 重看。
+6. **本批 W2 自己暴露的**：`test_no_layout_check_in_the_repo_re_types_the_owner_s_comparison`
+   一条门里写了三条断言（文件数下限、被审数下限、本文件普查必须在名单里），它们按顺序短路，
+   所以本批只有第一条有变异臂（W2 红字 `walked only 75`）。后两条今天**没有任何臂单独打破过**。
+   ⇒ 下一批要么把它拆成三格（每格一个臂），要么把名单那一格提到最前面并补一条臂：
+   把 `_layout_audits` 的顶层函数收集改成只看 `test_` 前缀之外的函数，预测「被审 ≥8」红而文件数仍绿。
