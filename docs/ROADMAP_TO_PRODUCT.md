@@ -7336,3 +7336,56 @@ F2 的多出来三条是好事：两扇门措辞相同不是注释承诺，是�
 2. 行为任务 `function` 与 fixture `solution.py` 内函数名一致性（不一致时判分期已拒，但仍白跑一轮）。
 3. `build_report:180` 的 `grader_type` 兜底（要口径）；GATE_METRICS 方向与阈值；三分口径统一命名；`review_rounds` 的 markdown 印法。
 4. **等用户口径**（task #83）：`repeated_tool_calls` 有人读、没人写 ⇒ `tool_repeat_rate` 恒 null。
+## 第八十五批 M8-T100：报告与 shell 都不许替任务编字段
+
+代码 `6ebe322`（本记录随其后追加）。编号说明：`M8-T100` 之前只在第八十四批 §7 作为前向引用出现。
+
+### 1 先纠正我自己的假设，再谈缺陷
+
+在 `8d7cc8f` 上量 legacy 语料，第一次的猜想被数据否掉：**27/30 条任务的 `verify_command` 是 `null`**（falsy ⇒ `run_benchmark` 那一支根本不进，什么都不字符串化），而且 **30 条全都有非空 `category`**。所以「非字符串命令一定会被 `str()` 变怪」这句在 null 上不成立；写下来才算数。
+
+真正可构造的两处静默是：
+
+| 形状 | 旧行为 | 为什么是静默 |
+| --- | --- | --- |
+| `category` 缺失／空／非字符串 | `build_report` 用 `task.get("category", "uncategorized")` 补一个词 | 报告里出现任务从没写过的分组名（与第七十八批 `grader_type` 兜底同族） |
+| `verify_command` 为真值但非字符串（list/dict）或空串 | `run_benchmark` 里 `str(verify_command)` 拼成一条怪命令 | 命令必然失败 ⇒ `passed=False` 记在智能体头上＝M8-T83 族 |
+
+### 2 改法：一条规则一个主人，两扇门共用
+
+`minicc/bench_tasks.py` 新增 `require_objective_shape(task)`：`category` 必须是非空字符串（拒绝时点名任务 id 与理由），`verify_command` 允许缺席或 `null`（prompt-only 任务的写法），但真值必须是**非空字符串**。`validate_task` 改为委托它，`load_tasks` 也调用它 ⇒ v2 与 legacy 共享同一条规则，不再各写一份。
+
+### 3 门（`tests/test_no_field_is_invented_by_the_report_or_the_shell.py`，7 函数 / 14 格）
+
+- 4 种坏 `category` + 完全没有 `category` 的任务 ⇒ 装载期拒绝，消息含 `category` 与任务 id（id 用有辨识度的 `shape-check-task`，上一批的教训当批守住）。
+- 4 种真值非字符串／空白 `verify_command` ⇒ 拒绝且点名 `verify_command` 与 id。
+- 2 种诚实形状仍装载：`null`（prompt-only）与真命令串。
+- **同主人结构门**：`load_tasks` 与 `validate_task` 都必须调 `require_objective_shape`。
+- **理由见证**：AST 确认 `run_benchmark` 里那句 `str(verify_command)` 与 `build_report` 里的 `"uncategorized"` 兜底**仍然存在** ⇒ 哪天它们被改掉，这条门要求同步更新而不是继续假装有效。
+- **语料 census**：两份任务文件各 ≥20 条且全部满足新规则（新门不误伤出厂数据），legacy 装载条数与文件条数相等。
+
+### 4 反向对照与变异（一处已成惯性偏差，写下来）
+
+未修平面 `8d7cc8f`：**11 failed / 3 passed**（3 条绿是两种诚实形状 + coercion 见证）。
+
+变异 3 臂，定向集 3 文件 47 格，未变异控制 `47 passed`、`restored: True`：
+
+| 臂 | 改动 | 红数 | 备注 |
+| --- | --- | --- | --- |
+| K1 | `load_tasks` 不再问主人 | **10** | 我只点名 5 条：漏了 3 条命令形状 + 同主人结构门 + 另一条 |
+| K2 | 关掉 category 检查 | 5 | 4 种坏 category + 无 category 那条，预测逐格命中 |
+| K3 | 关掉命令检查 | 4 | 4 条命令形状，预测逐格命中 |
+
+⚠️**K1 又出现「预测偏少」**（连续第二批）：我拆门时只按「哪条测试断言这条门」列名单，没按「这道门还支撑哪些断言」列。⇒ 这是可复现的构造习惯问题，不是运气：下一批起预测表按**函数级**生成——先跑一次拆门收集红名单，再与事先写在纸面的名单逐条对照（两份都留档，而不是只留事后那份）。
+
+### 5 基线
+
+干净平面**单独**跑（worktree 显式建在 sha `6ebe322`，一个 pytest 进程、独立 basetemp `bt101full`、独立日志）：**1410 passed in 353.02s (0:05:53)**，`PYTEST_EXIT=0`，FAILED 行数 0；数字取自日志自己的页脚。上一批 1396 ⇒ +14 正好等于本批新门收集的 14 格。
+
+### 6 下一批候选（M8-T101 起）
+
+1. 行为任务 `function` 与 fixture `solution.py` 内定义的函数名一致（现在不一致时判分期已拒，但仍白跑一轮）；同一族还能查 `cases` 每项是不是 `[args, expected]` 两元。
+2. `build_report:180` 的 `grader_type` 兜底（要口径：报 `ungraded` 还是替历史行猜）。
+3. `grading_refusal_count`／`reviewer_false_negative_count` 进 `bench_compare.GATE_METRICS`：要方向与阈值口径。
+4. 三分口径（通过／判不了／没评分器）在文档里统一命名；`review_rounds` 进了报告行但 markdown 一格没印。
+5. **等用户口径**（task #83）：`repeated_tool_calls` 有人读、没人写 ⇒ `tool_repeat_rate` 恒 null。
