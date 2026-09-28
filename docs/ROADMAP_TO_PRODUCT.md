@@ -7133,3 +7133,69 @@ C4 是本批最强的证据：一个只被我新门点名的改动，同时让�
 4. 三分口径统一命名；`review_rounds` 进了报告行但 markdown 没印。
 5. **等用户口径**（task #83）：`repeated_tool_calls` 恒 null。
 6. harness 自我修正：变异预测表的 id 一律从 `--collect-only` 读回。
+## 第八十一批 M8-T96：没人能执行的规格，要在智能体被付费之前拒掉
+
+代码 `d4fbe89`（本记录随其后追加）。编号说明：`M8-T96` 之前只在第八十批 §7 作前向引用出现。
+
+### 1 缺陷：判分门的拒绝来得太晚，付款门根本没问
+
+在 `e6aceb9` 平面对 `validate_task` 量了七种规格：
+
+| 规格 | 本批之前加载期 | 判分期（M8-T90..M8-T94 之后） |
+| --- | --- | --- |
+| `{'files': []}` | **通过** | refusal |
+| `{'files': ['a.txt']}` | **通过** | refusal |
+| `{'command': ''}` | **通过** | refusal |
+| `{'command':'x','expct_exit':1}` | **通过** | refusal |
+| `{'files':[{'path':'a.txt','typo_contains':'y'}]}` | **通过** | refusal |
+| 正常 `{'files':[{'path':'a.txt','contains':'x'}]}` | 通过 | 真判决 |
+| `python_behavior`／`answer_rubric` | 加载期即「类型非法」 | 不经这条路（行为套件走另一个入口） |
+
+⇒ 前四种第七十五批之后确实不会再生成假判决，但要等**一整轮 agent 跑完**才被拒；`benchmarks.py:565` 那条加载期校验只问「类型对不对」，不问「这规格有没有人能执行」。
+
+### 2 改法：一条规则、一个主人、两扇门
+
+新增 `spec_blockers(grader_type, spec)`（`minicc/bench_tasks.py`）：**唯一的**「这规格没人能执行」答案。两条合同生产者的三段散开判断（空 files／项不是 `{path}`／空 command／不认识键）全部并进去；`validate_task` 也问它，报错带任务 id。两扇门现在逐字同句（实测：loader 与 producer 的 reason 文本一致），不会再各长出一套「什么叫不可用」。
+
+`GRADER_SCRIPTS = {file_contract→_FILE_CONTRACT_GRADER, command_contract→_COMMAND_CONTRACT_GRADER}` 把类型映射到吃它的脚本；门断言 `set(GRADER_SCRIPTS) == GRADER_TYPES` 且每个值确实是模块里的嵌入脚本文本 ⇒ 新加第三种合同不给脚本，词表检查就会静默跳过——这条不许漂移。
+
+### 3 三条既有门/夹具因此被改正（不是顺手改）
+
+- ⚠️**第七十六批的 keeper 账本红了一次，而且它是对的**：账本写 `"path" → grade_file_contract`，而我把保证挪进 `spec_blockers` 后，`grade_file_contract` 源码里不再出现 `path` ⇒ 「点名的门已经不提这个键」那条门判红。修法是把账本改指真正的门（`spec_blockers`），而不是把保证复制回旧位置——这正是它设计来抓的情形。
+- `HOST_SCOPE`（第七十七批的「宿主读的键必须在自己词表里」）加上 `spec_blockers`，否则新读点不在普查种群内。
+- ⚠️`test_validate_task_rejects_non_positive_max_minutes` 用 `files: []` 当便宜规格 ⇒ 新加载门先响，那条测试会在**测我的门**而不是测 `max_minutes`。给它真规格。同一形状第三次出现（第七十五批两条、本批一条）：**便宜占位规格是债**。
+
+### 4 门：`tests/test_unusable_spec_is_refused_before_the_agent_runs.py`（5 函数 / 8 格）
+
+- 四种不可用规格：loader 抛错（消息点名任务 id **且**含与 producer 相同的短语）＋producer 交回 NO-RESULT ⇒ 「两扇门同一句话」是断言出来的，不是注释里说的。
+- 可用规格两扇门都放行（正向；断言写成 `graded.get("grading_refused") is not True`——通过判决里根本没有这个键，我第一版用 `[...]` 直接 KeyError）。
+- `GRADER_SCRIPTS` 与 `GRADER_TYPES` 双向对账；每个映射值必须是真脚本文本。
+- **出货缝隙门**：AST 确认 `benchmarks.py` 里确有一处调用 `validate_task`，且该函数同时负责装载被校验的那批任务 ⇒ 早期拒绝不是守一条没人开的路。
+- 语料门：24 条 v2 任务今天全部仍能加载（新门不误伤），并断言读到 ≥20 条旧任务防止 census 空转。
+
+### 5 反向对照与变异（一处我自己的空断言被变异抓出来）
+
+未修平面 `e6aceb9`：**5 failed / 3 passed**（4 个两扇门一致格 + 脚本映射表；3 条绿是本来就成立的正向/缝隙/语料）。
+
+变异 3 臂，定向集 4 个文件 41 格，控制 `41 passed`、`restored: True`：
+
+| 臂 | 改动 | 红数 | 备注 |
+| --- | --- | --- | --- |
+| E1 | 拆掉加载门 | 4 | 四个两扇门一致格 |
+| E2 | 从 `spec_blockers` 删掉 `path` 保证 | 5 | 我的 1 格＋第七十六批账本门＋两条行为见证＋陈行门 |
+| E3 | 加载期报错去掉任务 id | 第一轮 **0 红（存活）** | 见下 |
+
+⚠️**E3 存活抓到的是我自己一条空断言**：夹具的任务 id 是单字母 `"t"`，任何句子都含它 ⇒ 「消息点名任务 id」永远真。把 id 换成长而独特的 `task-id-must-be-named` 后 E3 变 4 红。⇒ 与「断言不许按行号钉」「名字要从跑测器读回」同源：**断言里的常量必须有辨识度，否则它在测字符串包含而不是测行为**。
+⚠️同时修掉 harness 的第二个自身缺陷：`FAILED <path>::<name> - <reason>` 里我用 `split(" ")[0]` 取名字，带空格的参数化 id 被截断，一度把 E1 报成「预测全漏 + 4 条意外红」的假象；改成按最后一个 `" - "` 切分后才看到真相。
+
+### 6 基线
+
+干净平面（worktree 显式建在 sha `d4fbe89`）+ `PYTHONPATH` 指过去、独立 basetemp 与独立日志：**1365 passed in 368.81s (0:06:08)**，`PYTEST_EXIT=0`，数字取自日志自己的页脚。上一批 1357 ⇒ +8 正好等于新门文件收集的 8 格。
+
+### 7 下一批候选（M8-T97 起）
+
+1. 行为套件的加载门：`behavior_tasks()` 与 `benchmarks.py` 的 behavior 分支**不经过** `validate_task`（实测：那两类在 v2 校验里被判「类型非法」），所以 `python_behavior`/`answer_rubric` 的坏规格仍要等判分期才被发现。要么给行为套件一条同款加载门，要么把「行为套件只有判分期一道门」写成明确边界。
+2. 旧 `tasks.json`（30 条，无 grader）加载路径不做任何 grader 校验——今天无内容可校验，但也没有门在守这条不变量。
+3. `build_report:180` 的 `grader_type` 兜底（要口径）；`grading_refusal_count`／`reviewer_false_negative_count` 进 `GATE_METRICS`（要方向阈值）；三分口径统一命名；`review_rounds` 的 markdown 印法。
+4. **等用户口径**（task #83）：`repeated_tool_calls` 有人读、没人写 ⇒ `tool_repeat_rate` 恒 null（行 census 的唯一活豁免）。
+5. harness 卫生（本批两次应验）：预测名一律 `--collect-only` 读回；断言里的常量要有辨识度。
