@@ -220,6 +220,9 @@ def validate_behavior_task(task: dict[str, Any]) -> None:
     blockers = spec_blockers(task) + fixture_blockers(task)
     if blockers:
         raise ValueError(f"任务 {task.get('id')} grader 规格无法判分: {'; '.join(blockers)}")
+    # Same owner the legacy and v2 doors ask: a fixture value that is not text would reach
+    # the agent's workspace as Python repr.
+    bench_tasks.require_writable_fixture(task)
 
 
 def grade_answer_rubric(task: dict[str, Any], answer: str = "") -> dict[str, Any]:
@@ -284,7 +287,10 @@ def prepare_fixture(task: dict[str, Any], workspace: Path, *, initialize_git: bo
         if not target.is_relative_to(workspace.resolve()):
             raise ValueError("fixture path escapes workspace")
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(str(content), encoding="utf-8")
+        # The text, exactly as authored, not ``str(content)`` and not newline-translated:
+        # coercing a structured value wrote Python repr into the agent's workspace, and
+        # text-mode translation turned an authored CRLF into two newlines on read-back.
+        target.write_text(content, encoding="utf-8", newline="")
     if initialize_git:
         # A baseline lets the agent inspect its actual diff without unrelated
         # failures from git tools. No global Git identity/config is changed.

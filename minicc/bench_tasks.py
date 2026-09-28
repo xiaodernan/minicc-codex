@@ -119,6 +119,42 @@ def require_objective_shape(task: dict[str, Any]) -> None:
         )
 
 
+def require_writable_fixture(task: dict[str, Any]) -> None:
+    """A fixture must be text the workspace can actually hold.
+
+    Three host faults turn into an agent's failure when they reach the write path: a
+    non-string value is written as Python repr (``str({'a': 1})`` is not valid JSON, so the
+    agent is handed a file no parser reads), a key that is not a string makes the runner's
+    path join raise, and a key naming a directory (an empty key, a bare dot, or a trailing
+    separator) makes ``write_text`` fail on that directory. Escaping keys are refused as
+    before, now including a Windows drive absolute one, which the leading-slash test missed.
+    """
+    task_id = task.get("id") if isinstance(task, dict) else None
+    fixture = task.get("fixture") if isinstance(task, dict) else None
+    if fixture is None:
+        return
+    if not isinstance(fixture, dict):
+        raise ValueError(f"任务 {task_id!r} fixture 必须是非空对象")
+    for relative, content in fixture.items():
+        if not isinstance(relative, str):
+            raise ValueError(
+                f"任务 {task_id!r} fixture 的键 {relative!r} 必须是字符串，收到 {type(relative).__name__}"
+            )
+        rel = relative.replace("\\", "/")
+        drive_absolute = len(rel) >= 2 and rel[0].isalpha() and rel[1] == ":"
+        if rel.startswith("/") or drive_absolute or ".." in rel.split("/"):
+            raise ValueError(f"任务 {task_id!r} fixture 路径逃逸: {relative}")
+        if not rel.strip() or rel == "." or rel.endswith("/"):
+            raise ValueError(
+                f"任务 {task_id!r} fixture 键 {relative!r} 命名的是目录而不是文件，写不进工作区"
+            )
+        if not isinstance(content, str):
+            raise ValueError(
+                f"任务 {task_id!r} fixture {relative!r} 的内容必须是文本，"
+                f"收到 {type(content).__name__}（写进工作区会变成 Python repr）"
+            )
+
+
 def validate_task(task: dict[str, Any]) -> None:
     """Schema gate used by tests and by ``--suite v2`` loading.
 
@@ -143,10 +179,7 @@ def validate_task(task: dict[str, Any]) -> None:
     fixture = task["fixture"]
     if not isinstance(fixture, dict) or not fixture:
         raise ValueError(f"任务 {task['id']} fixture 必须是非空对象")
-    for relative in fixture:
-        rel = str(relative).replace("\\", "/")
-        if rel.startswith("/") or ".." in rel.split("/"):
-            raise ValueError(f"任务 {task['id']} fixture 路径逃逸: {relative}")
+    require_writable_fixture(task)
     grader = task["grader"]
     if not isinstance(grader, dict) or grader.get("type") not in GRADER_TYPES:
         raise ValueError(f"任务 {task['id']} grader 类型非法: {grader.get('type') if isinstance(grader, dict) else grader}")

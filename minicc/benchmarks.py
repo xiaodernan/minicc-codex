@@ -148,6 +148,9 @@ def load_tasks(path: Path = DEFAULT_FIXTURES) -> list[dict[str, Any]]:
         bench_tasks.require_prompt(task)
         # And a field the report or the shell would have to invent is refused here too.
         bench_tasks.require_objective_shape(task)
+        # A fixture the write path has to coerce or cannot open is the same class of lie:
+        # the agent is charged for a workspace the host could not author.
+        bench_tasks.require_writable_fixture(task)
         # A task may declare one objective check, not two: the runner's grader branch wins
         # and the other is dropped without a word, so a task carrying both scores less than
         # its author thinks it does.
