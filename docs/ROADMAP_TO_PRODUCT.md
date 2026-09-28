@@ -7199,3 +7199,54 @@ C4 是本批最强的证据：一个只被我新门点名的改动，同时让�
 3. `build_report:180` 的 `grader_type` 兜底（要口径）；`grading_refusal_count`／`reviewer_false_negative_count` 进 `GATE_METRICS`（要方向阈值）；三分口径统一命名；`review_rounds` 的 markdown 印法。
 4. **等用户口径**（task #83）：`repeated_tool_calls` 有人读、没人写 ⇒ `tool_repeat_rate` 恒 null（行 census 的唯一活豁免）。
 5. harness 卫生（本批两次应验）：预测名一律 `--collect-only` 读回；断言里的常量要有辨识度。
+## 第八十二批 M8-T97：行为套件补上加载门，一条规则一个主人
+
+代码 `bb46eca`（本记录随其后追加）。编号说明：`M8-T97` 之前只在第八十一批 §7 作为前向引用出现，HEAD 无标题占用。
+
+### 1 缺陷：v2 有加载门，行为套件没有
+
+`benchmarks.py` 的 CLI 分支实测（`fb44cdd`）：`--suite v2` 每条任务先过 `validate_task`（M8-T96 之后还会拒不可执行规格），而 `--suite behavior` 直接 `tasks = behavior_tasks()` 开跑，**没有任何校验**。所以一个不可判分的行为任务（cases/raises 全空、键名拼错）照旧要等一整轮 agent 跑完，才在判分期被拒。
+
+### 2 改法：行为域一个主人，两扇门问它
+
+`behavior_bench.spec_blockers(task)` 成为行为规格「谁能判分」的唯一答案（python_behavior 的 function/cases+raises/不认识键，answer_rubric 的空标准与外键），`grade_behavior`／`grade_answer_rubric` 与新增的 `validate_behavior_task` 都问它，措辞只有一份。加载门报错带任务 id。
+
+**为什么是两个域而不是一个**：`bench_tasks` 不能 import `behavior_bench`（循环），所以合同规则留在 `bench_tasks.spec_blockers`、行为规则留在 `behavior_bench.spec_blockers`。这不是「又一个主人」——门把这件事写成断言：**每个域内**「nothing was checked」/「keys nobody reads」两句措辞只出现在该域的 `spec_blockers` 里，出现第二处即红（F2 变异就是被它抓的）。
+
+### 3 门：`tests/test_behavior_suite_is_validated_at_load.py`（7 个函数 / 10 格）
+
+- 四个不可判分行为规格：加载门抛错（带任务 id）＋判分期交回 refusal，且**两扇门的措辞逐字相同**（断言拿加载消息里的短语去查 producer 的 refusal）。
+- 可判分任务两扇门都放行（真 `solution.py`、真子进程 ⇒ 门不吞合法评分）。
+- 未知类型被点名拒绝。
+- **域内唯一主人**：AST 扫 `behavior_bench` 每个函数体，含那两句措辞的函数只能是 `spec_blockers`。
+- **声明↔分派对账**：`BEHAVIOR_GRADER_TYPES` 必须等于 `grade_behavior` 实际比较的类型字面量集合。⚠️这条门第一次跑就抓到**我自己新门里的盲区**：我只收 `Eq` 比较，而 python_behavior 分支是 `!=` ⇒ 派生集合少一支；补上 `NotEq` 后才对齐。也就是说，这条对账在证明代码诚实之前先证明了走查诚实。
+- **出货缝隙门**：AST 确认 `benchmarks.py` 里确有 `validate_behavior_task(...)` 调用，且调用发生在装载 `behavior_tasks()` 的那个函数内。
+- **出厂语料**：12 条行为任务全部通过新门（不误伤），并断言读到 ≥10 条、旧套件 ≥20 条。
+
+### 4 反向对照与变异
+
+未修平面 `fb44cdd`：**10 failed / 0 passed**。⚠️照第七十七/八十批的规矩说明：这批的多数红是 `AttributeError`（新机制在旧平面不存在），因此「旧行为长什么样」不由它证明，而由变异反事实证明。
+
+变异 3 臂，定向集 3 个文件 28 格，未变异控制 `28 passed`、`restored: True`：
+
+| 臂 | 改动 | 红数 | 备注 |
+| --- | --- | --- | --- |
+| F1 | 拆掉 runner 里的加载门 | 1 | 只有缝隙门红 ⇒ 「验证器没人调」这件事由结构门守 |
+| F2 | 在生产者里复制一份措辞（破坏唯一主人） | 4 | 唯一主人门 + 三条比较两扇门措辞的邻居格（预测只写 1 条，漏数了比较短语的那三条） |
+| F3 | 声明的类型集合缩成一支 | 5 | 对账门 + 两扇门一致格 + 语料格 + 正向格 |
+
+F2 的多出来三条是好事：两扇门措辞相同不是注释承诺，是断言，所以「复制一份」会立刻在多格上炸开。
+
+### 5 基线
+
+干净平面单独跑（worktree 显式建在 sha `bb46eca`，一个进程、独立 basetemp `bt98solo`、独立日志）：**1375 passed in 336.37s (0:05:36)**，`PYTEST_EXIT=0`，FAILED 行数 0，数字取自日志自己的页脚。上一批 1365 ⇒ +10 正好等于本批新门收集的 10 格。
+
+⚠️**第一次全量不是基线，是我自己造的干扰**：我以为用 shell `&` 起的后台作业已随调用结束而死，就重启了一次全量 ⇒ 两个完整套件同时跑（共用 `~/.minicc/tasks.sqlite3` 与同一日志路径），结果 `2 failed, 1372 passed, 1 error`，三条红全在本批没碰的套件（`test_packaging.py` 装机冒烟、`test_task_worker.py` 宿主崩溃续跑、`test_http_surface.py` 报 `PermissionError`）＝典型的互相清场形状。**没有任何代码改动**，只把两个作业分开重跑一次就得到上面那行干净的绿。⇒ 建平面一律写 sha；长跑一律走工具的后台机制，不用 shell 的 `&`；重叠期间产生的任何数字不许引用。
+
+### 6 下一批候选（M8-T98 起）
+
+1. `--suite legacy`（`benchmarks/tasks.json` 30 条，全部无 grader）这条路径没有任何 grader 校验，也没有门在守「这些任务确实不该有 grader」这条不变量；要么给它一条断言，要么写明边界。
+2. 行为任务的质量断言目前只有「能不能判分」；`function` 与 fixture 里 `solution.py` 定义的函数名是否一致还没人查（不一致 ⇒ 评分器 `getattr` 当场崩，判分期已能拒但仍是白跑一轮）。
+3. `build_report:180` 的 `grader_type` 兜底（要口径）；GATE_METRICS 方向阈值；三分口径统一命名；`review_rounds` 的 markdown 印法。
+4. **等用户口径**（task #83）：`repeated_tool_calls` 有人读、没人写 ⇒ `tool_repeat_rate` 恒 null。
+5. harness 卫生（连续两批应验）：预测名一律 `--collect-only` 读回；断言常量要有辨识度；**新写的对账门要先用变异自测它的走查覆盖**（本批的 `Eq`-only 盲区就是自己抓自己的例子）。
