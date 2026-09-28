@@ -21,7 +21,8 @@ import threading
 import uuid
 from pathlib import Path
 from typing import Any, Sequence
-from .behavior_bench import behavior_tasks, fixture_digest, grade_behavior, prepare_fixture
+from .behavior_bench import (behavior_tasks, fixture_digest, grade_behavior,
+                            prepare_fixture, validate_behavior_task)
 from . import bench_tasks
 from .bench_tasks import LEGACY_SUITE_VERSION, grade_v2
 from . import pricing
@@ -558,6 +559,13 @@ def main(argv: list[str] | None = None) -> int:
         return _run_retrieval_suite(args)
     if args.suite == "behavior":
         tasks = behavior_tasks()
+        for task in tasks:
+            # Same shape as the v2 door: an unscoreable task is a broken task file, and
+            # finding that out after the agent ran wasted the run.
+            try:
+                validate_behavior_task(task)
+            except ValueError as exc:
+                parser.error(f"behavior 任务集校验失败: {exc}")
     elif args.suite == "v2":
         tasks = bench_tasks.v2_tasks()
         for task in tasks:

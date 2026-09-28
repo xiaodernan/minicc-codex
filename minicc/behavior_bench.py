@@ -101,6 +101,47 @@ sys.stdout.write("MINICC_BEHAVIOR_COMPLETE:" + str(len(data["cases"]) + len(data
 RUBRIC_SPEC_KEYS = frozenset({"required_any"})
 
 
+#: Grader types this module's script understands. Reconciled by the gate against the types
+#: ``grade_behavior`` actually dispatches on, so the list cannot be hand-kept.
+BEHAVIOR_GRADER_TYPES = frozenset({"python_behavior", "answer_rubric"})
+
+
+def spec_blockers(task: dict[str, Any]) -> list[str]:
+    """Why a behaviour grader spec can judge nothing - the single owner for both doors.
+
+    Contracts keep their equivalent in ``bench_tasks``: that module cannot import this one
+    without a cycle, so ownership is per domain and the gate checks each domain keeps one
+    copy of its own wording.
+    """
+    grader = task.get("grader") or {}
+    kind = grader.get("type")
+    blockers: list[str] = []
+    if kind == "answer_rubric":
+        unknown = sorted(set(grader) - RUBRIC_SPEC_KEYS - bench_tasks.HOST_READ_KEYS)
+        if unknown:
+            blockers.append(f"answer_rubric spec has keys nobody reads: {unknown}")
+        if not (grader.get("required_any") or []):
+            blockers.append("answer_rubric lists no required_any groups: nothing was checked")
+    elif kind == "python_behavior":
+        dead = bench_tasks.unverifiable_spec_keys("python_behavior", _GRADER, grader)
+        if dead:
+            blockers.append(f"python_behavior spec has keys nobody reads: {dead}")
+        if not (grader.get("cases") or []) and not (grader.get("raises") or []):
+            blockers.append("python_behavior spec has no cases or raises: nothing was checked")
+    return blockers
+
+
+def validate_behavior_task(task: dict[str, Any]) -> None:
+    """Load-time door: an unscoreable behaviour task must not reach the agent."""
+    grader = task.get("grader") or {}
+    kind = grader.get("type")
+    if kind not in BEHAVIOR_GRADER_TYPES:
+        raise ValueError(f"任务 {task.get('id')} grader 类型非法: {kind}")
+    blockers = spec_blockers(task)
+    if blockers:
+        raise ValueError(f"任务 {task.get('id')} grader 规格无法判分: {'; '.join(blockers)}")
+
+
 def grade_answer_rubric(task: dict[str, Any], answer: str = "") -> dict[str, Any]:
     """Grade a text answer against required-any groups; the only reader of the rubric spec.
 
@@ -110,17 +151,13 @@ def grade_answer_rubric(task: dict[str, Any], answer: str = "") -> dict[str, Any
     behaviour spec.
     """
     grader = task.get("grader") or {}
-    unknown = sorted(set(grader) - RUBRIC_SPEC_KEYS - bench_tasks.HOST_READ_KEYS)
-    if unknown:
-        return bench_tasks.spec_verifies_nothing(
-            "answer_rubric", f"answer_rubric spec has keys nobody reads: {unknown}")
+    blockers = spec_blockers(task)
+    if blockers:
+        # An empty rubric used to answer passed=False, charging the agent for the
+        # grader's own blank spec.
+        return bench_tasks.spec_verifies_nothing("answer_rubric", "; ".join(blockers))
     folded = answer.casefold()
     groups = grader.get("required_any") or []
-    if not groups:
-        # An empty rubric verified nothing and answered passed=False, charging the
-        # agent for the grader's own blank spec.
-        return bench_tasks.spec_verifies_nothing(
-            "answer_rubric", "answer_rubric lists no required_any groups: nothing was checked")
     passed = all(any(str(term).casefold() in folded for term in group) for group in groups)
     return {"passed": passed, "grader_type": "answer_rubric", "case_count": len(groups)}
 
@@ -131,16 +168,12 @@ def grade_behavior(task: dict[str, Any], workspace: Path, answer: str = "") -> d
         return grade_answer_rubric(task, answer)
     if grader.get("type") != "python_behavior":
         return {"passed": None, "grader_type": "ungraded"}
-    unknown = bench_tasks.unverifiable_spec_keys("python_behavior", _GRADER, grader)
-    if unknown:
-        return bench_tasks.spec_verifies_nothing(
-            "python_behavior", f"python_behavior spec has keys nobody reads: {unknown}")
+    blockers = spec_blockers(task)
+    if blockers:
+        # Zero cases still prints the completion marker for zero, which used to grade
+        # an untouched workspace as correct work.
+        return bench_tasks.spec_verifies_nothing("python_behavior", "; ".join(blockers))
     count = len(grader.get("cases") or []) + len(grader.get("raises") or [])
-    if count == 0:
-        # Zero cases still prints the completion marker for zero, which graded an
-        # untouched workspace as correct work.
-        return bench_tasks.spec_verifies_nothing(
-            "python_behavior", "python_behavior spec has no cases or raises: nothing was checked")
     try:
         result = subprocess.run(
             [sys.executable, "-I", "-c", _GRADER, str(workspace.resolve())],
