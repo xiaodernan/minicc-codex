@@ -47,6 +47,13 @@ NOT_A_PAIR = {"A.txt": "one", "a.md": "two"}
 # The batch-92 class reached through a different separator spelling: one location on every host.
 SPELLING_VARIANT = {f"A{BACKSLASH}B.txt": "one", "A/B.txt": "two"}
 
+# A spelling with a directory in it, used to ask the owner **how** it consults the host. Both keys
+# are two real files on any volume, so the call below must not refuse; only the call log matters.
+SEGMENT_SPELLING = {"pkg/a.txt": "1", "b.txt": "2"}
+
+# The segments of the spelling above, as its author wrote them - not the owner's splitting method.
+AUTHORED_SEGMENTS = {"pkg", "a.txt", "b.txt"}
+
 
 def _shipped_task(door: str) -> dict:
     if door == "v2":
@@ -184,8 +191,60 @@ def test_the_refusal_names_the_task_and_both_authored_spellings(
         assert "'case-rule'" in message, f"{label}: refusal must name the task id: {message}"
 
 
+def _host_identity_calls(monkeypatch: pytest.MonkeyPatch, fixture: dict[str, str]) -> list[str]:
+    """Ask the owner with the host's identity function recorded - behaviour left exactly as shipped.
+
+    The recording wrapper returns the host's own answer, so the verdict the owner reaches is the
+    verdict this volume would reach; only the *question* is observable afterwards.
+    """
+    real = os.path.normcase
+    asked: list[str] = []
+    monkeypatch.setattr(os.path, "normcase", lambda value: asked.append(value) or real(value))
+    bench_tasks.require_writable_fixture({"id": "case-rule", "fixture": dict(fixture)})
+    return asked
+
+
+def test_the_identity_question_is_asked_per_segment_of_the_authored_spelling(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Every segment the author wrote must reach the host, and no whole path may.
+
+    This replaces a gate that searched the owner's body for the *word* ``normcase``: deleting the
+    call while leaving the word kept that gate green (batch 93's W1 predicted 19 reds and got 18).
+    What is actually claimed is measurable at the call boundary. A whole path must not reach the
+    host because ``os.path.normcase`` also rewrites ``/`` on this volume, and a folded whole path
+    would quietly stop matching the parent/child prefixes the owner compares - which is batch 93's
+    W3, seen here as a named cell instead of a count.
+    """
+    asked = _host_identity_calls(monkeypatch, SEGMENT_SPELLING)
+    whole = [value for value in asked if "/" in value]
+    assert whole == [], f"the host is asked per segment, but whole paths reached it: {whole}"
+    missing = sorted(AUTHORED_SEGMENTS - set(asked))
+    assert missing == [], f"these authored segments never reached the host: {missing} (asked {asked})"
+    assert len(asked) >= len(AUTHORED_SEGMENTS), (
+        f"the host was asked {len(asked)} times for {asked}; at least one question per authored "
+        f"segment ({len(AUTHORED_SEGMENTS)}) - the count is a floor, not the owner's loop shape"
+    )
+
+
+def test_the_identity_gate_is_live_when_the_owner_stops_asking(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Reach for the cell above: two keys in one workspace must make the host get asked about both."""
+    asked = _host_identity_calls(monkeypatch, {"x.txt": "1", "y.txt": "2"})
+    assert asked.count("x.txt") >= 1 and asked.count("y.txt") >= 1, (
+        f"a host that is never asked cannot answer; the owner asked it about {asked}"
+    )
+
+
 def test_the_identity_question_is_the_hosts_own_function() -> None:
-    """``.lower()`` would refuse a legal task on a case-sensitive volume; only ``normcase`` answers."""
+    """The source half this gate really protects: the owner must not fold case in its own body.
+
+    Whether the owner *asks* the host is proven by the two call-boundary cells above; a token search
+    cannot show it. What a token search does protect is the other failure: folding the case in the
+    source would refuse a legal task on a case-sensitive volume, and it does so whatever spelling of
+    "fold in the source" the author picks, so the list names the spellings rather than the one word.
+    """
     owners: list[str] = []
     for path in sorted((REPO / "minicc").glob("*.py")):
         tree = ast.parse(path.read_text(encoding="utf-8"))
@@ -194,8 +253,11 @@ def test_the_identity_question_is_the_hosts_own_function() -> None:
                 body = ast.unparse(node)
                 if "同一个位置" in body:
                     owners.append(path.name)
-                    assert "normcase" in body, f"{path.name}: identity must come from os.path.normcase"
-                    assert ".lower(" not in body, f"{path.name}: hand-folded case is not the host's rule"
+                    for folded in (".lower(", ".upper(", ".casefold("):
+                        assert folded not in body, (
+                            f"{path.name}: {folded!r} decides identity in the source, "
+                            "not on the host's answer"
+                        )
     assert owners == ["bench_tasks.py"], f"the pair rule must live in exactly one owner; found {owners}"
 
 
