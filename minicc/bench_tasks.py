@@ -42,6 +42,7 @@ __all__ = [
     "v2_tasks",
     "validate_task",
     "require_prompt",
+    "require_objective_shape",
     "spec_blockers",
     "GRADER_SCRIPTS",
     "grade_file_contract",
@@ -99,6 +100,25 @@ def require_prompt(task: dict[str, Any]) -> None:
         raise ValueError(f"任务 {task_id!r} prompt 不能为空")
 
 
+def require_objective_shape(task: dict[str, Any]) -> None:
+    """A task may not carry a field the report or the shell would have to invent.
+
+    Two silent coercions this refuses: a missing or blank ``category`` becomes the report
+    word ``uncategorized``, and a truthy non-string ``verify_command`` becomes
+    ``str(...)`` - a nonsense command line that fails and is charged to the agent. A null
+    or absent command is fine; that is how prompt-only tasks are written.
+    """
+    task_id = task.get("id") if isinstance(task, dict) else None
+    category = task.get("category") if isinstance(task, dict) else None
+    if not isinstance(category, str) or not category.strip():
+        raise ValueError(f"任务 {task_id!r} category 必须是非空字符串（报告不应替任务编一个）")
+    command = task.get("verify_command") if isinstance(task, dict) else None
+    if command is not None and (not isinstance(command, str) or not command.strip()):
+        raise ValueError(
+            f"任务 {task_id!r} verify_command 必须是非空字符串或 null，收到 {type(command).__name__}"
+        )
+
+
 def validate_task(task: dict[str, Any]) -> None:
     """Schema gate used by tests and by ``--suite v2`` loading.
 
@@ -119,6 +139,7 @@ def validate_task(task: dict[str, Any]) -> None:
             f"（本版本只认 {sorted(SUITE_VERSIONS)}）"
         )
     require_prompt(task)
+    require_objective_shape(task)
     fixture = task["fixture"]
     if not isinstance(fixture, dict) or not fixture:
         raise ValueError(f"任务 {task['id']} fixture 必须是非空对象")
