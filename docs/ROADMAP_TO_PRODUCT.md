@@ -6469,3 +6469,60 @@ T 号在 `HEAD` 上量到 `M8-T80..T84` 已用、`M8-T82` 归另一个存活 run
 4. legacy `verify_command` 的 `except (TimeoutExpired, OSError)` 仍记 `passed=False`：两条来路
    含义不同，拆不拆要先写口径。
 5. `grading_refusal_count` 进 `bench_compare.GATE_METRICS`：需要方向/阈值口径。
+## 第七十一批（M8-T86：算出来的指标没有主人打印它 —— 手抄名单与 `objective_oracle` 的逐键重建）
+
+### 1. 先量
+
+量在 3d75d39 平面（本批代码 = ac5dc88），三条读数都是当场跑的：
+
+- `build_report` 的 metrics 有 15 个键，`markdown_report` 从一个手抄的字面量元组里打印 15 个名字，两个集合当场相等。**没有任何一条门比较它们**。相等只是因为上一个改指标的人记得同时改两处——这是 M8-T79/T80/T81 记过的同一类「有写无读」，只不过这一次「读者」是同一份知识的第二份手抄。
+- `entry["objective_oracle"]` 的写主在 `minicc/benchmarks.py:765`（ac5dc88 平面；本批之前的行号是 750），生产者自己写明它是给人看的（`_objective_oracle` 的 docstring，`minicc/benchmarks.py:65`：「a reviewer false negative looks exactly like missing work. Diagnostic only - this never writes ``passed``」）。而 `build_report` 从 146 行起逐键重建行字典，18 个键的名单里没有它 ⇒ 报告行永远读不到自己生产者的诊断。
+- 第七十批 census 说「`objective_oracle` 有落盘读者」不算错，但不完整：读它的是 tests 和 `docs/ROADMAP_TO_PRODUCT.md:2427` 那一节的人肉分类。那一节白纸黑字把判据写成「任务记录里的 `objective_oracle`（`passed=true` 且 case/exit 干净）」，并据此数出 24 条真模型任务里 10 条是被评审掐死、不是编码失败。也就是说这个字段已经承担过一次真实结论，而产品报告从没把它汇总成任何一个数。
+
+### 2. 缺陷
+
+「哪些指标存在」有两个主人：只往 metrics dict 加一个键，表格不会变红，报错也不会响；`objective_oracle` 被逐键重建丢在最近那一层，于是一个人肉做过一次的判断没法复现第二次。两条是同一个缺陷的两个方向——写侧没读者，读侧是手抄。
+
+### 3. 改法
+
+- `markdown_report` 的打印名单改成从 `report["metrics"]` 推导（`minicc/benchmarks.py:264`）：先按声明的阅读顺序打印确实存在于 dict 的键，剩下的键按字典序补在末尾。那份名字列表还在（它是给人看的阅读顺序），但它不再是「存在性」的主人。
+- `build_report` 的行字典补 `objective_oracle`（`minicc/benchmarks.py:173`），带 `isinstance(..., dict)` 守卫：非字典形状记成 None，绝不让一个写坏的值冒充判决。行键数 18 → 19。
+- 新指标 `reviewer_false_negative_count`（`minicc/benchmarks.py:221`）：记录为失败、而目标评分器复查报「通过」的行数。它只读 `passed`，从不写 `passed`，套件分数一格不动；`notes` 里同步加了一条给读者的定义（`minicc/benchmarks.py:241`）。
+
+### 4. 门与见证
+
+`tests/test_metric_and_oracle_reach_report.py`，8 条，全部 in-process（不起子进程，因此不涉及捕获两端钉子那类门）。反向对照跑在 3d75d39 的原文件上：**7 红 1 绿**。那 1 格绿要如实登记，它是「每个算出来的指标都有一行表格」的 set-equality 门——未修平面手抄表 15/15 相等，它本来就抓不到这次缺陷，所以守住推导的必须是另一条：往 dict 里塞一个手抄表永远不认识的新键 `zzz_metric_added_only_to_the_dict`，要求表格仍然印它（`test_a_metric_that_nobody_hand_copied_is_still_printed`）。
+
+行为变异 4 条，全部改值、语法保持合法，红格名单与预测逐条一致；未变异对照 rc=0 才允许计数：
+
+| 变异 | 预测红格 | 实跑 |
+| --- | --- | --- |
+| 推导后半截成 `+ []` | `test_a_metric_that_nobody_hand_copied_is_still_printed` | 命中，仅此 1 条 |
+| `row["passed"] is False` 改成 `is not None` | `test_a_row_the_reviewer_never_doubled_does_not_count` | 命中，仅此 1 条 |
+| oracle 的 `is True` 改成 `is not None` | `test_the_false_negative_count_moves_with_the_rows` | 命中，仅此 1 条 |
+| note 里 `diagnostic` 换成 `remark` | `test_the_new_aggregate_is_explained_to_the_reader` | 命中，仅此 1 条 |
+
+4/4 与预测一致，脚本在 finally 里按字节还原并核对（`restored: True`）。三个判据各被一条测试独占抓住，意味着它们不是同一个断言的三种写法。
+
+### 5. 基线
+
+代码平面 ac5dc88 的干净 worktree（`git worktree add --detach`，basetemp 在树外，单进程，`-W error`）整套跑完：
+
+```
+1257 passed in 742.56s (0:12:22)
+```
+
+退出码 0，零红零跳过缺失。第七十批记录的基线是 1249，本批新增 8 条门 ⇒ 1257，这行数字是从日志汇总行抄下来的，不是预告的计数；742s 比上一批的 2020s 快近三倍，是机器负载的差，不是套件的差。
+
+### 6. 编号说明
+
+第七十一批 = M8-T86。HEAD 上文档里真实出现的最大号是 `M8-T85`；`M8-T82` 是另一条流占的号，本仓库批次从未用过它；`M8-T999` 仍是文档哨兵。M8-T87 留给 §7 第 1 条（口径未定，不预先占号写结论）。
+
+### 7. 队列
+
+1. **新指标的判据比 §1 引的那条人肉判据弱**（M8-T87 候选）。人肉版要求「`passed=true` 且 case/exit 干净」，我的只查 `passed is True`。差别不是纸面的：实测 `files` 为空的 `file_contract` 返回 `{'passed': True, 'case_count': 0, 'exit_code': 0}` —— 空合同是 vacuous pass。今天语料里 17 条 `file_contract` 任务没有一条 `files` 为空，所以这个缺口是「构造可达、当前未 populate」。要么把 case 条件写进指标并配一条空合同见证，要么把这个差别写进 note；两者都要做，先量再定号。
+2. `tool_repeat_rate` 恒 null（待用户口径：真算重复计数并写盘，还是删掉读＋指标＋`test_behavior_bench.py:38` 手造的那个字段）。
+3. 指标全集与 `bench_compare.GATE_METRICS` 没有对账门（实测：它只是 `--gate-metric` 的参数校验器）；`grading_refusal_count` 与新指标都还没有「变差方向 + 阈值」。
+4. `review_rounds` 在报告里怎么印——留 8 轮、每格截 200 字这些界现在是写代码的人定的，没人声明它是给人看的口径还是门。
+5. legacy `verify_command` 分支的 `except (TimeoutExpired, OSError)` 仍记 `passed=False`（M8-T83 同形，还没换到 NO-RESULT 通道）。
+6. `turns`、`cleanup_error` 两处孤儿写的处置。
