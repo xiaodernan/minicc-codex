@@ -267,6 +267,11 @@ jobs:
   # variant's absolute metrics are thresholded; PR jobs do real A/B against
   # main instead. Setting any gate threshold impossibly high turns this red and
   # still uploads the JUnit + JSON artifacts (acceptance requirement).
+  #
+  # A real key is what this job *is*: with none configured, every run failed in
+  # ~15s with a config error and woke nobody up, because a nightly that is red
+  # every night carries no information. It now reports an explicit skip instead -
+  # and says so loudly, because a skip that reads as a pass is worse than a red.
   eval-nightly:
     name: Nightly eval (real key, v2 + gate)
     runs-on: ubuntu-latest
@@ -277,11 +282,24 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+      - name: Decide whether a real key is configured
+        id: real_key
+        env:
+          MINICC_API_KEY: ${{ secrets.MINICC_API_KEY }}
+        run: |
+          if [ -z "$MINICC_API_KEY" ]; then
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::warning title=Nightly eval SKIPPED - nothing was measured::MINICC_API_KEY is not configured in this repository, so the real-model v2 gate cannot run. This job is green because a permanently red nightly hides real regressions, but NO metric was produced: a skip is not a pass. Configure the repository secrets (MINICC_API_KEY / MINICC_BASE_URL / MINICC_MODEL) to make this gate real."
+          else
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          fi
       - name: Install package with dev extras
+        if: steps.real_key.outputs.present == 'true'
         run: |
           pip install -e ".[dev]"
           pip check
       - name: Run v2 eval against the real model
+        if: steps.real_key.outputs.present == 'true'
         env:
           MINICC_API_KEY: ${{ secrets.MINICC_API_KEY }}
           MINICC_BASE_URL: ${{ secrets.MINICC_BASE_URL }}
@@ -291,6 +309,7 @@ jobs:
           --task-timeout 600
           --json-out output/nightly-v2.json --markdown-out output/nightly-v2.md
       - name: Apply absolute gates and emit JUnit
+        if: steps.real_key.outputs.present == 'true'
         # Initial floors are deliberately conservative because real-model v2
         # accuracy is not yet characterized; ratchet pass_at_1 upward as the
         # nightly history establishes a stable baseline. Lowering any threshold
