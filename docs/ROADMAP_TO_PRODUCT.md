@@ -8761,3 +8761,25 @@ fix-uppercase 4 轮 23 790 tokens（原 19 轮 102 748，**-77%**）。至此 M6
 根因并修复或结案：评审器不可满足循环 ×8（M8-T54）、验证提示词不可执行 ×1、恢复守卫（同上 STALE
 链路）×1、真编码失败 ×1（multi-config，属能力度量）。
 
+### M8-T58 落地：循环层验证守卫的检视回退——「无可运行检查」不可满足尾部（2026-09-25）
+
+A/B 复测批次 2 再次抓到两次守卫判死（version-exact / package-manifest，oracle 全过、产物正确）：
+M8-T56 的提示词改进让模型**知道**白名单是什么，但对纯文本/JSON 改动的工作区，白名单里没有任何命令
+适用（compileall 只吃 .py，node --check 只吃 .js）——提示词再准确，客观上无解。这是 M8-T54 的
+同一启发式在循环层的第二份拷贝，「同一类启发式在两层各写一遍，就要在两层各判一次代价」。
+
+**判据**：交付裁决前先查 verification plan 对本次改动路径（write_file/edit_file 的 path 参数）是否
+产出任何命令——plan 为空（客观工作区事实）且写入后已有只读检视（read_file/git_diff ok）时，检视视为
+完成验证，发 `verification_satisfied_by_inspection` trace。三个不做豁免的边界：写入后没有任何检视、
+plan 有命令（有检查可跑）、plan 构建异常（按「有检查」处理，宁可多要一次也不静默放行）。
+
+**顺带修掉一个潜伏嵌套隐患**：原代码里 `verification_guard` 的 answer/trace/block 是外层无条件块，
+只靠 retry 分支的 `continue` 碰巧不触及；回退路径一落到它就被误杀。已收拢进死路分支，行为等价、
+结构不再依赖巧合。
+
+**接线**：`run_agent` 新增 keyword-only `workspace` 参数（web 主任务路径与 CLI 各传一处；None 时
+回退不生效，既有调用与测试不受影响）。
+
+验收：tests/test_m8_t58_inspection_fallback.py 三条——无检查工作区写+读回即交付（未修复代码上红）、
+无检视仍守卫判死、有检查可跑时检视不替代检查器；core_agent + p0_p1_p2 57 passed。
+

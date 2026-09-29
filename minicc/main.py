@@ -417,6 +417,7 @@ async def _turn(
             workspace=workspace,
         ),
         hooks=HookRunner(workspace),
+        workspace=workspace,
     )
     if writer is None or not writer.started or not writer.matches(result.answer):
         cli_out(f"\nassistant> {result.answer}")

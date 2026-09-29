@@ -33,6 +33,7 @@ import threading
 import time
 from copy import deepcopy
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Callable
 
 from ..llm.base import LLMResponse, TERMINAL_FINISH_REASONS, assistant_msg, tool_result_msg, user_msg
@@ -44,6 +45,7 @@ from ..tools.registry import ToolRegistry, redact_text
 from ..hooks import payloads_for_result, payloads_for_tool_call
 from .context import compact_with_checkpoint, estimate_tokens, message_chars, repair_interrupted_tool_rounds, validate_tool_protocol
 from .state import AgentState, Budget, BudgetExceeded
+from .verification_plan import build_verification_plan
 from .tool_policy import (
     NETWORK_TOOL_NAMES,
     is_verification_evidence,
@@ -378,6 +380,23 @@ def build_tool_feedback(call: ToolCall, result: ToolResult, *, risk: str | None 
     }
 
 
+def _plan_has_runnable_check(workspace: str | Path, changed_paths: list[str]) -> bool:
+    """True when the verification plan produces at least one command.
+
+    M8-T58's satisfiability probe: the loop's post-write guard demands a
+    whitelisted checker run, but for a text/JSON-only change in a workspace
+    with no tests (version-exact's `version.txt`) every whitelisted command
+    is inapplicable and the demand cannot ever be met. The plan's own verdict
+    ("no command matched the changed files") is an objective workspace fact,
+    the same fact the completion layer's M8-T54 fallback consumes.
+    """
+    try:
+        plan = build_verification_plan(Path(workspace), changed_paths)
+    except (ValueError, OSError, json.JSONDecodeError):
+        return True  # 配置坏了按「有检查」处理：宁可多要一次检查，不静默放行
+    return bool(plan.commands)
+
+
 def _replan_constraints(*, verification_required: bool, feedback: list[dict[str, Any]]) -> list[str]:
     """Describe runtime constraints without exposing hidden model reasoning."""
 
@@ -418,6 +437,7 @@ async def run_agent(
     require_recovery_inspection: bool = False,
     vision_context: list[dict[str, Any]] | None = None,
     hooks: Any | None = None,
+    workspace: str | Path | None = None,
 ) -> TurnResult:
     """Run the agent loop until a final text answer or explicit cancellation.
 
@@ -452,6 +472,9 @@ async def run_agent(
     recovery_refusals = 0
     nonterminal_repairs = 0
     verification_retries = 0
+    # M8-T58: 写入路径与写入后的只读检视——「无检查工作区」的检视回退判据。
+    changed_paths: set[str] = set()
+    post_write_inspection = False
     last_round_feedback: list[dict[str, Any]] = []
     last_replan_trigger = "初始任务上下文"
     protocol_repairs = 0
@@ -1184,6 +1207,22 @@ async def run_agent(
                 is_verification_evidence(call.tool, call.arguments, tool_result.status)
                 for call, tool_result in immediate_results.values()
             )
+            if successful_writes:
+                for call, tool_result in immediate_results.values():
+                    if not is_workspace_write(call.tool, call.arguments, tool_result.status):
+                        continue
+                    path = str((call.arguments or {}).get("path") or "")
+                    if path:
+                        changed_paths.add(path)
+                # 新一轮写入重置换证阶段：此前的检视不再覆盖最新改动。
+                post_write_inspection = False
+            # M8-T58: 写入之后的只读检视（read_file/git_diff）是「无检查工作区」
+            # 里唯一可能取得的验证证据类别；逐轮记录，交付裁决时用。
+            elif verification_required and any(
+                call.tool in {"read_file", "git_diff"} and tool_result.status == "ok"
+                for call, tool_result in immediate_results.values()
+            ):
+                post_write_inspection = True
             recovery_inspection_observed = any(
                 registry.risk_of(call.tool) == "readonly"
                 and tool_result.status == "ok"
@@ -1499,34 +1538,56 @@ async def run_agent(
             break
 
         if verification_required:
-            if verification_retries < VERIFICATION_RETRY_LIMIT:
-                verification_retries += 1
-                messages.append(assistant_msg(content=text or None))
-                messages.append({
-                    "role": "user",
-                    "content": PRE_FINISH_VERIFICATION_NUDGE,
-                })
+            # M8-T58: 交付裁决前先判可满足性——工作区对本次改动客观上没有任何
+            # 可运行的检查（verification plan 空）时，白名单检查器的要求不可
+            # 满足，写入后的只读检视（read_file/git_diff）是唯一可能的证据
+            # 类别，与完成评估层的 M8-T54 同判据。此回退不豁免「写入后未
+            # 检视」：没有任何检视证据的任务仍走原守卫。
+            if (
+                post_write_inspection
+                and workspace
+                and not _plan_has_runnable_check(workspace, sorted(changed_paths))
+            ):
+                verification_required = False
                 emit_trace(
-                    "模型尝试提前结束，已要求先完成修改后的验证",
+                    "工作区没有可运行的客观检查，写入后的检视证据视为完成验证",
                     phase="planning",
-                    status="error",
-                    code="verification_required_before_finish",
-                    detail={"turn": turn, "retry": verification_retries},
+                    code="verification_satisfied_by_inspection",
+                    detail={
+                        "turn": turn,
+                        "changed_paths": sorted(changed_paths)[:8],
+                        "basis": "verification plan 对改动路径没有产出任何命令",
+                    },
                 )
-                continue
-            result.error = "Agent 在修改工作区后没有完成验证"
-            result.answer = (
-                "任务未完成：修改工作区后没有完成验证，已停止提前交付。"
-                + (f"\n\n模型最后输出：{text}" if text else "")
-            )
-            emit_trace(
-                result.error,
-                phase="failed",
-                status="error",
-                code="verification_guard",
-                detail={"turn": turn, "retry_limit": VERIFICATION_RETRY_LIMIT},
-            )
-            break
+            if verification_required:
+                if verification_retries < VERIFICATION_RETRY_LIMIT:
+                    verification_retries += 1
+                    messages.append(assistant_msg(content=text or None))
+                    messages.append({
+                        "role": "user",
+                        "content": PRE_FINISH_VERIFICATION_NUDGE,
+                    })
+                    emit_trace(
+                        "模型尝试提前结束，已要求先完成修改后的验证",
+                        phase="planning",
+                        status="error",
+                        code="verification_required_before_finish",
+                        detail={"turn": turn, "retry": verification_retries},
+                    )
+                    continue
+                result.error = "Agent 在修改工作区后没有完成验证"
+                result.answer = (
+                    "任务未完成：修改工作区后没有完成验证，已停止提前交付。"
+                    + (f"\n\n模型最后输出：{text}" if text else "")
+                )
+                emit_trace(
+                    result.error,
+                    phase="failed",
+                    status="error",
+                    code="verification_guard",
+                    detail={"turn": turn, "retry_limit": VERIFICATION_RETRY_LIMIT},
+                )
+                break
 
         if not text:
             result.error = "模型以空答案结束本轮，没有可交付内容"

@@ -2049,6 +2049,7 @@ class AgentService:
                         require_recovery_inspection=(agent_recoveries > 0 or repair_attempts > 0),
                         vision_context=vision_context,
                         hooks=hook_runner,
+                        workspace=workspace,
                     )
                     aggregate = _merge_turn_results(aggregate, current)
                     writes = any(event.get("write") for event in events if isinstance(event, dict))
