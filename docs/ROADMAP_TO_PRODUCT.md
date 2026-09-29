@@ -8989,3 +8989,45 @@ test_host_encoding_path_accepts_all_shipped_fixtures
 - 本批的墙钟读数同样**不是闲机数**（同机有别的仓库的 pytest 在跑，见第九十九批 §5）；
   条数可信，秒数仅供参考。
 
+
+## 第一百零一批 M8-T113-fix：T58 的门写成 async，而 should_allow 是同步契约
+
+### 1 接手时的状态
+第九十九/一百批（M8-T113、M8-T114）已落 `e9b0933`。但那次「全量」是被我自己两次重叠的
+run 污染的读数（1577 例、4 红），守卫正确拒绝对脏读数放行。本批先归因那 4 红，再决定能推什么。
+
+### 2 归因：一红是假，三红是真（隔离平面、专用 basetemp、无外来 suite，连跑 3 次）
+把两个失败文件在隔离条件下窄重跑：
+- `tests/test_subprocess_decoding.py::test_every_scan_root_still_contributes_to_the_inventory`
+  → 3/3 通过。那一次的红是**假红**：我自己的两条全量 run 共享同一 tests 平面，一条的
+  hang-watchdog 探针文件在另一条 `scandir` 走查枚举到它之后、读它之前被删——「重叠跑」
+  造出来的，不是代码缺陷。
+- `tests/test_m8_t58_inspection_fallback.py` 三条 → 3/3 稳定红，报
+  `coroutine '_run.<locals>.gate' was never awaited`（`-W error` 把 unawaited 升成错）。
+
+### 3 缺陷与修复
+`should_allow` 是**同步 bool 契约**：声明见 `minicc/agent/loop.py:431`，消费见
+`minicc/agent/loop.py:1042`（`not allow(...)`）；`_always_allow` 与其余 20 个 `should_allow=`
+站点全是同步 lambda。T58 测试却传了 `async def gate`：`run_agent` 调它得到一个 coroutine
+对象——按真值恒为真（权限门被静默旁路），随即丢弃；事件循环收尾时这条 never-awaited
+coroutine 被 GC 收走，`-W error` 判红。修复＝把 `async def gate` 改回 `def gate`，语义与
+「恒允许」完全一致。
+
+### 4 验证（双向）
+- 窄重跑（修复后）：`tests/test_m8_t58_inspection_fallback.py` 与
+  `tests/test_subprocess_decoding.py` 两文件 `23 passed`，连跑 2 次 rc=0。
+- 全量（wt122 平面、HEAD `436389c`、专用 basetemp、无自起重叠）：junit 汇总行原样为
+  `junit tests=1577 failures=0 errors=0 skipped=0 time=1303.007 rc=0`，即本批的收口基线；
+  pytest 自己的末行 `1577 passed in 1302.76s (0:21:42)`。条数可信，秒数不是闲机数
+  （同机有别的仓库的 pytest 在跑）；与第九十九批那次被污染的读数同为 1577 例，差别只在
+  那次的 4 红（1 假 3 真）到这里归零，正是本批修复兑现的地方。
+- 代码 commit `436389c`（仓库 pre-commit 钩子实跑通过，未跳过）；本记录为收口追加，另起
+  一次 guarded 全量 + fast-forward push。
+
+### 5 边界（明确不声称）
+- 不改 `minicc/agent/loop.py` 的同步契约，也不让 `run_agent` 去 await 回调——那是改线上
+  权限模型，不在本批。
+- 假红那条 scan-root 用例本身没问题，不动它；它的脆弱（同平面并发探针）由「一次只跑一套
+  全量」的操作纪律承担，不由测试背。
+- 本批不声称覆盖词门→结构门转换（那是下一单位：只转真盲的 substring 门；`tests/` 里
+  已经枚举 Call 节点的 `called = {ast.unparse(node.func) ...}` 那几处不是盲门，不动）。
