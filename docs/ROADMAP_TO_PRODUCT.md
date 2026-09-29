@@ -8804,3 +8804,188 @@ M8-T51..T58 全部落地后的第一次**同源**全量（单一 runtime_source_
 任务最终**通过**（修复前它们要么死在循环里要么快速失败），这是「坚持到收敛」的代价，
 不是回归；是否给 P95 口径加「剔除收敛离群」的分组规则，留作 task #83 的口径决定。
 
+## 第九十九批 M8-T113：被中断的 run 不是判决（操作员的 Ctrl+C 是第三类账）
+
+### 1 编号说明与本批接手时的状态
+
+追加前在 HEAD `e4b4171` 上量：文档标题级批次号最高「第九十八批」，`M8-T113` 在文档里出现过 3 次，
+**每一处都写着「另一条流未提交的 M8-T113 工作树文件」**（`docs/ROADMAP_TO_PRODUCT.md:8677`、
+`:8692`、`:8742`）——也就是说这一号在本批之前就被这条工作树占着，只是一直没有落地记录与提交。
+`git log origin/main`（`7a7d40a`）无 T113；本批就是那条流，认领该号并连同记录一起交上来。
+第九十九批是追加时的 HEAD 空号。
+
+接手时工作树里躺着的东西要说清楚，因为它决定了下文哪些是「本批做的」：**代码、新门与两条既有门的
+改法都已在工作树里且是绿的**，缺的是**记录与提交**，以及下面 §4 那两个变异方向——本批把它们补上，
+并按本仓库的规矩亲手取数（不引用工作树里那份 docstring 的自述当证据）。
+
+### 2 缺陷：操作员按下 Ctrl+C，账记在智能体头上
+
+`run_benchmark` 本来已经有两条「没人判过这份工作区」的通道：宿主写不出 fixture（M8-T107）与
+评分器跑不起来（M8-T81 那一族）。它们写 `passed=None` ＋ `grading_refused`，`build_report` 把它们
+算作 REFUSED，**不进通过率分母**。但第三道门——`except BaseException`，也就是操作员按 Ctrl+C
+走进来的那道——只写 `status="interrupted"` 与 `entry["error"] = type(exc).__name__`，随后
+**落到与真失败同一个 `passed=False` 兜底上**，并且照样跑一遍诊断用的 oracle。
+
+`9a9d55a` 上的实测（`_probe111.py`，直接调 `run_benchmark`，用一条空目录就能满足的
+`file_contract`，好让 oracle 的结果是一个可读的数字）：
+
+1. 行里带着 `passed=False`、`grader_type="file_contract"`、`error="KeyboardInterrupt"` 与
+   `objective_oracle={"passed": True, "case_count": 1}`——中断落在 `prepare_fixture` 里还是落在
+   智能体阶段，读数一样；
+2. `build_report` 把它算进 `gradable_task_count`，于是一条**谁也没跑完**的任务把 `pass_at_1` 拉到 `0.0`；
+3. `reviewer_false_negative_count` 读到 `1`——关于一个**没被问过**的评审器的信号，产生于一次中止
+   期间重跑评分器。
+
+**为什么这是个真问题**：判决的含义是「有人看过这份工作区并且认为它不合格」。把操作员的 Ctrl+C
+写进这一栏，等于让「我不想等了」和「这个智能体做错了」在报表里长得一模一样——而报表正是用来
+区分这两件事的地方。
+
+### 3 落地
+
+- `minicc/bench_tasks.py` 新增 `run_interrupted(grader_type, exc)`：第三个账号，与
+  `workspace_unwritable`／`grader_unable` 共用 `_no_result` 的**同一张键集**（`passed=None`、
+  `grading_refused=True`、`refusal` 带异常名）。理由写进函数体：这里工作区是好的、评分器是好的，
+  是**人**按了 Ctrl+C。
+- `minicc/benchmarks.py` 的中断分支改走它。`error` 留给智能体自己的诊断，中断的理由走 `refusal`
+  ——与 M8-T107 同一分工。
+- **判决**与**怎么结束**是两栏，不合并：行仍然靠 `status="interrupted"` 说清这次 run 是怎么结束的。
+- 报告口径同步：`REFUSED` 那条注记补上第四个入口（宿主写不出工作区、操作员中止），
+  `docs/BENCHMARK_EVALUATION.md` 的评分器段落补一句同源的话。
+
+### 4 验证（双向，全在本批内亲手取）
+
+新门 `tests/test_an_interrupted_run_is_not_a_verdict.py`（7 个函数／9 格）。变异方向用 `edit`
+把修复**精确还原成 HEAD 的那一行** `entry["error"] = type(exc).__name__`，再跑：
+
+| 变异 | 读数 |
+| --- | --- |
+| 中断行退回 `passed=False` 兜底 | **8 failed / 20 passed（10.61s）**，红的 8 格全在新文件里；失败原文直接把缺陷印出来：`'passed': False` 与 `assert False is None` |
+| `REFUSED` 注记退回旧文案 | `tests/test_grader_cannot_run_is_no_result.py::test_the_report_still_explains_both_entrances_to_one_verdict` **1 failed（0.49s）**，报错原文里缺的正是「operator aborted」那句 |
+
+第 9 格（`test_the_interrupt_constructor_is_the_same_verdict_as_the_other_no_result_doors`）在变异一上
+**照绿**，这是对的：它只比 `run_interrupted`／`workspace_unwritable`／`grader_unable` 三者的键集与
+取值，不碰接线——正因如此它也**不能替接线作证**。8 格与它各答各的问题，合起来才既问「接线对不对」
+又问「三处形状会不会漂」。
+
+**恢复方向**：还原后同一命令 **28 passed（14.82s）**；四份相关文件合跑 **36 passed**。
+
+### 5 边界（明确不声称）
+
+- **没有声称真实模型下的中断行为**：全部读数来自假 provider／直接调 `run_benchmark`，没有真模型参与。
+- **没有给中断新的状态值**：`status` 仍是既有的 `interrupted` 字符串，本批只改**判决**那一栏。
+  第九十五批 §8-1 挂着的「要不要有自己的状态值、要不要进 `gradable`」仍未做。
+- **没有改 `pass_at_1` 以外的分母口径**：被中断的任务不算一条可判任务，这是它的应得；但
+  「一次 run 里断了 3 条该怎么报」「要不要把 `grading_refusal_count` 单列进
+  `bench_compare.GATE_METRICS`」这类口径本批不预先写结论。
+- 本批的墙钟读数**不是闲机数**：量的时候同机有别项目的 pytest 在跑（`specproof-reference`、一个
+  codex runtime、另一个盘的足球项目各一条）。它们碰的是**别的仓库**，所以**条数与红名可信，
+  秒数只能当参考**——这正是本仓库第九十五批 §5 记下的那条教训（先杀干净再量）。
+
+## 第一百批 M8-T114：一个退役的测试名，读者手里没有那张表
+
+### 1 缺陷：改名的人只有两条路，一条是伪造记录
+
+`scripts/doc_pointers.py` 会解析文档行内代码里的定位符：路径、`路径:行号`、`路径.ext.属性`、
+`测试文件.py::测试函数名`，以及**裸 `test_*`**。最后这一类必须真的是 `tests/` 下某个测试文件里的
+函数名或某个测试模块名，否则报 `DANGLING EVIDENCE` 并以非零码退出。
+
+工具为此准备了 6 张豁免表（`_NOT_A_REPO_PATH`／`_BUILD_OUTPUT_PATH`／`_PROMISED_PATH`／
+`_QUOTED_STALE_PATH`／`_RETIRED_PATH`／`_DECLINED_PATH`），**清一色是路径**。
+「一个被改名的测试，它的旧名字」没有对应的表。
+
+代价是可测量的。被改名的那张普查在第九十批（`4f56a49`）时体已经从 `fixture_blockers` 改成跑门
+`validate_behavior_task`，名字却还在声称普查「项的形状」；本批把它按实际作为改名之后：
+
+```
+DANGLING EVIDENCE ROADMAP_TO_PRODUCT.md:7576: test_every_shipped_behaviour_task_has_well_shaped_items 既不是测试文件名也不是任何测试函数名
+DANGLING EVIDENCE ROADMAP_TO_PRODUCT.md:7641: （同上）
+DANGLING EVIDENCE ROADMAP_TO_PRODUCT.md:7774: （同上）
+DANGLING EVIDENCE ROADMAP_TO_PRODUCT.md:8497: （同上）
+exit=1
+```
+
+工作树里留下的解法是：把 roadmap 那四行**改指向另一个测试**，并加一句「写作时的旧名为
+has_well_shaped_items」。这句话在两个方向上都假，`git log -S` 各量过一次：
+
+- `test_every_shipped_behaviour_task_passes_the_new_door`（`tests/test_behavior_suite_is_validated_at_load.py`）
+  由 `bb46eca`（M8-T97）引入，**从建立起就叫这个名字**，从来没有过旧名；
+- `has_well_shaped_items` 由 `20da1c3`（M8-T102）引入，住在
+  `tests/test_behavior_cases_are_the_pair_the_grader_unpacks.py`——也就是被改名的那一个。
+
+**这不是一次疏忽，是一个结构**：只要那张表不存在，任何一次测试改名都只有「伪造记录」或
+「门红着」两条路。工具把作者逼到了其中一条上，本批把这条路补出来。
+
+### 2 落地
+
+- 新增 `_RETIRED_TEST_NAME` 并登记进 `_EVIDENCE_TABLES`。它与 `_RETIRED_PATH` 是**同一性质**：
+  文档**不是在声称这个名字今天还在**，而是在记录它当时叫什么。理由里写明改到哪个名字、以及
+  为什么该改。
+- **不编辑第九十批／第九十一批／第九十五批的原文**：本仓库自己写着「补记只追加，把半开的 §7
+  改成『早就知道』是伪造历史」。那四行历史按当时的叫法原样留着，由这张表承接；工作树里那四处
+  改写**撤销**。
+- 被改名的那张普查现在叫 `test_behavior_load_door_accepts_all_shipped_behaviour_tasks`，docstring
+  写明它从哪个名字改来、第九十批为什么该改，以及下面这份量出来的分工。
+
+### 3 顺带量清「两条普查的分工」——它是三份，而且门有两个主人
+
+第九十批 §7-1 与第九十五批 §8-2 都挂着同一格：「两条 shipped 人口普查的**分工**没写进名字……
+先量再定要不要并表」。本批把「量」做了：`_probe113.py` 用 AST 摊开**每一张** shipped 人口普查的
+体，读它**真正调用的规则**与**喂给规则的人口**——不读名字，名字正是这一格怀疑的东西。
+
+| | 文件与函数 | 问的规则 | 人口 | 体行数／assert |
+| --- | --- | --- | --- | --- |
+| A | `tests/test_behavior_suite_is_validated_at_load.py::test_every_shipped_behaviour_task_passes_the_new_door` | `validate_behavior_task` | `behavior_tasks()`（＋legacy `tasks.json` 计数） | 13／3 |
+| B | `tests/test_behavior_cases_are_the_pair_the_grader_unpacks.py::test_behavior_load_door_accepts_all_shipped_behaviour_tasks` | `validate_behavior_task` | `behavior_tasks()` | 23／2 |
+| C | `tests/test_behavior_args_that_cannot_be_encoded_are_no_result.py::test_no_shipped_task_needs_the_new_host_path` | `spec_blockers` | `behavior_tasks()` | 7／2 |
+| D | `tests/test_a_fixture_must_be_text_the_workspace_can_hold.py::test_no_shipped_task_needs_the_new_rule` | `require_writable_fixture` | legacy＋v2＋behavior 三套 | 22／3 |
+
+**结论一：真正的分工是三份，不是两份**——门（A／B）、宿主编码路径（C）、宿主写点（D）。
+roadmap 早先把 D 说成「宿主编码路径用不用得到」是**说错了规则**：D 问的是作者那些字节能不能
+落成工作区（`require_writable_fixture`），C 才是编码路径（`spec_blockers`，参数能不能过 JSON 传递）。
+工作树里那份未完成的 docstring 正是从这个错误描述里长出来的：它一边点名一个「encoding path」
+测试，一边描述 fixture 可写性，还给出了一个**仓库里根本不存在**的函数名。它写在这里而不是行内
+代码里，正因为该形状是「一个名字」，不是「一个定位符」——读者按设计只解析行内代码，而这个名字
+不该被任何一次改名或退役登记认领（它从未存在过，不是退役）：
+
+```
+test_host_encoding_path_accepts_all_shipped_fixtures
+```
+
+**结论二：A 与 B 是同一条规则、同一个人口**——一张门写了两遍。这是 `_probe113.py` **派生**出来的，
+不是读出来的：两者的签名（规则集，人口）逐字相同。A 多一条 legacy `tasks.json` 计数，B 的体更长
+（多两行注释与一个 dict），规则与人口一字不差。
+
+**结论三（口径决定，本批不替 owner 决定）**：A 与 B 要不要并成一张、C／D 要不要并表，仍留在
+这一格上——但**它等的那个测量现在有了**。本批只把名字改成能读懂的、把分工写进 docstring，
+**不删任何一张门**：删门是判决性改动，属于 owner 的口径。
+
+### 4 验证（双向）
+
+- **门本身**：撤销那四处改写且**未加** `_RETIRED_TEST_NAME` 时，`python scripts/doc_pointers.py
+  --check` **exit=1**，4 条 `DANGLING EVIDENCE`（原文在上文 §1）。加入该表后，在**只加了表、
+  尚未追加本节、新门也还没进索引**的那一刻读回来是 **exit=0／1517 条证据指针／271 个受跟踪
+  文件**——与加入前的 1517 条**同一读数**：豁免把这条引用**改了性质而不是删掉**，它仍被计入
+  「读者考虑过的引用」。**本节追加、且新门纳入索引之后**再读一遍：**exit=0／1535 条／19 份
+  文档／272 个受跟踪文件**；增量正好是本节自己写下的 18 条引用加上那一份新门，可对账
+  （本仓库的规矩是「本节数字是追加之后读回来的」，所以两个读数都留在上面，而不是只留好看的那个）。
+- **新门**：`tests/test_doc_pointers.py::test_a_renamed_test_is_recorded_by_an_exemption_that_names_only_that_name`
+  三问——退役名不再被报（`claims=1`：它仍是一条被考虑的定位断言）、只差一个字母的近名**照旧红**
+  （豁免是精确围栏，不是「改名一律放过」）、以及**把表摘掉后同一格变红**（绿是这张表换来的，
+  不是读者瞎了）。
+- **回归**：`pytest tests/test_doc_pointers.py tests/test_pointer_liveness_corpus.py -q -p no:randomly`
+  → **66 passed（120.84s）**。
+- 本批自己那张豁免要付账：`_RETIRED_TEST_NAME` 非空、理由非空、仍被文档引用、且真被读到——
+  四条都由既有的 `check_exempt_tables` 与
+  `tests/test_doc_pointers.py::test_every_exemption_pays_for_itself_with_a_reason_and_a_live_reference`
+  管，不是本批新写的善意。
+
+### 5 边界（明确不声称）
+
+- **没删任何一张普查门**：A 与 B 的重复是**量出来的**并写进了 B 的 docstring，合并与否留给 owner。
+- **`_RETIRED_TEST_NAME` 只放了一个键**：它是一张能用的表，不是「所有历史测试名」的登记。
+  第二个退役名出现时再加，陈旧与否由 liveness 检查（豁免必须仍被某文档引用、且真被读到）兜住。
+- **没有让读者更弱**：裸 `test_*` 仍必须解析；豁免只对**逐字相同**的那个名字生效，近名照红——
+  §4 第二问就是这条的证人。
+- 本批的墙钟读数同样**不是闲机数**（同机有别的仓库的 pytest 在跑，见第九十九批 §5）；
+  条数可信，秒数仅供参考。
+
