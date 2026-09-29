@@ -100,5 +100,12 @@ def test_a_rubric_refusal_reaches_the_report_as_a_refusal() -> None:
 
 def test_grade_behavior_delegates_rubric_work_to_the_branch() -> None:
     """Otherwise the strict list protects a path nobody takes."""
-    body = ast.dump(_function("grade_behavior"))
-    assert "grade_answer_rubric" in body, ast.unparse(_function("grade_behavior"))
+    fn = _function("grade_behavior")
+    called = {n.func.id for n in ast.walk(fn)
+              if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)}
+    called |= {n.func.attr for n in ast.walk(fn)
+               if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)}
+    assert "grade_answer_rubric" in called, (
+        f"grade_behavior does not CALL grade_answer_rubric (calls: {sorted(called)}); "
+        "a mere mention in ast.dump is not delegation"
+    )

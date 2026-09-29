@@ -82,9 +82,13 @@ def test_the_gate_is_reachable_from_the_shipped_runner() -> None:
     assert hosts, "benchmarks.py no longer calls validate_task, so the load-time door is dead"
     runner = next(node for node in ast.walk(tree)
                   if isinstance(node, ast.FunctionDef) and node.name in hosts)
-    source = ast.unparse(runner)
-    assert "v2_tasks" in source or "load_tasks" in source, (
-        f"{runner.name} validates but never loads the suites it checks"
+    called = {n.func.id for n in ast.walk(runner)
+              if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)}
+    called |= {n.func.attr for n in ast.walk(runner)
+               if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)}
+    assert {"v2_tasks", "load_tasks"} & called, (
+        f"{runner.name} validates but never CALLS the suite loaders (calls: "
+        f"{sorted(called)}); ast.unparse would pass on a mere mention"
     )
 
 
