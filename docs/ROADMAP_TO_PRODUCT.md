@@ -9031,3 +9031,51 @@ coroutine 被 GC 收走，`-W error` 判红。修复＝把 `async def gate` 改�
   全量」的操作纪律承担，不由测试背。
 - 本批不声称覆盖词门→结构门转换（那是下一单位：只转真盲的 substring 门；`tests/` 里
   已经枚举 Call 节点的 `called = {ast.unparse(node.func) ...}` 那几处不是盲门，不动）。
+
+## 第一百零二批 M8-T115：两处「委托」门只认名字出现在渲染文本里，看不见调用被删
+
+### 1 接手时的状态
+批一〇一记录已落 ce454cf 并推送（origin/main 现为 ce454cf，整套 1577/0）。本批兑现 M8-T115：把
+「presence-over-代码文本」的词门里**真盲**的两处「委托」门，换成问 `Call` 节点身份的结构门。普查
+词门名单来自 M8-T115 的扫描（临时平面 wt121 旧头，行号一律现读到 ce454cf 再定位）。
+
+### 2 缺陷：文本里「有这个名字」不等于「这个名字被调用」
+- `tests/test_rubric_vocabulary_is_branch_scoped.py::test_grade_behavior_delegates_rubric_work_to_the_branch`
+  原来断言 `"grade_answer_rubric" in ast.dump(grade_behavior)`。
+- `tests/test_unusable_spec_is_refused_before_the_agent_runs.py::test_the_gate_is_reachable_from_the_shipped_runner`
+  原来断言 runner 的 `ast.unparse` 文本里含 `"load_tasks"` 或 `"v2_tasks"`。
+两条都是「名字在渲染出的代码文本中出现」。把真正的调用**删掉而只留名字**——`return
+grade_answer_rubric` 少掉 `(task, answer)`、把 loader 调用换成一个带该名的表达式、或一句文档字
+符串提到它——旧门照绿：它名义上守着的「委托确实发生」其实没人验。M8-T111 已把一批「必须问宿主」的
+门从问词改成问行为，本批是同一准则下、对**委托/调用是否存在**这一问法补齐的两处。
+
+### 3 修复：问「被调用的名字」，不问文本
+两处都改为：遍历函数体里的 `ast.Call`，收集 `func` 为 `Name.id` 或 `Attribute.attr` 的名字，要求
+委托名 / loader 名落在这个**真被调用**的集合里。测试函数名不变、生产代码一字未动。
+
+### 4 验证（双向）
+- 焦点（主平面）：两文件 `-W error` 下 **16 passed**——结构门在未变异真码上为绿（转换不制造假红）。
+- 变异见证（**隔离**平面：只改该平面的生产码，保留名字、删掉调用）：SITE A 与 SITE B 两处，
+  同一份被变异的生产码上，旧盲门各 **1 passed**（洞：看不见调用没了），新结构门各 **1 failed**
+  （抓到）。2/2。
+- 全量：junit tests=1577 failures=0 errors=0 skipped=0 time=567.297 rc=0  ← 本批收口基线（wt122@1eae9f0，安静重取的整套；push 前该平面已全绿）
+- 代码 commit 1eae9f0（pre-commit 钩子实跑通过、未跳过）；本记录为收口追加，另起一次守卫全量 +
+  fast-forward push。
+
+### 5 边界（明确不声称）
+- **只转「真盲」的两处委托门**：普查里 `tests/test_task_may_declare_only_one_objective_check.py`
+  的 `test_the_door_sits_on_the_suite_that_needs_it` 本就枚举 `ast.Call.func`（已是结构门），不动。
+  `:70`（`verify_command` 在 else 支里）、`test_behavior_suite_is_validated_at_load.py` 的
+  `test_the_runner_opens_the_behaviour_door`（带 `()`）、`test_metric_and_oracle_reach_report.py`
+  的 `test_the_trust_branch_asks_the_shipped_vocabulary_not_a_copied_list` 等条目本批**未转**，各留
+  自证；`tests/test_cleanup_version.py::test_all_version_consumers_agree` 的主体 `minicc/mcp.py`
+  是冻结文件，本批不碰。
+- **没删任何一张普查门**：名单只是被逐条分型，转与不转都有见证或明确留口。
+- 本批全量**首跑**遇到一条红：
+  `tests/test_route_coverage_measurement.py::test_the_documented_command_reproduces_the_number`。
+  实测归因＝http 测试服务器 readiness 门（`test_http_route_inventory.py` 里那条 10s 墙钟）在上一
+  整套刚拆除（基准 daemon 线程 / 套接字排空）的瞬态资源压力下假红——诊断当时 0 个外来 python 进程、
+  `test_http_route_inventory.py` 单跑 9 passed、该「文档命令」两文件在机器安静后 86 passed 两次，
+  且 ce454cf 与 436389c 同码曾整套 1577/0。这不是本批改动引起，也不许用「重跑就绿」蒙过去：修复另立
+  M8-T116（把墙钟就绪换成「监听套接字已激活再探、失败信息点名真实原因」并配红率门）。本批的收口基线
+  是在安静机器上重取的整套，数字见上。
