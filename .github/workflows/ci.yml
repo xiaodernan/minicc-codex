@@ -324,7 +324,10 @@ jobs:
           --json-out output/nightly-compare.json
           --junit-out output/nightly-junit.xml
       - name: Upload nightly eval artifacts
-        if: always()
+        # Only meaningful when the eval actually ran: on a skip this step used to
+        # add a second annotation ("No files were found with the provided path"),
+        # which is noise pointing at the wrong thing.
+        if: always() && steps.real_key.outputs.present == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: nightly-eval
