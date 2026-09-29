@@ -54,12 +54,21 @@ class StaleContextError(EditError):
 
     STALE_CONTEXT (计划书 §8.2): the agent must re-read / re-plan / ask to
     merge — it may never force-overwrite the user's concurrent edits.
+
+    M8-T56: the message deliberately does NOT echo a usable digest. Real
+    runs showed the model copying the truncated 12-char display from this
+    error and padding the rest with invented hex — the digests then shared
+    their first 12 chars while never matching, looping the write until the
+    recovery guard killed the task (v2-version-exact, 32 turns). The message
+    must point at re-reading instead of handing back a partial anchor.
     """
 
     def __init__(self, path: str, expected: str, actual: str) -> None:
         super().__init__(
             f"STALE_CONTEXT: {path} 的 digest 不匹配 "
-            f"(expected {expected[:12]}, actual {actual[:12]}); 拒绝写入, 未落盘"
+            f"(expected {expected[:12]}…, actual {actual[:12]}…); 拒绝写入, 未落盘。"
+            "digest 已在写入间隙变化——不要复用错误信息里的截断摘要，"
+            "请先 read_file 获取最新内容与完整 digest（read_file_meta 返回 64 位十六进制），再重试写入。"
         )
         self.expected_digest = expected
         self.actual_digest = actual
