@@ -198,6 +198,8 @@ def test_the_report_still_explains_both_entrances_to_one_verdict() -> None:
     note = next(line for line in build_report([], [])["notes"] if line.startswith("REFUSED"))
     assert "exit 2" in note, note
     assert "could not be run" in note, note
+    # M8-T113: an operator abort is a fourth entrance onto the same channel.
+    assert "operator aborted" in note, note
 
 
 # --- census: keep the retired fields and the shared shape honest -----------

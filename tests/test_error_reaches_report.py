@@ -1,8 +1,9 @@
 """M8-T85: a failed/interrupted task must report WHY, not just "failed".
 
-``run_benchmark`` records the reason a task did not finish in ``entry["error"]``
-(benchmarks.py:674 timeout / 677 exception / 689 BaseException / 711 agent
-error).  ``build_report`` rebuilds every row key-by-key (146-167) and returns
+``run_benchmark`` records the reason a failed task did not finish in
+``entry["error"]`` (timeout / Exception / agent error). An operator abort
+(M8-T113) uses the refusal channel instead, because nothing was judged.
+``build_report`` rebuilds every row key-by-key and returns
 ``report["results"]`` as those rows, so a field it does not copy is invisible in
 BOTH the structured row and the markdown table - the exact defect M8-T81 closed
 for ``grading_refused``.  Before this gate ``error`` was dropped: a human or a
@@ -37,10 +38,17 @@ def test_a_failed_task_carries_its_recorded_reason_into_the_report_row():
 
 
 def test_an_interrupted_task_reports_its_exception_name():
+    """M8-T113 moved this row's reason from ``error`` to ``refusal``.
+
+    The runner no longer books a verdict for an interrupt (nothing was judged),
+    so the reason arrives through the refusal channel. The gate keeps asking the
+    report to print the name rather than a bare REFUSED with no cause.
+    """
     row, md_line = _row_and_md(
-        {"task_id": "t", "status": "interrupted", "passed": False, "error": "KeyboardInterrupt"})
-    assert row["error"] == "KeyboardInterrupt", row
-    assert "KeyboardInterrupt" in md_line, md_line
+        {"task_id": "t", "status": "interrupted", "passed": None,
+         "grading_refused": True, "refusal": "KeyboardInterrupt"})
+    assert row["refusal"] == "KeyboardInterrupt", row
+    assert "REFUSED" in md_line and "KeyboardInterrupt" in md_line, md_line
 
 
 def test_a_completed_task_is_not_polluted_with_an_empty_error_cell():

@@ -448,6 +448,23 @@ def workspace_unwritable(grader_type: str, exc: BaseException) -> dict[str, Any]
     return _no_result(grader_type, f"{type(exc).__name__}: {exc}")
 
 
+def run_interrupted(grader_type: str, exc: BaseException) -> dict[str, Any]:
+    """The operator aborted the run while this task was on the bench.
+
+    A third account, after "the host could not write the workspace" and "the
+    grader could not be run": here the workspace and the grader are both fine and
+    a person pressed Ctrl+C. The grading block is skipped for a row that never
+    completed, so booking ``passed=False`` charged the agent for the operator,
+    and re-running the diagnostic grader during an abort produced a reviewer
+    false negative about a reviewer nobody asked (measured on ``9a9d55a``: an
+    empty directory satisfied the contract, the oracle read ``passed: true`` with
+    ``case_count: 1``, and ``reviewer_false_negative_count`` counted it; M8-T113).
+    """
+    detail = str(exc).strip()
+    label = type(exc).__name__
+    return _no_result(grader_type, f"{label}: {detail}" if detail else label)
+
+
 #: Keys the host reads off a grader spec before the embedded script ever sees it.
 #: The gate reconciles this against the shipped dispatch and producers by AST, so a
 #: drift here is a red rather than a spec key that starts being silently rejected.

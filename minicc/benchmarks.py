@@ -215,8 +215,10 @@ def build_report(tasks: list[dict[str, Any]], results: list[dict[str, Any]] | No
             # downstream unless it is copied here (M8-T81 gate).
             "grading_refused": bool(recorded.get("grading_refused")),
             "refusal": (str(recorded.get("refusal") or "")[:300] or None),
-            # A failed/interrupted task records WHY in `entry["error"]`; without this
-            # copy the report prints a bare "failed" and the reason vanishes (M8-T81 shape).
+            # A failed task records WHY in `entry["error"]`; without this copy
+            # the report prints a bare "failed" and the reason vanishes (M8-T81
+            # shape). An interrupted task uses the refusal channel instead
+            # (M8-T113): nobody judged that workspace.
             "error": (str(recorded.get("error") or "")[:200] or None),
             # M8-T81 shape again: this dict is written by the runner and read by
             # tests off the results JSON, but a row that does not copy it cannot
@@ -303,7 +305,7 @@ def build_report(tasks: list[dict[str, Any]], results: list[dict[str, Any]] | No
             "Command graders and fake-provider runs do not establish real-world coding accuracy.",
             "Token and cost metrics remain null when the provider does not expose usage or pricing.",
             "Tokens and cost per success include expenditure on failed attempts; missing measurements keep these metrics null.",
-            "REFUSED means nobody judged this workspace: the grader declined (exit 2) or could not be run; it is not a pass, a failure, or a task without a grader.",
+            "REFUSED means nobody judged this workspace: the grader declined (exit 2), could not be run, the host could not write the workspace, or the operator aborted the run; it is not a pass, a failure, or a task without a grader.",
             "reviewer_false_negative_count counts rows recorded failed whose objective grader, re-run only as a diagnostic, reports passed; it measures the reviewer, not the suite score. An oracle that reports zero cases checked nothing, so its pass does not count, and one that names no known grader is not trusted either.",
         ],
     }
@@ -798,7 +800,12 @@ def run_benchmark(
                         abandoned_worker = worker
                 interrupted = exc
                 entry["status"] = "interrupted"
-                entry["error"] = type(exc).__name__
+                # An interrupt is the operator's, not the agent's and not the
+                # host's: the row records how the run ended in `status`, but the
+                # verdict is NO-RESULT - nobody judged this workspace, and no
+                # grader is started during an abort (M8-T113).
+                entry.update(bench_tasks.run_interrupted(
+                    _declared_grader_type(task), exc))
             else:
                 completion_status = (outcome.get("completion") or {}).get("status")
                 if outcome.get("cancelled"):

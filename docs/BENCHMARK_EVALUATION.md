@@ -35,7 +35,7 @@
 
 费用没有可靠来源时维持 `null`；fake provider 结果带元数据标识，仅用于协议和流程验收。不要将 fake 结果或本仓库的单元测试通过率描述为真实模型准确率。
 
-明确取消的结果记录为 `cancelled`；完成评估返回 continue/blocked/unknown 等结果时记录为 `incomplete`，不运行 grader 来伪装完成。评分器自己跑不起来（异常、超时、退出码 2）记录为「判不了」（`passed=null` + `grading_refused`），不计入通过率分母；宿主写不出 fixture（磁盘、权限、`git init` 超时）同样记「判不了」，因为那是宿主的账，不是智能体的判决。fixture 清理失败保留路径供检查。失败运行的 token 同样计入每次成功的总成本，不能只统计成功样本的花费。
+明确取消的结果记录为 `cancelled`；完成评估返回 continue/blocked/unknown 等结果时记录为 `incomplete`，不运行 grader 来伪装完成。评分器自己跑不起来（异常、超时、退出码 2）记录为「判不了」（`passed=null` + `grading_refused`），不计入通过率分母；宿主写不出 fixture（磁盘、权限、`git init` 超时）同样记「判不了」，因为那是宿主的账，不是智能体的判决。Ctrl+C 中断当前任务时先落一条 `status=interrupted` 的「判不了」行（操作员的账，不是智能体失败），再把中断抛出去；诊断用 oracle 不会在中止时重跑。fixture 清理失败保留路径供检查。失败运行的 token 同样计入每次成功的总成本，不能只统计成功样本的花费。
 
 评测器定向检查：
 
