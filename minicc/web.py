@@ -276,7 +276,7 @@ class AgentService:
         # M8-T5: the provider key must never reach a log line, and it does not
         # always match a known secret shape, so register the exact value.
         register_secret(getattr(config, "api_key", ""))
-        self.system_prompt = build_system_prompt(workspace)
+        self.system_prompt = build_system_prompt(workspace, output_style=str(getattr(self.config, "output_style", "") or ""))
         self.workspace_catalog = WorkspaceCatalog()
         self.workspace_catalog.remember(workspace)
         self._workspace_guard = threading.RLock()
@@ -757,7 +757,9 @@ class AgentService:
             return self.workspace_info()
         with self._workspace_guard:
             self.workspace = candidate
-            self.system_prompt = build_system_prompt(candidate)
+            self.system_prompt = build_system_prompt(
+                candidate, output_style=str(getattr(self.config, "output_style", "") or "")
+            )
             self.worktrees = WorktreeManager(candidate)
             self._set_current_mcp(candidate)
             self.workspace_catalog.remember(candidate)
@@ -1201,7 +1203,7 @@ class AgentService:
         model_message, mention_records = apply_mentions(message.strip(), workspace)
         hook_runner = HookRunner(workspace)
         store = SessionStore(workspace, session_id)
-        messages = store.load(build_system_prompt(workspace))
+        messages = store.load(build_system_prompt(workspace, output_style=str(getattr(self.config, "output_style", "") or "")))
         resume_from_checkpoint = bool(payload.get("resume_from_checkpoint")) and store.exists
         messages.append(
             user_msg(
@@ -1490,7 +1492,7 @@ class AgentService:
                         timeout=float(self.config.timeout), status_callback=None
                     ),
                     workspace=workspace,
-                    system_prompt=build_system_prompt(workspace),
+                    system_prompt=build_system_prompt(workspace, output_style=str(getattr(self.config, "output_style", "") or "")),
                     base_registry=registry,
                     cancel_event=cancel_event,
                 ))
@@ -1669,7 +1671,7 @@ class AgentService:
                             f"计划白名单工具：{', '.join(sorted(task.allowed_tools)) or '无'}"
                         )
                         node_messages = [
-                            system_msg(build_system_prompt(workspace)),
+                            system_msg(build_system_prompt(workspace, output_style=str(getattr(self.config, "output_style", "") or ""))),
                             user_msg(instruction),
                         ]
                         node_registry = registry.restrict(task.allowed_tools)

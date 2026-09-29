@@ -29,6 +29,11 @@ MINICC_BASE_URL=https://api.247kan.com/v1
 # Model name on that gateway
 MINICC_MODEL=gpt-5.6-terra
 
+# Persona/output style: a preset name (concise | explanatory) or your own words
+# (capped at 2000 chars). Only shapes prose style - never policy. A workspace
+# file .minicc/output-style.md is used when this is empty.
+#MINICC_OUTPUT_STYLE=
+
 # Reasoning effort: low | mid | high | xhigh | max. Unsupported gateways auto-downgrade.
 MINICC_REASONING_EFFORT=high
 

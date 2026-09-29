@@ -25,8 +25,9 @@ def _workspace_guidance(workspace: Path) -> str:
     return "\n\n".join(sections)
 
 
-def build_system_prompt(workspace: Path) -> str:
+def build_system_prompt(workspace: Path, output_style: str = "") -> str:
     from .commands import skills_prompt_block
+    from .output_style import render_output_style_block
     from .tools.memory import render_memory_index
 
     root = workspace.as_posix()
@@ -37,6 +38,8 @@ def build_system_prompt(workspace: Path) -> str:
         if guidance
         else ""
     )
+    # M8-T57: persona/输出风格挂在指导块之前；空风格时保持提示词逐字节不变。
+    style_block = render_output_style_block(output_style)
     guidance_block += skills_prompt_block(workspace)
     # M8-T1: index-only memory injection; "" when no memories exist, so the
     # prompt (and its tests) stay byte-identical on a memoryless workspace.
@@ -65,5 +68,5 @@ def build_system_prompt(workspace: Path) -> str:
 - bash 是高风险工具。仅执行完成当前任务所需的命令，不要删除数据、修改 Git 历史、上传文件或更改系统设置。
 - web_search 会把搜索关键词发送到外部搜索服务；不要把密钥、密码、令牌或个人隐私放进搜索关键词。
 - 需求不清时先做低风险的调查；需要破坏性或外部副作用操作时先请求用户确认。
-{guidance_block}
+{style_block}{guidance_block}
 """

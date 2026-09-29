@@ -213,6 +213,8 @@ class Config:
     # that takes over when the primary channel's quota is exhausted.
     plan_base_url: str = ""
     plan_api_key: str = ""
+    # M8-T57: persona/输出风格（preset 名或用户自定义文字），仅约束行文。
+    output_style: str = ""
     reasoning_effort: str = DEFAULT_REASONING_EFFORT
     tool_mode: str = "auto"  # auto | native | envelope
     max_turns: int | None = DEFAULT_MAX_TURNS
@@ -384,6 +386,7 @@ def load_config(
     anthropic_base_url = pick(None, "MINICC_ANTHROPIC_BASE_URL", "anthropic_base_url", "").rstrip("/")
     plan_base_url = pick(None, "MINICC_PLAN_BASE_URL", "plan_base_url", "").rstrip("/")
     plan_api_key = pick(None, "MINICC_PLAN_API_KEY", "plan_api_key", "")
+    output_style = pick(None, "MINICC_OUTPUT_STYLE", "output_style", "")
     # The provider HTTP timeout used to be reachable only through the CLI's
     # --timeout flag, so the Web workbench and every task worker it spawned ran
     # at the compiled-in default forever - a slow reasoning gateway has no way
@@ -617,6 +620,7 @@ def load_config(
         anthropic_base_url=anthropic_base_url,
         plan_base_url=plan_base_url,
         plan_api_key=plan_api_key,
+        output_style=output_style,
         api_key=resolved_key,
         model=resolved_model,
         reasoning_effort=resolved_reasoning,

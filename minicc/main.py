@@ -629,7 +629,7 @@ def main(argv: list[str] | None = None) -> int:
 
     editor = Editor(workspace, audit_path=workspace / ".minicc" / "audit.jsonl")
     registry = build_registry(editor, yolo=config.yolo)
-    system_prompt = build_system_prompt(workspace)
+    system_prompt = build_system_prompt(workspace, output_style=str(getattr(config, "output_style", "") or ""))
     try:
         session = SessionStore(workspace, args.session_id)
         messages = session.load(system_prompt) if args.resume else [system_msg(system_prompt)]
