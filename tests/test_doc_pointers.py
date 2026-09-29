@@ -354,6 +354,39 @@ def test_a_bare_test_name_may_be_a_module_or_a_function_but_nothing_else() -> No
     assert _evidence("test_grader_unreadable_by_file_tools", "test_core") == []
 
 
+def test_a_renamed_test_is_recorded_by_an_exemption_that_names_only_that_name() -> None:
+    """A rename has to be recordable without repointing the record at another test.
+
+    Measured at 第九十九批 (M8-T113): renaming one shipped-population census left
+    ``--check`` red on four roadmap lines. The way out taken was to rewrite those
+    four lines so they name a *different* test, with a 「写作时的旧名为 …」
+    parenthetical — a claim that other test's own history contradicts, since it
+    was born under that name in M8-T97. The table exists so the record can keep
+    the name it was written with, and still be followable.
+    """
+    renamed = "test_every_shipped_behaviour_task_has_well_shaped_items"
+    assert renamed in dp._RETIRED_TEST_NAME, "the table this gate is about is gone"
+    # A retired name is still *considered* (it was a location claim when written);
+    # exemption changes its nature, it does not make the reader skip it.
+    assert _evidence(renamed, claims=1) == []
+
+    # An exact-match fence, not a blanket over renames: a name that merely looks
+    # retired still has to resolve.
+    assert _evidence("test_every_shipped_behaviour_task_has_well_shaped_item")[0].startswith(
+        "test_every_shipped_behaviour_task_has_well_shaped_item 既不是测试文件名"
+    )
+
+    # And the green above is the table's doing rather than the reader's blindness.
+    original = dp._EVIDENCE_TABLES
+    dp._EVIDENCE_TABLES = tuple(t for t in original if t is not dp._RETIRED_TEST_NAME)
+    try:
+        red = _evidence(renamed, claims=1)
+    finally:
+        dp._EVIDENCE_TABLES = original
+    assert red and red[0].startswith(f"{renamed} 既不是测试文件名"), red
+    assert _evidence(renamed, claims=1) == []
+
+
 def test_an_abbreviation_is_a_claim_and_a_method_name_is_not() -> None:
     # The docs cite minicc's packages by their package-relative name, and web's
     # by theirs; both resolve. `tools/call` is an MCP method and `loop.py` alone

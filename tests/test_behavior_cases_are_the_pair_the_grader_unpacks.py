@@ -76,13 +76,34 @@ def test_the_grader_does_not_become_a_second_owner_of_the_shape_rule() -> None:
     assert not graded.get("grading_refused"), graded
 
 
-def test_every_shipped_behaviour_task_has_well_shaped_items() -> None:
-    """The census runs the load door, not one named helper.
+def test_behavior_load_door_accepts_all_shipped_behaviour_tasks() -> None:
+    """The census runs the behavior load door, not a named helper.
 
     Measured at 第九十批: mutation arm E2 moved the shape rule from ``fixture_blockers`` into
     ``spec_blockers`` and the previous version of this census stayed green while checking
     nothing about shape - it read a function that no longer held the rule. A census keyed to
-    a helper's *name* reports vacuity as a pass.
+    a helper's *name* reports vacuity as a pass. Renamed from
+    ``test_every_shipped_behaviour_task_has_well_shaped_items``, which kept claiming to census
+    the *shape of items* after 第九十批 had pointed it at the door (第九十九批, M8-T113 record).
+
+    Division of labor, measured rather than asserted (``_probe113.py``, AST over every
+    shipped-population census - it reads which rule each one calls and which population it
+    feeds that rule). There are **three** parties, not two, and the door is the one with two
+    owners:
+
+    * door - ``validate_behavior_task`` over ``behavior_bench.behavior_tasks()``: this test,
+      and ``test_behavior_suite_is_validated_at_load.py::test_every_shipped_behaviour_task_passes_the_new_door``.
+      Same rule, same population: one gate written twice. Whether to merge them is the owner's
+      call (第九十五批 §8-2 deferred it until the measurement existed; it now exists).
+    * host encoding path - ``spec_blockers`` over the behaviour suite: the companion is
+      ``test_behavior_args_that_cannot_be_encoded_are_no_result.py::test_no_shipped_task_needs_the_new_host_path``.
+    * host write point - ``require_writable_fixture`` over all three suites:
+      ``test_a_fixture_must_be_text_the_workspace_can_hold.py::test_no_shipped_task_needs_the_new_rule``.
+
+    An earlier draft of this docstring named the second of those
+    ``test_host_encoding_path_accepts_all_shipped_fixtures`` while describing the third - a
+    census that exists nowhere, fused from one gate's concept and another's population. That
+    is why the names above are spelled out in full.
     """
     tasks = behavior_bench.behavior_tasks()
     assert len(tasks) >= 10, f"only {len(tasks)} tasks read - the census saw nothing"

@@ -995,6 +995,27 @@ _RETIRED_PATH: dict[str, str] = {
     "`web/src/{core,chat,files,panels}` + main.js，编号分片因此消失",
 }
 
+#: A test that has since been renamed. The document is not claiming the name
+#: resolves today; it is recording what that gate was called at the time — the
+#: same "change of nature" as ``_RETIRED_PATH``, for the one kind of location the
+#: reader can check without a slash.
+#:
+#: This table was missing, and its absence had a measurable cost. A rename left
+#: the author exactly two ways to a green ``--check``: falsify the record, or stay
+#: red. Measured at 第九十九批 (M8-T113): four roadmap lines that name the census
+#: were *repointed at a different test* and given a parenthetical "写作时的旧名为
+#: has_well_shaped_items" — the reader was told the old name belonged to a test
+#: that never had it (``test_every_shipped_behaviour_task_passes_the_new_door``
+#: was born under that name in M8-T97). A rename belongs in the record, and so
+#: does the reader's ability to follow it; neither the tool nor the archivist
+#: should have to choose.
+_RETIRED_TEST_NAME: dict[str, str] = {
+    "test_every_shipped_behaviour_task_has_well_shaped_items": "第九十九批更名为 "
+    "`tests/test_behavior_cases_are_the_pair_the_grader_unpacks.py::test_behavior_load_door_accepts_all_shipped_behaviour_tasks`"
+    "——第九十批已把它的体改成跑门（`validate_behavior_task`），名字却还在声称普查「项的形状」；"
+    "roadmap 四处引用记录的是改名前的叫法，不是今天还存在的函数名",
+}
+
 #: A planning-stage name for something the delivery placed elsewhere. Not a
 #: defect in the record — the record just has to say which branch was taken.
 _DECLINED_PATH: dict[str, str] = {
@@ -1032,6 +1053,7 @@ _EVIDENCE_TABLES = (
     _PROMISED_PATH,
     _QUOTED_STALE_PATH,
     _RETIRED_PATH,
+    _RETIRED_TEST_NAME,
     _DECLINED_PATH,
 )
 
