@@ -81,7 +81,10 @@ def _run(provider, tmp_path: Path, yolo: bool = True):
     registry = build_registry(Editor(tmp_path))
     registry.declare_builtin()
 
-    async def gate(name, call):
+    # should_allow is a synchronous bool contract (loop.py:431, consumed at
+    # loop.py:1042 as `not allow(...)`); an async gate here would be treated as
+    # a truthy coroutine and leak unawaited, failing the suite under -W error.
+    def gate(name, call):
         return True
 
     import asyncio
