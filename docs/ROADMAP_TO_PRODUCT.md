@@ -8580,3 +8580,48 @@ v2 **24/24** 带；行为套件 **12/12** 带 ⇒ 合计 **36** 条 fixture 任�
 而且越量越"稳定"（三次都 30.7），稳定得足以说服自己去做合成复现。
 **稳定 ≠ 干净**：一个反复出现的读数也可能每次都带着同一个干扰项。
 判据应该是"先杀干净再量"，而不是"多量几遍看是否一致"。
+
+## 第九十六批（一个每晚都红、因此什么都没说的门：夜间真模型评测）
+
+### 1 现象
+
+查 CI 时看到**定时**（schedule）那次跑是红的，红在 `Nightly eval (real key, v2 + gate)`，而且 **15 秒**就结束——
+真模型 v2 评测不可能 15 秒跑完。取日志只拿到 checkout 的收尾，没有评测输出。
+
+### 2 根因
+
+`gh api repos/.../actions/secrets --jq '.secrets[].name'` **一条都没有**：仓库没配任何 secret。
+而 `eval-nightly` 的每一步都依赖 `secrets.MINICC_API_KEY / MINICC_BASE_URL / MINICC_MODEL`，
+于是 `load_config()` 必然失败 → 非零退出 → **这个 job 从建立起每晚都红，且永远不可能变绿**。
+
+**为什么这是个真问题**：一个每晚都红的门和一个"模型真的退化了"的夜晚，在通知里长得一模一样。
+红灯一旦恒定，它就不再传递信息——这比没有门更糟，因为它占着"有人在看"的位置。
+
+### 3 落地口径：显式跳过，并且说清楚"跳过不是通过"
+
+- 新增首步 `Decide whether a real key is configured`：用 `env` 把 secret 传进来判空，写 `present` 到 `GITHUB_OUTPUT`；
+  缺失时发一条**带标题的 warning 注解**：`Nightly eval SKIPPED - nothing was measured`，
+  正文写明"这个 job 是绿的，因为一个恒定红的夜间任务会掩盖真实退化，但**没有产出任何指标**：跳过不是通过"，
+  并给出把它变成真门的一步操作（配那三个 secret）。
+- 评测、判据、产物上传三步都加 `if: steps.real_key.outputs.present == 'true'`。
+
+**这条规则的来源就是产品自己的判据**（验证器的"跳过 ≠ 通过"）——CI 不该成为唯一破例的地方。
+
+### 4 验证（手动触发真跑，不是读代码）
+
+`gh workflow run CI --ref main` → run `36519196866`，**9 个 job 全绿**，其中
+`Nightly eval (real key, v2 + gate) in 6s`（原来是 15s 红）。
+查该 job 的注解：`gh api .../check-runs/109248144516/annotations` 里确实有那条
+`SKIPPED - nothing was measured` 的 warning（不是脚本回显，是注解实体）。
+
+**这次真跑还顺手暴露一处剩余噪音**：跳过时产物上传步仍会跑，并多出一条
+`No files were found with the provided path: output/nightly-v2.json …` 的注解——
+在"什么都没跑"的情况下，这条注解指向的是错的东西。已改成
+`if: always() && steps.real_key.outputs.present == 'true'`（`f3a9ec9`）。
+
+### 5 边界（明确不声称）
+
+- **夜间门仍然是"没在测"的状态**：本批只把"恒定红"换成"显式跳过"，**没有**产出任何真实模型指标。
+  要让它变成真门，需要仓库配置那三个 secret（属于 owner 的操作）。
+- M6-4（30 条 fixture 的真模型 P95 基线）因此仍然没有数据。
+- 手动 `workflow_dispatch` 跑一次会让 `PR eval gate` 也跑（它 `if: event_name != 'schedule'`），这是预期行为。
