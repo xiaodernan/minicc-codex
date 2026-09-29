@@ -121,32 +121,151 @@ def test_cli_version_flag_prints_the_derived_line_in_process(
     assert printed == f"minicc {minicc.__version__}", printed
 
 
-def _interpreter_startup_seconds() -> float:
-    """What it costs to start one interpreter on this machine, right now."""
+def _plane_probe_seconds(args: list[str], timeout: float = 300) -> float:
+    """What this plane costs, right now, to run one interpreter on ``args``."""
     started = time.perf_counter()
     probe = subprocess.run(
-        [sys.executable, "-c", ""], capture_output=True, timeout=300,
+        [sys.executable, *args], capture_output=True, timeout=timeout,
+        cwd=str(REPO_ROOT),
     )
     elapsed = time.perf_counter() - started
     assert probe.returncode == 0, (
-        f"the startup denominator could not be measured (exit {probe.returncode})"
+        f"the budget denominator could not be measured ({' '.join(args)} "
+        f"exited {probe.returncode})"
     )
     return elapsed
 
 
-def test_cli_version_flag_matches():
-    """The real entry point, budgeted as a function of this machine's own speed.
+def _bare_interpreter_seconds() -> float:
+    """``python -c ""`` - the denominator the old budget wrongly used.
 
-    ``timeout=60`` was an absolute stopwatch doing two jobs at once: "does the
-    process terminate" and "is this machine fast".  Under a loaded machine a
-    ``--version`` run hit 60s and the red said nothing about the product.  The
-    budget is now 40x the cost of starting an interpreter measured in this same
-    run, so past the floor it answers the first question only.
+    Kept for the failure text, not for the arithmetic: on this machine
+    ``--version`` costs 20-39x a bare interpreter with no defect anywhere
+    (measured paired in M8-T112), so a ratio against this number answers
+    "how fast is the machine", never "does the process terminate".
+    """
+    return _plane_probe_seconds(["-c", ""])
+
+
+def _module_import_seconds() -> float:
+    """``python -c "import minicc.main"`` - the bulk of what ``--version`` pays.
+
+    ``--version`` is this import plus argparse printing one line, so the two
+    track each other under load (paired measurements: 0.91-1.22x) while both
+    inflate together when the machine is busy.
+    """
+    return _plane_probe_seconds(["-c", "import minicc.main"])
+
+
+#: The watchdog is a multiple of the same-plane import, not of a bare start.
+#: Observed worst paired ver/import on this machine is 1.22x, so 8x keeps head
+#: room over scheduling jitter while still bounding a true hang at 8x the work
+#: the entry point actually does.
+VERSION_BUDGET_RATIO = 8
+
+#: Below this the arm would be measuring noise; it also keeps CI (where the
+#: import is ~1-2s and the whole run is ~3s) on a familiar, generous stopwatch.
+VERSION_BUDGET_FLOOR = 60.0
+
+
+def _version_budget(bare: float, module_import: float) -> float:
+    """The budget is anchored to the import, never to the bare interpreter."""
+    return max(VERSION_BUDGET_FLOOR, module_import * VERSION_BUDGET_RATIO)
+
+
+def _version_timeout_message(bare: float, module_import: float, budget: float) -> str:
+    """The failure must carry the ratio a bare denominator would have divided by.
+
+    The red's whole complaint (M8-T112) was that ``40x bare`` folds "is this
+    machine fast" into "does it terminate".  Printing bare, the same-plane
+    import, their ratio - this run's intrinsic import/bare number, the quantity
+    that was 20-39x here - lets the reader see which arm of ``max`` decided and
+    why the ratio against a bare interpreter could not have.  Which arm fired
+    is spelled out too: on a quiet plane the floor binds and ``8x import``
+    would be the smaller number, so claiming "= 8x the import" there would be
+    arithmetic the reader can check and find false.
+    """
+    intrinsic = module_import / bare if bare > 0 else float("inf")
+    if budget == module_import * VERSION_BUDGET_RATIO:
+        arm = (
+            f"{VERSION_BUDGET_RATIO}x the {module_import:.2f}s it took "
+            f"`python -c \"import minicc.main\"` in this same run"
+        )
+    else:
+        arm = (
+            f"the {VERSION_BUDGET_FLOOR:.0f}s floor - {VERSION_BUDGET_RATIO}x the "
+            f"{module_import:.2f}s same-plane import is only "
+            f"{module_import * VERSION_BUDGET_RATIO:.1f}s"
+        )
+    return (
+        f"`--version` did not terminate within {budget:.1f}s = {arm} "
+        f"(bare interpreter {bare:.2f}s, so this run's import/bare ratio is "
+        f"{intrinsic:.1f}x - the number a bare-interpreter denominator would "
+        "have divided by); past that ratio the claim is about termination, "
+        "not about speed"
+    )
+
+
+def test_the_version_budget_is_anchored_to_this_planes_import() -> None:
+    """M8-T112's core: the denominator changes the budget, by construction.
+
+    Expected values are literals, not a re-call of the implementation, so
+    restoring ``max(floor, bare * 40)`` reddens this cell instead of moving
+    both sides together.  ``bare * 40`` on the same inputs gives 60.0 - the
+    floor - which is exactly the under-determined budget batch 95 measured.
+    """
+    assert _version_budget(0.15, 30.0) == 240.0, (
+        "a 30s import no longer buys a 240s watchdog; if the arm is back to "
+        "bare*40 this returns 60.0 and the gate answers machine speed again"
+    )
+    assert _version_budget(0.25, 1.0) == VERSION_BUDGET_FLOOR, (
+        "the floor must still bind when the plane is fast, so CI keeps its "
+        "generous stopwatch instead of a sub-second budget"
+    )
+
+
+def test_the_timeout_message_shows_the_ratio_a_bare_denominator_would_divide_by() -> None:
+    """The failure text is part of the gate: it must name every measured arm.
+
+    Red if any of bare / import / intrinsic ratio / budget goes missing - the
+    reader then cannot tell which arm of ``max`` fired, which is how the old
+    60s floor reds went unattributed for batches.  Both arms get pinned: a
+    message that claims "= 8x the import" while the floor is what actually
+    bound is arithmetic the reader can check and find false (found by the
+    M8-T112 witness run, where a quiet plane bound the floor).
+    """
+    ratio_arm = _version_timeout_message(bare=0.20, module_import=6.4, budget=51.2)
+    assert "0.20" in ratio_arm, ratio_arm            # bare
+    assert "6.40" in ratio_arm, ratio_arm            # same-plane import
+    assert "32.0x" in ratio_arm, ratio_arm           # intrinsic import/bare ratio
+    assert "51.2" in ratio_arm, ratio_arm            # the budget that fired
+    assert "8x the 6.40s" in ratio_arm, ratio_arm    # the arm: 8x the import
+    assert "termination" in ratio_arm, ratio_arm     # what the claim becomes
+
+    floor_arm = _version_timeout_message(bare=0.20, module_import=3.0, budget=60.0)
+    assert "floor" in floor_arm, floor_arm           # the arm: the floor bound
+    assert "24.0" in floor_arm, floor_arm            # what 8x import would have been
+    assert "= 8x" not in floor_arm, floor_arm        # no false equality claim
+
+
+def test_cli_version_flag_matches():
+    """The real entry point, budgeted as a function of this plane's own import.
+
+    ``timeout=60`` was an absolute stopwatch doing two jobs at once, and its
+    successor ``40x`` a bare interpreter answered the wrong question too: batch
+    95 measured this machine's intrinsic ``--version``/bare at 20-39x with no
+    defect anywhere, so the 40x arm sat inside the noise and the 60s floor was
+    what actually decided under load - a red that said "the machine is busy".
+    The budget is now ``8x`` the cost of importing ``minicc.main`` in this same
+    run (paired: ``--version`` is 0.91-1.22x that import), so both sides of the
+    ratio move together under load and past the floor the claim is about
+    termination.
     """
     import minicc
 
-    startup = _interpreter_startup_seconds()
-    budget = max(60.0, startup * 40)
+    bare = _bare_interpreter_seconds()
+    module_import = _module_import_seconds()
+    budget = _version_budget(bare, module_import)
     try:
         out = subprocess.run(
             [sys.executable, "-m", "minicc.main", "--version"],
@@ -155,9 +274,7 @@ def test_cli_version_flag_matches():
         )
     except subprocess.TimeoutExpired as exc:
         raise AssertionError(
-            f"`--version` did not terminate within {budget:.1f}s = 40x the "
-            f"{startup:.2f}s it took to start an interpreter in this same run; "
-            "beyond that ratio the claim is about termination, not about speed"
+            _version_timeout_message(bare, module_import, budget)
         ) from exc
     assert out.returncode == 0
     assert out.stdout.strip() == f"minicc {minicc.__version__}"
