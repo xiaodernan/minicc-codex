@@ -471,6 +471,23 @@ async def _interactive(
             continue
         if prompt == "/status":
             cli_out(config.describe())
+            # M8-T55 的双通道在 CLI 的可见性：配置状态 + 本进程的实际用量。
+            channel_status = getattr(provider, "channel_status", None)
+            if callable(channel_status):
+                try:
+                    status = channel_status()
+                    plan_note = "已配置（主通道额度用尽时自动切换）" if status.get("plan_available") else "未配置"
+                    cli_out(f"通道: {status.get('active')}（套餐通道{plan_note}）")
+                    usage = status.get("usage") or {}
+                    paid = usage.get("paid") or {}
+                    plan = usage.get("plan") or {}
+                    cli_out(
+                        f"  本进程请求: 付费 {paid.get('requests', 0)} 次"
+                        f"（{paid.get('total_tokens', 0)} tokens） / "
+                        f"套餐 {plan.get('requests', 0)} 次（{plan.get('total_tokens', 0)} tokens）"
+                    )
+                except Exception:
+                    pass
             if session is not None:
                 cli_out(f"session={session.path}")
             continue
