@@ -46,12 +46,19 @@ MAX_TOKENS_HARD_CAP = 64000
 _RETRYABLE_STATUS = {408, 409, 429, 500, 502, 503, 504, 529}
 
 
+from .openai_provider import _QUOTA_EXHAUSTED_CODES
+
+
 class AnthropicProviderError(RuntimeError):
     """Anthropic API transport or protocol failure."""
 
 
 class AnthropicPartialError(AnthropicProviderError):
     """Stream broke after visible text was already delivered; do not retry."""
+
+
+class _QuotaSwitched(Exception):
+    """内部信号：额度耗尽已切换通道，外层用套餐 base URL 重入一次。"""
 
 
 def _endpoint(base_url: str) -> str:
@@ -243,12 +250,21 @@ class AnthropicProvider:
         on_status: Any | None = None,
         transport: Any | None = None,
         max_tokens: int | None = None,
+        plan_base_url: str = "",
     ) -> None:
         if httpx is None:  # pragma: no cover - depends on the HTTP stack
             raise AnthropicProviderError("httpx 不可用，无法使用 Anthropic provider")
         self.api_key = api_key
         self.model = model
         self.base_url = base_url or DEFAULT_BASE_URL
+        # M8-T60: 套餐通道与付费通道用同一把 key（x-api-key 不变），只有
+        # base URL 不同——无需第二个 client，按通道切换请求地址即可。
+        self._plan_base_url = (plan_base_url or "").rstrip("/")
+        self._channel = "paid"
+        self._channel_usage: dict[str, dict[str, int]] = {
+            "paid": {"requests": 0, "total_tokens": 0},
+            "plan": {"requests": 0, "total_tokens": 0},
+        }
         self.timeout = float(timeout)
         self.max_retries = max(0, int(max_retries))
         self.on_status = on_status
@@ -276,6 +292,69 @@ class AnthropicProvider:
             tokens = DEFAULT_MAX_TOKENS
         return max(1, min(MAX_TOKENS_HARD_CAP, tokens))
 
+    # -- dual channel (M8-T60，与 openai_provider 的 M8-T55 同判据) -----------
+
+    @property
+    def active_channel(self) -> str:
+        return self._channel
+
+    def channel_status(self) -> dict[str, Any]:
+        return {
+            "active": self._channel,
+            "plan_available": bool(self._plan_base_url),
+            "usage": {k: dict(v) for k, v in self._channel_usage.items()},
+        }
+
+    def _active_base_url(self) -> str:
+        return self._plan_base_url if self._channel == "plan" else self.base_url
+
+    def _record_channel_usage(self, response: LLMResponse) -> None:
+        usage = response.usage if isinstance(response.usage, dict) else {}
+        try:
+            tokens = int(usage.get("total_tokens") or 0)
+        except (TypeError, ValueError):
+            tokens = 0
+        counters = self._channel_usage.setdefault(
+            self._channel, {"requests": 0, "total_tokens": 0}
+        )
+        counters["requests"] += 1
+        if tokens > 0:
+            counters["total_tokens"] += tokens
+
+    def _quota_verdict(self, status_code: int, body_text: str) -> str | None:
+        """"switch" | "die" | None——额度池耗尽语义（402 一票；429 看 credit 码）。
+
+        普通限流 429 返回 None（保持既有重试语义）；credit 上限型 429 是
+        「池子空了」，有套餐通道就切换，没有就立刻死（不烧无意义的重试）。
+        """
+        if status_code != 402 and status_code != 429:
+            return None
+        if status_code == 402:
+            death = True
+        else:
+            death = any(code in (body_text or "") for code in _QUOTA_EXHAUSTED_CODES)
+        if not death:
+            return None
+        if self._plan_base_url and self._channel == "paid":
+            return "switch"
+        return "die"
+
+    def _switch_to_plan(self, status_code: int) -> None:
+        self._channel = "plan"
+        if self.on_status is not None:
+            try:
+                self.on_status({
+                    "kind": "trace",
+                    "name": "provider",
+                    "status": "ok",
+                    "phase": "planning",
+                    "code": "provider_channel_switched",
+                    "summary": "主通道额度已用尽（402/Credit 上限），本次任务改用 Step Plan 套餐通道",
+                    "detail": {"from": "paid", "to": "plan", "status_code": status_code},
+                })
+            except Exception:
+                pass
+
     async def close(self) -> None:
         await self._client.aclose()
 
@@ -302,16 +381,29 @@ class AnthropicProvider:
         return await self._create_stream(payload, on_delta)
 
     async def _create_json(self, payload: dict[str, Any]) -> LLMResponse:
+        response = await self._create_json_on(payload, self._active_base_url())
+        self._record_channel_usage(response)
+        return response
+
+    async def _create_json_on(self, payload: dict[str, Any], base_url: str) -> LLMResponse:
         attempt = 0
         while True:
             attempt += 1
             try:
-                response = await self._client.post(_endpoint(self.base_url), json=payload)
+                response = await self._client.post(_endpoint(base_url), json=payload)
             except httpx.HTTPError as exc:
                 if attempt > self.max_retries:
                     raise AnthropicProviderError(f"Anthropic 请求失败: {exc}") from exc
                 await _backoff(attempt)
                 continue
+            verdict = self._quota_verdict(response.status_code, response.text)
+            if verdict == "switch":
+                self._switch_to_plan(response.status_code)
+                return await self._create_json_on(payload, self._active_base_url())
+            if verdict == "die":
+                raise AnthropicProviderError(
+                    f"Anthropic HTTP {response.status_code}: {response.text[:500]}"
+                )
             if response.status_code in _RETRYABLE_STATUS and attempt <= self.max_retries:
                 retry_after = response.headers.get("retry-after")
                 await _backoff(attempt, retry_after)
@@ -322,6 +414,13 @@ class AnthropicProvider:
             return response_to_llm(response.json(), self.model)
 
     async def _create_stream(self, payload: dict[str, Any], on_delta: Any) -> LLMResponse:
+        try:
+            return await self._create_stream_on(payload, on_delta, self._active_base_url())
+        except _QuotaSwitched:
+            # 切换只发生在首字节之前，重入一次套餐通道即可。
+            return await self._create_stream_on(payload, on_delta, self._active_base_url())
+
+    async def _create_stream_on(self, payload: dict[str, Any], on_delta: Any, base_url: str) -> LLMResponse:
         attempt = 0
         emitted = 0
         stream_payload = dict(payload)
@@ -330,18 +429,29 @@ class AnthropicProvider:
             attempt += 1
             emitted = 0
             try:
-                async with self._client.stream("POST", _endpoint(self.base_url), json=stream_payload) as response:
+                async with self._client.stream("POST", _endpoint(base_url), json=stream_payload) as response:
+                    if response.status_code >= 400:
+                        detail_bytes = await response.aread()
+                        detail = detail_bytes[:500].decode("utf-8", "replace")
+                        verdict = self._quota_verdict(response.status_code, detail)
+                        if verdict == "switch":
+                            self._switch_to_plan(response.status_code)
+                            raise _QuotaSwitched()
+                        if verdict == "die":
+                            raise AnthropicProviderError(
+                                f"Anthropic HTTP {response.status_code}: {detail}"
+                            )
+                        raise AnthropicProviderError(f"Anthropic HTTP {response.status_code}: {detail}")
                     if response.status_code in _RETRYABLE_STATUS and attempt <= self.max_retries:
                         retry_after = response.headers.get("retry-after")
                         await response.aread()
                         await _backoff(attempt, retry_after)
                         continue
-                    if response.status_code >= 400:
-                        detail = (await response.aread())[:500].decode("utf-8", "replace")
-                        raise AnthropicProviderError(f"Anthropic HTTP {response.status_code}: {detail}")
                     parsed = await _consume_anthropic_sse(response, on_delta, emitted_counter := {"chars": 0})
                     emitted = int(emitted_counter["chars"])
-                    return _sse_to_llm(parsed, self.model)
+                    result = _sse_to_llm(parsed, self.model)
+                    self._record_channel_usage(result)
+                    return result
             except AnthropicPartialError:
                 raise
             except httpx.HTTPError as exc:

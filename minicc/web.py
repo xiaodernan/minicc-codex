@@ -1053,6 +1053,7 @@ class AgentService:
                 api_key=self.config.api_key,
                 model=str(model_override or self.config.model),
                 base_url=str(getattr(self.config, "anthropic_base_url", "") or self.config.base_url),
+                plan_base_url=str(getattr(self.config, "plan_base_url", "") or ""),
                 timeout=timeout,
                 max_retries=int(getattr(self.config, "provider_retries", 4)),
                 on_status=status_callback,

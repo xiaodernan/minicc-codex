@@ -661,6 +661,7 @@ def main(argv: list[str] | None = None) -> int:
             api_key=config.api_key,
             model=config.model,
             base_url=str(getattr(config, "anthropic_base_url", "") or config.base_url),
+            plan_base_url=str(getattr(config, "plan_base_url", "") or ""),
             timeout=config.timeout,
             max_retries=int(getattr(config, "provider_retries", 4)),
         )
