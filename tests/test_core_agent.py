@@ -630,8 +630,10 @@ def test_a_capped_review_names_the_verifier_s_verdict_instead_of_only_the_review
     assert calls["judge"] == 4
     # Each continue re-runs the agent, and the first round needed two model
     # calls (write, then finish) — so the stall costs more turns than the
-    # read-only fixture's four.
-    assert calls["agent"] == 6
+    # read-only fixture's four. M8-T59: the pre-finish verification nudge now
+    # fires twice (VERIFICATION_RETRY_LIMIT=2), which is one more model call
+    # on this never-complying fake than the old single-nudge budget of six.
+    assert calls["agent"] == 7
     assert any(event.get("code") == "verification_skipped" for event in result["events"])
 
 

@@ -113,6 +113,53 @@ def test_no_inspection_still_fails_the_guard(tmp_path: Path) -> None:
     assert result.error == "Agent 在修改工作区后没有完成验证"
 
 
+def test_second_nudge_converts_a_late_inspection(tmp_path: Path) -> None:
+    """M8-T59: 两次 nudge 的第二次才补上检视——不再一次烧完即死。
+
+    未修复（RETRY_LIMIT=1）代码上这里红：第二次尝试结束时守卫直接判死，
+    读回根本没机会发生。
+    """
+
+    class LateInspector:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        async def chat(self, messages, tools, on_delta=None):
+            self.calls += 1
+            if self.calls == 1:
+                return LLMResponse(tool_calls=[{
+                    "id": "write-1",
+                    "type": "function",
+                    "function": {
+                        "name": "write_file",
+                        "arguments": json.dumps({"path": "notes.txt", "content": "v2\n"}),
+                    },
+                }])
+            if self.calls in (2, 3):
+                # 第一次 nudge 后仍未行动，再次试图纯文本结束——LIMIT=1 在这里
+                # 就判死，读回永远轮不到（这就是本测试的判红点）。
+                return LLMResponse(content="写好了，任务完成。")
+            if self.calls == 4:
+                # 第二次 nudge 后才读回。
+                return LLMResponse(tool_calls=[{
+                    "id": "read-1",
+                    "type": "function",
+                    "function": {
+                        "name": "read_file",
+                        "arguments": json.dumps({"path": "notes.txt"}),
+                    },
+                }])
+            return LLMResponse(content="已写入并读回确认。")
+
+        async def close(self) -> None:
+            return None
+
+    provider = LateInspector()
+    result = _run(provider, tmp_path)
+    assert result.error is None, result.error
+    assert result.answer == "已写入并读回确认。"
+
+
 def test_workspace_with_runnable_check_keeps_demanding_it(tmp_path: Path, monkeypatch) -> None:
     """有检查可跑的工作区：检视不能替代检查器（回退只在无检查时生效）。"""
     # 注入一个「有命令」的 plan，模拟存在可运行检查的工作区。

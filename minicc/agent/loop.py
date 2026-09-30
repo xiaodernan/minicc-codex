@@ -59,7 +59,11 @@ from .tool_policy import (
 STAGNATION_REPLAN_LIMIT = 3
 STAGNATION_REPEAT_LIMIT = 2
 STAGNATION_CYCLE_LENGTH = 4
-VERIFICATION_RETRY_LIMIT = 1
+# M8-T59: 两次而非一次。M6-4 终局的残余随机失败（greeting-needs-fix）是
+# 「写入后不检视、第一次 nudge 后仍未补证」——守卫在第二次尝试就判死。
+# nudge 现在说清了什么算证据（M8-T56 白名单）且检视即可交付（M8-T58 回退），
+# 多给一轮是把这些随机死亡换成收敛；成本只落在本来就要死的路径上。
+VERIFICATION_RETRY_LIMIT = 2
 SEARCH_FAILURE_LIMIT = 2
 PROTOCOL_REPAIR_LIMIT = 2
 RECOVERY_PROBE_TOOLS = ("git_status", "git_diff", "tree")
