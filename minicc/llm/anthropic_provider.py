@@ -430,9 +430,11 @@ class AnthropicProvider:
             emitted = 0
             try:
                 async with self._client.stream("POST", _endpoint(base_url), json=stream_payload) as response:
-                    if response.status_code >= 400:
-                        detail_bytes = await response.aread()
-                        detail = detail_bytes[:500].decode("utf-8", "replace")
+                    if response.status_code in (402, 429):
+                        # 额度判据只看这两个状态码：credit 型 429 在重试语义
+                        # 之前裁决（池子空了重试无意义），普通限流 429 落回
+                        # 原重试分支。其余可重试状态（500 等）走原顺序。
+                        detail = (await response.aread())[:500].decode("utf-8", "replace")
                         verdict = self._quota_verdict(response.status_code, detail)
                         if verdict == "switch":
                             self._switch_to_plan(response.status_code)
@@ -441,12 +443,19 @@ class AnthropicProvider:
                             raise AnthropicProviderError(
                                 f"Anthropic HTTP {response.status_code}: {detail}"
                             )
+                        if response.status_code in _RETRYABLE_STATUS and attempt <= self.max_retries:
+                            retry_after = response.headers.get("retry-after")
+                            await _backoff(attempt, retry_after)
+                            continue
                         raise AnthropicProviderError(f"Anthropic HTTP {response.status_code}: {detail}")
                     if response.status_code in _RETRYABLE_STATUS and attempt <= self.max_retries:
                         retry_after = response.headers.get("retry-after")
                         await response.aread()
                         await _backoff(attempt, retry_after)
                         continue
+                    if response.status_code >= 400:
+                        detail = (await response.aread())[:500].decode("utf-8", "replace")
+                        raise AnthropicProviderError(f"Anthropic HTTP {response.status_code}: {detail}")
                     parsed = await _consume_anthropic_sse(response, on_delta, emitted_counter := {"chars": 0})
                     emitted = int(emitted_counter["chars"])
                     result = _sse_to_llm(parsed, self.model)
