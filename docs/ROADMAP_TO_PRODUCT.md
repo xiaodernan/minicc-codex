@@ -9079,3 +9079,44 @@ grade_answer_rubric` 少掉 `(task, answer)`、把 loader 调用换成一个带�
   且 ce454cf 与 436389c 同码曾整套 1577/0。这不是本批改动引起，也不许用「重跑就绿」蒙过去：修复另立
   M8-T116（把墙钟就绪换成「监听套接字已激活再探、失败信息点名真实原因」并配红率门）。本批的收口基线
   是在安静机器上重取的整套，数字见上。
+## 第一百零三批 M8-T116：HTTP fixture 就绪从 10s 墙钟拆成「套接字已连」＋「健康 200」两阶段，并配 10 次红率门
+
+### 1 缺陷来源
+
+第 102 批 §5 记录：`test_the_documented_command_reproduces_the_number` 在全量重跑时以 10s 墙钟红（`test_http_route_inventory.py` 的 `_Live` 只给了 10s 绝对秒表）。复盘：那时整套刚拆除基准 daemon 线程 / 套接字排空，瞬态资源压力把 readiness 推过了 10s；诊断时 0 个外来 python 进程、`test_http_route_inventory.py` 单跑 9 passed、安静机器上 86 passed 两次。这是红率问题，不是逻辑缺陷——把墙钟拆成两阶段（先看套接字是否已 accept，再看健康 200），并给一个 10 次 boot 的红率门，才是正确收口。
+
+### 2 落地（`tests/test_http_route_inventory.py`、`tests/test_http_surface.py`）
+
+- 共享函数 `_wait_for_live_server`：Phase 1 轮询 `socket.create_connection((host, port))`（最长 `_SOCKET_READY_S=10.0s`，单探 `_PROBE_TIMEOUT_S=2.0s`）；Phase 2 轮询 `GET /api/health`（最长 `_HEALTH_READY_S=30.0s`，同探测超时）。每个探测失败都记录 `last_tcp` / `last_http`，超时时完整把两阶段的“最后一次看到什么”写进报错，而不是只报“never answered (last status -1)”。
+- 两个 fixture（`_Live` in inventory、`_LiveServer` in surface）都改用该函数，删除各自的死板 10s 循环。`poll_interval` 保留 0.05s 以让 shutdown 廉价。
+- Phase 1 的“只连不说话”正是饿死形态：TCP 通了、应用层不回——这正是第 102 批撞到的状况，现在它的报错会写 `TCP connected at +X.Ys, but GET ... never returned 200 within ... (last: ...)`。
+
+### 3 验证（双向，全部在本批内亲手取）
+
+| 变异 | 期望红的测试 | 实测 |
+| --- | --- | --- |
+| 健康 deadline 缩到 2s（本机正常 boot 0.1s，远小于 2s） | `test_the_live_server_readiness_has_no_red_rate` 10 次 boot 全绿 → 绿 | 4.86s 绿 ✓ |
+| 把 200 改成 201（真 server 回 200） | 同测 10 次 boot → 红（bootstrap 超过健康 deadline） | 26.58s 红 ✓ |
+| 把健康阶段报错里的 `TCP connected at +...` 删掉 | `test_a_listening_socket_whose_app_never_answers_names_the_health_phase` 的三条断言红（floor / 24.0 / 假 `= 8x`） | 7.45s 红 ✓ |
+| 全恢复后跑 `test_http_route_inventory.py` + `test_http_surface.py` | 89 passed | 26.80s 全绿 ✓ |
+| 全量整套（含另一条流未提交的 M8-T113 文件） | **1580 passed / 0 failed / 548.67s** |
+
+### 4 红率门
+
+新增 `test_the_live_server_readiness_has_no_red_rate`：同一台机器连续 boot 10 次 `_Live`，每次必须完全到 serving 再 shutdown。这把红率本身做成门：如果 fixture 要求的安静程度高于 CI 能给的，这条门会红而不是把不确定性传给下游。本机 10/10 全绿。
+
+### 5 消息锚
+
+`test_a_closed_port_names_the_socket_phase`（Phase 1）：port 关闭后 `create_connection` 必定失败，断言报错含「never accepted a TCP connection」与一次 sighting（本机给的是 `TimeoutError` 而非 `Refused`，断言只要求“有 sighting、不是 no attempt yet」）。  
+`test_a_listening_socket_whose_app_never_answers_names_the_health_phase`（Phase 2）：只 bind socket、不跑 accept 循环 → TCP 通、应用层永远不回；断言报错含 `TCP connected at +`、含 `last:`、含 `alive=True`。这两条把两个半赤裸可复现，消息形状就是契约。
+
+### 6 M8-T71 绑带
+
+`test_a_listening_socket_whose_app_never_answers_names_the_health_phase` 用 `stand_in.join(timeout=5)` 再 `assert not stand_in.is_alive()` —— M8-T71 要求每个带超时的 join 后必须读活性，否则那个 join 并不证明线程真的止步。本批补上了该断言，`test_join_liveness.py` 的普查也随之绿（之前 1 红正是缺这一行）。
+
+### 7 边界（明确不声称）
+
+- **只动就绪等待**，不改任何业务路由逻辑、不改 SSE 读取逻辑、不改路由表枚举。
+- 10 次 boot 红率门的 100% 绿是本机单次抽样；CI 机器若跑不绿，这条门会红并说出红的是哪一次 boot，由 owner 决定是否调大 `_SOCKET_READY_S` / `_HEALTH_READY_S`——这就是它的作用。
+- `_PROBE_TIMEOUT_S=2.0s`、`_SOCKET_READY_S=10.0s`、`_HEALTH_READY_S=30.0s` 的数字本机单轮实测选的；未声称它们对所有 CI 环境最优，声称的是**分相位、有 sighting、有红率门**这套结构。
+- 全量 1580 passed 含另一条流未提交的 M8-T113 文件；推送树 = `origin/main` + 本批两文件。
