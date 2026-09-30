@@ -26,7 +26,12 @@ ENV_TOKEN = "MINICC_WEB_TOKEN"
 TOKEN_FILE_NAME = "web_token.json"
 TOKEN_BYTES = 32
 
-LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1", "[::1]", "::0"})
+# `::0` is deliberately absent: it normalizes to `::`, the IPv6 UNSPECIFIED /
+# all-interfaces address (ip_address("::0").is_unspecified is True,
+# .is_loopback is False) — the analogue of `0.0.0.0`, which is likewise not
+# listed. Treating it as loopback let `--host ::0` bind every interface while
+# requiring no token, and echoed an `http://[::0]` Origin (M8-T117).
+LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1", "[::1]"})
 # Hostname suffixes that stay inside the developer's own machine even when
 # the OS resolves several loopback names (``localhost.<domain>`` on macOS).
 #

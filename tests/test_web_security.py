@@ -43,6 +43,25 @@ def test_loopback_host_detection() -> None:
     assert not is_loopback_host("0.0.0.0")
     assert not is_loopback_host("192.168.1.8")
     assert not is_loopback_host("")
+    # M8-T117: `::0` normalizes to `::` — the IPv6 UNSPECIFIED / all-interfaces
+    # address, the exact analogue of `0.0.0.0` above. The stdlib agrees:
+    # ip_address("::0").is_unspecified is True and .is_loopback is False. It was
+    # wrongly listed in LOOPBACK_HOSTS, so `--host ::0` bound every interface yet
+    # computed required=False at web.py:2703 — an authentication bypass.
+    assert not is_loopback_host("::0")
+    assert not is_loopback_host("::")
+
+
+def test_unspecified_ipv6_origin_is_not_echoed_by_cors() -> None:
+    # The reachable consequence (webauth.py:143): cors_origin echoes an Origin
+    # into Access-Control-Allow-Origin only for loopback hosts, so a page served
+    # from the all-interfaces address must NOT get its origin echoed back —
+    # otherwise an all-interfaces `--host ::0` bind exposes the API to cross-site
+    # reads. The `[::1]` control proves the None below is the classification, not
+    # cors_origin returning None for everything.
+    assert not origin_allowed("http://[::0]:8731")
+    assert cors_origin("http://[::0]:8731") is None
+    assert cors_origin("http://[::1]:8731") == "http://[::1]:8731"
 
 
 def test_webauth_required_rejects_missing_and_wrong_token() -> None:
