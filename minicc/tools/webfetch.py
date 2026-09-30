@@ -220,7 +220,18 @@ def _meta_charset(html_bytes: bytes) -> str | None:
         if tail.startswith(quote):
             end = tail.find(quote, 1)
             return tail[1:end] if end > 0 else None
-    return tail.split(">", 1)[0].split(";")[0].strip() or None
+    # M8-T118: the value may be unquoted yet written inside a quoted attribute
+    # (`content="text/html; charset=gb2312">`) or self-closed (`charset=big5" />`).
+    # The token then ends at the first delimiter - a quote, `;`, `>`, or
+    # whitespace - not at `>` alone. Splitting only on `>` left `gb2312"` and
+    # `big5" /`, and the decode in fetch_url_text raised LookupError, so the
+    # shipped webfetch tool returned a TOOL_ERROR for legacy/CJK pages.
+    end = len(tail)
+    for i, ch in enumerate(tail):
+        if ch in "\"';> \t\r\n":
+            end = i
+            break
+    return tail[:end] or None
 
 
 def _download(

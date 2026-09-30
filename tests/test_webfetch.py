@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import codecs
 import socket
 import threading
 import time
@@ -13,6 +14,7 @@ import pytest
 
 from minicc.tools.webfetch import (
     FetchDeniedError,
+    _meta_charset,
     build_tool_result,
     fetch_url_text,
     webfetch,
@@ -284,3 +286,59 @@ def test_redirect_hop_to_loopback_denied_without_env(
     result = fetch_url_text(f"http://good.test:{port}/redirect-evil")
     assert "SSRF" in result["error"]
     assert result["text"] == ""
+
+
+# M8-T118: _meta_charset must return a clean, decodable token.
+#
+# fetch_url_text decodes the body with the meta charset, so a token that keeps
+# any trailing delimiter (a quote, `;`, `>`, or whitespace) is not a charset
+# name: the decode raised LookupError and the shipped webfetch tool returned a
+# TOOL_ERROR for legacy/CJK pages. The two "bug" shapes below are the ones the
+# old `split(">")` fallthrough mis-parsed; the controls pin the shapes it
+# already handled so the fix cannot regress them.
+
+
+def test_meta_charset_unquoted_value_inside_quoted_attribute():
+    # http-equiv form: the value is unquoted but sits inside content="..."
+    got = _meta_charset(
+        b'<meta http-equiv="Content-Type" content="text/html; charset=gb2312">'
+    )
+    assert got == "gb2312"
+
+
+def test_meta_charset_self_closing_trailing_delimiter():
+    got = _meta_charset(b'<meta http-equiv="content-type" content="text/html;charset=big5" />')
+    assert got == "big5"
+
+
+def test_meta_charset_quoted_value_control():
+    got = _meta_charset(b'<meta charset="utf-8">')
+    assert got == "utf-8"
+
+
+def test_meta_charset_plain_gt_terminated_control():
+    got = _meta_charset(b"<meta charset=shift_jis>")
+    assert got == "shift_jis"
+
+
+@pytest.mark.parametrize(
+    "raw,expected",
+    [
+        (b'<meta http-equiv="Content-Type" content="text/html; charset=gb2312">', "gb2312"),
+        (b'<meta http-equiv="content-type" content="text/html;charset=big5" />', "big5"),
+        (b'<meta charset="utf-8">', "utf-8"),
+        (b"<meta charset=shift_jis>", "shift_jis"),
+        (b'<meta charset="windows-1252"/>', "windows-1252"),
+    ],
+)
+def test_meta_charset_token_is_a_real_codec(raw, expected):
+    # Every returned token must name a codec the decode step can actually use.
+    # This is the clause the old bug violated: 'gb2312"' / 'big5" /' are not.
+    got = _meta_charset(raw)
+    assert got == expected
+    codecs.lookup(got)  # raises LookupError on a leaked delimiter
+
+
+def test_meta_charset_none_when_absent():
+    assert _meta_charset(b"<html><body>no charset here</body></html>") is None
+    assert _meta_charset(b"") is None
