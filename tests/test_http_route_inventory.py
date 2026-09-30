@@ -21,12 +21,14 @@ from __future__ import annotations
 import ast
 import json
 import re
+import socket
 import threading
 import time
 import types
 import urllib.error
 import urllib.parse
 import urllib.request
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -114,6 +116,105 @@ def _config(workspace: Path) -> types.SimpleNamespace:
     )
 
 
+#: Readiness arrives in two phases because "nothing is listening" and "the app
+#: never answered" have different owners. M8-T116: the old single 10s wall
+#: folded both into "never answered (last status -1)", which under teardown
+#: pressure blamed the server for the machine being busy (batch 102). Phase 1
+#: waits for the listening socket to accept a TCP connection; phase 2 waits for
+#: GET /api/health to return 200. Each failure names its phase and its last
+#: sighting, so a red says which half stalled.
+_SOCKET_READY_S = 10.0
+_HEALTH_READY_S = 30.0
+
+#: One probe must never be allowed to eat the whole phase: the old surface
+#: fixture probed with a 20s urlopen inside a 10s wall, so a single hung probe
+#: was the entire budget. Short attempts with retries to the deadline absorb a
+#: slow-but-alive server; only a persistently silent one reds.
+_PROBE_TIMEOUT_S = 2.0
+
+
+def _split_origin(origin: str) -> tuple[str, int]:
+    parts = urllib.parse.urlsplit(origin)
+    assert parts.hostname is not None, f"cannot read a host out of {origin!r}"
+    return parts.hostname, parts.port or 80
+
+
+def _wait_for_live_server(
+    *,
+    origin: str,
+    thread: threading.Thread,
+    thread_error: Callable[[], BaseException | None],
+    http_get_status: Callable[[float], int],
+    socket_deadline_s: float = _SOCKET_READY_S,
+    health_deadline_s: float = _HEALTH_READY_S,
+    probe_timeout_s: float = _PROBE_TIMEOUT_S,
+) -> None:
+    """Block until the fixture server serves, or fail naming which half stalled.
+
+    ``http_get_status`` takes the per-probe timeout and returns the
+    ``GET /api/health`` status; anything it raises is recorded as the red's
+    named cause rather than escaping as an error. A dead serving thread still
+    fails fast - the longer health deadline only spends time on a thread that
+    is alive but silent, which is exactly the case the old wall misreported.
+    """
+    host, port = _split_origin(origin)
+    started = time.monotonic()
+
+    def _check_thread() -> None:
+        error = thread_error()
+        if error is not None or not thread.is_alive():
+            raise AssertionError(
+                f"the test HTTP server thread {thread.name!r} died before serving "
+                f"{origin}; it raised: {error!r}"
+            )
+
+    # Phase 1: transport. The kernel completes the handshake off the backlog,
+    # so this passing while phase 2 stalls is itself the starvation signature.
+    last_tcp = "no attempt yet"
+    tcp_accepted_at: float | None = None
+    while tcp_accepted_at is None:
+        _check_thread()
+        try:
+            with socket.create_connection((host, port), timeout=probe_timeout_s):
+                pass
+        except OSError as exc:
+            last_tcp = f"{type(exc).__name__}: {exc}"
+        else:
+            tcp_accepted_at = time.monotonic() - started
+        if tcp_accepted_at is None:
+            if time.monotonic() - started >= socket_deadline_s:
+                raise AssertionError(
+                    f"the test HTTP server's listening socket at {origin} never "
+                    f"accepted a TCP connection within {socket_deadline_s:.0f}s "
+                    f"(last: {last_tcp}); thread {thread.name!r} alive="
+                    f"{thread.is_alive()}, its exception={thread_error()!r}"
+                )
+            time.sleep(0.05)
+
+    # Phase 2: application.
+    assert tcp_accepted_at is not None
+    phase2_started = time.monotonic()
+    last_http = "no attempt yet"
+    while True:
+        _check_thread()
+        try:
+            status = http_get_status(probe_timeout_s)
+        except Exception as exc:  # noqa: BLE001 - recorded as the red's named cause
+            last_http = f"{type(exc).__name__}: {exc}"
+        else:
+            last_http = str(status)
+            if status == 200:
+                return
+        if time.monotonic() - phase2_started >= health_deadline_s:
+            raise AssertionError(
+                f"TCP connected at +{tcp_accepted_at:.1f}s, but GET {origin}/api/health "
+                f"never returned 200 within {health_deadline_s:.0f}s (last: {last_http}); "
+                f"thread {thread.name!r} alive={thread.is_alive()}, its exception="
+                f"{thread_error()!r}"
+            )
+        time.sleep(0.05)
+
+
 class _Live:
     def __init__(self, workspace: Path) -> None:
         self.service = AgentService(
@@ -127,28 +228,21 @@ class _Live:
         self.thread.start()
         self.origin = f"http://127.0.0.1:{self.server.server_address[1]}"
         # M8-T68: publish the origin only after the accept loop has answered once.
-        deadline = time.monotonic() + 10.0
-        while True:
-            if self.error is not None or not self.thread.is_alive():
-                raise AssertionError(
-                    f"the test HTTP server thread {self.thread.name!r} died before serving "
-                    f"{self.origin}; it raised: {self.error!r}"
-                )
+        # M8-T116: the wait itself moved into _wait_for_live_server - transport
+        # first, application second, each failure naming its phase.
+        def _probe_health(probe_timeout_s: float) -> int:
             try:
-                with urllib.request.urlopen(f"{self.origin}/api/health", timeout=5) as probe:
-                    status = probe.status
+                with urllib.request.urlopen(f"{self.origin}/api/health", timeout=probe_timeout_s) as probe:
+                    return probe.status
             except urllib.error.HTTPError as exc:
-                status = exc.code
-            except OSError:
-                status = -1
-            if status == 200:
-                return
-            if time.monotonic() >= deadline:
-                raise AssertionError(
-                    f"the test HTTP server thread {self.thread.name!r} never answered GET "
-                    f"/api/health with 200 within 10s (last status {status}) at {self.origin}"
-                )
-            time.sleep(0.02)
+                return exc.code
+
+        _wait_for_live_server(
+            origin=self.origin,
+            thread=self.thread,
+            thread_error=lambda: self.error,
+            http_get_status=_probe_health,
+        )
 
     def _serve(self, **kwargs) -> None:
         try:
@@ -492,5 +586,118 @@ def test_event_stream_replay_from_a_cursor_also_answers(tmp_path: Path) -> None:
         assert "data:" in text, f"replay produced no frame: {text[:400]!r}"
     finally:
         live.shutdown()
+
+
+#: M8-T116's standing guard: readiness is a red-*rate* problem, not a logic
+#: problem - the batch-102 red was a 10s wall hit under teardown pressure, with
+#: the logic itself correct. Booting the real fixture this many times and
+#: requiring every boot to serve keeps the new deadlines honest: if the fixture
+#: needs a quieter room than the suite runs in, this is the cell that says so
+#: instead of a flaky inventory cell somewhere downstream.
+_READINESS_RED_RATE_BOOTS = 10
+
+
+def test_the_live_server_readiness_has_no_red_rate(tmp_path: Path) -> None:
+    """Boot the fixture server repeatedly; every boot must reach serving."""
+    failures: list[str] = []
+    for index in range(_READINESS_RED_RATE_BOOTS):
+        workspace = tmp_path / f"red-rate-{index}"
+        workspace.mkdir()
+        try:
+            live = _Live(workspace)
+        except AssertionError as exc:
+            failures.append(f"boot {index} never served: {exc}")
+            continue
+        try:
+            live.shutdown()
+        except AssertionError as exc:
+            failures.append(f"shutdown {index} never reaped: {exc}")
+    assert failures == [], (
+        f"readiness red rate {len(failures)}/{_READINESS_RED_RATE_BOOTS}:\n"
+        + "\n".join(failures)
+    )
+
+
+def test_a_closed_port_names_the_socket_phase() -> None:
+    """Phase 1's red must say the socket never accepted - not "never answered".
+
+    The port is bound and closed here, so refusal is deterministic rather than
+    load-dependent; what is under test is the message's phase attribution, not
+    the network.
+    """
+    probe_sock = socket.create_server(("127.0.0.1", 0))
+    closed_port = probe_sock.getsockname()[1]
+    probe_sock.close()
+    with pytest.raises(AssertionError) as exc:
+        _wait_for_live_server(
+            origin=f"http://127.0.0.1:{closed_port}",
+            thread=threading.current_thread(),
+            thread_error=lambda: None,
+            http_get_status=lambda probe_timeout_s: 200,
+            socket_deadline_s=1.0,
+            probe_timeout_s=0.5,
+        )
+    message = str(exc.value)
+    assert "never accepted a TCP connection" in message, message
+    # A sighting was recorded (the exact errno is the stack's business: this
+    # machine answers a closed loopback port with a timeout, not a refusal).
+    assert "(last: " in message and "no attempt yet" not in message, message
+    assert "alive=True" in message, message
+
+
+def test_a_listening_socket_whose_app_never_answers_names_the_health_phase(
+    tmp_path: Path,
+) -> None:
+    """Phase 2's red must carry the TCP-accepted timestamp and the last sighting.
+
+    The socket is bound (so the kernel accepts) while no accept loop runs -
+    exactly the starvation shape batch 102 met: transport up, application
+    silent. ``server.shutdown()`` is deliberately *not* called here: with no
+    ``serve_forever`` running it would block forever waiting for a loop that
+    never started; ``server_close`` plus ``service.shutdown`` is the complete
+    teardown for a loop that never began.
+    """
+    service = AgentService(
+        tmp_path, _config(tmp_path), task_store=TaskStore(tmp_path / "tasks.sqlite3")
+    )
+    server = MiniccHTTPServer(("127.0.0.1", 0), service, auth=WebAuth("tok", required=False))
+    origin = f"http://127.0.0.1:{server.server_address[1]}"
+    stop = threading.Event()
+    stand_in = threading.Thread(target=stop.wait, args=(60,), daemon=True, name="minicc-test-server")
+    stand_in.start()
+
+    def _probe_real(probe_timeout_s: float) -> int:
+        try:
+            with urllib.request.urlopen(f"{origin}/api/health", timeout=probe_timeout_s) as probe:
+                return probe.status
+        except urllib.error.HTTPError as exc:
+            return exc.code
+
+    try:
+        with pytest.raises(AssertionError) as exc:
+            _wait_for_live_server(
+                origin=origin,
+                thread=stand_in,
+                thread_error=lambda: None,
+                http_get_status=_probe_real,
+                socket_deadline_s=5.0,
+                health_deadline_s=1.0,
+                probe_timeout_s=1.0,
+            )
+    finally:
+        server.server_close()
+        service.shutdown()
+        stop.set()
+        stand_in.join(timeout=5)
+        assert not stand_in.is_alive(), (
+            "the stand-in thread is still alive after its stop event was set; it "
+            "holds only a daemon thread slot (no socket, no store), but a join "
+            "that returns is not proof it stopped"
+        )
+    message = str(exc.value)
+    assert "never returned 200" in message, message
+    assert "TCP connected at +" in message, message
+    assert "(last: " in message, message
+    assert "alive=True" in message, message
 
 

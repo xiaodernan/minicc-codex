@@ -27,6 +27,7 @@ from minicc.agent.rpc import RpcDispatcher, RpcProtocolError, parse_request
 from minicc.task_store import TaskStore
 from minicc.web import AgentService, MiniccHTTPServer
 from minicc.webauth import WebAuth
+from tests.test_http_route_inventory import _wait_for_live_server
 
 
 # ---------------------------------------------------------------------------
@@ -78,25 +79,23 @@ class _LiveServer:
         # "assert 0 == 8" and a teardown ExceptionGroup, none of which named the dead thread.
         # So the fixture now proves it is serving before handing out its url, and reports the
         # thread's own exception if it is not.
-        deadline = time.monotonic() + 10.0
-        while True:
-            if self.error is not None or not self.thread.is_alive():
-                raise AssertionError(
-                    f"the test HTTP server thread {self.thread.name!r} died before serving "
-                    f"{self.url}; it raised: {self.error!r}"
-                )
+        # M8-T116: the wait itself is the shared two-phase helper (transport first,
+        # application second). Its per-probe timeout also retires this fixture's old
+        # 20s urlopen inside a 10s wall, where one hung probe was the whole budget.
+        def _probe_health(probe_timeout_s: float) -> int:
+            request = urllib.request.Request(f"{self.url}/api/health", method="GET")
             try:
-                status, _, _ = _request(f"{self.url}/api/health", method="GET")
-            except OSError:
-                status = -1
-            if status == 200:
-                return
-            if time.monotonic() >= deadline:
-                raise AssertionError(
-                    f"the test HTTP server at {self.url} never answered /api/health within "
-                    f"10s; thread alive={self.thread.is_alive()}, its exception={self.error!r}"
-                )
-            time.sleep(0.02)
+                with urllib.request.urlopen(request, timeout=probe_timeout_s) as probe:
+                    return probe.status
+            except urllib.error.HTTPError as exc:
+                return exc.code
+
+        _wait_for_live_server(
+            origin=self.url,
+            thread=self.thread,
+            thread_error=lambda: self.error,
+            http_get_status=_probe_health,
+        )
 
     def _serve(self, **kwargs) -> None:
         try:
