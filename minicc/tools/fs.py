@@ -141,6 +141,24 @@ def _digest_note(editor: Editor, path: str) -> str:
     return editor.file_digest(path)
 
 
+def _in_skipped_tree(path: Path, root: Path) -> bool:
+    """True when a glob match must be hidden because of SKIP_DIRS.
+
+    M8-T119: hide an entry only for a SKIP_DIRS *ancestor* directory, or because
+    the entry is itself a skipped *directory*. A plain file whose own name happens
+    to equal a SKIP_DIRS entry ("build", "target", "dist", "venv") is legitimate
+    workspace content. The old slice was ``p.parts[len(root.parts):]`` — it kept
+    the basename, so glob silently hid such files while grep (which used
+    ``rel.parts[:-1]``) searched them, and the two read-only tools disagreed about
+    the same workspace. A naive fix that just drops the basename would regress the
+    directory case, so the entry's own name is still checked when it is a dir.
+    """
+    rel = path.parts[len(root.parts):]
+    if any(part in SKIP_DIRS for part in rel[:-1]):
+        return True
+    return bool(rel) and rel[-1] in SKIP_DIRS and path.is_dir()
+
+
 class FsTools:
     """Bound to one workspace Editor instance."""
 
@@ -244,7 +262,7 @@ class FsTools:
             matches = sorted(
                 p.relative_to(self.editor.workspace).as_posix()
                 for p in root.rglob(pattern)
-                if any(part in SKIP_DIRS for part in p.parts[len(root.parts):]) is False
+                if not _in_skipped_tree(p, root)
                 and not _escapes_workspace(p, self.editor.workspace.resolve())
             )
         except ToolError:
