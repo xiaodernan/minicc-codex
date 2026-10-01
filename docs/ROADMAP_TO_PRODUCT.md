@@ -9120,3 +9120,17 @@ grade_answer_rubric` 少掉 `(task, answer)`、把 loader 调用换成一个带�
 - 10 次 boot 红率门的 100% 绿是本机单次抽样；CI 机器若跑不绿，这条门会红并说出红的是哪一次 boot，由 owner 决定是否调大 `_SOCKET_READY_S` / `_HEALTH_READY_S`——这就是它的作用。
 - `_PROBE_TIMEOUT_S=2.0s`、`_SOCKET_READY_S=10.0s`、`_HEALTH_READY_S=30.0s` 的数字本机单轮实测选的；未声称它们对所有 CI 环境最优，声称的是**分相位、有 sighting、有红率门**这套结构。
 - 全量 1580 passed 含另一条流未提交的 M8-T113 文件；推送树 = `origin/main` + 本批两文件。
+
+### M8-T60 落地 + M8-T59 定向验证（2026-09-30）
+
+**M8-T60**：「两种大模型调用方式都要支持」的另一半——Anthropic Messages 路径的套餐切换。
+判据复用 openai_provider 的 _QUOTA_EXHAUSTED_CODES（单一事实源），流式与 JSON 两路都接；
+改进一处语义：credit 型 429 无套餐通道时立刻死，不烧重试预算。流式分支第一版把
+>=400 检查提到可重试检查之前烧掉了 500 的原重试语义（既有测试抓住），已收窄到
+402/429 分支修复。tests/test_anthropic_plan_channel.py 5 条。
+
+**M8-T59 定向验证**：终局的 2 条随机失败任务（greeting-needs-fix / docs-pair）
+× 3 轮重跑（套餐通道）：**6/6 全部通过**。结合终局全量 22/24 与本轮 6/6，
+两条任务在 M8-T58（检视回退）+ M8-T59（两次 nudge）之后未再观察到失败——
+随机守卫死亡在实践中已被消化。全量测试 1586 passed 零失败。
+
