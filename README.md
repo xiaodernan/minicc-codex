@@ -223,7 +223,7 @@ MINICC_PLAN_API_KEY=<Step API Key>                      # 未设置则不启用�
 
 ### 写后验证的语义
 
-修改工作区后，执行器要求取得验证证据才允许交付：白名单检查器（python -m pytest、python -m compileall、mypy、node --check、npm run test|check|typecheck|lint）的成功运行；写入后的 read_file/git_diff 检视也计入进度，并且当验证计划对本次改动**产不出任何可运行命令**（例如纯文本/JSON 改动且工作区没有测试）时，检视即可作为完成验证——守卫不提出客观上无法满足的要求。写后未取得证据的结束尝试最多被退回两次（`VERIFICATION_RETRY_LIMIT=2`）。
+修改工作区后，执行器要求取得验证证据才允许交付：白名单检查器（python -m pytest、python -m compileall、mypy、node --check，以及 package.json 里名为 test/check/typecheck/lint 的 npm 脚本）的成功运行；写入后的 read_file/git_diff 检视也计入进度，并且当验证计划对本次改动**产不出任何可运行命令**（例如纯文本/JSON 改动且工作区没有测试）时，检视即可作为完成验证——守卫不提出客观上无法满足的要求。写后未取得证据的结束尝试最多被退回两次（`VERIFICATION_RETRY_LIMIT=2`）。
 
 启动 Web 工作台后，打开左下角设置，在“模型”下拉框中可查看当前网关返回的模型列表（例如 `step-5-preview`），也可以点击刷新。模型和“推理强度”都只影响之后新建的任务；每个任务会把自己的选择保存到快照，恢复或并行执行时不会丢失。模型列表获取失败时仍会保留配置中的默认模型。
 
