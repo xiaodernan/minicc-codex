@@ -197,7 +197,11 @@ def match_session_allowlist(
     except AllowlistError:
         return False
     name = str(tool or "").strip()
-    if name and any(fnmatch.fnmatch(name, pattern) for pattern in rules["tools"]):
+    # Escape brackets on the tools axis too: a rule the user typed with a
+    # literal ``[`` (e.g. an editor alias like ``py[39]``) would otherwise be
+    # read as a fnmatch character class and auto-consent a substituted tool
+    # name. ``_escape_brackets`` leaves ``*``/``?`` globbing intact.
+    if name and any(fnmatch.fnmatch(name, _escape_brackets(pattern)) for pattern in rules["tools"]):
         return True
     if name == "bash":
         command, _ = redact_text(str((arguments or {}).get("command") or ""))
@@ -210,7 +214,10 @@ def match_session_allowlist(
     # removeprefix("./") tolerates only a literal "./" prefix. str.lstrip("./")
     # erodes any leading '.'/'/' run, so ../-escaping and absolute paths had
     # their prefix erased and a narrow relative rule wrongly auto-consented them.
-    if rel and any(fnmatch.fnmatch(rel, pattern) or fnmatch.fnmatch(rel.removeprefix("./"), pattern) for pattern in rules["paths"]):
+    # Brackets are escaped for the same reason as the tools axis: a rule with a
+    # literal ``[`` (a version-tagged dir like ``releases[2.0]``) must match that
+    # directory, not act as a character class that also approves ``releases2``.
+    if rel and any(fnmatch.fnmatch(rel, _escape_brackets(pattern)) or fnmatch.fnmatch(rel.removeprefix("./"), _escape_brackets(pattern)) for pattern in rules["paths"]):
         return True
     return False
 
