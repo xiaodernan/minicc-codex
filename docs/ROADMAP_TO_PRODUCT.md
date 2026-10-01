@@ -9200,3 +9200,42 @@ grade_answer_rubric` 少掉 `(task, answer)`、把 loader 调用换成一个带�
 - 四处变异都是“调用没了、名字还在”的形状；“名字和调用一起没了”（函数被删）是另一类红，由各门的存在性断言（`next(...)` / `assert found`）覆盖，不在本批变异表里重测。
 - 全量 1580 passed 含另一条流未提交的 M8-T113 文件与本机工作树里另一条流的改动（`minicc/config.py`、`minicc/web.py` 两个已跟踪文件的修改，加一个未被跟踪的新测试文件，此处不点名——干净检出里它不存在）；推送树 = `origin/main` + 另一条流已落的两笔记录 + 本批三文件。
 
+## 第一百零五批 M8-T118：GATE_METRICS 收下两个拒判计数（方向 `<=`）、review_rounds 只印个数、`tool_repeat_rate` 按用户口径删干净
+
+### 1 来源与占号
+
+第九十五批 §8-3 留的三件套：GATE_METRICS 方向阈值、`review_rounds` 印法、恒 null 的 `tool_repeat_rate`（task #83，十几批记录里写“等用户口径”）。占号前读了 `git log origin/main` 与文档全文：无 T118、无 T119；本批认领 **M8-T118**（代码注释与测试名已先行使用该号）。`tool_repeat_rate` 的删/算当面问了用户，口径＝**删干净**。
+
+### 2 量到的三件事（都是动手量的，不是推出来的）
+
+- `repeated_tool_calls` 全仓库（`minicc/` AST census + grep）**无写主**：`benchmarks.py` 三处读（行重建、累加、指标），零处写。`test_behavior_bench.py:45` 把 null 钉死，行 census 为它留着唯一活豁免——豁免本身活着，恰好证明洞一直在。
+- `review_rounds` 印法问题是个假问题：runner 写的是 **list of dicts**（`_review_rounds()`，`run_benchmark` 行上 8 条 bounded tail 有测试为证），而 `build_report` 的拷贝守卫只放行 int/float——**每个真 list 都被丢成 None**，报告行里从来没有 rounds 可印。行 census 的 witness 值却是 int（`3`），证明的是一个没人生产的形状。
+- `compare_reports` 吐出的 `variant` 字典里根本没有两个拒判计数：`_gate_actual` 对它们永远拿 `None`，fail-closed 恒红。所以“进 GATE_METRICS”必须连 `variant`/`baseline` 的携带一起改，否则门一律红在缺数上。
+
+### 3 落地
+
+- **删**：指标行、print `preferred` 顺序、行重建拷贝、`repeated`/`calls` 两个死累加、`EXCEPTIONS_FOR_UNWRITTEN_READS` 条目、`test_report_rejects_invalid_measurements` 里的手造字段与 null 断言。`tool_calls` 的拷贝保留（runner 真写它）。
+- **修**：`review_rounds` 拷贝守卫接受 list-of-dicts（其余形状仍是 None）；行 census 的 witness 值改成真形状（`[{"code": ...}]`）。
+- **印**：markdown 任务表 verdict 格追加 `[N review rounds]`（单数单写）；rounds 内容本身留在 JSON 行里（已有 8 轮/200 字界）。
+- **门**：`GATE_METRICS` 加 `grading_refusal_count`、`reviewer_false_negative_count`，方向记进模块注释（坏事计数一律 `<=`；阈值归调用方，count 不跨套件比），`compare_reports` 的两边字典开始携带这两个数。
+
+### 4 验证（双向，全在本批内亲手取）
+
+| 变异 | 红的门 | 实测 |
+| --- | --- | --- |
+| 指标加回来（哪怕是 null） | `test_tool_repeat_rate_is_retired_not_nulled`（断言键缺席） | 1 failed ✓ |
+| 拷贝守卫改回 measurement-only | 行 census `test_a_recorded_field_reaches_the_report_row[review_rounds]`（list witness 被丢） | 1 failed，其余 20 绿 ✓ |
+| verdict 格 marker 删掉 | 两个 markdown 印法测试 | 2 failed ✓ |
+| `GATE_METRICS` 拿掉 `grading_refusal_count` | `test_refusal_family_counts_gate_with_less_or_equal` | 1 failed ✓ |
+| 全恢复 | 五文件 102 passed | 20.82s 全绿 ✓ |
+| 全量整套 | **1635 passed / 0 failed / 567.32s** |  |
+
+新测试 5 个：退役钉（metrics＋markdown 双缺席）、门方向（parse＋evaluate＋fail-closed 缺数）、印法 3 个（复数／单数／无 marker＋脏输入无 marker）。
+
+### 5 边界（明确不声称）
+
+- **CI 的门阈值本批一个没动**：nightly 的三个 `--gate` 保持原样；`grading_refusal_count<=0` 这类新门可用，但阈值是调用方的事，不由本批代定。
+- “真算重复计数”这条路没有堵死：公式与读法都在 git 历史里；本批只是执行了用户的删干净口径。
+- 历史文档（AUDIT／GAP／ROADMAP 旧批次）里 `tool_repeat_rate` 的字样一律不动——快照如实记录当时。
+- 全量 1635 里含另一条流未提交的工作树文件（含一个 50 格左右的新测试文件）；推送树 = `origin/main` + 本批六文件。
+
