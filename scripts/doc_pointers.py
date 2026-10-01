@@ -973,7 +973,8 @@ _BUILD_OUTPUT_PATH: dict[str, str] = {
 #: so the gap is a named row instead of a silently red gate — and so the day it
 #: lands, this entry goes stale and the tool complains.
 _PROMISED_PATH: dict[str, str] = {
-    "docs/SECURITY_CHECKLIST.md": "M2 退出标准第 3 条要求的文件从未建立；攻击面目前只在 tests/test_security_perimeter.py 里",
+    # "docs/SECURITY_CHECKLIST.md" 曾在此挂账（M2 退出标准第 3 条要求的文件
+    # 从未建立）；2026-10-01 建立后逐条对应现存攻击测试，豁免随之兑现删除。
     "tests/test_stream_merge.py": "M8-T11 验收要求新建的文件；逐字节合并断言实际落在 tests/test_m1_integrity.py",
     "benchmarks/fixture-workspaces/": "M4-T5 计划列了它，同文档的交付行明确写着**未单独建**——v2 fixture 用 "
     "tasks.v2.json 内联的 `fixture` 字典 + 独立 tempdir，磁盘种子树会和它漂移",
