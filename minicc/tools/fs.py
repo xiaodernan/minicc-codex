@@ -131,7 +131,14 @@ def _file_result(text: str, summary: str, **data: Any) -> ToolResult:
 
 
 def _digest_note(editor: Editor, path: str) -> str:
-    return editor.file_digest(path)[:12]
+    """模型可见的完整 digest（64 位十六进制）。
+
+    曾经截断到 12 位「为了好看」——但 render() 不渲染 data 字段，summary
+    是模型看到摘要的**唯一**地方，而 expected_digest 需要完整 64 位。
+    截断展示配合模型「复制眼前摘要」的天性，就是 M8-T56 发现的摘要幻觉
+    循环（fix-slug 35 轮）：把完整值给它，链式编辑就能直接用。
+    """
+    return editor.file_digest(path)
 
 
 class FsTools:

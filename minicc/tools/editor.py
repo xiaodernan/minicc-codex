@@ -68,7 +68,7 @@ class StaleContextError(EditError):
             f"STALE_CONTEXT: {path} 的 digest 不匹配 "
             f"(expected {expected[:12]}…, actual {actual[:12]}…); 拒绝写入, 未落盘。"
             "digest 已在写入间隙变化——不要复用错误信息里的截断摘要，"
-            "请先 read_file 获取最新内容与完整 digest（read_file_meta 返回 64 位十六进制），再重试写入。"
+            "请先 read_file 获取最新内容（其结果摘要含完整 64 位 digest），再重试写入。"
         )
         self.expected_digest = expected
         self.actual_digest = actual
