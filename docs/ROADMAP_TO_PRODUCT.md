@@ -9302,3 +9302,41 @@ grade_answer_rubric` 少掉 `(task, answer)`、把 loader 调用换成一个带�
 - 只收紧 USER CONSENT（关闭免提示批准目录外路径），未放宽任何 fail-CLOSED 守卫。
 - netguard 把 CGNAT 段与 6to4 或 Teredo 视作公网的缺口仍是待用户决策项，本批不动。
 - 本批永久跳过被否证的那个编号；推送为 non-force 快进，落地顶端即本批最后一条 allowlist 单位。
+## 第一百零八批 M8-T126：permissions.json 是第二道 consent 门，必须与 session 名单同一只读法
+
+### 1 来源与占号
+
+上一号是「第一百零七批」，八个单位已落 `origin/main`，账本记录在 `401f39b`。本批只占一号 M8-T126，来源不是新模块，而是那三个单位（M8-T123、M8-T124、M8-T125）自己的收尾缺口：它们修的 `minicc/allowlist.py` 里的三处 fnmatch 轴，在 `minicc/permissions.py` 里有一份手抄的第二副本，而第二副本当时没人回头看。占号前先读 `git log origin/main`，`M8-T126` 在全库零命中。
+
+### 2 缺陷
+
+`minicc/permissions.py` 的 `_match_patterns` 把 session 名单的三条轴照抄了一遍，所以那份拷贝停在 M8-T123 之前的状态：路径轴仍然用 `str.lstrip("./")` 抹掉前缀（`lstrip` 吃的是字符集合 `{'.', '/'}` 的任意一段，不是字面量 `./`），也从不折叠路径里的 `..`，工具轴更没走 `_escape_brackets`。
+
+在已提交版本上量到的四条红，用的都是用户真会写进 `.minicc/permissions.json` 的规则「src/*.py」：
+
+- 路径 `../src/evil.py` → 判成 allow；
+- 路径 `/src/a.py` → 判成 allow；
+- 路径 `src/../../outside/x.py` → 判成 allow（`fnmatch` 没有路径语义，字面 `src/` 前缀留住了）；
+- 工具规则「re[a-d]d_file」→ 放行 `read_file`（方括号被读成字符类，一个字符的差别正好拼出另一个工具名）。
+
+这是 user consent 上的 fail-open，不是口径问题：`minicc/web.py` 的 `should_allow` 只要看到 allow 就直接产出放行决定、不再向用户发交互提示，与 `minicc/audit.py` 对 session 名单返回 True 的处理是同一条语义。也就是说，一个签进工作区的 `permissions.json` 会把它的双胞胎文件早已学会拒绝的路径，仍然免提示放行。
+
+### 3 修法
+
+把缺陷的手抄根因拿掉，而不是把正确的谓词再贴一遍——再贴一次，下一次只改一个文件时它就会重新变红。tools 与 paths 两轴现在是 `minicc/allowlist.py` 里的一对共享函数 `tool_rule_matches` 与 `path_rule_matches`，两个规则文件共用同一只读法；`match_permission_rule` 与 `match_session_allowlist` 因此不可能再各说各话。
+
+### 4 验证
+
+新门在 `tests/test_permissions_path_rules_share_the_allowlist_matcher.py`，共十五例。四例逐条钉住上面量到的形状；另有一例记下一处不对称：同一份归一化也让 deny 侧对「走出工作区」的路径变窄——以两个点开头的越界写法，不再命中一条只谈工作区内目录的规则；而真正要紧的收窄方向相反：一个以 docs 段开头、折叠之后正落在被否决那个目录里的写法，现在会被拒，旧的裸比对只看见开头那个目录段，就放走了这条否决。这一例用文件系统层的实测代替注释：路径工具必经的编辑器会先拒掉越界与绝对路径，规则判决根本没有机会被问到，所以那半边的变窄没有开洞。最后一例是根因围栏：同一条规则、十个路径形状，同时喂给两道门，要求判决一致——它才是「下次再手抄」的探测器。
+
+三臂见证在修复前的副本上跑，预测表先写后跑，十七条预测全部 MATCHED，无存活臂，且临时改写的源文件按 sha256 还原为逐字节相同：
+
+- 已提交版本（只还原 `minicc/permissions.py`）：七例红——上面四例的形状红各中一次，收敛门在四道分歧形状上红；同文件的普通范围内用例保持绿，证明红的不是夹具。
+- 只做 M8-T123 的一字修法（`removeprefix("./")`，不折叠路径、不逃方括号）：五例红。这一臂是本单位不等于重跑旧单位的证据：折叠那半边在 T123 之后仍然独自承重。
+- 修好后：零红。
+
+焦点跑八个 consent 相关文件（新门加 session 名单的三条既有门，再上 `tests/test_permissions_approval.py`、`tests/test_permission_modes.py`、`tests/test_allowlist.py`、`tests/test_m1_integrity.py`）＝79 例全绿，16.10 秒。全量在这一个代码提交上单进程重跑＝1649 例全绿、零失败、零错误、零跳过，538.73 秒，退出码 0；这 1649 正是上一批账本基线 1634 加本批十五例，没有一条既有用例被这次改动碰红。
+
+### 5 边界
+
+session 名单一侧的既有语义没有变化：`match_session_allowlist` 改成调用同一对共享函数，M8-T123、M8-T124、M8-T125 的三条门原样绿，收敛门的另一半正是这件事的证。`minicc/netguard.py` 的 CGNAT 与 6to4/Teredo 两处仍按既定口径当公网处理，那是需要用户拍板的策略选择，不在本批擅自收紧或放宽的范围内。本批只收紧 consent，没有放宽任何 fail-closed 守卫。
