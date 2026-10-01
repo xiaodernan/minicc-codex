@@ -9159,3 +9159,44 @@ grade_answer_rubric` 少掉 `(task, answer)`、把 loader 调用换成一个带�
 但结合此前多轮（13/24 → 22/24 → 6/6 定向 → 24/24），修复方向的因果
 链条是清晰的——每一类失败的根因都有对应的门与测试在仓库里。
 
+## 第一百零四批 M8-T117：剩下四处「委托」门也只认真实调用，不认渲染文本里的名字
+
+### 1 来源与占号
+
+第一百零二批 §5 只转了「真盲」的两处委托门，剩下四处「各留自证」：`verify_command` 在 else 支、`test_the_runner_opens_the_behaviour_door` 的 `behavior_tasks()`、`test_the_trust_branch_asks_the_shipped_vocabulary_not_a_copied_list` 的 `GRADER_TYPES`、`test_the_door_sits_on_the_suite_that_needs_it` 的 `load_tasks`。占号前读了 `git log origin/main`：无 T117，本批认领为 M8-T117。
+
+### 2 缺陷：同一准则的剩下四处
+
+- `test_the_door_sits_on_the_suite_that_needs_it`：`{ast.unparse(node.func) for Call}` 再查 `"load_tasks" in called`——`module.load_tasks()` 这种写法会给出 `module.load_tasks` 而门查的是裸名，反过来一个同名字符串字面量也能混进去。
+- `test_the_runner_opens_the_behaviour_door`：`assert "behavior_tasks()" in ast.unparse(runner)`——渲染文本里出现即过，调用被删只留名字看不见。
+- `test_the_trust_branch_asks_the_shipped_vocabulary_not_a_copied_list`：`assert "GRADER_TYPES" in ast.dump(node)`——同上，dump 文本里出现即过。
+- `test_the_runner_really_does_drop_the_second_check`：`assert 'verify_command' in ast.unparse(node.orelse)`——else 支渲染文本里出现即过。
+- 四处改法统一：遍历 `ast.Call`，收 `func.id` / `func.attr` 进集合再查成员；`verify_command` 那处查 else 支里 `Constant` / `Attribute` / `Subscript` / `Name` 四种节点形态（实测 else 支里是嵌套 `If`，`verify_command` 以 `Name` 出现在 `verify_command and entry['status'] == 'completed'` 里）。
+
+### 3 落地（只动三处测试文件，生产代码一字未动）
+
+- `tests/test_task_may_declare_only_one_objective_check.py`：两处（door 门 + else 支门）。
+- `tests/test_behavior_suite_is_validated_at_load.py`：一处（behaviour 门，`behavior_tasks` 裸名集合）。
+- `tests/test_metric_and_oracle_reach_report.py`：一处（`GRADER_TYPES` 必须出现在 `Compare` 的 comparator 位置Named/Attribute，不是 dump 文本里出现）。
+
+### 4 验证（双向，全在本批内亲手取）
+
+生产码变异（benchmarks.py，只改调用、名字以某种形式保留），新结构门全部变红：
+
+| 变异 | 红的门 | 实测 |
+| --- | --- | --- |
+| `main` 里 `load_tasks(` → `dummy_load_tasks(` | `test_the_door_sits_on_the_suite_that_needs_it` | 1 failed ✓ |
+| `main` 里 `behavior_tasks()` → `dummy_behavior_tasks()` | `test_the_runner_opens_the_behaviour_door` | 1 failed ✓ |
+| `_oracle_says_pass` 里 `GRADER_TYPES` → `DUMMY_TYPES` | `test_the_trust_branch_asks_the_shipped_vocabulary_not_a_copied_list` | 1 failed ✓ |
+| `run_benchmark` 里两处嵌套 `If` 的 `verify_command` → `dummy_verify` | `test_the_runner_really_does_drop_the_second_check` | 1 failed ✓ |
+| 全恢复 | 三文件 40 passed | 1.10s 全绿 ✓ |
+| 全量整套 | **1580 passed / 0 failed / 649.65s** |  |
+
+注：第四处第一次只改了第一处嵌套 `If`，门照绿——因为 else 支里有两处嵌套 `If` 都引用了 `verify_command`；两处全改后才红。这本身证明了结构门看的是“有没有”，改一半等于没改，记录在此。
+
+### 5 边界（明确不声称）
+
+- **只转剩下四处「委托/调用是否存在」问法的门**：`tests/test_cleanup_version.py::test_all_version_consumers_agree` 的主体 `minicc/mcp.py` 是冻结文件，本批不碰（沿用第 102 批的口径）。
+- 四处变异都是“调用没了、名字还在”的形状；“名字和调用一起没了”（函数被删）是另一类红，由各门的存在性断言（`next(...)` / `assert found`）覆盖，不在本批变异表里重测。
+- 全量 1580 passed 含另一条流未提交的 M8-T113 文件与本机工作树里另一条流的改动（`minicc/config.py`、`minicc/web.py` 两个已跟踪文件的修改，加一个未被跟踪的新测试文件，此处不点名——干净检出里它不存在）；推送树 = `origin/main` + 另一条流已落的两笔记录 + 本批三文件。
+
