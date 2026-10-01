@@ -265,6 +265,27 @@ def test_evaluate_gates_fail_closed_on_none():
     assert results[0]["violated"] is False
 
 
+def test_refusal_family_counts_gate_with_less_or_equal() -> None:
+    """M8-T118 policy: refusals and reviewer losses are bad-things counts.
+
+    A refused row is "nobody judged this workspace" and a reviewer false
+    negative is a disagreement the reviewer lost, so fewer is better for both -
+    the gate direction is ``<=``. Thresholds stay with the caller: a count does
+    not compare across suite sizes.
+    """
+    assert parse_gate("grading_refusal_count<=0")["op"] == "<="
+    assert parse_gate("reviewer_false_negative_count<=2")["metric"] == "reviewer_false_negative_count"
+    cmp = {"variant": {"grading_refusal_count": 0, "reviewer_false_negative_count": 1}}
+    results = evaluate_gates(cmp, ["grading_refusal_count<=0", "reviewer_false_negative_count<=2"])
+    assert [result["violated"] for result in results] == [False, False]
+    results = evaluate_gates(cmp, ["grading_refusal_count<=0", "reviewer_false_negative_count<=0"])
+    assert [result["violated"] for result in results] == [False, True]
+    # Fail closed: a report that never computed the count cannot satisfy its gate.
+    results = evaluate_gates({"variant": {}}, ["grading_refusal_count<=5"])
+    assert results[0]["violated"] is True
+    assert results[0]["actual"] is None
+
+
 def _write_reports(tmp_path):
     base_path = tmp_path / "a.json"
     var_path = tmp_path / "b.json"

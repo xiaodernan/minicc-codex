@@ -14,11 +14,12 @@ The census below answers both directions mechanically:
 * every key the report reads off a recorded row has to be written by someone, or be
   a named exception that still describes a real hole.
 
-The exception list exists for ``repeated_tool_calls`` only: it is read by the report
-and feeds ``tool_repeat_rate``, while no production code writes it, so the metric is
-permanently null. Deleting it or writing it is the user's call (tracked as task #83),
-and until then the exception must keep matching the measured hole - a stale exemption
-is itself a red.
+The exception list used to exist for ``repeated_tool_calls`` alone: it was read
+by the report and fed ``tool_repeat_rate``, while no production code wrote it,
+so the metric was permanently null. M8-T118 retired the metric on the user's
+call (删干净): the read, the metric, its print slot and this exception went
+together, and the census refuses a stale exemption the same way it once
+refused the hole - see ``test_an_exception_that_no_longer_describes_a_hole_is_refused``.
 """
 
 from __future__ import annotations
@@ -31,7 +32,10 @@ import pytest
 from minicc.benchmarks import build_report
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-EXCEPTIONS_FOR_UNWRITTEN_READS = {"repeated_tool_calls"}
+#: No live exemptions: every key the report reads off a recorded row must be
+#: written by someone. The set stays because the machinery (and its plant
+#: controls) outlives any one hole.
+EXCEPTIONS_FOR_UNWRITTEN_READS: set[str] = set()
 
 
 def _trees() -> dict[str, ast.Module]:
@@ -237,9 +241,13 @@ def test_the_exception_for_unwritten_reads_still_describes_a_real_hole() -> None
 
 # Each witness value is of the field's own type: two of these six are text, and a
 # single number for all six would only prove the copy stringifies.
+# M8-T118: `review_rounds` used to be witnessed with an int, but the runner
+# writes a list of dicts - and the old copy guard dropped every real list, so
+# the int witness proved a shape nobody produces. The witness is the produced
+# shape now.
 _SAMPLES = {
     "turns": 3,
-    "review_rounds": 3,
+    "review_rounds": [{"code": "completion_capped", "status": "capped"}],
     "case_count": 3,
     "exit_code": -9,
     "retained_workspace": "C:/Temp/minicc-behavior-abc123",

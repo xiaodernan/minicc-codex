@@ -206,7 +206,9 @@ def build_report(tasks: list[dict[str, Any]], results: list[dict[str, Any]] | No
             "grading_latency_ms": recorded.get("grading_latency_ms"),
             "repair_attempts": recorded.get("repair_attempts"),
             "tool_calls": recorded.get("tool_calls"),
-            "repeated_tool_calls": recorded.get("repeated_tool_calls"),
+            # M8-T118 retired `repeated_tool_calls` here: no producer ever wrote
+            # it, so the copy fed only a permanently null metric. Do not restore
+            # the line without a writer; the row census guards the hole both ways.
             "usage": recorded.get("usage") if isinstance(recorded.get("usage"), dict) else None,
             "cost_usd": recorded.get("cost_usd") if _measurement(recorded.get("cost_usd")) else None,
             "claimed_complete": recorded.get("claimed_complete", recorded.get("status") == "completed"),
@@ -229,8 +231,14 @@ def build_report(tasks: list[dict[str, Any]], results: list[dict[str, Any]] | No
             # the runner can write has to appear here; a forgotten one is on disk
             # and nowhere a human reads (M8-T89 census).
             "turns": recorded.get("turns") if _measurement(recorded.get("turns")) else None,
-            "review_rounds": recorded.get("review_rounds")
-                             if _measurement(recorded.get("review_rounds")) else None,
+            "review_rounds": (recorded.get("review_rounds")
+                             # M8-T118: the runner writes rounds as a list of dicts, but
+                             # the old copy guard only passed int/float - every real
+                             # list was dropped to None and the markdown question was
+                             # moot. Accept the produced shape; anything else is None.
+                             if isinstance(recorded.get("review_rounds"), list)
+                             and all(isinstance(item, dict) for item in recorded["review_rounds"])
+                             else None),
             "case_count": recorded.get("case_count")
                           if _measurement(recorded.get("case_count")) else None,
             # A grader killed by a signal reports a negative code, so this must not
@@ -247,8 +255,8 @@ def build_report(tasks: list[dict[str, Any]], results: list[dict[str, Any]] | No
     gradable = [row for row in completed if row["passed"] is not None]
     latencies = [float(row["latency_ms"]) for row in completed if _measurement(row["latency_ms"])]
     repairs = [int(row["repair_attempts"]) for row in completed if _measurement(row["repair_attempts"])]
-    repeated = sum(int(row["repeated_tool_calls"]) for row in completed if _measurement(row["repeated_tool_calls"]))
-    calls = sum(int(row["tool_calls"]) for row in completed if _measurement(row["tool_calls"]))
+    # M8-T118: the `repeated`/`calls` accumulators fed only `tool_repeat_rate`;
+    # they left with the metric rather than lingering as dead sums.
     total_tokens_known = bool(completed) and all(_measurement((row["usage"] or {}).get("total_tokens")) for row in completed)
     total_cost_known = bool(completed) and all(row["cost_usd"] is not None for row in completed)
     # A suite is "fully gradable" by construction when every task declares a
@@ -295,7 +303,10 @@ def build_report(tasks: list[dict[str, Any]], results: list[dict[str, Any]] | No
             "latency_p50_ms": _quantile(latencies, 0.5),
             "latency_p95_ms": _quantile(latencies, 0.95),
             "mean_repair_attempts": round(statistics.mean(repairs), 3) if repairs else None,
-            "tool_repeat_rate": round(repeated / calls, 4) if calls and all(_measurement(row["tool_calls"]) and _measurement(row["repeated_tool_calls"]) and row["repeated_tool_calls"] <= row["tool_calls"] for row in completed) else None,
+            # M8-T118: `tool_repeat_rate` was deleted, not nulled. It read a key
+            # no producer ever wrote, so every report in history printed N/A for
+            # it; a permanently null row teaches readers to ignore the table.
+            # The formula is in git history if a repeat counter ever gets a writer.
             "token_usage_available": sum(1 for row in completed if row["usage"] is not None),
             "cost_available": sum(1 for row in completed if row["cost_usd"] is not None),
         },
@@ -329,7 +340,7 @@ def markdown_report(report: dict[str, Any]) -> str:
     # a hand-written copy is a second owner of "which metrics exist" and silently
     # drops any key added to only one of the two places (M8-T86). The declared
     # reading order is honoured, then every remaining key is printed in sorted order.
-    preferred = ("execution_completion_rate", "grading_coverage", "gradable_task_count", "grading_refusal_count", "acceptance_success_rate", "false_completion_rate", "reviewer_false_negative_count", "pass_at_1", "latency_p50_ms", "latency_p95_ms", "tokens_per_success", "cost_per_success_usd", "mean_repair_attempts", "tool_repeat_rate", "token_usage_available", "cost_available")
+    preferred = ("execution_completion_rate", "grading_coverage", "gradable_task_count", "grading_refusal_count", "acceptance_success_rate", "false_completion_rate", "reviewer_false_negative_count", "pass_at_1", "latency_p50_ms", "latency_p95_ms", "tokens_per_success", "cost_per_success_usd", "mean_repair_attempts", "token_usage_available", "cost_available")
     for key in [k for k in preferred if k in metrics] + sorted(set(metrics) - set(preferred)):
         lines.append(f"| {key} | {value(metrics.get(key))} |")
     lines.extend(["", "| Task | Category | Status | Passed |", "| --- | --- | --- | --- |"])
@@ -339,6 +350,13 @@ def markdown_report(report: dict[str, Any]) -> str:
         # A non-completed row must show the recorded reason, not just "failed".
         if row.get("error"):
             verdict += f" [{str(row['error'])[:120]}]"
+        # M8-T118 印法: the rounds themselves live in the JSON row (bounded: 8
+        # rounds, 200 chars each); markdown carries only the count, so a capped
+        # run's post-mortem is visible without exploding the four-column table.
+        rounds = row.get("review_rounds")
+        if isinstance(rounds, list) and rounds:
+            count = len(rounds)
+            verdict += f" [{count} review round{'s' if count != 1 else ''}]"
         lines.append(f"| {row['task_id']} | {row['category']} | {row['status']} | {verdict} |")
     lines.extend(["", *[f"- {note}" for note in report["notes"]], ""])
     return "\n".join(lines)

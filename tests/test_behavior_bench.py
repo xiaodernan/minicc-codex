@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 
 from minicc.behavior_bench import behavior_tasks, prepare_fixture, grade_behavior
-from minicc.benchmarks import build_report, _quantile
+from minicc.benchmarks import build_report, markdown_report, _quantile
 
 
 def test_failed_run_never_counts_as_success():
@@ -38,11 +38,34 @@ def test_cost_per_success_includes_failed_attempts_and_requires_complete_usage()
 def test_report_rejects_invalid_measurements():
     metrics = build_report([{"id": "a"}], [{"task_id": "a", "status": "completed", "passed": True,
         "latency_ms": float("nan"), "cost_usd": -1, "usage": {"total_tokens": True},
-        "tool_calls": 2, "repeated_tool_calls": 3}])["metrics"]
+        "tool_calls": 2}])["metrics"]
     assert metrics["latency_p95_ms"] is None
     assert metrics["tokens_per_success"] is None
     assert metrics["cost_per_success_usd"] is None
-    assert metrics["tool_repeat_rate"] is None
+
+
+def test_tool_repeat_rate_is_retired_not_nulled() -> None:
+    """M8-T118 deleted the metric on the user's call (删干净, task #83).
+
+    ``repeated_tool_calls`` never had a producer, so every report printed N/A
+    for it. A retired metric must be *absent* - from the metrics dict and from
+    the markdown table - not present-but-null, or the next reader re-adds a
+    writer for a number nobody asked for.
+    """
+    metrics = build_report(
+        [{"id": "a"}],
+        [{"task_id": "a", "status": "completed", "passed": True, "tool_calls": 2}],
+    )["metrics"]
+    assert "tool_repeat_rate" not in metrics, metrics
+    assert "repeated_tool_calls" not in metrics, metrics
+    report = build_report(
+        [{"id": "a"}],
+        [{"task_id": "a", "status": "completed", "passed": True, "tool_calls": 2}],
+    )
+    assert "tool_repeat_rate" not in markdown_report(report), (
+        "the retired metric is still printed - the table is derived from the "
+        "metrics dict, so this means the deletion missed a copy"
+    )
 
 
 def test_checked_in_suite_matches_generated_fixtures():

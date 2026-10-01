@@ -263,3 +263,34 @@ def test_the_zero_case_exclusion_is_told_to_the_reader() -> None:
     # M8-T93: the other half of the rule has to be readable too, or a reader who sees a
     # command oracle not counted wonders whether the metric is broken.
     assert "no known grader" in text, text
+
+
+# --- M8-T118: review_rounds 印法 ----------------------------------------------
+#
+# The rounds live in the JSON row (bounded: 8 rounds, 200 chars each); markdown
+# carries only the count. A capped run's post-mortem is visible in the table
+# without exploding its four columns, and the full rationale stays one
+# `results.json` lookup away.
+
+
+def test_a_row_with_review_rounds_marks_its_count_in_the_table() -> None:
+    row = _capped("t", {"passed": True}, grader_type="command_contract")
+    row["review_rounds"] = [{"code": "completion_capped"}, {"code": "completion_capped"}]
+    text = benchmarks.markdown_report(_report([row]))  # type: ignore[arg-type]
+    assert "[2 review rounds]" in text, text
+
+
+def test_a_single_review_round_reads_singular() -> None:
+    row = _capped("t", {"passed": True}, grader_type="command_contract")
+    row["review_rounds"] = [{"code": "completion_capped"}]
+    text = benchmarks.markdown_report(_report([row]))  # type: ignore[arg-type]
+    assert "[1 review round]" in text, text
+
+
+def test_a_row_without_review_rounds_prints_no_marker() -> None:
+    text = benchmarks.markdown_report(_report([_capped("t", {"passed": True})]))  # type: ignore[arg-type]
+    assert "review round" not in text, text
+    junk = _capped("t", {"passed": True})
+    junk["review_rounds"] = 3  # not the produced shape: dropped, not printed
+    text = benchmarks.markdown_report(_report([junk]))  # type: ignore[arg-type]
+    assert "review round" not in text, text

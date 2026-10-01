@@ -33,11 +33,19 @@ from .cli_io import cli_out
 # scipy.stats.norm.ppf(0.975) — the two-sided 95% normal quantile.
 Z95 = 1.959963984540054
 MIN_REPEATS_FOR_PASSK = 10
+#: Metrics a ``--gate`` may threshold. Direction is part of the policy
+#: (M8-T118): counts of bad things gate with ``<=`` - a refused row is
+#: "nobody judged this workspace", and a reviewer false negative is a
+#: disagreement the reviewer lost, so fewer is better for both. Thresholds stay
+#: with the caller (a count does not compare across suite sizes); the nightly
+#: job pins its own floors in the workflow file.
 GATE_METRICS = frozenset({
     "pass_at_1",
     "cost_per_success_usd",
     "latency_p95_ms",
     "grading_coverage",
+    "grading_refusal_count",
+    "reviewer_false_negative_count",
 })
 
 
@@ -346,6 +354,10 @@ def compare_reports(
             "latency_p50_ms": base_lat["p50"],
             "latency_p95_ms": base_lat["p95"],
             "grading_coverage": base_metrics.get("grading_coverage"),
+            # M8-T118: the two refusal-family counts ride along so --gate can
+            # threshold them; a report that never computed them gates fail-closed.
+            "grading_refusal_count": base_metrics.get("grading_refusal_count"),
+            "reviewer_false_negative_count": base_metrics.get("reviewer_false_negative_count"),
         },
         "variant": {
             **var_stats,
@@ -353,6 +365,8 @@ def compare_reports(
             "latency_p50_ms": var_lat["p50"],
             "latency_p95_ms": var_lat["p95"],
             "grading_coverage": var_metrics.get("grading_coverage"),
+            "grading_refusal_count": var_metrics.get("grading_refusal_count"),
+            "reviewer_false_negative_count": var_metrics.get("reviewer_false_negative_count"),
         },
         "pass_at_1_delta": pass_delta,
         "pass_at_1_delta_ci": pass_delta_ci,
