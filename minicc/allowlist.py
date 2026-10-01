@@ -8,6 +8,7 @@ import os
 import posixpath
 import threading
 import uuid
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -176,6 +177,34 @@ def _escape_brackets(pattern: str) -> str:
     return "".join(parts)
 
 
+def tool_rule_matches(name: str, patterns: Sequence[str]) -> bool:
+    """Whether a tool name is covered by rule patterns.
+
+    Shared with ``permissions`` on purpose: the two consent files used to carry
+    two hand-copied matchers, and M8-T123/T125 fixed only one of them, so the
+    second copy kept auto-consenting paths the first one had learned to refuse.
+    One matcher, two rule files.
+    """
+    return bool(name) and any(
+        fnmatch.fnmatch(name, _escape_brackets(pattern)) for pattern in patterns
+    )
+
+
+def path_rule_matches(rel: str, patterns: Sequence[str]) -> bool:
+    """Whether a workspace-relative path is covered by rule patterns.
+
+    ``fnmatch`` has no path semantics, so the candidate is collapsed with
+    ``posixpath.normpath`` first: a raw ``src/../../outside/x.py`` still starts
+    with the rule's ``src/`` prefix, and a leading-``../`` path survives the
+    character-set strip ``str.lstrip("./")`` would perform. Collapsing also
+    subsumes the ``./`` tolerance, since ``normpath("./x") == "x"``.
+    """
+    if not rel:
+        return False
+    norm_rel = posixpath.normpath(rel)
+    return any(fnmatch.fnmatch(norm_rel, _escape_brackets(pattern)) for pattern in patterns)
+
+
 def _path_from_arguments(arguments: dict[str, Any] | None) -> str:
     if not isinstance(arguments, dict):
         return ""
@@ -198,11 +227,7 @@ def match_session_allowlist(
     except AllowlistError:
         return False
     name = str(tool or "").strip()
-    # Escape brackets on the tools axis too: a rule the user typed with a
-    # literal ``[`` (e.g. an editor alias like ``py[39]``) would otherwise be
-    # read as a fnmatch character class and auto-consent a substituted tool
-    # name. ``_escape_brackets`` leaves ``*``/``?`` globbing intact.
-    if name and any(fnmatch.fnmatch(name, _escape_brackets(pattern)) for pattern in rules["tools"]):
+    if tool_rule_matches(name, rules["tools"]):
         return True
     if name == "bash":
         command, _ = redact_text(str((arguments or {}).get("command") or ""))
@@ -211,17 +236,8 @@ def match_session_allowlist(
             fnmatch.fnmatch(command, _escape_brackets(pattern)) for pattern in rules["commands"]
         ):
             return True
-    rel = _path_from_arguments(arguments)
-    # Collapse ``.``/``..`` on the candidate before matching: fnmatch has no path
-    # semantics, so a raw ``src/../../outside/x.py`` still starts with the rule's
-    # ``src/`` prefix and a scope rule would silently auto-approve an escaping
-    # path (the leading-``../``/absolute cases M8-T123 denied are already covered,
-    # and normpath("./x")=="x" subsumes that ``./`` tolerance). ``_escape_brackets``
-    # literalizes a rule's own ``[`` the same way the tools axis does.
-    if rel:
-        norm_rel = posixpath.normpath(rel)
-        if any(fnmatch.fnmatch(norm_rel, _escape_brackets(pattern)) for pattern in rules["paths"]):
-            return True
+    if path_rule_matches(_path_from_arguments(arguments), rules["paths"]):
+        return True
     return False
 
 
@@ -230,6 +246,8 @@ __all__ = [
     "add_session_rule",
     "load_allowlist",
     "match_session_allowlist",
+    "path_rule_matches",
     "replace_session_rules",
     "session_rules",
+    "tool_rule_matches",
 ]

@@ -24,7 +24,12 @@ import threading
 from pathlib import Path
 from typing import Any
 
-from .allowlist import _escape_brackets, _path_from_arguments
+from .allowlist import (
+    _path_from_arguments,
+    _escape_brackets,
+    path_rule_matches,
+    tool_rule_matches,
+)
 from .tools.registry import redact_text
 
 PERMISSIONS_NAME = "permissions.json"
@@ -76,8 +81,14 @@ def _validate(payload: object) -> tuple[dict[str, list[str]], str]:
 
 
 def _match_patterns(tool: str, arguments: dict[str, Any] | None, side: dict[str, list[str]]) -> bool:
+    """Match one side (``allow`` or ``deny``) of permissions.json.
+
+    The tools and paths axes go through the same predicates the session
+    allowlist uses (``minicc.allowlist``), because both files are consent
+    gates and a rule written in one should mean the same thing in the other.
+    """
     name = str(tool or "").strip()
-    if name and any(fnmatch.fnmatch(name, pattern) for pattern in side["tools"]):
+    if tool_rule_matches(name, side["tools"]):
         return True
     if name == "bash":
         command, _ = redact_text(str((arguments or {}).get("command") or ""))
@@ -86,13 +97,7 @@ def _match_patterns(tool: str, arguments: dict[str, Any] | None, side: dict[str,
             fnmatch.fnmatch(command, _escape_brackets(pattern)) for pattern in side["commands"]
         ):
             return True
-    rel = _path_from_arguments(arguments)
-    if rel and any(
-        fnmatch.fnmatch(rel, pattern) or fnmatch.fnmatch(rel.lstrip("./"), pattern)
-        for pattern in side["paths"]
-    ):
-        return True
-    return False
+    return path_rule_matches(_path_from_arguments(arguments), side["paths"])
 
 
 def _path(workspace: Path) -> Path:
