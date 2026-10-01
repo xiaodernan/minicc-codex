@@ -9239,3 +9239,29 @@ grade_answer_rubric` 少掉 `(task, answer)`、把 loader 调用换成一个带�
 - 历史文档（AUDIT／GAP／ROADMAP 旧批次）里 `tool_repeat_rate` 的字样一律不动——快照如实记录当时。
 - 全量 1635 里含另一条流未提交的工作树文件（含一个 50 格左右的新测试文件）；推送树 = `origin/main` + 本批六文件。
 
+## 第一百零六批 M8-T119：行为任务在装载期就校验 function 与 fixture 一致性，省去白跑
+
+### 1 来源与占号
+
+第九十五批 §8-4 候选：“行为任务的 `function` 与 fixture `solution.py` 中函数名一致性（不一致时判分期已拒，但仍白跑一遍）”。占号前读了 `git log origin/main`：无 T119，本批认领 M8-T119。
+
+### 2 缺陷
+
+行为任务在 `run_benchmark` 里才调 `validate_behavior_task`，此时 agent 已经跑完一遍（或正在跑）。若 `grader.function` 与 fixture 里的 `def` 不一致，agent 白跑一遍后才被拒，浪费算力且报错晚。装载期 `load_tasks` 已对所有任务做 prompt/category/fixture 校验，唯独行为任务的“function 与 solution.py 一致性”留到了跑时。
+
+### 3 落地（只动 `minicc/benchmarks.py:load_tasks`）
+
+在 `load_tasks` 循环里，对 `grader.type == "python_behavior"` 的任务，直接调 `behavior_bench.validate_behavior_task(task)`。这把“function 与 solution.py 一致性”从运行期前移到装载期，同一函数 `validate_behavior_task` 同时被 `load_tasks`（装载期）与 `run_benchmark`（运行期防御性）双重守护，不改动生产代码行为。
+
+### 4 验证（双向）
+
+- 变异：`solution.py` 写错函数名 → `load_tasks` 直接抛 `ValueError`，agent 完全不跑；恢复后 1635 passed / 0 failed。
+- 变异：`grader.function` 写错 → 同上。
+- 变异：`solution.py` 缺失或语法错误 → 同上。
+- 正例：12 个 shipped 行为任务全绿；`validate_behavior_task` 既在 `load_tasks` 又在 `run_benchmark` 里被调用，双重守护不冲突。
+
+### 5 边界
+
+- 只动 `load_tasks`，不改 `run_benchmark` 里的防御性二次校验（保留深度防御）。
+- `behavior_bench` 不新增导入，`benchmarks.py` 已有 `from . import behavior_bench`，无循环依赖。
+- 全量 1635 passed 含另一条流未提交的工作树文件；推送树 = `origin/main` + 本批单文件。
