@@ -125,7 +125,12 @@ def test_the_declared_behaviour_types_match_what_the_grader_dispatches() -> None
 
 
 def test_the_runner_opens_the_behaviour_door() -> None:
-    """A validator nobody calls is a comment, not a gate."""
+    """A validator nobody calls is a comment, not a gate.
+
+    The gate checks for actual Call nodes to ``validate_behavior_task`` and
+    that the behaviour branch's entry point is reached, not just that the
+    string ``behavior_tasks()`` appears somewhere in rendered source.
+    """
     tree = ast.parse(BENCHMARKS_SOURCE)
     callers = {node.func.id for node in ast.walk(tree)
                if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
@@ -136,8 +141,16 @@ def test_the_runner_opens_the_behaviour_door() -> None:
                           and isinstance(inner.func, ast.Name)
                           and inner.func.id == "validate_behavior_task"
                           for inner in ast.walk(n)))
-    source = ast.unparse(runner)
-    assert "behavior_tasks()" in source, "the door is not on the behaviour suite's path"
+    # The behaviour branch must call behavior_tasks() - look for the Call node,
+    # not the string in unparsed source.
+    behaviour_calls = {inner.func.id for inner in ast.walk(runner)
+                       if isinstance(inner, ast.Call)
+                       and isinstance(inner.func, ast.Name)
+                       and inner.func.id == "behavior_tasks"}
+    assert "behavior_tasks" in behaviour_calls, (
+        f"the behaviour door is not on the behaviour suite's path: "
+        f"runner={runner.name}, calls={sorted(behaviour_calls)}"
+    )
 
 
 def test_every_shipped_behaviour_task_passes_the_new_door() -> None:

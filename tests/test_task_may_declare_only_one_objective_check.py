@@ -56,6 +56,9 @@ def test_the_runner_really_does_drop_the_second_check() -> None:
 
     If someone ever makes both checks run, this witness has to be updated - that is the
     point of keeping it, not a quirk of today's code.
+
+    The gate checks the *structure* of the else branch: it must contain a reference
+    to ``verify_command`` (dict key, attribute, or variable reference), not just the text.
     """
     runner = next(n for n in ast.walk(BENCHMARKS_AST)
                   if isinstance(n, ast.FunctionDef) and n.name == "run_benchmark")
@@ -63,12 +66,30 @@ def test_the_runner_really_does_drop_the_second_check() -> None:
         if not isinstance(node, ast.If):
             continue
         tested = ast.unparse(node.test)
-        # ast.unparse quotes attribute names with single quotes, so matching on a
-        # double-quoted spelling made this witness look for something that never appears.
         if "get('grader')" in tested and node.orelse:
-            else_src = ast.unparse(node.orelse)
-            assert 'verify_command' in else_src, (
-                "the grader branch no longer shadows verify_command; re-check the loader rule"
+            # Structural check: the else branch (which may contain nested Ifs)
+            # must contain a reference to 'verify_command' as a dict key, attribute,
+            # or variable reference.
+            has_verify = False
+            for stmt in node.orelse:
+                for inner in ast.walk(stmt):
+                    if isinstance(inner, ast.Constant) and inner.value == "verify_command":
+                        has_verify = True
+                        break
+                    if isinstance(inner, ast.Attribute) and inner.attr == "verify_command":
+                        has_verify = True
+                        break
+                    if isinstance(inner, ast.Subscript) and isinstance(inner.slice, ast.Constant) and inner.slice.value == "verify_command":
+                        has_verify = True
+                        break
+                    if isinstance(inner, ast.Name) and inner.id == "verify_command":
+                        has_verify = True
+                        break
+                if has_verify:
+                    break
+            assert has_verify, (
+                "the grader branch no longer shadows verify_command; "
+                "re-check the loader rule"
             )
             return
     raise AssertionError("run_benchmark no longer branches on task['grader'] at all")
@@ -88,11 +109,15 @@ def test_the_shipped_legacy_suite_has_no_shadowing_task() -> None:
 
 
 def test_the_door_sits_on_the_suite_that_needs_it() -> None:
-    """load_tasks is what the default (legacy) suite actually reads."""
+    """load_tasks is what the default (legacy) suite actually reads.
+
+    The gate looks for actual Call nodes, not text: ``ast.unparse`` on a whole
+    function would pass even if the call were dead code or a string literal.
+    """
     main = next(n for n in ast.walk(BENCHMARKS_AST)
                 if isinstance(n, ast.FunctionDef) and n.name == "main")
     called = {ast.unparse(node.func) for node in ast.walk(main) if isinstance(node, ast.Call)}
-    assert "load_tasks" in called, sorted(called)
+    assert "load_tasks" in called, f"load_tasks not in called set: {sorted(called)}"
     assert "validate_task" in called or "validate_behavior_task" in called, (
-        "the other suites lost their own load-time doors"
+        f"the other suites lost their own load-time doors: {sorted(called)}"
     )

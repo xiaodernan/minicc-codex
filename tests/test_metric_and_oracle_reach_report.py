@@ -171,19 +171,38 @@ def test_an_oracle_without_a_case_count_is_trusted_only_for_a_shipped_grader(
 
 
 def test_the_trust_branch_asks_the_shipped_vocabulary_not_a_copied_list() -> None:
-    """Otherwise the branch is a second hand-written copy of GRADER_TYPES."""
+    """Otherwise the branch is a second hand-written copy of GRADER_TYPES.
+
+    The gate looks for the structural pattern: ``GRADER_TYPES`` must be
+    referenced as a Name/Attribute in a membership test (``in``/``not in``),
+    not merely appear as a string literal in the function body.
+    """
     tree = ast.parse((REPO_ROOT / "minicc" / "benchmarks.py").read_text(encoding="utf-8"))
+    found = False
     for node in ast.walk(tree):
-        if isinstance(node, ast.FunctionDef) and node.name == "_oracle_says_pass":
-            body = ast.dump(node)
-            assert "GRADER_TYPES" in body, ast.unparse(node)
-            literals = {n.value for n in ast.walk(node)
-                        if isinstance(n, ast.Constant) and isinstance(n.value, str)}
-            assert not (literals & set(bench_tasks.GRADER_TYPES)), (
-                f"the predicate names grader types by hand: {sorted(literals)}"
-            )
-            return
-    raise AssertionError("_oracle_says_pass is gone from benchmarks.py")
+        if not (isinstance(node, ast.FunctionDef) and node.name == "_oracle_says_pass"):
+            continue
+        found = True
+        # The predicate must reference GRADER_TYPES by name in a membership test.
+        references_grader_types = False
+        for inner in ast.walk(node):
+            if isinstance(inner, ast.Compare):
+                for comparator in inner.comparators:
+                    if (isinstance(comparator, ast.Name) and comparator.id == "GRADER_TYPES") or \
+                       (isinstance(comparator, ast.Attribute) and comparator.attr == "GRADER_TYPES"):
+                        references_grader_types = True
+        assert references_grader_types, (
+            f"_oracle_says_pass does not reference GRADER_TYPES structurally: "
+            f"{ast.unparse(node)}"
+        )
+        # No hand-typed grader type literals allowed.
+        literals = {n.value for n in ast.walk(node)
+                    if isinstance(n, ast.Constant) and isinstance(n.value, str)}
+        assert not (literals & set(bench_tasks.GRADER_TYPES)), (
+            f"the predicate names grader types by hand: {sorted(literals & set(bench_tasks.GRADER_TYPES))}"
+        )
+        return
+    assert found, "_oracle_says_pass is gone from benchmarks.py"
 
 
 def test_a_real_command_contract_oracle_is_counted_through_that_branch(tmp_path: Path) -> None:
