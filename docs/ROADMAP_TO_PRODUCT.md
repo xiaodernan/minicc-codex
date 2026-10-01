@@ -9265,3 +9265,40 @@ grade_answer_rubric` 少掉 `(task, answer)`、把 loader 调用换成一个带�
 - 只动 `load_tasks`，不改 `run_benchmark` 里的防御性二次校验（保留深度防御）。
 - `behavior_bench` 不新增导入，`benchmarks.py` 已有 `from . import behavior_bench`，无循环依赖。
 - 全量 1635 passed 含另一条流未提交的工作树文件；推送树 = `origin/main` + 本批单文件。
+
+
+## 第一百零七批 M8-T117 至 M8-T125：收紧 consent 与网络边界的八处 fail-open 并合并落库
+
+### 1 来源与占号
+
+承前数批的 security 边界复核线。占号前读 git log：origin/main 最新记录停在 M8-T119，本批把八条已在私有平面逐条验证、尚未落库的单位合并为一次快进。编号里永久跳过否证的那一个——netguard 的 unspecified 分支被 is_private 完全吞并，删它整套仍绿，等于恒假判据，故那条候选不占号、绝不复用。
+
+### 2 缺陷
+
+八处「免提示越权」或「老/中文页直接坏」的口子，均在合并前以 shipped 红、fixed 绿的双向行为见证坐实：
+
+- webauth：`LOOPBACK_HOSTS` 把 `::0` 当环回。`::0` 规范化为 IPv6 全接口地址，于是绑定所有网卡的监听却免鉴权，并把同形 Origin 回显进 CORS。
+- webfetch：`_meta_charset` 对未加引号的字符集值只在闭合尖括号处收尾，属性内未加引号的值会连带尾部定界符一起被当成编码名，随后解码抛 LookupError，工具把整个 legacy 或中文页判成 TOOL_ERROR。
+- fs：`glob` 把 basename 恰等于 SKIP_DIRS 条目的普通文件也一并隐藏，与 grep 的目录口径不一致。
+- allowlist：`match_session_allowlist` 的 paths 轴先用字符集擦除剥前缀（连上跳与绝对前缀一起吃掉），又让 raw 通配比把字面方括号当字符类，于是窄相对规则能免提示批准目录外路径。这是 USER CONSENT 门，审计侧把匹配翻成 session_allowlist 且不弹提示。
+- netguard：组播与保留两族地址各只有其唯一拦截子句兜底，此前没有回归锁。
+
+### 3 落地
+
+- webauth：`LOOPBACK_HOSTS` 去掉全接口项，只留四个真环回写法，并写明理由注释。
+- webfetch：字符集取值改为逐字扫描，遇到引号、分号、闭合尖括号或空白即截断；加引号的值仍取引号内文。
+- fs：`glob` 只在目录 WALK 的祖先段命中跳过名单、或 basename 命中且该项确为目录时才隐藏，与 grep 对齐。
+- allowlist：paths 轴先按 POSIX 语义折叠内嵌上跳再匹配，tools 与 paths 两轴统一把字面方括号当字面量，点斜杠容错由折叠吸收；命令轴早已带方括号转义，本批未动。
+- netguard：不改生产码（守卫本已正确），新增 `tests/test_netguard_blocks_multicast.py`、`tests/test_netguard_blocks_reserved.py` 两条唯一拦截见证带。
+
+### 4 验证
+
+- 合并后在落地顶端跑整套：1634 passed、0 failed、0 errors（venv Py3.11，default 模式）。
+- 本批聚合 diffstat：12 个文件、548 行新增、6 行删除。四条生产改动逐一做过字节级核对（全接口项已出集合、字符集已按定界符截断、glob 已带目录判据、方括号转义与折叠已接管两轴且旧擦除写法不再出现），两条 netguard 单位为 test-only，其生产文件未变。
+- 每条单位合并前都跑过 shipped 红、fixed 绿的双向见证，变异脚本置于平面根之外，不进任何 census。
+
+### 5 边界
+
+- 只收紧 USER CONSENT（关闭免提示批准目录外路径），未放宽任何 fail-CLOSED 守卫。
+- netguard 把 CGNAT 段与 6to4 或 Teredo 视作公网的缺口仍是待用户决策项，本批不动。
+- 本批永久跳过被否证的那个编号；推送为 non-force 快进，落地顶端即本批最后一条 allowlist 单位。
