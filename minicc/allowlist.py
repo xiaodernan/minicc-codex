@@ -5,6 +5,7 @@ from __future__ import annotations
 import fnmatch
 import json
 import os
+import posixpath
 import threading
 import uuid
 from pathlib import Path
@@ -211,14 +212,16 @@ def match_session_allowlist(
         ):
             return True
     rel = _path_from_arguments(arguments)
-    # removeprefix("./") tolerates only a literal "./" prefix. str.lstrip("./")
-    # erodes any leading '.'/'/' run, so ../-escaping and absolute paths had
-    # their prefix erased and a narrow relative rule wrongly auto-consented them.
-    # Brackets are escaped for the same reason as the tools axis: a rule with a
-    # literal ``[`` (a version-tagged dir like ``releases[2.0]``) must match that
-    # directory, not act as a character class that also approves ``releases2``.
-    if rel and any(fnmatch.fnmatch(rel, _escape_brackets(pattern)) or fnmatch.fnmatch(rel.removeprefix("./"), _escape_brackets(pattern)) for pattern in rules["paths"]):
-        return True
+    # Collapse ``.``/``..`` on the candidate before matching: fnmatch has no path
+    # semantics, so a raw ``src/../../outside/x.py`` still starts with the rule's
+    # ``src/`` prefix and a scope rule would silently auto-approve an escaping
+    # path (the leading-``../``/absolute cases M8-T123 denied are already covered,
+    # and normpath("./x")=="x" subsumes that ``./`` tolerance). ``_escape_brackets``
+    # literalizes a rule's own ``[`` the same way the tools axis does.
+    if rel:
+        norm_rel = posixpath.normpath(rel)
+        if any(fnmatch.fnmatch(norm_rel, _escape_brackets(pattern)) for pattern in rules["paths"]):
+            return True
     return False
 
 
