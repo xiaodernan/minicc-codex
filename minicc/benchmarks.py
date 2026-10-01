@@ -155,9 +155,9 @@ def load_tasks(path: Path = DEFAULT_FIXTURES) -> list[dict[str, Any]]:
     seen: set[str] = set()
     for task in raw:
         if not isinstance(task, dict) or not isinstance(task.get("id"), str) or not task["id"]:
-            raise ValueError("每个评测任务必须包含非空 id")
+            raise ValueError("每个任务必须有 id")
         if task["id"] in seen:
-            raise ValueError(f"评测任务 id 重复: {task['id']}")
+            raise ValueError(f"任务 id 重复: {task['id']}")
         # Same owner the v2 door uses: a blank prompt would still buy a full agent run.
         bench_tasks.require_prompt(task)
         # And a field the report or the shell would have to invent is refused here too.
@@ -165,18 +165,21 @@ def load_tasks(path: Path = DEFAULT_FIXTURES) -> list[dict[str, Any]]:
         # A fixture the write path has to coerce or cannot open is the same class of lie:
         # the agent is charged for a workspace the host could not author.
         bench_tasks.require_writable_fixture(task)
+        # Behavior tasks must also pass their own load-time door (function/fixture
+        # consistency) so the agent never starts on a task the grader will refuse.
+        grader = task.get("grader") if isinstance(task, dict) else None
+        if isinstance(grader, dict) and grader.get("type") == "python_behavior":
+            behavior_bench.validate_behavior_task(task)
         # A task may declare one objective check, not two: the runner's grader branch wins
         # and the other is dropped without a word, so a task carrying both scores less than
         # its author thinks it does.
         if task.get("grader") and task.get("verify_command"):
             raise ValueError(
-                f"评测任务 {task['id']} 同时声明 grader 与 verify_command，"
-                f"其中 verify_command 会被 grader({(task['grader'] or {}).get('type')!r}) 静默丢弃"
+                f"任务 {task['id']} 同时声明 grader 和 verify_command，"
+                f"verify_command 将被 grader({(task['grader'] or {}).get('type')!r}) 掩盖"
             )
         seen.add(task["id"])
     return raw
-
-
 def _quantile(values: list[float], ratio: float) -> float | None:
     if not values:
         return None
