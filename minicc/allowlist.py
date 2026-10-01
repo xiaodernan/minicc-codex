@@ -207,7 +207,10 @@ def match_session_allowlist(
         ):
             return True
     rel = _path_from_arguments(arguments)
-    if rel and any(fnmatch.fnmatch(rel, pattern) or fnmatch.fnmatch(rel.lstrip("./"), pattern) for pattern in rules["paths"]):
+    # removeprefix("./") tolerates only a literal "./" prefix. str.lstrip("./")
+    # erodes any leading '.'/'/' run, so ../-escaping and absolute paths had
+    # their prefix erased and a narrow relative rule wrongly auto-consented them.
+    if rel and any(fnmatch.fnmatch(rel, pattern) or fnmatch.fnmatch(rel.removeprefix("./"), pattern) for pattern in rules["paths"]):
         return True
     return False
 
