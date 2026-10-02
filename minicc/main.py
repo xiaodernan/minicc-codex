@@ -170,6 +170,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--model", help="模型名")
     parser.add_argument("--reasoning-effort", choices=("low", "mid", "high", "xhigh", "max", "ultra"), help="推理强度")
     parser.add_argument("--tool-mode", choices=("auto", "native", "envelope"), help="工具调用模式")
+    parser.add_argument("--output-style", help="输出风格：preset（concise/explanatory）或自定义文字；覆盖配置与环境变量")
     parser.add_argument("--compact-threshold", type=int, help="上下文压缩字符阈值")
     parser.add_argument("--max-turns", type=int, help="显式设置硬轮数预算（默认不限）")
     parser.add_argument("--timeout", type=float, help="单次 provider 调用超时秒数")
@@ -252,6 +253,8 @@ def _apply_cli_overrides(config: Config, args: argparse.Namespace) -> Config:
         updates["context_window_tokens"] = _positive("context-window", args.context_window)
     if args.soft_max_tokens is not None:
         updates["soft_max_tokens"] = _positive("soft-max-tokens", args.soft_max_tokens)
+    if args.output_style is not None:
+        updates["output_style"] = str(args.output_style)
     if args.max_concurrent_tasks is not None:
         tasks = _positive("max-concurrent-tasks", args.max_concurrent_tasks)
         if tasks > 64:
