@@ -56,7 +56,7 @@ from tenacity import (
 
 from .base import LLMResponse
 from ..logging_setup import log_provider_event
-from .envelope import _render_envelope_action, envelope_system_suffix, parse_envelope
+from .envelope import EnvelopeParseError, _render_envelope_action, envelope_system_suffix, parse_envelope
 from .stream_merge import AttemptTextAssembler, merge_retry_snapshot
 from .usage import cache_summary
 
@@ -466,6 +466,11 @@ _QUOTA_EXHAUSTED_CODES = (
     "project_credit_limit_exceeded",
     "member_project_credit_limit_exceeded",
 )
+
+
+#: 其余协议家族的工具调用标记——信封模式下出现即视为「想调工具但格式
+#: 不对」，进协议修复而不是当最终答案交付。
+_FOREIGN_TOOL_CALL_MARKERS = ("<tool_call>", "<function=", "</function>")
 
 
 def _exc_body_text(exc: BaseException) -> str:
@@ -1274,6 +1279,18 @@ class OpenAICompatibleProvider:
                 synthetic = parse_envelope(response.content)
                 if synthetic is not None:
                     response.tool_calls = [synthetic]
+                    return response
+                # M8-T61: 信封模式里模型输出了**其他格式的工具调用**（如
+                # 训练带来的 <tool_call> XML）而没有任何 JSON 动作——这些
+                # 文本不是最终答案，静默交付会让整个任务空转（真网关实测：
+                # 4 轮零工具调用，完成评审到上限）。抛给循环的协议修复
+                # 路径，带上模型自己的输出作为纠错上下文。
+                if any(marker in response.content for marker in _FOREIGN_TOOL_CALL_MARKERS):
+                    raise EnvelopeParseError(
+                        "模型输出了非信封格式的工具调用（检测到 <tool_call>/<function> 标记）。"
+                        '信封模式下工具调用必须是单个 JSON 对象：{"action":"工具名","params":{...}}。',
+                        content=response.content,
+                    )
         return response
 
     @staticmethod

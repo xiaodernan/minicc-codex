@@ -9767,3 +9767,23 @@ behavior 套件（12 道 Python 函数修复题，python_behavior 判分器按�
 **口径诚实**：behavior 题是单函数小修复，难度低于 v2 的多文件契约题；
 12/12 说明基础修复能力扎实，不外推到更复杂任务。
 
+### M8-T61 落地 + 协议面真网关验证（2026-10-01）
+
+三块从未对真实网关验证过的协议面，本轮全部补测：
+
+1. **Responses API 路径**：provider smoke + 完整 agent 循环任务（工具调用/
+   编辑/完成评审）真网关全通，4 轮通过——M1 双协议的另一半得到线上验证。
+2. **envelope 工具模式**：抓到真缺陷——模型输出 `<tool_call>` XML（训练
+   格式）而非约定的 JSON 信封时，provider 不解析、循环把这段 XML **静默
+   当最终答案交付**，真网关实测 4 轮零工具调用、完成评审到上限。修复：
+   `_finalize` 检测外格式工具标记（<tool_call>/<function=）且无 JSON 动作
+   时抛 EnvelopeParseError（带模型原输出作纠错上下文），接入既有
+   protocol_repair 路径。修复后真网关复测：静默失败变成诚实失败（两次
+   修复尝试后以「LLM 工具协议连续无效」快速结束——step-3.7-flash 不遵守
+   信封格式，该组合不收敛但不再空转；遵守格式的模型不受影响）。
+3. **chat_completions 原生路径**：本会话全部评测即此路径，持续验证中。
+
+验收：tests/test_m8_t61_envelope_foreign_format.py 3 条（外格式抛修复、
+纯文本答案不误伤、合法信封照常提升为 tool_calls；未修复代码上红），
+m1_integrity + core_llm 无回归。
+
