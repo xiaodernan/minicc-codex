@@ -9453,3 +9453,101 @@ session 名单一侧的既有语义没有变化：`match_session_allowlist` 改�
   路由测试——它的路径本机有、干净检出里没有，所以这里只说它是什么，不写那个路径），
   那些不是本批的账。
 
+
+## 第一百一十批 M8-T129：判同位的第三问给了名字——两条拼写换成一张有名有证的表
+
+### 1 来源与占号
+
+来源是第九十三批 §8-2：「本批新门 (c) 只认两种拼写（`startswith` 调用、`.replace(`）。
+用 `os.path.commonprefix` 或 `PurePosixPath.parts` 比较或切片前缀判同位的代码今天不会被点名。
+⇒ 要么把 (c) 换成『比的是不是位置』这类语义问法，要么补一个用别的写法的植入件，让 (c) 的覆盖面有名字。」
+
+占号前先读 `git log --all` 与文档全文：`T129` 在提交里 0 命中、在文档里 0 命中，本批认领 **M8-T129**。
+（`T127` 被另一条流的本地分支占走，上一批因此顺延到 `T128`；本批接着用 `T129`。）
+
+### 2 缺陷
+
+`_layout_audit_shape` 的第三问「这份 body 是不是自己判了同位」只有两条拼写：
+调用名里有 `startswith`，或 body 里有 `.replace(` 子串。于是一份写成
+`os.path.commonprefix([key, other]) == key`、`PurePosixPath(key).parts == ...`、
+`key[:len(other)] == other`、`key.removeprefix(other)`、`key.lower() == other.lower()`、
+`os.path.normpath(key) == ...` 的普查，永远不会被判 `decides_alone`，
+因此永远不会进 `hand_copied`。门读起来是「没有人手抄」，实际是
+「没有用这两种写法手抄」，而这个差额连一个名字都没有。
+
+§8-2 给的另一条出路（换成「比的是不是位置」这类语义问法）本批**先量了再否**，
+量法是把第三问换成「body 里有任意 `ast.Compare`」，在同一次走盘上跑：
+
+| 第三问的取法 | 真人口 12 站点里判 `decides_alone` | 其中不 reaches owner（会进 `hand_copied`） | `hand_copied` |
+| --- | --- | --- | --- |
+| 旧的两条拼写 | 0 | 0 | 0 |
+| 本批的 8 条具名规则 + 切片 | 2（都是切片前缀） | **0**（那 2 个都 reaches owner） | 0 |
+| 宽口径：任意 `ast.Compare` | 11 | **3** | **3** |
+
+宽口径的那 3 个是管道（`_shipped_task` 这类只装载语料、不比路径的助手），不是手抄；
+把它们报成手抄就是假阳性，而格 4 会因此常红。所以答案取第二条：
+**给 (c) 一张有名有证的拼写表**，不取语义问法。
+
+### 3 落地（只动 `tests/test_two_fixture_keys_must_share_one_workspace.py`）
+
+1. 新增两个常量，第三问从此有名字：`IDENTITY_CALLS`（`startswith`、`removeprefix`、
+   `casefold`、`lower`、`commonprefix`、`normpath`、`abspath`、`realpath` 八个调用名）
+   与 `IDENTITY_ATTRS`（`.replace(`、`.parts` 两个标记），外加一条结构规则
+   （`ast.Subscript` 带 `ast.Slice`，即没有方法名可抓的 `key[:len(other)]`）。
+   三条路线抽成 `_decides_identity_alone(node, graph, body)`，`_layout_audit_shape` 的
+   第三问改调它，前两问一个字没动。
+2. 常量上方的注释写进本批的量法与结论：宽口径在这次走盘上会把 3 个管道站点报成手抄，
+   所以这张表保持「名字」而不是「问题」——这是把否掉的那条出路的**理由**留在代码里。
+3. 新增 `IDENTITY_PLANTS`（八份普查源码，一份一个拼写）与参数化测试
+   `tests/test_two_fixture_keys_must_share_one_workspace.py::test_a_hand_copied_census_is_named_whatever_spelling_it_uses`，
+   一格一拼写：走盘 1、进被审人口 1、`delegating` 0、`hand_copied` 1 且指名道姓。
+4. **每个植入件在写这条测试之前先量过「只触发一条规则、loads 与 reads 都为真」**——
+   一份同时触发两条规则的植入件，在删掉其中一条规则时不会红，臂就废了。
+   八份全部满足（先量后写，不是写完再看）。
+
+### 4 验证（双向）
+
+**预测表先写后跑**（写在本机临时文件 pred_table_129.md，跑之前落盘）。
+10 次跑 × 13 格 = **130 个预测，全部 MATCHED**，零存活臂，零非预期红，
+每一臂施加后按 sha256 还原为逐字节相同（`original = dafb1def…f09f74`）：
+
+| 臂（都施在测试文件自身） | R1 走盘 | R2 被审 | R3 本文件普查 | R4 委托≥6 & hand=0 | 旧植入件 | 8 个拼写植入件 |
+| --- | --- | --- | --- | --- | --- | --- |
+| baseline | green | green | green | green 8/0 | green | 全绿 |
+| 1 删 `startswith` | green | green | green | green | green | **[startswith] 红**，余 7 绿 |
+| 2 删 `removeprefix` | green | green | green | green | green | **[removeprefix] 红**，余 7 绿 |
+| 3 删 `casefold`/`lower` | green | green | green | green | green | **[lower] 红**，余 7 绿 |
+| 4 删 `commonprefix` | green | green | green | green | green | **[commonprefix] 红**，余 7 绿 |
+| 5 删 `normpath`/`abspath`/`realpath` | green | green | green | green | green | **[normpath] 红**，余 7 绿 |
+| 6 删 `.replace(` | green | green | green | green | green（`startswith` 仍点名） | **[replace] 红**，余 7 绿 |
+| 7 删 `.parts` | green | green | green | green | green | **[parts] 红**，余 7 绿 |
+| 8 删切片规则 | green | green | green | green | green | **[slice] 红**，余 7 绿 |
+| **W 追加「任意 `ast.Compare`」** | green | green | green | **红（hand 0→3）** | green | 全绿 |
+
+三条读法：
+
+- **八条规则各有一条臂**：删掉哪一条，只有那一格红，另外七格与真人口四格全绿——
+  这就是 §8-2 要的「让 (c) 的覆盖面有名字」，名字还各自带一个证人。
+- **臂 6 是「两条拼写还在互相掩护」的证**：旧植入件同时用了 `replace` 与 `startswith`，
+  删掉任意一条它仍绿；单拼写植入件没有这层掩护，所以八格里删谁谁红。
+- **臂 W 是被否掉那条出路的守卫**：它只让 R4 一格红，其余 12 格全绿。
+  也就是说将来谁把第三问改回语义问法，真人口的格 4 会先红，而不是等一条手抄悄悄溜过去。
+
+门的自身：`python scripts/doc_pointers.py --check` **exit=0**；
+全量 `python -m pytest tests/ -q` → **1704 passed / 0 failed / 574.82s**，随后 `--check` 仍 **exit=0**。
+1704 = 上一批 1696 + 本批八个参数化格。
+
+### 5 边界
+
+- **第三问改了，前两问没动**：`loads`（有没有装载语料）与 `reads`（读不读 fixture）
+  的判法与阈值原样，真人口仍是 12 个站点、8 个 reaches owner、0 个 `decides_alone`。
+- **八条新规则在真仓库上一个新站点都没点出来**（唯一由新规则点出的 2 个切片站点
+  本来就 reaches owner）。这不是「规则没用」，是「今天还没有人这么写」——
+  所以每条规则的证据只能是植入件，这也正是它们必须各自带一格的原因。
+- **仍然没有生产平面的被审站点**：12 个站点全在 `tests/`，`minicc/` 与 `scripts/` 是 0。
+  这是第九十三批 §8-3 那条候选，仍然开着，本批不顺手改。
+- **`casefold`、`abspath`、`realpath` 三个名字今天零现实命中**，只靠植入件证明；
+  它们的现实价值要等第一份这么写的普查出现才兑现。
+- 本批只提交一个文件（`tests/test_two_fixture_keys_must_share_one_workspace.py`），
+  批次记录另一笔提交；全量的 1704 格含另一条流尚未提交的工作树内容，那些不是本批的账。
+
