@@ -485,11 +485,13 @@ class Editor:
                         "完整 64 位 digest 后重试。"
                     ),
                 )
+            # 审计行给完整值：截断显示曾在诊断时把人引向「两个 digest 相同？」
+            # 的错误推断（48 位前缀相同的概率本可一眼排除）。
             self._audit(
                 action,
                 path,
-                f"拒绝: STALE_CONTEXT (digest 不匹配: expected {expected_digest[:12]} "
-                f"actual {actual[:12]})",
+                f"拒绝: STALE_CONTEXT (digest 不匹配: expected {expected_digest} "
+                f"actual {actual})",
                 before_digest=actual,
             )
             raise StaleContextError(path, expected_digest, actual)
