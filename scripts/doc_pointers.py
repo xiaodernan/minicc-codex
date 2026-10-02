@@ -1015,6 +1015,16 @@ _RETIRED_TEST_NAME: dict[str, str] = {
     "`tests/test_behavior_cases_are_the_pair_the_grader_unpacks.py::test_behavior_load_door_accepts_all_shipped_behaviour_tasks`"
     "——第九十批已把它的体改成跑门（`validate_behavior_task`），名字却还在声称普查「项的形状」；"
     "roadmap 四处引用记录的是改名前的叫法，不是今天还存在的函数名",
+    "test_no_layout_check_in_the_repo_re_types_the_owner_s_comparison": "第一百零九批（M8-T128）"
+    "把这条一格四断言的合门拆成四个格子（每格自己一条臂）：走盘数下限 "
+    "`tests/test_two_fixture_keys_must_share_one_workspace.py::test_the_layout_gate_walks_a_real_number_of_files`、"
+    "被审数下限 "
+    "`tests/test_two_fixture_keys_must_share_one_workspace.py::test_the_layout_gate_finds_a_real_population_of_layout_checks`、"
+    "本文件普查在名单里 "
+    "`tests/test_two_fixture_keys_must_share_one_workspace.py::test_the_layout_gate_audits_its_own_census`、"
+    "委托证据 "
+    "`tests/test_two_fixture_keys_must_share_one_workspace.py::test_the_layout_gate_sees_the_population_delegate_to_one_owner`；"
+    "roadmap 三处引用记录的是拆分前那一个名字",
 }
 
 #: A planning-stage name for something the delivery placed elsewhere. Not a

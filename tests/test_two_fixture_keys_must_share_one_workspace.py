@@ -268,10 +268,16 @@ def _layout_audit_shape(node: ast.FunctionDef, graph: dict[str, set[str]]) -> tu
     )
 
 
-def _layout_audits(roots: list[Path]) -> tuple[list[str], list[str], int]:
-    """Walk ``roots``: return (audited layout checks, ones that re-typed the comparison, files)."""
+def _layout_audits(roots: list[Path]) -> tuple[list[str], list[str], int, int]:
+    """Walk ``roots``: return (audited layout checks, ones that re-typed, ones that delegated, files).
+
+    The third answer is why the fourth cell of the gate can go red at all: a population in which
+    nothing is classified ``decides_alone`` cannot name a hand copy, so "no offenders" proves
+    nothing until a positive count of the owner's own calls is asserted beside it.
+    """
     audited: list[str] = []
     hand_copied: list[str] = []
+    delegating = 0
     walked = 0
     for root in roots:
         paths = sorted(root.rglob("*.py")) if root.is_dir() else []
@@ -288,23 +294,67 @@ def _layout_audits(roots: list[Path]) -> tuple[list[str], list[str], int]:
                     continue
                 where = f"{root.name}/{path.relative_to(root).as_posix()}::{name}"
                 audited.append(where)
+                if _reaches(name, graph, OWNER_CALLS):
+                    delegating += 1
                 if decides_alone and not _reaches(name, graph, OWNER_CALLS):
                     hand_copied.append(f"{where}:{node.lineno}")
-    return audited, hand_copied, walked
+    return audited, hand_copied, delegating, walked
 
 
-def test_no_layout_check_in_the_repo_re_types_the_owner_s_comparison() -> None:
-    """The doors delegate to one owner; a test that re-types its comparison can disagree silently.
+def test_the_layout_gate_walks_a_real_number_of_files() -> None:
+    """Cell 1 of the layout gate: the walk covers the repo, not a corner of it.
 
-    Floors are the count this same walk got, so the gate cannot be satisfied by reading nothing.
+    Four cells instead of one test with four assertions, because assertions stacked in one body
+    short-circuit: an arm that broke only the third could never be seen while the first was red.
+    Floors are what this same walk measured, so the gate cannot be satisfied by reading nothing.
     Measured at ``eead5ea`` after converting this file's own census: 189 python files under
-    tests/, minicc/ and scripts/, and this census is one of the audited layout checks.
+    tests/, minicc/ and scripts/; 203 at the split (batch 109).
     """
-    audited, hand_copied, walked = _layout_audits([REPO / directory for directory in CENSUS_DIRS])
+    _, _, _, walked = _layout_audits([REPO / directory for directory in CENSUS_DIRS])
     assert walked >= 180, f"the gate walked only {walked} python files - it read almost nothing"
+
+
+def test_the_layout_gate_finds_a_real_population_of_layout_checks() -> None:
+    """Cell 2: the shape matcher still recognises a layout check when it sees one.
+
+    Twelve sites at the split. This floor is what keeps cells 3 and 4 from being answered by an
+    empty population - and it is the cell that goes red when the matcher's own reading of
+    ``fixture`` is switched off, which leaves the walk (cell 1) untouched.
+    """
+    audited, _, _, _ = _layout_audits([REPO / directory for directory in CENSUS_DIRS])
     assert len(audited) >= 8, f"the gate looked at only {len(audited)} layout checks"
+
+
+def test_the_layout_gate_audits_its_own_census() -> None:
+    """Cell 3: this file's own census sits inside the population the gate audits.
+
+    The census at ``test_no_shipped_task_carries_a_colliding_pair`` reaches the shipped corpus
+    through the helper ``_shipped_populations``, so this cell is also the witness that the shape
+    matcher follows a call chain rather than only direct calls.
+    """
+    audited, _, _, _ = _layout_audits([REPO / directory for directory in CENSUS_DIRS])
     assert any(site.endswith("::test_no_shipped_task_carries_a_colliding_pair") for site in audited), (
         f"this file's own census is not even inside the audited population: {audited}"
+    )
+
+
+def test_the_layout_gate_sees_the_population_delegate_to_one_owner() -> None:
+    """Cell 4: the doors delegate to one owner; a test that re-types its comparison can disagree.
+
+    The negative half (nothing decides alone) is worth keeping but cannot carry the cell: at the
+    split, 0 of the 12 audited sites are classified ``decides_alone``, so no amount of editing
+    ``OWNER_CALLS`` can make ``hand_copied`` non-empty - the assertion was reachable only through
+    the plant in ``test_the_layout_gate_names_a_hand_copied_census``. The positive half is what
+    gives this cell an arm: 8 of 12 audited sites reach an owner call today, and a gate whose
+    owner list has quietly lost ``require_writable_fixture`` still sees all twelve sites while
+    recognising only five of them as delegation.
+    """
+    audited, hand_copied, delegating, _ = _layout_audits(
+        [REPO / directory for directory in CENSUS_DIRS]
+    )
+    assert delegating >= 6, (
+        f"only {delegating} of {len(audited)} layout checks reach an owner call {sorted(OWNER_CALLS)}"
+        f" - the gate can no longer tell delegation from a hand copy"
     )
     assert hand_copied == [], f"these decide fixture layout by hand: {hand_copied}"
 
@@ -329,16 +379,21 @@ def census_of_shipped_layout():
 def test_the_layout_gate_names_a_hand_copied_census(tmp_path: Path) -> None:
     """The refusing half of the gate: one planted file through the same walk, not a new matcher.
 
-    Without this the assertion above could be green because the predicate went blind - which is
-    exactly how the census in this file stayed green while its comparison drifted from the doors.
+    Without this the negative half of cell 4 could be green because the predicate went blind -
+    which is exactly how the census in this file stayed green while its comparison drifted from
+    the doors. The plant is also the only thing that has ever made ``hand_copied`` non-empty:
+    measured at the split, 0 of the 12 real audited sites are classified ``decides_alone``.
     """
     planted = tmp_path / "planted"
     planted.mkdir()
     (planted / "test_planted_census.py").write_text(PLANTED_CENSUS, encoding="utf-8")
-    audited, hand_copied, walked = _layout_audits([planted])
+    audited, hand_copied, delegating, walked = _layout_audits([planted])
     assert walked == 1, f"the planted file never reached the walk: {walked}"
     assert audited == ["planted/test_planted_census.py::census_of_shipped_layout"], (
         f"the plant must land inside the audited population, got {audited}"
+    )
+    assert delegating == 0, (
+        f"a planted hand copy must not read as delegation to the owner, got {delegating}"
     )
     assert len(hand_copied) == 1, f"the gate must name the planted census, got {hand_copied}"
     assert hand_copied[0].startswith("planted/test_planted_census.py::census_of_shipped_layout:"), (
