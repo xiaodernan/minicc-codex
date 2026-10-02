@@ -232,6 +232,19 @@ CENSUS_DIRS = ("tests", "minicc", "scripts")
 CORPUS_CALLS = {"load_tasks", "behavior_tasks"}
 OWNER_CALLS = {"require_writable_fixture", "validate_task", "validate_behavior_task"}
 
+#: The spellings a census can use to decide path identity without the owner.
+#: Measured at 第一百一十批 (M8-T129): the probe named only two of them, so a census
+#: written with ``os.path.commonprefix``, ``PurePosixPath.parts``, a slice,
+#: ``removeprefix``, case folding or path normalisation was invisible to it. The wide
+#: alternative - "does this body compare anything at all?" - was measured on this same
+#: walk and named three sites that are plumbing rather than hand copies, so this stays a
+#: list of names instead of a question about comparisons. Every entry has one planted
+#: sample in ``test_a_hand_copied_census_is_named_whatever_spelling_it_uses``; that test
+#: is what turns an entry here into a red cell when the walk stops recognising it.
+IDENTITY_CALLS = frozenset({"startswith", "removeprefix", "casefold", "lower",
+                            "commonprefix", "normpath", "abspath", "realpath"})
+IDENTITY_ATTRS = (".replace(", ".parts")
+
 
 def _call_names(node: ast.AST) -> set[str]:
     """Every function or method name this body calls, bare or attribute-reached."""
@@ -253,6 +266,23 @@ def _reaches(name: str, graph: dict[str, set[str]], targets: set[str],
     return any(_reaches(other, graph, targets, seen | {name}) for other in calls)
 
 
+def _decides_identity_alone(node: ast.FunctionDef, graph: dict[str, set[str]],
+                            body: str) -> bool:
+    """Does this body decide path identity itself instead of asking the owner?
+
+    Three routes, in the order a reader meets them: a call name from ``IDENTITY_CALLS``,
+    a marker from ``IDENTITY_ATTRS``, and a slice - a prefix compare that has no method
+    name to catch (``key[:len(other)] == other``). Only the third is structural; the
+    first two are the names this walk has actually been shown.
+    """
+    if graph.get(node.name, set()) & IDENTITY_CALLS:
+        return True
+    if any(mark in body for mark in IDENTITY_ATTRS):
+        return True
+    return any(isinstance(n, ast.Subscript) and isinstance(n.slice, ast.Slice)
+               for n in ast.walk(node))
+
+
 def _layout_audit_shape(node: ast.FunctionDef, graph: dict[str, set[str]]) -> tuple[bool, bool, bool]:
     """(loads a shipped corpus, reads fixture entries, decides path identity by itself).
 
@@ -260,11 +290,10 @@ def _layout_audit_shape(node: ast.FunctionDef, graph: dict[str, set[str]]) -> tu
     plumbing: walking fixtures is what every report does, comparing their paths is the owner's.
     """
     body = ast.unparse(node)
-    names = graph.get(node.name, set())
     return (
         _reaches(node.name, graph, CORPUS_CALLS),
         '"fixture"' in body or "'fixture'" in body,
-        "startswith" in names or ".replace(" in body,
+        _decides_identity_alone(node, graph, body),
     )
 
 
@@ -399,3 +428,163 @@ def test_the_layout_gate_names_a_hand_copied_census(tmp_path: Path) -> None:
     assert hand_copied[0].startswith("planted/test_planted_census.py::census_of_shipped_layout:"), (
         f"the named offender is not the plant: {hand_copied}"
     )
+
+
+IDENTITY_PLANTS: dict[str, str] = {
+    "startswith": r'''
+"""A census whose prefix test is spelled with str.startswith."""
+from minicc.benchmarks import load_tasks
+
+
+def census():
+    bad = []
+    for task in load_tasks():
+        keys = list(task["fixture"])
+        for key in keys:
+            for other in keys:
+                if key.startswith(other + "/"):
+                    bad.append(task["id"])
+    return bad
+''',
+    "replace": r'''
+"""A census that normalises separators with str.replace."""
+from minicc.benchmarks import load_tasks
+
+
+def census():
+    bad = []
+    for task in load_tasks():
+        keys = [key.replace("\\", "/") for key in task["fixture"]]
+        for key in keys:
+            for other in keys:
+                if key == other:
+                    bad.append(task["id"])
+    return bad
+''',
+    "commonprefix": r'''
+"""A census that decides a shared prefix with os.path.commonprefix."""
+import os
+
+from minicc.benchmarks import load_tasks
+
+
+def census():
+    bad = []
+    for task in load_tasks():
+        keys = list(task["fixture"])
+        for key in keys:
+            for other in keys:
+                if os.path.commonprefix([key, other]) == key and key != other:
+                    bad.append(task["id"])
+    return bad
+''',
+    "parts": r'''
+"""A census that compares PurePosixPath.parts."""
+from pathlib import PurePosixPath
+
+from minicc.benchmarks import load_tasks
+
+
+def census():
+    bad = []
+    for task in load_tasks():
+        keys = list(task["fixture"])
+        for key in keys:
+            for other in keys:
+                if PurePosixPath(key).parts == PurePosixPath(other).parts:
+                    bad.append(task["id"])
+    return bad
+''',
+    "slice": r'''
+"""A census that reads a prefix off the front with a slice."""
+from minicc.benchmarks import load_tasks
+
+
+def census():
+    bad = []
+    for task in load_tasks():
+        keys = list(task["fixture"])
+        for key in keys:
+            for other in keys:
+                if key[: len(other)] == other and key != other:
+                    bad.append(task["id"])
+    return bad
+''',
+    "removeprefix": r'''
+"""A census that strips a prefix with str.removeprefix."""
+from minicc.benchmarks import load_tasks
+
+
+def census():
+    bad = []
+    for task in load_tasks():
+        keys = list(task["fixture"])
+        for key in keys:
+            for other in keys:
+                if key.removeprefix(other) != key:
+                    bad.append(task["id"])
+    return bad
+''',
+    "lower": r'''
+"""A census that folds case with str.lower before comparing."""
+from minicc.benchmarks import load_tasks
+
+
+def census():
+    bad = []
+    for task in load_tasks():
+        keys = list(task["fixture"])
+        for key in keys:
+            for other in keys:
+                if key.lower() == other.lower() and key != other:
+                    bad.append(task["id"])
+    return bad
+''',
+    "normpath": r'''
+"""A census that normalises the path with os.path.normpath."""
+import os
+
+from minicc.benchmarks import load_tasks
+
+
+def census():
+    bad = []
+    for task in load_tasks():
+        keys = list(task["fixture"])
+        for key in keys:
+            for other in keys:
+                if os.path.normpath(key) == os.path.normpath(other) and key != other:
+                    bad.append(task["id"])
+    return bad
+''',
+}
+
+
+@pytest.mark.parametrize("spelling", sorted(IDENTITY_PLANTS))
+def test_a_hand_copied_census_is_named_whatever_spelling_it_uses(
+    spelling: str, tmp_path: Path
+) -> None:
+    """Every spelling in ``IDENTITY_CALLS`` / ``IDENTITY_ATTRS`` has a sample that must be named.
+
+    One plant per spelling, and each plant fires exactly one rule - measured before this test
+    existed, because a plant that trips two rules could not lose one of them. That property is
+    what makes a removal arm land on this cell alone: take ``commonprefix`` out of the list and
+    the ``commonprefix`` plant goes red while the other seven stay green.
+
+    The plant is also the reach for the wide alternative. A predicate of "does it compare
+    anything" names this plant too, but it also names three sites of the real population that
+    are plumbing rather than hand copies - which is the cost this list of names is avoiding,
+    and which cell 4 of the layout gate still refuses.
+    """
+    root = tmp_path / "planted"
+    root.mkdir()
+    (root / f"test_planted_{spelling}.py").write_text(IDENTITY_PLANTS[spelling], encoding="utf-8")
+    audited, hand_copied, delegating, walked = _layout_audits([root])
+    site = f"planted/test_planted_{spelling}.py::census"
+    assert walked == 1, f"the {spelling} plant never reached the walk: {walked}"
+    assert audited == [site], f"the {spelling} plant must land in the audited population: {audited}"
+    assert delegating == 0, f"a hand copy must not read as delegation: {delegating}"
+    assert len(hand_copied) == 1, (
+        f"the {spelling} spelling is in IDENTITY_* but this walk did not name it: {hand_copied}"
+    )
+    assert hand_copied[0].startswith(site + ":"), f"the named offender is not the plant: {hand_copied}"
