@@ -1267,6 +1267,10 @@ class AgentService:
             str(self.config.model),
             float(self.config.timeout),
             fallback_models=tuple(getattr(self.config, "fallback_models", ()) or ()),
+            # M11: config.json's ``stage_routing`` object reaches the router here.
+            # Absent/None -> the router keeps the single configured model, which
+            # is the behavior every existing deployment already has.
+            stage_routing_config=getattr(self.config, "stage_routing", None),
         )
         initial_route = stage_router.route("planning")
         verifier = Verifier()
@@ -2438,7 +2442,10 @@ class AgentService:
                         # 明细 dict 只在全量快照里。
                         final.metrics["channel"] = status.get("active")
                         final.metrics["channels"] = status
-                    except Exception:
+                    except Exception:  # noqa: BLE001 - a snapshot must survive a silent provider
+                        # The channel numbers are decoration on an otherwise authoritative
+                        # snapshot: a provider that cannot report its channel must not fail the
+                        # task result, and the two metrics keys simply stay absent.
                         pass
                 await provider.close()
 

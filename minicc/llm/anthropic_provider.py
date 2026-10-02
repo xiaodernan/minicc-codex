@@ -352,7 +352,7 @@ class AnthropicProvider:
                     "summary": "主通道额度已用尽（402/Credit 上限），本次任务改用 Step Plan 套餐通道",
                     "detail": {"from": "paid", "to": "plan", "status_code": status_code},
                 })
-            except Exception:
+            except Exception:  # noqa: BLE001 - a status listener must not break the switch
                 pass
 
     async def close(self) -> None:

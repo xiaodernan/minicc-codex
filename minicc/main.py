@@ -486,8 +486,12 @@ async def _interactive(
                         f"（{paid.get('total_tokens', 0)} tokens） / "
                         f"套餐 {plan.get('requests', 0)} 次（{plan.get('total_tokens', 0)} tokens）"
                     )
-                except Exception:
-                    pass
+                except Exception as exc:  # noqa: BLE001 - the rest of /status must still print
+                    # /status is a question the user asked, so silence is a wrong answer: the
+                    # `callable` branch above already means "this build has no channel status",
+                    # and a failure that prints nothing is indistinguishable from it. The type is
+                    # named and the message is not, because provider text can carry a URL.
+                    cli_out(f"通道状态不可用（{type(exc).__name__}）")
             if session is not None:
                 cli_out(f"session={session.path}")
             continue
