@@ -244,6 +244,19 @@ def test_the_identity_question_is_the_hosts_own_function() -> None:
     cannot show it. What a token search does protect is the other failure: folding the case in the
     source would refuse a legal task on a case-sensitive volume, and it does so whatever spelling of
     "fold in the source" the author picks, so the list names the spellings rather than the one word.
+
+    Measured (batch 111, mutations applied to `minicc/bench_tasks.py::location` and reverted):
+
+    | mutation | caught by |
+    | --- | --- |
+    | A: ``location`` stops normalising at all (never asks the host) | ``test_a_folding_host_makes_the_two_keys_one_position`` |
+    | B: folds through a helper defined **outside** the owner's body, so no named spelling is in it | ``test_a_case_sensitive_host_must_still_accept_those_keys`` |
+    | C: a named spelling planted in the body but never read (no answer changes) | **this cell** |
+
+    So the two halves are complementary rather than one being a weaker copy of the other: the policy
+    cells catch any change that *changes an answer*, and this cell catches the spelling that does not
+    yet change one. That is why the token list stays after the behaviour cells landed - and why this
+    cell must not be credited with proving that the host gets asked.
     """
     owners: list[str] = []
     for path in sorted((REPO / "minicc").glob("*.py")):

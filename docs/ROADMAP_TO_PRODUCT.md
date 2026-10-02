@@ -9551,3 +9551,52 @@ session 名单一侧的既有语义没有变化：`match_session_allowlist` 改�
 - 本批只提交一个文件（`tests/test_two_fixture_keys_must_share_one_workspace.py`），
   批次记录另一笔提交；全量的 1704 格含另一条流尚未提交的工作树内容，那些不是本批的账。
 
+
+## 第一百一十一批 M8-T130：那条「问词不问行为」的候选是陈旧的——三个变异逐格量出谁抓谁
+
+### 1 候选原文与它要求的改法
+
+第九十三批 §8-5 写着：`test_the_identity_question_is_the_hosts_own_function` **问的是词，不是行为**——
+用 AST 判「主人的身体里有没有 `normcase` 这个词、有没有 `.lower(`」，而 W1 臂（把 `location` 里的调用
+换成不归一化、词还留在同一个函数体里）让它「预测红、实际绿」。**改法是让它问行为**：
+同一份 fixture 在「身份」与「折叠」两种供给政策下必须给出不同答案、且每个答案与主人的一致。
+
+### 2 先量：那条改法是不是已经存在
+
+读文件后先看有没有人已经这么写过，结果是**有**（同文件 106/116 两格）：
+
+- `test_a_folding_host_makes_the_two_keys_one_position`：`monkeypatch.setattr(os.path, "normcase", lambda v: v.lower())` → 要求**拒绝**；
+- `test_a_case_sensitive_host_must_still_accept_those_keys`：`normcase` 换成恒等 → 要求**放行**；
+- 另有 `test_the_identity_gate_is_live_when_the_owner_stops_asking` 记录「主人到底问没问宿主」。
+
+所以「供给两种政策、看答案是否跟着变」**不是待办，是既有覆盖**。那就不能按候选字面去加一条重复的门，
+而要量清楚：这套门对「主人不再问宿主」这一类到底有没有洞。
+
+### 3 三个变异（都打在 `minicc/bench_tasks.py::location`，跑完逐字还原）
+
+| 变异 | 形状 | 结果 | 谁抓到 |
+| --- | --- | --- | --- |
+| A | `tuple(segment for segment in path.split("/"))`——**根本不归一化**，即候选说的 W1 形状 | `1 failed` | `test_a_folding_host_makes_the_two_keys_one_position[case-child-then-file]` |
+| B | 改成调一个**定义在主人身体之外**的 `_fold_identity()`（身体里没有任何被点名的拼写） | `1 failed, 4 passed` | `test_a_case_sensitive_host_must_still_accept_those_keys[case-child-then-file]` |
+| C | 在身体里**植入**一个被点名的拼写但从不读它（`_spellings = [s.lower() …]`，**任何答案都不变**） | `1 failed, 29 passed` | **就是那条搜词的门**，逐字 `bench_tasks.py: '.lower(' decides identity in the source, not on the host's answer` |
+| 基线 | 未变异 | `30 passed in 15.18s` | — |
+
+三个变异**各由一个不同的格抓到**，A/B 由行为格、C 由搜词格；文件每次都在 `finally` 里还原
+（驱动脚本落在仓库之外，跑完 `restored: True`）。
+
+### 4 结论：候选陈旧，搜词门保留但要写清它证明什么
+
+- 候选担心的两件事（主人不问宿主、主人在源里折叠）**今天都有行为格在抓**，而且抓到的正是 W1 那个形状（变异 A）。
+  所以「改成问行为」这条待办**已经兑现**，本批不改代码，只把它结案。
+- 搜词门**不是行为门的弱拷贝**，两者互补：行为格抓「任何让答案改变的改动」，搜词格抓「今天还看不出后果的那个拼写」（变异 C）。
+  这也是它**保留**的理由——不是因为候选说保留，而是因为 C 没有别的格抓得到。
+- 同时把边界写进它的 docstring：**这一格不许被记成「主人问过宿主」的证据**（那句话本来就是行为格的事），
+  并附上上面那张变异表，让下一个读到它的人不必重跑一遍才知道它管什么。
+
+### 5 边界（明确不声称）
+
+- 本批**没有**证明「主人问宿主」以外的路径也都被覆盖：三个变异都打在 `location` 这一个函数上，
+  换 `require_writable_fixture` 的其它分支（逃逸键、目录键、非文本内容）没有做变异。
+- 搜词表仍是**白名单**：`str.lower(` 这种拼写能命中（它包含 `.lower(` 子串），但 `text.translate(table)`、
+  `unicodedata.normalize(...)` 这类折叠写法**不在表内**——变异 C 的形状只覆盖了表里那三种拼写。
+  要收紧得先量「表外拼写今天有没有现实站点」，本批未量。
