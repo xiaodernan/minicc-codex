@@ -9756,3 +9756,14 @@ source modules: 75 | wheel modules: 75 | sets equal: True
 属能力方差而非守卫误杀——它的错误路径干净（claimed_complete + grader
 不同意，false_completion_rate 度量的正是这个）。
 
+### behavior 套件真模型基线：12/12（2026-10-01，Step Plan 套餐通道）
+
+behavior 套件（12 道 Python 函数修复题，python_behavior 判分器按用例调用）
+**第一次用真模型跑**：pass@1 **12/12 = 1.0**，tokens 576 283，轮数 4-13
+（均值 7.4），零失败、零守卫介入。与 v2 套件（23-24/24）互补：两套任务
+分布（文件契约型 vs 函数行为型）上都达到满分级表现。
+`output/behavior_real.results.json` 为准（gitignored）。
+
+**口径诚实**：behavior 题是单函数小修复，难度低于 v2 的多文件契约题；
+12/12 说明基础修复能力扎实，不外推到更复杂任务。
+
