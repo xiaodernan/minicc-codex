@@ -63,13 +63,18 @@ class StaleContextError(EditError):
     must point at re-reading instead of handing back a partial anchor.
     """
 
-    def __init__(self, path: str, expected: str, actual: str) -> None:
-        super().__init__(
+    def __init__(
+        self, path: str, expected: str, actual: str, *, hint: str = ""
+    ) -> None:
+        message = (
             f"STALE_CONTEXT: {path} 的 digest 不匹配 "
             f"(expected {expected[:12]}…, actual {actual[:12]}…); 拒绝写入, 未落盘。"
             "digest 已在写入间隙变化——不要复用错误信息里的截断摘要，"
             "请先 read_file 获取最新内容（其结果摘要含完整 64 位 digest），再重试写入。"
         )
+        if hint:
+            message = f"STALE_CONTEXT: {path} — {hint}"
+        super().__init__(message)
         self.expected_digest = expected
         self.actual_digest = actual
 
@@ -454,6 +459,32 @@ class Editor:
         """
         actual = self._digest_bytes(target)
         if expected_digest is not None and actual != expected_digest:
+            # M8-T61b: 真网关实测的新变体——模型从 64 位摘要里只抄了前几位
+            # （expected 8 位、actual 64 位且以其为前缀）。文件并没有变化，
+            # 死循环纯粹来自截断值。对这种形态给出**点名式**错误（而不是
+            # 通用「不匹配」），模型下一次重试就知道要复制完整值。
+            prefix_cut = (
+                expected_digest
+                and len(expected_digest) < len(actual)
+                and actual.startswith(expected_digest)
+            )
+            if prefix_cut:
+                self._audit(
+                    action,
+                    path,
+                    f"拒绝: digest 传了 {len(expected_digest)}/{len(actual)} 位前缀",
+                    before_digest=actual,
+                )
+                raise StaleContextError(
+                    path,
+                    expected_digest,
+                    actual,
+                    hint=(
+                        f"你传入的是 {len(expected_digest)} 位截断的 digest（恰好是当前值的"
+                        "前缀，文件并没有变化）。请原样复制上次读取/写入结果摘要里的"
+                        "完整 64 位 digest 后重试。"
+                    ),
+                )
             self._audit(
                 action,
                 path,

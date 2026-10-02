@@ -9787,3 +9787,19 @@ behavior 套件（12 道 Python 函数修复题，python_behavior 判分器按�
 纯文本答案不误伤、合法信封照常提升为 tool_calls；未修复代码上红），
 m1_integrity + core_llm 无回归。
 
+### M8-T61b：截断 digest 的点名式错误（2026-10-01）
+
+responses+envelope 组合的真网关探测（矩阵最后一格）抓到摘要幻觉的又一变体：
+模型从 64 位摘要里只抄**前 8 位**作为 expected_digest——文件根本没变，编辑被拒
+后模型反复重试同一截断值，直到停滞守卫判死。M8-T56 修的是「文件变了还用旧
+值」，这次是「文件没变但值不完整」——通用「不匹配」消息对后者无解释力。
+
+修法：`_check_expected_digest` 识别「expected 是 actual 的真前缀」形态，错误
+直接点名「你传了 N/64 位截断值，文件并没有变化，请原样复制完整 64 位」。
+不放宽匹配语义（前缀接受会弱化并发防护），只把错误从「不可理解」变成
+「可执行」。组合本身（responses+envelope）机械上工作：19 次工具调用、
+read 成功——矩阵最后一格验证完毕。
+
+验收：test_truncated_digest_prefix_gets_a_pointing_hint（未修复代码上红：
+消息无「截断」字样），core_tools/core_agent/检视回退 71 passed。
+

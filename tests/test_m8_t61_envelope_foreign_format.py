@@ -90,3 +90,23 @@ def test_valid_envelope_still_lifts_to_tool_calls() -> None:
 
     response = asyncio.run(run())
     assert response.tool_calls and response.tool_calls[0]["function"]["name"] == "read_file"
+
+
+def test_truncated_digest_prefix_gets_a_pointing_hint(tmp_path: Path) -> None:
+    """M8-T61b: 模型传 8 位截断 digest（恰为当前值前缀）时，错误必须点名截断。
+
+    真网关实测（responses+envelope 组合）：模型从 64 位摘要只抄前 8 位 →
+    通用「不匹配」消息让它反复重试同一截断值直到停滞守卫判死。点名式
+    消息让下一次重试直接复制完整值。
+    """
+    from minicc.tools.editor import Editor, StaleContextError
+
+    editor = Editor(tmp_path)
+    editor.write_file("note.txt", "v1" + chr(10))
+    full = editor.file_digest("note.txt")
+    with pytest.raises(StaleContextError) as exc_info:
+        editor.write_file("note.txt", "v2" + chr(10), expected_digest=full[:8])
+    assert "8 位截断" in str(exc_info.value)
+    assert "完整 64 位" in str(exc_info.value)
+    # 文件未被改动。
+    assert editor.file_digest("note.txt") == full
