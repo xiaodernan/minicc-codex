@@ -2,12 +2,14 @@
   "name": "minicc",
   "displayName": "minicc",
   "description": "Open the local minicc workbench and send the current editor selection.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "minicc",
   "engines": {
     "vscode": "^1.80.0"
   },
-  "categories": ["Other"],
+  "categories": [
+    "Other"
+  ],
   "activationEvents": [
     "onCommand:minicc.openWorkbench",
     "onCommand:minicc.sendSelection"
