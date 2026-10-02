@@ -9340,3 +9340,116 @@ grade_answer_rubric` 少掉 `(task, answer)`、把 loader 调用换成一个带�
 ### 5 边界
 
 session 名单一侧的既有语义没有变化：`match_session_allowlist` 改成调用同一对共享函数，M8-T123、M8-T124、M8-T125 的三条门原样绿，收敛门的另一半正是这件事的证。`minicc/netguard.py` 的 CGNAT 与 6to4/Teredo 两处仍按既定口径当公网处理，那是需要用户拍板的策略选择，不在本批擅自收紧或放宽的范围内。本批只收紧 consent，没有放宽任何 fail-closed 守卫。
+
+## 第一百零九批 M8-T128：合门拆成四格，每格一条臂——量出来旧第四断言今天没有臂
+
+### 1 来源与占号
+
+来源是第九十三批 §8-6 那条候选原文：`test_no_layout_check_in_the_repo_re_types_the_owner_s_comparison`
+一条门里写了三条断言（文件数下限、被审数下限、本文件普查必须在名单里），它们按顺序短路，
+所以第九十三批 W2 只有第一条有变异臂（红字 `walked only 75`），后两条今天没有任何臂单独打破过；
+候选给的两条出路是「拆成三格（每格一个臂）」或「把名单那一格提到最前面并补一条臂」。
+
+占号前先读 `git log origin/main` 与文档全文：`T128` 在提交里 0 命中、在文档里 0 命中，
+本批认领 **M8-T128**。`T127` 不可用——另一条流的本地分支 `m8-t127-deny-veto-every-site`
+（`e6dff2d`，父提交正是本流追平时的 `3510437`）已经占了它，所以本批顺延一号。
+
+顺带登记一处**已经发生的撞号**：本流第一百零六批认领 M8-T119（行为任务 function/fixture 一致性的装载期前移），
+而另一条流第一百零七批的区间 `M8-T117..T125` 里的 M8-T119 是另一个缺陷
+（d64ef55（M8-T119：glob 会把名字长得像 SKIP_DIRS 条目的文件一起藏掉））。
+两个不同的缺陷用了同一个号，两份记录都在 `origin/main` 上，号已不可回收；写在这里是为了让下一次占号的人
+读到的不只是「T119 有记录」这个事实，而是它有**两份**记录这件事。
+
+### 2 缺陷
+
+四条断言挤在一个测试体里，pytest 报的是一个格子，变异臂只能打到最前面那条没红的断言上。
+拆开之前，本批先把四条各自的可达性量了一遍，量出一件比「后两条没有臂」更重的事实：
+
+**第四条 `hand_copied == []` 今天根本没有臂。** 真仓库 203 个 python 文件里被这条门审到 12 个站点，
+其中 `_layout_audit_shape` 判 `decides_alone` 为真的有 **0** 个，而 `hand_copied` 只在
+`decides_alone and not reaches(OWNER_CALLS)` 时才收——0 个候选，`hand_copied` 恒为空。
+实测把这个断言的臂换成最直接的那种（`OWNER_CALLS` 清空）也仍为 0，红不出来。
+
+这一条不是纸面推断，是成对量出来的：
+
+| 平面 | 臂 | 结果 |
+| --- | --- | --- |
+| `origin/main` 的合体门（`git show HEAD:` 取出） | `OWNER_CALLS` 去掉 `require_writable_fixture` | **`1 passed`，exit 0** |
+| 本批拆分后的格 4 | 同一条臂 | **红**（`delegating` 8→5，低于地板 6） |
+
+也就是说旧第四断言的到达性一直由植入件 `test_the_layout_gate_names_a_hand_copied_census` 供着，
+正身从没红过——而植入件走的是 `tmp_path` 里的一份人造语料，它证明的是匹配器还认得手抄，
+不是真仓库今天有人在手抄。
+
+量出来的四条基线（本批所有地板的来源）：
+
+| 读数 | 值 |
+| --- | --- |
+| 走盘 python 文件 | 203（tests / minicc / scripts） |
+| 被审站点 | 12 |
+| 其中 reaches `OWNER_CALLS`（委托） | 8 |
+| 其中 `decides_alone`（手抄候选） | **0** |
+| 既不委托也不判手抄的管道 | 4 |
+| `hand_copied` | 0 |
+
+### 3 落地
+
+1. `_layout_audits` 的返回从三元组改四元组 `(audited, hand_copied, delegating, walked)`：
+   第三个是新增的**正向**计数，docstring 写明它为什么存在——没有正向计数，负半边
+   「没人手抄」在一个人人都不是手抄候选的语料上等同于恒真。
+2. 合体门拆成四格，每格自己走一次盘，各自一条臂：
+   - `tests/test_two_fixture_keys_must_share_one_workspace.py::test_the_layout_gate_walks_a_real_number_of_files`（走盘下限 180，实测 203）
+   - `tests/test_two_fixture_keys_must_share_one_workspace.py::test_the_layout_gate_finds_a_real_population_of_layout_checks`（被审下限 8，实测 12）
+   - `tests/test_two_fixture_keys_must_share_one_workspace.py::test_the_layout_gate_audits_its_own_census`（本文件普查在名单里）
+   - `tests/test_two_fixture_keys_must_share_one_workspace.py::test_the_layout_gate_sees_the_population_delegate_to_one_owner`（正向委托下限 6 + 负半边 `hand_copied == []`）
+3. 格 4 的 docstring 把上面那张测量表的结论写进去：负半边单独扛不起这一格，正向地板才是这一格臂的来源。
+4. 植入件测试补一条 `delegating == 0`：人造手抄不能被读成委托，正负两半在同一个植入件上各有一次证。
+5. 旧名死掉，`scripts/doc_pointers.py` 的 `_RETIRED_TEST_NAME` 加**第二个键**——第九十九批给这张表
+   写的边界原文是「`_RETIRED_TEST_NAME` 只放了一个键……第二个退役名出现时再加」，本批就是那「第二个」。
+   理由里带四个新格子的活指针，不是把三处历史引用改写成别的测试名（第九十九批已经证明改写会造出
+   一句历史不支持的假话）。
+
+### 4 验证（双向）
+
+**预测表先写后跑**（写在本机临时文件 pred_table_127.md，跑之前落盘）。5 臂 × 5 格 = 30 个预测，
+**全部 MATCHED，零存活臂**，每一臂施加后按 sha256 还原为逐字节相同（`original = cf81ce86…e028a`）：
+
+| 臂（都施在测试文件自身） | 格1 走盘≥180 | 格2 被审≥8 | 格3 本文件普查 | 格4 委托≥6 & hand=0 | 植入件 |
+| --- | --- | --- | --- | --- | --- |
+| baseline | green 203 | green 12 | green | green 8/0 | green |
+| A `CENSUS_DIRS` → `("tests",)` | **RED 124** | green 12 | green | green 8/0 | green |
+| B `_layout_audit_shape` 读 `fixture` → `False` | green 203 | **RED 0** | **RED** | **RED 0/0** | **RED** |
+| C `_reaches` 失去递归 | green 203 | green 10 | **RED** | green 6/0 | green |
+| D `OWNER_CALLS` 去掉 `require_writable_fixture` | green 203 | green 12 | green | **RED 5/0** | green |
+| E 只收非 `test_` 前缀的顶层函数 | green 203 | **RED 4** | **RED** | **RED 2/0** | green |
+
+每一格至少被一条臂单独打破：格1 ← A，格2 ← B/E，格3 ← B/C/E，格4 ← B/D/E。
+臂 D 是格 4 那条正向地板换来的（也是上面 §2 反面见证的同一臂）；臂 C 顺带给格 3 第一次配上了臂——
+它同时也是「形状匹配器跟的是调用链而不是直呼」这件事的证，本文件普查正是经 `_shipped_populations`
+两跳才碰到 `load_tasks`，断了递归它就掉出人口。
+
+门的自身：
+
+- 加豁免前 `python scripts/doc_pointers.py --check` **exit=1**；同一批里 pytest 红 9 格
+  （`tests/test_doc_pointers.py` 6 格 + `tests/test_pointer_liveness_corpus.py` 3 格），
+  原文是 3 条 DANGLING EVIDENCE，分别落在 ROADMAP_TO_PRODUCT.md 的第 8213、8229、8350 行，都指向旧名。
+- 加 `_RETIRED_TEST_NAME` 第二个键之后：`--check` **exit=0**；
+  `pytest tests/test_doc_pointers.py tests/test_pointer_liveness_corpus.py -q -p no:randomly` → **66 passed**。
+- 全量 `python -m pytest tests/ -q` → **1696 passed / 0 failed / 512.70s**，随后 `--check` **exit=0**。
+
+### 5 边界
+
+- **被审人口一个字没动**：12 个站点仍然全在 `tests/`，`minicc/` 与 `scripts/` 仍是 0。
+  这正是第九十三批 §8-3 那条「要给 (a) 那一问一个生产平面的行为证据」的候选，不在本批范围，仍然开着。
+- **`_layout_audit_shape` 第三种拼写识别没动**：第九十三批 §8-2（`os.path.commonprefix` /
+  `PurePosixPath.parts` 这类写法今天点不到名）仍然开着，本批不顺手改它。
+- **正向地板是 6 不是 8**：实测 8，地板留两格余量给良性演进；臂 D 把它压到 5 就红，
+  这是「余量买得起一次真回归，买不起一次丢名字」的取值，不是照抄实测值。
+- **每格各走一次盘**（≈1.1s/次，四格 ≈4.4s），本批**没有**加缓存：格与格之间不共享可变态，
+  是这次拆分本身的性质，省 3 秒不值得把四格重新绑回一个全局。
+- 本批只提交两个文件（`tests/test_two_fixture_keys_must_share_one_workspace.py`、
+  `scripts/doc_pointers.py`）；全量的 1696 格含另一条流尚未提交的工作树内容
+  （`minicc/web.py`、`minicc/config.py`、`minicc.config.example`，以及一份还没进 git 的
+  路由测试——它的路径本机有、干净检出里没有，所以这里只说它是什么，不写那个路径），
+  那些不是本批的账。
+
