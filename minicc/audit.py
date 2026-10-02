@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from .allowlist import match_session_allowlist
+from .permissions import match_permission_rule
 from .tools.bash import is_readonly_command, split_command_argv
 
 
@@ -214,6 +215,19 @@ def authorize_tool(
     :class:`minicc.tools.registry.ToolSpec`; it can only add constraints, and
     a tool that declares nothing behaves exactly as before.
     """
+    # M7-T3 promises that a deny rule is absolute: it short-circuits before the
+    # interactive prompt and no task flag overrides it. That promise only holds
+    # where the rule is asked, and authorize_tool never asked it -- so the CLI
+    # gate and the plan-node gate executed tools the checked-in project policy
+    # refuses, and audited the reason as default_readonly or task_yolo. The veto
+    # belongs in the shared decision function, above every flag branch.
+    if workspace is not None and match_permission_rule(workspace, tool, arguments) == "deny":
+        return AuthorizationDecision(
+            False,
+            risk or "unknown",
+            "permissions.json deny 规则拒绝",
+            "permission_rule_deny",
+        )
     mode = normalize_permission_mode(permission_mode)
     declared = set(capabilities or ())
     network_tool = _is_network_tool(tool, declared)
