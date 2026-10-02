@@ -9803,3 +9803,9 @@ read 成功——矩阵最后一格验证完毕。
 验收：test_truncated_digest_prefix_gets_a_pointing_hint（未修复代码上红：
 消息无「截断」字样），core_tools/core_agent/检视回退 71 passed。
 
+**落地后首次野外验证**（multi-config 定向复跑，2026-10-01）：模型传了
+10/64 位前缀被拒，按点名提示纠正为完整 digest，写入成功、任务正常
+完成——恢复路径一轮收敛。multi-config 的规格本身经查是公平的
+（prompt 字面写明 `level=1`，grader 子串检查与之对应）；它的偶发失败
+是「精确遵循规格」的能力方差，保持观察不改题。
+
