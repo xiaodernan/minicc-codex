@@ -91,6 +91,41 @@ def test_wheel_excludes_development_junk(wheel_names: set[str]) -> None:
     assert not any(name.startswith(("tests/", "web/", "ide/", "dist/", "build/")) for name in wheel_names)
 
 
+def test_an_uncleaned_build_directory_cannot_ship_a_module_that_no_longer_exists(
+    tmp_path: Path,
+) -> None:
+    """setup.py prunes build/lib, because bdist_wheel collects its payload by walking it.
+
+    Measured before the fix (batch 112, in a clone): delete ``minicc/mentions.py`` and
+    rebuild without cleaning, and the wheel still shipped ``minicc/mentions.py`` - 76
+    modules in the wheel while the source tree held 75. A rename ships the old name
+    beside the new one, and nothing in the build ever removes a file.
+
+    The plant is a module that never existed in the source tree, so the shape is
+    reproduced without deleting anything from the checkout. It goes into the build
+    directory the real build uses, and the next build must not carry it.
+    """
+    planted = REPO / "build" / "lib" / "minicc" / "stale_payload_probe.py"
+    planted.parent.mkdir(parents=True, exist_ok=True)
+    planted.write_text("# planted by the packaging test; must never reach a wheel\n", encoding="utf-8")
+    try:
+        out = tmp_path / "dist"
+        built = _build(["-c", BUILD_SCRIPT, str(out)], REPO)
+        assert built.returncode == 0, built.stdout[-3000:] + built.stderr[-3000:]
+        # The report distinguishes "pruned it" from "it was never there": without this the
+        # next assertion would also pass on a machine whose build directory happened to be
+        # clean, which is the vacuity this test exists to avoid.
+        assert "pruned" in built.stdout, built.stdout[-800:]
+        wheel = max(out.glob("*.whl"), key=lambda path: path.stat().st_mtime)
+        with zipfile.ZipFile(wheel) as archive:
+            names = set(archive.namelist())
+        assert "minicc/stale_payload_probe.py" not in names, sorted(
+            name for name in names if "stale_payload" in name
+        )
+    finally:
+        planted.unlink(missing_ok=True)
+
+
 def test_console_scripts_are_declared_and_resolve(wheel: Path) -> None:
     with zipfile.ZipFile(wheel) as archive:
         points = archive.read(

@@ -9600,3 +9600,67 @@ session 名单一侧的既有语义没有变化：`match_session_allowlist` 改�
 - 搜词表仍是**白名单**：`str.lower(` 这种拼写能命中（它包含 `.lower(` 子串），但 `text.translate(table)`、
   `unicodedata.normalize(...)` 这类折叠写法**不在表内**——变异 C 的形状只覆盖了表里那三种拼写。
   要收紧得先量「表外拼写今天有没有现实站点」，本批未量。
+
+## 第一百一十二批 M8-T131：改名之后的模块会随 wheel 一起发出去——`build/lib` 只增不减
+
+### 1 来源
+
+第九十三批 §8-4 挂着一条未量的候选：「全量跑自己会刷新 `build/lib/`（量到 75 份 `.py`），
+未清理的重建是否会把删改名前的源带进 wheel，本批未量」。本批把它量掉。
+
+### 2 先读构建路径：`setup.py` 自己写着答案
+
+`setup.py` 的 docstring 第一句就是 **「``bdist_wheel`` collects payload by walking build/lib」**，
+而 setuptools 的 `build_py` **只会往 `build/lib` 里写，从不删**。两条合起来就是污染的形状。
+实测本机当时 `build/lib/minicc` 的 76 份 `.py` 与源码 76 份**一致**——所以今天没有污染，
+但这只能说明「上次构建晚于上次改名」，不能说明这条路是安全的。
+
+### 3 红：在克隆里删一个模块，不清 build 再构建
+
+驱动脚本落在仓库之外，克隆一份到临时目录（**不动真工作树**），构建 → 删 `minicc/mentions.py` → 不清 build 再构建：
+
+```
+build #1: minicc-0.1.0-py3-none-any.whl | minicc/*.py in wheel: 76 | victim present: True
+deleted minicc/mentions.py from the clone
+build #2 (no clean): minicc-0.1.0-py3-none-any.whl | minicc/*.py in wheel: 76 | victim present: True
+=> POLLUTED: the wheel ships a module that is not in the source tree
+```
+
+**两次构建都是 76 份**，而源码只剩 75 —— 那个模块**已经不存在于源码树**，却照旧进 wheel。
+改名（而不只是删除）的情形更难看：**旧名字会和新名字一起发出去**。
+
+### 4 修：构建前先剪掉「没有源对应」的载荷
+
+`setup.py` 新增 `prune_stale_payload(build_lib)`，在 `build_py_with_static.run()` 里
+**先剪、再 `super().run()`、最后拷静态资源**。对应关系用的就是构建自己用的那三张映射：
+`minicc/<…>` ← 包源码、`minicc/web_static` ← `web/`、`minicc/ide_static` ← `ide/`；
+`build/lib/minicc` 下凡是没有对应源的文件一律删掉，顺带收走空目录（否则被删的子包还会以目录形式留在 wheel 里）。
+剪掉的名单会打印出来（最多 5 个 + 省略号）。
+
+**绿**（同一实验，把工作树的 `setup.py` 带进克隆）：
+
+```
+build #1: 76 modules | (no prune message)
+build #2 (no clean): 75 modules | victim present: False | build: pruned 1 stale payload file(s) from build/lib: minicc/mentions.py
+source modules: 75 | wheel modules: 75 | sets equal: True
+```
+
+### 5 门（端到端接线，不是单元测试）
+
+`tests/test_packaging.py::test_an_uncleaned_build_directory_cannot_ship_a_module_that_no_longer_exists`：
+往**真实构建目录** `build/lib/minicc/` 种一个「源码里从来没有过」的模块，跑一次真实构建，断言
+① 构建报告里出现 `pruned`（这一条是防真空：否则一台 build 目录本来就干净的机器也会绿），
+② wheel 里没有那个文件；`finally` 里删掉种下的文件。
+
+**活性**：把 `prune_stale_payload` 的调用改成 `removed = []`（禁用剪枝）→ 该格**红**
+（`1 failed, 11 deselected in 258.39s`，逐字 `assert 'pruned' in "running bdist_wheel\nrunning build\n…"`），
+跑完逐字还原。
+
+### 6 边界（明确不声称）
+
+- **只剪 `build/lib/minicc`**：那是 wheel 载荷的根。`build/` 下的其它东西（`build/temp`、`build/bdist*`）不碰。
+- **sdist 不受这条影响**：它按 `MANIFEST.in` 从源码树收集，不遍历 `build/lib`——所以本批修的是 wheel 这一侧。
+- **本门自带一次完整构建**（本机 258–387s 区间），是打包模块里最贵的一格；更便宜的写法（只单测 `prune_stale_payload`）
+  证明不了**调用点**，那正是这次要防的东西（第九十三批 §8-4 问的就是「重建污染」而不是「函数对不对」）。
+- 没有量「静态资源侧」的同类污染（`web/` 里删掉一个文件后 `minicc/web_static` 是否也留下旧拷贝）：
+  机制相同且已被同一函数覆盖，但**没有实测**，不写成结论。

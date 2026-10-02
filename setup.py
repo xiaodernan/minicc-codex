@@ -55,8 +55,58 @@ def copy_static_assets(build_lib: Path) -> int:
     return copied
 
 
+def prune_stale_payload(build_lib: Path) -> list[str]:
+    """Drop payload in *build_lib* that no longer exists in the source tree.
+
+    ``bdist_wheel`` collects its payload by walking ``build/lib``, and setuptools
+    only ever *adds* to that directory: nothing removes a file whose source was
+    deleted or renamed. Measured (batch 112, in a clone): delete
+    ``minicc/mentions.py``, rebuild without cleaning, and the wheel still contains
+    ``minicc/mentions.py`` - 76 modules in the wheel both before and after, while
+    the source tree had 75. A rename ships the old name beside the new one.
+
+    The counterpart mapping is the one the build itself uses:
+    ``minicc/<...>`` from the package source, ``minicc/web_static`` from ``web/``
+    and ``minicc/ide_static`` from ``ide/``. Anything under ``build/lib/minicc``
+    that no longer has a counterpart is stale by definition, so this prunes rather
+    than trusting the previous run. Empty directories left behind go too, otherwise
+    a removed subpackage would still be a directory in the wheel.
+    """
+    package_root = build_lib / "minicc"
+    if not package_root.is_dir():
+        return []
+    expected: set[Path] = set()
+    for path in (HERE / "minicc").rglob("*"):
+        if path.is_file() and _wanted(path.relative_to(HERE)):
+            expected.add(path.relative_to(HERE / "minicc"))
+    for folder, target in STATIC_ASSETS.items():
+        source = HERE / folder
+        if not source.is_dir():
+            continue
+        for path in source.rglob("*"):
+            if path.is_file() and _wanted(path.relative_to(HERE)):
+                expected.add(Path(target).relative_to("minicc") / path.relative_to(source))
+    removed: list[str] = []
+    for path in sorted(package_root.rglob("*"), key=lambda item: len(item.parts), reverse=True):
+        if path.is_dir():
+            if not any(path.iterdir()):
+                path.rmdir()
+            continue
+        if path.relative_to(package_root) not in expected:
+            path.unlink()
+            removed.append(str(path.relative_to(build_lib)).replace("\\", "/"))
+    return sorted(removed)
+
+
 class build_py_with_static(build_py):
     def run(self) -> None:
+        # Before copying anything: a build directory is *added to* by setuptools and
+        # never pruned, so a module that was deleted or renamed since the last build
+        # stays in build/lib and is collected by bdist_wheel's walk.
+        removed = prune_stale_payload(Path(self.build_lib))
+        if removed:
+            shown = ", ".join(removed[:5]) + (" …" if len(removed) > 5 else "")
+            print(f"build: pruned {len(removed)} stale payload file(s) from build/lib: {shown}")
         super().run()
         # ``bdist_wheel`` collects payload by walking build/lib, so the copies
         # need no registration here (setuptools' ``outfiles`` is not writable
