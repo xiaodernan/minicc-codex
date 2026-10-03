@@ -122,6 +122,31 @@ def local_server():
     )
 
 
+def test_ssrf_guard_blocks_6to4_embedding_private_ipv4(monkeypatch: pytest.MonkeyPatch) -> None:
+    """M8-T63: 6to4 形态嵌入私有 IPv4（2002:0a00:0001:: = 10.0.0.1）必须被拒。
+
+    实测该形态 is_private=False——不校验嵌入地址就是一条绕过路径。
+    """
+    import ipaddress as _ip
+
+    real = _ip.ip_address
+    captured: list[str] = []
+
+    def fake_getaddrinfo(host, port, *args, **kwargs):
+        captured.append(str(host))
+        # 只有 6to4 AAAA 记录——若附带私网 A 记录，旧代码会被 A 先拦住，
+        # 测试就失去区分度（这正是第一版红检没红的原因）。
+        return [(23, 1, 6, "", ("2002:a00:1::", 0))]
+
+    monkeypatch.setattr("minicc.netguard.socket.getaddrinfo", fake_getaddrinfo)
+    from minicc.netguard import BlockedAddressError, resolve_pinned_host
+
+    with pytest.raises(BlockedAddressError):
+        resolve_pinned_host("rebind.example", allow_env="MINICC_ALLOW_PRIVATE_FETCH")
+    # AAAA 记录（公网形态但嵌入私有 v4）触发拒绝。
+    assert captured == ["rebind.example"]
+
+
 def test_ssrf_guard_rejects_loopback_by_default(local_server):
     # The public API reports the rejection in the error field; the registry
     # handler turns it into a ToolError.

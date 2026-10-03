@@ -20,6 +20,48 @@ def _env_allows_private(allow_env: str) -> bool:
     return os.getenv(allow_env, "").strip().lower() in TRUTHY
 
 
+def _embedded_ipv4_candidates(ip: "ipaddress.IPv4Address | ipaddress.IPv6Address") -> list["ipaddress.IPv4Address"]:
+    """嵌入式 IPv4 形态的解包：IPv4-mapped / 6to4 / Teredo 客户端地址。
+
+    部分形态（6to4 实测）不被 ``is_private`` 覆盖——一个 6to4 AAAA 记录
+    （2002:0a00:0001:: 嵌入 10.0.0.1）会带着 False 畅通通过私网检查。
+    解包后按 IPv4 统一校验，结论不再依赖 Python 版本对各类 tunnel 形态的
+    属性判定。
+    """
+    embedded: list["ipaddress.IPv4Address"] = []
+    mapped = getattr(ip, "ipv4_mapped", None)
+    if mapped is not None:
+        embedded.append(mapped)
+    sixtofour = getattr(ip, "sixtofour", None)
+    if sixtofour is not None:
+        embedded.append(sixtofour)
+    teredo = getattr(ip, "teredo", None)
+    if teredo:
+        client = teredo[1] if isinstance(teredo, tuple) else (teredo.get("client") if isinstance(teredo, dict) else None)
+        if client is not None:
+            embedded.append(client)
+    return embedded
+
+
+def _is_blocked_address(ip: "ipaddress.IPv4Address | ipaddress.IPv6Address") -> bool:
+    if (
+        ip.is_private
+        or ip.is_loopback
+        or ip.is_link_local
+        or ip.is_multicast
+        or ip.is_reserved
+        or ip.is_unspecified
+    ):
+        return True
+    return any(
+        v4.is_private
+        or v4.is_loopback
+        or v4.is_link_local
+        or v4.is_reserved
+        for v4 in _embedded_ipv4_candidates(ip)
+    )
+
+
 def _resolve_and_validate(host: str) -> str:
     """Resolve ``host`` once, reject any private/reserved address, return first public IP.
 
@@ -38,14 +80,7 @@ def _resolve_and_validate(host: str) -> str:
             ip = ipaddress.ip_address(address.split("%")[0])
         except ValueError:
             continue
-        if (
-            ip.is_private
-            or ip.is_loopback
-            or ip.is_link_local
-            or ip.is_multicast
-            or ip.is_reserved
-            or ip.is_unspecified
-        ):
+        if _is_blocked_address(ip):
             raise BlockedAddressError(f"IP {ip} 属于私有/保留地址段，已按 SSRF 防护拒绝")
         if not pinned:
             pinned = str(ip)
