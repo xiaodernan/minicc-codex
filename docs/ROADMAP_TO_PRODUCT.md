@@ -10665,7 +10665,7 @@ permission_mode 真的传到了注册处并解析成 exec 档**。结构性障�
 | 相邻 `test_core_task.py` + `test_subagent_task.py` | **40 passed**（9.25s） |
 | `doc_pointers --check` / `route_coverage --check` | 绿（A/B 口径 14/14） |
 | 全量 `pytest -q` | **1774 passed**（586.04s，1772 + 2 新门） |
-| 提交与 CI | 本批提交后回填 |
+| 提交与 CI | b413635，CI run 37122797663 全绿 |
 
 ### 5 下一批边界
 
