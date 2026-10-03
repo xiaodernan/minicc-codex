@@ -2,12 +2,19 @@
 
 from __future__ import annotations
 
+import os
 import shutil
+import sys
 import threading
 from pathlib import Path
 
 from .tools.bash import run_bash, run_process
 from .tools.schemas import ToolResult
+
+# 容器内存上限：pids-limit 只挡进程炸弹，挡不住单进程吃干宿主内存。
+#: 数值取保守常量而非配置项——验证类命令（pytest/compileall）远用不到它，
+#: 需要 512MB 以上的任务本来就该在宿主跑。
+SANDBOX_MEMORY_LIMIT = "512m"
 
 
 class SandboxRunner:
@@ -57,9 +64,15 @@ class SandboxRunner:
         args = [
             "docker", "run", "--rm", "--network", "none", "--cap-drop", "ALL",
             "--security-opt", "no-new-privileges", "--pids-limit", "256",
+            "--memory", SANDBOX_MEMORY_LIMIT,
             "--read-only", "--tmpfs", "/tmp", "-v", f"{workspace.resolve()}:/workspace:rw",
-            "-w", "/workspace", self.image, "sh", "-lc", command,
         ]
+        if sys.platform != "win32":
+            # Linux 宿主上容器默认 root——不加映射会在用户工作区留下 root
+            # 属主的产物。Docker Desktop（Windows/macOS）的文件共享层负责
+            # 属主映射，不需要也不应该传（Windows 上没有 os.getuid）。
+            args.append(f"--user={os.getuid()}:{os.getgid()}")
+        args += ["-w", "/workspace", self.image, "sh", "-lc", command]
         return run_process(
             args,
             workspace,

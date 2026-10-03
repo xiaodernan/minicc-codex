@@ -315,6 +315,32 @@ def test_tool_output_redacts_common_credentials(tmp_path: Path) -> None:
     assert "REDACTED" in result.render()
 
 
+def test_sandbox_docker_run_pins_memory_and_posix_user(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """M8-T62: 容器要有内存上限（pids-limit 挡不住吃内存）；POSIX 宿主映射
+    uid/gid（否则产物 root 属主）。Windows 上不传 --user（无 os.getuid）。
+    """
+    import sys as _sys
+
+    captured: dict[str, list[str]] = {}
+
+    def fake_run_process(args, *_a, **_k):
+        captured["args"] = list(args)
+        from minicc.tools.schemas import ToolResult
+        return ToolResult(status="ok", summary="ran")
+
+    monkeypatch.setattr("minicc.sandbox.run_process", fake_run_process)
+    monkeypatch.setattr("minicc.sandbox.shutil.which", lambda _name: "C:/docker.exe")
+    runner = SandboxRunner(mode="docker")
+    runner.run("python -m pytest -q", tmp_path)
+
+    args = captured["args"]
+    assert "--memory" in args and args[args.index("--memory") + 1] == "512m"
+    if _sys.platform != "win32":
+        user_flags = [a for a in args if a.startswith("--user=")]
+        assert user_flags, "POSIX 宿主必须映射 uid/gid"
+        assert "root" not in user_flags[0]
+
+
 def test_sandbox_docker_mode_fails_closed_when_docker_is_missing(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("minicc.sandbox.shutil.which", lambda _name: None)
     runner = SandboxRunner("docker")
