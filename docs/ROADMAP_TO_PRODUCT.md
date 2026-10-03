@@ -10512,3 +10512,53 @@ M11 系列收账（T8–T10 连续三批都在 task 注册处接线）顺藤摸�
 - M6-T1 行文里与 writable 并提的 allow_network 无对应旋钮（网络门是会话级
   `--allow-network`），不在本批范围。
 
+## 第一百二十六批 M6-T1 补线之二：subagent_max_tokens 旋钮第一次真的接到两面 task 注册处
+
+### 1 缺口
+
+M6-T1 的路线图行把 `subagent_max_tokens` 与 `subagent_writable`/`subagent_max_depth`
+并列声称（config.py 三件套），第一百二十五批把后两者接到两面注册处之后，
+`grep subagent_max_tokens minicc/` 仍然只有 config.py 三处（L269 声明 / L554 env
+解析 / L713 组装进 Config）——零生产消费者，125 批完全同族的第二根「声称 ≠ 使用」
+断线。机制侧全活：`build_task_tool_spec` 的 `max_tokens` 形参直通
+`_SubagentRunner` → `_child_budget()` → 子 `run_agent` 的 `Budget.max_tokens`
+硬上限（越限收敛为结构化 `[BUDGET]` 失败，不拖垮父会话），缺的只是两面注册处
+喂参。`minicc.config.example` 对该旋钮也零文档。
+
+### 2 实现（两面各加一参 + example 文档）
+
+1. **CLI（`main.py`）**：task 注册处加
+   `max_tokens=getattr(config, "subagent_max_tokens", None)`——None（未设）保持
+   旧版无硬上限（`_child_budget` 产出的 Budget 逐字节旧形状），设置后经
+   `_child_budget` 变成子 run_agent 的硬 token 上限。
+2. **web（`web.py`）**：注册处加同参（`self.config` 取值）。
+3. **`minicc.config.example`**：补 `MINICC_SUBAGENT_MAX_TOKENS` 文档（设置 → 硬
+   上限、越限结构化 [BUDGET] 失败；未设/留空 = 历史行为）。
+4. **`subagent.py`**：`build_task_tool_spec` docstring 补一段接线说明。
+5. 机制侧零改动：`_SubagentRunner`/`_child_budget`/嵌套 task 的 `max_tokens`
+   透传（`_child_registry`）全部既有，孙代自动继承同一上限。
+
+### 3 门（CLI 2 + web 2，`tests/test_subagent_wiring.py` 扩至 12 条）
+
+- CLI：`MINICC_SUBAGENT_MAX_TOKENS=5000` → `cli_capture["max_tokens"] == 5000`；
+  旋钮未设 → `max_tokens is None`（None 而不是 0，旧版无上限语义）；
+- web：config 带 `subagent_max_tokens=5000` → 注册处收到 5000；不带 → None。
+
+### 4 实测证据
+
+| 命令 | 读数 |
+| --- | --- |
+| `test_subagent_wiring.py`（含 4 新门）与相邻四套件合并跑（subagent_delegation / subagent_task / subagent_streaming / cli_stage_routing） | **54 passed**（12.60s） |
+| `doc_pointers --check` / `route_coverage --check` | 绿（本批提交后复跑确认） |
+| 全量 `pytest -q` | **1770 passed**（478.93s） |
+| 提交与 CI | 待提交后回填 |
+
+### 5 下一批边界
+
+- `build_task_tool_spec` 的 `soft_max_tokens`/`soft_max_duration_seconds` 形参仍无
+  生产消费者，但 config 的 `MINICC_SOFT_MAX_TOKENS`（L261/L497）语义是父会话级，
+  M6-T1 从未声称其作用于子代理——属 API 面预留，不算「声称 ≠ 使用」缺口，不接；
+- token 上限的 e2e（真跑到 BudgetExceeded → `[BUDGET]` 结构化失败）在
+  test_subagent_delegation 单元层已有 BudgetExceeded 分支覆盖，本批只钉接线；
+- 下一步：继续扫「声称 ≠ 使用」缺口或回 M9/M10 未开始队列。
+
