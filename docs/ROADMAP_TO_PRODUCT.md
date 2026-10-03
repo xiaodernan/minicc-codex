@@ -10184,7 +10184,7 @@ provider 构建**——`_make_provider` 只按部署的 `provider_type` 二分�
 
 - 单元格补同族分支：沉默卡 → None；带端点的同族卡 → spec（家族 openai、
   端点卡片值、凭据部署值）。
-- `test_a_same_family_route_keeps_the_deployment_construction` 改写为
+- T5 的同族格（旧名见第一百一十九批 §3 第 3 条）改写为
   `test_a_same_family_card_endpoint_overrides_the_deployment`（原则 8 反向
   应用：T5 的断言编码的是当时的有意边界，本批故意退役它——docstring 写明
   原断言钉的是什么、为何退役）：卡片端点真服务同族模型，部署凭据照旧；
