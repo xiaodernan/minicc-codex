@@ -10208,3 +10208,80 @@ provider 构建**——`_make_provider` 只按部署的 `provider_type` 二分�
 | stage_route_enforcement + router + model_fallback | **72 passed**（10.77s） |
 | config_surface + core_task + doc_pointers | **137 passed**（83.50s） |
 
+## 第一百二十一批 M11-T7：CLI 面接上阶段路由——被解析、被宣称、却被整个表面无视的旋钮
+
+### 1 缺口（按候选账方法重核时的发现）
+
+第一百一十三批的候选账重核（本批开工前的第一件事）显示四条 2026-09-25 登记的候选全部已结：
+评审可满足性注入 = `_no_runnable_check_note`（M8-T54）、重复判定提前停止 =
+`action:"stop"`（M8-T19）、DAG 节点预算旁路 = `run_node` 已走 `_stage_route_budget`
+（inspect 档）、per-edit 备份 = `MAX_BACKUP_FILES` 裁剪——四条都是**代码在、账没更**，
+按指针逐一到代码里确认的，不是信表。候选账里剩下的开项全是 owner 决定或 macOS 依赖。
+
+于是按 M11 系列的「声称 ≠ 使用」判据扫最后一块没扫过的表面：`StageRouter(` 在生产代码里
+只有 `web.py:1414` 一处——**CLI（`minicc/main.py`）从不构建路由器**。而 `MINICC_STAGE_ROUTING`
+被 `load_config` 正常解析（`config.py:574`）、README 把阶段路由写成产品级能力、config
+example 写了六档语义——CLI 用户把它配上，得到的却是**逐字节旧版行为，零信号**。这正是
+本仓库反复围剿的「配置了但静默无效」形状（SpecProof 记忆原则 3 的同款：已有能力没被接起来）。
+
+### 2 实现（一处窄提取 + CLI 接线）
+
+1. **窄提取 `minicc/route_wiring.py`**：`_stage_route_budget` / `_stage_cost_estimator` /
+   `_route_turn_cap` / `_PROVIDER_FAMILY` / `_route_provider_spec` 从 web.py 原样搬出，
+   web 与 CLI 消费**同一份实现**。这不是重构口味问题：CLI 若抄一份解析器，就复刻了
+   stream_merge 那个「同一启发式写两遍、修了一层漏一层」的缺陷类。roadmap 第四节的
+   「窄提取白名单仅三项」是防整月重构的约束；本批是第五项，理由如上，特此记档。
+   该模块不 import web 栈（`test_cleanup_version` 的 CLI 导入预算门因此不受威胁——
+   实测 46 passed 含该门）。
+2. **CLI 接线（`main.py`）**：`main()` 在建 provider 前构建 `StageRouter` 并解析
+   planning 路由；`_route_provider_spec` 在此预检——跨族缺凭据、provider 打错，
+   **启动即 `_fatal`**，任何 provider 存在之前拒绝。provider 构建四分支：spec 指向
+   anthropic → AnthropicProvider（卡片端点/凭据）；spec 指向 openai 族 →
+   OpenAICompatibleProvider（spec 端点/凭据）；无 spec 走部署分支但模型/effort/超时
+   按 planning 路由（路由关时三者恰好逐字节等于旧版——route.model == 主模型、
+   route.reasoning_effort 为 None 回落 config 值）。**timeout 是唯一的字节级陷阱**：
+   路由器构造时钳 `max(10, ...)` 并 `round(..., 1)`，所以路由关时必须直接用
+   `config.timeout`，只有路由开才允许 `route.timeout` 替换。
+3. **预算与计价**：`_turn` 收 `stage_router`/`route` 参数（默认 None，旧签名调用者
+   不受影响——全仓无人直接调 `_turn`）。路由开 → `_stage_route_budget`（planning 档的
+   max_turns / max_cost_usd 真生效）+ `_stage_cost_estimator`（按路由模型单价）+
+   `stage_route` 事件进结构化日志（CLI 无事件漏斗，M8-T5 的通道）；路由关 → 旧版
+   Budget 逐字段原样、estimator None。
+4. **诚实边界**：CLI 的其余档位（inspect/review/repair/verify/implement）没有消费者——
+   CLI 没有评审/修复循环，task 子代理共享主 provider（骑 planning 路由）；config
+   example 明写「配置了不会报错、也不会有别的效果」，不做假开关。
+
+### 3 门：`tests/test_cli_stage_routing.py`（7 条，全部先实现后绿）
+
+1. 路由关 → 旧版构建逐字段断言（model/base_url/api_key/effort/timeout）+ anthropic
+   哨兵零构建 + **无 stage_route 事件**（不许假装应用了路由）；
+2. planning 路由真驱动 CLI provider（模型换成注册卡）+ 事件 detail.model = 卡名；
+3. 跨族卡片真服务 CLI 运行（卡片端点 + api_key_env 凭据；openai 哨兵零构建）；
+4. 缺凭据 → `SystemExit(2)`、stderr 点名环境变量、**两个哨兵都零构建**（拒绝发生在
+   任何 provider 存在之前）；
+5. planning 的 max_turns/cost 上限到达 CLI Budget，计价器按路由模型单价
+   （1M prompt tokens = 1000 USD 的卡，估出来的就是 1000）；
+6. 路由关的 legacy 预算逐字段原样 + estimator None；
+7. 未注册档模型回落主模型（路由器的降级语义在 CLI 面同样成立）。
+
+测试基建两处细节：sentinel 对 AnthropicProvider 的 patch 必须打在**源模块**
+（`minicc.llm.anthropic_provider`）——main.py 是分支内局部 import，patch `minicc.main`
+命名空间拦不到；`log_task_event` 同理按调用时名字解析，patch `minicc.main` 有效。
+
+### 4 实测证据
+
+| 命令 | 读数 |
+| --- | --- |
+| `pytest tests/test_cli_stage_routing.py -q -W error` | **7 passed**（2.55s） |
+| stage_route_enforcement + router + model_fallback + cli_stage_routing | **79 passed**（11.02s） |
+| config_surface + core_task + core_session + doc_pointers | **145 passed**（83.77s） |
+| cleanup_version（含 CLI 导入预算门）+ p0_p1_p2 + web_security | **46 passed**（10.19s） |
+
+### 5 下一批边界
+
+- CLI 的 inspect 档消费者：task 子代理目前共享 planning provider；若要侦察节点真用
+  inspect 档，需要 provider_factory 按档构建第二个 provider——独立候选，不与本批混做。
+- web 层的 fallback 轮换 + 跨族现场解析已由 T5 覆盖；CLI 的 fallback_models 轮换
+  **不换 spec**（provider 建一次就固定）——CLI 无 provider 重建路径，这是结构边界
+  而非缺陷，已在本批 docstring 记录。
+

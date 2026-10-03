@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Callable, NoReturn
 
 from .agent.loop import TurnResult, run_agent
+from .agent.router import StageRouter, StageRoute
 from .agent.state import Budget
 from .agent.subagent import build_task_tool_spec
 from .allowlist import AllowlistError, add_session_rule
@@ -28,6 +29,11 @@ from .logging_setup import (
     register_secret,
 )
 from .prompt import build_system_prompt
+from .route_wiring import (
+    _route_provider_spec,
+    _stage_cost_estimator,
+    _stage_route_budget,
+)
 from .session import SessionError, SessionStore, list_sessions
 from .tools import Editor, ToolCall, ToolRegistry, ToolResult, build_registry
 
@@ -372,7 +378,7 @@ def _print_tool(call: ToolCall, result: ToolResult, view: CliView | None = None)
 
 
 async def _turn(
-    provider: OpenAICompatibleProvider,
+    provider: Any,
     registry: ToolRegistry,
     messages: list[dict[str, Any]],
     config: Config,
@@ -384,6 +390,8 @@ async def _turn(
     permission_mode: str = "default",
     allow_network: bool = False,
     workspace: Path | None = None,
+    stage_router: StageRouter | None = None,
+    route: StageRoute | None = None,
 ) -> TurnResult:
     messages.append(user_msg(prompt))
     if permission_mode == "plan":
@@ -393,18 +401,46 @@ async def _turn(
         ))
     writer = StreamWriter() if stream else None
     session_id = session.path.stem if session is not None else ""
-    result = await run_agent(
-        provider,
-        registry,
-        messages,
-        max_turns=config.max_turns,
-        budget=Budget(
+    if stage_router is not None and stage_router.routing_enabled() and route is not None:
+        # M11-T7: the route that picked the model is visible in the structured
+        # log (the CLI has no event funnel), and its caps govern the run.
+        log_task_event(
+            {
+                "kind": "trace",
+                "name": "router",
+                "status": "ok",
+                "phase": "planning",
+                "code": "stage_route",
+                "summary": "已应用规划阶段的模型与请求策略（CLI）",
+                "detail": route.to_dict(),
+            },
+            task_id=session_id or "cli",
+        )
+        budget = _stage_route_budget(
+            route,
+            default_max_turns=config.max_turns,
+            default_max_duration_seconds=config.max_duration_seconds,
+            soft_max_tokens=getattr(config, "soft_max_tokens", None),
+            soft_max_duration_seconds=getattr(config, "soft_max_duration_seconds", None),
+        )
+        budget = replace(budget, max_tool_calls=config.max_tool_calls)
+        cost_estimator = _stage_cost_estimator(stage_router, "planning")
+    else:
+        budget = Budget(
             max_turns=config.max_turns,
             max_tool_calls=config.max_tool_calls,
             max_duration_seconds=config.max_duration_seconds,
             soft_max_tokens=getattr(config, "soft_max_tokens", None),
             soft_max_duration_seconds=getattr(config, "soft_max_duration_seconds", None),
-        ),
+        )
+        cost_estimator = None
+    result = await run_agent(
+        provider,
+        registry,
+        messages,
+        max_turns=config.max_turns,
+        budget=budget,
+        cost_estimator=cost_estimator,
         compact_threshold=config.compact_threshold,
         on_stream=writer,
         # M8-T5: the CLI has no task event funnel, so loop traces (run_started,
@@ -436,7 +472,7 @@ async def _turn(
 
 
 async def _interactive(
-    provider: OpenAICompatibleProvider,
+    provider: Any,
     registry: ToolRegistry,
     messages: list[dict[str, Any]],
     config: Config,
@@ -447,6 +483,8 @@ async def _interactive(
     permission_mode: str = "default",
     allow_network: bool = False,
     workspace: Path | None = None,
+    stage_router: StageRouter | None = None,
+    route: StageRoute | None = None,
 ) -> None:
     cli_out("minicc 已启动。输入 /help 查看命令，输入 /exit 退出。")
     while True:
@@ -557,6 +595,8 @@ async def _interactive(
             permission_mode=permission_mode,
             allow_network=allow_network,
             workspace=workspace,
+            stage_router=stage_router,
+            route=route,
         )
 
 
@@ -661,29 +701,77 @@ def main(argv: list[str] | None = None) -> int:
         view = CliView(session, verbose_tools=args.verbose_tools, announce_resume=args.resume)
     except SessionError as exc:
         _fatal(str(exc))
-    if str(getattr(config, "provider_type", "openai")) == "anthropic":
+    # M11-T7: the CLI honors stage_routing exactly like the web surface.
+    # The router is built before the provider because the planning route
+    # picks the run's model, wire family, effort and timeout; a routed
+    # model demanding another family (or a missing per-model credential)
+    # is resolved here - before anything runs, never mid-turn.
+    stage_router = StageRouter(
+        str(config.model),
+        float(config.timeout),
+        fallback_models=tuple(getattr(config, "fallback_models", ()) or ()),
+        stage_routing_config=getattr(config, "stage_routing", None),
+    )
+    planning_route = stage_router.route("planning")
+    try:
+        provider_spec = _route_provider_spec(stage_router, planning_route.model, config)
+    except ConfigError as exc:
+        _fatal(str(exc))
+    # The router clamps its own timeout (min 10s, rounded); with routing off
+    # the CLI must keep the config value byte-for-byte, so only a *enabled*
+    # route may replace it.
+    cli_timeout = (
+        float(planning_route.timeout) if stage_router.routing_enabled() else float(config.timeout)
+    )
+    cli_model = str(planning_route.model or config.model)
+    cli_effort = str(planning_route.reasoning_effort or config.reasoning_effort)
+    if provider_spec is not None and provider_spec["family"] == "anthropic":
+        from .llm.anthropic_provider import AnthropicProvider
+
+        provider = AnthropicProvider(
+            api_key=str(provider_spec["api_key"]),
+            model=cli_model,
+            base_url=str(provider_spec["base_url"]),
+            plan_base_url=str(getattr(config, "plan_base_url", "") or ""),
+            timeout=cli_timeout,
+            max_retries=int(getattr(config, "provider_retries", 4)),
+        )
+    elif provider_spec is not None:
+        provider = OpenAICompatibleProvider(
+            base_url=str(provider_spec["base_url"]),
+            api_key=str(provider_spec["api_key"]),
+            model=cli_model,
+            plan_base_url=str(getattr(config, "plan_base_url", "") or ""),
+            plan_api_key=str(getattr(config, "plan_api_key", "") or ""),
+            timeout=cli_timeout,
+            max_retries=config.provider_retries,
+            tool_mode=config.tool_mode,
+            protocol=config.llm_protocol,
+            reasoning_effort=cli_effort,
+        )
+    elif str(getattr(config, "provider_type", "openai")) == "anthropic":
         from .llm.anthropic_provider import AnthropicProvider
 
         provider = AnthropicProvider(
             api_key=config.api_key,
-            model=config.model,
+            model=cli_model,
             base_url=str(getattr(config, "anthropic_base_url", "") or config.base_url),
             plan_base_url=str(getattr(config, "plan_base_url", "") or ""),
-            timeout=config.timeout,
+            timeout=cli_timeout,
             max_retries=int(getattr(config, "provider_retries", 4)),
         )
     else:
         provider = OpenAICompatibleProvider(
             base_url=config.base_url,
             api_key=config.api_key,
-            model=config.model,
+            model=cli_model,
             plan_base_url=str(getattr(config, "plan_base_url", "") or ""),
             plan_api_key=str(getattr(config, "plan_api_key", "") or ""),
-            timeout=config.timeout,
+            timeout=cli_timeout,
             max_retries=config.provider_retries,
             tool_mode=config.tool_mode,
             protocol=config.llm_protocol,
-            reasoning_effort=config.reasoning_effort,
+            reasoning_effort=cli_effort,
         )
 
     # Bounded Task subagent for the CLI: same restricted readonly toolset and
@@ -713,6 +801,8 @@ def main(argv: list[str] | None = None) -> int:
                     permission_mode=args.permission_mode,
                     allow_network=args.allow_network,
                     workspace=workspace,
+                    stage_router=stage_router,
+                    route=planning_route,
                 )
             else:
                 await _interactive(
@@ -726,6 +816,8 @@ def main(argv: list[str] | None = None) -> int:
                     permission_mode=args.permission_mode,
                     allow_network=args.allow_network,
                     workspace=workspace,
+                    stage_router=stage_router,
+                    route=planning_route,
                 )
         finally:
             await provider.close()

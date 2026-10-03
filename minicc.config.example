@@ -102,6 +102,11 @@ MINICC_REASONING_EFFORT=high
 # 则沿用部署密钥（适合共享一把密钥的多协议网关）。同族且卡片未声明任何端点/凭据时
 # 接线与旧版逐字节一致；provider 值写错（不在 openai / openai_compatible / anthropic
 # 里）报 ConfigError。
+#
+# CLI 同样遵守本节语义（M11-T7 起）：planning 档决定 CLI 主 provider 的模型、线协议、
+# effort 与超时，max_turns / cost_limits_usd 的 planning 值照常生效，缺凭据同样在启动
+# 时拒绝；其余档位在 CLI 面暂无消费者（CLI 没有评审/修复循环，task 子代理共享主
+# provider），配置了不会报错、也不会有别的效果。
 #MINICC_STAGE_ROUTING={"enabled": false}
 
 # 上下文窗口与自动压缩阈值（token）。窗口默认 300000（至少 1）；会话记录超过
