@@ -93,6 +93,14 @@ MINICC_REASONING_EFFORT=high
 #   天花板（cost_limits_usd 的消费者）。
 # - verify / implement：当前没有模型消费者（verify 是本地验证器执行；implement 与
 #   planning 同在一个 ReAct 循环里无法按轮拆分），这两档配置只有事件可见性。
+#
+# 跨厂商路由（M11-T5）：custom_models 里注册的模型若声明 provider=anthropic（与部署
+# 的 MINICC_PROVIDER_TYPE 不同），该模型所在的阶段会用 Anthropic 线协议构建 provider：
+# base_url 取该模型卡片的值（缺省回落 anthropic_base_url / base_url）；密钥取
+# api_key_env 指定的环境变量——指了但没设置会在运行开始时拒绝（绝不把部署密钥发给
+# 另一家厂商的端点）；未指 api_key_env 则沿用部署密钥（适合共享一把密钥的多协议网关）。
+# 家族相同的注册模型不改变任何接线（卡片自己的 base_url/api_key_env 对同族暂不生效）；
+# provider 值写错（不在 openai / openai_compatible / anthropic 里）报 ConfigError。
 #MINICC_STAGE_ROUTING={"enabled": false}
 
 # 上下文窗口与自动压缩阈值（token）。窗口默认 300000（至少 1）；会话记录超过

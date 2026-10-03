@@ -10080,3 +10080,78 @@ tree / 文本交替的脚本。这两条守卫语义已由本批测试固化。
 | router + core_agent + config_surface + core_llm + pricing + reasoning_effort | **162 passed**（13.23s） |
 | http_surface + task_worker + verifier_lifecycle + doc_pointers | **154 passed**（110.85s） |
 
+## 第一百一十九批 M11-T5：route.provider 驱动 provider 构建——跨厂商路由真的换线协议
+
+### 1 承接上一批的边界
+
+第一百一十五批 §4 留了三条边界，其中一条至今没动：**`route.provider` 不驱动
+provider 构建**——`_make_provider` 只按部署的 `provider_type` 二分，路由把
+`claude-*` 派给哪个阶段都好，线协议仍是部署自己的。模块 docstring 从第一版
+就写着 "cross-vendor failover"，注册表里每个 `ModelConfig` 也早就有
+`base_url` 与 `api_key_env` 字段——三者全部只进事件、不进工厂。本批把
+「声称 ≠ 使用」推到最后一层：**路由选的不只是模型名，还有为它服务的线协议
+与凭据**。
+
+### 2 实现（三块）
+
+1. **`_route_provider_spec` 解析器**（`minicc/web.py`）：给定路由模型名，查
+   注册表（`StageRouter.model_config`，本批新增的公开只读）：
+   - 路由关闭 / 模型未注册 / 家族与部署相同 → None（按部署形状构建，行为
+     与旧版逐字节一致——T1 的惰性保证模式）；
+   - 家族不同 → 返回 `{family, base_url, api_key}`：base_url 取模型卡片
+     的值（缺省回落部署的家族对应字段）；api_key 取 `api_key_env` 指名的
+     环境变量——**指了但未设置 = ConfigError，运行开始即拒绝**：部署密钥
+     绝不被静默 POST 给另一家厂商的端点；未指 `api_key_env` 则沿用部署
+     密钥（共享一把密钥的多协议网关形态）；
+   - provider 值打错（不在三值白名单）= ConfigError，不静默回落部署家族。
+2. **工厂分叉**（`_make_provider` 新增 `provider_spec` 参数）：spec 指向
+   anthropic 家族 → `AnthropicProvider`；指向 openai 家族 →
+   `OpenAICompatibleProvider`（端点与密钥按 spec）。无 spec 走原路径。
+   `_run_chat` 的本地 `make_provider` **按 model_override 现场解析**——
+   fallback 轮换换模型名时，spec 跟着新名字走；三档路由（planning/review/
+   repair）在解析后立即预检，缺凭据的运行在构建任何 provider 之前就被拒绝。
+3. **门**：`tests/test_stage_route_enforcement.py` 追加 5 条（累计 23 条）。
+
+### 3 门（5 条新增）
+
+- 单元格：解析器的真值表——路由关 / 未注册 / 同族 → None；跨族 → 模型
+  自己的卡片；缺凭据 → 具名 ConfigError；打错的 provider 值 → ConfigError。
+- 端到端（`_FamilyProbeProvider` 记录构建 kwargs 与 chat 台账，
+  `_NeverBuiltProvider` 构建即抛——「构建了」与「真服务了」分开断言）：
+  1. **跨族路由构建另一家族的 provider，端点与密钥用模型自己的**：部署
+     openai、planning 派给注册为 anthropic 的 `claude-side` → 断言
+     AnthropicProbe 以 `base_url=https://claude-gateway.test/v1`、
+     `api_key=vendor-key`（来自 api_key_env 环境变量）构建 ≥ 2 次
+     （运行 + 评审），且 chat 台账全为 claude-side——真服务过，不只是
+     构建了；openai 哨兵零构建；
+  2. **指名的凭据缺失 → 运行开始即拒**：ConfigError 里点名环境变量，且
+     两个工厂哨兵都零构建——拒绝发生在任何 provider 存在之前；
+  3. **同族注册模型保持部署构建**（本批诚实边界）：卡片自己的 base_url
+     对同族惰性——部署端点照样服务（防「配了同族端点就以为生效」）；
+  4. **镜像方向**：anthropic 部署 + 路由派 `gpt-4o`（默认注册表、openai
+     家族、无卡片端点/凭据）→ openai 兼容 provider 以部署的 base_url 与
+     密钥构建——路由不是 openai 部署的专属功能。
+- 旧断言更新（原则 8）：`test_router.py` 的接线格曾把「claude-3.5-sonnet
+  必经 OpenAICompatibleProvider 构建」写成断言——它编码的正是本批消灭的
+  旧假设；改 patch `AnthropicProvider`，并在 docstring 写明为什么。
+
+### 4 诚实边界
+
+- **同族注册模型的 base_url / api_key_env 仍惰性**（端到端格钉住）：同族
+  时部署端点已可用，per-model 端点覆盖是独立特性，留作后续候选——已写进
+  config example，不许「配了同族端点」的错觉。
+- 预检只覆盖三档路由解析出的主模型；fallback 轮换出的模型在重建现场解析，
+  缺凭据在那一刻具名拒绝（同样不发跨厂商请求）。
+- `route.provider` 到事件的可观测性未变（T1 起就有）；本批没有新增事件——
+  「构建 kwargs」由端到端格守卫，运行中换家族（repair 触发）的事件可见性
+  随 T4 的 `repair_stage_provider` 事件携带 route.to_dict()（含 provider）。
+
+### 5 实测证据
+
+| 命令 | 读数 |
+| --- | --- |
+| `pytest tests/test_stage_route_enforcement.py -q -W error` | **23 passed**（10.31s） |
+| router + model_fallback + config_surface + core_task（含修正的接线格） | **126 passed**（14.24s） |
+| core_agent + core_llm + pricing + reasoning_effort + doc_pointers | **130 passed**（84.61s） |
+| http_surface + task_worker + web_security + batch_wiring + doc_pointers | **175 passed**（116.13s） |
+

@@ -520,10 +520,13 @@ def test_the_workbench_hands_config_stage_routing_to_the_router(
 
     The tiers name a model that is nothing like the primary one, so any
     broken wiring shows up as the primary model in the emitted stage_route
-    event.
+    event. M11-T5: ``claude-3.5-sonnet`` is registered in the default
+    registry with ``provider="anthropic"``, and the factory now honors the
+    routed family - so the provider that must be constructed is the
+    anthropic one, built with the routed model.
     """
     _EchoProvider.instances.clear()
-    monkeypatch.setattr("minicc.web.OpenAICompatibleProvider", _EchoProvider)
+    monkeypatch.setattr("minicc.web.AnthropicProvider", _EchoProvider)
     service = _wired_service(
         tmp_path,
         {
@@ -551,12 +554,9 @@ def test_the_workbench_hands_config_stage_routing_to_the_router(
     assert detail["model_tier"] == "balanced"
     assert detail["provider"] == "anthropic"
     # The event is a claim about the run: the provider must actually be built
-    # with the routed model, otherwise enabling routing changes nothing.
+    # with the routed model AND the routed family, otherwise enabling routing
+    # changes nothing (or changes only the event stream).
     assert _EchoProvider.instances, "no provider was constructed for the task"
-    assert _EchoProvider.instances[0].model == "claude-3.5-sonnet"
-    # The decisive assertion: the run's first provider was actually built with
-    # the routed model. Reporting the route is not the same as using it.
-    assert _EchoProvider.instances, "no provider was constructed"
     assert _EchoProvider.instances[0].model == "claude-3.5-sonnet"
 
 

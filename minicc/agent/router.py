@@ -182,6 +182,19 @@ class StageRouter:
     def _is_stage_routing_enabled(self) -> bool:
         return bool(self.stage_routing_config.get("enabled", False))
 
+    def routing_enabled(self) -> bool:
+        """Whether stage routing is switched on (public read for the factory)."""
+        return self._is_stage_routing_enabled()
+
+    def model_config(self, name: str) -> ModelConfig | None:
+        """The registry entry for a model, or None when unregistered.
+
+        M11-T5: the factory consults this to learn the wire family and
+        credentials a routed model demands. Unregistered models return
+        None - for them the deployment's provider_type is the only truth.
+        """
+        return self._models.get(str(name))
+
     def _legacy_route(self, stage: str) -> StageRoute:
         """Original behavior: same model, adjusted timeout."""
         stage = str(stage or "planning")

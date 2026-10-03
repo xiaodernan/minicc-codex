@@ -21,8 +21,9 @@ import pytest
 from minicc.agent.loop import run_agent
 from minicc.agent.router import ModelTier, StageRoute, StageRouter
 from minicc.agent.state import Budget, BudgetExceeded
+from minicc.config import ConfigError
 from minicc.llm.base import LLMResponse
-from minicc.web import _stage_cost_estimator, _stage_route_budget
+from minicc.web import _route_provider_spec, _stage_cost_estimator, _stage_route_budget
 
 
 # -- Budget.record_cost -------------------------------------------------------
@@ -810,4 +811,306 @@ def test_repair_turns_are_priced_at_the_repair_model(tmp_path: Path, suite_pytho
     )
     assert models.count("repair-one") == 1, (
         f"the charged repair turn must be the last request: {models}"
+    )
+
+
+# -- M11-T5: the route's provider family reaches the factory ------------------
+
+
+def test_the_provider_spec_only_fires_for_a_registered_cross_family_model(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Unit: resolution is (routing on) x (registered) x (family differs)."""
+    router_on = StageRouter(
+        "primary",
+        100.0,
+        stage_routing_config={
+            "enabled": True,
+            "custom_models": {
+                "claude-side": {
+                    "tier": "balanced",
+                    "provider": "anthropic",
+                    "base_url": "https://claude.test/v1",
+                    "api_key_env": "MINICC_T5_KEY",
+                },
+                "proxy-main": {"tier": "balanced", "provider": "openai_compatible"},
+            },
+        },
+    )
+    router_off = StageRouter("primary", 100.0)
+    config = SimpleNamespace(
+        provider_type="openai",
+        api_key="deployment-key",
+        base_url="https://example.test/v1",
+        anthropic_base_url="",
+    )
+    # Routing off -> deployment shape, whatever the registry happens to know.
+    assert _route_provider_spec(router_off, "claude-side", config) is None
+    # Unregistered model -> deployment shape (provider_type is the only truth).
+    assert _route_provider_spec(router_on, "primary", config) is None
+    # Same family -> deployment shape (the registered card stays inert).
+    assert _route_provider_spec(router_on, "proxy-main", config) is None
+    # Cross-family -> the model's own endpoint and credential.
+    monkeypatch.setenv("MINICC_T5_KEY", "vendor-key")
+    spec = _route_provider_spec(router_on, "claude-side", config)
+    assert spec == {
+        "family": "anthropic",
+        "base_url": "https://claude.test/v1",
+        "api_key": "vendor-key",
+    }
+    # A named credential that is missing refuses by name - the deployment key
+    # must never be silently POSTed to another vendor's endpoint.
+    monkeypatch.delenv("MINICC_T5_KEY")
+    with pytest.raises(ConfigError) as missing:
+        _route_provider_spec(router_on, "claude-side", config)
+    assert "MINICC_T5_KEY" in str(missing.value)
+    # A typoed family is a config error, not a silent deployment fallback.
+    broken = StageRouter(
+        "primary",
+        100.0,
+        stage_routing_config={
+            "enabled": True,
+            "custom_models": {"oops": {"tier": "balanced", "provider": "anthropicx"}},
+        },
+    )
+    with pytest.raises(ConfigError):
+        _route_provider_spec(broken, "oops", config)
+
+
+_T5_CROSS_FAMILY = {
+    "enabled": True,
+    "tiers": {"balanced": ["claude-side"]},
+    "custom_models": {
+        "claude-side": {
+            "tier": "balanced",
+            "provider": "anthropic",
+            "base_url": "https://claude-gateway.test/v1",
+            "api_key_env": "MINICC_T5_CLAUDE_KEY",
+            "cost_usd_per_1m": [0.0, 0.0, 0.0, 0.0],
+        }
+    },
+    "stage_map": {"planning": "balanced"},
+}
+
+
+class _FamilyProbeProvider:
+    """Serves the loop on whatever family it was built for, recording init kwargs.
+
+    The decisive ledger is ``init_kwargs``: which class the factory built
+    (this one or the never-built sentinel) and with whose endpoint and
+    credential. Chat calls record the serving model, so "constructed" can
+    never be mistaken for "used".
+    """
+
+    init_kwargs: list[dict[str, Any]] = []
+    agent_models: list[str] = []
+    judge_models: list[str] = []
+
+    @classmethod
+    def reset(cls) -> None:
+        cls.init_kwargs.clear()
+        cls.agent_models.clear()
+        cls.judge_models.clear()
+
+    def __init__(self, **kwargs: object) -> None:
+        _FamilyProbeProvider.init_kwargs.append(dict(kwargs))
+        self.model = str(kwargs.get("model") or "")
+        self._turn = 0
+
+    @classmethod
+    def is_transient_failure(cls, error: object) -> bool:
+        return False
+
+    def protocol(self) -> str:
+        return "chat_completions"
+
+    def protocol_status(self) -> dict[str, str]:
+        return {"requested": "chat_completions", "active": "chat_completions"}
+
+    async def chat(self, messages: object, tools: object, on_delta=None):  # noqa: ANN001, ANN201
+        if tools is None:
+            _FamilyProbeProvider.judge_models.append(self.model)
+            return LLMResponse(
+                content=json.dumps(
+                    {"status": "unknown", "confidence": 0.1, "rationale": "probe",
+                     "missing": [], "next_action": "", "evidence": []}
+                ),
+                usage={"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+            )
+        _FamilyProbeProvider.agent_models.append(self.model)
+        self._turn += 1
+        if self._turn == 1:
+            return LLMResponse(
+                content="",
+                tool_calls=[
+                    {
+                        "id": "family-probe-1",
+                        "type": "function",
+                        "function": {"name": "tree", "arguments": "{}"},
+                    }
+                ],
+                finish_reason="tool_calls",
+            )
+        return LLMResponse(content="probe-answer")
+
+    async def close(self) -> None:
+        return None
+
+
+class _NeverBuiltProvider:
+    """A wrong-family construction is an immediate, loud failure."""
+
+    built: list[dict[str, Any]] = []
+
+    @classmethod
+    def reset(cls) -> None:
+        cls.built.clear()
+
+    def __init__(self, **kwargs: object) -> None:
+        _NeverBuiltProvider.built.append(dict(kwargs))
+        raise AssertionError("wrong provider family constructed")
+
+    @classmethod
+    def is_transient_failure(cls, error: object) -> bool:
+        return False
+
+    def protocol(self) -> str:
+        return "chat_completions"
+
+    def protocol_status(self) -> dict[str, str]:
+        return {"requested": "chat_completions", "active": "chat_completions"}
+
+
+def test_a_cross_family_route_builds_the_other_family_with_the_models_own_credentials(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import minicc.web as web_module
+
+    _FamilyProbeProvider.reset()
+    _NeverBuiltProvider.reset()
+    monkeypatch.setenv("MINICC_T5_CLAUDE_KEY", "vendor-key")
+    original_openai = web_module.OpenAICompatibleProvider
+    original_anthropic = web_module.AnthropicProvider
+    web_module.OpenAICompatibleProvider = _NeverBuiltProvider  # type: ignore[assignment]
+    web_module.AnthropicProvider = _FamilyProbeProvider  # type: ignore[assignment]
+    try:
+        service = _wired_service(tmp_path, _T5_CROSS_FAMILY)
+        result = _run_task(service, tmp_path)
+    finally:
+        web_module.OpenAICompatibleProvider = original_openai  # type: ignore[assignment]
+        web_module.AnthropicProvider = original_anthropic  # type: ignore[assignment]
+    assert result is not None
+    assert _NeverBuiltProvider.built == [], (
+        "the deployment factory must never fire for a cross-family route"
+    )
+    built = _FamilyProbeProvider.init_kwargs
+    assert len(built) >= 2, f"the run provider and the judge provider both ride the route: {built}"
+    for kwargs in built:
+        assert kwargs.get("model") == "claude-side", kwargs
+        assert kwargs.get("base_url") == "https://claude-gateway.test/v1", kwargs
+        assert kwargs.get("api_key") == "vendor-key", kwargs
+    assert _FamilyProbeProvider.agent_models and set(_FamilyProbeProvider.agent_models) == {"claude-side"}, (
+        "the cross-family provider must actually serve turns, not merely construct"
+    )
+
+
+def test_a_named_credential_that_is_missing_refuses_the_run_before_any_provider_is_built(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import minicc.web as web_module
+
+    _FamilyProbeProvider.reset()
+    _NeverBuiltProvider.reset()
+    monkeypatch.delenv("MINICC_T5_CLAUDE_KEY", raising=False)
+    original_openai = web_module.OpenAICompatibleProvider
+    original_anthropic = web_module.AnthropicProvider
+    web_module.OpenAICompatibleProvider = _NeverBuiltProvider  # type: ignore[assignment]
+    web_module.AnthropicProvider = _FamilyProbeProvider  # type: ignore[assignment]
+    try:
+        service = _wired_service(tmp_path, _T5_CROSS_FAMILY)
+        with pytest.raises(ConfigError) as refused:
+            service._chat_locked(
+                {
+                    "message": "zhi-du-jian-cha-ben-xiang-mu",
+                    "allow_changes": False,
+                    "workspace_path": str(tmp_path),
+                },
+                workspace=tmp_path,
+            )
+    finally:
+        web_module.OpenAICompatibleProvider = original_openai  # type: ignore[assignment]
+        web_module.AnthropicProvider = original_anthropic  # type: ignore[assignment]
+        service.shutdown()
+    assert "MINICC_T5_CLAUDE_KEY" in str(refused.value)
+    assert _FamilyProbeProvider.init_kwargs == [], (
+        "no provider may be built for a refused run - not even the deployment one"
+    )
+
+
+def test_a_same_family_route_keeps_the_deployment_construction(tmp_path: Path) -> None:
+    """Registered same-family model: the card's own base_url is inert (boundary)."""
+    import minicc.web as web_module
+
+    _FamilyProbeProvider.reset()
+    routing = {
+        "enabled": True,
+        "tiers": {"balanced": ["proxy-main"]},
+        "custom_models": {
+            "proxy-main": {
+                "tier": "balanced",
+                "provider": "openai_compatible",
+                "base_url": "https://proxy.test/v1",
+                "cost_usd_per_1m": [0.0, 0.0, 0.0, 0.0],
+            }
+        },
+        "stage_map": {"planning": "balanced"},
+    }
+    original_openai = web_module.OpenAICompatibleProvider
+    web_module.OpenAICompatibleProvider = _FamilyProbeProvider  # type: ignore[assignment]
+    try:
+        service = _wired_service(tmp_path, routing)
+        _run_task(service, tmp_path)
+    finally:
+        web_module.OpenAICompatibleProvider = original_openai  # type: ignore[assignment]
+    built = _FamilyProbeProvider.init_kwargs
+    assert built, "the run and judge providers must still be built, just as deployed"
+    for kwargs in built:
+        assert kwargs.get("model") == "proxy-main", kwargs
+        assert kwargs.get("base_url") == "https://example.test/v1", (
+            f"same-family cards stay inert - the deployment endpoint serves: {kwargs}"
+        )
+
+
+def test_an_openai_family_route_on_an_anthropic_deployment_uses_the_model_card(
+    tmp_path: Path,
+) -> None:
+    """The mirrored direction: routing must not be an openai-only feature."""
+    import minicc.web as web_module
+
+    _FamilyProbeProvider.reset()
+    routing = {
+        "enabled": True,
+        "tiers": {"balanced": ["gpt-4o"]},
+        "stage_map": {"planning": "balanced"},
+    }
+    original_anthropic = web_module.AnthropicProvider
+    original_openai = web_module.OpenAICompatibleProvider
+    web_module.AnthropicProvider = _NeverBuiltProvider  # type: ignore[assignment]
+    web_module.OpenAICompatibleProvider = _FamilyProbeProvider  # type: ignore[assignment]
+    try:
+        service = _wired_service(tmp_path, routing, provider_type="anthropic")
+        _run_task(service, tmp_path)
+    finally:
+        web_module.AnthropicProvider = original_anthropic  # type: ignore[assignment]
+        web_module.OpenAICompatibleProvider = original_openai  # type: ignore[assignment]
+    built = _FamilyProbeProvider.init_kwargs
+    assert built, "the openai-family provider must be built for the routed model"
+    for kwargs in built:
+        assert kwargs.get("model") == "gpt-4o", kwargs
+        # No api_key_env and no card base_url: the deployment's own values
+        # carry over (multi-protocol gateway sharing one key and endpoint).
+        assert kwargs.get("base_url") == "https://example.test/v1", kwargs
+        assert kwargs.get("api_key") == "test-key", kwargs
+    assert _NeverBuiltProvider.built == [], (
+        "the deployment anthropic factory must never fire for a cross-family route"
     )

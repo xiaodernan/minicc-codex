@@ -230,6 +230,68 @@ def _route_turn_cap(route: StageRoute, *, default: int) -> int:
     return max(0, int(route.max_turns))
 
 
+_PROVIDER_FAMILY = {
+    "anthropic": "anthropic",
+    "openai": "openai",
+    "openai_compatible": "openai",
+}
+
+
+def _route_provider_spec(stage_router: Any, model_name: Any, config: Any) -> dict[str, Any] | None:
+    """Resolve the wire family and credentials a routed model demands (M11-T5).
+
+    route.provider reached only the event - the factory kept building
+    whatever ``provider_type`` the deployment declares, so a registry
+    entry that names another family was reported but never served a
+    request. Now a registered cross-family model reaches the factory
+    with its own endpoint and credential:
+
+    - ``base_url`` comes from the registry entry, falling back to the
+      family-appropriate config field;
+    - the credential comes from the env var ``api_key_env`` names. Naming
+      an env var that is unset is a ConfigError: the deployment key must
+      never be silently POSTed to another vendor's endpoint. Without
+      ``api_key_env`` the deployment key is used as-is - correct for
+      multi-protocol gateways that share one key.
+
+    Returns None (build as deployed) when the model is unregistered, when
+    routing is off, or when the family matches the deployment - a
+    registered same-family model changes nothing (its own base_url /
+    api_key_env are inert in this batch; documented boundary). An unknown
+    provider value in the registry is a ConfigError, not a silent
+    deployment fallback: a typoed family must not quietly rewire a run.
+    """
+    if stage_router is None or not stage_router.routing_enabled():
+        return None
+    entry = stage_router.model_config(str(model_name))
+    if entry is None:
+        return None
+    family = _PROVIDER_FAMILY.get(str(entry.provider))
+    if family is None:
+        raise ConfigError(
+            f"custom_models 里的 {entry.name} 声明了未知 provider {entry.provider!r}；"
+            "可用值：openai / openai_compatible / anthropic"
+        )
+    deployment = _PROVIDER_FAMILY.get(str(getattr(config, "provider_type", "openai") or "openai"))
+    if family == deployment:
+        return None
+    if entry.api_key_env:
+        value = os.environ.get(entry.api_key_env, "")
+        if not value.strip():
+            raise ConfigError(
+                f"跨厂商路由的模型 {entry.name} 指定 api_key_env={entry.api_key_env}，"
+                "但该环境变量未设置——拒绝把部署密钥发给另一家厂商的端点"
+            )
+        api_key = value
+    else:
+        api_key = str(config.api_key)
+    if family == "anthropic":
+        base_url = str(entry.base_url or getattr(config, "anthropic_base_url", "") or config.base_url)
+    else:
+        base_url = str(entry.base_url or config.base_url)
+    return {"family": family, "base_url": base_url, "api_key": api_key}
+
+
 @dataclass
 class _ApprovalGroup:
     """One pending approval; identical in-flight calls merge into it."""
@@ -1104,15 +1166,48 @@ class AgentService:
         protocol_override: str | None = None,
         model_override: str | None = None,
         reasoning_effort: str | None = None,
+        provider_spec: dict[str, Any] | None = None,
     ) -> Any:
         """Build the provider client one call should use.
 
         The single place that maps config onto a provider, so a call outside
         the agent loop cannot quietly pick a different wire protocol, ignore
         the per-task model, or bypass the offline test provider.
+
+        ``provider_spec`` (M11-T5) carries a routed model's cross-family
+        demand: another wire family plus the endpoint and credential to
+        serve it with. None keeps the deployment's own shape.
         """
         if os.getenv("MINICC_FAKE_PROVIDER", "").strip().lower() in TRUTHY:
             return FakeProvider(on_status=status_callback)
+        if provider_spec is not None and provider_spec["family"] == "anthropic":
+            return AnthropicProvider(
+                api_key=str(provider_spec["api_key"]),
+                model=str(model_override or self.config.model),
+                base_url=str(provider_spec["base_url"]),
+                plan_base_url=str(getattr(self.config, "plan_base_url", "") or ""),
+                timeout=timeout,
+                max_retries=int(getattr(self.config, "provider_retries", 4)),
+                on_status=status_callback,
+            )
+        if provider_spec is not None:
+            # Cross-family openai wire: the model's card wins over the
+            # deployment's base_url; everything else stays the deployment's.
+            return OpenAICompatibleProvider(
+                base_url=str(provider_spec["base_url"]),
+                api_key=str(provider_spec["api_key"]),
+                model=str(model_override or self.config.model),
+                plan_base_url=str(getattr(self.config, "plan_base_url", "") or ""),
+                plan_api_key=str(getattr(self.config, "plan_api_key", "") or ""),
+                timeout=timeout,
+                max_retries=int(getattr(self.config, "provider_retries", 4)),
+                tool_mode=self.config.tool_mode,
+                protocol=str(protocol_override or getattr(self.config, "llm_protocol", "auto")),
+                reasoning_effort=str(
+                    reasoning_effort or getattr(self.config, "reasoning_effort", "high")
+                ),
+                on_status=status_callback,
+            )
         if str(getattr(self.config, "provider_type", "openai")) == "anthropic":
             return AnthropicProvider(
                 api_key=self.config.api_key,
@@ -1327,6 +1422,12 @@ class AgentService:
         # late - only clearer about when the run's shape is fixed.
         repair_route = stage_router.route("repair")
         review_route = stage_router.route("review")
+        # M11-T5: a routed model that demands another wire family must be
+        # buildable before anything runs. A missing per-model credential
+        # refuses the run here - never as the deployment key POSTed to
+        # another vendor's endpoint.
+        for _routed in (initial_route, repair_route, review_route):
+            _route_provider_spec(stage_router, _routed.model, self.config)
         runtime_state = AgentState(
             task_id=f"{session_id}-{uuid.uuid4().hex[:8]}",
             prompt=message.strip(),
@@ -1551,6 +1652,14 @@ class AgentService:
                 model_override: str | None = None,
                 reasoning_effort_override: str | None = None,
             ) -> Any:
+                # M11-T5: a routed model's cross-family demand rides its own
+                # name, so fallback rotation resolves the spec per call - a
+                # fallback model from another family re-wires with itself.
+                spec = (
+                    _route_provider_spec(stage_router, model_override, self.config)
+                    if model_override
+                    else None
+                )
                 return self._make_provider(
                     timeout=timeout,
                     status_callback=status_callback,
@@ -1563,6 +1672,7 @@ class AgentService:
                         or reasoning_effort_override
                         or ""
                     ),
+                    provider_spec=spec,
                 )
 
             # M11: a stage route that selects a model is only real if the
