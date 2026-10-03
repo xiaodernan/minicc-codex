@@ -1120,7 +1120,12 @@ def test_task_recovers_after_transient_provider_failure(tmp_path: Path, monkeypa
     assert result["error"] is None
     assert result["answer"] == "断流恢复后已完成检查。"
     assert result["metrics"]["provider_recoveries"] == 1
-    assert len(instances) == 2
+    # Three providers, not two: the planning provider, the recovery provider
+    # recreated after the transient stream failure, and (since M11-T3) the
+    # review-stage provider the completion judge rides. The judge used to
+    # reuse the planning instance - that reuse is exactly what M11-T3 removed,
+    # so do not "fix" this count back to 2.
+    assert len(instances) == 3
     assert any(event.get("code") == "task_provider_recovery" for event in result["events"])
 
 

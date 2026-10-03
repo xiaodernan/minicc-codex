@@ -216,6 +216,20 @@ def _stage_cost_estimator(router: StageRouter, stage: str) -> Callable[[dict[str
     return estimate
 
 
+def _route_turn_cap(route: StageRoute, *, default: int) -> int:
+    """A route's ``max_turns``, when configured, overrides the caller's cap.
+
+    Used where a stage's turn budget is a loop count rather than an
+    ``run_agent`` budget (repair cycles, completion-review continues): the
+    route value replaces the config default outright, and a negative value is
+    clamped to 0 - a misread must never widen the cap. 0 is meaningful for
+    these loops ("one attempt, then stop").
+    """
+    if route.max_turns is None:
+        return default
+    return max(0, int(route.max_turns))
+
+
 @dataclass
 class _ApprovalGroup:
     """One pending approval; identical in-flight calls merge into it."""
@@ -1307,6 +1321,12 @@ class AgentService:
             stage_routing_config=getattr(self.config, "stage_routing", None),
         )
         initial_route = stage_router.route("planning")
+        # M11-T3: resolved once, with the planning route, because the run's
+        # shape depends on them (repair-cycle cap, judge provider). route()
+        # is a pure config read, so resolving early is the same as resolving
+        # late - only clearer about when the run's shape is fixed.
+        repair_route = stage_router.route("repair")
+        review_route = stage_router.route("review")
         runtime_state = AgentState(
             task_id=f"{session_id}-{uuid.uuid4().hex[:8]}",
             prompt=message.strip(),
@@ -1557,6 +1577,19 @@ class AgentService:
                 model_override=initial_route.model,
                 reasoning_effort_override=initial_route.reasoning_effort,
             )
+            # M11-T3: the completion judge is its own stage, so it gets its
+            # own provider built from the review route. Before this the judge
+            # silently reused the planning provider - a review-tier model in
+            # the config was reported in events but never served a request.
+            # The judge has no budget lifecycle of its own; its spend is
+            # priced at the review model and lands on the run ceiling (see
+            # record_review_usage below).
+            review_provider = make_provider(
+                timeout=review_route.timeout,
+                status_callback=on_event,
+                model_override=review_route.model,
+                reasoning_effort_override=review_route.reasoning_effort,
+            )
             # Bounded Task subagent: registered per task so the model can
             # spawn readonly research sub-runs; restricted registry keeps it
             # non-recursive. Sub-tool calls inherit parent permission gating
@@ -1575,7 +1608,10 @@ class AgentService:
                 pass
             try:
                 aggregate: TurnResult | None = None
-                max_repairs = max(0, int(getattr(self.config, "max_repair_attempts", 2)))
+                max_repairs = _route_turn_cap(
+                    repair_route,
+                    default=max(0, int(getattr(self.config, "max_repair_attempts", 2))),
+                )
                 max_provider_recoveries = max(0, int(getattr(self.config, "task_recovery_retries", 2)))
                 max_agent_recoveries = max_provider_recoveries
                 completion_review_failures = 0
@@ -1583,7 +1619,10 @@ class AgentService:
                 # Bound completion-judge "continue" loops so a reviewer that keeps
                 # requesting more work cannot re-run the agent until the shared
                 # turn budget is exhausted with nothing new to show.
-                max_completion_continues = max(1, int(getattr(self.config, "max_completion_continues", 3)))
+                max_completion_continues = _route_turn_cap(
+                    review_route,
+                    default=max(1, int(getattr(self.config, "max_completion_continues", 3))),
+                )
                 completion_continues = 0
                 # Observation only, not a second stop rule (M8-T19): what the
                 # reviewer asked for last round, and how much activity had
@@ -2098,14 +2137,31 @@ class AgentService:
                         return True
                     try:
                         runtime_state.budget.record_usage(usage)
-                        # The judge has no provider of its own, so its spend
-                        # lands on the run budget's stage ceiling too.
+                        # The judge rides its own review-stage provider (M11-T3),
+                        # so its spend is priced at the review model and lands
+                        # on the run budget's stage ceiling - the judge has no
+                        # budget lifecycle of its own.
                         runtime_state.budget.record_cost(
-                            _stage_cost_estimator(stage_router, "planning")(usage)
+                            _stage_cost_estimator(stage_router, "review")(usage)
                         )
                     except BudgetExceeded as exc:
                         target.error = f"Agent 预算超限: {exc}"
                         target.answer = f"任务未完成：{target.error}"
+                        # The run_agent path emits budget_exceeded from inside
+                        # the loop; a judge-side trip must be just as visible,
+                        # or the run would stop with no named cause in events.
+                        budget_event = {
+                            "kind": "trace",
+                            "name": "completion_judge",
+                            "status": "error",
+                            "phase": "review",
+                            "code": "budget_exceeded",
+                            "summary": str(exc),
+                            "detail": {"stage": "review", "error": str(exc)},
+                        }
+                        events.append(budget_event)
+                        if on_event is not None:
+                            on_event(budget_event)
                         return False
                     usage_event = {"kind": "completion_judge", **usage}
                     target.usage_by_turn.append(usage_event)
@@ -2317,7 +2373,7 @@ class AgentService:
                     completion_review_attempt += 1
                     enter_runtime_node("review", "review")
                     decision = await judge_completion(
-                        provider,
+                        review_provider,
                         task=message,
                         answer=aggregate.answer if aggregate is not None else "",
                         events=events,
@@ -2538,6 +2594,10 @@ class AgentService:
                         # task result, and the two metrics keys simply stay absent.
                         pass
                 await provider.close()
+                # The judge's review-stage provider (M11-T3) is a distinct
+                # instance and is never re-created by recovery, so it closes
+                # unconditionally alongside the run provider.
+                await review_provider.close()
 
         result = asyncio.run(execute())
         completion_status = str((result.completion or {}).get("status") or "")

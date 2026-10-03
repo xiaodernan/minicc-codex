@@ -9943,3 +9943,65 @@ docstring 即规格：路由器是唯一决定「一个阶段跑在哪个模型�
 - 成本只按 prompt/completion 全价估算；缓存折扣（`cached_tokens`）未计入，
   方向上只会高估成本、提前触发，不会漏放。
 
+## 第一百一十七批 M11-T3：review 阶段成为消费者——评审真的坐上评审档位的模型
+
+### 1 承接上一批的边界
+
+第一百一十六批 §5 记录「verify / repair / review 三个阶段的路由仍无消费者」。
+本批收口其中最实的一块：**review（完成评审）**。评审不是概念——它是一次真实的
+provider 请求，此前却静默复用主循环 provider：配置里给 review 档选的模型只
+出现在事件里，从未服务过一个请求。与 T1 的哲学同源：**报告里的档位必须就是
+发请求的档位**。
+
+### 2 实现（三块）
+
+1. **评审独立 provider**（`minicc/web.py`）：`review_route` 与 `initial_route`
+   一同在运行开始时解析一次；主 provider 构建后立即按 review 路由构建
+   `review_provider`（模型 / effort / timeout 全按 review 档），`judge_completion`
+   改用它发请求。评审没有自己的预算生命周期，其花费按 **review 档单价**计价
+   （`record_review_usage` 的定价器从 planning 换成 review），落运行级天花板。
+   review_provider 不被故障恢复重建，随主 provider 一起 close。
+2. **judge 侧超限可观测**：评审计费越线此前只设 `target.error` 不发事件——
+   运行会无声地停。现在与 `run_agent` 路径同形，发 `code=budget_exceeded`、
+   `phase=review` 的 trace 事件。
+3. **`_route_turn_cap` helper**：repair 档 `max_turns` 覆盖修复循环次数上限
+   （`MINICC_MAX_REPAIR_ATTEMPTS` 的默认位），review 档 `max_turns` 覆盖
+   「评审要求继续」次数上限（`MINICC_MAX_COMPLETION_CONTINUES` 的默认位）。
+   显式配置胜过默认、缺省回落、负数钳 0；0 本身有效（「一次即停」）。
+
+### 3 门：`tests/test_stage_route_enforcement.py` 追加 4 条（累计 16 条）
+
+- `_route_turn_cap` 单元：覆盖 / 回落 / 负数钳 0 / 0 直通。
+- 端到端（`_JudgeProbeProvider` 双台账假体：agent 调用与 judge 调用分别记录
+  服务模型；judge 响应带 FakeProvider 形状的 usage）：
+  1. **judge 请求全部由 review 档模型服务，agent 轮全部由 planning 档模型服务**
+     ——两个台账分开断言，防「换 provider 但换错模型」；
+  2. **review 花费按 review 单价计价并触发运行天花板**：planning 单价 0、
+     review completion 4000 USD/1M、天花板 0.02——judge 一次 25 completion
+     tokens = 0.025 > 0.02 即停，事件含「阶段成本上限已用尽」且只发生 1 次
+     评审请求。若实现错误（评审仍按 planning 计价 = 0），运行会完成——正是
+     本格禁止的回归；
+  3. 关路由 → judge 与主循环同用配置模型（legacy 形状不变）。
+- 既有门测试 `test_task_recovers_after_transient_provider_failure` 的
+  provider 实例计数从 2 改 3：第三个实例就是评审 provider（原断言编码了
+  「judge 复用主实例」的旧假设，注释已写明不要改回）。
+
+### 4 诚实边界（config example 同步写明六档消费者语义）
+
+- **verify / implement 两档当前没有模型消费者**：verify 是本地验证器执行；
+  implement 与 planning 同在一个 ReAct 循环、无法按轮拆分。这两档配置目前
+  只有事件可见性——已写进 `minicc.config.example`，防止「配了就有用」的错觉。
+- **repair 轮仍由主循环 provider 执行**：其花费按 planning 档计价落运行
+  天花板；repair 档的 `cost_limits_usd` 因此仍无独立消费者。给 repair 换
+  模型需要 provider 按轮切换或修复阶段独立成环，属后续批次。
+- review 档 `max_turns` 的语义是「评审要求继续的次数上限」，不是评审请求
+  轮数——事件与快照里的口径未变。
+
+### 5 实测证据
+
+| 命令 | 读数 |
+| --- | --- |
+| `pytest tests/test_stage_route_enforcement.py -q -W error` | **16 passed**（13.60s） |
+| 本门 + router + core_agent + config_surface + core_llm + core_task | **192 passed**（29.25s，含修正后的恢复计数格） |
+| subagent_streaming / subagent_delegation / core_session / http_surface / batch_wiring / two_fixture_keys | **161 passed**（45.14s） |
+

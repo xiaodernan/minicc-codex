@@ -415,3 +415,184 @@ def test_without_the_knob_the_tool_loop_runs_on_the_configured_default(tmp_path:
         f"the config default (4 turns) must still govern when routing is off: "
         f"{_ToolLoopProvider.calls}"
     )
+
+
+# -- M11-T3: the review stage is a consumer, not a label ----------------------
+
+
+def test_the_route_turn_cap_overrides_the_default_and_clamps_negatives() -> None:
+    from minicc.web import _route_turn_cap
+
+    assert _route_turn_cap(_route(max_turns=1), default=3) == 1
+    assert _route_turn_cap(_route(max_turns=None), default=3) == 3
+    # A misread must never widen the cap; 0 itself is meaningful
+    # ("one attempt, then stop") and passes through.
+    assert _route_turn_cap(_route(max_turns=-4), default=3) == 0
+    assert _route_turn_cap(_route(max_turns=0), default=3) == 0
+
+
+class _JudgeProbeProvider:
+    """Tool-loop provider whose per-stage ledgers make the judge split real.
+
+    Agent turns (first one only) emit one readonly tool call and then plain
+    text, so ``run_agent`` converges without error and the completion judge
+    actually runs. Every chat records which model served it: agent calls on
+    one ledger, judge calls (``tools=None``) on another. The judge response
+    carries the FakeProvider-shaped usage so the review-stage pricing has
+    something real to charge.
+    """
+
+    instances: list["_JudgeProbeProvider"] = []
+    agent_models: list[str] = []
+    judge_models: list[str] = []
+
+    @classmethod
+    def reset(cls) -> None:
+        cls.instances.clear()
+        cls.agent_models.clear()
+        cls.judge_models.clear()
+
+    def __init__(self, *args: object, **kwargs: object) -> None:
+        self.model = str(kwargs.get("model") or "")
+        self._turn = 0
+        _JudgeProbeProvider.instances.append(self)
+
+    @classmethod
+    def is_transient_failure(cls, error: object) -> bool:
+        return False
+
+    def protocol(self) -> str:
+        return "chat_completions"
+
+    def protocol_status(self) -> dict[str, str]:
+        return {"requested": "chat_completions", "active": "chat_completions"}
+
+    async def chat(self, messages: object, tools: object, on_delta=None):  # noqa: ANN001, ANN201
+        if tools is None:
+            _JudgeProbeProvider.judge_models.append(self.model)
+            return LLMResponse(
+                content=json.dumps(
+                    {
+                        "status": "unknown",
+                        "confidence": 0.1,
+                        "rationale": "probe",
+                        "missing": [],
+                        "next_action": "",
+                        "evidence": [],
+                    }
+                ),
+                usage={"prompt_tokens": 200, "completion_tokens": 25, "total_tokens": 225},
+            )
+        _JudgeProbeProvider.agent_models.append(self.model)
+        self._turn += 1
+        if self._turn == 1:
+            return LLMResponse(
+                content="",
+                tool_calls=[
+                    {
+                        "id": "probe-1",
+                        "type": "function",
+                        "function": {"name": "tree", "arguments": "{}"},
+                    }
+                ],
+                finish_reason="tool_calls",
+            )
+        return LLMResponse(content="probe-answer")
+
+    async def close(self) -> None:
+        return None
+
+
+_T3_ROUTING = {
+    "enabled": True,
+    "tiers": {"balanced": ["planning-one"], "fast": ["review-one"]},
+    "custom_models": {
+        "planning-one": {
+            "tier": "balanced",
+            "provider": "openai_compatible",
+            "cost_usd_per_1m": [0.0, 0.0, 0.0, 0.0],
+        },
+        "review-one": {
+            "tier": "fast",
+            "provider": "openai_compatible",
+            "cost_usd_per_1m": [0.0, 0.0, 0.0, 0.0],
+        },
+    },
+    "stage_map": {"planning": "balanced", "review": "fast"},
+}
+
+
+def _run_with_probe(tmp_path: Path, stage_routing: object):
+    import minicc.web as web_module
+
+    _JudgeProbeProvider.reset()
+    original = web_module.OpenAICompatibleProvider
+    web_module.OpenAICompatibleProvider = _JudgeProbeProvider  # type: ignore[assignment]
+    try:
+        service = _wired_service(tmp_path, stage_routing)
+        result = _run_task(service, tmp_path)
+    finally:
+        web_module.OpenAICompatibleProvider = original  # type: ignore[assignment]
+    return result
+
+
+def test_the_judge_serves_requests_on_the_review_model_not_the_planning_one(
+    tmp_path: Path,
+) -> None:
+    """The review stage gets its own provider, built from the review route."""
+    _run_with_probe(tmp_path, _T3_ROUTING)
+    assert _JudgeProbeProvider.judge_models, "the judge must have served at least one review"
+    assert set(_JudgeProbeProvider.judge_models) == {"review-one"}, (
+        f"every judge request must ride the review-stage model: "
+        f"{_JudgeProbeProvider.judge_models}"
+    )
+    assert _JudgeProbeProvider.agent_models, "the agent must have served at least one turn"
+    assert set(_JudgeProbeProvider.agent_models) == {"planning-one"}, (
+        f"agent turns stay on the planning model: {_JudgeProbeProvider.agent_models}"
+    )
+    # The probe judge answers "unknown", so the run ends with the reviewer
+    # unavailable - that shape is asserted elsewhere. This cell is only about
+    # which model served which call.
+
+
+def test_review_spend_is_priced_at_the_review_model_and_trips_the_run_ceiling(
+    tmp_path: Path,
+) -> None:
+    """The judge's usage is charged at review prices against the run ceiling.
+
+    planning prices at 0, so only a review-priced charge can cross a 0.02
+    ceiling; 25 completion tokens at 4000 USD/1M = 0.025. If the judge were
+    still priced as planning, the run would complete - which is exactly the
+    bug this cell forbids.
+    """
+    routing = {
+        **_T3_ROUTING,
+        "custom_models": {
+            "planning-one": {"tier": "balanced", "provider": "openai_compatible",
+                             "cost_usd_per_1m": [0.0, 0.0, 0.0, 0.0]},
+            "review-one": {"tier": "fast", "provider": "openai_compatible",
+                           "cost_usd_per_1m": [0.0, 4000.0, 0.0, 0.0]},
+        },
+        "cost_limits_usd": {"planning": 0.02},
+    }
+    result = _run_with_probe(tmp_path, routing)
+    events = result.get("events") or []
+    assert any("阶段成本上限已用尽" in json.dumps(event, ensure_ascii=False) for event in events), (
+        "the judge-side charge crossing the run ceiling must surface as a named error"
+    )
+    assert any(event.get("code") == "budget_exceeded" for event in events)
+    assert len(_JudgeProbeProvider.judge_models) == 1, (
+        "the charged review must stop the run before a second judge call"
+    )
+
+
+def test_with_routing_off_the_judge_still_runs_on_the_configured_model(
+    tmp_path: Path,
+) -> None:
+    """Legacy shape: one provider model everywhere, judge included."""
+    result = _run_with_probe(tmp_path, None)
+    assert _JudgeProbeProvider.judge_models, "the judge must still have run"
+    assert set(_JudgeProbeProvider.judge_models) == {"primary"}, (
+        f"routing off -> the configured model serves the judge too: "
+        f"{_JudgeProbeProvider.judge_models}"
+    )
