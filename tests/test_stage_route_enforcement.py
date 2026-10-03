@@ -848,7 +848,7 @@ def test_the_provider_spec_only_fires_for_a_registered_cross_family_model(
     assert _route_provider_spec(router_off, "claude-side", config) is None
     # Unregistered model -> deployment shape (provider_type is the only truth).
     assert _route_provider_spec(router_on, "primary", config) is None
-    # Same family -> deployment shape (the registered card stays inert).
+    # Same family AND a silent card -> deployment shape, unchanged.
     assert _route_provider_spec(router_on, "proxy-main", config) is None
     # Cross-family -> the model's own endpoint and credential.
     monkeypatch.setenv("MINICC_T5_KEY", "vendor-key")
@@ -857,6 +857,27 @@ def test_the_provider_spec_only_fires_for_a_registered_cross_family_model(
         "family": "anthropic",
         "base_url": "https://claude.test/v1",
         "api_key": "vendor-key",
+    }
+    # M11-T6: a same-family card that declares an endpoint overrides the
+    # deployment's, keeping the family (the T5 boundary is retired).
+    endpointed = StageRouter(
+        "primary",
+        100.0,
+        stage_routing_config={
+            "enabled": True,
+            "custom_models": {
+                "proxy-main": {
+                    "tier": "balanced",
+                    "provider": "openai_compatible",
+                    "base_url": "https://proxy.test/v1",
+                }
+            },
+        },
+    )
+    assert _route_provider_spec(endpointed, "proxy-main", config) == {
+        "family": "openai",
+        "base_url": "https://proxy.test/v1",
+        "api_key": "deployment-key",
     }
     # A named credential that is missing refuses by name - the deployment key
     # must never be silently POSTed to another vendor's endpoint.
@@ -1047,8 +1068,13 @@ def test_a_named_credential_that_is_missing_refuses_the_run_before_any_provider_
     )
 
 
-def test_a_same_family_route_keeps_the_deployment_construction(tmp_path: Path) -> None:
-    """Registered same-family model: the card's own base_url is inert (boundary)."""
+def test_a_same_family_card_endpoint_overrides_the_deployment(tmp_path: Path) -> None:
+    """M11-T6: a same-family card's base_url is a real override now.
+
+    This cell used to pin the T5 boundary (same-family cards inert); that
+    boundary was exactly the "configured but silent" shape this file
+    exists to retire, so the card's endpoint wins and the family stays.
+    """
     import minicc.web as web_module
 
     _FamilyProbeProvider.reset()
@@ -1073,11 +1099,87 @@ def test_a_same_family_route_keeps_the_deployment_construction(tmp_path: Path) -
     finally:
         web_module.OpenAICompatibleProvider = original_openai  # type: ignore[assignment]
     built = _FamilyProbeProvider.init_kwargs
-    assert built, "the run and judge providers must still be built, just as deployed"
+    assert built, "the run and judge providers must still be built"
     for kwargs in built:
         assert kwargs.get("model") == "proxy-main", kwargs
+        assert kwargs.get("base_url") == "https://proxy.test/v1", (
+            f"the card's own endpoint must serve the same-family model: {kwargs}"
+        )
+        assert kwargs.get("api_key") == "test-key", (
+            f"without api_key_env the deployment credential carries over: {kwargs}"
+        )
+
+
+def test_a_silent_same_family_card_keeps_the_deployment_construction(
+    tmp_path: Path,
+) -> None:
+    """A registered model that declares neither endpoint nor credential
+    changes nothing - existing deployments keep their exact shape."""
+    import minicc.web as web_module
+
+    _FamilyProbeProvider.reset()
+    routing = {
+        "enabled": True,
+        "tiers": {"balanced": ["proxy-main"]},
+        "custom_models": {
+            "proxy-main": {
+                "tier": "balanced",
+                "provider": "openai_compatible",
+                "cost_usd_per_1m": [0.0, 0.0, 0.0, 0.0],
+            }
+        },
+        "stage_map": {"planning": "balanced"},
+    }
+    original_openai = web_module.OpenAICompatibleProvider
+    web_module.OpenAICompatibleProvider = _FamilyProbeProvider  # type: ignore[assignment]
+    try:
+        service = _wired_service(tmp_path, routing)
+        _run_task(service, tmp_path)
+    finally:
+        web_module.OpenAICompatibleProvider = original_openai  # type: ignore[assignment]
+    built = _FamilyProbeProvider.init_kwargs
+    assert built, "the run and judge providers must still be built, just as deployed"
+    for kwargs in built:
         assert kwargs.get("base_url") == "https://example.test/v1", (
-            f"same-family cards stay inert - the deployment endpoint serves: {kwargs}"
+            f"a silent card must not rewire anything: {kwargs}"
+        )
+
+
+def test_a_same_family_card_named_credential_is_honored(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """api_key_env rides the family too: the env value becomes the key."""
+    import minicc.web as web_module
+
+    _FamilyProbeProvider.reset()
+    monkeypatch.setenv("MINICC_T6_PROXY_KEY", "proxy-key")
+    routing = {
+        "enabled": True,
+        "tiers": {"balanced": ["proxy-main"]},
+        "custom_models": {
+            "proxy-main": {
+                "tier": "balanced",
+                "provider": "openai_compatible",
+                "base_url": "https://proxy.test/v1",
+                "api_key_env": "MINICC_T6_PROXY_KEY",
+                "cost_usd_per_1m": [0.0, 0.0, 0.0, 0.0],
+            }
+        },
+        "stage_map": {"planning": "balanced"},
+    }
+    original_openai = web_module.OpenAICompatibleProvider
+    web_module.OpenAICompatibleProvider = _FamilyProbeProvider  # type: ignore[assignment]
+    try:
+        service = _wired_service(tmp_path, routing)
+        _run_task(service, tmp_path)
+    finally:
+        web_module.OpenAICompatibleProvider = original_openai  # type: ignore[assignment]
+    built = _FamilyProbeProvider.init_kwargs
+    assert built
+    for kwargs in built:
+        assert kwargs.get("base_url") == "https://proxy.test/v1", kwargs
+        assert kwargs.get("api_key") == "proxy-key", (
+            f"the named env var must serve the credential: {kwargs}"
         )
 
 

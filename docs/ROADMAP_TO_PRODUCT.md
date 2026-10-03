@@ -10155,3 +10155,56 @@ provider 构建**——`_make_provider` 只按部署的 `provider_type` 二分�
 | core_agent + core_llm + pricing + reasoning_effort + doc_pointers | **130 passed**（84.61s） |
 | http_surface + task_worker + web_security + batch_wiring + doc_pointers | **175 passed**（116.13s） |
 
+## 第一百二十批 M11-T6：同族卡片的端点与凭据也生效——把 T5 自己钉死的边界收掉
+
+### 1 承接上一批的边界
+
+第一百一十九批 §4 钉了一条诚实边界：**同族注册模型的 base_url / api_key_env
+仍惰性**——端到端格明确断言卡片端点不生效。这条边界保护了既有部署，但它同时
+正是本仓库反复围剿的「配置了但静默无效」形状：操作员给一个同族模型写了端点，
+接线却毫无反应，也没有任何门会红。按路线图惯例，边界不是终点而是下一批的
+候选；本批把它收掉。
+
+### 2 实现（一处收敛 + 三格门）
+
+`_route_provider_spec` 的同族早退（`family == deployment → None`）改为按卡片
+内容判定：
+
+- 卡片声明了 `base_url` 或 `api_key_env` 任一项 → 返回 spec（家族不变）：
+  端点与凭据的解析规则与跨族完全一致（卡片值 → 部署家族字段回落；
+  `api_key_env` 指名的环境变量 → 部署密钥），缺凭据同样在运行开始具名拒绝；
+- 卡片沉默（两项都未声明）→ 仍然 None，构建调用与旧版逐字节一致——T2/T3/T4
+  注册的全部 custom_models 都没有这两个字段，零改动通过，这条惰性保证由
+  本批新格钉住。
+
+凭据缺失检查（ConfigError）前移到家族判定之前：同族卡片指了缺失的环境变量
+同样拒绝——卡片显式声明了凭据来源，来源不存在就是配置错误，与家族无关。
+
+### 3 门：`tests/test_stage_route_enforcement.py` 追加/改写 3 条（累计 25 条）
+
+- 单元格补同族分支：沉默卡 → None；带端点的同族卡 → spec（家族 openai、
+  端点卡片值、凭据部署值）。
+- `test_a_same_family_route_keeps_the_deployment_construction` 改写为
+  `test_a_same_family_card_endpoint_overrides_the_deployment`（原则 8 反向
+  应用：T5 的断言编码的是当时的有意边界，本批故意退役它——docstring 写明
+  原断言钉的是什么、为何退役）：卡片端点真服务同族模型，部署凭据照旧；
+- 新增 `test_a_silent_same_family_card_keeps_the_deployment_construction`：
+  沉默卡零改动——保护 T2/T3/T4 的全部既有形状；
+- 新增 `test_a_same_family_card_named_credential_is_honored`：同族卡片的
+  `api_key_env` 同样生效（端点与凭据都来自卡片）。
+
+### 4 诚实边界
+
+- config example 同步改写（M11-T5/T6 语义）：卡片字段全家族生效、沉默卡
+  逐字节旧版、缺凭据拒绝。
+- 「同族 + 沉默卡」与「路由关」的不可区分是**有意的**：路由器的注册表在
+  路由关时根本不参与（spec 解析的第一步就返回 None）。
+- T5 §4 的其余边界不变：预检覆盖三档路由主模型，fallback 轮换现场解析。
+
+### 5 实测证据
+
+| 命令 | 读数 |
+| --- | --- |
+| stage_route_enforcement + router + model_fallback | **72 passed**（10.77s） |
+| config_surface + core_task + doc_pointers | **137 passed**（83.50s） |
+

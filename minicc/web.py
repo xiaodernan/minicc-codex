@@ -238,28 +238,31 @@ _PROVIDER_FAMILY = {
 
 
 def _route_provider_spec(stage_router: Any, model_name: Any, config: Any) -> dict[str, Any] | None:
-    """Resolve the wire family and credentials a routed model demands (M11-T5).
+    """Resolve the wire family, endpoint and credentials a routed model demands.
 
     route.provider reached only the event - the factory kept building
     whatever ``provider_type`` the deployment declares, so a registry
     entry that names another family was reported but never served a
-    request. Now a registered cross-family model reaches the factory
-    with its own endpoint and credential:
+    request. Now a registered model reaches the factory with its own
+    card:
 
     - ``base_url`` comes from the registry entry, falling back to the
-      family-appropriate config field;
+      family-appropriate config field (M11-T6: also within the same
+      family - a per-model endpoint override is honored, not just a
+      cross-vendor one);
     - the credential comes from the env var ``api_key_env`` names. Naming
       an env var that is unset is a ConfigError: the deployment key must
       never be silently POSTed to another vendor's endpoint. Without
       ``api_key_env`` the deployment key is used as-is - correct for
       multi-protocol gateways that share one key.
 
-    Returns None (build as deployed) when the model is unregistered, when
-    routing is off, or when the family matches the deployment - a
-    registered same-family model changes nothing (its own base_url /
-    api_key_env are inert in this batch; documented boundary). An unknown
-    provider value in the registry is a ConfigError, not a silent
-    deployment fallback: a typoed family must not quietly rewire a run.
+    Returns None (build exactly as deployed) when the model is
+    unregistered, when routing is off, or when the card is silent - a
+    registered model that declares neither base_url nor api_key_env
+    changes nothing, so every existing deployment keeps its shape. An
+    unknown provider value in the registry is a ConfigError, not a
+    silent deployment fallback: a typoed family must not quietly rewire
+    a run.
     """
     if stage_router is None or not stage_router.routing_enabled():
         return None
@@ -273,13 +276,11 @@ def _route_provider_spec(stage_router: Any, model_name: Any, config: Any) -> dic
             "可用值：openai / openai_compatible / anthropic"
         )
     deployment = _PROVIDER_FAMILY.get(str(getattr(config, "provider_type", "openai") or "openai"))
-    if family == deployment:
-        return None
     if entry.api_key_env:
         value = os.environ.get(entry.api_key_env, "")
         if not value.strip():
             raise ConfigError(
-                f"跨厂商路由的模型 {entry.name} 指定 api_key_env={entry.api_key_env}，"
+                f"路由的模型 {entry.name} 指定 api_key_env={entry.api_key_env}，"
                 "但该环境变量未设置——拒绝把部署密钥发给另一家厂商的端点"
             )
         api_key = value
@@ -289,6 +290,10 @@ def _route_provider_spec(stage_router: Any, model_name: Any, config: Any) -> dic
         base_url = str(entry.base_url or getattr(config, "anthropic_base_url", "") or config.base_url)
     else:
         base_url = str(entry.base_url or config.base_url)
+    if family == deployment and entry.base_url is None and not entry.api_key_env:
+        # Same family and a silent card: nothing to override, keep the
+        # deployment's construction call for granted.
+        return None
     return {"family": family, "base_url": base_url, "api_key": api_key}
 
 
