@@ -52,7 +52,7 @@ from .agent.planner import (
 )
 from .agent.repair import repair_scope
 from .agent.retrieval import LocalEvidenceIndex, census_is_complete, census_notice, get_evidence_index
-from .agent.subagent import DEFAULT_MAX_TURNS, build_task_tool_spec
+from .agent.subagent import DEFAULT_MAX_DEPTH, DEFAULT_MAX_TURNS, build_task_tool_spec
 from .webauth import (
     WebAuth,
     WebAuthError,
@@ -1633,6 +1633,13 @@ class AgentService:
                     # trace funnel as the parent loop's - without a sink the
                     # subagent runs blind on this surface too.
                     on_trace=on_trace,
+                    # M6-T1 补线（M11 系列后的 debt 收账）：config 声称
+                    # subagent_writable 可开可写委派档，但这里从未传参——
+                    # tier 按任务解析出的 permission_mode 在注册时定档，
+                    # default/plan 会话下旋钮诚实失效为 readonly。
+                    writable=bool(getattr(self.config, "subagent_writable", False)),
+                    permission_mode=str(permission_mode),
+                    max_depth=max(1, int(getattr(self.config, "subagent_max_depth", DEFAULT_MAX_DEPTH))),
                 ))
             except ValueError:
                 pass

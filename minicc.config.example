@@ -175,6 +175,16 @@ MINICC_REASONING_EFFORT=high
 # Auto-approve every tool call (dangerous; --yolo sets this too)
 #MINICC_YOLO=0
 
+# task 子代理可写委派（M6-T1）：旋钮只解锁「档位机器」，实际档位在注册时按
+# 会话权限模式解析——acceptEdits 会话出 write 档（子代理可写文件）、yolo 出
+# exec 档（再加 bash）；default/plan 会话下子代理一律保持只读（诚实失效）。
+# CLI 等价旗标 --subagent-writable 与本旋钮取或。
+#MINICC_SUBAGENT_WRITABLE=0
+
+# 可写委派的最大嵌套深度（1-2）：到达深度时子代理的注册表里结构上不存在
+# task 工具，第 3 层递归不可能。只读档不受影响（只读档从不派生子代理）。
+#MINICC_SUBAGENT_MAX_DEPTH=2
+
 # ---- Web workbench security (minicc-web) ----
 
 # Access token for the Web API. When bound to a non-loopback host

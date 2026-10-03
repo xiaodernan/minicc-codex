@@ -13,7 +13,7 @@ from typing import Any, Callable, NoReturn
 from .agent.loop import TurnResult, run_agent
 from .agent.router import StageRouter, StageRoute
 from .agent.state import Budget
-from .agent.subagent import DEFAULT_MAX_TURNS, build_task_tool_spec
+from .agent.subagent import DEFAULT_MAX_DEPTH, DEFAULT_MAX_TURNS, build_task_tool_spec
 from .allowlist import AllowlistError, add_session_rule
 from .audit import authorize_tool
 from .cli_io import cli_out
@@ -201,6 +201,12 @@ def _parser() -> argparse.ArgumentParser:
         default="default",
         help="权限模式：plan 只读规划；acceptEdits 自动接受文件写入（命令仍需确认）；yolo 全部放行",
     )
+    parser.add_argument(
+        "--subagent-writable",
+        action="store_true",
+        help="允许 task 子代理在已授权写入的会话里委派写文件（acceptEdits）或写+命令（yolo）；"
+        "默认/plan 模式下子代理保持只读（M6-T1）",
+    )
     parser.add_argument("--no-stream", action="store_true", help="关闭流式输出")
     parser.add_argument("--verbose-tools", action="store_true", help="默认展开工具输出；可在交互中用 /compact 切回摘要")
     parser.add_argument("--resume", action="store_true", help="恢复上次保存的会话")
@@ -293,6 +299,8 @@ def _apply_cli_overrides(config: Config, args: argparse.Namespace) -> Config:
         updates["fallback_models"] = tuple(models)
     if args.auto_resume:
         updates["auto_resume_on_start"] = True
+    if args.subagent_writable:
+        updates["subagent_writable"] = True
     return replace(config, **updates) if updates else config
 
 
@@ -826,6 +834,14 @@ def main(argv: list[str] | None = None) -> int:
         # events go straight to the structured log - the same channel the
         # parent loop's traces already use (M8-T5).
         on_trace=lambda event: log_task_event(event, task_id=session.path.stem if session else "cli"),
+        # M6-T1 补线（M11 系列后的 debt 收账）：writable 档声称由 config 旋钮
+        # + 本旗标驱动，但注册处从未传参——旋钮开了也永远是 readonly。tier
+        # 在注册时按会话 permission_mode 解析：acceptEdits/yolo 才会出
+        # write/exec 档（此时 authorize_tool 对 task 本身同样自动放行），
+        # default/plan 模式下旋钮诚实失效为 readonly。
+        writable=bool(getattr(config, "subagent_writable", False)),
+        permission_mode=str(args.permission_mode),
+        max_depth=max(1, int(getattr(config, "subagent_max_depth", DEFAULT_MAX_DEPTH))),
     ))
 
     async def run() -> None:
