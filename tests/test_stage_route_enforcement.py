@@ -1216,3 +1216,162 @@ def test_an_openai_family_route_on_an_anthropic_deployment_uses_the_model_card(
     assert _NeverBuiltProvider.built == [], (
         "the deployment anthropic factory must never fire for a cross-family route"
     )
+
+
+# -- M11-T8: the Task tool's readonly subagent rides the inspect route ---------
+
+
+_TASK_ROUTING = {
+    "enabled": True,
+    "tiers": {"balanced": ["planning-one"], "fast": ["scout-one"]},
+    "custom_models": {
+        "planning-one": {"tier": "balanced", "provider": "openai_compatible",
+                         "cost_usd_per_1m": [0.0, 0.0, 0.0, 0.0]},
+        "scout-one": {"tier": "fast", "provider": "openai_compatible",
+                      "base_url": "https://scout-gateway.test/v1",
+                      "api_key_env": "MINICC_T8_SCOUT_KEY",
+                      "cost_usd_per_1m": [0.0, 0.0, 0.0, 0.0]},
+    },
+    "stage_map": {"planning": "balanced", "inspect": "fast"},
+}
+
+
+class _TaskSubagentProbeProvider:
+    """Parent issues one task call; the inspect-built instance answers text.
+
+    Every construction lands on ``init_kwargs`` and every agent turn on
+    ``agent_models``, so "built" and "used" stay separate ledgers. The
+    judge (``tools=None``) answers the unknown JSON - the documented end
+    shape for a run that stops cleanly without a verdict.
+    """
+
+    init_kwargs: list[dict[str, Any]] = []
+    agent_models: list[str] = []
+
+    @classmethod
+    def reset(cls) -> None:
+        cls.init_kwargs.clear()
+        cls.agent_models.clear()
+
+    def __init__(self, *args: object, **kwargs: object) -> None:
+        self.kwargs = dict(kwargs)
+        self.model = str(kwargs.get("model") or "")
+        self._turn = 0
+        type(self).init_kwargs.append(dict(kwargs))
+
+    @classmethod
+    def is_transient_failure(cls, error: object) -> bool:
+        return False
+
+    def protocol(self) -> str:
+        return "chat_completions"
+
+    def protocol_status(self) -> dict[str, str]:
+        return {"requested": "chat_completions", "active": "chat_completions"}
+
+    async def chat(self, messages: object, tools: object, on_delta=None):  # noqa: ANN001, ANN201
+        if tools is None:
+            return LLMResponse(
+                content=json.dumps(
+                    {"status": "unknown", "confidence": 0.1, "rationale": "probe",
+                     "missing": [], "next_action": "", "evidence": []}
+                ),
+                usage={"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+            )
+        _TaskSubagentProbeProvider.agent_models.append(self.model)
+        if self.model == "scout-one":
+            return LLMResponse(content="侦察结论：README 描述了一个本地 coding agent。")
+        self._turn += 1
+        if self._turn == 1:
+            return LLMResponse(
+                content="",
+                tool_calls=[{
+                    "id": "task-web-probe-1",
+                    "type": "function",
+                    "function": {"name": "task", "arguments": json.dumps({
+                        "description": "调研项目结构说明",
+                        "prompt": "读取 README.md 并总结项目用途。",
+                    })},
+                }],
+                finish_reason="tool_calls",
+            )
+        return LLMResponse(content="web-done")
+
+    async def close(self) -> None:
+        return None
+
+
+def test_the_task_subagent_builds_and_serves_the_inspect_route_provider(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import minicc.web as web_module
+
+    _TaskSubagentProbeProvider.reset()
+    monkeypatch.setenv("MINICC_T8_SCOUT_KEY", "scout-key")
+    original = web_module.OpenAICompatibleProvider
+    web_module.OpenAICompatibleProvider = _TaskSubagentProbeProvider  # type: ignore[assignment]
+    try:
+        service = _wired_service(tmp_path, _TASK_ROUTING)
+        result = _run_task(service, tmp_path)
+    finally:
+        web_module.OpenAICompatibleProvider = original  # type: ignore[assignment]
+    assert result is not None
+    built = _TaskSubagentProbeProvider.init_kwargs
+    scouts = [kwargs for kwargs in built if kwargs.get("model") == "scout-one"]
+    assert scouts, f"the task factory must build the inspect provider: {built}"
+    for kwargs in scouts:
+        assert kwargs.get("base_url") == "https://scout-gateway.test/v1", kwargs
+        assert kwargs.get("api_key") == "scout-key", kwargs
+        # The inspect factor (0.75 x the 10s deployment timeout) governs the
+        # subagent provider's timeout.
+        assert kwargs.get("timeout") == pytest.approx(7.5), kwargs
+    assert any(kwargs.get("model") == "planning-one" for kwargs in built), (
+        f"the run provider still rides the planning route: {built}"
+    )
+    served = set(_TaskSubagentProbeProvider.agent_models)
+    assert "scout-one" in served, (
+        f"the subagent must actually serve on the inspect model: {served}"
+    )
+
+
+def test_a_missing_inspect_credential_refuses_the_run_before_any_provider(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import minicc.web as web_module
+
+    _TaskSubagentProbeProvider.reset()
+    _NeverBuiltProvider.reset()
+    monkeypatch.delenv("MINICC_T8_SCOUT_KEY", raising=False)
+    routing = {
+        **_TASK_ROUTING,
+        "custom_models": {
+            "planning-one": {"tier": "balanced", "provider": "openai_compatible",
+                             "cost_usd_per_1m": [0.0, 0.0, 0.0, 0.0]},
+            "scout-one": {"tier": "fast", "provider": "anthropic",
+                          "api_key_env": "MINICC_T8_MISSING_SCOUT_KEY",
+                          "cost_usd_per_1m": [0.0, 0.0, 0.0, 0.0]},
+        },
+    }
+    original_openai = web_module.OpenAICompatibleProvider
+    original_anthropic = web_module.AnthropicProvider
+    web_module.OpenAICompatibleProvider = _NeverBuiltProvider  # type: ignore[assignment]
+    web_module.AnthropicProvider = _TaskSubagentProbeProvider  # type: ignore[assignment]
+    try:
+        service = _wired_service(tmp_path, routing)
+        with pytest.raises(ConfigError) as refused:
+            service._chat_locked(
+                {
+                    "message": "zhi-du-jian-cha-ben-xiang-mu",
+                    "allow_changes": False,
+                    "workspace_path": str(tmp_path),
+                },
+                workspace=tmp_path,
+            )
+    finally:
+        web_module.OpenAICompatibleProvider = original_openai  # type: ignore[assignment]
+        web_module.AnthropicProvider = original_anthropic  # type: ignore[assignment]
+        service.shutdown()
+    assert "MINICC_T8_MISSING_SCOUT_KEY" in str(refused.value)
+    assert _NeverBuiltProvider.built == [] and _TaskSubagentProbeProvider.init_kwargs == [], (
+        "no provider may be built for a refused run - the deployment one included"
+    )

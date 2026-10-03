@@ -280,3 +280,153 @@ def test_an_unknown_tier_model_degrades_to_the_primary_on_the_cli(cli_env: Path,
     assert _OpenAISentinel.init_kwargs["model"] == "terra-main", (
         "the router's degrade-to-primary semantics must hold on the CLI surface too"
     )
+
+
+# -- M11-T8: the task subagent rides the inspect route -------------------------
+
+
+class _TaskRoutingSentinel:
+    """Serves the parent loop, and a second instance the task subagent.
+
+    Per-instance init kwargs and chat ledger - the class-level
+    ``init_kwargs`` of the sentinels above cannot tell two constructions
+    apart. The parent answers its first agent turn with a ``task`` tool
+    call and text afterwards; an instance built for the inspect model
+    answers text immediately, so the subagent converges in one turn.
+    """
+
+    instances: list["_TaskRoutingSentinel"] = []
+
+    @classmethod
+    def reset(cls) -> None:
+        cls.instances.clear()
+
+    def __init__(self, **kwargs: Any) -> None:
+        self.kwargs = dict(kwargs)
+        self.model = str(kwargs.get("model") or "")
+        self.chats = 0
+        self.agent_turns = 0
+        type(self).instances.append(self)
+
+    @classmethod
+    def is_transient_failure(cls, error: object) -> bool:
+        return False
+
+    def protocol(self) -> str:
+        return "chat_completions"
+
+    def protocol_status(self) -> dict[str, str]:
+        return {"requested": "chat_completions", "active": "chat_completions"}
+
+    async def chat(self, messages: object, tools: object, on_delta=None):  # noqa: ANN001, ANN201
+        self.chats += 1
+        usage = {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}
+        if self.model == "scout-one":
+            return LLMResponse(content="侦察结论：README 描述了一个本地 coding agent。", usage=usage)
+        self.agent_turns += 1
+        if self.agent_turns == 1:
+            return LLMResponse(
+                tool_calls=[{
+                    "id": "task-probe-1",
+                    "type": "function",
+                    "function": {"name": "task", "arguments": json.dumps({
+                        "description": "调研项目结构说明",
+                        "prompt": "读取 README.md 并总结项目用途。",
+                    })},
+                }],
+                finish_reason="tool_calls",
+                usage=usage,
+            )
+        return LLMResponse(content="cli-done", usage=usage)
+
+    async def close(self) -> None:
+        return None
+
+
+_T8_INSPECT_ROUTING = {
+    "enabled": True,
+    "tiers": {"balanced": ["cheap-one"], "fast": ["scout-one"]},
+    "custom_models": {
+        "cheap-one": {"tier": "balanced", "provider": "openai_compatible"},
+        "scout-one": {
+            "tier": "fast",
+            "provider": "openai_compatible",
+            "base_url": "https://scout-gateway.test/v1",
+            "api_key_env": "MINICC_T8_SCOUT_KEY",
+        },
+    },
+    "stage_map": {"planning": "balanced", "inspect": "fast"},
+}
+
+
+def test_the_task_subagent_builds_and_serves_its_own_inspect_provider(
+    cli_env: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("MINICC_T8_SCOUT_KEY", "scout-key")
+    _enable_routing(cli_env, _T8_INSPECT_ROUTING)
+    _TaskRoutingSentinel.reset()
+    import minicc.main as cli
+
+    monkeypatch.setattr(cli, "OpenAICompatibleProvider", _TaskRoutingSentinel)
+    _run_cli(cli_env)
+    instances = _TaskRoutingSentinel.instances
+    assert len(instances) == 2, (
+        f"exactly the parent and one inspect provider must exist: "
+        f"{[i.kwargs.get('model') for i in instances]}"
+    )
+    parent, scout = instances[0], instances[1]
+    assert parent.kwargs["model"] == "cheap-one", parent.kwargs
+    assert parent.agent_turns == 2, "turn 1 issues the task call, turn 2 the answer"
+    assert scout.kwargs["model"] == "scout-one", scout.kwargs
+    assert scout.kwargs["base_url"] == "https://scout-gateway.test/v1", scout.kwargs
+    assert scout.kwargs["api_key"] == "scout-key", scout.kwargs
+    # The inspect factor (0.75 x the 180s config timeout) governs the
+    # subagent provider; the planning factor (0.9) governs the parent.
+    assert scout.kwargs["timeout"] == pytest.approx(135.0), scout.kwargs
+    assert parent.kwargs["timeout"] == pytest.approx(162.0), parent.kwargs
+    assert scout.chats >= 1, "the subagent must actually serve on the inspect model"
+
+
+def test_with_routing_off_the_subagent_reuses_the_parent_provider(
+    cli_env: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _TaskRoutingSentinel.reset()
+    import minicc.main as cli
+
+    monkeypatch.setattr(cli, "OpenAICompatibleProvider", _TaskRoutingSentinel)
+    _run_cli(cli_env)
+    instances = _TaskRoutingSentinel.instances
+    assert len(instances) == 1, (
+        f"routing off -> the task factory returns the parent instance, never builds: "
+        f"{[i.kwargs.get('model') for i in instances]}"
+    )
+    parent = instances[0]
+    # Parent turn 1 (the task call) + the subagent's own turn on the same
+    # instance + parent turn 2 (the answer): three chats, one provider.
+    assert parent.chats == 3, f"one instance must serve every chat: {parent.chats}"
+
+
+def test_a_missing_inspect_credential_refuses_the_cli_before_any_provider(
+    cli_env: Path, sentinels, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _enable_routing(
+        cli_env,
+        {
+            **_T8_INSPECT_ROUTING,
+            "custom_models": {
+                "cheap-one": {"tier": "balanced", "provider": "openai_compatible"},
+                "scout-one": {
+                    "tier": "fast",
+                    "provider": "anthropic",
+                    "api_key_env": "MINICC_T8_MISSING_SCOUT_KEY",
+                },
+            },
+        },
+    )
+    with pytest.raises(SystemExit) as excinfo:
+        main(["--workspace", str(cli_env), "--no-stream", "你好"])
+    assert excinfo.value.code == 2
+    assert "MINICC_T8_MISSING_SCOUT_KEY" in capsys.readouterr().err
+    assert _OpenAISentinel.instances == [] and _AnthroSentinel.instances == [], (
+        "the refusal must happen before any provider exists - the inspect one included"
+    )

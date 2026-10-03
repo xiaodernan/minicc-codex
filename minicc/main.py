@@ -713,8 +713,14 @@ def main(argv: list[str] | None = None) -> int:
         stage_routing_config=getattr(config, "stage_routing", None),
     )
     planning_route = stage_router.route("planning")
+    # M11-T8: the task subagent is an inspect-tier consumer on the CLI too -
+    # the same tier the web surface's recon nodes ride. Its route and
+    # credential are resolved with the planning ones so a missing credential
+    # refuses the run at startup, never mid-turn when a subagent first runs.
+    inspect_route = stage_router.route("inspect")
     try:
         provider_spec = _route_provider_spec(stage_router, planning_route.model, config)
+        inspect_spec = _route_provider_spec(stage_router, inspect_route.model, config)
     except ConfigError as exc:
         _fatal(str(exc))
     # The router clamps its own timeout (min 10s, rounded); with routing off
@@ -725,60 +731,84 @@ def main(argv: list[str] | None = None) -> int:
     )
     cli_model = str(planning_route.model or config.model)
     cli_effort = str(planning_route.reasoning_effort or config.reasoning_effort)
-    if provider_spec is not None and provider_spec["family"] == "anthropic":
-        from .llm.anthropic_provider import AnthropicProvider
 
-        provider = AnthropicProvider(
-            api_key=str(provider_spec["api_key"]),
-            model=cli_model,
-            base_url=str(provider_spec["base_url"]),
-            plan_base_url=str(getattr(config, "plan_base_url", "") or ""),
-            timeout=cli_timeout,
-            max_retries=int(getattr(config, "provider_retries", 4)),
-        )
-    elif provider_spec is not None:
-        provider = OpenAICompatibleProvider(
-            base_url=str(provider_spec["base_url"]),
-            api_key=str(provider_spec["api_key"]),
-            model=cli_model,
-            plan_base_url=str(getattr(config, "plan_base_url", "") or ""),
-            plan_api_key=str(getattr(config, "plan_api_key", "") or ""),
-            timeout=cli_timeout,
-            max_retries=config.provider_retries,
-            tool_mode=config.tool_mode,
-            protocol=config.llm_protocol,
-            reasoning_effort=cli_effort,
-        )
-    elif str(getattr(config, "provider_type", "openai")) == "anthropic":
-        from .llm.anthropic_provider import AnthropicProvider
+    def _build_provider(*, model: str, timeout: float, effort: str, spec: dict[str, Any] | None) -> Any:
+        """One construction site for every provider the CLI builds.
 
-        provider = AnthropicProvider(
-            api_key=config.api_key,
-            model=cli_model,
-            base_url=str(getattr(config, "anthropic_base_url", "") or config.base_url),
-            plan_base_url=str(getattr(config, "plan_base_url", "") or ""),
-            timeout=cli_timeout,
-            max_retries=int(getattr(config, "provider_retries", 4)),
-        )
-    else:
-        provider = OpenAICompatibleProvider(
+        A routed spec drives the wire family and credentials; without one the
+        deployment defaults apply, exactly as before routing existed.
+        """
+        if spec is not None and spec["family"] == "anthropic":
+            from .llm.anthropic_provider import AnthropicProvider
+
+            return AnthropicProvider(
+                api_key=str(spec["api_key"]),
+                model=model,
+                base_url=str(spec["base_url"]),
+                plan_base_url=str(getattr(config, "plan_base_url", "") or ""),
+                timeout=timeout,
+                max_retries=int(getattr(config, "provider_retries", 4)),
+            )
+        if spec is not None:
+            return OpenAICompatibleProvider(
+                base_url=str(spec["base_url"]),
+                api_key=str(spec["api_key"]),
+                model=model,
+                plan_base_url=str(getattr(config, "plan_base_url", "") or ""),
+                plan_api_key=str(getattr(config, "plan_api_key", "") or ""),
+                timeout=timeout,
+                max_retries=config.provider_retries,
+                tool_mode=config.tool_mode,
+                protocol=config.llm_protocol,
+                reasoning_effort=effort,
+            )
+        if str(getattr(config, "provider_type", "openai")) == "anthropic":
+            from .llm.anthropic_provider import AnthropicProvider
+
+            return AnthropicProvider(
+                api_key=config.api_key,
+                model=model,
+                base_url=str(getattr(config, "anthropic_base_url", "") or config.base_url),
+                plan_base_url=str(getattr(config, "plan_base_url", "") or ""),
+                timeout=timeout,
+                max_retries=int(getattr(config, "provider_retries", 4)),
+            )
+        return OpenAICompatibleProvider(
             base_url=config.base_url,
             api_key=config.api_key,
-            model=cli_model,
+            model=model,
             plan_base_url=str(getattr(config, "plan_base_url", "") or ""),
             plan_api_key=str(getattr(config, "plan_api_key", "") or ""),
-            timeout=cli_timeout,
+            timeout=timeout,
             max_retries=config.provider_retries,
             tool_mode=config.tool_mode,
             protocol=config.llm_protocol,
-            reasoning_effort=cli_effort,
+            reasoning_effort=effort,
+        )
+
+    provider = _build_provider(model=cli_model, timeout=cli_timeout, effort=cli_effort, spec=provider_spec)
+
+    def _task_provider() -> Any:
+        # Routing off: the shared parent provider, byte-for-byte the
+        # pre-routing factory (requests are strictly sequential because the
+        # parent loop blocks on the sub-run). Routing on: each subagent run
+        # builds its own provider on the inspect route - the worker closes
+        # the instance it built, so nothing outlives a run.
+        if not stage_router.routing_enabled():
+            return provider
+        return _build_provider(
+            model=str(inspect_route.model or config.model),
+            timeout=float(inspect_route.timeout),
+            effort=str(inspect_route.reasoning_effort or config.reasoning_effort),
+            spec=inspect_spec,
         )
 
     # Bounded Task subagent for the CLI: same restricted readonly toolset and
-    # no recursion, sharing the parent's provider instance (requests are
-    # strictly sequential because the parent loop blocks on the sub-run).
+    # no recursion. With routing enabled the subagent rides the inspect stage
+    # (M11-T8), matching the web surface's recon nodes; routing off keeps the
+    # deployment-default factory.
     registry.register(build_task_tool_spec(
-        provider_factory=lambda: provider,
+        provider_factory=_task_provider,
         workspace=workspace,
         system_prompt=system_prompt,
         base_registry=registry,

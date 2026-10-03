@@ -1302,11 +1302,15 @@ class AgentService:
         # late - only clearer about when the run's shape is fixed.
         repair_route = stage_router.route("repair")
         review_route = stage_router.route("review")
+        # M11-T8: the Task tool's readonly subagent is an inspect-tier
+        # consumer, resolved with the other routes so its credential is
+        # prechecked with them.
+        inspect_route = stage_router.route("inspect")
         # M11-T5: a routed model that demands another wire family must be
         # buildable before anything runs. A missing per-model credential
         # refuses the run here - never as the deployment key POSTed to
         # another vendor's endpoint.
-        for _routed in (initial_route, repair_route, review_route):
+        for _routed in (initial_route, repair_route, review_route, inspect_route):
             _route_provider_spec(stage_router, _routed.model, self.config)
         runtime_state = AgentState(
             task_id=f"{session_id}-{uuid.uuid4().hex[:8]}",
@@ -1592,8 +1596,22 @@ class AgentService:
             # only through the restricted readonly toolset.
             try:
                 registry.register(build_task_tool_spec(
+                    # M11-T8: the readonly research subagent rides the inspect
+                    # route (model/effort/timeout) - the same tier as the
+                    # planner's recon nodes. Routing off keeps the
+                    # deployment-default factory byte-for-byte (route.model ==
+                    # the configured model). The credential precheck ran with
+                    # the other routes before anything started; make_provider
+                    # resolves the per-model wire spec from the model name.
                     provider_factory=lambda: make_provider(
-                        timeout=float(self.config.timeout), status_callback=None
+                        timeout=(
+                            float(inspect_route.timeout)
+                            if stage_router.routing_enabled()
+                            else float(self.config.timeout)
+                        ),
+                        status_callback=None,
+                        model_override=inspect_route.model,
+                        reasoning_effort_override=inspect_route.reasoning_effort,
                     ),
                     workspace=workspace,
                     system_prompt=build_system_prompt(workspace, output_style=str(getattr(self.config, "output_style", "") or "")),

@@ -10285,3 +10285,69 @@ example 写了六档语义——CLI 用户把它配上，得到的却是**逐字
   **不换 spec**（provider 建一次就固定）——CLI 无 provider 重建路径，这是结构边界
   而非缺陷，已在本批 docstring 记录。
 
+## 第一百二十二批 M11-T8：task 只读子代理接上 inspect 档——同是只读侦察，两种待遇
+
+### 1 缺口
+
+T7 批次登记的候选，本批按计划开工。缺口是「同面不同待」：web 的 DAG 侦察节点
+（`run_node`）自 M11-T2 起骑 inspect 档（独立 provider、路由超时、路由预算）；而
+**Task 工具的只读子代理**——同样是只读侦察——web 面的 factory（`web.py` 的
+`build_task_tool_spec(provider_factory=...)`）用部署默认值构建，CLI 面更直接共享父
+provider（`lambda: provider`）。inspect 档配置了模型/effort，侦察节点真用了、task
+子代理却无视——又一个「档位有消费者、但消费者不全」的静默缺口。
+
+### 2 实现（web/CLI 两面，同一份语义）
+
+1. **web（`web.py`）**：`_run_chat` 在 planning/repair/review 三路由解析后新增
+   `inspect_route = stage_router.route("inspect")`，预检循环扩为四路由——task 子代理的
+   凭据随其余档在运行开始前一并验证。task factory 改为按 inspect 路由调局部
+   `make_provider`（`model_override`/`reasoning_effort_override` 按路由，timeout 带
+   `routing_enabled()` 守卫——legacy 路由的 inspect 档也有 0.75 因子超时，路由关必须
+   用 `config.timeout` 保字节级旧版）。`make_provider` 内部按模型名自行解析线协议
+   spec（T5 设计），调用方不传 provider_spec。
+2. **CLI（`main.py`）**：四分支 provider 构建收成局部 `_build_provider(*, model,
+   timeout, effort, spec)`——一个工地，路由 spec 驱动线协议/凭据，无 spec 走部署分支。
+   `inspect_route` 与 planning 路由一起解析、`inspect_spec` 一起预检（缺凭据
+   **启动即 `_fatal`**）。task factory 改为 `_task_provider()`：路由关返回共享父
+   provider（逐字节旧版）；路由开则每次按 inspect 档构建——子代理 worker 每次 run
+   后 close 自己的 provider（subagent.py 既有语义），无实例泄漏。
+3. **诚实边界**：inspect 档的 max_turns/max_cost 上限对 task 子代理**不生效**——
+   `build_task_tool_spec` 的预算参数是父调用点传入的既有值（与 DAG run_node 同形状：
+   上限在构建预算时生效）。本批只接模型/线协议/凭据/超时（provider 构建层），上限
+   接线属独立候选。
+
+### 3 门（web 2 条 + CLI 3 条，全部先实现后绿）
+
+web（`test_stage_route_enforcement.py`）：
+
+1. inspect 卡真构建真服务：父实例（planning-one）turn 1 发 task 工具调用 → factory
+   构建 scout-one 实例（卡片端点 + api_key_env 凭据 + inspect 因子超时 0.75×10s=7.5s）
+   → 子代理真在 scout-one 上跑完 → 父 turn 2 收答。`init_kwargs` 与 `agent_models`
+   分账，「构建」与「服务」不许混淆；
+2. inspect 卡缺凭据 → `_chat_locked` 抛 `ConfigError` 点名环境变量，**零 provider
+   构建**（部署 provider 也不许建）。
+
+CLI（`test_cli_stage_routing.py`）：
+
+3. 路由开 + inspect 卡：恰好两个实例（父 cheap-one、子 scout-one），子实例带卡片
+   端点/凭据、inspect 因子超时（0.75×180=135s）对父的 planning 因子（0.9×180=162s），
+   子代理真服务（chats≥1）；
+4. 路由关：**单实例**跑完全部三次 chat（父 task 调用 + 子代理 + 父收答）——factory
+   返回父实例、从不构建，身份相等的行为学证据；
+5. inspect 卡缺凭据 → `SystemExit(2)`、stderr 点名、两个哨兵零构建。
+
+### 4 实测证据
+
+| 命令 | 读数 |
+| --- | --- |
+| cli_stage_routing + stage_route_enforcement | **37 passed**（11.30s） |
+| 全量 `pytest -q` | **1752 passed**（627.42s） |
+
+### 5 下一批边界
+
+- task 子代理骑 inspect 档**上限**（max_turns/max_cost_usd 经 `build_task_tool_spec`
+  的预算参数）——独立候选，需先定父/子预算的合成语义，不与本批混做。
+- writable/exec 档的 task 子代理（M6-T1 tier）同样走本批 factory——inspect 档对它们
+  是否合适是 owner 决定，本批不扩大语义。
+- CLI fallback 轮换不换 spec 的结构边界不变（T7 批次已记）。
+

@@ -82,7 +82,7 @@ MINICC_REASONING_EFFORT=high
 #
 # 六个阶段当前的消费者语义（M11-T4 起）：
 # - planning：主循环 provider 的模型/effort/成本/轮数全部按此档强制。
-# - inspect：侦察节点子代理的模型/effort；上限同主预算。
+# - inspect：侦察节点子代理与 task 只读子代理的模型/effort；上限同主预算。
 # - review：完成评审（judge）用此档模型/effort 独立发请求；其花费按 review 档单价
 #   计入运行级天花板；review 档 max_turns 覆盖「评审要求继续」的次数上限
 #   （MINICC_MAX_COMPLETION_CONTINUES，0 = 评审要求继续一次即停）。
@@ -105,8 +105,11 @@ MINICC_REASONING_EFFORT=high
 #
 # CLI 同样遵守本节语义（M11-T7 起）：planning 档决定 CLI 主 provider 的模型、线协议、
 # effort 与超时，max_turns / cost_limits_usd 的 planning 值照常生效，缺凭据同样在启动
-# 时拒绝；其余档位在 CLI 面暂无消费者（CLI 没有评审/修复循环，task 子代理共享主
-# provider），配置了不会报错、也不会有别的效果。
+# 时拒绝。task 只读子代理自 M11-T8 起也骑 inspect 档（与 web 面的侦察节点一致）：
+# 路由开启时每次子代理运行按 inspect 路由构建独立 provider（模型/线协议/凭据/超时），
+# 其缺凭据同样在启动时拒绝；路由关闭时子代理共享主 provider，与旧版逐字节一致。
+# 其余档位在 CLI 面暂无消费者（CLI 没有评审/修复循环），配置了不会报错、也不会有
+# 别的效果。
 #MINICC_STAGE_ROUTING={"enabled": false}
 
 # 上下文窗口与自动压缩阈值（token）。窗口默认 300000（至少 1）；会话记录超过
