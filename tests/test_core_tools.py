@@ -385,6 +385,34 @@ def test_worktree_manager_creates_and_removes_managed_tree(tmp_path: Path) -> No
         shutil.rmtree(manager.root, ignore_errors=True)
 
 
+def test_worktree_reports_prunable_and_prune_cleans(tmp_path: Path) -> None:
+    """M8-T64: 外部删除目录后的僵尸 worktree 要能被看见并清理。
+
+    未修复代码上这里红：list() 不带 prunable 键，prune() 方法不存在。
+    """
+    import subprocess as _sp
+
+    _sp.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True, text=True, encoding="utf-8", errors="replace")
+    _sp.run(["git", "config", "user.name", "minicc test"], cwd=tmp_path, check=True)
+    _sp.run(["git", "config", "user.email", "minicc@test.local"], cwd=tmp_path, check=True)
+    (tmp_path / "README.md").write_text("test" + chr(10), encoding="utf-8")
+    _sp.run(["git", "add", "README.md"], cwd=tmp_path, check=True)
+    _sp.run(["git", "commit", "-m", "init"], cwd=tmp_path, check=True, capture_output=True, text=True, encoding="utf-8", errors="replace")
+
+    manager = WorktreeManager(tmp_path)
+    try:
+        item = manager.create("zombie-wt", "zombie-wt")
+        shutil.rmtree(item["path"])
+        records = manager.list()
+        zombie = next(r for r in records if r["name"] == "zombie-wt")
+        assert zombie["prunable"] is True
+        pruned = manager.prune()
+        assert pruned >= 1
+        assert all(not r.get("prunable") for r in manager.list())
+    finally:
+        shutil.rmtree(manager.root, ignore_errors=True)
+
+
 def test_change_inspector_shows_uncommitted_file_diff(tmp_path: Path) -> None:
     subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True, text=True, encoding="utf-8", errors="replace")
     target = tmp_path / "demo.txt"

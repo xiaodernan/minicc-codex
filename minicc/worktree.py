@@ -60,6 +60,8 @@ class WorktreeManager:
                 current["branch"] = "(detached)"
             elif key == "locked":
                 current["locked"] = True
+            elif key == "prunable":
+                current["prunable"] = True
         if current:
             records.append(self._decorate(current))
         return records
@@ -72,6 +74,9 @@ class WorktreeManager:
             "head": record.get("head", ""),
             "branch": record.get("branch", "(unknown)"),
             "locked": bool(record.get("locked", False)),
+            # 目录被外部删除的僵尸 worktree（git 标记 prunable）：UI 可以
+            # 据此置灰，prune() 负责清理。
+            "prunable": bool(record.get("prunable", False)),
             "managed": path.parent == self.root.resolve(),
         }
 
@@ -113,3 +118,14 @@ class WorktreeManager:
         if result.returncode != 0:
             raise WorktreeError((result.stderr or result.stdout).strip() or "git worktree remove 失败")
         return {"name": name, "path": target.as_posix(), "removed": True}
+
+    def prune(self) -> int:
+        """清理目录已不存在的僵尸 worktree 管理记录，返回清理条数。"""
+        before = {item["path"] for item in self.list() if item.get("prunable")}
+        if not before:
+            return 0
+        result = self._run(["worktree", "prune"])
+        if result.returncode != 0:
+            raise WorktreeError((result.stderr or result.stdout).strip() or "git worktree prune 失败")
+        after = {item["path"] for item in self.list() if item.get("prunable")}
+        return len(before - after)
