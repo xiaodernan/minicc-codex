@@ -10460,3 +10460,55 @@ M8-T5 的 `log_task_event` 通道，子代理事件却在两面双双落地即�
 - `build_task_tool_spec` 的 max_tokens/soft_* 参数仍无调用者（T9 §5 已记），不接。
 - CLI fallback 轮换不换 spec 的结构边界不变（T7 已记）。
 
+## 第一百二十五批 M6-T1 补线：可写委派的旋钮从没接过线——config 声称 writable、路线图打勾，两面注册从没传参
+
+### 1 缺口
+
+M11 系列收账（T8–T10 连续三批都在 task 注册处接线）顺藤摸出的断线：路线图 M6-T1 行
+声称「main.py 新增 `--subagent-writable` 并向下传递；`web.py` 从 config 读取档位参数接线」，
+但 `git log -S subagent_writable` 证实**那两处接线从未存在**——`subagent_writable` /
+`subagent_max_depth` 只活在 config.py（`describe()` 甚至会打印 `subagent=delegated`，
+给用户看一个不存在的能力），两面 task 注册处都不传 `writable=`。结果：旋钮开了，
+子代理也永远 readonly，config 与路线图在合谋撒谎。
+
+### 2 实现（两面三参 + CLI 旗标 + example 文档）
+
+1. **CLI（`main.py`）**：新增 `--subagent-writable` 旗标（help 明写「默认/plan 模式下
+   子代理保持只读」）；`_apply_cli_overrides` 接 config 的 `subagent_writable` /
+   `subagent_max_depth` 两旋钮；task 注册处传 `writable` / `permission_mode` /
+   `max_depth` 三参。
+2. **web（`web.py`）**：task 注册处传同三参，`permission_mode` 用任务解析出的会话模式。
+3. **`minicc.config.example`**：补两旋钮的文档（此前 config 声明了能力却零说明）。
+4. **安全语义（tier 机器的既有契约终于参与裁决）**：tier 在注册时按会话
+   `permission_mode` 解析——`acceptEdits` 出 write 档、`yolo` 出 exec 档（此时
+   `authorize_tool` 对 task 本身自动放行）；`default`/`plan` 诚实失效 readonly。
+   旋钮开但会话没授权，照样只读——旋钮从来不是权限，会话模式才是。
+
+### 3 门（CLI 5 + web 3，全部先实现后绿）
+
+新文件 `tests/test_subagent_wiring.py` 8 条，钉补线后的契约：
+
+- CLI：旋钮开 + acceptEdits → `spec.risk == "write"`；旗标单独开 + acceptEdits → 同；
+  旋钮开 + default 会话 → 注册层诚实失效仍 readonly（旋钮不是权限）；旋钮关 →
+  逐字节旧形状 readonly 且 `max_depth` 回落 `DEFAULT_MAX_DEPTH`；depth 旋钮到达注册处；
+- web：config 旋钮开 + acceptEdits 会话 → write 档；plan 会话 → readonly；旋钮关 →
+  readonly + max_depth 回落。
+
+### 4 实测证据
+
+| 命令 | 读数 |
+| --- | --- |
+| 新门 `test_subagent_wiring.py` | **8 passed**（6.84s） |
+| 相邻四套件（cli_stage_routing / stage_route_enforcement / subagent_task / subagent_delegation） | **65 passed** |
+| `doc_pointers --check` / `route_coverage --check` | 绿（A/B 口径 14/14） |
+| 全量 `pytest -q` | **1766 passed**（750.28s） |
+| 提交与 CI | d584e7e，CI run 37117820623 全绿 |
+
+### 5 下一批边界
+
+- yolo 出 exec 档未在两面接线处单列门（CLI 面只钉了 write 分支；exec 档解析由 tier
+  机器的既有单测覆盖）；
+- writable tier 的 e2e 写文件行为在 `test_subagent_delegation` 单元层已有覆盖，本批不重复；
+- M6-T1 行文里与 writable 并提的 allow_network 无对应旋钮（网络门是会话级
+  `--allow-network`），不在本批范围。
+
