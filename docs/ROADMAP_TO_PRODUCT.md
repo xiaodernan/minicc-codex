@@ -10551,7 +10551,7 @@ M6-T1 的路线图行把 `subagent_max_tokens` 与 `subagent_writable`/`subagent
 | `test_subagent_wiring.py`（含 4 新门）与相邻四套件合并跑（subagent_delegation / subagent_task / subagent_streaming / cli_stage_routing） | **54 passed**（12.60s） |
 | `doc_pointers --check` / `route_coverage --check` | 绿（本批提交后复跑确认） |
 | 全量 `pytest -q` | **1770 passed**（478.93s） |
-| 提交与 CI | 待提交后回填 |
+| 提交与 CI | 7e1b753，CI run 37118907998 全绿（文档 be76ee3） |
 
 ### 5 下一批边界
 
