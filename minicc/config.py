@@ -16,7 +16,7 @@ import logging
 import math
 import os
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -68,6 +68,253 @@ TRUTHY = frozenset({"1", "true", "yes", "on"})
 
 class ConfigError(RuntimeError):
     """Configuration is missing or malformed."""
+
+
+# M8-T135: ``minicc/agent/router.py`` documents its knobs as config.json's
+# ``stage_routing`` object and ``minicc/web.py`` asks the config for exactly that
+# name - which returned a default forever, because nothing here declared or read
+# it.  These two vocabularies mirror the router's own; config.py cannot import
+# ``minicc.agent`` (the agent package imports config), so
+# tests/test_stage_routing_config_reaches_the_router.py pins each mirror against
+# the router in both directions.
+STAGE_TIER_NAMES = frozenset({"fast", "balanced", "reasoning"})
+STAGE_NAMES = frozenset({"inspect", "planning", "implement", "verify", "repair", "review"})
+# Keys the router indexes.  A key outside this set has no reader, so accepting it
+# would be the same self-deception as ``{"max_truns": 40}`` - which this resolver
+# reports instead of tolerating.
+_STAGE_ROUTING_KEYS = frozenset({
+    "enabled", "custom_models", "stage_map", "tiers", "cost_limits_usd",
+    "failover", "max_turns", "reasoning_effort",
+})
+# The router reads only ``failover.fallback_tiers``; its docstring used to
+# advertise two more that nothing consumed.
+_FAILOVER_KEYS = frozenset({"fallback_tiers"})
+_CUSTOM_MODEL_KEYS = frozenset({
+    "tier", "provider", "base_url", "api_key_env", "cost_usd_per_1m",
+    "max_tokens", "supports_tools", "supports_vision", "supports_reasoning_effort",
+})
+_COST_COLUMNS = 4
+
+
+def _routing_mapping(value: object, path: str) -> dict[str, Any]:
+    """A sub-object the router reads with ``.get``: the wrong type is a crash."""
+    if not isinstance(value, dict):
+        raise ConfigError(
+            f"{path} 必须是 JSON 对象，实测 {type(value).__name__}；路由器对它逐项取值，"
+            "形状不对会在第一次路由时抛错，而那条调用不在任何 try 里面"
+        )
+    for key in value:
+        if not isinstance(key, str):
+            raise ConfigError(f"{path} 的键名必须是字符串，实测 {key!r}")
+    return value
+
+
+def _routing_keys_known(
+    value: dict[str, Any], allowed: frozenset[str], path: str, read_by: str
+) -> None:
+    unknown = sorted(str(key) for key in value if key not in allowed)
+    if unknown:
+        raise ConfigError(
+            f"{path} 里的 {unknown} 没有任何读者（{read_by}：{'|'.join(sorted(allowed))}），"
+            "写在这里等于让它静默失效"
+        )
+
+
+def _routing_stage_keys(value: dict[str, Any], path: str) -> None:
+    unknown = sorted(str(key) for key in value if key not in STAGE_NAMES)
+    if unknown:
+        raise ConfigError(
+            f"{path} 的阶段名 {unknown} 不存在（{'|'.join(sorted(STAGE_NAMES))}）；"
+            "拼错的阶段永远匹配不上，路由会静默按默认档位走"
+        )
+
+
+def _routing_tier(value: object, path: str) -> str:
+    tier = str(value)
+    if tier not in STAGE_TIER_NAMES:
+        raise ConfigError(
+            f"{path} 的档位 {value!r} 不存在（{'|'.join(sorted(STAGE_TIER_NAMES))}）；"
+            "路由器在这里抛 ValueError"
+        )
+    return tier
+
+
+def _routing_string_list(value: object, path: str) -> list[str]:
+    if not isinstance(value, list) or not value:
+        raise ConfigError(
+            f"{path} 必须是非空的字符串数组，实测 {value!r}；"
+            "写成字符串会被逐字符遍历，等于选了没人认识的模型"
+        )
+    items: list[str] = []
+    for item in value:
+        if not isinstance(item, str) or not item.strip():
+            raise ConfigError(f"{path} 的数组项必须是非空字符串，实测 {item!r}")
+        items.append(item.strip())
+    return items
+
+
+def _routing_bool(value: object, path: str) -> bool:
+    if not isinstance(value, bool):
+        raise ConfigError(
+            f"{path} 必须是 true/false，实测 {value!r}；"
+            "「false」写成字符串在 Python 里是真，所以这里不做类型转换，只做类型检查"
+        )
+    return value
+
+
+def _routing_number(value: object, path: str, *, integer: bool = False) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ConfigError(
+            f"{path} 必须是数字，实测 {value!r}；字符串会原样进 StageRoute，"
+            "等到预算比较时才炸"
+        )
+    number = float(value)
+    if integer and not float(number).is_integer():
+        raise ConfigError(f"{path} 必须是整数，实测 {value!r}")
+    if not math.isfinite(number) or number <= 0:
+        raise ConfigError(f"{path} 必须是正的有限数字，实测 {value!r}")
+    return int(number) if integer else number
+
+
+def normalize_stage_routing(value: object, *, path: str = "stage_routing") -> dict[str, Any]:
+    """Validate and normalize the ``stage_routing`` object before the router sees it.
+
+    Every refusal here replaces a measured failure mode: an exception thrown out
+    of ``StageRouter`` on the request path, or a value that produced a plausible
+    route nobody asked for.
+    """
+    raw = _routing_mapping(value, path)
+    _routing_keys_known(raw, _STAGE_ROUTING_KEYS, path, "路由器只读这些键")
+    normalized: dict[str, Any] = {}
+
+    if "enabled" in raw:
+        normalized["enabled"] = _routing_bool(raw["enabled"], f"{path}.enabled")
+
+    if "stage_map" in raw:
+        stage_map = _routing_mapping(raw["stage_map"], f"{path}.stage_map")
+        _routing_stage_keys(stage_map, f"{path}.stage_map")
+        normalized["stage_map"] = {
+            stage: _routing_tier(tier, f"{path}.stage_map.{stage}")
+            for stage, tier in stage_map.items()
+        }
+
+    if "tiers" in raw:
+        tiers = _routing_mapping(raw["tiers"], f"{path}.tiers")
+        normalized["tiers"] = {
+            _routing_tier(tier, f"{path}.tiers 的键"): _routing_string_list(
+                models, f"{path}.tiers.{tier}"
+            )
+            for tier, models in tiers.items()
+        }
+
+    if "cost_limits_usd" in raw:
+        limits = _routing_mapping(raw["cost_limits_usd"], f"{path}.cost_limits_usd")
+        _routing_stage_keys(limits, f"{path}.cost_limits_usd")
+        normalized["cost_limits_usd"] = {
+            stage: _routing_number(limit, f"{path}.cost_limits_usd.{stage}")
+            for stage, limit in limits.items()
+        }
+
+    if "max_turns" in raw:
+        turns = _routing_mapping(raw["max_turns"], f"{path}.max_turns")
+        _routing_stage_keys(turns, f"{path}.max_turns")
+        normalized["max_turns"] = {
+            stage: _routing_number(turn, f"{path}.max_turns.{stage}", integer=True)
+            for stage, turn in turns.items()
+        }
+
+    if "reasoning_effort" in raw:
+        efforts = _routing_mapping(raw["reasoning_effort"], f"{path}.reasoning_effort")
+        _routing_stage_keys(efforts, f"{path}.reasoning_effort")
+        normalized["reasoning_effort"] = {
+            stage: _routing_effort(effort, f"{path}.reasoning_effort.{stage}")
+            for stage, effort in efforts.items()
+        }
+
+    if "failover" in raw:
+        failover = _routing_mapping(raw["failover"], f"{path}.failover")
+        _routing_keys_known(failover, _FAILOVER_KEYS, f"{path}.failover", "路由器今天只读这一项")
+        normalized["failover"] = {
+            "fallback_tiers": [
+                _routing_tier(tier, f"{path}.failover.fallback_tiers 的项")
+                for tier in _routing_string_list(
+                    failover.get("fallback_tiers", []), f"{path}.failover.fallback_tiers"
+                )
+            ]
+        }
+
+    if "custom_models" in raw:
+        custom = _routing_mapping(raw["custom_models"], f"{path}.custom_models")
+        normalized["custom_models"] = {
+            _routing_model_name(name, f"{path}.custom_models"): _routing_custom_model(
+                entry, f"{path}.custom_models.{name}"
+            )
+            for name, entry in custom.items()
+        }
+
+    return normalized
+
+
+def _routing_effort(value: object, path: str) -> str:
+    """Per-stage effort goes through the same vocabulary as the global knob.
+
+    The router hands this string straight to the provider, so an alias (「medium」,
+    「高」) has to be folded and a typo refused here - a wrong name otherwise
+    reaches the gateway with a plausible-looking route attached to it.
+    """
+    try:
+        return normalize_reasoning_effort(str(value))
+    except ValueError as exc:
+        raise ConfigError(f"{path} 的推理档位 {value!r} 不被支持：{exc}") from None
+
+
+def _routing_model_name(value: object, path: str) -> str:
+    try:
+        return normalize_model_name(value)
+    except ValueError as exc:
+        raise ConfigError(f"{path} 的模型名非法: {exc}") from None
+
+
+def _routing_custom_model(value: object, path: str) -> dict[str, Any]:
+    """One ``custom_models`` entry - read in ``StageRouter.__init__``, so a bad
+    shape here aborts the request before any stage runs."""
+    entry = _routing_mapping(value, path)
+    _routing_keys_known(entry, _CUSTOM_MODEL_KEYS, path, "ModelConfig 的字段名单")
+    model: dict[str, Any] = {}
+    if "tier" in entry:
+        model["tier"] = _routing_tier(entry["tier"], f"{path}.tier")
+    for name in ("provider", "base_url", "api_key_env"):
+        if name in entry:
+            item = entry[name]
+            if not isinstance(item, str):
+                raise ConfigError(f"{path}.{name} 必须是字符串，实测 {item!r}")
+            model[name] = item
+    if "cost_usd_per_1m" in entry:
+        costs = entry["cost_usd_per_1m"]
+        if not isinstance(costs, list) or len(costs) != _COST_COLUMNS:
+            raise ConfigError(
+                f"{path}.cost_usd_per_1m 必须是 4 项数组（输入/输出/缓存读/缓存写，每百万 token 美元），"
+                f"实测 {costs!r}；估算成本时按这四项解包，长度不对直接抛 ValueError"
+            )
+        model["cost_usd_per_1m"] = [
+            _routing_cost_number(item, f"{path}.cost_usd_per_1m[{index}]")
+            for index, item in enumerate(costs)
+        ]
+    if "max_tokens" in entry:
+        model["max_tokens"] = _routing_number(entry["max_tokens"], f"{path}.max_tokens", integer=True)
+    for name in ("supports_tools", "supports_vision", "supports_reasoning_effort"):
+        if name in entry:
+            model[name] = _routing_bool(entry[name], f"{path}.{name}")
+    return model
+
+
+def _routing_cost_number(value: object, path: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ConfigError(f"{path} 必须是数字，实测 {value!r}")
+    number = float(value)
+    if not math.isfinite(number) or number < 0:
+        raise ConfigError(f"{path} 必须是非负的有限数字，实测 {value!r}")
+    return number
 
 
 def normalize_reasoning_effort(value: str | None, *, default: str = DEFAULT_REASONING_EFFORT) -> str:
@@ -378,6 +625,7 @@ def load_config(
                     return _stringify(value)
         return default
 
+
     def pick_object(env_name: str, file_key: str) -> dict[str, Any] | None:
         """Resolve a nested JSON-object knob (M11 stage routing).
 
@@ -387,9 +635,16 @@ def load_config(
         the same one ``pick`` documents (environment > .env > project/user
         config.json), and both spellings are accepted - ``MINICC_STAGE_ROUTING``
         or the bare ``stage_routing``. A value that is neither an object nor a
-        JSON object string is a ConfigError, not a silent "routing off".
+        JSON object string is a ConfigError, not a silent "routing off".  The
+        object that survives is validated here too: ``normalize_stage_routing``
+        refuses by name the shapes whose first failure used to be an
+        AttributeError inside ``route()``, which the request path calls outside
+        any try, or a plausible route nobody asked for.  ``path`` names the
+        spelling that carried the value, so a refusal points at the key the
+        user wrote.
         """
         consulted_keys.update((env_name, file_key))
+        source_name = env_name
         raw: Any = None
         for source in (os.environ, env_values, file_values):
             candidate = source.get(env_name)
@@ -400,30 +655,30 @@ def load_config(
             for source in (env_values, file_values):
                 candidate = source.get(file_key)
                 if _present(candidate):
-                    raw = candidate
+                    source_name, raw = file_key, candidate
                     break
         if raw is None:
             return None
         if isinstance(raw, dict):
-            return raw
+            return normalize_stage_routing(raw, path=source_name)
         if not isinstance(raw, str):
             # A JSON array/scalar written straight into config.json (e.g.
             # {"stage_routing": ["fast"]}) - never a string, so JSON parsing
             # would only produce a repr-shaped error message.
             raise ConfigError(
-                f"{env_name} 必须是 JSON 对象，实际是 {type(raw).__name__}"
+                f"{source_name} 必须是 JSON 对象，实际是 {type(raw).__name__}"
             )
         try:
             parsed = json.loads(raw)
         except json.JSONDecodeError as exc:
             raise ConfigError(
-                f"{env_name} 必须是 JSON 对象（例如 {{\"enabled\": true}}）: {exc}"
+                f"{source_name} 必须是 JSON 对象（例如 {{\"enabled\": true}}）: {exc}"
             ) from None
         if not isinstance(parsed, dict):
             raise ConfigError(
-                f"{env_name} 必须是 JSON 对象，实际是 {type(parsed).__name__}"
+                f"{source_name} 必须是 JSON 对象，实际是 {type(parsed).__name__}"
             )
-        return parsed
+        return normalize_stage_routing(parsed, path=source_name)
 
     # M2-T8: export `.env` values into os.environ so subprocesses (task
     # worker, Docker sandbox, MCP children via their explicit env) and the
@@ -568,6 +823,7 @@ def load_config(
         name = raw_model.strip()
         if name and name != resolved_model and name not in fallback_models:
             fallback_models.append(name)
+
 
     # M11: per-stage routing is opt-in (router requires {"enabled": true}), so
     # an absent knob keeps the historical single-model behavior untouched.

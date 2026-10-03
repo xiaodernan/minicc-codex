@@ -115,12 +115,18 @@ class StageRouter:
           "repair": 1.00
         },
         "failover": {
-          "enabled": true,
-          "max_retries_per_model": 1,
           "fallback_tiers": ["balanced", "fast"]
         }
       }
     }
+
+    Besides the keys shown, this router also reads ``max_turns``,
+    ``reasoning_effort`` and ``custom_models`` (per-stage turn caps, per-stage
+    effort names, gateway-defined model metadata).  ``minicc/config.py`` resolves
+    that whole set through ``normalize_stage_routing`` and refuses anything else
+    by name: a key nothing indexes here is a knob that silently does nothing, and
+    a wrong type here raised inside ``route()`` - which the request path calls
+    outside any try.
     """
 
     def __init__(

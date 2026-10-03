@@ -78,7 +78,14 @@ MINICC_REASONING_EFFORT=high
 # custom_models 里，否则回落到主模型。成本上限按路由模型的单价估算：不在注册表里的
 # 模型单价未知（按 0 计），其阶段的天花板因此不强制——要让上限真正生效，请在
 # custom_models 里给该模型填 cost_usd_per_1m。值写坏了（不是 JSON 对象）会在启动时
-# 报 ConfigError，而不是静默忽略。
+# 报 ConfigError，而不是静默忽略。拒绝的范围比「不是对象」宽：名单外的键、错的类型都会
+# 在启动时被点名（stage_routing.enabled、stage_routing.tiers.fast 这样的路径），因为路由
+# 对这些形状的实测行为要么在请求路径上抛 AttributeError，要么给出一条没人要求的路线。
+# enabled 必须是真正的 true/false（字符串 "false" 按 Python 规则算「真」）；阶段名限
+# implement|inspect|planning|repair|review|verify，档位限 balanced|fast|reasoning；
+# failover 今天只有 fallback_tiers 有读者。整块在 config.json 里直接写成对象（键名
+# stage_routing），在 .env 或环境变量里写成 JSON 字符串（键名 MINICC_STAGE_ROUTING），
+# 两种拼法同一条 precedence。
 #
 # 六个阶段当前的消费者语义（M11-T4 起）：
 # - planning：主循环 provider 的模型/effort/成本/轮数全部按此档强制。
