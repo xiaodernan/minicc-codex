@@ -243,6 +243,11 @@ class Config:
     provider_type: str = "openai"
     # Ordered fallback models tried on repeated provider failures (may be empty).
     fallback_models: tuple[str, ...] = ()
+    # M11: per-stage model routing (tiers / per-stage cost ceilings / failover).
+    # A nested object, so it is resolved by ``pick_object`` rather than the
+    # string-only ``pick``. ``None`` means "stage routing off": the router then
+    # keeps the single configured model for every stage, exactly as before.
+    stage_routing: dict[str, Any] | None = None
     # Re-queue interrupted tasks automatically when the web service starts.
     auto_resume_on_start: bool = False
     # thread (default, in-process) | process (detached task_worker subprocess)
@@ -372,6 +377,53 @@ def load_config(
                 if _present(value):
                     return _stringify(value)
         return default
+
+    def pick_object(env_name: str, file_key: str) -> dict[str, Any] | None:
+        """Resolve a nested JSON-object knob (M11 stage routing).
+
+        ``pick`` can only return strings, so a structured knob cannot ride
+        through it: a nested object in config.json would arrive as its Python
+        repr and every field would silently read its default. The precedence is
+        the same one ``pick`` documents (environment > .env > project/user
+        config.json), and both spellings are accepted - ``MINICC_STAGE_ROUTING``
+        or the bare ``stage_routing``. A value that is neither an object nor a
+        JSON object string is a ConfigError, not a silent "routing off".
+        """
+        consulted_keys.update((env_name, file_key))
+        raw: Any = None
+        for source in (os.environ, env_values, file_values):
+            candidate = source.get(env_name)
+            if _present(candidate):
+                raw = candidate
+                break
+        if raw is None:
+            for source in (env_values, file_values):
+                candidate = source.get(file_key)
+                if _present(candidate):
+                    raw = candidate
+                    break
+        if raw is None:
+            return None
+        if isinstance(raw, dict):
+            return raw
+        if not isinstance(raw, str):
+            # A JSON array/scalar written straight into config.json (e.g.
+            # {"stage_routing": ["fast"]}) - never a string, so JSON parsing
+            # would only produce a repr-shaped error message.
+            raise ConfigError(
+                f"{env_name} 必须是 JSON 对象，实际是 {type(raw).__name__}"
+            )
+        try:
+            parsed = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            raise ConfigError(
+                f"{env_name} 必须是 JSON 对象（例如 {{\"enabled\": true}}）: {exc}"
+            ) from None
+        if not isinstance(parsed, dict):
+            raise ConfigError(
+                f"{env_name} 必须是 JSON 对象，实际是 {type(parsed).__name__}"
+            )
+        return parsed
 
     # M2-T8: export `.env` values into os.environ so subprocesses (task
     # worker, Docker sandbox, MCP children via their explicit env) and the
@@ -517,6 +569,10 @@ def load_config(
         if name and name != resolved_model and name not in fallback_models:
             fallback_models.append(name)
 
+    # M11: per-stage routing is opt-in (router requires {"enabled": true}), so
+    # an absent knob keeps the historical single-model behavior untouched.
+    stage_routing = pick_object("MINICC_STAGE_ROUTING", "stage_routing")
+
     raw_context_window = pick(None, "MINICC_CONTEXT_WINDOW_TOKENS", "context_window_tokens", str(DEFAULT_CONTEXT_WINDOW_TOKENS))
     try:
         context_window_tokens = max(1, int(raw_context_window))
@@ -648,6 +704,7 @@ def load_config(
         workspace_roots=tuple(workspace_roots),
         provider_type=provider_type,
         fallback_models=tuple(fallback_models),
+        stage_routing=stage_routing,
         auto_resume_on_start=auto_resume_on_start,
         task_executor=task_executor,
         soft_max_tokens=soft_max_tokens,

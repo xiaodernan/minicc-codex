@@ -9827,3 +9827,63 @@ M8-T62 顺带落地：新鲜眼审查 sandbox.py 的两个缺口——容器无�
 daemon 探测经权衡不做：auto 模式在 daemon 挂掉时的大声失败恰是
 fail-closed 哲学，静默回退宿主反而是降级。新增 args 断言测试红→绿。
 
+## 第一百一十五批 M11-T1：阶段路由从「事件里说说」到「provider 真用」——并给一次代提交事故收尾
+
+### 0 事故还原：CI 两连红的根因
+
+第一百一十四批（`2eed638`）提交时把另一会话工作树里的 M11 半成品一起扫进了提交：
+`minicc/web.py` 已经构造 `StageRouter` 并读 `getattr(self.config, "stage_routing", None)`，
+但 `Config` 从未声明这个字段。CI push + schedule 两连红，抓它的正是
+`test_config_surface.py::test_every_config_getattr_names_a_field_config_declares`：
+「stage_routing at minicc/web.py:1273 配置项实际不可设置，默认值永远生效」。
+
+这道门设计要逮的就是这一类缺陷（getattr 读不存在的字段 = 静默默认 = 旋钮是死的），
+这次逮到的是自家事故——门没有错，错在提交纪律：**工作树里有别人的在途改动时不该全量提交**。
+本批把这条事故链收尾：接线补全、CI 转绿，事故本身留档。
+
+### 1 本批接线（三块，全部围绕「声称 ≠ 使用」）
+
+1. **Config 声明 `stage_routing`**（`minicc/config.py`）：嵌套 JSON 对象走新的
+   `pick_object` 解析器——既有 `pick` 只能回字符串，嵌套对象经它解析会拿到 Python
+   repr、每个字段静默读默认。优先级与其他旋钮一致（环境 > .env > config.json，
+   两种拼法 `MINICC_STAGE_ROUTING` / `stage_routing` 都认）；值坏了（不是对象）
+   报 `ConfigError` 而非静默「路由关闭」——一个决定烧哪个模型的旋钮不允许静默。
+2. **web.py 三处真用路由结果**。此前 `route.model` 被算出来、写进 `stage_route`
+   事件、然后**扔掉**：enable 前后唯一差别是多一条事件。现在：
+   - planning 首个 provider 用 `initial_route.model` + `initial_route.reasoning_effort` 构建；
+   - fallback 恢复链以路由模型为种子，不再在恢复时**悄悄掉回主模型**，并保持该阶段的 effort；
+   - inspect 侦察子代理用 inspect 路由（超时此前已接，模型/effort 本批接上）。
+   显式 per-task 覆盖仍然胜过自动路由（路由只填空）。
+3. **惰性保证**：没有 `stage_routing` 或 `enabled=false` 时一切与旧版一致。
+   专门有一条格钉住「其他旋钮全配但总闸关着 → 什么都不许漏进路由」——否则
+   每一个未开路由的既有部署都会被静默换模型。
+
+### 2 门：`tests/test_router.py`（43 条）
+
+docstring 即规格：路由器是唯一决定「一个阶段跑在哪个模型上」的地方，所以每一类
+误读配置会静默改变的决策都要有格。端到端接线格的关键断言是
+**「provider 真的是用路由模型构建的」**——tiers 指一个与主模型毫无相似度的名字，
+接线一断它就会以主模型现身；「报告了路由」与「使用了路由」在断言层面分开。
+
+### 3 实测证据
+
+| 命令 | 读数 |
+| --- | --- |
+| `pytest tests/test_router.py -q -W error` | **43 passed**（3.84s） |
+| `pytest tests/test_config_surface.py tests/test_two_fixture_keys_must_share_one_workspace.py tests/test_project_config.py -q -W error` | **121 passed**（16.56s），含 CI 红门 `test_every_config_getattr_names_a_field_config_declares` 本地转绿 |
+| web 邻接九文件（core_agent / http_surface / web_security / batch_wiring / auto_resume / interrupted / host_failure / p0_p1_p2 / task_worker） | **195 passed**（62.61s） |
+
+### 4 边界（明确不声称）
+
+- **`route.max_cost_usd` 与 `route.max_turns` 只到达事件，运行时不强制执行**。
+  它们已进 `stage_route` 事件（UI 契约），但循环不会因为越过天花板而停。强制执行
+  的承接点是既有 `Budget.soft_max_tokens` 机制（`minicc/agent/state.py:86`）：
+  把成本上限经 `estimate_cost` 映射成 token 预算、轮数上限映射成循环上限，
+  是立即可做的下一批候选。
+- **`route.provider` 不驱动 provider 构建**：`_make_provider` 只按 `config.provider_type`
+  二分（anthropic / openai 兼容），路由把 `claude-*` 派给 openai 兼容网关时按
+  网关风格发模型名——单网关多模型部署没问题，真正的跨厂商 failover 需要
+  provider 工厂按 `route.provider` 分叉，未在本批声称。
+- 「repair 派给 reasoning 档」的正确性依赖 tiers 配置本身写得对；路由器不校验
+  模型名与档位的语义匹配（未注册的名字回落主模型并诚实报告 tier，这一格已有）。
+

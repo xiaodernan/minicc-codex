@@ -388,6 +388,35 @@ def test_the_layout_gate_sees_the_population_delegate_to_one_owner() -> None:
     assert hand_copied == [], f"these decide fixture layout by hand: {hand_copied}"
 
 
+def test_the_layout_gate_says_which_plane_its_population_came_from() -> None:
+    """Cell 5 of the layout gate: the population is tests-only, by measurement and by construction.
+
+    Measured at 第一百一十一批 (M8-T130): of 52 functions whose body mentions the ``fixture``
+    key, 12 also load a shipped corpus, and all 12 live under tests/. Six production functions
+    read the key (``behavior_tasks``, ``fixture_blockers``, ``prepare_fixture``,
+    ``require_writable_fixture``, ``validate_task``, ``run_benchmark``) but none of them loads
+    the corpus in the same module - production is layered on purpose, the corpus being loaded
+    once in ``benchmarks.main`` while the helpers that read the key never load it. So the
+    conjunction "loads AND reads" can only fire in tests, and that is why this gate says "no
+    hand copies" without ever having audited production: there is nothing there shaped like a
+    census for it to audit.
+
+    If this goes red, a corpus loader that also reads the fixture key appeared outside tests/.
+    That is not automatically bad - verify it reaches the owner (delegation), then re-baseline
+    this cell deliberately, the same way every floor in this gate is a measured number.
+    """
+    audited, _, _, _ = _layout_audits([REPO / directory for directory in CENSUS_DIRS])
+    by_plane: dict[str, int] = {}
+    for site in audited:
+        plane = site.split("/")[0]
+        by_plane[plane] = by_plane.get(plane, 0) + 1
+    assert set(by_plane) == {"tests"}, (
+        f"the audited population moved planes: {by_plane} - a corpus loader that reads "
+        "the fixture key now exists outside tests/; verify it delegates to the owner "
+        "before re-baselining this cell"
+    )
+
+
 PLANTED_CENSUS = r'''
 """A layout census written the way the one in this file used to be."""
 from minicc.benchmarks import load_tasks

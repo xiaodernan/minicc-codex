@@ -1477,16 +1477,34 @@ class AgentService:
                 status_callback: Any | None,
                 protocol_override: str | None = None,
                 model_override: str | None = None,
+                reasoning_effort_override: str | None = None,
             ) -> Any:
                 return self._make_provider(
                     timeout=timeout,
                     status_callback=status_callback,
                     protocol_override=protocol_override,
                     model_override=model_override,
-                    reasoning_effort=str(payload.get("reasoning_effort") or ""),
+                    # An explicit per-task choice still beats automatic stage
+                    # routing; the route only fills the gap.
+                    reasoning_effort=str(
+                        payload.get("reasoning_effort")
+                        or reasoning_effort_override
+                        or ""
+                    ),
                 )
 
-            provider = make_provider(timeout=initial_route.timeout, status_callback=on_event)
+            # M11: a stage route that selects a model is only real if the
+            # provider is built with it. Before this, route.model was computed,
+            # written into the stage_route event, and then thrown away - the
+            # event described a model the run never used and enabling routing
+            # changed nothing. Absent stage_routing, route.model is the
+            # configured model, so this is a no-op for existing deployments.
+            provider = make_provider(
+                timeout=initial_route.timeout,
+                status_callback=on_event,
+                model_override=initial_route.model,
+                reasoning_effort_override=initial_route.reasoning_effort,
+            )
             # Bounded Task subagent: registered per task so the model can
             # spawn readonly research sub-runs; restricted registry keeps it
             # non-recursive. Sub-tool calls inherit parent permission gating
@@ -1541,7 +1559,10 @@ class AgentService:
                         next_protocol = "chat_completions"
                     await provider.close()
                     fallback_models = tuple(initial_route.fallback_models or ())
-                    model_override: str | None = None
+                    # Seeded with the routed model, not None: a recovery must
+                    # not silently drop back to the primary model while stage
+                    # routing is enabled.
+                    model_override: str | None = initial_route.model
                     attempt = fallback_cursor["index"]
                     fallback_cursor["index"] += 1
                     if fallback_models and attempt >= 1:
@@ -1564,6 +1585,9 @@ class AgentService:
                         status_callback=on_event,
                         protocol_override=next_protocol,
                         model_override=model_override,
+                        # A recovery keeps the stage's reasoning effort rather
+                        # than quietly dropping to the configured default.
+                        reasoning_effort_override=initial_route.reasoning_effort,
                     )
                     return next_protocol
 
@@ -1748,9 +1772,14 @@ class AgentService:
 
                         node_provider: OpenAICompatibleProvider | None = None
                         try:
+                            # Reconnaissance is its own stage: it takes the
+                            # inspect route's timeout, model and effort.
+                            inspect_route = stage_router.route("inspect")
                             node_provider = make_provider(
-                                timeout=stage_router.route("inspect").timeout,
+                                timeout=inspect_route.timeout,
                                 status_callback=node_status,
+                                model_override=inspect_route.model,
+                                reasoning_effort_override=inspect_route.reasoning_effort,
                             )
                             node_result = await run_agent(
                                 node_provider,
