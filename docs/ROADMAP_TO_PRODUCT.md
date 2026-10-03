@@ -2331,8 +2331,10 @@ GitHub 的 Python 3.11 镜像自带 setuptools 低于 70.1（那个版本还没�
 
 路线图 M1..M8 的任务至此全部落地并有逐项验证记录（M8-T7..T12 六条由真实运行与真实失败驱动的附带修复在内）。
 M6-T4/M6-T5 的落地记录来自 `02059ea`、`a97bf13` 等一批提交（对应 `tests/test_background_shell.py`、
-`tests/test_parallel_writes.py`），本日志未逐条复核，暂不代为背书（**128 批已逐条复核 M6-T5 并把
-execute_dag 的只读边界变成强制，见第一百二十八批**）；下一步是按第三节各里程碑的**退出标准**
+`tests/test_parallel_writes.py`），「未逐条复核，暂不代为背书」的欠账已分两批还清：
+**128 批逐条复核 M6-T5 并把 execute_dag 的只读边界变成强制，见第一百二十八批；
+129 批逐条复核 M6-T4 并补上「无残留进程」「计入审计事件」两个欠门，见第一百二十九批**。
+下一步是按第三节各里程碑的**退出标准**
 （`## 三` 里每个里程碑自带的检查清单）加上第六节的跟踪指标做一次整体复核（含真实模型端到端），而不是继续
 加功能。注：本文件没有「第八节」，此前此处写的「第八节退出标准」是错的交叉引用——退出标准按里程碑分散在
 第三节（`:44/:88/:131/:178/:229/:269/:302/:335`），一次性列在总表 `:23` 的「退出标准」列。
@@ -10677,4 +10679,66 @@ permission_mode 真的传到了注册处并解析成 exec 档**。结构性障�
   `_is_bounded_readonly_plan` 通过的动态计划喂 execute_dag），本批不改模板；
 - planner 的 `validate_dynamic_plan`（构造期校验）与 execute_dag 的入口检查
   是两道独立的门，本批未合并。
+
+## 第一百二十九批 M6-T4 复核 + 两个欠门补齐：无残留进程与计入审计事件从实现声明变成受测事实——退出标准的后半句第一次有门
+
+### 1 缺口（M6-T4 验收六条款逐条复核）
+
+「尚未开始」注记里 M6-T4 挂着的另一半「未逐条复核」，逐条对照
+`tests/test_background_shell.py`（8 门）与 `minicc/tools/bash.py` 的后台实现：
+
+| 验收条款 | 门 | 结论 |
+| --- | --- | --- |
+| 1. 启动 `python -c "import time;print(1);time.sleep(5)"` 立即返回 shell_id | `test_background_start_returns_immediately_and_is_audited` | **达成**：契约字段全（status/background/shell_id/pid/security_tags）；「立即」由 Popen 结构保证，按 M8-T61 哲学不设日历墙 |
+| 2. `bash_output` 增量读到输出 | `test_bash_output_reads_incrementally` | **达成**：new_bytes>0 + 二次 poll 不重发（no-re-read 半边第三十五批已补） |
+| 3. kill_shell 后 poll 1s 内非 None 且**无残留进程** | `test_kill_shell_reaps_process_within_a_second` | **半达成**：finished+exit_code 在 1.5s 显式预算内；「无残留进程」零断言——测试文件自己的 docstring 声称 "the process is reaped (no leftover process)"，但没有任何门看着孙进程 |
+| 4. 输出落盘有界（≤6000 字符截断） | `test_background_output_is_bounded` | **达成**：truncated=True + render≤7000 |
+| 5. `bash start /m &` 仍被拒绝 | `test_run_in_background_dispatches_and_detached_still_rejected` | **达成**：detached reason 非 None + run_bash 拒绝 + 正路可用，三面都钉 |
+| 6. 后台 shell 计入审计事件 | （start 门名带 and_is_audited） | **半达成**：只在 ToolResult.security_tags 源头断言；审计管线 `build_tool_feedback`（agent/loop.py 把 security_tags 带进每次工具调用的脱敏事件 dict，web 面同一构造点转发进事件流）无门——那一行被删掉不会红任何门 |
+
+同构缺陷与 128 批的 execute_dag 只读边界一模一样：「取消传播=终止整个进程组」
+（`terminate_process_tree`：Windows `taskkill /T /F` 树杀、posix
+`start_new_session`+`killpg` 组杀）在实现层成立，但只是实现声明，不是受测事实。
+
+### 2 实现（只补门，被测代码零改动）
+
+两条新门进 `tests/test_background_shell.py`（8→10），`bash.py` 一字未动。新增两个
+跨平台测试助手：`_pid_alive`（Windows 走 tasklist——`os.kill(pid, 0)` 在 Windows
+是陷阱，非 CTRL 信号直接 TerminateProcess，探活即杀；posix 走 `os.kill(pid, 0)`）
+与 `_force_kill_pid`（finally 兜底卫生）。
+
+### 3 门（新 2）
+
+- `test_kill_shell_takes_down_the_whole_tree`（条款③后半）：shell 命令生一个
+  存活更久的孙进程、孙进程 pid 经 poller 读回，杀前先断言该 pid 活着（否则
+  「消失」是对着编造的数字裁决），kill 后等 finished，再等该 pid 真消失——
+  进程组/树终止对着真 pid 裁决，不再对着实现承诺。
+- `test_every_background_shell_lifecycle_event_carries_the_audit_tag`（条款⑥）：
+  start/poll/kill 各自是独立工具调用、独立审计事件，三份真结果逐一喂
+  `build_tool_feedback`，`background_shell` 标签必须全程存活——不只 launch。
+
+### 4 实测证据
+
+| 命令 | 读数 |
+| --- | --- |
+| `test_background_shell.py`（含 2 新门） | **10 passed**（10.09s） |
+| 全量 `pytest -q` | **1776 passed**（783.93s，1774 + 2 新门；本机另有并行会话 pytest 争用，读数偏慢但门全绿） |
+| 提交与 CI | 7d930ca，CI run 37124680506 全绿 |
+
+第一版门 A 自己红过一次，值得记录：孙进程脚本里子进程 `import subprocess,sys`
+漏了 `time`，打印 pid 后 NameError 崩掉（traceback 混进缓冲区）；且 Windows 管道
+行尾是 `\r\n`，`^\d+$` 对 `7924\r` 永不匹配。修法：子脚本补 `import time` +
+render 先 normalize `\r\n` 再探针。红的原因与被测代码无关，但两个坑（崩溃假象、
+`\r` 行尾）都是这个门未来的维护者会再踩的。
+
+### 5 下一批边界
+
+- 条款①的「立即」无时钟断言是有意的：start 的非阻塞由 Popen 结构保证，本文件
+  哲学（M8-T61）拒绝日历常数；若未来 start 被改成同步等子进程，条款②的
+  no-re-read 门与 pid 断言的组合仍会红；
+- 进程组只测了一层孙进程：`taskkill /T` 与 `killpg` 都是递归语义，更深的树在
+  两个平台语义相同，未单独设门；
+- M6-T4/M6-T5 至此全部逐条复核完毕，「尚未开始」注记收成全清；复核路线图上
+  M1..M8 的退出标准欠账只剩整体复核（第三节退出标准 + 第六节跟踪指标），
+  以及 specproof 侧同样的纪律。
 
