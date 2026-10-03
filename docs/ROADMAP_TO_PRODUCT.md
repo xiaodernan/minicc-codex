@@ -10562,3 +10562,57 @@ M6-T1 的路线图行把 `subagent_max_tokens` 与 `subagent_writable`/`subagent
   test_subagent_delegation 单元层已有 BudgetExceeded 分支覆盖，本批只钉接线；
 - 下一步：继续扫「声称 ≠ 使用」缺口或回 M9/M10 未开始队列。
 
+## 第一百二十七批 M6-T1 补线之三：yolo→exec 档在两面接线处补上单列门——docstring 声称了三年的档位第一次被测试钉住
+
+### 1 缺口
+
+126 批 §5 登记的欠账。`resolve_subagent_tier` 的 docstring 与 `test_subagent_wiring`
+模块头都声称「yolo 同理出 exec 档」，tier 机器的表驱动单测也有
+`(True, "yolo", "exec")` 行——但**两面接线处从未有任何门验证过 yolo 会话的
+permission_mode 真的传到了注册处并解析成 exec 档**。结构性障碍：`build_task_tool_spec`
+返回的 `ToolSpec.risk` 把 write/exec 两档都标成 `"write"`（subagent.py L193
+`"readonly" if tier == "readonly" else "write"`），现有 12 条 wiring 门全部断言
+`risk`，对 exec 档原理上不可分辨——「exec 档接线」在 wiring 层是一个**不可测声称**，
+除非门能摸到 runner 背后的真实 tier。
+
+### 2 实现（capture 加存 runner tier + 两面各 1 条门）
+
+1. **`tests/test_subagent_wiring.py` 两个 capture fixture**：`_recording_build`
+   在保存 `risk` 之外加存 `captured["tier"] = spec.handler.__self__.tier`——
+   `ToolSpec.handler` 是 `runner.run` 绑定方法，`__self__` 即 `_SubagentRunner`，
+   其 `tier` 是唯一能分辨 write/exec 的真值。
+2. **CLI 门**：`MINICC_SUBAGENT_WRITABLE=1` + `--permission-mode yolo` →
+   `permission_mode == "yolo"` 到达注册处、`risk == "write"`（exec 档的工具
+   策略级标注不变）、`tier == "exec"`。
+3. **web 门**：config `subagent_writable=True` + 任务消息 `permission_mode:
+   "yolo"` → 同三断言（web 面经 `resolve_task_permissions` 透传 yolo mode）。
+4. 生产代码零改动：接线本身（main.py L843/L867、web.py L1641）在 125 批就已
+   正确，本批补的是它的证据——先红后绿意义上门不存在即红。
+
+### 3 门（CLI 1 + web 1，`test_subagent_wiring.py` 扩至 14 条）
+
+负路径不在本批重复：`(False, "yolo", "readonly")`（旋钮关压过 yolo 模式）由
+`test_subagent_delegation.py` 的表驱动门钉住；exec 工具面（bash 进、网络工具
+永不进）由同文件 `test_exec_requires_explicit_authorization` 钉住。
+
+### 4 实测证据
+
+| 命令 | 读数 |
+| --- | --- |
+| `test_subagent_wiring.py`（含 2 新门）+ 相邻 `test_subagent_delegation.py` | **30 passed**（7.00s） |
+| `doc_pointers --check` / `route_coverage --check` | 绿（A/B 口径 14/14） |
+| 全量 `pytest -q` | **1772 passed**（689.40s，1770 + 2 新门） |
+| 提交与 CI | 本批提交后回填 |
+
+### 5 下一批边界
+
+- config 字段面本轮全扫干净：43 字段逐一 grep 非测试消费者，唯一零命中的
+  `unrecognized_config_keys` 在 config.py L285（describe 摘要的 ignored_keys
+  拼接）有真实内部消费者，不算缺口；CLI 旗标面（30 个 add_argument）与
+  `MINICC_*` env 面同样全接线，「声称 ≠ 使用」这一族在可预见的面上已收干净；
+- `bypassPermissions` 模式与 yolo 同走 exec 档（EXEC_PERMISSION_MODES），接线
+  路径相同（同一 str 直传），不单列门；
+- 下一步：转向 AGENT_LLM_ROADMAP P0-P1 尚未落地的方向（写节点隔离 /
+  跨 worktree 合并 / 依赖节点增量恢复的 DAG 后续），或按路线图第三节
+  退出标准做整体复核。
+

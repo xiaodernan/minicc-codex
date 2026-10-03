@@ -15,6 +15,9 @@
 - ``subagent_max_depth`` 从 config 到达注册处，缺省回落 DEFAULT_MAX_DEPTH；
 - ``subagent_max_tokens`` 从 config 到达注册处（M6-T1 补线之二）：设置 →
   数值直通 ``_child_budget`` 的硬 token 上限；未设 → ``None``（旧版无硬上限）。
+- yolo 会话 + 旋钮 → ``spec`` 背后 runner 的真实档位是 ``exec``（126 批 §5
+  欠账：docstring 声称「yolo 同理出 exec 档」但两面接线处从未单列过门——
+  ``risk`` 把 write/exec 都标成 "write"，只有 runner.tier 能分辨）。
 """
 
 from __future__ import annotations
@@ -98,6 +101,9 @@ def cli_capture(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
         captured.update(kwargs)
         spec = real_build(**kwargs)
         captured["risk"] = spec.risk
+        # risk collapses write/exec into "write"; the runner carries the real
+        # tier, which is the only way a gate can tell the exec face apart.
+        captured["tier"] = spec.handler.__self__.tier
         return spec
 
     monkeypatch.setattr(cli, "build_task_tool_spec", _recording_build)
@@ -189,6 +195,21 @@ def test_without_the_token_knob_the_cli_child_budget_stays_uncapped(
     )
 
 
+def test_a_yolo_session_with_the_knob_gets_the_exec_tier_on_the_cli(
+    cli_env: Path, monkeypatch: pytest.MonkeyPatch, cli_capture: dict[str, Any]
+) -> None:
+    monkeypatch.setenv("MINICC_SUBAGENT_WRITABLE", "1")
+    _run_cli(cli_env, "--permission-mode", "yolo")
+    assert cli_capture["permission_mode"] == "yolo"
+    assert cli_capture["risk"] == "write", (
+        "exec tier still declares the write risk label - the tool policy level"
+    )
+    assert cli_capture["tier"] == "exec", (
+        "a yolo session with the knob on must resolve the exec tier (bash), "
+        "not just the write tier - the docstring has claimed this all along"
+    )
+
+
 # -- web 面 ---------------------------------------------------------------------
 
 
@@ -254,6 +275,9 @@ def web_capture(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
         captured.update(kwargs)
         spec = real_build(**kwargs)
         captured["risk"] = spec.risk
+        # risk collapses write/exec into "write"; the runner carries the real
+        # tier, which is the only way a gate can tell the exec face apart.
+        captured["tier"] = spec.handler.__self__.tier
         return spec
 
     monkeypatch.setattr(web_module, "build_task_tool_spec", _recording_build)
@@ -330,3 +354,19 @@ def test_without_the_token_knob_the_web_child_budget_stays_uncapped(
     result = _run_web_task(service, tmp_path, permission_mode="acceptEdits")
     assert result is not None
     assert web_capture["max_tokens"] is None
+
+
+def test_a_yolo_session_with_the_knob_gets_the_exec_tier_on_the_web(
+    tmp_path: Path, web_capture: dict[str, Any]
+) -> None:
+    service = _service(tmp_path, subagent_writable=True)
+    result = _run_web_task(service, tmp_path, permission_mode="yolo")
+    assert result is not None
+    assert web_capture["permission_mode"] == "yolo"
+    assert web_capture["risk"] == "write", (
+        "exec tier still declares the write risk label - the tool policy level"
+    )
+    assert web_capture["tier"] == "exec", (
+        "a yolo task with the config knob on must resolve the exec tier (bash) "
+        "on the web face too - the docstring has claimed this all along"
+    )
