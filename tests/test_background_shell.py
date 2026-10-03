@@ -31,12 +31,16 @@ the cursor advances, the render is bounded, a killed shell reports its exit code
 
 from __future__ import annotations
 
+import os
+import re
+import signal
 import subprocess
 import sys
 import time
 from pathlib import Path
 from typing import Callable
 
+from minicc.agent.loop import build_tool_feedback
 from minicc.tools.bash import (
     detached_command_reason,
     kill_background_shell,
@@ -44,6 +48,7 @@ from minicc.tools.bash import (
     run_bash,
     start_background_shell,
 )
+from minicc.tools.schemas import ToolCall
 
 #: The multiple is measured, not chosen for comfort: on a loaded host the slowest
 #: wait in this family came in at 3.19x the same round's bare-child reference, and
@@ -109,6 +114,48 @@ def _budget_note(budget_s: float | None, budget: float, reference_s: float) -> s
     )
 
 
+def _pid_alive(pid: int) -> bool:
+    """Is this pid running right now — the question "no leftover process" needs.
+
+    Windows gets ``tasklist`` because ``os.kill(pid, 0)`` there is a trap: any
+    signal that is not CTRL_C_EVENT/CTRL_BREAK_EVENT makes the C runtime call
+    TerminateProcess, so the liveness probe would *be* the kill.  Posix gets
+    ``os.kill(pid, 0)``, which asks without touching.
+    """
+    if os.name == "nt":
+        probe = subprocess.run(
+            ["tasklist", "/FI", f"PID eq {pid}", "/FO", "CSV", "/NH"],
+            capture_output=True,
+            text=True,
+            errors="replace",
+        )
+        return f'"{pid}"' in probe.stdout
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def _force_kill_pid(pid: int) -> None:
+    """Best-effort hygiene: a failed gate must not leak a 30s sleeper into CI."""
+    try:
+        if os.name == "nt":
+            subprocess.run(
+                ["taskkill", "/PID", str(pid), "/T", "/F"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=False,
+                timeout=5,
+            )
+        else:
+            os.kill(pid, signal.SIGKILL)
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+
+
 def _wait_for(
     what: str,
     probe: Callable[[], object | None],
@@ -154,6 +201,35 @@ def test_background_start_returns_immediately_and_is_audited(tmp_path: Path) -> 
         assert "background_shell" in shell.security_tags
         # Returned fast, well before the 5s the command would take in foreground.
         assert shell.data["pid"] > 0
+    finally:
+        kill_background_shell(shell_id)
+
+
+def test_every_background_shell_lifecycle_event_carries_the_audit_tag(tmp_path: Path) -> None:
+    """Exit criterion ⑥: background shells count toward the audit *events*.
+
+    The start gate asserts the tag at the source (``ToolResult.security_tags``);
+    one layer up sits ``build_tool_feedback`` — the redacted event dict the agent
+    loop builds for every tool call (``loop.py`` carries ``security_tags`` into it)
+    and the web server forwards into its event stream.  A dropped
+    ``security_tags`` line in that builder reddens nothing in the start gate, so
+    this one feeds it real results from all three lifecycle steps: start, poll
+    and kill are each their own tool call with their own audit event, and the
+    ``background_shell`` tag has to survive the whole round trip, not just the
+    launch.
+    """
+    command = "import time;print('audited');time.sleep(3)"
+    started = run_bash(_py(command), tmp_path, run_in_background=True)
+    shell_id = started.data["shell_id"]
+    try:
+        polled = poll_background_shell(shell_id)
+        killed = kill_background_shell(shell_id)
+        for event in (started, polled, killed):
+            feedback = build_tool_feedback(
+                ToolCall(tool="bash", arguments={"command": command, "shell_id": shell_id}),
+                event,
+            )
+            assert "background_shell" in feedback["security_tags"], feedback
     finally:
         kill_background_shell(shell_id)
 
@@ -205,6 +281,77 @@ def test_kill_shell_reaps_process_within_a_second(tmp_path: Path) -> None:
         budget_s=OLD_FIXED_WALL_S / 2,
     )
     assert finished.data["exit_code"] is not None
+
+
+def test_kill_shell_takes_down_the_whole_tree(tmp_path: Path) -> None:
+    """Exit criterion ③'s second half: no leftover process — grandchildren included.
+
+    The kill gate above decides when the *shell* reports finished; a
+    ``proc.kill()``-only implementation passes it while the command's own
+    children keep running and holding the output pipe — exactly what
+    ``terminate_process_tree``'s Windows branch says ``proc.kill()`` alone would
+    leave behind.  "终止整个进程组" is therefore an implementation promise until
+    a gate decides it, so this shell's command spawns a grandchild that outlives
+    the shell, the grandchild's pid is read back through the poller, and the
+    gate waits for that pid to be gone: the group/tree claim, decided against a
+    real pid instead of the promise.
+    """
+    shell = start_background_shell(
+        _py(
+            "import subprocess,sys,time;"
+            "p=subprocess.Popen([sys.executable,'-c','import time;time.sleep(30)']);"
+            "print(p.pid,flush=True);"
+            "time.sleep(30)"
+        ),
+        tmp_path,
+    )
+    shell_id = shell.data["shell_id"]
+    grandchild_pid: int | None = None
+    try:
+        reported = _wait_for(
+            "the grandchild pid to be printed",
+            lambda: (
+                match.group(0)
+                if (
+                    match := re.search(
+                        # Windows pipes end lines with \r\n; $ before a \r never
+                        # matches, so the render is normalized before the probe.
+                        r"^\d+$",
+                        poll_background_shell(shell_id).render().replace("\r\n", "\n"),
+                        re.M,
+                    )
+                )
+                else None
+            ),
+        )
+        tracked = int(reported)
+        grandchild_pid = tracked
+        # Sanity before the kill: the pid about to be tracked is really alive,
+        # otherwise "gone" below would be decided against a number we invented.
+        assert _pid_alive(tracked), tracked
+
+        killed = kill_background_shell(shell_id)
+        assert killed.status == "ok"
+        assert killed.data["was_running"] is True
+        finished = _wait_for(
+            "the killed shell to report finished with an exit code",
+            lambda: (
+                poll
+                if (poll := poll_background_shell(shell_id)).data["finished"]
+                else None
+            ),
+            budget_s=OLD_FIXED_WALL_S / 2,
+        )
+        assert finished.data["exit_code"] is not None
+        gone = _wait_for(
+            "the grandchild process to be gone",
+            lambda: None if _pid_alive(tracked) else tracked,
+            budget_s=OLD_FIXED_WALL_S / 2,
+        )
+        assert gone == tracked
+    finally:
+        if grandchild_pid is not None and _pid_alive(grandchild_pid):
+            _force_kill_pid(grandchild_pid)
 
 
 def test_background_output_is_bounded(tmp_path: Path) -> None:
