@@ -24,7 +24,7 @@ class BudgetExceeded(RuntimeError):
 
 @dataclass
 class Budget:
-    """Bound turns, tokens, tool calls, retries, and wall-clock time."""
+    """Bound turns, tokens, tool calls, retries, wall-clock time, and cost."""
 
     max_turns: int | None = None
     max_tokens: int | None = None
@@ -33,11 +33,18 @@ class Budget:
     max_retries: int | None = None
     soft_max_tokens: int | None = None
     soft_max_duration_seconds: float | None = None
+    # M11: a per-stage USD ceiling (route.max_cost_usd). Unlike the token
+    # fields, cost cannot be counted by the budget alone - charging requires
+    # the routed model's price, so the loop calls record_cost through a
+    # caller-supplied estimator. A ceiling without an estimator never trips;
+    # that combination is a wiring bug and the enforcement gates pin it.
+    max_cost_usd: float | None = None
     started_monotonic: float = field(default_factory=time.monotonic, repr=False)
     turns: int = 0
     tokens: int = 0
     tool_calls: int = 0
     retries: int = 0
+    cost_usd: float = 0.0
 
     def elapsed_seconds(self) -> float:
         return max(0.0, time.monotonic() - self.started_monotonic)
@@ -58,6 +65,10 @@ class Budget:
         for maximum, current, label in limits:
             if maximum is not None and current > maximum:
                 raise BudgetExceeded(f"{label}已用尽 ({current}/{maximum})")
+        if self.max_cost_usd is not None and self.cost_usd > self.max_cost_usd:
+            raise BudgetExceeded(
+                f"阶段成本上限已用尽 (${self.cost_usd:.4f}/${self.max_cost_usd:.4f})"
+            )
         if self.max_duration_seconds is not None and self.elapsed_seconds() > self.max_duration_seconds:
             raise BudgetExceeded(
                 f"最大执行时间已用尽 ({self.elapsed_seconds():.1f}s/{self.max_duration_seconds:.1f}s)"
@@ -71,6 +82,15 @@ class Budget:
         value = usage.get("total_tokens")
         if isinstance(value, (int, float)):
             self.tokens += int(value)
+        self.check()
+
+    def record_cost(self, usd: float) -> None:
+        """Charge one estimated cost slice; raises past the stage ceiling.
+
+        Negative estimates are clamped to zero: a mispricing must never
+        *widen* the remaining budget.
+        """
+        self.cost_usd = round(self.cost_usd + max(0.0, float(usd)), 10)
         self.check()
 
     def record_tool_call(self, count: int = 1) -> None:
@@ -101,10 +121,12 @@ class Budget:
             "max_retries": self.max_retries,
             "soft_max_tokens": self.soft_max_tokens,
             "soft_max_duration_seconds": self.soft_max_duration_seconds,
+            "max_cost_usd": self.max_cost_usd,
             "turns": self.turns,
             "tokens": self.tokens,
             "tool_calls": self.tool_calls,
             "retries": self.retries,
+            "cost_usd": round(self.cost_usd, 6),
             "elapsed_seconds": round(self.elapsed_seconds(), 3),
         }
 

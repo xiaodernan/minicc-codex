@@ -437,6 +437,7 @@ async def run_agent(
     cancel_event: threading.Event | None = None,
     context_limit_tokens: int = 300_000,
     budget: Budget | None = None,
+    cost_estimator: Callable[[dict[str, Any]], float] | None = None,
     runtime_state: AgentState | None = None,
     require_recovery_inspection: bool = False,
     vision_context: list[dict[str, Any]] | None = None,
@@ -940,6 +941,12 @@ async def run_agent(
             on_usage(dict(usage))
         try:
             runtime_budget.record_usage(usage)
+            # M11: with a stage ceiling configured the caller supplies an
+            # estimator priced at the routed model; without one the cost
+            # budget simply never accrues (recorded as an explicit boundary,
+            # not silently claimed as enforcement).
+            if cost_estimator is not None:
+                runtime_budget.record_cost(cost_estimator(usage))
         except BudgetExceeded as exc:
             result.error = f"Agent 预算超限: {exc}"
             result.answer = f"任务未完成：{result.error}"

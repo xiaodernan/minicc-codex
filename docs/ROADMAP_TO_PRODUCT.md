@@ -9887,3 +9887,59 @@ docstring 即规格：路由器是唯一决定「一个阶段跑在哪个模型�
 - 「repair 派给 reasoning 档」的正确性依赖 tiers 配置本身写得对；路由器不校验
   模型名与档位的语义匹配（未注册的名字回落主模型并诚实报告 tier，这一格已有）。
 
+## 第一百一十六批 M11-T2：上限从「事件里说说」到「真的会停」——成本天花板与轮数上限的强制执行
+
+### 1 承接上一批的边界
+
+第一百一十五批 §4 记录的边界（`route.max_cost_usd` / `route.max_turns` 只到达事件、
+运行时不强制）本批收口。原则与 T1 一致：**路由选模型的同一份路由也封顶它的使用**。
+
+### 2 实现（三块）
+
+1. **`Budget` 增加成本维度**（`minicc/agent/state.py`）：`max_cost_usd` / `cost_usd` 字段、
+   `record_cost()` 记账、`check()` 报 `阶段成本上限已用尽 ($x/$y)`。负数估算钳零——
+   错价可以高估，但**永远不允许放宽**剩余预算。
+2. **`run_agent` 新增 `cost_estimator` 参数**（`minicc/agent/loop.py`）：每轮 usage 记账后
+   经调用方供给的定价器计费。定价器由 web.py 用路由器的 `estimate_cost` 按路由模型
+   生成；**没有定价器的天花板永远不触发**——这条边界有专门的格钉住（见 §3），
+   web 层的职责是永远成对供给（集成格证明）。
+3. **web.py 三处接线**：新 helper `_stage_route_budget`（路由显式配置胜过内置默认、
+   缺省回落默认；legacy 路由 = 旧预算逐字段一致，惰性有格）统一构建主循环与
+   inspect 侦察节点的预算；完成评审（judge）的用量也计入运行级天花板——
+   评审没有自己的 provider，它的花费落在运行预算里。估算刻意忽略缓存折扣：
+   按 prompt/completion 全价计只会**高估**成本，天花板提前触发，方向安全。
+
+### 3 门：`tests/test_stage_route_enforcement.py`（12 条）
+
+- Budget 单元 3 条：累计、越线在**记账时**点名报错、负数钳零、snapshot 携带成本字段。
+- run_agent 行为 2 条：**被计费的一轮越线后循环停止且不再发起第二个请求**
+  （provider 只进一次）；天花板无 estimator 永不触发（把边界钉成行为，
+  防止有人把 `max_cost_usd` 误读成不接线的强制）。
+- helper 单元 3 条：显式配置覆盖默认、legacy 路由逐字段复现旧预算、
+  定价器按路由模型单价计价（缺字段按 0，不猜测）。
+- 端到端 4 条（web 层，假 provider 数请求）：开路由 + 成本天花板 →
+  「阶段成本上限已用尽」终止且只发 1 个请求；关路由 → 原样完成；
+  开路由 + `max_turns:{planning:1}` → 第 2 轮被预算拒绝（1 个请求 vs
+  关路由时按 config 默认的 4 个请求）。
+
+### 4 实测证据
+
+| 命令 | 读数 |
+| --- | --- |
+| `pytest tests/test_stage_route_enforcement.py -q -W error` | **12 passed**（4.80s） |
+| 本门 + router + core_agent + core_task + subagent_streaming + subagent_delegation + config_surface + core_session + core_llm | **218 passed**（30.31s） |
+| http_surface / web_security / batch_wiring / auto_resume / interrupted / host_failure / p0_p1_p2 / task_worker / two_fixture_keys / project_config | **231 passed**（72.50s） |
+
+### 5 边界（明确不声称）
+
+- **verify / repair / review 三个阶段的路由仍无消费者**（T1 已记，本批未变）：
+  它们的 ceilings 仍只存在于事件里。给 repair 接独立 provider 需要先定义
+  「修复阶段独立计费」的语义，属后续批次。
+- **不在注册表里的模型，单价未知（按 0 计）→ 该阶段的天花板退化为不强制**。
+  这是设计出来的诚实退化（与路由器所有「未知价格」报告一致），已写进
+  `minicc.config.example` 的旋钮说明：要强制就得在 `custom_models` 里给模型定价。
+- DAG 侦察节点的 inspect 上限与主路径共用同一 helper（helper 有格），但
+  DAG 级集成未驱动——planner 需要真模型产出计划 JSON，本批不声称那一格。
+- 成本只按 prompt/completion 全价估算；缓存折扣（`cached_tokens`）未计入，
+  方向上只会高估成本、提前触发，不会漏放。
+

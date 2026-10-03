@@ -29,7 +29,7 @@ from types import SimpleNamespace
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 from urllib.parse import parse_qs, unquote, urlsplit
 
 try:  # httpx ships with the OpenAI SDK dependency; keep the import guarded.
@@ -61,7 +61,7 @@ from .webauth import (
     load_or_create_token,
     token_store_path,
 )
-from .agent.router import StageRouter
+from .agent.router import StageRoute, StageRouter
 from .agent.state import AgentState, Budget, BudgetExceeded
 from .agent.protocol import (
     CancellationToken,
@@ -163,6 +163,57 @@ APPROVAL_TIMEOUT_SECONDS = 60.0
 # an unbounded run_agent: 4 concurrent nodes × no turn/wall-clock cap.
 NODE_AGENT_MAX_TURNS = 12
 NODE_AGENT_MAX_DURATION_SECONDS = 300.0
+
+
+def _stage_route_budget(
+    route: StageRoute,
+    *,
+    default_max_turns: int | None,
+    default_max_duration_seconds: float | None,
+    soft_max_tokens: int | None,
+    soft_max_duration_seconds: float | None,
+) -> Budget:
+    """Build the run budget a stage route governs (M11 enforcement).
+
+    The route that picked the model also caps its use: an explicitly
+    configured ``max_turns`` / ``max_cost_usd`` wins over the built-in
+    default, and an absent one falls back to it. A legacy route (routing
+    disabled) sets neither, so the result is exactly the pre-routing
+    budget - enforcement is opt-in with the routing itself.
+    """
+    return Budget(
+        max_turns=route.max_turns if route.max_turns is not None else default_max_turns,
+        max_tool_calls=None,
+        max_duration_seconds=default_max_duration_seconds,
+        # Retry/recovery policy is tracked separately by the callers. It is
+        # not a task budget and must not raise BudgetExceeded during a
+        # long-running coding session.
+        max_retries=None,
+        max_cost_usd=route.max_cost_usd,
+        soft_max_tokens=soft_max_tokens,
+        soft_max_duration_seconds=soft_max_duration_seconds,
+    )
+
+
+def _stage_cost_estimator(router: StageRouter, stage: str) -> Callable[[dict[str, Any]], float]:
+    """Price one usage dict at the routed model (M11 cost ceilings).
+
+    Cache discounts are deliberately ignored: with the per-1M price applied
+    to the full prompt/completion counts the estimate can only be too HIGH,
+    so a misread never widens the ceiling - it trips early instead. An
+    unregistered model prices at 0.0 by ``estimate_cost`` contract, which
+    degrades the ceiling to "not enforced" honestly (it is also how the
+    router reports an unknown price everywhere else).
+    """
+
+    def estimate(usage: dict[str, Any]) -> float:
+        return router.estimate_cost(
+            stage,
+            int(usage.get("prompt_tokens") or 0),
+            int(usage.get("completion_tokens") or 0),
+        )
+
+    return estimate
 
 
 @dataclass
@@ -1244,35 +1295,36 @@ class AgentService:
         events: list[dict[str, Any]] = []
         workflow = build_coding_workflow()
         workflow.validate()
+        # M11: the router is built before the budget, because the route that
+        # picks the run's model also caps its use (turns, cost).
+        stage_router = StageRouter(
+            str(self.config.model),
+            float(self.config.timeout),
+            fallback_models=tuple(getattr(self.config, "fallback_models", ()) or ()),
+            # config.json's ``stage_routing`` object reaches the router here.
+            # Absent/None -> the router keeps the single configured model, which
+            # is the behavior every existing deployment already has.
+            stage_routing_config=getattr(self.config, "stage_routing", None),
+        )
+        initial_route = stage_router.route("planning")
         runtime_state = AgentState(
             task_id=f"{session_id}-{uuid.uuid4().hex[:8]}",
             prompt=message.strip(),
             workspace_path=str(workspace),
             workflow=workflow.name,
-            budget=Budget(
-                max_turns=getattr(self.config, "max_turns", None),
-                max_tool_calls=None,
-                max_duration_seconds=None,
-                # Retry/recovery policy is tracked separately below. It is
-                # not a task budget and must not raise BudgetExceeded during
-                # a long-running coding session.
-                max_retries=None,
+            # The run's primary stage is planning - its route built the run's
+            # provider - so its configured caps govern the whole run budget.
+            # Legacy deployments (routing off) get the same budget as before.
+            budget=_stage_route_budget(
+                initial_route,
+                default_max_turns=getattr(self.config, "max_turns", None),
+                default_max_duration_seconds=None,
                 soft_max_tokens=getattr(self.config, "soft_max_tokens", None),
                 soft_max_duration_seconds=getattr(self.config, "soft_max_duration_seconds", None),
             ),
         )
         runtime_state.transition("intake", phase="intake")
         runtime_state.transition("plan", phase="planning")
-        stage_router = StageRouter(
-            str(self.config.model),
-            float(self.config.timeout),
-            fallback_models=tuple(getattr(self.config, "fallback_models", ()) or ()),
-            # M11: config.json's ``stage_routing`` object reaches the router here.
-            # Absent/None -> the router keeps the single configured model, which
-            # is the behavior every existing deployment already has.
-            stage_routing_config=getattr(self.config, "stage_routing", None),
-        )
-        initial_route = stage_router.route("planning")
         verifier = Verifier()
         verification_results: list[dict[str, Any]] = []
         repair_attempts = 0
@@ -1793,17 +1845,17 @@ class AgentService:
                                 should_cancel=(cancel_event.is_set if cancel_event is not None else None),
                                 cancel_event=cancel_event,
                                 context_limit_tokens=int(getattr(self.config, "context_window_tokens", 300_000)),
-                                budget=Budget(
-                                    max_turns=NODE_AGENT_MAX_TURNS,
-                                    max_tool_calls=None,
-                                    max_duration_seconds=NODE_AGENT_MAX_DURATION_SECONDS,
-                                    # Same stance as the chat path below: retry
-                                    # policy is not a task budget and must not
-                                    # raise BudgetExceeded mid-node.
-                                    max_retries=None,
+                                # Reconnaissance is its own stage: the inspect
+                                # route's caps govern the node when configured,
+                                # the built-in constants remain the default.
+                                budget=_stage_route_budget(
+                                    inspect_route,
+                                    default_max_turns=NODE_AGENT_MAX_TURNS,
+                                    default_max_duration_seconds=NODE_AGENT_MAX_DURATION_SECONDS,
                                     soft_max_tokens=getattr(self.config, "soft_max_tokens", None),
                                     soft_max_duration_seconds=getattr(self.config, "soft_max_duration_seconds", None),
                                 ),
+                                cost_estimator=_stage_cost_estimator(stage_router, "inspect"),
                                 vision_context=vision_context,
                                 hooks=hook_runner,
                             )
@@ -2046,6 +2098,11 @@ class AgentService:
                         return True
                     try:
                         runtime_state.budget.record_usage(usage)
+                        # The judge has no provider of its own, so its spend
+                        # lands on the run budget's stage ceiling too.
+                        runtime_state.budget.record_cost(
+                            _stage_cost_estimator(stage_router, "planning")(usage)
+                        )
                     except BudgetExceeded as exc:
                         target.error = f"Agent 预算超限: {exc}"
                         target.answer = f"任务未完成：{target.error}"
@@ -2079,6 +2136,10 @@ class AgentService:
                         should_cancel=(cancel_event.is_set if cancel_event is not None else None),
                         cancel_event=cancel_event,
                         budget=runtime_state.budget,
+                        # M11: the planning ceiling rides the same budget the
+                        # run already carries; without a configured ceiling the
+                        # estimator never trips anything.
+                        cost_estimator=_stage_cost_estimator(stage_router, "planning"),
                         runtime_state=runtime_state,
                         require_recovery_inspection=(agent_recoveries > 0 or repair_attempts > 0),
                         vision_context=vision_context,

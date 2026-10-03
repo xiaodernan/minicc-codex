@@ -72,10 +72,13 @@ MINICC_REASONING_EFFORT=high
 #MINICC_FALLBACK_MODELS=gpt-5.6-terra,gpt-5.6-lite
 
 # M11 阶段路由：一个 JSON 对象，按阶段选模型档位（tiers + stage_map）、设分阶段成本
-# 上限（cost_limits_usd）与降级链（failover.fallback_tiers）。enabled 默认关闭，
-# 关闭时所有阶段都用 MINICC_MODEL（行为与旧版一致）；enabled=true 时阶段模型会真的
-# 切换，因此 tiers 里的模型名必须在内置注册表或 custom_models 里，否则回落到主模型。
-# 值写坏了（不是 JSON 对象）会在启动时报 ConfigError，而不是静默忽略。
+# 上限（cost_limits_usd，超限以「阶段成本上限已用尽」终止运行）与轮数上限
+# （max_turns）。enabled 默认关闭，关闭时所有阶段都用 MINICC_MODEL（行为与旧版一致）；
+# enabled=true 时阶段模型会真的切换，因此 tiers 里的模型名必须在内置注册表或
+# custom_models 里，否则回落到主模型。成本上限按路由模型的单价估算：不在注册表里的
+# 模型单价未知（按 0 计），其阶段的天花板因此不强制——要让上限真正生效，请在
+# custom_models 里给该模型填 cost_usd_per_1m。值写坏了（不是 JSON 对象）会在启动时
+# 报 ConfigError，而不是静默忽略。
 #MINICC_STAGE_ROUTING={"enabled": false}
 
 # 上下文窗口与自动压缩阈值（token）。窗口默认 300000（至少 1）；会话记录超过
