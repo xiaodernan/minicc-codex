@@ -126,6 +126,53 @@ def test_spec_shape_and_schema(workspace: Path) -> None:
     assert schema["properties"]["prompt"]["maxLength"] == 8000
 
 
+# -- M11-T9: the child loop charges its own cost ceiling -----------------------
+
+
+class _UsageLoopProvider:
+    """Never finishes: one read_file call per turn, 1M prompt tokens each."""
+
+    def __init__(self) -> None:
+        self.rounds = 0
+
+    async def chat(self, messages, tools, on_delta=None):
+        self.rounds += 1
+        return LLMResponse(
+            tool_calls=[{
+                "id": f"call-{self.rounds}",
+                "type": "function",
+                "function": {"name": "read_file", "arguments": '{"path": "README.md"}'},
+            }],
+            usage={"prompt_tokens": 1_000_000, "completion_tokens": 0, "total_tokens": 1_000_000},
+        )
+
+    async def close(self):
+        return None
+
+
+def test_a_child_cost_ceiling_with_an_estimator_stops_the_subagent(workspace: Path) -> None:
+    provider = _UsageLoopProvider()
+    spec = _spec(workspace, provider, max_turns=12, max_cost_usd=0.001, cost_estimator=lambda usage: 1.0)
+    result = spec.handler({"description": "超预算的调研", "prompt": "反复读取 README.md。"})
+    assert result.status == "error"
+    assert "阶段成本上限" in result.summary, result.summary
+    assert provider.rounds == 1, (
+        f"the charged turn must be the last request the child makes: {provider.rounds}"
+    )
+
+
+def test_a_child_ceiling_without_an_estimator_never_trips(workspace: Path) -> None:
+    """Pins the pairing boundary: a ceiling alone enforces nothing, exactly
+    like the parent loop's documented shape."""
+    provider = _UsageLoopProvider()
+    spec = _spec(workspace, provider, max_turns=12, max_cost_usd=1e-9)
+    result = spec.handler({"description": "没有计价器的调研", "prompt": "反复读取 README.md。"})
+    assert provider.rounds >= 2, (
+        f"without an estimator the ceiling must not stop the child after turn one: {provider.rounds}"
+    )
+    assert result.status in {"ok", "error", "timed_out"}
+
+
 def test_web_service_registers_task_tool(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """The web chat path registers the task tool into the per-task registry."""
     from minicc.web import AgentService

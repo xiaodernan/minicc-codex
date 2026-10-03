@@ -430,3 +430,100 @@ def test_a_missing_inspect_credential_refuses_the_cli_before_any_provider(
     assert _OpenAISentinel.instances == [] and _AnthroSentinel.instances == [], (
         "the refusal must happen before any provider exists - the inspect one included"
     )
+
+
+# -- M11-T9: the inspect route's caps govern the CLI subagent's budget ---------
+
+
+class _CeilingCliSentinel:
+    """The scout instance issues tool calls with 1M-token usage, never text."""
+
+    instances: list["_CeilingCliSentinel"] = []
+    scout_chats = 0
+
+    @classmethod
+    def reset(cls) -> None:
+        cls.instances.clear()
+        cls.scout_chats = 0
+
+    def __init__(self, **kwargs: Any) -> None:
+        self.kwargs = dict(kwargs)
+        self.model = str(kwargs.get("model") or "")
+        self.agent_turns = 0
+        type(self).instances.append(self)
+
+    @classmethod
+    def is_transient_failure(cls, error: object) -> bool:
+        return False
+
+    def protocol(self) -> str:
+        return "chat_completions"
+
+    def protocol_status(self) -> dict[str, str]:
+        return {"requested": "chat_completions", "active": "chat_completions"}
+
+    async def chat(self, messages: object, tools: object, on_delta=None):  # noqa: ANN001, ANN201
+        if self.model == "scout-one":
+            type(self).scout_chats += 1
+            return LLMResponse(
+                tool_calls=[{
+                    "id": f"cli-ceiling-{type(self).scout_chats}",
+                    "type": "function",
+                    "function": {"name": "read_file", "arguments": '{"path": "README.md"}'},
+                }],
+                finish_reason="tool_calls",
+                usage={"prompt_tokens": 1_000_000, "completion_tokens": 0, "total_tokens": 1_000_000},
+            )
+        self.agent_turns += 1
+        if self.agent_turns == 1:
+            return LLMResponse(
+                tool_calls=[{
+                    "id": "cli-ceiling-parent",
+                    "type": "function",
+                    "function": {"name": "task", "arguments": json.dumps({
+                        "description": "调研项目结构说明",
+                        "prompt": "读取 README.md 并总结项目用途。",
+                    })},
+                }],
+                finish_reason="tool_calls",
+            )
+        return LLMResponse(content="cli-done")
+
+    async def close(self) -> None:
+        return None
+
+
+def test_the_inspect_cost_ceiling_stops_the_cli_subagent(
+    cli_env: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (cli_env / "README.md").write_text("# demo project\n", encoding="utf-8")
+    monkeypatch.setenv("MINICC_T8_SCOUT_KEY", "scout-key")
+    _enable_routing(
+        cli_env,
+        {
+            **_T8_INSPECT_ROUTING,
+            "custom_models": {
+                "cheap-one": {"tier": "balanced", "provider": "openai_compatible"},
+                # 1M prompt tokens at 1000 USD/1M = 1000 USD per charged turn -
+                # the 0.001 inspect ceiling trips on the child's first turn.
+                "scout-one": {
+                    "tier": "fast",
+                    "provider": "openai_compatible",
+                    "base_url": "https://scout-gateway.test/v1",
+                    "api_key_env": "MINICC_T8_SCOUT_KEY",
+                    "cost_usd_per_1m": [1000.0, 1000.0, 0.0, 0.0],
+                },
+            },
+            "cost_limits_usd": {"inspect": 0.001},
+        },
+    )
+    _CeilingCliSentinel.reset()
+    import minicc.main as cli
+
+    monkeypatch.setattr(cli, "OpenAICompatibleProvider", _CeilingCliSentinel)
+    _run_cli(cli_env)
+    models = [i.kwargs.get("model") for i in _CeilingCliSentinel.instances]
+    assert "scout-one" in models, f"the inspect provider must be built: {models}"
+    assert _CeilingCliSentinel.scout_chats == 1, (
+        f"the child's charged turn must be its last: {_CeilingCliSentinel.scout_chats}"
+    )

@@ -1375,3 +1375,122 @@ def test_a_missing_inspect_credential_refuses_the_run_before_any_provider(
     assert _NeverBuiltProvider.built == [] and _TaskSubagentProbeProvider.init_kwargs == [], (
         "no provider may be built for a refused run - the deployment one included"
     )
+
+
+# -- M11-T9: the inspect route's caps govern the subagent's own budget ---------
+
+
+class _CeilingProbeProvider:
+    """The scout instance issues tool calls with 1M-token usage, never text.
+
+    Parent (planning-one): turn 1 issues the ``task`` call, turn 2 answers.
+    Scout (scout-one): every agent turn is one readonly tool call with 1M
+    prompt tokens, so a single charged turn at the inspect prices crosses any
+    small ceiling. The judge (``tools=None``) answers the unknown JSON.
+    """
+
+    init_kwargs: list[dict[str, Any]] = []
+    scout_chats = 0
+
+    @classmethod
+    def reset(cls) -> None:
+        cls.init_kwargs.clear()
+        cls.scout_chats = 0
+
+    def __init__(self, *args: object, **kwargs: object) -> None:
+        self.model = str(kwargs.get("model") or "")
+        self._turn = 0
+        type(self).init_kwargs.append(dict(kwargs))
+
+    @classmethod
+    def is_transient_failure(cls, error: object) -> bool:
+        return False
+
+    def protocol(self) -> str:
+        return "chat_completions"
+
+    def protocol_status(self) -> dict[str, str]:
+        return {"requested": "chat_completions", "active": "chat_completions"}
+
+    async def chat(self, messages: object, tools: object, on_delta=None):  # noqa: ANN001, ANN201
+        if tools is None:
+            return LLMResponse(
+                content=json.dumps(
+                    {"status": "unknown", "confidence": 0.1, "rationale": "probe",
+                     "missing": [], "next_action": "", "evidence": []}
+                ),
+                usage={"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+            )
+        if self.model == "scout-one":
+            type(self).scout_chats += 1
+            return LLMResponse(
+                content="",
+                tool_calls=[{
+                    "id": f"ceiling-probe-{type(self).scout_chats}",
+                    "type": "function",
+                    "function": {"name": "tree", "arguments": "{}"},
+                }],
+                finish_reason="tool_calls",
+                usage={"prompt_tokens": 1_000_000, "completion_tokens": 0, "total_tokens": 1_000_000},
+            )
+        self._turn += 1
+        if self._turn == 1:
+            return LLMResponse(
+                content="",
+                tool_calls=[{
+                    "id": "ceiling-parent-1",
+                    "type": "function",
+                    "function": {"name": "task", "arguments": json.dumps({
+                        "description": "调研项目结构说明",
+                        "prompt": "读取 README.md 并总结项目用途。",
+                    })},
+                }],
+                finish_reason="tool_calls",
+            )
+        return LLMResponse(content="ceiling-answer")
+
+    async def close(self) -> None:
+        return None
+
+
+def test_the_inspect_cost_ceiling_stops_the_subagent_not_the_parent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The inspect ceiling is charged in the child's loop and stops the child.
+
+    The parent keeps going - the child ends as a structured failure the
+    parent must handle, exactly the bounded-delegation shape.
+    """
+    import minicc.web as web_module
+
+    _CeilingProbeProvider.reset()
+    monkeypatch.setenv("MINICC_T8_SCOUT_KEY", "scout-key")
+    routing = {
+        **_TASK_ROUTING,
+        "custom_models": {
+            "planning-one": {"tier": "balanced", "provider": "openai_compatible",
+                             "cost_usd_per_1m": [0.0, 0.0, 0.0, 0.0]},
+            # 1M prompt tokens at 1000 USD/1M = 1000 USD per charged turn -
+            # the 0.001 inspect ceiling trips on the child's first turn.
+            "scout-one": {"tier": "fast", "provider": "openai_compatible",
+                          "base_url": "https://scout-gateway.test/v1",
+                          "api_key_env": "MINICC_T8_SCOUT_KEY",
+                          "cost_usd_per_1m": [1000.0, 1000.0, 0.0, 0.0]},
+        },
+        "cost_limits_usd": {"inspect": 0.001},
+    }
+    original = web_module.OpenAICompatibleProvider
+    web_module.OpenAICompatibleProvider = _CeilingProbeProvider  # type: ignore[assignment]
+    try:
+        service = _wired_service(tmp_path, routing)
+        result = _run_task(service, tmp_path)
+    finally:
+        web_module.OpenAICompatibleProvider = original  # type: ignore[assignment]
+    assert result is not None
+    assert _CeilingProbeProvider.scout_chats == 1, (
+        f"the child's charged turn must be its last: {_CeilingProbeProvider.scout_chats}"
+    )
+    dumped = json.dumps(result, ensure_ascii=False, default=str)
+    assert "阶段成本上限" in dumped, (
+        "the child's ceiling must surface as a named error the parent can see"
+    )

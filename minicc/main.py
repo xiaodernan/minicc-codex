@@ -13,7 +13,7 @@ from typing import Any, Callable, NoReturn
 from .agent.loop import TurnResult, run_agent
 from .agent.router import StageRouter, StageRoute
 from .agent.state import Budget
-from .agent.subagent import build_task_tool_spec
+from .agent.subagent import DEFAULT_MAX_TURNS, build_task_tool_spec
 from .allowlist import AllowlistError, add_session_rule
 from .audit import authorize_tool
 from .cli_io import cli_out
@@ -31,6 +31,7 @@ from .logging_setup import (
 from .prompt import build_system_prompt
 from .route_wiring import (
     _route_provider_spec,
+    _route_turn_cap,
     _stage_cost_estimator,
     _stage_route_budget,
 )
@@ -806,12 +807,21 @@ def main(argv: list[str] | None = None) -> int:
     # Bounded Task subagent for the CLI: same restricted readonly toolset and
     # no recursion. With routing enabled the subagent rides the inspect stage
     # (M11-T8), matching the web surface's recon nodes; routing off keeps the
-    # deployment-default factory.
+    # deployment-default factory. M11-T9: the inspect route's caps (turn cap,
+    # cost ceiling priced at the inspect model) govern the child budget too -
+    # with routing off all three resolve to the pre-routing defaults.
     registry.register(build_task_tool_spec(
         provider_factory=_task_provider,
         workspace=workspace,
         system_prompt=system_prompt,
         base_registry=registry,
+        max_turns=_route_turn_cap(inspect_route, default=DEFAULT_MAX_TURNS),
+        max_cost_usd=inspect_route.max_cost_usd,
+        cost_estimator=(
+            _stage_cost_estimator(stage_router, "inspect")
+            if stage_router.routing_enabled()
+            else None
+        ),
     ))
 
     async def run() -> None:

@@ -52,7 +52,7 @@ from .agent.planner import (
 )
 from .agent.repair import repair_scope
 from .agent.retrieval import LocalEvidenceIndex, census_is_complete, census_notice, get_evidence_index
-from .agent.subagent import build_task_tool_spec
+from .agent.subagent import DEFAULT_MAX_TURNS, build_task_tool_spec
 from .webauth import (
     WebAuth,
     WebAuthError,
@@ -1612,6 +1612,18 @@ class AgentService:
                         status_callback=None,
                         model_override=inspect_route.model,
                         reasoning_effort_override=inspect_route.reasoning_effort,
+                    ),
+                    # M11-T9: the inspect route's caps govern the subagent's
+                    # own budget too. With routing off all three resolve to
+                    # the pre-routing defaults (route.max_turns is None, no
+                    # ceiling, no estimator - never an estimator with no
+                    # ceiling), so the legacy shape is byte-for-byte.
+                    max_turns=_route_turn_cap(inspect_route, default=DEFAULT_MAX_TURNS),
+                    max_cost_usd=inspect_route.max_cost_usd,
+                    cost_estimator=(
+                        _stage_cost_estimator(stage_router, "inspect")
+                        if stage_router.routing_enabled()
+                        else None
                     ),
                     workspace=workspace,
                     system_prompt=build_system_prompt(workspace, output_style=str(getattr(self.config, "output_style", "") or "")),

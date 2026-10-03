@@ -10351,3 +10351,66 @@ CLI（`test_cli_stage_routing.py`）：
   是否合适是 owner 决定，本批不扩大语义。
 - CLI fallback 轮换不换 spec 的结构边界不变（T7 批次已记）。
 
+## 第一百二十三批 M11-T9：inspect 档的上限真到子代理预算——接了模型没接天花板
+
+### 1 缺口
+
+T8 批次 §5 登记的候选，本批按计划开工。T8 把 task 子代理的 **provider** 接上了
+inspect 档（模型/线协议/凭据/超时），但子代理自己的预算还停在 M6 语义：
+`_child_budget()` 只有 max_turns/max_tokens/soft_*，**没有 max_cost_usd**，子循环的
+`run_agent` 也不带 `cost_estimator`——`cost_limits_usd.inspect` 配了不生效，侦察节点的
+成本天花板对 task 子代理形同虚设。T2 立过的规矩是「上限必须由强制兑现，不许只停在
+事件」，这里就是同款缺口在子代理面的残留。
+
+开工前还发现一个**相邻缺口**（同文件同路径）：`_SubagentRunner._run_bounded` 把子循环
+的 `TurnResult` 转成 ToolResult 时只看 `answer`，**`result.error` 被静默吞掉**——子代理
+哪怕以命名错误终止（成本上限、预算守卫），父任务收到的也是 `status="ok"`、答案为空的
+「成功」。上限接上之后这会是直接后果（ceiling 触发 → 父看到空答案的成功），所以按
+「诚实优先」原则并入本批修掉：`result.error` 非空 → `status="error"` 的结构化失败 +
+`subagent_failed` 事件，父能看见、能重试。
+
+### 2 实现（合成语义：inspect 档直接管子预算，与 run_node 同形状）
+
+1. **`subagent.py`**：`build_task_tool_spec` / `_SubagentRunner` 新增
+   `max_cost_usd` 与 `cost_estimator`（成对出现，docstring 明写「有 ceiling 没计价器
+   等于没有」）；`_child_budget()` 带 `max_cost_usd`，子 `run_agent` 带
+   `cost_estimator`；writable tier 的嵌套 task spec 透传两者。合成语义 =
+   **inspect 档直接覆盖子预算的对应维度**（子预算本就独立于父，与 DAG run_node 的
+   `_stage_route_budget(inspect_route, ...)` 同形状，不引入第三种合成规则）。
+2. **接线（web + CLI）**：task 注册处传三参——`max_turns=_route_turn_cap(inspect_route,
+   default=DEFAULT_MAX_TURNS)`、`max_cost_usd=inspect_route.max_cost_usd`、
+   `cost_estimator=_stage_cost_estimator(stage_router, "inspect")`（**路由关时
+   estimator=None**：legacy route 的模型单价不是「没有计价」，传了会让路由关的子循环
+   凭空开始计价，违反逐字节旧版纪律）。路由关时前两参自然回落默认（route.max_turns
+   与 route.max_cost_usd 均为 None）。
+3. **error 传播**（相邻缺口）：`_run_bounded` 加 `result.error` 分支——
+   `status="error"`、summary 带命名错误、`subagent_failed` 事件、data 带 error 字段。
+
+### 3 门（单元 2 + web 1 + CLI 1，全部先实现后绿）
+
+1. 子代理 ceiling + estimator：永不结束的 1M-token 工具循环，ceiling 0.001 + 计价器
+   1.0 → **第一轮计价后即停**（provider 只被请求 1 次）、ToolResult `status="error"`、
+   summary 含「阶段成本上限」；
+2. ceiling 无 estimator：同形状但无计价器 → 子循环**不会**在第一轮后被成本停（配对
+   边界的子代理版，与父循环 T2 的已记录形状一致）；
+3. web 端到端：inspect 卡 1000 USD/1M + `cost_limits_usd.inspect=0.001` → 子代理第一
+   轮被停（scout 恰好 1 次 chat）、**父任务继续跑完**、最终结果里可见「阶段成本上限」
+   （ceiling 属于子，运行属于父——有界委派形状）；
+4. CLI 端到端：同配置 → inspect provider 真构建、scout 恰好 1 次 chat、CLI 退出码 0。
+
+### 4 实测证据
+
+| 命令 | 读数 |
+| --- | --- |
+| subagent_task + cli_stage_routing + stage_route_enforcement | **47 passed**（12.31s） |
+| 全量 `pytest -q` | **1756 passed**（625.18s） |
+
+### 5 下一批边界
+
+- writable/exec tier 的子代理同样吃本批参数（inspect 档对 exec 型子代理是否合适是
+  owner 决定，不扩大）。
+- CLI 子代理的 trace 事件不进结构化日志（注册处未传 on_trace，CLI 面子代理进度
+  不可见）——独立候选，属于 M6-T2 通道的 CLI 半边。
+- inspect 档其余维度（max_tokens/soft_*）暂不接路由——`build_task_tool_spec` 的这些
+  参数至今无人传入，是「参数存在但无调用者」形状，接入前先确认真实需求。
+

@@ -119,6 +119,8 @@ def build_task_tool_spec(
     max_tokens: int | None = None,
     soft_max_tokens: int | None = None,
     soft_max_duration_seconds: float | None = None,
+    max_cost_usd: float | None = None,
+    cost_estimator: Callable[[dict[str, Any]], float] | None = None,
     on_trace: Callable[[dict[str, Any]], None] | None = None,
     parent_trace_id: str | None = None,
 ) -> ToolSpec:
@@ -133,6 +135,11 @@ def build_task_tool_spec(
     bubbles the child's own trace events to it, each tagged with the subagent
     run id as ``parent_id`` and its ``depth``, so the parent UI can show what
     the subagent is doing without ever seeing the raw transcript.
+
+    M11-T9: ``max_cost_usd`` + ``cost_estimator`` give the child loop the same
+    cost-ceiling enforcement the parent's route budget has. A ceiling without
+    an estimator enforces nothing (run_agent never charges), so callers must
+    pair them - with routing on, both come from the inspect route.
     """
     tier = resolve_subagent_tier(writable=writable, permission_mode=permission_mode)
     runner = _SubagentRunner(
@@ -151,6 +158,8 @@ def build_task_tool_spec(
         max_tokens=max_tokens,
         soft_max_tokens=soft_max_tokens,
         soft_max_duration_seconds=soft_max_duration_seconds,
+        max_cost_usd=max_cost_usd,
+        cost_estimator=cost_estimator,
         on_trace=on_trace,
         parent_trace_id=parent_trace_id,
     )
@@ -220,6 +229,8 @@ class _SubagentRunner:
         max_tokens: int | None = None,
         soft_max_tokens: int | None = None,
         soft_max_duration_seconds: float | None = None,
+        max_cost_usd: float | None = None,
+        cost_estimator: Callable[[dict[str, Any]], float] | None = None,
         on_trace: Callable[[dict[str, Any]], None] | None = None,
         parent_trace_id: str | None = None,
     ) -> None:
@@ -238,6 +249,8 @@ class _SubagentRunner:
         self.max_tokens = max_tokens
         self.soft_max_tokens = soft_max_tokens
         self.soft_max_duration_seconds = soft_max_duration_seconds
+        self.max_cost_usd = max_cost_usd
+        self.cost_estimator = cost_estimator
         self.on_trace = on_trace
         self.parent_trace_id = parent_trace_id
         # Set at the start of each run so nested task specs can attribute
@@ -285,6 +298,8 @@ class _SubagentRunner:
                 max_tokens=self.max_tokens,
                 soft_max_tokens=self.soft_max_tokens,
                 soft_max_duration_seconds=self.soft_max_duration_seconds,
+                max_cost_usd=self.max_cost_usd,
+                cost_estimator=self.cost_estimator,
                 on_trace=self.on_trace,
                 parent_trace_id=self._run_id or None,
             ))
@@ -296,6 +311,7 @@ class _SubagentRunner:
             max_tokens=self.max_tokens,
             soft_max_tokens=self.soft_max_tokens,
             soft_max_duration_seconds=self.soft_max_duration_seconds,
+            max_cost_usd=self.max_cost_usd,
         )
 
     def run(self, args: dict[str, Any]) -> ToolResult:
@@ -392,6 +408,10 @@ class _SubagentRunner:
                         child_registry,
                         messages,
                         budget=self._child_budget(),
+                        # M11-T9: the child loop charges its own turns against
+                        # its own ceiling. A ceiling alone enforces nothing -
+                        # the estimator is what makes the charge happen.
+                        cost_estimator=self.cost_estimator,
                         on_tool=on_tool,
                         on_trace=bubble,
                         cancel_event=child_cancel,
@@ -487,6 +507,25 @@ class _SubagentRunner:
                 security_tags=["untrusted", "subagent"],
             )
         duration = time.monotonic() - started
+        if getattr(result, "error", None):
+            # M11-T9: a child loop that ends with a named error (cost ceiling,
+            # budget guard, ...) must surface as a structured failure - never
+            # as an ok result with an empty answer.
+            lifecycle(
+                "subagent_failed", "error",
+                f"子代理失败：{description}（{result.error}）", error=str(result.error),
+            )
+            return ToolResult(
+                status="error",
+                summary=f"[ERROR] 子代理失败：{description}（{result.error}）",
+                output="子代理在其独立预算内未完成，已终止。请缩小委派范围或拆成多步后重试。",
+                data={
+                    "description": description,
+                    "tool_log": tool_log,
+                    "error": str(result.error),
+                },
+                security_tags=["untrusted", "subagent"],
+            )
         answer = str(getattr(result, "answer", "") or "")
         usage = dict(getattr(result, "tokens_used", {}) or {})
         head, tail, truncated = _bounded_output(answer)

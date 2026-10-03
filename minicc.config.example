@@ -82,7 +82,9 @@ MINICC_REASONING_EFFORT=high
 #
 # 六个阶段当前的消费者语义（M11-T4 起）：
 # - planning：主循环 provider 的模型/effort/成本/轮数全部按此档强制。
-# - inspect：侦察节点子代理与 task 只读子代理的模型/effort；上限同主预算。
+# - inspect：侦察节点子代理与 task 只读子代理的模型/effort；max_turns /
+#   cost_limits_usd 的 inspect 值直接作为子代理自己的预算（M11-T9 起，缺省回落
+#   各自的既有默认）。
 # - review：完成评审（judge）用此档模型/effort 独立发请求；其花费按 review 档单价
 #   计入运行级天花板；review 档 max_turns 覆盖「评审要求继续」的次数上限
 #   （MINICC_MAX_COMPLETION_CONTINUES，0 = 评审要求继续一次即停）。
