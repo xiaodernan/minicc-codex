@@ -88,8 +88,14 @@ def _cross_process_lock(lock_path: Path):
                 except OSError:
                     time.sleep(_LOCK_RETRY_DELAY)
             if not locked:
-                msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
-                locked = True
+                try:
+                    msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
+                    locked = True
+                except OSError as exc:
+                    # 24 次重试耗尽后的最后一搏也可能被持锁方拒绝——裸抛
+                    # OSError 会让 save/load 以原始系统错误崩溃，而不是
+                    # 带上下文的 SessionError。
+                    raise SessionError(f"会话锁获取失败（持续被占用）: {exc}") from exc
         elif fcntl is not None:
             fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
             locked = True

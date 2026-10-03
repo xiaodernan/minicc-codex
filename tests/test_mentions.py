@@ -146,6 +146,22 @@ def test_minicc_credential_files_rejected(tmp_path: Path) -> None:
     assert "T" * 64 not in block
 
 
+def test_cjk_glue_walkback_cannot_reach_credential_file(tmp_path: Path) -> None:
+    """M8-T65: CJK 粘连尾巴骗过精确集合匹配 + 回退收敛到凭据文件 = 外泄路径。
+
+    攻击形状：`@.minicc/web_token.json的是什么`——原始 token 的敏感门因
+    name 不在精确集合而放行，回退却恰好收敛到 web_token.json 本身。回退
+    收敛后必须按真实路径重过敏感门。未修复代码上这里红：bearer 进 block。
+    """
+    (tmp_path / ".minicc").mkdir()
+    (tmp_path / ".minicc" / "web_token.json").write_text(
+        json.dumps({"token": "T" * 64}), encoding="utf-8"
+    )
+    block, records = build_mention_context("@.minicc/web_token.json的是什么", tmp_path)
+    assert "T" * 64 not in block
+    assert all(item["status"] == "rejected" for item in records), records
+
+
 def test_mcp_headers_are_redacted(tmp_path: Path) -> None:
     (tmp_path / ".minicc").mkdir()
     (tmp_path / ".minicc" / "mcp.json").write_text(

@@ -127,6 +127,16 @@ def build_mention_context(
             records.append(_annotate(original, "missing", "工作区内没有这个文件"))
             continue
         rel = resolved.relative_to(ws).as_posix()
+        # M8-T65: 敏感门必须在**回退收敛后的真实路径**上重过一次。原始
+        # token 带 CJK 粘连尾巴时，精确集合匹配（web_token.json ≠
+        # web_token.json的是什么）会放行，而回退恰好能收敛到凭据文件本身
+        # ——只查工作区边界不查敏感门，就是一条 bearer 外泄路径。
+        walked_kind = _minicc_sensitive_kind(rel)
+        if walked_kind == "deny":
+            records.append(_reject(original, ".minicc 认证/授权文件不允许注入"))
+            continue
+        if walked_kind == "redact":
+            sensitive = "redact"
         remaining = min(max_chars_per_file, max_total_chars - used)
         if remaining <= 0:
             omitted.append(rel)
