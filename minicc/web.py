@@ -1590,6 +1590,12 @@ class AgentService:
                 model_override=review_route.model,
                 reasoning_effort_override=review_route.reasoning_effort,
             )
+            # M11-T4: the stage the run currently executes in. Repair flips
+            # this to "repair" when verification fails, which switches the
+            # run provider (if the repair route picked a different model) and
+            # re-prices every charged turn - a stage that only relabels the
+            # event is not a stage.
+            current_stage = {"name": "planning"}
             # Bounded Task subagent: registered per task so the model can
             # spawn readonly research sub-runs; restricted registry keeps it
             # non-recursive. Sub-tool calls inherit parent permission gating
@@ -1649,11 +1655,15 @@ class AgentService:
                         # use the older, broadly supported endpoint next.
                         next_protocol = "chat_completions"
                     await provider.close()
-                    fallback_models = tuple(initial_route.fallback_models or ())
+                    # M11-T4: recovery stays in the stage the run is in - a
+                    # repair-stage provider must not resurrect as the
+                    # planning model.
+                    route = repair_route if current_stage["name"] == "repair" else initial_route
+                    fallback_models = tuple(route.fallback_models or ())
                     # Seeded with the routed model, not None: a recovery must
                     # not silently drop back to the primary model while stage
                     # routing is enabled.
-                    model_override: str | None = initial_route.model
+                    model_override: str | None = route.model
                     attempt = fallback_cursor["index"]
                     fallback_cursor["index"] += 1
                     if fallback_models and attempt >= 1:
@@ -1672,13 +1682,13 @@ class AgentService:
                         if on_event is not None:
                             on_event(events[-1])
                     provider = make_provider(
-                        timeout=initial_route.timeout,
+                        timeout=route.timeout,
                         status_callback=on_event,
                         protocol_override=next_protocol,
                         model_override=model_override,
                         # A recovery keeps the stage's reasoning effort rather
                         # than quietly dropping to the configured default.
-                        reasoning_effort_override=initial_route.reasoning_effort,
+                        reasoning_effort_override=route.reasoning_effort,
                     )
                     return next_protocol
 
@@ -2192,10 +2202,12 @@ class AgentService:
                         should_cancel=(cancel_event.is_set if cancel_event is not None else None),
                         cancel_event=cancel_event,
                         budget=runtime_state.budget,
-                        # M11: the planning ceiling rides the same budget the
+                        # M11: the stage ceiling rides the same budget the
                         # run already carries; without a configured ceiling the
-                        # estimator never trips anything.
-                        cost_estimator=_stage_cost_estimator(stage_router, "planning"),
+                        # estimator never trips anything. M11-T4: the pricing
+                        # stage follows the run - repair turns are charged at
+                        # repair prices, not planning prices.
+                        cost_estimator=_stage_cost_estimator(stage_router, current_stage["name"]),
                         runtime_state=runtime_state,
                         require_recovery_inspection=(agent_recoveries > 0 or repair_attempts > 0),
                         vision_context=vision_context,
@@ -2336,6 +2348,37 @@ class AgentService:
                                 aggregate.answer = f"任务未完成：{aggregate.error}"
                                 break
                             repair_attempts += 1
+                            # M11-T4: the repair stage is a consumer too. If
+                            # the repair route picked a different model, the
+                            # run provider is rebuilt from the repair route
+                            # and the run stays on it (sticky) for the rest
+                            # of the task - flipping back and forth between
+                            # models would widen the failure surface for no
+                            # gain. With routing off, or when the repair
+                            # route resolves to the same model, this is a
+                            # no-op and the legacy single-provider shape
+                            # holds.
+                            if repair_route.model != initial_route.model:
+                                await provider.close()
+                                provider = make_provider(
+                                    timeout=repair_route.timeout,
+                                    status_callback=on_event,
+                                    model_override=repair_route.model,
+                                    reasoning_effort_override=repair_route.reasoning_effort,
+                                )
+                                switch_event = {
+                                    "kind": "trace",
+                                    "name": "repair",
+                                    "status": "ok",
+                                    "phase": "repair",
+                                    "code": "repair_stage_provider",
+                                    "summary": f"验证失败，修复阶段切换到 repair 档模型 {repair_route.model}",
+                                    "detail": {"model": repair_route.model, **repair_route.to_dict()},
+                                }
+                                events.append(switch_event)
+                                if on_event is not None:
+                                    on_event(switch_event)
+                            current_stage["name"] = "repair"
                             scope = repair_scope(events, verification_data)
                             scope_event = {
                                 "kind": "trace", "name": "repair", "status": "ok", "phase": "repair",

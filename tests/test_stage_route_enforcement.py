@@ -293,7 +293,7 @@ class _ToolLoopProvider:
         return None
 
 
-def _wired_service(tmp_path: Path, stage_routing: object, *, max_turns: int = 4):
+def _wired_service(tmp_path: Path, stage_routing: object, *, max_turns: int = 4, **extra: object):
     from minicc.web import AgentService
 
     return AgentService(
@@ -314,6 +314,7 @@ def _wired_service(tmp_path: Path, stage_routing: object, *, max_turns: int = 4)
             context_window_tokens=300_000,
             fallback_models=("backup-1", "backup-2"),
             stage_routing=stage_routing,
+            **extra,
         ),
     )
 
@@ -595,4 +596,218 @@ def test_with_routing_off_the_judge_still_runs_on_the_configured_model(
     assert set(_JudgeProbeProvider.judge_models) == {"primary"}, (
         f"routing off -> the configured model serves the judge too: "
         f"{_JudgeProbeProvider.judge_models}"
+    )
+
+
+# -- M11-T4: the repair stage is a consumer, not a relabel --------------------
+
+
+class _RepairProbeProvider:
+    """Writes, verifies green, then text - recording each turn's model.
+
+    Scripted per instance, because the stage switch replaces the provider:
+
+    - first instance (planning): write ``out.txt``, run the *passing* check
+      (``run_agent``'s pre-finish guard only releases a text answer once a
+      **passing** verification is on record), then answer;
+    - later instances (repair): the recovery guard demands fresh readonly
+      evidence before the run may end, so they alternate ``tree`` and text.
+
+    The web-level verifier then runs the *failing* rule command, which is
+    what triggers the repair stage in the first place.
+    """
+
+    agent_models: list[str] = []
+    instance_count = 0
+    probe_command = ""
+
+    @classmethod
+    def reset(cls) -> None:
+        cls.agent_models.clear()
+        cls.instance_count = 0
+
+    def __init__(self, *args: object, **kwargs: object) -> None:
+        self.model = str(kwargs.get("model") or "")
+        self._turn = 0
+        _RepairProbeProvider.instance_count += 1
+        self._seq = _RepairProbeProvider.instance_count
+
+    @classmethod
+    def is_transient_failure(cls, error: object) -> bool:
+        return False
+
+    def protocol(self) -> str:
+        return "chat_completions"
+
+    def protocol_status(self) -> dict[str, str]:
+        return {"requested": "chat_completions", "active": "chat_completions"}
+
+    def _tool(self, name: str, arguments: dict[str, Any], turn: int) -> LLMResponse:
+        return LLMResponse(
+            content="",
+            tool_calls=[
+                {
+                    "id": f"repair-probe-{self._seq}-{turn}",
+                    "type": "function",
+                    "function": {"name": name, "arguments": json.dumps(arguments)},
+                }
+            ],
+            finish_reason="tool_calls",
+        )
+
+    async def chat(self, messages: object, tools: object, on_delta=None):  # noqa: ANN001, ANN201
+        usage = {"prompt_tokens": 100, "completion_tokens": 25, "total_tokens": 125}
+        if tools is None:
+            return LLMResponse(
+                content=json.dumps(
+                    {"status": "unknown", "confidence": 0.1, "rationale": "probe",
+                     "missing": [], "next_action": "", "evidence": []}
+                ),
+                usage=usage,
+            )
+        _RepairProbeProvider.agent_models.append(self.model)
+        self._turn += 1
+        if self._seq == 1:
+            if self._turn == 1:
+                return self._tool("write_file", {"path": "out.txt", "content": "probe"}, self._turn)
+            if self._turn == 2:
+                return self._tool("bash", {"command": _RepairProbeProvider.probe_command}, self._turn)
+            return LLMResponse(content="planning-answer", usage=usage)
+        # Repair-stage instances: alternate readonly evidence and text, as
+        # the recovery guard requires, until the run stops for any reason.
+        self._turn -= 1
+        if self._turn % 2 == 1:
+            return self._tool("tree", {}, self._turn)
+        return LLMResponse(content="repair-answer", usage=usage)
+
+    async def close(self) -> None:
+        return None
+
+
+def _failing_verification_workspace(tmp_path: Path, suite_python_bin: str) -> None:
+    """A write-matching rule whose check always exits non-zero.
+
+    ``passing_check.py`` exists only for the in-loop pre-finish guard (the
+    probe runs it via bash); the *rule* runs ``failing_check.py`` so the
+    web-level verifier fails and the repair stage engages.
+    """
+    (tmp_path / ".minicc").mkdir(exist_ok=True)
+    (tmp_path / "passing_check.py").write_text("def test_pass():\n    assert True\n", encoding="utf-8")
+    (tmp_path / "failing_check.py").write_text("def test_probe():\n    assert False\n", encoding="utf-8")
+    (tmp_path / ".minicc" / "verification.json").write_text(
+        json.dumps(
+            {
+                "rules": [
+                    {
+                        "paths": ["out.txt"],
+                        "commands": [f"{suite_python_bin} -m pytest -q failing_check.py"],
+                    }
+                ]
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+
+_REPAIR_ROUTING = {
+    "enabled": True,
+    "tiers": {"balanced": ["planning-one"], "fast": ["repair-one"]},
+    "custom_models": {
+        "planning-one": {
+            "tier": "balanced",
+            "provider": "openai_compatible",
+            "cost_usd_per_1m": [0.0, 0.0, 0.0, 0.0],
+        },
+        "repair-one": {
+            "tier": "fast",
+            "provider": "openai_compatible",
+            "cost_usd_per_1m": [0.0, 0.0, 0.0, 0.0],
+        },
+    },
+    "stage_map": {"planning": "balanced", "repair": "fast"},
+}
+
+
+def _run_repair_probe(tmp_path: Path, suite_python_bin: str, stage_routing: object, **extra: object):
+    import minicc.web as web_module
+
+    _RepairProbeProvider.reset()
+    _RepairProbeProvider.probe_command = f"{suite_python_bin} -m pytest -q passing_check.py"
+    _failing_verification_workspace(tmp_path, suite_python_bin)
+    original = web_module.OpenAICompatibleProvider
+    web_module.OpenAICompatibleProvider = _RepairProbeProvider  # type: ignore[assignment]
+    try:
+        service = _wired_service(
+            tmp_path, stage_routing, max_turns=8, max_repair_attempts=1, **extra
+        )
+        result = service._chat_locked(
+            {
+                "message": "zhi-du-jian-cha-ben-xiang-mu",
+                "allow_changes": True,
+                "workspace_path": str(tmp_path),
+            },
+            workspace=tmp_path,
+        )
+    finally:
+        web_module.OpenAICompatibleProvider = original  # type: ignore[assignment]
+        service.shutdown()
+    return result
+
+
+def test_the_repair_stage_serves_requests_on_the_repair_model(
+    tmp_path: Path,
+    suite_python_bin: str,
+) -> None:
+    """Verification failure flips the run onto the repair route's model."""
+    result = _run_repair_probe(tmp_path, suite_python_bin, _REPAIR_ROUTING)
+    events = result.get("events") or []
+    assert any(event.get("code") == "repair_stage_provider" for event in events), (
+        "the stage switch must be observable, not silent"
+    )
+    models = _RepairProbeProvider.agent_models
+    # The planning instance served the write, the green check and the answer.
+    assert models[:3] == ["planning-one"] * 3, f"planning turns first: {models}"
+    assert "repair-one" in models, (
+        f"the repair stage must serve at least one turn after the switch: {models}"
+    )
+    assert set(models) <= {"planning-one", "repair-one"}
+    # Everything after the switch is repair-stage: the run is sticky.
+    first_repair = models.index("repair-one")
+    assert set(models[first_repair:]) == {"repair-one"}, (
+        f"after the switch no planning turn may appear again: {models}"
+    )
+
+
+def test_repair_turns_are_priced_at_the_repair_model(tmp_path: Path, suite_python_bin: str) -> None:
+    """A repair-priced charge crossing the run ceiling stops the run.
+
+    planning prices at 0, so only repair-priced charges can cross 0.02;
+    turn usage of 25 completion tokens at 4000 USD/1M = 0.1. If the repair
+    turns were still priced as planning, the run would ride on to the
+    recovery guard instead of stopping with a named budget error.
+    """
+    routing = {
+        **_REPAIR_ROUTING,
+        "custom_models": {
+            "planning-one": {"tier": "balanced", "provider": "openai_compatible",
+                             "cost_usd_per_1m": [0.0, 0.0, 0.0, 0.0]},
+            "repair-one": {"tier": "fast", "provider": "openai_compatible",
+                           "cost_usd_per_1m": [0.0, 4000.0, 0.0, 0.0]},
+        },
+        "cost_limits_usd": {"planning": 0.02},
+    }
+    result = _run_repair_probe(tmp_path, suite_python_bin, routing)
+    events = result.get("events") or []
+    assert any("阶段成本上限已用尽" in json.dumps(event, ensure_ascii=False) for event in events), (
+        "the repair-priced charge must trip the ceiling by name"
+    )
+    assert any(event.get("code") == "budget_exceeded" for event in events)
+    models = _RepairProbeProvider.agent_models
+    assert models[:3] == ["planning-one"] * 3, f"planning turns first: {models}"
+    assert models[-1] == "repair-one", (
+        f"the charged turn ran on the repair model: {models}"
+    )
+    assert models.count("repair-one") == 1, (
+        f"the charged repair turn must be the last request: {models}"
     )

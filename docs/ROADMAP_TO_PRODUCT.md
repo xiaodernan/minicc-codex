@@ -10005,3 +10005,78 @@ provider 请求，此前却静默复用主循环 provider：配置里给 review 
 | 本门 + router + core_agent + config_surface + core_llm + core_task | **192 passed**（29.25s，含修正后的恢复计数格） |
 | subagent_streaming / subagent_delegation / core_session / http_surface / batch_wiring / two_fixture_keys | **161 passed**（45.14s） |
 
+## 第一百一十八批 M11-T4：repair 阶段成为消费者——验证失败真的换上修复档位的模型
+
+### 1 承接上一批的边界
+
+第一百一十七批 §4 记录「repair 轮仍由主循环 provider 执行，其花费按 planning
+档计价；repair 档的 `cost_limits_usd` 因此仍无独立消费者」。本批收口这块最硬的
+边界：**repair（验证失败修复）**。修复不是一个标签——它是验证失败后真实发生的
+运行阶段，此前却静默沿用 planning 档的模型与单价：给 repair 档配置的模型只在
+路由事件里露脸，从未服务过一个修复轮。与 T3 的哲学同源：**报告里的阶段必须
+就是执行阶段的档位**。
+
+### 2 实现（四处，全在 `minicc/web.py`）
+
+1. **运行级阶段状态**：`current_stage = {"name": "planning"}`——运行当前所处的
+   阶段，repair 触发时翻转为 `"repair"` 并**粘住到任务结束**（修复中途在两个
+   模型间来回摆动只会扩大失败面，没有收益）。
+2. **repair 触发时切换 provider**（repair_attempts += 1 之后）：若
+   `repair_route.model != initial_route.model`，关闭旧 provider、按 repair 档
+   重建（timeout / model / effort 全按此档），发 `code=repair_stage_provider`、
+   `phase=repair` 的 trace 事件——切换必须可观测，不许静默。关路由或同模型时
+   是 no-op，legacy 单 provider 形状不变。
+3. **计价跟随阶段**：`run_agent` 的 `cost_estimator` 从写死 planning 改为
+   `_stage_cost_estimator(stage_router, current_stage["name"])`——repair 轮按
+   **repair 档单价**落运行级天花板，`cost_limits_usd` 从此有了真实消费者。
+4. **瞬态失败重建跟随阶段**：`recreate_provider_after_failure` 的 route 选取
+   从 `initial_route` 改为 `repair_route if current_stage["name"] == "repair"
+   else initial_route`——repair 阶段的 provider 不能在故障恢复时悄悄复活成
+   planning 模型；timeout / model / effort / fallback 全按当前档。
+
+### 3 门：`tests/test_stage_route_enforcement.py` 追加 2 条（累计 18 条）
+
+端到端假体 `_RepairProbeProvider` 分实例脚本（阶段切换会换 provider 实例，
+所以脚本挂在 `seq` 上）：第一实例（planning）写 `out.txt` → 跑**能通过**的
+`passing_check.py` → 文本答案；后续实例（repair）按 recovery 守卫的要求交替
+`tree`（只读证据）与文本。工作区双层设计（本批最重要的教训，见 §4）：
+in-loop 假体跑绿检满足 run_agent 的 pre-finish 守卫，web 层
+`verification.json` 规则跑**必失败**的 `failing_check.py` 触发 repair 阶段。
+
+1. `test_the_repair_stage_serves_requests_on_the_repair_model`：
+   `repair_stage_provider` 事件存在 + 模型台账 `["planning-one"]×3` 打头
+   （write / 绿检 / 答案）+ 切换后**只出现** `repair-one`（粘住，不许切回）。
+2. `test_repair_turns_are_priced_at_the_repair_model`：planning 单价 0、
+   repair completion 4000 USD/1M、天花板 0.02——repair 第一轮 25 completion
+   tokens = 0.1 > 0.02 即停，事件含「阶段成本上限已用尽」+ `budget_exceeded`，
+   模型台账恰为 3 × planning-one + 1 × repair-one。若 repair 轮仍按 planning
+   计价（= 0），运行会骑到 recovery 守卫而非以具名预算错误停住——正是本格
+   禁止的回归。
+
+### 4 关键发现：pre-finish 守卫只认 passed 证据
+
+T4 假体第一版 write 后直接文本答案，结果两格全挂：运行从未到达 web 层
+repair，而是停在「最大模型轮次已用尽」。根因是 `run_agent` 的 pre-finish 守卫
+（loop.py）只在存在 **passed** 的验证证据时才放行文本答案——失败的验证证据
+会被推进 nudge 循环继续修。这决定了双层设计：**in-loop 绿检 + web 层红检**。
+同理，recovery 守卫要求 repair 后先给只读证据再许文本，决定 repair 实例
+tree / 文本交替的脚本。这两条守卫语义已由本批测试固化。
+
+### 5 诚实边界（config example 同步更新为 M11-T4 语义）
+
+- repair 档：模型 / effort / timeout 有消费者（provider 切换，粘住到任务
+  结束，瞬态重建同档）；`max_turns` 覆盖修复循环上限（T3）；花费按 repair
+  档单价落运行天花板——`cost_limits_usd` 的消费者。
+- 剩余边界：verify / implement 两档仍无模型消费者（verify 是本地验证器执行；
+  implement 与 planning 同在一个 ReAct 循环无法按轮拆分）——设计使然，
+  config example 继续如实写明。
+
+### 6 实测证据
+
+| 命令 | 读数 |
+| --- | --- |
+| `pytest tests/test_stage_route_enforcement.py -q -W error` | **18 passed**（8.28s） |
+| core_task（含 T3 改过的恢复计数格） | **32 passed**（9.97s） |
+| router + core_agent + config_surface + core_llm + pricing + reasoning_effort | **162 passed**（13.23s） |
+| http_surface + task_worker + verifier_lifecycle + doc_pointers | **154 passed**（110.85s） |
+

@@ -80,15 +80,17 @@ MINICC_REASONING_EFFORT=high
 # custom_models 里给该模型填 cost_usd_per_1m。值写坏了（不是 JSON 对象）会在启动时
 # 报 ConfigError，而不是静默忽略。
 #
-# 六个阶段当前的消费者语义（M11-T3 起）：
+# 六个阶段当前的消费者语义（M11-T4 起）：
 # - planning：主循环 provider 的模型/effort/成本/轮数全部按此档强制。
 # - inspect：侦察节点子代理的模型/effort；上限同主预算。
 # - review：完成评审（judge）用此档模型/effort 独立发请求；其花费按 review 档单价
 #   计入运行级天花板；review 档 max_turns 覆盖「评审要求继续」的次数上限
 #   （MINICC_MAX_COMPLETION_CONTINUES，0 = 评审要求继续一次即停）。
-# - repair：repair 档 max_turns 覆盖修复循环次数上限（MINICC_MAX_REPAIR_ATTEMPTS）；
-#   repair 轮仍由主循环 provider 执行，花费按 planning 档计价——repair 档的
-#   cost_limits_usd 当前没有独立消费者（诚实边界，见路线图）。
+# - repair：验证失败进入修复阶段时，若此档解析出与 planning 不同的模型，运行
+#   provider 会切换到 repair 档（模型/effort/超时按此档，粘住到任务结束；此后的
+#   瞬态失败重建也按 repair 档）；repair 档 max_turns 覆盖修复循环次数上限
+#   （MINICC_MAX_REPAIR_ATTEMPTS）；repair 轮花费按 repair 档单价计入运行级
+#   天花板（cost_limits_usd 的消费者）。
 # - verify / implement：当前没有模型消费者（verify 是本地验证器执行；implement 与
 #   planning 同在一个 ReAct 循环里无法按轮拆分），这两档配置只有事件可见性。
 #MINICC_STAGE_ROUTING={"enabled": false}
