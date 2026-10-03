@@ -10414,3 +10414,49 @@ inspect 档（模型/线协议/凭据/超时），但子代理自己的预算还
 - inspect 档其余维度（max_tokens/soft_*）暂不接路由——`build_task_tool_spec` 的这些
   参数至今无人传入，是「参数存在但无调用者」形状，接入前先确认真实需求。
 
+## 第一百二十四批 M11-T10：子代理生命周期进漏斗——有界委派不许盲跑
+
+### 1 缺口
+
+T9 批次 §5 登记的候选。M6-T2 给 task 子代理设计了 `on_trace` 通道（docstring 明写
+「web SSE / CLI」），子 runner 也认真 bubble 了每个生命周期事件
+（`subagent_started`/`subagent_finished`/`subagent_budget_exceeded`/`subagent_failed`/
+`subagent_timed_out`）——但**两个面的 task 注册处都没传 sink**：web 的 `_run_chat`
+明明就有现成的 `on_trace` 漏斗（父循环的 run_started/tool rounds 全走它），CLI 有
+M8-T5 的 `log_task_event` 通道，子代理事件却在两面双双落地即丢。T9 修完「ceiling
+触发父看不见」之后，这个「子代理整体盲跑」就是 M6-T2 通道最后一段没接上的线。
+
+### 2 实现（每面一行 sink，通道本体零改动）
+
+1. **web（`web.py`）**：task 注册处加 `on_trace=on_trace`——子代理事件从此走父循环
+   同一条漏斗（进 events 列表 + on_event 转发，SSE 面自然可见）；
+2. **CLI（`main.py`）**：task 注册处加
+   `on_trace=lambda event: log_task_event(event, task_id=session.path.stem if session
+   else "cli")`——与父循环 trace 同一条结构化日志通道、同一个 task_id 归属。
+3. 子 runner 的 bubble 语义（parent_id/depth 标注、永不 raise 的 `_emit`）是 M6-T2
+   既有实现，本批零改动——缺的从来只是 sink。
+
+### 3 门（web 1 + CLI 1，全部先实现后绿）
+
+1. web：父发 task 调用 → 子代理在 scout 卡上跑完 → `_run_task` 的 events 里有
+   `name=="subagent"` 且 code 覆盖 `subagent_started` 与 `subagent_finished`——
+   「开始」与「完成」都必须到达父事件流，缺一头都算盲跑；
+2. CLI：同场景 → `log_task_event` 台账里有 `subagent_started` 与
+   `subagent_finished`。
+
+### 4 实测证据
+
+| 命令 | 读数 |
+| --- | --- |
+| cli_stage_routing + stage_route_enforcement + subagent_task | **49 passed**（24.34s） |
+| 全量 `pytest -q` | **1758 passed**（661.09s） |
+
+### 5 下一批边界
+
+- M11 系列六档消费者的账面至此：planning（web+CLI 主循环）、inspect（DAG run_node +
+  task 子代理 provider/预算/trace）、review（judge）、repair（修复循环）四面接线；
+  verify/implement 两档在 web 的 DAG 拓扑里有节点语义、无独立 provider 消费者——
+  是否需要是 owner 决定。
+- `build_task_tool_spec` 的 max_tokens/soft_* 参数仍无调用者（T9 §5 已记），不接。
+- CLI fallback 轮换不换 spec 的结构边界不变（T7 已记）。
+

@@ -1494,3 +1494,32 @@ def test_the_inspect_cost_ceiling_stops_the_subagent_not_the_parent(
     assert "阶段成本上限" in dumped, (
         "the child's ceiling must surface as a named error the parent can see"
     )
+
+
+# -- M11-T10: the subagent's lifecycle events ride the trace funnel ------------
+
+
+def test_the_subagent_lifecycle_is_visible_in_the_web_event_stream(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A subagent that runs blind is a bounded delegation nobody can watch."""
+    import minicc.web as web_module
+
+    _TaskSubagentProbeProvider.reset()
+    monkeypatch.setenv("MINICC_T8_SCOUT_KEY", "scout-key")
+    original = web_module.OpenAICompatibleProvider
+    web_module.OpenAICompatibleProvider = _TaskSubagentProbeProvider  # type: ignore[assignment]
+    try:
+        service = _wired_service(tmp_path, _TASK_ROUTING)
+        result = _run_task(service, tmp_path)
+    finally:
+        web_module.OpenAICompatibleProvider = original  # type: ignore[assignment]
+    events = result.get("events") or []
+    subagent_events = [e for e in events if e.get("name") == "subagent"]
+    codes = {e.get("code") for e in subagent_events}
+    assert "subagent_started" in codes, (
+        f"the child's start must reach the parent's event stream: {codes}"
+    )
+    assert "subagent_finished" in codes, (
+        f"the child's completion must reach the parent's event stream: {codes}"
+    )

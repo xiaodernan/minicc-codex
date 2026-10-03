@@ -527,3 +527,27 @@ def test_the_inspect_cost_ceiling_stops_the_cli_subagent(
     assert _CeilingCliSentinel.scout_chats == 1, (
         f"the child's charged turn must be its last: {_CeilingCliSentinel.scout_chats}"
     )
+
+
+# -- M11-T10: the CLI subagent's lifecycle reaches the structured log ----------
+
+
+def test_the_subagent_lifecycle_is_logged_on_the_cli(
+    cli_env: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("MINICC_T8_SCOUT_KEY", "scout-key")
+    _enable_routing(cli_env, _T8_INSPECT_ROUTING)
+    _TaskRoutingSentinel.reset()
+    import minicc.main as cli
+
+    monkeypatch.setattr(cli, "OpenAICompatibleProvider", _TaskRoutingSentinel)
+    logged: list[dict[str, Any]] = []
+    monkeypatch.setattr(cli, "log_task_event", lambda event, **_: logged.append(event))
+    _run_cli(cli_env)
+    subagent_codes = {e.get("code") for e in logged if e.get("name") == "subagent"}
+    assert "subagent_started" in subagent_codes, (
+        f"the child's start must reach the structured log: {subagent_codes}"
+    )
+    assert "subagent_finished" in subagent_codes, (
+        f"the child's completion must reach the structured log: {subagent_codes}"
+    )

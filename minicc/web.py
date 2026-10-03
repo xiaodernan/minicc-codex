@@ -1629,6 +1629,10 @@ class AgentService:
                     system_prompt=build_system_prompt(workspace, output_style=str(getattr(self.config, "output_style", "") or "")),
                     base_registry=registry,
                     cancel_event=cancel_event,
+                    # M11-T10: the child's lifecycle events ride the same
+                    # trace funnel as the parent loop's - without a sink the
+                    # subagent runs blind on this surface too.
+                    on_trace=on_trace,
                 ))
             except ValueError:
                 pass

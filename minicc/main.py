@@ -822,6 +822,10 @@ def main(argv: list[str] | None = None) -> int:
             if stage_router.routing_enabled()
             else None
         ),
+        # M11-T10: the CLI has no event funnel, so the child's lifecycle
+        # events go straight to the structured log - the same channel the
+        # parent loop's traces already use (M8-T5).
+        on_trace=lambda event: log_task_event(event, task_id=session.path.stem if session else "cli"),
     ))
 
     async def run() -> None:
