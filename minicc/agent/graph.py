@@ -6,9 +6,11 @@ graph is validated at task start so snapshots can name intake/plan/inspect/
 implement/verify/repair/summarize, but those node handlers are not scheduled
 for write tasks.
 
-``execute_dag`` remains available for bounded **readonly** plans only; write
-plans stay prompts for the main loop. Do not describe this module as a full
-workflow engine.
+``execute_dag`` is for bounded **readonly** plans only - and that boundary is
+now *enforced* at the entry (write/exec node kinds and write-capable tool
+whitelists are rejected, not just documented), not left to caller discipline.
+Write plans stay prompts for the main loop. Do not describe this module as a
+full workflow engine.
 """
 
 from __future__ import annotations
@@ -23,6 +25,13 @@ from .state import AgentState, Budget, BudgetExceeded
 
 class GraphValidationError(ValueError):
     """A graph or plan violates its structural limits."""
+
+
+# The execute_dag readonly boundary (module docstring). Single source of truth:
+# task_manager._is_bounded_readonly_plan imports these names so the web face's
+# skip-early check and the executor's hard reject can never drift apart.
+READONLY_DAG_KINDS = frozenset({"readonly", "review", "merge"})
+READONLY_DAG_TOOLS = frozenset({"read_file", "grep", "git_status", "git_diff"})
 
 
 @dataclass(frozen=True)
@@ -231,8 +240,27 @@ async def execute_dag(
     Existing one-argument handlers remain supported. When
     ``include_dependency_outputs`` is enabled, handlers receive a second
     argument containing bounded outputs from completed dependencies.
+
+    The readonly boundary (module docstring) is enforced here: a plan with a
+    write/exec node kind, or any node whose tool whitelist reaches beyond the
+    readonly set, is rejected before the first wave runs. Callers that want a
+    write plan to degrade instead of raise (the web face skips it back to the
+    main agent) must check before calling - exactly what
+    ``task_manager._is_bounded_readonly_plan`` does.
     """
     plan.validate()
+    for task in plan.tasks:
+        if task.kind not in READONLY_DAG_KINDS:
+            raise GraphValidationError(
+                f"execute_dag 只接受只读计划：节点 {task.id} 的 kind 是 {task.kind!r}（"
+                "write/exec 计划留在主循环执行）"
+            )
+        overflow = set(task.allowed_tools) - READONLY_DAG_TOOLS
+        if overflow:
+            raise GraphValidationError(
+                f"execute_dag 只接受只读计划：节点 {task.id} 的工具白名单越界 "
+                f"{sorted(overflow)}（写工具/联网工具不进 DAG 执行）"
+            )
     if max_concurrency < 1:
         raise GraphValidationError("max_concurrency 必须至少为 1")
     task_map = {task.id: task for task in plan.tasks}

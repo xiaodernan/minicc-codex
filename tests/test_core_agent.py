@@ -211,7 +211,20 @@ def test_state_graph_repairs_verification_failure() -> None:
 
 
 def test_dag_validates_dependencies_and_bounds_concurrency() -> None:
-    plan = fixed_plan("parallel_inspect", task_count=3)
+    # A hand-built readonly plan, NOT fixed_plan("parallel_inspect"): that
+    # template also contains the implement(write)/verify(exec) tail nodes,
+    # and execute_dag now rejects write/exec plans outright (the module
+    # docstring always claimed readonly-only - the 128th batch made that
+    # claim enforced, so feeding it a writing template is a contract breach,
+    # not a convenience).
+    plan = DAGPlan(
+        "parallel_readonly",
+        (
+            PlanTask("inspect-a", "readonly", allowed_tools=frozenset({"read_file", "grep"})),
+            PlanTask("inspect-b", "readonly", allowed_tools=frozenset({"read_file", "grep"})),
+            PlanTask("merge", "readonly", depends_on=("inspect-a", "inspect-b")),
+        ),
+    )
     running = 0
     maximum = 0
 
@@ -225,7 +238,7 @@ def test_dag_validates_dependencies_and_bounds_concurrency() -> None:
 
     result = asyncio.run(execute_dag(plan, handler, max_concurrency=2))
     assert result.status == "completed"
-    assert result.completed[-1] == "summarize"
+    assert result.completed[-1] == "merge"
     assert maximum <= 2
     with pytest.raises(GraphValidationError, match="存在环"):
         DAGPlan(
@@ -235,6 +248,32 @@ def test_dag_validates_dependencies_and_bounds_concurrency() -> None:
                 PlanTask("b", "readonly", ("a",)),
             ),
         ).validate()
+
+
+def test_dag_rejects_write_node_kinds() -> None:
+    # The docstring claimed "readonly plans only" for years; the executor now
+    # enforces it instead of trusting caller discipline (M6-T5 re-audit).
+    plan = DAGPlan(
+        "writes-into-dag",
+        (
+            PlanTask("inspect", "readonly"),
+            PlanTask("implement", "write", depends_on=("inspect",)),
+        ),
+    )
+    with pytest.raises(GraphValidationError, match="只读计划"):
+        asyncio.run(execute_dag(plan, lambda task: {"task": task.id}))
+
+
+def test_dag_rejects_tool_whitelists_beyond_readonly() -> None:
+    # A readonly-labeled node smuggling write tools past its kind is the same
+    # breach via the other door: the whitelist, not the label, decides what a
+    # node can do.
+    plan = DAGPlan(
+        "smuggled-writer",
+        (PlanTask("probe", "readonly", allowed_tools=frozenset({"read_file", "edit_file"})),),
+    )
+    with pytest.raises(GraphValidationError, match="工具白名单越界"):
+        asyncio.run(execute_dag(plan, lambda task: {"task": task.id}))
 
 
 def test_dag_can_pass_completed_dependency_outputs_to_handlers() -> None:

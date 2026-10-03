@@ -30,7 +30,7 @@ from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any
 
 from .agent.completion import CompletionDecision
-from .agent.graph import DAGPlan, fixed_plan
+from .agent.graph import DAGPlan, READONLY_DAG_KINDS, READONLY_DAG_TOOLS, fixed_plan
 from .agent.loop import AgentCancelled, TurnResult
 from .agent.orchestration import assess_complexity, build_auto_subtasks
 from .agent.planner import PlannerPolicy, build_plan
@@ -83,8 +83,10 @@ WORKER_REAP_GRACE_SECONDS = 0.5
 WORKER_SHUTDOWN_GRACE_SECONDS = 5.0
 WORKER_TERMINATE_WAIT_SECONDS = 5.0
 COMPLETION_WRITE_TOOLS = frozenset({"write_file", "edit_file", "worktree_create", "worktree_remove"})
-READONLY_PLAN_KINDS = frozenset({"readonly", "review", "merge"})
-READONLY_PLAN_TOOLS = frozenset({"read_file", "grep", "git_status", "git_diff"})
+# Names kept for the web face's import; the single source of truth lives on
+# the graph so the skip-early check and execute_dag's hard reject cannot drift.
+READONLY_PLAN_KINDS = READONLY_DAG_KINDS
+READONLY_PLAN_TOOLS = READONLY_DAG_TOOLS
 CHANGE_INTENT_MARKERS = (
     "修复", "修改", "增加", "添加", "加上", "实现", "开发", "构建", "制作", "创建",
     "补齐", "优化", "重构", "更新", "删除", "移除", "继续做完", "落地", "写入",

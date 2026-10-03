@@ -2331,7 +2331,8 @@ GitHub 的 Python 3.11 镜像自带 setuptools 低于 70.1（那个版本还没�
 
 路线图 M1..M8 的任务至此全部落地并有逐项验证记录（M8-T7..T12 六条由真实运行与真实失败驱动的附带修复在内）。
 M6-T4/M6-T5 的落地记录来自 `02059ea`、`a97bf13` 等一批提交（对应 `tests/test_background_shell.py`、
-`tests/test_parallel_writes.py`），本日志未逐条复核，暂不代为背书；下一步是按第三节各里程碑的**退出标准**
+`tests/test_parallel_writes.py`），本日志未逐条复核，暂不代为背书（**128 批已逐条复核 M6-T5 并把
+execute_dag 的只读边界变成强制，见第一百二十八批**）；下一步是按第三节各里程碑的**退出标准**
 （`## 三` 里每个里程碑自带的检查清单）加上第六节的跟踪指标做一次整体复核（含真实模型端到端），而不是继续
 加功能。注：本文件没有「第八节」，此前此处写的「第八节退出标准」是错的交叉引用——退出标准按里程碑分散在
 第三节（`:44/:88/:131/:178/:229/:269/:302/:335`），一次性列在总表 `:23` 的「退出标准」列。
@@ -10606,13 +10607,74 @@ permission_mode 真的传到了注册处并解析成 exec 档**。结构性障�
 
 ### 5 下一批边界
 
-- config 字段面本轮全扫干净：43 字段逐一 grep 非测试消费者，唯一零命中的
-  `unrecognized_config_keys` 在 config.py L285（describe 摘要的 ignored_keys
-  拼接）有真实内部消费者，不算缺口；CLI 旗标面（30 个 add_argument）与
-  `MINICC_*` env 面同样全接线，「声称 ≠ 使用」这一族在可预见的面上已收干净；
 - `bypassPermissions` 模式与 yolo 同走 exec 档（EXEC_PERMISSION_MODES），接线
   路径相同（同一 str 直传），不单列门；
 - 下一步：转向 AGENT_LLM_ROADMAP P0-P1 尚未落地的方向（写节点隔离 /
   跨 worktree 合并 / 依赖节点增量恢复的 DAG 后续），或按路线图第三节
   退出标准做整体复核。
+
+## 第一百二十八批 M6-T5 复核 + execute_dag 只读边界真强制：docstring 声称了 readonly-only，执行器却来者不拒
+
+### 1 缺口（M6-T5 验收条款逐条复核）
+
+「尚未开始」注记里 M6-T5 一直挂着「未逐条复核，暂不代为背书」。逐条对照现状：
+
+| 验收条款 | 现状 | 结论 |
+| --- | --- | --- |
+| 1. 2 个子代理写同一文件 → 一个失败报告冲突，不留半成品 | write 计划根本不进 DAG（graph.py docstring：write plans stay prompts）；`execute_dag` 无冲突检测 | **架构性未实现** |
+| 2. 写不重叠文件并行成功 + 父会话收两份证据 | readonly 节点波次并行（`asyncio.gather`）+ `DAGResult.outputs` 逐节点汇聚 | **机制达成**（readonly 面） |
+| 3a. 任一失败 → 整体失败 | `result.status="failed"` + 依赖跳过（`skipped`） | **达成** |
+| 3b. 保留 worktree 供人工检查 | `WorktreeManager` 只有 create/remove/list/prune，DAG 执行不用 worktree | **未实现** |
+
+复核顺出一个真缺口：docstring 声称「`execute_dag` remains available for bounded
+**readonly** plans only」，但执行器对节点 kind 和工具白名单**零检查**——
+`fixed_plan("parallel_inspect")` 模板自带 implement(write)/verify(exec) 尾节点，
+直接喂 `execute_dag` 照常执行（`test_dag_validates_dependencies_and_bounds_concurrency`
+就是这么喂的，没被拒只是因为没人拒绝过）。readonly-only 全靠调用方自律：web 面
+有 `_is_bounded_readonly_plan` 防线（不过关就 skip 回主 Agent），但任何直接调用者
+（测试、未来消费者）不受保护。这是 T2/T11 同族的「声称 ≠ 强制」。
+
+### 2 实现（边界下沉到执行器 + 单一事实源）
+
+1. **`graph.py`**：新增 `READONLY_DAG_KINDS`（readonly/review/merge）与
+   `READONLY_DAG_TOOLS`（read_file/grep/git_status/git_diff）两个常量；
+   `execute_dag` 入口在 `plan.validate()` 后逐节点检查——kind 越界或工具白名单
+   越界即 `GraphValidationError`（fail-loud，指名节点与越界物）。
+2. **`task_manager.py`**：`READONLY_PLAN_KINDS`/`READONLY_PLAN_TOOLS` 改为引用
+   graph 常量（消除 web skip 判据与执行器拒绝判据的漂移风险）；
+   `COMPLETION_WRITE_TOOLS` 是 web 面补充判据，原地保留。
+3. **`web.py`**：删除 `READONLY_PLAN_KINDS`/`READONLY_PLAN_TOOLS` 两行死 import
+   （import 后全文件零使用）；web 的 skip-early 语义不变（先 skip 后 execute_dag，
+   双层各司其职）。
+
+### 3 门（新 2 + 改 1，`tests/test_core_agent.py` 37→40 条）
+
+- `test_dag_rejects_write_node_kinds`：readonly + implement(write) 计划 →
+  GraphValidationError「只读计划」；
+- `test_dag_rejects_tool_whitelists_beyond_readonly`：readonly 节点白名单夹带
+  edit_file → GraphValidationError「工具白名单越界」（label 不是边界，白名单才是）；
+- 旧门 `test_dag_validates_dependencies_and_bounds_concurrency` 改用手构纯只读
+  plan 并写明原因：喂 write 模板给 execute_dag 是契约破坏，不是便利——旧断言
+  编码的是「没人拒绝过」的旧行为。
+
+### 4 实测证据
+
+| 命令 | 读数 |
+| --- | --- |
+| `test_core_agent.py`（含 2 新门 + 1 改门） | **40 passed**（7.63s） |
+| 相邻 `test_core_task.py` + `test_subagent_task.py` | **40 passed**（9.25s） |
+| `doc_pointers --check` / `route_coverage --check` | 绿（A/B 口径 14/14） |
+| 全量 `pytest -q` | **1774 passed**（586.04s，1772 + 2 新门） |
+| 提交与 CI | 本批提交后回填 |
+
+### 5 下一批边界
+
+- M6-T5 条款 1（并行写冲突失败）与条款 3b（worktree 保留）仍属未实现：打开
+  write-DAG + 逐节点 worktree 隔离 + merge 冲突检查是架构级决策（成本：每写
+  节点一份 worktree 检出与合并窗口；收益：并行写隔离），归 owner 决策，本批
+  只把「误入」变成「显式拒绝」；
+- `fixed_plan` 两模板的 write/exec 尾节点保留：它们是规划展示骨架（web 只把
+  `_is_bounded_readonly_plan` 通过的动态计划喂 execute_dag），本批不改模板；
+- planner 的 `validate_dynamic_plan`（构造期校验）与 execute_dag 的入口检查
+  是两道独立的门，本批未合并。
 

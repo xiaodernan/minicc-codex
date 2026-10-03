@@ -132,8 +132,6 @@ from .task_manager import (  # noqa: F401 - re-export for tests and AgentService
     MAX_ATTACHMENTS,
     MAX_BATCH_TASKS,
     NO_CHANGE_MARKERS,
-    READONLY_PLAN_KINDS,
-    READONLY_PLAN_TOOLS,
     TASK_SHUTDOWN_GRACE_SECONDS,
     TASK_STREAM_INTERVAL,
     TERMINAL_TASK_STATUSES,
