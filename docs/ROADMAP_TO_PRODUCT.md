@@ -10602,7 +10602,7 @@ permission_mode 真的传到了注册处并解析成 exec 档**。结构性障�
 | `test_subagent_wiring.py`（含 2 新门）+ 相邻 `test_subagent_delegation.py` | **30 passed**（7.00s） |
 | `doc_pointers --check` / `route_coverage --check` | 绿（A/B 口径 14/14） |
 | 全量 `pytest -q` | **1772 passed**（689.40s，1770 + 2 新门） |
-| 提交与 CI | 本批提交后回填 |
+| 提交与 CI | 37b3517，CI run 37121252468 全绿 |
 
 ### 5 下一批边界
 
