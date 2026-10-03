@@ -185,6 +185,12 @@ MINICC_REASONING_EFFORT=high
 # task 工具，第 3 层递归不可能。只读档不受影响（只读档从不派生子代理）。
 #MINICC_SUBAGENT_MAX_DEPTH=2
 
+# task 子代理单次运行的硬 token 上限：旋钮在 M6-T1 与 depth 一起声明，但此前
+# 两面注册处从未接线（开了也不生效）。设置后经子预算成为子 run_agent 的硬
+# token 上限，越限以结构化 [BUDGET] 失败收场（data.budget_exceeded=true），
+# 不拖垮父会话；未设置/留空 = 不设硬上限（历史行为）。
+#MINICC_SUBAGENT_MAX_TOKENS=
+
 # ---- Web workbench security (minicc-web) ----
 
 # Access token for the Web API. When bound to a non-loopback host

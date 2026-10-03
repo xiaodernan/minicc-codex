@@ -12,7 +12,9 @@
 - 旋钮开但会话是 default/plan → 注册层诚实失效，仍 readonly（tier 机器的
   既有契约 ``resolve_subagent_tier`` 现在真的参与裁决）；
 - 旋钮关 → 逐字节旧形状，readonly；
-- ``subagent_max_depth`` 从 config 到达注册处，缺省回落 DEFAULT_MAX_DEPTH。
+- ``subagent_max_depth`` 从 config 到达注册处，缺省回落 DEFAULT_MAX_DEPTH；
+- ``subagent_max_tokens`` 从 config 到达注册处（M6-T1 补线之二）：设置 →
+  数值直通 ``_child_budget`` 的硬 token 上限；未设 → ``None``（旧版无硬上限）。
 """
 
 from __future__ import annotations
@@ -168,6 +170,25 @@ def test_the_depth_knob_reaches_the_cli_task_spec(
     assert cli_capture["max_depth"] == 1
 
 
+def test_the_token_cap_knob_reaches_the_cli_task_spec(
+    cli_env: Path, monkeypatch: pytest.MonkeyPatch, cli_capture: dict[str, Any]
+) -> None:
+    monkeypatch.setenv("MINICC_SUBAGENT_MAX_TOKENS", "5000")
+    _run_cli(cli_env)
+    assert cli_capture["max_tokens"] == 5000, (
+        "the M6-T1 token knob must finally reach the child budget"
+    )
+
+
+def test_without_the_token_knob_the_cli_child_budget_stays_uncapped(
+    cli_env: Path, cli_capture: dict[str, Any]
+) -> None:
+    _run_cli(cli_env)
+    assert cli_capture["max_tokens"] is None, (
+        "knob unset keeps the legacy uncapped child budget (None, not 0)"
+    )
+
+
 # -- web 面 ---------------------------------------------------------------------
 
 
@@ -289,3 +310,23 @@ def test_without_the_knob_the_web_task_spec_stays_readonly(
     assert web_capture["writable"] is False
     assert web_capture["risk"] == "readonly"
     assert web_capture["max_depth"] == DEFAULT_MAX_DEPTH
+
+
+def test_the_token_cap_knob_reaches_the_web_task_spec(
+    tmp_path: Path, web_capture: dict[str, Any]
+) -> None:
+    service = _service(tmp_path, subagent_max_tokens=5000)
+    result = _run_web_task(service, tmp_path, permission_mode="acceptEdits")
+    assert result is not None
+    assert web_capture["max_tokens"] == 5000, (
+        "the M6-T1 token knob must finally reach the child budget on the web face"
+    )
+
+
+def test_without_the_token_knob_the_web_child_budget_stays_uncapped(
+    tmp_path: Path, web_capture: dict[str, Any]
+) -> None:
+    service = _service(tmp_path)
+    result = _run_web_task(service, tmp_path, permission_mode="acceptEdits")
+    assert result is not None
+    assert web_capture["max_tokens"] is None

@@ -842,6 +842,11 @@ def main(argv: list[str] | None = None) -> int:
         writable=bool(getattr(config, "subagent_writable", False)),
         permission_mode=str(args.permission_mode),
         max_depth=max(1, int(getattr(config, "subagent_max_depth", DEFAULT_MAX_DEPTH))),
+        # M6-T1 补线（token 上限）：subagent_max_tokens 在 M6-T1 就已声明并
+        # 解析，但两面注册处从未传参——旋钮开了也永远没有硬上限。None（未
+        # 设）保持旧版子预算；设置后经 _child_budget 变成子 run_agent 的硬
+        # token 上限，越限收敛为结构化 [BUDGET] 失败而不是拖垮父会话。
+        max_tokens=getattr(config, "subagent_max_tokens", None),
     ))
 
     async def run() -> None:

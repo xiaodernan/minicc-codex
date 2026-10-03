@@ -1640,6 +1640,10 @@ class AgentService:
                     writable=bool(getattr(self.config, "subagent_writable", False)),
                     permission_mode=str(permission_mode),
                     max_depth=max(1, int(getattr(self.config, "subagent_max_depth", DEFAULT_MAX_DEPTH))),
+                    # M6-T1 补线（token 上限）：与 CLI 面同批——旋钮在 M6-T1
+                    # 声明却从未接到注册处。None（未设）保持旧版无硬上限；
+                    # 设置后经 _child_budget 成为子 run_agent 的硬 token 上限。
+                    max_tokens=getattr(self.config, "subagent_max_tokens", None),
                 ))
             except ValueError:
                 pass

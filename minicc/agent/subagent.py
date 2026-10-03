@@ -140,6 +140,10 @@ def build_task_tool_spec(
     cost-ceiling enforcement the parent's route budget has. A ceiling without
     an estimator enforces nothing (run_agent never charges), so callers must
     pair them - with routing on, both come from the inspect route.
+
+    M6-T1 补线: ``max_tokens`` now arrives from the ``subagent_max_tokens``
+    config knob through both registration faces; ``None`` (knob unset) keeps
+    the legacy uncapped child budget.
     """
     tier = resolve_subagent_tier(writable=writable, permission_mode=permission_mode)
     runner = _SubagentRunner(
