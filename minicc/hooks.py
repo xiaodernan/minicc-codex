@@ -288,7 +288,14 @@ class HookRunner:
         try:
             env = _scrubbed_env(spec.env)
         except HookConfigError as exc:
-            entry.update(decision="error", reason=str(exc))
+            # Same policy as the spawn, pipe and timeout failures below: this
+            # method's decision vocabulary is allow|deny, and the only reader
+            # (agent/loop.py's outcome.denied) acts on "deny" — an unread
+            # status here would let the tool through past on_failure=deny.
+            entry.update(
+                decision="deny" if spec.on_failure == "deny" else "allow",
+                reason=str(exc),
+            )
             return entry
         body = json.dumps(payload, ensure_ascii=False, default=str)
         popen_kwargs: dict[str, Any] = {}
