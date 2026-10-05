@@ -10742,3 +10742,82 @@ render 先 normalize `\r\n` 再探针。红的原因与被测代码无关，但�
   M1..M8 的退出标准欠账只剩整体复核（第三节退出标准 + 第六节跟踪指标），
   以及 specproof 侧同样的纪律。
 
+
+## 第一百三十批 M8-T127：permissions.json 的 deny 只在一条入口被读，另外两条照样执行被拒的工具
+
+### 1 来源与占号
+第一百零八批把 minicc/permissions.py 与 minicc/allowlist.py 的匹配器并成一份，教训是「枚举模块不等于枚举实现」。本批顺着同一只问句往下问：这条守卫有几个读者。量法是在提交前的平面上分别 grep match_permission_rule 与 authorize_tool 的调用点，两边一起看才看得出缺口。
+
+### 2 缺陷
+minicc/permissions.py 的文件说明写着 deny 规则是绝对的：在交互审批之前短路，且不被任务旗标覆盖。实际只有 minicc/web.py 的会话审批回调读它。authorize_tool 才是三条入口共用的判决函数，另外两条只问它——minicc/main.py 的 _permission_gate，以及 minicc/web.py 里计划节点的 node_allow 闭包。在 3510437 的平面上按 CLI 自己的参数形状直接调用，并把同一份规则单独交给 match_permission_rule 作对照：deny 覆盖 secrets 目录时 read_file 返回 allowed=True、default_readonly，yolo 下 write_file 返回 allowed=True、task_yolo；对照两条都返回 deny，说明规则本身是命中的，缺的是「有没有人问它」。
+
+### 3 修法
+把否决搬到 authorize_tool 的最上面，先于 yolo 分支，判决返回 authorization=permission_rule_deny。allow 的语义一点没动，仍然只在会话审批回调里跳过提示，所以计划模式与联网授权的含义不变。minicc/web.py 原有的那道 pre-check 故意留着：chat 路径的判决必须逐字节不变，而且 minicc/web.py 在共享工作树里正被另一个 run 改。
+
+### 4 验证
+门文件 tests/test_permission_deny_veto_is_asked_by_every_consent_site.py，10 例：三种调用形状各拒一次；yolo 下的写入也被拒；四条没被规则点到的路径保持原判决；没有规则文件的工作区什么都不问；最后一条普查用 AST 走 minicc 包，要求每一个 authorize_tool 调用点都交出 workspace，并把站点集合钉在 minicc/main.py 与 minicc/web.py 共三处。焦点 122 例通过 · 37.19s（连同 tests/test_permissions_approval.py、tests/test_http_surface.py 与第一百零八批 M8-T126 那条门一起跑）。变异四臂，预测先写：SHIP 0 红；删掉否决，恰 4 条拒断红；把否决改成「只要有工作区就拒」，恰 5 条范围对照红；把 minicc/main.py 的调用改成 workspace=None，只让普查那一条红。最后这条臂证明普查不是摆设，中间这条臂证明对照组不是装饰。全量基线 在并入上游第一百一十四批（2eed638）之后的平面上，以代码提交 3b57ad4 重跑整套：junit 实测 1672 例收集 · 1671 passed · 1 failed · 0 errors · 0 skipped · 760.28 秒（junit 属性 time=759.730），本批那份门文件在这份 junit 里占 10 例且 10 例全绿。那唯一一条红不是本批的：它是 tests/test_config_surface.py::test_every_config_getattr_names_a_field_config_declares，报错点名「stage_routing at minicc/web.py:1273」——web.py 读 getattr(config, "stage_routing")，而 Config 从不声明该字段；该读取点由 2eed638 引入，`git log -S stage_routing -- minicc/config.py` 返回空（没有任何提交声明过它），所以本批重排之前 origin/main 自己就是红的，这条红早于本批、与本批无关。正因为推送判据要求「被推的那一端整套 failures==0」，本批当时留在本地不推。落到共享尖端 dd8d0e5 之后本条重编号为第一百三十批（原记第一百一十五批，那一格已被上游 M11-T1 用掉），上文所有数字都是当时那个平面的实测，不是本平面的。
+
+### 5 边界
+CLI 的写入与命令拒绝仍会落到 minicc/main.py 的交互提示，用户答 y 就覆盖项目 deny；关掉它要改 minicc/main.py，本批没动。普查门只保证每个站点交出 workspace，不保证站点服从判决——这句话是余下的缺口，不是已修的事实。计划节点那条现在是绝对拒绝，因为它直接返回 decision.allowed，没有提示兜底。netguard 的 CGNAT 100.64/10 与 6to4/Teredo 仍等你定口径，本批没有单方面放宽那道 fail-closed 守卫。
+## 第一百三十一批 M8-T134：仓库里没有任何一条门判冲突标记，抓住我的那道在仓库外
+
+### 1 来源与占号
+上一批收尾时，机器级 pre-commit 钩子拒下我的一条提交，理由是暂存文件里有冲突标记。那次是我自己在 rebase 续跑时留下的。顺着这条线查下去，真正的缺陷不是手滑：`git rebase --continue` 不跑 pre-commit 钩子，而且全库没有任何一处判据管这件事——整套 1671 例带着那行标记照样全绿。所以「钩子抓到了」不等于「仓库守住了」：唯一那道防线在 `~/.codex/git-hooks`，而它恰好被产生这个缺陷的那个操作绕过。上游已用到 M8-T133，本批取 M8-T134。
+
+### 2 缺陷
+先量再写门，种群只有一个：`git ls-files`。量到 283 个跟踪文件（把本批的门文件算进去是 284），逐一按字节找行首七个左尖括号加空格、整行七个等号（CRLF 与 LF 两形）、行首七个右尖括号加空格——四种拼写全部 0 命中，也就是今天的树是干净的，新门落地不会带着既有红。判据侧：同一批拼写如果出现在 .py 或 .sh 或 .js 或 .ts 或 .yml 或 .toml 这类可执行文本里，就算「有人在判」，命中 0 处。全库出现的 CONFLICT 字样只有两类无关词汇：`minicc/task_store.py:92`、`minicc/task_store.py:117`、`minicc/task_store.py:164` 的 SQL 写法，`minicc/tools/git.py:129`、`minicc/tools/git.py:131` 对 merge 条目的解析。结论是判据不存在，不是判据有漏洞。
+
+### 3 修法
+新增 `tests/test_tracked_files_carry_no_conflict_marker.py`，四例。判据只认两种行首形状：七个左尖括号加一个空格、七个右尖括号加一个空格；那个空格是 git 自己写的分隔符，也是「规则」与「讨论规则的散文」之间的分界。整行七个等号故意不判，因为那是合法 markdown 的 setext 下划线，文档里本来就该能写——而我出事的正是文档。种群从 `git ls-files` 推导，并配一条 200 的下限：一个空列表上的「没有标记」什么也不证明，扫窄了自己也照样绿。最后一例要求常量与匹配器互相咬住——声明的每个拼写都必须能被同一个 walk 认出来，否则门与判据各说各话。
+
+### 4 验证
+门文件自己 4 例通过；与最近的结构性门同跑（连同 `tests/test_doc_pointers.py` 与 `tests/test_config_surface.py`）107 例通过、79.54 秒，那唯一一条红是上游的 stage_routing 字段缺失，上一批 §4 已按案例名归因，与本批无关。变异六腿，预测先写、一条腿没写进表：ship 0 红；py-only（walk 只留 .py）恰 1 红，红在种群例，而「没有标记」那条反而绿——这正是窄扫描骗过门的样子；empty（walk 返回空）同上，证明那条 200 下限是唯一防线；no-right（匹配器不再认右侧拼写）恰 2 红，两种拼写各自承重；plant（把一行真的右尖括号标记追加进 `docs/ROADMAP_TO_PRODUCT.md`）恰 1 红，且报错原文点名 `docs/ROADMAP_TO_PRODUCT.md` 与它那一行的行号——那行是追加标记之后的文件末行，随文档增长而变，所以这里故意不抄数字，只抄「哪个文件、哪种拼写」，也就是本批要防的那次事故能被复现并被抓到；wide-left（把左侧常量里的空格删掉）实测 2 红，与 no-right 同集合——这一腿我事前没写进预测表，按实测记，不补写预言。跑完每一腿都把两个文件按 sha256 还原，末了工作树只剩门文件本身。全量基线：在代码提交 d337c3d（已经带上本批那份门文件）的平面上重跑整套，junit 实测 1676 例收集 · 1675 passed · 1 failed · 0 errors · 0 skipped · 903.67 秒（junit 属性 time=903.452），本批那份门文件在这份 junit 里占 4 例且 4 例全绿。那唯一一条红仍是上一批按案例名归因过的那条上游项 `tests/test_config_surface.py::test_every_config_getattr_names_a_field_config_declares`，报错原文点名 stage_routing at minicc/web.py:1273，读取点由 2eed638 引入，与本批无关。
+
+### 5 边界
+这条门只判已经进仓库的形状：标记写进被忽略的目录、或者写进没 add 的工作副本，它管不着，那是钩子的地盘。它也不改变 `git rebase --continue` 不跑 pre-commit 这件事——那是 git 的行为，仓库能做的只是让后果变成一条红。那条 stage_routing 的红后来由第一百三十二批（M8-T135）结掉，本批与上一批当时一起留在本地，等共享尖端绿了才快进；落到 dd8d0e5 之后本条重编号为第一百三十一批（原记第一百一十六批）。上文所有数字都是当时那个平面的实测，不是本平面的。
+
+## 第一百三十二批 M8-T135：阶段路由的校验层——上游把对象接进了路由器，却没有人在它进路由器之前问一句
+
+### 1 来源与占号
+上一批（第一百三十一批，原记第一百一十六批）收尾时，整套基线里唯一那条红是 `tests/test_config_surface.py::test_every_config_getattr_names_a_field_config_declares`，报错点名 `stage_routing`：`minicc/web.py` 读 `getattr(config, "stage_routing", None)`，而 `Config` 从不声明这个字段。本批开工前先把共享尖端取回来量了一遍：它已经不是当初的 2eed638，而是 dd8d0e5——比共同祖先多 35 个提交，其中 M11-T1 到 M11-T10 已经把那条字段声明了（默认 `None`）、也新增了 `pick_object` 把 config.json 里的对象接进了 `StageRouter`，还把 CLI 面接上了（M11-T7）。于是缺陷换了形状但没消失：**接线的活儿上游做完了，校验一层还是空的**。`pick_object` 把对象原样交出，`StageRouter.__init__` 与 `route()` 直接索引它，而两个面调用 `route()` 都不在 `try` 里。上游账本已用到第一百二十九批，编号一百三十、一百三十一被本队列前两条重编号占住，本批取第一百三十二批。
+
+### 2 先量
+量法是把每种写坏的形状直接喂给裸路由器（`_bare_router`：`route()` 在 `enabled` 不为真时短路回 legacy 分支，所以没写开关的形状必须先把开关打开，否则见证报的「什么都没发生」其实是「没走到那条分支」），再按它实际做的事分类，19 种形状分成四格：
+
+- 5 个会炸——顶层是字符串、`custom_models` 的条目是字符串，这两个在 `__init__` 里就 AttributeError；`tiers` 是字符串在 `route()` 里 AttributeError；自定义模型指向未知档位、`stage_map` 指向不存在的档位各抛 ValueError。这些是从 `StageRouter` 逃到请求路径上的异常。
+- 11 个会说谎——形状合法却产出一条没人要求的路线，每一格都钉了实测的错误值与错误类型：`enabled` 写成字符串 `"false"` 按 Python 规则算真、effort 名拼错、未知的路由键、未知的档位键、阶段映射到空档位、轮数上限写成分数或字符串、成本上限写成字符串或负数、档位模型列表是空的或字符串、`failover` 带一个读不到的子键。
+- 2 个是死的——`failover.enabled` 与 `failover.max_retries_per_model`：路由器自己的 docstring 例子写了这两个键，而 `_get_fallback_models` 只读 `fallback_tiers`。
+- 1 格是「按位置解包」那一类：`cost_usd_per_1m` 写三列。路由器一侧它不炸在构造也不炸在路由，只炸在第一次计价（`estimate_cost` 按四个位置解包），所以门里给它单独一格 `DEFERRED_ROW`——「边界不拦就留到账单上」，而这一格在边界上是被拒的（`stage_routing.custom_models.m.cost_usd_per_1m 必须是 4 项数组`）。这条改口的原因见 §5：本批改口前它写的是「生产里 0 个调用者，先记账不拦」，那句话在 dd8d0e5 上不成立。
+
+第二个量出来的是面：`StageRouter(` 的构造点从一处变成两处（`minicc/web.py`、`minicc/main.py:718`），两处传的关键字一模一样，都是 `fallback_models` 与 `stage_routing_config`，都走 `getattr(config, "stage_routing", None)`。第三个是词表：路由器只读那 8 个顶层键、`failover` 里只读 `fallback_tiers`、`custom_models` 里读 9 个字段——与我推导时那份逐字相同，M11 新增的 `provider`/`base_url`/`api_key_env` 本来就在 `custom_models` 的 9 个名字里，镜像没有过期。
+
+### 3 修法
+graft 而不是覆盖：`pick_object` 保留上游的形状与那条 `None` 契约（缺省＝关闭，不动已经发布的行为），只在它两个接受点各插一次 `normalize_stage_routing(..., path=source_name)`——一个是 config.json 里直接就是对象，一个是环境/`.env` 带来的 JSON 字符串。`source_name` 是本批补的第二件事：上游那三句形状报错一律写 `MINICC_STAGE_ROUTING`，用户在 config.json 里写的其实是 `stage_routing`，报错把人支去改一个他没写过的键。这条不是我先想到的，是门抓的（见 §4）。校验器本体是 `normalize_stage_routing` 加六个镜像常量（`REASONING_EFFORTS`、`STAGE_NAMES`、`STAGE_TIER_NAMES`、`_STAGE_ROUTING_KEYS`、`_FAILOVER_KEYS`、`_CUSTOM_MODEL_KEYS`）；`config.py` 不能 import `minicc.agent`（agent 反过来 import config），所以这六份名单全是手抄，门里第二架正反两向把它们钉在从 `router.py` 的 AST 里走出来的消费者事实上。路由器 docstring 里那个 failover 例子删掉两个没有读者的键，`minicc.config.example` 的阶段路由那一节补上被拒绝的词表——并且把本批带来的第二条 `#MINICC_STAGE_ROUTING=` 示例行合进上游那条，一个键在同一个文件里留两行示例，`_documented_keys()` 会按后者静默覆盖前者。
+
+### 4 验证
+平面 `t130fix`（`git worktree add --detach` off dd8d0e5，尖端 eb9a826），解释器是仓库 `.venv` 的 Py3.11：本批新门 `tests/test_stage_routing_config_reaches_the_router.py`（53 例）与它钉住的那份既有配置面门 `tests/test_config_surface.py`（47 例）一起跑，`--collect-only` 实测 100 例收集，跑出来 `100 passed in 11.28s`（rc=0）。同一对靶子在变异前后各跑一次，未变异控制（SHIP 臂）就是这条绿。
+
+臂表：TARGETS = `tests/test_stage_routing_config_reaches_the_router.py` + `tests/test_config_surface.py`，每臂先把两个目标文件重基回 pristine 字节、`finally` 还原并按 sha256 校验（`restored: 2 files, mismatches=none`）。每格预测在跑之前写死，`0` 表示「这一格必须继续绿」的豁免腿。
+
+| 臂 | 改的是什么 | 预测 | 实测 | 判决 |
+| --- | --- | --- | --- | --- |
+| SHIP | 不改，原样跑 | 0 红 / 100 | 0 红，rc=0 | MATCHED |
+| A1 | 把 `stage_routing=stage_routing` 这个关键字从 `Config(...)` 里卸掉 | 4 格 | 3 格 | MISMATCH（见下） |
+| A2 | 校验不再执行，对象原样交给路由器 | 3 格 | 19 格（18 条形状拒绝 + `per_stage_effort`） | MATCHED |
+| A3 | 环境里的 JSON 字符串不再解码 | 3 格 | 2 格 | MATCHED |
+| A4 | `enabled` 改成强制转换而不是逐项校验 | 3 格 | 3 格 | MATCHED |
+| A5 | 拼错的 effort 名直通 | 3 格 | 3 格 | MATCHED |
+| A6 | 不再认识 `custom_models` | 3 格 | 5 格 | MATCHED |
+| A7 | 路由器多一个镜像不知道的档位 | 1 格 | 1 格 | MATCHED |
+| A8 | 把两面都读的那个字段整个删掉声明 | 10 格 | 45 格 | MATCHED |
+
+A1 那条 MISMATCH 错在预测侧，代码没有可修的洞：留绿的是 `test_both_documented_spellings_and_the_environment_layer_parse_equal`，它的三条断言全是比较——裸键与 `MINICC_` 拼法相等且不等于 `{}`、环境层与前两者相等、两个 `Config` 整体相等。卸掉关键字后三个字段的读出一律是 `None`，`None != {}` 成立，于是「所有拼法都读到同一个默认值」这种死字段照样满足这条。把内容钉住的是隔壁 `test_the_loaded_config_object_reaches_the_router`（比的是 `normalize_stage_routing(DOCUMENTED_EXAMPLE)`），臂在那里照红，所以整套门对这一臂仍是 3 格捕获。本批不把它改成第二条内容钉：那条案例的名字与报错声明的就是「拼法之间相等」，把内容塞进去只会让两条钉子共用一个失败原因。这条预测错按实测留档。
+
+A2 的 19 格与 A8 的 45 格都比预测大，原因同源且是好事：A2 里 15 条形状拒绝格与 3 条静默谎言格一起塌（校验没了，拒绝与谎言同时消失），A8 里「字段不存在」先炸在既有门上——`test_a_documented_key_works_from_config_json_under_both_spellings` 的 38 行参数化＋`test_documented_env_names_strip_onto_config_fields`＋`test_every_config_getattr_names_a_field_config_declares` 两条结构钉子，再加本批门的 5 格，合计 45。
+
+整套基线在同一平面、同一尖端（`t130fix@eb9a826`，`-q -W error --junitxml`）：`1843 passed in 823.17s (0:13:43)`，junit 属性 `tests=1843 failures=0 errors=0 skipped=0`，红清单为空，rc=0。对本批的增量口径是 +0 红。
+
+这条基线取了两次，第一次要记下来因为它的红不是代码的。第一次（同一 eb9a826）报 `1 failed, 1842 passed in 948.17s`，唯一那条红是 `tests/test_cleanup_version.py::test_all_version_consumers_agree`——`importlib_metadata.version("minicc")` 读回 0.1.0，而 `minicc.__version__` 是 0.2.0。归因按「红可能来自我的调用」来做：在 dd8d0e5 上另建一个不含本批三个提交的平面，单跑那一例，`1 failed in 1.59s`——红在基线复现，与本批无关。机制是这台机器的 `.venv` 里还躺着 0.2.0 发布（f0720fc）之前装出来的 editable 元数据（`__editable__.minicc-0.1.0.pth`、`minicc-0.1.0.dist-info`），而 pytest 的搜索顺序里 site-packages 先于刚建出来、还没有 `minicc.egg-info` 的平面根；主工作副本有 Version 0.2.0 的 `minicc.egg-info`，能被先查到，所以从来没红过。第二次跑之前平面上已经有了那份 egg-info（第一次跑到中途出现的，mtime 04:05，谁生成的本批没有查证；它不在三个提交里也不在 git 里，被 .gitignore 挡着），同一例绿。根治是给共享 venv 重跑一次 `pip install -e .` 把元数据刷到 0.2.0——那是并发 agent 也在用的东西，本批没动，留给用户决定。
+
+### 5 边界
+拒绝不等于修好：本批只在边界上拒，`StageRouter` 自己仍然假定交给它的东西是干净的——那是有意的顺序（校验在配置层，路由在请求层），但也意味着任何绕过 `load_config` 直接构造路由器的代码拿不到这道保护。三列成本那一格的口径在记档时被自己订正了一次：起草时写的是「`estimate_cost` 在生产里 0 个调用者，所以这条只记账不拦」，落到 dd8d0e5 之后按定义处重查，`route_wiring._stage_cost_estimator` 里有 6 个生产调用点（`main.py:436`、`main.py:829`、`web.py:1622`、`web.py:1940`、`web.py:2188`、`web.py:2243`），M11 的成本上限真的按这个估算走——所以边界必须拦，而且已经拦了（`_COST_COLUMNS = 4`）。订正的不是代码，是本批自己那句过度声明。未知的网关自定义模型名照旧静默回落到主模型（本批把这句实测写进一条案例，把「静默」变成受测事实，没有改变它）。CLI 的写入与命令拒绝仍会落到 `minicc/main.py` 的交互提示，答 `y` 就覆盖项目 deny。netguard 的 CGNAT 100.64/10 与 6to4/Teredo 仍等用户定口径，本批没有单方面放宽那道 fail-closed 守卫。
