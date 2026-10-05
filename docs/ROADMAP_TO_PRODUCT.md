@@ -10821,3 +10821,71 @@ A2 的 19 格与 A8 的 45 格都比预测大，原因同源且是好事：A2 �
 
 ### 5 边界
 拒绝不等于修好：本批只在边界上拒，`StageRouter` 自己仍然假定交给它的东西是干净的——那是有意的顺序（校验在配置层，路由在请求层），但也意味着任何绕过 `load_config` 直接构造路由器的代码拿不到这道保护。三列成本那一格的口径在记档时被自己订正了一次：起草时写的是「`estimate_cost` 在生产里 0 个调用者，所以这条只记账不拦」，落到 dd8d0e5 之后按定义处重查，`route_wiring._stage_cost_estimator` 里有 6 个生产调用点（`main.py:436`、`main.py:829`、`web.py:1622`、`web.py:1940`、`web.py:2188`、`web.py:2243`），M11 的成本上限真的按这个估算走——所以边界必须拦，而且已经拦了（`_COST_COLUMNS = 4`）。订正的不是代码，是本批自己那句过度声明。未知的网关自定义模型名照旧静默回落到主模型（本批把这句实测写进一条案例，把「静默」变成受测事实，没有改变它）。CLI 的写入与命令拒绝仍会落到 `minicc/main.py` 的交互提示，答 `y` 就覆盖项目 deny。netguard 的 CGNAT 100.64/10 与 6to4/Teredo 仍等用户定口径，本批没有单方面放宽那道 fail-closed 守卫。
+
+## 第一百三十三批 · M8-T136：钩子根本没启动时也得回答自己的 on_failure——decision 的词表里只有 allow|deny 有读者
+
+### 1 现象与实测
+`minicc/hooks.py` 的 `_run_one` 有四条失败支路（env 键名非法、spawn 失败、管道失败、超时）加两条退出码支路。
+四条失败支路里三条按 `spec.on_failure` 折成 `deny|allow`，只有 env 键名那一支写的是 `decision="error"`。
+这个拼写在包里**没有任何读者**：`HookOutcome.denied` 是 `self.decision == "deny"`，`minicc/agent/loop.py`
+里唯一消费判决的地方是 `outcome.denied`（UserPromptSubmit 与 PreToolUse 两条腿），`denial_reason()` 也只扫
+`decision == "deny"`；trace 行 `status="error" if entry.get("decision") == "deny" else "ok"`，所以 "error" 被记成
+ok。净效果：hooks.json 里明明写了 `"on_failure": "deny"` 的 PreToolUse 钩子，只要 env 里有一个像 `MY-VAR`
+这样的键名（连字符、点、数字开头都算），钩子就**根本不启动**，工具调用被静默放行，日志还说一切正常。
+
+平面读数（`git worktree add --detach` off `3821132`，仓库 `.venv` 的 Py3.11，断言过
+`minicc.hooks.__file__` 就在平面里）：
+
+| 输入 |  shipped 结果 |
+| --- | --- |
+| `{"env": {"MY-VAR": "1"}, "on_failure": "deny"}` | `entry.decision == "error"`，`outcome.denied is False` |
+| `{"env": {"MY-VAR": "1"}, "on_failure": "continue"}` | 同上，也是 `"error"` |
+| `{"env": {"9x": "1"}}`、`{"env": {5: "1"}}`（键被 `str()` 过） | 同上 |
+| 对照 `{"env": {"MY_VAR": "1"}}` + `exit 2` | `"deny"`，`denied is True`（钩子机制本身是活的） |
+
+红是被拒的判决，不是崩溃；对照绿证明我改的那条支路确实是被敲到的那一条。
+
+### 2 改法，以及刻意没做的那一半
+`minicc/hooks.py:295` 的 env 支路改成与其余三支同口径：`decision="deny" if spec.on_failure == "deny" else "allow"`，
+`reason` 保留 `_scrubbed_env` 的原报错（钩子为什么没跑起来必须可查，不吞成空串）。
+
+**没有**把 env 键名校验挪到 `_parse`。取舍是被量出来的，不是偏好：`HookRunner.__init__` 捕获 `HookConfigError`
+后 `self.specs = []`，装载期校验是**全有或全无**——一个 env typo 会把同一文件里所有 deny 钩子一并拆掉，那是比
+本缺陷更宽的 fail-open。所以现在仍然是「这一支钩子失败，按它自己的策略办」，其余钩子照常运行。这一取舍由
+`test_the_illegal_env_key_hook_loads_while_a_broken_matcher_blanks_the_set` 从两头钉住：非法 env 键 ⇒
+`load_error is None` 且 `len(specs) == 1`；坏 matcher ⇒ `load_error` 非空且 `specs == []`。
+
+### 3 门
+`tests/test_hook_launch_failure_honours_the_deny_policy.py`，9 例。其中三条是行为腿（代码里直接构造 HookSpec 的
+deny 腿、continue 腿、以及写进 `.minicc/hooks.json` 由 `HookRunner(workspace)` 读到的可达腿——生产里两个构造点
+`minicc/main.py:467`、`minicc/web.py:1243` 都不传 `config=`，走的就是文件这条路），一条是控制腿（能正常启动并
+`exit 2` 的钩子不许被我的改动碰到），两条是词表普查：`_run_one` 的 AST 走查把它能写出的 decision 拼尽列举出来，
+必须恰为 `{"allow", "deny"}`（下限 5 条赋值，防止扫描读空），以及测试侧不许再断言被删掉的拼写——这条用 AST 而不用
+行文本，因为本批文档自己就引用了那个拼写；检测器另带一条正控制（喂给它 `decision == "error"` 的样本，要求命中 2）。
+另有两条机制钉：`HookOutcome` 对任何非 "deny" 拼写都报 `denied is False`（这就是"未读拼写＝放行"的证据），以及
+`agent/loop.py` 至今仍在读 `.denied`（≥2 处，否则本批统一的词表只是装饰）。
+
+### 4 见证
+TARGETS = 本批新门一个文件（9 例）。每臂先把 `minicc/hooks.py` 重基到候选字节，打完再还原并做 sha256 比对；
+预测表在跑之前写好。
+
+| 臂 | 改了什么 | 预测 | 实测 | 判据 |
+| --- | --- | --- | --- | --- |
+| PRE | 跑 HEAD `3821132` 的原代码 | 4 红 / 9 | 4 红 / 9（rc=1） | MATCHED |
+| SHIP | 不改（就是提交的字节） | 0 红 | 0 红 / 9（rc=0） | MATCHED |
+| A1 | 该支路无条件 deny（策略被忽略） | 1 红（continue 例） | 1 红 / 9 | MATCHED |
+| A2 | 该支路无条件 allow（策略被忽略） | 2 红（两条 deny 腿） | 2 红 / 9 | MATCHED |
+| A3 | 拒绝但不点名 offending key | 2 红（deny 例 + continue 例） | 2 红 / 9 | MATCHED |
+| A4 | 让 `_scrubbed_env` 接受连字符键，于是这条支路永远走不到 | 2 红（两条 deny 腿） | 3 红 / 9 | MISMATCH（预测侧） |
+
+A4 的多出来的那条红是 `test_the_same_failure_with_on_failure_continue_allows_and_stays_in_vocabulary` 的第二个子句：臂让 `_scrubbed_env` 接受连字符键，于是那条钩子真的启动并 `exit 0`，decision 仍是 allow（预测对的部分），但 reason 变成空串，「拒绝必须点名 offending key」那条断言就红了。我写预测时把这条案例只当成词表腿，漏了它也带披露断言——是预测漏计，不是门的洞：门比我的预测更紧。其余 5 臂（含 PRE 与 SHIP 两条控制）逐例命中，臂表里没有一条是靠还原失败凑出来的：每臂跑完都校验 `minicc/hooks.py` 与候选字节 sha256 相同，最后一次还原后另行比对。
+
+### 5 基线与边界
+整套基线：同一平面、同一解释器，`-q -W error --junitxml`，junit 属性 tests=1852 failures=0 errors=0 skipped=0，time 798.652s，红清单为空（无），rc=0。
+
+边界：`run()` 汇总所有条目时仍只看 `entry["decision"] == "deny"`——本批把词表收干净之后这句是安全的，但它没有
+一条「新增第三种判决」的告警门；如果将来要区分「钩子跑了但宿主出错」，得同时给 `HookOutcome` 与
+`agent/loop.py` 的读者加认知，不能只加拼写。另外 `load_error` 的读者只有 `describe()`，也就是说一份坏掉的
+hooks.json 在 CLI 里除了日志没有别的告示——那是 M8-T137 的候选（把装载失败告诉人）。netguard 的 CGNAT
+`100.64/10` 与 6to4/Teredo 仍等用户定口径，本批没有动那道 fail-closed 守卫；CLI 里答 `y` 覆盖项目 deny 那条
+仍开着，但它的改法在 `minicc/main.py`，那是冻结文件，不在我这一批的权限里。
