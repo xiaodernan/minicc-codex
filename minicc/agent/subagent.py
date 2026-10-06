@@ -42,6 +42,7 @@ from .state import BudgetExceeded
 from ..logging_setup import quiet_loop_teardown
 from ..tools.registry import ToolError, ToolRegistry, ToolSpec
 from ..tools.schemas import ToolResult
+from ..hooks import HookRunner
 
 SUBAGENT_TOOL_NAME = "task"
 # Readonly evidence tools only. No network (parent research stays in the
@@ -420,6 +421,7 @@ class _SubagentRunner:
                         on_trace=bubble,
                         cancel_event=child_cancel,
                         should_cancel=(lambda: bool(parent_cancel and parent_cancel.is_set())),
+                        hooks=HookRunner(self.workspace),
                     )
                 finally:
                     close = getattr(provider, "close", None)
