@@ -9,7 +9,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from minicc.benchmarks import _objective_oracle, _write_results, load_tasks, main, run_benchmark
+from minicc.benchmarks import _objective_oracle, _write_results, build_report, load_tasks, main, run_benchmark
 
 
 def _fake_provider_factory(monkeypatch: pytest.MonkeyPatch, answer: str = "评测任务已完成。") -> None:
@@ -499,3 +499,38 @@ def test_the_objective_oracle_defers_while_an_abandoned_worker_owns_the_workspac
         f"the abandoned worker {worker.name!r} never stopped after its event was set, "
         "so it still owns this workspace while the next test runs"
     )
+
+
+def test_infra_failures_are_counted_and_clean_rate_excludes_them():
+    """M8-T154: provider-call deaths are visible, not disguised model zeros."""
+    tasks = [
+        {"id": "t1", "category": "write"},
+        {"id": "t2", "category": "write"},
+        {"id": "t3", "category": "write"},
+        {"id": "t4", "category": "write"},
+    ]
+    results = [
+        {"task_id": "t1", "status": "completed", "passed": True, "error": None},
+        {"task_id": "t2", "status": "failed", "passed": False,
+         "error": "LLM 调用失败: Error code: 429 - {'code': 'quota_exceeded'}"},
+        {"task_id": "t3", "status": "failed", "passed": False, "error": None},
+        {"task_id": "t4", "status": "not_run", "passed": None},
+    ]
+    m = build_report(tasks, results)["metrics"]
+    assert m["infra_failure_count"] == 1
+    assert m["pass_at_1"] == 0.3333  # frozen denominator: 1 passed of 3 graded
+    assert m["pass_at_1_ex_infra"] == 0.5  # 1 passed of 2 non-infra graded
+
+
+def test_all_infra_failures_report_zero_without_faking_a_clean_rate():
+    tasks = [{"id": "t1", "category": "write"}, {"id": "t2", "category": "write"}]
+    results = [
+        {"task_id": "t1", "status": "failed", "passed": False,
+         "error": "LLM 调用失败: Connection error."},
+        {"task_id": "t2", "status": "failed", "passed": False,
+         "error": "LLM 调用失败: Error code: 429 - quota exceeded"},
+    ]
+    m = build_report(tasks, results)["metrics"]
+    assert m["infra_failure_count"] == 2
+    assert m["pass_at_1"] == 0.0  # graded and failed, not None
+    assert m["pass_at_1_ex_infra"] is None  # empty denominator stays None

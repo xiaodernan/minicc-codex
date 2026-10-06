@@ -89,6 +89,18 @@ def _measurement(value: object) -> bool:
     return type(value) in (int, float) and math.isfinite(value) and value >= 0
 
 
+#: Rows whose run never produced graded model work (provider call died:
+#: 429 quota, connection error, HTTP-layer timeout) share the unified
+#: "LLM 调用失败" error prefix from agent/loop.py:899. That is a property
+#: of the environment, not of the model, so it is counted separately
+#: (M8-T154) instead of silently reading as a model zero.
+_INFRA_ERROR_PREFIX = "LLM 调用失败"
+
+
+def _is_infra_failure(row: dict[str, Any]) -> bool:
+    return row.get("passed") is False and (row.get("error") or "").startswith(_INFRA_ERROR_PREFIX)
+
+
 def _declared_grader_type(task: dict[str, Any]) -> str:
     """Who would have judged this task, for the rows where nobody got to.
 
@@ -289,6 +301,16 @@ def build_report(tasks: list[dict[str, Any]], results: list[dict[str, Any]] | No
             # ungraded one either; without its own column a report reader only
             # sees the denominator shrink (M8-T80 wrote the field, nothing read it).
             "grading_refusal_count": sum(1 for row in completed if row.get("grading_refused")),
+            # M8-T154: pass_at_1 keeps its frozen denominator (graded rows,
+            # infra failures included) so history stays comparable; the two
+            # fields below make "the gateway was down" readable instead of
+            # masquerading as a model zero.
+            "infra_failure_count": sum(1 for row in completed if _is_infra_failure(row)),
+            "pass_at_1_ex_infra": (
+                round(sum(_is_infra_failure(row) is False and row["passed"] is True for row in non_infra_gradable) / len(non_infra_gradable), 4)
+                if (non_infra_gradable := [row for row in gradable if not _is_infra_failure(row)])
+                else None
+            ),
             "acceptance_success_rate": round(len(passed) / len(gradable), 4) if gradable else None,
             "false_completion_rate": round(sum(row["claimed_complete"] and row["passed"] is False for row in gradable) / len(gradable), 4) if gradable else None,
             # The mirror image of false_completion_rate: grading is skipped unless the
@@ -316,6 +338,7 @@ def build_report(tasks: list[dict[str, Any]], results: list[dict[str, Any]] | No
         "notes": [
             "not_run is not a pass or failure.",
             "pass_at_1 is the acceptance rate on graded cases only; ungraded cases are excluded and coverage is reported separately.",
+        "infra_failure_count counts rows that failed before any graded work happened (provider call errors); pass_at_1_ex_infra excludes them, while pass_at_1 keeps its denominator unchanged.",
             "Command graders and fake-provider runs do not establish real-world coding accuracy.",
             "Token and cost metrics remain null when the provider does not expose usage or pricing.",
             "Tokens and cost per success include expenditure on failed attempts; missing measurements keep these metrics null.",
@@ -343,7 +366,7 @@ def markdown_report(report: dict[str, Any]) -> str:
     # a hand-written copy is a second owner of "which metrics exist" and silently
     # drops any key added to only one of the two places (M8-T86). The declared
     # reading order is honoured, then every remaining key is printed in sorted order.
-    preferred = ("execution_completion_rate", "grading_coverage", "gradable_task_count", "grading_refusal_count", "acceptance_success_rate", "false_completion_rate", "reviewer_false_negative_count", "pass_at_1", "latency_p50_ms", "latency_p95_ms", "tokens_per_success", "cost_per_success_usd", "mean_repair_attempts", "token_usage_available", "cost_available")
+    preferred = ("execution_completion_rate", "grading_coverage", "gradable_task_count", "grading_refusal_count", "acceptance_success_rate", "false_completion_rate", "reviewer_false_negative_count", "infra_failure_count", "pass_at_1", "pass_at_1_ex_infra", "latency_p50_ms", "latency_p95_ms", "tokens_per_success", "cost_per_success_usd", "mean_repair_attempts", "token_usage_available", "cost_available")
     for key in [k for k in preferred if k in metrics] + sorted(set(metrics) - set(preferred)):
         lines.append(f"| {key} | {value(metrics.get(key))} |")
     lines.extend(["", "| Task | Category | Status | Passed |", "| --- | --- | --- | --- |"])
