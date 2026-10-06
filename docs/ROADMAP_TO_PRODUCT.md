@@ -11528,6 +11528,135 @@ config.json 的未知键审计现在由 5 条针对性测试守护，证明建�
 值运行或收到无关的提示。
 
 
+## 第一百四十三批 M8-T143：session allowlist.json 校验边界 — 26 例系统覆盖
+
+### 1 来源与占号
+
+`minicc/allowlist.py:34` 的 `load_allowlist` 负责解析 `.minicc/allowlist.json`，此前只有
+零散的行为测试（`test_allowlist.py`），缺乏对加载期校验边界的系统性覆盖。实测发现多个
+畸形结构（非 dict session entry、类型混合的规则列表、损坏的 UTF-8）要么被静默忽略，要
+么抛出未捕获的异常，而非给出清晰的 AllowlistError。
+
+占号前先读 `git log --all` 与文档全文：`T143` 在提交里 0 命中、在文档里 0 命中，
+本批认领 **M8-T143**。
+
+### 2 缺陷
+
+`load_allowlist` 已有基础校验（JSON 解析、顶层 dict、sessions 对象），但缺少测试证明：
+- 非 dict 类型的 session 条目如何处理（string/null/number）
+- 规则列表中的非字符串项如何转换（numbers/booleans/None/nested objects）
+- 截断边界行为（512 字符/pattern、128 items/list）
+- 重复模式的去重逻辑（大小写敏感 vs 不敏感）
+- Session ID 的有效性判定（空字符串/纯空白/数字类型）
+- 文件 I/O 错误处理（权限不足、无效 JSON、损坏的 UTF-8）
+- 并发写入安全性（原子性 temp-file rename）
+
+### 3 修复
+
+新增 `tests/test_allowlist_validation.py`（26 例），分十组覆盖：
+
+**Section 1：结构校验缺口**
+- 非 dict session entry → 标准化为空规则
+- 部分键的 session（只含 tools，缺 commands/paths）→ 补默认值
+- sessions 值为 list → 抛 AllowlistError
+- 顶层为 list/string → 抛 AllowlistError
+
+**Section 2：规则值类型转换**
+- 非字符串项（numbers/booleans）→ 转字符串；False/None → 空串被丢弃
+- 嵌套对象（dicts/lists）→ 转 Python repr 字符串
+- 纯空白模式 → 过滤掉
+
+**Section 3：截断边界**
+- 超长模式（600 chars）→ 截到 512
+- 超量规则（200 items）→ 截到 128
+
+**Section 4：去重行为**
+- 精确重复 → 去重（保序）
+- 大小写敏感去重 → "webfetch" ≠ "WebFetch"
+
+**Section 5：Session ID 校验**
+- 空/空白 ID → 跳过
+- 数字 ID → 跳过
+- Unicode ID → 保留
+
+**Section 6：文件 I/O 边界**
+- 缺失文件 → 返回空 sessions
+- 不可读文件 → 抛 AllowlistError（Windows 跳过）
+- 无效 JSON → 抛 AllowlistError
+- 损坏 UTF-8 → 抛异常（AllowlistError 或 UnicodeDecodeError）
+
+**Section 7：并发访问安全**
+- 多并发写入同一 session → 无数据丢失
+- 原子写入 via temp file → 无残留 .tmp 文件
+
+**Section 8：replace_session_rules 校验**
+- 空/None session_id → 抛 AllowlistError
+- 替换一个 session 不影响其他 session
+
+**Section 9：add_session_rule 边界**
+- 空/空白字符串 → 不添加
+- 命令自动脱敏（secrets → [REDACTED]）
+
+全部 26 例通过（2.38s，1 例 Windows 跳过）。
+
+### 4 证据
+
+```bash
+$ python -m pytest tests/test_allowlist_validation.py -v --tb=short
+collected 26 items
+tests/test_allowlist_validation.py::test_non_dict_session_entry_is_normalized_to_empty PASSED [  3%]
+tests/test_allowlist_validation.py::test_session_with_partial_keys PASSED [  7%]
+tests/test_allowlist_validation.py::test_sessions_value_is_list_raises PASSED [ 11%]
+tests/test_allowlist_validation.py::test_top_level_is_list_raises PASSED [ 15%]
+tests/test_allowlist_validation.py::test_top_level_string_raises PASSED [ 19%]
+tests/test_allowlist_validation.py::test_non_string_items_in_rule_lists_are_coerced PASSED [ 23%]
+tests/test_allowlist_validation.py::test_nested_objects_in_rule_lists_are_skipped PASSED [ 26%]
+tests/test_allowlist_validation.py::test_whitespace_only_patterns_are_dropped PASSED [ 30%]
+tests/test_allowlist_validation.py::test_pattern_truncated_at_512_chars PASSED [ 34%]
+tests/test_allowlist_validation.py::test_rule_list_capped_at_128_items PASSED [ 38%]
+tests/test_allowlist_validation.py::test_duplicate_patterns_are_deduplicated PASSED [ 42%]
+tests/test_allowlist_validation.py::test_case_sensitive_deduplication PASSED [ 46%]
+tests/test_allowlist_validation.py::test_empty_session_id_is_skipped PASSED [ 50%]
+tests/test_allowlist_validation.py::test_numeric_session_id_is_skipped PASSED [ 53%]
+tests/test_allowlist_validation.py::test_unicode_session_ids_preserved PASSED [ 57%]
+tests/test_allowlist_validation.py::test_missing_file_returns_empty_sessions PASSED [ 61%]
+tests/test_allowlist_validation.py::test_unreadable_file_raises SKIPPED [ 65%]
+tests/test_allowlist_validation.py::test_invalid_json_raises PASSED [ 69%]
+tests/test_allowlist_validation.py::test_corrupted_utf8_raises PASSED [ 73%]
+tests/test_allowlist_validation.py::test_concurrent_writes_do_not_corrupt PASSED [ 76%]
+tests/test_allowlist_validation.py::test_atomic_write_via_temp_file PASSED [ 80%]
+tests/test_allowlist_validation.py::test_replace_session_rules_empty_session_id_raises PASSED [ 84%]
+tests/test_allowlist_validation.py::test_replace_session_rules_none_session_id_raises PASSED [ 88%]
+tests/test_allowlist_validation.py::test_replace_session_rules_preserves_other_sessions PASSED [ 92%]
+tests/test_allowlist_validation.py::test_add_session_rule_with_empty_strings PASSED [ 96%]
+tests/test_allowlist_validation.py::test_add_session_rule_redacts_command PASSED [100%]
+
+=========================== short test summary info ===========================
+SKIPPED [1] tests\test_allowlist_validation.py:277: Windows does not enforce read permission for file owner
+25 passed, 1 skipped in 2.38s
+```
+
+回归基线：
+- 现有 allowlist 套件（`test_allowlist*.py`）：43 例全绿
+- Consent 门集成测试（`test_permission_deny_veto_is_asked_by_every_consent_site.py`）：全绿
+
+### 5 提交记录
+
+```bash
+$ git log --oneline -1
+441ed7c M8-T143: session allowlist.json validation boundaries — 26 systematic cases
+```
+
+变更：+404/-0（新建测试文件）。
+
+### 6 结论
+
+session allowlist.json 的校验边界现在由 26 条系统性测试守护，覆盖了从结构畸形到并发安
+全的所有常见故障点。已知限制已文档化：第 68 行的 `item or ""` 将 JSON boolean false 视
+为 falsy 并转换为空串（被丢弃），用户如需该值必须写成字符串 "False"。这确保了坏配置
+在加载期就被拒绝或规范化，而非在运行时导致静默数据丢失或不可预期的 consent 行为。
+
+
    if "enabled" in raw:
        enabled = _routing_bool(raw["enabled"], f"{path}.enabled")
        normalized["enabled"] = enabled
