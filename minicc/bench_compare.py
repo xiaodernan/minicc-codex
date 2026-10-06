@@ -9,6 +9,10 @@ aligns two ``build_report`` JSON outputs task-by-task and reports the movement:
 * per-success cost delta with a paired bootstrap interval,
 * latency p50/p95 deltas,
 * a per-category breakdown.
+*
+* The infra-failure metrics (M8-T154: ``infra_failure_count``,
+* ``pass_at_1_ex_infra``) ride along from each report's metrics block and are
+* gateable, so a quota-blackout run cannot silently read as a model zero.
 
 ``--gate`` turns the comparison into a pass/fail check (exit 1 on any
 violation) so a regression cannot merge silently. ``--repeat N`` declares how
@@ -41,6 +45,10 @@ MIN_REPEATS_FOR_PASSK = 10
 #: job pins its own floors in the workflow file.
 GATE_METRICS = frozenset({
     "pass_at_1",
+    # M8-T155: the infra-failure rate rides along from build_report metrics
+    # (M8-T154); like the refusal family the gate reads the whole variant
+    # report, and a bare results array has no metrics so it fails closed.
+    "pass_at_1_ex_infra",
     "cost_per_success_usd",
     "latency_p95_ms",
     "grading_coverage",
@@ -358,6 +366,11 @@ def compare_reports(
             # threshold them; a report that never computed them gates fail-closed.
             "grading_refusal_count": base_metrics.get("grading_refusal_count"),
             "reviewer_false_negative_count": base_metrics.get("reviewer_false_negative_count"),
+            # M8-T155: the infra-failure family rides along with the same
+            # semantics; absent metrics stay None and a gate on them fails
+            # closed instead of borrowing pass_at_1.
+            "infra_failure_count": base_metrics.get("infra_failure_count"),
+            "pass_at_1_ex_infra": base_metrics.get("pass_at_1_ex_infra"),
         },
         "variant": {
             **var_stats,
@@ -367,6 +380,9 @@ def compare_reports(
             "grading_coverage": var_metrics.get("grading_coverage"),
             "grading_refusal_count": var_metrics.get("grading_refusal_count"),
             "reviewer_false_negative_count": var_metrics.get("reviewer_false_negative_count"),
+            # M8-T155: same ride-along as the baseline block.
+            "infra_failure_count": var_metrics.get("infra_failure_count"),
+            "pass_at_1_ex_infra": var_metrics.get("pass_at_1_ex_infra"),
         },
         "pass_at_1_delta": pass_delta,
         "pass_at_1_delta_ci": pass_delta_ci,
@@ -456,6 +472,7 @@ def render_delta_table(comparison: dict[str, Any], gates: Sequence[dict[str, Any
         f"| pass@1 | {_fmt(base['pass_at_1'])} | {_fmt(var['pass_at_1'])} | {_fmt(comparison['pass_at_1_delta'])} |",
         f"| pass@1 Wilson 95% CI | {_fmt_ci(base['pass_at_1_ci'])} | {_fmt_ci(var['pass_at_1_ci'])} | — |",
         f"| pass@1 差值 Newcombe 95% CI | — | — | {_fmt_ci(comparison['pass_at_1_delta_ci'])} |",
+        f"| pass@1 ex-infra | {_fmt(base['pass_at_1_ex_infra'])} | {_fmt(var['pass_at_1_ex_infra'])} | — |",
         f"| cost_per_success_usd | {_fmt(base['cost_per_success_usd'], 6)} | {_fmt(var['cost_per_success_usd'], 6)} | {_fmt(comparison['cost_per_success_delta'], 6)} |",
         f"| cost 差值 bootstrap 95% CI | — | — | {_fmt_ci(comparison['cost_per_success_delta_ci'], 6)} |",
         f"| latency_p50_ms | {_fmt(base['latency_p50_ms'], 1)} | {_fmt(var['latency_p50_ms'], 1)} | {_fmt(comparison['latency_p50_delta_ms'], 1)} |",

@@ -369,3 +369,60 @@ def test_benchmarks_main_dispatches_compare_subcommand(tmp_path):
     assert benchmarks_main(["compare", "--baseline", str(base_path),
                             "--variant", str(var_path)]) == 0
 
+# --- infra-failure family (M8-T155) ----------------------------------------
+
+
+def _results_with_infra(passed_flags, infra_indexes):
+    """Mixed results: infra rows died before any graded work (M8-T154 shape)."""
+    rows = _results(passed_flags)
+    for i in infra_indexes:
+        rows[i]["passed"] = False
+        rows[i]["status"] = "failed"
+        rows[i]["error"] = "LLM 调用失败: 429 quota exceeded"
+    return rows
+
+
+def test_ex_infra_ride_along_matches_build_report_metrics():
+    baseline = build_report(_tasks(), _results([True, False] * 6))
+    # The last 3 failures are a provider blackout, not model work.
+    variant = build_report(
+        _tasks(),
+        _results_with_infra([True] * 6 + [False] * 6, infra_indexes=[9, 10, 11]),
+    )
+    cmp = compare_reports(baseline, variant)
+    assert cmp["variant"]["infra_failure_count"] == variant["metrics"]["infra_failure_count"] == 3
+    # 6 real passes over the 9 really-graded (non-infra) tasks.
+    assert cmp["variant"]["pass_at_1_ex_infra"] == variant["metrics"]["pass_at_1_ex_infra"] == 0.6667
+    # The frozen pass_at_1 keeps counting infra rows (denominator unchanged).
+    assert cmp["variant"]["pass_at_1"] == variant["metrics"]["pass_at_1"] == 0.5
+    assert cmp["baseline"]["pass_at_1_ex_infra"] == baseline["metrics"]["pass_at_1_ex_infra"]
+
+
+def test_ex_infra_gate_holds_and_fails_closed():
+    baseline = build_report(_tasks(), _results([True, False] * 6))
+    variant = build_report(
+        _tasks(),
+        _results_with_infra([True] * 6 + [False] * 6, infra_indexes=[9, 10, 11]),
+    )
+    cmp = compare_reports(baseline, variant)
+    assert evaluate_gates(cmp, ["pass_at_1_ex_infra>=0.66"])[0]["violated"] is False
+    assert evaluate_gates(cmp, ["pass_at_1_ex_infra>=0.7"])[0]["violated"] is True
+    # A bare results array carries no metrics: the gate fails closed instead of
+    # borrowing pass_at_1 (M8-T118 refusal-family precedent).
+    bare = compare_reports(baseline, build_report(_tasks(), _results([True] * 6 + [False] * 6))["results"])
+    result = evaluate_gates(bare, ["pass_at_1_ex_infra>=0.0"])[0]
+    assert result["actual"] is None and result["violated"] is True
+
+
+def test_main_ex_infra_gate_end_to_end(tmp_path, capsys):
+    base_path = tmp_path / "base.json"
+    var_path = tmp_path / "var.json"
+    base_path.write_text(json.dumps(build_report(_tasks(), _results([True, False] * 6))), encoding="utf-8")
+    var_path.write_text(json.dumps(
+        build_report(_tasks(), _results_with_infra([True] * 6 + [False] * 6, infra_indexes=[9, 10, 11]))
+    ), encoding="utf-8")
+    assert main(["--baseline", str(base_path), "--variant", str(var_path),
+                 "--gate", "pass_at_1_ex_infra>=0.66"]) == 0
+    assert main(["--baseline", str(base_path), "--variant", str(var_path),
+                 "--gate", "pass_at_1_ex_infra>=0.7"]) == 1
+    assert "pass_at_1_ex_infra" in capsys.readouterr().out
