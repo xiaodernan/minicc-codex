@@ -8,6 +8,7 @@ reaping are exercised end to end — no mocking of ``subprocess``.
 from __future__ import annotations
 
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -325,3 +326,65 @@ def test_build_registry_lists_mcp_tools(tmp_path):
     finally:
         manager.close()
     assert any(n.startswith("mcp__srv__") for n in registry.names())
+
+
+# --- M8-T138: the CLI /tools surface lists configured MCP tools --------------
+# The M5-3 recheck found this wire missing: build_registry can list mcp__ tools
+# (test above), but minicc.main never built a manager, so the REPL could only
+# ever print builtins. This gate drives the real main() end to end: a real
+# .minicc/mcp.json, a real spawned stdio server, the real /tools branch.
+
+def test_cli_tools_command_lists_configured_mcp_tools(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    spec_path = workspace / "spec_cli.json"
+    spec_path.write_text(
+        json.dumps({"tools": [{"name": "search", "description": "search things"}]}), encoding="utf-8"
+    )
+    _write_mcp_json(workspace, "srv", spec_path)
+
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("MINICC_HOME", str(home))
+    monkeypatch.setenv("MINICC_API_KEY", "sk-mcp-cli-gate")
+    monkeypatch.setenv("MINICC_BASE_URL", "https://mcp-cli-gate.test/v1")
+    monkeypatch.setenv("MINICC_MODEL", "mcp-cli-gate-model")
+    monkeypatch.setenv("MINICC_REASONING_EFFORT", "high")
+    monkeypatch.setenv("MINICC_TIMEOUT", "180")
+    keep = {
+        "MINICC_HOME",
+        "MINICC_API_KEY",
+        "MINICC_BASE_URL",
+        "MINICC_MODEL",
+        "MINICC_REASONING_EFFORT",
+        "MINICC_TIMEOUT",
+    }
+    for key in [k for k in os.environ if k.startswith("MINICC_") and k not in keep]:
+        monkeypatch.delenv(key)
+
+    answers = iter(["/tools", "/exit"])
+    monkeypatch.setattr("builtins.input", lambda *_: next(answers))
+
+    from minicc.main import main
+
+    class _CliProviderSentinel:
+        """The /tools turn never chats; construction and close are all it needs."""
+
+        def __init__(self, **kwargs: object) -> None:
+            self.init_kwargs = dict(kwargs)
+
+        async def chat(self, messages: object, tools: object, on_delta: object = None) -> object:
+            raise AssertionError("the /tools gate must not reach the provider")
+
+        async def close(self) -> None:
+            return None
+
+    monkeypatch.setattr("minicc.main.OpenAICompatibleProvider", _CliProviderSentinel)
+
+    exit_code = main(["--workspace", str(workspace), "--no-stream"])
+    captured = capsys.readouterr()
+    out = captured.out + captured.err
+    assert exit_code == 0
+    assert "mcp__srv__search" in out, f"/tools did not list the configured MCP tool; got:\n{out}"

@@ -28,6 +28,7 @@ from .logging_setup import (
     quiet_loop_teardown,
     register_secret,
 )
+from .mcp import McpError, McpManager
 from .prompt import build_system_prompt
 from .route_wiring import (
     _route_provider_spec,
@@ -702,7 +703,17 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     editor = Editor(workspace, audit_path=workspace / ".minicc" / "audit.jsonl")
-    registry = build_registry(editor, yolo=config.yolo)
+    # M8-T138 (M5 recheck): the CLI must see workspace MCP servers exactly
+    # like the web surface does (web.py builds its registry with
+    # ``mcp_manager=self._mcp_for_workspace(workspace)``). Before this wiring
+    # /tools could never list an MCP tool because no manager existed on this
+    # side. A malformed config degrades to "no MCP tools", mirroring
+    # _mcp_for_workspace's McpError handling - it must not kill the REPL.
+    try:
+        mcp_manager: McpManager | None = McpManager(workspace)
+    except McpError:
+        mcp_manager = None
+    registry = build_registry(editor, yolo=config.yolo, mcp_manager=mcp_manager)
     system_prompt = build_system_prompt(workspace, output_style=str(getattr(config, "output_style", "") or ""))
     try:
         session = SessionStore(workspace, args.session_id)
@@ -886,6 +897,8 @@ def main(argv: list[str] | None = None) -> int:
                 )
         finally:
             await provider.close()
+            if mcp_manager is not None:
+                mcp_manager.close()
 
     asyncio.run(run())
     return 0

@@ -692,6 +692,24 @@ def test_get_mcp_reports_unconfigured_workspace(live: _LiveServer) -> None:
     assert payload.get("configured", 0) == 0
 
 
+def test_get_mcp_surfaces_malformed_config_as_error_not_500(tmp_path: Path) -> None:
+    # M8-T138 (M5-4 recheck): the service loads .minicc/mcp.json at
+    # construction (web.py _set_current_mcp), so a broken file must be
+    # survived at boot and surfaced by the route: 200, configured=0, non-empty
+    # error - never a 500, never a silent "configured: 0" that reads healthy.
+    (tmp_path / ".minicc").mkdir()
+    (tmp_path / ".minicc" / "mcp.json").write_text("{ not json", encoding="utf-8")
+    server = _LiveServer(tmp_path, auth=WebAuth("tok", required=False))
+    try:
+        status, _, body = _request(f"{server.url}/api/mcp", method="GET")
+    finally:
+        server.shutdown()
+    assert status == 200
+    payload = json.loads(body)
+    assert payload.get("configured", 0) == 0
+    assert payload["error"], payload
+
+
 def test_get_changes_returns_workspace_summary(live: _LiveServer) -> None:
     status, _, body = _request(f"{live.url}/api/changes", method="GET")
     assert status == 200
