@@ -12334,3 +12334,42 @@ M8-T152 修的是 webauth 的裸异常，本批修 benchmarks 的报告语义。
 ### 5 下一批边界
 
 配额恢复后 M4-6 补真通过率；bench_compare gate 面接入 ex_infra 为候选；复核表仅剩 M8（并行在动）。
+
+## 第一百五十五批 M8-T155：ex-infra 门——A/B 门槛认得「网关坏了」
+
+### 1 背景
+
+M8-T154 把 infra 失败从模型零分里分出来（`infra_failure_count`/`pass_at_1_ex_infra`），但
+`bench_compare --gate` 的 `GATE_METRICS` 不认新字段——迭代门只能拿被 infra 污染的
+`pass_at_1` 做阈值，配额黑窗照样把变体判死。T154 的边界一节如实记了这条候选。占号：T155
+双查（`git log --all --grep` + ROADMAP）空闲；本批同时探得 discovery-api 配额恢复（探针
+HTTP 200，`output/m4_quota_probe.json` 留档），M4-6 补真通过率重新可行。
+
+### 2 实现
+
+- `GATE_METRICS` 增 `pass_at_1_ex_infra`（pass 族 gate 用 `>=` 方向，M8-T118 政策沿用）。
+- **ride-along 而非重算**：`infra_failure_count`/`pass_at_1_ex_infra` 从两侧报告的 metrics
+  块透传进 baseline/variant dict（M8-T118 refusal 族同款先例）——口径单一所有权仍在
+  `build_report`，compare 侧不复制第二份判据。裸 results 数组无 metrics → 字段 None →
+  gate fail-closed，不借 `pass_at_1` 冒充。
+- 渲染表增 `pass@1 ex-infra` 行；模块 docstring 记录 ride-along 语义。
+
+### 3 门证
+
+| 门 | 读数 |
+| --- | --- |
+| `test_bench_compare.py` | **26 passed**（23 既有 + 3 新：ride-along 与 build_report metrics 逐字相等 / 双臂 gate + 裸数组 fail-closed / `main()` 端到端 exit 0 与 1） |
+| 回归面（+test_benchmark_runner.py） | **47 passed** |
+| ruff | `bench_compare.py` 零报错；`tests/test_bench_compare.py:16` F401 系**既有债**（HEAD 同款 import，非本批引入） |
+| mypy | HEAD 副本包内上下文对比：**4 = 4 errors**，位置逐一对齐（行号平移），零新增 |
+| CLI 双臂冒烟 | 真报告对（variant 6 pass + 3 infra + 3 fail）：`pass_at_1_ex_infra>=0.66` → 实际 0.6667 **通过** exit 0；`>=0.7` → **违反** exit 1 + `[GATE FAILED]`；渲染表新行 `\| pass@1 ex-infra \| 0.5 \| 0.6667 \| — \|` |
+
+### 4 边界
+
+- ride-along 语义与 refusal 族一致：gate 阈值作用于**整个 variant 报告**的 metrics（非对齐
+  子集重算）——对齐任务集与全任务集读数可能不同，这是 M8-T118 既定语义不是本批新引入。
+- infra 判据仍是文本前缀（T154 同款边界）：agent/loop.py 错误文案改版时两处一起跟。
+
+### 5 下一批边界
+
+配额已恢复：M4-6 重跑 24 fixture 补真通过率（长跑批，独立提交）；复核表仅剩 M8（并行在动）。
