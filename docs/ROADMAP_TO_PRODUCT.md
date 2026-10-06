@@ -12480,3 +12480,21 @@ M4-6 全量挂起（配额）；复核表 M8（并行）；specproof 战区未�
 
 CI run **37529712537**（树 0245923，含 T156 码）全绿——Windows job 的
 `test_concurrent_writes_produce_single_token` 与全量门在原子写落地后通过。
+
+### 门证补记（T157）
+
+T157 两个 CI run（37530906719 树 f738a83 / 37530952583 树 dcf98d6）红，唯一失败
+`test_join_liveness.py::test_every_thread_join_in_the_suite_is_followed_by_a_liveness_read`
+——元门抓到本批新测试里读者线程 `join(timeout=5)` 之后没有回读 `is_alive()`
+（写者侧有；T149 同款纪律）。本地门证只跑了定向 `test_bench_tasks`（14 passed），
+没跑全量元门——门证面缺口如实记录。修复：读者 join 后补 `assert not r.is_alive()`
+（一行）；定向门 `test_bench_tasks.py + test_join_liveness.py` **17 passed**。
+
+M4-6 探针补记：真任务 v2-greeting-already-correct 单条后台跑 exit 0，171s 后
+仍是 429 quota exceeded——配额对真实 agent 负载未恢复（「min 探针 200 ≠ 真实负载
+可用」第三次成立）。真数据同时端到端验证了 T154 语义：`infra_failure_count=1`、
+`pass_at_1_ex_infra=null`（排除后分母空如实 None，不借 pass_at_1 冒充）、
+`pass_at_1=0.0`（分母冻结口径不变）、`reviewer_false_negative_count=1`
+（greeting fixture 本来就对、oracle 诊断 pass、reviewer 没跑成——正中该计数
+设计场景，M4-6 429 实例第二例）。output/m46_probe3.json 留档。M4-6 全量继续
+挂起等配额真恢复；复核表 M8（并行在动）；specproof 战区未清（并行 #201）。
