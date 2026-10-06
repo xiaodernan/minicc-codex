@@ -16,6 +16,7 @@ requests, per the MCP streamable HTTP transport spec.
 
 from __future__ import annotations
 
+import difflib
 import hashlib
 import json
 import os
@@ -141,10 +142,23 @@ def load_mcp_config(workspace: Path) -> list[McpServerConfig]:
     entries = raw.get("servers", raw) if isinstance(raw, dict) else raw
     if not isinstance(entries, dict):
         raise McpError("MCP 配置需要 servers 对象")
+    
+    # M8-T145: recognized keys for each server entry
+    RECOGNIZED_KEYS = {"command", "url", "args", "env", "headers", "read_only"}
     configs: list[McpServerConfig] = []
     for name, value in entries.items():
         if not isinstance(value, dict):
             raise McpError(f"MCP server {name!r} 配置必须是对象")
+        
+        # Report unrecognized keys with suggestions
+        unknown = set(value) - RECOGNIZED_KEYS
+        for key in sorted(unknown):
+            hint = difflib.get_close_matches(key, RECOGNIZED_KEYS, n=1, cutoff=0.78)
+            msg = f"MCP server {name!r} 中的键 {key!r} 不会被读取（已按默认值运行）"
+            if hint:
+                msg += f"，是否想写 {hint[0]!r}？"
+            LOG.warning(msg)
+        
         has_command = isinstance(value.get("command"), str) and value["command"].strip()
         has_url = isinstance(value.get("url"), str) and value["url"].strip()
         if not has_command and not has_url:
