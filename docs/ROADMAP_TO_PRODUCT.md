@@ -11883,6 +11883,75 @@ MCP server 配置的未知键审计现在由 11 条针对性测试守护，证�
 议（difflib.get_close_matches）。未知键不阻止加载（向后兼容），但会通过 logging.warning
 告知用户。这确保了用户在编辑 mcp.json 后能立即发现拼写错误，而非沉默地按默认值运行。
 
+---
+
+## 第一百四十六批 M8-T146：web_token.json 顶层类型校验与持久化边界 — 22 例系统覆盖
+
+### 1 任务描述
+
+审查 web 认证 token 文件 `.minicc/web_token.json` 的安全与验证边界，确保：
+- 坏配置在启动期被拒绝而非运行时崩溃
+- 类型转换行为明确且可预测
+- 文件权限与并发访问安全
+
+### 2 发现的问题
+
+#### 2.1 非 dict 顶层未校验（已修复）
+
+`load_or_create_token` 读取持久化 token 文件时，对非 dict 顶层（list/null/int/str）没有类型检查，导致 `data.get("token")` 触发 `AttributeError` 而非 `WebAuthError`。
+
+**位置**：`webauth.py:88-91`
+
+**修复**：插入 `isinstance(data, dict)` 检查并抛出 WebAuthError。
+
+#### 2.2 已知行为：`item or ""` 把 JSON false 当 falsy
+
+第 91 行 `str(data.get("token") or "")` 将 JSON boolean `false` 视为 falsy → 空字符串 → stripped → 丢弃 → 生成新 token。这与 allowlist T143 的相同模式一致。
+
+### 3 修复代码
+
+```python
+# webauth.py:88-93
+if store.is_file():
+    try:
+        data = json.loads(store.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as exc:
+        raise WebAuthError(f"无法读取 {store}: {exc}") from exc
+    if not isinstance(data, dict):
+        raise WebAuthError(f"{store} 顶层必须是 JSON 对象，得到 {type(data).__name__!r}")
+    token = str(data.get("token") or "").strip()
+    if token:
+        return token, False
+```
+
+### 4 门测试（22 例）
+
+新建 `tests/test_webauth_validation.py`：
+
+| 类别 | 案例数 | 覆盖内容 |
+|------|--------|----------|
+| 顶层结构 | 4 | 非 dict/null/int/str → 抛错 |
+| 缺失/空 token | 3 | {} / "" / 空白 → 生成新 token |
+| 类型转换 | 7 | bool/number/null/array/object → str() 或跳过 |
+| 文件 I/O | 3 | 损坏 UTF-8 / 不可读 / 不可写父目录（Windows 跳过 2） |
+| 并发写入 | 1 | 10 线程竞争不损坏文件 |
+| 权限 | 2 | POSIX 创建时 0o600 / 已有文件不收紧（Windows 跳过） |
+| 弱 token | 1 | 单字符接受无警告（文档行为） |
+| 额外键 | 1 | 只读 "token"，其他忽略 |
+
+### 5 提交记录
+
+```bash
+$ git log --oneline -1
+43475aa M8-T146: web_token.json 顶层类型校验门
+```
+
+变更：+308/-0（新建测试文件 +2 lines 实现）。
+
+### 6 结论
+
+web_token.json 的校验边界现在由 22 条系统性测试守护，证明了 load_or_create_token 对所有常见畸形输入的拒绝行为。关键修复：非 dict 顶层现在抛出 WebAuthError 而非 AttributeError。已知行为：`item or ""` 把 JSON false 当 falsy → 生成新 token（同 allowlist T143）。文件权限只在创建时设置 0o600，不收紧已有文件的过宽权限（文档行为）。
+
 
    if "enabled" in raw:
        enabled = _routing_bool(raw["enabled"], f"{path}.enabled")
