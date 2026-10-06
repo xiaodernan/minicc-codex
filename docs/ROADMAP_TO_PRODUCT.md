@@ -12382,3 +12382,54 @@ agent 负载立即打脸：`--task-id v2-greeting-already-correct` 单条探针�
 「LLM 调用失败」。**M4-6 全量继续挂起**，等配额对真实负载恢复后再探。这条探针同时是
 M8-T154 语义的活案例：`pass_at_1=0.0`、`infra_failure_count=1`、`pass_at_1_ex_infra=None`
 三者并存——报告不再把网关故障读成模型零分，分母空时如实 None。
+
+## 第一百五十六批 M8-T156：token store 原子写——并发首启读不到半写文件
+
+### 1 背景
+
+T155 的 CI（run 37525348677）Windows job 红：`test_concurrent_writes_produce_single_token`
+断言 `errors` 空，实得 `WebAuthError("无法读取 ...web_token.json: Expecting value")`。T155
+零触碰 webauth（只动 bench_compare），Linux 全绿、Windows 偶红 = 竞态被 CI 踩中。本地复现
+（15 跑 3 红）后用异常 repr 抓到完整竞态链，**三段都不是测试过严，全是产品码缺口**：
+
+1. `store.write_text(...)` **非原子**——读者 `is_file()` 在写者写一半时为 True，读到半写
+   JSON（JSONDecodeError）；窗口 = 整个写过程（毫秒级）。
+2. 原子化后写者反向踩：Windows `os.replace` 撞「目标被他人打开（读者）或正在被替换
+   （写者）」→ PermissionError；窗口微秒级。
+3. 再退避后读者仍踩：replace 交换目录项瞬间，**读者的 CreateFile 短暂 ACCESS_DENIED**
+   （Errno 13，`[Errno 13] Permission denied` 被既有读包装收进 WebAuthError）。
+
+### 2 实现
+
+- 写路径改为 write-then-replace（`benchmarks._write_results` 同款形状）：NamedTemporaryFile
+  （同目录、`delete=False`）写 payload + flush + fsync → `os.replace` 原子上位（POSIX 与
+  Windows 同语义）——读者要么见旧完整文件要么见新完整文件，永远见不到半写。
+- `_atomic_replace(source, dest)`：PermissionError 退避重试 8 次（10ms 递增），写者侧冲突
+  兜底；POSIX replace 原子永不触发。
+- `_read_store_json(store)`：读者侧 PermissionError 退避重试 8 次（5ms 递增）；**JSONDecodeError
+  不重试**——原子 replace 不可能暴露半写，读到坏 JSON 就是真坏，重试反而掩盖。
+- 写路径前 double-check：生成 token 后再读一次 store，赢者已写好就直接采用（消除 thundering
+  herd 下几乎全部 replace-replace 冲突）。
+
+### 3 门证
+
+| 门 | 读数 |
+| --- | --- |
+| 红证（修复前） | 本地 15 跑 3 红 + CI run 37525348677 Windows job 红（Linux 同树绿） |
+| 竞态闭合（修复后） | 复现脚本 10 线程 300 轮 **0 红**（中间态：仅原子写 28/30 红 → +写者退避 1/40 → +double-check 1/80 → +读者退避 0/300） |
+| `test_webauth_validation.py` | **18 passed** + 4 POSIX skip；webauth+web_security 面 **36 passed**，测试零改动（既有测试即红证，T152 先例） |
+| ruff / mypy | ruff 全过；mypy 1 错 = `check_headers` 的 `headers.get`（:205，HEAD 同款既有债，本批未触碰函数） |
+
+### 4 边界
+
+- 退避重试只认 `PermissionError`（Windows 语义）；其他 OSError 立即进既有 WebAuthError 包装，
+  语义不放宽。
+- double-check 采用了赢者 token 而丢弃自己生成的——「哪个 token 被采用」依赖 replace 完成序，
+  这是并发首启的固有非确定性，测试断言（token 合法、errors 空）不依赖它。
+- `_read_store_json` 对 JSONDecodeError 的零重试是刻意设计：若未来真读到坏 JSON，说明原子性
+  被破坏，应该响而不是忍。
+
+### 5 下一批边界
+
+M4-6 全量真跑仍挂起（配额对真实负载 429，见 T155 补记）；复核表仅剩 M8（并行在动）；
+specproof 战区未清（#197-#199 刚提交，工作树 5+ 脏文件）。
