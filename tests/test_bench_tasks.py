@@ -381,6 +381,7 @@ def test_materialize_is_atomic_against_concurrent_readers(tmp_path):
     stop.set()
     for r in readers:
         r.join(timeout=5)
+        assert not r.is_alive()
 
     assert not bad_reads
     for failure in clean_failures:
