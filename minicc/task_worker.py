@@ -238,6 +238,24 @@ def _run_owned_worker(args: argparse.Namespace, workspace: Path, store: TaskStor
                     # Final persistence is synchronous and still propagates.
                     dirty.set()
 
+    def _final_flush(fallback_status: str) -> None:
+        """Best-effort terminal snapshot: a failed final write must not escalate.
+
+        The background flusher keeps the running-state record on disk; if this
+        terminal write cannot land (lease lost -> fenced; transient SQLite
+        lock), re-raising would replace the clean cancelled/failed/complete
+        exit with an unhandled traceback while the record cannot improve
+        anyway. Log and move on — the exit code and the log line still tell
+        the truth.
+        """
+        try:
+            _flush()
+        except Exception as exc:
+            LOG.error(
+                "final_flush_failed task_id=%s fallback_status=%s error=%s",
+                args.task_id, fallback_status, exc,
+            )
+
     def _heartbeat() -> None:
         # Model requests and snapshot serialization never delay lease renewal.
         while not stop_event.wait(HEARTBEAT_INTERVAL):
@@ -327,12 +345,12 @@ def _run_owned_worker(args: argparse.Namespace, workspace: Path, store: TaskStor
                 state["status"] = "failed"
                 state["error"] = str(result["error"])[:500]
             state["usage"] = dict(result.get("tokens_used") or {})
-        _flush()
+        _final_flush("completed")
         return 0
     except AgentCancelled:
         state["status"] = "cancelled"
         state["error"] = "任务已取消"
-        _flush()
+        _final_flush("cancelled")
         return 0
     except BaseException as exc:  # noqa: BLE001 - the worker owns its failure record
         LOG.error(
@@ -340,7 +358,7 @@ def _run_owned_worker(args: argparse.Namespace, workspace: Path, store: TaskStor
         )
         state["status"] = "failed"
         state["error"] = f"{type(exc).__name__}: {exc}"[:500]
-        _flush()
+        _final_flush("failed")
         return 1
     finally:
         LOG.info(

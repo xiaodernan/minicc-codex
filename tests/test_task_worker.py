@@ -582,3 +582,51 @@ def test_the_worker_wait_writes_down_its_own_patience() -> None:
     assert 0.2 <= elapsed < 5.0, (
         f"the message claims a 0.20s budget but the wait lasted {elapsed:.2f}s"
     )
+
+
+def test_worker_lease_loss_midflight_exits_cleanly(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """M8-T66: 终态快照被 fence（lease 丢失）时 worker 不许以未处理异常崩溃。
+
+    旧代码在 except 分支里再调裸 _flush()——lease 丢失时它再次抛
+    AgentCancelled，未处理异常替换掉干净的退出路径。修法后终态写入是
+    best-effort：记录不了就记日志，退出码照常表达结果。
+    """
+    import minicc.task_worker as worker_mod
+
+    store_path = tmp_path / "tasks.sqlite3"
+    real_store = TaskStore(store_path)
+    real_store.upsert({
+        "task_id": "task-lease-loss", "prompt": "p", "status": "queued",
+        "created_at_epoch": 1.0, "event_limit": 32, "stream_limit": 512,
+        "event_cursor": 0, "state_version": 1, "events_truncated": False,
+    })
+
+    class FencedStore(TaskStore):
+        upsert_calls = {"n": 0}
+
+        def upsert(self, snapshot, **kwargs):
+            self.upsert_calls["n"] += 1
+            if self.upsert_calls["n"] > 1:
+                return False  # 首次（初始快照）之后一律 fence 掉
+            return super().upsert(snapshot, **kwargs)
+
+    monkeypatch.setattr(worker_mod, "TaskStore", FencedStore)
+
+    argv = [
+        "--workspace", str(tmp_path),
+        "--task-id", "task-lease-loss",
+        "--session-id", "lease-loss",
+        "--message", "hello",
+        "--store-path", str(store_path),
+        "--config-json", json.dumps({
+            "yolo": True, "max_concurrent_tasks": 2, "sandbox_mode": "host",
+            "sandbox_image": "python:3.11-slim", "base_url": "https://example.test/v1",
+            "api_key": "k", "model": "m", "timeout": 10, "tool_mode": "auto",
+            "reasoning_effort": "high", "max_turns": 2, "compact_threshold": 300000,
+            "context_window_tokens": 300000,
+        }),
+        "--fake-provider",
+    ]
+    args = worker_mod.build_parser().parse_args(argv)
+    exit_code = worker_mod.run_worker(args)  # 旧代码：未处理 AgentCancelled 逃出
+    assert exit_code == 0
