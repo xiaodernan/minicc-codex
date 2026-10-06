@@ -83,7 +83,14 @@ def load_or_create_token(workspace: Path, explicit: str | None = None) -> tuple[
     if env_token:
         return env_token, False
     store = token_store_path(workspace)
-    if store.is_file():
+    try:
+        exists = store.is_file()
+    except OSError as exc:
+        # A state dir without the execute bit (e.g. chmod 0o444) makes even
+        # stat() fail with EACCES; surface it as WebAuthError, not a bare
+        # PermissionError leaking out of the web server startup path.
+        raise WebAuthError(f"无法访问 {store}: {exc}") from exc
+    if exists:
         try:
             data = json.loads(store.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError) as exc:
