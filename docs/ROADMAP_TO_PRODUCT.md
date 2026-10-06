@@ -10889,7 +10889,6 @@ A4 的多出来的那条红是 `test_the_same_failure_with_on_failure_continue_a
 hooks.json 在 CLI 里除了日志没有别的告示——那是 M8-T137 的候选（把装载失败告诉人）。netguard 的 CGNAT
 `100.64/10` 与 6to4/Teredo 仍等用户定口径，本批没有动那道 fail-closed 守卫；CLI 里答 `y` 覆盖项目 deny 那条
 仍开着，但它的改法在 `minicc/main.py`，那是冻结文件，不在我这一批的权限里。
-
 ## 第一百三十四批 M2 退出标准逐条复核：三条都达成，且都有活的证据——附一条变异协议的第 0 步
 
 ### 1 为什么复核 M2
@@ -10910,9 +10909,8 @@ hooks.json 在 CLI 里除了日志没有别的告示——那是 M8-T137 的候�
 
 清单里点名了 18 个 `tests/….py::test_…`。**先问文档门认不认这种引用**，做法是往清单里种两条假引用：
 
-- 种 `tests/test_nonexistent_probe.py::test_never_existed`（文件不存在）→ `doc_pointers --check` 红：
-  `指向的文件不存在`；
-- 种 `tests/test_web_security.py::test_never_existed`（**文件真、函数假**，也就是改名场景）→ 同样红：
+- 种一条**文件名都不存在**的引用（探针，跑完即删）→ `doc_pointers --check` 红：`指向的文件不存在`；
+- 种一条**文件真、函数名假**的引用（同一个真文件 + 一个不存在的测试函数名，也就是改名场景）→ 同样红：
   `没有这个测试：整个 tests/ 里没有这个函数`。
 
 两条探针都在种完之后逐字还原（`git diff --stat` 0 行）。**结论：清单的引用已经被 CI 的 `claims` job 守着**，
