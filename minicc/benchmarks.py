@@ -286,6 +286,14 @@ def build_report(tasks: list[dict[str, Any]], results: list[dict[str, Any]] | No
     return {
         "schema_version": 2,
         "generated_at_epoch": time.time(),
+        # M8-T159: which task suite this report describes, inferred from the
+        # task set itself (legacy-shape tasks infer legacy-1). A comparator
+        # needs this to refuse cross-suite comparisons instead of silently
+        # aligning zero tasks across two disjoint id spaces.
+        "suite_version": (
+            suite_versions.pop() if len(suite_versions := {str(task.get("suite_version", LEGACY_SUITE_VERSION)) for task in tasks}) == 1
+            else "mixed"
+        ),
         "fixture_count": len(tasks),
         "executed_count": len(completed),
         "results": rows,

@@ -426,3 +426,53 @@ def test_main_ex_infra_gate_end_to_end(tmp_path, capsys):
     assert main(["--baseline", str(base_path), "--variant", str(var_path),
                  "--gate", "pass_at_1_ex_infra>=0.7"]) == 1
     assert "pass_at_1_ex_infra" in capsys.readouterr().out
+
+
+# --- suite identity ride-along (M8-T159) ------------------------------------
+#
+# A report never said WHICH task suite it describes: comparing a behavior run
+# against a v2 run aligned zero tasks and printed a vague "no gradable tasks"
+# note, with no way to see the root cause. Reports must carry their suite
+# identity, and the comparator must name a mismatch instead of silently
+# comparing two disjoint id spaces.
+
+
+def test_build_report_carries_suite_version():
+    # Legacy-shape tasks (no suite_version key) infer legacy-1.
+    assert build_report(_tasks(), _results([True] * 12))["suite_version"] == "legacy-1"
+    # v2 tasks carry their declared suite_version through.
+    from minicc.bench_tasks import v2_tasks
+    assert build_report(v2_tasks()[:3], None)["suite_version"] == "v2-1"
+    # A task set that somehow mixes identities is not summed up by a guess.
+    mixed = _tasks() + [{"id": "x", "category": "write", "suite_version": "v2-1"}]
+    assert build_report(mixed, None)["suite_version"] == "mixed"
+
+
+def test_compare_flags_mismatched_suites():
+    baseline = build_report(_tasks(), _results([True, False] * 6))
+    variant = dict(baseline)
+    variant["suite_version"] = "v2-1"
+    variant["results"] = _results([True] * 9 + [False] * 3)
+    cmp = compare_reports(baseline, variant)
+    assert cmp["baseline"]["suite_version"] == "legacy-1"
+    assert cmp["variant"]["suite_version"] == "v2-1"
+    mismatch = [n for n in cmp["notes"] if "legacy-1" in n and "v2-1" in n]
+    assert mismatch, "套件不同必须写进 notes，不能静默对齐两个不相交的任务 ID 空间"
+
+
+def test_same_suite_adds_no_mismatch_note():
+    cmp = compare_reports(_report(_BASE_FLAGS), _report(_VAR_FLAGS))
+    assert not [n for n in cmp["notes"] if "套件" in n]
+
+
+def test_delta_table_shows_suite_versions():
+    cmp = compare_reports(_report(_BASE_FLAGS), _report(_VAR_FLAGS))
+    assert "legacy-1" in render_delta_table(cmp)
+
+
+def test_table_tolerates_reports_without_suite_version():
+    # A raw results array (pre-M8-T159 report) has no suite identity: it shows
+    # as unknown instead of crashing or inventing a suite name.
+    cmp = compare_reports(build_report(_tasks(), _results([True] * 12))["results"],
+                          _report(_VAR_FLAGS))
+    assert "unknown" in render_delta_table(cmp)

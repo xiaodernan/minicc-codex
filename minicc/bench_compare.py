@@ -255,6 +255,11 @@ def compare_reports(
     """Align two reports task-by-task and compute the movement between them."""
     base_rows, base_metrics = _normalize_rows(baseline)
     var_rows, var_metrics = _normalize_rows(variant)
+    # M8-T159: the suite identity rides along from the report top level. A raw
+    # results array predating M8-T159 carries none — it compares as "unknown"
+    # rather than inventing a suite name.
+    base_suite = baseline.get("suite_version") if isinstance(baseline, dict) else None
+    var_suite = variant.get("suite_version") if isinstance(variant, dict) else None
     base_by_id = _index(base_rows)
     var_by_id = _index(var_rows)
     shared = [tid for tid in base_by_id if tid in var_by_id]
@@ -272,6 +277,11 @@ def compare_reports(
         notes.append(
             f"任务集不完全对齐：baseline 独有 {len(base_only)} 条、variant 独有 "
             f"{len(var_only)} 条；delta 仅在 {len(shared)} 条共有任务上计算。"
+        )
+    if base_suite and var_suite and base_suite != var_suite:
+        notes.append(
+            f"套件不同：baseline 是 {base_suite}，variant 是 {var_suite}——两个任务 "
+            "ID 空间不相交，对齐数与差值不具可比性。"
         )
 
     pass_delta = (
@@ -358,6 +368,7 @@ def compare_reports(
         "variant_only_task_ids": var_only,
         "baseline": {
             **base_stats,
+            "suite_version": base_suite,
             "cost_per_success_usd": base_cost,
             "latency_p50_ms": base_lat["p50"],
             "latency_p95_ms": base_lat["p95"],
@@ -374,6 +385,7 @@ def compare_reports(
         },
         "variant": {
             **var_stats,
+            "suite_version": var_suite,
             "cost_per_success_usd": var_cost,
             "latency_p50_ms": var_lat["p50"],
             "latency_p95_ms": var_lat["p95"],
@@ -466,6 +478,8 @@ def render_delta_table(comparison: dict[str, Any], gates: Sequence[dict[str, Any
         "# minicc A/B 对比",
         "",
         f"对齐任务数: {comparison['aligned_task_count']} | repeat={comparison.get('repeat', 1)}",
+        # M8-T159: a report predating the suite stamp reads as unknown.
+        f"套件: baseline={base.get('suite_version') or 'unknown'} | variant={var.get('suite_version') or 'unknown'}",
         "",
         "| 指标 | baseline | variant | 差值 (var-base) |",
         "| --- | ---: | ---: | ---: |",
