@@ -12195,3 +12195,37 @@ for t in threads:
 ### 5 下一批边界
 
 至此复核表 M1 / M2 / M3 / M4 均有当日复核读数，剩 M8（并行车道在动的面，勿撞）。下一批候选：新产品缺口（从 §6 未勾选项挑）或与并行车道零交集的独立面。
+
+## 第一百五十二批 M8-T152：webauth 读取路径的 stat 入口也必须结构化——CI 在 Linux 上抓到裸 PermissionError
+
+### 1 背景
+
+CI run 37507986590（树=9eca614，Linux）红：`tests/test_webauth_validation.py::test_unwritable_parent_raises`
+期望 `WebAuthError`，实得**裸 `PermissionError`**。traceback 冒出点是 `minicc/webauth.py` 的
+`store.is_file()`——测试把 `.minicc` 目录 chmod 成 `0o444`（**无执行位**），POSIX 下 stat 目录内
+路径项需要 x 权限，于是存在性检查在**进入既有 write-path try 之前**就以 EACCES 炸出。
+M8-T146 的主题是「load_or_create_token 的畸形输入全部走 WebAuthError」，但只包了读取内容与
+写入两处 OS 入口，漏了这第三处。Windows 的 chmod 语义弱（0o444 不拦 stat），本地无法复现，
+红证只能由 CI 给出——这正是两条腿各有各的价值的实例。
+
+### 2 实现
+
+`load_or_create_token` 把 `store.is_file()` 的 stat 包进 `OSError` 处理，抛
+`WebAuthError(f"无法访问 {store}: ...")`。产品码改动 8 行；测试零改动（现有测试即红证）。
+
+### 3 实测证据
+
+| 方向 | 证据 |
+| --- | --- |
+| 红证 | CI run 37507986590 Linux：`1 failed, 1972 passed`，失败即本测试（PermissionError from pathlib.py:1013 via webauth.py:86） |
+| 本地回归 | `test_webauth_validation.py` 18 passed / 4 skipped（POSIX-specific 跳过）；与 `test_web_security.py` 合计 **36 passed / 57.64s，exit 0** |
+| 绿证 | （watch 后补记） |
+
+### 4 边界
+
+- 本修复不改任何权限语义：状态目录权限异常的失败模式从「web 服务启动期裸 traceback」变为「结构化 WebAuthError」，与 T146 已承诺的其余入口一致。
+- 绿证裁决只能来自 Linux CI run；本地 Windows 通过不构成对该测试的验证。
+
+### 5 下一批边界
+
+占号说明：T151 已被并行车道使用（62367ad），本批取 T152。复核表 M1-M4 已全清；M8 面并行车道在动，勿撞。下一批候选：§6 未勾选产品缺口。
