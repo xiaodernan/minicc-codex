@@ -88,6 +88,8 @@ def load_or_create_token(workspace: Path, explicit: str | None = None) -> tuple[
             data = json.loads(store.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError) as exc:
             raise WebAuthError(f"无法读取 {store}: {exc}") from exc
+        if not isinstance(data, dict):
+            raise WebAuthError(f"{store} 顶层必须是 JSON 对象，得到 {type(data).__name__!r}")
         token = str(data.get("token") or "").strip()
         if token:
             return token, False
