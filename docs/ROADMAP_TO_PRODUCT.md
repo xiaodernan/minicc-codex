@@ -12229,3 +12229,70 @@ M8-T146 的主题是「load_or_create_token 的畸形输入全部走 WebAuthErro
 ### 5 下一批边界
 
 占号说明：T151 已被并行车道使用（62367ad），本批取 T152。复核表 M1-M4 已全清；M8 面并行车道在动，勿撞。下一批候选：§6 未勾选产品缺口。
+
+## 第一百五十一批 M8-T151：静态服务包含边界成了门——asset_response 直调层与 HTTP 层各钉一遍，两臂见证
+
+### 1 来源
+
+T146 收尾时点名的下一候选：static_assets.py:56 的包含判定（resolve + is_relative_to）
+此前只有一条字面 `../outside.txt` 测试（test_optimization_core.py:222）。本批先做只读
+量测（一次性 probe，非测试）：13 种拼写直喂 asset_response、6 种 HTTP 路径过
+`unquote(path.lstrip("/"))` 变换（webserver.py:663）、manifest 别名与 junction 两路
+——全部 fail-closed，无产品缺陷。遂按「门」单位落地：把边界钉成表。
+
+占号：T150 被并行车道占用（M3 复核批，当时工作树里已有其记录），本批取 M8-T151。
+（本记录追加晚于第一百五十二批——批号在 62367ad 代码提交时已定，记录等本批全量围栏落地才补。）
+
+### 2 交付
+
+tests/test_static_serving_stays_in_root.py（12 例，+269/-0，提交 62367ad）：
+
+- 直调层拼写表（parametrize 6 行）：字面 `../`、交错 `./.././`、quad-dot（证明
+  拒绝不是前缀扫描）、Windows 反斜杠、Windows 盘符绝对、manifest 别名逃逸；
+- NUL 字节行：拒绝而非崩溃（按 (OSError, ValueError) 家族断言，实测
+  FileNotFoundError；HTTP 层 catch 同家族）；
+- 绝对 POSIX 拼写 `/etc/passwd` 被强制回根内并送达根内孪生文件（正向包含见证，
+  不靠拒绝成立）；
+- manifest 控制行：别名指向根内文件必须送达——manifest 解析失败会被静默吞掉
+  （`except (OSError, ValueError): pass`），没有这条，「别名逃逸被拒」在
+  manifest 根本没被解析时也会绿；
+- 根内 `..` 控制行：`assets/../index.html` 必须送达（拒绝是包含判定，不是 .. 恐惧症）；
+- junction 行：根内 junction 指向外部目录，`jn/secret.txt` 必须拒（resolve 跟链）；
+- HTTP 层：真服务器 + http.client 原样请求目标。控制行 GET /index.html 200 先行；
+  然后 `%2e%2e`、`..%2f`、`%2e%2e%5c`、quad-dot、`%00`、别名逃逸、junction 逐行
+  取 status+body，逐行收集一次报全（不用首个断言短路）；404 且正文不含两个外部
+  标记。收尾线程 join(3)+is_alive 声明（M8-T71 门形）。
+
+### 3 两臂见证（预测先写后跑）
+
+平面：`C:\Users\18414\AppData\Local\Temp\mc-t150\plane`（minicc 包副本 + 本测试
+文件；in-process 断言 minicc.__file__ 指向平面；static_assets.py 与仓库同哈希
+f3a4c661f1c8d728）。因全量基线在跑，臂不碰仓库工作树——平面副本即同一字节。
+
+| 臂 | 改动 | 预测（先写） | 实测 |
+| --- | --- | --- | --- |
+| 控制 | 无 | 12 passed / 0 skip | **12 passed**（7.88s） |
+| A | 删 `not target.is_relative_to(root) or ` 子句 | 7 红（backslash/literal/interleaved/drive-absolute/manifest-alias/junction/http）、5 绿 | **7 failed, 5 passed**——逐名相符 |
+| B | `resolve()` 换 `os.path.normpath`（词法化） | 恰 2 红（junction、http）、10 绿 | **2 failed, 10 passed**——相符 |
+
+臂 A 的 HTTP 失败消息把 5 行泄漏逐行打印（含标记名与 status 200）；臂 B 证明
+纯词法检查能通过全部 `../` 行、唯独 junction 行独立承重——junction 行不是装饰。
+臂后平面还原，两文件 sha256 与仓库一致（f3a4c661…）。
+
+### 4 回归证据
+
+| 命令 | 读数 |
+| --- | --- |
+| plane 控制 | **12 passed**（7.88s） |
+| 仓库 focused：新文件 + test_join_liveness | **15 passed**（21.08s） |
+| focused 回归：test_optimization_core + test_http_surface + test_packaging | **100 passed**（236.75s） |
+| 全量（b729776，含本批 12 例） | **1979 passed / 1 failed / 5 skipped / 0 errors**（共 1985 例；唯一红 `test_core_tools::test_bash_cancellation_terminates_long_running_process`，消息自述 0.25s beat 在同机两条全量腿并行时来不及到达 running 分支，孤立复跑 **1 passed in 6.30s**；与不含本批文件的并发腿 413d3b9（1973＝1966+2+5）对照 +12 例 +0 新红，该腿两红——doc_pointers 死豁免、route_coverage 文档命令数——在本腿均绿） |
+
+### 5 边界
+
+- Windows-first 拼写（反斜杠、盘符）在 POSIX 上是普通名字：断言（拒）两平面都
+  成立，但机制不同（越界被拒 vs 不存在），行内注释点名——这两行在 POSIX 上退化。
+- junction 行在无法建链的环境会 skip；本机 `_winapi.CreateJunction` 无需提权，
+  实测已跑（控制臂 0 skip 可证）。
+- 未动的面：`lstrip("/")` 后才 unquote 的顺序性已覆盖（`%2f` 引入前导斜杠的行被
+  强制回根内）；asset_response 的 alias→lstrip 链无独立缺陷。
