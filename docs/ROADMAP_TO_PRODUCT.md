@@ -11051,6 +11051,91 @@ provider 侧的增量装配已改由 `minicc/llm/stream_merge.py` 承担（`open
 - M1 的八个任务（T1–T8）**实现本身没有逐行复核**，只核了它们对应的退出标准读数。
 - 第三节全表仍未复核完：**M3/M4/M5/M8** 待做（M1 本批、M2 上一批、M6/M7 此前）。
 
+## 第一百一十一批 M8-T130：门说出自己的人口在哪个平面——tests-only 是量出来的构造，不是盲区
+
+### 1 来源与占号
+
+来源是第九十三批 §8-3：「被审的 11 个全在 `tests/`，`minicc/` 和 `scripts/` 今天是 0
+（实测）。因此 (a) 那一问在生产码里从没被真东西命中过：只有植入件证明它会命中。
+⇒ 要么在 `scripts/` 里出现一份语料报表，这条门的第二个平面才算有行为证据；
+现在要么在 `scripts/` 造一条真实的读，要么把这一点写进门自己的报错文字里。」
+
+占号前先读 `git log --all` 与文档全文：`T130` 在提交里 0 命中、在文档里 0 命中，
+本批认领 **M8-T130**。
+
+顺带核销第九十三批 §8-1（「问的是名字不是行为」）：它描述的那道旧门——在主人的
+body 里搜 `normcase` 一词，删调用留词仍绿——在今天的树上已经不存在。
+行为那一半现在是调用边界上的两格（供给折叠/恒等两种政策、记录主人到底问了什么，
+`test_the_identity_question_is_asked_per_segment_of_the_authored_spelling` 与
+`test_the_identity_gate_is_live_when_the_owner_stops_asking`，docstring 里点名了
+第九十三批的 W1/W3）；源码那一半是拼写表（`test_the_identity_question_is_the_hosts_own_function`
+查 `.lower(`、`.upper(`、`.casefold(` 三个折叠拼写）。「行为用调用边界证、源码用拼写表证」
+正是 §8-1 要的两半设计，已经有人按这个形状落了地，本批核验后关闭，不再动它。
+
+### 2 缺陷
+
+门说「没有人手抄」，但它的人口 100% 在 `tests/`：生产码里 (a) 那一问
+（装载了一份发版语料）从没被真东西命中过。本批量完确认这不是门瞎，
+而是一个没有被写下来的构造：
+
+| 读数（同一走盘，跑时 213 个文件） | 值 |
+| --- | --- |
+| body 里提到 `fixture` 键的函数 | 52 |
+| 其中还装载发版语料（被审人口） | 12，平面全在 `tests/` |
+| 生产侧读这个键的函数 | 6（`behavior_tasks`、`fixture_blockers`、`prepare_fixture`、 `require_writable_fixture`、`validate_task`、`run_benchmark`） |
+| 其中在同一模块内 reaches 语料装载 | **0** |
+
+根因是分层，不是盲区：语料只在 `benchmarks.main` 里装载一次
+（`tasks = load_tasks(args.fixtures)`），而读这个键的 helpers 从不装载。
+于是「装载 AND 读键」这个合取在生产侧恒为假，只在测试里成真——
+门的人口 tests-only 是构造使然，但门从来没说出过这一点。
+§8-3 的两个选项里，「在 `scripts/` 造一条真实的读」等于为凑人口现写生产代码，
+本批否掉（理由见 §5）；取第二个选项，但升级成一格会红的断言，而不只是一句报错文字。
+
+### 3 落地（只动 `tests/test_two_fixture_keys_must_share_one_workspace.py`）
+
+新增格 5 `tests/test_two_fixture_keys_must_share_one_workspace.py::test_the_layout_gate_says_which_plane_its_population_came_from`：
+按站点字符串里第一个斜杠之前的平面名给人口分平面，断言平面集合恰为 tests 一处。
+docstring 与报错文字里写进三样东西：上面的测量表、分层根因、
+以及变红后的操作指令（先验它 reaches 主人、再故意重定基线——
+和门里每个地板一样，是量出来的数，不是猜的）。
+
+冻的是**平面集合**，不是计数：`tests` 从 12 涨到 13 不会红；
+`minicc` 或 `scripts` 里出现任意一个被审站点才红。
+
+### 4 验证（双向）
+
+**预测表先写后跑**（写在本机临时文件 pred_table_130.md，跑之前落盘）。
+baseline 全绿 + 一条构造臂 F（往 `minicc/benchmarks.py` 末尾追加一个
+既装载语料又读键、且 reaches 主人的 `_plane_probe_future`，
+即「§8-3 第一个选项如果被采纳，世界会是什么样」），**全部 MATCHED**，
+零非预期红，生产文件按 sha256 还原为逐字节相同：
+
+| 臂 | R1 走盘 | R2 被审 | R3 本文件普查 | R4 委托≥6 & hand=0 | 旧植入件 | 8 个拼写植入件 | P5 平面 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| baseline | green 213 | green 12 | green | green 8/0 | green | 全绿 | green {tests:12} |
+| F 追加一个委托的生产侧读数 | green 213 | green 13 | green | green 9/0 | green | 全绿 | **红 {tests:12, minicc:1}** |
+
+F 臂下唯一的新站点，正是追加到 `minicc/benchmarks.py` 末尾的那个未来探针（臂还原后已不存在），
+它被计入委托（9）而非手抄（0）——臂的构造与预测逐字相符，
+这一格红的正是「平面变了」这一件事，别的一概没碰。
+
+门的自身：`python scripts/doc_pointers.py --check` **exit=0**；
+全量 `python -m pytest tests/ -q` → **1705 passed / 0 failed / 598.45s**，
+随后 `--check` 仍 **exit=0**。1705 = 上一批 1704 + 本格。
+
+### 5 边界
+
+- **没有为凑人口写生产代码**：§8-3 的第一个选项（在 `scripts/` 造一份语料报表）
+  本批否掉——门禁需要证据，但生产代码的去留只能由真实用例决定；
+  一个只为让门的人口好看而存在的报表，和它要抓的手抄是同一种病。
+  将来真有用例需要生产侧读语料，P5 会先红，届时按它的报错文字验委托、重定基线。
+- **格 5 不重复格 2 的工作**：格 2 管「人口够不够大」，格 5 管「人口在哪个平面」；
+  F 臂下格 2 照旧绿（13 ≥ 8），只有格 5 红——两格的臂正交。
+- 本批只提交一个测试文件，批次记录另一笔提交；走盘读数 213（含另一条流的工作树内容，
+  上一批跑时是 203），全量的 1705 格含那些未提交内容，那些不是本批的账。
+
+
 ## 第一百三十六批 M8-T138：M5 复核揪出一条断了两年的线——CLI 的 /tools 从没见过 MCP 工具
 
 ### 1 来源与占号
@@ -11119,3 +11204,164 @@ CLI 面从第一天起就没接这条线：配置了 MCP 的用户在 REPL 里 `
   turn 失败同源同待遇；「CLI 启动期降级提示」属新候选，不属 M5-4（那条只管坏
   配置文件）。
 - M3/M4/M8 复核在他车道或待做；M5 收口后复核表剩三面。
+## 第一百三十七批 M8-T120：门说出自己的人口在哪个平面——tests-only 是量出来的构造，不是盲区
+
+### 1 来源与占号
+
+来源是第九十三批 §8-3：「被审的 11 个全在 `tests/`，`minicc/` 和 `scripts/` 今天是 0
+（实测）。因此 (a) 那一问在生产码里从没被真东西命中过：只有植入件证明它会命中。
+⇒ 要么在 `scripts/` 里出现一份语料报表，这条门的第二个平面才算有行为证据；
+现在要么在 `scripts/` 造一条真实的读，要么把这一点写进门自己的报错文字里。」
+
+占号前先读 `git log --all` 与文档全文：`T120` 在提交里 0 命中、在文档里 0 命中，
+本批认领 **M8-T120**。
+
+顺带核销第九十三批 §8-1（「问的是名字不是行为」）：它描述的那道旧门——在主人的
+body 里搜 `normcase` 一词，删调用留词仍绿——在今天的树上已经不存在。
+行为那一半现在是调用边界上的两格（供给折叠/恒等两种政策、记录主人到底问了什么，
+`test_the_identity_question_is_asked_per_segment_of_the_authored_spelling` 与
+`test_the_identity_gate_is_live_when_the_owner_stops_asking`，docstring 里点名了
+第九十三批的 W1/W3）；源码那一半是拼写表（`test_the_identity_question_is_the_hosts_own_function`
+查 `.lower(`、`.upper(`、`.casefold(` 三个折叠拼写）。「行为用调用边界证、源码用拼写表证」
+正是 §8-1 要的两半设计，已经有人按这个形状落了地，本批核验后关闭，不再动它。
+
+### 2 缺陷
+
+门说「没有人手抄」，但它的人口 100% 在 `tests/`：生产码里 (a) 那一问
+（装载了一份发版语料）从没被真东西命中过。本批量完确认这不是门瞎，
+而是一个没有被写下来的构造：
+
+| 读数（同一走盘，跑时 213 个文件） | 值 |
+| --- | --- |
+| body 里提到 `fixture` 键的函数 | 52 |
+| 其中还装载发版语料（被审人口） | 12，平面全在 `tests/` |
+| 生产侧读这个键的函数 | 6（`behavior_tasks`、`fixture_blockers`、`prepare_fixture`、 `require_writable_fixture`、`validate_task`、`run_benchmark`） |
+| 其中在同一模块内 reaches 语料装载 | **0** |
+
+根因是分层，不是盲区：语料只在 `benchmarks.main` 里装载一次
+（`tasks = load_tasks(args.fixtures)`），而读这个键的 helpers 从不装载。
+于是「装载 AND 读键」这个合取在生产侧恒为假，只在测试里成真——
+门的人口 tests-only 是构造使然，但门从来没说出过这一点。
+§8-3 的两个选项里，「在 `scripts/` 造一条真实的读」等于为凑人口现写生产代码，
+本批否掉（理由见 §5）；取第二个选项，但升级成一格会红的断言，而不只是一句报错文字。
+
+### 3 落地（只动 `tests/test_two_fixture_keys_must_share_one_workspace.py`）
+
+新增格 5 `tests/test_two_fixture_keys_must_share_one_workspace.py::test_the_layout_gate_says_which_plane_its_population_came_from`：
+按站点字符串里第一个斜杠之前的平面名给人口分平面，断言平面集合恰为 tests 一处。
+docstring 与报错文字里写进三样东西：上面的测量表、分层根因、
+以及变红后的操作指令（先验它 reaches 主人、再故意重定基线——
+和门里每个地板一样，是量出来的数，不是猜的）。
+
+冻的是**平面集合**，不是计数：`tests` 从 12 涨到 13 不会红；
+`minicc` 或 `scripts` 里出现任意一个被审站点才红。
+
+### 4 验证（双向）
+
+**预测表先写后跑**（写在本机临时文件 pred_table_130.md，跑之前落盘）。
+baseline 全绿 + 一条构造臂 F（往 `minicc/benchmarks.py` 末尾追加一个
+既装载语料又读键、且 reaches 主人的 `_plane_probe_future`，
+即「§8-3 第一个选项如果被采纳，世界会是什么样」），**全部 MATCHED**，
+零非预期红，生产文件按 sha256 还原为逐字节相同：
+
+| 臂 | R1 走盘 | R2 被审 | R3 本文件普查 | R4 委托≥6 & hand=0 | 旧植入件 | 8 个拼写植入件 | P5 平面 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| baseline | green 213 | green 12 | green | green 8/0 | green | 全绿 | green {tests:12} |
+| F 追加一个委托的生产侧读数 | green 213 | green 13 | green | green 9/0 | green | 全绿 | **红 {tests:12, minicc:1}** |
+
+F 臂下唯一的新站点，正是追加到 `minicc/benchmarks.py` 末尾的那个未来探针（臂还原后已不存在），
+它被计入委托（9）而非手抄（0）——臂的构造与预测逐字相符，
+这一格红的正是「平面变了」这一件事，别的一概没碰。
+
+门的自身：`python scripts/doc_pointers.py --check` **exit=0**；
+全量 `python -m pytest tests/ -q` → **1705 passed / 0 failed / 598.45s**，
+随后 `--check` 仍 **exit=0**。1705 = 上一批 1704 + 本格。
+
+### 5 边界
+
+- **没有为凑人口写生产代码**：§8-3 的第一个选项（在 `scripts/` 造一份语料报表）
+  本批否掉——门禁需要证据，但生产代码的去留只能由真实用例决定；
+  一个只为让门的人口好看而存在的报表，和它要抓的手抄是同一种病。
+  将来真有用例需要生产侧读语料，P5 会先红，届时按它的报错文字验委托、重定基线。
+- **格 5 不重复格 2 的工作**：格 2 管「人口够不够大」，格 5 管「人口在哪个平面」；
+  F 臂下格 2 照旧绿（13 ≥ 8），只有格 5 红——两格的臂正交。
+- 本批只提交一个测试文件，批次记录另一笔提交；走盘读数 213（含另一条流的工作树内容，
+  上一批跑时是 203），全量的 1705 格含那些未提交内容，那些不是本批的账。
+
+## 第一百三十八批 M8-T138：子代理继承父循环的钩子集——PreToolUse deny 不再被绕过
+
+### 1 来源与占号
+
+来源是任务列表 #129：subagent 的 `run_agent` 调用不传 `hooks` 参数，导致父循环配置的
+PreToolUse deny 钩子对子代理的工具调用无效（安全缺口）。子代理在自己的受限 registry 里运行，
+但父循环的审批钩子完全被绕过。
+
+占号前先读 `git log --all` 与文档全文：`T138` 在提交里 0 命中、在文档里 0 命中，
+本批认领 **M8-T138**。
+
+### 2 缺陷
+
+`minicc/agent/subagent.py:410` 的 `run_agent(...)` 调用缺少 `hooks=` 参数。子代理在父循环内
+通过 `task` 工具启动，拥有自己的 turn/token/wall-clock 预算和受限的 tool registry，但父循环的
+钩子配置（如 PreToolUse deny edit_file）不会传递给子循环。这意味着：
+
+- 父会话配置了 `edit_file` deny 钩子 → 用户直接调用会被拒绝
+- 用户通过 `task` 工具让子代理调用 `edit_file` → 子代理不受父钩子约束，可以编辑
+
+这是 fail-open 的安全缺口：deny 钩子只在第一层生效，第二层被绕过。
+
+### 3 修复
+
+两处改动（同一文件）：
+
+1. **导入 HookRunner**（`subagent.py:26`）：
+   ```python
+   from ..hooks import HookRunner
+   ```
+
+2. **传递 hooks 给子循环**（`subagent.py:423`）：
+   ```python
+   return await run_agent(
+       provider,
+       child_registry,
+       messages,
+       budget=self._child_budget(),
+       cost_estimator=self.cost_estimator,
+       on_tool=on_tool,
+       on_trace=bubble,
+       cancel_event=child_cancel,
+       should_cancel=(lambda: bool(parent_cancel and parent_cancel.is_set())),
+       hooks=HookRunner(self.workspace),  # ← 新增
+   )
+   ```
+
+这样子循环加载与父循环相同的 `.minicc/hooks.json` 配置，PreToolUse deny 钩子在两层都生效。
+
+### 4 门测试（2 例）
+
+新建 `tests/test_subagent_hooks_inheritance.py`：
+
+- **行为验证**：在 tmp_path 写入 deny edit_file 的 hooks.json，验证 HookRunner 正确加载
+  该配置（specs 长度=1，matcher 包含 "edit_file"，on_failure="deny"）
+- **AST 结构检查**：解析 `subagent.py`，遍历 AST 找到 `run_agent(...)` 调用，断言其关键字
+  参数中包含 `hooks=HookRunner(...)`
+
+两例全绿（2.06s）。
+
+### 5 回归证据
+
+| 命令 | 读数 |
+| --- | --- |
+| `test_subagent_hooks_inheritance.py`（2 新门） | **2 passed**（2.06s） |
+| `test_subagent_delegation.py + test_subagent_streaming.py + test_subagent_task.py + test_subagent_wiring.py`（44 现有） | **44 passed**（20.27s） |
+| 提交 | fa5261a |
+
+### 6 边界
+
+- **只传 workspace，不复制配置**：子循环通过 `HookRunner(self.workspace)` 重新读取同一份
+  `.minicc/hooks.json`，而非从父循环复制已解析的配置对象。这保证了子循环看到的是磁盘上
+  最新的配置（父循环运行期间用户修改配置文件的情况虽罕见但合法）。
+- **不递归**：`SUBAGENT_TOOL_NAME = "task"` 且注释明确写明 "crucially no 'task' — a subagent
+  cannot spawn subagents"，深度限制为 2，第三层拿不到 task 工具，不会出现无限递归的钩子继承链。
+- **性能开销可接受**：HookRunner 构造期只做一次文件读取和正则编译，子循环生命周期内复用
+  同一实例，与父循环的开销同量级。
