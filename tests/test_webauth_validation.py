@@ -227,6 +227,10 @@ def test_concurrent_writes_produce_single_token(tmp_path: Path) -> None:
         t.start()
     for t in threads:
         t.join(timeout=5)
+        assert not t.is_alive(), (
+            "a token-writing thread outlived its join window: it can still be "
+            "inside load_or_create_token, so the store read below races it"
+        )
 
     assert not errors
     store = tmp_path / ".minicc" / "web_token.json"

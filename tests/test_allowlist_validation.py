@@ -331,6 +331,10 @@ def test_concurrent_writes_do_not_corrupt(tmp_path: Path) -> None:
         t.start()
     for t in threads:
         t.join(timeout=10)
+        assert not t.is_alive(), (
+            "a writer thread outlived its join window: it can still be inside "
+            "replace_session_rules, so the per-session checks below race it"
+        )
 
     assert not errors, f"Concurrent writes failed: {errors}"
     # Verify all sessions have their last written state
