@@ -12596,3 +12596,44 @@ CI run **37532950246**（树 b80d441）全绿——docs-only 批在全量门下�
 M4-6 全量挂起（配额第 4 次探针 m46_probe4.json：172s 后仍 429 quota exceeded，
 T154 语义第 3 次真数据自证）；复核表 M8（并行 web.py 车道）；specproof 战区
 （并行 #201）未清。
+
+### 绿证补记（T159）
+
+CI run **37534975358**（树 79c50f1）全绿——套件标识 + compare 跨套件警告在全量门下通过。
+
+## 第一百六十批 M8-T160：compare 门评估去重——main() 手工拼 gate 与 evaluate_gates 合流
+
+### 1 缺口
+
+`bench_compare.main()` 里 `--gate` 的解析-评估是手工循环：`parse_gate` + `_gate_actual`
++ `_gate_holds` 逐条拼 dict——与同文件 40 行外的公共入口 `evaluate_gates()`（tests
+直接调用的那个）逐字重复。同一规则两处实现，改一处漏一处的经典温床。stash 对照还
+翻出一笔附带债：手工循环里 `actual` 变量名被 float|None（循环内）与 str（违反报告段）
+复用，mypy 602 行一直在报 assignment 冲突。
+
+### 2 实现
+
+- `main()` 的 gates 组装收敛为一行 `evaluate_gates(comparison, args.gate)`，
+  `ValueError → parser.error`（同一 exit 2 路径，错误文案逐字不变）。
+- `_gate_actual` / `_gate_holds` 从 main() 的调用面消失，只活在 `evaluate_gates`
+  内部；坏 spec 路径由既有 `test_main_rejects_bad_gate_spec` 保护，不加测试。
+
+### 3 门证
+
+| 门 | 读数 |
+| --- | --- |
+| 真实 CLI 保真·通过+违反双 gate | 改造前后 stdout 逐字节 diff：`fc` 无差异，exit 1 = 1（`pass_at_1>=0.0` 通过、`>=0.99` 违反，24 对齐任务 full_pass3 vs full_pass4） |
+| 真实 CLI 保真·坏 spec | exit 2 = 2，argparse error 正文逐字一致（`未知 gate 指标: bogus（支持 [...]）`） |
+| 单文件门 | `test_bench_compare.py` **31 passed in 1.96s** |
+| 全量门（本地） | `pytest tests/` **2026 passed, 5 skipped in 780.21s（13:00）**，exit 0 |
+| ruff / mypy | ruff **All checks passed**；mypy 改后 **3 处** vs HEAD 基线 **4 处**（61/147/221 逐字同款既有债）——**零新增，净消一处**（602 行 `actual` str/float 复用冲突随手工循环移除而消失） |
+
+### 4 边界
+
+- 纯行为保持重构：不改输出格式、exit code、错误文案；junit_out 消费同一 gates dict。
+- 绿证裁决随 CI（Linux 全量门，run 树=本批提交）。
+
+### 5 下一批边界
+
+M4-6 全量仍挂起（配额第 4 次探针证伪恢复；第 5 次真任务探针待做）；复核表 M8
+（并行 web.py 车道，禁碰）；specproof 战区（并行 #201）脏文件未清继续等。
