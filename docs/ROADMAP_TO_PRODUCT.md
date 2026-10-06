@@ -10949,3 +10949,43 @@ hooks.json 在 CLI 里除了日志没有别的告示——那是 M8-T137 的候�
   （它们在 `test_web_security.py`／`test_network_gate.py`／`test_webfetch.py`／`test_security_perimeter.py` 之间分布），
   本批只跑了标准 2 点名的那四个文件加上标准 1 的文件；第 7 节的 `test_network_gate.py` 与第 6 节的日志脱敏项**未在本批复跑**。
 - M1/M3/M4/M5/M8 的退出标准仍未按同样纪律复核（第三节全表的其余行）。
+
+## 第一百三十五批 M1 退出标准逐条复核：四条都达成，但其中一条的**字面**已经陈旧
+
+### 1 逐条读数
+
+| 退出标准 | 今天的读数 | 判 |
+| --- | --- | --- |
+| 1. Windows+Ubuntu 全绿，新增 ≥30 条 provider/loop 完整性用例 | M1 相关六个文件（`test_m1_integrity`、`test_responses_streaming`、`test_anthropic_provider`、`test_core_llm`、`test_p0_p1_p2`、`test_subagent_streaming`）共 **68 个用例，68 passed in 16.15s**；其中**按 `test_m1t*` 命名**的 **12 条**（T1/T2/T3×5/T4×2/T5/T6…） | 达成 |
+| 2. `scripts/reliability_probe.py` 一条命令复现全部缺陷、退出码 0、接入独立 CI job | 脚本在（5.9 KB，2026-09-22）；CI 有独立 job `reliability-probe`（`ci.yml:44-55`，`run: python scripts/reliability_probe.py`），最近多次运行**绿（22s）** | 达成 |
+| 3. 人工核查：假网关只发 text delta + `[DONE]`、从不发 finish_reason → 只发 1 次 HTTP 请求且以明确错误结束 | 这条**被实现成了测试**：`tests/test_m1_integrity.py::test_m1t3_delta_only_gateway_costs_one_request_and_errors`——`httpx.MockTransport` 的响应体是 `data: {chunk}\n\ndata: [DONE]\n\n`，`choices[0].finish_reason` 恒为 `None`，provider 用 `max_retries=4`，断言请求数 1 且以错误结束 | 达成 |
+| 4. golden delta 序列逐字节往返相等，streamed text 与最终 answer 一致 | `test_m1t3_incremental_deltas_concatenated_byte_for_byte` 用的就是验收里那三个片段（`"line one\n"` / `"\nline two\n"` / `"    indented\n"`），断言拼回原串；另有工具参数分片与三条**bug 形状**回归（`"7."+"7.7"→"7.7.7"`、`"def"+"define"→"defdefine"`、`"x="+"x=1"→"x=x=1"`），以及 `append_delta` / `merge_retry_snapshot` 的往返 | 达成 |
+
+### 2 发现：标准 3 的字面已经陈旧（意图仍在，且被测试钉住）
+
+M1-T3 的验收原文有两句**今天不成立**：
+
+- 「新建」一个名为 stream_merge 的测试文件（`tests/` 下、文件名含 `stream_merge` 的那个）——**该文件今天不存在**，
+  那批用例今天在 `tests/test_m1_integrity.py` 里（文件被合并/改名过）。
+- 「`grep -rn _merge_incremental_text minicc/` 返回 0 命中」——今天是 **2 命中**：
+  `minicc/agent/loop.py:234`（定义）与 `:531`（调用）。
+
+**但那 2 命中不是回归**：loop 里这支是**另一支语义正确的助手**，它的 docstring 记的正是这条标准要修的那个 bug
+（「The old rule also discarded a chunk that was a prefix of, or merely overlapped, what we already had — so streaming
+"7", ".", "7", ".", "7" lost the third piece」），今天的实现是「不确定就逐字追加，绝不删字符」；
+provider 侧的增量装配已改由 `minicc/llm/stream_merge.py` 承担（`openai_provider.py:60` 导入
+`AttemptTextAssembler` / `merge_retry_snapshot`）。
+
+**所以那条 grep 是「旧实现不在 provider 路径上」的代理指标，而名字后来被另一层复用成了正确的函数**——
+代理指标今天会误报。这正是不改写旧记录的代价，也是这次复核要留下的东西：
+**读第三节时，标准要按意图读，代理指标（grep 命中数、文件路径）要用今天的实现核对一遍。**
+
+### 3 边界（明确不声称）
+
+- 本批**没有**做变异验证（M2 那批做了）。理由：标准 1/2 是"存在 + 绿"的形状，标准 3/4 的用例本身就在断言线上行为
+  （mock transport 数请求数、逐字节比对），拆防线需要动 provider 的装配实现，代价高于本批预算；
+  **这不是"验过了"，是"本批没验"**，留作候选。
+- 标准 1 的「≥30 条」用的是**今天**六个文件的用例总数（68），不是「M1 期间新增」的历史增量——
+  历史增量无法从今天的树里重放。
+- M1 的八个任务（T1–T8）**实现本身没有逐行复核**，只核了它们对应的退出标准读数。
+- 第三节全表仍未复核完：**M3/M4/M5/M8** 待做（M1 本批、M2 上一批、M6/M7 此前）。
