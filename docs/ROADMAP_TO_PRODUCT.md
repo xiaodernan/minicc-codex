@@ -12686,3 +12686,51 @@ M11-T7 把四个路由助手（`_stage_route_budget` / `_stage_cost_estimator` /
 
 M4-6 全量仍挂起（配额第 5 次探针 429 落档）；复核表 M8（并行 web.py 车道，禁碰）；
 specproof 战区脏文件未清继续等。
+
+## 第一百六十二批 M11-T12：守卫子进程补齐双端编码声明——单文件验证看不见扫描型跨文件门
+
+### 1 缺口
+
+T161 的守卫测试 `test_route_wiring_imports_without_the_web_stack` 以
+`subprocess.run([sys.executable, "-c", probe], capture_output=True, text=True)` 起
+子进程：无 `errors=`、无任何编码声明。`test_subprocess_decoding.py` 的两条扫描型
+机械门扫描域是**全部 tests/**（AST 扫 minicc/scripts/tests 三根），被改文件单跑
+永远看不见它们：①M8-T57 strict-decoder 门——text=True 无 errors= 时父端按机器
+locale 严格解码，坏字节在 reader 线程抛异常、整条流吞成空串且 returncode=0；
+②M8-T61 half-pin 门——父端钉了 utf-8 而 `sys.executable` 子端未声明 stdio 编码，
+把 crash 修成 mojibake。T161 只以单文件门（30 passed）作绿证，CI ubuntu
+（run 37539774598）当场红：`test_no_text_mode_capture_asks_for_a_strict_decoder`，
+offender `tests/test_stage_route_enforcement.py:1547 subprocess.run`，windows 同红。
+
+### 2 实现
+
+守卫调用补齐双端声明，断言逐字未动、产品代码零改动：
+
+- 父端：`encoding="utf-8", errors="replace"`（M8-T57 合规形状）；
+- 子端：`env=dict(os.environ, PYTHONIOENCODING="utf-8")`（M8-T61 合规形状，
+  `declares_child_codec` 在调用 segment 里找 `PYTHONIOENCODING`），附半钉规则注释。
+
+### 3 门证
+
+| 门 | 读数 |
+| --- | --- |
+| CI 红证（第一道门） | run 37539774598 ubuntu job 112529647898：`test_no_text_mode_capture_asks_for_a_strict_decoder` AssertionError `['tests/test_stage_route_enforcement.py:1547 subprocess.run']`，1 failed 2031 passed；windows 同款红 |
+| 本地红证（第二道门） | 补父端 encoding/errors 后双文件合跑红于 `test_a_pinned_parent_decoder_over_our_own_python_child_pins_the_child_too`（half-pinned captures 同址）——两道门先后都真实拦下 |
+| 双文件合跑 | `test_stage_route_enforcement.py + test_subprocess_decoding.py` **50 passed in 80.25s** |
+| 全量 | 本地全量 **2027 passed, 5 skipped in 759.07s（12:39）** exit 0 |
+| ruff | 2 处 F841（:415/:597）为 T161 已记录的 HEAD 同款既有债，零新增 |
+| mypy | 产品代码零改动，基线构造成不变 |
+| 占号双查 | ROADMAP grep `M11-T12` 空 + `git log --all --grep` 空 |
+
+### 4 边界
+
+- 守卫钉的边界原样：子进程内 import route_wiring 不见 web 栈；新增的只是子进程
+  读输出的确定性（双端都钉 utf-8），probe 只打印 ASCII，行为无分歧。
+- 教训落账：**测试批次也要跑全量或至少跑扫描型跨文件门**——单文件绿证对
+  `test_subprocess_decoding` 这类以整仓为扫描域的门不构成证据。
+
+### 5 下一批边界
+
+M4-6 全量仍挂起（配额 429）；复核表 M8（并行 web.py 车道）禁碰；specproof 战区
+脏文件未清继续等；M2 面 worktree.py（115 行 3 测试引用）/impact.py（345 行 3 引用）
+深查候选。
