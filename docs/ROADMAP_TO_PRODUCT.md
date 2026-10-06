@@ -10935,8 +10935,8 @@ observed_after_write），没有读回记录 complete 会被降级 continue 直�
 | 命令 | 读数 |
 | --- | --- |
 | `test_hooks.py + test_slash_commands.py + test_permissions_approval.py`（含 3 新门） | **41 passed**（14.83s） |
-| 全量 `pytest -q` | 待回填 |
-| 提交与 CI | 待回填 |
+| 全量 `pytest -q` | **1856 passed + 1 error**（20:07，本机并行会话争用偏慢）。唯一 error 是 `test_rpc_sessions_list_counts_stored_sessions` 的 `PermissionError: workspaces.tmp`——两个全量 pytest 同时写真实 HOME 的共享文件被 Windows 文件锁绊倒，单跑复验 **1 passed**（10.68s），环境插曲而非回归 |
+| 提交与 CI | 87184a6，CI run 37451375730 全绿 |
 
 ### 5 下一批边界
 
