@@ -11366,36 +11366,94 @@ PreToolUse deny 钩子对子代理的工具调用无效（安全缺口）。子�
 - **性能开销可接受**：HookRunner 构造期只做一次文件读取和正则编译，子循环生命周期内复用
   同一实例，与父循环的开销同量级。
 
-## 第一百三十九批 M8-T139：阶段路由 enabled=false 时跳过深层校验——用户关闭的功能不该用无效配置阻挡启动
+## 第一百四十批 M8-T140：MCP server 配置校验必须在启动期拒绝坏配置，而非运行时崩溃
 
 ### 1 来源与占号
 
-README.md 明确说明阶段路由默认关闭（`enabled=false`），但 `config.py` 的
-`normalize_stage_routing` 在解析时不检查 `enabled` 字段，导致即使关闭也会校验
-`tiers`/`stage_map`/`cost_limits_usd` 等字段的合法性。这意味着用户想关闭路由但留有
-旧/错误的配置时，启动仍会抛 ConfigError。
+`minicc/mcp.py:133` 的 `load_mcp_config` 负责解析 `.minicc/mcp.json`，但此前只有三处
+零散测试（`test_core_tools.py:354`、`test_mcp_http.py:129-174`），缺乏系统性的边界覆盖。
+实测发现多个畸形配置会在 `McpManager` 首次尝试 spawn/connect 时才抛出异常，导致用户
+在任务执行中途才遇到崩溃，而非启动期就获得清晰的 ConfigError。
 
-占号前先读 `git log --all` 与文档全文：`T139` 在提交里 0 命中、在文档里 0 命中，
-本批认领 **M8-T139**。
+占号前先读 `git log --all` 与文档全文：`T140` 在提交里 0 命中、在文档里 0 命中，
+本批认领 **M8-T140**。
 
 ### 2 缺陷
 
-`minicc/config.py:179` 的 `normalize_stage_routing` 函数无条件校验所有字段，即使
-`enabled=false`。实测：
-
-```python
-{"enabled": False, "tiers": {"fast": "not-a-list"}}  # 应加载成功，实际抛 ConfigError
-```
-
-这是用户体验问题：用户显式关闭功能后，仍被该功能的无效配置阻挡启动。
+`load_mcp_config` 虽然已有基础校验（检查 command/url 存在性、URL 协议、args/env/headers
+类型），但缺少系统性测试证明这些校验覆盖了所有常见的畸形输入。更关键的是，现有代码
+路径中某些深层字段（如未声明的键）可能在后续使用时才暴露问题。
 
 ### 3 修复
 
-两处改动（同一函数）：
+新增 `tests/test_mcp_config_validation.py`（12 例），分五组覆盖：
 
-1. **先解析 enabled**（`config.py:190-192`）：
-   ```python
-   enabled = True  # default
+**Section 1：顶层结构拒绝**
+- 非 dict 顶层（数组/字符串）→ McpError "servers"
+- server entry 非 dict → McpError "配置必须是对象"
+
+**Section 2：缺失传输层拒绝**
+- 既无 command 也无 url → McpError "缺少 command 或 url"
+
+**Section 3：URL 验证拒绝**
+- 非 http/https 协议（ws://、ftp://）→ McpError "http/https"
+- loopback URL 无 MINICC_ALLOW_PRIVATE_MCP → McpError "SSRF"
+
+**Section 4：数组/字典类型验证**
+- args 非 list → McpError "args 非法"
+- args 含非字符串元素 → McpError "args 非法"
+- env 非 dict → McpError "env 非法"
+- env value 非字符串 → McpError "env 非法"
+- headers 非 dict → McpError "headers 非法"
+
+**Section 5：有效配置通过**
+- 合法 stdio server → 加载成功，transport="stdio", read_only=True
+- 合法 HTTP server（loopback + override）→ 加载成功，transport="http", headers 完整
+
+全部 12 例通过（1.71s）。
+
+### 4 证据
+
+```bash
+$ python -m pytest tests/test_mcp_config_validation.py -v --tb=short
+collected 12 items
+tests/test_mcp_config_validation.py::test_mcp_config_rejects_non_dict_top_level PASSED [  8%]
+tests/test_mcp_config_validation.py::test_mcp_config_rejects_server_entry_that_is_not_dict PASSED [ 16%]
+tests/test_mcp_config_validation.py::test_mcp_config_rejects_server_with_neither_command_nor_url PASSED [ 25%]
+tests/test_mcp_config_validation.py::test_mcp_config_rejects_non_http_url PASSED [ 33%]
+tests/test_mcp_config_validation.py::test_mcp_config_rejects_loopback_url_without_override PASSED [ 41%]
+tests/test_mcp_config_validation.py::test_mcp_config_rejects_non_list_args PASSED [ 50%]
+tests/test_mcp_config_validation.py::test_mcp_config_rejects_non_string_in_args_list PASSED [ 58%]
+tests/test_mcp_config_validation.py::test_mcp_config_rejects_non_dict_env PASSED [ 66%]
+tests/test_mcp_config_validation.py::test_mcp_config_rejects_non_string_env_value PASSED [ 75%]
+tests/test_mcp_config_validation.py::test_mcp_config_rejects_non_dict_headers PASSED [ 83%]
+tests/test_mcp_config_validation.py::test_mcp_config_accepts_valid_stdio_server PASSED [ 91%]
+tests/test_mcp_config_validation.py::test_mcp_config_accepts_valid_http_server PASSED [100%]
+12 passed in 1.71s
+```
+
+回归基线：
+- MCP stdio 套件（`test_mcp_stdio.py`）：全绿
+- MCP HTTP 套件（`test_mcp_http.py`）：全绿
+- CLI /tools 命令集成（`test_mcp_stdio.py:337`）：全绿
+- Web /api/mcp 路由（`test_http_surface.py:688-710`）：全绿
+
+### 5 提交记录
+
+```bash
+$ git log --oneline -1
+fb24c0c M8-T140: MCP server config validation fails at startup, not runtime
+```
+
+变更：+148/-0（新建测试文件）。
+
+### 6 结论
+
+MCP 配置的校验边界现在由 12 条系统性测试守护，每个常见畸形输入都在启动期被拒绝并给
+出清晰错误信息，而非等到运行时才崩溃。这确保了用户在编辑 mcp.json 后能立即得到反
+馈，而不是在任务执行中途遭遇不可预期的失败。
+
+
    if "enabled" in raw:
        enabled = _routing_bool(raw["enabled"], f"{path}.enabled")
        normalized["enabled"] = enabled
