@@ -12373,3 +12373,12 @@ HTTP 200，`output/m4_quota_probe.json` 留档），M4-6 补真通过率重新�
 ### 5 下一批边界
 
 配额已恢复：M4-6 重跑 24 fixture 补真通过率（长跑批，独立提交）；复核表仅剩 M8（并行在动）。
+
+### 补记（同日，配额复探推翻乐观判断）
+
+T155 落地时的「配额已恢复」只对**单条最小请求**成立（`max_tokens=1` 探针 HTTP 200）；真
+agent 负载立即打脸：`--task-id v2-greeting-already-correct` 单条探针跑 178.1s 后 provider
+返回 429 quota exceeded（`output/m46_probe.json` 留档），行落在 `passed=False` + error 前缀
+「LLM 调用失败」。**M4-6 全量继续挂起**，等配额对真实负载恢复后再探。这条探针同时是
+M8-T154 语义的活案例：`pass_at_1=0.0`、`infra_failure_count=1`、`pass_at_1_ex_infra=None`
+三者并存——报告不再把网关故障读成模型零分，分母空时如实 None。
