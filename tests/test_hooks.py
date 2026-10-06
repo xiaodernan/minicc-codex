@@ -235,6 +235,42 @@ def test_matcher_scopes_hooks_to_tool_names(tmp_path: Path) -> None:
     assert "read_file" not in result.denied_tools, "matcher must not hit other tools"
 
 
+def test_hook_processes_never_see_minicc_credentials(tmp_path: Path, monkeypatch) -> None:
+    """M7-T1 acceptance: "hook 无法读 .minicc/web_token.json".
+
+    A hook is user configuration running with the user's own privileges, so
+    filesystem denial is not the mechanism — the contract hooks.py pins is
+    that the parent's credentials never reach the hook subprocess at all
+    (``_scrubbed_env`` is an allow-list).  The hook prints what its
+    environment actually contains; if the scrubbing ever regresses, the
+    printed values stop being NONE and the secrets themselves show up here.
+    """
+    monkeypatch.setenv("MINICC_API_KEY", SECRET)
+    monkeypatch.setenv("MINICC_WEB_TOKEN", "webtok-1234567890abcdef")
+    hooks = _install_hooks(tmp_path, {
+        "PostToolUse": [{
+            "command": _cmd(
+                "import os;print(os.environ.get('MINICC_API_KEY','NONE'),"
+                "os.environ.get('MINICC_WEB_TOKEN','NONE'))"
+            ),
+            "timeout": 5,
+        }],
+    })
+    traces: list[dict] = []
+    _result, _before, _after = _run(
+        tmp_path, ToolThenAnswerProvider(), hooks, on_trace=traces.append
+    )
+    stdout = "".join(
+        str(e["detail"].get("stdout") or "")
+        for e in traces if e.get("code") == "hook_executed"
+    )
+    assert "NONE NONE" in stdout, (
+        f"the hook saw credentials (or printed nothing): {stdout!r}"
+    )
+    assert SECRET not in stdout, "MINICC_API_KEY leaked into the hook subprocess"
+    assert "webtok-" not in stdout, "MINICC_WEB_TOKEN leaked into the hook subprocess"
+
+
 def test_hooks_disabled_by_env_and_bad_config_is_not_fatal(tmp_path: Path, monkeypatch) -> None:
     hooks = _install_hooks(tmp_path, {"UserPromptSubmit": [{"command": EXIT_DENY}]})
     assert hooks.enabled

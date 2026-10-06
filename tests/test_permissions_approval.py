@@ -549,3 +549,170 @@ def test_a_thread_that_never_returns_is_reported_as_a_thread(tmp_path: Path) -> 
     assert box["decision"] == "deny"
     assert box["timed_out"] is False
 
+
+# ---------------------------------------------------------------------------
+# M7-T3 acceptance, end to end: the should_allow chain inside _chat_locked.
+# The gates above exercise request_approval/resolve_approval directly; this one
+# walks the real web entry so a regression that breaks the wiring — rules not
+# consulted, the gate never asking, "always" not remembered — turns red here.
+# ---------------------------------------------------------------------------
+
+
+def test_web_default_mode_asks_then_always_is_undisturbed(tmp_path: Path, monkeypatch) -> None:
+    from types import SimpleNamespace
+
+    from minicc import web as web_module
+    from minicc.llm.base import LLMResponse
+
+    class _WriteThenAnswer:
+        instances: list["_WriteThenAnswer"] = []
+
+        def __init__(self, *args, **kwargs) -> None:
+            from minicc.llm.fake import FakeProvider
+
+            # The judge round (tools is None) is delegated to the scripted
+            # FakeProvider: its decision JSON is the contract the web loop
+            # parses, and a hand-written script cannot honor it.
+            self._inner = FakeProvider()
+            self.calls = 0
+            _WriteThenAnswer.instances.append(self)
+
+        async def chat(self, messages, tools, on_delta=None):
+            if tools is None:
+                return await self._inner.chat(messages, None, on_delta)
+            self.calls += 1
+            if self.calls == 1:
+                return LLMResponse(
+                    content="",
+                    tool_calls=[{
+                        "id": f"call-{len(_WriteThenAnswer.instances)}",
+                        "type": "function",
+                        "function": {
+                            "name": "write_file",
+                            "arguments": json.dumps({"path": "b.txt", "content": "approved\n"}),
+                        },
+                    }],
+                    finish_reason="tool_calls",
+                )
+            if self.calls == 2:
+                # The completion judge refuses to certify an unexamined write:
+                # the run must observe the file after writing it (a read back
+                # suffices for prose). Without this round the judge demotes
+                # "complete" to "continue" until the cap fires.
+                return LLMResponse(
+                    content="",
+                    tool_calls=[{
+                        "id": f"call-read-{len(_WriteThenAnswer.instances)}",
+                        "type": "function",
+                        "function": {
+                            "name": "read_file",
+                            "arguments": json.dumps({"path": "b.txt"}),
+                        },
+                    }],
+                    finish_reason="tool_calls",
+                )
+            return LLMResponse(content="完成。", finish_reason="stop")
+
+        async def close(self) -> None:
+            return await self._inner.close()
+
+    _WriteThenAnswer.instances = []
+    monkeypatch.setattr(web_module, "OpenAICompatibleProvider", _WriteThenAnswer)
+    config = SimpleNamespace(
+        yolo=False,
+        max_concurrent_tasks=2,
+        sandbox_mode="host",
+        sandbox_image="python:3.11-slim",
+        base_url="https://example.test/v1",
+        api_key="test-key",
+        model="test-model",
+        timeout=10,
+        tool_mode="auto",
+        reasoning_effort="high",
+        # The turn counter is broader than "agent chat calls" (review and
+        # recovery rounds count too); this gate pins the approval wiring, not
+        # the budget arithmetic, so leave headroom for the whole happy path.
+        max_turns=12,
+        compact_threshold=300_000,
+        context_window_tokens=300_000,
+        fallback_models=(),
+    )
+    service = web_module.AgentService(tmp_path, config)
+    box: dict = {}
+    frames: list[dict] = []
+
+    def _run_task() -> None:
+        box["result"] = service._chat_locked(
+            {
+                "message": "写一个 b.txt",
+                "session_id": "approval-e2e",
+                "allow_changes": False,
+                "workspace_path": str(tmp_path),
+            },
+            workspace=tmp_path,
+            on_event=frames.append,
+        )
+
+    thread = threading.Thread(target=_run_task)
+    thread.start()
+
+    def pending_request_id() -> str | None:
+        with service._approval_guard:
+            groups = [g for g in service._approval_groups.values() if not g.resolved]
+        return groups[0].request_id if groups else None
+
+    try:
+        # The full agent has to boot before the write reaches the gate, so the
+        # budget here covers a service start, not one frame append.
+        request_id = _wait_for("the pending write_file approval", pending_request_id,
+                               budget_s=30.0)
+        service.resolve_approval(request_id, "always")
+        _joined("the parked agent thread after 'always'", thread, budget_s=30.0)
+    except BaseException:
+        service._deny_all_approvals()
+        _joined("the agent thread released by the failure sweep", thread, budget_s=60.0)
+        raise
+
+    result = box["result"]
+    assert result["error"] is None, result.get("error")
+    assert (tmp_path / "b.txt").read_text(encoding="utf-8") == "approved\n", (
+        "the approved write never executed"
+    )
+    # The ask/answer travel the SSE frame channel (what the front end renders),
+    # the *decision* lands in the task's own event list (what audit reads).
+    asked = [f for f in frames if f.get("code") == "approval_requested"]
+    assert len(asked) == 1, f"expected exactly one prompt for one write: {len(asked)}"
+    assert asked[0]["tool"] == "write_file" and "b.txt" in asked[0]["preview"]
+    resolved_frames = [f for f in frames if f.get("code") == "approval_resolved"]
+    assert resolved_frames and resolved_frames[0]["decision"] == "always", resolved_frames
+    authorized = [e for e in result["events"] if e.get("code") == "tool_authorized"]
+    assert any(e.get("authorization") == "user_approved" for e in authorized), (
+        "the allow branch never wrote its audit event"
+    )
+
+    # "always" taught the session: the identical write runs again without a
+    # second prompt (zero-disturbance, scoped to one session and one path —
+    # the remembered rule can never widen plan/yolo semantics).
+    _WriteThenAnswer.instances = []
+    frames.clear()
+    second = service._chat_locked(
+        {
+            "message": "再写一次 b.txt",
+            "session_id": "approval-e2e",
+            "allow_changes": False,
+            "workspace_path": str(tmp_path),
+        },
+        workspace=tmp_path,
+        on_event=frames.append,
+    )
+    assert second["error"] is None, second.get("error")
+    assert (tmp_path / "b.txt").read_text(encoding="utf-8") == "approved\n"
+    assert "approval_requested" not in [f.get("code") for f in frames], (
+        "the remembered session rule did not spare the user a second prompt"
+    )
+    second_authorized = [e for e in second["events"] if e.get("code") == "tool_authorized"]
+    assert any(
+        e.get("authorization") == "session_allowlist" for e in second_authorized
+    ), f"the rerun was authorized by something other than the session rule: {second_authorized}"
+    service.shutdown()
+

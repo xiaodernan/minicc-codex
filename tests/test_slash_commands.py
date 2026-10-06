@@ -149,3 +149,88 @@ def test_web_listing_exposes_metadata_only(tmp_path: Path) -> None:
     dumped = json.dumps(payload, ensure_ascii=False)
     assert payload["commands"][0]["name"] == "review"
     assert "请审查" not in dumped, "template bodies must not leak via /api/commands"
+
+
+# ---------------------------------------------------------------------------
+# M7-T2 acceptance: the Web composer reaches the same expansion engine.
+# The pure-function gates above cover discovery and expansion; this one walks
+# the real web entry (_chat_locked), so a regression that wires the CLI but
+# forgets the web.py call site turns red here instead of only failing by hand.
+# ---------------------------------------------------------------------------
+
+
+def test_web_composer_expands_the_command_before_the_model(tmp_path: Path, monkeypatch) -> None:
+    from types import SimpleNamespace
+
+    from minicc import web as web_module
+    from minicc.web import AgentService
+
+    class _Capturing:
+        instances: list["_Capturing"] = []
+
+        def __init__(self, *args, **kwargs) -> None:
+            from minicc.llm.fake import FakeProvider
+
+            # The web loop runs a completion judge on a provider whose answer
+            # must parse; a hand-written script cannot honor that contract, so
+            # delegate everything to the scripted FakeProvider and only record.
+            self._inner = FakeProvider()
+            self.seen: list[list[dict]] = []
+            _Capturing.instances.append(self)
+
+        async def chat(self, messages, tools, on_delta=None):
+            self.seen.append([dict(m) for m in messages])
+            return await self._inner.chat(messages, tools, on_delta=on_delta)
+
+        async def close(self) -> None:
+            return await self._inner.close()
+
+    _Capturing.instances = []
+    monkeypatch.setattr(web_module, "OpenAICompatibleProvider", _Capturing)
+
+    ws = tmp_path / "ws"
+    ws.mkdir()
+    _project(ws, "review", REVIEW)
+    config = SimpleNamespace(
+        yolo=False,
+        max_concurrent_tasks=2,
+        sandbox_mode="host",
+        sandbox_image="python:3.11-slim",
+        base_url="https://example.test/v1",
+        api_key="test-key",
+        model="test-model",
+        timeout=10,
+        tool_mode="auto",
+        reasoning_effort="high",
+        max_turns=4,
+        compact_threshold=300_000,
+        context_window_tokens=300_000,
+        fallback_models=(),
+    )
+    service = AgentService(ws, config)
+    try:
+        result = service._chat_locked(
+            {
+                "message": "/review src/main.py",
+                "session_id": "slash-web-wiring",
+                "allow_changes": False,
+                "workspace_path": str(ws),
+            },
+            workspace=ws,
+        )
+    finally:
+        service.shutdown()
+
+    assert result["error"] is None, result.get("error")
+    messages = [m for cap in _Capturing.instances for batch in cap.seen for m in batch]
+    user_texts = [str(m.get("content") or "") for m in messages if m.get("role") == "user"]
+    system_texts = [str(m.get("content") or "") for m in messages if m.get("role") == "system"]
+    assert any(
+        "请审查 src/main.py 的改动" in t and "第一个参数：src/main.py" in t
+        for t in user_texts
+    ), "the expanded template never reached the model as user content"
+    assert not any("$ARGUMENTS" in t for t in user_texts + system_texts)
+    assert not any("重点关注正确性" in t for t in system_texts), (
+        "template body must never enter the system prompt — expanded commands are "
+        "user content, so they cannot rewrite instructions or permission boundaries"
+    )

@@ -10889,6 +10889,67 @@ A4 的多出来的那条红是 `test_the_same_failure_with_on_failure_continue_a
 hooks.json 在 CLI 里除了日志没有别的告示——那是 M8-T137 的候选（把装载失败告诉人）。netguard 的 CGNAT
 `100.64/10` 与 6to4/Teredo 仍等用户定口径，本批没有动那道 fail-closed 守卫；CLI 里答 `y` 覆盖项目 deny 那条
 仍开着，但它的改法在 `minicc/main.py`，那是冻结文件，不在我这一批的权限里。
+## 第一百三十批 M7 退出标准五条逐条复核：凭据隔离、Web 触发、决策链从接线存在变成受测事实——三条退出标准的「看不见的一半」补上门
+
+### 1 缺口（M7 五条退出标准 × 五个测试文件对照）
+
+五条退出标准（L302-307）对照 `test_hooks.py`（9 门）、`test_slash_commands.py`（9 门）、
+`test_permissions_approval.py`（20 门）、`test_project_config.py`（25 门）、`test_mentions.py`
+（15 门）共 78 门与对应实现：
+
+| 退出标准 | 结论 |
+| --- | --- |
+| 1. hooks 四事件集成测试（含超时与失败隔离） | **半达成**：四事件、超时真 kill（验尸式）、坏配置非 fatal 全有门；但「hook 无法读 .minicc/web_token.json」（M7-T1 验收原文）零断言——`_scrubbed_env` 白名单（hooks.py docstring L27-28 的承诺）被删掉不会红任何门，hook 子进程环境里有没有凭据无人看过 |
+| 2. slash 命令 CLI 与 Web 都能触发 | **半达成**：发现/合并/展开/保留名/补全端点 9 门强；但 `main.py:590`（REPL）、`main.py:862`、`web.py:1226`（`_chat_locked`）三处接线零门——`expand_slash_command` 调用点被删掉、Web composer 从此不再展开，纯函数门依旧全绿 |
+| 3. Web 真实交互审批 | **达成但决策链无端到端门**：request_approval/resolve_approval/超时/取消/合并/预算 20 门 + deny 优先 + 60s 默认（web.py:162）+ 挂起接线（web.py:1482）俱在；但 should_allow 闭包的完整链（deny 规则 veto → gate 拒绝 → 挂起 → 用户决定 → 执行 → always 记住会话 → 二次零打扰）没有一条门从头走到尾 |
+| 4. 项目级 config + 优先级文档化 | **全清**：优先级链（arg>env>dotenv>project>user）、6 缺陷回归（含 security_perimeter 的列表 repr 与 export/行内注释）、CLI flags help+生效、ceilings 25+ 门覆盖 |
+| 5. composer 恢复 + @-提及注入 | **后端全清**：注入/截断/预算/junction/.minicc 凭据/红线/AgentService 接线 15 门；composer 恢复是 stream.js 前端行为，验收原文「手工验收」，pytest 无法门（有 Playwright smoke 兜底） |
+
+### 2 实现（只补门，被测代码零改动）
+
+三条新门进三个既有测试文件，`minicc/` 一字未动。门 B/C 采用 test_mentions 已验证的
+「捕获包装 FakeProvider」形态：judge 轮（tools is None）委托 FakeProvider（它的 decision
+JSON 是 web loop 解析的契约，手写脚本无法遵守），关键轮定制。门 C 的 write 后必须补
+一轮 read_file——完成评估拒绝为「未检查的写入」背书（completion.py 的
+observed_after_write），没有读回记录 complete 会被降级 continue 直到上限。
+
+### 3 门（新 3）
+
+- `test_hook_processes_never_see_minicc_credentials`（标准①）：hook 打印自己环境里的
+  `MINICC_API_KEY` / `MINICC_WEB_TOKEN`，断言输出是 `NONE NONE`——凭据泄漏直接可见，
+  而不是靠实现承诺（redaction 会掩盖泄漏值，`NONE NONE` 是不受 redaction 干扰的硬判别）。
+- `test_web_composer_expands_the_command_before_the_model`（标准②）：走真实
+  `_chat_locked` 提交 `/review src/main.py`，断言模型收到的 user message 是展开后模板、
+  system prompt 不含模板正文（展开文本是 user 内容，不能改写系统指令——权限边界不受
+  侵占的架构事实第一次被钉住）。main.py REPL 接线（L590/L862）如实登记：交互循环无单测
+  入口，与 Web 共享同一 `expand_slash_command` 纯函数（已 9 门）。
+- `test_web_default_mode_asks_then_always_is_undisturbed`（标准③）：default 模式
+  write_file → 审批挂起（`_approval_groups` 出现 pending group）→ resolve "always" →
+  写入执行；帧与决策分流断言——approval_requested/resolved 走 on_event（SSE 帧，前端
+  弹窗的契约），tool_authorized 带 `user_approved` 落 events（审计的契约）；二次同路径
+  写入零打扰且 authorization 是 `session_allowlist`（会话记忆生效，且是会话规则在放行，
+  不是别的旁路）。
+
+### 4 实测证据
+
+| 命令 | 读数 |
+| --- | --- |
+| `test_hooks.py + test_slash_commands.py + test_permissions_approval.py`（含 3 新门） | **41 passed**（14.83s） |
+| 全量 `pytest -q` | 待回填 |
+| 提交与 CI | 待回填 |
+
+### 5 下一批边界
+
+- 门 C 的第一版红过两次，都是同一课「帧通道 ≠ events 列表」：approval_requested 帧只在
+  on_event（SSE funnel）里，events 列表里只有决策结果（user_approved / session_allowlist）；
+  第一次断言写错通道，第二次把 FakeProvider 的 judge 契约当成可手写脚本。红因都与被测
+  代码无关，但两条通道的边界正是这个门要钉的事实之一；
+- max_turns 的计数口径比「agent chat 次数」宽（评审/恢复轮也计入），门里留了余量并注明
+  本门钉的是审批接线不是预算算术；
+- M7 复核完毕后，M1..M8 退出标准的整体复核还剩第三节全表 + 第六节跟踪指标；
+  write-DAG + 逐节点 worktree 隔离仍是架构级候选（归 owner 决策）。
+
+
 ## 第一百三十四批 M2 退出标准逐条复核：三条都达成，且都有活的证据——附一条变异协议的第 0 步
 
 ### 1 为什么复核 M2
