@@ -1536,6 +1536,7 @@ def test_route_wiring_imports_without_the_web_stack() -> None:
     CLI entry point stays lightweight". A fresh subprocess is the honest court;
     in this process ``minicc.web`` is already in ``sys.modules`` via sibling
     tests, which would make an in-process probe vacuously green."""
+    import os
     import subprocess
     import sys
 
@@ -1548,6 +1549,11 @@ def test_route_wiring_imports_without_the_web_stack() -> None:
         [sys.executable, "-c", probe],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
+        # The parent pins utf-8, so the python child must declare its stdio
+        # codec too (M8-T61's half-pin rule) or the pair is a mojibake machine.
+        env=dict(os.environ, PYTHONIOENCODING="utf-8"),
         timeout=120,
     )
     assert result.returncode == 0, result.stderr
