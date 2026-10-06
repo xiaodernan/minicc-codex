@@ -795,14 +795,14 @@ M3-3 的处理不是把标准删掉，而是把它变成可执行、可证伪的
 
 | 标准 | 结论 | 证据 |
 | --- | --- | --- |
-| M4-4 `benchmarks --suite v2` 的 `grading_coverage=1.0`、分母 ≥24、edit 类 ≥10 | ✅ | 真跑 `--suite v2`（不 `--run`）：`fixture_count=24`、`grading_coverage=1.0`、按类 `write 12 / multi-file 6 / test-fix 6`（edit 类 12 ≥10）；`pass_at_1=None`（未运行，符合「not_run 既不算通过也不算失败」的注记） |
-| M4-5 A/B gate 违规时 exit code 1 | ✅ | 同一份结果 `--gate pass_at_1>=0.5 --gate grading_coverage>=1.0` → **exit 0**；把 variant 换成未运行那份（`pass_at_1=None`）→ **exit 1 + `[GATE FAILED] pass_at_1>=0.5 实际=None`**。两个方向都验；且它把 None 当 None（`不可计算（None，而非 0）`），不拿 0 冒充结论 |
-| M4-6 未知模型 `cost_usd=None` 且 `cost_available` 如实 | ✅（真机 2 条） | `--run --max-tasks 2` 真跑：`cost_available=0`、逐任务 `cost_usd=None`、`token_usage_available=2`，同时 `latency_p50_ms=66695.5 / p95=120182.05 / tokens_per_success=179683` 都有值 |
-| M4-7 `pytest -q -W error` 全绿 | ✅（2026-09-22 修复后复测） | 曾失败：`python -m pytest tests/ -q -W error` → **2 failed, 878 passed**：`tests/test_task_worker.py::test_manager_process_mode_runs_task_in_subprocess`、`::test_worker_survives_host_restart_and_continues_long_stream`，均为 `ResourceWarning: subprocess NNNN is still running`（`subprocess.Popen.__del__` 经 pytest 的 unraisable hook 升级为错误）。修复后复测：`.venv` 下 `pytest -q -W error` → **904 passed / 0 failed**（893 + packaging 11；149s + 13s）。同一条标准还要求「PR 门禁 ≤15 分钟」——实测 149s ✅ |
-| M4-2 `npm run test:web` 离线基线 | ✅（照标准原文跑通） | 起 `minicc-web --port 8791` 且 `MINICC_FAKE_PROVIDER=1 MINICC_BASE_URL=http://127.0.0.1:9/v1`（不可达），再 `MINICC_WEB_URL=http://127.0.0.1:8791 npm run test:web` → **exit 0**、`web smoke passed: timeline, product path, desktop, mobile`。标准文本漏了前置条件：这条**必须先起服务**（脚本读 `MINICC_WEB_URL`，默认 8765），不起服务时它是 navigation 失败而不是退出码 0 |
-| M4-1 证据链回归 | ✅ | `test_m4_evidence_chain + test_verifier_lifecycle + test_verification_command_variants + test_http_surface + test_mcp_stdio + test_mcp_http` 共 **98 passed**（`test_mcp_stdio.py` 11 个测试函数 ≥ 标准要求的 8） |
-| M4-3 rpc 分派器 ≥10 method 有测试 | ✅（2026-09-22 补齐后复测） | 曾不成立：分派表 `minicc/web.py:238-246` 只有 **5 个 method**（`thread/start`、`thread/read`、`turn/start`、`turn/read`、`turn/interrupt`）+ `initialize` 内建。现在补了 5 个只读检查 method（`workspace/read`、`models/list`、`changes/read`、`sessions/list`、`permissions/read`），合计 **10 个可注册 method**（`initialize` 另计），每个一条测试、共用同一套 `workspace_roots` 越界校验，并由 `test_rpc_dispatcher_exposes_ten_methods` 把「≥10」变成可执行断言而不是文档口径 |
-| M4-3 `POST /api/*` 由 Python 测试覆盖 100% | ✅（按实测口径改写，2026-09-22） | 原写法不可执行：`pytest-cov`/`coverage` 都未安装、CI 不跑覆盖率，「100%」这个百分比在本环境**算不出来**，不能声称。按决策改成可执行清单门 `tests/test_http_surface.py::test_every_api_route_is_named_by_a_python_test`：用 AST 从 `minicc/webserver.py` 的 `do_GET/do_POST/do_PUT/do_PATCH/do_DELETE` 里抽出服务器自己比较的路径字面量（实测 **28 条**，含审计点名的 6 条），逐条要求在 `tests/*.py` 里出现；另有 `>=25` 的下限，防止将来路由换一种写法后清单变空、门变成**假绿**。反方向也验过：喂给 walker 两条合成新路由，门立刻点名。诚实边界：这条门证明「这条路由有测试提到它」，不证明「有真请求打到它并断言终态」——后者仍由本文件里那批 `_LiveServer` 契约测试承担。**2026-09-23 再进一格（M8-T32）**：现在有一个门把「路由表里每一条」真的发一次请求打过去（GET 17 条 / POST 12 条），要求「要么答，要么带稳定 code 地拒」，并打印实测比例 100%（口径见下方 M8-T32，仍不是行覆盖率）。**2026-09-23 第三格：那个「算不出来」的百分比现在算出来了，而且是真的**——把 `coverage[toml]` 声明进 dev extra（`pyproject.toml` 的 `[project.optional-dependencies].dev` + `[tool.coverage.*]`），于是「本环境没有覆盖率工具」这句话不再成立。实测口径写在 `pyproject.toml` 的注释里：`coverage run --source=minicc.webserver -m pytest tests/test_http_surface.py tests/test_http_route_inventory.py`，然后 `coverage report --include="*webserver*"`。两个数分开报，因为它们回答不同问题：**① 模块行覆盖 74.5%**（494 语句 126 未执行，差额是错误分支、SSE 内部与 404 兜底）；**② 分派点覆盖 GET 20/20、POST 14/14 = 100%**（用 AST 取每条路由自己的比较语句行号，再问覆盖率 JSON 这行有没有执行过）。**M4-3 的标准说的是②**，所以这条按 100% 成立；①不冒充②。`pip check` 通过，说明新依赖声明完整（此前 httpx 就是靠这条纪律补上的）。**同日更晚（M8-T35）把「口径可复现」这句话本身拿去量，量出两个缺陷**：(a) ② 的算法只存在于仓库外的临时脚本（硬编码绝对路径，`coverage json` 那一步仓库里没有任何地方提到），干净检出重算不出来——仓库里写的那两条命令只能得到 ①；(b) 更要紧的是 **② 的定义可以被一次请求喂满**：`do_GET`/`do_POST` 是「一串 `if path == ...: return`」的平铺链，任何一条走到链尾的请求都会让链上所有比较行「执行过」——实测 `POST /api/nope` **一条**请求就得到 POST 侧 14/14 = 100%，而真正进入过任何分支体的是 **0/14**。② 已换成**进入覆盖**（该分支体内至少一行跑过）并落进仓库：`python scripts/route_coverage.py --check` 同时报「比较行跑过」与「分支体进过」两个数、只对后者判红。换口径后数字不变：**GET 20/20、POST 14/14 两侧在两个口径上都成立**，所以这条不是被推翻，是证据从撑不住的那种换成了撑得住的那种 |
+| M4-4 `benchmarks --suite v2` 的 `grading_coverage=1.0`、分母 ≥24、edit 类 ≥10 | ✅ | 真跑 `--suite v2`（不 `--run`）：`fixture_count=24`、`grading_coverage=1.0`、按类 `write 12 / multi-file 6 / test-fix 6`（edit 类 12 ≥10）；`pass_at_1=None`（未运行，符合「not_run 既不算通过也不算失败」的注记）。**2026-10-07 复核（M8-T148）**：不 `--run` 复跑逐字复现：`fixture_count=24`、`grading_coverage=1.0`、按类 `write 12 / multi-file 6 / test-fix 6`、`pass_at_1=None`，与原记录完全一致 |
+| M4-5 A/B gate 违规时 exit code 1 | ✅ | 同一份结果 `--gate pass_at_1>=0.5 --gate grading_coverage>=1.0` → **exit 0**；把 variant 换成未运行那份（`pass_at_1=None`）→ **exit 1 + `[GATE FAILED] pass_at_1>=0.5 实际=None`**。两个方向都验；且它把 None 当 None（`不可计算（None，而非 0）`），不拿 0 冒充结论。**2026-10-07 复核（M8-T148）**：双臂当日再验。arm2（违规方向）：合成报告 `pass_at_1=None` → **exit 1 + `[GATE FAILED] pass_at_1>=0.5 实际=None`**，None 仍不冒充 0；arm1（通过方向）：真跑报告 baseline=variant 双 gate `pass_at_1>=0`、`grading_coverage>=1.0` → **exit 0**，同报告对称输出 Wilson CI `[0, 0.6576]`，category 表 multi-file/test-fix 因 not_run 如实报 N/A 不判 |
+| M4-6 未知模型 `cost_usd=None` 且 `cost_available` 如实 | ✅（真机 2 条） | `--run --max-tasks 2` 真跑：`cost_available=0`、逐任务 `cost_usd=None`、`token_usage_available=2`，同时 `latency_p50_ms=66695.5 / p95=120182.05 / tokens_per_success=179683` 都有值。**2026-10-07 复核（M8-T148）**：真机 `--run --max-tasks 2` 复跑遇 discovery-api 网关 **429 quota exceeded**（v2-license-mit）与 Connection error（v2-greeting-already-correct），两条均未跑成；`pass_at_1=0.0` 是 graded 且失败（coverage=1.0），非未判、非 None。字段语义现场验证依旧成立：逐任务 `cost_usd=null`、`token_usage_available=2`、`cost_available=0`；附赠 `reviewer_false_negative_count=1` 活案例——greeting-already-correct 连接失败未改任何文件（tool_calls=0），objective oracle 诊断重跑报 pass、reviewer 如实记 fail，正是 notes 里「该计数衡量 reviewer 而非分数」的设计场景。429 属网关配额环境问题，非产品回归 |
+| M4-7 `pytest -q -W error` 全绿 | ✅（2026-09-22 修复后复测） | 曾失败：`python -m pytest tests/ -q -W error` → **2 failed, 878 passed**：`tests/test_task_worker.py::test_manager_process_mode_runs_task_in_subprocess`、`::test_worker_survives_host_restart_and_continues_long_stream`，均为 `ResourceWarning: subprocess NNNN is still running`（`subprocess.Popen.__del__` 经 pytest 的 unraisable hook 升级为错误）。修复后复测：`.venv` 下 `pytest -q -W error` → **904 passed / 0 failed**（893 + packaging 11；149s + 13s）。同一条标准还要求「PR 门禁 ≤15 分钟」——实测 149s ✅。**2026-10-07 复核（M8-T148）**：全量复跑 `python -m pytest tests/ -q -W error` → **1859 passed / 0 failed**（13m33s），无任何警告升级为错误；工作树含并行车道未提交改动（记账口径同上批） |
+| M4-2 `npm run test:web` 离线基线 | ✅（照标准原文跑通） | 起 `minicc-web --port 8791` 且 `MINICC_FAKE_PROVIDER=1 MINICC_BASE_URL=http://127.0.0.1:9/v1`（不可达），再 `MINICC_WEB_URL=http://127.0.0.1:8791 npm run test:web` → **exit 0**、`web smoke passed: timeline, product path, desktop, mobile`。标准文本漏了前置条件：这条**必须先起服务**（脚本读 `MINICC_WEB_URL`，默认 8765），不起服务时它是 navigation 失败而不是退出码 0。**2026-10-07 复核（M8-T148）**：照标准原文复跑：`minicc-web --port 8791`（`MINICC_FAKE_PROVIDER=1`、BASE_URL 指向不可达端口、隔离 `MINICC_HOME`）+ `MINICC_WEB_URL` 下 `npm run test:web` → **exit 0**，`web smoke passed: timeline, product path, desktop, mobile` 逐字复现 |
+| M4-1 证据链回归 | ✅ | `test_m4_evidence_chain + test_verifier_lifecycle + test_verification_command_variants + test_http_surface + test_mcp_stdio + test_mcp_http` 共 **98 passed**（`test_mcp_stdio.py` 11 个测试函数 ≥ 标准要求的 8）。**2026-10-07 复核（M8-T148）**：六文件集（test_m4_evidence_chain + test_verifier_lifecycle + test_verification_command_variants + test_http_surface + test_mcp_stdio + test_mcp_http）→ **121 passed / 35.21s**；`test_mcp_stdio.py` 现有 **12** 个测试函数 ≥ 标准要求的 8 |
+| M4-3 rpc 分派器 ≥10 method 有测试 | ✅（2026-09-22 补齐后复测） | 曾不成立：分派表 `minicc/web.py:238-246` 只有 **5 个 method**（`thread/start`、`thread/read`、`turn/start`、`turn/read`、`turn/interrupt`）+ `initialize` 内建。现在补了 5 个只读检查 method（`workspace/read`、`models/list`、`changes/read`、`sessions/list`、`permissions/read`），合计 **10 个可注册 method**（`initialize` 另计），每个一条测试、共用同一套 `workspace_roots` 越界校验，并由 `test_rpc_dispatcher_exposes_ten_methods` 把「≥10」变成可执行断言而不是文档口径。**2026-10-07 复核（M8-T148）**：`test_rpc_dispatcher_exposes_ten_methods` 在位（`tests/test_http_surface.py`），≥10 可执行断言未松动 |
+| M4-3 `POST /api/*` 由 Python 测试覆盖 100% | ✅（按实测口径改写，2026-09-22） | 原写法不可执行：`pytest-cov`/`coverage` 都未安装、CI 不跑覆盖率，「100%」这个百分比在本环境**算不出来**，不能声称。按决策改成可执行清单门 `tests/test_http_surface.py::test_every_api_route_is_named_by_a_python_test`：用 AST 从 `minicc/webserver.py` 的 `do_GET/do_POST/do_PUT/do_PATCH/do_DELETE` 里抽出服务器自己比较的路径字面量（实测 **28 条**，含审计点名的 6 条），逐条要求在 `tests/*.py` 里出现；另有 `>=25` 的下限，防止将来路由换一种写法后清单变空、门变成**假绿**。反方向也验过：喂给 walker 两条合成新路由，门立刻点名。诚实边界：这条门证明「这条路由有测试提到它」，不证明「有真请求打到它并断言终态」——后者仍由本文件里那批 `_LiveServer` 契约测试承担。**2026-09-23 再进一格（M8-T32）**：现在有一个门把「路由表里每一条」真的发一次请求打过去（GET 17 条 / POST 12 条），要求「要么答，要么带稳定 code 地拒」，并打印实测比例 100%（口径见下方 M8-T32，仍不是行覆盖率）。**2026-09-23 第三格：那个「算不出来」的百分比现在算出来了，而且是真的**——把 `coverage[toml]` 声明进 dev extra（`pyproject.toml` 的 `[project.optional-dependencies].dev` + `[tool.coverage.*]`），于是「本环境没有覆盖率工具」这句话不再成立。实测口径写在 `pyproject.toml` 的注释里：`coverage run --source=minicc.webserver -m pytest tests/test_http_surface.py tests/test_http_route_inventory.py`，然后 `coverage report --include="*webserver*"`。两个数分开报，因为它们回答不同问题：**① 模块行覆盖 74.5%**（494 语句 126 未执行，差额是错误分支、SSE 内部与 404 兜底）；**② 分派点覆盖 GET 20/20、POST 14/14 = 100%**（用 AST 取每条路由自己的比较语句行号，再问覆盖率 JSON 这行有没有执行过）。**M4-3 的标准说的是②**，所以这条按 100% 成立；①不冒充②。`pip check` 通过，说明新依赖声明完整（此前 httpx 就是靠这条纪律补上的）。**同日更晚（M8-T35）把「口径可复现」这句话本身拿去量，量出两个缺陷**：(a) ② 的算法只存在于仓库外的临时脚本（硬编码绝对路径，`coverage json` 那一步仓库里没有任何地方提到），干净检出重算不出来——仓库里写的那两条命令只能得到 ①；(b) 更要紧的是 **② 的定义可以被一次请求喂满**：`do_GET`/`do_POST` 是「一串 `if path == ...: return`」的平铺链，任何一条走到链尾的请求都会让链上所有比较行「执行过」——实测 `POST /api/nope` **一条**请求就得到 POST 侧 14/14 = 100%，而真正进入过任何分支体的是 **0/14**。② 已换成**进入覆盖**（该分支体内至少一行跑过）并落进仓库：`python scripts/route_coverage.py --check` 同时报「比较行跑过」与「分支体进过」两个数、只对后者判红。换口径后数字不变：**GET 20/20、POST 14/14 两侧在两个口径上都成立**，所以这条不是被推翻，是证据从撑不住的那种换成了撑得住的那种。**2026-10-07 复核（M8-T148）**：`python scripts/route_coverage.py --check` → **exit 0**，GET 20/20、POST 14/14 比较行与分支体双口径 100% 复现 |
 
 `-W error` 那条失败的性质（下一步要定的设计问题，不是简单的测试脏）：`task_manager.py:1824-1826` 的
 `_monitor_worker` 在 `self._closing` 时直接 `raise WorkerDetached()`，**既不 terminate 也不保留 `Popen` 引用**，
@@ -11704,7 +11704,7 @@ tests/test_allowlist_validation.py::test_replace_session_rules_preserves_other_s
 tests/test_allowlist_validation.py::test_add_session_rule_with_empty_strings PASSED [ 96%]
 tests/test_allowlist_validation.py::test_add_session_rule_redacts_command PASSED [100%]
 
-=========================== short test summary info ===========================
+ =========================== short test summary info ===========================
 SKIPPED [1] tests\test_allowlist_validation.py:277: Windows does not enforce read permission for file owner
 25 passed, 1 skipped in 2.38s
 ```
@@ -12024,3 +12024,40 @@ $ git log --oneline -1
 ### 6 结论
 
 web_token.json 的校验边界现在由 22 条系统性测试守护，证明了 load_or_create_token 对所有常见畸形输入的拒绝行为。关键修复：非 dict 顶层现在抛出 WebAuthError 而非 AttributeError。已知行为：`item or ""` 把 JSON false 当 falsy → 生成新 token（同 allowlist T143）。文件权限只在创建时设置 0o600，不收紧已有文件的过宽权限（文档行为）。
+
+## 第一百四十八批 M8-T148：M4 复核——七行证据当日全部重跑，两条标准在现场重新立住
+
+### 1 背景
+
+复核表 M4 各行（第二批，2026-09-22 记录）距今半月，本轮逐行用当日工具重跑取数，不沿用旧读数。
+占号说明：M8-T139 至 T147 已被并行车道使用（bf771dd 起），本批取下一个空位 T148；批序号随之对齐。
+
+### 2 实现
+
+纯复核批次，产品码零改动；唯一变更即本文件 M4 各行追加当日复核读数与本节。
+
+### 3 实测证据
+
+| 标准 | 命令 | 当日读数 |
+| --- | --- | --- |
+| M4-1 | 六文件集 pytest | **121 passed / 35.21s**（stdio 12 函数 ≥8） |
+| M4-2 | web smoke（不可达 BASE_URL） | **exit 0**，`timeline, product path, desktop, mobile` |
+| M4-3 | `python scripts/route_coverage.py --check` | **exit 0**，GET 20/20、POST 14/14 双口径 100% |
+| M4-3 | `test_rpc_dispatcher_exposes_ten_methods` | 在位，≥10 断言未松动 |
+| M4-4 | `python -m minicc.benchmarks --suite v2` | 24 / 1.0 / 12-6-6 / `pass_at_1=None` 逐字复现 |
+| M4-5 arm2 | `bench_compare` 合成 `pass_at_1=None` 报告 | **exit 1** + `[GATE FAILED] pass_at_1>=0.5 实际=None` |
+| M4-5 arm1 | `bench_compare` 真跑报告 baseline=variant 双 gate | **exit 0**（`pass_at_1>=0`、`grading_coverage>=1.0`） |
+| M4-6 | `--run --max-tasks 2` 真机 | 两条均败于网关（429 quota exceeded / Connection error）；`cost_usd=null`、`token_usage_available=2`、`cost_available=0`；`reviewer_false_negative_count=1` 活案例 |
+| M4-7 | `python -m pytest tests/ -q -W error` | **1859 passed / 0 failed**（13m33s） |
+
+M4-6 的 429 属 discovery-api 网关配额耗尽（环境），非产品回归；失败原因逐任务落在 `error` 字段、`pass_at_1=0.0` 因 coverage=1.0 的 graded 失败（非 None），suite 的诚实语义在坏环境下同样成立。
+
+### 4 边界
+
+- M4-6 未取得通过率读数（网关配额），待配额恢复后可重跑补数；不影响本批「字段语义与诚实记账」结论。
+- 真跑报告保留 `output/m4_recheck_run.json`（gitignored）；M4-5 用的临时合成件已删。
+- M4-7 全量含并行车道工作树未提交改动，记账口径同上批。
+
+### 5 下一批边界
+
+复核表剩 M3 / M8 未复核。下一批候选：M3 最小面复核（若并行车道未做）或新产品缺口。
