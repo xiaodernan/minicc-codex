@@ -10889,3 +10889,65 @@ A4 的多出来的那条红是 `test_the_same_failure_with_on_failure_continue_a
 hooks.json 在 CLI 里除了日志没有别的告示——那是 M8-T137 的候选（把装载失败告诉人）。netguard 的 CGNAT
 `100.64/10` 与 6to4/Teredo 仍等用户定口径，本批没有动那道 fail-closed 守卫；CLI 里答 `y` 覆盖项目 deny 那条
 仍开着，但它的改法在 `minicc/main.py`，那是冻结文件，不在我这一批的权限里。
+
+## 第一百三十四批 M2 退出标准逐条复核：三条都达成，且都有活的证据——附一条变异协议的第 0 步
+
+### 1 为什么复核 M2
+
+第三节（里程碑详细任务清单）里 M1–M3 的退出标准复核是 **2026-09-22**（第一批真跑记录）留下的，
+两周里代码动了很多，而 M6/M7 刚被逐条复核过。M2 是「权限模型与工作区边界封闭」——三条最危险的路之一，
+值得用同样的纪律再过一遍。**本批只复核，不改产品代码。**
+
+### 2 逐条
+
+| 退出标准 | 今天的读数 | 判 |
+| --- | --- | --- |
+| 1. `tests/test_security_perimeter.py` 每个 finding 一条回归测试（≥12 条） | 文件在（11.6 KB），**19 个 `def test_`** | 达成 |
+| 2. `pytest -q tests/test_web_security.py tests/test_permission_modes.py tests/test_allowlist.py tests/test_file_tree_api.py` 全绿 | 连同标准 1 那个文件一起跑：**55 passed in 82.67s**，exit 0 | 达成 |
+| 3. `docs/SECURITY_CHECKLIST.md` 写完且逐条被拒 | 文件在，**8 节**，每节都有「攻击／防线／回归／手工复现」四段；**18 条测试引用全部指向真实存在的测试（0 悬空）** | 达成 |
+
+### 3 标准 3 的「逐条被拒」怎么验的：先查这道账有没有人看着
+
+清单里点名了 18 个 `tests/….py::test_…`。**先问文档门认不认这种引用**，做法是往清单里种两条假引用：
+
+- 种 `tests/test_nonexistent_probe.py::test_never_existed`（文件不存在）→ `doc_pointers --check` 红：
+  `指向的文件不存在`；
+- 种 `tests/test_web_security.py::test_never_existed`（**文件真、函数假**，也就是改名场景）→ 同样红：
+  `没有这个测试：整个 tests/ 里没有这个函数`。
+
+两条探针都在种完之后逐字还原（`git diff --stat` 0 行）。**结论：清单的引用已经被 CI 的 `claims` job 守着**，
+不需要新门——差一点就为它写一条重复的门。
+
+### 4 「先红后绿」的今日等价物：拆掉防线，看谁红
+
+历史性的「先红后绿」无法重放，能做的是**今天再拆一次**。两个变异，都在 `finally` 里逐字还原：
+
+| 变异 | 结果 | 红的正是清单点名的那几条 |
+| --- | --- | --- |
+| A `fs._minicc_sensitive_kind` 恒返回 `None`（`.minicc` 下认证/授权文件的拒绝与脱敏规则） | `3 failed, 16 passed in 8.93s` | `test_write_file_denied_for_minicc_auth_files`、`test_read_file_denied_for_web_token_and_allowlist`、`test_read_file_redacts_mcp_headers` —— **三条全在清单第 4 节点名的名单里** |
+| B `workspaces.resolve_workspace_path` 里白名单置空（`workspace_roots` 规则） | `2 failed, 35 passed in 17.31s` | `test_security_perimeter.py::test_roots_reject_outside_path`（清单第 1 节点名）＋ `test_web_security.py::test_switch_workspace_outside_whitelist_rejected` |
+| 基线（未变异） | `19 passed in 31.94s` | — |
+
+### 5 本批真正的教训：**变异协议缺了第 0 步**
+
+第一次我打的目标是 `fs._is_sensitive_path`（恒返回 `False`）——结果是 **19 passed，全绿**。
+差一点就把它记成「`.minicc` 那条防线没有门看着」。真相是：**`.minicc` 的拒绝/脱敏根本不是那个函数实现的**，
+它由 `_minicc_sensitive_kind` / `_reject_minicc_sensitive` 负责（`fs.py:80-94`），`_is_sensitive_path` 管的是另一套
+（`SENSITIVE_NAMES` 与 `.env`）。也就是说，那次绿的含义是「**我拆的东西跟这条标准无关**」，
+不是「门是死的」。
+
+**所以变异协议要有第 0 步：先确认这个变异真的拆掉了那条标准所依赖的防线**——
+判据不是"我改了一个看起来相关的函数"，而是"改完之后，该标准描述的攻击形状在实现里确实没有别的守卫"。
+本批的做法是：先在实现里找到那条标准点名的函数（`grep` 防线关键词 → 读到 `_reject_minicc_sensitive` 的调用点
+在 `write_file` 与读路径上），再打变异；A/B 的红名单与清单点名的测试**逐条对上**，这才是"拆对了"的证据。
+（与第一百一十二批「稳定 ≠ 干净」同一族：**一个读数在成为结论之前，先要确认它量的是那件事**。）
+
+### 6 边界（明确不声称）
+
+- 本批**没有**重放标准 1 的「先红后绿」历史，也没有逐条核对 19 条测试各自对应哪条 finding——
+  只核了「文件在、条数 ≥12、四条命名文件全绿」。
+- **M2-T3/T4/T5/T6/T7/T8 的实现本身没有逐行复核**，只复核了它们对应的退出标准读数。
+- 清单第 6/7/8 节（Web Origin、网络门、配置劫持）的回归测试**不在本批跑的五个文件里**
+  （它们在 `test_web_security.py`／`test_network_gate.py`／`test_webfetch.py`／`test_security_perimeter.py` 之间分布），
+  本批只跑了标准 2 点名的那四个文件加上标准 1 的文件；第 7 节的 `test_network_gate.py` 与第 6 节的日志脱敏项**未在本批复跑**。
+- M1/M3/M4/M5/M8 的退出标准仍未按同样纪律复核（第三节全表的其余行）。
