@@ -784,8 +784,8 @@
 | M1-3 人工核查（只认 text delta 与 `[DONE]`、空答案不算成功） | ✅（**查出并修掉一条真实缺陷**） | 三条子判据分别处理。**① 只认 text delta**：两条协议分支各自独立核过——`chat_completions` 分支里 `delta.content` 与 `delta.reasoning_content` 走**两个不同的 assembler**，reasoning 永远进不了 `committed_text`（`openai_provider.py:1017-1040`）；`responses` 分支只消费 `response.output_text.delta` 一种事件类型，其余事件不产生可见文本（`:784-791`）。**② 假网关只发 delta + `[DONE]`、从不发 finish_reason**：这条原本写着「人工核查」，其实**可以在 wire 上执行**，新测试用 `httpx.MockTransport` 返回真实 SSE 字节（一条 content delta + `data: [DONE]`，无 finish_reason），断言 **HTTP 请求恰好 1 次**（不是 5 次重放）、`run_agent` 以 `LLM 调用失败: stream ended before completion` 明确结束、且已经流出去的「半句话」保留在 answer 里。顺带纠正一处口径：旧测试 `test_m1t5_stream_without_finish_reason_fails_fast` 数的「1 次」是**被打桩的 `_create` 调用次数**，不是 HTTP 请求数。`[DONE]` 在 openai 路径由 SDK 自己消化，仓库里唯一手写 SSE 解析的是 anthropic 路径（`anthropic_provider.py:372` 对 `[DONE]` 有防护）。**③ 空答案不算成功 → 此前不成立**：`loop.py` 有两个交付点写 `result.answer = text or "(模型返回空回复)"` 而 `result.error` 保持为空，也就是**一轮既无内容又无工具调用的完成会被当作成功交付**，且此前没有任何测试引用过那个占位串（grep 全仓库只命中 loop.py 自己）。两处都改成显式失败（`code="empty_answer"`，answer 写成「任务未完成：…」）。保留的判断：`text` 为空时仍会先取 `reasoning_content`（`:1409-1411`），部分模型只把答案写在推理段里，所以「空答案」的判据是**两者都空** | `tests/test_m1_integrity.py` 15 → **17**：`test_m1t3_delta_only_gateway_costs_one_request_and_errors`（wire 级，修复前后均绿——它验证的是已经成立的部分）、`test_m1t3_an_empty_final_answer_is_not_reported_as_success`（**先红**：`assert None` 于 `TurnResult(answer='(模型返回空回复)'…)`；改完转绿）。全量 `-W error` **913 passed / 233.81s**，语义变更未打破任何既有交付契约 |
 | M1-4 golden delta 序列：streamed text 必须与 answer 一致 | ✅（今天才真正成立） | 判据落在 M8-T13 的两条新测试（增量逐字到达 surface；`StreamWriter.matches`）+ `visible-equals-stored` 真机 3/3。**此前这条标准是靠终端肉眼看的**，实际一直在丢字 |
 | M2-1 / M2-2 四份安全测试文件全绿 | ✅ | `test_web_security + test_permission_modes + test_allowlist + test_file_tree_api + test_security_perimeter + test_task_durability` 共 **63 passed** |
-| M3-1 Origin/CSRF 与会话持久化全绿 | ✅ | 同上（含 `test_web_security`、`test_task_durability`） |
-| M3-3 `grep -rn sk-` 在 `.minicc/` 与日志里零命中 | ❌ **标准本身不成立** | 仓库自身 `.minicc/web-8765.stdout.log` 命中 **19,167 次**，全部是 **`task-<hex>` 里含子串 `sk-`**（真实密钥字符串不在其中、文件 gitignored 且 mtime 早于 M1 开工一个月）。和 M8-T5 的 `git grep -c 'print('` 同一类：**字面 grep 口径不可信**。 |
+| M3-1 Origin/CSRF 与会话持久化全绿 | ✅ | 同上（含 `test_web_security`、`test_task_durability`）。**2026-10-07 复核（M8-T150）**：`test_web_security.py + test_task_durability.py` 双文件集当日重跑 → **27 passed / 60.35s，exit 0** |
+| M3-3 `grep -rn sk-` 在 `.minicc/` 与日志里零命中 | ❌ **标准本身不成立** | 仓库自身 `.minicc/web-8765.stdout.log` 命中 **19,167 次**，全部是 **`task-<hex>` 里含子串 `sk-`**（真实密钥字符串不在其中、文件 gitignored 且 mtime 早于 M1 开工一个月）。和 M8-T5 的 `git grep -c 'print('` 同一类：**字面 grep 口径不可信**。**2026-10-07 复核（M8-T150）**：`python scripts/reliability_probe.py` 当日重跑 → **exit 0**：9 个 M1 target 全绿后 credential scan 对真实状态目录 **0 finding(s)**，打印 `PASS (M1 defects stay fixed; no credential shapes in state)`；形状判据门（sk-长 token / AKIA / PEM 头 / .env key 原文）在坏口径被换掉之后持续站得住 |
 
 M3-3 的处理不是把标准删掉，而是把它变成可执行、可证伪的门：`scripts/reliability_probe.py` 现在多跑一段
 `scan_credentials()`，只认真正的凭据形状（`\bsk-[A-Za-z0-9_-]{20,}`、AKIA、PEM 头、`.env` 里那把 key 的原文），
@@ -12169,3 +12169,29 @@ for t in threads:
 - 回读断言在负载下若线程真的慢于 timeout 会显式发红（而不是静默竞态）——这是门要
   的语义，不是缺陷。
 - 完整全量复跑（覆盖 43% 之后未跑的其余文件，含 M8-T147 的新文件）随后单独进行。
+
+## 第一百五十批 M8-T150：M3 复核——两行标准当日重跑，形状判据门当场再立住
+
+### 1 背景
+
+复核表 M3 两行（2026-09-22 记录）当日重跑取数。占号说明：M8-T149 已被并行车道使用（9eca614 + 413d3b9），本批取下一个空位 T150。
+
+### 2 实现
+
+纯复核批次，产品码零改动；唯一变更即本文件 M3 两行追加当日复核读数与本节。
+
+### 3 实测证据
+
+| 标准 | 命令 | 当日读数 |
+| --- | --- | --- |
+| M3-1 | `python -m pytest tests/test_web_security.py tests/test_task_durability.py -q` | **27 passed / 60.35s，exit 0** |
+| M3-3 | `python scripts/reliability_probe.py` | **exit 0**：9 个 M1 target 全绿 + credential scan 0 finding(s) → `PASS (M1 defects stay fixed; no credential shapes in state)` |
+
+### 4 边界
+
+- M3-3 维持原判定语义：字面 `grep -rn sk-` 口径不成立（`task-<hex>` 子串误报），换 `scan_credentials()` 形状判据后标准成立；今日复跑只证明判据门仍然在位且真实状态目录干净，不证明运行期永不落密钥。
+- reliability_probe 的 M1 段是既有一键复现门，本批未改其目标清单。
+
+### 5 下一批边界
+
+至此复核表 M1 / M2 / M3 / M4 均有当日复核读数，剩 M8（并行车道在动的面，勿撞）。下一批候选：新产品缺口（从 §6 未勾选项挑）或与并行车道零交集的独立面。
