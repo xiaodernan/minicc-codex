@@ -11657,6 +11657,150 @@ session allowlist.json 的校验边界现在由 26 条系统性测试守护，�
 在加载期就被拒绝或规范化，而非在运行时导致静默数据丢失或不可预期的 consent 行为。
 
 
+## 第一百四十四批 M8-T144：hooks.json 校验边界 — 30 例系统覆盖
+
+### 1 来源与占号
+
+`minicc/hooks.py:153` 的 `HookRunner._parse` 负责解析 `.minicc/hooks.json`，此前只有行
+为测试（`test_hooks.py`），缺乏对加载期校验边界的系统性覆盖。实测发现 HookRunner 已有
+完善的字段验证（event 名称、command 非空、matcher 正则、timeout 范围、on_failure 枚举、
+env 类型），但缺少测试证明这些校验覆盖了所有常见的畸形输入。
+
+占号前先读 `git log --all` 与文档全文：`T144` 在提交里 0 命中、在文档里 0 命中，
+本批认领 **M8-T144**。
+
+### 2 缺陷
+
+`_parse` 方法已有基础校验（lines 185-233），但缺少测试证明：
+- 非 dict 顶层结构的处理（array/string）
+- 缺失 'hooks' 键时的回退行为（用根 dict 当 hooks）
+- 无效 event 名称的拒绝
+- entries 必须是 list of dicts
+- command 字段非空检查
+- matcher 正则有效性验证
+- timeout 数值与范围检查（(0, 60]）
+- on_failure 枚举值验证（continue/deny）
+- env 必须是 dict，值转字符串
+- 首个错误条目停止解析的行为
+- Unicode 和特殊字符的处理
+
+### 3 修复
+
+新增 `tests/test_hooks_validation.py`（30 例），分十一组覆盖：
+
+**Section 1：顶层结构校验**
+- 非 dict 顶层 → 抛 HookConfigError（_read_config_file 直接抛出）
+- 缺失 'hooks' 键 → 用根 dict 当 hooks 配置
+- hooks 值非 dict → 抛 HookConfigError
+
+**Section 2：Event 名称校验**
+- 未知 event 名称 → 抛 HookConfigError，列出可用事件
+- 四个标准事件全部接受（PreToolUse/PostToolUse/UserPromptSubmit/Stop）
+
+**Section 3：Entry 结构校验**
+- entries 必须是 list → 非 list 抛错
+- 单个 entry 必须是 dict → 非 dict 抛错
+- command 不能为空或空白 → 空/None 抛错
+- 缺失 command 字段 → 抛错
+
+**Section 4：Matcher 正则校验**
+- 无效正则 → 抛 HookConfigError
+- 有效正则编译成功
+- 空 matcher 匹配所有工具
+
+**Section 5：Timeout 校验**
+- 超出范围 (0, 60] → 抛错
+- 非数值 → 抛错
+- 有效值接受（0.1, 5.0, 60）
+- 缺失时默认 5.0s
+
+**Section 6：on_failure 校验**
+- 非法值 → 抛错，提示 continue|deny
+- 有效值接受（continue/deny）
+- 缺失时默认 continue
+
+**Section 7：env 校验**
+- 非 dict → 抛错
+- 值转字符串（123→"123", True→"True"）
+- 缺失/null → 空 dict
+
+**Section 8：混合有效/无效条目**
+- 首个无效条目停止解析
+- 一个事件的无效条目使整个配置失败
+
+**Section 9：边界情况**
+- Unicode 命令保留
+- 特殊正则字符验证
+- 超长命令接受（无截断）
+
+**Section 10：构造器参数**
+- config 参数绕过文件读取
+- 无效 config 仍设置 load_error
+
+**Section 11：环境禁用**
+- MINICC_HOOKS=0 忽略所有配置
+
+全部 30 例通过（3.95s）。
+
+### 4 证据
+
+```bash
+$ python -m pytest tests/test_hooks_validation.py -v --tb=short
+collected 30 items
+tests/test_hooks_validation.py::test_non_dict_top_level_raises PASSED [  3%]
+tests/test_hooks_validation.py::test_missing_hooks_key_uses_root_as_hooks PASSED [  6%]
+tests/test_hooks_validation.py::test_hooks_value_is_not_dict_raises PASSED [ 10%]
+tests/test_hooks_validation.py::test_unknown_event_name_raises PASSED [ 13%]
+tests/test_hooks_validation.py::test_valid_event_names_accepted PASSED [ 16%]
+tests/test_hooks_validation.py::test_entries_must_be_list_raises PASSED [ 20%]
+tests/test_hooks_validation.py::test_entry_must_be_dict_raises PASSED [ 23%]
+tests/test_hooks_validation.py::test_empty_command_raises PASSED [ 26%]
+tests/test_hooks_validation.py::test_missing_command_raises PASSED [ 30%]
+tests/test_hooks_validation.py::test_invalid_regex_in_matcher_raises PASSED [ 33%]
+tests/test_hooks_validation.py::test_valid_regex_patterns_accepted PASSED [ 36%]
+tests/test_hooks_validation.py::test_empty_matcher_matches_all_tools PASSED [ 40%]
+tests/test_hooks_validation.py::test_timeout_out_of_range_raises PASSED [ 43%]
+tests/test_hooks_validation.py::test_timeout_non_numeric_raises PASSED [ 46%]
+tests/test_hooks_validation.py::test_valid_timeout_values_accepted PASSED [ 50%]
+tests/test_hooks_validation.py::test_default_timeout_applied_when_missing PASSED [ 53%]
+tests/test_hooks_validation.py::test_invalid_on_failure_raises PASSED [ 56%]
+tests/test_hooks_validation.py::test_valid_on_failure_values_accepted PASSED [ 60%]
+tests/test_hooks_validation.py::test_default_on_failure_is_continue PASSED [ 63%]
+tests/test_hooks_validation.py::test_env_must_be_dict_raises PASSED [ 66%]
+tests/test_hooks_validation.py::test_env_values_coerced_to_strings PASSED [ 70%]
+tests/test_hooks_validation.py::test_empty_env_defaults_to_empty_dict PASSED [ 73%]
+tests/test_hooks_validation.py::test_first_invalid_entry_stops_parsing PASSED [ 76%]
+tests/test_hooks_validation.py::test_multiple_events_with_one_invalid PASSED [ 80%]
+tests/test_hooks_validation.py::test_unicode_in_command_accepted PASSED [ 83%]
+tests/test_hooks_validation.py::test_special_chars_in_matcher_accepted PASSED [ 86%]
+tests/test_hooks_validation.py::test_very_long_command_accepted PASSED [ 90%]
+tests/test_hooks_validation.py::test_config_parameter_bypasses_file PASSED [ 93%]
+tests/test_hooks_validation.py::test_invalid_config_parameter_sets_load_error PASSED [ 96%]
+tests/test_hooks_validation.py::test_hooks_disabled_via_env_ignores_config PASSED [100%]
+
+30 passed in 3.95s
+```
+
+回归基线：
+- 现有 hooks 套件（`test_hooks*.py`）：40 例全绿
+
+### 5 提交记录
+
+```bash
+$ git log --oneline -1
+3c58742 M8-T144: hooks.json validation boundaries — 30 systematic cases
+```
+
+变更：+517/-0（新建测试文件）。
+
+### 6 结论
+
+hooks.json 的校验边界现在由 30 条系统性测试守护，证明了 HookRunner._parse 对所有常见畸
+形输入的拒绝行为。已知行为差异：_read_config_file 对非 dict 顶层直接抛 HookConfigError
+（不在 __init__ 中捕获），而 _parse 捕获错误并设置 load_error。这确保了坏配置在加载期就
+被拒绝，而非在运行时导致不可预期的 hook 执行失败或安全漏洞。
+
+
    if "enabled" in raw:
        enabled = _routing_bool(raw["enabled"], f"{path}.enabled")
        normalized["enabled"] = enabled
