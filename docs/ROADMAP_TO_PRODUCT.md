@@ -12770,6 +12770,7 @@ worktree.py 全文只有 `_run` 一处 subprocess 调用，单咽喉收口即全
 | mypy | `minicc/worktree.py` Success: no issues found in 1 source file |
 | 全量 | 本地全量 **2028 passed, 5 skipped in 743.99s（12:23）** exit 0（2027→2028 恰为新测试 1 条） |
 | 占号双查 | ROADMAP grep `M2-T9` 空 + `git log --all --grep=M2-T9` 空（M2 面既有任务 T1-T8 全 ✅，T9 为新登记） |
+| CI 绿证（补记） | run 37547155551 @ dc78eb1 **success**——红绿闭环完成 |
 
 ### 4 边界
 
