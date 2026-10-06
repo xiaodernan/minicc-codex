@@ -129,10 +129,12 @@ def cost_usd(
 ) -> float | None:
     """USD cost of one usage record, or ``None`` when the model is unpriced.
 
-    ``prompt_tokens`` is the *total* prompt (cache hit + miss), so the hit
-    portion is billed at the discounted ``cache_read`` rate and only the
-    remainder at the full ``input`` rate. Cache-write tokens are billed
-    separately. Returns ``None`` (not 0.0) for an unknown model so callers can
+    ``prompt_tokens`` is the *total* prompt (cache hit + write + miss) after
+    the M1-T6 normalization, so the hit portion is billed at the discounted
+    ``cache_read`` rate and the write portion at ``cache_write`` — the miss
+    rate must apply to **neither** of them. An early version subtracted only
+    the hit, double-billing every cache-write token at the full input rate
+    (M8-T67). Returns ``None`` (not 0.0) for an unknown model so callers can
     distinguish "free" from "unpriced".
     """
     if not isinstance(usage, Mapping):
@@ -144,7 +146,7 @@ def cost_usd(
     hit = _tokens(usage, "prompt_cache_hit_tokens")
     write = _tokens(usage, "prompt_cache_write_tokens")
     completion = _tokens(usage, "completion_tokens")
-    miss = max(0.0, prompt - hit)
+    miss = max(0.0, prompt - hit - write)
     total = (
         miss * price.input_per_mtok
         + hit * price.cache_read_per_mtok

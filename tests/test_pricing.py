@@ -71,6 +71,27 @@ def test_cache_write_billed_separately() -> None:
     assert cost_usd("gpt-4o", usage) == pytest.approx(0.0025, abs=1e-6)
 
 
+def test_cache_write_not_double_billed_inside_miss(tmp_path=None) -> None:
+    """M8-T67: M1-T6 归一化后 prompt 含 hit+write——miss 必须减去两者。
+
+    Anthropic 实测形态：input=100 / read=80 / write=12 → 归一化
+    prompt_tokens=192。正确计费 = 100×input + 80×read + 12×write。
+    修复前 miss=prompt-hit=112，write 的 12 枚被按全 input 价**再收一次**
+    （555/1M 而非 519/1M，虚高 36/1M）。
+    """
+    usage = {
+        "prompt_tokens": 192,
+        "prompt_cache_hit_tokens": 80,
+        "prompt_cache_write_tokens": 12,
+        "completion_tokens": 10,
+    }
+    expected = (100 * 3.00 + 80 * 0.30 + 12 * 3.75 + 10 * 15.00) / 1_000_000
+    assert cost_usd("claude-3-5-sonnet", usage) == pytest.approx(expected, abs=1e-9)
+    # 且必须严格小于把 write 落入 miss 的错误算法。
+    wrong = ((192 - 80) * 3.00 + 80 * 0.30 + 12 * 3.75 + 10 * 15.00) / 1_000_000
+    assert expected < wrong
+
+
 def test_pricing_override_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv(
         "MINICC_PRICING_JSON",
