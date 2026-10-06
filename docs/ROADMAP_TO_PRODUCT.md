@@ -12122,3 +12122,50 @@ M4-6 的 429 属 discovery-api 网关配额耗尽（环境），非产品回归�
 ### 5 下一批边界
 
 复核表剩 M3 / M8 未复核。下一批候选：M3 最小面复核（若并行车道未做）或新产品缺口。
+
+## 第一百四十九批 M8-T149：两处并发测试 join 后无人回读 is_alive——M8-T71 全量门在首次全量跑里点名两个新站点
+
+### 1 来源与占号
+
+d2134c7 的首次全量跑：**1 failed, 888 passed, 1 skipped**（914.38s，-x 停在首
+红）。红的是 test_join_liveness 全量门，恰好点名两个站点，都是本审计系列新加的
+并发测试：
+
+- `tests/test_webauth_validation.py:test_concurrent_writes_produce_single_token@join-line-229`（M8-T146）
+- `tests/test_allowlist_validation.py:test_concurrent_writes_do_not_corrupt@join-line-333`（M8-T143）
+
+这正是 M8-T71 全量门存在的理由：新测试是站点。join(timeout=N) 返回不代表线程已
+停，其后对共享文件的断言在跟一个还活着的写者竞态。占号：T148 已被并行车道占用
+（b651a4a「M4 复核」批），本批取下一个空位 **M8-T149**。
+
+### 2 修复
+
+两处 join 循环内补回读（+8 行，9eca614）。webauth：
+
+```python
+for t in threads:
+    t.join(timeout=5)
+    assert not t.is_alive(), (
+        "a token-writing thread outlived its join window: it can still be "
+        "inside load_or_create_token, so the store read below races it"
+    )
+```
+
+（allowlist 版同形：timeout=10、命名的活线程还可能在 replace_session_rules 里。）
+
+### 3 证据
+
+| 命令 | 读数 |
+| --- | --- |
+| 全量跑（d2134c7，-x 停在首红） | **1 failed, 888 passed, 1 skipped**（914.38s） |
+| `tests/test_join_liveness.py`（修后） | **3 passed**（11.35s） |
+| focused 四文件（门 + 两站点文件 + M8-T147 文件） | **49 passed, 5 skipped**（51.56s） |
+| 提交 | 9eca614 |
+
+修前的红就是现成测量：门逐字点名两个站点；修后同一条门绿。
+
+### 4 边界
+
+- 回读断言在负载下若线程真的慢于 timeout 会显式发红（而不是静默竞态）——这是门要
+  的语义，不是缺陷。
+- 完整全量复跑（覆盖 43% 之后未跑的其余文件，含 M8-T147 的新文件）随后单独进行。
