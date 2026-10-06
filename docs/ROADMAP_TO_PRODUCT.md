@@ -12548,3 +12548,51 @@ web.py 仍在动）；specproof 战区（并行 #201）未清。
 ### 绿证补记（T158）
 
 CI run **37532950246**（树 b80d441）全绿——docs-only 批在全量门下通过。
+
+## 第一百五十九批 M8-T159：报告带套件标识——跨套件 A/B 对比不再静默对齐零条
+
+### 1 缺口
+
+评测报告从未说明自己描述的是哪套任务：`build_report` 顶层只有 `schema_version`，
+`suite_version` 只活在每行 metadata 里（M8-T107）。后果在 `bench_compare` 上最锋利——
+把 behavior run（`behavior-*` 12 条）和 v2 run（`v2-*` 24 条）喂给 compare，任务 ID
+空间不相交，对齐 0 条，所有 delta None，读者只看到一句泛泛的「至少一侧没有可评分
+任务」，根因（套件不同，不可比）不可见。M6 起每个能力 PR 都要附 compare delta 表，
+这个坑迟早把人绊进去。
+
+### 2 实现
+
+- `build_report` 顶层新增 `suite_version`，由任务集本身推断：任务显式声明的标识
+  全一致 → 该值（v2 任务 → `v2-1`，behavior 任务 → `behavior-1`）；无标识的
+  legacy 形状 → `legacy-1`；混合 → `mixed`（不猜）。schema_version 保持 2——
+  新增可选字段不破坏既有读者。
+- `bench_compare.compare_reports`：从报告顶层取两侧套件（raw results 数组 → None），
+  写进输出的 `baseline`/`variant` 块；两侧都已知且不同时，notes 追加「套件不同：
+  ……两个任务 ID 空间不相交，对齐数与差值不具可比性」。
+- `render_delta_table` 表头新增套件行；无标识的早期报告显示 `unknown`，不编造套件名。
+
+### 3 门证
+
+| 门 | 读数 |
+| --- | --- |
+| 红证（旧实现） | 新 5 测试先跑：**4 failed, 1 passed**（`KeyError: 'suite_version'` ×2、表格无套件行 ×2；同套件无警告测试是平凡绿） |
+| 新实现单文件 | `test_bench_compare.py + test_join_liveness.py` **34 passed**（31 + 3，T157 教训：新测试连元门一起跑） |
+| 评测面更大门 | `test_benchmark_runner + test_bench_tasks + test_behavior_bench + test_bench_compare + test_join_liveness` **82 passed in 26.43s** |
+| ruff / mypy | stash 对照 HEAD 基线：ruff 同 3 处既有债（F821:184 / F541:584 / F401 tests:16），mypy 同 12 处（行号位移 = 插入行数），**零新增** |
+| 跨套件真 CLI | behavior 骨架 vs v2 骨架 compare：`对齐任务数: 0`、表头 `套件: baseline=behavior-1 | variant=v2-1`、notes 明确「套件不同……不具可比性」 |
+| 同套件真 CLI | behavior vs behavior：对齐 12 条，`套件: baseline=behavior-1 | variant=behavior-1`，无套件警告 |
+| 骨架回归 | `--suite behavior` / `--suite v2` 骨架命令均 exit 0（build_report 加字段不破坏既有路径） |
+
+### 4 边界
+
+- `suite_version` 是推断不是门禁：compare 遇到套件不同仍输出完整对比（delta None +
+  警告），不 exit 非 0——「不可比」是可读的警告，不是崩溃；要不要硬拒绝留给
+  `--gate` 的使用者。
+- behavior-1 本来就是任务显式声明的真实标识（`behavior_bench.py`），不是本批发明的；
+  本批只让报告把它带到顶层、让 compare 读它。
+
+### 5 下一批边界
+
+M4-6 全量挂起（配额第 4 次探针 m46_probe4.json：172s 后仍 429 quota exceeded，
+T154 语义第 3 次真数据自证）；复核表 M8（并行 web.py 车道）；specproof 战区
+（并行 #201）未清。

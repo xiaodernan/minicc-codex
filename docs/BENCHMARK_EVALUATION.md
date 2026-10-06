@@ -72,6 +72,16 @@
 
 基础设施失败语义（M8-T154）：错误以「LLM 调用失败」开头的行（provider 429 / 连接错误）计入 `infra_failure_count`，不与模型真失败混算；`pass_at_1_ex_infra` 把它们从分母排除，排除后分母为空时如实 `null`，不假 100；`pass_at_1` 分母冻结不动（历史可比）。`bench_compare --gate` 的门槛认 `pass_at_1_ex_infra`（M8-T155），配额停电不再把 A/B 变体判死。
 
+## A/B 对比（compare，M8-T159 起）
+
+对比两次评测 run 的 JSON，输出 pass@1 delta（Wilson / Newcombe 区间）、per-success 成本差值（配对 bootstrap 区间）、延迟分位差值与分类别分解；`--gate` 把对比变成 pass/fail 检查（违反则 exit 1）：
+
+```powershell
+.venv/Scripts/python.exe -m minicc.benchmarks compare --baseline output/base.json --variant output/var.json --gate "pass_at_1>=0.8"
+```
+
+报告自带套件标识（顶层 `suite_version`，由任务集推断：v2 任务 → `v2-1`，behavior 任务 → `behavior-1`，无标识的 legacy 形状 → `legacy-1`，混合 → `mixed`）。对比表的表头显示两侧套件；两侧标识不同时，notes 明确指出「两个任务 ID 空间不相交，对齐数与差值不具可比性」——比较 behavior run 和 v2 run 不再静默对齐 0 条后只留一句泛泛的「没有可评分任务」。早期不带该字段的报告以 `unknown` 出现，不编造套件名。
+
 ## 检索决策门（M4-T7，2026-09-21）
 
 `minicc/agent/retrieval.py` 是确定性的 token + path + symbol 词法打分，自述「不是向量数据库」。M4-T7 不直接上 embedding，而是先用「已知答案定位」数据集 `benchmarks/retrieval-hitrate.json`（20 条，每条 = 开发者提问 + 应答的仓库相对文件）量化词法基线，指标为 `recall@k = |targets ∩ top-k| / |targets|` 按 case 求均值，MRR 取首个命中目标排名倒数。复现命令：
