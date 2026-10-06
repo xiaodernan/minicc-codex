@@ -11366,6 +11366,79 @@ PreToolUse deny 钩子对子代理的工具调用无效（安全缺口）。子�
 - **性能开销可接受**：HookRunner 构造期只做一次文件读取和正则编译，子循环生命周期内复用
   同一实例，与父循环的开销同量级。
 
+## 第一百三十九批 M8-T139：阶段路由 enabled=false 时跳过深层校验——用户关闭的功能不该用无效配置阻挡启动
+
+### 1 来源与占号
+
+README.md 明确说明阶段路由默认关闭（`enabled=false`），但 `config.py` 的
+`normalize_stage_routing` 在解析时不检查 `enabled` 字段，导致即使关闭也会校验
+`tiers`/`stage_map`/`cost_limits_usd` 等字段的合法性。这意味着用户想关闭路由但留有
+旧/错误的配置时，启动仍会抛 ConfigError。
+
+占号前先读 `git log --all` 与文档全文：`T139` 在提交里 0 命中、在文档里 0 命中，
+本批认领 **M8-T139**。
+
+### 2 缺陷
+
+`minicc/config.py:179` 的 `normalize_stage_routing` 函数无条件校验所有字段，即使
+`enabled=false`。实测：
+
+```python
+{"enabled": False, "tiers": {"fast": "not-a-list"}}  # 应加载成功，实际抛 ConfigError
+```
+
+这是用户体验问题：用户显式关闭功能后，仍被该功能的无效配置阻挡启动。
+
+### 3 修复
+
+两处改动（同一函数）：
+
+1. **先解析 enabled**（`config.py:190-192`）：
+   ```python
+   enabled = True  # default
+   if "enabled" in raw:
+       enabled = _routing_bool(raw["enabled"], f"{path}.enabled")
+       normalized["enabled"] = enabled
+   ```
+
+2. **为 false 时跳过深层校验**（`config.py:195-196`）：
+   ```python
+   # When disabled, skip all deep validation - the router won't use these fields
+   if not enabled:
+       return normalized
+   ```
+
+这样当 `enabled=false` 时，只返回 `{"enabled": false}`，不校验 tiers/stage_map 等字段。
+
+### 4 门测试（5 例）
+
+新建 `tests/test_stage_routing_disabled_skips_validation.py`：
+
+- **enabled=false + 无效 tiers** → 加载成功（ConfigError 不再抛出）
+- **enabled=false + 缺失 tiers** → 加载成功
+- **enabled=false + 无效 stage_map** → 加载成功
+- **enabled=true + 无效 tiers** → 仍抛 ConfigError（确保 enabled=true 时校验仍在）
+- **enabled=true + 有效配置** → 正常加载
+
+五例全绿（1.51s）。
+
+### 5 回归证据
+
+| 命令 | 读数 |
+| --- | --- |
+| `test_stage_routing_disabled_skips_validation.py`（5 新门） | **5 passed**（1.51s） |
+| `test_stage_routing_config_reaches_the_router.py + test_cli_stage_routing.py`（65 现有） | **65 passed**（4.05s） |
+| 提交 | f9ff17c |
+
+### 6 边界
+
+- **只跳过深层校验，不跳过键名检查**：`_routing_keys_known` 仍在顶层执行，所以拼写错误
+  的键（如 `{"enaabled": false}`）仍会被拒绝，防止用户误写键名而不自知。
+- **enabled 默认为 true**：当用户不提供 `enabled` 字段时，默认开启路由并执行完整校验，
+  保持向后兼容（历史上没有 enabled 字段时就是开启状态）。
+- **不影响路由器行为**：路由器本身在 `enabled=false` 时已不使用 tiers/stage_map 等字段，
+  此修复只是让配置解析层与路由器层的语义一致。
+
 ## 第一百四十批 M8-T140：MCP server 配置校验必须在启动期拒绝坏配置，而非运行时崩溃
 
 ### 1 来源与占号
@@ -11951,47 +12024,3 @@ $ git log --oneline -1
 ### 6 结论
 
 web_token.json 的校验边界现在由 22 条系统性测试守护，证明了 load_or_create_token 对所有常见畸形输入的拒绝行为。关键修复：非 dict 顶层现在抛出 WebAuthError 而非 AttributeError。已知行为：`item or ""` 把 JSON false 当 falsy → 生成新 token（同 allowlist T143）。文件权限只在创建时设置 0o600，不收紧已有文件的过宽权限（文档行为）。
-
-
-   if "enabled" in raw:
-       enabled = _routing_bool(raw["enabled"], f"{path}.enabled")
-       normalized["enabled"] = enabled
-   ```
-
-2. **为 false 时跳过深层校验**（`config.py:195-196`）：
-   ```python
-   # When disabled, skip all deep validation - the router won't use these fields
-   if not enabled:
-       return normalized
-   ```
-
-这样当 `enabled=false` 时，只返回 `{"enabled": false}`，不校验 tiers/stage_map 等字段。
-
-### 4 门测试（5 例）
-
-新建 `tests/test_stage_routing_disabled_skips_validation.py`：
-
-- **enabled=false + 无效 tiers** → 加载成功（ConfigError 不再抛出）
-- **enabled=false + 缺失 tiers** → 加载成功
-- **enabled=false + 无效 stage_map** → 加载成功
-- **enabled=true + 无效 tiers** → 仍抛 ConfigError（确保 enabled=true 时校验仍在）
-- **enabled=true + 有效配置** → 正常加载
-
-五例全绿（1.51s）。
-
-### 5 回归证据
-
-| 命令 | 读数 |
-| --- | --- |
-| `test_stage_routing_disabled_skips_validation.py`（5 新门） | **5 passed**（1.51s） |
-| `test_stage_routing_config_reaches_the_router.py + test_cli_stage_routing.py`（65 现有） | **65 passed**（4.05s） |
-| 提交 | f9ff17c |
-
-### 6 边界
-
-- **只跳过深层校验，不跳过键名检查**：`_routing_keys_known` 仍在顶层执行，所以拼写错误
-  的键（如 `{"enaabled": false}`）仍会被拒绝，防止用户误写键名而不自知。
-- **enabled 默认为 true**：当用户不提供 `enabled` 字段时，默认开启路由并执行完整校验，
-  保持向后兼容（历史上没有 enabled 字段时就是开启状态）。
-- **不影响路由器行为**：路由器本身在 `enabled=false` 时已不使用 tiers/stage_map 等字段，
-  此修复只是让配置解析层与路由器层的语义一致。
