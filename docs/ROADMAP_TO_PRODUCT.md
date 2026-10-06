@@ -11454,6 +11454,80 @@ MCP 配置的校验边界现在由 12 条系统性测试守护，每个常见畸
 馈，而不是在任务执行中途遭遇不可预期的失败。
 
 
+## 第一百四十一批 M8-T141：config.json 未知/未使用键必须被报告，而非静默忽略
+
+### 1 来源与占号
+
+`minicc/config.py:917-938` 的 `load_config` 函数已实现「未识别键审计」机制：通过跟踪
+`consulted_keys` 集合，在加载完成后报告 config.json 中设置了但从未被读取的键。但此
+前只有零散测试（`test_project_config.py:313-373`），缺乏对建议准确性、多层隔离和嵌套
+对象处理的系统性验证。
+
+占号前先读 `git log --all` 与文档全文：`T141` 在提交里 0 命中、在文档里 0 命中，
+本批认领 **M8-T141**。
+
+### 2 缺陷
+
+现有测试覆盖了基本的 stray key 检测，但未证明以下三个关键属性：
+
+1. **建议准确性**：拼写错误如 "modle" 必须建议 "model"，而非 Levenshtein 距离相近但
+   无关的键。
+2. **多层隔离**：用户级和项目级的 stray key 必须在各自的警告中分开报告，每条警告包含
+   正确的文件路径。
+3. **嵌套对象非误报**：有效的嵌套对象（如 stage_routing）的内部键不应触发顶层未识别警
+   告。
+
+### 3 修复
+
+新增 `tests/test_config_unknown_keys.py`（5 例），分三组覆盖：
+
+**Section 1：建议准确性**
+- 单字符拼写错误（"modle"）→ 正确建议 "model"
+- 差异过大的键（"xyzzy_nothing"）→ 无建议（不含"是否想写"）
+
+**Section 2：多层隔离**
+- 用户级和项目级 stray key → 分别报告，各自带正确标签（"用户配置"/"项目配置"）
+
+**Section 3：嵌套对象处理**
+- 有效嵌套对象（stage_routing）→ 内部键不误报为 stray
+- 无效顶层键含嵌套对象 → 仍报告顶层键为 stray
+
+全部 5 例通过（0.42s）。
+
+### 4 证据
+
+```bash
+$ python -m pytest tests/test_config_unknown_keys.py -v --tb=short
+collected 5 items
+tests/test_config_unknown_keys.py::test_typo_suggests_correct_key PASSED [ 20%]
+tests/test_config_unknown_keys.py::test_close_match_cutoff_prevents_bad_suggestions PASSED [ 40%]
+tests/test_config_unknown_keys.py::test_user_and_project_stray_keys_reported_separately PASSED [ 60%]
+tests/test_config_unknown_keys.py::test_nested_stage_routing_keys_not_reported_as_stray PASSED [ 80%]
+tests/test_config_unknown_keys.py::test_invalid_nested_object_still_reports_top_level_key PASSED [100%]
+5 passed in 0.42s
+```
+
+回归基线：
+- 项目配置套件（`test_project_config.py`）：27 例全绿
+- 配置表面测试（`test_config_surface.py`）：全绿
+- 阶段路由配置测试（`test_stage_routing_config_reaches_the_router.py`）：全绿
+
+### 5 提交记录
+
+```bash
+$ git log --oneline -1
+38f3997 M8-T141: config.json unknown/unused keys must be reported, not silently ignored
+```
+
+变更：+147/-0（新建测试文件）。
+
+### 6 结论
+
+config.json 的未知键审计现在由 5 条针对性测试守护，证明建议机制准确、多层隔离清晰、
+嵌套对象不误报。用户在 config.json 中拼错键名时会得到精确的建议，而非沉默地按默认
+值运行或收到无关的提示。
+
+
    if "enabled" in raw:
        enabled = _routing_bool(raw["enabled"], f"{path}.enabled")
        normalized["enabled"] = enabled
