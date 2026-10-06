@@ -12544,3 +12544,7 @@ output/t158_v2_skeleton.json / .md（exit 0，fixture_count=24）。文档不携
 
 T157 补记 CI（37532337203）盯中；M4-6 全量等配额真恢复；复核表 M8（并行
 web.py 仍在动）；specproof 战区（并行 #201）未清。
+
+### 绿证补记（T158）
+
+CI run **37532950246**（树 b80d441）全绿——docs-only 批在全量门下通过。
