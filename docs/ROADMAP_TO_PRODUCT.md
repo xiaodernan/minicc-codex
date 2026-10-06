@@ -12721,6 +12721,7 @@ offender `tests/test_stage_route_enforcement.py:1547 subprocess.run`，windows �
 | ruff | 2 处 F841（:415/:597）为 T161 已记录的 HEAD 同款既有债，零新增 |
 | mypy | 产品代码零改动，基线构造成不变 |
 | 占号双查 | ROADMAP grep `M11-T12` 空 + `git log --all --grep` 空 |
+| CI 绿证（补记） | run 37544804329 @ dafb985 **success**——双平台由红转绿，T162 闭环；schedule 37542159678 红在旧树同根因随之销账 |
 
 ### 4 边界
 
@@ -12734,3 +12735,52 @@ offender `tests/test_stage_route_enforcement.py:1547 subprocess.run`，windows �
 M4-6 全量仍挂起（配额 429）；复核表 M8（并行 web.py 车道）禁碰；specproof 战区
 脏文件未清继续等；M2 面 worktree.py（115 行 3 测试引用）/impact.py（345 行 3 引用）
 深查候选。
+
+## 第一百六十三批 M2-T9：worktree 的 git 超时到达专名错误——唯一设了 timeout 却不捕 TimeoutExpired 的离群点
+
+### 1 缺口
+
+`worktree._run`（minicc/worktree.py:25-38）给 `subprocess.run` 设了
+`timeout=30`，但只捕 `OSError`——`subprocess.TimeoutExpired` 不是 `OSError`
+子类，会裸传。全库其他子进程模块（tools/git.py:41、changes.py:77、hooks.py、
+snapshots.py:74、benchmarks.py、behavior_bench.py、bench_tasks.py）全部成对捕
+`(OSError, subprocess.TimeoutExpired)`，worktree 是唯一离群点。三个受害面：
+①工具注册表（registry.py:500）里落进泛化兜底，变成 `工具 'worktree_list'
+未处理异常: TimeoutExpired: ...`；②web POST /api/worktrees（webserver.py:654）
+里 `WorktreeError` → 400 `worktree_error`，而 TimeoutExpired 落进
+`except Exception` → 匿名 500 `internal_error`，正撞 M8-T5 机器可读错误码
+契约；③workspace_info（web.py:996）只捕 WorktreeError，`worktree_error`
+字段路径同样逃逸。30 秒挂死真实可达（AV 扫描、网络文件系统、凭据助手卡住）。
+
+### 2 实现
+
+最小合惯例改法：现有 `except OSError` 元组扩为
+`except (OSError, subprocess.TimeoutExpired)`，消息与映射不变——
+`WorktreeError(f"无法执行 git: {exc}") from exc`（str(TimeoutExpired) 自带
+`timed out after 30 seconds` 诊断，与 tools/git.py:42 同款形状）。
+worktree.py 全文只有 `_run` 一处 subprocess 调用，单咽喉收口即全收口。
+
+### 3 门证
+
+| 门 | 读数 |
+| --- | --- |
+| 红证（修复前） | 新测试 `test_a_hung_git_arrives_as_the_named_worktree_error` 单跑 **1 failed**：裸 `subprocess.TimeoutExpired: Command '['git', 'worktree', 'list', '--porcelain']' timed out after 30 seconds` 逃逸——缺口实证 |
+| 绿证（修复后） | test_core_tools.py 全文件 **32 passed in 34.31s**（31 旧 + 1 新） |
+| ruff | 两个改动文件 All checks passed |
+| mypy | `minicc/worktree.py` Success: no issues found in 1 source file |
+| 全量 | 本地全量 **2028 passed, 5 skipped in 743.99s（12:23）** exit 0（2027→2028 恰为新测试 1 条） |
+| 占号双查 | ROADMAP grep `M2-T9` 空 + `git log --all --grep=M2-T9` 空（M2 面既有任务 T1-T8 全 ✅，T9 为新登记） |
+
+### 4 边界
+
+- 测试用 monkeypatch 抛 TimeoutExpired，不起真 git、无 text=True 捕获，
+  与 test_subprocess_decoding 两条扫描门零交集；`__cause__` 保留断言钉住
+  `from exc` 链（诊断时能看见 30 秒与命令）。
+- 诚实边界：影响是错误形状（匿名 500 → 专名 400 / 专名工具错误），不是
+  功能新增——git 挂死本身依旧发生，只是到达调用方时带名字。
+
+### 5 下一批边界
+
+M4-6 等配额（429 第 5 次）；复核表 M8（并行 web.py）禁碰；specproof 战区
+继续等；候选：变更检视面（changes.py）与 snapshots.py 同款超时面抽查、
+或 §6 未勾选项新产品缺口。
