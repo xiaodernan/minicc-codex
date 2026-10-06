@@ -23,7 +23,9 @@ from minicc.agent.router import ModelTier, StageRoute, StageRouter
 from minicc.agent.state import Budget, BudgetExceeded
 from minicc.config import ConfigError
 from minicc.llm.base import LLMResponse
-from minicc.web import _route_provider_spec, _stage_cost_estimator, _stage_route_budget
+# The helpers live in route_wiring (M11-T7); reaching them through minicc.web
+# would depend on web.py's private re-import surviving its next cleanup.
+from minicc.route_wiring import _route_provider_spec, _stage_cost_estimator, _stage_route_budget
 
 
 # -- Budget.record_cost -------------------------------------------------------
@@ -423,7 +425,7 @@ def test_without_the_knob_the_tool_loop_runs_on_the_configured_default(tmp_path:
 
 
 def test_the_route_turn_cap_overrides_the_default_and_clamps_negatives() -> None:
-    from minicc.web import _route_turn_cap
+    from minicc.route_wiring import _route_turn_cap
 
     assert _route_turn_cap(_route(max_turns=1), default=3) == 1
     assert _route_turn_cap(_route(max_turns=None), default=3) == 3
@@ -1523,3 +1525,30 @@ def test_the_subagent_lifecycle_is_visible_in_the_web_event_stream(
     assert "subagent_finished" in codes, (
         f"the child's completion must reach the parent's event stream: {codes}"
     )
+
+
+# -- M11-T7: route_wiring's lightweight contract, pinned mechanically ----------
+
+
+def test_route_wiring_imports_without_the_web_stack() -> None:
+    """The extraction's docstring promise as a gate: ``route_wiring`` must stay
+    importable on its own - "nothing in this module imports the web stack: the
+    CLI entry point stays lightweight". A fresh subprocess is the honest court;
+    in this process ``minicc.web`` is already in ``sys.modules`` via sibling
+    tests, which would make an in-process probe vacuously green."""
+    import subprocess
+    import sys
+
+    probe = (
+        "import sys; import minicc.route_wiring; "
+        "assert 'minicc.web' not in sys.modules, 'the web stack leaked in'; "
+        "print('lightweight')"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", probe],
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip().endswith("lightweight")
