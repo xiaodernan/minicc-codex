@@ -19,10 +19,48 @@ import json
 import os
 import secrets
 import string
+import tempfile
+import time
 from pathlib import Path
 from urllib.parse import urlsplit
 
 ENV_TOKEN = "MINICC_WEB_TOKEN"
+
+
+def _read_store_json(store: Path) -> object:
+    """Read the token store, riding out brief replace-induced open denials.
+
+    os.replace is atomic, but on Windows a CreateFile racing the directory
+    swap can briefly get ACCESS_DENIED (Errno 13); the window is
+    microseconds, so a short backoff always wins. JSONDecodeError is not
+    retried - an atomic replace can never expose a half-written file.
+    """
+    last_exc: PermissionError | None = None
+    for attempt in range(8):
+        try:
+            return json.loads(store.read_text(encoding="utf-8"))
+        except PermissionError as exc:
+            last_exc = exc
+            time.sleep(0.005 * (attempt + 1))
+    assert last_exc is not None
+    raise last_exc
+
+
+def _atomic_replace(source: Path, dest: Path) -> None:
+    """os.replace with a short backoff for concurrent-destination denials.
+
+    On Windows, replacing a destination that another thread is reading (or
+    replacing) fails with PermissionError; the window is microseconds, so
+    the backoff always wins. POSIX replace is atomic and never hits this.
+    """
+    for attempt in range(8):
+        try:
+            os.replace(source, dest)
+            return
+        except PermissionError:
+            if attempt == 7:
+                raise
+            time.sleep(0.01 * (attempt + 1))
 TOKEN_FILE_NAME = "web_token.json"
 TOKEN_BYTES = 32
 
@@ -92,7 +130,7 @@ def load_or_create_token(workspace: Path, explicit: str | None = None) -> tuple[
         raise WebAuthError(f"无法访问 {store}: {exc}") from exc
     if exists:
         try:
-            data = json.loads(store.read_text(encoding="utf-8"))
+            data = _read_store_json(store)
         except (json.JSONDecodeError, OSError) as exc:
             raise WebAuthError(f"无法读取 {store}: {exc}") from exc
         if not isinstance(data, dict):
@@ -103,12 +141,47 @@ def load_or_create_token(workspace: Path, explicit: str | None = None) -> tuple[
     token = generate_token()
     store.parent.mkdir(parents=True, exist_ok=True)
     payload = json.dumps({"token": token}, ensure_ascii=False, indent=2)
+    # Re-check after the generation window: a racing thread may have already
+    # written a complete store while we generated ours; prefer the winner and
+    # skip the replace entirely, which removes almost all replace-replace
+    # contention under a thundering-herd first startup.
+    winner = ""
     try:
-        store.write_text(payload, encoding="utf-8")
-        if os.name == "posix":
-            os.chmod(store, 0o600)
+        existing = _read_store_json(store)
+        if isinstance(existing, dict):
+            winner = str(existing.get("token") or "").strip()
+    except (json.JSONDecodeError, OSError):
+        pass
+    if winner:
+        return winner, False
+    # Write-then-replace (same shape as benchmarks._write_results): a racing
+    # first-startup thread must never observe a half-written store. CI run
+    # 37525348677 caught exactly that - thread B's is_file() saw the file
+    # thread A was still writing and died on JSONDecodeError inside the read
+    # path. os.replace is atomic on both POSIX and Windows.
+    temporary: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w", encoding="utf-8", dir=store.parent,
+            prefix=f".{store.name}.", suffix=".tmp", delete=False,
+        ) as handle:
+            tmp = Path(handle.name)
+            temporary = tmp
+            handle.write(payload)
+            handle.flush()
+            os.fsync(handle.fileno())
+        _atomic_replace(tmp, store)
+        temporary = None
     except OSError as exc:
         raise WebAuthError(f"无法写入 {store}: {exc}") from exc
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+    if os.name == "posix":
+        try:
+            os.chmod(store, 0o600)
+        except OSError as exc:
+            raise WebAuthError(f"无法设置 {store} 权限: {exc}") from exc
     return token, True
 
 
