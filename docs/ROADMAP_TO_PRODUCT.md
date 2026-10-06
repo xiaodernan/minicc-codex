@@ -12498,3 +12498,44 @@ M4-6 探针补记：真任务 v2-greeting-already-correct 单条后台跑 exit 0
 （greeting fixture 本来就对、oracle 诊断 pass、reviewer 没跑成——正中该计数
 设计场景，M4-6 429 实例第二例）。output/m46_probe3.json 留档。M4-6 全量继续
 挂起等配额真恢复；复核表 M8（并行在动）；specproof 战区未清（并行 #201）。
+
+## 第一百五十八批 M8-T158：v2 套件写入操作手册——评测文档第一次有了 v2 章节
+
+### 1 缺口
+
+BENCHMARK_EVALUATION.md 覆盖 behavior 与 retrieval 两套件，v2 套件零章节：
+可写工作区、两种 oracle、隐藏 grader、加载期校验、M8-T154 infra 语义、
+M8-T155 ex-infra 门全部只活在 ROADMAP 批次记录里，操作者视角没有一处可查。
+v2 是唯一真正测量编码能力的套件（legacy 只读、behavior 纯函数），这个文档
+缺口是评测面最大的一块。
+
+### 2 实现
+
+docs/BENCHMARK_EVALUATION.md 增「可写工作区套件（v2）」一节：fixture 隔离
+工作区 + `allow_changes=True` 与 legacy/behavior 的本质区别；`file_contract`
+（六判据 + 非 UTF-8 拒判 exit 2）与 `command_contract`（expect_exit/
+stdout_contains/`{python}` 宿主渲染/PYTHONDONTWRITEBYTECODE+PYTHONIOENCODING
+双环境钉，M8-T58 出处）两 oracle；`.graders` 仓库外物化 + M8-T157 原子替换 +
+grader_unable 诚实失败；`validate_task` 加载期全量门（fixture 键 normcase
+互占检查、付费前报错）；M8-T154 三句口径（infra_failure_count 不混算 /
+pass_at_1_ex_infra 分母空如实 null / pass_at_1 分母冻结）+ M8-T155 gate 认
+ex_infra；骨架命令与定向真跑命令各一条。
+
+### 3 门
+
+| 门 | 读数 |
+| --- | --- |
+| 骨架命令（不调模型） | `--suite v2` exit 0，`fixture_count=24`，results 24 行 |
+| 文档一致性 | 全部语义逐条对照 bench_tasks.py / benchmarks.py / bench_compare.py 源码，无一句编造读数 |
+| 真机读数 | 如实标注「待配额恢复」——单条真任务 171s 后 429（output/m46_probe3.json 留档） |
+
+### 4 实测证据
+
+output/t158_v2_skeleton.json / .md（exit 0，fixture_count=24）。文档不携带
+真实模型通过率结论——配额未恢复，宁可空着也不写假数；这是本文档既有的
+「读数必须来自实际命令输出」纪律的延续。
+
+### 5 下一批边界
+
+T157 补记 CI（37532337203）盯中；M4-6 全量等配额真恢复；复核表 M8（并行
+web.py 仍在动）；specproof 战区（并行 #201）未清。
