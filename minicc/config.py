@@ -182,13 +182,24 @@ def normalize_stage_routing(value: object, *, path: str = "stage_routing") -> di
     Every refusal here replaces a measured failure mode: an exception thrown out
     of ``StageRouter`` on the request path, or a value that produced a plausible
     route nobody asked for.
+
+    When enabled=false, deep validation is skipped: the user has explicitly disabled
+    routing, so invalid tiers/stage_map/etc should not block config loading. Only the
+    top-level keys are checked for typos, and enabled is parsed.
     """
     raw = _routing_mapping(value, path)
     _routing_keys_known(raw, _STAGE_ROUTING_KEYS, path, "路由器只读这些键")
     normalized: dict[str, Any] = {}
 
+    # Parse enabled first to decide whether to skip deep validation
+    enabled = True  # default
     if "enabled" in raw:
-        normalized["enabled"] = _routing_bool(raw["enabled"], f"{path}.enabled")
+        enabled = _routing_bool(raw["enabled"], f"{path}.enabled")
+        normalized["enabled"] = enabled
+
+    # When disabled, skip all deep validation - the router won't use these fields
+    if not enabled:
+        return normalized
 
     if "stage_map" in raw:
         stage_map = _routing_mapping(raw["stage_map"], f"{path}.stage_map")
