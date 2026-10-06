@@ -34,7 +34,7 @@ class WorktreeManager:
                 timeout=30,
                 check=False,
             )
-        except OSError as exc:
+        except (OSError, subprocess.TimeoutExpired) as exc:
             raise WorktreeError(f"无法执行 git: {exc}") from exc
 
     def list(self) -> list[dict[str, Any]]:

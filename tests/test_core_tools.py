@@ -413,6 +413,27 @@ def test_worktree_reports_prunable_and_prune_cleans(tmp_path: Path) -> None:
         shutil.rmtree(manager.root, ignore_errors=True)
 
 
+def test_a_hung_git_arrives_as_the_named_worktree_error(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """M2-T9: `_run` sets timeout=30, so TimeoutExpired is a reachable outcome.
+
+    Every sibling subprocess module catches the (OSError, TimeoutExpired)
+    pair; worktree was the outlier. Unfixed code here reddens with a raw
+    subprocess.TimeoutExpired escaping, which the web layer would turn into
+    an anonymous 500 instead of the named ``worktree_error`` code.
+    """
+    import minicc.worktree as worktree_module
+
+    def _hang(args, **_kwargs):  # noqa: ANN001, ANN202
+        raise subprocess.TimeoutExpired(cmd=args, timeout=30)
+
+    monkeypatch.setattr(worktree_module.subprocess, "run", _hang)
+    manager = WorktreeManager(tmp_path)
+    with pytest.raises(WorktreeError) as excinfo:
+        manager.list()
+    assert "timed out" in str(excinfo.value)
+    assert isinstance(excinfo.value.__cause__, subprocess.TimeoutExpired)
+
+
 def test_change_inspector_shows_uncommitted_file_diff(tmp_path: Path) -> None:
     subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True, text=True, encoding="utf-8", errors="replace")
     target = tmp_path / "demo.txt"
