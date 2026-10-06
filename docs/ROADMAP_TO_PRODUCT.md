@@ -11801,6 +11801,89 @@ hooks.json 的校验边界现在由 30 条系统性测试守护，证明了 Hook
 被拒绝，而非在运行时导致不可预期的 hook 执行失败或安全漏洞。
 
 
+## 第一百四十五批 M8-T145：MCP server 配置未知键审计 — 拼写错误带建议报告
+
+### 1 来源与占号
+
+`minicc/mcp.py:133` 的 `load_mcp_config` 负责解析 `.minicc/mcp.json`，此前只有结构性验
+证测试（T140），缺少对未识别字段的报告机制。实测发现用户在 mcp.json 中拼错字段名（如
+"comand" 代替 "command"）时会被静默忽略，服务器仍按默认值启动，用户无法得知配置无效。
+
+占号前先读 `git log --all` 与文档全文：`T145` 在提交里 0 命中、在文档里 0 命中，
+本批认领 **M8-T145**。
+
+### 2 缺陷
+
+`load_mcp_config` 只验证必需字段的存在性和类型（lines 148-168），但不会报告额外字段。
+用户可能：
+- 拼错字段名（"comand", "url_", "arg"）
+- 使用已废弃的选项
+- 误加注释字段
+
+这些都会被静默忽略，导致配置看似生效实际无效。
+
+### 3 修复
+
+在 `load_mcp_config` 中添加未知键检测与报告（+14 lines）：
+- 定义 RECOGNIZED_KEYS = {command, url, args, env, headers, read_only}
+- 对每个 server entry，计算 unknown = set(value) - RECOGNIZED_KEYS
+- 使用 difflib.get_close_matches 提供建议（cutoff=0.78）
+- 通过 LOG.warning 报告，不阻止加载（向后兼容）
+
+新增 `tests/test_mcp_config_unknown_keys.py`（11 例），分八组覆盖：
+- 拼写错误检测与建议（"comand" → "command"）
+- 多个未知键全部报告
+- 有效配置无警告
+- HTTP 模式服务器接受
+- 多服务器分别报告
+- 空/null/布尔/数值类型的未知键值都报告
+- 根级元数据键忽略（向后兼容）
+- 扁平格式（无 'servers' 包装）也验证
+
+全部 11 例通过（2.00s）。
+
+### 4 证据
+
+```bash
+$ python -m pytest tests/test_mcp_config_unknown_keys.py -v --tb=short
+collected 11 items
+tests/test_mcp_config_unknown_keys.py::test_typo_in_server_entry_is_reported PASSED [  9%]
+tests/test_mcp_config_unknown_keys.py::test_close_match_suggests_correct_key PASSED [ 18%]
+tests/test_mcp_config_unknown_keys.py::test_multiple_unknown_keys_all_reported PASSED [ 27%]
+tests/test_mcp_config_unknown_keys.py::test_recognized_keys_do_not_trigger_warning PASSED [ 36%]
+tests/test_mcp_config_unknown_keys.py::test_http_mode_keys_accepted PASSED [ 45%]
+tests/test_mcp_config_unknown_keys.py::test_unknown_keys_in_multiple_servers_reported_separately PASSED [ 54%]
+tests/test_mcp_config_unknown_keys.py::test_empty_string_values_still_reported_as_unknown PASSED [ 63%]
+tests/test_mcp_config_unknown_keys.py::test_null_values_for_unknown_keys_reported PASSED [ 72%]
+tests/test_mcp_config_unknown_keys.py::test_boolean_and_numeric_unknown_values_reported PASSED [ 81%]
+tests/test_mcp_config_unknown_keys.py::test_root_level_unknown_keys_ignored_when_using_servers_wrapper PASSED [ 90%]
+tests/test_mcp_config_unknown_keys.py::test_flat_format_unknown_keys_reported PASSED [100%]
+
+11 passed in 2.00s
+```
+
+回归基线：
+- MCP stdio 套件（`test_mcp_stdio.py`）：全绿
+- MCP HTTP 套件（`test_mcp_http.py`）：全绿
+- CLI /tools 命令集成：全绿
+- Web /api/mcp 路由：全绿
+
+### 5 提交记录
+
+```bash
+$ git log --oneline -1
+9b728aa M8-T145: MCP server config unknown keys audit — report typos with suggestions
+```
+
+变更：+276/-0（新建测试文件 +14 lines 实现）。
+
+### 6 结论
+
+MCP server 配置的未知键审计现在由 11 条针对性测试守护，证明拼写错误会被报告并给出精确建
+议（difflib.get_close_matches）。未知键不阻止加载（向后兼容），但会通过 logging.warning
+告知用户。这确保了用户在编辑 mcp.json 后能立即发现拼写错误，而非沉默地按默认值运行。
+
+
    if "enabled" in raw:
        enabled = _routing_bool(raw["enabled"], f"{path}.enabled")
        normalized["enabled"] = enabled
