@@ -822,8 +822,8 @@ token 的 worker 负责」——A 让干净关闭成为真正的停止，代价�
 | --- | --- | --- |
 | M5-1 MCP stdio ≥8 个回归 | ✅ | `tests/test_mcp_stdio.py` 有 **11** 个测试函数，与 `test_mcp_http`/`test_http_surface` 等一起 98 passed |
 | M5-2 巨量输出截断 / string id 回传 / stdout 不可解码时快速失败 / dead 服务 | ✅ | 逐条点名可查：`test_half_million_char_output_is_truncated`、`test_small_output_not_truncated`、`test_string_id_response_is_matched`、`test_undecodable_stdout_fails_fast_not_30s`（断言 `client.dead is True`）、`test_dead_server_marked_in_health` |
-| M5-3 CLI 配置的 MCP 工具出现在 `/tools` | ✅（间接） | `test_build_registry_lists_mcp_tools`；`/tools` 本身由 `test_http_surface` 一路覆盖 |
-| M5-4 坏 `mcp.json` 走结构化 McpError 而非 500 | ✅（服务层） | `test_manager_negative_cache_does_not_respawn` + `test_failure_paths_return_structured_error_codes`；`/api/mcp` 此前在任何 Python 测试里连路径字符串都没出现，现已由 M4-3 的清单门与 `test_http_surface` 的 mcp 契约测试覆盖 |
+| M5-3 CLI 配置的 MCP 工具出现在 `/tools` | ✅（M8-T138 修线） | 原判「间接」是错的：`/tools` 是 CLI 命令，HTTP 面没有这条路由，`test_http_surface` 从未覆盖它；registry 层门只证明 `build_registry` 吃 manager，而 `minicc/main.py` 全文件 mcp 0 命中——CLI 从未建过 manager，`/tools` 永远只印 builtins。M8-T138 接线 + 全链门 `test_cli_tools_command_lists_configured_mcp_tools`（红证：无接线时输出零个 `mcp__`） |
+| M5-4 坏 `mcp.json` 走结构化 McpError 而非 500 | ✅（M8-T138 补 HTTP 门） | 服务层两证在位（`test_manager_negative_cache_does_not_respawn` + `test_failure_paths_return_structured_error_codes`）；HTTP 层新门 `test_get_mcp_surfaces_malformed_config_as_error_not_500`：坏文件在 AgentService 构造期被 `_set_current_mcp` 吞成 manager=None，`/api/mcp` 返 200 + configured=0 + 非空 error，不 500 |
 | M6-3 `bash start /m &` 被拒 | ✅ | `tests/test_background_shell.py:231` `detached_command_reason("start /min notepad &") is not None` |
 | M6-1/2/5 委托、软预算、写档默认只读 | ✅（测试层） | `test_subagent_delegation.py`(16) + `test_subagent_streaming.py`(5) + `test_parallel_writes.py` + `test_permissions_approval.py` 等合计 **91 passed**；写档需显式授权由 `WRITABLE_PERMISSION_MODES` 结构断言钉住 |
 | M7-3 审批 60s 超时自动 deny | ✅ | 生产常量 `web.py:156 APPROVAL_TIMEOUT_SECONDS = 60.0`，测试 `test_approval_timeout_auto_denies` 用 5s 走同一分支并断言 `decision == "deny"` 且 `timed_out is True`（不为此把测试拖到 60s） |
@@ -11050,3 +11050,72 @@ provider 侧的增量装配已改由 `minicc/llm/stream_merge.py` 承担（`open
   历史增量无法从今天的树里重放。
 - M1 的八个任务（T1–T8）**实现本身没有逐行复核**，只核了它们对应的退出标准读数。
 - 第三节全表仍未复核完：**M3/M4/M5/M8** 待做（M1 本批、M2 上一批、M6/M7 此前）。
+
+## 第一百三十六批 M8-T138：M5 复核揪出一条断了两年的线——CLI 的 /tools 从没见过 MCP 工具
+
+### 1 来源与占号
+
+本批做 **M5（MCP 面）退出标准逐条复核**（M1/M2/M7 已复核，M3/M4/M8 待做或在他车道）。
+四条标准逐格对账的实况：
+
+- M5-1（stdio ≥8 回归）：`test_mcp_stdio.py` 11 个测试函数在位，MCP 三件套
+  （stdio + http + http_surface）今日 **98 passed / 26.58s**。原读数成立。
+- M5-2（四条点名行为）：`test_half_million_char_output_is_truncated`、
+  `test_string_id_response_is_matched`、`test_undecodable_stdout_fails_fast_not_30s`、
+  `test_dead_server_marked_in_health` 全部在位。原读数成立。
+- M5-3（CLI 配置的 MCP 工具出现在 `/tools`）：**原判「✅（间接）」是错的**。
+  `/tools` 是 CLI 命令，HTTP 面根本没有这条路由，`test_http_surface` 从未覆盖它；
+  registry 层门（`test_build_registry_lists_mcp_tools`）只证明 `build_registry` 吃
+  manager；而 `minicc/main.py` 全文件 `mcp` 0 命中——CLI 从未建过 `McpManager`，
+  `/tools` 永远只印 builtins。间接证据盖住了一条从未存在的覆盖。未达成 → 本批修。
+- M5-4（坏 `mcp.json` 结构化而非 500）：服务层两证在位（negative cache +
+  structured error codes）；HTTP 层只有「未配置」门，坏文件无 HTTP 门。半达成 → 本批补门。
+
+占号：T137 已被第一百三十三批记录点名给 hooks 装载失败候选（10889 行），让开；
+`M8-T138` 在文档与提交里 0 命中，本批认领 **M8-T138**。
+
+### 2 缺陷
+
+`minicc/main.py` 的 registry 组装行是
+`registry = build_registry(editor, yolo=config.yolo)`；web 面同位置
+（`web.py:1275-1281`）一直是 `mcp_manager=self._mcp_for_workspace(workspace)`。
+CLI 面从第一天起就没接这条线：配置了 MCP 的用户在 REPL 里 `/tools` 看不到任何
+`mcp__` 工具，对话回合也调不到它们——M5-3 的字面承诺在 CLI 上从未兑现过。
+
+### 3 落地（`minicc/main.py` 三处，语义镜像 web 面）
+
+- import 增 `from .mcp import McpError, McpManager`。
+- registry 构建前 `try: mcp_manager = McpManager(workspace) except McpError: None`
+  ——坏配置降级为「无 MCP 工具」，镜像 `_mcp_for_workspace` 的吞法：配置文件坏
+  不许杀 REPL。
+- `run()` 的 finally 在 `provider.close()` 旁补 `mcp_manager.close()`——与 provider
+  同点收口，spawn 出的 stdio 服务器在会话结束（/exit 或 one-shot 结束）即被收尸。
+
+语义对齐说明：配置合法但服务器起不来时，`tool_specs()` 的 McpError 会照 web 的
+样子从 `build_registry` 冒出（web 是 turn 失败，CLI 是启动失败）——同一配置同一
+待遇，本批不另设宽容（见 §5）。
+
+### 4 门与实测证据
+
+- **新门 1（修线门）** `test_mcp_stdio.py::test_cli_tools_command_lists_configured_mcp_tools`
+  ：真 `main()` 全链——真 `.minicc/mcp.json`、真 spawn 的 stdio 服务器、真 REPL
+  `/tools` 分支，断言输出含 `mcp__srv__search`、exit 0、provider 零触达。
+  **红证**：stash 掉 main.py 接线重跑 → 门红（/tools 只印 builtins，输出零个
+  `mcp__`）；弹回 → 绿。红→绿闭环。
+- **新门 2（钉线门）** `test_http_surface.py::test_get_mcp_surfaces_malformed_config_as_error_not_500`
+  ：坏 `mcp.json` 在 AgentService 构造期（`web.py:292-294` `_set_current_mcp`）被
+  吞成 manager=None，`/api/mcp` 返 200 + configured=0 + 非空 error——服务照常起、
+  路由不 500。无接线可红（web 侧本就正确），属 130 批式的零改动钉线门。
+- MCP 三件套：`98 passed / 26.58s`（含新增 2 格）。
+- 全量：`python -m pytest tests/ -q` → 1859 passed in 1097.83s（0:18:17；含并行车道工作树里未提交的一格，不是本批的账——本批净增 2 格）。
+- ruff 对三个改动文件 0 新增（存量 2 处：`test_http_surface.py:18` F401、
+  `test_mcp_stdio.py:302` E731，HEAD 已有且不在 CI 规则集，不碰）。
+
+### 5 边界
+
+- 复核表 M5-3/M5-4 两行按本批实况改写：原「间接」「服务层」的过度乐观结论被纠正，
+  证据格写明错在哪、线接在哪、红证在哪。
+- 死服务器（配置合法、进程起不来）在 CLI 启动期会以 McpError 冒出，与 web 的
+  turn 失败同源同待遇；「CLI 启动期降级提示」属新候选，不属 M5-4（那条只管坏
+  配置文件）。
+- M3/M4/M8 复核在他车道或待做；M5 收口后复核表剩三面。
