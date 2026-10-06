@@ -12296,3 +12296,41 @@ f3a4c661f1c8d728）。因全量基线在跑，臂不碰仓库工作树——平�
   实测已跑（控制臂 0 skip 可证）。
 - 未动的面：`lstrip("/")` 后才 unquote 的顺序性已覆盖（`%2f` 引入前导斜杠的行被
   强制回根内）；asset_response 的 alias→lstrip 链无独立缺陷。
+
+## 第一百五十四批 M8-T154：infra 失败不再是隐形零分——网关坏了不冒充模型不会
+
+### 1 背景
+
+M4-6 复核两读数（429 quota exceeded / Connection error → `pass_at_1=0.0`）暴露报告语义缺口：
+provider 调用层死亡与「模型答错」同分母，读报告的人无法区分「网关坏了」和「模型不会」。
+M8-T152 修的是 webauth 的裸异常，本批修 benchmarks 的报告语义。占号说明：T153 已被并行车道
+使用（2b7809f），本批取 T154。
+
+### 2 实现
+
+- 判据：`_is_infra_failure`——`passed is False` 且 error 以统一前缀「LLM 调用失败」开头
+  （唯一产生点 `agent/loop.py:899`，provider 调用层异常的既定包装，判据稳定）。
+- metrics 新增 `infra_failure_count` 与 `pass_at_1_ex_infra`（剔除 infra 后的通过率；
+  分母空如实为 None，不冒充 0）。**pass_at_1 分母冻结不动**——改口径会静默改写历史，
+  新字段让「网关坏了」可读而不是重算旧数。
+- notes 加一条解释；markdown preferred 键序加两键。
+
+### 3 实测证据
+
+| 门 | 读数 |
+| --- | --- |
+| `test_benchmark_runner.py` | **21 passed**（含两新测试：混合场景 1/3 与 1/2 分列；全 infra 场景 0.0 与 None 并存） |
+| benchmark 关联面（+test_bench_compare.py） | **44 passed** |
+| ruff | 本批 hunks（89/301/338/366）零新增；184 F821 `behavior_bench`、576 F541 系**既有债**（前者是并行车道 python_behavior 面的未接线 import，禁碰） |
+| mypy | 前后对比均 **130 errors in 26 files**，零新增 |
+| 端到端 | v2 fixtures + `output/m4_recheck_run.json` 重算：`fixture_count=24`、`infra_failure_count=2`、`pass_at_1=0.0`（与原报告逐字一致）、`pass_at_1_ex_infra=None` |
+
+### 4 边界
+
+- 判据是文本前缀：产品码唯一产生点让它稳定，但若 provider 错误文案改版，判据需跟随。
+- `pass_at_1_ex_infra` 只在报告层；`bench_compare --gate` 未认它（后续批候选）。
+- 不改任何历史读数的含义：M4-6 的 `0.0` 仍是 0.0，本批只是让它旁边多了一句真话。
+
+### 5 下一批边界
+
+配额恢复后 M4-6 补真通过率；bench_compare gate 面接入 ex_infra 为候选；复核表仅剩 M8（并行在动）。
