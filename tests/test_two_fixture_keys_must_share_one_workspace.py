@@ -391,7 +391,7 @@ def test_the_layout_gate_sees_the_population_delegate_to_one_owner() -> None:
 def test_the_layout_gate_says_which_plane_its_population_came_from() -> None:
     """Cell 5 of the layout gate: the population is tests-only, by measurement and by construction.
 
-    Measured at 第一百一十一批 (M8-T130): of 52 functions whose body mentions the ``fixture``
+    Measured at 第一百三十七批 (M8-T120): of 52 functions whose body mentions the ``fixture``
     key, 12 also load a shipped corpus, and all 12 live under tests/. Six production functions
     read the key (``behavior_tasks``, ``fixture_blockers``, ``prepare_fixture``,
     ``require_writable_fixture``, ``validate_task``, ``run_benchmark``) but none of them loads

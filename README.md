@@ -39,7 +39,7 @@
 - 自动并行编排：运行时按需求复杂度和独立工作维度评分；达到阈值后自动创建 2-3 个只读侦察子任务，独立 session 并行执行，父 Agent 收集证据后继续原始实现与验证。任务中心仍保留显式批量入口作为高级控制面板。
 - 推理强度支持 `low`、`mid`、`high`、`xhigh`、`max`；Web 设置可按任务切换，网关不支持时会逐级降档并在 trace 中记录原因。修改后会自动要求下一轮检查 diff 和验证。
 - 受约束动态规划：复杂 Web 任务会先请求模型生成小型 JSON 计划，服务端校验节点数、依赖深度、并发宽度、重试次数和工具白名单；非法或不可用计划自动回退固定 DAG，并记录来源与原因。自动并行子任务仍使用确定性只读职责模板。
-- 依赖感知修复、本地证据检索和阶段路由：优先定位与失败测试和已写入路径相关的证据，并按 inspect/implement/verify/review 阶段选择合适的请求策略，不会覆盖用户显式配置的模型。
+- 依赖感知修复、本地证据检索和阶段路由：优先定位与失败测试和已写入路径相关的证据，并按 inspect/implement/verify/review 阶段选择合适的请求策略，不会覆盖用户显式配置的模型。阶段路由默认关闭：不设置 `MINICC_STAGE_ROUTING` 或 `enabled=false` 时，所有阶段都用 `MINICC_MODEL`（与历史行为一致）；显式 `enabled=true` 后才按阶段切换模型档位、分阶段成本上限与降级链。
 - 任务可靠性基线：SQLite 历史、只读检查点 digest 校验、任务级联网授权、脱敏审计导出和离线 30 条评测 fixture。
 - Web 体验：亮色/暗色主题持久化、阶段摘要与工具轮次折叠、长输出边界、仅在用户已接近底部时自动跟随，避免阅读历史时跳屏。
 - 支持 `AGENTS.md`、`CLAUDE.md`、`MINICC.md` 或 `.minicc/instructions.md` 项目指导文件；内容只作为工作约定，不能覆盖系统指令和权限边界。
@@ -56,6 +56,10 @@ MINICC_MAX_REPAIR_ATTEMPTS=2
 MINICC_TIMEOUT=180
 # 验收评审最多把“看起来已完成”的答案退回重跑几次；每次是一整轮 agent，属于成本上限（1..8 夹紧）。
 MINICC_MAX_COMPLETION_CONTINUES=3
+# 阶段路由（M11）：一个 JSON 对象，按阶段选模型档位（tiers + stage_map）、分阶段成本上限
+# （cost_limits_usd）与降级链（failover）。默认关闭；config.json 的 stage_routing 键同样有效，
+# 完整字段说明见 minicc.config.example。值不是 JSON 对象会在启动时报 ConfigError。
+MINICC_STAGE_ROUTING={"enabled": false}
 # 以下是数据保留/并发容量，不会截断正在运行的模型任务。
 MINICC_TASK_HISTORY_LIMIT=24
 MINICC_TASK_HISTORY_MAX_AGE_DAYS=30
