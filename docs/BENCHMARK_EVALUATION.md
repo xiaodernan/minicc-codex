@@ -45,6 +45,33 @@
 
 2026-09-29 复现结果：上面「评测器定向检查」命令输出 `31 passed in 240.77s`。可比的读数是**条数**——它随这两套测试的用例数变化，务必以命令实际输出为准，不要手改本行；需要更新时请重跑该命令并原样回填。墙钟时间在同机并发时会大幅偏高（本次读数期间同一台机器上另有会话在跑），不要当作基线。`output/benchmark-hardening-checks.xml` 可留存 JUnit。没有运行全量回归或使用真实模型生成新的准确率结论。
 
+## 可写工作区套件（v2，M4-T5 起）
+
+`v2` 套件（`benchmarks/tasks.v2.json`，24 条任务，`suite_version: v2-1`）与 legacy 只读套件的本质区别：每条任务带 `fixture`（内联声明的若干文本文件），评测在**隔离临时工作区**里以 `allow_changes=True` 跑智能体——编码能力才真正被测量，写权限才可能安全开启。评分器（oracle）分两种：
+
+- `file_contract`：按文件检查 `exists` / `contains` / `not_contains` / `equals` / `regex` / `json_equals`。契约路径逃逸工作区、或目标文件不是合法 UTF-8 时，评分器拒绝判决（exit 2 =「判不了」），不在替换字符上凑答案。
+- `command_contract`：在工作区里跑一条命令（通常是仓库自己的测试），检查退出码（`expect_exit`）与 stdout 标记（`stdout_contains`），默认超时 180 秒。`{python}` 占位符由宿主侧渲染（带空格的解释器路径不再被 shell 拆碎）；评分环境固定 `PYTHONDONTWRITEBYTECODE=1`（防陈旧字节码在同 mtime 文件系统上遮住智能体的修复）与 `PYTHONIOENCODING=utf-8`（防 cp936 宿主把中文标记读成乱码，M8-T58 实测）。
+
+评分驱动脚本物化在**仓库之外**的 `.graders` 目录（`MINICC_EVAL_GRADER_DIR` / `--grader-dir`），智能体的文件工具读不到它；期望值留在 `tasks.v2.json` 里，永不进入被测工作区。同类型所有任务共享两个脚本名（`file_contract.py` / `command_contract.py`），跨进程评测会竞写——物化是「写 per-writer 临时文件 + `os.replace` 原子替换」（M8-T157），并发子进程永远不可能 exec 半写脚本；竞争退避耗尽时干净地以 `grader_unable` 拒绝评分（宁可判不了，也不执行错代码）。
+
+任务文件在加载期全量校验（`validate_task`）：必需字段齐全、`suite_version` 可识别、prompt/category 非空、fixture 键不逃逸也不互占位置（含大小写与父目录冲突，`os.path.normcase` 按段比较）、grader 类型与规格可执行、`max_minutes` 为正——坏任务文件在**为智能体付费之前**报错，而不是退化成一条没人判分的记录。
+
+骨架报告不调模型：
+
+```powershell
+.venv/Scripts/python.exe -m minicc.benchmarks --suite v2 --json-out output/v2-skeleton.json --markdown-out output/v2-skeleton.md
+```
+
+定向真跑（配额允许时）：
+
+```powershell
+.venv/Scripts/python.exe -m minicc.benchmarks --suite v2 --run --task-id v2-greeting-already-correct --task-timeout 900 --json-out output/v2-probe.json --markdown-out output/v2-probe.md
+```
+
+2026-10-07 骨架门实测：同命令（输出名不同）exit 0，`fixture_count=24`。真实模型读数待网关配额对真实 agent 负载恢复后回填——当前单条真任务在 171s 后仍遇 429，报告如实记 `infra_failure_count`，不把网关故障算成模型失败（见下）。
+
+基础设施失败语义（M8-T154）：错误以「LLM 调用失败」开头的行（provider 429 / 连接错误）计入 `infra_failure_count`，不与模型真失败混算；`pass_at_1_ex_infra` 把它们从分母排除，排除后分母为空时如实 `null`，不假 100；`pass_at_1` 分母冻结不动（历史可比）。`bench_compare --gate` 的门槛认 `pass_at_1_ex_infra`（M8-T155），配额停电不再把 A/B 变体判死。
+
 ## 检索决策门（M4-T7，2026-09-21）
 
 `minicc/agent/retrieval.py` 是确定性的 token + path + symbol 词法打分，自述「不是向量数据库」。M4-T7 不直接上 embedding，而是先用「已知答案定位」数据集 `benchmarks/retrieval-hitrate.json`（20 条，每条 = 开发者提问 + 应答的仓库相对文件）量化词法基线，指标为 `recall@k = |targets ∩ top-k| / |targets|` 按 case 求均值，MRR 取首个命中目标排名倒数。复现命令：
