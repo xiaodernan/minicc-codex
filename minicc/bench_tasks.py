@@ -29,6 +29,8 @@ import json
 import os
 import subprocess
 import sys
+import threading
+import time
 from pathlib import Path
 from typing import Any
 
@@ -360,7 +362,34 @@ def _materialize(grader_dir: Path, name: str, source: str) -> Path:
     except OSError:
         current = None
     if current != source:
-        script.write_text(source, encoding="utf-8")
+        # Double-check inside the write window: another writer may have
+        # materialized identical bytes while we compared (the shared grader
+        # dir sees cross-process runs); skip our own replace entirely if the
+        # winner got there first, which removes almost all contention.
+        try:
+            fresh = script.read_text(encoding="utf-8") if script.is_file() else None
+        except OSError:
+            fresh = None
+        if fresh == source:
+            return script
+        # Write-then-replace with a per-writer temp name (pid + thread id):
+        # every grader of a type shares one script (file_contract.py /
+        # command_contract.py), so cross-process evaluation runs race this
+        # file, and a concurrent subprocess must never exec a half-written
+        # script. Same race class as the token store (M8-T156).
+        temporary = grader_dir / f".{name}.{os.getpid()}.{threading.get_ident()}.tmp"
+        try:
+            temporary.write_text(source, encoding="utf-8")
+            for attempt in range(8):
+                try:
+                    os.replace(temporary, script)
+                    break
+                except PermissionError:
+                    if attempt == 7:
+                        raise
+                    time.sleep(0.01 * (attempt + 1))
+        finally:
+            temporary.unlink(missing_ok=True)
     return script
 
 

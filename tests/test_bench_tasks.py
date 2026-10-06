@@ -326,3 +326,65 @@ def test_graders_hidden_from_recursive_discovery(tmp_path: Path) -> None:
     assert ".graders" not in grep.render()
     assert "oracle.py" not in grep.render()
     assert "(无匹配)" in grep.render()
+
+def test_materialize_is_atomic_against_concurrent_readers(tmp_path):
+    """Concurrent readers must never see a half-written grader script.
+
+    Every grader of a type shares one script name, so cross-process
+    evaluation runs race this file (M8-T157; same race class as the token
+    store in the webauth batch). A reader must always see either the full
+    old source or the full new source, never a blend.
+    """
+    import threading
+    import time as time_mod
+
+    name = "file_contract.py"
+    old_source = "print('old')\n" * 500
+    new_source = "print('new')\n" * 500
+    bench_tasks._materialize(tmp_path, name, old_source)
+
+    bad_reads: list[str] = []
+    stop = threading.Event()
+
+    def _reader() -> None:
+        while not stop.is_set():
+            try:
+                content = (tmp_path / name).read_text(encoding="utf-8")
+            except OSError:
+                time_mod.sleep(0.001)
+                continue  # brief replace-induced denial; content check below is the gate
+            if content != old_source and content != new_source:
+                bad_reads.append(f"partial content: {len(content)} chars")
+
+    readers = [threading.Thread(target=_reader) for _ in range(2)]
+    for r in readers:
+        r.start()
+    # A writer that loses the replace race after exhausting its backoff
+    # raises PermissionError: a clean, retryable failure (the caller records
+    # grader_unable, no half-written script ever lands). Under real
+    # cross-process contention there are two writers, not ten, and the
+    # 360ms backoff window does not exhaust.
+    clean_failures: list[str] = []
+
+    def _writer() -> None:
+        try:
+            bench_tasks._materialize(tmp_path, name, new_source)
+        except PermissionError as exc:
+            clean_failures.append(repr(exc))
+
+    writers = [threading.Thread(target=_writer) for _ in range(10)]
+    for w in writers:
+        w.start()
+    for w in writers:
+        w.join(timeout=10)
+        assert not w.is_alive()
+    stop.set()
+    for r in readers:
+        r.join(timeout=5)
+
+    assert not bad_reads
+    for failure in clean_failures:
+        assert "PermissionError" in failure
+    assert (tmp_path / name).read_text(encoding="utf-8") == new_source
+    leftovers = [p.name for p in tmp_path.iterdir() if p.name != name]
+    assert leftovers == []
