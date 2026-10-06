@@ -12219,7 +12219,7 @@ M8-T146 的主题是「load_or_create_token 的畸形输入全部走 WebAuthErro
 | --- | --- |
 | 红证 | CI run 37507986590 Linux：`1 failed, 1972 passed`，失败即本测试（PermissionError from pathlib.py:1013 via webauth.py:86） |
 | 本地回归 | `test_webauth_validation.py` 18 passed / 4 skipped（POSIX-specific 跳过）；与 `test_web_security.py` 合计 **36 passed / 57.64s，exit 0** |
-| 绿证 | （watch 后补记） |
+| 绿证 | CI run 37509972678（树=b729776，含本修复）conclusion **success**——红证同款 Linux 用例随修复转绿 |
 
 ### 4 边界
 
