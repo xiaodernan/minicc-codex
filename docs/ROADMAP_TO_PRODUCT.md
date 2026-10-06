@@ -12643,3 +12643,46 @@ M4-6 全量仍挂起（配额第 4 次探针证伪恢复；第 5 次真任务探
 CI run **37537607770**（树 ee666f7）全绿——gates 组装合流 `evaluate_gates` 在全量门下
 通过；docs run 37537471052（0f67044）同绿。配额第 5 次真任务探针已落档
 （output/m46_probe5.json：171s 后仍 429 quota exceeded），上节「探针待做」就此销账。
+
+## 第一百六十一批 M11-T11：测试地址跟进抽取——四个路由助手不再从 web 的隐性再导出借道
+
+### 1 缺口
+
+M11-T7 把四个路由助手（`_stage_route_budget` / `_stage_cost_estimator` /
+`_route_turn_cap` / `_route_provider_spec`）抽进 `route_wiring.py`，docstring 明言
+「本模块不进 web 栈，CLI 入口保持轻量」；web.py 只留 `from .route_wiring import (...)`
+的私有再导入。但测试仍从抽取前的旧地址拿人：`test_stage_route_enforcement.py`
+两处 `from minicc.web import _route_*`。后果有二：①这批纯函数契约测试被迫导入
+2823 行全量 web 栈——与抽取目标正好相反；②web.py 正被并行车道重写，一旦清理
+剪掉这些「看似无人用」的私有再导入，12+ 条测试以 ImportError 误伤 web.py。
+
+### 2 实现
+
+- 两处导入地址改到 `minicc.route_wiring`（所有者本体），附一行地址政策注释。
+- 追加守卫测试 `test_route_wiring_imports_without_the_web_stack`：子进程内
+  `import minicc.route_wiring` 后断言 `minicc.web` 不在 sys.modules——把 docstring
+  的轻量承诺从散文变成机械门。用子进程是因为本进程 sys.modules 早被兄弟测试
+  污染，进程内探针会 vacuously green。产品代码零改动。
+
+### 3 门证
+
+| 门 | 读数 |
+| --- | --- |
+| 事实红证·旧地址耦合 | `from minicc.web import _route_turn_cap` 强制把 `minicc.web` 拉进 sys.modules（实测 True）——契约测试当时依赖 web 栈可导入 |
+| 法庭双向校验 | 同款探针打 `route_wiring` → `lightweight OK`（放行）；打 `minicc.web` → `AssertionError: the web stack leaked in` exit 1（定罪）——守卫不是恒绿摆设 |
+| 单文件门 | `test_stage_route_enforcement.py` **30 passed in 37.72s**（29 既有 + 1 新守卫） |
+| ruff | 2 处 F841（:415/:597）为 HEAD 同款既有债（`git show HEAD:` 版本同报 2 处），**零新增** |
+| mypy | 产品代码零改动，基线构造成不变 |
+| 占号双查 | ROADMAP grep `M11-T11` 空 + `git log --all --grep` 空 |
+
+### 4 边界
+
+- 零行为变更：生产代码一行未动；测试既断言的契约（legacy budget、负数钳制、
+  跨族凭据拒发、同族静默卡）逐字未改，只换了拿助手的门牌。
+- 守卫钉的是「不进 web 栈」这条单向边界，不是「web 不得用 route_wiring」；
+  web.py 继续再导入是它的自由，只是不再有人把测试押在它活着这件事上。
+
+### 5 下一批边界
+
+M4-6 全量仍挂起（配额第 5 次探针 429 落档）；复核表 M8（并行 web.py 车道，禁碰）；
+specproof 战区脏文件未清继续等。
