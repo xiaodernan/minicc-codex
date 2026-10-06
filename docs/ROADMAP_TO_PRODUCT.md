@@ -12025,6 +12025,67 @@ $ git log --oneline -1
 
 web_token.json 的校验边界现在由 22 条系统性测试守护，证明了 load_or_create_token 对所有常见畸形输入的拒绝行为。关键修复：非 dict 顶层现在抛出 WebAuthError 而非 AttributeError。已知行为：`item or ""` 把 JSON false 当 falsy → 生成新 token（同 allowlist T143）。文件权限只在创建时设置 0o600，不收紧已有文件的过宽权限（文档行为）。
 
+## 第一百四十七批 M8-T147：T138 的行为见证真运行 subagent——原先只查 specs，钩子继承可以静默失效
+
+### 1 来源与占号
+
+第一百三十八批（fa5261a）给子代理的 run_agent 调用传了 `hooks=HookRunner(self.workspace)`，
+并留下 `tests/test_subagent_hooks_inheritance.py` 作为「行为见证」。复核该文件发现其实不在行为
+层承重：它只构造 HookRunner、断言 spec 列表与 matcher 字符串，从未运行子代理——把 `hooks=`
+实参删掉该文件仍全绿；且夹具命令 `"echo deny"` 退出码 0（HookRunner 按退出码判 deny），
+即使真跑也只会 allow。占号前先读 `git log --all` 与文档全文：`T147` 在提交里 0 命中、
+在文档里 0 命中，本批认领 **M8-T147**。
+
+### 2 缺陷
+
+1. **见证对象错位**：旧测试量的是「HookRunner 能解析出 deny 规则」，不是「子代理真被
+   拒绝」。T138 的修复点（run_agent 调用的 hooks 实参、子循环消费它的地方）没有行为
+   测试在承重。
+2. **夹具不可能拒绝**：`"echo deny"` 退出 0 ⇒ decision=allow；就算旧测试愿意真跑，
+   也看不到拒绝路径。
+
+### 3 修复
+
+重写 `tests/test_subagent_hooks_inheritance.py`（+191/-81，d2134c7），三层判据：
+
+- **真栈驱动**：`_ReadOneFileProvider`（第 1 轮请求 read_file(README.md)，之后记下子
+  对话）→ `build_task_tool_spec(provider_factory=…, workspace=…, base_registry=
+  build_registry(Editor(workspace)))` → `spec.handler({...})` → 子代理自己的
+  `run_agent`（subagent.py:424 的 hooks 实参从此有行为承重）。
+- **拒绝臂**：`.minicc/hooks.json` 的 PreToolUse 命令为
+  `python -c "open('subagent_hook_fired','a').close();import sys;sys.exit(2)"`
+  （exit 2 = HOOK_DENY_EXIT；on_failure=deny；matcher ^read_file$）。断言链：子对话
+  ≥2 轮（主体真到「拿到工具结果再问模型」一步，否则「正文没出现」是在量一次从未发生
+  的读取）→ `[HOOK_DENIED]` 出现在子对话 → 正文标记 READ-FILE-BODY-MARKER-4711 绝不
+  出现 → 钩子进程在 workspace 留下 subagent_hook_fired 标记（拒绝判决必须由真执行
+  产生：超时/起不来不借这个词）→ 子代理自己的 tool_log 记有 `[HOOK_DENIED]` 条目。
+- **对照臂**：同一 driver、无 hooks.json → 正文必须出现、无 `[HOOK_DENIED]`、无标记
+  文件——没有这一半，拒绝臂的「正文不出现」可能只是在量一个从不成功的读取。
+- **结构门保留**：AST 检查 subagent.py 的 `run_agent(...)` 调用带 `hooks=HookRunner(...)`。
+
+### 4 变异见证
+
+预测先写：`subagent.py:424` 的 `hooks=HookRunner(self.workspace)` → `hooks=None` ⇒
+**2 红 1 绿**：拒绝臂在第一条 `[HOOK_DENIED]` 断言处红（失败快照里正文标记已泄漏进
+子对话）、AST 结构门红；对照臂不受影响保持绿。实测与预测一致（2 红 1 绿）。还原用
+备份 + sha256 校验字节一致（subagent.py = `8765fb4d…`）后提交。
+
+### 5 回归证据
+
+| 命令 | 读数 |
+| --- | --- |
+| `tests/test_subagent_hooks_inheritance.py` | **3 passed**（39.86s，含两次真钩子子进程） |
+| 提交 | d2134c7 |
+
+### 6 结论与边界
+
+- 钩子继承现在有会在行为层发红的见证：删 hooks 实参三条全红（拒绝臂 + 结构门），
+  对照臂证明「正文不出现」的断言有区分度。
+- 附带确认的观察面：on_tool 对 denied 的 immediate result 也回调
+  （loop.py:1162-1163），summary 在 loop.py:1075 生成——子代理自己的 tool_log 能
+  看到 `[HOOK_DENIED]`，这条断言钉在子循环自己的消费点上。
+- 边界：结构门（AST）单独不能证明行为，与两条真跑臂互补。
+
 ## 第一百四十八批 M8-T148：M4 复核——七行证据当日全部重跑，两条标准在现场重新立住
 
 ### 1 背景
