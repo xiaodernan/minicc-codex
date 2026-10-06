@@ -12433,3 +12433,45 @@ T155 的 CI（run 37525348677）Windows job 红：`test_concurrent_writes_produc
 
 M4-6 全量真跑仍挂起（配额对真实负载 429，见 T155 补记）；复核表仅剩 M8（并行在动）；
 specproof 战区未清（#197-#199 刚提交，工作树 5+ 脏文件）。
+
+## 第一百五十七批 M8-T157：grader 脚本原子物化——执行物不以半写形态存在于盘
+
+### 1 背景
+
+T156 原子写普查（`write_text`/`write_bytes`/`open(w)` 共 19 处）的收口批。分级结论：
+allowlist/snapshots/session/workspaces/tools.* 已是 temp+replace 形状；benchmarks/bench_compare
+的报告输出是单进程顺序写无并发读者；cancel_file 半写无害（轮询读最终一致）。**真缺口只有
+`bench_tasks._materialize`**：grader 脚本名按类型只有两个（`file_contract.py`/
+`command_contract.py`），全部 24 条 v2 任务共享，跨进程并发评测（本地 + CI 同仓库各跑一轮）
+必然竞写同一文件——旧码虽有「内容相同跳过」比对，但写入是裸 `write_text`，另一进程的
+subprocess 可能 **exec 半写脚本**。执行物半写比数据半写更糟：不是读到坏 JSON，是执行错代码。
+
+### 2 实现
+
+- `_materialize` 写路径改为 per-writer 临时名（`.{name}.{pid}.{thread-id}.tmp`）+ write +
+  `os.replace`（写者退避 8 次 ×10-80ms 兜底 PermissionError）——与 webauth token store
+  （M8-T156）、`benchmarks._write_results` 同一形状。
+- 写前 double-check：竞争窗口内赢者已物化同字节则直接跳过自己的 replace。
+- 竞争退避耗尽的失败面如实：PermissionError 上抛 → `_run_grader` 既有 `except OSError` →
+  `grader_unable`（「判不了」诚实失败，重跑即恢复）——宁可拒绝评分也不执行错代码。
+
+### 3 门证
+
+| 门 | 读数 |
+| --- | --- |
+| 红证（旧实现） | 复现脚本 30 轮：**19/30** 轮读者读到半写内容（旧/新源都不等的混合态） |
+| 新实现 | 同场景 50 轮：**bad_content = 0**；写者失败全为干净 PermissionError（压测 10 写者远狠于现实 2 进程） |
+| 新门测试 | `test_materialize_is_atomic_against_concurrent_readers`：2 读者线程持续校验内容 ∈ {完整旧， 完整新}，10 写者并发；内容混合即红；temp 零残留断言 |
+| `test_bench_tasks.py` | **14 passed**（13 既有 + 1 新） |
+| ruff / mypy | F401 `json`（tests:15）与 `render_python_command` arg-type（:666）均 HEAD 同款既有债，零新增 |
+
+### 4 边界
+
+- 读者侧的瞬时 denied（T156 的 Errno 13 同源）在这里的下游是 subprocess exec：exec 失败 →
+  grader_unable 干净失败；不在 materialize 内做跨进程读锁，复杂度不值。
+- `snapshots`/`allowlist` 的 temp+replace 无 fsync——可重建数据不配 fsync（分级原则）；
+  token store 有 fsync（不可重建）。
+
+### 5 下一批边界
+
+M4-6 全量挂起（配额）；复核表 M8（并行）；specproof 战区未清。原子写普查收口：19 处无裸写遗留。
