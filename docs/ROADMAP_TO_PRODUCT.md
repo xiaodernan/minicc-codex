@@ -12475,3 +12475,8 @@ subprocess 可能 **exec 半写脚本**。执行物半写比数据半写更糟�
 ### 5 下一批边界
 
 M4-6 全量挂起（配额）；复核表 M8（并行）；specproof 战区未清。原子写普查收口：19 处无裸写遗留。
+
+### 绿证补记（T156）
+
+CI run **37529712537**（树 0245923，含 T156 码）全绿——Windows job 的
+`test_concurrent_writes_produce_single_token` 与全量门在原子写落地后通过。
