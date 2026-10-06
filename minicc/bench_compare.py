@@ -573,15 +573,12 @@ def main(argv: list[str] | None = None) -> int:
         seed=args.seed,
     )
 
-    gates: list[dict[str, Any]] = []
-    for spec in args.gate:
-        try:
-            parsed = parse_gate(spec)
-        except ValueError as exc:
-            parser.error(str(exc))
-        actual = _gate_actual(comparison["variant"], parsed["metric"])
-        gates.append({**parsed, "actual": actual,
-                      "violated": not _gate_holds(actual, parsed["op"], parsed["threshold"])})
+    # Gate assembly lives in evaluate_gates; main() only translates its
+    # parse errors into CLI usage errors (same exit path as before).
+    try:
+        gates = evaluate_gates(comparison, args.gate)
+    except ValueError as exc:
+        parser.error(str(exc))
     comparison["gates"] = gates
 
     cli_out(render_delta_table(comparison, gates))
