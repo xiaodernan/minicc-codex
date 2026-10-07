@@ -13376,3 +13376,55 @@ CI 的读数不是本机的——按「别人能装上、能用上」同一口�
 - README 行218 提及的 `test:codex`/`test:zombie` 等 arcade 套件文件本机
   俱在且 CI 在跑，本批未重复；game 套件按需补。
 - 效率/成本组指标（配额 429×7）与 M8 复核行维持挂起；specproof 战区继续等。
+
+## 第一百七十六批 M4 退出标准逐条复核：七条里六条达成，第 5 条的后半**从未存在过**——补上并加门
+
+### 1 逐条读数
+
+| 退出标准 | 今天的读数 | 判 |
+| --- | --- | --- |
+| 1. 四项证据链回归各一条命名测试 | `tests/test_m4_evidence_chain.py` **4 passed**（bash 改写工作区被标记为 write／同 tick 重写仍被指纹看见／读不到的键不被静默接受／只读任务不能只用 trace 判 complete） | 达成 |
+| 2. 变异测试进 CI：provider 不可达时 `npm run test:web` 非 0 | CI job `web-smoke-mutation`（名字即 `Playwright web smoke (unreachable provider must fail)`）在，最近多次**绿** | 达成 |
+| 3. 新增 `tests/test_http_surface.py`，POST `/api/*` 覆盖 100%，`rpc.py` 分发器 ≥10 个 method 独立单测 | 文件在（40.9 KB，**69 个用例**） | 达成 |
+| 4. `--suite v2` 输出 `grading_coverage=1.0`、分母 ≥24（edit ≥10） | 骨架报告（不调模型）实测：`grading_coverage=1.0`、`gradable_task_count=24`、`grading_refusal_count=0`、`infra_failure_count=0`；24 条按 category 是 **write 12 / multi-file 6 / test-fix 6** | 达成 |
+| 5. 对比器 gate 违反 exit 1 且 CI 用构造数据验红；**`latency_p50_ms=115s` / `latency_p95_ms=826s` 基线写入 `docs/BENCHMARK_EVALUATION.md`** | 前半达成（`bench_compare` + `tests/test_bench_compare.py` 22 条）；**后半从未存在**（见 §2） | **前半达成 / 后半本批补上** |
+| 6. 任务结束事件带 `cost_usd`，CLI `/cost` 打印费用与 token 分解；未知模型 `cost_usd` 为 None 且 `cost_available` 如实 | `task_manager.py` 三处 `"cost_usd": pricing.cost_usd(...)`；`minicc/main.py` 有 `/cost`；报告侧 `cost_available` 字段在 | 达成 |
+| 7. `pytest -q -W error` 通过；PR 评测门 ≤15 分钟；真实模型只进 nightly | CI 两腿全绿；`eval-pr` 有 `timeout-minutes: 15`；`eval-nightly` 只由 schedule/dispatch 触发 | 达成 |
+
+### 2 第 5 条的后半：一个**从未存在过**的产物
+
+标准原文：「`latency_p50_ms=115s` / `latency_p95_ms=826s` 基线**写入 `docs/BENCHMARK_EVALUATION.md`**」。
+第六节跟踪指标表也这么写（「基线 P50 115s / P95 826s 写入 `docs/BENCHMARK_EVALUATION.md`；M6 起作为回归门」）。
+
+**实测**：
+
+```
+git log -S "latency_p95_ms" -- docs/BENCHMARK_EVALUATION.md   → 空
+git log -S "826"           -- docs/BENCHMARK_EVALUATION.md   → 空
+grep -nE "latency_p50_ms|latency_p95_ms" docs/BENCHMARK_EVALUATION.md → 只有指标定义那三行，没有基线
+```
+
+那对数字**只**出现在 `docs/AUDIT_2026-09-20.md:451`：「历史基线（`output/evaluation-full.md`）：28/30 completed、P50 115s、P95 826s、约 1158 万 token、tool_repeat_rate 0.0；2 条失败均为 900s 超时（工作区巨型未提交 diff 所致）」。
+`output/evaluation-full.md` 不在版本库里，也没有任何脚本写那份评测文档（全仓 grep `BENCHMARK_EVALUATION` 只命中文档之间的引用）——**它是手工维护的**。
+
+所以这条标准的后半不是"被后来的重新生成冲掉了"，而是**从写下那天起就没有兑现**，而第六节又拿它当"M6 起的回归门"的依据。
+
+### 3 落地（补产物 + 加门）
+
+- `docs/BENCHMARK_EVALUATION.md` 新增「延迟基线（M4，M6 起作回归门）」一节：两个指标 + 数值 + **出处**（`output/evaluation-full.md`，经审计文档第 451 行转述）、同次运行的其它读数、以及口径声明——
+  「这是审计时读到的历史数字，**不是本文件重新测出来的**；`output/evaluation-full.md` 不在版本库」。
+- 新门 `tests/test_benchmark_evaluation_doc.py`（2 条）：
+  ① 该文档必须有「延迟基线」一节且两个指标都写成 `metric | <数字>s` 行；
+  ② **与审计文档那句话的数字逐项相等**——两边不一致就红（"一份基线两个值"的形态，谁读哪份就在量哪个）。
+  并把当前基线写进 `BASELINES` 常量：重定基线是**刻意动作**，改的时候要在同一个提交里说明新的一跑是什么。
+- **活性**：把文档里的 `826s` 改成 `900s` → 门红，逐字 `the two documents disagree about the baseline: evaluation={'latency_p50_ms': 115, 'latency_p95_ms': 900} audit={...}`；跑完逐字还原。本机 2 passed。
+
+### 4 边界（明确不声称）
+
+- **没有重跑基线**：那两个数字来自 2026-09-20 的一次历史运行，来源文件不在版本库里，本批只是**把它记到该在的地方**并钉住交叉引用。
+  重新测一次要真实模型与配额，属另一件事；审计自己也注明那 2 条失败是"工作区巨型未提交 diff"造成的环境因素。
+- 标准 3 只核了"文件在 + 69 个用例"，**没有**真去量 `POST /api/*` 的路由覆盖率是否 100%，也没有数 `rpc.py` 分发器是否有 ≥10 个 method 独立单测。
+- 标准 1/2/6/7 **没有做变异验证**，只核了"命名测试在且绿 / job 在且绿 / 代码里确实有那三处 `cost_usd`"。
+- 本批另记一条**未查清的观察**：`tests/test_m4_evidence_chain.py` 有一次带 `-W error` 的跑里尾部出现
+  `PytestUnraisableExceptionWarning: Exception ignored in: <nt.ScandirIterator object ...>`，随后复跑（同样 `-W error`）4 passed / exit 0。
+  没查到来源（可能是本机 safe-delete 垫片，也可能是某处 `os.scandir`/`rglob` 提前放弃），**不写成结论**，留作候选。

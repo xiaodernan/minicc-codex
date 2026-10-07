@@ -45,6 +45,24 @@
 
 2026-09-29 复现结果：上面「评测器定向检查」命令输出 `31 passed in 240.77s`。可比的读数是**条数**——它随这两套测试的用例数变化，务必以命令实际输出为准，不要手改本行；需要更新时请重跑该命令并原样回填。墙钟时间在同机并发时会大幅偏高（本次读数期间同一台机器上另有会话在跑），不要当作基线。`output/benchmark-hardening-checks.xml` 可留存 JUnit。没有运行全量回归或使用真实模型生成新的准确率结论。
 
+## 延迟基线（M4，M6 起作回归门）
+
+| 指标 | 基线 | 出处 |
+| --- | --- | --- |
+| `latency_p50_ms` | 115s | `output/evaluation-full.md`，经 `docs/AUDIT_2026-09-20.md` 第 451 行转述 |
+| `latency_p95_ms` | 826s | 同上 |
+
+同一次运行的其它读数：28/30 completed、约 1158 万 token、`tool_repeat_rate=0.0`；2 条失败都是 900s 超时，
+审计判定为工作区巨型未提交 diff 所致——**环境相关，不是模型慢**。
+
+**口径**：这是 2026-09-20 审计时从 `output/evaluation-full.md` 读到的历史数字，**不是本文件重新测出来的**，
+而 `output/evaluation-full.md` 本身不在版本库里。M6 起用它作回归门（见 `docs/ROADMAP_TO_PRODUCT.md` 第六节跟踪指标表）。
+**两处必须一起改**：`tests/test_benchmark_evaluation_doc.py` 把「本文件的数字」与「审计文档那句话里的数字」
+钉成同一条断言，改一处而不改另一处会红。
+
+（本节的来历：M4 退出标准第 5 条要求这两个基线「写入本文件」，而 `git log -S latency_p95_ms -- docs/BENCHMARK_EVALUATION.md`
+返回空——**它们从未进过本文件**，只活在审计文档里。第一百七十六批补上并加了门。）
+
 ## 可写工作区套件（v2，M4-T5 起）
 
 `v2` 套件（`benchmarks/tasks.v2.json`，24 条任务，`suite_version: v2-1`）与 legacy 只读套件的本质区别：每条任务带 `fixture`（内联声明的若干文本文件），评测在**隔离临时工作区**里以 `allow_changes=True` 跑智能体——编码能力才真正被测量，写权限才可能安全开启。评分器（oracle）分两种：
