@@ -54,6 +54,12 @@ GATE_METRICS = frozenset({
     "grading_coverage",
     "grading_refusal_count",
     "reviewer_false_negative_count",
+    # Batch 181: the tracking table calls false_completion_rate 恒 0 and "any
+    # regression must turn red". The PR gate can only check it in the fake
+    # provider's direction (every completion is false there, so 1.0), which
+    # leaves the real-run target with no gate at all. It is a bad-things rate,
+    # so the direction is ``<=`` and the caller owns the threshold.
+    "false_completion_rate",
 })
 
 
@@ -382,6 +388,9 @@ def compare_reports(
             # closed instead of borrowing pass_at_1.
             "infra_failure_count": base_metrics.get("infra_failure_count"),
             "pass_at_1_ex_infra": base_metrics.get("pass_at_1_ex_infra"),
+            # Batch 181: rides along like the refusal family; a report that never
+            # computed it stays None and a gate on it fails closed.
+            "false_completion_rate": base_metrics.get("false_completion_rate"),
         },
         "variant": {
             **var_stats,
@@ -395,6 +404,8 @@ def compare_reports(
             # M8-T155: same ride-along as the baseline block.
             "infra_failure_count": var_metrics.get("infra_failure_count"),
             "pass_at_1_ex_infra": var_metrics.get("pass_at_1_ex_infra"),
+            # Batch 181: same ride-along as the baseline block.
+            "false_completion_rate": var_metrics.get("false_completion_rate"),
         },
         "pass_at_1_delta": pass_delta,
         "pass_at_1_delta_ci": pass_delta_ci,

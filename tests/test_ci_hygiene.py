@@ -83,6 +83,10 @@ def test_ci_declares_pr_and_nightly_eval_jobs():
     assert "--gate pass_at_1>=" in ci
     assert "--gate grading_coverage>=" in ci
     assert "--gate latency_p95_ms<=" in ci
+    assert "--gate false_completion_rate<=" in ci, (
+        "batch 181 added this gate because the tracking table's 恒 0 row had no reader "
+        "on a real run; dropping it puts that row back to prose"
+    )
     assert "--junit-out" in ci
 
 

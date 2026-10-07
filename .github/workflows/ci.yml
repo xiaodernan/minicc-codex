@@ -332,6 +332,7 @@ jobs:
           --gate pass_at_1>=0.3
           --gate grading_coverage>=0.9
           --gate latency_p95_ms<=600000
+          --gate false_completion_rate<=0
           --json-out output/nightly-compare.json
           --junit-out output/nightly-junit.xml
       - name: Upload nightly eval artifacts

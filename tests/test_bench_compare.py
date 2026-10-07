@@ -265,6 +265,38 @@ def test_evaluate_gates_fail_closed_on_none():
     assert results[0]["violated"] is False
 
 
+def test_false_completion_rate_gates_and_rides_along_from_the_report() -> None:
+    """Batch 181: the tracking table's 恒 0 row needed a gate a real run could use.
+
+    The PR gate can only assert the fake provider's direction (every completion is a
+    false one there, so 1.0), which left the real-run target ungated - the nightly
+    --gate vocabulary did not include this metric at all. Two things have to hold for
+    the nightly to be able to use it: the parser accepts it, and the comparison
+    carries it from the report's metrics block instead of always being None.
+    """
+    assert parse_gate("false_completion_rate<=0") == {
+        "metric": "false_completion_rate",
+        "op": "<=",
+        "threshold": 0.0,
+        "spec": "false_completion_rate<=0",
+    }
+    # Rides along from the report's own metrics, both sides.
+    baseline = {"metrics": {"false_completion_rate": 0.25, "pass_at_1": 0.5}, "results": []}
+    variant = {"metrics": {"false_completion_rate": 0.0, "pass_at_1": 0.75}, "results": []}
+    comparison = compare_reports(baseline, variant)
+    assert comparison["baseline"]["false_completion_rate"] == 0.25
+    assert comparison["variant"]["false_completion_rate"] == 0.0
+    results = evaluate_gates(comparison, ["false_completion_rate<=0"])
+    assert [result["violated"] for result in results] == [False]
+    # A regression shows up as a violation, not as a silent pass.
+    regressed = compare_reports(
+        baseline, {"metrics": {"false_completion_rate": 0.4, "pass_at_1": 0.75}, "results": []}
+    )
+    assert evaluate_gates(regressed, ["false_completion_rate<=0"])[0]["violated"] is True
+    # Fail closed: a report that never computed it cannot satisfy the gate.
+    assert evaluate_gates({"variant": {}}, ["false_completion_rate<=0"])[0]["violated"] is True
+
+
 def test_refusal_family_counts_gate_with_less_or_equal() -> None:
     """M8-T118 policy: refusals and reviewer losses are bad-things counts.
 

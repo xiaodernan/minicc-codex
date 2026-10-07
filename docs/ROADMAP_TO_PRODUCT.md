@@ -13659,3 +13659,52 @@ grep -rln "verification_cache_false_positive\|cache_false_positive" tests/*.py m
 - 这一改**已经过了一次真实 CI 跑**，而且是**红着回来的**：第一版断言 `== 0` 在 CI 里 22 秒红，
   促使我按 CI 那条命令本地复现、量到真值是 1.0 才改对。改后的版本**尚未再经 CI**（推送后要看 `eval-pr` 转绿）。
 - 本批**没有**去查"还有哪些指标行同样只有算术门、没有 CI 门"——那需要把第六节每一行与 workflow 逐条对账。
+
+## 第一百八十一批 兑现第一百八十批的欠账：`false_completion_rate` 在**真实跑**里也有门了
+
+### 1 欠账是什么
+
+第一百八十批把该指标加进了 **PR** 门，但那里是 fake provider——真值只能是 **1.0**（每个完成都是假完成）。
+表里那句「**恒 0**，任何回归必须红灯」针对的是**真实模型跑**，而 nightly 用的 `--gate` 只认四类指标
+（`pass_at_1` / `cost_per_success_usd` / `latency_p95_ms` / `grading_coverage`），**这个词表里没有它**——
+所以真实跑里它仍然没有读者。本批补上。
+
+### 2 改动（三处，都要动才成立）
+
+1. `minicc/bench_compare.py::GATE_METRICS` 加 `"false_completion_rate"`（它是**坏事比率**，方向 `<=`，阈值归调用方）；
+2. **同一文件里 `baseline` / `variant` 两个块各加一行**从报告 `metrics` 取该值——
+   这一步是关键：`evaluate_gates` 读的是 `comparison["variant"][metric]`，
+   **只加词表而不加这两行，门会永远读到 `None` 并 fail-closed 地判违反**（红得没道理，且掩盖真实读数）；
+3. `.github/workflows/ci.yml` 的 `eval-nightly` 加 `--gate false_completion_rate<=0`。
+
+### 3 证据
+
+**端到端跑真 CLI**（`python -m minicc.benchmarks compare --gate false_completion_rate<=0`，两份构造报告）：
+
+```
+--- clean (0.0): exit 0
+    | false_completion_rate | <= 0 | 0 | 通过 |
+--- regressed (0.5): exit 1
+    | false_completion_rate | <= 0 | 0.5 | 违反 |
+    [GATE FAILED] 1 个门槛被违反：
+    - false_completion_rate<=0 实际=0.5
+```
+
+**门自己的门**：
+- `tests/test_bench_compare.py` 新增一格 `test_false_completion_rate_gates_and_rides_along_from_the_report`——
+  覆盖 ①`parse_gate` 认它、②**两个块确实从报告带值**（`baseline==0.25` / `variant==0.0`，不是恒 `None`）、
+  ③违反时 `violated is True`、④报告里没有该指标时 fail-closed；
+- `tests/test_ci_hygiene.py` 在既有那格加一条断言，钉住 nightly 里有 `--gate false_completion_rate<=`。
+
+两个文件合跑 **41 passed**（bench_compare 32 + ci_hygiene 9）。
+
+### 4 边界（**这条尤其要说清**）
+
+- **阈值 0 是表里的目标，不是我量到的读数**。PR 门那个 1.0 是我按 CI 命令量出来的；
+  而**真实跑里这个指标今天没有任何人量过**——`eval-nightly` 因为仓库没配 secret，从建立起一直显式跳过。
+  所以这道门现在的性质是「**接线完成、读数待有**」：等 owner 配上真实 key 跑一次，才知道真实值是多少、
+  0 这个阈值是否合适（也可能真实跑里它本来就不是 0，那要按实测重定基线并说明）。
+- 本批**没有**动 `_gate_holds` 的 fail-closed 语义，也没有改其它指标的方向。
+- `compare` 的 delta 表把新指标一并打印（上面两行就是它输出的），但**没有**为它加「差值 + 置信区间」那一类统计——
+  比率类指标要不要出 CI，属另一个决定。
+- 推送这道改动**必须走 SSH**（HTTPS 那份凭据没有 `workflow` scope，见第一百八十批记录）。
