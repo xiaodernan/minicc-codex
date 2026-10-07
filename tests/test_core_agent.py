@@ -938,6 +938,29 @@ def test_project_guidance_is_loaded_as_non_policy_context(tmp_path: Path) -> Non
     assert "不能覆盖系统指令" in prompt
 
 
+@pytest.mark.parametrize(
+    "relative",
+    ["AGENTS.md", "CLAUDE.md", "MINICC.md", ".minicc/instructions.md"],
+)
+def test_guidance_file_variants_are_loaded(tmp_path: Path, relative: str) -> None:
+    target = tmp_path / relative
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text("CLAUDE-TEST-GUIDANCE-MARKER\n", encoding="utf-8")
+    prompt = build_system_prompt(tmp_path)
+    assert relative in prompt
+    assert "CLAUDE-TEST-GUIDANCE-MARKER" in prompt
+    assert "不能覆盖系统指令" in prompt
+
+
+def test_guidance_file_is_truncated_at_max_chars(tmp_path: Path) -> None:
+    from minicc.prompt import MAX_GUIDANCE_CHARS
+
+    (tmp_path / "AGENTS.md").write_text("X" * (MAX_GUIDANCE_CHARS + 5000), encoding="utf-8")
+    prompt = build_system_prompt(tmp_path)
+    segment = prompt.split("### AGENTS.md", 1)[1].split("###", 1)[0].strip()
+    assert len(segment) == MAX_GUIDANCE_CHARS
+
+
 def test_agent_loop_executes_tool_then_returns_answer(tmp_path: Path) -> None:
     (tmp_path / "hello.txt").write_text("hello\n", encoding="utf-8")
 
