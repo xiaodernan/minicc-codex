@@ -845,9 +845,9 @@ token 的 worker 负责」——A 让干净关闭成为真正的停止，代价�
 | M5-2 巨量输出截断 / string id 回传 / stdout 不可解码时快速失败 / dead 服务 | ✅ | 逐条点名可查：`test_half_million_char_output_is_truncated`、`test_small_output_not_truncated`、`test_string_id_response_is_matched`、`test_undecodable_stdout_fails_fast_not_30s`（断言 `client.dead is True`）、`test_dead_server_marked_in_health` |
 | M5-3 CLI 配置的 MCP 工具出现在 `/tools` | ✅（M8-T138 修线） | 原判「间接」是错的：`/tools` 是 CLI 命令，HTTP 面没有这条路由，`test_http_surface` 从未覆盖它；registry 层门只证明 `build_registry` 吃 manager，而 `minicc/main.py` 全文件 mcp 0 命中——CLI 从未建过 manager，`/tools` 永远只印 builtins。M8-T138 接线 + 全链门 `test_cli_tools_command_lists_configured_mcp_tools`（红证：无接线时输出零个 `mcp__`） |
 | M5-4 坏 `mcp.json` 走结构化 McpError 而非 500 | ✅（M8-T138 补 HTTP 门） | 服务层两证在位（`test_manager_negative_cache_does_not_respawn` + `test_failure_paths_return_structured_error_codes`）；HTTP 层新门 `test_get_mcp_surfaces_malformed_config_as_error_not_500`：坏文件在 AgentService 构造期被 `_set_current_mcp` 吞成 manager=None，`/api/mcp` 返 200 + configured=0 + 非空 error，不 500 |
-| M6-3 `bash start /m &` 被拒 | ✅ | `tests/test_background_shell.py:231` `detached_command_reason("start /min notepad &") is not None` |
+| M6-3 `bash start /m &` 被拒 | ✅ | `tests/test_background_shell.py:231` `detached_command_reason("start /min notepad &") is not None`（**第一百八十六批实测：这句断言今天在 `:380`，原记 231 行已漂 149 行；内容仍在**） |
 | M6-1/2/5 委托、软预算、写档默认只读 | ✅（测试层） | `test_subagent_delegation.py`(16) + `test_subagent_streaming.py`(5) + `test_parallel_writes.py` + `test_permissions_approval.py` 等合计 **91 passed**；写档需显式授权由 `WRITABLE_PERMISSION_MODES` 结构断言钉住 |
-| M7-3 审批 60s 超时自动 deny | ✅ | 生产常量 `web.py:156 APPROVAL_TIMEOUT_SECONDS = 60.0`，测试 `test_approval_timeout_auto_denies` 用 5s 走同一分支并断言 `decision == "deny"` 且 `timed_out is True`（不为此把测试拖到 60s） |
+| M7-3 审批 60s 超时自动 deny | ✅ | 生产常量 `web.py:156 APPROVAL_TIMEOUT_SECONDS = 60.0`（**第一百八十六批实测：常量今天在 `minicc/web.py:162`，值仍是 60.0；原记 156 行且路径漏了目录**），测试 `test_approval_timeout_auto_denies` 用 5s 走同一分支并断言 `decision == "deny"` 且 `timed_out is True`（不为此把测试拖到 60s） |
 | M7-1/2/4/5 hooks、slash、项目配置、composer 恢复 | ✅（测试层 + 前端真跑） | `test_hooks/test_slash_commands/test_project_config/test_mentions` 全绿；起 fake-provider 服务后 `node tests/frontend_{transport,lifecycle,scale,optimization}_smoke.mjs` **逐个 exit 0**（composer 恢复与取消在 transport/lifecycle 内） |
 | M6-4 30 个 fixture 性能 P95 不超 M4 基线 15% | ✅ **已按 24 条全量结案（2026-09-25）** | 套件实际为 24 条（v2 定义即 24，路线图写作 30 是老口径）。干净全量零 429 死亡（M8-T16 退避修复生效）：p50 **50.2s** / p95 **~107s** / 最大 186.9s，全部落在 M4 基线（115s/826s）的 +15% 线内，性能标准通过。pass@1 **13/24 = 0.5417**、grading_coverage 1.0、false_completion_rate 0；总 tokens 2 097 337。**失败分解（11 条）**：完成守卫循环判死但隐藏 grader 实际通过 ×8、其他守卫判死但 grader 通过 ×2（version-exact 恢复证据、fix-uppercase 未验证）、真编码失败仅 ×1（multi-config）。交付正确率按 grader 单独算是 23/24。主导失败模式不是编码能力而是「评审要求运行测试 → 工作区无可运行检查 → 循环到上限」的不可满足循环，已作为新候选登记（见 2026-09-25 节）：评审可满足性注入与 M8-T19 重复判定提前停止。数据：`output/m6_4_full.results.json`（gitignored，报告在 `output/m6_4_full.{json,md}`） |
 
@@ -13908,3 +13908,53 @@ M1/M2/M4/M5/M8 由本会话逐条复核，M3 由第一百六十八批，M6/M7 �
   那是下一批的候选；本批只用了它的 `M6-4` 行来更正我自己的结论。
 - `output/m6_4_full.*` 那批产物**没有**复查（报告里标为 gitignored），本批采信路线图记录的读数，未独立复量。
 - 街机项**没有**做任何技术判断（该删还是该留），那是 owner 的决定。
+
+## 第一百八十六批 跨里程碑标准表逐行核 + 「行号型引用」的文档门覆盖面判别
+
+### 1 那张表在哪、核了什么
+
+第一百八十五批发现路线图里有一张**跨里程碑标准表**（"M5-M7 退出标准真跑记录（第三批，2026-09-22）"，第 843 行起），
+逐行给了 M5-1..4、M6-1..5、M7-1..5 的结论与证据。本批逐行核它今天还成不成立。
+
+| 行 | 实测 | 判 |
+| --- | --- | --- |
+| M5-1 MCP stdio ≥8 个回归 | 表里写「有 **11** 个测试函数」，今天 **12**（第一百七十七批量过） | 仍成立（下限 8；数字漂了 1） |
+| M5-2 巨量截断/string id/快速失败/dead | 点名的四条测试今天都在且绿（第一百七十七批，含变异） | 成立 |
+| M5-3 CLI `/tools` 列出 `mcp__` | `test_cli_tools_command_lists_configured_mcp_tools` 在（第一百七十七批） | 成立 |
+| M5-4 坏 `mcp.json` 走结构化错误 | 点名的两条都在：`test_manager_negative_cache_does_not_respawn` + `tests/test_logging.py:621 test_failure_paths_return_structured_error_codes` | 成立 |
+| M6-3 `bash start /m &` 被拒 | 断言**内容还在**，但**行号漂了**：表里写 `test_background_shell.py:231`，今天在 **`:380`** | 内容成立、**指针漂 149 行** → 已就地补注 |
+| M6-1/2/5 委托、软预算、写档默认只读 | 点名四个文件都在（`test_subagent_delegation` / `test_subagent_streaming` / `test_parallel_writes` / `test_permissions_approval`） | 成立 |
+| M6-4 性能 P95 ≤ 基线 +15% | 由 2026-09-25 的 24 条真实全量结案（第一百八十五批据此更正了自己） | 成立 |
+| M7-3 审批 60s 超时自动 deny | **常量还在、值仍是 60.0**，但**指针漂了且路径不完整**：表里写 `web.py:156`，今天在 **`minicc/web.py:162`** | 内容成立、**指针漂 6 行且漏目录** → 已就地补注 |
+| M7-1/2/4/5 hooks/slash/项目配置/composer | 点名四个测试文件都在 | 成立 |
+
+### 2 判别实验：文档门对「`文件:行号`」型引用管到什么程度
+
+先种两条探针再跑门：
+
+```
+探针A：`tests/test_background_shell.py:99999`  → DANGLING：在第 470 行之外（文件只有 470 行）
+探针B：`minicc/nonexistent_zzz.py:12`          → DANGLING：指向的路径在仓库里不存在
+```
+
+两条都被抓，探针逐字还原。**所以门的覆盖面是「文件存在 + 行号在范围内」**——
+而它**刻意不查"那一行上是什么"**。本批那两处漂移正是从这个缺口漏过去的：行号仍在范围内，内容已经挪走。
+
+### 3 为什么不把门扩到"查那一行的内容"
+
+量了一下规模：`文件:NNN` 型引用在文档里共 **844 处**（路线图 679、`AUDIT_2026-09-20.md` 142、`PROJECT_REVIEW_2026-09-18.md` 20、README 3）。
+其中**绝大多数在历史批次记录里**——那里的行号是"当时"的行号，文件长大之后**本来就该漂**，
+甚至有的文件后来被删（例如第一百一十二批删掉的模块，早期记录里仍会提到它的行号）。
+把门扩成"行号上必须有那个符号"会让**几百处合法的历史引用变红**，那不是抓缺陷，那是逼人删证据。
+
+**所以当前的层级是对的，维护动作是**：当**核验型表格**（它的指针是给今天的人去点的）里的行号漂了，**就地补注今天的落点**——
+本批对 M6-3 与 M7-3 两行就是这么做的（保留原句，追加"今天在 `:380`"／"今天在 `minicc/web.py:162`，值仍是 60.0"）。
+
+### 4 边界（明确不声称）
+
+- 本批**只核了这张表**（M5-M7 真跑记录）的 15 行。文档里还有几百处 `文件:NNN` 引用**没有**逐条核内容——
+  按 §3 的理由，也不该逐条核。
+- **没有**改门的实现（第一百八十六批只动文档）。
+- 两处漂移的**成因没有查**（是"文件长大"还是"那段代码被移动/重写"）；本批只记"今天在哪"。
+- 表里 M6-1/2/5 与 M7-1/2/4/5 两行是**合并行**（一行盖多条标准），本批只核了"点名的文件在"，
+  **没有**逐条展开到每一条标准各自的证据。
