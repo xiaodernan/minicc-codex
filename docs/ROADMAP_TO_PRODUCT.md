@@ -12823,6 +12823,7 @@ minicc/ 全部 `subprocess.run(timeout=...)`，无包围 TimeoutExpired 处理�
 | mypy | HEAD 基线对照（字节级 HEAD 覆写后跑 `mypy minicc` 再还原对比）：**141 ↔ 141 error，零新增零消失**，全库既有债逐字同款 |
 | 全量 | 提交前工作树全量 **9 failed, 2022 passed, 5 skipped in 732.42s**——9 红全部是 doc-pointer 活性门按设计红：本节引用的 `tests/test_subprocess_timeout_pairing.py` 与门测试名当时尚未 git 跟踪，干净检出视角是悬空引用（门语：本机有 ≠ 仓库有）。先落测试提交、再落本节后复验 **9/9 转绿**（见下），CI 全量绿证随推送兑现 |
 | 占号双查 | ROADMAP grep `M2-T10` 空 + `git log --all --grep=M2-T10` 空 |
+| CI 绿证（补记） | run 37552849634 @ cae845e **success**——双平台全量绿，M2-T10 闭环；超时配对面全库收口 |
 
 ### 4 边界
 
