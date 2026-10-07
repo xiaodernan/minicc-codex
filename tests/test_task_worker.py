@@ -316,6 +316,48 @@ def test_clean_shutdown_aborts_a_worker_that_ignores_cancellation(
         service.shutdown()
 
 
+def test_abort_worker_snapshot_releases_orphan_lease_left_by_a_killed_worker(
+    tmp_path: Path,
+) -> None:
+    """A worker that wrote its own terminal snapshot and was killed *before*
+    its own lease release ran leaves an orphan lease behind. The host-side
+    abort path must still release it (by the recorded owner), otherwise the
+    lease lingers until TTL expiry and the clean-shutdown contract — no live
+    lease after shutdown — breaks on slow runners. A successor that already
+    re-claimed the task holds a different owner, so the owner-scoped DELETE
+    never touches it.
+    """
+    from minicc.task_manager import TaskManager
+
+    store = TaskStore(tmp_path / "tasks.sqlite3")
+    task_id = "task-orphan-lease"
+    owner = "killed-worker-owner"
+    snapshot = {
+        "task_id": task_id,
+        "status": "cancelled",  # the worker wrote its own terminal snapshot
+        "lease_owner": owner,
+    }
+    assert store.upsert(snapshot)  # no lease_owner kwarg: plain snapshot write
+    assert store.claim_lease(task_id, owner, pid=1, ttl=45.0)
+    assert store.get_lease(task_id) is not None  # the orphan lease on record
+
+    manager = TaskManager.__new__(TaskManager)
+    manager.store = store
+    manager._finalize_aborted_snapshot(task_id)
+
+    assert store.get(task_id)["status"] == "cancelled"
+    assert store.get_lease(task_id) is None
+
+    # Safety half of the fix: re-running the abort path against a stale mirror
+    # (old lease_owner still in the snapshot) must not touch a successor's
+    # fresh lease under a different owner.
+    assert store.claim_lease(task_id, "successor-owner", pid=99, ttl=45.0)
+    store.upsert(dict(snapshot))  # no lease_owner kwarg: the lease row is untouched
+    manager._finalize_aborted_snapshot(task_id)
+    lease = store.get_lease(task_id)
+    assert lease is not None and lease["owner"] == "successor-owner"
+
+
 def test_worker_survives_host_crash_and_continues_long_stream(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

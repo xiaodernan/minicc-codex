@@ -2123,10 +2123,18 @@ class TaskManager:
         if store is None:
             return
         snapshot = store.get(task_id)
-        if snapshot is None or str(snapshot.get("status") or "") in TERMINAL_TASK_STATUSES:
+        if snapshot is None:
             return
         owner = str(snapshot.get("lease_owner") or "")
         if not owner:
+            return
+        if str(snapshot.get("status") or "") in TERMINAL_TASK_STATUSES:
+            # The worker wrote its own terminal snapshot but was killed before
+            # its lease release ran; the lease would otherwise linger until TTL
+            # expiry. Releasing by the recorded owner is safe: a successor's
+            # fresh lease carries a different owner and the DELETE is
+            # owner-scoped, so it is never matched.
+            store.release_lease(task_id, owner)
             return
         result = snapshot.get("result")
         result = dict(result) if isinstance(result, dict) else {}

@@ -13254,3 +13254,45 @@ minicc/prompt.py 的 `_workspace_guidance`（四种文件名常量表驱动）�
   断言窗口，CI 负载波动即 flake（本批绿证树首跑即触发一次）；把窗口
   或等待改成非硬编码属产品代码修改，登记待办不在台账批内做。
 - 效率/成本组指标（配额 429×7）与 M8 复核行维持挂起；specproof 战区继续等。
+
+
+## 第一百七十三批 孤儿租约根因修复：绿证树 flake 顺藤摸到真实缺陷，先红后绿收口
+
+### 1 为什么是缺陷不是 flake
+
+第172批绿证树首跑 failure 的失败断言（关停后 `get_lease` 应为 None）
+本地复跑绿、`rerun --failed` 也绿——表面上就是时序 flake。但按纪律把
+根因读完：`_finalize_aborted_snapshot`（task_manager.py，shutdown 把
+worker 终结后的终态提交路径）在读到快照**已是终态**时提前 return，
+不释放租约。真实竞态是：worker 自己写完 cancelled 终态快照、却在
+自己的租约释放执行前被 terminate 击杀——租约就挂到 TTL（45s）过期。
+慢 runner 上 shutdown 完成时租约未过期，断言即红。这是低概率但真实
+的产品缺陷（后果轻微：TTL 过期后 M3-T5 栅栏保证安全恢复），flake 只是
+它的显影。
+
+### 2 红绿证据
+
+| 步骤 | 读数 |
+| --- | --- |
+| 新测试（构造终态快照+在册租约，调 `_finalize_aborted_snapshot`） | 修复前 **1 failed**：`get_lease` 返回孤儿租约——与 CI 失败断言逐字同形 |
+| 修复（终态提前返回分支补 owner 作用域 `release_lease`） | **1 passed in 5.62s** |
+| 防护半边（旧 owner 镜像重跑不得误删 successor 新租约） | 同测试内绿：`release_lease` 的 WHERE 带 owner，新 owner 租约永不命中 |
+| 全文件回归 | **12 passed in 60.16s**（11→12，无伤） |
+
+修复的安全性论证：owner 取自快照字段；若 successor 已重新 claim，其
+租约 owner 必然不同，DELETE 语句 owner 作用域保证永不命中——既清掉
+孤儿又不伤合法接任者。
+
+### 3 实测证据
+
+| 命令 | 读数 |
+| --- | --- |
+| 红/绿/回归三条 pytest | 见第 2 节表，输出留档 `output/t173_*.txt` |
+| 占号双查 | ROADMAP grep `T173` 空 + `git log --all --grep=T173` 空 |
+| 预检 | `python scripts/doc_pointers.py --check` exit 0 |
+
+### 4 下一批边界
+
+- 关停测试的 40s 硬编码窗口仍在（flake 的另一半），但根因修掉后
+  其触发面大幅缩小；窗口弹性化留待观察。
+- 效率/成本组指标（配额 429×7）与 M8 复核行维持挂起；specproof 战区继续等。
