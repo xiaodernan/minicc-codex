@@ -14189,3 +14189,86 @@ MINICC_ROUTE_COVERAGE {"GET": {"answered": 19, "total": 19, "percent": 100.0},
 - "有修复或明确处理路径"**不等于**"这些修复都被测试钉住"：其中第 3、5、8、13 条我**没有**找到专门断言它们的测试，
   只找到实现；**没有测试钉住的修复，将来可能被重构悄悄改回去**（这是本批留下的一个观察，不是结论）。
 - 本批**只动文档**（P2-8 补一条说明 + 本记录），没有改代码、没有加门。
+
+## 第一百五十三批 M8-T153：/api/file 预览端点的拒绝信封成了门——五族守卫×21 拼写表＋9 条 HTTP 行＋七臂见证
+
+### 1 来源
+
+T151 收尾时点名的下一候选：`/api/file`（webserver.py:372 路由 → AgentService.file_preview →
+build_registry(Editor).execute(read_file)）全库零测试引用。它与兄弟路由 `/api/files`
+（拒绝即抛、HTTP 400，已由 test_file_tree_api.py 钉住）契约相反：**五族守卫的每一次拒绝
+都是 HTTP 200 + `{"status":"error","summary":"[TOOL_ERROR] …","content":…,"path":<回显>}`**，
+`path` 字段把调用者写下的拼写逐字回显（含 query 单层解码后的形态）。
+
+先做只读量测（probe5/probe6，一次性脚本）：五族句子逐条实测；单层编码 `%2e%2e%2f` 被
+parse_qs 解成 `../`、双层编码解码一层后仍是字面名 ⇒ 文件不存在（fail-closed）——无产品
+缺陷，遂按「门」单位落地。
+
+占号：T152 被并行车道占用（dec046a + b729776），`git log --all --grep T153` 核实为空，
+本批取 M8-T153。
+
+### 2 交付
+
+tests/test_file_preview_endpoint.py（35 例，+398/-0，提交 2b7809f）：
+
+- 直调层拒绝表（parametrize 21 行）：包含族 7 行（字面 `../`、交错 `sub/../../`、裸 `..`、
+  Windows 反斜杠、盘符两种拼写、`/etc/passwd`——Win/POSIX 期望句子不同、机制不同）；敏感名
+  族 6 行（credentials.json / secrets.json / id_rsa / .pem / .env / .env.local）；.minicc
+  deny 族 5 行（web_token / allowlist / audit.jsonl / hooks / worker/*.config.json）；
+  .graders 1 行；缺口族 2 行（"."、空串）。每行四断言：信封四键恰为
+  ["content","path","status","summary"]、status=error、逐字句子、path 原样回显；带标记的
+  行再断言被守内容不泄漏（标记同时查 content 与 summary）。
+- 正面表 4 行（表不许只靠拒绝成立）：普通文件送达；根内 `sub/../notes.txt` 送达；文本逃逸
+  但**解析回根内**的 `../ws/notes.txt` 送达（包含判定按 resolve 后目标，不按拼写——工作区
+  特意嵌一层 tmp_path/ws 来给出这种拼写）；`.env.example` 白名单送达。
+- 重红行 1：`.minicc/mcp.json` 送达且两个头值都被替换——断言 `count("[REDACTED]") == 2`
+  （「只红了第一个」不能过）＋两个具体的 `"Authorization"/"X-Api-Key"` 行在场 ＋原始值缺席。
+- HTTP 层 8 行 + 重红 1 行：真服务器 + urllib。控制行正向断言送达内容（其「标记缺席」槽
+  为 None——这里的标记正是必须**在场**的东西）；单层编码行钉「恰一次解码」；双层编码行钉
+  「解码后仍是字面名 ⇒ 文件不存在」；缺参行 path 回显空串；每行钉 status 恰 200（若 400
+  即红）＋信封键＋句子逐字（经解码后的回显拼装）＋标记不出现在整个 body。收尾
+  join(timeout=5)+`assert not is_alive()`（M8-T71 门形）、就绪轮询 10s（M8-T116 门形）。
+
+### 3 七臂见证（预测先写后跑）
+
+预测表先写：`mc-t150/arms153_predictions.md`（列每臂的改动字节串、逐行红名单、形状与
+交叉不变量）。平面：`mc-t150/plane153`（minicc 包副本 + 门文件副本 + pyproject 副本；
+in-process 预检 `import minicc` 必须落在平面内，否则突变不可见⇒臂会假绿）。臂只改平面
+副本，仓库工作树零接触；每臂先把两文件还原到 pristine 再打突变（sha256 断言）。
+
+| 臂 | 改动 | 预测（先写） | 实测 |
+| --- | --- | --- | --- |
+| 控制 | 无 | 35 passed / 0 红 | **35 passed / 0 红**（52s）——MATCHED |
+| A | fs.py `if minicc_kind == "deny":` → 恒假条件 | 6 红 | **6 红 / 29 绿**——逐名相符，MATCHED |
+| B | editor.py `if not target.is_relative_to(self.workspace):` → `if False:` | 7 红 | **7 红 / 28 绿**——逐名相符，MATCHED |
+| C | fs.py read_file 删 `_reject_sensitive(path)` 调用 | 6 红 | **6 红 / 29 绿**——逐名相符，MATCHED |
+| D | fs.py read_file 删 `_reject_graders(path)` 调用 | 2 红 | **2 红 / 33 绿**——逐名相符，MATCHED |
+| E | fs.py `rendered = _redact_mcp_headers(...)` → 不脱敏直通 | 2 红 | **2 红 / 33 绿**——逐名相符，MATCHED |
+| F | editor.py `if raw.is_absolute():` → 恒假条件 | 3 红 | **3 红 / 32 绿**——逐名相符，MATCHED |
+| G | editor.py read_file 删缺口守卫（`if not target.is_file()` 两行） | 4 红 | **4 红 / 31 绿**——逐名相符，MATCHED |
+
+覆盖账：21 条拒绝行每条都有臂能弄红（A 5+B 5+F 2+C 6+D 1+G 2 服务行；B 2+A 1+D 1+F 1+G 2
+HTTP 行）；两条重红行由 E 独立承重。交叉不变量（写进预测表）：C 不许弄红任何 .minicc 行、
+A 不许弄红 graders 行、B 不许弄红 allow 表 4 行——族间独立。
+
+### 4 回归证据
+
+| 命令 | 读数 |
+| --- | --- |
+| plane 控制（未突变） | **35 passed**（37.80s；--confcutdir 收缩收集走查后） |
+| 仓库 focused：新文件 + test_join_liveness | **38 passed**（54.11s：本文件 35 + test_join_liveness 3） |
+| focused 回归：test_security_perimeter + test_file_tree_api | **23 passed**（13.23s） |
+| 全量 | **2020 collected / 2015 passed / 5 skipped / 0 红 / rc=0**（2b7809f 提交后 11s 起跑，1427.5s；junit failures=0 errors=0，5 条 skip 全为 Windows 权限模型分支；窗口内 0 提交——下一次提交 03:49:07，在本跑结束后 +3min）|
+
+### 5 边界
+
+- 平台退化行（反斜杠、盘符、/etc/passwd）：断言（拒）在两平面都成立但机制不同，行内注释
+  点名；本机（win32）按 win32 分支预测。
+- 双层编码行为只刻画不修：`parse_qs` 恰解码一层是 stdlib 语义，把 `%252e` 留成字面名是
+  fail-closed 的，不是缺陷。
+- 重跑配方（为什么每个旗标）：cwd=plane、`-c pyproject.toml`（ini 在平面内，pythonpath=["."]
+  指平面）、**`--confcutdir=<平面>`**——没有它，pytest 的收集走查会把参数的每一级祖先目录
+  都当收集层爬到 `C:\`（confcutdir 语义，pytest #9767：只会在 confcutdir 的**父目录**处
+  停止，跨盘的测试文件一路爬到头），扫描系统 Temp 时与并发会话删除 Temp 条目赛跑，三次
+  以 `ERROR collecting test session`（FileNotFoundError，foreign 目录 caesura-*/playwright
+  profile/specproof-head-*）中断收集；加旗标后走查收缩到测试文件所在目录一层。
