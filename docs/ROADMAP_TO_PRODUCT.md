@@ -13428,3 +13428,49 @@ grep -nE "latency_p50_ms|latency_p95_ms" docs/BENCHMARK_EVALUATION.md → 只有
 - 本批另记一条**未查清的观察**：`tests/test_m4_evidence_chain.py` 有一次带 `-W error` 的跑里尾部出现
   `PytestUnraisableExceptionWarning: Exception ignored in: <nt.ScandirIterator object ...>`，随后复跑（同样 `-W error`）4 passed / exit 0。
   没查到来源（可能是本机 safe-delete 垫片，也可能是某处 `os.scandir`/`rglob` 提前放弃），**不写成结论**，留作候选。
+
+## 第一百七十七批 M5 退出标准逐条复核：四条都达成，截断那条再拆一次红在点名的用例上
+
+### 1 逐条读数
+
+| 退出标准 | 今天的读数 | 判 |
+| --- | --- | --- |
+| 1. 新增 `tests/test_mcp_stdio.py` ≥8 条表驱动单测 | 文件在（14.9 KB），**12 个用例** | 达成 |
+| 2. 50 万字符输出被截到 ≤6000 且 `truncated=True`；string id 正常返回；stdout 含不可解码字节时 reader 不死、标记 dead 且后续调用 <1s 失败 | 三条各有用例且都在绿名单里：`test_half_million_char_output_is_truncated`、`test_string_id_response_is_matched`、`test_undecodable_stdout_fails_fast_not_30s`；另有两格覆盖同一条标准的另一半——`test_server_initiated_ping_is_answered`、`test_manager_negative_cache_does_not_respawn`、`test_dead_server_marked_in_health` | 达成 |
+| 3. CLI 在有 `mcp.json` 的工作区 `/tools` 列出 `mcp__` 工具（否则删 README:24 表述） | `tests/test_mcp_stdio.py::test_cli_tools_command_lists_configured_mcp_tools` 与 `::test_build_registry_lists_mcp_tools` 都在且绿；`README.md` 那句「可选 MCP stdio 工具桥：读取工作区 `.minicc/mcp.json`，工具默认按不可信输出处理」**保留**（走的是标准的前半支，不是"否则删除"那支） | 达成 |
+| 4. `/api/chat` 对坏 `mcp.json` 条目返回结构化 `McpError` 而非 500 ValueError | `McpError` 出现在 `tests/test_mcp_http.py`、`tests/test_mcp_config_validation.py`、`tests/test_mcp_stdio.py` 三个文件里 | 达成 |
+
+**三个文件合跑**：`tests/test_mcp_stdio.py + test_mcp_http.py + test_mcp_config_validation.py` → **32 passed in 52.91s**，exit 0。
+
+### 2 活性：把截断拿掉，红在点名的用例上
+
+变异打在 `minicc/mcp.py::_content_to_tool_result` 的 `head, tail, truncated = split_output("\n".join(chunks))`
+（即标准 2 第一条依赖的那道防线），换成原样输出：
+
+```
+mutation exit: 1
+   FAILED tests/test_mcp_stdio.py::test_half_million_char_output_is_truncated - ...
+   1 failed, 11 passed, 1 warning in 63.42s
+restored: True
+```
+
+红的正是标准点名的**那一条**（不是别的格被带红），文件在 `finally` 里逐字还原。
+
+### 3 协议第 0 步又救了一次（本批的实例）
+
+第一次变异**锚点写错了**（`"\n"` 在源码里是反斜杠 + n 两个字符，我用 Python 的换行去匹配它），
+`original.count(ANCHOR)` 是 **0**，于是脚本"变异"了一个不存在的字符串、跑出 **12 passed**，
+并在末尾打印 `restored: False`。如果只看那行 `12 passed`，结论会是「M5-T1 的门是死的」——
+而事实是**文件根本没被改动**。
+
+**判据固化**：变异脚本必须**先断言锚点出现次数 == 1**（本轮第二个版本就是这么写的，输出 `anchor occurrences: 1`），
+并且"还原成功"也要断言。这两条断言才是"这次变异量的是那件事"的证据。
+（承第一百三十四批 §5「变异协议缺第 0 步」，这次是它的第二个实例。）
+
+### 4 边界（明确不声称）
+
+- 只对标准 2 的**第一条**（截断）做了变异。string id、不可解码字节快速失败、ping 应答、负缓存这四格**没有**变异验证。
+- 标准 1/3/4 只核了"用例在且绿 / 文件名与关键字命中"，**没有**逐条读断言内容。
+- 50 万字符那条用例的**实际字符数**没有由我复量（由该用例自己断言）；本批没有独立测量它的上限。
+- M5-T4（stdout 行数上限等 MEDIUM 项）**没有**逐条复核，只核了它们对应的退出标准。
+- 第三节全表至此只剩 **M8** 未复核。
