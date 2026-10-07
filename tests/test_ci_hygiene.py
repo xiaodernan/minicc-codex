@@ -86,6 +86,28 @@ def test_ci_declares_pr_and_nightly_eval_jobs():
     assert "--junit-out" in ci
 
 
+def test_pr_eval_gate_names_false_completion_rate():
+    """The tracking table calls false_completion_rate 恒 0 and a named CI metric.
+
+    Measured at batch 180: it was neither. The metric is computed, and two unit cells
+    pin its arithmetic (0.5 for a constructed report, None when nothing was gradable),
+    but the PR gate asserted only the two adjacent metrics - so a regression that
+    labelled a failed turn as completed would have shipped behind a green gate.
+
+    Fail-closed matters here: the assertion compares against 0, so a None (nothing
+    gradable) is a failure rather than a silent pass.
+    """
+    ci = _ci_text()
+    assert 'm["false_completion_rate"] == 0' in ci, (
+        "the PR eval gate no longer names false_completion_rate; the tracking table's "
+        "'恒 0, CI 命名指标' row would go back to being prose"
+    )
+    assert '"false_completion_rate"' in ci.split("ok = (")[0], (
+        "the gate should print the metric it asserts, otherwise a red run does not say "
+        "what the reading was"
+    )
+
+
 def test_every_playwright_suite_has_a_runner_and_runs_in_ci():
     scripts = _package_json()["scripts"]
     # codex_smoke.mjs and zombie_spawn_smoke.mjs previously had no runner.

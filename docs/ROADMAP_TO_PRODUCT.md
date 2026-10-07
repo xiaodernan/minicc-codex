@@ -13573,3 +13573,77 @@ tests/test_core_llm.py:143  assert unreported["cache_hit_rate"] is None
 - 抽查里每一行只核到"存在一个活的引用"，**没有**去验证那个门是否覆盖该行声称的**全部**情形
   （例如网络门的 53 条是否覆盖了行里点名的 pip3 / 双空格 git clone / rsync 三种形状）。
 - 本批不改产品代码与门，只追加记录。
+
+## 第一百八十批 第六节续查（一）：`false_completion_rate` 的「CI 命名指标」那半从没落地，`verification_cache_false_positive` 这个指标名从未存在
+
+承第一百七十九批的抽查，本批按任务清单逐行核第六节里剩下的指标。先核两行「声称恒 0」的。
+
+### 1 `false_completion_rate`：算术有门，**CI 那半是散文** → 本批兑现
+
+行的目标是「**恒 0，任何回归必须红灯（CI 命名指标）**」。今天的实况：
+
+- **有**：`minicc/benchmarks.py` 计算它；两个单测钉它的算术——
+  `tests/test_behavior_bench.py:13` 断言构造报告上 `== 0.5`；
+  `tests/test_grader_with_nothing_to_check_is_no_result.py:120` 断言无可评分时为 `None`（"没量到"与"量到 0"必须分开）。
+- **没有**：CI 里**没有任何门点它的名**。`eval-pr` 的门脚本只断言
+  `execution_completion_rate == 1.0 and grading_coverage == 1.0`——两个相邻指标有门，**这一行没有**。
+  于是"把一次失败/截断/拒答的回合写成 completed"这类回归，可以**从绿门下面走过去**。
+
+**落地**（`.github/workflows/ci.yml` 的 `eval-pr` 门）：
+
+```
+print("PR eval:", {k: m[k] for k in
+      ("execution_completion_rate", "grading_coverage", "pass_at_1",
+       "false_completion_rate")})
+ok = (
+    m["execution_completion_rate"] == 1.0
+    and m["grading_coverage"] == 1.0
+    and m["false_completion_rate"] == 0
+)
+sys.exit(0 if ok else 1)
+```
+
+**fail-closed**：断言写的是 `== 0`，所以 `None`（没有可评分任务）**判失败**，不是静默通过。
+另外把该指标加进打印，红的跑里能直接看到读数。
+
+**验证（用的是从 workflow 里抽出来的那段脚本本身，不是重写的副本）**：
+YAML 解析取出 `eval-pr` 的 `Assert flow gate` 步骤 → 用构造的 `output/pr-eval.json` 跑三次：
+
+| 构造读数 | 退出码 | 打印 |
+| --- | --- | --- |
+| `false_completion_rate = 0` | **0** | `PR eval: {..., 'false_completion_rate': 0}` |
+| `0.25`（一次假完成） | **1** | `PR eval: {..., 'false_completion_rate': 0.25}` |
+| `None`（没量到） | **1** | `PR eval: {..., 'false_completion_rate': None}` |
+
+（第一次抽脚本用正则抓错了区块，三个用例**都**退 1 且无输出——那会被读成"门拒绝一切"，实际是脚本没跑。
+改用 `yaml.safe_load` 取步骤文本后才对。又一次"读数在成为结论前先确认它量的是那件事"。）
+
+**门自己的门**：`tests/test_ci_hygiene.py` 新增一格 `test_pr_eval_gate_names_false_completion_rate`，
+断言 ①门脚本里有 `m["false_completion_rate"] == 0`（否则这行的"CI 命名指标"又变回散文）、
+②断言块之前**打印**了该指标（红的跑要能说清读数是多少）。该文件 **9 passed**（原 8 格 + 本格）。
+
+### 2 `verification_cache_false_positive`：**这个名字全仓库 0 命中**
+
+行的目标是「恒 0，**一条专门断言**」。实测：
+
+```
+grep -rln "verification_cache_false_positive\|cache_false_positive" tests/*.py minicc/*.py  → 空
+```
+
+**没有这个指标**，也没有这个计数器。但它的**实质**由三条命名测试背着（都在 M4 证据链文件里）：
+
+- `test_markdown_and_extensionless_edit_invalidates_fingerprint`——正是行里写的「改 `.md/.sh/Makefile`/无后缀文件后仍复用旧『通过』缓存」；
+- `test_changed_command_and_stale_plan_cannot_reuse_success`；
+- `test_a_same_tick_rewrite_of_a_changed_file_is_still_seen_by_the_fingerprint`。
+
+所以这行是**字面从未落地、实质已覆盖**：断言在，计数器不在。**本批不改**——补一个计数器的名字而不接线，
+只会多一个没人读的字段（项目已多次记过这类"加字段不接线"的账）；正确动作是记下这行的字面与实现的差距。
+
+### 3 边界（明确不声称）
+
+- 本批只核了这两行。任务清单里剩下的仍未核：`recall@1/@5/MRR`（要跑 `--suite retrieval`）、
+  `llm_turn_p95_ms`、`turns_per_success` / `tool_repeat_rate`、fan-out 回归护栏、`$/task` 与 token/task、
+  **挂死计数**（要 30 条 fixture 全量跑，可能要真实模型）。
+- `false_completion_rate` 的新门**只在本机用构造数据验过**，尚未经过一次真实的 CI 跑；
+  推送后要看 `eval-pr` 那一步在真跑里的读数（预期 fake provider 下为 0）。
+- 本批**没有**去查"还有哪些指标行同样只有算术门、没有 CI 门"——那需要把第六节每一行与 workflow 逐条对账。

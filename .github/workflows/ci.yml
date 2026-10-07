@@ -248,8 +248,16 @@ jobs:
           import json, sys
           m = json.load(open("output/pr-eval.json", encoding="utf-8"))["metrics"]
           print("PR eval:", {k: m[k] for k in
-                ("execution_completion_rate", "grading_coverage", "pass_at_1")})
-          ok = m["execution_completion_rate"] == 1.0 and m["grading_coverage"] == 1.0
+                ("execution_completion_rate", "grading_coverage", "pass_at_1",
+                 "false_completion_rate")})
+          # The tracking table calls false_completion_rate 恒 0 and a named CI metric;
+          # it was neither until batch 180. Fail-closed on None: "nothing gradable"
+          # is not the same answer as "measured zero".
+          ok = (
+              m["execution_completion_rate"] == 1.0
+              and m["grading_coverage"] == 1.0
+              and m["false_completion_rate"] == 0
+          )
           sys.exit(0 if ok else 1)
           PY
       - name: Upload PR eval report
