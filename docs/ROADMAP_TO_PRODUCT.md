@@ -12992,3 +12992,54 @@ M1–M7 的退出标准已逐条复核完毕（M2 最新在第一百三十四批
 - 审批中位时延子项若要收口：需在审批决策事件里记时延字段并出中位数读数，
   归 M7 面小批次（涉及产品代码，不在复核批内做）。
 - false_completion_rate 的 CI 字面命名门缺口维持归属 eval-nightly 配额面。
+
+
+## 第一百六十八批 M3 退出标准逐条复核：三条都达成，且两条防线今日再拆一次都红在点名的条目上
+
+### 1 为什么复核 M3
+
+M2 的退出标准在第一百三十四批复核过，M3（凭据、网络与进程面）的退出标准
+复核还停在 2026-09-22 的第一批真跑记录——两周多里 webauth/task_store/
+netguard 都动过（M8-T117 的 `::0`、M3-T2 的 `.local`、M3-T5 的栅栏注释）。
+照 134 批的形状过一遍：**本批只复核，不改产品代码**；「先红后绿」无法重放，
+用「今天再拆一次」的变异协议补今日等价物。
+
+### 2 逐条判定
+
+| 退出标准 | 今天的读数 | 判 |
+| --- | --- | --- |
+| 1. `test_web_security.py` 新增 Origin/CSRF 与网络门用例、`test_task_durability.py` 新增租约与会话并发用例，全部先红后绿 | 两文件在库，**27 passed in 5.38s**（18+9 条）；先红后绿的历史以本批变异验红作今日等价物（见第 3 节） | 达成 |
+| 2. 人工核查：非回环 Origin POST 403 且不创建任务；process 模式强杀 worker 后 `.minicc/worker/` 无 config.json 残留且任务可 auto-resume | `test_cross_origin_state_change_rejected_before_any_work`（含 `attacker.local` 用例，变异下 403→500 的穿透路径实证）；worker 残留面：第165批凭据 grep 实测 `.minicc/worker/` 目录不存在；auto-resume：`test_restart_reconnects_without_rewriting_live_worker` 绿 | 达成（人工核查以活测试 + 盘面实测作等价物） |
+| 3. `grep -rn sk-` 在 `.minicc/` 与服务器日志无命中 | 第165批第 3 节当日实测：web-*.stdout.log 0 命中、sessions 0 命中、web_token 值反查仅本体一处、reliability_probe credential scan 0 findings | 达成（5 日内读数，未重复跑） |
+
+### 3 变异验红：两条 M3 防线今天各拆一次
+
+| 变异（`finally` 逐字还原，`git diff --stat` 0 行） | 结果 | 红的正是 |
+| --- | --- | --- |
+| A：webauth.py `LOOPBACK_SUFFIXES` 回植 `.local`（M3-T2 拆掉的缺陷原样回种） | `2 failed, 16 passed in 10.43s` | `test_loopback_host_detection`（`assert not is_loopback_host("evil.local")` → `assert not True`）＋ `test_cross_origin_state_change_rejected_before_any_work`（`assert 500 == 403`——Origin 被当回环后请求穿透到业务层崩 500，而非在门上 403 被拒：端到端路径同样红） |
+| B：task_store.py `heartbeat_lease` 删 `AND expires > ?` 栅栏（M3-T5 的一行防线） | `1 failed, 1 passed in 5.08s` | `test_expired_lease_cannot_be_revived_by_same_owner`（`assert not True`——过期租约被迟到心跳复活）；`test_lease_has_single_owner_and_can_recover_after_expiry` 仍绿——变异只拆栅栏不伤正常租约路径，是精准变异的标志 |
+| 基线（还原后复跑） | **27 passed in 5.56s** | — |
+
+变异 A 顺手量到一个有趣的读数：`.local` 回植后，跨站请求不再是干净的 403
+而是 500——防线被拆时攻击不消失，只是从「被拒绝」变成「穿透后撞上别的东西」，
+后者可能携带更多副作用。这正是 403 在最外层拒绝的价值。
+
+### 4 实测证据
+
+| 命令 | 读数 |
+| --- | --- |
+| `pytest tests/test_web_security.py tests/test_task_durability.py -q` | **27 passed in 5.38s** |
+| 变异 A / B / 基线 | 见第 3 节表 |
+| 占号双查 | ROADMAP grep `T168` 空 + `git log --all --grep=T168` 空 |
+
+### 5 下一批边界
+
+- 至此 M1–M7 的退出标准复核全部有 2026-10 内的读数背书（M1 于第165批、
+  M2 于第134批、M3 于本批、M4–M5 指标面于第166/167批、M6 逐条于第128/129批、
+  M7 于第133批+第167批指标面）；M8 退出标准在复核表 M8 禁碰面内待解禁。
+  「整体复核」的第三节+第六节两翼至此收口，剩余敞口 = 效率/成本组指标
+  （配额 429×7）与 M8 行。
+- 审批中位时延子项收口被 web.py 禁碰面挡住（审批事件全在 minicc/web.py:
+  397/437/441）——登记待办，web.py 并行车道收尾后接力。
+- M4-6 配额探针第 7 次：仍 429（quota exceeded），恢复假说 7 次证伪，
+  全量评测继续挂起。
