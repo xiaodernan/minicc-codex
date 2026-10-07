@@ -21,9 +21,10 @@ def resolve_workspace_path(
     """Single gate for every workspace entry point (M2-T1).
 
     Resolves ``raw`` (or ``default`` when empty), requires an existing
-    directory, and enforces ``workspace_roots`` when non-empty. All four
-    entries — switch_workspace, RPC, /api/chat, task submit — must call
-    this so ``workspace_roots=(A,)`` cannot be bypassed with B.
+    directory, and enforces ``workspace_roots`` when non-empty. All five
+    entries — switch_workspace, RPC, /api/chat, task submit, snapshot
+    restore — must call this so ``workspace_roots=(A,)`` cannot be
+    bypassed with B.
     """
     text = str(raw or "").strip()
     if not text:
