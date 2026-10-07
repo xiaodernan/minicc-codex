@@ -13031,6 +13031,7 @@ netguard 都动过（M8-T117 的 `::0`、M3-T2 的 `.local`、M3-T5 的栅栏注
 | `pytest tests/test_web_security.py tests/test_task_durability.py -q` | **27 passed in 5.38s** |
 | 变异 A / B / 基线 | 见第 3 节表 |
 | 占号双查 | ROADMAP grep `T168` 空 + `git log --all --grep=T168` 空 |
+| CI 绿证（补记） | run 37562322671 @ 4502d44 **success**——三条判定与两条变异全部背在绿树上，一笔过（落笔前本地预检 `doc_pointers --check` exit 0） |
 
 ### 5 下一批边界
 
