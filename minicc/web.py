@@ -2171,7 +2171,34 @@ class AgentService:
                                 "total_tokens": prompt_tokens + completion_tokens,
                                 "estimated": True,
                             }
-                        runtime_state.budget.record_usage(usage)
+                        # M8-T164: the planner rides the planning-stage route, and
+                        # the run budget's cost ceiling is that route's own limit -
+                        # recording only tokens let the ceiling be blown by the one
+                        # spend it governs. Mirror the judge: charge the cost, and a
+                        # trip gets a named event; the loop's first record_turn()
+                        # then turns the charged overrun into the governed stop.
+                        try:
+                            runtime_state.budget.record_usage(usage)
+                            runtime_state.budget.record_cost(
+                                _stage_cost_estimator(stage_router, "planning")(usage)
+                            )
+                        except BudgetExceeded as exc:
+                            budget_event = {
+                                "kind": "trace",
+                                "name": "planner",
+                                "status": "error",
+                                "phase": "planning",
+                                "code": "budget_exceeded",
+                                "summary": str(exc),
+                                "detail": {
+                                    "stage": "planning",
+                                    "error": str(exc),
+                                    "tokens_used": dict(usage),
+                                },
+                            }
+                            events.append(budget_event)
+                            if on_event is not None:
+                                on_event(budget_event)
                         planner_usage = usage
                         if on_usage is not None:
                             on_usage({"stage": "planner", **usage})
