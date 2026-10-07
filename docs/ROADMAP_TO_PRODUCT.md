@@ -14474,3 +14474,83 @@ web.py 三段：
   （case1 末断言钉住「不许伪造」）。折叠事件先于 `planner_execution_finished`
   （门不钉顺序）。`tests/test_subagent_streaming.py:252` 的自接线测试保持原样——
   它测的是两块的算术，接线职责由新门承接。
+## 第一百九十四批：M8-T163 — task 子代理的花费折叠回运行预算（T162 同类第三例）
+
+**缺陷**：子代理的循环只记自己那份隔离预算（M6-T1/M11-T9），跑完就把钱花在了
+没人看得见的账上——运行预算（`runtime_state.budget` / CLI 回合预算）与
+`tokens_used` 汇总都不知道子代理花了多少。探针实测（进程内，`minicc.__file__` 已核）：
+子代理花 700000，`subagent_finished.detail.tokens_used` 看得到 700000，而同一份载荷的
+`tokens_used.total_tokens` 与 `metrics.budget.tokens` 都只有 28（主 10+11+评委 7）；
+软上限不响、usage 账里没有这行、越限也没有事件。M6-T2 行的「计入父预算」对这条路径
+是假的（同类前两例：DAG 节点 T162、评委更早）。
+
+**修复**（三面接线，折叠只算 token 侧，口径与 T162 的 DAG 折叠一致：
+成本天花板仍由子代理自己的 inspect 级 `max_cost_usd` 预算各管各的）：
+
+- `agent/subagent.py`：`build_task_tool_spec` 新增 `on_child_usage` 回调；`run()` 每条
+  退出路径恰调用一次 `_flush_child_usage()`（clean / 结构化失败 / 异常逃逸都算）。
+  载荷优先取子结果自己的 `tokens_used`（细分原样带回，成本计价需要它）；没有
+  result 的路径（子循环抛 `BudgetExceeded`、崩溃）用子预算自己记到的计数兜底。
+  嵌套注册（孙代理面）把同一个回调整传下去——每个后代都报给同一个运行账。
+  每次 run 开始时复位载荷/计数句柄（复用的 spec 不许把上一轮的账再报一遍）。
+- `web.py`：注册处接 `fold_subagent_usage` —— 累积到 `subagent_usage` 与
+  `usage_by_turn` 行（`{"stage": "subagent", ...}`），并 `record_usage` 进运行预算；
+  越限发具名 `{"name": "subagent", "code": "budget_exceeded"}` trace（与 DAG 折叠同款，
+  不静默）；终态把子代理用量行 append 进 `usage_by_turn`、`add_usage_totals` 进
+  `final.tokens_used`。
+- `main.py`（CLI）：setup 作用域 `fold_target` 持有器 + `_fold_child_usage`（结构化日志
+  记具名事件）；`_turn` 在 `run_agent` 前后武装/排空持有器并把子代理花费 merge 进
+  本回合 `tokens_used`（打印的 `[usage]` 行与调用方汇总都带上）；`_interactive`
+  逐回合透传。
+
+**见证**（新文件 `tests/test_subagent_budget_fold.py` 8 例 + `tests/test_cli_stage_routing.py`
+新增 2 例，共 10 例）：
+
+- web 全链路：预算/`tokens_used` 两个数字同源为 主21+评委7+子代理700000；软上限被越；
+  `usage_by_turn` 恰一行 `stage=subagent`；未越硬界不伪造事件。
+- 折叠越限：恰一条具名 subagent `budget_exceeded`，detail 点名阶段与本次载荷。
+- 核心语义：恰一次上报且细分完整；被自己的成本天花板中止仍落账（细分保留）；
+  子循环异常逃逸用子预算计数兜底；provider 崩溃（收敛为结果）不丢账；
+  同一 spec 复用不复用上一轮载荷；孙代理经嵌套面透传、不并账不重复。
+- CLI：打印的用量行 45=父30+子15；折叠越限发具名事件进结构化日志。
+
+**变异臂**（预测先写：`arms_predictions.md`，逐臂单点变异 + 字节+sha256 还原 + 绿控终检）：
+
+| 臂 | 变异（单点） | 预测＝实测红集 | 判定 |
+| --- | --- | --- | --- |
+| A1 | subagent.py 删结果载荷捕获（`_child_usage_payload = dict(...)`） | 恰一次上报 / 成本天花板中止 / 复用不复报（3） | MATCHED |
+| A2 | subagent.py 删 `run()` finally 的 `_flush_child_usage()` | 全部 10 例 | MATCHED |
+| A3 | web.py 删终态 `add_usage_totals(final.tokens_used, …)` | web 全链路（1） | MATCHED |
+| A4 | web.py 折叠回调 `record_usage(usage)` → `pass` | web 全链路 / web 折叠越限（2） | MATCHED |
+| A6 | subagent.py 删嵌套注册的 `on_child_usage=` 回调控传 | 孙代理透传（1） | MATCHED |
+| A8 | subagent.py 删兜底块（payload 空时用子预算计数） | 异常逃逸兜底 / 复用不复报（2） | MATCHED |
+| A9′ | main.py 武装行 `fold_target["budget"] = budget` → `= None` | CLI 折叠越限事件（1） | MATCHED |
+| A10′ | main.py 合并行 `add_usage_totals(result.tokens_used, …)` → `pass` | CLI 用量行（1） | MATCHED |
+| A11 | subagent.py 删 `run()` 开头的载荷复位 | 复用不复报（1） | MATCHED |
+
+终检（未变异）：10/10 绿、rc=0、三文件 sha256 与 pre-arm 逐字节一致。两轮 void 保留在案，
+均未写残留、还原已验：a) 首轮腿整套 void——变异脚本按 LF 拼模式而生产文件工作副本是
+CRLF（0 命中即断言退出；`| tee` 还把它盖成 exit 0），按各文件自身行尾重拼后全中；
+b) A9/A10 首版把 `if` 体（唯一语句/仅注释）删成空体 ⇒ 导入 IndentationError ⇒ CLI 文件
+未被收集（junit tests=1＝一条 collection error），runner 的 ran≥10 守卫判 VOID（而非
+误报 MISMATCH），改瞄准为运行等价变异后 MATCHED。
+
+**回归证据**：
+
+| 命令 | 读数 |
+| --- | --- |
+| 修前 P0 探针（只读，进程内） | 命中：预算 28 ≠ 实际花费 700028（详见上） |
+| focused（门 8 例 + CLI 全文件 14 例 + 六邻域 49 例，共 71 例） | **71 passed / 0 红（25.13s）；本批新增 10 例在列** |
+| 全量 | **2065 例：2060 通过 / 0 红 / 5 skip（18 分钟，e9208fd 全字节，rc=0）** |
+
+**边界**：
+
+- 崩溃路径实测走的是「收敛为结果」分支（`loop.py` 的 `except Exception` 在
+  :891 把 provider 异常收敛成带 error 的 result），载荷仍非空——臂 A8 对
+  crashed 无红是预注册的已知盲区；「无 result」的形状由 interrupted（子循环
+  异常逃逸）与 reused（第二次运行被打断）两例逼出。
+- 折叠不并成本：子代理的阶段成本天花板在它自己的预算里（M11-T9），运行预算
+  侧只重复记 token（与 T162 同口径，代价是运行级 cost 汇总不含子代理成本——
+  留待口径决策，不在本批扩围）。
+- CLI 持有器在回合与回合之间被排空（无 try/finally）：任务工具只可能在
+  `run_agent` 内部执行，回合间残值不可观测（注释在案）。
