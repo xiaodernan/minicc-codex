@@ -430,9 +430,9 @@
 | recall@1 / recall@5 / MRR | `--suite retrieval` | 建基线；recall@5 ≥0.6 则明确不引入向量检索 | M4 决策门 |
 | **效率** | | | |
 | latency_p50_ms / latency_p95_ms | 端到端，按 category 分解 | 基线 P50 115s / P95 826s 写入 `docs/BENCHMARK_EVALUATION.md`；M6 起作为回归门 | M4 基线，M6+ 门禁 |
-| llm_turn_p95_ms | 单次 provider 请求 | 随 M5 MCP P99 一并跟踪 | M4 |
-| turns_per_success / tool_repeat_rate | 停滞检测与压缩是否真在省 token | 不升（A/B 判据） | M4 起 |
-| fan-out 回归护栏 | token/task 与 P95 相对 M4 基线 | 劣化 ≤15%，否则回退 fan-out 阈值 | M6 |
+| llm_turn_p95_ms | 单次 provider 请求 | 随 M5 MCP P99 一并跟踪 | M4 · **第一百八十二批实测：全仓 0 命中，从未实现** |
+| turns_per_success / tool_repeat_rate | 停滞检测与压缩是否真在省 token | 不升（A/B 判据） | M4 起 · **第一百八十二批实测：这两个名字今天都没有读者**——`turns_per_success` 不在报告的任何指标键里（`build_report` 的 17 个键里没有它）；`tool_repeat_rate` 已按用户口径在 M8-T118 删除，`tests/test_behavior_bench.py::test_tool_repeat_rate_is_retired_not_nulled` 断言它不得回来 |
+| fan-out 回归护栏 | token/task 与 P95 相对 M4 基线 | 劣化 ≤15%，否则回退 fan-out 阈值 | M6 · **第一百八十二批实测：`bench_compare` 与 `benchmarks` 里没有任何 15% 阈值或对应门** |
 | 委派率 / 平均并行子代理数 | 含 task 工具调用的任务占比 | M6 后从 0 起步，深度恒 ≤2、并发恒 ≤3 | M6 |
 | **成本** | | | |
 | cost_per_success_usd / tokens_per_success | 含失败尝试摊销；未知模型显式 None 不估算 | `cost_available` 恒 100% | M4 |
@@ -13708,3 +13708,42 @@ grep -rln "verification_cache_false_positive\|cache_false_positive" tests/*.py m
 - `compare` 的 delta 表把新指标一并打印（上面两行就是它输出的），但**没有**为它加「差值 + 置信区间」那一类统计——
   比率类指标要不要出 CI，属另一个决定。
 - 推送这道改动**必须走 SSH**（HTTPS 那份凭据没有 `workflow` scope，见第一百八十批记录）。
+
+## 第一百八十二批 第六节续查（二）：效率组四行**今天都没有读者**——一行从未实现、一行被删了还留着、一行没有门
+
+### 1 逐行实测
+
+| 行 | 实测 | 判 |
+| --- | --- | --- |
+| `llm_turn_p95_ms`（单次 provider 请求） | `grep -rln llm_turn_p95_ms minicc/*.py tests/*.py` → **0 命中** | **从未实现** |
+| `turns_per_success` | 不在报告的任何指标键里。`build_report` 今天产出的键只有 17 个：`acceptance_success_rate` / `cost_available` / `cost_per_success_usd` / `execution_completion_rate` / `false_completion_rate` / `gradable_task_count` / `grading_coverage` / `grading_refusal_count` / `infra_failure_count` / `latency_p50_ms` / `latency_p95_ms` / `mean_repair_attempts` / `pass_at_1` / `pass_at_1_ex_infra` / `reviewer_false_negative_count` / `token_usage_available` / `tokens_per_success` | **从未实现** |
+| `tool_repeat_rate`（同一行里的另一个名字） | **已被刻意删除**：`minicc/benchmarks.py:339-342` 的注释写着「`tool_repeat_rate` was deleted, not nulled. It read a key no producer ever wrote, so every report in history printed N/A for it; a permanently null table teaches readers to ignore it」，并有 `tests/test_behavior_bench.py::test_tool_repeat_rate_is_retired_not_nulled` 断言它**不得回来**（`not in metrics` 且 `not in markdown_report(report)`） | **表格没跟上这次删除** |
+| `fan-out 回归护栏`（token/task 与 P95 劣化 ≤15%） | `grep -rn "0\.15\|15%" minicc/bench_compare.py minicc/benchmarks.py tests/test_bench_compare.py` → **0 命中** | **没有门** |
+| `$/task 与 token/task` | `cost_per_success_usd` / `tokens_per_success` 都在报告键里，`tests/test_behavior_bench.py` 覆盖 | 达成 |
+
+### 2 处置：给这三行**就地标注状态**，不改它们的目标
+
+第六节不是历史记录，是**活表**（"每个阶段应该跟踪的指标"）。历史批次不许改写（第九十五批 §7bis），
+但这张表如果不标状态，读者会以为四行都有人在看——**而其中一行被删了还留着，正是"M8-T118 删干净了、表没跟上"**。
+所以在「归属」列就地追加 `**第一百八十二批实测：…**`，原文（指标名、目标、归属）**一字不改**：
+- `llm_turn_p95_ms` → 全仓 0 命中，从未实现；
+- `turns_per_success / tool_repeat_rate` → 两个名字今天都没有读者，并点名那条"不得回来"的断言；
+- `fan-out 回归护栏` → 没有任何 15% 阈值或对应门。
+
+### 3 这批说明了什么（也是给下一批的判据）
+
+第六节的**质量组**基本都有活引用（第一百七十九批抽查），**效率组**这四行却整组没有读者。
+一个解释是：这些指标要真实模型跑才读得出来，而 `eval-nightly` 从建立起因为**仓库没有 secret** 一直跳过——
+**没有读数的指标，很容易在实现层被静默删除或从不实现**（`tool_repeat_rate` 就是这么被删的：
+它读的键从来没有生产者，于是每份报告都印 N/A）。
+
+**所以这一组要真落地，前提是先有真实跑**；在那之前，"补一个计数器"只会再造一个永远 N/A 的行。
+本批因此**只标注、不实现**。
+
+### 4 边界（明确不声称）
+
+- 本批**没有**判断这三个指标**该不该有**（可能有的已被更好的指标取代，例如 `false_completion_rate` 与 `pass_at_1` 已经覆盖"谎报完成"；
+  `llm_turn_p95_ms` 与端到端 `latency_p95_ms` 的关系也要 owner 判断）。**"该不该有"是口径决定，不是测量结论。**
+- `fan-out` 这个词在 `minicc/pricing.py` / `task_manager.py` / `web.py` 里出现过（token 扇出语义），
+  但**没有**任何地方把它与「相对 M4 基线劣化 15%」的门连起来——本批只核了"门在不在"，没核"这些 fan-out 相关代码在做什么"。
+- 本批只动了第六节三行的**状态标注**，没有动产品代码、没有动门。
