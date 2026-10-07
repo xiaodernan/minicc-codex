@@ -12941,6 +12941,7 @@ M1–M7 的退出标准已逐条复核完毕（M2 最新在第一百三十四批
 | `pytest tests/test_accuracy_contracts.py tests/test_m4_evidence_chain.py -q` | **36 passed in 14.60s** |
 | CI run 37557817552 @ 14f67ba | **success**（含 web-smoke-mutation job success） |
 | 占号双查 | ROADMAP grep `T166` 空 + `git log --all --grep=T166` 空 |
+| CI 绿证（补记） | run 37558779725 @ 4741cc5 **success**——三条判定全部背在绿树上，一笔过（第 165 批的指针门新变体教训生效：落笔前本地预检 `doc_pointers --check`，全绿才提交） |
 
 ### 5 下一批边界
 
