@@ -14554,3 +14554,76 @@ b) A9/A10 首版把 `if` 体（唯一语句/仅注释）删成空体 ⇒ 导入 
   留待口径决策，不在本批扩围）。
 - CLI 持有器在回合与回合之间被排空（无 try/finally）：任务工具只可能在
   `run_agent` 内部执行，回合间残值不可观测（注释在案）。
+## 第一百九十五批：M8-T164 — 规划器花费记入运行预算成本账（record_cost 补账 + 越限具名 planner budget_exceeded，T162 同类第四例）
+
+**缺陷**：这一例漏的是「成本账」而不是 token 账。规划器那唯一一次 LLM 调用
+（`web.py` 的 `prepare_planner`）只 `record_usage` 不 `record_cost`——全运行里唯一
+漏计成本的 LLM 面（主循环 loop.py:949、评委 web.py:2244、DAG 节点（T162 后）都记）。
+而运行预算的 `max_cost_usd` 恰恰来自规划器骑的那条 planning 路由
+（`_stage_route_budget(initial_route)` ← `route.max_cost_usd`）——被它管的花费它看不见。
+探针实测（进程内，`minicc.__file__` 已核）：
+
+- 上限 $1000：planner 一单 200 token 花 $0.2，`budget.cost_usd` 仍 0.0（token 侧 200 记到了）；
+- 上限 $0.05：$0.2 的花费被无声越过——0 条 budget_exceeded 事件（软上限/usage 账同样无感）；
+- token 侧越限（arm max_tokens=150）：`BudgetExceeded` 从 `web.py:2174 → state.py:85`
+  未具名逃逸（TaskManager 侧收成 task_crashed 崩溃形状），没有具名事件。
+
+**修复**（`web.py` `prepare_planner` 单点）：
+
+- 把 `record_usage(usage)` 包进 try，补 `record_cost(_stage_cost_estimator(stage_router, "planning")(usage))`
+  ——量花费的计价器就是规划路由自己那一支（天花板与被记的花费同源）。
+- `except BudgetExceeded` 里发具名事件（照评委/DAG 折叠同款形状）：
+  `{"kind": "trace", "name": "planner", "status": "error", "phase": "planning",
+  "code": "budget_exceeded", "summary": str(exc), "detail": {"stage": "planning",
+  "error": …, "tokens_used": …}}`，append + on_event 后吞掉——不静默、也不崩。
+- 随后 `planner_usage = usage` 与 on_usage 照旧；主循环入口第一次 `record_turn()`
+  （loop.py:712，在任何 provider 调用之前）把已记账的越限转成受控停止
+  （`result.error` = 阶段成本上限已用尽 + `emit_trace(name="agent", code="budget_exceeded")`），
+  web.py:2385 在该错误上 break（不落写、不跑评委）。
+
+**见证**（新文件 `tests/test_planner_cost_budget_fold.py` 3 例）：
+
+- C1 `test_planner_spend_lands_in_the_run_budget_cost`：定价 $1000/1M、规划器一单
+  200 token ⇒ $0.2 落进 `budget.cost_usd`（stub 主 agent，上限 1000）。
+- C2 `test_planner_cost_trip_emits_named_event_and_stops_the_run`：$0.05 上限 ⇒
+  恰一条 planner 具名触顶（detail.stage="planning"），主循环在任何 provider 调用前
+  停下（counts["main"]==0；allow_changes=True 且无 DAG）。
+- C3 `test_planner_token_trip_gets_the_same_named_event`：token 侧越限
+  （arm max_tokens=150）拿到同款具名事件——修前是探针里那条未具名逃逸。
+
+**变异臂**（预测先写：`arms_predictions.md`，逐臂单点变异 + 磁盘备份 + sha256 还原 + 绿控终检）：
+
+| 臂 | 变异（单点） | 预测＝实测红集 | 判定 |
+| --- | --- | --- | --- |
+| A1 | 删 `record_cost(_stage_cost_estimator(…"planning")(usage))`（留 record_usage） | C1 / C2（2） | MATCHED |
+| A2 | 整块回退成修前单行 `record_usage(usage)` | C1 / C2 / C3（3） | MATCHED |
+| A3 | 吞块 `events.append/on_event` 换 `raise` | C2 / C3（2） | MATCHED |
+| A4 | 吞块换成 `pass`（静默吞） | C2 / C3（2） | MATCHED |
+| A6 | 删 try 内 `record_usage(usage)`（留 record_cost） | C1 / C3（2） | MATCHED |
+| A7 | `"summary": str(exc)` → 谎报 `"planning failed"` | C2 / C3（2） | MATCHED |
+
+终检（未变异）：3/3 绿、rc=0、web.py sha256 `f767a6050c3e78e2…` 与 pre-arm 逐字节一致。
+A2 就是修前形态，其三条红形状与 P0/P1 探针逐条对上；A3/A4 分别证明「吞」与
+「具名事件」两半各自承重；A6 证明 token 侧记账同样在账上；A7 证明事件自己的话
+必须点出上限名。
+
+**回归证据**：
+
+| 命令 | 读数 |
+| --- | --- |
+| 修前 P0/P1 探针（只读，进程内） | 命中：cost_usd 0.0 ≠ $0.2；$0.05 无声越权；token 越限未具名逃逸（web.py:2174 → state.py:85） |
+| 门（修前草稿对未修树） | **3 failed（25.91s）——三条红形状与预测逐条一致**（C1 cost 0.0≠0.2；C2 len(trips)=0；C3 BudgetExceeded 逃出） |
+| 门（修后） | 3 passed（3.79s） |
+| focused（本门 3 + T162 门 + 阶段路由执行 + T163 折叠 + CLI 阶段路由，五文件） | **57 passed / 0 红（19.32s）；本批新增 3 例在列** |
+| 全量 | **2068 例：2063 通过 / 0 红 / 5 skip（16 分钟，8434788 全字节，rc=0）** |
+
+**边界**：
+
+- C2 的 counts["main"]==0 之所以成立：运行起点预算已被规划器花光，
+  主循环第一次 `record_turn()` 在任何 provider 调用之前就受控停止——
+  「停在哪一步」由循环自己的检查点顺序决定，不是计数把戏。
+- 与 T162/T163 折叠口径的差异是故意的：那两例折叠只重复记 token（子系统成本天花板
+  各管各的），本批规划器是**本预算自己**的那次 LLM 调用，成本直接记进运行预算；
+  量它的计价器取的是规划路由自己的那支，天花板与被记花费同源。
+- 修前 token 侧越限在 TaskManager 侧是 task_crashed 崩溃形状（有堆栈、无具名事件）；
+  修复后该形状只在「预算对象自己的 check 在别处被触」时出现，规划器路径已具名。
