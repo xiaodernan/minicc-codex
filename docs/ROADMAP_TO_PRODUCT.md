@@ -13369,6 +13369,7 @@ CI 的读数不是本机的——按「别人能装上、能用上」同一口�
 | 四条 npm 命令 + 一次失败复现 | 见第 2 节表，留档 `output/t175_*.txt` |
 | 占号双查 | ROADMAP grep `T175` 空 + `git log --all --grep=T175` 空 |
 | 预检 | `python scripts/doc_pointers.py --check` exit 0 |
+| CI 绿证（补记） | run 37592416743 @ b85dbfd **success**（7m23s）——四条绿读数与一条翻车读数背在绿树上，一笔过 |
 
 ### 4 下一批边界
 
