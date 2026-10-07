@@ -13198,6 +13198,7 @@ docs/BENCHMARK_EVALUATION.md——它有 7 条命令块，密度全 docs 最高�
 | 历史 wheel 构建 + 双版本安装/升级 | 见第 2 节表，输出留档 `output/t171_*` |
 | 占号双查 | ROADMAP grep `T171` 空 + `git log --all --grep=T171` 空 |
 | 预检 | `python scripts/doc_pointers.py --check` exit 0 |
+| CI 绿证（补记） | run 37580602800 @ b5e3d9c **success**（6m18s）——4 条判定全部背在绿树上，一笔过 |
 
 ### 5 下一批边界
 
