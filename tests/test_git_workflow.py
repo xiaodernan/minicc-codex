@@ -84,6 +84,26 @@ def test_merge_precheck_rejects_bad_branch(repo: Path) -> None:
         tools.merge_precheck({"branch": "--exec=rm"})
 
 
+def test_merge_precheck_turns_a_hung_git_into_the_named_tool_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """M2-T10: merge_precheck sets timeout=30; a hung git must arrive as the
+    file's own named ToolError (the shape its sibling call sites already
+    produce), not escape raw into the registry's generic unhandled-exception
+    bucket. Unfixed code reddens here with a raw subprocess.TimeoutExpired."""
+    import minicc.tools.git as git_module
+
+    def _hang(args, **_kwargs):  # noqa: ANN001, ANN202
+        raise subprocess.TimeoutExpired(cmd=args, timeout=30)
+
+    monkeypatch.setattr(git_module.subprocess, "run", _hang)
+    tools = GitTools(tmp_path)
+    with pytest.raises(ToolError) as excinfo:
+        tools.merge_precheck({"branch": "any"})
+    assert "timed out" in str(excinfo.value)
+    assert isinstance(excinfo.value.__cause__, subprocess.TimeoutExpired)
+
+
 def test_registered_as_readonly(repo: Path) -> None:
     from minicc.tools import build_registry
 

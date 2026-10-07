@@ -113,16 +113,19 @@ class GitTools:
         branch = str(args.get("branch") or "").strip()
         if not branch or any(ch.isspace() for ch in branch) or branch.startswith("-"):
             raise ToolError("branch 参数非法")
-        completed = subprocess.run(
-            ["git", "merge-tree", "--write-tree", "--name-only", "HEAD", branch],
-            cwd=str(self.workspace),
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=30,
-            shell=False,
-        )
+        try:
+            completed = subprocess.run(
+                ["git", "merge-tree", "--write-tree", "--name-only", "HEAD", branch],
+                cwd=str(self.workspace),
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=30,
+                shell=False,
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise ToolError(f"git 命令失败: {exc}") from exc
         output = (completed.stdout or "").strip()
         lines = output.splitlines() if output else []
         # merge-tree --write-tree --name-only: line 1 is the tree oid; in the
