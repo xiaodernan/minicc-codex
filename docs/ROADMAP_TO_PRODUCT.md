@@ -13094,6 +13094,7 @@ README 命令块后分三类：离线可跑 12 条本批全跑；需真实模型
 | 干净环境 Web 启动+探测（行134/195/265） | 根 200 / tasks 200 / audit 200，`Stop-Process` 后端口释放 |
 | 占号双查 | ROADMAP grep `T169` 空 + `git log --all --grep=T169` 空 |
 | 预检 | `python scripts/doc_pointers.py --check` exit 0 |
+| CI 绿证（补记） | run 37576317115 @ 4a05c01 **success**（7m11s）——12 条判定全部背在绿树上，一笔过 |
 
 ### 5 下一批边界
 
