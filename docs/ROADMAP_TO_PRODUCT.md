@@ -13243,6 +13243,7 @@ minicc/prompt.py 的 `_workspace_guidance`（四种文件名常量表驱动）�
 | `pytest tests/test_core_agent.py -q` | 45 passed in 35.35s |
 | 占号双查 | ROADMAP grep `T172` 空 + `git log --all --grep=T172` 空 |
 | 预检 | `python scripts/doc_pointers.py --check` exit 0 |
+| CI 绿证（补记） | run 37582740000 @ 438a552 **success**（6m27s）——全部判定与新测试背在绿树上，一笔过 |
 
 ### 5 下一批边界
 
