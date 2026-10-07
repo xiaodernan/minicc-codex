@@ -14149,3 +14149,43 @@ MINICC_ROUTE_COVERAGE {"GET": {"answered": 19, "total": 19, "percent": 100.0},
   16.9 分钟那次可能含排队；**没有**区分"排队时间"与"执行时间"。
 - 本批**只动文档**（该行补注 + 本记录），没有改 CI 配置、没有加门。
 - 行里还有一句「真实模型只进 nightly」：本批**没有**核它（那是 workflow 的 `if:` 条件，第一百八十七批核过 `eval-nightly` 只由 schedule/dispatch 触发）。
+
+## 第一百九十一批 审计报告（`docs/AUDIT_2026-09-20.md`）的 ⚠️ 那节实测：**13 条全部已有修复或明确处理路径**
+
+### 1 为什么从这一节入手
+
+审计报告 27 条结论里 **26 条带 ✅、只有 P2-8 是 ⚠️**。⚠️ 是最可能藏着"还没做"的标记，所以本批先核它。
+
+### 2 结果：**13 条逐条查到机制，⚠️ 标记已过期**
+
+| # | 审计当时的说法 | 今天 |
+| --- | --- | --- |
+| 1 | auto-resume 把 batch 父任务当普通任务重跑，丢失子任务 prompt（`_batch_children_pending` 是进程内字典） | `task_manager.py:1102-1103` 的 `_auto_resume_interrupted` docstring 写明"children resume through their parent batch and are not re-queued individually"，子任务经存储的 `child_task_ids`（`task_store.py:313-314`）恢复。**这条是读代码判定，本批未做重启实验** |
+| 2 | 批量附件按子任务重复落盘、永不清理 | **M3-T9 已修**：`task_manager.py:1368-1371` 注释"batch children reuse the parent's single persisted copy…"，靠 `_skip_attachment_persist` + `_persisted_attachments` |
+| 3 | `TaskSnapshotWriter.close()` 首个 flush 抛错就放弃其余 | 已修：`task_persistence.py:54-61` 先收集 `pending` 再逐个 `try` flush |
+| 4 | 进程句柄存活期间不复查租约 | **M3-T6 已修**：`task_manager.py:2173-2177` 注释 + `raise RuntimeError("worker execution lease expired before completion")` |
+| 5 | `_rpc_threads` 无界增长 | 已修：`web.py:532` 的 `_RPC_THREADS_MAX` 淘汰循环 |
+| 6 | 提交失败永久丢失用户输入 | **M7-T5 已修**（composer 恢复） |
+| 7 | @-提及只插路径不注入内容 | **M7-T5 已修**（第五节记"已并入 M7-T5"） |
+| 8 | planner DAG 节点完全绕过任务预算 | 已修：`agent/graph.py:395-408` 注释"used to run with an all-`None` Budget"，现在节点继承父预算 |
+| 9 | `envelope.py` 用 `id(obj)` 当合成 tool_call id | **M1-T7 已修**（进程内单调计数） |
+| 10 | envelope 降级丢弃历史 assistant tool_calls | **M1-T7 已修** |
+| 11 | 缺 finish_reason 判为可重试瞬态（每轮 5 次重发） | **M1-T5 已修**：新增 `StreamProtocolError`，`test_m1t3_delta_only_gateway_costs_one_request_and_errors` 断言**只发 1 次请求** |
+| 12 | Anthropic 缓存记账不诚实 | **M1-T6 已修**（`_normalize_usage`：`prompt = input + cache_read + cache_creation`），`test_core_llm.py` 四格断言 `cache_hit_rate` |
+| 13 | per-edit 备份永不清理 | 已修：`tools/editor.py:307` 调用 `_prune_backups()` |
+
+**13/13 有修复或明确处理路径**（其中 12 条指到具体机制/测试；第 1 条只到"代码这么写"这一级）。已在 P2-8 节**就地补一条复核说明**（原清单一字未改），逐条给出机制。
+
+### 3 这条发现的意义
+
+一份**已签入的审计报告**，它的 ⚠️ 是读者判断"还有什么没做"的入口——而它**指向的 13 条今天已经全被修掉**（多数是被 M1/M3/M7 的任务顺手修的）。
+**一个过期的 ⚠️ 会让读者去修已经修好的东西，或者低估已经做完的工作量**（对面试/评审场景尤其如此：这份文档是要给人看的）。
+
+### 4 边界（明确不声称）
+
+- 本批**只核了 P2-8 这一节**。其余 26 条的 ✅ **没有**逐条独立复核——它们与 M1/M2/M3/M4 的退出标准大致对应，
+  而那些标准已在第一百三十四至一百八十八批分别复核过，但**映射不是一一对应**（一条审计结论可能横跨多个任务）。
+- 第 1 条**未做重启实验**（那要真起服务、杀进程、重启），只是读代码与存储字段判定。
+- "有修复或明确处理路径"**不等于**"这些修复都被测试钉住"：其中第 3、5、8、13 条我**没有**找到专门断言它们的测试，
+  只找到实现；**没有测试钉住的修复，将来可能被重构悄悄改回去**（这是本批留下的一个观察，不是结论）。
+- 本批**只动文档**（P2-8 补一条说明 + 本记录），没有改代码、没有加门。
