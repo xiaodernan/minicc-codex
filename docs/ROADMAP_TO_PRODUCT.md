@@ -12873,7 +12873,7 @@ M1–M7 的退出标准已逐条复核完毕（M2 最新在第一百三十四批
   `sk-`。加 `\b` 词边界后 `snapshots/task-*/tests/` 仍有命中，逐条看**全部是
   测试源码快照里的假凭据 fixture 字面量**（`"Bearer test-token"`、
   `"sk-ant-secret"`、`"sk-abcdefgh12345678"`——最后这个正是
-  `test_m1_integrity.py::test_m2t4` 脱敏断言自己的输入）。**测试 fixture 字面量
+  `test_m1_integrity.py::test_m2t4_allowlist_redacts_and_matches_redacted_command` 脱敏断言自己的输入）。**测试 fixture 字面量
   ≠ 凭据泄漏**：指标的意图是运行时真凭据不出现在可读面，照字面数命中数会把
   断言自己的输入当成泄漏。
 - 真泄漏验证：读出 `web_token.json` 的 token 值，反查全 `.minicc/` **仅本体
