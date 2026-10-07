@@ -12904,3 +12904,48 @@ M1–M7 的退出标准已逐条复核完毕（M2 最新在第一百三十四批
   配额恢复后一并收口或单列小批次。
 - `test_stream_merge.py` 文件名漂移已在本节钉住；未来 doc-pointer 引用它时
   必须指名新位置 `test_m1_integrity.py`。
+
+
+## 第一百六十六批 第六节跟踪指标第二批复核（上下文组）：三条全达成，且都有「一条命令可复现」或「每推必验」的形态
+
+### 1 为什么复核第六节
+
+第一批（第一百六十五批）过了安全组 + M1 可靠性组八条；本批过上下文组三条
+（HTTP 面覆盖率、CI 真实性、证据可引用性）——三条都可本地一条命令实测，
+或引用 CI 的每推必验 job 作持续证据。**本批只复核，不改产品代码。**
+
+### 2 逐条判定
+
+| 指标（归属） | 今日读数 | 判 |
+| --- | --- | --- |
+| HTTP 面覆盖率 100%（M4） | `python scripts/route_coverage.py --check` exit 0：34 个 dispatch sites，GET 比对线 **20/20** / 分支体 **20/20**，POST 比对线 **14/14** / 分支体 **14/14** = **100%** | 达成 |
+| CI 真实性：不可达 provider 时 `npm run test:web` 退出码非 0（M4） | 变异门 job「Playwright web smoke (unreachable provider must fail)」（ci.yml:165-216）：假 provider 关闭 + `MINICC_BASE_URL=https://example.invalid/v1` 起 server，smoke 若通过则门自红（MUTATION NOT CAUGHT → exit 1）。绿证 run 37557817552 该 job **success**——不可达 provider 下 smoke 正确失败 | 达成 |
+| 证据可引用性两条都成立（M4） | `pytest tests/test_accuracy_contracts.py tests/test_m4_evidence_chain.py -q` **36 passed in 14.60s**：前者含 `test_evidence_packet_is_bounded_valid_json_and_keeps_important_early_writes`（证据包有界且保住重要早期写入 = event-1 仍可被引用）；后者含 `test_trace_id_cannot_serve_as_completion_evidence`（零工具只读任务无法只用 trace id 判 complete） | 达成 |
+
+### 3 读数形态的两个防游戏化设计值得记下
+
+- route_coverage.py 报 **A/B 双读数**：A = 路由比对线跑过（一条请求直落
+  if/return 链底即可骗过），B = 分支体真的执行过——脚本 docstring 明说 B
+  才是 M4-3 要的数。本批 A 与 B 同值 100%，说明没有直落假阳性混入。
+- CI 真实性没有本地复跑：变异门 job 每次推送都在跑，本批直接引用绿证 run
+  的 job 读数作持续证据——「写成断言而非接入 CI」的验收原文，在 ci.yml:206
+  的 `if npm run test:web; then exit 1` 里逐字成立。
+- 证据可引用性两条测试与 M4-T1 验收原文（「event-1 仍可被引用」「零工具
+  调用的只读任务无法只用 trace id 判 complete」）逐字对得上，无需新门。
+
+### 4 实测证据
+
+| 命令 | 读数 |
+| --- | --- |
+| `python scripts/route_coverage.py --check` | exit 0，GET/POST 双读数 100% |
+| `pytest tests/test_accuracy_contracts.py tests/test_m4_evidence_chain.py -q` | **36 passed in 14.60s** |
+| CI run 37557817552 @ 14f67ba | **success**（含 web-smoke-mutation job success） |
+| 占号双查 | ROADMAP grep `T166` 空 + `git log --all --grep=T166` 空 |
+
+### 5 下一批边界
+
+- 第六节还剩：MCP 健壮性（M5，有表驱动测试可实测）、审批覆盖率（M7，待查
+  活证据）、CI 墙钟/flake 率（M4，可从 run 历史读数）——下一批候选；
+  效率/成本组（latency、turns_per_success、cost、fan-out 护栏、委派率）依赖
+  M4-6 全量评测（配额 429×6 挂起）——如实登记挂起；pass@1 分母 ≥24 同。
+- M8 行三条仍按复核表 M8 禁碰面跳过待解禁。
