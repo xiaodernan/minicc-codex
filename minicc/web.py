@@ -37,7 +37,7 @@ try:  # httpx ships with the OpenAI SDK dependency; keep the import guarded.
 except ModuleNotFoundError:  # pragma: no cover - depends on the HTTP stack.
     httpx = None  # type: ignore[assignment]
 
-from .agent.graph import DAGPlan, PlanTask, build_coding_workflow, execute_dag, fixed_plan
+from .agent.graph import DAGPlan, PlanTask, aggregate_dag_tokens, build_coding_workflow, execute_dag, fixed_plan
 from .agent.completion import CompletionDecision, judge_completion
 from .agent.loop import AgentCancelled, TurnResult, build_tool_feedback, chat_with_cancellation, run_agent
 from .agent.orchestration import assess_complexity, build_auto_subtasks
@@ -1990,7 +1990,6 @@ class AgentService:
                         include_dependency_outputs=True,
                     )
                     output_summaries: dict[str, dict[str, Any]] = {}
-                    token_totals: dict[str, int] = {}
                     for task_id, output in dag_result.outputs.items():
                         bounded = {
                             key: output.get(key)
@@ -1998,9 +1997,7 @@ class AgentService:
                             if key in output
                         }
                         output_summaries[task_id] = bounded
-                        for key, value in (output.get("tokens_used") or {}).items():
-                            if isinstance(value, (int, float)):
-                                token_totals[key] = token_totals.get(key, 0) + int(value)
+                    token_totals = aggregate_dag_tokens(dag_result.outputs)
                     execution = {
                         "status": dag_result.status,
                         "plan_name": plan.name,
@@ -2012,6 +2009,29 @@ class AgentService:
                         "tokens_used": token_totals,
                         "max_concurrency": policy.max_concurrency,
                     }
+                    if token_totals:
+                        try:
+                            runtime_state.budget.record_usage(token_totals)
+                        except BudgetExceeded as exc:
+                            # M6-T2: the fold must not stop the run silently - a
+                            # trip here gets the same named budget_exceeded event
+                            # the completion judge emits for its own overspend.
+                            budget_event = {
+                                "kind": "trace",
+                                "name": "planner",
+                                "status": "error",
+                                "phase": "planning",
+                                "code": "budget_exceeded",
+                                "summary": str(exc),
+                                "detail": {
+                                    "stage": "planner_dag",
+                                    "error": str(exc),
+                                    "tokens_used": dict(token_totals),
+                                },
+                            }
+                            events.append(budget_event)
+                            if on_event is not None:
+                                on_event(budget_event)
                     finished = {
                         "kind": "trace",
                         "name": "planner",
