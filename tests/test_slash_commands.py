@@ -234,3 +234,29 @@ def test_web_composer_expands_the_command_before_the_model(tmp_path: Path, monke
         "template body must never enter the system prompt — expanded commands are "
         "user content, so they cannot rewrite instructions or permission boundaries"
     )
+
+
+# ---------------------------------------------------------------------------
+# Built-in REPL commands: the /help line must cover every command the REPL
+# dispatches. README「交互命令」行承诺了其中九条；/cost 实现于 REPL 但曾被
+# 两份清单同时漏掉（/help 文本与 README），这条测试把清单钉成一处。
+# ---------------------------------------------------------------------------
+
+
+def test_builtin_help_line_covers_every_dispatched_command() -> None:
+    from minicc.main import BUILTIN_HELP_LINE
+
+    expected = [
+        "/help",
+        "/tools",
+        "/status",
+        "/view",
+        "/compact",
+        "/collapse",
+        "/expand [n]",
+        "/clear",
+        "/cost",
+        "/exit",
+    ]
+    missing = [name for name in expected if name not in BUILTIN_HELP_LINE]
+    assert not missing, f"/help line is missing dispatched commands: {missing}"

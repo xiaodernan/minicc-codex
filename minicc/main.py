@@ -481,6 +481,11 @@ async def _turn(
     return result
 
 
+# The single line /help prints. Every command the REPL dispatches below must
+# appear here — tests/test_slash_commands.py pins this against the README list.
+BUILTIN_HELP_LINE = "/help  /tools  /status  /view  /compact  /collapse  /expand [n]  /clear  /cost  /exit"
+
+
 async def _interactive(
     provider: Any,
     registry: ToolRegistry,
@@ -509,7 +514,7 @@ async def _interactive(
         if prompt in {"/exit", "/quit"}:
             return
         if prompt == "/help":
-            cli_out("/help  /tools  /status  /view  /compact  /expand [n]  /clear  /exit")
+            cli_out(BUILTIN_HELP_LINE)
             custom = discover_commands(workspace or Path.cwd())
             if custom:
                 cli_out("自定义命令：")
