@@ -13336,3 +13336,42 @@ REPL 实际分派十条内置命令，但 `/help` 打印的帮助行只有八条
 - 内置命令的 `/status` `/view` `/cost` 等行为级测试（view 为 None 的
   非会话模式、cost 无快照分支）仍靠手工语义覆盖，可按需补。
 - 效率/成本组指标（配额 429×7）与 M8 复核行维持挂起；specproof 战区继续等。
+
+
+## 第一百七十五批 前端构建链实测：build/check/optimization/web-smoke 四条全绿，fake-provider 前提一次翻车如实记
+
+### 1 为什么轮到 npm 面
+
+第169批实测的是 README 的 Python 面命令，行18 与行331 承诺的前端构建链
+（`npm run build:web` / `check:web` / `test:optimization` / `test:web`）
+从未在本机走过。CI 的 js-check 与 web-smoke job 虽然每天在跑，但那是
+CI 的读数不是本机的——按「别人能装上、能用上」同一口径逐条补齐。
+
+### 2 逐条判定
+
+| 命令 | 读数 | 判 |
+| --- | --- | --- |
+| `npm run build:web` | exit 0：app.js 303011 chars + game.js 109497 chars | 绿 |
+| `npm run check:web` | exit 0：两个 bundle up to date，assets clean（3 referenced bundle(s)）——行18「新鲜度校验」实证 | 绿 |
+| `npm run test:optimization` | exit 0：视口 390 / 网络 58 / 无溢出 | 绿 |
+| `npm run test:web`（fake-provider 配方） | **passed: timeline, product path, desktop, mobile**——行331「真实 HTTP 产品链路」实证 | 绿 |
+| `npm run test:web`（首跑，无 fake-provider） | **1 failed**：product path 任务 90s 未到终态——服务带真实网关配置启动，smoke 提交的任务真调 LLM | 翻车如实记 |
+
+首跑翻车不是产品缺陷：README 行331 明写「启动 fake-provider 本地服务后
+执行」，CI 同样用 `MINICC_FAKE_PROVIDER=1` + 不可达 BASE_URL 起服务。
+漏读前提直接跑，代价一次 90 秒等待与一条失败读数——前提句是有效的，
+失败读数比绿读数更能证明这一点。
+
+### 3 实测证据
+
+| 命令 | 读数 |
+| --- | --- |
+| 四条 npm 命令 + 一次失败复现 | 见第 2 节表，留档 `output/t175_*.txt` |
+| 占号双查 | ROADMAP grep `T175` 空 + `git log --all --grep=T175` 空 |
+| 预检 | `python scripts/doc_pointers.py --check` exit 0 |
+
+### 4 下一批边界
+
+- README 行218 提及的 `test:codex`/`test:zombie` 等 arcade 套件文件本机
+  俱在且 CI 在跑，本批未重复；game 套件按需补。
+- 效率/成本组指标（配额 429×7）与 M8 复核行维持挂起；specproof 战区继续等。
