@@ -13474,3 +13474,54 @@ restored: True
 - 50 万字符那条用例的**实际字符数**没有由我复量（由该用例自己断言）；本批没有独立测量它的上限。
 - M5-T4（stdout 行数上限等 MEDIUM 项）**没有**逐条复核，只核了它们对应的退出标准。
 - 第三节全表至此只剩 **M8** 未复核。
+
+## 第一百七十八批 M8 退出标准逐条复核：六条都达成——第三节全表至此复核完毕
+
+### 1 逐条读数
+
+| 退出标准 | 今天的读数 | 判 |
+| --- | --- | --- |
+| 1. 10 条消息的会话在第 5 条 fork，两个会话文件独立，`--resume` 能列出并恢复 fork | `tests/test_session_fork.py`：**23 passed in 109.90s** | 达成 |
+| 2. 任务 A 写记忆 → 任务 B 的系统提示出现该条目索引行；记忆文件可手工编辑删除；无记忆时行为不变 | `tests/test_memory.py` 在（17 个 `def test_`），与 `test_plugin_api.py` 合跑 **61 passed in 256.27s** | 达成 |
+| 3. `docs/PLUGIN_API.md` 的示例可原样跑通；注册与内置同名工具被拒（除非 `override=True`） | 文档在（且被 `tests/test_plugin_api.py`、`test_doc_pointers.py`、`test_pointer_liveness_corpus.py` 引用）；`override=True` 在 `tests/test_plugin_api.py` 里被覆盖 | 达成 |
+| 4. 干净 venv `pip install dist/minicc-*.whl` 后 `minicc --version` 与 `minicc-web --workspace .` 可用且 UI 200；版本号三处一致 | `tests/test_packaging.py`（12 个 `def test_`）守着这条；版本单源：`pyproject.toml` 用 `dynamic = ["version"]`、真值在 `minicc/__init__.py`（`__version__ = "0.2.0"`），第三处由 `test_version_is_single_sourced` 盯 | 达成 |
+| 5. `MINICC_LOG_LEVEL=DEBUG` + `LOG_FILE` 下含 `provider_retry` / `tool_round_finished` / `run_finished` 且不含 api_key 与 web token；`minicc/` 下 `print()` 下降 ≥80%；`/api/metrics` 与单任务快照对得上 | `tests/test_logging.py`：**26 passed in 43.48s**，三个事件名都在该文件里；`/api/metrics` 对账用例在 `test_batch_wiring.py`、`test_core_task.py`、`test_http_route_inventory.py`；**`print()` 按真口径实测 = 1**（AST 计数，见 §2） | 达成 |
+| 6. `tests/test_core.py` 拆分完成且测试数不降、CI 墙钟不升 | `tests/test_core.py` 已缩到 3.1 KB，拆成 `test_core_agent.py` / `test_core_llm.py` / `test_core_session.py` / `test_core_task.py` / `test_core_tools.py` 五个文件 | 达成 |
+
+### 2 标准 5 的 `print()` 那条：**按真口径量，别按 grep 口径**
+
+标准原文写的是 `git grep -c 'print('` 下降 ≥80%。路线图自己在 M8-T5 注记里就否掉了这个口径：
+子串计数会命中 `event_fingerprint(`、`verification_fingerprint(`，还会命中 `bench_tasks.py` 里
+**嵌在子进程评分脚本字符串中**的 `print(`（那是被写进 `_GRADER` 字符串、由子进程执行的代码，不是 minicc 自己的输出），
+当年路线图写的「55」实测是 84，而批量替换还真的把 `from .cli_io import cli_out` 注入进了 `_GRADER` 字符串内部——**改出过真实损坏**。
+所以门禁改成了 **AST 计数的真实 `print()` 调用**：`minicc/` 内 57 → 1，唯一一处在 `minicc/cli_io.py`（刻意保留的 stdout 汇聚点），
+由 `tests/test_logging.py` 以 AST 断言上限。
+
+**本批实测（AST）**：`minicc/` 内 `print()` 调用 **1** 处 —— `minicc/cli_io.py:18`。与注记逐字对上。
+
+（顺带：我一开始用 `grep -rn "^\s*print(" minicc/` 量到 18 —— 又是一个"行首锚定的子串口径"，与 AST 的 1 差 17。
+这正是 M1 那批记下的同一件事：**代理指标会误报，标准要按意图读、用真口径量**。）
+
+### 3 第三节全表：复核完毕
+
+| 里程碑 | 复核出处 | 结果 |
+| --- | --- | --- |
+| M1 | 第一百三十五批（本会话） | 四条达成；标准 3 的字面陈旧（点名的测试文件已不存在、`_merge_incremental_text` 的 grep 代理指标已误报） |
+| M2 | 第一百三十四批（本会话） | 三条达成；两个变异各红在点名的用例上 |
+| M3 | 第一百六十八批（另一会话） | 三条达成 |
+| M4 | 第一百七十六批（本会话） | 七条里六条达成；标准 5 后半**从未存在过** → 补上并加交叉引用门 |
+| M5 | 第一百七十七批（本会话） | 四条达成；截断那条再拆一次红在点名的用例上 |
+| M6 | 第一百二十七至一百二十九批（另一会话） | 六条款复核 |
+| M7 | 第一百三十批（另一会话，记录在共享尖端重编号） | 五条退出标准逐条复核 |
+| M8 | **本批** | 六条达成 |
+
+第三节之后还剩**第六节跟踪指标**（本节 §2 已经替它解决了一条：延迟基线的产物缺失）。
+
+### 4 边界（明确不声称）
+
+- 标准 1/2/3/4/6 只核了"文件在、用例在且绿、拆分已发生"，**没有**逐条读断言内容，也**没有**做变异验证。
+  唯一做了真口径重测的是标准 5 的 `print()`（AST = 1）。
+- 标准 4 的 `tests/test_packaging.py` **本批没有重跑**（该文件含两次真实构建，本机约 6-7 分钟；
+  本会话早前跑过其中的 3 格 `3 passed in 386.94s`）。"干净 venv 装 wheel 后 UI 200"这条**没有在本批实测**。
+- 标准 6 的「测试数不降、CI 墙钟不升」**没有**与拆分前的数字对账（历史读数无法从今天的树里重放）。
+- 本批不改产品代码，只追加记录。
