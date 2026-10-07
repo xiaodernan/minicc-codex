@@ -13329,6 +13329,7 @@ REPL 实际分派十条内置命令，但 `/help` 打印的帮助行只有八条
 | 红/绿/全文件三条 pytest + REPL 管道实测 | 见第 2 节表，留档 `output/t174_*.txt` |
 | 占号双查 | ROADMAP grep `T174` 空 + `git log --all --grep=T174` 空 |
 | 预检 | `python scripts/doc_pointers.py --check` exit 0 |
+| CI 绿证（补记） | run 37590010713 @ 19e6e1e **success**（6m29s）——红绿证据与三处清单一致化背在绿树上，一笔过 |
 
 ### 4 下一批边界
 
