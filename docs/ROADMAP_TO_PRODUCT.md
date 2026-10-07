@@ -13290,6 +13290,7 @@ worker 终结后的终态提交路径）在读到快照**已是终态**时提前
 | 红/绿/回归三条 pytest | 见第 2 节表，输出留档 `output/t173_*.txt` |
 | 占号双查 | ROADMAP grep `T173` 空 + `git log --all --grep=T173` 空 |
 | 预检 | `python scripts/doc_pointers.py --check` exit 0 |
+| CI 绿证（补记） | run 37587498734 @ 1fb919f **success**（8m12s）——红绿证据与根因修复背在绿树上，一笔过 |
 
 ### 4 下一批边界
 
