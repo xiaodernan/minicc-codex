@@ -13525,3 +13525,51 @@ restored: True
   本会话早前跑过其中的 3 格 `3 passed in 386.94s`）。"干净 venv 装 wheel 后 UI 200"这条**没有在本批实测**。
 - 标准 6 的「测试数不降、CI 墙钟不升」**没有**与拆分前的数字对账（历史读数无法从今天的树里重放）。
 - 本批不改产品代码，只追加记录。
+
+## 第一百七十九批 第六节跟踪指标抽查：逐行找到活的引用，并记一条「指标行写得比实现弱」
+
+第三节全表复核完毕（第一百七十八批）之后，第六节（每个阶段应该跟踪的指标）是整体复核剩下的那一半。
+本批**抽查**其中最可能只有散文、没有落地物的行——不是全表 20 行逐行重跑（那需要真实模型与配额）。
+
+### 1 逐行找到了什么
+
+| 指标行 | 今天的活引用 | 判 |
+| --- | --- | --- |
+| `pass@1` / `grading_coverage` | 第一百七十六批实测骨架报告：`grading_coverage=1.0`、`gradable_task_count=24`（write 12 / multi-file 6 / test-fix 6） | 达成 |
+| `latency_p50_ms` / `latency_p95_ms` 基线 | 第一百七十六批：这两个数字**从未进过**评测文档，已补进 `docs/BENCHMARK_EVALUATION.md` 并加交叉引用门 `tests/test_benchmark_evaluation_doc.py` | 本会话已修 |
+| 证据门诚实度（bash 写入触发 `verification_required`） | `tests/test_m4_evidence_chain.py`（4 passed） | 达成 |
+| 流式保真度 / 单轮请求次数 | 第一百三十五批：`test_m1t3_incremental_deltas_concatenated_byte_for_byte`、`test_m1t3_delta_only_gateway_costs_one_request_and_errors` | 达成 |
+| MCP 健壮性（≤6000 字符比例 / P99） | 第一百七十七批：`tests/test_mcp_stdio.py` 12 格（含 `test_half_million_char_output_is_truncated`），变异验证过 | 达成 |
+| `cost_per_success_usd` / `cost_available 恒 100%` | `tests/test_pricing.py:189` 断言 `report["metrics"]["cost_available"] == 1` | 达成 |
+| 委派率 / 平均并行子代理数（深度 ≤2、并发 ≤3） | `minicc/agent/subagent.py:72 MAX_CONCURRENT_SUBAGENTS = 3`、`DEFAULT_MAX_DEPTH`（depth-3 结构上不可达）、`tests/test_subagent_delegation.py::test_depth_two_grandchild_has_no_task_tool` | 达成 |
+| 网络逃逸（≥20 条表驱动） | `tests/test_network_gate.py` **收集到 53 条** | 达成 |
+| 越权尝试（五类全拒 + ≥12 条先红后绿回归） | `docs/SECURITY_CHECKLIST.md` 8 节、**18 条测试引用 0 悬空**（第一百三十四批复核，且文档门两种死名都抓） | 达成 |
+| SSRF | `docs/SECURITY_CHECKLIST.md` 第 7 节点名 `test_webfetch.py::test_ssrf_guard_rejects_loopback_by_default` | 达成 |
+| CI 墙钟 / flake 率 | `eval-pr` 有 `timeout-minutes: 15`；真实模型只进 `eval-nightly`（schedule/dispatch） | 达成 |
+
+### 2 一条发现：指标行写得**比实现弱**
+
+「Anthropic prompt cache 命中率」那行的目标是「**稳定 >0.30**（…挂 M4 CI 门）」。
+今天没有 `>0.30` 的阈值断言；有的是**逐方言的精确值断言**：
+
+```
+tests/test_core_llm.py:117  assert chat_usage["cache_hit_rate"] == round(1792 / 2174, 6)
+tests/test_core_llm.py:128  assert responses_usage["cache_hit_rate"] == 0.0
+tests/test_core_llm.py:139  assert deepseek_usage["cache_hit_rate"] == 0.6
+tests/test_core_llm.py:143  assert unreported["cache_hit_rate"] is None
+```
+
+**这比阈值强**：精确值 + `None`（"服务端没报"与"命中 0"必须分开）比"大于 0.30"能抓更多东西——
+归一化一旦被重构打破，这四格会直接红，而一个 `>0.30` 的哨兵在多数破坏下仍然绿。
+
+所以**不该**去补那条阈值门（那是把更强的门换成更弱的门），正确的动作是记下这行的字面落后于实现：
+**读第六节时，"目标"列写的是当初的设想，落地物可能更强也可能更弱，要逐行去看实际那个门。**
+
+### 3 边界（明确不声称）
+
+- 这是**抽查**，不是全表复核：`false_completion_rate`（恒 0、CI 命名指标）、`verification_cache_false_positive`（"一条专门断言"）、
+  `recall@1/@5/MRR`、`llm_turn_p95_ms`、`turns_per_success` / `tool_repeat_rate`、`fan-out 回归护栏`、
+  `$/task 与 token/task`、`挂死计数`（要 30 条 fixture 全量跑）这几行**本批没有逐行找引用**。
+- 抽查里每一行只核到"存在一个活的引用"，**没有**去验证那个门是否覆盖该行声称的**全部**情形
+  （例如网络门的 53 条是否覆盖了行里点名的 pip3 / 双空格 git clone / rsync 三种形状）。
+- 本批不改产品代码与门，只追加记录。
