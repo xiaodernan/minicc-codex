@@ -12785,3 +12785,57 @@ worktree.py 全文只有 `_run` 一处 subprocess 调用，单咽喉收口即全
 M4-6 等配额（429 第 5 次）；复核表 M8（并行 web.py）禁碰；specproof 战区
 继续等；候选：变更检视面（changes.py）与 snapshots.py 同款超时面抽查、
 或 §6 未勾选项新产品缺口。
+
+## 第一百六十四批 M2-T10：超时配对审计钉死最后一个裸奔点，并把审计铸成常驻门
+
+### 1 缺口
+
+T163 修掉 worktree 后，剩余模块「惯例在 ≠ 全在」未机械验证过。写 AST 审计
+扫全 minicc/：每个带 `timeout=` 的 `subprocess.run` 是否被捕获
+`TimeoutExpired` 的 except 覆盖。13 处调用中 3 处局部未配对，逐一 Caller
+分析定性：①`bench_tasks._run_grader`（:412）——两个调用方（:565/:669）全部
+成对捕并映射进 `grader_unable`，结构性无缺口；②`behavior_bench.prepare_fixture`
+（:315）——benchmarks.py:833 的每任务 `except Exception` 把 prepare 阶段失败
+映射进专名 `workspace_unwritable` NO-RESULT（M8-T107 语义），设计如此；
+③**`tools/git.py:116 merge_precheck`——唯一真实缺口**：同文件兄弟调用点
+（:31/:161）都成对捕 `(OSError, TimeoutExpired)`，唯独它 timeout=30 裸跑，
+挂死时 TimeoutExpired 直穿工具处理器，落进 registry.py:500 泛化兜底变成
+`工具 'git_merge_precheck' 未处理异常`，而非本文件自己的专名
+`git 命令失败: ... timed out after 30 seconds`。
+
+### 2 实现
+
+①git.py merge_precheck 补 try/except，形状与兄弟逐字同款：
+`except (OSError, subprocess.TimeoutExpired) as exc: raise ToolError(f"git 命令失败: {exc}") from exc`。
+②把审计铸成常驻门 `tests/test_subprocess_timeout_pairing.py`：AST 扫
+minicc/ 全部 `subprocess.run(timeout=...)`，无包围 TimeoutExpired 处理器
+即红；调用方守卫的两处入 `_HANDLED_UPSTREAM` allowlist（键 basename:function，
+值引守卫形状）+ allowlist 存活测试（守卫搬走/删除先红在门上）。门只管
+`.run`——是守惯例，不是给 subprocess API 建模。
+
+### 3 门证
+
+| 门 | 读数 |
+| --- | --- |
+| 红证（扫描门打未修树） | `test_every_timed_subprocess_run_catches_timeout_expired` **1 failed**：offenders 恰为 `['tools/git.py:116']` 一处，无一冤枉 |
+| 绿证（修复后合跑） | 门扫 + test_git_workflow.py（含新探针 `test_merge_precheck_turns_a_hung_git_into_the_named_tool_error`）**8 passed in 12.37s** |
+| ruff | 三个改动文件 All checks passed |
+| mypy | HEAD 基线对照（字节级 HEAD 覆写后跑 `mypy minicc` 再还原对比）：**141 ↔ 141 error，零新增零消失**，全库既有债逐字同款 |
+| 全量 | 提交前工作树全量 **9 failed, 2022 passed, 5 skipped in 732.42s**——9 红全部是 doc-pointer 活性门按设计红：本节引用的 `tests/test_subprocess_timeout_pairing.py` 与门测试名当时尚未 git 跟踪，干净检出视角是悬空引用（门语：本机有 ≠ 仓库有）。先落测试提交、再落本节后复验 **9/9 转绿**（见下），CI 全量绿证随推送兑现 |
+| 占号双查 | ROADMAP grep `M2-T10` 空 + `git log --all --grep=M2-T10` 空 |
+
+### 4 边界
+
+- 门扫的 allowlist 键是 `basename:function`，重命名或守卫搬走会先红在
+  存活测试上——allowlist 不会变成悄悄腐烂的白名单。
+- 探针测试 monkeypatch 起手：无真 git、无 text=True 捕获，与
+  test_subprocess_decoding 扫描门零交集。
+- 诚实边界：merge_precheck 的修复仍是错误形状收口（泛化兜底 → 专名
+  ToolError），merge-tree 挂死本身依旧发生；门的价值是下一个设 timeout
+  的人会被迫做对。
+
+### 5 下一批边界
+
+超时配对面全库收口（审计 13 处全定性）；M4-6 等配额（429×5）；复核表 M8
+（并行 web.py）禁碰；specproof 战区继续等；候选：§6 未勾选项新产品缺口、
+或 M3/M4 复核表让位并行后的接力勘察。
