@@ -12,7 +12,7 @@ from typing import Any, Callable, NoReturn
 
 from .agent.loop import TurnResult, run_agent
 from .agent.router import StageRouter, StageRoute
-from .agent.state import Budget
+from .agent.state import Budget, BudgetExceeded
 from .agent.subagent import DEFAULT_MAX_DEPTH, DEFAULT_MAX_TURNS, build_task_tool_spec
 from .allowlist import AllowlistError, add_session_rule
 from .audit import authorize_tool
@@ -22,6 +22,7 @@ from .commands import discover_commands, expand_slash_command
 from .hooks import HookRunner
 from .llm.base import system_msg, user_msg
 from .llm.openai_provider import OpenAICompatibleProvider
+from .llm.usage import add_usage_totals
 from .logging_setup import (
     configure_logging,
     log_task_event,
@@ -402,6 +403,7 @@ async def _turn(
     workspace: Path | None = None,
     stage_router: StageRouter | None = None,
     route: StageRoute | None = None,
+    fold_target: dict[str, Any] | None = None,
 ) -> TurnResult:
     messages.append(user_msg(prompt))
     if permission_mode == "plan":
@@ -444,6 +446,12 @@ async def _turn(
             soft_max_duration_seconds=getattr(config, "soft_max_duration_seconds", None),
         )
         cost_estimator = None
+    if fold_target is not None:
+        # M8-T163: arm the holder the task-tool fold charges. The task tool
+        # can only execute inside run_agent, so a holder left armed between
+        # turns is never observable.
+        fold_target["budget"] = budget
+        fold_target["usage"] = {}
     result = await run_agent(
         provider,
         registry,
@@ -468,6 +476,14 @@ async def _turn(
         hooks=HookRunner(workspace),
         workspace=workspace,
     )
+    if fold_target is not None:
+        child_usage = dict(fold_target.get("usage") or {})
+        if child_usage:
+            # M8-T163: the subagent spend is part of this turn's spend - the
+            # usage line below and the caller's totals must carry it.
+            add_usage_totals(result.tokens_used, child_usage)
+        fold_target["usage"] = {}
+        fold_target["budget"] = None
     if writer is None or not writer.started or not writer.matches(result.answer):
         cli_out(f"\nassistant> {result.answer}")
     else:
@@ -500,6 +516,7 @@ async def _interactive(
     workspace: Path | None = None,
     stage_router: StageRouter | None = None,
     route: StageRoute | None = None,
+    fold_target: dict[str, Any] | None = None,
 ) -> None:
     cli_out("minicc 已启动。输入 /help 查看命令，输入 /exit 退出。")
     while True:
@@ -612,6 +629,7 @@ async def _interactive(
             workspace=workspace,
             stage_router=stage_router,
             route=route,
+            fold_target=fold_target,
         )
 
 
@@ -828,6 +846,37 @@ def main(argv: list[str] | None = None) -> int:
             spec=inspect_spec,
         )
 
+    # M8-T163: the subagent's spend must be visible to the run that paid for
+    # it. The holder is armed per turn just before run_agent and drained right
+    # after it (see _turn); the task tool can only execute inside run_agent,
+    # so a holder left armed between turns is never observable.
+    fold_target: dict[str, Any] = {"budget": None, "usage": {}}
+
+    def _fold_child_usage(usage: dict[str, Any]) -> None:
+        add_usage_totals(fold_target["usage"], usage)
+        run_budget = fold_target.get("budget")
+        if run_budget is None:
+            return
+        try:
+            run_budget.record_usage(usage)
+        except BudgetExceeded as exc:
+            log_task_event(
+                {
+                    "kind": "trace",
+                    "name": "subagent",
+                    "status": "error",
+                    "phase": "execution",
+                    "code": "budget_exceeded",
+                    "summary": str(exc),
+                    "detail": {
+                        "stage": "subagent",
+                        "error": str(exc),
+                        "tokens_used": dict(usage),
+                    },
+                },
+                task_id=session.path.stem if session else "cli",
+            )
+
     # Bounded Task subagent for the CLI: same restricted readonly toolset and
     # no recursion. With routing enabled the subagent rides the inspect stage
     # (M11-T8), matching the web surface's recon nodes; routing off keeps the
@@ -850,6 +899,9 @@ def main(argv: list[str] | None = None) -> int:
         # events go straight to the structured log - the same channel the
         # parent loop's traces already use (M8-T5).
         on_trace=lambda event: log_task_event(event, task_id=session.path.stem if session else "cli"),
+        # M8-T163: the child's spend folds into the turn's run budget and
+        # totals; a fold trip is logged as a named subagent event.
+        on_child_usage=_fold_child_usage,
         # M6-T1 补线（M11 系列后的 debt 收账）：writable 档声称由 config 旋钮
         # + 本旗标驱动，但注册处从未传参——旋钮开了也永远是 readonly。tier
         # 在注册时按会话 permission_mode 解析：acceptEdits/yolo 才会出
@@ -884,6 +936,7 @@ def main(argv: list[str] | None = None) -> int:
                     workspace=workspace,
                     stage_router=stage_router,
                     route=planning_route,
+                    fold_target=fold_target,
                 )
             else:
                 await _interactive(
@@ -899,6 +952,7 @@ def main(argv: list[str] | None = None) -> int:
                     workspace=workspace,
                     stage_router=stage_router,
                     route=planning_route,
+                    fold_target=fold_target,
                 )
         finally:
             await provider.close()

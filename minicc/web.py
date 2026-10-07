@@ -1337,6 +1337,11 @@ class AgentService:
         planner_usage: dict[str, Any] = {}
         planner_policy: PlannerPolicy | None = None
         planner_execution: dict[str, Any] | None = None
+        # M8-T163: the task subagent's spend accumulates live and merges into
+        # the final payload at assembly time, with a stage=subagent usage row
+        # (the same shape the planner/DAG folds produce).
+        subagent_usage: dict[str, Any] = {}
+        subagent_usage_rows: list[dict[str, Any]] = []
         complexity = assess_complexity(message, attachment_count=len(attachments))
         task_kind = str(payload.get("task_kind") or "task")
         planner_requested = (
@@ -1592,6 +1597,35 @@ class AgentService:
             # spawn readonly research sub-runs; restricted registry keeps it
             # non-recursive. Sub-tool calls inherit parent permission gating
             # only through the restricted readonly toolset.
+            # M8-T163: the subagent's own loop only charges its isolated
+            # child budget - this fold is how the run that paid for it sees
+            # the spend (same shape as the DAG-node fold below).
+            def fold_subagent_usage(usage: dict[str, Any]) -> None:
+                add_usage_totals(subagent_usage, usage)
+                subagent_usage_rows.append({"stage": "subagent", **dict(usage)})
+                try:
+                    runtime_state.budget.record_usage(usage)
+                except BudgetExceeded as exc:
+                    # The fold must not stop the run silently - a trip gets
+                    # the same named budget_exceeded event the planner fold
+                    # emits for its own overspend.
+                    budget_event = {
+                        "kind": "trace",
+                        "name": "subagent",
+                        "status": "error",
+                        "phase": "execution",
+                        "code": "budget_exceeded",
+                        "summary": str(exc),
+                        "detail": {
+                            "stage": "subagent",
+                            "error": str(exc),
+                            "tokens_used": dict(usage),
+                        },
+                    }
+                    events.append(budget_event)
+                    if on_event is not None:
+                        on_event(budget_event)
+
             try:
                 registry.register(build_task_tool_spec(
                     # M11-T8: the readonly research subagent rides the inspect
@@ -1631,6 +1665,9 @@ class AgentService:
                     # trace funnel as the parent loop's - without a sink the
                     # subagent runs blind on this surface too.
                     on_trace=on_trace,
+                    # M8-T163: the child's spend folds back onto the run
+                    # budget through the parent-side sink.
+                    on_child_usage=fold_subagent_usage,
                     # M6-T1 补线（M11 系列后的 debt 收账）：config 声称
                     # subagent_writable 可开可写委派档，但这里从未传参——
                     # tier 按任务解析出的 permission_mode 在注册时定档，
@@ -2671,6 +2708,12 @@ class AgentService:
                             **dict(planner_execution["tokens_used"]),
                         })
                         add_usage_totals(final.tokens_used, planner_execution["tokens_used"])
+                if subagent_usage:
+                    # M8-T163: the subagent spends happened during this run's
+                    # own turns - the row appends after them, and the totals
+                    # must agree with the budget charge the fold already made.
+                    final.usage_by_turn.extend(subagent_usage_rows)
+                    add_usage_totals(final.tokens_used, subagent_usage)
                 final.metrics.update(cache_summary(final.tokens_used))
                 return final
             finally:

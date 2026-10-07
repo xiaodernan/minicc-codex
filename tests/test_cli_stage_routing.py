@@ -551,3 +551,59 @@ def test_the_subagent_lifecycle_is_logged_on_the_cli(
     assert "subagent_finished" in subagent_codes, (
         f"the child's completion must reach the structured log: {subagent_codes}"
     )
+# -- M8-T163: the task subagent's spend folds into the CLI run budget ---------
+
+
+def test_the_cli_usage_line_carries_subagent_spend(
+    cli_env: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """路由关闭（父/子共用同一实例）：打印的用量行必须带上子代理花费。
+
+    父 2 轮 x 15 + 子代理 1 轮 x 15 = 45；折叠前这行只印 30，
+    子代理的花费只存在事件里。
+    """
+    _TaskRoutingSentinel.reset()
+    import minicc.main as cli
+
+    monkeypatch.setattr(cli, "OpenAICompatibleProvider", _TaskRoutingSentinel)
+    exit_code = main(["--workspace", str(cli_env), "--no-stream", "你好"])
+    assert exit_code == 0
+    out = capsys.readouterr().out
+    assert "total_tokens=45" in out, (
+        f"打印的用量行必须包含子代理花费（45=父30+子15）；现有输出：{out!r}"
+    )
+
+
+def test_the_cli_fold_trip_emits_named_subagent_event(
+    cli_env: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """折叠越限必须发具名 subagent budget_exceeded 进结构化日志，而不是静默。"""
+    monkeypatch.setenv("MINICC_T8_SCOUT_KEY", "scout-key")
+    _enable_routing(cli_env, _T8_INSPECT_ROUTING)
+    _TaskRoutingSentinel.reset()
+    import minicc.main as cli
+
+    real = cli._stage_route_budget
+
+    def armed(route, **kwargs):
+        budget = real(route, **kwargs)
+        budget.max_tokens = 20
+        return budget
+
+    monkeypatch.setattr(cli, "_stage_route_budget", armed)
+    monkeypatch.setattr(cli, "OpenAICompatibleProvider", _TaskRoutingSentinel)
+    logged: list[dict[str, Any]] = []
+    monkeypatch.setattr(cli, "log_task_event", lambda event, **_: logged.append(event))
+    main(["--workspace", str(cli_env), "--no-stream", "你好"])
+    trips = [
+        e for e in logged
+        if e.get("code") == "budget_exceeded" and e.get("name") == "subagent"
+    ]
+    assert len(trips) == 1, (
+        "折叠越限必须恰好发一条具名 subagent budget_exceeded 进结构化日志；"
+        f"本次 (code,name) 集合：{sorted({(str(e.get('code')), str(e.get('name'))) for e in logged})}"
+    )
+    detail = trips[0].get("detail", {})
+    assert detail.get("stage") == "subagent" and detail.get("tokens_used", {}).get("total_tokens") == 15, (
+        f"事件 detail 必须点名阶段与本次折叠的载荷：{detail!r}"
+    )

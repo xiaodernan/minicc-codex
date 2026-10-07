@@ -124,6 +124,7 @@ def build_task_tool_spec(
     cost_estimator: Callable[[dict[str, Any]], float] | None = None,
     on_trace: Callable[[dict[str, Any]], None] | None = None,
     parent_trace_id: str | None = None,
+    on_child_usage: Callable[[dict[str, Any]], None] | None = None,
 ) -> ToolSpec:
     """Create the ``task`` ToolSpec bound to one parent task's context.
 
@@ -145,6 +146,12 @@ def build_task_tool_spec(
     M6-T1 补线: ``max_tokens`` now arrives from the ``subagent_max_tokens``
     config knob through both registration faces; ``None`` (knob unset) keeps
     the legacy uncapped child budget.
+
+    M8-T163: ``on_child_usage`` receives this run's spend once the child ends
+    (tokens with breakdown when a result came back, the child budget's own
+    counter otherwise). The child's budget is isolated, so without the fold
+    the run that paid for the child never learns its cost. Nested faces pass
+    the same callback down - every descendant reports to the one run budget.
     """
     tier = resolve_subagent_tier(writable=writable, permission_mode=permission_mode)
     runner = _SubagentRunner(
@@ -167,6 +174,7 @@ def build_task_tool_spec(
         cost_estimator=cost_estimator,
         on_trace=on_trace,
         parent_trace_id=parent_trace_id,
+        on_child_usage=on_child_usage,
     )
     if tier == "readonly":
         capability = (
@@ -238,6 +246,7 @@ class _SubagentRunner:
         cost_estimator: Callable[[dict[str, Any]], float] | None = None,
         on_trace: Callable[[dict[str, Any]], None] | None = None,
         parent_trace_id: str | None = None,
+        on_child_usage: Callable[[dict[str, Any]], None] | None = None,
     ) -> None:
         self.provider_factory = provider_factory
         self.workspace = workspace
@@ -258,9 +267,15 @@ class _SubagentRunner:
         self.cost_estimator = cost_estimator
         self.on_trace = on_trace
         self.parent_trace_id = parent_trace_id
+        self.on_child_usage = on_child_usage
         # Set at the start of each run so nested task specs can attribute
         # grandchild traces to this run's id.
         self._run_id = ""
+        # M8-T163: per-run fold state. ``_child_usage_payload`` is the child
+        # result's own usage when one came back; ``_active_child_budget``
+        # backs the fallback for runs that ended without a result.
+        self._child_usage_payload: dict[str, Any] | None = None
+        self._active_child_budget: Budget | None = None
 
     def _emit(self, event: dict[str, Any]) -> None:
         """Forward one structured event to the parent sink, never raising.
@@ -272,6 +287,30 @@ class _SubagentRunner:
             return
         try:
             self.on_trace(event)
+        except Exception:  # noqa: BLE001 - telemetry must not break the run
+            pass
+
+    def _flush_child_usage(self) -> None:
+        """Report this run's child spend to the parent sink, exactly once.
+
+        M8-T163: the child loop charges its own isolated budget, so the run
+        that paid for it only learns the cost through this fold. The payload
+        prefers the child result's own usage (breakdown intact for pricing);
+        a run that ended without a result (raises / abort / timeout) falls
+        back to the child budget's recorded counter. The callback contract
+        mirrors ``_emit``: a failure in the parent's sink never breaks the run.
+        """
+        if self.on_child_usage is None:
+            return
+        usage = dict(self._child_usage_payload or {})
+        if not usage.get("total_tokens"):
+            budget = self._active_child_budget
+            recorded = int(budget.tokens) if budget is not None else 0
+            if recorded <= 0:
+                return
+            usage = {"total_tokens": recorded}
+        try:
+            self.on_child_usage(usage)
         except Exception:  # noqa: BLE001 - telemetry must not break the run
             pass
 
@@ -307,6 +346,7 @@ class _SubagentRunner:
                 cost_estimator=self.cost_estimator,
                 on_trace=self.on_trace,
                 parent_trace_id=self._run_id or None,
+                on_child_usage=self.on_child_usage,
             ))
         return registry
 
@@ -330,10 +370,16 @@ class _SubagentRunner:
             raise ToolError(
                 f"子代理并发已达上限（{MAX_CONCURRENT_SUBAGENTS}），请等当前侦察完成或改为直接使用只读工具。"
             )
+        self._child_usage_payload = None
+        self._active_child_budget = None
         try:
-            return self._run_bounded(description, prompt)
+            result = self._run_bounded(description, prompt)
         finally:
+            # M8-T163: every exit path of a run - clean, aborted or raised -
+            # reports the child's spend to the parent fold exactly once.
+            self._flush_child_usage()
             _SUBAGENT_SLOTS.release()
+        return result
 
     def _run_bounded(self, description: str, prompt: str) -> ToolResult:
         tool_log: list[dict[str, str]] = []
@@ -400,6 +446,10 @@ class _SubagentRunner:
         ]
         child_cancel = threading.Event()
         parent_cancel = self.cancel_event
+        # M8-T163: one budget instance serves the run - and doubles as the
+        # fallback ledger when the run ends without a result to read.
+        child_budget = self._child_budget()
+        self._active_child_budget = child_budget
 
         future: concurrent.futures.Future[Any] = concurrent.futures.Future()
 
@@ -412,7 +462,7 @@ class _SubagentRunner:
                         provider,
                         child_registry,
                         messages,
-                        budget=self._child_budget(),
+                        budget=child_budget,
                         # M11-T9: the child loop charges its own turns against
                         # its own ceiling. A ceiling alone enforces nothing -
                         # the estimator is what makes the charge happen.
@@ -512,6 +562,10 @@ class _SubagentRunner:
                 data={"description": description, "tool_log": tool_log, "timed_out": True},
                 security_tags=["untrusted", "subagent"],
             )
+        # M8-T163: the child returned a result - its own usage (breakdown
+        # intact) is the fold payload; the error branch below and the
+        # success path both report through it.
+        self._child_usage_payload = dict(getattr(result, "tokens_used", {}) or {})
         duration = time.monotonic() - started
         if getattr(result, "error", None):
             # M11-T9: a child loop that ends with a named error (cost ceiling,
