@@ -12982,6 +12982,7 @@ M1–M7 的退出标准已逐条复核完毕（M2 最新在第一百三十四批
 | `pytest tests/test_mcp_stdio.py tests/test_permissions_approval.py -q` | **33 passed in 10.28s**（12+21 条） |
 | `gh run list` 最近 12 run 墙钟 | 5.0–7.3 min，0 flake（3 红已知根因） |
 | 占号双查 | ROADMAP grep `T167` 空 + `git log --all --grep=T167` 空 |
+| CI 绿证（补记） | run 37560694336 @ 567be85 **success**——三条判定全部背在绿树上，一笔过（落笔前本地预检 `doc_pointers --check` exit 0） |
 
 ### 5 下一批边界
 
