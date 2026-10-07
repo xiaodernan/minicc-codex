@@ -23,13 +23,13 @@
 | id | 标题 | 周数 | 目标 | 退出标准 | 依赖 |
 | --- | --- | --- | --- | --- | --- |
 | M1 | 核心链路可信：provider / loop 的真相层 | 4.5 | 让「模型→工具→结果」这条管道会终止、不静默损坏数据 | 双平台 pytest 全绿且新增 ≥30 条完整性用例；`scripts/reliability_probe.py` 退出码 0 并接入 CI；假网关只发 delta + `[DONE]` 不发 finish_reason 时单轮只发 1 次 HTTP 请求且以明确错误结束；golden delta 逐字节往返相等 | 无 |
-| M2 | 权限模型与工作区边界封闭 | 4 | 关闭 agent 自己授权自己、工作区边界可绕过、plan 模式 DAG 越权三条路 | `tests/test_security_perimeter.py` ≥12 条先红后绿；四个安全测试文件全绿；`docs/SECURITY_CHECKLIST.md` 记录四类人工攻击全部被拒 | M1 |
+| M2 | 权限模型与工作区边界封闭 | 4 | 关闭 agent 自己授权自己、工作区边界可绕过、plan 模式 DAG 越权三条路 | `tests/test_security_perimeter.py` ≥12 条先红后绿；四个安全测试文件全绿；`docs/SECURITY_CHECKLIST.md` 记录四类人工攻击全部被拒（**第一百八十七批实测：清单今天是 8 节**——工作区边界／plan 模式／junction／`.minicc` 凭据／MCP spawn 环境／Web Origin／网络门与 SSRF／配置劫持；"四类"是当时的摘要） | M1 |
 | M3 | 凭据、网络与进程面 | 4 | 收紧谁能驱动 agent、agent 能出网到什么程度，修掉编排层永久卡死与状态损坏 | Origin/CSRF 与网络门新用例全绿；非回环 Origin POST 403；强杀 worker 后 `.minicc/worker/` 无明文 key 残留且可 auto-resume；`grep -rn sk-` 在 `.minicc/` 与日志无命中 | M2 |
 | M4 | 证据链与评测可信度（含价格表、A/B 门） | 5 | 先把「行不行」变成可度量、可复现、CI 能拦截的事实，再谈能力 | 四项证据链回归通过；不可达 provider 下 `npm run test:web` 退出码非 0；POST `/api/*` Python 测试覆盖率 100%；`--suite v2` 输出 grading_coverage=1.0、pass@1 分母 ≥24（edit ≥10）；A/B gate 违反 exit 1 且 CI 用构造数据验红；任务事件带 `cost_usd` | M1, M2 |
 | M5 | MCP 桥加固与 CLI 接线 | 3 | 让零测试护网的默认传输层可信：输出有界、id 容错、reader 有监督、spawn 有门控 | `tests/test_mcp_stdio.py` ≥8 条；50 万字符输出截到 ≤6000；reader 死后后续调用 <1s 失败而非 30s；CLI `/tools` 列出 `mcp__` 工具 | M2 |
 | M6 | 能力扩展 I：有界可写委派与后台执行 | 5 | 从只读侦察子代理到有界可写委派，补上后台 shell，写/exec 并行 | 跨 3 文件改造由 2 个可写子代理并行完成且 verifier 通过、父会话协议校验通过；超预算任务以 `BudgetExceeded` 结束；后台 shell 可轮询可取消且取消后无残留进程；30 条 fixture 重跑 token/task 与 P95 劣化 ≤15% | M4, M5 |
 | M7 | 能力扩展 II：Hooks、slash 命令、交互审批、项目配置 | 4.5 | 从 agent 变成可扩展的 agent 平台，把 M2 的「拒绝」升级为「询问」 | hooks 四事件各一条集成测试（含超时与失败隔离）；自定义 slash 命令 CLI 与 Web 双端生效且不能覆盖权限边界；Web 一次真实审批从请求到落库；项目级配置覆盖生效且优先级文档化；断网提交后 composer 完整恢复 | M6 |
-| M8 | 记忆、会话 fork、插件 API、可安装产物与可观测 | 6 | 从「能跑的仓库」变成「别人能装上、出问题能查、上次教它的事它记得」的产品 | fork 会话文件独立且 `--resume` 可恢复；跨 session 记忆索引可见且可手工编辑；`docs/PLUGIN_API.md` 示例原样跑通；干净 venv 装 wheel 后两个 entry point 均可用且 UI 200；DEBUG 日志含关键事件且不含 api_key；`print()` 下降 ≥80%；`test_core.py` 拆分且测试数不降 | M7 |
+| M8 | 记忆、会话 fork、插件 API、可安装产物与可观测 | 6 | 从「能跑的仓库」变成「别人能装上、出问题能查、上次教它的事它记得」的产品 | fork 会话文件独立且 `--resume` 可恢复；跨 session 记忆索引可见且可手工编辑；`docs/PLUGIN_API.md` 示例原样跑通；干净 venv 装 wheel 后两个 entry point 均可用且 UI 200；DEBUG 日志含关键事件且不含 api_key；`print()` 下降 ≥80%（**第一百八十七批实测：这一句用的是被 M8-T5 注记否掉的口径**——真门是 **AST 计数**的 `print()` 调用，`minicc/` 内 **57→1**，由 `tests/test_logging.py` 断言；grep 口径会误命中 `event_fingerprint(` 与嵌在评分脚本字符串里的 `print(`）；`test_core.py` 拆分且测试数不降 | M7 |
 
 **总工期 36 周 ≈ 8 个月（兼职）。** 若排期滑出 9 个月上限，按此顺序砍：M8-T1 长期记忆 → M8-T2 会话 fork → M7-T2 Skills（保留 slash 命令）→ M6-T3 写/exec 并行。前四个里程碑一刀不砍。
 
@@ -13958,3 +13958,56 @@ M1/M2/M4/M5/M8 由本会话逐条复核，M3 由第一百六十八批，M6/M7 �
 - 两处漂移的**成因没有查**（是"文件长大"还是"那段代码被移动/重写"）；本批只记"今天在哪"。
 - 表里 M6-1/2/5 与 M7-1/2/4/5 两行是**合并行**（一行盖多条标准），本批只核了"点名的文件在"，
   **没有**逐条展开到每一条标准各自的证据。
+
+## 第一百八十七批 第二节摘要与实际的差异 + **关掉一处我自己记下的边界**（M4 的路由覆盖率）
+
+### 1 第二节「里程碑总表」里两处摘要已过时（就地标注）
+
+| 行 | 原文 | 实测 |
+| --- | --- | --- |
+| M2 | 「`docs/SECURITY_CHECKLIST.md` 记录**四类**人工攻击全部被拒」 | 清单今天 **8 节**：工作区边界／plan 模式／junction／`.minicc` 凭据／MCP spawn 环境／Web Origin／网络门与 SSRF／配置劫持。"四类"是当时的摘要，后来被扩写了 |
+| M8 | 「`print()` 下降 **≥80%**」 | **这句用的正是被 M8-T5 注记否掉的口径**：真门是 **AST 计数**的 `print()` 调用（`minicc/` 内 **57→1**），由 `tests/test_logging.py` 断言；grep 口径会误命中 `event_fingerprint(` 与嵌在评分脚本字符串里的 `print(` |
+
+两处都**就地补注**（原句不改），理由同前：第二节是摘要，摘要落后于实现时读者会按旧口径去核。
+
+### 2 关掉边界：M4 的「POST `/api/*` 覆盖率 100%」
+
+第一百七十六批复核 M4 时我把这条列为**未测边界**（"只核了文件在 + 69 个用例"）。本批实测。
+
+**第一次我用 grep 量，得到 3/13**（13 条 POST 路由字面量里只有 3 条被测试文件提到）。**这个读数是错的**——
+我去看那 69 格测试怎么打路由时，读到了 `tests/test_http_route_inventory.py` 的 docstring，它写着**同一件事的两个失败口径**：
+
+> * the first matched route strings against test sources, and reported 100 % — because `route in literal or literal in route` is satisfied by any pair sharing a prefix, and would even be satisfied by the empty string;
+> * tightening that to "a literal request call naming the route" reported 17 %, because six test modules build their paths with f-strings, which static matching cannot resolve.
+>
+> **Neither is coverage.** So this module enumerates the route table from the dispatcher itself (AST over `webserver.py`, with floors so an empty inventory can never pass) and then **issues one real request per route** against a live server, asserting the universal response contract: an endpoint either answers, or refuses with a structured body — never an unhandled 500.
+
+**我那次 3/13 就是它记的第二种口径**（静态匹配解不了 f-string 拼出来的路径）。真门早就在，做法更好。
+
+**真读数**（跑那条会打印数字的格子）：
+
+```
+MINICC_ROUTE_COVERAGE {"GET": {"answered": 19, "total": 19, "percent": 100.0},
+                       "POST": {"answered": 14, "total": 14, "percent": 100.0}}
+1 passed in 8.17s
+```
+
+`tests/test_http_route_inventory.py` 全文件 **12 passed in 17.17s**（含防空下限 `test_the_route_inventory_is_actually_a_route_inventory`、
+逐条 `test_every_post_route_answers_or_refuses_with_a_code`、动态任务路由、事件流、就绪与端口探活等格）。
+
+**判**：M4 那条标准**达成**（POST 14/14 = 100%），而且实现方式比"数测试文件里提到几次"强得多——它要求每条路由**真发一次请求**并守住统一契约。
+
+### 3 本批的教训（第三次同类，但这次是"我重复了仓库已记档的坑"）
+
+前两次是"代理指标会误报"（M1 的 `_merge_incremental_text` grep、M8 的 `print()` 口径），**都是我自己的口径问题**；
+这次更值得记：**仓库里已经有人踩过同一个坑、并把结论写在那个测试的 docstring 里**，而我先写了自己的 grep。
+**判据**：量一个指标之前，**先看有没有人已经量过它**（`grep -rn "<指标名>" tests/ minicc/ scripts/`），
+尤其是那些**专门用来量某条标准**的测试文件——它们往往在 docstring 里写清了"什么不算数"。
+
+### 4 边界（明确不声称）
+
+- 本批**只动文档**（第二节两处就地标注）+ 跑了两条现成测试，**没有**改任何门或产品代码。
+- 第二节其余行的摘要**没有**逐条与第三节核对（只核了 M2/M8 这两处可疑项）。
+- `MINICC_ROUTE_COVERAGE` 那个数字来自本机一次跑；它统计的是"被探到并给出结构化响应的路由"，
+  **不等于**"每条路由的每个分支都被断言过"——docstring 说的是"契约"，不是"分支覆盖"。
+- M8 任务清单各条「实现声称」的活引用核查**仍未做**（第一百八十四批起的候选）。
