@@ -13106,3 +13106,57 @@ README 命令块后分三类：离线可跑 12 条本批全跑；需真实模型
   做升级安装（旧 wheel 覆盖新 wheel）或删除重建，不进版本库。
 - 效率/成本组指标（配额 429×7）与 M8 复核行（并行 web.py 禁碰）维持挂起；
   specproof 战区脏文件未清继续等。
+
+
+## 第一百七十批 BENCHMARK_EVALUATION 命令逐条实测：离线五条全绿含 gate 验红，覆盖安装路径首测
+
+### 1 为什么轮到这本手册
+
+第169批把 README 的承诺逐条跑实后，产品文档面的下一个承诺池是
+docs/BENCHMARK_EVALUATION.md——它有 7 条命令块，密度全 docs 最高，且是
+评测手册（M4/M6 迭代依赖的判读依据）。勘察后分类：离线可跑 5 条本批全跑；
+真实模型调用 2 条登记敞口；README 升级安装承诺用干净 venv 复用补一条
+覆盖安装实测。
+
+### 2 逐条判定
+
+| 手册命令块 | 读数 | 判 |
+| --- | --- | --- |
+| behavior 套件离线报告 | exit 0 | 绿 |
+| pytest 两测试文件（`-o addopts=''`） | **34 passed in 15.76s** | 绿 |
+| v2 骨架（不带 --run） | exit 0，产物 json 19236 B | 绿 |
+| retrieval 骨架 | exit 0，产物 json 10300 B | 绿 |
+| compare 子命令（无 gate） | exit 0，人工可读 delta 表：pass@1 Wilson 95% CI、差值 Newcombe 95% CI、P50/P95 延迟差、任务对齐报告（baseline 独有 11 条/共有 1 条）、--repeat=1<10 不给 pass@k 结论 | 绿 |
+| compare + gate 可满足阈值 | exit 0 | 绿 |
+| compare + gate 不可能阈值 | **exit 1**，输出「[GATE FAILED] 1 个门槛被违反」并列出阈值与实际值——M4-T6 验收「gate 违反返回 1」的今日实测等价物 | 绿（验红如预期） |
+| 覆盖安装（force-reinstall wheel 进干净 venv） | exit 0；`--version` 报 0.2.0；重装后工作台启动根路径 200，进程干净退出 | 绿 |
+
+### 3 关键发现
+
+- compare 的输出把「任务集不完全对齐」明说在表外（独有/共有计数分列），
+  成本缺失、repeat 不足都各自如实声明——与手册「不伪造」的口径一致。
+- gate 验红输出带阈值与实际值，红的原因可读，不是裸 exit code。
+- 手册示例命令里的基线文件名（output/base.json 与 output/var.json）在仓库
+  output/ 下不存在——本批用两份现成真实 results 实测 compare 全链路，
+  未为凑读数构造假文件。
+- 覆盖安装（同版本 force-reinstall）实测通过；真正的跨版本升级
+  （0.1.0→0.2.0）无法实测：旧 wheel 产物已随 -Clean 清理不复存在，
+  如实登记为敞口而非假装测过。
+
+### 4 实测证据
+
+| 命令 | 读数 |
+| --- | --- |
+| 手册 5 条离线命令 + gate 双阈值 | 见第 2 节表，输出留档 `output/t170_*` |
+| 占号双查 | ROADMAP grep `T170` 空 + `git log --all --grep=T170` 空 |
+| 预检 | `python scripts/doc_pointers.py --check` exit 0 |
+
+### 5 下一批边界
+
+- 手册 2 条真实模型命令（behavior --run 定向两条、v2 --run 探针）与
+  README 的 3 条同属配额面敞口：M4-6 探针 7 次 429 现状下不追加消耗。
+- 跨版本升级路径（0.1.0→0.2.0）登记待办：若日后需要实测，从 git 历史重建
+  0.1.0 wheel 即可，成本一条构建命令。
+- 剩余文档面：AUDIT/OPTIMIZATION 交付文档各 1 条命令块属历史审核复现命令
+  （多数动产品代码，不在复核批内执行）；ROADMAP 自身 12 条为流程性占号命令。
+- 效率/成本组指标（配额 429×7）与 M8 复核行维持挂起；specproof 战区继续等。
