@@ -14358,3 +14358,119 @@ snapshots + 6 条 http roots 节点 ⇒ **0 红 rc=0**——空洞成立，遂�
   服务夹具）。修后按原预测复跑全中。
 - 首轮臂跑全腿 void（平面缺 tests.test_http_route_inventory，显式 node-id 收集整体
   中止 rc=4）：修法是平面补该文件 + collect-only 预检（66 例收集成功才进臂）。
+## 第一百九十三批 M8-T162：DAG 节点花费从不折叠回运行预算——aggregate_dag_tokens 去孤儿化 + 折叠越限发具名 planner budget_exceeded 事件（五臂见证）
+
+### 1 来源
+
+T161 收尾后寻下一候选：任务状态表第 682 行的 M6-T2 行标着 ✅，其中一句写
+「`execute_dag` 后用 `aggregate_dag_tokens` 求和并 `runtime_state.budget.record_usage`
+**回填父预算**（超限发 `planner` `budget_exceeded` trace 而非静默）」——**这句描述的动作
+从未在任何已提交版本里出现过**：全 ref 检索 `git log --all -S aggregate_dag_tokens`
+在 minicc/web.py 上只有本批提交；`aggregate_dag_tokens` 自 02059ea 起只存在于
+`graph.py:412`（生产孤儿，唯一调用者是它的测试）。
+
+先做只读探针（P0，进程内，`minicc.__file__` 已核 = 仓库）：同一份载荷里
+`metrics.budget.tokens = 18`（规划器那份，soft_max_tokens=5000），而
+`tokens_used.total_tokens = 1400018`、`planner.execution.tokens_used = 1400000`
+（两个只读节点各 700k）——**运行预算从不知道节点花了钱，软上限也永远不响，缺口 = 1400000**。
+
+族内旁证（"unpinned acceptance" 标本）：`tests/test_subagent_streaming.py:252`
+`test_dag_token_totals_fold_into_parent_budget` 看似在守这条合同，实为**测试自己接线**——
+它新建一个 `Budget()`、由**测试**调用 `record_usage`、再断言自己那次调用：
+套件全绿而生产从未折叠。
+
+占号：`git log --all --grep M8-T162` 为空（唯一命中是落地提交本身；并行车道 dc78eb1
+信息里的「T162」是其自家编号、记录号 163，与本单元无碰撞）。记录序号由追加脚本
+从文件自身字节重导「可追加数」，起草读数不作数。
+
+### 2 交付
+
+提交 3518214（两文件 +208/-5）：`minicc/web.py`（+25/-5）+ 新门
+`tests/test_planner_dag_budget_fold.py`（2 例，+183/-0）。
+
+web.py 三段：
+- `web.py:40` 导入行加 `aggregate_dag_tokens`；
+- `execute_dynamic_plan` 手工汇总节点 token 的循环换成
+  `token_totals = aggregate_dag_tokens(dag_result.outputs)`（`web.py:2000`，孤儿去化）；
+- `execution` 结算块与 `planner_execution_finished` 之间（`web.py:2012-2034`）插折叠：
+  `token_totals` 非空就 `runtime_state.budget.record_usage(token_totals)`；
+  `BudgetExceeded` 不逃逸也不静默——发与评审器侧 `record_review_usage`
+  （`web.py:2197-2228`，超限发 `completion_judge` `budget_exceeded`）同款形状的具名
+  `planner` `budget_exceeded` 事件：`phase="planning"`、`detail.stage="planner_dag"`、
+  `detail.tokens_used` 记下该次折叠的量。
+
+门两例（FakeProvider 给两份只读节点的计划；`capturing_run_agent` 留档每次调用的
+`budget/max_turns`，对 `max_turns == 12`（NODE_AGENT_MAX_TURNS）的节点调用返回 700k）：
+- `test_dag_node_spend_lands_in_the_run_budget`：先断言确实捕获 2 次节点调用
+  （不许空跑冒充），再断言 `metrics.budget.tokens == 18 + 2×700000`、与
+  `tokens_used.total_tokens` 同源、越过软上限（`>= soft_max_tokens`），
+  且**未越硬界的折叠不许伪造 budget_exceeded 事件**；
+- `test_dag_fold_trip_emits_named_planner_budget_event`：用 `_stage_route_budget` 包装桩
+  只把主运行预算压到 `max_tokens=1000`（按 `default_max_turns != 12` 区分节点调用），
+  断言出现具名 `planner budget_exceeded` 且 `detail.stage == "planner_dag"`。
+
+### 3 见证（预测先写后跑）
+
+预测表 `mc-t150/dagfold-predictions.txt`（P0/P1/P2/P3/P4 五段先于任何突变写成，
+逐案例红绿形状 + 末行「任何意外即停、不许落地」退出规则）。平面：`mc-t150/plane`
+（包副本 + pyproject + 门/邻居测试副本 + 根 conftest.py）；臂只改平面副本，
+仓库工作树零接触；每腿重铺 pristine（sha256 断言、锚点命中 == 1）、收集预检 70 例 rc=0、
+逐腿案例数与点名核对。
+
+| 臂 | 改动 | 预测（先写） | 实测 |
+| --- | --- | --- | --- |
+| P0（门草稿、未修树） | 无 | 2 红：case1 首断言 18≠1400018；case2 无 planner budget_exceeded 事件 | **2 红**（case1 首断言 21.6s「预算里 tokens=18，应为规划器 18 + 节点 1400000」；case2 事件码集合确无该事件）——MATCHED |
+| 控制 | 无（修复后） | 全绿 | **70/70 绿 rc=0（93s）**——MATCHED |
+| A | 删折叠调用（保留 aggregate 调用） | 恰 2 红 {case1,case2} | **恰 2 红（49s）**——MATCHED |
+| B | 保留折叠、删本地 except | 恰 1 红 {case2}，形状 = 未捕获 BudgetExceeded 逃出 | **恰 1 红（47s）**：逃逸消息 `BudgetExceeded: 最大 token 预算已用尽 (1400018/1000)`——机制 MATCHED（标签名订正见 §5） |
+| C | 折叠半额（`total // 2`） | 恰 1 红 {case1}（700018≠1400018，证明 case1 绑金额）+ case2 仍绿（700018 > 1000 仍触发） | **恰 1 红（75s）**——MATCHED |
+
+每腿案例数 [70,70,70,70]；仓库 web.py 在全部腿中字节未变（逐腿断言）。
+
+### 4 回归证据
+
+| 命令 | 读数 |
+| --- | --- |
+| P0 只读探针（未修生产树） | **2 红**（case1 21.6s 首断言；case2 无事件） |
+| 修前邻域基线（4de7bb6：test_core_task + test_subagent_streaming + test_stage_route_enforcement） | **68 passed / 0 红（58.17s）** |
+| 修后 focused：门 2 例 + 邻域 68 例 | **70 passed（54.63s）= +2/+0** |
+| 全量 | **2055 例：2050 通过 / 0 红 / 5 skip（27 分钟）** |
+
+### 5 边界
+
+- **B 臂标签订正**：预测里写「红为 ERROR」是 junit 标签习惯用词；实测 call 阶段未捕获
+  异常被 junit 记 `<failure>`（只有 setup/teardown 异常记 `<error>`）。逃逸机制与预测
+  一致（未捕获的 `BudgetExceeded` 逃出 `_chat_locked`），预测文件就地订正、原文未动——
+  改的是标签词，不是放宽判据。
+- **首轮臂跑 void（保留在案）**：全腿（含控制）4 条 setup error
+  「fixture 'suite_python_bin' not found」——平面缺**根 conftest.py**（tests/ 下没有，
+  会话夹具在 conftest.py:121）。收集预检查不出缺夹具（setup 期才解析）；是控制腿抓到的。
+  修法 = 平面补 conftest.py；重跑全中。与 T161 首轮 void（缺 test_http_route_inventory）
+  同类：**平面必须携带全部传递性测试侧依赖**。
+- **MUT_B 锚点曾错**（dry-run 在任何写入前拒绝）：FOLD_CALL 末尾已含 `except` 行，
+  与 TRACE_BLOCK 拼接后该行出现两次 ⇒ 命中 0。TRACE_BLOCK 重指到 except 行**之后**的块；
+  预测未动。写入脚本（apply_fix_web.py）的锚点常量直接从突变器 import，
+  写入文本与突变文本不可能漂移。
+- **第一百九十一批一条边界被本批核否 4/4**：它写「第 3、5、8、13 条没有找到专门断言
+  它们的测试，只找到实现」——四条**都有专门测试**，且都在它自己的提交（9b3214c）之前
+  就在仓库里：
+  - #3 → `tests/test_task_persistence.py:16` `test_close_continues_after_first_flush_fails`
+    （M3-T9 文件，另有 `:36` 全成功对照），提交 02059ea（2026-09-21）；
+  - #5 → `tests/test_rpc_threads.py:42` `test_thread_cache_is_bounded_and_evicts_oldest`
+    （M3-T8 文件，另有 `:55` LRU 复热与 `:73`/`:83` 校验），02059ea；
+  - #8 → `tests/test_core_task.py:283` `test_planner_dag_nodes_run_with_a_bounded_budget`
+    （docstring 明写 P2-8 漏网复核），提交 1cf6397（2026-09-25）；
+  - #13 → `tests/test_core_tools.py:47` `test_editor_prunes_old_backups_to_a_cap`
+    （docstring 明写 P2-8 复核），提交 8ac1910（2026-09-25）。
+  它那句「没有测试钉住」是**它自己没搜到**；这类论断必须在测试文件里搜修复名，
+  不能只搜实现目录。
+- **M6-T2 行的另一处漂移（只刻画不修表）**：行内还写「`run_node` 的全 None Budget 换成
+  `node_budget_from(runtime_state.budget)`」——`git log --all -S node_budget_from -- minicc/web.py`
+  为空：该接线从未在任何已提交版本出现。节点预算先由 M8-T51 内联（12 轮/300s，1cf6397），
+  再由 4db0dc4 换成 `_stage_route_budget`（`web.py:1933`）；`node_budget_from`
+  （`graph.py:392`）自 02059ea 起就是只有测试调用的孤儿（唯一调用者
+  `tests/test_subagent_streaming.py:241`）。本批不动它，只点名，免得把孤儿当成接线。
+- 折叠块在 `token_totals` 为空时跳过（空 DAG 无花费）；非空未越限只记账不发事件
+  （case1 末断言钉住「不许伪造」）。折叠事件先于 `planner_execution_finished`
+  （门不钉顺序）。`tests/test_subagent_streaming.py:252` 的自接线测试保持原样——
+  它测的是两块的算术，接线职责由新门承接。
