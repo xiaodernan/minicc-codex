@@ -12840,3 +12840,66 @@ minicc/ 全部 `subprocess.run(timeout=...)`，无包围 TimeoutExpired 处理�
 超时配对面全库收口（审计 13 处全定性）；M4-6 等配额（429×5）；复核表 M8
 （并行 web.py）禁碰；specproof 战区继续等；候选：§6 未勾选项新产品缺口、
 或 M3/M4 复核表让位并行后的接力勘察。
+
+
+## 第一百六十五批 第六节跟踪指标第一批复核（安全组 + M1 可靠性组）：八条全达成，一条 CI 形态差距如实登记
+
+### 1 为什么复核第六节
+
+M1–M7 的退出标准已逐条复核完毕（M2 最新在第一百三十四批），整体复核剩
+第三节全表 + 第六节跟踪指标。第三节的任务级覆盖已被逐批台账背着走；第六节
+的指标表还没有被整体过一遍。本批先过可本地实测的八条——安全组四条
+（M2 越权 / M3 网络逃逸 / SSRF / 凭据泄漏面）与 M1 可靠性组四条（流式保真 /
+单轮请求 / 挂死计数 / false_completion_rate 建立侧）。**本批只复核，不改产品代码。**
+
+### 2 逐条判定
+
+| 指标（归属） | 今日读数 | 判 |
+| --- | --- | --- |
+| 越权尝试全被拒 ≥12 条先红后绿（M2） | `test_security_perimeter.py` **19 passed in 3.71s**（134 批另做过两条变异验红：拆 `fs._minicc_sensitive_kind` 与白名单置空，红的正是清单点名的条目） | 达成 |
+| 网络逃逸全拦截 ≥20 条表驱动（M3） | `test_network_gate.py` 的 `NETWORK_COMMANDS` **29 条**参数化全绿（另有 15 条 LOCAL 反向 + 5 条 authorize 门 + 6 条 argv 分词 = 55 条） | 达成 |
+| SSRF rebinding 拒绝连接（M3） | `test_pinning_dials_validated_ip_not_rebind_target` 等全绿（合跑见第 4 节） | 达成 |
+| 凭据泄漏面 = 0（M3） | 见第 3 节：运行时真凭据 0 泄漏 | 达成 |
+| 流式保真度 100%（M1） | m1t3 家族绿（`test_m1t3_incremental_deltas_concatenated_byte_for_byte`、`test_m1t3_stream_deltas_reach_the_surface_verbatim`、`test_m1t3_a_single_prefix_repeat_stays_incremental`） | 达成（形态漂移登记：验收原文指名的 `tests/test_stream_merge.py` 已不存在，断言家族并入 `test_m1_integrity.py`） |
+| 单轮请求次数 ≤1（M1） | `test_m1t3_delta_only_gateway_costs_one_request_and_errors` + `test_m1t5_stream_without_finish_reason_fails_fast` 绿 | 达成 |
+| 挂死计数 = 0（M1） | `python scripts/reliability_probe.py` exit 0（**12 passed in 4.17s**，9 个 M1 目标 + credential scan 0 findings） | 达成 |
+| false_completion_rate 恒 0（M1 建立 / M4 起 CI 门禁） | 建立侧达成：probe 的 M1-T4/T5 断言（非终态 finish_reason 不被接受、缺 finish_reason 不重放）绿；M6-4 历史 24 条全量读数 **0**。**差距如实登记**：第三节写「CI 命名指标」，`ci.yml` 无字面 false_completion 门，eval-nightly 的 `--gate` 只挂 `latency_p95_ms`——指标的字面 CI 形态未落 | 建立达成；CI 字面命名门未落（归属 eval-nightly 配额面） |
+
+### 3 凭据泄漏面的「命中 0」怎么读出来的
+
+- 直查指标点名的三处：`.minicc/*.log`（web-8765.stdout.log 等）0 命中；
+  `sessions/` 0 命中；`.minicc/worker/` 目录不存在（无残留即无 config.json）。
+- 第一版 pattern 被 `task-<id>` 撞出假阳性——`ta`**`sk-`**`084cef…` 里含
+  `sk-`。加 `\b` 词边界后 `snapshots/task-*/tests/` 仍有命中，逐条看**全部是
+  测试源码快照里的假凭据 fixture 字面量**（`"Bearer test-token"`、
+  `"sk-ant-secret"`、`"sk-abcdefgh12345678"`——最后这个正是
+  `test_m1_integrity.py::test_m2t4` 脱敏断言自己的输入）。**测试 fixture 字面量
+  ≠ 凭据泄漏**：指标的意图是运行时真凭据不出现在可读面，照字面数命中数会把
+  断言自己的输入当成泄漏。
+- 真泄漏验证：读出 `web_token.json` 的 token 值，反查全 `.minicc/` **仅本体
+  一处**——web-*.stdout.log（M3-T2 修掉的 SSE query token 进日志路径）、
+  sessions、audit、snapshots 全部 0。reliability_probe 的 credential scan
+  独立复证 0 findings。
+
+### 4 实测证据
+
+| 命令 | 读数 |
+| --- | --- |
+| `pytest tests/test_network_gate.py tests/test_m1_integrity.py tests/test_webfetch.py -q` | **93 passed in 26.13s**（55+16+22 条） |
+| `pytest tests/test_security_perimeter.py -q` | **19 passed in 3.71s** |
+| `python scripts/reliability_probe.py` | exit 0，**12 passed in 4.17s** |
+| 凭据 grep（词边界版） | 见第 3 节 |
+| 占号双查 | ROADMAP grep `T165` 空 + `git log --all --grep=T165` 空 |
+
+### 5 下一批边界
+
+- 第六节剩余约 20 条分两批：上下文组（HTTP 面覆盖率、CI 真实性、证据可引用性）
+  可本地实测——下一批首选；效率/成本组（latency 基线、turns_per_success、
+  cost_available 等）依赖 M4-6 全量评测（配额 429×6 挂起）——如实登记挂起。
+- M8 行三条（记忆索引注入规模、可观测性 print≤5、installability）：前两条在
+  复核表 M8 禁碰面内跳过待解禁；后两条上一会话已勘察达标（cli_io.py 咽喉 +
+  pyproject 双入口），待 M8 解禁一并落账。
+- false_completion_rate 的 CI 字面命名门缺口：归属 eval-nightly 配额面，
+  配额恢复后一并收口或单列小批次。
+- `test_stream_merge.py` 文件名漂移已在本节钉住；未来 doc-pointer 引用它时
+  必须指名新位置 `test_m1_integrity.py`。
