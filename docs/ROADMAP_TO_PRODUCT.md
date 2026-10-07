@@ -398,23 +398,40 @@
 
 **M4-T9（评测可信度 milestone 内完成，避免"只做加法的路线图"）**：
 - 仓库根一次性 repro 产物：`repro_budget.py`、`repro_id_collision.py`、`prev_test.txt`、`testlist.txt`、`pytest_full.log`、`pytest_full.err`、`pytest_verify.log`、`.tmp_audit_repro/`
+  —— **第一百八十三批实测：八项全部已清**（逐个 `[ -e ]` 检查，无一仍在）
 - `web/assets/` 下 20 个陈旧内容 hash bundle 与未引用的陈旧 CSS，只保留 `asset-manifest.json` 引用的 1 份，并加 CI freshness 检查
-- 被 gitignore 且无人引用的 `web/app.min.js`
-- CI 中完全孤立、引用不存在文件的 `tests/codex_smoke.mjs`
+  —— **第一百八十三批实测：`web/assets/` 今天 3 项**，`web/app.min.js` 已不在
+- 被 gitignore 且无人引用的 `web/app.min.js` —— **第一百八十三批实测：已不在**
+- CI 中完全孤立、引用不存在文件的 `tests/codex_smoke.mjs` —— **⚠️ 第一百八十三批实测：这一条已被 M4-T8 推翻，不要照做**。
+  该文件是 101 行真实可用的 Playwright 套件；`package.json` 的 `"test:codex": "node tests/codex_smoke.mjs"` 与
+  `ci.yml` 的 `node --check tests/codex_smoke.mjs` 都在用它（M4-T8 记档：核实后选择**补 runner 并接入 CI**，删除会损失真实覆盖）
 
 **M1-T3（代码重复）**：
 - `minicc/agent/loop.py:191-207` 的 `_merge_incremental_text`——`minicc/llm/stream_merge.py` 抽出后删除这第二份逐字拷贝
+  —— **⚠️ 第一百八十三批实测：这不是"逐字拷贝"，不要照做**。`loop.py` 那支（今天在 `:234`）处理的是
+  **跨重试的累积快照**（`current.startswith(previous)` 才吸收，其余一律逐字追加、绝不删字符），
+  docstring 记的正是 M1-T3 要修的那个 bug（"7."+"7"+"." 丢掉第三片）；provider 侧的增量装配走
+  `minicc/llm/stream_merge.py`。**两处职责不同**，删掉会删掉一个语义正确的助手（见第一百三十五批 §2）
 
 **M4-T9 + M8-T6（文档与版本）**：
 - 版本号四处不一致（pyproject 0.1.0 / `main.py` 硬编码 / MCP `clientInfo` 0.2.0）统一到 `minicc/__init__.py.__version__`
+  —— **第一百八十三批实测：已完成**（`pyproject.toml` 用 `dynamic = ["version"]`，真值 `minicc/__init__.py` 的 `0.2.0`，
+  第三处由 `tests/test_packaging.py` 的 `test_version_is_single_sourced` 盯）
 - `docs/BENCHMARK_EVALUATION.md:46` 的「23 项通过」改为由脚本生成
+  —— **第一百八十三批实测：未完成**。那一行今天是「2026-09-29 复现结果：… `31 passed in 240.77s`」，
+  且**行内自带**「不要手改本行；需要更新时请重跑该命令并原样回填」——即**手工回填**。
+  全仓 grep `BENCHMARK_EVALUATION` 只命中文档之间的引用，**没有任何脚本写这份文档**
 - `README:192` 引用的不存在的 `npm run typecheck` 改为 package.json 真实脚本
+  —— **第一百八十三批实测：已不构成问题**。README 里 `typecheck` 只剩一处**规则描述**（"package.json 里名为
+  test/check/typecheck/lint 的 npm 脚本"会被白名单检查器接受），**不是**"去跑 `npm run typecheck`"的指令
 - `docs/` 15 份中三份大量重叠（`OPTIMIZATION_DELIVERY_2026-09-18`、`DEEP_OPTIMIZATION_PLAN`、`PROJECT_REVIEW_2026-09-18`）合并，收敛到 ≤11 份，且无两份文档陈述同一组数字
+  —— **第一百八十三批实测：未完成，且目标已过期**。三份文档都还在；`docs/*.md` 今天 **19 份**（后来各批还在加文档）。
+  "收敛到 ≤11" 这个数字是当时的口径，**要不要重定属于 owner 决定**
 
 **需所有者批准**：
 - 街机小游戏三件套 + 其 CI/smoke 接线（见第四节末）
 
-**明确不删（已核验为活代码，任何删除清单都不得包含）**：`web/app.js`（`scripts/build-web.mjs` 从 `web/src/main.js` esbuild 出的产物，`asset-manifest.json` 指向，`static_assets.py` 服务）、`web/index.html`（入口 HTML）、`web/src/core/i18n.js`（被 8 个模块 import）、`scripts/build-web.mjs`（CI 的 `npm run check:web` 依赖）。
+**明确不删（已核验为活代码，任何删除清单都不得包含）**：`web/app.js`（`scripts/build-web.mjs` 从 `web/src/main.js` esbuild 出的产物，`asset-manifest.json` 指向，`static_assets.py` 服务）、`web/index.html`（入口 HTML）、`web/src/core/i18n.js`（被 8 个模块 import）、`scripts/build-web.mjs`（CI 的 `npm run check:web` 依赖）、**`tests/codex_smoke.mjs`（第一百八十三批补入：`package.json` 的 `test:codex` 与 CI 的 `node --check` 都在用它，M4-T8 已推翻上面那条"删除"清单项）**。
 
 ---
 
@@ -13747,3 +13764,50 @@ grep -rln "verification_cache_false_positive\|cache_false_positive" tests/*.py m
 - `fan-out` 这个词在 `minicc/pricing.py` / `task_manager.py` / `web.py` 里出现过（token 扇出语义），
   但**没有**任何地方把它与「相对 M4 基线劣化 15%」的门连起来——本批只核了"门在不在"，没核"这些 fan-out 相关代码在做什么"。
 - 本批只动了第六节三行的**状态标注**，没有动产品代码、没有动门。
+
+## 第一百八十三批 第五节清理清单逐条实测：大部分已做，**两条照做会出事**，两条未做
+
+第五节（"要删除/清理的东西"）是**指令型**清单——和第六节的指标表不同，它写的是"去做这件事"。
+本批逐条实测，结果分三类。
+
+### 1 已做（实测确认）
+
+| 条目 | 实测 |
+| --- | --- |
+| 仓库根八项一次性 repro 产物 | **八项全部已清**（`repro_budget.py`、`repro_id_collision.py`、`prev_test.txt`、`testlist.txt`、`pytest_full.log`、`pytest_full.err`、`pytest_verify.log`、`.tmp_audit_repro/` 逐个 `[ -e ]`，无一仍在） |
+| `web/assets/` 只留 manifest 引用的 1 份 | 今天 **3 项**（从 20+ 降下来） |
+| `web/app.min.js` 删除 | **已不在** |
+| 版本号统一到 `minicc/__init__.py.__version__` | **已完成**：`pyproject.toml` 用 `dynamic = ["version"]`，真值 `0.2.0`，第三处由 `test_packaging.py::test_version_is_single_sourced` 盯 |
+| `README` 引用不存在的 `npm run typecheck` | **已不构成问题**：README 里 `typecheck` 只剩一处**规则描述**（说明"package.json 里名为 test/check/typecheck/lint 的脚本"会被白名单检查器接受），不是"去跑这个命令"的指令 |
+
+### 2 ⚠️ 两条**已被推翻，照做会出事**——就地标注，并补进「明确不删」名单
+
+- **「CI 中完全孤立、引用不存在文件的 `tests/codex_smoke.mjs`」→ 删除它。**
+  实测：该文件**是活的**——`package.json` 有 `"test:codex": "node tests/codex_smoke.mjs"`，
+  `ci.yml` 有 `node --check tests/codex_smoke.mjs`，而且 M4-T8 记档当时**核实后否决了这条**（"`zombie_spawn_smoke.mjs` 存在、
+  `codex_smoke.mjs` 全文不引用它，且它是 101 行真实可用的 Playwright 套件"），选择**补 runner 并接入 CI**而不是删除。
+  本批把它**补进第五节末尾的「明确不删」名单**（那张名单的用途正是防止误删，但它此前没收录这个文件）。
+- **「`loop.py` 的 `_merge_incremental_text` 是第二份逐字拷贝 → 删除」**
+  实测：**不是拷贝**。`loop.py` 那支（今天 `:234`）处理**跨重试的累积快照**（`current.startswith(previous)` 才吸收，
+  其余一律逐字追加、**绝不删字符**），docstring 记的正是 M1-T3 要修的那个 bug；provider 侧的增量装配走
+  `minicc/llm/stream_merge.py`。**两处职责不同**，删掉会删掉一个语义正确的助手（第一百三十五批 §2 已记档）。
+
+**这两条为什么危险**：第五节是"去做"的清单，没有状态标记；一个照着它执行的读者/agent 会删掉活代码。
+**纪律**：**清理清单也要按"今天还成不成立"逐条核**，不能当待办直接执行。
+
+### 3 两条**未做**
+
+- `docs/BENCHMARK_EVALUATION.md:46` 的「23 项通过」**改为由脚本生成** → 实测**未完成**：那一行今天是
+  「2026-09-29 复现结果：… `31 passed in 240.77s`」，且**行内自带**「不要手改本行；需要更新时请重跑该命令并原样回填」
+  ——即**手工回填**；全仓 grep `BENCHMARK_EVALUATION` 只命中文档之间的引用，**没有任何脚本写这份文档**。
+- `docs/` 三份重叠文档合并、**收敛到 ≤11 份** → 实测**未完成且目标已过期**：三份都还在，`docs/*.md` 今天 **19 份**
+  （后来各批还在加文档）。"≤11"是当时口径，**要不要重定属 owner 决定**——本批不动。
+
+### 4 边界（明确不声称）
+
+- 本批**只动文档**（就地标注 + 补一条「明确不删」），**没有**删任何文件、没有改产品代码。
+- 「未做」的两条**没有去实现**：文档合并是 owner 口径决定；让那行"由脚本生成"要先有一个生成器（设计决定，且
+  该文档今天还含大量手工叙述），不是顺手能做的改动。
+- 本批**没有**核第五节之外的其他清单（例如第四节末那条"街机小游戏三件套 + CI 接线需所有者批准"）。
+- 「明确不删」名单里的五个文件本批逐个确认**都还在**（`web/app.js`、`web/index.html`、`web/src/core/i18n.js`、
+  `scripts/build-web.mjs`、`tests/codex_smoke.mjs`）。
