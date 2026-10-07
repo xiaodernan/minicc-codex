@@ -12890,7 +12890,7 @@ M1–M7 的退出标准已逐条复核完毕（M2 最新在第一百三十四批
 | `python scripts/reliability_probe.py` | exit 0，**12 passed in 4.17s** |
 | 凭据 grep（词边界版） | 见第 3 节 |
 | 占号双查 | ROADMAP grep `T165` 空 + `git log --all --grep=T165` 空 |
-| CI 绿证（补记） | 台账首推 190c4a0 的 run 37555496744 **红在 claims job**：第 3 节把 `test_m1_integrity.py::test_m2t4` 写成缩写函数名，doc-pointer 门按精确函数名查找整个 tests/ 无此函数 → 悬空（指针门的第三种变体：前两批是文件不存在/未跟踪，本批是**函数名缩写**）。补 1c5069f 写全名 `test_m2t4_allowlist_redacts_and_matches_redacted_command` 后 `doc_pointers --check` exit 0，run 37555946855 @ 1c5069f **success**——八条判定全部背在绿树上 |
+| CI 绿证（补记） | 台账首推 190c4a0 的 run 37555496744 **红在 claims job**：第 3 节有一处 `文件::函数` 形态的引用，函数名只写到 `m2t4` 前缀（真名以 `_allowlist_redacts_and_matches_redacted_command` 收尾），doc-pointer 门按精确函数名查找整个 tests/ 无此函数 → 悬空（指针门的第三种变体：前两批是文件不存在/未跟踪，本批是**函数名缩写**）。补 1c5069f 写全名后 `doc_pointers --check` exit 0，run 37555946855 @ 1c5069f **success**——八条判定全部背在绿树上。本行初稿曾把缩写形态当作引文原样写回，绿证树 run 37556844536 @ 42af8d1 三 job 同根因再红——**门扫的是字面量，描述缺陷的句子也必须改写引用形态，不能照抄缺陷字面量** |
 
 ### 5 下一批边界
 
