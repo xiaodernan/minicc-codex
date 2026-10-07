@@ -12950,3 +12950,44 @@ M1–M7 的退出标准已逐条复核完毕（M2 最新在第一百三十四批
   效率/成本组（latency、turns_per_success、cost、fan-out 护栏、委派率）依赖
   M4-6 全量评测（配额 429×6 挂起）——如实登记挂起；pass@1 分母 ≥24 同。
 - M8 行三条仍按复核表 M8 禁碰面跳过待解禁。
+
+
+## 第一百六十七批 第六节跟踪指标第三批复核（MCP 健壮性 + 审批覆盖率 + CI 墙钟）：两条达成一条半，时延子项差距如实登记
+
+### 1 为什么复核第六节
+
+第一批（第165批）八条、第二批（第166批）三条之后，本批过剩下的可本地实测
+条目：MCP 健壮性（M5）、审批覆盖率（M7）、CI 墙钟/flake 率（M4）。
+**本批只复核，不改产品代码。**
+
+### 2 逐条判定
+
+| 指标（归属） | 今日读数 | 判 |
+| --- | --- | --- |
+| MCP 健壮性：工具输出 ≤6000 字符比例 100%、单次调用 P99 <5s（M5） | `tests/test_mcp_stdio.py` **12 条**测试全绿（退出标准 ≥8 条），覆盖五条任务全部验收：`test_half_million_char_output_is_truncated`（M5-T1 截断）、`test_string_id_response_is_matched` + `test_server_initiated_ping_is_answered`（M5-T2）、`test_undecodable_stdout_fails_fast_not_30s` + `test_manager_negative_cache_does_not_respawn`（M5-T3 快速失败与负缓存 = P99<5s 的机制等价物）、`test_long_tool_name_collision_is_disambiguated`（M5-T4）、`test_close_reaps_child_process`（M5-T5），另有 resources 注入、健康标记、CLI 列举三条 | 达成（P99 以快速失败机制等价物背书，无分布采样读数——如实注明口径） |
+| 审批覆盖率 100% + 记录审批中位时延（M7） | `tests/test_permissions_approval.py` 21 条绿（合跑见第 4 节）：default 模式写/exec 走显式决策（挂起 → 用户决定 → 执行/拒绝），deny 优先、60s 默认拒绝、二次零打扰、帧与审计分流全有门——覆盖率 100% 的机制证据在位。**差距如实登记**：「记录审批中位时延」子项零实现（minicc/ 无 median/审批时延字段），无分布读数 | 覆盖率达成；时延记录子项未落（登记归属 M7 面） |
+| CI 墙钟 ≤15 分钟、真实模型只进 nightly（M4） | 最近 12 个 run 墙钟 **5.0–7.3 分钟**，全部 ≤15；3 个 failure 全是已知根因（两次台账字面量红 + 一次 schedule 打在旧树），**0 flake**；nightly（eval-nightly job）无 key 时 skip 且带警告注释（ci.yml:292），真实模型确只进 nightly | 达成 |
+
+### 3 「P99 <5s」没有分布读数怎么判
+
+指标的验收原文（M5-T3）钉的是机制：「第二次调用 <1s 失败」而非 30s——
+`test_undecodable_stdout_fails_fast_not_30s` 直接断言这个边界。分布采样
+（真 50 万字符输出的 P99）需要起真实 server 偋负载，属于性能基准而非正确性
+门；本批如实把口径写成「机制等价物背书」而不冒充分布读数。
+
+### 4 实测证据
+
+| 命令 | 读数 |
+| --- | --- |
+| `pytest tests/test_mcp_stdio.py tests/test_permissions_approval.py -q` | **33 passed in 10.28s**（12+21 条） |
+| `gh run list` 最近 12 run 墙钟 | 5.0–7.3 min，0 flake（3 红已知根因） |
+| 占号双查 | ROADMAP grep `T167` 空 + `git log --all --grep=T167` 空 |
+
+### 5 下一批边界
+
+- 第六节至此：**14 条落账**（8+3+3），全部达成或达成含登记差距；剩余为
+  效率/成本组（latency、turns_per_success、cost、fan-out、委派率、pass@1
+  分母）——依赖 M4-6 全量评测（配额 429×6 挂起）；M8 行三条禁碰待解禁。
+- 审批中位时延子项若要收口：需在审批决策事件里记时延字段并出中位数读数，
+  归 M7 面小批次（涉及产品代码，不在复核批内做）。
+- false_completion_rate 的 CI 字面命名门缺口维持归属 eval-nightly 配额面。
