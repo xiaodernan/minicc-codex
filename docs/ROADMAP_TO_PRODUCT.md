@@ -14272,3 +14272,89 @@ A 不许弄红 graders 行、B 不许弄红 allow 表 4 行——族间独立。
   停止，跨盘的测试文件一路爬到头），扫描系统 Temp 时与并发会话删除 Temp 条目赛跑，三次
   以 `ERROR collecting test session`（FileNotFoundError，foreign 目录 caesura-*/playwright
   profile/specproof-head-*）中断收集；加旗标后走查收缩到测试文件所在目录一层。
+## 第一百九十二批 M8-T161：workspace 单门接线普查从「计数下界」换成「逐入口身份绑定」+ restore 入口补上唯一缺失的行为见证（六臂见证）
+
+### 1 来源
+
+T153 收尾后寻下一候选：`minicc/workspaces.py:15` 的 `resolve_workspace_path` 是
+`workspace_roots` 的唯一执行点，接线门 `test_security_perimeter.py:72`
+`test_all_four_entries_call_shared_resolver` 却是纯文本计数 `>= 4`（docstring 仍写
+"web.py (3 entries)"）——实际站点已增长到 5（web.py 4 + task_manager.py 1），
+**删掉任意单个站点后 4 ≥ 4 仍绿，该门看不见任何一次删除**。
+
+行为见证现状盘点：switch→test_web_security（+HTTP select）、RPC→test_http_surface 两条、
+chat→test_roots_block_chat、submit→两条；唯独 `restore_task_snapshot`（web.py:909，
+把快照字节**写回磁盘**的入口）的 roots 拒绝全库零见证——唯一引用它的行为测试
+（test_snapshots.py:156）走的是 has_active 分支。
+
+先做只读探针（P0a，平面副本）：删掉 restore 站点后跑 security_perimeter +
+snapshots + 6 条 http roots 节点 ⇒ **0 红 rc=0**——空洞成立，遂按「门」单位落地。
+
+占号：T154~T160 已被并行车道占用（各自记录在案），`git log --all --grep T161` 为空，
+本批取 M8-T161。记录序号 150~191 已被连续占满（T161 的表位由 M11-T11/M11-T12/M2-T9
+等单元与审计车道使用），故取下一个可追加数；追加时由脚本从文件自身字节重导，
+不依赖起草时的读数（代码提交信息里的「153 之后空位」是前一版计数法的残句，
+本记录以脚本重导为准）。
+
+### 2 交付
+
+提交 4de7bb6（两文件 +264/-3）：tests/test_workspace_gate_is_asked_by_every_entry.py
+（6 例，+260/-0）+ minicc/workspaces.py docstring 订正（+4/-3）。
+
+- 四例普查：导入身份（两模块必须 `from .workspaces import resolve_workspace_path`，
+  同名本地函数不算）；正向逐入口（声明表五入口各自的函数体内必须有调用，
+  AST 找最近闭包，`entry.inner` 也算 entry）；反向逐站点（web/task_manager 里
+  所有调用点必须落在声明表内，闭包前缀容差）；包内导入者全集 == 声明表
+  （新模块若开始 import 解析器会被点名）。
+- 两例 restore 行为：越界快照拒绝（precondition 先断言快照目录存在——不许让
+  「找不到快照」冒充「白名单拒绝」；拒绝后外部文件字节不动 = 写回前就拦下）；
+  根内对照（service.workspace 与快照记录的工作区不同，恢复必须落在**记录的**
+  工作区，service 自己那棵不落文件）。
+- minicc/workspaces.py docstring 「All four entries」→「All five entries …
+  snapshot restore」——让模块自述与普查表同源。
+
+### 3 六臂见证（预测先写后跑）
+
+预测表：`mc-t150/arms154_predictions.md`（腿表＋交叉不变量先于任何突变写成）。
+平面：`mc-t150/plane154`（minicc 包副本 + pyproject + 五份测试副本；in-process
+预检 `import minicc` 落在平面内）。臂只改平面副本（web.py/task_manager.py），
+仓库工作树零接触；每条腿先重铺 pristine 再打突变（sha256 断言，锚点命中数 == 1）。
+末轮按落地基线字节复跑（task_manager.py 在此期间被并行车道更新，哈希已变）。
+
+| 臂 | 改动 | 预测（先写） | 实测 |
+| --- | --- | --- | --- |
+| P0a（无门文件） | 删 restore 站点 | 现有集 0 红 rc=0（空洞证据） | **42 例 0 红 / rc=0（33s）**——MATCHED |
+| 控制 | 无 | 全绿 | **66 例 66 绿 / 0 红（48s）**——MATCHED |
+| A | 删 restore 站点 | 门 2 红（正向普查 + 越界拒绝） | **2 红 / 64 绿（47s）**——逐名相符，MATCHED |
+| B | 删 switch 站点 | 门 1 红（正向）＋现有 2 红（websec + HTTP select） | **3 红 / 63 绿（40s）**——逐名相符，MATCHED |
+| C | 删 chat 站点 | 门 1 红（正向）＋现有 1 红（HTTP chat） | **2 红 / 64 绿（33s）**——逐名相符，MATCHED |
+| D | 在 file_tree 增一条未声明调用 | 门 1 红（反向普查） | **1 红 / 65 绿（38s）**——逐名相符，MATCHED |
+
+交叉不变量（写进预测表）：旧计数门 `test_all_four_entries_call_shared_resolver`
+在 A/B/C/D 四腿全部**绿**（记录的正是这个盲区）；反向普查在 A/B/C 绿、只在 D 红；
+正向普查在 D 绿；正面对照行全腿绿（拒绝行不许靠「全拒」成立）。
+
+### 4 回归证据
+
+| 命令 | 读数 |
+| --- | --- |
+| 平面控制（未突变 66 例，与上表控制同轮） | **66 passed / 0 红（48s）** |
+| 仓库 focused：新文件 + test_security_perimeter | **25 passed**（14.90s：门 6 + 对照 19） |
+| focused 回归：test_web_security + test_snapshots + test_import_hygiene + 6 http nodes | **43 passed**（31.73s） |
+| 全量 | **2053 例：2048 通过 / 0 红 / 5 skip（29 分钟，4de7bb6 全字节，rc=0）** |
+
+### 5 边界
+
+- 普查的闭包容差（`switch_workspace.inner` 算 `switch_workspace` 的站点）是刻意的：
+  声称的是「入口的执行体问门」；若未来真在闭包里问门而外层不问，门会红，走声明表更新。
+- 旧计数门保持原样不动：它的 claim（计数 ≥ 4）至今为真，只是弱；新门承接
+  「逐入口身份」这一职责，记录里点名两者关系。
+- 导入者普查认两种拼写（`from .workspaces import` 与 `from minicc.workspaces import`）。
+- restore 行为用 SimpleNamespace 假 tasks（get/has_active/lock 三字段形状与
+  TaskManager 实测一致，test_snapshots.py:160 同款先例）。
+- 夹具修复史（预测未动）：门首跑时两条行为行在**每条腿**（含控制）红——finally 里
+  `service.shutdown()` 调 `self.tasks.shutdown()`（web.py:2902）而假 tasks 无该字段；
+  修法是 finally 先换回真 TaskManager 再 shutdown（把 shutdown 塞进假件只会让夹具
+  服务夹具）。修后按原预测复跑全中。
+- 首轮臂跑全腿 void（平面缺 tests.test_http_route_inventory，显式 node-id 收集整体
+  中止 rc=4）：修法是平面补该文件 + collect-only 预检（66 例收集成功才进臂）。
