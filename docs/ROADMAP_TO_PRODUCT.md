@@ -13150,6 +13150,7 @@ docs/BENCHMARK_EVALUATION.md——它有 7 条命令块，密度全 docs 最高�
 | 手册 5 条离线命令 + gate 双阈值 | 见第 2 节表，输出留档 `output/t170_*` |
 | 占号双查 | ROADMAP grep `T170` 空 + `git log --all --grep=T170` 空 |
 | 预检 | `python scripts/doc_pointers.py --check` exit 0 |
+| CI 绿证（补记） | run 37578798712 @ 88496c7 **success**（6m21s）——8 条判定全部背在绿树上，一笔过 |
 
 ### 5 下一批边界
 
