@@ -13598,29 +13598,41 @@ print("PR eval:", {k: m[k] for k in
 ok = (
     m["execution_completion_rate"] == 1.0
     and m["grading_coverage"] == 1.0
-    and m["false_completion_rate"] == 0
+    and m["false_completion_rate"] == 1.0
 )
 sys.exit(0 if ok else 1)
 ```
 
-**fail-closed**：断言写的是 `== 0`，所以 `None`（没有可评分任务）**判失败**，不是静默通过。
-另外把该指标加进打印，红的跑里能直接看到读数。
+**期望值是 1.0，不是 0——而且这是量出来的，不是从表里抄的。** 我第一版写的是 `== 0`
+（理由是"表里写着恒 0"），**CI 当场红了**。本地按 CI 那条命令复现（fake provider、behavior 套件）：
 
-**验证（用的是从 workflow 里抽出来的那段脚本本身，不是重写的副本）**：
-YAML 解析取出 `eval-pr` 的 `Assert flow gate` 步骤 → 用构造的 `output/pr-eval.json` 跑三次：
+```
+{'execution_completion_rate': 1.0, 'grading_coverage': 1.0, 'pass_at_1': 0.0,
+ 'false_completion_rate': 1.0, 'gradable_task_count': 12}
+```
 
-| 构造读数 | 退出码 | 打印 |
+假 provider **不解题**：12 条任务全部"完成"、全部判失败，所以**每一个完成都是假完成**，比率就是 1.0。
+表里那个「恒 0」属于**真实模型跑**（nightly）；在 PR 这道门里，有用的不变式是**反方向**的：
+**假 provider 什么都没做却有任务被判通过 → 评分器变空 → 比率跌破 1.0 → 红**。
+
+**验证（用的是从 workflow 里抽出来的那段脚本本身，不是重写的副本）**：`yaml.safe_load` 取出
+`eval-pr` 的 `Assert flow gate` 步骤文本，喂两份构造的 `output/pr-eval.json`：
+
+| 构造读数 | 退出码 | 说明 |
 | --- | --- | --- |
-| `false_completion_rate = 0` | **0** | `PR eval: {..., 'false_completion_rate': 0}` |
-| `0.25`（一次假完成） | **1** | `PR eval: {..., 'false_completion_rate': 0.25}` |
-| `None`（没量到） | **1** | `PR eval: {..., 'false_completion_rate': None}` |
+| 真实读数（`false_completion_rate = 1.0`） | **0** | 与 CI 一致 |
+| `0.9`（有任务被误判为通过） | **1** | 空评分器/假完成漏判会红 |
 
 （第一次抽脚本用正则抓错了区块，三个用例**都**退 1 且无输出——那会被读成"门拒绝一切"，实际是脚本没跑。
 改用 `yaml.safe_load` 取步骤文本后才对。又一次"读数在成为结论前先确认它量的是那件事"。）
 
 **门自己的门**：`tests/test_ci_hygiene.py` 新增一格 `test_pr_eval_gate_names_false_completion_rate`，
-断言 ①门脚本里有 `m["false_completion_rate"] == 0`（否则这行的"CI 命名指标"又变回散文）、
+断言 ①门脚本里有 `m["false_completion_rate"] == 1.0`（否则这行的"CI 命名指标"又变回散文）、
 ②断言块之前**打印**了该指标（红的跑要能说清读数是多少）。该文件 **9 passed**（原 8 格 + 本格）。
+
+**仍未兑现的那半**：表里「任何回归必须红灯」针对的是**真实跑**，而 nightly 的 `--gate` 只认
+`pass_at_1` / `cost_per_success_usd` / `latency_p95_ms` / `grading_coverage` 四类（M4-T6 记档），
+所以**真实模型跑里 `false_completion_rate` 还不是一道门**。要补得先让 `parse_gate` 认它——属另一批。
 
 ### 2 `verification_cache_false_positive`：**这个名字全仓库 0 命中**
 
@@ -13644,6 +13656,6 @@ grep -rln "verification_cache_false_positive\|cache_false_positive" tests/*.py m
 - 本批只核了这两行。任务清单里剩下的仍未核：`recall@1/@5/MRR`（要跑 `--suite retrieval`）、
   `llm_turn_p95_ms`、`turns_per_success` / `tool_repeat_rate`、fan-out 回归护栏、`$/task` 与 token/task、
   **挂死计数**（要 30 条 fixture 全量跑，可能要真实模型）。
-- `false_completion_rate` 的新门**只在本机用构造数据验过**，尚未经过一次真实的 CI 跑；
-  推送后要看 `eval-pr` 那一步在真跑里的读数（预期 fake provider 下为 0）。
+- 这一改**已经过了一次真实 CI 跑**，而且是**红着回来的**：第一版断言 `== 0` 在 CI 里 22 秒红，
+  促使我按 CI 那条命令本地复现、量到真值是 1.0 才改对。改后的版本**尚未再经 CI**（推送后要看 `eval-pr` 转绿）。
 - 本批**没有**去查"还有哪些指标行同样只有算术门、没有 CI 门"——那需要把第六节每一行与 workflow 逐条对账。

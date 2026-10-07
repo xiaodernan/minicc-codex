@@ -91,16 +91,21 @@ def test_pr_eval_gate_names_false_completion_rate():
 
     Measured at batch 180: it was neither. The metric is computed, and two unit cells
     pin its arithmetic (0.5 for a constructed report, None when nothing was gradable),
-    but the PR gate asserted only the two adjacent metrics - so a regression that
-    labelled a failed turn as completed would have shipped behind a green gate.
+    but the PR gate asserted only the two adjacent metrics - so a regression in the
+    completion judgement had no named CI reader at all.
 
-    Fail-closed matters here: the assertion compares against 0, so a None (nothing
-    gradable) is a failure rather than a silent pass.
+    The value the PR gate asserts is **1.0**, not 0, and that was measured rather than
+    assumed: with the fake provider every task completes and none does the work, so
+    every completion is a false one (12/12 on the behaviour suite). My first version
+    asserted 0 on the reasoning that the table says 恒 0, and CI went red - the table's
+    0 belongs to real runs. In this gate the useful invariant is the other direction:
+    if a task were graded as passed with the fake provider having done nothing, the
+    grader has gone vacuous and the rate drops below 1.0.
     """
     ci = _ci_text()
-    assert 'm["false_completion_rate"] == 0' in ci, (
-        "the PR eval gate no longer names false_completion_rate; the tracking table's "
-        "'恒 0, CI 命名指标' row would go back to being prose"
+    assert 'm["false_completion_rate"] == 1.0' in ci, (
+        "the PR eval gate no longer names false_completion_rate with the value this "
+        "provider actually produces; the tracking table's row would go back to prose"
     )
     assert '"false_completion_rate"' in ci.split("ok = (")[0], (
         "the gate should print the metric it asserts, otherwise a red run does not say "

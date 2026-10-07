@@ -250,13 +250,16 @@ jobs:
           print("PR eval:", {k: m[k] for k in
                 ("execution_completion_rate", "grading_coverage", "pass_at_1",
                  "false_completion_rate")})
-          # The tracking table calls false_completion_rate 恒 0 and a named CI metric;
-          # it was neither until batch 180. Fail-closed on None: "nothing gradable"
-          # is not the same answer as "measured zero".
+          # Measured, not assumed: under the fake provider every task completes and none
+          # of them does the work, so every completion is a false completion and the
+          # rate is 1.0 (12/12 on the behaviour suite). The tracking table's 恒 0 target
+          # belongs to real runs; here the invariant is the other direction, and it is a
+          # useful one - if a task were graded as passed with the fake provider having
+          # done nothing, the grader has gone vacuous and the rate drops below 1.0.
           ok = (
               m["execution_completion_rate"] == 1.0
               and m["grading_coverage"] == 1.0
-              and m["false_completion_rate"] == 0
+              and m["false_completion_rate"] == 1.0
           )
           sys.exit(0 if ok else 1)
           PY
