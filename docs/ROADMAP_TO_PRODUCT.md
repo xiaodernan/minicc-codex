@@ -13244,9 +13244,13 @@ minicc/prompt.py 的 `_workspace_guidance`（四种文件名常量表驱动）�
 | 占号双查 | ROADMAP grep `T172` 空 + `git log --all --grep=T172` 空 |
 | 预检 | `python scripts/doc_pointers.py --check` exit 0 |
 | CI 绿证（补记） | run 37582740000 @ 438a552 **success**（6m27s）——全部判定与新测试背在绿树上，一笔过 |
+| 绿证树 + flake 如实记 | 绿证树 run 37583536893 首跑 failure：windows job 里 test_task_worker 关停租约断言超 40s 窗口（与本批改动无关，本地复跑 1 passed in 38.11s 贴着窗口）；`rerun --failed` 后 **success**（6m55s）——时序 flake 实锤，非代码缺陷 |
 
 ### 5 下一批边界
 
 - 文档承诺面继续：README 其余能力行（如搜索适配层、todo 工具、
   worktree 管理）可按同一「先实测后补测」模式逐行收口。
+- 遗留一扇小敞口：test_task_worker 的关停测试本地耗时 38s 贴着 40s
+  断言窗口，CI 负载波动即 flake（本批绿证树首跑即触发一次）；把窗口
+  或等待改成非硬编码属产品代码修改，登记待办不在台账批内做。
 - 效率/成本组指标（配额 429×7）与 M8 复核行维持挂起；specproof 战区继续等。
