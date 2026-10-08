@@ -16298,3 +16298,97 @@ M 臂那张「旧门绿、新门红」就是本批存在的全部理由：**同�
   **字符串标签**（不是判决）。两者语义一致（「没有评分器会判它」），本批没有合并——
   标签和判决是两种值，合成一个构造者反而会混淆。单主门的普查范围因此只扫
   「返回 dict 且含该字面量」，不扫字符串返回值，这是刻意的。
+## 第二百一十六批：M8-T188 — LLM 面×记账面普查门（每个 chat_with_cancellation 面必须点名记账它花费的表面，T162/163/164/165 弧的收口）
+
+**缺陷**：同类洞在本仓库已被逐个发现四次——DAG 节点（T162）、任务子代理（T163）、
+规划器（T164）、批任务合并器（T165，别车道落地）——每一次都是「面在花钱、管这次花费的
+表面看不见」。四例逐条靠人眼发现，没有任何结构性判据阻止第五例：一个新 LLM 面可以
+带着 0 记账悄然进栈，一次重构可以把某面的记账语句挪出可寻址的 def 链而无人问。
+
+**修复**（新门 `tests/test_llm_surface_accounting_census.py`，3 例，纯门单元、无产品改动）：
+
+- 总体由树推导：AST 遍历 `minicc/` 找 `chat_with_cancellation` 调用点，现测 4 面；
+  注册表按 (文件, 包裹 def 链) 身份键登记，绝不按 file:line（行码随上游漂移）。
+- 双向钉死：未注册的面红、注册面消失红、单面多 call 红；别名导入会瞎化遍历，
+  被显式拒绝而不是静默漏读。
+- 每面钉「记账语句所在的载体」：run_agent 与 prepare_planner 需 record_usage+record_cost；
+  评委链需 record_review_usage 的两行折叠**且有活调用者**（有声明无调用=死码）；
+  merge_batch/execute 钉**两个表面**——运行预算折叠与任务 usage 行（on_usage→
+  on_merge_usage→parent.update_usage），并钉调用方的武装链：task_manager 必须传
+  budget=/cost_estimator=、必须 getattr "batch_merge_budget"、web 必须真有该 def
+  （查找与建造者是一对，任何一半漂移都红）。
+- 触达下限：遍历须见 ≥70 个 .py 与三家 provider 的 chat 声明，防「数了个洞」。
+
+**变异臂**（预测先写；10 臂全部单点变异、磁盘备份、sha256 还原、绿控终检）：
+
+| 臂 | 变异 | 预测红集＝实测 | 判定 |
+| --- | --- | --- | --- |
+| A1 | 删规划器 record_cost 三行块 | T3 / `prepare_planner: no record_cost` | MATCHED |
+| A2 | loop 折叠 record_cost 去前缀成裸表达式 | T3 / `run_agent: no record_cost` | MATCHED |
+| A3 | 删 merge 的 on_usage 转发 | T3 / `not forwarded via on_usage` | MATCHED |
+| A4 | 删 `parent.update_usage({"stage": "merge", **usage})` | T3 / `on_merge_usage: no parent.update_usage` | MATCHED |
+| A5 | 改调用方名字（def 留） | T3 / `no caller invokes record_review_usage`（死码条款接住——首轮我按 _subtree 失踪预测，实测更正） | MATCHED |
+| A6 | merge 面内插第二个 chat call | T1 / `registered site carries 2 calls`（计数条款接住，同上加记更正） | MATCHED |
+| A7 | web 导入改 `chat_with_cancellation as _cwc` | T1 / `aliased import would blind this census` | MATCHED |
+| A8 | 删 merge 的 if-guard+record_cost 两行 | T3 / `merge_batch/execute: no record_cost` | MATCHED |
+| A9 | 删调用方 `budget=merge_budget,` kwarg | T3 / `does not pass budget=`（折叠语句在、天花板未武装） | MATCHED |
+| A10 | getattr 字面量改 `"batch_merge_budget_v2"` | T3 / `nothing looks up batch_merge_budget via getattr` | MATCHED |
+
+终检（未变异）：3/3 绿、rc=0，三文件 sha256 与 pre-arm 逐字节一致。
+
+**反向对照**（git archive 真实历史字节，兄弟平面）：
+
+- C1=8434788^（T164 前）：3 跑 1 红（T3），恰 7 行问题，首行点名
+  `prepare_planner: no record_cost`——门在缺陷原形上以原话变红；
+- C2=43a8bf4^（T165 前）：恰 6 行问题，全部指向未武装的 merge 面，
+  prepare_planner 行缺席（T164 已在）——每行钉到行级，另加行数下限/上限；
+- C3=HEAD 平面：3/3 绿。
+- 首轮红字面检查曾读 junit `<failure>` 的**元素文本**（那是源码上下文回显，任何
+  「应当缺席」检查都恒真）；更正为读 message 属性（真正发射的问题行）后三平面全中。
+
+**回归证据**：
+
+| 命令 | 读数 |
+| --- | --- |
+| 门（HEAD 平面，落库前只读预览） | 3/3 绿 |
+| 门（落库后单跑） | 3 passed（2.56s） |
+| focused（本门 + batch/merge/planner/subagent 折叠邻家六文件） | **33 passed / 0 红（31.88s）** |
+| 全量 | **2158 collected / 3 failed / 2150 passed / 5 skipped（1411.11s）**——worktree 平面 wt188a @`76eb81d`，三条红逐条见 §5，无一含本门文件 |
+
+**§4 平面取证方法订正（本实测否证了上一批自己写的做法）**：上一批把「兄弟平面」一律
+用 `git archive` 造，本批用它跑**全量**实测到 **32 条红**，其中 **30 条是平面的形状、
+不是代码的形状**——`git archive` 出来的目录没有 `.git`，于是所有以 `git ls-files` 为
+总体的门（`test_tracked_files_carry_no_conflict_marker`、`test_doc_pointers`、
+`test_pointer_liveness_corpus`、`test_task_table_claim…`）一律「一条都没返回⇒在仓库里
+存在」全判否，指针语料一次报出 697 条 `POINTER`。同一 5 个文件在 **worktree 平面**
+（`git worktree add --detach … 76eb81d`，有真 git 元数据、只有被跟踪的提交字节）上
+**88 passed / 2 红（548.58s）**。结论按用途分开写：只读源码结构的门（本门、以及本批
+C1/C2/C3 反向对照）用 archive 是有效的；**跑全量围栏必须用 worktree 平面**，并且必须
+断言 `minicc.__file__` 落在平面内（实测确实落在平面内，`.pth` 可编辑安装没有把主副本
+漏进来）。
+
+**§5 本平面实测的三条预存在红（都不是本批引入，逐条证过）**：
+
+| 红 | 平面证据 | 归因 |
+| --- | --- | --- |
+| `tests/test_stage_routing_config_reaches_the_router.py::test_every_production_construction_site_is_the_one_this_test_copies` | 在**没有本门文件**的父提交平面（6cb031d worktree）复现同一条红 | `43a8bf4`（M8-T165）给 web.py 加了第二个 `StageRouter(` 构造点（web.py:1157 与 :1371），而该门钉的是「`sites == [expected]`」＝恰好一处；从此这条普查对生产形状瞎一半。**此前未登记**，本批登记 |
+| `tests/test_subprocess_decoding.py::test_no_text_mode_capture_asks_for_a_strict_decoder` | 同一父提交平面复现；发射的 9 个 offender 全部点名 `scripts/impacted_tests.py`、`tests/test_impacted_tests.py`、`tests/test_packaging.py`，无一含本门文件 | 第二百一十五批 §4 已登记（`092ad68` 引入），并行车道正在写那三个文件，本批不碰 |
+| `tests/test_cleanup_version.py::test_all_version_consumers_agree` | 父提交平面 wt188b（`6cb031d`，无本门文件）单跑该文件＝**1 failed / 11 passed**，文案 `assert '0.1.0' == '0.2.0'` 与全量逐字相同；同一命令在 wt188a 与主副本各自 **12 passed**。两个平面的差别只有一件事：根目录有没有 `minicc.egg-info`——主副本那份生成于 01:17，wt188a 那份生成于 **03:36＝围栏跑到一半**，两者 `Version: 0.2.0`；而 `.venv` 里的安装元数据始终是 `minicc-0.1.0.dist-info`（9 月 26 日装，源码 `__version__` 早在 `f0720fc` 已提到 0.2.0） | **本批不引入，但它不是「机器脏了」那么轻**：`python -m pytest` 把 CWD 放进 `sys.path[0]`，`importlib.metadata` 因此先看见 CWD 的 `minicc.egg-info` 才看见 site-packages 的 dist 记录——这条门的红/绿由「本平面先前跑过打包测试没有」决定，与代码无关。更要紧的是**绿可以是假的**：wt188a 的 12 passed 恰恰是打包测试自己写的 egg-info 把这台机器上真实存在的过期安装元数据盖住了，而该门宣称要查的就是「装出去的版本 == 源码版本」。修法（让读到的版本绑定被测平面/让红同时点名两个来源）已立为下一批候选 |
+
+本批净效果 = **+3 例、+0 红**（全量里的三条红逐条在父提交平面复现、同文案同数值，
+没有一条指向本门或本批改过的文件；本门 3 例在全量里全绿）。
+第一条红的修法（把钉改成从生产推导：`sites` 的去重形状 == 生产构造点形状，且点数由
+AST 现算）已立为下一批候选，不在本批动，因为那条门不是我这一轮的载体，且它眼下挡不到
+任何新形状落地——它只是把自己钉在了一处构造点的手抄期望上。
+
+**边界**：
+
+- 门只读源码结构，不执行 minicc：它证明「语句在场且可达」，不证明运行时真的扣费
+  ——后者由 T162–T165 各自的折叠门与行为见证负责；本门是它们的**防漏网**。
+- 注册表面向 `chat_with_cancellation` 这一函数名；将来若出现第二个统一入口，本门
+  不会自动认识它——新增入口必须同步扩 CALL 名单，这是有意的显式债务（docstring 已写）。
+- 「无调用者」条款只查 web.py 内部（评委折叠就地调用）；跨模块调用者需扩载体范围，
+  当前无此形状。
+- 平面取证按用途分两种：只读源码结构的门与 C1/C2/C3 反向对照用 `git archive`（autocrlf
+  下 HEAD blob 即 LF 源文本，与 worktree CRLF 的差异不影响 AST 读）；**全量围栏用
+  worktree 平面**，理由见 §4。
