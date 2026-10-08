@@ -494,6 +494,28 @@ def run_interrupted(grader_type: str, exc: BaseException) -> dict[str, Any]:
     return _no_result(grader_type, f"{label}: {detail}" if detail else label)
 
 
+def ungraded_verdict() -> dict[str, Any]:
+    """The verdict for a task whose declared grader this host cannot run at all.
+
+    Not a refusal, and the difference is load-bearing: a refusal says a grader
+    existed and declined to look, so it carries ``grading_refused`` and the row is
+    kept out of ``gradable``. This says nobody was ever going to look, so it
+    carries no refusal flag - which is exactly why ``grading_refusal_count`` reads
+    zero for it, and why ``no_grader_count`` reads zero too when the task *did*
+    declare a grader (M8-T184 counts the tasks that declare none). The only trace
+    such a row leaves is the denominator shrinking under ``grading_coverage``.
+
+    Two modules hand-wrote this dict - ``grade_v2`` and ``grade_behavior`` - and
+    on the shipped suites neither copy is reachable: every v2 task declares a type
+    in ``GRADER_TYPES``, and every legacy task declares no grader at all, so the
+    runner never calls ``grade_behavior`` for one. Two unreachable copies of the
+    same verdict are not harmless: the day one of them gains a field, the other
+    keeps the old shape and the report prints both identically, because
+    ``markdown_report`` reads ``passed`` and ``grading_refused`` and nothing else.
+    """
+    return {"passed": None, "grader_type": "ungraded"}
+
+
 #: Keys the host reads off a grader spec before the embedded script ever sees it.
 #: The gate reconciles this against the shipped dispatch and producers by AST, so a
 #: drift here is a red rather than a spec key that starts being silently rejected.
@@ -682,11 +704,20 @@ def grade_command_contract(
 def grade_v2(
     task: dict[str, Any], workspace: Path, answer: str = "", *, grader_dir: Path | None = None
 ) -> dict[str, Any]:
-    """Dispatch a v2 task to its grader; signature mirrors ``grade_behavior``."""
+    """Dispatch a v2 task to its grader; signature mirrors ``grade_behavior``.
+
+    The fallback is a safety net, not a path: ``run_benchmark`` only calls this for
+    a type in ``GRADER_TYPES``, so today it cannot be reached from a run. The door
+    in ``tests/test_every_declared_grader_type_reaches_a_grader.py`` holds that
+    list against what this function actually dispatches, because the failure mode
+    of a type added to ``GRADER_TYPES`` without a branch here is that every task
+    of that type is accepted by ``validate_task``, graded as ``ungraded``, and
+    counted by no metric at all.
+    """
     grader = task.get("grader") or {}
     kind = grader.get("type")
     if kind == "file_contract":
         return grade_file_contract(task, workspace, grader_dir=grader_dir)
     if kind == "command_contract":
         return grade_command_contract(task, workspace, grader_dir=grader_dir)
-    return {"passed": None, "grader_type": "ungraded"}
+    return ungraded_verdict()

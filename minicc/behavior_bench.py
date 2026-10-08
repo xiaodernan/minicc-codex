@@ -250,7 +250,9 @@ def grade_behavior(task: dict[str, Any], workspace: Path, answer: str = "") -> d
     if grader.get("type") == "answer_rubric":
         return grade_answer_rubric(task, answer)
     if grader.get("type") != "python_behavior":
-        return {"passed": None, "grader_type": "ungraded"}
+        # The one owner of this verdict (M8-T187): a hand-typed copy here used to be
+        # the second place the shape lived, and nothing compared the two.
+        return bench_tasks.ungraded_verdict()
     blockers = spec_blockers(task)
     if blockers:
         # Zero cases still prints the completion marker for zero, which used to grade
