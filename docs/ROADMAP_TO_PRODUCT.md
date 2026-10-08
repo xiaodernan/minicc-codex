@@ -16498,3 +16498,93 @@ numstat（pricing 26/5、router 53/19、wiring 5/3、门 281/0），提交后逐
   需要显式扩 `_SEPARATOR_FOLD`，这是有意的债务（docstring 里写了规则）。
 - 本批改的是「谁 owns 已公布价格」，不是「价格数字本身对不对」；表内费率与厂商牌价的
   核对不在本批范围。
+## 第二百一十八批 M8-T190：静默的宽异常必须自己说为什么静默——14 处的理由有名字，第 15 处今天没人拦
+
+### 1 来源与占号
+
+来源不是某批 §8 的候选，是一次普查：`minicc/` 里宽异常处理器共 56 个
+（`except Exception` / `except BaseException` / 裸 `except`，另有窄 `except OSError` 等若干），
+其中 **14 个的 body 只有 `pass` / `continue` / `break`**——也就是把异常整个吞掉的那一类。
+
+占号：`T184`~`T189` 全被别人占用（含另一条流的 M8-T184「第三类行有了计数」，
+他们的第二百一十四批已登记与我这一撞号），`T190` 在 `git log --all` 与文档全文都是 0 命中，
+本批认领 **M8-T190**。
+
+### 2 先量：这 14 处都有理由吗
+
+AST 不保存注释，所以理由有两种读法，两种都数：
+
+| 判定 | 理由写法 | 处数 |
+| --- | --- | --- |
+| `# noqa` 出在 except 行上 | `# noqa: BLE001 - <为什么>` | 11 |
+| `except` 行与 body 首句之间有注释 | 说明性注释 | 3 |
+| **两者皆无** | — | **0** |
+
+**实测读数（普查脚本与门同源，`python tests/test_silence_must_state_its_reason.py` 的
+`_census()`）**：14 处静默宽处理，14 处都写了理由，0 处没有。
+
+所以今天的缺陷**不是**有静默没理由，而是：**没有任何东西拦住第 15 处**。
+将来有人写一个 `except Exception: pass` 而不写为什么，文件里 14 处的理由都是手写的，
+读者分不出「这是刻意的」和「这是忘了」。
+
+### 3 落地（新增 `tests/test_silence_must_state_its_reason.py`，生产码零改动）
+
+一门六格：
+
+1. **普查本身要能看到东西**（`test_the_walk_finds_the_silent_handlers_it_claims_to`）：
+   地板 10 处。门若一个都找不到，说明它自己在瞎走——这是本批最容易被绕过的一格。
+2. **每一处静默都必须说理由**（`test_every_silent_broad_handler_states_why_it_is_silent`）：
+   承重格，报错直接列出「这些站点吞了异常但没说为什么」，并给出两种补法。
+3. **两种理由拼写都算**（`test_both_spellings_of_a_reason_are_accepted`，参数化 3 格：
+   `noqa` / `comment` / `bare`）：喂三份合成源进**普查自己用的** `_stated_reason`，
+   `noqa` 与 `comment` 绿、`bare` 红。这一格是口径边界：两种拼写都是树上的既有事实，
+   门不许发明第三种；同时它保证「给理由」不是一句空话（`bare` 格给出红的形状）。
+4. **窄处理器不在辖内**（`test_a_narrow_handler_is_out_of_scope`）：
+   `except OSError: pass` 是一个**已经点了名的决定**，不归这管。
+
+参数化用了显式 `ids=["noqa", "comment", "bare"]`：一开始 pytest 用整段源码当
+测试 id（多行字符串拼出来的 id 不可读且难对账），显式 `ids` 之后失败信息才指向形状。
+
+### 4 验证（双向）
+
+**预测表先写后跑**（写在本机临时文件 pred184.md，跑之前落盘）：4 次跑 × 6 格 = 24 个预测，
+**全部 MATCHED**，三个生产文件逐字节还原（sha256 相同）。
+
+| 臂 | 变异 | 预期 | 实测 |
+| --- | --- | --- | --- |
+| baseline | 无 | 6 格全绿 | **6 全绿** |
+| A 拆掉一处现成理由 | `minicc/llm/openai_provider.py` 的「A poisoned pool …」注释整段删掉 | 格2 红、余 5 绿 | **格2 红、余 5 绿** |
+| B 加一处裸静默 | `minicc/logging_setup.py` 追加 `def _silent_probe(): try/except Exception: pass` | 格2 红、余 5 绿 | **格2 红、余 5 绿** |
+| C 把宽处理改窄 | `minicc/agent/subagent.py` 的 `except Exception` → `except ValueError` | 全绿（辖外），普查 14→13 | **全绿，普查 13** |
+| A/B/C 还原 | — | 6 格全绿 | **6 全绿** |
+
+A、B 正是门存在的两个方向：**把别人写好的理由删掉**、**加一处没人写理由的静默**。
+C 是控制：一条收窄的编辑不许让门乱响。
+
+**focused**：`python -m pytest tests/test_silence_must_state_its_reason.py -q` →
+**6 passed / 2.46s**。
+
+**全量**：`python -m pytest tests/ -q` → **2134 passed / 2 failed / 1 error / 5 skipped /
+834.68s**；`python scripts/doc_pointers.py --check` → **exit 0**。
+两条红与一个 error **都不是本批的账**，逐条在父提交平面上独立复现（不依赖本批文件）：
+`tests/test_stage_routing_config_reaches_the_router.py::test_every_production_construction_site_is_the_one_this_test_copies`
+（`minicc/web.py` 两处 StageRouter 构造点，门期望一处；`minicc/web.py` 在本批工作树里未被
+修改）、`tests/test_subprocess_decoding.py::test_no_text_mode_capture_asks_for_a_strict_decoder`
+（10 条 offender 全部落在另一条流**未提交**的 `scripts/impacted_tests.py` 与
+`tests/test_impacted_tests.py` 里，另 2 条属 `tests/test_packaging.py`）、以及
+`tests/test_http_surface.py::test_post_chat_completes_with_fake_provider` 的 fixture
+setup error（同族的起服务计时）。本批只新增一个文件，不碰这三处的任何输入。
+
+### 5 边界
+
+- **本批不含产物改动**：14 处理由不是我写的，我只是把它们变成可执行的事实。
+  生产码零改动，所以不存在「顺手改一处行为」的空间。
+- **没有禁掉任何静默**：门的口径是「静默必须说为什么」，不是「不许静默」。
+   telemetry（`subagent.py` 两处）、日志脱敏（`logging_setup.py`）、关闭连接池
+  （`openai_provider.py`）、取消信号文件写入（`task_manager.py` 多处）这些静默
+  都有真实理由，门对它们全绿。
+- **口径边界是显式的**：`# noqa` 与注释两种拼写，各有一格喂合成源；裸静默那格给出
+  红的形状。窄异常不在辖内，理由写进 docstring。
+- **测的是既有约定，不是新约定**：14/14 是树上的现状，门把它钉住；
+  若将来口径要改成「不许有任何静默」，那是显式决定，届时这格会先红。
+
