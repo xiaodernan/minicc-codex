@@ -14872,4 +14872,47 @@ responses / anthropic 若将来遇到Snapshot 型网关，按「一个 dialect �
 - 附录 B 的 9 条注记是「与工作流产出的差异」，属历史更正记录，本批只核了其中可在代码里
   指认的第 5 条（M3-T5 心跳栅栏，已在 `task_store.py:130`）；其余为当年的排序/验收措辞
   修正，无可执行读数，按历史记录保留。
+## 第一百九十九批 197 改动的端到端复验 + 第一例被观测到的 pytest flake：抓不到形状，就把下次的 shape 造出来
+
+### 1 为什么是这一批
+
+第一百九十七批改的是 `minicc/agent/loop.py`——全项目最关键的一条路径。focused 回归
+（238 例）之外，还需要**链条级**证据，于是把仓库自己的三道端到端门逐一真跑；顺带在跑
+web 安全邻域时撞见本仓库**第一例被观测到的 pytest flake**。
+
+### 2 197 改动的链条级复验（全部真跑，非转述）
+
+| 门 | 命令（本机实跑） | 读数 |
+| --- | --- | --- |
+| CI PR 评测门（fake provider） | `benchmarks --suite behavior --run --no-resume --task-timeout 120` | execution_completion_rate **1.0**、grading_coverage **1.0**、pass_at_1 **0.0**、false_completion_rate **1.0**（12/12，与 CI 断言逐项一致） |
+| legacy 套件冒烟 | `--suite legacy --run --max-tasks 3` | 3/3 completed（该套件无 grader，passed=None 属预期） |
+| M4-T7 检索决策门 | `--suite retrieval --run` | hit@1=0.7 / hit@5=0.95 / mrr=0.8083，**结论行照印：recall@5=0.95 ≥ 0.60，不引入向量检索** |
+
+循环不再二次合并流式增量之后，三条链路的终端行为与设计逐项一致。
+
+### 3 第一例 pytest flake（观测在案，未复现，未修行为）
+
+五文件组合（web_security + http_surface + http_route_inventory + permission_modes +
+allowlist）第一跑：`test_permission_modes.py::test_plan_mode_injects_system_notice`
+**1 failed / 121 passed**；同组合随后 **16/16 全绿**（另 2 件小子集合 8/8 绿，共 24 跑
+1 失败 ≈ 4%）。两次跑的是同一批文件、同一解释器，单跑该用例也绿——是顺序/时序相关的
+偶发，不是 197 的回归（197 只动 emit_stream，且全部 focused 回归绿）。
+
+**这次观测本身是不可用的**：`-q` 输出只留下汇总行，失败断言
+（`assert any("计划模式" in ...)`）不带任何诊断信息——不知道少了哪条消息、请求里有
+什么。所以本批做的是**把下次的 shape 造出来**（`tests/test_permission_modes.py`，
++9/-1）：断言改为收集命中的 notice 列表，失败时打印 `saw roles=[...]` 与
+`requests=N`。变异验证（单点、字节级还原）：把 `web.py` 的 `if permission_mode ==
+"plan":` 改成 `and False`，该测试以
+`AssertionError: plan mode must inject ... saw roles=['system','user'], requests=4`
+红；还原后 10/10 绿，`web.py` sha256 与改前逐字节一致。
+
+### 4 边界
+
+- flake 的**根因未查明**（24 跑 1 失败，之后 16 跑未复现，小子集合 8/8 绿）；
+  本批不猜原因、不改被测行为，只把观测工具修到「下次能留下现场」。
+- 第二/三节的三条门是**本地真跑**，与 CI 的差异只在机器与时钟；CI 的 PR 门
+  （`eval-pr`）此前由 197 批的 focused 回归覆盖，本批补上链条级读数。
+- 「flake 率」指标行（第六节）此前的「0 次 flake」读数限于真实模型运行；本批记录的是
+  pytest 组合跑的偶发，两者不同母体，未改写该行读数。
 

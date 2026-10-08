@@ -202,6 +202,15 @@ def test_plan_mode_injects_system_notice(tmp_path: Path, monkeypatch: pytest.Mon
     finally:
         service.shutdown()
     first_request = seen_requests[0]
-    assert any(
-        "计划模式" in str(message.get("content") or "") for message in first_request
+    # Failure shape matters: this test flaked once in 24 combination runs
+    # (2026-10-08, observed, never reproduced again). The bare assert could
+    # not say which message was missing the notice, so that one observation
+    # was uncapturable. Any future occurrence now prints what it saw.
+    notice = [
+        message for message in first_request if "计划模式" in str(message.get("content") or "")
+    ]
+    assert notice, (
+        "plan mode must inject its system notice into the first provider request; "
+        f"saw roles={[str(m.get('role')) for m in first_request]}, "
+        f"requests={len(seen_requests)}"
     )
