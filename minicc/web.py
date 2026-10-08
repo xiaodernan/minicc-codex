@@ -29,7 +29,7 @@ from types import SimpleNamespace
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 from urllib.parse import parse_qs, unquote, urlsplit
 
 try:  # httpx ships with the OpenAI SDK dependency; keep the import guarded.
@@ -70,6 +70,7 @@ from .route_wiring import (
     _stage_route_budget,
 )
 from .agent.state import AgentState, Budget, BudgetExceeded
+from .pricing import cost_usd as _pricing_cost_usd
 from .agent.protocol import (
     CancellationToken,
     EventLog,
@@ -270,6 +271,22 @@ def _evidence_for_planner(hits: list[Any], census: dict[str, Any]) -> str:
     if notice:
         lines.append(notice)
     return "\n".join(lines)
+
+
+def _merge_cost_estimator(model: str) -> Callable[[dict[str, Any]], float]:
+    """Price one usage dict at the model that served the merge call (M8-T165).
+
+    ``pricing.cost_usd`` is the same function ``TaskRecord.snapshot`` bills a
+    task with, so the budget's cost ledger and the task's ``cost_usd`` stay
+    the same number for the same spend. An unpriced model estimates 0.0 - the
+    same honest degradation ``_stage_cost_estimator`` documents (the ceiling
+    then simply never trips on cost).
+    """
+
+    def estimate(usage: dict[str, Any]) -> float:
+        return float(_pricing_cost_usd(model, usage) or 0.0)
+
+    return estimate
 
 
 class AgentService:
@@ -1118,6 +1135,40 @@ class AgentService:
             on_status=status_callback,
         )
 
+    def batch_merge_budget(self, model: str) -> tuple[Budget, Callable[[dict[str, Any]], float]]:
+        """The run budget the batch parent's merge call rides (M8-T165).
+
+        Every other LLM face of a run answers to a budget: the main loop, the
+        completion judge, the planner (M8-T164) and - through their folds -
+        the DAG nodes and the task subagents (M8-T162/T163). The batch merge
+        was the only face with no budget at all: its tokens landed in the
+        task's usage metrics and in no ceiling, so the token caps and the
+        planning route's ``max_cost_usd`` could not see the spend and a trip
+        stayed silent.
+
+        The ceiling is the planning route's, built exactly like
+        ``_chat_locked``'s run budget: a batch parent is a run root, so a
+        deployment that caps a single-task run caps this merge the same way.
+        The estimator prices the model that actually serves the call (the
+        parent task's model) because that is the money actually spent; with
+        routing off that model *is* the planning route's own and the two
+        coincide, as they do for the planner.
+        """
+        stage_router = StageRouter(
+            str(self.config.model),
+            float(self.config.timeout),
+            fallback_models=tuple(getattr(self.config, "fallback_models", ()) or ()),
+            stage_routing_config=getattr(self.config, "stage_routing", None),
+        )
+        budget = _stage_route_budget(
+            stage_router.route("planning"),
+            default_max_turns=getattr(self.config, "max_turns", None),
+            default_max_duration_seconds=None,
+            soft_max_tokens=getattr(self.config, "soft_max_tokens", None),
+            soft_max_duration_seconds=getattr(self.config, "soft_max_duration_seconds", None),
+        )
+        return budget, _merge_cost_estimator(model)
+
     def merge_batch(
         self,
         children: list[dict[str, Any]],
@@ -1127,9 +1178,17 @@ class AgentService:
         reasoning_effort: str | None = None,
         model: str | None = None,
         workspace_path: str | None = None,
+        budget: Budget | None = None,
+        cost_estimator: Callable[[dict[str, Any]], float] | None = None,
         cancel_event: threading.Event | None = None,
     ) -> dict[str, Any]:
-        """Ask the model to merge parallel child results into one answer."""
+        """Ask the model to merge parallel child results into one answer.
+
+        ``budget``/``cost_estimator`` (M8-T165) make this face answerable to a
+        ceiling like every other LLM call; without them the merge runs on no
+        budget at all, which is how its spend used to escape the run's cost
+        ledger entirely.
+        """
         reports = []
         for index, child in enumerate(children, start=1):
             reports.append(
@@ -1162,11 +1221,30 @@ class AgentService:
                 )
                 if on_usage is not None and response.usage:
                     on_usage(dict(response.usage))
-                return {
+                # M8-T165: charge the merge to the parent's run budget with
+                # the same two-line shape the loop uses (state.py: tokens
+                # first, then cost). The call has already happened by the
+                # time usage arrives, so a trip can neither be swallowed
+                # nor un-spend it: it is reported in the payload and the
+                # watcher raises the named budget_exceeded event from it,
+                # the same witness the planner/judge folds emit.
+                budget_exceeded = ""
+                if budget is not None:
+                    usage = dict(response.usage or {})
+                    try:
+                        budget.record_usage(usage)
+                        if cost_estimator is not None:
+                            budget.record_cost(cost_estimator(usage))
+                    except BudgetExceeded as exc:
+                        budget_exceeded = str(exc)
+                payload = {
                     "answer": response.text or "并行子任务已完成，但合并器没有返回文字。",
                     "cancelled": False,
                     "tokens_used": dict(response.usage),
                 }
+                if budget_exceeded:
+                    payload["budget_exceeded"] = budget_exceeded
+                return payload
             except AgentCancelled:
                 return {"answer": "批量任务已取消。", "cancelled": True}
             finally:

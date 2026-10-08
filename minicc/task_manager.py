@@ -1783,8 +1783,23 @@ class TaskManager:
                     self._persist_task(parent)
 
                 def on_merge_usage(usage: dict[str, Any]) -> None:
-                    parent.update_usage(usage)
+                    # M8-T165: label the merge's usage row like every other
+                    # stage-scoped row (stage=planner / subagent /
+                    # completion_judge), so the face is identifiable in
+                    # usage_by_turn instead of being an unlabeled row.
+                    parent.update_usage({"stage": "merge", **usage})
                     self._persist_task(parent)
+
+                # M8-T165: the merge is the batch parent's own LLM call, so
+                # it rides the parent's run budget - the same ceiling a
+                # single-task run of this task would carry. Before this the
+                # face answered to no budget at all: its tokens reached the
+                # task metrics and no cap, and an overspend stayed silent.
+                merge_budget = None
+                merge_cost_estimator = None
+                build_merge_budget = getattr(self.service, "batch_merge_budget", None)
+                if callable(build_merge_budget):
+                    merge_budget, merge_cost_estimator = build_merge_budget(parent.model)
 
                 result = self.service.merge_batch(
                     snapshots,
@@ -1793,8 +1808,34 @@ class TaskManager:
                     reasoning_effort=parent.reasoning_effort,
                     model=parent.model,
                     workspace_path=parent.workspace_path,
+                    budget=merge_budget,
+                    cost_estimator=merge_cost_estimator,
                     cancel_event=parent.cancel_event,
                 )
+                if merge_budget is not None:
+                    # The parent is a run root: its run budget belongs in its
+                    # metrics next to the token totals every other surface
+                    # already reports for it.
+                    with parent.lock:
+                        parent.metrics["budget"] = merge_budget.snapshot()
+                if result.get("budget_exceeded"):
+                    # The spend already happened and its answer is real work,
+                    # so the trip is witnessed with the same named event the
+                    # planner/judge/DAG/subagent folds emit - never swallowed,
+                    # never fatal to the delivered merge.
+                    parent.add_event({
+                        "kind": "trace",
+                        "name": "orchestrator",
+                        "status": "error",
+                        "phase": "merging",
+                        "code": "budget_exceeded",
+                        "summary": str(result["budget_exceeded"]),
+                        "detail": {
+                            "stage": "merge",
+                            "error": str(result["budget_exceeded"]),
+                            "tokens_used": dict(result.get("tokens_used") or {}),
+                        },
+                    })
                 # The subtask fold is not done here any more: it belongs to
                 # ``_roll_up_tokens``, which every terminal path below calls.
                 # Doing it in only one branch is how a failed merge lost its
