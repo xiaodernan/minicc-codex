@@ -16588,3 +16588,75 @@ setup error（同族的起服务计时）。本批只新增一个文件，不碰
 - **测的是既有约定，不是新约定**：14/14 是树上的现状，门把它钉住；
   若将来口径要改成「不许有任何静默」，那是显式决定，届时这格会先红。
 
+## 第二百一十九批 — M8-T191 — 版本单源的门由构建产物代答（同一提交，绿灯与红灯各自只在一个平面上成立）
+
+缺陷：`tests/test_cleanup_version.py:47` 的 `assert importlib_metadata.version("minicc") == canonical`
+只取 `sys.path` 顺序上的**第一条**安装记录，而 `python -m pytest` 把运行目录排在最前；
+`tests/test_packaging.py` 用 in-process `build_meta` 打包，会在同一目录留下 gitignore 的
+`minicc.egg-info`（从当前源码重建）。于是这条门回答的是「哪一个文件恰好先被读到」，
+不是它声称检查的那次安装。
+
+| 平面 | `sys.path` 首条 | 可见 minicc 记录 | 旧门判决 |
+| --- | --- | --- | --- |
+| 热树（跑过 packaging 测试） | 仓库根 | `0.2.0`（egg-info）＋ `0.1.0`（dist-info） | **绿** |
+| 干净 worktree 平面（第二百一十七批围栏） | 平面根 | `0.1.0`（dist-info） | **红** `assert '0.1.0' == '0.2.0'` |
+
+两条判决都不是关于仓库的：底层分歧是真的——`.venv/Lib/site-packages` 的 editable 记录停在
+`minicc-0.1.0.dist-info`（`direct_url.json` 指向本树），而 `minicc/__init__.py:3` 早已是 `0.2.0`。
+热树的那个绿灯是假的：它由构建产物代答。
+
+**P0 先修机器（这是依赖不是偏好）**：`.venv/Scripts/python.exe -m pip install -e . --no-build-isolation --no-deps`
+→ `Successfully installed minicc-0.2.0`；`minicc.__file__` 仍指向仓库源码（editable，非拷贝）；
+`git status` 无跟踪文件变化（`build/`、`*.egg-info/` 本就 ignored）。不手改已安装元数据——那等于伪造
+门本该观察到的状态。后果必须写清：登记红 #3 从此在所有平面都不再复现，后续围栏要**重新归因**，
+不许放宽容差。
+
+落地（一个跟踪文件，`tests/test_cleanup_version.py`，+170/−1）：`_visible_version_records()` 普查本解释器
+能看见的每一条 `minicc` 记录（版本＋记录路径），`_version_disagreements()` 把判决拆成三条各自独证的子句
+（空普查下限、逐条比较、每句点名是哪条记录答的）；旧的单答 assert 删除，其主张搬到普查版案例。
+
+| 案例 | 输入 | 它独自承重的子句 |
+| --- | --- | --- |
+| C0 | 往 `sys.path[0]` 播两条合成 `minicc-0.9.x.dist-info`，要求两条都回来 | 普查真的走 `sys.path` 且不在第一条停下——干净平面只有一条记录，本文件其他任何案例都看不见这个洞 |
+| C1 | 活的平面 | 第 47 行原来的主张，但经由普查 |
+| C2 | `[("0.2.0", egg), ("0.1.0", dist)]` | 逐条比较：第一条同意时第二条仍要咬人＋句子点名版本与路径 |
+| C3 | `[]` | 空下限：读到 0 条不是同意 |
+| C4 | `[("0.1.0", dist)]` | 单独一条过期记录仍要红，且报错要说怎么修机器 |
+| C5 | `[("0.2.0", a), ("0.2.0", b)]` | 接受侧：两条同意的记录是正常 editable 平面，不是故障 |
+
+| 臂 | 变异 | 预测红集＝实测 | 判定 |
+| --- | --- | --- | --- |
+| A1 | census 只留 `rows[:1]` | C0 | MATCHED |
+| A2 | 删 `if not records` 分支 | C3 | MATCHED |
+| A3 | 只比较 `records[:1]` | C2 | MATCHED |
+| A4 | 报错句子不再带记录路径 | C2, C4 | MATCHED |
+| A5 | 「多于一条记录」即判故障 | C2, C5 | MATCHED（原预测只写 C5：C2 的输入本就是两条且首条断言 `len(problems) == 1`，多一个红是变异的正确后果而非门的洞，已在 `predictions_t191.md` 追加追因、不改写原预测行） |
+| A5b | 只把「多条**且全一致**」判故障 | C5 | MATCHED（这条才是 C5 独占 accept 子句的证明；平面 census 实测 1 条，故 C1 不会被连带） |
+| 控制 | 无变异 | 6 collected / 6 绿 | GREEN |
+
+| 命令 | 读数 |
+| --- | --- |
+| 门（平面 wt191a，落库后单跑本六例） | **6 passed（0.67s）**；同平面 census 实测 **3 条**记录：`wt191a/minicc.egg-info`（两条 sys.path 条目各读到一次）＋ `.venv/Lib/site-packages/minicc-0.2.0.dist-info`，全为 `0.2.0`——绿灯是逐条比过三条挣来的 |
+| 六臂＋控制 | ALL ARMS MATCHED + CONTROL GREEN，快照 sha `abd6af95e66834a8` 逐字节还原 `identical=True` |
+| focused（本文件 + packaging + ci_hygiene，平面） | **42 passed（153.02s）**；跑完 packaging 后平面 census 变 2 条同为 `0.2.0`，新门仍绿——这次绿灯读到了两条记录，不再由一条代答 |
+| 主树单跑本门文件 | **18 passed（148.73s）**（热树 census＝2 条同值） |
+| 全量（子平面 wt191full @ `4f41585`） | **2178 collected / 2 failed / 0 error / 5 skipped，rc=1（约 20 分钟）** |
+| 全量（父平面 wt191parent @ `3118bbd`，复用首轮） | **2166 / 2 failed / 0 error / 5 skipped，rc=1** |
+
+**案例名多重集差（子 ⊖ 父）＝12 加 0 减**，逐条按引入提交归因，不数总数：
+
+| 加的 12 条 | 来源 | 归因 |
+| --- | --- | --- |
+| `test_cleanup_version.py::test_the_record_census_walks_sys_path_not_a_hand_pick` 等 **6 条**（C0–C5） | 本批 `4f41585` | `git show 4f41585` 里 `+def test_` 恰好 6 条＝实测差集的一半 |
+| `test_silence_must_state_its_reason.py::…` **6 条** | 别车道 `fd7db95`（10-09 04:50，M8-T190，`+121/-0` 新文件） | 父基线是我开工时读到的 `3118bbd`，而它到 HEAD 之间多了 `fd7db95`+`716a1d3` 两笔；`3118bbd` 经 `merge-base --is-ancestor` 确认是 HEAD^ 的祖先，所以差集里必然含他们那 6 条。这条不是「放宽容差」，是基线选早了两笔——下一批的父平面要取 `HEAD^` |
+| 减的 0 条 | — | 没有任何案例消失 |
+
+| 红（两条，子平面与父平面**逐字同名同报同行**） | 报错末行 | 归因 |
+| --- | --- | --- |
+| `tests/test_stage_routing_config_reaches_the_router.py::test_every_production_construction_site_is_the_one_this_test_copies` | `:214 Left contains one more item: ['fallback_models', 'stage_routing_config']` | 第二百一十六批 §5 已登记的 `43a8bf4` 预存在红，两平面同 sha 同文字复现＝不是本批带的 |
+| `tests/test_subprocess_decoding.py::test_no_text_mode_capture_asks_for_a_strict_decoder` | `:826 Left contains 9 more items, first extra item: 'scripts/impacted_tests.py:285 subprocess.run'` | 别车道 `scripts/impacted_tests.py` 的 9 处文本模式捕获；两平面同名同文字，主树该文件仍是**未提交**的 `M` 态——本批不碰、也不替它判决 |
+| （消失的那一条）`tests/test_cleanup_version.py::test_all_version_consumers_agree` | 干净平面曾以 `assert '0.1.0' == '0.2.0'` 红（第 47 行那条单答 assert） | 两件事同时成立，缺一不解释：①P0 的 `pip install -e .` 让安装器自己把 editable 记录重写成 `0.2.0`，两平面 census 均再无 `0.1.0`；②那条 assert 已不在这个案例里——它的主张搬进 C1，由普查逐条比。**案例名仍在（removed=0）**，它余下的 `mcp.__version__`/clientInfo 三条照旧承重。这不是门被放软：A3/A4 臂在新形状上仍咬得住 |
+
+边界：本批不让 packaging 测试停止向源码树写 `minicc.egg-info`（setuptools 的文档行为，
+`test_ci_hygiene.py` 已就此讲过）；不给 CI 加 `pip install` 步骤；不删这台机器的旧记录（先 reinstall，
+让安装器自己写）；门仍然只回答「版本是否单源」，没有把它换成「这台机器恰好有一个文件」。
