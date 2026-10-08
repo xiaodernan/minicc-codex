@@ -39,6 +39,7 @@ from typing import Any, Callable
 from ..llm.base import LLMResponse, TERMINAL_FINISH_REASONS, assistant_msg, tool_result_msg, user_msg
 from ..llm.envelope import EnvelopeParseError
 from ..llm.openai_provider import OpenAICompatibleProvider
+from ..llm.stream_merge import append_delta
 from ..llm.usage import add_usage_totals, cache_summary
 from ..tools.schemas import ToolCall, ToolResult
 from ..tools.registry import ToolRegistry, redact_text
@@ -229,26 +230,6 @@ def _visible_model_delta(previous: str, content: str | None) -> tuple[str, str]:
     # A new turn normally starts a new action explanation.  Do not join it to
     # the old sentence, otherwise a later cumulative update can grow forever.
     return current, current
-
-
-def _merge_incremental_text(previous: str, current: str) -> tuple[str, str]:
-    """Fold a cumulative update into what we have; never delete a chunk.
-
-    Exactly one shape is safe to absorb: the new chunk repeating everything so
-    far *and extending it*, which is what a gateway resending the whole attempt
-    text looks like. The old rule also discarded a chunk that was a prefix of,
-    or merely overlapped, what we already had - so streaming "7", ".", "7",
-    ".", "7" lost the third piece and the terminal showed "7." for an answer
-    that was stored as "7.7.7". Anything uncertain is appended verbatim: a
-    repeated fragment is visible and fixable, a dropped one is neither.
-    """
-    if not previous:
-        return current, current
-    if not current:
-        return previous, ""
-    if current.startswith(previous):
-        return current, current[len(previous):]
-    return previous + current, current
 
 
 def _normalize_vision_context(parts: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
@@ -528,7 +509,15 @@ async def run_agent(
     def emit_stream(delta: str) -> None:
         nonlocal streamed_output
         if delta:
-            streamed_output, suffix = _merge_incremental_text(streamed_output, str(delta))
+            # M1-T3/M8-T11: the provider already reconciled this attempt's
+            # fragments (AttemptTextAssembler + merge_retry_snapshot), so what
+            # arrives here is incremental by construction. Re-merging it was a
+            # second implementation of the same rule with the old single-prefix
+            # semantics: a suffix that repeated what the loop had collected was
+            # read as a cumulative snapshot and truncated ("7."+"7.7" streamed
+            # "7.7" for an answer stored as "7.7.7"). Append verbatim: a
+            # repeated fragment is visible and fixable, a dropped one is neither.
+            streamed_output, suffix = append_delta(streamed_output, str(delta))
             if not suffix:
                 return
             streamed_text.append(suffix)

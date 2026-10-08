@@ -280,6 +280,60 @@ def test_m1t3_stream_deltas_reach_the_surface_verbatim(tmp_path: Path) -> None:
     assert result.answer == "7.7.7"
 
 
+def test_m1t3_provider_suffixes_that_repeat_a_prefix_are_not_re_merged(tmp_path: Path) -> None:
+    """Reconciled suffixes must not go through a second merge inside the loop.
+
+    The provider now assembles one attempt's fragments itself
+    (AttemptTextAssembler + merge_retry_snapshot) and hands the loop only the
+    incremental suffixes. loop.py used to answer those suffixes with its own
+    single-prefix merge - the rule M8-T11 had just retired - so the suffix
+    "7.7" arriving after "7." was read as a cumulative snapshot and truncated
+    to "7". Live probe before the fix: answer "7.7.7", streamed text "7.7"
+    (two characters silently dropped from everything the user could see).
+    """
+
+    class SuffixProvider:
+        async def chat(self, messages, tools=None, on_delta=None, **kwargs):
+            # Exactly what the real provider emits for incremental fragments
+            # "7." then "7.7": the assembler keeps them incremental because the
+            # cumulative streak never reaches two.
+            for piece in ("7.", "7.7"):
+                if on_delta is not None:
+                    on_delta(piece)
+            return LLMResponse(content="7.7.7", finish_reason="stop")
+
+    seen: list[str] = []
+    result = asyncio.run(
+        run_agent(
+            SuffixProvider(),
+            build_registry(Editor(tmp_path)),
+            [{"role": "user", "content": "编号？"}],
+            on_stream=seen.append,
+            should_allow=lambda _n, _c: True,
+        )
+    )
+    assert "".join(seen) == "7.7.7", f"streamed {seen!r} for answer {result.answer!r}"
+    assert result.answer == "7.7.7"
+
+
+def test_the_loop_keeps_a_single_stream_merge_implementation() -> None:
+    """The M1-T3 cleanup item now has a reader.
+
+    The roadmap's delete list said loop.py's second copy of the merge rule had
+    to go once stream_merge existed; the copy survived three milestones and
+    drifted back to the retired single-prefix semantics. This gate fails the
+    moment a second implementation reappears - the defect this batch fixed was
+    invisible precisely because nothing watched for it.
+    """
+    loop_source = (Path(__file__).resolve().parents[1] / "minicc" / "agent" / "loop.py").read_text(
+        encoding="utf-8"
+    )
+    assert "def _merge_incremental_text" not in loop_source, (
+        "loop.py re-grew its own stream merge; the provider reconciles fragments already"
+    )
+    assert "from ..llm.stream_merge import append_delta" in loop_source
+
+
 def test_stream_writer_knows_when_the_screen_fell_short() -> None:
     """A short stream used to silence the final print, so the screen stayed wrong."""
     from minicc.main import StreamWriter

@@ -1040,8 +1040,25 @@ def test_agent_loop_forwards_streaming_text_deltas(tmp_path: Path) -> None:
     assert result.answer == "第一段第二段第三段"
 
 
-def test_agent_loop_deduplicates_cumulative_public_stream_updates(tmp_path: Path) -> None:
-    class FakeProvider:
+def test_agent_loop_streams_what_the_provider_sent_verbatim(tmp_path: Path) -> None:
+    """The loop re-interprets nothing; fragment reconciliation is the provider's job.
+
+    This test used to pin a second merge inside the loop - the copy M1-T3's
+    cleanup list said to delete once ``stream_merge`` existed. Its fake
+    emitted cumulative snapshots ("aa", "aab", "aabc") and the loop deduped
+    them itself. Since M8-T11 the chat_completions provider reconciles
+    fragments before they reach the loop (AttemptTextAssembler, gated in
+    test_m1_integrity), so the loop's copy was a second implementation with
+    weaker semantics: its single-prefix rule read an incremental fragment that
+    repeated the accumulated text as a snapshot and truncated it ("7." then
+    "7.7" streamed "7.7" for an answer stored as "7.7.7" - probe-reproduced).
+
+    Contract now: whatever the provider hands over is shown verbatim. A
+    provider that does not reconcile shows duplicated text - visible and
+    fixable - rather than the loop guessing and silently dropping a character.
+    """
+
+    class SnapshotProvider:
         async def chat(self, messages, tools, on_delta=None):
             for chunk in ("aa", "aab", "aabc"):
                 if on_delta is not None:
@@ -1051,14 +1068,14 @@ def test_agent_loop_deduplicates_cumulative_public_stream_updates(tmp_path: Path
     deltas: list[str] = []
     result = asyncio.run(
         run_agent(
-            FakeProvider(),
+            SnapshotProvider(),
             build_registry(Editor(tmp_path)),
             [{"role": "user", "content": "给我一个简短回答"}],
             on_stream=deltas.append,
             should_allow=lambda _name, _call: True,
         )
     )
-    assert deltas == ["aa", "b", "c"]
+    assert deltas == ["aa", "aab", "aabc"], "the loop must echo the provider's fragments, not reinterpret them"
     assert result.answer == "aabc"
 
 
