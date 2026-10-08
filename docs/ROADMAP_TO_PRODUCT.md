@@ -419,6 +419,7 @@
 
 **M1-T3（代码重复）**：
 - `minicc/agent/loop.py:191-207` 的 `_merge_incremental_text`——`minicc/llm/stream_merge.py` 抽出后删除这第二份逐字拷贝
+  —— **第一百九十七批实测并删除：这份「逐字拷贝」三年来一直活着，而且早就不是逐字拷贝——它的单片段前缀规则正是 M8-T11 刚退役的那一条，会在流式显示路径上静默丢字符**（探针：答案 `7.7.7`，终端只流出 `7.7`）。删除后循环改为逐字透传 provider 已和解的增量；契约测试「循环去重那份」（旧名 test_agent_loop_deduplicates_cumulative_public_stream_updates，已不存在）随之改写为`test_agent_loop_streams_what_the_provider_sent_verbatim`（详见第一百九十七批）。
   —— **⚠️ 第一百八十三批实测：这不是"逐字拷贝"，不要照做**。`loop.py` 那支（今天在 `:234`）处理的是
   **跨重试的累积快照**（`current.startswith(previous)` 才吸收，其余一律逐字追加、绝不删字符），
   docstring 记的正是 M1-T3 要修的那个 bug（"7."+"7"+"." 丢掉第三片）；provider 侧的增量装配走
@@ -762,7 +763,7 @@
 > 一定要先比对落盘的会话内容**，否则会把显示层的 bug 记账到合并层头上（本文件此前就这么错过一次）。
 > 另外，M8-T11 的 latch 当时会**吞掉**可见增量（rebase 后不再发 suffix），真机复跑才暴露；已改为「照样发
 > suffix、只把缓冲重定基到快照」，`deltas == ["aa","aab","c"]` + `content == "aabc"` 钉住这个形状。
-| M8-T13 CLI 可见输出必须等于落盘答案（已修，两层各占一半） | ✅ | 真机 3/3 复现「终端打印 `7.7`/`7.7.`，会话文件里存的是 `7.7.7`」后分两层定位。**第一层（数据）**：`agent/loop.py:_merge_incremental_text` 对**增量**片段跑了完整的累积折叠——`previous.startswith(current)` 直接返回 `("", drop)`，于是 `"7",".","7"` 的第三个 `7` 被丢掉（离线可复现：旧规则把 `7.7.7` 只发出 `7.`）。规则收窄成**只吸收「完整重复已累积前缀并且更长」这一种**，其余一律原样追加，`test_agent_loop_deduplicates_cumulative_public_stream_updates` 的 `["aa","b","c"]` 旧契约与新用例同时通过（第一次尝试是整层删除折叠，被这条既有契约挡下——它对应的是 provider 直接吐累积块的路径，不能顺手拆）。**第二层（显示）**：`main.py:395` 只要 `writer.started` 就**无条件**不打印最终答案，所以流式一旦短一截，屏幕上的错答案就永久留着、而落盘内容是对的。`StreamWriter` 现在记住自己写过什么并暴露 `matches()`，只在「看到的 == 落盘答案」时才省略最终打印。**M8-T12 仍未结案**：修完这两层后真机 `visible == stored` 3/3 成立，但 stderr 仍有 1501 字节的 httpcore 关闭栈，泄漏体从 `HTTP11ConnectionByteStream` 变成更内层的 `PoolByteStream`（说明我们持有的两层已经关对了，剩下的在 httpx/httpcore 内部） | `tests/test_m1_integrity.py` 13 → 15：`test_m1t3_stream_deltas_reach_the_surface_verbatim`（假 provider 逐段 `"7",".","7",".","7"`，断言 `"".join(on_stream) == result.answer == "7.7.7"`）与 `test_stream_writer_knows_when_the_screen_fell_short`（短流不得抑制最终打印、补齐后不得重复打印、尾部空白不算差异）。旧契约 `test_agent_loop_deduplicates_cumulative_public_stream_updates` 保持绿色。**真机验收门**：`visible_stream_check.py` 的 `RESULT visible-equals-stored` 从 0/3 变成 **3/3**（同一 workspace、同一问句、3 次独立进程）。全量 `.venv` **879 passed** |
+| M8-T13 CLI 可见输出必须等于落盘答案（已修，两层各占一半） | ✅ | 真机 3/3 复现「终端打印 `7.7`/`7.7.`，会话文件里存的是 `7.7.7`」后分两层定位。**第一层（数据）**：`agent/loop.py:_merge_incremental_text` 对**增量**片段跑了完整的累积折叠——`previous.startswith(current)` 直接返回 `("", drop)`，于是 `"7",".","7"` 的第三个 `7` 被丢掉（离线可复现：旧规则把 `7.7.7` 只发出 `7.`）。规则收窄成**只吸收「完整重复已累积前缀并且更长」这一种**，其余一律原样追加，「循环去重」旧契约（test_agent_loop_deduplicates_cumulative_public_stream_updates）的 `["aa","b","c"]` 与新用例同时通过（第一次尝试是整层删除折叠，被这条既有契约挡下——它对应的是 provider 直接吐累积块的路径，不能顺手拆）。**第二层（显示）**：`main.py:395` 只要 `writer.started` 就**无条件**不打印最终答案，所以流式一旦短一截，屏幕上的错答案就永久留着、而落盘内容是对的。`StreamWriter` 现在记住自己写过什么并暴露 `matches()`，只在「看到的 == 落盘答案」时才省略最终打印。**M8-T12 仍未结案**：修完这两层后真机 `visible == stored` 3/3 成立，但 stderr 仍有 1501 字节的 httpcore 关闭栈，泄漏体从 `HTTP11ConnectionByteStream` 变成更内层的 `PoolByteStream`（说明我们持有的两层已经关对了，剩下的在 httpx/httpcore 内部） | `tests/test_m1_integrity.py` 13 → 15：`test_m1t3_stream_deltas_reach_the_surface_verbatim`（假 provider 逐段 `"7",".","7",".","7"`，断言 `"".join(on_stream) == result.answer == "7.7.7"`）与 `test_stream_writer_knows_when_the_screen_fell_short`（短流不得抑制最终打印、补齐后不得重复打印、尾部空白不算差异）。旧契约「循环去重」用例（test_agent_loop_deduplicates_cumulative_public_stream_updates，已改名）保持绿色——**第一百九十七批关闭本行记的这条边界**：四个 provider 的 on_delta 调用点逐一实测（chat_completions 发给循环的是 assembler 已和解的后缀；responses 双通道、anthropic、fake 都是协议增量或单片段），**今天没有任何生产 provider 直接吐累积块**；且循环层再挂一份 streak 状态机并不安全——provider 侧 latch 后 rebase 过，循环那份累积文本会与之分叉，反而制造重复。契约改写为 `test_agent_loop_streams_what_the_provider_sent_verbatim`（provider 给什么就显示什么），循环里的第二份合并删除。**真机验收门**：`visible_stream_check.py` 的 `RESULT visible-equals-stored` 从 0/3 变成 **3/3**（同一 workspace、同一问句、3 次独立进程）。全量 `.venv` **879 passed** |
 
 | M8-T14 宿主关闭时 worker 句柄不得成为泄漏、且关闭语义要说得清（已按选项 A 实施） | ✅ | 干净关闭 = 写 cancel 标志 → 有界等待 5s → `terminate()` → 回收句柄 → 用租约围栏把记录落成 `cancelled`（并清掉 cancel 标志，避免复用它 id 的重试被瞬间取消）；崩溃 = 完全不碰 worker，留给 auto-resume 接管。`pytest -q -W error` 全量 **904 passed**（此前同一命令 6 failed / 7 errors）。契约测试改写成**真崩溃模拟**（宿主跑在子进程里被 `kill()`）。完整取舍、先红证据与那条「在测试里短路 `shutdown()` 不叫崩溃模拟」的教训见「第四批」第 1、5 行 |
 
@@ -14698,4 +14699,97 @@ T164 收尾后盘点状态表：90 行里唯一一条 🟡 是 M8-T19（第 773 
   级的，sha256 读的是字节不是文本。**
 - 门刻意**窄**：只绑 M8-T19 这一格对这一个行为，不做全表 file:line/标识符普查——
   第一百八十八批已判定那类常驻门会对历史记录产生大量假红。
+## 第一百九十七批 M1-T3 清理项三年未执行：loop.py 的第二份流式合并在显示路径上静默丢字符（探针实证 + 删除 + 契约测试改写）
+
+### 1 来源
+
+第七节「面试讲解要点」逐条实测时核到第 9 条引用的删除清单，其中 M1-T3 写着
+「`minicc/agent/loop.py:191-207` 的 `_merge_incremental_text`——`stream_merge.py` 抽出后
+删除这第二份逐字拷贝」。**它一直在**（`loop.py:234`），而且早已不是逐字拷贝：它的单片段
+前缀规则（`current.startswith(previous)` 即判累积快照）正是 M8-T11 刚从 provider 层退役的
+那一条。M8-T11 把和解搬进了 provider（`AttemptTextAssembler`，需连续两次整体重复才改判），
+却没有回头看循环层这份副本——于是 **chat_completions 通道发给循环的是已和解增量，
+循环又用旧规则第二遍合并**。
+
+P0 探针（只读、进程内、`minicc.__file__` 已核）：模拟 provider 对增量分片
+`"7."`、`"7.7"` 发出已和解的后缀，答案 `7.7.7`——**可见流只有 `7.7`**，
+静默丢了 2 个字符。与 M8-T13「终端打印 7.7、会话存 7.7.7」同症，但发生在更上一层：
+这一次连落盘答案都是对的，错的纯粹是用户眼前的那条流。
+
+### 2 交付
+
+提交级改动两处（`minicc/agent/loop.py`，+10/-21）：
+
+- **删掉第二份实现** `_merge_incremental_text`（M1-T3 清理项真正落地）；
+- `emit_stream` 改用 `stream_merge.append_delta` 逐字透传：provider 给什么就显示什么，
+  循环不再猜。注释写清为什么不许再合并（旧规则会把「重复了已收集文本的增量分片」
+  当成累积快照截断）。
+
+**四个 provider 调用点全查过**（这不是防御性删除，是数据流核对）：
+
+| 调用点 | 给 on_delta 的东西 | 循环逐字追加是否正确 |
+| --- | --- | --- |
+| `openai_provider.py:1194`（chat_completions） | 已和解后缀（assembler + merge_retry_snapshot） | ✅ 构造上即增量 |
+| `openai_provider.py:952`（responses 双通道） | 协议增量 `output_text.delta` | ✅ 协议即增量 |
+| `anthropic_provider.py:520` | 协议增量 `text_delta` | ✅ 协议即增量 |
+| `fake.py:114` | 单片段整段 | ✅ |
+
+累积快照网关的和解归 provider（chat_completions 已有，`test_m1_integrity` 有门）；
+responses / anthropic 若将来遇到Snapshot 型网关，按「一个 dialect 一份实现」的各自分，
+**不该由循环猜**——循环猜错的代价是静默丢字，猜对的收益只是某个不存在形状的显示整洁。
+
+### 3 门（`tests/test_m1_integrity.py` +2，`tests/test_core_agent.py` 改写 1）
+
+- `test_m1t3_provider_suffixes_that_repeat_a_prefix_are_not_re_merged`：P0 探针固化。
+  先红后绿：未修树上 answer=`7.7.7` 而 streamed=`7.7`，断言红；修后绿。
+- `test_the_loop_keeps_a_single_stream_merge_implementation`：`loop.py` 不得再长出
+  `def _merge_incremental_text`，必须从 `stream_merge` 导入 `append_delta`——
+  **给 M1-T3 清理项一个永久读者**（这次缺陷隐形，就是因为没人盯着它）。
+- **契约测试改写**（有意，非回归）：旧契约测试（循环去重那份，test_agent_loop_deduplicates_cumulative_public_stream_updates）
+  → `test_agent_loop_streams_what_the_provider_sent_verbatim`。旧测试钉的是循环里那份
+  第二实现的去重行为（fake 直接吐累积快照、绕开 provider 和解——正是仓库自己反感的
+  「测试自己接线」形状）。新契约：provider 给什么，循环显示什么；不和解的 provider
+   shows 重复文本（可见、可修），而不是循环猜着截断。改写后在未修树上同样红。
+
+### 4 见证（预测先写：`.scratch-longrun/t197-arms-predictions.md`；臂 runner 字节级 IO）
+
+| 臂 | 变异（单点） | 预测＝实测红集 | 判定 |
+| --- | --- | --- | --- |
+| 控制 | 无 | 0 红（两文件 63 例全绿） | MATCHED |
+| A1 | `append_delta(...)` → 等价的显式拼接 | 0 红（等价臂：门钉契约，不钉帮手名字） | MATCHED |
+| A2 | 旧规则回潮（startswith 前缀判累积） | 恰 2 红：probe 固化例 + 改写后的契约例 | MATCHED |
+| A3 | loop.py 重新长出 `def _merge_incremental_text` | 恰 1 红：单一实现门 | MATCHED |
+| A4 | 删 `from ..llm.stream_merge import append_delta` | 恰 6 红（全部流式循环用例 + 单一实现门，同一 NameError 机制） | MATCHED（订正见 §5） |
+| A5 | `on_stream(suffix)` → `on_stream(str(delta))` | 0 红（等价臂：append_delta 的 suffix 恒等于分片本身） | MATCHED（订正见 §5） |
+
+终检：控制腿 63 绿，逐腿重铺，两文件 sha256 与 pre-arm 逐字节一致。
+
+### 5 边界与量具问题（全部记在案）
+
+- **A4 首轮预测少算 2 条**：删导入是 NameError，断的是**所有**流式循环用例
+  （含 `test_agent_loop_forwards_streaming_text_deltas`），不止两条新门。机制单一，
+  订正预测后 MATCHED。
+- **A5 首轮预测错**：我以为 `suffix != delta` 可以造出重复发射；实际上
+  `append_delta` 的返回值里 suffix 恒等于分片，这一臂是等价变异、必须全绿。
+  它反过来证明修好后的契约就是「原样透传」。
+- **臂 runner 首轮只跑了一个测试文件**：改写后的契约测试住在 `test_core_agent.py`，
+  不在 runner 的 TARGET 里，导致 A2/A4 两臂「实测红集缺名字」。 runner 扩到两文件后
+  全 MATCHED。又是量具问题：**量具的覆盖面要先于读数被验证**（第四次同类）。
+
+### 6 回归证据（focused，按 AGENTS.md 不跑全量）
+
+| 命令 | 读数 |
+| --- | --- |
+| P0 探针（未修） | answer `7.7.7` / emitted `7.7`（丢 2 字符） |
+| 门两文件（修后） | **63 passed** |
+| 先红后绿（stash loop.py 回未修） | 两条新门 **2 failed** |
+| focused：core_task + core_session + batch_wiring + completion_liveness + verification_nudge + subagent_wiring | **100 passed（17.30s）** |
+| focused：parallel_writes + subagent_task + mentions + model_fallback + stage_route + 三个预算折叠门 | **75 passed（16.90s）** |
+| 合计（不含上面两文件） | **175 passed / 0 红** |
+
+### 7 顺带修掉的文档漂移
+
+第五节 M1-T3 清理行补记「第一百九十七批实测并删除」，并写清这份拷贝**早已不是逐字拷贝**、
+以及它丢字符的形状——清理清单里唯一一条「以为删了其实没删」的项，至此四项候选类清理全部有
+真实读数。
 
