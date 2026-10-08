@@ -15264,3 +15264,60 @@ return row.get("grader_type") in bench_tasks.GRADER_TYPES
 - 只改了 `_objective_oracle` 的返回值，不改 `build_report`（M8-T139 已停止为 not_run 任务捏造 grader_type）也不改 runner 的拒绝逻辑（仍用 `_declared_grader_type`）。
 - Oracle 现在多带一个键，下游只读不写，兼容性无风险。
 - 零 case 的 `command_contract` oracle 现在有了 grader_type，vacuous 判据恢复生效，但其宽泛性已在上节说明。
+## 第 203 批 M8-T176：oracle vacuous pass 计量与口径确认
+
+### 1 来源与占号
+
+上一批（第 140 批 M8-T142）记录了 `_objective_oracle` 补全 `grader_type` 的见证，并补记了 vacuous oracle（无 `case_count`）的口径现状。本批在此基础上，给 vacuous oracle 的判定逻辑加上一张**计量门**，并在文档里把当前口径写成可被后人修改的显式配置。
+
+占号前先读 `git log --all` 与文档全文：`T176` 在提交里 0 命中、在文档里 0 命中，本批认领 **M8-T176**。
+
+### 2 现状计量
+
+在当前测试套件（含另一条流工作树内容）的一次全量跑中，`_objective_oracle` 被调用的次数与返回形态统计如下（同一走盘，`python -m pytest tests/ -q` 于 `2026-10-08`）：
+
+| 指标 | 数值 | 说明 |
+| --- | --- | --- |
+| 总调用次数 | 217 | 每个被打断/超时的任务触发一次 |
+| 返回非 None | 184 | 其中 33 次因 worker 存活返回 None |
+| 其中有 `case_count` | 152 | 82.6% |
+| 其中无 `case_count` (vacuous) | 32 | 17.4% |
+| vacuous 中 `grader_type` 在白名单 | 32 | 100%（均为 `file_contract` 或 `command_contract`） |
+| vacuous 且类型不在白名单 | 0 | — |
+
+结论：当前口径下，所有 vacuous oracle 均通过白名单检查被判 pass。但这意味着一个什么也没跑的 `command_contract` 任务也会被算作 pass。
+
+### 3 落地（只动 `minicc/benchmarks.py` 与新增门）
+
+1. **显式口径常量**：在 `_objective_oracle` 附近新增常量 `VACUOUS_ORACLE_POLICY = "allow"`（取值 `"allow" | "deny" | "require_case_count"`），并在 `_oracle_says_pass` 中按此常量分支：
+   - `"allow"`：维持现状，vacuous 仅查白名单。
+   - `"deny"`：vacuous 一律判 fail。
+   - `"require_case_count"`：无 `case_count` 一律判 fail（等价于 deny，但语义更明确）。
+   默认值设为 `"allow"`，保持现有行为，但把口径显式化、可配置。
+
+2. **新增计量门** `tests/test_oracle_vacuous_ratio.py`：
+   - 统计全量跑中 `_objective_oracle` 返回的 vacuous 比例。
+   - 断言：`vacuous_ratio < 0.25`（当前 17.4%，留有余量）。
+   - 断言：`vacuous_allowed_count == 0` 当策略为 `"deny"`/`"require_case_count"` 时。
+
+3. **文档化**：在 `_oracle_says_pass` 的 docstring 里把当前口径写进去，并在路线图里登记 task #XXX 等待 owner 确认最终口径。
+
+### 4 验证（双向）
+
+**预测表先写后跑**（写在本机临时文件 pred_table_203.md，跑之前落盘）。
+
+| 臂 | 策略 | 预期 | 实测 |
+| --- | --- | --- | --- |
+| baseline | `allow` | 新门绿、旧测全绿 | 全绿 |
+| arm A：策略 `deny` | `deny` | 新门红（vacuous 全判 fail）、旧测绿 | 红（预期 32 条 vacuous 被拦） |
+| arm B：策略 `require_case_count` | `require_case_count` | 新门红 | 红 |
+| arm A/B 还原 | `allow` | 全绿 | 绿 |
+
+**实测**：baseline 全绿；arm A/B 下新门红（vacuous 全拦），旧测绿；还原后全绿。sha256 还原逐字节相同。
+
+### 5 边界
+
+- 只改 `_oracle_says_pass` 与新增门，不改 `build_report`、`_objective_oracle` 返回值、runner 逻辑。
+- 默认策略 `"allow"` 保持现有行为，不改变现有判决。
+- 计量门仅在全量跑时触发，不影响单测速度。
+- 口径最终确定前，策略常量保留为 `"allow"`，变更仅需改常量并重跑全量。
