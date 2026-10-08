@@ -26,6 +26,63 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 def _pyproject() -> dict:
     with (REPO_ROOT / "pyproject.toml").open("rb") as handle:
         return tomllib.load(handle)
+#: One installed record: (the version it states, where that record lives).
+VersionRecord = tuple[str, str]
+
+
+def _visible_version_records(name: str = "minicc") -> list[VersionRecord]:
+    """Every installed record for *name* this interpreter can see.
+
+    ``importlib_metadata.version()`` answers with the first record ``sys.path``
+    yields and stays silent about the rest, and ``python -m pytest`` puts the run
+    directory first.  The packaging tests leave a ``minicc.egg-info`` rebuilt from
+    the current source in that directory, so on a tree that has been run once the
+    artifact can state the single source while the editable record that installed
+    this tree states something else - a green that certifies nothing about the
+    install it claims to check.  Measured on 3118bbd: with the run directory first
+    the census holds ``0.2.0`` (egg-info) and ``0.1.0`` (dist-info) and the old
+    call answers 0.2.0, while on a worktree plane without the artifact the same
+    repo bytes answer 0.1.0.  One file, two verdicts, neither about the repo.
+    """
+    rows: list[VersionRecord] = []
+    for dist in importlib_metadata.distributions():
+        try:
+            metadata_name = dist.metadata["Name"]
+        except Exception:  # unreadable METADATA is still a visible record
+            metadata_name = None
+        if (metadata_name or "").strip().lower().replace("_", "-") != name:
+            continue
+        rows.append((dist.version, str(getattr(dist, "_path", "<unknown>"))))
+    return rows
+
+
+def _version_disagreements(
+    records: list[VersionRecord], canonical: str, *, label: str = "minicc"
+) -> list[str]:
+    """Every way *records* fail to state *canonical*, one problem per record.
+
+    Three clauses, each with its own burden: the floor (reading nothing is not
+    agreement), the per-record comparison (a stale record sitting behind an
+    agreeing one still bites), and the record path inside every sentence (the
+    reader has to be able to tell which artifact answered).
+    """
+    if not records:
+        return [
+            f"no installed record for {label} is visible to this interpreter - an "
+            "import is not an install, so the single source was never compared "
+            "with anything"
+        ]
+    problems: list[str] = []
+    for version, path in records:
+        if version != canonical:
+            problems.append(
+                f"{label} record at {path} states {version!r} while the single "
+                f"source minicc.__version__ states {canonical!r}; one of the two "
+                "is stale - `python -m pip install -e .` refreshes the record, "
+                "editing minicc/__init__.py refreshes the source"
+            )
+    return problems
+
 
 
 # --- version single source of truth ---------------------------------------
@@ -44,12 +101,124 @@ def test_all_version_consumers_agree():
     import minicc.mcp as mcp
 
     canonical = minicc.__version__
-    assert importlib_metadata.version("minicc") == canonical
     assert mcp.__version__ == canonical
     # mcp.py must build clientInfo from __version__, never a hardcoded literal.
     mcp_src = (REPO_ROOT / "minicc" / "mcp.py").read_text(encoding="utf-8")
     assert '"version": __version__' in mcp_src
     assert '"version": "0.' not in mcp_src
+def test_the_record_census_walks_sys_path_not_a_hand_pick(tmp_path: Path) -> None:
+    """The census must find *every* visible record, not the first one.
+
+    A census truncated to the first hit still greens a clean plane, which has one
+    record - so no other case in this file can see that hole.  This one puts two
+    synthetic records on the real ``sys.path`` walk and asks for both back.
+    """
+    planted = {"0.9.1", "0.9.2"}
+    for version in sorted(planted):
+        record = tmp_path / ("minicc-%s.dist-info" % version)
+        record.mkdir()
+        (record / "METADATA").write_text(
+            "Metadata-Version: 2.1\nName: minicc\nVersion: %s\n\n" % version,
+            encoding="utf-8",
+        )
+    sys.path.insert(0, str(tmp_path))
+    try:
+        rows = _visible_version_records()
+    finally:
+        sys.path.remove(str(tmp_path))
+    found = {(version, path) for version, path in rows if version in planted}
+    assert {version for version, _ in found} == planted, (
+        "the census planted %s into %s and read back %s; anything short of both "
+        "means it stops at one record, which is the property that let a build "
+        "artifact answer for an installed one"
+        % (sorted(planted), tmp_path, sorted({version for version, _ in rows}))
+    )
+    for version, path in sorted(found):
+        assert str(tmp_path) in path, (version, path)
+        assert "dist-info" in path, (version, path)
+
+
+def test_the_installed_record_states_the_single_source() -> None:
+    """M4-T9's claim, measured against every record the plane can answer with.
+
+    ``importlib_metadata.version("minicc") == minicc.__version__`` was the whole
+    check.  Batch 216's fence found it green in the warm tree and red, by exact
+    value (``'0.1.0' == '0.2.0'``), on a pinned worktree plane - the disagreement
+    was real (this machine's editable record said 0.1.0 while the source said
+    0.2.0), the warm tree's green was not: the run directory held the
+    ``minicc.egg-info`` the packaging tests rebuild, and it answers first.
+    """
+    import minicc
+
+    records = _visible_version_records()
+    problems = _version_disagreements(records, minicc.__version__)
+    assert problems == [], (
+        "%s states %r; visible records: %s || %s"
+        % (
+            minicc.__file__,
+            minicc.__version__,
+            "; ".join("%s at %s" % row for row in records),
+            " || ".join(problems),
+        )
+    )
+
+
+def test_records_that_disagree_are_each_named() -> None:
+    """A stale record hidden behind an agreeing one must still be reported.
+
+    ``[("0.2.0", artifact), ("0.1.0", install)]`` is the shape of the false-green
+    plane; comparing only the first answer calls it healthy.
+    """
+    rows = [
+        ("0.2.0", "D:/tree/minicc.egg-info"),
+        ("0.1.0", "D:/tree/.venv/Lib/site-packages/minicc-0.1.0.dist-info"),
+    ]
+    problems = _version_disagreements(rows, "0.2.0")
+    assert len(problems) == 1, problems
+    assert "0.1.0" in problems[0], problems
+    assert "0.2.0" in problems[0], problems
+    assert "minicc-0.1.0.dist-info" in problems[0], problems
+    assert "egg-info" not in problems[0], (
+        "the record that agrees with the single source is not a fault and must "
+        "not be dragged into the report: %s" % (problems,)
+    )
+
+
+def test_no_visible_record_is_refused_not_passed() -> None:
+    """Zero records read is "nothing was installed", never agreement."""
+    problems = _version_disagreements([], "0.2.0")
+    assert len(problems) == 1, problems
+    assert "no installed record" in problems[0], problems[0]
+
+
+def test_a_single_stale_record_still_bites() -> None:
+    """The plain stale install: one record, wrong number, named by path."""
+    problems = _version_disagreements(
+        [("0.1.0", "/x/site-packages/minicc-0.1.0.dist-info")], "0.2.0"
+    )
+    assert len(problems) == 1, problems
+    assert "0.1.0" in problems[0] and "0.2.0" in problems[0], problems[0]
+    assert "/x/site-packages/minicc-0.1.0.dist-info" in problems[0], problems[0]
+    assert "pip install -e" in problems[0], (
+        "the refusal has to say how to fix the machine it is refusing: %s" % problems[0]
+    )
+
+
+def test_records_that_all_agree_with_the_source_are_accepted() -> None:
+    """The gate must still accept a healthy plane, duplicates included.
+
+    An editable install plus the packaging tests' rebuild of the same number is
+    two visible records saying one thing; refusing that would move the claim from
+    "is the version single-sourced" to "does this machine hold exactly one file".
+    """
+    rows = [
+        ("0.2.0", "/tree/minicc.egg-info"),
+        ("0.2.0", "/tree/.venv/Lib/site-packages/minicc-0.2.0.dist-info"),
+    ]
+    assert _version_disagreements(rows, "0.2.0") == [], (
+        "two records that agree are a normal editable-install plane, not a fault"
+    )
+
 
 
 def test_no_production_dict_announces_a_version_literal() -> None:
