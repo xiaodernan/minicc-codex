@@ -17,7 +17,7 @@ from pathlib import Path
 import pytest
 
 import minicc.bench_tasks as bench_tasks
-from minicc.benchmarks import load_tasks
+from minicc.benchmarks import build_report, load_tasks
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 BENCH_SRC = (REPO_ROOT / "minicc" / "benchmarks.py").read_text(encoding="utf-8")
@@ -73,6 +73,42 @@ def test_the_two_honest_shapes_still_load(tmp_path: Path, command: object) -> No
     assert load_tasks(_legacy(tmp_path, BASE))[0]["id"] == BASE["id"]
     task = {**BASE, "verify_command": command}
     assert load_tasks(_legacy(tmp_path, task))[0]["id"] == BASE["id"]
+
+
+def test_a_row_that_recorded_no_judge_names_none() -> None:
+    """M8-T181: the report stopped deriving a grader from the task spec.
+
+    A row carrying a status but no ``grader_type`` can only come from a results
+    file this runner did not write - the runner records one on every path. The
+    report used to answer "who judged this?" with ``_declared_grader_type(task)``:
+    the grader the *spec* names. That is a claim about who would have looked,
+    printed in the one column a reader cannot separate from who did. The
+    ``not_run`` rows already said None since M8-T139; the other statuses now
+    agree with them.
+    """
+    task = {**BASE}
+    assert (task.get("grader") or {}).get("type") is None and task.get("verify_command")
+    row = {"task_id": BASE["id"], "status": "failed", "passed": False}
+    report = build_report([task], [row])["results"][0]
+    assert report["grader_type"] is None, report
+    # The other direction still works: a judge the row did record is copied through.
+    recorded = dict(row, grader_type="command")
+    assert build_report([task], [recorded])["results"][0]["grader_type"] == "command"
+
+
+def test_the_report_does_not_derive_the_judge_from_the_task_spec() -> None:
+    """Structural half: the fallback must not come back under another spelling.
+
+    The behavioural test above covers one status; this covers the function. If
+    ``build_report`` ever calls ``_declared_grader_type`` again, a reader of the
+    report is back to being told who would have judged a row nobody judged.
+    """
+    tree = ast.parse(BENCH_SRC)
+    builder = next(node for node in ast.walk(tree)
+                   if isinstance(node, ast.FunctionDef) and node.name == "build_report")
+    calls = {ast.unparse(node) for node in ast.walk(builder) if isinstance(node, ast.Call)}
+    invented = sorted(call for call in calls if "_declared_grader_type" in call)
+    assert invented == [], invented
 
 
 def test_both_doors_ask_the_same_owner() -> None:

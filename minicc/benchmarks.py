@@ -104,10 +104,11 @@ def _is_infra_failure(row: dict[str, Any]) -> bool:
 def _declared_grader_type(task: dict[str, Any]) -> str:
     """Who would have judged this task, for the rows where nobody got to.
 
-    One owner for the column's fallback: ``build_report`` uses it as the default
-    for a recorded row that carries no ``grader_type``, and the runner uses it
-    when the host could not write the workspace at all, so the report's rebuild
-    and the runner's refusal cannot name two different graders for one task.
+    One owner for the runner's refusal vocabulary: when the host could not write
+    the workspace, the row has to say which grader *would* have judged it, and
+    this is that answer. ``build_report`` does not use it - since M8-T181 the
+    report never derives a judge from the task spec, so a row that recorded no
+    grader reports none instead of one the spec implies.
     """
     kind = (task.get("grader") or {}).get("type")
     if isinstance(kind, str) and kind:
@@ -241,7 +242,12 @@ def build_report(tasks: list[dict[str, Any]], results: list[dict[str, Any]] | No
             "usage": recorded.get("usage") if isinstance(recorded.get("usage"), dict) else None,
             "cost_usd": recorded.get("cost_usd") if _measurement(recorded.get("cost_usd")) else None,
             "claimed_complete": recorded.get("claimed_complete", recorded.get("status") == "completed"),
-            "grader_type": (recorded.get("grader_type", _declared_grader_type(task))
+            # M8-T181: no invention. A row that carries a status but no
+            # ``grader_type`` names nobody - the task spec says who *would*
+            # judge it, which is not the same claim, and the report is the one
+            # place a reader cannot tell the two apart. ``not_run`` rows have
+            # said None since M8-T139; the other statuses now agree with them.
+            "grader_type": (recorded.get("grader_type")
                             if recorded.get("status", "not_run") != "not_run" else None),
             # Rows are rebuilt key by key, so a field the grader added is invisible
             # downstream unless it is copied here (M8-T81 gate).
