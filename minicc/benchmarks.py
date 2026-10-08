@@ -307,6 +307,15 @@ def build_report(tasks: list[dict[str, Any]], results: list[dict[str, Any]] | No
         task for task in tasks
         if isinstance(task.get("grader"), dict) or task.get("verify_command")
     ]
+    # M8-T185: the acceptance rate is published under two names -
+    # ``pass_at_1`` and ``acceptance_success_rate``, which
+    # docs/BENCHMARK_EVALUATION.md lists as one metric with two spellings. Until
+    # this batch the two keys carried two separately typed copies of the same
+    # expression, so an edit to either one would publish two different numbers
+    # under two names and nothing would notice: nothing in the repository reads
+    # the second name (census below), and no gate compared the two. One
+    # definition, two keys.
+    acceptance_rate = round(len(passed) / len(gradable), 4) if gradable else None
     return {
         "schema_version": 2,
         "generated_at_epoch": time.time(),
@@ -325,7 +334,7 @@ def build_report(tasks: list[dict[str, Any]], results: list[dict[str, Any]] | No
             # pass_at_1 counts only tasks with an automated grader; tasks
             # without verify_command report passed=None and must not dilute
             # the pass-rate denominator.
-            "pass_at_1": round(len(passed) / len(gradable), 4) if gradable else None,
+            "pass_at_1": acceptance_rate,
             "execution_completion_rate": round(sum(row["status"] == "completed" for row in completed) / len(completed), 4) if completed else None,
             "grading_coverage": round(len(gradable) / len(completed), 4) if completed else (round(len(definition_gradable) / len(tasks), 4) if tasks else None),
             "gradable_task_count": len(gradable) if completed else len(definition_gradable),
@@ -358,7 +367,7 @@ def build_report(tasks: list[dict[str, Any]], results: list[dict[str, Any]] | No
                 if (non_infra_gradable := [row for row in gradable if not _is_infra_failure(row)])
                 else None
             ),
-            "acceptance_success_rate": round(len(passed) / len(gradable), 4) if gradable else None,
+            "acceptance_success_rate": acceptance_rate,
             "false_completion_rate": round(sum(row["claimed_complete"] and row["passed"] is False for row in gradable) / len(gradable), 4) if gradable else None,
             # The mirror image of false_completion_rate: grading is skipped unless the
             # agent claimed completion, so a task the completion judge capped is

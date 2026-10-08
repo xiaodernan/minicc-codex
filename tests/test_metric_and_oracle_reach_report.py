@@ -112,6 +112,61 @@ def test_every_computed_metric_gets_a_row_in_the_table() -> None:
     assert len(keys) == len(set(keys)), "a metric printed twice has two possible values"
 
 
+def _metrics_dict_literal() -> dict[str, ast.expr]:
+    """The metrics dict ``build_report`` returns, as ``{key: value-node}``."""
+    tree = ast.parse((REPO_ROOT / "minicc" / "benchmarks.py").read_text(encoding="utf-8"))
+    builder = next(node for node in ast.walk(tree)
+                   if isinstance(node, ast.FunctionDef) and node.name == "build_report")
+    for node in ast.walk(builder):
+        if not isinstance(node, ast.Dict):
+            continue
+        keys = {key.value for key in node.keys if isinstance(key, ast.Constant)}
+        if {"pass_at_1", "acceptance_success_rate"} <= keys:
+            return {key.value: value for key, value in zip(node.keys, node.values)
+                    if isinstance(key, ast.Constant)}
+    raise AssertionError("build_report no longer builds a metrics dict holding both acceptance names")
+
+
+def test_the_two_acceptance_names_are_one_definition() -> None:
+    """M8-T185: one number, two published names, one expression.
+
+    ``pass_at_1`` and ``acceptance_success_rate`` are the same quantity -
+    docs/BENCHMARK_EVALUATION.md lists them on one row - and for the whole life of
+    the report they were two separately typed copies of
+    ``round(len(passed) / len(gradable), 4)``. Nothing in the repository reads the
+    second name (census in the batch record), so an edit to either copy would
+    have published two different numbers under two names with no reader and no
+    gate to object. Both keys must therefore read one local definition.
+    """
+    values = _metrics_dict_literal()
+    for name in ("pass_at_1", "acceptance_success_rate"):
+        node = values[name]
+        assert isinstance(node, ast.Name), (
+            f"{name} computes the acceptance rate in place again; it must read the one "
+            "local definition so the two names cannot drift apart"
+        )
+    assert values["pass_at_1"].id == values["acceptance_success_rate"].id, (
+        f"the two acceptance names read two different locals: "
+        f"{values['pass_at_1'].id!r} and {values['acceptance_success_rate'].id!r}"
+    )
+
+
+def test_the_two_acceptance_names_never_disagree() -> None:
+    """The behavioural half: whatever the rows say, the two keys say the same thing."""
+    graded = {"id": "t", "category": "edit",
+              "grader": {"type": "file_contract", "path": "a", "contains": "b"}}
+    shapes = [
+        [{"task_id": "t", "status": "completed", "passed": True}],
+        [{"task_id": "t", "status": "completed", "passed": False}],
+        [{"task_id": "t", "status": "completed", "passed": None, "grading_refused": True}],
+        [{"task_id": "t", "status": "not_run"}],
+        [],
+    ]
+    for rows in shapes:
+        metrics = benchmarks.build_report([graded], rows)["metrics"]
+        assert metrics["pass_at_1"] == metrics["acceptance_success_rate"], (rows, metrics)
+
+
 def test_the_third_verdict_is_counted_and_not_called_a_refusal() -> None:
     """M8-T184: "nobody judged this workspace" is two different stories.
 
