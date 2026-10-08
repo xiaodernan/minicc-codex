@@ -76,6 +76,12 @@ GATE_METRICS = frozenset({
 #: batch-118 comment came to promise floors the workflow never pinned. A value
 #: starting with ``nightly`` is a claim about .github/workflows/ci.yml and the
 #: door checks it against the file; anything else must say why it is unfloored.
+#:
+#: M8-T186: some of those reasons are themselves claims about the workflow - "I
+#: need no floor because *that* metric has one". ``COVERED_BY`` names them, so the
+#: door can check the "because". A reason that names no other metric (pricing is
+#: unavailable; no reading justifies a number) is not checkable here and stays
+#: prose, which is why it is not in that table rather than being left implicit.
 GATE_FLOORS: dict[str, str] = {
     "pass_at_1": "nightly >=0.3 - deliberately conservative; real-model v2 accuracy is not yet characterised",
     # M8-T154/M8-T155: pass_at_1 is the gated rate and keeps its frozen
@@ -101,6 +107,15 @@ GATE_FLOORS: dict[str, str] = {
     # a floor needs a measured value behind it.
     "reviewer_false_negative_count": "unfloored: no reading justifies a number, and it measures the reviewer rather than the suite score (M8-T86)",
     "false_completion_rate": "nightly <=0 - backed by a real-run reading of 0 (batch 181)",
+}
+
+#: M8-T186: metrics left unfloored *because another metric is floored*. The value
+#: is the metric whose floor does the covering. A door checks every row: the
+#: covered metric must really be unfloored, and the covering metric must really be
+#: floored by the nightly. Without this table the reason is prose, and prose is
+#: what let the batch-118 comment promise floors the workflow never pinned.
+COVERED_BY: dict[str, str] = {
+    "pass_at_1_ex_infra": "pass_at_1",
 }
 
 

@@ -154,6 +154,35 @@ def test_every_gate_metric_declares_who_pins_its_floor():
     )
 
 
+def test_a_metric_left_unfloored_because_another_is_gated_keeps_its_reason() -> None:
+    """M8-T186: "I need no floor because that one has one" is a claim too.
+
+    ``GATE_FLOORS`` records why a gateable metric has no floor. Most of those
+    reasons are not checkable here - "pricing is unavailable", "no reading
+    justifies a number" - and they stay prose. But one kind *is* checkable: the
+    metric that leans on another metric being floored. Batch 210's door reconciles
+    the table against the workflow in both directions and would still be green if
+    someone re-declared ``pass_at_1`` as unfloored *and* dropped its ``--gate``
+    together; ``pass_at_1_ex_infra``'s reason ("pass_at_1 is the gated rate") would
+    then be false with nothing to say so. ``COVERED_BY`` makes that pointer
+    explicit so this door can hold it.
+    """
+    from minicc.bench_compare import COVERED_BY, GATE_FLOORS, GATE_METRICS
+
+    nightly = _nightly_gates()
+    for metric, cover in sorted(COVERED_BY.items()):
+        assert metric in GATE_METRICS, f"{metric} is not a gateable metric"
+        assert cover in GATE_METRICS, f"{cover} is not a gateable metric"
+        assert not GATE_FLOORS[metric].startswith("nightly"), (
+            f"{metric} is recorded as covered by {cover} but also as floored by the "
+            "nightly; one of the two rows is stale"
+        )
+        assert cover in nightly, (
+            f"{metric} is left unfloored on the grounds that {cover} is gated, but the "
+            f"nightly no longer thresholds {cover} - its reason is now false"
+        )
+
+
 def test_pr_eval_gate_names_false_completion_rate():
     """The tracking table calls false_completion_rate 恒 0 and a named CI metric.
 
