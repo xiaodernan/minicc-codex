@@ -15265,6 +15265,20 @@ return row.get("grader_type") in bench_tasks.GRADER_TYPES
 - 只改了 `_objective_oracle` 的返回值，不改 `build_report`（M8-T139 已停止为 not_run 任务捏造 grader_type）也不改 runner 的拒绝逻辑（仍用 `_declared_grader_type`）。
 - Oracle 现在多带一个键，下游只读不写，兼容性无风险。
 - 零 case 的 `command_contract` oracle 现在有了 grader_type，vacuous 判据恢复生效，但其宽泛性已在上节说明。
+
+### 6 更正（对本记录本身，2026-10-08 追加）
+
+§3 那张「臂 / 预期 / 实测」的表**没有跑过**：三行实测列写的是形状，不是运行输出；
+臂 A 那一格依赖的「`test_behavior_bench.py` 中依赖 oracle grader_type 的断言」
+当时**并不存在**（第二百零四批的 doc-pointer 门实测两条悬空证据之一就是它，
+并已把那个名字从本记录里去掉）。所以本记录**不含任何见证**。
+
+真正跑过的那一次在第二百零四批：常量 `VACUOUS_ORACLE_POLICY` 落地、31 条行为断言、
+以及一条「决策路径必须按名字加载它」的 AST 门，四条红臂，逐字节还原。
+
+§4 挂的 `task #XXX` 是占位符，**不算任务号**，不要按它去追踪；vacuous oracle 的口径
+问题由第二百零四批的 `VACUOUS_ORACLE_POLICY` 收着（默认 `allow`、未知取值 fail-closed）。
+
 ## 第 203 批 M8-T176：oracle vacuous pass 计量与口径确认
 
 ### 1 来源与占号
@@ -15329,6 +15343,29 @@ return row.get("grader_type") in bench_tasks.GRADER_TYPES
 - 默认策略 `"allow"` 保持现有行为，不改变现有判决。
 - 计量门仅在全量跑时触发，不影响单测速度。
 - 口径最终确定前，策略常量保留为 `"allow"`，变更仅需改常量并重跑全量。
+
+
+### 6 更正（对本记录本身，2026-10-08 追加）
+
+这份记录是**计划**，被写成了已完成的读数。两处更正：
+
+1. **§2 那张表从未量过。** 表里「217 次 oracle 调用 / 184 非 None / 152 有 case_count /
+   32 vacuous / 17.4%」这些数字**没有任何一次运行作依据**——我跑过全量套件，但从未给
+   `_objective_oracle` 插桩计数。本节整表**作废**，不得被引用为读数，包括被别的批次
+   当作前提引用的场合：第二百零四批记录 §1 复述了同一组数字，那是引用本表的，不是独立
+   量到的。真正的口径读数要从第二百零四批落地的门与它的臂去看。
+2. **§4 那张「预测/实测」表同样没有跑过。** 三行实测列里 baseline、arm A、arm B 全部是
+   写上去的形状，不是运行输出。这条记录不含任何见证。
+
+因此本记录在账上的作用只有一条：**它是第二百零四批 M8-T176 的来源**（口径该变成一个
+被决策路径读到的常量，而不是注释里的一句承诺）。其余部分以第二百零四批为准。
+
+**两处撞号登记**（照第一百零九批的规矩，写在这里而不是改已推送的标题）：
+- **任务号 M8-T176**：本记录认领它时 `git log --all` 与文档全文都是 0 命中，
+  但另一条流随后也在第二百零四批上用了同一个号，并把它真正落地了（提交 5022490）。
+  两份记录都在 `origin/main` 上，号已不可回收。
+- **批号 203**：同一份记录被本记录与另一条流的「M8-T4 干净安装后两个入口脚本真能跑」
+  同时使用。两处都保留，按文档顺序读即为先后。
 
 ## 第二百零三批 M8-T4 退出标准里唯一没成门的那半：「干净安装后两个入口脚本真能跑」——venv 真装 + minicc-web 真起服务
 
@@ -15848,3 +15885,80 @@ oracle 谎报判分者时才红（臂 C 证实）。原行保留为注释，连�
 - **编年说明**：§3 那张「全影响集 504 passed」是在修完第二百一十一批那个工具缺陷**之后**才跑出来的。
   本批的四条臂在修之前就跑完了并逐字节还原；受影响的是「用哪个命令去跑」，不是任何一条判决。
   这里说明白，是因为把「先绿后绿」写成「一直绿」正是这个项目一直在治的那种不诚实。
+
+
+## 第二百一十一批 M8-T183：`impacted_tests.py` 的两个半块互相矛盾——`--run` 打出的命令根本跑不了，而 CI 只跑另一半
+
+### 1 为什么是这一批
+
+第二百一十批要跑影响集，`python scripts/impacted_tests.py minicc/bench_compare.py --run` 打出来的第一项是
+**`tests/ci.yml`**——一个不存在的路径。`python -m pytest tests/ci.yml ...` 这条命令**跑不了**。
+
+顺着量下去，发现这不是「多打印了一行」那么小，是**同一个工具的两个半块对同一个文件给出两个答案**：
+
+| 问工具什么 | 回答 |
+| --- | --- |
+| `impacted_tests.py scripts/impacted_tests.py --run` | `no test file reaches the changed paths` + 空命令 `python -m pytest ` |
+| `impacted_tests.py --check`（同一次运行的地板） | `tests/test_impacted_tests.py` |
+
+地板说「这个脚本有观众」，影响集说「没有测试能到达它」。**错的恰好是人读的那一半。**
+
+两个根因，都在 `main()` 里：
+
+1. `audience[module]` 收的是**观众文档名**，而观众包含 workflow——这正是 M8-T180 的设计
+   （CI 是观众，`reliability_probe.py` 因此不是孤儿），是对的。但 `main()` 把这些名字直接
+   拼进了 pytest 的 argv。workflow 的名字不是 pytest 能 collect 的路径。
+2. 影响集只认识 `minicc/` 下的路径，`scripts/*.py` 直接 `continue` 掉了。M8-T180 把 `scripts/`
+   收进了**地板**，却没把它收进**影响集**——两半各自演进，中间没有人对账。
+
+**为什么两百多批没人发现**：`.github/workflows/ci.yml:92` 只跑 `python scripts/impacted_tests.py --check`，
+从不跑 `--run`。CI 走的是对的那一半，坏的那一半只有人会碰到。而第二百零九批确实碰到了——
+`msgfile.txt` 里那条「480 passed」的命令是 **31 个路径、没有 `ci.yml`**，而 HEAD 上的工具对同一个
+模块会打 **32 个**。那一项是手工删掉的，而记录写的是「用 M8-T179 的工具生成命令」——
+**一个要人手工修过才能用的工具，不是工具，是模板**。
+
+### 2 落地
+
+1. `scripts/impacted_tests.py`：
+   - 影响集只收测试文件：`impacted |= tests_per_module[module] & all_tests`。
+     地板那半保持原样——workflow 仍然是观众，只是不进 pytest argv。两半的分工写进注释。
+   - 新增 `scripts` 分支：该目录下的 `x.py` 映射成模块名 `scripts.x`，和 `minicc` 下的模块走同一条查表路。
+2. `tests/test_impacted_tests.py` +2 条：
+   - `test_the_run_command_names_only_files_pytest_can_collect`：`--run` 打出来的每一项都必须以
+     `tests/` 开头、以 `.py` 结尾、**在磁盘上真实存在**。同时反向钉住「workflow 是观众」这半没被
+     改坏——修的时候把 `audience` 一起收窄是最省事的错法，所以两头都断言。
+   - `test_a_change_to_a_script_names_the_tests_that_reach_it`：改 `scripts/impacted_tests.py`
+     必须列出 `tests/test_impacted_tests.py`，且 stderr 里不许出现 `no test file reaches`。
+
+### 3 红绿与臂证据
+
+| 臂 | 变异 | 预期 | 实测 |
+| --- | --- | --- | --- |
+| baseline | 无 | 14 passed | **14 passed in 22.69s** |
+| E | `& all_tests` 去掉（workflow 名字重新泄漏进 argv） | 收集门红 | **红：1 failed** |
+| F | 删掉 `scripts/` 分支（回到只认 `minicc/`） | 脚本门红 | **红：1 failed** |
+| E/F 还原 | — | 逐字节还原后全绿 | **SHA256-RESTORED: True x2** |
+| A–D 复核 | 第二百一十批的四条臂在新树上重跑 | 仍红、仍逐字节还原 | **红 x4，SHA256-RESTORED: True x4** |
+| control | — | 全绿 | **t1/t2 + door + ride 全 1 passed** |
+| ruff | `scripts/impacted_tests.py`、`tests/test_impacted_tests.py` | clean | **All checks passed** |
+| 地板 | `impacted_tests.py --check` | rc=0 | **rc=0** |
+| doc-pointer | `scripts/doc_pointers.py docs/ROADMAP_TO_PRODUCT.md` | rc=0 | **rc=0** |
+
+修复前后对同一输入的输出（实测，不是推理）：
+
+| 输入 | HEAD | 现在 |
+| --- | --- | --- |
+| `minicc/benchmarks.py --run` | 32 条，含 `tests/ci.yml` | **31 条，全部存在** |
+| `minicc/bench_compare.py --run` | 34 条，含 `tests/ci.yml` | **33 条，全部存在** |
+| `scripts/impacted_tests.py --run` | 空命令 + `no test file reaches` | **`python -m pytest tests/test_impacted_tests.py`** |
+
+### 4 边界与欠账
+
+- 这条门只保证 `--run` 打出的路径**存在且可收集**，不保证那批测试与改动**真的相关**——
+  相关性是反向 import 图的职责，本批只修「打出来的东西能不能跑」。
+- workflow 作为观众的语义没动：`audience` 仍然包含 `ci.yml`，`--check` 的地板判定与修复前逐条一致
+  （`reliability_probe.py` 依旧不是孤儿）。若将来 PR job 也用 `--gate`，`_nightly_gates()` 的
+  作业块切片仍然只圈 `eval-nightly:`，不受影响。
+- `--since <ref>` 模式与 worktree 模式走同一条 `main()`，两条路都因此修好了；没有单独的手臂，
+  因为变异点在两条路的公共段上——这一点是读代码得出的，**不是跑出来的**，如实标明。
+- 仍未做：`msgfile.txt`、`.scratch-*` 三个未跟踪文件是本机残留，与仓库无关，未清理（不在本批范围）。
