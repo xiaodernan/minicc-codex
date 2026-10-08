@@ -993,6 +993,11 @@ _QUOTED_STALE_PATH: dict[str, str] = {
     "tests/test_oracle_vacuous_ratio.py": "第 203 批（M8-T176）计划起的文件名；第二百零四批落地时更名为 "
     "tests/test_oracle_vacuous_policy.py（文件问的是「口径常量是不是活的」，不是「比例是多少」）。"
     "引用旧名的地方正是在记录这次改名",
+    "tests/ci.yml": "第二百一十一批（M8-T183）记录里被引用的那个**坏输出**本身："
+    "scripts/impacted_tests.py 的 --run 曾把 workflow 的文档名直接拼进 pytest argv，"
+    "于是每条命令的第一项都是这个不存在的路径。文档引它正是为了说它跑不了；"
+    "tests/test_impacted_tests.py::test_the_run_command_names_only_files_pytest_can_collect "
+    "钉住 --run 打出来的每一项都必须在磁盘上真实存在",
 }
 
 #: Removed on purpose. The document is not claiming the file is there; it is

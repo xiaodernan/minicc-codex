@@ -315,9 +315,19 @@ def main(argv: list[str] | None = None) -> int:
             if path in {f"tests/{name}" for name in all_tests}:
                 impacted.add(Path(path).name)
             continue
-        if not path.startswith(f"{PACKAGE}/") or not path.endswith(".py"):
+        # M8-T183: a change under scripts/ is a change to a module the graph
+        # knows, not a path to skip. Before this branch the impact set only
+        # understood minicc/, so editing scripts/impacted_tests.py itself printed
+        # "no test file reaches the changed paths" while the very same run's
+        # --check listed tests/test_impacted_tests.py as its audience. The floor
+        # and the impact set disagreed about the same file, and only the half a
+        # human reads was wrong.
+        if path.startswith(f"{SCRIPTS}/") and path.endswith(".py"):
+            module = f"{SCRIPTS}.{Path(path).stem}"
+        elif path.startswith(f"{PACKAGE}/") and path.endswith(".py"):
+            module = ".".join(Path(path).with_suffix("").parts)
+        else:
             continue
-        module = ".".join(Path(path).with_suffix("").parts)
         if module not in tests_per_module:
             # A module the graph does not know. Deleted: nothing left to run.
             # New: nobody can see it, which is the finding, not a shrug.
@@ -325,7 +335,14 @@ def main(argv: list[str] | None = None) -> int:
                 unseen.append(module)
             continue
         if tests_per_module[module]:
-            impacted |= tests_per_module[module]
+            # Only test files may enter the pytest command. ``audience`` counts a
+            # CI workflow as an audience too (M8-T180 - that is what keeps
+            # reliability_probe.py off the orphan list), and a workflow name is
+            # not a path pytest can collect: printing it produced
+            # ``pytest tests/ci.yml``, a command that cannot run. Batch 209
+            # stripped it by hand and said nothing, which is how a tool that
+            # gates other people's work stays broken.
+            impacted |= tests_per_module[module] & all_tests
         else:
             unseen.append(module)
 

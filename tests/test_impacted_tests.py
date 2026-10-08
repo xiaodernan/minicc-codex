@@ -218,6 +218,68 @@ def test_a_module_that_no_longer_exists_is_not_a_finding(
     assert script.main(["minicc/gone_forever.py"]) == 0
 
 
+def test_the_run_command_names_only_files_pytest_can_collect() -> None:
+    """The command the tool prints has to be runnable, not merely plausible.
+
+    M8-T183. ``audience`` counts a CI workflow as an audience for a module - that
+    is the whole point of M8-T180, and it is what keeps ``reliability_probe.py``
+    off the orphan list. But ``--run`` fed those document names straight into the
+    pytest argv, so every invocation printed ``tests/ci.yml`` alongside the real
+    test files: a path that does not exist, so the command it hands the operator
+    fails on collection. Batch 209 hit this, stripped the bogus entry by hand,
+    and recorded "480 passed" without saying the tool's own output had been
+    edited - a gate that only works after you fix it by hand is not a gate.
+
+    The distinction the fix has to keep is the one that makes the floor work: a
+    workflow is an audience (so a module it runs is not an orphan) and is not a
+    test (so it must not appear in a pytest command). Both halves are asserted
+    here, because dropping either one re-breaks something.
+    """
+    script = _load_script()
+    audience, _references, test_names = script.build()
+    workflows = {name for name in audience["minicc.bench_compare"]
+                 if not name.endswith(".py")}
+    assert workflows, "the fixture lost the very case this test is about"
+    assert "minicc.bench_compare" in {
+        module for module, docs in audience.items() if workflows & docs
+    }, "a workflow is an audience for the module it runs"
+
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT), "minicc/bench_compare.py", "--run"],
+        capture_output=True, text=True, cwd=str(REPO_ROOT), check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    listed = result.stdout.split()
+    assert listed[:3] == ["python", "-m", "pytest"], listed[:3]
+    paths = listed[3:]
+    assert paths, "the tool named no test at all"
+    for path in paths:
+        assert path.startswith("tests/") and path.endswith(".py"), path
+        assert (REPO_ROOT / path).is_file(), f"{path} does not exist"
+        assert path[len("tests/"):] in test_names, path
+
+
+def test_a_change_to_a_script_names_the_tests_that_reach_it() -> None:
+    """M8-T183, second half: the impact set has to know about scripts/ too.
+
+    ``--check`` already counted a workflow as an audience for a script (M8-T180),
+    and ``tests/test_impacted_tests.py`` is the audience for this very file - but
+    ``--run`` answered "no test file reaches the changed paths" for it, because
+    the impact set only understood paths under ``minicc/``. One tool, two halves,
+    two different answers about the same file, and the half a human reads was
+    the wrong one.
+    """
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT), "scripts/impacted_tests.py", "--run"],
+        capture_output=True, text=True, cwd=str(REPO_ROOT), check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "no test file reaches" not in result.stderr, result.stderr
+    listed = result.stdout.split()
+    assert listed[:3] == ["python", "-m", "pytest"], listed[:3]
+    assert listed[3:] == ["tests/test_impacted_tests.py"], listed[3:]
+
+
 def test_the_tool_ignores_paths_no_test_could_reach() -> None:
     """Docs and config are not production modules; the tool says so quietly."""
     result = subprocess.run(
