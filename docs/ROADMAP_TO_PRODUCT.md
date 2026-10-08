@@ -15152,3 +15152,64 @@ return dict(result)
 - 只改 `_objective_oracle` 的返回值，不改 `build_report`（那里已在 M8-T139 停止为 not_run 任务捏造 grader_type）也不改 runner 的拒绝逻辑（仍用 `_declared_grader_type`）。
 - Oracle 现在多带一个键，下游只读不写，兼容性无风险。
 - 零 case 的 `command_contract` oracle 现在有了 grader_type，vacuous 判据恢复生效。
+
+## 第二百零二批 「豁免只吞 pytest 自己的泄漏」这句 honest-if，从「论证」升级为「实测」：资源卫生行为门 + 一处被测量推翻的机制声明
+
+### 1 为什么是这一批
+
+`conftest._skip_upstream_scandir_sweep` 把 pytest 会话末的 GC sweep 关掉（`-W error` 下
+它把 pytest 自己 `find_prefixed` 抛弃的 scandir 报成红）。这个豁免**只有在我们自己的代码
+不可能产生同一条警告时才诚实**——否则它会连真泄漏一起吞。原来的诚实性靠两段 AST 规则
+「论证」。第一百七十六批还留了一条未查清的观察（`-W error` 跑里出现过
+`Exception ignored in: <nt.ScandirIterator ...>`）。本批把这句话变成实测。
+
+### 2 实测（先量，再改）
+
+探针（`.scratch-longrun/probe_t202.py`，ResourceWarning 升级为 error + unraisable hook）：
+
+| 形状 | 读数 |
+| --- | --- |
+| **对照**：`os.scandir` + break | **LEAKS** `ResourceWarning: unclosed scandir iterator`——探测器是活的 |
+| `os.walk` + break / return / 剪枝后 break | clean |
+| `Path.rglob` / `Path.glob` + break | clean |
+| `Path.iterdir` + break、`rglob()` + `next()` + `del` | clean |
+
+两条机制事实（读本机 `os.py` / `pathlib.py` 源码 + 上表实测互证）：3.11 的 `os.walk` 与
+pathlib glob 都用 `with scandir(...)` 包住，抛弃生成器时 `with` 会关掉迭代器；而
+**`Path.iterdir` 在 3.11 是 `os.listdir` 实现的**——原门第二条规则 docstring 里
+「``iterdir()`` 的生成器包着 `os.scandir`」这个机制声明**在本机是被测量推翻的**（规则本身
+仍值钱：那是解释器实现细节，不是契约；换到 scandir 系的解释器上，同一条规则正是豁免的
+另一半保障）。CI 全钉 3.11（`ci.yml` 七处），无版本偏斜风险。
+
+### 3 落地（只动测试与文档，产品代码零改动）
+
+- `tests/test_resource_hygiene.py` 新门
+  `test_our_directory_walks_leave_no_unraisable_scandir`：**先自证探测器**
+  （故意抛弃一个 `os.scandir`，hook 必须听到，否则后面全白量），再跑**真实**的预算走查——
+  证据索引 `LocalEvidenceIndex(max_files=1, max_directories=1)` 的提前 return 与
+  `analyze_change_impact(max_files=1)` 的截断 break，各配反空转断言（探测器聋 / 没走到文件）。
+- 同文件 module docstring 三条声称改写为实测口径（新增第三条：真正造 scandir 的
+  walk/glob 确实会关）；`conftest.py` 豁免 docstring 补指行为门。
+- **调试中抓到的两个假阴性源，都记在案的对应修正**：① 控制臂最初跑在**空目录**上——
+  `for` 首次 `next()` 即 StopIteration，迭代器被穷尽关闭，那是安全路径不是泄漏；② 变异臂
+  最初只有**一个子目录**，不关 scandir 的走查也会被自然穷尽——泄漏根本不发生。两者都补了
+  注释与数据（第二个子目录），否则这门会在「永不响」的状态下假装在守。
+
+### 4 红绿与臂证据
+
+| 项 | 读数 |
+| --- | --- |
+| 臂 A1（单点变异：`retrieval.py` 的 `os.walk` → 不关 scandir 的手写生成器） | **红**，逐字 `ResourceWarning: unclosed scandir iterator` 落在 events 里 |
+| 还原 | `SHA256-RESTORED: True`（字节级，含 CRLF） |
+| 控制（还原后同门） | **1 passed** |
+| focused：resource_hygiene + change_impact + index_census + retrieval_notice | **40 passed（85.90s）** |
+| ruff（两文件） | 零新增；`conftest.py` 的 `time` F401 是 HEAD 同款 |
+
+### 5 边界
+
+- 本批**没有**在产品里发现活动泄漏：实测八种抛弃形状在钉住的 3.11 上全 clean，
+  第一百七十六批那条观察据此归因为 pytest 自身（豁免已覆盖）。
+- 行为门守的是「将来有人手写 scandir 忘了关」与「换解释器后 with 不再兜底」两类未来，
+  不是今天的缺陷；它替代的是原来那段**关于机制的论证**。
+- `os.walk`/glob 的静态规则**没有**加（CPython 的 `with` 已保证，加了只会和预算走查
+  故意的 break 打架）；这类形状由行为门在运行时量。
