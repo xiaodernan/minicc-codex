@@ -15653,3 +15653,53 @@ oracle 谎报判分者时才红（臂 C 证实）。原行保留为注释，连�
   但门不证明这一点——这是下限，不是全集。
 - 「每个模块都能 import」这条门会 import 全部 76 个模块；今天它们都没有导入期副作用（实测 2.7s），
   但谁要是给某个模块加一个联网的导入期行为，这条门会第一个红。
+
+## 第二百零八批 M8-T180：下限从 `minicc/` 扩到 `scripts/`——观众可以是 CI，而不只是测试；并且这条下限自己进了 CI
+
+### 1 为什么是这一批
+
+第 207 批把「谁能 notice 这次改动」做成了工具，但只量了 `minicc/`。`scripts/` 里住着三个
+**退出标准本名**（M1 的 `reliability_probe.py`、M4 的 `route_coverage.py`、M8-T36..T38 的
+`doc_pointers.py`），它们同样会烂，而且烂的方式不同：一个脚本可以**永远正确但永远没人跑**。
+先量：四个脚本里三个有测试引用，`scripts/reliability_probe.py` **零测试引用**。
+
+它不该有测试——它是 CI 门（`.github/workflows/ci.yml:55`，M1 退出标准「退出码 0 并接入 CI」）。
+所以「观众」这个概念必须比「测试」大一圈：**CI 也是观众**。把 workflow 也算进观众源之后，
+`reliability_probe.py` 的观众是 `ci.yml`，四个脚本全部有观众，`minicc/` 76 个模块也全部有。
+
+### 2 落地
+
+1. **`scripts/impacted_tests.py`**：观众源从「tests/*.py」扩成「tests/*.py + workflows/*.yml」；
+   模块集从 `minicc/` 扩成 `minicc/` + `scripts/`（`scripts.<stem>`）。两个必要的修正：
+   - workflow 是 YAML，**不能当 Python 解析**——第一版直接 `ast.parse` 整个 `.github/workflows/`，
+     在 `name: PR eval gate (fake provider, <15m)` 上 SyntaxError。改成按文本扫
+     `minicc.x` 与 `scripts/<名字>.py` 两种字面量。
+   - 脚本没有自己的 import 图可走，notice 它的是**点名它路径的人**——测试或 workflow。
+2. **CI 接线**：`claims` job 增加第三步 `python scripts/impacted_tests.py --check`，
+   注释按该文件既有风格写明三个门各答哪个问题、为什么 Linux 单腿。
+3. **门**（`tests/test_impacted_tests.py` 10 → 12 条）：
+   - `test_every_script_has_an_audience_too`：四个脚本都有观众，且
+     `reliability_probe` 的观众**必须包含 `ci.yml`**——它丢掉 CI  runner 就是 M1 退出标准重新变成
+     「没人量的口头承诺」。
+   - `test_the_impact_floor_is_wired_into_ci`：下限自己必须被 CI 跑。**没人跑的下限就是它取代的那份
+     手抄清单**（ci.yml 里 M8-T36..T38 的注释已经把这个道理写过了，这里只是不让它再犯）。
+
+### 3 红绿与臂证据
+
+| 臂 | 变异 | 预期 | 实测 |
+| --- | --- | --- | --- |
+| baseline | 无 | 12 passed | **12 passed** |
+| H | CI 不再跑下限 | 接线门红 | **红：1 failed** |
+| I | probe 丢掉 CI runner | 接线门 + 脚本观众门红 | **红：2 failed** |
+| J | 脚本退出模块集 | 脚本观众门红 | **红：1 failed** |
+| H–J 还原 | — | 逐字节还原后全绿 | **SHA256-RESTORED: True x3**，control **12 passed** |
+| 邻域 | 本批两文件 + CI 卫生 | 全绿 | **21 passed** |
+| ruff | 三个改动文件 | clean | **All checks passed** |
+| 工具自跑 | `--check` 在真实树上 | exit 0 | **exit 0**（80 个模块：76 minicc + 4 scripts，0 无观众） |
+
+### 4 边界
+
+- workflow 只按文本扫字面量，不解析 YAML 结构：`run: python scripts/x.py` 这种形状够用，
+  但一个把路径拼出来的 workflow（`scripts/<拼出来的名字>.py` 这种形状）观众会漏——本仓没有这种形状，门不证明这一点。
+- 「观众」不等于「覆盖」：CI 跑一个脚本，不等于那个脚本的每条分支都被走到。这条门只回答
+  「改动有没有人看见」，不回答「看见得够不够细」。

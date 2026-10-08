@@ -998,6 +998,8 @@ _QUOTED_STALE_PATH: dict[str, str] = {
 #: Removed on purpose. The document is not claiming the file is there; it is
 #: recording a deletion, and in the enforced case a test keeps it deleted.
 _RETIRED_PATH: dict[str, str] = {
+    "minicc/repl/repl.py": "第二百零七/八批记录里两次引这个名字，都是为了说它在 git 全史里从未存在"
+    "（`git log --all --diff-filter=A -- minicc/repl/*.py` 只命中同目录的 __init__.py 自己）",
     "minicc/repl": "第二百零七批（M8-T179）删除的死包：唯一的文件是从第一个 MVP 提交起就 "
     "`from .repl import Repl`，而 `minicc/repl/repl.py` 在 git 全史里从未存在——包不可导入、"
     "无引用、无测试，下限普查（每个模块都能 import）第一下就撞见它。文档引这个名字正是在记录这次删除",

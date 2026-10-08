@@ -17,6 +17,11 @@ other, and ``tests/`` files importing or string-referencing them - then inverts
 it. Nothing is measured by running anything, so it costs a second, not twelve
 minutes.
 
+The floor covers ``scripts/`` too, and there the audience is not only tests:
+``reliability_probe.py`` is run by CI, so CI is what notices a change to it.
+An audience is an audience; a script nobody runs and nobody tests is the
+``minicc/repl`` shape wearing a different hat.
+
 Usage (repo root, any interpreter):
 
     python scripts/impacted_tests.py                       # uncommitted changes
@@ -45,7 +50,10 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 PACKAGE = "minicc"
+SCRIPTS = "scripts"
+WORKFLOWS = REPO_ROOT / ".github" / "workflows"
 STRING_REF = re.compile(r"minicc(?:\.\w+)+")
+SCRIPT_REF = re.compile(r"scripts/[\w.-]+\.py")
 
 #: Modules no test reaches, with the reason. An entry without a reason is a bug:
 #: the floor exists to be argued with, not to be quietly widened.
@@ -137,6 +145,29 @@ def _test_references(path: Path, resolve) -> set[str]:
                 name = resolve(mention)
                 if name:
                     found.add(name)
+            for mention in SCRIPT_REF.findall(node.value):
+                found.add(".".join(Path(mention).with_suffix("").parts))
+    return found
+
+
+def _document_references(name: str, path: Path, resolve) -> set[str]:
+    """What one audience document reaches.
+
+    A ``.py`` document is parsed: imports plus the ``minicc.x`` / ``scripts/x.py``
+    strings it carries. A workflow is YAML and is read as text, because what it
+    references is written as plain strings - ``run: python scripts/x.py`` - and
+    parsing YAML as Python is how the first version of this function crashed.
+    """
+    if name.endswith(".py"):
+        return _test_references(path, resolve)
+    text = path.read_text(encoding="utf-8", errors="replace")
+    found: set[str] = set()
+    for mention in STRING_REF.findall(text):
+        module = resolve(mention)
+        if module:
+            found.add(module)
+    for mention in SCRIPT_REF.findall(text):
+        found.add(".".join(Path(mention).with_suffix("").parts))
     return found
 
 
@@ -152,18 +183,39 @@ def _closure(seeds: set[str], graph: dict[str, set[str]]) -> set[str]:
     return seen
 
 
+def _script_modules() -> dict[str, Path]:
+    """``scripts/<stem>.py`` as ``scripts.<stem>`` - the CI-facing half of the floor."""
+    return {f"{SCRIPTS}.{path.stem}": path
+            for path in sorted((REPO_ROOT / SCRIPTS).glob("*.py"))}
+
+
+def _audience_documents() -> list[tuple[str, Path]]:
+    """Everything that can notice a change: the test suite, then the workflows.
+
+    A CI step that runs a script is an audience for that script. Leaving it out
+    would have flagged ``reliability_probe.py`` - an M1 exit criterion that has
+    gated every push since M1 - as an orphan.
+    """
+    documents = [(path.name, path) for path in sorted((REPO_ROOT / "tests").glob("*.py"))]
+    documents += [(path.name, path) for path in sorted(WORKFLOWS.glob("*.yml"))]
+    return documents
+
+
 def build() -> tuple[dict[str, set[str]], dict[str, set[str]], set[str]]:
-    """(tests per module, tests per changed-path helper inputs, all test files)."""
+    """(audience per module, per-document references, all test files)."""
     modules = _modules()
     resolve = _resolver(modules)
     production = {name: _imports(path, resolve) for name, path in modules.items()}
-    tests = {path.name: _test_references(path, resolve)
-             for path in sorted((REPO_ROOT / "tests").glob("*.py"))}
-    tests_per_module: dict[str, set[str]] = {name: set() for name in modules}
-    for test, refs in tests.items():
+    documents = _audience_documents()
+    references = {name: _document_references(name, path, resolve) for name, path in documents}
+    audience: dict[str, set[str]] = {name: set() for name in modules}
+    for name in _script_modules():
+        audience.setdefault(name, set())
+    for document, refs in references.items():
         for module in _closure(refs, production):
-            tests_per_module[module].add(test)
-    return tests_per_module, tests, set(tests)
+            if module in audience:
+                audience[module].add(document)
+    return audience, references, {name for name, _ in documents if name.endswith(".py")}
 
 
 def _bound_names(path: Path) -> set[str]:

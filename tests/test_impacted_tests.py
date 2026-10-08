@@ -98,6 +98,36 @@ def test_every_name_a_facade_promises_is_one_it_binds() -> None:
         assert missing == [], f"{name} promises names it does not bind: {missing}"
 
 
+def test_every_script_has_an_audience_too() -> None:
+    """``scripts/`` joined the floor in the same batch that wired it into CI.
+
+    ``reliability_probe.py`` has no test that runs it - and must not need one:
+    CI runs it on every push (an M1 exit criterion). Its audience is ``ci.yml``,
+    which is why the audience set is "tests plus workflows" and not "tests".
+    """
+    script = _load_script()
+    audience, _references, _tests = script.build()
+    for name in script._script_modules():
+        assert audience[name], f"{name} has no audience: no test reaches it and no workflow runs it"
+    assert "ci.yml" in audience["scripts.reliability_probe"], (
+        "reliability_probe lost its CI runner - the M1 exit criterion is now unmeasured"
+    )
+
+
+def test_the_impact_floor_is_wired_into_ci() -> None:
+    """A floor nobody runs is the hand-copied list it replaced (M8-T36..T38).
+
+    The census that found ``minicc/repl`` is only worth what its enforcement is
+    worth. ``tests/test_ci_hygiene.py`` pins the other two claim checkers the
+    same way.
+    """
+    workflow = (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    assert "python scripts/impacted_tests.py --check" in workflow, (
+        "the impact floor is not run by CI, so a module losing its audience is "
+        "only visible to whoever remembers to run the tool"
+    )
+
+
 def test_a_facade_that_promises_a_name_it_does_not_bind_earns_no_exemption(
     tmp_path: Path,
 ) -> None:
