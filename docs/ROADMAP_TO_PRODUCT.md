@@ -14957,3 +14957,97 @@ allowlist）第一跑：`test_permission_modes.py::test_plan_mode_injects_system
 - 四条测试**本批实跑过**（10 passed + 1 passed），但**没有**做变异验证（没把修复拆掉看是否变红）——
   "有断言且绿"与"该断言真的钉住了这条修复"之间还差一次变异，**本批没有做**。
 - 本批**只动文档**（本记录），没有改代码、没有加门。
+## 第二百批 M8-T165：批任务合并器的花费记入父任务运行预算——T162 同类第五例，最后一个无预算的 LLM 面（六臂见证）
+
+### 1 为什么是这一批
+
+T162/T163/T164 依次把 DAG 节点、task 子代理、规划器三个 LLM 面的花费折叠/记入运行预算。
+本批通查**全部** LLM 调用面（`provider.chat` 的收敛点只有四处：`loop.py:824` 主循环、
+`completion.py:296` 评委、`web.py:2153` 规划器、`web.py:1147` 合并器），确认只剩
+**merge_batch**（批任务合并器）一个面不碰任何 `Budget`。P0 探针（进程内、`minicc.__file__`
+已核；spy 包住 `Budget.record_usage`/`record_cost`，真跑一个 2 子任务批，fake provider）：
+
+| 读数 | 修前实测 |
+| --- | --- |
+| 父任务 tokens_used | 1315（子树 1090 + 合并 225） |
+| 进程内所有 Budget 合计记过 | **1090**——合并器那一单 225 token 没有任何预算见过 |
+| budget_exceeded 事件 | 0 条 |
+| 任务级 cost_usd | 0.00149（有值，但没有任何 ceiling 在管它） |
+
+manual 模式（`submit_batch` 默认）的合并阶段全程没有预算对象；auto 模式父任务交接后
+主循环有预算，但合并那一次仍在预算之外。这就是「全运行唯一漏计成本的 LLM 面」在 T164
+之后的下一例，也是最后一例。
+
+### 2 修复（三面接线，与 T162/T163/T164 同款形状）
+
+- `web.py` 新增 `AgentService.batch_merge_budget(model)`：按 planning 路线造父任务运行
+  预算——与 `_chat_locked` 的 `initial_route` 预算同源（`_stage_route_budget` +
+  soft limits）。计价器 `_merge_cost_estimator(model)` 取**真正服务这次调用的父任务
+  模型**（`pricing.cost_usd`——与 `TaskRecord.snapshot` 的 `cost_usd` 同一个函数，
+  预算账与任务账同源）；未定价模型估 0.0，与 `_stage_cost_estimator` 的既有降级口径一致。
+- `merge_batch` 增补 `budget` / `cost_estimator` 两个可选参：LLM 返回后
+  `record_usage` + `record_cost`（同 `loop.py:932-938` 口径）。调用已发生，越限既不吞
+  也不抛穿——随载荷回报 `budget_exceeded`，合好的答案照付。
+- `task_manager._watch_batch`：合并前向 service 取父预算并传入；预算快照写进
+  `parent.metrics["budget"]`（父任务是运行根，运行预算该和 token 总量出现在同一处）；
+  usage 行打 `stage="merge"` 标签；返回带 `budget_exceeded` 时发具名事件
+  `{"kind":"trace","name":"orchestrator","status":"error","phase":"merging",
+  "code":"budget_exceeded","detail":{"stage":"merge",…}}`。
+
+### 3 门（新文件 `tests/test_merge_cost_budget_fold.py`，先红后绿）
+
+- **C1** `test_merge_spend_lands_in_the_parent_budget`：合并器 225 token 的价与量都进
+  父任务预算快照（`cost_usd == $0.00025`、`tokens == 225`），且 `tokens_used` 总数
+  == 子树折叠 + 合并那一单（不重不漏）；usage_by_turn 恰一行 `stage="merge"`；
+  未越限不得伪造事件。
+- **C2** `test_merge_cost_trip_emits_named_event_and_keeps_the_merge`：arm 父预算
+  `max_cost_usd=$0.0001`，合并单 $0.00025 ⇒ 恰一条 orchestrator/merging/stage=merge
+  具名事件，合好的答案照常交付。
+- **C3** `test_merge_token_trip_gets_the_same_named_event`：arm `max_tokens=10`，
+  225 token 的合并单拿同款具名事件（修前是静默）。
+
+**先红后绿**（stash 两源文件对未修树）：**3 failed**，红形逐条符合预测——C1
+`metrics` 里没有 budget（实测 `{'cache_status': 'unreported', 'cache_hit_rate': None}`）、
+C2/C3「实测 0 条」具名事件；修后 **3 passed**。
+
+### 4 见证（预测先写：`.scratch-longrun/t200-arms-predictions.md`；六臂，单点变异 + 磁盘备份 + sha256 还原 + 绿控终检）
+
+| 臂 | 变异（单点） | 预测＝实测红集 | 判定 |
+| --- | --- | --- | --- |
+| 控制 | 无 | 0 红（3 例全绿） | MATCHED |
+| A1 | 删 merge_batch 内预算记账块 | C1 / C2 / C3（3） | MATCHED |
+| A2 | `except BudgetExceeded` 吞成静默（不回报 budget_exceeded） | C2 / C3（2） | MATCHED |
+| A3 | watcher 传 `budget=None`（建了不交） | C1 / C2 / C3（3） | MATCHED |
+| A4 | usage 行删 `stage="merge"` 标签 | C1（1） | MATCHED |
+| A5 | 事件 name 由 orchestrator 改成 planner | C2 / C3（2） | MATCHED |
+| A6 | 事件 detail.stage 由 merge 改成 planning | C2 / C3（2） | MATCHED |
+
+终检（未变异）：控制腿 3/3 绿、rc=0、`web.py` 与 `task_manager.py` sha256 与 pre-arm
+逐字节一致。首轮 runner 末检曾报 `SHA256-RESTORED: False`：同一窗口有并行车道改动过
+工作区文件（`tests/test_http_surface.py` 的 timeout 参数化），重跑一轮六臂全 MATCHED
+且还原为 True——两次读数之间没有代码改动，差异来自并发写入而非本臂。
+
+### 5 回归证据（focused，按 AGENTS.md 不跑全量）
+
+| 命令 | 读数 |
+| --- | --- |
+| 修前 P0 探针（只读，进程内） | 合并 225 token 不进任何预算；0 条 budget_exceeded |
+| 修后 P0 探针 | charged 1315 == 父任务 1315，成本账 0.00025 |
+| 本门 + 批接线（merge fold 3 + batch_wiring 12） | **15 passed（69.62s）** |
+| 四个既有预算折叠门 + 阶段路由执行 + CLI 阶段路由 | **57 passed（252.67s）** |
+| core_task + core_session + subagent_wiring + subagent_task | **62 passed（277.37s）** |
+| ruff（两源文件 + 新门） | 零新增发现；既有的 33 条 F401 是 HEAD 同款，其中 `.agent.state.Budget imported but unused` 因本批启用而消账 |
+
+### 6 边界
+
+- 与 T162/T163 的差异是故意的且方向相反：那两例折叠只记 token（子系统各有自己的成本
+  天花板），本批的合并器是父任务**自己**的调用、没有子系统预算，所以 token + 成本
+  两本账都记。
+- 合并器的模型是用户给任务选的那个（M8 早期批次的接线决定），不一定是 planning 路线
+  模型；因此**上限**取 planning 路线（与任何一次单任务运行同源）、**计价**取实际被调用的
+  模型。routing 关闭时两者相同，与规划器同口径。
+- 父预算只记合并器这一单：子任务各带自己的运行预算。「一个用户面任务的整棵子树共用
+  一个总顶」这个更大的语义不在本批改变。
+- 越限不使批失败：钱已花、答案是真实工作产物，具名事件即见证——与子代理折叠的事后
+  记账同口径。auto 模式下父任务交接后的运行另有自己的预算，本批预算只覆盖合并这一次。
+- flake 复跑记录：与第一百九十九批同型的观测续跑未再复现。
