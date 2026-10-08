@@ -115,19 +115,26 @@ class _LiveServer:
         self.service.shutdown()
 
 
-def _request(url: str, *, method: str, body: bytes | None = None, headers: dict[str, str] | None = None):
+def _request(
+    url: str,
+    *,
+    method: str,
+    body: bytes | None = None,
+    headers: dict[str, str] | None = None,
+    timeout: float = 20.0,
+):
     request = urllib.request.Request(url, data=body, headers=headers or {}, method=method)
     try:
-        with urllib.request.urlopen(request, timeout=20) as response:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
             return response.status, dict(response.headers), response.read()
     except urllib.error.HTTPError as exc:
         return exc.code, dict(exc.headers), exc.read()
 
 
-def _post_json(url: str, payload, headers: dict[str, str] | None = None):
+def _post_json(url: str, payload, headers: dict[str, str] | None = None, *, timeout: float = 20.0):
     body = json.dumps(payload).encode("utf-8") if payload is not None else b""
     merged = {"Content-Type": "application/json", **(headers or {})}
-    return _request(url, method="POST", body=body, headers=merged)
+    return _request(url, method="POST", body=body, headers=merged, timeout=timeout)
 
 
 def _post_raw(url: str, body: bytes, headers: dict[str, str] | None = None):
@@ -412,10 +419,17 @@ def test_concurrent_task_submits(live: _LiveServer, tmp_path: Path) -> None:
 
     def submit(index: int) -> None:
         try:
+            # Batch 200 caught this cell's flake for the first time, with the shape:
+            # "submit 7: TimeoutError: timed out" in a combination run that took 753s
+            # against 287s for the same files - i.e. a contended machine, not a
+            # server defect. What this cell asserts is acceptance and id uniqueness,
+            # and a client timeout under load measures the machine. So it gets an
+            # explicit wider budget. It does not hide a hang: a server that never
+            # answers still fails here, just after 60s instead of 20.
             status, _, body = _post_json(f"{live.url}/api/tasks", {
                 "message": f"task {index}", "session_id": f"conc-{index}",
                 "workspace_path": str(tmp_path), "_defer_schedule": True,
-            })
+            }, timeout=60.0)
         except BaseException as exc:  # noqa: BLE001 - the point is to report it
             # An exception raised in a thread used to vanish here: it never reached
             # results and never propagated, so the only evidence left was
