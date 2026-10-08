@@ -112,6 +112,128 @@ def test_every_computed_metric_gets_a_row_in_the_table() -> None:
     assert len(keys) == len(set(keys)), "a metric printed twice has two possible values"
 
 
+def test_the_third_verdict_is_counted_and_not_called_a_refusal() -> None:
+    """M8-T184: "nobody judged this workspace" is two different stories.
+
+    ``gradable`` is selected by ``passed is not None`` and the refusal count by
+    ``grading_refused``. Those are different predicates, so a completed row whose
+    task declares neither a grader nor a verify_command satisfies neither: the
+    runner never writes ``passed`` for it at all. Until this column,
+    ``grading_coverage`` was the only signal, and it reads identically for "the
+    grader declined" and "there was nothing to grade with" - two situations with
+    different owners, one being the run and one being the suite.
+    """
+    graded = {"id": "judged", "category": "edit",
+              "grader": {"type": "file_contract", "path": "a", "contains": "b"}}
+    refused_task = dict(graded, id="refused")
+    plain = {"id": "no-grader", "category": "edit"}
+    idle = {"id": "not-run", "category": "edit"}
+    rows = [
+        {"task_id": "judged", "category": "edit", "status": "completed", "passed": True},
+        {"task_id": "refused", "category": "edit", "status": "completed", "passed": None,
+         "grading_refused": True, "refusal": "grader exited 2"},
+        {"task_id": "no-grader", "category": "edit", "status": "completed", "passed": None},
+        {"task_id": "not-run", "category": "edit", "status": "not_run"},
+    ]
+    report = benchmarks.build_report([graded, refused_task, plain, idle], rows)
+    metrics = report["metrics"]
+    assert metrics["no_grader_count"] == 1
+    assert metrics["grading_refusal_count"] == 1
+    assert metrics["gradable_task_count"] == 1
+    # The not_run row is not an executed row, so it belongs to none of the three.
+    assert (metrics["gradable_task_count"] + metrics["grading_refusal_count"]
+            + metrics["no_grader_count"]) == report["executed_count"] == 3
+    # A refusal is not laundered into the new count, and vice versa.
+    assert "| no_grader_count | 1 |" in benchmarks.markdown_report(report)
+
+
+def test_the_shipped_legacy_suite_is_mostly_the_third_verdict() -> None:
+    """The measured shape, not a hypothetical: 27 of 30 legacy tasks.
+
+    A report of that suite reads ``pass_at_1 = 1.0`` beside
+    ``grading_coverage = 0.1``, and before this column nothing in it said the 0.9
+    was "no grader" rather than "the graders broke". Measured on a real run of
+    ``--suite legacy`` under the fake provider: 27 rows completed, ungraded, and
+    not one refusal among them. The synthetic results below are faithful to that
+    run - a task with a grader carries a verdict, a task without one carries none,
+    because that is what the runner writes.
+    """
+    tasks = benchmarks.load_tasks()
+    assert len(tasks) == 30, len(tasks)
+    results = [
+        {"task_id": str(task["id"]), "status": "completed",
+         **({"passed": True} if (isinstance(task.get("grader"), dict)
+                                 or task.get("verify_command")) else {})}
+        for task in tasks
+    ]
+    metrics = benchmarks.build_report(tasks, results)["metrics"]
+    assert metrics["no_grader_count"] == 27, metrics
+    assert metrics["grading_refusal_count"] == 0, metrics
+    assert metrics["gradable_task_count"] == 3, metrics
+    assert metrics["grading_coverage"] == 0.1, metrics
+    # The three verdicts account for every executed row, exactly.
+    report = benchmarks.build_report(tasks, results)
+    assert (metrics["gradable_task_count"] + metrics["grading_refusal_count"]
+            + metrics["no_grader_count"]) == report["executed_count"] == 30
+
+
+def test_a_row_that_lost_its_verdict_is_not_reported_as_a_task_without_a_grader() -> None:
+    """M8-T184: the count asks the task, so a damaged row stays silent.
+
+    A resumed results file that lost its ``passed`` key produces a row that is
+    ungraded, not refused, and *does* have a grader. Counting it as "no grader"
+    would be a claim about the suite that the row cannot support - and the
+    shorter expression, ``passed is None and not grading_refused``, would make
+    exactly that claim. The three counts therefore stop short of ``executed_count``
+    by one, which is the honest shape: the reader sees a gap instead of a lie.
+    """
+    tasks = [{"id": "graded", "category": "edit",
+              "grader": {"type": "file_contract", "path": "a", "contains": "b"}},
+             {"id": "plain", "category": "edit"}]
+    results = [{"task_id": "graded", "status": "completed"},   # verdict lost
+               {"task_id": "plain", "status": "completed"}]     # never had one
+    report = benchmarks.build_report(tasks, results)
+    metrics = report["metrics"]
+    assert metrics["no_grader_count"] == 1, metrics
+    assert metrics["gradable_task_count"] == 0, metrics
+    assert metrics["grading_refusal_count"] == 0, metrics
+    assert (metrics["gradable_task_count"] + metrics["grading_refusal_count"]
+            + metrics["no_grader_count"]) == report["executed_count"] - 1, (
+        "the damaged row must show up as a gap, not be absorbed into a count "
+        "that would then describe the suite wrongly"
+    )
+
+
+def test_a_graded_row_is_never_also_counted_as_a_refusal() -> None:
+    """The invariant the partition rests on, asserted rather than assumed.
+
+    ``no_grader_count`` is defined as ``passed is None and not grading_refused``,
+    so the three counts only partition the executed rows if no row is both
+    graded and refused. The runner cannot produce that row - a refusal arrives
+    through ``_no_result`` with ``passed=None`` - but ``build_report`` also reads
+    resumed results JSON, and a hand-edited file could say both. If that ever
+    happens the reader must see it as a broken report, not as a miscount.
+    """
+    graded = {"id": "both", "category": "edit",
+              "grader": {"type": "file_contract", "path": "a", "contains": "b"}}
+    clean = dict(graded, id="clean")
+    rows = [
+        {"task_id": "both", "category": "edit", "status": "completed",
+         "passed": False, "grading_refused": True, "refusal": "grader exited 2"},
+        {"task_id": "clean", "category": "edit", "status": "completed", "passed": True},
+    ]
+    metrics = benchmarks.build_report([graded, clean], rows)["metrics"]
+    assert metrics["gradable_task_count"] == 2
+    assert metrics["grading_refusal_count"] == 1
+    assert metrics["no_grader_count"] == 0
+    assert (metrics["gradable_task_count"] + metrics["grading_refusal_count"]
+            + metrics["no_grader_count"]) != benchmarks.build_report(
+                [graded, clean], rows)["executed_count"], (
+        "a row that is both graded and refused breaks the partition; this report "
+        "is the shape that must never reach a reader silently"
+    )
+
+
 def test_a_metric_that_nobody_hand_copied_is_still_printed() -> None:
     """The reverse control: a key added to the metrics dict alone must reach the table."""
     report = _report([{"task_id": "t", "category": "edit", "status": "completed", "passed": True}])

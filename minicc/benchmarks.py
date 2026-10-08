@@ -287,6 +287,9 @@ def build_report(tasks: list[dict[str, Any]], results: list[dict[str, Any]] | No
         }
         rows.append(row)
     completed = [row for row in rows if row["status"] != "not_run"]
+    # M8-T184: which tasks actually ran, so the third verdict can be counted from
+    # the task definitions rather than inferred from what a row happens to carry.
+    executed_ids = {row["task_id"] for row in completed}
     passed = [row for row in completed if row["passed"] is True]
     gradable = [row for row in completed if row["passed"] is not None]
     latencies = [float(row["latency_ms"]) for row in completed if _measurement(row["latency_ms"])]
@@ -330,6 +333,21 @@ def build_report(tasks: list[dict[str, Any]], results: list[dict[str, Any]] | No
             # ungraded one either; without its own column a report reader only
             # sees the denominator shrink (M8-T80 wrote the field, nothing read it).
             "grading_refusal_count": sum(1 for row in completed if row.get("grading_refused")),
+            # M8-T184: the third verdict, defined by the task and not by the row.
+            # ``gradable`` is selected by ``passed is not None`` and the refusal
+            # count by ``grading_refused``; a task that declares neither a grader
+            # nor a verify_command is ungraded without being a refusal, because
+            # the runner never writes ``passed`` for it at all. Asking the *row*
+            # instead ("passed is None and not refused") would be the shorter
+            # expression and the wrong one: a resumed results file that lost a
+            # ``passed`` key would then be reported as a task that never had a
+            # grader, which is a claim about the suite the row cannot support.
+            # Silence is the acceptable failure here, a lie is not.
+            "no_grader_count": sum(
+                1 for task in tasks
+                if str(task.get("id")) in executed_ids
+                and not (isinstance(task.get("grader"), dict) or task.get("verify_command"))
+            ),
             # M8-T154: pass_at_1 keeps its frozen denominator (graded rows,
             # infra failures included) so history stays comparable; the two
             # fields below make "the gateway was down" readable instead of
@@ -372,6 +390,7 @@ def build_report(tasks: list[dict[str, Any]], results: list[dict[str, Any]] | No
             "Token and cost metrics remain null when the provider does not expose usage or pricing.",
             "Tokens and cost per success include expenditure on failed attempts; missing measurements keep these metrics null.",
             "REFUSED means nobody judged this workspace: the grader declined (exit 2), could not be run, the host could not write the workspace, or the operator aborted the run; it is not a pass, a failure, or a task without a grader.",
+            "Every executed row lands in exactly one of three verdicts: judged (gradable_task_count), refused (grading_refusal_count), or no grader at all (no_grader_count). grading_coverage is the judged share, so the two counts together say what the rest of the denominator is made of - a task with no grader and no verify_command was never going to be judged, which is a property of the suite, not of the run.",
             "reviewer_false_negative_count counts rows recorded failed whose objective grader, re-run only as a diagnostic, reports passed; it measures the reviewer, not the suite score. An oracle that reports zero cases checked nothing, so its pass does not count, and one that names no known grader is not trusted either.",
         ],
     }
@@ -395,7 +414,7 @@ def markdown_report(report: dict[str, Any]) -> str:
     # a hand-written copy is a second owner of "which metrics exist" and silently
     # drops any key added to only one of the two places (M8-T86). The declared
     # reading order is honoured, then every remaining key is printed in sorted order.
-    preferred = ("execution_completion_rate", "grading_coverage", "gradable_task_count", "grading_refusal_count", "acceptance_success_rate", "false_completion_rate", "reviewer_false_negative_count", "infra_failure_count", "pass_at_1", "pass_at_1_ex_infra", "latency_p50_ms", "latency_p95_ms", "tokens_per_success", "cost_per_success_usd", "mean_repair_attempts", "token_usage_available", "cost_available")
+    preferred = ("execution_completion_rate", "grading_coverage", "gradable_task_count", "grading_refusal_count", "no_grader_count", "acceptance_success_rate", "false_completion_rate", "reviewer_false_negative_count", "infra_failure_count", "pass_at_1", "pass_at_1_ex_infra", "latency_p50_ms", "latency_p95_ms", "tokens_per_success", "cost_per_success_usd", "mean_repair_attempts", "token_usage_available", "cost_available")
     for key in [k for k in preferred if k in metrics] + sorted(set(metrics) - set(preferred)):
         lines.append(f"| {key} | {value(metrics.get(key))} |")
     lines.extend(["", "| Task | Category | Status | Passed |", "| --- | --- | --- | --- |"])

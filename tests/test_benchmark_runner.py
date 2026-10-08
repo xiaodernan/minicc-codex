@@ -9,7 +9,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from minicc.benchmarks import _objective_oracle, _write_results, build_report, load_tasks, main, run_benchmark
+from minicc.benchmarks import (_objective_oracle, _write_results, build_report, load_tasks,
+                            main, markdown_report, run_benchmark)
 
 
 def _fake_provider_factory(monkeypatch: pytest.MonkeyPatch, answer: str = "评测任务已完成。") -> None:
@@ -119,6 +120,49 @@ def test_run_benchmark_grades_verify_command(tmp_path: Path, monkeypatch: pytest
     tasks = [{"id": "echo-check", "category": "verify", "prompt": "回答任意内容。", "verify_command": "python -c \"print('ok')\""}]
     results = run_benchmark(tasks, workspace=tmp_path)
     assert results[0]["passed"] is True
+
+
+def test_a_task_with_no_grader_is_counted_as_no_grader_not_as_a_refusal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """M8-T184: the third verdict, end to end through the real runner.
+
+    ``test_run_benchmark_executes_and_records`` already observed the shape - the
+    first two legacy fixtures carry no verify command and report ``passed is
+    None`` - but nothing downstream counted it. A row like that is not a refusal
+    (nobody was asked and declined) and not a failure, so it only ever showed up
+    as a shrunken ``grading_coverage`` denominator. This gate runs one task of
+    each kind through the real runner and checks the three counts partition the
+    executed rows exactly, which is the property that makes coverage readable.
+    """
+    _fake_provider_factory(monkeypatch)
+    monkeypatch.setattr("minicc.config.load_config", _service_config)
+    from minicc.web import AgentService
+
+    original_init = AgentService.__init__
+
+    def patched_init(self, workspace, config, *args, **kwargs):
+        original_init(self, workspace, _service_config(), *args, **kwargs)
+
+    monkeypatch.setattr("minicc.web.AgentService.__init__", patched_init)
+    tasks = [
+        {"id": "plain", "category": "verify", "prompt": "回答任意内容。"},
+        {"id": "checked", "category": "verify", "prompt": "回答任意内容。",
+         "verify_command": "python -c \"print('ok')\""},
+    ]
+    results = run_benchmark(tasks, workspace=tmp_path)
+    assert results[0]["passed"] is None
+    assert not results[0].get("grading_refused"), results[0]
+    assert results[1]["passed"] is True
+
+    report = build_report(tasks, results)
+    metrics = report["metrics"]
+    assert metrics["no_grader_count"] == 1, metrics
+    assert metrics["grading_refusal_count"] == 0, metrics
+    assert metrics["gradable_task_count"] == 1, metrics
+    assert (metrics["gradable_task_count"] + metrics["grading_refusal_count"]
+            + metrics["no_grader_count"]) == report["executed_count"] == 2
+    assert "| no_grader_count | 1 |" in markdown_report(report)
 
 
 def test_run_benchmark_survives_single_task_failure(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
