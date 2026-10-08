@@ -480,7 +480,16 @@ def test_a_capped_run_is_still_read_by_the_objective_grader(tmp_path, monkeypatc
     assert row["status"] == "failed"
     assert row["passed"] is False, "the oracle must not resurrect the suite score"
     assert row["objective_oracle"]["passed"] is oracle_passed
-    assert "grader_type" not in row["objective_oracle"]
+    # M8-T178: this line used to assert the opposite - ``"grader_type" not in`` -
+    # written when the oracle was a bare grade payload. M8-T140 (12a1a29) then
+    # deliberately made the oracle keep ``grader_type`` ("the oracle also records
+    # who judged"), because the vacuous branch of ``_oracle_says_pass`` can only
+    # trust a pass from a producer it can name. Nothing re-ran this file after
+    # that commit, so the assertion sat red through every batch since - the cost
+    # of not running the full suite, measured for the first time.
+    assert row["objective_oracle"]["grader_type"] == LICENSE_TASK["grader"]["type"], (
+        row["objective_oracle"]
+    )
 
 
 def test_the_objective_oracle_defers_while_an_abandoned_worker_owns_the_workspace(tmp_path):
