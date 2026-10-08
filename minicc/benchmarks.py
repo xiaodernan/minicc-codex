@@ -81,7 +81,7 @@ def _objective_oracle(task: dict[str, Any], workspace: Path, grader_dir: Path | 
         result = grade_v2(task, workspace, grader_dir=grader_dir)
     except (ValueError, TypeError, OSError) as exc:
         return {"error": f"{type(exc).__name__}: {exc}"[:200]}
-    return {key: value for key, value in result.items() if key != "grader_type"}
+    return dict(result)
 
 
 def _measurement(value: object) -> bool:
