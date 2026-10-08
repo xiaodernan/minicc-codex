@@ -15533,3 +15533,57 @@ M8-T178，下一批结案。
 - 扫描只问「基名有没有在本文件被绑定」，**不问作用域**——那是 pyflakes 的职责，本门刻意只回答
   它能无害回答的问题（局部变量当基名是另一类 bug，误报它没有价值）。
 - venv 里没有 ruff / pyflakes / mypy，门不依赖外部工具，离线可重复。
+
+## 第二百零六批 M8-T178：一条和 M8-T140 的决定当面相冲的断言，红到今天才有人看
+
+### 1 为什么是这一批
+
+第 205 批邻域合跑时撞出两条红，`git stash` 掉本批改动后在 HEAD 上**照样红**——不是本批造成的。
+根因不在产品，在一条断言：
+
+`tests/test_benchmark_runner.py:483`（`71328f3` 建 oracle 诊断那天写的）：
+
+    assert "grader_type" not in row["objective_oracle"]
+
+而第 140 批（`12a1a29`）**刻意**把 `grader_type` 加进 `_objective_oracle` 的返回值——因为
+`_oracle_says_pass` 的 vacuous 分支要能问「谁判的」（M8-T93 起的那条信任链）。一条断言和一次
+刻意设计变更当面相冲，从那天起就是红的，两个参数一起红。
+
+**为什么跨了六十来批没人知道**：第 192 批（记录在 14284 行）之后，项目按 AGENTS.md
+「不要总是跑全量回归」再没跑过全量；而 M8-T140 只碰 `minicc/benchmarks.py`，没有任何机制把
+「该去跑 `tests/test_benchmark_runner.py`」这件事送到谁眼前。**跨批矛盾唯一的观众是全量跑，
+而全量跑正是被刻意省掉的那个**——这是「不为全量」这条纪律第一次被计量到的代价。
+
+### 2 落地
+
+断言改成正向契约，并且**期望值从任务声明推导，不写死字面量**：
+
+    assert row["objective_oracle"]["grader_type"] == LICENSE_TASK["grader"]["type"]
+
+写死 `"file_contract"` 也能过，但那样一来 oracle 哪天写死一个类型，这条断言照样绿。从任务推导，
+oracle 谎报判分者时才红（臂 C 证实）。原行保留为注释，连同它红过的原因——下次有人想把它改回
+`not in`，要先读过这段。
+
+### 3 红绿与臂证据
+
+| 臂 | 变异 | 预期 | 实测 |
+| --- | --- | --- | --- |
+| A | `_objective_oracle` 又丢掉 `grader_type`（回到 M8-T140 之前） | 两个参数全红 | **红：2 failed** |
+| C | oracle 谎报判分者（写死 `command_contract`） | 两个参数全红 | **红：2 failed** |
+| A/C 还原 | — | 逐字节还原后全绿 | **SHA256-RESTORED: True x2**，control **21 passed** |
+| 邻域 | 6 个相关文件合跑 | 全绿 | **130 passed**（`test_benchmark_runner` 21 + `test_metric_and_oracle_reach_report` + `test_an_interrupted_run...` + `test_a_workspace_the_host_cannot_write...` + `test_oracle_vacuous_policy` + `test_bench_compare`） |
+| ruff | 改动文件 | clean | **All checks passed** |
+
+### 4 全库普查：同族只有这一条
+
+`assert "..." not in ...` 形状全库 **25 处**，逐条读过：其余全是**活契约**——通过路径上不该有
+`grading_refused`、已删除的指标（`tool_repeat_rate`）不许复活、载荷不许夹带未声明字段。
+它们和这条的区别是：这条断言的是**别人后来刻意加进来的东西**。没有第二批。
+
+### 5 边界与欠账（登记 M8-T179）
+
+- 本批**产品零改动**，只改一条测试断言；`minicc/` 下一个字节没动。
+- **系统性欠账 M8-T179**：「不为全量」的纪律需要一个替代观众。候选做法：仓库已有 import 级
+  信息（`tests/test_pointer_liveness_corpus.py`、doc-pointer 门都在做静态依赖），可以生成
+  「本次改动的影响测试文件集」并在提交前跑它——这与 doc-pointer 门同族：把「我记得」换成
+  「门在看」。**明确不做成跑全量**：那正是被省掉的东西，也只是把 12 分钟的墙钟换成 12 分钟的墙钟。
