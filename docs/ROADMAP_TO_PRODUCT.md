@@ -14916,3 +14916,44 @@ allowlist）第一跑：`test_permission_modes.py::test_plan_mode_injects_system
 - 「flake 率」指标行（第六节）此前的「0 次 flake」读数限于真实模型运行；本批记录的是
   pytest 组合跑的偶发，两者不同母体，未改写该行读数。
 
+
+## 第二百批 **更正第一百九十一批的一处错误结论**：那四处修复都有专门断言，是我按符号名去找才没找到
+
+### 1 更正什么
+
+第一百九十一批我在"边界"里写过：
+
+> 「有修复或明确处理路径」**不等于**"这些修复都被测试钉住"：其中第 3、5、8、13 条我**没有**找到专门断言它们的测试，
+> 只找到实现；**没有测试钉住的修复，将来可能被重构悄悄改回去**。
+
+**这句话是错的。** 四条**都有**专门断言，而且今天全绿：
+
+| 第一百九十一批说"没有断言"的那条 | 实际存在的门 | 本批实跑 |
+| --- | --- | --- |
+| ③ `TaskSnapshotWriter.close()` 首个 flush 抛错后继续 | `tests/test_task_persistence.py::test_close_continues_after_first_flush_fails`（同文件另有 `test_close_flushes_all_when_none_fail`） | 与其他两文件合跑 **10 passed in 104.78s** |
+| ⑤ `_rpc_threads` 有界 | `tests/test_rpc_threads.py`（6 格，含 `test_thread_cache_is_bounded_and_evicts_oldest`、`test_thread_read_refreshes_recency`） | 同上 |
+| ⑧ planner DAG 节点预算继承父预算 | **`tests/test_planner_dag_budget_fold.py`**（专门文件） | 同上 |
+| ⑬ per-edit 备份清理 | `tests/test_core_tools.py::test_editor_prunes_old_backups_to_a_cap`（并断言审计条目 `backup_prune`） | **1 passed in 83.71s** |
+
+所以 P2-8 那 13 条的结论可以再收紧一格：**13/13 有修复或明确处理路径，其中被我在第一百九十一批怀疑"没测试"的那 4 条也都有专门断言**。
+
+### 2 为什么会错（同类第五次，这次错在**检索方式**）
+
+我当时是**按符号名**在 `tests/` 里 grep 的：`TaskSnapshotWriter`、`_RPC_THREADS_MAX`、`_prune_backups`、`soft_max_tokens=parent`。
+而这四条测试**按行为命名**，根本不出现这些符号名：
+
+- 断言写在 `test_close_continues_after_first_flush_fails` 里，不写 `TaskSnapshotWriter`；
+- 断言写在 `test_editor_prunes_old_backups_to_a_cap` 里，不写 `_prune_backups`；
+- 节点预算那条甚至**有专门的测试文件**（`test_planner_dag_budget_fold.py`），只是文件名里没有我搜的词。
+
+**判据（第五次同类，值得单独记）**：查"某行为有没有测试"时，**按行为词搜，不要按符号名搜**——
+符号名是**实现**的命名，测试名是**行为**的命名，两者经常不同；
+更稳的做法是**搜该行为所在的模块名**（`grep -rln "editor" tests/`）或直接看**那个模块对应的测试文件**。
+而且：**"我搜不到"只能得出"我没搜到"，不能得出"它不存在"**——第一百九十一批把它写成了后者，是过度推断。
+
+### 3 边界（明确不声称）
+
+- 本批**只补这一处更正**：没有重新核 P2-8 的 13 条实现本身（那在第一百九十一批做过），也**没有**核其余 26 条审计结论。
+- 四条测试**本批实跑过**（10 passed + 1 passed），但**没有**做变异验证（没把修复拆掉看是否变红）——
+  "有断言且绿"与"该断言真的钉住了这条修复"之间还差一次变异，**本批没有做**。
+- 本批**只动文档**（本记录），没有改代码、没有加门。
