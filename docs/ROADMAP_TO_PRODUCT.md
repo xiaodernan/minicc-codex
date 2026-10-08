@@ -16044,3 +16044,78 @@ H 臂只红一条是**设计如此**：那条测试的名字就是它要守的�
 - 遗留命名欠账已关闭的部分：「通过／判不了／没评分器」这三个名字现在在 `notes` 里以
   `gradable_task_count`／`grading_refusal_count`／`no_grader_count` 的形式**可数、可对账**，
   不再只是文档里的三个中文词。
+
+
+## 第二百一十三批 M8-T185：`acceptance_success_rate` 是 `pass_at_1` 的第二个名字——同一个数两个键、两处各自手写的表达式，而第二个名字没有读者
+
+### 1 为什么是这一批
+
+第二百一十一、十二批把「工具自己的两半互相矛盾」和「文档承诺三分、指标实现两分」结掉之后，
+用同一把尺子普查了一遍 `build_report` 产出的 18 个指标键：**每一个键，仓库里有谁在读**。
+普查结果（按文件计数，`minicc/`＋`scripts/`＋`tests/`＋`.github/`＋`docs/`＋`web/`）：
+17 个键都有读者，只有 **`acceptance_success_rate` 一个键，除生产者和文档之外零读者**——
+没有测试读它，没有 gate 读它，web 端不读它。
+
+顺着量下去，问题比「没有读者」更具体：
+
+```python
+"pass_at_1":              round(len(passed) / len(gradable), 4) if gradable else None,
+"acceptance_success_rate": round(len(passed) / len(gradable), 4) if gradable else None,
+```
+
+**两处逐字节相同的表达式。** 而 `docs/BENCHMARK_EVALUATION.md:29` 把它们写在同一行：
+「`acceptance_success_rate` / `pass_at_1`｜有评分样本的独立验收通过率」——文档说它们是一个量、
+两个拼写，代码也确实是同一个量，但**它是靠两份手抄的表达式维持的**。
+
+`git log -S` 量到这两个名字从 `a97bf13`（9 月 18 日）起就同时存在、同时相同，
+二十多批没有人审过第二个名字的读者。这正是本项目治过一整族的那件事：
+**同一条规则有两个主人**（M8-T79/T80/T81 的「只写一边」、M8-T118 删掉的
+`tool_repeat_rate`、第二百一十二批刚治的 `gradable`/`grading_refused` 双谓词）。
+风险很具体：谁改其中一个表达式，报告就会用两个键发布两个不同的数，而**没有任何读者、
+没有任何门会反对**。
+
+### 2 落地
+
+1. `minicc/benchmarks.py`：在 `return` 之前算一次
+   `acceptance_rate = round(len(passed) / len(gradable), 4) if gradable else None`，
+   两个键都读它。**一处定义，两个发布名**。
+2. `tests/test_metric_and_oracle_reach_report.py` +2 条：
+   - `test_the_two_acceptance_names_are_one_definition`（结构门）：解析 `build_report` 的
+     返回字典字面量，要求 `pass_at_1` 与 `acceptance_success_rate` 的值都是**同一个
+     局部名的读取**，而不是就地重算。
+   - `test_the_two_acceptance_names_never_disagree`（行为门）：五种行形状（通过／失败／
+     拒判／not_run／空）下两键必须相等。
+
+**没有删 `acceptance_success_rate` 这个键**，理由是量出来的、不是猜的：文档把它和 `pass_at_1`
+并列为同一个指标的两种拼写，也就是说**两个名字是已发布的接口**，删键是一次 schema 变更，
+该由它自己一批决定。本批只消除「两个主人」这一半。
+
+### 3 红绿与臂证据
+
+| 臂 | 变异 | 预期 | 实测 |
+| --- | --- | --- | --- |
+| baseline | 无 | 2 passed | **2 passed in 0.20s** |
+| J | 把 `acceptance_success_rate` 的表达式重新手抄一遍（历史上的形状，值仍相等） | **只有结构门红** | **红：1 failed, 1 passed** |
+| K | 两个名字真正分叉（分母 +1） | 两道门都红 | **红：2 failed** |
+| L | `pass_at_1` 不再读那个局部 | 只有结构门红 | **红：1 failed, 1 passed** |
+| J/K/L 还原 | — | 逐字节还原后全绿 | **SHA256-RESTORED: True x3**，control **2 passed** |
+| 全影响集 | `minicc/benchmarks.py` 的受众文件 | 全绿 | **488 passed in 98.11s** |
+| ruff | 2 个改动文件 | clean | **1 条 F541，HEAD 上就已存在**（见 §4） |
+| doc-pointer | `scripts/doc_pointers.py docs/ROADMAP_TO_PRODUCT.md --check` | rc=0 | **rc=0** |
+
+J 臂只红一条是**这道门存在的理由**：行为门在「值仍然相等」时是绿的，它看不见两份手抄的表达式；
+结构门看得见。两道门各自守一半，谁也不能替谁。
+
+### 4 边界与欠账
+
+- 本批**没有**给「一个指标键必须有读者」立门。那样一条普查门会在有人**合理地**开始读
+  `acceptance_success_rate` 时变红——为一件好事红不是门。普查结果写在这里，门只守
+  「一个数不许有两个主人」。
+- `mean_repair_attempts`（3 处命中）与 `token_usage_available`（6 处命中）同样只有生产者和
+  文档读者，但它们**不是**任何其他键的重复，只是没有人写代码读——按 M8-T86 的规矩
+  「算出来的值必须有人能读」，markdown 表格就是读者，所以这两条**不是欠账**，登记备查。
+- ruff 在 `minicc/benchmarks.py` 报的 **F541 `f"## 结论"`** 在 HEAD 上就已存在，按既往惯例不修。
+- 下一个候选（本批普查带出来的）：`pass_at_1_ex_infra` 在 `GATE_FLOORS` 里登记为
+  「`pass_at_1` 才是有地板那个比率」。这句话本身**没有被任何门检查**——如果将来 nightly 的
+  `pass_at_1>=` 那条被摘掉，这条理由就悄悄变成了假的。第二百一十批的门只对账「表里说 nightly
+  钉了」与「workflow 真有 `--gate`」，**不对账「unfloored 的理由是否仍然成立」**。
