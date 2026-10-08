@@ -213,15 +213,19 @@ def test_the_column_names_one_grader_in_the_runner_and_in_the_report() -> None:
     ``build_report`` rebuilds the row and has to name a grader for a row whose
     producer wrote none; if that default and the runner's refusal disagree, the
     same task has two answers to "who was supposed to look at this".
+
+    Since M8-T139: a task that never ran has no grader_type in the report
+    (the runner's refusal still knows the declared grader, but the report
+    honestly says "nobody judged this").
     """
     task = _task()
     rebuilt = build_report([task], [])["results"][0]["grader_type"]
-    assert rebuilt == task["grader"]["type"] == "file_contract", rebuilt
+    assert rebuilt is None, f"not_run task must have no grader_type in the report, got {rebuilt!r}"
     legacy = {"id": "legacy", "category": "verify", "prompt": "回答任意内容。",
               "verify_command": "python -c pass"}
-    assert build_report([legacy], [])["results"][0]["grader_type"] == "command"
+    assert build_report([legacy], [])["results"][0]["grader_type"] is None
     bare = {"id": "bare", "category": "chat", "prompt": "回答任意内容。"}
-    assert build_report([bare], [])["results"][0]["grader_type"] == "ungraded"
+    assert build_report([bare], [])["results"][0]["grader_type"] is None
 
 
 # --- control: the channel must not become a way to erase red ---------------

@@ -227,7 +227,8 @@ def build_report(tasks: list[dict[str, Any]], results: list[dict[str, Any]] | No
             "usage": recorded.get("usage") if isinstance(recorded.get("usage"), dict) else None,
             "cost_usd": recorded.get("cost_usd") if _measurement(recorded.get("cost_usd")) else None,
             "claimed_complete": recorded.get("claimed_complete", recorded.get("status") == "completed"),
-            "grader_type": recorded.get("grader_type", _declared_grader_type(task)),
+            "grader_type": (recorded.get("grader_type", _declared_grader_type(task))
+                            if recorded.get("status", "not_run") != "not_run" else None),
             # Rows are rebuilt key by key, so a field the grader added is invisible
             # downstream unless it is copied here (M8-T81 gate).
             "grading_refused": bool(recorded.get("grading_refused")),
