@@ -15962,3 +15962,85 @@ oracle 谎报判分者时才红（臂 C 证实）。原行保留为注释，连�
 - `--since <ref>` 模式与 worktree 模式走同一条 `main()`，两条路都因此修好了；没有单独的手臂，
   因为变异点在两条路的公共段上——这一点是读代码得出的，**不是跑出来的**，如实标明。
 - 仍未做：`msgfile.txt`、`.scratch-*` 三个未跟踪文件是本机残留，与仓库无关，未清理（不在本批范围）。
+
+
+## 第二百一十二批 M8-T184：报告的 `notes` 承诺三分判决，指标只实现了两分——第三类行有了自己的计数，而且它问的是任务不是行
+
+### 1 为什么是这一批
+
+从第九十五批起，「三分口径统一命名」在十几批的「下一批候选」里反复出现，原文是
+「三分口径（**通过**／**判不了**／**没评分器**）在文档里统一命名」。第二百一十批量
+`GATE_METRICS` 时顺带量到了这第三类的真实形状，本批把它结掉。
+
+**实测（不是推理）**：`--suite legacy` 真跑（fake provider），30 条任务里 **27 条**既没有
+`grader` 也没有 `verify_command`。报告读出来是：
+
+| 指标 | 读数 |
+| --- | --- |
+| `execution_completion_rate` | **1.0**（每条都跑完了） |
+| `grading_coverage` | **0.1** |
+| `grading_refusal_count` | **0** |
+| `pass_at_1` | **1.0** |
+
+也就是说：一份报告可以印着 `pass_at_1 = 1.0`，同时 90% 的行**从来没有被评判过**，
+而报告里唯一提示这件事的数字是 `grading_coverage`——它把「评分器拒判」和「本来就没有评分器」
+显示成同一个东西。`notes` 里其实**已经写明了这个区分**（「REFUSED …… it is not a pass, a
+failure, **or a task without a grader**」）：**文档承诺了一个三分，指标只实现了两分**。
+这和 M8-T182 是同一条定律的第二次显形——描述决定路径的那句话，决定路径没实现。
+
+### 2 落地
+
+1. `minicc/benchmarks.py` 新增指标 `no_grader_count`：**跑过的任务里，有多少条既没声明
+   `grader` 也没声明 `verify_command`**。
+2. 同一个 `notes` 块补一条，把三个判决写成恒等式：`gradable_task_count`（判了）＋
+   `grading_refusal_count`（判不了）＋ `no_grader_count`（没评分器）＝ 执行过的行数，
+   并说明 `grading_coverage` 是其中第一项的占比。
+3. `markdown_report` 的 `preferred` 元组把新指标排在 `grading_refusal_count` 旁边
+   （「打印哪些指标」仍由 metrics 字典驱动，没有第二份手写清单）。
+
+**谓词为什么问任务而不是问行**——这是本批唯一真正需要判断的地方，而且我第一版写错了：
+
+我第一版写成 `passed is None and not grading_refused`（行形状）。它更短，而且**会撒谎**：
+`build_report` 也读 `--resume` 来的历史 results JSON，一份丢了 `passed` 键的文件会让这行
+被报告成「这条任务没有评分器」——一个行数据支撑不起的、关于**套件**的断言。实测确认了这条
+路径可达：把合成结果的 `passed` 键去掉，行形状版本数出 2，任务形状版本数出 1。
+
+任务形状版本的失败模式是**沉默**：那种行三类都不算，三个计数加起来比 `executed_count` 少一。
+读者看见一个缺口，而不是一个谎。按这个项目一贯的规矩（M8-T181：猜出来的值比 N/A 更糟），
+沉默是可接受的失败，撒谎不是。
+
+**不进 `GATE_METRICS`**：它是套件组成属性，不是坏事计数；v2 套件的形状已经被
+`test_bench_tasks.py::test_v2_suite_schema_and_counts` 钉住（每条任务必带 grader、
+`gradable_task_count >= 24`、无 run 时 coverage == 1.0）。再给它设门就是给已有的门起第二个名字。
+
+### 3 红绿与臂证据
+
+| 臂 | 变异 | 预期 | 实测 |
+| --- | --- | --- | --- |
+| baseline | 无 | 4 passed | **4 passed in 5.14s** |
+| G | 谓词永假（指标恒 0） | 4 条新门全红 | **红：4 failed** |
+| H | 谓词改回行形状（会撒谎的那版） | **只有**「丢了判决的行」那条红 | **红：1 failed, 3 passed** |
+| I | 谓词反转（数有评分器的） | legacy 那条 + 端到端那条红 | **红：2 failed, 2 passed** |
+| G/H/I 还原 | — | 逐字节还原后全绿 | **SHA256-RESTORED: True x3**，control **4 passed** |
+| 全影响集 | `minicc/benchmarks.py` 的受众文件 | 全绿 | **486 passed in 147.01s** |
+| ruff | 3 个改动文件 | clean | **1 条 F541，HEAD 上就已存在**（见 §4） |
+| doc-pointer | `scripts/doc_pointers.py docs/ROADMAP_TO_PRODUCT.md --check` | rc=0 | **rc=0** |
+
+H 臂只红一条是**设计如此**：那条测试的名字就是它要守的东西
+（`test_a_row_that_lost_its_verdict_is_not_reported_as_a_task_without_a_grader`），
+其余三条在行形状下也成立——所以它不是通用探针，而是这一处判断的专属证人。
+
+### 4 边界与欠账
+
+- **三个计数不总是加得起来**，而且这是故意的：历史/手改的 results JSON 可以让某一行三类都不算
+  （有 grader、无 `passed`、未拒判）。`test_a_graded_row_is_never_also_counted_as_a_refusal`
+  把这种形状钉成「必须看得见是缺口」，没有第四个数去吸收它。
+- `no_grader_count` 只数**执行过**的任务（`executed_ids` 过滤）。`--suite x` 未选中的任务
+  不进任何计数——它们不是「跑过没人判」，是「没跑」。
+- 指标没有进 `GATE_METRICS`，因此也不在 `GATE_FLOORS` 里有行（那张表现在是
+  `GATE_METRICS` 的一行一表，见第二百一十批）。
+- ruff 在 `minicc/benchmarks.py` 报的 **F541 `f"## 结论"`**（第 624 行）在 HEAD 上就已存在，
+  行号从上一批记录的 605 漂到 624 是因为本批在上面加了代码。按既往惯例不修、只登记。
+- 遗留命名欠账已关闭的部分：「通过／判不了／没评分器」这三个名字现在在 `notes` 里以
+  `gradable_task_count`／`grading_refusal_count`／`no_grader_count` 的形式**可数、可对账**，
+  不再只是文档里的三个中文词。
