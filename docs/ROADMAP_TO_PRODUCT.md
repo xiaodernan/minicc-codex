@@ -770,7 +770,7 @@
 
 | M8-T17 评测里唯一的真实能力失败：`v2-license-mit` 不收敛（**结案：不是能力失败，是一条按构造不可满足的确定性门**） | ✅ | 判据（`review_rounds` + `objective_oracle`）接出来后一次真跑就定案：四轮评审的 `missing` **一字不差**，且 `objective_oracle.passed=true`——交付物本来就对。根因在 `agent/completion.py` 的写后检查门：`LICENSE` 没有后缀 → 被当作源码改动 → 要求跑 `tool_policy` 白名单里的真检查器，而该 fixture 没有任何可跑的东西（跑 `pytest` 非 0 退出同样不清门）。修法：`suffixless_prose`（license/copying/notice/authors/…）认回文档，走 `read_file`/`git_diff` 这条本来就客观的支路；**改代码要跑检查器的规则没有放松**（`Makefile` 由回归测试钉住）。真跑同一条命令：16 轮/127 487 tokens/134.5s/failed → **6 轮/33 078 tokens/31.2s/completed 且 passed** | `tests/test_check_selection.py` 2 → 4 条：`test_a_suffixless_prose_write_demands_a_demand_that_can_be_met`（**先红**：桩回 HEAD 版本即报 `为最近的代码修改运行相关测试…`）、`test_extensionless_build_file_still_demands_a_real_checker`（防放松）。证据：`output/m8_t17_repro.results.json`、`output/m8_t17_oracle.results.json`、`output/m8_t17_after_fix.results.json`；分析见「第七批」 |
 | M8-T18 配置面：`getattr` 兜底读出一个 `Config` 上根本不存在的键（「旋钮」永远拧不动） | ✅ | M8-T17 结案时顺手发现 `max_completion_continues` 是 `getattr(self.config, ..., 3)` 而 `Config` 无此字段。**这条不是孤例，是一类**，所以先把它变成可执行门再修：`tests/test_config_surface.py` 用 AST 扫 `minicc/**/*.py` 里所有「target 末段是 `config` 的三参数 `getattr(obj, "字面量", 默认)`」，要求字面量必须是 `dataclass fields(Config)` 之一，并带 `_MIN_SITES = 30` 下限防空清单假绿。**门第一次运行就报出三个死旋钮**：`max_completion_continues`（web.py:1434）、`anthropic_base_url`（main.py:618 + web.py:1390，两处都是 `or self.config.base_url`，所以 Anthropic 网关挂在自己域名下这件事一直配不了）、`task_worker_runtime`（task_manager.py:1011，全仓库仅此一处引用、没有任何实现语义 → 条件恒真）。修法分别对应三种判断：前两个**声明成真字段并接上 env + 项目层键**（`MINICC_MAX_COMPLETION_CONTINUES` 夹在 1..8、`MINICC_ANTHROPIC_BASE_URL` 空串仍回退 `base_url`，行为不变）；第三个**删掉幽灵条件**而不是新造一个旋钮（删除后的行为与今天逐字节相同，比"补一个没人实现的开关"诚实）。 | `tests/test_config_surface.py` 2 条（门 + 下限），`tests/test_project_config.py` 16 → 20：默认/项目层/环境变量三层可达、`0/-4/99` 夹到 `1/1/8`、非整数抛 `ConfigError`、`anthropic_base_url` 去掉尾斜杠。**门的红→绿是拿 HEAD 版 `config.py` 量的**：桩回去即报 `anthropic_base_url at minicc/main.py:618；... at minicc/web.py:1390；max_completion_continues at minicc/web.py:1434` |
-| M8-T19 封顶仍是「同一句要求重复四轮才停」（**观测已落地，停止策略未动**） | 🟡 前进一格 | M8-T17 结案后这条失去了触发样本，记录以免被当成已修。「两轮相同就停」会误杀「agent 第一轮没听懂、第二轮才去做」的正常收敛；要做须带活动信号（评审要求与上一轮相同 **且** 本轮没有新增检查类工具调用）。另有一条口径：bench 的 `code_revision` 记 HEAD，工作区未提交的改动不会改变它，可区分代码版本的只有 `runtime_source_sha256`。**2026-09-23 更新**：这条缺的「可满足性见证」现在有了——`completion_verdict_repeated` 事件在真实任务里会把「逐字复读 + 本轮零新增活动」连同 `tool_events` / `verification_runs` / `last_verification_status` 一起落到任务快照，停止时机仍归 `max_completion_continues`。见下方 M8-T26 |
+| M8-T19 封顶仍是「同一句要求重复四轮就停」（**已落地：逐字重复即提前停止**） | ✅ | M8-T53 落地（提交 `0185533`）：`web.py` 完成评审在「评审要求与上一轮逐字重复 **且** 本轮无新增工具调用/验证」时提前停止，发具名 `completion_verdict_repeated` trace（`detail.action="stop"`，携带 `tool_events` / `verification_runs` / `last_verification_status`），语义与上限一致——仍是「未收敛」而非「完成」；`max_completion_continues` 上限保留为「评审每轮换说法」时的兜底路径（真模型复测里 docs-pair 正是走这条）。假阳性护栏：本轮有新增只读检查类工具调用则不停（agent 第一轮没听懂、第二轮才去做的正常收敛不被误杀） | `tests/test_core_agent.py`：`test_a_repeated_verdict_with_no_new_activity_stops_before_burning_the_cap` + `test_a_repeated_verdict_that_came_with_new_tool_activity_is_not_a_stall`；真模型 A/B 复测见下方 M8-T53/T54 |
 | M8-T26 评委复读的成本从「隐含」变成「每条任务可查」：新增观测事件，不动收敛判据 | ✅ | 见下方「第十三批 M8-T26」。M8-T19 挂起的真正原因是**缺可满足性见证**而不是缺样本：上一批已把成本钉成 `calls["agent"] == 4`（评委复读一次 = 多烧一整轮 agent），但一条任务真跑完，记录里只有「未收敛」四个字，看不出**是哪一轮开始评委在说同一句话**、也看不出那一轮 agent 到底做没做事。改法是把判据的两半**先做成可观测**：`missing + next_action` 逐字相同 **且** `(tool 事件数, 验证次数)` 与上一轮完全相同 → 发 `completion_verdict_repeated`（`status: "ok"` 沿用同类观测事件 `dependency_aware_repair_scope` 的先例，不发明新状态值），`detail.action = "observe_only"` 把「这不是停止规则」写在数据里 | 两条门各守一半，**两半都是承重的**（逐字红→绿）：条件短路成 `False` → 观测事件数为 0，`assert (4 == 4 and 0 == 3)` 红；只留 `repeats` 去掉活动比较 → 「每轮真的去读一个新文件」那条反误杀门红（事件在不该出现的地方出现了）。反误杀那条断言形如「不存在某事件」，因此它自己必须带承重证据：同一测试里 `seen["judge"] == 4`（评委确实复读了）与 `len(read_paths) >= 3`（活动确实增长了）都在，缺席断言才不是空转。**顺带量到的产品事实**（写反误杀门时撞出来的，不在计划里）：只读任务里 agent 反复调用工具**并不能**走到「评委复读」那一步——loop 自己的恢复保护会先接管，事件序列 `stagnation_replan → recovery_guard → task_stagnation_recovery` 连跑两轮后以 `Agent 在错误路径恢复阶段没有取得新的工作区证据` 结束，**完成评估根本没被调用过**（`judge == 0`）。所以「评委连续复读」只发生在 agent **每轮直接给文字结论**的形状里，M8-T19 那句「要做须带活动信号」的假设需要修正：有活动信号的只读路径已经被另一套保护管住了。**边界**：事件不发=没有停止变化（`calls["agent"] == 4` 那条老断言仍是绿的）；本批不真跑模型，因为它不触碰任何线格式、计价或用量形状（上一条真机腿已由 M8-T24 量过），且真实评委几乎不会逐字复读——用 quota 去等一个小概率字符串相等，不产出判据。全量 **997 passed** | **口径纠正（本批实测）**：这条当时写的「还没有样本」**不成立**——`tests/test_core_agent.py::test_completion_continue_loop_is_capped_instead_of_burning_turn_budget` 早就是一个**确定性失速样本**：假 provider 让评审连返 4 次**逐字相同**的判定（同一 `missing`/`rationale`/`next_action`），实测 `calls["agent"] == 4`，也就是**评委复读一次，就多烧一整轮 agent**（默认上限 3 次 continue → 4 轮）。已把这条断言补进该测试，把成本从隐含变成钉住。仍然不动收敛判据，因为缺的不是样本而是**可满足性见证**：样本里的要求（「再做一轮检查」）本身没有客观判据说它已被满足，在它上面改「两轮相同就停」依旧是凭 1 个 fixture 调收敛策略。下一步该用的是 M8-T17 那种「客观 grader 已通过、评委仍在复读」的组合 |
 | M8-T27 `/api/metrics` 的五个分项必须与它们所装饰的总数同源（新增围栏，**不是**修复） | ✅ | 见下方「第十四批 M8-T27」。`usage` / `cost_usd` / `by_model` / `tasks_by_status` / `subtask_rows` 是同一批行算出来的五个数，读者会把它们**并排读**（「这笔总额是哪个模型花的？」）。M8-T23 立的是「总额 == 单任务快照之和」，**分项 vs 总额**这一层当时没人管。先离线量了一遍：今天是自洽的（`by_model` 逐 key 求和 == `usage` 的 2080/325/2405、非 None 成本之和 == 总额 0.00062、`sum(by_status) == task_count == 3`、`task_count + subtask_rows == 索引行数 5`）。**所以这一批交付的是围栏不是修复，这句话必须写在文档里**，否则后人会把「新加了一条门」误读成「这里曾经有 bug」 | 一条门（`tests/test_logging.py::test_metrics_breakdowns_add_up_to_the_totals_they_are_shown_next_to`）：先断言形状非平凡（3 个根任务 / 2 个模型 / `priced=1, unpriced=2` / `total_tokens > 0`），再断六条同源关系；顺带把空范围那一格补齐（`by_model == {}` 且 `tasks_by_status == {}`——只断 `task_count == 0` 会让「0 个任务却有 3 个模型」这种坏聚合器过关，是哨兵规矩的另一面）。**承重量**：两处机械变异，各只红这一条门——分项不再累加 token（总额仍然正确）→ `prompt_tokens does not add up across by_model / assert 0 == 2080`；状态分项每行多计一次 → `assert 6 == 3`。全量 **998 passed** |
 | M8-T28 触顶报错把「评委的判断」当成唯一结论，三种不同的结束印成同一句话 | ✅ | 见下方「第十五批 M8-T28」。探针（写入 `out.txt` + 评委逐字复读）量到的真实事件轨是 `write_file → verification_required_before_finish/error → verification_guard/error → verifier/verification_skipped → completion_judge/completion_continue ×4 → completion_continue_capped`：**客观验证确实跑了，状态是 `skipped`（工作区里没有可运行的检查）**，而报错只说「完成评估连续 4 轮要求继续但未收敛…请根据缺失项检查后重新提交任务」——把用户支给评委的意见，真正可操作的事实却是「这里没有可执行的验收条件」。三种结束（验证通过但评委不同意 / 验证被跳过 / 只读任务根本没触发验证）此前共用一句话，只有中间那种能靠补验收命令解决 | 抽 `_unconverged_verification_note(verification_results)` 按最近一次客观验证状态分支，并把 `verification_runs` 与 `last_verification_status` 加进 `completion_continue_capped` 的 `detail`（记录要能自己说明分歧在哪一侧，不靠人回读事件轨）。两条门：只读那一格断 `verification_runs == 0 / last is None` 且文案含「没有运行客观验证」；写入那一格断 `verification_runs == calls["judge"] == 4`（**每轮复审都重跑一次验证**，这条是量出来的，写死 1 会被自己的门判红）+ `last == "skipped"` + 文案含「验证被跳过」并**显式断它不等于只读那句**。**承重量**：把注解退回旧的固定文案 → 两条门同时红（`assert '没有运行客观验证' in '…请根据缺失项检查后重新提交任务'` / `assert '验证被跳过' in '…'`）。停止时机与状态判定一格未动（仍是 `未收敛` + `calls["agent"]` 原值）。全量 **999 passed** |
@@ -14627,3 +14627,75 @@ A2 就是修前形态，其三条红形状与 P0/P1 探针逐条对上；A3/A4 �
   量它的计价器取的是规划路由自己的那支，天花板与被记花费同源。
 - 修前 token 侧越限在 TaskManager 侧是 task_crashed 崩溃形状（有堆栈、无具名事件）；
   修复后该形状只在「预算对象自己的 check 在别处被触」时出现，规划器路径已具名。
+## 第一百九十六批 M8-T19 行漂移：停止策略三个批号前就落地了，表里还写着「停止策略未动」——修正 + 一张把行与代码互绑的门
+
+### 1 来源
+
+T164 收尾后盘点状态表：90 行里唯一一条 🟡 是 M8-T19（第 773 行），写着「**观测已落地，
+停止策略未动**……停止时机仍归 `max_completion_continues`」。但 `git log -S` 显示 **M8-T53
+（提交 `0185533`，2026-09-25）早已把它升级为提前停止**：`web.py` 的 `completion_verdict_repeated`
+分支现在带 `detail.action="stop"`，`tests/test_core_agent.py` 有两例守着（停止 +
+假阳性护栏 `is_not_a_stall`）。代码、测试、批次记录三方一致，**只有任务表这一格还停在
+09-23**——而表没有读者，所以没有门会红。
+
+### 2 交付
+
+- `docs/ROADMAP_TO_PRODUCT.md`：M8-T19 行 🟡 → ✅，正文改写为真实落地位置（M8-T53 /
+  `0185533` / `web.py` 的重复即停分支 / 两例守护测试 / 兜底路径仍归
+  `max_completion_continues`）、假阳性护栏一句话说清。只改这一行。
+- 新门 `tests/test_task_table_claim_matches_landed_stop.py`（5 例）：把这一格与它描述的
+  行为**双向**绑死——
+  1. 行必须是 ✅ 且点名落地的批号、提交号、测试文件（🟡 描述已落地行为即红）；
+  2. 全表任何一行都不许再出现「停止策略未动」；
+  3. `web.py` 的重复判定事件必须仍带 `"action": "stop"`；
+  4. 停止与护栏两个点名的测试必须仍在 `tests/test_core_agent.py`；
+  5. 行里点的提交号必须真是这个仓库里的 commit（`git cat-file -t`）。
+
+**先红后绿**（门草稿对未修行）：**2 failed / 3 passed**——红的两例正是漂移本身
+（行状态 🟡≠✅；陈旧措辞仍在该行），代码侧三例全绿（事实都在，只是表没跟上）。
+
+### 3 见证（预测先写：`.scratch-longrun/t196-arms-predictions.md`，逐臂单点变异 + sha256 还原终检）
+
+| 臂 | 变异（单点） | 预测＝实测红集 | 判定 |
+| --- | --- | --- | --- |
+| 控制（未变异） | 无 | 0 红（5/5 绿） | MATCHED |
+| A1 | 行状态 ✅ → 🟡 前进一格 | row_names_batch（1） | MATCHED |
+| A2 | 行删提交号 `0185533` | row_names_batch（1） | MATCHED |
+| A3 | 行删处处 `M8-T53` | row_names_batch（1） | MATCHED |
+| A4 | 行删 `tests/test_core_agent.py` | row_names_batch（1） | MATCHED |
+| A5 | 行重新插入「停止策略未动」 | no_row_claims_unchanged（1） | MATCHED |
+| A6 | web.py `"action": "stop"` → `"observe_only"` | trace_carries_stop_action（1） | MATCHED |
+| A7 | 停止测试改名 | guard_tests_exist（1） | MATCHED |
+| A8 | 护栏测试改名 | guard_tests_exist（1） | MATCHED |
+| A9 | 门内常量 `LANDED_COMMIT` → `deadbee` | commit_exists + row_names_batch（2） | MATCHED（订正见 §5） |
+
+终检：控制腿 5/5 绿，九臂逐一重铺，四个涉及文件 sha256 与 pre-arm **逐字节一致**。
+
+### 4 回归证据
+
+| 命令 | 读数 |
+| --- | --- |
+| 修前门草稿（只读） | **2 failed / 3 passed**（漂移的两格） |
+| 修后门 | **5 passed** |
+| focused：新门 + test_doc_pointers（同为路线图阅读器） | **63 passed（106.13s）** |
+| focused：test_core_agent 的两例 completion 守护 | **2 passed** |
+
+（按 AGENTS.md 不跑全量；本批无生产代码改动。）
+
+### 5 边界与量具问题（全部记在案）
+
+- **A3 首版是 void 臂**：变异只删了「M8-T53 落地」一处，行文末尾还有
+  「见下方 M8-T53/T54」——删完事实仍为真，门正确地保持绿。改成分身删尽后才 MATCHED。
+- **A9 预测红集由 1 订正为 2**：`git cat-file` 检查读的是门自己的常量，而行声称检查
+  也读同一个常量，改常量两条一起红——不是门坏，是我漏算了共读。
+- **臂 runner v1 有还原缺陷（已修）**：同一文件两次编辑时 `originals` 被第二次读取的
+  文本覆盖，还原漏掉第一处替换，把行写成了「某批 落地」——跑完 sha256 终检当场抓出，
+  修复后 `git checkout` 还原三文件、按字节重打行补丁。
+- **runner v2 把换行写坏（已修）**：`write_text(..., newline="")` 与默认读取的换行翻译
+  叠加，把三个 CRLF 文件整文件转成 LF（git 提示「LF will be replaced by CRLF」）。
+  v3 改**字节级 IO**（`read_bytes` / `write_bytes`）后还原终检才真。与本仓库
+  「变异脚本按 LF 拼模式而生产文件是 CRLF」是同一条坑的第三次：**还原验证必须是字节
+  级的，sha256 读的是字节不是文本。**
+- 门刻意**窄**：只绑 M8-T19 这一格对这一个行为，不做全表 file:line/标识符普查——
+  第一百八十八批已判定那类常驻门会对历史记录产生大量假红。
+
