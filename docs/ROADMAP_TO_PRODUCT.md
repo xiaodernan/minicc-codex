@@ -15703,3 +15703,50 @@ oracle 谎报判分者时才红（臂 C 证实）。原行保留为注释，连�
   但一个把路径拼出来的 workflow（`scripts/<拼出来的名字>.py` 这种形状）观众会漏——本仓没有这种形状，门不证明这一点。
 - 「观众」不等于「覆盖」：CI 跑一个脚本，不等于那个脚本的每条分支都被走到。这条门只回答
   「改动有没有人看见」，不回答「看见得够不够细」。
+
+## 第二百零九批 M8-T181：报告不再从任务规格发明一个「谁判的」——`not_run` 说 None 已经三年，别的状态还在猜
+
+### 1 为什么是这一批
+
+路线图第 176 批起就挂着一条口径欠账：`build_report` 的 `grader_type` 兜底会**凭任务规格发明一个
+没跑过的评分器名**（`recorded.get("grader_type", _declared_grader_type(task))`）。当时的判定是
+「构造可达、尚未 populate」——因为唯一能产出这种行的来路是 `--resume` 读历史 results JSON，
+而 `_resume_matches` 要求 metadata 全等，当前版本产不出这种行。
+
+三年后本批把口径定下来，理由是仓库自己已经答过一次：**M8-T139 起，`not_run` 行的
+`grader_type` 就是 `None`**，而 `test_a_workspace_the_host_cannot_write_is_no_result.py` 的注记
+写得很直白——「runner 的拒绝仍然知道声明的评分器，但报告诚实地说『没人判过这一格』」。
+同一列里，`not_run` 说「没有」，别的状态说「规格里那个」——**同一份报告对同一个问题有两种诚实度**。
+
+任务规格回答的是「**谁将会**看这一格」，不是「**谁看了**」。这两句话在报告的任何一列里都长得一样。
+
+### 2 落地
+
+1. `minicc/benchmarks.py`：兜底从 `_declared_grader_type(task)` 改为 `recorded.get("grader_type")`
+   ——行没记就是没有。`_declared_grader_type` 的 docstring 同步改口：它从此只是 **runner 拒绝路径的
+   词表**（宿主写不出工作区时，行必须说「本来该谁判」），不再承担报告默认值。
+2. `tests/test_no_field_is_invented_by_the_report_or_the_shell.py` +2 条（这个文件的题目本来就是
+   「拒绝报告或 shell 会发明字段」，M8-T100 治过 `uncategorized`，这是同族第二例）：
+   - 行为门：一条有 status 无 grader_type 的行报告 `None`；反向对照——行真记了的评分器照旧透传。
+   - 结构门：`build_report` 里**不允许再出现** `_declared_grader_type` 调用。行为门覆盖一种状态，
+     结构门覆盖这个函数——兜底换个拼法复活时，前者可能刚好错过。
+
+### 3 红绿与臂证据
+
+| 臂 | 变异 | 预期 | 实测 |
+| --- | --- | --- | --- |
+| baseline | 无 | 53 passed | **53 passed** |
+| A | 兜底改回从规格发明 | 新行为门 + 新结构门红 | **红：2 failed** |
+| B | `not_run` 也发明（回到 M8-T139 之前） | M8-T139 三条 + 新门红 | **红：3 failed** |
+| A/B 还原 | — | 逐字节还原后全绿 | **SHA256-RESTORED: True x2**，control **53 passed** |
+| 全影响集 | `minicc/benchmarks.py` 的 39 个受众文件 | 全绿 | **480 passed in 89.49s**（用 M8-T179 的工具生成命令，不是全量） |
+| ruff | 两个改动文件 | clean | **All checks passed** |
+
+### 4 边界
+
+- 本批**只关闭「尚未 populate」的那半**：今天没有任何生产者能写出这种行，所以这是一次**口径决定**，
+  不是一次缺陷修复——判决一个都没变，480 条全绿即是证据。
+- 历史 results JSON 里真带 `grader_type` 的行不受影响（照旧透传）。
+- 报告列从「一个猜出来的名字」变成 `None` 后，`markdown_report` 渲染成 `N/A`——读者看到的是
+  「不知道」，不是「command」。这正是 M8-T118 立的规矩：永久 N/A 的列教读者忽略表格，但**猜出来的
+  值比 N/A 更糟**，它教读者信任一个虚构的作者。
