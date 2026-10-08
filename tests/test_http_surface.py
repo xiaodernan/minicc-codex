@@ -611,6 +611,36 @@ def test_api_rpc_turn_lifecycle(live: _LiveServer, tmp_path: Path) -> None:
     assert json.loads(body)["result"]["status"] == "cancelled"
 
 
+def test_rpc_turn_start_honours_the_permission_mode(live: _LiveServer, tmp_path: Path) -> None:
+    """The third entry point must take the same permission inputs as the other two.
+
+    The Sept-18 review listed this as a P1: the thread executor dropped
+    ``permission_mode``, so the frontend's choice and the executed policy disagreed.
+    It was still true in batch 200 - the ``turn/start`` payload omitted the key, so
+    ``resolve_task_permissions`` saw none and fell back to "default", and plan mode's
+    forced ``changes = False`` went with it. A caller asking for the read-only mode
+    was handed one where writes are permitted.
+    """
+    status, _, body = _post_json(f"{live.url}/api/rpc", {
+        "jsonrpc": "2.0", "id": 1, "method": "turn/start",
+        "params": {
+            "message": "plan only",
+            "workspace_path": str(tmp_path),
+            "session_id": "rpc-mode",
+            "permission_mode": "plan",
+            "allow_changes": True,
+        },
+    })
+    assert status == 200
+    result = json.loads(body)["result"]
+    assert result["permission_mode"] == "plan", (
+        "turn/start dropped the requested mode; the task ran as "
+        f"{result['permission_mode']!r} instead"
+    )
+    # Plan mode forces writes off even when the caller asked for them.
+    assert result["allow_changes"] is False, result["allow_changes"]
+
+
 def test_api_rpc_unknown_method_and_missing_task(live: _LiveServer) -> None:
     status, _, body = _post_json(f"{live.url}/api/rpc", {
         "jsonrpc": "2.0", "id": 1, "method": "does/not-exist",

@@ -672,6 +672,12 @@ class AgentService:
             "allow_network": bool(params.get("allow_network")),
             "reasoning_effort": params.get("reasoning_effort"),
             "attachments": params.get("attachments") or [],
+            # The RPC surface takes the same permission inputs as /api/chat and
+            # /api/tasks/batch. Omitting the mode here meant resolve_task_permissions
+            # saw none and fell back to "default" - and with it went plan mode's
+            # forced changes=False, so a caller asking for the read-only mode got a
+            # writable one. Sept-18 review item 1; found still true in batch 200.
+            "permission_mode": params.get("permission_mode"),
         })
         return self._rpc_turn_payload(task, thread_id=thread["thread_id"])
 
