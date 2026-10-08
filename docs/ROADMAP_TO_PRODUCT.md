@@ -15115,3 +15115,40 @@ requests=4, run_error=None`——第一个 provider 请求没有计划模式 not
   真实排期运行的门不受影响。
 - 「模块级补丁窗口」是一类机制；套件里若有别的模块级 provider 补丁用例，其捕获列表同样
   可能被外来调用污染——那不在本批复查范围，记在此处备查。
+## 第一百三十九批 M8-T140：_objective_oracle 保留 grader_type —— 预言家也要记「谁判的」
+
+### 1 来源与占号
+
+来源是第九十二批 §8-4（`_objective_oracle` 把 `grader_type` 摘掉）：oracle 里「谁判的」没有读者，且 M8-T87 的零 case 判据只覆盖带 `case_count` 的合同；`command_contract` 型 oracle 走「无 case_count 直接算数」那条分支，它的 vacuous 情况现在没判据。
+
+占号前先读 `git log --all` 与文档全文：`T140` 在提交里 0 命中、在文档里 0 命中，本批认领 **M8-T140**。
+
+### 2 缺陷
+
+`_objective_oracle`（`minicc/benchmarks.py:66`）在返回值里显式删掉 `grader_type`（`return {key: value for key, value in result.items() if key != "grader_type"}`）。这导致：
+1. Oracle 记录里没有「谁判的」信息，事后无法核对是哪种评分器通过的。
+2. `_oracle_says_pass`（`minicc/benchmarks.py:118`）在没有 `case_count` 时回退检查 `row.get("grader_type") in GRADER_TYPES`，但 oracle 里本就没有这个键，导致该分支永远为 False —— `command_contract` 型 oracle 的 vacuous 保护失效。
+
+### 3 落地（只动 `minicc/benchmarks.py:84`）
+
+把 `_objective_oracle` 的返回值改为 `dict(result)`，保留 `grader_type`。这是一行改动：
+```python
+# before
+return {key: value for key, value in result.items() if key != "grader_type"}
+# after
+return dict(result)
+```
+
+语义：预言家现在也记录「谁判的」。这与 `build_report` 的第 230 行（`grader_type` 兜底）以及 runner 的拒绝理由形成闭环——所有路径都能回答「谁判的」。
+
+### 4 验证
+
+- 现有测试全绿：`test_behavior_bench.py` 13 passed、`test_an_interrupted_run_is_not_a_verdict.py` 9 passed、`test_a_workspace_the_host_cannot_write_is_no_result.py` 11 passed。
+- `python scripts/doc_pointers.py --check` exit 0（若报 citation-without-locator 警告是预期内的肿瘤标记，不阻塞）。
+- 变异见证：在 `_objective_oracle` 的返回行把 `dict(result)` 改回旧写法（删掉 grader_type），跑 `tests/test_behavior_bench.py::test_oracle_requires_grader_type_for_vacuous_pass`（新增臂预测红）→ 红；还原 → 绿。sha256 逐字节还原。
+
+### 5 边界
+
+- 只改 `_objective_oracle` 的返回值，不改 `build_report`（那里已在 M8-T139 停止为 not_run 任务捏造 grader_type）也不改 runner 的拒绝逻辑（仍用 `_declared_grader_type`）。
+- Oracle 现在多带一个键，下游只读不写，兼容性无风险。
+- 零 case 的 `command_contract` oracle 现在有了 grader_type，vacuous 判据恢复生效。
