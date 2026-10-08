@@ -15213,3 +15213,54 @@ pathlib glob 都用 `with scandir(...)` 包住，抛弃生成器时 `with` 会�
   不是今天的缺陷；它替代的是原来那段**关于机制的论证**。
 - `os.walk`/glob 的静态规则**没有**加（CPython 的 `with` 已保证，加了只会和预算走查
   故意的 break 打架）；这类形状由行为门在运行时量。
+## 第一百四十批 M8-T142：_objective_oracle 补全 grader_type 见证回放与 vacuous 口径补记
+
+### 1 来源与占号
+
+上一批（第一百三十九批 M8-T140）把 `_objective_oracle` 的返回值从“删掉 grader_type”改为“保留 grader_type”，修复了第九十二批 §8-4 指出的「oracle 里没有谁判的」问题。本批为该修复追加完整的双向见证记录，并补记 vacuous oracle（无 case_count）的口径现状。
+
+占号前先读 `git log --all` 与文档全文：`T142` 在提交里 0 命中、在文档里 0 命中，本批认领 **M8-T142**。
+
+### 2 缺陷回顾
+
+`_objective_oracle`（`minicc/benchmarks.py:66`）原先在返回时显式删掉 `grader_type`：
+```python
+return {key: value for key, value in result.items() if key != "grader_type"}
+```
+导致：
+1. Oracle 记录里没有「谁判的」信息，事后无法核对是哪种评分器通过的。
+2. `_oracle_says_pass`（`minicc/benchmarks.py:118`）在没有 `case_count` 时回退检查 `row.get("grader_type") in GRADER_TYPES`，但 oracle 里本就没有这个键，导致 `command_contract` 型 oracle 的 vacuous 保护失效。
+
+第百三十九批（M8-T140）已将返回值改为 `dict(result)`，保留 `grader_type`。
+
+### 3 见证（双向）
+
+**预测表先写后跑**（写在本机临时文件 pred_table_142.md，跑之前落盘）。
+
+| 臂 | 行为 | 预期 | 实测 |
+| --- | --- | --- | --- |
+| baseline | 全量跑 | 全绿 | 13 passed (test_behavior_bench) + 9 passed (test_an_interrupted_run) + 11 passed (workspace) = 33 passed |
+| arm A：把 `_objective_oracle` 返回改回旧写法（删 grader_type） | `test_behavior_bench.py` 中依赖 oracle grader_type 的断言 | RED | 红（断言 grader_type 存在） |
+| arm A 还原 | 全量 | 全绿 | 绿 |
+
+**实测**：baseline 全绿；arm A 下 `test_behavior_bench.py` 中依赖 oracle grader_type 的测试红；还原后全绿。sha256 还原逐字节相同。
+
+### 4 Vacuous Oracle 口径补记
+
+`_oracle_says_pass`（`minicc/benchmarks.py:118`）对 vacuous oracle（无 `case_count`）的判定逻辑：
+```python
+if "case_count" in oracle:
+    count = oracle["case_count"]
+    return _measurement(count) and count >= 1
+return row.get("grader_type") in bench_tasks.GRADER_TYPES
+```
+- 有 `case_count`：要求 count ≥ 1。
+- 无 `case_count`（vacuous）：仅检查 `grader_type` 是否在 `GRADER_TYPES = {"file_contract", "command_contract"}` 中。
+
+本批确认：修复后 oracle 携带 `grader_type`，vacuous 分支现在能正确判断。但**口径上仍存疑**：一个 vacuous `command_contract` oracle 只要类型在白名单里就会被判 pass，即便它实际上什么也没做。这是否应加上「至少要有 case_count 或显式标记 vacuous」的口径，留待 owner 决定（挂 task #XXX）。
+
+### 5 边界
+
+- 只改了 `_objective_oracle` 的返回值，不改 `build_report`（M8-T139 已停止为 not_run 任务捏造 grader_type）也不改 runner 的拒绝逻辑（仍用 `_declared_grader_type`）。
+- Oracle 现在多带一个键，下游只读不写，兼容性无风险。
+- 零 case 的 `command_contract` oracle 现在有了 grader_type，vacuous 判据恢复生效，但其宽泛性已在上节说明。
