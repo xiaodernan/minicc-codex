@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 import types
 from pathlib import Path
 
@@ -123,6 +124,27 @@ def _service(tmp_path: Path) -> AgentService:
     return AgentService(tmp_path, config)
 
 
+def _own_model_turns(seen_requests: list[list[dict]], prompt: str) -> list[list[dict]]:
+    """This run's own model turns, out of every call the patch window caught.
+
+    The provider patch is module-level, so while it is installed *any*
+    service in the process that builds a provider records into the same
+    list - a leftover background run from an earlier test included
+    (batch 201's 1-in-24 flake). Selecting by the run's own user message
+    is what separates our turns from a foreign call that merely shares
+    the window.
+    """
+    own: list[list[dict]] = []
+    for messages in seen_requests:
+        if any(
+            message.get("role") == "user"
+            and str(message.get("content") or "").strip() == prompt
+            for message in messages
+        ):
+            own.append(messages)
+    return own
+
+
 def test_resolve_task_permissions_modes(tmp_path: Path) -> None:
     changes, network, mode = _resolve_task_permissions({"allow_changes": True}, yolo=False)
     assert (changes, network, mode) == (True, False, "default")
@@ -144,8 +166,17 @@ def test_resolve_task_permissions_modes(tmp_path: Path) -> None:
 def test_snapshot_round_trip_preserves_permission_mode(tmp_path: Path) -> None:
     service = _service(tmp_path)
     try:
+        # _defer_schedule: the record is what this test reads, and a
+        # scheduled run would hit the unreachable example.test endpoint
+        # from a background thread - the exact intruder batch 201's flake
+        # chased. Every other suite test that only wants a record defers.
         submitted = service.tasks.submit(
-            {"message": "只做规划", "permission_mode": "plan", "allow_changes": True}
+            {
+                "message": "只做规划",
+                "permission_mode": "plan",
+                "allow_changes": True,
+                "_defer_schedule": True,
+            }
         )
         task_id = submitted["task_id"]
         snapshot = service.tasks.get(task_id)
@@ -153,7 +184,7 @@ def test_snapshot_round_trip_preserves_permission_mode(tmp_path: Path) -> None:
         assert snapshot["allow_changes"] is False
 
         submitted_yolo = service.tasks.submit(
-            {"message": "全自动", "permission_mode": "yolo"}
+            {"message": "全自动", "permission_mode": "yolo", "_defer_schedule": True}
         )
         yolo_snapshot = service.tasks.get(submitted_yolo["task_id"])
         assert yolo_snapshot["permission_mode"] == "yolo"
@@ -193,24 +224,150 @@ def test_plan_mode_injects_system_notice(tmp_path: Path, monkeypatch: pytest.Mon
             return None
 
     monkeypatch.setattr("minicc.web.OpenAICompatibleProvider", FakeProvider)
+    prompt = "调研并输出计划"
     service = _service(tmp_path)
     try:
-        service._chat_locked(
-            {"message": "调研并输出计划", "permission_mode": "plan", "workspace_path": str(tmp_path)},
+        run_result = service._chat_locked(
+            {"message": prompt, "permission_mode": "plan", "workspace_path": str(tmp_path)},
             workspace=tmp_path,
         )
     finally:
         service.shutdown()
-    first_request = seen_requests[0]
     # Failure shape matters: this test flaked once in 24 combination runs
-    # (2026-10-08, observed, never reproduced again). The bare assert could
-    # not say which message was missing the notice, so that one observation
-    # was uncapturable. Any future occurrence now prints what it saw.
+    # (2026-10-08, observed, never reproduced again; batch 201 hunted it for
+    # 30 further trials with the same five files and never saw it again).
+    # Batch 201 then reproduced the shape deterministically and found the
+    # mechanism: the provider patch is module-level, so a background run
+    # left over from an earlier test in the same session records its own
+    # request into this capture list, and on a contended machine that
+    # foreign [system, user] call is exactly what the red reported. The
+    # capture is therefore scoped to this run's own model turns - see
+    # test_plan_mode_notice_survives_a_foreign_call_in_the_same_process
+    # below, which builds the foreign call on purpose. The empty shape
+    # (no provider call at all) still reports itself, with the run's own
+    # error, so a future occurrence says whether the run died before or
+    # after the call.
+    assert seen_requests, (
+        "plan mode must issue at least one provider request; "
+        f"requests=0 run_error={getattr(run_result, 'error', None)!r} "
+        f"run_answer={getattr(run_result, 'answer', None)!r}"
+    )
+    own_turns = _own_model_turns(seen_requests, prompt)
+    assert own_turns, (
+        "plan mode must issue at least one provider request of its own; "
+        f"requests={len(seen_requests)} carried no message of this run, "
+        f"run_error={getattr(run_result, 'error', None)!r}"
+    )
+    first_request = own_turns[0]
     notice = [
         message for message in first_request if "计划模式" in str(message.get("content") or "")
     ]
     assert notice, (
         "plan mode must inject its system notice into the first provider request; "
         f"saw roles={[str(m.get('role')) for m in first_request]}, "
-        f"requests={len(seen_requests)}"
+        f"requests={len(seen_requests)} (own turns: {len(own_turns)}), "
+        f"run_error={getattr(run_result, 'error', None)!r}"
+    )
+
+
+def test_plan_mode_notice_survives_a_foreign_call_in_the_same_process(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Batch 201: the batch-199 flake's shape, rebuilt deterministically.
+
+    What the 1-in-24 red actually was: the capture list is process-global
+    through the module-level provider patch, and a background run left
+    over from an earlier test in the same session was starved by a
+    contended machine (201s against a usual 40s) long enough to build its
+    provider *inside* this test's patch window. Its [system, user] request
+    landed in the same list, ahead of ours, and a bare "first request has
+    the notice" read that as a missing notice.
+
+    This test rebuilds the shape on purpose - a foreign service's run
+    records first - and asserts the scoped check still finds the notice
+    in this run's own model turn. The naive shape is asserted too, so the
+    reproduction stays honest: if a future change makes the foreign call
+    invisible, this test says so instead of silently passing.
+    """
+    import copy
+
+    from minicc.llm.base import LLMResponse
+
+    prompt = "调研并输出计划"
+    foreign_prompt = "外来后台任务的消息"
+    seen_requests: list[list[dict]] = []
+    foreign_recorded = threading.Event()
+
+    class FakeProvider:
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        async def chat(self, messages, tools, on_delta=None):
+            seen_requests.append(copy.deepcopy(messages))
+            if any(
+                message.get("role") == "user"
+                and str(message.get("content") or "").strip() == foreign_prompt
+                for message in messages
+            ):
+                foreign_recorded.set()
+            return LLMResponse(content="外来结论。")
+
+        async def close(self):
+            return None
+
+    monkeypatch.setattr("minicc.web.OpenAICompatibleProvider", FakeProvider)
+    foreign_dir = tmp_path / "foreign"
+    foreign_dir.mkdir()
+    foreign = _service(foreign_dir)
+    foreign_error: list[BaseException] = []
+
+    def run_foreign() -> None:
+        try:
+            foreign._chat_locked(
+                {"message": foreign_prompt, "workspace_path": str(foreign_dir)},
+                workspace=foreign_dir,
+            )
+        except BaseException as exc:  # noqa: BLE001 - reported below
+            foreign_error.append(exc)
+
+    foreign_thread = threading.Thread(
+        target=run_foreign, daemon=True, name="t201-foreign-run"
+    )
+    foreign_thread.start()
+    assert foreign_recorded.wait(timeout=60), (
+        "the reproduction needs the foreign run's provider call to be "
+        "recorded before ours; without it this test proves nothing"
+    )
+    service = _service(tmp_path)
+    try:
+        service._chat_locked(
+            {"message": prompt, "permission_mode": "plan", "workspace_path": str(tmp_path)},
+            workspace=tmp_path,
+        )
+    finally:
+        service.shutdown()
+        foreign.shutdown()
+        foreign_thread.join(timeout=60)
+    assert not foreign_thread.is_alive(), "the foreign run never finished"
+    assert not foreign_error, f"the foreign run raised: {foreign_error!r}"
+    # The reproduction is faithful only if the naive reading would have
+    # failed: the first recorded request is the foreign one, without our
+    # notice.
+    assert not any(
+        "计划模式" in str(message.get("content") or "") for message in seen_requests[0]
+    ), "the foreign call must not carry our notice - otherwise this is not the flake's shape"
+    own_turns = _own_model_turns(seen_requests, prompt)
+    assert own_turns, (
+        "this run must have issued at least one provider request of its "
+        f"own; requests={len(seen_requests)}"
+    )
+    first_request = own_turns[0]
+    notice = [
+        message for message in first_request if "计划模式" in str(message.get("content") or "")
+    ]
+    assert notice, (
+        "plan mode must inject its system notice into the first provider "
+        f"request even when a foreign call shares the capture list; "
+        f"saw roles={[str(m.get('role')) for m in first_request]}, "
+        f"requests={len(seen_requests)} (own turns: {len(own_turns)})"
     )
