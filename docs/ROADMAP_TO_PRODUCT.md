@@ -15321,3 +15321,57 @@ return row.get("grader_type") in bench_tasks.GRADER_TYPES
 - 默认策略 `"allow"` 保持现有行为，不改变现有判决。
 - 计量门仅在全量跑时触发，不影响单测速度。
 - 口径最终确定前，策略常量保留为 `"allow"`，变更仅需改常量并重跑全量。
+
+## 第二百零三批 M8-T4 退出标准里唯一没成门的那半：「干净安装后两个入口脚本真能跑」——venv 真装 + minicc-web 真起服务
+
+### 1 为什么是这一批
+
+M8-T4 行记过一次**手工** E2E（`pip wheel . -w dist` → 干净 venv 安装 → `minicc --version`
+= `minicc 0.1.0` → `minicc-web --port 8791` 返回 `/` 200 与 3 个 hash bundle 200 →
+`/api/health` 200）。但测试套件里**没有一条重复它**：`test_console_scripts_are_declared_and_resolve`
+只从**仓库树**解析 entry_points 的 `module:attr`；`test_installed_wheel_serves_the_workbench`
+用 `pip install --target` 装完后直接调 `static_assets`，**不起服务**。也就是说：装好的
+wheel 里那个 `minicc-web.exe` 到底能不能把一个 HTTP 服务跑起来，今天没有任何门在看——
+入口点拼写错误、打包漏掉 web 载荷、安装后静态根解析错，都能全绿穿过。
+
+### 2 落地（新门，`tests/test_packaging.py` +1 条）
+
+`test_installed_console_scripts_run_from_a_real_install`：
+
+1. 真建 venv（`--system-site-packages`）+ `pip install --no-deps --no-index <wheel>`；
+2. **反空转**：venv 里的 python `import minicc` 的 `__file__` 必须落在 venv 内
+   （否则量到的是 checkout 不是轮子）；
+3. 跑安装生成的 `minicc --version`，断言输出含 `minicc <__version__>`；
+4. 起安装生成的 `minicc-web --workspace <tmp> --host 127.0.0.1 --port <free>`，
+   轮询 `/api/health` 到 200（60s 上限），再取 `/`（200 + HTML 体）与 manifest 里
+   第一个 hash bundle（200 + 非空）；
+5. terminate 后断言启动行 `minicc web: http://127.0.0.1:<port>/` 真出现过（就绪的证据，
+   不是「连上了就算」）。
+
+**venv 用 `--system-site-packages` + `--no-deps` 是刻意的**：依赖完整性是 pyproject 的
+契约（`pip check` 的面），本门必须保持离线可重复；它证明的是**产物那一半**——console 包装
+脚本、打进包的 workbench 载荷、以及一个真能把它们serve起来的服务。
+
+### 3 红绿与臂证据
+
+| 项 | 读数 |
+| --- | --- |
+| 臂 A1（单点变异：`pyproject.toml` 的 `minicc = "minicc.main:main"` → `...:main_missing`） | **红**：安装后 `minicc --version` returncode=1 |
+| 还原 | `SHA256-RESTORED: True`（字节级；首轮锚点写成 CRLF 没匹配上，该文件是 LF，修正后命中） |
+| 控制（还原后同门） | **1 passed** |
+| `tests/test_packaging.py` 全文件 | **13 passed（126.16s）** |
+| ruff（本文件） | All checks passed |
+
+### 4 耗时（CI 墙钟是跟踪指标，如实记）
+
+稳态：模块级 `dist` fixture 21.5s + 本门 call 51.9s ≈ **74s**（venv 22.7s / pip install 7.6s /
+服务就绪 10.8s / 其余为解释器启动与导入）。**首跑 220s 是冷缓存**（venv 内 .pyc 编译 +
+pip 冷缓存），第二次起回落到 77–87s。打包文件整体 101s → 126s。
+
+### 5 边界
+
+- 本门**不**证明依赖声明完整（`--no-deps`）；也不证明「完全干净的 venv」（用
+  system-site-packages 换离线与可重复）。手工那次真·干净 venv 的读数仍是 M8-T4 行的记录。
+- `--version` 与控制臂只覆盖 `minicc` 一个入口的拼写；`minicc-web` 的入口拼写由第 4 步
+  「服务真起来」覆盖（拼错则进程起不来，60s 就绪超时红）。
+- 端口用「绑 0 取空闲端口」选取，存在理论竞态；门内就绪轮询 60s 足以吸收。
