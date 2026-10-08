@@ -16392,3 +16392,109 @@ AST 现算）已立为下一批候选，不在本批动，因为那条门不是�
 - 平面取证按用途分两种：只读源码结构的门与 C1/C2/C3 反向对照用 `git archive`（autocrlf
   下 HEAD blob 即 LF 源文本，与 worktree CRLF 的差异不影响 AST 读）；**全量围栏用
   worktree 平面**，理由见 §4。
+## 第二百一十七批：M8-T189 — 一个已公布模型只能有一个价格（运行预算的美元顶格与任务卡片各读一张价表）
+
+**缺陷**：同一个模型的价格在这仓库里有两个主人。任务卡片一侧是
+`minicc/pricing.py DEFAULT_PRICE_TABLE`（`cost_usd` 用它出账）；美元顶格一侧是
+`minicc/agent/router.py _DEFAULT_MODELS[].cost_usd_per_1m`，全仓库只有一个读者
+（router.py:288 的 `StageRouter.estimate_cost`），而它恰恰是被
+`route_wiring._stage_cost_estimator` 喂进 `Budget.record_cost` 的那条——也就是 M11
+那一美元天花板。两表从不同源，实测同一笔 400k 输入/60k 输出：
+
+| 模型 | 计入预算的顶格 | 任务卡片 | 判定 |
+| --- | --- | --- | --- |
+| o3 | 12.80 | 6.40 | 顶格按 2× 卡片收费，天花板提前触发 |
+| claude-3.5-sonnet / claude-3.7-sonnet | 2.10 | None（未计价） | 卡片说不出价，顶格却在扣钱 |
+| claude-3-haiku | 0.175 | None | 同上 |
+| gpt-4.1-mini（已公布、未登记） | 0.0 | 0.256 | **不安全的那一侧**：花了钱却永远不触顶 |
+| gpt-4o 的 custom_models 覆盖行（只声明 tier/base_url） | 0.0 | 1.60 | 同上 |
+
+最后两行不是「少扣一点」而是「天花板形同不存在」：accrued-0 只会晚触发，永不早触发。
+
+**修复**（顶格改读唯一那张公布表，注册表那一列只留给操作者自己声明的行）：
+
+- `router.py`：内置 8 行一律不再带 `cost_usd_per_1m`；`estimate_cost` 声明分支保留
+  **四列位置解包**原样，其余走 `_published_price(route.model)`（`None → 0.0`），
+  并在四列全零时返回 0.0（声明为免费的网关模型保持免费）。
+- 「声明过价格」的判据是**实例集合** `self._declared_price_models`（由
+  `if "cost_usd_per_1m" in cfg` 填），**不是新 kwarg**——镜像门
+  `test_stage_routing_config_reaches_the_router.py` 把 `_register_custom_models` 那次
+  调用的关键字表等同于 `config._CUSTOM_MODEL_KEYS`，加 kwarg 会立刻红；同理四列解包被
+  `set(unpacks) == {_COST_COLUMNS}` 与「三列必须 ValueError」两条钉住。这两条约束在
+  动手前先读，属本批的取舍依据而非事后追补。
+- `pricing.py`：`price_for` 加 `_SEPARATOR_FOLD`（`.`、`_` → `-`），查询名与表键**两侧都折**，
+  最长前缀规则不变——router 写 `claude-3.5-sonnet`，表里以前只有 `claude-3-5-sonnet`；
+  另补 `"claude-3-haiku": ModelPrice(0.25, 1.25, 0.125, 0.25)` 一行。
+- `route_wiring.py` 的契约句改成仍成立的话：价表认得的模型不再以 0.0 入预算。
+
+修复后同一笔花费两侧读数（实测，九个名字）：gpt-4o-mini 0.096/0.096、gpt-4o 1.6/1.6、
+gpt-4.1 1.28/1.28、o1 9.6/9.6、o3 6.4/6.4、claude-3-haiku 0.175/0.175、
+claude-3.5-sonnet 2.1/2.1、claude-3.7-sonnet 2.1/2.1、gpt-4.1-mini 0.256/0.256——
+**9/9 AGREE**，且 `card=None` 的三格从此有数。
+
+**预测先写**（`Temp/mc-t189/predictions_t189.md`，在任何一次门跑与任何一次变异之前）：
+修复前 6 红 2 绿（红＝T1/T2/T3/T5/T6/T7，绿＝两条反弹条款 T4/T8），修复后 8 绿；
+臂 A1→{T1}、A2→{T2,T3}、A3→{T2,T3}、A4→{T5}、A5→{T4, 邻家那一条}、A6→{T7}、
+A7→{T2,T5,T7,T8}。**实测逐条命中，无一失手。**
+
+**变异臂**（7 臂，全部单点变异、磁盘快照、sha256 还原；每臂顶部先重基，绝不叠加）：
+
+| 臂 | 变异 | 预测红集＝实测 | 判定 |
+| --- | --- | --- | --- |
+| A1 | o3 重新手带价格列（无人读它） | T1 | MATCHED |
+| A2 | 删掉 claude-3-haiku 公布行 | T2, T3 | MATCHED |
+| A3 | `_fold` 不再折叠分隔符 | T2, T3 | MATCHED |
+| A4 | 把每一行 custom 都当作声明价 | T5 | MATCHED |
+| A5 | 没有一行 custom 被当作声明价 | T4 + 邻家 `test_custom_models_join_the_registry_with_their_endpoint_and_price` | MATCHED |
+| A6 | 未登记路由重新计 0.0 | T7 | MATCHED |
+| A7 | 输入按 cache-read 率计费（顶格少扣） | T2, T5, T7, T8 | MATCHED |
+
+控制（未变异）：rc=0、9 collected、无红；终检 pricing.py 与 router.py 的 sha256
+与快照逐字节一致（`restored=True`）。
+
+**反向对照 = 修复前的门跑**（真实 HEAD 字节，私有平面）：在 `579b810` 的 worktree 平面
+wt189a 上**只放门、不改产品**跑一次：`6 failed / 2 passed`，发射的原话就是缺陷本体——
+「内置注册表又自己带上了价格列，同一个模型就有两个主人了：{...o3: (20.0, 80.0, ...)}」、
+「同一笔 400k/60k 花费在两个表面的美元不一样：[('claude-3-haiku', 0.175,
+'card=unpriced(None)'), ..., ('o3', 12.8, 'card=6.400000')]」、
+「路由得到、价表认得、卡片计价的模型在顶格一侧计 0.0（卡片 0.256），那它的美元上限
+永远不会触发」。`minicc.__file__` 实测落在平面内。
+
+**回归证据**：
+
+| 命令 | 读数 |
+| --- | --- |
+| 门（修复前，产品＝HEAD 原字节，平面 wt189a） | **6 failed / 2 passed**＝预测 |
+| 门（修复后，平面） | 8 passed（3.34s） |
+| 门（落库后主树，含 `-W error`） | 8 passed（2.85s / 3.28s） |
+| focused（本门 + router/pricing/stage_route_enforcement/cli_stage_routing/planner_fold/merge_fold/reaches_the_router/route_coverage 八邻家） | **178 passed / 1 failed（85.53s）**，唯一红是第二百一十六批 §5 登记的 `43a8bf4` 预存在红，逐字同名 |
+| 全量 | **2166 例：2158 通过 / 3 红 / 5 skip（14.4 分钟，c71473e worktree 平面，rc=1；三条红均在父提交 579b810 平面上逐字复现，见 §5；本门 8 例全绿）** |
+
+**落库**：`land_t189.py` 先把「平面 HEAD == 主树 HEAD == 主树盘上」三个 blob 逐一核对
+（三个产品文件都被并行写者动过就拒绝），再从平面逐字节复制 4 个文件、每个 sha256 相等，
+`git add` 后断言 staged 恰好等于我这 4 条、staged numstat 等于**平面为自己字节算出的**
+numstat（pricing 26/5、router 53/19、wiring 5/3、门 281/0），提交后逐路径断言
+`HEAD:<path>` == `hash-object` 盘上。全部测量与变异都在私有 worktree 平面完成，主树在
+并发车道跑测试期间一个字节都没被改过。
+
+**§5 本批全量的三条预存在红**（逐条在**没有本门文件**的父提交平面复现，同文案同数值，
+本批 +0 红）：
+
+| 红 | 归因 |
+| --- | --- |
+| `test_stage_routing_config_reaches_the_router::test_every_production_construction_site_is_the_one_this_test_copies` | 第二百一十六批 §5 登记（`43a8bf4` 加了第二个 `StageRouter(` 构造点，而那枚门钉「恰好一处」） |
+| `test_subprocess_decoding::test_no_text_mode_capture_asks_for_a_strict_decoder` | 第二百一十五批 §4 登记（`092ad68` 引入，并行车道在写那三个文件） |
+| `test_cleanup_version::test_all_version_consumers_agree` | 第二百一十六批 §5 登记；本批再实测一次其形状：**新平面必红**（平面根没有 `minicc.egg-info`，`importlib.metadata` 于是读到这台机器上 9 月 26 日装的 `minicc-0.1.0.dist-info`，而源码 `__version__` 早已是 0.2.0）。修法与「绿可以是假的」这条已立为下一批候选 |
+
+**边界**：
+
+- 顶格一侧仍**不读 cache 通道**（`_stage_cost_estimator` 只把 prompt/completion 换成美元），
+  所以带缓存命中的真实花费里，顶格是**偏高**的那一侧——保守方向，且与本批的「唯一主人」
+  不冲突；卡片一侧照旧按 `ModelPrice` 四列出账。
+- 声明价（`custom_models` 里写了 `cost_usd_per_1m`）仍是操作者的数字，优先于公布表，
+  包括 0.0 表示「网关侧免费」；本批没有把它改成「声明 0 也去查表」，因为那会让
+  真实存在的免费网关变成不可表达。
+- `price_for` 的分隔符折叠只折 `.` 与 `_`，不折大小写；将来若出现大小写变体的模型名，
+  需要显式扩 `_SEPARATOR_FOLD`，这是有意的债务（docstring 里写了规则）。
+- 本批改的是「谁 owns 已公布价格」，不是「价格数字本身对不对」；表内费率与厂商牌价的
+  核对不在本批范围。
