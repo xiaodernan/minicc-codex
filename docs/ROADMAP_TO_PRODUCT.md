@@ -15750,3 +15750,101 @@ oracle 谎报判分者时才红（臂 C 证实）。原行保留为注释，连�
 - 报告列从「一个猜出来的名字」变成 `None` 后，`markdown_report` 渲染成 `N/A`——读者看到的是
   「不知道」，不是「command」。这正是 M8-T118 立的规矩：永久 N/A 的列教读者忽略表格，但**猜出来的
   值比 N/A 更糟**，它教读者信任一个虚构的作者。
+
+
+## 第二百一十批 M8-T182：注释承诺 nightly 钉了两个拒判计数的地板——它一个都没钉；现在钉上，并且承诺变成可对账的门
+
+### 1 为什么是这一批
+
+第九十五批 §8-3 挂下来的三件套，第一百零五批（M8-T118）关了方向（两个拒判计数进 `GATE_METRICS`，
+方向 `<=`），**阈值那半一直开着**，之后十几批的「下一批候选」里反复抄同一句话：
+「`grading_refusal_count`／`reviewer_false_negative_count` 进 `GATE_METRICS`：要方向与阈值口径」。
+
+本批先量再判。量出来的东西比「阈值是多少」更靠前：
+
+- `GATE_METRICS` 的注释用**现在时**断言「the nightly job pins its own floors in the workflow
+  file」。实测 `.github/workflows/ci.yml` 的 `eval-nightly` 只有四条 `--gate`
+  （`pass_at_1>=0.3`／`grading_coverage>=0.9`／`latency_p95_ms<=600000`／
+  `false_completion_rate<=0`），**两个拒判计数一条都没有**。也就是说：一条描述决定路径的注释，
+  对决定路径做了一件它不做的事。这和 M8-T176（装饰性常量）、M8-T178（陈旧断言）、
+  M8-T181（发明字段）是同一族——**注释里的承诺没有观众**。
+- `test_ci_hygiene.py:83-86` 把那四条 gate 钉死了，所以「nightly 钉了地板」这句话对四个指标是
+  **有观众的**，对另外两个是**假的**。一个部分为真的承诺比全假更难发现。
+
+顺手量到一个此前没人量过的事实，它决定了「归一化」这条路走不通：
+`gradable` 的谓词是 `passed is not None`，拒判计数的谓词是 `grading_refused`——**两者不是同一个
+谓词**。于是一行 `status="completed"`、`passed=None`、`grading_refused=False` 的「**无评分器**」
+行，只被 `grading_coverage` 看见，不被 `grading_refusal_count` 看见。legacy 套件
+`benchmarks/tasks.json` 30 条任务里 **27 条没有评分器**，所以这一类不是假想，是 `--suite legacy`
+的常态。⇒ `1 - grading_coverage` 与「拒绝数 / completed」**不相等**，归一化拒绝数不会变成
+`grading_coverage` 的第二个名字，但它也不解决任何问题：两个数各自回答不同的问题。
+
+### 2 落地
+
+1. `.github/workflows/ci.yml`：`eval-nightly` 加 `--gate grading_refusal_count<=0`，并在
+   「Initial floors are deliberately conservative」那段旁边写明这条为什么不需要 characterization。
+2. `minicc/bench_compare.py`：
+   - 注释改口：删掉那句假话，改成「阈值不归本模块，归知道套件大小的调用方；`GATE_FLOORS`
+     逐条记下是谁」。
+   - 新增 `GATE_FLOORS`：`GATE_METRICS` 的**每一个**指标一行，记录谁钉地板、或为什么还没钉。
+     这是把「谁拥有阈值」从散文变成数据——散文会漂，数据有门。
+3. `tests/test_ci_hygiene.py`：
+   - 既有四条 gate 断言补第五条（`grading_refusal_count`）。
+   - 新门 `test_every_gate_metric_declares_who_pins_its_floor`：**双向对账**——
+     `set(GATE_FLOORS) == set(GATE_METRICS)`（没人决定过的指标不许装作决定过），且
+     「表里说 nightly 钉了」与「workflow 里真有这条 `--gate`」两个集合必须相等。
+     反向那一半是这个门的关键：只查单向的话，「表说没钉但 workflow 钉了」这种同方向的反向漂移
+     照样能过。
+4. `tests/test_bench_compare.py`：新行为门 `test_refusal_family_counts_ride_along_from_a_real_report`。
+   M8-T118 教会 `compare_reports` 携带这两个计数，但**唯一的测试用的是手搓的
+   `{"variant": {...}}` 字典**——正是 batch 181 在 `false_completion_rate` 上发现并补掉的那个缺口
+   （一个没有报告能到达的指标，门会永久 fail-closed）。本批用 `build_report` 造真报告走完整链路，
+  并把「无评分器行不是拒绝」钉进断言。
+
+**阈值口径的判决**（这就是挂了十几批的那半）：
+
+- `grading_refusal_count` → **nightly `<=0`**。理由是拒绝**按定义不是合法结果**：评分器拒判（exit 2）、
+  跑不起来、宿主写不出工作区、操作者中止——四种都不是结论。而 `grading_coverage>=0.9` 容许
+  **10% 的 run 无人评判而不作声**，这一条正是堵这个洞。实测背书：fake provider（最坏情况的智能体，
+  什么活都不干）在两个套件上都是 **0**。
+- `reviewer_false_negative_count` → **仍然不钉**，并在表里写清理由。它衡量的是 reviewer 而不是
+  套件分数（M8-T86），且**没有任何读数——真的或假的——能支撑一个数字**：reviewer 输给目标评分器
+  一次是判断质量信号，地板设 0 会让 nightly 在第一次分歧上红，而不是在回归上红。batch 181 立的
+  规矩不变：地板要有实测值背书。
+- `pass_at_1_ex_infra` → 不钉。`pass_at_1` 才是有地板那个比率，且分母冻结（M8-T154）；
+  这个指标的存在是为了**解释** pass@1 为什么被 infra 拖低，给它设地板是给已有门起第二个名字。
+
+### 3 红绿与臂证据
+
+| 臂 | 变异 | 预期 | 实测 |
+| --- | --- | --- | --- |
+| baseline | 无 | door + ride 绿 | **1 passed / 1 passed** |
+| A | nightly 删 `--gate grading_refusal_count<=0` | 新门 + 旧四条断言红 | **红：2 failed**（door 1、`test_ci_declares_pr_and_nightly_eval_jobs` 1） |
+| B | 反向漂移：表把该指标改成 `unfloored:` | 对账门红（workflow 钉了、表说没钉） | **红：1 failed** |
+| C | `GATE_METRICS` 加一个 `GATE_FLOORS` 里没有的指标 | 集合对账红 | **红：1 failed** |
+| D | `compare_reports` 不再携带 `grading_refusal_count`（M8-T118 的修复回退） | 新行为门红 | **红：1 failed** |
+| A/B/C/D 还原 | — | 逐字节还原后全绿 | **SHA256-RESTORED: True x4**，control **door+ride 全绿** |
+| 端到端 | 真 CLI 自指 compare + 新 gate | gate 读到真数 | **`grading_refusal_count <= 0 实际=0 通过`**；同报告 `pass_at_1>=0.3 实际=0.0417 违反` → exit 1 |
+| 全影响集 | `minicc/bench_compare.py` 的 35 个受众文件 | 全绿 | **504 passed in 108.84s**（用 M8-T179 的工具生成命令，不是全量） |
+| ruff | 5 个改动文件 | clean | **1 条 F401，HEAD 上就已存在**（见 §4） |
+| doc-pointer | `scripts/doc_pointers.py docs/ROADMAP_TO_PRODUCT.md` | rc=0 | **rc=0** |
+
+### 4 边界与欠账
+
+- **`reviewer_false_negative_count` 没有地板**，这是本批的判决而不是疏漏：理由写进了
+  `GATE_FLOORS` 那一行，理由的根据是「没有读数」。第一次真机 nightly 跑完应当回来复核这条——
+  如果那时它有稳定读数，就该有地板。
+- **`grading_refusal_count<=0` 的地板没有真机读数背书**，只有 fake provider 的 0。我选择钉它，
+  理由是「拒绝不是合法结果」这个定义性质，而不是测量；这条取舍如实记在这里，等第一次真机 nightly
+  复核。若真机上出现宿主瞬时故障导致的红，正确的修法可能是给这条地板加一个「非零时打印原因」
+  的伴生输出，而不是把地板抬起来——抬地板等于重新容许无人评判的 run。
+- ruff 在 `tests/test_bench_compare.py` 报的 **F401 `from minicc import bench_compare` 未使用**
+  在 HEAD 上就已存在（已用 `git show HEAD:` 复核），本批按既往惯例不修、只登记。
+- 新行为门里那条「无评分器行」是构造出来的：v2 套件 24 条任务全部带评分器，所以这一类今天只在
+  `--suite legacy`（27/30）上真实出现。**「无评分器行有一个读者」本身仍是一个开口的候选**——
+  今天它只通过 `grading_coverage` 的分母被间接看见，没有任何指标数它。
+- 下一批候选（本批实测带出来的）：`scripts/impacted_tests.py --run` 打印的命令里混进
+  `tests/ci.yml`——一个不存在的路径，命令根本跑不了。详见第二百一十一批。
+- **编年说明**：§3 那张「全影响集 504 passed」是在修完第二百一十一批那个工具缺陷**之后**才跑出来的。
+  本批的四条臂在修之前就跑完了并逐字节还原；受影响的是「用哪个命令去跑」，不是任何一条判决。
+  这里说明白，是因为把「先绿后绿」写成「一直绿」正是这个项目一直在治的那种不诚实。
