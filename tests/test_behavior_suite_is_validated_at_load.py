@@ -127,30 +127,31 @@ def test_the_declared_behaviour_types_match_what_the_grader_dispatches() -> None
 def test_the_runner_opens_the_behaviour_door() -> None:
     """A validator nobody calls is a comment, not a gate.
 
-    The gate checks for actual Call nodes to ``validate_behavior_task`` and
-    that the behaviour branch's entry point is reached, not just that the
-    string ``behavior_tasks()`` appears somewhere in rendered source.
+    The search is anchored on ``behavior_tasks()`` - the behaviour suite's own
+    entry point - and asks whether *that* function opens the door. It used to be
+    anchored the other way round: take the first function that calls the
+    validator, then require it to also call ``behavior_tasks()``. M8-T177 added
+    a second caller (``load_tasks``), the first-match search silently re-bound
+    to it, and the gate went red for a reason that had nothing to do with its
+    own question. A gate that binds to whichever function happens to come first
+    in document order measures document order (M8-T22).
+
+    Both anchors are still checked as Call nodes, not as strings in rendered
+    source: the string can survive while the call does not.
     """
     tree = ast.parse(BENCHMARKS_SOURCE)
-    callers = {node.func.id for node in ast.walk(tree)
-               if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
-               and node.func.id == "validate_behavior_task"}
-    assert callers, "benchmarks.py never calls validate_behavior_task"
-    runner = next(n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)
-                  and any(isinstance(inner, ast.Call)
-                          and isinstance(inner.func, ast.Name)
-                          and inner.func.id == "validate_behavior_task"
-                          for inner in ast.walk(n)))
-    # The behaviour branch must call behavior_tasks() - look for the Call node,
-    # not the string in unparsed source.
-    behaviour_calls = {inner.func.id for inner in ast.walk(runner)
-                       if isinstance(inner, ast.Call)
-                       and isinstance(inner.func, ast.Name)
-                       and inner.func.id == "behavior_tasks"}
-    assert "behavior_tasks" in behaviour_calls, (
-        f"the behaviour door is not on the behaviour suite's path: "
-        f"runner={runner.name}, calls={sorted(behaviour_calls)}"
-    )
+    loaders = [node for node in ast.walk(tree)
+               if isinstance(node, ast.FunctionDef)
+               and any(isinstance(inner, ast.Call) and isinstance(inner.func, ast.Name)
+                       and inner.func.id == "behavior_tasks" for inner in ast.walk(node))]
+    assert loaders, "nothing in benchmarks.py loads the behaviour suite any more"
+    for loader in loaders:
+        calls = {inner.func.id for inner in ast.walk(loader)
+                 if isinstance(inner, ast.Call) and isinstance(inner.func, ast.Name)}
+        assert "validate_behavior_task" in calls, (
+            f"the behaviour suite is loaded by {loader.name}() without its door: "
+            f"calls={sorted(calls)}"
+        )
 
 
 def test_every_shipped_behaviour_task_passes_the_new_door() -> None:

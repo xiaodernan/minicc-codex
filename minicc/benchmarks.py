@@ -195,7 +195,7 @@ def load_tasks(path: Path = DEFAULT_FIXTURES) -> list[dict[str, Any]]:
         # consistency) so the agent never starts on a task the grader will refuse.
         grader = task.get("grader") if isinstance(task, dict) else None
         if isinstance(grader, dict) and grader.get("type") == "python_behavior":
-            behavior_bench.validate_behavior_task(task)
+            validate_behavior_task(task)
         # A task may declare one objective check, not two: the runner's grader branch wins
         # and the other is dropped without a word, so a task carrying both scores less than
         # its author thinks it does.
