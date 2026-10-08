@@ -9,10 +9,14 @@ does not exist) are invisible to source-tree tests.
 from __future__ import annotations
 
 import json
+import os
 import re
+import socket
 import subprocess
 import sys
 import tarfile
+import time
+import urllib.request
 import zipfile
 from pathlib import Path
 
@@ -239,3 +243,105 @@ print("served", len(body), "html +", len(bundle), "bytes of", bundle_name)
     served = _build(["-c", check, str(site)], tmp_path, timeout=300)
     assert served.returncode == 0, served.stdout + served.stderr[-2000:]
     assert "served" in served.stdout
+
+
+def _scripts_dir(venv: Path) -> Path:
+    return venv / ("Scripts" if os.name == "nt" else "bin")
+
+
+def _free_port() -> int:
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        return int(sock.getsockname()[1])
+
+
+def test_installed_console_scripts_run_from_a_real_install(tmp_path: Path, wheel: Path) -> None:
+    """M8-T4's acceptance, executable: both entry points run from an install.
+
+    The recorded E2E (the M8-T4 row) ran ``pip wheel .`` into a clean venv,
+    ``minicc --version``, then ``minicc-web --port ...`` answering ``/``, the
+    hash bundles and ``/api/health`` with 200. Nothing in the suite repeats
+    that: the console-script test resolves the entry points from the *repo*
+    tree, and the installed-wheel test serves assets through
+    ``static_assets`` directly, never through a server an installed
+    ``minicc-web`` would start. This gate runs the real scripts from a real
+    install of the real wheel.
+
+    The venv is created with ``--system-site-packages`` and the wheel with
+    ``--no-deps --no-index``: dependency completeness is pyproject's
+    contract (``pip check``), and this gate must stay hermetic and offline.
+    What it proves is the artifact half - the console wrappers, the packaged
+    workbench payload, and a server that serves them. An anti-vacuity check
+    pins that the imported ``minicc`` is the installed one, not the checkout.
+    """
+    from minicc import __version__
+
+    venv = tmp_path / "venv"
+    venv_python = venv.joinpath("Scripts", "python.exe") if os.name == "nt" else venv.joinpath("bin", "python")
+    created = _build(["-m", "venv", "--system-site-packages", str(venv)], REPO, timeout=300)
+    assert created.returncode == 0, created.stdout[-2000:] + created.stderr[-2000:]
+    installed = subprocess.run(
+        [str(venv_python), "-m", "pip", "install", "--no-deps", "--no-index", str(wheel), "--quiet"],
+        cwd=str(tmp_path), capture_output=True, text=True, errors="replace", timeout=600,
+    )
+    assert installed.returncode == 0, installed.stdout[-2000:] + installed.stderr[-2000:]
+
+    # Anti-vacuity: the venv must be serving the wheel's package, not the
+    # checkout the test process itself imported.
+    origin = subprocess.run(
+        [str(venv_python), "-c", "import minicc; print(minicc.__file__)"],
+        cwd=str(tmp_path), capture_output=True, text=True, errors="replace", timeout=120,
+    )
+    assert origin.returncode == 0, origin.stderr[-2000:]
+    module_path = Path(origin.stdout.strip()).resolve()
+    assert str(module_path).casefold().startswith(str(venv.resolve()).casefold()), (
+        f"the venv resolved minicc outside itself: {module_path}"
+    )
+
+    scripts = _scripts_dir(venv)
+    cli = scripts / ("minicc.exe" if os.name == "nt" else "minicc")
+    version = subprocess.run(
+        [str(cli), "--version"], cwd=str(tmp_path), capture_output=True, text=True, timeout=120
+    )
+    assert version.returncode == 0, version.stdout + version.stderr[-2000:]
+    assert f"minicc {__version__}" in version.stdout, version.stdout
+
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    port = _free_port()
+    web = scripts / ("minicc-web.exe" if os.name == "nt" else "minicc-web")
+    server = subprocess.Popen(
+        [str(web), "--workspace", str(workspace), "--host", "127.0.0.1", "--port", str(port)],
+        cwd=str(tmp_path), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+    )
+    try:
+        deadline = time.monotonic() + 60
+        ready = False
+        while time.monotonic() < deadline:
+            if server.poll() is not None:
+                break
+            try:
+                with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/health", timeout=2) as probe:
+                    if probe.status == 200:
+                        ready = True
+                        break
+            except OSError:
+                time.sleep(0.25)
+        assert ready, "the installed minicc-web never answered /api/health within 60s"
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/", timeout=20) as home:
+            assert home.status == 200, home.status
+            html = home.read()
+        assert b"<" in html, html[:200]
+        bundle = next(iter(_manifest().values())).lstrip("/")
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/{bundle}", timeout=30) as asset:
+            assert asset.status == 200, asset.status
+            payload = asset.read()
+        assert len(payload) > 1000, len(payload)
+    finally:
+        server.terminate()
+        try:
+            out, _ = server.communicate(timeout=30)
+        except subprocess.TimeoutExpired:
+            server.kill()
+            out, _ = server.communicate()
+    assert f"http://127.0.0.1:{port}/" in (out or ""), (out or "")[-2000:]
