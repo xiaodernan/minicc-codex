@@ -523,6 +523,15 @@
 | `read_file` 对 offset/limit 仍整文件读 3 次 | `editor.py:305-312`、`fs.py:88-92` | M2-T6 只补了 grep 的大小上限 | M2-T6 |
 | CI 卫生 5 项 | `ci.yml`、`pyproject.toml:24`、`README.md:192`、版本号三处、`web/assets/` 21 个死 bundle | M4-T8 文本被截断，`httpx` 传递依赖（一次 openai 升级即双平台 CI 全红）与版本号统一实际未覆盖 | M4-T8（明确列出）+ M8-T4 |
 
+> **第一百九十八批实测：A.1 三行全部有归属且已落地**（逐行读到今天的代码，不是转述任务表）：
+> - config 6 缺陷 → M7-T4 已落地，`config.py` 今天按**对象**校验（`:183` 的「列表变 repr」与
+>   `:94` 的行内注释两条都由 `tests/test_config_surface.py` 守着）；
+> - `read_file` 三读 → M2-T6 已落地：`fs.py:180` 一次窗口化读取（`offset/limit` 直达
+>   `editor.read_file`），唯一的整文件补读只发生在 `.minicc` 敏感文件的**脱敏**路径上
+>   （刻意的，读脱敏比读原文重要）；
+> - CI 卫生 5 项 → M4-T8 已落地（httpx 进 dev extra、版本号单一来源、`web/assets/` 只留
+>   manifest 引用的 bundle）。
+
 ### A.2 高价值能力差距漏项
 
 | 漏项 | 位置 | 归属建议 |
@@ -537,10 +546,23 @@
 | **IDE 集成深化** | `ide/vscode/extension.js` | 延后到 M8 之后，README 降级标注为实验性 |
 | **多用户 RBAC / 限流** | `webauth.py` | 属 README 已声明非目标 → **在第四节显式记为非目标**，避免静默缺失读起来像遗漏 |
 
+> **第一百九十八批实测：A.2 九行逐一有归宿**（归属建议 ≠ 全部单独立项，有两行是「显式记为
+> 非目标/延后」，同样有读者）：
+> - per-stage 路由/故障转移 → 已落地且超出建议：`minicc/agent/router.py` 的 `StageRouter`
+>   （按 stage 选模型 + 成本上限 + `failover.fallback_tiers` 跨厂商），不是 M6-T6 的最小版；
+> - a11y → 已落地（前端加固交付：`aria-level`/键盘树交互/焦点保留，对比度样本 4.845 ≥ 4.5:1，
+>   手机发送按钮 826/844px 不再裁切）；
+> - typed Git 边界 → 已按「声明而非实现」结案：`docs/PLUGIN_API.md` 与 README 非目标写明
+>   agent 只能提案、提交永远由人触发；
+> - @-提及注入 → M7-T5 ✅；MCP resources/prompts → M5-T7 ✅、sampling 按第四节记为非目标；
+> - 消息级事件树 → M8-T2 ✅（fork 之前先建树）；persona → 不单独立项（M7-T2 slash 命令已覆盖）；
+> - IDE 深化 / 多用户 RBAC → 按建议「延后 + README 标注实验性 / 显式记为非目标」，第四节有记录。
+
 ### A.3 会重造或撞车已有实现的步骤（执行前必读）
 
 1. **M4-T4（价格表）部分重造**：`benchmarks.py:103,117,134,140,164` 已有 `cost_usd` / `cost_per_success_usd` / `cost_available` / `total_cost_known` 的完整聚合，`grading_coverage` 与 `pass_at_1` 也已存在。真正缺的只有**单价表和 usage 侧填值**。应在 `add_usage_totals` / `state.py` 侧产出，benchmarks 只读，**不要再造一套聚合**。
 2. **M1-T3 与既有测试有隐性冲突**：`tests/test_core.py:35` 直接 import `_merge_stream_text`，`:1510` 断言 `_merge_stream_text("aa","aab") == ("aab","b")`——**这条测试固化的正是缺陷语义**。因此 M1-T3 必须落成**两个函数**（delta 逐字节拼接 + attempt 全文合并），否则要么打破"既有测试不得回归"，要么把缺陷留下。验收里的"先红后绿"需写明边界。
+   —— **第一百九十七/九十八批实测：这条处方已被演进绕过，而它警告的那条测试今天钉的是一个壳**。M8-T11 之后落地的形状是「一个模块三个函数」（`append_delta` / `AttemptTextAssembler` / `merge_retry_snapshot`），`_merge_stream_text` 只剩一层向后兼容壳（`openai_provider.py:346`，直接委托 `merge_retry_snapshot`），导入它的测试因此不再固化缺陷语义；而循环侧的副本连壳都不需要——第一百九十七批整层删除（四个 provider 调用点实测无「直接吐累积块」的生产路径），其旧契约测试改写为 `test_agent_loop_streams_what_the_provider_sent_verbatim`。**本条作为历史处方保留**：它的方法论（先查既有测试固化的是什么，再决定新代码落成几个函数）仍然有效，结论（两个函数）已不适用。
 3. **M2-T5 + M3-T4 会造出第三、四套命令解析**：`bash.py:88` 已有 `.split()` 版 `is_readonly_command`、`:60` 有 regex 版 `detached_command_reason`、`audit.py:88` 是子串版。M3-T4 若再在 audit.py 里写 argv 分词就是第三份并存 tokenizer。**应先抽一个共享 argv tokenizer（shlex + Windows 兼容）供 audit.py / bash.py 共用。**
 4. **M2-T1 的提取层次**：`web.py:383-394` 已内联整套 resolve + `is_relative_to` 校验，`config.py:259-265` 已在解析 roots。`_resolve_workspace_path()` 应放在 **config/workspaces 层**而非 web 层，否则四个入口仍要 import web。
 5. **M5 的"零测试"表述要收敛到 stdio**：`tests/test_mcp_http.py` 已有 8 个 HTTP 测试。真正零测试的是 `McpStdioClient`（`mcp.py:101`）。否则会重复造 HTTP 侧用例。
@@ -14792,4 +14814,62 @@ responses / anthropic 若将来遇到Snapshot 型网关，按「一个 dialect �
 第五节 M1-T3 清理行补记「第一百九十七批实测并删除」，并写清这份拷贝**早已不是逐字拷贝**、
 以及它丢字符的形状——清理清单里唯一一条「以为删了其实没删」的项，至此四项候选类清理全部有
 真实读数。
+## 第一百九十八批 附录 A/B/C 逐条实测：十三条漏项全部有归宿，唯一过时的是 A.3 第 2 条开的处方
+
+### 1 核的是什么
+
+路线图七个主节里，附录 A/B/C 是唯一从没被逐条实测过的部分（第一百八十六～一百九十一批
+核了第二/三/五/六节与审计报告，第一百九十七批从第七节核到删除清单）。附录 A 是
+「完整性批判 agent 提出的漏项与归属」——**归属建议是不是空头支票**，只能去代码里看。
+
+### 2 读数（逐条落到今天的代码，不转述任务表）
+
+**A.1 三行，全部落地**：
+
+| 漏项 | 今天的实测 |
+| --- | --- |
+| config.py 6 缺陷 | M7-T4 落地；`:183`「列表变 repr」与 `:94` 行内注释由 `tests/test_config_surface.py` 守着 |
+| `read_file` 整文件三读 | M2-T6 落地：`fs.py:180` 一次窗口化读取直达 `editor.read_file`；唯一补读只在 `.minicc` 敏感文件**脱敏**路径（刻意） |
+| CI 卫生 5 项 | M4-T8 落地（httpx 进 dev extra、版本号单一来源、assets 只留 manifest 引用） |
+
+**A.2 九行，逐一有归宿**（其中两行的归宿是「显式记为非目标/延后」，同样有读者）：
+
+- per-stage 路由 → **超出建议落地**：`minicc/agent/router.py` 的 `StageRouter`（按 stage 选模型 +
+  成本上限 + `failover.fallback_tiers`），不是 M6-T6 的最小版；
+- a11y → 前端加固交付落地（`aria-level`、键盘树交互、焦点保留、对比度样本 4.845 ≥ 4.5:1、
+  手机发送按钮 826/844px 不裁切）；
+- typed Git → 按「声明而非实现」结案（README/PLUGIN_API 非目标：agent 只能提案、人触发提交）；
+- @-提及 → M7-T5 ✅；MCP resources/prompts → M5-T7 ✅、sampling 按第四节记为非目标；
+- 消息级事件树 → M8-T2 ✅；persona → 不单独立项（M7-T2 slash 命令覆盖）；
+- IDE 深化 / 多用户 RBAC → 按建议「延后 + 实验性标注 / 显式非目标」，第四节有记录。
+
+**A.3 八条防重造警告**：1/4/5/6/7/8 对应里程碑均已落地（价格表在 `state.py` 侧产出、
+`_resolve_workspace_path` 在 config/workspaces 层、M3-T5 心跳栅栏 `task_store.py:130` 带
+`expires > ?` 且注释在案、后台 shell 扩展而非并行、`--suite` 扩 choices）。第 3 条
+（共享 argv tokenizer）也落地了：`audit.py:18` 从 `tools.bash` 导入 `split_command_argv`，
+`bash.py:82` 的 `_tokenize_segment` 是唯一分词器（shlex 非 posix + Windows 反斜杠字面）。
+
+### 3 本批唯一的实质性修正：A.3 第 2 条的处方已过时（就地标注，不改写历史）
+
+它写着「M1-T3 必须落成**两个函数**……否则要么打破既有测试不得回归，要么把缺陷留下」。
+第一百九十七批证明这个处方已被演进绕过：`_merge_stream_text` 今天只剩一层壳
+（`openai_provider.py:346` 委托 `merge_retry_snapshot`），导入它的测试不再固化缺陷语义；
+循环侧副本则整层删除。**方法论保留（先查既有测试固化的是什么），结论（两个函数）不适用**——
+已在原文下就地标注，原文不动。
+
+### 4 交付与回归
+
+- `docs/ROADMAP_TO_PRODUCT.md`：A.1 / A.2 表后各加一段实测判词（+22 行），A.3 第 2 条就地
+  标注过时性；本记录追加。无代码改动。
+- 回归：`test_doc_pointers` 58 例全绿（本批只动文档，文档门是唯一相关量具），
+  `--check` 退出码 0，证据指针 2038 条无 DANGLING。
+
+### 5 边界
+
+- 「落地」的判据是**名字与调用点在今天的源码里可指**，不等于行为永不被改坏——后者靠各批的门。
+- A.2 的 a11y 一行只核到 aria/对比度/手机按钮三项原文点名的证据（`docs/FRONTEND_HARDENING_
+  DELIVERY.md:11,21`），没有逐条重测前端无障碍树。
+- 附录 B 的 9 条注记是「与工作流产出的差异」，属历史更正记录，本批只核了其中可在代码里
+  指认的第 5 条（M3-T5 心跳栅栏，已在 `task_store.py:130`）；其余为当年的排序/验收措辞
+  修正，无可执行读数，按历史记录保留。
 
