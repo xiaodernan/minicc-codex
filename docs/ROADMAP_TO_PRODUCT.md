@@ -16187,3 +16187,114 @@ M 臂那张「旧门绿、新门红」就是本批存在的全部理由：**同�
   教训记在这里：备份必须取在**改动之后**，否则还原的不是目标状态。
 - `COVERED_BY` 今天只有一行。它增长的方式是**下一次**有人写「因为 X 有地板」时加一行，
   而不是先把表填满。
+
+## 第二百一十五批 M8-T187：一个评分器类型没人分派，就是一整个类型静默变成 ungraded——给 `GRADER_TYPES` 一道问它自己的门
+
+### 1 为什么是这一批
+
+第二百一十四批 §4 登记的下一批候选，本批结掉。起因是 `"ungraded"` 这个判决有**两个手写字面量**：
+`minicc/bench_tasks.py:692`（`grade_v2` 的兜底）和 `minicc/behavior_bench.py:253`（`grade_behavior`
+的兜底），逐字节相同。顺着这条线量下去，发现真正的问题不在「两个副本」，而在**这两个副本共同回答的
+那个问题没有门**。
+
+`GRADER_TYPES` 是四个地方共同信任的名字：
+
+| 信任方 | 它拿这个名单做什么 |
+| --- | --- |
+| `validate_task`（`minicc/bench_tasks.py:236`） | 类型不在名单里就拒绝加载——**加载门** |
+| `run_benchmark`（`minicc/benchmarks.py:947`） | 决定走 `grade_v2` 还是 `grade_behavior`——**派发** |
+| `_objective_oracle`（`minicc/benchmarks.py:78`） | 决定要不要重跑诊断评分器 |
+| `GRADER_SCRIPTS` 对账门（`tests/test_unusable_spec_is_refused_before_the_agent_runs.py:64`） | 决定内嵌脚本表覆不覆盖得住 |
+
+**没有任何一处问过那个让上面四条全部成立的问题：`grade_v2` 真的能判这个类型吗？**
+隔壁模块从 M8-T97 起就有这道门（`test_the_declared_behaviour_types_match_what_the_grader_dispatches`
+把 `BEHAVIOR_GRADER_TYPES` 和 `grade_behavior` 的分派对账），`GRADER_TYPES` 一直没有。
+
+实测（`ab6fa75` 上，把 `json_contract` 加进 `GRADER_TYPES`，然后跑真实的出货机制）：
+
+    validate_task(task)       -> accepted        # 加载门开了
+    grade_v2(task, ws)        -> {"passed": None, "grader_type": "ungraded"}
+    no_grader_count           -> 0               # 任务确实声明了 grader，所以不算「没有评分器」
+    grading_refusal_count     -> 0               # 没有人拒绝，也没有人运行
+    gradable_task_count       -> 0
+    grading_coverage          -> 0.0             # 唯一的痕迹，而它读起来像「模型什么都没干」
+
+**每一个为了让「没有判决」可见而存在的计数器，全都报 0。** 这就是本批要关的沉默：不是某一行撒谎，
+而是整个指标族同时失明，而剩下的那个信号（覆盖率掉到 0）指向的是模型，不是任务文件。
+
+两个兜底在出货套件上都不可达，这是量出来的，不是推的：24 个 v2 任务的 grader 类型全在
+`GRADER_TYPES`里；30 个 legacy 任务的 `grader` 全是 `None`，于是 `run_benchmark` 走的是
+`elif verify_command` 分支，`grade_behavior` 根本不被调用。**两个都没人走过的兜底，各写一遍同一份
+判决**——今天无害，因为逐字节相同；有害的是将来其中一个长了字段，另一个不会跟，而
+`markdown_report` 只读 `passed` 和 `grading_refused`，两份在报告里印得一模一样。
+
+### 2 落地
+
+1. `minicc/bench_tasks.py` 新增 `ungraded_verdict()`——「这个判决的唯一构造者」。它和
+   `_no_result` 家族分开，因为**它不是拒判**：拒判说「有评分器，它拒绝看」，这个说「根本没人会看」。
+   docstring 里写明它不带 `grading_refused`，以及因此 `grading_refusal_count` 和
+   `no_grader_count` 都对它读 0。
+2. 两处兜底都改成调它。`grade_v2` 的 docstring 补上「这个兜底是安全网不是路径」，并点名守住它的门。
+3. `tests/test_every_declared_grader_type_reaches_a_grader.py`（新文件，11 条）：
+   - **结构门**：`GRADER_TYPES` 与 `grade_v2` 实际分派的类型集合**相等**（双向，AST 派生而非手抄），
+     形状照 M8-T97 那道隔壁门的写法；
+   - **行为门**（本批的主力）：对名单里**每一个**类型，`grade_v2({"grader": {"type": t}}, ws)` 必须
+     得到「该类型自己的评分器按名字拒了它」，不能是 `ungraded`。探针用空规格——每个出货评分器都会
+     按名字拒一份空规格，所以答案能把「到了评分器但被拒」和「谁都没到」分开；
+   - **单主门**：全仓库 AST 普查，返回 dict 且含 `"ungraded"` 字面量的函数必须只有
+     `ungraded_verdict` 一个，且只在 `minicc/bench_tasks.py`；
+   - 三道「名单必须被名字引用」的结构门：`validate_task`、`run_benchmark` 的派发分支、
+     以及分派扫描本身（防止局部变量一改名，集合就空了而门还绿着）；
+   - 行为门钉住判决在报告里的位置：既不是 pass、不是拒判、也不是「没有评分器的任务」，
+     并且**不能**被并进拒判家族（并进去就是用一条关于「从未运行过的评分器」的断言去虚增
+     `grading_refusal_count`，M8-T80 的老账）。
+
+### 3 红绿与臂证据
+
+备份取在**改动之后**（第二百一十四批的教训），每次还原后逐字节校验 sha256。
+
+| 臂 | 变异 | 预期 | 实测 |
+| --- | --- | --- | --- |
+| baseline | 无 | 11 条全绿 | **11 passed** |
+| A | `GRADER_TYPES` 加 `json_contract`，`grade_v2` 不加分支 | 结构门 + 行为门都红 | **2 failed**：`test_every_declared_grader_type_reaches_a_grader`、`test_a_declared_grader_type_reaches_a_grader_that_refuses_by_name[json_contract]` |
+| B | `behavior_bench.py` 把手写字面量写回去 | 单主门红 | **红：`test_the_ungraded_verdict_has_exactly_one_owner`** |
+| C | `grade_v2` 把手写字面量写回去 | 单主门红 | **红：同上** |
+| D | `run_benchmark` 把两个类型手抄进 `in (...)` | runner 结构门红 | **红：`test_the_runner_asks_the_declared_list_before_choosing_a_grader`** |
+| E | 兜底改成 `_no_result("ungraded", "x")`（并进拒判家族） | 身份门红 | **红：`test_both_fallbacks_answer_with_the_one_verdict`** |
+| A–E 还原 | — | 逐字节还原后全绿 | **SHA256-RESTORED: True ×5**，control **11 passed** |
+
+**行为门为什么是主力**：另有一个更「周全」的错法——往 `GRADER_TYPES` 加类型，**同时**补上
+`GRADER_SCRIPTS` 条目和内嵌脚本常量，只忘记 `grade_v2` 的分支。实测这条路上
+`test_the_script_table_covers_exactly_the_shipped_grader_types` 仍然绿，
+`test_every_shipped_contract_kind_is_covered_by_the_empty_spec_table` 会红。
+也就是说：**旧的两道门都只能看住「你没更新某张表」，看不住「你更新了所有表、还是忘了分派」**；
+而行为门问的是函数本身，且参数化自名单，新类型声明当天就被测到。
+
+| 全影响集 | `minicc/bench_tasks.py` `minicc/behavior_bench.py` `minicc/benchmarks.py` | 全绿 | **590 passed in 202.16s**（1 failed 为预存在故障，见 §4） |
+| ruff | 3 个改动文件 | clean | **All checks passed** |
+| doc-pointer | `scripts/doc_pointers.py docs/ROADMAP_TO_PRODUCT.md --check` | rc=0 | **rc=0** |
+
+### 4 边界与欠账
+
+- **预存在红（不是本批引入，已用 stash 验证）**：`tests/test_subprocess_decoding.py::test_no_text_mode_capture_asks_for_a_strict_decoder`
+  在 `ab6fa75`（本批之前）就是红的。它是一道**全仓库普查门**，扫 `minicc`、`scripts`、`tests`；
+  罪魁是 `scripts/impacted_tests.py:285/288/290`、`tests/test_impacted_tests.py` 的 5 处、
+  `tests/test_packaging.py:303/313` 共 9 个 `text=True` 而没给 `errors=` 的 `subprocess.run`。
+  引入者是 `092ad68`（第二百一十一批 M8-T183，本血脉自己的批次），之所以当时没发现：
+  **`impacted_tests.py` 的受众是导入图算出来的，而这道门的观众是「整个仓库」——导入图里没有这条边。**
+  这是 M8-T183 同类缺陷的第二次现身，留作下一批。
+- 本批不改那 9 处：它们分布在并发会话正在写的文件里（`tests/test_impacted_tests.py`），
+  按本血脉的并发纪律不越界，只在此登记。
+- 行为门的探针是「空规格必须被按名字拒掉」。将来若有人加一个**接受空规格**的评分器类型，
+  这条门会红——那是正确的红，因为「空规格也判过」正是 M8-T90..M8-T94 关掉的形状，
+  到时该改的是新评分器，不是门。
+- 结构门（`GRADER_TYPES == 分派集合`）对「把 `grade_v2` 重写成查表派发」这种合法重构会误报，
+  误报时该做的是更新提取逻辑并在记录里说明，不是把断言放宽——隔壁 M8-T97 那道门同性质，
+  M8-T177 已经为它付过一次这个代价并写在了文件里。
+- 判决形状本批保持不变（`{"passed": None, "grader_type": "ungraded"}`）。想过加一个
+  `declared_type` 字段让行自己说清「我声明的是 `json_contract`」，没做：那会重新把
+  「从任务规格推断谁判了」这条 M8-T181 刚关掉的路从侧门打开。登记为欠账。
+- `"ungraded"` 还有第三个使用者：`minicc/benchmarks.py:116` 的 `_would_have_judged` 返回这个
+  **字符串标签**（不是判决）。两者语义一致（「没有评分器会判它」），本批没有合并——
+  标签和判决是两种值，合成一个构造者反而会混淆。单主门的普查范围因此只扫
+  「返回 dict 且含该字面量」，不扫字符串返回值，这是刻意的。
