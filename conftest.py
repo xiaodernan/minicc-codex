@@ -138,8 +138,10 @@ def _skip_upstream_scandir_sweep(config: pytest.Config) -> None:
     not lost: ``collect_unraisable`` still runs at every test's setup / call /
     teardown, so a leak our own code makes fails the test that made it - and
     ``tests/test_resource_hygiene.py`` pins that ``minicc/`` never calls
-    ``os.scandir`` and always consumes ``iterdir()`` inside one expression, so a
-    ``ScandirIterator`` unraisable cannot originate here. The key is documented
+    ``os.scandir`` and always consumes ``iterdir()`` inside one expression, and
+    its behavioural gate runs the real budgeted walks under a
+    ResourceWarning-as-error filter with an unraisable hook installed, so the
+    claim is measured rather than argued. The key is documented
     upstream as a stash item precisely so callers can override it; if a future
     pytest moves it, this import fails loudly rather than silently re-flaking.
     """
