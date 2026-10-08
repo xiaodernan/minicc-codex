@@ -57,9 +57,11 @@ def _stage_cost_estimator(router: StageRouter, stage: str) -> Callable[[dict[str
     Cache discounts are deliberately ignored: with the per-1M price applied
     to the full prompt/completion counts the estimate can only be too HIGH,
     so a misread never widens the ceiling - it trips early instead. An
-    unregistered model prices at 0.0 by ``estimate_cost`` contract, which
-    degrades the ceiling to "not enforced" honestly (it is also how the
-    router reports an unknown price everywhere else).
+    model no price table knows prices at 0.0 by ``estimate_cost`` contract,
+    which degrades the ceiling to "not enforced" honestly (it is also how the
+    router reports an unknown price everywhere else). A routed model the registry
+    never heard of but ``minicc.pricing`` did is priced now, which can only ever
+    make a ceiling trip earlier, never later.
     """
 
     def estimate(usage: dict[str, Any]) -> float:

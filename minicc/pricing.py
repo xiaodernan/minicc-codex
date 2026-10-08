@@ -7,8 +7,11 @@ gets a dollar alarm rather than a token-only one.
 
 Design rules:
   * Prices are USD per **1M tokens** (the unit every public price page uses).
-  * A model is matched by its **longest known prefix**, case-insensitively, so
-    ``claude-3-5-sonnet-20241022`` resolves through ``claude-3-5-sonnet``.
+  * A model is matched by its **longest known prefix**, case-insensitively and
+    with ``.``/``_`` folded to ``-``, so ``claude-3-5-sonnet-20241022`` resolves
+    through ``claude-3-5-sonnet``, and so does the vendor's dotted spelling
+    ``claude-3.5-sonnet``: the router routes under that spelling, and a price one
+    spelling alone reaches is a second price table by another name (M8-T189).
   * An **unknown model returns ``None``** — we never guess a price. A null cost
     is honest; a fabricated one is worse than no number at all.
   * The table can be extended at runtime with ``MINICC_PRICING_JSON`` so a
@@ -69,6 +72,11 @@ DEFAULT_PRICE_TABLE: dict[str, ModelPrice] = {
     "claude-3-5-sonnet": ModelPrice(3.00, 15.00, 0.30, 3.75),
     "claude-3-7-sonnet": ModelPrice(3.00, 15.00, 0.30, 3.75),
     "claude-3-5-haiku": ModelPrice(0.80, 4.00, 0.08, 1.00),
+    # Not the 3.5 model above, and the router's fast tier routes to it: the router
+    # already shipped these rates (0.25 / 1.25 / 0.125) as the only copy, which made
+    # the run-budget ceiling bill a spend every report called unpriced. cache_write
+    # takes the input rate, the direction that can only over-bill, never under.
+    "claude-3-haiku": ModelPrice(0.25, 1.25, 0.125, 0.25),
     "claude-opus-4": ModelPrice(15.00, 75.00, 1.50, 18.75),
 }
 
@@ -100,17 +108,30 @@ def load_price_table() -> dict[str, ModelPrice]:
     return table
 
 
+# One model family has one spelling in the table: vendors publish ``gpt-4.1``
+# and ``claude-3.5-sonnet`` while a deployment (and this repo's router) writes the
+# same family with ``-``/``_``. Folding both sides keeps the longest-prefix rule
+# intact and stops two spellings of one family from becoming two prices.
+_SEPARATOR_FOLD = str.maketrans({".": "-", "_": "-"})
+
+
+def _fold(name: str) -> str:
+    """Case-folded, separator-folded form used for prefix comparison."""
+    return name.strip().lower().translate(_SEPARATOR_FOLD)
+
+
 def price_for(model: object, table: Mapping[str, ModelPrice] | None = None) -> ModelPrice | None:
     """Longest-prefix price lookup; ``None`` when the model is unknown."""
-    name = str(model or "").strip().lower()
+    name = _fold(str(model or ""))
     if not name:
         return None
     prices = table if table is not None else load_price_table()
     best_key = ""
     best: ModelPrice | None = None
     for key, price in prices.items():
-        if name.startswith(key) and len(key) > len(best_key):
-            best_key, best = key, price
+        folded = _fold(key)
+        if name.startswith(folded) and len(folded) > len(best_key):
+            best_key, best = folded, price
     return best
 
 
