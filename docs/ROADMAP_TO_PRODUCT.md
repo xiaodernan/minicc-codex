@@ -15051,3 +15051,67 @@ C2/C3「实测 0 条」具名事件；修后 **3 passed**。
 - 越限不使批失败：钱已花、答案是真实工作产物，具名事件即见证——与子代理折叠的事后
   记账同口径。auto 模式下父任务交接后的运行另有自己的预算，本批预算只覆盖合并这一次。
 - flake 复跑记录：与第一百九十九批同型的观测续跑未再复现。
+
+## 第二百零一批 第一例 pytest flake 结案：根因是「模块级 provider 补丁窗口内的外来调用」——不复现，就把机制造出来
+
+### 1 为什么是这一批
+
+第一百九十九批观测到本仓库第一例 pytest flake（五文件组合 24 跑 1 失败）但根因未查明，
+只把「下次的 shape 造出来」（断言带诊断）。本批接着追：同组合又跑 30 次未再复现。
+既然等不到它自己出现，就换路子——**按红形倒推机制，再把机制确定性复现出来**。
+
+### 2 根因（实证，不是猜测）
+
+红形（批 199 观测、批 201 第 26 轮抓到日志）：`saw roles=['system','user'],
+requests=4, run_error=None`——第一个 provider 请求没有计划模式 notice，但运行本身完成了
+4 次请求且无错。
+
+- **量化正常形状**（`.scratch-longrun/t201_shape_probe.py`）：该用例正常一轮恰发
+  **4 次** provider 请求，全在 MainThread：主循环 2 次（`minicc/agent/loop.py:824`）+
+  评委 2 次（`minicc/agent/completion.py:296`，经 `web.py:2619`）。其中**评委请求正是
+  `[system, user]` 两消息形状**——与红形的第一条逐字同型。
+- **机制定位**：用例用 `monkeypatch.setattr("minicc.web.OpenAICompatibleProvider",
+  FakeProvider)` 打的是**模块级类名**，而 `_build_provider`（`minicc/web.py:1097` 与
+  `:1122`）在**调用时**才解析这个名字。于是补丁窗口内，进程里**任何**刚走到构造
+  provider 的后台运行，其请求都会落进本用例闭包里的 `seen_requests`。同文件前一个用例
+  `test_snapshot_round_trip_preserves_permission_mode` 用 `tasks.submit` 起了两个
+  **真实排期的后台任务**（打向不可达的 `https://example.test/v1`）——机器重载时
+  （失败那轮整组 201s，平常约 40s）这种遗留任务完全可能在整个补丁窗口内才被调度到
+  provider 构造，把一条 `[system, user]` 记到我们自己的请求之前。
+- **确定性复现**（`.scratch-longrun/red_check_t201.py`）：外来服务的 `_chat_locked`
+  先在后台线程开跑，事件屏障保证它的请求先落进捕获列表，再用**旧断言**读——实测
+  `roles=['system', 'user']`、`notice_found=False`，与批 199 红形同型。机制是造出来的，
+  不是猜的。
+
+### 3 修复（三件，全部有门；只动 `tests/test_permission_modes.py`，产品代码零改动）
+
+1. **断入侵源**：`test_snapshot_round_trip_preserves_permission_mode` 的两个 submit
+   加 `_defer_schedule: True`——套件里「只要任务记录、不要 worker」的既定写法；该用例
+   只读快照，本来就不需要运行。顺带消除了两个打向不可达端点的真实网络尝试。
+2. **捕获作用域化**：notice 用例改经新辅助 `_own_model_turns(seen_requests, prompt)`
+   按本 run 自己的 user 消息选出**自己的**模型轮次；外来调用再也冒充不了「缺 notice」。
+   失败诊断保留并加强：空形状（一次请求都没有）仍带 `run_error`/`run_answer` 自报，
+   notice 缺失时打印全部请求数与自有轮次数的对比。
+3. **确定性复现门**（新用例
+   `test_plan_mode_notice_survives_a_foreign_call_in_the_same_process`）：外来服务并发
+   先记录一条 `[system, user]`，然后断言两件事——(a) 朴素读法确实会红（复现保真：
+   第一条记录必须不含 notice，否则说明造的不是 flake 形状）；(b) 作用域化后的 notice
+   断言照过。将来若外来调用因故不再可见，这门会红着说「复现已失效」，而不是静默放行。
+
+### 4 回归证据（focused，按 AGENTS.md 不跑全量）
+
+| 命令 | 读数 |
+| --- | --- |
+| 先红（旧断言 + 确定性外来调用，进程内探针） | `roles=['system','user']`、`notice_found=False`——批 199 红形复现 |
+| `pytest tests/test_permission_modes.py` | **11 passed（15.39s）** |
+| 五文件组合 ×4 连跑 | **124 passed** ×4（50.25s / 57.39s / 53.03s / 44.86s） |
+| ruff（本文件） | 2 条 F401（`WebAuth`、`AgentService as _AS`）与 HEAD 同款，零新增 |
+
+### 5 边界
+
+- 根因是**测试卫生**问题，不是产品缺陷：notice 注入（`web.py:1339`）与
+  `permission_mode` 解析在同一线程同一 list 上顺序执行，产品侧无需改动，本批也未改。
+- `_defer_schedule` 只动本文件这两个 submit；`tests/test_task_worker.py` 等**故意**需要
+  真实排期运行的门不受影响。
+- 「模块级补丁窗口」是一类机制；套件里若有别的模块级 provider 补丁用例，其捕获列表同样
+  可能被外来调用污染——那不在本批复查范围，记在此处备查。
