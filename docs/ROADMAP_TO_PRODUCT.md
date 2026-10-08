@@ -15455,3 +15455,81 @@ pip 冷缓存），第二次起回落到 77–87s。打包文件整体 101s → 
   `from .behavior_bench import ...`——**`behavior_bench` 这个名字在模块里不存在**（F821）。
   它今天不炸，只因为 `grader.type == "python_behavior"` 的任务没有一条走到那儿；这正是
   「构造可达、尚未 populate」的标准形状（对照第 176 批对 `build_report:180` 的同类判定）。
+
+## 第二百零五批 M8-T177：`load_tasks` 的行为门是一个 NameError——12 条 shipped 任务从来没从这条路走过去
+
+### 1 为什么是这一批
+
+第 204 批跑 ruff 时在 `minicc/benchmarks.py:198` 记下一条 F821，当时按「预存在告警」挂起。
+本批核实：它不是告警，是**缺陷**。
+
+    >>> benchmarks.load_tasks(Path("benchmarks/behavior-tasks.json"))
+    NameError: name 'behavior_bench' is not defined
+
+源码三行注释之上写着「Behavior tasks must also pass their own load-time door
+(function/fixture consistency) so the agent never starts on a task the grader will
+refuse」，紧接着的调用却是 `behavior_bench.validate_behavior_task(task)`——而这个文件
+只 `from .behavior_bench import ...`（按名导入函数，**从没绑模块名**）。
+
+为什么跨了六十来批没人发现：三条测试入口**全部绕过这条路**。suite 自己的测试
+（`test_behavior_suite_is_validated_at_load.py`）用 `json.loads` 直读文件或走
+`behavior_tasks()`；CLI 的 `--suite behavior` 分支在 `main()` 里有**自己那次**调用。
+于是源码里两次调用、这条路径上零次执行——门存在两处，一处都没跑。
+
+### 2 落地
+
+1. **一行修复**：`behavior_bench.validate_behavior_task(task)` → `validate_behavior_task(task)`，
+   与文件自己的 import 形状一致。修完全量加载 behavior 语料：**12 条任务、id 逐一相等、类型全是
+   `python_behavior`**，其余四道门（prompt / objective shape / fixture 可写 / 行为规格）全部照常生效。
+2. **新门** `tests/test_every_module_qualified_call_resolves_to_a_bound_name.py`（5 条）：
+   - **全包 AST 扫描**：任何 `X.attr` 的基名 `X` 必须在本文件某处被绑定（import／赋值／def／参数／
+     global）。写门时全包**只有这 1 处命中、0 误报**——零误报是它能常驻的理由，会误报的门教读者忽略门。
+   - **shipped 语料真的从 legacy loader 读进来**：条数、id 序列、grader 类型逐个比对，不是「文件能解析」。
+   - **门是活的**：一个「什么也没检查」的行为任务（无 cases 无 raises）必须被 loader 自己以
+     ValueError 拒绝且**点名任务 id**；同一条好任务放行。删掉调用、认错守卫类型，都红。
+   - **修复不收窄成拓宽**：legacy 语料照旧全量加载。`validate_behavior_task` 拒绝行为词表之外的
+     grader 类型，无条件调用会直接打死 legacy 套件——这条守着修法的宽度。
+   - **结构臂**：`load_tasks` 必须**按名**调用 `validate_behavior_task`，与 `main()` 是同一次调用；
+     第二种限定写法（`behavior_bench.`）正是第一次坏掉的方式。
+3. **修好本批自己带红的一条门**：`test_the_runner_opens_the_behaviour_door` 原文是「取第一个调用
+   校验器的函数，再要求它也调用 `behavior_tasks()`」。我加了第二个调用点（`load_tasks`），
+   first-match 静默重绑到它，门红了——**而它想问的问题一个字都没变**。改成从 `behavior_tasks()`
+   锚定：每个加载行为套件的函数都必须开门。按文档顺序取第一个的门，量的是文档顺序（M8-T22 同族）。
+
+### 3 红绿与臂证据
+
+**预测表先写后跑。**
+
+| 臂 | 变异 | 预期 | 实测 |
+| --- | --- | --- | --- |
+| baseline | 无 | 5 passed | **5 passed** |
+| A | 把修复还原成 `behavior_bench.` 限定调用 | 扫描 + 语料加载红 | **红：4 failed** |
+| B | 整段删掉 `load_tasks` 里的行为门 | 「门是活的」与结构臂红 | **红：2 failed** |
+| C | 守卫认错类型（`python_behavior` → `answer_rubric`） | 「门是活的」红 | **红：1 failed** |
+| D | 拆掉守卫、对每个任务无条件调用 | legacy 语料那条红 | **红：1 failed** |
+| E | `main()` 的行为分支不再开门 | 修好的那道门红 | **红：1 failed** |
+| A–E 还原 | — | 逐字节还原后全绿 | **SHA256-RESTORED: True ×5**，control **5 passed** |
+| 邻域 | 7 个相关文件合跑 | 全绿 | **112 passed**（`test_every_module_qualified_call...` + `test_behavior_suite_is_validated_at_load` + `test_a_fixture_must_be_text...` + `test_every_suite_requires_a_prompt` + `test_benchmark_runner` + `test_behavior_bench` + `test_behavior_spec_that_checks_nothing...`） |
+| ruff | 本批两个测试文件 | All checks passed | **All checks passed** |
+
+> 邻域那 112 passed 里有 **2 条红不是本批造成的**，已单独结案（见下）。
+
+### 4 顺手抓到的一条预存在红（下一批正题）
+
+邻域合跑时 `tests/test_benchmark_runner.py::test_a_capped_run_is_still_read_by_the_objective_grader`
+两个参数全红，且 `git stash` 掉本批改动后在 HEAD 上**照样红**：
+
+    assert "grader_type" not in row["objective_oracle"]
+    E   AssertionError: assert 'grader_type' not in {'passed': True, 'grader_type': 'file_contract', ...}
+
+这一行是 `71328f3` 建 oracle 诊断时写的；第 140 批（`12a1a29`）**刻意**把 `grader_type` 加进
+`_objective_oracle` 的返回值（「预言家也要记谁判的」），没有回头改这条断言。它从那天起就是红的，
+而第 192 批之后项目按 AGENTS.md 不再跑全量回归——**跨批的矛盾因此没有观众**。已登记为
+M8-T178，下一批结案。
+
+### 5 边界
+
+- AST 扫描只覆盖 `minicc/` 包内 `.py`；`scripts/`、`tests/`、构建产物不在内。
+- 扫描只问「基名有没有在本文件被绑定」，**不问作用域**——那是 pyflakes 的职责，本门刻意只回答
+  它能无害回答的问题（局部变量当基名是另一类 bug，误报它没有价值）。
+- venv 里没有 ruff / pyflakes / mypy，门不依赖外部工具，离线可重复。
