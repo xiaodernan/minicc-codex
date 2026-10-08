@@ -318,6 +318,69 @@ def test_refusal_family_counts_gate_with_less_or_equal() -> None:
     assert results[0]["actual"] is None
 
 
+def test_refusal_family_counts_ride_along_from_a_real_report() -> None:
+    """M8-T182: the floor the nightly pins reads a number a real report produced.
+
+    Batch 118 put both counts in ``GATE_METRICS`` and taught ``compare_reports``
+    to carry them, but the only test of that carrying was the hand-built
+    ``{"variant": {...}}`` dict above - the same gap batch 181 found for
+    ``false_completion_rate``, where a metric that no report ever reached gates
+    fail-closed forever. This is the end-to-end shape: two reports built by
+    ``build_report``, compared, then gated.
+
+    The interesting row is the middle one. ``gradable`` is selected by
+    ``passed is not None`` while the refusal count is selected by
+    ``grading_refused``; those are different predicates, so a completed row with
+    no grader at all is ungraded without being a refusal. On the legacy suite 27
+    of 30 tasks are in exactly that shape, so the two numbers are not
+    complements and neither one can be derived from the other.
+    """
+    tasks = [
+        {"id": "t0", "category": "c", "suite_version": "v2",
+         "grader": {"type": "file_contract", "path": "a.txt", "contains": "x"}},
+        {"id": "t1", "category": "c", "suite_version": "v2",
+         "grader": {"type": "file_contract", "path": "a.txt", "contains": "x"}},
+        {"id": "t2", "category": "c", "suite_version": "v2",
+         "grader": {"type": "file_contract", "path": "a.txt", "contains": "x"}},
+        {"id": "t3", "category": "c", "suite_version": "v2",
+         "grader": {"type": "file_contract", "path": "a.txt", "contains": "x"}},
+    ]
+    graded = {"task_id": "t0", "status": "completed", "passed": True,
+              "grader_type": "file_contract"}
+    refused = {"task_id": "t1", "status": "completed", "passed": None,
+               "grading_refused": True, "refusal": "grader exited 2",
+               "grader_type": "file_contract"}
+    no_grader_row = {"task_id": "t2", "status": "completed", "passed": None}
+    not_run = {"task_id": "t3", "status": "not_run"}
+
+    base = build_report(tasks, [graded, refused, no_grader_row, not_run])
+    variant = build_report(tasks, [graded, no_grader_row, refused, not_run])
+    comparison = compare_reports(base, variant)
+
+    assert comparison["variant"]["grading_refusal_count"] == 1
+    assert comparison["baseline"]["grading_refusal_count"] == 1
+    assert comparison["variant"]["grading_refusal_count"] == comparison["baseline"]["grading_refusal_count"]
+    # The ungraded-but-not-refused row is real and is not counted as a refusal.
+    assert base["metrics"]["gradable_task_count"] == 1
+    # completed is 3 (the not_run row is out), gradable is 1: the refused row and
+    # the no-grader row are both ungraded, and only one of them is a refusal.
+    assert base["metrics"]["grading_coverage"] == 0.3333
+    assert base["metrics"]["grading_refusal_count"] == 1
+    assert 1 - base["metrics"]["grading_coverage"] != 1 / 3
+
+    # The floor the nightly pins: a clean run satisfies it, a refused run does not.
+    clean = build_report(tasks, [graded, no_grader_row, not_run])
+    assert evaluate_gates(compare_reports(clean, clean),
+                          ["grading_refusal_count<=0"])[0]["violated"] is False
+    dirty = build_report(tasks, [graded, refused, no_grader_row, not_run])
+    results = evaluate_gates(compare_reports(dirty, dirty), ["grading_refusal_count<=0"])
+    assert results[0]["violated"] is True
+    assert results[0]["actual"] == 1
+    # Fail closed: a bare results array carries no metrics, so the count is None.
+    assert evaluate_gates(compare_reports({"results": []}, {"results": []}),
+                          ["grading_refusal_count<=0"])[0]["actual"] is None
+
+
 def _write_reports(tmp_path):
     base_path = tmp_path / "a.json"
     var_path = tmp_path / "b.json"

@@ -333,12 +333,19 @@ jobs:
         # accuracy is not yet characterized; ratchet pass_at_1 upward as the
         # nightly history establishes a stable baseline. Lowering any threshold
         # below the achieved value (or raising it impossibly) turns this red.
+        # M8-T182: grading_refusal_count<=0 is the one floor that needs no
+        # characterization - a refusal means the grader declined, could not run,
+        # the host could not write, or the operator aborted, and none of those
+        # is a result. Measured 0 on both shipped suites under the fake provider
+        # (the worst-case agent), and grading_coverage>=0.9 above tolerates up
+        # to 10% of a run going unjudged without a word.
         run: >
           python -m minicc.benchmarks compare
           --baseline output/nightly-v2.json --variant output/nightly-v2.json
           --repeat 2
           --gate pass_at_1>=0.3
           --gate grading_coverage>=0.9
+          --gate grading_refusal_count<=0
           --gate latency_p95_ms<=600000
           --gate false_completion_rate<=0
           --json-out output/nightly-compare.json

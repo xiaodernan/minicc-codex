@@ -11,6 +11,7 @@ wrongly flagged for deletion — actually has a runner and executes in CI.
 from __future__ import annotations
 
 import json
+import re
 import tomllib
 from pathlib import Path
 
@@ -28,6 +29,21 @@ def _ci_text() -> str:
 
 def _package_json() -> dict:
     return json.loads((REPO_ROOT / "package.json").read_text(encoding="utf-8"))
+
+
+def _nightly_gates() -> set[str]:
+    """The metrics the nightly job actually thresholds, read out of the workflow.
+
+    Scoped to the ``eval-nightly`` job block rather than the whole file: the PR
+    job asserts its flow invariants in an inline python block, not with ``--gate``,
+    and a future PR gate must not silently widen what this door reconciles.
+    """
+    ci = _ci_text()
+    start = ci.index("  eval-nightly:")
+    rest = ci[start + len("  eval-nightly:"):]
+    following = re.search(r"^  \S", rest, re.M)
+    block = rest[: following.start()] if following else rest
+    return set(re.findall(r"--gate\s+([A-Za-z0-9_]+)", block))
 
 
 def test_httpx_is_declared_dev_dependency():
@@ -87,7 +103,55 @@ def test_ci_declares_pr_and_nightly_eval_jobs():
         "batch 181 added this gate because the tracking table's 恒 0 row had no reader "
         "on a real run; dropping it puts that row back to prose"
     )
+    assert "--gate grading_refusal_count<=" in ci, (
+        "M8-T182: a refusal is never a legitimate outcome, so the nightly floors it at "
+        "zero; grading_coverage>=0.9 alone lets up to 10% of a run go unjudged silently"
+    )
     assert "--junit-out" in ci
+
+
+def test_every_gate_metric_declares_who_pins_its_floor():
+    """M8-T182: "the nightly job pins its own floors" is now a checked claim.
+
+    For ninety-odd batches the ``GATE_METRICS`` comment in bench_compare promised
+    that the nightly job pins floors for the bad-things counts "in the workflow
+    file". Measured at batch 210: the nightly pinned four floors - pass_at_1,
+    grading_coverage, latency_p95_ms, false_completion_rate - and neither
+    ``grading_refusal_count`` nor ``reviewer_false_negative_count`` was one of
+    them. A comment that describes the deciding path is a claim about the
+    deciding path, so the claim gets a door instead of a reader.
+
+    Two things have to hold: the table covers the vocabulary exactly (a metric
+    nobody decided about cannot pass as decided), and every row that names the
+    nightly is true of the workflow file. A metric with no floor has to say why,
+    because "no floor" is a decision and an undeclared one is how the promise
+    drifted in the first place.
+    """
+    from minicc.bench_compare import GATE_FLOORS, GATE_METRICS
+
+    assert set(GATE_FLOORS) == set(GATE_METRICS), (
+        "GATE_FLOORS must carry exactly one row per GATE_METRICS entry; undecided: "
+        f"{sorted(set(GATE_METRICS) - set(GATE_FLOORS))}; stale: "
+        f"{sorted(set(GATE_FLOORS) - set(GATE_METRICS))}"
+    )
+    for metric, owner in sorted(GATE_FLOORS.items()):
+        assert owner.strip(), f"{metric} names no floor owner at all"
+        if not owner.startswith("nightly"):
+            assert owner.startswith("unfloored:"), (
+                f"{metric} names no nightly floor, so its row must say why "
+                f"('unfloored: <reason>'); got {owner!r}"
+            )
+    # The reconciliation runs both ways. "Table says nightly, workflow has no
+    # --gate" is the drift that produced the false comment; "workflow gates it,
+    # table says nobody does" is the same lie in the other direction, and a
+    # reader consulting the table would plan around a floor that does not exist.
+    claimed = {metric for metric, owner in GATE_FLOORS.items() if owner.startswith("nightly")}
+    actual = _nightly_gates()
+    assert actual == claimed, (
+        f"the nightly thresholds {sorted(actual)} but GATE_FLOORS records "
+        f"{sorted(claimed)}; promised-but-absent={sorted(claimed - actual)}, "
+        f"present-but-undeclared={sorted(actual - claimed)}"
+    )
 
 
 def test_pr_eval_gate_names_false_completion_rate():

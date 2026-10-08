@@ -40,9 +40,17 @@ MIN_REPEATS_FOR_PASSK = 10
 #: Metrics a ``--gate`` may threshold. Direction is part of the policy
 #: (M8-T118): counts of bad things gate with ``<=`` - a refused row is
 #: "nobody judged this workspace", and a reviewer false negative is a
-#: disagreement the reviewer lost, so fewer is better for both. Thresholds stay
-#: with the caller (a count does not compare across suite sizes); the nightly
-#: job pins its own floors in the workflow file.
+#: disagreement the reviewer lost, so fewer is better for both.
+#:
+#: M8-T182: the threshold is not policy and this module does not own it. A raw
+#: count does not compare across suite sizes, so the floor belongs to the caller
+#: that knows the suite. ``GATE_FLOORS`` records that caller for every metric
+#: here, or the reason there is none. This comment used to close with "the
+#: nightly job pins its own floors in the workflow file" for the whole set,
+#: which was false for both bad-things counts: the nightly pinned four floors
+#: and neither of those two was one of them. A comment that describes the
+#: deciding path is a claim about the deciding path, so the claim now has a
+#: door - tests/test_ci_hygiene.py reads this table against the workflow.
 GATE_METRICS = frozenset({
     "pass_at_1",
     # M8-T155: the infra-failure rate rides along from build_report metrics
@@ -61,6 +69,39 @@ GATE_METRICS = frozenset({
     # so the direction is ``<=`` and the caller owns the threshold.
     "false_completion_rate",
 })
+
+#: M8-T182: who pins a floor for each gateable metric, or why nobody does yet.
+#: One row per ``GATE_METRICS`` entry: a metric missing from this table is a
+#: metric whose floor ownership nobody has decided, which is exactly how the
+#: batch-118 comment came to promise floors the workflow never pinned. A value
+#: starting with ``nightly`` is a claim about .github/workflows/ci.yml and the
+#: door checks it against the file; anything else must say why it is unfloored.
+GATE_FLOORS: dict[str, str] = {
+    "pass_at_1": "nightly >=0.3 - deliberately conservative; real-model v2 accuracy is not yet characterised",
+    # M8-T154/M8-T155: pass_at_1 is the gated rate and keeps its frozen
+    # denominator; this one exists to explain a pass@1 that infra dragged down,
+    # so a floor on it would be a second name for a gate that already exists.
+    "pass_at_1_ex_infra": "unfloored: pass_at_1 is the gated rate and keeps the frozen denominator (M8-T154)",
+    "cost_per_success_usd": "unfloored: pricing is unavailable for the shipped provider, so it is null on every run so far",
+    "latency_p95_ms": "nightly <=600000",
+    "grading_coverage": "nightly >=0.9",
+    # M8-T182: a refusal is never a legitimate outcome - the grader declined
+    # (exit 2), could not be run, the host could not write the workspace, or the
+    # operator aborted - so zero is the one floor that needs no characterisation.
+    # Measured 0 on both shipped suites under the worst-case agent there is (the
+    # fake provider, which does no work at all), so a real model has no reason to
+    # do worse, and grading_coverage>=0.9 alone tolerates up to 10% of a run
+    # silently going unjudged.
+    "grading_refusal_count": "nightly <=0 - a refusal is never a legitimate outcome; measured 0 on both shipped suites under the fake provider",
+    # M8-T182: deliberately still unfloored. The metric measures the reviewer,
+    # not the suite score (M8-T86), and no reading - real or fake - justifies a
+    # number: a reviewer losing an argument to the objective grader is a
+    # judgement-quality signal, and a floor of 0 would red the nightly on the
+    # first disagreement rather than on a regression. Batch 181's rule stands:
+    # a floor needs a measured value behind it.
+    "reviewer_false_negative_count": "unfloored: no reading justifies a number, and it measures the reviewer rather than the suite score (M8-T86)",
+    "false_completion_rate": "nightly <=0 - backed by a real-run reading of 0 (batch 181)",
+}
 
 
 def _is_number(value: object) -> bool:
