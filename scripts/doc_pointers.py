@@ -998,6 +998,9 @@ _QUOTED_STALE_PATH: dict[str, str] = {
 #: Removed on purpose. The document is not claiming the file is there; it is
 #: recording a deletion, and in the enforced case a test keeps it deleted.
 _RETIRED_PATH: dict[str, str] = {
+    "minicc/repl": "第二百零七批（M8-T179）删除的死包：唯一的文件是从第一个 MVP 提交起就 "
+    "`from .repl import Repl`，而 `minicc/repl/repl.py` 在 git 全史里从未存在——包不可导入、"
+    "无引用、无测试，下限普查（每个模块都能 import）第一下就撞见它。文档引这个名字正是在记录这次删除",
     "web/app.min.js": "M4-T9 退役的压缩产物：`tests/test_cleanup_version.py::test_app_min_js_retired` 断言它不再存在、"
     "build-web.mjs 不再产出它。文档每一处引用都在描述这次删除",
     "web/src/01-core-state": "GAP 第十波记录的是当时的 9 个有序分片；`a97bf13` 把同一批代码重组为 "

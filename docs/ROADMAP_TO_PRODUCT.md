@@ -15587,3 +15587,69 @@ oracle 谎报判分者时才红（臂 C 证实）。原行保留为注释，连�
   信息（`tests/test_pointer_liveness_corpus.py`、doc-pointer 门都在做静态依赖），可以生成
   「本次改动的影响测试文件集」并在提交前跑它——这与 doc-pointer 门同族：把「我记得」换成
   「门在看」。**明确不做成跑全量**：那正是被省掉的东西，也只是把 12 分钟的墙钟换成 12 分钟的墙钟。
+
+## 第二百零七批 M8-T179：把「改了谁该跑哪些测试」变成可计算的——顺带删掉一个从第一个提交起就从未能导入的死包
+
+### 1 为什么是这一批
+
+第 206 批记下一笔系统性欠账：「不为全量」的纪律没有替代观众，一条断言和一次刻意改动当面相冲、
+红了六十来批没人知道。本批把观众做成工具——**不跑全量**（那是被刻意省掉的 12 分钟墙钟），
+只跑「能看见这次改动」的那批文件。扫描一次 import 图约 1.9s，跑一个模块的影响集是秒级。
+
+### 2 落地
+
+1. **`scripts/impacted_tests.py`**：把 import 图反过来建。三个决定值得记：
+   - 测试对模块的引用**包括字符串**。`monkeypatch.setattr("minicc.web.AgentService", ...)`
+     从不 import `minicc.web`，但它照样能 notice 那里的改动——只数 import 会漏掉一整族读者。
+   - 闭包是传递的。`tests/test_benchmark_runner.py` 从没提过 `bench_tasks`，它 import
+     `benchmarks`，而 `benchmarks` import `bench_tasks`；改评分器词表正是它必须看见的那类改动。
+   - 改了**没有观众**的模块不是「无可跑」，是 exit 1。第一版把这种情况打印成
+     "no test file reaches the changed paths" 然后 exit 0——读起来像干净结果，其实是反的。
+
+2. **删除 `minicc/repl/`**：下限普查的第一下就撞见。整个包只有一个 `__init__.py`，内容
+   `from .repl import Repl`，而 `minicc/repl/repl.py` **在 git 全史里从未存在**
+   （`git log --all --diff-filter=A -- "minicc/repl/*.py"` 只命中 `__init__.py` 自己）；
+   全仓没有 `class Repl`（REPL 实现在 `minicc/main.py::_interactive`）；没有任何文件引用它，
+   文档也没有。它**不可导入**：`import minicc.repl` → `ModuleNotFoundError: No module named
+   'minicc.repl.repl'`。从第一个 MVP 提交 `a9da019` 起就是这样，两百多批没人知道——
+   因为没人导入它，而没人导入它正是因为它打不开。**一个模块不可导入，和没人测试它，是同一个事实的两种说法。**
+
+3. **`tests/test_impacted_tests.py`**（10 条）：四条不变量——每个模块都能 import、每个模块都有测试
+   观众（或被本文件亲自验证过的转发门面）、门面承诺的每个名字都真的被绑定、影响集看得穿 import 链；
+   外加 CLI 三态（有观众列出、无观众报错、图外模块分「已删除」与「新模块」两种答案）。
+
+### 3 红绿与臂证据
+
+**预测表先写后跑。**
+
+| 臂 | 变异 | 预期 | 实测 |
+| --- | --- | --- | --- |
+| baseline | 无 | 10 passed | **10 passed** |
+| A | 死包 `minicc/repl` 复活 | 「每个模块都能 import」红 | **红：1 failed** |
+| B | 新增一个没有测试的生产模块 | 可达性下限红 | **红：1 failed** |
+| C | 门面 `__all__` 承诺一个不绑定的名字 | 承诺门 + 下限红 | **红：2 failed** |
+| D | 闭包不再递归（只看直接引用） | 传递性红（连带 2 条） | **红：3 failed** |
+| E | 图外模块又被吞掉（不分存在与否） | 「新模块无观众」红 | **红：1 failed** |
+| F | 已删除的模块也被当成 finding | 「删除不是 finding」红 | **红：1 failed** |
+| G | 门面豁免不再要求真的被验证 | 豁免单元测试红 | **红：1 failed** |
+| A–G 还原 | — | 逐字节还原 / 清理后全绿 | **SHA256-RESTORED: True**，control **10 passed** |
+
+**诚实记录**：臂 E 与臂 G 的**第一版都不可观测**——E 是因为那条分支在真实输入下不可达
+（图与树不一致时才走到），G 是因为同一变异被「承诺门」顺手抓住。两条都补了针对性单元测试
+（伪造的图 / 伪造的门面）后才红。**一条没有被任何臂证明过的门，和没有门是同一种东西。**
+
+### 4 顺手关掉第 91 批 §8 第 3 条的恐怖半边
+
+那条候选问：「一次不干净的重建会不会把已删除/改名的源文件带进 wheel」。本批删了包，正好能测：
+真建一次 wheel（`pip wheel . --no-deps --no-build-isolation`）→ **wheel 里 0 条 repl 条目**；
+仓库里 `build/lib/minicc/repl` 的陈旧副本也被同一次重建清掉（`build/` 在 `.gitignore:14`）。
+**不会带进去**——这条候选的恐怖半边就此关闭；剩下半条（改名后旧名残留）仍开放。
+
+### 5 边界
+
+- 工具读**工作树**，不读 git——与 doc-pointer 门相反，因为它量的是「现在有什么」，不是「干净检出有什么」。
+- 图只覆盖 `minicc/`；`scripts/`、`tests/`、`web/` 不在内。
+- 影响集是**保守下界**：只认 import 与字符串引用，不认反射与动态 import。本仓今天没有这种形状，
+  但门不证明这一点——这是下限，不是全集。
+- 「每个模块都能 import」这条门会 import 全部 76 个模块；今天它们都没有导入期副作用（实测 2.7s），
+  但谁要是给某个模块加一个联网的导入期行为，这条门会第一个红。
