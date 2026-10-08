@@ -985,6 +985,14 @@ _PROMISED_PATH: dict[str, str] = {
 _QUOTED_STALE_PATH: dict[str, str] = {
     "tests/test_core.py:1510": "roadmap 有一整段专门登记 M8-T6 拆分后的失效引用，引它正是为了说它已失效",
     "docs/PROJECT_REVIEW_2026-09-18.md:1413": "AUDIT 那段自己就写着「记录的规则已不存在」",
+    "tests/test_behavior_bench.py::test_oracle_requires_grader_type_for_vacuous_pass":
+    "第 140 批记录声称「新增臂」的这个测试名从未作为测试落地（git log -S 全史只命中引用它的那行自己）；"
+    "第二百零四批跑 doc-pointer 门时抓到这条悬空证据，承载同一断言的真车是 "
+    "tests/test_metric_and_oracle_reach_report.py::test_an_oracle_without_a_case_count_is_trusted_only_for_a_shipped_grader。"
+    "文档里引这个名字的两处，都是为了说它不存在",
+    "tests/test_oracle_vacuous_ratio.py": "第 203 批（M8-T176）计划起的文件名；第二百零四批落地时更名为 "
+    "tests/test_oracle_vacuous_policy.py（文件问的是「口径常量是不是活的」，不是「比例是多少」）。"
+    "引用旧名的地方正是在记录这次改名",
 }
 
 #: Removed on purpose. The document is not claiming the file is there; it is

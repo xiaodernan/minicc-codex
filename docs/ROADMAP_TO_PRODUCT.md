@@ -15145,7 +15145,8 @@ return dict(result)
 
 - 现有测试全绿：`test_behavior_bench.py` 13 passed、`test_an_interrupted_run_is_not_a_verdict.py` 9 passed、`test_a_workspace_the_host_cannot_write_is_no_result.py` 11 passed。
 - `python scripts/doc_pointers.py --check` exit 0（若报 citation-without-locator 警告是预期内的肿瘤标记，不阻塞）。
-- 变异见证：在 `_objective_oracle` 的返回行把 `dict(result)` 改回旧写法（删掉 grader_type），跑 `tests/test_behavior_bench.py::test_oracle_requires_grader_type_for_vacuous_pass`（新增臂预测红）→ 红；还原 → 绿。sha256 逐字节还原。
+- 变异见证：在 `_objective_oracle` 的返回行把 `dict(result)` 改回旧写法（删掉 grader_type），跑 `tests/test_metric_and_oracle_reach_report.py::test_an_oracle_without_a_case_count_is_trusted_only_for_a_shipped_grader`（该断言的车）→ 红；还原 → 绿。sha256 逐字节还原。
+  **第二百零四批更正**：本条记录原文把臂测试写成 `tests/test_behavior_bench.py::test_oracle_requires_grader_type_for_vacuous_pass`，**那个名字从未作为测试落地**（`git log -S` 全史只命中本行自己）。doc-pointer 门在 204 批跑全量时抓到这条悬空证据；承载同一断言的真车是上面这个（M8-T93 批落地），故改指针而不是改历史结论。
 
 ### 5 边界
 
@@ -15295,10 +15296,17 @@ return row.get("grader_type") in bench_tasks.GRADER_TYPES
    - `"require_case_count"`：无 `case_count` 一律判 fail（等价于 deny，但语义更明确）。
    默认值设为 `"allow"`，保持现有行为，但把口径显式化、可配置。
 
-2. **新增计量门** `tests/test_oracle_vacuous_ratio.py`：
+2. **新增门** `tests/test_oracle_vacuous_policy.py`（第二百零四批落地时改名：文件问的是「口径常量是不是活的」，不是「比例是多少」，名字说了别的意思）：
    - 统计全量跑中 `_objective_oracle` 返回的 vacuous 比例。
    - 断言：`vacuous_ratio < 0.25`（当前 17.4%，留有余量）。
    - 断言：`vacuous_allowed_count == 0` 当策略为 `"deny"`/`"require_case_count"` 时。
+
+   **第二百零四批更正（对计划本身，不是对结论）**：前两条**没有按字面落地**。全量跑的
+   vacuous 比例是**测试套件组成**的属性，不是产品的属性——谁加一条 command_contract 的
+   oracle 用例，比例就变，门就红，而产品一行没动。把这种量设成门，量的是量具自己
+   （M8-T22 那一族）。落地的是第三条以及它的泛化：策略常量必须在**做决定的那条路径上被
+   读到**（AST 门），`allow/deny/require_case_count` 三个方向与未知取值的行为各有断言，
+   有 `case_count` 的行按计数判、不跟策略走。17.4% 这个一次性读数留在本节 §2 的表里。
 
 3. **文档化**：在 `_oracle_says_pass` 的 docstring 里把当前口径写进去，并在路线图里登记 task #XXX 等待 owner 确认最终口径。
 
@@ -15375,3 +15383,75 @@ pip 冷缓存），第二次起回落到 77–87s。打包文件整体 101s → 
 - `--version` 与控制臂只覆盖 `minicc` 一个入口的拼写；`minicc-web` 的入口拼写由第 4 步
   「服务真起来」覆盖（拼错则进程起不来，60s 就绪超时红）。
 - 端口用「绑 0 取空闲端口」选取，存在理论竞态；门内就绪轮询 60s 足以吸收。
+
+## 第二百零四批 M8-T176 落地：vacuous oracle 的口径从「注释里的承诺」变成「做决定的那条路上真被读到的常量」
+
+### 1 为什么是这一批
+
+第 203 批（M8-T176）只落了**计划与一次性计量**（217 次 oracle 调用 / 32 次 vacuous /
+17.4% / 32 次全部来自 shipped grader），代码一行没动：`VACUOUS_ORACLE_POLICY` 还只存在于
+记录里。本批把它落地，并且按这批项目自己的规矩——**每个判断都要有红臂**——逐条验。
+
+开工第一件事是跑仓库自己的 doc-pointer 门，结果 **HEAD 上就是红的**，两条悬空证据：
+
+| 行 | 悬空证据 | 性质 |
+| --- | --- | --- |
+| 15148 | `tests/test_behavior_bench.py::test_oracle_requires_grader_type_for_vacuous_pass` | 第 140 批记录声称「新增臂」的测试，**从未作为测试落地**（`git log -S` 全史只命中该行自己） |
+| 15298 | `tests/test_oracle_vacuous_ratio.py` | 第 203 批计划起的名字，本批要落的文件 |
+
+两条都在本批修（见 §4）。
+
+### 2 落地
+
+1. **`minicc/benchmarks.py`**：`_oracle_says_pass` 邻近新增
+   `VACUOUS_ORACLE_POLICY = "allow"`（取值 `allow | deny | require_case_count`），vacuous
+   分支按它走；**未知取值 fail-closed 到拒绝**——拼错常量不能悄悄变成 allow。
+   默认值维持 `allow`：历史 `reviewer_false_negative_count` 全部是在这个口径下产生的，
+   改默认值等于无声改判所有旧读数。
+2. **`tests/test_oracle_vacuous_policy.py`**（31 条，自 `test_oracle_vacuous_ratio.py`
+   改名）：默认口径在案、`allow` 只信 shipped 词表里的 grader、`passed: None` 的拒绝永远
+   进不到 vacuous 分支、`deny`/`require_case_count`/未知取值三种方向、以及**有
+   `case_count` 的行按计数判、不跟策略走**（`5->True / 0->False / -1->False / True->False /
+   "3"->False / inf->False / nan->False`，三种策略下同读）。
+3. **AST 门**：`_oracle_says_pass` 必须**按名字加载** `VACUOUS_ORACLE_POLICY`。没有这条，
+   把常量在决策点内联成字面量，上面 31 条行为测试**全绿**而旋钮已经死了——正是 M8-T82
+   「盘上格式的版本号有六个写主、零个读主」的同族：常量写在文件里不等于它在路上。
+4. **`tests/test_http_surface.py`**：`test_concurrent_task_submits` 的客户端超时 20s -> 60s。
+   第 200 批抓到的 flake 形状是「submit 7: TimeoutError」出现在 753s 的负载组合跑里（同文件
+   稳态 287s）——这一格断言的是**受理与 id 唯一**，客户端在负载下超时量的是机器，不是服务
+   缺陷。服务器永远不应答仍然红，只是从 20s 变成 60s。
+
+### 3 红绿与臂证据
+
+**预测表先写后跑**（跑之前落盘）。
+
+| 臂 | 变异 | 预期 | 实测 |
+| --- | --- | --- | --- |
+| baseline | 无 | 31 passed | **31 passed** |
+| A | 默认 `allow` -> `deny` | 默认口径那条红 | **红：2 failed** |
+| B | vacuous 分支整段不读策略（退回恒查白名单） | deny / require_case_count / 未知取值相关条红 | **红：4 failed** |
+| C | 决策点把常量内联成 `"allow"` | AST 门红（行为测试仍绿的那一类） | **红：4 failed** |
+| D | vacuous 分支改成 `return True` | 信未知 grader 那条红 | **红：1 failed** |
+| A-D 还原 | — | 逐字节还原后全绿 | **SHA256-RESTORED: True x4**，control **31 passed** |
+| 邻域 | 5 个相关文件合跑 | 全绿 | **109 passed**（`test_oracle_vacuous_policy` 31 + `test_metric_and_oracle_reach_report` + `test_bench_compare` + `test_an_interrupted_run_is_not_a_verdict` + `test_a_workspace_the_host_cannot_write_is_no_result`） |
+| doc-pointer | 修完两处悬空后 | exit 0 | **0 dangling**（修前 2 条） |
+
+### 4 顺带修的两处文档悬空
+
+- **15148**：把臂测试指针改到真正承载该断言的车
+  `tests/test_metric_and_oracle_reach_report.py::test_an_oracle_without_a_case_count_is_trusted_only_for_a_shipped_grader`，
+  并在原行下注明「那个名字从未落地、覆盖在别处」——改指针，不改历史结论。
+- **15298**：文件名随本批改名同步。
+
+### 5 边界与欠账
+
+- 默认策略**不改**，故本批不改变任何既有判决；`deny`/`require_case_count` 是留给口径决定
+  的开关，不是本批的选择。
+- 新门**不**量全量跑的 vacuous 比例（理由见第 203 批 §3 第 2 条下的更正）：那是套件组成的
+  属性，设成门量的就是量具自己。
+- ruff 在 `minicc/benchmarks.py` 与 `tests/test_http_surface.py` 上报的 **3 条告警在 HEAD 上
+  就已存在**（本次改动前后同一组），本批不动。其中一条是真缺陷，登记为下一批候选：
+  `minicc/benchmarks.py:198` 引用 `behavior_bench.validate_behavior_task(task)`，而模块级只
+  `from .behavior_bench import ...`——**`behavior_bench` 这个名字在模块里不存在**（F821）。
+  它今天不炸，只因为 `grader.type == "python_behavior"` 的任务没有一条走到那儿；这正是
+  「构造可达、尚未 populate」的标准形状（对照第 176 批对 `build_report:180` 的同类判定）。
