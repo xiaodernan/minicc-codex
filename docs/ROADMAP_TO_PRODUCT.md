@@ -16760,3 +16760,90 @@ setup error（同族的起服务计时）。本批只新增一个文件，不碰
 - 工作树里另一会话的在途改动**本批未读未改**（除那九处 token），它的正确性不由本批背书。
 - 门的绿只说明"按该规则扫不出违规"，**不说明**那九处在真实子进程输出不可解码时行为已被人测过——
   本批没有为它们补"输出含坏字节"的用例（那属于另一件事：门查的是**声明**，不是**行为**）。
+## 第二百二十一批 — M8-T192 — 根目录整洁门读的是十三个名字，不是它 docstring 里那一类（同一提交：绿与红各自只在真物证上成立）
+
+缺陷：`tests/test_cleanup_version.py` 的 `test_no_repro_or_log_artifacts_in_repo_root`
+把 `banned` 写成 13 个**手抄名字**，而它所在文件的 docstring 第 6–7 行承诺的是
+「the repo root carries no repro/log artifacts」——一句关于**一类**的话。
+名字表只能覆盖有人想过要写下来的那几次运行；后来任何一次运行留下的文件都不在表上。
+
+| 证据 | 实测（2026-10-09，热主树） |
+| --- | --- |
+| 根目录文件普查 | 13 个：9 跟踪、3 ignored（`.coverage`、`.env`、`full_pytest_130.log`）、1 未跟踪（`msgfile.txt`，别车道正在用的提交信息草稿） |
+| `full_pytest_130.log` | 4488 字节，尾部 `1856 passed, 1 error in 1207.82s`，traceback 在 `C:\Program Files\Python311\...`——一次**系统 Python** 误跑整套留下的日志，正落在这条门声称干净的目录里 |
+| `'full_pytest_130.log' in banned` | **False**。表里有 7 个日志形状的**名字**（`pytest_full.log`、`.t1.err` …），没有一条日志形状的**规则** |
+| 旧门今天的判决 | 旧 13 名案例在 log 仍躺在根上时**绿着通过**（rc=0，collected=1，`1 passed in 0.18s`）——见下面 PRE-FIX 腿 |
+
+和 M8-T191 同一族：一个把总体写死成清单的检查，它的绿灯只回答「这十三个名字在不在」。
+
+落地（一个跟踪文件，`tests/test_cleanup_version.py`，+158/−6，提交 2318ab0）：
+`_LEGACY_BANNED_NAMES`（那 13 个名字原样保留，作为**类表必须覆盖的总体**）＋
+`_ARTIFACT_CLASSES`（4 条规则：`run output dump` .log/.err/.out、`repro script` repro_+\.py、
+`shell redirection fragment` `=` 前缀、`collected-test ledger` 两个精确名字）＋ 纯函数
+`_root_artifacts(names)`（吃**一份清单**，不吃磁盘——这样见证才能证明空答案是「没匹配上」
+而不是「没去看」）。`.txt` **故意**不是后缀类。
+
+| 案例 | 输入 | 它独自承重的子句 |
+| --- | --- | --- |
+| D0 `test_a_run_log_is_named_whatever_its_batch_number` | `["full_pytest_130.log", "setup.py", "README.md", "conftest.py"]`，要求恰好一条 | 类规则看见了 13 个名字看不见的那个文件——干净平面上没有这个文件，旧表里也没有，别处证不到 |
+| D1 `test_the_class_table_covers_the_population_the_name_list_enumerates` | 从 `_LEGACY_BANNED_NAMES` 自身推导 | 双向下限：uncovered（已知 artifact 如今无类可抓）与 redundant（某类不是任何已知 artifact 的唯一捕获者，等于没人量过它） |
+| D2 `test_a_clean_root_reads_empty` | 12 个真实根文件名 | 接受侧：源码、配置、别车的 `msgfile.txt` 都不是 artifact；`_class_catches("msgfile.txt", (".txt",), …)` 为假，把「.txt 不禁」写进规则自己的话里 |
+| D3 `test_the_live_repo_root_carries_no_run_output` | `_live_root_files()`（真目录） | docstring 那句话本身；报错带整份根目录清单，好让「读到 0 条」和「没读」分得开 |
+| 旧 13 名案例 | 原样保留（`present` 现在读 `_LEGACY_BANNED_NAMES`） | 带子仍系着，而它的失明正是 D0/D3 新cover 的东西 |
+
+机器步骤（这是依赖不是偏好）：D3 在热主树上量到红。物证是一份**过期运行日志**，
+且它的数字来自系统 Python（本机唯一有效的数字平面是仓库 `.venv`），所以它没有基线地位。
+处置是**搬走**（改名进本单位的 scratch 目录，字节仍可读），不是删除；它本就 gitignored，
+故跟踪状态零变化、也不碰别车的工作。后果写清：干净 worktree 平面从来就没有这个文件，
+它在平面上的绿灯只关于仓库；这台机器的绿灯必须靠下面 REAL 那条腿单独挣。
+
+| 臂 | 变异 | 预测红集 | 实测＝判定 |
+| --- | --- | --- | --- |
+| B1 | dump 类去掉 `.log` | D0, D1, D2 | `3 failed, 1 passed`，红＝D0,D1,D2 — MATCHED |
+| B2 | 删 repro-script 类 | D1 | `1 failed, 3 passed`，红＝D1 — MATCHED |
+| B3 | 删 shell-redirection 类 | D1 | `1 failed, 3 passed`，红＝D1 — MATCHED |
+| B4 | 删 ledger 类 | D1 | `1 failed, 3 passed`，红＝D1 — MATCHED |
+| B5 | `_catching_classes` 直接返回 `[]` | D0, D1, D2（**D3 仍绿**：内核死了与树是干净的，对读磁盘的那条不可区分——这就是 D0–D2 存在的全部理由） | `3 failed, 1 passed`，红＝D0,D1,D2 且 D3 绿 — MATCHED |
+| B6 | 每类都要求前缀**且**后缀 | D0, D1, D2 | `3 failed, 1 passed`，红＝D0,D1,D2 — MATCHED |
+| B7 | 加一条重复的 `.log` 带子 | D0, D1, D2 | `3 failed, 1 passed`，红＝D0,D1,D2 — MATCHED（这条是 D1 的 redundant 子句唯一咬得住的变异） |
+| 控制 | 无变异 | D0–D3 全绿，collected=4（本脚本自己点名的 4 个 nodeid） | 臂前 `rc=0 collected=4 red=[] 4 passed in 0.32s`；七臂跑完再测一次 `4 passed in 0.30s` — MATCHED |
+
+B5 的预测在两处文本里不一致，这是发现本身，不是笔误：首稿那份见证臂预测表（scratch 目录里，
+未入库）的第 4 臂写「D1 和 D3 红、D2 绿」，它假设的是**热主树**——log 还在根上时，内核死了
+D3 才追不到名字。本臂实际跑在私有平面上，平面的根从来没有那个文件，于是红集换成 D0,D1,D2
+而 D3 绿。原预测行按原样留着，差异在此追因；这也正是 D3 单独承重不够、D0–D2 必须吃**供给清单**的理由。
+
+| 腿 | 物证 | 预测＝实测 | 判定 |
+| --- | --- | --- | --- |
+| PRE-FIX | 旧 13 名案例，只读地跑在**热主树**（那份 log 还躺在根目录） | 绿＝缺陷复现（不是修复的证据） | rc=0，collected=1，`1 passed in 0.18s` |
+| REAL | 把那份 log 的**字节**复制进平面根，四条门案例一字不改地跑 | 恰好 D3 红，且红字里同时有文件名和抓住它的类名；D0–D2 不动（它们吃的是供给的清单，不是磁盘） | rc=1，`1 failed, 3 passed`，红＝D3 一条；红字 `offenders == [('full_pytest_130.log', ('run output dump',))]`，并打印 `root holds 11 files`（worktree 的 `.git` 是文件，D2/D3 都不把它当 artifact） |
+| RESTORE | 快照逐字节还原 | `identical=True`，四条全绿 | rc=0，`4 passed in 0.30s`；平面磁盘字节（28609 B，sha256 前缀 4eab70901723cce6）与 `git show HEAD:tests/test_cleanup_version.py` 的 blob（27970 B，sha256 前缀 b88f7b42cd6f6031）在 CRLF 归一后相等；主树落库文件与平面文件同一 sha |
+
+| 命令 | 读数 |
+| --- | --- |
+| 门（平面，四例） | 控制 4 passed 0.32s；七臂之后 4 passed 0.30s |
+| focused（`tests/test_cleanup_version.py` 整文件，平面 wt192） | 22 passed in 55.46s（负载读数；父平面同文件 18 例，+4＝本批 D0–D3，正是预测的 18→22） |
+| 主树单跑本文件（落库后） | 22 passed in 77.84s（负载读数，与平面的 22 同数——负载只改秒数不改案例集） |
+| 全量双平面围栏 | 父腿（`28090cb`，门文件里还没有本批四条案例）rc=1 `{'tests': 2178, 'failures': 2, 'errors': 0, 'skipped': 5}` collected=2178 red=2；子腿（`2318ab0`）rc=1 `{'tests': 2182, 'failures': 2, 'errors': 0, 'skipped': 5}` collected=2182 red=2；`added=4 removed=0 child_only_reds=0 parent_only_reds=0` ⇒ `FENCE_T192_STATUS=GREEN_WITH_PINNED_PREEXISTING_REDS`。两腿探针都先答出各自的 HEAD、`minicc.__file__` 在平面内、版本 0.2.0。00:11 起跑、父腿 00:49 出数、子腿 01:48 出数＝负载读数（同机并行车道在跑自己的 pytest），案例集两腿一致而秒数不谈 |
+
+两条红在**两个平面上同名同现**，谁都不是本批带的：
+`tests/test_stage_routing_config_reaches_the_router.py::test_every_production_construction_site_is_the_one_this_test_copies`
+＝第二百一十六批 §5 登记的那条（`43a8bf4` 给 web.py 加了第二个 `StageRouter(` 构造点，而那枚门钉「每文件恰好一处」）；
+`tests/test_subprocess_decoding.py::test_no_text_mode_capture_asks_for_a_strict_decoder`
+红的理由是**可达性**而不是行为——`5c718f3`（把九处文本模式捕获换成严格解码器的那次修复）不是 `28090cb`/`2318ab0`
+的祖先，所以这两个平面上它当然红；在落库后的 HEAD 上实测 `1 passed, 19 deselected in 33.79s` 已经绿。
+同一次 HEAD 复跑里仍然红的只有前者（`1 failed, 52 passed`，92.53s），它因此是这套门里最后一处 HEAD 红，
+下一单位 M8-T196 就是关它：那条门自称「每个生产构造点」，数的却是手抄的两个文件。
+
+边界：本批不让别的文件停止向根目录写日志（那是各运行自己的事，`test_ci_hygiene.py` 已就此讲过）；
+不删 `msgfile.txt`、不把它禁成形状（别车正在用）；不改 `.gitignore`；目录类（`build/`、
+`minicc.egg-info/`、`.venv/`）仍归打包门管，本普查只走根目录的**文件**。
+
+本批量到但**没有落地**的一条，写在这里是因为它是同一句 docstring 的洞：把总体换成
+「根目录的文件」以后，**目录形状的**运行产物仍然无人问。这台机器的根上就有一个
+`minicc-0.2.0/`（194 个文件，未跟踪、也没被 `.gitignore` 覆盖，最像一次 setuptools sdist
+的中间目录）。两只读探针（都不写跟踪文件）量到它并非 `dist/minicc-0.2.0.tar.gz` 的纯解出物：
+归档 287 个成员对磁盘 194 个文件，159 个逐字节相同、21 个同名不同字节、14 个只在磁盘上。
+「不是纯解出物」既不能证明它可以删，也不能证明它是谁的工作，所以本批**不动它**，也不写一条
+把它藏进豁免表的规则——一个豁免在有人证明树上没有别处 import 过它之前就是藏身处。
+下一步要么由树的车主处置，要么在干净平面上量出目录类规则能抓住真实产物，再连同见证一起落。
