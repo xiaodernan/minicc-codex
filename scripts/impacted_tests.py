@@ -283,12 +283,12 @@ def verified_facades(modules: dict[str, Path] | None = None) -> set[str]:
 def _changed_paths(since: str | None) -> list[str]:
     if since:
         out = subprocess.run(("git", "-C", str(REPO_ROOT), "diff", "--name-only", since),
-                             capture_output=True, text=True, check=False).stdout
+                             capture_output=True, text=True, errors="replace", check=False).stdout
     else:
         tracked = subprocess.run(("git", "-C", str(REPO_ROOT), "diff", "--name-only", "HEAD"),
-                                 capture_output=True, text=True, check=False).stdout
+                                 capture_output=True, text=True, errors="replace", check=False).stdout
         untracked = subprocess.run(("git", "-C", str(REPO_ROOT), "ls-files", "--others",
-                                    "--exclude-standard"), capture_output=True, text=True, check=False).stdout
+                                    "--exclude-standard"), capture_output=True, text=True, errors="replace", check=False).stdout
         out = tracked + untracked
     return [line.strip().replace("\\", "/") for line in out.splitlines() if line.strip()]
 

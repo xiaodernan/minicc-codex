@@ -167,7 +167,7 @@ def test_the_tool_lists_the_reaching_tests_for_a_changed_module() -> None:
     """End to end, as an operator would run it."""
     result = subprocess.run(
         [sys.executable, str(SCRIPT), "minicc/bench_tasks.py"],
-        capture_output=True, text=True, cwd=str(REPO_ROOT), check=False,
+        capture_output=True, text=True, errors="replace", cwd=str(REPO_ROOT), check=False,
     )
     assert result.returncode == 0, result.stderr
     listed = result.stdout.split()
@@ -246,7 +246,7 @@ def test_the_run_command_names_only_files_pytest_can_collect() -> None:
 
     result = subprocess.run(
         [sys.executable, str(SCRIPT), "minicc/bench_compare.py", "--run"],
-        capture_output=True, text=True, cwd=str(REPO_ROOT), check=False,
+        capture_output=True, text=True, errors="replace", cwd=str(REPO_ROOT), check=False,
     )
     assert result.returncode == 0, result.stderr
     listed = result.stdout.split()
@@ -271,7 +271,7 @@ def test_a_change_to_a_script_names_the_tests_that_reach_it() -> None:
     """
     result = subprocess.run(
         [sys.executable, str(SCRIPT), "scripts/impacted_tests.py", "--run"],
-        capture_output=True, text=True, cwd=str(REPO_ROOT), check=False,
+        capture_output=True, text=True, errors="replace", cwd=str(REPO_ROOT), check=False,
     )
     assert result.returncode == 0, result.stderr
     assert "no test file reaches" not in result.stderr, result.stderr
@@ -284,7 +284,7 @@ def test_the_tool_ignores_paths_no_test_could_reach() -> None:
     """Docs and config are not production modules; the tool says so quietly."""
     result = subprocess.run(
         [sys.executable, str(SCRIPT), "README.md"],
-        capture_output=True, text=True, cwd=str(REPO_ROOT), check=False,
+        capture_output=True, text=True, errors="replace", cwd=str(REPO_ROOT), check=False,
     )
     assert result.returncode == 0, result.stderr
     assert result.stdout.strip() == "", result.stdout

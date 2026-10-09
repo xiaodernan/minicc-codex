@@ -301,7 +301,7 @@ def test_installed_console_scripts_run_from_a_real_install(tmp_path: Path, wheel
     scripts = _scripts_dir(venv)
     cli = scripts / ("minicc.exe" if os.name == "nt" else "minicc")
     version = subprocess.run(
-        [str(cli), "--version"], cwd=str(tmp_path), capture_output=True, text=True, timeout=120
+        [str(cli), "--version"], cwd=str(tmp_path), capture_output=True, text=True, errors="replace", timeout=120
     )
     assert version.returncode == 0, version.stdout + version.stderr[-2000:]
     assert f"minicc {__version__}" in version.stdout, version.stdout
@@ -312,7 +312,7 @@ def test_installed_console_scripts_run_from_a_real_install(tmp_path: Path, wheel
     web = scripts / ("minicc-web.exe" if os.name == "nt" else "minicc-web")
     server = subprocess.Popen(
         [str(web), "--workspace", str(workspace), "--host", "127.0.0.1", "--port", str(port)],
-        cwd=str(tmp_path), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+        cwd=str(tmp_path), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, errors="replace",
     )
     try:
         deadline = time.monotonic() + 60
