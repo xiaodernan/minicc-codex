@@ -92,13 +92,11 @@ def test_behavior_load_door_accepts_all_shipped_behaviour_tasks() -> None:
     owners:
 
     * door - ``validate_behavior_task`` over ``behavior_bench.behavior_tasks()``: this test,
-      and ``test_behavior_suite_is_validated_at_load.py::test_every_shipped_behaviour_task_passes_the_new_door``.
-      Same rule, same population: one gate written twice. Whether to merge them is the owner's
-      call (第九十五批 §8-2 deferred it until the measurement existed; it now exists).
+      and ``test_behavior_suite_is_validated_at_load.py::test_every_shipped_behaviour_task_passes_the_behavior_door``.
     * host encoding path - ``spec_blockers`` over the behaviour suite: the companion is
       ``test_behavior_args_that_cannot_be_encoded_are_no_result.py::test_no_shipped_task_needs_the_new_host_path``.
     * host write point - ``require_writable_fixture`` over all three suites:
-      ``test_a_fixture_must_be_text_the_workspace_can_hold.py::test_no_shipped_task_needs_the_new_rule``.
+      ``test_a_fixture_must_be_text_the_workspace_can_hold.py::test_no_shipped_task_needs_the_fixture_writable_rule``.
 
     An earlier draft of this docstring named the second of those
     ``test_host_encoding_path_accepts_all_shipped_fixtures`` while describing the third - a

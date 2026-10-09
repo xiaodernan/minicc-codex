@@ -193,8 +193,13 @@ def test_the_write_path_no_longer_coerces_content() -> None:
     )
 
 
-def test_no_shipped_task_needs_the_new_rule() -> None:
-    """The corpus is the floor: a scan that read nothing must not report a pass."""
+def test_no_shipped_task_needs_the_fixture_writable_rule() -> None:
+    """The corpus is the floor: a scan that read nothing must not report a pass.
+
+    Division of labor with test_every_shipped_behaviour_task_passes_the_behavior_door:
+    - This test checks the FIXTURE WRITABLE RULE (require_writable_fixture) - does the host encoding path accept the fixture?
+    - The companion test checks the BEHAVIOR DOOR (validate_behavior_task).
+    """
     v2 = json.loads((REPO / "benchmarks" / "tasks.v2.json").read_text(encoding="utf-8"))
     all_tasks = {
         "legacy": benchmarks.load_tasks(REPO / "benchmarks" / "tasks.json"),
@@ -204,14 +209,15 @@ def test_no_shipped_task_needs_the_new_rule() -> None:
     offenders = {}
     fixture_entries = 0
     for suite, tasks in all_tasks.items():
-        assert len(tasks) >= 10, f"suite {suite} read {len(tasks)} tasks - the census saw nothing"
+        assert len(tasks) >= 10, f"{suite}: only {len(tasks)} tasks loaded - the census read nothing"
         for task in tasks:
             fixture = task.get("fixture")
             if fixture:
                 fixture_entries += len(fixture)
-                try:
-                    bench_tasks.require_writable_fixture(task)
-                except ValueError as exc:
-                    offenders[task["id"]] = str(exc)
+                for key in task["fixture"]:
+                    try:
+                        bench_tasks.require_writable_fixture(task)
+                    except ValueError as exc:
+                        offenders[task["id"]] = str(exc)
     assert fixture_entries >= 30, f"only {fixture_entries} fixture files were inspected"
     assert offenders == {}, f"shipped tasks would break the agent's workspace: {offenders}"

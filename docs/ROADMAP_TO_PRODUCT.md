@@ -7693,7 +7693,7 @@ PYTEST_EXIT=0
 ### 7 下一批候选
 
 1. `test_every_shipped_behaviour_task_has_well_shaped_items`（本批改成跑门）与
-   `test_no_shipped_task_needs_the_new_host_path` 现在构成两条跑 shipped 人口的普查（E6 让它们同时红）。
+   `test_no_shipped_task_needs_the_fixture_writable_rule` 现在构成两条跑 shipped 人口的普查（E6 让它们同时红）。
    两条的**分工**没写进名字：一条答「门放不放行」，一条答「宿主编码路径用不用得到」。
    要不要并成一张 shipped 普查表，先量再定，本批不预先写结论。
 2. `load_tasks` 的 legacy 支路除 `category`/`prompt`/`verify_command` 外仍不校验行为套件用得到的 `fixture` 形状。
@@ -7826,7 +7826,7 @@ legacy 30 条里 **0** 条带 `fixture`，v2 **24/24** 带（39 个文件项）�
    `passed=False`＋`grader_type`——本批让坏形状进不到那里（装载门先拒），但**同一条兜底对别的宿主故障
    还在捏造判决**（M8-T83 族剩下的一格）；要做的是把「装载门已拒」与「运行期写不出」分开记账。
 2. 第九十批 §7 第 1 条仍未做：`test_every_shipped_behaviour_task_has_well_shaped_items` 与本批
-   `test_no_shipped_task_needs_the_new_rule` 都是「拿 shipped 人口跑一遍」的普查，但两条的**分工**没写进名字
+   `test_no_shipped_task_needs_the_fixture_writable_rule` 都是「拿 shipped 人口跑一遍」的普查，但两条的**分工**没写进名字
    （一条答门放不放行，一条答宿主编码路径用不用得到）。先量再定要不要并表，本批不预先写结论。
 3. 要口径决定：`build_report:180` 的 `grader_type` 兜底、`bench_compare.GATE_METRICS` 里
    `grading_refusal_count` 的方向与阈值、`review_rounds` 的印法、恒 null 的 `tool_repeat_rate`（task #83）。
@@ -8004,7 +8004,7 @@ finder 上，**静默量了主树**。⇒ 那次探针的四节数字全部作�
    `passed=False`＋`grader_type`。本批实测的那一行见 §2 末（`grading_refused` 缺席、
    `objective_oracle=None`）。要做的改动与 M8-T83/T104 那一族同形（NO-RESULT 而不是判决），
    但**先要口径决定**：「装载门已拒」与「运行期宿主写不出」是同一格还是两格。已挂 task #101，不占号。
-2. 两个 shipped 普查的分工仍未写进名字：第九十一批的 `test_no_shipped_task_needs_the_new_rule`
+2. 两个 shipped 普查的分工仍未写进名字：第九十一批的 `test_no_shipped_task_needs_the_fixture_writable_rule`
    **拿门去跑语料**（问「门放不放行」），本批的 `test_no_shipped_task_carries_a_colliding_pair`
    **自己实现判据**（问「语料里有没有这种配对」）。两条都有下限，但一条变宽（门不再被问）只有前者看得见，
    一条判据写错（本批 A7 臂）只有后者看得见。先量这种普查在仓库里一共几条、各自答哪个问题，再定并不并表。
@@ -8549,7 +8549,7 @@ v2 **24/24** 带；行为套件 **12/12** 带 ⇒ 合计 **36** 条 fixture 任�
    （既不是宿主故障，也不是智能体失败），要不要进 `gradable`、要不要有自己的状态值，需要口径决定。
 2. 第九十一批 §8 第 2 条仍未做：两条 shipped 人口普查的**分工**没写进名字
    （`test_every_shipped_behaviour_task_has_well_shaped_items` 答「门放不放行」，
-   `test_no_shipped_task_needs_the_new_rule` 答「宿主编码路径用不用得到」）。先量再定要不要并表。
+   `test_no_shipped_task_needs_the_fixture_writable_rule` 答「宿主编码路径用不用得到」）。先量再定要不要并表。
 3. 要口径决定：`bench_compare.GATE_METRICS` 里 `grading_refusal_count` 的方向与阈值、
    `review_rounds` 的印法、恒 null 的 `tool_repeat_rate`（task #83）。
 ### 7bis 全量基线补记（收口 §7 与 §8-5）
@@ -8961,7 +8961,7 @@ exit=1
 工作树里留下的解法是：把 roadmap 那四行**改指向另一个测试**，并加一句「写作时的旧名为
 has_well_shaped_items」。这句话在两个方向上都假，`git log -S` 各量过一次：
 
-- `test_every_shipped_behaviour_task_passes_the_new_door`（`tests/test_behavior_suite_is_validated_at_load.py`）
+- `test_every_shipped_behaviour_task_passes_the_behavior_door`（`tests/test_behavior_suite_is_validated_at_load.py`）
   由 `bb46eca`（M8-T97）引入，**从建立起就叫这个名字**，从来没有过旧名；
 - `has_well_shaped_items` 由 `20da1c3`（M8-T102）引入，住在
   `tests/test_behavior_cases_are_the_pair_the_grader_unpacks.py`——也就是被改名的那一个。
@@ -8988,10 +8988,10 @@ has_well_shaped_items」。这句话在两个方向上都假，`git log -S` 各�
 
 | | 文件与函数 | 问的规则 | 人口 | 体行数／assert |
 | --- | --- | --- | --- | --- |
-| A | `tests/test_behavior_suite_is_validated_at_load.py::test_every_shipped_behaviour_task_passes_the_new_door` | `validate_behavior_task` | `behavior_tasks()`（＋legacy `tasks.json` 计数） | 13／3 |
+| A | `tests/test_behavior_suite_is_validated_at_load.py::test_every_shipped_behaviour_task_passes_the_behavior_door` | `validate_behavior_task` | `behavior_tasks()`（＋legacy `tasks.json` 计数） | 13／3 |
 | B | `tests/test_behavior_cases_are_the_pair_the_grader_unpacks.py::test_behavior_load_door_accepts_all_shipped_behaviour_tasks` | `validate_behavior_task` | `behavior_tasks()` | 23／2 |
 | C | `tests/test_behavior_args_that_cannot_be_encoded_are_no_result.py::test_no_shipped_task_needs_the_new_host_path` | `spec_blockers` | `behavior_tasks()` | 7／2 |
-| D | `tests/test_a_fixture_must_be_text_the_workspace_can_hold.py::test_no_shipped_task_needs_the_new_rule` | `require_writable_fixture` | legacy＋v2＋behavior 三套 | 22／3 |
+| D | `tests/test_a_fixture_must_be_text_the_workspace_can_hold.py::test_no_shipped_task_needs_the_fixture_writable_rule` | `require_writable_fixture` | legacy＋v2＋behavior 三套 | 22／3 |
 
 **结论一：真正的分工是三份，不是两份**——门（A／B）、宿主编码路径（C）、宿主写点（D）。
 roadmap 早先把 D 说成「宿主编码路径用不用得到」是**说错了规则**：D 问的是作者那些字节能不能
@@ -9736,7 +9736,7 @@ source modules: 75 | wheel modules: 75 | sets equal: True
 | 候选（出处） | 今天的状态 | 指针 |
 | --- | --- | --- |
 | 宿主故障写成 `passed=False`，含**被中断的准备阶段**（第九十三批 §8-1、第九十五批 §8-1） | **仍开，等 owner 口径**（NO-RESULT 这一类要不要有自己的状态值） | 已有测量：`_probe107b.py` 量到 `status="interrupted"`、`passed=false`、`grader_type="file_contract"`、`error="KeyboardInterrupt"`，且同样跑了 oracle |
-| 两条 shipped 普查的**分工写进名字**（第九十一/九十二/九十五批 §8-2） | **已结**：那条普查已改名 `test_behavior_load_door_accepts_all_shipped_behaviour_tasks`，docstring 里写明三方分工 | 第九十九批（M8-T113）改名并写分工；第一百一十三批留下实测表（A 13／3、B 23／2）。**剩余**：门那条规则被写了两遍（`test_every_shipped_behaviour_task_passes_the_new_door` 与它同规则同人口），并表与否是 owner 的决定 |
+| 两条 shipped 普查的**分工写进名字**（第九十一/九十二/九十五批 §8-2） | **已结**：那条普查已改名 `test_behavior_load_door_accepts_all_shipped_behaviour_tasks`，docstring 里写明三方分工 | 第九十九批（M8-T113）改名并写分工；第一百一十三批留下实测表（A 13／3、B 23／2）。**剩余**：门那条规则被写了两遍（`test_every_shipped_behaviour_task_passes_the_behavior_door` 与它同规则同人口），并表与否是 owner 的决定 |
 | 卷的身份关系**不止大小写**（APFS 折叠 Unicode NFC/NFD）（第九十三批 §8-3） | **仍开，且本机测不出**：本机是 NTFS，写两个 Unicode 等价拼法得到两个文件，这一层在 Windows 上不存在 | 要结案必须在 macOS 上跑同一条实验（写两个等价拼法、数剩几项）；在那之前**不许写成结论** |
 | **重建污染**：未清理的 `build/` 会不会把已删源带进 wheel（第九十三批 §8-4） | **已修** | 第一百一十二批：克隆里删 `minicc/mentions.py` 不清 build 重建 → wheel 仍带该模块（76 份 vs 源码 75）；`setup.py` 加 `prune_stale_payload`，同一实验变 75／75 且打印 `pruned 1 stale payload file(s)`；门是端到端的（往真实 `build/lib` 种一个源里没有的模块） |
 | `test_the_identity_question_is_the_hosts_own_function` **问词不问行为**（第九十三批 §8-5） | **已结，候选陈旧**：它要求的"问行为"早已由两条供给政策的格提供 | 第一百一十一批：三个变异各由不同的格抓到——A（停止问宿主）由折叠政策格、B（经身体外的 helper 折叠）由身份政策格、C（植入拼写但不读）由搜词格；结论是两半**互补**，搜词格保留 |

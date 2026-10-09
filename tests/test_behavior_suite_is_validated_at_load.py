@@ -154,8 +154,13 @@ def test_the_runner_opens_the_behaviour_door() -> None:
         )
 
 
-def test_every_shipped_behaviour_task_passes_the_new_door() -> None:
-    """The door must not reject the suite it protects."""
+def test_every_shipped_behaviour_task_passes_the_behavior_door() -> None:
+    """The behavior door (validate_behavior_task) must not reject the suite it protects.
+
+    Division of labor with test_no_shipped_task_needs_the_fixture_writable_rule:
+    - This test checks the BEHAVIOR DOOR (validate_behavior_task) - does the door allow the task?
+    - The companion test checks the FIXTURE WRITABILITY (require_writable_fixture).
+    """
     tasks = behavior_bench.behavior_tasks()
     assert len(tasks) >= 10, f"only {len(tasks)} behaviour tasks read - the census saw nothing"
     offenders = []
