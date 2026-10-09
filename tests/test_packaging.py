@@ -327,7 +327,25 @@ def test_installed_console_scripts_run_from_a_real_install(tmp_path: Path, wheel
                         break
             except OSError:
                 time.sleep(0.25)
-        assert ready, "the installed minicc-web never answered /api/health within 60s"
+        if not ready:
+            # Batch 221: CI has been red here since 2026-10-08 with only "never
+            # answered /api/health within 60s", which is the wrong sentence when the
+            # server died instantly - the loop breaks on poll() and the message reads
+            # like a timeout. The output was already being captured, but only in the
+            # finally block, so it was lost whenever this path raised. Reap here and
+            # put the exit code and the tail into the failure.
+            exited_before_deadline = server.poll() is not None
+            server.terminate()
+            try:
+                out, _ = server.communicate(timeout=30)
+            except subprocess.TimeoutExpired:
+                server.kill()
+                out, _ = server.communicate()
+            raise AssertionError(
+                "the installed minicc-web never answered /api/health within 60s; "
+                f"exited_before_deadline={exited_before_deadline} rc={server.returncode}; "
+                f"output tail: {(out or '')[-2000:]}"
+            )
         with urllib.request.urlopen(f"http://127.0.0.1:{port}/", timeout=20) as home:
             assert home.status == 200, home.status
             html = home.read()
