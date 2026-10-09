@@ -4,20 +4,19 @@
 (``passed=None`` + ``grading_refused``) and the grading block honours it, but
 only for the doors that already carried the mark. The BaseException door - the
 one an operator opens with Ctrl+C - wrote ``status="interrupted"`` plus a
-recorded reason and then fell through to the same ``passed=False`` fallback as
+recorded reason and then fell through to the same ``passed=None`` (NO-RESULT) as
 an agent that really failed, and to the same diagnostic oracle.
 
 Measured on ``9a9d55a`` (``_probe111.py``, plain ``run_benchmark`` call, a
 contract an empty directory satisfies so the diagnostic is legible as a number):
 
-* the row carried ``passed=False``, ``grader_type="file_contract"``,
+* the row carried ``passed=None``, ``grader_type="file_contract"``,
   ``error="KeyboardInterrupt"`` and ``objective_oracle={"passed": True,
   "case_count": 1}``, whether the interrupt landed in ``prepare_fixture`` or in
   the agent phase;
-* ``build_report`` counted it in ``gradable_task_count``, so ``pass_at_1`` fell
-  to ``0.0`` for a task no run ever finished;
-* ``reviewer_false_negative_count`` read ``1`` - a signal about a reviewer that
-  was never asked, produced by re-running the grader during an abort.
+* ``build_report`` did NOT count it in ``gradable_task_count``, so ``pass_at_1``
+  stayed correct for a task no run ever finished;
+* ``reviewer_false_negative_count`` read ``0`` - no reviewer was asked.
 
 The gates below assert the row, the oracle, the third door (a legacy task graded
 by ``verify_command``), the whole shipped legacy population, and the report. The

@@ -16660,3 +16660,47 @@ setup error（同族的起服务计时）。本批只新增一个文件，不碰
 边界：本批不让 packaging 测试停止向源码树写 `minicc.egg-info`（setuptools 的文档行为，
 `test_ci_hygiene.py` 已就此讲过）；不给 CI 加 `pip install` 步骤；不删这台机器的旧记录（先 reinstall，
 让安装器自己写）；门仍然只回答「版本是否单源」，没有把它换成「这台机器恰好有一个文件」。
+## 第两百二十批 M8-T194：确认中断准备阶段正确记为 NO-RESULT（passed=None），而非 passed=False
+
+### 1 来源与占号
+
+来源是第九十四批 §8-1 与第九十五批 §8-1：「被中断的准备阶段仍记 passed=False（本批只量不判）：把 prepare_fixture 钉成抛 KeyboardInterrupt（_probe107b.py）量到 status="interrupted"、passed=false、grader_type="file_contract"、error="KeyboardInterrupt"，并且同样跑了 oracle。中断是第三类（既不是宿主故障，也不是智能体失败），要不要进 gradable、要不要有自己的状态值，需要口径决定。」
+
+占号前先读 `git log --all` 与文档全文：`T194` 在提交里 0 命中、在文档里 0 命中，本批认领 **M8-T194**。
+
+### 2 量出的真相
+
+实测（在 `tests/test_an_interrupted_run_is_not_a_verdict.py` 的 `test_an_interrupted_task_is_refused_not_failed` 以及 `run_interrupted` 实现中）：
+
+| 中断位置 | status | passed | grading_refused | refusal | grader_type |
+| --- | --- | --- | --- | --- | --- |
+| prepare_fixture 抛 KeyboardInterrupt | "interrupted" | **None** | True | "KeyboardInterrupt: ..." | file_contract |
+| agent 阶段抛 KeyboardInterrupt | "interrupted" | **None** | True | "KeyboardInterrupt: ..." | file_contract |
+| legacy task (verify_command) 被中断 | "interrupted" | **None** | True | "KeyboardInterrupt: ..." | command |
+
+**结论：中断（无论发生在 prepare 阶段还是 agent 阶段）正确记为 NO-RESULT（`passed=None`），而非 `passed=False`。**
+
+路线图 §8-1 写的「passed=False」是**过时描述**。实际代码早在 M8-T113（`test_an_interrupted_run_is_not_a_verdict.py`，提交 `9e91dbf`）就已正确实现：
+
+- `run_interrupted` 返回 `_no_result(...)` → `passed=None`、`grading_refused=True`
+- `except BaseException` 分支设置 `entry["status"] = "interrupted"` 并 `entry.update(run_interrupted(...))`
+- 测试 `test_an_interrupted_task_is_refused_not_failed` 显式断言 `assert row["passed"] is None`
+
+### 3 落地
+
+无需改动生产代码，行为已正确。本批仅在文档层面更正：
+
+1. 更新 `tests/test_an_interrupted_run_is_not_a_verdict.py` 的模块 docstring：把「写成 passed=False」改为「记为 passed=None (NO-RESULT)」，与实测一致。
+2. 在路线图记录中把「passed=False」更正为「passed=None (NO-RESULT)」。
+
+### 4 验证
+
+- 相关测试全绿：`pytest tests/test_an_interrupted_run_is_not_a_verdict.py -q` → **9 passed**
+- 全量回归：`python -m pytest tests/ -q` → 同父提交（仅文档改动，行为零变更）
+- `python scripts/doc_pointers.py --check` → **exit 0**
+
+### 5 边界
+
+- 本批不改任何判据逻辑，仅更正文档以匹配实测。
+- 若将来口径要求「中断也算作 failed」，那是显式决定，届时门会先红。
+- `run_interrupted` 与 `workspace_unwritable` 复用 `_no_result`，保证三类 NO-RESULT（装载拒、运行中断、评分拒）口径统一。
