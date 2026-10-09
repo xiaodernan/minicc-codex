@@ -9,7 +9,7 @@ Three claims, one per section:
    None)``.  Nothing declared or read the key, so the default won forever and
    the resolver even reported the documented object as an unread key.  The cases
    here load a real config file and route through a router built with web.py's
-   own keyword list.
+   own keyword list.  The census that pins that keyword list walks ``minicc/`` and compares each construction against the call this module's own helper makes; it used to iterate a typed pair of files and demand exactly one site in each, which left it red at ``web.py``'s second surface and blind to a third file.
 2. The vocabularies are mirrors.  ``config.py`` cannot import ``minicc.agent``
    (the agent package imports config), so every name list it validates against
    is a copy.  Each copy is pinned here against the consumer - in both
@@ -51,8 +51,6 @@ from minicc.config import (
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 ROUTER_SOURCE = REPO_ROOT / "minicc" / "agent" / "router.py"
-WEB_SOURCE = REPO_ROOT / "minicc" / "web.py"
-MAIN_SOURCE = REPO_ROOT / "minicc" / "main.py"
 STAGES = ("inspect", "planning", "implement", "verify", "repair", "review")
 
 # The example from the router's own docstring, kept here as the artifact a user
@@ -195,26 +193,303 @@ def test_both_documented_spellings_and_the_environment_layer_parse_equal(
     )
 
 
-def test_every_production_construction_site_is_the_one_this_test_copies(tmp_path: Path) -> None:
-    """``_route_as_web_does`` hand-copies the production call; pin it to the originals.
+#: The callee spellings the census counts: ``StageRouter(...)`` and the qualified
+#: ``router.StageRouter(...)`` are one and the same construction site.
+ROUTER_SYMBOL = "StageRouter"
+TEST_SOURCE = Path(__file__).resolve()
 
-    Two surfaces build the router today - ``web.py`` and, since M11-T7, ``main.py``.  A
-    keyword list that changed under this case would leave the reachability test proving
-    a composition nobody runs, and the refusal layer guarding one surface while the
-    other still hands the router whatever config.json contained.
-    """
-    expected = ["fallback_models", "stage_routing_config"]
-    for source in (WEB_SOURCE, MAIN_SOURCE):
-        tree = ast.parse(source.read_text(encoding="utf-8"), filename=str(source))
-        sites = [
-            sorted(keyword.arg for keyword in node.keywords if keyword.arg)
-            for node in ast.walk(tree)
-            if isinstance(node, ast.Call) and getattr(node.func, "id", None) == "StageRouter"
-        ]
-        assert sites == [expected], (
-            "%s 构造 StageRouter 的关键字表变了，本文件的「按生产形状路由」用例就不再是那条路径：%r"
-            % (source, sites)
+
+def _callee_final_name(node: ast.expr) -> str | None:
+    if isinstance(node, ast.Name):
+        return node.id
+    if isinstance(node, ast.Attribute):
+        return node.attr
+    return None
+
+
+def _sites_in(tree: ast.AST) -> list[tuple[int, int, tuple[str, ...]]]:
+    """(line, positional count, keyword names) for each router construction in a tree."""
+    return [
+        (
+            node.lineno,
+            len(node.args),
+            tuple(sorted(keyword.arg for keyword in node.keywords if keyword.arg)),
         )
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and _callee_final_name(node.func) == ROUTER_SYMBOL
+    ]
+
+
+def _construction_sites(text: str) -> list[tuple[int, int, tuple[str, ...]]]:
+    return _sites_in(ast.parse(text))
+
+
+def _sites_in_this_file(function: str) -> list[tuple[int, int, tuple[str, ...]]]:
+    """The constructions inside one top-level function of *this* module's source."""
+    tree = ast.parse(TEST_SOURCE.read_text(encoding="utf-8"), filename=str(TEST_SOURCE))
+    body = next(
+        (
+            node
+            for node in tree.body
+            if isinstance(node, ast.FunctionDef) and node.name == function
+        ),
+        None,
+    )
+    assert body is not None, "本文件里找不到 %s，比较对象无从读取" % (function,)
+    return _sites_in(body)
+
+
+def _copied_composition() -> tuple[int, tuple[str, ...]]:
+    """The call ``_route_as_web_does`` makes, read back off this file's own AST.
+
+    The census used to compare production against ``expected = [...]`` typed inside the
+    case, so the composition it claimed to pin was a copy of a memory of a copy: editing
+    the helper - the exact thing the docstring said it pinned - left it green.  Bound to
+    that one function because this file also carries ``_bare_router``, which deliberately
+    passes a smaller shape; a file-wide scan would average the two and match nothing.
+    """
+    sites = _sites_in_this_file("_route_as_web_does")
+    assert len(sites) == 1, (
+        "_route_as_web_does 里有 %d 个构造点（%r），「本文件复制的那份形状」不再唯一"
+        % (len(sites), sites)
+    )
+    return sites[0][1], sites[0][2]
+
+
+def _alias_bindings(text: str) -> list[str]:
+    """Names other than ``StageRouter`` that this text binds the class to.
+
+    A scan keyed on the callee's spelling cannot follow ``Bridge(...)`` written after
+    ``Bridge = StageRouter``.  Reporting the rebinding is what stops a blind spot from
+    counting as a clean census.
+    """
+    tree = ast.parse(text)
+    names: list[str] = []
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Assign)
+            and isinstance(node.value, ast.Name)
+            and node.value.id == ROUTER_SYMBOL
+        ):
+            names.extend(target.id for target in node.targets if isinstance(target, ast.Name))
+        elif isinstance(node, (ast.Import, ast.ImportFrom)):
+            for alias in node.names:
+                direct = alias.name == ROUTER_SYMBOL or alias.name.endswith("." + ROUTER_SYMBOL)
+                if direct and alias.asname and alias.asname != ROUTER_SYMBOL:
+                    names.append(alias.asname)
+    return names
+
+
+def _production_sources() -> list[tuple[str, str]]:
+    """(relative path, text) for every production module, from one walk of ``minicc/``.
+
+    Derived rather than hand-typed: the census used to iterate the pair
+    ``(WEB_SOURCE, MAIN_SOURCE)``, so a fourth surface that builds a router without the
+    config object - M8-T135's defect one level up - never entered its population at all.
+    """
+    package = REPO_ROOT / "minicc"
+    files = sorted(path for path in package.rglob("*.py") if path.is_file())
+    assert files, "minicc/ 下没有扫到任何 .py，普查的分母是空的"
+    assert Path(router_module.__file__).resolve().parent.parent == package.resolve(), (
+        "普查数的是 %s 下的模块，解释器导入的 minicc 却在别处（%s）：比较的两份代码不是同一棵树"
+        % (package, router_module.__file__)
+    )
+    listing = [
+        (path.relative_to(REPO_ROOT).as_posix(), path.read_text(encoding="utf-8"))
+        for path in files
+    ]
+    assert "minicc/agent/router.py" in {rel for rel, _ in listing}, (
+        "普查只走了 minicc/ 的顶层目录，子包里的构造点不在分母里（实得 %d 个文件）"
+        % (len(listing),)
+    )
+    return listing
+
+
+def _offending_sites(
+    listing: list[tuple[str, str]], composition: tuple[int, tuple[str, ...]]
+) -> list[tuple[str, int, int, tuple[str, ...]]]:
+    """Sites in a supplied listing whose call shape differs from the copy's."""
+    offenders: list[tuple[str, int, int, tuple[str, ...]]] = []
+    for rel, text in listing:
+        for line, positional, keywords in _construction_sites(text):
+            if (positional, keywords) != composition:
+                offenders.append((rel, line, positional, keywords))
+    return offenders
+
+
+def _describe(offenders: list[tuple[str, int, int, tuple[str, ...]]]) -> str:
+    return "; ".join(
+        "%s:%d 位置参数 %d 个、关键字 %s" % (rel, line, positional, list(keywords))
+        for rel, line, positional, keywords in offenders
+    )
+
+
+def test_every_production_construction_site_is_the_one_this_test_copies() -> None:
+    """Census every production construction of the router against this file's own copy.
+
+    ``_route_as_web_does`` builds the router the way the surfaces do, and this is what
+    stops that copy being a guess.  A site that omits ``stage_routing_config`` hands the
+    router ``None`` no matter what config.json says (M8-T135), while a site that grew a
+    knob the copy never passes means the reachability cases above route a composition
+    nobody runs.  Both directions are one equality over a population the walk derives:
+    three sites across ``main.py`` and ``web.py`` today, and whatever a fifth surface
+    brings.
+    """
+    composition = _copied_composition()
+    listing = _production_sources()
+    found = [site for _rel, text in listing for site in _construction_sites(text)]
+    assert found, (
+        "普查在 minicc/ 的 %d 个模块里一个 StageRouter 构造点都没找到：要么扫描瞎了，要么生产代码"
+        "不再构造路由器，而本文件的「按生产形状路由」用例还假设两者都在" % (len(listing),)
+    )
+    offenders = _offending_sites(listing, composition)
+    assert not offenders, (
+        "这些生产构造点与本文件 _route_as_web_does 的形状 %r 不等：%s。少一个 stage_routing_config 就是 "
+        "config.json 的 stage_routing 到不了路由器（M8-T135 的形状）；多一个则说明复制品过时了，"
+        "要么补进 helper，要么在生产里删掉它" % (composition, _describe(offenders))
+    )
+
+
+def test_the_census_compares_against_this_file_s_own_copy_not_a_typed_list() -> None:
+    """The equality above is worth nothing unless its operand is the helper's own call.
+
+    Two ways for it to go vacuous: ``_route_as_web_does`` grows a second construction (so
+    "the" composition is whichever ``ast.walk`` reaches last), or the census quietly ends
+    up comparing against ``_bare_router``'s deliberately smaller shape.  The second case
+    also pins that no keyword name is re-typed inside the census itself - the list this
+    section replaced was exactly that.
+    """
+    composition = _copied_composition()
+    helper = _sites_in_this_file("_route_as_web_does")
+    bare = _sites_in_this_file("_bare_router")
+    assert len(helper) == 1 and len(bare) == 1, (
+        "两个复制品各自应当只构造一次路由器，实测 %r / %r" % (helper, bare)
+    )
+    assert bare[0][1:] != composition, (
+        "_bare_router 的形状与「本文件复制的生产形状」现在完全相同（%r），上面按函数名读取比较对象这条"
+        "条款就不再区分两者" % (composition,)
+    )
+    census = next(
+        (
+            node
+            for node in ast.parse(TEST_SOURCE.read_text(encoding="utf-8")).body
+            if isinstance(node, ast.FunctionDef)
+            and node.name == "test_every_production_construction_site_is_the_one_this_test_copies"
+        ),
+        None,
+    )
+    assert census is not None, "找不到普查用例本身，「不许手抄名单」这条条款无从检查"
+    typed = [
+        element.value
+        for node in ast.walk(census)
+        if isinstance(node, (ast.List, ast.Tuple, ast.Set))
+        for element in node.elts
+        if isinstance(element, ast.Constant) and isinstance(element.value, str)
+    ]
+    assert not [name for name in composition[1] if name in typed], (
+        "普查用例里又写出了手抄的关键字名单 %r，比较对象就不再是 _route_as_web_does 调出来的那份形状"
+        % (typed,)
+    )
+
+
+def test_a_supplied_site_that_drops_a_keyword_is_named() -> None:
+    """Grade the census's own comparison on a listing no production file must be edited.
+
+    A green live census only shows today's three sites agree; it says nothing about the
+    case the old gate could not see at all - a second surface, in a third file, built
+    without the config object.
+    """
+    composition = _copied_composition()
+    rel = "minicc/second_surface.py"
+    dropping = (
+        "from minicc.agent.router import StageRouter\n"
+        "\n"
+        "\ndef build(config):\n"
+        "    return StageRouter(config.model, config.timeout, fallback_models=())\n"
+    )
+    offenders = _offending_sites([(rel, dropping)], composition)
+    assert [item[0] for item in offenders] == [rel], (
+        "一个不传 stage_routing_config 的构造点没有被普查点名，实测 %r" % (offenders,)
+    )
+    assert "stage_routing_config" not in offenders[0][3], (
+        "点名的理由必须是那个缺失的关键字，实测 %r" % (offenders[0],)
+    )
+    spelled = dropping.replace(
+        "fallback_models=()", "fallback_models=(), stage_routing_config=None"
+    )
+    assert not _offending_sites([(rel, spelled)], composition), (
+        "补上关键字之后普查仍然报错，说明比较的不是 _route_as_web_does 的形状：%r"
+        % (_offending_sites([(rel, spelled)], composition),)
+    )
+
+
+def test_a_supplied_qualified_construction_is_counted_as_a_site() -> None:
+    """``router.StageRouter(...)`` constructs the router too.
+
+    The scan used to test ``node.func.id``, which is ``None`` for an attribute callee, so
+    this spelling reported an empty census - the same "nothing happened" the hand-typed
+    file list produced, reached from the other side.
+    """
+    composition = _copied_composition()
+    rel = "minicc/qualified_surface.py"
+    qualified = (
+        "from minicc import agent\n"
+        "\n"
+        "\ndef build(config):\n"
+        "    return agent.router.StageRouter(config.model, config.timeout, fallback_models=())\n"
+    )
+    assert len(_construction_sites(qualified)) == 1, (
+        "限定拼写的构造点根本没被算成站点（实测 %r），普查对它瞎了"
+        % (_construction_sites(qualified),)
+    )
+    offenders = _offending_sites([(rel, qualified)], composition)
+    assert [item[0] for item in offenders] == [rel], (
+        "限定拼写的站点缺了关键字却没被点名：%r" % (offenders,)
+    )
+
+
+def test_a_rebinding_of_the_symbol_is_reported_not_skipped() -> None:
+    """``Bridge = StageRouter`` makes the shape census blind - the alias scan has to speak.
+
+    Both halves are asserted, because the interesting claim is the pair: the construction
+    below is genuinely invisible to the callee-spelling walk (zero sites), and the
+    rebinding is what a reader has to be told about instead of a clean census.
+    """
+    rebound = (
+        "from minicc.agent.router import StageRouter\n"
+        "\n"
+        "Bridge = StageRouter\n"
+        "\n"
+        "\ndef build(config):\n"
+        "    return Bridge(config.model, config.timeout, fallback_models=())\n"
+    )
+    assert _alias_bindings(rebound) == ["Bridge"], (
+        "没有报告这个改名绑定（实测 %r），下一行的「零站点」就是假的干净" % (_alias_bindings(rebound),)
+    )
+    assert _construction_sites(rebound) == [], (
+        "站点普查声称看见了通过别名完成的构造（%r），那它就不再需要绑定普查，上面的配对断言也得重写"
+        % (_construction_sites(rebound),)
+    )
+    plain = "from minicc.agent.router import StageRouter\n\nStageRouter(\"m\", 1.0)\n"
+    assert _alias_bindings(plain) == [], (
+        "普通导入被当成了改名绑定（%r），第 6 条用例的下限就此失去意义" % (_alias_bindings(plain),)
+    )
+
+
+def test_the_live_tree_rebinds_the_symbol_under_no_other_name() -> None:
+    """The alias scan over the real population, so the shape census's silence is honest.
+
+    Paired with the case above: that one proves the scan catches a rebinding, this one
+    proves nothing today rebinds - and if a surface ever does, the shape census can report
+    every site it can see while a call through the new name goes uncounted.
+    """
+    found = [
+        (rel, names) for rel, text in _production_sources() if (names := _alias_bindings(text))
+    ]
+    assert not found, (
+        "生产代码把 %s 重新绑定成了别的名字：%s。站点普查按被调对象的拼写取站点，穿过别名的构造调用"
+        "不会被计入，而本用例是唯一会说出来的地方" % (ROUTER_SYMBOL, found)
+    )
 
 
 # --- 2. the vocabularies are mirrors of the consumer --------------------------------
