@@ -468,14 +468,166 @@ def test_web_assets_only_contains_manifest_referenced_bundles():
 
 # --- repo-root cleanliness -------------------------------------------------
 
+#: Every artifact a person has actually left at the root and had to write down.
+#: Kept as the population the class table below is required to cover, so a rule can
+#: never forget what was already seen - and never grow a class nothing needs.
+_LEGACY_BANNED_NAMES = (
+    "repro_budget.py",
+    "repro_id_collision.py",
+    "prev_test.txt",
+    "testlist.txt",
+    "pytest_full.log",
+    "pytest_full.err",
+    "pytest_verify.log",
+    ".t1.log",
+    ".t1.err",
+    ".t2.log",
+    ".t2.err",
+    "=0.5",
+    "=0.99",
+)
+
+#: What makes a root-level file an artifact of a *run* rather than a source file:
+#: the shape it was written in.  A list of names can only cover the runs someone
+#: thought to write down - measured 2026-10-09, the root held
+#: ``full_pytest_130.log`` (4416 bytes ending ``1856 passed, 1 error in 1207.82s``)
+#: while ``test_no_repro_or_log_artifacts_in_repo_root`` passed in 0.24s, because
+#: that name is not in the list and no rule was there to catch it.
+#:
+#: ``.txt`` is deliberately not a suffix class: a lane's commit-message scratch is
+#: not a run's output, and reddening it would false-red mid-flight on a car that did
+#: nothing wrong.  The two ledger names are the exception, admitted by identity.
+_ARTIFACT_CLASSES = (
+    ("run output dump", (".log", ".err", ".out"), (), ()),
+    ("repro script", (".py",), ("repro_",), ()),
+    ("shell redirection fragment", (), ("=",), ()),
+    ("collected-test ledger", (), (), ("prev_test.txt", "testlist.txt")),
+)
+
+
+def _class_catches(
+    name: str, suffixes: tuple[str, ...], prefixes: tuple[str, ...], exact: tuple[str, ...]
+) -> bool:
+    """One name against one class: an exact name, a suffix, a prefix, or both.
+
+    A class carrying both a prefix and a suffix (``repro_`` + ``.py``) needs both;
+    one carrying either alone decides on that one.  Written as a rule, not as
+    fourteen names, so deleting a class reddens exactly the cases that feed it.
+    """
+    if name in exact:
+        return True
+    by_suffix = bool(suffixes) and name.endswith(suffixes)
+    by_prefix = bool(prefixes) and name.startswith(prefixes)
+    if prefixes and suffixes:
+        return by_prefix and by_suffix
+    return by_prefix or by_suffix
+
+
+def _catching_classes(name: str) -> list[str]:
+    """Every class label that claims *name*; empty means it is not an artifact."""
+    return [
+        label
+        for label, suffixes, prefixes, exact in _ARTIFACT_CLASSES
+        if _class_catches(name, suffixes, prefixes, exact)
+    ]
+
+
+def _root_artifacts(names: list[str]) -> list[tuple[str, tuple[str, ...]]]:
+    """Every *names* entry that is a run's output, with all the classes claiming it.
+
+    Takes a listing instead of reading the disk, so a witness can show that an empty
+    answer means "nothing matched" and not "nothing was looked at".
+    """
+    rows: list[tuple[str, tuple[str, ...]]] = []
+    for name in names:
+        labels = _catching_classes(name)
+        if labels:
+            rows.append((name, tuple(labels)))
+    return rows
+
+
+def _live_root_files() -> list[str]:
+    return sorted(p.name for p in REPO_ROOT.iterdir() if p.is_file())
+
+
+def test_a_run_log_is_named_whatever_its_batch_number() -> None:
+    """The class rule sees what the thirteen names could not.
+
+    ``full_pytest_130.log`` is absent from the legacy list (measured: the membership
+    test is False), so under the old gate a file of exactly the class this file's
+    docstring forbids read as clean.
+    """
+    rows = _root_artifacts(["full_pytest_130.log", "setup.py", "README.md", "conftest.py"])
+    assert rows == [("full_pytest_130.log", ("run output dump",))], rows
+
+
+def test_the_class_table_covers_the_population_the_name_list_enumerates() -> None:
+    """The floor is derived from ``_LEGACY_BANNED_NAMES``, never from a typed count.
+
+    Two clauses, both read off the same scan.  Uncovered: a known artifact that now
+    matches no class can come back uncaught.  Redundant: a class that is the sole
+    catcher of nothing measures nothing, and a belt nobody can show the use of is
+    how a rule quietly stops being one.
+    """
+    uncovered = [name for name in _LEGACY_BANNED_NAMES if not _catching_classes(name)]
+    assert uncovered == [], (
+        "these artifacts were known to the old list and match no class now, so "
+        "they would sit at the root unseen: %s" % uncovered
+    )
+    sole = {
+        labels[0]
+        for labels in (_catching_classes(name) for name in _LEGACY_BANNED_NAMES)
+        if len(labels) == 1
+    }
+    redundant = [label for label, *_ in _ARTIFACT_CLASSES if label not in sole]
+    assert redundant == [], (
+        "these classes claim no legacy name to themselves, so nothing measures "
+        "what they are for: %s" % redundant
+    )
+
+
+def test_a_clean_root_reads_empty() -> None:
+    """The accept side: sources, config, and a lane's scratch are not artifacts.
+
+    ``msgfile.txt`` is another car's commit-message tool sitting at the root right
+    now; a rule that reddened it would block a lane mid-flight, so ``.txt`` is not a
+    banned shape - and the last two assertions say that in the rule's own terms.
+    """
+    listing = [
+        ".gitignore", "MANIFEST.in", "README.md", "conftest.py", "package.json",
+        "package-lock.json", "pyproject.toml", "setup.py", "minicc.config.example",
+        ".env", ".coverage", "msgfile.txt",
+    ]
+    assert _root_artifacts(listing) == [], _root_artifacts(listing)
+    assert _catching_classes("pytest_full.log") == ["run output dump"]
+    assert _catching_classes("msgfile.txt") == [], _catching_classes("msgfile.txt")
+    assert not any(".txt" in suffixes for _, suffixes, _, _ in _ARTIFACT_CLASSES), (
+        "a .txt class would redden another lane's commit-message scratch mid-flight; "
+        "the two ledger names are admitted by identity instead"
+    )
+
+
+def test_the_live_repo_root_carries_no_run_output() -> None:
+    """The claim in this file's docstring, measured over the directory itself.
+
+    On the warm main tree this case was red before the machine step, naming
+    ``full_pytest_130.log`` - that reading is the defect.  The log was *moved* (not
+    deleted) into this unit's scratch directory, so the numbers it carries stay
+    readable while the root the claim is about stops holding them.  A fresh worktree
+    plane never held the file, so its green there is about the repository and this
+    tree's green is about the machine: the refusal prints the whole live listing.
+    """
+    listing = _live_root_files()
+    offenders = _root_artifacts(listing)
+    assert offenders == [], (
+        "these are outputs of a run left in the directory every contributor works "
+        "from: %s || root holds %d files: %s"
+        % (offenders, len(listing), ", ".join(listing))
+    )
+
 
 def test_no_repro_or_log_artifacts_in_repo_root():
-    banned = [
-        "repro_budget.py", "repro_id_collision.py", "prev_test.txt", "testlist.txt",
-        "pytest_full.log", "pytest_full.err", "pytest_verify.log",
-        ".t1.log", ".t1.err", ".t2.log", ".t2.err", "=0.5", "=0.99",
-    ]
-    present = [name for name in banned if (REPO_ROOT / name).exists()]
+    present = [name for name in _LEGACY_BANNED_NAMES if (REPO_ROOT / name).exists()]
     assert not (REPO_ROOT / ".tmp_audit_repro").exists()
     assert present == [], f"stray artifacts in repo root: {present}"
 
