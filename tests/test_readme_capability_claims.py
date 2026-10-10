@@ -26,11 +26,13 @@ import pytest
 REPO = pathlib.Path(__file__).resolve().parent.parent
 README = REPO / "README.md"
 
-#: Anti-vacuity floors. The list carried 13 env vars, 7 flags, 6 endpoints and 3 workspace
-#: files when this gate was written; the floors sit below that so ordinary edits pass and
-#: an empty or unparsed section cannot.
+#: Anti-vacuity floors. The capability list carried 13 env vars, 7 flags in that section,
+#: 6 endpoints and 3 workspace files when this gate was written; the floors sit below that
+#: so ordinary edits pass and an empty or unparsed section cannot. Flags are now extracted
+#: from the whole README (the capability list plus the install/run examples), which names
+#: 19 distinct flags - the floor sits well below that.
 MIN_ENV_NAMES = 10
-MIN_FLAGS = 5
+MIN_FLAGS = 12
 MIN_ENDPOINTS = 4
 MIN_WORKSPACE_FILES = 2
 
@@ -43,12 +45,15 @@ def _capability_section() -> str:
 
 
 def _whole_readme() -> str:
-    """Endpoints are named where they are used, not only in the capability list.
+    """Endpoints and CLI flags are named where they are used, not only in the capability list.
 
-    The list names one (the history search); ``/api/metrics``, ``/api/audit`` and the task
-    routes are documented in the sections that explain them, so the endpoint check reads
-    the whole file. Environment variables, flags and workspace files are the list's
-    vocabulary and stay scoped to it.
+    The list names one endpoint (the history search); ``/api/metrics``, ``/api/audit`` and
+    the task routes are documented in the sections that explain them, so the endpoint check
+    reads the whole file. The same is true of CLI flags: the capability list names a few
+    (``--permission-mode``, ``--yolo``, ``--verbose-tools`` ...), but the install/run
+    examples name more (``--host``, ``--port``, ``--version``, ``--session-id``,
+    ``--resume``), so the flag check reads the whole file too. Environment variables and
+    workspace files stay scoped to the capability list - they are that section's vocabulary.
     """
     return README.read_text(encoding="utf-8")
 
@@ -74,10 +79,25 @@ def _mentions(source: str, name: str) -> bool:
     return re.search(rf"(?<![A-Za-z0-9_]){re.escape(name)}(?![A-Za-z0-9_])", source) is not None
 
 
+def _readme_flag_tokens(text: str) -> list[str]:
+    """Every ``--flag`` that appears inside a code region of the README.
+
+    The capability list writes flags as inline `` `--flag` `` spans, but the install/run
+    examples put them in fenced ``` blocks - a single-backtick regex misses those. This
+    pools both inline spans and fenced blocks so a flag documented only in a run example is
+    still checked against the parser.
+    """
+    inline = re.findall(r"`([^`]+)`", text)
+    fenced = re.findall(r"```[a-zA-Z0-9]*\n(.*?)```", text, re.S)
+    pool = "\n".join(inline + fenced)
+    return sorted(set(re.findall(r"--[a-z][a-z0-9-]+", pool)))
+
+
 def test_the_extraction_finds_a_list_of_real_size() -> None:
     section = _capability_section()
     assert len(re.findall(r"`MINICC_[A-Z0-9_]+", section)) >= MIN_ENV_NAMES, section[:400]
-    assert len(re.findall(r"`--[a-z][a-z0-9-]+", section)) >= MIN_FLAGS, section[:400]
+    # Flags are extracted from the whole README (inline spans + fenced run examples).
+    assert len(_readme_flag_tokens(_whole_readme())) >= MIN_FLAGS, section[:400]
     assert len(re.findall(r"/api/[A-Za-z0-9_/.-]+", _whole_readme())) >= MIN_ENDPOINTS, section[:400]
 
 
@@ -93,13 +113,37 @@ def test_every_environment_variable_the_list_names_is_read_somewhere() -> None:
     )
 
 
-def test_every_flag_the_list_names_exists_in_a_parser() -> None:
-    section = _capability_section()
-    flags = sorted(set(re.findall(r"`(--[a-z][a-z0-9-]+)", section)))
+def _check_flags(text: str) -> None:
+    flags = _readme_flag_tokens(text)
     assert len(flags) >= MIN_FLAGS, flags
     source = _sources()
     missing = [flag for flag in flags if not _mentions(source, flag)]
-    assert not missing, f"the capability list names flags no parser declares: {missing}"
+    assert not missing, f"the README names flags no parser declares: {missing}"
+
+
+def test_every_flag_the_readme_names_exists_in_a_parser() -> None:
+    # Flags are extracted from the whole README (inline spans + fenced run examples): the
+    # capability list plus the install/run examples. An install/run example that names a flag
+    # the parser does not declare (or a flag that was renamed away) turns this red - which is
+    # the point.
+    _check_flags(_whole_readme())
+
+
+def test_the_flag_gate_catches_a_renamed_fenced_flag() -> None:
+    # Mutation arm for the widened (fenced-block-aware) extraction: rename ``--host`` - an
+    # install/run example flag that lives inside a fenced ``` block, not an inline span - and
+    # the gate must go red. ``_mentions`` word-boundary matching is already proven by the
+    # batch 225 env-var arm; this arm proves the fenced-block path is actually checked.
+    original = "--host"
+    renamed = "--renamed-host"
+    readme = _whole_readme()
+    assert original in readme, "anchor: original flag must be present"
+    tampered = readme.replace(original, renamed)
+    assert original not in tampered and renamed in tampered, (
+        "anchor: the rename must have actually been applied and must not keep the old name as a prefix"
+    )
+    with pytest.raises(AssertionError):
+        _check_flags(tampered)
 
 
 def test_every_endpoint_the_readme_names_is_routed() -> None:

@@ -17105,3 +17105,71 @@ README 仍教人跑一个已不存在的东西，且此前没人发现。本批�
 
 - 把 `test_readme_capability_claims.py` 的旗标门从"只扫能力清单一节"扩到"全文"，顺带覆盖安装/运行示例里的 `--host`/`--port`/`--version`；届时本批 §6 的边界可摘掉。
 - 批 216 §4 还登记过 `pass_at_1_ex_infra` 在 `GATE_FLOORS` 的登记问题；批 218 的 56 处宽异常处理器普查（第 499 行附近）仍是开口项。
+
+## 第二百二十七批 把 flag 门从"只扫能力清单"扩到"全文"——**并修掉"围栏代码块里的 flag 抓不到"的漏网**
+
+### 1 起因：批 226 §7 登记的首个候选
+
+批 226 的边界里写明"CLI flag 识别在安装/运行示例里（`--host`/`--port`/`--version`）明确不在此批，留给后续 widen flag scope 的批"。本批就是它：
+把批 225 的 `test_every_flag_the_list_names_exists_in_a_parser` 从只扫「当前能力」一节扩到全文，顺带覆盖安装/运行示例里的 flag。
+
+### 2 关键发现：第一版"扩范围"是漏的
+
+直接把 `_capability_section()` 换成 `_whole_readme()` 后跑，flag 数只从 7 涨到 **8**——安装/运行示例的 `--host`/`--port`/`--version` 一个都没进来。
+原因：批 225 的抽取是 `re.findall(r"`(--[a-z][a-z0-9-]+)", text)`，只认**单反引号**包裹的 flag；
+而 README 的安装/运行示例把命令写在**围栏代码块**（` ``` `）里，单反引号正则根本扫不到围栏块内部。
+
+这不是"范围没扩够"，是"抽取正则够不到那类写法"。修了：新增 `_readme_flag_tokens(text)`，先把**行内反引号 span** 和 **围栏代码块**都汇成一个代码区池，再抽 `--flag`。
+
+### 3 先手工核一遍（结论：今天 18 个 flag 全部对得上）
+
+全文代码区共抽出 **18** 个 `--flag`：
+
+```
+--check --host --json-out --markdown-out --max-tasks --permission-mode --port
+--results --resume --run --session-id --suite --task-timeout --token
+--verbose-tools --version --workspace --yolo
+```
+
+逐个对 parser 源码（`minicc/main.py`、`minicc/web.py`、`minicc/benchmarks.py`、`scripts/route_coverage.py`、`scripts/doc_pointers.py`）：
+
+- `--host`/`--port`/`--token`/`--no-auth` → `web.py`；
+- `--workspace`/`--session-id`/`--resume`/`--version`/`--yolo`/`--verbose-tools`/`--permission-mode` → `main.py`；
+- `--suite`/`--run`/`--results`/`--max-tasks`/`--task-timeout`/`--json-out`/`--markdown-out` → `benchmarks.py`（注意 `--run` 的 `add_argument` 跨行写，单行 grep 会漏，已逐行确认 `benchmarks.py:689` 确有声明）；
+- `--check` → 两个 scripts 都有。
+
+**今天没有失效 flag**——这是读数，不是空转。
+
+### 4 固化成门：改 `tests/test_readme_capability_claims.py`
+
+- flag 抽取改走 `_readme_flag_tokens(_whole_readme())`（行内 span + 围栏块）；
+- `MIN_FLAGS` 从 5 提到 **12**（当下 18，留缓冲仍具防空下限意义）；
+- **env 变量与 workspace 文件仍只扫能力清单**——那是该节的词汇，不该因"全文"而把别处偶然出现的 `MINICC_*` 也算进来（会引入噪声与误红）；
+- 文件级 docstring 与 `_whole_readme` docstring 的边界说明同步改写：flags 走全文，env/workspace 走能力清单。
+
+### 5 变异臂：证明扩范围后门仍能抓失效 flag
+
+加 `test_the_flag_gate_catches_a_renamed_fenced_flag`：把 `--host`（它恰好住在围栏块里，不是行内 span）改名成 `--renamed-host`，
+断言门转红。改名刻意**避开"旧名是新名前缀"**（批 225 v1 的坑）：`--renamed-host` 不以 `--host` 开头，锚点 `original not in tampered` 才成立。
+`_mentions` 词边界本身已由批 225 的 env 臂证过，本臂额外证明**围栏块这条新抽取路径确实在被检查**。
+
+### 6 证据
+
+| 项 | 读数 |
+| --- | --- |
+| 第一版（仅换 scope，不修抽取） | flag 7 → 8，安装/运行 flag 仍漏 |
+| 修后（`_readme_flag_tokens`） | 全文 18 个 flag，全部解析得到 → 7 passed → 加臂后 **8 passed** |
+| 变异臂 | 改名 `--host` → `--renamed-host` → 门转红，锚点生效 |
+
+### 7 边界（明确不声称）
+
+- 门只验 **flag 名字存在**，**不验行为**（如 `--host 0.0.0.0` 强制认证的行为归 `test_web_security`）。
+- env 变量、workspace 文件**仍只扫「当前能力」一节**，不扩到全文（避免噪声误红）——这是有意的，不是遗漏。
+- 本机**没装 ruff/mypy**（CI 里跑），本批**没有**对改动文件跑静态检查。
+- 工作树里**有别会话的在途改动**（`scripts/impacted_tests.py` 两文件），本批未触碰。
+
+### 8 下一批候选（本批实测带出来的）
+
+- 批 216 §4 还登记过 `pass_at_1_ex_infra` 在 `GATE_FLOORS` 的登记问题；
+- 批 218 的 56 处宽异常处理器普查（第 499 行附近）仍是开口项；
+- README 能力清单与安装/运行示例现已各有门，但"行为级"验收（如 `--host 0.0.0.0` 是否真强制认证）仍只在各功能自己的门里，未回到 README 门——属设计边界，不强行并入。
