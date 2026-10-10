@@ -16905,3 +16905,67 @@ D3 才追不到名字。本臂实际跑在私有平面上，平面的根从来�
 - `abspath`/`realpath` 依赖真实文件系统，植入件只在临时目录里跑，**不创建真实文件**，只比对字符串，所以不依赖真实磁盘结构。
 - `casefold` 比 `lower()` 更符合 Unicode 标准，植入件用 `str.casefold()` 而非 `lower()`。
 - 门的结构不变：每个拼写一格，每格一臂，删谁红谁，删了还原绿。
+
+## 第二百二十四批 CI 两天来的两条红都结掉：**一条是"装好的服务没有 key"，一条是"CI 是浅克隆"——两条都是环境，两条都没人登记**
+
+### 1 起因
+
+本批开工先读 CI 历史：`main` 上**自 2026-10-08 12:03 起每一次运行都是 failure**（连续约两天）。
+第一条红是行码互绑门（`test_task_table_claim_matches_landed_stop.py`），从 10-08 13:30 起换成
+打包门（`test_packaging.py::test_installed_console_scripts_run_from_a_real_install`）。
+**两条红都没有在路线图里登记过**——所以先做的是让它们**说得出原因**。
+
+### 2 第一步：让打包门说原因（本血脉第二百二十一批的那次改动）
+
+那道门原本只有一句话：`the installed minicc-web never answered /api/health within 60s`。
+而它的轮询循环在 `server.poll() is not None` 时**直接 break**——服务**瞬间退出**也会被报成"超时"；
+更要紧的是服务输出**已经被捕获**，却只在 `finally` 里读走，于是**恰恰在这条路径抛错时丢掉**。
+第二百二十一批把失败分支改成自己回收进程并报出退出码、是否提前退出、以及输出尾部。
+
+**下一次 CI 就把它要的信息交出来了**：
+
+```
+AssertionError: the installed minicc-web never answered /api/health within 60s;
+exited_before_deadline=True rc=2; output tail: usage: minicc-web [-h] [--workspace WORKSPACE] ...
+minicc-web: error: MINICC_API_KEY 未设置。复制 minicc.config.example 为 .env 并填入 key，或设置环境变量 …
+```
+
+**根因**：装好的服务是 **fail-loud** 的（`config.py` 的 key 检查），CI 里没有 key → 进程**立刻以 rc=2 退出**。
+
+**为什么它一直红、而本机绿**：这条门是**第二百零三批新写的**，它起服务时**不传 env**，
+于是 key 只能来自**机器上能解析到的配置**——本机有 `~/.config/minicc/config.json`（286 字节，9-18）与仓库根 `.env`（928 字节，10-03），**CI 两样都没有**。
+所以它**从写出来那天起就没在 CI 绿过**（本机绿是环境给的）。
+
+**处置**：给服务子进程显式传 dummy key（`MINICC_API_KEY` / `MINICC_BASE_URL` / `MINICC_MODEL`）。
+**形状是对的**：这条门问的是**产物**（入口包装、打包的 workbench 载荷、能服务它们的服务），**不是 key 从哪来**，所以它自带一个。
+
+### 3 第二步：行码互绑门要的是历史，而 CI 只给了一个提交
+
+那条门说 `M8-T19 row names 0185533, which is not a commit in this repository`。实测：
+- `git cat-file -t 0185533` → **commit**（它是 M8-T53）；
+- 本机跑整文件 → **5 passed in 0.69s**；
+- `ci.yml` 的 checkout **没有 `fetch-depth`** → `actions/checkout` 默认**浅克隆（1 个提交）**，git 当然看不见它。
+
+**处置**：给跑 pytest 的那个 job 的 checkout 加 **`fetch-depth: 0`**。
+理由：**这条门问的是关于历史的问题，环境就该能回答它**——而不是教门在看不见时跳过。
+
+### 4 证据
+
+| 项 | 读数 |
+| --- | --- |
+| 打包门的真因（CI 日志） | `rc=2` + `minicc-web: error: MINICC_API_KEY 未设置` |
+| 本机机制验证 | 同一服务：**无 key 时起得来**（本机有用户配置）；**显式给 dummy key 也起得来**（`rc=124` 被 timeout 杀掉＝在跑） |
+| 行码互绑门 | 本机 **5 passed in 0.69s**；`0185533` 是 M8-T53 |
+| `ci.yml` 改动 | `pytest` job 的 checkout 加 `fetch-depth: 0`（YAML 解析校验通过） |
+| 提交 | `9a7b419`（诊断）、`767b7d8`（两处修复），均已推送 |
+| **CI** | **run 38061729782 = success（7m25s）** —— 自 10-08 12:03 起**第一次绿** |
+
+### 5 边界（明确不声称）
+
+- **打包门本批没有端到端跑通**：它要先构建 wheel，而本机构建被 **safe-delete 垫片**拦住
+  （`SAFE_DELETE_BULK_CONFIRM_REQUIRED`，`build/` 下 123 个文件 > 阈值 50）。
+  本批验证的是**机制**（给 key 服务能起、不给则 rc=2）与 **CI 的绿**，不是本机复现。
+- **CI 绿只说明"这次运行通过了"**：本批**没有**核"另外几个 job 是否也覆盖到"，也没有把三条红之外的历史红做完整清点。
+- `fetch-depth: 0` 让 pytest job 取全历史，**代价是克隆时间变长**——本批**没有**量这个代价（读数在 run 时长里，7m25s 与之前同量级）。
+- 本批**没有**动那两条门本身的判据（只改环境与传参），也**没有**改 `config.py` 的 fail-loud 行为——
+  "没有 key 就不启动"是产品决定，本批只让**测试**满足它。
