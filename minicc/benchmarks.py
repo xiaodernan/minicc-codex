@@ -148,7 +148,11 @@ def _oracle_says_pass(row: dict[str, Any]) -> bool:
         return False
     if policy == "deny" or policy == "require_case_count":
         return False
-    return row.get("grader_type") in bench_tasks.GRADER_TYPES
+    gt = row.get("grader_type")
+    if not isinstance(gt, str):
+        # Invalid grader_type (dict/list/bytes/int/None/empty string) cannot be in GRADER_TYPES
+        return False
+    return gt in bench_tasks.GRADER_TYPES
 
 
 def _write_results(path: Path, results: list[dict[str, Any]]) -> None:
@@ -224,6 +228,7 @@ def build_report(tasks: list[dict[str, Any]], results: list[dict[str, Any]] | No
     rows: list[dict[str, Any]] = []
     for task in tasks:
         recorded = by_id.get(task["id"], {})
+        gt = recorded.get("grader_type")
         row = {
             "task_id": task["id"],
             "category": task.get("category", "uncategorized"),
@@ -247,8 +252,11 @@ def build_report(tasks: list[dict[str, Any]], results: list[dict[str, Any]] | No
             # judge it, which is not the same claim, and the report is the one
             # place a reader cannot tell the two apart. ``not_run`` rows have
             # said None since M8-T139; the other statuses now agree with them.
-            "grader_type": (recorded.get("grader_type")
-                            if recorded.get("status", "not_run") != "not_run" else None),
+            "grader_type": (
+                (gt if isinstance(gt, str) else None)
+                if recorded.get("status", "not_run") != "not_run"
+                else None
+            ),
             # Rows are rebuilt key by key, so a field the grader added is invisible
             # downstream unless it is copied here (M8-T81 gate).
             "grading_refused": bool(recorded.get("grading_refused")),
