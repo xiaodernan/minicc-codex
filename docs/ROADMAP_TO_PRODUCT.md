@@ -17032,3 +17032,76 @@ E  AssertionError: the capability list names environment variables no source rea
 - 抽取是**正则级**的：只认反引号里的形态；README 里不带反引号的承诺**不在门内**。
 - 本机**没装 ruff/mypy**（CI 里跑），本批**没有**对新增文件跑静态检查。
 - 本批**没有**核 README 的其它章节（安装/运行示例等）与代码的一致性——只核了能力清单与端点。
+
+## 第二百二十六批 README 的安装/运行示例第一次有了门——**补批 225 边界里明写的"没核"那一半**
+
+### 1 起因：批 225 自己把这块划到了边界外
+
+批 225 把「当前能力」一节钉进了门，却在其 §6 边界明写："本批**没有**核 README 的其它章节（安装/运行示例等）与代码的一致性"。
+README 的「启动 / 安装到别的机器 / 断线后继续」等章节点名了一串**要你真的去跑**的制品：
+
+- `python -m minicc.main` / `python -m minicc.benchmarks` —— 两个 `-m` 模块；
+- `scripts\build-dist.ps1` / `scripts/route_coverage.py` / `scripts/doc_pointers.py` —— 三个脚本路径；
+- `npm run build:web` / `check:web` / `test:optimization` / `test:web` —— 四个 npm 脚本；
+- `.venv\Scripts\minicc.exe` / `minicc-web.exe` —— 两个控制台脚本。
+
+这些是被引用、却**无门**的制品：删掉或改名一个脚本、撤掉一条 npm 脚本、不再声明某个控制台脚本，
+README 仍教人跑一个已不存在的东西，且此前没人发现。本批把这一半补上，与批 225 形成"能力清单词汇 + 安装/运行制品"两条互补门。
+
+### 2 先手工核一遍（结论：今天都对得上）
+
+| 被引用制品 | 今天的状态 |
+| --- | --- |
+| `minicc/main.py` / `minicc/benchmarks.py` | 文件存在，且各带 `if __name__ == "__main__":` 守卫 |
+| `scripts/build-dist.ps1` / `route_coverage.py` / `doc_pointers.py` | 三个文件均存在 |
+| `package.json` 的 `scripts` | `build:web`/`check:web`/`test:optimization`/`test:web` 四键都在 |
+| `pyproject.toml` 的 `[project.scripts]` | `minicc = "minicc.main:main"` 与 `minicc-web = "minicc.web:main"` 都在 |
+
+**今天没有陈旧引用**——这是读数，不是空转。
+
+### 3 固化成门：`tests/test_readme_install_run_claims.py`（9 格）
+
+- 四类抽取全部**数据驱动**（从 README 文本正则抽，README 删了示例就会转红，不是手抄清单）：
+  - `_python_modules`：`python -m (minicc\.[A-Za-z0-9_.]+)` → 模块文件存在 + 有 `__main__` 守卫；
+  - `_script_paths`：`scripts[\\/][…]\.[扩展名]`（反斜杠归一化）→ 文件存在；
+  - `_npm_scripts`：`npm run ([A-Za-z0-9_:]+)` → 在 `package.json` 的 `scripts` 里声明；
+  - `_console_scripts`：`\b(minicc-web|minicc)\.exe` → 在 `pyproject.toml` 的 `[project.scripts]` 里声明。
+- **防空下限**：模块 ≥1、脚本路径 ≥2、npm 脚本 ≥3、控制台脚本 ≥2（当下 2/3/4/2）——节被删或抽取器失效不能"因啥都没找到而通过"。
+- **显式复用批 225 的词边界纪律**：本文件自带 `_mentions`，且每个真实检查都是"名字作为整体 token 出现"，不做子串匹配。
+- **只验存在不验行为**（与批 225 同口径，见 §6 边界）。
+
+### 4 变异臂：四个臂各换一个被引制品名，门都转红
+
+批 225 第一臂踩过的坑——"旧名是新名前缀 + `replace(...,1)` 只换第一处"——本批从一开始规避：
+新名取**不含旧名前缀**的形态（模块改 `minicc.legacy_benchmarks`、npm 脚本改 `legacy_check_web`、控制台脚本改 `minicc-legacy-web.exe`、脚本路径改一个不存在的名字），且全量替换，锚点断言 `original not in tampered and renamed in tampered`。
+
+| 臂 | 变异（原文 → 改名后） | 门的反应 |
+| --- | --- | --- |
+| `test_the_gate_catches_a_renamed_module` | `minicc.benchmarks` → `minicc.legacy_benchmarks` | 改名后模块对应的 `.py` 文件不在仓库 → AssertionError |
+| `test_the_gate_catches_a_removed_script_path` | `scripts/route_coverage.py` → 改名为不存在的名字 | 改名后的脚本路径不在仓库 → AssertionError |
+| `test_the_gate_catches_a_dropped_npm_script` | `npm run check:web` → 改名为不存在的脚本名 | `package.json` 无此脚本 → AssertionError |
+| `test_the_gate_catches_a_removed_console_script` | `minicc-web.exe` → 改名为不存在的名字 | 命中数跌到 1 < 下限 2 → AssertionError |
+
+四个臂都**先有锚点断言（变异真的落下）再 `pytest.raises`**，避免"臂没生效却假装红了"那种假证。
+
+### 5 证据
+
+| 项 | 读数 |
+| --- | --- |
+| 手工核（安装/运行制品） | 2 模块 / 3 脚本路径 / 4 npm 脚本 / 2 控制台脚本，全部对得上 |
+| 门（`.venv` 跑定向） | **9 passed in 0.35s**（5 真实检查 + 4 变异臂 + 1 下限） |
+| 变异臂 | 4/4 都让门转红，且锚点断言确认变异生效 |
+
+### 6 边界（明确不声称）
+
+- 门只验**制品存在**，**不验行为**：`minicc --version` 真不真打印、`npm run check:web` 绿不绿，不在本门内（行为归打包门 / web smoke 门）。
+- 抽取是**正则级**的：只认 README 里那几种写法；README 里不带那几种形态的承诺（如 `pip install -e .`、HTTP 例子）**不在门内**。
+- **CLI 旗标识别在安装/运行示例里（如 `--host` / `--port` / `--version`）明确不在此批**：批 225 已管「当前能力」一节的旗标，安装/运行独有旗标很少，留给后续"把 flag 门扩到全文"的批，不在此重复造门。
+- `Invoke-RestMethod` / curl 的 HTTP 例子（`/api/tasks/batch`、`/api/audit`）由批 225 的全文端点门覆盖，不重复。
+- 本机**没装 ruff/mypy**（CI 里跑），本批**没有**对新增文件跑静态检查。
+- 工作树里**有别会话的在途改动**（`scripts/impacted_tests.py` 两文件），本批未触碰、未提交；本批只新增 `tests/test_readme_install_run_claims.py` 一个文件。
+
+### 7 下一批候选（本批实测带出来的）
+
+- 把 `test_readme_capability_claims.py` 的旗标门从"只扫能力清单一节"扩到"全文"，顺带覆盖安装/运行示例里的 `--host`/`--port`/`--version`；届时本批 §6 的边界可摘掉。
+- 批 216 §4 还登记过 `pass_at_1_ex_infra` 在 `GATE_FLOORS` 的登记问题；批 218 的 56 处宽异常处理器普查（第 499 行附近）仍是开口项。
