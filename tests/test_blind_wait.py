@@ -86,6 +86,7 @@ name must not become a way to park a thread without writing the claim down.
 from __future__ import annotations
 
 import ast
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -707,6 +708,7 @@ def test_both_census_gates_answer_the_same_from_any_directory() -> None:
             text=True,
             encoding="utf-8",
             errors="replace",
+            env=dict(os.environ, PYTHONIOENCODING="utf-8"),
         )
         assert result.returncode == 0, (
             f"the census reads {len(suite_modules())} modules from this file's own directory, but the "
