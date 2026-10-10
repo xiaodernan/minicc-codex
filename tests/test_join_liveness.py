@@ -40,6 +40,12 @@ from pathlib import Path
 
 JOIN_METHODS = {"join", "is_alive"}
 
+#: The suite this census reads: the directory this file lives in, never the
+#: directory the launcher stood in.  Measured 2026-10-11: with the old
+#: ``Path("tests")`` walk, ``cd tests && pytest test_join_liveness.py`` read
+#: 0 modules and red with 「the gate scanned 0 modules under tests/」.
+SUITE_DIR = Path(__file__).resolve().parent
+
 
 def _thread_expr(node: ast.AST, bare_thread: bool) -> bool:
     """``threading.Thread(...)``, bare ``Thread(...)``, or a list of either."""
@@ -299,7 +305,7 @@ def test_the_scanner_sees_whether_a_join_can_time_out() -> None:
 
 
 def test_every_thread_join_in_the_suite_is_followed_by_a_liveness_read() -> None:
-    files = sorted(Path("tests").glob("*.py"))
+    files = sorted(SUITE_DIR.glob("*.py"))
     assert len(files) >= 70, (
         f"the gate scanned {len(files)} modules under tests/ - if the suite moved, "
         f"this test is green because it found nothing, not because it passed"
