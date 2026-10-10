@@ -17173,3 +17173,83 @@ README 仍教人跑一个已不存在的东西，且此前没人发现。本批�
 - 批 216 §4 还登记过 `pass_at_1_ex_infra` 在 `GATE_FLOORS` 的登记问题；
 - 批 218 的 56 处宽异常处理器普查（第 499 行附近）仍是开口项；
 - README 能力清单与安装/运行示例现已各有门，但"行为级"验收（如 `--host 0.0.0.0` 是否真强制认证）仍只在各功能自己的门里，未回到 README 门——属设计边界，不强行并入。
+## 第二百二十八批 — M8-T196 — 构造点普查数的是手抄的两个文件，不是它点名的那一类（最后一处 HEAD 红由门自己关掉）
+
+缺陷：`tests/test_stage_routing_config_reaches_the_router.py` 的
+`test_every_production_construction_site_is_the_one_this_test_copies` 自称「每一个生产构造点」，
+实际做四件与这句话无关的事：总体是手抄的 `(WEB_SOURCE, MAIN_SOURCE)` 两个路径；断言写成
+`sites == [expected]`，即**每个文件恰好一处**；比较对象 `expected = ["fallback_models",
+"stage_routing_config"]` 打在案例体内；被调名只匹配 `ast.Name` 的 `node.func.id`。
+
+| 证据 | 实测（私有平面 wt196，落库前） |
+| --- | --- |
+| 门自己的红字 | `web.py 构造 StageRouter 的关键字表变了…：[['fallback_models', 'stage_routing_config'], ['fallback_models', 'stage_routing_config']]`——钉「恰好一处」的门在**同一棵树多了一个构造点**这件事上红，而它红的方式是宣布比较失败，不是宣布「总体变了」 |
+| 全树普查（只读，76 个 `minicc/` 模块） | 3 处构造：`minicc/main.py` 与 `minicc/web.py` 两处（`43a8bf4` 给 web.py 加了第二个 `StageRouter(`，那一次同时把这条门钉成恒红）；形状三者相同 |
+| 手抄总体的瞎 | 第三个文件不存在于 `(WEB_SOURCE, MAIN_SOURCE)` 里：`minicc/route_wiring.py` 也导入了 `StageRouter`（只用作类型标注，零构造点），它今天无罪，但**下一个真的构造路由器的文件不需要谁的许可**——旧门对它连看都不看 |
+| 复制品与比较对象脱钩 | 案例 docstring 说它钉的是「本文件按生产形状路由」那条路径，可 `expected` 是手打的名单；把 `_route_as_web_does` 的关键字删掉，旧门的判决**逐字节不变**（1807 字符、同一站点、同一原因，见下面 R3）——复制品从来不是它的输入 |
+
+落地（一个跟踪文件，+296/−21，提交 b8e3ab9）：总体从一次 `minicc/**/*.py` 的走查推导，
+比较对象从**本文件自己的 AST** 读（`_copied_composition()` 只认 `_route_as_web_does` 里那一处），
+判定核 `_offending_sites(listing, composition)` 是纯函数、活树案例与供给清单案例共用同一个阅读器；
+被调名取 `Name.id` 或 `Attribute.attr`；改名绑定由 `_alias_bindings` 单独普查。
+案例名保留：文档 HEAD 上有五处按名引用它，坏的是身体不是名字。
+
+| 案例 | 输入 | 它独自承重的子句 |
+| --- | --- | --- |
+| `test_every_production_construction_site_is_the_one_this_test_copies`（保持名） | 走查得到的清单 + 本文件复制的形状 | 双向等式：少一个 `stage_routing_config` 就是 M8-T135 的形状，多一个说明复制品过时；`found` 非空是下限——扫不到任何站点不许绿 |
+| `test_the_census_compares_against_this_file_s_own_copy_not_a_typed_list` | 本文件 AST | 复制品唯一（`_route_as_web_does` 恰好一处）且与 `_bare_router` 的故意小形状**不等**；再加一条「普查用例体内不许出现手抄关键字字符串」的结构条款——它替换掉的正是那份名单 |
+| `test_a_supplied_site_that_drops_a_keyword_is_named` | 供给的清单（不碰生产文件） | 缺关键字的第二个表面被点名，且点名的理由就是那个缺失的关键字；补上关键字后不报错——证明比较的是复制品的形状，不是一句「少了东西」 |
+| `test_a_supplied_qualified_construction_is_counted_as_a_site` | 供给的清单 | `agent.router.StageRouter(...)` 这种限定拼写算一处站点；旧扫描对它报空普查 |
+| `test_a_rebinding_of_the_symbol_is_reported_not_skipped` | 供给的清单 | 配对断言：`Bridge = StageRouter` 被绑定普查说出来，而站点普查对它**确实是零**——两者必须同时成立，否则「干净的普查」是瞎话 |
+| `test_the_live_tree_rebinds_the_symbol_under_no_other_name` | 活树 | 今天没有任何生产文件改名绑定（实测 `aliases = []`），所以上面的形状普查此刻是诚实的；一旦有人改名，这条先红 |
+
+| 臂 | 变异 | 预测红集 | 实测＝判定 |
+| --- | --- | --- | --- |
+| 控制 | 无变异 | 全绿，collected=58 | `rc=0 collected=58 red=0 58 passed in 21.90s`；七臂跑完复测 `58 passed in 7.47s` — MATCHED |
+| A1 | 在平面上新增**第三个**构造该路由器的模块（临时件，跑完即删，不在仓库里），构造时不传 `stage_routing_config` | 保持名一条 | `1 failed, 57 passed`，红＝保持名 — MATCHED（这条正是手抄总体看不见的那个「第三个文件」） |
+| A2 | 删 `web.py` 第二处的 `stage_routing_config=` | 保持名一条 | `1 failed, 57 passed`，红＝保持名 — MATCHED |
+| A3 | 给 `main.py` 的构造点加 `reasoning_effort="low",` | 保持名一条 | `1 failed, 57 passed`，红＝保持名 — MATCHED |
+| A4 | 把本文件 `_route_as_web_does` 里的 `fallback_models=` 删掉 | 保持名 + 复制品条款 | `3 failed, 55 passed` — **MISS**：多出的红是 `test_a_supplied_site_that_drops_a_keyword_is_named`。那条案例的控制腿拿供给的构造点与本文件的**真**复制品相对，改复制品确实移动它；预测原文不改地留着，洞在预测的完整性而不在门的判定 |
+| A5 | `web.py` 加一行 `Bridge = StageRouter` | 别名案例一条 | `1 failed, 57 passed`，红＝`test_the_live_tree_rebinds_the_symbol_under_no_other_name` — MATCHED |
+| 还原 | 每臂从 sha 快照写回 | 字节相同 | `restored byte-exact: True`（五处），整套还原后 `drifted=- probe file present=False` |
+
+反向控制 R1（旧判据跑在 A1 的树上，同一棵树的两个阅读器对答）：旧门输出
+`{'web.py': [两处], 'main.py': [一处], 'lane_probe_site.py': [['fallback_models']], '_accepts': {'web.py': False, 'main.py': True}}`
+——它在「每个文件几处」上答 False 并直接崩在整体上，而落库后的门在同一棵树上点名
+那个新增模块的第 10 行（臂跑完即删，所以这个名字今天在仓库里找不到，也不该找）。这就是「手抄的总体 + 恰好一处的钉」与「推导的总体 + 一份形状」的差别。
+
+反向控制 R3（旧门**在它自己的复制品上**是瞎的）：把 pre-fix 字节放回平面，删掉 `_route_as_web_does`
+里那行 `fallback_models=…`，只跑那一条案例，两次判决的**红字**逐字节相同（各 1807 字符、同一站点、
+同一原因），也就是说改复制品不会移动旧判据的答案；同一处改动落在本批的门上是 A4 那三条红。
+这条实验跑在同一平面上，前后各写回一次快照（`restored pre-fix bytes=True`，实验结束后平面回到
+落库字节 `sha=91fe9183b6d4`）。判决取「红字里的站点与原因」而不是整段 traceback：删一行源码必然移动
+traceback 引用的上下文行，那不是判据在说话。
+
+| 腿 | 物证 | 实测 |
+| --- | --- | --- |
+| 引用预检 | 干净平面 wt196rec（HEAD 的树＋本文），`scripts/doc_pointers.py --check` 跑两次 | 追加前 1 条、追加后 3 条：本批的块一度带来 2 条 EVIDENCE dangling，因为它按路径引用了 A1 那个**只活在平面上**的临时模块——改成「那个新增模块的第 10 行」这类不带路径拼写的说法后，本批新增 0 条。剩下那条是本批之前的批留下的：一条按名引用测试的句子用了既不叫文件也不叫函数的名字，检查器在追加前就为它报红；它不在本文的行里，改它得由那一批的作者动手 |
+
+| PRE-FIX | 平面 wt196 落库前单跑本文件 | `53 collected / 1 failed / 52 passed in 58.81s`，红＝保持名（缺陷复现，不是修复的证据） |
+| R1 | 旧判据跑在 A1 那棵多了一个表面的树上 | 见上面那份 printout；门在同一棵树上点名新文件 |
+| R3 | 旧门两次判决（复制品改前／改后） | 红字 identical，`R3 MATCHED`——复制品不是旧判据的输入 |
+| 门（平面，落库后） | 同一文件，一字未改地复跑 | `58 passed in 11.50s`；案例名差恰好 +5／−0，与预测的五个新名同名 |
+| 主树落库后 | `tests/test_stage_routing_config_reaches_the_router.py` 整文件 | `58 passed in 8.61s`（与平面的 58 同数——负载只改秒数不改案例集） |
+| 全量双平面围栏 | 父腿 `2850f13`／子腿 `b8e3ab9` | 父腿 `1 failed, 2181 passed, 5 skipped in 1149.89s (0:19:09)`（collected 2187）；子腿 `2187 passed, 5 skipped in 1269.86s (0:21:09)`（collected 2192）。名字差 **+5／−0**，多出的五条与本门新案例名逐字相同，`added names not from this door 0`、`this door's cases missing from added 0`；父腿唯一那条红在子腿上不再出现，运行器写下 `FENCE_T196_STATUS=LAST_REGISTERED_RED_CLOSED` |
+
+| 红 | 腿 | 案例名 | 归因 |
+| --- | --- | --- | --- |
+| 1 | 父腿 `2850f13` | `test_stage_routing_config_reaches_the_router.py::test_every_production_construction_site_is_the_one_this_test_copies` | 就是本批声称要关的那一条：`43a8bf4` 给 `minicc/web.py` 加了第二个 `StageRouter(` 的那天，手抄总体加「每个文件恰好一处」的钉把它钉成恒红。红字是「比较失败」而不是「总体变了」，见上面证据表第一行；子腿同一案例名（身体已换成推导总体 + 本文件复制品）绿 |
+| 0 | 子腿 `b8e3ab9` | — | 2192 collected 零红。两腿各自的 5 条 skip 同名同因（`test_allowlist_validation.py` 一条、`test_webauth_validation.py` 四条：Windows 不对文件属主强制读权限／权限模型与 POSIX 不同），与本项目的既有基线一致，不是本批引入的 |
+
+
+边界：本批不改任何生产构造点的**值**——形状普查对「传了一个字面 `None`」是瞎的，
+今天三处的实参表达式实测都是 `getattr(config, "stage_routing", None)` 这类查找，没有字面 `None`，
+所以这条洞现在是空的而不是活的；要堵它得先有见证，不能先写规则。
+也不动 `minicc/route_wiring.py`（它只把 `StageRouter` 用作类型标注，普查正确地在那里数到零处构造）；
+不改 `.gitignore`；不删别车正在用的 `msgfile.txt`。
+
+本批量到但**没有落地**的一条，写在这里是因为它和 M8-T195 同一句话：`_bare_router` 的故意小形状
+被本批的条款钉住「必须与复制品不等」，但它自己**为什么**允许少传关键字，没有任何读者问过它。
+今天的读数是它作为「非生产形状」被使用（`_bare_router` 在本文件内部构造），门只保证它不沦为
+比较对象的替身；把它接进真正的产品接缝、或者承认它是纯测试夹具并让它不进普查，都需要先量出
+「谁在什么路径上依赖那个小形状」。这条不在本批的范围内，且没有见证就没有资格变成规则。
