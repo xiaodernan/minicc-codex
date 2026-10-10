@@ -586,6 +586,55 @@ def census():
                     bad.append(task["id"])
     return bad
 ''',
+    "abspath": r'''
+"""A census that normalises the path with os.path.abspath."""
+import os
+
+from minicc.benchmarks import load_tasks
+
+
+def census():
+    bad = []
+    for task in load_tasks():
+        keys = list(task["fixture"])
+        for key in keys:
+            for other in keys:
+                if os.path.abspath(key) == os.path.abspath(other) and key != other:
+                    bad.append(task["id"])
+    return bad
+''',
+    "casefold": r'''
+"""A census that folds case with str.casefold before comparing."""
+from minicc.benchmarks import load_tasks
+
+
+def census():
+    bad = []
+    for task in load_tasks():
+        keys = list(task["fixture"])
+        for key in keys:
+            for other in keys:
+                if key.casefold() == other.casefold() and key != other:
+                    bad.append(task["id"])
+    return bad
+''',
+    "realpath": r'''
+"""A census that resolves the path with os.path.realpath."""
+import os
+
+from minicc.benchmarks import load_tasks
+
+
+def census():
+    bad = []
+    for task in load_tasks():
+        keys = list(task["fixture"])
+        for key in keys:
+            for other in keys:
+                if os.path.realpath(key) == os.path.realpath(other) and key != other:
+                    bad.append(task["id"])
+    return bad
+''',
 }
 
 

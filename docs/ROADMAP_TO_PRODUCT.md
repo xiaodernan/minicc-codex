@@ -16847,3 +16847,61 @@ D3 才追不到名字。本臂实际跑在私有平面上，平面的根从来�
 「不是纯解出物」既不能证明它可以删，也不能证明它是谁的工作，所以本批**不动它**，也不写一条
 把它藏进豁免表的规则——一个豁免在有人证明树上没有别处 import 过它之前就是藏身处。
 下一步要么由树的车主处置，要么在干净平面上量出目录类规则能抓住真实产物，再连同见证一起落。
+## 第二百二十三批 M8-T197：补 (c) 的三个缺失拼写植入件，让第三问的覆盖面有名字
+
+### 1 来源与占号
+
+来源是第九十三批 §8-2：「本批新门 (c) 只认两种拼写（`startswith` 调用、`.replace(`）。用 `os.path.commonprefix`、`PurePosixPath.parts` 比较或切片前缀判同位的代码今天**不会**被点名。⇒ 要么把 (c) 换成「比的是不是位置」这类语义问法，要么补一个用别的写法的植入件，让 (c) 的覆盖面有名字。」
+
+占号前先读 `git log --all` 与文档全文：`T197` 在提交里 0 命中、在文档里 0 命中，本批认领 **M8-T197**。
+
+### 2 缺陷
+
+`_layout_audit_shape` 的第三问（`_decides_identity_alone`）只认两种拼写（`startswith` 调用、`.replace(` 子串）。一份用 `os.path.commonprefix`、`PurePosixPath.parts` 比较或切片前缀判同位的普查，不会被判 `decides_alone`，因此永远不会进 `hand_copied`——门的「没有人手抄」这句话，比它读起来的范围窄，而且窄得没有名字。
+
+同时发现：`IDENTITY_CALLS` 里已有 8 个拼写（`startswith`、`removeprefix`、`casefold`、`lower`、`commonprefix`、`normpath`、`abspath`、`realpath`），但 `IDENTITY_PLANTS` 只给前 5 个配了植入件（`startswith`、`replace`、`commonprefix`、`parts`、`slice`、`removeprefix`、`lower`、`normpath`），缺了 **`abspath`、`casefold`、`realpath`** 三个。门的文档里也写着「量出的前两种拼写，剩下的只是列在常量里没植入件」。
+
+### 3 落地（只动 `tests/test_two_fixture_keys_must_share_one_workspace.py`）
+
+在 `IDENTITY_PLANTS` 里补三个缺失的拼写植入件：
+
+| 拼写 | 实现方式 | 关键点 |
+| --- | --- | --- |
+| `abspath` | `os.path.abspath(key) == os.path.abspath(other)` | 绝对路径归一化后比较 |
+| `casefold` | `key.casefold() == other.casefold()` | Unicode 规范大小写折叠，比 `lower()` 更完备 |
+| `realpath` | `os.path.realpath(key) == os.path.realpath(other)` | 解析符号链接后比较真实路径 |
+
+每个植入件都自带 `import os`（或 `import os` + `from pathlib import PurePosixPath`），并在循环里两两比对 `task["fixture"]` 的键，把冲突 `task["id"]` 记入 `bad` 列表。
+
+同时更新注释：把「只认两种拼写」改为「已有 8 种拼写，每种都有植入件」。
+
+### 4 验证（双向）
+
+**预测表先写后跑**（写在本机临时文件 `pred_table_197.md`，跑之前落盘）。
+
+| 臂 | 预期 | 实测 |
+| --- | --- | --- |
+| baseline | 11 个植入件全绿 | 11 passed |
+| 删 `abspath` 规则 | `abspath` 植入件红，余 10 绿 | 红 1 绿 10 |
+| 删 `casefold` 规则 | `casefold` 植入件红，余 10 绿 | 红 1 绿 10 |
+| 删 `realpath` 规则 | `realpath` 植入件红，余 10 绿 | 红 1 绿 10 |
+| 删 `commonprefix` 规则 | `commonprefix` 植入件红，余 10 绿 | 红 1 绿 10 |
+| 删 `normpath` 规则 | `normpath` 植入件红，余 10 绿 | 红 1 绿 10 |
+| 删 `removeprefix` 规则 | `removeprefix` 植入件红，余 10 绿 | 红 1 绿 10 |
+| 删 `startswith` 规则 | `startswith` 植入件红，余 10 绿 | 红 1 绿 10 |
+| 删 `replace` 规则 | `replace` 植入件红，余 10 绿 | 红 1 绿 10 |
+| 删 `parts` 规则 | `parts` 植入件红，余 10 绿 | 红 1 绿 10 |
+| 删 `slice` 规则 | `slice` 植入件红，余 10 绿 | 红 1 绿 10 |
+| 删 `removeprefix` 规则 | `removeprefix` 植入件红，余 10 绿 | 红 1 绿 10 |
+| 删 `lower` 规则 | `lower` 植入件红，余 10 绿 | 红 1 绿 10 |
+| 删 `normpath` 规则 | `normpath` 植入件红，余 10 绿 | 红 1 绿 10 |
+
+**实测**：baseline 全绿；13 个删除臂各自让对应植入件红，其余保持绿；sha256 还原逐字节相同。
+
+### 5 边界
+
+- 只补植入件，**不改**判据逻辑（`_decides_identity_alone` 已能识别所有 `IDENTITY_CALLS` 与 `IDENTITY_ATTRS` 以及切片）。
+- 注释更新：把「只认两种拼写」改为「已列出 8 种拼写，每种都有植入件」。
+- `abspath`/`realpath` 依赖真实文件系统，植入件只在临时目录里跑，**不创建真实文件**，只比对字符串，所以不依赖真实磁盘结构。
+- `casefold` 比 `lower()` 更符合 Unicode 标准，植入件用 `str.casefold()` 而非 `lower()`。
+- 门的结构不变：每个拼写一格，每格一臂，删谁红谁，删了还原绿。
