@@ -21,6 +21,14 @@ jobs:
         os: [windows-latest, ubuntu-latest]
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Batch 221: this job runs the task-table gate, which asks whether the commit
+          # a row names actually landed - and answers it with git. The default shallow
+          # checkout carries one commit, so the gate read "0185533 is not a commit in
+          # this repository" for a commit that is in the repository, and the job has
+          # been red on that since 2026-10-08. The gate passes on a full clone; give it
+          # one rather than teaching it to skip when it cannot see.
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"

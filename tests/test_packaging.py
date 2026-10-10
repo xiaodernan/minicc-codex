@@ -313,6 +313,19 @@ def test_installed_console_scripts_run_from_a_real_install(tmp_path: Path, wheel
     server = subprocess.Popen(
         [str(web), "--workspace", str(workspace), "--host", "127.0.0.1", "--port", str(port)],
         cwd=str(tmp_path), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, errors="replace",
+        # Batch 221: the installed server is fail-loud without a key - config.py raises
+        # ConfigError and the wrapper exits 2 with the usage line - so this gate used to
+        # pass only where a key was resolvable from the machine: a developer's user
+        # config at ~/.config/minicc/config.json, or a .env in the cwd. CI has neither,
+        # so the cell has been red there since it was written. The gate is about the
+        # artifact - the wrappers, the packaged payload, a server serving them - not
+        # about where a key comes from, so it brings its own.
+        env={
+            **os.environ,
+            "MINICC_API_KEY": "dummy-key-for-packaging-gate",
+            "MINICC_BASE_URL": "https://example.invalid/v1",
+            "MINICC_MODEL": "test-model",
+        },
     )
     try:
         deadline = time.monotonic() + 60
