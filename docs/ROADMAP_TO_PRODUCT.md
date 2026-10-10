@@ -17253,3 +17253,104 @@ traceback 引用的上下文行，那不是判据在说话。
 今天的读数是它作为「非生产形状」被使用（`_bare_router` 在本文件内部构造），门只保证它不沦为
 比较对象的替身；把它接进真正的产品接缝、或者承认它是纯测试夹具并让它不进普查，都需要先量出
 「谁在什么路径上依赖那个小形状」。这条不在本批的范围内，且没有见证就没有资格变成规则。
+## 第二百二十九批 — M8-T198 — 盲等普查的人口取自启动目录，唤醒只认一种拼写（49 处阻塞睡眠里它读 48 处）
+
+缺陷：`tests/test_blind_wait.py` 与 `tests/test_join_liveness.py` 这两道普查门自称「整套测试
+套件的每一处盲等/每一处 join」，两件事与这句话无关。第一，总体是**启动目录**的函数：
+`files = sorted(Path("tests").glob("*.py"))`——它扫的是「调用者脚下有没有 tests/」。第二，
+判据只认一种拼写：`ast.Attribute(attr="sleep", value=Name("time"))`，于是同一件事换一条到达
+它的绑定就不在普查里；而 asyncio 的两种写法（`import asyncio`＋`await asyncio.sleep(0)`、
+`from asyncio import sleep`＋`await sleep(0)`）返回的是**同一份空输出**，没有任何读数能把
+「按名字排除」和「从没看见」分开。
+
+| 证据 | 实测（私有平面 wt198，落库前） |
+| --- | --- |
+| 同两条 nodeid，两个启动目录 | `cd tests && pytest test_blind_wait.py test_join_liveness.py -k <那两条>`＝**`2 failed, 3 deselected in 0.48s`**，红字分别是「expected the whole suite (79 when this landed), saw 0」和「the gate scanned 0 modules under tests/」；同一棵树从仓库根跑＝**`2 passed, 3 deselected in 9.98s`**。套件没变，变的只有站在哪儿 |
+| 全树有几处这种写法 | `Path("tests")` 的走查恰这两处，无第三副本（`.github/workflows/ci.yml:44` 从仓库根跑 `python -m pytest tests/`，所以 CI 从来不在这条缺陷的射程里） |
+| 四种别名形状，shipped 扫描器原样导入 | `import time as clock`＋`clock.sleep(0.1)`、函数内 `import time as time_mod`、`from time import sleep`、`from time import sleep as nap`——四种全部 `flat=[] undeclared=[]` |
+| 活体载体今天就有一处 | `tests/test_bench_tasks.py:339` 的 `import time as time_mod` 与 `:354` 的 `time_mod.sleep(0.001)`：它在轮询里（规则上免声明），**但在分母里** |
+| 分母差多少 | 自己那趟 AST 走查：callee `('time','sleep')` 48 处（42 在循环内、6 平）、`('time_mod','sleep')` 1 处、`('asyncio','sleep')` 5 处。普查的人口是 48，套件的阻塞睡眠是 49 |
+
+落地（两个跟踪文件，`+576/−32` 与 `+7/−1`，提交 29abf5d）：人口改为
+`SUITE_DIR = Path(__file__).resolve().parent`，`suite_modules()` 拒绝任何走出自己目录的走查结果；
+睡眠扫描按**作用域**推导来源。`_scope_tables` 为每个 Module/Function/AsyncFunction/Class 作用域建
+`receivers / sleeps / defined / bound` 四张表：`import time [as X]` 进 receivers，`from time import
+sleep [as Y]` 进 sleeps，同作用域内任何**再绑定**（含 `def sleep`）把这个名字抢走。`_callee_parts`
+认链式 `attr`（按根名解析）与 `bare`（本模块绑到 sleep 的任一名字，外加裸 `sleep` 这个 fail-closed
+形状），`_provenance` 回 `blocking | coroutine | method | local-helper` 加一个 `attributed` 位；
+放不下的必须被 `unattributed_sleeps()` 逐条点名，活体门要求 `not unplaced`。
+`flat_sleeps` / `undeclared` 保留为薄视图，「声明要像句子而不像标签」这条规则只有一个主人
+（`_undeclared_claim`），整套普查每文件只解析一次——三个读它的人不再各自走一遍同一棵树。
+
+| 案例 | 输入 | 它独自承重的子句 |
+| --- | --- | --- |
+| `test_the_census_reads_the_suite_from_this_file_s_own_directory` | 本文件 | 人口来自 `__file__` 的目录而不是启动目录，且走查结果不许离开那个目录 |
+| `test_no_census_in_the_suite_resolves_its_population_from_the_working_directory` | 全套件 | 反向条款：不许有第三个人再抄一次 `Path("tests")`；同时要求至少两个模块真的从自己文件走查——只有前半的句子会在总体为空时假绿 |
+| `test_both_census_gates_answer_the_same_from_any_directory` | 两道门的进程 | 同一棵树从两个启动目录跑必须同判——这条把「我的门在 CI 上绿」和「我的门答得对」分开 |
+| `test_a_sleep_reached_through_a_binding_is_still_a_blocking_sleep` | 四种合成形状 | 每一种都必须是**恰好一处**并且点到的就是那一行调用文本（改名 from-import 从不写 "sleep("，所以只比子串的断言本身是瞎的） |
+| `test_a_coroutine_yield_is_excluded_by_name_not_by_blindness` | 两种 asyncio 形状 | asyncio 要被**按名字**拒绝，且拒绝的形状与阻塞的形状不同——两写法同一份空输出不算排除 |
+| `test_a_helper_named_sleep_in_the_same_scope_is_not_the_standard_library` | 合成源码 | 同作用域 `def sleep` 抢走这个名字时，普查不许把它记成标准库睡眠 |
+| `test_a_sleep_the_census_cannot_place_is_named_not_silently_skipped` | 合成源码 | 根不是名字的链（`self.clock.sleep(...)`）必须进 `unplaced` 被点名；静悄悄的空名单不是干净的套件 |
+
+| 臂 | 变异 | 预测红集 | 实测＝判定 |
+| --- | --- | --- | --- |
+| 控制 | 无变异 | 全绿 | `CONTROL landed bytes: reds=none`（12 collected）— MATCHED |
+| A1 | 走查改回 `Path("tests")`（两个文件） | 启动目录两条 | 实到 5 条 — **MATCHED（含归因）**：`suite_modules()` 自己的守卫在进程内当场拒收（红字「the walk left its own directory: [...]」），所以这条变异在启动者碰巧站在仓库根时也红；预测的行为红是两个判决里较窄的那个 |
+| A2 | receivers 只按字面模块名绑定 | 别名形状一条 | `1 红`＝预测那条；probe：两种 `time as X` 形状退回 `undeclared=[] unplaced=[]`（正是旧扫描器的失明形状），两种 from-import 不受影响 — MATCHED |
+| A3 | asyncio 当阻塞（过宽的反向变异） | 协程排除＋活体门 | 实到 3 条 — **MATCHED（含归因）**：多出的是行为腿的子进程里跑着同一份被改的普查门；probe 证实两种 asyncio 写法被拉进平睡名单 `flat=[(5, None)]`、`coroutine=[]` |
+| A4 | 关掉同作用域遮蔽 | 同名 helper 一条 | `1 红`＝预测那条 — MATCHED |
+| A5 | sleeps 只按字面名绑定 | 别名形状一条 | `1 红`＝预测那条；probe：只有改名 from-import 退回看不见（`undeclared=[]`），其余三处仍在——**A2/A5 各拆一张表、各红一种拼写，两处绑定独立承重** |
+| A6 | 允许人口为空 | 自身目录一条 | 实到 5 条 — **MATCHED（含归因）**：同一份被抽空的人口被四个读它的人各自发现，包括反空转子句自己那句「only [] modules walk a suite from their own file」；probe `population=0 blocking=0 flat=0 coroutine=0 unplaced=0` |
+| 还原 | 每臂从 sha256 快照写回 | 字节相同 | 逐臂 `restored byte-exact`，六臂跑完平面回到落库字节 |
+
+| 腿 | 物证 | 实测 |
+| --- | --- | --- |
+| PRE-FIX | 平面 wt198 落库前，从 `tests/` 跑那两条 | `2 failed, 3 deselected in 0.48s`（缺陷复现，不是修复的证据） |
+| 聚焦（平面，落库后） | 两个文件整文件 | 12 passed in 34.41s |
+| 聚焦（主树，落库后） | 两个文件整文件，另加子腿点名我的那道门 | 门落库时（29abf5d）：仓库根 `12 passed in 49.73s`，从 `tests/` 里 `12 passed in 34.21s`（改前同两条 nodeid 在那个目录是 `2 failed, 3 deselected in 0.48s`）。修解码器之后（09110ff）：`点名我的那道门＋两个整文件`＝`13 passed in 46.96s`，整套 `tests/test_subprocess_decoding.py`＝`20 passed in 70.55s`（扫全树的门不再有第二个 offender），从 `tests/` 跑普查对＝`12 passed in 23.14s` 与 `12 passed in 29.09s` |
+| 活树读数 | 落库后的门自己那趟走查 | 人口 161 模块、阻塞 49（43 在循环内、6 平，平睡名单逐字与改前同）、协程按名排除 5、放不下 0 |
+| 全量双平面围栏 | 第一跑 父腿 `7696a58`／子腿 `29abf5d`；修复后再跑子腿 `09110ff`（父腿复用） | 第一跑：父腿 2212 collected、9 红、5 skip、wall=1142s；子腿 2219、10 红、5 skip、wall=973s；名字多重集差 **added=7／removed=0**，那 7 个名字逐字等于本批 7 条新案，两条原有案两腿都在（`preserved=True`），判定 `HOLD_AND_ATTRIBUTE`——多出的那条红是我的，见下一节。第二跑（补了 `PYTHONIOENCODING` 之后）：子腿 2219、9 红、5 skip、wall=897s，`reds only on child 0`、`reds only on parent 0`、added=7／removed=0，判定 `SEVEN_NAMES_ADDED_NO_RED_ADDED` |
+
+### 围栏抓回来的第三条：我只钉了父端解码器
+
+子腿比父腿多的那条红是**我的**，而且不是我那 12 条聚焦案例能看见的：
+`tests/test_subprocess_decoding.py::test_a_pinned_parent_decoder_over_our_own_python_child_pins_the_child_too`
+红字逐字「half-pinned captures (parent utf-8, child undeclared): ['tests/test_blind_wait.py:703 subprocess.run']」。
+本批新增的 `test_both_census_gates_answer_the_same_from_any_directory` 用子进程从两个启动目录各跑一次普查门，
+父端写了 `encoding="utf-8", errors="replace"`，子端什么都没声明——在 cp936 宿主上子解释器按机器码页写 stdout、
+父按 utf-8 读，正是 M8-T58 量过的那条缝（同一个正确工作区从 passed 变成 failed）。那道门扫的是三个根的全部
+捕获站点，所以它天然会把我新写下的这一个算进总体：**新测试也是站点**这一课今天又付了一次，而这一次是围栏
+而不是聚焦跑替我收的账。
+
+修复（一个跟踪文件，`+2/−0`，提交 09110ff）：那次调用补 `env=dict(os.environ, PYTHONIOENCODING="utf-8")`，
+用的是本仓既有的拼写（`tests/test_doc_pointers.py:270`、`tests/test_contract_codec_census.py:46` 等 7 处同形），
+并加 `import os`。判据没改、断言没改、跑的仍是同一对门。
+
+**红名逐条归属（两腿共有的 9 条）**：`tests/test_doc_pointers.py` 的
+`test_shipped_documents_have_no_dangling_references`、`test_documented_command_runs_end_to_end`、
+`test_the_box_account_is_printed_and_adds_up_on_the_shipped_documents`、
+`test_a_path_claim_written_outside_backticks_gets_its_own_reader`、
+`test_an_unreachable_exemption_reports_itself_as_dead`、`test_floors_fire_when_the_extractor_goes_blind`
+与 `tests/test_pointer_liveness_corpus.py` 的 `test_a_subset_check_does_not_invent_dead_exemptions`、
+`test_a_relative_document_is_checked_instead_of_crashing`、
+`test_a_genuinely_dead_exemption_is_still_declared_dead_under_a_subset_check`——九条红读的是同一行物证：
+`docs/ROADMAP_TO_PRODUCT.md:17114` 那一行引用了一个已经不存在的用例名
+（test_every_flag_the_list_names_exists_in_a_parser；同一个用例现在的名字在
+`tests/test_readme_capability_claims.py:124`）。每条红字里多出来的那一个 Problem 都是
+kind='EVIDENCE'、line=17114，包括那句「整个语料本来是干净的，这一轮先红了」和
+「Left contains one more item」。这一行不是本批写的：`git blame` 到 e04c6bf（README flag 门那条车道，
+它把那个用例改名的同时把旧名字写进了自己的记录）。修法是把那一条引用重瞄到改名后的用例——那条车道落，
+我不改别人车道的记录行；本批的两腿之差里这 9 条抵消为 0（父腿 `7696a58` 已带着它们），所以围栏的判定
+只对本批新增的名字负责。
+
+边界：本批不动**循环豁免的口径**。今天循环内的睡眠只按形状免声明（`time.sleep(...)` 在循环里
+就算轮询），而这条规则自己的文字要轮询「named a budget」；实测今天 42 处循环内睡眠在 ±6 行窗口里
+全部提到了预算字样（缺预算的 0 处），所以这条洞是**空的而不是活的**——把它变成判据要先有见证，
+且那是口径变更，不在本批范围内。同样不动的是 `tests/test_join_liveness.py` 里 join 的语义本身：
+本批只把它的总体从启动目录换成它自己的目录（`+7/−1`，判据一字未改）。
+
+量到但**没有落地**的第二条，和 M8-T195/T196 同一句话：新扫描器现在会把放不下的睡眠点名，
+但「放不下」的判据是**根不是名字**——`getattr(config, "wait", time.sleep)(0.1)` 这种把睡眠当值传来
+传去的形状今天会进 `unplaced`，而一个把 `time.sleep` 存进字典再索引出来的生产接缝不会。
+套件里没有这种形状（实测 `unplaced=0`），所以这条也只是洞，不是缺陷；要堵它得先有人写出那个接缝，
+不能先写规则。
