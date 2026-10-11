@@ -12,32 +12,21 @@ Two spellings of a reason count, and this gate accepts either:
   * a comment between the ``except`` line and the first statement of its body.
 
 AST keeps no comment nodes, so the comment form has to be read off the source lines - which
-is why ``_stated_reason`` takes the lines alongside the node, and why the two spellings get
-their own cells fed through the same detector the census uses.
+is why ``stated_reason`` (in ``_silence_reason_shared``) takes the lines alongside the node,
+and why the two spellings get their own cells fed through the same detector the census uses.
 """
 import ast
+import sys
 from pathlib import Path
 
 import pytest
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _silence_reason_shared import BROAD_TYPES, census_silent, stated_reason
+
 REPO = Path(__file__).resolve().parents[1]
 SOURCE_DIR = REPO / "minicc"
 SILENT_STATEMENTS = frozenset({"pass", "continue", "break"})
-BROAD_TYPES = frozenset({"Exception", "BaseException"})
-
-
-def _sources() -> list[Path]:
-    return sorted(path for path in SOURCE_DIR.rglob("*.py") if "__pycache__" not in path.parts)
-
-
-def _stated_reason(lines: list[str], node: ast.ExceptHandler) -> str:
-    """Why is this handler allowed to swallow? Empty string means it never said."""
-    first_body = min(stmt.lineno for stmt in node.body)
-    for line in lines[node.lineno:first_body - 1]:
-        stripped = line.strip()
-        if stripped.startswith("#") and stripped != "#":
-            return stripped.lstrip("#").strip()
-    return "noqa" if "noqa" in lines[node.lineno - 1] else ""
 
 
 def _is_silent_broad(node: ast.ExceptHandler) -> bool:
@@ -49,15 +38,7 @@ def _is_silent_broad(node: ast.ExceptHandler) -> bool:
 
 def _census() -> list[tuple[str, str]]:
     """(site, reason) for every broad handler whose body only passes/continues/breaks."""
-    found: list[tuple[str, str]] = []
-    for path in _sources():
-        text = path.read_text(encoding="utf-8")
-        lines = text.splitlines()
-        for node in ast.walk(ast.parse(text)):
-            if isinstance(node, ast.ExceptHandler) and _is_silent_broad(node):
-                found.append((f"{path.relative_to(REPO).as_posix()}:{node.lineno}",
-                              _stated_reason(lines, node)))
-    return found
+    return census_silent(_is_silent_broad)
 
 
 def test_the_walk_finds_the_silent_handlers_it_claims_to() -> None:
@@ -99,7 +80,7 @@ BARE_SOURCE = "try:\n    run()\nexcept Exception:\n    pass\n"
 def _reason_of(source: str) -> str:
     lines = source.splitlines()
     handler = ast.parse(source).body[0].handlers[0]
-    return _stated_reason(lines, handler)
+    return stated_reason(lines, handler)
 
 
 @pytest.mark.parametrize(
@@ -119,3 +100,10 @@ def test_a_narrow_handler_is_out_of_scope() -> None:
     """Only broad handlers are in scope: `except OSError: pass` is already a named decision."""
     node = ast.parse("try:\n    run()\nexcept OSError:\n    pass\n").body[0].handlers[0]
     assert not _is_silent_broad(node)
+
+
+def test_reason_detector_is_the_shared_one_not_a_private_copy() -> None:
+    """Guards against re-copying ``stated_reason`` into this file (the M8-T200 drift risk)."""
+    from _silence_reason_shared import stated_reason as _shared
+
+    assert stated_reason is _shared

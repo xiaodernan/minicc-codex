@@ -17473,3 +17473,39 @@ kind='EVIDENCE'、line=17114，包括那句「整个语料本来是干净的，�
 - 56 处宽异常里"非静默"的约 37 处（体里做真实工作的）是否都合理（re-raise / log / 返回 sentinel）仍值得一次普查——本批只补了 return-静默这一种漏检。
 - 文档维护：M8-T199 候选快照里 `pass_at_1_ex_infra` / 版本假绿 / 56 静默子集实际已结，建议回填快照表避免重复探查（本批未改快照表，留给文档维护批）。
 
+## 第二百三十一批 M8-T231：抽出共享的"理由探测 + census 遍历"，两把静默门不再各藏一份
+
+### 1 来源与占号
+
+承接批 230 §5 候选 A。批 230 时静默门原文件 `test_silence_must_state_its_reason.py` 被别的会话在途改动，故当时未抽共享模块（避免并发写冲突）。本回合复查 `git status`：原静默门文件已不在脏列表（仍脏的是它的 mutation 测试 `test_silence_must_state_its_reason_mutation.py`），**阻塞解除**，可以安全地抽共享模块了。
+
+占号前读 `git log --all` 与文档全文：`T231` 在提交里 0 命中、在文档里 0 命中；批号 231 空闲（200–207、226–230 已占），本批认领 **M8-T231**。
+
+### 2 落地（一个新共享模块 + 改两把门，生产码零改动）
+
+| 文件 | 改动 |
+| --- | --- |
+| `tests/_silence_reason_shared.py`（新建） | 抽出 `stated_reason(lines, node)`（两种理由拼写的唯一判定）与 `census_silent(predicate, source_dir=minicc/)`（唯一的树遍历 + 相对路径登记） |
+| `tests/test_silence_must_state_its_reason.py` | 删掉本地 `_sources`/`_stated_reason`/`_census` 体，改为 `from _silence_reason_shared import ...`；`_census()` 退化成 `census_silent(_is_silent_broad)` 薄包装；新增身份断言 |
+| `tests/test_broad_except_return_swallows_state_reason.py` | 同上，删本地 `_sources`/`_stated_reason`/`_census`，复用共享；新增身份断言 |
+
+两把门保留各自**谓词**（`_is_silent_broad` pass/continue/break 家族 vs `_is_return_swallow` return 家族）——那是两把门各自的判定边界，不该合并；合并的是"怎么走树 + 什么叫有理由"这两段本应唯一的逻辑，正是 M8-T200 笔记担心的"两份实现会漂移"的那两段。
+
+### 3 验证
+
+- 两把门合跑：**15 passed / 11.23s**（原门 6 + 新门 7 + 2 个防漂移身份断言）。
+- 防漂移身份断言：`stated_reason is _silence_reason_shared.stated_reason`——若有人把 `stated_reason` 又私藏回某把门，该断言立即红，证明"唯一逻辑真的唯一"。
+- `python scripts/doc_pointers.py --check` 待跑（见 §4 提交前）。
+
+### 4 边界
+
+- 只动测试基础设施，**生产码零改动**。
+- **不碰**仍被别的会话在途改动的 `test_silence_must_state_its_reason_mutation.py`：它内部仍重写了普查，本批未统一——留作下一批候选①（待其工作树干净）。
+- 共享模块名 `_silence_reason_shared` 以 `_` 开头，不匹配 `test_*.py`，pytest 不会把它当测试收集；其 `pythonpath=["."]` + pytest prepend 模式保证 `tests/` 在 `sys.path` 上，两把门裸 `import` 可用（两把门各自 `sys.path.insert(0, 自身目录)` 兜底）。
+
+### 5 下一批候选（本批实测带出来的）
+
+- **统一仍脏的 mutation 测试**：`test_silence_must_state_its_reason_mutation.py` 里 `_silent_handlers()` 仍是一份独立普查（且范围含 tests/scripts、含裸 except，与原门 `minicc/` 仅宽类型不一致）。待其工作树干净后，改为 import 共享 `census_silent`，并决定其范围是否要收敛到 `minicc/`（与原门一致）。
+- 56 处宽异常里"非静默"的约 37 处（体里做真实工作的）是否都合理（re-raise / log / 返回 sentinel）仍值得一次普查。
+- 文档维护：回填 M8-T199 候选快照（pass_at_1_ex_infra / 版本假绿 / 56 静默子集已结）。
+

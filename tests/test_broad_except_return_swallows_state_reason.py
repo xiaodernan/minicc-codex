@@ -18,27 +18,16 @@ Two spellings of a reason count, mirroring the sibling gate:
 AST keeps no comment nodes, so the comment form is read off the source lines.
 """
 import ast
+import sys
 from pathlib import Path
 
 import pytest
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _silence_reason_shared import BROAD_TYPES, census_silent, stated_reason
+
 REPO = Path(__file__).resolve().parents[1]
 SOURCE_DIR = REPO / "minicc"
-BROAD_TYPES = frozenset({"Exception", "BaseException"})
-
-
-def _sources() -> list[Path]:
-    return sorted(p for p in SOURCE_DIR.rglob("*.py") if "__pycache__" not in p.parts)
-
-
-def _stated_reason(lines: list[str], node: ast.ExceptHandler) -> str:
-    """Why is this handler allowed to swallow? Empty string means it never said."""
-    first_body = min(stmt.lineno for stmt in node.body)
-    for line in lines[node.lineno:first_body - 1]:
-        stripped = line.strip()
-        if stripped.startswith("#") and stripped != "#":
-            return stripped.lstrip("#").strip()
-    return "noqa" if "noqa" in lines[node.lineno - 1] else ""
 
 
 def _is_return_swallow(node: ast.ExceptHandler) -> bool:
@@ -60,15 +49,7 @@ def _is_return_swallow(node: ast.ExceptHandler) -> bool:
 
 def _census() -> list[tuple[str, str]]:
     """(site, reason) for every broad handler that swallows via a bare return."""
-    found: list[tuple[str, str]] = []
-    for path in _sources():
-        text = path.read_text(encoding="utf-8")
-        lines = text.splitlines()
-        for node in ast.walk(ast.parse(text)):
-            if isinstance(node, ast.ExceptHandler) and _is_return_swallow(node):
-                found.append((f"{path.relative_to(REPO).as_posix()}:{node.lineno}",
-                              _stated_reason(lines, node)))
-    return found
+    return census_silent(_is_return_swallow)
 
 
 def test_the_walk_finds_the_return_swallows_it_claims_to() -> None:
@@ -112,7 +93,7 @@ RETURN_VALUE_SOURCE = "try:\n    run()\nexcept Exception:\n    return self.fallb
 def _reason_of(source: str) -> str:
     lines = source.splitlines()
     handler = ast.parse(source).body[0].handlers[0]
-    return _stated_reason(lines, handler)
+    return stated_reason(lines, handler)
 
 
 def _is_swallow(source: str) -> bool:
@@ -141,3 +122,10 @@ def test_a_narrow_handler_is_out_of_scope() -> None:
 def test_a_return_with_a_value_is_not_a_swallow() -> None:
     """`return self.fallback` hands back a real value; it is not a silent discard."""
     assert not _is_swallow(RETURN_VALUE_SOURCE)
+
+
+def test_reason_detector_is_the_shared_one_not_a_private_copy() -> None:
+    """Guards against re-copying ``stated_reason`` into this file (the M8-T200 drift risk)."""
+    from _silence_reason_shared import stated_reason as _shared
+
+    assert stated_reason is _shared
