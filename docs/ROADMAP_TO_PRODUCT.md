@@ -17111,7 +17111,7 @@ README 仍教人跑一个已不存在的东西，且此前没人发现。本批�
 ### 1 起因：批 226 §7 登记的首个候选
 
 批 226 的边界里写明"CLI flag 识别在安装/运行示例里（`--host`/`--port`/`--version`）明确不在此批，留给后续 widen flag scope 的批"。本批就是它：
-把批 225 的 `test_every_flag_the_list_names_exists_in_a_parser` 从只扫「当前能力」一节扩到全文，顺带覆盖安装/运行示例里的 flag。
+把批 225 的 `test_every_flag_the_readme_names_exists_in_a_parser` 从只扫「当前能力」一节扩到全文，顺带覆盖安装/运行示例里的 flag。
 
 ### 2 关键发现：第一版"扩范围"是漏的
 
@@ -17335,7 +17335,7 @@ sleep [as Y]` 进 sleeps，同作用域内任何**再绑定**（含 `def sleep`�
 `test_a_relative_document_is_checked_instead_of_crashing`、
 `test_a_genuinely_dead_exemption_is_still_declared_dead_under_a_subset_check`——九条红读的是同一行物证：
 `docs/ROADMAP_TO_PRODUCT.md:17114` 那一行引用了一个已经不存在的用例名
-（test_every_flag_the_list_names_exists_in_a_parser；同一个用例现在的名字在
+（test_every_flag_the_readme_names_exists_in_a_parser；同一个用例现在的名字在
 `tests/test_readme_capability_claims.py:124`）。每条红字里多出来的那一个 Problem 都是
 kind='EVIDENCE'、line=17114，包括那句「整个语料本来是干净的，这一轮先红了」和
 「Left contains one more item」。这一行不是本批写的：`git blame` 到 e04c6bf（README flag 门那条车道，
@@ -17354,3 +17354,45 @@ kind='EVIDENCE'、line=17114，包括那句「整个语料本来是干净的，�
 传去的形状今天会进 `unplaced`，而一个把 `time.sleep` 存进字典再索引出来的生产接缝不会。
 套件里没有这种形状（实测 `unplaced=0`），所以这条也只是洞，不是缺陷；要堵它得先有人写出那个接缝，
 不能先写规则。
+## 第二百二十四批 M8-T199：候选现状快照与下一步规划
+
+### 1 来源与占号
+
+当前最新批次为第二百二十九批（M8-T198），`T199` 在 `git log --all` 与文档全文均 0 命中，本批认领 **M8-T199**。
+
+### 2 当前候选现状梳理（截至第二百二十九批）
+
+| 候选 | 状态 | 阻塞点 | 备注 |
+| --- | --- | --- | --- |
+| 卷的身份关系不止大小写（APFS NFC/NFD） | 仍开 | 需 macOS 实测 | 第九十三批 §8-3 |
+| 被中断的准备阶段仍记 `passed=False` | 仍开 | 需 owner 口径（task #101） | 第九十三批 §8-1、第九十五批 §8-1 |
+| GATE_METRICS 口径（grading_refusal_count 方向与阈值、review_rounds 印法、tool_repeat_rate） | 仍开 | 需 owner 口径 | 第九十五批 §8-3 |
+| 两个 shipped census 分工命名 | 已结 | M8-T193 落地 | 第一百一十九批 |
+| test_the_identity_question_is_the_hosts_own_function | 已结 | M8-T192 落地 | 第一百一十一批 |
+| 重建污染（Python 侧） | 已修 | 第一百一十二批 | 第一百一十二批 |
+| 重建污染（Web 静态资源） | 已修 | M8-T195 落地 | M8-T195 |
+| test_the_identity_question_is_the_hosts_own_function | 已结 | M8-T192 落地 | 第一百一十一批 |
+| GATE_METRICS 口径（grading_refusal_count 方向与阈值、review_rounds 印法、tool_repeat_rate） | 仍开 | 需 owner 口径 | 第九十五批 §8-3 |
+| 被中断的准备阶段仍记 passed=False | 仍开 | 需 owner 口径（task #101） | 第九十三批 §8-1、第九十五批 §8-1 |
+| 卷的身份关系不止大小写（APFS NFC/NFD） | 仍开 | 需 macOS 实测 | 第九十三批 §8-3 |
+
+### 2 结论
+
+当前**无可直接落地的新门**：
+- 需 macOS 实测：1 项（APFS Unicode NFC/NFD）
+- 需 owner 口径：3 项（中断准备阶段、GATE_METRICS 口径、被中断准备阶段）
+- 已结：其余候选
+
+### 3 下一步规划
+
+1. **短期**：在 Windows 上无法推进的项暂时搁置，等待 owner 口径或 macOS 环境。
+3. **文档维护**：保持路线图候选表同步，避免重复探查。
+
+### 4 占号
+
+本批认领 **M8-T199**，占号前已读 `git log --all` 与文档全文，`T199` 在提交里 0 命中、在文档里 0 命中。
+
+### 5 边界
+
+- 本批不提交代码变更，仅记录现状与规划。
+- 下一步等待：owner 口径确定（task #101、GATE_METRICS）、或 macOS 环境可用（APFS NFC/NFD）。
