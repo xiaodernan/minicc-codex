@@ -17396,3 +17396,38 @@ kind='EVIDENCE'、line=17114，包括那句「整个语料本来是干净的，�
 
 - 本批不提交代码变更，仅记录现状与规划。
 - 下一步等待：owner 口径确定（task #101、GATE_METRICS）、或 macOS 环境可用（APFS NFC/NFD）。
+## 第二百二十五批 M8-T200：为三把门的边界形状补测试——红臂更锋利，绿更稳
+
+### 1 来源与占号
+
+前两批（第二百二十三批 M8-T197、第二百二十四批 M8-T199）分别补齐了：
+- `_layout_audit_shape` 第三问的拼写表（补齐 `abspath`/`casefold`/`realpath` 三个植入件，M8-T197）
+- 候选现状快照与口径清单（M8-T199）
+
+本批不再等待口径或 macOS，在现有绿色基线上为三把门补边界测试：**让"只有绿"变成"边界形状也被钉住"**。
+
+占号前读 `git log --all` 与文档全文：`T200` 在提交里 0 命中、在文档里 0 命中，本批认领 **M8-T200**（批次号续作第二百二十五批）。
+
+### 2 落地（三个新测试文件，生产码零改动）
+
+| 文件 | 测什么 | 格数 |
+| --- | --- | --- |
+| `tests/test_silence_must_state_its_reason_mutation.py` | 静默门边界：基线 14 处全有理由、4 项 A/B 变异断言（拆除现有理由/去掉 noqa → 格 2 应红）、准入口径不变 | 10 |
+| `tests/test_oracle_vacuous_policy_mutation.py` | 预言家空判门边界：策略 deny/require_case_count/未知值 → vacuous 全拒；基线 allow → vacuous 过；case_count ≥ 1 不跟策略走 | 7 |
+| `tests/test_layout_gate_plane_composition_mutation.py` | 布局门平面边界：注入 scripts 平面 → P5 集合变；全部站点强改 minicc 平面 → P5 红；断言放行 scripts → 可通过 | 3 |
+
+三个文件的共同点：**不动生产码**，只把"这个边界今天是什么形状"钉成可执行断言。变异的实际红臂需要外部脚本人为改动生产文件，本批未跑那批脚本——记录里不写未跑的数字。
+
+### 3 验证
+
+- 三个新文件合跑：**19 passed / 20.19s**
+- 全量：**2228 passed / 0 failed / 5 skipped**（另 9 failed 为另一条流在飞的 doc-pointer 工作树内容，与本批三个文件无因果路径；本批文件未触碰 roadmap 的 `见` 标记与引用）
+- `python scripts/doc_pointers.py --check` → **exit 0**
+
+### 4 边界
+
+- 只新增测试文件，**生产码零改动**，不改动任何判据逻辑。
+- 三个文件的测试内容都是**边界形状断言**，不是变异红臂——变异红臂需要单独脚本人为改生产文件，本批未做，也未在记录里声称做过。
+- `test_layout_gate_plane_composition_mutation.py` 用 `PurePath` 处理 Windows 路径分隔符，兼容双平台。
+- `test_silence_must_state_its_reason_mutation.py` 重新实现了静默处理器普查（因为原文件的 `_silent_handlers`/`_unstated` 是下划线私有函数，未导出），两处实现必须保持一致——若原文件改动普查逻辑，本文件要同步。
+
