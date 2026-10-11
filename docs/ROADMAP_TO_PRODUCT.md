@@ -17509,3 +17509,58 @@ kind='EVIDENCE'、line=17114，包括那句「整个语料本来是干净的，�
 - 56 处宽异常里"非静默"的约 37 处（体里做真实工作的）是否都合理（re-raise / log / 返回 sentinel）仍值得一次普查。
 - 文档维护：回填 M8-T199 候选快照（pass_at_1_ex_infra / 版本假绿 / 56 静默子集已结）。
 
+## 第二百三十二批 M8-T232：56 处宽异常的库存审计 + 候选快照回填（避免重复探查）
+
+### 1 来源与占号
+
+承接批 231 §5 候选②（56 处宽异常里"非静默"约 37 处的普查）与候选③（回填 M8-T199 快照）。本批做这两件，且复用批 230/231 的共享 census 思路，不新写生产码。
+
+占号前读 `git log --all` 与文档全文：`T232` 在提交里 0 命中、在文档里 0 命中；批号 232 空闲（200–207、226–231 已占），本批认领 **M8-T232**。
+
+### 2 状态检查（开工先做）
+
+- HEAD = `5c9d09c`（批 231），与 origin 同步（`git fetch` 0/0）。
+- `test_silence_must_state_its_reason_mutation.py` **仍脏**（别的会话在途，last commit 仍 `0d22ad1`）→ 批 231 §5 候选①（统一它的重复普查）**继续阻塞**，本批不碰。
+- 工作树另 4 个文件（`scripts/impacted_tests.py`、`tests/test_impacted_tests.py`、`test_layout_gate_plane_composition_mutation.py`、`test_oracle_vacuous_policy_mutation.py`）也仍脏，均不碰。
+
+### 3 审计结果（证据，可复用，避免下次再探）
+
+用 AST 普查 `minicc/` 全部宽异常（`except Exception` / `except BaseException`），精确计数 **56 处**，与批 218"56 处宽异常"原数字完全吻合：
+
+| 类别 | 数量 | 处置 |
+| --- | --- | --- |
+| 静默·pass 家族（体仅 pass/continue/break） | 14 | M8-T190 静默门已门控（须说明理由） |
+| 静默·return 家族（裸 `return` / `return None`） | 3 | 批 230 新门已门控（须说明理由） |
+| 非静默（体里做真实工作） | 39 | 其中 34 做其他工作 / 2 重抛 / 3 记录日志 |
+
+非静默的 39 处体首语句分布：`other-work` 34、`reraise` 2、`log` 3。无任何"既非静默也不重抛也不记录、纯吞异常"的干净可门类别——强行加门会高误报。故**不新增门**，仅把库存记下。
+
+另查 `minicc/` 有无裸 `except:`（catch-all，连 `KeyboardInterrupt`/`SystemExit` 都吞）：**0 处**。代码库不使用 catch-all，现有静默门无需为此扩展。
+
+### 4 候选快照回填（M8-T199 §2 表）
+
+原表（截至批 229）把以下列为开口项，本批核验后状态更新如下（原表历史行保留，此节为权威当前态）：
+
+| 候选 | 原状态 | 当前状态 | 依据 |
+| --- | --- | --- | --- |
+| `pass_at_1_ex_infra` 在 `GATE_FLOORS` 的登记 | 仍开 | **已结** | 批 230 核验：`bench_compare.py` 已有该键 |
+| `test_cleanup_version` 的"绿可以是假的" | 仍开 | **已结** | 批 230 核验：`test_cleanup_version.py` census 测试已覆盖 |
+| 56 处宽异常处理器普查 | 仍开 | **已结** | 本批审计：14+3 已门控、39 非静默已刻画、无干净新门 |
+| 卷的身份关系不止大小写（APFS NFC/NFD） | 仍开 | 仍开 | 需 macOS 实测（本机 Windows 不可做） |
+| 被中断的准备阶段仍记 `passed=False` | 仍开 | 仍开 | 需 owner 口径（task #101） |
+| GATE_METRICS 口径 | 仍开 | 仍开 | 需 owner 口径 |
+
+**结论**：Windows 上可直接落地的新门至此**清零**；仅剩 3 项卡 macOS 实测 / owner 口径，与 M8-T199 §2 结论一致。另有一项（统一仍脏的 mutation 测试普查）卡在别的会话在途改动，待其工作树干净。
+
+### 5 边界
+
+- 本批**只写 ROADMAP（文档）**，生产码零改动、无新测试文件（审计用仓库外探针，未入仓）。
+- 审计数字来自一次性探针，不落门（避免"精确计数"类脆门）；库存仅作本批记录与未来会话参考。
+- 不动任何脏文件。
+
+### 6 下一批候选（本批实测带出来的）
+
+- 统一仍脏的 `test_silence_must_state_its_reason_mutation.py` 的重复普查 → import 共享 `census_silent`（**仍阻塞**，待别的会话提交其在途改动）。
+- 39 处非静默宽异常若要做逐站判断（re-raise 是否合理、最佳努力吞咽是否该记录），属大型主观审计，需 owner 决定是否值得——非自动门。
+- macOS / owner 三项（APFS NFC/NFD、准备阶段 passed、GATE_METRICS 口径）解锁后各自成批。
+
