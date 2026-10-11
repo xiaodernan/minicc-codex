@@ -17431,3 +17431,45 @@ kind='EVIDENCE'、line=17114，包括那句「整个语料本来是干净的，�
 - `test_layout_gate_plane_composition_mutation.py` 用 `PurePath` 处理 Windows 路径分隔符，兼容双平台。
 - `test_silence_must_state_its_reason_mutation.py` 重新实现了静默处理器普查（因为原文件的 `_silent_handlers`/`_unstated` 是下划线私有函数，未导出），两处实现必须保持一致——若原文件改动普查逻辑，本文件要同步。
 
+## 第二百三十批 M8-T230：把"靠 return 静默吞咽异常"也纳入静默门——补现有门只认 pass/continue/break 体的覆盖率缺口
+
+### 1 来源与占号
+
+本批开工先做状态检查（用户要求"检查项目现在的状态"）：
+
+- 现状：HEAD = `0d22ad1`（M8-T200），与 origin 同步；工作树里 6 个文件被别的会话在途改动（`test_silence_must_state_its_reason*.py`、`test_*_mutation.py`、`scripts/impacted_tests.py`、`test_impacted_tests.py`），**本批一律不碰**，避免并发写冲突。
+- M8-T199 候选快照（截至批 229）结论："Windows 上无可直接落地的新门"——剩 4 项卡 macOS / owner 口径。
+- 本批核验了记忆里两条旧候选，确认**已被后续批次解决**：
+  - `pass_at_1_ex_infra` 在 `GATE_FLOORS` 的登记问题（原批 216 §4）：现 `minicc/bench_compare.py` 已有 `"pass_at_1_ex_infra": "pass_at_1"`，已结。
+  - `test_cleanup_version` 的"绿可以是假的"（`importlib.metadata` 读 CWD 的 egg-info 遮住 site-packages 过期元数据）：现 `tests/test_cleanup_version.py` 已有完整 census / 过期记录测试覆盖，已结。
+- 56 处宽异常里"静默"子集（pass/continue/break 体）已被 M8-T190 静默门覆盖（现剩 52 处，静默子集已门控）。
+
+占号前读 `git log --all` 与文档全文：`T230` 在提交里 0 命中、在文档里 0 命中；批号 230 空闲（200–207、226–229 被占），本批认领 **M8-T230**。
+
+### 2 落地（一个新测试文件，生产码零改动）
+
+| 文件 | 测什么 | 格数 |
+| --- | --- | --- |
+| `tests/test_broad_except_return_swallows_state_reason.py` | 宽 `except Exception/BaseException` 且唯一体语句是裸 `return` / `return None` 的处理器，必须像 pass 家族一样说明理由（noqa 或体前注释） | 7 |
+
+发现的真实缺口：现有静默门 `test_silence_must_state_its_reason.py` 的 `_is_silent_broad` 只把 `pass`/`continue`/`break` 体判为静默；`except Exception: return`（裸返回，吞掉异常并 yielding None）同样静默，却**不在现有门的视野内**——若有人写 `except Exception: return` 且无理由，现有门不会抓。本批新门把这一支补上。实测 minicc/ 现恰有 3 处此类处理器，且**全部已有理由**（`llm/fake.py:59` tracing、`llm/openai_provider.py:1124` 状态上报、`task_manager.py:2062` 回收线程），故门当前绿。
+
+### 3 验证
+
+- 本门单跑：**7 passed / 7.86s**。
+- 单元臂（证明探测器不是假的）：noqa 源→接受、注释源→接受、裸 `return` 无理由源→拒绝、窄 `except OSError: return`→判出 scope、`return self.fallback`（带值）→判非吞咽。与现有静默门同口径。
+- 未改活源码做"红臂"（与 M8-T200 静默门同纪律：单元臂已证探测器区分力，不人为改生产文件）。
+
+### 4 边界
+
+- 只新增测试文件，**生产码零改动**。
+- **不碰**任何被别的会话在途改动的静默门文件（脏文件风险，见 §1）。
+- 范围 = `minicc/` 仅（与现有静默门一致）；只认宽类型 `Exception`/`BaseException`；只认裸 `return` / `return None` 体。
+- 明确**不**覆盖：带值的 `return self.fallback`（返回真实值，非静默）、窄异常、pass/continue/break 静默（由现有静默门管）。本门与现有静默门是**互补**两把，不重不漏。
+
+### 5 下一批候选（本批实测带出来的）
+
+- **合并两把静默门的理由普查**：现有静默门（`minicc/` 的 pass 家族）与本批新门（return 家族）各自内联了一份"理由探测"逻辑，两处可能漂移。理想是抽出共享 helper 让两把门复用。但静默门文件当前被别的会话在途改动，**待其工作树干净后**再抽（避免并发写冲突）。
+- 56 处宽异常里"非静默"的约 37 处（体里做真实工作的）是否都合理（re-raise / log / 返回 sentinel）仍值得一次普查——本批只补了 return-静默这一种漏检。
+- 文档维护：M8-T199 候选快照里 `pass_at_1_ex_infra` / 版本假绿 / 56 静默子集实际已结，建议回填快照表避免重复探查（本批未改快照表，留给文档维护批）。
+
