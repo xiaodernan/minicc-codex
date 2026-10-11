@@ -17564,3 +17564,57 @@ kind='EVIDENCE'、line=17114，包括那句「整个语料本来是干净的，�
 - 39 处非静默宽异常若要做逐站判断（re-raise 是否合理、最佳努力吞咽是否该记录），属大型主观审计，需 owner 决定是否值得——非自动门。
 - macOS / owner 三项（APFS NFC/NFD、准备阶段 passed、GATE_METRICS 口径）解锁后各自成批。
 
+## 第二百三十三批 M8-T233：PROJECT_REVIEW 五个 P1 的逐条核验 + P1#2 回归测试落地
+
+### 1 来源与占号
+
+批 232 §4 候选快照把"Windows 上可直接落地的新门"已清零，但遗留一项未结：**PROJECT_REVIEW_2026-09-18 的 5 个 P1 是否已被后续批次解决，从未逐条核过证据**。本批做这件事，并把其中本机可验、Windows 可落地的 P1#2（检索遍历排除隐藏目录）补一个回归测试，其余 4 个只核验状态、不新增行为改动。
+
+占号前读 `git log --all` 与文档：提交里 `T233` 0 命中，文档里 0 命中；批号 233 空闲（200–207、226–232 已占），本批认领 **M8-T233**。
+
+### 2 状态检查（开工先做）
+
+- HEAD = `94095f9`（批 232），与 origin 同步（`git fetch` 0/0）。
+- 工作树仍 5 个脏文件（`scripts/impacted_tests.py`、`tests/test_impacted_tests.py`、`test_layout_gate_plane_composition_mutation.py`、`test_oracle_vacuous_policy_mutation.py`、`test_silence_must_state_its_reason_mutation.py`）→ 均不碰，只提交本批新增的 `tests/test_retrieval_skips_hidden_dirs.py` 与本文档段落（路径形式提交）。
+
+### 3 五个 P1 逐条核验（证据，避免下次再探）
+
+PROJECT_REVIEW 原文（docs/PROJECT_REVIEW_2026-09-18.md:20-24）列 5 个 P1：
+
+| # | 原问题（PRODUCT_REVIEW 描述） | 当前代码状态 | 证据锚点 | 结论 |
+| --- | --- | --- | --- | --- |
+| P1#1 | 线程执行器漏传 `permission_mode`，前端选择与实际执行策略不一致 | **已解决** | `task_manager.py:958` 提交/重建/执行统一走 `_safe_permission_mode(data.get("permission_mode"))`；`web.py:1553`、`web.py:1760` 透传 `permission_mode` | 闭环 |
+| P1#2 | 本地检索扫描额度被隐藏目录耗尽（原文说 `_files()` 用 `rglob('*')` 累计后过滤，4000 额度大部分被隐藏目录占用，只索引 31 文件、0 个 `minicc/` 源文件） | **已解决** | `retrieval.py:42` `SKIP_DIRS`（含 `.git/.venv/node_modules/__pycache__/.minicc` 等）；`retrieval.py:551-555` 改为 `os.walk` + `dirs[:]` 在下降前剪枝（剔除 `name.startswith(".")` 与 `SKIP_DIRS`），隐藏目录不再计入 `max_directories` 预算 | 闭环 + 本批补回归测试 |
+| P1#3 | 上下文压缩拆散工具调用与结果（压缩后残留 `tool_call_id=read1` 的 tool result，对应 assistant tool call 已被移除，原生协议可能拒请求） | **已解决** | `agent/context.py:74` 修复孤儿 `tool_call`：对被移除 tool call 的孤儿结果改写为 `[INTERRUPTED_TOOL_RESULT]…` 提示，不再产出协议非法的孤立结果 | 闭环 |
+| P1#4 | 重启恢复先覆盖心跳再判断 worker 是否存活（auto-resume 可能重排仍活着的 worker） | **已解决** | `task_manager.py:1098` `_auto_resume_interrupted()` 在重入队前先 `has_live_worker(self.store, stored)`（`task_manager.py:1116`）检查心跳存活，存活则不重排；`has_live_worker` 定义于 `task_execution.py:16` | 闭环 |
+| P1#5 | 现有评测只有 3/30 条可自动评分，无法判断优化是否提升成功率 | **本机不可验** | 需真实模型 + owner 口径（任务集、rubric、模型/参数/commit 版本钉死），非本机可落地项 | 仍开，移交 owner |
+
+**结论**：5 个 P1 中 4 个代码级项（#1/#2/#3/#4）已被后续批次解决，仅 #5 需真实评测环境，本机不可验。本批不重复造这些修复，只把证据落表，避免后续会话再次逐文件重探。
+
+### 4 新增回归测试（P1#2）
+
+新建 `tests/test_retrieval_skips_hidden_dirs.py`，锁住 P1#2 修复的两层行为：
+
+1. `test_hidden_directory_is_not_walked`：`.secret/leak.py` 不被收录，`src/app.py` 正常收录。
+2. `test_skip_dirs_are_pruned`：`node_modules/.venv/.git/__pycache__` 内容均不收录。
+3. `test_hidden_tree_does_not_consume_directory_budget`：建一个 10 层深的隐藏树 + 1 个可见 `src/app.py`，把 `max_directories=3` 压到极小；断言可见源文件仍被索引、隐藏树未出现——直接对应"隐藏目录耗尽预算"的原 bug。
+4. `test_skip_dirs_constant_keeps_known_dependency_caches`：守卫 `SKIP_DIRS` 常量本身不被误删已知缓存名。
+
+**变异真红验证（平面门，未碰共享工作树）**：`git archive HEAD | tar -x -C <平面>`，把 `retrieval.py:552` 的 `and not name.startswith(".")` 剪枝删掉（模拟修复前 bug），在平面上跑本测试 → `test_hidden_directory_is_not_walked` 与 `test_hidden_tree_does_not_consume_directory_budget` **转红**（确认是真回归测试）；另 2 个不依赖该剪枝故仍绿。平面跑完即删，共享工作树始终干净。
+
+读数（实跑）：真实仓库 4 passed / 15.18s；变异平面 2 failed, 2 passed / 60.28s。
+
+### 5 边界
+
+- 本批**只新增 1 个测试文件 + 本文档段落**，生产码零改动；P1#1/#3/#4 仅核验、未动其代码（它们早已闭环）。
+- 变异验证在 `git archive` 平面副本进行，绝不把"故意改坏"的源留在共享工作树（防别的会话 `commit` 误带走）。
+- P1#5 不声称解决，明确移交 owner / 真实评测环境。
+- `doc_pointers.py --check` 在本批改动后仍为 exit 0（未引入悬空 `文件::函数` 引用）。
+
+### 6 下一批候选（本批实测带出来的）
+
+- **统一仍脏的 `test_silence_must_state_its_reason_mutation.py` 的重复普查** → import 共享 `census_silent`（**仍阻塞**，待别的会话提交其在途改动）。
+- P1#5 评测 3/30 自动评分 → 需 owner 建 10–20 条高质量任务集 + rubric + 钉死模型/参数/commit 版本，非本机可落地。
+- 39 处非静默宽异常逐站判断（re-raise 是否合理、最佳努力吞咽是否该记录）→ 大型主观审计，需 owner 决定。
+- macOS / owner 三项（APFS NFC/NFD、准备阶段 passed、GATE_METRICS 口径）解锁后各自成批。
+
