@@ -1,8 +1,10 @@
 """Mutation tests for oracle vacuous policy (_oracle_says_pass)."""
 import pytest
 import sys
+from pathlib import Path
 
-sys.path.insert(0, r"D:\面试项目\minicc-codex")
+REPO_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO_ROOT))
 
 from minicc.benchmarks import _oracle_says_pass, VACUOUS_ORACLE_POLICY
 

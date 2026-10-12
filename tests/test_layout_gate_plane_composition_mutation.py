@@ -9,7 +9,8 @@ import sys
 import ast
 from pathlib import Path, PurePath
 
-sys.path.insert(0, r"D:\面试项目\minicc-codex")
+REPO_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO_ROOT))
 
 from tests.test_two_fixture_keys_must_share_one_workspace import (
     _layout_audit_shape, _reaches, _call_names,

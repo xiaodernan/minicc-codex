@@ -10,7 +10,8 @@ import tempfile
 import shutil
 from pathlib import Path
 
-sys.path.insert(0, r"D:\面试项目\minicc-codex")
+REPO_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO_ROOT))
 
 # We'll implement the functions we need directly here
 from pathlib import Path
@@ -21,12 +22,10 @@ def _silent_handlers():
     """Find all silent handlers (except Exception/BaseException with only pass/continue/break).
     Returns list of (site, reason, has_reason) tuples."""
     silent = []
-    SOURCE_DIR = Path(r"D:\面试项目\minicc-codex\minicc")
+    REPO_ROOT = Path(__file__).resolve().parents[1]
     CENSUS_DIRS = ("tests", "minicc", "scripts")
-    REPO = Path(r"D:\面试项目\minicc-codex")
-    SILENT_STATEMENTS = frozenset({"pass", "continue", "break"})
     
-    for d in (Path(r"D:\面试项目\minicc-codex") / d for d in ("tests", "minicc", "scripts")):
+    for d in (REPO_ROOT / d for d in CENSUS_DIRS):
         root = Path(d)
         for path in sorted(root.rglob("*.py")):
             if "__pycache__" in path.parts:
@@ -43,19 +42,17 @@ def _silent_handlers():
                     (isinstance(node.type, ast.Name) and node.type.id in ("Exception", "BaseException"))
                 ):
                     if all(ast.unparse(stmt).split()[0] in {"pass", "continue", "break"} for stmt in node.body):
-                        # Check for noqa on the except line
                         has_noqa = False
                         if node.lineno > 0:
-                            line_text = path.read_text(encoding="utf-8").splitlines()[node.lineno - 1]
+                            line_text = lines[node.lineno - 1]
                             if "noqa" in line_text:
                                 has_noqa = True
                         
-                        # Check for comment in the handler body
                         body_start = min(stmt.lineno for stmt in node.body)
                         between = lines[node.lineno:body_start - 1]
                         comment = any(l.strip().startswith("#") and l.strip() != "#" for l in between)
                         
-                        silent.append((f"{path.relative_to(Path.cwd())}:{node.lineno}", comment or has_noqa, comment or has_noqa))
+                        silent.append((f"{path.relative_to(REPO_ROOT)}:{node.lineno}", comment or has_noqa, comment or has_noqa))
     return silent
 
 
