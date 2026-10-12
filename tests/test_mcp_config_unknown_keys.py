@@ -92,14 +92,19 @@ def test_multiple_unknown_keys_all_reported(tmp_path: Path, caplog: logging.Logg
 
 
 def test_recognized_keys_do_not_trigger_warning(tmp_path: Path, caplog: logging.Logger) -> None:
-    """Valid server entries with only recognized keys produce no warnings."""
+    """Valid server entries with only recognized keys produce no warnings.
+
+    M8-T242: ``headers`` used to sit in this stdio fixture. It is a recognized key,
+    but the stdio client never reads it, so the entry is exactly the shape that must
+    now report itself - see ``tests/test_mcp_transport_dead_keys.py``. HTTP headers
+    are covered by ``test_http_mode_keys_accepted`` on the transport that uses them.
+    """
     _write_mcp(tmp_path, {
         "servers": {
             "valid-server": {
                 "command": "python",
                 "args": ["-m", "server"],
                 "env": {"KEY": "value"},
-                "headers": {"X-Custom": "header"},
                 "read_only": True,
                 "url": "",  # Empty URL means stdio mode
             }

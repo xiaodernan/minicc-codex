@@ -216,7 +216,7 @@ def load_mcp_config(workspace: Path) -> list[McpServerConfig]:
             raise McpError(f"MCP server {name!r} 的 env 非法")
         if not isinstance(headers, dict) or not all(isinstance(k, str) and isinstance(v, str) for k, v in headers.items()):
             raise McpError(f"MCP server {name!r} 的 headers 非法")
-        configs.append(McpServerConfig(
+        config = McpServerConfig(
             str(name),
             command,
             tuple(args),
@@ -224,12 +224,18 @@ def load_mcp_config(workspace: Path) -> list[McpServerConfig]:
             read_only,
             url,
             dict(headers),
-        ))
+        )
+        _report_keys_this_transport_never_reads(config, value)
+        configs.append(config)
     return configs
 
 
 class McpStdioClient:
     """Persistent JSON-RPC-over-stdio client with a reader queue."""
+
+    #: What ``load_mcp_config`` and ``McpManager`` consult for this transport.
+    TRANSPORT = "stdio"
+    CONFIG_KEYS_READ = ("command", "args", "env")
 
     #: Environment variables MCP server children are allowed to inherit.
     #: Everything else (LLM api_key, web bearer token, etc.) is scrubbed so
@@ -487,6 +493,10 @@ class McpStdioClient:
 class McpHttpClient:
     """MCP streamable-HTTP client: JSON-RPC over POST, JSON or SSE responses."""
 
+    #: What ``load_mcp_config`` and ``McpManager`` consult for this transport.
+    TRANSPORT = "http"
+    CONFIG_KEYS_READ = ("url", "headers")
+
     def __init__(self, config: McpServerConfig, workspace: Path, timeout: float = 30.0) -> None:
         self.config = config
         self.workspace = workspace
@@ -635,6 +645,44 @@ def _iter_sse_messages(body: str) -> list[dict[str, Any]]:
     return messages
 
 
+#: Transport -> (the client that acts on it, the config keys that client reads).
+#: One owner for two questions that used to be answered separately: ``McpManager``
+#: picked a class with an if/else whose tail was a default branch, and
+#: ``load_mcp_config`` reported unrecognized keys from a transport-blind list, so a
+#: key the *other* transport alone reads - ``headers`` on a stdio server,
+#: ``command`` / ``args`` / ``env`` on an HTTP one - was stored on the card,
+#: consulted by nobody, and announced as nothing (M8-T242).
+TRANSPORT_HANDLERS: dict[str, tuple[type, tuple[str, ...]]] = {
+    McpStdioClient.TRANSPORT: (McpStdioClient, McpStdioClient.CONFIG_KEYS_READ),
+    McpHttpClient.TRANSPORT: (McpHttpClient, McpHttpClient.CONFIG_KEYS_READ),
+}
+
+
+def _report_keys_this_transport_never_reads(config: McpServerConfig, entry: dict[str, Any]) -> None:
+    """Say out loud the keys a server entry carries but its transport will not use.
+
+    M8-T145 made unrecognized keys report themselves; the list it checked against
+    only knew *whether a key exists*, not which transport consumes it, so
+    ``headers`` written on a stdio server looked valid and did nothing.
+    """
+    read_here = set(TRANSPORT_HANDLERS[config.transport][1])
+    dead = [
+        (key, transport)
+        for transport, (_, read_keys) in TRANSPORT_HANDLERS.items()
+        if transport != config.transport
+        for key in read_keys
+        if key not in read_here and key in entry and getattr(config, key)
+        # ``getattr`` truthiness is the load-bearing clause: a written-but-empty
+        # value (「url」:「」 selects stdio) contradicts no operator expectation,
+        # and M8-T145 pins that such entries stay silent.
+    ]
+    for key, transport in sorted(dead):
+        LOG.warning(
+            f"MCP server {config.name!r} 的键 {key!r} 在 {config.transport} 传输下"
+            f"不会被读取（只有 {transport} 传输会读它）"
+        )
+
+
 class McpManager:
     def __init__(self, workspace: Path) -> None:
         self.workspace = workspace
@@ -652,10 +700,12 @@ class McpManager:
                     raise McpError(f"MCP server {config.name} 此前启动失败，已负缓存")
                 return cached
             try:
-                if config.transport == "http":
-                    client: Any = McpHttpClient(config, self.workspace)
-                else:
-                    client = McpStdioClient(config, self.workspace)
+                handler = TRANSPORT_HANDLERS.get(config.transport)
+                if handler is None:
+                    raise McpError(
+                        f"MCP server {config.name} 的 transport {config.transport!r} 没有对应客户端"
+                    )
+                client: Any = handler[0](config, self.workspace)
             except McpError:
                 self.clients[config.name] = _DEAD_CLIENT
                 raise
