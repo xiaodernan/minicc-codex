@@ -131,6 +131,42 @@ class McpServerConfig:
         return "http" if self.url else "stdio"
 
 
+def _config_text(value: dict[str, Any], name: str, key: str) -> str:
+    """Read one optional string field of a server entry, refusing a wrong type.
+
+    M8-T238: the loader asked ``isinstance(..., str)`` only to decide *presence*,
+    so a mis-typed value got the same verdict as never writing the key
+    (「缺少 command 或 url」), and a non-string url still reached the config
+    through ``str(...)`` - carrying its Python repr past the scheme check and
+    the SSRF gate, both of which only ever read strings, and flipping the
+    transport away from the command the operator actually wrote.
+    """
+    raw = value.get(key, "")
+    if raw is None:
+        return ""
+    if not isinstance(raw, str):
+        raise McpError(f"MCP server {name!r} 的 {key} 非法（必须是 JSON 字符串）")
+    return raw.strip()
+
+
+def _config_flag(value: dict[str, Any], name: str, key: str) -> bool:
+    """Read one optional boolean field of a server entry, refusing a wrong type.
+
+    ``read_only`` decides the risk string every tool of this server is
+    registered under, and ``audit.authorize_tool`` answers 「readonly」 with
+    ``default_readonly`` - allowed without asking, whatever ``allow_changes``
+    says. Coercing the declaration with ``bool()`` therefore let a workspace
+    file write its own consent exemption: ``"read_only": "false"`` is a truthy
+    string, so a server the operator declared writable ran unasked.
+    """
+    raw = value.get(key, False)
+    if raw is None:
+        return False
+    if not isinstance(raw, bool):
+        raise McpError(f"MCP server {name!r} 的 {key} 非法（必须是 JSON 布尔 true/false）")
+    return raw
+
+
 def load_mcp_config(workspace: Path) -> list[McpServerConfig]:
     path = workspace / ".minicc" / "mcp.json"
     if not path.is_file():
@@ -159,12 +195,12 @@ def load_mcp_config(workspace: Path) -> list[McpServerConfig]:
                 msg += f"，是否想写 {hint[0]!r}？"
             LOG.warning(msg)
         
-        has_command = isinstance(value.get("command"), str) and value["command"].strip()
-        has_url = isinstance(value.get("url"), str) and value["url"].strip()
-        if not has_command and not has_url:
+        command = _config_text(value, str(name), "command")
+        url = _config_text(value, str(name), "url")
+        read_only = _config_flag(value, str(name), "read_only")
+        if not command and not url:
             raise McpError(f"MCP server {name!r} 缺少 command 或 url")
-        if has_url:
-            url = str(value["url"]).strip()
+        if url:
             if not url.startswith(("http://", "https://")):
                 raise McpError(f"MCP server {name!r} 的 url 必须是 http/https 地址")
             try:
@@ -182,11 +218,11 @@ def load_mcp_config(workspace: Path) -> list[McpServerConfig]:
             raise McpError(f"MCP server {name!r} 的 headers 非法")
         configs.append(McpServerConfig(
             str(name),
-            str(value.get("command") or ""),
+            command,
             tuple(args),
             dict(env),
-            bool(value.get("read_only", False)),
-            str(value.get("url") or ""),
+            read_only,
+            url,
             dict(headers),
         ))
     return configs
