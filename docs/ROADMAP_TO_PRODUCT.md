@@ -17708,3 +17708,47 @@ PROJECT_REVIEW 原文（docs/PROJECT_REVIEW_2026-09-18.md:20-24）列 5 个 P1�
 - §2 暗色对比度、权限文案口径（owner）。
 - 其余同批 234 §6（评测口径 owner / §3.3 前端压测 / §3.2 持久化重构 / §4.5 清理 / 脏 mutation 测试统一 / 39 异常 / macOS 三项）。
 
+## 第二百三十六批 M8-T236：事件持久化 durability 契约测试（§3.2 批量合并重构的前置 fence）
+
+### 1 来源与占号
+
+批 234 §6 第 4 项：「§3.2 事件持久化批量合并（较大重构，需先写 durability 契约测试）」。占号前读 `git log --all` 与文档全文：`T236` 提交/文档均 0 命中；批号 236 空闲（200–207、226–235 已占），认领 **M8-T236**。
+
+### 2 现状（读源核验，非猜测）
+
+- `task_store.py:31` `PRAGMA journal_mode=WAL`；`upsert`（:147）整段 JSON 快照 `ON CONFLICT DO UPDATE`，带 `lease_owner` 事务内栅栏（已过期的旧进程不能覆盖后继者，:156-159）。`load`/`get`（:179/200）对坏 JSON 是 `continue`/返回 None，不抛。
+- `task_persistence.py` `TaskSnapshotWriter`（:9）：每 task 只留一个脏引用，周期 `flush`（默认 0.35s）+ `close()` 兜底全刷；单个 flush 失败记 `last_error` 并继续，不丢其余（M3-T9）。
+- `task_manager.py:2715` `_persist_task(force=...)`：`force=True` → `writer.flush(task)`（**同步强制落盘**）；否则 `enqueue`（合并）。`_write_task_snapshot`（:2723）带 `serial`/`_snapshot_committed` 守卫（:2736）——迟到的旧 running 快照不能覆盖已落盘终态。还存在 per-task `event_log`（:2813/2820 shutdown 时关闭）。
+
+### 3 改动（只新增测试，零生产码）
+
+新建 `tests/test_task_store_durability_contract.py`，9 个测试钉住 §3.2 批量合并重构**不得退化**的保证：
+1. `flush` 同步落盘——`flush()` 返回后即耐久，无需 `close()`（终态强制落盘）。
+2. 直接 `upsert` 跨 store 重开仍在（基线耐久）。
+3. 合并写 `close()` 后跨重开全在（后台合并耐久）。
+4. 合并写每 task 只留最后一份，不重复。
+5. SQLite 处于 `WAL`（评审点名的连接生命周期/并发属性）。
+6. 租约跨 store 重开仍在（重启耐久）。
+7. 被驱逐 worker（租约过期/被取代）的 `upsert` 被拒、后继者写入跨重开存活（防旧快照覆盖终态）。
+8. 坏 JSON 行不破坏 `load`/`get`。
+9. 落盘内容已脱敏、身份键可恢复。
+
+写回调镜像生产：`write(task)` 内取 `task.snapshot()` 再 `store.upsert`（并非直接 `store.upsert(task)`），与 `task_manager._write_task_snapshot` 一致。
+
+### 4 验证状态
+
+- 真实仓库 `pytest tests/test_task_store_durability_contract.py -q` → **9 passed / 16.7s**。
+- `doc_pointers --check` exit 0（先 commit 测试文件再查，否则文件名悬空）；`scripts/doc_pointers.py` 已核 `_persist_task`/`_write_task_snapshot`/`TaskSnapshotWriter`/`TaskStore` 引用均存在。
+
+### 5 边界
+
+- 仅新增独立测试文件；生产码零改动；不动任何脏文件。
+- 这是**绿基线契约**：当前全绿，作为后续 §3.2 批量合并重构的回归栅栏。尚未覆盖 `event_log` 自身的落盘耐久（per-task `event_log` 在 shutdown 时关闭，其是否持久化到磁盘属 §3.2 重构要厘清的单独面，见下一批候选）。
+- 未跑 ruff/mypy（本机 .venv 无，靠 CI）；测试已加 `# type: ignore[attr-defined]` 应对 `task.snapshot` 的 mypy 提示。
+
+### 6 下一批候选
+
+- §3.2 续：厘清并钉住 `event_log` 的落盘耐久（它是「流事件」真正的载体；先确认它现在是否持久化、何时落盘，再决定批量合并怎么改），作为 §3.2 重构第二道 fence。
+- §4.5 死代码/未用符号广扫（独立、可脚本化、带测试护栏的安全清理）。
+- 其余同批 234 §6（评测口径 owner / §3.3 前端压测 / §4.5 清理 / 脏 mutation 测试统一 / 39 异常 / macOS 三项）。
+
