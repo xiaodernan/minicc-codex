@@ -17972,3 +17972,80 @@ PROJECT_REVIEW 原文（docs/PROJECT_REVIEW_2026-09-18.md:20-24）列 5 个 P1�
 - 4 个公开零引用函数待 owner 确认非插件 API（批 239 §6）。
 - specproof `#244`：case-17 单例评测已在后台运行（`_eval_case17.log`，差分阶段未产出），下轮据日志给读数；#245–#247 为其后续。
 - 其余同批 234 §6（评测口径 owner / §3.3 前端压测 / 脏 mutation 测试统一 / 39 异常 / macOS 三项）。
+
+## 第二百四十二批 M8-T242：一份 MCP 配置里写了「别的传输才读的键」，它存在、合法、且一句话都不发
+
+### 1 来源与占号
+
+MCP 配置校验弧（M8-T140 → T143 → T145 → T238 → 本批）的下一格，来源是 T238 记录自己留下的那笔：它把 `minicc/mcp.py` 的 `RECOGNIZED_KEYS` 记为「仍是手抄字面量，改成派生是另一批的事」。占号前读 `git log` 与文档全文：HEAD 已从预测写定时的 32c0fd7 之前的平面推进，`M8-T239`/`T240`/`T241` 与批 239–241 属并发车道，故本批认领 **M8-T242**；批号不手抄，由 `Temp/mc-t242/record_t242.py` 从文档自己的「第…批」标题推导并与最后一个标题互校。先写预测 `Temp/mc-t242/predictions_t242.md` 一字未改，两处偏差登记在 `Temp/mc-t242/deltas_t242.md`。
+
+### 2 现状（落库前在平面实测，父=32c0fd7，非推理）
+
+`Temp/mc-t242/probe_t242.py` 用 AST 逐类清点 `*config.<字段>` 的读取（字段集合来自 `dataclasses.fields(McpServerConfig)`，不是手抄）：`McpStdioClient` 读 args/command/env/name，`McpHttpClient` 读 headers/name/url，`McpManager` 读 command/name/read_only/url。再真调 `load_mcp_config` 并捕获 `minicc.mcp` 的全部日志记录：
+
+1. stdio 条目写 `headers` → **0 条记录**；卡片 `transport="stdio"`，非默认字段里就躺着那个 headers。子进程客户端从不读它，运维以为这个 server 的请求头生效了，实际发出的请求永远不带。
+2. http 条目写 `command`/`args`/`env` → **0 条记录**；HTTP 客户端从不读它们。运维以为会起子进程，实际走 HTTP。
+3. 同时写 `command` 与 `url` → **0 条记录**；`transport` 由 `url` 真值决定，翻成 http、`command` 丢弃。T238 已把「transport 翻离运维真正写的 command」记为危害，但只修了类型校验，静默这半没修。
+4. stdio 条目写 `headers` 且把 `command` 拼成 `commnd` → 1 条 WARNING：键 `commnd` 不会被读取（已按默认值运行），是否想写 `command`？——这条对照证明报告通道**存在且可用**，缺的正是「跨传输」那一类键。
+
+`minicc/mcp.py:183` 的 `RECOGNIZED_KEYS`、`McpServerConfig` 的字段、装载器实读键是**三份名单**；今天四方向差集全空（实测），也就是「目前恰好一致」而无任何门保证同步。上面 1–3 就是它漂移一次就会有的形状：键合法、值上卡片、无人读、无声音。
+
+### 3 改法（不改判决，只把静默换成 M8-T145 已有的那句话；并把两个问题交给同一个主人）
+
+两个客户端类各带自己的身份：`McpStdioClient.TRANSPORT`/`CONFIG_KEYS_READ`（`minicc/mcp.py:237`）与 `McpHttpClient.TRANSPORT`/`CONFIG_KEYS_READ`（`minicc/mcp.py:497`）；模块级 `TRANSPORT_HANDLERS`（`minicc/mcp.py:655`）把它们组成 transport → (客户端类, 该类真读的键)。`McpManager._client`（`minicc/mcp.py:693`，查表在 `minicc/mcp.py:703`）不再用 `if transport == "http" … else stdio` 的默认支路，表里没有的名字抛 `McpError` 点名。`load_mcp_config` 在全部类型校验之后、入册之前调 `_report_keys_this_transport_never_reads`（`minicc/mcp.py:661`，调用点 `minicc/mcp.py:228`），对「条目里写了 ∩ 卡片字段 ∩ 该传输不读 ∩ 值非默认」的每个键发一条 WARNING，句子自己点名键名与唯一会读它的传输名，并保留子串「不会被读取」以复用 M8-T145 的报告通道。`read_only` 不参与（它是管理器级风险串，两传输都生效）；「值非默认」是防误报的承重条款——`url` 为空串按既有门必须保持沉默。transport 的裁决一字未动。
+
+### 4 门与变异臂
+
+新建 `tests/test_mcp_transport_dead_keys.py`，6 例：
+
+1. `test_a_stdio_entry_that_writes_headers_names_the_header_as_not_read`——恰 1 条 WARNING，点名 headers 与 stdio，卡片仍加载成功。
+2. `test_an_http_entry_that_writes_command_args_env_names_all_three`——3 条、按键名排序、不得把 `read_only` 扯进来。
+3. `test_an_entry_with_both_command_and_url_reports_the_dropped_command`——必须点名 `command`，且 `transport` 仍为 http（只报告，不改判决）。
+4. `test_a_clean_entry_for_each_transport_stays_silent`——抗真空：两传输各自的干净条目 0 条，不许报无辜键。
+5. `test_the_m8_t145_typo_warning_still_fires`——回归腿：拼错的键仍报，仍带「是否想写」提示。
+6. `test_the_report_and_the_dispatch_read_one_table_the_ast_confirms`——普查腿：表里每个 (transport, cls, keys) 的 cls 体内 AST 实读字段减 `name` 与声明**双向**相等；表键集合等于 `transport` 属性能返回的字面量集合（从属性体推导）；下限由「并集 ⊇ 装载器实读键 − read_only」推导；`_client` 体内不得再出现字面量分派。
+
+变异臂（私有平面 wt242；未变异控制先跑，红集为空才引用臂读数；每臂从 sha256 快照还原并核对 byte-exact）：
+
+| 臂 | 变异 | 预测红 | 实测红 |
+| --- | --- | --- | --- |
+| CONTROL | 无 | 0 | 0（6 passed） |
+| A1 | 删掉装载期的跨传输报告循环 | C1 C2 C3 | C1 C2 C3（3 failed, 3 passed） |
+| A2 | stdio 的声明扩到 `headers`（谎报读它） | 只有 C6 | C1 + C6（2 failed, 4 passed） |
+| A3 | 去掉「值非默认」过滤 | C4 | C4（1 failed, 5 passed） |
+| A4 | stdio 的声明窄成 `command` | C4 + C6 | C2 + C6（2 failed, 4 passed） |
+| A5 | `_client` 改回字面量分支（表仍在） | C6 | C6（1 failed, 5 passed） |
+
+两处偏差按事实登记，不放宽容忍：
+
+- **A2 比预测多一根红**。预测写「行为不变，只有普查看得见」，实测 C1 也红了：把 stdio 的声明扩成含 `headers` 之后，`headers` 就不再算「别的传输独占读」的键，报告随之消失。结论是 C1 与 C6 对「声明扩行」这一族是**耦合的两道守卫**——要躲过普查必须让 AST 也配合撒谎，那就是改类体本身。
+- **A4 的预测推理错了，红集没错到另一处**。删一行声明的效果在**镜像传输那一侧**：stdio 声明窄成 `command` 让 `args`/`env` 从两边都消失，既不误报（C4 绿，因为 C4 的干净条目不再被声称），也让 http 侧少报两条（C2 红），外加普查 clause(a)/(c) 红（C6）。写窄化预测前要先问「这条声明是谁的死集来源」。
+
+### 5 验证状态
+
+- 聚焦回归：落库前先在同平面跑过（`Temp/mc-t242/deltas_t242.md`），落库后回主树重跑
+  `tests/test_mcp_transport_dead_keys.py` 与另外 5 个 MCP 测试文件，**65 passed / 14.09s**；
+  两平面同数，说明本批的三文件改动没有把结果绑在平面上。
+- 双平面全量围栏（一次一个进程，父腿平面 = 32c0fd7 干净副本，子腿平面 = 同一 pin 加本批三文件；
+  两腿都以 `cwd=平面 + python -m pytest` 启动且不注入 `PYTHONPATH`，并先行打印 `minicc.__file__`
+  确认落在各自平面）：
+  - 父腿 2283 节点：2278 passed / 0 failed / 0 error / 5 skipped，1529.7s；
+  - 子腿 2289 节点：2284 passed / 0 failed / 0 error / 5 skipped，1459.6s；
+  - 按**案例名多重集**归因：`node_added=6`、`node_removed=0`、`red_added=[]`、`red_removed=[]`；
+    新增的六个名逐名等于 §4 那六例，全部在 `tests/test_mcp_transport_dead_keys.py`（名表见
+    `Temp/mc-t242/fence_t242.log` 尾部的 `FENCE node_added names`）；skip 数两侧不变。
+  - 2289 − 2283 = 6 与本批新门的例数一致，且门内无 `parametrize`（实测 0 处），所以「+6」是推导而非巧合。
+  - 两腿红集皆空，故 §4 的每条臂读数不存在被在册红掩盖的问题；上一批那条 stage_routing 平面红这次**没有复现**，
+    说明它是并发车道的在途状态而非 HEAD 缺陷。
+- 提交：代码 **ad5aeb0**（`minicc/mcp.py` +56/−6、新门 `tests/test_mcp_transport_dead_keys.py` 283 行新建、
+  `tests/test_mcp_config_unknown_keys.py` +7/−2）。落库脚本按字节复核：三个 blob 的 sha256 前缀
+  05673f12cbc3 / 469fd025d0df / 79ac2f3840c6 与围栏子腿平面里实测到的三个 hash **逐位相同**，
+  即「跑围栏的字节」＝「进仓库的字节」。本记录为紧随其后的文档提交。
+
+### 6 边界与下一批候选
+
+- transport 的裁决不变：`command` 与 `url` 同时写仍由 `url` 真值翻成 http，本批只保证这件事**出声**。要真拒绝「同时写两个」需要属主口径决策，登记为待决。
+- `default_readonly` 的授权口径（声明只读即免授权、不看 `allow_changes`）仍是 T238 登记的那笔待决，本批未碰。
+- 批 238 §2 那句「仓库里 `read_only` 的每处使用都是真布尔」引用的 `tests/test_mcp_config_unknown_keys.py:103`，因本批在该文件多写了 5 行 docstring 而漂到 `tests/test_mcp_config_unknown_keys.py:108`。行号门只查越界、不查漂移，故按本节登记而不追溯改写：那句是**当时平面**的读数，改写会让它失去平面。
+- `minicc/mcp.py:183` 的 `RECOGNIZED_KEYS` 本身仍是手抄字面量（本批只保证「跨传输的键」不再静默，没有把它改成 `dataclasses.fields` 派生），这是同一条弧的下一格之一。
+- 下一批候选已量好在写：MCP 子进程继承白名单里的 `LANGUAGE` 笔误与「inherit 侧无一例见证」（M8-T243）、`ToolResult.output` 上的恒真截断断言与手抄预算（M8-T244）。
