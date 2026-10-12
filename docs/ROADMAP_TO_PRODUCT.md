@@ -17752,3 +17752,44 @@ PROJECT_REVIEW 原文（docs/PROJECT_REVIEW_2026-09-18.md:20-24）列 5 个 P1�
 - §4.5 死代码/未用符号广扫（独立、可脚本化、带测试护栏的安全清理）。
 - 其余同批 234 §6（评测口径 owner / §3.3 前端压测 / §4.5 清理 / 脏 mutation 测试统一 / 39 异常 / macOS 三项）。
 
+## 第二百三十七批 M8-T237：事件耐久边界契约（§3.2 批量合并重构的第二道 fence）
+
+### 1 来源与占号
+
+批 236 §6 下一批候选首条：「厘清并钉住 `event_log` 的落盘耐久」。占号前读 `git log --all` 与文档：`T237` 提交/文档均 0 命中；批号 237 空闲（200–207、226–236 已占），认领 **M8-T237**。
+
+### 2 现状（读源核验，非猜测）
+
+- `task_manager.py:805` `snapshot()` 把 `"events": list(self.events)` 嵌入持久化快照 → **事件唯一的耐久载体是快照里的 `events` 字段**。恢复靠重载快照，而非事件日志。
+- `minicc/agent/protocol.py:121` `EventLog` 是**纯内存**有界追加缓冲（`deque` + `Condition`，`maxlen=self.limit`），仅供 SSE 实时重放；`close()`（:206）只置 `self._closed` 标志、**不清空缓冲、不落盘**。构造器 `self.limit = max(32, int(limit))`（:126）——最小 32，防误配极小 limit 撑爆进程。
+- 结论：事件耐久 = 快照耐久（即批 236 已钉的契约）；`EventLog` 不是耐久机制，重启后由快照重建重放。§3.2 的"每个 delta 都脱敏+序列化+连接+写库"之痛，正是每次 delta 把整段 `task.events` 重新序列进快照所致——这是批 236/237 契约要保住、且 §3.2 重构要去优化的同一对象。
+
+### 3 改动（只新增测试，零生产码）
+
+新建 `tests/test_event_durability_contract.py`，6 个测试钉住事件耐久边界：
+1. 事件随快照 upsert 落盘、跨 store 重开 `events` 完整保留。
+2. `events_truncated` 标记随快照持久化（恢复后 UI 能诚实告知历史被截断）。
+3. 全新 `EventLog` 起始为空——**无磁盘后端**，耐久来自快照而非日志。
+4. `close()` 只翻标志、缓冲仍在实例内；另一个实例仍为空 → 重启重放历史由快照重建。
+5. `EventLog` 受 `limit` 有界（溢出丢最旧），且 `limit` 下限 32；约束每次快照体积。
+6. 终态 `flush()` 立即带走完整事件历史（§3.2「终态强制落盘」作用于事件）。
+
+写回调同批 236 镜像生产（`write(task)` 内 `store.upsert(task.snapshot())`）。
+
+### 4 验证状态
+
+- 真实仓库 `pytest tests/test_event_durability_contract.py -q` → **6 passed / 21.1s**。
+- `doc_pointers --check` exit 0（引用 `task_manager.py:805`、`protocol.py:121/206` 均存在；先 commit 测试文件再查）。
+- 曾踩坑：`EventLog.read(after=0)` 在空/全新日志（next==cursor==0）会无限等待新事件 → 测试改 `timeout=0` 非阻塞；`limit=3` 被抬高到 32 → 改用 `limit=32` 验溢出并显式断言 32 下限。
+
+### 5 边界
+
+- 仅新增独立测试文件；生产码零改动；不动任何脏文件。
+- 这是**第二道绿基线契约**：当前全绿，作为 §3.2 批量合并重构的回归栅栏。明确钉死"事件耐久 = 快照耐久、EventLog 非耐久"这一架构边界，防止重构误把 EventLog 当持久层。
+- 未跑 ruff/mypy（本机 .venv 无，靠 CI）；已对 `task.snapshot` 加 `# type: ignore[attr-defined]`。
+
+### 6 下一批候选
+
+- §3.2 续（真正动手改写入路径）：在保留上述两道契约前提下，做"小事件发布 + 后台批量合并快照写"的原型/重构，并用批 236/237 契约做回归栅栏。属较大重构，需先定"批量合并的合并窗口与终态强制落盘触发点"，建议另起一批独立成批。
+- §4.5 死代码/未用符号广扫（独立、可脚本化、带测试护栏）。
+- 其余同批 234 §6（评测口径 owner / §3.3 前端压测 / §3.2 持久化重构 / §4.5 清理 / 脏 mutation 测试统一 / 39 异常 / macOS 三项）。
