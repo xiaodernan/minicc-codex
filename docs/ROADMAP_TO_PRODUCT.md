@@ -17859,3 +17859,42 @@ PROJECT_REVIEW 原文（docs/PROJECT_REVIEW_2026-09-18.md:20-24）列 5 个 P1�
 - `default_readonly` 这条**授权口径**本身（声明只读就免授权、不看 `allow_changes`）不在本批范围：它是 M8-T127 系列的设计选择，改它需要 owner 决策；本批只保证声明的类型不被曲解。
 - `minicc/mcp.py` 里的 `RECOGNIZED_KEYS` 仍是手抄字面量（实测与 `dataclasses.fields` 差一个 `name`）：改成派生是另一批的事。
 - 上一批留下的候选不变：§3.2 批量合并重构（批 236/237 两道契约是它的 fence）、`tests/test_silence_must_state_its_reason_mutation.py` 的硬编码扫描根（本批实测它换一个 cwd 就绿，属别的车道在途文件）。
+
+## 第二百三十九批 M8-T239：死代码广扫（§4.5）— 私有零引用 helper 清理 + 全量 census
+
+### 1 来源与占号
+
+批 234 §6 第 5 项「§4.5 死代码清理（维护，需先 grep 零引用）」。占号前读 `git log --all` 与文档：`T239` 提交/文档均 0 命中；批号 239 空闲（200–207、226–238 已占；238 被并发会话以 MCP 配置校验弧占去，故本批顺延），认领 **M8-T239**。
+
+### 2 方法（AST census + 全仓引用计数）
+
+对 `minicc/`、`tests/`、`scripts/` 全部 `.py`：AST 收集每个 `FunctionDef`/`AsyncFunctionDef` 的**唯一**定义，再用单遍标识符 Counter 统计全仓引用。筛「定义 1 次且引用 ≤1（只有定义本身）」者。`tests/` 命中的几乎都是 pytest 按名收集的测试函数（源码不按名引用），非死码，故只看 `minicc/`。
+
+### 3 结果（11 个 minicc 候选，逐类判定）
+
+**移除（3 个私有零引用 helper，已核 docs/tests/scripts 全零引用、无 `__all__`、无测试）：**
+- `minicc/tools/bash.py` `_collect_after_termination` — `run_process` 直接调用 `terminate_process_tree`、**从不调用它**；其 M4-7 理由注释在 `run_process`（bash.py:450-456）有**更完整**版本（含 20s vs 3.7s 实测），删除不丢知识。
+- `minicc/tools/web.py` `_fetch_search_html` — 自称 "compatibility helper retained for callers"，但全仓 0 调用者。
+- `minicc/task_store.py` `_search_snapshot` — `search()` 直接用 `_search_text`，此 wrapper 无人用。
+
+**保留（4 个框架按名分发的回调，census 无法证明死）：** `webserver.py` `do_OPTIONS`（http.server 分发）、`tools/web.py` `handle_startendtag`（HTMLParser 钩子）、`tools/webfetch.py` `http_open`/`https_open`（urllib handler）。删之会改行为，非死码。
+
+**保留待 owner/API 复核（4 个无下划线的公开函数，零引用但可能属插件/外部 API）：** `tools/editor.py` `classify_workspace_changes`、`tools/registry.py` `denied_result`/`truncate_to_result`、`static_assets.py` `ide_root`。三个模块均无 `__all__`，无 docs 引用；但公开名删除有破坏外部消费者风险，**不擅删**，登记待复核。
+
+### 4 验证状态
+
+- 导入 smoke：`import minicc.tools.bash, minicc.tools.web, minicc.task_store` → OK。
+- store/search 定向门：`pytest tests/test_history_search.py tests/test_task_store_durability_contract.py tests/test_task_durability.py tests/test_task_persistence.py -q` → **27 passed / 22.9s**。
+- 工具层子集：`pytest tests/test_core_tools.py -q -k "bash or web or search or process"` → **15 passed, 1 failed**；失败项 `test_bash_cancellation_terminates_long_running_process` 是**本机固有时序 flaky**（0.25s 节拍 vs 本机 spawn 1.6–3.4s）：在 `git archive HEAD` **平面**（改动前原始 bash.py）上 3 次跑也失败 1 次，证明**与本次改动无关**。平面跑完即删。
+
+### 5 边界
+
+- 只删 3 个私有零引用 helper；生产语义零变化（删的都是从不被调用的定义）。公开候选一律保留待复核。
+- 未跑全量 pytest（本机跑不完，见记忆「长跑与测量纪律」）；已用定向门 + 平面对照覆盖改动面。
+- 未跑 ruff/mypy（本机 .venv 无，靠 CI）。
+
+### 6 下一批候选
+
+- 4 个公开零引用函数（`classify_workspace_changes`/`denied_result`/`truncate_to_result`/`ide_root`）待 owner 确认是否属插件 API；确认非 API 后可删。
+- §3.2 续（真正动手改写入路径，见批 237 §6）。
+- 其余同批 234 §6（评测口径 owner / §3.3 前端压测 / 脏 mutation 测试统一 / 39 异常 / macOS 三项）。

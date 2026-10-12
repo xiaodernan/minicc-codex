@@ -319,26 +319,6 @@ def terminate_process_tree(proc: subprocess.Popen[bytes]) -> None:
         pass
 
 
-def _collect_after_termination(proc: subprocess.Popen[bytes]) -> tuple[bytes, bytes]:
-    """Drain pipes after a forced stop without allowing a second hang."""
-    terminate_process_tree(proc)
-    try:
-        stdout, stderr = proc.communicate(timeout=3)
-        return stdout or b"", stderr or b""
-    except subprocess.TimeoutExpired as exc:
-        terminate_process_tree(proc)
-        try:
-            stdout, stderr = proc.communicate(timeout=1)
-            return stdout or b"", stderr or b""
-        except (OSError, subprocess.TimeoutExpired):
-            # M4-7 follow-up: do NOT close the pipes here. A parked reader makes
-            # ``close()`` wait for the in-flight read to finish (see
-            # run_process), which is how a detached child used to stall this
-            # path for its whole lifetime. The daemon readers own the handles and
-            # release them when the write end finally closes.
-            return bytes(exc.output or b""), bytes(exc.stderr or b"")
-
-
 def run_process(
     command: str | list[str],
     workspace: Path,

@@ -348,11 +348,6 @@ def _fetch_search(query: str) -> _SearchFetch:
     raise ToolError(f"联网搜索暂不可用：{detail}。已自动尝试备用来源，请稍后重试或换用项目内证据。")
 
 
-def _fetch_search_html(query: str) -> str:
-    """Compatibility helper retained for callers that only need raw HTML."""
-    return _fetch_search(query).html
-
-
 def web_search(args: dict[str, object]) -> ToolResult:
     raw_query = str(args.get("query") or "").strip()
     if not raw_query:

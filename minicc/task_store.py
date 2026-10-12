@@ -349,11 +349,6 @@ def _searchable_text(snapshot: dict[str, Any]) -> str:
     return "\n".join(part for part in parts if part)
 
 
-def _search_snapshot(snapshot: dict[str, Any], needle: str) -> dict[str, Any] | None:
-    """Return snippet + match count for ``needle`` inside one snapshot."""
-    return _search_text(_searchable_text(snapshot), needle)
-
-
 def _search_text(haystack: str, needle: str) -> dict[str, Any] | None:
     folded_haystack = haystack.casefold()
     folded_needle = needle.casefold()
