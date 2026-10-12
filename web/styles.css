@@ -898,8 +898,15 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 }
 @media (max-width: 780px) {
   body { overflow: hidden; }
-  .app-shell { display: block; }
-  .main-column { height: 100%; }
+  /* The 2026-09-18 review reported the send button clipped by ~12px on a
+   * 390x844 viewport: `.app-shell { display: block }` dropped the height
+   * context, so `.main-column { height: 100% }` resolved against an
+   * auto-height block and grew past the viewport. Pin the shell to the
+   * viewport height and let the column flex-fill it, so the chat scrolls
+   * and the composer stays above the fold (safe-area aware via the body
+   * already using --app-height: 100dvh). */
+  .app-shell { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0; height: 100%; }
+  .main-column { flex: 1 1 auto; min-height: 0; height: auto; }
   .sidebar { bottom: 0; box-shadow: var(--shadow); left: 0; position: fixed; top: 0; transform: translateX(-102%); transition: transform .22s ease; width: min(290px, 88vw); z-index: 10; }
   .sidebar.open { transform: translateX(0); }
   .sidebar-close, .mobile-menu { display: inline-flex !important; }

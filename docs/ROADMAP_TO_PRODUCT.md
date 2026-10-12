@@ -17676,3 +17676,35 @@ PROJECT_REVIEW 原文（docs/PROJECT_REVIEW_2026-09-18.md:20-24）列 5 个 P1�
 
 **说明**：本批起，minicc-codex 的"小修/契约/门禁"阶段已收口；后续演进进入"评测闭环 + 前端体感 + 规模化"三段，每段都跨出了"本机可独立完成"的边界。继续推进需要你（owner）在评测口径与前端复核上给出口径，或等别的会话清理其在途改动。不会为"不停"而编造改动或碰别人的脏文件。
 
+## 第二百三十五批 M8-T235：前端 §2 体感（一）— 修复移动端发送按钮被裁切
+
+### 1 来源与占号
+
+批 234 §6 前向计划第 2 项（§2 三项体感）的首个可独立落地子项：手机发送按钮被裁切（评审原文 390×844 下超可视区 12px）。占号前读 `git log --all` 与文档：`T235` 0 命中、文档 0 命中；批号 235 空闲（200–207、226–234 已占），认领 **M8-T235**。
+
+### 2 根因（读源核验，非猜测）
+
+- `web/styles.css:1302` `body { position: fixed; ... height: var(--app-height); }`（`--app-height: 100dvh`，:1301）— body 高度受视口约束。
+- 桌面 `.app-shell` 是栅格/弹性容器，`.main-column`（:183 `display:flex; flex-direction:column; min-height:0; overflow:hidden`）内 `.chat-area`（:203 `flex:1; min-height:0; overflow-y:auto`）滚动、`.composer-wrap`（:1349 `flex:0 0 auto`）钉底——桌面正常。
+- 移动 `@media (max-width:780px)`（:899）：`.app-shell { display:block }`（:901）丢掉高度上下文，`.main-column { height:100% }`（:902）相对"auto 高度的 block 父"解析成**内容高度**→ 列高于视口，`.composer-wrap` 落到 856px、视口 844px、`body{overflow:hidden}` 裁掉 12px。与评审"856 vs 844"完全吻合。
+
+### 3 改动（只动 ≤780px 媒体查询，桌面不受影响）
+
+把 `.app-shell` 在移动端改为高度受约束的弹性列、`.main-column` 改为 `flex: 1 1 auto; min-height: 0; height: auto`（替代会溢出的 `height:100%`）。DOM 已核验：`index.html:44` `.app-shell` 直接 child of `body`；`:96` `.main-column` 直接 child of `.app-shell`；`.sidebar`/`.inspector` 移动端 `position:fixed` 已离流。故 app-shell(flex:1)→main-column(flex:1)→chat-area(flex:1 滚动)+composer(flex:0 0 auto 钉底)，发送按钮回到可视区内。
+
+### 4 验证状态（诚实边界）
+
+- **本环境无法验证**：前端依赖目录（无 node_modules）缺失，跑不了 `npm run check:web`；无浏览器，做不了视觉回归。CSS 语法有效、仅改移动媒体查询、结构根因已逐项读 DOM+基础 CSS 核验。
+- 当前移动端状态**本就已知 broken**（评审实测按钮裁切），本改动是修已知坏状态，最坏中性。
+- **交付即"待你在浏览器确认"**：请在 390×844 下打开，确认发送按钮完整可见、聊天可滚动、桌面/平板布局无回归。确认后闭环；若哪处不对，告诉我具体表现，我据实再调（不声称已视觉验证）。
+
+### 5 边界
+
+- 仅改 `web/styles.css` 一处媒体查询；生产码/测试零改动；不动任何脏文件。
+- §2 另两项**未动**：暗色对比度（语义色变量系统性统一，需视觉复核，不盲改以免回归）、权限文案不一致（评审原 `.safe-toggle:nth-child(2){display:none}` 隐藏联网开关的规则已不存在，当前 `.permission-toggles .safe-toggle{display:inline-flex}` 可见——该特定 CSS 隐藏 bug 已消解；剩"默认/计划/自动写/全自动/安全模式/完全访问"文案口径属产品文案，需 owner 拍板）。
+
+### 6 下一批候选（同批 234 §6，更新状态）
+
+- §2 暗色对比度、权限文案口径（owner）。
+- 其余同批 234 §6（评测口径 owner / §3.3 前端压测 / §3.2 持久化重构 / §4.5 清理 / 脏 mutation 测试统一 / 39 异常 / macOS 三项）。
+
