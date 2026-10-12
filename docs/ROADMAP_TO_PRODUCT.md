@@ -17793,3 +17793,69 @@ PROJECT_REVIEW 原文（docs/PROJECT_REVIEW_2026-09-18.md:20-24）列 5 个 P1�
 - §3.2 续（真正动手改写入路径）：在保留上述两道契约前提下，做"小事件发布 + 后台批量合并快照写"的原型/重构，并用批 236/237 契约做回归栅栏。属较大重构，需先定"批量合并的合并窗口与终态强制落盘触发点"，建议另起一批独立成批。
 - §4.5 死代码/未用符号广扫（独立、可脚本化、带测试护栏）。
 - 其余同批 234 §6（评测口径 owner / §3.3 前端压测 / §3.2 持久化重构 / §4.5 清理 / 脏 mutation 测试统一 / 39 异常 / macOS 三项）。
+
+## 第二百三十八批 M8-T238：MCP 配置里三个键的值没人问类型——read_only 被 bool() 代读成了免授权通道
+
+### 1 来源与占号
+
+批 234 §6 之外自开的一条：MCP 配置校验弧（M8-T140 → T143 → T145 → 本批）的下一格。占号前读 `git log --all` 与文档全文：预测写好后 HEAD 从 5a3fbe3 推进到 ce6a7a2，`M8-T199` 已被 f17c1e9「batch 224」以纯文档现状快照的形式占去，仓库最高任务号到 M8-T237，故本批认领 **M8-T238**；缺陷、修复形状、8 例门与 6 臂的先写预测（Temp/mc-t199/predictions_t199.md）一字未改。
+
+### 2 现状（落库前在主树实测，HEAD=ce6a7a2，非推理）
+
+`minicc/mcp.py:170` `load_mcp_config` 读七个键，其中三个的值从来没有被问过类型：
+
+1. `read_only` 走 `bool(value.get("read_only", False))`。实测 `"false"/"no"/"0"/"yes"/1/{"a":1}` 全部装载成功且 `.read_only=True`；只有 `null/0/[]` 才是 False。风险字符串由 `minicc/mcp.py:752` 的 `"readonly" if config.read_only else "exec"` 决定，而 `minicc/audit.py:259` 对 `risk == "readonly"` 直接返回 `default_readonly` 允许——既不看 `allow_changes`，也不进 session 白名单通道。于是工作区里一行 `"read_only": "false"` 就把一个**可写**的 MCP 工具变成永不索要授权的工具；CLI（`minicc/main.py:338`）与 Web（`minicc/web.py:1547`、`minicc/web.py:2014`）都读 `registry.risk_of`，两条入口同判。
+2. `command`/`url` 的存在性用 `isinstance(..., str) and ....strip()` 判。实测 `{"command": ["server.py"]}` 与「根本没写 command」得到**同一句**「MCP server 's' 缺少 command 或 url」——「写了但类型错」被说成「没写」。更糟的是 `{"command": "server.py", "url": ["http://x"]}`：`has_url` 为假 ⇒ 跳过 scheme 检查、跳过 SSRF 门，构造函数却用 `str(value.get("url") or "")` 存下 repr，`transport`（`minicc/mcp.py:130`）因此翻成 `http`。操作者写的 stdio 命令被静默丢弃，`McpManager.tool_specs()` 才报「MCP HTTP server s 不可达: <urlopen error unknown url type: ['http」，且 `resources_context()` 吞成空串。
+3. 存在性检查读 `strip()` 后的值，存下的却是原值：`{"command": "  node  "}` 里 `.command` 保留前后空格，真跑补了空格的 `sys.executable` 得到「无法启动 MCP server s: [WinError 2] 系统找不到指定的文件。」，同一条命令 bare 时子进程正常起来。
+
+修复是否需要改变任何**合法**配置：不需要。仓库里 `read_only` 的每处使用都是真布尔（`tests/test_core_tools.py:358`、`tests/test_mcp_config_validation.py:117`、`tests/test_mcp_config_unknown_keys.py:103`、`tests/test_mcp_http.py:165`），README 写的也是 JSON 布尔。
+
+### 3 改法（口径沿用 M8-T140：坏形状在装载期就点名拒绝，不留到运行时）
+
+新增两个装载期校验器：`_config_text()`（`minicc/mcp.py:134`，非字符串即按 `command`/`url` 键名拒绝，显式 `null` 与缺失同为「没有」，返回 strip 后的值）、`_config_flag()`（`minicc/mcp.py:152`，非布尔即拒绝）。`minicc/mcp.py:198-200` 三个键一律经校验器取值，构造函数只拿这三个值，且类型检查排在 `minicc/mcp.py:202` 的「缺少 command 或 url」之前——所以写错类型报的是那个键自己的名字。
+
+### 4 门与变异臂
+
+新建 `tests/test_mcp_config_value_types.py`，8 例 16 节点：
+
+1. `test_a_wrong_type_read_only_is_refused_by_its_own_name`——每种非布尔拼写各自计数地拒绝，缺席与 `null` 仍装载为 False。
+2. `test_the_declaration_decides_between_asking_and_never_asking`——真起一个假 stdio 服务器做授权对照：`true` ⇒ risk `readonly` ⇒ 允许（`default_readonly`）；`false` ⇒ risk `exec` ⇒ 同一个 `authorize_tool` 调用拒绝（`missing_task_exec`）；字符串声明在装载期就死，到不了 registry。
+3. `test_a_wrong_type_command_is_named_not_reported_as_missing`——拒绝必须命名 `command` 且**不得**出现「缺少」。
+4. `test_a_wrong_type_url_beside_a_good_command_does_not_become_http_transport`——外加 `null`/空串仍为 stdio 的反向钉。
+5. `test_the_value_the_loader_checks_is_the_value_the_server_gets`——bare 与补空格的同一条命令都存校验过的文本、都能列出 1 个工具。
+6. `test_the_url_the_loader_blesses_is_the_url_the_gate_read`——strip 前后同值，SSRF 门关闭时拒绝。
+7. `test_no_key_is_read_off_the_json_except_through_something_that_names_it`——AST 名单门：读出的键必须有人校验；下限由 `dataclasses.fields(McpServerConfig)` 推导，不是手抄。
+8. `test_the_loader_still_refuses_an_entry_that_declares_neither`——M8-T140 回归腿。
+
+变异臂（私有平面 wt238，未变异控制 0 红，每臂从 sha256 快照还原并逐臂核对 byte-exact）：
+
+| 臂 | 变异 | 预测红 | 实测红 |
+| --- | --- | --- | --- |
+| CONTROL | 无 | 0 | 0 |
+| A1 | `read_only` 改回 `bool()` 强制 | 1+2+7 | 3（拒绝表 / 授权对照 / 名单门） |
+| A2 | risk 恒为 `exec` | 2 | 1（授权对照） |
+| A3 | 类型检查挪到「缺少」之后 | 3+4 | 10（两例各 5 行） |
+| A4 | 存未 strip 的原值 | 5 | 2（同值例 + url 门与值同文例） |
+| A5 | 新增字段 `timeout` 读了不校验 | 7 且只有 7 | 1（只有名单门） |
+| A6 | 只删 `url` 的校验 | 4+7 | 2（名单门 + 门与值同文例） |
+| 反向控制 | 整套门对着落库前字节 | 大面积红 | 15/16 红，仅 M8-T140 回归腿绿 |
+
+两处偏差按事实登记，不放宽容忍：A4 的第二条红是我在写门时多要的一条子句（校验文本与存储文本必须同值），它读的是同一个 token，红是应当的；A6 的 `url` 行为行**没红**——删掉 `_config_text` 后 `if url:` 仍会对 repr 跑 scheme 检查并命名 `url`，所以那些行看的是结果不是校验器存在，唯一抓住这类「键有读者、无校验者」的是名单门。这正是要把名单门留在仓库里的理由。
+
+### 5 验证状态
+
+- 聚焦回归（平面 wt238）：`tests/test_mcp_config_value_types.py` 与另外 4 个 MCP 测试文件共 **59 passed / 12.53s**（平面代码身份由 `minicc.mcp.__file__` 先行确认）。
+- 结构性门（平面 wt238，15 个会走全盘的文件，共 252 节点）：250 passed，2 条红全部来自 `tests/test_silence_must_state_its_reason_mutation.py`——该文件把扫描根写成绝对路径 `D:\面试项目\minicc-codex` 又用 `relative_to(Path.cwd())` 记账，任何非主树平面都必红；反向对照（同两个案例、cwd 换回主树）**2 passed / 5.82s**，与本批无关，属那条车道的平面组成缺陷。
+- 双平面全量围栏（一次一个进程，父腿 ce6a7a2、子腿 97ee3e1，各取 junit 按**案例名多重集**归因）：
+  - 父腿 2266 节点：2258 passed / 3 failed / 5 skipped，1190.0s；
+  - 子腿 2282 节点：2274 passed / 3 failed / 5 skipped，1171.5s；
+  - 新增名 **16 个，全部在 `tests/test_mcp_config_value_types.py`**，删除名 0，skip 数不变；红集两侧逐名相同（+0／−0）。
+  - 三条平面红全部归因于测量装置，且都在父腿同现：`tests/test_packaging.py:297` 的 `test_installed_console_scripts_run_from_a_real_install` 是我启动器注入的 `PYTHONPATH=<平面>` 漏进了 `--system-site-packages` 的一次性 venv，让「反空转」子句抓到平面而不是 venv 自己——同一条测试在同平面去掉 `PYTHONPATH` 后 **1 passed / 61.23s**；另外两条就是上面那对硬编码扫描根的 silence 门。
+  - 先写预测在这里的偏差照实登记：预测表按「7 例」写的围栏新增名，实际门是 8 例 16 节点（写门时把 url 的 strip 同值子句单独成例，两条 parametrize 各 5 行），所以新增名是 16 而不是 7；「除已知遗留外不得有新增红」这一条按名兑现为 0。
+- 提交：代码 **97ee3e1**（`minicc/mcp.py` +44/−8、新门 359 行）；本记录为紧随其后的文档提交。
+
+### 6 边界与下一批候选
+
+- `default_readonly` 这条**授权口径**本身（声明只读就免授权、不看 `allow_changes`）不在本批范围：它是 M8-T127 系列的设计选择，改它需要 owner 决策；本批只保证声明的类型不被曲解。
+- `minicc/mcp.py` 里的 `RECOGNIZED_KEYS` 仍是手抄字面量（实测与 `dataclasses.fields` 差一个 `name`）：改成派生是另一批的事。
+- 上一批留下的候选不变：§3.2 批量合并重构（批 236/237 两道契约是它的 fence）、`tests/test_silence_must_state_its_reason_mutation.py` 的硬编码扫描根（本批实测它换一个 cwd 就绿，属别的车道在途文件）。
