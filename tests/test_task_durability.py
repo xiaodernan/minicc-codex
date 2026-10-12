@@ -212,3 +212,22 @@ def test_history_projection_migrates_unicode_and_ignores_event_payload(tmp_path:
     assert store.search("visible")
     store.prune(keep_terminal=0)
     assert store.search("visible") == []
+
+
+def test_duplicate_file_event_does_not_redirty_checkpoint(tmp_path: Path) -> None:
+    """3.2: a deduplicated file/exec event adds no new evidence, so it must not
+    bump ``checkpoint_revision`` -- otherwise the next flush re-hashes the
+    workspace files for no reason (a replayed worker snapshot would do this)."""
+    task = _task(tmp_path)
+    task.transition_status("running")
+    event = {"event_id": "evt-1", "name": "read_file", "path": "a.py"}
+    assert task.add_event(event) is not None
+    revision = task.checkpoint_revision
+    assert revision >= 1
+    assert task.checkpoint_dirty is True
+    # Same event re-delivered (same id -> deduped) is not new evidence.
+    assert task.add_event(dict(event)) is None
+    assert task.checkpoint_revision == revision
+    # A genuinely new file event still dirties the checkpoint.
+    task.add_event({"event_id": "evt-2", "name": "edit_file", "path": "b.py"})
+    assert task.checkpoint_revision == revision + 1

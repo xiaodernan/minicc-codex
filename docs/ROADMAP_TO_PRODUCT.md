@@ -17898,3 +17898,43 @@ PROJECT_REVIEW 原文（docs/PROJECT_REVIEW_2026-09-18.md:20-24）列 5 个 P1�
 - 4 个公开零引用函数（`classify_workspace_changes`/`denied_result`/`truncate_to_result`/`ide_root`）待 owner 确认是否属插件 API；确认非 API 后可删。
 - §3.2 续（真正动手改写入路径，见批 237 §6）。
 - 其余同批 234 §6（评测口径 owner / §3.3 前端压测 / 脏 mutation 测试统一 / 39 异常 / macOS 三项）。
+
+## 第二百四十批 M8-T240：§3.2 现状核验（多数已落地）+ 一处「文件摘要只在变更后更新」微修
+
+### 1 来源与占号
+
+批 237 §6 下一批候选首条「§3.2 续：真正动手改写入路径」。动手前先读源核验 §3.2 到底还剩多少。占号前读 `git log --all` 与文档：`T240` 提交/文档均 0 命中；批号 240 空闲（200–207、226–239 已占），认领 **M8-T240**。
+
+### 2 现状核验（读源，逐子项对照评审 §3.2 建议）
+
+评审 §3.2 五条建议**绝大多数已由历次增量批次落地**：
+1. **后台批量合并**：`task_persistence.TaskSnapshotWriter`（:9）每 task 只留一个脏引用、周期 flush（默认 0.35s）+ close 兜底全刷（M3-T9 单失败不丢其余）。✅
+2. **每 delta 不再全量序列化**：流式路径 `task_manager.py:2388` `on_stream` 只做 `append_stream` + `_persist_task`（非 force → `enqueue`，廉价字典赋值）；全量脱敏/序列化只在后台 flush 发生。评审抱怨的"每个 delta 都脱敏+序列化+连接+写库"**已不是现状**。✅
+3. **终态/重要转换强制落盘**：`_persist_task(force=True)` → `writer.flush`（同步）；30 处调用点多为终态/父子/取消。已有测试 `test_task_durability.py::test_sqlite_write_does_not_block_stream_callbacks_and_final_wins`。✅
+4. **WAL + 清晰连接生命周期**：`task_store.py:31` `PRAGMA journal_mode=WAL`；`_connect`（:100）contextmanager 每连接 commit/rollback+close。✅
+5. **文件摘要只在相应变更后更新**：`_append_timeline_event_locked`（:520）只在事件含 `path`/`write`/`name∈{bash,git}` 时置 `checkpoint_dirty`，`_update_checkpoint`（:2761）算完置回 False。✅（见 §3 微修）
+
+**结论**：§3.2 的"较大重构"经历次批次已基本完成；残余仅一处微低效。
+
+### 3 改动（一处微修，对齐 §3.2 第 5 条）
+
+`task_manager.py:516` `_append_timeline_event_locked`：原代码在**去重检查之前**就 `checkpoint_dirty=True; checkpoint_revision += 1`，于是**被去重的重复事件**（同 `event_id`/指纹，如 worker 快照重放）也会把 checkpoint 重新置脏 → 下轮 flush 白算一次工作区文件 digest（最多 48 个文件）。改为把置位**移到去重门之后**：只有**真正新增**的文件/exec 事件才动 checkpoint。语义更正确（被去重的事件不是新证据），并发 `checkpoint_revision` 守卫语义不变。
+
+### 4 验证状态
+
+- 新增 `tests/test_task_durability.py::test_duplicate_file_event_does_not_redirty_checkpoint`：重复事件后 `checkpoint_revision` 不变、`checkpoint_dirty` 仍为 True；新增文件事件仍 +1。
+- `pytest tests/test_task_durability.py -q` → **10 passed / 26.9s**（原 9 + 新 1）。
+- **变异真红验证**（平面，未碰共享树）：`git archive HEAD` 平面（原始顺序）+ 我的新测试 → 新测试**转红** `assert 2 == 1`（重复事件多 bump 一次），证明测试真能捕获旧行为；平面跑完即删。
+- `doc_pointers --check` exit 0。
+
+### 5 边界
+
+- 仅改 `_append_timeline_event_locked` 内两条语句的顺序（净 +4 注释行）；不改任何公开行为、不改持久化契约（批 236/237 契约测试仍绿）。
+- 未跑全量 pytest（本机跑不完）；未跑 ruff/mypy（本机 .venv 无，靠 CI）。
+- 不动任何脏文件（别的会话在途的 `scripts/impacted_tests.py`、`tests/_silence_reason_shared.py` 等）。
+
+### 6 下一批候选
+
+- §3.2 余项：评审提到的"进程镜像固定 1.5s 轮询改 IPC/事件通知"（`task_execution.py` WorkerSnapshotMirror 侧）——较大、跨进程协议，需独立评估。
+- 4 个公开零引用函数待 owner 确认非插件 API 后清理（批 239 §6）。
+- 其余同批 234 §6（评测口径 owner / §3.3 前端压测 / 脏 mutation 测试统一 / 39 异常 / macOS 三项）。

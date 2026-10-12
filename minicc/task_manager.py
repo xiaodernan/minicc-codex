@@ -517,9 +517,6 @@ class TaskRecord:
         if self.status in TERMINAL_TASK_STATUSES and not allow_terminal:
             return None
         candidate = dict(event)
-        if candidate.get("path") or candidate.get("write") or candidate.get("name") in {"bash", "git"}:
-            self.checkpoint_dirty = True
-            self.checkpoint_revision += 1
         event_id = str(candidate.get("event_id") or f"evt-{uuid.uuid4().hex[:16]}")
         item_id = str(candidate.get("item_id") or f"item-{uuid.uuid4().hex[:16]}")
         candidate["event_id"] = event_id
@@ -528,6 +525,14 @@ class TaskRecord:
         fingerprint = _event_fingerprint(candidate)
         if event_id in self._event_ids or fingerprint in self._event_keys:
             return None
+        # 3.2: only a *new* file/exec event changes the checkpoint evidence. A
+        # deduplicated duplicate (same id/fingerprint, e.g. a replayed worker
+        # snapshot) must not re-dirty the checkpoint, or the next flush would
+        # re-hash the workspace files for no reason. Bump only after the dedup
+        # gate so ``checkpoint_revision`` tracks genuinely new evidence.
+        if candidate.get("path") or candidate.get("write") or candidate.get("name") in {"bash", "git"}:
+            self.checkpoint_dirty = True
+            self.checkpoint_revision += 1
         self._event_ids.add(event_id)
         self._event_keys.add(fingerprint)
         self._publish_locked("timeline", candidate, event_id=event_id, item_id=item_id)
