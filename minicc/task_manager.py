@@ -2198,12 +2198,17 @@ class TaskManager:
     def _monitor_worker(self, task: TaskRecord, store: TaskStore, process: Any = None) -> dict[str, Any]:
         mirror = WorkerSnapshotMirror(task)
         cancel_file = Path(task.workspace_path) / ".minicc" / "cancel" / f"{task.task_id}.flag"
+        cancel_written = False
         while True:
             if self._closing:
                 raise WorkerDetached()
-            if task.cancel_event.is_set():
+            # The worker only checks that the flag exists (_watch_cancel reads
+            # is_file() and never deletes it), so signal cancellation once
+            # instead of rewriting the identical file on every 0.2s poll tick.
+            if task.cancel_event.is_set() and not cancel_written:
                 cancel_file.parent.mkdir(parents=True, exist_ok=True)
                 cancel_file.write_text("cancelled", encoding="utf-8")
+                cancel_written = True
             snapshot = store.get(task.task_id)
             if snapshot is not None:
                 mirror.apply(snapshot)

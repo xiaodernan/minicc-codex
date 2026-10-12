@@ -17938,3 +17938,37 @@ PROJECT_REVIEW 原文（docs/PROJECT_REVIEW_2026-09-18.md:20-24）列 5 个 P1�
 - §3.2 余项：评审提到的"进程镜像固定 1.5s 轮询改 IPC/事件通知"（`task_execution.py` WorkerSnapshotMirror 侧）——较大、跨进程协议，需独立评估。
 - 4 个公开零引用函数待 owner 确认非插件 API 后清理（批 239 §6）。
 - 其余同批 234 §6（评测口径 owner / §3.3 前端压测 / 脏 mutation 测试统一 / 39 异常 / macOS 三项）。
+
+## 第二百四十一批 M8-T241：worker 监视循环里取消标志只写一次（去掉每 0.2s 重写同一文件）
+
+### 1 来源与占号
+
+批 240 §6 相邻的 §3.2 余项排查中顺带发现（非评审点名）。占号前读 `git log --all` 与文档：`T241` 提交/文档均 0 命中；批号 241 空闲（200–207、226–240 已占），认领 **M8-T241**。
+
+### 2 现状（读源核验）
+
+- `task_manager.py:2198` `_monitor_worker` 每 0.2s 轮询一次 worker 快照；循环里只要 `task.cancel_event.is_set()` 就 `cancel_file.write_text("cancelled")`（:2204-2206）——**每个 tick 重写同一个内容恒定的文件**。
+- worker 侧 `task_worker.py:167` `_watch_cancel` 只做 `cancel_path.is_file()` 判存在、**从不删除**该文件。故父进程重复写纯属冗余 I/O。
+
+### 3 改动
+
+在 `_monitor_worker` 加 `cancel_written` 布尔守卫：取消标志**只写一次**（`if task.cancel_event.is_set() and not cancel_written`）。行为不变——worker 仍能通过文件存在与否感知取消；只是不再每 0.2s 重复落盘。取消窗口越长（worker 退出越慢）收益越大。
+
+### 4 验证状态
+
+- 导入 smoke OK。
+- `pytest tests/test_task_durability.py -q` → **10 passed**（首跑曾出现 `test_lease_has_single_owner_and_can_recover_after_expiry` 一次 `OperationalError`（task_store.py:115 SQLite 并发）——**负载 flake**：单独重跑 **3/3 passed**，且该用例不触及 `_monitor_worker`，与本次改动无关；当时后台有 specproof 评测进程在跑）。
+- 诚实边界：此改动是**纯 I/O 削减、无外部可观察行为变化**（文件"写一次"与"写多次"对外部只体现为"存在"），故**无专属回归测试**；验证依据是"行为不变 + 既有测试仍绿"。未跑全量 pytest（本机跑不完）；未跑 ruff/mypy（本机 .venv 无，靠 CI）。
+- `doc_pointers --check` exit 0。
+
+### 5 边界
+
+- 仅改 `_monitor_worker` 循环内一处判断（净 +5 行含注释）；不改取消语义、不改持久化契约（批 236/237 契约仍绿）。
+- 不动任何脏文件。
+
+### 6 下一批候选
+
+- §3.2 余项「worker 镜像 0.2s 轮询改 IPC/事件通知」——跨进程协议级大改，本机（跑不全量门）风险过高，暂不擅自开工，建议独立设计评审。
+- 4 个公开零引用函数待 owner 确认非插件 API（批 239 §6）。
+- specproof `#244`：case-17 单例评测已在后台运行（`_eval_case17.log`，差分阶段未产出），下轮据日志给读数；#245–#247 为其后续。
+- 其余同批 234 §6（评测口径 owner / §3.3 前端压测 / 脏 mutation 测试统一 / 39 异常 / macOS 三项）。
