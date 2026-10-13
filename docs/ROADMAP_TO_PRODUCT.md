@@ -18171,4 +18171,34 @@ assert set(by_plane.keys()) == {"tests", "scripts"}
 - 上一批（M8-T238）留下的候选不变：§3.2 批量合并重构的前置 fence、`RECOGNIZED_KEYS` 手抄字面量改派生。
 </content>
 </invoke>
+---
 
+### 第二百二十五批记录 §追加：M8-T201 的 P3 格在 CI 上跳过而不是红（`4ae129d`）
+
+第一版 P3 用 `pytest.mark.skipif(NODE is None, reason="node is not on PATH")`。
+推送后**两个 Python 测试 job 同时红**，红的不是资产陈旧，而是：
+
+```
+E  AssertionError: web assets are stale - run `npm run build:web` ...
+E    Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'esbuild'
+     imported from D:\a\minicc-codex\minicc-codex\scripts\build-web.mjs
+```
+
+原因：**Python 测试 job 不跑 `npm ci`**，所以 `node` 在 PATH 上（`shutil.which("node")` 非空），
+而 `node_modules/esbuild` 不存在。门把"构建工具链缺失"读成了"资产陈旧"——
+这正是这道门存在的反面：**一个把工具缺失当失效的门，会在错误的原因上制造噪声。**
+
+修正为两级跳过理由，`_build_toolchain_ready()` 返回 `None` 或原因串：
+
+| 情形 | 行为 |
+| --- | --- |
+| `node` 不在 PATH | P3 skip，"node is not on PATH" |
+| `node_modules/esbuild` 不在 | P3 skip，理由点名 `npm ci` |
+| 工具链齐 | P3 照常跑，陈旧即红 |
+
+实测（把门复制进一棵没有 `node_modules` 的假仓库）：`4 passed, 1 skipped`，exit 0，
+P3 明确 `SKIPPED`，P1/P2 不受影响。本机有 `node_modules`，P3 照常跑（5 passed）。
+
+**读到的教训**：测量"这个门在什么环境下会失效"必须在**目标环境**里做，不能在开发机上推演。
+本机 `node_modules` 一直在，所以本地 5 passed 从未暴露这个分工；CI 的 Python job
+与 JavaScript job 装的依赖不同，这件事只有 push 之后才知道。
