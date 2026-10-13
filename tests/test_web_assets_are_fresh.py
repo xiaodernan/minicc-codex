@@ -14,15 +14,19 @@ Three cells, in the order a reader meets them:
 * P3 - the sources must actually *build to* the named bundles. Only this one
   catches content drift, because the hash covers esbuild's minified output;
   reproducing that in Python is not possible, so the cell shells out to the
-  build script's own ``--check``. It skips when node is not on PATH, the same way
-  the webauth gates skip on a non-POSIX volume.
+  build script's own ``--check``.
+
+  Two skip reasons, because they are different situations: the Python test jobs do
+  not ``npm ci``, so ``node`` resolves while ``esbuild`` does not. Treating that as
+  a failure would redden CI for a missing toolchain, not for stale assets - the
+  exact opposite of what this gate is for. The static cells P1/P2 need neither and
+  still run everywhere; ``check:web`` in the JavaScript job owns P3 in CI.
 """
 from __future__ import annotations
 
 import json
 import shutil
 import subprocess
-import sys
 from pathlib import Path
 
 import pytest
@@ -36,7 +40,20 @@ BUILD_SCRIPT = REPO / "scripts" / "build-web.mjs"
 pytestmark = pytest.mark.filterwarnings("ignore::DeprecationWarning")
 
 NODE = shutil.which("node")
-needs_node = pytest.mark.skipif(NODE is None, reason="node is not on PATH")
+ESBUILD = (REPO / "node_modules" / "esbuild").is_dir()
+
+
+def _build_toolchain_ready() -> str | None:
+    """``None`` when the build can run, otherwise the reason it cannot."""
+    if NODE is None:
+        return "node is not on PATH"
+    if not ESBUILD:
+        return "node_modules/esbuild is not installed (run `npm ci`)"
+    return None
+
+
+needs_build = pytest.mark.skipif(_build_toolchain_ready() is not None,
+                                 reason=_build_toolchain_ready() or "")
 
 
 def _manifest() -> dict[str, str]:
@@ -112,7 +129,7 @@ def test_a_hardcoded_manifest_would_not_satisfy_the_two_cells() -> None:
 # --- P3: the sources build to the named bundles ---------------------------
 
 
-@needs_node
+@needs_build
 def test_the_sources_build_to_the_bundles_the_manifest_names() -> None:
     """P3: the only cell that catches content drift.
 
