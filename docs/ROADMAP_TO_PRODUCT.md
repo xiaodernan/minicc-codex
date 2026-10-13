@@ -17860,11 +17860,11 @@ PROJECT_REVIEW 原文（docs/PROJECT_REVIEW_2026-09-18.md:20-24）列 5 个 P1�
 - `minicc/mcp.py` 里的 `RECOGNIZED_KEYS` 仍是手抄字面量（实测与 `dataclasses.fields` 差一个 `name`）：改成派生是另一批的事。
 - 上一批留下的候选不变：§3.2 批量合并重构（批 236/237 两道契约是它的 fence）、`tests/test_silence_must_state_its_reason_mutation.py` 的硬编码扫描根（本批实测它换一个 cwd 就绿，属别的车道在途文件）。
 
-## 第二百三十九批 M8-T239：死代码广扫（§4.5）— 私有零引用 helper 清理 + 全量 census
+## 第二百三十九批 M8-T245：死代码广扫（§4.5）— 私有零引用 helper 清理 + 全量 census
 
 ### 1 来源与占号
 
-批 234 §6 第 5 项「§4.5 死代码清理（维护，需先 grep 零引用）」。占号前读 `git log --all` 与文档：`T239` 提交/文档均 0 命中；批号 239 空闲（200–207、226–238 已占；238 被并发会话以 MCP 配置校验弧占去，故本批顺延），认领 **M8-T239**。
+批 234 §6 第 5 项「§4.5 死代码清理（维护，需先 grep 零引用）」。占号前读 `git log --all` 与文档：`T239` 提交/文档均 0 命中；批号 239 空闲（200–207、226–238 已占；238 被并发会话以 MCP 配置校验弧占去，故本批顺延），认领 **M8-T245**。
 
 ### 2 方法（AST census + 全仓引用计数）
 
@@ -17977,7 +17977,7 @@ PROJECT_REVIEW 原文（docs/PROJECT_REVIEW_2026-09-18.md:20-24）列 5 个 P1�
 
 ### 1 来源与占号
 
-MCP 配置校验弧（M8-T140 → T143 → T145 → T238 → 本批）的下一格，来源是 T238 记录自己留下的那笔：它把 `minicc/mcp.py` 的 `RECOGNIZED_KEYS` 记为「仍是手抄字面量，改成派生是另一批的事」。占号前读 `git log` 与文档全文：HEAD 已从预测写定时的 32c0fd7 之前的平面推进，`M8-T239`/`T240`/`T241` 与批 239–241 属并发车道，故本批认领 **M8-T242**；批号不手抄，由 `Temp/mc-t242/record_t242.py` 从文档自己的「第…批」标题推导并与最后一个标题互校。先写预测 `Temp/mc-t242/predictions_t242.md` 一字未改，两处偏差登记在 `Temp/mc-t242/deltas_t242.md`。
+MCP 配置校验弧（M8-T140 → T143 → T145 → T238 → 本批）的下一格，来源是 T238 记录自己留下的那笔：它把 `minicc/mcp.py` 的 `RECOGNIZED_KEYS` 记为「仍是手抄字面量，改成派生是另一批的事」。占号前读 `git log` 与文档全文：HEAD 已从预测写定时的 32c0fd7 之前的平面推进，`M8-T245`/`T240`/`T241` 与批 239–241 属并发车道，故本批认领 **M8-T242**；批号不手抄，由 `Temp/mc-t242/record_t242.py` 从文档自己的「第…批」标题推导并与最后一个标题互校。先写预测 `Temp/mc-t242/predictions_t242.md` 一字未改，两处偏差登记在 `Temp/mc-t242/deltas_t242.md`。
 
 ### 2 现状（落库前在平面实测，父=32c0fd7，非推理）
 
@@ -18049,3 +18049,126 @@ MCP 配置校验弧（M8-T140 → T143 → T145 → T238 → 本批）的下一�
 - 批 238 §2 那句「仓库里 `read_only` 的每处使用都是真布尔」引用的 `tests/test_mcp_config_unknown_keys.py:103`，因本批在该文件多写了 5 行 docstring 而漂到 `tests/test_mcp_config_unknown_keys.py:108`。行号门只查越界、不查漂移，故按本节登记而不追溯改写：那句是**当时平面**的读数，改写会让它失去平面。
 - `minicc/mcp.py:183` 的 `RECOGNIZED_KEYS` 本身仍是手抄字面量（本批只保证「跨传输的键」不再静默，没有把它改成 `dataclasses.fields` 派生），这是同一条弧的下一格之一。
 - 下一批候选已量好在写：MCP 子进程继承白名单里的 `LANGUAGE` 笔误与「inherit 侧无一例见证」（M8-T243）、`ToolResult.output` 上的恒真截断断言与手抄预算（M8-T244）。
+## 第二百四十五批 M8-T245：M8-T200 的变异格不承重——19 格里只有 3 格在门瞎了之后会红
+
+### 1 起因：202237批 的复核实测把这些格指了出来
+
+第二百三十八批（M8-T238）跑双平面围栏时留了一句观察：`tests/test_silence_must_state_its_reason_mutation.py`
+把扫描根写成绝对路径、又用 `relative_to(Path.cwd())` 记账，"任何非主树平面都必红"。本批去核这条时发现
+**路径问题早被 `2a409d3` 修掉了**，但顺着同一份文件读下去，撞见了一个比换 cwd 红严重得多的事实：
+
+**三个文件里有 8 格根本不在测试它们声称的东西。**
+
+不是断言写松，是**断言的对象不在被测代码里**。
+
+### 2 先量：反向控制——把每格依赖的代码弄瞎，数几格会红
+
+反向控制的定义：一个变异格只有在**它声称保护的行为被破坏时自己会红**才算承重。
+做法是把三处代码分别弄瞎，跑这三个文件，数红。批 203 留下的 `gateblind239.py` 原样复用。
+
+| 变异 | 弄瞎了什么 | 修复前红 | 修复后红 |
+| --- | --- | --- | --- |
+| M-S | `stated_reason` 恒返回 `"stated"`（静默门探测器永远说"有理由"） | **0 / 19** | **1 / 27** |
+| M-O | `_oracle_says_pass` 恒 `return True` | 3 / 19 | **8 / 27** |
+| M-L | `_layout_audits` 把每个站点都报成 `tests/` 平面 | **0 / 19** | **2 / 27** |
+
+基线 0 红，三个变异全部还原后**逐字节相同**，三个母门在还原后也全绿。
+
+**修复前 19 格只有 3 格会红，全部集中在 oracle 文件里。** 16 格在门瞎了之后照样绿。
+
+### 3 缺陷清单（逐格，不是笼统一句"测试不够"）
+
+**（a）`test_silence_must_state_its_reason_mutation.py`——9 格**
+
+- `test_mutation_A1_remove_comment_makes_p2_red` 整个函数体是 `assert True  # Placeholder`
+- `test_witness_script_exists` 同形，`assert True`
+- `test_mutation_B1_add_bare_silent_handler` 整个函数体是一条 `pass`
+- `_count_silent_handlers` 被定义**两次**（第 59 行与第 141 行），后者覆盖前者，前者是死码
+- `from pathlib import Path` / `import ast` 各导两次
+- **自带一份私有探测器**：不 import `_silence_reason_shared`，自己走 rglob + ast。
+  这正是 `test_silence_must_state_its_reason.py::test_reason_detector_is_the_shared_one_not_a_private_copy`
+  专门要防的漂移——母门有门，子文件没有。
+- 剩下 4 格（A1/A2/A3/B2）只断言某段注释文本在源码里存在，名字却叫
+  `test_mutation_*_makes_p2_red`。它们对"注释还在"是有价值的钉，但**名字承诺的事它们一件也没做**。
+
+**（b）`test_oracle_vacuous_policy_mutation.py`——源里 8 个 test，pytest 只收 7 个**
+
+- `test_baseline_vacuous_allow` 定义两次（第 12 行与第 86 行）。
+  Python 模块只保留最后一个绑定，所以**第一个永不执行，且没有任何输出报告**。收集数 7 ≠ 源 def 8。
+- `C1`（让 `_oracle_says_pass` 恒真）喂的是 `ALLOW_ROW`——一个在 `allow` 策略下**本来就返回 True** 的行。
+  于是"变异后的结果"与"原版的结果"都是 True：**把变异整行删掉，这一格照样绿**。实测：
+
+  ```
+  C1 oracle_always_true   mutated=True  original=True   VACUOUS (same both ways)
+  C2 oracle_no_case_count mutated=True  original=True   VACUOUS (same both ways)
+  C3 policy_deny          mutated=True  original=False  LOAD-BEARING
+  C4 policy_require_count mutated=True  original=False  LOAD-BEARING
+  ```
+
+  `C2`（删掉 `case_count` 分支）同理，喂的也是 vacuous-allow 行。**4 格里 2 格是装饰。**
+
+**（c）`test_layout_gate_plane_composition_mutation.py`——3 格全部自证**
+
+三格都长这个形状：
+
+```python
+audited_with_scripts = list(audited) + [`scripts/fake_module.py::fake_census`]
+assert set(by_plane.keys()) == {"tests", "scripts"}
+```
+
+列表在格内构造，断言查的是自己刚造的那个列表。`PurePath("scripts/x").parts[0] == "scripts"`
+恒真，与 `_layout_audits` 的行为无关。**门的谓词从来没被调用过**——所以把门的断言整个弄瞎（M-L 的第一版
+直接改门断言），这 3 格无一红。这是最隐蔽的一种：删掉整个门，它们照样绿。
+
+### 4 落地：三个文件重写 + 一处共享代码放行
+
+**`tests/_silence_reason_shared.py`**：`census_silent` 的站点串从 `path.relative_to(REPO)`
+改为 `_site(path, source_dir)`，先试 REPO 前缀、再试 `source_dir` 前缀、最后退回 `path.name`。
+两个母门的 `source_dir` 都是 `REPO/minicc`，走第一条分支，**输出逐字节不变**。放行的是
+"把同一个普查指向一棵仓库外的树"——这一条原来会抛 `ValueError`，也正是 M8-T200 宁愿写
+`assert True` 也不做真变异的原因：**没有通向临时树的入口。**
+
+**`test_silence_must_state_its_reason_mutation.py`（9 格）**：3 个 no-op 全删，私有普查全删，
+实例的 `stated_reason` / `census_silent` / `_is_silent_broad` 改为从共享模块与母门 import（AST 格校验
+本文件没有 `def stated_reason` 等）。6 个真变异格把普查指向 `tmp_path` 里的树：
+裸静默 → 恰好 1 个未陈述；noqa / 注释两种拼写 → 清空；窄异常 → 不入围；空树 → 报 0。
+`probe_mod.py:7` 的行号从 `_bare_handler_line()` 读回来，不写死——写死过一次，第一版因此红在自己的夹具上。
+
+**`test_oracle_vacuous_policy_mutation.py`（11 格）**：影子重复删除；`C1`/`C2` 改成喂
+**原版会拒绝**的行——未知 `grader_type` 与 `case_count: 0`，并要求两个答案都摆出来
+（`mutated(probe) is True` 且 `_oracle_says_pass(probe) is False`）。
+`C2` 另加"两者在分支不关键的行上一致、只在分支存在的行上分歧"，防止手抄的分发函数漂移。
+新增 `test_every_mutation_arm_is_observable` 这一格把"可观测"本身钉住，谁再钝化这两臂都会红。
+
+**`test_layout_gate_plane_composition_mutation.py`（7 格）**：三格自证换成把**真的 `_layout_audits`**
+放在临时树前面。在 `tests/` 与 `scripts/` 下各植一份"既装载语料又读 fixture 键"的普查
+（`CORPUS_CALLS = {"load_tasks","behavior_tasks"}`，所以植入件自己调 `load_tasks` 并索引
+`task["fixture"]`），门谓词 `set(by_plane) == {"tests"}` 因此为 False——这正是门该发的红。
+另含嵌套路径、`__pycache__` 跳过、半截函数不入围、真树仍报 tests-only 的对照。
+最后一格用 AST 校验本文件仍在调 `_layout_audits`、且没有把站点字符串手写进可执行代码——
+它原本在源码文本里匹配，第一次跑就被自己的 docstring 里的引例抓住了，所以改成只读 AST。
+
+### 5 双向验证
+
+| 项 | 读数 |
+| --- | --- |
+| 变异格数（修复前 / 修复后） | 19 收集（oracle 源 8 def 收 7）/ 27 |
+| 反向控制（修复前 M-S / M-O / M-L） | 0 / 3 / 0 —— 合计 3 / 19 |
+| 反向控制（修复后 M-S / M-O / M-L） | 1 / 8 / 2 —— 合计 11 / 27 |
+| 还原校验 | 三个被变异文件逐字节相同；还原后变异文件 0 红、三个母门 0 红 |
+| 全量 | **2307 passed / 0 failed / 5 skipped**，1165.84s |
+| `doc_pointers --check` | exit 0 |
+
+### 6 边界与下一批候选
+
+- 静默门那两个母门（`test_silence_must_state_its_reason.py`、
+  `test_broad_except_return_swallows_state_reason.py`）**本身没有自己的变异文件**：
+  本批的 9 格只反向控制 `stated_reason`，没有反向控制母门自己的-aware census。那是下一批。
+- `_silent_handlers` 式的私有副本在本批已清空，但仓库里**还有没有别的门自带私有探测器的同类**
+  没有系统性扫过；`test_this_file_carries_no_private_copy_of_the_detector` 只守这一个文件。
+- 3 个 gate-blind 变异（M-S / M-O / M-L）目前只活在 `gateblind239.py` 这个临时脚本里，
+  没有固化成仓库里的门。**"变异格会不会在门瞎了之后照样绿"这件事本身还没有门。**
+- 上一批（M8-T238）留下的候选不变：§3.2 批量合并重构的前置 fence、`RECOGNIZED_KEYS` 手抄字面量改派生。
+</content>
+</invoke>
+
