@@ -18274,3 +18274,82 @@ AssertionError: half-pinned captures (parent utf-8, child undeclared):
 - 钝化一条**格**能弄红这道门（本批实测），但钝化的是哪一条得先知道。
   **"谁把哪一格改松了"这件事仍然只在提交历史里。**
 - 上一批留下的候选不变：`RECOGNIZED_KEYS` 手抄字面量改派生、§3.2 批量合并重构的前置 fence。
+
+## 第二百四十七批 M8-T243：MCP 子进程继承白名单里躺着一个谁都命不中的名字，而 inherit 侧一例见证都没有
+
+### 1 来源与占号
+
+MCP 弧（M8-T140 → T143 → T145 → T238 → T242 → 本批）的下一格，来源是 T242 记录留下的候选。占号时读 `git log`：本车道认领 **M8-T243**；文档侧的批编号由 `Temp/mc-t243/record_t243.py` 从 `docs/ROADMAP_TO_PRODUCT.md` 自己的「第…批」标题推导并与最后一个标题互校编码，落在 **第二百四十七批**——并发车道把记录写到了二百四十五/二百四十六（它们的单位号是 M8-T245/M8-T246），而二百四十三、二百四十四两个编号在文档里没有对应标题（实测 grep 无命中）。也就是说批号是**文档追加顺序**，单位号是**任务身份**，二者从本批起明确分叉；这笔记下来是给后面的批次看的，不是要回头改写别人的标题。预测 `Temp/mc-t243/predictions_t243.md` 写在任何实现之前且一字未改，五处偏差登记在 `Temp/mc-t243/deltas_t243.md`（§8 是「实现前反向对照」的追加，同属原文之外的补记）。
+
+### 2 现状（落库前在主工作树实测，父=cda6cd0，只读探针，非推理）
+
+`Temp/mc-t243/probe_t243.py` 进程内读数：
+
+```
+declared entries: 33 distinct: 27
+duplicates: [('LC_ALL', 3), ('SYSTEMDRIVE', 2), ('USERPROFILE', 2), ('WINDIR', 3)]
+inherited from the probe parent: {'LANG': True, 'LANGUAGE': False, 'LC_ALL': True,
+                                  'LC_CTYPE': False, 'PYTHONIOENCODING': False, 'TMPDIR': True}
+secrets still scrubbed: {'MINICC_API_KEY': True, 'MINICC_WEB_TOKEN': True}
+names the hooks list keeps that mcp does not: ['PATH_EXT', 'PYTHONIOENCODING']
+PATH_EXT looks like a typo of PATHEXT: 0.9333333333333333
+```
+
+1. `McpStdioClient.INHERITED_ENV_KEYS`（`minicc/mcp.py:243`）里唯一的讯息语言项拼成 `LANGUANGE`。拼错的那项在任何真实环境都命不中，父进程真写的 `LANGUAGE` 被静默丢弃——gettext 挑语种靠的正是 `LANGUAGE`。形状是「清单里一项谁都命不中 + 你想要的那个名字缺席」，两处错误合成一处静默。
+2. 同一清单被手抄追加：33 项里 6 项是重复（`LC_ALL` ×3、`WINDIR` ×3、`SYSTEMDRIVE` ×2、`USERPROFILE` ×2）。重复本身无害，它是**没人对账**的证据，而正因没人对账，第 1 条才能活着。
+3. 缺陷至今不红的原因：这个文件只有脱敏侧的见证（`tests/test_security_perimeter.py:220` 断 `MINICC_*` 必须被丢弃），继承侧一例没有。
+4. 试过并**否证**的方向：把「名单内部近似重名」当笔误探测器。cutoff=0.7 命中的全是有意义的兄弟——`HTTPS_PROXY`/`HTTP_PROXY` 0.952、`TEMP`/`TMP` 0.857、`SSL_CERT_DIR`/`SSL_CERT_FILE` 0.800、`APPDATA`/`LOCALAPPDATA` 0.737、`PATH`/`PATHEXT` 0.727——而 `PATH_EXT`/`PATHEXT` 只有 0.933，低于第一对，提高阈值也分不开。这条规则要活就得配豁免表，豁免表本身是藏身处（同一教训见第二百四十六批），故弃用；笔误交给行为见证 C1/C6。
+5. 登记但**不改**（D4，属安全口径需批准）：`minicc/hooks.py` 的 `_scrubbed_env` 继承 `PYTHONIOENCODING`，`minicc/mcp.py` 的不继承，两份手抄名单就此分叉；hooks 名单里独一的 `PATH_EXT`（与 `PATHEXT` 相似度 0.933）像第二个笔误。本单不扩任何成员。
+
+### 3 改法（只删重复、只改笔误，不动口径）
+
+名单成员集合不增不减（除笔误改正）：`LANGUANGE` → `LANGUAGE`，重复项各留一次并保持原有分组顺序，33 项收为 **27** 项。`scrubbed_env`（`minicc/mcp.py:274`）的脱敏规则、`.upper()` 大小写口径、`_start` 的 spawn 接线一律不动。这条约束由 C2/C5 两侧共同钉住：修复不许把白名单变宽。
+
+### 4 门与变异臂
+
+新建 `tests/test_mcp_stdio_inherits_the_locale_it_claims.py`，6 例（落地 273 行）：
+
+1. `test_the_locale_the_list_claims_to_carry_reaches_the_child`——父进程带 `LANG`/`LANGUAGE`/`LC_ALL` 时三者必须全部到达子环境（修复前红：只缺 `LANGUAGE`）。
+2. `test_an_ambient_credential_never_arrives_by_inheritance`——凭据形状名不得靠继承到达，且两个探针值不得出现在结果里（现绿，钉住修复不许变宽）。
+3. `test_the_inherit_list_never_lists_a_name_twice`——名单自对账：条数等于大写去重数，报错文字点名每个重复名与次数（修复前红：33 项 27 名）；运行时元组与 AST 读数各自先过下限 20，防止「读不到」冒充「没问题」。
+4. `test_the_spawned_child_gets_the_scrubbed_environment`——触达：从 `_start` 函数体的 `subprocess.Popen` 调用节点证明 `env=` 拿的是 `scrubbed_env` 的结果或它绑定的名字；只查词不算（词门对「删掉调用但留着字」是瞎的）。
+5. `test_no_credential_name_the_config_layer_knows_is_on_the_inherit_list`——反变宽清点：population 由 `minicc/config.py` 里以字符串常量出现、且以 `_API_KEY`/`_TOKEN`/`_SECRET`/`_PASSWORD` 结尾的 `MINICC_*` 名字派生（实测 2 项），断言其中无一在继承名单里，下限 2 项防空采集。
+6. `test_the_locale_a_parent_carries_arrives_in_a_real_child`——真起子进程（shipped seam）：极简 fake MCP server 经 `McpStdioClient` 真 spawn，`tools/call` 回它自己的 `LANGUAGE`。读的是 `render()`（`minicc/tools/schemas.py:75`），**绝不读 `output`**——MCP 路径的 `_content_to_tool_result`（`minicc/mcp.py:52`）只填 `head`/`tail`，断 `output` 恒真正是下一格 M8-T244 的形状，本单不能跟着犯。
+
+变异臂（私有一号平面 `wt243`；未变异控制先跑，红集为空才引用臂读数；每臂开始时还原自己目标文件的原始字节、锚点命中数先断言恰为 1、跑完按 sha256 核对还原）：
+
+| 臂 | 变异 | 预测红 | 实测红 |
+| --- | --- | --- | --- |
+| CONTROL | 无 | 0 | 0（6 passed, 0.64s） |
+| A1 | 把 `LANGUAGE` 再拼回 `LANGUANGE` | C1 C6 | C1 C6（2 failed, 4 passed） |
+| A2 | 重新追加一个重复项 | C3 | C3（1 failed, 5 passed） |
+| A3 | 脱敏机制毁坏：`allowed` 改成全收 `os.environ` | C2 | C2（1 failed, 5 passed） |
+| A4 | `_start` 的 `env=` 换成 `os.environ.copy()` | C4 | C4（1 failed, 5 passed） |
+| A5 | 把 `MINICC_API_KEY` 加进继承名单 | C2 C5 | C2 C5（2 failed, 4 passed） |
+| A6 | fake 子进程答不出（回 missing 标记） | C6 | C6（1 failed, 5 passed） |
+| A7 | 名单中段三行收成三行（27 项变 15 项，零重复、三个 locale 名都在） | C3 | C3（1 failed, 5 passed） |
+| A8 | 把 C5 的采集前缀改成命不中的名字（派生 population 变空） | C5 | C5（1 failed, 5 passed） |
+
+**8/8 MATCHED**，还原后控制腿再跑仍 6 passed。A3/A4 的绿侧同样有理由：C6 是正向 seam，「多收」与「不接线」它抓不到，裁决权在 C2/C4——预测 §4bis 就写明了这一点，实测照此命中。A6/A7/A8 是本批新增的三臂，各自证明一条门不是一句永远成立的话：A6 让 C6 自我承重，A7/A8 让 C3/C5 的**下限**不是装饰。
+
+四处偏差按事实登记，不放宽容忍（`Temp/mc-t243/deltas_t243.md`）：
+
+- **Δ1** 预测写「population 非空先断言（≥20 项）」，实现的第一版只断非空——弱于预测：删到 16 项照样绿。落地前补成具名常量 `MIN_INHERIT_ENTRIES = 20` / `MIN_CREDENTIAL_NAMES = 2`，两条各断两侧。
+- **Δ2** 臂集从预测的 6 条变 8 条（A7/A8 为下限而生）。
+- **Δ3** A7 第一版预测错在**我的算术**：删 proxy+cert 两行是 7 项换 1 项，27 项只减到 21，仍高于下限，实测 6 passed（MISMATCH）。不是门瞎，是预测没数对；换成 15 项的变异后 {C3} 命中。
+- **Δ5** 预测 §2 写「33 项 → 28 项」。重复占 6 项（`LC_ALL` 多 2、`WINDIR` 多 2、`SYSTEMDRIVE` 多 1、`USERPROFILE` 多 1），去重是 **27** 项。落地脚本在写盘之前用 AST 重数了一遍并因此**拒跑一次**，所以这条偏差只活在我的文字里，没进仓库。
+
+### 5 验证状态
+
+- 落库前反向对照（`Temp/mc-t243/dryrun_t243.py`，在**改前主树**逐例实测）：C1 红、C3 红（两条正是本单声明的缺陷），C2/C4/C5 绿（三条是「修好之后不许倒退」的对照面，由 A3/A4/A5 证明自己在抓事）。
+- 聚焦回归：mcp 全家 + 安全围栏 + hooks 共 9 个文件，**100 passed / 20.75s**（平面与主树各跑一次，两平面同数）。
+- 代码提交 `6a0a332`（父 `cda6cd0`）：`minicc/mcp.py` +1/−2、新门 273 行；落地脚本断言「索引为空 → 替换块命中恰 1 次 → 名单自对账 27 项 → 主树 import 探针 → 门在主树 6 passed → staged 集合等于我的两个路径 → 提交后 `HEAD:<path>` blob 与写入字节同 hash（`bae38ff3615d`、`775aa4933697`）」，逐条来自当次运行的输出。
+- 双平面全量围栏（一次一个进程，两腿都是干净 worktree 且先行打印 `minicc.__file__` 确认落在各自平面；不注入 `PYTHONPATH`）：
+  - 父腿 `wt243par` @ cda6cd0：2289 节点，2284 passed / 0 failed / 0 error / 5 skipped，1891.1s；
+  - 子腿 `wt243full` @ 6a0a332：2295 节点，2290 passed / 0 failed / 0 error / 5 skipped，2317.4s；
+  - 按**案例名多重集**归因：`node_added=6`、`node_removed=0`、`red_added=[]`、`red_removed=[]`；六个新增名逐名等于 §4 那六例，全在 `tests/test_mcp_stdio_inherits_the_locale_it_claims.py`。预测 §6bis 四项全中。
+  - 子腿平面上门文件的 sha256 与草稿不同（`2d64afd3c6ef` vs 草稿 `02a1a5c16364`）：`core.autocrlf` 下新检出的工作副本是 CRLF 而草稿是 LF，行内容一致——按 [[git-show-gives-the-lf-blob-not-the-worktree]] 归因，不是第四份手抄。
+
+### 6 边界与下一格
+
+本单声明不做：不把 `PYTHONIOENCODING`/`XDG_*`/`LC_CTYPE` 加进继承名单（安全口径变更，需批准）；不动 `minicc/hooks.py` 的 `PATH_EXT` 与它的 mixed-case 拼写（D4 的另一半，单独立项）；不改 `_scrubbed_env` 的大小写规则。下一格已量好在写：M8-T244——`tests/test_mcp_stdio.py:140` 那句 `assert len(result.output) <= 6000` 断在 `ToolResult.output` 上，而 MCP 路径的构造函数从不写 `output`（`_content_to_tool_result` 只交 `head`/`tail`），这条断言对任何长度的 server 输出都恒真；同一文件的 6000 预算还是手抄字面量，与 `HEAD_CHARS`/`TAIL_CHARS`（`minicc/tools/schemas.py:14`）没有对账。
