@@ -17860,11 +17860,11 @@ PROJECT_REVIEW 原文（docs/PROJECT_REVIEW_2026-09-18.md:20-24）列 5 个 P1�
 - `minicc/mcp.py` 里的 `RECOGNIZED_KEYS` 仍是手抄字面量（实测与 `dataclasses.fields` 差一个 `name`）：改成派生是另一批的事。
 - 上一批留下的候选不变：§3.2 批量合并重构（批 236/237 两道契约是它的 fence）、`tests/test_silence_must_state_its_reason_mutation.py` 的硬编码扫描根（本批实测它换一个 cwd 就绿，属别的车道在途文件）。
 
-## 第二百三十九批 M8-T245：死代码广扫（§4.5）— 私有零引用 helper 清理 + 全量 census
+## 第二百三十九批 M8-T239：死代码广扫（§4.5）— 私有零引用 helper 清理 + 全量 census
 
 ### 1 来源与占号
 
-批 234 §6 第 5 项「§4.5 死代码清理（维护，需先 grep 零引用）」。占号前读 `git log --all` 与文档：`T239` 提交/文档均 0 命中；批号 239 空闲（200–207、226–238 已占；238 被并发会话以 MCP 配置校验弧占去，故本批顺延），认领 **M8-T245**。
+批 234 §6 第 5 项「§4.5 死代码清理（维护，需先 grep 零引用）」。占号前读 `git log --all` 与文档：`T239` 提交/文档均 0 命中；批号 239 空闲（200–207、226–238 已占；238 被并发会话以 MCP 配置校验弧占去，故本批顺延），认领 **M8-T239**。
 
 ### 2 方法（AST census + 全仓引用计数）
 
@@ -17977,7 +17977,7 @@ PROJECT_REVIEW 原文（docs/PROJECT_REVIEW_2026-09-18.md:20-24）列 5 个 P1�
 
 ### 1 来源与占号
 
-MCP 配置校验弧（M8-T140 → T143 → T145 → T238 → 本批）的下一格，来源是 T238 记录自己留下的那笔：它把 `minicc/mcp.py` 的 `RECOGNIZED_KEYS` 记为「仍是手抄字面量，改成派生是另一批的事」。占号前读 `git log` 与文档全文：HEAD 已从预测写定时的 32c0fd7 之前的平面推进，`M8-T245`/`T240`/`T241` 与批 239–241 属并发车道，故本批认领 **M8-T242**；批号不手抄，由 `Temp/mc-t242/record_t242.py` 从文档自己的「第…批」标题推导并与最后一个标题互校。先写预测 `Temp/mc-t242/predictions_t242.md` 一字未改，两处偏差登记在 `Temp/mc-t242/deltas_t242.md`。
+MCP 配置校验弧（M8-T140 → T143 → T145 → T238 → 本批）的下一格，来源是 T238 记录自己留下的那笔：它把 `minicc/mcp.py` 的 `RECOGNIZED_KEYS` 记为「仍是手抄字面量，改成派生是另一批的事」。占号前读 `git log` 与文档全文：HEAD 已从预测写定时的 32c0fd7 之前的平面推进，`M8-T239`/`T240`/`T241` 与批 239–241 属并发车道，故本批认领 **M8-T242**；批号不手抄，由 `Temp/mc-t242/record_t242.py` 从文档自己的「第…批」标题推导并与最后一个标题互校。先写预测 `Temp/mc-t242/predictions_t242.md` 一字未改，两处偏差登记在 `Temp/mc-t242/deltas_t242.md`。
 
 ### 2 现状（落库前在平面实测，父=32c0fd7，非推理）
 
@@ -18202,3 +18202,75 @@ P3 明确 `SKIPPED`，P1/P2 不受影响。本机有 `node_modules`，P3 照常�
 **读到的教训**：测量"这个门在什么环境下会失效"必须在**目标环境**里做，不能在开发机上推演。
 本机 `node_modules` 一直在，所以本地 5 passed 从未暴露这个分工；CI 的 Python job
 与 JavaScript job 装的依赖不同，这件事只有 push 之后才知道。
+## 第二百四十六批 M8-T246：「变异格在门瞎了之后会不会照样绿」这件事本身没有门——把它变成门
+
+### 1 起因：第二百四十五批把最值钱的那次测量扔了
+
+上一批（M8-T245）的核心结论是一次读数：把三处代码分别弄瞎，数 M8-T200 的 19 个变异格里还有几格会红。
+答案是 **3 格**。16 格在门瞎了之后照样绿——因为它们断言的是自己在格内构造的列表，
+被命名的那段代码从来没被问过。
+
+上一批据此重写了三个文件，读数变成 **11 / 27**。然后呢？**那三处弄瞎的变异只活在一个临时脚本
+`gateblind239.py` 里，读数只进了路线图，脚本删了。**
+
+也就是说：**"变异格会不会在门瞎了之后照样绿"这件事，仓库里没有任何东西在管。**
+下一次有人把 `test_a_bare_silence_in_a_new_tree_is_flagged` 的断言改松，CI 一个字都不会说。
+重写做完的那道防线，和它要防的东西一起消失了。本批补的就是这一条。
+
+### 2 落地：`tests/test_mutation_cells_react_to_the_code_they_name.py`（5 格）
+
+一张**声明式表**，每条 = 一处真实源码编辑 + 它必须造成的红：
+
+| 弄瞎了什么 | 被改的文件 | 必须变红的格 |
+| --- | --- | --- |
+| 探测器不再注意到"没说理由" | `tests/_silence_reason_shared.py` | 1 |
+| 预言家对什么都判过 | `minicc/benchmarks.py` | 8 |
+| 审计把每个站点都报成 `tests/` | `tests/test_two_fixture_keys_must_share_one_workspace.py` | 2 |
+
+每条的执行顺序：内存快照字节 → 原地改写（anchor 必须**恰好出现 1 次**，否则报错而不是跳过）
+→ 子进程跑探测文件 → 断言期望的红**全部出现**且**总数非零** → `finally` 里把快照字节写回
+→ 校验 sha256 逐字节相同。
+
+**承重的那一半是"零"这个分支**：一条弄瞎变异如果在整份探测文件里一个红都没造出来，
+这道门就要红。这正是 M8-T245 量到的 16/19，只是从"记录一次然后删掉"变成"再发生就有人知道"。
+
+另两格：对照格（未变异的树必须全绿，否则一次红无法归因）、表完整性格（表里不许有
+"不期待任何红"的条目，anchor 不许失效——anchor 消失过一次，那次门就不再说它声称的话了）。
+
+### 3 一处如实登记：这道门自己撞上了仓库的另一道门
+
+第一次全量跑红在 `tests/test_subprocess_decoding.py`：
+
+```
+AssertionError: half-pinned captures (parent utf-8, child undeclared):
+    ['tests/test_mutation_cells_react_to_the_code_they_name.py:117 subprocess.run']
+```
+
+那道门扫描仓库里**每一个** capture，规则是"父端钉了 `encoding='utf-8'` 就必须两端都钉"。
+本文件的 `_probe()` 钉了父端没钉子端，于是被它当场抓住。这是**既有门在新代码上正常工作**，
+不是误报。按仓库既有写法（`test_blind_wait.py:711`）补 `env=dict(os.environ, PYTHONIOENCODING="utf-8")`。
+
+顺带确认分工：`tests/test_web_assets_are_fresh.py` 的 P3 也钉父端，但它是 `node` 子进程，
+不在那道门的 `utf8_pinned_python_children` 域内——所以它不需要也不该加同一行。
+
+### 4 双向验证
+
+| 项 | 读数 |
+| --- | --- |
+| 新增格数 | 5（对照 1 + 弄瞎 3 + 表完整性 1） |
+| 表校验（anchor 唯一 / 变异后仍可 parse） | 3/3 通过 |
+| 门本体 | 5 passed / 31.37s |
+| 反向控制（钝化 `test_a_bare_silence_in_a_new_tree_is_flagged`） | 门 **1 FAILED** → `[the reason detector stops noticing a missing reason]`，失败计数 1 |
+| 反向控制还原 | sha256 逐字节相同；门回到 5 passed / 22.83s |
+| 全量（第一轮，含上面那次撞门红） | 2311 passed / 1 failed / 5 skipped，777.58s |
+| 全量（补 `PYTHONIOENCODING` 后） | **2312 passed / 0 failed / 5 skipped**，914.08s |
+| `doc_pointers --check` | exit 0 |
+
+### 5 边界与下一批候选
+
+- 本门只覆盖 M8-T245 重写过的**三处**代码。静默门的两个**母门**
+  （`test_silence_must_state_its_reason.py`、`test_broad_except_return_swallows_state_reason.py`）
+  至今没有自己的弄瞎条目——上一批的 9 格只反向控制 `stated_reason`，没反向控制母门自己的 census。
+- 钝化一条**格**能弄红这道门（本批实测），但钝化的是哪一条得先知道。
+  **"谁把哪一格改松了"这件事仍然只在提交历史里。**
+- 上一批留下的候选不变：`RECOGNIZED_KEYS` 手抄字面量改派生、§3.2 批量合并重构的前置 fence。
