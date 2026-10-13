@@ -48,7 +48,7 @@ from minicc.tools.bash import (
     run_bash,
     start_background_shell,
 )
-from minicc.tools.schemas import ToolCall
+from minicc.tools.schemas import HEAD_CHARS, TAIL_CHARS, TRUNCATION_MARKER, ToolCall
 
 #: The multiple is measured, not chosen for comfort: on a loaded host the slowest
 #: wait in this family came in at 3.19x the same round's bare-child reference, and
@@ -368,9 +368,15 @@ def test_background_output_is_bounded(tmp_path: Path) -> None:
                 else None
             ),
         )
-        # split_output keeps head+tail <= 6000; render adds a truncation marker.
+        # split_output keeps head+tail inside the shipped budget; render() adds the
+        # summary line and the truncation marker on top of it — so the bound below
+        # is composed from those constants, not typed as a digit (M8-T244).
         assert result.truncated is True
-        assert len(result.render()) <= 7000
+        assert len(result.head) <= HEAD_CHARS
+        assert len(result.tail) <= TAIL_CHARS
+        assert len(result.render()) <= (
+            len(result.summary) + len(result.head) + len(result.tail) + len(TRUNCATION_MARKER) + 5
+        )
     finally:
         kill_background_shell(shell_id)
 

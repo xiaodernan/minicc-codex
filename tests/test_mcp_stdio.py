@@ -22,6 +22,7 @@ from minicc.mcp import (
     McpStdioClient,
 )
 from minicc.tools import Editor, build_registry
+from minicc.tools.schemas import HEAD_CHARS, TAIL_CHARS, TRUNCATION_MARKER
 
 SERVER_SRC = r'''
 import json, sys
@@ -128,7 +129,7 @@ def _write_mcp_json(workspace: Path, name: str, spec_path: Path) -> None:
     )
 
 
-# --- M5-T1: 500k-char output is truncated to the 6000-char budget ------------
+# --- M5-T1: 500k-char output is truncated to the shipped head/tail budget ----
 
 def test_half_million_char_output_is_truncated(tmp_path):
     client = _client(tmp_path, {"tools": [{"name": "big"}], "call_repeat": 500_000})
@@ -137,12 +138,15 @@ def test_half_million_char_output_is_truncated(tmp_path):
     finally:
         client.close()
     assert result.truncated is True
-    assert len(result.output) <= 6000
-    assert len(result.head) <= 2000
-    assert len(result.tail) <= 4000
+    # The bytes live in the budgeted head/tail channel; `output` is the field this
+    # assertion used to bound, and the MCP flattener never writes it, so bounding
+    # it was permanently true.  tests/test_the_record_keeps_the_tail_the_truncation_marker_promises.py
+    # is the gate that reconciles these bounds with HEAD_CHARS/TAIL_CHARS.
+    assert len(result.head) <= HEAD_CHARS
+    assert len(result.tail) <= TAIL_CHARS
     rendered = result.render()
     assert "输出已截断" in rendered
-    assert len(rendered) < 7000
+    assert len(rendered) <= len(result.summary) + len(result.head) + len(result.tail) + len(TRUNCATION_MARKER) + 5
 
 
 def test_small_output_not_truncated(tmp_path):

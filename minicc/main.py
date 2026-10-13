@@ -106,7 +106,7 @@ class CliView:
             "tool": call.tool,
             "summary": result.summary,
             "command": self._shorten(command, 1000) if command else "",
-            "output": result.render()[:6000],
+            "output": result.record_text(6000),
         }
         self.tool_history = [*self.tool_history, entry][-24:]
         preview = self._shorten(command) if command else self._shorten(call.arguments.get("path") or "")

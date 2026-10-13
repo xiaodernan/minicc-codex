@@ -14,6 +14,10 @@ from typing import Any
 HEAD_CHARS = 2000
 TAIL_CHARS = 4000
 
+#: The sentence ``render()`` puts between head and tail.  It names the shipped
+#: budget, so any later clip of that text must not drop bytes it advertises.
+TRUNCATION_MARKER = f"… [输出已截断: 保留头 {HEAD_CHARS} + 尾 {TAIL_CHARS} 字符] …"
+
 TOOL_RESULT_STATUSES = ("ok", "error", "denied", "cancelled", "timed_out")
 
 
@@ -78,12 +82,23 @@ class ToolResult:
         if self.head:
             parts.append(self.head)
             if self.truncated:
-                parts.append(f"\n… [输出已截断: 保留头 {HEAD_CHARS} + 尾 {TAIL_CHARS} 字符] …\n")
+                parts.append(f"\n{TRUNCATION_MARKER}\n")
                 parts.append(self.tail)
         elif self.output:
             parts.append(self.output)
         text = "\n".join(parts).strip()
         return text or f"[{self.status}]"
+
+    def record_text(self, ceiling: int) -> str:
+        """The stored form of ``render()``: ``ceiling`` bounds only the raw ``output``
+        channel.  A body that came through ``split_output`` is already inside the
+        shipped head/tail budget, and cutting it further would drop tail bytes
+        while the stored text still prints the marker that promises them.
+        """
+        text = self.render()
+        if self.head:
+            return text
+        return text[:ceiling]
 
     def to_dict(self) -> dict[str, Any]:
         return {
