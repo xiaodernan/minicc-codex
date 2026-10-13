@@ -33,6 +33,22 @@ def stated_reason(lines: list[str], node: ast.ExceptHandler) -> str:
     return "noqa" if "noqa" in lines[node.lineno - 1] else ""
 
 
+def _site(path: Path, source_dir: Path) -> str:
+    """Where the handler lives, for a message someone can act on.
+
+    Both gates walk the shipped tree, so the repo-relative spelling is what they
+    print. A mutation cell walks a temporary tree instead - see M8-T239, which is
+    why the fallback exists: pointing the census at a fixture tree is what lets a
+    cell prove the detector notices a bare silence without editing the repo.
+    """
+    for base in (REPO, source_dir):
+        try:
+            return path.relative_to(base).as_posix()
+        except ValueError:
+            continue
+    return path.name
+
+
 def census_silent(
     predicate: Callable[[ast.ExceptHandler], bool],
     source_dir: Path = SOURCE_DIR,
@@ -44,6 +60,6 @@ def census_silent(
         lines = text.splitlines()
         for node in ast.walk(ast.parse(text)):
             if isinstance(node, ast.ExceptHandler) and predicate(node):
-                found.append((f"{path.relative_to(REPO).as_posix()}:{node.lineno}",
+                found.append((f"{_site(path, source_dir)}:{node.lineno}",
                               stated_reason(lines, node)))
     return found
