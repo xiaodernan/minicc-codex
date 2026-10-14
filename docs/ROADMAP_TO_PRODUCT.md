@@ -18450,3 +18450,28 @@ PATH_EXT looks like a typo of PATHEXT: 0.9333333333333333
 - `changes.py` 纯逻辑栅栏：`_ignored_path`、`_parse_status`、`_baseline`、`_text`（不 shell-out 的部分）。
 - 第二百四十九批 §下批候选剩余两条：pass 族母门 `_is_silent_broad` 谓词盲化臂、`tests/test_mcp_stdio.py:140` 断在从不被写字段上的恒真断言、以及 `RECOGNIZED_KEYS` 手抄字面量改派生 + §3.2 批量合并重构前置 fence。
 - 隔离后 90 例全池评测（须 #255 pool_snapshot + 后台长跑，本环境全量门会被回收须拆多会话）。
+## 第二百五十一批 M8-T250：`minicc.changes` 纯逻辑补栅栏测试
+
+**起因/占号。** 第二百五十批 §下批候选点名「`changes.py` 纯逻辑栅栏：`_ignored_path`、`_parse_status`、`_baseline`、`_text`」。占号前读 `git log --all` 全量扫描 `M8-T(\d+)`：无 T250，本批认领 **M8-T250**；文档批号取 251（247/248/249/250 已被他流占用）。
+
+**量到的缺陷（先量后写，全部亲手跑）。** `minicc/changes.py` 多数方法要 shell-out 到 git，但四段**不依赖 git 的纯逻辑**长期零单测：`_ignored_path`（变更审计忽略判定，含 `./` 与 `/` 前导归一、前缀匹配）、`_parse_status`（两字符码归类，类级可调无 `self`）、`_text`（静态方法，二进制/空字节/不存在兜底）、`_resolve`（进入检视前的路径安全闸门：空/绝对/越界必抛 `ChangeError`）。这些是最易被静默改坏又最难察觉的边界——尤其 `_ignored_path` 的「`.git` 只在路径根部算忽略」语义，一旦被改成「任何位置含 `.git` 都忽略」会漏掉 `src/.git/x` 这类真实文件。
+
+**落地（只加测试，生产码一字未动）。** 新建 `tests/test_changes_pure.py`（19 案，临时目录全在仓库外的 tempfile，不碰仓库、不触发 git 删除护栏）：
+- `_ignored_path` 6 案：`.git`/`.minicc` 精确命中、8 个前缀（`.git/`/`node_modules/`/`__pycache__/`/`.venv/`/`output/`/` .pytest_cache/`/`minicc.egg-info/`）、源码路径不忽略、`./` 与 `/` 前导归一、嵌入 `.git` 不算忽略。
+- `_parse_status` 6 案： untracked/ staged 归 added、deleted、renamed 保留完整 token、modified 默认、短/空 raw 切片安全不抛。
+- `_text` 4 案：普通文件、缺失文件返回空、含 NUL 字节返回空、二进制（UnicodeDecodeError）返回空。
+- `_resolve` 4 案：空/纯空白抛 `ChangeError`、绝对路径抛 `ChangeError`、越界 `../escape` 抛 `ChangeError`、工作区内相对路径正确解析且落在 workspace 下。
+
+**门证（全在本批内亲手取）。**
+| 门 | 结果 |
+| --- | --- |
+| `pytest tests/test_changes_pure.py -q -W error` | 19 passed in 0.38s |
+| 直接调用（`python tests/...py`） | 19 passed in 0.23s |
+| `py_compile` | ok |
+
+**诚实边界（明确不声称）。** ① 只加测试：`changes.py` 生产码一字未动。② `_baseline`/`_git`/`_numstat`/`_audit_paths` 等 shell-out 分支本批**不测**（需真实 git 仓库，且属别车道可能改动的集成面）；`_text` 的 `OSError→ChangeError` 分支因跨平台权限语义不稳定，未钉（只钉了 `UnicodeDecodeError→""` 这一可移植分支）。③ 断言是行为级表征，与当前部署一致。
+
+**下批候选。**
+- 第二百四十九批 §下批候选剩余两条：pass 族母门 `_is_silent_broad` 谓词盲化臂、`tests/test_mcp_stdio.py:140` 断在从不被写字段上的恒真断言、以及 `RECOGNIZED_KEYS` 手抄字面量改派生 + §3.2 批量合并重构前置 fence。
+- `workspaces.py` / `route_wiring.py` / `permissions.py` / `netguard.py` / `snapshots.py` / `mentions.py` 缺直接测试者，按稳定性逐个钉。
+- 隔离后 90 例全池评测（须 #255 pool_snapshot + 后台长跑，本环境全量门会被回收须拆多会话）。
