@@ -113,6 +113,20 @@ def _sha(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def _cell_name(line: str) -> str:
+    """The test name out of one ``FAILED`` line, whatever else pytest appended.
+
+    pytest's short summary is ``FAILED <nodeid>`` on one host and
+    ``FAILED <nodeid> - <exception message>`` on another - measured: the same probe
+    run printed the bare nodeid locally and the message on both CI platforms. Taking
+    everything after ``::`` kept the message, so a cell that had gone red was
+    reported as one that never reacted, and the gate failed on the wrong thing.
+    """
+    body = line[len("FAILED "):]
+    nodeid = body.split(" - ")[0].strip()
+    return nodeid.split("::")[-1].strip()
+
+
 def _probe(probe: str) -> tuple[bool, set[str]]:
     """``(collected cleanly, failed cell names)`` for one probe file.
 
@@ -130,7 +144,7 @@ def _probe(probe: str) -> tuple[bool, set[str]]:
         env=dict(os.environ, PYTHONIOENCODING="utf-8"),
     )
     output = (proc.stdout or "") + (proc.stderr or "")
-    failed = {line.split("::")[-1].strip()
+    failed = {_cell_name(line)
               for line in output.splitlines()
               if line.startswith("FAILED")}
     # A collection error also exits nonzero but names no cell, which would look
@@ -211,6 +225,33 @@ def test_the_cells_go_red_when_the_code_they_name_is_broken(
     assert failed, (
         f"blinding {mutation.label} turned nothing red anywhere in {mutation.probe}. "
         "Every cell in a file like that is decoration"
+    )
+
+
+def test_the_failed_line_parser_survives_both_pytest_formats() -> None:
+    """Pin the parser against the exact difference that broke this gate in CI.
+
+    The same probe printed the bare nodeid locally and the nodeid plus its
+    exception message on both CI platforms. A cell that went red was therefore
+    read as a cell that never reacted, and this gate failed for the wrong reason.
+    Both spellings must reduce to the same name.
+    """
+    bare = ("FAILED tests/test_silence_must_state_its_reason_mutation.py::"
+            "test_a_bare_silence_in_a_new_tree_is_flagged")
+    with_message = (
+        bare + " - AssertionError: the census must report exactly the bare handler "
+               "as unstated; got [] - either the handler moved or the detector "
+               "stopped noticing a silence with no reason"
+    )
+    expected = "test_a_bare_silence_in_a_new_tree_is_flagged"
+    assert _cell_name(bare) == expected
+    assert _cell_name(with_message) == expected, (
+        "a FAILED line carrying its exception message was not reduced to the cell "
+        "name, so a red cell would be reported as a non-reacting one"
+    )
+    # A parametrized id must keep its bracket, not lose it to the message split.
+    assert _cell_name("FAILED tests/x.py::test_cell[param id] - AssertionError: boom") == (
+        "test_cell[param id]"
     )
 
 
