@@ -18475,3 +18475,29 @@ PATH_EXT looks like a typo of PATHEXT: 0.9333333333333333
 - 第二百四十九批 §下批候选剩余两条：pass 族母门 `_is_silent_broad` 谓词盲化臂、`tests/test_mcp_stdio.py:140` 断在从不被写字段上的恒真断言、以及 `RECOGNIZED_KEYS` 手抄字面量改派生 + §3.2 批量合并重构前置 fence。
 - `workspaces.py` / `route_wiring.py` / `permissions.py` / `netguard.py` / `snapshots.py` / `mentions.py` 缺直接测试者，按稳定性逐个钉。
 - 隔离后 90 例全池评测（须 #255 pool_snapshot + 后台长跑，本环境全量门会被回收须拆多会话）。
+## 第二百五十二批 M8-T251：`minicc.permissions` 规则解析与匹配契约补栅栏测试
+
+**起因/占号。** 第二百五十一批 §下批候选点名 `permissions.py` 等缺直接测试者。占号前读 `git log --all` 全量扫描 `M8-T(\d+)`：无 T251，本批认领 **M8-T251**；文档批号取 252（247/248/249/250/251 已被他流占用）。
+
+**量到的缺陷（先量后写，全部亲手跑）。** `minicc/permissions.py` 是 M7-T3 把 deny 规则收进 `authorize_tool` 之上后、`audit.authorize_tool` 委托的规则匹配核心（T249 故意密封未测的集成路径正是这条），却零直接单测。其解析/匹配契约是最易被静默改坏又最难察觉的边界：deny>allow>None 的优先序、fnmatch 通配、bash 命令轴只在 `name=="bash"` 触发、path 轴从 arguments 的 `path`/`file`/`target` 取键、损坏文件非致命降级为空规则。
+
+**落地（只加测试，生产码一字未动）。** 新建 `tests/test_permissions_pure.py`（23 案，临时 workspace 全在仓库外的 tempfile，不碰仓库、不触发 git 删除护栏）：
+- `_empty_rules` 1 案：空规则标准形状。
+- `_normalize_side` 7 案：非 dict→空、去空白、去重、丢弃空/None、跳过非 list 值、512 字符截断、256 条截断。
+- `_validate` 4 案：非 dict 抛、未知字段抛、普通规则、`` permissions `` 包裹展开。
+- `_match_patterns` 7 案：tool 轴（含 `*_file` 通配）、bash 命令轴（`rm *` 命中 `rm -rf ...`、非 bash 工具不触命令轴）、path 轴（`src/*` 命中 `path`/`file` 键、越界不命中）、三轴全空返回 False。
+- `match_permission_rule` 5 案：deny 胜 allow、仅 allow 命中、无匹配 None、缺失文件 None、损坏 JSON 文件 None（非致命降级）。
+
+**门证（全在本批内亲手取）。**
+| 门 | 结果 |
+| --- | --- |
+| `pytest tests/test_permissions_pure.py -q -W error` | 23 passed in 0.30s |
+| 直接调用（`python tests/...py`） | 23 passed in 0.27s |
+| `py_compile` | ok |
+
+**诚实边界（明确不声称）。** ① 只加测试：`permissions.py` 生产码一字未动。② `load_permission_rules` 的 (mtime,size) 缓存与 `allowlist` 共享谓词（`tool_rule_matches`/`path_rule_matches`/`_escape_brackets`）本身未在本批直接测（由 allowlist 既有测试覆盖），本批只验证 `permissions` 这一侧的组装与优先序。③ 断言是行为级表征，与当前部署一致；`redact_text` 对无密钥命令原样返回，故 bash 命令轴用普通命令测。
+
+**下批候选。**
+- 第二百四十九批 §下批候选剩余两条：pass 族母门 `_is_silent_broad` 谓词盲化臂、`tests/test_mcp_stdio.py:140` 断在从不被写字段上的恒真断言、`RECOGNIZED_KEYS` 手抄字面量改派生 + §3.2 批量合并重构前置 fence。
+- `netguard.py`（`_is_blocked_address` 私网/环回拦截）、`snapshots.py`（`_relative`/`_within`/`_digest` 纯逻辑）、`workspaces.py`（`resolve_workspace_path`/`WorkspaceCatalog`）缺直接测试者，按稳定性逐个钉。
+- 隔离后 90 例全池评测（须 #255 pool_snapshot + 后台长跑，本环境全量门会被回收须拆多会话）。
