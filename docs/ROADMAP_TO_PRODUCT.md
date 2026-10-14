@@ -18422,3 +18422,31 @@ PATH_EXT looks like a typo of PATHEXT: 0.9333333333333333
 - 第二百四十八批点名的另一半：pass 族母门 `test_silence_must_state_its_reason.py` 的变异兄弟只反向控制了共享 `stated_reason`，**没有反向控制它自己的 `_is_silent_broad` 谓词**——补两支谓词盲化臂进它的变异文件与本门表，形状与本批 B/C 臂相同。
 - M8-T244：`tests/test_mcp_stdio.py:140` 那句 `assert len(result.output) <= 6000` 断在从不被写的字段上，对任何长度恒真。
 - `RECOGNIZED_KEYS` 手抄字面量改派生、§3.2 批量合并重构前置 fence。
+## 第二百五十批 M8-T249：`minicc.audit` 安全授权纯逻辑补栅栏测试
+
+**起因/占号。** 第二百四十八批 §下一格候选点名「继续补 `task_contract` 相邻稳定纯函数栅栏（`changes.py`/`audit.py` 等缺直接测试者）」。占号前读了 `git log --all` 与文档全文（`M8-T(\d+)` 全量扫描）：无 T249，本批认领 **M8-T249**；文档批号取 250（247/248/249 已被他流占用）。
+
+**量到的缺陷（先量后写，全部亲手跑）。** `minicc/audit.py` 是「允许/拒绝工具执行」的唯一裁决点（M7-T3 把 deny 规则收进 `authorize_tool` 之上），却**零直接单测**：`tool_requires_authorization`、`_is_network_tool`、`normalize_permission_mode`、`AuthorizationDecision.to_event`、`_executable_name`、`command_uses_network`、以及 16 个分支的 `authorize_tool` 都只被间接覆盖。一处已在 221 行注释自陈的完整性契约——deny 规则必须先于一切 flag 分支——全靠 `workspace is not None` 的早返回兜底，没有任何测试钉死「无 workspace 时不触发 deny/allowlist」的边界。
+
+**落地（只加测试，生产码一字未动）。** 新建 `tests/test_audit_authorization.py`（45 案，全纯逻辑、无临时目录/无 git/无网络、秒级）：
+- `tool_requires_authorization` 6 案：write/exec 必走门、readonly 网络工具名必走门、readonly 非网络免门、声明 `network` 能力必走门、None 风险免门。
+- `_is_network_tool` 4 案：工具名 + 能力声明两类判定、空/None 非网络。
+- `normalize_permission_mode` 9 案：四规范模式、空/normal/standard 别名归 default、acceptEdits 三别名、大小写与空白、None→default、非法值抛 `ValueError`。
+- `AuthorizationDecision.to_event` 2 案：允许/拒绝两份事件形状（status/code 分叉）。
+- `_executable_name` 5 案：裸名、路径+扩展名剥离、大小写归一、None。
+- `command_uses_network` 18 案（M3-T4 argv 感知）：网络可执行文件、包管理器动词、python -m 模块（pip/poetry 命中、pytest 不命中）、`git clone` 命中但 `git log --grep="git clone"` 引号内不误判、`git status`/`fetch` 分野、非网络命令干净、shell 包装器（sudo/cmd/sh/powershell）递归、`npx` 恒网络。
+- `authorize_tool` 16 案（**一律 `workspace=None` 保持密封**，不碰 permissions.json/session allowlist 集成路径）：yolo 三风险、网络查询授权/拒授权、只读非网络免门、计划模式拒写入、default+allow_changes 放行、network 能力需联网授权、acceptEdits 自动放行、网络命令授权/拒授权、pytest 只读验证放行（safe_verification）、非只读命令带/不带 changes 放行/拒、未知风险拒。
+
+**门证（全在本批内亲手取）。**
+| 门 | 结果 |
+| --- | --- |
+| `pytest tests/test_audit_authorization.py -q -W error` | 45 passed in 0.42s |
+| 直接调用（`python tests/...py`，绕过 pytest 收尾） | 45 passed in 0.30s |
+| `py_compile` | ok |
+
+**诚实边界（明确不声称）。** ① 只加测试：`audit.py` 生产/逻辑码一字未动。② `authorize_tool` 的 deny 规则 / session allowlist 集成分支（依赖 `workspace` 与 `match_permission_rule`/`match_session_allowlist`）本批**刻意不测**——保持密封、不与别车道对这些集成路径的改动耦合；那条「无 workspace 不触发 deny」的边界由 `workspace=None` 的 16 案隐式守住。③ 测试是行为级表征：断言与当前部署行为一致；若日后 `audit.py` 语义变更，这些断言会先红，提示契约漂移。
+
+**下批候选。**
+- `changes.py` 纯逻辑栅栏：`_ignored_path`、`_parse_status`、`_baseline`、`_text`（不 shell-out 的部分）。
+- 第二百四十九批 §下批候选剩余两条：pass 族母门 `_is_silent_broad` 谓词盲化臂、`tests/test_mcp_stdio.py:140` 断在从不被写字段上的恒真断言、以及 `RECOGNIZED_KEYS` 手抄字面量改派生 + §3.2 批量合并重构前置 fence。
+- 隔离后 90 例全池评测（须 #255 pool_snapshot + 后台长跑，本环境全量门会被回收须拆多会话）。
