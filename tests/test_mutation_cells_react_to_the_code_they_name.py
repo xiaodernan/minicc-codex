@@ -19,10 +19,13 @@ probed in a subprocess, the expectation is checked, and the file is restored fro
 sha256 snapshot with byte-exactness verified. A blind mutation that turns nothing red
 is a failure: that is the whole assertion.
 
-Scope: three mutations, because those are the three the rewrite of M8-T245 covered.
-The silence *parent* gates still have no mutation file of their own - their census
-logic is probed here only through the shared detector, which is recorded as a real
-gap in the batch record, not hidden by a wide table.
+Scope: the three mutations M8-T245's rewrite covered, plus one blind arm per silence
+*parent* gate. Those parents had no mutation file of their own, so nothing measured
+whether their census logic still reacted - the return-swallow parent shipped six cells
+and turning its shared detector blind reddened only a synthetic parametrized fixture,
+never the load-bearing one. M8-T248 gave it a reverse-control file and this table now
+watches that file. Both silence parents are covered by a mutation sibling and by an
+entry here, so the gap this docstring used to record is closed.
 """
 from __future__ import annotations
 
@@ -104,6 +107,68 @@ GATE_BLIND_MUTATIONS: tuple[BlindMutation, ...] = (
         must_go_red=(
             "test_a_census_outside_tests_makes_the_gate_predicate_fail",
             "test_a_nested_path_still_reports_its_own_plane",
+        ),
+    ),
+    BlindMutation(
+        # M8-T248: the return-swallow parent's own reverse-control cell. This is the
+        # red the parent gate cannot produce for itself - its load-bearing cell
+        # asserts `unstated == []`, which an over-permissive detector satisfies
+        # trivially.
+        label="the reason detector also stops the return-swallow gate noticing one",
+        target="tests/_silence_reason_shared.py",
+        anchor=(
+            "def stated_reason(lines: list[str], node: ast.ExceptHandler) -> str:\n"
+            '    """Why is this handler allowed to swallow? Empty string means it never said."""\n'
+        ),
+        replacement=(
+            "def stated_reason(lines: list[str], node: ast.ExceptHandler) -> str:\n"
+            '    """Why is this handler allowed to swallow? Empty string means it never said."""\n'
+            '    return "stated"  # M8-T248 gate-blind mutation\n'
+        ),
+        probe="tests/test_broad_except_return_swallows_state_reason_mutation.py",
+        must_go_red=("test_a_bare_return_swallow_in_a_new_tree_is_flagged",),
+    ),
+    BlindMutation(
+        # Measured: an over-broad predicate counts every handler as a swallow, so the
+        # scope cells and the shipped-tree condition all notice.
+        label="the return-swallow predicate accepts every handler",
+        target="tests/test_broad_except_return_swallows_state_reason.py",
+        anchor=(
+            "def _is_return_swallow(node: ast.ExceptHandler) -> bool:\n"
+            '    """Broad handler whose only body statement is a bare ``return`` '
+            "(or ``return None``).\"\"\"\n"
+        ),
+        replacement=(
+            "def _is_return_swallow(node: ast.ExceptHandler) -> bool:\n"
+            '    """Broad handler whose only body statement is a bare ``return`` '
+            "(or ``return None``).\"\"\"\n"
+            "    return True  # M8-T248 gate-blind mutation\n"
+        ),
+        probe="tests/test_broad_except_return_swallows_state_reason_mutation.py",
+        must_go_red=(
+            "test_a_narrow_handler_is_never_counted",
+            "test_a_return_with_a_value_is_not_counted",
+            "test_the_shipped_tree_has_no_unstated_return_swallow",
+        ),
+    ),
+    BlindMutation(
+        label="the return-swallow predicate rejects every handler",
+        target="tests/test_broad_except_return_swallows_state_reason.py",
+        anchor=(
+            "def _is_return_swallow(node: ast.ExceptHandler) -> bool:\n"
+            '    """Broad handler whose only body statement is a bare ``return`` '
+            "(or ``return None``).\"\"\"\n"
+        ),
+        replacement=(
+            "def _is_return_swallow(node: ast.ExceptHandler) -> bool:\n"
+            '    """Broad handler whose only body statement is a bare ``return`` '
+            "(or ``return None``).\"\"\"\n"
+            "    return False  # M8-T248 gate-blind mutation\n"
+        ),
+        probe="tests/test_broad_except_return_swallows_state_reason_mutation.py",
+        must_go_red=(
+            "test_the_shipped_tree_still_reports_a_return_swallow",
+            "test_a_bare_return_swallow_in_a_new_tree_is_flagged",
         ),
     ),
 )
@@ -257,9 +322,17 @@ def test_the_failed_line_parser_survives_both_pytest_formats() -> None:
 
 def test_the_gate_blind_table_claims_a_real_red_for_every_entry() -> None:
     """A table entry with no expected red cells would make the gate above vacuous."""
-    assert len(GATE_BLIND_MUTATIONS) >= 3, (
+    assert len(GATE_BLIND_MUTATIONS) >= 6, (
         f"the table holds only {len(GATE_BLIND_MUTATIONS)} blind mutations; the "
-        "rewrite of M8-T245 covered three"
+        "rewrites of M8-T245 and M8-T248 covered six"
+    )
+    # One entry per probe file is not the invariant - the same file can be probed by
+    # more than one blind arm - but every silence parent must be watched by one.
+    probed = {m.probe for m in GATE_BLIND_MUTATIONS}
+    assert "tests/test_silence_must_state_its_reason_mutation.py" in probed
+    assert "tests/test_broad_except_return_swallows_state_reason_mutation.py" in probed, (
+        "the return-swallow parent's reverse-control file is no longer watched - "
+        "M8-T248 closed that gap and this is the assertion that keeps it closed"
     )
     blind = [m.label for m in GATE_BLIND_MUTATIONS if not m.must_go_red]
     assert blind == [], f"these entries demand no red cell at all: {blind}"

@@ -18374,3 +18374,51 @@ PATH_EXT looks like a typo of PATHEXT: 0.9333333333333333
 - M8-T244：`tests/test_mcp_stdio.py:140` 那句 `assert len(result.output) <= 6000` 断在 `ToolResult.output` 上，而 MCP 路径构造函数从不写 `output`（`_content_to_tool_result` 只交 `head`/`tail`），该断言对任何长度 server 输出恒真；6000 预算还是手抄字面量，与 `HEAD_CHARS`/`TAIL_CHARS`（`minicc/tools/schemas.py:14`）无对账。
 - M8-T246 留下的格级反向控制：母门自己的 census 反向控制（上一批 9 格只反向控制 `stated_reason`，没反向控制母门 census）；`RECOGNIZED_KEYS` 手抄字面量改派生、§3.2 批量合并重构前置 fence。
 - 继续补 `task_contract` 相邻稳定纯函数栅栏（`changes.py`/`audit.py` 等缺直接测试者）。
+
+## 第二百四十九批 M8-T248：return-swallow 母门六格里，承重那格看不见「检测器变宽松」
+
+**起因/占号。** 第二百四十八批 §下一格候选点名了「母门自己的 census 反向控制」。占号前读了 `git log --all` 与文档全文（`M8-T(\d+)` 全量扫描，206 个已用号）：无 T248，本批认领 **M8-T248**；批号取 249（247/248 已被他流占用）。
+
+**量到的缺陷（先量后写，全部亲手跑）。** `tests/test_broad_except_return_swallows_state_reason.py` 六格、**零变异兄弟文件**，即它的格没有任何反向控制。先把三支盲化臂打在母门上（`measure248.py`，每臂内存字节快照还原 + sha256 校验）：
+
+| 臂 | 母门红的格 | 实测 |
+| --- | --- | --- |
+| baseline | 无 | 8 passed / 0 red |
+| A：`stated_reason` 恒返回 `"stated"` | 只有 `test_both_spellings_of_a_reason_are_accepted[bare]` | 1 failed ✓ |
+| B：`_is_return_swallow` 恒 `True` | narrow、return-value、`test_every_return_swallow_states_why_it_is_silent` | 3 failed ✓ |
+| C：`_is_return_swallow` 恒 `False` | 只有 `test_the_walk_finds_the_return_swallows_it_claims_to` | 1 failed ✓ |
+
+关键读数在 A 行：**承重格 `test_every_return_swallow_states_why_it_is_silent` 在检测器变宽松时一格不红**。它断言 `unstated == []`，而一个「永远说有理由」的检测器让这个列表恒为空——门对宽松方向全盲。唯一注意到的是一个合成参数化夹具，不是跑真树的那格。这与第 245 批量到的 3/19 是同一类缺陷：只有正向（能发现沉默），没有反向（不会放过沉默）。
+
+**落地（只加测试，生产码一字未动）。**
+
+- 新建 `tests/test_broad_except_return_swallows_state_reason_mutation.py`（9 格）：真树仍找到 ≥1 个 return-swallow（下限）、真树无未声明（母门承重条件）、**反向控制格**（`tmp_path` 夹具树里唯一裸 `return` 必须被报成未声明）、noqa / 注释两种拼写各清一次、窄处理器与带值 return 都不计入、本文件无私有谓词副本（AST 读，非子串）、谓词是母门对象（同一性）。夹具树走共享 `census_silent` 的 `source_dir` 回退（第 245 批加的），仓库内零写入。
+- `tests/test_mutation_cells_react_to_the_code_they_name.py` 表从 3 条盲化臂加到 **6** 条：新增 A 臂探新文件（红 = 反向控制格）、B 臂探新文件（红 = 三格）、C 臂探新文件（红 = 两格）；完整性下限从 `>= 3` 提到 `>= 6`，并加断言「两个静默母门的变异兄弟文件都必须在表里被探」——第 246 批文档里那句「母门仍是缺口」本批关掉，段落随之改写。
+
+**预写预测 vs 实测（预测不完整，如实记）。** 写新文件前先落了预测表（`pred248.txt`）：A 预测反向控制格红 ✓；B 预测只红 narrow + return-value——**漏了 `test_the_shipped_tree_has_no_unstated_return_swallow`**（谓词恒真会把真树里无理由的普通 handler 也算成 swallow，故承重条件也红）；C 预测只红下限格——**漏了反向控制格**（谓词恒假时 `_bare_handler_line` 在夹具里找不到 handler 直接抛）。两条漏预测都按实测记入，不改写成预测的样子。
+
+**双向验证（全在本批内亲手取）。**
+
+| 变异 | 红的门 | 实测 |
+| --- | --- | --- |
+| 新文件基线 | 无 | 9 passed / 0 red ✓ |
+| A：`stated_reason` → `"stated"` | `test_a_bare_return_swallow_in_a_new_tree_is_flagged` | 1 failed ✓ |
+| B：谓词 → `True` | narrow、return-value、`test_the_shipped_tree_has_no_unstated_return_swallow` | 3 failed ✓ |
+| C：谓词 → `False` | `test_the_shipped_tree_still_reports_a_return_swallow` + 反向控制格 | 2 failed ✓ |
+| 六臂门本体 | 无 | 9 passed / 115.82s ✓ |
+| 把新文件反向控制格改成 `assert True` | 门红在 `[the reason detector also stops the return-swallow gate noticing one]` | 1 failed ✓ |
+| 还原 | 逐字节相同 | sha256 相等 ✓ |
+| 还原后门 | 无 | 9 passed / 114.31s ✓ |
+| 全量整套 | **2348 passed / 0 failed / 5 skipped / 1868.62s** |  |
+| `doc_pointers --check` | exit 0 | 无 DANGLING ✓ |
+
+**诚实边界（明确不声称）。**
+① 只加测试：`_is_return_swallow`、`stated_reason`、母门与共享模块的生产/逻辑码一字未动；门对宽松方向的盲区由新文件的反向控制格补上，不是改母门断言。
+② 全量 2348 含另一条流在途文件（`scripts/impacted_tests.py`、`tests/test_impacted_tests.py` 两个已跟踪修改，加若干未跟踪 `.scratch-*`）；推送树 = `origin/main` + 本批两文件 + 本记录。
+③ B 臂「谓词恒真 → 承重条件红」依赖真树里存在无理由的普通 handler；若哪天真树所有 handler 都带理由，这格的 B 侧会变绿但 A 侧反向控制格仍在，故不依赖真树内容维持承重。
+④ A 臂红的格只有一个，是设计如此：反向控制只需要一格能抓宽松方向；把它摊成多格不会增加覆盖，只会让门更慢（门本体已 115.82s，每条盲化臂都是一次子进程探针）。
+
+**下批候选。**
+- 第二百四十八批点名的另一半：pass 族母门 `test_silence_must_state_its_reason.py` 的变异兄弟只反向控制了共享 `stated_reason`，**没有反向控制它自己的 `_is_silent_broad` 谓词**——补两支谓词盲化臂进它的变异文件与本门表，形状与本批 B/C 臂相同。
+- M8-T244：`tests/test_mcp_stdio.py:140` 那句 `assert len(result.output) <= 6000` 断在从不被写的字段上，对任何长度恒真。
+- `RECOGNIZED_KEYS` 手抄字面量改派生、§3.2 批量合并重构前置 fence。
