@@ -18549,3 +18549,26 @@ PATH_EXT looks like a typo of PATHEXT: 0.9333333333333333
 - 第二百四十九批 §下批候选剩余两条：pass 族 `_is_silent_broad` 谓词盲化臂、`test_mcp_stdio.py:140` 恒真断言、`RECOGNIZED_KEYS` 派生化。
 - `workspaces.py`（`resolve_workspace_path`/`WorkspaceCatalog`）缺直接测试者，按稳定性钉。
 - 隔离后 90 例全池评测（须 #255 pool_snapshot + 后台长跑，本环境全量门会被回收须拆多会话）。
+## 第二百五十五批 M8-T254：`minicc.workspaces` 路径门与目录目录录补栅栏测试
+
+**起因/占号。** 第二百五十四批 §下批候选点名 `workspaces.py`（`resolve_workspace_path`/`WorkspaceCatalog`）缺直接测试者。占号前读 `git log --all` 全量扫描 `M8-T(\d+)`：无 T254，本批认领 **M8-T254**；文档批号取 255（247/248/249/250/251/252/253/254 已被他流占用）。
+
+**量到的缺陷（先量后写，全部亲手跑）。** `minicc/workspaces.py` 是「所有工作区入口唯一闸门」（M2-T1）：五处入口（switch_workspace/RPC//api/chat/task submit/snapshot restore）都必须经它，否则 `workspace_roots=(A,)` 可被 B 绕过——却零直接单测。`WorkspaceCatalog` 的 remember 去重/置顶/max_items 封顶、`_read` 缺失与损坏 JSON 优雅降级、list 过滤空路径，同样零测试。这些边界最易静默改坏。
+
+**落地（只加测试，生产码一字未动）。** 新建 `tests/test_workspaces_pure.py`（17 案，全部文件系统活动在仓库外 tempfile，不碰仓库、不触发 git 删除护栏）：
+- `resolve_workspace_path` 8 案：空且无默认→ValueError、空回落默认、绝对存在目录→归一到 resolved、相对解析、不存在目录→ValueError、roots 白名单内→放行、白名单外→ValueError、空 roots→无限制。
+- `WorkspaceCatalog` 9 案：remember→list 往返、同路径去重、大小写不敏感去重、最近置顶、max_items 封顶（3）、缺失文件→[]、损坏 JSON→[]、非 list 负载→[]、list 过滤空 path 条目。
+
+**门证（全在本批内亲手取）。**
+| 门 | 结果 |
+| --- | --- |
+| `pytest tests/test_workspaces_pure.py -q -W error` | 17 passed in 0.59s |
+| `py_compile` | ok |
+
+**诚实边界（明确不声称）。** ① 只加测试：`workspaces.py` 生产码一字未动。② 白名单匹配用 `is_relative_to`（符号链接逃逸等极端场景未在本批覆盖，属 §3.2 重构与集成测试职责）。③ 断言是行为级表征；`workspace_roots` 绕过防护若被移除会先红。
+
+**本弧小结（minicc 稳定纯函数护栏）。** 本会话在 minicc 连续落地：T247 task_contract 传输契约、T249 audit 授权、T250 changes 纯逻辑、T251 permissions 规则匹配、T252 netguard SSRF 拦截、T253 snapshots 路径/摘要、T254 workspaces 路径门与目录录——七批皆只加测试、生产码零改动、`pytest -W error` 门全过、路径形式提交、未 push（避免干扰并发车道）。至此 minicc 核心稳定纯逻辑模块均已带栅栏测试。
+
+**下批候选（受本环境约束）。**
+- 第二百四十九批 §下批候选剩余两条：pass 族 `_is_silent_broad` 谓词盲化臂、`test_mcp_stdio.py:140` 断在从不被写字段上的恒真断言、`RECOGNIZED_KEYS` 手抄字面量改派生 + §3.2 批量合并重构前置 fence。
+- 隔离后 90 例全池评测（须 #255 pool_snapshot + 后台长跑，本环境全量门会被回收须拆多会话）。
