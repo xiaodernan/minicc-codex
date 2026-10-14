@@ -18501,3 +18501,27 @@ PATH_EXT looks like a typo of PATHEXT: 0.9333333333333333
 - 第二百四十九批 §下批候选剩余两条：pass 族母门 `_is_silent_broad` 谓词盲化臂、`tests/test_mcp_stdio.py:140` 断在从不被写字段上的恒真断言、`RECOGNIZED_KEYS` 手抄字面量改派生 + §3.2 批量合并重构前置 fence。
 - `netguard.py`（`_is_blocked_address` 私网/环回拦截）、`snapshots.py`（`_relative`/`_within`/`_digest` 纯逻辑）、`workspaces.py`（`resolve_workspace_path`/`WorkspaceCatalog`）缺直接测试者，按稳定性逐个钉。
 - 隔离后 90 例全池评测（须 #255 pool_snapshot + 后台长跑，本环境全量门会被回收须拆多会话）。
+## 第二百五十三批 M8-T252：`minicc.netguard` SSRF 拦截纯逻辑补栅栏测试
+
+**起因/占号。** 第二百五十二批 §下批候选点名 `netguard.py`（`_is_blocked_address` 私网/环回拦截）缺直接测试者。占号前读 `git log --all` 全量扫描 `M8-T(\d+)`：无 T252，本批认领 **M8-T252**；文档批号取 253（247/248/249/250/251/252 已被他流占用）。
+
+**量到的缺陷（先量后写，全部亲手跑）。** `minicc/netguard.py` 是 webfetch 与 HTTP MCP 的 SSRF 防护唯一裁决点，却零直接单测。其最危险的边界在 `_embedded_ipv4_candidates`：`is_private` 不覆盖 6to4（实测 `2002:0a00:0001::` 嵌入 `10.0.0.1` 会带着 False 畅通通过私网检查），须解包后按 IPv4 统一校验——这是真实存在的绕过，不是假设。
+
+**落地（只加测试，生产码一字未动）。** 新建 `tests/test_netguard_pure.py`（24 案，DNS 相关 `_resolve_and_validate`/`assert_public_host`/`resolve_pinned_host` 一律用 monkeypatch 钉 `socket.getaddrinfo` 隔离，零实时解析、毫秒级）：
+- `_is_blocked_address` 13 案：loopback v4/v6、private 各段（10/172.16-31/192.168）、link-local、multicast、unspecified、reserved 均拦；public v4/v6 放行；IPv4-mapped `::ffff:10.0.0.1`、6to4 `2002:0a00:0001::`、Teredo 均拦（钉死嵌入式解包绕过）。
+- `_embedded_ipv4_candidates` 5 案：裸 v4→[]、全局 v6→[]、IPv4-mapped→[mapped]、6to4→[sixtofour]、Teredo→非空 IPv4 候选。
+- `_env_allows_private` 3 案：env=1/True→允许、缺省→不允许。
+- `assert_public_http_url` 3 案：非 http(s) scheme→ValueError、缺主机名→ValueError、合法 URL 返回 `SplitResult` 且 hostname/scheme 正确；`ALLOWED_SCHEMES` 常量断言。
+
+**门证（全在本批内亲手取）。**
+| 门 | 结果 |
+| --- | --- |
+| `pytest tests/test_netguard_pure.py -q -W error` | 24 passed in 0.48s |
+| `py_compile` | ok |
+
+**诚实边界（明确不声称）。** ① 只加测试：`netguard.py` 生产码一字未动。② 真实 DNS 解析路径（`_resolve_and_validate` 的 getaddrinfo 调用、DNS-rebinding pin 语义）由 monkeypatch 隔离，未做真实网络往返；该路径的端到端行为由调用方既有集成测试覆盖，本批只钉纯逻辑与 scheme/hostname 校验。③ 断言是行为级表征：6to4/Teredo 拦截是回归栅栏，若将来移除嵌入式解包会先红。④ 一处断言初版写错（`2001:db8::1` 属文档保留段、被 `is_reserved` 正确拦截；Teredo 客户端地址手算错），已改为只断言「解包出非空 IPv4 候选」，避免对解包常量的过度假设。
+
+**下批候选。**
+- 第二百四十九批 §下批候选剩余两条：pass 族 `_is_silent_broad` 谓词盲化臂、`test_mcp_stdio.py:140` 恒真断言、`RECOGNIZED_KEYS` 派生化。
+- `snapshots.py`（`_relative`/`_within`/`_digest` 纯逻辑）、`workspaces.py`（`resolve_workspace_path`/`WorkspaceCatalog`）缺直接测试者，按稳定性逐个钉。
+- 隔离后 90 例全池评测（须 #255 pool_snapshot + 后台长跑，本环境全量门会被回收须拆多会话）。
