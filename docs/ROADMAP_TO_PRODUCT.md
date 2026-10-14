@@ -18595,3 +18595,27 @@ PATH_EXT looks like a typo of PATHEXT: 0.9333333333333333
 - 第二百四十九批 §下批候选剩余两条：pass 族 `_is_silent_broad` 谓词盲化臂、`test_mcp_stdio.py:140` 断在从不被写字段上的恒真断言、`RECOGNIZED_KEYS` 手抄字面量改派生 + §3.2 批量合并重构前置 fence。
 - `mentions` 注入预算截断/`redact`（mcp.json）门、`route_wiring.py` 缺直接测试者。
 - 隔离后 90 例全池评测（须 #255 pool_snapshot + 后台长跑，本环境全量门会被回收须拆多会话）。
+## 第二百五十七批 M8-T256：`minicc.route_wiring` 路由接线纯逻辑补栅栏测试
+
+**起因/占号。** 第二百五十六批 §下批候选点名 `route_wiring.py` 缺直接测试者。占号前读 `git log --all` 全量扫描 `M8-T(\d+)`：无 T256，本批认领 **M8-T256**；文档批号取 257（247..256 已被他流占用）。
+
+**量到的缺陷（先量后写，全部亲手跑）。** `minicc/route_wiring.py` 是 M11-T6/T7 的接线核心：**路由选了模型，还要治理它的预算/成本上限/回合上限/端点与凭据**——`MINICC_STAGE_ROUTING` 曾被一整条表面解析、广播、然后静默忽略（缺陷类），故这些规则被抽成单实现共享。四段纯逻辑却零直接单测：`_stage_route_budget`（route.max_turns 覆盖默认、route.max_cost_usd 传递、tool_calls/retries 恒 None）、`_route_turn_cap`（None 回落默认、负值夹到 0「误读绝不放宽上限」）、`_stage_cost_estimator`（usage→router.estimate_cost 的 int 强制与 `or 0` 兜底）、`_route_provider_spec`（跨厂商端点/凭据解析、未知 provider 抛 ConfigError、api_key_env 未设拒绝发部署密钥）。
+
+**落地（只加测试，生产码一字未动）。** 新建 `tests/test_route_wiring_pure.py`（20 案，纯逻辑；`_stage_cost_estimator`/`_route_provider_spec` 用极简 fake，零网络、零真实 router）：
+- `_stage_route_budget` 4 案：route.max_turns 覆盖默认、None 回落、max_cost_usd 传递、max_tool_calls/max_retries 恒 None。
+- `_route_turn_cap` 4 案：None→默认、配置胜出、0 有意义、负值夹到 0。
+- `_stage_cost_estimator` 3 案：计数透传、缺键→0、None 值→0。
+- `_route_provider_spec` 9 案：router=None→None、路由关→None、未注册模型→None、未知 provider→ConfigError、同族静默卡→None、同族 base_url 覆盖、跨族 anthropic 用 anthropic_base_url、api_key_env 未设→ConfigError、api_key_env 设→取环境变量。
+
+**门证（全在本批内亲手取）。**
+| 门 | 结果 |
+| --- | --- |
+| `pytest tests/test_route_wiring_pure.py -q -W error` | 20 passed in 11.25s |
+| `py_compile` | ok |
+
+**诚实边界（明确不声称）。** ① 只加测试：`route_wiring.py` 生产码一字未动。② 真实 `StageRouter.estimate_cost` 的价格表路径（`minicc.pricing` 唯一价表、cache 折扣故意忽略）未在本批覆盖，本批只钉 estimator 的转接契约；fake router 只验证参数与返回值转接。③ 断言是行为级表征；负值夹 0、api_key_env 未设拒绝、未知 provider 抛错这三处安全边界若被放宽会先红。
+
+**下批候选（受本环境约束）。**
+- 第二百四十九批 §下批候选剩余两条：pass 族 `_is_silent_broad` 谓词盲化臂、`tests/test_mcp_stdio.py:140` 断在从不被写字段上的恒真断言、`RECOGNIZED_KEYS` 手抄字面量改派生 + §3.2 批量合并重构前置 fence。
+- `mentions` 注入预算截断/`omitted` 合计路径与 `redact` 门（`mcp.json`）。
+- 隔离后 90 例全池评测（须 #255 pool_snapshot + 后台长跑，本环境全量门会被回收须拆多会话）。
