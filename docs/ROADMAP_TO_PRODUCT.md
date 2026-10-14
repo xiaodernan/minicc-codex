@@ -18643,3 +18643,188 @@ PATH_EXT looks like a typo of PATHEXT: 0.9333333333333333
 **下批候选（受本环境约束）。**
 - 第二百四十九批 §下批候选剩余两条：pass 族 `_is_silent_broad` 谓词盲化臂、`tests/test_mcp_stdio.py:140` 断在从不被写字段上的恒真断言、`RECOGNIZED_KEYS` 手抄字面量改派生 + §3.2 批量合并重构前置 fence。
 - 隔离后 90 例全池评测（须 #255 pool_snapshot + 后台长跑，本环境全量门会被回收须拆多会话）。
+
+## 第二百五十九批 M8-T244：截断标记写下「保留头 2000 + 尾 4000」，入库处再切一刀把尾巴削掉 49 字符
+
+### 1 来源与占号
+
+MCP 弧（M8-T140 → T143 → T145 → T238 → T242 → T243 → 本批）的下一格，来源是上一批记录里
+我 deliberately 留下的那句「绝不读 `output`」——第二百四十七批 §4 第 6 例写明 MCP 路径的
+`_content_to_tool_result`（`minicc/mcp.py:52`）只交 `head`/`tail`，断 `output` 恒真正是下一格的
+形状。占号时读 `git log`：本车道认领 **M8-T244**。文档侧批号由 `Temp/mc-t244/record_t244.py`
+从 `docs/ROADMAP_TO_PRODUCT.md` 自己的「第…批」标题推导，落在 **第二百五十九批**——草稿起草时
+算出的是第二百四十八批，等到围栏跑完，文档自己的最大批号已经走到第二百五十八批（五个记录由别的
+车道落下），所以这个号只能由脚本读文档算出来，不能手写——批号是文档
+追加顺序，单位号是任务身份，二者自第二百四十三批起明确分叉（同一教训见第二百四十七批 §1）。
+预测 `Temp/mc-t244/predictions_t244.md` 写在任何实现之前且一字未改，四处偏差登记在
+`Temp/mc-t244/deltas_t244.md`。
+
+### 2 现状（落库前在主工作树实测，父=949eff7，只读探针，非推理）
+
+`Temp/mc-t244/probe_t244.py`…`probe4_t244.py` 的进程内与 AST 读数：
+
+```
+composed render() width, empty summary        6037
+composed render() width, "MCP srv/big"        6049
+minicc/main.py:109 stored render()[:6000]     -> 49 个尾部字符被丢掉，4000 只剩 3951
+len(ToolResult.output) for a 500k answer      0（摊平器从不写这个通道）
+tests/ 里把截断界限写成裸数字的断言           4
+HEAD_CHARS/TAIL_CHARS 在 tests/ 的出现次数    0
+```
+
+三处同一类毛病——数字是抄来的，不是读来的：
+
+1. **恒真断言**。`tests/test_mcp_stdio.py:140` 断 `len(result.output) <= 6000`，而
+   `_content_to_tool_result` 的 kwargs（`minicc/mcp.py:67`）是 `head`、`tail`、`truncated`、
+   `summary`、`status`、`security_tags`——`output` 停在 dataclass 默认值上。500k 字符的服务器
+   答复照样过。`render()`（`minicc/tools/schemas.py:79`）在有 `head` 时根本不拼 `output`，
+   所以那 6000 个字节到达不了任何人。同一文件 `:141`/`:142` 把 `head`/`tail`  bound 在手抄的
+   2000/4000 上，`tests/test_background_shell.py:357` 把 `render()` bound 在 7000 上。
+2. **生产自己削自己的承诺**。`minicc/main.py:109` 把 `render()` 的组合结果再切 `[:6000]`
+   存进会话 `tool_history`，`/expand`（`minicc/main.py`）印的就是这个串。满预算正文本身
+   6038–6049 字符，于是**每一条**截断结果都少 49 字符，而人读到的文字里还留着
+   「保留头 2000 + 尾 4000 字符」。
+3. **上限被服务器选的名字推穿**。`minicc/web.py:1498` 与 `minicc/web.py:1988` 切在 8000，
+   只在 `len(summary) <= 1962` 时成立；MCP 的 summary 是 `f"MCP {server}/{tool}"`，tool 名来自
+   服务器自己的 `tools/list`。`_unique_tool_name`（`minicc/mcp.py:721`）给**注册表**里的名字
+   设了上限，`tool_specs` 里绑定的 `n=name` 把**原始**名字接进 `call_tool`，
+   summary 走的是后者。
+
+### 3 改法：把规则放到 `render()` 旁边，一个截断数字都不改
+
+新增 `ToolResult.record_text(ceiling)`（`minicc/tools/schemas.py:92`）：
+`text = self.render(); if self.head: return text; return text[:ceiling]`。理由是按通道分工——
+`ceiling` 只管**没有自己预算**的 raw `output` 通道；凡走过 `split_output`
+（`minicc/tools/registry.py:99`）的正文已经落在出厂头尾预算之内，再切一刀就会删掉标记里
+承诺的字节。`TRUNCATION_MARKER` 从 `render()` 里提到模块常量（`minicc/tools/schemas.py:19`），
+这样「那句话说了什么」能被测试读，而不是被再抄一遍。
+
+三个入库面各传自己原有的上限：`minicc/main.py:109` 仍 6000、`minicc/web.py:1498` 与
+`minicc/web.py:1988` 仍 8000。行为增量只有一条：带出厂预算的组合不再被削到承诺之下
+（main.py 普通情形 +49 字符）。测试侧改为从 `HEAD_CHARS`/`TAIL_CHARS`/`TRUNCATION_MARKER` 读，
+并删掉那条断在空通道上的 6000。不动的东西：任何截断数字、`loop.py` 发给模型的文本、
+会话大小上限、配置旋钮。
+
+### 4 门与变异臂
+
+新建 `tests/test_the_record_keeps_the_tail_the_truncation_marker_promises.py`，7 例（落地 447 行）：
+
+1. `test_the_persisted_record_keeps_the_tail_the_marker_promises`——真 `CliView` +
+   真 `SessionStore`：入库串必须以完整 `tail` 结尾，`expand()` 重印的文字里既要出现标记，
+   也要出现完整的 head 与 tail。
+2. `test_a_server_chosen_name_cannot_push_the_tail_past_the_clip`——上限从源码里
+   读出的最小 `record_text(...)` 实参，summary 用 `"MCP srv/" + "n" * (ceiling - 600)` 构造
+   （第 3 条那把刀的形状）：组合宽度必须大于上限，而入库文本仍要带完整尾巴。
+3. `test_no_mcp_test_bounds_a_field_the_flattener_never_writes`——派生：dataclass
+   声明的字段减去摊平器 AST 里实际传的 kwargs，得到「从不写入」集合，断其中含 `output`，
+   再采集 `tests/test_mcp_*.py` 里对通道字段的长度断言，凡 bound 落在空集合上就点名。
+4. `test_a_truncation_bound_is_read_from_the_shipped_budget`——全 `tests/*.py` 采集
+   「拿 `len()` 量 head/tail/output/render 并与整数字面量比」的断言，凡数字 ≥ `HEAD_CHARS`
+   即为手抄；下限 4 条由同一次采集算，防止「读不到」冒充「没问题」。
+5. `test_no_render_clip_undercuts_the_composition_it_reprints`——两类clip 分开记：
+   切进 `render()` 自己输出的（`render slice`）要与组合下限互校，下限由出厂常量渲一个探针
+   量出来；而 `record_text(6000)` 那种是调用方给 raw 通道的数字，由 C1/C2/C7 行为裁决。
+   另一条接线子句：dict 里键为 `"output"` 且读 `render()`/`record_text()` 的入库项必须走
+   `record_text`，population 与下限同源于一次走树。
+6. `test_the_stdio_seam_keeps_exactly_the_budget_and_the_right_bytes`——真起 stdio
+   fake server 回答它收到的文本，逐字节核 `head == payload[:HEAD_CHARS]`、
+   `tail == payload[-TAIL_CHARS:]`、`output == ""`，并要求 `render()` 恰等于
+   summary + head + 标记 + tail 的拼法。
+7. `test_a_record_surface_gets_the_ceiling_it_passes`——把源码里读到的最小上限
+   当真：raw `output` 超上限的结果经真 `CliView` 入库后长度必须恰等于该上限，且等于
+   `render()[:ceiling]`。
+
+变异臂（私有平面 `wt244arm`；控制腿先跑，红集为空才引用臂读数；每臂先把目标文件还原成
+原始字节、锚点命中数断言恰为 1、跑完按 sha256 核对还原）：
+
+| 臂 | 变异 | 预测红 | 实测红 |
+| --- | --- | --- | --- |
+| CONTROL | 无 | 0 | 0（7 passed） |
+| A1 | `main.py` 退回 `result.render()[:6000]` | C1 C5 C7 | C1 C5 C7（MATCHED） |
+| A2 | `web.py:1498` 退回 `render()[:8000]` | C5 | C5（MATCHED） |
+| A3 | `record_text` 无条件切片 | C1 C2 | C1 C2（MATCHED） |
+| A4 | `record_text` 从不切片 | C7 | C7（MATCHED） |
+| A5 | 摊平器也传 `output=head + tail` | C3 | C3 **C6**（MISMATCH，见 Δ3） |
+| A6 | `split_output` 的尾从头端取 | C6 | C6（MATCHED） |
+| A7 | `CHANNEL_FIELDS` 三个名字全拼错 | C4 | C4 **C3**（MISMATCH，见 Δ4） |
+| A8 | C5 采集时点的字典键拼错 | C5 | C5（MATCHED） |
+
+**8/8 臂至少产生一例红**（没有空转臂），6/8 与预测逐名相同。两处 MISMATCH 都是**多红**而非
+少红：A5 的 `output == ""` 在 C6 里是同一规则的字节级说法，A7 的字段元组由 C3 与 C4 共用，
+两处都按事实登记在 `Temp/mc-t244/deltas_t244.md`，没有回头改预测、也没有放宽任何容差。
+
+四处偏差：
+
+- **Δ1** 修前干跑最初在收集期就 `ImportError`（0 判决是崩溃不是证据）。私有平面 `wt244pre`
+  因此只预置 `TRUNCATION_MARKER` 常量（`render()` 输出字节实测不变，`record_text` 仍缺席），
+  七条主张才拿到行为判决：**6 红 / 1 绿**，红名恰为 C1 C2 C3 C4 C5 C7、C6 绿——预测 §2 命中；
+  最终门字节在修前平面作反向对照再跑，红名集合不变。
+- **Δ2** C5 初稿把 `record_text(6000)` 这个合法上限也拿去跟组合下限互校，于是在**修后**平面
+  自红。那是条款的缺陷不是修复的缺陷：raw 通道的上限由 C1/C2/C7 行为裁决。改成只追
+  `render slice` 之后两平面重跑，修前该子句仍红在 `minicc\main.py:109, kept=6000`。
+- **Δ3 / Δ4** 如上，A5、A7 各多命中一例。
+
+### 5 验证状态
+
+- 修前干跑（`wt244pre`）：6 failed / 1 passed，红名逐条等于预测 §2。
+- 修后平面（`wt244`）门 **7 passed / 31.76s**；主树落库后门 **7 passed / 61.83s**。
+- 聚焦回归（门 + mcp stdio/http/config-unknown-keys/locale + background shell + core session +
+  core tools + security perimeter，9 个文件）：平面 **113 passed / 294.67s**，主树
+  **113 passed / 146.48s**，两平面同数。
+- 代码提交 `113d4ac`（父 `949eff7`）：`minicc/main.py` +1/−1、`minicc/tools/schemas.py` +16/−1、
+  `minicc/web.py` +2/−2、`tests/test_background_shell.py` +9/−3、`tests/test_mcp_stdio.py` +9/−5、
+  新门 447/0，合计 6 文件 +484/−12。落地脚本逐条断言并打印：索引为空 → 每个被覆盖的文件在
+  主树里仍等于父提交 `949eff7` 的 blob（不同即拒跑，防止整文件复制抹掉别车道的改动）→
+  平面与臂平面字节互等 → 无混合行尾 → 主树 import 探针（`record_text True`、composed 6037、
+  `record_text(6000)` 保尾、raw 切到 6000）→ 门在主树 7 passed → staged 集合等于我的六个路径 →
+  提交后 `HEAD:<path>` 与写入字节逐字相等。全局 pre-commit 快检通过。
+- 双平面全量围栏（一次一个进程；两腿都是干净 worktree 且先打印 `minicc.__file__` 确认落在
+  各自平面；不注入 `PYTHONPATH`）：
+  - 父腿 `wt244par` @ 949eff7：collected 2313、passed 2307、failed 0、error 0、skipped 6，
+    5113.4s。
+  - 子腿 `wt244full` @ 113d4ac：collected 2320、passed 2314、failed 0、error 0、skipped 6，
+    5005.7s。
+  - 按**案例名多重集**归因：`node_added=7`，七个名字全部来自新门
+    `tests/test_the_record_keeps_the_tail_the_truncation_marker_promises.py`，逐名等于 §3 的
+    C1–C7；`node_removed=0`；`red_added=[]`、`red_removed=[]`（两腿各自 0 红，差集自然为空）；
+    两腿的 skipped 都是 6 条（`tests/test_webauth_validation.py` 的 POSIX 权限模型那组，与本单无关）。
+    围栏脚本自己打印的四条判据 `added==True removed_empty==True red_added_empty==True
+    red_removed_empty==True` 全部为真，即预测与实测一致，无需登记 Δ。
+
+### 6 边界与下一格
+
+本单声明不做：不改任何截断数字（`HEAD_CHARS`/`TAIL_CHARS`、raw `output` 的各道上限、
+`subagent.py` 的 60000、`verifier.py` 的 32000）；不改变发给模型的文本（`loop.py` 仍送完整
+`render()`）；不加配置旋钮；不动 `minicc/mcp.py:721` 的 `_unique_tool_name` 与 `tool_specs`
+里绑定 `n=name` 的那一行之间那一处本身——「注册表名有 128 上限、送进 `call_tool` 的 `n=name` 与写进 summary 的服务器选名都没有上限」。
+本批只让入库不再谎报，这根通道留给 MCP 弧下一格。
+
+下一格的量法是先问「我这一刀把什么变长了」。`Temp/mc-t245/probe2_prefix_t245.py` 用**同一段
+代码**分别 import 两双腿平面（`minicc.__file__` 与 `schemas.__file__` 逐条断言落在各自平面），
+把同一个病态服务器选名（`n`×N）配一份 50 万字符的回答走 `_content_to_tool_result` →
+`CliView.record_tool`，读真正落盘的 session JSON：
+```
+N        pre output  pre session   post output  post session   summary(两平面同值)
+   200         6000         6585         6246          6831            208
+  5000         6000        11355        11046         16431           5008
+200000         6000       206354       206046        406431         200008
+```
+
+三条读数各自说明一件事：
+
+1. 修前 `output` 恒 6000——那把刀把 6246（N=200，名字正常长度就够触发）削成 6000，尾巴少
+   246 字符而文字仍说「保留头 2000 + 尾 4000」，本批修的正是这个。
+2. 修后 `output` 等于 `render()` 全长，session 字节随之从 206354 走到 406431（N=200000）：
+   **本批让入库长度翻倍的前提，是 summary 里那个名字本来就没人限长**。
+3. `summary` 字段在两平面同值（208 / 5008 / 200008）：`minicc/main.py:107` 一直是
+   `result.summary` 原样入库，这条无上限通道早于本批存在，不是我新造的洞；
+   `minicc/main.py:111` 把历史收成 24 条，但单条没有上限。
+
+所以下一格（**M8-T247**，占号时 `git log` 里最高单位号是 M8-T246）问的是根因不是本批的副作用：
+服务器自选的 tool 名在注册表侧有 128 上限、在 summary 与 `call_tool` 侧没有，一个名字能把
+一条工具记录写成 20 万字符，而这份文本会进 CLI 摘要、Web 卡片和 `/expand`。先量「有谁对这个
+名字做过长度声明」，再定改法；改名是协议层动作（要保住往返稳定），需单独立项。
+
+已量在心的候选（实测：`grep 输出已截断` 在两处命中）：`minicc/tools/webfetch.py:369`
+自己再写一份截断句，数字与 `minicc/tools/schemas.py:19` 互读常量、字句却是第二份手抄，
+本批的门只核 `render()` 那一种拼写；下一格先量「两种拼写是否会长成两句话」再定改法。
