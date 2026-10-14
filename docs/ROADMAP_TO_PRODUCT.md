@@ -18619,3 +18619,27 @@ PATH_EXT looks like a typo of PATHEXT: 0.9333333333333333
 - 第二百四十九批 §下批候选剩余两条：pass 族 `_is_silent_broad` 谓词盲化臂、`tests/test_mcp_stdio.py:140` 断在从不被写字段上的恒真断言、`RECOGNIZED_KEYS` 手抄字面量改派生 + §3.2 批量合并重构前置 fence。
 - `mentions` 注入预算截断/`omitted` 合计路径与 `redact` 门（`mcp.json`）。
 - 隔离后 90 例全池评测（须 #255 pool_snapshot + 后台长跑，本环境全量门会被回收须拆多会话）。
+## 第二百五十八批 M8-T257：`minicc.mentions` 注入预算/截断/`omitted` 与 `redact` 门补栅栏测试
+
+**起因/占号。** 第二百五十六批 §诚实边界明确「注入预算截断/`omitted` 合计路径与 `redact` 门（`mcp.json`）未在本批覆盖」，列为可钉项。占号前读 `git log --all` 全量扫描 `M8-T(\d+)`：无 T257，本批认领 **M8-T257**；文档批号取 258（247..257 已被他流占用）。
+
+**量到的缺陷（先量后写，全部亲手跑）。** `minicc/mentions.py` 的注入预算门（`remaining = min(max_chars_per_file, max_total_chars - used)`、超预算标 `[truncated]`、`remaining<=0` 归 `omitted`）与 `redact` 门（`.minicc/mcp.json` 属 `_MINICC_REDACT_FILES`，内容注入但密钥须先擦）此前零直接单测——这是凭据外泄与上下文预算越界的双重边界。
+
+**落地（只加测试，生产码一字未动）。** 新建 `tests/test_mentions_budget.py`（5 案，临时 workspace 全在仓库外 tempfile）：
+- 预算内不截断：小文件 + 大预算 → injected、truncated False、块无 `[truncated]`。
+- 超长截断并标记：50 字符 + `max_chars_per_file=10` → injected、truncated True、块含 `[truncated]`。
+- 预算耗尽第二文件归 `omitted`：A 恰填满 `max_total_chars=30`，B 的 remaining 归 0 → A injected、B omitted、块含「超出注入预算」。
+- `redact` 门真实擦除：`.minicc/mcp.json` 含 `Bearer sk-...` → injected、**原始密钥不在块中**、块含 `[REDACTED`。
+- `redact` 门保留非密钥内容：`.minicc/mcp.json` 无密钥 → 内容原样注入。
+
+**门证（全在本批内亲手取）。**
+| 门 | 结果 |
+| --- | --- |
+| `pytest tests/test_mentions_budget.py -q -W error` | 5 passed in 5.26s |
+| `py_compile` | ok |
+
+**诚实边界（明确不声称）。** ① 只加测试：`mentions.py` 生产码一字未动。② 截断的「换行边界回退」（`text[:remaining].rfind("\n")` 过半才回退）未逐字钉死位置，只钉 truncated 标记与 `[truncated]` 出现——避免对切点过度拟合。③ `redact` 门覆盖的是 `registry.redact_text` 的 `sk-*`/`Bearer` 规则命中；其余密钥模式（ghp_/AKIA/JWT 等）由 `redact_text` 自身既有测试覆盖，本批只验证 `mentions` 侧确实调用了它。④ 断言是行为级表征；预算门或 redact 门若被移除会先红。
+
+**下批候选（受本环境约束）。**
+- 第二百四十九批 §下批候选剩余两条：pass 族 `_is_silent_broad` 谓词盲化臂、`tests/test_mcp_stdio.py:140` 断在从不被写字段上的恒真断言、`RECOGNIZED_KEYS` 手抄字面量改派生 + §3.2 批量合并重构前置 fence。
+- 隔离后 90 例全池评测（须 #255 pool_snapshot + 后台长跑，本环境全量门会被回收须拆多会话）。
