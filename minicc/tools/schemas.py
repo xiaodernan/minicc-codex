@@ -81,7 +81,8 @@ class ToolResult:
         parts = [self.summary] if self.summary else []
         if self.head:
             parts.append(self.head)
-            if self.truncated:
+            # the sentence below promises a tail; it may print only with those bytes
+            if self.truncated and self.tail:
                 parts.append(f"\n{TRUNCATION_MARKER}\n")
                 parts.append(self.tail)
         elif self.output:

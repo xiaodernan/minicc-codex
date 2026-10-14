@@ -229,7 +229,7 @@ def test_build_tool_result_success_shape(local_server, monkeypatch: pytest.Monke
     assert "untrusted" in tool_result.security_tags
     assert "network" in tool_result.security_tags
     assert tool_result.data["title"] == "Minicc 测试页"
-    assert "不可信数据" in tool_result.output
+    assert "不可信数据" in tool_result.render()  # the claim is that the model sees it
 
 
 def test_webfetch_handler_rejects_empty_url():
