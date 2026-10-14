@@ -18572,3 +18572,26 @@ PATH_EXT looks like a typo of PATHEXT: 0.9333333333333333
 **下批候选（受本环境约束）。**
 - 第二百四十九批 §下批候选剩余两条：pass 族 `_is_silent_broad` 谓词盲化臂、`test_mcp_stdio.py:140` 断在从不被写字段上的恒真断言、`RECOGNIZED_KEYS` 手抄字面量改派生 + §3.2 批量合并重构前置 fence。
 - 隔离后 90 例全池评测（须 #255 pool_snapshot + 后台长跑，本环境全量门会被回收须拆多会话）。
+## 第二百五十六批 M8-T255：`minicc.mentions` 分词与注入安全门补栅栏测试
+
+**起因/占号。** 第二百五十五批 §下批候选点名 `mentions.py`（`extract_mention_tokens`/`build_mention_context`）缺直接测试者。占号前读 `git log --all` 全量扫描 `M8-T(\d+)`：无 T255，本批认领 **M8-T255**；文档批号取 256（247..255 已被他流占用）。
+
+**量到的缺陷（先量后写，全部亲手跑）。** `minicc/mentions.py` 把 Web 作曲器的 `@path` 文本转成注入模型的文件内容块，含三重安全门（绝对/`~`/盘符拒绝、`.minicc` 凭据门、工作区越界拒绝），却零直接单测。分词正则的邮箱负向后顾、全角标点截断、CJK 粘连、去重封顶，以及凭据门只认 `_MINICC_DENY_FILES` 具体文件名——都是最易静默改坏又最难察觉的边界。
+
+**落地（只加测试，生产码一字未动）。** 新建 `tests/test_mentions_pure.py`（18 案，`extract_mention_tokens` 纯字符串；`build_mention_context`/`apply_mentions` 的临时 workspace 全在仓库外 tempfile）：
+- `extract_mention_tokens` 10 案：单 token、邮箱（`a@b.com`）不算提及（负向后顾）、CJK 前缀放行、全角标点（`。`）截断、多 token 保序、去重保首个、CJK 粘连 token 保留、10 文件封顶、`x@y` 不算、空消息。
+- `build_mention_context` 7 案：正常注入块含文件内容、盘符绝对路径拒绝（reason 含「绝对路径」）、POSIX 绝对路径拒绝（跨平台走不同分支但终态一致）、`~` 主目录拒绝、`.minicc/allowlist.json` 凭据拒绝、缺失文件标注 missing、二进制（含 NUL）拒绝。
+- `apply_mentions` 1 案：块追加到消息且 records 标 injected。
+
+**门证（全在本批内亲手取）。**
+| 门 | 结果 |
+| --- | --- |
+| `pytest tests/test_mentions_pure.py -q -W error` | 18 passed in 5.32s |
+| `py_compile` | ok |
+
+**诚实边界（明确不声称）。** ① 只加测试：`mentions.py` 生产码一字未动。② 两处断言初版写错（`/etc/passwd` 在 Windows 上 `Path.is_absolute()` 为 False、走「超出工作区」分支而非「绝对路径」；凭据门只认 `_MINICC_DENY_FILES` 里的具体文件名，我误用 `.minicc/secret`），已按真实行为修正——**是断言错、不是代码错**，两处均用真实行为级验证确认。③ 注入预算截断/`omitted` 的多文件合计路径、`redact` 门（`mcp.json`）未在本批覆盖，属后续可钉项。④ 断言是行为级表征；凭据门或越界拒绝若被放宽会先红。
+
+**下批候选（受本环境约束）。**
+- 第二百四十九批 §下批候选剩余两条：pass 族 `_is_silent_broad` 谓词盲化臂、`test_mcp_stdio.py:140` 断在从不被写字段上的恒真断言、`RECOGNIZED_KEYS` 手抄字面量改派生 + §3.2 批量合并重构前置 fence。
+- `mentions` 注入预算截断/`redact`（mcp.json）门、`route_wiring.py` 缺直接测试者。
+- 隔离后 90 例全池评测（须 #255 pool_snapshot + 后台长跑，本环境全量门会被回收须拆多会话）。
