@@ -18353,3 +18353,24 @@ PATH_EXT looks like a typo of PATHEXT: 0.9333333333333333
 ### 6 边界与下一格
 
 本单声明不做：不把 `PYTHONIOENCODING`/`XDG_*`/`LC_CTYPE` 加进继承名单（安全口径变更，需批准）；不动 `minicc/hooks.py` 的 `PATH_EXT` 与它的 mixed-case 拼写（D4 的另一半，单独立项）；不改 `_scrubbed_env` 的大小写规则。下一格已量好在写：M8-T244——`tests/test_mcp_stdio.py:140` 那句 `assert len(result.output) <= 6000` 断在 `ToolResult.output` 上，而 MCP 路径的构造函数从不写 `output`（`_content_to_tool_result` 只交 `head`/`tail`），这条断言对任何长度的 server 输出都恒真；同一文件的 6000 预算还是手抄字面量，与 `HEAD_CHARS`/`TAIL_CHARS`（`minicc/tools/schemas.py:14`）没有对账。
+
+## 第二百四十八批 M8-T247：`minicc.task_contract` 的 request/result 传输契约补栅栏测试
+
+**起因/起点（该模块零测试）。** `task_contract.py` 是线程执行器与分离 worker 之间传递的版本化结构，其解析处正是「产出 payload 可能谎报自身记账」或「坏 schema / 空消息溜过」的地方。仓库 174 个测试文件里它**直接命名为零**（仅 `mentions`/`snapshots` 等间接覆盖）。契约易无声漂移——尤其 `TaskResult.from_payload` 必须剥离 `children_rolled_up`（宿主计费记账：防止结果 payload 谎称子树已折叠而跳过折叠）。
+
+**改动（只加测试，零生产码）。** 新建 `tests/test_task_contract.py`（16 案，纯逻辑无 IO，走常规 pytest 且 `-W error` 门）：
+- `resolve_task_permissions`：default 尊重标志、plan 强制 `changes` 关（保留 `network` 标志）、yolo 两标志强制开、yolo 参数在 default 下开 `changes`、别名 `accept-edits` 归一为 `acceptEdits`、非法 mode 抛 `ValueError`。
+- `TaskRequest.from_payload`：schema v1/v2 接受、v3 拒、空消息拒、非 dict 附件被丢、round-trip 保字段。
+- `TaskResult.from_payload`：剥离 `children_rolled_up`（安全契约，绝不进 metadata）、核心字段保留且其余进 metadata、round-trip；`to_payload` 永不带 `children_rolled_up`。
+
+**门证（实测）。** `pytest tests/test_task_contract.py -q -W error` → **16 passed / 3.24s**（首跑 1 例断言写错——误以为 v1 输入会保留 `schema_version=1`，实则该字段构造时归一到 2，已据真实行为改断言：`from_payload` 接受 v1 但不抛、内部归一到 v2）；`py_compile` 通过。minicc venv 未装 ruff，按本仓门禁 `pytest -W error` 复跑通过（无警告升级为错误）。
+
+**诚实边界。**
+① 只加测试，不改 `task_contract.py` 任何生产码，不新增/修改契约语义——与本节要钉的「剥离 `children_rolled_up`」同纪律（只测不松）。
+② `task_contract.py` 不在途（本仓当前在途文件为 `scripts/impacted_tests.py` 与两个 mutation-cell 测试，均避让）。
+③ 本地领先 origin 若干提交，本批只提交不 push；路径形式提交，未碰别车道在途改动。
+
+**下一格候选（回本仓主弧）。**
+- M8-T244：`tests/test_mcp_stdio.py:140` 那句 `assert len(result.output) <= 6000` 断在 `ToolResult.output` 上，而 MCP 路径构造函数从不写 `output`（`_content_to_tool_result` 只交 `head`/`tail`），该断言对任何长度 server 输出恒真；6000 预算还是手抄字面量，与 `HEAD_CHARS`/`TAIL_CHARS`（`minicc/tools/schemas.py:14`）无对账。
+- M8-T246 留下的格级反向控制：母门自己的 census 反向控制（上一批 9 格只反向控制 `stated_reason`，没反向控制母门 census）；`RECOGNIZED_KEYS` 手抄字面量改派生、§3.2 批量合并重构前置 fence。
+- 继续补 `task_contract` 相邻稳定纯函数栅栏（`changes.py`/`audit.py` 等缺直接测试者）。
