@@ -18525,3 +18525,27 @@ PATH_EXT looks like a typo of PATHEXT: 0.9333333333333333
 - 第二百四十九批 §下批候选剩余两条：pass 族 `_is_silent_broad` 谓词盲化臂、`test_mcp_stdio.py:140` 恒真断言、`RECOGNIZED_KEYS` 派生化。
 - `snapshots.py`（`_relative`/`_within`/`_digest` 纯逻辑）、`workspaces.py`（`resolve_workspace_path`/`WorkspaceCatalog`）缺直接测试者，按稳定性逐个钉。
 - 隔离后 90 例全池评测（须 #255 pool_snapshot + 后台长跑，本环境全量门会被回收须拆多会话）。
+## 第二百五十四批 M8-T253：`minicc.snapshots` 路径/摘要纯逻辑补栅栏测试
+
+**起因/占号。** 第二百五十三批 §下批候选点名 `snapshots.py`（`_relative`/`_within`/`_digest` 纯逻辑）缺直接测试者。占号前读 `git log --all` 全量扫描 `M8-T(\d+)`：无 T253，本批认领 **M8-T253**；文档批号取 254（247/248/249/250/251/252/253 已被他流占用）。
+
+**量到的缺陷（先量后写，全部亲手跑）。** `minicc/snapshots.py` 是「冲突感知回退」的快照核心，其 `_relative` 是最容易被静默改坏又最难察觉的边界：跨平台反斜杠归一、空字节/盘符/绝对路径/`..` 越界遍历、内部 `.git`/`.minicc` 前缀排除——一处松懈就是路径穿越。这些纯逻辑零直接单测。
+
+**落地（只加测试，生产码一字未动）。** 新建 `tests/test_snapshots_pure.py`（24 案，临时目录全在仓库外 tempfile，不碰仓库、不触发 git 删除护栏）：
+- `_relative` 13 案：普通相对路径、反斜杠归一、嵌套、空/None/非字符串→抛 SnapshotError、空字节→抛、盘符（C:\...）→抛、绝对（/etc/passwd）→抛、`..` 越界→抛、`.git`/`。minicc` 根前缀→抛、嵌入 `.git` 段仍允许。
+- `_SAFE_TASK_ID` 5 案：合法形状、拒空/拒超长（82）、拒斜杠/空格。
+- `_digest` 4 案：内容 sha256 比对、缺失→None、目录→抛、空文件→sha256(b"")。
+- `_summary` 4 案：无 skipped→captured/complete True、有 skipped→partial True、缺键默认空、skipped_reasons 保留。
+
+**门证（全在本批内亲手取）。**
+| 门 | 结果 |
+| --- | --- |
+| `pytest tests/test_snapshots_pure.py -q -W error` | 24 passed in 0.40s |
+| `py_compile` | ok |
+
+**诚实边界（明确不声称）。** ① 只加测试：`snapshots.py` 生产码一字未动。② `capture`/`restore`/`SnapshotJournal`/`_within`/`_git_dirty_files` 等需真实文件系统/仓库/symlink 的集成路径未在本批直接测（其行为由调用方既有集成测试与 §3.2 重构覆盖），本批只钉纯逻辑与路径边界契约。③ 断言是行为级表征；`_relative` 的越界判定若被放宽会先红。
+
+**下批候选。**
+- 第二百四十九批 §下批候选剩余两条：pass 族 `_is_silent_broad` 谓词盲化臂、`test_mcp_stdio.py:140` 恒真断言、`RECOGNIZED_KEYS` 派生化。
+- `workspaces.py`（`resolve_workspace_path`/`WorkspaceCatalog`）缺直接测试者，按稳定性钉。
+- 隔离后 90 例全池评测（须 #255 pool_snapshot + 后台长跑，本环境全量门会被回收须拆多会话）。
