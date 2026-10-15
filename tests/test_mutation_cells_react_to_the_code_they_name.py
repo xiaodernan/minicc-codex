@@ -19,13 +19,13 @@ probed in a subprocess, the expectation is checked, and the file is restored fro
 sha256 snapshot with byte-exactness verified. A blind mutation that turns nothing red
 is a failure: that is the whole assertion.
 
-Scope: the three mutations M8-T245's rewrite covered, plus one blind arm per silence
-*parent* gate. Those parents had no mutation file of their own, so nothing measured
-whether their census logic still reacted - the return-swallow parent shipped six cells
-and turning its shared detector blind reddened only a synthetic parametrized fixture,
-never the load-bearing one. M8-T248 gave it a reverse-control file and this table now
-watches that file. Both silence parents are covered by a mutation sibling and by an
-entry here, so the gap this docstring used to record is closed.
+Scope: the three mutations M8-T245's rewrite covered, plus a blind arm per silence
+*parent* for both the shared detector and the parent's own predicate. Those parents
+shipped with either no mutation file (the return-swallow one, whose six cells went
+blind in the permissive direction) or with a file that reverse-controlled only the
+shared detector (the pass-family one). M8-T248 and M8-T258 closed both, and this
+table now blinds each parent's predicate directly, so neither can be blunted without
+CI noticing.
 """
 from __future__ import annotations
 
@@ -169,6 +169,45 @@ GATE_BLIND_MUTATIONS: tuple[BlindMutation, ...] = (
         must_go_red=(
             "test_the_shipped_tree_still_reports_a_return_swallow",
             "test_a_bare_return_swallow_in_a_new_tree_is_flagged",
+        ),
+    ),
+    BlindMutation(
+        # M8-T258: the pass-family predicate. Its mutation file already reacted when
+        # measured, but no table entry blinded it, so nothing stopped a future edit
+        # from blunting those cells. An over-broad predicate counts every handler.
+        label="the silent-broad predicate accepts every handler",
+        target="tests/test_silence_must_state_its_reason.py",
+        anchor=(
+            "def _is_silent_broad(node: ast.ExceptHandler) -> bool:\n"
+            '    kind = ast.unparse(node.type) if node.type else "BARE"\n'
+        ),
+        replacement=(
+            "def _is_silent_broad(node: ast.ExceptHandler) -> bool:\n"
+            '    kind = ast.unparse(node.type) if node.type else "BARE"\n'
+            "    return True  # M8-T258 gate-blind mutation\n"
+        ),
+        probe="tests/test_silence_must_state_its_reason_mutation.py",
+        must_go_red=(
+            "test_a_narrow_handler_is_never_counted",
+            "test_the_shipped_tree_has_no_unstated_silence",
+        ),
+    ),
+    BlindMutation(
+        label="the silent-broad predicate rejects every handler",
+        target="tests/test_silence_must_state_its_reason.py",
+        anchor=(
+            "def _is_silent_broad(node: ast.ExceptHandler) -> bool:\n"
+            '    kind = ast.unparse(node.type) if node.type else "BARE"\n'
+        ),
+        replacement=(
+            "def _is_silent_broad(node: ast.ExceptHandler) -> bool:\n"
+            '    kind = ast.unparse(node.type) if node.type else "BARE"\n'
+            "    return False  # M8-T258 gate-blind mutation\n"
+        ),
+        probe="tests/test_silence_must_state_its_reason_mutation.py",
+        must_go_red=(
+            "test_the_shipped_tree_still_reports_every_silent_handler",
+            "test_a_bare_silence_in_a_new_tree_is_flagged",
         ),
     ),
 )
@@ -322,17 +361,25 @@ def test_the_failed_line_parser_survives_both_pytest_formats() -> None:
 
 def test_the_gate_blind_table_claims_a_real_red_for_every_entry() -> None:
     """A table entry with no expected red cells would make the gate above vacuous."""
-    assert len(GATE_BLIND_MUTATIONS) >= 6, (
+    assert len(GATE_BLIND_MUTATIONS) >= 8, (
         f"the table holds only {len(GATE_BLIND_MUTATIONS)} blind mutations; the "
-        "rewrites of M8-T245 and M8-T248 covered six"
+        "rewrites of M8-T245, M8-T248 and M8-T258 covered eight"
     )
     # One entry per probe file is not the invariant - the same file can be probed by
-    # more than one blind arm - but every silence parent must be watched by one.
+    # more than one blind arm - but every silence parent must be watched by one, and
+    # each parent's own predicate must be blinded too, not just the shared detector.
     probed = {m.probe for m in GATE_BLIND_MUTATIONS}
     assert "tests/test_silence_must_state_its_reason_mutation.py" in probed
     assert "tests/test_broad_except_return_swallows_state_reason_mutation.py" in probed, (
         "the return-swallow parent's reverse-control file is no longer watched - "
         "M8-T248 closed that gap and this is the assertion that keeps it closed"
+    )
+    targets = {m.target for m in GATE_BLIND_MUTATIONS}
+    assert "tests/test_silence_must_state_its_reason.py" in targets
+    assert "tests/test_broad_except_return_swallows_state_reason.py" in targets, (
+        "neither silence parent's own predicate is blinded any more - M8-T258 locked "
+        "both in, and blinding only the shared detector would let a parent's predicate "
+        "be blunted without CI noticing"
     )
     blind = [m.label for m in GATE_BLIND_MUTATIONS if not m.must_go_red]
     assert blind == [], f"these entries demand no red cell at all: {blind}"

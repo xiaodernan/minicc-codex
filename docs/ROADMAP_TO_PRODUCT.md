@@ -18971,3 +18971,46 @@ C7 钉它必须等于 `MAX_BYTES_DEFAULT // 1024`，改成派生会让 C7 变成
 2. 网页正文里若出现攻击者自写的「… [输出已截断: 保留头 2000 + 尾 4000 字符] …」，
    本批的判据（`if self.head`）不受影响——这正是坚持走通道、而不写「文中有标记就不切」的理由；
    C4 的普查按句子构造位置（AST 里的 f-string/常量节点）而非运行时子串匹配，同样不受影响。
+
+## 第二百六十一批 M8-T258：pass 族母门的变异格早就对自己的谓词有反应——但没人把这件事锁住
+
+**起因/占号（含一次撞号，如实记）。** 第二百四十九批 §下批候选第一条：pass 族母门 `test_silence_must_state_its_reason.py` 的变异兄弟只反向控制了共享 `stated_reason`，没反向控制它自己的 `_is_silent_broad`。动手时全量扫描判 T249 与批号 250 皆空闲，遂认领 **M8-T249 / 第二百五十批**；量测与落地做完、全量跑完（35:53）之后，另一条流已连落六批，把 **M8-T249 与批号 250/251/252 一并占走**（其 250 批是 `minicc.audit` 栅栏测试）。按「不改写他人历史、改自己号」的口径重扫：T 只剩 258/260 空闲、批号从 261 起空闲，本批改挂 **M8-T258 / 第二百六十一批**，代码内 6 处 `M8-T249` 字样一并替换为 `M8-T258`（`rg` 复核：6 命中 / 0 残留）。**代码与量测结论未变，变的只有号。**
+
+**先量后写。** 与第 249 批（return-swallow 母门）不同，这一批量出来的结论**不是**「格不承重」，所以落地内容也随之不同。两支谓词盲化臂直接打在母门文件上，探其变异兄弟文件（`measure249.py`，每臂内存字节快照还原 + sha256 校验）：
+
+| 臂 | 变异兄弟文件红的格 | 实测 |
+| --- | --- | --- |
+| baseline | 无 | 9 passed / 0 red |
+| D：`_is_silent_broad` 恒 `True` | `test_a_narrow_handler_is_never_counted`、`test_the_shipped_tree_has_no_unstated_silence` | 2 failed ✓ |
+| E：`_is_silent_broad` 恒 `False` | `test_the_shipped_tree_still_reports_every_silent_handler`、`test_a_bare_silence_in_a_new_tree_is_flagged` | 2 failed ✓ |
+
+读数与第 249 批相反：pass 族的变异格**本来就对自己的谓词有反应**，2/2 都红。真正的缺陷因此上移了一层——**这个反应没有任何门在盯**。`GATE_BLIND_MUTATIONS` 表里只有一条臂盲共享 `stated_reason`，从没盲过 `_is_silent_broad`；于是未来任何一次编辑都可以把这两格改钝，而 CI 一格都不会红。这正是第 246 批要关的那类缺陷，只是这次发生在「反向控制存在但未被锁住」这一层。
+
+**落地（只动门表与它自己的断言，生产码与变异兄弟文件一字未动）。**
+
+- `tests/test_mutation_cells_react_to_the_code_they_name.py`：表从 6 条盲化臂加到 **8**——新增 D/E 两臂，`target` 直指母门文件 `tests/test_silence_must_state_its_reason.py` 的 `_is_silent_broad`，`probe` 指其变异兄弟文件，`must_go_red` 取上表实测的各两格。
+- 完整性下限 `>= 6` 提到 `>= 8`；并加一条断言：**两个静默母门文件本身都必须出现在 `target` 集合里**——只盲共享检测器而放过母门谓词，正是本批要钉死的形状。
+- 文档段落改写：从「每母门一条共享检测器盲化臂」改成「每母门对共享检测器与自身谓词各一条」。
+
+**见证（精确到新条目，不借旧条目）。** 第一次见证把 `test_a_bare_silence_in_a_new_tree_is_flagged` 改钝，门确实红了——但红的是**第 249 批的共享检测器臂**，不是新臂：该格在 E 臂下会因为 `_bare_handler_line` 在夹具里找不到 handler 而直接抛错，所以钝化它无法把新条目孤立出来。改用 `test_the_shipped_tree_has_no_unstated_silence`（该格不在任何其他臂的 `must_go_red` 里）重做：
+
+| 变异 | 红的门 | 实测 |
+| --- | --- | --- |
+| 门本体（8 臂 + 3 格） | 无 | 11 passed / 149.34s ✓ |
+| 把该格改成 `assert True` | 门红在 `[the silent-broad predicate accepts every handler]` | 1 failed ✓（**只**这一个条目） |
+| 还原 | 逐字节相同 | sha256 相等 ✓ |
+| 还原后门 | 无 | 11 passed / 149.43s ✓ |
+| 全量整套 | **2350 passed / 0 failed / 5 skipped / 2153.12s** |  |
+| `doc_pointers --check` | exit 0 | 无 DANGLING ✓ |
+
+**诚实边界（明确不声称）。**
+① 本批**没有新增任何变异格**：pass 族变异兄弟文件 9 格一字未动。它本来就承重，缺的是锁。
+② D/E 两臂的 `must_go_red` 各只有 2 格，是实测值不是目标值；若哪天母门树里所有普通 handler 都带理由，D 臂会少红一格——那时应改表而不是把格改钝。
+③ 第一次见证（钝化 `test_a_bare_silence_in_a_new_tree_is_flagged`）失败地没能孤立新条目，过程如实记录，不拿它当本批的见证。
+④ 撞号后只改了号与 6 处代码字样（注释与一条断言消息里的 `M8-T249` → `M8-T258`），**没有重跑全量**：改动是纯字符串替换，不碰任何断言逻辑。替换后单独重跑了门本体复核：**11 passed / 63.03s**。上表里的全量 2350 是换号前取的读数，换号后未重取，如实标明。
+⑤ 全量 2350 含另一条流在途文件；推送树 = `origin/main` + 本批两文件 + 本记录。
+
+**下批候选。**
+- 扫仓库里是否还有第三处「有变异文件却无门表条目」或「门自带私有探测器副本」。
+- `RECOGNIZED_KEYS` 手抄字面量改派生、§3.2 批量合并重构前置 fence。
+- 他流第 259/260 批已动 `tools/schemas.py` 的 head/tail 通道；若其留下未接线的预算常量，可去对账。
