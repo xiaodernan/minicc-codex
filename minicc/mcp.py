@@ -26,7 +26,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from pathlib import Path
 from typing import Any
 
@@ -131,6 +131,13 @@ class McpServerConfig:
         return "http" if self.url else "stdio"
 
 
+# M8-T258: recognized entry keys derive from the config dataclass so a new
+# field can never drift out of the "unrecognized key" warning gate. ``name`` is
+# the entry's dict key, not a per-entry field, so it is excluded. Deriving (vs a
+# hand-copied literal) makes McpServerConfig the single source of truth.
+RECOGNIZED_KEYS = frozenset(f.name for f in fields(McpServerConfig)) - {"name"}
+
+
 def _config_text(value: dict[str, Any], name: str, key: str) -> str:
     """Read one optional string field of a server entry, refusing a wrong type.
 
@@ -178,9 +185,9 @@ def load_mcp_config(workspace: Path) -> list[McpServerConfig]:
     entries = raw.get("servers", raw) if isinstance(raw, dict) else raw
     if not isinstance(entries, dict):
         raise McpError("MCP 配置需要 servers 对象")
-    
-    # M8-T145: recognized keys for each server entry
-    RECOGNIZED_KEYS = {"command", "url", "args", "env", "headers", "read_only"}
+
+    # M8-T145/M8-T258: recognized keys are derived at module level from
+    # McpServerConfig's fields (single source of truth) - see RECOGNIZED_KEYS.
     configs: list[McpServerConfig] = []
     for name, value in entries.items():
         if not isinstance(value, dict):

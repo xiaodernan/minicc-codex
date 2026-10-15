@@ -19088,3 +19088,29 @@ C7 钉它必须等于 `MAX_BYTES_DEFAULT // 1024`，改成派生会让 C7 变成
 **下批候选。**
 - 三条静默门现在都有变异兄弟文件与门表条目；下一处「有变异文件却无门表条目」或「门自带私有探测器副本」需重扫（`is_transient_failure` 在 8 个测试文件里各有一份，形状与本批相同，值得量一次是否也该收敛）。
 - `RECOGNIZED_KEYS` 派生化他流在做，等其落地后再看是否留下未接线的预算常量。
+## 第二百六十三批 M8-T261：`minicc.mcp.RECOGNIZED_KEYS` 手抄字面量改派生（含变异验证）
+
+**起因/占号。** 第二百四十九批 §下批候选第三条「`RECOGNIZED_KEYS` 手抄字面量改派生」。占号前读 `git log --all` 全量扫描 `M8-T(\d+)`：T258/T259/T260 已被他流占用（其中 `M8-T258` 正是本候选另一条 `_is_silent_broad` 谓词锁定，别车道已做），T261 空闲，本批认领 **M8-T261**；文档批号取 263（路线图最大为 262）。
+
+**量到的缺陷（先量后写，全部亲手跑）。** `minicc/mcp.py::load_mcp_config` 里的 `RECOGNIZED_KEYS = {"command","url","args","env","headers","read_only"}` 是**手抄字面量**，须与下方 `value.get(...)`/`_config_text`/`_config_flag` 实际消费的键保持同步。`McpServerConfig` 新增字段时若忘了改这行，新字段会被「未识别键」告警误报（`"read_only"` 型静默漂移）。这是「两处拷贝」缺陷类的一个实例。
+
+**落地（生产码小改造 + 栅栏测试）。**
+1. `minicc/mcp.py`：`from dataclasses import dataclass, field, fields`；在 `McpServerConfig` 之后新增模块级常量
+   `RECOGNIZED_KEYS = frozenset(f.name for f in fields(McpServerConfig)) - {"name"}`
+   （`name` 是条目的字典键、非 per-entry 字段，故排除）；`load_mcp_config` 删除本地字面量、改用模块级常量。派生值经实测 == 原字面量 6 键，行为等价。
+2. 新建 `tests/test_mcp_recognized_keys_derive.py`（5 案）：派生关系不变量（`== fields(McpServerConfig) - {"name"}`）、精确集合、`name` 被排除、未知键被告警（caplog 行为级）、全部已识别键无告警。
+
+**门证（全在本批内亲手取）。**
+| 门 | 结果 |
+| --- | --- |
+| `py_compile minicc/mcp.py` | ok |
+| 派生值实测 | `['args','command','env','headers','read_only','url']` == 原字面量 |
+| `pytest tests/test_mcp_recognized_keys_derive.py -q -W error` | 5 passed |
+| **变异臂**（`RECOGNIZED_KEYS` 改回缺 `read_only` 的手抄字面量） | **3 failed, 2 passed** —— `test_recognized_keys_matches_dataclass_fields`、`test_recognized_keys_exact_set`、`test_all_recognized_keys_no_warning` 全红；日志实捕 `MCP server 's' 中的键 'read_only' 不会被读取` |
+| 变异臂还原 | trap 自动还原，`diff` 与变异前备份逐字节一致；栅栏复跑 5 passed |
+
+**诚实边界（明确不声称）。** ① 本批**改动了生产码** `minicc/mcp.py`（与之前七批「只加测试」不同），故按纪律做变异验证：**先预测（去掉一个键 → 派生关系/精确集合/行为级三条断言必红）后跑**，实测 3 红符合预测，还原后复绿。② 派生假设「`McpServerConfig` 的所有字段（除 `name`）都是 load_mcp_config 实际消费的键」——今日为真；若将来给 dataclass 加字段却不在 loader 里读取，派生会**过度识别**（这是与手抄相反方向的漂移，栅栏的「精确集合」断言可在变更时暴露）。③ 既有 `tests/test_mcp_transport_dead_keys.py` 在本机 `-W error` 下会因 safe-delete 护栏清临时目录的 `[Errno 53]` 资源警告而红——**本机已知环境问题、与本批无关**（不带 `-W error` 时 6 passed）。
+
+**下批候选（受本环境约束）。**
+- 第二百四十九批 §下批候选三条现已全部落地：`_is_silent_broad` 谓词锁定（别车道 `M8-T258`）、`test_mcp_stdio.py:140` 恒真断言（别车道 `M8-T244` 已修并配对账门）、`RECOGNIZED_KEYS` 派生化（本批 `M8-T261`）。
+- 隔离后 90 例全池评测（须 #255 pool_snapshot + 后台长跑，本环境全量门会被回收须拆多会话）。
