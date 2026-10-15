@@ -19014,3 +19014,77 @@ C7 钉它必须等于 `MAX_BYTES_DEFAULT // 1024`，改成派生会让 C7 变成
 - 扫仓库里是否还有第三处「有变异文件却无门表条目」或「门自带私有探测器副本」。
 - `RECOGNIZED_KEYS` 手抄字面量改派生、§3.2 批量合并重构前置 fence。
 - 他流第 259/260 批已动 `tools/schemas.py` 的 head/tail 通道；若其留下未接线的预算常量，可去对账。
+
+## 第二百六十二批 M8-T260：第三个静默门把三条判定器各抄了一份，它和共享版一致只是巧合
+
+**起因/占号。** 全量扫「有变异文件却无门表条目」「门自带私有探测器副本」两类形状，落在 `tests/test_broad_silent_handlers_state_a_reason.py`：它是第三条判定「广义 handler 能否静默吞异常」的门，却把 `_is_broad`、`_is_silent`、`_states_a_reason` **三条谓词全部自抄**，一条都不从 `_silence_reason_shared` 导入，而且它走的目录是 `minicc` **加** `scripts`（另两条只走 `minicc/`）。占号前全量扫描：无 T260、批号 262 空闲（261 已被上一批占用），本批认领 **M8-T260 / 第二百六十二批**。
+
+**先量后写（三段读数，全部亲手跑）。**
+
+第一段——两条检测器在真树上是否已经不一致：
+
+| 读数 | 实测 |
+| --- | --- |
+| 第三条门的普查 | seen=17 offenders=0 |
+| pass 族普查（只走 `minicc/`） | 14 |
+| return 族普查（只走 `minicc/`） | 3 |
+| 第三条门独有 / 共享两族独有 | 0 / 0 |
+| 「是否已声明理由」逐条一致 | **17 / 17** |
+| `scripts/` 里额外走的文件 | 4 个，其中广义静默 handler 0 个 |
+
+第二段——两条检测器在**能分开它们的形状**上是否一致（7 个合成夹具喂给两条检测器）：
+
+| 夹具 | 第三条门 | 共享版 | |
+| --- | --- | --- | --- |
+| handler 行上 `# noqa: BLE001 - ...` | True | True | 一致 |
+| 只有 `# noqa - ...`（无 BLE001） | True | True | 一致 |
+| `# noqa: BLE001`（无破折号） | True | True | 一致 |
+| body 之前一行注释 | True | True | 一致 |
+| 静默语句行尾注释 | False | False | 一致 |
+| bare return 行尾注释 | False | False | 一致 |
+| 完全没有理由 | False | False | 一致 |
+| 窄 handler（越界形状） | — | — | 两边都不计 |
+| 两条静默语句 | — | — | 只有 pass 族计 |
+
+**分歧 0 / 7。** 代码读起来规则并不相同（共享版只看 except 行到**第一条 body 语句之间**、并退化成 `"noqa" in 行`；第三条版要求 `noqa: BLE001` **后带破折号**、或扫到 body **末尾**的注释），但第三条版那条 `if "#" in stripped and not stripped.startswith(("pass","return","continue"))` 的兜底把几乎所有可达形状都拉回了与共享版相同的结果。
+
+**因此真正的缺陷不是「已经不一致」，而是「一致得没有结构」。** 17/17 与 0/7 都只是**当前这棵树的读数**，不是保证；`_silence_reason_shared` 的模块注释明写各门「must agree on what counts as a stated reason, so that logic lives here once instead of being copied into each gate」，而这条门恰恰把逻辑又抄了一遍，仓库里没有任何东西会在它抄偏的那天变红。
+
+**落地（只加测试，三条谓词与两条已有门一字未动）。**
+
+- 新建 `tests/test_broad_silent_handlers_state_a_reason_mutation.py`（8 格）：
+  - **一致性格（本批承重的新东西）** `test_the_private_and_shared_reason_detectors_agree_on_every_fixture`：把 9 个夹具逐条喂给两条检测器，断言判定相同——把巧合变成被断言的一致。
+  - **普查一致性格** `test_the_third_gate_covers_exactly_the_two_shared_families`：断言第三条门的普查集合**恰好等于** pass 族 ∪ return 族。
+  - 三条谓词各自的反向控制格（裸静默被私有理由检测器报出 / 窄 handler 越界 / 两条静默语句越界）、真树下限格、无私有副本格（AST 读）、同一性格。
+- `tests/test_mutation_cells_react_to_the_code_they_name.py`：表从 8 条盲化臂加到 **13**——新增 5 条，`target` 直指第三条门的三条谓词（`_is_broad` 双向、`_is_silent` 双向、`_states_a_reason` 正向）。完整性下限 `>= 8` 提到 `>= 13`，并加断言：第三条门的变异兄弟文件必须在 `probed` 里、第三条门文件本身必须在 `target` 里。文档段落改写。
+
+**双向验证（全在本批内亲手取）。** 三段量测 + 门表条目的 `must_go_red` 全取自实测：
+
+| 臂 | 新文件红的格 | 实测 |
+| --- | --- | --- |
+| baseline | 无 | 8 passed / 0 red ✓ |
+| F：`_is_broad` → True | narrow、普查一致性 | 2 failed ✓ |
+| G：`_is_broad` → False | 下限、普查一致性 | 2 failed ✓ |
+| H：`_is_silent` → True | 两条静默语句、普查一致性 | 2 failed ✓ |
+| I：`_is_silent` → False | 下限、普查一致性 | 2 failed ✓ |
+| J：`_states_a_reason` → True | 反向控制、**一致性** | 2 failed ✓ |
+| K：`_states_a_reason` → False | **一致性** | 1 failed ✓（未入表，红集是 J 的子集） |
+| 门本体（13 臂 + 3 格） | 无 | 16 passed / 105.85s ✓ |
+| 把一致性格改成 `assert True` | 门红在 `[the third gate's private reason detector stops matching the shared one]` | 1 failed ✓（**只**这一个条目） |
+| 还原 | 逐字节相同 | sha256 相等 ✓ |
+| 还原后门 | 无 | 16 passed / 112.88s ✓ |
+| `doc_pointers --check` | exit 0 | 无 DANGLING ✓ |
+
+**全量整套（两棵树，如实并列）。**
+- 共享工作树（含另一条流未提交的 `RECOGNIZED_KEYS` 重构）：**2570 passed / 5 failed / 5 skipped / 1184.55s**。5 个失败全部落在 `test_mcp_*` 一族（`test_mcp_recognized_keys_derive.py` 三格、`test_mcp_config_unknown_keys.py`、`test_mcp_transport_dead_keys.py`），由他流**未提交**的 `minicc/mcp.py` 改动引起——其新测试文件当时还未被 git 跟踪。
+- 为取得干净读数，用 `git worktree add --detach` 在 HEAD 上开了一棵一次性工作树，只拷入本批两文件后跑全量：**2565 passed / 0 failed / 6 skipped / 957.68s**，随后移除工作树。**没有**对他流未提交改动做任何 stash / checkout / 还原——M8-T246 的记录已明写那会是比被观察的缺陷更糟的 bug。
+
+**诚实边界（明确不声称）。**
+① 本批**没有把第三条门改造成共享检测器**。那会同时改变它的语义（它要求 `noqa: BLE001` 后带破折号、扫到 body 末尾、走 `scripts/`），属于行为变更，不在「只加测试」的纪律内；本批只把「它与共享版一致」这件事变成被断言的。
+② 一致性格断言的是**理由判定**一致，不是**普查集合**一致——集合相等由另一格单独断言（因为 pass 族允许复合静默语句，第三条门只允许单条，两者集合本就可能合法地不同）。
+③ K 臂未入表：它的红集（只有一致性格）是 J 臂红集的子集，入表只会让门更慢而不增加覆盖；实测记在此处。
+④ 干净树读数 2565 是在 HEAD + 本批两文件上取的；他流后续落地后总数会变，本批不为那个数字背书。
+
+**下批候选。**
+- 三条静默门现在都有变异兄弟文件与门表条目；下一处「有变异文件却无门表条目」或「门自带私有探测器副本」需重扫（`is_transient_failure` 在 8 个测试文件里各有一份，形状与本批相同，值得量一次是否也该收敛）。
+- `RECOGNIZED_KEYS` 派生化他流在做，等其落地后再看是否留下未接线的预算常量。

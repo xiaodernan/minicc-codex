@@ -19,13 +19,13 @@ probed in a subprocess, the expectation is checked, and the file is restored fro
 sha256 snapshot with byte-exactness verified. A blind mutation that turns nothing red
 is a failure: that is the whole assertion.
 
-Scope: the three mutations M8-T245's rewrite covered, plus a blind arm per silence
-*parent* for both the shared detector and the parent's own predicate. Those parents
-shipped with either no mutation file (the return-swallow one, whose six cells went
-blind in the permissive direction) or with a file that reverse-controlled only the
-shared detector (the pass-family one). M8-T248 and M8-T258 closed both, and this
-table now blinds each parent's predicate directly, so neither can be blunted without
-CI noticing.
+Scope: the three mutations M8-T245's rewrite covered, plus every silence gate's own
+predicates. Three gates decide whether a broad handler may swallow silently; two share
+``_silence_reason_shared``, the third reimplemented all three predicates and walks
+``scripts/`` too. It agreed with the shared ones only by coincidence - measured 17 of 17
+on the shipped tree and 0 of 7 synthetic divergences, which is a reading, not a
+guarantee. M8-T260 added agreement cells that pin the copy to the original, and this
+table blinds all three of its predicates so the copy cannot drift without CI noticing.
 """
 from __future__ import annotations
 
@@ -210,6 +210,122 @@ GATE_BLIND_MUTATIONS: tuple[BlindMutation, ...] = (
             "test_a_bare_silence_in_a_new_tree_is_flagged",
         ),
     ),
+    # M8-T260: the third silence gate copies all three predicates instead of importing
+    # _silence_reason_shared, and it agreed with the shared ones only by coincidence.
+    # Each arm below blinds one private predicate.
+    BlindMutation(
+        label="the third gate calls every handler broad",
+        target="tests/test_broad_silent_handlers_state_a_reason.py",
+        anchor=(
+            "def _is_broad(handler: ast.ExceptHandler) -> bool:\n"
+            "    if handler.type is None:\n"
+            "        return True\n"
+        ),
+        replacement=(
+            "def _is_broad(handler: ast.ExceptHandler) -> bool:\n"
+            "    if handler.type is None:\n"
+            "        return True\n"
+            "    return True  # M8-T260 gate-blind mutation\n"
+        ),
+        probe="tests/test_broad_silent_handlers_state_a_reason_mutation.py",
+        must_go_red=(
+            "test_a_narrow_handler_is_out_of_scope",
+            "test_the_third_gate_covers_exactly_the_two_shared_families",
+        ),
+    ),
+    BlindMutation(
+        label="the third gate calls no handler broad",
+        target="tests/test_broad_silent_handlers_state_a_reason.py",
+        anchor=(
+            "def _is_broad(handler: ast.ExceptHandler) -> bool:\n"
+            "    if handler.type is None:\n"
+            "        return True\n"
+        ),
+        replacement=(
+            "def _is_broad(handler: ast.ExceptHandler) -> bool:\n"
+            "    if handler.type is None:\n"
+            "        return True\n"
+            "    return False  # M8-T260 gate-blind mutation\n"
+        ),
+        probe="tests/test_broad_silent_handlers_state_a_reason_mutation.py",
+        must_go_red=(
+            "test_the_shipped_tree_still_meets_its_floor",
+            "test_the_third_gate_covers_exactly_the_two_shared_families",
+        ),
+    ),
+    BlindMutation(
+        label="the third gate calls every body silent",
+        target="tests/test_broad_silent_handlers_state_a_reason.py",
+        anchor=(
+            "def _is_silent(handler: ast.ExceptHandler) -> bool:\n"
+            "    return len(handler.body) == 1 and isinstance(handler.body[0], SILENT_BODIES)\n"
+        ),
+        replacement=(
+            "def _is_silent(handler: ast.ExceptHandler) -> bool:\n"
+            "    return True  # M8-T260 gate-blind mutation\n"
+            "    return len(handler.body) == 1 and isinstance(handler.body[0], SILENT_BODIES)\n"
+        ),
+        probe="tests/test_broad_silent_handlers_state_a_reason_mutation.py",
+        must_go_red=(
+            "test_a_multi_statement_silent_body_is_out_of_scope",
+            "test_the_third_gate_covers_exactly_the_two_shared_families",
+        ),
+    ),
+    BlindMutation(
+        label="the third gate calls no body silent",
+        target="tests/test_broad_silent_handlers_state_a_reason.py",
+        anchor=(
+            "def _is_silent(handler: ast.ExceptHandler) -> bool:\n"
+            "    return len(handler.body) == 1 and isinstance(handler.body[0], SILENT_BODIES)\n"
+        ),
+        replacement=(
+            "def _is_silent(handler: ast.ExceptHandler) -> bool:\n"
+            "    return False  # M8-T260 gate-blind mutation\n"
+            "    return len(handler.body) == 1 and isinstance(handler.body[0], SILENT_BODIES)\n"
+        ),
+        probe="tests/test_broad_silent_handlers_state_a_reason_mutation.py",
+        must_go_red=(
+            "test_the_shipped_tree_still_meets_its_floor",
+            "test_the_third_gate_covers_exactly_the_two_shared_families",
+        ),
+    ),
+    BlindMutation(
+        # The load-bearing one: this is the arm that pins the private detector to the
+        # shared one. Blinding it reddens the agreement cell, so the agreement is no
+        # longer a coincidence of the current tree.
+        label="the third gate's private reason detector stops matching the shared one",
+        target="tests/test_broad_silent_handlers_state_a_reason.py",
+        anchor=(
+            "def _states_a_reason(handler: ast.ExceptHandler, lines: list[str]) -> bool:\n"
+            '    """A reason is a ``# noqa: BLE001 - <why>`` on the handler line, '
+            "or a comment inside it.\n"
+            "\n"
+            "    Comments do not survive parsing, so this reads the source lines the "
+            "handler spans -\n"
+            "    from the ``except`` line through the end of its body. A trailing comment "
+            "on the\n"
+            "    silent statement counts too.\n"
+            '    """\n'
+        ),
+        replacement=(
+            "def _states_a_reason(handler: ast.ExceptHandler, lines: list[str]) -> bool:\n"
+            '    """A reason is a ``# noqa: BLE001 - <why>`` on the handler line, '
+            "or a comment inside it.\n"
+            "\n"
+            "    Comments do not survive parsing, so this reads the source lines the "
+            "handler spans -\n"
+            "    from the ``except`` line through the end of its body. A trailing comment "
+            "on the\n"
+            "    silent statement counts too.\n"
+            '    """\n'
+            '    return True  # M8-T260 gate-blind mutation\n'
+        ),
+        probe="tests/test_broad_silent_handlers_state_a_reason_mutation.py",
+        must_go_red=(
+            "test_a_bare_silence_is_flagged_by_the_private_reason_detector",
+            "test_the_private_and_shared_reason_detectors_agree_on_every_fixture",
+        ),
+    ),
 )
 
 
@@ -361,25 +477,30 @@ def test_the_failed_line_parser_survives_both_pytest_formats() -> None:
 
 def test_the_gate_blind_table_claims_a_real_red_for_every_entry() -> None:
     """A table entry with no expected red cells would make the gate above vacuous."""
-    assert len(GATE_BLIND_MUTATIONS) >= 8, (
+    assert len(GATE_BLIND_MUTATIONS) >= 13, (
         f"the table holds only {len(GATE_BLIND_MUTATIONS)} blind mutations; the "
-        "rewrites of M8-T245, M8-T248 and M8-T258 covered eight"
+        "rewrites of M8-T245, M8-T248, M8-T258 and M8-T260 covered thirteen"
     )
     # One entry per probe file is not the invariant - the same file can be probed by
     # more than one blind arm - but every silence parent must be watched by one, and
-    # each parent's own predicate must be blinded too, not just the shared detector.
+    # each parent's own predicates must be blinded too, not just the shared detector.
     probed = {m.probe for m in GATE_BLIND_MUTATIONS}
     assert "tests/test_silence_must_state_its_reason_mutation.py" in probed
     assert "tests/test_broad_except_return_swallows_state_reason_mutation.py" in probed, (
         "the return-swallow parent's reverse-control file is no longer watched - "
         "M8-T248 closed that gap and this is the assertion that keeps it closed"
     )
+    assert "tests/test_broad_silent_handlers_state_a_reason_mutation.py" in probed, (
+        "the third silence gate's reverse-control file is no longer watched - M8-T260 "
+        "closed that gap"
+    )
     targets = {m.target for m in GATE_BLIND_MUTATIONS}
     assert "tests/test_silence_must_state_its_reason.py" in targets
-    assert "tests/test_broad_except_return_swallows_state_reason.py" in targets, (
-        "neither silence parent's own predicate is blinded any more - M8-T258 locked "
-        "both in, and blinding only the shared detector would let a parent's predicate "
-        "be blunted without CI noticing"
+    assert "tests/test_broad_except_return_swallows_state_reason.py" in targets
+    assert "tests/test_broad_silent_handlers_state_a_reason.py" in targets, (
+        "the third silence gate's private predicates are no longer blinded - M8-T260 "
+        "locked them in, and blinding only the shared detector would let a copied "
+        "detector drift without CI noticing"
     )
     blind = [m.label for m in GATE_BLIND_MUTATIONS if not m.must_go_red]
     assert blind == [], f"these entries demand no red cell at all: {blind}"
