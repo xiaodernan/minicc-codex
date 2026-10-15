@@ -130,7 +130,14 @@ def test_text_binary_file_is_empty():
 # --------------------------------------------------------------------------
 
 def _inspector_in_temp() -> tuple[ChangeInspector, Path]:
-    ws = Path(tempfile.mkdtemp(prefix="minicc_ws_"))
+    # `.resolve()` is load-bearing on Windows, not cosmetic. `tempfile.mkdtemp`
+    # hands back the 8.3 short form of the runner's temp dir (`RUNNER~1`), while
+    # `ChangeInspector.__init__` stores `Path(workspace).resolve()` - the long form
+    # (`runneradmin`). Comparing the two spelled differently makes
+    # `is_relative_to` return False on a path that is in fact inside the workspace,
+    # which is exactly how this file failed on windows-latest while staying green
+    # on ubuntu. Resolve at the source so both sides use one spelling.
+    ws = Path(tempfile.mkdtemp(prefix="minicc_ws_")).resolve()
     return ChangeInspector(ws), ws
 
 
@@ -156,8 +163,14 @@ def test_resolve_rejects_path_escaping_workspace():
 
 def test_resolve_accepts_relative_path_inside_workspace():
     insp, ws = _inspector_in_temp()
+    # Pin the fixture to the inspector's own spelling first: if these ever diverge
+    # (the Windows 8.3 short-name split this file shipped with), the claim below
+    # would fail for the wrong reason - a path that really is inside the workspace.
+    assert ws == insp.workspace, (
+        f"fixture workspace {ws} is not the inspector's {insp.workspace}"
+    )
     resolved = insp._resolve("src/main.py")
-    assert resolved.is_relative_to(ws)
+    assert resolved.is_relative_to(insp.workspace)
     assert resolved.as_posix().endswith("src/main.py")
 
 
