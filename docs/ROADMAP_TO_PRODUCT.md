@@ -19128,3 +19128,85 @@ deny 钩子在内的全部钩子，是比运行时按 on_failure 兜底**更宽�
 二、跨会话协作时，「发现的问题」可能早已被对方测量并刻意裁决——
 先 grep 测试文件与台账，再动手。两条都以本 revert 为证。
 
+
+## 第二百六十四批 M8-T262：raw output 通道入库那刀自报削掉的字节
+
+缺陷（只读量出来的）：`ToolResult.record_text` 削 `render()` 的 raw `output` 通道时下手
+`text[:ceiling]`，削完不留一句话。同一族里另外三处削法都自报——observation 削到 900 补
+`…`（`minicc/agent/loop.py:336`）、structured_data 削到 2400 改写成
+`{"summary": …, "truncated": True}`（`minicc/agent/loop.py:340`）、`_public_data` 省略条目写
+「其余 N 项已省略」（`minicc/agent/loop.py:306`）——只有入库这一刀沉默。出厂 ceiling 由 AST
+从调用点读到：`minicc/main.py:109` 是 6000，`minicc/web.py:1498` 与 `minicc/web.py:1988` 是
+8000。真跑真处理器（宽度只由出厂帽决定，平面 `wt262pre` @ `ee74ee8`）：
+
+| 处理器 | `len(render())` | @6000 丢 | @8000 丢 | 记录里有没有一句话 |
+| --- | --- | --- | --- | --- |
+| `memory_list` 默认 limit=20 | 11 295 | 5 295 | 3 295 | 无 |
+| `memory_list` limit=100（夹紧上限） | 56 336 | 50 336 | 48 336 | 无 |
+| `todo_read`（50×500，json indent=2） | 28 977 | 22 977 | 20 977 | 无 |
+| `todo_write` 同一张清单 | 26 289 | 20 289 | 18 289 | 无 |
+| `web_search` max_results=8 顶格形状 | 23 676 | 17 676 | 15 676 | 无 |
+| `web_search` 典型页 | 1 474 | 不削 | 不削 | 不该有 |
+| `memory_read` 单条 | 587 | 不削 | 不削 | 不该有 |
+
+对面那一头：`minicc/web.py:1505` 在同一格写 `"truncated": bool(result.truncated)`，而
+`record_text` 从不改这个字段——一条被削掉 48% 的记录，旁边的旗标说「没截断」；
+`minicc/agent/loop.py:599` 与 `minicc/agent/loop.py:1171` 直接把 `render()` 送给模型，无帽。
+所以这不是「记录比模型看到的少」的设计，而是同一份字节里唯一不自报的那一刀。
+
+改法（口径写死）：只改 `minicc/tools/schemas.py`。head/tail 通道的承诺不动（M8-T244 的
+结论：再削就丢标记自己承诺的尾字节）；`len(render()) <= ceiling` 逐字节返回；需要削时由
+`_clip_raw` 在 ceiling 之内组成句子——`kept = ceiling - len(notice)`，而 `kept` 又是句子长度
+的自变量，故定点迭代求解，产出 `text[:kept] + notice`，`len(stored) == ceiling` 一字不松。
+句子印三个派生数，满足 `kept + dropped == total` 且 `kept + len(notice) == ceiling`。
+ceiling 窄到连最窄拼写（每个数都是个位数，45 字符）都站不下时，退回今天那条裸前缀——这条
+退化分支由 C11 具名钉住，出厂 ceiling 由 C10 保证够得着句子。`truncated` 的语义不动（它仍
+只表示「处理器自己截过」），`render()` 一字不动（模型侧字节与记录侧句子分家）。
+
+门：新文件 `tests/test_the_raw_record_announces_the_bytes_its_ceiling_dropped.py` 11 例。修前
+在清洁平面实测 5 红 6 绿，红集逐名等于落笔前预测——
+`test_a_clipped_raw_record_names_the_bytes_it_dropped`、
+`test_the_clip_sentence_has_exactly_one_author_in_minicc`、
+`test_the_notice_reconciles_at_every_shipped_ceiling_and_width`、
+`test_the_shipped_cli_record_of_a_real_memory_list_says_it_was_clipped`、
+`test_every_shipped_ceiling_leaves_room_for_the_sentence`。普查例带分母下限（`minicc/` 的模块
+数与字符串常量数各实测 76 / 14 315），空集不算干净。同单转换一处既有断言：
+`tests/test_the_record_keeps_the_tail_the_truncation_marker_promises.py` 的
+`test_a_record_surface_gets_the_ceiling_it_passes` 原来断言 `stored == render()[:ceiling]`，
+那是手抄的前缀；改成从出厂模板推出句子位置、解出三个数与独立量到的宽度对账，长度钉
+`len(stored) == ceiling` 与 `head == "" / truncated is False` 原样不动。
+
+臂（平面 `wt262arm`，每臂先 CONTROL；红集从 junit 案例名直读，还原用启动时捕获的字节 +
+sha256 复核）：
+
+| 臂 | 改法 | 预测红 | 实测红 | 判决 |
+| --- | --- | --- | --- | --- |
+| CONTROL | 不改 | 0 | 0 | MATCH |
+| A1 沉默还阳 | 回到裸 `text[:ceiling]` | 4 | 5 | 偏差：`test_every_shipped_ceiling_leaves_room_for_the_sentence` 也红——句子没了它读的 `_clip_notice` 最窄拼写随之消失，预测漏记了这个读者 |
+| A2 句子挂预算外 | `text[:ceiling] + notice` | 4 | 4 | MATCH |
+| A3 拿头尾标记当句子 | 句子改用 `TRUNCATION_MARKER` | 3 | 5 | 偏差：同 A1 的 C10 与转换后的 `test_a_record_surface_gets_the_ceiling_it_passes` 也红（标记里解不出三个数） |
+| A4 逢记录就加句子 | 删掉 `len(text) <= ceiling` 早退 | 2 | 3 | 偏差：`test_the_notice_reconciles_at_every_shipped_ceiling_and_width` 也红——它对每档宽度都要求「不削就逐字节相等」 |
+| A5 连 head 通道一起削 | 删掉 `if self.head: return text` | 4 | 4 | MATCH（C3 + M8-T244 两例 + M8-T259 一例） |
+| A6 `kept` 差一个 | `kept = ceiling - len(notice) - 1` | 4 | 4 | MATCH |
+| A7 第二作者 | 句子手抄进 `minicc/main.py` 的 `record_tool` | 1 | 1 | MATCH（只红普查例，证明 C4 承重） |
+| A8 旗标被顺手翻 | 削时 `self.truncated = True` | 2 | 1 | 偏差：第一稿按「`ToolResult` 是 frozen 所以翻不动」写的，实测它不是 frozen、旗标真翻了 ⇒ C8 红；M8-T244 那例不红是臂形与预测不同（第一稿的臂根本没能翻旗标） |
+| A8b | 同 A8 的可行拼写重跑 | 1 | 1 | MATCH |
+| A9 句子走进模型侧 | 句子在 `render()` 里组成 | 7 | 3 | 偏差：预测把 M8-T259 的 5 个 `test_the_page_arrives_as_the_derived_composition` 参数节点与 M8-T244 的 stdio 例算进来了，而那一臂只动 raw 分支，head/tail 那条早退先返回 ⇒ 6 个预测红没发生，反而多红 C1、C5 |
+
+11 腿、5 偏差、0 干扰，`minicc/tools/schemas.py` 与 `minicc/main.py` 逐臂还原到启动时捕获的字节
+（`9284a9650c75` / `b8f2aa2ac4d6`）。五处偏差都逐条登记过，预测一字未改：
+没有一例是「门该红而没红」，全是我对读者集合与臂形本身的两处误判。
+
+回归与围栏：聚焦集 30 例（新门 11 + M8-T244 的 `tests/test_the_record_keeps_the_tail_the_truncation_marker_promises.py`
++ M8-T259 的 `tests/test_webfetch_routes_its_page_through_the_head_tail_channel.py`）改后在主树
+30 passed / 0 red（739.4s，含真子进程与真 `SessionStore` 重开）；反向对照把同一集打在 pre-fix 字节上，
+collected=30、red=6，红集逐名等于落笔前预测（新门 5 例 + 转换那条既有断言）；双平面全量围栏按案例名多重集归因，父腿 @ 代码提交的父
+`ee74ee84af83ecd1259341a2f6fd593c998cfdef`，子腿 @ `923f2932f71957f1989abb528a12b856052f233a`，预测 `node_added = 11`、`node_removed = 0`、
+`red_added = []`、`red_removed = []`，实测四条全中：父腿 2576 collected / 2570 passed / 0 red / 6 skipped（2716.7s），
+子腿 2587 collected / 2581 passed / 0 red / 6 skipped（1574.4s），2576 + 11 = 2587 逐名核对新增的 11 个节点全是新门的 11 例，
+removed 名单为空，两腿红集皆空。
+
+本单不做（写清楚）：22 个 raw 站点里 7 个的 `output=` 宽度由数据决定（冲突正文、钩子输出、
+异常文本），本单只让那一刀削得自报，不给它们各自加帽——那是 22 处口径，属于另开单位；
+`minicc/web.py:1505` 的旗标与记录侧句子各说各话，统一它是 UI 行为改动（M8-T259 的臂已证明
+那个旗标承重），需要单独立项；两个出厂 ceiling 的字面量照旧读而不合并成常量。
