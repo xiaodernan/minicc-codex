@@ -221,6 +221,13 @@ class HookRunner:
                 env_raw = raw.get("env") or {}
                 if not isinstance(env_raw, dict):
                     raise HookConfigError(f"hooks.{event}[{index}].env 必须是对象")
+                # M8-T68: 键名合法性与 command/timeout/matcher 同批校验——
+                # 拖到运行时才由 _scrubbed_env 抛错，会让一条配置笔误以
+                # 「每次运行按 on_failure 兜底」的形态潜伏，而不是装载期的
+                # 一条清晰 load_error。
+                for env_key in env_raw:
+                    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", str(env_key)):
+                        raise HookConfigError(f"hooks.{event}[{index}].env 键名非法: {env_key!r}")
                 self.specs.append(
                     HookSpec(
                         event=event,
