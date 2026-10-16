@@ -224,6 +224,19 @@ class SnapshotJournal:
                     manifest.setdefault("missing", []).append(rel)
                 else:
                     raise SnapshotError(f"不能备份目录: {rel}")
+            elif (
+                rel in manifest.get("missing", [])
+                and target.is_file()
+                and rel not in manifest.get("touched", {})
+            ):
+                # M8-T69: 快照时不存在（missing）的文件被**外部**创建了——
+                # 任务的写入会静默覆盖它，而 restore 会把该文件删除（恢复
+                # "不存在"状态），外部内容永久丢失。与已有文件的外部修改
+                # 即拒绝（上方 digest 检查）同一严格性。任务自己此前创建
+                # 的文件（touched 已有确认 digest）不受影响。
+                raise SnapshotError(
+                    f"文件在快照时不存在、现已被外部创建，没有可回退的镜像，拒绝覆盖: {rel}"
+                )
             manifest.setdefault("touched", {})[rel] = {"pending": True}
             _save(self.dest, manifest)
 

@@ -93,6 +93,32 @@ def _editor(tmp_path, task="journal"):
     return Editor(tmp_path, before_write=journal.before_write, after_write=journal.after_write)
 
 
+def test_external_creation_between_capture_and_write_is_refused(tmp_path: Path) -> None:
+    """M8-T69: 快照时 missing 的文件被外部创建后，任务写入必须被拒。
+
+    未修复行为：before_write 静默放行 → 外部内容被覆盖 → restore 把文件
+    删除（恢复"不存在"状态）→ 外部内容永久丢失。修复后 before_write 抛
+    SnapshotError（与已有文件的外部修改即拒绝同一严格性）。
+    """
+    _init_repo(tmp_path)
+    # 构造 missing 形态：文件已暂存但磁盘上被删除，capture 时
+    # src.is_file() 为 False → 进入 missing。
+    (tmp_path / "greeting.txt").write_text("seed" + chr(10), encoding="utf-8")
+    _git(tmp_path, "add", "greeting.txt")
+    (tmp_path / "greeting.txt").unlink()
+    snapshot = capture(tmp_path, "task-m69")
+    assert "greeting.txt" in snapshot["missing"]
+
+    # 外部创建（用户在任务运行期间写入了同名文件）。
+    (tmp_path / "greeting.txt").write_text("external user content" + chr(10), encoding="utf-8")
+
+    journal = SnapshotJournal(tmp_path, "task-m69")
+    with pytest.raises(SnapshotError, match="外部创建"):
+        journal.before_write(tmp_path / "greeting.txt")
+    # 外部内容完好无损。
+    assert (tmp_path / "greeting.txt").read_text(encoding="utf-8") == "external user content" + chr(10)
+
+
 def test_journal_restores_clean_edits_and_removes_only_own_created_files(tmp_path):
     _init_repo(tmp_path)
     (tmp_path / "user-dirty.txt").write_text("user before", encoding="utf-8")
