@@ -57,8 +57,21 @@ PARAM_TYPES = ("str", "int", "bool", "list[str]")
 
 # Registry-safe names: what the wire protocol and the MCP bridge
 # (``mcp__server__tool``, truncated at 128, disambiguated with ``~hash``)
-# actually produce.
-_TOOL_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.\-~]{0,127}$")
+# actually produce.  The bridge folds anything outside ``TOOL_NAME_BODY_CHARS``
+# before it registers, so one vocabulary serves both sides instead of the bridge
+# promising a safety the registry did not implement.
+#
+# ``TOOL_NAME_LETTERS`` is a regex *range* spelling and must not go through
+# ``re.escape`` (escaping the hyphens turns ``A-Z`` into the three characters
+# ``A``, ``-``, ``Z``); ``TOOL_NAME_EXTRA_CHARS`` is the literal punctuation a
+# name may carry, listed once for both the class and the refusal message.
+TOOL_NAME_LETTERS = "A-Za-z0-9"
+TOOL_NAME_EXTRA_CHARS = "_.-~"
+TOOL_NAME_MAX_CHARS = 128
+TOOL_NAME_BODY_CLASS = TOOL_NAME_LETTERS + re.escape(TOOL_NAME_EXTRA_CHARS)
+_TOOL_NAME_RE = re.compile(
+    rf"^[{TOOL_NAME_LETTERS}][{TOOL_NAME_BODY_CLASS}]{{0,{TOOL_NAME_MAX_CHARS - 1}}}$"
+)
 _PARAM_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 _REDACT_RULES: tuple[tuple[re.Pattern[str], str], ...] = (
@@ -231,7 +244,8 @@ def validate_tool_spec(spec: ToolSpec) -> None:
     if not isinstance(spec.name, str) or not _TOOL_NAME_RE.match(spec.name):
         raise ToolRegistrationError(
             f"ToolSpec.name 非法: {spec.name!r}"
-            "（需要 1-128 位，以字母或数字开头，只允许字母、数字、_ . - ~）"
+            f"（需要 1-{TOOL_NAME_MAX_CHARS} 位，以字母或数字开头，只允许字母、数字、"
+            f"{'、'.join(TOOL_NAME_EXTRA_CHARS)}）"
         )
     if not isinstance(spec.description, str) or not spec.description.strip():
         raise ToolRegistrationError(f"工具 {spec.name!r} 的 description 必须是非空字符串")

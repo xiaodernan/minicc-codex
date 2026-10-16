@@ -21,6 +21,7 @@ import hashlib
 import json
 import os
 import queue
+import re
 import subprocess
 import threading
 import time
@@ -33,7 +34,12 @@ from typing import Any
 from . import __version__
 from .logging_setup import get_logger
 from .netguard import BlockedAddressError, assert_public_http_url
-from .tools.registry import ToolSpec, split_output
+from .tools.registry import (
+    TOOL_NAME_BODY_CLASS,
+    TOOL_NAME_MAX_CHARS,
+    ToolSpec,
+    split_output,
+)
 from .tools.schemas import ToolResult
 
 LOG = get_logger("mcp")
@@ -47,6 +53,21 @@ class McpError(RuntimeError):
 #: built. Distinct from ``None`` so a negative cache hit never re-spawns the
 #: child process on every task (M5-T3).
 _DEAD_CLIENT = object()
+
+
+#: The characters ``minicc/tools/registry.py`` refuses in a tool name, read as a
+#: negated class off the registry's own vocabulary so the bridge cannot promise a
+#: safety the registry does not implement (M8-T263).
+_REGISTRY_UNSAFE_RE = re.compile(rf"[^{TOOL_NAME_BODY_CLASS}]")
+
+
+def registry_safe(text: str) -> str:
+    """Fold every character the tool registry would refuse into ``_``.
+
+    Idempotent: ``_`` is itself a legal body character, so a name that only ever
+    passes through here once cannot change again on a second pass.
+    """
+    return _REGISTRY_UNSAFE_RE.sub("_", text)
 
 
 def _content_to_tool_result(server: str, tool: str, result: dict[str, Any]) -> ToolResult:
@@ -728,18 +749,24 @@ class McpManager:
     def _unique_tool_name(server: str, tool: str, taken: set[str]) -> str:
         """Build a registry-safe ``mcp__server__tool`` name (M5-T4).
 
-        Two long tool names that only differ past char 128 would otherwise
-        truncate to the same string and make ``ToolRegistry.register`` raise an
-        uncaught ``ValueError``. Disambiguate with a short hash of the full
-        name so both tools stay callable instead of poisoning the workspace.
+        Two axes own this name.  The charset axis folds anything the registry
+        would refuse (a space, a slash, a CJK name from a Chinese server) into
+        ``_``, because a server picks its own tool names and one unrefusable
+        name costs the whole session its toolset.  The length axis then caps at
+        ``TOOL_NAME_MAX_CHARS``; two long names that only differ past the cap
+        would truncate to the same string, so a short hash of the *raw* name
+        disambiguates them and keeps both callable.  Hashing the raw base is what
+        makes two spellings that fold together (``read file`` and ``read_file``)
+        stay two tools.
         """
         base = f"mcp__{server}__{tool}"
-        candidate = base[:128]
-        if candidate == base and candidate not in taken:
+        safe = registry_safe(base)
+        candidate = safe[:TOOL_NAME_MAX_CHARS]
+        if candidate == safe and candidate not in taken:
             taken.add(candidate)
             return candidate
         digest = hashlib.sha256(base.encode("utf-8")).hexdigest()[:8]
-        prefix = base[: 128 - len(digest) - 1]
+        prefix = safe[: TOOL_NAME_MAX_CHARS - len(digest) - 1]
         candidate = f"{prefix}~{digest}"
         while candidate in taken:
             digest = hashlib.sha256(candidate.encode("utf-8")).hexdigest()[:8]
