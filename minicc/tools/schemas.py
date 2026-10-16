@@ -18,7 +18,37 @@ TAIL_CHARS = 4000
 #: budget, so any later clip of that text must not drop bytes it advertises.
 TRUNCATION_MARKER = f"… [输出已截断: 保留头 {HEAD_CHARS} + 尾 {TAIL_CHARS} 字符] …"
 
+#: The sentence ``record_text`` appends when it has to cut the raw ``output`` channel.
+#: It counts the bytes the clip kept and dropped, so the stored text admits its own width.
+#: Its narrowest spelling - every count a single digit - is the floor a ceiling has to
+#: clear for the sentence to stand inside the record; under that floor the clip keeps the
+#: silent prefix it shipped before, which is why the shipped ceilings are read and pinned.
+RECORD_CLIP_NOTICE = "… [记录截断：以上只入库前 {kept} 字符，其后 {dropped} 字符未入库；完整输出另有 {total} 字符] …"
+
+#: ``kept`` sets the width of the sentence that prints ``kept``, so the split is solved by
+#: iteration; one step per digit a count can gain or lose is more than the loop needs.
+_CLIP_NOTICE_STEPS = 8
+
 TOOL_RESULT_STATUSES = ("ok", "error", "denied", "cancelled", "timed_out")
+
+
+def _clip_notice(kept: int, dropped: int, total: int) -> str:
+    return RECORD_CLIP_NOTICE.format(kept=kept, dropped=dropped, total=total)
+
+
+def _clip_raw(text: str, ceiling: int) -> str:
+    """Cut ``text`` to ``ceiling`` characters and say, inside them, how much was lost."""
+    total = len(text)
+    kept = ceiling - len(_clip_notice(0, total, total))
+    for _ in range(_CLIP_NOTICE_STEPS):
+        candidate = ceiling - len(_clip_notice(kept, total - kept, total))
+        if candidate == kept:
+            break
+        kept = candidate
+    notice = _clip_notice(kept, total - kept, total)
+    if kept < 0 or kept + len(notice) != ceiling:
+        return text[:ceiling]
+    return text[:kept] + notice
 
 
 @dataclass(frozen=True)
@@ -94,12 +124,15 @@ class ToolResult:
         """The stored form of ``render()``: ``ceiling`` bounds only the raw ``output``
         channel.  A body that came through ``split_output`` is already inside the
         shipped head/tail budget, and cutting it further would drop tail bytes
-        while the stored text still prints the marker that promises them.
+        while the stored text still prints the marker that promises them.  A cut of
+        the raw channel appends the sentence counting the bytes it dropped.
         """
         text = self.render()
         if self.head:
             return text
-        return text[:ceiling]
+        if len(text) <= ceiling:
+            return text
+        return _clip_raw(text, ceiling)
 
     def to_dict(self) -> dict[str, Any]:
         return {

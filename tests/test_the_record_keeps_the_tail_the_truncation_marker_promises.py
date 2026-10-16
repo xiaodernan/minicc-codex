@@ -37,6 +37,7 @@ copies against the shipped code, each with a floor so an empty read cannot pose 
 from __future__ import annotations
 
 import ast
+import re
 import sys
 from collections import Counter, namedtuple
 from pathlib import Path
@@ -444,4 +445,17 @@ def test_a_record_surface_gets_the_ceiling_it_passes(tmp_path: Path) -> None:
         f"a body that came through no budget was stored as {len(stored)} chars while the shipped ceiling is "
         f"{ceiling} (ceilings in use: {ceilings})"
     )
-    assert stored == raw.render()[:ceiling], "the clipped raw channel is not the prefix the ceiling describes"
+    # M8-T262: the cut of the raw channel now says how much it kept, inside the ceiling.
+    # The bytes before that sentence are still the prefix this file has always required.
+    lead = schemas_module.RECORD_CLIP_NOTICE.split("{", 1)[0]
+    cut = stored.rindex(lead)
+    numbers = [int(run) for run in re.findall(r"\d+", stored[cut:])]
+    total = len(raw.render())
+    assert stored[:cut] == raw.render()[:cut], "the clipped raw channel is no longer a prefix of render()"
+    assert numbers[0] == cut, (
+        f"the record's own sentence counts {numbers[0]} kept chars while {cut} of them are in the text"
+    )
+    assert numbers[0] + numbers[1] == total and numbers[2] == total, (
+        f"a {total}-char body clipped to {ceiling} is described as kept={numbers[0]} + dropped={numbers[1]} "
+        f"for a total of {numbers[2]}"
+    )
