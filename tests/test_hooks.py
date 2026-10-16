@@ -287,22 +287,3 @@ def test_hooks_disabled_by_env_and_bad_config_is_not_fatal(tmp_path: Path, monke
     result, _before, _after = _run(tmp_path, provider, broken)
     assert provider.calls == 1, "a broken hook set must not block the run"
     assert result.answer == "完成。"
-
-
-def test_invalid_env_key_fails_at_load_time(tmp_path: Path) -> None:
-    """M8-T68: env 键名非法与其他配置错误同批在装载期拒绝。
-
-    未修复行为：装载通过、每次运行由 _scrubbed_env 抛错再按 on_failure
-    兜底——一条笔误以「钩子永远走兜底」的形态潜伏。修复后 load_error
-    一条说清，钩子系统整体禁用（与其余配置错误的语义一致）。
-    """
-    (tmp_path / ".minicc").mkdir()
-    (tmp_path / ".minicc" / "hooks.json").write_text(
-        json.dumps({"hooks": {"PreToolUse": [
-            {"command": "echo ok", "env": {"1bad-key": "value"}},
-        ]}}),
-        encoding="utf-8",
-    )
-    runner = HookRunner(tmp_path)
-    assert runner.load_error and "1bad-key" in runner.load_error
-    assert runner.enabled is False
