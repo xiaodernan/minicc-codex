@@ -19235,3 +19235,118 @@ removed 名单为空，两腿红集皆空。
 **全量与文档。** 清洁工作树（`origin/main` + 本批 3 文件 + 本记录）全量 **2578 passed / 0 failed / 8 skipped / 36:48**，`doc_pointers --check` exit 0，无 DANGLING。
 
 **下批候选。** 再扫仓库：是否还有「有变异文件却无门表条目」或「门自带私有探测器副本」；RECOGNIZED_KEYS 派生落地后，清扫它留下的手抄字面量口径。
+
+## 第二百六十五批 M8-T263：桥自称 registry-safe，字符集轴此前无人认领
+
+**起因/占号。** 占号前扫 `git log --all` 的提交标题与正文：`M8-T` 号共 199 个、最大 262，
+`M8-T263` 从未出现（`M8-T264`/`M8-T265` 也空），本批认领 **M8-T263**。文档批号取记录脚本
+在追加那一刻从 `docs/ROADMAP_TO_PRODUCT.md` 自己的字节导出的下一个数。
+
+**量到的缺陷（先量后写，全部亲手跑，`probe1_t263.py` 进程内）。**
+`minicc/mcp.py:749` 的 `_unique_tool_name` 第一句 docstring 是「Build a registry-safe
+`mcp__server__tool` name」（`minicc/mcp.py:750`），`minicc/tools/registry.py` 的词表注释
+把这句话当成事实来解释 `^[A-Za-z0-9][A-Za-z0-9_.\-~]{0,127}$`。实测这座桥只认领**长度轴**
+（`base[:128]` 加撞名 `~hash`），**字符集轴无人认领**：
+
+| 半边 | 交给 `validate_tool_spec` 的病态形状 | 被拒 |
+| --- | --- | --- |
+| 工具名（服务端自报，`minicc/mcp.py:827`） | `read file`、`tool/sub`、`get:resource`、`lookup#1`、`工具查询`、`~lead`、200 个 `x`、`ok.name-1_2~3` | **5/8** |
+| 服务名（用户手写的 `mcp.json` 键） | `我的服务`、`my server`、`srv:v1`、`srv/sub`（另 `srv`、`a`×70 接受） | **4/6** |
+
+`~lead` 被接受不是漏网：前缀 `mcp__` 是字面量，首位永远是 `m`，所以词表「首位必须是字母或
+数字」这一条**从桥这一侧不可能被工具名触发**——这条读数是门里「首字符轴无需防守」的根据，
+不是豁免。爆炸半径量真调用点：`minicc/tools/__init__.py:194-195` 对桥递进来的 spec 不做收容，
+桥递进 3 个 spec、中间那个叫 `mcp__srv__read file` 时 `build_registry` 抛
+`ToolRegistrationError`，**本会话拿到 0/23 个 builtin**（23 这个数由不挂桥的同一条接缝读出），
+两侧都合法的两个 MCP 工具也一起没了。一句话：一个服务器挑的名字，判的是整场会话工具集的死刑。
+
+**改法（只让桥认领它已经承诺的那条轴）。**
+1. `minicc/mcp.py`：新增模块函数 `registry_safe`（`minicc/mcp.py:64`），正则
+   `_REGISTRY_UNSAFE_RE`（`minicc/mcp.py:61`）用注册表自己的词表拼出否定字符类；
+   `_unique_tool_name` 先 `safe = registry_safe(base)`（`minicc/mcp.py:763`）再走原有截断/撞名。
+   `~hash` 的摘要仍从**原始 base** 算（`minicc/mcp.py:768`），所以被折叠抹平的两个原名
+   （`read file` 与 `read_file`）仍是两个工具。
+2. `minicc/tools/registry.py`：把词表拆成可被读的四个名字
+   `TOOL_NAME_LETTERS`、`TOOL_NAME_EXTRA_CHARS`、`TOOL_NAME_MAX_CHARS`、`TOOL_NAME_BODY_CLASS`
+   （`minicc/tools/registry.py:68-71`），`_TOOL_NAME_RE` 由它们重建；`validate_tool_spec`
+   的拒绝文字也从同一份名单拼出。两侧不再各抄一份，桥读的名单就是注册表用来裁决的那一份。
+   `TOOL_NAME_LETTERS` 是**区间拼写**，绝不能进 `re.escape`（转义连字符会把 `A-Z` 变成
+   `A`、`-`、`Z` 三个字符）——这条写在注释里，并由门的一条控制用例钉住。
+
+**门（`tests/test_the_bridge_that_promises_a_registry_safe_name_owns_the_charset_axis_too.py`，9 例）。**
+
+| 案例 | 承重声明 |
+| --- | --- |
+| `test_the_shapes_a_real_server_names_its_tools_with_are_accepted` | §量到的 5 个病态工具名形状清洗后过 `validate_tool_spec`，并真注册进 `ToolRegistry` 后 `names()` 读得到 |
+| `test_no_name_the_bridge_can_build_is_refused_by_the_registry` | server×tool 字符笛卡尔积全称扫（含 CJK/空格/冒号/斜杠/井号/换行/引号/emoji 共 34 个字符）：0 次拒绝，**且**分母 > 0 并点名（防空转） |
+| `test_two_names_that_clean_to_the_same_spelling_stay_two_tools` | `read file` 与 `read_file` 产出两个不同、各自合法、都 ≤ 导出顶格的名字，两个都注册成功 |
+| `test_cleaning_never_renames_a_name_that_was_already_legal` | 控制：`ok.name-1_2~3`、`search`、`srv` 组合逐字节不变（清洗不 churn 合法部分） |
+| `test_the_server_half_of_the_name_is_cleaned_the_same_way` | 4 个病态服务 key 全部产出合法名，`mcp__` 前缀仍在 |
+| `test_the_length_axis_keeps_the_hash_disambiguation_it_already_owned` | 顶格与撞名 `~hash` 行为回归；顶格**不 import 本单新造的常量**，而是逐长度问注册表自己的判决导出（`_name_cap()`），并两侧夹持：`cap` 收下、`cap + 1` 拒掉 |
+| `test_the_name_the_model_is_offered_is_the_name_the_registry_holds` | `openai_schema()["function"]["name"] == spec.name`，且真调用落到服务器**原始**工具名（闭包捕的是 `name`，清洗只发生在 `safe_name`） |
+| `test_the_shipped_build_registry_keeps_all_23_builtins_when_a_server_names_a_tool_with_a_space` | 端到端真起 stdio 子进程，工具名 `查询 数据`；builtin 数与不挂桥时读到的同一个数对账（推导，不手抄 23），那个 MCP 工具仍可调用 |
+| `test_cleaning_a_cleaned_name_changes_nothing` | 幂等：`registry_safe(registry_safe(x)) == registry_safe(x)`，且桥级 `f(srv, x) == f(srv, registry_safe(x))` |
+
+**臂电池（同一聚焦集 21 例 = 新门 9 + `tests/test_mcp_stdio.py` 12，平面 `wt263arm`，每臂只改字节、跑完从捕获的原始字节还原并复算 sha256）。**
+
+| 臂 | 只改这一处字节 | 预测红集（§4 原文，A3 依偏差登记 §2 修正） | 实测 |
+| --- | --- | --- | --- |
+| CONTROL | 不改 | 空 | `collected=21 red=0` | MATCH |
+| A1 不折叠 | `_unique_tool_name` 里去掉 `registry_safe` 那一刀 | D1、D2、D3、D5、D7、D8、D9 | `red=7`，逐名等于预测（红字里 D8 报 `ToolRegistrationError`、builtin 23→0） | MATCH |
+| A2 只洗工具半边 | `base = f"mcp__{server}__{registry_safe(tool)}"` 且 `safe = base`（服务半边留原样） | D2、D5 | 第一轮 `red=0` **DEVIATION**：草稿写的这一臂在调用点上还留着整条 `base` 那一刀，`probe2_t263_arm.py` 进程内量两半边的产出，60 对 (server, tool) 里**差异名 0 条**——一条与 CONTROL 行为等价的臂，红集合为空是它的正确读数，不是门的洞。改臂的字节后重跑同一条腿：`red=2` = D2、D5 | MATCH（重跑腿） |
+| A3 改成收容 | 不清洗，`tool_specs()` 里丢掉会被注册表拒的 spec | D1、D2、D3、D5、D7、D8、D9（§4 原文写「D7、D9 仍绿」，偏差登记 §2 事前改掉了这条） | `red=7`，与 A1 的**案例名多重集相同**、红字不同：A1 是 `ToolRegistrationError`（23 个 builtin 没了），A3 保住 23 个 builtin 但 `len(mcp_names)` 2→1 | MATCH |
+| A4 过度清洗 | 清洗把词表内的 `_` 也折掉 | 只有 D4 | `red=1` = `test_cleaning_never_renames_a_name_that_was_already_legal` | MATCH |
+
+电池合计：6 条腿 + A2 重跑 1 条腿，`legs=6 deviations=1`（那一处是臂不是门，已登记并改臂字节重跑）、
+`interfered=0`；每条腿跑完从启动时捕获的字节还原，两份生产文件的还原哈希在两腿之间恒定
+（`minicc/mcp.py:edfd92ab4f00`、`minicc/tools/registry.py:1aae70eb3a29`）。分母由
+`expected_collected()` 从平面上那两个测试文件 AST 数出 21，每条腿必须交出同一个数——第一轮
+REVERSE 腿交出 `collected=1`，被这条下限拦下（见下）。
+
+**反向对照（把 pre-fix 的两个生产文件交回 HEAD 的 blob，门仍是我的门）。**
+`5864a0e` 的 `minicc/mcp.py`（`a454eefe1d20`）+ `minicc/tools/registry.py`（`2ff2f169cdcc`）配上本单的门：
+`collected=21 red=7`，红名逐名 = D1、D2、D3、D5、D7、D8、D9，D4 与 D6 绿——正是 §4 的预测。
+第一轮这条腿报的不是断言的红而是收集期 `ImportError: cannot import name 'TOOL_NAME_MAX_CHARS'`
+（那个具名顶格是本单新造的，HEAD 的 registry.py 里 grep 计数 0），七条预测红名一条也读不到；
+定稿让 `_name_cap()` 从注册表自己的判决逐长度**导出**（实测 `cap=128`、`cap` 收下、`cap+1` 拒掉），
+门不再 import 任何 pre-fix 面上不存在的名字。这条与「收集器的红不是断言的红」一起登记在
+`deltas_t263.md` §4。
+
+**围栏（双平面全量，按案例名多重集归因）。** 父腿 `5864a0e81aa1`：`collected=2587 passed=2580 red=1 error=0 skipped=6`，1452.6s；
+子腿 `0b2391ea26db`：`collected=2596 passed=2590 red=0 error=0 skipped=6`，1580.8s。
+`node_added` = 9，逐名等于门的九条案例名（`node_removed` 空）；`red_added` = `[]`；
+`red_removed` = **1 条，不是预测落空**：`tests/test_completion_liveness.py::test_hallucinating_reviewer_terminates_without_burning_the_budget`
+只在父腿红，红字是夹具构造期 `PermissionError: [Errno 13] ... C:\Users\18414\.minicc\workspaces.tmp`
+（`minicc/web.py:303` → `minicc/workspaces.py:93` → `minicc/workspaces.py:107`）。这条与 `minicc/mcp.py`
+无关：本单只动 `mcp.py` 与 `tools/registry.py`，用例走的是 `minicc.web` + `minicc.agent.completion`，
+红的是**这台机器上的另一个进程**正持有那份全局清单的临时文件。顺带量到的邻近轴已登记在下批候选：
+`_write` 用固定的 `workspaces.tmp` 同名兄弟文件，跨进程只有 `os.replace` 的原子性、`self._lock` 只是
+线程锁——两个 minicc 实例同时记一次「打开过」，其中一个必定抛。两腿文件哈希：
+父 `{minicc/mcp.py: a454eefe1d20, minicc/tools/registry.py: 2ff2f169cdcc}`，
+子 `{minicc/mcp.py: edfd92ab4f00, minicc/tools/registry.py: 1aae70eb3a29, 门: 7c8f47ddef0d}`。
+算术自洽：`2587 + 9 = 2596`。
+
+**诚实边界（明确不声称）。**
+① 本单**不**改 `build_registry` 的收容口径：一个坏 spec 该丢还是该让整场会话失败，是另一种
+决定（`M8-T264` 待办），本单只保证桥不再产出会被注册表拒绝的名字；A3 这条臂就是为了证明门的
+红不依赖收容。
+② 清洗只认领字符集轴，长度轴的 128 顶格与 `~hash` 后缀一字未动，D6 是那条轴的回归钉。
+③ `registry_safe` 折成 `_` 是**有损**的：两个只差非法字符的原名折叠后同形，靠原始 base 的摘要
+区分；这条性质由 D3 与 D9 的桥级那半条共同钉住，不是「清洗可逆」的声称。
+④ 服务名的装载期点名校验（`load_mcp_config` 不检查键的字符合法性）本单不做——现在它只会
+产出折叠后的名字，不再产出会被拒的名字，是否要在装载期就拒绝用户写的 key 属于另一种口径。
+
+**下批候选。**
+- `M8-T264`：一台 MCP 服务器起不来时 `tool_specs()` 中止整趟发现，`build_registry` 交出
+  0/23 个工具，并把同一趟里已经答完的健康服务器一起 reap、负缓存；同类方法
+  `resources_context` 的 docstring 自己写着 dead 服务器应被 skipped 而非 stall discovery，
+  两条口径互相矛盾。转口径要同时把 `tests/test_mcp_stdio.py` 里 `test_manager_negative_cache_does_not_respawn`
+  与 `test_dead_server_marked_in_health` 的 `pytest.raises(McpError)` 钉法转成「健康服务器的
+  spec 还在 + 负缓存仍只 spawn 一次」，不能只删断言。
+- `health()` 只有测试读（`tests/test_mcp_stdio.py:296`），生产里 `web.py`/`webserver.py` 读的是
+  `status()`（配置披露，不是生命力）——一台 dead 服务器对用户不可见。
+- `M8-T265` 候选（本批围栏红字里量到的）：`minicc/workspaces.py:104-108` 的 `_write` 把临时文件
+  固定命名成清单的 `.tmp` 同名兄弟，`self._lock` 只是进程内线程锁。两个 minicc 实例同时
+  `remember()` 时，一方在 Windows 上拿到 `PermissionError`（父腿那条红就是这个），另一方赢；
+  而两份都读过的清单会互相覆盖——`last_opened` 是全局单例状态，丢的那条没人知道。要么用
+  独占创建（`O_EXCL` + 随机后缀）+ 有界重试，要么让「记一次打开」这个动作对失败可见。
