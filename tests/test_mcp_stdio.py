@@ -211,10 +211,11 @@ def test_manager_negative_cache_does_not_respawn(tmp_path):
     )
     manager = McpManager(workspace)
     try:
-        with pytest.raises(McpError):
-            manager.tool_specs()
-        with pytest.raises(McpError):
-            manager.tool_specs()
+        # M8-T264: the pass no longer aborts when a server cannot start — it skips that
+        # server.  What this case owns is the countable half of that 口径: skipping must
+        # not defeat the negative cache, so two passes still cost exactly one spawn.
+        manager.tool_specs()
+        manager.tool_specs()
         audit = workspace / ".minicc" / "mcp_audit.jsonl"
         lines = audit.read_text(encoding="utf-8").strip().splitlines() if audit.exists() else []
         # First attempt spawns (and audits) once; the negative cache must stop
@@ -291,8 +292,10 @@ def test_dead_server_marked_in_health(tmp_path):
     _write_mcp_json(workspace, "srv", spec_path)
     manager = McpManager(workspace)
     try:
-        with pytest.raises(McpError):
-            manager.tool_specs()
+        # M8-T264 口径: the failing server is skipped and disclosed, the pass continues.
+        # Being skipped is exactly what leaves it negatively cached, which is what the
+        # health row and the audit count below read.
+        manager.tool_specs()
         health = {row["name"]: row["state"] for row in manager.health()}
         assert health["srv"] == "dead"
         # A dead server is negatively cached, which is a countable fact: every spawn
@@ -305,10 +308,8 @@ def test_dead_server_marked_in_health(tmp_path):
         audit = workspace / ".minicc" / "mcp_audit.jsonl"
         spawns = lambda: len(audit.read_text(encoding="utf-8").splitlines()) if audit.exists() else 0
         before = spawns()
-        with pytest.raises(McpError):
-            manager.tool_specs()
-        with pytest.raises(McpError):
-            manager.tool_specs()
+        manager.tool_specs()
+        manager.tool_specs()
         assert spawns() == before, (
             f"a negatively cached server re-spawned: audit records went {before} -> {spawns()}"
         )

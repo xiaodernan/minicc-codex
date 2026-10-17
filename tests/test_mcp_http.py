@@ -240,7 +240,7 @@ def test_manager_registers_http_tools(tmp_path: Path, mcp_url: str) -> None:
         manager.close()
 
 
-def test_manager_unreachable_http_server_raises(tmp_path: Path) -> None:
+def test_manager_unreachable_http_server_is_skipped_and_disclosed(tmp_path: Path) -> None:
     config_dir = tmp_path / ".minicc"
     config_dir.mkdir()
     (config_dir / "mcp.json").write_text(json.dumps({
@@ -248,7 +248,13 @@ def test_manager_unreachable_http_server_raises(tmp_path: Path) -> None:
     }), encoding="utf-8")
     manager = McpManager(tmp_path)
     try:
-        with pytest.raises(McpError):
-            manager.tool_specs()
+        # M8-T264: the http transport reaches the same discovery seam as stdio, so an
+        # unreachable server is skipped with its reason recorded, not raised out of the
+        # pass - a raise there cost every builtin tool in the session.
+        specs = manager.tool_specs()
+        skipped = manager.status().get("skipped") or {}
     finally:
         manager.close()
+    assert specs == [], f"an unreachable server produced specs: {specs}"
+    assert "ghost" in skipped, f"the skip was not disclosed by name: {skipped}"
+    assert str(skipped["ghost"]).strip(), f"disclosed without a reason: {skipped}"

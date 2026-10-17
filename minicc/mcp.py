@@ -716,6 +716,7 @@ class McpManager:
         self.configs = load_mcp_config(workspace)
         self.clients: dict[str, Any] = {}
         self._client_lock = threading.RLock()
+        self.discovery_skips: dict[str, str] = {}
 
     def _client(self, config: McpServerConfig) -> Any:
         with self._client_lock:
@@ -787,6 +788,7 @@ class McpManager:
                 }
                 for item in self.configs
             ],
+            "skipped": dict(self.discovery_skips),
         }
 
     def health(self) -> list[dict[str, Any]]:
@@ -807,42 +809,40 @@ class McpManager:
         specs: list[ToolSpec] = []
         taken: set[str] = set()
         spawned_now: list[str] = []
-        try:
-            for config in self.configs:
-                existed = config.name in self.clients
-                try:
-                    client = self._client(config)
-                    if not existed:
-                        spawned_now.append(config.name)
-                    if getattr(client, "dead", False):
-                        raise McpError(f"MCP server {config.name} 不可用（已标记 dead）")
-                    tools = client.list_tools()
-                except McpError:
-                    # M5-T5: a server that fails mid-discovery is marked dead and,
-                    # if we just spawned it, reaped — so the first server's child
-                    # is never orphaned by the second server's failure.
-                    self._mark_dead(config.name, reap=config.name in spawned_now)
-                    raise
-                for item in tools:
-                    name = str(item.get("name", ""))
-                    if not name:
-                        continue
-                    safe_name = self._unique_tool_name(config.name, name, taken)
-                    schema = item.get("inputSchema") if isinstance(item.get("inputSchema"), dict) else {"type": "object", "properties": {}}
-                    specs.append(ToolSpec(
-                        safe_name,
-                        f"MCP {config.name}: {item.get('description', name)}",
-                        "readonly" if config.read_only else "exec",
-                        (),
-                        lambda args, c=client, n=name: c.call_tool(n, args),
-                        input_schema=schema,
-                    ))
-        except McpError:
-            # Reap anything else spawned during this failed discovery pass.
-            for other in spawned_now:
-                if self.clients.get(other) is not _DEAD_CLIENT:
-                    self._mark_dead(other, reap=True)
-            raise
+        for config in self.configs:
+            existed = config.name in self.clients
+            try:
+                client = self._client(config)
+                if not existed:
+                    spawned_now.append(config.name)
+                if getattr(client, "dead", False):
+                    raise McpError(f"MCP server {config.name} 不可用（已标记 dead）")
+                tools = client.list_tools()
+            except McpError as exc:
+                # M5-T5: a server that fails mid-discovery is marked dead and, if this pass
+                # just spawned it, reaped - so its child is never orphaned.  M8-T264: the pass
+                # does not abort.  resources_context() already settles this 口径 ("dead or
+                # unspawnable servers are skipped rather than allowed to stall discovery"),
+                # and a server that answered keeps its specs and its client.  The skip is
+                # disclosed as a WARNING and recorded where status() can hand it over.
+                self._mark_dead(config.name, reap=config.name in spawned_now)
+                self.discovery_skips[config.name] = str(exc)
+                LOG.warning(f"MCP server {config.name} 的工具发现失败，本趟跳过: {exc}")
+                continue
+            for item in tools:
+                name = str(item.get("name", ""))
+                if not name:
+                    continue
+                safe_name = self._unique_tool_name(config.name, name, taken)
+                schema = item.get("inputSchema") if isinstance(item.get("inputSchema"), dict) else {"type": "object", "properties": {}}
+                specs.append(ToolSpec(
+                    safe_name,
+                    f"MCP {config.name}: {item.get('description', name)}",
+                    "readonly" if config.read_only else "exec",
+                    (),
+                    lambda args, c=client, n=name: c.call_tool(n, args),
+                    input_schema=schema,
+                ))
         return specs
 
     def resources_context(self, *, max_chars: int = 6000, max_items: int = 20) -> str:
