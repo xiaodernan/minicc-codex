@@ -26,6 +26,8 @@ predicates. Three gates decide whether a broad handler may swallow silently; two
 on the shipped tree and 0 of 7 synthetic divergences, which is a reading, not a
 guarantee. M8-T260 added agreement cells that pin the copy to the original, and this
 table blinds all three of its predicates so the copy cannot drift without CI noticing.
+M8-T262 added the web asset freshness gate's P1/P2 predicates, which already had a
+control cell but no gate-level lock.
 """
 from __future__ import annotations
 
@@ -326,6 +328,44 @@ GATE_BLIND_MUTATIONS: tuple[BlindMutation, ...] = (
             "test_the_private_and_shared_reason_detectors_agree_on_every_fixture",
         ),
     ),
+    BlindMutation(
+        # M8-T262: the web asset freshness gate's P1 predicate. The gate already had a
+        # control cell that plants a fake manifest, so the predicate was load-bearing
+        # (measured: blinding it reddens 3 cells) - but nothing at the gate level
+        # locked that in, so a later edit could blunt it without CI noticing.
+        label="the web gate's referenced-names predicate stops seeing a missing bundle",
+        target="tests/test_web_assets_are_fresh.py",
+        anchor=(
+            "def _referenced_names(manifest: dict[str, str] | None = None) -> set[str]:\n"
+            "    manifest = _manifest() if manifest is None else manifest\n"
+        ),
+        replacement=(
+            "def _referenced_names(manifest: dict[str, str] | None = None) -> set[str]:\n"
+            "    return set()  # M8-T262 gate-blind mutation\n"
+            "    manifest = _manifest() if manifest is None else manifest\n"
+        ),
+        probe="tests/test_web_assets_are_fresh_mutation.py",
+        must_go_red=(
+            "test_a_missing_bundle_is_seen_by_the_p1_predicate",
+            "test_an_orphan_bundle_is_seen_by_the_p2_predicate",
+            "test_the_manifest_and_disk_still_agree",
+        ),
+    ),
+    BlindMutation(
+        label="the web gate's disk-names predicate stops seeing an orphan bundle",
+        target="tests/test_web_assets_are_fresh.py",
+        anchor="def _disk_names() -> set[str]:\n",
+        replacement=(
+            "def _disk_names() -> set[str]:\n"
+            "    return set()  # M8-T262 gate-blind mutation\n"
+        ),
+        probe="tests/test_web_assets_are_fresh_mutation.py",
+        must_go_red=(
+            "test_a_missing_bundle_is_seen_by_the_p1_predicate",
+            "test_an_orphan_bundle_is_seen_by_the_p2_predicate",
+            "test_the_manifest_and_disk_still_agree",
+        ),
+    ),
 )
 
 
@@ -477,9 +517,9 @@ def test_the_failed_line_parser_survives_both_pytest_formats() -> None:
 
 def test_the_gate_blind_table_claims_a_real_red_for_every_entry() -> None:
     """A table entry with no expected red cells would make the gate above vacuous."""
-    assert len(GATE_BLIND_MUTATIONS) >= 13, (
+    assert len(GATE_BLIND_MUTATIONS) >= 15, (
         f"the table holds only {len(GATE_BLIND_MUTATIONS)} blind mutations; the "
-        "rewrites of M8-T245, M8-T248, M8-T258 and M8-T260 covered thirteen"
+        "rewrites of M8-T245, M8-T248, M8-T258, M8-T260 and M8-T262 covered fifteen"
     )
     # One entry per probe file is not the invariant - the same file can be probed by
     # more than one blind arm - but every silence parent must be watched by one, and
@@ -494,6 +534,10 @@ def test_the_gate_blind_table_claims_a_real_red_for_every_entry() -> None:
         "the third silence gate's reverse-control file is no longer watched - M8-T260 "
         "closed that gap"
     )
+    assert "tests/test_web_assets_are_fresh_mutation.py" in probed, (
+        "the web asset freshness gate's reverse-control file is no longer watched - "
+        "M8-T262 closed that gap"
+    )
     targets = {m.target for m in GATE_BLIND_MUTATIONS}
     assert "tests/test_silence_must_state_its_reason.py" in targets
     assert "tests/test_broad_except_return_swallows_state_reason.py" in targets
@@ -501,6 +545,10 @@ def test_the_gate_blind_table_claims_a_real_red_for_every_entry() -> None:
         "the third silence gate's private predicates are no longer blinded - M8-T260 "
         "locked them in, and blinding only the shared detector would let a copied "
         "detector drift without CI noticing"
+    )
+    assert "tests/test_web_assets_are_fresh.py" in targets, (
+        "the web asset freshness gate's predicates are no longer blinded - M8-T262 "
+        "locked them in, and a later edit could blunt P1/P2 without CI noticing"
     )
     blind = [m.label for m in GATE_BLIND_MUTATIONS if not m.must_go_red]
     assert blind == [], f"these entries demand no red cell at all: {blind}"

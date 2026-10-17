@@ -19210,3 +19210,28 @@ removed 名单为空，两腿红集皆空。
 异常文本），本单只让那一刀削得自报，不给它们各自加帽——那是 22 处口径，属于另开单位；
 `minicc/web.py:1505` 的旗标与记录侧句子各说各话，统一它是 UI 行为改动（M8-T259 的臂已证明
 那个旗标承重），需要单独立项；两个出厂 ceiling 的字面量照旧读而不合并成常量。
+
+## 第二百六十四批：M8-T262 web asset 门的 P1/P2 谓词上门表锁（含变异验证）
+
+**起因 / 占号。** 上一轮认领 batch 263 / M8-T261 时被对方车道抢走（HEAD `ee74ee8` 已是他们的 M8-T261 RECOGNIZED_KEYS 派生），本批改号：batch 264 / M8-T262。认领前重扫确认 T262、batch 264 均空。
+
+**量到的缺陷。** `tests/test_web_assets_are_fresh.py`（M8-T201，web 资产新鲜度门）已有一格控制单元（`test_a_hardcoded_manifest_would_not_satisfy_the_two_cells` 会栽种假 manifest），所以 P1/P2 的谓词本身是承重的——但**门表里没有锁**。实测前先量：把 `tests/test_web_assets_are_fresh.py` 的 `_referenced_names` 改成总返回空集，红 3 格（控制格、P2、一致性格）；把 `_disk_names` 改成总返回空集，也红同 3 格；恢复 byte-exact 回绿。P3 是另一档：它的第二断言 "stale" not in output 是冗余的，钝化它一格不红；P3 的真防守是 `assert proc.returncode == 0`，要让它红必须真改树让构建报 stale。实测加一条真 CSS 规则，`--check` 从 rc=0 变 rc=1 并报 stale，还原 byte-exact 回 rc=0。
+
+**落地。** 新建 `tests/test_web_assets_are_fresh_mutation.py`（8 格）：P3 的真反向控制（真改树、断言门本体的 P3 格抛 `AssertionError`、还原，带 `needs_build` 跳过）；P1/P2 的谓词级反向控制（对种植的 manifest / 被丢的 entries，调用门本身的 `_referenced_names` / `_disk_names`）；一致性格；无私有谓词副本 AST 格；身份格。门表加 2 臂（盲 `_referenced_names` / 盲 `_disk_names`，各 `must_go_red` 那 3 格），下限 `13 -> 15`，并给 probed / target 加断言（ web asset 变异文件与 web asset 门都在表里）。文件块首注记 P3 的限制：它的真反向控制需真子进程与真树变坏，CI Python 平面跳过，门表不把它列进 `must_go_red`；P1/P2 表述为全平面。
+
+**预写预测 vs 实测。**
+
+| 臂 | 预测红 | 实测红 | 判决 |
+| --- | --- | --- | --- |
+| CONTROL（不动） | 0 | 0 | MATCH |
+| L：`_referenced_names` -> 空 | 3（控制、P2、一致性） | 3 | MATCH |
+| M：`_disk_names` -> 空 | 3（控制、P1、一致性） | 3 | MATCH |
+| N：P3 第二断言 -> 总真 | 0 | 0 | MATCH |
+
+**双向见证。** 基线 8 passed；L/M 各红恰 3 格；N 0 红；还原 byte-exact 回 8 passed。再钝化 P1 反向控制格的断言（改成总真），门表恰红 2 个 web 臂（"产生了没有红"），还原 byte-exact 后 18 passed。
+
+**诚实边界（明确不声称）。** ① P3 的真反向控制只在装了 esbuild 的平面跑，门表未把它进 `must_go_red`，所以它不上门表，只作为变异文件里的 `needs_build` 格存在；不是「缺了锁」，是「这平面验不了」。② 门表只加 P1/P2 两臂，不加 P3 臂——否则 Python CI 的 Python 平面（无 esbuild）会因该格被跳过而红。③ 撞号改号只改了号与 6 处注释/字符串里的 `M8-T261` -> `M8-T262`，断言逻辑一字未动，改名后门本体重跑 31 passed。
+
+**全量与文档。** 清洁工作树（`origin/main` + 本批 3 文件 + 本记录）全量 **2578 passed / 0 failed / 8 skipped / 36:48**，`doc_pointers --check` exit 0，无 DANGLING。
+
+**下批候选。** 再扫仓库：是否还有「有变异文件却无门表条目」或「门自带私有探测器副本」；RECOGNIZED_KEYS 派生落地后，清扫它留下的手抄字面量口径。

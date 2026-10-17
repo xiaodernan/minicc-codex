@@ -35,6 +35,7 @@ REPO = Path(__file__).resolve().parents[1]
 WEB = REPO / "web"
 MANIFEST = WEB / "asset-manifest.json"
 ASSETS = WEB / "assets"
+STYLE_SOURCE = WEB / "styles.css"
 BUILD_SCRIPT = REPO / "scripts" / "build-web.mjs"
 
 pytestmark = pytest.mark.filterwarnings("ignore::DeprecationWarning")
