@@ -19351,6 +19351,87 @@ REVERSE 腿交出 `collected=1`，被这条下限拦下（见下）。
   而两份都读过的清单会互相覆盖——`last_opened` 是全局单例状态，丢的那条没人知道。要么用
   独占创建（`O_EXCL` + 随机后缀）+ 有界重试，要么让「记一次打开」这个动作对失败可见。
 
+## 第二百六十八批 — M8-T265 — 一台机器上的第二个 minicc 进程，可以凭一个**猜得到**的文件名把第一个的启动挡掉
+
+### 1 缺陷
+
+`minicc/workspaces.py` 的 `WorkspaceCatalog._write` 把每次暂存文件固定命名成清单自己的
+`.tmp` 同名兄弟（`self.path.with_suffix(".tmp")`），并且 `mkdir`／`write_text`／`os.replace`
+三步**全都没有兜住**。
+
+那个名字不是私有的：`workspaces.json` 是这台机器上**每一个** minicc 进程共用的文件，
+所以它的 `.tmp` 兄弟也是。于是：
+
+- 一个进程持着那个兄弟文件时，另一个进程拿 `PermissionError`（WinError 32），
+  另一个持着目标文件时拿 WinError 5——两条都实测过；
+- 我们的暂存内容会**先覆盖掉邻居暂存的那份字节**，所以那个共享名字连「它带着什么内容」
+  都标识不了；
+- 交换被拒时，暂存文件**留在盘上**；
+- 清单目录建不出来时（父路径是个普通文件）抛的是 `FileExistsError`。
+
+为什么这不是化妆品问题，看**调用形状**：`WorkspaceCatalog()` 然后 `remember(workspace)`
+是从**构造函数**里调的，没有 handler，而那个构造函数正是 web 服务启动、任务 worker 与
+benchmark runner 都要建的那个。**一个进程握住一个猜得到的名字，就能让另一个进程拒绝启动。**
+
+### 2 落地
+
+`minicc/workspaces.py`（+24/−4）：暂存名换成**只有这一次写拥有**的名字
+（清单名 + pid + uuid 前 8 位 + `.tmp`），整段交换包进 `except OSError`，宿主拒绝时
+**记一条 warning 并说清是哪个清单、什么原因**，并把暂存文件删掉（下次写的人不该看见我们的残骸）。
+`OSError` 之外照旧往上抛——**真缺陷不许被记成「宿主拒绝」**。
+
+`tests/test_the_catalog_write_that_a_neighbour_blocks_is_a_warning_not_a_crash.py`
+（新跟踪文件，268 行，**10 条门**）：
+
+| 门 | 它独自承重的子句 |
+| --- | --- |
+| `…neighbour_holding_the_predictable_staging_name_does_not_stop_the_write` | 邻居暂存文件被本进程握住时，5 次 `remember` 一次不许抛；**且邻居那份字节不许被我们改写** |
+| `…second_process_holding_that_name_does_not_stop_the_write` | 同一条的**跨进程**形态（真机上的样子）：子进程真的打开那个文件，我们的写仍要落盘，且子进程最后报 `INTACT=true` |
+| `…refused_swap_leaves_no_staging_file_behind` | 宿主拒绝交换时：暂存文件不许留下，**且被拒绝的那次不许改写它换不下来的清单** |
+| `…parent_the_host_cannot_create_is_a_warning_not_an_error` | 清单路径的父级建不出来 → 记成警告，不许在这里抛 |
+| `…warning_names_the_catalog_and_the_reason_the_host_refused` | 沉默是缺陷的另一半：warning 必须**点名文件**并**说清原因** |
+| `…two_writes_stage_under_two_names_the_neighbour_cannot_guess` | 唯一性问的是**交换本身**（三次交换三个源名、一个目标名），不是源码里某个拼写 |
+| `…reader_in_another_process_never_sees_a_half_written_catalog` | **控制组**：`os.replace` 的原子性是读者依赖的性质，它得留着 |
+| `…recent_list_keeps_its_order_dedup_and_cap` | **控制组**：收口不许悄悄改掉清单说的是什么 |
+| `…swap_really_lands_the_new_list_on_the_destination` | **控制组**：安全带可以吞掉一次拒绝，但不许吞掉这一次写 |
+| `…failure_that_is_not_a_sharing_violation_still_escapes` | 安全带只接 `OSError`：真 bug 不许被记成拒绝 |
+
+### 3 见证（私有平面 `plane195`，主树未动）
+
+**PRE-FIX 腿**（把出货的 `_write` 放回去，十条门一字不改地跑）：
+
+| 读数 | 值 |
+| --- | --- |
+| 红 | **7 / 10**：`…neighbour_holding…`、`…second_process_holding…`、`…refused_swap_leaves_no_staging_file…`、`…parent_the_host_cannot_create…`、`…warning_names_the_catalog…`、`…two_writes_stage_under_two_names…`、`…reader_in_another_process…` |
+| 绿 | **3 / 10**：**正是那三条控制组**（`…recent_list_keeps_its_order…`、`…swap_really_lands…`、`…failure_that_is_not_a_sharing_violation…`） |
+
+控制组在缺陷面前**必须**绿——它们量的是「收口没有顺手改坏别的东西」。这里正好三条控制组全绿、
+七条缺陷门全红，这就是「门认的是缺陷，不是新写法」的证据。
+
+**变异臂**（每臂都快照 → 改 → 跑 → `finally` 还原 → 复验 sha256）：
+
+| 臂 | 变异 | 实测红集 | 判定 |
+| --- | --- | --- | --- |
+| W1 | 暂存名改回共享的 `.tmp` | 3 条（两条邻居门 + `…two_writes_stage_under_two_names…`） | MATCHED |
+| W2 | 拆掉整个 `try/except`（旧写法） | 4 条（含 `…reader_in_another_process…`——没有收口时写会抛出去，读者那条根本走不到） | MATCHED |
+| W3 | 暂存名只留 pid（去掉 uuid） | 1 条（`…two_writes_stage_under_two_names…`） | MATCHED |
+| W4 | 拒绝后不删暂存文件 | 1 条（`…refused_swap_leaves_no_staging_file…`） | MATCHED |
+| W5 | warning 不说是什么 | 1 条（`…warning_names_the_catalog…`） | MATCHED |
+| W6 | 把 `except OSError` 放宽成 `except Exception` | 1 条（`…failure_that_is_not_a_sharing_violation…`） | MATCHED |
+| 控制 | 无变异 | `10 passed in 8.65s` | MATCHED |
+| 还原 | 快照逐字节还原 | `workspaces.py` sha `a9ce0d032af58709…`，前后逐字节相同 | MATCHED |
+
+W6 是这批里最该留的一条：安全带放宽一格，那条「真 bug 不许被记成拒绝」的门**当场**就红——
+说明这条门不是摆设，它承重的正是「只接 `OSError`」这个分寸。
+
+### 4 边界（本批**不**声称）
+
+- 清单**仍然是**没有锁的读-改-写：两个都成功的进程仍然会互相丢掉条目
+  （实测 20 次 remember × 2 进程留下 `entries=12 alpha=12 beta=0`）。
+  本批修的是**别让一个进程把另一个挡在门外**，**没有**修「都成功时互相覆盖」。
+- 「半写文件不出现」这个性质属于 `os.replace`，本批只是**再钉一次**，不是买来的。
+- 本批**没有**给清单加文件锁，也没有改读路径。
+
 ## 第二百六十七批 — M8-T195 — `impacted_tests.py` 的两个半块曾经互相矛盾，而两半都答错了问题（普查门的观众是目录，不是 import）
 
 ### 1 缺陷
