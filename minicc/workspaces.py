@@ -6,10 +6,14 @@ import json
 import os
 import threading
 import time
+import uuid
 from pathlib import Path
 from typing import Any
 
 from .config import home_dir
+from .logging_setup import get_logger
+
+LOG = get_logger("workspaces")
 
 
 def resolve_workspace_path(
@@ -102,10 +106,26 @@ class WorkspaceCatalog:
         return [item for item in payload if isinstance(item, dict)] if isinstance(payload, list) else []
 
     def _write(self, items: list[dict[str, Any]]) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        temporary = self.path.with_suffix(".tmp")
-        temporary.write_text(json.dumps(items, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-        os.replace(temporary, self.path)
+        """Stage under a name only this write owns, then swap it in as one file.
+
+        workspaces.json is shared by every minicc process on the machine, so a sibling
+        named once (``workspaces.tmp``) is a second writer's target too: Windows refuses
+        the swap with WinError 32 while that neighbour holds the staging file and WinError 5
+        while it holds the destination - both measured.  Losing a recent-folder entry is a
+        cosmetic failure; refusing to start a second web server over one is not, so the
+        write is best-effort and says where it went, and the staging file never outlives it.
+        """
+        temporary = self.path.parent / f"{self.path.name}.{os.getpid()}.{uuid.uuid4().hex[:8]}.tmp"
+        try:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            temporary.write_text(json.dumps(items, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+            os.replace(temporary, self.path)
+        except OSError as exc:
+            LOG.warning(f"工作区目录写不回 {self.path.as_posix()}：{exc}")
+            try:
+                temporary.unlink()
+            except OSError:
+                pass
 
 
 __all__ = ["WorkspaceCatalog", "resolve_workspace_path"]
