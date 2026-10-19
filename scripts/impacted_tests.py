@@ -59,6 +59,59 @@ SCRIPT_REF = re.compile(r"scripts/[\w.-]+\.py")
 #: the floor exists to be argued with, not to be quietly widened.
 EXEMPT: dict[str, str] = {}
 
+#: Directories a census gate can scan. A test file that walks one of these and
+#: reads every ``.py`` under it has an audience that is a *root*, not an import.
+REPO_ROOTS = ("minicc", "scripts", "tests", "docs", ".github")
+
+#: Filesystem walks. A test that performs one of these over a repo root is a
+#: census gate; a test that only imports modules is not.
+_WALK_METHODS = frozenset({"rglob", "glob", "iterdir", "walk", "listdir"})
+
+
+def _walks_the_tree(tree: ast.Module) -> bool:
+    return any(
+        isinstance(node, ast.Call)
+        and ((isinstance(node.func, ast.Attribute) and node.func.attr in _WALK_METHODS)
+             or (isinstance(node.func, ast.Name) and node.func.id in _WALK_METHODS))
+        for node in ast.walk(tree)
+    )
+
+
+def census_gates() -> dict[str, frozenset[str]]:
+    """``{test file: the repo roots it scans}``, derived from the test files.
+
+    A census gate's subject is the repository, not a module: it walks a directory
+    and judges every file under it. Its audience is therefore a root, and the
+    import graph - which is all the rest of this script knows - cannot see it.
+
+    Measured on ``092ad68``: the audience for a change to ``scripts/impacted_tests.py``
+    was ``tests/test_impacted_tests.py`` and nothing else, while
+    ``tests/test_subprocess_decoding.py`` - which scans ``scripts/`` and was red on
+    that very commit - was in nobody's impact set. That is M8-T183's defect one
+    level down: the tool's two halves agreed, and both were answering the wrong
+    question.
+
+    Derived rather than listed here because a hand-kept table is the M8-T179
+    shape - it goes stale the day somebody adds a gate, and a stale table is
+    indistinguishable from a complete one.
+    """
+    gates: dict[str, frozenset[str]] = {}
+    for path in sorted((REPO_ROOT / "tests").glob("*.py")):
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+        except (OSError, SyntaxError):
+            continue
+        if not _walks_the_tree(tree):
+            continue
+        roots = frozenset(
+            node.value for node in ast.walk(tree)
+            if isinstance(node, ast.Constant) and isinstance(node.value, str)
+            and node.value in REPO_ROOTS
+        )
+        if roots:
+            gates[path.name] = roots
+    return gates
+
 
 def _modules() -> dict[str, Path]:
     found: dict[str, Path] = {}
@@ -302,6 +355,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     tests_per_module, _tests, all_tests = build()
+    gates = census_gates()
     changed = args.paths or _changed_paths(args.since)
     if not changed:
         print("no changes to measure", file=sys.stderr)
@@ -311,6 +365,24 @@ def main(argv: list[str] | None = None) -> int:
     unseen: list[str] = []
     for raw in changed:
         path = raw.replace("\\", "/")
+        # M8-T188: the census gates scan this path's root, so they can notice the
+        # change even though nothing in the import graph says so. It runs for
+        # EVERY changed path, ahead of the branches below: both of them can
+        # ``continue`` (a path the graph does not know, a ``tests/`` file that is
+        # not a test yet), and the door in tests/test_impacted_tests.py caught
+        # this block sitting underneath them - ``minicc/__probe__.py`` and
+        # ``tests/__probe__.py`` both reached no census gate at all.
+        #
+        # It widens the impact set only. It deliberately does NOT touch
+        # ``tests_per_module``, which the floor below reads: a census gate's
+        # audience is a directory, and folding that into the floor would make
+        # every module look attended - after which the ``minicc/repl`` finding
+        # (M8-T179: a module nothing imports, promising a name from a module that
+        # has never existed in this repository's history) could never happen
+        # again.
+        impacted |= {name for name, roots in gates.items()
+                     if path.split("/", 1)[0] in roots}
+
         if path.startswith("tests/") and path.endswith(".py"):
             if path in {f"tests/{name}" for name in all_tests}:
                 impacted.add(Path(path).name)

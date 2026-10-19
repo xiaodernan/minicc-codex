@@ -23,6 +23,7 @@ comment:
 """
 from __future__ import annotations
 
+import ast
 import importlib
 import importlib.util
 import subprocess
@@ -268,7 +269,32 @@ def test_a_change_to_a_script_names_the_tests_that_reach_it() -> None:
     the impact set only understood paths under ``minicc/``. One tool, two halves,
     two different answers about the same file, and the half a human reads was
     the wrong one.
+
+    The last assertion used to be ``== ["tests/test_impacted_tests.py"]`` - one
+    file, the import graph's whole answer. M8-T188 measured that answer against
+    reality: ``tests/test_subprocess_decoding.py`` scans ``scripts/`` and was red
+    on ``092ad68``, the very commit that added those subprocess calls, and it was
+    in nobody's impact set because it imports nothing from ``scripts/``. A census
+    gate's audience is a directory.
+
+    The expectation is therefore derived - import-graph audience plus every gate
+    that scans this root - rather than typed out. The first version typed the nine
+    names, and a concurrent commit that added a tenth gate to ``tests/`` turned it
+    red for a reason that had nothing to do with the claim under test.
     """
+    script = _load_script()
+    audience, _references, _all_tests = script.build()
+    # ``.py`` only: the audience also counts a CI workflow (M8-T180), and a
+    # workflow name is not a path pytest can collect - which is the whole point of
+    # the door below it.
+    expected = sorted(
+        {f"tests/{name}" for name in audience.get("scripts.impacted_tests", set())
+         if name.endswith(".py")}
+        | {f"tests/{name}" for name, roots in script.census_gates().items()
+           if "scripts" in roots}
+    )
+    assert len(expected) > 1, expected
+
     result = subprocess.run(
         [sys.executable, str(SCRIPT), "scripts/impacted_tests.py", "--run"],
         capture_output=True, text=True, errors="replace", cwd=str(REPO_ROOT), check=False,
@@ -277,7 +303,109 @@ def test_a_change_to_a_script_names_the_tests_that_reach_it() -> None:
     assert "no test file reaches" not in result.stderr, result.stderr
     listed = result.stdout.split()
     assert listed[:3] == ["python", "-m", "pytest"], listed[:3]
-    assert listed[3:] == ["tests/test_impacted_tests.py"], listed[3:]
+    assert listed[3:] == expected, (listed[3:], expected)
+
+
+def test_every_test_file_the_census_reads_is_readable() -> None:
+    """A census gate that cannot be parsed is dropped without a word.
+
+    ``census_gates()`` swallows ``SyntaxError`` so one broken file cannot take the
+    whole tool down - but the same silence means a gate that stops parsing stops
+    being an audience, and nothing says so. The door is therefore on the reading,
+    not on the swallowing: a test file the census cannot parse is a finding.
+
+    This is not hypothetical. While this batch was being written, a concurrent
+    commit added ``tests/test_llm_surface_accounting_census.py`` and three
+    assertions in this file went red mid-run, because the file was on disk in a
+    state the AST could not read.
+    """
+    unreadable = []
+    for path in sorted((REPO_ROOT / "tests").glob("*.py")):
+        try:
+            ast.parse(path.read_text(encoding="utf-8"))
+        except (OSError, SyntaxError, UnicodeDecodeError) as exc:
+            unreadable.append(f"{path.name}: {type(exc).__name__}: {exc}")
+    assert unreadable == [], unreadable
+
+
+def test_a_census_gate_is_in_the_audience_of_every_root_it_scans() -> None:
+    """M8-T188: a census gate's audience is a directory, not an import.
+
+    Measured on ``092ad68``: the audience for a change to
+    ``scripts/impacted_tests.py`` was ``tests/test_impacted_tests.py`` and
+    nothing else, while ``tests/test_subprocess_decoding.py`` - which scans
+    ``scripts/`` and went red on that very commit - was in nobody's impact set.
+    The tool's two halves agreed with each other and both were answering the
+    wrong question, which is M8-T183 one level down.
+
+    Parametrized off the derived census, so a new gate is covered the day it
+    starts walking a directory.
+    """
+    script = _load_script()
+    gates = script.census_gates()
+    assert gates, "the census found no census gates - the scan is broken, not the repo"
+    # One run per root, not per (gate, root): the tool rebuilds the whole import
+    # graph on every invocation, and asking it fifty times turned this door into
+    # five minutes of the very wall clock the project is trying not to spend.
+    by_root: dict[str, set[str]] = {}
+    for name, roots in gates.items():
+        for root in roots:
+            by_root.setdefault(root, set()).add(name)
+    for root, expected in sorted(by_root.items()):
+        probe = f"{root}/__probe__.py"
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT), probe, "--run"],
+            capture_output=True, text=True, errors="replace", cwd=str(REPO_ROOT), check=False,
+        )
+        assert result.returncode == 0, (probe, result.stderr)
+        listed = {name[len("tests/"):] for name in result.stdout.split()
+                  if name.startswith("tests/")}
+        missing = sorted(expected - listed)
+        assert not missing, f"a change under {root}/ does not reach {missing}"
+
+
+def test_the_census_gate_census_finds_the_one_that_was_missed() -> None:
+    """Anti-vacuity, aimed at the specific gate that was invisible.
+
+    A census that reports "no gates" passes every other assertion in this file
+    for the wrong reason, so the known case is pinned by name: the subprocess
+    decoder gate scans ``scripts/``, which is the root whose changes it failed to
+    see for four batches.
+    """
+    script = _load_script()
+    gates = script.census_gates()
+    assert "test_subprocess_decoding.py" in gates, sorted(gates)
+    assert "scripts" in gates["test_subprocess_decoding.py"], gates["test_subprocess_decoding.py"]
+    assert "minicc" in gates["test_subprocess_decoding.py"], gates["test_subprocess_decoding.py"]
+
+
+def test_the_floor_is_not_diluted_by_the_census_gates() -> None:
+    """The two questions must stay separate, or the floor goes vacuously green.
+
+    The floor asks "which test *specifically* cares about this module?" - an
+    import question. The impact set asks "which test could *notice*?" - and for a
+    census gate the answer is "any file under the root it walks". Folding the
+    second into the first would give every module an audience, and the finding
+    that started this whole script (M8-T179: ``minicc/repl``, a module nothing
+    imports, promising a name from a module that has never existed in this
+    repository's history) could never happen again.
+
+    So the invariant is checked directly: a document may only appear in a
+    module's floor audience if the module is in that document's own reference
+    closure. A census gate that merely walks the tree does not qualify.
+    """
+    script = _load_script()
+    modules = script._modules()
+    resolve = script._resolver(modules)
+    production = {name: script._imports(path, resolve) for name, path in modules.items()}
+    tests_per_module, references, _all_tests = script.build()
+    assert len(tests_per_module) >= 50, len(tests_per_module)
+    for module, audience in tests_per_module.items():
+        for document in audience:
+            assert module in script._closure(references.get(document, set()), production), (
+                f"{document} is an audience for {module} without referencing it; "
+                f"that is the shape that would satisfy the floor for every module at once"
+            )
 
 
 def test_the_tool_ignores_paths_no_test_could_reach() -> None:
