@@ -23,7 +23,11 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
-from .config import TRUTHY
+from .config import (
+    DEFAULT_TASK_EVENT_LIMIT,
+    DEFAULT_TASK_STREAM_LIMIT,
+    TRUTHY,
+)
 
 from .agent.loop import AgentCancelled
 from .logging_setup import get_logger, log_task_event, register_secret
@@ -34,8 +38,6 @@ from .llm.usage import add_usage_totals
 LOG = get_logger("worker")
 WORKER_VERSION = 2
 CANCEL_POLL_SECONDS = 1.0
-STREAM_BOUND = 16_000
-EVENTS_BOUND = 200
 FLUSH_INTERVAL = 0.2
 HEARTBEAT_INTERVAL = 5.0
 
@@ -79,6 +81,47 @@ def _config_from_stdin() -> Any | None:
     return _config_from_json(raw)
 
 
+#: The same floors the thread face applies to a TaskRecord; the door keeps both
+#: faces answering with the same count, so a drift here cannot stay silent.
+_EVENT_WINDOW_FLOOR = 32
+_STREAM_WINDOW_FLOOR = 512
+
+
+def _positive_int(raw: Any, floor: int) -> int:
+    try:
+        return max(floor, int(raw))
+    except (TypeError, ValueError):
+        return floor
+
+
+def _window_from(config: Any) -> tuple[int, int]:
+    """The task window this worker must apply, from the config it was handed.
+
+    M8-T268: ``EVENTS_BOUND``/``STREAM_BOUND`` were module constants, so
+    ``MINICC_TASK_EVENT_LIMIT`` - published in README and minicc.config.example
+    and honored by the thread face - meant 768 there and 200 here, and a row
+    written here declared neither the window nor the drops.
+    """
+    return (
+        _positive_int(getattr(config, "task_event_limit", DEFAULT_TASK_EVENT_LIMIT), _EVENT_WINDOW_FLOOR),
+        _positive_int(getattr(config, "task_stream_limit", DEFAULT_TASK_STREAM_LIMIT), _STREAM_WINDOW_FLOOR),
+    )
+
+
+def append_bounded(items: list[dict[str, Any]], item: dict[str, Any], limit: int) -> int:
+    """Append ``item`` to ``items``, keep the newest ``limit``, return what fell out.
+
+    The live callback and the snapshot share this one trim so the number of
+    evicted events has a single producer.
+    """
+    items.append(item)
+    overflow = len(items) - max(0, int(limit))
+    if overflow <= 0:
+        return 0
+    del items[:overflow]
+    return overflow
+
+
 def _snapshot(
     task_id: str,
     *,
@@ -97,10 +140,17 @@ def _snapshot(
     session_id: str,
     model: str = "",
     stream_length: int | None = None,
+    event_limit: int = DEFAULT_TASK_EVENT_LIMIT,
+    stream_limit: int = DEFAULT_TASK_STREAM_LIMIT,
+    events_truncated: int = 0,
     created_at: float | None = None,
     lease_owner: str = "",
 ) -> dict[str, Any]:
     created_at = created_at or time.time()
+    event_limit = _positive_int(event_limit, _EVENT_WINDOW_FLOOR)
+    stream_limit = _positive_int(stream_limit, _STREAM_WINDOW_FLOOR)
+    retained = events[-event_limit:]
+    dropped_here = max(0, len(events) - len(retained))
     return {
         "schema_version": TASK_SCHEMA_VERSION,
         "task_id": task_id,
@@ -112,9 +162,12 @@ def _snapshot(
         "phase": phase,
         "prompt": prompt,
         "preview": prompt[:120],
-        "stream_text": stream_text[-STREAM_BOUND:],
+        "stream_text": stream_text[-stream_limit:],
         "stream_length": len(stream_text) if stream_length is None else stream_length,
-        "events": events[-EVENTS_BOUND:],
+        "events": retained,
+        "event_limit": event_limit,
+        "stream_limit": stream_limit,
+        "events_truncated": _positive_int(events_truncated, 0) + dropped_here,
         "usage": usage or {},
         "result": {"answer": answer} if answer else None,
         "error": error,
@@ -156,6 +209,7 @@ def _run_owned_worker(args: argparse.Namespace, workspace: Path, store: TaskStor
     if config is None:
         config = _config_from_json(args.config_json)
     config = SimpleNamespace(**{**vars(config), "task_worker_runtime": True, "auto_resume_on_start": False})
+    event_limit, stream_limit = _window_from(config)
     # The worker gets its own process, so it registers the credential to mask
     # in its own log handlers; the config never reaches the log otherwise.
     register_secret(getattr(config, "api_key", ""))
@@ -171,7 +225,7 @@ def _run_owned_worker(args: argparse.Namespace, workspace: Path, store: TaskStor
                 return
             stop_event.wait(CANCEL_POLL_SECONDS)
 
-    state: dict[str, Any] = {"status": "running", "phase": "planning", "stream": "", "stream_length": 0, "events": [], "usage": None, "answer": "", "error": "", "result": None}
+    state: dict[str, Any] = {"status": "running", "phase": "planning", "stream": "", "stream_length": 0, "events": [], "events_truncated": 0, "usage": None, "answer": "", "error": "", "result": None}
     state_lock = threading.RLock()
     flush_lock = threading.Lock()
     created_at = time.time()
@@ -215,6 +269,9 @@ def _run_owned_worker(args: argparse.Namespace, workspace: Path, store: TaskStor
                     session_id=request.session_id,
                     model=request.model,
                     stream_length=state["stream_length"], created_at=created_at, lease_owner=lease_owner,
+                    event_limit=event_limit,
+                    stream_limit=stream_limit,
+                    events_truncated=state["events_truncated"],
                 )
                 snapshot["reasoning_effort"] = request.reasoning_effort
                 snapshot["task_kind"] = request.task_kind
@@ -278,12 +335,12 @@ def _run_owned_worker(args: argparse.Namespace, workspace: Path, store: TaskStor
             candidate = dict(event)
             candidate.setdefault("event_id", f"evt-{uuid.uuid4().hex[:16]}")
             candidate.setdefault("item_id", f"item-{uuid.uuid4().hex[:16]}")
-            state["events"] = (state["events"] + [candidate])[-EVENTS_BOUND:]
+            state["events_truncated"] += append_bounded(state["events"], candidate, event_limit)
             dirty.set()
 
     def on_stream(delta: str) -> None:
         with state_lock:
-            state["stream"] = (state["stream"] + delta)[-STREAM_BOUND:]
+            state["stream"] = (state["stream"] + delta)[-stream_limit:]
             state["stream_length"] += len(delta)
             dirty.set()
 
