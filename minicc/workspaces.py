@@ -2,18 +2,117 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import threading
 import time
 import uuid
 from pathlib import Path
-from typing import Any
+from typing import IO, Any, Iterator
 
 from .config import home_dir
 from .logging_setup import get_logger
 
+try:  # Windows
+    import msvcrt
+except ImportError:  # pragma: no cover - non-Windows
+    msvcrt = None  # type: ignore[assignment]
+
+try:  # POSIX
+    import fcntl
+except ImportError:  # pragma: no cover - Windows
+    fcntl = None  # type: ignore[assignment]
+
 LOG = get_logger("workspaces")
+
+#: ``remember()`` reads the whole catalog, mutates it in memory and writes the
+#: whole catalog back.  The file is the same one for every minicc process on the
+#: machine, so two processes that each succeed still drop each other's entries:
+#: measured on ``dc722d1`` with two barrier-synchronised children doing three
+#: remembers each, 0 of 6 rounds kept all six entries and one round lost a whole
+#: side.  The in-process ``RLock`` was never the answer for that.
+#:
+#: The ceiling below bounds the *waiting*, not the correctness.  A neighbour that
+#: will not let go costs two seconds and then degrades to the unlocked write,
+#: because M8-T265 already established that this path must not raise: losing a
+#: recent folder is cosmetic, refusing to start a web server is not.
+_LOCK_ATTEMPTS = 40
+_LOCK_RETRY_DELAY = 0.05
+_LOCK_BYTES = 1
+
+
+def _lock_path_for(catalog_path: Path) -> Path:
+    """The sidecar protecting one catalog - the naming rule ``minicc/session.py`` uses too."""
+    return catalog_path.with_name(catalog_path.name + ".lock")
+
+
+def _acquire(lock_path: Path) -> tuple[IO[str] | None, OSError | None]:
+    """Open ``lock_path`` and take it.  Returns (handle, refusal); one of them is None.
+
+    ``LK_NBLCK`` is the mode this loop needs: measured against a neighbour process
+    holding one byte, ``LK_LOCK`` parks the caller for 9.2s before it admits defeat
+    with EDEADLOCK, while ``LK_NBLCK`` answers in 0.000s.  Retrying the immediate
+    answer is what keeps the ceiling below honest.
+    """
+    if msvcrt is None and fcntl is None:
+        return None, OSError("本机没有可用的跨进程锁原语（msvcrt 与 fcntl 均未导出）")
+    try:
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+        handle = open(lock_path, "a+")
+    except OSError as exc:
+        return None, exc
+    try:
+        for attempt in range(_LOCK_ATTEMPTS):
+            try:
+                handle.seek(0)
+                if msvcrt is not None:
+                    msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, _LOCK_BYTES)
+                else:
+                    fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                return handle, None
+            except OSError as exc:
+                if attempt == _LOCK_ATTEMPTS - 1:
+                    raise exc
+                time.sleep(_LOCK_RETRY_DELAY)
+        raise OSError(f"锁重试循环走完 {_LOCK_ATTEMPTS} 次却没有判决")
+    except OSError as exc:
+        handle.close()
+        return None, exc
+
+
+def _release(handle: IO[str]) -> None:
+    """Put the lock back.  A refusal here is not fatal: closing the handle drops it."""
+    try:
+        handle.seek(0)
+        if msvcrt is not None:
+            msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, _LOCK_BYTES)
+        elif fcntl is not None:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+    except OSError as exc:
+        LOG.warning(f"工作区目录锁解不开，交给关闭句柄释放 {handle.name}：{exc}")
+    finally:
+        handle.close()
+
+
+@contextlib.contextmanager
+def _advisory_lock(catalog_path: Path) -> Iterator[bool]:
+    """Hold the catalog's sidecar across one read-modify-write, or say why not.
+
+    Yields whether the lock is actually held.  It never raises: a busy or
+    unmakeable sidecar degrades to the unlocked write plus one WARNING naming the
+    catalog, which is today's behaviour with a diagnosis attached.
+    """
+    handle, refusal = _acquire(_lock_path_for(catalog_path))
+    if refusal is not None:
+        LOG.warning(
+            f"工作区目录锁被其他进程占用，本次不带跨进程锁写入 {catalog_path.as_posix()}：{refusal}"
+        )
+    try:
+        yield refusal is None
+    finally:
+        if handle is not None:
+            _release(handle)
 
 
 def resolve_workspace_path(
@@ -87,7 +186,11 @@ class WorkspaceCatalog:
             "path": candidate.as_posix(),
             "last_opened": time.time(),
         }
-        with self._lock:
+        # The thread lock keeps two threads of this process out of each other's
+        # read-modify-write; only the sidecar says the same thing to the *next*
+        # minicc process, and it has to stay taken from the read through the
+        # swap - a lock around either half alone leaves the lost update in place.
+        with self._lock, _advisory_lock(self.path):
             items = [
                 item
                 for item in self._read()
