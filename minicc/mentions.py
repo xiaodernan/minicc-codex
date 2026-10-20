@@ -50,7 +50,7 @@ __all__ = [
 def _scan_mention_tokens(message: str) -> tuple[list[str], list[str]]:
     """The kept tokens and the ones that did not fit under the cap.
 
-    M8-T318: the cap used to ``break`` out of the scan, so the tokens past
+    M8-T329: the cap used to ``break`` out of the scan, so the tokens past
     it were **dropped without a trace** - no record, no note in the block,
     nothing in the event stream.  The byte-budget channel already has an
     "omitted" state for the same kind of loss; the count channel had
@@ -99,7 +99,7 @@ def build_mention_context(
     """
     tokens, dropped = _scan_mention_tokens(message)
     records: list[dict[str, Any]] = []
-    # M8-T318: the mentions that did not fit under the cap are named, not
+    # M8-T329: the mentions that did not fit under the cap are named, not
     # dropped: each gets a record, and the block says so.
     for token in dropped:
         records.append(_annotate(
@@ -230,7 +230,7 @@ def build_mention_context(
         records.append({"token": token, "path": rel, "status": "injected", "reason": "", "truncated": False})
     injected = sum(1 for item in records if item["status"] == "injected")
     rejected = sum(1 for item in records if item["status"] == "rejected")
-    # M8-T318: the mentions past the cap are named in the block too - a
+    # M8-T329: the mentions past the cap are named in the block too - a
     # silent drop reads exactly like a mention that was never written.
     dropped_note = ""
     if dropped:

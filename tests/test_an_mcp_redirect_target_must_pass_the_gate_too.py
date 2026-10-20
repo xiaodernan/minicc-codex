@@ -1,4 +1,4 @@
-"""M8-T314 — MCP 的重定向落点必须**再过一次 SSRF 门**，凭据不能跟着走
+"""M8-T325 — MCP 的重定向落点必须**再过一次 SSRF 门**，凭据不能跟着走
 
 `load_mcp_config` 在**加载配置**时对 URL 调了一次 `assert_public_http_url`。
 但那只是**入口那一个** URL —— 请求发出之后的落点从来不再检查：
@@ -41,7 +41,20 @@ SECRET = "Bearer mcp-secret-value"
 class _Redirecting(BaseHTTPRequestHandler):
     """Answers every POST with a redirect to ``self.server.location``."""
 
+    def _drain(self) -> None:
+        """Read the request body.
+
+        A handler that answers without reading the body leaves unread data in
+        the socket, and Windows answers that with an RST - the client then
+        sees "connection aborted" instead of the response, which made this
+        door flaky.
+        """
+        length = int(self.headers.get("Content-Length") or 0)
+        if length:
+            self.rfile.read(length)
+
     def do_POST(self) -> None:  # noqa: N802 - http.server API
+        self._drain()
         self.server.seen.append((self.path, dict(self.headers)))
         self.send_response(302)
         self.send_header("Location", self.server.location)
@@ -63,6 +76,9 @@ class _Landing(BaseHTTPRequestHandler):
         self.server.seen.append((f"{self.command} {self.path}", dict(self.headers)))
 
     def do_POST(self) -> None:  # noqa: N802 - http.server API
+        length = int(self.headers.get("Content-Length") or 0)
+        if length:
+            self.rfile.read(length)
         self._record()
         body = b'{"jsonrpc":"2.0","id":0,"result":{}}'
         self.send_response(200)
@@ -196,6 +212,9 @@ def test_a_ordinary_server_is_still_reachable(tmp_path: Path) -> None:
 
     class _Ok(BaseHTTPRequestHandler):
         def do_POST(self) -> None:  # noqa: N802 - http.server API
+            length = int(self.headers.get("Content-Length") or 0)
+            if length:
+                self.rfile.read(length)
             body = json.dumps({
                 "jsonrpc": "2.0",
                 "id": 1,

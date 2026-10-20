@@ -59,7 +59,7 @@ class NodeResult:
 
 NodeHandler = Callable[[AgentState], NodeResult | Awaitable[NodeResult]]
 
-#: M8-T317: the statuses that mean "this node did its job".  Every other
+#: M8-T328: the statuses that mean "this node did its job".  Every other
 #: terminal status is a failure - the vocabulary is open, so a status the
 #: graph does not know about must not be read as a success.
 SUCCESS_STATUSES = frozenset({"ok", "done", "success", "completed", "passed"})
@@ -150,7 +150,7 @@ class StateGraph:
                 elif condition in SUCCESS_STATUSES:
                     state.finish("completed")
                 else:
-                    # M8-T317: a terminal status that is neither a success
+                    # M8-T328: a terminal status that is neither a success
                     # nor a known failure must not be reported as a success.
                     # The status vocabulary is open, so a node that returned
                     # "denied" (the permission was refused) or "cancelled"

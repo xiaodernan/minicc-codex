@@ -71,7 +71,7 @@ def cache_summary(usage: Mapping[str, Any] | None) -> dict[str, Any]:
         else:
             result["cache_status"] = "reported_zero"
     elif hit is not None or miss is not None:
-        # M8-T315: only **one** side was reported.  The other one is not
+        # M8-T326: only **one** side was reported.  The other one is not
         # zero - it is *unknown* - and treating it as zero fabricates a
         # rate that was never observed (``{"prompt_cache_hit_tokens": 100}``
         # used to report a 100% hit rate).  The function's own contract says

@@ -61,7 +61,7 @@ class ComplexityAssessment:
 
 #: The work dimensions a request can name, and the words that name them.
 #:
-#: M8-T316: the English alternatives need a **word boundary**, the same way
+#: M8-T327: the English alternatives need a **word boundary**, the same way
 #: ``_CONNECTOR_RE`` does (M8-T290): a bare substring let one word light up
 #: two dimensions at once - ``latest`` contains ``test`` (so "the latest
 #: build" was a *verification* dimension too), ``address`` starts with

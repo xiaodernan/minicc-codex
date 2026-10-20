@@ -525,7 +525,7 @@ class McpStdioClient:
 class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
     """A redirect handler that refuses to redirect.
 
-    M8-T314: urllib's default opener follows 301/302/303 automatically, and
+    M8-T325: urllib's default opener follows 301/302/303 automatically, and
     ``redirect_request`` copies the request's headers.  For an MCP client
     that means a configured server could send the POST to
     ``http://127.0.0.1:9000/`` - a target that never passed the SSRF gate -
@@ -573,7 +573,7 @@ class McpHttpClient:
     def _post(self, payload: dict[str, Any]) -> tuple[int, str, str, str]:
         """POST one JSON-RPC message; returns (status, content_type, body, session_id).
 
-        M8-T314: the redirect used to be followed by urllib's default opener,
+        M8-T325: the redirect used to be followed by urllib's default opener,
         so the target **never passed the SSRF gate again** - the gate only
         ran when the configuration was loaded, on the original URL.  A
         configured MCP server could therefore answer the POST with
@@ -599,7 +599,7 @@ class McpHttpClient:
             request.add_header("Accept", "application/json, text/event-stream")
             if self.session_id:
                 request.add_header("Mcp-Session-Id", self.session_id)
-            # M8-T314: the configured credentials (an ``Authorization``
+            # M8-T325: the configured credentials (an ``Authorization``
             # header) belong to the origin they were configured for.  A
             # redirect to another origin must not receive them.
             if _origin(current) == origin:

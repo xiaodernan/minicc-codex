@@ -81,7 +81,7 @@ def command_may_modify_workspace(command: str) -> bool:
             continue
         program = _program_basename(argv[0])
         rest = argv[1:]
-        # M8-T312: ``tsc`` **emits** JavaScript next to the sources unless it
+        # M8-T323: ``tsc`` **emits** JavaScript next to the sources unless it
         # is told not to, and the emitted files are real build output - not a
         # cache like ``.mypy_cache``.  The evidence predicate calls ``tsc`` a
         # check, so the two answers have to agree about the side effect too:
@@ -106,7 +106,7 @@ def command_may_modify_workspace(command: str) -> bool:
         ):
             return True
         if program in {"npm", "yarn", "pnpm"}:
-            # M8-T313: a **script** that rewrites the sources is a write:
+            # M8-T324: a **script** that rewrites the sources is a write:
             # ``npm run format`` (prettier --write) and ``npm run lint:fix``
             # (eslint --fix) rewrite the very files they look at.  The
             # evidence predicate calls ``format`` a check, so the two
@@ -134,7 +134,7 @@ def command_may_modify_workspace(command: str) -> bool:
                 return True
         if program in _INTERPRETERS:
             flags = {tok for tok in rest if tok.startswith("-")}
-            # M8-T311: inline code (``python -c``, ``node -e``, ``bash -c``)
+            # M8-T322: inline code (``python -c``, ``node -e``, ``bash -c``)
             # can write anything, and this function's own contract says the
             # heuristic errs toward True - "under-reporting lets a real
             # write skip the verifier".  The old code skipped the whole
@@ -152,7 +152,7 @@ def command_may_modify_workspace(command: str) -> bool:
                 return True
             if "-c" in flags or "-m" in flags:
                 continue
-            # M8-T311: ``node --check <file>`` only **parses** the file - it
+            # M8-T322: ``node --check <file>`` only **parses** the file - it
             # never runs it and never writes anything.  The write predicate
             # used to call it a write (the file name ends in ``.js``), while
             # ``is_verification_evidence`` called it verification - two

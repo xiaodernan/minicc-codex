@@ -196,7 +196,7 @@ def _normalize_usage(usage: dict[str, Any] | None) -> dict[str, Any]:
     }
     normalized["total_tokens"] = normalized["prompt_tokens"] + output_tokens
     normalized["prompt_cache_miss_tokens"] = input_tokens
-    # M8-T315: Anthropic's ``input_tokens`` is the **miss** side (the tokens
+    # M8-T326: Anthropic's ``input_tokens`` is the **miss** side (the tokens
     # that were not read from the cache), so the hit side is known to be
     # ``cache_read_input_tokens`` - and when the field is absent, no cache
     # was read at all, so the hit count is a real zero rather than an
