@@ -2889,7 +2889,15 @@ class TaskManager:
                 continue
             if task.status in {"queued", "running"}:
                 task.request_cancel("service_shutdown")
-                self._persist_task(task, force=True)
+                try:
+                    self._persist_task(task, force=True)
+                except Exception as exc:  # noqa: BLE001 - one task's write error must not strand the rest
+                    LOG.warning(
+                        "task_snapshot_write_failed task_id=%s source=shutdown error=%s: %s",
+                        task.task_id,
+                        type(exc).__name__,
+                        str(exc)[:200],
+                    )
             if task.future is not None:
                 task.future.cancel()
             task.event_log.close()
@@ -2907,8 +2915,19 @@ class TaskManager:
                 # shutdown should continue draining other admitted work.
                 pass
         self.executor.shutdown(wait=False, cancel_futures=True)
+        lost: list[tuple[str, BaseException]] = []
         if self._snapshot_writer is not None:
-            self._snapshot_writer.close()
+            lost = self._snapshot_writer.close()
+        # M8-T320: ``last_error`` had no production reader, so a task whose terminal
+        # snapshot never landed was known only to an attribute nobody consulted.  The
+        # ids go to the log here, where an operator can find them.
+        for task_id, exc in lost:
+            LOG.error(
+                "task_result_lost task_id=%s error=%s: %s",
+                task_id,
+                type(exc).__name__,
+                str(exc)[:200],
+            )
         # M4-7 / M8-T14: a worker whose monitor thread is still parked in its
         # poll loop (or exited the loop by raising) would otherwise leave its
         # Popen unreferenced. We are closing, so this aborts it: cancel flag,

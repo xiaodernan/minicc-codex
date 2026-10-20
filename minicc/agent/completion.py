@@ -357,7 +357,12 @@ def _enforce_completion_evidence(
     latest_verification = next((item for item in reversed(verifications) if item.get("status") != "skipped"), None)
     if latest_verification and latest_verification.get("status") in {"failed", "blocked", "cancelled", "timed_out"}:
         decision.status = "continue"
-        decision.missing = ["修复最近一次验证失败并重新取得通过结果"]
+        # M8-T309: the instruction has to match what happened.  A timeout
+        # is **not** a failure - it produced no verdict at all - and
+        # telling the model to "fix the failed verification" sends it to
+        # repair a command that never failed.
+        status = str(latest_verification.get("status") or "")
+        decision.missing = [_REPAIR_INSTRUCTION.get(status, _REPAIR_INSTRUCTION["failed"])]
         decision.next_action = decision.missing[0]
         decision.rationale = "完成评估与最新客观验证结果冲突。"
         return decision
@@ -775,6 +780,15 @@ def _redacted_value(value: Any) -> Any:
         return [_redacted_value(item) for item in value]
     return redact_text(value)[0] if isinstance(value, str) else value
 
+
+_REPAIR_INSTRUCTION = {
+    "failed": "修复最近一次验证失败并重新取得通过结果",
+    # M8-T309: a timeout produced **no verdict**; the repair is to make
+    # the check finishable, not to fix code that did not fail.
+    "timed_out": "最近一次验证超时（没有产生结论）；请缩小检查范围或提高超时后重新验证",
+    "blocked": "最近的验证被阻止；请先解除阻止原因再重新验证",
+    "cancelled": "最近的验证被取消；请重新取得一次通过的验证结果",
+}
 
 __all__ = [
     "COMPLETION_STATUSES",

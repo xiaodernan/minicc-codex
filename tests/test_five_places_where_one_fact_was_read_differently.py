@@ -75,13 +75,25 @@ def test_the_web_face_does_not_recompute_the_write_flag() -> None:
     The face recomputed the flag with a narrower list of write tools and
     dropped the canonical one, so a ``sed -i`` looked like "no write"
     there while the agent loop said otherwise.
+
+    M8-T309: the gate used to look at a **fixed 2000-character window**
+    after the marker.  That is not what it means to say: the question is
+    "does this function carry the canonical flag?", and the answer must
+    not depend on how much text happens to sit between the marker and
+    the line - so a legitimate edit elsewhere in the function (a comment,
+    a wrapped call) could push the line out of the window and make the
+    gate red for no reason.  The function's own extent is used now.
     """
     source = (
         Path(__file__).resolve().parents[1] / "minicc" / "web.py"
     ).read_text(encoding="utf-8")
     marker = "def on_tool(call: ToolCall, result: ToolResult) -> None:"
     start = source.index(marker)
-    branch = source[start:start + 2000]
+    line_start = source.rfind("\n", 0, start) + 1
+    indent = source[line_start:start]
+    rest = source[start:]
+    sibling = rest.find("\n" + indent + "def ")
+    branch = rest if sibling == -1 else rest[:sibling]
     assert '"write": bool(feedback.get("write"))' in branch, (
         "the Web face recomputes the write flag instead of carrying the "
         "canonical one"
