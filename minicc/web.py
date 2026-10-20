@@ -80,7 +80,13 @@ from .agent.protocol import (
 from .agent.rpc import RpcDispatcher
 from .agent.verifier import Verifier, VerificationResult
 from .agent.verification_plan import build_verification_plan, changed_paths_from_events
-from .audit import AuthorizationDecision, authorize_tool, normalize_permission_mode
+from .audit import (
+    AuthorizationDecision,
+    authorize_tool,
+    deny_rule_names_paths,
+    normalize_permission_mode,
+    tool_denied_by_rule,
+)
 from .changes import ChangeError, ChangeInspector
 from .commands import discover_commands, expand_slash_command
 from .mentions import apply_mentions
@@ -156,6 +162,8 @@ from .task_manager import (  # noqa: F401 - re-export for tests and AgentService
 
 # M3-T8: bounded RPC thread cache + thread_id validation.
 _RPC_THREADS_MAX = 512
+# M8-T291: the per-session lock table is bounded for the same reason.
+_SESSION_LOCKS_MAX = 512
 _THREAD_ID_MAX_LEN = 256
 LOG = get_logger("service")
 
@@ -311,6 +319,13 @@ class AgentService:
         self._set_current_mcp(workspace)
         self._session_guard = threading.Lock()
         self._session_locks: dict[str, threading.Lock] = {}
+        # M8-T294: which session locks have been held at least once.  A lock
+        # that was never held may be in flight (handed out, not yet taken),
+        # so it must not be evicted.
+        self._session_locks_used: set[str] = set()
+        # M8-T294: which locks were just handed out.  A lock in this set may
+        # be acquired in a moment, so it must not be evicted either.
+        self._session_locks_inflight: set[str] = set()
         # M7-T3: request_id -> pending approval group; merge_key -> group id.
         self._approval_guard = threading.Lock()
         self._approval_groups: dict[str, _ApprovalGroup] = {}
@@ -354,9 +369,76 @@ class AgentService:
         self.mcp_error = "" if manager is not None else "MCP 配置不可用"
 
     def _session_lock(self, workspace: Path, session_id: str) -> threading.Lock:
+        """The per-session lock, from a **bounded** table.
+
+        M8-T291: the table only ever grew.  ``session_id`` comes straight
+        from the client and the lock was taken *before* ``SessionStore``
+        validated it, so every random id left a lock behind that was
+        never released - a local page could grow the workbench's memory
+        without bound.
+
+        M8-T294: the eviction may only drop a lock that nobody is about to
+        use.  ``locked()`` is false between "handed out" and "acquired", so
+        evicting on that alone could hand two threads two different locks
+        for the same session - and the mutual exclusion the table exists to
+        provide would be gone.  Two facts therefore protect an entry: it is
+        **in flight** (just handed out), or it was **never held** at all.
+        Only a lock that was held and released may go.
+        """
         lock_key = f"{_path_key(workspace)}:{session_id}"
         with self._session_guard:
-            return self._session_locks.setdefault(lock_key, threading.Lock())
+            lock = self._session_locks.setdefault(lock_key, threading.Lock())
+            # Just handed out: it may be acquired in a moment.
+            self._session_locks_inflight.add(lock_key)
+            while len(self._session_locks) > _SESSION_LOCKS_MAX:
+                evicted = False
+                for candidate in list(self._session_locks):
+                    if len(self._session_locks) <= _SESSION_LOCKS_MAX:
+                        break
+                    if candidate == lock_key:
+                        continue
+                    entry = self._session_locks.get(candidate)
+                    if entry is None or entry.locked():
+                        # Held right now.
+                        continue
+                    if candidate in self._session_locks_inflight:
+                        # Handed out, not yet taken.
+                        continue
+                    if candidate not in self._session_locks_used:
+                        # Never held: it may still be in flight.
+                        continue
+                    self._session_locks.pop(candidate, None)
+                    self._session_locks_used.discard(candidate)
+                    evicted = True
+                if not evicted:
+                    break
+            return lock
+
+    def _mark_session_lock_used(self, workspace: Path, session_id: str) -> None:
+        """Record that a session's lock has been held at least once.
+
+        M8-T294: ``threading.Lock`` has no instance attributes, so the
+        "was this ever held" fact lives beside the table.  The entry also
+        stops being in flight: it has been taken.
+        """
+        lock_key = f"{_path_key(workspace)}:{session_id}"
+        with self._session_guard:
+            self._session_locks_used.add(lock_key)
+            self._session_locks_inflight.discard(lock_key)
+
+    def _release_session_lock_inflight(self, workspace: Path, session_id: str) -> None:
+        """Give back a lock that was handed out and never taken.
+
+        M8-T294: a request cancelled while waiting for its session lock
+        leaves the key "in flight" and "never held" - and an entry that
+        satisfies **both** eviction guards can never be evicted.  Every
+        cancelled request with a fresh session id would grow the table
+        without limit, which is the unbounded growth this cap exists to
+        remove.
+        """
+        lock_key = f"{_path_key(workspace)}:{session_id}"
+        with self._session_guard:
+            self._session_locks_inflight.discard(lock_key)
 
     # ------------------------------------------------------------------
     # M7-T3: interactive Web approvals (approval_request frames over SSE)
@@ -381,7 +463,7 @@ class AgentService:
         reason: str,
         on_event: Any = None,
         cancel_event: "threading.Event | None" = None,
-        timeout: float = APPROVAL_TIMEOUT_SECONDS,
+        timeout: float | None = None,
     ) -> dict[str, Any]:
         """Block the agent thread until the user (or the timeout) decides.
 
@@ -390,7 +472,12 @@ class AgentService:
         event stream is never blocked by an approval; the wait is sliced so
         task cancellation exits promptly. Identical in-flight calls (same
         session/tool/redacted preview) merge into one prompt.
+
+        M8-T289: the timeout is read at call time rather than bound as a
+        default argument, so the module constant is the single source and a
+        deployment (or a test) can change it.
         """
+        wait_seconds = APPROVAL_TIMEOUT_SECONDS if timeout is None else float(timeout)
         preview = self._approval_preview(tool, arguments)
         merge_key = f"{session_id}|{tool}|{preview}"
         waiter = threading.Event()
@@ -419,9 +506,9 @@ class AgentService:
                 "tool": tool,
                 "preview": preview,
                 "reason": reason,
-                "timeout_seconds": float(timeout),
+                "timeout_seconds": wait_seconds,
             })
-        deadline = time.monotonic() + max(0.0, float(timeout))
+        deadline = time.monotonic() + max(0.0, wait_seconds)
         while not group.resolved:
             if cancel_event is not None and cancel_event.is_set():
                 break
@@ -821,7 +908,11 @@ class AgentService:
             except OSError:
                 return
             for child in children:
-                if child.name in SKIP_DIRS or _escapes_workspace(child, root):
+                # M8-T311: the same rule the file tools use - a **directory**
+                # named like a build artefact is skipped, a plain file with
+                # that name is workspace content.  The panel used to hide
+                # such a file while the agent's glob and grep found it.
+                if (child.is_dir() and child.name in SKIP_DIRS) or _escapes_workspace(child, root):
                     continue
                 if len(entries) >= max_entries:
                     truncated = True
@@ -1277,7 +1368,15 @@ class AgentService:
         session_lock = self._session_lock(workspace, session_id)
         while not session_lock.acquire(timeout=0.25):
             if cancel_event is not None and cancel_event.is_set():
+                # M8-T294: the lock was handed out and never taken, so it
+                # has to stop being "in flight" - otherwise the entry
+                # satisfies **both** eviction guards (in flight, and never
+                # held) and can never be evicted, so a cancelled request
+                # with a fresh session id grows the table without limit.
+                self._release_session_lock_inflight(workspace, session_id)
                 return {"answer": "任务已取消。", "cancelled": True, "session_id": session_id, "events": []}
+        # M8-T294: the lock has now been held, so it is safe to evict later.
+        self._mark_session_lock_used(workspace, session_id)
         try:
             return self._chat_locked(
                 payload,
@@ -1309,6 +1408,19 @@ class AgentService:
         # share one template engine and the model receives the full prompt.
         message = expand_slash_command(message, workspace) or message
         session_id = str(payload.get("session_id") or "web-latest")
+        # M8-T289: the fallback sink has to *collect* the approval frame as
+        # well as log it.  It used to only log, so the ``approval_request``
+        # frame - the one carrying the ``request_id`` the client needs in
+        # order to answer - went nowhere the caller could see.  A synchronous
+        # ``/api/chat`` run that needed an approval therefore blocked for
+        # the full timeout and then denied itself, and the client could not
+        # have answered even if it had wanted to.
+        #
+        # Only that frame is collected.  The run's own events are already
+        # appended to ``events`` by the code that produces them (and passed
+        # on with the ``on_event(events[-1])`` pattern), so collecting
+        # everything here would double every entry.
+        events: list[dict[str, Any]] = []
         if on_event is None:
             # M8-T5's event funnel lives in TaskManager._run, so the
             # synchronous /api/chat path logged HTTP access lines and nothing
@@ -1316,6 +1428,8 @@ class AgentService:
             # from every entry point, not only the one the workbench UI uses.
             def on_event(event: dict[str, Any], *, _session_id: str = session_id) -> None:
                 log_task_event(event, task_id=_session_id)
+                if str(event.get("kind") or "") == "approval_request":
+                    events.append(dict(event))
         allow_changes, allow_network, permission_mode = _resolve_task_permissions(
             payload, yolo=self.config.yolo
         )
@@ -1363,7 +1477,6 @@ class AgentService:
             mcp_manager=self._mcp_for_workspace(workspace),
             worktree_manager=WorktreeManager(workspace),
         )
-        events: list[dict[str, Any]] = []
         workflow = build_coding_workflow()
         workflow.validate()
         # M11: the router is built before the budget, because the route that
@@ -1500,7 +1613,22 @@ class AgentService:
                     "path": feedback.get("path"),
                     "command": feedback.get("command"),
                     "risk": registry.risk_of(call.tool),
-                    "write": call.tool in COMPLETION_WRITE_TOOLS and result.status == "ok",
+                    # M8-T296: the flag has to travel into the **event**,
+                    # because the completion gate judges it from the event.
+                    # It was only on the internal feedback dict, so the gate
+                    # (which is fed this list) never saw it.
+                    "background": bool(feedback.get("background")),
+                    # M8-T308: ``build_tool_feedback`` already decided
+                    # whether this call changed the workspace, using the
+                    # canonical predicate (which also recognises a bash
+                    # command that rewrites a file).  The Web face used to
+                    # recompute it with a narrower list of write tools, so a
+                    # ``sed -i`` looked like "no write" here while the agent
+                    # loop said otherwise - and the whole verification stage
+                    # was skipped, the task was then failed with "the model
+                    # ended without changing anything", and the checkpoint
+                    # was marked safe_readonly.
+                    "write": bool(feedback.get("write")),
                     "observation": feedback.get("observation"),
                     "exit_code": result.exit_code,
                     "duration_ms": feedback.get("duration_ms"),
@@ -1582,14 +1710,32 @@ class AgentService:
                     always = verdict["decision"] == "always"
                     if always:
                         try:
-                            kwargs: dict[str, str] = {"tool": name}
+                            # M8-T286: "always" means "always allow THIS
+                            # command/path", not "always allow every use of
+                            # this tool".  The bare tool name short-circuits
+                            # the finer command and path rules in
+                            # ``match_session_allowlist``, so approving one
+                            # ``bash python -m pytest`` used to approve
+                            # ``del /f /s /q`` for the rest of the session -
+                            # and it also overrode the network gate, because
+                            # the allowlist override covers that too.  The
+                            # CLI face already draws this line (M2-T3); this
+                            # face now draws it too.
+                            kwargs: dict[str, str] = {}
                             if name == "bash":
-                                kwargs["command"] = str(
+                                command = str(
                                     (call.arguments or {}).get("command") or ""
                                 ).strip()
+                                if command:
+                                    kwargs["command"] = command
                             path_arg = (call.arguments or {}).get("path")
                             if isinstance(path_arg, str) and path_arg.strip():
                                 kwargs["path"] = path_arg.strip()
+                            if not kwargs:
+                                # Nothing specific to remember (a tool with no
+                                # path or command argument): fall back to the
+                                # tool scope, which is the only thing left.
+                                kwargs["tool"] = name
                             if session_id:
                                 add_session_rule(workspace, session_id, **kwargs)
                         except AllowlistError:
@@ -2017,6 +2163,14 @@ class AgentService:
                                 call.arguments,
                                 allow_changes=False,
                                 allow_network=allow_network,
+                                # M2-T5: the node gate must judge the call under
+                                # the task's own permission mode.  Without this
+                                # argument authorize_tool fell back to "default",
+                                # where `is_readonly_command` waves a bare
+                                # `pytest` through - so a plan-mode task could
+                                # run bash (including `pytest -p <module>`,
+                                # which is arbitrary code execution).
+                                permission_mode=permission_mode,
                                 session_id=session_id,
                                 workspace=workspace,
                                 capabilities=node_registry.capabilities_of(name),
@@ -2061,6 +2215,14 @@ class AgentService:
                                 cost_estimator=_stage_cost_estimator(stage_router, "inspect"),
                                 vision_context=vision_context,
                                 hooks=hook_runner,
+                                # M8-T293: the node agent needs the workspace
+                                # too.  Without it the child loop could not
+                                # ask ``permissions.json`` at all, so a deny
+                                # rule on a path protected nothing here -
+                                # the node could read exactly what the
+                                # parent's own read of that path is refused
+                                # for.
+                                workspace=workspace,
                             )
                             answer, _ = redact_text(str(node_result.answer or "").strip())
                             if len(answer) > 1800:
@@ -2908,11 +3070,39 @@ class AgentService:
         }
 
     def file_preview(self, raw_path: str) -> dict[str, Any]:
+        # M8-T290: the preview route is a read, and a deny rule on a path
+        # has to reach it.  The rules are documented as an absolute veto and
+        # the agent's own read of the same path is refused - so a browser
+        # preview that bypasses them is simply a way around the policy.
+        if tool_denied_by_rule(self.workspace, "read_file", {"path": raw_path}):
+            return {
+                "status": "error",
+                "summary": "permissions.json deny 规则拒绝了此路径",
+                "content": "",
+                "path": raw_path,
+            }
         editor = Editor(self.workspace)
         result = build_registry(editor).execute(ToolCall("read_file", {"path": raw_path, "limit": 500}))
         return {"status": result.status, "summary": result.summary, "content": result.render(), "path": raw_path}
 
     def changes(self, raw_path: str | None = None) -> dict[str, Any]:
+        # M8-T290: the diff route is a read too - and a workspace-wide diff
+        # contains the content of every path, including the ones a deny
+        # rule covers.  A rule on a path refuses that path's diff, and a
+        # rule of any kind refuses the workspace-wide diff, because it
+        # would carry the denied content.
+        arguments = {"path": raw_path} if raw_path else {}
+        denied = tool_denied_by_rule(self.workspace, "read_file", arguments)
+        if not raw_path and not denied:
+            # A workspace-wide diff carries the content of every path.
+            denied = deny_rule_names_paths(self.workspace)
+        if denied:
+            return {
+                "status": "error",
+                "summary": "permissions.json deny 规则拒绝了此差异视图",
+                "files": [],
+                "path": raw_path,
+            }
         inspector = ChangeInspector(self.workspace)
         if raw_path:
             return inspector.diff(raw_path)

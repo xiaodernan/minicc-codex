@@ -151,14 +151,20 @@ def expand_slash_command(
     for command in discover_commands(workspace, home=home):
         if command.name != head:
             continue
-        expanded = command.template.replace("$ARGUMENTS", rest.strip())
+        # M8-T318: the template's own positionals are expanded **first**, and
+        # the user's text is spliced in afterwards.  The other order inserted
+        # the user's text and then rescanned the whole result for ``$1``-``$9``
+        # - so a user who typed a literal ``$1`` had it replaced by the
+        # first positional (or silently deleted, when the index was out of
+        # range).
         positional = _split_arguments(rest)
 
         def _positional(match: re.Match[str]) -> str:
             index = int(match.group().strip("$[]")) - 1
             return positional[index] if 0 <= index < len(positional) else ""
 
-        return _POSITIONAL_RE.sub(_positional, expanded).strip()
+        expanded = _POSITIONAL_RE.sub(_positional, command.template)
+        return expanded.replace("$ARGUMENTS", rest.strip()).strip()
     return None
 
 

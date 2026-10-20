@@ -18,7 +18,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from .registry import ToolResult
+from .registry import ToolError, ToolResult
 
 TODO_STATUSES = ("pending", "in_progress", "completed")
 TODO_PRIORITIES = ("high", "medium", "low")
@@ -27,8 +27,15 @@ MAX_CONTENT_CHARS = 500
 TODO_FILE_NAME = "todos.json"
 
 
-class TodoError(RuntimeError):
-    """The checklist payload is invalid."""
+class TodoError(ToolError):
+    """The checklist payload is invalid.
+
+    M8-T273: this used to be a plain ``RuntimeError``, so an invalid
+    checklist fell through to the registry's catch-all and came back as
+    "工具 'todo_write' 未处理异常: TodoError: ...".  The payload was
+    validated and rejected on purpose - that is a handled failure, and the
+    model should be told the checklist was wrong, not that the tool crashed.
+    """
 
 
 def _normalize_entry(raw: object, index: int) -> dict[str, str]:
@@ -84,7 +91,11 @@ class TodoTools:
         if self.path.is_file():
             try:
                 stored = json.loads(self.path.read_text(encoding="utf-8"))
-            except (json.JSONDecodeError, OSError):
+            except (ValueError, OSError):
+                # M8-T285: ``ValueError`` covers both decode failures; only
+                # the JSON one is a ``json.JSONDecodeError``, so a checklist
+                # that is not UTF-8 raised a bare ``UnicodeDecodeError`` out
+                # of a read tool.
                 stored = {}
             raw_todos = stored.get("todos")
             todos = raw_todos if isinstance(raw_todos, list) else []

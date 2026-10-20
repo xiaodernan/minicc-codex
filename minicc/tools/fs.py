@@ -9,8 +9,9 @@ from __future__ import annotations
 
 import fnmatch
 import json
+import posixpath
 import re
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 from .editor import EditError, Editor, StaleContextError
@@ -65,12 +66,33 @@ def _reject_graders(path: str) -> None:
 # credentials. Files under .minicc/ that gate authorization are matched by
 # full path suffix (not bare name), denied for both read and write; mcp.json
 # stays readable but with header values redacted.
-_MINICC_DENY_FILES = {"allowlist.json", "web_token.json", "audit.jsonl", "hooks.json"}
+#
+# M8-T266: ``permissions.json`` joined the deny list.  It is the file the
+# ``permissions.json`` deny rules live in, so an agent that could rewrite it
+# could erase its own deny rules - the same self-escalation the allowlist
+# write was already blocked for.
+_MINICC_DENY_FILES = {
+    "allowlist.json",
+    "web_token.json",
+    "audit.jsonl",
+    "hooks.json",
+    "permissions.json",
+}
 _MINICC_REDACT_FILES = {"mcp.json"}
 
 
 def _minicc_relative_parts(path: str) -> tuple[str, ...]:
-    parts = Path(str(path).replace("\\", "/")).parts
+    """Parts after the first ``.minicc`` segment, with ``..`` collapsed.
+
+    M8-T266: the parts used to come from the *raw* string, so
+    ``.minicc/x/../web_token.json`` yielded ``("x", "..", "web_token.json")``
+    - no exact match against the deny list, and the agent could read the
+    workbench bearer token and overwrite its own allowlist.  Collapsing
+    ``..`` first makes the check see the file the path actually names.
+    """
+    raw = str(path).replace("\\", "/")
+    normalized = posixpath.normpath(raw)
+    parts = PurePosixPath(normalized).parts
     lowered = tuple(p.lower() for p in parts)
     if ".minicc" not in lowered:
         return ()
@@ -110,10 +132,27 @@ def _escapes_workspace(path: Path, workspace: Path) -> bool:
 
 
 def _redact_mcp_headers(text: str) -> str:
+    """Redact every MCP server's ``headers`` values.
+
+    M8-T268: a UTF-8 BOM made ``json.loads`` raise, and the old fallback
+    returned the text *unchanged* - so the whole file, ``Authorization:
+    Bearer sk-…`` included, went into the model context.  A BOM is common
+    on Windows (PowerShell's ``Out-File`` and the notepad default write one),
+    so "the file happened to be unparseable" was not a rare shape.
+
+    Two changes: the BOM is stripped before parsing, and an unparseable file
+    is now refused rather than passed through.  A file whose shape we cannot
+    read is a file whose header values we cannot identify - and the whole
+    point of this function is that those values never reach the model.
+    """
+    payload = text.lstrip("\ufeff")
     try:
-        data = json.loads(text)
-    except ValueError:
-        return text
+        data = json.loads(payload)
+    except ValueError as exc:
+        raise ToolError(
+            "拒绝读取 .minicc/mcp.json：文件不是合法 JSON，无法确认哪些是凭据头"
+            f"（{exc}）。请检查文件编码（UTF-8）与内容。"
+        ) from exc
     servers = data.get("servers") if isinstance(data, dict) else None
     if isinstance(servers, dict):
         for entry in servers.values():
@@ -165,13 +204,45 @@ class FsTools:
     def __init__(self, editor: Editor) -> None:
         self.editor = editor
 
+    def _resolved_relative(self, path: str) -> str:
+        """Workspace-relative path after resolving ``..`` and symlinks.
+
+        M8-T266: the sensitive-file gate used to read the *raw* argument, so
+        ``.minicc/x/../web_token.json`` and a symlink named
+        ``.minicc/link`` both slipped past the deny list while the file the
+        path actually names was the workbench bearer token.  The editor
+        already resolves every path before touching it, so the gate asks the
+        same question the editor will answer: where does this path land?
+        """
+        try:
+            target = (self.editor.workspace / Path(path)).resolve()
+        except OSError:
+            return str(path)
+        try:
+            return target.relative_to(self.editor.workspace).as_posix()
+        except ValueError:
+            # Outside the workspace: other checks own that case, and refusing
+            # to guess here keeps this helper side-effect free.
+            return str(path)
+
+    def _sensitive_kind(self, path: str) -> str | None:
+        """Sensitive-file verdict for ``path``, judged on its resolved target."""
+        raw = _minicc_sensitive_kind(path)
+        resolved = _minicc_sensitive_kind(self._resolved_relative(path))
+        # A path can be sensitive before resolution and harmless after (or the
+        # other way round); the stricter of the two answers wins.
+        for kind in ("deny", "redact"):
+            if raw == kind or resolved == kind:
+                return kind
+        return None
+
     # -- handlers ------------------------------------------------------------
 
     def read_file(self, args: dict[str, Any]) -> ToolResult:
         path = str(args["path"])
         _reject_sensitive(path)
         _reject_graders(path)
-        minicc_kind = _minicc_sensitive_kind(path)
+        minicc_kind = self._sensitive_kind(path)
         if minicc_kind == "deny":
             raise ToolError(f"拒绝读取 .minicc 下的认证/授权文件: {path} (请由用户在工作区外手动处理)")
         offset = int(args.get("offset", 1))
@@ -213,7 +284,10 @@ class FsTools:
         path = str(args["path"])
         _reject_sensitive(path)
         _reject_graders(path)
-        _reject_minicc_sensitive(path)
+        if self._sensitive_kind(path) is not None:
+            raise ToolError(
+                f"拒绝访问 .minicc 下的认证/授权文件: {path} (请由用户在工作区外手动处理)"
+            )
         content = str(args["content"])
         expected = args.get("expected_digest") or None
         try:
@@ -235,7 +309,10 @@ class FsTools:
         path = str(args["path"])
         _reject_sensitive(path)
         _reject_graders(path)
-        _reject_minicc_sensitive(path)
+        if self._sensitive_kind(path) is not None:
+            raise ToolError(
+                f"拒绝访问 .minicc 下的认证/授权文件: {path} (请由用户在工作区外手动处理)"
+            )
         old = str(args["old"])
         new = str(args["new"])
         expected = args.get("expected_digest") or None
@@ -259,12 +336,22 @@ class FsTools:
             root = (self.editor.workspace / base).resolve()
             if not root.is_relative_to(self.editor.workspace):
                 raise ToolError(f"路径越界: {base}")
-            matches = sorted(
-                p.relative_to(self.editor.workspace).as_posix()
-                for p in root.rglob(pattern)
-                if not _in_skipped_tree(p, root)
-                and not _escapes_workspace(p, self.editor.workspace.resolve())
-            )
+            # M8-T287: the walk is **bounded while it happens**.  The cap used
+            # to be applied to the finished list, so the whole tree was
+            # collected into memory first and then sliced - which is exactly
+            # the cost the cap was meant to avoid.  One extra match is kept to
+            # tell "there are more" from "that was all of them".
+            workspace_root = self.editor.workspace.resolve()
+            matches: list[str] = []
+            overflow = False
+            for found in root.rglob(pattern):
+                if _in_skipped_tree(found, root) or _escapes_workspace(found, workspace_root):
+                    continue
+                matches.append(found.relative_to(workspace_root).as_posix())
+                if len(matches) > MAX_GLOB_RESULTS:
+                    overflow = True
+                    break
+            matches.sort()
         except ToolError:
             raise
         except (OSError, ValueError) as exc:
@@ -348,6 +435,9 @@ class FsTools:
     def tree(self, args: dict[str, Any]) -> ToolResult:
         base = Path(args["path"]) if args.get("path") else Path(".")
         _reject_graders(str(base))
+        # The ceilings are the tool schema's (``minicc/tools/__init__.py``):
+        # max_depth <= 8, max_entries <= 2000.  They are enforced there, so
+        # the handler does not need a second copy of the numbers.
         max_depth = int(args.get("max_depth", TREE_MAX_DEPTH))
         max_entries = int(args.get("max_entries", TREE_MAX_ENTRIES))
         root = (self.editor.workspace / base).resolve()
@@ -367,7 +457,12 @@ class FsTools:
                 if len(lines) >= max_entries:
                     lines.append("… (达到条目上限)")
                     return
-                if child.name in SKIP_DIRS:
+                # M8-T311: the skip rule is "a **directory** named like a
+                # build artefact is skipped, a plain *file* with that name
+                # is workspace content".  glob and grep already worked that
+                # way (M8-T119); the tree tool hid the file, so the agent's
+                # tree and its glob disagreed about the same workspace.
+                if child.is_dir() and child.name in SKIP_DIRS:
                     continue
                 if _escapes_workspace(child, ws_root):
                     continue

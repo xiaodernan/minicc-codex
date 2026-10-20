@@ -11,12 +11,24 @@ def repair_scope(events: list[dict[str, Any]], verification: dict[str, Any]) -> 
 
     The agent still re-checks the files before editing.  This scope only prevents
     a verifier failure from causing an unfocused full-workspace repair prompt.
+
+    M8-T314: a bash write names no path, so the scope was built from the
+    events' ``path`` field alone and came out empty for a task that edited
+    through the shell.  The loop's ``verification_required`` trace carries
+    the paths it worked out, so those are read too.
     """
-    writes = [
-        str(event.get("path") or "")
-        for event in events
-        if isinstance(event, dict) and event.get("write") and event.get("path")
-    ]
+    writes: list[str] = []
+    for event in events:
+        if not isinstance(event, dict):
+            continue
+        if event.get("write") and event.get("path"):
+            writes.append(str(event["path"]))
+        detail = event.get("detail")
+        if isinstance(detail, dict):
+            for path in detail.get("changed_paths") or []:
+                text = str(path or "").strip()
+                if text:
+                    writes.append(text)
     failed_tests = [str(item) for item in verification.get("failed_tests") or [] if str(item)]
     tokens = {
         fragment.casefold()

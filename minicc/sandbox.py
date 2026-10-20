@@ -72,7 +72,26 @@ class SandboxRunner:
             # 属主的产物。Docker Desktop（Windows/macOS）的文件共享层负责
             # 属主映射，不需要也不应该传（Windows 上没有 os.getuid）。
             args.append(f"--user={os.getuid()}:{os.getgid()}")
-        args += ["-w", "/workspace", self.image, "sh", "-lc", command]
+        # M8-T315: the image name sits exactly where ``docker run`` expects
+        # an image, i.e. inside its **option** parser.  A value that looks
+        # like an option is therefore consumed as one - so a project-level
+        # ``sandbox_image: "--privileged"`` (or ``--pid=host``,
+        # ``--security-opt=seccomp=unconfined``) silently undid every
+        # hardening flag added above, and the project config layer wins over
+        # the user's.  The image name is validated; anything that could be
+        # read as an option is refused.
+        image = str(self.image or "").strip()
+        if not image or image.startswith("-"):
+            return ToolResult(
+                status="error",
+                summary=(
+                    "[SANDBOX_UNAVAILABLE] sandbox_image 不是合法的镜像名"
+                    f"（{image!r}）：镜像名不能为空，也不能以 '-' 开头。"
+                ),
+                output="请在 config.json 里填一个真实的镜像名，例如 python:3.11-slim。",
+                security_tags=["sandbox_unavailable"],
+            )
+        args += ["-w", "/workspace", image, "sh", "-lc", command]
         return run_process(
             args,
             workspace,

@@ -123,10 +123,17 @@ def load_permission_rules(workspace: Path) -> tuple[dict[str, list[str]], str]:
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
             rules, _ = _validate(payload)
-        except (OSError, json.JSONDecodeError) as exc:
-            error = f"无法读取 {PERMISSIONS_NAME}: {exc}"
         except PermissionConfigError as exc:
+            # M8-T285: this comes **first** - it is a ``ValueError``, and the
+            # decode clause below catches every ``ValueError``.
             error = f"{PERMISSIONS_NAME} 非法: {exc}"
+        except (OSError, ValueError) as exc:
+            # ``ValueError`` covers both decode failures.  Only the JSON one
+            # is a ``json.JSONDecodeError``, so a file that is not UTF-8
+            # (hand-edited in a legacy code page) raised a bare
+            # ``UnicodeDecodeError`` out of here - and this module's
+            # contract says a malformed file is non-fatal.
+            error = f"无法读取 {PERMISSIONS_NAME}: {exc}"
         if error:
             rules = _empty_rules()
         entry = (rules, error)

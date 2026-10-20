@@ -97,13 +97,94 @@ _REDACT_RULES: tuple[tuple[re.Pattern[str], str], ...] = (
     ),
 )
 
+# M8-T268: the labelled-key forms.  The log filter knew these; the model
+# context did not - so the same string was masked in the log and handed to the
+# model in plaintext.  ``logging_setup`` kept its own copy of these three
+# patterns, which is why the two sides drifted: the comment there claimed the
+# value shapes were "the codebase's single rule set", and the labelled forms
+# were the half it never owned.  The patterns live here now, so there is one
+# copy; the log filter keeps its own replacement text.
+_SECRET_KEY = (
+    r"(?:minicc[_-])?"
+    r"(?:api[_-]?key|apikey|authorization|access[_-]?token|refresh[_-]?token|"
+    r"id[_-]?token|session[_-]?token|web[_-]?token|client[_-]?secret|secret|"
+    r"password|passwd|cookie|token|key)"
+)
+#: ``?token=abc`` / ``&api_key=abc`` in a URL.
+QUERY_SECRET_RE = re.compile(rf"(?i)([?&]{_SECRET_KEY}=)([^\s&\"']+)")
+#: ``"api_key": "abc"`` / ``token: 'abc'``.
+#: M8-T292: the key needs a **word boundary** on its left.  Without one,
+#: the ``key`` inside ``"monkey"`` matched, and the model context showed the
+#: agent JSON that no longer matched the file on disk.
+KV_QUOTED_SECRET_RE = re.compile(
+    rf"(?i)(?<![\w])([\"']?{_SECRET_KEY}[\"']?\s*[:=]\s*[\"'])([^\"']*)([\"'])"
+)
+#: ``api_key=abc`` / ``MINICC_API_KEY: abc`` without quotes. ``[`` is excluded
+#: so an already-redacted value is never masked a second time.
+KV_BARE_SECRET_RE = re.compile(
+    rf"(?i)(?<![\w\"'-])({_SECRET_KEY}\s*[:=]\s*)([^\s,;}}\]\[]+)"
+)
+
+#: The replacement the model context uses for a labelled secret.
+LABELLED_REDACTED = "[REDACTED:credential]"
+
+#: Characters that mark a value as *code* rather than a credential.
+_CODE_VALUE_CHARS = "()[]{}<>,;=\"'` \t\n\r\\"
+
+
+def _looks_like_credential(value: str) -> bool:
+    """True when a labelled value looks like a credential rather than code.
+
+    M8-T292: the labelled rules now run on the *model context*, so a rule
+    that matched ordinary source would hand the agent code that no longer
+    matches the file on disk.  ``self.token = compute()`` and
+    ``{"monkey": "banana"}`` are code; a sixteen-character random string is
+    not.  A value that carries code punctuation, or that is too short to be
+    a credential, is left alone.
+    """
+    text = value.strip()
+    if len(text) < 8:
+        return False
+    return not any(char in text for char in _CODE_VALUE_CHARS)
+
 
 def redact_text(text: str) -> tuple[str, bool]:
-    """Redact suspected secrets (sk-* / Bearer / PEM private keys)."""
+    """Redact suspected secrets (sk-* / Bearer / PEM private keys / labelled)."""
     changed = False
     for pattern, replacement in _REDACT_RULES:
         redacted, hits = pattern.subn(replacement, text)
         if hits:
+            changed = True
+            text = redacted
+    # M8-T268: the labelled-key forms, applied to the model context too.
+    # Each rule keeps its prefix and replaces only the value, so the shape of
+    # the surrounding text survives.  A value that already reads
+    # ``[REDACTED…]`` is left alone: the quoted rule's value pattern accepts
+    # brackets, so re-wrapping an existing marker would grow the text on
+    # every pass - and the mcp.json headers, already redacted to
+    # ``[REDACTED]`` by their own step, would come back as
+    # ``[REDACTED:credential]``.
+    for pattern, has_tail in (
+        (QUERY_SECRET_RE, False),
+        (KV_QUOTED_SECRET_RE, True),
+        (KV_BARE_SECRET_RE, False),
+    ):
+        def _replace(
+            match: re.Match[str],
+            _has_tail: bool = has_tail,
+        ) -> str:
+            head = match.group(1)
+            value = match.group(2)
+            if value.startswith("[REDACTED"):
+                return match.group(0)
+            if not _looks_like_credential(value):
+                # M8-T292: not a credential - leave the code alone.
+                return match.group(0)
+            tail = match.group(3) if _has_tail else ""
+            return head + LABELLED_REDACTED + tail
+
+        redacted, hits = pattern.subn(_replace, text)
+        if hits and redacted != text:
             changed = True
             text = redacted
     return text, changed

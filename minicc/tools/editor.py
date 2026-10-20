@@ -31,6 +31,7 @@ import os
 import re
 import secrets
 import shutil
+import time
 from collections.abc import Callable, Iterable
 from contextlib import suppress
 from dataclasses import dataclass
@@ -106,7 +107,17 @@ AUDIT_LEVEL_LOGS: dict[str, int] = {
     "notice": logging.INFO,
     "warning": logging.WARNING,
 }
-_MUTATING_ACTIONS = frozenset({"backup", "create", "delete", "edit", "move", "write"})
+#: The audit actions that **changed the workspace**.
+#: M8-T313: ``backup`` was in this set, so every write produced a
+#: ``notice``-level line for the copy it made - and ``/api/audit``'s
+#: "changed the workspace" filter listed it, while the change panel (which
+#: knows better) did not.  A backup writes a copy; it does not change the
+#: file.  ``changes.py`` asks this set for the same question, so it is
+#: defined once, here.
+#:
+#: ``create`` stays: a file that did not exist and exists now **is** a
+#: change, whoever recorded it.
+_MUTATING_ACTIONS = frozenset({"create", "delete", "edit", "move", "write"})
 _DENIED_PREFIXES = ("拒绝", "refused", "denied")
 
 # P2-8（2026-09-25 复核确认仍在）：每次编辑都往 .minicc/backup/ 落一份副本且
@@ -295,6 +306,15 @@ class Editor:
         try:
             self.backup_dir.mkdir(parents=True, exist_ok=True)
             shutil.copy2(target, destination)
+            # M8-T301: ``copy2`` preserves the **source** file's mtime, and
+            # the pruning order is by mtime - so a backup of a file with an
+            # old mtime (a fresh checkout, a restored file, a file nobody
+            # ever edited) landed at the front of the queue and was deleted
+            # by the very edit that created it.  The pre-edit content was
+            # then gone.  The backup's own creation time is what the order
+            # means, so it is stamped explicitly.
+            created = time.time()
+            os.utime(destination, (created, created))
         except OSError as exc:
             raise EditError(f"备份失败 ({target}): {exc}") from exc
         digest = self._digest_bytes(target)
@@ -396,7 +416,20 @@ class Editor:
         except OSError as exc:
             raise EditError(f"读取失败 ({path}): {exc}") from exc
         # Match Path.read_text universal-newline semantics.
-        text = raw.decode("utf-8").replace("\r\n", "\n").replace("\r", "\n")
+        # M8-T273: a file that is not UTF-8 (a GBK source, a latin-1 CSV)
+        # used to raise UnicodeDecodeError out of here.  That is not an
+        # EditError, so it fell through to the registry's catch-all and
+        # came back as "工具 'read_file' 未处理异常" - the model was told
+        # the tool crashed rather than that the file is in another
+        # encoding.  The bytes are still available for the digest.
+        try:
+            text = raw.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise EditError(
+                f"文件不是 UTF-8 编码，无法按行读取 ({path}): {exc}。"
+                "请改用其他工具查看该文件。"
+            ) from exc
+        text = text.replace("\r\n", "\n").replace("\r", "\n")
         lines = text.split("\n")
         if lines and lines[-1] == "":
             lines.pop()

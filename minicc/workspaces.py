@@ -101,7 +101,10 @@ class WorkspaceCatalog:
             return []
         try:
             payload = json.loads(self.path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
+        except (OSError, ValueError):
+            # M8-T277: ValueError covers both decode failures.  A catalog
+            # that is not UTF-8 used to raise a bare UnicodeDecodeError out
+            # of here, past the silent-degradation this method promises.
             return []
         return [item for item in payload if isinstance(item, dict)] if isinstance(payload, list) else []
 

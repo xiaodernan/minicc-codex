@@ -315,7 +315,9 @@ async def judge_completion(
 
     decision = parse_completion_decision(getattr(response, "text", ""))
     if decision.status == "complete":
-        decision = _enforce_completion_evidence(decision, events, verification_results, messages)
+        decision = _enforce_completion_evidence(
+            decision, events, verification_results, messages, allow_changes=allow_changes
+        )
     decision.usage = dict(getattr(response, "usage", {}) or {})
     return decision
 
@@ -347,6 +349,8 @@ def _enforce_completion_evidence(
     events: list[dict[str, Any]],
     verification_results: list[dict[str, Any]],
     messages: list[dict[str, Any]] | None = None,
+    *,
+    allow_changes: bool = False,
 ) -> CompletionDecision:
     """An LLM cannot override a failed verifier or an unexamined write."""
     verifications = [item for item in verification_results if isinstance(item, dict)]
@@ -379,7 +383,17 @@ def _enforce_completion_evidence(
         if not isinstance(event, dict):
             continue
         command = str(event.get("command") or "")
-        if event.get("name") == "bash" and is_verification_evidence("bash", {"command": command}, "ok"):
+        # M8-T296: the event carries whether the command was backgrounded.
+        # A backgrounded command runs nothing, so it is not verification -
+        # and the gate used to rebuild the arguments from the command alone,
+        # which dropped the flag and let the background guard never fire.
+        event_arguments = {
+            "command": command,
+            "run_in_background": bool(event.get("background")),
+        }
+        if event.get("name") == "bash" and is_verification_evidence(
+            "bash", event_arguments, "ok"
+        ):
             record(command, str(event.get("status") or "unknown"))
         if event.get("kind") == "verification":
             detail = event.get("detail") or {}
@@ -401,9 +415,38 @@ def _enforce_completion_evidence(
     # error, or an actual tool observation) — a zero-tool read-only task cannot
     # self-certify by pointing at ``event-1`` (a trace). Hallucinated ids that
     # are absent from the packet entirely are still rejected.
+    #
+    # M8-T283: the conversation bucket used to be unconditionally citable, so
+    # the review could point at ``message-1`` - the user's own question - and
+    # the task that was allowed to change the workspace and changed *nothing*
+    # was certified as complete.  That also made the "nothing happened at
+    # all" fallback below unreachable.  The conversation is legitimate
+    # evidence for a task that was *about* the conversation (recall,
+    # summary) and for a run that already produced real work; it is not a
+    # substitute for the work a writable task was supposed to do.
+    #
+    # M8-T297: "real work" means a **write**, not "anything happened".  A
+    # read, a denied call and an approval frame all carry a tool name, so
+    # the first version of this condition was satisfied by a single
+    # ``read_file`` - and a writable task that read one file and wrote
+    # nothing could still certify itself with the user's question.  The
+    # post-write check below is skipped when nothing was written, so
+    # nothing downstream caught it.
+    real_evidence = any(
+        isinstance(event, dict)
+        and (
+            event.get("write")
+            or event.get("kind") == "verification"
+        )
+        for event in events
+    ) or bool(verifications)
+    conversation_is_citable = (not allow_changes) or real_evidence
+
     def _is_citable_evidence(key: str, item: dict[str, Any]) -> bool:
-        if key in {"verification_results", "conversation"}:
+        if key == "verification_results":
             return True
+        if key == "conversation":
+            return conversation_is_citable
         if item.get("write") or item.get("kind") == "verification" or item.get("status") == "error":
             return True
         if item.get("kind") == "trace":
@@ -475,7 +518,17 @@ def _enforce_completion_evidence(
             isinstance(event, dict) and event.get("status") == "ok"
             and (
                 (event.get("kind") == "verification" and isinstance(event.get("detail"), dict) and event["detail"].get("status") == "passed")
-                or is_verification_evidence(str(event.get("name") or ""), {"command": event.get("command")}, str(event.get("status")))
+                # M8-T296: the backgrounded flag travels with the event, so
+                # a backgrounded command is not counted as "the change was
+                # checked afterwards" - it runs nothing.
+                or is_verification_evidence(
+                    str(event.get("name") or ""),
+                    {
+                        "command": event.get("command"),
+                        "run_in_background": bool(event.get("background")),
+                    },
+                    str(event.get("status")),
+                )
                 or (inspection_suffices and event.get("name") in {"read_file", "git_diff"})
             )
             for event in events[last_write + 1:]

@@ -391,6 +391,13 @@ def _read_config_json(path: Path) -> dict[str, Any]:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError) as exc:
         raise ConfigError(f"无法读取 {path}: {exc}") from exc
+    except UnicodeDecodeError as exc:
+        # M8-T277: UnicodeDecodeError is a ValueError, not an OSError and
+        # not a JSONDecodeError, so the clause above did not catch it and
+        # the bare exception escaped the module.  The contract this file
+        # documents ("a malformed config.json is reported as a ConfigError")
+        # was broken by a file that is simply not UTF-8.
+        raise ConfigError(f"无法读取 {path}: 文件不是合法 UTF-8 文本 ({exc})") from exc
     if not isinstance(data, dict):
         raise ConfigError(
             f"{path}: 顶层必须是 JSON 对象，实际是 {type(data).__name__}"
@@ -577,6 +584,12 @@ def load_config(
         _read_config_json(project_path) if project_path is not None else {}
     )
     # Project keys win over user keys; both stay below env/.env in pick().
+    # M8-T276: the two layers stay *separate* here.  Merging them by key
+    # let the spelling decide which layer won: config.json accepts both
+    # ``MINICC_MODEL`` and ``model``, and a merged dict kept both keys -
+    # so a user layer written as ``MINICC_MODEL`` beat a project layer
+    # written as ``model``, because the lookup searched the prefixed
+    # spelling first.  The layer is what has a priority.
     file_values: dict[str, Any] = {**user_values, **project_values}
     # Every key this resolver actually consulted.  Derived from the lookups
     # themselves rather than a hand-kept list, so a knob can be added without
@@ -623,17 +636,21 @@ def load_config(
         # file_key, and on Windows the mapping is case-insensitive — so any
         # stray `MODEL=` / `API_KEY=` in the environment hijacked the config
         # and silently overrode `.env` and config.json.
-        for source in (os.environ, env_values, file_values):
-            value = source.get(env_name)
-            if _present(value):
-                return _stringify(value)
-        # config.json and .env use lowercase keys without the prefix;
-        # os.environ must never be probed with the bare key.
-        for source in (env_values, file_values):
-            for key in (file_key, *alt_file_keys):
-                value = source.get(key)
-                if _present(value):
-                    return _stringify(value)
+        #
+        # M8-T276: after that, the *layers* are walked in order and each
+        # layer is asked for all of its own spellings.  The two spellings
+        # used to be two separate passes over all layers, so the spelling
+        # decided which layer won: a user layer written as ``MINICC_MODEL``
+        # beat a project layer written as ``model``.  A layer's own
+        # spellings are equivalent; the layers are not.
+        value = os.environ.get(env_name)
+        if _present(value):
+            return _stringify(value)
+        for layer in (env_values, project_values, user_values):
+            for key in (env_name, file_key, *alt_file_keys):
+                candidate = layer.get(key)
+                if _present(candidate):
+                    return _stringify(candidate)
         return default
 
 
@@ -657,16 +674,20 @@ def load_config(
         consulted_keys.update((env_name, file_key))
         source_name = env_name
         raw: Any = None
-        for source in (os.environ, env_values, file_values):
-            candidate = source.get(env_name)
-            if _present(candidate):
-                raw = candidate
-                break
-        if raw is None:
-            for source in (env_values, file_values):
-                candidate = source.get(file_key)
-                if _present(candidate):
-                    source_name, raw = file_key, candidate
+        # M8-T276: the layer decides, not the spelling - the same correction
+        # ``pick`` got.  A prefixed spelling in a lower layer used to beat a
+        # bare spelling in a higher one.
+        value = os.environ.get(env_name)
+        if _present(value):
+            raw = value
+        else:
+            for layer in (env_values, project_values, user_values):
+                for key in (env_name, file_key):
+                    candidate = layer.get(key)
+                    if _present(candidate):
+                        source_name, raw = key, candidate
+                        break
+                if raw is not None:
                     break
         if raw is None:
             return None

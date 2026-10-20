@@ -125,7 +125,17 @@ def is_verification_evidence(tool: str, arguments: dict[str, Any] | None, status
     """True when a successful tool call is actual verification, not inspection."""
     if status != "ok" or tool != "bash":
         return False
-    command = str((arguments or {}).get("command") or "")
+    args = arguments or {}
+    # M8-T279: a backgrounded command is not verification.  Starting it
+    # returns ``status="ok"`` without running a single test, and the
+    # predicate only looked at the command text - so
+    # ``bash("python -m pytest", run_in_background=true)`` cleared
+    # ``verification_required`` and counted as "the change was checked
+    # afterwards".  The foreground path is safe (a non-zero exit becomes
+    # ``status="error"``), but the background path never fails that way.
+    if args.get("run_in_background"):
+        return False
+    command = str(args.get("command") or "")
     if not command.strip():
         return False
     # Merely printing a command, collecting tests or asking for --help cannot

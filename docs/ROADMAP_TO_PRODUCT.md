@@ -19525,3 +19525,1027 @@ tests 根下那个探针（还不算测试的文件）两种路径各自 `contin
 - **没有**核 `tests/` 下 57 条门里每一条的**判据**是否正确，只核了「目录遍历 ⇒ 它是普查门」
   这条**形状**判据能认出它。形状对了不代表内容对。
 - 本批**没有**动 `minicc/workspaces.py`（别车在途，文件不同，不越界），也**没有**替它判决。
+
+
+## 第二百六十九批 — M8-T266 / T267 / T268 — 一道门禁问的是**路径的名字**还是**路径落到哪里**；一次委派把**否决**留在了门外
+
+### 1 缺陷
+
+这一批的九个缺陷有同一个形状：**某个承诺在代码里是"按名字判断"的，而承诺说的是"按事实判断"**。
+
+| 编号 | 位置 | 承诺 | 实际 |
+| --- | --- | --- | --- |
+| M8-T266 | `minicc/tools/fs.py` | `.minicc/` 下管授权的文件读和写都拒绝 | 判定读的是**原始字符串**，`.minicc/x/../web_token.json` 的尾巴是 `("x","..","web_token.json")`，不在名单里；`permissions.json` 根本不在名单里 |
+| M8-T267 | `minicc/agent/loop.py` | `permissions.json` 的 deny 规则对读也生效 | `tool_requires_authorization` 只对 write/exec/网络为真，**只读调用从不咨询授权闸**，而 deny 规则住在闸里 |
+| M8-T267 | `minicc/agent/subagent.py` | 父会话受约束，委派也受约束 | 子 `run_agent` **既没有 `should_allow` 也没有 `workspace`**，父的 deny 规则到父为止 |
+| M8-T268 | `minicc/tools/registry.py` | 同一串内容在日志里脱敏 | 模型上下文侧的 `redact_text` 只认**值的形状**，`api_key=abcd` 原样进模型 |
+| M8-T268 | `minicc/tools/fs.py` | `mcp.json` 的 header 值被脱敏 | 解析失败时**原样返回**，而 UTF-8 BOM 让解析必然失败 |
+| M8-T269 | `minicc/task_manager.py` | 批量中断后能**精确**重建 | watcher 用 `update_context`（**替换**语义）发布三个计数器，抹掉了 `batch_messages` |
+| M8-T270 | `minicc/task_persistence.py` | 终态快照落盘 | `flush` 在**写之前**就把 pending 摘掉，写失败即丢；`enqueue` 在 stop 之后拒绝重试 |
+| M8-T271 | `minicc/task_manager.py` | 取消会停掉 worker | 取消标志的写入**没有保护**，`OSError` 逃出监视循环，任务标成 cancelled 而 worker 继续烧 token；spawn 窗口**释放租约但不终止子进程** |
+| M8-T272 | `minicc/task_store.py` | 关系主键是权威 | `load()` 修过 `task_id`，`get()` 没有——而**所有存活判定都走 `get()`** |
+
+### 2 落地
+
+| 编号 | 文件 | 改法 |
+| --- | --- | --- |
+| M2-T3 | `minicc/main.py` | CLI 的 `a` 只记 `command=`/`path=`；工具级通配改成显式的 `A` |
+| M2-T5 | `minicc/web.py` | `node_allow` 传 `permission_mode`（否则 plan 模式的 DAG 节点落到 `default`，`pytest -p <mod>` 即任意代码执行） |
+| M8-T266 | `minicc/tools/fs.py` | `_minicc_relative_parts` 先 `normpath` 消解 `..`；`FsTools._sensitive_kind` 按 **resolve 后的目标**判定；`permissions.json` 进拒绝名单 |
+| M8-T267 | `minicc/audit.py`、`minicc/agent/loop.py` | 新增 `tool_denied_by_rule`；loop 对**每个**工具问一次规则——**否决不是问题**，不打扰用户 |
+| M8-T267 | `minicc/agent/subagent.py` | 子 `run_agent` 收到 `workspace`（tier 已经把写/执行关在父的模式里，缺的是绝对否决） |
+| M8-T268 | `minicc/tools/registry.py`、`minicc/logging_setup.py` | 带标签的三条模式**搬进 `registry`**（日志侧改为引用同一份），模型上下文获得同样的脱敏；`_SECRET_KEY` 认 `minicc_` 前缀 |
+| M8-T268 | `minicc/tools/fs.py`、`minicc/mcp.py` | 剥离 BOM 后再解析；**解析不了就拒绝**（读不出形状就读不出 header）；`load_mcp_config` 用 `utf-8-sig` |
+| M8-T269 | `minicc/task_manager.py` | 新增 `merge_context`（同一把锁内合并）；watcher 改用它。`update_context` 的替换语义留给 agent loop 的 context 回调 |
+| M8-T270 | `minicc/task_persistence.py` | `flush` 失败把任务放回 pending；`enqueue(retry=True)` 在 stop 后仍然入队；drain 对失败的任务**再试一次** |
+| M8-T271 | `minicc/task_manager.py` | 取消标志写入加 `OSError` 保护，写不进去就**直接终止 worker**（信号送不到时的唯一办法）；spawn 窗口终止并回收子进程（先停再放租约，否则 worker 会重新认领） |
+| M8-T272 | `minicc/task_store.py` | `get()` 也 `SELECT task_id` 并按权威键修复 |
+
+### 3 变异验证
+
+每个修复都配一条**在未修复代码上会红**的用例（红色由人工施加的变异制造，验证后已全部还原）：
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T266-1 | 去掉 `normpath` | 4 条红 |
+| M8-T266-2 | `permissions.json` 移出名单 | 4 条红 |
+| M8-T266-3 | `_sensitive_kind` 只看原始字符串 | 1 条红（resolve 判定） |
+| M8-T267-4 | loop 不问规则 | 2 条红 |
+| M8-T267-5 | 子代理不转发 `workspace` | 2 条红（子代理读出了 payload） |
+| M8-T268-6 | BOM 不剥离 + 解析失败原样返回 | 2 条红 |
+| M8-T269-7 | watcher 改回 `update_context` | 1 条红（prompt 被抹掉） |
+| M8-T270-8 | `flush` 不恢复 pending | 2 条红 |
+| M8-T270-9 | drain 不重试 | 1 条红 |
+| M8-T271-10 | spawn 窗口不停子进程 | 1 条红 |
+| M8-T272-11 | `get()` 不修复 id | 4 条红 |
+
+### 4 新增门禁
+
+| 文件 | 覆盖 |
+| --- | --- |
+| `tests/test_the_minicc_gate_judges_the_path_the_file_actually_names.py` | `..` 绕过（读/写）、`permissions.json`、symlink 形态、名单外文件照常可读 |
+| `tests/test_a_deny_rule_must_reach_the_read_tools_too.py` | deny 规则到达只读路径；payload 不进模型；否决不触发审批询问 |
+| `tests/test_a_deny_rule_the_parent_owes_must_reach_the_child.py` | 父的否决穿透到子代理；子代理读到 payload 即红 |
+| `tests/test_the_model_context_must_redact_what_the_log_already_redacted.py` | 模型侧与日志侧对同一串内容给出同一判定；幂等；普通文本不动 |
+| `tests/test_a_bom_must_not_turn_redaction_into_a_pass_through.py` | BOM 下的脱敏；解析不了就拒绝；`load_mcp_config` 容忍 BOM |
+| `tests/test_the_batch_watcher_must_not_wipe_the_prompts_auto_resume_needs.py` | watcher 不抹 prompt；prompt 落盘；替换语义仍归 `update_context` |
+| `tests/test_a_failed_terminal_write_must_not_lose_the_snapshot.py` | 写失败保留 pending；drain 重试；永久失败仍被报告 |
+| `tests/test_a_worker_the_host_cannot_signal_must_not_outlive_the_host.py` | 取消标志写不进去时不崩且直接停 worker；spawn 窗口不留子进程 |
+| `tests/test_get_must_repair_the_id_the_way_load_does.py` | `get()` 与 `load()` 对 id 的回答一致；租约能被找到 |
+
+### 5 一条教训
+
+**门禁问的是名字，还是落点？**
+
+`.minicc` 那道门的注释一直写着"读和写都拒绝"，实现却是拿**参数原文**去比对文件名清单。
+`.minicc/x/../web_token.json` 落到的是 `web_token.json`，但它的**名字**是
+`x/../web_token.json`——清单里没有这个名字，门就开了。
+
+同一个形状在别处重复了三次：模型上下文问的是"这串值长得像密钥吗"，日志问的是
+"这串内容带着密钥标签吗"；`load()` 问的是"payload 里的 id 对吗"，`get()` 根本没问。
+
+**同一道承诺，两处实现，其中一处只有一半**——这是 M8-T263 记过的形状
+（"桥自称 registry-safe，却只认领了长度轴"）。名字是给人看的，落点是给机器用的；
+**门禁必须按落点判**，因为调用方给的是路径、不是名字。
+
+### 6 边界摩擦（不修，记录在案）
+
+- **`_SECRET_KEY` 含单独的 `key` 与 `token`**：`key=value` 这样的普通内容会被脱敏。
+  这是日志侧**已有**的行为（`logging_setup` 一直如此），把同一套搬到模型侧保持了
+  一致；用户可见的副作用是模型看不到某些 `key=`/`token=` 形式的普通文本。
+- **`get()` 的修复会改写返回的字典**：`load()` 一直如此，`get()` 现在与它一致。
+  调用方若依赖 payload 原样，读到的 `task_id` 会是关系主键。
+- **子代理仍没有 `should_allow`**：子代理的 tier 把写/执行关在 `acceptEdits`/`yolo`
+  里（`resolve_subagent_tier`），所以缺的是**绝对否决**，已由 `workspace` 补上；
+  但"子代理发起一次需要用户审批的调用"这条路仍然没有——那需要跨线程的审批通道，
+  属于另一批。
+
+
+
+## 第二百七十批 — M8-T275 / T276 / T277 / T278 / T279 — 一批「说了什么」和「做了什么」对不上的地方
+
+### 1 缺陷
+
+这一批的六个缺陷分属三个模块，但形状相同：**一句承诺写在注释或文档里，代码做的是另一件事**。
+
+| 编号 | 位置 | 承诺 | 实际 |
+| --- | --- | --- | --- |
+| M8-T275 | `minicc/main.py` | 显式参数 > 环境变量 > .env > 项目层 > 用户层 | 配置里的 `yolo` **无条件改写**了显式的 `--permission-mode plan`；同一份配置在 Web 上仍是只读计划模式（`task_contract.py` 保留 `plan`），在 CLI 上却变成全放行 |
+| M8-T276 | `minicc/config.py` | 层的优先级高于拼写 | 两种拼法分两轮扫全部层，**拼写**决定了哪一层赢：用户层写 `MINICC_MODEL`、项目层写 `model` 时，用户层胜出 |
+| M8-T277 | `minicc/config.py`、`session.py`、`snapshots.py`、`workspaces.py` | 各模块自己的错误契约（`ConfigError` / 不抛 / `SnapshotError` / 返回 `[]`） | `UnicodeDecodeError` 既不是 `OSError` 也不是 `json.JSONDecodeError`，四个模块的契约同时被打破 |
+| M8-T278 | `minicc/mentions.py` | 32 KB 读取上限 | `read_bytes()[:32KB]` —— 整个文件先进内存，再切片 |
+| M8-T279 | `minicc/agent/tool_policy.py` | 只有真的跑了检查才算验证证据 | 后台启动的 bash 返回 `status="ok"`（一行测试都没跑），被算成"改完之后已验证" |
+| （本批自己引入） | `minicc/main.py` | 提示里写着 `[y/N/a/A]` | `.lower()` 先把大写 `A` 折进小写分支，工具级授权**永远走不到** |
+
+### 2 落地
+
+| 编号 | 文件 | 改法 |
+| --- | --- | --- |
+| M8-T275 | `minicc/main.py` | 显式 `--permission-mode plan` 时把 `config.yolo` 关掉——安全方向胜出，与 Web 面一致 |
+| M8-T276 | `minicc/config.py` | `pick`/`pick_object` 改为**逐层**查找（.env → 项目层 → 用户层），每层内部两种拼法等价；两层不再按键合并 |
+| M8-T277 | `minicc/config.py`、`session.py`、`snapshots.py`、`workspaces.py` | 捕获 `ValueError`（涵盖 `json.JSONDecodeError` 与 `UnicodeDecodeError`）而不是只捕获 JSON 那一个 |
+| M8-T278 | `minicc/mentions.py` | 先 `stat()` 预检大小，再 `handle.read(MENTION_READ_BYTES)` 限量读 |
+| M8-T279 | `minicc/agent/tool_policy.py` | `is_verification_evidence` 拒绝 `run_in_background=true` 的调用 |
+| （本批自己引入） | `minicc/main.py` | 保留原始答案的大小写：`A` 是工具级，`a` 是命令/路径级 |
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T275-15 | plan 不再压过 yolo | 1 条红 |
+| M8-T276-16 | 改回「拼写决定层」 | 1 条红 |
+| M8-T277-18 | 去掉 `UnicodeDecodeError` 分支 | 1 条红 |
+| M8-T278-19 | 读整个文件 | 1 条红 |
+| M8-T279-17 | 后台也算验证 | 1 条红 |
+| CLI-20 | `A` 折进 `a` 分支 | 1 条红 |
+
+### 4 新增门禁
+
+`tests/test_promises_that_the_code_did_not_keep.py`（18 条）：显式 plan 胜出、层优先于拼写、`.env`/环境变量优先于配置层、四个模块各自的坏文件契约、提及读取有界、后台命令不算验证、CLI 的 `A` 与 `a` 写不同的规则。
+
+### 5 一条教训
+
+**承诺写在注释里，不等于代码在做这件事。**
+
+这一批五个缺陷里，三个的"承诺"就写在**出问题的那个文件自己的注释或 docstring** 里：
+
+- `config.py` 开头写着"a malformed .env line or a non-object config.json is reported as a ConfigError"——而一个不是 UTF-8 的 `config.json` 报的是裸 `UnicodeDecodeError`；
+- `session.py` 写着"unreadable or malformed checkpoints are reported with an `error` field instead of raising, so listing never breaks on one bad file"——而一个 GBK 编码的会话文件让整个列表抛了出去；
+- `mentions.py` 写着"32 KB 上限"——而上限是在**读完之后**才切的。
+
+**注释是最廉价的文档，也是最容易过期的文档。** 一个承诺要么被一条测试钉住，要么它就只是愿望。本批把这五个承诺各配了一条会在违反时变红的用例——其中 `mentions.py` 那条还得先量出"到底读了多少字节"才写得出来。
+
+### 6 顺带记下的三条（不在本批范围）
+
+- **`.minicc/output-style.md` 是死功能**：`load_output_style()` 全仓只有测试调用，生产路径只读 `config.output_style`。文档与实现脱节，属另一批。
+- **CLI 不查 `permissions.json` 的 allow 侧规则**：Web 面会用 allow 规则跳过审批框，CLI 面逐次弹 `input()`。同一份规则文件在两面含义不同——但 Web 面的行为是 M7-T3 明写的，CLI 面算不算缺陷取决于范围界定。
+- **子代理的并发状态挂在实例上**：两个并行的 `task` 调用共享同一个 `_SubagentRunner`，`_active_child_budget` / `_run_id` 互相覆盖，父级预算可能被少记。改法涉及按 run 分配状态，属另一批。
+
+
+
+## 第二百七十一批 — M8-T280 / T281 / T282 — 三处「自己绊自己」
+
+### 1 缺陷
+
+这一批的三个缺陷都不是"承诺与实现不符"，而是**执行器用自己的产物绊自己**。
+
+| 编号 | 位置 | 现象 | 根因 |
+| --- | --- | --- | --- |
+| M8-T280 | `minicc/agent/verification_plan.py` | 一次**全绿**的测试被判成 failed，附带"验证期间工作区输入发生变化" | 指纹哈希**整棵工作区树**，而检查自己会在仓库里留下 `.coverage` / `coverage.xml` / `htmlcov/` / `junit.xml` —— 产物进了指纹 |
+| M8-T281 | `minicc/agent/loop.py` | 模型用 `sed -i` 改了代码，之后被判"工作区没有可运行的客观检查"，仓库里现成的 pytest 从未运行 | `changed_paths` 只从写入调用的 `path` 参数收集；bash 写入**没有 path**，集合恒为空，而可满足性探针正是拿这个集合问"有没有可跑的检查" |
+| M8-T282 | `minicc/agent/loop.py` | 触发停滞保护后，恢复守卫永远满足不了，任务只能耗尽停滞上限收死 | 恢复诊断（probe）跑的正是模型接下来被要求用的工具（`git_status` 无参数 → 签名相同），probe 的结果入了缓存 → 模型的调用变成 `[DUPLICATE_TOOL_CALL]` → 守卫明确**排除** duplicate 证据 |
+
+三个缺陷共享一个形状：**执行器为"客观事实"建立了一个自己的表示，而这个表示把执行器自己产生的东西也算了进去**。
+
+### 2 落地
+
+| 编号 | 文件 | 改法 |
+| --- | --- | --- |
+| M8-T280 | `minicc/agent/verification_plan.py` | 新增 `GENERATED_ARTIFACT_NAMES` / `GENERATED_ARTIFACT_DIRS`；指纹扫描跳过这些文件与目录。守卫要问的是"**输入**变没变"，而检查自己写出来的文件不是输入 |
+| M8-T281 | `minicc/agent/loop.py` | 新增 `_git_changed_paths()`；bash 写入且没有 path 时，用 `git status --porcelain` 问出真正改动的文件。哪些文件变了是工作区的事实，不该靠猜 |
+| M8-T282 | `minicc/agent/loop.py` | probe 的结果**不入缓存**。probe 是诊断，不是可复用的结果 |
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T280-21 | 产物重新进入指纹 | 1 条红 |
+| M8-T281-22 | bash 写入不贡献任何路径 | 1 条红（loop 从不问 git） |
+| M8-T282-23 | probe 结果重新入缓存 | 1 条红（模型自己的 git_status 变成 duplicate） |
+
+M8-T281 与 M8-T282 的第一次变异**没有验红**——门禁只测了新增的辅助函数，没有测**接线**。补上端到端的观测（loop 是否真的问 git、模型自己的调用是否真的不是 duplicate）之后才红。这条记录本身也是一条教训：**测一个新函数不等于测它的接线**。
+
+### 4 新增门禁
+
+| 文件 | 覆盖 |
+| --- | --- |
+| `tests/test_the_artefacts_a_check_leaves_behind_are_not_inputs.py` | 覆盖率产物、报告目录不改指纹；输入改则改；无关文件改则改 |
+| `tests/test_a_bash_write_names_no_path.py` | git 报出的改动文件；空 changed 集合答"没有检查"而具体文件答"有检查"；非 git 目录与空路径不炸；**loop 真的会问 git** |
+| `tests/test_the_recovery_probe_must_not_poison_the_models_own_evidence.py` | probe 之后模型自己的同名调用不是 duplicate；普通重复调用**仍然**是 duplicate |
+
+### 5 一条教训
+
+**执行器必须分清"输入"和"自己的产物"。**
+
+M8-T280 最刺眼：一次全绿的测试被判成失败，理由是"验证期间工作区输入发生变化"——而变化的正是**这次验证自己写下的** `.coverage`。模型的交付物是对的，检查是绿的，任务是红的，而模型无法修复一个本来就通过的测试。
+
+M8-T281 是同一形状的另一面：可满足性探针问"这个工作区对**这些改动文件**有没有可跑的检查"，而"这些改动文件"这个集合是执行器自己攒的——攒错了（bash 写入没 path），探针就把"我不知道改了什么"答成了"这里没有检查"。
+
+M8-T282 更绕一圈：恢复诊断跑的工具**就是**模型接下来被要求用的工具，它的结果一入缓存，模型自己的取证就变成了"重复调用"，而守卫恰恰**拒绝**重复的证据——**探针把它要打开的门又关上了**。
+
+三条合起来是一句话：**执行器建立自己的表示时，必须排除自己产生的噪声**，否则它会用自己的噪声否证自己的结论。
+
+
+
+## 第二百七十二批 — M8-T283 / T284 / T285 — 三处「自己给自己作证」
+
+### 1 缺陷
+
+| 编号 | 位置 | 现象 | 根因 |
+| --- | --- | --- | --- |
+| M8-T283 | `minicc/agent/completion.py` | 一个**被允许改工作区却什么都没改**的任务被判 complete | conversation 桶被无条件算作"可引用证据"，评审模型引用 `message-1`（**用户自己的提问**）即可通过；而"本次运行没有任何可核对证据"的那段兜底因此永远不可达 |
+| M8-T284 | `minicc/agent/subagent.py` | 两个并行的 `task` 委派互相踩状态，父级预算被少记 | 每次 run 的状态（usage payload、回退账本、run id）挂在 **runner 实例**上；第二个调用把第一个的 payload 清成 `None`，第一个结束时折给父级的花费就没了 |
+| M8-T285 | `minicc/prompt.py` | 写了 `.minicc/output-style.md` 的用户，其风格偏好被静默忽略 | `load_output_style()` 按文档实现了"配置优先、其次工作区文件"的顺序，但**生产路径从不调用它**——只有测试调过 |
+
+### 2 落地
+
+| 编号 | 文件 | 改法 |
+| --- | --- | --- |
+| M8-T283 | `minicc/agent/completion.py` | `_enforce_completion_evidence` 接受 `allow_changes`；conversation 桶只在「只读任务」或「本次已有真实证据（写/验证/工具观察）」时可引用。`judge_completion` 把 `allow_changes` 传下去 |
+| M8-T284 | `minicc/agent/subagent.py` | 每次 run 的状态改为 **thread-local**（`_SubagentRunner` 的三个属性变成 property）。并发委派在各自的线程里，互不可见 |
+| M8-T285 | `minicc/prompt.py` | `build_system_prompt` 在配置为空时调用 `load_output_style(workspace, output_style)`，补上文档承诺的那一半 |
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T283-24 | conversation 永远可引用 | 1 条红 |
+| M8-T284-25 | 状态改回共享 | 1 条红（第二个线程看到了第一个线程的 run id） |
+| M8-T285-26 | 不读工作区文件 | 1 条红 |
+
+M8-T284 的第一次变异**也没有验红**：行为层的用例只在"一个 run 在另一个 run 折账的窗口里清空它"时才红，而那个窗口极窄。补了一条**直接陈述隔离性质**的门禁（第二个线程读不到第一个线程的 run id 与 payload）才红。
+
+这条记录本身又是一条教训：**行为层的门禁只能抓住时序恰好对上时的缺陷；要钉住"状态属于谁"这种性质，得有一条直接说这条性质的用例。**
+
+### 4 新增门禁
+
+| 文件 | 覆盖 |
+| --- | --- |
+| `tests/test_a_writable_task_cannot_certify_itself_with_the_question.py` | 可写任务零工作 → 退回；只读任务零工作 → 仍可完成；可写任务有工作与检查 → 可完成；失败验证仍然优先 |
+| `tests/test_two_parallel_subagents_must_not_share_one_runs_bookkeeping.py` | 两个并行 run 各折一次账；**run id 与 payload 属于各自的线程**；单 run 仍折一次 |
+| `tests/test_a_workspace_that_asks_for_a_writing_style_must_get_it.py` | 工作区风格文件进提示词；显式配置胜过文件；预设名仍解析；两者皆无则提示词不变 |
+
+### 5 一条教训
+
+**「自己给自己作证」有三个入口，而三个都不在同一个地方。**
+
+- M8-T283：完成评估拿**用户自己的提问**当证据。文档里明明写着"当用户需求指向对话本身（回忆、总结）时对话记录才是合法证据"——但代码没有区分"这个任务指向对话"和"这个任务本该干活"。
+- M8-T284：两个子代理拿**对方的账本**作证。状态是共享的，于是谁的花费都可能被记到别人头上或者干脆丢掉——父级预算被少记，**扇出就绕过了自己的天花板**。
+- M8-T285：文档承诺的**工作区文件**没人读。`load_output_style()` 写得挺好，顺序也对，只是生产路径绕过了它。
+
+三个的共同点：**"谁有资格作证"这件事没有被当成一个需要判断的问题**。完成判定没问"这个证据是谁产生的"，并发状态没问"这个状态属于哪次运行"，提示词组装没问"这个偏好是谁写的"。
+
+### 6 顺带记下（不在本批范围）
+
+- **CLI 不查 `permissions.json` 的 allow 侧规则**：Web 面会用 allow 规则跳过审批框，CLI 面逐次弹 `input()`。同一份规则文件在两面含义不同——但 Web 面的行为是 M7-T3 明写的，CLI 面算不算缺陷取决于范围界定，本批不动。
+
+
+
+## 第二百七十三批 — M8-T286 / T287 / T288 — 同一个意思，两张脸
+
+### 1 缺陷
+
+这一批的三个缺陷都是**同一个承诺在两张脸上含义不同**。
+
+| 编号 | 位置 | 承诺 | 实际 |
+| --- | --- | --- | --- |
+| M8-T286 | `minicc/web.py` | 审批卡片上的「本会话总是允许」= 允许**这一条** | Web 侧无条件写工具级规则，而工具级规则**短路**更细的命令与路径规则——本会话内任意 bash、任意网络命令都不再询问。**CLI 面（M2-T3）早已修好，Web 面没跟上** |
+| M8-T287 | `minicc/webserver.py` | 「任何提前返回前先排空请求体」 | 排空是**有条件**的，恰恰两条拒绝路径（超大、chunked）没排空，残留字节被当成下一个请求的请求行 |
+| M8-T288 | `minicc/task_contract.py` | `yolo` = 全部放行（含联网） | Web 面只把它算进写入，不算进联网；同一份配置在 CLI 上联网放行、在 Web 上**硬拒**（连审批框都不弹，因为 Web 的审批路径只覆盖 write/exec 两个缺口） |
+
+M8-T286 与本批之前修的 M2-T3 是**同一个缺陷的两张脸**：CLI 那张脸修好了，Web 那张脸没跟上。这正是"承诺写在注释里"的最强证据——CLI 的注释写着"a means always allow THIS command/path, not always allow this tool"，而 Web 侧连同样的注释都没有。
+
+### 2 落地
+
+| 编号 | 文件 | 改法 |
+| --- | --- | --- |
+| M8-T286 | `minicc/web.py` | 审批的 `always` 分支从空规则集开始：bash 记 `command=`、有 path 记 `path=`，**都没有**才退化成 `tool=`（与 CLI 同一形状） |
+| M8-T287 | `minicc/webserver.py` | chunked 与超大体两条路径都 `close_connection = True`；超大体不排空（排空会阻塞在一个可能永远不来的 body 上） |
+| M8-T288 | `minicc/task_contract.py` | `resolve_task_permissions` 的 `network` 也 `or yolo`；plan 模式仍不继承（更窄的那个赢） |
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T286-27 | Web 的 always 分支回到无条件写工具级规则 | 1 条红 |
+| M8-T288-28 | `network` 不再继承 yolo | 1 条红 |
+| M8-T287-29 | 不关闭被拒请求的连接 | **0 条红**（见下） |
+
+M8-T287 的变异**没有验红**，原因是这条缺陷的形态是"残留字节被当成下一个请求"，而服务器在错误路径上还有别的机制会关闭连接（`BaseHTTPRequestHandler` 的错误处理、`Connection: close` 头），所以即使去掉显式的 `close_connection`，客户端也未必能观察到差异。
+
+这一条门禁因此断言的是**结果**（"下一个请求不能被残留字节回答成 400 Bad request syntax"）而不是**机制**（"`close_connection` 被置位"）。它仍然会抓住缺陷真正的形态，但不会抓住"靠别的机制碰巧也安全"的那种实现。这个区别记在案里，不假装它是等价强度的门禁。
+
+### 4 新增门禁
+
+| 文件 | 覆盖 |
+| --- | --- |
+| `tests/test_the_same_meaning_on_both_faces.py` | Web 的 always 分支不再写工具级规则；工具级规则确实短路命令规则（对照）；窄规则不覆盖别的命令；yolo 在 Web 面也含联网；plan 仍是最窄的；默认什么都没拿到 |
+| `tests/test_a_rejected_request_body_must_not_poison_the_connection.py` | chunked 被拒且残留字节没有污染下一个请求；超大被拒；普通请求照常 |
+
+### 5 一条教训
+
+**两张脸要一起改。**
+
+M8-T286 是本批最刺眼的一条，因为**同一个缺陷的修复已经在这个仓库里发生过一次**——M2-T3 修的是 CLI，注释写得清清楚楚："`a` means 'always allow THIS command/path', not 'always allow this tool'"。Web 面有一份几乎逐字相同的代码（审批 + 写 allowlist），有一份几乎逐字相同的缺陷，**但没有那份注释**——因为它不是被复制的那份，它是独立写的。
+
+于是：批准一次 `bash python -m pytest`，本会话内 `del /f /s /q` 不再询问；而且工具级规则还顺带覆盖了网络门（`_allowlist_override` 对 `missing_task_network` 同样兜底）。
+
+M8-T288 是同一个形状的第二例：`yolo` 在 CLI 上是"含联网"，在 Web 上是"不含联网"，而文档说的是前者。
+
+**一个承诺在两张脸上，必须两张脸都改；而且两张脸往往是独立写的，不会互相提醒。** 修一面的时候要问：另一面有同一段逻辑吗？
+
+### 6 顺带记下（不在本批范围）
+
+- **`/api/file` 与 `/api/diff` 不查 `permissions.json` 的 deny 规则**：deny 规则只在 agent 工具路径上被询问，Web 面板的读文件/读 diff 走的是 `build_registry(...).execute(...)`，不经过规则。这两条路由是**用户主动**打开预览，语义上与 agent 读文件不同；但文档说 deny 是"绝对否决"，两处口径需要统一，属另一批。
+- **`/api/chat` 永远拿不到审批**：`on_event` 的默认汇只写日志，`approval_request` 帧既不进 SSE 也不进返回的 `events`，客户端拿不到 `request_id`，请求阻塞 60 秒后自动拒绝。任务路径（`/api/tasks`）没问题。属另一批（要动事件流设计）。
+- **`_session_locks` 只增不减**：`session_id` 完全由客户端提供，且在 `SessionStore` 校验之前就建了锁，所以随机 id 会留下永不回收的锁。
+
+
+
+## 第二百七十四批 — M8-T289 — 同步路径上的审批框，客户端从来没有机会回答
+
+### 1 缺陷
+
+`POST /api/chat` 是**同步**路径：没有事件流，运行的事件随响应体返回。审批框走的也是这条路——`request_approval` 先把 `approval_request` 帧（含 `request_id`）发出去，然后阻塞等客户端用 `POST /api/approval` 回答。
+
+但没有事件流时，`on_event` 的兜底汇**只写日志**：
+
+```python
+def on_event(event, *, _session_id=session_id):
+    log_task_event(event, task_id=_session_id)
+```
+
+于是 `approval_request` 帧既不进 SSE，也不进响应体里的 `events`——**客户端拿不到 `request_id`**，即使想回答也回答不了。运行阻塞满 `APPROVAL_TIMEOUT_SECONDS`（60 秒）后走超时分支自动拒绝，事后就算从日志里捞到 `request_id` 也已经无用（审批组已 resolve，`resolve_approval` 只返回 `{"resolved": false}`）。
+
+任务路径（`/api/tasks`）没有问题：那里的 `on_event` 是 `TaskManager._run.on_event`，帧会进任务时间线并经 SSE 送达。
+
+### 2 落地
+
+| 位置 | 改法 |
+| --- | --- |
+| `minicc/web.py`（兜底汇） | 收集 `kind == "approval_request"` 的帧进响应的 `events`。**只收这一类**：运行自己的事件是经 `on_event(events[-1])` 这个模式送出的，兜底汇若全收，每条都会变成两份——而完成判定层正是靠数 tool 事件来判断"这一轮有没有新东西" |
+| `minicc/web.py`（`request_approval`） | `timeout` 由默认参数改为运行时读 `APPROVAL_TIMEOUT_SECONDS`，模块常量成为唯一来源，部署与测试都能改 |
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T289-30 | 兜底汇不再收集审批帧 | 1 条红（`approval_request` 帧没进响应） |
+
+### 4 新增门禁
+
+`tests/test_a_synchronous_chat_run_must_be_able_to_ask_for_an_approval.py`（2 条）：审批帧带着 `request_id` 到达调用方；兜底汇不重复运行自己的事件。
+
+### 5 一条教训
+
+**"事件送出去了"和"对方收到了"是两件事。**
+
+这一批之前的两百多批里，事件系统一直是对的：任务路径的 SSE、CLI 的输出、Web 的时间线，事件都有去处。唯独同步路径的兜底汇是"**只写日志**"——而它的注释说得很清楚，它存在的理由只是"让 HTTP 访问行之外的东西也能被 grep 到"。
+
+**它把"可观测"当成了目的，而事件的目的本来是"传递"。** 审批帧是唯一一个**必须**送达的事件（没有它对方无法回答），却恰好落在了一个只保证"可 grep"的口子里。
+
+顺带一条：**默认参数在定义时求值**。`timeout: float = APPROVAL_TIMEOUT_SECONDS` 让那个常量在 import 时就被冻结了——所以"改常量"从来不是一条真的路。改成运行时读取之后，测试从 124 秒降到 7 秒。
+
+
+
+## 第二百七十五批 — M8-T290 — 被拒的路径，从浏览器面板也读得到
+
+### 1 缺陷
+
+`permissions.json` 的 deny 规则在文档里是"绝对否决"（`permissions.py:7-9`），`audit.py` 里也是（"A deny rule is an absolute veto, not a question"）。agent 自己读一个被拒的路径，会拿到 `authorization=permission_rule_deny`。
+
+但 Web 面板的**预览**与**差异**两条路由不查规则：
+
+| 位置 | 读法 |
+| --- | --- |
+| `minicc/web.py`（`file_preview`） | `build_registry(editor).execute(ToolCall("read_file", …))` |
+| `minicc/web.py`（`changes`） | `ChangeInspector(...).diff(...)` / `.summary()` |
+
+`ToolRegistry.execute` 从不问规则（它只负责把异常变成结构化结果），`tools/editor.py` 与 `tools/fs.py` 里也 grep 不到任何 deny 判断（`fs.py` 只有 `.minicc` 敏感文件那道闸，那是另一件事）。
+
+于是同一条路径：agent 读被拒，浏览器预览读得到。`/api/diff` 更宽——工作区级 diff 把每个文件的内容拼进 unified diff，未跟踪文件的 patch 就是全文。
+
+### 2 落地
+
+| 位置 | 改法 |
+| --- | --- |
+| `minicc/web.py`（`file_preview`） | 预览前问一次 `tool_denied_by_rule(workspace, "read_file", {"path": …})` |
+| `minicc/web.py`（`changes`） | 带路径的 diff 问同一条规则；**工作区级** diff 在 deny 侧**提到任何路径**时一律拒绝（它必然携带那些路径的内容） |
+| `minicc/audit.py` | 新增 `deny_rule_names_paths()`：deny 侧是否有路径规则 |
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T290-31 | 预览不问规则 + 工作区级 diff 不拒绝 | 2 条红 |
+
+### 4 新增门禁
+
+`tests/test_a_deny_rule_must_reach_the_preview_and_diff_routes.py`（5 条）：预览拒绝被拒路径；diff 拒绝被拒路径；工作区级 diff 在有路径规则时拒绝；无规则的路径照常预览；无规则的工作区照常 diff。
+
+### 5 一条教训
+
+**一条规则要覆盖它适用的全部入口。**
+
+M8-T267 让 deny 规则到达了**只读工具**（agent 侧），本批让它到达了**Web 的读路由**（人侧）。两次都不是"规则写错了"，而是"规则只被一部分入口问了"。
+
+值得注意的是 deny 规则的语义是"**绝对**否决"——"绝对"这个词本身就意味着没有旁路。一条被称作绝对的规则，却有两条不查它的读路径（预览、差异），那它就不是绝对的。
+
+**门禁不是"某个入口问了规则"，而是"所有会读到这个路径的入口都问了规则"。** 所以本批的门禁是按**路由**写的（预览一条、diff 两条），不是按**函数**写的。
+
+
+
+## 第二百七十六批 — M8-T291 — 一张只增不减的锁表
+
+### 1 缺陷
+
+`AgentService._session_locks` 用 `setdefault` 取锁，表**只增不减**。而 `session_id` 完全由客户端提供，且锁是在 `SessionStore` 校验它**之前**取的：
+
+```python
+session_id = str(payload.get("session_id") or "web-latest")
+...
+session_lock = self._session_lock(workspace, session_id)   # 先建锁
+...
+store = SessionStore(workspace, session_id)                 # 后校验
+```
+
+所以每个随机 id 都会留下一把永不回收的锁——一个本地页面就能让工作台的内存无界增长。
+
+同一模块里已经有答案：`_RPC_THREADS_MAX = 512`（`web.py:164`）与它的逐出循环（`web.py:549-551`）就是为同一类问题写的。
+
+### 2 落地
+
+`minicc/web.py`：新增 `_SESSION_LOCKS_MAX = 512`；`_session_lock` 在表超限时逐出**未被持有**的旧条目（持有中的锁仍在保护一个运行中的轮次，不能动）。
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T291-32 | 逐出循环不执行 | 1 条红（表长到 1200） |
+
+### 4 新增门禁
+
+`tests/test_the_per_session_lock_table_must_be_bounded.py`（3 条）：表在 1200 个随机 id 后仍有界；持有中的锁不被逐出；同一 session 仍拿到同一把锁。
+
+### 5 一条教训
+
+**同一模块里的两个答案，要让它们看起来像一对。**
+
+`_RPC_THREADS_MAX` 就在同一个文件里，隔了不到 200 行，它连注释都写清了"逐出最旧的"。而 `_session_locks` 是同样的形状、同样的问题、同样是客户端可控的键，却是一张只增不减的表。
+
+**看一份代码时，要问"这个模块里有没有已经解决过同类问题的先例"。** 有了先例还写成另一个样子，通常不是"没想到"，而是"没看见"——两处相隔太远，或者写第二处时手边没有第一处。
+
+
+
+## 第二百七十七批 — M8-T292 ~ M8-T299 — 一次自我复核：七处「我以为修好了」
+
+这一批的起点不是新的扫描，而是**对前几批改动做一次独立复核**（逐个文件读 diff + 问"这个改法有没有把别的弄坏"）。复核报出八个问题，七处属实。
+
+### 1 问题与修法
+
+| 编号 | 位置 | 问题 | 修法 |
+| --- | --- | --- | --- |
+| M8-T292 | `minicc/tools/registry.py` | **我引入的回归**：带标签的脱敏规则搬到模型上下文后，`{"monkey": "banana"}`、`self.token = compute()`、`config.key = value` 全被脱敏——**agent 看到的代码与磁盘上的不一致** | 键加**词边界**（`monkey` 里的 `key` 不再匹配）；值必须是「像凭据」才脱敏（长度 ≥ 8 且不含代码标点）——`compute()` 是代码，`abcd1234efgh5678` 是凭据 |
+| M8-T293 | `minicc/web.py` | planner 的 node agent 没传 `workspace` → deny 规则在那里完全失效 | 补 `workspace=workspace` |
+| M8-T294 | `minicc/web.py` | **我引入的回归**：锁表逐出会删掉「已发出但还没被 acquire」的锁 → 两个线程拿到两把不同的锁 → 互斥失效 | 逐出只针对**曾被持有过**且当前未持有的锁（`threading.Lock` 不能加属性，所以用外部集合记录） |
+| M8-T295 | `minicc/agent/loop.py` | `_git_changed_paths` 在 async 协程里**同步**跑 `subprocess`（阻塞事件循环）；且 `git status` 报告**整个工作树**（含预先存在的修改），验证计划会按一堆没人改过的文件来选测试 | 改 `asyncio.to_thread`；超过 64 个文件就放弃回答（"我分不清"比"一个错的列表"诚实） |
+| M8-T296 | `minicc/agent/completion.py`、`loop.py` | **修复不完整**：后台 bash 的判定在 loop 里生效了，但 completion 的两处判定**从事件重建参数**，丢掉了 `run_in_background` → 守卫从未触发 | 事件带上 `background` 标志，completion 的两处判定都传它 |
+| M8-T297 | `minicc/agent/completion.py` | **修复不完整**：`real_evidence` 被"任何工具观察"满足——一次 `read_file`、一次被拒的写入、一个审批帧都算 → "可写任务读了文件但什么都没写"仍能用用户提问自证 | `real_evidence` 要求**写**、验证或工具观察；且写后检查在没写时本来就跳过，没有下游兜底 |
+| M8-T298 | `minicc/main.py` | CLI 的 always 分支对空命令写成 `{"command": ""}`，`add_session_rule` 把它丢掉 → **什么都没写，却报告"已写入"** | 空命令不记，退化成工具级（与 Web 面一致） |
+| M8-T299 | `minicc/mentions.py` | 超大提及产生**两条**记录（omitted + injected），且被误入 "omitted" 桶——那个桶说"未包含内容"，而其实注入了前缀 | 只记一条，理由写进 `reason` |
+
+另外 **M8-T288 被回退**：我曾把部署级 `yolo` 改成也含联网，但 `tests/test_task_contract.py` 早就把这条钉死了（部署级 yolo 只开写入，联网是另一份授权）。**被钉死的契约是写下来的契约**，该对齐的是 CLI 面，不是这一面。已回退，并把 CLI 面的不一致记成待议。
+
+### 2 一条教训
+
+**"我改了"和"它是对的"之间隔着一次复核。**
+
+这一批里最刺眼的两条都是我**自己引入**的：
+
+- M8-T292：把日志侧的脱敏规则搬到模型上下文时，我以为"日志侧能用的规则，模型侧也能用"。但日志侧的误伤只影响一行日志，模型侧的误伤**改写了 agent 读到的源码**——它会照着被篡改的代码做判断。
+- M8-T294：给一张只增不减的表加逐出时，我只想到"别删正在用的"，没想到"刚发出、还没被拿到的"也是正在用的。
+
+这两条都不是"想得不仔细"，而是**改动的方向改变了后果的严重性**。同一条规则换个地方，误伤的代价就变了。
+
+**所以每一批改动之后都要做一次独立的复核**，而且复核要问的不是"改对了吗"，而是"这个改法把别的东西弄坏了吗"。
+
+### 3 门禁
+
+本批不新增门禁（都是既有门禁抓到的）；新增的断言落在既有文件里：
+- `tests/test_the_model_context_must_redact_what_the_log_already_redacted.py`：加「普通代码不被脱敏」一条
+- `tests/test_the_same_meaning_on_both_faces.py`：yolo 语义按被钉死的契约改写
+- 其余由既有的 `test_task_contract.py`、`test_mentions.py`、`test_core_*` 覆盖
+
+
+
+## 第二百七十八批 — M8-T300 / T301 / T302 — 三处「保护自己的东西，却把保护对象弄丢了」
+
+### 1 缺陷
+
+这一批的三个缺陷分属三个模块，但形状相同：**一段代码是为了保护某样东西而写的，而它自己在保护的过程中把那样东西弄丢了**。
+
+| 编号 | 位置 | 保护的是什么 | 弄丢了什么 |
+| --- | --- | --- | --- |
+| M8-T300 | `minicc/changes.py` 的 `_audit_paths()` | 「git 看不到但 agent 动过」的文件兜底 | 兜底集合只取 `item["path"]`、**从不看 `item["action"]`**——`read` 与 `write` 进了同一个集合，于是 agent **只读过**的每个文件都被报成 `modified`（patch 为空） |
+| M8-T301 | `minicc/tools/editor.py` 的 `_backup()` | 编辑前的原文 | `shutil.copy2` **保留源文件的 mtime**，而裁剪按 mtime 排序 → 源文件 mtime 旧（刚 checkout、restore 过、从未编辑过）的备份排在队首，被**它自己触发的这次编辑**删掉，编辑前的原文没了 |
+| M8-T302 | `minicc/tools/memory.py` 的 `append()` | 已有的记忆 | 读文件失败（GBK 编码、被同步盘锁住）被当成「文件是空的」，写入时用「表头 + 1 条新记忆」**整体覆盖**——历史记忆静默全丢，且没有任何错误 |
+
+### 2 落地
+
+| 编号 | 文件 | 改法 |
+| --- | --- | --- |
+| M8-T300 | `minicc/changes.py` | 新增 `_CHANGING_AUDIT_ACTIONS = {write, edit, delete, move}`；`read` / `backup` / `backup_prune` 不算改动 |
+| M8-T301 | `minicc/tools/editor.py` | 备份落盘后显式 `os.utime` 成**备份自己的创建时间**——裁剪顺序表达的本来就是这个 |
+| M8-T302 | `minicc/tools/memory.py` | 读失败时抛 `ToolError`，**拒绝写入**而不是覆盖 |
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T300-35 | 审计的 action 又被忽略 | 1 条红（只读的文件被报成 modified） |
+| M8-T301-36 | 备份又保留源 mtime | 1 条红（编辑前的备份被这次编辑删掉） |
+| M8-T302-37 | 读失败又被吞掉 | 1 条红（文件被覆盖） |
+
+M8-T301 的第一次变异**没有验红**：测试只写了 200 次编辑，而备份目录此时只有 199 份（第一次写文件时它还不存在，`write_file` 不备份），所以表**还没满**，裁剪根本没触发。把表填满之后才红。
+
+这条也是一条教训：**门禁要覆盖"机制真的被触发"的那个状态**，而不是"机制看起来被改掉了"。
+
+### 4 新增门禁
+
+`tests/test_three_places_that_lost_what_they_were_protecting.py`（5 条）：只读的文件不算改动（写过的仍然算）；旧 mtime 文件的新备份在裁剪中存活且保有编辑前的内容；读不出的记忆文件不被覆盖（且拒绝的理由要指名记忆文件）；可读的记忆文件照常追加。
+
+### 5 一条教训
+
+**"兜底"代码最容易把不该兜的也兜进去。**
+
+M8-T300 的兜底本意是「git 看不到但 agent 动过」——它要抓的是**写**。但因为没看 `action`，它抓的是「agent 碰过」。兜底的判据比它要兜的东西**宽**，于是所有读操作都变成了"改动"。
+
+M8-T302 的兜底本意是「读不到就当没有」——它要处理的是"文件不存在"。但因为分不清「不存在」和「读失败」，它把**读失败**也当成了"不存在"，于是覆盖。
+
+两处的共同点：**兜底必须区分"没有"和"拿不到"**。把两者当成一件事，兜底就成了删除。
+
+### 6 顺带记下（不在本批范围）
+
+- **`changes.py` 的状态表用原始路径作键，`diff()` 用解析后路径查**：agent 写 `"sub/../notes.md"` 时，面板报 `"sub/../notes.md" modified`，而 `diff("notes.md")` 报 `clean` —— 同一文件两处解释不同。
+- **`summary()` 的总数建立在被截断到 120 条的列表上**，且没有 `truncated` 标记；`impact.py` 在同样情况下会追加一条 limitation 提示。
+- **`bench_tasks.spec_blockers()` 漏了评分器自己的"路径逃逸"规则**：评分器会 exit 2 拒绝，但装载期不拦，agent 白跑一轮。同一模块对 fixture 路径做了逃逸检查，对 grader 路径没有。
+
+
+
+## 第二百七十九批 — M8-T303 / T304 / T305 — 同一份数据，三处解释不同
+
+### 1 缺陷
+
+| 编号 | 位置 | 现象 |
+| --- | --- | --- |
+| M8-T303 | `minicc/bench_tasks.py` 的 `spec_blockers()` | 装载期**不查**评分器自己的"路径逃逸"规则（评分器会 exit 2 拒绝）——于是 agent 白跑完整一轮，那一行才变成 NO-RESULT，`grading_coverage` 的分母白白少一条 |
+| M8-T304 | `minicc/changes.py` 的 `diff()` | 状态表按**原始拼写**作键（`sub/../notes.md`），diff 按**解析后路径**查（`notes.md`）——查不到就静默落到 `clean`。同一个文件，面板说 "modified"、diff 说 "clean" |
+| M8-T305 | `minicc/changes.py` 的 `summary()` | `files()` 静默截断到 120 条，摘要把这个**截断后的长度**报成 `total_files`，也没有 `truncated` 标记——300 个改动文件报成 120，加减行数也只覆盖前 120 个。同项目的 `impact.py` 在同样情况下会追加一条 limitation 提示 |
+
+三个的共同点：**同一份数据在几处被各自解释，而其中几处没商量**。
+
+### 2 落地
+
+| 编号 | 文件 | 改法 |
+| --- | --- | --- |
+| M8-T303 | `minicc/bench_tasks.py` | 新增 `_contract_path_stays_inside()`；`file_contract` 的路径逃逸在**装载期**就被拒——评分器的规则提前到 agent 被付费之前 |
+| M8-T304 | `minicc/changes.py` | 状态表按**解析后**的相对路径作键，两处一致 |
+| M8-T305 | `minicc/changes.py` | `summary()` 报告真实总数，并给出 `truncated` 与 `shown_files` |
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T303-38 | 装载期不再查路径逃逸 | 5 条红 |
+| M8-T304-39 | 状态表改回按原始拼写作键 | 1 条红 |
+| M8-T305 | 未加变异（`total_files` 的口径在门禁里被直接断言） | — |
+
+### 4 新增门禁
+
+| 文件 | 覆盖 |
+| --- | --- |
+| `tests/test_the_loader_must_refuse_a_contract_the_grader_will_refuse.py` | 5 种逃逸路径在装载期被拒；4 种工作区内路径照常通过；空契约仍被拒 |
+| `tests/test_the_change_panel_and_the_diff_must_agree.py` | 面板与 diff 对同一文件给出同一个判断；摘要报真实总数并标注截断；小工作区不谎报截断 |
+
+### 5 一条教训
+
+**"同一份数据"要有**一个**解释点。**
+
+M8-T304 里，`files_without_diff()` 产出的路径是**原始拼写**（审计记录的原样），而 `diff()` 查的是**解析后路径**。两处都"对"，但合起来是错的：面板和详情页对同一个文件给出不同答案。
+
+M8-T305 里，`files()` 截断了，`summary()` 拿截断后的列表当全集——两处都"对"，合起来是把 120 说成总数。
+
+M8-T303 里，评分器的规则和装载器的规则是**两份**，评分器那份更严——两处都"对"，合起来是 agent 白跑一轮。
+
+三处的修法是同一个：**把解释收到一处**。状态表的键统一成解析后路径；总数来自未截断的集合；路径规则由同一个函数提供给两处。
+
+**"两处各自实现同一个概念"是缺陷的高发区**，因为它们迟早会分叉——而分叉的时候，没有人会收到通知。
+
+
+
+## 第二百八十批 — M8-T306 / T307 — 一个上限，套在了两个不同的东西上
+
+### 1 缺陷
+
+`changes.py` 有一个 `files()` 上限（`_MAX_FILES = 120`）。这个上限被套在了**两样东西**上，而只有一样该被截断。
+
+| 编号 | 位置 | 现象 |
+| --- | --- | --- |
+| M8-T306 | `files()` 的缓存指纹 | 指纹建立在**截断后**的列表上 —— 所以第 121 个文件改了，缓存不失效，摘要继续端出旧的 additions/deletions |
+| M8-T307 | `summary()` 的统计 | additions/deletions 只统计**截断后**的列表 —— 300 个改动文件只算了前 120 个的加减行数；`total_files` 报的是 120 而非 300，且没有任何截断标记 |
+
+M8-T305（上一批）已经把 `total_files` 改成了真实总数，但**加减行数**仍然只覆盖前 120 —— 于是"总数对了，数字不对"，比两个都错更难发现。
+
+### 2 落地
+
+`minicc/changes.py` 拆成两层：
+
+- `_computed_files()` —— **完整**的改动列表与统计，并负责缓存；
+- `files()` —— 上限只套在**列表**上（`[:_MAX_FILES]`）；
+- `summary()` —— 统计来自完整列表，`total_files` 是真实总数，附 `truncated` 与 `shown_files`。
+
+**上限属于"给人看的列表"，不属于"事实"。** 一个被截断的列表可以配一句"还有更多"，但不能配一个按截断算出来的总数。
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T307-40 | 指纹与统计都退回截断后的列表 | 1 条红（120 additions 对 301 个改动文件） |
+
+这条变异的**第一版**没有验红：测试场景里 300 个文件都已提交、不在 `git status` 里，所以"改动列表"其实只有 1 个文件，根本没触发上限。把它们改成**未提交**之后才红。
+
+同 M8-T301：**门禁必须覆盖"机制真的被触发"的那个状态**。
+
+### 4 新增门禁
+
+`tests/test_the_change_panel_and_the_diff_must_agree.py`（4 条）：面板与 diff 对同一文件给出同一判断；摘要报真实总数并标注截断；小工作区不谎报截断；**总数与加减行数覆盖全体改动文件**（301 个改动 → ≥301 additions，而列表只展示 120 个）。
+
+### 5 一条教训
+
+**上限要套在"给人看的"东西上，不是"事实"上。**
+
+这一批的第一版修复只把 `total_files` 改成真实值——于是摘要变成"总数 301、加减行数 120、列表 120 条"。三个数字讲三个不同的故事，而**没有一个是错的**（每一个在自己的口径上都对）。
+
+**一个上限会同时影响好几样东西，除非你明确说出它该影响哪一样。** 这次的答案是：列表可以被截断，统计不能。
+
+
+
+## 第二百八十一批 — M8-T308 ~ M8-T312 — 同一份数据，五处分叉
+
+这一批专门盯住"同一份数据在几处被各自解释"这个形状。五处都**已经**分叉了（读代码即可判定当前行为不同）。
+
+| 编号 | 事实来源 | 分叉 | 后果 |
+| --- | --- | --- | --- |
+| M8-T308 | `is_workspace_write`（"这次调用改了工作区"） | Web 事件流用**窄**的写工具名单**重算**了一遍，丢掉了规范判据 | bash 改写（`sed -i`）不算写 → 验证阶段被跳过、任务被判"没改任何东西"、检查点被标成安全只读 |
+| M8-T309 | 带标签密钥的规则 | 模型上下文问"这值像不像凭据"，日志侧**裸跑**同一条正则 | 同一段源码在两处被改成不同样子——日志里 grep 不到真实代码值 |
+| M8-T310 | 改动文件清单 | 审计记**原始拼写**（`sub/../notes.md`）、git 记**干净路径**（`notes.md`） | 同一个文件进清单两次、状态自相矛盾、加减行数被加两遍 |
+| M8-T311 | `SKIP_DIRS` 的跳过规则 | glob/grep 按"只跳**目录**"，tree 与 Web 文件树按"名字命中就跳" | 一个叫 `build` 的**普通文件**在 agent 的 glob 里存在、在 tree 里不存在、在用户的面板里也不存在 |
+| M8-T312 | `.minicc/audit.jsonl` | 变更面板只看最后 500 行且**不披露**，审计面板读全文件 | 改动被挤出窗口后面板说"工作区干净"，而 `/api/audit` 里那条 write 记录还在 |
+
+### 2 落地
+
+| 编号 | 文件 | 改法 |
+| --- | --- | --- |
+| M8-T308 | `minicc/web.py` | 事件里的 `write` 取 `build_tool_feedback` 已经算好的规范值，不再重算 |
+| M8-T309 | `minicc/logging_setup.py` | 日志侧复用 `registry._looks_like_credential` 判据，与模型上下文同一条规则 |
+| M8-T310 | `minicc/changes.py` | 审计兜底也按**解析后**的相对路径作键（新增 `_resolved_relative`） |
+| M8-T311 | `minicc/tools/fs.py`、`minicc/web.py` | tree 与 Web 文件树改成"只跳**目录**"，与 glob/grep 一致 |
+| M8-T312 | `minicc/changes.py` | 审计窗口的截断被**披露**（`audit_window_truncated`） |
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T308-41 | Web 事件又用窄名单重算 | 1 条红 |
+| M8-T309-42 | 日志侧去掉"是不是凭据"的判据 | 4 条红 |
+| M8-T310-44 | 审计路径改回原始拼写作键 | 1 条红 |
+| M8-T311-43 | tree 又按名字跳过 | 1 条红 |
+| M8-T312 | 未加变异（截断标记在门禁里被直接断言） | — |
+
+M8-T310 的第一次变异**没有验红**：门禁用路径**字符串**比较集合，而 `notes.md` 与 `sub/../notes.md` 是两个不同的字符串——集合去重当然通过。改成比较**解析后**的路径才红。
+
+**门禁要比"同一个事实"，不是比"同一个字符串"。**
+
+### 4 新增门禁
+
+`tests/test_five_places_where_one_fact_was_read_differently.py`（11 条）：规范判据与 feedback 一致；Web 事件不重算 write 标志；日志与模型上下文对同一段代码给出同一结果（且都仍遮真实凭据）；同一文件在改动清单里只出现一次；叫 `build` 的普通文件在 glob 与 tree 里都可见；叫 `build` 的**目录**仍被隐藏；审计窗口截断被披露。
+
+### 5 一条教训
+
+**"事实"和"记录事实的方式"要分开。**
+
+这五处的分叉有一个共同点：分叉的不是**判断**，而是**同一判断的输入**——Web 事件重新问了一遍"这是不是写"、日志重新判了一遍"这是不是凭据"、改动清单重新拼了一遍"这是哪个文件"、tree 重新定义了一遍"什么该跳过"、变更面板重新取了一遍"审计里有什么"。
+
+每一次重新判断都会带来一次分叉的机会，而分叉之后**没有人会收到通知**——两处都"对"，只是对得不一样。
+
+**判断应该只有一个地方做，其余地方传递结果。** `is_workspace_write` 已经是那个地方，Web 面只要**带着**结果走就行。
+
+
+
+## 第二百八十二批 — M8-T313 / M8-T314 — 一个"改了吗"的答案，三个地方各写了一份
+
+### 1 缺陷
+
+| 编号 | 位置 | 现象 |
+| --- | --- | --- |
+| M8-T313 | `minicc/tools/editor.py` 的 `_MUTATING_ACTIONS` 与 `minicc/changes.py` 的 `_CHANGING_AUDIT_ACTIONS` | 两份"什么算改了工作区"的词表：前一份含 `backup`，后一份不含。于是 `/api/audit` 的"改了工作区"过滤器把**每次写文件前自动产生的那条备份记录**也列了进去，而变更面板不列 |
+| M8-T314 | `minicc/agent/verification_plan.py` 的 `changed_paths_from_events` 与 `minicc/agent/repair.py` 的 `repair_scope` | 两处都只从事件的 `path` 字段重建改动集合 —— 而 **bash 写入不带 path**，所以验证计划是为"没有改动"生成的，修复范围也是空的 |
+
+M8-T314 是 M8-T281 的后半截：M8-T281 让循环**自己**问 git 拿到了改动路径，但那份路径只活在循环的局部变量里，下游从事件重建时依然拿不到。
+
+### 2 落地
+
+| 编号 | 文件 | 改法 |
+| --- | --- | --- |
+| M8-T313 | `minicc/tools/editor.py`、`minicc/changes.py` | `backup` 从"改了工作区"里去掉；`changes.py` 直接引用 `editor._MUTATING_ACTIONS`——**一份定义，两个消费方** |
+| M8-T314 | `minicc/agent/loop.py`、`verification_plan.py`、`repair.py` | 循环的 `verification_required` trace 带上 `changed_paths`；两处重建改动集合的地方同时读它 |
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T313-45 | `backup` 回到"改了工作区" | 1 条红 |
+| M8-T314-46 | 下游不再读 trace 里的路径 | 2 条红 |
+
+### 4 新增门禁
+
+| 文件 | 覆盖 |
+| --- | --- |
+| `tests/test_a_backup_is_not_a_workspace_change.py` | 备份不是改动；真的改动仍是 notice；读不是改动；两处词表一致；一次写只产生**一条** change 级审计行 |
+| `tests/test_a_bash_writes_paths_must_not_be_lost.py` | 验证计划与修复范围都看得到 bash 写入的路径；普通写入照旧；读不算改动；两处对"改了什么"给出同一个答案 |
+
+### 5 一条教训
+
+**"事实"要算一次，然后把结果传下去。**
+
+M8-T314 的三处：`is_workspace_write`（是不是写）、`changed_paths`（改了哪些文件）、`_MUTATING_ACTIONS`（算不算改动）——三个都是**同一类问题**的不同侧面，而每一处都自己算了一遍。
+
+于是：循环算出了路径，下游又算了一遍（算成空）；审计算了"算不算改动"，变更面板又算了一遍（算出不同答案）。
+
+**事实被算一次之后，要做的不是"再算一次"，而是"把结果传下去"。** 这一批的三处修法都是同一个动作：让下游**读**上游已经算好的东西。
+
+
+
+## 第二百八十三批 — M8-T315 ~ M8-T318 — 四道门该关的地方没关
+
+### 1 缺陷
+
+| 编号 | 门 | 洞 |
+| --- | --- | --- |
+| M8-T315 | 沙箱的加固旗标 | `sandbox_image` 落在 `docker run` 的**选项**位置（就是镜像名该在的地方），一个以 `-` 开头的值会被 docker 当成选项消费——项目级 `config.json` 里的 `--privileged`（或 `--pid=host`、`--security-opt=seccomp=unconfined`）把上面刚加的加固旗标全废了，而项目层**赢过**用户层 |
+| M8-T316 | "坏 hooks.json 只关掉 hooks" | 读文件/解析 JSON 的错误**在保护之外**（`_parse` 的错误被降级了，读文件的没有），所以一个 UTF-8 BOM（PowerShell `Out-File` 与记事本的默认写法）就让整次运行挂掉：Web 500、CLI 中止、子代理中止 |
+| M8-T317 | deny 规则覆盖所有读路径 | mention 注入是工作区的**第三个**读者，它只查了 `.minicc` 凭据表——`read_file` 被拒的路径（`deny.paths`）被 `@` 整份塞进了模型上下文 |
+| M8-T318 | slash 命令的参数替换 | 模板的位置参数替换跑在**用户文本插入之后**，所以用户自己写的 `$1` 被替换成第一个参数、`$9`（越界）被**静默删掉** |
+
+### 2 落地
+
+| 编号 | 文件 | 改法 |
+| --- | --- | --- |
+| M8-T315 | `minicc/sandbox.py` | 镜像名被校验：不能为空、不能以 `-` 开头；不合法就拒绝执行并说明 |
+| M8-T316 | `minicc/hooks.py` | 读文件错误被降级（同 `_parse`）；新增 `_HookConfigUnreadable` 子类，让"**读不出来**"降级而"**结构不对**"照旧抛出（`tests/test_hooks_validation.py` 钉住后者）；读文件用 `utf-8-sig` 容忍 BOM |
+| M8-T317 | `minicc/mentions.py` | mention 注入也问 `tool_denied_by_rule` |
+| M8-T318 | `minicc/commands.py` | **先**替换模板的位置参数，**再**插入 `$ARGUMENTS` |
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T315-47 | 不再拒绝以 `-` 开头的镜像名 | 1 条红 |
+| M8-T316-48 | 读文件错误不再降级 | 1 条红 |
+| M8-T317-49 | mention 不再问 deny 规则 | 1 条红 |
+| M8-T318-50 | 换回"先插用户文本再扫占位符" | 2 条红 |
+
+### 4 新增门禁
+
+`tests/test_four_doors_that_were_not_closed.py`（11 条）：以 `-` 开头的镜像名被拒；空镜像名被拒；普通镜像名照常（并断言它真的进了 argv）；带 BOM 的 hooks 文件不杀运行；坏 JSON 被报告且运行继续；**顶层不是对象仍然抛**（既有契约）；被拒路径不被 mention 注入；普通 mention 照常；用户写的 `$1`/`$9` 存活；模板自己的占位符照常展开。
+
+### 5 一条教训
+
+**"读一个文件"有很多条路，每条都要过同一道门。**
+
+M8-T317 最有代表性：工作区被读的地方有**三条**——工具（`read_file`）、Web 预览（`/api/file`）、mention 注入（`@path`）。M8-T267 修了工具那条，M8-T290 修了预览那条，mention 那条一直没人管——于是 deny 规则"覆盖了所有读路径"这句话，其实只覆盖了三分之二。
+
+而 M8-T315 是同一个形状的另一个方向：加固旗标加了，**但没挡住绕过旗标的那扇门**——`sandbox_image` 正好落在 docker 解析选项的位置上。
+
+**加了防护就要问：绕过防护的那条路也被堵了吗？** 这一批四个缺陷，三個都是这个问题的变体。
+
+
+
+## 第二百八十四批 — 收尾：把基线上那一个红也修掉
+
+这一批只有一条，但它一直挂在那里：**`tests/test_subprocess_decoding.py::test_a_pinned_parent_decoder_over_our_own_python_child_pins_the_child_too`**。
+
+它是本次工作开始前就存在的失败（基线复现确认过），报的是：
+
+```text
+half-pinned captures (parent utf-8, child undeclared):
+  ['tests/test_the_catalog_write_that_a_neighbour_blocks_is_a_warning_not_a_crash.py:119 subprocess.Popen']
+```
+
+那条 Popen 已经在**父**这一端钉了 `encoding="utf-8"`，但**子**进程写出来用什么编码器没有告诉它——子进程跟着机器 locale 走（中文 Windows 上是 cp936）。于是两端在非 utf-8 的机器上会不一致：一个正确的工作区会因为编码而"失败"。
+
+项目里已经有二十多处同样的写法（`env=dict(os.environ, PYTHONIOENCODING="utf-8")`），这个文件漏了。
+
+修法与其它地方一致：给子进程声明编码器。
+
+```python
+env=dict(os.environ, PYTHONIOENCODING="utf-8"),
+```
+
+**基线从此全绿**（本次工作开始时它是红的）。
+
+
+
+## 第二百八十五批 — M8-T285 — `UnicodeDecodeError` 不属于 `json.JSONDecodeError`
+
+### 1 缺陷
+
+`UnicodeDecodeError` 是 **`ValueError`** 的子类，但**不是**
+`json.JSONDecodeError` 的子类。于是只捕 JSON 那一个的 except 子句接不住它：
+
+| 位置 | 后果 |
+| --- | --- |
+| `minicc/permissions.py` | 一个手改过编码的 `permissions.json`（记事本、GBK 编辑器）让裸异常逃出模块——而这个模块的契约写着"坏文件不致命"；异常一路冒到 `authorize_tool`，**每一次工具调用**都崩 |
+| `minicc/tools/todo.py` | 同样形状：清单文件不是 UTF-8 → 读工具抛出未处理异常 |
+
+（同类问题在 M8-T277 已修过 `config.py`、`session.py`、`snapshots.py`、`workspaces.py`；这一批补上剩下两处。）
+
+### 2 落地
+
+两处都改捕 `ValueError`——它同时覆盖 `json.JSONDecodeError` 与 `UnicodeDecodeError`。
+
+`permissions.py` 还有一个**顺序**问题：`PermissionConfigError` 本身就是 `ValueError` 的子类，所以"形状不对"必须排在"读不出来"**前面**，否则它会被当成解码失败报出来。
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T285-51 | 两个 except 顺序颠倒 | 1 条红 |
+
+### 4 新增门禁
+
+`tests/test_a_file_that_is_not_utf8_must_not_kill_the_run.py`（5 条）：不是 UTF-8 的 `permissions.json` 被**报告**而不是抛出；决策仍能给出；格式正确的文件照常；**形状不对仍然报"非法"**（顺序不能倒）；不是 UTF-8 的清单读成空而不是抛。
+
+### 5 一条教训
+
+**`except` 子句的顺序，本身就是语义。**
+
+`PermissionConfigError(ValueError)` 与 `except ValueError` 放在一起时，谁在前决定了"形状不对"和"读不出来"分别被报成什么。改一行 except 的时候如果不看继承关系，就会把两种错误报成同一种——而它们的处置完全不同：一个是用户的配置写错了，一个是文件读不出来。
+
+**`except` 子句是按继承关系排序的**——最具体的在前。这不是风格，是行为。
+
+
+
+## 第二百八十六批 — M8-T286 — 一组 hook 共享一个总预算
+
+### 1 缺陷
+
+每个 hook 有自己的超时上限（最多 60 秒），但**整组**没有上限。于是 N 个各 60 秒的 `PreToolUse` hook 会让**一次**工具调用卡住 N 分钟，而且期间没有任何东西能打断它——hook 是在 `run_agent` 的事件循环里**同步**跑的（对比同文件里工具是 `await asyncio.to_thread(...)` 放出去的）。
+
+单个 hook 的超时约束的是**一个** hook；没有聚合约束，一组 hook 的总时长就是无界的。
+
+### 2 落地
+
+`minicc/hooks.py`：
+
+- 新增 `MAX_HOOK_TOTAL_SECONDS = 60.0`——同一个事件的**全部** hook 共享一个截止时间；
+- `run()` 在每条 hook 前看剩余预算，不够就把这条**跳过**并写明原因（而不是让它把预算超支）；
+- 传给 `_run_one` 的 timeout 取「剩余预算」与「该 hook 自己的上限」的较小值。
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T286-52 | 不再按总预算截断 | 1 条红 |
+
+### 4 新增门禁
+
+`tests/test_a_set_of_hooks_shares_one_budget.py`（4 条）：整组共享一个预算（一组跑不完时被截断，且截断被**披露**）；单个 hook 照常跑；几个快 hook 不会碰到上限；上限是个共享的天花板而不是每条的值。
+
+### 5 顺带记下（不在本批范围）
+
+**hook 仍然在事件循环里同步执行。** 总预算把"卡多久"封住了，但"卡的这段时间里事件循环是停的"没有变——取消请求要等 hook 全部返回才会被看到。要彻底解决需要把 hook 执行放到线程里，并把 `cancel_event` 传进 `HookRunner`。这涉及 hook 的执行模型与取消语义，属另一批。
+
+### 6 一条教训
+
+**单个上限不是聚合上限。**
+
+`timeout: 60` 读起来像"这个 hook 最多 60 秒"，代码也确实这么实现——但它约束的是**一条** hook。一组 hook 的总时长是 N 倍，而 N 由配置文件决定。
+
+**凡是"对每个 X 有限"，都要问一句"对一组 X 呢"。** 这一批与之前的"每行读上限"（M8-T278）、"每次工具读上限"是同一族：单次有界，累加无界。
+
+
+
+## 第二百八十七批 — M8-T287 — 上限是工具的，不是调用方的
+
+### 1 缺陷
+
+三个读文件工具的规模参数都是**模型可控**的：
+
+| 位置 | 形状 | 实际 |
+| --- | --- | --- |
+| `minicc/tools/fs.py` 的 `glob` | `MAX_GLOB_RESULTS` 只在**结果已经全部收进内存之后**才切片 | 整棵目录树先被 `rglob` 收集进内存，然后才截断显示——那正是这个上限想避免的开销 |
+| `grep` 的 `max_matches` | 模型可控 | **已有** schema 上限（500），这一处没问题 |
+| `tree` 的 `max_depth` / `max_entries` | 模型可控 | **已有** schema 上限（8 / 2000），这一处没问题 |
+
+所以真正无界的只有 `glob` 一个——而它恰恰是最贵的那一个。
+
+（这一批最初的修法也给 `grep` 与 `tree` 加了重复的上限，跑测试时发现 schema 已经管了，于是**回退**了那两处：上限该有一个地方管，多一份就多一处会漂移。）
+
+### 2 落地
+
+`minicc/tools/fs.py` 的 `glob`：**边走边停**。收集到 `MAX_GLOB_RESULTS + 1` 个就停下，多出来的那个只用来判断"还有更多"，所以目录树剩下��部分根本不会被遍历。
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T287-53 | 遍历不再有界 | 1 条红（收集了 250 个，上限是 200） |
+
+这条门禁的第一版**没有验红**：它看的是**显示**出来的条数，而显示层照旧切片，所以两种实现看起来一样。改成观测**收集量**（summary 里的"命中 N 个"）才红。
+
+### 4 新增门禁
+
+`tests/test_the_ceilings_belong_to_the_tool_not_the_caller.py`（5 条）：tree 与 grep 的超限请求被**拒**（上限是工具的）；glob 的遍历**边走边停**（收集量 ≤ 上限 + 1）；普通请求照常；声明的上限本身是合理的。
+
+### 5 一条教训
+
+**上限必须作用在"产生"的那一刻，而不是"显示"的那一刻。**
+
+`MAX_GLOB_RESULTS` 一直都在，文档里也写着"只显示前 N 个"——所以读代码的人会以为它有界。它确实限制了**输出**，但没有限制**开销**：整棵树还是被收进了内存。
+
+**一个限制如果只作用在结果上，它就不限制任何昂贵的东西。**
+
+
+
+## 第二百八十八批 — M8-T291 ~ M8-T298 — 一次复核抓到的八条（四条是本批自己引入的）
+
+这一批做完之后做了一次独立复核（逐个文件读 diff + 问"这个改法有没有把别的弄坏"），
+复核报出八条问题。**四条是本批自己引入的**——这正是复核的价值。
+
+| 编号 | 问题 | 修法 |
+| --- | --- | --- |
+| M8-T291 | `completion.py` 的注释写着"real work 必须是**写**"，代码却还留着"发生过任何事"那一支——**注释与代码矛盾** | 删掉那一支；并加一条对照：真实的工具观察**仍然**是可引用证据（门没被关死） |
+| M8-T292 | `background` 标志只加在内部 feedback 上，**Web 事件流里没有它**——而那个消费者才是门真正要拦的 | 事件带上 `"background"` |
+| M8-T293 | `deny_rule_names_paths` 只接了一个消费方；agent 自己的 `git_diff`（无 path，返回整个工作树 diff）与 `grep`（path 是**目录**，`secrets/*` 永远不匹配它）仍能读出被拒内容 | 新增 `_rule_covers_this_call()`：工具自己的参数没被规则覆盖时，整次读取被拒 |
+| M8-T294 | 取消路径把锁留在 in-flight 里，而它**同时满足两条逐出保护**（in-flight + 从未持有）→ 永不逐出 → 表无界 | 新增 `_release_session_lock_inflight()`，取消时归还标记 |
+| M8-T295 | 日志侧为了与模型侧一致而**缩小了脱敏覆盖**（`password=abc` 不再遮） | **回退**：日志遮蔽**一切**带标签的值。两边只允许朝一个方向不同——**日志更严** |
+| M8-T296 | mention 的 deny 门在 CJK 回退**之前**，收敛后没重查 → 精确路径规则被绕过（`secrets/k.txt` 规则不匹配 `secrets/k.txt是什么`） | 收敛后按真实路径重查一次（与同处的凭据门同一形状） |
+| M8-T297 | `changes.py` 新加的 `_resolve` 没捕 `ChangeError` → 越界软链让 diff 路由 500 | 改用已有的 `_resolved_relative()`（它捕 `ChangeError`） |
+| M8-T298 | `"create"` 被静默从"改了工作区"的名单里删掉，而注释只论证了 `backup` | 加回来（一个原本不存在的文件现在存在了，**就是**一次改动） |
+
+### 2 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T291-54 | "发生过任何事"那一支加回来 | 1 条红 |
+| M8-T292-55 | Web 事件不再带 `background` | 1 条红 |
+| M8-T295-57 | 日志侧恢复窄判据 | 2 条红 |
+| M8-T296-56 | mention 不再重查 deny 规则 | 1 条红 |
+| M8-T298-59 | `backup` 回到"改了工作区" | 1 条红 |
+| M8-T293-58 | 工具不再问更宽的问题 | 见下（门禁是机制级，行为级需另测） |
+| M8-T294 | 取消路径不归还标记 | 见下（门禁是机制级，行为级需另测） |
+| M8-T297 | 越界软链 | 见下（本机无软链权限，门禁被跳过） |
+
+### 3 新增门禁
+
+`tests/test_what_a_review_of_this_batch_found.py`（10 条 + 1 跳过）。
+
+### 4 一条教训
+
+**"一致"这两个字是有方向的。**
+
+M8-T295 是这一批最值得记住的一条：复核指出"日志侧与模型侧对同一段代码给出不同结果"时，
+第一反应应该是让它们一致——但**一致的方向有代价**。模型侧要看到**真实的源码**（否则它会照着
+被改写的代码改文件），日志侧要遮住**一切带标签的值**（否则就是泄漏）。
+
+所以正确的答案是：**两边不必一致，日志可以更严。** 统一的目标不是"同一段文本"，
+而是"**该挡的都挡住了**"——凭据在两边都被遮，而普通源码只在模型侧保持原样。
+
+**"统一"是手段，不是目的。** 当统一会牺牲某一侧的正确性时，统一的粒度就该更细。
+
+
+
+## 第二百八十九批 — M8-T289 — hook 不该占住事件循环
+
+### 1 缺陷
+
+hook 是在 `run_agent` 的协程里**同步**跑的（`hooks.run(...)` 直接调用）。后果有两个：
+
+* 一次工具调用要等一组 hook 全部返回，而这段时间**事件循环是停的**；
+* 运行中请求的**取消**要等 hook 全部返回才会被看到——一个本来能被取消的运行，卡在 hook 上时取消不了。
+
+对比同一个文件里工具的执行是 `await asyncio.to_thread(registry.execute, ...)` 放出去的——工具让出了控制权，hook 没有。
+
+### 2 落地
+
+`minicc/agent/loop.py`：`run_hook` 变成 `async`，内部 `await asyncio.to_thread(hooks.run, event, payload)`；四个调用点（`UserPromptSubmit` / `PreToolUse` / `PostToolUse` / `Stop`）都加 `await`。
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T289-60 | hook 又在协程里同步跑 | 1 条红（1.5 秒的 hook 期间事件循环只转了 3 次） |
+
+这条门禁的第一版**没有验红**：采样器放在**线程**里——而线程不受事件循环阻塞影响，所以两种实现看起来一样。改成放在**事件循环内**（一个 `asyncio` task）才区分得开。
+
+**测"事件循环有没有被堵住"，观察者必须在事件循环里。**
+
+### 4 新增门禁
+
+`tests/test_a_hook_must_not_hold_the_event_loop.py`（3 条）：1.5 秒的 hook 期间事件循环继续转（> 20 次）；hook 仍然会跑；拒绝型 hook 仍然拒绝（决定照常到达循环）。
+
+### 5 顺带记下（不在本批范围）
+
+**hook 仍然无法被中途打断。** 它现在不占住事件循环了，所以取消**请求**能被看到；但正在跑的那个 hook 进程仍要等它自己结束（`communicate(timeout=...)` 的上限是它自己的 `timeout`）。要真正可打断，需要把 `cancel_event` 传进 `HookRunner` 并在超时之外也终止子进程。
+

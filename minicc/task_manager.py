@@ -684,6 +684,26 @@ class TaskRecord:
             self.state_version += 1
             self._publish_locked("context", {"context": dict(self.context), "state_version": self.state_version})
 
+    def merge_context(self, updates: dict[str, Any]) -> None:
+        """Merge ``updates`` into the context instead of replacing it.
+
+        M8-T269: ``update_context`` replaces, which is what the agent loop's
+        own context callback means.  The batch watcher used it for a
+        different job - it only knows the counters - and the replace dropped
+        the persisted subtask prompts (``batch_messages``) that auto-resume
+        needs to reconstruct an interrupted batch.  The merge happens under
+        the same lock as the read, so a concurrent writer cannot slip a
+        stale copy of the context in between.
+        """
+        with self.lock:
+            if self.cancel_event.is_set() or self.status in TERMINAL_TASK_STATUSES:
+                return
+            merged = dict(self.context)
+            merged.update(updates)
+            self.context = merged
+            self.state_version += 1
+            self._publish_locked("context", {"context": dict(self.context), "state_version": self.state_version})
+
     def add_compaction(self, event: dict[str, Any]) -> None:
         with self.lock:
             if self.cancel_event.is_set() or self.status in TERMINAL_TASK_STATUSES:
@@ -1096,7 +1116,17 @@ class TaskManager:
                     self._session_active[self._session_key(task)] = task.task_id
                     task.future = self.executor.submit(self._reconnect_worker, task)
                     continue
-                if task.status != str(snapshot.get("status") or "") or task.error != str(snapshot.get("error") or ""):
+                # M8-T274: the guard was meant to re-persist only the records
+                # ``from_snapshot`` actually repaired.  It compared ``task.error``
+                # (None when there is no error) against ``str(snapshot.get("error")
+                # or "")`` (""), and ``None != ""`` is true - so the second
+                # operand was a tautology and *every* restored task was
+                # force-flushed on every start: a WAL write plus a full
+                # rewrite of the search projection, for up to 200 rows that
+                # had not changed at all.  An absent error and an empty one
+                # are the same fact, so they are compared as such.
+                restored_error = (task.error or "") != str(snapshot.get("error") or "")
+                if task.status != str(snapshot.get("status") or "") or restored_error:
                     self._persist_task(task, force=True)
         self._auto_resume_interrupted()
 
@@ -1707,7 +1737,7 @@ class TaskManager:
                             **_child_result_digest(child),
                         },
                     })
-                parent.update_context({
+                parent.merge_context({
                     "children_completed": completed,
                     "children_total": len(child_ids),
                     "tokens": sum(
@@ -2206,8 +2236,26 @@ class TaskManager:
             # is_file() and never deletes it), so signal cancellation once
             # instead of rewriting the identical file on every 0.2s poll tick.
             if task.cancel_event.is_set() and not cancel_written:
-                cancel_file.parent.mkdir(parents=True, exist_ok=True)
-                cancel_file.write_text("cancelled", encoding="utf-8")
+                try:
+                    cancel_file.parent.mkdir(parents=True, exist_ok=True)
+                    cancel_file.write_text("cancelled", encoding="utf-8")
+                except OSError as exc:
+                    # M8-T271: the flag could not be written, so the worker
+                    # will never see the cancellation.  Letting the OSError
+                    # escape was worse than the leak it hid: the task was
+                    # marked cancelled while the worker kept running and
+                    # spending tokens against a lease the host considered
+                    # finished.  The signal cannot be delivered, so the
+                    # worker is stopped directly instead.
+                    LOG.warning(
+                        "worker_cancel_file_unwritable",
+                        extra={"task_id": task.task_id, "error": str(exc)},
+                    )
+                    if process is not None and process.poll() is None:
+                        try:
+                            process.terminate()
+                        except OSError:
+                            pass
                 cancel_written = True
             snapshot = store.get(task.task_id)
             if snapshot is not None:
@@ -2296,11 +2344,28 @@ class TaskManager:
                     # before draining stdin; the monitor loop surfaces that.
                     pass
         except BaseException:
-            if process is not None and process.stdin is not None:
+            if process is not None:
+                # M8-T271: the child was already spawned when this window
+                # opened.  Releasing the lease without stopping it left the
+                # worker running against a task the host had given up on -
+                # and since the lease was free, the worker re-claimed it and
+                # two writers drove the same task id.  The handle was also
+                # never reaped (a zombie on POSIX, a ResourceWarning under
+                # ``pytest -W error``).
+                if process.stdin is not None:
+                    try:
+                        process.stdin.close()
+                    except OSError:
+                        pass
                 try:
-                    process.stdin.close()
-                except OSError:
-                    pass
+                    process.terminate()
+                    process.wait(timeout=2.0)
+                except Exception:  # noqa: BLE001 - escalate to kill
+                    try:
+                        process.kill()
+                        process.wait(timeout=2.0)
+                    except Exception:  # noqa: BLE001 - best-effort cleanup
+                        pass
             store.release_lease(task.task_id, owner)
             request_file.unlink(missing_ok=True)
             raise

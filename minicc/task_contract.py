@@ -17,6 +17,16 @@ TASK_SCHEMA_VERSION = 2
 def resolve_task_permissions(payload: Mapping[str, Any], *, yolo: bool = False) -> tuple[bool, bool, str]:
     mode = normalize_permission_mode(payload.get("permission_mode"))
     changes = bool(payload.get("allow_changes")) or yolo
+    # M8-T288 (reverted): a deployment-level ``yolo`` used to be taken as
+    # "everything allowed", including the network gate - the CLI face reads
+    # it that way (``allow_network=... or config.yolo``).  But the Web face's
+    # contract is deliberate and pinned by ``tests/test_task_contract.py``:
+    # the *task-level* ``permission_mode: "yolo"`` turns both flags on,
+    # while the *deployment-level* ``yolo`` only turns on writes, because
+    # reaching the network is a separate grant.  Two faces disagreeing is
+    # worth fixing - but the pinned contract is the one that was written
+    # down, so the CLI face is the one that owes the alignment, not this
+    # one.  Reverted here; recorded in the roadmap as an open question.
     network = bool(payload.get("allow_network"))
     if mode == "yolo":
         changes = network = True

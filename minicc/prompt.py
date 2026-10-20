@@ -27,7 +27,7 @@ def _workspace_guidance(workspace: Path) -> str:
 
 def build_system_prompt(workspace: Path, output_style: str = "") -> str:
     from .commands import skills_prompt_block
-    from .output_style import render_output_style_block
+    from .output_style import load_output_style, render_output_style_block
     from .tools.memory import render_memory_index
 
     root = workspace.as_posix()
@@ -39,7 +39,13 @@ def build_system_prompt(workspace: Path, output_style: str = "") -> str:
         else ""
     )
     # M8-T57: persona/输出风格挂在指导块之前；空风格时保持提示词逐字节不变。
-    style_block = render_output_style_block(output_style)
+    # M8-T285: the resolution order this module documents - "explicit config
+    # value first, then the workspace file ``.minicc/output-style.md``" - was
+    # only half implemented: ``load_output_style`` existed and read the file,
+    # but nothing in the production path ever called it.  A user who wrote
+    # the file got a silently ignored preference.  The file is now consulted
+    # when the configuration is empty, which is what the order says.
+    style_block = render_output_style_block(load_output_style(workspace, output_style))
     guidance_block += skills_prompt_block(workspace)
     # M8-T1: index-only memory injection; "" when no memories exist, so the
     # prompt (and its tests) stay byte-identical on a memoryless workspace.

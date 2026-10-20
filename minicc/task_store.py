@@ -201,7 +201,7 @@ class TaskStore:
         """Load one snapshot by id (worker-process progress polling)."""
         with self._lock, self._connect() as connection:
             row = connection.execute(
-                "SELECT payload FROM tasks WHERE task_id = ?", (str(task_id),)
+                "SELECT task_id, payload FROM tasks WHERE task_id = ?", (str(task_id),)
             ).fetchone()
         if row is None:
             return None
@@ -209,7 +209,18 @@ class TaskStore:
             value = json.loads(row["payload"])
         except (TypeError, json.JSONDecodeError):
             return None
-        return value if isinstance(value, dict) else None
+        if not isinstance(value, dict):
+            return None
+        # M8-T272: the relational primary key is authoritative here too.
+        # ``load()`` already repaired the redacted/empty ``task_id``, and
+        # every liveness decision goes through ``get()``: a payload whose
+        # id was missing made the lease lookup use the wrong key, so
+        # ``has_live_worker`` fell back to the legacy heartbeat heuristic
+        # and could report a dead worker as alive (never re-queued) or a
+        # live one as dead (killed mid-run).
+        if not value.get("task_id") or "[REDACTED:llm_api_key]" in str(value.get("task_id")):
+            value["task_id"] = str(row["task_id"])
+        return value
 
     def search(
         self,

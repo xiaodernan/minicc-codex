@@ -25,7 +25,13 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
-from .tools.registry import redact_text
+from .tools.registry import (
+    KV_BARE_SECRET_RE,
+    KV_QUOTED_SECRET_RE,
+    QUERY_SECRET_RE,
+    _looks_like_credential,
+    redact_text,
+)
 
 ROOT_NAME = "minicc"
 LEVEL_ENV = "MINICC_LOG_LEVEL"
@@ -48,18 +54,18 @@ _LEVELS = {
     "CRITICAL": logging.CRITICAL,
 }
 
-_SECRET_KEY = (
-    r"(?:api[_-]?key|apikey|authorization|access[_-]?token|refresh[_-]?token|"
-    r"id[_-]?token|session[_-]?token|web[_-]?token|client[_-]?secret|secret|"
-    r"password|passwd|cookie|token|key)"
-)
+# M8-T268: the labelled-key patterns now live in one place -
+# :mod:`minicc.tools.registry` - because the log filter used to own a copy
+# and the model context owned none.  The same string was therefore masked in
+# the log and handed to the model in plaintext.  The log keeps its own
+# replacement text; the patterns are shared.
 # ``?token=abc`` / ``&api_key=abc`` in a URL.
-_QUERY_RE = re.compile(rf"(?i)([?&]{_SECRET_KEY}=)([^\s&\"']+)")
+_QUERY_RE = QUERY_SECRET_RE
 # ``"api_key": "abc"`` / ``token: 'abc'``.
-_KV_QUOTED_RE = re.compile(rf"(?i)([\"']?{_SECRET_KEY}[\"']?\s*[:=]\s*[\"'])([^\"']*)([\"'])")
+_KV_QUOTED_RE = KV_QUOTED_SECRET_RE
 # ``api_key=abc`` / ``MINICC_API_KEY: abc`` without quotes. ``[`` is excluded so
 # an already-redacted value is never masked a second time.
-_KV_BARE_RE = re.compile(rf"(?i)(?<![\w\"'-])({_SECRET_KEY}\s*[:=]\s*)([^\s,;}}\]\[]+)")
+_KV_BARE_RE = KV_BARE_SECRET_RE
 # Value shapes (``sk-…``, ``Bearer …``, JWTs, cloud keys) are owned by
 # :func:`minicc.tools.registry.redact_text`, the codebase's single rule set;
 # the patterns above only add the labelled-key forms that rules miss.
@@ -111,7 +117,18 @@ def _registered(text: str) -> str:
 
 
 def redact(text: object) -> str:
-    """Return *text* with credentials replaced by ``REDACTED``."""
+    """Return *text* with credentials replaced by ``REDACTED``.
+
+    M8-T309: the labelled-key rules used to be applied **twice** - once
+    inside ``redact_text`` (which asks whether the value looks like a
+    credential at all) and once here, bare.  So the two faces disagreed:
+    ``self.token = compute()`` reached the model untouched and appeared
+    in the log as ``self.token = [REDACTED:credential]``.  The log and the
+    source the agent read were not the same text.
+
+    The log now uses the **same** predicate as the model context, with its
+    own replacement text.
+    """
     rendered = str(text)
     if not rendered:
         return rendered
@@ -119,9 +136,28 @@ def redact(text: object) -> str:
     # Value shapes first: masking ``Authorization:`` alone would leave the
     # bearer token that follows it visible.
     rendered = redact_text(rendered)[0]
-    rendered = _QUERY_RE.sub(lambda m: m.group(1) + REDACTED, rendered)
-    rendered = _KV_QUOTED_RE.sub(lambda m: m.group(1) + REDACTED + m.group(3), rendered)
-    return _KV_BARE_RE.sub(lambda m: m.group(1) + REDACTED, rendered)
+    for pattern, has_tail in (
+        (_QUERY_RE, False),
+        (_KV_QUOTED_RE, True),
+        (_KV_BARE_RE, False),
+    ):
+        def _replace(match: re.Match[str], _has_tail: bool = has_tail) -> str:
+            value = match.group(2)
+            if value.startswith("[REDACTED"):
+                # M8-T290: already masked - leave it alone.
+                return match.group(0)
+            # M8-T290: the log masks **every** labelled value, including a
+            # short one and one that carries code punctuation.  The model
+            # context asks whether the value looks like a credential at all
+            # (so ordinary source stays readable there), but the log is a
+            # record of what ran - there, under-masking is a leak, and a
+            # narrow rule is not worth the consistency.  The two sides
+            # differ in exactly one direction: the log is stricter.
+            tail = match.group(3) if _has_tail else ""
+            return match.group(1) + REDACTED + tail
+
+        rendered = pattern.sub(_replace, rendered)
+    return rendered
 
 
 class SecretRedactionFilter(logging.Filter):

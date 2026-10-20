@@ -527,11 +527,38 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
             # keep-alive framing stays consistent. Otherwise the server closes
             # with unread request bytes in flight and Windows clients see a
             # reset (ConnectionAbortedError) instead of the 403 body.
-            raw = self.rfile.read(size) if 0 < size <= MAX_BODY_BYTES else b""
+            #
+            # M8-T287: the drain used to be conditional on the body being an
+            # *acceptable* size, so the two rejection paths - too large, and
+            # chunked (no Content-Length at all) - left the whole body in the
+            # socket.  The 400 went out, the connection stayed open, and the
+            # next request on it was parsed out of the leftover bytes: a
+            # malformed request line and a dropped connection.  A rejected
+            # body still has to be drained - up to a bound, beyond which the
+            # connection is simply closed.
+            chunked = "chunked" in str(self.headers.get("Transfer-Encoding", "")).lower()
+            if chunked:
+                # This server does not speak chunked.  The body is unread and
+                # cannot be framed, so the connection cannot be reused.
+                self.close_connection = True
+                raw = b""
+            elif 0 < size <= MAX_BODY_BYTES:
+                raw = self.rfile.read(size)
+            elif size > MAX_BODY_BYTES:
+                # Too large to hold.  Draining it would block on a body that
+                # may never arrive in full, so the connection is closed
+                # instead: the 400 goes out and the leftover bytes never
+                # reach a parser.
+                self.close_connection = True
+                raw = b""
+            else:
+                raw = b""
             # M3-T1: reject cross-site state changes before doing any work.
             if not self._origin_allowed_for_state_change():
                 self._deny_cross_origin()
                 return
+            if chunked:
+                raise ValueError("不支持 chunked 请求体")
             if size <= 0 or size > MAX_BODY_BYTES:
                 raise ValueError("请求体大小非法")
             if not self._authorized():

@@ -268,14 +268,43 @@ class _SubagentRunner:
         self.on_trace = on_trace
         self.parent_trace_id = parent_trace_id
         self.on_child_usage = on_child_usage
-        # Set at the start of each run so nested task specs can attribute
-        # grandchild traces to this run's id.
-        self._run_id = ""
-        # M8-T163: per-run fold state. ``_child_usage_payload`` is the child
-        # result's own usage when one came back; ``_active_child_budget``
-        # backs the fallback for runs that ended without a result.
+        # M8-T284: per-run fold state, kept **per thread** rather than on the
+        # runner.  The runner is shared by every ``task`` call of a session,
+        # and the model may fire several in parallel; the state used to be
+        # instance fields, so a second call reset the first call's budget
+        # (``_active_child_budget`` became ``None``) and the first call's
+        # spend was never reported - and the parent budget was undercounted,
+        # which is how a fan-out escapes its own ceiling.  ``_run_id`` had
+        # the same problem: a grandchild's traces were filed under whichever
+        # sibling had started last.
+        self._run_local = threading.local()
         self._child_usage_payload: dict[str, Any] | None = None
         self._active_child_budget: Budget | None = None
+
+    @property
+    def _run_id(self) -> str:
+        """The id of the run in progress on *this* thread."""
+        return str(getattr(self._run_local, "run_id", "") or "")
+
+    @_run_id.setter
+    def _run_id(self, value: str) -> None:
+        self._run_local.run_id = value
+
+    @property
+    def _child_usage_payload(self) -> dict[str, Any] | None:
+        return getattr(self._run_local, "child_usage_payload", None)
+
+    @_child_usage_payload.setter
+    def _child_usage_payload(self, value: dict[str, Any] | None) -> None:
+        self._run_local.child_usage_payload = value
+
+    @property
+    def _active_child_budget(self) -> Budget | None:
+        return getattr(self._run_local, "active_child_budget", None)
+
+    @_active_child_budget.setter
+    def _active_child_budget(self, value: Budget | None) -> None:
+        self._run_local.active_child_budget = value
 
     def _emit(self, event: dict[str, Any]) -> None:
         """Forward one structured event to the parent sink, never raising.
@@ -472,6 +501,16 @@ class _SubagentRunner:
                         cancel_event=child_cancel,
                         should_cancel=(lambda: bool(parent_cancel and parent_cancel.is_set())),
                         hooks=HookRunner(self.workspace),
+                        # M8-T267: the child must be told which workspace the
+                        # rules are about.  Without it the child loop could
+                        # not ask ``permissions.json`` at all, so a deny rule
+                        # the parent was subject to stopped at the parent -
+                        # the same delegation could then read what the parent
+                        # was forbidden to read.  The tier already keeps the
+                        # child inside the parent's permission mode (a write
+                        # or exec tier exists only under acceptEdits / yolo),
+                        # so the absolute veto is the piece that was missing.
+                        workspace=self.workspace,
                     )
                 finally:
                     close = getattr(provider, "close", None)

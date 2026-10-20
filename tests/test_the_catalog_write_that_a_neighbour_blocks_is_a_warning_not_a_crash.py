@@ -125,6 +125,10 @@ def _start_child(tmp_path: Path, source: str, args: list[str]) -> subprocess.Pop
         encoding="utf-8",
         errors="replace",
         cwd=str(tmp_path),
+        # The parent pins a decoder; the child must be told which codec it
+        # writes with, or the two ends disagree whenever the machine locale
+        # is not utf-8.
+        env=dict(os.environ, PYTHONIOENCODING="utf-8"),
     )
 
 

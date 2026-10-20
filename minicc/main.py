@@ -303,6 +303,15 @@ def _apply_cli_overrides(config: Config, args: argparse.Namespace) -> Config:
         updates["auto_resume_on_start"] = True
     if args.subagent_writable:
         updates["subagent_writable"] = True
+    # M8-T275: an explicit ``--permission-mode plan`` must not be silently
+    # overridden by a ``yolo`` from the configuration layers.  The documented
+    # precedence is "explicit arguments > environment > .env > project layer
+    # > user layer", and the Web face already keeps ``plan`` (it forces
+    # ``changes`` off), so the same configuration meant "read-only plan" on
+    # the Web and "everything allowed" on the CLI.  ``plan`` is the safe
+    # direction, so it wins.
+    if args.permission_mode == "plan" and config.yolo:
+        updates["yolo"] = False
     return replace(config, **updates) if updates else config
 
 
@@ -359,18 +368,50 @@ def _permission_gate(
             return False
         cli_out(f"\n[minicc] 即将调用高风险工具 {name} ({_tool_preview(call)})")
         try:
-            answer = input("允许此次操作？[y/N/a] ").strip().lower()
+            raw = input("允许此次操作？[y/N/a/A] ").strip()
         except EOFError:
             return False
-        if answer in {"a", "always", "always allow"}:
+        # M2-T3: the case carries the meaning here, so the raw answer is kept:
+        # ``a`` is "always allow THIS command/path" and ``A`` is "always allow
+        # every use of this tool".  Lowercasing first would fold ``A`` into
+        # ``a`` and leave the tool-wide grant unreachable, so a user who asked
+        # for it silently got the narrower one.
+        answer = raw.lower()
+        if raw == "A" or answer == "always-tool":
+            # The tool-wide grant is an explicit, separate choice.
             if workspace is not None and session_id:
                 try:
-                    kwargs: dict[str, str] = {"tool": name}
+                    add_session_rule(workspace, session_id, tool=name)
+                    cli_out(
+                        f"[minicc] 已写入本会话 allowlist：{name} 的全部用法都将自动放行"
+                    )
+                except AllowlistError as exc:
+                    cli_out(f"[minicc] allowlist 写入失败: {exc}")
+            return True
+        if answer in {"a", "always", "always allow"}:
+            # "a" means "always allow THIS command/path", not
+            # "always allow this tool".  Writing the bare tool name granted
+            # every later call of that tool - approving one
+            # `bash python -m pytest` used to auto-approve `del /f /s /q`.
+            if workspace is not None and session_id:
+                try:
+                    kwargs: dict[str, str] = {}
                     if name == "bash":
-                        kwargs["command"] = str(call.arguments.get("command") or "").strip()
+                        command = str(call.arguments.get("command") or "").strip()
+                        if command:
+                            kwargs["command"] = command
                     path = call.arguments.get("path")
                     if isinstance(path, str) and path.strip():
                         kwargs["path"] = path.strip()
+                    if not kwargs:
+                        # Nothing specific to remember (a write tool with no
+                        # path argument, or a bash call with an empty
+                        # command): fall back to the tool scope.  M8-T298:
+                        # an empty command used to be written as
+                        # ``{"command": ""}``, which ``add_session_rule``
+                        # drops - so nothing was persisted while the CLI
+                        # said it was.
+                        kwargs["tool"] = name
                     add_session_rule(workspace, session_id, **kwargs)
                     cli_out("[minicc] 已写入本会话 allowlist")
                 except AllowlistError as exc:

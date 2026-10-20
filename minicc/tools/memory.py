@@ -144,8 +144,16 @@ class MemoryTools:
             if path.is_file():
                 try:
                     existing = path.read_text(encoding="utf-8")
-                except (OSError, UnicodeError):
-                    existing = ""
+                except (OSError, UnicodeError) as exc:
+                    # M8-T302: a read failure used to be treated as "the file
+                    # is empty", and the write then replaced the whole file
+                    # with a header and one new line - every earlier memory
+                    # gone, with no error anywhere.  A file we cannot read
+                    # is a file we must not overwrite.
+                    raise ToolError(
+                        f"无法读取记忆文件 ({path}): {exc}。"
+                        "请先修复该文件（编码或权限），再写入记忆。"
+                    ) from exc
             if not existing:
                 existing = FILE_HEADER.format(scope=entry.scope) + "\n"
             if not existing.endswith("\n"):

@@ -64,6 +64,32 @@ class VerificationCommand:
     timeout: int = 120
 
 
+# M8-T280: a verification run writes its own artefacts into the workspace -
+# ``.coverage``, ``coverage.xml``, ``htmlcov/``, ``junit.xml`` and friends.
+# The fingerprint hashed the whole tree, so those artefacts changed it and a
+# *passing* run was rewritten as "the workspace changed during verification" -
+# a failure the model cannot fix and the user cannot see.  The guard wants to
+# know whether the **inputs** changed; a file the check itself produces is
+# not an input.
+GENERATED_ARTIFACT_NAMES = frozenset({
+    ".coverage",
+    "coverage.xml",
+    "coverage.json",
+    "coverage.lcov",
+    "lcov.info",
+    "junit.xml",
+    "junit-report.xml",
+    "pytest.xml",
+    "test-report.xml",
+})
+GENERATED_ARTIFACT_DIRS = frozenset({
+    "htmlcov",
+    ".nyc_output",
+    "test-results",
+    "coverage",
+})
+
+
 @dataclass
 class VerificationPlan:
     commands: list[VerificationCommand] = field(default_factory=list)
@@ -81,13 +107,25 @@ def verification_fingerprint(root: Path, changed: list[str], commands: list[Veri
     total_bytes = 0
     suffixes = {".py", ".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".json", ".toml", ".css", ".html", ".yaml", ".yml", ".txt", ".csv", ".tsv", ".xml", ".ini", ".cfg", ".lock", ".sql", ".vue", ".svelte", ".md", ".markdown", ".rst", ".adoc", ".sh", ".bash", ".zsh", ".ps1", ".bat", ".cmd", ".svg", ".png", ".jpg", ".jpeg", ".gif", ".ico", ".webp", ".c", ".h", ".cc", ".cpp", ".hpp", ".go", ".rs", ".java", ".kt", ".rb", ".php", ".swift", ".scss", ".sass", ".less", ".diff", ".patch"}
     for current, dirs, files in os.walk(root):
-        dirs[:] = sorted(d for d in dirs if d not in {".git", ".venv", ".minicc", ".pytest_cache", ".mypy_cache", ".ruff_cache", ".playwright-cli", "venv", "node_modules", "output", "__pycache__", "dist", "build"} and not (Path(current) / d).is_symlink())
+        dirs[:] = sorted(
+            d for d in dirs
+            if d not in {
+                ".git", ".venv", ".minicc", ".pytest_cache", ".mypy_cache",
+                ".ruff_cache", ".playwright-cli", "venv", "node_modules",
+                "output", "__pycache__", "dist", "build",
+            }
+            and d not in GENERATED_ARTIFACT_DIRS  # M8-T280
+            and not (Path(current) / d).is_symlink()
+        )
         for name in sorted(files):
             path = Path(current) / name
             # Environment/secret inputs are intentionally not read into a
             # verification snapshot. Their presence disables reuse instead.
             if name == ".env" or name.startswith(".env.") or path.suffix in {".pem", ".key"}:
                 cacheable = False
+                continue
+            # M8-T280: the artefacts a check leaves behind are not inputs.
+            if name in GENERATED_ARTIFACT_NAMES:
                 continue
             hidden_config = name.startswith(".") or any(part.startswith(".") for part in path.relative_to(root).parts[:-1])
             # M4-T1: extensionless build files (Makefile/Dockerfile/LICENSE) and
@@ -126,8 +164,27 @@ def verification_fingerprint(root: Path, changed: list[str], commands: list[Veri
 
 
 def changed_paths_from_events(events: list[dict[str, Any]]) -> list[str]:
-    return sorted({str(event.get("path")) for event in events
-                   if event.get("status") == "ok" and event.get("write") and event.get("path")})
+    """The changed paths the events can name.
+
+    M8-T314: a bash write names no path of its own, so the changed set was
+    rebuilt from the event's ``path`` field alone and came out empty - the
+    verification plan was then built for nothing.  The loop's own
+    ``verification_required`` trace carries the paths it worked out (via
+    git), so those are read too.
+    """
+    paths: set[str] = set()
+    for event in events:
+        if not isinstance(event, dict):
+            continue
+        if event.get("status") == "ok" and event.get("write") and event.get("path"):
+            paths.add(str(event["path"]))
+        detail = event.get("detail")
+        if isinstance(detail, dict):
+            for path in detail.get("changed_paths") or []:
+                text = str(path or "").strip()
+                if text:
+                    paths.add(text)
+    return sorted(paths)
 
 
 def _quote(path: str) -> str:

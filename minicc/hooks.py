@@ -43,6 +43,7 @@ import re
 import signal
 import subprocess
 import threading
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -55,6 +56,10 @@ LOG = get_logger("hook")
 HOOK_EVENTS = ("PreToolUse", "PostToolUse", "UserPromptSubmit", "Stop")
 DEFAULT_HOOK_TIMEOUT = 5.0
 MAX_HOOK_OUTPUT_CHARS = 2000
+#: M8-T286: the **whole set** of hooks for one event shares this budget.  The
+#: per-hook cap bounds one hook; without an aggregate bound, N hooks of 60
+#: seconds each stalled one tool call for N minutes.
+MAX_HOOK_TOTAL_SECONDS = 60.0
 HOOKS_FILENAME = "hooks.json"
 # Exit code a hook uses to explicitly deny/block (2 mirrors git hook style).
 HOOK_DENY_EXIT = 2
@@ -64,6 +69,18 @@ _NAME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_-]{0,63}$")
 
 class HookConfigError(RuntimeError):
     """hooks.json is malformed; the hook system stays disabled."""
+
+
+class _HookConfigUnreadable(HookConfigError):
+    """The hooks file could not be read or parsed at all.
+
+    M8-T316: a file that cannot be read (invalid JSON, a UTF-8 BOM, an
+    unreadable path) is **demoted** - the hooks are disabled and the run
+    continues, which is what the class contract says.  A file that reads
+    fine but has the wrong shape still raises the plain
+    :class:`HookConfigError`, because that is a configuration mistake the
+    user should see.
+    """
 
 
 @dataclass
@@ -160,7 +177,24 @@ class HookRunner:
         if os.getenv("MINICC_HOOKS", "1").strip().lower() in {"0", "false", "off"}:
             return
         if config is None:
-            config = self._read_config_file()
+            # M8-T316: reading the file was outside the guarded block, so a
+            # malformed hooks.json (invalid JSON, or a UTF-8 BOM - which
+            # PowerShell's ``Out-File`` and the notepad default both write)
+            # raised out of the constructor and killed the whole run: the
+            # Web face answered 500, the CLI aborted, a subagent aborted.
+            # The class contract says a malformed file leaves the hook
+            # system *disabled* - so the read is demoted the same way the
+            # parse is.
+            #
+            # Only an **unreadable** file is demoted.  A file that reads
+            # fine but has the wrong shape (a non-object top level) still
+            # raises, as ``tests/test_hooks_validation.py`` pins.
+            try:
+                config = self._read_config_file()
+            except _HookConfigUnreadable as exc:
+                self.load_error = str(exc)
+                self.specs = []
+                return
         if config is not None:
             try:
                 self._parse(config)
@@ -175,9 +209,12 @@ class HookRunner:
         if not path.is_file():
             return None
         try:
-            data = json.loads(path.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError) as exc:
-            raise HookConfigError(f"无法读取 {path}: {exc}") from exc
+            # ``utf-8-sig`` reads a BOM-prefixed file as if it had none (and
+            # a plain UTF-8 file unchanged) - a BOM is what several Windows
+            # editors write by default.
+            data = json.loads(path.read_text(encoding="utf-8-sig"))
+        except (json.JSONDecodeError, OSError, UnicodeError) as exc:
+            raise _HookConfigUnreadable(f"无法读取 {path}: {exc}") from exc
         if not isinstance(data, dict):
             raise HookConfigError(f"{path} 顶层必须是 JSON 对象")
         return data
@@ -252,17 +289,37 @@ class HookRunner:
     # -- execution ----------------------------------------------------------
 
     def run(self, event: str, payload: dict[str, Any]) -> HookOutcome:
-        """Run every hook matching *event*; never raises."""
+        """Run every hook matching *event*; never raises.
+
+        M8-T286: the set of hooks had **no** aggregate budget - only a
+        per-hook cap - so N hooks of 60 seconds each stalled one tool call
+        for N minutes, and nothing could interrupt them.  The whole set now
+        shares one deadline; a hook that does not fit in what is left is
+        skipped and says so.
+        """
         outcome = HookOutcome()
         if event not in HOOK_EVENTS:
             return outcome
         tool = str(payload.get("tool") or "")
+        deadline = time.monotonic() + MAX_HOOK_TOTAL_SECONDS
         for spec in self.specs:
             if spec.event != event:
                 continue
             if event in {"PreToolUse", "PostToolUse"} and not spec.matches_tool(tool):
                 continue
-            entry = self._run_one(spec, payload)
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                outcome.outputs.append({
+                    "event": spec.event,
+                    "command": spec.command,
+                    "decision": "allow",
+                    "reason": (
+                        f"hook 总预算（{MAX_HOOK_TOTAL_SECONDS:g} 秒）已用尽，"
+                        "本条未执行"
+                    ),
+                })
+                break
+            entry = self._run_one(spec, payload, timeout=min(spec.timeout, remaining))
             outcome.outputs.append(entry)
             # One log line per hook run (M8-T5): the outcome and why, never the
             # hook's stdout, which is arbitrary user output.
@@ -278,7 +335,13 @@ class HookRunner:
                 outcome.decision = "deny"
         return outcome
 
-    def _run_one(self, spec: HookSpec, payload: dict[str, Any]) -> dict[str, Any]:
+    def _run_one(
+        self,
+        spec: HookSpec,
+        payload: dict[str, Any],
+        *,
+        timeout: float | None = None,
+    ) -> dict[str, Any]:
         entry: dict[str, Any] = {
             "event": spec.event,
             "command": spec.command,
@@ -328,7 +391,8 @@ class HookRunner:
             )
             return entry
         try:
-            stdout_raw, stderr_raw = proc.communicate(input=body, timeout=spec.timeout)
+            wait = spec.timeout if timeout is None else max(0.1, min(float(timeout), spec.timeout))
+            stdout_raw, stderr_raw = proc.communicate(input=body, timeout=wait)
         except subprocess.TimeoutExpired:
             _kill_process_tree(proc)
             try:

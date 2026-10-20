@@ -96,7 +96,10 @@ def _load(dest: Path, root: Path) -> dict[str, Any]:
         raise SnapshotError("快照清单不能是链接")
     try:
         manifest = json.loads((dest / "manifest.json").read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+    except (OSError, ValueError) as exc:
+        # M8-T277: ValueError covers both decode failures.  A manifest that
+        # is not UTF-8 used to raise a bare UnicodeDecodeError out of here,
+        # past the SnapshotError this function promises.
         raise SnapshotError(f"无法读取快照清单: {exc}") from exc
     if not isinstance(manifest, dict) or not isinstance(manifest.get("files"), list):
         raise SnapshotError("快照清单格式错误")

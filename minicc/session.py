@@ -184,6 +184,12 @@ def list_sessions(workspace: Path) -> list[dict[str, Any]]:
     malformed checkpoints are reported with an ``error`` field instead of
     raising, so listing never breaks on one bad file. Backup sidecars
     (``*.pre-rewind.json``) are not sessions and are skipped.
+
+    M8-T277: the reads catch ``ValueError`` rather than
+    ``json.JSONDecodeError``.  Both decode failures are ``ValueError``
+    subclasses, but only the JSON one is a ``json.JSONDecodeError`` - a file
+    that is not UTF-8 raised a bare ``UnicodeDecodeError`` straight out of
+    here, so "listing never breaks on one bad file" was not true.
     """
     root = Path(workspace) / ".minicc" / "sessions"
     sessions: list[dict[str, Any]] = []
@@ -195,7 +201,7 @@ def list_sessions(workspace: Path) -> list[dict[str, Any]]:
         entry: dict[str, Any] = {"session_id": path.stem, "messages": 0}
         try:
             payload = json.loads(_read_text_with_retry(path))
-        except (OSError, json.JSONDecodeError):
+        except (OSError, ValueError):
             entry["error"] = "无法读取"
             sessions.append(entry)
             continue
@@ -266,7 +272,7 @@ class SessionStore:
             raise SessionError(f"会话不存在: {self.path.name}")
         try:
             payload = json.loads(_read_text_with_retry(self.path))
-        except (OSError, json.JSONDecodeError) as exc:
+        except (OSError, ValueError) as exc:
             raise SessionError(f"无法读取 session {self.path}: {exc}") from exc
         if not isinstance(payload, dict) or not isinstance(payload.get("messages"), list):
             raise SessionError(f"session 格式错误: {self.path}")
@@ -286,7 +292,7 @@ class SessionStore:
             return None
         try:
             payload = json.loads(_read_text_with_retry(self.path))
-        except (OSError, json.JSONDecodeError):
+        except (OSError, ValueError):
             return None
         return payload if isinstance(payload, dict) else None
 
@@ -490,7 +496,7 @@ class SessionStore:
             return dict(_DEFAULT_VIEW)
         try:
             payload = json.loads(_read_text_with_retry(self.path))
-        except (OSError, json.JSONDecodeError) as exc:
+        except (OSError, ValueError) as exc:
             raise SessionError(f"无法读取 session 视图 {self.path}: {exc}") from exc
         raw = payload.get("view") if isinstance(payload, dict) else None
         if not isinstance(raw, dict):
@@ -515,7 +521,7 @@ class SessionStore:
         else:
             try:
                 raw = json.loads(_read_text_with_retry(self.path))
-            except (OSError, json.JSONDecodeError) as exc:
+            except (OSError, ValueError) as exc:
                 raise SessionError(f"无法读取 session {self.path}: {exc}") from exc
             payload = raw if isinstance(raw, dict) else {"version": SESSION_FORMAT_VERSION, "messages": []}
         payload["version"] = SESSION_FORMAT_VERSION
@@ -609,6 +615,12 @@ def list_sessions(workspace: Path) -> list[dict[str, Any]]:
     malformed checkpoints are reported with an ``error`` field instead of
     raising, so listing never breaks on one bad file. Backup sidecars
     (``*.pre-rewind.json``) are not sessions and are skipped.
+
+    M8-T277: the reads catch ``ValueError`` rather than
+    ``json.JSONDecodeError``.  Both decode failures are ``ValueError``
+    subclasses, but only the JSON one is a ``json.JSONDecodeError`` - a file
+    that is not UTF-8 raised a bare ``UnicodeDecodeError`` straight out of
+    here, so "listing never breaks on one bad file" was not true.
     """
     root = Path(workspace) / ".minicc" / "sessions"
     sessions: list[dict[str, Any]] = []
@@ -620,7 +632,7 @@ def list_sessions(workspace: Path) -> list[dict[str, Any]]:
         entry: dict[str, Any] = {"session_id": path.stem, "messages": 0}
         try:
             payload = json.loads(_read_text_with_retry(path))
-        except (OSError, json.JSONDecodeError):
+        except (OSError, ValueError):
             entry["error"] = "无法读取"
             sessions.append(entry)
             continue

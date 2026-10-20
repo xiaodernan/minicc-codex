@@ -20,6 +20,7 @@ import re
 from pathlib import Path
 from typing import Any
 
+from .audit import tool_denied_by_rule
 from .tools.fs import _minicc_sensitive_kind
 from .tools.registry import redact_text
 
@@ -102,6 +103,15 @@ def build_mention_context(
         if sensitive == "deny":
             records.append(_reject(token, ".minicc 认证/授权文件不允许注入"))
             continue
+        # M8-T317: the same deny rules the agent's own read is subject to.
+        # The mention path is a **third** reader of the workspace (beside
+        # the tools and the Web preview), and it used to consult only the
+        # .minicc credential list - so a path that ``read_file`` refused
+        # (``deny.paths``) was pasted into the model in full by an
+        # ``@mention``.
+        if tool_denied_by_rule(ws, "read_file", {"path": token}):
+            records.append(_reject(token, "permissions.json deny 规则不允许注入"))
+            continue
         try:
             resolved = (ws / raw).resolve()
         except OSError:
@@ -137,16 +147,35 @@ def build_mention_context(
             continue
         if walked_kind == "redact":
             sensitive = "redact"
+        # M8-T290: the deny gate is re-checked on the **converged** path,
+        # for the same reason the credential gate above is: an exact-path rule
+        # does not match the raw token once it carries a CJK tail
+        # (``secrets/k.txt`` does not match ``secrets/k.txt是什么``), and the
+        # walk converges onto the very file the rule names.
+        if tool_denied_by_rule(ws, "read_file", {"path": rel}):
+            records.append(_reject(original, "permissions.json deny 规则不允许注入"))
+            continue
         remaining = min(max_chars_per_file, max_total_chars - used)
         if remaining <= 0:
             omitted.append(rel)
             records.append(_annotate(token, "omitted", "超出注入预算"))
             continue
         try:
-            data = resolved.read_bytes()[:MENTION_READ_BYTES]
+            # M8-T278: the 32 KB ceiling used to be applied *after* the read:
+            # ``read_bytes()[:MENTION_READ_BYTES]`` pulls the whole file into
+            # memory and then slices it, so a 200 MB mention filled the
+            # workbench's heap before the limit had a chance to apply.  The
+            # size is checked first, and only a bounded prefix is read.
+            try:
+                size = resolved.stat().st_size
+            except OSError:
+                size = 0
+            with resolved.open("rb") as handle:
+                data = handle.read(MENTION_READ_BYTES)
         except OSError:
             records.append(_annotate(token, "missing", "文件读取失败"))
             continue
+        oversized = size > MENTION_READ_BYTES
         if b"\x00" in data:
             records.append(_annotate(token, "binary", "二进制文件不注入内容"))
             continue
@@ -160,7 +189,18 @@ def build_mention_context(
             text = text[:cut if cut > remaining // 2 else remaining]
             used += len(text)
             chunks.append(f'<file path="{rel}">\n{text}\n[truncated]</file>')
-            records.append({"token": token, "path": rel, "status": "injected", "reason": "", "truncated": True})
+            # M8-T299: one record per mention.  The oversized branch used to
+            # add an "omitted" record *and* fall through to the "injected"
+            # one, so the same file was reported twice - and the "omitted"
+            # bucket says the content was **not** included, which was false:
+            # a prefix was.
+            records.append({
+                "token": token,
+                "path": rel,
+                "status": "injected",
+                "reason": "文件过大，仅注入开头片段" if oversized else "",
+                "truncated": True,
+            })
             continue
         used += len(text)
         chunks.append(f'<file path="{rel}">\n{text}\n</file>')

@@ -200,7 +200,11 @@ def load_mcp_config(workspace: Path) -> list[McpServerConfig]:
     if not path.is_file():
         return []
     try:
-        raw = json.loads(path.read_text(encoding="utf-8"))
+        # M8-T268: ``utf-8-sig`` reads a BOM-prefixed file as if it had none
+        # (and a plain UTF-8 file unchanged), so a config written by
+        # PowerShell's ``Out-File`` or the notepad default works instead of
+        # failing to load.
+        raw = json.loads(path.read_text(encoding="utf-8-sig"))
     except (OSError, json.JSONDecodeError) as exc:
         raise McpError(f"无法读取 MCP 配置: {exc}") from exc
     entries = raw.get("servers", raw) if isinstance(raw, dict) else raw

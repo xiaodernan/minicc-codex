@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from .allowlist import match_session_allowlist
-from .permissions import match_permission_rule
+from .permissions import load_permission_rules, match_permission_rule
 from .tools.bash import is_readonly_command, split_command_argv
 
 
@@ -105,6 +105,49 @@ def tool_requires_authorization(
 
 def _is_network_tool(tool: str, capabilities: Iterable[str] = ()) -> bool:
     return str(tool or "") in NETWORK_TOOL_NAMES or "network" in set(capabilities or ())
+
+
+def tool_denied_by_rule(
+    workspace: Path | str | None,
+    tool: str,
+    arguments: dict[str, Any] | None = None,
+) -> bool:
+    """True when a ``permissions.json`` deny rule covers this call.
+
+    M8-T267: ``tool_requires_authorization`` only fires for write/exec/network
+    risks, so a readonly call never reached the gate - and the deny rules live
+    inside it.  A deny rule on ``secrets/*`` therefore protected nothing on
+    the read path, even though the Web face already documented the opposite
+    ("denying a path like ``.env`` blocks reads too").
+
+    This is the read-side half of that promise: the caller asks the rule
+    directly, without asking the user for a verdict.  A deny rule is an
+    absolute veto, not a question.
+    """
+    if not workspace:
+        return False
+    try:
+        return match_permission_rule(Path(workspace), tool, arguments or {}) == "deny"
+    except OSError:
+        return False
+
+
+def deny_rule_names_paths(workspace: Path | str | None) -> bool:
+    """True when the deny side carries a path rule at all.
+
+    M8-T290: a workspace-wide read - a diff of everything - carries the
+    content of every path, including the ones a deny rule covers.  Such a
+    read therefore has to be refused whenever the deny side names any path,
+    even though no particular path was asked for.
+    """
+    if not workspace:
+        return False
+    try:
+        rules, _error = load_permission_rules(Path(workspace))
+    except OSError:
+        return False
+    return bool(rules["deny"]["paths"])
+
 
 # Task-level permission modes, aligned with Claude Code:
 # - default:     readonly auto; writes/exec need the task write authorization.
@@ -296,6 +339,8 @@ __all__ = [
     "AuthorizationDecision",
     "authorize_tool",
     "command_uses_network",
+    "deny_rule_names_paths",
     "normalize_permission_mode",
+    "tool_denied_by_rule",
     "tool_requires_authorization",
 ]

@@ -237,7 +237,19 @@ def validate_task(task: dict[str, Any]) -> None:
         raise ValueError(f"任务 {task['id']} grader 类型非法: {grader.get('type') if isinstance(grader, dict) else grader}")
     # Same rule the grader applies, applied before the agent is paid: a spec nobody can
     # execute is a broken task file, not a workspace that failed.
-    blockers = spec_blockers(grader["type"], grader)
+    #
+    # M8-T303: the loader also applies the grader's **path escape** rule.
+    # The grader refuses a contract that names a path outside the
+    # workspace, but the loader did not - so a task with such a contract
+    # passed validation, the agent ran a full turn, and the grader then
+    # refused the whole run as NO-RESULT.  The loader owes the same check,
+    # before the agent is paid.
+    #
+    # The escape rule is **loader-only**: the grading path keeps its own
+    # contract (a contract that escapes is refused by the grader, with the
+    # grader's exit code), which ``tests/test_grader_no_result_channel.py``
+    # pins.
+    blockers = loader_blockers(grader["type"], grader)
     if blockers:
         raise ValueError(f"任务 {task['id']} grader 规格无法判分: {'; '.join(blockers)}")
     minutes = task.get("max_minutes")
@@ -615,6 +627,12 @@ def spec_blockers(grader_type: str, spec: dict[str, Any]) -> list[str]:
     The loader raises and the grader refuses NO-RESULT from the same list, so neither can
     grow a private idea of "unusable" (which is how a malformed task ended up costing a
     full agent run before anything complained).
+
+    M8-T303: the loader additionally applies the grader's *path escape* rule
+    (see :func:`loader_blockers`).  That extra rule is loader-only, because
+    the grading path has its own contract for an escaping contract - the
+    grader refuses it with its own exit code, and
+    ``tests/test_grader_no_result_channel.py`` pins that.
     """
     blockers: list[str] = []
     if grader_type == "file_contract":
@@ -634,6 +652,58 @@ def spec_blockers(grader_type: str, spec: dict[str, Any]) -> list[str]:
         if dead:
             blockers.append(f"{grader_type} spec has keys nobody reads: {dead}")
     return blockers
+
+
+def loader_blockers(grader_type: str, spec: dict[str, Any]) -> list[str]:
+    """The loader's verdict on a spec: everything the grader refuses, plus escapes.
+
+    M8-T303: a ``file_contract`` that names a path outside the workspace
+    is refused by the grader (exit 2, NO-RESULT), but the loader used to
+    accept it - so the agent ran a full turn and the run was thrown away
+    afterwards.  The loader applies the same rule, before the agent is
+    paid.
+    """
+    blockers = list(spec_blockers(grader_type, spec))
+    if grader_type == "file_contract":
+        files = spec.get("files") or []
+        if files and all(isinstance(item, dict) for item in files):
+            escaping = [
+                str(item.get("path") or "")
+                for item in files
+                if not _contract_path_stays_inside(str(item.get("path") or ""))
+            ]
+            if escaping:
+                blockers.append(
+                    "file_contract paths escape the workspace: "
+                    + ", ".join(sorted(escaping))
+                )
+    return blockers
+
+
+def _contract_path_stays_inside(rel: str) -> bool:
+    """True when a contract path stays inside the workspace it is judged in.
+
+    M8-T303: the same rule the embedded grader applies - the path is
+    resolved against the workspace root and must stay under it.  Purely
+    lexical here (no filesystem access): the check has to hold before the
+    workspace is even materialised.
+    """
+    text = str(rel or "").replace("\\", "/").strip()
+    if not text:
+        return False
+    if text.startswith("/") or (len(text) > 1 and text[1] == ":"):
+        # An absolute path is outside by definition.
+        return False
+    parts = [part for part in text.split("/") if part not in ("", ".")]
+    depth = 0
+    for part in parts:
+        if part == "..":
+            depth -= 1
+            if depth < 0:
+                return False
+        else:
+            depth += 1
+    return True
 
 
 def spec_verifies_nothing(grader_type: str, reason: str) -> dict[str, Any]:

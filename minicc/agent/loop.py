@@ -29,6 +29,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import subprocess
 import threading
 import time
 from copy import deepcopy
@@ -41,6 +42,7 @@ from ..llm.envelope import EnvelopeParseError
 from ..llm.openai_provider import OpenAICompatibleProvider
 from ..llm.stream_merge import append_delta
 from ..llm.usage import add_usage_totals, cache_summary
+from ..audit import deny_rule_names_paths, match_permission_rule, tool_denied_by_rule
 from ..tools.schemas import ToolCall, ToolResult
 from ..tools.registry import ToolRegistry, redact_text
 from ..hooks import payloads_for_result, payloads_for_tool_call
@@ -354,6 +356,11 @@ def build_tool_feedback(call: ToolCall, result: ToolResult, *, risk: str | None 
         "observation": observation,
         "path": safe_path or None,
         "command": safe_command or None,
+        # M8-T296: a backgrounded command is not verification, and the
+        # completion gate judges it from the *event*, so the flag has to
+        # travel with the event.  Without it the gate rebuilt the arguments
+        # from the command alone and the background guard never fired.
+        "background": bool(call.arguments.get("run_in_background")),
         "risk": risk,
         "write": is_workspace_write(call.tool, call.arguments, result.status),
         "exit_code": result.exit_code,
@@ -380,6 +387,93 @@ def _plan_has_runnable_check(workspace: str | Path, changed_paths: list[str]) ->
     except (ValueError, OSError, json.JSONDecodeError):
         return True  # 配置坏了按「有检查」处理：宁可多要一次检查，不静默放行
     return bool(plan.commands)
+
+
+#: M8-T281: how many changed files git may report before the answer is
+#: discarded.  ``git status`` reports the **whole** working tree - every
+#: pre-existing modification and every untracked file - not the files this
+#: command just touched.  A busy workspace would therefore hand the
+#: verification plan a superset of reality, and the plan would be built
+#: for files nobody touched.  Past this many, the honest answer is "I
+#: cannot tell", not a wrong list.
+_GIT_CHANGED_MAX = 64
+
+
+def _rule_covers_this_call(
+    workspace: str | Path | None,
+    tool: str,
+    arguments: dict[str, Any] | None,
+) -> bool:
+    """Whether the deny rules already cover this call's **own** target.
+
+    M8-T290: ``git_diff`` without a path returns the whole working-tree
+    diff and ``grep``'s path is a *directory*, so neither is matched by a
+    rule such as ``secrets/*``.  Those two are the workspace-wide reads the
+    rule has to veto on its own.
+
+    The function answers the narrow question - "is the tool's own argument
+    already denied?" - so the caller can decide that a *different* rule
+    (a path rule at all) means the whole read has to be refused.
+    """
+    if not workspace:
+        return False
+    args = arguments or {}
+    path = str(args.get("path") or "").strip()
+    if not path:
+        # No path: the call is workspace-wide, so no path rule covers it.
+        return False
+    try:
+        return match_permission_rule(Path(workspace), tool, args) == "deny"
+    except OSError:
+        return False
+
+
+def _git_changed_paths(workspace: str | Path | None) -> list[str]:
+    """Files git reports as changed, for a write that named no path.
+
+    M8-T281: a bash write carries no ``path`` argument, so the changed set
+    stayed empty - and the satisfiability probe then answered "this
+    workspace has no runnable check" while the repository's own pytest was
+    right there.  Which files changed is a fact about the workspace, so ask
+    git rather than guess.
+
+    M8-T295: the answer is bounded.  ``git status`` reports the whole
+    working tree, so a busy workspace would produce a superset of the files
+    this command touched - and the verification plan built from it would
+    name tests for files nobody changed.  Past the ceiling the honest
+    answer is "I cannot tell", which the caller treats as no evidence.
+    """
+    if not workspace:
+        return []
+    try:
+        result = subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=str(workspace),
+            capture_output=True,
+            # The decoder is pinned: a capture that decodes with the machine
+            # locale puts shipping code at the mercy of whatever the host
+            # happens to be set to (the repo's own rule - see
+            # ``tests/test_subprocess_decoding.py``).
+            encoding="utf-8",
+            errors="replace",
+            timeout=15,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return []
+    if result.returncode != 0:
+        return []
+    changed: list[str] = []
+    for line in result.stdout.splitlines():
+        entry = line[3:].strip() if len(line) > 3 else ""
+        if " -> " in entry:
+            entry = entry.split(" -> ", 1)[1]
+        entry = entry.strip().strip('"')
+        if entry:
+            changed.append(entry)
+    if len(changed) > _GIT_CHANGED_MAX:
+        # M8-T295: too many to be "what this command changed".
+        return []
+    return changed
 
 
 def _replan_constraints(*, verification_required: bool, feedback: list[dict[str, Any]]) -> list[str]:
@@ -524,15 +618,21 @@ async def run_agent(
             if on_stream is not None:
                 on_stream(suffix)
 
-    def run_hook(event: str, payload: dict[str, Any]) -> Any:
+    async def run_hook(event: str, payload: dict[str, Any]) -> Any:
         """Fire one hook event; returns the outcome or None when disabled.
 
         Hook failures never raise into the loop — the runner itself is the
         isolation boundary (timeouts, denials, redaction all stay inside).
+
+        M8-T289: the hook runs in a **thread**, so the run's event loop keeps
+        turning while it does.  It used to run inline, which meant a cancel
+        requested mid-hook was not observed until every hook for that event
+        had returned - the run could not be stopped while it was waiting on
+        a hook.
         """
         if not hooks_enabled:
             return None
-        outcome = hooks.run(event, payload)
+        outcome = await asyncio.to_thread(hooks.run, event, payload)
         for entry in getattr(outcome, "outputs", []):
             emit_trace(
                 f"Hook {event} 执行完成（{entry.get('decision', 'allow')}）: {entry.get('command', '')}",
@@ -593,7 +693,14 @@ async def run_agent(
         for raw_call, tool_result in zip(raw_calls, probe_results):
             call = ToolCall.from_openai(raw_call)
             result.tool_calls_total += 1
-            cache_tool_result(_signature({"tool": call.tool, "arguments": call.arguments}), tool_result)
+            # M8-T282: the probe's own results are *not* cached.  The
+            # recovery guard asks for evidence that is not a duplicate, and
+            # the probe ran exactly the tools the model is told to use
+            # (``git_status`` takes no arguments, so the model's own call
+            # has the same signature) - so the cached entry made the
+            # model's next call a duplicate, the guard stayed unsatisfied,
+            # and the task could only end by exhausting the stagnation
+            # limit.  The probe is a diagnostic, not a reusable result.
             if on_tool is not None:
                 on_tool(call, tool_result)
             messages.append(tool_result_msg(raw_call["id"], tool_result.render()))
@@ -671,7 +778,7 @@ async def run_agent(
                         str(part.get("text", "")) for part in content if isinstance(part, dict)
                     )
                 break
-        outcome = run_hook("UserPromptSubmit", {
+        outcome = await run_hook("UserPromptSubmit", {
             "event": "UserPromptSubmit",
             "prompt": redact_text(prompt_text[:8000])[0],
         })
@@ -1037,19 +1144,46 @@ async def run_agent(
                     )
                     continue
 
-                if tool_requires_authorization(
+                # M8-T267: a declarative deny rule is an absolute veto, and it
+                # has to reach the read tools too.  The gate below only fires
+                # for write/exec/network risks, so a readonly call never
+                # consulted it - and ``permissions.json``'s deny rules live
+                # inside it.  A deny rule on ``secrets/*`` therefore protected
+                # nothing on the read path, while the Web face already
+                # documented the opposite.  The rule is asked directly here:
+                # a veto is not a question for the user.
+                rule_denied = tool_denied_by_rule(workspace, tc.tool, tc.arguments)
+                # M8-T290: a **workspace-wide** read carries the content of
+                # every path, including the ones a deny rule covers.  Two
+                # tools do that: ``git_diff`` without a path (the whole
+                # working-tree diff) and ``grep`` over a directory (its
+                # path is a directory, so a ``secrets/*`` rule never
+                # matched it).  Asking the rule about the tool's own
+                # arguments is not enough for either.
+                if not rule_denied and deny_rule_names_paths(workspace):
+                    if tc.tool in {"git_diff", "grep", "tree"} and not _rule_covers_this_call(
+                        workspace, tc.tool, tc.arguments
+                    ):
+                        rule_denied = True
+                needs_gate = tool_requires_authorization(
                     tc.tool, risk, registry.capabilities_of(tc.tool)
-                ) and not allow(tc.tool, tc):
+                )
+                if rule_denied or (needs_gate and not allow(tc.tool, tc)):
                     result.denied_tools.append(tc.tool)
                     denied = ToolResult(
                         status="denied",
-                        summary=f"[DENIED] 用户拒绝了此操作 ({tc.tool})",
+                        summary=(
+                            "[DENIED] permissions.json deny 规则拒绝了此操作 "
+                            f"({tc.tool})"
+                            if rule_denied
+                            else f"[DENIED] 用户拒绝了此操作 ({tc.tool})"
+                        ),
                         security_tags=["untrusted"],
                     )
                     immediate_results[index] = (tc, denied)
                     continue
                 if hooks_enabled:
-                    hook_outcome = run_hook(
+                    hook_outcome = await run_hook(
                         "PreToolUse",
                         payloads_for_tool_call("PreToolUse", tc.tool, tc.arguments, risk=risk),
                     )
@@ -1156,7 +1290,7 @@ async def run_agent(
                     and not (tool_result.data or {}).get("duplicate")
                     and not (tool_result.data or {}).get("cached")
                 ):
-                    run_hook(
+                    await run_hook(
                         "PostToolUse",
                         {
                             **payloads_for_tool_call(
@@ -1214,6 +1348,18 @@ async def run_agent(
                     path = str((call.arguments or {}).get("path") or "")
                     if path:
                         changed_paths.add(path)
+                    elif call.tool == "bash":
+                        # M8-T281: a bash write names no path, so the changed
+                        # set stayed empty and the probe below answered "no
+                        # runnable check" for a workspace that had plenty.
+                        # M8-T295: git runs in a thread - a synchronous
+                        # subprocess inside this coroutine would stall the
+                        # whole task's event loop (the parallel read fan-out,
+                        # the SSE pump and the approval wait) for the
+                        # duration of ``git status``.
+                        changed_paths.update(
+                            await asyncio.to_thread(_git_changed_paths, workspace)
+                        )
                 # 新一轮写入重置换证阶段：此前的检视不再覆盖最新改动。
                 post_write_inspection = False
             # M8-T58: 写入之后的只读检视（read_file/git_diff）是「无检查工作区」
@@ -1265,6 +1411,13 @@ async def run_agent(
                             for call, tool_result in immediate_results.values()
                             if is_workspace_write(call.tool, call.arguments, tool_result.status)
                         ],
+                        # M8-T314: the changed **paths**, not just the tool
+                        # names.  A bash write names no path, so the
+                        # downstream consumers that rebuild the changed set
+                        # from the events (the verification plan, the
+                        # repair scope) saw an empty list - and the plan was
+                        # built for nothing.
+                        "changed_paths": sorted(changed_paths)[:24],
                     },
                 )
                 messages.append({
@@ -1629,7 +1782,7 @@ async def run_agent(
         "budget": runtime_budget.snapshot(),
     }
     if hooks_enabled:
-        run_hook("Stop", {
+        await run_hook("Stop", {
             "event": "Stop",
             "answer": redact_text((result.answer or "")[:4000])[0],
             "error": result.error or "",
