@@ -59,6 +59,41 @@ class ComplexityAssessment:
         }
 
 
+#: The work dimensions a request can name, and the words that name them.
+#:
+#: M8-T316: the English alternatives need a **word boundary**, the same way
+#: ``_CONNECTOR_RE`` does (M8-T290): a bare substring let one word light up
+#: two dimensions at once - ``latest`` contains ``test`` (so "the latest
+#: build" was a *verification* dimension too), ``address`` starts with
+#: ``add``, ``prefix`` contains ``fix``, ``website`` is both *research* and
+#: *presentation*.  A single "update the release notes" request then matched
+#: four dimensions, and the planner split it into parallel read-only
+#: subtasks.
+#:
+#: The stems are kept (``\bword\w*``) so inflections still match -
+#: "analyzing", "migration", "validation" - while a word that merely
+#: *contains* the stem no longer does.  The short stems whose suffix is
+#: ambiguous ("add" -> "address", "test" -> "testify") name their suffixes
+#: explicitly instead.
+DIMENSION_PATTERNS: dict[str, str] = {
+    "inspection": (
+        r"检查|分析|调研|查看|排查|审查"
+        r"|\breview\w*|\banaly[sz]\w*|\bresearch\w*|\binspect\w*|\binvestigat\w*"
+    ),
+    "implementation": (
+        r"修复|实现|开发|重构|优化|添加|构建|制作|迁移"
+        r"|\bimplement\w*|\bbuild(?:s|ing)?\b|\bfix(?:es|ed|ing)?\b"
+        r"|\brefactor\w*|\bimprov\w*|\bcreat\w*|\badd(?:s|ed|ing)?\b|\bmigrat\w*"
+    ),
+    "verification": (
+        r"测试|验证|运行|评估|测评|验收"
+        r"|\btest(?:s|ed|ing)?\b|\bverif\w*|\bbenchmark\w*|\bevaluat\w*|\bvalidat\w*"
+    ),
+    "research": r"联网|搜索|最新|资料|文档|调研|\bweb\w*|\bsearch\w*|\blatest\b|\bdocs\b",
+    "presentation": r"前端|界面|页面|UI|网页|设计|宣传页|\bfrontend\w*|\bweb\w*|\bdesign\w*|\blanding\b",
+}
+
+
 def assess_complexity(message: str, *, attachment_count: int = 0) -> ComplexityAssessment:
     """Score multi-step work without making an extra model call.
 
@@ -90,14 +125,11 @@ def assess_complexity(message: str, *, attachment_count: int = 0) -> ComplexityA
         score += 1
         reasons.append("存在组合目标")
 
-    dimensions = {
-        "inspection": r"检查|分析|调研|查看|排查|审查|review|analy[sz]e|research|inspect|investigate",
-        "implementation": r"修复|实现|开发|重构|优化|添加|构建|制作|迁移|implement|build|fix|refactor|improve|create|add|migrat",
-        "verification": r"测试|验证|运行|评估|测评|验收|test|verify|benchmark|evaluate|validate",
-        "research": r"联网|搜索|最新|资料|文档|调研|web|search|latest|docs",
-        "presentation": r"前端|界面|页面|UI|网页|设计|宣传页|frontend|web|design|landing",
-    }
-    matched = [name for name, pattern in dimensions.items() if re.search(pattern, text, re.I)]
+    matched = [
+        name
+        for name, pattern in DIMENSION_PATTERNS.items()
+        if re.search(pattern, text, re.I)
+    ]
     if len(matched) >= 4:
         score += 3
         reasons.append("同时涉及多个独立工作维度")
