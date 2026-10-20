@@ -21447,3 +21447,68 @@ pytest 收集的是**文件系统**，所以一条**从未提交**的门禁在�
 （顺带一提：这条门禁写出来之后**第一件事就是把自己弄红了**——它发现新文件还没
 进索引。那正是它该有的第一次反应。）
 
+
+
+## 第三百零七批 — M8-T311 — 判据要跟自己写的契约一致；两个判据不许对同一次调用给两个答案
+
+### 1 缺陷
+
+`command_may_modify_workspace` 的 docstring 写着两句：
+
+> Conservative: True when a bash command could rewrite the workspace.
+> Over-reporting only forces an extra verification pass; under-reporting lets
+> a real write skip the verifier, so the heuristic errs toward True.
+
+而实现里有一段与这两句话**矛盾**的代码：
+
+```python
+if program in _INTERPRETERS:
+    flags = {tok for tok in rest if tok.startswith("-")}
+    # ``-c``/``-m`` run inline code or a module, not a workspace script.
+    if "-c" in flags or "-m" in flags:
+        continue
+```
+
+"内联代码不是工作区里的脚本"说的是**代码从哪来**，不是**它会不会写**。
+
+| 编号 | 问题 | 后果 |
+| --- | --- | --- |
+| M8-T311a | `python -c "open('f','w').write('x')"`、`node -e "fs.writeFileSync(...)"`、`bash -c "rm -rf build"` 全都**不算写** | 与 M8-T308 的 `sed -i` **完全同形**：一次真实的写入被报告成"没有写入" → 验证阶段被跳过 → 任务在没有检查的情况下被认证；检查点还会把它标成 `safe_readonly`（"这个任务没改过东西"） |
+| M8-T311b | `node --check "app.js"` 被**算作写**（因为文件名以 `.js` 结尾），而 `is_verification_evidence` 说它是**验证**——**两个判据对同一次调用给出两个答案** | 而且计划**自己生成的**前端验证命令就是 `node --check "app.js"` → **每次前端验证都像一次写入**：任务不再算"只读"，而"写后要有证据"这条规则**被那个本该做检查的检查本身满足了** |
+
+### 2 落地
+
+`minicc/agent/tool_policy.py`：
+
+* 新增 `_INLINE_CODE_FLAGS`（每个解释器跑**内联代码**的开关：python `-c`、node
+  `-e/--eval/-p/--print`、ruby/perl `-e`、php `-r`、各种 shell `-c`）→
+  命中就是**一次可能改写工作区的调用**；
+* `-m` **故意不动**：模块的 main 通常是检查器，而检查留下的产物不是输入
+  （M8-T280）——`python -m pytest` 仍然不是写；
+* `node --check` 明确**不是写**：它只**解析**文件，既不运行也不写。
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T311a-95 | 内联代码又不算写 | 8 条红 |
+| M8-T311b-96 | `node --check` 又算写 | 1 条红 |
+
+### 4 新增门禁
+
+`tests/test_inline_code_is_a_write_too.py`（18 条）：九种内联代码写法都是写；
+六个检查器/读命令仍然不是写（`-m pytest`、`-m mypy`、`node --check`、`cat`、
+`pytest`、`ls`）；`node app.js` 仍然是写；规范判据与函数给出同一个答案，且
+**失败的调用不算写**。
+
+### 5 一条教训
+
+**函数自己的 docstring 是一条契约，而"实现与契约矛盾"时，docstring 通常是对的。**
+
+M8-T311a 的注释说"内联代码不是工作区里的脚本"——这句话**本身没错**，但它被
+用来支撑了一个**它并不蕴含**的结论（"所以它不是写"）。**一个正确的观察被
+拉去支撑一个它没说的结论**，是注释比代码更危险的典型形态。
+
+所以这条判据现在按它**自己声明**的方向来：宁可多报（多一次验证），不可漏报
+（漏报 = 一次真写被当成没写）。
+

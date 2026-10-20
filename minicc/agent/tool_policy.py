@@ -39,6 +39,24 @@ _INTERPRETERS = frozenset({
     "python", "python3", "py", "node", "ruby", "perl", "php",
     "bash", "sh", "zsh", "dash", "ksh",
 })
+#: The flag each interpreter uses to run **inline code** rather than a file
+#: or a module.  Inline code can write anything - ``open(f, "w")``,
+#: ``fs.writeFileSync``, ``rm -rf`` - so a call that runs it is a call that
+#: *could* rewrite the workspace.
+_INLINE_CODE_FLAGS = {
+    "python": {"-c"},
+    "python3": {"-c"},
+    "py": {"-c"},
+    "node": {"-e", "--eval", "-p", "--print"},
+    "ruby": {"-e"},
+    "perl": {"-e"},
+    "php": {"-r"},
+    "bash": {"-c"},
+    "sh": {"-c"},
+    "zsh": {"-c"},
+    "dash": {"-c"},
+    "ksh": {"-c"},
+}
 _SCRIPT_EXT = (".py", ".js", ".mjs", ".cjs", ".sh", ".rb", ".pl", ".php", ".ts")
 
 
@@ -77,8 +95,34 @@ def command_may_modify_workspace(command: str) -> bool:
             return True
         if program in _INTERPRETERS:
             flags = {tok for tok in rest if tok.startswith("-")}
-            # ``-c``/``-m`` run inline code or a module, not a workspace script.
+            # M8-T311: inline code (``python -c``, ``node -e``, ``bash -c``)
+            # can write anything, and this function's own contract says the
+            # heuristic errs toward True - "under-reporting lets a real
+            # write skip the verifier".  The old code skipped the whole
+            # interpreter branch for ``-c``/``-m`` because inline code "is
+            # not a workspace script", but that is a statement about where
+            # the code comes from, not about whether it writes: a task
+            # whose only change was ``python -c "open(f,'w').write(...)"``
+            # was reported as **read-only**, so the verification stage was
+            # skipped and the task was certified without being checked.
+            #
+            # ``-m`` is different on purpose: a module's main is usually a
+            # checker, and the artefacts a check leaves behind are not
+            # inputs (M8-T280) - so ``python -m pytest`` stays a non-write.
+            if flags & _INLINE_CODE_FLAGS.get(program, set()):
+                return True
             if "-c" in flags or "-m" in flags:
+                continue
+            # M8-T311: ``node --check <file>`` only **parses** the file - it
+            # never runs it and never writes anything.  The write predicate
+            # used to call it a write (the file name ends in ``.js``), while
+            # ``is_verification_evidence`` called it verification - two
+            # answers for one call.  And the verification plan *generates*
+            # exactly this command, so every frontend task's own check
+            # looked like a change: the task stopped being "read-only" and
+            # the post-write evidence rule was satisfied by the check that
+            # was supposed to be checking it.
+            if program == "node" and "--check" in flags:
                 continue
             if any(tok.endswith(_SCRIPT_EXT) for tok in rest if not tok.startswith("-")):
                 return True
