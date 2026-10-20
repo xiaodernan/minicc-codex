@@ -26,6 +26,7 @@ import subprocess
 import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from dataclasses import dataclass, field, fields
 from pathlib import Path
@@ -521,6 +522,38 @@ class McpStdioClient:
             self._mark_dead("closed")
 
 
+class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """A redirect handler that refuses to redirect.
+
+    M8-T314: urllib's default opener follows 301/302/303 automatically, and
+    ``redirect_request`` copies the request's headers.  For an MCP client
+    that means a configured server could send the POST to
+    ``http://127.0.0.1:9000/`` - a target that never passed the SSRF gate -
+    and the ``Authorization`` header from ``mcp.json`` went with it.
+
+    Returning ``None`` makes the 3xx come back as an ``HTTPError`` (with
+    its headers), so every hop can pass through the SSRF gate before it is
+    followed - and the configured credentials are never handed to a host
+    they were not configured for.
+    """
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):  # noqa: D102 - urllib API
+        return None
+
+
+#: The opener used for MCP HTTP: no redirect handler, so a 3xx is data.
+_MCP_OPENER = urllib.request.build_opener(_NoRedirectHandler())
+
+#: How many redirects an MCP server may send before the client gives up.
+MAX_MCP_REDIRECTS = 3
+
+
+def _origin(url: str) -> str:
+    """The scheme+host+port an URL points at, for "is this the same origin"."""
+    parsed = urllib.parse.urlsplit(url)
+    return f"{parsed.scheme.lower()}//{parsed.netloc.lower()}"
+
+
 class McpHttpClient:
     """MCP streamable-HTTP client: JSON-RPC over POST, JSON or SSE responses."""
 
@@ -538,27 +571,66 @@ class McpHttpClient:
         self._initialize()
 
     def _post(self, payload: dict[str, Any]) -> tuple[int, str, str, str]:
-        """POST one JSON-RPC message; returns (status, content_type, body, session_id)."""
-        request = urllib.request.Request(
-            self.config.url,
-            data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
-            method="POST",
+        """POST one JSON-RPC message; returns (status, content_type, body, session_id).
+
+        M8-T314: the redirect used to be followed by urllib's default opener,
+        so the target **never passed the SSRF gate again** - the gate only
+        ran when the configuration was loaded, on the original URL.  A
+        configured MCP server could therefore answer the POST with
+        ``302 Location: http://127.0.0.1:9000/internal`` and the request
+        went there.  Worse, ``HTTPRedirectHandler.redirect_request`` copies
+        the request headers, so the ``Authorization`` header configured for
+        that server was **handed to the internal target**.
+
+        So: the opener has no redirect handler (the 3xx comes back as a
+        response), every hop is re-validated by the same SSRF gate the
+        configuration was checked with, and the configured headers are sent
+        only to the origin they were configured for.
+        """
+        origin = _origin(self.config.url)
+        current = self.config.url
+        for _hop in range(MAX_MCP_REDIRECTS + 1):
+            request = urllib.request.Request(
+                current,
+                data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+                method="POST",
+            )
+            request.add_header("Content-Type", "application/json")
+            request.add_header("Accept", "application/json, text/event-stream")
+            if self.session_id:
+                request.add_header("Mcp-Session-Id", self.session_id)
+            # M8-T314: the configured credentials (an ``Authorization``
+            # header) belong to the origin they were configured for.  A
+            # redirect to another origin must not receive them.
+            if _origin(current) == origin:
+                for key, value in self.config.headers.items():
+                    request.add_header(key, value)
+            try:
+                with _MCP_OPENER.open(request, timeout=self.timeout) as response:
+                    body = response.read().decode("utf-8", errors="replace")
+                    session_id = response.headers.get("Mcp-Session-Id") or ""
+                    return int(response.status), response.headers.get("Content-Type", ""), body, session_id
+            except urllib.error.HTTPError as exc:
+                location = exc.headers.get("Location") or "" if exc.headers else ""
+                if exc.code in {301, 302, 303, 307, 308} and location:
+                    target = urllib.parse.urljoin(current, location)
+                    try:
+                        assert_public_http_url(
+                            target, allow_env="MINICC_ALLOW_PRIVATE_MCP"
+                        )
+                    except (BlockedAddressError, ValueError) as blocked:
+                        raise McpError(
+                            f"MCP 服务器 {self.config.name} 重定向到被 SSRF 防护拒绝的地址: "
+                            f"{target}（{blocked}）"
+                        ) from None
+                    current = target
+                    continue
+                raise McpError(f"MCP HTTP server {self.config.name} 返回 HTTP {exc.code}") from None
+            except (urllib.error.URLError, OSError) as exc:
+                raise McpError(f"MCP HTTP server {self.config.name} 不可达: {exc}") from None
+        raise McpError(
+            f"MCP HTTP server {self.config.name} 重定向超过 {MAX_MCP_REDIRECTS} 次，已停止跟踪"
         )
-        request.add_header("Content-Type", "application/json")
-        request.add_header("Accept", "application/json, text/event-stream")
-        if self.session_id:
-            request.add_header("Mcp-Session-Id", self.session_id)
-        for key, value in self.config.headers.items():
-            request.add_header(key, value)
-        try:
-            with urllib.request.urlopen(request, timeout=self.timeout) as response:
-                body = response.read().decode("utf-8", errors="replace")
-                session_id = response.headers.get("Mcp-Session-Id") or ""
-                return int(response.status), response.headers.get("Content-Type", ""), body, session_id
-        except urllib.error.HTTPError as exc:
-            raise McpError(f"MCP HTTP server {self.config.name} 返回 HTTP {exc.code}") from None
-        except (urllib.error.URLError, OSError) as exc:
-            raise McpError(f"MCP HTTP server {self.config.name} 不可达: {exc}") from None
 
     def _initialize(self) -> None:
         status, content_type, body, session_id = self._post({
