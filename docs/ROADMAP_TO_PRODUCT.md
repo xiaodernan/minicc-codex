@@ -20549,3 +20549,140 @@ hook 是在 `run_agent` 的协程里**同步**跑的（`hooks.run(...)` 直接�
 
 **hook 仍然无法被中途打断。** 它现在不占住事件循环了，所以取消**请求**能被看到；但正在跑的那个 hook 进程仍要等它自己结束（`communicate(timeout=...)` 的上限是它自己的 `timeout`）。要真正可打断，需要把 `cancel_event` 传进 `HookRunner` 并在超时之外也终止子进程。
 
+
+## 第二百九十批 — M8-T264（补记） — 一台 MCP 服务器起不来，不再把同趟里答完话的健康兄弟一起收掉
+
+**为什么这一节来得这么晚。** 本单位的代码早就落库了：`063c760 M8-T264（第二百六十六批）：…`。
+可账本里没有「第二百六十六批」这一节，也没有任何一个 M8-T264 的小节——补记前实测
+`grep -c 第二百六十六批 docs/ROADMAP_TO_PRODUCT.md` 得 **0**，`grep -n M8-T264` 的三处命中
+（19242 / 19331 / 19340）全部是第二百六十五批那节里的**候选提名**，不是记录。没人抓这条债：
+仓库里唯一读账本的门是 `scripts/doc_pointers.py`，它审的是**指针落不落**，不审**编号缺不缺**；
+批号的连续性没有任何门。所以本节的意义不是「再写一遍」，而是把这笔只有磁盘知道的红字收进账本。
+编号仍由记录脚本在追加那一刻从文档自己的字节导出：HEAD 已推进到 `7c1730e`（第二百六十九~二百八十九批
+是一次系统性清扫），文档里最大的批号导出 **第二百九十批**。批号是**文档追加顺序**、单位号是
+**任务身份**，二者从第二百四十七批那节起就明确分叉——本批是这个分叉的又一个实例，不是新口径。
+本节全部数字来自当时留下的读数载体（`Temp/mc-t260/` 下的预测、偏差登记、臂日志与 junit），
+补记时只复测了「HEAD 上这些名字还在不在」，没有回头改任何一份预测原文。
+
+**量到的缺陷（先量后写，同一份读数脚本 `Temp/mc-t260/proto_t264.py`，只差平面字节）。**
+`minicc/mcp.py` 的 `tool_specs()` 里，内层 `except McpError` 把一台起不来的服务器的失败**重抛**，
+外层 `except` 于是把 `spawned_now` 里**全部**客户 `_mark_dead` 后中止整趟发现。配一台起不来的
+stdio 服务器加一台健康的 echo，HEAD 字节下实测：`build_registry` 直接抛 `McpError`，
+**本会话拿到 0 个 builtin**（builtin 总数由不挂桥的同一条接缝 `_builtin_names` 读出，不手抄），
+而健康那台被顺手负缓存——第二趟连它自己已经答完话的工具也拿不到。同一文件里同族方法
+`resources_context` 的文档字符串写着相反口径：坏或起不来的服务器应当被**跳过**，而不是拖垮整趟
+发现。两条口径互相矛盾，被外部读者读到的那条是抛穿的那条。
+
+**改法（让发现逐台裁决，而不是整趟连坐）。**
+1. `minicc/mcp.py`：逐台 `try`，失败只标死**那一台**，把它写进新字段 `discovery_skips`，按名字发
+   一条 warning，然后 `continue`；删掉外层那条整趟 `catch`。
+2. `status()` 增加 `skipped` 一格——它不是给测试看的：读者是 `minicc/web.py:1120` 的 web 状态格与
+   `minicc/webserver.py:408` 的 `/api/mcp` 分支（路由判断在 407）。补记时按 HEAD 复测过：生产面里
+   `mcp.status()` 只有这两处读者，测试面另算；`health()` 一字未动（它只有测试读者，见「下批候选」）。
+3. 三处旧口径随转：`tests/test_mcp_stdio.py::test_manager_negative_cache_does_not_respawn` 与
+   `::test_dead_server_marked_in_health` 改成跳过后的调用形状；`tests/test_mcp_http.py` 里那条
+   「不可达 http 服务器拖垮整趟」的例子改成跳过口径并改名，HEAD 上它叫
+   `test_manager_unreachable_http_server_is_skipped_and_disclosed`（`tests/test_mcp_http.py:243`）。
+   改名前的旧名本节不写进代码脊——理由写在「围栏」那节。
+   `minicc/mcp.py` 从 38448 到 38639 字节（+191），sha256 前缀 `edfd92ab4f00` 变 `f39eb9cac9f4`，
+   工作树仍是纯 CRLF。**这对字节是 `063c760` 那一刀的读数**：补记时 HEAD 的同一条文件已被并发
+   清扫推进到 38896 工作树字节（纯 CRLF，sha256 前缀 `e5e1441d827f`）。两件事各自量在各自的
+   提交上，本节不拿旧数冒充现状，也不拿现状回头改旧数。
+
+**门（`tests/test_the_bridge_that_skips_a_dead_server_must_not_reap_the_healthy_one_it_just_asked.py`，10 例）。**
+补记时逐个名字在 HEAD 复测：这条文件仍有 10 个 `def test_`，下表十个案例名与 HEAD 的声明**逐名一致**。
+
+| 案例 | 承重声明 |
+| --- | --- |
+| `test_a_dead_server_does_not_abort_discovery_for_the_healthy_one` | 两种配置序（死台在前/在后）都不中止整趟，健康那台的工具照常返回 |
+| `test_the_shipped_build_registry_keeps_all_builtins_when_one_server_cannot_start` | 真走 `build_registry`，builtin 数与不挂桥时读到的**同一个数**对账（分母由 `_builtin_names` 推导，不是手抄） |
+| `test_the_server_that_answered_keeps_its_client_after_a_sibling_fails` | 两趟名集相等 + 回声那台的 spawn 计数不变（健康客户不被连坐负缓存） |
+| `test_the_dead_server_is_spawned_once_across_three_passes` | 死台三趟只 spawn 一次：跳过不等于每趟重开 |
+| `test_status_names_the_server_that_was_skipped_and_why` | `status()["skipped"]` 具名带原因；期望句子直接从手构的 `McpStdioClient` 捕获后比对 |
+| `test_the_warning_for_a_skipped_server_is_emitted_with_its_name` | 被跳过的服务器名字出现在 warning 里（日志是这条路径唯一的用户可见面） |
+| `test_a_server_that_answers_but_cannot_list_tools_is_skipped_the_same_way` | 答得上来但 `list_tools` 崩的走同一条跳过，而不是同样中止整趟 |
+| `test_every_server_dead_leaves_the_builtins_and_an_empty_mcp_toolset` | 全死时 builtin 仍在、mcp 工具集为空——跳过不是「一切归零」 |
+| `test_the_http_transport_refuses_an_unreachable_server_the_same_way` | http 传输不可达同口径（不可达不再抛穿） |
+| `test_a_healthy_only_config_gains_no_skip_records` | 只含健康服务器的配置 `skipped` 为空：新增格子不许有假阳 |
+
+**臂电池（同一聚焦集，私有平面 `wt264proto`，先 CONTROL 再逐臂；每臂从捕获的 FIXED 字节重新起面，
+跑完还原并复算 sha256）。** `TOTALS legs=8 arms=8 deviations=0`，八条腿逐条 `[MATCH]`，平面最后还原成
+`edfd92ab4f00`。
+
+| 臂 | 只改这一处字节 | 预测红集 | 实测 |
+| --- | --- | --- | --- |
+| CONTROL | 不改 | 空 | 红集空 | MATCH |
+| B1 整趟中止 | `continue` 换回 `raise` | 门 E1–E9 + 两处转换的旧口径 + http 改名例 | `red=12`，逐名等于预测 | MATCH |
+| B2 不标死 | `continue` 前不写 `_mark_dead` | §4 原文：只有 E4 | 照原样跑一次，`red=0`：本门的失败服务器是「起了就退」的孩子，`_client` 自己的 `except McpError` 已经写了负缓存，`spawned_now` 那时还没 append，所以这刀只是把同一个值再写一遍；E7 的 `glitch` 形状里删掉它第二趟也不重起。**红集合 = ∅ 是量出来的 null 读数**，不是我的推理，腿不删 | null（登记 §4） |
+| B2r 原因抹空 | `discovery_skips[name] = str(exc)` → `= ""`（负缓存与 WARNING 照旧） | {E5}（§4）→ 登记后 {E5, http 改名例}（§9） | `red=2`，证明 E5 读的是「原因带异常自己的话」而不是「键里有个名字」 | MATCH |
+| B3 连坐健康兄弟 | 顺手把答完话的兄弟也收掉 | 只 E3 | `red=1` | MATCH |
+| B4 不记跳过 | 不写 `discovery_skips` | `status` 与 `http` 两条披露 | `red=2` | MATCH |
+| B5 不发 warning | 跳过但不发日志 | 只 E6 | `red=1` | MATCH |
+| B6 status 不暴露 | 记了 `skipped` 却不在 `status()` 露出 | `status` 与 `http` | `red=2` | MATCH |
+
+B2 那一格是本批唯一一次「臂自己不生效」，处理方式与第二百六十三批 A2 同：先把原臂照 §4 的写法跑一次，
+把 `red=0` 当作量出来的 null 读数登记（`Temp/mc-t260/deltas_t264.md` §4），不删腿、不改预测原文；
+再另补一条**有断言绑定**的同目的臂 B2r（原因抹成空串），它与 §9 重登记后的红名单一起进入电池。
+§9 还登记了三条已转换的旧口径 pins 必须计入 B1/B2r/B4/B6 的红集合——这是臂电池与门表分开读的两笔账。
+
+**反向对照（pre-fix 字节跑新门）。** `c482fa6` 的 `minicc/mcp.py` 配上本单的门：
+`9 failed, 1 passed`，红的正是 E1–E9，绿的是 E10——与冻结预测一致。E10 一开始也红过：它的断言绑在
+「`status()` 有没有这个键」上，而不是绑在「健康那一趟有没有记到跳过」，旧代码本就必须满足这条对照；
+改成先取默认值再断空，改后按预期绿。这件事先登记在 `Temp/mc-t260/deltas_t264.md`，§3bis 原文未动。
+聚焦回归（门 10 例 + 两处转换的 stdio + 一处 http 改名 + 相邻 mcp 旧门）`30 passed`，分母 30 实测。
+
+**围栏（双平面全量，按案例名多重集归因）。** 父腿 @ `c482fa6`（干净 worktree `wt264par`）、子腿 @
+`063c760`（`wt264fll`），两腿各自 `python -m pytest tests`、不注入 `PYTHONPATH`，腿前打印解析到的
+`minicc/__init__.py` 与 `minicc/mcp.py` 确认 graded 的是本面而非主树。实测：父腿
+`collected=2607 passed=2598 red=1 error=0 skipped=8`（3519.3s），子腿
+`collected=2617 passed=2609 red=0 error=0 skipped=8`（4320.9s）。名单归因：`node_added = 11`
+（新门 10 例 + 改名后的 `test_manager_unreachable_http_server_is_skipped_and_disclosed`）、
+`node_removed = 1`（改名同时进 added 与 removed 是名单法的应有形状；removed 那一条的名字本节不写进
+代码脊——预检时 `scripts/doc_pointers.py` 的证据阅读器把「代码脊里的测试名」一律拿去 HEAD 核对，
+改名前的旧名在 HEAD 已无声明，写进去就是一条谁也读不到的断头指针，而它正是这次预检亲手替我抓出来的
+那一条。逐名读数在 `Temp/mc-t260/junit_parent_t264.xml` 与 `Temp/mc-t260/fence_results_t264.json`
+里可读；改名后的那条现在就在 `tests/test_mcp_http.py:243`）、
+`red_added = []`，分母算术 `2607 + 11 − 1 = 2617` 成立。
+`red_removed` 冻结的是空集、实测非空一条：
+`tests/test_webfetch_routes_its_page_through_the_head_tail_channel.py::test_only_schemas_composes_the_sentence_that_promises_the_budget`。
+父腿 junit 给它的失败原文是 `MINICC_TEST_HANG_LIMIT: this test took 1834.0s, over the 900s bound`——
+被仓库自己的挂起上限处死，不是断言失败；父腿 02:40 起跑时正与 M8-T265 电池第一轮同时跑（可用内存最低
+读到 0.47 GB），单独起跑的子腿里同一案例绿。这条偏差登记在 `Temp/mc-t260/deltas_t264.md` §10，
+§5 原文一字未动，也不为它加容差；本批不声称那条门的负载形状已被修好（它属于 T259 的车道）。
+
+**补记时顺手量到的账本现状（不是本单买的，也不是本单修的，写在这里是因为它就在这条路径上）。**
+`docs/ROADMAP_TO_PRODUCT.md` 的**工作副本**是混合行尾：1 985 419 字节里有 19 548 个 CRLF 与
+1 003 个裸 LF（合计 20 551 行）；同一份文件在 HEAD 的 blob 是 1 965 871 字节、纯 LF、0 个 CRLF，
+而一次干净的 `git worktree add` 检出出来是 1 986 422 字节、全 CRLF。也就是说这 1 003 行在**这台
+磁盘上**丢了 CR，而 `git status` 对这件事完全沉默（`git diff --quiet HEAD -- 该文档` 退出 0）——
+autocrlf 把混合行尾归一化成了同一个 blob。任何读文本的读者（包括 `scripts/doc_pointers.py`）看不见它，
+唯一会被它绊住的是**按字节做纯追加**的脚本：两种行尾拼写同时存在时，「用哪一种续写」不再能靠猜。
+本批的处理是把这件事变成一条有前提的许可：只有当 git 认定该文档相对 HEAD 干净时才允许混合，
+追加用**占多数的那一种**行尾，并把两个计数打印成披露而不是悄悄选一个。这条现状留给后面的批次：
+真要修，得先回答「谁有资格重写一整份一百万字节的账本」。
+
+**诚实边界（明确不声称）。**
+① 本批不改 `build_registry` 对一个坏 spec 的收容口径（那是另一件事），只保证一台服务器起不来
+不再抹掉同趟的健康客户。
+② `health()` 依旧只有测试读者——`status()` 新增的 `skipped` 有生产读者，`health()` 没有，本批不
+替它编读者。补记时复测：HEAD 上 `health()` 的唯一调用点是 `tests/test_mcp_stdio.py:299`，
+`minicc/web.py` 里 `health` 零命中。这条轴到补记时仍然成立。
+③ 跳过之后死台仍会在下一趟被标死并被负缓存（D4 钉住「三趟只 spawn 一次」），本批不声称重连策略
+有任何变化。
+④ warning 只发一次、只带名字和 OS 原因，不承诺任何去重窗口或结构化字段。
+
+**下批候选（补记时按 HEAD 复测过状态，不留活的可疑指针）。**
+- `M8-T265`：`minicc/workspaces.py` 的 `_write` 把暂存文件固定命名成清单的 `.tmp` 同名兄弟，
+  `self._lock` 只是进程内线程锁；第二百六十五批围栏的父腿红字
+  （`PermissionError ... C:\Users\18414\.minicc\workspaces.tmp`）就是它。这一条**已经落库**：
+  代码 `7686e58`、记录 `509d8b8`，编号第二百六十八批。本批的原计划（臂电池第二轮）被它取代。
+- 工作区级**跨进程锁**候选：同一座清单读全表—改—写全表没有跨进程锁，两个 minicc 实例同时
+  `remember()` 时互相抹掉对方的条目（原型实测两进程各记 20 次，落盘 `entries=12 alpha=12 beta=0`）。
+  仓库里已有现成机制：`minicc/session.py` 的 `_cross_process_lock`（`msvcrt.LK_LOCK` 有界重试 /
+  POSIX `fcntl.flock`），但它对目录不可见（模块私名，且 `minicc/` 里无一例跨模块 import 私名的先例）。
+  补记时复测：`minicc/workspaces.py` 里 `lock` 只有三处命中（62 行的 `self._lock = threading.RLock()`
+  与 65、90 两处 `with self._lock`），无 `msvcrt`/`flock` 引用——候选本身仍然成立。**但要另取号**：
+  `M8-T266` 这个号已被 `7c1730e` 的清扫用作另一条缺陷（`.minicc` 门禁按解析后的路径判定），
+  本记录原先把它写成候选号，那笔在这里更正为读数而不是承诺。
+- `health()` 只有测试读者（`tests/test_mcp_stdio.py`），生产读的是 `status()`——一台 dead 服务器
+  对用户是否可见，取决于哪个端点，本批只动了 `status()`。这一格补记时仍未做。
