@@ -1295,7 +1295,16 @@ class OpenAICompatibleProvider:
 
     @staticmethod
     def _to_response(response: Any) -> LLMResponse:
-        choice = response.choices[0]
+        choices = getattr(response, "choices", None) or []
+        if not choices:
+            # M8-T334: a gateway can answer with an empty ``choices``.  The
+            # streaming path skips such a chunk (``if not choices:
+            # continue``) and the Responses path handles it gracefully - but
+            # the one-shot path indexed ``choices[0]`` and raised a bare
+            # ``IndexError`` out of the provider.  An empty answer is an
+            # answer.
+            return LLMResponse(content="", finish_reason="stop")
+        choice = choices[0]
         msg = choice.message
         reasoning = getattr(msg, "reasoning_content", None)
         if not reasoning:
@@ -1304,12 +1313,21 @@ class OpenAICompatibleProvider:
         seen_ids: set[str] = set()
         for index, tc in enumerate(getattr(msg, "tool_calls", None) or ()):
             function = getattr(tc, "function", None)
+            name = getattr(function, "name", "") if function else ""
+            if not name:
+                # M8-T334: a **nameless** call is dropped, exactly as the
+                # streaming assembler drops it (``if not slot["name"]:
+                # continue``).  The two paths used to disagree: the
+                # one-shot path kept it, the loop dispatched a call for the
+                # tool "" and the model spent a round on "[TOOL_ERROR]
+                # 未知工具 ''".
+                continue
             tool_calls.append(
                 {
                     "id": _unique_tool_call_id(str(getattr(tc, "id", None) or ""), f"call-{index}", seen_ids),
                     "type": "function",
                     "function": {
-                        "name": getattr(function, "name", "") if function else "",
+                        "name": name,
                         "arguments": (
                             getattr(function, "arguments", "{}") if function else "{}"
                         ),
