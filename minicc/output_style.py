@@ -10,11 +10,17 @@ override system instructions, permissions, or tool boundaries.
 
 from __future__ import annotations
 
-import logging
 from pathlib import Path
 
-#: Child of the ``minicc`` logger, so the secret-redaction filter applies.
-LOG = logging.getLogger("minicc.output_style")
+from .logging_setup import get_logger
+
+#: M8-T330: the repository's own logger, so the secret-redaction filter
+#: applies.  A bare ``logging.getLogger("minicc.output_style")`` is a
+#: child of the "minicc" logger but does **not** configure it: no handler
+#: carries the filter and ``propagate`` stays on, so the record walks up
+#: to the root handler - **past** the redaction - with the failure's
+#: text in it.
+LOG = get_logger("output_style")
 
 OUTPUT_STYLE_PRESETS = {
     "concise": (

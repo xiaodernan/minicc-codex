@@ -12,9 +12,14 @@ from dataclasses import dataclass
 from typing import Any, Callable, Mapping
 
 from .. import __version__
+from ..logging_setup import get_logger
 
-#: Child of the ``minicc`` logger, so the secret-redaction filter applies.
-LOG = logging.getLogger("minicc.rpc")
+#: M8-T330: the repository's own logger, so the secret-redaction filter
+#: applies.  A bare ``logging.getLogger("minicc.rpc")`` is a child of the
+#: "minicc" logger but does **not** configure it: no handler carries the
+#: filter and ``propagate`` stays on, so the record walks up to the root
+#: handler - **past** the redaction - with the whole traceback in it.
+LOG = get_logger("rpc")
 
 JSONRPC_VERSION = "2.0"
 

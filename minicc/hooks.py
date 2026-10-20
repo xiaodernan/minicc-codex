@@ -56,6 +56,11 @@ LOG = get_logger("hook")
 HOOK_EVENTS = ("PreToolUse", "PostToolUse", "UserPromptSubmit", "Stop")
 DEFAULT_HOOK_TIMEOUT = 5.0
 MAX_HOOK_OUTPUT_CHARS = 2000
+#: M8-T330: how much of **one argument** a hook payload carries.  The value
+#: is redacted first and cut afterwards, and the cut is marked - a hook
+#: that reasons about the payload has to know that it is looking at a
+#: prefix.
+MAX_HOOK_ARG_CHARS = 4000
 #: M8-T286: the **whole set** of hooks for one event shares this budget.  The
 #: per-hook cap bounds one hook; without an aggregate bound, N hooks of 60
 #: seconds each stalled one tool call for N minutes.
@@ -435,14 +440,30 @@ class HookRunner:
 def payloads_for_tool_call(
     event: str, tool: str, arguments: Any, *, risk: str | None = None
 ) -> dict[str, Any]:
-    """Build the (redacted) hook payload for a tool event."""
+    """Build the (redacted) hook payload for a tool event.
+
+    M8-T330: the value used to be **cut first and redacted second**
+    (``redact_text(text[:4000])``), and that order breaks two things at
+    once:
+
+    * a secret that straddled the cut arrived as **half a credential** -
+      the pattern no longer matched it, so half of it went to the hook's
+      stdin;
+    * nothing said the value had been cut, so a ``PreToolUse`` hook - the
+      user's own veto layer - reasoned about a **truncated view** without
+      knowing it, and a policy violation past the cut was invisible to it.
+
+    So: redact first, then cut, and **say** that the value was cut.
+    """
     safe_args = arguments
     if isinstance(arguments, dict):
         safe_args = {}
         for key, value in arguments.items():
             text = value if isinstance(value, str) else json.dumps(value, ensure_ascii=False, default=str)
             if isinstance(text, str):
-                redacted, _ = redact_text(text[:4000])
+                redacted, _ = redact_text(text)
+                if len(redacted) > MAX_HOOK_ARG_CHARS:
+                    redacted = redacted[:MAX_HOOK_ARG_CHARS] + "[truncated]"
                 safe_args[str(key)] = redacted
             else:
                 safe_args[str(key)] = text

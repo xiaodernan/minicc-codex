@@ -88,6 +88,18 @@ def validate_tool_protocol(messages: list[dict[str, Any]]) -> None:
     last_after: set[str] = set()
     for position, message, pending, after in tool_round_walk(messages):
         last_after = after
+        if not isinstance(message, dict):
+            # M8-T331: ``tool_round_walk`` tolerates a message that is not a
+            # dict (it yields it as-is), and the validator used to call
+            # ``message.get(...)`` on it - so a malformed message raised a
+            # bare ``AttributeError`` instead of the ``ValueError`` this
+            # function promises.  The promise matters: the caller is
+            # "reject illegal rounds before network I/O", and an
+            # ``AttributeError`` is not a rejection anyone can catch on
+            # purpose.
+            raise ValueError(
+                f"工具上下文协议无效：第 {position + 1} 条消息不是对象"
+            )
         if message.get("role") == "tool":
             call_id = str(message.get("tool_call_id") or "")
             if call_id not in pending:

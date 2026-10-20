@@ -148,38 +148,49 @@ def _copy_preimage(source: Path, target: Path, *, used: int, count: int) -> tupl
 
 
 def capture(workspace: Path, task_id: str) -> dict[str, Any]:
-    """Preserve dirty files once; clean files are backed up lazily on writes."""
+    """Preserve dirty files once; clean files are backed up lazily on writes.
+
+    M8-T331: this is the **fifth** reader/writer of the same
+    ``manifest.json``, and it was the only one outside the module lock.
+    Its manifest is written **from scratch** (it has no ``touched`` key at
+    all), so a capture that interleaved with a journal's
+    ``before_write``/``after_write`` wiped the entries those had just
+    written: the pre-image was on disk, but the manifest no longer listed
+    it - and ``restore`` then skips a file whose image it cannot find.
+    That is exactly the symptom the lock was added for.
+    """
     root = Path(workspace).resolve()
     dest = snapshot_dir(root, task_id)
-    if (dest / "manifest.json").is_file():
-        return _summary(_load(dest, root))
-    dest.mkdir(parents=True, exist_ok=True)
-    copied: list[str] = []
-    digests: dict[str, str | None] = {}
-    missing: list[str] = []
-    skipped: list[str] = []
-    reasons: dict[str, str] = {}
-    sizes: dict[str, int] = {}
-    used = 0
-    for rel in _git_dirty_files(root):
-        try:
-            src = _within(root, rel)
-            if not src.is_file():
-                missing.append(rel)
+    with _MANIFEST_LOCK:
+        if (dest / "manifest.json").is_file():
+            return _summary(_load(dest, root))
+        dest.mkdir(parents=True, exist_ok=True)
+        copied: list[str] = []
+        digests: dict[str, str | None] = {}
+        missing: list[str] = []
+        skipped: list[str] = []
+        reasons: dict[str, str] = {}
+        sizes: dict[str, int] = {}
+        used = 0
+        for rel in _git_dirty_files(root):
+            try:
+                src = _within(root, rel)
+                if not src.is_file():
+                    missing.append(rel)
+                    continue
+                target = _within(dest / "files", rel)
+                digest, size = _copy_preimage(src, target, used=used, count=len(copied))
+            except (SnapshotError, OSError) as exc:
+                skipped.append(rel)
+                reasons[rel] = str(exc)[:240]
                 continue
-            target = _within(dest / "files", rel)
-            digest, size = _copy_preimage(src, target, used=used, count=len(copied))
-        except (SnapshotError, OSError) as exc:
-            skipped.append(rel)
-            reasons[rel] = str(exc)[:240]
-            continue
-        copied.append(rel)
-        digests[rel] = digest
-        sizes[rel] = size
-        used += size
-    manifest = {"version": 2, "task_id": task_id, "files": copied, "digests": digests, "sizes": sizes, "missing": missing, "skipped": skipped, "skipped_reasons": reasons, "workspace": str(root)}
-    _save(dest, manifest)
-    return _summary(manifest)
+            copied.append(rel)
+            digests[rel] = digest
+            sizes[rel] = size
+            used += size
+        manifest = {"version": 2, "task_id": task_id, "files": copied, "digests": digests, "sizes": sizes, "missing": missing, "skipped": skipped, "skipped_reasons": reasons, "workspace": str(root)}
+        _save(dest, manifest)
+        return _summary(manifest)
 
 
 def _digest(path: Path) -> str | None:

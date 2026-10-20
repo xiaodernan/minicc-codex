@@ -158,15 +158,19 @@ class Verifier:
             result = VerificationResult(
                 status="cancelled" if any(item.status == "cancelled" for item in failures) else "failed" if any(item.status == "failed" for item in failures) else "timed_out" if any(item.status == "timed_out" for item in failures) else "blocked" if failures else "passed",
                 command="\n".join(item.command for item in results), label="verification plan",
-                # M8-T300: the aggregated exit code was the **first**
+                # M8-T331: the aggregated exit code was the **first**
                 # failure's - and a blocked or cancelled check carries no
                 # exit code at all (``None``), so it replaced the real one
                 # (1) in the evidence chain.  The first failure that
-                # actually has an exit code wins; only when none has one
-                # does the aggregate fall back to 0.
+                # actually has an exit code wins.
+                #
+                # And when **no** failure has one, the aggregate used to
+                # write ``0`` - which in an evidence chain reads as "the
+                # command succeeded", next to a status that says
+                # "blocked".  ``None`` is the honest value: no conclusion.
                 exit_code=next(
                     (item.exit_code for item in failures if item.exit_code is not None),
-                    0,
+                    None,
                 ),
                 output="\n\n".join(f"[{item.label}] {item.command}\n{item.output}" for item in results)[-32000:],
                 failed_tests=[test for item in results for test in item.failed_tests],
