@@ -27,6 +27,7 @@ from __future__ import annotations
 import ast
 import json
 import os
+import re
 import subprocess
 import sys
 import threading
@@ -642,10 +643,47 @@ def spec_blockers(grader_type: str, spec: dict[str, Any]) -> list[str]:
         elif not all(isinstance(item, dict) and isinstance(item.get("path"), str)
                      and item["path"].strip() for item in files):
             blockers.append("file_contract items need a non-empty string path")
+        else:
+            # M8-T333: the **values** matter too.  The shape checks above
+            # accept ``{"path": "a.txt", "regex": "["}`` - and the grader
+            # script's ``re.search`` then raises, so the script exits with
+            # **1**.  ``1`` is not the "refused" code (``_GRADER_REFUSED`` is
+            # 2), so the crash was recorded as a **workspace failure** and
+            # the agent had already been paid for a full run.  A spec nobody
+            # can execute is a broken task file.
+            for item in files:
+                pattern = item.get("regex")
+                if pattern is None:
+                    continue
+                if not isinstance(pattern, str):
+                    blockers.append(
+                        f"file_contract item regex must be a string: {pattern!r}"
+                    )
+                    continue
+                try:
+                    re.compile(pattern)
+                except re.error as exc:
+                    blockers.append(f"file_contract item regex is not valid: {exc}")
     elif grader_type == "command_contract":
         command = spec.get("command")
         if not isinstance(command, str) or not command.strip():
             blockers.append("command_contract has no command to run")
+        # M8-T333: same for the command contract: the script does
+        # ``int(spec.get("expect_exit", 0))`` and ``marker not in
+        # proc.stdout`` - both raise on a value of the wrong type, and both
+        # raise *after* the agent was paid.
+        expect = spec.get("expect_exit", 0)
+        try:
+            int(expect)
+        except (TypeError, ValueError):
+            blockers.append(
+                f"command_contract expect_exit must be an integer: {expect!r}"
+            )
+        marker = spec.get("stdout_contains")
+        if marker is not None and not isinstance(marker, str):
+            blockers.append(
+                f"command_contract stdout_contains must be a string: {marker!r}"
+            )
     script = globals().get(GRADER_SCRIPTS.get(grader_type, ""), None)
     if isinstance(script, str):
         dead = unverifiable_spec_keys(grader_type, script, spec)

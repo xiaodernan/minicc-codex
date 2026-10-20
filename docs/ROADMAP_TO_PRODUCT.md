@@ -21981,3 +21981,57 @@ M8-T332b 是这一批之前那条（M8-T332 的前身：把"提到标记的消�
 **判据收紧时，要同时把宽松版本删掉**——否则"旧格式"分支会以"兜底"的名义继续
 回答那个已经被废掉的问题。
 
+
+
+## 第三百一十七批 — M8-T333 — 一份**跑不起来**的评分规格，是坏任务文件，不是"工作区失败"
+
+### 1 缺陷
+
+`spec_blockers` 校验规格的**形状**（文件非空、路径非空、命令非空），但不校验
+**值**：
+
+* `file_contract` 某一项的 `"regex": "["` → 评分脚本里的 `re.search` 抛
+  `re.error` → 脚本以 **1** 退出；
+* 而 `_GRADER_REFUSED = 2` 才是"我拒绝评判"——于是那次崩溃被记成
+  **"工作区失败"**（`passed = False`），而不是 NO-RESULT；
+* 也就是说：**代理已经跑完一整轮、已经被付费**，而失败的原因是**任务文件本身
+  坏了**。
+
+同族：`command_contract` 的 `expect_exit` 不是一个整数（脚本里 `int(...)` 抛）、
+`stdout_contains` 不是字符串（`marker not in proc.stdout` 抛 `TypeError`）——都是
+**代理付费之后**才炸。
+
+模块自己的契约写着："Same rule the grader applies, applied before the agent is
+paid: a spec nobody can execute is a broken task file, not a workspace that
+failed"。
+
+### 2 落地
+
+`minicc/bench_tasks.py`：`spec_blockers` 现在也校验**值**——`regex` 必须能编译、
+`expect_exit` 必须能转成整数、`stdout_contains` 必须是字符串。因为两道门共用这
+一份答案（`loader_blockers` = `spec_blockers` + 路径逃逸），所以**加载期**与
+**评分期**说的是同一句话 ✓。
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T333-109 | 去掉值校验 | 3 条红 |
+
+### 4 新增门禁
+
+`tests/test_a_spec_nobody_can_execute_is_a_broken_task_file.py`（6 条）：不能编译
+的 regex、非字符串的 regex、非整数的 `expect_exit`、非字符串的 `stdout_contains`
+**两道门都拒**；任务文件在**代理开跑之前**就被拒；能跑的规格照旧被接受。
+
+### 5 一条教训
+
+**"形状对"不等于"跑得起来"。**
+
+这一批的门禁形状检查写得很细（路径非空、键名有人读、路径不逃逸），却**没有一条
+检查值**——而评分脚本读的就是值。于是"合法形状的坏数据"从所有闸门下面穿过去，
+一路走到**代理已经花完钱**之后才炸。
+
+**凡是会被执行的代码读到的值，都得在执行前被检查一遍**——检查的**类型**也要对
+（不只是"有没有"）。
+
