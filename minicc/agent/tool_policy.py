@@ -105,6 +105,33 @@ def command_may_modify_workspace(command: str) -> bool:
             tok in _PKG_MUTATING for tok in rest
         ):
             return True
+        if program in {"npm", "yarn", "pnpm"}:
+            # M8-T313: a **script** that rewrites the sources is a write:
+            # ``npm run format`` (prettier --write) and ``npm run lint:fix``
+            # (eslint --fix) rewrite the very files they look at.  The
+            # evidence predicate calls ``format`` a check, so the two
+            # answers have to agree about the side effect - otherwise the
+            # "check" rewrote the change it was supposed to be verifying,
+            # and the task still looked read-only.
+            #
+            # The check-only spellings (``--check``, ``:check``) stay
+            # non-writes.
+            if any(tok in {"--check", "--dry-run", "--list-different"} for tok in rest):
+                continue
+            script = ""
+            if len(rest) >= 2 and rest[0] == "run":
+                script = rest[1]
+            elif rest:
+                script = rest[0]
+            if script:
+                # The check-only spellings stay non-writes.
+                if script.endswith(":check") or script.endswith("-check"):
+                    continue
+                base = script.split(":", 1)[0]
+                if base in {"format", "fmt"} or script.endswith(":fix") or script.endswith("-fix"):
+                    return True
+            if any(tok in {"--fix", "--write"} for tok in rest):
+                return True
         if program in _INTERPRETERS:
             flags = {tok for tok in rest if tok.startswith("-")}
             # M8-T311: inline code (``python -c``, ``node -e``, ``bash -c``)

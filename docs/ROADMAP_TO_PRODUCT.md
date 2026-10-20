@@ -21561,3 +21561,56 @@ M8-T311a 的注释说"内联代码不是工作区里的脚本"——这句话**�
 所以判据要问的不是"这个命令是检查器吗"，而是"**这个命令留下了什么**"：
 缓存可以忽略，产物不能。
 
+
+
+## 第三百零九批 — M8-T313 — 一个"检查脚本"如果会**重写被检查的文件**，它就是一次写
+
+### 1 缺陷
+
+`npm run format`（prettier --write）、`npm run fmt`、`npm run lint:fix`
+（eslint --fix）、`npm run lint -- --fix` 都会**改写它们检查的那些源文件**。
+
+而 `command_may_modify_workspace` 的 npm 分支只认 `_PKG_MUTATING`
+（install/uninstall/update/upgrade/add/remove/ci/build/link）——`format` 与
+`lint:fix` 都不在里面，于是这些命令**不算写**：
+
+* 任务被标成 `safe_readonly`（"这个任务没改过东西"），而源文件刚刚被重写过；
+* "写后要有客观证据"这条规则**不适用**（因为没被认成写）。
+
+而 `npm run lint -- --fix` 更进一步：**证据判据**说它是检查（脚本名 `lint` 在
+白名单里，它只看脚本名），**写判据**说它不是写（它没看 `--fix`）——**两个判据
+对同一次调用给出两个答案**。
+
+### 2 落地
+
+`minicc/agent/tool_policy.py`：npm/yarn/pnpm 的脚本分支现在会看**脚本名**与
+**参数**：
+
+* `format` / `fmt`（不带 `:check` 后缀）→ 是写；
+* `lint:fix` / `lint-fix` → 是写；
+* 参数里带 `--fix` / `--write` → 是写；
+* 检查型的拼写（`--check`、`:check`、`--dry-run`、`--list-different`）→ 仍然
+  **不是**写。
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T313-98 | 去掉 npm 脚本分支 | 8 条红 |
+
+### 4 新增门禁
+
+`tests/test_a_script_that_rewrites_the_sources_is_a_write.py`（16 条）：七种会
+重写源文件的脚本是写；七种检查型拼写不是写；两个判据对 `npm run lint -- --fix`
+**不矛盾**；`npm run build` 仍然是写。
+
+### 5 一条教训
+
+**证据判据与写判据读的不是同一段文本，于是它们会在同一处分开。**
+
+证据判据读的是**脚本名**（`lint` → 是检查）；写判据读的是**整条命令**。一个
+脚本名不携带的信息（`--fix`），在其中一个判据里就**不存在**。
+
+所以当两个判据都在看同一次调用时，**它们看的文本必须一样多**——否则"同一次
+调用两个答案"就会在**信息最少的那一侧**上产生。
+
