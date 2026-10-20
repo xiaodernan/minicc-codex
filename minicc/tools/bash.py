@@ -267,6 +267,16 @@ def is_readonly_command(command: str) -> bool:
             return False
         if ".." in norm.split("/"):
             return False
+        # M8-T302: ``~`` is a home-directory reference, and a home
+        # directory is outside the workspace.  The absolute/parent checks
+        # above catch every other way out, so ``pytest ~/secrets`` was
+        # auto-approved while ``pytest /etc`` and ``pytest ../x`` were not.
+        # On POSIX the shell expands it, and pytest then **imports** the
+        # test modules it finds there - arbitrary code execution from
+        # outside the workspace, in the mode whose whole promise is that
+        # only in-workspace paths are read.
+        if stripped.startswith("~"):
+            return False
         index += 1
     return True
 

@@ -522,7 +522,16 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         path = urlsplit(self.path).path
         try:
-            size = int(self.headers.get("Content-Length", "0"))
+            try:
+                size = int(self.headers.get("Content-Length", "0"))
+            except (TypeError, ValueError):
+                # M8-T292: a malformed Content-Length used to raise here -
+                # *before* the drain block - so the connection was left open
+                # with the body still in it, and the next request on it was
+                # parsed out of the leftover bytes.  The connection is closed
+                # instead: its framing is no longer trustworthy.
+                self.close_connection = True
+                size = -1
             # Drain the request body before any early return so HTTP/1.1
             # keep-alive framing stays consistent. Otherwise the server closes
             # with unread request bytes in flight and Windows clients see a
@@ -552,6 +561,11 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
                 self.close_connection = True
                 raw = b""
             else:
+                # M8-T292: no usable length (``0``, negative, or malformed).
+                # The body may still be sitting in the socket, and its
+                # framing cannot be trusted - so the connection is closed
+                # rather than left to be mis-parsed as the next request.
+                self.close_connection = True
                 raw = b""
             # M3-T1: reject cross-site state changes before doing any work.
             if not self._origin_allowed_for_state_change():

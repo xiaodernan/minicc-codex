@@ -192,7 +192,7 @@ class StageRouter:
             model=model,
             model_tier=ModelTier(tier_name),
             timeout=self._get_stage_timeout(stage),
-            fallback_models=self._get_fallback_models(tier_name),
+            fallback_models=self._get_fallback_models(tier_name, primary=model),
             max_cost_usd=cost_limit,
             max_turns=self._get_stage_max_turns(stage),
             provider=provider,
@@ -258,8 +258,21 @@ class StageRouter:
                 return m
         return self.default_model
 
-    def _get_fallback_models(self, tier: str) -> tuple[str, ...]:
-        """Get fallback models for failover."""
+    def _get_fallback_models(self, tier: str, *, primary: str | None = None) -> tuple[str, ...]:
+        """Get fallback models for failover.
+
+        M8-T291: the list may not contain the model **this route** uses.
+        A tier that lists the model the route already resolved to (or a
+        ``fallover_tiers`` that names the primary's own tier) put it at
+        position 0, so the first "switch" picked the same model again - the
+        failover turned into a no-op while the event said "switched to the
+        fallback model".
+
+        The model to exclude is the **resolved** one (``_select_model_for_tier``),
+        not the deployment's default: with stage routing on, the two are
+        usually different, and excluding the default left the primary in
+        place.
+        """
         fallback_tiers = self.stage_routing_config.get("failover", {}).get("fallback_tiers", [])
         fallbacks: list[str] = []
         for fallback_tier in fallback_tiers:
@@ -267,13 +280,16 @@ class StageRouter:
             fallbacks.extend(tier_models)
         # Add configured fallback_models
         fallbacks.extend(self.fallback_models)
-        # Deduplicate while preserving order
-        seen = set()
+        # Deduplicate while preserving order, and never offer the model the
+        # route is already using.
+        seen = {primary} if primary else set()
+        seen.add(self.default_model)
         unique = []
         for m in fallbacks:
-            if m not in seen:
-                seen.add(m)
-                unique.append(m)
+            if m in seen:
+                continue
+            seen.add(m)
+            unique.append(m)
         return tuple(unique)
 
     def _get_cost_limit(self, stage: str) -> float | None:

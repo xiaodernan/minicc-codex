@@ -86,6 +86,8 @@ def tool_requires_authorization(
     tool: str,
     risk: str | None,
     capabilities: Iterable[str] = (),
+    *,
+    arguments: dict[str, Any] | None = None,
 ) -> bool:
     """True when the agent loop must consult ``should_allow`` before running.
 
@@ -97,13 +99,33 @@ def tool_requires_authorization(
     A plugin that *declares* the ``network`` capability (M8-T3) is routed
     through the same gate, so a third-party readonly tool cannot reach the
     internet without the task's network grant.
+
+    M8-T304: the arguments take part in the question, because one tool's
+    target depends on them - a call that writes outside the workspace is a
+    write, whatever the tool declared.
     """
-    if risk in {"write", "exec"}:
+    if effective_risk(tool, risk, arguments) in {"write", "exec"}:
         return True
-    return _is_network_tool(tool, capabilities)
+    return is_network_tool(tool, capabilities)
 
 
-def _is_network_tool(tool: str, capabilities: Iterable[str] = ()) -> bool:
+def is_network_tool(tool: str, capabilities: Iterable[str] = ()) -> bool:
+    """True when this tool reaches the network.
+
+    M8-T307: the rule has **two** halves - the well-known names, and the
+    ``network`` **capability** a tool may declare (M8-T3).  The gate asked
+    both; the agent loop asked only the names, at four places:
+
+    * a network call's result was **cached and replayed** as if it were a
+      local read (the cache exists to reuse *reproducible* observations,
+      and a network answer is neither);
+    * a failing network tool did not count toward the **circuit breaker**,
+      so a plugin that kept failing was retried for ever.
+
+    Both are the same defect as M8-T303 (a stale second copy of a rule):
+    the copy that nobody maintained was the weaker one.  The rule now has
+    one home, and the loop asks it.
+    """
     return str(tool or "") in NETWORK_TOOL_NAMES or "network" in set(capabilities or ())
 
 
@@ -240,6 +262,44 @@ def command_uses_network(command: object) -> bool:
     return False
 
 
+def _writes_outside_workspace(tool: str, arguments: dict[str, Any] | None) -> bool:
+    """True when this call's target is **outside** the workspace.
+
+    M8-T304: a tool's target is usually fixed by the tool itself, but
+    ``memory_write`` picks between the workspace and the user's home by an
+    argument.  The tool is registered as ``readonly`` because the project
+    scope writes agent state *inside* the workspace - so the write gate
+    never saw the other scope, and the agent appended to a file in the
+    user's home (shared by every project) with no prompt at all.
+
+    Only the argument-carrying case is handled here.  A tool that writes
+    outside the workspace has to say so; this one says it by argument.
+    """
+    if tool != "memory_write":
+        return False
+    scope = str((arguments or {}).get("scope") or "").strip().lower()
+    return scope == "user"
+
+
+def effective_risk(
+    tool: str,
+    risk: str | None,
+    arguments: dict[str, Any] | None = None,
+) -> str:
+    """The risk a call **actually** carries.
+
+    M8-T304: a tool's declared risk is usually the whole story, but
+    ``memory_write``'s target depends on an argument, and its ``user`` scope
+    writes into the user's home - outside the workspace, and shared by every
+    project.  That is a write whatever the tool says, so the declared risk
+    is not the whole story and every consumer has to ask this question the
+    same way.
+    """
+    if risk == "readonly" and _writes_outside_workspace(tool, arguments):
+        return "write"
+    return risk or "unknown"
+
+
 def authorize_tool(
     tool: str,
     risk: str | None,
@@ -273,7 +333,12 @@ def authorize_tool(
         )
     mode = normalize_permission_mode(permission_mode)
     declared = set(capabilities or ())
-    network_tool = _is_network_tool(tool, declared)
+    network_tool = is_network_tool(tool, declared)
+    # M8-T304: a call that writes outside the workspace is judged as the
+    # write it is - the plan mode's "read only" promise, and the write
+    # grant, both have to reach it.  The tool's declared risk cannot see
+    # this, because the target depends on an argument.
+    risk = effective_risk(tool, risk, arguments)
 
     def _allowlist_override(denied: AuthorizationDecision) -> AuthorizationDecision:
         if mode == "plan":
@@ -340,6 +405,8 @@ __all__ = [
     "authorize_tool",
     "command_uses_network",
     "deny_rule_names_paths",
+    "effective_risk",
+    "is_network_tool",
     "normalize_permission_mode",
     "tool_denied_by_rule",
     "tool_requires_authorization",

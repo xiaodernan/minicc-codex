@@ -113,7 +113,15 @@ def load_permission_rules(workspace: Path) -> tuple[dict[str, list[str]], str]:
     except OSError:
         _cache.pop(key, None)
         return _empty_rules(), ""
-    stamp = (stat.st_mtime_ns, stat.st_size)
+    # M8-T293: the stamp carries ``ino`` and ``ctime`` too, like every other
+    # memo in this repository.  With only ``(mtime, size)`` an equal-length
+    # rewrite of the rules file (``"secrets/*"`` -> ``"secretz/*"``) left the
+    # **old** rules in force - and this cache sits on the authorization path,
+    # where a stale answer is a stale *deny*.  A hand edit always changes
+    # the inode or the ctime, so the window that is left is the deliberate
+    # one (a pinned mtime), which is the same window the rest of the
+    # repository accepts.
+    stamp = (stat.st_ino, stat.st_mtime_ns, stat.st_ctime_ns, stat.st_size)
     with _lock:
         cached = _cache.get(key)
         if cached and cached[0] == stamp:

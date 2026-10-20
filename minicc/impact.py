@@ -336,7 +336,15 @@ def analyze_change_impact(workspace: Path | str, changed_paths: list[str], *, li
             distances[dependent] = distances[dependency] + 1
             queue.append(dependent)
     affected = sorted((path for path in parents if path not in changed), key=lambda path: (distances[path], path))
-    tests = sorted(path for path in parents if path in parsed_files and _is_test(path, parsed_files[path]))
+    # M8-T291: the recommended tests are ordered by the **dependency
+    # distance**, like the affected files beside them.  A plain ``sorted()``
+    # turned the BFS order into dictionary order, so the truncation kept the
+    # alphabetically first tests and dropped the ones at distance 1 - the
+    # very tests that exercise the change.
+    tests = sorted(
+        (path for path in parents if path in parsed_files and _is_test(path, parsed_files[path])),
+        key=lambda path: (distances[path], path),
+    )
     limitations = [
         "Static imports describe possible impact, not runtime coverage or proof of correctness.",
         "Dynamic imports, reflection, dependency injection, JS aliases and custom Python import roots may be incomplete.",

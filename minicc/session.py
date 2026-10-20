@@ -137,18 +137,24 @@ def _read_text_with_retry(path: Path) -> str:
 
 
 def _unsatisfied_tool_calls(messages: list[Any]) -> set[str]:
-    """Ids of assistant tool calls whose ``tool`` result is not in this slice."""
-    pending = {
-        str(call.get("id"))
-        for message in messages
-        if isinstance(message, dict)
-        for call in (message.get("tool_calls") or [])
-        if isinstance(call, dict) and call.get("id")
-    }
-    for message in messages:
-        if isinstance(message, dict) and message.get("role") == "tool":
-            pending.discard(str(message.get("tool_call_id") or ""))
-    return pending
+    """Ids of assistant tool calls whose ``tool`` result is not in this slice.
+
+    M8-T295: the ids used to be collected across the **whole** slice and
+    cancelled by any result carrying the same id.  The native tool
+    protocol settles **per round** - a result answers the assistant round
+    immediately before it, and a gateway may reuse a call id in a later
+    round - so a first round's result cancelled a *second* round's
+    unanswered call.  The cut was then not extended, and the history it
+    produced ended on an assistant turn with no result: a history the
+    model API rejects on the first request, so the branch was dead on
+    arrival.
+
+    The rule now has one home - ``agent/context.tool_round_walk`` - and
+    both this function and the protocol validator ask it the same way.
+    """
+    from .agent.context import pending_tool_calls
+
+    return pending_tool_calls([item for item in messages if isinstance(item, dict)])
 
 
 def _keep_through_tool_results(messages: list[Any], keep: int) -> int:

@@ -16,7 +16,7 @@ from copy import deepcopy
 from ..tools.bash import run_bash
 from ..tools.schemas import ToolResult
 from ..tools.registry import redact_text
-from .verification_plan import VerificationCommand, VerificationPlan, build_verification_plan, safe_verification_command, verification_fingerprint
+from .verification_plan import VerificationCommand, VerificationPlan, build_verification_plan, safe_verification_command, verification_state
 
 
 FAILED_TEST_RE = re.compile(r"(?m)^FAILED\s+([^\s]+)")
@@ -65,6 +65,7 @@ class VerificationResult:
             "skipped": "verification_skipped",
             "blocked": "verification_blocked",
             "cancelled": "verification_cancelled",
+            "timed_out": "verification_timed_out",
         }.get(self.status, "verification_finished")
         summary = {
             "passed": f"验证通过: {self.command}",
@@ -72,6 +73,7 @@ class VerificationResult:
             "skipped": f"验证跳过: {self.skipped_reason or '没有可用验证命令'}",
             "blocked": f"验证被阻止: {self.actionable_hint or self.command}",
             "cancelled": "验证已取消，后续检查未执行",
+            "timed_out": f"验证超时: {self.command}",
         }.get(self.status, f"验证结束: {self.command}")
         return {
             "kind": "verification",
@@ -124,10 +126,18 @@ class Verifier:
             return VerificationResult(status="skipped", skipped_reason=plan.reason if plan else "工作区没有配置可识别的验证命令")
         # Authorization is part of the cache key. A permitted npm check must
         # never be replayed as evidence under a task that cannot run it.
-        current = verification_fingerprint(workspace, plan.changed_paths, selected) if plan else ""
+        #
+        # M8-T294: the identity and its **reusability** are two answers.
+        # The old code had one value (``""`` for an untrustworthy scan)
+        # and used it for both the cache key and the "the workspace changed
+        # during verification" gate - so in a workspace holding a ``.env``
+        # file, a symlink, or a file over 2 MB, the gate short-circuited and
+        # never ran, and a verification that raced an edit still reported
+        # ``passed``.
+        current, cacheable = verification_state(workspace, plan.changed_paths, selected) if plan else ("", False)
         if cancel_event is not None and cancel_event.is_set():
             return VerificationResult(status="cancelled")
-        fingerprint = f"{current}:{allow_project_scripts}" if current else ""
+        fingerprint = f"{current}:{allow_project_scripts}" if current and cacheable else ""
         if fingerprint and fingerprint in self._passed:
             result = deepcopy(self._passed[fingerprint])
             result.cached = True
@@ -146,9 +156,18 @@ class Verifier:
         else:
             failures = [item for item in results if item.status != "passed"]
             result = VerificationResult(
-                status="cancelled" if any(item.status == "cancelled" for item in failures) else "failed" if any(item.status == "failed" for item in failures) else "blocked" if failures else "passed",
+                status="cancelled" if any(item.status == "cancelled" for item in failures) else "failed" if any(item.status == "failed" for item in failures) else "timed_out" if any(item.status == "timed_out" for item in failures) else "blocked" if failures else "passed",
                 command="\n".join(item.command for item in results), label="verification plan",
-                exit_code=next((item.exit_code for item in failures), 0),
+                # M8-T300: the aggregated exit code was the **first**
+                # failure's - and a blocked or cancelled check carries no
+                # exit code at all (``None``), so it replaced the real one
+                # (1) in the evidence chain.  The first failure that
+                # actually has an exit code wins; only when none has one
+                # does the aggregate fall back to 0.
+                exit_code=next(
+                    (item.exit_code for item in failures if item.exit_code is not None),
+                    0,
+                ),
                 output="\n\n".join(f"[{item.label}] {item.command}\n{item.output}" for item in results)[-32000:],
                 failed_tests=[test for item in results for test in item.failed_tests],
                 actionable_hint="\n".join(item.actionable_hint for item in failures),
@@ -157,10 +176,17 @@ class Verifier:
         checks = [item.to_dict() for item in results]
         result.checks = checks
         result.fingerprint = fingerprint
-        if result.passed and current and verification_fingerprint(workspace, plan.changed_paths, selected) != current:
-            result.status = "failed"
-            result.actionable_hint = "验证期间工作区输入发生变化；请检查改动并重新验证当前版本"
-            result.fingerprint = ""
+        if result.passed and current and plan:
+            # The gate is independent of reusability: an untrustworthy scan
+            # still has a comparable identity, so the workspace moving under
+            # the run is still detected.
+            after, _after_cacheable = verification_state(
+                workspace, plan.changed_paths, selected
+            )
+            if after != current:
+                result.status = "failed"
+                result.actionable_hint = "验证期间工作区输入发生变化；请检查改动并重新验证当前版本"
+                result.fingerprint = ""
         if cancel_event is not None and cancel_event.is_set():
             result.status = "cancelled"
         if result.passed and fingerprint:
@@ -184,13 +210,31 @@ class Verifier:
         tool_result = self.executor(command.command, workspace, command.timeout, **kwargs)
         output = redact_text(tool_result.render())[0][-32000:]
         failed_tests = FAILED_TEST_RE.findall(output)
-        status = "cancelled" if tool_result.status == "cancelled" else "passed" if tool_result.status == "ok" and tool_result.exit_code in (None, 0) else "failed"
+        # M8-T300: a command that ran out of time is **not** a failing test.
+        # The status enum had no room for it, so ``timed_out`` fell into
+        # "failed" - and the hint degraded to the generic "look at the
+        # output, fix it and run it again".  The model was then sent to
+        # repair a command that had not failed at all, and the repair loop
+        # kept re-running it until the cap.
+        if tool_result.status == "cancelled":
+            status = "cancelled"
+        elif tool_result.status == "timed_out":
+            status = "timed_out"
+        elif tool_result.status == "ok" and tool_result.exit_code in (None, 0):
+            status = "passed"
+        else:
+            status = "failed"
         hint = ""
         if status == "failed":
             hint = (
                 f"先修复失败测试: {', '.join(failed_tests[:8])}"
                 if failed_tests
                 else "查看验证输出，修复后重新运行同一命令"
+            )
+        elif status == "timed_out":
+            hint = (
+                f"验证命令超时（{command.timeout}s）被终止，没有产生测试结论；"
+                "请缩小检查范围或提高超时后再验证，不要把它当成测试失败"
             )
         return VerificationResult(
             status=status,

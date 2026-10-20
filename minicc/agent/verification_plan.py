@@ -100,6 +100,38 @@ class VerificationPlan:
 
 def verification_fingerprint(root: Path, changed: list[str], commands: list[VerificationCommand]) -> str:
     """Bounded dependency identity; uncertain/incomplete scans disable reuse."""
+    digest, cacheable = verification_state(root, changed, commands)
+    return digest if cacheable else ""
+
+
+def verification_state(
+    root: Path,
+    changed: list[str],
+    commands: list[VerificationCommand],
+) -> tuple[str, bool]:
+    """The workspace identity, and whether it may be used as a **cache key**.
+
+    M8-T294: the two questions used to be one.  The fingerprint returned
+    ``""`` to mean "this scan is not trustworthy", and the verifier used
+    that one value for two different purposes:
+
+    * as the **cache key** - an untrustworthy scan must not reuse a
+      cached pass (its intent: a secret input was not read, so a change
+      in it cannot be detected);
+    * as the **"the workspace changed during verification" gate** - and
+      with ``current == ""`` the gate short-circuited and never ran.
+
+    So in any workspace holding a ``.env`` file (this repository's own
+    root has one), a symlink, or a file over 2 MB, a verification that
+    ran against a workspace someone else changed in the middle still
+    reported ``passed`` - the evidence chain certified a state that no
+    longer existed.
+
+    The two answers are now separate: the digest is always returned
+    (the untrusted inputs contribute their **stat signature**, not their
+    content), and ``cacheable`` says whether a cached pass may be
+    replayed.
+    """
     root = root.resolve()
     digest = hashlib.sha256(str(root).encode())
     cacheable = True
@@ -123,6 +155,19 @@ def verification_fingerprint(root: Path, changed: list[str], commands: list[Veri
             # verification snapshot. Their presence disables reuse instead.
             if name == ".env" or name.startswith(".env.") or path.suffix in {".pem", ".key"}:
                 cacheable = False
+                # M8-T294: their **signature** still enters the digest, so a
+                # change in them is visible to the "the workspace changed
+                # during verification" gate.  Only the content is withheld -
+                # the digest never contains a secret's bytes.
+                digest.update(b"secret-input:")
+                digest.update(path.relative_to(root).as_posix().encode())
+                try:
+                    secret_stat = path.stat()
+                    digest.update(
+                        f"{secret_stat.st_size}:{secret_stat.st_mtime_ns}".encode()
+                    )
+                except OSError:
+                    digest.update(b"unreadable")
                 continue
             # M8-T280: the artefacts a check leaves behind are not inputs.
             if name in GENERATED_ARTIFACT_NAMES:
@@ -138,9 +183,26 @@ def verification_fingerprint(root: Path, changed: list[str], commands: list[Veri
                 stat = path.stat()
                 total_bytes += stat.st_size
                 if scanned > 8192 or total_bytes > 64_000_000:
-                    return ""
+                    # M8-T294: the scan stopped early, so the digest is
+                    # partial - but it is still *comparable* (the same
+                    # walk stops in the same place), which is what the
+                    # change gate needs.  It is not usable as a cache key.
+                    #
+                    # M8-T305: the changed files and the commands are
+                    # folded in **before** the walk, so the partial digest
+                    # still carries them.  The gate's job is to notice that
+                    # the files under test moved - and those are exactly
+                    # the inputs an early return used to drop, which left
+                    # the gate blind in precisely the large workspaces
+                    # where it matters.
+                    return _fold_changed_and_commands(
+                        digest, root, changed, commands
+                    ), False
                 if path.is_symlink() or stat.st_size > 2_000_000:
                     cacheable = False
+                    # The signature enters the digest; the content does not.
+                    digest.update(path.relative_to(root).as_posix().encode())
+                    digest.update(f"large:{stat.st_size}:{stat.st_mtime_ns}".encode())
                     continue
                 digest.update(path.relative_to(root).as_posix().encode())
                 digest.update(_file_digest(path))
@@ -157,10 +219,52 @@ def verification_fingerprint(root: Path, changed: list[str], commands: list[Veri
                 digest.update(_file_digest(path, use_cache=False))
             else:
                 cacheable = False
+                # M8-T294: the signature still enters, so the change gate
+                # can see this input move.
+                try:
+                    other = path.stat()
+                    digest.update(f"other:{other.st_size}:{other.st_mtime_ns}".encode())
+                except OSError:
+                    digest.update(b"unreadable")
         except OSError:
             cacheable = False
     digest.update(json.dumps([(c.command, c.label, c.timeout) for c in commands]).encode())
-    return digest.hexdigest() if cacheable else ""
+    return digest.hexdigest(), cacheable
+
+
+def _fold_changed_and_commands(
+    digest: "hashlib._Hash",
+    root: Path,
+    changed: list[str],
+    commands: list[VerificationCommand],
+) -> "hashlib._Hash":
+    """Fold the changed files and the commands into a partial digest.
+
+    M8-T305: the change gate compares two digests taken around the
+    verification run, and its job is to notice that **the files under
+    test** moved.  Those files are the ``changed`` list, and they are
+    folded in here - so a scan that stopped early (too many files, too
+    many bytes) still carries them, and the gate is not blind in exactly
+    the large workspaces where it matters.
+    """
+    for relative in changed:
+        path = root / relative
+        digest.update(relative.encode())
+        try:
+            if not path.exists():
+                digest.update(b"deleted")
+            elif path.is_file() and not path.is_symlink() and path.resolve().is_relative_to(root) and path.stat().st_size <= 2_000_000:
+                digest.update(_file_digest(path, use_cache=False))
+            else:
+                try:
+                    other = path.stat()
+                    digest.update(f"other:{other.st_size}:{other.st_mtime_ns}".encode())
+                except OSError:
+                    digest.update(b"unreadable")
+        except OSError:
+            digest.update(b"unreadable")
+    digest.update(json.dumps([(c.command, c.label, c.timeout) for c in commands]).encode())
+    return digest
 
 
 def changed_paths_from_events(events: list[dict[str, Any]]) -> list[str]:
@@ -190,7 +294,17 @@ def changed_paths_from_events(events: list[dict[str, Any]]) -> list[str]:
 def _quote(path: str) -> str:
     # Commands run under either cmd or a POSIX shell; double quoted paths
     # are portable after rejecting shell metacharacters in the verifier.
-    return '"' + path.replace('"', '') + '"'
+    #
+    # M8-T299: a path containing a double quote used to be **silently
+    # mangled** - the quote was deleted, so ``"we"ird.py"`` became
+    # ``"weird.py"`` and the check ran against a file that does not exist.
+    # The verification then failed with "file not found", and the model
+    # could not fix it: the path it was given had never been the path that
+    # was checked.  A path that cannot be quoted portably is refused
+    # instead of rewritten.
+    if '"' in path or "\n" in path or "\r" in path:
+        raise ValueError(f"路径含有无法安全引用的字符: {path}")
+    return '"' + path + '"'
 
 
 def _matches(path: str, pattern: str) -> bool:
@@ -248,7 +362,17 @@ def build_verification_plan(workspace: Path, changed_paths: list[str] | None = N
     if full:
         commands.append(VerificationCommand("python -m pytest -q", label="full regression", timeout=300))
     elif candidates:
-        commands.append(VerificationCommand("python -m pytest -q " + " ".join(_quote(path) for path in sorted(candidates))))
+        # M8-T299: a path that cannot be quoted portably is **skipped**,
+        # not silently rewritten into a different path - and it does not
+        # take the whole plan down with it.
+        quoted = []
+        for path in sorted(candidates):
+            try:
+                quoted.append(_quote(path))
+            except ValueError:
+                continue
+        if quoted:
+            commands.append(VerificationCommand("python -m pytest -q " + " ".join(quoted)))
     frontend = any(Path(path).suffix in {".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx", ".css", ".html"} for path in changed)
     package = root / "package.json"
     if frontend and package.is_file():
@@ -263,7 +387,11 @@ def build_verification_plan(workspace: Path, changed_paths: list[str] | None = N
                 commands.append(VerificationCommand(f"npm run {name}", name))
     for path in changed:
         if Path(path).suffix in {".js", ".mjs", ".cjs"} and (root / path).is_file():
-            commands.append(VerificationCommand("node --check " + _quote(path), "javascript syntax"))
+            try:
+                quoted_path = _quote(path)
+            except ValueError:
+                continue  # M8-T299: an unquotable path is not checked
+            commands.append(VerificationCommand("node --check " + quoted_path, "javascript syntax"))
     # No broad fallback. Unknown scope must be reported honestly, not silently
     # expanded to the entire test suite.
     unique = list({command.command: command for command in commands}.values())
@@ -278,13 +406,24 @@ def safe_verification_command(command: str, *, allow_project_scripts: bool = Fal
     from .tool_policy import is_verification_evidence
     if not is_verification_evidence("bash", {"command": command}, "ok"):
         return False
-    if is_readonly_command(command):
-        return True
-    if not command or any(char in command for char in "&|;<>`$()%^!\n\r"):
-        return False
     try:
         parts = command_parts(command)
     except ValueError:
+        return False
+    # M8-T299 / M8-T305: a command whose quoting does not survive the
+    # shell is **misparsed** no matter who wrote it - ``pytest "we"ird.py"``
+    # reaches pytest as two arguments.  The check is on the **parsed**
+    # argument: the quoting mechanism itself (``node --check "app.js"``) is
+    # how every generated command looks, and rejecting a command for
+    # containing a quote would reject the plan's own commands.
+    #
+    # It is asked **before** the read-only short-circuit, because that
+    # branch is where the plan's own commands go.
+    if any('"' in part for part in parts):
+        return False
+    if is_readonly_command(command):
+        return True
+    if not command or any(char in command for char in "&|;<>`$()%^!\n\r"):
         return False
     if len(parts) == 3 and parts[:2] == ["node", "--check"]:
         return not parts[2].startswith("-")

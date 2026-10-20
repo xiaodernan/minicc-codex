@@ -10,7 +10,11 @@ override system instructions, permissions, or tool boundaries.
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
+
+#: Child of the ``minicc`` logger, so the secret-redaction filter applies.
+LOG = logging.getLogger("minicc.output_style")
 
 OUTPUT_STYLE_PRESETS = {
     "concise": (
@@ -33,7 +37,17 @@ _STYLE_BLOCK_HEADER = (
 
 
 def load_output_style(workspace: Path, configured: str = "") -> str:
-    """Resolve the active style: preset/literal config value, then file."""
+    """Resolve the active style: preset/literal config value, then file.
+
+    M8-T292: the file is read **bounded** - the ceiling used to be applied
+    to the text *after* the whole file had been read into memory, which is
+    the same shape M8-T278 fixed in ``mentions.py``.
+
+    And a read failure is no longer silently "no style": the caller's
+    prompt would come out looking entirely normal, with the user's writing
+    preferences quietly dropped and nothing to show for it.  The failure is
+    reported instead, and the caller decides what to do with it.
+    """
     value = (configured or "").strip()
     if value:
         if value in OUTPUT_STYLE_PRESETS:
@@ -43,8 +57,12 @@ def load_output_style(workspace: Path, configured: str = "") -> str:
     if not path.is_file():
         return ""
     try:
-        return path.read_text(encoding="utf-8")[:MAX_OUTPUT_STYLE_CHARS].strip()
-    except (OSError, UnicodeError):
+        with path.open("r", encoding="utf-8", errors="strict") as handle:
+            return handle.read(MAX_OUTPUT_STYLE_CHARS).strip()
+    except (OSError, UnicodeError) as exc:
+        LOG.warning(
+            "输出风格文件读取失败（已忽略该偏好）: %s (%s)", path, exc
+        )
         return ""
 
 

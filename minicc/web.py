@@ -84,6 +84,7 @@ from .audit import (
     AuthorizationDecision,
     authorize_tool,
     deny_rule_names_paths,
+    effective_risk,
     normalize_permission_mode,
     tool_denied_by_rule,
 )
@@ -749,6 +750,22 @@ class AgentService:
             snapshot = tasks[-1]
         else:
             snapshot = self.tasks.get(task_id)
+            # M8-T298: a turn read **names a thread and a turn**.  The turn
+            # used to be fetched from the global task store, so a turn of
+            # *another* thread was returned under the requested thread's
+            # name - the payload's own ``thread_id`` was overwritten with
+            # the request's, so the answer was self-contradictory and one
+            # session could read another's turns.
+            #
+            # A turn belongs to the thread that lists it; a turn that does
+            # not is not found there.
+            if thread is not None:
+                owned = {
+                    str(item.get("task_id") or item.get("id") or "")
+                    for item in self._rpc_thread_tasks(thread)
+                }
+                if task_id not in owned:
+                    raise KeyError(f"线程 {thread['thread_id']} 中没有 turn {task_id}")
         return self._rpc_turn_payload(snapshot, thread_id=thread["thread_id"] if thread else None)
 
     def _rpc_turn_start(self, params: dict[str, Any]) -> dict[str, Any]:
@@ -1602,7 +1619,13 @@ class AgentService:
                 on_event(retrieval_event)
 
         def on_tool(call: ToolCall, result: ToolResult) -> None:
-            feedback = build_tool_feedback(call, result, risk=registry.risk_of(call.tool))
+            feedback = build_tool_feedback(
+                call,
+                result,
+                # M8-T305: the same risk the gate judged - the event and
+                # the feedback must not disagree about one call.
+                risk=effective_risk(call.tool, registry.risk_of(call.tool), call.arguments),
+            )
             events.append(
                 {
                     "name": call.tool,
@@ -1612,7 +1635,7 @@ class AgentService:
                     "data": feedback.get("structured_data") or {},
                     "path": feedback.get("path"),
                     "command": feedback.get("command"),
-                    "risk": registry.risk_of(call.tool),
+                    "risk": effective_risk(call.tool, registry.risk_of(call.tool), call.arguments),
                     # M8-T296: the flag has to travel into the **event**,
                     # because the completion gate judges it from the event.
                     # It was only on the internal feedback dict, so the gate
@@ -1662,7 +1685,7 @@ class AgentService:
             return decision.allowed
 
         def should_allow(name: str, call: ToolCall) -> bool:
-            risk = registry.risk_of(name)
+            risk = effective_risk(name, registry.risk_of(name), call.arguments)
             # M7-T3: a declarative deny rule is an absolute veto checked before
             # authorize_tool (and it also covers read-only tools, so denying a
             # path like `.env` blocks reads too).
@@ -2121,10 +2144,15 @@ class AgentService:
                             emit(dict(event))
 
                         def node_tool(call: ToolCall, tool_result: ToolResult) -> None:
+                            # M8-T305: the node's events carry the same
+                            # risk the gate judged.
+                            node_risk = effective_risk(
+                                call.tool, node_registry.risk_of(call.tool), call.arguments
+                            )
                             feedback = build_tool_feedback(
                                 call,
                                 tool_result,
-                                risk=node_registry.risk_of(call.tool),
+                                risk=node_risk,
                             )
                             emit({
                                 "kind": "tool",
@@ -2135,7 +2163,7 @@ class AgentService:
                                 "data": feedback.get("structured_data") or {},
                                 "path": feedback.get("path"),
                                 "command": feedback.get("command"),
-                                "risk": node_registry.risk_of(call.tool),
+                                "risk": node_risk,
                                 "write": False,
                                 "observation": feedback.get("observation"),
                                 "exit_code": tool_result.exit_code,
@@ -2153,13 +2181,22 @@ class AgentService:
                                     "phase": "permission",
                                     "code": "planner_tool_out_of_scope",
                                     "summary": f"计划节点 {task.id} 未将工具 {name} 列入白名单",
-                                    "risk": node_registry.risk_of(name) or "unknown",
+                                    # M8-T308: the risk a call carries, not
+                                    # the one the tool declares - the
+                                    # decision event right below carries the
+                                    # effective one, and two events about
+                                    # one call must not disagree.
+                                    "risk": effective_risk(
+                                        name, node_registry.risk_of(name), call.arguments
+                                    ) or "unknown",
                                     "authorization": "planner_whitelist",
                                 })
                                 return False
                             decision = authorize_tool(
                                 name,
-                                node_registry.risk_of(name),
+                                effective_risk(
+                                    name, node_registry.risk_of(name), call.arguments
+                                ),
                                 call.arguments,
                                 allow_changes=False,
                                 allow_network=allow_network,
@@ -2695,6 +2732,20 @@ class AgentService:
                         if verification.status == "blocked":
                             aggregate.error = f"验证器被阻止：{verification.actionable_hint}"
                             aggregate.answer = f"任务未完成：{aggregate.error}"
+                            break
+                        if verification.status == "timed_out":
+                            # M8-T300: a timeout is not a failing test, so it
+                            # does not enter the repair loop (the model would
+                            # be sent to fix a command that never produced a
+                            # verdict).  The run cannot be certified either,
+                            # so it ends with the timeout spelled out.
+                            aggregate.error = (
+                                f"验证超时：{verification.actionable_hint or verification.command}"
+                            )
+                            aggregate.answer = (
+                                f"任务未完成：{aggregate.error}\n\n"
+                                f"验证命令：{verification.command}"
+                            )
                             break
                         if verification.status == "failed":
                             if repair_attempts >= max_repairs:

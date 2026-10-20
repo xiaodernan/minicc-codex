@@ -15,6 +15,10 @@ from typing import Any
 
 _SAFE_TASK_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,80}$")
 _SKIP_PREFIXES = (".minicc/", ".git/")
+#: M8-T292: the manifest is a shared file, and the Web face builds one
+#: journal per request while the server is threaded - so the read-modify-write
+#: needs a lock that spans **instances**, not just one object.
+_MANIFEST_LOCK = threading.RLock()
 MAX_SNAPSHOT_FILES = 400
 MAX_SNAPSHOT_FILE_BYTES = 16 * 1024 * 1024
 MAX_SNAPSHOT_TOTAL_BYTES = 64 * 1024 * 1024
@@ -197,13 +201,25 @@ class SnapshotJournal:
         self.root = Path(workspace).resolve()
         self.dest = snapshot_dir(self.root, task_id)
         self.lock = threading.RLock()
-        manifest = _load(self.dest, self.root)
-        manifest.setdefault("touched", {})
-        _save(self.dest, manifest)
+        # M8-T292: the manifest read-modify-write is under a **module**
+        # lock, not just this instance's.  ``web.py`` builds a journal per
+        # request and the server is threaded, so two journals for one task
+        # id each held their own lock - and one's save overwrote the other's
+        # entries.  The loss was silent: the pre-image stayed on disk while
+        # the manifest stopped listing it, so ``restore`` skipped the file
+        # and reported an ordinary skip.
+        with _MANIFEST_LOCK:
+            manifest = _load(self.dest, self.root)
+            manifest.setdefault("touched", {})
+            _save(self.dest, manifest)
 
     def before_write(self, path: Path) -> None:
         rel = path.relative_to(self.root).as_posix()
-        with self.lock:
+        # M8-T292: the module lock, so two journals for the same task id
+        # cannot each hold a stale manifest and overwrite the other's
+        # entries.  The instance lock still serialises this object's own
+        # calls.
+        with _MANIFEST_LOCK, self.lock:
             target = _within(self.root, rel)
             manifest = _load(self.dest, self.root)
             prior = manifest.get("touched", {}).get(rel)
@@ -245,7 +261,13 @@ class SnapshotJournal:
 
     def after_write(self, path: Path) -> None:
         rel = path.relative_to(self.root).as_posix()
-        with self.lock:
+        # M8-T300: this is the other half of the same read-modify-write, so
+        # it needs the same module-level lock.  The entry it writes is the
+        # **confirmed digest** - and losing it is worse than losing the
+        # pre-image entry: the file stays ``{"pending": True}`` forever, so
+        # ``restore`` finds a digest mismatch, records a conflict and
+        # **refuses** to restore the user's file.
+        with _MANIFEST_LOCK, self.lock:
             manifest = _load(self.dest, self.root)
             manifest.setdefault("touched", {})[rel] = {"digest": _digest(_within(self.root, rel))}
             _save(self.dest, manifest)
@@ -262,51 +284,58 @@ def restore(workspace: Path, task_id: str) -> dict[str, Any]:
     dest = snapshot_dir(root, task_id)
     if not (dest / "manifest.json").is_file():
         raise SnapshotError(f"找不到任务快照: {task_id}")
-    manifest = _load(dest, root)
-    source_root = dest / "files" if manifest.get("version") == 2 else dest
-    journal = manifest.get("touched")
-    if journal is not None and not isinstance(journal, dict):
-        raise SnapshotError("快照写入记录格式错误")
-    paths = list(journal) if journal is not None else manifest["files"]
-    restored: list[str] = []
-    removed: list[str] = []
-    skipped: list[str] = []
-    conflicts: list[str] = []
-    for raw in paths:
-        try:
-            rel = _relative(raw)
-            target = _within(root, rel)
-            src = _within(source_root, rel)
-            if journal is not None:
-                record = journal[raw]
-                if not isinstance(record, dict) or "digest" not in record or _digest(target) != record["digest"]:
-                    conflicts.append(rel)
-                    continue
-            if rel in manifest["files"] and src.is_file():
-                expected = manifest.get("digests", {}).get(rel)
-                if expected is not None and _digest(src) != expected:
+    # M8-T305: the restore is a read-modify-write on the same manifest, so
+    # it needs the same module-level lock.  Without it, a concurrent
+    # ``before_write``/``after_write`` between the load and the save is
+    # silently lost - and the restore also *writes back* (the journal's
+    # digests), so it can clobber a ``pending`` entry a concurrent write
+    # had just added.
+    with _MANIFEST_LOCK:
+        manifest = _load(dest, root)
+        source_root = dest / "files" if manifest.get("version") == 2 else dest
+        journal = manifest.get("touched")
+        if journal is not None and not isinstance(journal, dict):
+            raise SnapshotError("快照写入记录格式错误")
+        paths = list(journal) if journal is not None else manifest["files"]
+        restored: list[str] = []
+        removed: list[str] = []
+        skipped: list[str] = []
+        conflicts: list[str] = []
+        for raw in paths:
+            try:
+                rel = _relative(raw)
+                target = _within(root, rel)
+                src = _within(source_root, rel)
+                if journal is not None:
+                    record = journal[raw]
+                    if not isinstance(record, dict) or "digest" not in record or _digest(target) != record["digest"]:
+                        conflicts.append(rel)
+                        continue
+                if rel in manifest["files"] and src.is_file():
+                    expected = manifest.get("digests", {}).get(rel)
+                    if expected is not None and _digest(src) != expected:
+                        skipped.append(rel)
+                        continue
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    temporary = target.parent / f".{target.name}.restore-{secrets.token_hex(6)}"
+                    try:
+                        shutil.copy2(src, temporary)
+                        os.replace(temporary, target)
+                    finally:
+                        temporary.unlink(missing_ok=True)
+                    restored.append(rel)
+                elif journal is not None and rel in manifest.get("missing", []):
+                    target.unlink(missing_ok=True)
+                    removed.append(rel)
+                else:
                     skipped.append(rel)
                     continue
-                target.parent.mkdir(parents=True, exist_ok=True)
-                temporary = target.parent / f".{target.name}.restore-{secrets.token_hex(6)}"
-                try:
-                    shutil.copy2(src, temporary)
-                    os.replace(temporary, target)
-                finally:
-                    temporary.unlink(missing_ok=True)
-                restored.append(rel)
-            elif journal is not None and rel in manifest.get("missing", []):
-                target.unlink(missing_ok=True)
-                removed.append(rel)
-            else:
-                skipped.append(rel)
-                continue
-            if journal is not None:
-                journal[rel] = {"digest": _digest(target)}
-        except (SnapshotError, OSError):
-            skipped.append(str(raw))
-    if journal is not None:
-        _save(dest, manifest)
+                if journal is not None:
+                    journal[rel] = {"digest": _digest(target)}
+            except (SnapshotError, OSError):
+                skipped.append(str(raw))
+        if journal is not None:
+            _save(dest, manifest)
     return {"task_id": task_id, "restored": restored, "removed": removed, "skipped": skipped, "conflicts": conflicts}
 
 

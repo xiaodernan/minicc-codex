@@ -126,8 +126,14 @@ def redact(text: object) -> str:
     in the log as ``self.token = [REDACTED:credential]``.  The log and the
     source the agent read were not the same text.
 
-    The log now uses the **same** predicate as the model context, with its
-    own replacement text.
+    M8-T308: the **patterns** are the same ones the model context uses,
+    but the **predicate is deliberately stricter** - the log masks every
+    labelled value, including a short one and one that carries code
+    punctuation, while the model context asks whether the value looks
+    like a credential at all (so ordinary source stays readable there).
+    The two sides differ in exactly one direction: the log is stricter.
+    Under-masking in the log is a leak, and a log is a record of what
+    ran - it has no reader who needs the source to stay readable.
     """
     rendered = str(text)
     if not rendered:

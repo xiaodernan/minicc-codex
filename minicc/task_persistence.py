@@ -5,6 +5,10 @@ from __future__ import annotations
 import threading
 from typing import Any, Callable
 
+from .logging_setup import get_logger
+
+LOG = get_logger("task")
+
 
 class TaskSnapshotWriter:
     """Keep one dirty reference per task and provide a synchronous final flush.
@@ -65,28 +69,49 @@ class TaskSnapshotWriter:
                     self.flush(task)
                 except Exception as exc:  # callbacks stay responsive; final writes surface errors
                     self.last_error = exc
+                    LOG.warning(
+                        "task_snapshot_write_failed task_id=%s source=drain_loop error=%s: %s",
+                        getattr(task, "task_id", "?"),
+                        type(exc).__name__,
+                        str(exc)[:200],
+                    )
                     self.enqueue(task, retry=True)
 
-    def close(self) -> None:
+    def close(self) -> list[tuple[str, BaseException]]:
+        """Stop the thread, drain what is still dirty, name what never landed.
+
+        M8-T320: the failures used to end up only on ``last_error`` - an attribute
+        no production code reads - and a failed attempt left no trace an operator
+        could find in the log.  The caller now gets the ids whose terminal snapshot
+        is still missing after every retry this drain has.
+        """
         self._stop.set()
         self._thread.join(timeout=6)
         with self._lock:
             pending = list(self._pending.values())
             self._pending.clear()
         # M3-T9: one failing flush (e.g. a transient SQLite lock) must not abort
-        # the remaining terminal writes; record the error and keep going. flush()
-        # clears last_error on success, so retain the first failure locally.
-        # M8-T270: a task whose write failed is tried once more - the failure
-        # is often a transient lock, and the drain is the last chance to land
-        # a terminal snapshot.
-        first_error: Exception | None = None
+        # the remaining terminal writes, and a failed task is tried once more -
+        # the drain is the last chance to land a terminal snapshot.  A task that
+        # lands on the second attempt is not reported as lost.
+        lost: dict[str, BaseException] = {}
         for task in pending:
+            task_id = str(getattr(task, "task_id", "?"))
             for attempt in range(2):
                 try:
                     self.flush(task)
+                except Exception as exc:  # noqa: BLE001 - surfaced to the caller and the log
+                    lost[task_id] = exc
+                    LOG.warning(
+                        "task_snapshot_write_failed task_id=%s attempt=%d error=%s: %s",
+                        task_id,
+                        attempt + 1,
+                        type(exc).__name__,
+                        str(exc)[:200],
+                    )
+                else:
+                    lost.pop(task_id, None)
                     break
-                except Exception as exc:  # noqa: BLE001 - surfaced via last_error
-                    if first_error is None:
-                        first_error = exc
-        if first_error is not None:
-            self.last_error = first_error
+        if lost:
+            self.last_error = next(iter(lost.values()))
+        return list(lost.items())

@@ -7,10 +7,14 @@ that delegate to the existing task/thread runtime.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import Any, Callable, Mapping
 
 from .. import __version__
+
+#: Child of the ``minicc`` logger, so the secret-redaction filter applies.
+LOG = logging.getLogger("minicc.rpc")
 
 JSONRPC_VERSION = "2.0"
 
@@ -128,6 +132,13 @@ class RpcDispatcher:
             error = RpcProtocolError(-32602, str(exc))
             return None if not request.has_id else _response_error(request.request_id, error)
         except Exception as exc:  # noqa: BLE001 - stable transport boundary
+            # M8-T301: the transport boundary is the right place to stop the
+            # exception, but it used to be the **only** place it was seen:
+            # the client got "Server error" and the server kept nothing, so
+            # a real bug in a handler was invisible on both sides.  The
+            # traceback is logged here (the client's answer stays the same
+            # - it must not leak internals).
+            LOG.exception("rpc handler failed: %s", request.method)
             error = RpcProtocolError(-32000, "Server error", f"{type(exc).__name__}: {exc}")
             return None if not request.has_id else _response_error(request.request_id, error)
         return None if not request.has_id else _response_result(request.request_id, result)

@@ -81,6 +81,18 @@ DEFAULT_PRICE_TABLE: dict[str, ModelPrice] = {
 }
 
 
+# One model family has one spelling in the table: vendors publish ``gpt-4.1``
+# and ``claude-3.5-sonnet`` while a deployment (and this repo's router) writes the
+# same family with ``-``/``_``. Folding both sides keeps the longest-prefix rule
+# intact and stops two spellings of one family from becoming two prices.
+_SEPARATOR_FOLD = str.maketrans({".": "-", "_": "-"})
+
+
+def _fold(name: str) -> str:
+    """Case-folded, separator-folded form used for prefix comparison."""
+    return name.strip().lower().translate(_SEPARATOR_FOLD)
+
+
 def load_price_table() -> dict[str, ModelPrice]:
     """Default table merged with any ``MINICC_PRICING_JSON`` overrides.
 
@@ -89,7 +101,13 @@ def load_price_table() -> dict[str, ModelPrice]:
     per 1M tokens; cache fields default to the input price). Malformed entries
     are ignored rather than raising, so a bad override cannot break a run.
     """
-    table = dict(DEFAULT_PRICE_TABLE)
+    # M8-T291: the table is keyed by the **folded** form on both sides.  The
+    # override used to be folded while the published table was not, so the
+    # two spellings of one family (``gpt-4.1`` vs ``gpt-4-1``) sat in the
+    # table as two entries - and the longest-prefix tie was broken by
+    # dictionary order, which is the *published* one.  A deployment's own
+    # price for ``gpt-4.1`` was therefore silently ignored.
+    table = {_fold(key): price for key, price in DEFAULT_PRICE_TABLE.items()}
     raw = os.getenv("MINICC_PRICING_JSON", "")
     if not raw.strip():
         return table
@@ -103,21 +121,19 @@ def load_price_table() -> dict[str, ModelPrice]:
         if not isinstance(model, str) or not isinstance(spec, Mapping):
             continue
         price = ModelPrice.from_mapping(spec)
-        if price is not None:
-            table[model.strip().lower()] = price
+        if price is None:
+            continue
+        # M8-T291: the override is keyed by the **folded** form, so a
+        # deployment that spells a family differently from the published
+        # table (``claude-3.5-sonnet`` vs ``claude-3-5-sonnet``) still
+        # replaces that family's price.  Before, both spellings sat in the
+        # table and the published one won the longest-prefix tie - so the
+        # deployment's own price was silently ignored.
+        key = _fold(model)
+        if not key:
+            continue
+        table[key] = price
     return table
-
-
-# One model family has one spelling in the table: vendors publish ``gpt-4.1``
-# and ``claude-3.5-sonnet`` while a deployment (and this repo's router) writes the
-# same family with ``-``/``_``. Folding both sides keeps the longest-prefix rule
-# intact and stops two spellings of one family from becoming two prices.
-_SEPARATOR_FOLD = str.maketrans({".": "-", "_": "-"})
-
-
-def _fold(name: str) -> str:
-    """Case-folded, separator-folded form used for prefix comparison."""
-    return name.strip().lower().translate(_SEPARATOR_FOLD)
 
 
 def price_for(model: object, table: Mapping[str, ModelPrice] | None = None) -> ModelPrice | None:

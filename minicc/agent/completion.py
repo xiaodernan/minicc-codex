@@ -355,7 +355,7 @@ def _enforce_completion_evidence(
     """An LLM cannot override a failed verifier or an unexamined write."""
     verifications = [item for item in verification_results if isinstance(item, dict)]
     latest_verification = next((item for item in reversed(verifications) if item.get("status") != "skipped"), None)
-    if latest_verification and latest_verification.get("status") in {"failed", "blocked", "cancelled"}:
+    if latest_verification and latest_verification.get("status") in {"failed", "blocked", "cancelled", "timed_out"}:
         decision.status = "continue"
         decision.missing = ["修复最近一次验证失败并重新取得通过结果"]
         decision.next_action = decision.missing[0]

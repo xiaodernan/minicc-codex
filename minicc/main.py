@@ -15,7 +15,7 @@ from .agent.router import StageRouter, StageRoute
 from .agent.state import Budget, BudgetExceeded
 from .agent.subagent import DEFAULT_MAX_DEPTH, DEFAULT_MAX_TURNS, build_task_tool_spec
 from .allowlist import AllowlistError, add_session_rule
-from .audit import authorize_tool
+from .audit import authorize_tool, effective_risk
 from .cli_io import cli_out
 from .config import MAX_TIMEOUT_SECONDS, Config, ConfigError, load_config, normalize_model_name
 from .commands import discover_commands, expand_slash_command
@@ -343,7 +343,7 @@ def _permission_gate(
     workspace: Path | None = None,
 ) -> Callable[[str, ToolCall], bool]:
     def should_allow(name: str, call: ToolCall) -> bool:
-        risk = registry.risk_of(name)
+        risk = effective_risk(name, registry.risk_of(name), call.arguments)
         decision = authorize_tool(
             name,
             risk,

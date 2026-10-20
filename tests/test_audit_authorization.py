@@ -5,7 +5,7 @@
 
 - ``tool_requires_authorization``：write/exec 必走门、readonly 网络工具必走门、
   readonly 非网络工具免门、声明 ``network`` 能力的工具必走门。
-- ``_is_network_tool``：工具名 + 能力声明两类判定。
+- ``is_network_tool``：工具名 + 能力声明两类判定。
 - ``normalize_permission_mode``：default/plan/acceptEdits/yolo 及其别名/大小写/
   空白；非法值抛 ``ValueError``。
 - ``AuthorizationDecision.to_event``：允许/拒绝两份事件形状。
@@ -27,9 +27,9 @@ import pytest
 from minicc.audit import (
     AuthorizationDecision,
     _executable_name,
-    _is_network_tool,
     authorize_tool,
     command_uses_network,
+    is_network_tool,
     normalize_permission_mode,
     tool_requires_authorization,
 )
@@ -66,26 +66,26 @@ def test_none_risk_readonly_skips_auth():
 
 
 # --------------------------------------------------------------------------
-# _is_network_tool
+# is_network_tool
 # --------------------------------------------------------------------------
 
 def test_network_tool_names():
-    assert _is_network_tool("web_search") is True
-    assert _is_network_tool("webfetch") is True
+    assert is_network_tool("web_search") is True
+    assert is_network_tool("webfetch") is True
 
 
 def test_non_network_tool_name():
-    assert _is_network_tool("read_file") is False
+    assert is_network_tool("read_file") is False
 
 
 def test_network_capability_declaration():
-    assert _is_network_tool("read_file", ("network",)) is True
-    assert _is_network_tool("read_file", ("read", "network")) is True
+    assert is_network_tool("read_file", ("network",)) is True
+    assert is_network_tool("read_file", ("read", "network")) is True
 
 
 def test_empty_and_none_tool_are_not_network():
-    assert _is_network_tool("") is False
-    assert _is_network_tool(None) is False
+    assert is_network_tool("") is False
+    assert is_network_tool(None) is False
 
 
 # --------------------------------------------------------------------------

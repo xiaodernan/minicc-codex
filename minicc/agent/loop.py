@@ -42,7 +42,13 @@ from ..llm.envelope import EnvelopeParseError
 from ..llm.openai_provider import OpenAICompatibleProvider
 from ..llm.stream_merge import append_delta
 from ..llm.usage import add_usage_totals, cache_summary
-from ..audit import deny_rule_names_paths, match_permission_rule, tool_denied_by_rule
+from ..audit import (
+    deny_rule_names_paths,
+    effective_risk,
+    is_network_tool,
+    match_permission_rule,
+    tool_denied_by_rule,
+)
 from ..tools.schemas import ToolCall, ToolResult
 from ..tools.registry import ToolRegistry, redact_text
 from ..hooks import payloads_for_result, payloads_for_tool_call
@@ -50,7 +56,6 @@ from .context import compact_with_checkpoint, estimate_tokens, message_chars, re
 from .state import AgentState, Budget, BudgetExceeded
 from .verification_plan import build_verification_plan
 from .tool_policy import (
-    NETWORK_TOOL_NAMES,
     is_verification_evidence,
     is_workspace_write,
     tool_requires_authorization,
@@ -78,7 +83,6 @@ MAX_VISIBLE_MODEL_UPDATE_CHARS = 1200
 MAX_PUBLIC_TOOL_OBSERVATION_CHARS = 900
 MAX_PUBLIC_TOOL_DATA_CHARS = 2400
 VISION_CONTEXT_MARKER = "[持久视觉上下文]"
-WRITE_TOOL_NAMES = frozenset({"write_file", "edit_file", "worktree_create", "worktree_remove"})
 # Inspection tools are not verification. Post-write evidence must come from
 # bash test/lint commands (see ``is_verification_evidence``).
 VERIFY_TOOL_NAMES = frozenset({"bash"})
@@ -704,7 +708,12 @@ async def run_agent(
             if on_tool is not None:
                 on_tool(call, tool_result)
             messages.append(tool_result_msg(raw_call["id"], tool_result.render()))
-            feedback.append(build_tool_feedback(call, tool_result, risk=registry.risk_of(call.tool)))
+            feedback.append(build_tool_feedback(
+                call,
+                tool_result,
+                # M8-T305: the same risk the gate judged.
+                risk=effective_risk(call.tool, registry.risk_of(call.tool), call.arguments),
+            ))
         emit_trace(
             "已完成恢复诊断，下一轮将基于当前工作区证据重新选择路径",
             phase="planning",
@@ -1108,7 +1117,14 @@ async def run_agent(
                 call_signature = _signature({"tool": tc.tool, "arguments": tc.arguments})
 
                 # Permission gate.
-                risk = registry.risk_of(tc.tool)
+                # M8-T304: the risk a call **carries** is not always the
+                # risk the tool declares - a tool whose target depends on
+                # an argument (``memory_write`` with ``scope="user"``) can
+                # write outside the workspace.  The effective risk is
+                # computed once, here, so that every branch below (the
+                # write guard, the read/write fan-out, the events) answers
+                # about the same call the same way.
+                risk = effective_risk(tc.tool, registry.risk_of(tc.tool), tc.arguments)
                 if call_signature in batch_signatures:
                     immediate_results[index] = (
                         tc,
@@ -1166,7 +1182,13 @@ async def run_agent(
                     ):
                         rule_denied = True
                 needs_gate = tool_requires_authorization(
-                    tc.tool, risk, registry.capabilities_of(tc.tool)
+                    tc.tool,
+                    risk,
+                    registry.capabilities_of(tc.tool),
+                    # M8-T304: the arguments take part in the question - a
+                    # call whose target is outside the workspace is a write,
+                    # whatever the tool declared.
+                    arguments=tc.arguments,
                 )
                 if rule_denied or (needs_gate and not allow(tc.tool, tc)):
                     result.denied_tools.append(tc.tool)
@@ -1203,7 +1225,16 @@ async def run_agent(
                         )
                         continue
                 if risk == "readonly":
-                    if tc.tool in NETWORK_TOOL_NAMES and search_failures >= SEARCH_FAILURE_LIMIT:
+                    # M8-T307: the network question has two halves - the
+                    # well-known names and the ``network`` **capability** a
+                    # tool may declare.  The loop used to ask only the
+                    # names, so a plugin that declared the capability was
+                    # neither excluded from the result cache nor counted
+                    # by the circuit breaker.
+                    network_call = is_network_tool(
+                        tc.tool, registry.capabilities_of(tc.tool)
+                    )
+                    if network_call and search_failures >= SEARCH_FAILURE_LIMIT:
                         immediate_results[index] = (
                             tc,
                             ToolResult(
@@ -1214,7 +1245,7 @@ async def run_agent(
                                 security_tags=["untrusted", "network"],
                             ),
                         )
-                    elif tc.tool not in NETWORK_TOOL_NAMES and call_signature in tool_result_cache:
+                    elif not network_call and call_signature in tool_result_cache:
                         cached = deepcopy(tool_result_cache[call_signature])
                         cached.summary = (
                             f"[DUPLICATE_TOOL_CALL] 已复用 {tc.tool} 的最近一次成功结果；"
@@ -1276,8 +1307,12 @@ async def run_agent(
                     continue
                 tc, tool_result = item
                 if (
-                    registry.risk_of(tc.tool) == "readonly"
-                    and tc.tool not in NETWORK_TOOL_NAMES
+                    effective_risk(tc.tool, registry.risk_of(tc.tool), tc.arguments) == "readonly"
+                    # M8-T307: a network answer is not reproducible, so it
+                    # must not be cached and replayed as if it were a local
+                    # read - and that holds for a tool that *declares* the
+                    # network capability, not only for the two names.
+                    and not is_network_tool(tc.tool, registry.capabilities_of(tc.tool))
                     and tool_result.status == "ok"
                     and not (tool_result.data or {}).get("duplicate")
                 ):
@@ -1295,7 +1330,14 @@ async def run_agent(
                         {
                             **payloads_for_tool_call(
                                 "PostToolUse", tc.tool, tc.arguments,
-                                risk=registry.risk_of(tc.tool),
+                                # M8-T305: the risk the hook sees is the
+                                # risk the call **carries**, not the one the
+                                # tool declares - the same call must not look
+                                # like a read to one consumer and a write to
+                                # another.
+                                risk=effective_risk(
+                                    tc.tool, registry.risk_of(tc.tool), tc.arguments
+                                ),
                             ),
                             "result": payloads_for_result(tool_result),
                         },
@@ -1309,7 +1351,10 @@ async def run_agent(
                 build_tool_feedback(
                     call,
                     tool_result,
-                    risk=registry.risk_of(call.tool),
+                    # M8-T305: the same call must not carry two risks.
+                    risk=effective_risk(
+                        call.tool, registry.risk_of(call.tool), call.arguments
+                    ),
                 )
                 for call, tool_result in (
                     immediate_results[index]
@@ -1319,7 +1364,12 @@ async def run_agent(
 
             for _index in sorted(immediate_results):
                 search_call, search_result = immediate_results[_index]
-                if search_call.tool not in NETWORK_TOOL_NAMES:
+                # M8-T307: the circuit breaker counts every tool that
+                # reaches the network, including one that declares the
+                # capability instead of carrying a well-known name.
+                if not is_network_tool(
+                    search_call.tool, registry.capabilities_of(search_call.tool)
+                ):
                     continue
                 if search_result.status == "error":
                     search_failures += 1
@@ -1370,7 +1420,7 @@ async def run_agent(
             ):
                 post_write_inspection = True
             recovery_inspection_observed = any(
-                registry.risk_of(call.tool) == "readonly"
+                effective_risk(call.tool, registry.risk_of(call.tool), call.arguments) == "readonly"
                 and tool_result.status == "ok"
                 and not (tool_result.data or {}).get("duplicate")
                 for call, tool_result in immediate_results.values()
@@ -1387,7 +1437,9 @@ async def run_agent(
                         "tools": [
                             call.tool
                             for call, tool_result in immediate_results.values()
-                            if registry.risk_of(call.tool) == "readonly"
+                            if effective_risk(
+                                call.tool, registry.risk_of(call.tool), call.arguments
+                            ) == "readonly"
                             and tool_result.status == "ok"
                             and not (tool_result.data or {}).get("duplicate")
                         ],

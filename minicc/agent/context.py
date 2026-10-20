@@ -13,6 +13,7 @@ import json
 import math
 import re
 from collections import Counter
+from collections.abc import Iterator
 from typing import Any
 
 from ..tools.registry import redact_text
@@ -27,6 +28,56 @@ _VISUAL_PART_TYPES = frozenset({"image_url", "input_image"})
 _DIGEST_RE = re.compile(r"(?i)(?:digest|sha256|hash)[^a-f0-9]{0,20}([a-f0-9]{12,64})")
 
 
+def tool_round_walk(
+    messages: list[dict[str, Any]],
+) -> Iterator[tuple[int, dict[str, Any], set[str], set[str]]]:
+    """Walk the messages the way the native tool protocol settles them.
+
+    Each step yields ``(position, message, pending_before, pending_after)``,
+    where *pending* is the set of tool-call ids the **current** round is
+    still waiting for.
+
+    The protocol settles **per round**: a ``tool`` result answers a call
+    of the assistant round immediately before it, and a gateway may reuse
+    a call id in a later round.  So a result anywhere in the history does
+    not cancel an earlier round's call, and the ids of a finished round
+    are free to be reused.
+
+    M8-T295: this rule used to be implemented twice, differently.  The
+    session's cut logic collected the ids of **every** assistant round and
+    cancelled them with any result carrying the same id - so a first
+    round's result cancelled a *second* round's unanswered call, the cut
+    was not extended, and the branch it produced ended on an assistant
+    turn with no result.  The model API rejects such a history on the
+    first request, so the branch was dead on arrival.
+    """
+    pending: set[str] = set()
+    for position, message in enumerate(messages):
+        if not isinstance(message, dict):
+            yield position, message, set(pending), set(pending)
+            continue
+        if message.get("role") == "tool":
+            before = set(pending)
+            pending.discard(str(message.get("tool_call_id") or ""))
+            yield position, message, before, set(pending)
+            continue
+        before = set(pending)
+        pending = {
+            str(call.get("id"))
+            for call in (message.get("tool_calls") or [])
+            if isinstance(call, dict) and call.get("id")
+        }
+        yield position, message, before, set(pending)
+
+
+def pending_tool_calls(messages: list[dict[str, Any]]) -> set[str]:
+    """The tool calls the **last** round is still waiting for."""
+    pending: set[str] = set()
+    for _position, _message, _before, after in tool_round_walk(messages):
+        pending = after
+    return pending
+
+
 def validate_tool_protocol(messages: list[dict[str, Any]]) -> None:
     """Reject incomplete or orphaned native tool rounds before network I/O.
 
@@ -34,13 +85,13 @@ def validate_tool_protocol(messages: list[dict[str, Any]]) -> None:
     them, including every result from a parallel round. IDs may be reused in
     separate completed rounds by compatible gateways.
     """
-    pending: set[str] = set()
-    for position, message in enumerate(messages):
+    last_after: set[str] = set()
+    for position, message, pending, after in tool_round_walk(messages):
+        last_after = after
         if message.get("role") == "tool":
             call_id = str(message.get("tool_call_id") or "")
             if call_id not in pending:
                 raise ValueError(f"工具上下文协议无效：第 {position + 1} 条结果没有对应调用")
-            pending.remove(call_id)
             continue
         if pending:
             raise ValueError("工具上下文协议无效：工具轮次缺少结果")
@@ -48,12 +99,13 @@ def validate_tool_protocol(messages: list[dict[str, Any]]) -> None:
         if calls:
             if message.get("role") != "assistant" or not isinstance(calls, list):
                 raise ValueError("工具上下文协议无效：调用必须属于 assistant 轮次")
+            seen: set[str] = set()
             for call in calls:
                 call_id = str(call.get("id") or "") if isinstance(call, dict) else ""
-                if not call_id or call_id in pending:
+                if not call_id or call_id in seen:
                     raise ValueError("工具上下文协议无效：调用 ID 为空或重复")
-                pending.add(call_id)
-    if pending:
+                seen.add(call_id)
+    if last_after:
         raise ValueError("工具上下文协议无效：最后一个工具轮次缺少结果")
 
 
@@ -234,7 +286,7 @@ def _message_facts(messages: list[dict[str, Any]]) -> dict[str, Any]:
         content = _text(message.get("content"))
         for visual_fact in _visual_attachment_facts(message.get("content")):
             _add_unique(visual_attachments, visual_fact)
-        if COMPACTION_MARKER in content:
+        if _is_checkpoint_message(message):
             continue
         if role == "user" and content:
             objective = _safe(content, _MAX_OBJECTIVE)
@@ -294,12 +346,21 @@ def _message_facts(messages: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def _parse_checkpoint(message: dict[str, Any]) -> dict[str, Any] | None:
+    """The checkpoint a message carries, if it carries one.
+
+    M8-T300: this function used to be defined **twice** in this module -
+    the second definition shadowed the first, and the two disagreed about
+    the decode failure (``json.JSONDecodeError`` vs ``ValueError``).  A
+    stale second copy of a rule is worse than no copy, so there is one now,
+    and it lives next to the predicate that decides what a checkpoint is
+    (:func:`_is_checkpoint_message`).
+    """
     content = _text(message.get("content"))
     if COMPACTION_MARKER not in content:
         return None
     try:
         value = json.loads(content.split(COMPACTION_MARKER, 1)[1].strip())
-    except json.JSONDecodeError:
+    except (json.JSONDecodeError, ValueError):
         return {"legacy_summary": _safe(content, 500)}
     return value if isinstance(value, dict) else {"legacy_summary": _safe(content, 500)}
 
@@ -318,6 +379,26 @@ def _checkpoint_is_mergeable(parsed: dict[str, Any]) -> bool:
         return int(declared) == CHECKPOINT_VERSION
     except (TypeError, ValueError):
         return False
+
+
+def _archive_count(item: dict[str, Any], key: str) -> int:
+    """One archive counter, read defensively.
+
+    M8-T296: ``archive`` comes from a parsed checkpoint - which is any JSON
+    object a message happened to contain.  ``item.get("archive", {})``
+    assumed a dict and ``int(...)`` assumed a number, so a checkpoint with
+    ``"archive": "nope"`` raised AttributeError and one with
+    ``{"messages": "abc"}`` raised ValueError - and the compaction runs
+    *outside* the agent loop's try block, so one malformed checkpoint
+    killed the whole task with an unhandled exception.
+    """
+    archive = item.get("archive")
+    if not isinstance(archive, dict):
+        return 0
+    try:
+        return int(archive.get(key, 0) or 0)
+    except (TypeError, ValueError):
+        return 0
 
 
 def _merge_checkpoint(previous: list[dict[str, Any]], facts: dict[str, Any], middle: list[dict[str, Any]]) -> dict[str, Any]:
@@ -355,8 +436,8 @@ def _merge_checkpoint(previous: list[dict[str, Any]], facts: dict[str, Any], mid
     if legacy:
         checkpoint["legacy_summary"] = legacy
     checkpoint["archive"] = {
-        "messages": sum(int(item.get("archive", {}).get("messages", 0) or 0) for item in parsed_items) + len(middle),
-        "characters": sum(int(item.get("archive", {}).get("characters", 0) or 0) for item in parsed_items) + _msg_chars(middle),
+        "messages": sum(_archive_count(item, "messages") for item in parsed_items) + len(middle),
+        "characters": sum(_archive_count(item, "characters") for item in parsed_items) + _msg_chars(middle),
         "hash": _hash_messages(middle),
     }
     checkpoint["loss_risk"] = [
@@ -402,6 +483,37 @@ def _checkpoint_message(checkpoint: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _is_checkpoint_message(message: dict[str, Any]) -> bool:
+    """Is this message **our** checkpoint - and not something that mentions it?
+
+    M8-T297: the marker was matched with a plain substring test, so any
+    message that happened to contain ``[CONTEXT COMPACTED]`` was treated as
+    a checkpoint: it was moved out of the conversation (the user's own words
+    disappeared from the model's context) and its facts were dropped.  A
+    model quoting the checkpoint back, or a user pasting a log that contains
+    the marker, was enough.
+
+    The shape is now exact: the content **starts** with the marker, and
+    what follows is a JSON object carrying a version - which is what
+    ``_checkpoint_message`` writes.  A message that only mentions the
+    marker stays an ordinary message: it keeps its place in the
+    conversation and its facts are extracted.
+    """
+    content = _text(message.get("content")).strip()
+    if not content.startswith(COMPACTION_MARKER):
+        return False
+    payload = content[len(COMPACTION_MARKER):].strip()
+    if not payload:
+        return False
+    try:
+        value = json.loads(payload)
+    except (json.JSONDecodeError, ValueError):
+        return False
+    if not isinstance(value, dict):
+        return False
+    return "version" in value
+
+
 def compact_with_checkpoint(
     messages: list[dict[str, Any]],
     *,
@@ -418,7 +530,12 @@ def compact_with_checkpoint(
     for message in messages:
         if message.get("role") == "system":
             system_msgs.append(message)
-        elif _parse_checkpoint(message) is not None:
+        elif _is_checkpoint_message(message):
+            # M8-T297: only a message that is *exactly* a checkpoint is
+            # taken out of the conversation.  A message that merely mentions
+            # the marker used to be moved here too - so the user's own
+            # words vanished from the model's context, and their facts were
+            # dropped with them.
             prior_checkpoints.append(message)
         else:
             non_system.append(message)
@@ -447,6 +564,8 @@ __all__ = [
     "estimate_tokens",
     "has_visual_content",
     "message_chars",
+    "pending_tool_calls",
+    "tool_round_walk",
     "validate_tool_protocol",
     "repair_interrupted_tool_rounds",
 ]

@@ -13,6 +13,7 @@ Loopback/private targets are rejected unless ``MINICC_ALLOW_PRIVATE_FETCH=1``
 
 from __future__ import annotations
 
+import codecs
 import functools
 import html as html_module
 import http.client
@@ -325,7 +326,27 @@ def fetch_url_text(
         charset = _charset_of(content_type)
         if mime in {"", "text/html", "application/xhtml+xml"}:
             meta_charset = _meta_charset(payload)
-            decoded = payload.decode(meta_charset or charset, errors="replace")
+            # M8-T296: a codec name that Python does not know raises
+            # ``LookupError`` - and ``errors="replace"`` only covers a
+            # *decoding* error, not an unknown encoding.  A page with
+            # ``<meta charset="utf8mb4">`` (MySQL's spelling), or a
+            # ``charset=bogus`` header, used to escape the function
+            # entirely, so the tool answered "unhandled exception" instead
+            # of "this page's encoding is not one I know".  The name is
+            # checked before it is used, and an unknown one falls back to
+            # the header's charset.
+            for candidate in (meta_charset, charset):
+                if not candidate:
+                    continue
+                try:
+                    codecs.lookup(candidate)
+                except LookupError:
+                    continue
+                charset = candidate
+                break
+            else:
+                charset = "utf-8"
+            decoded = payload.decode(charset, errors="replace")
             extractor = _TextExtractor()
             try:
                 extractor.feed(decoded)
@@ -333,6 +354,10 @@ def fetch_url_text(
                 raise FetchError(f"HTML 解析失败: {type(exc).__name__}") from None
             title, text = extractor.result()
         else:
+            try:
+                codecs.lookup(charset)
+            except LookupError:
+                charset = "utf-8"
             title, text = "", payload.decode(charset, errors="replace")
 
         result["status"] = status

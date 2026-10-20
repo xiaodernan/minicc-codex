@@ -284,12 +284,20 @@ def _bootstrap_cost_delta_ci(
 
 
 def _pass_at_k(rows: Sequence[dict[str, Any]], k: int) -> float | None:
-    """pass@k from per-draw outcomes; None unless every gradable row has >= k draws."""
-    gradable = [row for row in rows if row["passed"] is not None and row["draws"]]
+    """pass@k from per-draw outcomes; None unless every gradable row has >= k draws.
+
+    M8-T291: a row that is **gradable** (``passed is not None``) but
+    carries no ``draws`` used to be filtered out of the denominator
+    instead of making the whole figure unavailable.  The result then
+    described a *subset* of the suite while looking like the suite - and
+    the note that promises "the report carries no per-task sampling
+    results" never appeared.
+    """
+    gradable = [row for row in rows if row["passed"] is not None]
     if not gradable:
         return None
     for row in gradable:
-        if len(row["draws"]) < k:
+        if not row.get("draws") or len(row["draws"]) < k:
             return None
     # Unbiased pass@k estimator: 1 - C(n-c, k) / C(n, k).
     total = 0.0

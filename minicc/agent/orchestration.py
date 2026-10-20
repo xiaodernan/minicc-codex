@@ -21,7 +21,14 @@ _EXPLICIT_RE = re.compile(
     re.I,
 )
 _CONNECTOR_RE = re.compile(
-    r"并且|同时|另外|此外|还要|以及|然后|之后|并继续|and|also|additionally|then|after",
+    # M8-T290: the English branches need a **word boundary**.  As bare
+    # substrings they fired inside ordinary words - "understand", "command",
+    # "handler", "sandbox", "strengthen" all contain "and", and "then" sits
+    # inside "strengthen" - so a single-goal request was counted as six
+    # connectors, the score was raised, and the fan-out decision could
+    # flip on a statement about the request that was never true.
+    r"并且|同时|另外|此外|还要|以及|然后|之后|并继续"
+    r"|\band\b|\balso\b|\badditionally\b|\bthen\b|\bafter\b",
     re.I,
 )
 _FILE_RE = re.compile(r"(?:[\w.-]+[\\/])*[\w.-]+\.(?:py|js|ts|tsx|jsx|css|html|json|md|yaml|yml)", re.I)

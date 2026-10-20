@@ -106,7 +106,14 @@ def test_pricing_override_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_malformed_pricing_override_is_ignored(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("MINICC_PRICING_JSON", "{not json")
     table = load_price_table()
-    assert table == pricing.DEFAULT_PRICE_TABLE
+    # M8-T291: the table is keyed by the **folded** family name on both
+    # sides, so a deployment's spelling cannot end up sitting beside the
+    # published one (two entries, one family, and the tie went to the
+    # published price).
+    assert table == {
+        pricing._fold(key): price
+        for key, price in pricing.DEFAULT_PRICE_TABLE.items()
+    }
     monkeypatch.setenv("MINICC_PRICING_JSON", json.dumps({"bad": {"output": 1.0}}))
     # Missing "input" → entry dropped, never raises.
     assert "bad" not in load_price_table()

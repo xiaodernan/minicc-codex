@@ -101,6 +101,16 @@ MAX_DISPLAY_SYMBOLS = 10       # keep prompt evidence concise
 MAX_MARKER_SYMBOLS = 4         # TODO/FIXME annotations kept per file
 MAX_SYMBOL_TERM_MATCHES = 4    # symbol bonus capped per query
 MAX_PATH_TERM_MATCHES = 6      # path bonus capped per query
+#: M8-T292: how long a record may be reused before it is rebuilt even when
+#: the file's stat signature is unchanged.  The signature is free (the walk
+#: already stats every file) but it cannot see an equal-length in-place
+#: rewrite that does not advance ``st_mtime_ns`` - and on Windows the
+#: ``ctime`` is the *creation* time, so no timestamp field changes at all.
+#: A content key would see it, but only by reading the body on every tick,
+#: which this index's own contract forbids.  The window is therefore bounded
+#: by time: past this age the record is rebuilt, and the body is read once
+#: more for that file.
+RECORD_MAX_AGE_SECONDS = 60.0
 _SNAPSHOT_CHARS = 100_000      # per-file content snapshot bound (memory guard)
 _SECS_PER_DAY = 86400.0
 
@@ -391,7 +401,12 @@ class LocalEvidenceIndex:
         }
         self._records: tuple[_FileRecord, ...] = ()
         self._stats: dict[str, object] | None = None
-        self._record_cache: dict[str, tuple[tuple[int, int], _FileRecord]] = {}
+        # The memo is keyed by the file's **stat signature** - a free signal,
+        # because the walk already stats every file.  The build timestamp
+        # lives beside it so the staleness bound can be applied per file
+        # without making the compared structure change on every tick.
+        self._record_cache: dict[str, tuple[tuple[int, int, int, int], _FileRecord]] = {}
+        self._record_built: dict[str, float] = {}
         self._refresh_interval = max(0.0, refresh_interval)
         self._checked_at = 0.0
         self._lock = threading.RLock()
@@ -447,22 +462,57 @@ class LocalEvidenceIndex:
         start = time.perf_counter()
         records: list[_FileRecord] = []
         symbols_extracted = 0
-        cache: dict[str, tuple[tuple[int, int], _FileRecord]] = {}
+        cache: dict[str, tuple[tuple[int, int, int, int], _FileRecord]] = {}
+        built: dict[str, float] = {}
         rebuilt = 0
         skipped = 0
+        now = time.time()
         for path, rel in self._files():
             try:
                 stat = path.stat()
             except OSError:
                 skipped += 1
                 continue
-            signature = (stat.st_mtime_ns, stat.st_size)
+            # M8-T292: the memo is keyed by the file's **stat signature**.
+            # The old key was ``(mtime, size)``; the fuller
+            # ``(ino, mtime, ctime, size)`` is free here (the walk already
+            # stats every file) and catches two more shapes: an atomic
+            # replace (new ``ino``) and a metadata change (POSIX ``ctime``).
+            #
+            # A **content** key would catch the remaining shape - an
+            # equal-length in-place rewrite that does not advance the mtime -
+            # but it cannot be had for free: the record holds the file's
+            # content, so seeing a content change means reading the body,
+            # and the index's own contract (``tests/test_retrieval_enhanced.py``)
+            # is that a refresh of an unchanged tree opens **no** file body.
+            # The walk and the stats are how change is detected; the bodies
+            # are what stays free.
+            #
+            # So the residual window is bounded by time instead: a record
+            # older than ``RECORD_MAX_AGE_SECONDS`` is rebuilt on the next
+            # refresh, which reads that one body.  The staleness is
+            # therefore bounded rather than permanent, and the cost is one
+            # read per file per window, not per tick.
+            signature = (stat.st_ino, stat.st_mtime_ns, stat.st_ctime_ns, stat.st_size)
             previous = self._record_cache.get(rel)
-            if previous and previous[0] == signature:
+            age = now - self._record_built.get(rel, 0.0)
+            if previous and previous[0] == signature and age < RECORD_MAX_AGE_SECONDS:
                 record = previous[1]
+                # M8-T300: a reused record **keeps** its build time - that
+                # is what the age is measured from.  Recording the sighting
+                # instead would make the age never grow, and the window
+                # would never arrive.
+                built[rel] = self._record_built.get(rel, now)
             else:
                 record = self._build_record(path, rel)
                 rebuilt += 1
+                # M8-T300: the timestamp records when the record was
+                # **built**, not when it was last seen.  Recording the
+                # sighting meant the age never grew - and once the window
+                # had passed, every tick rebuilt every file, which is the
+                # opposite of the promise ("one read per file per
+                # window, not per tick").
+                built[rel] = now
             if record is None:
                 skipped += 1
                 continue
@@ -492,9 +542,23 @@ class LocalEvidenceIndex:
             "truncated": bool(walk["stopped_early"]),
         }
         if self._stats is not None and cache == self._record_cache:
-            self._stats = {**census, "files_rebuilt": 0}
+            # M8-T305: the rebuilt count is reported **as it happened**.
+            # The early return is taken when the rebuilt records compare
+            # equal to the old ones (they are frozen dataclasses), which is
+            # exactly what happens when the age window expires and every
+            # file is re-read - and the metric used to say 0, so the one
+            # signal that shows a re-read was erased exactly when it
+            # mattered.
+            self._stats = {**census, "files_rebuilt": rebuilt}
+            # M8-T300: the build timestamps are refreshed on the early
+            # return too.  They used to be written only on the path that
+            # changed the cache - so a tree that did not change kept its
+            # old timestamps forever, the age kept growing, and every tick
+            # rebuilt every file.
+            self._record_built = built
             return
         self._record_cache = cache
+        self._record_built = built
         self._records = tuple(records)
         self._stats = census
 

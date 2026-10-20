@@ -98,27 +98,14 @@ def is_workspace_write(tool: str, arguments: dict[str, Any] | None, status: str)
 
 # Only bash evidence can clear ``verification_required``. git_status / read_file
 # / grep are useful inspection but they do not prove the change works.
-VERIFY_COMMAND_MARKERS = (
-    "pytest",
-    "unittest",
-    "npm test",
-    "npm run test",
-    "pnpm test",
-    "pnpm run test",
-    "yarn test",
-    "npm run check:",
-    "npm run typecheck",
-    "npm run lint",
-    "npm run build",
-    "ruff ",
-    "ruff.exe",
-    "mypy",
-    "pyright",
-    "tsc",
-    "node --check",
-    "python -m compileall",
-    "python3 -m compileall",
-)
+#
+# M8-T303: the marker list that used to live here was **never used** by the
+# implementation - the rule is a whitelist over the command's *executable*
+# (``checker_invocation``), not a substring search.  It stayed exported, and
+# it advertised a rule that is not the rule: a reader would conclude that
+# "pytest" appearing anywhere in a command made it verification evidence
+# (``echo pytest`` does not).  A stale second copy of a rule is worse than no
+# copy, so it is gone rather than kept in step.
 
 
 def is_verification_evidence(tool: str, arguments: dict[str, Any] | None, status: str) -> bool:
@@ -163,7 +150,6 @@ def is_verification_evidence(tool: str, arguments: dict[str, Any] | None, status
 
 __all__ = [
     "NETWORK_TOOL_NAMES",
-    "VERIFY_COMMAND_MARKERS",
     "WRITE_TOOL_NAMES",
     "command_may_modify_workspace",
     "is_verification_evidence",
