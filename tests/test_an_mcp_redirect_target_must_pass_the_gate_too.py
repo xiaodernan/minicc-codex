@@ -116,6 +116,10 @@ def _stop(server: _Server, thread: threading.Thread) -> None:
     server.shutdown()
     server.server_close()
     thread.join(timeout=10)
+    assert not thread.is_alive(), (
+        "the server thread outlived its join - it can still answer on the "
+        "socket and hold the port open"
+    )
 
 
 def _config(url: str) -> McpServerConfig:
@@ -245,3 +249,7 @@ def test_a_ordinary_server_is_still_reachable(tmp_path: Path) -> None:
         server.shutdown()
         server.server_close()
         thread.join(timeout=10)
+        assert not thread.is_alive(), (
+            "the server thread outlived its join - it can still answer on "
+            "the socket and hold the port open"
+        )

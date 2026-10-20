@@ -15,6 +15,7 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 
@@ -37,6 +38,10 @@ def _probe(module: str) -> tuple[int, bool]:
         text=True,
         encoding="utf-8",
         errors="replace",
+        # The child's own stdout has to be decoded the same way the parent's
+        # is: without the environment pin, the child picks the platform's
+        # default encoding and the two halves of a pipe disagree.
+        env=dict(os.environ, PYTHONIOENCODING="utf-8"),
         timeout=120,
         check=False,
     )

@@ -68,7 +68,7 @@ def test_the_capture_holds_the_lock_while_it_writes(tmp_path: Path) -> None:
         assert other_write.wait(timeout=10), "the second writer never started"
         # The second writer must be **blocked** while the capture holds the
         # lock - that is the whole point.
-        time.sleep(0.3)
+        time.sleep(0.3)  # wait-claim: the second writer has had its chance to start
         assert not other_done.is_set(), (
             "a second writer went through while the capture was writing"
         )
