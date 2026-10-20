@@ -780,18 +780,35 @@ class McpManager:
         return candidate
 
     def status(self) -> dict[str, Any]:
+        """The MCP payload the surfaces read (``/api/mcp`` and ``workspace_info()``).
+
+        M8-T267: this was a roster of *configs*, so a server whose child died after a
+        successful discovery kept byte-identical status to a healthy one - ``skipped``
+        only ever records discovery-time failures - while ``health()``, the seam that
+        does know, had no production reader anywhere.  ``state`` is therefore taken
+        from ``health()`` by server name (that method owns the ok/dead/unspawned 口径
+        and never spawns), and ``states`` is counted from the rows this payload
+        actually ships, so the tally can never disagree with the list beside it.
+        """
+        states = {row["name"]: row["state"] for row in self.health()}
+        servers = [
+            {
+                "name": item.name,
+                "command": item.command,
+                "url": item.url,
+                "transport": item.transport,
+                "read_only": item.read_only,
+                "state": states[item.name],
+            }
+            for item in self.configs
+        ]
+        tally: dict[str, int] = {}
+        for row in servers:
+            tally[row["state"]] = tally.get(row["state"], 0) + 1
         return {
             "configured": len(self.configs),
-            "servers": [
-                {
-                    "name": item.name,
-                    "command": item.command,
-                    "url": item.url,
-                    "transport": item.transport,
-                    "read_only": item.read_only,
-                }
-                for item in self.configs
-            ],
+            "servers": servers,
+            "states": tally,
             "skipped": dict(self.discovery_skips),
         }
 
