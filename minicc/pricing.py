@@ -100,6 +100,13 @@ def load_price_table() -> dict[str, ModelPrice]:
     ``{"input": .., "output": .., "cache_read": .., "cache_write": ..}`` (USD
     per 1M tokens; cache fields default to the input price). Malformed entries
     are ignored rather than raising, so a bad override cannot break a run.
+
+    M8-T332: the returned table is keyed by the **folded** family name
+    (``gpt-4.1`` -> ``gpt-4-1``), on both the published and the overridden
+    side - one family, one key.  That is a change in the **shape** of the
+    returned dict (its keys used to be the published spelling), so it is
+    written down here: look prices up with :func:`price_for`, which folds
+    both sides, rather than indexing this dict by a published name.
     """
     # M8-T291: the table is keyed by the **folded** form on both sides.  The
     # override used to be folded while the published table was not, so the

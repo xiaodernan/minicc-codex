@@ -62,6 +62,20 @@ def test_a_command_with_a_quote_is_not_safe() -> None:
     assert safe_verification_command('python -m pytest -q "we"ird.py"') is False
 
 
+def test_a_path_with_a_quote_in_either_spelling_is_not_safe() -> None:
+    """Neither quote character can be quoted portably for cmd and POSIX.
+
+    The tokenizer strips the outer pair, so what is left inside an argument
+    is exactly the part that cannot survive both shells.
+    """
+    assert safe_verification_command("python -m pytest -q 'we\"ird.py'") is False, (
+        "a path with a double quote inside single quotes was accepted"
+    )
+    assert safe_verification_command("python -m pytest -q \"we'ird.py\"") is False, (
+        "a path with a single quote inside double quotes was accepted"
+    )
+
+
 def test_an_ordinary_command_is_still_safe() -> None:
     """The control: the ordinary path is unchanged."""
     assert safe_verification_command("python -m pytest -q") is True

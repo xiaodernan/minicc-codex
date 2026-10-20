@@ -268,10 +268,18 @@ class StageRouter:
         failover turned into a no-op while the event said "switched to the
         fallback model".
 
-        The model to exclude is the **resolved** one (``_select_model_for_tier``),
-        not the deployment's default: with stage routing on, the two are
-        usually different, and excluding the default left the primary in
-        place.
+        The model to exclude is the **resolved** one
+        (``_select_model_for_tier``): with stage routing on, it and the
+        deployment's default are usually different, and excluding only the
+        default left the primary in place.
+
+        M8-T332: the deployment's default is excluded as well, so the two
+        rules are one rule ("never offer the model this route is using,
+        and never offer the deployment's default").  The docstring used to
+        say the opposite - and the difference is visible: with stage
+        routing on the default model can never be a fallback, while
+        without it (``_legacy_route``) it can.  Both are stated here now
+        rather than left in the code.
         """
         fallback_tiers = self.stage_routing_config.get("failover", {}).get("fallback_tiers", [])
         fallbacks: list[str] = []

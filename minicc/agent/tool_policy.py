@@ -13,7 +13,7 @@ from typing import Any
 import re
 from .check_commands import command_parts, checker_invocation
 
-from ..audit import NETWORK_TOOL_NAMES, tool_requires_authorization
+from ..audit import tool_requires_authorization
 from ..tools.bash import split_command_argv
 
 # M4-T1: a workspace write is not only the four explicit write tools. An agent
@@ -232,7 +232,6 @@ def is_verification_evidence(tool: str, arguments: dict[str, Any] | None, status
 
 
 __all__ = [
-    "NETWORK_TOOL_NAMES",
     "WRITE_TOOL_NAMES",
     "command_may_modify_workspace",
     "is_verification_evidence",

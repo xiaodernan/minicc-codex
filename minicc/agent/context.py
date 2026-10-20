@@ -366,15 +366,24 @@ def _parse_checkpoint(message: dict[str, Any]) -> dict[str, Any] | None:
     stale second copy of a rule is worse than no copy, so there is one now,
     and it lives next to the predicate that decides what a checkpoint is
     (:func:`_is_checkpoint_message`).
+
+    M8-T332: the "legacy" fallbacks (a message whose tail is not JSON, or
+    not an object) used to be reachable - and then they were **not**: the
+    only caller is the merge, and the merge only ever sees the messages
+    that :func:`_is_checkpoint_message` accepted, so the tail is always
+    a JSON object.  The dead branches said "a message that merely mentions
+    the marker is a checkpoint with a legacy summary" - the very answer
+    the strict predicate was written to remove.  So they are gone, and
+    with them the last copy of the old rule.
     """
     content = _text(message.get("content"))
-    if COMPACTION_MARKER not in content:
+    if not _is_checkpoint_message(message):
         return None
     try:
         value = json.loads(content.split(COMPACTION_MARKER, 1)[1].strip())
     except (json.JSONDecodeError, ValueError):
-        return {"legacy_summary": _safe(content, 500)}
-    return value if isinstance(value, dict) else {"legacy_summary": _safe(content, 500)}
+        return None
+    return value if isinstance(value, dict) else None
 
 
 def _checkpoint_is_mergeable(parsed: dict[str, Any]) -> bool:
@@ -444,9 +453,9 @@ def _merge_checkpoint(previous: list[dict[str, Any]], facts: dict[str, Any], mid
         "tools",
     ):
         checkpoint[key] = values(key)
-    legacy = values("legacy_summary", limit=3)
-    if legacy:
-        checkpoint["legacy_summary"] = legacy
+    # M8-T332: the "legacy summary" bucket is gone with the legacy shape
+    # that filled it: a checkpoint is now always a JSON object with a
+    # version, so there is no free-text summary to carry forward.
     checkpoint["archive"] = {
         "messages": sum(_archive_count(item, "messages") for item in parsed_items) + len(middle),
         "characters": sum(_archive_count(item, "characters") for item in parsed_items) + _msg_chars(middle),

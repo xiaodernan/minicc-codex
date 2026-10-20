@@ -410,16 +410,22 @@ def safe_verification_command(command: str, *, allow_project_scripts: bool = Fal
         parts = command_parts(command)
     except ValueError:
         return False
-    # M8-T299 / M8-T305: a command whose quoting does not survive the
-    # shell is **misparsed** no matter who wrote it - ``pytest "we"ird.py"``
-    # reaches pytest as two arguments.  The check is on the **parsed**
-    # argument: the quoting mechanism itself (``node --check "app.js"``) is
-    # how every generated command looks, and rejecting a command for
-    # containing a quote would reject the plan's own commands.
+    # M8-T299 / M8-T305 / M8-T332: a path that carries a quote character
+    # cannot be quoted portably for both cmd and a POSIX shell, so the
+    # plan refuses to check it (see ``_quote``).
+    #
+    # The check is on the **parsed** argument, because the quoting
+    # mechanism itself (``node --check "app.js"``) is how every generated
+    # command looks - rejecting a command for *containing* a quote would
+    # reject the plan's own commands.  Both quote characters are checked:
+    # the tokenizer strips the outer pair, so what is left inside an
+    # argument is the part that cannot be quoted portably.  (``pytest
+    # "we"ird.py"`` never reaches here - the parser refuses an unclosed
+    # quote outright.)
     #
     # It is asked **before** the read-only short-circuit, because that
     # branch is where the plan's own commands go.
-    if any('"' in part for part in parts):
+    if any('"' in part or "'" in part for part in parts):
         return False
     if is_readonly_command(command):
         return True
