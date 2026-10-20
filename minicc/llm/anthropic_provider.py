@@ -196,8 +196,14 @@ def _normalize_usage(usage: dict[str, Any] | None) -> dict[str, Any]:
     }
     normalized["total_tokens"] = normalized["prompt_tokens"] + output_tokens
     normalized["prompt_cache_miss_tokens"] = input_tokens
-    if cache_read is not None:
-        normalized["prompt_cache_hit_tokens"] = int(cache_read)
+    # M8-T315: Anthropic's ``input_tokens`` is the **miss** side (the tokens
+    # that were not read from the cache), so the hit side is known to be
+    # ``cache_read_input_tokens`` - and when the field is absent, no cache
+    # was read at all, so the hit count is a real zero rather than an
+    # unknown.  Saying so keeps this provider's summary comparable with the
+    # generic one, which reports "the counters were incomplete" instead of
+    # inventing the missing half.
+    normalized["prompt_cache_hit_tokens"] = int(cache_read) if cache_read is not None else 0
     if cache_write is not None:
         normalized["prompt_cache_write_tokens"] = int(cache_write)
     return normalized

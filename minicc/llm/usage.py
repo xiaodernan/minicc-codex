@@ -61,15 +61,22 @@ def cache_summary(usage: Mapping[str, Any] | None) -> dict[str, Any]:
     if write is not None:
         result["prompt_cache_write_tokens"] = write
 
-    if hit is not None or miss is not None:
-        hit_value = float(hit or 0)
-        miss_value = float(miss or 0)
+    if hit is not None and miss is not None:
+        hit_value = float(hit)
+        miss_value = float(miss)
         denominator = hit_value + miss_value
         result["cache_hit_rate"] = round(hit_value / denominator, 6) if denominator else 0.0
         if denominator:
             result["cache_status"] = "hit" if hit_value > 0 else "miss"
         else:
             result["cache_status"] = "reported_zero"
+    elif hit is not None or miss is not None:
+        # M8-T315: only **one** side was reported.  The other one is not
+        # zero - it is *unknown* - and treating it as zero fabricates a
+        # rate that was never observed (``{"prompt_cache_hit_tokens": 100}``
+        # used to report a 100% hit rate).  The function's own contract says
+        # it does not treat missing fields as zero; this is where it did.
+        result["cache_status"] = "partial"
     elif reported:
         result["cache_status"] = "reported"
     return result

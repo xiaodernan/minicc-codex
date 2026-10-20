@@ -21676,3 +21676,64 @@ M8-T311a 的注释说"内联代码不是工作区里的脚本"——这句话**�
 于是**一个普通的连接失败**被当成了"门拒绝了它"。**断言要认自己的措辞，
 不要认一个平台错误消息里也有的词。**
 
+
+
+## 第三百一十一批 — M8-T315 — 没上报的计数不是 0，是**不知道**
+
+### 1 缺陷
+
+`cache_summary` 的 docstring 写着 "without treating missing fields as zero"，
+而它的实现里有一处正好这么做了：
+
+```python
+if hit is not None or miss is not None:
+    hit_value = float(hit or 0)
+    miss_value = float(miss or 0)      # ← 缺失的一侧被当成 0
+    denominator = hit_value + miss_value
+    result["cache_hit_rate"] = round(hit_value / denominator, 6) if denominator else 0.0
+```
+
+网关只上报**一侧**时（常态）：
+
+| 上报 | 原来的结果 | 真相 |
+| --- | --- | --- |
+| `{"prompt_cache_hit_tokens": 100}` | 命中率 **1.0**、状态 `hit` | 那一侧**从未被观测过** |
+| `{"prompt_cache_miss_tokens": 50}` | 命中率 **0.0** | 同上 |
+
+报告里出现了一个**从未发生过的断言**。
+
+而 Anthropic 路径为了让"没上报"与"上报了 0"可区分，**无条件**写下
+`prompt_cache_miss_tokens = input_tokens` —— 于是**同一家网关**在 Anthropic
+路径报"miss 0%"、在 OpenAI 路径报"unreported"：**同一件事，两个答案**。
+
+### 2 落地
+
+| 位置 | 改法 |
+| --- | --- |
+| `minicc/llm/usage.py` | 命中率**需要两侧**；只有一侧时 `cache_hit_rate = None`、状态 `partial`（"计数器不完整"），并仍然报出**已知的那一侧** |
+| `minicc/llm/anthropic_provider.py` | Anthropic 的 `input_tokens` **就是** miss 侧，所以 hit 侧是已知的：字段缺席 = **没命中过缓存** = 真的 0。于是这一侧仍然是"miss 0%"，与通用路径的"不完整"**各说各的真话** |
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T315-100 | 退回"一侧也算命中率" | 2 条红（门禁直接把凭空造出的 1.0 打了出来） |
+
+### 4 新增门禁
+
+`tests/test_a_missing_counter_is_not_a_zero.py`（6 条）：一侧被上报**不产生**
+命中率、但已知的那一侧仍然报出；两侧都知道时照旧；什么都没报时照旧是
+`unreported`；Anthropic 那一侧的 0 是**真的 0**（有命中时是 0.8）；聚合多轮
+**也不**凭空造出比率。
+
+### 5 一条教训
+
+**"没上报"和"上报了 0"是两件事，而指标常常把前者算成后者。**
+
+代价是具体的：一份写着"缓存命中率 100%"的报告，而那个数字**从未被观测**。
+而 `cache_status` 存在的意义本来就是区分这两种情况（`unreported` vs
+`reported_zero`）——**状态分得清，比率却分不清**，于是比率那一栏反而成了
+唯一会说谎的地方。
+
+所以判据要问的是"**这个数字是怎么来的**"，不是"这个数字算得出来吗"。
+
