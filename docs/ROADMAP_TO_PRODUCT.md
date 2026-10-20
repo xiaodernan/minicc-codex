@@ -21792,3 +21792,58 @@ M8-T290 修的是连接词表，维度表是**另一张表**、**同一类毛病
 东西不会**。门禁也才能直接引用它，而不必去解析源码（我第一版门禁就是解析源码
 的，表格一变成多行就断了——那也是"规则没有名字"的一个后果）。
 
+
+
+## 第三百一十三批 — M8-T317 — 状态词表是**开放**的，所以"不认识"不等于"成功"
+
+### 1 缺陷
+
+`StateGraph.run` 的终局判定只有一句：
+
+```python
+if target is None:
+    if condition in {"failed", "error"}:
+        state.finish("failed", outcome.error)
+    else:
+        state.finish("completed")
+```
+
+而 `NodeResult.status` 是一个**自由字符串**（默认 "ok"）。于是：
+
+* 一个返回 `denied`（**写入被拒绝**）的节点 → 图以 **completed** 结束；
+* 一个返回 `cancelled` 的节点 → 同样 completed；
+* `AgentState.metrics()["status"]` 也就是 "completed"。
+
+也就是说：**一次拒绝可以让整次运行把自己认证成成功**。
+
+### 2 落地
+
+`minicc/agent/graph.py`：新增 `SUCCESS_STATUSES`（`ok` / `done` / `success` /
+`completed` / `passed`）——只有这些状态才以 completed 结束；其余终局状态都是
+**失败**，并且**说得清是哪一种**（节点自己的错误优先，否则补一句"节点 X 以状态 Y
+结束"）。
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T317-102 | 退回"其余状态一律 completed" | 3 条红 |
+
+### 4 新增门禁
+
+`tests/test_an_unknown_terminal_status_is_not_a_success.py`（6 条）：`denied` /
+`cancelled` / 未知状态都**不是** completed，且都留下了痕迹；`ok` 仍然完成；
+`failed` 仍然失败；节点自己给的错误**没丢**。
+
+### 5 一条教训
+
+**"白名单之外的"和"黑名单之外的"必须问同一个问题。**
+
+这一批的状态词表是**开放**的（任何字符串都行），而判定用的是**黑名单**
+（只有 failed/error 算失败）。开放词表 + 黑名单 = 一切没被列出的状态都成了成功。
+
+而 M8-T316 刚刚做完的**维度表**用的是**白名单**（列出的才算命中）——同一个模块
+里，两张表用了**两种相反的口径**，而其中一张是错的。
+
+**词表开放时，判定就必须是白名单**：不认识的东西不能默认当成好。
+

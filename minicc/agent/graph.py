@@ -59,6 +59,11 @@ class NodeResult:
 
 NodeHandler = Callable[[AgentState], NodeResult | Awaitable[NodeResult]]
 
+#: M8-T317: the statuses that mean "this node did its job".  Every other
+#: terminal status is a failure - the vocabulary is open, so a status the
+#: graph does not know about must not be read as a success.
+SUCCESS_STATUSES = frozenset({"ok", "done", "success", "completed", "passed"})
+
 
 class StateGraph:
     """Bounded phase machine used as an observability axis, not the executor."""
@@ -142,8 +147,19 @@ class StateGraph:
             if target is None:
                 if condition in {"failed", "error"}:
                     state.finish("failed", outcome.error)
-                else:
+                elif condition in SUCCESS_STATUSES:
                     state.finish("completed")
+                else:
+                    # M8-T317: a terminal status that is neither a success
+                    # nor a known failure must not be reported as a success.
+                    # The status vocabulary is open, so a node that returned
+                    # "denied" (the permission was refused) or "cancelled"
+                    # used to end the graph as **completed** - the run
+                    # certified itself on the strength of a refusal.
+                    state.finish(
+                        "failed",
+                        outcome.error or f"节点 {current} 以状态 {condition} 结束",
+                    )
                 return state
             if not self.can_transition(current, target, condition):
                 raise GraphValidationError(f"非法转移: {current} -[{condition}]-> {target}")
