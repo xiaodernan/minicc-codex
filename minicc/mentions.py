@@ -47,19 +47,34 @@ __all__ = [
 ]
 
 
-def extract_mention_tokens(message: str) -> list[str]:
-    """Ordered, de-duplicated ``@path`` tokens (bounded by MENTION_MAX_FILES)."""
-    tokens: list[str] = []
+def _scan_mention_tokens(message: str) -> tuple[list[str], list[str]]:
+    """The kept tokens and the ones that did not fit under the cap.
+
+    M8-T318: the cap used to ``break`` out of the scan, so the tokens past
+    it were **dropped without a trace** - no record, no note in the block,
+    nothing in the event stream.  The byte-budget channel already has an
+    "omitted" state for the same kind of loss; the count channel had
+    none, so a mention past the tenth looked exactly like a mention that
+    was never written.
+    """
+    kept: list[str] = []
+    dropped: list[str] = []
     seen: set[str] = set()
     for match in MENTION_TOKEN_RE.finditer(message or ""):
         token = match.group(1).rstrip(_TRAILING_PUNCTUATION)
         if not token or token in seen:
             continue
         seen.add(token)
-        tokens.append(token)
-        if len(tokens) >= MENTION_MAX_FILES:
-            break
-    return tokens
+        if len(kept) < MENTION_MAX_FILES:
+            kept.append(token)
+        else:
+            dropped.append(token)
+    return kept, dropped
+
+
+def extract_mention_tokens(message: str) -> list[str]:
+    """Ordered, de-duplicated ``@path`` tokens (bounded by MENTION_MAX_FILES)."""
+    return _scan_mention_tokens(message)[0]
 
 
 def _reject(token: str, reason: str) -> dict[str, Any]:
@@ -82,8 +97,16 @@ def build_mention_context(
     ``block`` is the text to append to the user message (empty when nothing
     was mentioned); ``records`` describe every token's outcome for events.
     """
-    tokens = extract_mention_tokens(message)
+    tokens, dropped = _scan_mention_tokens(message)
     records: list[dict[str, Any]] = []
+    # M8-T318: the mentions that did not fit under the cap are named, not
+    # dropped: each gets a record, and the block says so.
+    for token in dropped:
+        records.append(_annotate(
+            token,
+            "omitted",
+            f"超出单次提及条数上限（最多 {MENTION_MAX_FILES} 条）",
+        ))
     if not tokens:
         return "", records
     ws = workspace.resolve()
@@ -207,6 +230,14 @@ def build_mention_context(
         records.append({"token": token, "path": rel, "status": "injected", "reason": "", "truncated": False})
     injected = sum(1 for item in records if item["status"] == "injected")
     rejected = sum(1 for item in records if item["status"] == "rejected")
+    # M8-T318: the mentions past the cap are named in the block too - a
+    # silent drop reads exactly like a mention that was never written.
+    dropped_note = ""
+    if dropped:
+        dropped_note = (
+            f"[truncated] 以下引用超出单次提及条数上限（最多 {MENTION_MAX_FILES} 条），"
+            "未包含内容，可用 read_file 读取：" + "、".join(dropped)
+        )
     if injected:
         header = (
             "[用户引用文件] 以下内容按 @-提及自动注入（路径相对工作区，超长部分已截断）；"
@@ -222,8 +253,10 @@ def build_mention_context(
             parts.append(
                 "[truncated] 以下引用超出注入预算，未包含内容，可用 read_file 读取：" + "、".join(omitted)
             )
+        if dropped_note:
+            parts.append(dropped_note)
         return "\n\n".join(parts), records
-    if rejected or omitted:
+    if rejected or omitted or dropped_note:
         parts = ["[用户引用文件]"]
         parts.extend(
             f'<file path="{item["path"]}" status="rejected">{item["reason"]}</file>'
@@ -232,6 +265,8 @@ def build_mention_context(
         )
         if omitted:
             parts.append("[truncated] 以下引用超出注入预算，未包含内容：" + "、".join(omitted))
+        if dropped_note:
+            parts.append(dropped_note)
         return "\n\n".join(parts), records
     return "", records
 
