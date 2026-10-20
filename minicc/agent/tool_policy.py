@@ -81,6 +81,18 @@ def command_may_modify_workspace(command: str) -> bool:
             continue
         program = _program_basename(argv[0])
         rest = argv[1:]
+        # M8-T312: ``tsc`` **emits** JavaScript next to the sources unless it
+        # is told not to, and the emitted files are real build output - not a
+        # cache like ``.mypy_cache``.  The evidence predicate calls ``tsc`` a
+        # check, so the two answers have to agree about the side effect too:
+        # otherwise the check that was supposed to *verify* the work also
+        # produced the build output, and the task still looked read-only.
+        if program == "npx" and rest and _program_basename(rest[0]) == "tsc":
+            program, rest = "tsc", rest[1:]
+        if program == "tsc":
+            if not any(tok.startswith("--noEmit") for tok in rest):
+                return True
+            continue
         if program == "sed":
             if any(tok == "-i" or tok.startswith("-i") or tok.startswith("--in-place") for tok in rest):
                 return True
