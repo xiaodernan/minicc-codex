@@ -19,3 +19,7 @@ build/
 .coverage.*
 htmlcov/
 coverage.xml
+
+# Commit messages are written to a file and removed right after the commit;
+# this keeps a stray one out of the tree (M8-T356 lesson).
+_commit_msg_*.txt
