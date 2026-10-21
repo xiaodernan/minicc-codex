@@ -1545,6 +1545,18 @@ async def run_agent(
                 {
                     "tool": item[0].tool,
                     "arguments": item[0].arguments,
+                    # M8-T355: a round is a **repeat** only if the world stood
+                    # still.  The signature deliberately ignores the output (a
+                    # changing timestamp or a nondeterministic result must
+                    # not disguise an unchanged tool path as progress) - but
+                    # the **target's identity** is not the output: a file
+                    # that changed under the agent makes the same call a
+                    # fresh look, not a repetition.  Without this, a working
+                    # agent (each read returned new content) was declared
+                    # stagnant, pushed into the recovery probe, and then
+                    # could not leave it ("recovery_required_before_finish"
+                    # until the turns ran out).
+                    "target": _target_signature(workspace, item[0].arguments),
                 }
                 for item in (immediate_results[index] for index in sorted(immediate_results))
             ])
