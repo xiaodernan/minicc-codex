@@ -17,6 +17,7 @@ from collections.abc import Iterator
 from typing import Any
 
 from ..tools.registry import redact_text
+from ..tools.schemas import tool_call_name
 
 COMPACTION_MARKER = "[CONTEXT COMPACTED]"
 CHECKPOINT_VERSION = 3
@@ -318,7 +319,10 @@ def _message_facts(messages: list[dict[str, Any]]) -> dict[str, Any]:
         values: list[tuple[str, str]] = [("message", content)]
         for tool_call in message.get("tool_calls") or []:
             function = tool_call.get("function") or {}
-            name = str(function.get("name") or "?")
+            # M8-T341: the census counts the tool the way the dispatcher
+            # named it - one home for a wire name (``tool_call_name``), so a
+            # call is not counted under a spelling the registry never saw.
+            name = tool_call_name(tool_call) or "?"
             tools[name] += 1
             raw_arguments = function.get("arguments") or ""
             parsed: Any = raw_arguments

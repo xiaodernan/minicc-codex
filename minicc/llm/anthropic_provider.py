@@ -34,6 +34,7 @@ except ModuleNotFoundError:  # pragma: no cover - depends on the HTTP stack.
     httpx = None  # type: ignore[assignment]
 
 from .base import LLMResponse, is_nameless_tool_name
+from ..tools.schemas import tool_call_name
 
 ANTHROPIC_VERSION = "2023-06-01"
 DEFAULT_BASE_URL = "https://api.anthropic.com"
@@ -141,7 +142,12 @@ def messages_to_anthropic(messages: list[dict[str, Any]]) -> tuple[str, list[dic
                 blocks.append({
                     "type": "tool_use",
                     "id": str(call.get("id") or ""),
-                    "name": str(function.get("name") or ""),
+                    # M8-T341: the name that goes on the wire is the name the
+                    # dispatcher used - one home for a wire name
+                    # (``tool_call_name``).  Anthropic only accepts the names
+                    # it was told about, so a stray space here fails the whole
+                    # request instead of the one call.
+                    "name": tool_call_name(call),
                     "input": tool_input,
                 })
             if blocks:

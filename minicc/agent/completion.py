@@ -22,6 +22,7 @@ from ..llm.base import system_msg, user_msg
 from ..llm.openai_provider import classify_provider_failure
 from .loop import AgentCancelled, chat_with_cancellation
 from ..tools.registry import redact_text
+from ..tools.schemas import tool_call_name
 from .tool_policy import is_verification_evidence
 
 
@@ -127,8 +128,10 @@ def _transcript_items(messages: list[dict[str, Any]] | None) -> list[dict[str, A
             "content": text[:MAX_TRANSCRIPT_CHARS_PER_MESSAGE],
         }
         if message.get("tool_calls"):
+            # M8-T341: the review sees the tool the way the dispatcher
+            # named it - one home for a wire name (``tool_call_name``).
             item["tool_calls"] = [
-                str(call.get("function", {}).get("name") or "")
+                tool_call_name(call)
                 for call in message["tool_calls"]
                 if isinstance(call, dict)
             ]

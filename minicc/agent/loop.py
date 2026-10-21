@@ -50,7 +50,7 @@ from ..audit import (
     path_rule_denies_call,
     tool_denied_by_rule,
 )
-from ..tools.schemas import ToolCall, ToolResult
+from ..tools.schemas import ToolCall, ToolResult, tool_call_name
 from ..tools.registry import ToolRegistry, redact_text
 from ..hooks import payloads_for_result, payloads_for_tool_call
 from .context import compact_with_checkpoint, estimate_tokens, message_chars, repair_interrupted_tool_rounds, validate_tool_protocol
@@ -1087,7 +1087,10 @@ async def run_agent(
                 result.answer = f"任务未完成：{result.error}"
                 emit_trace(result.error, phase="failed", status="error", code="budget_exceeded")
                 break
-            tool_names = [str((call.get("function") or {}).get("name") or call.get("name") or "tool") for call in response.tool_calls]
+            # M8-T341: the trace names the tools the way the dispatcher
+            # named them - one home for a wire name (``tool_call_name``), so
+            # the panel cannot show a call the registry never saw.
+            tool_names = [tool_call_name(call) or "tool" for call in response.tool_calls]
             last_public_model_update, visible_update = _visible_model_delta(
                 last_public_model_update,
                 response.content,

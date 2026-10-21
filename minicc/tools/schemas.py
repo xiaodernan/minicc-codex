@@ -51,6 +51,25 @@ def _clip_raw(text: str, ceiling: int) -> str:
     return text[:kept] + notice
 
 
+def tool_call_name(call: dict[str, Any]) -> str:
+    """The **normalized** name of one wire tool call (M8-T341).
+
+    A name has one legal form - a clean one (M8-T336) - and the wire has
+    **five** readers of that name: the dispatcher, the round trace, the
+    conversation census, the review transcript and the Anthropic wire
+    conversion.  Only the dispatcher asked the rule; the other four read the
+    raw dictionary, so the same call was called ``read_file`` in one place and
+    ``" read_file "`` in another - and the last of those hands the untrimmed
+    name to an API that only knows the declared ones.
+
+    This function is the one home: every reader asks it.
+    """
+    if not isinstance(call, dict):
+        return ""
+    function = call.get("function") or {}
+    return str(function.get("name") or call.get("name") or "").strip()
+
+
 @dataclass(frozen=True)
 class ToolCall:
     tool: str
@@ -94,7 +113,7 @@ class ToolCall:
         # "[TOOL_ERROR] 未知工具 'read_file '" for an intent that was not
         # ambiguous.
         return ToolCall(
-            tool=str(function.get("name") or call.get("name") or "").strip(),
+            tool=tool_call_name(call),
             arguments=arguments,
             call_id=str(call.get("id") or ""),
             parse_error=parse_error,
