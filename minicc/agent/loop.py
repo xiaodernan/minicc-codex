@@ -47,6 +47,7 @@ from ..audit import (
     effective_risk,
     is_network_tool,
     match_permission_rule,
+    path_rule_denies_call,
     tool_denied_by_rule,
 )
 from ..tools.schemas import ToolCall, ToolResult
@@ -418,6 +419,11 @@ def _rule_covers_this_call(
     The function answers the narrow question - "is the tool's own argument
     already denied?" - so the caller can decide that a *different* rule
     (a path rule at all) means the whole read has to be refused.
+
+    M8-T338: the narrow half now lives in one home too
+    (``audit.tool_denied_by_rule``), and the **whole** verdict - the narrow
+    half plus the workspace-wide veto - is ``audit.path_rule_denies_call``,
+    which the agent loop and its recovery probe both ask.
     """
     if not workspace:
         return False
@@ -426,10 +432,7 @@ def _rule_covers_this_call(
     if not path:
         # No path: the call is workspace-wide, so no path rule covers it.
         return False
-    try:
-        return match_permission_rule(Path(workspace), tool, args) == "deny"
-    except OSError:
-        return False
+    return tool_denied_by_rule(workspace, tool, args)
 
 
 def _git_changed_paths(workspace: str | Path | None) -> list[str]:
@@ -656,6 +659,17 @@ async def run_agent(
         """
 
         names = [name for name in RECOVERY_PROBE_TOOLS if registry.spec(name) is not None]
+        # M8-T338: the probe is the agent's **own** read, and it used to run
+        # a workspace-wide ``git_diff`` and ``tree`` without asking the deny
+        # rules - the very reads M8-T290 refuses for the model's calls.  The
+        # probe's results go into the conversation, so the denied content
+        # reached the model anyway, through the back door.  The probe asks
+        # the same home the model's calls ask, and a tool the rules refuse
+        # is simply not part of the probe.
+        skipped_by_rules = [
+            name for name in names if path_rule_denies_call(workspace, name, {})
+        ]
+        names = [name for name in names if name not in skipped_by_rules]
         if not names:
             return []
         if cancellation_requested():
@@ -718,7 +732,13 @@ async def run_agent(
             "已完成恢复诊断，下一轮将基于当前工作区证据重新选择路径",
             phase="planning",
             code="recovery_probe_finished",
-            detail={"attempt": attempt, "results": feedback},
+            detail={
+                "attempt": attempt,
+                "results": feedback,
+                # M8-T338: a probe tool the deny rules refuse is not run -
+                # and the skip is visible, not silent.
+                "skipped_by_rules": skipped_by_rules,
+            },
         )
         return feedback
 
@@ -1168,19 +1188,14 @@ async def run_agent(
                 # nothing on the read path, while the Web face already
                 # documented the opposite.  The rule is asked directly here:
                 # a veto is not a question for the user.
-                rule_denied = tool_denied_by_rule(workspace, tc.tool, tc.arguments)
-                # M8-T290: a **workspace-wide** read carries the content of
-                # every path, including the ones a deny rule covers.  Two
-                # tools do that: ``git_diff`` without a path (the whole
-                # working-tree diff) and ``grep`` over a directory (its
-                # path is a directory, so a ``secrets/*`` rule never
-                # matched it).  Asking the rule about the tool's own
-                # arguments is not enough for either.
-                if not rule_denied and deny_rule_names_paths(workspace):
-                    if tc.tool in {"git_diff", "grep", "tree"} and not _rule_covers_this_call(
-                        workspace, tc.tool, tc.arguments
-                    ):
-                        rule_denied = True
+                #
+                # M8-T338: the whole verdict - the call's own target **and**
+                # the workspace-wide veto (M8-T290: a workspace-wide read
+                # carries the content of every path, including the ones a
+                # deny rule covers) - has one home now,
+                # ``audit.path_rule_denies_call``, and the agent's own
+                # recovery probe asks the same one.
+                rule_denied = path_rule_denies_call(workspace, tc.tool, tc.arguments)
                 needs_gate = tool_requires_authorization(
                     tc.tool,
                     risk,

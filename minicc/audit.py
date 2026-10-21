@@ -171,6 +171,44 @@ def deny_rule_names_paths(workspace: Path | str | None) -> bool:
     return bool(rules["deny"]["paths"])
 
 
+#: M8-T338: the tools whose own target can be the **whole workspace** - the
+#: reads that carry the content (or the names) of every path, including the
+#: ones a deny rule covers.
+WORKSPACE_WIDE_READ_TOOLS = frozenset({"git_diff", "grep", "tree"})
+
+
+def path_rule_denies_call(
+    workspace: Path | str | None,
+    tool: str,
+    arguments: dict[str, Any] | None = None,
+) -> bool:
+    """True when the deny side refuses this call for a **path** reason.
+
+    Two halves, one verdict:
+
+    * the call's **own target** is denied (M8-T267) - a deny rule on
+      ``secrets/*`` refuses a read of ``secrets/k.txt``;
+    * the call is a **workspace-wide** read (M8-T290) - ``git_diff`` without
+      a path returns the whole working-tree diff, ``grep``'s path is a
+      directory, ``tree`` lists everything - so it carries the denied paths
+      too and has to be refused whenever the deny side names any path.
+
+    M8-T338: this rule had **one** reader - the model's own call, inline in
+    the agent loop - while the agent's own **recovery probe** ran a
+    workspace-wide ``git_diff`` and ``tree`` without asking, and the probe's
+    results went straight into the conversation the model reads.  The rule now
+    has one home, and every reader asks it.
+    """
+    if not workspace:
+        return False
+    args = arguments if isinstance(arguments, dict) else {}
+    if tool_denied_by_rule(workspace, tool, args):
+        return True
+    if str(tool or "") not in WORKSPACE_WIDE_READ_TOOLS:
+        return False
+    return deny_rule_names_paths(workspace)
+
+
 def _pattern_covers_container(pattern: str, rel: str) -> bool:
     """True when a deny path pattern covers this path as its **container**.
 
@@ -448,6 +486,7 @@ def authorize_tool(
 __all__ = [
     "NETWORK_TOOL_NAMES",
     "PERMISSION_MODES",
+    "WORKSPACE_WIDE_READ_TOOLS",
     "AuthorizationDecision",
     "authorize_tool",
     "command_uses_network",
@@ -456,6 +495,7 @@ __all__ = [
     "effective_risk",
     "is_network_tool",
     "normalize_permission_mode",
+    "path_rule_denies_call",
     "tool_denied_by_rule",
     "tool_requires_authorization",
 ]

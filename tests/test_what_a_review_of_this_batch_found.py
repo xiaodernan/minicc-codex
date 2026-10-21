@@ -150,6 +150,16 @@ def test_a_workspace_wide_git_diff_is_denied_end_to_end(tmp_path: Path) -> None:
     (workspace / ".minicc" / "permissions.json").write_text(
         json.dumps({"deny": {"paths": ["secrets/*"]}}), encoding="utf-8"
     )
+    # M8-T338: the secret has to be **tracked and changed** for the diff to
+    # carry it.  An untracked file is invisible to ``git diff``, so this gate
+    # was green even with the rule gone - the workspace-wide diff came back
+    # empty, and "no secret in an empty diff" proved nothing.
+    for args in (["add", "-A"], ["commit", "-m", "seed"]):
+        subprocess.run(
+            ["git", *args], cwd=str(workspace), capture_output=True,
+            encoding="utf-8", errors="replace",
+        )
+    (workspace / "secrets" / "k.txt").write_text("TOPSECRET-CHANGED\n", encoding="utf-8")
 
     class _AsksForDiff:
         def __init__(self) -> None:
@@ -175,7 +185,15 @@ def test_a_workspace_wide_git_diff_is_denied_end_to_end(tmp_path: Path) -> None:
     seen: list[str] = []
 
     def on_tool(call: Any, result: Any) -> None:
-        seen.append((result.summary or "") + (result.output or ""))
+        # M8-T338: the git tools put their text in ``head``/``tail`` and
+        # leave ``output`` empty, so a gate that only collected summary and
+        # output never saw the diff - it was green because it was blind.
+        seen.append(
+            (result.summary or "")
+            + (result.output or "")
+            + (result.head or "")
+            + (result.tail or "")
+        )
 
     asyncio.run(run_agent(
         _AsksForDiff(),
