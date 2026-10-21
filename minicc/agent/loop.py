@@ -530,6 +530,7 @@ async def run_agent(
     stagnation_replans = 0
     recent_observations: list[str] = []
     tool_result_cache: dict[str, ToolResult] = {}
+    tool_result_cache_target: dict[str, tuple[int, int, int, int] | None] = {}
     search_failures = 0
     last_reasoning_status: tuple[str, str] | None = None
     verification_required = False
@@ -547,12 +548,25 @@ async def run_agent(
     last_public_model_update = ""
     hooks_enabled = hooks is not None and bool(getattr(hooks, "enabled", False))
 
-    def cache_tool_result(key: str, value: ToolResult) -> None:
-        """Keep read-result reuse bounded during an unlimited run."""
+    def cache_tool_result(
+        key: str,
+        value: ToolResult,
+        target: tuple[int, int, int, int] | None = None,
+    ) -> None:
+        """Keep read-result reuse bounded during an unlimited run.
+
+        M8-T354: the memo also remembers **which file** the result was about
+        (its identity), so a file that changed underneath the agent is never
+        served from the memo.
+        """
         tool_result_cache.pop(key, None)
+        tool_result_cache_target.pop(key, None)
         tool_result_cache[key] = deepcopy(value)
+        tool_result_cache_target[key] = target
         while len(tool_result_cache) > MAX_TOOL_CACHE_ENTRIES:
-            tool_result_cache.pop(next(iter(tool_result_cache)))
+            oldest = next(iter(tool_result_cache))
+            tool_result_cache.pop(oldest, None)
+            tool_result_cache_target.pop(oldest, None)
 
     def cancellation_requested() -> bool:
         return bool(
@@ -1258,7 +1272,24 @@ async def run_agent(
                                 security_tags=["untrusted", "network"],
                             ),
                         )
-                    elif not network_call and call_signature in tool_result_cache:
+                    elif (
+                        not network_call
+                        and call_signature in tool_result_cache
+                        # M8-T354: the memo may only answer for the file it
+                        # was taken from.  The user (or any other process) can
+                        # change a file under the agent, and the memo used to
+                        # keep serving the **old** content - and since a
+                        # replay is the only answer the memo gives, the
+                        # agent could never read the new one.
+                        # M8-T354: the memo may only answer for the file it
+                        # was taken from.  The user (or any other process) can
+                        # change a file under the agent, and the memo used to
+                        # keep serving the **old** content - and since a
+                        # replay is the only answer the memo gives, the
+                        # agent could never read the new one.
+                        and _target_signature(workspace, tc.arguments)
+                        == tool_result_cache_target.get(call_signature)
+                    ):
                         cached = deepcopy(tool_result_cache[call_signature])
                         cached.summary = (
                             f"[DUPLICATE_TOOL_CALL] 已复用 {tc.tool} 的最近一次成功结果；"
@@ -1329,7 +1360,11 @@ async def run_agent(
                     and tool_result.status == "ok"
                     and not (tool_result.data or {}).get("duplicate")
                 ):
-                    cache_tool_result(_signature({"tool": tc.tool, "arguments": tc.arguments}), tool_result)
+                    cache_tool_result(
+                        _signature({"tool": tc.tool, "arguments": tc.arguments}),
+                        tool_result,
+                        _target_signature(workspace, tc.arguments),
+                    )
                 if on_tool is not None:
                     on_tool(tc, tool_result)
                 if (
@@ -1859,6 +1894,35 @@ async def run_agent(
         runtime_state.outputs["error"] = result.error
         result.metrics.update(runtime_state.metrics())
     return result
+
+
+def _target_signature(
+    workspace: str | Path | None,
+    arguments: dict[str, Any] | None,
+) -> tuple[int, int, int, int] | None:
+    """The identity of the file a call is about (M8-T354).
+
+    The retrieval index keys its memo by the file's identity
+    (``ino``, ``mtime_ns``, ``ctime_ns``, ``size``), so a file that changed
+    is never served from the memo.  The tool-result memo had no such key:
+    a file changed underneath the agent (the user fixing it) was still
+    answered from the memo - with the **old** content, and since a replay
+    is the only answer the memo gives, the agent could not read the new
+    one either.
+
+    ``None`` means "this call is not about a file" (a command, a search) -
+    such a result is still reused, exactly as before.
+    """
+    if not workspace:
+        return None
+    raw = str((arguments or {}).get("path") or "").strip()
+    if not raw:
+        return None
+    try:
+        stat = (Path(workspace) / raw).stat()
+    except OSError:
+        return None
+    return (stat.st_ino, stat.st_mtime_ns, stat.st_ctime_ns, stat.st_size)
 
 
 def _always_allow(name: str, call: ToolCall) -> bool:
