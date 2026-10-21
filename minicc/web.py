@@ -913,6 +913,22 @@ class AgentService:
             depth = max(1, min(int(depth), 6))
         except (TypeError, ValueError):
             depth = 3
+        # M8-T344: the route performs the ``tree`` tool's read, so a
+        # tool-scoped deny rule on "tree" has to reach it - the agent's own
+        # ``tree`` call is refused by that rule, and the browser was not.
+        # The path rules are applied per entry below (M8-T337); this is the
+        # tool axis, and it refuses the whole listing the way the agent's
+        # call is refused.
+        if tool_denied_by_rule(self.workspace, "tree", {"path": raw}):
+            return {
+                "status": "error",
+                "summary": "permissions.json deny 规则拒绝了这个文件树视图",
+                "root": root.as_posix(),
+                "path": target.relative_to(root).as_posix() if target != root else "",
+                "depth": depth,
+                "truncated": False,
+                "entries": [],
+            }
         max_entries = 2000
         entries: list[dict[str, Any]] = []
         truncated = False
@@ -3153,7 +3169,13 @@ class AgentService:
         # rule of any kind refuses the workspace-wide diff, because it
         # would carry the denied content.
         arguments = {"path": raw_path} if raw_path else {}
-        denied = tool_denied_by_rule(self.workspace, "read_file", arguments)
+        # M8-T344: the route performs a **git diff**, so the rule has to be
+        # asked about the tool it performs.  Asking about "read_file" let a
+        # tool-scoped deny rule on ``git_diff`` through: the agent's own
+        # call was refused by that rule and the browser was not.  The path
+        # axis does not depend on the tool name, so the path rules keep
+        # reaching this route exactly as before.
+        denied = tool_denied_by_rule(self.workspace, "git_diff", arguments)
         if not raw_path and not denied:
             # A workspace-wide diff carries the content of every path.
             denied = deny_rule_names_paths(self.workspace)
