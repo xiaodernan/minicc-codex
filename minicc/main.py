@@ -349,8 +349,18 @@ def _permission_gate(
             risk,
             call.arguments,
             allow_changes=bool(config.yolo),
-            allow_network=bool(allow_network or config.yolo),
-            permission_mode="yolo" if config.yolo else permission_mode,
+            # M8-T353: the deployment-level ``yolo`` promises "writes and
+            # commands" - that is what the CLI's own ``--yolo`` help says -
+            # and the Web face's pinned contract agrees: reaching the network
+            # is a **separate** grant (``--allow-network`` / the task-level
+            # yolo).  The CLI used to fold the network into the deployment
+            # flag, so the same deployment answered the network question
+            # differently on the two faces.
+            allow_network=bool(allow_network),
+            # The deployment flag is not the task-level "yolo" **mode**: the
+            # mode stays what the task asked for, and the deployment flag
+            # only turns the writes and the commands on.
+            permission_mode=permission_mode,
             session_id=session_id,
             workspace=workspace,
             capabilities=registry.capabilities_of(name),
