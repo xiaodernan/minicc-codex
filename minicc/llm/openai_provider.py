@@ -54,7 +54,7 @@ from tenacity import (
     stop_after_attempt,
 )
 
-from .base import LLMResponse
+from .base import LLMResponse, is_nameless_tool_name
 from ..logging_setup import log_provider_event
 from .envelope import EnvelopeParseError, _render_envelope_action, envelope_system_suffix, parse_envelope
 from .stream_merge import AttemptTextAssembler, merge_retry_snapshot
@@ -1053,6 +1053,13 @@ class OpenAICompatibleProvider:
         for index, item in enumerate(output):
             item_type = str(_read_field(item, "type", ""))
             if item_type == "function_call":
+                name = str(_read_field(item, "name", ""))
+                if is_nameless_tool_name(name):
+                    # M8-T335: the rule M8-T334 settled on the two
+                    # chat-completions paths also binds here - a "function
+                    # call" that names no tool is noise, not a call for a
+                    # tool the registry does not have.
+                    continue
                 calls.append({
                     "id": _unique_tool_call_id(
                         str(_read_field(item, "call_id", "") or _read_field(item, "id", "")),
@@ -1061,7 +1068,7 @@ class OpenAICompatibleProvider:
                     ),
                     "type": "function",
                     "function": {
-                        "name": str(_read_field(item, "name", "")),
+                        "name": name,
                         "arguments": str(_read_field(item, "arguments", "{}")),
                     },
                 })
@@ -1255,7 +1262,7 @@ class OpenAICompatibleProvider:
         seen_ids: set[str] = set()
         for index in sorted(acc):
             slot = acc[index]
-            if not slot["name"]:
+            if is_nameless_tool_name(slot["name"]):
                 continue
             call_id = _unique_tool_call_id(str(slot["id"] or ""), f"call-{index}", seen_ids)
             calls.append(
@@ -1314,11 +1321,11 @@ class OpenAICompatibleProvider:
         for index, tc in enumerate(getattr(msg, "tool_calls", None) or ()):
             function = getattr(tc, "function", None)
             name = getattr(function, "name", "") if function else ""
-            if not name:
-                # M8-T334: a **nameless** call is dropped, exactly as the
-                # streaming assembler drops it (``if not slot["name"]:
-                # continue``).  The two paths used to disagree: the
-                # one-shot path kept it, the loop dispatched a call for the
+            if is_nameless_tool_name(name):
+                # M8-T334, home in ``minicc/llm/base.py`` since M8-T335: a
+                # **nameless** call is dropped by every wire reader via
+                # ``is_nameless_tool_name``.  The two paths used to disagree:
+                # this one kept it, the loop dispatched a call for the
                 # tool "" and the model spent a round on "[TOOL_ERROR]
                 # 未知工具 ''".
                 continue

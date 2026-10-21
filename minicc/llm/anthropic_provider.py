@@ -33,7 +33,7 @@ try:  # httpx ships with the OpenAI SDK dependency; keep the import guarded.
 except ModuleNotFoundError:  # pragma: no cover - depends on the HTTP stack.
     httpx = None  # type: ignore[assignment]
 
-from .base import LLMResponse
+from .base import LLMResponse, is_nameless_tool_name
 
 ANTHROPIC_VERSION = "2023-06-01"
 DEFAULT_BASE_URL = "https://api.anthropic.com"
@@ -218,11 +218,19 @@ def response_to_llm(payload: dict[str, Any], model: str) -> LLMResponse:
         if block.get("type") == "text":
             text_parts.append(str(block.get("text") or ""))
         elif block.get("type") == "tool_use":
+            name = str(block.get("name") or "")
+            if is_nameless_tool_name(name):
+                # M8-T335: a ``tool_use`` block without a name is noise.
+                # The old code kept it and the loop paid a round for
+                # "[TOOL_ERROR] 未知工具 ''" - the same defect M8-T334
+                # fixed on the OpenAI wire; the predicate has one home
+                # (``minicc/llm/base.py``) and both parse paths ask it.
+                continue
             tool_calls.append({
                 "id": str(block.get("id") or ""),
                 "type": "function",
                 "function": {
-                    "name": str(block.get("name") or ""),
+                    "name": name,
                     "arguments": json.dumps(block.get("input") or {}, ensure_ascii=False),
                 },
             })
@@ -556,6 +564,11 @@ def _sse_to_llm(parsed: dict[str, Any], fallback_model: str) -> LLMResponse:
     tool_calls: list[dict[str, Any]] = []
     for index in sorted(parsed.get("tools") or {}):
         item = parsed["tools"][index]
+        if is_nameless_tool_name(item.get("name")):
+            # M8-T335: same rule as the JSON path above - a nameless
+            # SSE ``tool_use`` slot is noise and is dropped here, so the
+            # loop never dispatches tool="".
+            continue
         raw_json = item.get("json") or "{}"
         try:
             json.loads(raw_json)

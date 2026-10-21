@@ -65,3 +65,28 @@ def tool_result_msg(tool_call_id: str, content: str) -> dict[str, Any]:
         "tool_call_id": tool_call_id,
         "content": content,
     }
+
+
+def is_nameless_tool_name(name: Any) -> bool:
+    """True when the wire said "here is a tool action" but named no tool.
+
+    M8-T335: one malformed answer must read as one behavior on **every** wire
+    reader.  M8-T334 settled the rule - a nameless call is noise, drop it - but
+    only on two of the five parse paths: the Responses path kept it, and the
+    native Anthropic provider kept it on both of its paths.  The consequence is
+    always the same paid round: the loop dispatches ``tool=""``, the registry
+    answers ``[TOOL_ERROR] 未知工具 ''`` and the model pays for a call that
+    never had a target.
+
+    The predicate therefore has **one home** (this function), and each wire
+    reader asks it - mirroring ``is_network_tool`` (M8-T307): one rule, many
+    asking sites, no divergent copies.  A name that is only whitespace is as
+    targetless as an empty one, so both count as nameless.
+
+    Ask it at the only place a wire phrase becomes a tool call:
+
+    * OpenAI chat-completions one-shot and streaming assembly (M8-T334's rule);
+    * OpenAI Responses ``function_call`` items;
+    * native Anthropic ``tool_use`` blocks (JSON) and SSE assembly.
+    """
+    return not str(name or "").strip()
