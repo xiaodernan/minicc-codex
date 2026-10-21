@@ -13,22 +13,47 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
-from .graph import DAGPlan, GraphValidationError, PlanTask, fixed_plan
+from .graph import DAGPlan, GraphValidationError, PlanTask, READONLY_DAG_TOOLS, fixed_plan
 
 
-DEFAULT_ALLOWED_TOOLS = frozenset({
-    "read_file", "grep", "git_status", "git_diff", "git_summary", "git_merge_precheck",
-    "write_file", "edit_file", "bash",
-})
+# M8-T340: "which tools may a plan use" had **four** hand-written copies, and
+# they disagreed:
+#
+# | copy | tools |
+# | --- | --- |
+# | the prompt's list | 7 (no git_summary / git_merge_precheck) |
+# | ``DEFAULT_ALLOWED_TOOLS`` (the policy ceiling) | 9 (both of them) |
+# | ``PLANNER_KIND_TOOLS`` for the readonly kinds | 6 (both of them) |
+# | ``graph.READONLY_DAG_TOOLS`` (the executor's hard boundary) | 4 |
+#
+# So a plan the planner **accepted** was a plan the executor **refused** - and
+# the Web face, which checks the same boundary before running anything, sent
+# such a plan back to the main agent with the reason "the plan contains
+# non-readonly nodes" - false: every node in it was a readonly node.
+#
+# The readonly kinds now use the executor's own boundary (one home), and the
+# ceiling and the prompt's list are derived from the kinds, so they cannot
+# drift again.
+READONLY_PLANNER_TOOLS = READONLY_DAG_TOOLS
+WRITE_PLANNER_TOOLS = frozenset({"write_file", "edit_file"})
+EXEC_PLANNER_TOOLS = READONLY_PLANNER_TOOLS | frozenset({"bash"})
+
 PLANNER_KINDS = frozenset({"readonly", "write", "exec", "review", "merge"})
 PLANNER_KIND_TOOLS = {
-    "readonly": frozenset({"read_file", "grep", "git_status", "git_diff", "git_summary", "git_merge_precheck"}),
-    "review": frozenset({"read_file", "grep", "git_status", "git_diff", "git_summary", "git_merge_precheck"}),
-    "write": frozenset({"write_file", "edit_file"}),
-    "exec": frozenset({"read_file", "grep", "git_status", "git_diff", "git_summary", "git_merge_precheck", "bash"}),
-    "merge": frozenset({"read_file", "grep", "git_status", "git_diff", "git_summary", "git_merge_precheck"}),
+    "readonly": READONLY_PLANNER_TOOLS,
+    "review": READONLY_PLANNER_TOOLS,
+    "write": WRITE_PLANNER_TOOLS,
+    "exec": EXEC_PLANNER_TOOLS,
+    "merge": READONLY_PLANNER_TOOLS,
 }
-PLANNER_SYSTEM_PROMPT = """你是 minicc 的受约束任务规划器，不负责执行工具，也不负责输出最终答案。
+
+#: The ceiling is the union of the kinds: a tool no kind may use is not
+#: "allowed" in any sense.
+DEFAULT_ALLOWED_TOOLS = frozenset().union(*PLANNER_KIND_TOOLS.values())
+
+#: The prompt names the same tools, derived from the same tables.
+PLANNER_TOOL_LIST = "、".join(sorted(DEFAULT_ALLOWED_TOOLS))
+_PLANNER_PROMPT_TEMPLATE = """你是 minicc 的受约束任务规划器，不负责执行工具，也不负责输出最终答案。
 
 请根据用户目标生成一个小而明确的 coding workflow。只返回 JSON，不要 Markdown、解释或隐藏思维过程。
 JSON 结构必须是：
@@ -39,11 +64,18 @@ JSON 结构必须是：
 约束：
 1. 只使用 readonly、write、exec、review、merge 这些 kind。
 2. 节点总数不超过 8；依赖必须形成无环图；尽量保持 3-6 个节点。
-3. allowed_tools 只能来自：read_file、grep、git_status、git_diff、write_file、edit_file、bash。
+3. allowed_tools 只能来自：__PLANNER_TOOLS__。
 4. readonly/review 节点不能使用写入或命令工具；write 节点只描述修改；exec 节点只描述验证。
 5. payload 只写简短目标、验收标准或范围，不要复制文件内容，不要放密钥。
 6. 计划只是运行时的公开执行提示，证据变化时必须允许主 Agent 重新规划。
 """
+
+#: M8-T340: the prompt's tool list is the model's copy of the same rule, so
+#: it is derived from the tables above instead of being a fourth hand-written
+#: list that could drift away from what the validator accepts.
+PLANNER_SYSTEM_PROMPT = _PLANNER_PROMPT_TEMPLATE.replace(
+    "__PLANNER_TOOLS__", PLANNER_TOOL_LIST
+)
 _ID_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_-]{0,47}$")
 
 

@@ -22313,6 +22313,68 @@ M8-T290 的规则写在**模型发起的调用**那条路上，而 agent 自己�
 
 
 
+## 第三百二十四批 — M8-T340 — 规划器只能承诺执行器跑得动的计划
+
+### 1 缺陷
+
+关于"只读计划能用哪些工具"，仓库里有**四份**手抄的名单，而且它们互相矛盾：
+
+| 名单 | 内容 |
+| --- | --- |
+| 提示词（`PLANNER_SYSTEM_PROMPT` 第 3 条） | 7 个：read_file、grep、git_status、git_diff、write_file、edit_file、bash |
+| `DEFAULT_ALLOWED_TOOLS`（policy 上限） | 9 个：多出 git_summary、git_merge_precheck |
+| `PLANNER_KIND_TOOLS["readonly"/"review"/"merge"]` | 6 个：多出 git_summary、git_merge_precheck |
+| `READONLY_DAG_TOOLS`（DAG 执行器的硬边界） | 4 个：read_file、grep、git_status、git_diff |
+
+于是：**规划器认可的计划，执行器会拒绝**。一个只读任务里带 `git_summary` 的
+计划过了 `validate_dynamic_plan`（它在 policy 上限里、也在 kind 表里），到了
+DAG 那里被硬拒；Web 侧的"提前跳过"检查会把它退回主 Agent，而事件里给的理
+由是 `dynamic_plan_contains_write_or_unbounded_tools`、摘要写的是"动态计划包
+含非只读节点"——**那个计划的节点全是只读的**，理由是假的。
+
+### 2 落地
+
+`minicc/agent/planner.py`：
+
+* 只读类的 kind（readonly/review/merge）改用**执行器那道边界**
+  （`graph.READONLY_DAG_TOOLS`）——一个家，规划器不许承诺执行器跑不动的工具；
+* `DEFAULT_ALLOWED_TOOLS` 由各 kind 的表**求并**得出：任何 kind 都用不到的
+  工具，不再算"允许"；
+* 提示词里的工具名单由同一张表**推导**（`PLANNER_TOOL_LIST`）——它不再是第四
+  份手抄的名单。
+
+结果：四份名单变成一份（7 个工具，其中只读类那 4 个正是执行器的边界），规划
+器认可的计划，执行器一定跑得动。
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T340-125 | 把 `git_summary` 放回只读 kind | 2 条红（边界不变量 + 行为） |
+| M8-T340-126 | 上限里塞一个死工具 | 2 条红（上限 + 提示词） |
+| M8-T340-127 | 提示词名单与表脱钩 | 1 条红（提示词那条） |
+
+### 4 新增门禁
+
+`tests/test_the_planner_may_only_promise_what_the_executor_can_run.py`（6 条）：
+只读 kind ⊆ 执行器边界；上限里没有死工具；提示词列的就是校验器收的；**行为
+上**：规划器不再认可执行器会拒的计划（`validate_dynamic_plan` 直接抛错、回退
+到固定计划）；控制组——执行器跑得动的计划照旧被接受，固定计划照旧有效。
+
+### 5 一条教训
+
+**同一张表的手抄份数越多，"谁说了算"就越模糊。**
+
+这四份名单各自都"看起来对"，而分歧只藏在**多出来的两个工具**里。真正咬人的
+不是某一处写错，而是**每一处都只对了一部分**：提示词说 7 个、上限说 9 个、
+kind 表说 6 个、执行器说 4 个。
+
+**规则要有唯一的家，其余的表都由它推导**（上限 = 各 kind 的并、提示词 = 同一
+张表、执行器的边界 = 它的家）。推导出来的表**不可能**再漂移：想漂移就得改那
+一个家，而那一个家有自己的门禁盯着。
+
+
+
 ## 第三百二十三批 — M8-T339 — 列举型工具也有两张脸：被拒的路径不该被列出来
 
 ### 1 缺陷
