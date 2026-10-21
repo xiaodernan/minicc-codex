@@ -33,7 +33,7 @@ try:  # httpx ships with the OpenAI SDK dependency; keep the import guarded.
 except ModuleNotFoundError:  # pragma: no cover - depends on the HTTP stack.
     httpx = None  # type: ignore[assignment]
 
-from .base import LLMResponse, is_nameless_tool_name
+from .base import LLMResponse, is_nameless_tool_name, unique_tool_call_id
 from ..tools.schemas import tool_call_name
 
 ANTHROPIC_VERSION = "2023-06-01"
@@ -218,7 +218,13 @@ def _normalize_usage(usage: dict[str, Any] | None) -> dict[str, Any]:
 def response_to_llm(payload: dict[str, Any], model: str) -> LLMResponse:
     text_parts: list[str] = []
     tool_calls: list[dict[str, Any]] = []
-    for block in payload.get("content") or []:
+    # M8-T356: the ids get the same repair the OpenAI-compatible wire has
+    # always had (one home: ``minicc.llm.base.unique_tool_call_id``).  A
+    # gateway that reuses one id - or sends none - used to make the
+    # Anthropic wire produce duplicate/empty ids, and the protocol validator
+    # then refused the history, killing the turn.
+    seen_ids: set[str] = set()
+    for index, block in enumerate(payload.get("content") or [], start=1):
         if not isinstance(block, dict):
             continue
         if block.get("type") == "text":
@@ -233,7 +239,9 @@ def response_to_llm(payload: dict[str, Any], model: str) -> LLMResponse:
                 # (``minicc/llm/base.py``) and both parse paths ask it.
                 continue
             tool_calls.append({
-                "id": str(block.get("id") or ""),
+                "id": unique_tool_call_id(
+                    str(block.get("id") or ""), f"tool-{index}", seen_ids
+                ),
                 "type": "function",
                 "function": {
                     "name": name,
@@ -568,6 +576,7 @@ async def _consume_anthropic_sse(response: Any, on_delta: Any, emitted: dict[str
 
 def _sse_to_llm(parsed: dict[str, Any], fallback_model: str) -> LLMResponse:
     tool_calls: list[dict[str, Any]] = []
+    seen_ids: set[str] = set()
     for index in sorted(parsed.get("tools") or {}):
         item = parsed["tools"][index]
         if is_nameless_tool_name(item.get("name")):
@@ -582,7 +591,10 @@ def _sse_to_llm(parsed: dict[str, Any], fallback_model: str) -> LLMResponse:
         except json.JSONDecodeError:
             arguments = json.dumps({"_raw": raw_json}, ensure_ascii=False)
         tool_calls.append({
-            "id": item.get("id") or f"tool-{index}",
+            # M8-T356: the same id repair as the JSON path (one home).
+            "id": unique_tool_call_id(
+                str(item.get("id") or ""), f"tool-{index}", seen_ids
+            ),
             "type": "function",
             "function": {"name": item.get("name") or "", "arguments": arguments},
         })

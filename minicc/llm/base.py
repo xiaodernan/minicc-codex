@@ -39,6 +39,32 @@ class NonTerminalModelTurn(RuntimeError):
     """A model turn ended without a terminal finish_reason."""
 
 
+def unique_tool_call_id(raw_id: str, fallback: str, seen: set[str] | None = None) -> str:
+    """Return a non-empty, unique tool_call id for one response.
+
+    M8-T356: this is the **one** home for the id repair.  Gateways may omit
+    ids or reuse one id across calls; the agent loop and
+    ``repair_interrupted_tool_rounds`` key tool results by id, so a duplicate
+    silently drops or misroutes a result - and an empty id makes the protocol
+    validator refuse the history, which kills the turn.  First use wins for a
+    given raw id; later duplicates and empty ids get ``<base>-dup<N>``.
+
+    It used to live in ``openai_provider`` only - so the OpenAI-compatible
+    wire was repaired and the Anthropic wire was not: the same malformed
+    gateway answer gave two different behaviors (M8-T334's family, again).
+    """
+    base = (raw_id or "").strip() or fallback
+    if seen is None:
+        return base
+    candidate = base
+    counter = 1
+    while candidate in seen:
+        counter += 1
+        candidate = f"{base}-dup{counter}"
+    seen.add(candidate)
+    return candidate
+
+
 def user_msg(content: str | list[dict[str, Any]]) -> dict[str, Any]:
     return {"role": "user", "content": content}
 

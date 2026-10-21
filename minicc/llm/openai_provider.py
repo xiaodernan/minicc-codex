@@ -54,7 +54,7 @@ from tenacity import (
     stop_after_attempt,
 )
 
-from .base import LLMResponse, is_nameless_tool_name
+from .base import LLMResponse, is_nameless_tool_name, unique_tool_call_id
 from ..tools.schemas import tool_call_name
 from ..logging_setup import log_provider_event
 from .envelope import EnvelopeParseError, _render_envelope_action, envelope_system_suffix, parse_envelope
@@ -354,24 +354,10 @@ def _merge_stream_text(previous: str, current: str) -> tuple[str, str]:
     return merge_retry_snapshot(previous, current)
 
 
-def _unique_tool_call_id(raw_id: str, fallback: str, seen: set[str] | None = None) -> str:
-    """Return a non-empty, unique tool_call id for one response.
-
-    Gateways may omit ids or reuse one id across calls; the agent loop and
-    ``repair_interrupted_tool_rounds`` key tool results by id, so a
-    duplicate silently drops or misroutes a result. First use wins for a
-    given raw id; later duplicates and empty ids get ``<base>-dup<N>``.
-    """
-    base = (raw_id or "").strip() or fallback
-    if seen is None:
-        return base
-    candidate = base
-    counter = 1
-    while candidate in seen:
-        counter += 1
-        candidate = f"{base}-dup{counter}"
-    seen.add(candidate)
-    return candidate
+#: M8-T356: the id repair lives in ``minicc.llm.base`` now (both wire
+#: readers ask it).  The old name stays importable because the M1-T2
+#: contract test imports it from here.
+_unique_tool_call_id = unique_tool_call_id
 
 
 def _read_field(obj: Any, name: str, default: Any = None) -> Any:

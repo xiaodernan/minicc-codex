@@ -1,0 +1,22 @@
+M8-T356: 工具调用的 id 也要修——两条线不许对同一次回答给出两种行为
+
+- 网关偶尔复用同一个 id（或干脆不给 id）。工具结果按 id 配对，重复的 id 会丢
+  结果或把结果送错地方；空 id 会让协议校验器直接拒收这段历史（"调用 ID 为空或重
+  复"）——整轮崩掉（实测报错：工具上下文协议无效：调用 ID 为空或重复）。
+- OpenAI 兼容那条线一直有修复（_unique_tool_call_id：空 id 给兜底名、重复 id 给
+  <base>-dup<N>），原生 Anthropic 那条线没有：两个同 id 的块得到 same / same，
+  没有 id 的块得到空串。同一份畸形网关回答，两条线两种行为——M8-T334 那一族的
+  又一次（T335 修的是"无名调用"，这一条是"重名/空 id"）。
+- minicc/llm/base.py 新增 unique_tool_call_id(raw, fallback, seen)：id 修复的唯一
+  的家（从 openai_provider 搬过来）；openai_provider 改用它（旧私有名保留为别名，
+  M1-T2 的契约测试还从那里导入）；anthropic_provider 的两条解析路径（JSON 与流
+  式）都改问这个家。
+- 新门禁 tests/test_every_wire_reader_gives_the_call_an_id_the_loop_can_pair.py
+  （3 条）：两条解析路径都给出非空且互不相同的 id；端到端——一份 id 重复的畸形回
+  答不会让整轮崩掉。
+- 变异验红：M8-T356-132（Anthropic 的 JSON 路径不修 id，2 红，含端到端那条：
+  整轮真的崩了）、M8-T356-133（流式路径不修 id，1 红）。
+- 顺带把 ROADMAP 的批次顺序修回连续：第三百三十八/三十九批此前落在第三百三十六
+  批之后（锚点用错了段落），已移回第三百三十七批之后；本批原写成"第三百四十一
+  批"，已改为"第三百四十批"。
+- ROADMAP 记第三百四十批。
