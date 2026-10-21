@@ -83,6 +83,7 @@ from .agent.verification_plan import build_verification_plan, changed_paths_from
 from .audit import (
     AuthorizationDecision,
     authorize_tool,
+    deny_rule_covers_path,
     deny_rule_names_paths,
     effective_risk,
     normalize_permission_mode,
@@ -931,10 +932,19 @@ class AgentService:
                 # such a file while the agent's glob and grep found it.
                 if (child.is_dir() and child.name in SKIP_DIRS) or _escapes_workspace(child, root):
                     continue
+                rel = child.relative_to(root).as_posix()
+                # M8-T337: the tree is a read of the workspace, so the deny
+                # rules have to reach it.  The preview and diff routes were
+                # fixed in M8-T290; this one was missed - the panel listed
+                # the paths ``permissions.json`` denies, while the agent's
+                # own ``tree`` call was refused by the same rule.  A denied
+                # path is not visible through any surface; the rest of the
+                # workspace still is.
+                if deny_rule_covers_path(self.workspace, rel):
+                    continue
                 if len(entries) >= max_entries:
                     truncated = True
                     return
-                rel = child.relative_to(root).as_posix()
                 if child.is_dir():
                     entries.append({"name": child.name, "path": rel, "type": "dir", "size": 0})
                     walk(child, level + 1)

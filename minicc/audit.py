@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from .allowlist import match_session_allowlist
+from .allowlist import match_session_allowlist, path_rule_matches
 from .permissions import load_permission_rules, match_permission_rule
 from .tools.bash import is_readonly_command, split_command_argv
 
@@ -169,6 +169,53 @@ def deny_rule_names_paths(workspace: Path | str | None) -> bool:
     except OSError:
         return False
     return bool(rules["deny"]["paths"])
+
+
+def _pattern_covers_container(pattern: str, rel: str) -> bool:
+    """True when a deny path pattern covers this path as its **container**.
+
+    A pattern like ``data/*`` denies everything under ``data/``, so the
+    directory itself is part of what the rule protects - listing it would
+    point at the protected container.  A pattern that names one file
+    (``data/secret.txt``) does not: the directory around it holds other
+    files the rule never mentioned.
+    """
+    head, sep, tail = str(pattern or "").rpartition("/")
+    if not sep or not head:
+        return False
+    if not any(ch in tail for ch in "*?["):
+        return False
+    return rel == head or rel.startswith(head + "/")
+
+
+def deny_rule_covers_path(workspace: Path | str | None, rel_path: str) -> bool:
+    """True when the deny side covers this workspace-relative path.
+
+    M8-T337: the Web face's file tree is a read of the workspace, and a deny
+    rule has to reach it.  The preview and diff routes were fixed in M8-T290;
+    the tree route was missed - so a browser panel listed the very paths
+    ``permissions.json`` denies, while the agent's own ``tree`` call was
+    refused outright by the same rule.
+
+    The verdict is asked per entry, and a container directory is covered too
+    (see :func:`_pattern_covers_container`): the point is that a denied path
+    is not *visible* through any surface, not that the panel dies.
+    """
+    if not workspace or not rel_path:
+        return False
+    try:
+        rules, _error = load_permission_rules(Path(workspace))
+    except OSError:
+        return False
+    patterns = rules["deny"]["paths"]
+    if not patterns:
+        return False
+    rel = str(rel_path).replace("\\", "/").strip()
+    if not rel:
+        return False
+    if path_rule_matches(rel, patterns):
+        return True
+    return any(_pattern_covers_container(pattern, rel) for pattern in patterns)
 
 
 # Task-level permission modes, aligned with Claude Code:
@@ -404,6 +451,7 @@ __all__ = [
     "AuthorizationDecision",
     "authorize_tool",
     "command_uses_network",
+    "deny_rule_covers_path",
     "deny_rule_names_paths",
     "effective_risk",
     "is_network_tool",
