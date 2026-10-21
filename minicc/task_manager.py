@@ -38,6 +38,7 @@ from .agent.protocol import (
     CancellationToken,
     EventLog,
     InvalidStatusTransition,
+    TERMINAL_TASK_STATUSES,
     validate_status_transition,
 )
 from .audit import normalize_permission_mode
@@ -62,7 +63,13 @@ MAX_ATTACHMENT_TOTAL_BYTES = 12 * 1024 * 1024
 LOG = get_logger("task")
 MAX_BATCH_TASKS = 16
 TASK_STREAM_INTERVAL = 0.06
-TERMINAL_TASK_STATUSES = {"completed", "failed", "cancelled", "interrupted"}
+# M8-T343: "which statuses are terminal" has **one** home
+# (``agent.protocol``).  This module used to keep its own copy, and so did
+# ``task_store`` - three copies of one fact.  They agree today, but a copy
+# that drifts is not cosmetic: the store's prune deletes *terminal* records
+# and always keeps the others, so a store copy that called a live status
+# terminal would delete the record of a task that is still running, while a
+# manager copy that forgot a status would never finish that task.
 DEFAULT_TASK_EVENT_LIMIT = 768
 DEFAULT_TASK_STREAM_LIMIT = 16_000
 DEFAULT_TASK_USAGE_LIMIT = 64

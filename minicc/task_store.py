@@ -16,8 +16,12 @@ from typing import Any
 
 from .tools.registry import redact_text
 
-
-TERMINAL_TASK_STATUSES = frozenset({"completed", "failed", "cancelled", "interrupted"})
+# M8-T343: "which statuses are terminal" has one home
+# (``agent.protocol``).  This module used to keep its own copy - three
+# copies of one fact.  The store's prune deletes *terminal* records and
+# always keeps the others, so a copy that drifts would delete the record of
+# a task that is still running.
+from .agent.protocol import TERMINAL_TASK_STATUSES
 
 
 class TaskStore:
