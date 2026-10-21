@@ -173,6 +173,18 @@ def capture(workspace: Path, task_id: str) -> dict[str, Any]:
         sizes: dict[str, int] = {}
         used = 0
         for rel in _git_dirty_files(root):
+            # M8-T350: the deny rules have to reach the **copy** too.  A
+            # snapshot preserves the dirty files, so a path the user denied
+            # (``secrets/*``) was copied into
+            # ``.minicc/snapshots/<task>/files/<rel>`` - and that copy does
+            # not match the rule any more, so the agent could read the very
+            # file the rule refused.  The pre-image of a denied path is not
+            # needed either: the agent cannot change that path, so there is
+            # nothing to roll back.
+            if _is_denied_by_rules(root, rel):
+                skipped.append(rel)
+                reasons[rel] = "permissions.json deny 规则覆盖该路径，未保留前置镜像"
+                continue
             try:
                 src = _within(root, rel)
                 if not src.is_file():
@@ -191,6 +203,19 @@ def capture(workspace: Path, task_id: str) -> dict[str, Any]:
         manifest = {"version": 2, "task_id": task_id, "files": copied, "digests": digests, "sizes": sizes, "missing": missing, "skipped": skipped, "skipped_reasons": reasons, "workspace": str(root)}
         _save(dest, manifest)
         return _summary(manifest)
+
+
+def _is_denied_by_rules(workspace: Path, rel: str) -> bool:
+    """Whether the workspace's deny rules cover this workspace-relative path.
+
+    M8-T350: the question is asked of the **one home** of the rules
+    (``audit.tool_denied_by_rule``) - the same question the agent loop asks
+    for the model's own calls, so a path is either denied everywhere or
+    nowhere.
+    """
+    from .audit import tool_denied_by_rule
+
+    return tool_denied_by_rule(workspace, "read_file", {"path": rel})
 
 
 def _digest(path: Path) -> str | None:
