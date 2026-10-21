@@ -31,7 +31,6 @@ import hashlib
 import json
 import subprocess
 import threading
-import time
 from copy import deepcopy
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -43,10 +42,8 @@ from ..llm.openai_provider import OpenAICompatibleProvider
 from ..llm.stream_merge import append_delta
 from ..llm.usage import add_usage_totals, cache_summary
 from ..audit import (
-    deny_rule_names_paths,
     effective_risk,
     is_network_tool,
-    match_permission_rule,
     path_rule_denies_call,
     tool_denied_by_rule,
 )
