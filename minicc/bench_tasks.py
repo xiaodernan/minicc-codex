@@ -35,6 +35,8 @@ import time
 from pathlib import Path
 from typing import Any
 
+from .tools.fs import GRADER_DIR_NAME
+
 __all__ = [
     "SUITE_VERSION",
     "LEGACY_SUITE_VERSION",
@@ -62,7 +64,13 @@ LEGACY_SUITE_VERSION = "legacy-1"
 SUITE_VERSIONS = frozenset({SUITE_VERSION, LEGACY_SUITE_VERSION})
 GRADER_TYPES = frozenset({"file_contract", "command_contract"})
 DEFAULT_TASKS_V2 = Path(__file__).resolve().parent.parent / "benchmarks" / "tasks.v2.json"
-GRADER_DIR_NAME = ".graders"
+# M8-T349: the hidden grader directory's name has **one** home
+# (``tools.fs``).  This module used to keep its own copy, while
+# ``resolve_grader_dir``'s own docstring claims "the ``.graders`` name is
+# blocked at the tool layer regardless" - a claim nothing enforced.  A drift
+# would leave the benchmark's grader drivers visible to the agent, which is
+# exactly what the M4-T5 contract (hidden graders are invisible **and**
+# immutable) forbids.
 _REQUIRED_KEYS = ("id", "category", "prompt", "fixture", "grader")
 
 
