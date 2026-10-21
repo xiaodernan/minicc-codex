@@ -332,6 +332,13 @@ class FsTools:
         pattern = str(args["pattern"])
         base = Path(args["path"]) if args.get("path") else Path(".")
         _reject_graders(str(base))
+        # M8-T346: the schema declares ``max_entries``, so the tool has to
+        # honour it - a model that asks for five results must get five, not
+        # the default 200 (which is how its context got flooded by results
+        # it had explicitly asked not to see).  The **ceiling** stays the
+        # schema's own (the registry refuses a bigger request, exactly as
+        # it does for ``grep``'s ``max_matches``).
+        max_entries = int(args.get("max_entries", MAX_GLOB_RESULTS))
         try:
             root = (self.editor.workspace / base).resolve()
             if not root.is_relative_to(self.editor.workspace):
@@ -357,7 +364,7 @@ class FsTools:
                 if _is_sensitive_path(rel):
                     continue
                 matches.append(rel)
-                if len(matches) > MAX_GLOB_RESULTS:
+                if len(matches) > max_entries:
                     overflow = True
                     break
             matches.sort()
@@ -365,12 +372,12 @@ class FsTools:
             raise
         except (OSError, ValueError) as exc:
             raise ToolError(f"glob 失败: {exc}") from exc
-        shown = matches[:MAX_GLOB_RESULTS]
+        shown = matches[:max_entries]
         body = "\n".join(shown) or "(无匹配)"
         return _file_result(
             body,
             f"glob '{pattern}' 命中 {len(matches)} 个"
-            + (f" (仅显示前 {MAX_GLOB_RESULTS})" if len(matches) > MAX_GLOB_RESULTS else ""),
+            + (f" (仅显示前 {max_entries})" if len(matches) > max_entries else ""),
         )
 
     def grep(self, args: dict[str, Any]) -> ToolResult:
