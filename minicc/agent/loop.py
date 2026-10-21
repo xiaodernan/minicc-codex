@@ -53,7 +53,14 @@ from ..audit import (
 from ..tools.schemas import ToolCall, ToolResult, normalized_tool_calls, tool_call_name
 from ..tools.registry import ToolRegistry, redact_text
 from ..hooks import payloads_for_result, payloads_for_tool_call
-from .context import compact_with_checkpoint, estimate_tokens, message_chars, repair_interrupted_tool_rounds, validate_tool_protocol
+from .context import (
+    compact_with_checkpoint,
+    estimate_tokens,
+    message_chars,
+    normalize_vision_context,
+    repair_interrupted_tool_rounds,
+    validate_tool_protocol,
+)
 from .state import AgentState, Budget, BudgetExceeded
 from .verification_plan import build_verification_plan
 from .tool_policy import (
@@ -237,32 +244,6 @@ def _visible_model_delta(previous: str, content: str | None) -> tuple[str, str]:
     # A new turn normally starts a new action explanation.  Do not join it to
     # the old sentence, otherwise a later cumulative update can grow forever.
     return current, current
-
-
-def _normalize_vision_context(parts: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
-    """Normalize image parts to the Chat Completions shape used by history."""
-    normalized: list[dict[str, Any]] = []
-    for raw in parts or []:
-        if not isinstance(raw, dict):
-            continue
-        part_type = str(raw.get("type") or "").lower()
-        if part_type not in {"image_url", "input_image"}:
-            continue
-        image = raw.get("image_url")
-        url = image.get("url") if isinstance(image, dict) else image
-        if not url:
-            continue
-        if any(
-            str(item.get("image_url", {}).get("url") or "") == str(url)
-            for item in normalized
-            if isinstance(item.get("image_url"), dict)
-        ):
-            continue
-        image_payload: dict[str, Any] = {"url": str(url)}
-        if isinstance(image, dict) and image.get("detail"):
-            image_payload["detail"] = str(image["detail"])
-        normalized.append({"type": "image_url", "image_url": image_payload})
-    return normalized
 
 
 def _restore_vision_context(
@@ -536,7 +517,7 @@ async def run_agent(
     if max_turns is not None and max_turns <= 0:
         max_turns = None
     result = TurnResult(answer="")
-    persistent_vision_context = _normalize_vision_context(vision_context)
+    persistent_vision_context = normalize_vision_context(vision_context)
     restored_vision_contexts = 0
     allow = should_allow or _always_allow
     runtime_budget = budget or (runtime_state.budget if runtime_state is not None else Budget(max_turns=max_turns))

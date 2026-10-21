@@ -211,6 +211,40 @@ def _text(value: Any) -> str:
     return ""
 
 
+def normalize_vision_context(parts: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
+    """Normalize image parts to the Chat Completions shape used by history.
+
+    M8-T348: this is the **one** home for the vision context.  The agent loop
+    and the completion gate used to keep their own copies, and the copies
+    disagreed: the loop's dropped a repeated image, the gate's did not - so
+    the agent's history carried one copy of an image while the reviewer's
+    evidence packet carried two.  A reader may not keep its own idea of
+    "what the model sees".
+    """
+    normalized: list[dict[str, Any]] = []
+    for raw in parts or []:
+        if not isinstance(raw, dict):
+            continue
+        part_type = str(raw.get("type") or "").lower()
+        if part_type not in {"image_url", "input_image"}:
+            continue
+        image = raw.get("image_url")
+        url = image.get("url") if isinstance(image, dict) else image
+        if not url:
+            continue
+        if any(
+            str(item.get("image_url", {}).get("url") or "") == str(url)
+            for item in normalized
+            if isinstance(item.get("image_url"), dict)
+        ):
+            continue
+        image_payload: dict[str, Any] = {"url": str(url)}
+        if isinstance(image, dict) and image.get("detail"):
+            image_payload["detail"] = str(image["detail"])
+        normalized.append({"type": "image_url", "image_url": image_payload})
+    return normalized
+
+
 def _visual_parts(value: Any) -> list[dict[str, Any]]:
     if not isinstance(value, list):
         return []

@@ -13,6 +13,7 @@ import json
 import math
 import re
 from .check_commands import verification_identity
+from .context import normalize_vision_context
 import threading
 from copy import deepcopy
 from dataclasses import dataclass, field
@@ -161,7 +162,7 @@ def build_completion_review_prompt(
     """Build a bounded and redacted evidence packet for the reviewer."""
 
     evidence = _evidence_packet(events, verification_results, messages)
-    visual_parts = _normalize_vision_context(vision_context)
+    visual_parts = normalize_vision_context(vision_context)
     visual_note = (
         f"视觉附件：已提供 {len(visual_parts)} 张图片。图片是用户原始参照，必须直接检查并纳入验收。"
         if visual_parts
@@ -240,28 +241,8 @@ def _no_runnable_check_note(verification_results: list[dict[str, Any]] | None) -
     )
 
 
-def _normalize_vision_context(parts: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
-    """Keep only image parts and normalize them for both supported APIs."""
-    normalized: list[dict[str, Any]] = []
-    for raw in parts or []:
-        if not isinstance(raw, dict):
-            continue
-        part_type = str(raw.get("type") or "").lower()
-        if part_type not in {"image_url", "input_image"}:
-            continue
-        image = raw.get("image_url")
-        url = image.get("url") if isinstance(image, dict) else image
-        if not url:
-            continue
-        image_payload: dict[str, Any] = {"url": str(url)}
-        if isinstance(image, dict) and image.get("detail"):
-            image_payload["detail"] = str(image["detail"])
-        normalized.append({"type": "image_url", "image_url": image_payload})
-    return normalized
-
-
 def _review_content(prompt: str, vision_context: list[dict[str, Any]] | None) -> str | list[dict[str, Any]]:
-    visual_parts = _normalize_vision_context(vision_context)
+    visual_parts = normalize_vision_context(vision_context)
     if not visual_parts:
         return prompt
     return [
