@@ -70,6 +70,31 @@ def tool_call_name(call: dict[str, Any]) -> str:
     return str(function.get("name") or call.get("name") or "").strip()
 
 
+def normalized_tool_calls(calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The wire tool calls with the one legal spelling of each name (M8-T347).
+
+    M8-T341 gave the name one home and made the readers ask it.  But the
+    **chat** wire sends the history as it is, and two other wires (the
+    envelope and the Responses formats) render the history themselves - so
+    the raw spelling still reached the model, the API and the session log.
+
+    Cleaning it once, where the assistant turn enters the history, makes
+    every form carry the same name - the one the dispatcher used.
+    """
+    out: list[dict[str, Any]] = []
+    for call in calls or []:
+        function = call.get("function") if isinstance(call, dict) else None
+        if not isinstance(function, dict):
+            out.append(call)
+            continue
+        name = tool_call_name(call)
+        if name == function.get("name"):
+            out.append(call)
+            continue
+        out.append({**call, "function": {**function, "name": name}})
+    return out
+
+
 @dataclass(frozen=True)
 class ToolCall:
     tool: str

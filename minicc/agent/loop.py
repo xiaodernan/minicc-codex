@@ -50,7 +50,7 @@ from ..audit import (
     path_rule_denies_call,
     tool_denied_by_rule,
 )
-from ..tools.schemas import ToolCall, ToolResult, tool_call_name
+from ..tools.schemas import ToolCall, ToolResult, normalized_tool_calls, tool_call_name
 from ..tools.registry import ToolRegistry, redact_text
 from ..hooks import payloads_for_result, payloads_for_tool_call
 from .context import compact_with_checkpoint, estimate_tokens, message_chars, repair_interrupted_tool_rounds, validate_tool_protocol
@@ -1122,7 +1122,13 @@ async def run_agent(
             )
             messages.append(assistant_msg(
                 content=response.content or "",
-                tool_calls=response.tool_calls,
+                # M8-T347: the history carries the **same** name the
+                # dispatcher used.  Every wire form (chat, envelope,
+                # Responses, Anthropic) and the session log replay these
+                # dicts, so a raw name here reached the model, the API and
+                # the log in its messy spelling - and the chat wire sends
+                # the history as it is, with no reader to ask.
+                tool_calls=normalized_tool_calls(response.tool_calls),
             ))
             pending_readonly: list[tuple[int, dict[str, Any], ToolCall]] = []
             pending_writes: list[tuple[int, ToolCall, str]] = []

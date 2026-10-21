@@ -18,6 +18,7 @@ import json
 from typing import Any
 
 from .base import is_nameless_tool_name
+from ..tools.schemas import tool_call_name
 
 ENVELOPE_BLOCK = """\
 TOOL CALLING PROTOCOL — JSON Action Envelope:
@@ -51,7 +52,9 @@ def _render_envelope_action(call: dict[str, Any]) -> str:
     name = ""
     params: Any = {}
     if isinstance(function, dict):
-        name = str(function.get("name") or "")
+        # M8-T347: the name the model sees is the name the dispatcher used -
+        # one home for a wire name (``tool_call_name``).
+        name = tool_call_name(call)
         raw_arguments = function.get("arguments") or "{}"
         try:
             params = json.loads(raw_arguments) if isinstance(raw_arguments, str) else dict(raw_arguments)

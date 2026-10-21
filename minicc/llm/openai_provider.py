@@ -55,6 +55,7 @@ from tenacity import (
 )
 
 from .base import LLMResponse, is_nameless_tool_name
+from ..tools.schemas import tool_call_name
 from ..logging_setup import log_provider_event
 from .envelope import EnvelopeParseError, _render_envelope_action, envelope_system_suffix, parse_envelope
 from .stream_merge import AttemptTextAssembler, merge_retry_snapshot
@@ -1020,7 +1021,11 @@ class OpenAICompatibleProvider:
                     result.append({
                         "type": "function_call",
                         "call_id": str(call.get("id") or ""),
-                        "name": str(function.get("name") or ""),
+                        # M8-T347: the Responses wire carries the name the
+                        # dispatcher used - one home for a wire name
+                        # (``tool_call_name``).  The API only accepts the
+                        # names it was told about.
+                        "name": tool_call_name(call),
                         "arguments": str(function.get("arguments") or "{}"),
                     })
                 continue
