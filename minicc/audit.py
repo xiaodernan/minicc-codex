@@ -174,7 +174,13 @@ def deny_rule_names_paths(workspace: Path | str | None) -> bool:
 #: M8-T338: the tools whose own target can be the **whole workspace** - the
 #: reads that carry the content (or the names) of every path, including the
 #: ones a deny rule covers.
-WORKSPACE_WIDE_READ_TOOLS = frozenset({"git_diff", "grep", "tree"})
+#:
+#: M8-T339: ``glob`` joined the list.  It walks the workspace with ``rglob``
+#: and answers with relative **paths**, so it enumerates exactly what
+#: ``tree`` enumerates - but while ``tree`` was refused, ``glob`` was not,
+#: and the deny rules the user wrote were one ``glob`` away from being
+#: decoration.
+WORKSPACE_WIDE_READ_TOOLS = frozenset({"git_diff", "grep", "glob", "tree"})
 
 
 def path_rule_denies_call(

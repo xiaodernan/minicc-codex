@@ -347,7 +347,16 @@ class FsTools:
             for found in root.rglob(pattern):
                 if _in_skipped_tree(found, root) or _escapes_workspace(found, workspace_root):
                     continue
-                matches.append(found.relative_to(workspace_root).as_posix())
+                rel = found.relative_to(workspace_root).as_posix()
+                # M8-T339: a listing is a read of the **names** too, and the
+                # built-in sensitive-file protection belongs to every file
+                # tool: ``read_file`` refuses these paths, ``grep`` skips
+                # them - the listing tools were the two that forgot, so the
+                # agent could enumerate the very keys it was not allowed to
+                # open.
+                if _is_sensitive_path(rel):
+                    continue
+                matches.append(rel)
                 if len(matches) > MAX_GLOB_RESULTS:
                     overflow = True
                     break
@@ -472,6 +481,11 @@ class FsTools:
                     lines.append(f"{branch}{rel.as_posix()}/")
                     walk(child, depth + 1)
                 else:
+                    # M8-T339: same rule as ``glob`` and ``grep`` - a listing
+                    # is a read of the names too, and the built-in
+                    # sensitive-file protection applies to it as well.
+                    if _is_sensitive_path(rel.as_posix()):
+                        continue
                     lines.append(f"{branch}{rel.as_posix()}")
 
         walk(root, 1)
