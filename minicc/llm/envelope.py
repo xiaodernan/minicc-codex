@@ -17,6 +17,8 @@ import ast
 import json
 from typing import Any
 
+from .base import is_nameless_tool_name
+
 ENVELOPE_BLOCK = """\
 TOOL CALLING PROTOCOL — JSON Action Envelope:
 When you want to call a tool, respond with EXACTLY ONE JSON object of the form
@@ -170,8 +172,20 @@ def parse_envelope(content: str) -> dict[str, Any] | None:
             action = "bash"
     elif isinstance(action, str) and action == "bash" and isinstance(params, dict) and not params and "command" in obj:
         params = {"command": obj["command"]}
-    if not isinstance(action, str) or not action:
+    # M8-T336: the boundary this parser already draws - "there is no action
+    # to run" - has to mean the **blank** action too.  The empty action was
+    # rejected (the ``or`` chain collapses it into "no action at all"), but a
+    # blank one ("  ") passed and built a synthetic call for a tool named
+    # "  ", which the registry does not have: the model paid a round for
+    # "[TOOL_ERROR] 未知工具 '  '".  The predicate has one home
+    # (M8-T335), so this reader asks it like every other wire reader.
+    if not isinstance(action, str) or is_nameless_tool_name(action):
         raise EnvelopeParseError(f"信封缺少 action 字段: {str(obj)[:120]!r}", content=content)
+    # M8-T336: the name that leaves here is the name that gets dispatched,
+    # so it leaves in its one legal form - clean.  A stray space used to
+    # travel all the way to the registry lookup and come back as an unknown
+    # tool for an intent that was perfectly clear.
+    action = action.strip()
     if not isinstance(params, dict):
         raise EnvelopeParseError(f"信封 params 不是对象: {str(params)[:80]!r}", content=content)
     return {

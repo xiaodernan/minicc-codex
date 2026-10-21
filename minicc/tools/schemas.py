@@ -84,9 +84,17 @@ class ToolCall:
                 parse_error = "工具参数不是合法 JSON 对象，执行器将把解析错误反馈给模型。"
         if not isinstance(arguments, dict):
             arguments = {}
-            parse_error = "工具参数顶层必须是对象，执行器将把解析错误反馈给模型。"
+            parse_error = "工具参数顶层必须是对象，执行器将把参数解析错误反馈给模型。"
+        # M8-T336: a name has one legal form - a clean one.  This is the
+        # single place a wire phrase becomes the dispatchable name, so the
+        # trim is asked once here and every consumer below (the registry
+        # lookup, the risk rules, the traces, the duplicate signature) reads
+        # the same normalized call.  A name with stray edges used to reach
+        # the registry untrimmed and buy the model a paid round of
+        # "[TOOL_ERROR] 未知工具 'read_file '" for an intent that was not
+        # ambiguous.
         return ToolCall(
-            tool=str(function.get("name") or call.get("name") or ""),
+            tool=str(function.get("name") or call.get("name") or "").strip(),
             arguments=arguments,
             call_id=str(call.get("id") or ""),
             parse_error=parse_error,
