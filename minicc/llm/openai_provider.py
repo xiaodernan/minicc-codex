@@ -59,7 +59,7 @@ from ..tools.schemas import tool_call_name
 from ..logging_setup import log_provider_event
 from .envelope import EnvelopeParseError, _render_envelope_action, envelope_system_suffix, parse_envelope
 from .stream_merge import AttemptTextAssembler, merge_retry_snapshot
-from .usage import cache_summary
+from .usage import cache_summary, token_count
 
 _RETRYABLE = (
     RateLimitError,
@@ -373,9 +373,20 @@ def _parse_usage(usage: Any) -> dict[str, Any]:
         parsed = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
         parsed.update(cache_summary(parsed))
         return parsed
-    prompt_tokens = _read_field(usage, "prompt_tokens", _read_field(usage, "input_tokens", 0))
-    completion_tokens = _read_field(usage, "completion_tokens", _read_field(usage, "output_tokens", 0))
-    total_tokens = _read_field(usage, "total_tokens", 0)
+    # M8-T358: the gateway's counters are untrusted input.  The totals used
+    # to be summed straight from them, so a dict in one field raised
+    # TypeError and killed the turn; the cache counters were already
+    # guarded, which is why the same malformed usage crashed on one field
+    # and not on another.  The shared reader has two defaults: 0 for a
+    # counter we cannot read (both wires agree on that number) and None
+    # for the cache counters the OpenAI-compatible wire simply omits.
+    prompt_tokens = token_count(
+        _read_field(usage, "prompt_tokens", _read_field(usage, "input_tokens", 0)), 0
+    ) or 0
+    completion_tokens = token_count(
+        _read_field(usage, "completion_tokens", _read_field(usage, "output_tokens", 0)), 0
+    ) or 0
+    total_tokens = token_count(_read_field(usage, "total_tokens", 0), 0) or 0
     if not total_tokens:
         total_tokens = (prompt_tokens or 0) + (completion_tokens or 0)
     parsed: dict[str, Any] = {
@@ -417,29 +428,25 @@ def _parse_usage(usage: Any) -> dict[str, Any]:
         (input_details, "cache_creation_input_tokens"),
     )
     if cache_hit is not None:
-        try:
-            parsed["prompt_cache_hit_tokens"] = int(cache_hit)
-        except (TypeError, ValueError):
-            pass
+        count = token_count(cache_hit)
+        if count is not None:
+            parsed["prompt_cache_hit_tokens"] = count
     if cache_miss is not None:
-        try:
-            parsed["prompt_cache_miss_tokens"] = int(cache_miss)
-        except (TypeError, ValueError):
-            pass
+        count = token_count(cache_miss)
+        if count is not None:
+            parsed["prompt_cache_miss_tokens"] = count
     if cache_write is not None:
-        try:
-            parsed["prompt_cache_write_tokens"] = int(cache_write)
-        except (TypeError, ValueError):
-            pass
+        count = token_count(cache_write)
+        if count is not None:
+            parsed["prompt_cache_write_tokens"] = count
     details = _read_field(usage, "completion_tokens_details") or _read_field(usage, "output_tokens_details")
     reasoning = _read_field(details, "reasoning_tokens") if details is not None else None
     if reasoning is None:
         reasoning = _read_field(usage, "reasoning_tokens")
     if reasoning is not None:
-        try:
-            parsed["reasoning_tokens"] = int(reasoning)
-        except (TypeError, ValueError):
-            pass
+        count = token_count(reasoning)
+        if count is not None:
+            parsed["reasoning_tokens"] = count
     parsed.update(cache_summary(parsed))
     return parsed
 

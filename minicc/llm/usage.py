@@ -33,6 +33,26 @@ def _number(value: Any) -> int | float | None:
     return None
 
 
+def token_count(value: Any, default: int | None = None) -> int | None:
+    """Read a token counter a gateway may have sent malformed.
+
+    M8-T358: a counter is **untrusted input** - a dict, a list or a
+    non-numeric string used to raise out of the provider and kill the turn
+    on one wire, while the other wire simply ignored it.  One home, two
+    defaults: ``None`` means "not reported" (the OpenAI-compatible wire
+    omits the key), ``0`` means "reported as nothing" (the Anthropic
+    wire's convention).
+
+    The conversion is ``int(...)`` exactly as before - a numeric string
+    still reads as a number ✓ - so the only change is that a value that
+    cannot be read no longer raises.
+    """
+    try:
+        return int(value)
+    except (TypeError, ValueError, OverflowError):
+        return default
+
+
 def cache_summary(usage: Mapping[str, Any] | None) -> dict[str, Any]:
     """Summarize cache counters without treating missing fields as zero.
 

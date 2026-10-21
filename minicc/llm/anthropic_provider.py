@@ -34,6 +34,7 @@ except ModuleNotFoundError:  # pragma: no cover - depends on the HTTP stack.
     httpx = None  # type: ignore[assignment]
 
 from .base import LLMResponse, is_nameless_tool_name, unique_tool_call_id
+from .usage import token_count
 from ..tools.schemas import tool_call_name
 
 ANTHROPIC_VERSION = "2023-06-01"
@@ -192,12 +193,18 @@ def _normalize_usage(usage: dict[str, Any] | None) -> dict[str, Any]:
     from input=100/read=80/write=12).
     """
     usage = usage or {}
-    input_tokens = int(usage.get("input_tokens") or 0)
-    output_tokens = int(usage.get("output_tokens") or 0)
-    cache_read = usage.get("cache_read_input_tokens")
-    cache_write = usage.get("cache_creation_input_tokens")
+    # M8-T358: a gateway's counter is untrusted input.  The bare ``int(...)``
+    # used to raise (TypeError on a dict) and kill the turn, while the
+    # OpenAI-compatible wire ignored the same value - one malformed counter,
+    # two behaviors.  The shared reader has two defaults: 0 here (this
+    # provider's convention: a counter we cannot read is reported as
+    # nothing) and None on the other wire (the key is simply not written).
+    input_tokens = token_count(usage.get("input_tokens"), 0) or 0
+    output_tokens = token_count(usage.get("output_tokens"), 0) or 0
+    cache_read = token_count(usage.get("cache_read_input_tokens"), 0) or 0
+    cache_write = token_count(usage.get("cache_creation_input_tokens"), 0) or 0
     normalized: dict[str, Any] = {
-        "prompt_tokens": input_tokens + (int(cache_read) if cache_read is not None else 0) + (int(cache_write) if cache_write is not None else 0),
+        "prompt_tokens": input_tokens + cache_read + cache_write,
         "completion_tokens": output_tokens,
     }
     normalized["total_tokens"] = normalized["prompt_tokens"] + output_tokens
@@ -209,9 +216,8 @@ def _normalize_usage(usage: dict[str, Any] | None) -> dict[str, Any]:
     # unknown.  Saying so keeps this provider's summary comparable with the
     # generic one, which reports "the counters were incomplete" instead of
     # inventing the missing half.
-    normalized["prompt_cache_hit_tokens"] = int(cache_read) if cache_read is not None else 0
-    if cache_write is not None:
-        normalized["prompt_cache_write_tokens"] = int(cache_write)
+    normalized["prompt_cache_hit_tokens"] = cache_read
+    normalized["prompt_cache_write_tokens"] = cache_write
     return normalized
 
 
