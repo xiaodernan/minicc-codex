@@ -10,7 +10,6 @@ import graph acyclic.
 from __future__ import annotations
 
 import json
-import mimetypes
 import re
 import threading
 import time

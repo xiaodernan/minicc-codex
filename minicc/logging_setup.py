@@ -29,7 +29,6 @@ from .tools.registry import (
     KV_BARE_SECRET_RE,
     KV_QUOTED_SECRET_RE,
     QUERY_SECRET_RE,
-    _looks_like_credential,
     redact_text,
 )
 

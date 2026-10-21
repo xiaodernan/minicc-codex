@@ -31,7 +31,7 @@ from typing import TYPE_CHECKING, Any
 
 from .agent.completion import CompletionDecision
 from .agent.graph import DAGPlan, READONLY_DAG_KINDS, READONLY_DAG_TOOLS, fixed_plan
-from .agent.loop import AgentCancelled, TurnResult
+from .agent.loop import TurnResult
 from .agent.orchestration import assess_complexity, build_auto_subtasks
 from .agent.planner import PlannerPolicy, build_plan
 from .agent.protocol import (
