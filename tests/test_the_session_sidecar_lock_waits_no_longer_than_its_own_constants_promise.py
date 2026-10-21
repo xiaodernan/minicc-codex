@@ -26,6 +26,7 @@ from __future__ import annotations
 import ast
 import contextlib
 import msvcrt
+import os
 import re
 import subprocess
 import sys
@@ -89,6 +90,18 @@ def _hold(tmp_path: Path, lock_path: Path, seconds: float) -> subprocess.Popen:
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
+        # M8-T354: the repo's own decoding rule ("子进程解码要两侧钉"): a
+        # text-mode capture must pin the decoder on both sides - the encoding
+        # *and* the error handler - or a child's own output can be swallowed
+        # by the locale's codec.  This file was the one place in the tree
+        # that had not.
+        encoding="utf-8",
+        errors="replace",
+        # ...and a parent that pins a decoder over **our own** Python child
+        # has to tell that child the same codec (the reader follows us, the
+        # writer follows PYTHONIOENCODING - the mismatch is what M8-T58
+        # measured).
+        env=dict(os.environ, PYTHONIOENCODING="utf-8"),
     )
     assert proc.stdout is not None, "the holder child has no transcript to read"
     first = proc.stdout.readline().strip()
@@ -115,6 +128,12 @@ def _sidecar_state(tmp_path: Path, lock_path: Path) -> str:
         [sys.executable, str(_child_script(tmp_path)), str(lock_path), "probe"],
         capture_output=True,
         text=True,
+        # M8-T354: the same decoding rule (encoding + errors on both sides),
+        # plus the child's own codec (PYTHONIOENCODING) so the reader and
+        # the writer agree.
+        encoding="utf-8",
+        errors="replace",
+        env=dict(os.environ, PYTHONIOENCODING="utf-8"),
         timeout=120,
         check=False,
     )
