@@ -179,6 +179,27 @@ def is_workspace_write(tool: str, arguments: dict[str, Any] | None, status: str)
     return False
 
 
+def predicts_workspace_write(tool: str, arguments: dict[str, Any] | None) -> bool:
+    """True when this call **may** change the workspace - asked *before* it runs.
+
+    M8-T352: ``is_workspace_write`` answers the question *after* the call (it
+    needs the status); the recovery guard asks it *before* the call, and the
+    only signal it had was the **declared** risk.  A ``sed -i`` or an inline
+    ``open(f, "w")`` is declared ``exec`` - so the guard let exactly those
+    writes through, and the promise ("after a recovery, no speculative write
+    until the model has looked again") had a hole in it.
+
+    The predictive half is the rule the repository already has for bash
+    (``command_may_modify_workspace``) - the same rule, asked one step
+    earlier.
+    """
+    if tool in WRITE_TOOL_NAMES:
+        return True
+    if tool == "bash":
+        return command_may_modify_workspace(str((arguments or {}).get("command") or ""))
+    return False
+
+
 # Only bash evidence can clear ``verification_required``. git_status / read_file
 # / grep are useful inspection but they do not prove the change works.
 #
@@ -236,5 +257,6 @@ __all__ = [
     "command_may_modify_workspace",
     "is_verification_evidence",
     "is_workspace_write",
+    "predicts_workspace_write",
     "tool_requires_authorization",
 ]

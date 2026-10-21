@@ -66,6 +66,7 @@ from .verification_plan import build_verification_plan
 from .tool_policy import (
     is_verification_evidence,
     is_workspace_write,
+    predicts_workspace_write,
     tool_requires_authorization,
 )
 
@@ -1154,7 +1155,17 @@ async def run_agent(
 
                 # After a recovery trigger, prevent another speculative write
                 # until the model has seen fresh workspace evidence.
-                if recovery_inspection_required and risk == "write":
+                #
+                # M8-T352: "write" means the **declared** risk, and a write
+                # done through bash (``sed -i``, an inline ``open(f, "w")``)
+                # is declared ``exec`` - so the guard let exactly those
+                # through.  The predictive predicate (``command_may_modify_
+                # workspace``, the rule the repository already has) asks the
+                # question one step earlier: may this call change the
+                # workspace?
+                if recovery_inspection_required and (
+                    risk == "write" or predicts_workspace_write(tc.tool, tc.arguments)
+                ):
                     immediate_results[index] = (
                         tc,
                         ToolResult(
