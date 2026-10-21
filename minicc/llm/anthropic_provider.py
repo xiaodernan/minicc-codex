@@ -589,7 +589,14 @@ def _sse_to_llm(parsed: dict[str, Any], fallback_model: str) -> LLMResponse:
             json.loads(raw_json)
             arguments = raw_json
         except json.JSONDecodeError:
-            arguments = json.dumps({"_raw": raw_json}, ensure_ascii=False)
+            # M8-T357: the malformed arguments travel **as they are**, the
+            # way the OpenAI-compatible wire travels them - so the agent
+            # loop's own repair (``ToolCall.from_openai``) reports "the
+            # arguments are not valid JSON".  Wrapping them in
+            # ``{"_raw": ...}`` made the loop see *valid* JSON, and the model
+            # was then told it had forgotten a required argument - a wrong
+            # diagnosis of its own call, sent back to it to repeat.
+            arguments = raw_json
         tool_calls.append({
             # M8-T356: the same id repair as the JSON path (one home).
             "id": unique_tool_call_id(
