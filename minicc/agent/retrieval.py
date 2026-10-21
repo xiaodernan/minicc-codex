@@ -375,6 +375,19 @@ def query_terms(query: str) -> tuple[str, ...]:
     return plan.terms + plan.path_patterns
 
 
+def _is_denied_by_rules(workspace: Path, rel: str) -> bool:
+    """Whether the workspace's deny rules cover this workspace-relative path.
+
+    M8-T351: the question is asked of the **one home** of the rules
+    (``audit.tool_denied_by_rule``) - the same question the agent loop asks
+    for the model's own calls, so a path is either denied everywhere or
+    nowhere.
+    """
+    from ..audit import tool_denied_by_rule
+
+    return tool_denied_by_rule(workspace, "read_file", {"path": rel})
+
+
 class LocalEvidenceIndex:
     def __init__(
         self,
@@ -466,8 +479,19 @@ class LocalEvidenceIndex:
         built: dict[str, float] = {}
         rebuilt = 0
         skipped = 0
+        denied = 0
         now = time.time()
-        for path, rel in self._files():
+        files = self._files()
+        for path, rel in files:
+            # M8-T351: the index points the model at candidate files, so a
+            # path the deny rules refuse must not be pointed at: the rule is
+            # an absolute veto, and the index is another reader of the same
+            # workspace.  The count is disclosed in the census (a denied path
+            # is missing **by policy**, not by a budget - so it does not make
+            # the walk "incomplete").
+            if _is_denied_by_rules(self.workspace, rel):
+                denied += 1
+                continue
             try:
                 stat = path.stat()
             except OSError:
@@ -533,6 +557,11 @@ class LocalEvidenceIndex:
             "files_indexed": len(records),
             "files_seen": walk["files_seen"],
             "files_skipped": skipped,
+            # M8-T351: the paths the deny rules kept out of the index.  They
+            # are missing **by policy**, not by a budget, so they do not
+            # make the walk "incomplete" - but the operator should be able
+            # to see that the index is smaller on purpose.
+            "files_denied": denied,
             "symbols_extracted": symbols_extracted,
             "last_build_ms": round(elapsed_ms, 2),
             "files_rebuilt": rebuilt,
