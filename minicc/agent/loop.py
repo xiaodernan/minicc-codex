@@ -1877,11 +1877,29 @@ def _signature(value: Any) -> str:
 
 
 def _is_unproductive_result(result: ToolResult) -> bool:
-    """Identify tool feedback that should not be repeated indefinitely."""
+    """Identify tool feedback that should not be repeated indefinitely.
+
+    M8-T342: the question is asked of the tool's **own statement** - the
+    summary - and not of the content it read back (head/tail).  The markers
+    are the tools' way of saying "I found nothing", and every one of them
+    that still matters lives in the summary:
+
+    * grep with no hit -> "grep 'x' 扫描 N 文件命中 0 处";
+    * glob with no hit -> "glob 'x' 命中 0 个";
+    * a duplicate call -> "[DUPLICATE_TOOL_CALL] …";
+    * a deferred write -> "[RECOVERY_GUARD] …";
+    * "读取窗口为空或越界" is not an ok result at all - read_file raises a
+      ToolError, so the status check above already covers it.
+
+    Matching them against the payload instead meant that a **successful**
+    read of a document that merely mentions "命中 0" (this repository's own
+    roadmap is full of them) counted as a round without progress - and two
+    such rounds tripped the stagnation guard on work that was moving.
+    """
     if result.status in {"error", "denied", "cancelled", "timed_out"}:
         return True
-    text = f"{result.summary}\n{result.head}\n{result.tail}".lower()
-    return any(marker in text for marker in (
+    summary = str(result.summary or "").lower()
+    return any(marker in summary for marker in (
         "无匹配",
         "命中 0",
         "扫描 0 文件",
