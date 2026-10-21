@@ -51,8 +51,17 @@ _DEFAULT_VIEW = {
 # process and detached worker subprocesses each have their own in-process locks,
 # so only an OS-level lock on a sidecar file prevents two writers from racing
 # on os.replace and tearing the session JSON.
+#
+# M8-T353: those two constants promise how long a writer may *wait*, and that promise
+# holds only if one attempt answers immediately.  ``msvcrt.LK_LOCK`` does not: the C
+# runtime retries inside the call for about ten seconds before admitting defeat, so one
+# refusal costs ~200 of the steps budgeted below and the ceiling becomes an hour, not
+# 20 seconds - inside HTTP request threads (``web.py`` saves per message) and every
+# detached worker.  Second copy of the sidecar lock M8-T319 fixed in ``workspaces.py``;
+# no pause is quoted here because the gate measures one refusal against one step itself.
 _LOCK_ATTEMPTS = 400
 _LOCK_RETRY_DELAY = 0.05
+_LOCK_BYTES = 1
 
 # Windows sharing violation: a reader that holds the target open without the
 # sidecar lock (load/list/_stored_payload_or_none) makes os.replace fail with
@@ -71,42 +80,72 @@ _READ_ATTEMPTS = 24
 _READ_RETRY_DELAY = 0.05
 
 
+def _lock_one_byte(handle: Any) -> None:
+    """Take one byte of the sidecar *without* parking the caller in the C runtime.
+
+    The non-blocking mode is the whole point: it answers a refusal immediately, so the
+    retry loop owns the waiting and the ceiling stays the product of its constants.
+    """
+    handle.seek(0)
+    if msvcrt is not None:
+        msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, _LOCK_BYTES)
+    elif fcntl is not None:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+
+def _unlock_one_byte(handle: Any) -> None:
+    """Put the byte back; closing the handle is what guarantees the drop anyway."""
+    handle.seek(0)
+    if msvcrt is not None:
+        msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, _LOCK_BYTES)
+    elif fcntl is not None:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
+
 @contextlib.contextmanager
 def _cross_process_lock(lock_path: Path):
-    """Best-effort exclusive lock on ``lock_path``; degrades to no-op if unsupported."""
+    """Hold ``lock_path`` exclusively for at most ``_LOCK_ATTEMPTS * _LOCK_RETRY_DELAY``.
+
+    Raises :class:`SessionError` when the neighbour will not let go: a session checkpoint
+    may not degrade into an unlocked write, unlike the workspace catalog, which is allowed
+    to (M8-T265).  With neither primitive available there is nothing to wait for, so the
+    body runs unlocked, as before.
+    """
+    if msvcrt is None and fcntl is None:
+        yield
+        return
     lock_path.parent.mkdir(parents=True, exist_ok=True)
     handle = open(lock_path, "a+")
     locked = False
     try:
-        if msvcrt is not None:
-            handle.seek(0)
-            for _ in range(_LOCK_ATTEMPTS):
-                try:
-                    msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
-                    locked = True
-                    break
-                except OSError:
-                    time.sleep(_LOCK_RETRY_DELAY)
-            if not locked:
-                try:
-                    msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
-                    locked = True
-                except OSError as exc:
-                    # 24 次重试耗尽后的最后一搏也可能被持锁方拒绝——裸抛
-                    # OSError 会让 save/load 以原始系统错误崩溃，而不是
-                    # 带上下文的 SessionError。
-                    raise SessionError(f"会话锁获取失败（持续被占用）: {exc}") from exc
-        elif fcntl is not None:
-            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
-            locked = True
+        for _ in range(_LOCK_ATTEMPTS):
+            try:
+                _lock_one_byte(handle)
+            except OSError:
+                time.sleep(_LOCK_RETRY_DELAY)
+            else:
+                locked = True
+                break
+        if not locked:
+            # One more question after the last backoff, so a neighbour that lets go
+            # exactly on the deadline is not turned into a failed save.
+            try:
+                _lock_one_byte(handle)
+                locked = True
+            except OSError as exc:
+                # A bare OSError would walk past the handlers that know what a refused
+                # checkpoint means (main.py, webserver.py), so this is a SessionError -
+                # and it names the ceiling it just spent, derived, never retyped.
+                ceiling = _LOCK_ATTEMPTS * _LOCK_RETRY_DELAY
+                raise SessionError(
+                    f"会话锁获取失败（{_LOCK_ATTEMPTS} 次 × {_LOCK_RETRY_DELAY}s = 上限 "
+                    f"{ceiling:.1f}s 内持续被占用）: {exc}"
+                ) from exc
         yield
     finally:
         try:
-            if locked and msvcrt is not None:
-                handle.seek(0)
-                msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
-            elif locked and fcntl is not None:
-                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+            if locked:
+                _unlock_one_byte(handle)
         finally:
             handle.close()
 
