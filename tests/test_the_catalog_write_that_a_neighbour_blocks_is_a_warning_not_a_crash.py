@@ -188,8 +188,11 @@ def test_a_second_process_holding_that_name_does_not_stop_the_write(tmp_path: Pa
         for index in range(5):
             catalog.remember(_workspace(tmp_path, f"ws{index}"))
     finally:
-        assert proc.stdin is not None
-        proc.stdin.close()
+        # M8-T367: only ``communicate()`` may close the child's stdin.  This
+        # test closed it first, and the later ``communicate()`` flushed that
+        # already-closed stream - which raises "I/O operation on closed file"
+        # on POSIX (the Windows leg tolerated it), so the Ubuntu leg of CI
+        # failed in the cleanup while the assertions below it passed.
         report = _stop(proc)
     assert "INTACT=true" in report, f"the neighbour lost its own staged bytes: {report}"
     assert len(catalog.list()) == 5

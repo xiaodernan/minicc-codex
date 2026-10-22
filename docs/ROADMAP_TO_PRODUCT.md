@@ -23865,3 +23865,53 @@ CI 有两条腿 ✓：Windows ✓ 与 Ubuntu ✓。本轮去看远端 CI 的实�
 
 **平台专有依赖必须显式声明** ✓（条件导入 ✓ / 跳过 ✓），并且**要有门禁盯着** ✓——
 否则它只会在**你没看的那个腿上**炸 ✓✓。
+
+
+## 第三百五十一批 — M8-T367 — 子进程的 stdin 只许 `communicate()` 关
+
+### 1 缺陷（同样是在**远端 CI 的 Ubuntu 腿**上撞见的）
+
+`tests/test_the_catalog_write_that_a_neighbour_blocks_is_a_warning_not_a_crash.py`
+的一条并发测试 ✓：先 `proc.stdin.close()` ✓（想"告诉子进程没有输入了" ✓），`finally`
+里再 `proc.communicate(timeout=…)` ✓ 收尾 ✓。
+
+`communicate()` 在收尾时会 **flush 子进程的 stdin** ✓——而那个流**已经被测试自己关
+了** ✓ → POSIX 上抛 `ValueError: I/O operation on closed file` ✓；**Windows 上被容
+忍** ✓✓。于是 ✗：
+
+* 断言**全部通过** ✓（"INTACT=true" ✓、条目数 ✓）；
+* 红的是 **`finally` 里的清理** ✓——测试在**已经证明产品正确之后**才炸 ✓；
+* **Windows 腿绿** ✓、**Ubuntu 腿红** ✓——又一条"只在另一条腿上才炸"的失败 ✓。
+
+它来自并发会话的那份测试文件 ✓（提交标为 M8-T353 ✓）；批号按本线归 M8-T367 ✓。
+
+### 2 落地
+
+* 删掉 `proc.stdin.close()` ✓（以及只为它存在的 `proc.stdin is not None` 断言 ✓）。
+  子进程**不读 stdin** ✓，`communicate()` **自己会关** ✓——测试不需要提前关 ✓。
+* **不**改 `_stop()` ✓：`communicate()` 是收尾的**唯一**入口 ✓，这是要钉住的纪律 ✓。
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T367-146 | 把那句 `proc.stdin.close()` 放回去 ✓（精确复现 CI 红灯 ✓） | 1 条红 ✓ |
+
+### 4 新增门禁
+
+并入既有的类级门禁 ✓：`tests/test_no_test_module_imports_a_windows_only_module.py`
+（现为 **2 条** ✓）——新增 `test_no_test_closes_a_popen_stdin_itself` ✓：用 AST 扫
+`tests/` 下所有模块 ✓，任何 `*.stdin.close()` 调用即红 ✓（**结构断言** ✓，不看文
+本 ✓）。
+
+### 5 一条教训
+
+**测试的清理路径也是被测路径的一部分。** ✓
+
+这条失败最刺眼的地方不是 `ValueError` 本身 ✓，而是它**发生在所有断言通过之后** ✓：
+产品行为是对的 ✓，测试却在收尾时把 CI 弄红 ✓——而"收尾"在 Windows 上**恰好**被容
+忍 ✓，所以本机怎么看都是绿的 ✓。
+
+"**只在另一条腿上才炸**"已经连续两批（T366/T367）✓，形态却不同 ✓：一个是**导入**
+✓，一个是**清理** ✓。共同的收口方式是一样的 ✓——**把纪律写成类级门禁** ✓，而不是
+等下一次在另一条腿上重新发现 ✓✓。
