@@ -28,6 +28,16 @@ TERMINAL_TASK_STATUSES = frozenset({"completed", "failed", "cancelled", "interru
 #: names right here, and this one is *derivable* from them - so it is
 #: derived, rather than written down a twelfth time.
 ACTIVE_TASK_STATUSES = frozenset(TASK_STATUSES - TERMINAL_TASK_STATUSES)
+#: The event kinds whose ``phase`` field moves the task's phase.
+#:
+#: M8-T375: this question was asked by **both** executors - the thread
+#: executor in ``task_manager`` and the detached process worker in
+#: ``task_worker`` - and each of them wrote the three kinds out by hand.
+#: The two copies are the same fact, and the roadmap even claimed they were
+#: "one vocabulary" - a claim nothing enforced.  A task that runs in a
+#: worker and the same task run in a thread could therefore show
+#: **different phases** for the same event stream.
+PHASE_CARRYING_EVENT_KINDS = frozenset({"trace", "state", "verification"})
 
 # A terminal state is immutable.  In particular, a late provider callback may
 # finish after cancellation, but it cannot turn the task green again.
@@ -235,6 +245,7 @@ __all__ = [
     "CancellationToken",
     "EventLog",
     "InvalidStatusTransition",
+    "PHASE_CARRYING_EVENT_KINDS",
     "RuntimeEvent",
     "TASK_STATUSES",
     "TERMINAL_TASK_STATUSES",

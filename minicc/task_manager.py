@@ -39,6 +39,7 @@ from .agent.protocol import (
     EventLog,
     InvalidStatusTransition,
     ACTIVE_TASK_STATUSES,
+    PHASE_CARRYING_EVENT_KINDS,
     TERMINAL_TASK_STATUSES,
     validate_status_transition,
 )
@@ -2457,7 +2458,15 @@ class TaskManager:
 
         def on_event(event: dict[str, Any]) -> None:
             phase = str(event.get("phase") or "")
-            task.set_phase(phase if event.get("kind") in {"trace", "state", "verification"} and phase else "tool")
+            # M8-T375: the event kinds that carry a phase have one home
+            # (protocol.py), shared with the detached process worker - so
+            # the same event stream moves the phase the same way whichever
+            # executor ran the task.
+            task.set_phase(
+                phase
+                if event.get("kind") in PHASE_CARRYING_EVENT_KINDS and phase
+                else "tool"
+            )
             task.add_event(event)
             # M8-T5: one DEBUG line per event is the structured trace the
             # roadmap asks for (provider_retry / tool_round_finished /

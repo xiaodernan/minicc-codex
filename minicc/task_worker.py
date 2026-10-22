@@ -30,6 +30,7 @@ from .config import (
 )
 
 from .agent.loop import AgentCancelled
+from .agent.protocol import PHASE_CARRYING_EVENT_KINDS
 from .logging_setup import get_logger, log_task_event, register_secret
 from .task_store import TaskStore
 from .task_contract import TASK_SCHEMA_VERSION, TaskRequest, TaskResult
@@ -330,7 +331,11 @@ def _run_owned_worker(args: argparse.Namespace, workspace: Path, store: TaskStor
         log_task_event(event, task_id=args.task_id)
         with state_lock:
             phase = str(event.get("phase") or "")
-            if event.get("kind") in {"trace", "state", "verification"} and phase:
+            # M8-T375: the event kinds that carry a phase have one home
+            # (protocol.py), shared with the thread executor - so the same
+            # event stream moves the phase the same way whichever executor
+            # ran the task.
+            if event.get("kind") in PHASE_CARRYING_EVENT_KINDS and phase:
                 state["phase"] = phase
             candidate = dict(event)
             candidate.setdefault("event_id", f"evt-{uuid.uuid4().hex[:16]}")
