@@ -24849,3 +24849,271 @@ M8-T366 报。落地前那次聚焦跑只跑了新门自己，没跑 `tests/test
 - `47bcc0d` 的提交信息没有号，它写进门里的注释挂着 `M8-T354`，而 `M8-T354` 是第三百三十八批
   （备忘只配回答它取自的那个文件）。那是第二处撞号：那 19 行讲的是 M8-T57/M8-T58 立的解码规则，
   与第三百三十八批无关。本批据实登记，不去改别人落盘的字节。
+
+## 三百六十四批 — M8-T319 补账 — 目录侧车锁的九刀，和四条没人读的行号引用
+
+### 1 欠的是什么
+
+`cd53a7a` 把 `minicc/workspaces.py` 的「读全表—改内存—写全表」换成一把跨进程侧车锁，11 例的门一起进了
+HEAD。缺的只有这段能被仓库读到的记录。它的臂证据当年写在 `%TEMP%`——门文件的第 15 行自己就印着那条
+路径（`C:/Users/18414/AppData/Local/Temp/mc-t319/proto_t319.py`），今天那个目录已经不在。所以本批不是
+「补一段话」：先把那九刀在能复现的平面上重跑一遍，再写字。
+
+预测冻结在 `mc-ws319/frozen_predictions.md`（早于任何一次判决性运行）。平面是真实 worktree
+`D:/面试项目/wtws319`，基准 `67c231f`，`minicc/workspaces.py` 静置字节的 sha256 前 16 位是
+`5e08a3d11998731c`（237 行、全 CRLF、9806 字节——注意这是**平面工作树那把字节的摘要**，臂脚本每臂前后各取
+一次来证明还原逐字节相等，不是 git 的 blob 号；跑前还逐 needle 复核过每处都只出现一次，`NEEDLE PROBLEMS=0`
+——针数不对的臂会悄悄评它没改过的代码）。每臂跑两只读这段代码的门：T319 的 11 例与 M8-T265 的 10 例，
+共 21 例。
+
+### 2 缺陷与落地（都已在 HEAD，这里只把账对上）
+
+`~/.minicc/workspaces.json` 对这台机器上每个 minicc 进程都是同一个文件，而把三步当成一笔事务的只有
+`self._lock`，一把 `threading.RLock`——它只对**本进程**说话。`dc722d1` 上两个 barrier 同步的子进程各做
+三次 `remember()`，六轮：
+
+    VERDICT rounds=6 broken=0 lost_a_side=1 all_six=0 seconds=8.5
+
+没有一轮保住六条，每轮都只剩三条，一轮整边消失（`owners={'alpha': 0, 'beta': 3}`），两轮还顺带撞出
+M8-T265 那条 `工作区目录写不回 ... [WinError 5]` 警告——这就是它一直没露头的原因：失败早被接住了。
+
+落地借仓库自己对共享检查点的做法：`<catalog>.lock` 侧车（`_lock_path_for`）罩住整笔读改写，取锁用
+`msvcrt.LK_NBLCK` 立刻答复、退避由自己的循环睡（`_LOCK_ATTEMPTS` × `_LOCK_RETRY_DELAY`），取不到照写
+并留一条点名 catalog 的 WARNING——M8-T265 定过这条路径不许抛。
+
+### 3 九臂读数
+
+先给例名（表里用短号，全部从 `67c231f` 的门文件里 grep 得到，不是从某次运行里抄的）：
+
+| 短号 | 例名 | 在哪只门 |
+| --- | --- | --- |
+| HELD | `test_the_lock_is_held_across_the_read_and_the_write_not_around_one_of_them` | T319 |
+| FIRST | `test_the_first_write_to_an_absent_catalog_still_arms_the_lock` | T319 |
+| NAMED | `test_the_lock_sidecar_is_named_after_the_catalog_it_protects` | T319 |
+| PUTBACK | `test_the_lock_is_put_back_after_the_write_lands` | T319 |
+| SAYS | `test_a_refused_lock_says_so_and_names_the_catalog` | T319 |
+| RACE-A | `test_both_sides_of_the_race_keep_every_folder_they_remembered` | T319 |
+| RACE-B | `test_neither_side_of_the_race_loses_its_own_entries` | T319 |
+| COUNT | `test_the_warning_names_the_catalog_and_the_reason_the_host_refused` | M8-T265 |
+
+每臂的判决只读 junit XML 里的红名。`还原` 那一格是臂前后各取一次的 sha256 是否逐字节相等。
+
+| 臂 | 那一刀（字节数变化） | 冻结预测 | 实际红名 | 判决 | 两只门的读数 | 还原 |
+| --- | --- | --- | --- | --- | --- | --- |
+| W0 | 不动（at-rest 基线，`5e08a3d1…`→自身） | T319 ∅ ／ T265 ∅ | ∅ ／ ∅ | MATCH | 11 passed 12.73s ／ 10 passed 2.54s | OK |
+| W1 | 两个上锁调用换 `pass`，句柄照开（9806→9750） | HELD,FIRST ／ ∅ | HELD,FIRST,SAYS,RACE-A,RACE-B ／ **COUNT** | 预测全中＋4 条额外红 | 5 failed 6 passed 7.73s ／ 1 failed 9 passed 3.51s | OK |
+| W2 | 锁从整笔读改写挪到只包 `_write`（9806→9828） | HELD,FIRST ／ ∅ | HELD,FIRST,RACE-A,RACE-B ／ ∅ | 预测全中＋2 条额外红 | 4 failed 7 passed 14.43s ／ 10 passed 1.46s | OK |
+| W3 | `yield refusal is None` → `yield True`（9806→9846） | ∅ ／ ∅ | ∅ ／ ∅ | MATCH（沉默） | 11 passed 12.44s ／ 10 passed 1.84s | OK |
+| W4 | 侧车 `.lock` → `.lck`（9806→9805） | NAMED,HELD,PUTBACK ／ 未冻结 | NAMED,HELD,PUTBACK,**FIRST,SAYS** ／ ∅ | 预测全中＋2 条额外红；未冻结那格读出来是全绿 | 5 failed 6 passed 5.59s ／ 10 passed 1.43s | OK |
+| W5 | 拒绝那行 `LOG.warning(` → `LOG.info(`（9806→9803） | SAYS ／ ∅ | SAYS ／ ∅ | MATCH | 1 failed 10 passed 10.83s ／ 10 passed 1.34s | OK |
+| W6 | 摘掉进程内 `self._lock`（9806→9794） | ∅ ／ ∅ | ∅ ／ ∅ | MATCH（沉默） | 11 passed 11.74s ／ 10 passed 1.47s | OK |
+| W7 | `_release` 里删 `LK_UNLCK`（9806→9781） | ∅ ／ ∅ | ∅ ／ ∅ | MATCH（沉默） | 11 passed 10.34s ／ 10 passed 1.37s | OK |
+| W8 | `if msvcrt is None and fcntl is None:` → `if False:`（9806→9806） | ∅ ／ ∅ | ∅ ／ ∅ | MATCH（缺陷在册，见 §4） | 11 passed 10.24s ／ 10 passed 1.84s | OK |
+
+电池整趟退出码 0；跑完之后平面里 `minicc/workspaces.py` 仍是 9806 字节、`git status --porcelain` 空、
+sha 仍是 `5e08a3d11998731c`——没有一臂泄漏。汇总一句：**预测的红一条不落空（0 漏红），额外红 8 条，
+逐条都能归因到自己那一刀，无一例是夹具故障**（脚本来会在红名里带 `HARNESS-FAULT` 的解码印出来，一次没有）。
+
+#### 额外红的归因
+
+- **W1/W2 的 RACE-A、RACE-B（4 条）**：丢失更新回来了。W1 四轮 `4 of 4 rounds kept fewer than 6 of 6 entries`，
+  其中 `round2: entries=3 owners={'alpha': 3, 'beta': 0}`——一整边没了，正是 `cd53a7a` 的门文档里那个
+  `owners={'alpha': 0, 'beta': 3}` 的镜像；W2 同样 `4 of 4`。对 W1 而言冻结文件本来写了「两条 race 例**可能**红，
+  不硬预测」，所以这不算否证；对 W2 而言预测表没写这一格，是**我没敢预测的那一半**：机制同源（不罩住整笔
+  读改写，读到的旧表就会覆盖邻居的新表），但当年我只钉了形状没钉后果。HELD 在两臂的报错也各自说清了位置：
+  W1 `{'during_read': (True, True), 'during_write': (True, True)}`（侧车全程是空的），W2
+  `{'during_read': (True, True), 'during_write': (False, True)}`（只有写那半被罩住）。
+- **W1 的 SAYS 与 COUNT（2 条）**：同一根因的两张脸——**上锁被摘掉、解锁还留着**。`_release` 对一根邻居正持有的
+  字节执行 `LK_UNLCK`，拿到 `[Errno 13] Permission denied`，于是发的是它自己那条「工作区目录锁解不开，交给关闭
+  句柄释放」的 WARNING，而不是「锁被其他进程占用」那条。SAYS 的报错把收到的句子原样贴了出来（`assert '占用' in
+  '工作区目录锁解不开…'`），COUNT 则数到 2 条警告而断言 1 条。⇒ 这一格值得单独说：`_acquire` 与 `_release`
+  是**成对承重**的，摘一半比摘全部更吵，而这两例读到成对性是**顺带的**——它们不是为这件事写的。要把这件事钉住，
+  需要一例专门切「acquire 摘掉、release 保留」的形状；记进 §8。
+- **W4 的 FIRST 与 SAYS（2 条）**：侧车改名后，门里的探针和夹具都还按发货名 `<catalog>.lock` 动作，代码却去占
+  `<catalog>.lck`。FIRST 报「sidecar present before the probe: False」，SAYS 报「saw 0 warnings」——拒绝根本没发生，
+  因为代码锁的那个文件没人抢。⇒ 凡是**自己动手摸侧车**的例都会被改名打到，方向正确；预测表只列了 3 条中的 3 条，
+  漏了这 2 条同源的。
+
+### 4 判决之外的沉默
+
+四条臂按冻结预测都是「全绿」，但绿的道理不一样。逐条钉住它凭什么绿——每一处都回到写下那句话的文件：
+
+- **W3（`yield refusal is None` → `yield True`）绿的道理是「交出去的东西没人接」。** 全仓库只有一个人
+  开这把锁：`minicc/workspaces.py`:193 的 `with self._lock, _advisory_lock(self.path):`——它把布尔丢了。
+  `_advisory_lock` 的 docstring 只声明「Yields whether the lock is actually held」，从没声明有人读它。
+  所以这一臂不是「门漏了一例」，而是这条产出物本身**有写无读**；把它记进 §8 的候选，因为它和 W5 是同一
+  件事的两半：拒绝的信号里，只有那条 WARNING 真被读着。
+- **W6（摘掉进程内 `self._lock`）绿是按门文档自己的登记。** 门文件 docstring 的第三条「What this does
+  NOT buy」已经写明：*"an arm that drops it and keeps only the sidecar (A6) leaves all eleven cases
+  green, because the sidecar excludes a second handle inside the same process too - which is the very
+  refusal case 4's probe reads."* 这一臂的任务不是发现，是在 `67c231f` 这个基准上确认那句话还成立；
+  `test_threads_inside_one_process_lose_nothing` 不撞窗口，靠的是 GIL 而非这把 RLock。
+- **W7（`_release` 里删掉 `LK_UNLCK`）绿同样是复测一句已发货的话。** `_release` 的 docstring 自己说
+  「A refusal here is not fatal: closing the handle drops it」，Windows 那句 `LOG.warning` 就是为这个
+  兜底写的。删掉显式解锁，`finally` 里的 `handle.close()` 仍然交还锁——所以这条绿是那句声明的证据，
+  不是缺口。
+- **W8（`if msvcrt is None and fcntl is None:` → `if False:`）绿且是缺陷在册。** 它绿有两个互相独立的
+  理由：本平面两个原语都导入成功，守卫在生产里从不触发；而没有任何一例把 `workspaces.msvcrt` 或
+  `workspaces.fcntl` 桩成 None——grep 过两只门文件，`msvcrt = None` 只出现在它们自己的 try/except 导入
+  兜底里（T319 门 :68，与 `minicc/workspaces.py`:20 同一形状），而 7 处 `monkeypatch.setattr` 打的全是
+  `catalog._read`/`catalog._write`/`os.replace`/`json.dumps`。⇒ `minicc/workspaces.py`:58 那句拒绝
+  「本机没有可用的跨进程锁原语」今天**没有任何读者**，我把它承认是门的真实缺口，记在这里，本批不修——
+  修法是加一例把两个模块一起桩掉并断言那条 OSError 的文本，那一例得在自己的臂里证明它读的是守卫而不是
+  自己的桩。
+
+### 5 围栏：`67c231f` 的全量分片，分母 3305
+
+平面是真实 worktree（`git worktree add --detach`）`D:/面试项目/wt363f`，`HEAD=67c231f4575aabd496d89f188833a08aa80b3e78`，
+`dirty=(clean)`。归档平面（`git archive`/副本）不能用：本仓库有一批门读 `git ls-files`，没有 `.git` 的平面上它们
+会集体失明——这条已经在 M8-T353 那批量过。310 个被追踪的测试文件切成 8 片，片大小
+`[39, 39, 39, 39, 39, 39, 38, 38]`。
+
+分母只取 `--collect-only` 的**摘要行**：`3305 tests collected in 12.53s`。这一版把取法改进了——
+`collect rc=0 per-file rows=0 sum=0 summary_line=3305…`，即逐文件行根本不存在，若按逐文件求和会拿到 0
+并让每一片的覆盖率虚高（分母不来自某一次判决性运行，是这条纪律的又一次执行）。
+
+| 片 | rc | 秒 | xml 摘要 |
+| --- | --- | --- | --- |
+| 00 | 0 | 272 | passed=344 failed=0 skipped=1 error=0 |
+| 01 | 0 | 253 | passed=353 failed=0 skipped=0 error=0 |
+| 02 | 0 | 994 | passed=551 failed=0 skipped=2 error=0 |
+| 03 | 0 | 691 | passed=372 failed=0 skipped=2 error=0 |
+| 04 | 0 | 130 | passed=390 failed=0 skipped=0 error=0 |
+| 05 | 0 | 101 | passed=388 failed=0 skipped=4 error=0 |
+| 06 | 0 | 337 | passed=452 failed=0 skipped=0 error=0 |
+| 07 | 0 | 560 | passed=444 failed=0 skipped=2 error=0 |
+
+    TOTALS passed=3294 failed=0 skipped=11 error=0 ran=3305 collected=3305 delta=0
+    reds=0
+    red-set digest=e3b0c44298fc1c14 head=67c231f4575aabd496d89f188833a08aa80b3e78
+
+三道加法自己核过，不信脚本的汇总行：八片 passed 相加 `344+353+551+372+390+388+452+444=3294`，
+skipped 相加 `1+0+2+2+0+4+0+2=11`，`3294+11=3305=collected`，`delta=0`。
+`red-set digest` 是 `sha256("\n".join(sorted(reds)))[:16]`（`fence.py:135`），零红时输入是空串——
+量过的 `sha256(b"")[:16]` 正是 `e3b0c44298fc1c14`。把这条写出来是因为「一个像哈希的十六进制串」很容易被
+读成「有一份红集被摘要了」，而它的意思在这里恰好相反：**红集是空的那个摘要**。
+
+第 3 片那次 691 秒里有一次不属于代码的停顿，归因写在 §8（共享的机器级 git 钩子）。另外两片的秒数也说明
+「分片等宽 ≠ 时间等宽」：第 2 片 994 秒、第 4 片 130 秒，同样 39 个文件——时间跟着子进程与 barrier 的密度走。
+
+**这次围栏证的是父提交，不是我的落点字节。** 平面钉在 `67c231f`，而本批要落的两处改动（§6 那 3 条行号引用，
+分属两只门文件的 docstring）不在其中。全量围栏不重跑（八片跑完
+`272+253+994+691+130+101+337+560=3338` 秒≈55 分 38 秒，而改的是散文行）；这一格由 §6 末尾
+那步聚焦回归补：两只门在**改后字节**上重跑，`git diff --numstat` 各 1/1 保证没有例被增删。
+
+### 6 行号引用的账：普查、否证的门设计、以及四条我自己车道里的引用
+
+`minicc/` 与 `tests/` 的散文里带行号的代码引用，普查到 **69** 条（第一遍的正则漏了本仓库实际的拼写
+`` `x.py`:NNN ``——冒号在收尾反引号**之后**，于是把纯名字提及也算进来，报了 1462 条、888 条「文件不
+存在」；改对正则后是 69 条）。这 69 条里 50 条落点可读，16 条指向仓库里没有的文件，3 条超出文件末尾。
+
+有没有读者？**没有。** `scripts/doc_pointers.py` 的 `DEFAULT_DOCS` 是 `docs/*.md` 加 `README.md`，行号
+只在那些 markdown 里被裁决；代码与测试文件里的行号，仓库里没有任何子系统读。我一度想补这门，然后按
+「先量再建」把它否证了：以「句子里唯一那个反引号名」为准绳去定位落点，整个仓库只有 **1** 条可判
+（`pass4_unique_anchor.py`：`unique-name-anchored claims=1 off=1 ambiguous-target-cites=2`）。一条能判
+的门不值得建；而那唯一一条还是**假红**——它判的 `minicc/mcp.py:52` 出自一段自己写着「Measured on the
+main tree before this batch」的改前读数。剩下 68 条要判，得读懂句子在说什么，那是语义不是机械。
+
+我自己车道里 4 条被检查器判红的引用，逐条回到写下它的那个提交查过——**全部在写下那天是对的**：
+
+| 引用 | 写下它的提交 | 那一天的落点 | 今天 | 处理 |
+| --- | --- | --- | --- | --- |
+| `` `minicc/session.py`:481 ``（T319 门 :26） | `cd53a7a` | 481 行正是 `target.with_name(target.name + ".lock")` | 533 | 已改 533 |
+| `` `main.py`:96 ``（T353 门 :389） | `bfef2f9` | `except SessionError as exc:` | 97 | 已改 97 |
+| `` `webserver.py`:695 ``（同上） | `bfef2f9` | `except (ValueError, ..., SessionError, ...)` | 694 | 已改 694 |
+| `` `minicc/mcp.py`:67 ``（M8-T244 门 :13） | `113d4ac` | `return ToolResult(`，即那句「never fills」指的构造点 | 89 | **不动** |
+
+第 4 条为什么不动：那句话钉的是**改前**的那棵树（同一个文档字符串第 3 行就这么声明）。把它挪到今天的
+89 行，指的将是 `truncated` 已经填上的那处构造——那才是假的。
+
+三条改对的，漂移都不是我这笔编辑造成的：`session.py` 那句被 `bfef2f9`（我自己上一批 M8-T353）与
+`61bfabe`（M8-T369）在它上面加行推走；`main.py` / `webserver.py` 那两句被 `9f9e734`、`266e1a5`、
+`1703eb4`、`5d2f413`、`743a186`、`f712429`、`a21e83b` 这七笔动过。⇒ 记一条纪律：**行号在写下那一刻
+几乎总是对的，它是随别人的提交腐烂的那种对。** 所以本批的编辑只改数字、不改行数——两只门文件
+`git diff --numstat` 各 1/1，钉 `(file, line)` 的门不受影响。EOL 这一格量的是两个面：HEAD 里两只门
+的 blob 都是**全 LF**（T319 门 21909 字节 544 行、T353 门 21447 字节 484 行），磁盘上 T353 那只却是
+全 CRLF（21931 字节，每行多一个 CR = 484），因为本机 `core.autocrlf=true` 在签出时加 CR；提交走的是
+clean 过滤器，所以量出来的 1/1 是 blob 层面的事实，不是工作树的巧合。
+
+**这一节最后补上§5 欠的那一格：delta 自己跑的腿。** 聚焦回归 `mc-ws319/focus_regression_ws319.py`
+（读数 `mc-ws319/focus_r1.log`，退出码 0）在**改后字节**上重跑读这段代码的三只门，静置 sha 是
+`97a1b0ea16a61f76`（T319 门）与 `d9ce64fb0975d7b5`（T353 门），两只都是 `numstat=1	1`；三只门的读数依次是
+`11 passed in 19.31s`、`10 passed in 7.66s`、`10 passed in 14.27s`，`reds=[]` 三处皆是，下限
+`FLOORS = {11, 10, 10}` 由源码里的 `grep -c "^def test_"` 推导而不是从这次运行里数出来的，所以「跑出了 11 例」
+不能被读成「例数没变」的同义反复；跑完再取一次 sha 与 numstat，两文件都 `unchanged by the run: True`。
+反向对照另跑一趟（`inert_head_r1.log`）：把同样这三只门在**没改过的字节**上跑一遍——平面 `wt363f` 钉在
+`67c231f`、`git status` 空、`import minicc` 实测解析到 `D:\面试项目\wt363f\minicc\__init__.py`——得
+`31 passed in 23.02s`。两趟都绿，正好是本批该说清的那件事：**行号引用没有任何子系统裁决**（前面量过的
+`scripts/doc_pointers.py` 只管 markdown），所以「绿／绿」这一对只是无害性检查，它不证明改对；
+真正有判别力的是上面那张表的行内容——旧数字对上写下它那天的那一行，新数字对上今天的那一行。
+
+### 7 编号订正（M8-T267 与 M8-T268 各有两个所指，登记不抹）
+
+`7c1730e`（2026-10-20 14:53，第二百六十九批）在 `docs/ROADMAP_TO_PRODUCT.md` 里把这两个号记成**权限与脱敏**：
+
+| 号 | 第二百六十九批所说的这件事 | 另一件事 |
+| --- | --- | --- |
+| M8-T267 | deny 规则到达只读工具 + 子代理转发 `workspace`（那一批变异表里的 `M8-T267-4`／`M8-T267-5` 两行） | `a6f87b9`（2026-10-21 00:22）：MCP 的 `status()` 把尸位服务器报成已配置，判活交回 `health()` |
+| M8-T268 | 脱敏三条模式搬进 `registry` + 剥离 BOM 后再解析（`M8-T268-6`） | `72a1130`（2026-10-21 01:48）：worker 自己拿到的配置裁决任务窗口，丢弃条数在丢下的那一处记账 |
+
+后两笔的代码与门都在 HEAD 里，**ROADMAP 里却没有它们任何记录**——量出来的 0：两只门文件名在
+`docs/ROADMAP_TO_PRODUCT.md` 出现 0 次（`names_the_dead`=0、`config_asked_for`=0），它们引进的生产符号
+`_window_from`、`append_bounded` 在同一文档里也是 0 次，各自只在 `tests/` 里出现 2 处。两笔提交本身都只碰
+`minicc/` + 一只新门（`+382/-10`、`+310/-8`），没有一笔动过这份文档。
+
+处理照第三百六十二批 `### 6 编号订正` 立的例：**号不改，两处互指，据实登记**。号已经写进提交信息和落盘的
+门文件首行注释，改它等于抹别人的账；而本节的表把每个号的两个所指都点名，下一个 run 读到这里就不会把
+`M8-T267` 当空号第三次认领。本批也不替那两笔补写完整记录——那各自是一个缺陷单元的体量（臂表、围栏、
+反向对照都要随单元写），在这里代写只会再复制一遍没有读者判决的 prose。
+
+### 8 顺出来的候选（本批不修）
+
+围栏第 3 片在 `git commit -m init` 上停了约 14 分钟：`git commit` → `sh ~/.codex/git-hooks/pre-commit`，
+那对进程 CPU 从 77.03 s 到 77.03 s 不动、`sh` 无孙进程；同一个动作单独复现是 **7.75 s 通过**
+（`mc-t353/r6/repro_hook.py`：`[codex-global pre-commit] passed`）。差别的来源是本机所有仓库共享的
+`core.hooksPath` 钩子会为一个临时夹具起一个 Python 解释器，而这类夹具的 `_git(...)` 既没 `timeout=`
+也没关 hooksPath——于是「慢」在套件里的表现是**整片不动且一句报错都没有**。量过这一格的人口：`tests/` 里
+`"commit"` 这一种拼写有 19 个调用点、分布在 14 个文件，其中**只有一个文件**提到 `core.hooksPath`
+（`tests/test_doc_pointers.py` 的夹具自己传 `-c core.hooksPath=no-such-hook-dir`）。而生产侧早就知道这件事：
+`minicc/behavior_bench.py` 为行为基准临时建仓时显式空掉 hooksPath 并留了注释，说的就是「这台机器的全局钩子
+会替你的夹具起解释器」。⇒ 缺陷的形状不是「慢」，是**套件的判决由仓库之外的一条机器策略决定**：同一份夹具
+在装了钩子的机器上可能被拖成 14 分钟，也可能被钩子的密钥扫描直接判拒（`git commit` 返回非零，夹具那头的
+`raise AssertionError(f"git {args} failed: ...")` 才说得清）。候选：给这些夹具补 `timeout=`（让停变成响），
+并把「起临时 git 仓库的测试不许继承全局 hooks」做成一条有触达的门——先量哪一种拼写才是全集。
+
+同一批的臂电池顺出三格，都不在本批修：
+
+- **`_advisory_lock` 交出的布尔无读者**（W3 绿的原因）。两种收口都合法：要么让 `remember()` 读它，
+  在没占到锁时把这件事写进目录（比如一行 `locked=False` 的观测），要么删掉这个产出物、把 docstring 改成
+  「只保证不抛」。选前者要有一个人能查的地方；本批先登记。
+- **`minicc/workspaces.py`:58 那句「本机没有可用的跨进程锁原语」无见证**（W8 绿且缺陷在册）。它和上一条
+  不同，不是设计而是漏：一只例就能桩掉两个模块名并断言那句 OSError 的文本，代价小，只是本批的范围是
+  补账而不是扩门。
+- **`_acquire` 与 `_release` 成对承重，今天没有一例为这件事写**（W1 的 SAYS＋COUNT 顺出来的）。摘掉上锁、
+  留着解锁时，`_release` 会对一根自己从未拿过的字节执行 `LK_UNLCK`，Windows 报 `[Errno 13] Permission denied`，
+  于是发的是「工作区目录锁解不开，交给关闭句柄释放」而不是「锁被其他进程占用」——SAYS 因此读到一句措辞不符的
+  拒绝，M8-T265 的 COUNT 则数到 2 条警告而断言 1 条。**摘一半比摘全部更吵**，而这两例读到的成对性是顺带的：
+  它们各自的名字承诺的是「拒绝要说话」和「邻居挡住时是警告不是崩溃」，没有一条承诺「上锁与解锁必须成对」。
+  ⇒ 候选：一例专门切「acquire 摘掉、release 保留」的形状，断言这两条警告各自的数量与措辞（并先量清哪只门
+  该收它——T319 与 T265 各读到一半，本批不动门）。
+
+### 9 下一单位
+
+**M8-T379 候选：批号过百的交叉引用，读者一概看不见。** 探针 `mc-ws319/probe_batch_reader_blindness.py`
+（读 HEAD 的字节，进程内加载 `scripts/doc_pointers.py`）量到：
+
+    headings_naming_批=339 not_matched_by_BATCH=268
+    code_spans_naming_a_batch=18 BATCH_cannot_see=1
+
+根因在 `scripts/doc_pointers.py` 的 `_NUM = r"(\d+|[一二三四五六七八九十]+)"`——`_BATCH` 由它拼成，而字符类里
+**没有百也没有千**：`第三百六十二批` 里 `第` 后面只能吃到「三」，紧跟着要求 `批` 就对不上，整个标题匹配失败。
+于是 `_section_index` 交出去的名册只认得 99 以内的批次（339 个标题里匹配的 71 个），仓库绝大多数记录——
+第一百批以后的 268 节——对「见第X百Y十Z批」这类指针根本不可解析：不是判红，是**悄悄不判**。第二条轴已经
+有一个真样本落在读数里：最新那节标题 `## 三百六十三批`（`67c231f` 落的第三百六十三批记录）把 `第` 丢了，
+`_BATCH` 要求字面的 `第`，所以那一节连 99 以内的那条路也走不通。
+
+先量再建（本单元开工前必答的三问）：①把 `_NUM` 放开到含 `百`/`千` 之后，18 条批次指针里有多少条**变得可判**
+——若从 1 变 18 而 17 条都能命中真实标题，门才有牙齿；②「看不见」现在有没有已发货的句子在承诺它看得见
+（`_locator` 与 `BOX_CHECKED` 那条账是本仓库自己的口径，要照着读）；③那个丢 `第` 的标题是本道自己上一批
+落盘的字节，改它 = 一字符的勘误，还是一条门钉住「每个 `## …批` 标题都必须被批号读者索引到」更值钱——两件事
+分开量，别把它们写成同一笔。
