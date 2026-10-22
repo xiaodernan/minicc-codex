@@ -25,7 +25,6 @@ from __future__ import annotations
 
 import ast
 import contextlib
-import msvcrt
 import os
 import re
 import subprocess
@@ -36,6 +35,19 @@ from pathlib import Path
 from typing import Any, Iterator
 
 import pytest
+
+# M8-T366: this module drives the Windows byte-range lock through ``msvcrt``,
+# and it imported that module at the top level - so on the POSIX leg of CI
+# the **collection** died with "No module named 'msvcrt'" and took the whole
+# Ubuntu job with it (every run since the file landed was red on that leg,
+# while the Windows leg passed).  The file's POSIX branch is written (it
+# stands in for ``fcntl``) but it has never run: the collection error came
+# first.  The honest minimum is to skip the module where the platform has no
+# ``msvcrt`` at all; porting the contended legs to POSIX is a separate job.
+pytest.importorskip("msvcrt", reason="this module drives the Windows msvcrt lock")
+
+if sys.platform == "win32":
+    import msvcrt  # noqa: E402 - the guard above already skipped the POSIX leg
 
 from minicc import session as session_module
 from minicc.session import SessionError, _cross_process_lock
