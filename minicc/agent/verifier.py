@@ -21,6 +21,25 @@ from .verification_plan import VerificationCommand, VerificationPlan, build_veri
 
 FAILED_TEST_RE = re.compile(r"(?m)^FAILED\s+([^\s]+)")
 
+#: Every status a :class:`VerificationResult` can carry.
+#:
+#: M8-T378: the vocabulary had **no name** ✓, and its subsets were written
+#: out by hand in three modules ✓.  The two questions below are the ones the
+#: product actually asks, and both are derived from this list ✓ - so a status
+#: that is added later is classified by the same rule everywhere ✓, instead
+#: of being "no problem" to one face and "no verdict" to another ✓.
+VERIFICATION_STATUSES = frozenset({
+    "passed", "failed", "skipped", "blocked", "cancelled", "timed_out",
+})
+#: The statuses that mean "the verification found no problem" - it passed, or
+#: it was deliberately not run.
+NON_FAILURE_VERIFICATION_STATUSES = frozenset({"passed", "skipped"})
+#: The statuses that mean "the verification produced no usable verdict" - a
+#: timeout is not a failure, it simply never answered.
+UNUSABLE_VERIFICATION_STATUSES = (
+    VERIFICATION_STATUSES - NON_FAILURE_VERIFICATION_STATUSES
+)
+
 
 @dataclass
 class VerificationResult:
@@ -58,7 +77,15 @@ class VerificationResult:
         }
 
     def to_event(self) -> dict[str, Any]:
-        status = "ok" if self.status in {"passed", "skipped"} else "cancelled" if self.status == "cancelled" else "error"
+        # M8-T378: the verification statuses have one home, and the subsets
+        # below are derived from it - so a status that is added later cannot
+        # be silently treated as "no problem" by one face and as "no verdict"
+        # by another.
+        status = (
+            "ok" if self.status in NON_FAILURE_VERIFICATION_STATUSES
+            else "cancelled" if self.status == "cancelled"
+            else "error"
+        )
         code = {
             "passed": "verification_passed",
             "failed": "verification_failed",

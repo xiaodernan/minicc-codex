@@ -41,6 +41,7 @@ from .agent.graph import DAGPlan, PlanTask, aggregate_dag_tokens, build_coding_w
 from .agent.completion import CompletionDecision, judge_completion
 from .agent.loop import AgentCancelled, TurnResult, build_tool_feedback, chat_with_cancellation, run_agent
 from .agent.orchestration import assess_complexity, build_auto_subtasks
+from .agent.verifier import NON_FAILURE_VERIFICATION_STATUSES
 from .agent.planner import (
     DEFAULT_ALLOWED_TOOLS,
     PLANNER_SYSTEM_PROMPT,
@@ -2847,7 +2848,7 @@ class AgentService:
                             marker = "模型最后输出："
                             if marker in aggregate.answer:
                                 aggregate.answer = aggregate.answer.rsplit(marker, 1)[-1].strip()
-                        elif stagnation_error and verification.status in {"passed", "skipped"}:
+                        elif stagnation_error and verification.status in NON_FAILURE_VERIFICATION_STATUSES:
                             aggregate.error = None
                         elif aggregate.error:
                             break

@@ -25,6 +25,7 @@ from .loop import AgentCancelled, chat_with_cancellation
 from ..tools.registry import redact_text
 from ..tools.schemas import tool_call_name
 from .tool_policy import is_verification_evidence
+from .verifier import UNUSABLE_VERIFICATION_STATUSES
 
 
 COMPLETION_STATUSES = frozenset({"complete", "continue", "blocked", "unknown"})
@@ -339,7 +340,7 @@ def _enforce_completion_evidence(
     """An LLM cannot override a failed verifier or an unexamined write."""
     verifications = [item for item in verification_results if isinstance(item, dict)]
     latest_verification = next((item for item in reversed(verifications) if item.get("status") != "skipped"), None)
-    if latest_verification and latest_verification.get("status") in {"failed", "blocked", "cancelled", "timed_out"}:
+    if latest_verification and latest_verification.get("status") in UNUSABLE_VERIFICATION_STATUSES:
         decision.status = "continue"
         # M8-T309: the instruction has to match what happened.  A timeout
         # is **not** a failure - it produced no verdict at all - and
