@@ -235,6 +235,13 @@ def list_sessions(workspace: Path) -> list[dict[str, Any]]:
     subclasses, but only the JSON one is a ``json.JSONDecodeError`` - a file
     that is not UTF-8 raised a bare ``UnicodeDecodeError`` straight out of
     here, so "listing never breaks on one bad file" was not true.
+
+    M8-T369: this used to exist **twice** in this module - once here and once
+    at the end of the file - and the second definition silently shadowed the
+    first.  The two bodies were byte-identical, so nothing broke; but a
+    maintainer who edited the *first* one (the one a reader meets first)
+    changed nothing at all, because the second one was the one Python kept.
+    A fact with two homes is a fact with no owner.  This is the only one.
     """
     root = Path(workspace) / ".minicc" / "sessions"
     sessions: list[dict[str, Any]] = []
@@ -650,46 +657,3 @@ def _first_user_title(messages: list[Any]) -> str:
         if text:
             return redact_text(text[:80])[0]
     return ""
-
-
-def list_sessions(workspace: Path) -> list[dict[str, Any]]:
-    """Describe every stored session (a fork is just another session file).
-
-    The message-level event tree spans files: each entry carries
-    ``forked_from`` lineage so callers can render the forest; unreadable or
-    malformed checkpoints are reported with an ``error`` field instead of
-    raising, so listing never breaks on one bad file. Backup sidecars
-    (``*.pre-rewind.json``) are not sessions and are skipped.
-
-    M8-T277: the reads catch ``ValueError`` rather than
-    ``json.JSONDecodeError``.  Both decode failures are ``ValueError``
-    subclasses, but only the JSON one is a ``json.JSONDecodeError`` - a file
-    that is not UTF-8 raised a bare ``UnicodeDecodeError`` straight out of
-    here, so "listing never breaks on one bad file" was not true.
-    """
-    root = Path(workspace) / ".minicc" / "sessions"
-    sessions: list[dict[str, Any]] = []
-    if not root.is_dir():
-        return sessions
-    for path in sorted(root.glob("*.json")):
-        if path.name.endswith(".pre-rewind.json") or path.name.startswith("."):
-            continue
-        entry: dict[str, Any] = {"session_id": path.stem, "messages": 0}
-        try:
-            payload = json.loads(_read_text_with_retry(path))
-        except (OSError, ValueError):
-            entry["error"] = "无法读取"
-            sessions.append(entry)
-            continue
-        if not isinstance(payload, dict) or not isinstance(payload.get("messages"), list):
-            entry["error"] = "格式错误"
-            sessions.append(entry)
-            continue
-        messages = payload["messages"]
-        entry["messages"] = len(messages)
-        entry["updated_at"] = str(payload.get("updated_at") or "")
-        lineage = payload.get("forked_from")
-        entry["forked_from"] = lineage if isinstance(lineage, dict) else None
-        entry["title"] = _first_user_title(messages)
-        sessions.append(entry)
-    return sessions
