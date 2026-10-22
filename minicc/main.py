@@ -381,6 +381,14 @@ def _permission_gate(
             raw = input("允许此次操作？[y/N/a/A] ").strip()
         except EOFError:
             return False
+        except KeyboardInterrupt:
+            # M8-T362: Ctrl-C at the permission prompt is the user's "no"
+            # for **this** call - the same answer as EOF (nobody there to
+            # answer).  The interrupt used to escape the gate, so it ended
+            # the whole turn instead of the one call the question was
+            # about, and the agent lost the round it had already done.
+            cli_out("\n[minicc] 已拒绝（Ctrl-C）")
+            return False
         # M2-T3: the case carries the meaning here, so the raw answer is kept:
         # ``a`` is "always allow THIS command/path" and ``A`` is "always allow
         # every use of this tool".  Lowercasing first would fold ``A`` into
