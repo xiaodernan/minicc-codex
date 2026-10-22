@@ -113,8 +113,55 @@ def messages_to_anthropic(messages: list[dict[str, Any]]) -> tuple[str, list[dic
     def flush_results() -> None:
         nonlocal pending_results
         if pending_results:
-            converted.append({"role": "user", "content": pending_results})
+            # M8-T360: the tool results are a user turn too, so they go
+            # through the same rule as every other turn.
+            append_turn("user", pending_results)
             pending_results = []
+
+    def as_blocks(content: Any) -> list[Any]:
+        """One turn's content as a block list (text-only content included)."""
+        if isinstance(content, list):
+            return list(content)
+        if isinstance(content, str):
+            return [{"type": "text", "text": content}] if content else []
+        return [{"type": "text", "text": str(content)}]
+
+    def carries_tool_result(content: Any) -> bool:
+        """Whether this turn holds a tool result (those turns stay their own)."""
+        if not isinstance(content, list):
+            return False
+        return any(
+            isinstance(block, dict) and block.get("type") == "tool_result"
+            for block in content
+        )
+
+    def append_turn(role: str, content: Any) -> None:
+        """Append one turn, merging a same-role neighbour (M8-T360).
+
+        The Anthropic Messages format is a strictly alternating
+        user/assistant sequence - two user turns in a row have no
+        representation there.  The product does produce them: the vision
+        context the loop appends at the start of a turn is a second user
+        message (so **every task with an image** had one), and the
+        soft-budget wrap is a second assistant message.
+
+        This converter already merged consecutive *tool results* into one
+        user turn for the very same reason (``flush_results``); the rule
+        now lives in one place - a turn that follows a turn of the same
+        role is merged into it, keeping the blocks in the order they
+        happened (so an image is never dropped).
+
+        A turn that carries a tool result is left alone: it is the turn
+        that immediately follows the assistant's ``tool_use``, and the
+        existing contract pins that shape (``test_anthropic_provider``).
+        """
+        if converted and converted[-1].get("role") == role:
+            previous = converted[-1].get("content")
+            if not carries_tool_result(previous) and not carries_tool_result(content):
+                merged = [*as_blocks(previous), *as_blocks(content)]
+                converted[-1]["content"] = merged
+                return
+        converted.append({"role": role, "content": content})
 
     for message in messages:
         role = message.get("role")
@@ -126,7 +173,7 @@ def messages_to_anthropic(messages: list[dict[str, Any]]) -> tuple[str, list[dic
                 system_parts.append(str(text))
         elif role == "user":
             flush_results()
-            converted.append({"role": "user", "content": convert_user_content(message.get("content"))})
+            append_turn("user", convert_user_content(message.get("content")))
         elif role == "assistant":
             flush_results()
             blocks: list[dict[str, Any]] = []
@@ -152,7 +199,7 @@ def messages_to_anthropic(messages: list[dict[str, Any]]) -> tuple[str, list[dic
                     "input": tool_input,
                 })
             if blocks:
-                converted.append({"role": "assistant", "content": blocks})
+                append_turn("assistant", blocks)
         elif role == "tool":
             content = message.get("content")
             if isinstance(content, str):
