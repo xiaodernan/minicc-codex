@@ -42,6 +42,7 @@ from .agent.protocol import (
     TERMINAL_TASK_STATUSES,
     validate_status_transition,
 )
+from .agent.tool_policy import WRITE_TOOL_NAMES
 from .audit import normalize_permission_mode
 from .config import TRUTHY, normalize_model_name, normalize_reasoning_effort
 from .llm.usage import add_usage_totals, cache_summary
@@ -90,7 +91,14 @@ WORKER_REAP_GRACE_SECONDS = 0.5
 # flag, so this bound is what a shutdown pays for a worker that is mid-request.
 WORKER_SHUTDOWN_GRACE_SECONDS = 5.0
 WORKER_TERMINATE_WAIT_SECONDS = 5.0
-COMPLETION_WRITE_TOOLS = frozenset({"write_file", "edit_file", "worktree_create", "worktree_remove"})
+# M8-T374: the tools that write the workspace have **one** home - the tool
+# policy module, which already answers "did this call write?" from it.  This
+# name used to be a **second copy** of the same four names, and it guarded
+# the last gate before a dynamic plan is executed directly
+# (``_is_bounded_readonly_plan``): a plan that names a write tool this copy
+# does not know about would have been run without the main agent's write
+# protection.  It is now the same object, not a lookalike.
+COMPLETION_WRITE_TOOLS = WRITE_TOOL_NAMES
 # Names kept for the web face's import; the single source of truth lives on
 # the graph so the skip-early check and execute_dag's hard reject cannot drift.
 READONLY_PLAN_KINDS = READONLY_DAG_KINDS

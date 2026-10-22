@@ -47,6 +47,61 @@ def test_the_live_write_tool_list_still_exists() -> None:
     assert "edit_file" in WRITE_TOOL_NAMES
 
 
+# --- M8-T374: the same list, a second *live* copy ----------------------------
+
+
+def test_the_write_tool_list_has_no_second_live_copy() -> None:
+    """M8-T307a removed a dead copy of the write-tool list.
+
+    M8-T374 found a **live** one: ``task_manager.COMPLETION_WRITE_TOOLS`` was
+    a hand-written second copy of the same four names, and it guarded the
+    last gate before a dynamic plan is executed directly
+    (``_is_bounded_readonly_plan``).  A plan naming a write tool that copy
+    did not know about would have been run **without** the main agent's
+    write protection.
+
+    The two names must be **the same object** - equal is not enough, because
+    two equal frozensets are two independent rules that can drift apart the
+    next time somebody adds a tool.
+    """
+    from minicc.agent import tool_policy
+    from minicc import task_manager
+
+    assert task_manager.COMPLETION_WRITE_TOOLS is tool_policy.WRITE_TOOL_NAMES, (
+        "the write-tool list has two independent copies again; the one home "
+        "is minicc/agent/tool_policy.py:WRITE_TOOL_NAMES"
+    )
+
+
+def test_the_write_tool_list_literal_exists_in_exactly_one_place() -> None:
+    """The copy is gone from the source, not merely aliased at runtime."""
+    import ast
+
+    home = Path(__file__).resolve().parents[1] / "minicc"
+    offenders: list[str] = []
+    for path in sorted(home.rglob("*.py")):
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+        except (OSError, SyntaxError, ValueError):
+            continue
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Set):
+                continue
+            members = {
+                element.value
+                for element in node.elts
+                if isinstance(element, ast.Constant) and isinstance(element.value, str)
+            }
+            if members == {"write_file", "edit_file", "worktree_create", "worktree_remove"}:
+                offenders.append(f"{path.relative_to(home.parent).as_posix()}:{node.lineno}")
+    assert offenders == [
+        "minicc/agent/tool_policy.py:23"
+    ], (
+        "the write-tool list is written out by hand outside its one home "
+        f"(minicc/agent/tool_policy.py): {offenders}"
+    )
+
+
 # --- M8-T307b: the network question has two halves ----------------------------
 
 
