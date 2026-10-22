@@ -26,6 +26,7 @@ from .registry import (
     ToolRegistrationError,
     ToolRegistry,
     ToolSpec,
+    approval_preview,
     validate_tool_spec,
 )
 from .schemas import ToolCall, ToolResult
@@ -207,6 +208,7 @@ __all__ = [
     "ToolRegistry",
     "ToolResult",
     "ToolSpec",
+    "approval_preview",
     "build_registry",
     "validate_tool_spec",
 ]

@@ -38,7 +38,7 @@ from .route_wiring import (
     _stage_route_budget,
 )
 from .session import SessionError, SessionStore, list_sessions
-from .tools import Editor, ToolCall, ToolRegistry, ToolResult, build_registry
+from .tools import Editor, ToolCall, ToolRegistry, ToolResult, approval_preview, build_registry
 
 
 class StreamWriter:
@@ -316,12 +316,20 @@ def _apply_cli_overrides(config: Config, args: argparse.Namespace) -> Config:
 
 
 def _tool_preview(call: ToolCall) -> str:
+    """The redacted preview shown next to a permission question (M8-T363).
+
+    The Web face's approval request redacts the text it shows; the CLI
+    used to print the raw command/arguments, so a token in a ``bash``
+    command landed on the terminal - and in whatever the user pastes from
+    it.  One home for the preview: ``minicc.tools.approval_preview``.
+    """
+    preview = approval_preview(call.tool, call.arguments, limit=240)
     if call.tool == "bash":
-        return f"command={call.arguments.get('command', '')!r}"
+        return f"command={preview!r}"
     path = call.arguments.get("path")
     if path is not None:
-        return f"path={path!r}"
-    return json.dumps(call.arguments, ensure_ascii=False)[:240]
+        return f"path={preview!r}"
+    return preview
 
 
 def _describe_tool(registry: ToolRegistry, name: str) -> str:

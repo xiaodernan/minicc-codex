@@ -122,7 +122,7 @@ from .sandbox import SandboxRunner
 from .session import SessionError, SessionStore, list_sessions
 from .tools import Editor, ToolCall, ToolResult, build_registry
 from .tools.editor import AUDIT_LEVELS, audit_level
-from .tools.registry import redact_text
+from .tools.registry import approval_preview, redact_text
 from .task_store import TaskStore
 from .worktree import WorktreeError, WorktreeManager
 from .webserver import MiniccHTTPServer, MiniccRequestHandler  # noqa: F401 - re-export
@@ -448,11 +448,9 @@ class AgentService:
 
     @staticmethod
     def _approval_preview(tool: str, arguments: dict[str, Any]) -> str:
-        raw = str((arguments or {}).get("command") or (arguments or {}).get("path") or "")
-        if not raw:
-            raw = json.dumps(arguments or {}, ensure_ascii=False, sort_keys=True)
-        preview, _ = redact_text(raw)
-        return preview.strip()[:400]
+        # M8-T363: the preview is built in one place (``minicc.tools``),
+        # so the CLI's permission question cannot drift away from this one.
+        return approval_preview(tool, arguments)
 
     def request_approval(
         self,

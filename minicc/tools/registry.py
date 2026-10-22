@@ -16,6 +16,7 @@ See ``docs/PLUGIN_API.md``.
 
 from __future__ import annotations
 
+import json
 import re
 import threading
 import time
@@ -188,6 +189,29 @@ def redact_text(text: str) -> tuple[str, bool]:
             changed = True
             text = redacted
     return text, changed
+
+
+def approval_preview(
+    tool: str,
+    arguments: dict[str, Any] | None,
+    *,
+    limit: int = 400,
+) -> str:
+    """The preview a human reads before approving a call (M8-T363).
+
+    This is the **one** home for that preview: the Web face's approval
+    request and the CLI's permission question are the same question, so
+    they have to get the same answer.  The Web's version redacted the text
+    (a ``bash`` command or a tool's arguments can carry a token); the
+    CLI's printed it raw - so the secret that the Web hid, the CLI put on
+    the terminal (and into whatever the user pastes from it).
+    """
+    args = arguments or {}
+    raw = str(args.get("command") or args.get("path") or "")
+    if not raw:
+        raw = json.dumps(args, ensure_ascii=False, sort_keys=True)
+    preview, _ = redact_text(raw)
+    return preview.strip()[:limit]
 
 
 def split_output(text: str) -> tuple[str, str, bool]:
