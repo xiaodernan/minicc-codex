@@ -666,22 +666,34 @@ async def _interactive(
                 cli_out(f"未知命令：{prompt.split(' ', 1)[0]}（/help 查看内置与自定义命令）")
                 continue
             prompt = expanded
-        await _turn(
-            provider,
-            registry,
-            messages,
-            config,
-            prompt,
-            session,
-            view,
-            stream=stream,
-            permission_mode=permission_mode,
-            allow_network=allow_network,
-            workspace=workspace,
-            stage_router=stage_router,
-            route=route,
-            fold_target=fold_target,
-        )
+        try:
+            await _turn(
+                provider,
+                registry,
+                messages,
+                config,
+                prompt,
+                session,
+                view,
+                stream=stream,
+                permission_mode=permission_mode,
+                allow_network=allow_network,
+                workspace=workspace,
+                stage_router=stage_router,
+                route=route,
+                fold_target=fold_target,
+            )
+        except KeyboardInterrupt:
+            # M8-T361: Ctrl-C in the middle of a turn is something a user
+            # does to stop a runaway agent - it is not a crash.  The
+            # interrupt used to escape the REPL: the whole CLI died with a
+            # traceback and the conversation was gone with it.  Now the turn
+            # stops, the conversation keeps its place (the interrupted
+            # request stays in the history, exactly as the Web's cancelled
+            # task keeps its own), and the REPL asks for the next prompt.
+            cli_out()
+            cli_out("已中断本轮（Ctrl-C）。")
+            continue
 
 
 def _fatal(message: str) -> NoReturn:
