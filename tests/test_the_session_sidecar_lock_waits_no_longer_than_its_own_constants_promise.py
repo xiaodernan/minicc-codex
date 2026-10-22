@@ -386,7 +386,7 @@ def test_the_posix_branch_also_asks_for_a_non_blocking_lock(tmp_path: Path) -> N
     This cannot show a kernel blocking forever.  It shows that the shipped POSIX branch
     asks for ``LOCK_EX`` with no ``LOCK_NB`` - so it never enters the retry loop the
     Windows branch has - and that a refusal escapes as something other than the
-    ``SessionError`` every caller catches (``main.py:96``, ``webserver.py:695``).
+    ``SessionError`` every caller catches (``main.py:97``, ``webserver.py:694``).
     """
     lock = tmp_path / "session.json.lock"
     asked: list[int] = []

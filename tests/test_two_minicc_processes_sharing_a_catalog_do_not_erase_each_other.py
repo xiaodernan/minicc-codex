@@ -23,7 +23,7 @@ the other half of why this stayed invisible: the failure was already being caugh
 
 The remedy is the one this repository already uses for a shared checkpoint: hold an
 advisory lock on a ``<catalog>.lock`` sidecar across the whole read-modify-write, the
-naming rule ``minicc/session.py``:481 uses for session files.
+naming rule ``minicc/session.py``:533 uses for session files.
 
 What this does NOT buy:
 
