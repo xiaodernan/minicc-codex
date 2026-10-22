@@ -10,7 +10,7 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any, Callable, NoReturn
 
-from .agent.loop import TurnResult, run_agent
+from .agent.loop import TurnResult, build_tool_feedback, run_agent
 from .agent.router import StageRouter, StageRoute
 from .agent.state import Budget, BudgetExceeded
 from .agent.subagent import DEFAULT_MAX_DEPTH, DEFAULT_MAX_TURNS, build_task_tool_spec
@@ -100,7 +100,14 @@ class CliView:
     def record_tool(self, call: ToolCall, result: ToolResult) -> None:
         self.last_item += 1
         self.last_tool += 1
-        command = call.arguments.get("command") if call.tool == "bash" else ""
+        # M8-T364: the command is shown to the user *and* written into the
+        # view's history file, so it has to be the **redacted** command - the
+        # same one the Web face shows (the loop builds that copy for the
+        # events).  The CLI used to print and store the raw one, so a token
+        # in a ``bash`` command landed on the terminal and on disk.
+        feedback = build_tool_feedback(call, result)
+        command = str(feedback.get("command") or "")
+        path = str(feedback.get("path") or "")
         entry = {
             "index": self.last_tool,
             "tool": call.tool,
@@ -109,7 +116,7 @@ class CliView:
             "output": result.record_text(6000),
         }
         self.tool_history = [*self.tool_history, entry][-24:]
-        preview = self._shorten(command) if command else self._shorten(call.arguments.get("path") or "")
+        preview = self._shorten(command) if command else self._shorten(path)
         suffix = f" · {preview}" if preview else ""
         cli_out(f"\n[tool {self.last_tool}] {call.tool}{suffix} · {self._shorten(result.summary)}")
         if not self.compact_tools:
