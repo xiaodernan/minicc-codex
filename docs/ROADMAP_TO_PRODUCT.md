@@ -5362,7 +5362,7 @@ pytest 自己在配置校验期就报未知键，在 `-W error` 下连收集都�
   （`minicc/agent/retrieval.py:423`，与 `search()` 同文件 `:399` 是两个方法），
   所以 `census_is_complete` 在交互路径上的调用次数是 **0**。
   而那句 summary 是**给人看的界面文字**：`web/src/panels/index.js:1226/1276` 给它标签
-  「本地证据 / Local evidence」，打包产物 `web/assets/app.bd4afd1956047ea6.js` 里事件按
+  「本地证据 / Local evidence」，打包产物 `web/app.js`（由 `web/src/panels/index.js` 打包而来 ✓）里事件按
   `<small>${u(e.summary||"")}</small>` 逐字渲染进 DOM。
   下一批（M8-T74）：双向门——不完整时人与模型都要收到截断声明，完整时不得出现；
   读者清单用 AST 从源码枚举（第五十七批已经证明按行号 keyed 的表会被无关改动打红）。
@@ -5509,7 +5509,7 @@ pytest 自己在配置校验期就报未知键，在 `-W error` 下连收集都�
   `:1286-1292`（trace）、`:1851-1858`（planner）。`stats()` 与 `search()` 是同文件
   （`minicc/agent/retrieval.py:399` / `:423`）的**两个**方法 ⇒ 只调 `search()` 的读者拿不到分母。
 - 那句 summary 是**界面文字**不是内部日志：`web/src/panels/index.js:1226/1276` 给它标签
-  「本地证据 / Local evidence」，打包产物 `web/assets/app.bd4afd1956047ea6.js` 里事件按
+  「本地证据 / Local evidence」，打包产物 `web/app.js`（由 `web/src/panels/index.js` 打包而来 ✓）里事件按
   `<small>${u(e.summary||"")}</small>` 逐字进 DOM。
 - 交互路径上 `census_is_complete` 的调用次数：**0**（改前）。
 
@@ -23798,6 +23798,7 @@ MCP 有两种传输 ✓：**stdio**（本地进程 ✓）与 **http**（远程�
 | **这条线的格式约束** | Anthropic 回合必须交替（T360）✓——**注意**：tool_result 回合与其后的 user 回合仍是两条（既有门禁钉住 ✓），若官方确实拒绝连续 user 回合，需连同既有门禁一起重新决定 ✓（**已登记的开放项** ✓） |
 | **两个面的同一件事** | yolo 口径（T353）、中断的结局（T361/T362）、审批预览的脱敏（T363）、工具命令的脱敏（T364） | 已列全 ✓ |
 | **同一份名单的两份抄本** | 前端的 phase 名单（T370 ✓——`api.js` 那份**漏了 `review`** ✓，两份已经漂移 ✓）与终态集合（T370 ✓ 收进 `state.js` ✓） | 已收口 ✓ |
+| **后端能说、前端叫不出** | 后端发的 6 个 phase（`intake` ✓ / `summarize` ✓ / `verify` ✓ / `repair` ✓ / `execution` ✓ / `permission` ✓）在 T371 前**全部显示成"处理中"** ✓ | 已收口 ✓（前端能说的 phase 必须有标签 ✓ 且有中英文翻译 ✓，门禁**读全仓** ✓） |
 | **能力声明（capability）** | 远程 MCP 工具必须声明 network（T365）；stdio 服务器的工具不声明（运维方自己的进程 ✓，不是 agent 的出网 ✓） | 已列全 ✓ |
 | **死代码面** | 未使用导入（清了 7 处 ✓）、不可达代码（0 ✓）、恒真断言（0 ✓）、未被任何测试提到的模块（0 ✓）、同名常量的多处定义（`GRADER_DIR_NAME` 已收 ✓；`SKIP_DIRS` 两处口径不同 ✓ 非缺陷 ✓）、**同一模块内的同名顶层定义**（T369 ✓：`session.py` 的 `list_sessions` 修好了 ✓，**全仓普查后已列全** ✓） | 已列全 ✓ |
 | **异常类型逃逸** | 三个"没人按名字接住"的领域异常（`TodoError`/`FetchError`/`StreamProtocolError` ✓） | 都被基类或 handler 兜住 ✓（无实缺陷 ✓） |
@@ -24130,3 +24131,84 @@ live.classList.add(`live-task-${currentPhase}`);
 
 这是老教训的又一次应验 ✓：**门禁必须经过被修的那条路** ✓——
 读一份数据然后自己重算一遍 ✓，永远证明不了**用那份数据的那段代码**是对的 ✓✓。
+
+
+## 第三百五十五批 — M8-T371 — 后端有六个 phase，前端叫不出名字
+
+### 1 缺陷
+
+上一批把 phase 名单收进了一个家 ✓，但那个家**本身不全** ✓。
+
+**后端真的在发这些 phase** ✓（全仓普查 ✓，逐字读源码 ✓）：
+
+| phase | 谁发它 |
+| --- | --- |
+| `intake` | `web.py:1567` ✓（`runtime_state.transition("intake", phase="intake")` ✓） |
+| `summarize` | `agent/loop.py:865` ✓ / `1796` ✓（`emit_trace(..., phase="summarize")` ✓） |
+| `verify` | `agent/verifier.py:81` ✓ |
+| `repair` | `web.py` ✓ |
+| `execution` | `main.py` ✓ / `subagent.py` ✓ / `web.py` ✓ |
+| `permission` | `audit.py` ✓ / `web.py` ✓ |
+
+**前端对它们的态度** ✓：
+
+* `intake` ✓ / `summarize` ✓ **连 class 名单都不在** ✓ → 它们的 class
+  **永远摘不掉** ✓；
+* 六个 phase **全都不在标签表** ✓（`phaseLabel` 的表只有十项 ✓）→
+  界面显示泛泛的 **"处理中"** ✓；
+* `phaseClass` 把不认识的 phase **规范化成 `planning`** ✓ → 界面显示的是
+  **另一个 phase 的样式** ✓，而**不是它自己的** ✓。
+
+### 2 这条缺陷真的到达用户
+
+不是"内部 trace 里的字符串" ✓，是一条完整的链路 ✓：
+
+```
+agent/loop.py  emit_trace(..., phase="summarize")
+  → task_manager.py:2451  on_event: task.set_phase(phase)
+  → task_manager.py:591   _publish_locked("state", {"phase": ...})   ← 推给前端
+  → web/src/core/task-reducer.js:37   data.phase = payload.phase
+  → phaseLabel(data)  →  "working" / "处理中"
+```
+
+所以一个正在**收束总结**的任务 ✓，在界面上显示的是"处理中" ✓，
+而一个正在**验证**的任务 ✓，显示的也是"处理中" ✓——
+**六个阶段在界面上是同一句话** ✓。
+
+### 3 落地
+
+* `state.js` 的 `TASK_PHASES` ✓ / `ACTIVE_TASK_PHASES` ✓ **补齐全部 phase** ✓
+  （含 `intake` ✓ / `summarize` ✓）。
+* `panels/index.js` 的 `phaseLabel` ✓ 标签表**补齐六项** ✓。
+* `i18n.js` **补齐中英文各六条** ✓（`phase.intake` ✓ / `phase.summarize` ✓ /
+  `phase.verify` ✓ / `phase.repair` ✓ / `phase.permission` ✓ /
+  `phase.execution` ✓）。
+* 标签表与 phase 名单**同源** ✓：以后再加 phase ✓，两个门禁会**同时**要求
+  补齐 ✓——**少一处就红** ✓。
+
+### 4 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T371-150 | 从前端的那个家里删掉 `intake` ✓ 与 `summarize` ✓，并删掉对应标签 ✓（精确复现这条缺陷 ✓） | **2 条红** ✓ |
+
+### 5 门禁的加强（这一批的门禁是上一批的**加强版**）
+
+上一批的门禁**只读了 4 个后端文件** ✓，所以**漏掉了** `intake` ✓ 与
+`summarize` ✓——这正是它本该抓的 ✓✓。这一批把它改成：
+
+* **读 `minicc/` 下的每一个模块** ✓（`walkBackend` ✓），
+  而不是手挑几个文件 ✓；
+* 多加两条断言 ✓：**前端知道的每个 phase 都必须有标签** ✓，
+  **每个 phase 都必须有中英文翻译** ✓。
+
+### 6 一条教训
+
+**"名单收进一个家"不等于"名单是全的"。** ✓
+
+上一批做完 ✓，那个家**已经存在** ✓、**已经被问** ✓——看起来这件事做完了 ✓。
+但那个家**漏了六个 phase** ✓，于是"收拢"只是把**不完整**搬进了一个地方 ✓。
+
+真正让这件事闭环的 ✓，不是"建了家" ✓，而是**"后端能说的每一个 phase，
+前端都能叫出名字"** 这条**可断言的契约** ✓——
+它必须**双向**读**全仓** ✓，而不是读几个"代表性"文件 ✓✓。

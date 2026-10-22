@@ -71,29 +71,62 @@ for (const status of TERMINAL_STATUSES) {
 }
 
 // The phase list has one home too, and it must know every phase the
-// backend emits - otherwise that phase's class is never removed.
+// backend emits - otherwise that phase's class is never removed and the
+// user never sees its name.
 const phaseBlock = stateSource.match(/export const TASK_PHASES = new Set\(\[([\s\S]*?)\]\);/);
 assert(phaseBlock, "core/state.js must export TASK_PHASES - the phases have one home");
 const homePhases = new Set([...phaseBlock[1].matchAll(/"([a-z_]+)"/g)].map((m) => m[1]));
 
-const backendFiles = [
-  "minicc/web.py",
-  "minicc/agent/loop.py",
-  "minicc/agent/verifier.py",
-  "minicc/task_manager.py",
-];
-const emitted = new Set();
-for (const file of backendFiles) {
-  const source = await readFile(file, "utf8");
-  for (const match of source.matchAll(/"phase":\s*"([a-z_]+)"/g)) emitted.add(match[1]);
+// The backend's phases are read from **every** module under minicc/, not
+// from a hand-picked list: the first version of this gate read four files
+// and therefore missed the phases the other modules emit.
+const backendPhases = new Set();
+async function walkBackend(dir) {
+  for (const entry of await readdir(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      await walkBackend(full);
+    } else if (entry.name.endsWith(".py")) {
+      const source = await readFile(full, "utf8");
+      for (const match of source.matchAll(/"phase":\s*"([a-z_]+)"/g)) backendPhases.add(match[1]);
+      for (const match of source.matchAll(/\bphase\s*=\s*"([a-z_]+)"/g)) backendPhases.add(match[1]);
+    }
+  }
 }
-const unknown = [...emitted].filter(
+await walkBackend("minicc");
+const unknown = [...backendPhases].filter(
   (phase) => !homePhases.has(phase) && !TERMINAL_STATUSES.includes(phase),
 );
 assert.deepEqual(
   unknown,
   [],
   `the backend emits phases the frontend's one home does not know: ${unknown.join(", ")}`,
+);
+
+// Every phase the frontend knows must also be nameable: a phase with no
+// label shows the generic "working" text, which is how a task in the
+// "verify" or "summarize" phase lost its name.
+const panelsSource = await readFile(path.join(SRC, "panels", "index.js"), "utf8");
+const labelBlock = panelsSource.match(/const key = \{([\s\S]*?)\}\[phase\] \|\| "working";/);
+assert(labelBlock, "panels/index.js must map every phase to a label");
+const labelPhases = new Set(
+  [...labelBlock[1].matchAll(/(\w+):\s*"phase\./g)].map((m) => m[1]),
+);
+const unnameable = [...homePhases].filter((phase) => !labelPhases.has(phase));
+assert.deepEqual(
+  unnameable,
+  [],
+  `these phases have no label, so the user only sees the generic "working" text: ${unnameable.join(", ")}`,
+);
+
+// And every phase the backend emits must have a label in both languages.
+const i18nSource = await readFile(path.join(SRC, "core", "i18n.js"), "utf8");
+const i18nPhases = new Set([...i18nSource.matchAll(/"phase\.([a-z_]+)"/g)].map((m) => m[1]));
+const missingText = [...homePhases].filter((phase) => !i18nPhases.has(phase));
+assert.deepEqual(
+  missingText,
+  [],
+  `these phases have no translation, so the label falls back to the key: ${missingText.join(", ")}`,
 );
 
 // The phase list itself may not be written out by hand anywhere else: the

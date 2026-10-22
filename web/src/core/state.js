@@ -85,15 +85,15 @@ export const TERMINAL_TASK_STATUSES = new Set(["completed", "failed", "cancelled
 // phase that was never listed was never removed, and the element kept
 // ``live-task-review`` for the rest of the task's life.  One home.
 export const TASK_PHASES = new Set([
-  "queued", "planning", "tool", "answering", "review", "merging",
-  "verify", "repair", "execution", "permission",
+  "queued", "planning", "intake", "tool", "execution", "answering", "summarize",
+  "review", "verify", "repair", "permission", "merging",
   "completed", "failed", "cancelled", "interrupted",
 ]);
 // The phases that mean "the task is still doing something" - the ones the
 // live-task element styles as in-flight.
 export const ACTIVE_TASK_PHASES = new Set([
-  "queued", "planning", "tool", "answering", "review", "merging",
-  "verify", "repair", "execution", "permission",
+  "queued", "planning", "intake", "tool", "execution", "answering", "summarize",
+  "review", "verify", "repair", "permission", "merging",
 ]);
 // The phases that ended without an answer, so the task can be resumed.
 export const RESUMABLE_TASK_PHASES = new Set(["failed", "cancelled", "interrupted"]);

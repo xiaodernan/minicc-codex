@@ -1036,12 +1036,23 @@ export function phaseLabel(data) {
   const phase = TERMINAL_TASK_STATUSES.has(status) || status === "queued"
     ? status
     : data.phase || status;
+  // M8-T371: every phase the backend reports has a name.  The table used to
+  // cover ten of them, so a task in the ``verify``/``repair``/``summarize``
+  // phase - phases the backend really emits - showed the generic
+  // "working" label, and a phase that is not on the list also never had its
+  // class removed.  The table and the phase list come from one home now.
   const key = {
     queued: "phase.queued",
     planning: "phase.planning",
+    intake: "phase.intake",
     tool: "phase.tool",
+    execution: "phase.execution",
     answering: "phase.answering",
+    summarize: "phase.summarize",
     review: "phase.review",
+    verify: "phase.verify",
+    repair: "phase.repair",
+    permission: "phase.permission",
     merging: "phase.merging",
     completed: "phase.completed",
     failed: "phase.failed",
