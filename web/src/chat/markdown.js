@@ -3,7 +3,7 @@ import { requestJson } from "../core/transport.js";
 import { storeSessionMarkup } from "../core/session-cache.js";
 import { captureViewScope, isWorkspaceScopeCurrent, isViewScopeCurrent } from "../core/scope.js";
 import { t } from "../core/i18n.js";
-import { $, $$, MAX_SESSION_VIEW_CHARS, SESSION_VIEW_PREFIX, renderedHistoryKeys, runtime, sessionMarkup, state, taskDetailLoads, taskDetailsById, taskHistoryBySession, taskHistoryListBySession } from "../core/state.js";
+import { $, $$, MAX_SESSION_VIEW_CHARS, RESUMABLE_TASK_PHASES, SESSION_VIEW_PREFIX, renderedHistoryKeys, runtime, sessionMarkup, state, taskDetailLoads, taskDetailsById, taskHistoryBySession, taskHistoryListBySession } from "../core/state.js";
 import { icon, refreshIcons } from "../icons.js";
 import { captureChatPosition, decorateUserRewindButtons, eventTimelineMarkup, eventTimelineSummary, isSessionBusy, latestTodosFromEvents, phaseLabel, rawOutputMarkup, renderTodoPanel, renderVerification, restoreChatPosition, restoreSessionTask, setConnection, taskMetrics, updateSessionStatus } from "../panels/index.js";
 
@@ -267,11 +267,11 @@ export function taskHistoryMarkup(task) {
         const budget = metrics.budget && typeof metrics.budget === "object" ? metrics.budget : {};
         const answer = String(child.answer || child.error || child.stream_text || "").replace(/\s+/g, " ").trim();
         const evidence = (Array.isArray(child.events) ? child.events : []).filter((event) => event?.summary).slice(-2).map((event) => event.summary).join("；");
-        return `<details class="batch-child"><summary><span class="task-state ${child.status === "completed" ? "success" : ["failed", "cancelled", "interrupted"].includes(child.status) ? "cancelled" : "running"}"></span><strong>${escapeHtml(`${t("batch.task")} ${index + 1}`)}</strong><small>${escapeHtml(`${phaseLabel(child)} · ${budget.turns || 0} turns · ${budget.tool_calls || 0} tools`)}</small><span class="batch-child-chevron">${icon("chevron-down")}</span></summary><div class="batch-child-detail">${answer ? `<p>${escapeHtml(answer.slice(0, 900))}</p>` : ""}${evidence ? `<small>${escapeHtml(evidence.slice(0, 700))}</small>` : ""}</div></details>`;
+        return `<details class="batch-child"><summary><span class="task-state ${child.status === "completed" ? "success" : RESUMABLE_TASK_PHASES.has(child.status) ? "cancelled" : "running"}"></span><strong>${escapeHtml(`${t("batch.task")} ${index + 1}`)}</strong><small>${escapeHtml(`${phaseLabel(child)} · ${budget.turns || 0} turns · ${budget.tool_calls || 0} tools`)}</small><span class="batch-child-chevron">${icon("chevron-down")}</span></summary><div class="batch-child-detail">${answer ? `<p>${escapeHtml(answer.slice(0, 900))}</p>` : ""}${evidence ? `<small>${escapeHtml(evidence.slice(0, 700))}</small>` : ""}</div></details>`;
       }).join("")}</div>`
     : "";
   const execution = executionTrailMarkup(events, task.events || []);
-  return `<article class="message user-message" data-chat-anchor="${taskAnchor}-prompt"><div class="message-meta"><span class="avatar user-avatar">Y</span><strong>${escapeHtml(t("message.you"))}</strong><time>${escapeHtml(task.created_at || t("message.now"))}</time><button type="button" class="rewind-to-here" data-user-index="0">${escapeHtml(t("rewind.toHere"))}</button></div><div class="message-body"><div class="message-text">${formatText(prompt)}</div>${attachments}</div></article><article class="message assistant-message" data-chat-anchor="${taskAnchor}-answer"><div class="message-meta"><span class="avatar agent-avatar">m</span><strong>minicc</strong><span class="agent-label">Agent</span><time>${escapeHtml(task.finished_at || task.created_at || t("message.now"))}</time></div><div class="message-body"><div class="history-result-head"><span class="task-state ${task.status === "completed" ? "success" : ["failed", "cancelled", "interrupted"].includes(task.status) ? "cancelled" : "running"}"></span><strong>${escapeHtml(phaseLabel(task))}</strong><span>${escapeHtml(taskMetrics(task))}</span></div>${execution}<div class="answer-callout">${formatText(answer)}</div>${batchSummary}${rawStream}</div></article>`;
+  return `<article class="message user-message" data-chat-anchor="${taskAnchor}-prompt"><div class="message-meta"><span class="avatar user-avatar">Y</span><strong>${escapeHtml(t("message.you"))}</strong><time>${escapeHtml(task.created_at || t("message.now"))}</time><button type="button" class="rewind-to-here" data-user-index="0">${escapeHtml(t("rewind.toHere"))}</button></div><div class="message-body"><div class="message-text">${formatText(prompt)}</div>${attachments}</div></article><article class="message assistant-message" data-chat-anchor="${taskAnchor}-answer"><div class="message-meta"><span class="avatar agent-avatar">m</span><strong>minicc</strong><span class="agent-label">Agent</span><time>${escapeHtml(task.finished_at || task.created_at || t("message.now"))}</time></div><div class="message-body"><div class="history-result-head"><span class="task-state ${task.status === "completed" ? "success" : RESUMABLE_TASK_PHASES.has(task.status) ? "cancelled" : "running"}"></span><strong>${escapeHtml(phaseLabel(task))}</strong><span>${escapeHtml(taskMetrics(task))}</span></div>${execution}<div class="answer-callout">${formatText(answer)}</div>${batchSummary}${rawStream}</div></article>`;
 }
 
 export function taskHistoryListMarkup(tasks) {
@@ -358,7 +358,7 @@ export function renderSession(sessionId, options = {}) {
 
 export function taskDotClass(status) {
   if (status === "completed") return "mint";
-  if (["failed", "cancelled", "interrupted"].includes(status)) return "amber";
+  if (RESUMABLE_TASK_PHASES.has(status)) return "amber";
   return "coral";
 }
 

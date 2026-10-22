@@ -7,7 +7,7 @@ import { reconcileTimeline } from "../chat/timeline-dom.js";
 import { cacheTaskDetail, cacheSessionView, cachedSessionView, escapeHtml, formatLightText, loadTaskHistory, presetMessageMarkup } from "../chat/markdown.js";
 import { loadChanges } from "../chat/stream.js";
 import { t } from "./i18n.js";
-import { $, MAX_RENDERED_TIMELINE_EVENTS, finalizedTaskIds, liveStreamStates, runningTasks, runtime, state, taskBySession, taskEventSources } from "./state.js";
+import { $, MAX_RENDERED_TIMELINE_EVENTS, TASK_PHASES, TERMINAL_TASK_STATUSES, finalizedTaskIds, liveStreamStates, runningTasks, runtime, state, taskBySession, taskEventSources } from "./state.js";
 import { refreshIcons } from "../icons.js";
 import { addAssistantMessage, addLoadingMessage, applyTaskSnapshot, assistantMessageMarkup, captureChatPosition, compactNumber, eventTimelineMarkup, isCurrentTaskScope, isFocusedTask, liveTaskMarkup, phaseClass, phaseLabel, refreshFileTreeSoon, restoreChatPosition, sessionTaskBindings, setBusy, setTaskTransportStatus, showToast, stopTaskTimer, streamTail, syncTodoPanelFromEvents, taskMetrics, taskSessionKey, updateTaskDock, updateTaskDuration } from "../panels/index.js";
 
@@ -104,8 +104,11 @@ export function updateLiveTask(loadingId, data) {
   }
   const currentPhase = phaseClass(data);
   const phaseText = phaseLabel(data);
-  const phaseClasses = ["queued", "planning", "tool", "answering", "merging", "completed", "failed", "cancelled", "interrupted"];
-  live.classList.remove(...phaseClasses.map((phase) => `live-task-${phase}`));
+  // M8-T370: the phase list has one home (``TASK_PHASES`` in state.js).  It
+  // used to be a hand-written list that did not even know about ``review``,
+  // so a class for a phase that was not on the list was never removed and
+  // the element kept it for the rest of the task's life.
+  live.classList.remove(...[...TASK_PHASES].map((phase) => `live-task-${phase}`));
   live.classList.add(`live-task-${currentPhase}`);
   live.dataset.phase = currentPhase;
   const progress = live.querySelector(".task-progress");
@@ -170,7 +173,9 @@ export function finishLiveTask(loadingId) {
 }
 
 export function isTerminalTask(data) {
-  return ["completed", "failed", "cancelled", "interrupted"].includes(data?.status);
+  // M8-T370: the terminal statuses have one home (state.js), the same
+  // collection the backend publishes as TERMINAL_TASK_STATUSES.
+  return TERMINAL_TASK_STATUSES.has(String(data?.status || ""));
 }
 
 export async function completeTask(loadingId, data) {

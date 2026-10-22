@@ -23797,6 +23797,7 @@ MCP 有两种传输 ✓：**stdio**（本地进程 ✓）与 **http**（远程�
 | **网关畸形输出的形状** | 名字（T335）、id（T356）、参数（T357）、计数器（T358）、帧编号与帧对象（T359）、choices（T334）、usage ✓、finish_reason ✓ | 已列全 ✓ |
 | **这条线的格式约束** | Anthropic 回合必须交替（T360）✓——**注意**：tool_result 回合与其后的 user 回合仍是两条（既有门禁钉住 ✓），若官方确实拒绝连续 user 回合，需连同既有门禁一起重新决定 ✓（**已登记的开放项** ✓） |
 | **两个面的同一件事** | yolo 口径（T353）、中断的结局（T361/T362）、审批预览的脱敏（T363）、工具命令的脱敏（T364） | 已列全 ✓ |
+| **同一份名单的两份抄本** | 前端的 phase 名单（T370 ✓——`api.js` 那份**漏了 `review`** ✓，两份已经漂移 ✓）与终态集合（T370 ✓ 收进 `state.js` ✓） | 已收口 ✓ |
 | **能力声明（capability）** | 远程 MCP 工具必须声明 network（T365）；stdio 服务器的工具不声明（运维方自己的进程 ✓，不是 agent 的出网 ✓） | 已列全 ✓ |
 | **死代码面** | 未使用导入（清了 7 处 ✓）、不可达代码（0 ✓）、恒真断言（0 ✓）、未被任何测试提到的模块（0 ✓）、同名常量的多处定义（`GRADER_DIR_NAME` 已收 ✓；`SKIP_DIRS` 两处口径不同 ✓ 非缺陷 ✓）、**同一模块内的同名顶层定义**（T369 ✓：`session.py` 的 `list_sessions` 修好了 ✓，**全仓普查后已列全** ✓） | 已列全 ✓ |
 | **异常类型逃逸** | 三个"没人按名字接住"的领域异常（`TodoError`/`FetchError`/`StreamProtocolError` ✓） | 都被基类或 handler 兜住 ✓（无实缺陷 ✓） |
@@ -24032,3 +24033,100 @@ Web 侧没有这两条显式命令，上下文压缩由 agent loop 自动按 `co
 
 所以这一类的收口不是"修一个 bug" ✓，而是**把纪律写成类级门禁** ✓——
 让"一个事实一个家"成为**结构上可断言**的性质 ✓，而不是靠每个维护者记得 ✓✓。
+
+
+## 第三百五十四批 — M8-T370 — 前端的 phase 名单也有两个家：漂移已经发生
+
+### 1 缺陷
+
+后端有一个单一事实源 ✓：`minicc/agent/protocol.py` 的 `TERMINAL_TASK_STATUSES` ✓
+（`completed` ✓ / `failed` ✓ / `cancelled` ✓ / `interrupted` ✓），前端也**本来
+已经有一个共享的"家"** ✓——`web/src/core/state.js` 的 `TERMINAL_TASK_STATUSES` ✓
+✓。但**没人问它** ✓。
+
+于是前端各处**手写**自己的名单 ✓，而且**已经漂移** ✓：
+
+| 位置 | 名单 | 问题 |
+| --- | --- | --- |
+| `web/src/core/state.js:78` | 四元组 ✓ | 那个"家" ✓ |
+| `web/src/core/api.js:173` | 四元组 ✓（手写 ✓） | 与家一致 ✓，但是抄的 ✓ |
+| `web/src/chat/stream.js:522/524/585/590` | 三元组 ✓（手写 ✓） | 抄的 ✓ |
+| `web/src/chat/markdown.js:270/274/361` | 三元组 ✓（手写 ✓） | 抄的 ✓ |
+| **`web/src/core/api.js:107`** | **九元组，缺 `review`** ✓ | **抄漏了 ✓** |
+| `web/src/panels/index.js:1059` | 十元组 ✓（含 `review` ✓） | 抄的 ✓ |
+
+`api.js:107` 与 `panels/index.js:1059` 是**同一份 phase 名单的两个副本** ✓，
+而它们**已经不一样**了 ✓：后端**真的会发** `review` 这个 phase ✓
+（`web.py` ✓ 多处 ✓、`agent/loop.py:1874` ✓、`task_manager.py:302` ✓），
+`panels/index.js` 知道 ✓，`api.js` **不知道** ✓。
+
+### 2 这个缺陷会怎样伤到人
+
+`api.js:107` 那份名单的**用途**是"把上一个 phase 的 class 摘掉" ✓：
+
+```js
+live.classList.remove(...phaseClasses.map((phase) => `live-task-${phase}`));
+live.classList.add(`live-task-${currentPhase}`);
+```
+
+**不在名单里的 phase，它的 class 永远摘不掉** ✓。实测（真实 DOM ✓）：
+任务走 `planning` → `review` → `verify` → `tool` → `answering` ✓，
+元素上留下的 class 是 ✓：
+
+```
+['live-task-answering', 'live-task-review', 'live-task-verify']
+```
+
+`live-task-review` 和 `live-task-verify` **永久残留** ✓。
+`styles.css` 里 `.live-task-tool` 与 `.live-task-answering` 设的是**同一个属性**
+✓（phase 线的颜色 ✓，一个蓝一个绿 ✓）✓——所以一旦有规则给 `review`/`verify`
+上色 ✓，**两个互斥的样式会同时生效** ✓，谁赢**由样式表顺序决定** ✓，
+**不由任务状态决定** ✓。
+
+现在"看起来对"是**巧合** ✓（因为 `review`/`verify` 恰好还没被 CSS 用到 ✓），
+不是设计 ✓。
+
+### 3 落地
+
+* **建家** ✓：`web/src/core/state.js` 新增 `TASK_PHASES` ✓（全部 phase ✓）、
+  `RESUMABLE_TASK_PHASES` ✓（可恢复的那三个 ✓）；`TERMINAL_TASK_STATUSES` ✓
+  保持原样 ✓。
+* `core/api.js` ✓：phase 名单改问 `TASK_PHASES` ✓；`isTerminalTask` ✓ 改问
+  `TERMINAL_TASK_STATUSES` ✓。
+* `panels/index.js` ✓：`phaseClass` ✓ 改问 `TASK_PHASES` ✓。
+* `chat/stream.js` ✓ 与 `chat/markdown.js` ✓：可恢复判定 ✓ 改问
+  `RESUMABLE_TASK_PHASES` ✓。
+* **不动的地方** ✓：`stream.js:522` 的**颜色分类** ✓（`cancelled`/`interrupted` ✓）
+  与 `panels/index.js:1440` 的**严重度分级** ✓（含 `error`/`denied` ✓）——
+  它们**是另一个问题** ✓，不是终态集合 ✓，保持原样 ✓（门禁也**如实区分**
+  了它们 ✓，见下 ✓）。
+
+### 4 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T370-149 | 把 `api.js` 退回**手写** phase 名单 ✓（精确复现这条缺陷 ✓） | **2 条红** ✓ |
+
+### 5 新增门禁（2 条，前端 Playwright）
+
+* `tests/frontend_phase_classes_smoke.mjs` ✓：**真实浏览器** ✓，**真实调用**
+  `core/api.js` 的 `updateLiveTask` ✓，把 live-task 元素**按后端真实发出的
+  phase** ✓（名单直接从后端源码读 ✓，不另抄一份 ✓）走一遍 ✓，断言**任何时刻
+  只剩一个 phase class** ✓。
+* `tests/frontend_phase_one_home_smoke.mjs` ✓：类级门禁 ✓——**任何**前端模块
+  都不许**手写**终态集合 ✓ 或 phase 名单 ✓（**源码级** ✓，因为漂移就发生在
+  源码里 ✓，DOM 断言说不出"哪一份抄错了" ✓）；并且后端发的每个 phase ✓
+  **必须**在那个家里 ✓。
+* 两条都接进 CI 的 `js-check` ✓（`npm run test:phase` ✓）。
+
+### 6 一条教训（这一批自己踩了一次，值得写）
+
+**第一版门禁是盲的。** ✓
+
+它读 `state.js` 的共享集合 ✓、然后**自己模拟**一遍 class 操作 ✓——变异把
+`api.js` 的手写名单放回去 ✓，它**照样绿** ✓✓。原因很简单 ✓：**它没有经过
+被修的那条路** ✓。改成"**在真实页面里调用真实的 `updateLiveTask`**"之后 ✓，
+同一份变异立刻变红 ✓✓。
+
+这是老教训的又一次应验 ✓：**门禁必须经过被修的那条路** ✓——
+读一份数据然后自己重算一遍 ✓，永远证明不了**用那份数据的那段代码**是对的 ✓✓。

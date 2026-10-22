@@ -6,7 +6,7 @@ import { captureViewScope, isViewScopeCurrent } from "../core/scope.js";
 import { attachmentMarkup, cacheTaskDetail, escapeHtml, executionTrailMarkup, formatText, loadTaskHistory, persistSessionView, renderSession, sessionViewKey } from "./markdown.js";
 import { applyTaskEvent, completeTask, finishLiveTask, isTerminalTask, pollTask, updateBoundTask, updateLiveTask } from "../core/api.js";
 import { t } from "../core/i18n.js";
-import { $, $$, authHeaders, authQuery, renderedHistoryKeys, runtime, runningTasks, sessionMarkup, state, taskBySession, taskDetailLoads, taskDetailsById, taskEventSources, taskHistoryBySession, taskHistoryListBySession, taskWatchers } from "../core/state.js";
+import { $, $$, authHeaders, authQuery, renderedHistoryKeys, RESUMABLE_TASK_PHASES, runtime, runningTasks, sessionMarkup, state, taskBySession, taskDetailLoads, taskDetailsById, taskEventSources, taskHistoryBySession, taskHistoryListBySession, taskWatchers } from "../core/state.js";
 import { icon, refreshIcons } from "../icons.js";
 import { addAssistantMessage, addLoadingMessage, addUserMessage, bindRunningTask, closeMentionPopover, compactNumber, effectiveTaskPermissions, eventSequence, eventTimelineMarkup, formatDuration, isCurrentTaskScope, isSessionBusy, phaseLabel, refreshFileTree, refreshFileTreeSoon, runtimeMetricsMarkup, sessionTaskBindings, setBusy, setConnection, setSession, setTaskTransportStatus, showAuthModal, showToast, taskDuration, taskMetrics, taskSessionKey, updateReasoningControl, updateTaskDock } from "../panels/index.js";
 
@@ -521,7 +521,7 @@ export function togglePanelFullscreen() {
 export function taskRow(task) {
   const statusClass = task.status === "completed" ? "success" : task.status === "failed" ? "error" : ["cancelled", "interrupted"].includes(task.status) ? "cancelled" : task.status === "queued" ? "queued" : "running";
   const cancel = ["queued", "running"].includes(task.status) ? `<button class="panel-icon-action" data-cancel-task="${escapeHtml(task.task_id)}" title="${t("cancel")}">${icon("square")}</button>` : "";
-  const resume = ["failed", "cancelled", "interrupted"].includes(task.status) ? `<button class="panel-icon-action" data-resume-task="${escapeHtml(task.task_id)}" title="${t("tasks.resume")}">${icon("rotate-ccw")}</button>` : "";
+  const resume = RESUMABLE_TASK_PHASES.has(task.status) ? `<button class="panel-icon-action" data-resume-task="${escapeHtml(task.task_id)}" title="${t("tasks.resume")}">${icon("rotate-ccw")}</button>` : "";
   const phase = phaseLabel(task);
   const streamSize = Number(task.stream_length || String(task.stream_text || "").length);
   const detail = `${phase} · ${formatDuration(taskDuration(task))} · ${streamSize} chars · ${taskMetrics(task)}`;
@@ -582,12 +582,12 @@ export async function openTaskDetail(taskId) {
     const children = Array.isArray(task.child_task_ids) && task.child_task_ids.length
       ? `<div class="task-detail-children">${task.child_task_ids.map((child) => `<button class="panel-session" data-open-task="${escapeHtml(child)}">${escapeHtml(child)}</button>`).join("")}</div>`
       : "";
-    const resume = ["failed", "cancelled", "interrupted"].includes(task.status)
+    const resume = RESUMABLE_TASK_PHASES.has(task.status)
       ? `<button class="panel-primary" data-resume-task="${escapeHtml(task.task_id)}">${t("tasks.resume")}</button>`
       : "";
     const restore = `<button class="panel-secondary" data-restore-task="${escapeHtml(task.task_id)}">${icon("rotate-ccw")} ${escapeHtml(t("restore.action"))}</button>`;
     const attachments = attachmentMarkup(task.attachments || []);
-    openPanel(`${t("tasks.open")} · ${task.task_id}`, `<div class="task-detail"><div class="task-detail-status"><span class="task-state ${task.status === "completed" ? "success" : ["failed", "cancelled", "interrupted"].includes(task.status) ? "cancelled" : "running"}"></span><strong>${escapeHtml(phaseLabel(task))}</strong><span>${escapeHtml(taskMetrics(task))}</span></div><div class="task-detail-actions task-detail-top-actions"><button class="panel-secondary" data-open-task="${escapeHtml(task.task_id)}">${icon("arrow-up-right")} ${escapeHtml(t("tasks.openSession"))}</button>${restore}</div>${runtimeMetricsMarkup(task)}<div class="panel-section-title">${t("workspace.current")}</div><code class="task-detail-path">${escapeHtml(task.workspace_path || "")}</code><div class="panel-section-title">Prompt</div><div class="task-detail-prompt">${formatText(task.prompt || task.preview || "")}</div>${attachments ? `<div class="panel-section-title">Images</div>${attachments}` : ""}<div class="panel-section-title">Response</div><div class="task-detail-answer">${formatText(task.answer || task.stream_text || task.error || "")}</div>${execution ? `<div class="panel-section-title">Tools & stage trace</div>${execution}` : ""}${children}${resume ? `<div class="task-detail-actions">${resume}</div>` : ""}</div>`, { immersive: true });
+    openPanel(`${t("tasks.open")} · ${task.task_id}`, `<div class="task-detail"><div class="task-detail-status"><span class="task-state ${task.status === "completed" ? "success" : RESUMABLE_TASK_PHASES.has(task.status) ? "cancelled" : "running"}"></span><strong>${escapeHtml(phaseLabel(task))}</strong><span>${escapeHtml(taskMetrics(task))}</span></div><div class="task-detail-actions task-detail-top-actions"><button class="panel-secondary" data-open-task="${escapeHtml(task.task_id)}">${icon("arrow-up-right")} ${escapeHtml(t("tasks.openSession"))}</button>${restore}</div>${runtimeMetricsMarkup(task)}<div class="panel-section-title">${t("workspace.current")}</div><code class="task-detail-path">${escapeHtml(task.workspace_path || "")}</code><div class="panel-section-title">Prompt</div><div class="task-detail-prompt">${formatText(task.prompt || task.preview || "")}</div>${attachments ? `<div class="panel-section-title">Images</div>${attachments}` : ""}<div class="panel-section-title">Response</div><div class="task-detail-answer">${formatText(task.answer || task.stream_text || task.error || "")}</div>${execution ? `<div class="panel-section-title">Tools & stage trace</div>${execution}` : ""}${children}${resume ? `<div class="task-detail-actions">${resume}</div>` : ""}</div>`, { immersive: true });
   } catch (error) {
     if (!current()) return;
     openPanel(t("tasks.open"), `<div class="error-panel">${escapeHtml(error.message)}</div>`);

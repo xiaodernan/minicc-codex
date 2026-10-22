@@ -76,6 +76,27 @@ export const taskHistoryBySession = new Map();
 export const taskHistoryListBySession = new Map();
 export const SESSION_VIEW_PREFIX = SESSION_CACHE_PREFIX;
 export const TERMINAL_TASK_STATUSES = new Set(["completed", "failed", "cancelled", "interrupted"]);
+// M8-T370: the phases the backend can report.  The backend emits more than
+// the four terminal statuses: ``review`` (the review stage), ``verify``,
+// ``repair``, ``execution`` and ``permission`` are all real phases, and the
+// live-task element carries one CSS class per phase.  The list used to be
+// written out by hand in two places, and the two copies had already drifted
+// - one knew about ``review`` and the other did not - so a class for a
+// phase that was never listed was never removed, and the element kept
+// ``live-task-review`` for the rest of the task's life.  One home.
+export const TASK_PHASES = new Set([
+  "queued", "planning", "tool", "answering", "review", "merging",
+  "verify", "repair", "execution", "permission",
+  "completed", "failed", "cancelled", "interrupted",
+]);
+// The phases that mean "the task is still doing something" - the ones the
+// live-task element styles as in-flight.
+export const ACTIVE_TASK_PHASES = new Set([
+  "queued", "planning", "tool", "answering", "review", "merging",
+  "verify", "repair", "execution", "permission",
+]);
+// The phases that ended without an answer, so the task can be resumed.
+export const RESUMABLE_TASK_PHASES = new Set(["failed", "cancelled", "interrupted"]);
 export const MAX_SESSION_VIEW_CHARS = 180_000;
 export const MAX_SEEN_EVENT_KEYS = 2048;
 export const MAX_RENDERED_TIMELINE_EVENTS = 240;

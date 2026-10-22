@@ -135,6 +135,23 @@
   var taskHistoryListBySession = /* @__PURE__ */ new Map();
   var SESSION_VIEW_PREFIX = SESSION_CACHE_PREFIX;
   var TERMINAL_TASK_STATUSES = /* @__PURE__ */ new Set(["completed", "failed", "cancelled", "interrupted"]);
+  var TASK_PHASES = /* @__PURE__ */ new Set([
+    "queued",
+    "planning",
+    "tool",
+    "answering",
+    "review",
+    "merging",
+    "verify",
+    "repair",
+    "execution",
+    "permission",
+    "completed",
+    "failed",
+    "cancelled",
+    "interrupted"
+  ]);
+  var RESUMABLE_TASK_PHASES = /* @__PURE__ */ new Set(["failed", "cancelled", "interrupted"]);
   var MAX_SESSION_VIEW_CHARS = 18e4;
   var MAX_SEEN_EVENT_KEYS = 2048;
   var MAX_RENDERED_TIMELINE_EVENTS = 240;
@@ -1528,8 +1545,7 @@
     }
     const currentPhase = phaseClass(data);
     const phaseText = phaseLabel(data);
-    const phaseClasses = ["queued", "planning", "tool", "answering", "merging", "completed", "failed", "cancelled", "interrupted"];
-    live.classList.remove(...phaseClasses.map((phase) => `live-task-${phase}`));
+    live.classList.remove(...[...TASK_PHASES].map((phase) => `live-task-${phase}`));
     live.classList.add(`live-task-${currentPhase}`);
     live.dataset.phase = currentPhase;
     const progress = live.querySelector(".task-progress");
@@ -1587,7 +1603,7 @@
     taskEventSources.delete(loadingId);
   }
   function isTerminalTask(data) {
-    return ["completed", "failed", "cancelled", "interrupted"].includes(data?.status);
+    return TERMINAL_TASK_STATUSES.has(String(data?.status || ""));
   }
   async function completeTask(loadingId, data) {
     const taskId = data.task_id;
@@ -2128,7 +2144,7 @@
   function taskRow(task) {
     const statusClass = task.status === "completed" ? "success" : task.status === "failed" ? "error" : ["cancelled", "interrupted"].includes(task.status) ? "cancelled" : task.status === "queued" ? "queued" : "running";
     const cancel = ["queued", "running"].includes(task.status) ? `<button class="panel-icon-action" data-cancel-task="${escapeHtml(task.task_id)}" title="${t("cancel")}">${icon("square")}</button>` : "";
-    const resume = ["failed", "cancelled", "interrupted"].includes(task.status) ? `<button class="panel-icon-action" data-resume-task="${escapeHtml(task.task_id)}" title="${t("tasks.resume")}">${icon("rotate-ccw")}</button>` : "";
+    const resume = RESUMABLE_TASK_PHASES.has(task.status) ? `<button class="panel-icon-action" data-resume-task="${escapeHtml(task.task_id)}" title="${t("tasks.resume")}">${icon("rotate-ccw")}</button>` : "";
     const phase = phaseLabel(task);
     const streamSize = Number(task.stream_length || String(task.stream_text || "").length);
     const detail = `${phase} \xB7 ${formatDuration(taskDuration(task))} \xB7 ${streamSize} chars \xB7 ${taskMetrics(task)}`;
@@ -2183,10 +2199,10 @@
       const events = Array.isArray(task.events) ? eventTimelineMarkup(task.events) : "";
       const execution = executionTrailMarkup(events, task.events || []);
       const children = Array.isArray(task.child_task_ids) && task.child_task_ids.length ? `<div class="task-detail-children">${task.child_task_ids.map((child) => `<button class="panel-session" data-open-task="${escapeHtml(child)}">${escapeHtml(child)}</button>`).join("")}</div>` : "";
-      const resume = ["failed", "cancelled", "interrupted"].includes(task.status) ? `<button class="panel-primary" data-resume-task="${escapeHtml(task.task_id)}">${t("tasks.resume")}</button>` : "";
+      const resume = RESUMABLE_TASK_PHASES.has(task.status) ? `<button class="panel-primary" data-resume-task="${escapeHtml(task.task_id)}">${t("tasks.resume")}</button>` : "";
       const restore = `<button class="panel-secondary" data-restore-task="${escapeHtml(task.task_id)}">${icon("rotate-ccw")} ${escapeHtml(t("restore.action"))}</button>`;
       const attachments = attachmentMarkup(task.attachments || []);
-      openPanel(`${t("tasks.open")} \xB7 ${task.task_id}`, `<div class="task-detail"><div class="task-detail-status"><span class="task-state ${task.status === "completed" ? "success" : ["failed", "cancelled", "interrupted"].includes(task.status) ? "cancelled" : "running"}"></span><strong>${escapeHtml(phaseLabel(task))}</strong><span>${escapeHtml(taskMetrics(task))}</span></div><div class="task-detail-actions task-detail-top-actions"><button class="panel-secondary" data-open-task="${escapeHtml(task.task_id)}">${icon("arrow-up-right")} ${escapeHtml(t("tasks.openSession"))}</button>${restore}</div>${runtimeMetricsMarkup(task)}<div class="panel-section-title">${t("workspace.current")}</div><code class="task-detail-path">${escapeHtml(task.workspace_path || "")}</code><div class="panel-section-title">Prompt</div><div class="task-detail-prompt">${formatText(task.prompt || task.preview || "")}</div>${attachments ? `<div class="panel-section-title">Images</div>${attachments}` : ""}<div class="panel-section-title">Response</div><div class="task-detail-answer">${formatText(task.answer || task.stream_text || task.error || "")}</div>${execution ? `<div class="panel-section-title">Tools & stage trace</div>${execution}` : ""}${children}${resume ? `<div class="task-detail-actions">${resume}</div>` : ""}</div>`, { immersive: true });
+      openPanel(`${t("tasks.open")} \xB7 ${task.task_id}`, `<div class="task-detail"><div class="task-detail-status"><span class="task-state ${task.status === "completed" ? "success" : RESUMABLE_TASK_PHASES.has(task.status) ? "cancelled" : "running"}"></span><strong>${escapeHtml(phaseLabel(task))}</strong><span>${escapeHtml(taskMetrics(task))}</span></div><div class="task-detail-actions task-detail-top-actions"><button class="panel-secondary" data-open-task="${escapeHtml(task.task_id)}">${icon("arrow-up-right")} ${escapeHtml(t("tasks.openSession"))}</button>${restore}</div>${runtimeMetricsMarkup(task)}<div class="panel-section-title">${t("workspace.current")}</div><code class="task-detail-path">${escapeHtml(task.workspace_path || "")}</code><div class="panel-section-title">Prompt</div><div class="task-detail-prompt">${formatText(task.prompt || task.preview || "")}</div>${attachments ? `<div class="panel-section-title">Images</div>${attachments}` : ""}<div class="panel-section-title">Response</div><div class="task-detail-answer">${formatText(task.answer || task.stream_text || task.error || "")}</div>${execution ? `<div class="panel-section-title">Tools & stage trace</div>${execution}` : ""}${children}${resume ? `<div class="task-detail-actions">${resume}</div>` : ""}</div>`, { immersive: true });
     } catch (error) {
       if (!current()) return;
       openPanel(t("tasks.open"), `<div class="error-panel">${escapeHtml(error.message)}</div>`);
@@ -3464,7 +3480,7 @@
   function phaseClass(data) {
     const status = String(data?.status || "").toLowerCase();
     const value = TERMINAL_TASK_STATUSES.has(status) || status === "queued" ? status : String(data?.phase || data?.status || "planning").toLowerCase();
-    return ["queued", "planning", "tool", "answering", "review", "merging", "completed", "failed", "cancelled", "interrupted"].includes(value) ? value : "planning";
+    return TASK_PHASES.has(value) ? value : "planning";
   }
   function compactNumber(value) {
     const number = Number(value || 0);
@@ -4387,10 +4403,10 @@
       const budget = metrics.budget && typeof metrics.budget === "object" ? metrics.budget : {};
       const answer2 = String(child.answer || child.error || child.stream_text || "").replace(/\s+/g, " ").trim();
       const evidence = (Array.isArray(child.events) ? child.events : []).filter((event) => event?.summary).slice(-2).map((event) => event.summary).join("\uFF1B");
-      return `<details class="batch-child"><summary><span class="task-state ${child.status === "completed" ? "success" : ["failed", "cancelled", "interrupted"].includes(child.status) ? "cancelled" : "running"}"></span><strong>${escapeHtml(`${t("batch.task")} ${index + 1}`)}</strong><small>${escapeHtml(`${phaseLabel(child)} \xB7 ${budget.turns || 0} turns \xB7 ${budget.tool_calls || 0} tools`)}</small><span class="batch-child-chevron">${icon("chevron-down")}</span></summary><div class="batch-child-detail">${answer2 ? `<p>${escapeHtml(answer2.slice(0, 900))}</p>` : ""}${evidence ? `<small>${escapeHtml(evidence.slice(0, 700))}</small>` : ""}</div></details>`;
+      return `<details class="batch-child"><summary><span class="task-state ${child.status === "completed" ? "success" : RESUMABLE_TASK_PHASES.has(child.status) ? "cancelled" : "running"}"></span><strong>${escapeHtml(`${t("batch.task")} ${index + 1}`)}</strong><small>${escapeHtml(`${phaseLabel(child)} \xB7 ${budget.turns || 0} turns \xB7 ${budget.tool_calls || 0} tools`)}</small><span class="batch-child-chevron">${icon("chevron-down")}</span></summary><div class="batch-child-detail">${answer2 ? `<p>${escapeHtml(answer2.slice(0, 900))}</p>` : ""}${evidence ? `<small>${escapeHtml(evidence.slice(0, 700))}</small>` : ""}</div></details>`;
     }).join("")}</div>` : "";
     const execution = executionTrailMarkup(events, task.events || []);
-    return `<article class="message user-message" data-chat-anchor="${taskAnchor}-prompt"><div class="message-meta"><span class="avatar user-avatar">Y</span><strong>${escapeHtml(t("message.you"))}</strong><time>${escapeHtml(task.created_at || t("message.now"))}</time><button type="button" class="rewind-to-here" data-user-index="0">${escapeHtml(t("rewind.toHere"))}</button></div><div class="message-body"><div class="message-text">${formatText(prompt)}</div>${attachments}</div></article><article class="message assistant-message" data-chat-anchor="${taskAnchor}-answer"><div class="message-meta"><span class="avatar agent-avatar">m</span><strong>minicc</strong><span class="agent-label">Agent</span><time>${escapeHtml(task.finished_at || task.created_at || t("message.now"))}</time></div><div class="message-body"><div class="history-result-head"><span class="task-state ${task.status === "completed" ? "success" : ["failed", "cancelled", "interrupted"].includes(task.status) ? "cancelled" : "running"}"></span><strong>${escapeHtml(phaseLabel(task))}</strong><span>${escapeHtml(taskMetrics(task))}</span></div>${execution}<div class="answer-callout">${formatText(answer)}</div>${batchSummary}${rawStream}</div></article>`;
+    return `<article class="message user-message" data-chat-anchor="${taskAnchor}-prompt"><div class="message-meta"><span class="avatar user-avatar">Y</span><strong>${escapeHtml(t("message.you"))}</strong><time>${escapeHtml(task.created_at || t("message.now"))}</time><button type="button" class="rewind-to-here" data-user-index="0">${escapeHtml(t("rewind.toHere"))}</button></div><div class="message-body"><div class="message-text">${formatText(prompt)}</div>${attachments}</div></article><article class="message assistant-message" data-chat-anchor="${taskAnchor}-answer"><div class="message-meta"><span class="avatar agent-avatar">m</span><strong>minicc</strong><span class="agent-label">Agent</span><time>${escapeHtml(task.finished_at || task.created_at || t("message.now"))}</time></div><div class="message-body"><div class="history-result-head"><span class="task-state ${task.status === "completed" ? "success" : RESUMABLE_TASK_PHASES.has(task.status) ? "cancelled" : "running"}"></span><strong>${escapeHtml(phaseLabel(task))}</strong><span>${escapeHtml(taskMetrics(task))}</span></div>${execution}<div class="answer-callout">${formatText(answer)}</div>${batchSummary}${rawStream}</div></article>`;
   }
   function taskHistoryListMarkup(tasks) {
     return (Array.isArray(tasks) ? [...tasks].reverse() : []).map((task) => taskHistoryMarkup(task)).join("");
@@ -4468,7 +4484,7 @@
   }
   function taskDotClass(status) {
     if (status === "completed") return "mint";
-    if (["failed", "cancelled", "interrupted"].includes(status)) return "amber";
+    if (RESUMABLE_TASK_PHASES.has(status)) return "amber";
     return "coral";
   }
   function renderTaskHistory(tasks) {

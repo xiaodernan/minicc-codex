@@ -5,7 +5,7 @@ import { attachmentMarkup, escapeHtml, executionTrailMarkup, formatBytes, format
 import { openPanel, openTaskInWorkspace } from "../chat/stream.js";
 import { isTerminalTask, updateLiveTask } from "../core/api.js";
 import { t } from "../core/i18n.js";
-import { $, $$, AUTH_STORAGE_KEY, MAX_RENDERED_TIMELINE_EVENTS, MAX_SEEN_EVENT_KEYS, TERMINAL_TASK_STATUSES, finalizedTaskIds, runningTasks, runtime, state, taskBySession, taskTimerHandles } from "../core/state.js";
+import { $, $$, AUTH_STORAGE_KEY, MAX_RENDERED_TIMELINE_EVENTS, MAX_SEEN_EVENT_KEYS, TASK_PHASES, TERMINAL_TASK_STATUSES, finalizedTaskIds, runningTasks, runtime, state, taskBySession, taskTimerHandles } from "../core/state.js";
 import { icon, refreshIcons } from "../icons.js";
 
 export function showToast(message) {
@@ -1056,7 +1056,9 @@ export function phaseClass(data) {
   const value = TERMINAL_TASK_STATUSES.has(status) || status === "queued"
     ? status
     : String(data?.phase || data?.status || "planning").toLowerCase();
-  return ["queued", "planning", "tool", "answering", "review", "merging", "completed", "failed", "cancelled", "interrupted"].includes(value) ? value : "planning";
+  // M8-T370: the phase list has one home (state.js).  This copy already
+  // knew about ``review``; the one in api.js did not, and the two drifted.
+  return TASK_PHASES.has(value) ? value : "planning";
 }
 
 export function compactNumber(value) {
