@@ -786,6 +786,23 @@ def _report_keys_this_transport_never_reads(config: McpServerConfig, entry: dict
         )
 
 
+def mcp_capabilities(config: McpServerConfig) -> tuple[str, ...]:
+    """The capabilities an MCP server's tools carry (M8-T365).
+
+    A **remote** server (``http`` transport) is reached over the network -
+    the call itself crosses it - so the network gate has to see those
+    tools.  The bridge registered every MCP tool with no capability at
+    all, so a task that was never granted the network could still send
+    its request to a remote MCP server: the gate did not see the tool as
+    a network tool, so it never asked.
+
+    A local (``stdio``) server is a process the operator started on this
+    machine; its own behaviour is the operator's trust, not the agent's
+    egress, so those tools keep declaring nothing.
+    """
+    return ("network",) if config.transport == McpHttpClient.TRANSPORT else ()
+
+
 class McpManager:
     def __init__(self, workspace: Path) -> None:
         self.workspace = workspace
@@ -935,6 +952,10 @@ class McpManager:
                     (),
                     lambda args, c=client, n=name: c.call_tool(n, args),
                     input_schema=schema,
+                    # M8-T365: a remote server is a network tool - the call
+                    # crosses the network, so the gate has to be able to see
+                    # that (the bridge used to declare nothing at all).
+                    capabilities=mcp_capabilities(config),
                 ))
         return specs
 
