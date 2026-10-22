@@ -19,6 +19,15 @@ from typing import Any
 
 TASK_STATUSES = frozenset({"queued", "running", "completed", "failed", "cancelled", "interrupted"})
 TERMINAL_TASK_STATUSES = frozenset({"completed", "failed", "cancelled", "interrupted"})
+#: The statuses that mean "the task has not finished yet" - the third
+#: question about a task's state, and the one that had no name.
+#:
+#: M8-T372: this fact was written out by hand in **twelve** places (seven in
+#: the backend, five in the frontend) and every copy had to spell
+#: ``{"queued", "running"}`` correctly.  The two other facts already had
+#: names right here, and this one is *derivable* from them - so it is
+#: derived, rather than written down a twelfth time.
+ACTIVE_TASK_STATUSES = frozenset(TASK_STATUSES - TERMINAL_TASK_STATUSES)
 
 # A terminal state is immutable.  In particular, a late provider callback may
 # finish after cancellation, but it cannot turn the task green again.
@@ -221,6 +230,7 @@ def validate_status_transition(current: str, target: str) -> None:
 
 
 __all__ = [
+    "ACTIVE_TASK_STATUSES",
     "ALLOWED_STATUS_TRANSITIONS",
     "CancellationToken",
     "EventLog",

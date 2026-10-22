@@ -6,7 +6,7 @@ import { captureViewScope, isViewScopeCurrent } from "../core/scope.js";
 import { attachmentMarkup, cacheTaskDetail, escapeHtml, executionTrailMarkup, formatText, loadTaskHistory, persistSessionView, renderSession, sessionViewKey } from "./markdown.js";
 import { applyTaskEvent, completeTask, finishLiveTask, isTerminalTask, pollTask, updateBoundTask, updateLiveTask } from "../core/api.js";
 import { t } from "../core/i18n.js";
-import { $, $$, authHeaders, authQuery, renderedHistoryKeys, RESUMABLE_TASK_PHASES, runtime, runningTasks, sessionMarkup, state, taskBySession, taskDetailLoads, taskDetailsById, taskEventSources, taskHistoryBySession, taskHistoryListBySession, taskWatchers } from "../core/state.js";
+import { $, $$, ACTIVE_TASK_STATUSES, authHeaders, authQuery, renderedHistoryKeys, RESUMABLE_TASK_PHASES, runtime, runningTasks, sessionMarkup, state, taskBySession, taskDetailLoads, taskDetailsById, taskEventSources, taskHistoryBySession, taskHistoryListBySession, taskWatchers } from "../core/state.js";
 import { icon, refreshIcons } from "../icons.js";
 import { addAssistantMessage, addLoadingMessage, addUserMessage, bindRunningTask, closeMentionPopover, compactNumber, effectiveTaskPermissions, eventSequence, eventTimelineMarkup, formatDuration, isCurrentTaskScope, isSessionBusy, phaseLabel, refreshFileTree, refreshFileTreeSoon, runtimeMetricsMarkup, sessionTaskBindings, setBusy, setConnection, setSession, setTaskTransportStatus, showAuthModal, showToast, taskDuration, taskMetrics, taskSessionKey, updateReasoningControl, updateTaskDock } from "../panels/index.js";
 
@@ -379,7 +379,7 @@ export async function loadWorkspace() {
       const loadedTasks = await historyReady;
       if (version !== runtime.workspaceVersion || workspacePath !== state.workspacePath) return;
       const tasks = Array.isArray(loadedTasks) ? loadedTasks : [];
-      const activeTasks = tasks.filter((item) => ["queued", "running"].includes(item.status));
+      const activeTasks = tasks.filter((item) => ACTIVE_TASK_STATUSES.has(item.status));
       for (const task of [...activeTasks].reverse()) {
         if (runningTasks.has(task.task_id)) continue;
         const sessionId = String(task.session_id || task.task_id);
@@ -520,7 +520,7 @@ export function togglePanelFullscreen() {
 
 export function taskRow(task) {
   const statusClass = task.status === "completed" ? "success" : task.status === "failed" ? "error" : ["cancelled", "interrupted"].includes(task.status) ? "cancelled" : task.status === "queued" ? "queued" : "running";
-  const cancel = ["queued", "running"].includes(task.status) ? `<button class="panel-icon-action" data-cancel-task="${escapeHtml(task.task_id)}" title="${t("cancel")}">${icon("square")}</button>` : "";
+  const cancel = ACTIVE_TASK_STATUSES.has(task.status) ? `<button class="panel-icon-action" data-cancel-task="${escapeHtml(task.task_id)}" title="${t("cancel")}">${icon("square")}</button>` : "";
   const resume = RESUMABLE_TASK_PHASES.has(task.status) ? `<button class="panel-icon-action" data-resume-task="${escapeHtml(task.task_id)}" title="${t("tasks.resume")}">${icon("rotate-ccw")}</button>` : "";
   const phase = phaseLabel(task);
   const streamSize = Number(task.stream_length || String(task.stream_text || "").length);

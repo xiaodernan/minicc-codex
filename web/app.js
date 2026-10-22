@@ -135,6 +135,17 @@
   var taskHistoryListBySession = /* @__PURE__ */ new Map();
   var SESSION_VIEW_PREFIX = SESSION_CACHE_PREFIX;
   var TERMINAL_TASK_STATUSES = /* @__PURE__ */ new Set(["completed", "failed", "cancelled", "interrupted"]);
+  var TASK_STATUSES = /* @__PURE__ */ new Set([
+    "queued",
+    "running",
+    "completed",
+    "failed",
+    "cancelled",
+    "interrupted"
+  ]);
+  var ACTIVE_TASK_STATUSES = new Set(
+    [...TASK_STATUSES].filter((status) => !TERMINAL_TASK_STATUSES.has(status))
+  );
   var TASK_PHASES = /* @__PURE__ */ new Set([
     "queued",
     "planning",
@@ -2028,7 +2039,7 @@
           const loadedTasks = await historyReady;
           if (version !== runtime.workspaceVersion || workspacePath !== state.workspacePath) return;
           const tasks = Array.isArray(loadedTasks) ? loadedTasks : [];
-          const activeTasks = tasks.filter((item) => ["queued", "running"].includes(item.status));
+          const activeTasks = tasks.filter((item) => ACTIVE_TASK_STATUSES.has(item.status));
           for (const task of [...activeTasks].reverse()) {
             if (runningTasks.has(task.task_id)) continue;
             const sessionId = String(task.session_id || task.task_id);
@@ -2157,7 +2168,7 @@
   }
   function taskRow(task) {
     const statusClass = task.status === "completed" ? "success" : task.status === "failed" ? "error" : ["cancelled", "interrupted"].includes(task.status) ? "cancelled" : task.status === "queued" ? "queued" : "running";
-    const cancel = ["queued", "running"].includes(task.status) ? `<button class="panel-icon-action" data-cancel-task="${escapeHtml(task.task_id)}" title="${t("cancel")}">${icon("square")}</button>` : "";
+    const cancel = ACTIVE_TASK_STATUSES.has(task.status) ? `<button class="panel-icon-action" data-cancel-task="${escapeHtml(task.task_id)}" title="${t("cancel")}">${icon("square")}</button>` : "";
     const resume = RESUMABLE_TASK_PHASES.has(task.status) ? `<button class="panel-icon-action" data-resume-task="${escapeHtml(task.task_id)}" title="${t("tasks.resume")}">${icon("rotate-ccw")}</button>` : "";
     const phase = phaseLabel(task);
     const streamSize = Number(task.stream_length || String(task.stream_text || "").length);
@@ -2718,7 +2729,7 @@
   }
   function taskDuration(data) {
     const stored = Number(data?.duration_seconds);
-    if (data?.started_at && ["queued", "running"].includes(data.status)) {
+    if (data?.started_at && ACTIVE_TASK_STATUSES.has(data.status)) {
       const started = Date.parse(data.started_at);
       if (Number.isFinite(started)) return Math.max(0, (Date.now() - started) / 1e3);
     }
@@ -3591,7 +3602,7 @@
     if (String(data.session_id || "") === state.sessionId && (!data.workspace_path || !state.workspacePath || taskSessionKey(data.session_id, data.workspace_path) === taskSessionKey(state.sessionId, state.workspacePath))) {
       updateSessionStatus(data);
     }
-    if (["queued", "running"].includes(data.status) && data.task_id) startTaskTimer(data.task_id);
+    if (ACTIVE_TASK_STATUSES.has(data.status) && data.task_id) startTaskTimer(data.task_id);
   }
   function updateSessionStatus(data) {
     const badge = $("#sessionLiveBadge");
@@ -3604,7 +3615,7 @@
     }
     const status = String(data?.status || "running").toLowerCase();
     const terminal = TERMINAL_TASK_STATUSES.has(status);
-    badge.dataset.status = terminal ? status : ["queued", "running"].includes(status) ? status : "running";
+    badge.dataset.status = terminal ? status : ACTIVE_TASK_STATUSES.has(status) ? status : "running";
     badge.classList.toggle("terminal", terminal);
     badge.classList.toggle("queued", status === "queued");
     label.textContent = terminal || status === "queued" ? phaseLabel(data) : t("live");

@@ -76,6 +76,17 @@ export const taskHistoryBySession = new Map();
 export const taskHistoryListBySession = new Map();
 export const SESSION_VIEW_PREFIX = SESSION_CACHE_PREFIX;
 export const TERMINAL_TASK_STATUSES = new Set(["completed", "failed", "cancelled", "interrupted"]);
+// M8-T372: the task statuses, mirroring ``TASK_STATUSES`` in
+// ``minicc/agent/protocol.py``.  The "still running" question used to be
+// written out by hand in five places in this tree as well as seven in the
+// backend; it is derived here from the two facts that already have names,
+// exactly as the backend derives it.
+export const TASK_STATUSES = new Set([
+  "queued", "running", "completed", "failed", "cancelled", "interrupted",
+]);
+export const ACTIVE_TASK_STATUSES = new Set(
+  [...TASK_STATUSES].filter((status) => !TERMINAL_TASK_STATUSES.has(status)),
+);
 // M8-T370: the phases the backend can report.  The backend emits more than
 // the four terminal statuses: ``review`` (the review stage), ``verify``,
 // ``repair``, ``execution`` and ``permission`` are all real phases, and the

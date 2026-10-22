@@ -129,6 +129,7 @@ from .webserver import MiniccHTTPServer, MiniccRequestHandler  # noqa: F401 - re
 from .workspaces import WorkspaceCatalog, resolve_workspace_path
 
 from .task_manager import (  # noqa: F401 - re-export for tests and AgentService
+    ACTIVE_TASK_STATUSES,
     CHANGE_INTENT_MARKERS,
     COMPLETION_WRITE_TOOLS,
     DEFAULT_TASK_COMPACTION_LIMIT,
@@ -673,7 +674,7 @@ class AgentService:
             "created_at_epoch": record.get("created_at_epoch"),
             "created_at": _iso(float(record["created_at_epoch"])) if record.get("created_at_epoch") else None,
             "status": latest.get("status", "idle") if latest else "idle",
-            "active": bool(latest and latest.get("status") in {"queued", "running"}),
+            "active": bool(latest and latest.get("status") in ACTIVE_TASK_STATUSES),
             "turn_ids": [item["turn_id"] for item in turns],
             "turns": turns,
         }

@@ -5,7 +5,7 @@ import { attachmentMarkup, escapeHtml, executionTrailMarkup, formatBytes, format
 import { openPanel, openTaskInWorkspace } from "../chat/stream.js";
 import { isTerminalTask, updateLiveTask } from "../core/api.js";
 import { t } from "../core/i18n.js";
-import { $, $$, AUTH_STORAGE_KEY, MAX_RENDERED_TIMELINE_EVENTS, MAX_SEEN_EVENT_KEYS, TASK_PHASES, TERMINAL_TASK_STATUSES, finalizedTaskIds, runningTasks, runtime, state, taskBySession, taskTimerHandles } from "../core/state.js";
+import { $, $$, ACTIVE_TASK_STATUSES, AUTH_STORAGE_KEY, MAX_RENDERED_TIMELINE_EVENTS, MAX_SEEN_EVENT_KEYS, TASK_PHASES, TERMINAL_TASK_STATUSES, finalizedTaskIds, runningTasks, runtime, state, taskBySession, taskTimerHandles } from "../core/state.js";
 import { icon, refreshIcons } from "../icons.js";
 
 export function showToast(message) {
@@ -184,7 +184,7 @@ export function formatDuration(value) {
 
 export function taskDuration(data) {
   const stored = Number(data?.duration_seconds);
-  if (data?.started_at && ["queued", "running"].includes(data.status)) {
+  if (data?.started_at && ACTIVE_TASK_STATUSES.has(data.status)) {
     const started = Date.parse(data.started_at);
     if (Number.isFinite(started)) return Math.max(0, (Date.now() - started) / 1000);
   }
@@ -1169,7 +1169,7 @@ export function updateTaskDock(data) {
   if (String(data.session_id || "") === state.sessionId && (!data.workspace_path || !state.workspacePath || taskSessionKey(data.session_id, data.workspace_path) === taskSessionKey(state.sessionId, state.workspacePath))) {
     updateSessionStatus(data);
   }
-  if (["queued", "running"].includes(data.status) && data.task_id) startTaskTimer(data.task_id);
+  if (ACTIVE_TASK_STATUSES.has(data.status) && data.task_id) startTaskTimer(data.task_id);
 }
 
 export function updateSessionStatus(data) {
@@ -1180,7 +1180,7 @@ export function updateSessionStatus(data) {
   if (!data) { label.textContent = t("inspector.ready"); return; }
   const status = String(data?.status || "running").toLowerCase();
   const terminal = TERMINAL_TASK_STATUSES.has(status);
-  badge.dataset.status = terminal ? status : ["queued", "running"].includes(status) ? status : "running";
+  badge.dataset.status = terminal ? status : ACTIVE_TASK_STATUSES.has(status) ? status : "running";
   badge.classList.toggle("terminal", terminal);
   badge.classList.toggle("queued", status === "queued");
   label.textContent = terminal || status === "queued" ? phaseLabel(data) : t("live");

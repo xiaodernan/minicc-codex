@@ -38,6 +38,7 @@ from .agent.protocol import (
     CancellationToken,
     EventLog,
     InvalidStatusTransition,
+    ACTIVE_TASK_STATUSES,
     TERMINAL_TASK_STATUSES,
     validate_status_transition,
 )
@@ -219,7 +220,7 @@ def _duration_seconds(started_at: float | None, finished_at: float | None, statu
     if started_at is None:
         return 0.0
     end = finished_at
-    if end is None and status in {"queued", "running"}:
+    if end is None and status in ACTIVE_TASK_STATUSES:
         end = time.time()
     if end is None:
         end = started_at
@@ -972,11 +973,11 @@ class TaskRecord:
         if not raw_status:
             phase = "interrupted"
             error = "任务记录缺少终态，按中断处理，可重新运行。"
-        elif status not in TERMINAL_TASK_STATUSES and status not in {"queued", "running"}:
+        elif status not in TERMINAL_TASK_STATUSES and status not in ACTIVE_TASK_STATUSES:
             status = "interrupted"
             phase = "interrupted"
             error = f"未知任务状态 {raw_status!r}，按中断处理，可重新运行。"
-        if status in {"queued", "running"}:
+        if status in ACTIVE_TASK_STATUSES:
             status = "interrupted"
             phase = "interrupted"
             error = "服务重启时任务被中断，可重新运行。"
@@ -1113,7 +1114,7 @@ class TaskManager:
             for snapshot in self.store.load():
                 task = TaskRecord.from_snapshot(snapshot)
                 self.tasks[task.task_id] = task
-                if snapshot.get("status") in {"running", "queued"} and has_live_worker(self.store, snapshot):
+                if snapshot.get("status") in ACTIVE_TASK_STATUSES and has_live_worker(self.store, snapshot):
                     # Inspect the original durable lease before rewriting a
                     # running record as interrupted. The worker owns writes.
                     task.status = "running"
@@ -2612,7 +2613,7 @@ class TaskManager:
     def has_active(self, workspace_path: str) -> bool:
         with self.lock:
             return any(
-                _path_key(task.workspace_path) == _path_key(workspace_path) and task.status in {"queued", "running"}
+                _path_key(task.workspace_path) == _path_key(workspace_path) and task.status in ACTIVE_TASK_STATUSES
                 for task in self.tasks.values()
             )
 
@@ -2894,7 +2895,7 @@ class TaskManager:
             if task.task_id in self._detached_tasks:
                 task.event_log.close()
                 continue
-            if task.status in {"queued", "running"}:
+            if task.status in ACTIVE_TASK_STATUSES:
                 task.request_cancel("service_shutdown")
                 try:
                     self._persist_task(task, force=True)
