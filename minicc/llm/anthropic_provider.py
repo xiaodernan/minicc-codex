@@ -33,7 +33,7 @@ try:  # httpx ships with the OpenAI SDK dependency; keep the import guarded.
 except ModuleNotFoundError:  # pragma: no cover - depends on the HTTP stack.
     httpx = None  # type: ignore[assignment]
 
-from .base import LLMResponse, is_nameless_tool_name, unique_tool_call_id
+from .base import LLMResponse, as_dict, is_nameless_tool_name, safe_int, unique_tool_call_id
 from .usage import token_count
 from ..tools.schemas import tool_call_name
 
@@ -96,7 +96,7 @@ def convert_user_content(content: Any) -> Any:
         if kind == "text":
             blocks.append({"type": "text", "text": str(item.get("text") or "")})
         elif kind == "image_url":
-            source = _split_data_url(str((item.get("image_url") or {}).get("url") or ""))
+            source = _split_data_url(str(as_dict(item.get("image_url")).get("url") or ""))
             if source is not None:
                 blocks.append({"type": "image", "source": source})
         else:  # unknown block: degrade to text instead of failing the run
@@ -532,12 +532,12 @@ async def _consume_anthropic_sse(response: Any, on_delta: Any, emitted: dict[str
                 continue
             kind = str(event.get("type") or "")
             if kind == "message_start":
-                message = event.get("message") or {}
+                message = as_dict(event.get("message"))
                 model = str(message.get("model") or model)
-                usage.update(message.get("usage") or {})
+                usage.update(as_dict(message.get("usage")))
             elif kind == "content_block_start":
-                index = int(event.get("index") or 0)
-                block = event.get("content_block") or {}
+                index = safe_int(event.get("index"), 0)
+                block = as_dict(event.get("content_block"))
                 if block.get("type") == "tool_use":
                     tools[index] = {
                         "id": str(block.get("id") or ""),
@@ -545,7 +545,7 @@ async def _consume_anthropic_sse(response: Any, on_delta: Any, emitted: dict[str
                         "json": "",
                     }
             elif kind == "content_block_delta":
-                delta = event.get("delta") or {}
+                delta = as_dict(event.get("delta"))
                 delta_type = str(delta.get("type") or "")
                 if delta_type == "text_delta":
                     text = str(delta.get("text") or "")
@@ -554,12 +554,12 @@ async def _consume_anthropic_sse(response: Any, on_delta: Any, emitted: dict[str
                         on_delta(text)
                         text_parts.append(text)
                 elif delta_type == "input_json_delta":
-                    index = int(event.get("index") or 0)
+                    index = safe_int(event.get("index"), 0)
                     if index in tools:
                         tools[index]["json"] += str(delta.get("partial_json") or "")
             elif kind == "message_delta":
-                stop_reason = str((event.get("delta") or {}).get("stop_reason") or stop_reason)
-                usage.update(event.get("usage") or {})
+                stop_reason = str(as_dict(event.get("delta")).get("stop_reason") or stop_reason)
+                usage.update(as_dict(event.get("usage")))
             elif kind == "error":
                 err = event.get("error") or event
                 raise AnthropicProviderError(f"Anthropic stream error: {err}")

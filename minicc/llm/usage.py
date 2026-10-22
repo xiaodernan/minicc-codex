@@ -6,6 +6,8 @@ from collections.abc import Iterable, Mapping
 from math import isfinite
 from typing import Any
 
+from .base import safe_int
+
 
 USAGE_TOKEN_KEYS = (
     "prompt_tokens",
@@ -47,10 +49,7 @@ def token_count(value: Any, default: int | None = None) -> int | None:
     still reads as a number ✓ - so the only change is that a value that
     cannot be read no longer raises.
     """
-    try:
-        return int(value)
-    except (TypeError, ValueError, OverflowError):
-        return default
+    return safe_int(value, default)
 
 
 def cache_summary(usage: Mapping[str, Any] | None) -> dict[str, Any]:

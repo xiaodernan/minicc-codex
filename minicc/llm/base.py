@@ -39,6 +39,32 @@ class NonTerminalModelTurn(RuntimeError):
     """A model turn ended without a terminal finish_reason."""
 
 
+def safe_int(value: Any, default: int | None = None) -> int | None:
+    """Read an integer a gateway may have sent malformed.
+
+    M8-T359: the Anthropic stream's framing fields (``index``) were read
+    with a bare ``int(...)`` - so a gateway that mangled the framing raised
+    TypeError and killed the whole turn, while the other wire simply
+    retried.  One home: every wire reader asks it.  ``default=None`` means
+    "not reported"; pass 0 for a field that is simply absent.
+    """
+    try:
+        return int(value)
+    except (TypeError, ValueError, OverflowError):
+        return default
+
+
+def as_dict(value: Any) -> dict[str, Any]:
+    """Read an object a gateway may have sent as something else.
+
+    M8-T359: the JSON path already skipped a block that was not an object
+    ("if not isinstance(block, dict): continue"), while the stream path
+    called ``.get`` on whatever arrived - so a list in place of a block
+    raised AttributeError and killed the turn.  One home, both readers.
+    """
+    return value if isinstance(value, dict) else {}
+
+
 def unique_tool_call_id(raw_id: str, fallback: str, seen: set[str] | None = None) -> str:
     """Return a non-empty, unique tool_call id for one response.
 
