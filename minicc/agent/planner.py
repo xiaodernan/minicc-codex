@@ -13,7 +13,14 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
-from .graph import DAGPlan, GraphValidationError, PlanTask, READONLY_DAG_TOOLS, fixed_plan
+from .graph import (
+    DAGPlan,
+    GraphValidationError,
+    PlanTask,
+    READONLY_DAG_TOOLS,
+    WRITE_DAG_TOOLS,
+    fixed_plan,
+)
 
 
 # M8-T340: "which tools may a plan use" had **four** hand-written copies, and
@@ -35,7 +42,11 @@ from .graph import DAGPlan, GraphValidationError, PlanTask, READONLY_DAG_TOOLS, 
 # ceiling and the prompt's list are derived from the kinds, so they cannot
 # drift again.
 READONLY_PLANNER_TOOLS = READONLY_DAG_TOOLS
-WRITE_PLANNER_TOOLS = frozenset({"write_file", "edit_file"})
+# M8-T377: the write tier is the executor's own list, re-exported the same
+# way the readonly one is - so the tier the planner validates against and
+# the tier the fixed templates grant cannot drift apart.  It used to be a
+# fourth hand-written copy of the same two names.
+WRITE_PLANNER_TOOLS = WRITE_DAG_TOOLS
 EXEC_PLANNER_TOOLS = READONLY_PLANNER_TOOLS | frozenset({"bash"})
 
 PLANNER_KINDS = frozenset({"readonly", "write", "exec", "review", "merge"})

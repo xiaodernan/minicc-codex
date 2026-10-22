@@ -33,6 +33,18 @@ class GraphValidationError(ValueError):
 READONLY_DAG_KINDS = frozenset({"readonly", "review", "merge"})
 READONLY_DAG_TOOLS = frozenset({"read_file", "grep", "git_status", "git_diff"})
 
+# M8-T377: the tool lists the **fixed templates** grant to their nodes.  The
+# readonly boundary above is the executor's hard limit; these two are what a
+# template's own node may use.  They were written out by hand at every
+# template site - the inspect list three times and the write list twice -
+# and the planner's own write tier was a *fourth* copy of the same two names
+# in another module.  The fallback plan is built without going through the
+# planner's validation, so nothing compared the two copies: they could
+# disagree about what a write node may do, and the fallback would quietly
+# be the odd one out.
+INSPECT_DAG_TOOLS = frozenset({"read_file", "grep", "git_status"})
+WRITE_DAG_TOOLS = frozenset({"write_file", "edit_file"})
+
 
 @dataclass(frozen=True)
 class GraphNode:
@@ -378,25 +390,25 @@ def fixed_plan(name: str, *, task_count: int = 0) -> DAGPlan:
     """Build one of the bounded templates described in the roadmap."""
     if name == "inspect_summarize":
         tasks = (
-            PlanTask("inspect", "readonly", allowed_tools=frozenset({"read_file", "grep", "git_status"})),
+            PlanTask("inspect", "readonly", allowed_tools=INSPECT_DAG_TOOLS),
             PlanTask("summarize", "readonly", depends_on=("inspect",)),
         )
     elif name == "inspect_implement_verify":
         tasks = (
-            PlanTask("inspect", "readonly", allowed_tools=frozenset({"read_file", "grep", "git_status"})),
-            PlanTask("implement", "write", depends_on=("inspect",), allowed_tools=frozenset({"write_file", "edit_file"})),
+            PlanTask("inspect", "readonly", allowed_tools=INSPECT_DAG_TOOLS),
+            PlanTask("implement", "write", depends_on=("inspect",), allowed_tools=WRITE_DAG_TOOLS),
             PlanTask("verify", "exec", depends_on=("implement",), allowed_tools=frozenset({"bash", "git_diff"})),
             PlanTask("summarize", "readonly", depends_on=("verify",)),
         )
     elif name == "parallel_inspect":
         count = max(1, min(16, int(task_count)))
         scans = tuple(
-            PlanTask(f"inspect-{index}", "readonly", allowed_tools=frozenset({"read_file", "grep", "git_status"}))
+            PlanTask(f"inspect-{index}", "readonly", allowed_tools=INSPECT_DAG_TOOLS)
             for index in range(1, count + 1)
         )
         tasks = scans + (
             PlanTask("merge", "readonly", depends_on=tuple(task.id for task in scans)),
-            PlanTask("implement", "write", depends_on=("merge",), allowed_tools=frozenset({"write_file", "edit_file"})),
+            PlanTask("implement", "write", depends_on=("merge",), allowed_tools=WRITE_DAG_TOOLS),
             PlanTask("verify", "exec", depends_on=("implement",), allowed_tools=frozenset({"bash", "git_diff"})),
             PlanTask("summarize", "readonly", depends_on=("verify",)),
         )
