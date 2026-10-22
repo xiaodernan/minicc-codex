@@ -30,6 +30,32 @@ RECORD_CLIP_NOTICE = "… [记录截断：以上只入库前 {kept} 字符，其
 _CLIP_NOTICE_STEPS = 8
 
 TOOL_RESULT_STATUSES = ("ok", "error", "denied", "cancelled", "timed_out")
+#: The statuses that mean "this call did not do what it was asked to do".
+#:
+#: M8-T376: the agent loop asked this question **twice** and wrote the answer
+#: out by hand both times - and the hand-written answer carried a member
+#: (``failed``) that no tool result can ever carry, so it was a promise
+#: nobody could keep.  It is derived from the vocabulary above instead, so a
+#: status that does not exist cannot creep in, and a status that is added
+#: later is picked up automatically.
+#:
+#: ``cancelled`` is deliberately **not** one of them: a cancelled call means
+#: the task is being torn down, not that the model should try something
+#: else.  That is why the exclusion is spelled out here rather than left to
+#: whoever copies the list next.
+FAILED_TOOL_RESULT_STATUSES = frozenset(
+    status for status in TOOL_RESULT_STATUSES if status not in {"ok", "cancelled"}
+)
+#: The statuses that mean "this call did not succeed" - the whole non-ok
+#: part of the vocabulary.
+#:
+#: M8-T376: the stagnation guard asked *this* question with a third
+#: hand-written copy of the answer.  It is a different question from the one
+#: above (a cancelled call did not succeed, even though it is not a failure
+#: the model should retry), and it now has its own home.
+UNSUCCESSFUL_TOOL_RESULT_STATUSES = frozenset(
+    status for status in TOOL_RESULT_STATUSES if status != "ok"
+)
 
 
 def _clip_notice(kept: int, dropped: int, total: int) -> str:

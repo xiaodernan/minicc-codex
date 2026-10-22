@@ -47,7 +47,14 @@ from ..audit import (
     path_rule_denies_call,
     tool_denied_by_rule,
 )
-from ..tools.schemas import ToolCall, ToolResult, normalized_tool_calls, tool_call_name
+from ..tools.schemas import (
+    FAILED_TOOL_RESULT_STATUSES,
+    UNSUCCESSFUL_TOOL_RESULT_STATUSES,
+    ToolCall,
+    ToolResult,
+    normalized_tool_calls,
+    tool_call_name,
+)
 from ..tools.registry import ToolRegistry, redact_text
 from ..hooks import payloads_for_result, payloads_for_tool_call
 from .context import (
@@ -471,7 +478,10 @@ def _replan_constraints(*, verification_required: bool, feedback: list[dict[str,
     failed_tools = [
         str(item.get("tool") or "tool")
         for item in feedback
-        if str(item.get("status") or "") in {"error", "failed", "denied", "timed_out"}
+        # M8-T376: the failed statuses have one home (tools/schemas.py), so
+        # the constraint text below and the replan trigger further down cannot
+        # disagree about which calls failed.
+        if str(item.get("status") or "") in FAILED_TOOL_RESULT_STATUSES
     ]
     if failed_tools:
         constraints.append(f"上一轮有失败或被阻止的工具：{', '.join(failed_tools[:6])}")
@@ -1594,7 +1604,8 @@ async def run_agent(
             failed_tools = [
                 str(item.get("tool") or "tool")
                 for item in round_feedback
-                if str(item.get("status") or "") in {"error", "failed", "denied", "timed_out"}
+                # M8-T376: the same home as the constraint text above.
+                if str(item.get("status") or "") in FAILED_TOOL_RESULT_STATUSES
             ]
             feedback_constraints = _replan_constraints(
                 verification_required=verification_required,
@@ -1967,7 +1978,7 @@ def _is_unproductive_result(result: ToolResult) -> bool:
     roadmap is full of them) counted as a round without progress - and two
     such rounds tripped the stagnation guard on work that was moving.
     """
-    if result.status in {"error", "denied", "cancelled", "timed_out"}:
+    if result.status in UNSUCCESSFUL_TOOL_RESULT_STATUSES:
         return True
     summary = str(result.summary or "").lower()
     return any(marker in summary for marker in (
