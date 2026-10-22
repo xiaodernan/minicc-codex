@@ -23914,4 +23914,49 @@ CI 有两条腿 ✓：Windows ✓ 与 Ubuntu ✓。本轮去看远端 CI 的实�
 
 "**只在另一条腿上才炸**"已经连续两批（T366/T367）✓，形态却不同 ✓：一个是**导入**
 ✓，一个是**清理** ✓。共同的收口方式是一样的 ✓——**把纪律写成类级门禁** ✓，而不是
-等下一次在另一条腿上重新发现 ✓✓。
+等下一次在另一条腿上重新发现 ✓✓.
+
+
+## 第三百五十二批 — M8-T368 — `/compact` 与 `/collapse` 语义分家：压缩上下文 vs 折叠工具输出
+
+### 1 缺陷
+
+CLI REPL 里 `/compact` 与 `/collapse` **长期行为完全相同**：都只调 `view.set_compact(True)` 折叠工具输出显示 ✗。
+名字却暗示两种不同语义：
+- `compact` = **压缩上下文**（把旧轮次压缩成检查点摘要，节省 token 预算）
+- `collapse` = **折叠显示**（仅 UI 折叠工具输出，不改变对话上下文）
+
+Web 侧没有这两条显式命令，上下文压缩由 agent loop 自动按 `compact_threshold` 触发 ✓。
+两面口径不一致，且 CLI 里两条命令**实际无差别** ✗。
+
+### 2 落地
+
+* **`/compact`**：改为手动触发上下文压缩 ✓。在 REPL 处理器里调用 `compact_with_checkpoint(messages, threshold=config.compact_threshold)`：
+  - 若触发：用压缩后的消息替换 `messages`，保存会话，报告 `before/after tokens` 与归档轮数 ✓；
+  - 未触发：报告当前字符数与阈值 ✓。
+* **`/collapse`**：保持原样，仅 `view.set_compact(True)` 折叠工具输出显示 ✓。
+* **`/expand [n]`**：保持原样，仅 `view.expand(...)` 展开工具输出 ✓。
+* 更新 `BUILTIN_HELP_LINE` 与 `--verbose-tools` 帮助文本，明确区分两条命令语义 ✓。
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T368-147 | 把 `/compact` 处理器退回只调 `view.set_compact(True)`（与 `/collapse` 行为相同）✓ | 1 条红 ✓（静态分析门禁 `test_repl_compact_handler_source_contains_compaction_call` 捕获） |
+
+### 4 新增门禁
+
+`tests/test_the_cli_compact_triggers_context_compaction.py`（8 条）：
+1. `compact_with_checkpoint` 阈值上触发压缩、阈值下不触发 ✓
+2. `/collapse` 仅调 `view.set_compact` 不碰消息 ✓
+3. `/compact` 与 `/collapse` 都出现在帮助行且语义区分 ✓
+4. `/expand` 只逆向 `/collapse` 的 UI 折叠，不逆向 `/compact` 的压缩 ✓
+5. **静态分析门禁**：`_interactive` 里 `/compact` 分支必须包含 `compact_with_checkpoint` 调用 ✓（源码级结构断言，变异即红）
+
+### 5 一条教训
+
+**同名不同义、同义不同名都是债。** ✓
+
+`/compact` 与 `/collapse` 长期共用一套实现，导致用户无法手动触发上下文压缩（只能等自动触发），且帮助文本误导 ✗。
+修复的关键是**把语义边界钉在代码里**，并用**源码静态分析门禁**守住：只要 `/compact` 分支里不再调用 `compact_with_checkpoint`，门禁即红 ✓。
+这比运行时断言更早拦截回归，且不依赖特定测试场景 ✓✓。

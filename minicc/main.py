@@ -10,6 +10,7 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any, Callable, NoReturn
 
+from .agent.context import compact_with_checkpoint, message_chars
 from .agent.loop import TurnResult, build_tool_feedback, run_agent
 from .agent.router import StageRouter, StageRoute
 from .agent.state import Budget, BudgetExceeded
@@ -217,7 +218,7 @@ def _parser() -> argparse.ArgumentParser:
         "默认/plan 模式下子代理保持只读（M6-T1）",
     )
     parser.add_argument("--no-stream", action="store_true", help="关闭流式输出")
-    parser.add_argument("--verbose-tools", action="store_true", help="默认展开工具输出；可在交互中用 /compact 切回摘要")
+    parser.add_argument("--verbose-tools", action="store_true", help="默认展开工具输出；可在交互中用 /collapse 切回折叠")
     parser.add_argument("--resume", action="store_true", help="恢复上次保存的会话")
     parser.add_argument(
         "--list-sessions",
@@ -573,7 +574,11 @@ async def _turn(
 
 # The single line /help prints. Every command the REPL dispatches below must
 # appear here — tests/test_slash_commands.py pins this against the README list.
-BUILTIN_HELP_LINE = "/help  /tools  /status  /view  /compact  /collapse  /expand [n]  /clear  /cost  /exit"
+BUILTIN_HELP_LINE = (
+    "/help  /tools  /status  /view  "
+    "/compact (压缩上下文)  /collapse (折叠工具输出)  /expand [n]  "
+    "/clear  /cost  /exit"
+)
 
 
 async def _interactive(
@@ -672,10 +677,32 @@ async def _interactive(
                 cli_out("非会话模式无累计成本")
             continue
         if prompt == "/compact":
-            if view is not None:
-                view.set_compact(True)
+            # M8-T368: /compact triggers actual context compaction (summarizes old turns
+            # into a checkpoint), not just UI folding. Returns the compaction result.
+            before_chars = message_chars(messages)
+            compacted, checkpoint = compact_with_checkpoint(
+                messages, threshold=config.compact_threshold
+            )
+            if checkpoint is not None:
+                messages[:] = compacted
+                if session is not None:
+                    session.save(messages)
+                after_chars = message_chars(messages)
+                cli_out(
+                    f"上下文已压缩：约 {before_chars // 4} → {after_chars // 4} tokens "
+                    f"(保留最近 {checkpoint['archive']['messages'] - len(compacted) + 6} 轮，"
+                    f"归档了 {checkpoint['archive']['messages']} 条消息)"
+                )
+            else:
+                current = message_chars(messages)
+                cli_out(
+                    f"未触发压缩：当前约 {current} chars，阈值 {config.compact_threshold} chars。"
+                    "用 /status 查看配置，或调整 --compact-threshold。"
+                )
             continue
         if prompt == "/collapse":
+            # M8-T368: /collapse is UI-only — folds tool output display, does not
+            # touch the conversation context.
             if view is not None:
                 view.set_compact(True)
             continue
