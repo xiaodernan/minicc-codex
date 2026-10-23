@@ -21,7 +21,7 @@ from urllib.parse import parse_qs, unquote, urlsplit
 from .allowlist import AllowlistError
 from .changes import ChangeError
 from .logging_setup import get_logger, redact
-from .mcp import McpError
+from .mcp import McpError, mcp_absent_status
 from .session import SessionError
 from .snapshots import SnapshotError
 from .task_store import TERMINAL_TASK_STATUSES
@@ -404,7 +404,7 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
                 self._fail(400, str(exc), exc=exc)
             return
         if path == "/api/mcp":
-            self._json(self.server.service.mcp.status() if self.server.service.mcp else {"configured": 0, "error": self.server.service.mcp_error})
+            self._json(self.server.service.mcp.status() if self.server.service.mcp else mcp_absent_status(self.server.service.mcp_error))
             return
         if path == "/api/allowlist":
             query = parse_qs(parsed.query)

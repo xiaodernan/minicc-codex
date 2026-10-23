@@ -121,7 +121,7 @@ from .logging_setup import (
 )
 from .snapshots import SnapshotError, SnapshotJournal, exists as workspace_snapshot_exists, restore as restore_workspace_snapshot
 from .llm.usage import add_usage_totals, cache_summary, estimated_usage
-from .mcp import McpError, McpManager
+from .mcp import McpError, McpManager, mcp_absent_status
 from .prompt import build_system_prompt
 from .sandbox import SandboxRunner
 from .session import SessionError, SessionStore, list_sessions
@@ -1247,7 +1247,7 @@ class AgentService:
             "model": self.config.model,
             "endpoint": self.config.base_url,
             "sandbox": self.sandbox.status(),
-            "mcp": self.mcp.status() if self.mcp else {"configured": 0, "error": self.mcp_error},
+            "mcp": self.mcp.status() if self.mcp else mcp_absent_status(self.mcp_error),
             "permissions": {
                 "default": "full" if self.config.yolo else "per_task",
                 "host_commands": self.sandbox.status().get("backend") == "host",

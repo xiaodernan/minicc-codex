@@ -263,6 +263,18 @@ def load_mcp_config(workspace: Path) -> list[McpServerConfig]:
     return configs
 
 
+def mcp_absent_status(error: str) -> dict[str, Any]:
+    """The one shape of the MCP status when there is no manager at all.
+
+    Two surfaces spell it by hand - the workspace info payload and the
+    ``/api/mcp`` route.  ``configured`` is zero because there is no
+    roster; the error says why the manager never came up.  A key one
+    copy forgets is a surface that reports "MCP is fine" while the
+    manager failed to start.
+    """
+    return {"configured": 0, "error": error}
+
+
 def _client_info() -> dict[str, str]:
     """The one shape of minicc's identity as an MCP client.
 
