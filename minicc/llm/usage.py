@@ -25,6 +25,29 @@ CACHE_TOKEN_KEYS = (
 )
 
 
+def measured_usage(
+    prompt_tokens: int, completion_tokens: int, total_tokens: int | None = None
+) -> dict[str, Any]:
+    """The three-key shape of a usage record the gateway actually reported.
+
+    The sibling of ``estimated_usage``: same three counters, but these came
+    off a wire instead of being counted locally.  ``total`` defaults to the
+    sum of its parts because that is what every writer meant by it - the
+    fake provider's fixture rows spell the arithmetic out in a comment and
+    the Anthropic normalizer adds the total on a second line, and a row
+    whose total disagrees with its parts is a lie the cost pipeline bills
+    without complaint.
+    """
+    return {
+        "prompt_tokens": prompt_tokens,
+        "completion_tokens": completion_tokens,
+        "total_tokens": (
+            total_tokens if total_tokens is not None
+            else prompt_tokens + completion_tokens
+        ),
+    }
+
+
 def estimated_usage(prompt_tokens: int, completion_tokens: int) -> dict[str, Any]:
     """The four-key shape of an estimated usage record.
 
@@ -33,12 +56,7 @@ def estimated_usage(prompt_tokens: int, completion_tokens: int) -> dict[str, Any
     outside the loop).  A key one side forgets is a usage record the
     aggregation reads as a missing field.
     """
-    return {
-        "prompt_tokens": prompt_tokens,
-        "completion_tokens": completion_tokens,
-        "total_tokens": prompt_tokens + completion_tokens,
-        "estimated": True,
-    }
+    return {**measured_usage(prompt_tokens, completion_tokens), "estimated": True}
 
 
 def _number(value: Any) -> int | float | None:

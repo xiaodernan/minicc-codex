@@ -34,7 +34,7 @@ except ModuleNotFoundError:  # pragma: no cover - depends on the HTTP stack.
     httpx = None  # type: ignore[assignment]
 
 from .base import LLMResponse, as_dict, is_nameless_tool_name, safe_int, tool_call, unique_tool_call_id
-from .usage import token_count
+from .usage import measured_usage, token_count
 from ..tools.schemas import tool_call_name
 from ..trace import trace_event
 
@@ -251,11 +251,9 @@ def _normalize_usage(usage: dict[str, Any] | None) -> dict[str, Any]:
     output_tokens = token_count(usage.get("output_tokens"), 0) or 0
     cache_read = token_count(usage.get("cache_read_input_tokens"), 0) or 0
     cache_write = token_count(usage.get("cache_creation_input_tokens"), 0) or 0
-    normalized: dict[str, Any] = {
-        "prompt_tokens": input_tokens + cache_read + cache_write,
-        "completion_tokens": output_tokens,
-    }
-    normalized["total_tokens"] = normalized["prompt_tokens"] + output_tokens
+    normalized: dict[str, Any] = measured_usage(
+        input_tokens + cache_read + cache_write, output_tokens
+    )
     normalized["prompt_cache_miss_tokens"] = input_tokens
     # M8-T326: Anthropic's ``input_tokens`` is the **miss** side (the tokens
     # that were not read from the cache), so the hit side is known to be

@@ -27001,3 +27001,66 @@ census 门问「这个形状有几家」之前 ✓，先要能回答「**这个�
 键集合 + 嵌套结构合起来才是指纹 ✓，单个标志键只是**姓** ✓。
 这条与 T410 的「≤6 键排除报表行」是同一条纪律的第三次出现 ✓：
 **门的精确度 ✓，决定门能活多久** ✓。
+
+
+## 第三百九十七批 — M8-T413 — 计量用量记录六个家：`total = p + c` 的不变量只活在注释里
+
+### 1 缺陷
+
+**计量用量记录**（网关真实回报的 ✓）是三个键 ✓：`prompt_tokens` ✓ /
+`completion_tokens` ✓ / `total_tokens` ✓。全包 **6 个手写家** ✓：
+
+| 位置 | 形态 |
+| --- | --- |
+| `openai_provider.py` `_parse_usage` ✓ | 零值兜底 `{0,0,0}` ✓ |
+| `openai_provider.py` `_parse_usage` ✓ | 归一化记录 ✓ |
+| `anthropic_provider.py` `_normalize_usage` ✓ | 两键 + **第二行单独赋** `total` ✓ |
+| `fake.py` `_FAKE_USAGE` ✓ ×3 | 常量表三行 ✓（注释写着「totals are the sum of their parts」✓） |
+
+`total = prompt + completion` 这个不变量 ✓，**六处各自手工维持** ✓——
+fake 表甚至只在注释里声明 ✓。一行 total 与它的两部分不符 ✓，
+成本管线**照单计费** ✓，不报错 ✓。
+
+### 2 落地
+
+* `minicc/llm/usage.py` ✓ 立 `measured_usage(prompt_tokens, completion_tokens,
+  total_tokens=None)` ✓：total 缺省为两部分之和 ✓（网关单独回报 total 时
+  以它为准 ✓）。
+* **T409 的 `estimated_usage` 改为从它派生** ✓：`{**measured_usage(p, c),
+  "estimated": True}` ✓——三个计数器是一个事实 ✓，estimated 旗标是
+  叠加上层 ✓，四键记录从此只有**一个**写出点 ✓。
+* 六处全部收口 ✓；`_FAKE_USAGE` 三行常量改为构造器调用 ✓，**数值逐字节
+  不变** ✓（120/20/140 ✓、150/30/180 ✓、200/25/225 ✓）。
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T413-200 | `_parse_usage` 零值兜底退回行内 | 1 条红（census 2 处 ✓） |
+| M8-T413-201 | `_FAKE_USAGE` 的 judge 行退回行内 | 1 条红（census 2 处 ✓） |
+
+### 4 新增门禁
+
+`tests/test_the_measured_usage_have_one_home.py`（4 条）✓：
+
+1. 家的行为 ✓：三键 ✓、缺省 total 为和 ✓、**显式 total 优先** ✓
+2. T409 的四键记录仍从三家派生 ✓（`estimated is True` ✓）
+3. 三个发射模块都出现 `measured_usage` ✓
+4. census ✓：三键字面量**恰好一处** ✓且在家 ✓
+
+**既有门跟着加强** ✓：T409 门的 census 从「四键字面量恰好一处」改为
+「**零处**手写四键字面量 + 家必须含派生式」✓——派生比手写更强 ✓，
+门的断言跟着变强 ✓，不是跟着变松 ✓。
+
+聚焦回归 ✓：两扇 usage 门 + wire/provider/成本面 12 文件 65 条 ✓ +
+core_task/core_agent/benchmark_runner 99 条 ✓，共 164 条 ✓，全绿 ✓。
+全量 pytest 未跑 ✓。
+
+### 5 一条教训
+
+**注释声明的不变量，等于没有不变量。** ✓ fake 表那句「totals are the
+sum of their parts」写了三年 ✓（比喻 ✓），三行数据照样可以改忘一行 ✓。
+把不变量**搬进构造器** ✓之后 ✓，想写错得先绕开家 ✓——而绕开家的那一刻 ✓
+census 门就红了 ✓。这一批还示范了**家的派生** ✓：四键记录不必自己存一份
+三键 ✓，`{**three_key_home(...), flag}` ✓ 让上层形状建立在下层形状之上 ✓——
+家的层次 ✓（计数器 → 计量记录 → 估算记录 ✓）比家的并列更难漂移 ✓。

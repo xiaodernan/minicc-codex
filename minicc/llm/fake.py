@@ -13,6 +13,7 @@ import re
 from typing import Any
 
 from .base import LLMResponse, tool_call
+from .usage import measured_usage
 from ..trace import trace_event
 
 
@@ -20,10 +21,10 @@ from ..trace import trace_event
 # tokens_used → benchmark cost_per_success_usd) is observable without a real
 # model. Split into prompt/completion so cache-discount math has something to
 # bite on; totals are the sum of their parts.
-_FAKE_USAGE: dict[str, dict[str, int]] = {
-    "tool": {"prompt_tokens": 120, "completion_tokens": 20, "total_tokens": 140},
-    "answer": {"prompt_tokens": 150, "completion_tokens": 30, "total_tokens": 180},
-    "judge": {"prompt_tokens": 200, "completion_tokens": 25, "total_tokens": 225},
+_FAKE_USAGE: dict[str, dict[str, Any]] = {
+    "tool": measured_usage(120, 20),
+    "answer": measured_usage(150, 30),
+    "judge": measured_usage(200, 25),
 }
 
 

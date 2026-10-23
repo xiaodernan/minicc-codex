@@ -45,6 +45,11 @@ def test_no_module_writes_the_four_keys_by_hand() -> None:
     families; here the risk is the opposite one - a reader that builds the
     dict inline and quietly forgets a key the aggregator later reads as a
     missing field.
+
+    M8-T413: the home stopped spelling the four keys as one literal and
+    derives them from the three-key ``measured_usage`` plus the flag, which
+    is strictly stronger - so the census now demands *zero* hand-written
+    four-key literals anywhere, and the derived form in the home.
     """
     offenders: list[str] = []
     for path in sorted(PACKAGE.rglob("*.py")):
@@ -63,7 +68,12 @@ def test_no_module_writes_the_four_keys_by_hand() -> None:
             }
             if len(node.keys) >= 3 and keys == FIELDS:
                 offenders.append(f"{relative}:{node.lineno}")
-    assert len(offenders) == 1 and offenders[0].startswith(HOME + ":"), (
-        "the estimated usage record is spelled inline outside its one builder: "
-        + ", ".join(offenders)
+    assert not offenders, (
+        "the estimated usage record is spelled by hand outside its one "
+        "builder: " + ", ".join(offenders)
+    )
+    home_source = (REPO / HOME).read_text(encoding="utf-8")
+    assert "{**measured_usage(" in home_source and '"estimated": True' in home_source, (
+        "the four-key record must be derived from the three-key home plus "
+        "the flag, not spelled out"
     )

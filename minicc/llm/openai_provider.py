@@ -61,7 +61,7 @@ from ..trace import trace_event
 from ..logging_setup import log_provider_event
 from .envelope import EnvelopeParseError, _render_envelope_action, envelope_system_suffix, parse_envelope
 from .stream_merge import AttemptTextAssembler, merge_retry_snapshot
-from .usage import cache_summary, token_count
+from .usage import cache_summary, measured_usage, token_count
 
 _RETRYABLE = (
     RateLimitError,
@@ -372,7 +372,7 @@ def _read_field(obj: Any, name: str, default: Any = None) -> Any:
 
 def _parse_usage(usage: Any) -> dict[str, Any]:
     if usage is None:
-        parsed = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+        parsed = measured_usage(0, 0)
         parsed.update(cache_summary(parsed))
         return parsed
     # M8-T358: the gateway's counters are untrusted input.  The totals used
@@ -391,11 +391,7 @@ def _parse_usage(usage: Any) -> dict[str, Any]:
     total_tokens = token_count(_read_field(usage, "total_tokens", 0), 0) or 0
     if not total_tokens:
         total_tokens = (prompt_tokens or 0) + (completion_tokens or 0)
-    parsed: dict[str, Any] = {
-        "prompt_tokens": prompt_tokens,
-        "completion_tokens": completion_tokens,
-        "total_tokens": total_tokens,
-    }
+    parsed: dict[str, Any] = measured_usage(prompt_tokens, completion_tokens, total_tokens)
     prompt_details = _read_field(usage, "prompt_tokens_details")
     input_details = _read_field(usage, "input_tokens_details")
 
