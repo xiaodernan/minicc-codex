@@ -33,7 +33,28 @@ from .agent.loop import AgentCancelled
 from .agent.protocol import PHASE_CARRYING_EVENT_KINDS
 from .logging_setup import get_logger, log_task_event, register_secret
 from .task_store import TaskStore
-from .task_contract import TASK_SCHEMA_VERSION, TaskRequest, TaskResult
+from .task_contract import (
+    ALLOW_CHANGES_FLAG,
+    ALLOW_NETWORK_FLAG,
+    CANCEL_FILE_FLAG,
+    CONFIG_FILE_FLAG,
+    CONFIG_JSON_FLAG,
+    CONFIG_STDIN_FLAG,
+    FAKE_PROVIDER_FLAG,
+    LEASE_OWNER_FLAG,
+    MESSAGE_FLAG,
+    MODEL_FLAG,
+    PERMISSION_MODE_FLAG,
+    REASONING_EFFORT_FLAG,
+    REQUEST_FILE_FLAG,
+    SESSION_ID_FLAG,
+    STORE_PATH_FLAG,
+    TASK_ID_FLAG,
+    TASK_SCHEMA_VERSION,
+    TaskRequest,
+    TaskResult,
+    WORKSPACE_FLAG,
+)
 from .llm.usage import add_usage_totals
 
 LOG = get_logger("worker")
@@ -438,23 +459,23 @@ def _run_owned_worker(args: argparse.Namespace, workspace: Path, store: TaskStor
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="minicc-task-worker", description="Run one minicc task in a detached process")
-    parser.add_argument("--workspace", required=True)
-    parser.add_argument("--task-id", required=True)
-    parser.add_argument("--session-id", default="web-latest")
-    parser.add_argument("--message", required=True)
-    parser.add_argument("--store-path", default=None, help="SQLite path; defaults to <workspace>/.minicc/tasks.sqlite3")
-    parser.add_argument("--cancel-file", default=None, help="Poll this file; its creation cancels the task")
-    parser.add_argument("--config-json", default=None, help="Inline service config (tests only); defaults to load_config()")
-    parser.add_argument("--config-file", default=None, help="Path to a 0600 JSON config written by the web worker launcher")
-    parser.add_argument("--config-stdin", action="store_true", help="Read the service config JSON from stdin (M3-T6: keeps api_key off disk)")
-    parser.add_argument("--request-file", default=None, help="Versioned task request including attachments and recovery context")
-    parser.add_argument("--lease-owner", default=None, help="Execution lease reserved by the launcher")
-    parser.add_argument("--allow-changes", action="store_true")
-    parser.add_argument("--allow-network", action="store_true")
-    parser.add_argument("--permission-mode", default="default")
-    parser.add_argument("--reasoning-effort", default="high")
-    parser.add_argument("--model", default="")
-    parser.add_argument("--fake-provider", action="store_true", help="Test-only deterministic provider")
+    parser.add_argument(WORKSPACE_FLAG, required=True)
+    parser.add_argument(TASK_ID_FLAG, required=True)
+    parser.add_argument(SESSION_ID_FLAG, default="web-latest")
+    parser.add_argument(MESSAGE_FLAG, required=True)
+    parser.add_argument(STORE_PATH_FLAG, default=None, help="SQLite path; defaults to <workspace>/.minicc/tasks.sqlite3")
+    parser.add_argument(CANCEL_FILE_FLAG, default=None, help="Poll this file; its creation cancels the task")
+    parser.add_argument(CONFIG_JSON_FLAG, default=None, help="Inline service config (tests only); defaults to load_config()")
+    parser.add_argument(CONFIG_FILE_FLAG, default=None, help="Path to a 0600 JSON config written by the web worker launcher")
+    parser.add_argument(CONFIG_STDIN_FLAG, action="store_true", help="Read the service config JSON from stdin (M3-T6: keeps api_key off disk)")
+    parser.add_argument(REQUEST_FILE_FLAG, default=None, help="Versioned task request including attachments and recovery context")
+    parser.add_argument(LEASE_OWNER_FLAG, default=None, help="Execution lease reserved by the launcher")
+    parser.add_argument(ALLOW_CHANGES_FLAG, action="store_true")
+    parser.add_argument(ALLOW_NETWORK_FLAG, action="store_true")
+    parser.add_argument(PERMISSION_MODE_FLAG, default="default")
+    parser.add_argument(REASONING_EFFORT_FLAG, default="high")
+    parser.add_argument(MODEL_FLAG, default="")
+    parser.add_argument(FAKE_PROVIDER_FLAG, action="store_true", help="Test-only deterministic provider")
     return parser
 
 

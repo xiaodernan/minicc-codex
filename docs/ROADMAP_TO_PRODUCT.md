@@ -30458,3 +30458,78 @@ pytest 未跑 ✓。
 但两边都有测试钉住 ✓，统一它们是改 agent 可见协议的决
 策 ✓，不属于「搬家」这一批 ✓——已在常量旁注明并留作后
 续候选 ✓。
+
+## 第四百五十二批 — M8-T468 — worker argv 契约一个家
+
+### 1 缺陷
+
+detached worker 的启动契约被拼写了两遍：`task_manager._worker_command()` **构造** argv，`task_worker.build_parser()`
+**声明** argv，17 个旗标在两个文件里各出现一次，共 32 处
+字面量。两边在不同进程里，所以**漂移从来不是崩溃**：worker
+只会 quietly 退回自己的默认值，任务就按没人要求过的权限
+跑起来。最锋利的是 `--permission-mode`——启动方一旦不再
+发送它，worker 回落到 `"default"`，一个本该被 `plan` 拦住的
+写入直接穿墙而过。同类还有 `--allow-network`（联网静默关
+闭）、`--allow-changes`（写权限静默丢失）。
+
+### 2 落地
+
+- 17 个旗标常量安家 `minicc/task_contract.py`——那个模块的
+  docstring 本来就写着「shared by thread and detached
+  workers」，而 `task_worker.py:36` 早已 import 它，家无需
+  新建、无需下沉、不引入任何环
+- `task_worker.py` 的 17 处 `add_argument("--x", ...)` 全部
+  改引常量
+- `task_manager.py` 的 15 处构造点全部改引常量（含
+  `_worker_command` 的列表与 `--request-file`/`--lease-owner`
+  的 `extend`）
+- **argv 逐字节不变**：已用脚本比对改动前后生成的命令列
+  表，完全相同（唯一差异是 `MINICC_FAKE_PROVIDER` 环境变量
+  未设时 `--fake-provider` 本就缺席）
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T468-264 | 启动方把 permission-mode 拼成 `--perm-mode` | 3 条红（census + 往返 ✓） |
+| M8-T468-265 | 声明方把 permission-mode 写回字面量 | 2 条红（census + 声明集合 ✓） |
+| M8-T468-266 | 启动方不再发送 permission-mode | 1 条红（往返断言 ✓） |
+| M8-T468-267 | 在 task_worker 里重复定义旗标常量 | 2 条红（唯一定义 ✓） |
+| M8-T468-268 | 只改家里的旗标值 | 1 条红（往返 ✓） |
+
+### 4 新增门禁
+
+`tests/test_the_worker_argv_contract_has_one_home.py`（6 条）✓：
+
+1. 旗标常量只在 `task_contract.py` 定义 ✓（全树 AST census ✓）
+2. 契约两侧零手拼旗标 ✓（两个文件零 `--` 字面量 ✓）
+3. 解析器声明集合恰好等于词汇表 ✓（AST 取 `add_argument`
+   首个位置参数 ✓）
+4. **真实往返** ✓：`_worker_command()` 造出 argv →
+   `build_parser().parse_args()` 吃下 → 逐字段断言 ✓
+5. 可选旗标（config-stdin / request-file / lease-owner）
+   同样被声明 ✓
+6. 两侧都从家 import ✓
+
+聚焦回归 ✓：新门 6 条 + batch_wiring / task_durability /
+auto_resume / batch_resume / worker_survives / start_must_not
+_rewrite / batch_watcher / merge_cost 共 47 条 ✓，全绿 ✓；
+`test_task_worker.py` 单跑 12 条中 11 绿 ✓，唯一红的那条
+（`test_shutdown_reaps_detached_worker_without_resource_
+warning`）**单跑通过** ✓，且已证明 argv 逐字节未变 ✓，判定
+为该文件已知的时序抖动 ✓。慢测试未跑 ✓，全量 pytest 未跑 ✓。
+
+### 5 一条教训
+
+**跨进程契约比跨模块契约更值得立家 ✓。** ✓ 同模块内的重复
+至少会在 import 或类型检查时露头 ✓；跨进程的两半一个在
+`task_manager` 一个在 `task_worker` ✓，改一边另一边毫无感
+知 ✓，而 argpar 对「少发一个旗标」是完全沉默的 ✓——它只
+对「多发一个不认识的旗标」才报错 ✓。**判别式可以固化 ✓：
+凡是「A 构造命令行 / B 解析命令行」的配对 ✓，旗标名必须
+有一个家 ✓，并且门禁必须做真实往返 ✓（造出来再解析回
+来 ✓），只做 census 抓不到「少发一个」这种最危险的漂移
+✓。** ✓ 本批还验证了「家不需要新建」 ✓：`task_contract.py`
+的文件名和 docstring 早就宣告了它是契约的家 ✓，缺的只是
+把旗标搬进去 ✓——先问「现成的家在哪」✓，再问「要不要建
+新的」✓。

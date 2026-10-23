@@ -56,7 +56,27 @@ from .logging_setup import get_logger, log_task_event
 from . import pricing
 from .session import SessionStore
 from .task_store import TaskStore
-from .task_contract import TASK_SCHEMA_VERSION, TaskRequest, TaskResult, resolve_task_permissions
+from .task_contract import (
+    ALLOW_CHANGES_FLAG,
+    ALLOW_NETWORK_FLAG,
+    CANCEL_FILE_FLAG,
+    CONFIG_STDIN_FLAG,
+    FAKE_PROVIDER_FLAG,
+    LEASE_OWNER_FLAG,
+    MESSAGE_FLAG,
+    MODEL_FLAG,
+    PERMISSION_MODE_FLAG,
+    REASONING_EFFORT_FLAG,
+    REQUEST_FILE_FLAG,
+    SESSION_ID_FLAG,
+    STORE_PATH_FLAG,
+    TASK_ID_FLAG,
+    TASK_SCHEMA_VERSION,
+    TaskRequest,
+    TaskResult,
+    WORKSPACE_FLAG,
+    resolve_task_permissions,
+)
 from .task_execution import WORKER_METADATA_FIELDS, WorkerDetached, WorkerSnapshotMirror, has_live_worker
 from .task_persistence import TaskSnapshotWriter
 from .tools.registry import redact_text
@@ -2068,24 +2088,24 @@ class TaskManager:
     ) -> list[str]:
         command = [
             sys.executable, "-m", "minicc.task_worker",
-            "--workspace", str(workspace),
-            "--task-id", task.task_id,
-            "--session-id", task.session_id,
-            "--message", task.execution_message or task.message,
-            "--store-path", str(store_path),
-            "--cancel-file", str(cancel_file),
-            "--permission-mode", task.permission_mode,
-            "--reasoning-effort", task.reasoning_effort,
-            "--model", task.model or str(getattr(self.service.config, "model", "")),
+            WORKSPACE_FLAG, str(workspace),
+            TASK_ID_FLAG, task.task_id,
+            SESSION_ID_FLAG, task.session_id,
+            MESSAGE_FLAG, task.execution_message or task.message,
+            STORE_PATH_FLAG, str(store_path),
+            CANCEL_FILE_FLAG, str(cancel_file),
+            PERMISSION_MODE_FLAG, task.permission_mode,
+            REASONING_EFFORT_FLAG, task.reasoning_effort,
+            MODEL_FLAG, task.model or str(getattr(self.service.config, "model", "")),
         ]
         if task.allow_changes:
-            command.append("--allow-changes")
+            command.append(ALLOW_CHANGES_FLAG)
         if task.allow_network:
-            command.append("--allow-network")
+            command.append(ALLOW_NETWORK_FLAG)
         if use_config_stdin:
-            command.append("--config-stdin")
+            command.append(CONFIG_STDIN_FLAG)
         if os.getenv("MINICC_FAKE_PROVIDER", "").strip().lower() in TRUTHY:
-            command.append("--fake-provider")
+            command.append(FAKE_PROVIDER_FLAG)
         return command
 
     def _execution_request(self, task: TaskRecord) -> TaskRequest:
@@ -2426,7 +2446,7 @@ class TaskManager:
             command = self._worker_command(
                 task, workspace, store.path, cancel_file, bool(config_payload)
             )
-            command.extend(["--request-file", str(request_file), "--lease-owner", owner])
+            command.extend([REQUEST_FILE_FLAG, str(request_file), LEASE_OWNER_FLAG, owner])
             child_env = os.environ.copy()
             source_root = str(Path(__file__).resolve().parent.parent)
             child_env["PYTHONPATH"] = source_root + (os.pathsep + child_env["PYTHONPATH"] if child_env.get("PYTHONPATH") else "")

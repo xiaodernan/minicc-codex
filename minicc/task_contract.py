@@ -13,6 +13,32 @@ from .audit import normalize_permission_mode
 
 TASK_SCHEMA_VERSION = 2
 
+#: The worker argv contract: one spelling per flag, read by the launcher that
+#: builds the command line and by the parser that reads it back.  The two
+#: sides live in different processes, so a drift between them is never a
+#: crash - the worker falls back to its own default and the task runs with
+#: permissions nobody asked for.  ``--permission-mode`` is the sharpest case:
+#: a launcher that stops sending it gets ``default`` back, and a write that
+#: was gated behind ``plan`` walks straight through.  Every flag below is
+#: spelled once, here, and referenced by both sides.
+WORKSPACE_FLAG = "--workspace"
+TASK_ID_FLAG = "--task-id"
+SESSION_ID_FLAG = "--session-id"
+MESSAGE_FLAG = "--message"
+STORE_PATH_FLAG = "--store-path"
+CANCEL_FILE_FLAG = "--cancel-file"
+CONFIG_JSON_FLAG = "--config-json"
+CONFIG_FILE_FLAG = "--config-file"
+CONFIG_STDIN_FLAG = "--config-stdin"
+REQUEST_FILE_FLAG = "--request-file"
+LEASE_OWNER_FLAG = "--lease-owner"
+ALLOW_CHANGES_FLAG = "--allow-changes"
+ALLOW_NETWORK_FLAG = "--allow-network"
+PERMISSION_MODE_FLAG = "--permission-mode"
+REASONING_EFFORT_FLAG = "--reasoning-effort"
+MODEL_FLAG = "--model"
+FAKE_PROVIDER_FLAG = "--fake-provider"
+
 
 def resolve_task_permissions(payload: Mapping[str, Any], *, yolo: bool = False) -> tuple[bool, bool, str]:
     mode = normalize_permission_mode(payload.get("permission_mode"))
