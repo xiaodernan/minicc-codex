@@ -308,6 +308,23 @@ def _merge_cost_estimator(model: str) -> Callable[[dict[str, Any]], float]:
     return estimate
 
 
+def _preview_result(
+    status: str, summary: str, content: str, raw_path: str
+) -> dict[str, Any]:
+    """The one shape of a file preview result.
+
+    Two exits write it by hand: the deny-rule refusal (an error preview
+    with empty content) and the normal read.  A key one exit forgets is
+    a preview the browser renders as a blank card with no explanation.
+    """
+    return {
+        "status": status,
+        "summary": summary,
+        "content": content,
+        "path": raw_path,
+    }
+
+
 def _sessions_payload(workspace: Any, sessions: list[dict[str, Any]]) -> dict[str, Any]:
     """The one shape of a stored-sessions listing.
 
@@ -3132,15 +3149,14 @@ class AgentService:
         # the agent's own read of the same path is refused - so a browser
         # preview that bypasses them is simply a way around the policy.
         if tool_denied_by_rule(self.workspace, "read_file", {"path": raw_path}):
-            return {
-                "status": "error",
-                "summary": "permissions.json deny 规则拒绝了此路径",
-                "content": "",
-                "path": raw_path,
-            }
+            return _preview_result(
+                "error", "permissions.json deny 规则拒绝了此路径", "", raw_path
+            )
         editor = Editor(self.workspace)
         result = build_registry(editor).execute(ToolCall("read_file", {"path": raw_path, "limit": 500}))
-        return {"status": result.status, "summary": result.summary, "content": result.render(), "path": raw_path}
+        return _preview_result(
+            result.status, result.summary, result.render(), raw_path
+        )
 
     def changes(self, raw_path: str | None = None) -> dict[str, Any]:
         # M8-T290: the diff route is a read too - and a workspace-wide diff
