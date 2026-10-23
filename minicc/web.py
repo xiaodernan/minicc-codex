@@ -118,7 +118,7 @@ from .logging_setup import (
     register_secret,
 )
 from .snapshots import SnapshotError, SnapshotJournal, exists as workspace_snapshot_exists, restore as restore_workspace_snapshot
-from .llm.usage import add_usage_totals, cache_summary
+from .llm.usage import add_usage_totals, cache_summary, estimated_usage
 from .mcp import McpError, McpManager
 from .prompt import build_system_prompt
 from .sandbox import SandboxRunner
@@ -2476,12 +2476,7 @@ class AgentService:
                                 1,
                             )
                             completion_tokens = max(len(str(getattr(response, "text", "") or "")) // 4, 1)
-                            usage = {
-                                "prompt_tokens": prompt_tokens,
-                                "completion_tokens": completion_tokens,
-                                "total_tokens": prompt_tokens + completion_tokens,
-                                "estimated": True,
-                            }
+                            usage = estimated_usage(prompt_tokens, completion_tokens)
                         # M8-T164: the planner rides the planning-stage route, and
                         # the run budget's cost ceiling is that route's own limit -
                         # recording only tokens let the ceiling be blown by the one

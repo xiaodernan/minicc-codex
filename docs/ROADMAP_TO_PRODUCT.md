@@ -26760,3 +26760,56 @@ T378 给验证状态立了家 ✓（`VERIFICATION_STATUSES` ✓），但**没有
 而是问「键集合是否等于词表」✓。这与 T376「问了两次各写一遍」是同型的
 另一半 ✓：那次是**两份实现** ✓，这次是**一份实现漏了成员** ✓——
 而 `.get` 的兜底让漏成员比漏实现更安静 ✓。
+
+
+## 第三百九十三批 — M8-T409 — 估算用量记录的四个键两个家：循环与 Web 规划路由各手抄一份
+
+### 1 缺陷
+
+估算用量的记录形状是**四个键** ✓：`prompt_tokens` ✓、`completion_tokens` ✓、
+`total_tokens` ✓、`estimated` ✓。这个形状有两个**写方** ✓：
+
+| 位置 | 场景 |
+| --- | --- |
+| `minicc/agent/loop.py` ✓ | 网关回答了但不带用量 ✓，循环就地估算 ✓ |
+| `minicc/web.py` ✓ | 规划调用骑在循环外 ✓，Web 路由就地估算 ✓ |
+
+两边**各写一份 dict 字面量** ✓。聚合器（`add_usage_totals` ✓、
+`usage_by_turn` ✓）按这四个键读数 ✓：**一边少写一个键** ✓，
+聚合器就把它当成**缺字段** ✓——不是崩 ✓，是安静地少算 ✓。
+与 T407 同型 ✓：**形状重复**✓，不是值重复 ✓。
+
+### 2 落地
+
+* `minicc/llm/usage.py` ✓ 立 `estimated_usage(prompt_tokens, completion_tokens)` ✓：
+  四键形状的**唯一构造处** ✓，`total = p + c` 的算术也收在一处 ✓。
+* `loop.py` ✓ 改 `usage.update(estimated_usage(...))` ✓；
+  `web.py` ✓ 改 `usage = estimated_usage(...)` ✓。
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T409-193 | `web.py` 退回行内 dict | 1 条红（AST 扫到 `usage.py:36` + `web.py:2479` 两处 ✓） |
+
+### 4 新增门禁
+
+`tests/test_the_estimated_usage_have_one_home.py`（3 条）✓：
+
+1. 家在 `usage.py` ✓，`estimated_usage(10, 5)` ✓ 返回四字段 ✓、
+   `total == 15` ✓、`estimated is True` ✓
+2. 两个消费方（`loop.py` ✓ / `web.py` ✓）源码里都必须出现
+   `estimated_usage` ✓
+3. AST 扫全包 ✓：四键 dict 字面量**只许一处** ✓（`len(offenders) == 1` ✓，
+   且必须在家文件里 ✓——吸取 T396 教训 ✓，同文件重复也是盲区 ✓）
+
+聚焦回归 ✓：门 3 条 + `test_core_task.py` ✓ + 三个 cost-budget fold
+（merge/planner/subagent ✓）共 49 条 ✓，全绿 ✓。全量 pytest 未跑 ✓。
+
+### 5 一条教训
+
+**估算记录是「长得像用量」的用量。** ✓ 它不带 `estimated` 之外的任何标记 ✓，
+四个键跟真实用量一一对应 ✓——所以**少一个键的估算记录**在聚合器眼里
+和**真的少算了一次**无法区分 ✓。家的价值不在少写两行 ✓，在
+**两边再也不会对不上** ✓：将来第五个键（比如 `model` ✓）加在家里 ✓，
+两个消费方同时拿到 ✓，而不是靠下一个人同时想起两个地方 ✓。

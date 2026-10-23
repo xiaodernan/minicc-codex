@@ -25,6 +25,22 @@ CACHE_TOKEN_KEYS = (
 )
 
 
+def estimated_usage(prompt_tokens: int, completion_tokens: int) -> dict[str, Any]:
+    """The four-key shape of an estimated usage record.
+
+    Two readers wrote it by hand - the agent loop (a gateway that answers
+    without usage) and the web planner route (a planner call that rides
+    outside the loop).  A key one side forgets is a usage record the
+    aggregation reads as a missing field.
+    """
+    return {
+        "prompt_tokens": prompt_tokens,
+        "completion_tokens": completion_tokens,
+        "total_tokens": prompt_tokens + completion_tokens,
+        "estimated": True,
+    }
+
+
 def _number(value: Any) -> int | float | None:
     if isinstance(value, bool):
         return None

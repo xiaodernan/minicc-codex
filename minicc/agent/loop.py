@@ -40,7 +40,7 @@ from ..llm.base import LLMResponse, TERMINAL_FINISH_REASONS, assistant_msg, tool
 from ..llm.envelope import EnvelopeParseError
 from ..llm.openai_provider import OpenAICompatibleProvider
 from ..llm.stream_merge import append_delta
-from ..llm.usage import add_usage_totals, cache_summary
+from ..llm.usage import add_usage_totals, cache_summary, estimated_usage
 from ..audit import (
     effective_risk,
     is_network_tool,
@@ -1065,12 +1065,7 @@ async def run_agent(
             prompt_tokens = max(estimate_tokens(messages), 1)
             completion_text = response.content or response.reasoning_content or ""
             completion_tokens = max(len(completion_text) // 4, 1)
-            usage.update({
-                "prompt_tokens": prompt_tokens,
-                "completion_tokens": completion_tokens,
-                "total_tokens": prompt_tokens + completion_tokens,
-                "estimated": True,
-            })
+            usage.update(estimated_usage(prompt_tokens, completion_tokens))
         result.usage_by_turn = [*result.usage_by_turn, dict(usage)][-MAX_RESULT_USAGE_ENTRIES:]
         add_usage_totals(result.tokens_used, usage)
         if on_usage is not None:
