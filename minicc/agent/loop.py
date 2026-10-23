@@ -58,6 +58,7 @@ from ..tools.schemas import (
 from ..tools.registry import ToolRegistry, redact_text
 from ..hooks import payloads_for_result, payloads_for_tool_call
 from .context import (
+    VISUAL_PART_TYPES,
     compact_with_checkpoint,
     estimate_tokens,
     message_chars,
@@ -265,7 +266,7 @@ def _restore_vision_context(
         for part in message["content"]
         if isinstance(part, dict)
         and isinstance(part.get("image_url"), dict)
-        and part.get("type") in {"image_url", "input_image"}
+        and part.get("type") in VISUAL_PART_TYPES
         and part.get("image_url", {}).get("url")
     }
     missing = [

@@ -25491,3 +25491,51 @@ clean 过滤器，所以量出来的 1/1 是 blob 层面的事实，不是工作
 **「同一对象」比「值相等」更值得钉。** ✓ 第 2 条断言写的是 `is` 而不是 `==` ✓：
 值相等允许「两处各写一份一样的集合」通过 ✓，而那正是本批要消灭的形状 ✓。
 门的断言精度 ✓，就是缺陷的复现精度 ✓。
+
+
+## 第三百七十批 — M8-T386 — 多模态部件类型 {image_url, input_image}：context.py 有家，却还有两处行内拼写
+
+### 1 缺陷
+
+「哪些 content part 是图片」这个事实，`minicc/agent/context.py`:28 **有家** ✓
+（`_VISUAL_PART_TYPES` ✓，M8-T348 立的 ✓）——但家里的人不全住进去 ✓：
+
+| 位置 | 拼法 |
+| --- | --- |
+| `context.py`:229（`normalize_vision_context` 自己） | 行内 `{"image_url", "input_image"}` |
+| `minicc/agent/loop.py`:268（拼 `existing_urls`） | 行内 `{"image_url", "input_image"}` |
+| `context.py`:180 / :254 | **问家** ✓ |
+
+同一个文件里两行问家、一行手写 ✓，外加 loop.py 一份 ✓。M8-T348 把「视觉上下文只有一个家」
+这条原则立好了 ✓，却漏了**自己的两处行内** ✓——原则立了 ≠ 每个读者都迁完 ✓。
+
+### 2 落地
+
+* 家改名 `_VISUAL_PART_TYPES` → `VISUAL_PART_TYPES` ✓（要跨模块导入 ✓，私有名不合适 ✓——
+  与 T383 的六个家一致 ✓）。
+* `context.py` 里那处行内改问家 ✓；`loop.py` 从 `.context` 导入 ✓、行内改问家 ✓。
+* `loop.VISUAL_PART_TYPES is context.VISUAL_PART_TYPES` ✓（同一对象 ✓）。
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T386-170 | `loop.py` 的比对退回行内集合 | 1 条红（AST 扫描抓到 ✓） |
+
+### 4 新增门禁
+
+`tests/test_the_visual_part_types_have_one_home.py`（4 条）✓：
+
+1. 家在 `context.py` ✓、成员正确 ✓
+2. `loop` 用的是**同一个对象** ✓（`is` ✓）
+3. 全包只许有一处拼写 ✓——**且必须落在家里** ✓（家自己写第二遍也红 ✓）
+4. 两个读者的行为不变 ✓（`has_visual_content` ✓、`normalize_vision_context` 去重归一 ✓）
+
+聚焦回归 ✓：门 4 条 + `test_core_agent.py` + `test_anthropic_provider.py` + `test_m1_integrity.py`
+共 77 条 ✓，全绿 ✓。全量 pytest 未跑 ✓。
+
+### 5 一条教训
+
+**「已立家」不等于「已收口」。** ✓ M8-T348 立了视觉上下文的家 ✓，三个月后家里还有两行
+没迁进来 ✓——因为当时没有任何门在看「还有谁在手写」✓。本批的第 3 条门补上这一眼 ✓：
+**家的读者要扫全包** ✓，连家文件自己也算进去 ✓（只许声明那一处 ✓）。

@@ -25,7 +25,10 @@ _MAX_ITEMS = 24
 _MAX_TEXT = 900
 _MAX_OBJECTIVE = 1800
 _IMAGE_CONTEXT_CHARS = 1024
-_VISUAL_PART_TYPES = frozenset({"image_url", "input_image"})
+# M8-T386: the visual content-part types.  This module had the home and
+# still spelled the set out inline twice (once here, once in loop.py);
+# every reader now asks this name.  Public because loop.py imports it.
+VISUAL_PART_TYPES = frozenset({"image_url", "input_image"})
 _DIGEST_RE = re.compile(r"(?i)(?:digest|sha256|hash)[^a-f0-9]{0,20}([a-f0-9]{12,64})")
 
 
@@ -177,7 +180,7 @@ def _content_chars(value: Any) -> int:
     if isinstance(value, list):
         return sum(_content_chars(item) for item in value)
     if isinstance(value, dict):
-        if str(value.get("type") or "").lower() in _VISUAL_PART_TYPES:
+        if str(value.get("type") or "").lower() in VISUAL_PART_TYPES:
             return _IMAGE_CONTEXT_CHARS
         return sum(len(str(key)) + _content_chars(item) for key, item in value.items())
     return len(str(value)) if value is not None else 0
@@ -226,7 +229,7 @@ def normalize_vision_context(parts: list[dict[str, Any]] | None) -> list[dict[st
         if not isinstance(raw, dict):
             continue
         part_type = str(raw.get("type") or "").lower()
-        if part_type not in {"image_url", "input_image"}:
+        if part_type not in VISUAL_PART_TYPES:
             continue
         image = raw.get("image_url")
         url = image.get("url") if isinstance(image, dict) else image
@@ -251,7 +254,7 @@ def _visual_parts(value: Any) -> list[dict[str, Any]]:
     return [
         item
         for item in value
-        if isinstance(item, dict) and str(item.get("type") or "").lower() in _VISUAL_PART_TYPES
+        if isinstance(item, dict) and str(item.get("type") or "").lower() in VISUAL_PART_TYPES
     ]
 
 
