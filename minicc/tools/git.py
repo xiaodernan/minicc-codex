@@ -7,7 +7,7 @@ from pathlib import Path
 
 from .editor import EditError
 from .registry import ToolError, split_output
-from .schemas import ToolResult
+from .schemas import ToolResult, untrusted_tags
 
 
 def _safe_relative(workspace: Path, raw: str) -> str:
@@ -58,7 +58,7 @@ class GitTools:
             tail=tail,
             truncated=truncated,
             exit_code=completed.returncode,
-            security_tags=["untrusted"],
+            security_tags=untrusted_tags(),
         )
 
     def status(self, _args: dict[str, object]) -> ToolResult:
@@ -100,7 +100,7 @@ class GitTools:
                 "dirty_count": len(dirty),
                 "last_commit": last_commit,
             },
-            security_tags=["untrusted"],
+            security_tags=untrusted_tags(),
         )
 
     def merge_precheck(self, args: dict[str, object]) -> ToolResult:
@@ -146,7 +146,7 @@ class GitTools:
             summary=summary,
             output=body,
             data=data,
-            security_tags=["untrusted"],
+            security_tags=untrusted_tags(),
         )
 
     def _capture(self, args: list[str]) -> str:

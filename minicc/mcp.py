@@ -41,7 +41,7 @@ from .tools.registry import (
     ToolSpec,
     split_output,
 )
-from .tools.schemas import ToolResult
+from .tools.schemas import ToolResult, untrusted_tags
 
 LOG = get_logger("mcp")
 
@@ -92,7 +92,7 @@ def _content_to_tool_result(server: str, tool: str, result: dict[str, Any]) -> T
         head=head,
         tail=tail,
         truncated=truncated,
-        security_tags=["untrusted", "mcp"],
+        security_tags=untrusted_tags("mcp"),
     )
 
 

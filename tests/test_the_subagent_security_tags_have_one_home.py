@@ -1,58 +1,24 @@
-"""M8-T398 — 子代理结果的安全标签六个家：六条返回路径各写一份 ["untrusted", "subagent"]"""
+"""M8-T398 — 子代理结果的标签跟着安全标签的家走（T400 起家迁至 schemas.py）
+
+T398 曾在 subagent.py 立 `SUBAGENT_SECURITY_TAGS`；T400 把「不可信基标签」
+这一个事实收拢到 `minicc/tools/schemas.py` 的 `untrusted_tags` 之后，子代理
+六条返回路径改问那个家。本门保留 T398 的行为断言：一次真实子代理跑通的
+ok 路径，标签正是「不可信基 + subagent」，且往结果上追加标签不会污染家。
+全包扫描与家的存在性由 tests/test_the_security_tags_have_one_home.py 负责。
+"""
 
 from __future__ import annotations
 
-import ast
 from pathlib import Path
-
-REPO = Path(__file__).resolve().parents[1]
-PACKAGE = REPO / "minicc"
-HOME = "minicc/agent/subagent.py"
-
-TAGS = frozenset({"untrusted", "subagent"})
-
-
-def test_the_home_exists_in_subagent() -> None:
-    """subagent.py owns the two tags every subagent result carries."""
-    from minicc.agent.subagent import SUBAGENT_SECURITY_TAGS
-
-    assert set(SUBAGENT_SECURITY_TAGS) == TAGS
-    assert isinstance(SUBAGENT_SECURITY_TAGS, tuple), (
-        "the home must be immutable: the registry appends to a result's tags"
-    )
-
-
-def test_no_module_inlines_the_tags() -> None:
-    """No module spells the two tags as a literal outside the one declaration."""
-    offenders: list[str] = []
-    for path in sorted(PACKAGE.rglob("*.py")):
-        try:
-            tree = ast.parse(path.read_text(encoding="utf-8"))
-        except (OSError, SyntaxError, ValueError):
-            continue
-        relative = path.relative_to(REPO).as_posix()
-        for node in ast.walk(tree):
-            if not isinstance(node, ast.Set | ast.Tuple | ast.List):
-                continue
-            elements = frozenset(
-                element.value
-                for element in node.elts
-                if isinstance(element, ast.Constant) and isinstance(element.value, str)
-            )
-            if len(node.elts) >= 2 and elements == TAGS:
-                offenders.append(f"{relative}:{node.lineno}")
-    assert len(offenders) == 1 and offenders[0].startswith(HOME + ":"), (
-        "the subagent security tags are spelled inline outside the one declaration: "
-        + ", ".join(offenders)
-    )
 
 
 def test_a_successful_subagent_result_still_carries_both_tags(tmp_path: Path) -> None:
-    """The ok path spreads the home into a fresh list, both tags present."""
-    from minicc.agent.subagent import SUBAGENT_SECURITY_TAGS, build_task_tool_spec
+    """The ok path builds its tags from the family home, both tags present."""
+    from minicc.agent.subagent import build_task_tool_spec
     from minicc.llm.base import LLMResponse
     from minicc.tools import build_registry
     from minicc.tools.editor import Editor
+    from minicc.tools.schemas import untrusted_tags
 
     class _Provider:
         def __init__(self, *args, **kwargs) -> None:
@@ -80,7 +46,7 @@ def test_a_successful_subagent_result_still_carries_both_tags(tmp_path: Path) ->
     )
     result = spec.handler({"description": "调研项目结构", "prompt": "读取 README.md 并总结项目用途。"})
     assert result.status == "ok"
-    assert result.security_tags == list(SUBAGENT_SECURITY_TAGS)
-    # A spread copy: appending to the result must not touch the home.
+    assert result.security_tags == untrusted_tags("subagent")
+    # A fresh list every call: appending to the result must not touch the home.
     result.security_tags.append("redacted")
-    assert SUBAGENT_SECURITY_TAGS == ("untrusted", "subagent")
+    assert untrusted_tags("subagent") == ["untrusted", "subagent"]

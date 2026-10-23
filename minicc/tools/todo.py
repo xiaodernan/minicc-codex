@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any
 
 from .registry import ToolError, ToolResult
+from .schemas import untrusted_tags
 
 TODO_STATUSES = ("pending", "in_progress", "completed")
 TODO_PRIORITIES = ("high", "medium", "low")
@@ -106,7 +107,7 @@ class TodoTools:
             summary=summary + (f"（更新于 {updated_at}）" if updated_at else "（尚无清单）"),
             output=json.dumps(todos, ensure_ascii=False, indent=2),
             data={"todos": todos, "updated_at": updated_at, "source": "read"},
-            security_tags=["untrusted"],
+            security_tags=untrusted_tags(),
         )
 
     def write(self, args: dict[str, object]) -> ToolResult:
@@ -123,7 +124,7 @@ class TodoTools:
             summary=summary,
             output="\n".join(lines) or "(清单已清空)",
             data={"todos": todos, "updated_at": updated_at, "source": "write"},
-            security_tags=["untrusted"],
+            security_tags=untrusted_tags(),
         )
 
 

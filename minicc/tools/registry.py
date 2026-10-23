@@ -24,7 +24,7 @@ from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
-from .schemas import HEAD_CHARS, TAIL_CHARS, ToolCall, ToolResult
+from .schemas import HEAD_CHARS, TAIL_CHARS, ToolCall, ToolResult, untrusted_tags
 
 Handler = Callable[..., ToolResult]
 
@@ -242,7 +242,7 @@ def error_result(code: str, message: str) -> ToolResult:
     return ToolResult(
         status="error",
         summary=f"[{code}] {message}",
-        security_tags=["untrusted"],
+        security_tags=untrusted_tags(),
     )
 
 
@@ -250,7 +250,7 @@ def denied_result(message: str) -> ToolResult:
     return ToolResult(
         status="denied",
         summary=f"[{CODE_DENIED}] {message}",
-        security_tags=["untrusted"],
+        security_tags=untrusted_tags(),
     )
 
 
@@ -604,7 +604,7 @@ class ToolRegistry:
             return ToolResult(
                 status="cancelled",
                 summary=f"[CANCELLED] 任务已取消，未执行工具 {call.tool}",
-                security_tags=["untrusted", "runtime_guard"],
+                security_tags=untrusted_tags("runtime_guard"),
             )
         started = time.monotonic()
         try:
@@ -628,7 +628,7 @@ class ToolRegistry:
             )
         result.duration = time.monotonic() - started
         if not result.security_tags:
-            result.security_tags = ["untrusted"]
+            result.security_tags = untrusted_tags()
         self._redact_result(result)
         return result
 

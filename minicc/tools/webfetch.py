@@ -28,6 +28,7 @@ from typing import Any
 from ..netguard import ALLOWED_SCHEMES, BlockedAddressError, resolve_pinned_host
 
 from .registry import ToolError, ToolResult, redact_text, split_output
+from .schemas import untrusted_tags
 
 MAX_BYTES_DEFAULT = 512 * 1024
 MAX_REDIRECTS = 3
@@ -412,7 +413,7 @@ def build_tool_result(result: dict[str, Any]) -> ToolResult:
             "bytes": result.get("bytes"),
             "page_truncated": bool(result.get("truncated")),
         },
-        security_tags=["untrusted", "network"],
+        security_tags=untrusted_tags("network"),
     )
 
 

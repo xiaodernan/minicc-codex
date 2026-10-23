@@ -54,6 +54,7 @@ from ..tools.schemas import (
     ToolResult,
     normalized_tool_calls,
     tool_call_name,
+    untrusted_tags,
 )
 from ..tools.registry import ToolRegistry, redact_text
 from ..hooks import payloads_for_result, payloads_for_tool_call
@@ -1175,7 +1176,7 @@ async def run_agent(
                                 "请合并重复调用，或改用能够产生新证据的工具和参数。"
                             ),
                             data={"duplicate": True, "duplicate_of": batch_signatures[call_signature]},
-                            security_tags=["untrusted", "runtime_guard"],
+                            security_tags=untrusted_tags("runtime_guard"),
                         ),
                     )
                     continue
@@ -1204,7 +1205,7 @@ async def run_agent(
                                 "git_diff、grep 或 tree 获取新证据；确认目标和当前 diff 后再修改。"
                             ),
                             data={"guard": "recovery_inspection_required"},
-                            security_tags=["untrusted", "runtime_guard"],
+                            security_tags=untrusted_tags("runtime_guard"),
                         ),
                     )
                     continue
@@ -1244,7 +1245,7 @@ async def run_agent(
                             if rule_denied
                             else f"[DENIED] 用户拒绝了此操作 ({tc.tool})"
                         ),
-                        security_tags=["untrusted"],
+                        security_tags=untrusted_tags(),
                     )
                     immediate_results[index] = (tc, denied)
                     continue
@@ -1264,7 +1265,7 @@ async def run_agent(
                                 summary=f"[HOOK_DENIED] PreToolUse hook 拒绝了此操作 ({tc.tool})",
                                 output=hook_outcome.denial_reason()[:2000],
                                 data={"hook": "PreToolUse"},
-                                security_tags=["untrusted"],
+                                security_tags=untrusted_tags(),
                             ),
                         )
                         continue
@@ -1286,7 +1287,7 @@ async def run_agent(
                                 summary="联网工具熔断：连续失败后已停止重复请求",
                                 output="请改换更具体的关键词，或基于已经取得的项目证据继续；不要重复相同的联网请求。",
                                 data={"circuit_open": True, "failures": search_failures},
-                                security_tags=["untrusted", "network"],
+                                security_tags=untrusted_tags("network"),
                             ),
                         )
                     elif (
@@ -2035,7 +2036,7 @@ async def _execute_and_store(
             status="error",
             summary=f"[TOOL_ERROR] {tc.tool} 执行异常: {exc}",
             output=str(exc),
-            security_tags=["untrusted"],
+            security_tags=untrusted_tags(),
         )
     immediate_results[index] = (tc, tool_result)
 

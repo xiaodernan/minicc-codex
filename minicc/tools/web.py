@@ -17,7 +17,7 @@ from urllib.request import Request, urlopen
 
 from ..netguard import SCHEME_PREFIXES
 from .registry import ToolError
-from .schemas import ToolResult
+from .schemas import ToolResult, untrusted_tags
 
 SEARCH_ENDPOINTS = (
     ("Bing", "https://www.bing.com/search?q={}"),
@@ -383,7 +383,7 @@ def web_search(args: dict[str, object]) -> ToolResult:
             "diagnostics": list(fetched.diagnostics),
             "cached": fetched.cached,
         },
-        security_tags=["untrusted", "network"],
+        security_tags=untrusted_tags("network"),
     )
 
 

@@ -26244,3 +26244,69 @@ subagent 的 tier 判定认 ✓、task_manager 的快照判定不认 ✓——
 一份」这条根本没问 ✓。子集比主词表更容易被手抄 ✓：它短 ✓、看起来人畜
 无害 ✓、抄的人觉得「就两个值 ✓，不至于分家」✓。门的教训与 T396 同源 ✓：
 **数数 ✓，别只问「在不在家」** ✓。
+
+
+## 第三百八十四批 — M8-T400 — 不可信基标签二十五个家：`untrusted_tags` 一个助手收拢全家族
+
+### 1 缺陷
+
+「工具结果永远是不可信数据」这一个事实 ✓，在全包被手写了**二十五处** ✓：
+
+| 形状 | 处数 | 分布 |
+| --- | --- | --- |
+| `["untrusted"]` | 14 | loop ×3、bash、git ×3、memory ×2、registry ×3、todo ×2 |
+| `["untrusted", "runtime_guard"]` | 5 | loop ×2、bash、registry、tools/__init__ |
+| `["untrusted", "background_shell"]` | 4 | bash |
+| `["untrusted", "network"]` | 3 | loop、tools/web、webfetch |
+| `["untrusted", "subagent"]` | 6 | subagent（T398 已立家 ✓，但形状仍是手抄组合 ✓） |
+| `["untrusted", "mcp"]` / 三标签组合 | 3 | mcp、bash ×2 |
+
+每一处都是同一句承诺的一种拼写 ✓：**这个结果带着不可信基标签** ✓。
+漏写一个词 ✓，那条产线的产出就少一半护栏 ✓——registry 的脱敏标记和
+前端的可信度提示都认这个标签 ✓，少了它 ✓，一段未脱敏视角外的输出会被
+当成可信内容对待 ✓。T398 给子代理组合立了家 ✓，但「为每个组合立一个家」
+注定追不上组合的增长 ✓。
+
+### 2 落地
+
+* **建家** ✓：`minicc/tools/schemas.py`（`ToolResult` 旁边 ✓）立
+  `UNTRUSTED_TAG = "untrusted"` 与助手
+  `untrusted_tags(*context) -> ["untrusted", *context]` ✓。
+  **基标签由助手结构性保证** ✓：新结果不可能因为忘写一个词而裸奔 ✓。
+* **全家收口** ✓：12 个文件 ~40 处 ✓——直接字面量改问助手 ✓；
+  `run_process` 的三个「调用方标签合并」路径（bash.py:348/368/469 ✓）
+  **语义分毫不动** ✓：348 无 untrusted 字面量 ✓ 原样保留 ✓；368 与 471 只把
+  字面量换成了 `UNTRUSTED_TAG` ✓（sandbox 经 `["sandboxed"]` 传入的路径
+  行为不变 ✓）。
+* **T398 的门随之更新** ✓：`SUBAGENT_SECURITY_TAGS` 退役 ✓，子代理六处
+  改问 `untrusted_tags("subagent")` ✓；行为断言保留 ✓。
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T400-184 | mcp.py 退回行内 `["untrusted", "mcp"]` | 1 条红（AST 扫描抓到 ✓） |
+
+### 4 新增门禁
+
+`tests/test_the_security_tags_have_one_home.py`（5 条）✓：
+
+1. 家在 `schemas.py` ✓；`untrusted_tags()` 恒为 `["untrusted"]` 打头 ✓
+2. **每次调用返回新 list** ✓：registry 会往结果上 `append("redacted")` ✓，
+   家必须不吸收任何结果的标签 ✓（T398 的教训制度化 ✓）
+3. 11 个产出模块导入的是**同一个助手对象** ✓（`is` 断言 ✓）
+4. 全包不许有任何集合字面量再带 `untrusted` 基标签 ✓（AST 扫描 ✓）
+5. 端到端 ✓：`read_file` 读到含密钥的文件 ✓，结果同时带
+   `untrusted` + `redacted` ✓、秘密被替换 ✓、家分毫未动 ✓
+
+聚焦回归 ✓：两门 6 条 + `test_core_tools.py` + `test_mcp_http.py` +
+`test_webfetch.py` 共 70 条 ✓，全绿 ✓。全量 pytest 未跑 ✓。
+
+### 5 一条教训
+
+**组合词表的尽头是助手，不是更多的家。** ✓ T398 立了第一个组合家 ✓，
+当时是对的 ✓；但探针一扫 ✓，同样的形状还有二十四处 ✓——`untrusted` 与
+四种上下文标签的笛卡尔积 ✓，靠立家是追不完的 ✓。真正的同一个事实是
+「**基标签 + 上下文**」这个**结构** ✓，不是某一个具体组合 ✓。把结构本身
+变成家（一个保证基标签的助手 ✓）✓，组合的自由增长就不再产生新的契约 ✓。
+判断界线 ✓：**重复的是值 ✓，立常量家 ✓；重复的是形状 ✓，立助手** ✓。

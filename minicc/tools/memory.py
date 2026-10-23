@@ -37,6 +37,7 @@ from typing import Any
 
 from ..config import ConfigError, home_dir
 from .registry import ToolError, ToolParamError, ToolResult, redact_text
+from .schemas import untrusted_tags
 
 MEMORY_FILE_NAME = "MEMORY.md"
 MEMORY_SCOPES = ("user", "project")
@@ -183,7 +184,7 @@ class MemoryTools:
             )
         source = _collapse(args.get("source")) or "model"
         source = source[:MAX_SOURCE_CHARS]
-        tags = ["untrusted"]
+        tags = untrusted_tags()
         redacted_content, changed = redact_text(content)
         redacted_source, source_changed = redact_text(source)
         if changed or source_changed:
@@ -222,7 +223,7 @@ class MemoryTools:
             summary=f"{len(matches)} 条记忆全文（id={memory_id}）",
             output="\n".join(entry.to_line() for entry in matches),
             data={"entries": [entry.to_dict() for entry in matches]},
-            security_tags=["untrusted"],
+            security_tags=untrusted_tags(),
         )
 
     def list_entries(self, args: dict[str, Any]) -> ToolResult:
@@ -252,7 +253,7 @@ class MemoryTools:
             ),
             output="\n".join(lines) or "（暂无记忆条目）",
             data={"entries": [entry.to_dict() for entry in entries], "sort": reason},
-            security_tags=["untrusted"],
+            security_tags=untrusted_tags(),
         )
 
     @staticmethod

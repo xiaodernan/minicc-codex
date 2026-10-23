@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Any
 
 from .registry import split_output
-from .schemas import ToolResult
+from .schemas import UNTRUSTED_TAG, ToolResult, untrusted_tags
 
 DEFAULT_TIMEOUT = 120
 MAX_OUTPUT_CHARS = 32_000
@@ -365,7 +365,7 @@ def run_process(
             status="error",
             summary=f"[TOOL_ERROR] 无法执行命令: {exc}",
             duration=round(time.monotonic() - started, 3),
-            security_tags=[*(security_tags or []), "untrusted"],
+            security_tags=[*(security_tags or []), UNTRUSTED_TAG],
         )
 
     outcome: str | None = None
@@ -468,7 +468,7 @@ def run_process(
     truncated = truncated or any(output_overflow.values())
     tags = list(security_tags or [])
     if not tags:
-        tags.append("untrusted")
+        tags.append(UNTRUSTED_TAG)
 
     if outcome == "cancelled":
         status = "cancelled"
@@ -520,7 +520,7 @@ def run_bash(
         return ToolResult(
             status="error",
             summary=f"[RUNTIME_GUARD] {detached_reason}；命令未启动",
-            security_tags=["untrusted", "runtime_guard"],
+            security_tags=untrusted_tags("runtime_guard"),
             data={
                 "code": "detached_process_blocked",
                 "retryable": True,
@@ -540,7 +540,7 @@ def run_bash(
         shell=True,
         env=dict(os.environ),
         summary_label="命令",
-        security_tags=["untrusted"],
+        security_tags=untrusted_tags(),
     )
 
 
@@ -626,7 +626,7 @@ def start_background_shell(command: str, workspace: Path) -> ToolResult:
                 summary=f"[RUNTIME_GUARD] 后台 shell 已达并发上限（{MAX_CONCURRENT_BACKGROUND}）",
                 output="请先用 kill_shell 结束不再需要的后台 shell，或等待其退出。",
                 data={"code": "background_limit_reached", "retryable": True},
-                security_tags=["untrusted", "runtime_guard", "background_shell"],
+                security_tags=untrusted_tags("runtime_guard", "background_shell"),
             )
         try:
             proc = subprocess.Popen(
@@ -643,7 +643,7 @@ def start_background_shell(command: str, workspace: Path) -> ToolResult:
             return ToolResult(
                 status="error",
                 summary=f"[TOOL_ERROR] 无法启动后台命令: {exc}",
-                security_tags=["untrusted", "background_shell"],
+                security_tags=untrusted_tags("background_shell"),
             )
         shell = _BackgroundShell(
             shell_id=f"bg-{uuid.uuid4().hex[:8]}",
@@ -662,7 +662,7 @@ def start_background_shell(command: str, workspace: Path) -> ToolResult:
             "用 bash_output(shell_id) 增量读取输出，用 kill_shell(shell_id) 终止整个进程树。"
         ),
         data={"shell_id": shell.shell_id, "pid": proc.pid, "background": True},
-        security_tags=["untrusted", "background_shell"],
+        security_tags=untrusted_tags("background_shell"),
     )
 
 
@@ -674,7 +674,7 @@ def _bg_shell_or_error(shell_id: str) -> tuple[_BackgroundShell | None, ToolResu
             status="error",
             summary=f"[UNKNOWN_SHELL] 找不到后台 shell {shell_id!r}",
             data={"available": _bg_known_ids()},
-            security_tags=["untrusted", "background_shell"],
+            security_tags=untrusted_tags("background_shell"),
         )
     return shell, None
 
@@ -722,7 +722,7 @@ def poll_background_shell(shell_id: str, *, since_start: bool = False) -> ToolRe
             "new_bytes": len(payload),
             "dropped_bytes": dropped,
         },
-        security_tags=["untrusted", "background_shell"],
+        security_tags=untrusted_tags("background_shell"),
     )
 
 
@@ -752,5 +752,5 @@ def kill_background_shell(shell_id: str) -> ToolResult:
         ),
         data={"shell_id": shell.shell_id, "exit_code": exit_code, "was_running": not already},
         output=f"shell {shell.shell_id} 进程树已终止，pid {shell.proc.pid} poll={shell.proc.poll()}",
-        security_tags=["untrusted", "runtime_guard", "background_shell"],
+        security_tags=untrusted_tags("runtime_guard", "background_shell"),
     )

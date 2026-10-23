@@ -29,7 +29,7 @@ from .registry import (
     approval_preview,
     validate_tool_spec,
 )
-from .schemas import ToolCall, ToolResult
+from .schemas import ToolCall, ToolResult, untrusted_tags
 from .todo import TODO_PRIORITIES, TODO_STATUSES, TodoTools
 from .web import web_search
 from .webfetch import webfetch
@@ -161,7 +161,7 @@ def build_registry(
                     status="error",
                     summary="[RUNTIME_GUARD] 后台 shell 仅在 host 沙箱模式下可用；"
                     "Docker 隔离模式请改用前台 bash，以免后台进程逃逸隔离。",
-                    security_tags=["untrusted", "runtime_guard"],
+                    security_tags=untrusted_tags("runtime_guard"),
                 )
             return run_bash(
                 cmd, workspace, timeout=timeout,

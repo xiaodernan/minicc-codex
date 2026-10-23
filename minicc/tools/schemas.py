@@ -171,6 +171,23 @@ class ToolCall:
         )
 
 
+#: Every tool result is untrusted model-facing data (see ToolResult): the
+#: ``security_tags`` list records *which* untrusted surface produced it, and
+#: ``untrusted_tags`` is the one place that guarantees the base tag.  A
+#: hand-written list that forgets it ships a result the redaction pass and
+#: the UI trust markers treat as trusted.
+UNTRUSTED_TAG = "untrusted"
+
+
+def untrusted_tags(*context: str) -> list[str]:
+    """A fresh ``security_tags`` list: the untrusted base plus context tags.
+
+    A new list every call - the registry appends ``"redacted"`` to a result's
+    tags in place, and that must never reach a shared home.
+    """
+    return [UNTRUSTED_TAG, *context]
+
+
 @dataclass
 class ToolResult:
     status: str = "ok"  # ok | error | denied | cancelled | timed_out
