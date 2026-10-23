@@ -458,6 +458,13 @@ def markdown_report(report: dict[str, Any]) -> str:
 # ---------------------------------------------------------------------------
 
 
+# M8-T405: the retrieval budget's keys. The validator walks them to check each
+# value and the CLI extracts them to hand to evaluate_retrieval; a key one
+# side knows and the other does not is either silently dropped or passed
+# through unvalidated.
+RETRIEVAL_BUDGET_KEYS = ("max_files", "max_directories")
+
+
 def load_retrieval_cases(path: Path = DEFAULT_RETRIEVAL) -> dict[str, Any]:
     """Load and validate the retrieval hit-rate dataset."""
     raw = json.loads(path.read_text(encoding="utf-8"))
@@ -487,7 +494,7 @@ def load_retrieval_cases(path: Path = DEFAULT_RETRIEVAL) -> dict[str, Any]:
     # Scoring under a stated budget is how the truncation behaviour stays testable
     # without a 1200-file fixture; it has to be an explicit number, never a typo.
     budget: dict[str, int] = {}
-    for key in ("max_files", "max_directories"):
+    for key in RETRIEVAL_BUDGET_KEYS:
         value = raw.get(key)
         if value is None:
             continue
@@ -650,7 +657,7 @@ def _run_retrieval_suite(args: argparse.Namespace) -> int:
         cli_out(f"[retrieval] 数据集加载失败: {exc}")
         return 2
     workspace = (REPO_ROOT / dataset["workspace"]).resolve()
-    budget = {key: dataset[key] for key in ("max_files", "max_directories") if key in dataset}
+    budget = {key: dataset[key] for key in RETRIEVAL_BUDGET_KEYS if key in dataset}
     report = evaluate_retrieval(dataset["cases"], workspace=workspace, ks=dataset["ks"], **budget)
     decision = retrieval_decision(report["metrics"].get("recall@5"), index=report["index"])
     report["decision"] = decision
