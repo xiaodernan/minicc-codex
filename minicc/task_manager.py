@@ -641,6 +641,25 @@ class TaskRecord:
             self.state_version += 1
             self._publish_locked("state", {"phase": self.phase, "status": self.status, "state_version": self.state_version})
 
+    def _status_payload_locked(self) -> dict[str, Any]:
+        """The one shape of the six-key status publish.
+
+        Two transitions write it by hand: the generic lifecycle
+        transition and the cancel request.  A key one copy forgets is a
+        status the client reads as missing its finish time or its
+        cancellation reason - and ``error``/``cancel_reason`` are the
+        two keys a hurried copy drops first, because they are often
+        ``None``.
+        """
+        return {
+            "status": self.status,
+            "phase": self.phase,
+            "state_version": self.state_version,
+            "finished_at": _iso(self.finished_at),
+            "error": self.error,
+            "cancel_reason": self.cancel_reason,
+        }
+
     def transition_status(self, status: str, *, error: str | None = None, reason: str | None = None) -> bool:
         """Apply one legal lifecycle transition and publish it once."""
         target = str(status or "")
@@ -659,17 +678,7 @@ class TaskRecord:
                 self.cancel_reason = str(reason)
             if target in TERMINAL_TASK_STATUSES:
                 self.finished_at = self.finished_at or time.time()
-            self._publish_locked(
-                "status",
-                {
-                    "status": self.status,
-                    "phase": self.phase,
-                    "state_version": self.state_version,
-                    "finished_at": _iso(self.finished_at),
-                    "error": self.error,
-                    "cancel_reason": self.cancel_reason,
-                },
-            )
+            self._publish_locked("status", self._status_payload_locked())
             return True
 
     def request_cancel(self, reason: str = "user") -> bool:
@@ -703,17 +712,7 @@ class TaskRecord:
                     "error": self.error,
                     "cancelled": True,
                 }
-            self._publish_locked(
-                "status",
-                {
-                    "status": self.status,
-                    "phase": self.phase,
-                    "state_version": self.state_version,
-                    "finished_at": _iso(self.finished_at),
-                    "error": "任务已取消",
-                    "cancel_reason": self.cancel_reason,
-                },
-            )
+            self._publish_locked("status", self._status_payload_locked())
             return True
 
     def update_usage(self, usage: dict[str, Any], *, cumulative: bool = False) -> None:
