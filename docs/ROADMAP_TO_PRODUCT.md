@@ -29715,3 +29715,74 @@ message（RPC 拼接后、`_run_chat` 两处）、工作区路径
 census 的判别式要写得像指纹一样窄 ✓（isinstance 调用 +
 strip 调用 + 恰好两个 Or 分支）✓，否则会把无关的 if 卷进
 来 ✓。** **
+
+## 第四百四十三批 — M8-T459 — 工作区包含守卫一个家
+
+### 1 缺陷
+
+同一个安全守卫在两个工具里各写一遍：
+
+- `editor.py` 的 `_resolve`：拒绝绝对路径 + `is_relative_to`
+  包含性检查，抛 `EditError`
+- `git.py` 的 `_safe_relative`：同一套逻辑、同两条消息，
+  再抛一遍 `EditError`
+
+连错误消息都逐字相同（`路径越界: 不允许绝对路径 (...)`
+与 `路径越界: ... 超出 workspace 根`）。这是**跨文件同
+函数**：编辑器每次读写、git 每个路径参数都经过它。分叉
+的代价是安全性的：某一边放松检查（比如漏掉
+is_relative_to、或把绝对路径检查改成只警告），就是一个
+能读写用户批准范围之外文件的工具，而审计时 grep 到的
+是两处不同实现的守卫。
+
+### 2 落地
+
+- `minicc/tools/editor.py` 立模块级 `resolve_in_workspace(
+  workspace, raw_path) -> Path`，放在 `sha256_digest` 之前
+- editor 的 `_resolve` 变为一行委托；git 的
+  `_safe_relative` 先过守卫再返回 `Path(raw).as_posix()`
+  （返回值语义不变：返回的是原始相对路径的 posix 形
+  式，不是 resolved 路径）
+- git.py 的 import 从 `from .editor import EditError` 扩为
+  `EditError, resolve_in_workspace`（既有 import 方向，无
+  环）
+- **边界记录**：`changes.py:_resolve` 是同一思想的不同契
+  约（`ChangeError`、消息不带路径回显、文案「路径超出工
+  作区」），本批不动——异常类型与文案不同就是给不同调用
+  方的不同合同
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T459-264 | editor._resolve 退回手写 | 2 条红（消息 census ✓） |
+| M8-T459-265 | git._safe_relative 退回手写 | 2 条红（消息 census ✓） |
+
+### 4 新增门禁
+
+`tests/test_the_workspace_containment_have_one_home.py`（5 条）✓：
+
+1. 家的行为 ✓：相对路径解析到工作区内 ✓
+2. 家的行为 ✓：相对逃逸（`../outside`）抛「超出
+   workspace 根」✓
+3. 家的行为 ✓：绝对路径抛「不允许绝对路径」✓
+4. census ✓：两条越界消息全文在 minicc/ 下**各恰好一
+   处** ✓且都在 `resolve_in_workspace` 内 ✓
+5. 边界 ✓：git.py 不再有越界消息字面量 ✓，调用家 1 次 ✓；
+   editor 调用家 2 次（定义 + _resolve ✓）
+
+聚焦回归 ✓：新门 5 条 + core_tools / changes_pure 51 条 +
+git_workflow 6 条 + security_perimeter / file_preview 54
+条 ✓，共 116 条 ✓，全绿 ✓。全量 pytest 未跑 ✓。
+
+### 5 一条教训
+
+**census 指纹的精度决定门禁的生死 ✓：`路径越界` 四字在仓
+库里出现了 10 次 ✓（fs.py、snapshots.py 各有变体）✓，拿
+它当指纹会让门禁永远红着 ✓；拿消息全文（含文案与插值格
+式）当指纹才恰好命中 ✓。** ✓ 这与 T424/T425 的「键集合 +
+常量值双条件」是同一思想在字符串上的版本 ✓：**指纹必须
+窄到能区分邻居 ✓，宽到能覆盖所有分叉点 ✓。** 另一个收获
+✓：同一个「思想」在不同子系统可以有不同合同（异常类型
++ 文案）✓，那时不该硬合 ✓——把合同差异写进 roadmap 的
+边界记录 ✓，下一个人才知道那是边界不是遗漏 ✓。** **

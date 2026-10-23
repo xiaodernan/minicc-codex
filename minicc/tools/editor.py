@@ -80,6 +80,26 @@ class StaleContextError(EditError):
         self.actual_digest = actual
 
 
+def resolve_in_workspace(workspace: Path, raw_path: str) -> Path:
+    """The one containment guard for a model-supplied path.
+
+    Two tools resolve model-supplied paths against the workspace root:
+    the editor (every read/write) and git (every path argument).  Both
+    must reject the same two escapes - an absolute path, and a relative
+    path that resolves outside the root.  A guard one copy weakens is a
+    tool that reads or writes outside the workspace the user approved,
+    and the two messages a reader greps for when auditing an escape
+    attempt.
+    """
+    path = Path(raw_path)
+    if path.is_absolute():
+        raise EditError(f"路径越界: 不允许绝对路径 ({raw_path})")
+    resolved = (workspace / path).resolve()
+    if not resolved.is_relative_to(workspace):
+        raise EditError(f"路径越界: {raw_path} 超出 workspace 根")
+    return resolved
+
+
 def sha256_digest(data: bytes) -> str:
     """Canonical content digest — sha256 over the file's raw bytes."""
     return hashlib.sha256(data).hexdigest()
@@ -248,13 +268,7 @@ class Editor:
     # -- internals -------------------------------------------------------
 
     def _resolve(self, path: str) -> Path:
-        raw = Path(path)
-        if raw.is_absolute():
-            raise EditError(f"路径越界: 不允许绝对路径 ({path})")
-        target = (self.workspace / raw).resolve()
-        if not target.is_relative_to(self.workspace):
-            raise EditError(f"路径越界: {path} 超出 workspace 根")
-        return target
+        return resolve_in_workspace(self.workspace, path)
 
     def _audit(
         self,

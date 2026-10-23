@@ -6,7 +6,7 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-from .editor import EditError
+from .editor import EditError, resolve_in_workspace
 from .registry import ToolError, split_output
 from .schemas import ToolResult, untrusted_tags
 
@@ -31,13 +31,8 @@ def _merge_probe(
 
 
 def _safe_relative(workspace: Path, raw: str) -> str:
-    path = Path(raw)
-    if path.is_absolute():
-        raise EditError(f"路径越界: 不允许绝对路径 ({raw})")
-    resolved = (workspace / path).resolve()
-    if not resolved.is_relative_to(workspace):
-        raise EditError(f"路径越界: {raw} 超出 workspace 根")
-    return path.as_posix()
+    resolve_in_workspace(workspace, raw)
+    return Path(raw).as_posix()
 
 
 class GitTools:
