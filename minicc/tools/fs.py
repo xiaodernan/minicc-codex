@@ -123,9 +123,28 @@ def _minicc_sensitive_kind(path: str) -> str | None:
     return None
 
 
-def _reject_minicc_sensitive(path: str) -> None:
-    if _minicc_sensitive_kind(path) is not None:
-        raise ToolError(f"拒绝访问 .minicc 下的认证/授权文件: {path} (请由用户在工作区外手动处理)")
+#: The tail every ``.minicc`` credential refusal carries.  It tells the agent
+#: the one thing it can actually do about this: ask the human, outside the
+#: workspace.  Four sites spelled it by hand and one of them (``read_file``)
+#: had already drifted to ``拒绝读取`` while the other three said ``拒绝访问``
+#: - two sentences for one refusal, which is how a guard starts reading like
+#: two different guards.
+MINICC_SENSITIVE_REFUSAL_SUFFIX = " (请由用户在工作区外手动处理)"
+
+
+def _minicc_sensitive_refusal(action: str, path: str) -> str:
+    """The one sentence refusing a ``.minicc`` credential/authorization file.
+
+    ``action`` is the live part - ``读取`` for the read path, ``访问`` for
+    the write and edit paths, whose refusals are pinned verbatim by
+    ``test_file_preview_endpoint.py``.  The skeleton and the suffix are the
+    shared fact: they say *which* files are off limits and what to do about
+    it, and they are the part a hand-written copy gets wrong.
+    """
+    return (
+        f"拒绝{action} .minicc 下的认证/授权文件: {path}"
+        f"{MINICC_SENSITIVE_REFUSAL_SUFFIX}"
+    )
 
 
 MAX_GREP_FILE_BYTES = 2_000_000
@@ -256,7 +275,7 @@ class FsTools:
         _reject_graders(path)
         minicc_kind = self._sensitive_kind(path)
         if minicc_kind == "deny":
-            raise ToolError(f"拒绝读取 .minicc 下的认证/授权文件: {path} (请由用户在工作区外手动处理)")
+            raise ToolError(_minicc_sensitive_refusal("读取", path))
         offset = int(args.get("offset", 1))
         limit = int(args.get("limit", 2000))
         try:
@@ -297,9 +316,7 @@ class FsTools:
         _reject_sensitive(path)
         _reject_graders(path)
         if self._sensitive_kind(path) is not None:
-            raise ToolError(
-                f"拒绝访问 .minicc 下的认证/授权文件: {path} (请由用户在工作区外手动处理)"
-            )
+            raise ToolError(_minicc_sensitive_refusal("访问", path))
         content = str(args["content"])
         expected = args.get("expected_digest") or None
         try:
@@ -322,9 +339,7 @@ class FsTools:
         _reject_sensitive(path)
         _reject_graders(path)
         if self._sensitive_kind(path) is not None:
-            raise ToolError(
-                f"拒绝访问 .minicc 下的认证/授权文件: {path} (请由用户在工作区外手动处理)"
-            )
+            raise ToolError(_minicc_sensitive_refusal("访问", path))
         old = str(args["old"])
         new = str(args["new"])
         expected = args.get("expected_digest") or None

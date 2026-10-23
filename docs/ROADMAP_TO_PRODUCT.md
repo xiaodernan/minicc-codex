@@ -30701,3 +30701,87 @@ f-string 的 ✓。另一条附带的 ✓：web 侧原先那个局部变量
 却不相等（如果谁改了字面量）✓，所以门禁专门加了一条「家外零绑
 定」✓，而落地时直接把别名删掉、让两处比较直连接量 ✓——别名是
 同一事实的第二个家 ✓，比字面量更隐蔽 ✓。
+
+## 第四百五十五批 — M8-T471 — .minicc 敏感文件拒答句一个家
+
+### 1 缺陷
+
+`minicc/tools/fs.py` 里有一句**从来没人调用过的家**：
+`_reject_minicc_sensitive()` 定义了 `拒绝访问 .minicc 下的认证/授权
+文件: {path} (请由用户在工作区外手动处理)`，而三个文件工具
+（`read_file` / `write_file` / `edit_file`）谁都没调它——它们各自
+手抄了一遍这句话，一共四处。更糟的是**漂移已经发生了**：
+`read_file` 那句是 `拒绝读取 .minicc 下的认证/授权文件: …`，另外三处
+是 `拒绝访问 …`。同一道防线两种措辞，读起来像两道不同的防线，而
+唯一的发现方式是四处并排读。同一句里那个后缀
+` (请由用户在工作区外手动处理)` 也被手抄了四遍。
+
+### 2 落地
+
+- 删掉死函数 `_reject_minicc_sensitive`，换成唯一的造句器
+  `_minicc_sensitive_refusal(action, path)`，后缀提为常量
+  `MINICC_SENSITIVE_REFUSAL_SUFFIX`
+- `read_file` → `_minicc_sensitive_refusal("读取", path)`；
+  `write_file` / `edit_file` → `_minicc_sensitive_refusal("访问", path)`
+- **动词是活值、句子骨架与后缀是共享事实**：`拒绝读取` 与 `拒绝访问`
+  都不是笔误——`test_file_preview_endpoint.py` 把读路径那句
+  **逐字钉住**了，所以本批不统一措辞，只统一造句规则
+- **四个句子的字节完全未变**：已用脚本比对，`读取`/`访问` 两种动词
+  拼出的句子与改动前逐字节相同
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T471-264 | read_file 把手抄句写回来（最初的漂移） | 4 条红（census + 真门 ✓） |
+| M8-T471-265 | write_file 把手抄句写回来 | 4 条红（census + 真门 ✓） |
+| M8-T471-266 | 骨架里冒号后多一个空格 | 5 条红（census + 真门 ✓） |
+| M8-T471-267 | 后缀丢掉前导空格 | 7 条红（census + 真门 ✓） |
+| M8-T471-268 | read 的动词漂移成 write 的动词 | 2 条红（真门 ✓） |
+| M8-T471-269 | 死函数复活 | 3 条红（死代码断言 ✓） |
+| M8-T471-270 | 后缀不再走常量、在内联处抄一份 | 1 条红（census ✓） |
+
+七条全部 KILLED ✓，恢复后字节相同 ✓。
+
+### 4 新增门禁
+
+`tests/test_the_minicc_sensitive_refusal_has_one_home.py`（13 条）✓：
+
+1. 读路径拼出 `拒绝读取 …` ✓
+2. 写路径拼出 `拒绝访问 …` ✓
+3. 后缀是那一个常量 ✓
+4. 骨架在全树只被一个字符串常量承载 ✓且在 fs.py ✓
+5. 后缀同理 ✓
+6. 造句器只被定义一次 ✓
+7. 家外零处重新绑定这两个名字 ✓
+8. 造句器**恰好被三个处理器调用** ✓且都在 fs.py ✓
+9. **只有两个动词进得来** ✓：`{"读取", "访问"}` ✓
+10. 死函数 `_reject_minicc_sensitive` 不存在 ✓
+11-13. **三道真门** ✓：read_file / write_file / edit_file 各自
+    抛出逐字钉住的那句，并断言 token 内容未被改写 ✓
+
+聚焦回归 ✓：新门 13 条 + minicc_gate_judges_the_path /
+file_preview_endpoint / security_perimeter /
+minicc_filenames_have_one_home / allowlist_validation /
+webauth_validation / permissions_path_rules / mentions /
+bom_redaction / memory / mentions_pure /
+permission_rules_cache / snapshot_copy / denied_path 等
+共 232 条 ✓，全绿 ✓（6 条 skip 均为平台性：Windows 不支持
+symlink / 不支持 POSIX 权限位 ✓）。慢测试未跑 ✓，
+全量 pytest 未跑 ✓。
+
+### 5 一条教训
+
+**先问「家有没有建了没人住」✓，再问「要不要建新的」✓。** ✓ 本批的
+家一开始就存在 ✓——`_reject_minicc_sensitive` 的名字、位置、docstring
+旁边的注释全都对 ✓，只是四个调用点谁都没调它 ✓，于是它退化成一份
+**死掉的消息副本** ✓：比没有家更危险 ✓，因为它让下一个读代码的人
+以为这句话已经收口了 ✓。**死代码是同一事实的第二个家 ✓，而且是最
+隐蔽的那种 ✓**——它不参与任何比较 ✓，所以永远不会和活的那份对不
+上 ✓，也就永远不会有人发现它 ✓。另一条 ✓：本批没有把 `拒绝读取` 统一
+成 `拒绝访问` ✓，因为测试把读路径那句逐字钉住了 ✓。**「值不同」不是
+拒绝立家的理由 ✓，但「值被钉住」是拒绝统一值的理由 ✓**——正确做法
+是把活的那一半（动词）变成参数 ✓，把共享的那一半（骨架 + 后缀）立
+成家 ✓，字节不变 ✓。判别式 ✓：**凡是一句消息在不同出口有不同的动
+词/主语/路径 ✓，先拆出哪部分是共享事实、哪部分是活值 ✓，再决定家
+的形状 ✓**。
