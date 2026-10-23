@@ -31520,3 +31520,62 @@ T467 写门禁时世界上只有一个 `CODE_*` 词汇表，于是「唯一的�
 聚焦回归 ✓：`have_one_home` 门禁家族全量 **402 条** ✓（91 个文件 ✓），全
 绿 ✓。其中本批修的 `test_the_summary_tags_have_one_home.py` 27 条 ✓。
 慢测试未跑 ✓，全量 pytest 未跑 ✓。
+
+## 第四百六十五批 — M8-T481 — 默认沙箱镜像两个家：配置常量与 SandboxRunner 的硬编码默认参数
+
+### 1 缺陷
+
+`DEFAULT_SANDBOX_IMAGE = "python:3.11-slim"` 住在 `minicc/config.py:51`，
+docstring 明说 "They live here now; every reader imports them"。配置路径的读
+者都守规矩：dataclass 字段 `sandbox_image: str = DEFAULT_SANDBOX_IMAGE`
+（config.py:521）、`pick()` 回退值（config.py:832），`web.py:437` 也显式传
+`config.sandbox_image`。
+
+但 `minicc/sandbox.py:24` 的 `SandboxRunner.__init__` 自己抄了一份：
+`image: str = "python:3.11-slim"`。而 `minicc/tools/__init__.py:69` 的
+`sandbox = sandbox or SandboxRunner()` 不传 image——那条路吃的正是
+sandbox.py 的硬编码默认值。
+
+危害：改 `DEFAULT_SANDBOX_IMAGE` 只改到配置路径；工具路径仍跑旧镜像。同一
+台机器上两条路径用不同镜像，且没有任何东西会失败。
+
+### 2 落地
+
+- `minicc/sandbox.py`：`from .config import DEFAULT_SANDBOX_IMAGE,
+  SANDBOX_MODES` ✓（依赖方向无环：sandbox.py 本来就 import config 的
+  `SANDBOX_MODES`，config 不 import sandbox ✓）
+- `__init__` 默认参数改为 `image: str = DEFAULT_SANDBOX_IMAGE` ✓（字节行为
+  不变：`SandboxRunner()` 仍得 `"python:3.11-slim"` ✓）
+- 门禁 `tests/test_the_default_sandbox_image_has_one_home.py` 4 条 ✓：家值、
+  census（`minicc/` 内除家中声明外不许任何字面量承载该值）、默认参数 `is` 家
+  对象、`SandboxRunner()` 真实往返 ✓
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T481-294 | sandbox.py 恢复硬编码默认值 | 红（`is` 断言 + census ✓） |
+| M8-T481-295 | config.py 的家值漂移成 3.12 | 红（家值断言 ✓） |
+| M8-T481-296 | 家里定义被删 | 红（ImportError ✓） |
+| M8-T481-297 | tools/__init__.py 传字面量 | 红（census 两处 ✓） |
+| M8-T481-298 | `__init__` 默认值漂移一个字符 | 红（`is` 断言 ✓） |
+| M8-T481-299 | 第三个模块再抄一份 | 红（census 两处 ✓） |
+
+六条全部 KILLED ✓，恢复后字节相同 ✓。
+
+### 4 一条教训
+
+**默认参数是「家」最常用的走私通道。** 一个函数签名里的默认值看起来像局部
+细节，其实是全局事实的一个入口——调用方不传参时，签名的默认值就是生效的那
+个事实，而它和真正的家之间什么都没有连着。这次能抓住它，靠的是 census 按
+**精确值**判：除了 config.py 那一处声明，`minicc/` 里不允许任何模块再用字面
+量承载这个值——包括函数签名里的默认参数。注意 `sandbox.py:93` 的错误消息
+里也有 `python:3.11-slim` 子串（"例如 python:3.11-slim。"），但按相等判、
+不按包含判，那句给用户举例的提示不算第二个家。
+
+测试里约 50 处 `sandbox_image="python:3.11-slim"` 不在 census 范围内，这是
+故意的：那些是显式传值的读者，各测各的场景，不依赖默认值；家的读者才需要
+被钉住。
+
+聚焦回归 ✓：sandbox/config 直面 6 文件 **104 条** ✓（含新门禁 4 条 ✓），全
+绿 ✓。慢测试未跑 ✓，全量 pytest 未跑 ✓。
