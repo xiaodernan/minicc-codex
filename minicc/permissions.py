@@ -25,8 +25,10 @@ from pathlib import Path
 from typing import Any
 
 from .allowlist import (
+    RULE_CATEGORIES,
     _path_from_arguments,
     _escape_brackets,
+    empty_rule_side,
     path_rule_matches,
     tool_rule_matches,
 )
@@ -43,16 +45,15 @@ class PermissionConfigError(ValueError):
     """permissions.json is malformed at the schema level (non-fatal)."""
 
 
-def _empty_rules() -> dict[str, list[str]]:
-    return {"allow": {"tools": [], "commands": [], "paths": []},
-            "deny": {"tools": [], "commands": [], "paths": []}}
+def _empty_rules() -> dict[str, dict[str, list[str]]]:
+    return {"allow": empty_rule_side(), "deny": empty_rule_side()}
 
 
 def _normalize_side(raw: object) -> dict[str, list[str]]:
-    side = {"tools": [], "commands": [], "paths": []}
+    side = empty_rule_side()
     if not isinstance(raw, dict):
         return side
-    for key in ("tools", "commands", "paths"):
+    for key in RULE_CATEGORIES:
         value = raw.get(key)
         if not isinstance(value, list):
             continue

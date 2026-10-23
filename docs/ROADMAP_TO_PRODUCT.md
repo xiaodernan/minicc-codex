@@ -25539,3 +25539,59 @@ clean 过滤器，所以量出来的 1/1 是 blob 层面的事实，不是工作
 **「已立家」不等于「已收口」。** ✓ M8-T348 立了视觉上下文的家 ✓，三个月后家里还有两行
 没迁进来 ✓——因为当时没有任何门在看「还有谁在手写」✓。本批的第 3 条门补上这一眼 ✓：
 **家的读者要扫全包** ✓，连家文件自己也算进去 ✓（只许声明那一处 ✓）。
+
+
+## 第三百七十一批 — M8-T387 — 规则三类别 {commands, paths, tools} 四个家，两个元组顺序还不同
+
+### 1 缺陷
+
+「一条规则有几个类别」这个事实有**四个拼写** ✓：
+
+| 位置 | 拼法 |
+| --- | --- |
+| `minicc/allowlist.py`:62 | `for key in ("commands", "paths", "tools")` |
+| `minicc/allowlist.py`:31 | `_empty_session()` 手搭 `{"commands": [], "paths": [], "tools": []}` |
+| `minicc/permissions.py`:55 | `for key in ("tools", "commands", "paths")`——**顺序都不同** ✓ |
+| `minicc/permissions.py`:53 | `_normalize_side` 又手搭一份 `{"tools": [], ...}` |
+
+第三百六十四批的教训原话 ✓：「同一语义、不同顺序也是两个家」✓——这里两个元组就是
+活样本 ✓。会话 allowlist 与声明式 `permissions.json` 各写各的 ✓，加第四个类别要改四处 ✓。
+
+### 2 落地
+
+* **建家** ✓：`minicc/allowlist.py` 新增 `RULE_CATEGORIES = ("commands", "paths", "tools")` ✓
+  与公开的 `empty_rule_side()` ✓（按家生成「三类都空」的 side ✓）。
+* **四个读者**全改问家 ✓：allowlist 的 `_empty_session` 改调 `empty_rule_side()` ✓、
+  遍历改问 `RULE_CATEGORIES` ✓；permissions 的 `_empty_rules` 与 `_normalize_side` 同样收口 ✓
+  （`permissions.py` 本来就 import `allowlist` ✓，不造新依赖 ✓）。
+* 顺手修一个类型标注 ✓：`_empty_rules()` 的返回标注写的是 `dict[str, list[str]]` ✓，
+  实际返回两层 ✓——已改对 ✓。
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T387-171 | `permissions.py` 的遍历退回自己的元组 | 1 条红（AST 扫描抓到 ✓） |
+
+> 门还当场抓出一条**漏网** ✓：`_normalize_side` 里的 `side = {"tools": [], ...}` 手搭 side ✓，
+> 连我第一版落地都漏了它 ✓——门红着逼我补上 ✓，这正是门该干的活 ✓。
+
+### 4 新增门禁
+
+`tests/test_the_rule_categories_have_one_home.py`（4 条）✓：
+
+1. 家在 `allowlist.py` ✓、顺序唯一 ✓
+2. `empty_rule_side()` 恰好三个键 ✓、全空 ✓
+3. 任何模块不许拼写这三个类别 ✓——**tuple/set/list 与 dict 三种形状都扫** ✓
+   （空 side 是 dict 形状 ✓，只扫序列会漏 ✓）
+4. 两个 normalizer 行为不变 ✓（三类归一 ✓、未知类别忽略 ✓）
+
+聚焦回归 ✓：门 4 条 + 四条 deny-rule 门 + `test_p0_p1_p2.py` 共 37 条 ✓，全绿 ✓。
+全量 pytest 未跑 ✓。
+
+### 5 一条教训
+
+**「顺序不同」是漂移的放大器。** ✓ 值相等的两个集合 ✓，Python 眼里没区别 ✓；但在源码里
+`("commands", "paths", "tools")` 与 `("tools", "commands", "paths")` 是两个东西 ✓——
+diff 看不出关系 ✓、grep 搜不全 ✓、改一边忘另一边 ✓。门扫的是**元素集合** ✓，
+顺序归一之后才对得齐 ✓；而家自己保留一个**规范顺序** ✓（JSON 序列化、错误信息都从它出 ✓）。

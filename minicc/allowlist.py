@@ -27,8 +27,19 @@ def _path(workspace: Path) -> Path:
     return Path(workspace) / ".minicc" / ALLOWLIST_NAME
 
 
+# M8-T387: the three categories a rule side has.  This tuple used to be
+# spelled twice - once here, once in permissions.py with a *different*
+# order - and the empty side was built by hand in both modules.  One home.
+RULE_CATEGORIES = ("commands", "paths", "tools")
+
+
+def empty_rule_side() -> dict[str, list[str]]:
+    """A fresh rule side: every category present, none filled."""
+    return {category: [] for category in RULE_CATEGORIES}
+
+
 def _empty_session() -> dict[str, list[str]]:
-    return {"commands": [], "paths": [], "tools": []}
+    return empty_rule_side()
 
 
 def load_allowlist(workspace: Path) -> dict[str, Any]:
@@ -59,7 +70,7 @@ def _normalize_rules(raw: object) -> dict[str, list[str]]:
     rules = _empty_session()
     if not isinstance(raw, dict):
         return rules
-    for key in ("commands", "paths", "tools"):
+    for key in RULE_CATEGORIES:
         value = raw.get(key)
         if not isinstance(value, list):
             continue
