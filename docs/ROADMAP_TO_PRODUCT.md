@@ -25595,3 +25595,55 @@ clean 过滤器，所以量出来的 1/1 是 blob 层面的事实，不是工作
 `("commands", "paths", "tools")` 与 `("tools", "commands", "paths")` 是两个东西 ✓——
 diff 看不出关系 ✓、grep 搜不全 ✓、改一边忘另一边 ✓。门扫的是**元素集合** ✓，
 顺序归一之后才对得齐 ✓；而家自己保留一个**规范顺序** ✓（JSON 序列化、错误信息都从它出 ✓）。
+
+
+## 第三百七十二批 — M8-T388 — 写后检视工具 {read_file, git_diff}：loop 记录它，completion 问它，各写一份
+
+### 1 缺陷
+
+「写完文件之后，哪些只读工具能算一次检视」这个事实有两个家 ✓：
+
+| 家 | 用途 |
+| --- | --- |
+| `minicc/agent/loop.py`:1476 | 逐轮记录「写后有检视」✓（`post_write_inspection` ✓） |
+| `minicc/agent/completion.py`:522 | 验收门问「写后有没有检视」✓（`observed_after_write` ✓） |
+
+一个记 ✓、一个问 ✓，两边各手写 `{"read_file", "git_diff"}` ✓。M8-T58 立的规矩 ✓
+（检视不是验证 ✓，只是没有检查器时可用的最低证据 ✓），规矩跨了两个模块 ✓，词表却没有家 ✓。
+加第三个检视工具 ✓（比如 `grep` ✓）：loop 会记录 ✓，门不认 ✓——**证据明明产生了，
+验收照样打回** ✓，而且打回的理由是「没有修改后的客观检查记录」✓，模型无从下手 ✓。
+
+### 2 落地
+
+* **建家** ✓：`minicc/agent/loop.py` 在 `VERIFY_TOOL_NAMES` 旁新增
+  `INSPECTION_TOOL_NAMES = frozenset({"read_file", "git_diff"})` ✓（loop 是底层模块 ✓，
+  `completion.py` 本来就 import 它 ✓，不造新依赖 ✓）。
+* **两个读者**改问家 ✓：loop 的记录处 ✓、completion 的裁决处 ✓
+  （`completion.INSPECTION_TOOL_NAMES is loop.INSPECTION_TOOL_NAMES` ✓）。
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T388-172 | `completion.py` 的裁决退回行内集合 | 1 条红（AST 扫描抓到 ✓） |
+
+### 4 新增门禁
+
+`tests/test_the_inspection_tools_have_one_home.py`（4 条）✓：
+
+1. 家在 `loop.py` ✓、成员正确 ✓
+2. `completion` 用的是**同一个对象** ✓（`is` ✓）
+3. 全包只许一处拼写 ✓且落在家里 ✓
+4. 端到端行为不变 ✓：文档写入后 `read_file` → 验收放行 ✓；写入后无检视 →
+   `continue` 且带 missing ✓（用 `_enforce_completion_evidence` 直接驱动 ✓，
+   不拉 provider ✓）
+
+聚焦回归 ✓：门 4 条 + `test_core_agent.py` + `test_m8_t58_inspection_fallback.py` +
+`test_verification_nudge_contract.py` 共 56 条 ✓，全绿 ✓。全量 pytest 未跑 ✓。
+
+### 5 一条教训
+
+**「一个记一个问」的事实，漂移方向永远是「问了不认」。** ✓ 记的那半边加了新工具 ✓，
+问的那半边不知道 ✓——于是**行为变严** ✓（证据被无视 ✓），而不是变松 ✓。这类缺陷不报错 ✓、
+不崩溃 ✓，只是把正确的交付一次次打回 ✓（M8-T17 那种「四轮 125k token 还在原地」的圈 ✓，
+就是这么转起来的 ✓）。门钉「同一个对象」✓，就是钉「问的那半永远跟着记的那半走」✓。

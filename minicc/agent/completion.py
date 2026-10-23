@@ -21,7 +21,7 @@ from typing import Any
 
 from ..llm.base import system_msg, user_msg
 from ..llm.openai_provider import classify_provider_failure
-from .loop import AgentCancelled, chat_with_cancellation
+from .loop import INSPECTION_TOOL_NAMES, AgentCancelled, chat_with_cancellation
 from ..tools.registry import redact_text
 from ..tools.schemas import tool_call_name
 from .tool_policy import is_verification_evidence
@@ -519,7 +519,7 @@ def _enforce_completion_evidence(
                     },
                     str(event.get("status")),
                 )
-                or (inspection_suffices and event.get("name") in {"read_file", "git_diff"})
+                or (inspection_suffices and event.get("name") in INSPECTION_TOOL_NAMES)
             )
             for event in events[last_write + 1:]
         )

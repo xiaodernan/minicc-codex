@@ -100,6 +100,12 @@ VISION_CONTEXT_MARKER = "[持久视觉上下文]"
 # Inspection tools are not verification. Post-write evidence must come from
 # bash test/lint commands (see ``is_verification_evidence``).
 VERIFY_TOOL_NAMES = frozenset({"bash"})
+# M8-T388: the read-only tools whose use after a write counts as a
+# post-write inspection (M8-T58).  The loop records the fact and the
+# completion gate asks it; each used to spell the pair itself, and a
+# third inspection tool added to one side only would make the gate
+# ignore evidence the loop had already collected.
+INSPECTION_TOOL_NAMES = frozenset({"read_file", "git_diff"})
 
 # M8-T56: the model cannot guess which commands the completion gate accepts.
 # These examples are the same whitelist ``is_verification_evidence`` enforces,
@@ -1474,7 +1480,7 @@ async def run_agent(
             # M8-T58: 写入之后的只读检视（read_file/git_diff）是「无检查工作区」
             # 里唯一可能取得的验证证据类别；逐轮记录，交付裁决时用。
             elif verification_required and any(
-                call.tool in {"read_file", "git_diff"} and tool_result.status == "ok"
+                call.tool in INSPECTION_TOOL_NAMES and tool_result.status == "ok"
                 for call, tool_result in immediate_results.values()
             ):
                 post_write_inspection = True
