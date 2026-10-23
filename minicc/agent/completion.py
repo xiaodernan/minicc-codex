@@ -329,6 +329,14 @@ def _evidence_ref_ids(value: Any) -> set[str]:
     return {text.lower()}
 
 
+# M8-T393: the three sections of the evidence packet the reviewer sees.  The
+# id sets below (``packet_ids`` and ``citable_ids``) must agree about which
+# sections exist - each comprehension spelled the three keys itself, and a
+# fourth section added to one and not the other would be invisible to half of
+# the evidence check.
+EVIDENCE_PACKET_SECTIONS = ("events", "verification_results", "conversation")
+
+
 def _enforce_completion_evidence(
     decision: CompletionDecision,
     events: list[dict[str, Any]],
@@ -445,12 +453,12 @@ def _enforce_completion_evidence(
 
     packet_ids = {
         item["id"]
-        for key in ("events", "verification_results", "conversation")
+        for key in EVIDENCE_PACKET_SECTIONS
         for item in packet.get(key, [])
     }
     citable_ids = {
         item["id"]
-        for key in ("events", "verification_results", "conversation")
+        for key in EVIDENCE_PACKET_SECTIONS
         for item in packet.get(key, [])
         if _is_citable_evidence(key, item)
     }

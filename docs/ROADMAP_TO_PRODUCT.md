@@ -25844,3 +25844,53 @@ default 模式下被权限门拦下** ✓，而拦它的理由跟测试毫无关
 `snapshot()` 与 `summary()` 天生就是「一对」✓，review 时眼睛会把它读成「理所当然的对称」✓，
 而不是「两份需要同步的契约」✓。门第 3 条直接断言两个序列化器**输出相等** ✓：
 把「对称」从期望 ✓ 变成可执行的事实 ✓。
+
+
+## 第三百七十七批 — M8-T393 — 证据包三格：packet_ids 与 citable_ids 两个推导式各写一份
+
+### 1 缺陷
+
+`minicc/agent/completion.py` 的 `_enforce_completion_evidence` 里 ✓，
+`("events", "verification_results", "conversation")` 被手写了**两次** ✓：
+
+| 行 | 推导式 | 用途 |
+| --- | --- | --- |
+| :448 | `packet_ids` | 证据包里**所有**条目的 id ✓ |
+| :453 | `citable_ids` | 其中**可引用**的条目的 id ✓ |
+
+两个集合必须覆盖同样的三格 ✓：一个条目 `packet_ids` 认得 ✓、`citable_ids` 不认得 ✓，
+评审引用了它也会被判「引用了不存在的证据」✓（`unknown` ✓）；反过来则更糟 ✓——
+不可引用的条目被当成可引用 ✓。加第四格 ✓（比如 `memory` ✓）：一边加一边不加 ✓，
+**两张名单悄悄分家** ✓，而分家的后果是把合法证据判成幻觉 ✓。
+
+### 2 落地
+
+* **建家** ✓：`completion.py` 模块级新增
+  `EVIDENCE_PACKET_SECTIONS = ("events", "verification_results", "conversation")` ✓。
+* 两个推导式改问家 ✓。
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T393-177 | `citable_ids` 推导式退回行内元组 | 1 条红（AST 扫描抓到 ✓） |
+
+### 4 新增门禁
+
+`tests/test_the_evidence_packet_sections_have_one_home.py`（3 条）✓：
+
+1. 家在 `completion.py` ✓、三格齐全 ✓
+2. 全包只许一处拼写 ✓
+3. 端到端不变 ✓：带 messages 的证据包里 `"conversation"` 格在场 ✓；
+   写后检视齐整的交付依旧 `complete` ✓（`_evidence_packet` + `_enforce_completion_evidence`
+   直接驱动 ✓，不拉 provider ✓）
+
+聚焦回归 ✓：门 3 条 + `test_core_agent.py` + `test_accuracy_contracts.py` +
+`test_m1_integrity.py` 共 98 条 ✓，全绿 ✓。全量 pytest 未跑 ✓。
+
+### 5 一条教训
+
+**一对集合，就是一对家。** ✓ 本批两处不是「一个词表两个读者」✓，而是**两个互相对账的
+集合** ✓——它们的共同前提（三格清单 ✓）被写了两遍 ✓。这种形状比普通重复更隐蔽 ✓：
+单独看每一处都正确 ✓，只有把它们并排读才发现它们必须相等 ✓。门的办法是**
+把共同前提提成家** ✓，让「相等」变成结构事实 ✓，而不是两处碰巧一致 ✓。
