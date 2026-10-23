@@ -26813,3 +26813,71 @@ T378 给验证状态立了家 ✓（`VERIFICATION_STATUSES` ✓），但**没有
 和**真的少算了一次**无法区分 ✓。家的价值不在少写两行 ✓，在
 **两边再也不会对不上** ✓：将来第五个键（比如 `model` ✓）加在家里 ✓，
 两个消费方同时拿到 ✓，而不是靠下一个人同时想起两个地方 ✓。
+
+
+## 第三百九十四批 — M8-T410 — 评分判决记录四个家：契约与行为两族评分器各手抄一份
+
+### 1 缺陷
+
+判决记录（`passed` + `grader_type` ✓，可带 `case_count` ✓ / `exit_code` ✓）
+有**四个手写处** ✓，跨两个模块 ✓：
+
+| 位置 | 形状 |
+| --- | --- |
+| `bench_tasks.py` ✓ `grade_file_contract` ✓ | 四键 ✓ |
+| `bench_tasks.py` ✓ `grade_command_contract` ✓ | 三键（无 `case_count` ✓） |
+| `behavior_bench.py` ✓ `grade_answer_rubric` ✓ | 三键（无 `exit_code` ✓） |
+| `behavior_bench.py` ✓ `grade_behavior` ✓ | 四键 ✓ |
+
+判决族里另外两个成员早有家 ✓（`_no_result` ✓「评分器拒评」✓、
+`ungraded_verdict` ✓「根本没人会看」✓）——**唯独「看了并判决」这个
+最常见的成员没有** ✓。报表是漂移显形的地方 ✓：`build_report` 读
+`case_count` ✓（空 oracle 策略 ✓）、读 `exit_code` ✓（诊断 ✓），
+一个忘了带键的评分器**不报错** ✓，只是记下一行指标看不见的行 ✓。
+
+### 2 落地
+
+* `bench_tasks.py` ✓ 立 `graded_verdict(grader_type, passed, *, case_count,
+  exit_code)` ✓——判决族第三个构造器 ✓，可选键的加法与 `_no_result`
+  同构 ✓，**键序与四处原字面量逐一致** ✓。
+* 四个评分器全部改为调用它 ✓（`behavior_bench` 两个走
+  `bench_tasks.graded_verdict` ✓，与既有的 `ungraded_verdict` 调用同风格 ✓）。
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T410-194 | `command_contract` 退同行内 dict | 2 条红（调用门 + 家内三构造器计数门 ✓） |
+| M8-T410-195 | `python_behavior` 退同行内 dict | 2 条红（调用门 + 家外零判决字面量门 ✓） |
+
+### 4 新增门禁
+
+`tests/test_the_graded_verdict_have_one_home.py`（4 条）✓：
+
+1. 家的行为 ✓：四键与「省略可选键」两种形状都对 ✓
+2. 四个评分器**逐个函数** AST 检查调用了 `graded_verdict` ✓
+3. 家模块**之外**零个小判决 dict 字面量 ✓（≤6 键含 `passed`+`grader_type` ✓；
+   报表行 24 键是另一事实 ✓，显式排除 ✓）
+4. 家模块**之内**恰好三个构造器字面量 ✓——T398 的教训 ✓：
+   家是「一个事实一个构造器」✓，不是「一个模块一个家」✓
+
+**既有门跟着搬家** ✓（T410 教会两扇 census 门读构造器 ✓）：
+
+* `test_grader_cannot_run_is_no_result.py` ✓ 的 `_written_names` ✓：判决构造器
+  第一个位置参数就是 `grader_type` 的写入点 ✓，否则 census 看不见评分器了 ✓
+  （活门断言 `"file_contract" in written` ✓ 当场抓住 ✓）
+* `test_metric_and_oracle_reach_report.py` ✓ 的「零用例规则读的键真的有
+  评分器在发」✓：`case_count` 现在以关键字参数到达 ✓
+
+聚焦回归 ✓：新门 4 条 + 评分器族 11 个文件共 170 条 ✓，全绿 ✓。
+全量 pytest 未跑 ✓。
+
+### 5 一条教训
+
+**「没人看」的三个变体早就立了家，「有人看」的那个却一直裸奔。** ✓
+因为拒评和免评是**异常路径** ✓——写的时候就觉得「这得小心」✓；
+而正常判决是**主路径** ✓，四个评分器各写一遍反而显得自然 ✓。
+可见 T80/T184 那批工作的盲区不在异常侧 ✓，在**最常见的那一侧** ✓：
+越常见的形状 ✓，越容易被「顺手再写一份」✓——因为**没有人觉得
+一个天天见的 dict 也需要一个家** ✓。门的第四条（家内恰好三个构造器 ✓）
+就是防这个 ✓：连家模块内部再抄一份都算漂移 ✓。

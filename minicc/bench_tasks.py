@@ -458,6 +458,27 @@ def _no_result(grader_type: str, reason: str, *, case_count: int | None = None,
     return out
 
 
+def graded_verdict(
+    grader_type: str, passed: bool, *, case_count: int | None = None, exit_code: int | None = None
+) -> dict[str, Any]:
+    """The one constructor for "a grader looked and judged this workspace".
+
+    The third member of the verdict family, after ``_no_result`` (a grader
+    declined to look) and ``ungraded_verdict`` (nobody was ever going to look).
+    Four graders hand-wrote this dict - two contract graders here and two
+    behaviour graders in ``behavior_bench`` - and the report is the place the
+    drift shows: ``build_report`` reads ``case_count`` for the vacuous-oracle
+    policy and ``exit_code`` for the diagnosis, so a grader that forgets a key
+    does not fail loudly, it just books a row the metrics cannot see.
+    """
+    out: dict[str, Any] = {"passed": passed, "grader_type": grader_type}
+    if case_count is not None:
+        out["case_count"] = case_count
+    if exit_code is not None:
+        out["exit_code"] = exit_code
+    return out
+
+
 def _refused(
     result: "subprocess.CompletedProcess[str]", grader_type: str, case_count: int | None = None
 ) -> dict[str, Any]:
@@ -616,10 +637,8 @@ def grade_file_contract(
         return _refused(result, "file_contract", len(files))
     marker = f"MINICC_FILE_CONTRACT_COMPLETE:{len(files)}"
     passed = result.returncode == 0 and marker in result.stdout.splitlines()
-    return {
-        "passed": passed, "grader_type": "file_contract",
-        "case_count": len(files), "exit_code": result.returncode,
-    }
+    return graded_verdict(
+        "file_contract", passed, case_count=len(files), exit_code=result.returncode)
 
 
 #: Which embedded script consumes which shipped grader type. The gate reconciles its
@@ -814,7 +833,7 @@ def grade_command_contract(
     if result.returncode == _GRADER_REFUSED:
         return _refused(result, "command_contract")
     passed = result.returncode == 0 and "MINICC_COMMAND_CONTRACT_COMPLETE:1" in result.stdout.splitlines()
-    return {"passed": passed, "grader_type": "command_contract", "exit_code": result.returncode}
+    return graded_verdict("command_contract", passed, exit_code=result.returncode)
 
 
 def grade_v2(

@@ -431,6 +431,10 @@ def test_the_zero_case_rule_reads_a_key_the_producer_really_emits() -> None:
                 if isinstance(inner, ast.Dict):
                     emitted.update(key.value for key in inner.keys
                                    if isinstance(key, ast.Constant) and isinstance(key.value, str))
+                # M8-T410: the graded verdict is built by one constructor, so a
+                # key a grader emits now arrives as a keyword argument.
+                elif isinstance(inner, ast.Call):
+                    emitted.update(kw.arg for kw in inner.keywords if kw.arg)
     assert "case_count" in emitted, sorted(emitted)
 
 

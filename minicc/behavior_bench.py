@@ -242,7 +242,7 @@ def grade_answer_rubric(task: dict[str, Any], answer: str = "") -> dict[str, Any
     folded = answer.casefold()
     groups = grader.get("required_any") or []
     passed = all(any(str(term).casefold() in folded for term in group) for group in groups)
-    return {"passed": passed, "grader_type": "answer_rubric", "case_count": len(groups)}
+    return bench_tasks.graded_verdict("answer_rubric", passed, case_count=len(groups))
 
 
 def grade_behavior(task: dict[str, Any], workspace: Path, answer: str = "") -> dict[str, Any]:
@@ -274,7 +274,9 @@ def grade_behavior(task: dict[str, Any], workspace: Path, answer: str = "") -> d
             cwd=workspace, timeout=20,
         )
         marker = f"MINICC_BEHAVIOR_COMPLETE:{count}"
-        return {"passed": result.returncode == 0 and marker in result.stdout.splitlines(), "grader_type": "python_behavior", "case_count": count, "exit_code": result.returncode}
+        passed = result.returncode == 0 and marker in result.stdout.splitlines()
+        return bench_tasks.graded_verdict(
+            "python_behavior", passed, case_count=count, exit_code=result.returncode)
     except (OSError, subprocess.TimeoutExpired) as exc:
         # The grader subprocess could not be started or hung: nobody looked at
         # the workspace, so this row has no verdict. M8-T83 removed the

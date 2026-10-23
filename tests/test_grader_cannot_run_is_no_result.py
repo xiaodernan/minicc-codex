@@ -216,12 +216,21 @@ def _production_sources() -> list[tuple[str, ast.Module]]:
 
 
 def _written_names(node: ast.AST) -> list[tuple[str | None, ast.expr | None]]:
-    """(name, value) pairs a node writes: dict literal keys and keyword arguments."""
+    """(name, value) pairs a node writes: dict literal keys, keyword arguments,
+    and the verdict constructor's first positional argument."""
     if isinstance(node, ast.Dict):
         return [(k.value if isinstance(k, ast.Constant) else None, v)
                 for k, v in zip(node.keys, node.values)]
     if isinstance(node, ast.Call):
-        return [(k.arg, k.value) for k in node.keywords]
+        pairs = [(k.arg, k.value) for k in node.keywords]
+        # M8-T410: the graded verdict is built by one constructor whose first
+        # argument names the grader; the census has to follow it there, or the
+        # graders look like they write no grader_type at all.
+        func = node.func
+        called = func.id if isinstance(func, ast.Name) else getattr(func, "attr", None)
+        if called == "graded_verdict" and node.args:
+            pairs.append(("grader_type", node.args[0]))
+        return pairs
     return []
 
 
