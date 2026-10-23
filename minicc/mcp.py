@@ -34,7 +34,7 @@ from typing import Any
 
 from . import __version__
 from .logging_setup import get_logger
-from .netguard import BlockedAddressError, assert_public_http_url
+from .netguard import SCHEME_PREFIXES, BlockedAddressError, assert_public_http_url
 from .tools.registry import (
     TOOL_NAME_BODY_CLASS,
     TOOL_NAME_MAX_CHARS,
@@ -234,7 +234,7 @@ def load_mcp_config(workspace: Path) -> list[McpServerConfig]:
         if not command and not url:
             raise McpError(f"MCP server {name!r} 缺少 command 或 url")
         if url:
-            if not url.startswith(("http://", "https://")):
+            if not url.startswith(SCHEME_PREFIXES):
                 raise McpError(f"MCP server {name!r} 的 url 必须是 http/https 地址")
             try:
                 assert_public_http_url(url, allow_env="MINICC_ALLOW_PRIVATE_MCP")

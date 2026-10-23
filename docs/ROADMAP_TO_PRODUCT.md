@@ -25958,3 +25958,57 @@ default 模式下被权限门拦下** ✓，而拦它的理由跟测试毫无关
 `APPROVAL_DECISIONS` ✓、然后在两处放行判定写 `!= "deny"` ✓——那恰恰是
 本批要防的「未来第四裁决被当成拒绝」✓。子集必须自己立户 ✓，并且门的第 1 条
 断言 `PERMITTING < APPROVAL` ✓：把「子集永远盖不住 deny」钉成结构事实 ✓。
+
+
+## 第三百七十九批 — M8-T395 — 协议前缀元组两个家：startswith 的 ("http://", "https://")
+
+### 1 缺陷
+
+`ALLOWED_SCHEMES = {"http", "https"}` 在 T381 有了家 ✓（`netguard.py` ✓），
+但同一事实的**线上形状**又被手写了两次 ✓：
+
+| 行 | 拼写 | 用途 |
+| --- | --- | --- |
+| `minicc/mcp.py:237` | `url.startswith(("http://", "https://"))` | MCP server url 必须是 http/https ✓ |
+| `minicc/tools/web.py:275` | 同左 | 搜索结果只收 http/https 链接 ✓ |
+
+裸协议名与带 `://` 的前缀是**同一个事实的两种形状** ✓：在家（netguard ✓）里
+加一个 `ftp` ✓，这两处 startswith 不会知道 ✓——配置校验放行了 `ftp://` ✓，
+搜索结果却把它静默丢弃 ✓，两张脸对同一个 url 给出不同答案 ✓。
+
+### 2 落地
+
+* **派生家** ✓：`netguard.py` 新增
+  `SCHEME_PREFIXES = tuple(f"{scheme}://" for scheme in sorted(ALLOWED_SCHEMES))` ✓——
+  不是再抄一份常量 ✓，而是从 `ALLOWED_SCHEMES` **推出来** ✓：加一种协议 ✓，
+  前缀家自动跟上 ✓。
+* **两处收口** ✓：`mcp.py`（已有 netguard 导入 ✓）与 `tools/web.py`
+  （新增 `from ..netguard import SCHEME_PREFIXES` ✓，照 webfetch.py 先例 ✓）
+  都改问家 ✓，同对象 ✓。
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T395-179 | tools/web.py 判定退回行内 `("http://", "https://")` | 1 条红（AST 扫描抓到 ✓） |
+
+### 4 新增门禁
+
+`tests/test_the_scheme_prefixes_have_one_home.py`（4 条）✓：
+
+1. 家在 `netguard.py` ✓、且**由 ALLOWED_SCHEMES 派生** ✓（不是第二份手抄常量 ✓）
+2. 两个消费者导入的是**同一个对象** ✓（`is` 断言 ✓）
+3. 全包不许出现行内前缀元组 ✓（AST 扫描 ✓；派生家本身零字面量 ✓，扫描为空即绿 ✓）
+4. 行为不变 ✓：`http://` / `https://` 照过 ✓，`ftp://` / `file://` 照拒 ✓
+
+聚焦回归 ✓：门 4 条 + `test_mcp_config_validation.py` + `test_mcp_config_value_types.py` +
+`test_mcp_http.py` + `test_webfetch.py` + `test_web_security.py` 共 82 条 ✓，全绿 ✓。
+全量 pytest 未跑 ✓。
+
+### 5 一条教训
+
+**同一事实的两种形状，要派生，不要并列。** ✓ 本批若图省事再立一个
+`SCHEME_PREFIXES = ("http://", "https://")` 手抄常量 ✓，只是把「两个家」换成
+「两个都对但可能分家的家」✓。真正的收口是让第二种形状**长在**第一种上 ✓：
+门第 1 条断言相等 ✓，第 3 条连一个前缀字面量都不许存在 ✓——
+从此「加一种协议」永远只需要改一个地方 ✓。

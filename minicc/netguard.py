@@ -10,6 +10,10 @@ import urllib.parse
 from .config import TRUTHY
 
 ALLOWED_SCHEMES = frozenset({"http", "https"})
+# The wire form of the same fact: startswith() checks need the "://" suffix,
+# and a hand-written ("http://", "https://") tuple is a second contract that
+# silently misses a scheme added to ALLOWED_SCHEMES.
+SCHEME_PREFIXES = tuple(f"{scheme}://" for scheme in sorted(ALLOWED_SCHEMES))
 
 
 class BlockedAddressError(ValueError):
@@ -120,6 +124,7 @@ def assert_public_http_url(url: str, *, allow_env: str) -> urllib.parse.ParseRes
 
 __all__ = [
     "ALLOWED_SCHEMES",
+    "SCHEME_PREFIXES",
     "BlockedAddressError",
     "assert_public_host",
     "assert_public_http_url",

@@ -15,6 +15,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, quote_plus, unquote, urlsplit
 from urllib.request import Request, urlopen
 
+from ..netguard import SCHEME_PREFIXES
 from .registry import ToolError
 from .schemas import ToolResult
 
@@ -272,7 +273,7 @@ def parse_search_html(html: str, max_results: int = MAX_RESULTS) -> list[dict[st
     seen: set[str] = set()
     for item in [*parser.results, *bing_parser.results]:
         url = item.get("url", "")
-        if not url or url in seen or not url.startswith(("http://", "https://")):
+        if not url or url in seen or not url.startswith(SCHEME_PREFIXES):
             continue
         seen.add(url)
         output.append(
