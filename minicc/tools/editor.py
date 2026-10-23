@@ -80,6 +80,23 @@ class StaleContextError(EditError):
         self.actual_digest = actual
 
 
+def _validate_read_window(offset: int, limit: int) -> None:
+    """The one guard for a read window's (offset, limit) pair.
+
+    ``read_file_meta`` and ``read_file`` take the same two parameters
+    and must reject the same two mistakes: an offset below 1 (a line
+    number that does not exist) and a limit past the per-call cap (a
+    window wider than the digest-addressed read contract allows).  A
+    guard one copy drops is a read that silently starts at line 0 or
+    silently returns more lines than the caller asked the model to
+    see.
+    """
+    if offset < 1:
+        raise EditError(f"offset 必须 ≥ 1 (收到 {offset})")
+    if limit > MAX_READ_LINES:
+        raise EditError(f"limit={limit} 超过单次读取上限 {MAX_READ_LINES}")
+
+
 def resolve_in_workspace(workspace: Path, raw_path: str) -> Path:
     """The one containment guard for a model-supplied path.
 
@@ -455,10 +472,7 @@ class Editor:
     ) -> FileRead:
         """Line-numbered read PLUS digest/size of the file's raw bytes —
         the freshness anchor for STALE_CONTEXT checks (§8.1)."""
-        if offset < 1:
-            raise EditError(f"offset 必须 ≥ 1 (收到 {offset})")
-        if limit > MAX_READ_LINES:
-            raise EditError(f"limit={limit} 超过单次读取上限 {MAX_READ_LINES}")
+        _validate_read_window(offset, limit)
         target = self._resolve(path)
         if not target.is_file():
             raise EditError(f"文件不存在: {path}")
@@ -480,10 +494,7 @@ class Editor:
         Unchanged for backward compatibility — digest-addressed reads use
         read_file_meta()/file_digest().
         """
-        if offset < 1:
-            raise EditError(f"offset 必须 ≥ 1 (收到 {offset})")
-        if limit > MAX_READ_LINES:
-            raise EditError(f"limit={limit} 超过单次读取上限 {MAX_READ_LINES}")
+        _validate_read_window(offset, limit)
         target = self._resolve(path)
         if not target.is_file():
             raise EditError(f"文件不存在: {path}")

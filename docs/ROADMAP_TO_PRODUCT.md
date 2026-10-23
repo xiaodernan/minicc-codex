@@ -29786,3 +29786,67 @@ git_workflow 6 条 + security_perimeter / file_preview 54
 ✓：同一个「思想」在不同子系统可以有不同合同（异常类型
 + 文案）✓，那时不该硬合 ✓——把合同差异写进 roadmap 的
 边界记录 ✓，下一个人才知道那是边界不是遗漏 ✓。** **
+
+## 第四百四十四批 — M8-T460 — 读取窗口守卫一个家
+
+### 1 缺陷
+
+`read_file_meta` 与 `read_file` 是两个读入口（前者带
+digest 新鲜度锚，后者兼容旧调用），各自的窗口参数校验
+逐字重复两遍：
+
+```python
+if offset < 1:
+    raise EditError(f"offset 必须 ≥ 1 (收到 {offset})")
+if limit > MAX_READ_LINES:
+    raise EditError(f"limit={limit} 超过单次读取上限 {MAX_READ_LINES}")
+```
+
+两个入口必须拒绝同样的两种误用：offset < 1（不存在的
+行号）与 limit 超上限（比 digest 读取契约允许更宽的窗
+口）。一边漏掉 offset 检查，那个入口就会从第 0 行开始
+安静地多返回一行；一边放宽 limit，那个入口就能一次拉回
+超量内容——两个读入口的契约从此不一致，而调用方无法
+从异常上区分「这个入口允许」还是「漏写了」。
+
+### 2 落地
+
+- `minicc/tools/editor.py` 立模块级 `_validate_read_window(
+  offset, limit)`，放在 T459 的 `resolve_in_workspace` 之前
+- 两个读入口收口；守卫无返回值（不合法即抛），合法则静默
+  通过
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T460-264 | read_file_meta 退回手写 | 2 条红（消息 census ✓） |
+| M8-T460-265 | read_file 退回手写 | 2 条红（消息 census ✓） |
+
+### 4 新增门禁
+
+`tests/test_the_read_window_guard_have_one_home.py`（5 条）✓：
+
+1. 家的行为 ✓：合法窗口静默通过 ✓
+2. 家的行为 ✓：offset<1（0 与负数）抛「offset 必须 ≥
+   1」✓
+3. 家的行为 ✓：limit 超上限抛「超过单次读取上限」✓
+4. census ✓：两条消息全文在 editor.py 各恰好一处 ✓且
+   在 `_validate_read_window` 内 ✓；「offset 必须」在
+   minicc/ 全仓恰好一处 ✓
+5. 调用计数 ✓：`_validate_read_window(` 恰好 3 次 ✓（定义
+   + 两个读入口 ✓）
+
+聚焦回归 ✓：新门 5 条 + core_tools / security_perimeter
+51 条 ✓，共 56 条 ✓，全绿 ✓。全量 pytest 未跑 ✓。
+
+### 5 一条教训
+
+**兼容旧签名的孪生入口是重复的温床 ✓：`read_file` 的存在
+理由是「不给老调用方添乱」 ✓，结果它的校验逻辑也跟着
+原样复制了一份 ✓。** ✓ 判别口诀 ✓：**当一个新入口是为了
+兼容旧入口而存在时 ✓，先问旧入口的每一行校验新入口是
+否照抄了 ✓——照抄的部分正是还没立的家 ✓。** 本次两条
+消息都是用户面向的 EditError ✓，消息文本本身就是契约的
+一部分 ✓，所以 census 直接钉消息全文 ✓，比数 if 语句更
+难被「等价改写」绕过 ✓。** **
