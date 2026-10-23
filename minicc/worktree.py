@@ -86,11 +86,23 @@ class WorktreeManager:
             raise WorktreeError("worktree 名称只能包含字母、数字、点、下划线和短横线")
         return name
 
-    def create(self, name: str, branch: str | None = None) -> dict[str, Any]:
-        name = self._validate_name(name)
+    def _target_within_root(self, name: str) -> Path:
+        """The one containment check for a worktree path under the root.
+
+        ``create`` and ``remove`` both resolve a validated name against
+        the worktree root and must reject the same escape: a name that
+        resolves outside the root is never touched.  A check one copy
+        drops is a git worktree command aimed outside the directory the
+        user approved.
+        """
         target = (self.root / name).resolve()
         if not target.is_relative_to(self.root.resolve()):
             raise WorktreeError("worktree 路径越界")
+        return target
+
+    def create(self, name: str, branch: str | None = None) -> dict[str, Any]:
+        name = self._validate_name(name)
+        target = self._target_within_root(name)
         if target.exists():
             raise WorktreeError(f"worktree 已存在: {name}")
         self.root.mkdir(parents=True, exist_ok=True)
@@ -107,9 +119,7 @@ class WorktreeManager:
 
     def remove(self, name: str, force: bool = False) -> dict[str, Any]:
         name = self._validate_name(name)
-        target = (self.root / name).resolve()
-        if not target.is_relative_to(self.root.resolve()):
-            raise WorktreeError("worktree 路径越界")
+        target = self._target_within_root(name)
         args = ["worktree", "remove"]
         if force:
             args.append("--force")

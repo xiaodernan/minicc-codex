@@ -29984,3 +29984,66 @@ C7、范围例写成 C8，落盘的门文件里定义顺序相反，臂电池按
    已经能被读判、多少仍是「引用了正文里没有的东西」。先量再定号，别先动刀。
 3. **范围标题的可读性**：`## 附：第三百三十五~六十五批总账` 这类标题既不进册也不可判；
    要不要给它一个「展开成区间」的读法，取决于第 2 条量出来的分布。
+
+## 第四百四十五批 — M8-T461 — worktree 包含检查一个家
+
+### 1 缺陷
+
+`WorktreeManager.create` 与 `remove` 各自手写同一个包含
+性检查：
+
+```python
+target = (self.root / name).resolve()
+if not target.is_relative_to(self.root.resolve()):
+    raise WorktreeError("worktree 路径越界")
+```
+
+create 建目录、remove 删目录——两个动作都作用在文件系
+统上，且都先把用户给的 name 解析到 root 下。任何一边
+漏掉检查，对应的动作就能落到 worktree 根之外：create
+是在批准范围外**创建**目录，remove 是在批准范围外**删
+除**。越界消息也手写两遍，审计时无法用一条 grep 确认
+两个入口都还带着守卫。
+
+### 2 落地
+
+- `minicc/worktree.py` 立方法 `_target_within_root(name)`，
+  放在 `create` 之前
+- 两个入口收口：`name = self._validate_name(name)` 之后统
+  一 `target = self._target_within_root(name)`——校验名
+  字是调用方的事，包含性是家的事，顺序不变
+- 与 T459（editor/git 的工作区包含守卫）同族不同根：
+  那个守 workspace，这个守 worktree 根，消息与异常类型
+  都不同，不合并
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T461-264 | create 退回手写检查 | 2 条红（消息 census ✓） |
+| M8-T461-265 | remove 退回手写检查 | 2 条红（消息 census ✓） |
+
+### 4 新增门禁
+
+`tests/test_the_worktree_containment_have_one_home.py`（4 条）✓：
+
+1. 家的行为 ✓：合法名字解析到 root 下的目标 ✓
+2. 家的行为 ✓：逃逸名字（`../outside`）抛「worktree
+   路径越界」✓
+3. census ✓：「worktree 路径越界」在 minicc/ 下**恰好
+   一处** ✓且在家 ✓
+4. 调用计数 ✓：`_target_within_root(` 恰好 3 次 ✓（定义 +
+   create + remove ✓）
+
+聚焦回归 ✓：新门 4 条 + core_tools / http_surface 111 条
++ subprocess_decoding / timeout_pairing 22 条 ✓，共 137
+条 ✓，全绿 ✓。全量 pytest 未跑 ✓。
+
+### 5 一条教训
+
+**create 与 remove 是「一建一毁」配对 ✓，它们的前置守卫
+必须同一个 ✓。** ✓ 毁灭性操作（remove）的守卫漏了比创建
+性操作更危险 ✓，但两者的检查代码长得一模一样 ✓，review
+时眼睛会「看见」两处而大脑只检查一遍 ✓。判别口诀 ✓：
+**同一资源的创建与销毁入口 ✓，共享全部前置校验 ✓——建
+的时候查什么 ✓，毁的时候就查什么 ✓。** **
