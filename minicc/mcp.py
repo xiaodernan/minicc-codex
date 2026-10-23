@@ -327,6 +327,18 @@ def _jsonrpc_request(msg_id: Any, method: str, params: dict[str, Any]) -> dict[s
     }
 
 
+def _jsonrpc_notification(method: str, params: dict[str, Any]) -> dict[str, Any]:
+    """The one JSON-RPC notification envelope: version, method, params - no id.
+
+    A notification gets no answer, so it carries no id.  Two sites
+    spell it: the stdio ``_notify`` helper and the HTTP handshake's
+    initialized notice.  One builder keeps "no id" from quietly
+    becoming "id: null" or "id: 0" - an id-ed notification makes the
+    peer wait for an answer that never comes.
+    """
+    return {"jsonrpc": _JSONRPC_VERSION, "method": method, "params": params}
+
+
 class McpStdioClient:
     """Persistent JSON-RPC-over-stdio client with a reader queue."""
 
@@ -463,7 +475,7 @@ class McpStdioClient:
             self._respond(msg_id, error={"code": -32601, "message": f"Method not found: {method}"})
 
     def _respond(self, msg_id: Any, *, result: Any = None, error: Any = None) -> None:
-        payload: dict[str, Any] = {"jsonrpc": "2.0", "id": msg_id}
+        payload: dict[str, Any] = {"jsonrpc": _JSONRPC_VERSION, "id": msg_id}
         if error is not None:
             payload["error"] = error
         else:
@@ -488,7 +500,7 @@ class McpStdioClient:
             return self._write_locked(payload)
 
     def _notify(self, method: str, params: dict[str, Any]) -> None:
-        self._write({"jsonrpc": "2.0", "method": method, "params": params})
+        self._write(_jsonrpc_notification(method, params))
 
     def _ensure_alive(self) -> None:
         if self._dead:
@@ -703,7 +715,7 @@ class McpHttpClient:
         if result is None:
             raise McpError(f"MCP HTTP server {self.config.name} 初始化响应无效")
         # notifications/initialized: servers typically answer 202 with no body.
-        self._post({"jsonrpc": "2.0", "method": "notifications/initialized", "params": {}})
+        self._post(_jsonrpc_notification("notifications/initialized", {}))
 
     def _parse_body(self, content_type: str, body: str, expect_id: int | None = None) -> dict[str, Any] | None:
         """Parse a JSON or SSE body into one JSON-RPC result object."""
