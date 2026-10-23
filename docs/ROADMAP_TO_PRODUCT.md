@@ -28957,3 +28957,71 @@ flag）导致后台命令冒充验证 ✓。修过一次的洞 ✓，更要用�
 判别口诀 ✓：**注释里写着「这个字段必须和某个字段一起」的
 地方 ✓，就是在指认一个还没立的家 ✓——注释是家的讣告 ✓，
 家是注释的墓碑 ✓。** **
+
+## 第四百三十一批 — M8-T447 — 扫描警告两键一个家
+
+### 1 缺陷
+
+`impact.py` 的仓库扫描有四种失败模式，每种各自手写警告
+条目，且各自手写 100 条上限：
+
+- 目录读不了（`walk_error`）：`{"path": "", "reason":
+  "directory could not be read"}`
+- 文件超 400 KB：`{"path": relative, "reason": "source
+  exceeds 400 KB"}`
+- 解析失败：`{"path": relative, "reason": parsed.error}`
+- 读取抛 OSError：`{"path": relative, "reason": "source
+  could not be read"}`
+
+四段 `if len(warnings) < 100:` + `warnings.append({"path":
+..., "reason": ...})`。两个事实各抄四遍：**条目的形状**
+（哪个路径、为什么跳过）和**截断策略**（最多 100 条）。
+漏改一处的代价：下游读者以为「warnings 是前 100 条原因」
+的承诺对所有模式生效，某一模式超限时把第 101 条也塞进
+去，payload 悄悄变形；或者某模式改了键名， warnings 里
+出现异构记录。
+
+### 2 落地
+
+- `minicc/impact.py` 立模块级 `_append_warning(warnings,
+  path, reason)`，放在 `_normalized_changes` 之前
+- 新增模块常量 `_MAX_WARNINGS = 100`（沿用文件里
+  `_MAX_FILE_BYTES`/`_MAX_ENTRIES` 一族的命名）
+- 四处 append 全部收口；cap 判断移入家中，`parsed.error`
+  处的调用条件从 `and len(warnings) < 100` 缩回
+  `if parsed.error:`——截断是家的内政，不是调用方的条件
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T447-264 | 目录读不了退回手写 | 2 条红（census + 调用计数 ✓） |
+| M8-T447-265 | 超 400 KB 退回手写 | 2 条红（census + 调用计数 ✓） |
+| M8-T447-266 | 解析失败退回手写 | 2 条红（census + 调用计数 ✓） |
+| M8-T447-267 | OSError 退回手写 | 2 条红（census + 调用计数 ✓） |
+
+### 4 新增门禁
+
+`tests/test_the_scan_warning_have_one_home.py`（4 条）✓：
+
+1. 家的行为 ✓：两键形状 ✓
+2. 家的行为 ✓：满 100 条后再 append 是 no-op ✓
+3. census ✓：`{"path", "reason"}` 两键 dict 字面量在 minicc/
+   下**恰好一处** ✓且在家 ✓
+4. 调用计数 + 上限唯一 ✓：`_append_warning(` 恰好 5 次 ✓，
+   `_MAX_WARNINGS` 恰好 2 次 ✓，`len(warnings) < 100` 零
+   次 ✓
+
+聚焦回归 ✓：新门 4 条 + change_impact / impacted_tests 37
+条 ✓，共 41 条 ✓，全绿 ✓。全量 pytest 未跑 ✓。
+
+### 5 一条教训
+
+**截断策略和条目形状是同一条事实的两面 ✓，必须同一个
+家 ✓。** ✓ 常见写法是「形状立家、上限留原地」✓，本批次
+四处的上限判断比形状抄得还显眼 ✓——上限散在四处的
+话 ✓，将来调 100→200 就是四次编辑 ✓，漏一处就有一种
+失败模式提前截断 ✓，而读者看到的 warnings 长度分布
+会**随机地**不对 ✓。判别口诀 ✓：**带容量上限的收集
+append ✓，上限和条目要一起收进家 ✓；调用方的 `if`
+里不该出现容量判断 ✓——那是家的内政 ✓。** **

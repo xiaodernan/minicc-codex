@@ -25,6 +25,7 @@ _MAX_FILE_BYTES = 400_000
 _MAX_TOTAL_BYTES = 16_000_000
 _MAX_ENTRIES = 30_000
 _MAX_CACHE = 4096
+_MAX_WARNINGS = 100
 _MAX_IMPORTS = 1024
 
 
@@ -146,6 +147,20 @@ def _parse(path: Path) -> tuple[_Parsed, bool]:
     return parsed, False
 
 
+def _append_warning(warnings: list[dict[str, str]], path: str, reason: str) -> None:
+    """One scan warning, capped.
+
+    Four scan failure modes report the same two-key shape: which path
+    was skipped and why.  The cap lives here too - a workspace with a
+    thousand unreadable files must not balloon the result payload, and
+    the bound must be identical for every failure mode, so the reader
+    can trust "the first 100 reasons" without knowing which mode
+    produced them.
+    """
+    if len(warnings) < _MAX_WARNINGS:
+        warnings.append({"path": path, "reason": reason})
+
+
 def _normalized_changes(root: Path, changed_paths: list[str]) -> list[str]:
     if not isinstance(changed_paths, list) or len(changed_paths) > 500:
         raise ValueError("changed_paths must be an array with at most 500 paths")
@@ -264,8 +279,7 @@ def analyze_change_impact(workspace: Path | str, changed_paths: list[str], *, li
     def walk_error(error: OSError) -> None:
         nonlocal skipped
         skipped += 1
-        if len(warnings) < 100:
-            warnings.append({"path": "", "reason": "directory could not be read"})
+        _append_warning(warnings, "", "directory could not be read")
 
     for folder, dirs, files in os.walk(root, onerror=walk_error):
         dirs[:] = sorted(name for name in dirs if not name.startswith(".") and name not in _SKIP_DIRS and not name.endswith(".egg-info") and not (Path(folder) / name).is_symlink())
@@ -289,8 +303,7 @@ def analyze_change_impact(workspace: Path | str, changed_paths: list[str], *, li
                 size = path.stat().st_size
                 if size > _MAX_FILE_BYTES:
                     skipped += 1
-                    if len(warnings) < 100:
-                        warnings.append({"path": relative, "reason": "source exceeds 400 KB"})
+                    _append_warning(warnings, relative, "source exceeds 400 KB")
                     continue
                 total_bytes += size
                 if total_bytes > _MAX_TOTAL_BYTES:
@@ -299,12 +312,11 @@ def analyze_change_impact(workspace: Path | str, changed_paths: list[str], *, li
                 parsed, cached = _parse(path)
                 parsed_files[relative] = parsed
                 cache_hits += int(cached)
-                if parsed.error and len(warnings) < 100:
-                    warnings.append({"path": relative, "reason": parsed.error})
+                if parsed.error:
+                    _append_warning(warnings, relative, parsed.error)
             except OSError:
                 skipped += 1
-                if len(warnings) < 100:
-                    warnings.append({"path": relative, "reason": "source could not be read"})
+                _append_warning(warnings, relative, "source could not be read")
         if stop:
             break
     known = set(parsed_files) | {path for path in changed if PurePosixPath(path).suffix in _SUFFIXES}
