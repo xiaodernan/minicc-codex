@@ -147,6 +147,13 @@ def _path_key(raw_path: str | Path | None) -> str:
         return str(raw_path).replace("\\", "/").rstrip("/").casefold()
 
 
+# M8-T392: the attachment fields a serialized task carries.  ``snapshot()``
+# (the durable record) and ``summary()`` (the list view) each spelled the four
+# keys themselves; a fifth field added to one and not the other would make the
+# list view and the detail view disagree about what an attachment is.
+ATTACHMENT_FIELDS = ("name", "mime_type", "size_bytes", "path")
+
+
 def _safe_attachment_name(raw_name: object, index: int, mime_type: str) -> str:
     name = Path(str(raw_name or "")).name
     name = re.sub(r"[^A-Za-z0-9._-]+", "-", name).strip(".-")
@@ -818,7 +825,7 @@ class TaskRecord:
                 "attachments": [
                     {
                         key: item.get(key)
-                        for key in ("name", "mime_type", "size_bytes", "path")
+                        for key in ATTACHMENT_FIELDS
                         if item.get(key) is not None
                     }
                     for item in self.attachments
@@ -936,7 +943,7 @@ class TaskRecord:
                 "attachments": [
                     {
                         key: item.get(key)
-                        for key in ("name", "mime_type", "size_bytes", "path")
+                        for key in ATTACHMENT_FIELDS
                         if item.get(key) is not None
                     }
                     for item in self.attachments
