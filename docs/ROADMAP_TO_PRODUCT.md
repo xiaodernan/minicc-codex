@@ -30047,3 +30047,63 @@ create 建目录、remove 删目录——两个动作都作用在文件系
 时眼睛会「看见」两处而大脑只检查一遍 ✓。判别口诀 ✓：
 **同一资源的创建与销毁入口 ✓，共享全部前置校验 ✓——建
 的时候查什么 ✓，毁的时候就查什么 ✓。** **
+
+## 第四百四十六批 — M8-T462 — 失败日志行一个家
+
+### 1 缺陷
+
+`MiniccRequestHandler._fail` 里同一条失败日志写了两遍：
+
+- 5xx 分支：`LOG.error("request_failed status=%s code=%s
+  path=%s detail=%s", status, resolved, urlsplit(self.path)
+  .path, safe_detail[:200], exc_info=exc)`
+- 4xx 分支：`LOG.info(...)` 同一行、同样四个实参
+
+格式串与四个实参（状态、码、路径、脱敏详情前 200 字）
+完全重复，只有日志级别和 exc_info 不同。分叉的代价是
+**可观测性**：线上 grep `request_failed` 统计失败请求
+时，某一边改了字段顺序或截断长度，统计就少一半样
+本；而两个分支的差异（级别）本来是该由家统一决定的策
+略，不是各写一遍的理由。
+
+### 2 落地
+
+- `minicc/webserver.py` 立方法 `_log_request_failed(
+  status, code, detail, exc)`，紧跟 `_fail` 之后
+- 家中统一：格式串一处、四实参一处（含 `detail[:200]`
+  截断与 `urlsplit(self.path).path` 取路径），级别按
+  status 分档（≥500 走 ERROR 带 exc_info，其余 INFO）
+- `_fail` 里原来的双分支塌缩成一次调用
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T462-264 | 家退回双分支手写 | 1 条红（census ✓） |
+
+### 4 新增门禁
+
+`tests/test_the_request_failed_log_have_one_home.py`（5 条）✓：
+
+1. 家的行为 ✓：4xx 落 INFO 级 ✓，四字段按序进消息 ✓
+2. 家的行为 ✓：5xx 落 ERROR 级 ✓且带 exc_info ✓
+3. 家的行为 ✓：超长 detail 被截断 ✓（不炸 ✓）
+4. census ✓：日志格式串在 minicc/ 下**恰好一处** ✓且在
+   `_log_request_failed` 内 ✓
+5. 调用计数 ✓：`_log_request_failed(` 恰好 2 次 ✓（定义 +
+   `_fail` ✓）
+
+聚焦回归 ✓：新门 5 条 + http_surface 79 条 ✓，共 84 条
+✓，全绿 ✓。全量 pytest 未跑 ✓。
+
+### 5 一条教训
+
+**日志行是给未来的自己的契约 ✓，它的重复比业务代码更隐
+蔽 ✓——业务代码重复会出 bug ✓，日志重复只会让排查变
+难 ✓，而排查变难是不爆炸的事故 ✓。** ✓ 本批的 census
+直接钉格式串全文 ✓：日志的「形状」就是那一个字符串 ✓，
+实参顺序藏在 %s 里 ✓，改写实参不改格式串也能骗过键集合
+式 census ✓，但骗不过全文比对 ✓。判别口诀 ✓：**同一格
+式串出现两次 ✓，或者同一组 (格式串, 实参元组) 出现两次
+✓，就立一个 log helper ✓；级别、exc_info 这类策略进
+家 ✓，调用方只报事实 ✓。** **

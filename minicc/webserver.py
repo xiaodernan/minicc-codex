@@ -223,26 +223,28 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
             payload["error_type"] = type(exc).__name__
             payload["retryable"] = True
         payload.update(extra)
-        # 4xx responses are expected client traffic; only a server-side failure
-        # deserves the WARNING level plus the traceback in the log file.
-        if status >= 500:
-            LOG.error(
-                "request_failed status=%s code=%s path=%s detail=%s",
-                status,
-                resolved,
-                urlsplit(self.path).path,
-                safe_detail[:200],
-                exc_info=exc,
-            )
-        else:
-            LOG.info(
-                "request_failed status=%s code=%s path=%s detail=%s",
-                status,
-                resolved,
-                urlsplit(self.path).path,
-                safe_detail[:200],
-            )
+        self._log_request_failed(status, resolved, safe_detail, exc)
         self._json(payload, status)
+
+    def _log_request_failed(
+        self, status: int, code: str, detail: str, exc: BaseException | None
+    ) -> None:
+        """The one request-failed log line.
+
+        A 4xx is expected client traffic and logs at INFO; a 5xx is a
+        server-side failure and logs at ERROR with the traceback.  The
+        line itself - and the four facts it carries (status, code,
+        path, the first 200 chars of the redacted detail) - is one
+        statement about one failed request; writing it twice invites
+        the two spellings to drift until the log greps that find one
+        miss the other.
+        """
+        line = "request_failed status=%s code=%s path=%s detail=%s"
+        args = (status, code, urlsplit(self.path).path, detail[:200])
+        if status >= 500:
+            LOG.error(line, *args, exc_info=exc)
+        else:
+            LOG.info(line, *args)
 
     def do_OPTIONS(self) -> None:
         headers = self._cors_headers()
