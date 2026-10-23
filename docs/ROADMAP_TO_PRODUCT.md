@@ -30291,3 +30291,86 @@ webauth / mcp×5 / web_security / internal_dirs 共 194 条
 开 ✓。**教训 ✓：字符串 census 只认 AST 常量 ✓，不认文本
 行 ✓。** ✓ 另一条 ✓：census 窗口上方有长 docstring 时
 `lineno - 8` 看不见 `def` ✓，窗口要按需放到 12-24 行 ✓。
+
+## 第四百五十批 — M8-T466 — 载荷字段守卫一个家
+
+### 1 缺陷
+
+T458 在 `web.py` 立了 `_require_text` 这个家，但**最需要它的
+文件够不着它**：`web.py:135` 反向 re-export `webserver`，所以
+`webserver` 在 import 序上位于 `web` 之下。结果是
+`webserver.py` 把同一个守卫手搓了十遍——其中七处只留了
+isinstance 半边、丢了 strip 半边：`session_id: "   "` 直接
+穿过校验，被当成一个真实的会话 id 去存储、查询和写审计，
+而带着首尾空格的名字会以一个客户端从未发送过的拼写落库。
+`web.py` 自己还留着三处「先强转再判空」，isinstance 半边被
+`str(x or "")` 换成了静默强转——JSON 数字就此变成一个会话
+id。`task_manager.submit` 同样手搓一份。
+
+### 2 落地
+
+- 新建叶子模块 `minicc/input_guard.py`，托管唯一一份
+  `require_text(raw, field)`；**叶子是必须的**：web 在
+  webserver 之上，家只要放进 web，最需要它的那个传输层就
+  永远够不着它
+- `webserver.py` 十处全部收口：rewind / fork / allowlist 的
+  `session_id`、select 的 `path`、restore 的 `task_id`、
+  approval 的 `request_id`+`decision`、worktrees 两处
+  `name`、fork 的 `from_message_id`
+- `web.py` 六处收口：两处 `turn_id`、可选 `path`、两处
+  `session_id`、一处 `task_id`（强转判空改为拒绝非字符串）
+- `task_manager.py` 的 `message` 一处收口
+- 既有 `_require_text` 定义与旧门测试删除，新门测试
+  `tests/test_the_payload_field_guard_have_one_home.py`
+  接管
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T466-264 | rewind 的 session_id 退回松散 isinstance | 2 条红（消息 census + 惯用法 census ✓） |
+| M8-T466-265 | web.py 的 sid 退回强转判空 | 1 条红（消息 census ✓） |
+| M8-T466-266 | 家模块 import `.config`（破坏叶子性） | 1 条红（叶子断言 ✓） |
+| M8-T466-267 | 家丢掉 isinstance 半边 | 4 条红（行为参数化 ✓） |
+
+**M8-T466-266 第一次是存活的**：叶子断言写的是
+`node.module.startswith(".")`，而 `ast.ImportFrom.module`
+不含前导点（`.config` 的 module 是 `"config"`、级别在
+`node.level`），断言 vacuously 通过。改成 `node.level > 0`
+外加 `ast.Import` 的 `minicc` 前缀后才杀掉。**空断言比没有
+断言更危险**——它给绿旗。
+
+### 4 新增门禁
+
+`tests/test_the_payload_field_guard_have_one_home.py`（13 条）✓：
+
+1. 家行为：strip 后返回 ✓
+2. 六种空拼写全部拒绝 ✓（None/""/"   "/123/[]/{} ✓）
+3. 消息点名被拒的字段 ✓
+4. 家是叶子模块 ✓（AST 无任何 minicc 内部 import ✓）
+5. 三个载荷读取文件零手搓消息 ✓（AST 常量 census ✓）
+6. 三个载荷读取文件零守卫惯用法 ✓（neg isinstance + neg strip ✓）
+7. 传输层调用家 ✓（webserver ≥ 10 次、task_manager ≥ 1 次 ✓）
+8. 家独占消息形状 ✓
+
+聚焦回归 ✓：新门 13 条 + web_security / session_rewind /
+allowlist×2 / workspace_gate / http_surface / snapshots /
+permissions_approval / approval_decisions / core_task 共
+224 条 ✓，全绿 ✓（1 条 Windows 平台跳过 ✓）。慢测试
+（webfetch 网络、web_assets、changes_pure）未跑 ✓。全量
+pytest 未跑 ✓。
+
+### 5 一条教训
+
+**「家立起来了」和「家够得着」是两件事 ✓。** ✓ T458 立家时
+只证明了 web.py 内部八处同源 ✓，没问一句「还有谁读 JSON 载
+荷」✓——答案是 webserver，而它正好在被 re-export 的下风
+位 ✓，于是它够不着家 ✓，只能手搓 ✓，一搓就是十遍 ✓。
+**立家的下一句永远要问 ✓：这个家在 import 序上位于所有
+需要它的模块之上吗 ✓？** ✓ 答不上来就把家下沉到叶子模块
+✓，`internal_paths.py`（T465）和 `input_guard.py`（本批）
+是同一个答案的第二次复用 ✓。✓ 另一条 ✓：census 的边界要
+按「谁读 JSON 载荷」划 ✓，不按「消息文本相同」划 ✓——
+`allowlist.py` 的 `AllowlistError("session_id 不能为空")` 与
+`changes.py` 的 `ChangeError("path 不能为空")` 文本相同但
+是typed-Python 边界的另一份契约 ✓，不收 ✓。

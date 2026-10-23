@@ -97,6 +97,7 @@ from .audit import (
 from .changes import ChangeError, ChangeInspector
 from .commands import discover_commands, expand_slash_command
 from .mentions import apply_mentions
+from .input_guard import require_text
 from .internal_paths import AUDIT_NAME, PERMISSIONS_NAME
 from .permissions import load_permission_rules, match_permission_rule
 from .config import (
@@ -201,23 +202,8 @@ class _ApprovalGroup:
     timed_out: bool = False
 
 
-def _require_text(raw: Any, field: str) -> str:
-    """The one "<field> 不能为空" guard: a stripped, non-empty string.
-
-    RPC params and service arguments arrive as ``Any`` from JSON.  The
-    guard rejects a missing, blank or non-string value with one
-    message and hands back the stripped text.  Four sites spelled the
-    isinstance/strip/raise by hand - a site that forgets the isinstance
-    half lets a JSON number through as a session id, and a site that
-    forgets the strip half lets " " through as a real one.
-    """
-    if not isinstance(raw, str) or not raw.strip():
-        raise ValueError(f"{field} 不能为空")
-    return raw.strip()
-
-
 def _validate_thread_id(raw: Any) -> str:
-    thread_id = _require_text(raw, "thread_id")
+    thread_id = require_text(raw, "thread_id")
     if len(thread_id) > _THREAD_ID_MAX_LEN:
         raise ValueError(f"thread_id 超过长度上限 ({_THREAD_ID_MAX_LEN})")
     if any(ord(ch) < 32 or ord(ch) == 127 for ch in thread_id):
@@ -739,7 +725,7 @@ class AgentService:
         raw = params.get("session_id")
         if raw is None:
             return f"rpc-{uuid.uuid4().hex[:12]}"
-        return _require_text(raw, "session_id")
+        return require_text(raw, "session_id")
 
     def _rpc_thread_tasks(self, record: dict[str, Any]) -> list[dict[str, Any]]:
         session_id = str(record["session_id"])
@@ -867,7 +853,7 @@ class AgentService:
         task_id = self._rpc_turn_id(params)
         if task_id is None:
             if thread is None:
-                raise ValueError("turn_id 不能为空")
+                task_id = require_text(task_id, "turn_id")
             tasks = self._rpc_thread_tasks(thread)
             if not tasks:
                 raise KeyError(thread["thread_id"])
@@ -907,7 +893,7 @@ class AgentService:
                 if isinstance(item, dict) and isinstance(item.get("text"), str)
             ]
             raw_message = "\n".join(parts)
-        raw_message = _require_text(raw_message, "message")
+        raw_message = require_text(raw_message, "message")
         task = self.tasks.submit({
             "message": raw_message,
             "session_id": thread["session_id"],
@@ -926,9 +912,7 @@ class AgentService:
         return self._rpc_turn_payload(task, thread_id=thread["thread_id"])
 
     def _rpc_turn_interrupt(self, params: dict[str, Any]) -> dict[str, Any]:
-        task_id = self._rpc_turn_id(params)
-        if task_id is None:
-            raise ValueError("turn_id 不能为空")
+        task_id = require_text(self._rpc_turn_id(params), "turn_id")
         snapshot = self.tasks.cancel(task_id)
         return self._rpc_turn_payload(snapshot)
 
@@ -969,8 +953,8 @@ class AgentService:
         """Workspace change summary, or one file's diff when ``path`` is given."""
         workspace = self._rpc_workspace_path(params)
         raw_path = params.get("path")
-        if raw_path is not None and (not isinstance(raw_path, str) or not raw_path.strip()):
-            raise ValueError("path 不能为空")
+        if raw_path is not None:
+            raw_path = require_text(raw_path, "path")
         try:
             inspector = ChangeInspector(workspace)
             if raw_path:
@@ -997,7 +981,7 @@ class AgentService:
         }
 
     def switch_workspace(self, raw_path: str) -> dict[str, Any]:
-        raw_path = _require_text(raw_path, "工作区路径")
+        raw_path = require_text(raw_path, "工作区路径")
         candidate = resolve_workspace_path(
             raw_path, roots=tuple(getattr(self.config, "workspace_roots", ()) or ())
         )
@@ -1113,7 +1097,7 @@ class AgentService:
         user_index: int | None = None,
     ) -> dict[str, Any]:
         """Rewind a stored conversation to a message or user-turn index."""
-        store = SessionStore(self.workspace, _require_text(session_id, "session_id"))
+        store = SessionStore(self.workspace, require_text(session_id, "session_id"))
         if user_index is not None:
             return store.rewind_to_user_index(user_index)
         if keep_messages is None:
@@ -1127,7 +1111,7 @@ class AgentService:
         new_session_id: str | None = None,
     ) -> dict[str, Any]:
         """M8-T2: branch a stored conversation at one message into a new session."""
-        store = SessionStore(self.workspace, _require_text(session_id, "session_id"))
+        store = SessionStore(self.workspace, require_text(session_id, "session_id"))
         raw_new = str(new_session_id).strip() if new_session_id else ""
         target = store.fork(from_message_id, new_session_id=raw_new or None)
         return {
@@ -1142,16 +1126,12 @@ class AgentService:
         return _sessions_payload(self.workspace, sessions)
 
     def get_allowlist(self, session_id: str) -> dict[str, Any]:
-        sid = str(session_id or "").strip()
-        if not sid:
-            raise ValueError("session_id 不能为空")
+        sid = require_text(session_id, "session_id")
         rules = session_rules(self.workspace, sid)
         return {"session_id": sid, **rules}
 
     def set_allowlist(self, session_id: str, payload: dict[str, Any]) -> dict[str, Any]:
-        sid = str(session_id or "").strip()
-        if not sid:
-            raise ValueError("session_id 不能为空")
+        sid = require_text(session_id, "session_id")
         rules = replace_session_rules(
             self.workspace,
             sid,
@@ -1173,9 +1153,7 @@ class AgentService:
         }
 
     def restore_task_snapshot(self, task_id: str) -> dict[str, Any]:
-        tid = str(task_id or "").strip()
-        if not tid:
-            raise ValueError("task_id 不能为空")
+        tid = require_text(task_id, "task_id")
         snapshot = self.tasks.get(tid)
         workspace = resolve_workspace_path(
             str((snapshot or {}).get("workspace_path") or self.workspace),
@@ -1502,7 +1480,7 @@ class AgentService:
         on_compaction: Any | None = None,
         cancel_event: threading.Event | None = None,
     ) -> dict[str, Any]:
-        message = _require_text(payload.get("message"), "message")
+        message = require_text(payload.get("message"), "message")
         session_id = str(payload.get("session_id") or "web-latest")
         allow_changes, allow_network, _mode = _resolve_task_permissions(
             payload, yolo=self.config.yolo

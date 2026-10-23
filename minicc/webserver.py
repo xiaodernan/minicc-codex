@@ -20,6 +20,7 @@ from urllib.parse import parse_qs, unquote, urlsplit
 
 from .allowlist import AllowlistError
 from .changes import ChangeError
+from .input_guard import require_text
 from .logging_setup import get_logger, redact
 from .mcp import McpError, mcp_absent_status
 from .session import SessionError
@@ -614,15 +615,11 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
                 self._json(self.server.service.tasks.cancel(task_id))
                 return
             if path == "/api/workspace/select":
-                raw_path = payload.get("path")
-                if not isinstance(raw_path, str):
-                    raise ValueError("path 不能为空")
+                raw_path = require_text(payload.get("path"), "path")
                 self._json(self.server.service.switch_workspace(raw_path))
                 return
             if path == "/api/sessions/rewind":
-                session_id = payload.get("session_id")
-                if not isinstance(session_id, str):
-                    raise ValueError("session_id 不能为空")
+                session_id = require_text(payload.get("session_id"), "session_id")
                 raw_user = payload.get("user_index")
                 if raw_user is not None:
                     try:
@@ -639,14 +636,10 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
                 self._json(self.server.service.rewind_session(session_id, keep_messages))
                 return
             if path == "/api/sessions/fork":
-                session_id = payload.get("session_id")
-                if not isinstance(session_id, str):
-                    raise ValueError("session_id 不能为空")
+                session_id = require_text(payload.get("session_id"), "session_id")
                 point = payload.get("from_message_id")
                 if isinstance(point, str):
-                    point = point.strip()
-                    if not point:
-                        raise ValueError("from_message_id 不能为空")
+                    point = require_text(point, "from_message_id")
                 elif not isinstance(point, int):
                     raise ValueError("from_message_id 必须是消息序号（整数）或消息 id（字符串）")
                 raw_new = payload.get("new_session_id")
@@ -657,37 +650,25 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
                 )
                 return
             if path == "/api/workspace/restore":
-                task_id = payload.get("task_id")
-                if not isinstance(task_id, str) or not task_id.strip():
-                    raise ValueError("task_id 不能为空")
-                self._json(self.server.service.restore_task_snapshot(task_id.strip()))
+                task_id = require_text(payload.get("task_id"), "task_id")
+                self._json(self.server.service.restore_task_snapshot(task_id))
                 return
             if path == "/api/allowlist":
-                session_id = payload.get("session_id")
-                if not isinstance(session_id, str):
-                    raise ValueError("session_id 不能为空")
+                session_id = require_text(payload.get("session_id"), "session_id")
                 self._json(self.server.service.set_allowlist(session_id, payload))
                 return
             if path == "/api/approval":
                 # M7-T3: the user answered a pending approval_request frame.
-                request_id = payload.get("request_id")
-                decision = payload.get("decision")
-                if not isinstance(request_id, str) or not request_id.strip():
-                    raise ValueError("request_id 不能为空")
-                if not isinstance(decision, str):
-                    raise ValueError("decision 不能为空")
-                self._json(self.server.service.resolve_approval(request_id.strip(), decision))
+                request_id = require_text(payload.get("request_id"), "request_id")
+                decision = require_text(payload.get("decision"), "decision")
+                self._json(self.server.service.resolve_approval(request_id, decision))
                 return
             if path == "/api/worktrees":
-                name = payload.get("name")
-                if not isinstance(name, str):
-                    raise ValueError("name 不能为空")
+                name = require_text(payload.get("name"), "name")
                 self._json(self.server.service.worktrees.create(name, payload.get("branch")), 201)
                 return
             if path == "/api/worktrees/remove":
-                name = payload.get("name")
-                if not isinstance(name, str):
-                    raise ValueError("name 不能为空")
+                name = require_text(payload.get("name"), "name")
                 self._json(self.server.service.worktrees.remove(name, bool(payload.get("force"))))
                 return
             self._fail(404, "not found", code="not_found")

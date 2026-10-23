@@ -49,6 +49,7 @@ from .agent.subagent import WRITABLE_PERMISSION_MODES
 from .agent.tool_policy import WRITE_TOOL_NAMES
 from .audit import normalize_permission_mode
 from .config import TRUTHY, normalize_model_name, normalize_reasoning_effort
+from .input_guard import require_text
 from .llm.base import image_part
 from .llm.usage import add_usage_totals, cache_summary
 from .logging_setup import get_logger, log_task_event
@@ -1462,9 +1463,7 @@ class TaskManager:
         return str(candidate)
 
     def submit(self, payload: dict[str, Any]) -> dict[str, Any]:
-        message = payload.get("message")
-        if not isinstance(message, str) or not message.strip():
-            raise ValueError("message 不能为空")
+        message = require_text(payload.get("message"), "message")
         task_kind = str(payload.get("_task_kind") or "task")
         if not payload.get("_skip_auto_orchestration") and task_kind == "task":
             assessment = assess_complexity(
