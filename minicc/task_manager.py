@@ -250,6 +250,29 @@ def _orchestration_result(
     return {"answer": answer, "cancelled": cancelled, "children": snapshots}
 
 
+def _cancelled_result(base: dict[str, Any]) -> dict[str, Any]:
+    """The one user-cancel stamp on a task result.
+
+    Two sites stamp it: ``TaskRecord.request_cancel`` (the user asked
+    mid-flight) and the runner's post-run reconcile (the cancel landed
+    while the model was still answering).  The stamp keeps whatever the
+    run produced and overwrites the three keys a reader uses to tell a
+    cancelled task from a finished one - the notice, the error, the
+    flag.  One spelling keeps "任务已取消" from drifting into two
+    different messages across the two paths.
+
+    Not the abort stamp (host shutdown keeps the answer and sets no
+    error) and not the batch notice ("批量任务已取消。") - those are
+    different facts and stay where they are.
+    """
+    return {
+        **base,
+        "answer": "任务已取消。",
+        "error": "任务已取消",
+        "cancelled": True,
+    }
+
+
 def _attachment_record(
     name: str, mime_type: str, size_bytes: int, data: bytes
 ) -> dict[str, Any]:
@@ -730,12 +753,7 @@ class TaskRecord:
             self.finished_at = self.finished_at or time.time()
             self.error = "任务已取消"
             if self.result is not None:
-                self.result = {
-                    **self.result,
-                    "answer": "任务已取消。",
-                    "error": self.error,
-                    "cancelled": True,
-                }
+                self.result = _cancelled_result(self.result)
             self._publish_locked("status", self._status_payload_locked())
             return True
 
@@ -2585,12 +2603,7 @@ class TaskManager:
             result = TaskResult.from_payload(result).to_payload()
             cancelled_by_user = task.cancel_event.is_set()
             if cancelled_by_user and not result.get("cancelled"):
-                result = {
-                    **result,
-                    "answer": "任务已取消。",
-                    "error": "任务已取消",
-                    "cancelled": True,
-                }
+                result = _cancelled_result(result)
             task.apply_result(result)
             self._roll_up_tokens(task)
             with task.lock:
