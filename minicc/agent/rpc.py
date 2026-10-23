@@ -12,6 +12,12 @@ from dataclasses import dataclass
 from typing import Any, Callable, Mapping
 
 from .. import __version__
+from ..jsonrpc import (
+    ERROR_METHOD_NOT_FOUND,
+    JSONRPC_VERSION,
+    is_jsonrpc_2,
+    method_not_found_message,
+)
 from ..logging_setup import get_logger
 
 #: M8-T330: the repository's own logger, so the secret-redaction filter
@@ -20,8 +26,6 @@ from ..logging_setup import get_logger
 #: filter and ``propagate`` stays on, so the record walks up to the root
 #: handler - **past** the redaction - with the whole traceback in it.
 LOG = get_logger("rpc")
-
-JSONRPC_VERSION = "2.0"
 
 _MISSING = object()
 
@@ -66,7 +70,7 @@ def parse_request(payload: Any) -> RpcRequest:
 
     if not isinstance(payload, dict):
         raise RpcProtocolError(-32600, "Invalid Request")
-    if payload.get("jsonrpc") != JSONRPC_VERSION:
+    if not is_jsonrpc_2(payload):
         raise RpcProtocolError(-32600, "jsonrpc must be '2.0'")
     method = payload.get("method")
     if not isinstance(method, str) or not method.strip():
@@ -124,7 +128,9 @@ class RpcDispatcher:
             else:
                 handler = self.handlers.get(request.method)
                 if handler is None:
-                    raise RpcProtocolError(-32601, f"Method not found: {request.method}")
+                    raise RpcProtocolError(
+                        ERROR_METHOD_NOT_FOUND, method_not_found_message(request.method)
+                    )
                 result = handler(request.params)
                 if not isinstance(result, Mapping):
                     raise RpcProtocolError(-32000, "RPC handler must return an object")

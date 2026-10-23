@@ -35,10 +35,10 @@ import minicc.bench_tasks as bench_tasks
 # constant's own identity - a line number would rot the moment the file moves.
 DECLARED_ROLES: dict[tuple[str, str], str] = {
     ("minicc/agent/context.py", "CHECKPOINT_VERSION"): "branched",
-    ("minicc/agent/rpc.py", "JSONRPC_VERSION"): "branched",
     ("minicc/behavior_bench.py", "SUITE_VERSION"): "announced",
     ("minicc/bench_tasks.py", "SUITE_VERSION"): "announced",
     ("minicc/bench_tasks.py", "LEGACY_SUITE_VERSION"): "announced",
+    ("minicc/jsonrpc.py", "JSONRPC_VERSION"): "branched",
     ("minicc/llm/anthropic_provider.py", "ANTHROPIC_VERSION"): "announced",
     ("minicc/session.py", "SESSION_FORMAT_VERSION"): "branched",
     ("minicc/task_contract.py", "TASK_SCHEMA_VERSION"): "branched",

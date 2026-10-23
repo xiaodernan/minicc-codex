@@ -31640,3 +31640,73 @@ provider 各自手拼了这整条事件——`minicc/llm/anthropic_provider.py` 
 
 聚焦回归 ✓：通道/usage 直面 8 文件 **49 条** ✓（含新门禁 7 条 ✓），全绿 ✓。
 慢测试未跑 ✓，全量 pytest 未跑 ✓。
+
+## 第四百六十七批 — M8-T483 — JSON-RPC 协议词汇表两个家，以及一道本来就已经红着的门
+
+### 1 缺陷
+
+仓库里有两个 JSON-RPC 2.0 的说话者：`agent/rpc.py` 是本地工作台的服务
+端，`mcp.py` 是面向 MCP server 的 stdio/HTTP 客户端。版本串和标准错误码
+属于协议，不属于任何一个说话者，但重构前它们各有一份：
+
+- `JSONRPC_VERSION = "2.0"`（rpc.py:24）与 `_JSONRPC_VERSION = "2.0"`
+  （mcp.py:310）——两份都活着，各自灌进自己的信封；
+- `Method not found: ` 判词在两个文件里各拼一次（rpc.py 抛
+  `RpcProtocolError`，mcp.py 回 error dict）。
+
+一份漂移了，就是两个说话者对 "2.0" 不再有一致的理解；判词拼两遍，就是
+服务端与客户端对「未知方法长什么样」各说各话。
+
+**顺带发现**：`test_version_vocabulary.py::test_census_and_declared_table_
+are_the_same_set` 本来就已经是红的——普查表从没登记过 mcp.py 的
+`_JSONRPC_VERSION`。这正是 T473/T475/T480 记下的形状：第二个家立下之后，
+老门禁没有学会认新形状。一道永远红的门比没有门更坏。
+
+### 2 落地
+
+MCP 客户端位于 agent 栈下层、不能 import agent，所以家安在两者之下：
+
+- 新模块 `minicc/jsonrpc.py` ✓：`JSONRPC_VERSION`、`ERROR_METHOD_NOT_FOUND`、
+  `is_jsonrpc_2(payload)`、`method_not_found_message(method)` ✓
+- `agent/rpc.py`：删掉自己的常量声明，改为 import 家；版本校验改用
+  `is_jsonrpc_2`（版本的读者和版本住在一起 ✓）；判词改用家的句子 ✓
+- `mcp.py`：删掉 `_JSONRPC_VERSION`，信封三处与判词一处全部改用家 ✓
+- `test_version_vocabulary.py`：普查表去掉 rpc.py 行、补上 jsonrpc.py 行
+  （branched——`is_jsonrpc_2` 就是版本的读者 ✓），**那道红门因此转绿** ✓
+- `test_the_jsonrpc_notification_have_one_home.py`：`_JSONRPC_VERSION` 的
+  计数断言改为「mcp.py 不得再声明版本 + 家里来的 import 一次 + 信封三处」 ✓
+- 新门禁 `tests/test_the_jsonrpc_vocabulary_have_one_home.py` 9 条 ✓：家
+  值、判词、版本判读、census、两个说话者消费同一对象、服务端与客户端各
+  一次真实往返、外来版本仍被拒 ✓
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T483-306 | mcp.py 重新声明自己的版本常量 | 红（census ✓） |
+| M8-T483-307 | 家的版本值漂移成 2.1 | 红（家值 ✓） |
+| M8-T483-308 | rpc.py 恢复手拼判词 | 红（census ✓） |
+| M8-T483-309 | mcp.py 恢复手拼判词 | 红（census ✓） |
+| M8-T483-310 | 第三个模块拼判词 | 红（census ✓） |
+| M8-T483-311 | 家的判词漂移 | 红（家值 + 往返 ✓） |
+
+六条全部 KILLED ✓，恢复后字节相同 ✓。
+
+### 4 一条教训
+
+**协议词汇表的家要放在所有说话者的下游，哪怕因此要新开一个模块。** 版本
+串这种事实，两个模块各声明一份时，「选哪个当自己的家、另一个 import 它」
+看起来最省事——但 MCP 客户端在 agent 栈下层，让它 import agent 包是一
+个方向错误的依赖（`tools/__init__.py` 里那道 import-time cycle guard 守的
+就是这件事）。协议低于所有说话者，所以家也低于所有说话者：一个新开的
+`minicc/jsonrpc.py`，零依赖，两个说话者都向下 import。
+
+另一件事：**「家的模块」里常量不能只是被 export**。版本词汇表门禁的哲学
+是「写了没人读的版本号就是事故」，所以家里必须真的有一个读者——把
+rpc.py 那句 `payload.get("jsonrpc") != JSONRPC_VERSION` 提炼成家的
+`is_jsonrpc_2()`，常量在自己的模块里被比较，门禁的 branched 判定才名实
+相符。
+
+聚焦回归 ✓：RPC/MCP 直面 6 文件 **114 条** ✓（含三道门禁 21 条 ✓），全
+绿 ✓；其中 `test_version_vocabulary.py` 由红转绿 ✓。慢测试未跑 ✓，全量
+pytest 未跑 ✓。

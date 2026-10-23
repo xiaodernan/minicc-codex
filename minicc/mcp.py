@@ -34,6 +34,7 @@ from typing import Any
 
 from . import __version__
 from .internal_paths import MCP_CONFIG_NAME
+from .jsonrpc import ERROR_METHOD_NOT_FOUND, JSONRPC_VERSION, method_not_found_message
 from .logging_setup import get_logger
 from .netguard import SCHEME_PREFIXES, BlockedAddressError, assert_public_http_url
 from .tools.registry import (
@@ -307,9 +308,6 @@ def _initialize_params(protocol_version: str) -> dict[str, Any]:
     }
 
 
-_JSONRPC_VERSION = "2.0"
-
-
 def _jsonrpc_request(msg_id: Any, method: str, params: dict[str, Any]) -> dict[str, Any]:
     """The one JSON-RPC request envelope: version, id, method, params.
 
@@ -321,7 +319,7 @@ def _jsonrpc_request(msg_id: Any, method: str, params: dict[str, Any]) -> dict[s
     matched - it just times out.
     """
     return {
-        "jsonrpc": _JSONRPC_VERSION,
+        "jsonrpc": JSONRPC_VERSION,
         "id": msg_id,
         "method": method,
         "params": params,
@@ -337,7 +335,7 @@ def _jsonrpc_notification(method: str, params: dict[str, Any]) -> dict[str, Any]
     becoming "id: null" or "id: 0" - an id-ed notification makes the
     peer wait for an answer that never comes.
     """
-    return {"jsonrpc": _JSONRPC_VERSION, "method": method, "params": params}
+    return {"jsonrpc": JSONRPC_VERSION, "method": method, "params": params}
 
 
 class McpStdioClient:
@@ -473,10 +471,16 @@ class McpStdioClient:
         elif method == "roots/list":
             self._respond(msg_id, result={"roots": []})
         else:
-            self._respond(msg_id, error={"code": -32601, "message": f"Method not found: {method}"})
+            self._respond(
+                msg_id,
+                error={
+                    "code": ERROR_METHOD_NOT_FOUND,
+                    "message": method_not_found_message(method),
+                },
+            )
 
     def _respond(self, msg_id: Any, *, result: Any = None, error: Any = None) -> None:
-        payload: dict[str, Any] = {"jsonrpc": _JSONRPC_VERSION, "id": msg_id}
+        payload: dict[str, Any] = {"jsonrpc": JSONRPC_VERSION, "id": msg_id}
         if error is not None:
             payload["error"] = error
         else:

@@ -46,5 +46,6 @@ def test_census_exactly_one_literal_and_it_is_the_home():
 def test_call_sites_use_the_home():
     source = (REPO / "minicc/mcp.py").read_text(encoding="utf-8")
     assert source.count("_jsonrpc_notification(") == 3
-    assert source.count('_JSONRPC_VERSION') == 4
+    assert "_JSONRPC_VERSION" not in source, "mcp.py must not declare a second version home"
+    assert source.count("JSONRPC_VERSION") == 4  # one import from the home + three envelope sites
     assert '"jsonrpc": "2.0"' not in source
