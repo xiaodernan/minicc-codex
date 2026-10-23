@@ -30934,3 +30934,86 @@ five_places_where_one_fact_was_read_differently 共 77 条 ✓，
 更一般的说法 ✓：**false positive 和 false negative 一样会腐蚀代码
 库 ✓**——前者逼你退步 ✓，后者放你过关 ✓，而前者更隐蔽 ✓，因为它看
 起来像门禁在尽责 ✓。
+
+## 第四百五十八批 — M8-T474 — HTTP 错误码词汇表一个家
+
+### 1 缺陷
+
+M8-T5 立过一条规矩：每次 API 失败都带一个机器可读的 `code`，客户端
+据此分支，不用去匹配人话。`webserver.py` 里的 `ERROR_CODES` 就是那张
+表——十个异常类型映射到十个 code。但**表只住了十个拼写，另外六个
+`_fail` 调用点又把其中四个 code 各写了一遍**：
+
+| code | 表里 | 调用点手拼 |
+| --- | --- | --- |
+| `task_not_found` | 1 | **3**（372/433/676 行） |
+| `not_found` | 1 | **2**（674/703 行） |
+| `invalid_request` | 1 | **1**（296 行） |
+| `forbidden` | 1 | 1（`_deny_cross_origin` 的 body） |
+
+于是**改表里的一个名字，只会改到一半的路由**：显式传 `code=` 的那几
+处留着旧拼写，从 `KeyError` 推导的那几处换成新拼写。学会了新名字的
+客户端，恰好在他被告知安全的那几条路由上失败——**一半的接口还在正常
+应答，这是契约最安静的一种坏法**。同类还有 `error_code_for` 的两个
+返回值 `request_failed` / `internal_error`，以及两个手搓的拒绝 body
+（跨站、未授权）里的 `code`。
+
+### 2 落地
+
+- 15 个 `CODE_*` 常量安家 `minicc/webserver.py`，紧挨 `ERROR_CODES`
+  （那个模块的注释早就宣告了它是 code 的家，家无需新建）
+- `ERROR_CODES` 的十个值全部改引常量
+- `error_code_for` 的两个返回值改引常量
+- `_deny_cross_origin` / `_deny_auth` 两个 body 的 `code` 改引常量
+- 六个 `_fail(code=...)` 调用点全部改引常量
+- **发出的字节完全未变**：两个 body 的 JSON 序列化结果、`error_code_for`
+  对每个异常的解析结果，逐条比对相同
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T474-264 | 某处 `_fail` 调用点把 code 写回字面量 | 2 条红（census + 无手拼 ✓） |
+| M8-T474-265 | 表里把值写回字面量 | 2 条红（表读词汇表 ✓） |
+| M8-T474-266 | 拒绝 body 把 code 写回字面量 | 2 条红（census + body ✓） |
+| M8-T474-267 | 常量的值漂移 | 3 条红（值 + census + 解析 ✓） |
+| M8-T474-268 | 在 web.py 里另立一个同名常量 | 1 条红（census ✓） |
+| M8-T474-269 | `error_code_for` 的返回值写回字面量 | 1 条红（census ✓） |
+
+六条全部 KILLED ✓，恢复后字节相同 ✓。
+
+**269 第一轮是 SURVIVED ✓**，因此收紧了门禁 ✓：见第 5 节 ✓。
+
+### 4 新增门禁
+
+`tests/test_the_error_code_vocabulary_have_one_home.py`（7 条）✓：
+
+1. 词汇表就是家导出的那 15 个常量 ✓
+2. **每个 code 在全树只有一个值位拼写** ✓且它是家里的常量 ✓
+   （值位＝产生字符串的任何位置，**dict 键除外** ✓）
+3. 词汇表是双射 ✓——两个名字指向一个 code 是换了个帽子的同一漂移 ✓
+4. `ERROR_CODES` 读词汇表 ✓：键与值都必须是 `ast.Name` ✓，
+   且键到值的映射逐条核对 ✓
+5. 无 `_fail(code=<字面量>)` ✓（全树 ✓）
+6. 两个拒绝 body 的 `code` 读词汇表 ✓（按函数名圈定 ✓）
+7. `error_code_for` 对表里每个异常仍解析出同一个 code ✓
+
+聚焦回归 ✓：新门 7 条 + request_failed_log 门 / logging /
+http_route_inventory / web_security 共 68 条 ✓，加
+http_surface 79 条 ✓，全绿 ✓。慢测试未跑 ✓，全量 pytest 未跑 ✓。
+
+### 5 一条教训
+
+**census 按「位置」枚举就会漏掉没枚举到的位置 ✓。** ✓ 第一版 census
+圈了三个位置：`code=` 关键字、`"code":` dict 值、模块级常量定义 ✓。
+269 号变异把 `error_code_for` 里的 `return CODE_REQUEST_FAILED` 换回
+`return "request_failed"` ✓——一个 `return` 语句 ✓，三个位置一个都不
+罩 ✓，于是整门全绿 ✓。改成**按「值位」判**（除 dict 键以外的任何字
+符串常量）之后 269 立刻被杀 ✓。判别式可以固化 ✓：**枚举位置是在列
+一份会过期的清单 ✓，判定形状才是立规矩 ✓**——「值位 vs 键位」是形状
+✓，「return / 关键字 / dict 值 / 常量定义」是清单 ✓。另一条附带的 ✓：
+`web.py:1259` 的 status 载荷里有个字段叫 `"worktree_error"` ✓，和错误
+码同拼写却不是同一份事实 ✓（一个是 JSON 字段名 ✓，一个是线上错误码
+✓）。第一版 census 按包含判时它被误判成杂散 ✓，按值位判后仍会被算进
+去 ✓，最后靠**排除 dict 键**才把它正确排除 ✓——**同一个词出现在键位
+和值位时是两份不同的事实 ✓，census 必须能分辨键位与值位 ✓**。

@@ -45,28 +45,52 @@ MAX_BODY_BYTES = 18_000_000
 #: M8-T5: every API failure carries a machine-readable ``code`` so a client can
 #: branch on it instead of pattern-matching a human-readable message (or
 #: reading a bare 500). Looked up over the exception's MRO.
+#:
+#: The vocabulary lives here as named constants, and every emitter reads it
+#: from here.  ``ERROR_CODES`` below held ten of these spellings while six
+#: ``_fail`` call sites wrote four of them out again by hand - so renaming a
+#: code in the table left the routes that pass it explicitly on the old
+#: spelling.  A client that learned the new name then failed on exactly the
+#: routes it was told were safe, which is the quietest way for a contract to
+#: break: half the surface keeps answering.
+CODE_TASK_NOT_FOUND = "task_not_found"
+CODE_NOT_FOUND = "not_found"
+CODE_INVALID_REQUEST = "invalid_request"
+CODE_SESSION_ERROR = "session_error"
+CODE_WORKTREE_ERROR = "worktree_error"
+CODE_SNAPSHOT_ERROR = "snapshot_error"
+CODE_ALLOWLIST_ERROR = "allowlist_error"
+CODE_MCP_ERROR = "mcp_error"
+CODE_CHANGE_ERROR = "change_error"
+CODE_FORBIDDEN = "forbidden"
+CODE_UNAUTHORIZED = "unauthorized"
+CODE_CROSS_ORIGIN_DENIED = "cross_origin_denied"
+CODE_TOO_MANY_EVENT_STREAMS = "too_many_event_streams"
+CODE_REQUEST_FAILED = "request_failed"
+CODE_INTERNAL_ERROR = "internal_error"
+
 ERROR_CODES: dict[type[BaseException], str] = {
-    KeyError: "task_not_found",
-    PermissionError: "forbidden",
-    FileNotFoundError: "not_found",
-    ValueError: "invalid_request",
-    SessionError: "session_error",
-    WorktreeError: "worktree_error",
-    SnapshotError: "snapshot_error",
-    AllowlistError: "allowlist_error",
-    McpError: "mcp_error",
-    ChangeError: "change_error",
+    KeyError: CODE_TASK_NOT_FOUND,
+    PermissionError: CODE_FORBIDDEN,
+    FileNotFoundError: CODE_NOT_FOUND,
+    ValueError: CODE_INVALID_REQUEST,
+    SessionError: CODE_SESSION_ERROR,
+    WorktreeError: CODE_WORKTREE_ERROR,
+    SnapshotError: CODE_SNAPSHOT_ERROR,
+    AllowlistError: CODE_ALLOWLIST_ERROR,
+    McpError: CODE_MCP_ERROR,
+    ChangeError: CODE_CHANGE_ERROR,
 }
 
 
 def error_code_for(exc: BaseException | None) -> str:
     if exc is None:
-        return "request_failed"
+        return CODE_REQUEST_FAILED
     for kind in type(exc).__mro__:
         code = ERROR_CODES.get(kind)
         if code:
             return code
-    return "internal_error"
+    return CODE_INTERNAL_ERROR
 
 class MiniccHTTPServer(ThreadingHTTPServer):
     allow_reuse_address = True
@@ -145,8 +169,8 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
     def _deny_cross_origin(self) -> None:
         body = json.dumps(
             {
-                "error": "forbidden",
-                "code": "cross_origin_denied",
+                "error": CODE_FORBIDDEN,
+                "code": CODE_CROSS_ORIGIN_DENIED,
                 "detail": "跨站状态变更请求已拒绝",
             },
             ensure_ascii=False,
@@ -172,7 +196,11 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
 
     def _deny_auth(self) -> None:
         body = json.dumps(
-            {"error": "unauthorized", "code": "unauthorized", "auth_required": True},
+            {
+                "error": CODE_UNAUTHORIZED,
+                "code": CODE_UNAUTHORIZED,
+                "auth_required": True,
+            },
             ensure_ascii=False,
         ).encode("utf-8")
         try:
@@ -293,7 +321,7 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
             query = parse_qs(parsed.query)
             raw_query = (query.get("q") or [""])[0].strip()
             if not raw_query:
-                self._fail(400, "缺少搜索关键词 q", code="invalid_request")
+                self._fail(400, "缺少搜索关键词 q", code=CODE_INVALID_REQUEST)
                 return
             try:
                 limit = max(1, min(100, int((query.get("limit") or ["50"])[0])))
@@ -369,7 +397,7 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
             try:
                 self._json(self.server.service.tasks.get(task_id))
             except KeyError:
-                self._fail(404, "task not found", code="task_not_found")
+                self._fail(404, "task not found", code=CODE_TASK_NOT_FOUND)
             return
         if path == "/api/file":
             raw_path = (parse_qs(parsed.query).get("path") or [""])[0]
@@ -430,14 +458,14 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
         try:
             self.server.service.tasks.get(task_id)
         except KeyError:
-            self._fail(404, "task not found", code="task_not_found")
+            self._fail(404, "task not found", code=CODE_TASK_NOT_FOUND)
             return
 
         if not self.server.sse_slots.acquire(blocking=False):
             self._fail(
                 429,
                 "实时任务连接过多，请稍后重试或使用任务查询接口。",
-                code="too_many_event_streams",
+                code=CODE_TOO_MANY_EVENT_STREAMS,
                 retryable=True,
             )
             return
@@ -671,9 +699,9 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
                 name = require_text(payload.get("name"), "name")
                 self._json(self.server.service.worktrees.remove(name, bool(payload.get("force"))))
                 return
-            self._fail(404, "not found", code="not_found")
+            self._fail(404, "not found", code=CODE_NOT_FOUND)
         except KeyError:
-            self._fail(404, "task not found", code="task_not_found")
+            self._fail(404, "task not found", code=CODE_TASK_NOT_FOUND)
         except (ValueError, json.JSONDecodeError, SessionError, WorktreeError, SnapshotError, AllowlistError, McpError) as exc:
             self._fail(400, str(exc), exc=exc)
         except Exception as exc:  # noqa: BLE001 - return a stable API error
@@ -700,7 +728,7 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
                 accepts_gzip = 0 < quality <= 1
             content, headers = asset_response(STATIC_ROOT, relative, accept_gzip=accepts_gzip)
         except (OSError, ValueError):
-            self._fail(404, "not found", code="not_found")
+            self._fail(404, "not found", code=CODE_NOT_FOUND)
             return
         unchanged = self.headers.get("If-None-Match") == headers["ETag"]
         self.send_response(304 if unchanged else 200)
