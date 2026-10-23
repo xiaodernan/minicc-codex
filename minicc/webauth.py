@@ -24,6 +24,9 @@ import time
 from pathlib import Path
 from urllib.parse import urlsplit
 
+from minicc.netguard import ALLOWED_SCHEMES
+
+
 ENV_TOKEN = "MINICC_WEB_TOKEN"
 
 
@@ -225,7 +228,7 @@ def origin_allowed(origin: str | None) -> bool:
     if not origin:
         return False
     parsed = urlsplit(origin.strip())
-    if parsed.scheme not in {"http", "https"}:
+    if parsed.scheme not in ALLOWED_SCHEMES:
         return False
     return is_loopback_host(parsed.hostname)
 

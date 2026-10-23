@@ -25,7 +25,7 @@ import urllib.request
 from html.parser import HTMLParser
 from typing import Any
 
-from ..netguard import BlockedAddressError, resolve_pinned_host
+from ..netguard import ALLOWED_SCHEMES, BlockedAddressError, resolve_pinned_host
 
 from .registry import ToolError, ToolResult, redact_text, split_output
 
@@ -34,7 +34,6 @@ MAX_REDIRECTS = 3
 DEFAULT_TIMEOUT = 20.0
 MAX_TITLE_CHARS = 300
 FETCH_PREVIEW_CHARS = 8000
-ALLOWED_SCHEMES = frozenset({"http", "https"})
 USER_AGENT = "minicc-webfetch/0.1 (+local coding agent)"
 
 _SKIP_TAGS = frozenset({"script", "style", "noscript", "svg", "template", "iframe"})
