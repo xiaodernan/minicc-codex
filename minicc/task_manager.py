@@ -49,6 +49,7 @@ from .agent.subagent import WRITABLE_PERMISSION_MODES
 from .agent.tool_policy import WRITE_TOOL_NAMES
 from .audit import normalize_permission_mode
 from .config import TRUTHY, normalize_model_name, normalize_reasoning_effort
+from .llm.base import image_part
 from .llm.usage import add_usage_totals, cache_summary
 from .logging_setup import get_logger, log_task_event
 from . import pricing
@@ -238,13 +239,7 @@ def _attachment_summary(item: dict[str, Any]) -> dict[str, Any]:
 
 def _attachment_content_parts(attachments: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Build reusable image parts without duplicating attachment decoding."""
-    return [
-        {
-            "type": "image_url",
-            "image_url": {"url": _attachment_data_url(item)},
-        }
-        for item in attachments
-    ]
+    return [image_part(_attachment_data_url(item)) for item in attachments]
 
 
 def _multimodal_content(message: str, attachments: list[dict[str, Any]]) -> str | list[dict[str, Any]]:

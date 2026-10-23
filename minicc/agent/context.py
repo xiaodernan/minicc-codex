@@ -16,7 +16,7 @@ from collections import Counter
 from collections.abc import Iterator
 from typing import Any
 
-from ..llm.base import tool_result_msg
+from ..llm.base import image_part, tool_result_msg
 from ..tools.registry import redact_text
 from ..tools.schemas import tool_call_name
 
@@ -248,10 +248,12 @@ def normalize_vision_context(parts: list[dict[str, Any]] | None) -> list[dict[st
             if isinstance(item.get("image_url"), dict)
         ):
             continue
-        image_payload: dict[str, Any] = {"url": str(url)}
-        if isinstance(image, dict) and image.get("detail"):
-            image_payload["detail"] = str(image["detail"])
-        normalized.append({"type": "image_url", "image_url": image_payload})
+        detail = (
+            str(image["detail"])
+            if isinstance(image, dict) and image.get("detail")
+            else None
+        )
+        normalized.append(image_part(url, detail))
     return normalized
 
 

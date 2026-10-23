@@ -27651,3 +27651,63 @@ RPC 面的一条 thread 记录是六键 ✓：`id`/`thread_id`（同一值的两
 `_new_thread_record` 与 `_rpc_thread_record` 各归其位 ✓。判别
 口诀 ✓：`def` 旁边有 `self` 的是行为 ✓，没有的是形状 ✓；形状的名字
 里带上动作（`new_` ✓）就不会和行为撞车 ✓。
+
+
+## 第四百零八批 — M8-T424 — chat wire 的图片 part 两个家：归一器与附件投影各写一份
+
+### 1 缺陷
+
+一条图片消息 part 在 chat wire 上是两键 ✓：`type="image_url"` ✓ +
+`image_url={url, detail?}` ✓。它有两个手写家 ✓：
+
+| 位置 | 场景 |
+| --- | --- |
+| `agent/context.py` 归一器 | 视觉上下文去重后追加的 part ✓，**带**可选 `detail` |
+| `task_manager.py` 附件投影 | 附件转 content parts ✓，**不带** `detail` |
+
+两处键名相同、嵌套相同 ✓，只是一个多一个可选键 ✓——没有任何东西
+保证它们**始终是同一个形状** ✓。某个家少一层嵌套（把 `image_url`
+拍平成字符串 ✓）或多加一个键 ✓，对端 wire 读取器就把图片读成
+**坏 part** ✓。而 `llm/base.py` 已有 wire 构造器家族（T412 的
+`tool_call` ✓、T417 的 `tool_result_msg` ✓）——图片 part 一直
+蹭不到门 ✓。
+
+### 2 落地
+
+* `minicc/llm/base.py` ✓ 立 `image_part(url, detail=None)` ✓：chat
+  wire 图片 part 一个家 ✓，`detail` 可选 ✓。
+* context.py 归一器与 task_manager 附件投影改为调用 ✓，**行为
+  逐字节不变** ✓（空 detail 仍不落键 ✓）。
+* docstring 划界 ✓：Responses wire 的 `input_image`（裸字符串 url ✓）
+  是**另一个事实** ✓，`VISUAL_PART_TYPES` 是命名两者的词表 ✓。
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T424-222 | 归一器处退回手写 part | 1 条红（census ✓） |
+| M8-T424-223 | 附件投影处退回手写 part | 1 条红（census ✓） |
+
+### 4 新增门禁
+
+`tests/test_the_image_part_have_one_home.py`（3 条）✓：
+
+1. 家的行为 ✓：两键 ✓、detail 可选 ✓、空 detail 不落键 ✓
+2. census ✓：`type` 常量为 `"image_url"` 的 dict 字面量在 minicc/
+   下**恰好一处** ✓且在家 ✓（**指纹带 type 值** ✓——只看键名会把
+   Responses wire 的 `input_image` 变体误捕 ✓）
+3. 调用计数 ✓：两个构造点各恰好 1 次 ✓
+
+聚焦回归 ✓：新门 3 条 + 多模态面 4 文件 21 条 ✓ + agent/session 面
+2 文件 53 条 ✓，共 77 条 ✓，全绿 ✓。全量 pytest 未跑 ✓。
+
+### 5 一条教训
+
+**探针的「键集合」聚合是粗筛 ✓，落地前必须二次甄别。** ✓ 本批探针
+把 `{"type": ..., "image_url": ...}` 三处聚成一组 ✓，但其中
+openai_provider 那处的 `type` 是 `input_image` ✓、值是裸字符串 ✓——
+它是 Responses wire 的图片 part ✓，**不是同一个事实** ✓。T412 的
+教训（指纹要精确 ✓）在这里以新形式出现 ✓：**同键不同值的两个
+wire 事实 ✓，要靠「键 + 值」双条件才分得开 ✓**。census 的指纹因此
+从「键集合相等」升级为「键 + type 常量值」✓，既不漏抄写 ✓，也不
+误伤邻居 ✓。

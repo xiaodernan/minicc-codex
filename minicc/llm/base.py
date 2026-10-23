@@ -137,6 +137,23 @@ def tool_result_msg(tool_call_id: str, content: str) -> dict[str, Any]:
     }
 
 
+def image_part(url: str, detail: str | None = None) -> dict[str, Any]:
+    """The one shape of an image part on the chat-completions wire.
+
+    Two sites built it by hand: the context normalizer (with an optional
+    ``detail``) and the task manager's attachment parts (without).  This
+    is **not** the Responses wire's image part - that one spells
+    ``type="input_image"`` and carries the url as a bare string
+    (``openai_provider._responses_content_parts``), a different fact
+    with the same two key names.  ``VISUAL_PART_TYPES`` in
+    ``agent/context.py`` is the vocabulary that names both.
+    """
+    image_url: dict[str, Any] = {"url": str(url)}
+    if detail:
+        image_url["detail"] = str(detail)
+    return {"type": "image_url", "image_url": image_url}
+
+
 def is_nameless_tool_name(name: Any) -> bool:
     """True when the wire said "here is a tool action" but named no tool.
 
