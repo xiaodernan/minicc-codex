@@ -76,6 +76,8 @@ from .context import (
 )
 from .protocol import (
     MODEL_LAST_OUTPUT_MARKER,
+    TASK_CANCELLED_ANSWER,
+    TASK_CANCELLED_ERROR,
     VERIFICATION_GUARD_ANSWER,
     VERIFICATION_GUARD_ERROR,
     budget_exceeded_error,
@@ -245,6 +247,23 @@ class TurnResult:
     cancelled: bool = False
     completion: dict[str, Any] = field(default_factory=dict)
     metrics: dict[str, Any] = field(default_factory=dict)
+
+
+def stamp_cancelled(result: TurnResult) -> TurnResult:
+    """Stamp the one user-cancel verdict onto a run that was cut short.
+
+    M8-T479: six sites in this module, one on the web face and the dict-shaped
+    pair in ``task_manager`` each stamped these three fields by hand, so the
+    notice, the error and the flag had a dozen spellings between them.  The
+    words live in :mod:`minicc.agent.protocol` with the rest of the answer and
+    error vocabulary; this is the one place that knows which three fields a
+    cancelled run carries.  Returns ``result`` so a caller that is building one
+    can stamp and use it in a single expression.
+    """
+    result.cancelled = True
+    result.error = TASK_CANCELLED_ERROR
+    result.answer = TASK_CANCELLED_ANSWER
+    return result
 
 
 def _visible_model_update(content: str | None) -> str:
@@ -727,9 +746,7 @@ async def run_agent(
         if not names:
             return []
         if cancellation_requested():
-            result.cancelled = True
-            result.error = "任务已取消"
-            result.answer = "任务已取消。"
+            stamp_cancelled(result)
             return []
         raw_calls = [
             tool_call(
@@ -924,9 +941,7 @@ async def run_agent(
                 )
                 break
         if cancellation_requested():
-            result.cancelled = True
-            result.error = "任务已取消"
-            result.answer = "任务已取消。"
+            stamp_cancelled(result)
             break
 
         # Possibly compact before the (expensive) API call.
@@ -1013,9 +1028,7 @@ async def run_agent(
             )
             protocol_repairs = 0
         except AgentCancelled:
-            result.cancelled = True
-            result.error = "任务已取消"
-            result.answer = "任务已取消。"
+            stamp_cancelled(result)
             emit_trace("任务已取消，已中止模型请求", phase="cancelled", code="cancelled")
             break
         except EnvelopeParseError as exc:
@@ -1089,9 +1102,7 @@ async def run_agent(
             last_reasoning_status = current_reasoning_status
 
         if cancellation_requested():
-            result.cancelled = True
-            result.error = "任务已取消"
-            result.answer = "任务已取消。"
+            stamp_cancelled(result)
             break
 
         # Accumulate provider usage, estimating only when a gateway omits it.
@@ -1178,9 +1189,7 @@ async def run_agent(
             batch_signatures: dict[str, int] = {}
             for index, raw_tc in enumerate(response.tool_calls):
                 if cancellation_requested():
-                    result.cancelled = True
-                    result.error = "任务已取消"
-                    result.answer = "任务已取消。"
+                    stamp_cancelled(result)
                     break
                 tc = ToolCall.from_openai(raw_tc)
                 result.tool_calls_total += 1
@@ -1388,9 +1397,7 @@ async def run_agent(
                     immediate_results[index] = (tc, tool_result)
 
             if cancellation_requested():
-                result.cancelled = True
-                result.error = "任务已取消"
-                result.answer = "任务已取消。"
+                stamp_cancelled(result)
                 break
 
             for index, raw_tc in enumerate(response.tool_calls):

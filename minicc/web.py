@@ -39,7 +39,7 @@ except ModuleNotFoundError:  # pragma: no cover - depends on the HTTP stack.
 
 from .agent.graph import DAGPlan, PlanTask, aggregate_dag_tokens, build_coding_workflow, execute_dag, fixed_plan
 from .agent.completion import CompletionDecision, judge_completion
-from .agent.loop import AgentCancelled, TurnResult, build_tool_feedback, chat_with_cancellation, run_agent
+from .agent.loop import AgentCancelled, TurnResult, build_tool_feedback, chat_with_cancellation, run_agent, stamp_cancelled
 from .agent.orchestration import assess_complexity, build_auto_subtasks
 from .agent.verifier import NON_FAILURE_VERIFICATION_STATUSES
 from .agent.planner import (
@@ -80,6 +80,7 @@ from .agent.protocol import (
     incomplete_answer,
     InvalidStatusTransition,
     MODEL_LAST_OUTPUT_MARKER,
+    TASK_CANCELLED_ANSWER,
     validate_status_transition,
     VERIFICATION_GUARD_ERROR,
 )
@@ -1502,7 +1503,7 @@ class AgentService:
                 # held) and can never be evicted, so a cancelled request
                 # with a fresh session id grows the table without limit.
                 self._release_session_lock_inflight(workspace, session_id)
-                return {"answer": "任务已取消。", "cancelled": True, "session_id": session_id, "events": []}
+                return {"answer": TASK_CANCELLED_ANSWER, "cancelled": True, "session_id": session_id, "events": []}
         # M8-T294: the lock has now been held, so it is safe to evict later.
         self._mark_session_lock_used(workspace, session_id)
         try:
@@ -2903,10 +2904,8 @@ class AgentService:
                     )
                     if cancel_event is not None and cancel_event.is_set():
                         if aggregate is None:
-                            aggregate = TurnResult(answer="任务已取消。")
-                        aggregate.cancelled = True
-                        aggregate.error = "任务已取消"
-                        aggregate.answer = "任务已取消。"
+                            aggregate = TurnResult()
+                        stamp_cancelled(aggregate)
                         break
                     if aggregate is None:
                         aggregate = TurnResult(answer="模型没有返回结果")

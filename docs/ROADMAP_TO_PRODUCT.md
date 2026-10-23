@@ -31367,3 +31367,91 @@ FormattedValue。按常量普查只会看到两个碎片，按渲染后的文本
 聚焦回归 ✓：新门 14 条 + bench_tasks / behavior_bench / grader 系列 /
 loader 系列共 147 条 ✓，benchmark_runner + bench_compare 55 条 ✓，全绿 ✓。
 慢测试未跑 ✓，全量 pytest 未跑 ✓。
+
+## 第四百六十三批 — M8-T479 — 取消裁决的判词一个家（26 处手拼收口）
+
+### 1 缺陷
+
+一次被取消的运行，无论从哪儿被取消，都带同样三个字段：旗标、短错误、以及
+用户读到的那句。而这几个词在 **26 处**手拼，跨 **4 个模块**：
+
+| 形状 | 处数 | 位置 |
+| --- | --- | --- |
+| `result.error = "任务已取消"` | 6 | `agent/loop.py` |
+| `result.answer = "任务已取消。"` | 6 | `agent/loop.py` |
+| `"error": "任务已取消"` / `error="任务已取消"` | 6 | `task_manager.py` |
+| `"任务已取消。"` 兜底 answer | 3 | `task_manager.py` |
+| `state["error"] = "任务已取消"` | 1 | `task_worker.py` |
+| `"answer": "任务已取消。"` | 1 | `web.py`（聊天脸） |
+| `TurnResult(answer="任务已取消。")` + 三字段 | 1 | `web.py`（轮聚合） |
+
+`task_manager._cancelled_result` 的 docstring 早就写着「One spelling keeps
+"任务已取消" from drifting into two different messages」——但那个「一个拼写」
+只盖住了它自己那两处。改一次名只有被想起的那几处跟着改：被取消的任务于是
+在一张脸上答新措辞、在另一张脸上答旧措辞，而**没有任何东西会失败**。
+
+### 2 落地
+
+- 两个词安家在 `minicc/agent/protocol.py`，和其余答词/错词词汇表在一起：
+  - `TASK_CANCELLED_ERROR = "任务已取消"`（`error` 字段的短形）
+  - `TASK_CANCELLED_ANSWER = "任务已取消。"`（用户读到的句子）
+- **三字段印章** `stamp_cancelled(result)` 安家在 `agent/loop.py`，紧挨
+  `TurnResult`——它是唯一知道「一次取消携带哪三个字段」的地方，并返回
+  `result` 以便调用方一句话完成
+- 26 处全部改引：loop 6 处三行压成一行 `stamp_cancelled(result)`；web 聊天脸
+  与轮聚合各一处；task_manager 的 dict、`self.error`、两处 `error=`、四处
+  `transition_status(error=...)`、两处兜底 answer；worker 一处
+- **发出的字节完全未变**（`stamp_cancelled` 与 `_cancelled_result` 的往返
+  比对 ✓）
+- `批量任务已取消。`、`服务重启时任务被中断。`、`任务已取消，已中止模型请
+  求`、`任务已取消，未执行工具 X`、`任务已取消，审批自动拒绝`、
+  `任务已取消，自动验证已停止。` 全部**留在原处**——它们是不同的事实
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T479-282 | web 轮聚合把手拼三字段改回去（改前形状） | 3 条红（词汇表 + 印章调用点 ✓） |
+| M8-T479-283 | answer 词漂移一个空格 | 1 条红（唯一承载者 + 开头判 ✓） |
+| M8-T479-284 | error 词漂移一个空格 | 1 条红（同上 ✓） |
+| M8-T479-285 | 印章不再置 cancelled 旗标 | 2 条红（三字段往返 ✓） |
+| M8-T479-286 | 印章不再覆盖 answer | 3 条红（三字段往返 + 两形状一致 ✓） |
+| M8-T479-287 | worker 里新手拼一份 answer | 1 条红（唯一承载者 ✓） |
+
+六条全部 KILLED，恢复后字节相同。
+
+### 4 新增门禁
+
+新增 `tests/test_the_cancelled_verdict_words_have_one_home.py`（10 条）：
+
+1-2. 两个词各只有一个承载者 ✓且在 `protocol.py` ✓
+3. **无其他常量以取消词开头却不继续成句** ✓（见第 5 节 ✓）
+4. 批量取消通知仍然是独立事实 ✓（对照 ✓）
+5. 印章只定义一次 ✓且在 `loop.py` ✓
+6. **印章恰好被 7 个取消点调用** ✓（loop 6 + web 1 ✓）
+7. 印章置上三个字段 ✓
+8. 印章覆盖运行已产出的内容但不动计数 ✓
+9. **manager 的 dict 与印章逐字段一致** ✓（跨模块同一裁决 ✓）
+10. 两个词的钉字节 ✓
+
+### 5 一条教训
+
+**当一个词是一整个家族的前缀时，「按开头判」需要一个新的判别式。**
+`任务已取消` 是 `任务已取消，已中止模型请求`、`任务已取消，未执行工具 X`、
+`任务已取消，审批自动拒绝`、`任务已取消，自动验证已停止。` 的前缀——按
+T472/T475 的「防手拼按开头判」会把这四句不同的事实一起吞进来。这次的判别
+式是**句子是否继续**：裁决这个词是**停下来**的那个形式，其余家族成员全都
+用 `，` 接上了另一句话。于是规则写成「以取消词开头、不含 `，`、又不等于裁
+决词的常量才是杂散」——三条断言各管一个方向，缺一条就有一个方向的漂移能
+活着走出去。
+
+顺带记一笔环境坑：本仓库 `git checkout -- <path>` 会从**索引**恢复，而索引
+可能已被污染；回滚必须用 `git checkout HEAD -- <path>` 并复核状态，否则脚本
+重跑会把同一块文档插两遍。
+
+聚焦回归 ✓：新门 10 条 + 取消/中断/裁决/状态系列 15 个文件共 106 条 ✓。
+其中 `test_the_summary_tags_have_one_home.py::test_the_home_owns_every_code_name`
+**红**，但是 **T474 留下的既有红**（那批把 15 个 `CODE_*` 安家在
+`webserver.py`，与 T467 的门禁「所有 `CODE_*` 只能住在 `tools/schemas.py`」
+相撞），与本批无关——已用 `git show HEAD:` 逐文件比对确认本批五个文件一个
+`CODE_*` 都没动。列为下一批（T480）必修项。

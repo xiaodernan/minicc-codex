@@ -35,6 +35,8 @@ from .agent.loop import TurnResult
 from .agent.orchestration import assess_complexity, build_auto_subtasks
 from .agent.planner import PlannerPolicy, build_plan
 from .agent.protocol import (
+    TASK_CANCELLED_ANSWER,
+    TASK_CANCELLED_ERROR,
     budget_exceeded_event,
     CancellationToken,
     EventLog,
@@ -288,8 +290,8 @@ def _cancelled_result(base: dict[str, Any]) -> dict[str, Any]:
     """
     return {
         **base,
-        "answer": "任务已取消。",
-        "error": "任务已取消",
+        "answer": TASK_CANCELLED_ANSWER,
+        "error": TASK_CANCELLED_ERROR,
         "cancelled": True,
     }
 
@@ -772,7 +774,7 @@ class TaskRecord:
             self.phase = "cancelled"
             self.state_version += 1
             self.finished_at = self.finished_at or time.time()
-            self.error = "任务已取消"
+            self.error = TASK_CANCELLED_ERROR
             if self.result is not None:
                 self.result = _cancelled_result(self.result)
             self._publish_locked("status", self._status_payload_locked())
@@ -966,7 +968,7 @@ class TaskRecord:
                 result_payload = dict(self.result)
                 if self.status in {"cancelled", "interrupted"}:
                     result_payload.update(
-                        answer=self.error or ("任务已取消。" if self.status == "cancelled" else "服务重启时任务被中断。"),
+                        answer=self.error or (TASK_CANCELLED_ANSWER if self.status == "cancelled" else "服务重启时任务被中断。"),
                         error=self.error,
                         cancelled=self.status == "cancelled",
                     )
@@ -996,7 +998,7 @@ class TaskRecord:
                 }
             )
             if self.status == "cancelled":
-                output["answer"] = self.error or "任务已取消。"
+                output["answer"] = self.error or TASK_CANCELLED_ANSWER
                 output["cancelled"] = True
             return output
 
@@ -1460,7 +1462,7 @@ class TaskManager:
                         try:
                             parent.transition_status(
                                 "cancelled" if parent.cancel_event.is_set() else "failed",
-                                error="任务已取消" if parent.cancel_event.is_set() else f"批任务启动失败: {type(exc).__name__}: {exc}",
+                                error=TASK_CANCELLED_ERROR if parent.cancel_event.is_set() else f"批任务启动失败: {type(exc).__name__}: {exc}",
                                 reason=parent.cancel_event.reason if parent.cancel_event.is_set() else None,
                             )
                         except InvalidStatusTransition:
@@ -2024,7 +2026,7 @@ class TaskManager:
                     try:
                         parent.transition_status(
                             "cancelled" if parent.cancel_event.is_set() else "failed",
-                            error="任务已取消" if parent.cancel_event.is_set() else f"批任务 watcher 失败: {type(exc).__name__}: {exc}",
+                            error=TASK_CANCELLED_ERROR if parent.cancel_event.is_set() else f"批任务 watcher 失败: {type(exc).__name__}: {exc}",
                             reason=parent.cancel_event.reason if parent.cancel_event.is_set() else None,
                         )
                     except InvalidStatusTransition:
@@ -2633,7 +2635,7 @@ class TaskManager:
                     try:
                         task.transition_status(
                             target,
-                            error="任务已取消" if cancelled else str(result.get("error")) if failed else None,
+                            error=TASK_CANCELLED_ERROR if cancelled else str(result.get("error")) if failed else None,
                             reason=task.cancel_event.reason if cancelled else None,
                         )
                     except InvalidStatusTransition:
@@ -2673,13 +2675,13 @@ class TaskManager:
                     try:
                         task.transition_status(
                             target,
-                            error="任务已取消" if target == "cancelled" else f"{type(exc).__name__}: {exc}",
+                            error=TASK_CANCELLED_ERROR if target == "cancelled" else f"{type(exc).__name__}: {exc}",
                             reason=task.cancel_event.reason if target == "cancelled" else None,
                         )
                     except InvalidStatusTransition:
                         pass
                 elif task.status == "cancelled" and not task.error:
-                    task.error = "任务已取消"
+                    task.error = TASK_CANCELLED_ERROR
         finish = LOG.error if task.status == "failed" else LOG.info
         finish(
             "task_finished task_id=%s status=%s total_tokens=%s error=%s",

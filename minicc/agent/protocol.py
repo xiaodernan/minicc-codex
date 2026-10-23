@@ -29,6 +29,22 @@ TERMINAL_TASK_STATUSES = frozenset({"completed", "failed", "cancelled", "interru
 #: ``{"queued", "running"}`` correctly.  The two other facts already had
 #: names right here, and this one is *derivable* from them - so it is
 #: derived, rather than written down a twelfth time.
+#: M8-T479: the one user-cancel verdict, in the two shapes a reader meets it.
+#: ``TASK_CANCELLED_ERROR`` is the short form the ``error`` field carries; the
+#: answer the user reads is the sentence ``TASK_CANCELLED_ANSWER``.  Both were
+#: spelled out by hand at twenty-six sites across four modules - six in the
+#: agent loop, one in the worker, three in the task manager, two on the web
+#: face - so a rename reached only the sites somebody remembered: a cancelled
+#: task then answered one wording on one face and the old wording on another,
+#: and nothing failed anywhere.
+#:
+#: The longer sentences that merely *begin* with these words
+#: (``任务已取消，已中止模型请求``, ``任务已取消，自动验证已停止。``) are
+#: different facts about different moments and stay where they are.  So does
+#: the batch notice ``批量任务已取消。``, and so does
+#: ``服务重启时任务被中断。`` - an interrupted task is not a cancelled one.
+TASK_CANCELLED_ERROR = "任务已取消"
+TASK_CANCELLED_ANSWER = "任务已取消。"
 ACTIVE_TASK_STATUSES = frozenset(TASK_STATUSES - TERMINAL_TASK_STATUSES)
 #: The terminal statuses that mean "the task did not succeed" (failed or interrupted).
 #: A task that was cancelled was not asked to succeed — it was asked to stop.
@@ -339,6 +355,8 @@ __all__ = [
     "InvalidStatusTransition",
     "MODEL_LAST_OUTPUT_MARKER",
     "PHASE_CARRYING_EVENT_KINDS",
+    "TASK_CANCELLED_ANSWER",
+    "TASK_CANCELLED_ERROR",
     "RuntimeEvent",
     "TASK_STATUSES",
     "TASK_UNSUCCESSFUL_STATUSES",

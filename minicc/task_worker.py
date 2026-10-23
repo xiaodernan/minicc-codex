@@ -30,7 +30,10 @@ from .config import (
 )
 
 from .agent.loop import AgentCancelled
-from .agent.protocol import PHASE_CARRYING_EVENT_KINDS
+from .agent.protocol import (
+    PHASE_CARRYING_EVENT_KINDS,
+    TASK_CANCELLED_ERROR,
+)
 from .logging_setup import get_logger, log_task_event, register_secret
 from .task_store import TaskStore
 from .task_contract import (
@@ -432,7 +435,7 @@ def _run_owned_worker(args: argparse.Namespace, workspace: Path, store: TaskStor
         return 0
     except AgentCancelled:
         state["status"] = "cancelled"
-        state["error"] = "任务已取消"
+        state["error"] = TASK_CANCELLED_ERROR
         _final_flush("cancelled")
         return 0
     except BaseException as exc:  # noqa: BLE001 - the worker owns its failure record
