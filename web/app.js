@@ -1347,6 +1347,7 @@
   }
 
   // web/src/core/approvals.js
+  var APPROVAL_DECISIONS = ["allow", "always", "deny"];
   var pending2 = /* @__PURE__ */ new Map();
   var ticker = 0;
   function ensureLayer() {
@@ -1410,13 +1411,14 @@
     node.setAttribute("role", "alertdialog");
     node.setAttribute("aria-label", t("approval.title"));
     const timeoutSeconds = Number(event.timeout_seconds || 60) || 60;
+    const buttons = APPROVAL_DECISIONS.map(
+      (decision) => `<button type="button"${decision === "deny" ? ' class="approval-deny"' : ""} data-decision="${decision}">${escapeHtml(t(`approval.${decision}`))}</button>`
+    ).join("");
     node.innerHTML = `
     <div class="approval-card-head"><strong>${escapeHtml(t("approval.title"))}</strong><span data-approval-count></span></div>
     <div class="approval-card-body"><b>${escapeHtml(String(event.tool || event.name || ""))}</b><code>${escapeHtml(String(event.preview || "").slice(0, 300))}</code><small>${escapeHtml(t("approval.reason"))}\uFF1A${escapeHtml(String(event.reason || event.summary || ""))}</small></div>
     <div class="approval-card-actions">
-      <button type="button" data-decision="allow">${escapeHtml(t("approval.allow"))}</button>
-      <button type="button" data-decision="always">${escapeHtml(t("approval.always"))}</button>
-      <button type="button" class="approval-deny" data-decision="deny">${escapeHtml(t("approval.deny"))}</button>
+      ${buttons}
     </div>`;
     node.querySelectorAll("button").forEach((button) => {
       button.addEventListener("click", () => decide(event.request_id, button.dataset.decision));

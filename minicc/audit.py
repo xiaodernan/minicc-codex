@@ -290,6 +290,15 @@ def normalize_permission_mode(value: object) -> str:
     return mode
 
 
+# The interactive approval gate's decisions (minicc/web.py request_approval /
+# resolve_approval): allow this call once, always allow it (and remember the
+# narrow scope), or deny.  ``always`` is a permit, so "did the user allow
+# it?" is answered by the permitting subset - never by comparing against
+# "deny" alone, which would treat a future fourth verdict as a denial.
+APPROVAL_DECISIONS = frozenset({"allow", "always", "deny"})
+PERMITTING_APPROVAL_DECISIONS = frozenset({"allow", "always"})
+
+
 @dataclass(frozen=True)
 class AuthorizationDecision:
     allowed: bool
@@ -490,8 +499,10 @@ def authorize_tool(
 
 
 __all__ = [
+    "APPROVAL_DECISIONS",
     "NETWORK_TOOL_NAMES",
     "PERMISSION_MODES",
+    "PERMITTING_APPROVAL_DECISIONS",
     "WORKSPACE_WIDE_READ_TOOLS",
     "AuthorizationDecision",
     "authorize_tool",

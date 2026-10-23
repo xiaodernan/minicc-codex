@@ -53,7 +53,7 @@ def test_the_web_always_answer_must_not_write_a_tool_wide_rule() -> None:
     source = (
         Path(__file__).resolve().parents[1] / "minicc" / "web.py"
     ).read_text(encoding="utf-8")
-    marker = 'if verdict["decision"] in {"allow", "always"}:'
+    marker = 'if verdict["decision"] in PERMITTING_APPROVAL_DECISIONS:'
     start = source.index(marker)
     branch = source[start:start + 2000]
     assert 'kwargs: dict[str, str] = {}' in branch, (

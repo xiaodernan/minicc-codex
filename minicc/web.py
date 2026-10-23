@@ -82,6 +82,8 @@ from .agent.rpc import RpcDispatcher
 from .agent.verifier import Verifier, VerificationResult
 from .agent.verification_plan import build_verification_plan, changed_paths_from_events
 from .audit import (
+    APPROVAL_DECISIONS,
+    PERMITTING_APPROVAL_DECISIONS,
     AuthorizationDecision,
     authorize_tool,
     deny_rule_covers_path,
@@ -542,7 +544,7 @@ class AgentService:
             on_event({
                 "kind": "approval_resolved",
                 "name": tool,
-                "status": "ok" if decision in {"allow", "always"} else "denied",
+                "status": "ok" if decision in PERMITTING_APPROVAL_DECISIONS else "denied",
                 "phase": "permission",
                 "code": "approval_resolved",
                 "summary": (
@@ -566,7 +568,7 @@ class AgentService:
 
     def resolve_approval(self, request_id: str, decision: str) -> dict[str, Any]:
         """Apply a user decision to a pending approval (allow|always|deny)."""
-        if decision not in {"allow", "always", "deny"}:
+        if decision not in APPROVAL_DECISIONS:
             raise ValueError("审批决定必须是 allow|always|deny")
         with self._approval_guard:
             group = self._approval_groups.get(str(request_id or "").strip())
@@ -1755,7 +1757,7 @@ class AgentService:
                     on_event=on_event,
                     cancel_event=cancel_event,
                 )
-                if verdict["decision"] in {"allow", "always"}:
+                if verdict["decision"] in PERMITTING_APPROVAL_DECISIONS:
                     always = verdict["decision"] == "always"
                     if always:
                         try:

@@ -6,6 +6,12 @@ import { requestJson } from "./transport.js";
 import { t } from "./i18n.js";
 import { escapeHtml } from "../chat/markdown.js";
 
+// M8-T394: the approval decision vocabulary's one frontend home. The server
+// validates decisions against the same three values (APPROVAL_DECISIONS in
+// minicc/audit.py); a door test keeps the two faces in sync. The deny button
+// is the only one that wears the destructive class.
+export const APPROVAL_DECISIONS = ["allow", "always", "deny"];
+
 const pending = new Map();
 let ticker = 0;
 
@@ -76,13 +82,15 @@ function addCard(event) {
   node.setAttribute("role", "alertdialog");
   node.setAttribute("aria-label", t("approval.title"));
   const timeoutSeconds = Number(event.timeout_seconds || 60) || 60;
+  const buttons = APPROVAL_DECISIONS.map(
+    (decision) =>
+      `<button type="button"${decision === "deny" ? ' class="approval-deny"' : ""} data-decision="${decision}">${escapeHtml(t(`approval.${decision}`))}</button>`,
+  ).join("");
   node.innerHTML = `
     <div class="approval-card-head"><strong>${escapeHtml(t("approval.title"))}</strong><span data-approval-count></span></div>
     <div class="approval-card-body"><b>${escapeHtml(String(event.tool || event.name || ""))}</b><code>${escapeHtml(String(event.preview || "").slice(0, 300))}</code><small>${escapeHtml(t("approval.reason"))}：${escapeHtml(String(event.reason || event.summary || ""))}</small></div>
     <div class="approval-card-actions">
-      <button type="button" data-decision="allow">${escapeHtml(t("approval.allow"))}</button>
-      <button type="button" data-decision="always">${escapeHtml(t("approval.always"))}</button>
-      <button type="button" class="approval-deny" data-decision="deny">${escapeHtml(t("approval.deny"))}</button>
+      ${buttons}
     </div>`;
   node.querySelectorAll("button").forEach((button) => {
     button.addEventListener("click", () => decide(event.request_id, button.dataset.decision));

@@ -25894,3 +25894,67 @@ default 模式下被权限门拦下** ✓，而拦它的理由跟测试毫无关
 集合** ✓——它们的共同前提（三格清单 ✓）被写了两遍 ✓。这种形状比普通重复更隐蔽 ✓：
 单独看每一处都正确 ✓，只有把它们并排读才发现它们必须相等 ✓。门的办法是**
 把共同前提提成家** ✓，让「相等」变成结构事实 ✓，而不是两处碰巧一致 ✓。
+
+
+## 第三百七十八批 — M8-T394 — 审批裁决三值三个家：web.py 两处放行子集 + 一处全集校验
+
+### 1 缺陷
+
+审批交互门的裁决词表被手写了**三处** ✓，全在 `minicc/web.py` ✓：
+
+| 行 | 拼写 | 用途 |
+| --- | --- | --- |
+| :545 | `{"allow", "always"}` | 审批结果事件的 status ✓：放行才算 ok ✓ |
+| :569 | `{"allow", "always", "deny"}` | `resolve_approval` 的合法性校验 ✓ |
+| :1758 | `{"allow", "always"}` | 「用户允不允许」的判定 ✓ |
+
+全集与子集是两个互相纠缠的事实 ✓：全集回答「这是什么词表」✓，子集回答「哪些算放行」✓。
+加第四个裁决 ✓（比如 `allow_session` ✓）：全集那边加 ✓、子集这边忘加 ✓，
+**新裁决会被当成拒绝** ✓——用户明明点了允许 ✓，agent 却收到 denied ✓。
+反过来子集多加一个值 ✓，`resolve_approval` 又不会认 ✓，按钮按了也 400 ✓。
+前端 `web/src/core/approvals.js` 还把三个 `data-decision` 按钮又写了一遍 ✓——
+第四张脸 ✓，服务端不认的裁决前端照送 ✓。
+
+### 2 落地
+
+* **建家** ✓：`audit.py` 模块级新增 `APPROVAL_DECISIONS = frozenset({"allow", "always", "deny"})`
+  与 `PERMITTING_APPROVAL_DECISIONS = frozenset({"allow", "always"})` ✓，与
+  `PERMISSION_MODES` 做邻居 ✓，一并进 `__all__` ✓。
+* **web.py 三处收口** ✓：全集校验问 `APPROVAL_DECISIONS` ✓，两处放行判定问
+  `PERMITTING_APPROVAL_DECISIONS` ✓（同对象导入 ✓）。
+* **前端建家** ✓：`approvals.js` 导出 `APPROVAL_DECISIONS = ["allow", "always", "deny"]` ✓，
+  三个按钮改由家渲染 ✓（deny 独享 `approval-deny` 类 ✓，输出 HTML 不变 ✓）。
+* **门测试同步** ✓：`test_the_same_meaning_on_both_faces.py` 的源码 marker 跟着改 ✓——
+  它钉的正是 :1758 那一行 ✓。
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T394-178 | web.py 判定退回行内 `{"allow", "always"}` | 2 条红（AST 扫描抓到 ✓；both-faces 门 marker 找不到行 ✓） |
+
+### 4 新增门禁
+
+`tests/test_the_approval_decisions_have_one_home.py`（4 条）✓：
+
+1. 家在 `audit.py` ✓、三值齐全 ✓、放行子集是**真子集** ✓（永远盖不住 deny ✓）
+2. web.py 导入的是**同一个对象** ✓（`is` 断言 ✓）
+3. 全包只许 `audit.py` 一处拼写两个词表 ✓（AST 扫描 ✓）
+4. 端到端不变 ✓：`resolve_approval` 对第四个值依旧抛
+   `ValueError("审批决定必须是 allow\|always\|deny")` ✓
+
+`tests/frontend_approval_one_home_smoke.mjs`（`npm run test:approval` ✓）：
+
+1. 前端家在 `approvals.js` ✓、三值齐全且没有第四值 ✓
+2. 其余前端文件不许手写这个词表 ✓（数组字面量扫描 ✓）
+
+聚焦回归 ✓：Python 门 4 条 + both-faces 门 + `test_permissions_approval.py` +
+`test_http_surface.py` 共 109 条 ✓，全绿 ✓；前端门 1 条 ✓、`build:web` +
+`check:web` ✓。全量 pytest 未跑 ✓。
+
+### 5 一条教训
+
+**全集和子集，是两个家，不是一个。** ✓ 本批最容易犯的错 ✓，是只提一个
+`APPROVAL_DECISIONS` ✓、然后在两处放行判定写 `!= "deny"` ✓——那恰恰是
+本批要防的「未来第四裁决被当成拒绝」✓。子集必须自己立户 ✓，并且门的第 1 条
+断言 `PERMITTING < APPROVAL` ✓：把「子集永远盖不住 deny」钉成结构事实 ✓。
