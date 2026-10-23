@@ -79,6 +79,12 @@ NodeHandler = Callable[[AgentState], NodeResult | Awaitable[NodeResult]]
 #: terminal status is a failure - the vocabulary is open, so a status the
 #: graph does not know about must not be read as a success.
 SUCCESS_STATUSES = frozenset({"ok", "done", "success", "completed", "passed"})
+#: M8-T403: the statuses that explicitly mean "this node failed". The
+#: whitelist above and this blacklist leave a third kind - a status in
+#: neither - which M8-T328 handles as "not a success". Two readers asked the
+#: blacklist question (the router and the node runner) and each spelled the
+#: two names out.
+FAILED_NODE_STATUSES = frozenset({"failed", "error"})
 
 
 class StateGraph:
@@ -161,7 +167,7 @@ class StateGraph:
             condition = outcome.status
             target = outcome.next_node or self.next_node(current, condition)
             if target is None:
-                if condition in {"failed", "error"}:
+                if condition in FAILED_NODE_STATUSES:
                     state.finish("failed", outcome.error)
                 elif condition in SUCCESS_STATUSES:
                     state.finish("completed")
@@ -340,7 +346,7 @@ async def execute_dag(
                     output = await raw if inspect.isawaitable(raw) else raw
                     if not isinstance(output, dict):
                         output = {"value": output}
-                    if output.get("status", "completed") in {"failed", "error"}:
+                    if output.get("status", "completed") in FAILED_NODE_STATUSES:
                         failed_output = dict(output)
                         raise RuntimeError(str(output.get("error") or output.get("status")))
                     return task, {**output, "status": "completed"}, attempts
