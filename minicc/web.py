@@ -200,10 +200,23 @@ class _ApprovalGroup:
     timed_out: bool = False
 
 
-def _validate_thread_id(raw: Any) -> str:
+def _require_text(raw: Any, field: str) -> str:
+    """The one "<field> 不能为空" guard: a stripped, non-empty string.
+
+    RPC params and service arguments arrive as ``Any`` from JSON.  The
+    guard rejects a missing, blank or non-string value with one
+    message and hands back the stripped text.  Four sites spelled the
+    isinstance/strip/raise by hand - a site that forgets the isinstance
+    half lets a JSON number through as a session id, and a site that
+    forgets the strip half lets " " through as a real one.
+    """
     if not isinstance(raw, str) or not raw.strip():
-        raise ValueError("thread_id 不能为空")
-    thread_id = raw.strip()
+        raise ValueError(f"{field} 不能为空")
+    return raw.strip()
+
+
+def _validate_thread_id(raw: Any) -> str:
+    thread_id = _require_text(raw, "thread_id")
     if len(thread_id) > _THREAD_ID_MAX_LEN:
         raise ValueError(f"thread_id 超过长度上限 ({_THREAD_ID_MAX_LEN})")
     if any(ord(ch) < 32 or ord(ch) == 127 for ch in thread_id):
@@ -725,9 +738,7 @@ class AgentService:
         raw = params.get("session_id")
         if raw is None:
             return f"rpc-{uuid.uuid4().hex[:12]}"
-        if not isinstance(raw, str) or not raw.strip():
-            raise ValueError("session_id 不能为空")
-        return raw.strip()
+        return _require_text(raw, "session_id")
 
     def _rpc_thread_tasks(self, record: dict[str, Any]) -> list[dict[str, Any]]:
         session_id = str(record["session_id"])
@@ -838,8 +849,6 @@ class AgentService:
         raw_thread_id = params.get("thread_id") or params.get("thread")
         if raw_thread_id is None:
             raw_thread_id = params.get("id")
-        if not isinstance(raw_thread_id, str) or not raw_thread_id.strip():
-            raise ValueError("thread_id 不能为空")
         return self._rpc_thread_record(_validate_thread_id(raw_thread_id))
 
     def _rpc_turn_id(self, params: dict[str, Any]) -> str | None:
@@ -897,8 +906,7 @@ class AgentService:
                 if isinstance(item, dict) and isinstance(item.get("text"), str)
             ]
             raw_message = "\n".join(parts)
-        if not isinstance(raw_message, str) or not raw_message.strip():
-            raise ValueError("message 不能为空")
+        raw_message = _require_text(raw_message, "message")
         task = self.tasks.submit({
             "message": raw_message,
             "session_id": thread["session_id"],
@@ -988,8 +996,7 @@ class AgentService:
         }
 
     def switch_workspace(self, raw_path: str) -> dict[str, Any]:
-        if not isinstance(raw_path, str) or not raw_path.strip():
-            raise ValueError("工作区路径不能为空")
+        raw_path = _require_text(raw_path, "工作区路径")
         candidate = resolve_workspace_path(
             raw_path, roots=tuple(getattr(self.config, "workspace_roots", ()) or ())
         )
@@ -1105,9 +1112,7 @@ class AgentService:
         user_index: int | None = None,
     ) -> dict[str, Any]:
         """Rewind a stored conversation to a message or user-turn index."""
-        if not isinstance(session_id, str) or not session_id.strip():
-            raise ValueError("session_id 不能为空")
-        store = SessionStore(self.workspace, session_id.strip())
+        store = SessionStore(self.workspace, _require_text(session_id, "session_id"))
         if user_index is not None:
             return store.rewind_to_user_index(user_index)
         if keep_messages is None:
@@ -1121,9 +1126,7 @@ class AgentService:
         new_session_id: str | None = None,
     ) -> dict[str, Any]:
         """M8-T2: branch a stored conversation at one message into a new session."""
-        if not isinstance(session_id, str) or not session_id.strip():
-            raise ValueError("session_id 不能为空")
-        store = SessionStore(self.workspace, session_id.strip())
+        store = SessionStore(self.workspace, _require_text(session_id, "session_id"))
         raw_new = str(new_session_id).strip() if new_session_id else ""
         target = store.fork(from_message_id, new_session_id=raw_new or None)
         return {
@@ -1498,9 +1501,7 @@ class AgentService:
         on_compaction: Any | None = None,
         cancel_event: threading.Event | None = None,
     ) -> dict[str, Any]:
-        message = payload.get("message")
-        if not isinstance(message, str) or not message.strip():
-            raise ValueError("message 不能为空")
+        message = _require_text(payload.get("message"), "message")
         session_id = str(payload.get("session_id") or "web-latest")
         allow_changes, allow_network, _mode = _resolve_task_permissions(
             payload, yolo=self.config.yolo

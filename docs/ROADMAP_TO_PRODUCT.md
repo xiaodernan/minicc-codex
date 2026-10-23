@@ -29642,3 +29642,76 @@ pytest 未跑 ✓。
 **不同事实** ✓，立家反而是过度设计 ✓。判别口诀 ✓：**同
 一函数内重复 → 必收 ✓；跨文件同形状 → 先问是不是同一
 个消费者的同一份数据 ✓，是才收 ✓。** **
+
+## 第四百四十二批 — M8-T458 — 空字段守卫一个家
+
+### 1 缺陷
+
+web.py 里同一个校验惯用法手写七处：
+
+```python
+if not isinstance(raw, str) or not raw.strip():
+    raise ValueError("<field> 不能为空")
+```
+
+覆盖 session_id（RPC 参数、rewind、branch 三处）、
+thread_id（RPC 一处，且与紧接着调用的
+`_validate_thread_id` 自己的空值检查**完全重复**）、
+message（RPC 拼接后、`_run_chat` 两处）、工作区路径
+（switch_workspace）。七处各写一遍，两个半边（isinstance
+类型检查、strip 去空白）任何一处漏掉，行为就静默改变：
+漏 isinstance，JSON 数字会变成 session id；漏 strip，
+" " 会变成一个真实存在的会话。
+
+### 2 落地
+
+- `minicc/web.py` 立模块级 `_require_text(raw, field)`，
+  放在 `_validate_thread_id` 之前
+- 七处收口；`_validate_thread_id` 的空值检查委托给家
+  （它的长度/控制字符检查保留——那是 thread_id 的特
+  有事实）
+- RPC 线程那处直接删掉内联检查：被调用的
+  `_validate_thread_id` 本来就会抛一模一样的错
+- **范围说明**：`webserver.py:660` 有同一惯用法，但
+  web.py → webserver 是既有 import 方向，反向 import 会
+  成环，留待将来共享校验模块；两处 coerce 惯用法
+  （`str(x or "").strip()`）语义不同（接受非字符串），
+  不并本批
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T458-264 | _validate_thread_id 退回手写 | 2 条红（惯用法 census ✓） |
+| M8-T458-265 | RPC session_id 退回手写 | 2 条红（惯用法 census ✓） |
+| M8-T458-266 | RPC message 退回手写 | 2 条红（惯用法 census ✓） |
+| M8-T458-267 | _run_chat message 退回手写 | 2 条红（惯用法 census ✓） |
+
+### 4 新增门禁
+
+`tests/test_the_require_text_have_one_home.py`（8 条）✓：
+
+1. 家的行为 ✓：strip 后返回 ✓
+2-6. 家的行为 ✓：None/""/"  "/123/[] 五种空拼法全部抛
+   `session_id 不能为空` ✓
+7. 惯用法 census ✓：AST 识别 `if not isinstance(x, str)
+   or not x.strip(): raise` 形态，web.py 下**恰好一处**
+   ✓且在 `_require_text` 内 ✓
+8. 调用计数 + 消息归零 ✓：`_require_text(` 恰好 8 次 ✓，
+   `"message 不能为空"`/`"工作区路径不能为空"`/
+   `"thread_id 不能为空"` 字面量在 web.py 归零 ✓
+
+聚焦回归 ✓：新门 8 条 + web_security / webauth_validation
+36 条 + core_session 8 条 + web_assets / webfetch 17 条 ✓，
+共 69 条 ✓，全绿 ✓。全量 pytest 未跑 ✓。
+
+### 5 一条教训
+
+**第一次把门禁建在 AST 惯用法上而不是 dict 字面量上 ✓。** ✓
+此前所有门禁都 census「键集合相同的 dict」 ✓；本次的重复
+单位是**控制流形状**（if isinstance + strip + raise）✓。启
+发 ✓：重复不一定是数据 ✓，也可以是**代码的姿势** ✓——同一
+个姿势写七遍 ✓，和同一个 dict 写七遍一样会分叉 ✓。AST
+census 的判别式要写得像指纹一样窄 ✓（isinstance 调用 +
+strip 调用 + 恰好两个 Or 分支）✓，否则会把无关的 if 卷进
+来 ✓。** **
