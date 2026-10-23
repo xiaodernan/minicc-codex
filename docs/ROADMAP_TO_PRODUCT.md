@@ -29212,3 +29212,63 @@ plan_channel 18 条 + core_llm / one_price_per_model 24
 的差异恰好说明家的参数化方向 ✓——**家收形状 ✓，调用方
 定数值 ✓；反过来（家定数值、调用方拼形状）就是把两个事
 实焊死在一起 ✓。** **
+
+## 第四百三十五批 — M8-T451 — 轮次工具清单两键一个家
+
+### 1 缺陷
+
+两个 planning trace 各自手写「本轮合格工具清单」：
+
+- `recovery_inspection_passed`：`{"turn": turn,
+  "tools": [call.tool for call, tool_result in
+  immediate_results.values() if 只读且成功且非重复]}`
+- `verification_observed`：同一个遍历骨架，谓词换成
+  `is_verification_evidence(...)`
+
+遍历骨架（迭代 `immediate_results`、取 `call.tool`）和
+外层信封（turn + tools）都是重复的，只有谓词不同。将来
+给 immediate_results 的值加一层包装（比如把 tool_result
+换成带缓存标记的结构），两处遍历要同步改；漏一处，某个
+trace 的工具清单就悄悄少算一类调用，而它正是「解除写
+入保护」与「确认验证到位」两个决策的公示依据。
+
+### 2 落地
+
+- `minicc/agent/loop.py` 立模块级 `_turn_tools_detail(turn,
+  immediate_results, qualifies)`，放在 `_guard_detail` 之前
+- 遍历骨架与信封进家；谓词作 `Callable[[ToolCall,
+  ToolResult], bool]` 参数——**哪些调用合格是调用方的业
+  务，骨架和形状是家的责任**
+- 两个调用点各传一个 lambda：恢复处内联原来的三条件，
+  验证处内联 `is_verification_evidence`
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T451-264 | 恢复 trace 退回手写 | 2 条红（census + 调用计数 ✓） |
+| M8-T451-265 | 验证 trace 退回手写 | 2 条红（census + 调用计数 ✓） |
+
+### 4 新增门禁
+
+`tests/test_the_turn_tools_detail_have_one_home.py`（4 条）✓：
+
+1. 家的行为 ✓：按谓词收集工具名 ✓
+2. 家的行为 ✓：空清单是 `{"turn": n, "tools": []}` ✓
+3. census ✓：`{"turn", "tools"}` 两键 dict 字面量在 minicc/
+   下**恰好一处** ✓且在家 ✓
+4. 调用计数 ✓：`_turn_tools_detail(` 恰好 3 次 ✓（定义 +
+   两个 trace ✓）
+
+聚焦回归 ✓：新门 4 条 + core_agent / completion_liveness
+76 条 ✓，共 80 条 ✓，全绿 ✓。全量 pytest 未跑 ✓。
+
+### 5 一条教训
+
+**谓词不同的同构遍历 ✓，家收骨架 ✓、谓词作参数 ✓——这
+是「可变家」原则的镜像 ✓：T420 说构造器每次返回新对象
+✓，这里说谓词每次由调用方给 ✓。** ✓ 把谓词也焊进家
+（两个 if 分支）就等于把两个调用点的业务合并成一个函数
+的两个分支 ✓，改恢复条件会顺带碰到验证条件 ✓。家的判
+别口诀再加一条 ✓：**两处代码逐行 diff 后只剩一个表达
+式不同 ✓，那个表达式就是参数 ✓，其余全是家 ✓。** **

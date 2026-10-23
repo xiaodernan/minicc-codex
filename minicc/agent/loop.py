@@ -1515,18 +1515,15 @@ async def run_agent(
                     "恢复阶段已取得新的只读证据，解除临时写入保护",
                     phase="planning",
                     code="recovery_inspection_passed",
-                    detail={
-                        "turn": turn,
-                        "tools": [
-                            call.tool
-                            for call, tool_result in immediate_results.values()
-                            if effective_risk(
-                                call.tool, registry.risk_of(call.tool), call.arguments
-                            ) == "readonly"
-                            and tool_result.status == "ok"
-                            and not (tool_result.data or {}).get("duplicate")
-                        ],
-                    },
+                    detail=_turn_tools_detail(
+                        turn,
+                        immediate_results,
+                        lambda call, tool_result: effective_risk(
+                            call.tool, registry.risk_of(call.tool), call.arguments
+                        ) == "readonly"
+                        and tool_result.status == "ok"
+                        and not (tool_result.data or {}).get("duplicate"),
+                    ),
                 )
             if successful_writes:
                 # Any cached read may now be stale, including a path the
@@ -1566,14 +1563,13 @@ async def run_agent(
                     "已收到修改后的验证证据，继续评估是否满足原始目标",
                     phase="planning",
                     code="verification_observed",
-                    detail={
-                        "turn": turn,
-                        "tools": [
-                            call.tool
-                            for call, tool_result in immediate_results.values()
-                            if is_verification_evidence(call.tool, call.arguments, tool_result.status)
-                        ],
-                    },
+                    detail=_turn_tools_detail(
+                        turn,
+                        immediate_results,
+                        lambda call, tool_result: is_verification_evidence(
+                            call.tool, call.arguments, tool_result.status
+                        ),
+                    ),
                 )
 
             round_signature = _signature([
@@ -1975,6 +1971,30 @@ def _signature(value: Any) -> str:
     """Stable, compact fingerprint for loop-progress detection."""
     raw = json.dumps(value, ensure_ascii=False, sort_keys=True, default=str, separators=(",", ":"))
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:20]
+
+
+def _turn_tools_detail(
+    turn: int,
+    immediate_results: dict[int, tuple[ToolCall, ToolResult]],
+    qualifies: Callable[[ToolCall, ToolResult], bool],
+) -> dict[str, Any]:
+    """The trace detail of a turn's qualifying tools: which turn, which tools.
+
+    Two planning traces report the same inventory - the tool names from
+    this turn's immediate results that satisfy a predicate: read-only
+    and successful for the recovery unlock, actual verification
+    evidence after a write.  The iteration skeleton is identical; only
+    the predicate differs, and *which* calls qualify is the caller's
+    business, not the shape's.
+    """
+    return {
+        "turn": turn,
+        "tools": [
+            call.tool
+            for call, tool_result in immediate_results.values()
+            if qualifies(call, tool_result)
+        ],
+    }
 
 
 def _guard_detail(turn: int, retry_limit: int) -> dict[str, Any]:
