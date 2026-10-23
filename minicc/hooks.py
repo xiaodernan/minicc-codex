@@ -171,6 +171,19 @@ def _cap(text: str) -> str:
     return f"{head}\n...[hook output truncated]...\n{tail}"
 
 
+def hook_entry(event: str, command: str) -> dict[str, Any]:
+    """The one base shape of a hook execution record.
+
+    Two sites write it by hand: the budget-skip output (the hook never
+    ran, so it is waved through with a reason) and ``_run_one``'s initial
+    entry (every failure branch then overwrites decision and reason).
+    A key one copy forgets is a record the summary line reads as a
+    missing field - and ``exit_code`` only joins the record later, on
+    the path that actually ran the command.
+    """
+    return {"event": event, "command": command, "decision": "allow", "reason": ""}
+
+
 class HookRunner:
     """Loads hooks.json once and executes matching hooks synchronously."""
 
@@ -315,9 +328,7 @@ class HookRunner:
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 outcome.outputs.append({
-                    "event": spec.event,
-                    "command": spec.command,
-                    "decision": "allow",
+                    **hook_entry(spec.event, spec.command),
                     "reason": (
                         f"hook 总预算（{MAX_HOOK_TOTAL_SECONDS:g} 秒）已用尽，"
                         "本条未执行"
@@ -347,12 +358,7 @@ class HookRunner:
         *,
         timeout: float | None = None,
     ) -> dict[str, Any]:
-        entry: dict[str, Any] = {
-            "event": spec.event,
-            "command": spec.command,
-            "decision": "allow",
-            "reason": "",
-        }
+        entry: dict[str, Any] = hook_entry(spec.event, spec.command)
         try:
             env = _scrubbed_env(spec.env)
         except HookConfigError as exc:
