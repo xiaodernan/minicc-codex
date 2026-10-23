@@ -25747,3 +25747,52 @@ default 模式下被权限门拦下** ✓，而拦它的理由跟测试毫无关
 同文件两处 ✓，肉眼读下来像「理所当然的两次使用」✓。T374 抓过同类 ✓（同一份写工具名单，
 第二份活着的副本 ✓），本条再添一例 ✓：**判别标准从来不是「跨不跨模块」✓，而是
 「同一个事实被写了几遍」✓。**
+
+
+## 第三百七十五批 — M8-T391 — worker 元数据四字段：镜像写出与恢复读回两个家
+
+### 1 缺陷
+
+「快照携带哪些 worker 元数据」这个事实有两个家 ✓：
+
+| 家 | 用途 |
+| --- | --- |
+| `minicc/task_execution.py`:77 | `WorkerSnapshotMirror.apply`：把快照里的字段抄进任务 ✓ |
+| `minicc/task_manager.py`:1025 | 恢复路径：从共享存储读回任务时挑出同样四个字段 ✓ |
+
+两处都手写 `("worker_version", "worker_pid", "lease_owner", "heartbeat_at_epoch")` ✓
+（这次顺序倒是一致 ✓）。这是**跨进程续命**的字段 ✓：worker 进程写 ✓、web 重启后读 ✓。
+加第五个字段 ✓（比如 `lease_expires_at` ✓）：worker 写了 ✓，恢复时不读 ✓——
+**字段静默消失** ✓，而 `has_live_worker` 的租约判断恰好吃这些字段 ✓，
+丢一个就少一层「worker 还活着」的证据 ✓。
+
+### 2 落地
+
+* **建家** ✓：`minicc/task_execution.py` 新增 `WORKER_METADATA_FIELDS` ✓
+  （worker 传输层 ✓；`task_manager` 本来就 import 它 ✓，不造新依赖 ✓）。
+* 镜像与恢复两处改问家 ✓（同一对象 ✓）。
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T391-175 | `task_manager.py` 的恢复读回退回行内元组 | 1 条红（AST 扫描抓到 ✓） |
+
+### 4 新增门禁
+
+`tests/test_the_worker_metadata_fields_have_one_home.py`（4 条）✓：
+
+1. 家在 `task_execution.py` ✓、顺序唯一 ✓
+2. `task_manager` 用**同一个对象** ✓
+3. 全包只许一处拼写 ✓
+4. 镜像行为不变 ✓（四个字段照抄 ✓、无关字段不进 `worker_metadata` ✓——用桩任务直接驱动 ✓）
+
+聚焦回归 ✓：门 4 条 + `test_task_durability.py` + `test_auto_resume.py` +
+`test_core_task.py` 共 48 条 ✓，全绿 ✓。全量 pytest 未跑 ✓。
+
+### 5 一条教训
+
+**跨进程的契约，字段表就是契约本身。** ✓ 进程内的两个副本 ✓，漂移了顶多行为不一致 ✓；
+跨进程的两个副本 ✓，漂移了就是**写盘格式与读盘格式悄悄分家** ✓——旧数据还能读 ✓
+（少几个键 ✓），新字段永远到不了对岸 ✓。这类家的门 ✓，价值不在「少打几个字」✓，
+在于**加字段时逼你回答「对岸怎么办」** ✓。

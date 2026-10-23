@@ -53,7 +53,7 @@ from . import pricing
 from .session import SessionStore
 from .task_store import TaskStore
 from .task_contract import TASK_SCHEMA_VERSION, TaskRequest, TaskResult, resolve_task_permissions
-from .task_execution import WorkerDetached, WorkerSnapshotMirror, has_live_worker
+from .task_execution import WORKER_METADATA_FIELDS, WorkerDetached, WorkerSnapshotMirror, has_live_worker
 from .task_persistence import TaskSnapshotWriter
 from .tools.registry import redact_text
 from .workspaces import resolve_workspace_path
@@ -1022,7 +1022,7 @@ class TaskRecord:
             events=[dict(item) for item in data.get("events") or [] if isinstance(item, dict)],
             stream_text=str(data.get("stream_text") or ""),
             stream_length=_coerce_int(data.get("stream_length") or data.get("stream_total_length")),
-            worker_metadata={key: data[key] for key in ("worker_version", "worker_pid", "lease_owner", "heartbeat_at_epoch") if key in data},
+            worker_metadata={key: data[key] for key in WORKER_METADATA_FIELDS if key in data},
             tokens_used={key: int(value or 0) for key, value in (data.get("tokens_used") or {}).items() if isinstance(value, (int, float))},
             context=dict(data.get("context") or {}),
             usage_by_turn=[dict(item) for item in data.get("usage_by_turn") or [] if isinstance(item, dict)],

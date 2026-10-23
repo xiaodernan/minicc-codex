@@ -8,6 +8,13 @@ from typing import Any
 from .task_store import TaskStore
 from .task_contract import TaskResult
 
+# M8-T391: the worker-metadata fields a snapshot carries across the
+# process boundary.  The mirror below copies them out of the snapshot and
+# task_manager copies them back in when it restores a task; each spelled
+# the four keys itself.  A fifth field added on one side only would be
+# written by the worker and silently dropped on restore.
+WORKER_METADATA_FIELDS = ("worker_version", "worker_pid", "lease_owner", "heartbeat_at_epoch")
+
 
 class WorkerDetached(Exception):
     """The web host is shutting down; execution remains owned by its worker."""
@@ -74,7 +81,7 @@ class WorkerSnapshotMirror:
                 task.add_event(event)
         task.worker_metadata.update({
             key: snapshot[key]
-            for key in ("worker_version", "worker_pid", "lease_owner", "heartbeat_at_epoch")
+            for key in WORKER_METADATA_FIELDS
             if key in snapshot
         })
 
