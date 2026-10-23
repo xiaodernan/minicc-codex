@@ -30107,3 +30107,64 @@ create 建目录、remove 删目录——两个动作都作用在文件系
 式串出现两次 ✓，或者同一组 (格式串, 实参元组) 出现两次
 ✓，就立一个 log helper ✓；级别、exc_info 这类策略进
 家 ✓，调用方只报事实 ✓。** **
+
+## 第四百四十七批 — M8-T463 — grep 参数名一个家
+
+### 1 缺陷
+
+grep 的匹配上限参数名在两处各拼一次：
+
+- `tools/__init__.py:88`：`Param("max_matches", "int", ...)`
+  ——schema 声明，模型看到的参数名
+- `tools/fs.py:386`：`args.get("max_matches",
+  MAX_GREP_MATCHES)` ——工具读取，实际生效的键
+
+两处相隔三个文件层。分叉的后果是静默的：schema 说
+`max_matches`、工具读 `max_match`，模型规规矩矩传
+`max_matches`，工具视而不见走默认值 100——不报错、不
+告警，只是「模型明明限制了却返回一大堆」。这与 T446
+的背景标志同族：**契约键分叉，输出静默走默认值**。
+
+### 2 落地
+
+- `minicc/tools/fs.py` 立模块常量 `MAX_MATCHES_PARAM =
+  "max_matches"`，紧跟 `MAX_GREP_MATCHES`（它俩一个管名
+  字一个管值，都是 grep 上限的契约）
+- 读取点改用常量；`tools/__init__.py` 的 Param 声明 import
+  并改用同一个常量（既有 import 方向：init → fs，无环）
+- docstring 注释写清「两个拼法 = 模型参数被静默丢弃」
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T463-264 | 读取点退回字面量 | 2 条红（census + 读取点断言 ✓） |
+| M8-T463-265 | Param 声明退回字面量 | 2 条红（census + 声明断言 ✓） |
+
+### 4 新增门禁
+
+`tests/test_the_max_matches_param_have_one_home.py`（5 条）✓：
+
+1. 常量即线名 ✓：`MAX_MATCHES_PARAM == "max_matches"` ✓
+2. schema 声明用常量 ✓：registry 里 grep 的 params 含
+   `MAX_MATCHES_PARAM` ✓
+3. 读取点用常量 ✓：`args.get(MAX_MATCHES_PARAM,
+   MAX_GREP_MATCHES)` 在源码中 ✓
+4. census ✓：`"max_matches"` 字符串字面量在 minicc/ 下
+   **恰好一处** ✓（常量定义 ✓）
+5. 声明点形态 ✓：init.py 是 `Param(MAX_MATCHES_PARAM, ...)`
+   而非手写名 ✓
+
+聚焦回归 ✓：新门 5 条 + core_tools 32 条 ✓，共 37 条 ✓，
+全绿 ✓。全量 pytest 未跑 ✓。
+
+### 5 一条教训
+
+**schema 与读取点是契约的两端 ✓，参数名是第三代「一键多
+读者」 ✓（T452 的 raw 是第一代 ✓）。** ✓ 键集合 census 在
+这里不好用 ✓（Param 的第一个实参不是 dict 键 ✓），直接
+对**名字字面量**做全文计数反而一剑封喉 ✓：一个参数名在
+仓库里只允许出现一次 ✓（常量定义处 ✓），其余全是常量引
+用 ✓。判别口诀 ✓：**「schema 声明一个名字、实现读取一个
+名字」的配对 ✓，名字立常量 ✓；rg 该名字的字面量 ✓，超过
+一处就是契约有裂 ✓。** **

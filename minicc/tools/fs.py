@@ -20,6 +20,10 @@ from .schemas import ToolResult
 
 MAX_GLOB_RESULTS = 200
 MAX_GREP_MATCHES = 100
+#: The wire name of grep's match-cap parameter.  The schema declares it
+#: (tools/__init__.py) and ``grep`` reads it; two spellings of one name
+#: mean the model's argument is silently dropped and the default wins.
+MAX_MATCHES_PARAM = "max_matches"
 GREP_CONTEXT_CHARS = 200
 TREE_MAX_DEPTH = 4
 TREE_MAX_ENTRIES = 400
@@ -383,7 +387,7 @@ class FsTools:
     def grep(self, args: dict[str, Any]) -> ToolResult:
         pattern = str(args["pattern"])
         include = str(args["include"]) if args.get("include") else None
-        max_matches = int(args.get("max_matches", MAX_GREP_MATCHES))
+        max_matches = int(args.get(MAX_MATCHES_PARAM, MAX_GREP_MATCHES))
         base = Path(args["path"]) if args.get("path") else Path(".")
         _reject_graders(str(base))
         root = (self.editor.workspace / base).resolve()

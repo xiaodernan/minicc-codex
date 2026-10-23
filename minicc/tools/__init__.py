@@ -16,7 +16,7 @@ from .bash import (
     run_bash,
 )
 from .editor import Editor
-from .fs import FsTools
+from .fs import MAX_MATCHES_PARAM, FsTools
 from .git import GitTools
 from .memory import MemoryTools
 from .registry import (
@@ -85,7 +85,7 @@ def build_registry(
     force_p = Param("force", "bool", description="是否强制移除")
     pattern_p = Param("pattern", "str", required=True, max_len=512, description="glob 或正则模式")
     include_p = Param("include", "str", max_len=256, description="文件名过滤 (glob, 如 *.py)")
-    max_matches_p = Param("max_matches", "int", min_value=1, max_value=500, description="最大匹配数")
+    max_matches_p = Param(MAX_MATCHES_PARAM, "int", min_value=1, max_value=500, description="最大匹配数")
     depth_p = Param("max_depth", "int", min_value=1, max_value=8, description="目录树最大深度")
     entries_p = Param("max_entries", "int", min_value=1, max_value=2000, description="最大条目数")
     search_query_p = Param("query", "str", required=True, max_len=500, description="要搜索的关键词；不要包含密钥或隐私数据")
