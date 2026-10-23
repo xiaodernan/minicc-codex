@@ -288,6 +288,24 @@ def _client_info() -> dict[str, str]:
     return {"name": "minicc", "version": __version__}
 
 
+def _initialize_params(protocol_version: str) -> dict[str, Any]:
+    """The one shape of the MCP initialize handshake params.
+
+    Both transports spell it - the stdio child and the HTTP server -
+    and they differ in exactly one key: the protocol revision each
+    speaks (the stdio child negotiates the older 2024-11-05 revision,
+    the HTTP transport the 2025-03-26 one).  ``capabilities`` is empty
+    for both (minicc declares no client features) and the identity is
+    ``_client_info()``.  One builder keeps the two handshakes from
+    drifting into "initialize means different things here".
+    """
+    return {
+        "protocolVersion": protocol_version,
+        "capabilities": {},
+        "clientInfo": _client_info(),
+    }
+
+
 class McpStdioClient:
     """Persistent JSON-RPC-over-stdio client with a reader queue."""
 
@@ -377,11 +395,7 @@ class McpStdioClient:
         self._reader = threading.Thread(target=self._read_loop, name=f"mcp-{self.config.name}", daemon=True)
         self._reader.start()
         try:
-            self._request("initialize", {
-                "protocolVersion": "2024-11-05",
-                "capabilities": {},
-                "clientInfo": _client_info(),
-            })
+            self._request("initialize", _initialize_params("2024-11-05"))
             self._notify("notifications/initialized", {})
         except McpError:
             # Do not leave a half-initialized child behind on a failed start.
@@ -662,11 +676,7 @@ class McpHttpClient:
             "jsonrpc": "2.0",
             "id": 0,
             "method": "initialize",
-            "params": {
-                "protocolVersion": "2025-03-26",
-                "capabilities": {},
-                "clientInfo": _client_info(),
-            },
+            "params": _initialize_params("2025-03-26"),
         })
         if status >= 400:
             raise McpError(f"MCP HTTP server {self.config.name} 初始化失败: HTTP {status}")

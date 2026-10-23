@@ -29331,3 +29331,65 @@ external_change 25 条 ✓，共 29 条 ✓，全绿 ✓。全量 pytest
 会让两个读者各自 fallback ✓，且 fallback 行为不同 ✓，于
 是同一份数据在两个读者眼里呈现两种语义 ✓。判别口诀 ✓：
 **rg 搜这个键名 ✓，命中超过一个读取点 ✓，就立家 ✓。** **
+
+## 第四百三十七批 — M8-T453 — 初始化参数三键一个家
+
+### 1 缺陷
+
+MCP 两个传输各自的 `initialize` 握手参数手写两遍：
+
+- stdio 子进程（mcp.py:380）：`{"protocolVersion":
+  "2024-11-05", "capabilities": {}, "clientInfo":
+  _client_info()}`
+- HTTP 传输（mcp.py:665）：同一个形状，版本换成
+  "2025-03-26"
+
+T425 已经把 `clientInfo` 收进 `_client_info()`，但信封
+（三键本身）还在两处手写。版本差异是事实（两个传输谈
+判的协议修订版不同），能力为空也是事实（minicc 不声明
+客户端特性）——后者若一边改成声明某些能力，另一个传输
+的握手就与它谈判的地位不对等，而服务器只在连接时报差
+错，排查时要对比两份源码。
+
+### 2 落地
+
+- `minicc/mcp.py` 立模块级 `_initialize_params(
+  protocol_version)`，紧跟 T425 的 `_client_info` 之后
+  （握手一族）
+- 两处握手收口；协议版本作参数——**版本是传输的选择 ✓，
+  信封是握手的事实**
+- docstring 记录两个版本各自的归属，将来合并或升级时只
+  改调用点
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T453-264 | stdio 握手退回手写 | 2 条红（census + 调用计数 ✓） |
+| M8-T453-265 | HTTP 握手退回手写 | 2 条红（census + 调用计数 ✓） |
+
+### 4 新增门禁
+
+`tests/test_the_initialize_params_have_one_home.py`（4 条）✓：
+
+1. 家的行为 ✓：三键 + 给定版本 ✓
+2. 家的行为 ✓：每个传输可传各自的修订版 ✓
+3. census ✓：`{"capabilities", "clientInfo",
+   "protocolVersion"}` 三键 dict 字面量在 minicc/ 下
+   **恰好一处** ✓且在家 ✓
+4. 调用计数 ✓：`_initialize_params(` 恰好 3 次 ✓（定义 +
+   两个握手 ✓）
+
+聚焦回归 ✓：新门 4 条 + mcp_stdio / mcp_http /
+client_info 门 23 条 ✓，共 27 条 ✓，全绿 ✓。全量 pytest
+未跑 ✓。
+
+### 5 一条教训
+
+**「值不同」从来不是拒绝立家的理由 ✓——先分清楚值是不
+是同一个维度上的参数 ✓。** ✓ 两个传输的 protocolVersion
+不同 ✓，但它们是同一个维度（协议修订版）上的两个取值 ✓，
+正如 fake 的 retry_limit=2 与真 provider 的 max_retries+1
+（T443）✓。判别口诀 ✓：**把两处的不同值并排写在纸
+上 ✓，能用一句话「X 因场景而异」解释的 ✓，X 就是参数 ✓；
+解释不了的 ✓，才是两个事实 ✓。** **
