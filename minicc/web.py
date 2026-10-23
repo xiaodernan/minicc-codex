@@ -398,6 +398,24 @@ def _new_thread_record(
     }
 
 
+def _models_payload(
+    models: list[dict[str, Any]], default_model: str, error: str = ""
+) -> dict[str, Any]:
+    """The one shape of the settings panel's model catalog reply.
+
+    Three exits from ``AgentService.list_models`` spell the same two
+    keys: the gateway success path, the local-fallback payload on a
+    transport failure, and the local payload raised before any request.
+    ``error`` is the only optional key - present only when the gateway
+    was consulted and failed, so the panel can tell "the gateway is
+    unreachable" apart from "this is the full catalog".
+    """
+    payload: dict[str, Any] = {"models": models, "default_model": default_model}
+    if error:
+        payload["error"] = error
+    return payload
+
+
 class AgentService:
     """Bridge HTTP requests to isolated agent runs and background tasks."""
 
@@ -1179,13 +1197,9 @@ class AgentService:
             for model in (default_model, *fallbacks):
                 if model and model not in ids:
                     ids.append(model)
-            payload: dict[str, Any] = {
-                "models": [{"id": model} for model in ids],
-                "default_model": default_model,
-            }
-            if error:
-                payload["error"] = error
-            return payload
+            return _models_payload(
+                [{"id": model} for model in ids], default_model, error
+            )
 
         base = str(getattr(cfg, "base_url", "") or "").rstrip("/")
         api_key = str(getattr(cfg, "api_key", "") or "")
@@ -1226,7 +1240,7 @@ class AgentService:
                             break
                     models.append(entry)
             if models:
-                return {"models": models, "default_model": default_model or models[0]["id"]}
+                return _models_payload(models, default_model or models[0]["id"])
             last_error = "网关返回空模型列表"
         return _local(last_error)
 

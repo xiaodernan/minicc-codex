@@ -28832,3 +28832,63 @@ pytest 未跑 ✓。
 detail 必须相同 ✓——summary 供人读 ✓，detail 供机器对比 ✓。
 判别口诀 ✓：**两个发射器的 summary 不同而 detail 相同 ✓，detail
 就该有一个家 ✓。** **
+
+## 第四百二十九批 — M8-T445 — 模型目录载荷两键一个家
+
+### 1 缺陷
+
+`AgentService.list_models` 有三个出口，各自拼同一个载荷：
+
+- 本地兜底闭包 `_local`：手写
+  `{"models": [...], "default_model": ...}`，再按条件补
+  `error` 键
+- 网关成功路径：手写 `{"models": models, "default_model":
+  default_model or models[0]["id"]}`
+
+两个形状的差异（有无 error 键）是**有意义的**——error 键
+区分「网关挂了只显示本地」与「这就是完整目录」。但两处各
+自拼 dict 意味着：改键名、改 models 条目形状、改 error 的
+出现条件，都要记得改两处；漏一处，设置面板在网关故障时
+读到缺 error 的载荷，把降级状态显示成正常状态。
+
+### 2 落地
+
+- `minicc/web.py` 立模块级 `_models_payload(models,
+  default_model, error="")`，放在 `_new_thread_record` 之后、
+  `class AgentService` 之前（与 T423 的 thread 记录家并列）
+- 三个出口全部收口：`_local` 闭包（带 error）、网关成功路径
+  （不带 error）
+- 家中钉死：`error` 是唯一可选键，仅当非空出现——「降级
+  可感知」这条不变式从此只有一处陈述
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T445-264 | 本地闭包退回手写 payload | 2 条红（census + 调用计数 ✓） |
+| M8-T445-265 | 成功路径退回手写 dict | 2 条红（census + 调用计数 ✓） |
+
+### 4 新增门禁
+
+`tests/test_the_models_payload_have_one_home.py`（4 条）✓：
+
+1. 家的行为 ✓：无 error 时两键透传 ✓
+2. 家的行为 ✓：error 仅非空时出现 ✓（空串不出现 ✓）
+3. census ✓：含 `{"models", "default_model"}` 两键的 dict
+   字面量在 minicc/ 下**恰好一处** ✓且在家 ✓
+4. 调用计数 ✓：`_models_payload(` 恰好 3 次 ✓（定义 + 三个
+   出口 ✓）
+
+聚焦回归 ✓：新门 4 条 + web_security 23 条 ✓，共 27 条 ✓，
+全绿 ✓。全量 pytest 未跑 ✓。
+
+### 5 一条教训
+
+**可选键的「出现条件」是和键本身一样重要的语义 ✓，必须和
+载荷同家 ✓。** ✓ `error` 键在不在 ✓，本身就是信息 ✓——它
+区分降级与正常 ✓。把 payload 拼装和条件判断拆在两处
+（这次变异前它们恰好在同一段 ✓，但成功路径连「没有 error」
+这个事实都没有陈述 ✓），下游就要靠 `payload.get("error")`
+猜 ✓。家把「何时出现」收成签名默认值 ✓：不传就没有 ✓，
+传了才出现 ✓。判别口诀 ✓：**载荷里带条件键的 ✓，拼装与
+条件必须同一个函数 ✓——条件散在调用方 ✓，下游就只能猜 ✓。** **
