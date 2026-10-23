@@ -263,6 +263,19 @@ def load_mcp_config(workspace: Path) -> list[McpServerConfig]:
     return configs
 
 
+def _client_info() -> dict[str, str]:
+    """The one shape of minicc's identity as an MCP client.
+
+    Both transports - the stdio child and the HTTP server - spell this
+    pair by hand in their ``initialize`` params.  A version one copy
+    forgets to bump is a server that sees two different clients, and a
+    name one copy misspells is a handshake the server logs as a
+    stranger.  (The RPC server's ``serverInfo`` is a different role -
+    it names the server, not this client - and stays where it is.)
+    """
+    return {"name": "minicc", "version": __version__}
+
+
 class McpStdioClient:
     """Persistent JSON-RPC-over-stdio client with a reader queue."""
 
@@ -355,7 +368,7 @@ class McpStdioClient:
             self._request("initialize", {
                 "protocolVersion": "2024-11-05",
                 "capabilities": {},
-                "clientInfo": {"name": "minicc", "version": __version__},
+                "clientInfo": _client_info(),
             })
             self._notify("notifications/initialized", {})
         except McpError:
@@ -640,7 +653,7 @@ class McpHttpClient:
             "params": {
                 "protocolVersion": "2025-03-26",
                 "capabilities": {},
-                "clientInfo": {"name": "minicc", "version": __version__},
+                "clientInfo": _client_info(),
             },
         })
         if status >= 400:
