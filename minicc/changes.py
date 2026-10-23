@@ -62,6 +62,19 @@ def _ignored_path(path: str) -> bool:
     return normalized in INTERNAL_DIRS or normalized.startswith(_IGNORED_PREFIXES)
 
 
+def _status_record(path: str, status: str, raw: str) -> dict[str, Any]:
+    """The one shape of a changed-file status record.
+
+    Two sources mint it: git's status lines and the audit fallback for a
+    file git did not report (M8-T310).  ``raw`` is load-bearing
+    provenance - the git status line itself, or the literal ``"audit"``
+    - because the snapshot signature and the untracked check both read
+    it, and a record whose raw says "audit" is an inferred change, not
+    an observed one.
+    """
+    return {"path": path, "status": status, "raw": raw}
+
+
 class ChangeInspector:
     def __init__(self, workspace: str | Path) -> None:
         self.workspace = Path(workspace).resolve()
@@ -321,7 +334,7 @@ class ChangeInspector:
         for raw in self._status_lines():
             status, path = self._parse_status(raw)
             if path and not _ignored_path(path):
-                items[path] = {"path": path, "status": status, "raw": raw}
+                items[path] = _status_record(path, status, raw)
         for path in self._audit_paths():
             # M8-T310: the audit records the **raw** argument the model
             # passed (``sub/../notes.md``), while git records the clean
@@ -332,7 +345,7 @@ class ChangeInspector:
             # keyed by the resolved relative path.
             key = self._resolved_relative(path)
             if key and key not in items and (self.workspace / key).is_file():
-                items[key] = {"path": key, "status": "modified", "raw": "audit"}
+                items[key] = _status_record(key, "modified", "audit")
         return list(items.values())
 
     def _resolved_relative(self, raw_path: str) -> str:
