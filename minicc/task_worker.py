@@ -13,12 +13,14 @@ a deterministic in-process fake (used by the automated tests only).
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import os
 import sys
 import threading
 import time
 import uuid
+from collections.abc import Iterator
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -58,6 +60,7 @@ from .task_contract import (
     TaskResult,
     WORKSPACE_FLAG,
 )
+from .llm.fake import FAKE_PROVIDER_ENV
 from .llm.usage import add_usage_totals
 
 LOG = get_logger("worker")
@@ -67,9 +70,27 @@ FLUSH_INTERVAL = 0.2
 HEARTBEAT_INTERVAL = 5.0
 
 
-def _install_fake_provider() -> None:
-    """Test-only deterministic provider (never contacts the network)."""
-    os.environ["MINICC_FAKE_PROVIDER"] = "1"
+@contextlib.contextmanager
+def _fake_provider_env() -> Iterator[None]:
+    """Scope the fake-provider env var to one worker run.
+
+    The env var is how a whole process tree learns "this run is
+    deterministic": the provider factory, the launcher's argv builder and the
+    benchmark metadata all read it.  Setting it without a restore path leaks
+    the switch into the host process - a worker that ran in-process (the
+    suite's own round-trip tests do exactly that) leaves it on, and every
+    launcher built afterwards appends --fake-provider to commands meant for
+    the real gateway.
+    """
+    previous = os.environ.get(FAKE_PROVIDER_ENV)
+    os.environ[FAKE_PROVIDER_ENV] = "1"
+    try:
+        yield
+    finally:
+        if previous is None:
+            os.environ.pop(FAKE_PROVIDER_ENV, None)
+        else:
+            os.environ[FAKE_PROVIDER_ENV] = previous
 
 
 def _config_from_json(raw: str | None) -> Any:
@@ -221,9 +242,14 @@ def run_worker(args: argparse.Namespace) -> int:
 
 
 def _run_owned_worker(args: argparse.Namespace, workspace: Path, store: TaskStore, lease_owner: str) -> int:
-    cancel_path = Path(args.cancel_file) if args.cancel_file else None
     if args.fake_provider:
-        _install_fake_provider()
+        with _fake_provider_env():
+            return _run_owned_worker_inner(args, workspace, store, lease_owner)
+    return _run_owned_worker_inner(args, workspace, store, lease_owner)
+
+
+def _run_owned_worker_inner(args: argparse.Namespace, workspace: Path, store: TaskStore, lease_owner: str) -> int:
+    cancel_path = Path(args.cancel_file) if args.cancel_file else None
 
     service_kwargs: dict[str, Any] = {}
     config = None

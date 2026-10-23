@@ -107,7 +107,6 @@ from .internal_paths import AUDIT_NAME, PERMISSIONS_NAME
 from .permissions import load_permission_rules, match_permission_rule
 from .config import (
     ConfigError,
-    TRUTHY,
     home_dir,
     load_config,
     normalize_reasoning_effort,
@@ -117,7 +116,7 @@ from .cli_io import cli_out
 from .hooks import HookRunner
 from .llm.base import system_msg, user_msg
 from .llm.anthropic_provider import AnthropicProvider
-from .llm.fake import FakeProvider
+from .llm.fake import FakeProvider, fake_provider_active
 from .llm.openai_provider import OpenAICompatibleProvider
 from .logging_setup import (
     configure_logging,
@@ -1301,7 +1300,7 @@ class AgentService:
         demand: another wire family plus the endpoint and credential to
         serve it with. None keeps the deployment's own shape.
         """
-        if os.getenv("MINICC_FAKE_PROVIDER", "").strip().lower() in TRUTHY:
+        if fake_provider_active():
             return FakeProvider(on_status=status_callback)
         if provider_spec is not None and provider_spec["family"] == "anthropic":
             return AnthropicProvider(

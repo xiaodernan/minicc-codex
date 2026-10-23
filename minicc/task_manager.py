@@ -53,6 +53,7 @@ from .audit import normalize_permission_mode
 from .config import TRUTHY, normalize_model_name, normalize_reasoning_effort
 from .input_guard import require_text
 from .llm.base import image_part
+from .llm.fake import fake_provider_active
 from .llm.usage import add_usage_totals, cache_summary
 from .logging_setup import get_logger, log_task_event
 from . import pricing
@@ -2106,7 +2107,7 @@ class TaskManager:
             command.append(ALLOW_NETWORK_FLAG)
         if use_config_stdin:
             command.append(CONFIG_STDIN_FLAG)
-        if os.getenv("MINICC_FAKE_PROVIDER", "").strip().lower() in TRUTHY:
+        if fake_provider_active():
             command.append(FAKE_PROVIDER_FLAG)
         return command
 

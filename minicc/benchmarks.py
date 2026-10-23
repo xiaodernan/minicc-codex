@@ -27,6 +27,7 @@ from . import bench_tasks
 from .bench_tasks import LEGACY_SUITE_VERSION, grade_v2
 from . import pricing
 from .cli_io import cli_out
+from .llm.fake import fake_provider_active
 
 
 DEFAULT_FIXTURES = Path(__file__).resolve().parent.parent / "benchmarks" / "tasks.json"
@@ -811,7 +812,7 @@ def run_benchmark(
     # secrets. Changing retry/budget/provider settings must invalidate resume.
     config_values = {key: value for key, value in vars(config).items() if key != "api_key"}
     config_hash = hashlib.sha256(json.dumps(config_values, sort_keys=True, default=str).encode()).hexdigest()
-    run_metadata = {"model": str(config.model), "reasoning_effort": str(getattr(config, "reasoning_effort", "")), "code_revision": revision, "runtime_source_sha256": source_hash.hexdigest(), "protocol": str(getattr(config, "llm_protocol", "auto")), "fake_provider": os.getenv("MINICC_FAKE_PROVIDER") == "1", "config_sha256": config_hash, "task_timeout_seconds": float(task_timeout_seconds)}
+    run_metadata = {"model": str(config.model), "reasoning_effort": str(getattr(config, "reasoning_effort", "")), "code_revision": revision, "runtime_source_sha256": source_hash.hexdigest(), "protocol": str(getattr(config, "llm_protocol", "auto")), "fake_provider": fake_provider_active(), "config_sha256": config_hash, "task_timeout_seconds": float(task_timeout_seconds)}
     results: list[dict[str, Any]] = []
     if resume and results_path is not None and results_path.is_file():
         try:

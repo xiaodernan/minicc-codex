@@ -31710,3 +31710,71 @@ rpc.py 那句 `payload.get("jsonrpc") != JSONRPC_VERSION` 提炼成家的
 聚焦回归 ✓：RPC/MCP 直面 6 文件 **114 条** ✓（含三道门禁 21 条 ✓），全
 绿 ✓；其中 `test_version_vocabulary.py` 由红转绿 ✓。慢测试未跑 ✓，全量
 pytest 未跑 ✓。
+
+## 第四百六十八批 — M8-T484 — 假 provider 开关的四个家，和一个没有恢复路径的进程全局写入
+
+### 1 缺陷
+
+门禁普查（51 个非族 `test_the_*` 文件全跑一遍）抓到一个只在组合里红的门：
+`test_the_worker_argv_contract_has_one_home.py`（T468 立的 argv 契约门）单独
+跑全绿，跟在 `test_the_window_a_worker_publishes...` 后面跑就红——
+`assert args.fake_provider is False` 拿到 True。
+
+根因不在门禁，在产品代码：「这一跑用确定性假 provider」这个事实有四个家：
+
+- 环境变量名 `MINICC_FAKE_PROVIDER` 在四个模块里各拼一遍——task_worker
+  （写）、task_manager（launcher 读）、web（provider 工厂读）、benchmarks
+  （元数据读）；
+- 写入侧 `_install_fake_provider()` 把进程全局环境变量**一设到底，没有恢复
+  路径**。生产上 worker 是短命子进程所以看不出问题，但在进程内跑过一次
+  worker（本仓自己的往返测试就这么干）之后，开关留在宿主进程里——之后每个
+  launcher 都会给奔着真网关去的命令追加 `--fake-provider`。
+
+argv flag 那一侧本来是好的（T468 已收口到 task_contract），坏的是环境变量
+这一侧的四个拼写和那个不 restoring 的写入。
+
+### 2 落地
+
+- 家安在 `minicc/llm/fake.py`（FakeProvider 的模块，开关的语义属于它）✓：
+  `FAKE_PROVIDER_ENV` 常量 + `fake_provider_active()` 判问 ✓
+- 四个读者全部改为问家：`web.make_provider`、`task_manager._worker_command`、
+  `benchmarks` 元数据 ✓；web.py 里 consequently 变成死导入的 `TRUTHY` 一并
+  删除 ✓（task_manager 里 `TRUTHY` 另有读者，保留 ✓）
+- `task_worker`：`_install_fake_provider()` 换成带恢复的上下文管理器
+  `_fake_provider_env()` ✓——进场前记住旧值（包括「本来没有」），退出时原
+  样奉还；`_run_owned_worker` 拆成薄壳 + `_run_owned_worker_inner`，假
+  provider 的整个运行期都在作用域内 ✓
+- 门禁 `tests/test_the_fake_provider_switch_has_one_home.py` 5 条 ✓：家值与
+  判问、census（变量名全仓只在家里出现一次）、三个读者消费同一对象、作用域
+  安装/恢复（含旧值不被抹掉）、**进程内跑一次假 worker 之后 launcher 不再
+  追加 flag**（就是那条曾经红的往返 ✓）
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T484-312 | 安装没有恢复路径（改回一设到底） | 红（作用域 + 往返 ✓） |
+| M8-T484-313 | 家的变量名漂移 | 红（家值 + census ✓） |
+| M8-T484-314 | web.py 再拼一份变量名 | 红（census ✓） |
+| M8-T484-315 | task_manager.py 再拼一份变量名 | 红（census ✓） |
+| M8-T484-316 | benchmarks.py 再拼一份变量名 | 红（census ✓） |
+| M8-T484-317 | 恢复路径把旧值一起抹掉 | 红（作用域 ✓） |
+
+六条全部 KILLED ✓，恢复后字节相同 ✓。
+
+### 4 一条教训
+
+**进程全局的写入必须带恢复路径，哪怕生产上「反正进程要退了」。** 测试挂
+钩、环境变量、单例——这些东西的写入方永远不知道自己的宿主进程还会活多久。
+这次的生产路径确实无害（worker 是子进程，设完就退），但同一个函数被进程内
+调用时（测试自己的往返测试就是进程内调用），没有恢复路径的写入就变成了
+跨测试的污染，把一道好门禁染成永久假红。判别式很简单：**一个写全局状态的
+函数，如果它的名字里没有「进入/退出」的对称性，它就是一颗定时炸弹**。
+
+顺带这条经验也值得记：普查门禁不能只跑「门禁家族」。T468 那道门是红着的，
+但它不在 `have_one_home` 家族命名里，家族的 402 条全绿一直遮着它。本轮把
+51 个非族 `test_the_*` 全跑了一遍才发现——**红门会藏在你不再看的地方**。
+
+聚焦回归 ✓：worker/launcher 直面 5 批 **132 条** ✓（task_worker、core_task、
+logging、benchmark_runner、p0_p1_p2 及各道门禁 ✓），全绿 ✓。慢测试未跑 ✓，
+全量 pytest 未跑 ✓。

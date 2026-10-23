@@ -14,7 +14,25 @@ from typing import Any
 
 from .base import LLMResponse, retry_detail, tool_call
 from .usage import measured_usage
+from ..config import TRUTHY
 from ..trace import trace_event
+
+
+#: The one env var that switches a whole run to the deterministic fake provider.
+FAKE_PROVIDER_ENV = "MINICC_FAKE_PROVIDER"
+
+
+def fake_provider_active() -> bool:
+    """Whether this run is switched to the deterministic fake provider.
+
+    The env var is the switch's cross-process face: the provider factory
+    (``web``), the launcher's argv builder (``task_manager``) and the
+    benchmark metadata all ask this one question.  A spelling of the variable
+    name that one reader forgets is a reader that silently never sees the
+    switch - and a switch nobody can see is a run that quietly talks to the
+    real gateway during a test.
+    """
+    return os.getenv(FAKE_PROVIDER_ENV, "").strip().lower() in TRUTHY
 
 
 # M4-T4: deterministic per-turn usage so the cost pipeline (pricing.cost_usd →
@@ -175,4 +193,4 @@ class FakeProvider:
         return False
 
 
-__all__ = ["FakeProvider"]
+__all__ = ["FAKE_PROVIDER_ENV", "FakeProvider", "fake_provider_active"]
