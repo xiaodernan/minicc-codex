@@ -26363,3 +26363,61 @@ subagent 的 tier 判定认 ✓、task_manager 的快照判定不认 ✓——
 写两遍就等于埋了一处「将来只改一边」的雷 ✓。探针按「值集合」聚合才看得见
 它 ✓——按行读表永远看不见 ✓。从此扫重复不光扫模块之间 ✓，**也扫同一个
 字面量内部** ✓。
+
+
+## 第三百八十六批 — M8-T402 — verify 节点的工具集漏收：T377 漏掉的第三种模板名单
+
+### 1 缺陷
+
+T377 把固定模板的 inspect / write 两份工具名单收进了 `graph.py` ✓，
+但**第三种名单** `frozenset({"bash", "git_diff"})`（verify 节点 ✓）被漏掉了 ✓——
+它还是手写的 ✓，在**两个模板**里各一份 ✓：
+
+| 模板 | verify 节点 |
+| --- | --- |
+| `inspect_implement_verify` | `allowed_tools=frozenset({"bash", "git_diff"})` |
+| `parallel_inspect` | 同左 |
+
+漏收的原因很现实 ✓：T377 的探针按「出现次数」排序 ✓，inspect 出现三次 ✓、
+write 两次 ✓、verify 只有两次 ✓——当时只收了「显眼的那几个」✓。
+后果与 T377 修的完全同型 ✓：两个模板对「验证步骤能跑什么」各写一份 ✓，
+一边加个 `git_status` ✓ 另一边不知道 ✓，**同一份计划换个模板 ✓，
+验证步骤的能力就变了** ✓。
+
+### 2 落地
+
+* **建家** ✓：`graph.py` 在 `INSPECT_DAG_TOOLS` / `WRITE_DAG_TOOLS` 旁立
+  `VERIFY_DAG_TOOLS = frozenset({"bash", "git_diff"})` ✓，注释明说它是
+  T377 的漏网点 ✓。
+* **两处收口** ✓：两个模板的 verify 节点改问家 ✓。
+* **门禁归位** ✓：不新建门 ✓——T377 的
+  `test_the_plan_node_tool_lists_have_one_home.py` 本来就是「模板工具名单」
+  这个事实族的门 ✓，把 VERIFY 并进去 ✓（常量 ✓、`PlanTask` 字面量扫描 ✓、
+  行为断言 ✓ 三处都加 ✓）。
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T402-186 | 一处模板的 verify 节点退回行内 frozenset | 1 条红（PlanTask 字面量扫描抓到 ✓） |
+
+### 4 门禁变化
+
+`tests/test_the_plan_node_tool_lists_have_one_home.py` 扩展 ✓（6 条 ✓）：
+
+* 常量表加 `VERIFY` ✓、家存在性断言加 `VERIFY_DAG_TOOLS` ✓
+* `PlanTask(allowed_tools={...})` 扫描的成员集合加 VERIFY ✓
+* 行为断言改为遍历两个模板的每个节点 ✓（inspect/inspect-N/implement/verify
+  各自的名单 ✓）
+
+聚焦回归 ✓：门 6 条 + `test_core_agent.py` 共 51 条 ✓，全绿 ✓。
+全量 pytest 未跑 ✓。
+
+### 5 一条教训
+
+**「抓重复」的批次也会漏重复——按出现次数排序就会漏。** ✓ T377 收了
+三次的和两次的 ✓，漏了同样出现两次的 verify ✓：不是看不见 ✓，是
+**两次重复看起来「不像问题」** ✓。对策是把门做成**枚举完整 ✓**而不是
+「把当年抓到的列出来」 ✓：T402 之后 ✓，这个门的扫描覆盖 inspect / write /
+verify 全部三种节点名单 ✓——**门守的是事实族的边界 ✓，不是某一批的战果** ✓。
+探针的输出是线索 ✓，门的枚举才是边界 ✓。

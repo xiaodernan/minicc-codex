@@ -44,6 +44,10 @@ READONLY_DAG_TOOLS = frozenset({"read_file", "grep", "git_status", "git_diff"})
 # be the odd one out.
 INSPECT_DAG_TOOLS = frozenset({"read_file", "grep", "git_status"})
 WRITE_DAG_TOOLS = frozenset({"write_file", "edit_file"})
+# M8-T402: the verify node's list survived T377 - the same shape (a template
+# writing its own tool list by hand), only twice instead of three times, and
+# the two templates could disagree about what "verify" may run.
+VERIFY_DAG_TOOLS = frozenset({"bash", "git_diff"})
 
 
 @dataclass(frozen=True)
@@ -397,7 +401,7 @@ def fixed_plan(name: str, *, task_count: int = 0) -> DAGPlan:
         tasks = (
             PlanTask("inspect", "readonly", allowed_tools=INSPECT_DAG_TOOLS),
             PlanTask("implement", "write", depends_on=("inspect",), allowed_tools=WRITE_DAG_TOOLS),
-            PlanTask("verify", "exec", depends_on=("implement",), allowed_tools=frozenset({"bash", "git_diff"})),
+            PlanTask("verify", "exec", depends_on=("implement",), allowed_tools=VERIFY_DAG_TOOLS),
             PlanTask("summarize", "readonly", depends_on=("verify",)),
         )
     elif name == "parallel_inspect":
@@ -409,7 +413,7 @@ def fixed_plan(name: str, *, task_count: int = 0) -> DAGPlan:
         tasks = scans + (
             PlanTask("merge", "readonly", depends_on=tuple(task.id for task in scans)),
             PlanTask("implement", "write", depends_on=("merge",), allowed_tools=WRITE_DAG_TOOLS),
-            PlanTask("verify", "exec", depends_on=("implement",), allowed_tools=frozenset({"bash", "git_diff"})),
+            PlanTask("verify", "exec", depends_on=("implement",), allowed_tools=VERIFY_DAG_TOOLS),
             PlanTask("summarize", "readonly", depends_on=("verify",)),
         )
     else:

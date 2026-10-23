@@ -24,6 +24,9 @@
 是**再导出** ✓（注释明说"one home … cannot drift again" ✓）✓——
 **写的那一侧没跟上** ✓。
 
+M8-T402 补批 ✓：verify 节点的名单 `{"bash", "git_diff"}` 当时漏收 ✓——
+同样是手写形状 ✓、只是只有两处 ✓，已并入 `VERIFY_DAG_TOOLS` ✓。
+
 这一批 ✓：把模板的工具名单收进 `graph.py` ✓（执行器那一层 ✓，
 `planner.py` 本来就 import 它 ✓）✓，规划器**再导出** ✓——
 与只读那一侧**同一个做法** ✓。
@@ -41,14 +44,17 @@ PACKAGE = REPO / "minicc"
 INSPECT = frozenset({"read_file", "grep", "git_status"})
 #: The tools a fixed template's write node may use.
 WRITE = frozenset({"write_file", "edit_file"})
+#: The tools a fixed template's verify node may use (M8-T402).
+VERIFY = frozenset({"bash", "git_diff"})
 
 
 def test_the_template_tool_lists_have_one_home() -> None:
     """The home exists, and it holds the two lists."""
-    from minicc.agent.graph import INSPECT_DAG_TOOLS, WRITE_DAG_TOOLS
+    from minicc.agent.graph import INSPECT_DAG_TOOLS, VERIFY_DAG_TOOLS, WRITE_DAG_TOOLS
 
     assert INSPECT_DAG_TOOLS == INSPECT
     assert WRITE_DAG_TOOLS == WRITE
+    assert VERIFY_DAG_TOOLS == VERIFY
 
 
 def test_the_planner_re_exports_the_write_tier() -> None:
@@ -110,7 +116,7 @@ def test_no_plan_node_spells_its_tool_list_out_by_hand() -> None:
                         if isinstance(element, ast.Constant)
                         and isinstance(element.value, str)
                     )
-                    if members in (INSPECT, WRITE):
+                    if members in (INSPECT, WRITE, VERIFY):
                         offenders.append(
                             f"{path.relative_to(REPO).as_posix()}:{node.lineno}"
                         )
@@ -146,15 +152,15 @@ def test_the_templates_still_grant_what_they_used_to() -> None:
     """
     from minicc.agent.graph import fixed_plan
 
-    plan = fixed_plan("inspect_implement_verify")
-    by_id = {task.id: task for task in plan.tasks}
-    assert by_id["inspect"].allowed_tools == INSPECT
-    assert by_id["implement"].allowed_tools == WRITE
-
-    parallel = fixed_plan("parallel_inspect", task_count=3)
-    for task in parallel.tasks:
-        if task.id.startswith("inspect-"):
-            assert task.allowed_tools == INSPECT
+    for name in ("inspect_implement_verify", "parallel_inspect"):
+        plan = fixed_plan(name, task_count=3)
+        for task in plan.tasks:
+            if task.id == "inspect" or task.id.startswith("inspect-"):
+                assert task.allowed_tools == INSPECT, task.id
+            elif task.id == "implement":
+                assert task.allowed_tools == WRITE, task.id
+            elif task.id == "verify":
+                assert task.allowed_tools == VERIFY, task.id
 
 
 def test_the_planner_validates_against_the_same_list() -> None:
