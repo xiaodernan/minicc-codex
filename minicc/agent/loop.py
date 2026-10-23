@@ -48,11 +48,17 @@ from ..audit import (
     tool_denied_by_rule,
 )
 from ..tools.schemas import (
+    CODE_DENIED,
+    CODE_DUPLICATE_TOOL_CALL,
+    CODE_HOOK_DENIED,
+    CODE_RECOVERY_GUARD,
+    CODE_TOOL_ERROR,
     FAILED_TOOL_RESULT_STATUSES,
     UNSUCCESSFUL_TOOL_RESULT_STATUSES,
     ToolCall,
     ToolResult,
     normalized_tool_calls,
+    tagged,
     tool_call_name,
     untrusted_tags,
 )
@@ -1187,7 +1193,7 @@ async def run_agent(
                         tc,
                         ToolResult(
                             status="error",
-                            summary="[DUPLICATE_TOOL_CALL] 本轮重复调用已跳过",
+                            summary=tagged(CODE_DUPLICATE_TOOL_CALL, "本轮重复调用已跳过"),
                             output=(
                                 f"工具 {tc.tool} 与本轮第 {batch_signatures[call_signature] + 1} 个调用完全相同。"
                                 "请合并重复调用，或改用能够产生新证据的工具和参数。"
@@ -1216,7 +1222,7 @@ async def run_agent(
                         tc,
                         ToolResult(
                             status="error",
-                            summary="[RECOVERY_GUARD] 已暂缓写入，必须先完成只读状态检查",
+                            summary=tagged(CODE_RECOVERY_GUARD, "已暂缓写入，必须先完成只读状态检查"),
                             output=(
                                 "当前执行器正在从重复/无效路径恢复。请先使用 read_file、git_status、"
                                 "git_diff、grep 或 tree 获取新证据；确认目标和当前 diff 后再修改。"
@@ -1257,10 +1263,9 @@ async def run_agent(
                     denied = ToolResult(
                         status="denied",
                         summary=(
-                            "[DENIED] permissions.json deny 规则拒绝了此操作 "
-                            f"({tc.tool})"
+                            tagged(CODE_DENIED, f"permissions.json deny 规则拒绝了此操作 ({tc.tool})")
                             if rule_denied
-                            else f"[DENIED] 用户拒绝了此操作 ({tc.tool})"
+                            else tagged(CODE_DENIED, f"用户拒绝了此操作 ({tc.tool})")
                         ),
                         security_tags=untrusted_tags(),
                     )
@@ -1279,7 +1284,7 @@ async def run_agent(
                             tc,
                             ToolResult(
                                 status="denied",
-                                summary=f"[HOOK_DENIED] PreToolUse hook 拒绝了此操作 ({tc.tool})",
+                                summary=tagged(CODE_HOOK_DENIED, f"PreToolUse hook 拒绝了此操作 ({tc.tool})"),
                                 output=hook_outcome.denial_reason()[:2000],
                                 data={"hook": "PreToolUse"},
                                 security_tags=untrusted_tags(),
@@ -1326,9 +1331,10 @@ async def run_agent(
                         == tool_result_cache_target.get(call_signature)
                     ):
                         cached = deepcopy(tool_result_cache[call_signature])
-                        cached.summary = (
-                            f"[DUPLICATE_TOOL_CALL] 已复用 {tc.tool} 的最近一次成功结果；"
-                            "不要重复调用相同参数，请基于已有证据继续。"
+                        cached.summary = tagged(
+                            CODE_DUPLICATE_TOOL_CALL,
+                            f"已复用 {tc.tool} 的最近一次成功结果；"
+                            "不要重复调用相同参数，请基于已有证据继续。",
                         )
                         cached.data = {
                             **(cached.data if isinstance(cached.data, dict) else {}),
@@ -2089,7 +2095,7 @@ async def _execute_and_store(
     except Exception as exc:  # a failing sibling must not lose the other results
         tool_result = ToolResult(
             status="error",
-            summary=f"[TOOL_ERROR] {tc.tool} 执行异常: {exc}",
+            summary=tagged(CODE_TOOL_ERROR, f"{tc.tool} 执行异常: {exc}"),
             output=str(exc),
             security_tags=untrusted_tags(),
         )

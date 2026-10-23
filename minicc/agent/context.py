@@ -18,7 +18,7 @@ from typing import Any
 
 from ..llm.base import image_part, tool_result_msg
 from ..tools.registry import redact_text
-from ..tools.schemas import tool_call_name
+from ..tools.schemas import CODE_INTERRUPTED_TOOL_RESULT, tagged, tool_call_name
 
 COMPACTION_MARKER = "[CONTEXT COMPACTED]"
 CHECKPOINT_VERSION = 3
@@ -129,7 +129,10 @@ def validate_tool_protocol(messages: list[dict[str, Any]]) -> None:
 #: The content a repaired interrupted round carries: the result is unknown,
 #: never invented as a success - the model is told to re-read the workspace
 #: instead of assuming its write landed.
-INTERRUPTED_TOOL_RESULT = "[INTERRUPTED_TOOL_RESULT] 上次执行被中断，未记录结果；执行是否产生副作用未知。先读取当前状态并核对已有修改，不要盲目重复写入。"
+INTERRUPTED_TOOL_RESULT = tagged(
+    CODE_INTERRUPTED_TOOL_RESULT,
+    "上次执行被中断，未记录结果；执行是否产生副作用未知。先读取当前状态并核对已有修改，不要盲目重复写入。",
+)
 
 
 def repair_interrupted_tool_rounds(messages: list[dict[str, Any]]) -> int:

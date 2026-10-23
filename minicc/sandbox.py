@@ -10,7 +10,7 @@ from pathlib import Path
 
 from .config import SANDBOX_MODES
 from .tools.bash import run_bash, run_process
-from .tools.schemas import ToolResult
+from .tools.schemas import CODE_SANDBOX_UNAVAILABLE, ToolResult, tagged
 
 # 容器内存上限：pids-limit 只挡进程炸弹，挡不住单进程吃干宿主内存。
 #: 数值取保守常量而非配置项——验证类命令（pytest/compileall）远用不到它，
@@ -56,7 +56,7 @@ class SandboxRunner:
         if backend == "unavailable":
             return ToolResult(
                 status="error",
-                summary="[SANDBOX_UNAVAILABLE] Docker 不可用；未回退到宿主机执行",
+                summary=tagged(CODE_SANDBOX_UNAVAILABLE, "Docker 不可用；未回退到宿主机执行"),
                 security_tags=["sandbox_unavailable"],
             )
         if backend != "docker":
@@ -85,9 +85,10 @@ class SandboxRunner:
         if not image or image.startswith("-"):
             return ToolResult(
                 status="error",
-                summary=(
-                    "[SANDBOX_UNAVAILABLE] sandbox_image 不是合法的镜像名"
-                    f"（{image!r}）：镜像名不能为空，也不能以 '-' 开头。"
+                summary=tagged(
+                    CODE_SANDBOX_UNAVAILABLE,
+                    f"sandbox_image 不是合法的镜像名（{image!r}）："
+                    "镜像名不能为空，也不能以 '-' 开头。",
                 ),
                 output="请在 config.json 里填一个真实的镜像名，例如 python:3.11-slim。",
                 security_tags=["sandbox_unavailable"],

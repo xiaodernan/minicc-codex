@@ -188,6 +188,41 @@ def untrusted_tags(*context: str) -> list[str]:
     return [UNTRUSTED_TAG, *context]
 
 
+#: The machine-readable tag a tool-facing summary may carry, and the one
+#: shape it is written in.  The model reads these tags to tell a guard stop
+#: from a tool failure; the traces, the Web face and the tests read the same
+#: ones.  A site that spells a tag by hand owns a spelling nobody else can
+#: see: rename the home and it keeps reporting the old code forever, with
+#: nothing failing to tell anyone.  Every tag below is written through
+#: ``tagged`` - the ``[CODE] message`` shape has exactly one home too.
+CODE_UNKNOWN_TOOL = "UNKNOWN_TOOL"
+CODE_INVALID_ARGUMENTS = "INVALID_ARGUMENTS"
+CODE_INVALID_TOOL_ARGUMENTS = "INVALID_TOOL_ARGUMENTS"
+CODE_TOOL_ERROR = "TOOL_ERROR"
+CODE_DENIED = "DENIED"
+CODE_HOOK_DENIED = "HOOK_DENIED"
+CODE_CANCELLED = "CANCELLED"
+CODE_TIMED_OUT = "TIMED_OUT"
+#: A subagent that ran past its own deadline.  Spelled differently from
+#: CODE_TIMED_OUT on purpose: the two tags are pinned by their own tests and
+#: name different subjects (a command vs a delegated child), and merging them
+#: is a decision about the agent-visible protocol, not about this home.
+CODE_TIMEOUT = "TIMEOUT"
+CODE_RUNTIME_GUARD = "RUNTIME_GUARD"
+CODE_RECOVERY_GUARD = "RECOVERY_GUARD"
+CODE_DUPLICATE_TOOL_CALL = "DUPLICATE_TOOL_CALL"
+CODE_UNKNOWN_SHELL = "UNKNOWN_SHELL"
+CODE_BUDGET = "BUDGET"
+CODE_ERROR = "ERROR"
+CODE_INTERRUPTED_TOOL_RESULT = "INTERRUPTED_TOOL_RESULT"
+CODE_SANDBOX_UNAVAILABLE = "SANDBOX_UNAVAILABLE"
+
+
+def tagged(code: str, message: str) -> str:
+    """The one ``[CODE] message`` summary shape."""
+    return f"[{code}] {message}"
+
+
 @dataclass
 class ToolResult:
     status: str = "ok"  # ok | error | denied | cancelled | timed_out

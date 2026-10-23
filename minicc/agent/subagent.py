@@ -41,7 +41,15 @@ from .loop import AgentCancelled, Budget, run_agent
 from .state import BudgetExceeded
 from ..logging_setup import quiet_loop_teardown
 from ..tools.registry import ToolError, ToolRegistry, ToolSpec
-from ..tools.schemas import ToolResult, untrusted_tags
+from ..tools.schemas import (
+    CODE_BUDGET,
+    CODE_CANCELLED,
+    CODE_ERROR,
+    CODE_TIMEOUT,
+    ToolResult,
+    tagged,
+    untrusted_tags,
+)
 from ..hooks import HookRunner
 from ..trace import trace_event
 
@@ -546,7 +554,7 @@ class _SubagentRunner:
                 lifecycle("subagent_cancelled", "cancelled", f"子代理被取消：{description}")
                 return ToolResult(
                     status="cancelled",
-                    summary=f"[CANCELLED] 子代理被取消：{description}",
+                    summary=tagged(CODE_CANCELLED, f"子代理被取消：{description}"),
                     security_tags=untrusted_tags("subagent"),
                 )
             remaining = deadline - time.monotonic()
@@ -571,7 +579,7 @@ class _SubagentRunner:
                 lifecycle("subagent_cancelled", "cancelled", f"子代理被取消：{description}")
                 return ToolResult(
                     status="cancelled",
-                    summary=f"[CANCELLED] 子代理被取消：{description}",
+                    summary=tagged(CODE_CANCELLED, f"子代理被取消：{description}"),
                     security_tags=untrusted_tags("subagent"),
                 )
             except BudgetExceeded as exc:
@@ -585,7 +593,7 @@ class _SubagentRunner:
                 )
                 return ToolResult(
                     status="error",
-                    summary=f"[BUDGET] 子代理预算耗尽：{description}（{exc}）",
+                    summary=tagged(CODE_BUDGET, f"子代理预算耗尽：{description}（{exc}）"),
                     output="子代理在其独立预算内未完成，已终止。请缩小委派范围或拆成多步后重试。",
                     data={"description": description, "tool_log": tool_log, "budget_exceeded": True},
                     security_tags=untrusted_tags("subagent"),
@@ -599,7 +607,7 @@ class _SubagentRunner:
             )
             return ToolResult(
                 status="timed_out",
-                summary=f"[TIMEOUT] 子代理超时（>{int(self.timeout_seconds)}s）：{description}",
+                summary=tagged(CODE_TIMEOUT, f"子代理超时（>{int(self.timeout_seconds)}s）：{description}"),
                 output="子代理超时被终止。请缩小调研范围后重试，或直接使用只读工具分步完成。",
                 data={"description": description, "tool_log": tool_log, "timed_out": True},
                 security_tags=untrusted_tags("subagent"),
@@ -619,7 +627,7 @@ class _SubagentRunner:
             )
             return ToolResult(
                 status="error",
-                summary=f"[ERROR] 子代理失败：{description}（{result.error}）",
+                summary=tagged(CODE_ERROR, f"子代理失败：{description}（{result.error}）"),
                 output="子代理在其独立预算内未完成，已终止。请缩小委派范围或拆成多步后重试。",
                 data={
                     "description": description,

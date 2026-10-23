@@ -24,14 +24,22 @@ from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
-from .schemas import HEAD_CHARS, TAIL_CHARS, ToolCall, ToolResult, untrusted_tags
+from .schemas import (
+    CODE_CANCELLED,
+    CODE_DENIED,
+    CODE_INVALID_ARGUMENTS,
+    CODE_INVALID_TOOL_ARGUMENTS,
+    CODE_TOOL_ERROR,
+    CODE_UNKNOWN_TOOL,
+    HEAD_CHARS,
+    TAIL_CHARS,
+    ToolCall,
+    ToolResult,
+    tagged,
+    untrusted_tags,
+)
 
 Handler = Callable[..., ToolResult]
-
-CODE_UNKNOWN_TOOL = "UNKNOWN_TOOL"
-CODE_INVALID_ARGUMENTS = "INVALID_ARGUMENTS"
-CODE_TOOL_ERROR = "TOOL_ERROR"
-CODE_DENIED = "DENIED"
 
 RISK_LEVELS = ("readonly", "write", "exec")
 # The risks that require the user's authorization: every declared risk level
@@ -241,7 +249,7 @@ class ToolRegistrationError(ValueError):
 def error_result(code: str, message: str) -> ToolResult:
     return ToolResult(
         status="error",
-        summary=f"[{code}] {message}",
+        summary=tagged(code, message),
         security_tags=untrusted_tags(),
     )
 
@@ -249,7 +257,7 @@ def error_result(code: str, message: str) -> ToolResult:
 def denied_result(message: str) -> ToolResult:
     return ToolResult(
         status="denied",
-        summary=f"[{CODE_DENIED}] {message}",
+        summary=tagged(CODE_DENIED, message),
         security_tags=untrusted_tags(),
     )
 
@@ -612,13 +620,13 @@ class ToolRegistry:
         if cancel_event is not None and cancel_event.is_set():
             return ToolResult(
                 status="cancelled",
-                summary=f"[CANCELLED] 任务已取消，未执行工具 {call.tool}",
+                summary=tagged(CODE_CANCELLED, f"任务已取消，未执行工具 {call.tool}"),
                 security_tags=untrusted_tags("runtime_guard"),
             )
         started = time.monotonic()
         try:
             if call.parse_error:
-                raise ToolParamError(f"[INVALID_TOOL_ARGUMENTS] {call.parse_error}")
+                raise ToolParamError(tagged(CODE_INVALID_TOOL_ARGUMENTS, call.parse_error))
             arguments = self._validate(call.tool, call.arguments)
             if spec.cancellable:
                 result = spec.handler(arguments, cancel_event=cancel_event)

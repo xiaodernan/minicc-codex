@@ -30374,3 +30374,87 @@ pytest 未跑 ✓。
 `allowlist.py` 的 `AllowlistError("session_id 不能为空")` 与
 `changes.py` 的 `ChangeError("path 不能为空")` 文本相同但
 是typed-Python 边界的另一份契约 ✓，不收 ✓。
+
+## 第四百五十一批 — M8-T467 — 工具摘要标签词汇表一个家
+
+### 1 缺陷
+
+`tools/registry.py` 早就有四个 `CODE_*` 常量和
+`error_result(code, message)` 这个家，`schemas.py` 的模块
+docstring 甚至写着「carries stable [CODE] error
+prefixes」——但全树有 **25 处绕过词汇表**，把括号标签当字
+面量内联拼写：`[CANCELLED]` 五处、`[TOOL_ERROR]` 三处、
+`[RUNTIME_GUARD]` 三处、`[DENIED]` 两处，以及
+`[HOOK_DENIED]`/`[DUPLICATE_TOOL_CALL]`/`[RECOVERY_GUARD]`/
+`[BUDGET]`/`[TIMEOUT]`/`[TIMED_OUT]`/`[UNKNOWN_SHELL]`/
+`[SANDBOX_UNAVAILABLE]`/`[INTERRUPTED_TOOL_RESULT]`/
+`[INVALID_TOOL_ARGUMENTS]` 各一至两处。标签是模型区分
+「守卫拦下」和「工具自己失败」的依据，也是 trace、Web 面
+和测试读取的契约。**一个站点手拼的标签是词汇表改不动的
+名字**：改名之后它永远在报旧码，而没有任何东西会失败。
+
+### 2 落地
+
+- 词汇表下沉到 `minicc/tools/schemas.py`（17 个 `CODE_*`），
+  紧邻 `UNTRUSTED_TAG` / `untrusted_tags()`——那里本来就是
+  工具输出词汇的家；`registry.py` 自有的四个常量删除，改为
+  import
+- 新增 `tagged(code, message)`：`[CODE] message` 这个线型
+  本身也只有一个家，`error_result` / `denied_result` 一并
+  改走它
+- 25 处内联标签全部收口，跨 8 个文件：`bash.py` 9 处、
+  `loop.py` 7 处、`subagent.py` 5 处、`registry.py` 2 处、
+  `sandbox.py` 2 处、`tools/__init__.py` 1 处、
+  `context.py` 1 处（`INTERRUPTED_TOOL_RESULT` 常量改为
+  由 `tagged` 生成）
+- **不改任何标签拼写**：测试对 `[BUDGET]`/`[TIMEOUT]`/
+  `[HOOK_DENIED]`/`[DUPLICATE_TOOL_CALL]`/`[INVALID_ARGUMENTS]`
+  等都有断言，它们是承重契约；本批只搬 spelling 的家，
+  不动字节
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T467-264 | bash 的 CANCELLED 退回内联 | 1 条红（标签 census ✓） |
+| M8-T467-265 | loop 的 TOOL_ERROR 拼成 `[TOOLERR]` | 1 条红（标签 census ✓） |
+| M8-T467-266 | registry 重新自定义 CODE_DENIED | 2 条红（名字唯一 + 旧家已迁 ✓） |
+| M8-T467-267 | `tagged` 去掉括号 | 20 条红（形状 + 参数化往返 ✓） |
+| M8-T467-268 | schemas import logging_setup | 1 条红（叶子断言 ✓） |
+
+### 4 新增门禁
+
+`tests/test_the_summary_tags_have_one_home.py`（24 条）✓：
+
+1. `CODE_*` 名字只在 `schemas.py` 定义 ✓
+2. 家是叶子模块 ✓
+3. `tagged` 是唯一线型 ✓
+4. 17 个码逐个往返 `tagged(CODE, "body") == "[CODE] body"` ✓
+5. **全树零内联标签** ✓（AST 常量 census ✓，两个有主的外来
+   哨兵 `[DONE]`/`[REDACTED]` 显式排除并注明理由 ✓）
+6. `error_result`/`denied_result` 走 `tagged` ✓
+7. 旧家已迁 ✓
+8. 三处守卫摘要逐字节不变 ✓
+
+聚焦回归 ✓：新门 24 条 + subagent×3 / memo / unproductive /
+memory / timeout / both_wires / security_perimeter /
+background_shell / core_tools / permission_deny_veto /
+hook_launch / permission_modes / handled_failure /
+five_places / sandbox_mode / security_tags /
+failed_statuses 共 204 条 ✓，全绿 ✓。慢测试未跑 ✓，全量
+pytest 未跑 ✓。
+
+### 5 一条教训
+
+**「裸值唯一」不是判据，「形状唯一」才是 ✓。** ✓ 第一版
+门禁打算断言每个词汇表的**值**在全树只出现一次 ✓，结果
+`CODE_ERROR = "ERROR"` 和 `logging_setup` 的日志级别
+`"ERROR"` 撞名 ✓——两个毫不相干的域共用了一个普通英文
+词 ✓。改成按**括号形状** census 之后 ✓，误报消失 ✓，而真
+正的重复（内联 `[TAG]`）一个都跑不掉 ✓。**教训 ✓：同一
+个字符串在不同域里可以是不同事实 ✓，能区分它们的不是值
+而是它出现的形状 ✓。** ✓ 另一条 ✓：`[TIMED_OUT]`
+（bash）与 `[TIMEOUT]`（subagent）是同一概念的两种拼写 ✓，
+但两边都有测试钉住 ✓，统一它们是改 agent 可见协议的决
+策 ✓，不属于「搬家」这一批 ✓——已在常量旁注明并留作后
+续候选 ✓。

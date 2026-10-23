@@ -23,7 +23,18 @@ from pathlib import Path
 from typing import Any
 
 from .registry import split_output
-from .schemas import UNTRUSTED_TAG, ToolResult, untrusted_tags
+from .schemas import (
+    CODE_CANCELLED,
+    CODE_INVALID_ARGUMENTS,
+    CODE_RUNTIME_GUARD,
+    CODE_TIMED_OUT,
+    CODE_TOOL_ERROR,
+    CODE_UNKNOWN_SHELL,
+    UNTRUSTED_TAG,
+    ToolResult,
+    tagged,
+    untrusted_tags,
+)
 
 DEFAULT_TIMEOUT = 120
 MAX_OUTPUT_CHARS = 32_000
@@ -344,7 +355,7 @@ def run_process(
     if cancel_event is not None and cancel_event.is_set():
         return ToolResult(
             status="cancelled",
-            summary=f"[CANCELLED] {summary_label}已取消，未启动进程",
+            summary=tagged(CODE_CANCELLED, f"{summary_label}已取消，未启动进程"),
             security_tags=[*(security_tags or []), "runtime_guard"],
         )
 
@@ -363,7 +374,7 @@ def run_process(
     except OSError as exc:
         return ToolResult(
             status="error",
-            summary=f"[TOOL_ERROR] 无法执行命令: {exc}",
+            summary=tagged(CODE_TOOL_ERROR, f"无法执行命令: {exc}"),
             duration=round(time.monotonic() - started, 3),
             security_tags=[*(security_tags or []), UNTRUSTED_TAG],
         )
@@ -472,11 +483,11 @@ def run_process(
 
     if outcome == "cancelled":
         status = "cancelled"
-        summary = f"[CANCELLED] {summary_label}已取消并终止进程树 ({duration:.1f}s)"
+        summary = tagged(CODE_CANCELLED, f"{summary_label}已取消并终止进程树 ({duration:.1f}s)")
         tags.append("runtime_guard")
     elif outcome == "timed_out":
         status = "timed_out"
-        summary = f"[TIMED_OUT] {summary_label}超时 ({timeout}s)，已终止进程树"
+        summary = tagged(CODE_TIMED_OUT, f"{summary_label}超时 ({timeout}s)，已终止进程树")
         tags.append("runtime_guard")
     elif proc.returncode == 0:
         status = "ok"
@@ -514,12 +525,12 @@ def run_bash(
     explicit and tracked, not an escape from the tool lifecycle.
     """
     if not command or not command.strip():
-        return ToolResult(status="error", summary="[INVALID_ARGUMENTS] command 不能为空")
+        return ToolResult(status="error", summary=tagged(CODE_INVALID_ARGUMENTS, "command 不能为空"))
     detached_reason = detached_command_reason(command)
     if detached_reason:
         return ToolResult(
             status="error",
-            summary=f"[RUNTIME_GUARD] {detached_reason}；命令未启动",
+            summary=tagged(CODE_RUNTIME_GUARD, f"{detached_reason}；命令未启动"),
             security_tags=untrusted_tags("runtime_guard"),
             data={
                 "code": "detached_process_blocked",
@@ -623,7 +634,7 @@ def start_background_shell(command: str, workspace: Path) -> ToolResult:
         if _bg_running_count_locked() >= MAX_CONCURRENT_BACKGROUND:
             return ToolResult(
                 status="error",
-                summary=f"[RUNTIME_GUARD] 后台 shell 已达并发上限（{MAX_CONCURRENT_BACKGROUND}）",
+                summary=tagged(CODE_RUNTIME_GUARD, f"后台 shell 已达并发上限（{MAX_CONCURRENT_BACKGROUND}）"),
                 output="请先用 kill_shell 结束不再需要的后台 shell，或等待其退出。",
                 data={"code": "background_limit_reached", "retryable": True},
                 security_tags=untrusted_tags("runtime_guard", "background_shell"),
@@ -642,7 +653,7 @@ def start_background_shell(command: str, workspace: Path) -> ToolResult:
         except OSError as exc:
             return ToolResult(
                 status="error",
-                summary=f"[TOOL_ERROR] 无法启动后台命令: {exc}",
+                summary=tagged(CODE_TOOL_ERROR, f"无法启动后台命令: {exc}"),
                 security_tags=untrusted_tags("background_shell"),
             )
         shell = _BackgroundShell(
@@ -672,7 +683,7 @@ def _bg_shell_or_error(shell_id: str) -> tuple[_BackgroundShell | None, ToolResu
     if shell is None:
         return None, ToolResult(
             status="error",
-            summary=f"[UNKNOWN_SHELL] 找不到后台 shell {shell_id!r}",
+            summary=tagged(CODE_UNKNOWN_SHELL, f"找不到后台 shell {shell_id!r}"),
             data={"available": _bg_known_ids()},
             security_tags=untrusted_tags("background_shell"),
         )
