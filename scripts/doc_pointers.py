@@ -136,7 +136,20 @@ _PLACE_WORD = re.compile("(?:" + _DIRECTIONS + ")")
 #: 第8节, so the pair is checkable once the digit is admitted on both sides.
 _NUM = r"(\d+|[一二三四五六七八九十]+)"
 _SECTION = re.compile(rf"第{_NUM}节")
-_BATCH = re.compile(rf"第{_NUM}批(续二|续)?")
+#: The batch axis needs its own class, and widening ``_NUM`` instead is a different
+#: claim: measured over the shipped corpus, admitting 百/千 in ``第N节`` changes 0
+#: verdicts (162 matches, 13 distinct numbers, before *and* after) because no section
+#: is numbered past 99 — while the batch axis is blind on every number at or past 100
+#: and this document is past batch 364, so every pointer of this shape written from now
+#: on names a number the reader cannot see. 两 is here too: 「第两百二十批」 is shipped.
+_BATCH_NUM = r"(\d+|[零一二三四五六七八九十百千两]+)"
+#: Spaces on either side of the number are the same label: ``## 第 203 批 …`` is a heading
+#: this repository shipped, and 「第203批」 has to reach it. That is only safe because one
+#: function below builds the key from a match's *groups*, never from its text — the two
+#: hand-copied key expressions this used to have (in ``_batch_labels`` and at the check
+#: site) would have diverged the moment the spaces were admitted. ``第`` stays required:
+#: ``## 附：第三百三十五~六十五批…`` must not lend 「第六十五批」 to the roster.
+_BATCH = re.compile(rf"第\s*{_BATCH_NUM}\s*批(续二|续)?")
 _APPENDIX = re.compile(r"附录\s*([A-Z])")
 #: ``\b`` treats Chinese as a word character, so ``见下方M8-T26`` — an id glued
 #: straight onto the prose, with no space — had no boundary in front of it and was
@@ -287,17 +300,55 @@ def _numbered_sections(path: Path) -> dict[int, Section]:
     return _numbered_headings(sections(path.read_text(encoding="utf-8")))
 
 
-def _batch_labels(headings: list[Section]) -> dict[str, Section]:
-    """Every ``第N批`` a heading declares about itself, keyed by its exact label.
+def _batch_label(match: "re.Match[str]") -> str:
+    """The one key for a batch match, built from its groups so spacing cannot fork it.
 
-    Built by running the same matcher over the titles the pointers name, so a
-    heading that never says which batch it is cannot be pointed at — and 「第十五批
-    续」 and 「第十五批续二」 stay two different sections.
+    Both the roster and the check site call this. Two hand-copied f-strings once spelled
+    the same text and stayed in sync only by luck; the day 「第 203 批」 became readable,
+    a key built from ``group(0)`` at either site would have made that heading unpointable
+    — a false red about a section that exists.
+    """
+    return f"第{match.group(1)}批{match.group(2) or ''}"
+
+
+#: A title declares its own batch from two positions only.
+#:   ``^第?…批``  — the batch number opens the title. ``第`` is optional *here*, because
+#:     two shipped headings read ``## 三百六十三批 …``; a title that opens with a batch
+#:     number is naming itself, and requiring the particle would leave those sections
+#:     unpointable by 「第三百六十三批」, which is how every later record spells them.
+#:   ``[（(]第…批`` — a colophon: ``…（第七批，2026-09-23）`` is how the early exit-criteria
+#:     sections signed themselves, and 14 live pointers already resolve through it.
+#: Anything else is a *mention*: ``## 第一百八十一批 兑现第一百八十批的欠账`` is section 181
+#: talking about 180, and ``## 4 顺手关掉第 91 批 §8 …`` is a sub-item inside batch 203.
+#: Reading labels out of those titles hands a batch number to the wrong section, and
+#: ``setdefault`` then decides by document order which one a pointer lands on — the same
+#: rule ``_id_registry`` applies to ids for the same reason.
+_BATCH_DECLARED_AT_START = re.compile(rf"^第?\s*{_BATCH_NUM}\s*批(续二|续)?")
+_BATCH_DECLARED_IN_COLOPHON = re.compile(rf"[（(]\s*第\s*{_BATCH_NUM}\s*批(续二|续)?")
+
+
+def _declared_batch_labels(title: str) -> list[str]:
+    """The batch labels a heading claims *about itself*, in canonical spelling."""
+    out: list[str] = []
+    if (match := _BATCH_DECLARED_AT_START.match(title)) is not None:
+        out.append(_batch_label(match))
+    out += [_batch_label(match) for match in _BATCH_DECLARED_IN_COLOPHON.finditer(title)]
+    return out
+
+
+def _batch_labels(headings: list[Section]) -> dict[str, Section]:
+    """Every ``第N批`` a heading declares about itself, keyed by the canonical label.
+
+    Built by running the declaration rule over the titles the pointers name, so a heading
+    that never says which batch it is cannot be pointed at — and 「第十五批续」 and
+    「第十五批续二」 stay two different sections. Keys are not value-canonical:
+    「第二百二十批」 and 「第两百二十批」 are two sections in this corpus, and merging them
+    by arithmetic would make one pointer answer for both.
     """
     out: dict[str, Section] = {}
     for section in headings:
-        for match in _BATCH.finditer(section.title):
-            out.setdefault(f"第{match.group(1)}批{match.group(2) or ''}", section)
+        for token in _declared_batch_labels(section.title):
+            out.setdefault(token, section)
     return out
 
 
@@ -743,7 +794,7 @@ def check_pointers(document: Path, text: str) -> tuple[list[Problem], int, dict[
                 continue
             problems.append(Problem("POINTER", document.name, line, f"「{span}」 指向不存在的{sec.group(0)}"))
         for batch in batches:
-            token = f"第{batch.group(1)}批{batch.group(2) or ''}"
+            token = _batch_label(batch)
             # Exact labels only: 「第十五批续」 is not the section titled 续二, and
             # substring matching would let one pointer stand for three records.
             target = batch_labels.get(token)
