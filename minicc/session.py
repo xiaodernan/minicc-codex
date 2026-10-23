@@ -216,6 +216,18 @@ def _unsatisfied_tool_calls(messages: list[Any]) -> set[str]:
     return pending_tool_calls([item for item in messages if isinstance(item, dict)])
 
 
+def _rewind_result(kept: int, removed: int, backup: str) -> dict[str, Any]:
+    """The one shape of a rewind's outcome.
+
+    Two exits write it by hand: the no-op early return (nothing was
+    removed, no backup was written) and the normal return.  A key one
+    exit forgets is a rewind the caller reads as a partial result -
+    the caller shows the user what was kept and points at the backup
+    file, and a missing ``backup`` reads as "there is no way back".
+    """
+    return {"kept": kept, "removed": removed, "backup": backup}
+
+
 def _keep_through_tool_results(messages: list[Any], keep: int) -> int:
     """Grow a cut so no kept assistant turn is left waiting for its tool result.
 
@@ -494,7 +506,7 @@ class SessionStore:
         if total == 0 or keep < 1:
             raise SessionError("keep_messages 至少为 1（保留 system 消息）")
         if keep >= total:
-            return {"kept": total, "removed": 0, "backup": ""}
+            return _rewind_result(total, 0, "")
         # Never leave a kept assistant turn without its tool results: the
         # truncated history must still be a conversation the model accepts.
         keep = _keep_through_tool_results(messages, keep)
@@ -505,7 +517,7 @@ class SessionStore:
         payload["rewound_at"] = payload["updated_at"]
         payload["rewound_removed"] = total - keep
         self._write_payload(payload)
-        return {"kept": keep, "removed": total - keep, "backup": backup_path.name}
+        return _rewind_result(keep, total - keep, backup_path.name)
 
     def rewind_to_user_index(self, user_index: int) -> dict[str, Any]:
         """Keep through the Nth user message (1-based), including system.
