@@ -132,7 +132,7 @@ from .prompt import build_system_prompt
 from .sandbox import SandboxRunner
 from .session import SessionError, SessionStore, list_sessions
 from .tools import Editor, ToolCall, ToolResult, build_registry
-from .tools.editor import AUDIT_LEVELS, audit_level
+from .tools.editor import AUDIT_LEVELS, audit_level, path_escaped_workspace
 from .trace import trace_event
 from .tools.registry import approval_preview, redact_text
 from .task_store import TaskStore
@@ -1011,7 +1011,7 @@ class AgentService:
         raw = str(rel_path or "").strip()
         target = root if not raw else (root / raw).resolve()
         if not (target == root or target.is_relative_to(root)):
-            raise ValueError(f"路径越界: {raw}")
+            raise ValueError(path_escaped_workspace(raw))
         if not target.is_dir():
             raise ValueError(f"不是目录: {raw}")
         try:

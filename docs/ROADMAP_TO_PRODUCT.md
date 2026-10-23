@@ -30785,3 +30785,83 @@ symlink / 不支持 POSIX 权限位 ✓）。慢测试未跑 ✓，
 成家 ✓，字节不变 ✓。判别式 ✓：**凡是一句消息在不同出口有不同的动
 词/主语/路径 ✓，先拆出哪部分是共享事实、哪部分是活值 ✓，再决定家
 的形状 ✓**。
+
+## 第四百五十六批 — M8-T472 — 越界判词一个家（家的外沿收口）
+
+### 1 缺陷
+
+`resolve_in_workspace`（`minicc/tools/editor.py`）早就立了家，
+`test_the_workspace_containment_have_one_home.py` 也早就钉住了它
+的两句判词。但**家只住了两处**：`editor.py` 里的绝对路径分支和
+`..` 逃逸分支。另外四处越界拒答还在手拼同一个前缀——
+
+- `tools/fs.py` 的 `glob` / `grep` / `tree` 三处：
+  `f"路径越界: {base}"`
+- `web.py` 的 `/api/files`：`f"路径越界: {raw}"`
+
+这四句**只有路径、没有理由**，于是同一道防线对读者呈现出两种面
+貌：家里那句能告诉你「是绝对路径还是 `..` 逃逸」，家外四句只告
+诉你「哪个路径」。更要紧的是前缀本身有了四个独立的拼写点，等着
+各自漂移。
+
+### 2 落地
+
+- 家（`editor.py`，紧挨 `resolve_in_workspace`）新增
+  `PATH_ESCAPED_PREFIX = "路径越界: "` 与造句器
+  `path_escaped_workspace(detail)`
+- `resolve_in_workspace` 的两处 raise 改引造句器
+- `fs.py` 三处、`web.py` 一处全部改引造句器
+- **六个句子的字节完全未变**：`path_escaped_workspace(base)` 拼出
+  的正是 `路径越界: {base}` ✓，已逐条比对
+- **只共享句子，不共享判定**：`fs` 与 `web` 各自判定自己 resolve
+  出来的目标 ✓，因为这两处允许「落在根内的绝对路径」✓，而
+  `resolve_in_workspace` 会一律拒掉 ✓。强行统一判定会改行为 ✓，
+  所以本批只收句子 ✓
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T472-264 | fs 的 glob 把手拼句写回来（改前形状） | 2 条红（census + 调用点 ✓） |
+| M8-T472-265 | web 把手拼句写回来 | 2 条红（census + 调用点 ✓） |
+| M8-T472-266 | 家自己的绝对路径分支手拼回去 | 2 条红（census ✓） |
+| M8-T472-267 | 前缀全角冒号改半角 | 1 条红（值断言 ✓） |
+| M8-T472-268 | 前缀多一个空格 | 1 条红（值断言 ✓） |
+| M8-T472-269 | fs 自己另造一个同名造句器 | 3 条红（唯一定义 ✓） |
+| M8-T472-270 | git 里新增一个手拼前缀的函数 | 1 条红（无杂散 ✓） |
+
+七条全部 KILLED ✓，恢复后字节相同 ✓。
+
+### 4 门禁扩写
+
+`tests/test_the_workspace_containment_have_one_home.py`（4 条 → 11 条）✓：
+
+- 原有 4 条行为/文本断言保留 ✓（其中 census 一条改为 AST ✓）
+- **前缀字面量恰好出现一次** ✓且在家 ✓（按相等判 ✓，理由见第 5 节 ✓）
+- **无其他常量以前缀开头** ✓：`快照路径越界: ` 与
+  `worktree 路径越界` 都**包含**前缀但都不**以它开头** ✓，
+  所以按开头判能把它们排除在外 ✓——它们是独立的守卫、各有自己的家 ✓
+- 造句器只被定义一次 ✓
+- **造句器恰好被六个拒答点调用** ✓：家 2 处 + fs 3 处 + web 1 处 ✓
+- fs 与 web 都从家 import ✓
+- 造句器＝前缀 + 理由 ✓
+
+聚焦回归 ✓：扩写门 11 条 + worktree_containment /
+file_tree_api / file_preview_endpoint /
+denied_path_must_not_show_up / glob_does_not_hide /
+listing_tool_must_not_enumerate / ceilings_belong_to_the_tool /
+max_matches_param / snapshots / logging 共 122 条 ✓，加
+security_perimeter / m1_integrity / packaging 共 52 条 ✓，全绿 ✓。
+慢测试未跑 ✓，全量 pytest 未跑 ✓。
+
+### 5 一条教训
+
+**census 判「包含」会收进隔壁的家 ✓。** ✓ 本批第一版门禁写的是
+`needle in node.value` ✓，结果 `快照路径越界: `（snapshots.py 两处）
+因为**包含** `路径越界: ` 而被算成杂散 ✓，门禁直接红 ✓。改成按
+**相等**判前缀字面量 ✓、另立一条按**开头**判排除近邻 ✓，两边就同
+时成立了 ✓。判别式可以固化 ✓：**同一家族里「长辈名包含晚辈名」时
+（快照路径越界 / 路径越界）✓，前缀 census 必须按相等判 ✓，而防手拼
+的那一条必须按开头判 ✓——按包含判会把本该独立的邻居一起收进来 ✓，
+按相等判又会漏掉 `f"路径越界: {x}"` 这种常量段恰好等于前缀的手拼
+点 ✓。两条断言各管一头 ✓，缺一条就有一个方向的漂移能活着走出去 ✓。**

@@ -22,7 +22,7 @@ from ..internal_paths import (
     PERMISSIONS_NAME,
     TOKEN_FILE_NAME,
 )
-from .editor import EditError, Editor, StaleContextError
+from .editor import EditError, Editor, StaleContextError, path_escaped_workspace
 from .registry import ToolError, split_output
 from .schemas import ToolResult
 
@@ -369,7 +369,7 @@ class FsTools:
         try:
             root = (self.editor.workspace / base).resolve()
             if not root.is_relative_to(self.editor.workspace):
-                raise ToolError(f"路径越界: {base}")
+                raise ToolError(path_escaped_workspace(base))
             # M8-T287: the walk is **bounded while it happens**.  The cap used
             # to be applied to the finished list, so the whole tree was
             # collected into memory first and then sliced - which is exactly
@@ -415,7 +415,7 @@ class FsTools:
         _reject_graders(str(base))
         root = (self.editor.workspace / base).resolve()
         if not root.is_relative_to(self.editor.workspace):
-            raise ToolError(f"路径越界: {base}")
+            raise ToolError(path_escaped_workspace(base))
         if not root.exists():
             raise ToolError(f"grep 路径不存在: {base}")
         try:
@@ -485,7 +485,7 @@ class FsTools:
         max_entries = int(args.get("max_entries", TREE_MAX_ENTRIES))
         root = (self.editor.workspace / base).resolve()
         if not root.is_relative_to(self.editor.workspace):
-            raise ToolError(f"路径越界: {base}")
+            raise ToolError(path_escaped_workspace(base))
         lines: list[str] = [base.as_posix().rstrip("/") or "."]
         ws_root = self.editor.workspace.resolve()
 

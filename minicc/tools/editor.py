@@ -97,6 +97,29 @@ def _validate_read_window(offset: int, limit: int) -> None:
         raise EditError(f"limit={limit} 超过单次读取上限 {MAX_READ_LINES}")
 
 
+#: The one prefix a containment refusal carries.  Six sites used to spell the
+#: sentence by hand - two here, three in ``tools/fs.py`` (glob, grep, tree)
+#: and one in ``web.py`` (``/api/files``) - and the four outside this home
+#: had lost the detail: they said ``路径越界: {base}`` and nothing else, so
+#: a reader auditing an escape attempt could not tell an absolute path from
+#: a ``..`` walk, and the sentence a grep for escapes lands on had four
+#: independent spellings waiting to happen.
+PATH_ESCAPED_PREFIX = "路径越界: "
+
+
+def path_escaped_workspace(detail: object) -> str:
+    """The one sentence for a model-supplied path that left the workspace.
+
+    ``detail`` is the live part - *why* this path is out.  The prefix is the
+    shared fact, and it is the string a reader greps for when auditing an
+    escape attempt.  Only the sentence is shared, never the check: the
+    editors and git judge through ``resolve_in_workspace``, while ``fs``
+    and ``web`` judge their own resolved targets, because those two are
+    allowed to accept an absolute path that lands back inside the root.
+    """
+    return f"{PATH_ESCAPED_PREFIX}{detail}"
+
+
 def resolve_in_workspace(workspace: Path, raw_path: str) -> Path:
     """The one containment guard for a model-supplied path.
 
@@ -110,10 +133,10 @@ def resolve_in_workspace(workspace: Path, raw_path: str) -> Path:
     """
     path = Path(raw_path)
     if path.is_absolute():
-        raise EditError(f"路径越界: 不允许绝对路径 ({raw_path})")
+        raise EditError(path_escaped_workspace(f"不允许绝对路径 ({raw_path})"))
     resolved = (workspace / path).resolve()
     if not resolved.is_relative_to(workspace):
-        raise EditError(f"路径越界: {raw_path} 超出 workspace 根")
+        raise EditError(path_escaped_workspace(f"{raw_path} 超出 workspace 根"))
     return resolved
 
 
