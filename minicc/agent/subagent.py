@@ -43,6 +43,7 @@ from ..logging_setup import quiet_loop_teardown
 from ..tools.registry import ToolError, ToolRegistry, ToolSpec
 from ..tools.schemas import ToolResult, untrusted_tags
 from ..hooks import HookRunner
+from ..trace import trace_event
 
 SUBAGENT_TOOL_NAME = "task"
 # Readonly evidence tools only. No network (parent research stays in the
@@ -428,23 +429,20 @@ class _SubagentRunner:
                 })
 
         def lifecycle(code: str, status: str, summary: str, **detail: Any) -> None:
-            self._emit({
-                "kind": "trace",
-                "name": "subagent",
-                "status": status,
-                "phase": "execution",
-                "code": code,
-                "summary": summary,
-                "parent_id": run_id,
-                "subagent": True,
-                "depth": self.depth + 1,
-                "detail": {
-                    "description": description,
-                    "tier": self.tier,
-                    "tool_calls": len(tool_log),
-                    **detail,
-                },
-            })
+            event = trace_event(
+                name="subagent", status=status, phase="execution", code=code,
+                summary=summary,
+            )
+            event["parent_id"] = run_id
+            event["subagent"] = True
+            event["depth"] = self.depth + 1
+            event["detail"] = {
+                "description": description,
+                "tier": self.tier,
+                "tool_calls": len(tool_log),
+                **detail,
+            }
+            self._emit(event)
 
         def bubble(event: dict[str, Any]) -> None:
             # M6-T2: forward the child's own trace/tool events to the parent

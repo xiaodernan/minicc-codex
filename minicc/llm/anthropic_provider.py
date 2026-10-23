@@ -36,6 +36,7 @@ except ModuleNotFoundError:  # pragma: no cover - depends on the HTTP stack.
 from .base import LLMResponse, as_dict, is_nameless_tool_name, safe_int, unique_tool_call_id
 from .usage import token_count
 from ..tools.schemas import tool_call_name
+from ..trace import trace_event
 
 ANTHROPIC_VERSION = "2023-06-01"
 DEFAULT_BASE_URL = "https://api.anthropic.com"
@@ -424,15 +425,14 @@ class AnthropicProvider:
         self._channel = "plan"
         if self.on_status is not None:
             try:
-                self.on_status({
-                    "kind": "trace",
-                    "name": "provider",
-                    "status": "ok",
-                    "phase": "planning",
-                    "code": "provider_channel_switched",
-                    "summary": "主通道额度已用尽（402/Credit 上限），本次任务改用 Step Plan 套餐通道",
-                    "detail": {"from": "paid", "to": "plan", "status_code": status_code},
-                })
+                self.on_status(trace_event(
+                    name="provider",
+                    status="ok",
+                    phase="planning",
+                    code="provider_channel_switched",
+                    summary="主通道额度已用尽（402/Credit 上限），本次任务改用 Step Plan 套餐通道",
+                    detail={"from": "paid", "to": "plan", "status_code": status_code},
+                ))
             except Exception:  # noqa: BLE001 - a status listener must not break the switch
                 pass
 

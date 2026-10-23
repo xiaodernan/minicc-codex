@@ -58,6 +58,7 @@ from ..tools.schemas import (
 )
 from ..tools.registry import ToolRegistry, redact_text
 from ..hooks import payloads_for_result, payloads_for_tool_call
+from ..trace import trace_event
 from .context import (
     VISUAL_PART_TYPES,
     compact_with_checkpoint,
@@ -600,16 +601,10 @@ async def run_agent(
         code: str = "milestone",
         detail: dict[str, Any] | str | None = None,
     ) -> None:
-        event = {
-            "kind": "trace",
-            "name": "agent",
-            "status": status,
-            "phase": phase,
-            "code": code,
-            "summary": summary,
-        }
-        if detail is not None:
-            event["detail"] = detail
+        event = trace_event(
+            name="agent", status=status, phase=phase, code=code, summary=summary,
+            detail=detail,
+        )
         result.trace_events.append(event)
         if len(result.trace_events) > MAX_RESULT_TRACE_EVENTS:
             del result.trace_events[: len(result.trace_events) - MAX_RESULT_TRACE_EVENTS]

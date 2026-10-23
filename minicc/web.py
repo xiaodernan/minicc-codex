@@ -125,6 +125,7 @@ from .sandbox import SandboxRunner
 from .session import SessionError, SessionStore, list_sessions
 from .tools import Editor, ToolCall, ToolResult, build_registry
 from .tools.editor import AUDIT_LEVELS, audit_level
+from .trace import trace_event
 from .tools.registry import approval_preview, redact_text
 from .task_store import TaskStore
 from .worktree import WorktreeError, WorktreeManager
@@ -266,16 +267,18 @@ def _evidence_trace_event(hits: list[Any], census: dict[str, Any]) -> dict[str, 
         if complete
         else f"本地索引未走完工作区，只提供 {len(hits)} 个候选文件（清单可能不全）"
     )
-    return {
-        "kind": "trace", "name": "retrieval", "status": "ok", "phase": "planning",
-        "code": "local_evidence_index",
-        "summary": summary,
-        "detail": {
+    return trace_event(
+        name="retrieval",
+        status="ok",
+        phase="planning",
+        code="local_evidence_index",
+        summary=summary,
+        detail={
             "hits": [hit.to_dict() for hit in hits],
             "census": dict(census),
             "census_complete": complete,
         },
-    }
+    )
 
 
 def _evidence_for_planner(hits: list[Any], census: dict[str, Any]) -> str:
@@ -1599,15 +1602,14 @@ class AgentService:
                 on_event(event)
 
         if attachments:
-            image_event = {
-                "kind": "trace",
-                "name": "agent",
-                "status": "ok",
-                "phase": "planning",
-                "code": "image_attached",
-                "summary": f"已接收 {len(attachments)} 张图片，作为视觉上下文发送给模型",
-                "detail": {"count": len(attachments), "names": [item["name"] for item in attachments]},
-            }
+            image_event = trace_event(
+                name="agent",
+                status="ok",
+                phase="planning",
+                code="image_attached",
+                summary=f"已接收 {len(attachments)} 张图片，作为视觉上下文发送给模型",
+                detail={"count": len(attachments), "names": [item["name"] for item in attachments]},
+            )
             events.append(image_event)
             if on_event is not None:
                 on_event(image_event)
@@ -1618,25 +1620,26 @@ class AgentService:
             mention_summary = f"已按 @-提及注入 {len(injected)} 个文件内容"
             if rejected:
                 mention_summary += f"，拒绝 {len(rejected)} 个越界引用"
-            mention_event = {
-                "kind": "trace",
-                "name": "agent",
-                "status": "ok",
-                "phase": "planning",
-                "code": "mentions_resolved",
-                "summary": mention_summary,
-                "detail": {"records": mention_records},
-            }
+            mention_event = trace_event(
+                name="agent",
+                status="ok",
+                phase="planning",
+                code="mentions_resolved",
+                summary=mention_summary,
+                detail={"records": mention_records},
+            )
             events.append(mention_event)
             if on_event is not None:
                 on_event(mention_event)
 
-        route_event = {
-            "kind": "trace", "name": "router", "status": "ok", "phase": "planning",
-            "code": "stage_route",
-            "summary": "已应用规划阶段的模型与请求策略",
-            "detail": initial_route.to_dict(),
-        }
+        route_event = trace_event(
+            name="router",
+            status="ok",
+            phase="planning",
+            code="stage_route",
+            summary="已应用规划阶段的模型与请求策略",
+            detail=initial_route.to_dict(),
+        )
         events.append(route_event)
         if on_event is not None:
             on_event(route_event)
@@ -1890,19 +1893,18 @@ class AgentService:
                     # The fold must not stop the run silently - a trip gets
                     # the same named budget_exceeded event the planner fold
                     # emits for its own overspend.
-                    budget_event = {
-                        "kind": "trace",
-                        "name": "subagent",
-                        "status": "error",
-                        "phase": "execution",
-                        "code": "budget_exceeded",
-                        "summary": str(exc),
-                        "detail": {
+                    budget_event = trace_event(
+                        name="subagent",
+                        status="error",
+                        phase="execution",
+                        code="budget_exceeded",
+                        summary=str(exc),
+                        detail={
                             "stage": "subagent",
                             "error": str(exc),
                             "tokens_used": dict(usage),
                         },
-                    }
+                    )
                     events.append(budget_event)
                     if on_event is not None:
                         on_event(budget_event)
@@ -2023,13 +2025,15 @@ class AgentService:
                         # through the configured fallback models.
                         index = min(attempt - 1, len(fallback_models) - 1)
                         model_override = fallback_models[index]
-                        events.append({
-                            "kind": "trace", "name": "provider", "status": "ok",
-                            "phase": "planning", "code": "task_model_fallback",
-                            "summary": f"多次恢复失败，切换到备用模型 {model_override}",
-                            "detail": {"model": model_override, "index": index,
-                                       "fallback_models": list(fallback_models)},
-                        })
+                        events.append(trace_event(
+                            name="provider",
+                            status="ok",
+                            phase="planning",
+                            code="task_model_fallback",
+                            summary=f"多次恢复失败，切换到备用模型 {model_override}",
+                            detail={"model": model_override, "index": index,
+                            "fallback_models": list(fallback_models)},
+                        ))
                         if on_event is not None:
                             on_event(events[-1])
                     provider = make_provider(
@@ -2056,34 +2060,32 @@ class AgentService:
                             "skipped": [task.id for task in plan.tasks],
                             "outputs": {},
                         }
-                        event = {
-                            "kind": "trace",
-                            "name": "planner",
-                            "status": "ok",
-                            "phase": "planning",
-                            "code": "planner_execution_skipped",
-                            "summary": "动态计划包含非只读节点，未直接执行，交由主 Agent 按原有权限路径处理",
-                            "detail": skipped,
-                        }
+                        event = trace_event(
+                            name="planner",
+                            status="ok",
+                            phase="planning",
+                            code="planner_execution_skipped",
+                            summary="动态计划包含非只读节点，未直接执行，交由主 Agent 按原有权限路径处理",
+                            detail=skipped,
+                        )
                         events.append(event)
                         if on_event is not None:
                             on_event(event)
                         return skipped
 
-                    started = {
-                        "kind": "trace",
-                        "name": "planner",
-                        "status": "ok",
-                        "phase": "planning",
-                        "code": "planner_execution_started",
-                        "summary": f"已将验证后的只读计划接入 DAG 执行，共 {len(plan.tasks)} 个节点",
-                        "detail": {
+                    started = trace_event(
+                        name="planner",
+                        status="ok",
+                        phase="planning",
+                        code="planner_execution_started",
+                        summary=f"已将验证后的只读计划接入 DAG 执行，共 {len(plan.tasks)} 个节点",
+                        detail={
                             "plan_name": plan.name,
                             "node_count": len(plan.tasks),
                             "max_concurrency": policy.max_concurrency,
                             "execution_mode": "bounded_readonly_dag",
                         },
-                    }
+                    )
                     events.append(started)
                     if on_event is not None:
                         on_event(started)
@@ -2115,19 +2117,18 @@ class AgentService:
                             if summary:
                                 node_summaries.append(summary)
 
-                        started_event = {
-                            "kind": "trace",
-                            "name": "planner",
-                            "status": "ok",
-                            "phase": "planning",
-                            "code": "planner_node_started",
-                            "summary": f"DAG 节点 {task.id} 开始执行",
-                            "detail": {
+                        started_event = trace_event(
+                            name="planner",
+                            status="ok",
+                            phase="planning",
+                            code="planner_node_started",
+                            summary=f"DAG 节点 {task.id} 开始执行",
+                            detail={
                                 "kind": task.kind,
                                 "depends_on": list(task.depends_on),
                                 "allowed_tools": sorted(task.allowed_tools),
                             },
-                        }
+                        )
                         emit(started_event)
 
                         dependency_json = json.dumps(
@@ -2158,15 +2159,14 @@ class AgentService:
                         node_registry = registry.restrict(task.allowed_tools)
 
                         def node_status(status: dict[str, Any]) -> None:
-                            emit({
-                                "kind": "trace",
-                                "name": "provider",
-                                "status": "ok",
-                                "phase": "planning",
-                                "code": "planner_node_provider_status",
-                                "summary": "计划节点模型连接状态已更新",
-                                "detail": status,
-                            })
+                            emit(trace_event(
+                                name="provider",
+                                status="ok",
+                                phase="planning",
+                                code="planner_node_provider_status",
+                                summary="计划节点模型连接状态已更新",
+                                detail=status,
+                            ))
 
                         def node_trace(event: dict[str, Any]) -> None:
                             emit(dict(event))
@@ -2311,24 +2311,21 @@ class AgentService:
                             if node_provider is not None:
                                 await node_provider.close()
 
-                        emit({
-                            "kind": "trace",
-                            "name": "planner",
-                            "status": "error" if output.get("status") == "failed" else "ok",
-                            "phase": "planning",
-                            "code": "planner_node_finished",
-                            "summary": (
-                                f"DAG 节点 {task.id} 执行失败"
-                                if output.get("status") == "failed"
-                                else f"DAG 节点 {task.id} 已完成并产出只读证据"
-                            ),
-                            "detail": {
+                        emit(trace_event(
+                            name="planner",
+                            status="error" if output.get("status") == "failed" else "ok",
+                            phase="planning",
+                            code="planner_node_finished",
+                            summary=f"DAG 节点 {task.id} 执行失败"
+                            if output.get("status") == "failed"
+                            else f"DAG 节点 {task.id} 已完成并产出只读证据",
+                            detail={
                                 "status": output.get("status"),
                                 "turns": output.get("turns", 0),
                                 "tool_calls": output.get("tool_calls", 0),
                                 "error": output.get("error"),
                             },
-                        })
+                        ))
                         return output
 
                     dag_result = await execute_dag(
@@ -2364,35 +2361,31 @@ class AgentService:
                             # M6-T2: the fold must not stop the run silently - a
                             # trip here gets the same named budget_exceeded event
                             # the completion judge emits for its own overspend.
-                            budget_event = {
-                                "kind": "trace",
-                                "name": "planner",
-                                "status": "error",
-                                "phase": "planning",
-                                "code": "budget_exceeded",
-                                "summary": str(exc),
-                                "detail": {
+                            budget_event = trace_event(
+                                name="planner",
+                                status="error",
+                                phase="planning",
+                                code="budget_exceeded",
+                                summary=str(exc),
+                                detail={
                                     "stage": "planner_dag",
                                     "error": str(exc),
                                     "tokens_used": dict(token_totals),
                                 },
-                            }
+                            )
                             events.append(budget_event)
                             if on_event is not None:
                                 on_event(budget_event)
-                    finished = {
-                        "kind": "trace",
-                        "name": "planner",
-                        "status": "error" if dag_result.status == "failed" else "ok",
-                        "phase": "planning",
-                        "code": "planner_execution_finished",
-                        "summary": (
-                            f"只读 DAG 执行结束：完成 {len(dag_result.completed)} 个节点"
-                            + (f"，失败 {len(dag_result.failed)} 个" if dag_result.failed else "")
-                            + (f"，跳过 {len(dag_result.skipped)} 个" if dag_result.skipped else "")
-                        ),
-                        "detail": execution,
-                    }
+                    finished = trace_event(
+                        name="planner",
+                        status="error" if dag_result.status == "failed" else "ok",
+                        phase="planning",
+                        code="planner_execution_finished",
+                        summary=f"只读 DAG 执行结束：完成 {len(dag_result.completed)} 个节点"
+                        + (f"，失败 {len(dag_result.failed)} 个" if dag_result.failed else "")
+                        + (f"，跳过 {len(dag_result.skipped)} 个" if dag_result.skipped else ""),
+                        detail=execution,
+                    )
                     events.append(finished)
                     if on_event is not None:
                         on_event(finished)
@@ -2438,14 +2431,13 @@ class AgentService:
                         system_msg(PLANNER_SYSTEM_PROMPT),
                         user_msg(_multimodal_content(planner_prompt, attachments)),
                     ]
-                    planner_started = {
-                        "kind": "trace",
-                        "name": "planner",
-                        "status": "ok",
-                        "phase": "planning",
-                        "code": "planner_started",
-                        "summary": "复杂任务已进入结构化规划预检，运行时仍保留最终控制权",
-                        "detail": {
+                    planner_started = trace_event(
+                        name="planner",
+                        status="ok",
+                        phase="planning",
+                        code="planner_started",
+                        summary="复杂任务已进入结构化规划预检，运行时仍保留最终控制权",
+                        detail={
                             "trigger": "explicit" if payload.get("planner_requested") else "complexity_or_batch",
                             "complexity": complexity.snapshot(),
                             "fallback": fallback_name,
@@ -2456,7 +2448,7 @@ class AgentService:
                                 "allowed_tools": sorted(policy.allowed_tools),
                             },
                         },
-                    }
+                    )
                     events.append(planner_started)
                     if on_event is not None:
                         on_event(planner_started)
@@ -2489,19 +2481,18 @@ class AgentService:
                                 _stage_cost_estimator(stage_router, "planning")(usage)
                             )
                         except BudgetExceeded as exc:
-                            budget_event = {
-                                "kind": "trace",
-                                "name": "planner",
-                                "status": "error",
-                                "phase": "planning",
-                                "code": "budget_exceeded",
-                                "summary": str(exc),
-                                "detail": {
+                            budget_event = trace_event(
+                                name="planner",
+                                status="error",
+                                phase="planning",
+                                code="budget_exceeded",
+                                summary=str(exc),
+                                detail={
                                     "stage": "planning",
                                     "error": str(exc),
                                     "tokens_used": dict(usage),
                                 },
-                            }
+                            )
                             events.append(budget_event)
                             if on_event is not None:
                                 on_event(budget_event)
@@ -2528,15 +2519,14 @@ class AgentService:
                         )
                     detail = planner_result.to_dict() if planner_result is not None else {}
                     if planner_result is not None and planner_result.source == "dynamic_model":
-                        event = {
-                            "kind": "trace",
-                            "name": "planner",
-                            "status": "ok",
-                            "phase": "planning",
-                            "code": "planner_dynamic_ready",
-                            "summary": f"模型已生成受约束执行计划，共 {len(planner_result.plan.tasks)} 个节点",
-                            "detail": detail,
-                        }
+                        event = trace_event(
+                            name="planner",
+                            status="ok",
+                            phase="planning",
+                            code="planner_dynamic_ready",
+                            summary=f"模型已生成受约束执行计划，共 {len(planner_result.plan.tasks)} 个节点",
+                            detail=detail,
+                        )
                         messages.append(system_msg(
                             "[运行时结构化执行计划]\n"
                             "以下计划已经过服务端 schema、依赖、深度、并发和工具白名单校验。"
@@ -2549,15 +2539,14 @@ class AgentService:
                         if not allow_changes:
                             planner_execution = await execute_dynamic_plan(planner_result.plan, policy)
                     else:
-                        event = {
-                            "kind": "trace",
-                            "name": "planner",
-                            "status": "error",
-                            "phase": "planning",
-                            "code": "planner_preflight_fallback",
-                            "summary": "模型计划未通过安全校验，已回退到固定执行模板",
-                            "detail": detail,
-                        }
+                        event = trace_event(
+                            name="planner",
+                            status="error",
+                            phase="planning",
+                            code="planner_preflight_fallback",
+                            summary="模型计划未通过安全校验，已回退到固定执行模板",
+                            detail=detail,
+                        )
                         events.append(event)
                         if on_event is not None:
                             on_event(event)
@@ -2583,15 +2572,14 @@ class AgentService:
                         # The run_agent path emits budget_exceeded from inside
                         # the loop; a judge-side trip must be just as visible,
                         # or the run would stop with no named cause in events.
-                        budget_event = {
-                            "kind": "trace",
-                            "name": "completion_judge",
-                            "status": "error",
-                            "phase": "review",
-                            "code": "budget_exceeded",
-                            "summary": str(exc),
-                            "detail": {"stage": "review", "error": str(exc)},
-                        }
+                        budget_event = trace_event(
+                            name="completion_judge",
+                            status="error",
+                            phase="review",
+                            code="budget_exceeded",
+                            summary=str(exc),
+                            detail={"stage": "review", "error": str(exc)},
+                        )
                         events.append(budget_event)
                         if on_event is not None:
                             on_event(budget_event)
@@ -2654,20 +2642,19 @@ class AgentService:
                             break
                         provider_recoveries += 1
                         recovery_protocol = await recreate_provider_after_failure()
-                        recovery_event = {
-                            "kind": "trace",
-                            "name": "provider",
-                            "status": "error",
-                            "phase": "planning",
-                            "code": "task_provider_recovery",
-                            "summary": f"模型网关暂时不可用，已开始第 {provider_recoveries} 次安全恢复",
-                            "detail": {
+                        recovery_event = trace_event(
+                            name="provider",
+                            status="error",
+                            phase="planning",
+                            code="task_provider_recovery",
+                            summary=f"模型网关暂时不可用，已开始第 {provider_recoveries} 次安全恢复",
+                            detail={
                                 "retry": provider_recoveries,
                                 "retry_limit": max_provider_recoveries,
                                 "next_mode": "non_streaming",
                                 "protocol": recovery_protocol,
                             },
-                        }
+                        )
                         events.append(recovery_event)
                         if on_event is not None:
                             on_event(recovery_event)
@@ -2688,22 +2675,19 @@ class AgentService:
                             aggregate.answer = f"任务未完成：{aggregate.error}"
                             break
                         agent_recoveries += 1
-                        recovery_event = {
-                            "kind": "trace",
-                            "name": "repair",
-                            "status": "error",
-                            "phase": "repair",
-                            "code": "task_stagnation_recovery",
-                            "summary": (
-                                f"检测到重复工具路径，已进入第 {agent_recoveries} 次错误恢复"
-                            ),
-                            "detail": {
+                        recovery_event = trace_event(
+                            name="repair",
+                            status="error",
+                            phase="repair",
+                            code="task_stagnation_recovery",
+                            summary=f"检测到重复工具路径，已进入第 {agent_recoveries} 次错误恢复",
+                            detail={
                                 "attempt": agent_recoveries,
                                 "retry_limit": max_agent_recoveries,
                                 "writes_seen": writes,
                                 "strategy": "保留当前证据，先重新检查状态和 diff，再选择不同路径",
                             },
-                        }
+                        )
                         events.append(recovery_event)
                         if on_event is not None:
                             on_event(recovery_event)
@@ -2803,26 +2787,27 @@ class AgentService:
                                     model_override=repair_route.model,
                                     reasoning_effort_override=repair_route.reasoning_effort,
                                 )
-                                switch_event = {
-                                    "kind": "trace",
-                                    "name": "repair",
-                                    "status": "ok",
-                                    "phase": "repair",
-                                    "code": "repair_stage_provider",
-                                    "summary": f"验证失败，修复阶段切换到 repair 档模型 {repair_route.model}",
-                                    "detail": {"model": repair_route.model, **repair_route.to_dict()},
-                                }
+                                switch_event = trace_event(
+                                    name="repair",
+                                    status="ok",
+                                    phase="repair",
+                                    code="repair_stage_provider",
+                                    summary=f"验证失败，修复阶段切换到 repair 档模型 {repair_route.model}",
+                                    detail={"model": repair_route.model, **repair_route.to_dict()},
+                                )
                                 events.append(switch_event)
                                 if on_event is not None:
                                     on_event(switch_event)
                             current_stage["name"] = "repair"
                             scope = repair_scope(events, verification_data)
-                            scope_event = {
-                                "kind": "trace", "name": "repair", "status": "ok", "phase": "repair",
-                                "code": "dependency_aware_repair_scope",
-                                "summary": f"已将修复范围收敛到 {len(scope['repair_targets'])} 个有证据关联的文件",
-                                "detail": scope,
-                            }
+                            scope_event = trace_event(
+                                name="repair",
+                                status="ok",
+                                phase="repair",
+                                code="dependency_aware_repair_scope",
+                                summary=f"已将修复范围收敛到 {len(scope['repair_targets'])} 个有证据关联的文件",
+                                detail=scope,
+                            )
                             events.append(scope_event)
                             if on_event is not None:
                                 on_event(scope_event)
@@ -2919,14 +2904,13 @@ class AgentService:
                                 + _unconverged_verification_note(verification_results)
                             )
                             aggregate.answer = f"任务未完成：{aggregate.error}"
-                            repeat_event = {
-                                "kind": "trace",
-                                "name": "completion_judge",
-                                "status": "error",
-                                "phase": "review",
-                                "code": "completion_verdict_repeated",
-                                "summary": "完成评估逐字重复上一轮要求且无新增活动，提前停止以免继续空转",
-                                "detail": {
+                            repeat_event = trace_event(
+                                name="completion_judge",
+                                status="error",
+                                phase="review",
+                                code="completion_verdict_repeated",
+                                summary="完成评估逐字重复上一轮要求且无新增活动，提前停止以免继续空转",
+                                detail={
                                     "review_attempt": completion_review_attempt,
                                     "continues": completion_continues,
                                     "limit": max_completion_continues,
@@ -2944,7 +2928,7 @@ class AgentService:
                                     # the witness that justified stopping.
                                     "action": "stop",
                                 },
-                            }
+                            )
                             events.append(repeat_event)
                             if on_event is not None:
                                 on_event(repeat_event)
@@ -2956,14 +2940,13 @@ class AgentService:
                                 + _unconverged_verification_note(verification_results)
                             )
                             aggregate.answer = f"任务未完成：{aggregate.error}"
-                            capped_event = {
-                                "kind": "trace",
-                                "name": "completion_judge",
-                                "status": "error",
-                                "phase": "review",
-                                "code": "completion_continue_capped",
-                                "summary": "完成评估多轮要求继续但未收敛，已停止以避免无限重跑",
-                                "detail": {
+                            capped_event = trace_event(
+                                name="completion_judge",
+                                status="error",
+                                phase="review",
+                                code="completion_continue_capped",
+                                summary="完成评估多轮要求继续但未收敛，已停止以避免无限重跑",
+                                detail={
                                     "rounds": completion_continues,
                                     "limit": max_completion_continues,
                                     "missing": list(decision.missing),
@@ -2978,7 +2961,7 @@ class AgentService:
                                         else None
                                     ),
                                 },
-                            }
+                            )
                             events.append(capped_event)
                             if on_event is not None:
                                 on_event(capped_event)
@@ -3001,15 +2984,14 @@ class AgentService:
                         detail = decision.error or "评审请求被模型端拒绝"
                         aggregate.error = f"完成评估请求被模型端拒绝：{detail}"
                         aggregate.answer = f"任务未完成：{aggregate.error}"
-                        rejected_event = {
-                            "kind": "trace",
-                            "name": "completion_judge",
-                            "status": "error",
-                            "phase": "review",
-                            "code": "completion_judge_rejected",
-                            "summary": "完成评估请求被确定性拒绝，重跑 agent 不会改变结论，已停止",
-                            "detail": {"error": detail},
-                        }
+                        rejected_event = trace_event(
+                            name="completion_judge",
+                            status="error",
+                            phase="review",
+                            code="completion_judge_rejected",
+                            summary="完成评估请求被确定性拒绝，重跑 agent 不会改变结论，已停止",
+                            detail={"error": detail},
+                        )
                         events.append(rejected_event)
                         if on_event is not None:
                             on_event(rejected_event)
@@ -3017,15 +2999,14 @@ class AgentService:
 
                     if completion_review_failures < 1:
                         completion_review_failures += 1
-                        retry_event = {
-                            "kind": "trace",
-                            "name": "completion_judge",
-                            "status": "error",
-                            "phase": "review",
-                            "code": "completion_judge_retry",
-                            "summary": "完成评估暂时不可用，已要求 agent 再次自检",
-                            "detail": {"error": decision.error or "invalid response"},
-                        }
+                        retry_event = trace_event(
+                            name="completion_judge",
+                            status="error",
+                            phase="review",
+                            code="completion_judge_retry",
+                            summary="完成评估暂时不可用，已要求 agent 再次自检",
+                            detail={"error": decision.error or "invalid response"},
+                        )
                         events.append(retry_event)
                         if on_event is not None:
                             on_event(retry_event)

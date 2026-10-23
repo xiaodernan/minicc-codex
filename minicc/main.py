@@ -53,6 +53,7 @@ from .route_wiring import (
 from .session import SessionError, SessionStore, list_sessions
 from .tools import Editor, ToolCall, ToolRegistry, ToolResult, approval_preview, build_registry
 from .tools.registry import AUTHORIZATION_RISKS
+from .trace import trace_event
 
 
 class StreamWriter:
@@ -505,15 +506,14 @@ async def _turn(
         # M11-T7: the route that picked the model is visible in the structured
         # log (the CLI has no event funnel), and its caps govern the run.
         log_task_event(
-            {
-                "kind": "trace",
-                "name": "router",
-                "status": "ok",
-                "phase": "planning",
-                "code": "stage_route",
-                "summary": "已应用规划阶段的模型与请求策略（CLI）",
-                "detail": route.to_dict(),
-            },
+            trace_event(
+                name="router",
+                status="ok",
+                phase="planning",
+                code="stage_route",
+                summary="已应用规划阶段的模型与请求策略（CLI）",
+                detail=route.to_dict(),
+            ),
             task_id=session_id or "cli",
         )
         budget = _stage_route_budget(
@@ -987,19 +987,18 @@ def main(argv: list[str] | None = None) -> int:
             run_budget.record_usage(usage)
         except BudgetExceeded as exc:
             log_task_event(
-                {
-                    "kind": "trace",
-                    "name": "subagent",
-                    "status": "error",
-                    "phase": "execution",
-                    "code": "budget_exceeded",
-                    "summary": str(exc),
-                    "detail": {
+                trace_event(
+                    name="subagent",
+                    status="error",
+                    phase="execution",
+                    code="budget_exceeded",
+                    summary=str(exc),
+                    detail={
                         "stage": "subagent",
                         "error": str(exc),
                         "tokens_used": dict(usage),
                     },
-                },
+                ),
                 task_id=session.path.stem if session else "cli",
             )
 

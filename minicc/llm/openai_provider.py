@@ -57,6 +57,7 @@ from tenacity import (
 from ..config import LLM_PROTOCOLS, REASONING_EFFORT_ALIASES, TOOL_MODES
 from .base import LLMResponse, is_nameless_tool_name, unique_tool_call_id
 from ..tools.schemas import tool_call_name
+from ..trace import trace_event
 from ..logging_setup import log_provider_event
 from .envelope import EnvelopeParseError, _render_envelope_action, envelope_system_suffix, parse_envelope
 from .stream_merge import AttemptTextAssembler, merge_retry_snapshot
@@ -611,20 +612,19 @@ class OpenAICompatibleProvider:
 
     def _emit_channel_switch(self, exc: BaseException) -> None:
         if self._on_status is not None:
-            self._on_status({
-                "kind": "trace",
-                "name": "provider",
-                "status": "ok",
-                "phase": "planning",
-                "code": "provider_channel_switched",
-                "summary": "主通道额度已用尽（402/Credit 上限），本次任务改用 Step Plan 套餐通道",
-                "detail": {
+            self._on_status(trace_event(
+                name="provider",
+                status="ok",
+                phase="planning",
+                code="provider_channel_switched",
+                summary="主通道额度已用尽（402/Credit 上限），本次任务改用 Step Plan 套餐通道",
+                detail={
                     "from": "paid",
                     "to": "plan",
                     "error_type": type(exc).__name__,
                     "status_code": getattr(exc, "status_code", None),
                 },
-            })
+            ))
 
     async def _attempt_once(
         self,
@@ -757,27 +757,25 @@ class OpenAICompatibleProvider:
 
     def _emit_protocol_fallback(self, exc: BaseException) -> None:
         if self._on_status is not None:
-            self._on_status({
-                "kind": "trace",
-                "name": "provider",
-                "status": "error",
-                "phase": "planning",
-                "code": "provider_protocol_fallback",
-                "summary": "当前网关不支持 Responses API，已自动回退到 Chat Completions 并继续任务",
-                "detail": {"protocol": "chat_completions", "error_type": type(exc).__name__},
-            })
+            self._on_status(trace_event(
+                name="provider",
+                status="error",
+                phase="planning",
+                code="provider_protocol_fallback",
+                summary="当前网关不支持 Responses API，已自动回退到 Chat Completions 并继续任务",
+                detail={"protocol": "chat_completions", "error_type": type(exc).__name__},
+            ))
 
     def _emit_transport_protocol_fallback(self, exc: BaseException) -> None:
         if self._on_status is not None:
-            self._on_status({
-                "kind": "trace",
-                "name": "provider",
-                "status": "error",
-                "phase": "planning",
-                "code": "provider_transport_fallback",
-                "summary": "Responses 连接在响应体阶段中断，已切换到 Chat Completions 继续任务",
-                "detail": {"protocol": "chat_completions", "error_type": type(exc).__name__},
-            })
+            self._on_status(trace_event(
+                name="provider",
+                status="error",
+                phase="planning",
+                code="provider_transport_fallback",
+                summary="Responses 连接在响应体阶段中断，已切换到 Chat Completions 继续任务",
+                detail={"protocol": "chat_completions", "error_type": type(exc).__name__},
+            ))
 
     @staticmethod
     def _looks_like_responses_rejection(exc: BaseException) -> bool:
@@ -1104,19 +1102,18 @@ class OpenAICompatibleProvider:
         outcome = retry_state.outcome
         exception = outcome.exception() if outcome is not None else None
         try:
-            self._on_status({
-                "kind": "trace",
-                "name": "provider",
-                "status": "error",
-                "phase": "planning",
-                "code": "provider_request_retry",
-                "summary": f"模型请求暂时失败，正在进行第 {retry_state.attempt_number + 1} 次尝试",
-                "detail": {
+            self._on_status(trace_event(
+                name="provider",
+                status="error",
+                phase="planning",
+                code="provider_request_retry",
+                summary=f"模型请求暂时失败，正在进行第 {retry_state.attempt_number + 1} 次尝试",
+                detail={
                     "attempt": retry_state.attempt_number + 1,
                     "retry_limit": self._max_retries + 1,
                     "error_type": type(exception).__name__ if exception is not None else "unknown",
                 },
-            })
+            ))
         except Exception:
             # Status reporting must never turn a recoverable provider failure
             # into a task failure.
@@ -1226,15 +1223,14 @@ class OpenAICompatibleProvider:
                 if attempt > self._max_retries or not _is_stream_retryable(exc):
                     raise
                 if self._on_status is not None:
-                    self._on_status({
-                        "kind": "trace",
-                        "name": "provider",
-                        "status": "error",
-                        "phase": "planning",
-                        "code": "provider_retry",
-                        "summary": f"模型流中断，正在进行第 {attempt + 1} 次重试",
-                        "detail": {"attempt": attempt + 1, "retry_limit": self._max_retries + 1},
-                    })
+                    self._on_status(trace_event(
+                        name="provider",
+                        status="error",
+                        phase="planning",
+                        code="provider_retry",
+                        summary=f"模型流中断，正在进行第 {attempt + 1} 次重试",
+                        detail={"attempt": attempt + 1, "retry_limit": self._max_retries + 1},
+                    ))
                 await asyncio.sleep(_stream_retry_delay(exc, attempt))
             finally:
                 # Every exit path - delivered response, raised protocol error,

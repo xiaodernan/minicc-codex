@@ -58,6 +58,7 @@ from .task_execution import WORKER_METADATA_FIELDS, WorkerDetached, WorkerSnapsh
 from .task_persistence import TaskSnapshotWriter
 from .tools.registry import redact_text
 from .workspaces import resolve_workspace_path
+from .trace import trace_event
 
 if TYPE_CHECKING:
     from .web import AgentService
@@ -314,15 +315,14 @@ def _completion_review_event(decision: CompletionDecision, attempt: int) -> dict
         "unknown": "完成评估不可用：暂不确认完成",
     }
     status = "ok" if decision.status == "complete" else "error" if decision.status in {"blocked", "unknown"} else "ok"
-    return {
-        "kind": "trace",
-        "name": "completion_judge",
-        "status": status,
-        "phase": "review",
-        "code": f"completion_{decision.status}",
-        "summary": labels.get(decision.status, labels["unknown"]),
-        "detail": {"attempt": attempt, **decision.to_dict(include_usage=True)},
-    }
+    return trace_event(
+        name="completion_judge",
+        status=status,
+        phase="review",
+        code=f"completion_{decision.status}",
+        summary=labels.get(decision.status, labels["unknown"]),
+        detail={"attempt": attempt, **decision.to_dict(include_usage=True)},
+    )
 
 
 def _is_bounded_readonly_plan(plan: DAGPlan) -> bool:
@@ -648,15 +648,14 @@ class TaskRecord:
             self.cancel_reason = str(reason or "user")
             self.cancel_event.cancel(self.cancel_reason)
             self._append_timeline_event_locked(
-                {
-                    "kind": "trace",
-                    "name": "task",
-                    "status": "error",
-                    "phase": "cancelled",
-                    "code": "cancel_requested",
-                    "summary": "已请求取消任务",
-                    "detail": {"reason": self.cancel_reason},
-                },
+                trace_event(
+                    name="task",
+                    status="error",
+                    phase="cancelled",
+                    code="cancel_requested",
+                    summary="已请求取消任务",
+                    detail={"reason": self.cancel_reason},
+                ),
                 allow_terminal=True,
             )
             validate_status_transition(self.status, "cancelled")
@@ -1320,18 +1319,19 @@ class TaskManager:
                 parent.set_phase("planning")
                 parent.started_at = parent.started_at or time.time()
                 assessment = parent.context.get("orchestration") if isinstance(parent.context, dict) else None
-                parent.add_event({
-                    "kind": "trace",
-                    "name": "orchestrator",
-                    "status": "ok",
-                    "phase": "planning",
-                    "code": "auto_orchestration_triggered" if parent.orchestration_mode == "auto" else "batch_started",
-                    "summary": (
-                        f"已识别为复杂任务，自动拆分 {len(child_ids)} 个只读侦察子任务"
+                parent.add_event(trace_event(
+                    name="orchestrator",
+                    status="ok",
+                    phase="planning",
+                    code=(
+                        "auto_orchestration_triggered"
                         if parent.orchestration_mode == "auto"
-                        else f"已拆分 {len(child_ids)} 个独立子任务，交给并行执行器"
+                        else "batch_started"
                     ),
-                    "detail": {
+                    summary=f"已识别为复杂任务，自动拆分 {len(child_ids)} 个只读侦察子任务"
+                    if parent.orchestration_mode == "auto"
+                    else f"已拆分 {len(child_ids)} 个独立子任务，交给并行执行器",
+                    detail={
                         "child_count": len(child_ids),
                         "session_id": parent.session_id,
                         "automatic": parent.orchestration_mode == "auto",
@@ -1346,7 +1346,7 @@ class TaskManager:
                         "dependency_shape": "children -> merge -> implement -> verify",
                         "merge_strategy": "主 Agent 基于子任务证据重新核实后继续",
                     },
-                })
+                ))
                 self._persist_task(parent, force=True)
                 for child_id in child_ids:
                     child = self.tasks.get(child_id)
@@ -1537,12 +1537,14 @@ class TaskManager:
                 "batch_orchestration_mode": orchestration_mode,
             })
             if plan_result is not None and plan_result.source == "fixed_fallback":
-                parent.add_event({
-                    "kind": "trace", "name": "planner", "status": "error", "phase": "planning",
-                    "code": "planner_fixed_fallback",
-                    "summary": "动态计划不符合安全约束，已回退固定执行模板",
-                    "detail": {"reason": plan_result.reason},
-                })
+                parent.add_event(trace_event(
+                    name="planner",
+                    status="error",
+                    phase="planning",
+                    code="planner_fixed_fallback",
+                    summary="动态计划不符合安全约束，已回退固定执行模板",
+                    detail={"reason": plan_result.reason},
+                ))
             self.tasks[parent.task_id] = parent
             self._persist_task(parent, force=True)
         ids: list[str] = []
@@ -1748,21 +1750,20 @@ class TaskManager:
                     if child_id in reported_children or child.get("status") not in TERMINAL_TASK_STATUSES:
                         continue
                     reported_children.add(child_id)
-                    parent.add_event({
-                        "kind": "trace",
-                        "name": "orchestrator",
-                        "status": "error" if child.get("status") in TASK_UNSUCCESSFUL_STATUSES else "ok",
-                        "phase": "planning",
-                        "code": "subagent_finished",
-                        "summary": f"子任务 {index} 已{child.get('status')}",
-                        "detail": {
+                    parent.add_event(trace_event(
+                        name="orchestrator",
+                        status="error" if child.get("status") in TASK_UNSUCCESSFUL_STATUSES else "ok",
+                        phase="planning",
+                        code="subagent_finished",
+                        summary=f"子任务 {index} 已{child.get('status')}",
+                        detail={
                             "child": index,
                             "task_id": child_id,
                             "status": child.get("status"),
                             "tokens": (child.get("tokens_used") or {}).get("total_tokens", 0),
                             **_child_result_digest(child),
                         },
-                    })
+                    ))
                 parent.merge_context({
                     "children_completed": completed,
                     "children_total": len(child_ids),
@@ -1787,21 +1788,20 @@ class TaskManager:
                 parent.orchestration_context = evidence
                 parent.execution_message = f"{parent.message}\n\n{evidence}"
                 parent.set_phase("planning")
-                parent.add_event({
-                    "kind": "trace",
-                    "name": "orchestrator",
-                    "status": "ok",
-                    "phase": "planning",
-                    "code": "orchestration_parent_resumed",
-                    "summary": "只读侦察已完成，主 Agent 接管原始任务并开始实施",
-                    "detail": {
+                parent.add_event(trace_event(
+                    name="orchestrator",
+                    status="ok",
+                    phase="planning",
+                    code="orchestration_parent_resumed",
+                    summary="只读侦察已完成，主 Agent 接管原始任务并开始实施",
+                    detail={
                         "child_count": len(child_ids),
                         "failed": sum(item.get("status") in TASK_UNSUCCESSFUL_STATUSES for item in snapshots),
                         "evidence": [_child_result_digest(item) for item in snapshots],
                         "merge_basis": "并行子任务的有限摘要和阶段证据；关键结论仍由主 Agent 重新检查",
                         "next_action": "主 Agent 重新检查关键文件，必要时修改并验证",
                     },
-                })
+                ))
                 self._persist_task(parent, force=True)
                 parent.future = self.executor.submit(self._run, parent)
                 handed_off = True
@@ -1823,20 +1823,19 @@ class TaskManager:
                 }
             elif hasattr(self.service, "merge_batch"):
                 parent.set_phase("merging")
-                parent.add_event({
-                    "kind": "trace",
-                    "name": "orchestrator",
-                    "status": "ok",
-                    "phase": "merging",
-                    "code": "batch_merge_started",
-                    "summary": "所有子任务已结束，正在合并结果与验证证据",
-                    "detail": {
+                parent.add_event(trace_event(
+                    name="orchestrator",
+                    status="ok",
+                    phase="merging",
+                    code="batch_merge_started",
+                    summary="所有子任务已结束，正在合并结果与验证证据",
+                    detail={
                         "child_count": len(child_ids),
                         "parallel_results": [_child_result_digest(item) for item in snapshots],
                         "merge_basis": "子任务公开回答、工具阶段摘要和任务状态",
                         "next_action": "合并后向用户交付，并保留失败项和未验证风险",
                     },
-                })
+                ))
                 self._persist_task(parent, force=True)
 
                 def on_merge_stream(delta: str) -> None:
@@ -1884,19 +1883,18 @@ class TaskManager:
                     # so the trip is witnessed with the same named event the
                     # planner/judge/DAG/subagent folds emit - never swallowed,
                     # never fatal to the delivered merge.
-                    parent.add_event({
-                        "kind": "trace",
-                        "name": "orchestrator",
-                        "status": "error",
-                        "phase": "merging",
-                        "code": "budget_exceeded",
-                        "summary": str(result["budget_exceeded"]),
-                        "detail": {
+                    parent.add_event(trace_event(
+                        name="orchestrator",
+                        status="error",
+                        phase="merging",
+                        code="budget_exceeded",
+                        summary=str(result["budget_exceeded"]),
+                        detail={
                             "stage": "merge",
                             "error": str(result["budget_exceeded"]),
                             "tokens_used": dict(result.get("tokens_used") or {}),
                         },
-                    })
+                    ))
                 # The subtask fold is not done here any more: it belongs to
                 # ``_roll_up_tokens``, which every terminal path below calls.
                 # Doing it in only one branch is how a failed merge lost its
@@ -1908,21 +1906,20 @@ class TaskManager:
                     for index, item in enumerate(snapshots, start=1)
                 )
                 result = {"answer": answer, "cancelled": False, "children": snapshots}
-            parent.add_event({
-                "kind": "trace",
-                "name": "orchestrator",
-                "status": "error" if result.get("error") else "ok",
-                "phase": "merging" if parent.phase == "merging" else "planning",
-                "code": "batch_finished",
-                "summary": "并行结果已整理，父任务即将交付",
-                "detail": {
+            parent.add_event(trace_event(
+                name="orchestrator",
+                status="error" if result.get("error") else "ok",
+                phase="merging" if parent.phase == "merging" else "planning",
+                code="batch_finished",
+                summary="并行结果已整理，父任务即将交付",
+                detail={
                     "child_count": len(child_ids),
                     "failed": sum(item.get("status") in TASK_UNSUCCESSFUL_STATUSES for item in snapshots),
                     "parallel_results": [_child_result_digest(item) for item in snapshots],
                     "merge_basis": "已完成子任务结果与合并器输出",
                     "result_summary": redact_text(str(result.get("answer") or result.get("error") or ""))[0][:1200],
                 },
-            })
+            ))
             parent.apply_result(result)
             self._roll_up_tokens(parent)
             with parent.lock:
@@ -2710,25 +2707,22 @@ class TaskManager:
                     "resume_session": recovery_mode == "session_checkpoint",
                 },
             }
-            resumed.add_event({
-                "kind": "trace",
-                "name": "recovery",
-                "status": "ok",
-                "phase": "planning",
-                "code": recovery_mode,
-                "summary": (
-                    "已从最近一次会话检查点继续"
-                    if recovery_mode == "session_checkpoint"
-                    else "已从安全只读检查点恢复"
-                    if recovery_mode == "safe_readonly_checkpoint"
-                    else "恢复前需要重新检查工作区"
-                ),
-                "detail": {
+            resumed.add_event(trace_event(
+                name="recovery",
+                status="ok",
+                phase="planning",
+                code=recovery_mode,
+                summary="已从最近一次会话检查点继续"
+                if recovery_mode == "session_checkpoint"
+                else "已从安全只读检查点恢复"
+                if recovery_mode == "safe_readonly_checkpoint"
+                else "恢复前需要重新检查工作区",
+                detail={
                     "source_task_id": task.task_id,
                     "workspace_digest_matches": digest_matches,
                     "resume_session": recovery_mode == "session_checkpoint",
                 },
-            })
+            ))
             self._persist_task(resumed, force=True)
             self._queue_task_locked(resumed)
         return resumed.snapshot()
@@ -2781,15 +2775,14 @@ class TaskManager:
                     **new_parent.context,
                     "recovery": {"source_task_id": task.task_id, "mode": "batch_resume"},
                 }
-                new_parent.add_event({
-                    "kind": "trace",
-                    "name": "recovery",
-                    "status": "ok",
-                    "phase": "planning",
-                    "code": "batch_resume",
-                    "summary": f"已恢复批量任务，重建 {len(messages)} 个子任务",
-                    "detail": {"source_task_id": task.task_id, "child_count": len(messages)},
-                })
+                new_parent.add_event(trace_event(
+                    name="recovery",
+                    status="ok",
+                    phase="planning",
+                    code="batch_resume",
+                    summary=f"已恢复批量任务，重建 {len(messages)} 个子任务",
+                    detail={"source_task_id": task.task_id, "child_count": len(messages)},
+                ))
                 self._persist_task(new_parent, force=True)
         return created
 

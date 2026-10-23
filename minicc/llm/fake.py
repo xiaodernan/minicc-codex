@@ -13,6 +13,7 @@ import re
 from typing import Any
 
 from .base import LLMResponse
+from ..trace import trace_event
 
 
 # M4-T4: deterministic per-turn usage so the cost pipeline (pricing.cost_usd →
@@ -84,15 +85,14 @@ class FakeProvider:
             for attempt in range(self._faults):
                 # Same payload shape as the real stream retry, so a log or
                 # event assertion written here describes the production trace.
-                self._emit({
-                    "kind": "trace",
-                    "name": "provider",
-                    "status": "error",
-                    "phase": "planning",
-                    "code": "provider_retry",
-                    "summary": f"模型流中断，正在进行第 {attempt + 1} 次重试",
-                    "detail": {"attempt": attempt + 1, "retry_limit": 2},
-                })
+                self._emit(trace_event(
+                    name="provider",
+                    status="error",
+                    phase="planning",
+                    code="provider_retry",
+                    summary=f"模型流中断，正在进行第 {attempt + 1} 次重试",
+                    detail={"attempt": attempt + 1, "retry_limit": 2},
+                ))
             # M4-T1: a zero-write readonly task still needs at least one
             # citable tool observation, otherwise the completion judge has
             # nothing but trace ids and must refuse to converge. Emit one
