@@ -9,6 +9,27 @@ from .logging_setup import get_logger
 
 LOG = get_logger("task")
 
+#: The one log event name for a task snapshot that never landed.  Three
+#: sites emit it - this module's drain loop, this module's close drain,
+#: and the service shutdown in ``task_manager`` - and the middle field
+#: differs per site (``source=drain_loop``, ``attempt=%d``,
+#: ``source=shutdown``).  The event name is the token an operator greps
+#: for.  A site that spelled it by hand would drop out of that grep
+#: without failing anything, which is how a snapshot that never landed
+#: stops being visible at all.
+TASK_SNAPSHOT_WRITE_FAILED = "task_snapshot_write_failed"
+
+
+def task_snapshot_write_failed_event(middle: str) -> str:
+    """The one log line for a task snapshot that never landed.
+
+    ``middle`` is the live part - which attempt, or which source.  The
+    event name and the ``task_id=`` / ``error=`` skeleton are the shared
+    fact: they are what makes three different failures one searchable
+    event.
+    """
+    return f"{TASK_SNAPSHOT_WRITE_FAILED} task_id=%s {middle} error=%s: %s"
+
 
 class TaskSnapshotWriter:
     """Keep one dirty reference per task and provide a synchronous final flush.
@@ -70,7 +91,7 @@ class TaskSnapshotWriter:
                 except Exception as exc:  # callbacks stay responsive; final writes surface errors
                     self.last_error = exc
                     LOG.warning(
-                        "task_snapshot_write_failed task_id=%s source=drain_loop error=%s: %s",
+                        task_snapshot_write_failed_event("source=drain_loop"),
                         getattr(task, "task_id", "?"),
                         type(exc).__name__,
                         str(exc)[:200],
@@ -103,7 +124,7 @@ class TaskSnapshotWriter:
                 except Exception as exc:  # noqa: BLE001 - surfaced to the caller and the log
                     lost[task_id] = exc
                     LOG.warning(
-                        "task_snapshot_write_failed task_id=%s attempt=%d error=%s: %s",
+                        task_snapshot_write_failed_event("attempt=%d"),
                         task_id,
                         attempt + 1,
                         type(exc).__name__,

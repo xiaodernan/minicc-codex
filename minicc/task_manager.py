@@ -78,7 +78,7 @@ from .task_contract import (
     resolve_task_permissions,
 )
 from .task_execution import WORKER_METADATA_FIELDS, WorkerDetached, WorkerSnapshotMirror, has_live_worker
-from .task_persistence import TaskSnapshotWriter
+from .task_persistence import TaskSnapshotWriter, task_snapshot_write_failed_event
 from .tools.registry import redact_text
 from .workspaces import resolve_workspace_path
 from .trace import trace_event
@@ -3004,7 +3004,7 @@ class TaskManager:
                     self._persist_task(task, force=True)
                 except Exception as exc:  # noqa: BLE001 - one task's write error must not strand the rest
                     LOG.warning(
-                        "task_snapshot_write_failed task_id=%s source=shutdown error=%s: %s",
+                        task_snapshot_write_failed_event("source=shutdown"),
                         task.task_id,
                         type(exc).__name__,
                         str(exc)[:200],

@@ -31107,3 +31107,100 @@ Windows 权限位平台性 ✓）。慢测试未跑 ✓，全量 pytest 未跑 �
 会漏掉多一个空格 ✓——三条断言各管一个方向 ✓，缺一条就有一个方向的
 漂移能活着走出去 ✓**。可以固化成一张表 ✓：防手拼按开头 ✓、查邻居按
 相等 ✓、钉字节按精确值 ✓。
+
+## 第四百六十批 — M8-T476 — 任务快照写失败的日志事件名一个家
+
+### 1 缺陷
+
+`task_snapshot_write_failed` 这个日志事件名 + `task_id=%s ... error=%s: %s`
+骨架在 **3 处**手拼，跨 **2 个文件**：
+
+- `minicc/task_persistence.py` 的 drain loop：`source=drain_loop`
+- `minicc/task_persistence.py` 的 close drain：`attempt=%d`
+- `minicc/task_manager.py` 的 service shutdown：`source=shutdown`
+
+这个事件名是运维 grep 的**唯一凭据**——「有没有快照没落地」这个问题的
+全部可见性都拴在它身上。三个点各写一遍，改一处就只改到三分之一：剩下
+两处照旧发旧事件名，而**没有任何东西会失败**——磁盘写失败的日志会照常
+出现、级别照旧、措辞照旧，只是运维 grep 的那个 token 再也匹配不到那三分
+之一。一个后台线程安静地停止汇报，比它大声报错更难发现。这正是「一个
+事实多个家」里**观测面**的那一类坏法：前几批（答词、判词、错误码）坏的
+是**决策面**——程序按不同的词走不同的路；这一批坏的是**取证面**——人
+按不同的词找不同的证据。
+
+### 2 落地
+
+- `TASK_SNAPSHOT_WRITE_FAILED` 与造句器 `task_snapshot_write_failed_event(middle)`
+  安家在 `minicc/task_persistence.py` 的 `LOG` 之后、`TaskSnapshotWriter` 之前
+  （最弱调用点在那，`task_manager` 的 shutdown 是三个里最不常跑的一条）
+- **中间字段作活值**：三处的差异全在 middle（`source=drain_loop` /
+  `attempt=%d` / `source=shutdown`），事件名与 `task_id=`/`error=` 骨架才是
+  共享事实——沿用 T471 的结论：「值不同」不是拒绝立家的理由
+- `minicc/task_manager.py` import 行加 `task_snapshot_write_failed_event`，
+  shutdown 那一处改引
+- **三行逐字节相同**（脚本比对），logger 的 `%s` 插值次序不变
+- 无任何既有测试钉住这三行原文（grep 确认）
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T476-264 | drain loop 把手拼行改回去 | 4 条红（唯一承载者 + 唯一定义 + 三调用点） |
+| M8-T476-265 | shutdown 把手拼行改回去 | 4 条红（同上） |
+| M8-T476-266 | 事件名漂移 `..._failed` 变成 `..._fail` | 4 条红（精确值 + census） |
+| M8-T476-267 | 骨架漂移 `task_id=%s` 变成 `task_id %s` | 3 条红（造句器形状 + 三行逐字节） |
+| M8-T476-268 | 冒出第四个 middle `attempt=%d source=close` | 1 条红（middle 闭集） |
+| M8-T476-269 | 在 task_manager 里另立一个同名造句器 | 3 条红（唯一定义） |
+
+六条全部 KILLED，恢复后字节相同。
+
+### 4 新增门禁
+
+新增 `tests/test_the_task_snapshot_write_failed_log_has_one_home.py`（9 条）：
+
+1. 事件名是那一个常量
+2. 造句器 = 事件名 + 骨架（形状断言）
+3. **事件名在全树只有一个承载者**且在 `task_persistence`
+4. **无其他常量以事件名开头**（防手拼那条按开头判——T472/T475 的教训）
+5. 造句器只定义一次
+6. **恰好三个调用点**（2 在 persistence + 1 在 task_manager）
+7. **middle 是闭集** `{source=drain_loop, attempt=%d, source=shutdown}`，且
+   必须是字面量
+8. **三行逐字节**
+9. **真实 logger 往返**（caplog 里插值后的样子）
+
+### 5 一条教训
+
+**「三个发射点共享同一个 token」这件事，值的不是那三行字符串，值的是
+「一次 grep 能找齐」这个性质。** 所以门禁不能只钉字节——字节对了照样
+可以有三个家、三个 grep 各找一部分。真正的断言是**承载者唯一** +
+**调用点计数精确**，字节断言只是兜底。这一批把 T471 的「动词作活值」和
+T472/T475 的「census 三判表」两条老教训同时用上了，没有新踩坑——说明
+那两条已经固化住了。
+
+聚焦回归：新门 9 条 + task_persistence / failed_terminal_write x2 /
+event_durability / task_store_durability / snapshots 共 59 条，
+`test_core_task.py` 32 条、`test_logging.py` 26 条（单独跑，避开已知的
+组合污染），全绿。慢测试未跑，全量 pytest 未跑。
+
+**环境陷阱（本批踩到并已修）**：往 CRLF 文件里追加内容时，脚本若写
+	ext.replace('
+', '
+')，而 text 里**已经是** 
+，就会把旧部分
+整体变成 
+；git 的 autocrlf 清洗只会去掉一层 \\r，于是索引里存下
+的仍是 CRLF、文件被打上 -text、diff 变成三万行纯空白噪声。判据：
+cur.count(b'
+') 与 cur.count(b'
+') 是否相等。正确做法是先
+while b'
+' in b: b = b.replace(b'
+', b'
+') 归一成 LF，追加完再
+一次性 
+eplace(b'
+', b'
+')。已 amend 修正，最终 diff 为干净的
++75 行。
+
