@@ -22,6 +22,14 @@ from ..tools.bash import split_command_argv
 # ``is_verification_evidence``) so loop.py asks one stable question.
 WRITE_TOOL_NAMES = frozenset({"write_file", "edit_file", "worktree_create", "worktree_remove"})
 
+# M8-T390: the Node package managers.  Both questions below ask it -
+# "does this command mutate the workspace" and "does this command count
+# as verification evidence" - and M8-T324 requires the two answers to
+# agree about a script that rewrites sources.  Two inline copies of this
+# set meant a fourth manager (``bun``) could be a write on one face and
+# evidence on the other.
+NODE_PACKAGE_MANAGERS = frozenset({"npm", "pnpm", "yarn"})
+
 # Programs whose normal use rewrites the filesystem.
 _MUTATING_PROGRAMS = frozenset({
     "mv", "cp", "rm", "rmdir", "mkdir", "touch", "dd", "ln", "shred",
@@ -105,7 +113,7 @@ def command_may_modify_workspace(command: str) -> bool:
             tok in _PKG_MUTATING for tok in rest
         ):
             return True
-        if program in {"npm", "yarn", "pnpm"}:
+        if program in NODE_PACKAGE_MANAGERS:
             # M8-T324: a **script** that rewrites the sources is a write:
             # ``npm run format`` (prettier --write) and ``npm run lint:fix``
             # (eslint --fix) rewrite the very files they look at.  The
@@ -246,7 +254,7 @@ def is_verification_evidence(tool: str, arguments: dict[str, Any] | None, status
         return bool(arguments and (arguments[0] == "check" and "--fix" not in arguments or arguments[0] == "format" and "--check" in arguments))
     if executable == "node":
         return len(arguments) == 2 and arguments[0] == "--check"
-    if executable in {"npm", "pnpm", "yarn"}:
+    if executable in NODE_PACKAGE_MANAGERS:
         script = arguments[1] if len(arguments) >= 2 and arguments[0] == "run" else arguments[0] if arguments else ""
         return bool(re.fullmatch(r"(?:test(?::[\w-]+)?|check(?::[\w-]+)?|typecheck|lint|build)", script))
     return False
