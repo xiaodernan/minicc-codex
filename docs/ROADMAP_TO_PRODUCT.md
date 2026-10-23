@@ -25441,3 +25441,53 @@ clean 过滤器，所以量出来的 1/1 是 blob 层面的事实，不是工作
 这次第三个家住在 JS 里 ✓——只写 Python 门的话，前端那份副本**永远不在任何门的视野里** ✓。
 所以门分两半 ✓：Python 那半扫 `minicc/` ✓，Node 那半扫 `web/src/` ✓，
 两半各问各的问题 ✓（「拼写归 AST」与「成员归运行时」✓），合起来才盖住一个事实的全部家 ✓。
+
+
+## 第三百六十九批 — M8-T385 — 工作区内部目录 {.git, .minicc}：变更扫描忽略它，快照 journal 拒绝它，各写一份
+
+### 1 缺陷
+
+「哪些目录装的是工具自己的状态」这个事实有两个家 ✓：
+
+| 家 | 用途 |
+| --- | --- |
+| `minicc/changes.py`:56 | `_ignored_path`：变更扫描跳过内部目录 ✓ |
+| `minicc/snapshots.py`:53 | `_relative`：快照清单拒绝内部路径 ✓ |
+
+一个 `.minicc` 字符串 ✓，两个 frozenset/set 字面量 ✓。哪天内部目录改名或新增 ✓
+（比如 `.minicc-worker` ✓），漏改的那半要么把内部状态算进用户变更 ✓，要么把内部路径
+放进取回快照 ✓——两半都沉默 ✓。
+
+### 2 落地
+
+* **建家** ✓：`minicc/changes.py` 新增 `INTERNAL_DIRS = frozenset({".git", ".minicc"})` ✓
+  （忽略集合的属地 ✓）。
+* **snapshots.py** 改导入使用 ✓（`snapshots.INTERNAL_DIRS is changes.INTERNAL_DIRS` ✓——
+  同一个对象 ✓，不是第三份拷贝 ✓）。注意 `snapshots.py` 原本只依赖标准库 ✓，
+  这一笔让它依赖 `changes` ✓，换来的是同一个事实 ✓；环不存在 ✓（changes 不 import snapshots ✓，
+  tools.editor / tools.registry 也不 import snapshots ✓）。
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T385-169 | `snapshots.py` 的校验退回行内 `{".git", ".minicc"}` | 1 条红（AST 扫描抓到 ✓） |
+
+### 4 新增门禁
+
+`tests/test_the_internal_dirs_have_one_home.py`（4 条）✓：
+
+1. 家在 `changes.py` ✓、成员正确 ✓
+2. `snapshots.INTERNAL_DIRS is changes.INTERNAL_DIRS` ✓（**同一个对象** ✓，不是值相等的第三份 ✓）
+3. 任何模块不许行内拼写这个集合 ✓（AST 扫描 ✓）
+4. 两个读者的行为不变 ✓（`.minicc/…` 依旧被忽略/拒绝 ✓，正常源码路径依旧放行 ✓）
+
+聚焦回归 ✓：门 4 条 + `test_changes_pure.py` + `test_core_task.py` +
+`test_a_failed_terminal_write_must_not_lose_the_snapshot.py` 共 61 条 ✓，全绿 ✓。
+全量 pytest 未跑 ✓。
+
+### 5 一条教训
+
+**「同一对象」比「值相等」更值得钉。** ✓ 第 2 条断言写的是 `is` 而不是 `==` ✓：
+值相等允许「两处各写一份一样的集合」通过 ✓，而那正是本批要消灭的形状 ✓。
+门的断言精度 ✓，就是缺陷的复现精度 ✓。

@@ -11,6 +11,8 @@ import shutil
 import subprocess
 import threading
 from pathlib import Path, PurePosixPath, PureWindowsPath
+
+from .changes import INTERNAL_DIRS
 from typing import Any
 
 _SAFE_TASK_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,80}$")
@@ -50,7 +52,7 @@ def _relative(raw: object) -> str:
     if "\0" in rel or ":" in rel or PureWindowsPath(rel).drive or PurePosixPath(rel).is_absolute() or ".." in PurePosixPath(rel).parts:
         raise SnapshotError(f"快照路径越界: {rel}")
     parts = PurePosixPath(rel).parts
-    if not parts or parts[0].casefold() in {".git", ".minicc"}:
+    if not parts or parts[0].casefold() in INTERNAL_DIRS:
         raise SnapshotError(f"快照包含内部路径: {rel}")
     return rel
 

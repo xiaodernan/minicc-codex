@@ -49,11 +49,17 @@ _SUMMARY_CACHE: OrderedDict[str, tuple[object, list[dict[str, Any]]]] = OrderedD
 _CACHE_LOCK = threading.Lock()
 
 
+# M8-T385: the directories that hold tool-internal state inside a workspace.
+# Two readers need this fact - change inspection skips them, and the snapshot
+# journal refuses them - and each used to spell the set out itself.  One home.
+INTERNAL_DIRS = frozenset({".git", ".minicc"})
+
+
 def _ignored_path(path: str) -> bool:
     normalized = path.replace("\\", "/").lstrip("/")
     if normalized.startswith("./"):
         normalized = normalized[2:]
-    return normalized in {".git", ".minicc"} or normalized.startswith(_IGNORED_PREFIXES)
+    return normalized in INTERNAL_DIRS or normalized.startswith(_IGNORED_PREFIXES)
 
 
 class ChangeInspector:
