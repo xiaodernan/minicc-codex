@@ -34,6 +34,11 @@ CODE_TOOL_ERROR = "TOOL_ERROR"
 CODE_DENIED = "DENIED"
 
 RISK_LEVELS = ("readonly", "write", "exec")
+# The risks that require the user's authorization: every declared risk level
+# except the readonly one. Derived from RISK_LEVELS so a future risk level is
+# gated by default - a hand-written {"write", "exec"} would let it run
+# unasked on both faces.
+AUTHORIZATION_RISKS = frozenset(RISK_LEVELS) - {"readonly"}
 
 # Stable plugin contract. Bump TOOL_API_VERSION only when a field changes
 # meaning; a spec may never assume a *newer* contract than the host runs.

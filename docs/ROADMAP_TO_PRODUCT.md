@@ -26072,3 +26072,58 @@ AST 扫描的断言写法决定了门能看见什么 ✓。`all(...)` 问的是�
 拼写」✓，`len == 1` 问的是「是不是只有家那一个」✓——后者才防得住
 **同文件内的第二次手抄** ✓。而同文件重复恰恰是最常见的形状 ✓
 （T390、T392、T396 都是同文件 ✓）。从此门禁断言一律数数 ✓。
+
+
+## 第三百八十一批 — M8-T397 — 「需要授权的风险」两个家：audit 授权门与 CLI 审批 prompt
+
+### 1 缺陷
+
+「哪些风险等级需要用户授权」这个事实被手写了**两次** ✓：
+
+| 行 | 拼写 | 用途 |
+| --- | --- | --- |
+| `minicc/audit.py:107` | `effective_risk(...) in {"write", "exec"}` | `tool_requires_authorization`：非只读风险才过授权门 ✓ |
+| `minicc/main.py:404` | `risk not in {"write", "exec"}` | CLI 审批 prompt：只对非只读风险弹窗 ✓ |
+
+而风险等级的**全集**早有家 ✓——`RISK_LEVELS = ("readonly", "write", "exec")`
+（`minicc/tools/registry.py:36` ✓）。两张脸各写一份子集 ✓：将来加一种风险
+（比如 `network` ✓），全集那边加 ✓、这两处忘了加 ✓，**新风险在两张脸上都
+免审直行** ✓——授权门形同虚设 ✓，且没人会收到审批框 ✓。
+
+### 2 落地
+
+* **派生家** ✓：`registry.py` 在 `RISK_LEVELS` 旁新增
+  `AUTHORIZATION_RISKS = frozenset(RISK_LEVELS) - {"readonly"}` ✓。
+* **两处收口** ✓：`audit.py`（`from .tools.registry import` ✓，与既有的
+  `.tools.bash` 导入同向 ✓）与 `main.py` 都改问家 ✓，同对象 ✓。
+* **fail-closed 的推导方向** ✓：新风险等级默认落入「需要授权」✓，
+  而不是默认放行 ✓——安全语义上 ✓，漏改一处的后果从「免审」变成「多问一次」✓。
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T397-181 | main.py 判定退回行内 `{"write", "exec"}` | 1 条红（AST 扫描抓到 ✓） |
+
+### 4 新增门禁
+
+`tests/test_the_authorization_risks_have_one_home.py`（4 条）✓：
+
+1. 家在 `registry.py` ✓、且**由 RISK_LEVELS 减去 readonly 派生** ✓（不是第二份手抄 ✓）
+2. 两张脸导入的是**同一个对象** ✓（`is` 断言 ✓）
+3. 全包不许出现行内 `{"write", "exec"}` ✓（AST 扫描 ✓；派生家本身零字面量 ✓）
+4. 行为不变 ✓：write/exec 照过授权门 ✓、readonly 照过 ✓
+   （`tool_requires_authorization` 直接驱动 ✓）
+
+聚焦回归 ✓：门 4 条 + `test_audit_authorization.py` + `test_permissions_approval.py` +
+`test_the_permission_prompt_treats_a_ctrl_c_as_a_denial.py` 共 73 条 ✓，全绿 ✓。
+全量 pytest 未跑 ✓。
+
+### 5 一条教训
+
+**子集要从家里长出来，而且要朝着安全的方向长。** ✓ 本批与 T395 是同一个
+模式第二次出现 ✓：事实的全集有家 ✓、子集在两处手抄 ✓。值得记的是推导的
+**方向** ✓：`- {"readonly"}` 让新等级默认要授权 ✓；若图省事写
+`+ {"write", "exec"}` 式的显式列举 ✓，将来加等级时两边都要改 ✓，漏改的后果
+是免审 ✓。派生式的漏改后果只是多弹一次框 ✓——**同一个错误 ✓，两种代价 ✓，
+选代价小的那种形状 ✓**。

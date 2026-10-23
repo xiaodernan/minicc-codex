@@ -16,6 +16,7 @@ from typing import Any
 from .allowlist import match_session_allowlist, path_rule_matches
 from .permissions import load_permission_rules, match_permission_rule
 from .tools.bash import is_readonly_command, split_command_argv
+from .tools.registry import AUTHORIZATION_RISKS
 
 
 # M3-T4: argv-aware network detection. The old substring blacklist missed
@@ -104,7 +105,7 @@ def tool_requires_authorization(
     target depends on them - a call that writes outside the workspace is a
     write, whatever the tool declared.
     """
-    if effective_risk(tool, risk, arguments) in {"write", "exec"}:
+    if effective_risk(tool, risk, arguments) in AUTHORIZATION_RISKS:
         return True
     return is_network_tool(tool, capabilities)
 

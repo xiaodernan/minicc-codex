@@ -52,6 +52,7 @@ from .route_wiring import (
 )
 from .session import SessionError, SessionStore, list_sessions
 from .tools import Editor, ToolCall, ToolRegistry, ToolResult, approval_preview, build_registry
+from .tools.registry import AUTHORIZATION_RISKS
 
 
 class StreamWriter:
@@ -401,7 +402,7 @@ def _permission_gate(
         if decision.authorization == "missing_task_network":
             cli_out(f"\n[minicc] 联网工具需要 --allow-network：{name} ({_tool_preview(call)})")
             return False
-        if risk not in {"write", "exec"}:
+        if risk not in AUTHORIZATION_RISKS:
             cli_out(f"\n[minicc] 已拒绝 {name} ({_tool_preview(call)}): {decision.reason}")
             return False
         cli_out(f"\n[minicc] 即将调用高风险工具 {name} ({_tool_preview(call)})")
