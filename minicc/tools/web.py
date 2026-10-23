@@ -108,6 +108,18 @@ def _result_url(raw_url: str) -> str:
     return value
 
 
+def search_result(title: str, url: str, snippet: str) -> dict[str, str]:
+    """The one shape of a web search result record.
+
+    Three sites build it: the DuckDuckGo parser's finished entry, the
+    Bing parser's placeholder entry, and the merge that caps every
+    field.  A key one copy forgets is a result the caller renders
+    without a title, a url or a snippet - and the render path reads
+    exactly these three keys.
+    """
+    return {"title": title, "url": url, "snippet": snippet}
+
+
 class _DuckDuckGoParser(HTMLParser):
     """Parse only stable result classes, ignoring page instructions."""
 
@@ -132,7 +144,7 @@ class _DuckDuckGoParser(HTMLParser):
             return
         text = " ".join("".join(self._buffer).split())
         if self._active == "title" and text:
-            self.results.append({"title": text, "url": _result_url(self._href), "snippet": ""})
+            self.results.append(search_result(text, _result_url(self._href), ""))
         elif self._active == "snippet" and text and self.results:
             self.results[-1]["snippet"] = text
         self._active = None
@@ -216,7 +228,7 @@ class _BingParser(HTMLParser):
         classes = _class_names(attrs)
         if self._result is None:
             if tag == "li" and "b_algo" in classes:
-                self._result = {"title": "", "url": "", "snippet": ""}
+                self._result = search_result("", "", "")
                 self._result_depth = 0
             return
         if self._capture is not None:
@@ -277,11 +289,11 @@ def parse_search_html(html: str, max_results: int = MAX_RESULTS) -> list[dict[st
             continue
         seen.add(url)
         output.append(
-            {
-                "title": item.get("title", "")[:240],
-                "url": url[:2000],
-                "snippet": item.get("snippet", "")[:700],
-            }
+            search_result(
+                item.get("title", "")[:240],
+                url[:2000],
+                item.get("snippet", "")[:700],
+            )
         )
         if len(output) >= max_results:
             break
