@@ -39,6 +39,12 @@ except ImportError:  # pragma: no cover - Windows
 _SESSION_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
 _ALLOWED_ROLES = {"system", "user", "assistant", "tool"}
 SESSION_FORMAT_VERSION = 1  # the only place this file's format version is written down
+#: The five fields a tool-log entry carries.  The CLI view recorder
+#: (``main.py``) writes them and this module projects every persisted item
+#: onto them before redaction, so the two spellings cannot drift: a sixth
+#: field the CLI starts writing is invisible on disk until it is named here,
+#: and a field dropped here is silently absent from every reconnect.
+TOOL_LOG_FIELDS = ("index", "tool", "summary", "command", "output")
 _DEFAULT_VIEW = {
     "version": SESSION_FORMAT_VERSION,
     "last_item": 0,
@@ -599,13 +605,7 @@ class SessionStore:
 
     @staticmethod
     def _redacted_view_item(item: dict[str, Any]) -> dict[str, Any]:
-        allowed = {
-            "index": item.get("index"),
-            "tool": item.get("tool"),
-            "summary": item.get("summary"),
-            "command": item.get("command"),
-            "output": item.get("output"),
-        }
+        allowed = {key: item.get(key) for key in TOOL_LOG_FIELDS}
         return {
             str(key): redact_text(str(value))[0]
             for key, value in allowed.items()
