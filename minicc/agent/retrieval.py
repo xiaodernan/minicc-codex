@@ -173,6 +173,22 @@ class _QueryPlan:
         return not (self.terms or self.path_patterns or self.extensions)
 
 
+def _walk_stats(files_seen: int, directories_walked: int, stopped_early: bool) -> dict[str, object]:
+    """The one shape of a walk's denominator.
+
+    The indexer writes it twice: the all-zero initial shape (no walk has
+    run yet) and the recorded one (after ``_record_walk``).  A key one
+    copy forgets is a census that reads the walk as having seen fewer
+    files or walked fewer directories than it did - the denominator the
+    truncation verdict is computed from.
+    """
+    return {
+        "files_seen": files_seen,
+        "directories_walked": directories_walked,
+        "stopped_early": stopped_early,
+    }
+
+
 @dataclass(frozen=True)
 class _FileRecord:
     rel: str
@@ -407,11 +423,7 @@ class LocalEvidenceIndex:
         self.max_directories = (
             max(4_000, self.max_files * 4) if max_directories is None else max(1, max_directories)
         )
-        self._walk: dict[str, object] = {
-            "files_seen": 0,
-            "directories_walked": 0,
-            "stopped_early": False,
-        }
+        self._walk: dict[str, object] = _walk_stats(0, 0, False)
         self._records: tuple[_FileRecord, ...] = ()
         self._stats: dict[str, object] | None = None
         # The memo is keyed by the file's **stat signature** - a free signal,
@@ -666,11 +678,7 @@ class LocalEvidenceIndex:
 
     def _record_walk(self, collected: list[tuple[Path, str]], directories: int, *, stopped_early: bool) -> None:
         """Publish the walk's own denominator, not one inferred from records."""
-        self._walk = {
-            "files_seen": len(collected),
-            "directories_walked": directories,
-            "stopped_early": stopped_early,
-        }
+        self._walk = _walk_stats(len(collected), directories, stopped_early)
 
 
 def census_is_complete(stats: dict[str, object] | None) -> bool:
