@@ -78,6 +78,25 @@ def channel_counter() -> dict[str, int]:
     return {"requests": 0, "total_tokens": 0}
 
 
+def channel_status_payload(
+    active: str, plan_available: bool, usage: Mapping[str, Any]
+) -> dict[str, Any]:
+    """The three-key shape of a provider's channel snapshot.
+
+    The two gateway providers both expose ``channel_status()`` and the
+    CLI ``/status`` and the web metrics route both read the result.  A
+    key one provider forgets is a reader that sees the channel state as
+    a missing field; a counter handed out without ``dict(...)`` is a
+    reader that can mutate the provider's live accumulator.  The copy
+    lives here so neither provider can skip it.
+    """
+    return {
+        "active": active,
+        "plan_available": plan_available,
+        "usage": {name: dict(counter) for name, counter in usage.items()},
+    }
+
+
 def _number(value: Any) -> int | float | None:
     if isinstance(value, bool):
         return None
@@ -198,4 +217,5 @@ __all__ = [
     "aggregate_cache_summary",
     "cache_summary",
     "channel_counter",
+    "channel_status_payload",
 ]

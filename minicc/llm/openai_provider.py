@@ -62,7 +62,7 @@ from ..logging_setup import log_provider_event
 from .envelope import EnvelopeParseError, _render_envelope_action, envelope_system_suffix, parse_envelope
 from .stream_merge import AttemptTextAssembler, merge_retry_snapshot
 from .base import retry_detail
-from .usage import cache_summary, channel_counter, measured_usage, token_count
+from .usage import cache_summary, channel_counter, channel_status_payload, measured_usage, token_count
 
 _RETRYABLE = (
     RateLimitError,
@@ -589,11 +589,11 @@ class OpenAICompatibleProvider:
 
     def channel_status(self) -> dict[str, Any]:
         """Mirror protocol_status(): what the wire is doing right now."""
-        return {
-            "active": self.active_channel,
-            "plan_available": self._has_plan_channel(),
-            "usage": {k: dict(v) for k, v in getattr(self, "_channel_usage", {}).items()},
-        }
+        return channel_status_payload(
+            self.active_channel,
+            self._has_plan_channel(),
+            getattr(self, "_channel_usage", {}),
+        )
 
     def _active_client(self) -> Any:
         if self.active_channel == "plan":

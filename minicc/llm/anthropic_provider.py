@@ -34,7 +34,7 @@ except ModuleNotFoundError:  # pragma: no cover - depends on the HTTP stack.
     httpx = None  # type: ignore[assignment]
 
 from .base import LLMResponse, as_dict, is_nameless_tool_name, safe_int, tool_call, unique_tool_call_id
-from .usage import channel_counter, measured_usage, token_count
+from .usage import channel_counter, channel_status_payload, measured_usage, token_count
 from ..tools.schemas import tool_call_name
 from ..trace import trace_event
 
@@ -376,11 +376,9 @@ class AnthropicProvider:
         return self._channel
 
     def channel_status(self) -> dict[str, Any]:
-        return {
-            "active": self._channel,
-            "plan_available": bool(self._plan_base_url),
-            "usage": {k: dict(v) for k, v in self._channel_usage.items()},
-        }
+        return channel_status_payload(
+            self._channel, bool(self._plan_base_url), self._channel_usage
+        )
 
     def _active_base_url(self) -> str:
         return self._plan_base_url if self._channel == "plan" else self.base_url

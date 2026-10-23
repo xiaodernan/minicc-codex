@@ -29025,3 +29025,70 @@ flag）导致后台命令冒充验证 ✓。修过一次的洞 ✓，更要用�
 会**随机地**不对 ✓。判别口诀 ✓：**带容量上限的收集
 append ✓，上限和条目要一起收进家 ✓；调用方的 `if`
 里不该出现容量判断 ✓——那是家的内政 ✓。** **
+
+## 第四百三十二批 — M8-T448 — 通道状态三键一个家
+
+### 1 缺陷
+
+两个网关 provider 各自手写 `channel_status()` 的返回载荷：
+
+- `anthropic_provider.py:378`：`{"active": ...,
+  "plan_available": ..., "usage": {k: dict(v) ...}}`
+- `openai_provider.py:590`：同一个三键形状再手写一遍，
+  连 `dict(v)` 防御性拷贝也各写一遍
+
+两个消费者读它：CLI `/status`（main.py）与 web metrics
+路由。三键里任何一个键名漂移（`plan_available` 改成
+`has_plan`），一个 provider 的通道状态在某个消费端就变
+成静默缺失；`dict(v)` 拷贝漏写，读者改快照就会污染
+provider 的活累加器——而两个文件的拷贝写法（`{k: dict(v)
+for ...}` vs `getattr(self, "_channel_usage", {})`）已经
+出现了细微分歧。
+
+### 2 落地
+
+- `minicc/llm/usage.py` 立 `channel_status_payload(active,
+  plan_available, usage)`，紧跟 T420 的 `channel_counter`
+  之后——计数器与它的对外快照是同一族事实
+- 两个 provider 的 `channel_status()` 改为委托；import 各加
+  一个名字
+- 家中钉死：三键名、usage 的逐通道 `dict(...)` 拷贝。
+  openai 侧保留原有 docstring（「Mirror protocol_status()」
+  的位置说明），形状说明并入家的 docstring
+- 命名避坑：家叫 `channel_status_payload` 而非
+  `channel_status`——后者是方法名，同名会让调用计数 census
+  把方法定义和两个消费端的 `channel_status()` 混进来
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T448-264 | anthropic 退回手写三键 | 2 条红（census + 调用计数 ✓） |
+| M8-T448-265 | openai 退回手写三键 | 2 条红（census + 调用计数 ✓） |
+
+### 4 新增门禁
+
+`tests/test_the_channel_status_payload_have_one_home.py`（4 条）✓：
+
+1. 家的行为 ✓：三键透传 ✓
+2. 家的行为 ✓：usage 逐通道拷贝 ✓，改快照不污染活累加器 ✓
+3. census ✓：`{"active", "plan_available", "usage"}` 三键
+   dict 字面量在 minicc/ 下**恰好一处** ✓且在家 ✓
+4. 调用计数 ✓：`channel_status_payload(` 全仓恰好 3 次 ✓
+   （定义 + 两个 provider ✓）
+
+聚焦回归 ✓：新门 4 条 + anthropic_plan_channel /
+plan_channel 18 条 + core_llm / one_price_per_model 24
+条 ✓，共 46 条 ✓，全绿 ✓。全量 pytest 未跑 ✓。
+
+### 5 一条教训
+
+**跨文件同构的对外载荷 ✓，家要放在双方都能 import 的公共
+模块 ✓，而不是任一调用方旁边 ✓。** ✓ 这个形状的两个生产
+者（两个 provider）和两个消费者（CLI/web）分居四个文
+件 ✓，家放 usage.py 是因为 T420 已经确立了「通道计数器
+一族住在这里」的先例 ✓——家的选址跟着**事实的亲族**
+走 ✓，不跟着调用点走 ✓。判别口诀 ✓：**两个平级实现
+（anthropic/openai、chat/responses）输出同一形状 ✓，
+公共模块立家 ✓；谁的 import 列表先变长 ✓，就说明家搬
+对了地方 ✓。** **
