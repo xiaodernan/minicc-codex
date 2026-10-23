@@ -59,6 +59,25 @@ def estimated_usage(prompt_tokens: int, completion_tokens: int) -> dict[str, Any
     return {**measured_usage(prompt_tokens, completion_tokens), "estimated": True}
 
 
+def channel_counter() -> dict[str, int]:
+    """The zeroed shape of one channel's running usage counters.
+
+    ``requests`` counts the calls made on a channel, ``total_tokens``
+    sums what they reported.  This is **not** a usage record: it is the
+    per-channel accumulator the two gateway providers keep beside their
+    client (``_channel_usage``), seeded in ``__init__`` for both channels
+    and re-seeded by ``setdefault`` when a channel appears at runtime.
+    Six hand-written copies of this shape lived in those two files - a
+    key one copy forgets is a channel whose counter the readers of
+    ``_channel_usage`` see as missing that counter.
+
+    A constructor, never a constant: the ``__init__`` seeds for ``paid``
+    and ``plan`` must be distinct objects, or switching channels would
+    accumulate into one shared counter.
+    """
+    return {"requests": 0, "total_tokens": 0}
+
+
 def _number(value: Any) -> int | float | None:
     if isinstance(value, bool):
         return None
@@ -178,4 +197,5 @@ __all__ = [
     "add_usage_totals",
     "aggregate_cache_summary",
     "cache_summary",
+    "channel_counter",
 ]

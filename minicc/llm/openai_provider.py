@@ -61,7 +61,7 @@ from ..trace import trace_event
 from ..logging_setup import log_provider_event
 from .envelope import EnvelopeParseError, _render_envelope_action, envelope_system_suffix, parse_envelope
 from .stream_merge import AttemptTextAssembler, merge_retry_snapshot
-from .usage import cache_summary, measured_usage, token_count
+from .usage import cache_summary, channel_counter, measured_usage, token_count
 
 _RETRYABLE = (
     RateLimitError,
@@ -563,8 +563,8 @@ class OpenAICompatibleProvider:
         self._channel = "paid"
         self._plan_client: Any = None
         self._channel_usage: dict[str, dict[str, int]] = {
-            "paid": {"requests": 0, "total_tokens": 0},
-            "plan": {"requests": 0, "total_tokens": 0},
+            "paid": channel_counter(),
+            "plan": channel_counter(),
         }
 
     def _has_plan_channel(self) -> bool:
@@ -601,7 +601,7 @@ class OpenAICompatibleProvider:
             tokens = int(usage.get("total_tokens") or 0)
         except (TypeError, ValueError):
             tokens = 0
-        counters = self._channel_usage.setdefault(self.active_channel, {"requests": 0, "total_tokens": 0})
+        counters = self._channel_usage.setdefault(self.active_channel, channel_counter())
         counters["requests"] += 1
         if tokens > 0:
             counters["total_tokens"] += tokens

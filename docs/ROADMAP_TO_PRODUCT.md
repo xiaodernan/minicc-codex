@@ -27413,3 +27413,65 @@ core_session / task_contract / task_durability ✓）81 条 ✓，共 85 条 ✓
 `path` ✓。门里那条控制断言（传输形状 ≠ 存储形状 ✓）就是这条界线的
 **守门人** ✓——没有它 ✓，下一个人把 `size_bytes` 加进传输载荷时 ✓，
 门反而会为他鼓掌 ✓。
+
+
+## 第四百零四批 — M8-T420 — 渠道计数器零形状六个家：两个 provider 各抄三份
+
+### 1 缺陷
+
+每个网关 provider 都养着一张**渠道记账表** `_channel_usage` ✓：key 是
+渠道（`paid`/`plan` ✓），value 是这个渠道的累计计数器 ✓——`requests`
+（调用次数 ✓）加 `total_tokens`（回报的 token 总数 ✓）。这个**两键零
+形状** `{"requests": 0, "total_tokens": 0}` 在两个 provider 里共有
+**六个手写家** ✓：
+
+| 文件 | 位置 | 场景 |
+| --- | --- | --- |
+| anthropic_provider.py | `__init__` ×2 | paid/plan 两个渠道的种子 |
+| anthropic_provider.py | `_record_channel_usage` | `setdefault` 的运行时兜底 |
+| openai_provider.py | `__init__` ×2 | 同上 |
+| openai_provider.py | `_record_channel_usage | 同上 |
+
+六个形状没有任何东西保证**始终一致** ✓。某个家漏一个键 ✓——比如
+`total_tokens` ✓——那个渠道的记账就在消费方（`_channel_usage` 的快照
+读者 ✓）眼里缺一个字段 ✓，要么 KeyError ✓，要么静默当作没有 ✓。
+而渠道计数器**不是** usage 记录（`measured_usage` 三键 ✓）：一次请求
+的回报与一个渠道的累计是**两个事实** ✓，上次把 usage 收口时留下的
+正是这块邻居盲区 ✓。
+
+### 2 落地
+
+* `minicc/llm/usage.py` ✓ 立 `channel_counter()` ✓：两键零形状一个家 ✓，
+  docstring 划清与 `measured_usage` 的界（累计 ≠ 回报 ✓）。
+* 两个 provider 六处全部改调用 ✓，**行为不变** ✓。
+* **构造器非常量** ✓：`__init__` 里 paid 与 plan 必须是两个对象 ✓——
+  否则两个渠道会往同一个 dict 里累加 ✓（T416 共享可变家的旧教训 ✓）。
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T420-214 | anthropic `__init__` paid 种子退回字面量 | 1 条红（census ✓） |
+| M8-T420-215 | openai `setdefault` 退回字面量 | 1 条红（census ✓） |
+
+### 4 新增门禁
+
+`tests/test_the_channel_counter_have_one_home.py`（3 条）✓：
+
+1. 家的行为 ✓：两键归零 ✓、**两次调用是新对象** ✓（种子不共享 ✓）
+2. census ✓：两键全零 dict 字面量在 minicc/ 下**恰好一处** ✓且在家 ✓
+   （指纹带「值为 0」条件 ✓，非零计数器不误伤 ✓）
+3. 调用计数 ✓：每个 provider 恰好 3 次调用 ✓（两种子 + 一个
+   setdefault ✓）
+
+聚焦回归 ✓：新门 3 条 + 渠道面 5 文件 43 条 ✓，共 46 条 ✓，全绿 ✓。
+全量 pytest 未跑 ✓。
+
+### 5 一条教训
+
+**收口一个家之后 ✓，它的邻居要重新扫一遍。** ✓ T413 把 usage 记录收进
+`measured_usage`/`estimated_usage` 时 ✓，`_channel_usage` 的零形状长得
+「也像 usage」✓就没被带走 ✓——它确实**不是** usage ✓，但「不是那个
+事实」不等于「不是事实」✓：它是 usage **域**里的另一个事实 ✓，仍然
+只配有一个家 ✓。探针按「键集合 + 值」聚合才能把这类**值敏感**的重复
+捞出来 ✓：只看键集合的话 ✓，任何非零的渠道快照都会混进同一组 ✓。

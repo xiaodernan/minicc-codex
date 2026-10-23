@@ -34,7 +34,7 @@ except ModuleNotFoundError:  # pragma: no cover - depends on the HTTP stack.
     httpx = None  # type: ignore[assignment]
 
 from .base import LLMResponse, as_dict, is_nameless_tool_name, safe_int, tool_call, unique_tool_call_id
-from .usage import measured_usage, token_count
+from .usage import channel_counter, measured_usage, token_count
 from ..tools.schemas import tool_call_name
 from ..trace import trace_event
 
@@ -339,8 +339,8 @@ class AnthropicProvider:
         self._plan_base_url = (plan_base_url or "").rstrip("/")
         self._channel = "paid"
         self._channel_usage: dict[str, dict[str, int]] = {
-            "paid": {"requests": 0, "total_tokens": 0},
-            "plan": {"requests": 0, "total_tokens": 0},
+            "paid": channel_counter(),
+            "plan": channel_counter(),
         }
         self.timeout = float(timeout)
         self.max_retries = max(0, int(max_retries))
@@ -391,9 +391,7 @@ class AnthropicProvider:
             tokens = int(usage.get("total_tokens") or 0)
         except (TypeError, ValueError):
             tokens = 0
-        counters = self._channel_usage.setdefault(
-            self._channel, {"requests": 0, "total_tokens": 0}
-        )
+        counters = self._channel_usage.setdefault(self._channel, channel_counter())
         counters["requests"] += 1
         if tokens > 0:
             counters["total_tokens"] += tokens
