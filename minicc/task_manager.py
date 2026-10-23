@@ -641,6 +641,17 @@ class TaskRecord:
             self.state_version += 1
             self._publish_locked("state", {"phase": self.phase, "status": self.status, "state_version": self.state_version})
 
+    def _context_payload_locked(self) -> dict[str, Any]:
+        """The one shape of the context publish.
+
+        Both the replacing writer (``update_context``) and the merging
+        writer (``merge_context``) hand-wrote this pair.  A key one
+        copy forgets is a context update the client applies without
+        its version stamp - and two writers of one context that
+        disagree on the shape is two contexts, not one.
+        """
+        return {"context": dict(self.context), "state_version": self.state_version}
+
     def _status_payload_locked(self) -> dict[str, Any]:
         """The one shape of the six-key status publish.
 
@@ -738,7 +749,7 @@ class TaskRecord:
                 return
             self.context = dict(context)
             self.state_version += 1
-            self._publish_locked("context", {"context": dict(self.context), "state_version": self.state_version})
+            self._publish_locked("context", self._context_payload_locked())
 
     def merge_context(self, updates: dict[str, Any]) -> None:
         """Merge ``updates`` into the context instead of replacing it.
@@ -758,7 +769,7 @@ class TaskRecord:
             merged.update(updates)
             self.context = merged
             self.state_version += 1
-            self._publish_locked("context", {"context": dict(self.context), "state_version": self.state_version})
+            self._publish_locked("context", self._context_payload_locked())
 
     def add_compaction(self, event: dict[str, Any]) -> None:
         with self.lock:
