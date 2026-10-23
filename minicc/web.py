@@ -308,6 +308,25 @@ def _merge_cost_estimator(model: str) -> Callable[[dict[str, Any]], float]:
     return estimate
 
 
+def _audit_export_payload(
+    workspace: Any, entries: list[dict[str, Any]], total: int
+) -> dict[str, Any]:
+    """The one shape of an audit export page.
+
+    Two sites build it: the empty export (no audit file yet) and the
+    capped page.  ``count`` is derived from the entries the caller got
+    back; ``total`` counts every match before the cap - a reader must
+    be able to tell "there is nothing" from "there is more than this
+    page shows", and a key one copy forgets erases that distinction.
+    """
+    return {
+        "workspace_path": str(workspace),
+        "entries": entries,
+        "count": len(entries),
+        "total": total,
+    }
+
+
 def _preview_result(
     status: str, summary: str, content: str, raw_path: str
 ) -> dict[str, Any]:
@@ -3203,12 +3222,7 @@ class AgentService:
         """
         keep = _audit_level_filter(levels=levels, min_level=min_level)
         audit_path = self.workspace / ".minicc" / "audit.jsonl"
-        empty = {
-            "workspace_path": str(self.workspace),
-            "entries": [],
-            "count": 0,
-            "total": 0,
-        }
+        empty = _audit_export_payload(self.workspace, [], 0)
         if not audit_path.is_file():
             return empty
         try:
@@ -3235,12 +3249,7 @@ class AgentService:
             safe["level"] = level
             matches.append(safe)
         capped = matches[-max(1, min(limit, 2000)):]
-        return {
-            "workspace_path": str(self.workspace),
-            "entries": capped,
-            "count": len(capped),
-            "total": len(matches),
-        }
+        return _audit_export_payload(self.workspace, capped, len(matches))
 
     def metrics(self, *, limit: int = 500, workspace_path: str | None = None) -> dict[str, Any]:
         """Aggregate token/cost metrics over the task index (M8-T5).
