@@ -202,12 +202,12 @@ def _normalize_attachments(raw: object) -> list[dict[str, Any]]:
         if total > MAX_ATTACHMENT_TOTAL_BYTES:
             raise ValueError(f"图片总大小不能超过 {MAX_ATTACHMENT_TOTAL_BYTES // (1024 * 1024)}MB")
         output.append(
-            {
-                "name": _safe_attachment_name(item.get("name"), index, mime_type),
-                "mime_type": mime_type,
-                "size_bytes": len(content),
-                "data": content,
-            }
+            _attachment_record(
+                _safe_attachment_name(item.get("name"), index, mime_type),
+                mime_type,
+                len(content),
+                content,
+            )
         )
     return output
 
@@ -234,6 +234,25 @@ def _attachment_summary(item: dict[str, Any]) -> dict[str, Any]:
         "name": item.get("name"),
         "mime_type": item.get("mime_type"),
         "data_url": _attachment_data_url(item),
+    }
+
+
+def _attachment_record(
+    name: str, mime_type: str, size_bytes: int, data: bytes
+) -> dict[str, Any]:
+    """The one shape of an attachment as it sits in memory.
+
+    Two sites build it: the normalizer that decodes an incoming
+    data-url, and the loader that reads the persisted file back off
+    disk.  This is **not** ``ATTACHMENT_FIELDS`` (the payload shape,
+    which carries ``path`` instead of ``data``) and not the transported
+    three-key summary - one record, three audiences, three shapes.
+    """
+    return {
+        "name": name,
+        "mime_type": mime_type,
+        "size_bytes": size_bytes,
+        "data": data,
     }
 
 
@@ -1648,12 +1667,12 @@ class TaskManager:
             if len(content) > MAX_ATTACHMENT_BYTES:
                 continue
             output.append(
-                {
-                    "name": str(item.get("name") or path.name),
-                    "mime_type": str(item.get("mime_type") or "image/png"),
-                    "size_bytes": len(content),
-                    "data": content,
-                }
+                _attachment_record(
+                    str(item.get("name") or path.name),
+                    str(item.get("mime_type") or "image/png"),
+                    len(content),
+                    content,
+                )
             )
         return output
 

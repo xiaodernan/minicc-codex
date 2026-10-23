@@ -28255,3 +28255,60 @@ detail 时 ✓，根本看不见出口 A 已经写过一份 ✓。探针的按�
 "soft_budget_stopped"` 在文件里出现两次 ✓，本身就是一个信号 ✓。
 给后来者的口诀 ✓：**搜同一个事件 code 的出现次数 ✓——出现两次
 以上 ✓，这两个出口就在各写各的详情 ✓。**
+
+
+## 第四百一十九批 — M8-T435 — 内存附件记录四键两个家：归一器与磁盘读回各写一份
+
+### 1 缺陷
+
+一条附件记录在内存里是四键 ✓：`name`/`mime_type`/`size_bytes`/
+`data`（字节 ✓）。它有两个手写家 ✓：
+
+| 位置 | 场景 |
+| --- | --- |
+| `_normalize_attachments` | 把入站 data-url 解码成记录 ✓ |
+| `_load_attachment_payloads` | 把落盘文件读回成记录 ✓ |
+
+至此附件域已有**三个形状三个家** ✓：T415 的 `ATTACHMENT_FIELDS`
+（payload 序列化 ✓，`path` 换 `data` ✓）、T419 的 `_attachment_summary`
+（传输三键 ✓）、本批的内存四键 ✓。前两批各自划了界 ✓，但内存记录
+本身还是两处手抄 ✓——某个家漏一个键 ✓，读回来的附件就少了名字或
+类型 ✓，而 `_attachment_content_parts` 和 `_attachment_data_url` 读
+的正是这套键 ✓。
+
+### 2 落地
+
+* `minicc/task_manager.py` ✓ 立 `_attachment_record(name, mime_type,
+  size_bytes, data)` ✓（与 `_attachment_summary` 做邻居 ✓）：内存
+  记录一个家 ✓，docstring 里**三形状并列说明** ✓（payload/传输/
+  内存 ✓）。
+* 两处改为调用 ✓，**行为逐字节不变** ✓。
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T435-246 | 归一器处退回四键手写 | 1 条红（census ✓） |
+| M8-T435-247 | 读回处退回四键手写 | 1 条红（census ✓） |
+
+### 4 新增门禁
+
+`tests/test_the_attachment_record_have_one_home.py`（3 条）✓：
+
+1. 家的行为 ✓：四键 ✓、`data` 是 bytes ✓
+2. census ✓：四键 dict 字面量在 minicc/ 下**恰好一处** ✓且在家 ✓
+   （`ATTACHMENT_FIELDS` 是 tuple ✓，不撞 census ✓）
+3. 调用计数 ✓：`_attachment_record(` 恰好 3 次 ✓（定义 + 两处 ✓）
+
+聚焦回归 ✓：新门 3 条 + 附件面 3 文件 27 条 ✓，共 30 条 ✓，全绿 ✓。
+全量 pytest 未跑 ✓。
+
+### 5 一条教训
+
+**一个概念的多种观众 ✓，会有多个形状 ✓——每个形状仍然只配一个家。** ✓
+附件在项目里有三个观众 ✓：落盘的 payload（要 path ✓）、传输的载荷
+（要 data_url ✓）、内存的处理（要 bytes ✓）。T415/T419/本批各自
+立家 ✓，家与家之间靠 docstring 互相划界 ✓。这正是「一个事实一个
+家」的完整形态 ✓：**事实的粒度不是「附件」而是「附件在某个观众
+面前的样子」** ✓；同一个词（附件 ✓）下的多个形状不是重复 ✓，是
+多个事实 ✓——判断重复与否的标准从来是**观众和用途** ✓，不是名字 ✓。
