@@ -26310,3 +26310,56 @@ subagent 的 tier 判定认 ✓、task_manager 的快照判定不认 ✓——
 「**基标签 + 上下文**」这个**结构** ✓，不是某一个具体组合 ✓。把结构本身
 变成家（一个保证基标签的助手 ✓）✓，组合的自由增长就不再产生新的契约 ✓。
 判断界线 ✓：**重复的是值 ✓，立常量家 ✓；重复的是形状 ✓，立助手** ✓。
+
+
+## 第三百八十五批 — M8-T401 — 网络子命令表内两对相同值：pip/pip3 与 powershell/pwsh
+
+### 1 缺陷
+
+`minicc/audit.py` 的 `NETWORK_SUBCOMMANDS` 大表里 ✓，有**两对键值完全相同** ✓：
+
+| 键 | 值 | 重复 |
+| --- | --- | --- |
+| `pip` / `pip3` | `{"install", "download", "wheel", "search"}` | 两遍 |
+| `powershell` / `pwsh` | `{"invoke-webrequest", "invoke-restmethod", "iwr", "irm"}` | 两遍 |
+
+同一经理人的两种拼写 ✓（`pip3` 是 `pip` 的别名 ✓、`pwsh` 是 `powershell`
+的别名 ✓）对「哪些动词联网」必须永远一致 ✓。改了一边忘另一边 ✓：
+`pip install` 被门拦下 ✓、`pip3 install` 长驱直入 ✓——**同一个动作 ✓，
+换个可执行名就绕过网关** ✓。而它们藏在同一张表的相距四十行里 ✓，
+改的人盯着自己那一行 ✓，看不见另一行 ✓。
+
+### 2 落地
+
+* **建家** ✓：表前立两个模块级常量
+  `_PIP_NETWORK_SUBCOMMANDS` 与 `_POWERSHELL_WEB_CMDLETS` ✓。
+* **四个键收口** ✓：`pip`/`pip3` 同指前者 ✓、`powershell`/`pwsh` 同指
+  后者 ✓。表是只读的 ✓（`command_uses_network` 只做 `token in verbs` ✓），
+  共享 frozenset 安全 ✓。
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T401-185 | `pwsh` 条目退回行内集合 | 2 条红（同对象断言 + AST 扫描 ✓） |
+
+### 4 新增门禁
+
+`tests/test_the_network_subcommand_sets_have_one_home.py`（3 条）✓：
+
+1. 两个共享集合各有声明 ✓，且表里两种拼写**同指一个对象** ✓（`is` ✓）
+2. 全包每个共享集合只许一处拼写 ✓（AST 扫描 ✓，两处声明 ✓）
+3. 行为不变 ✓：`pip3 install` / `iwr` / `irm` 照旧触发联网判定 ✓；
+   `git log --grep="git clone"` 与 `python -m pytest` 照旧不触发 ✓
+
+聚焦回归 ✓：门 3 条 + `test_network_gate.py` + `test_audit_authorization.py`
+共 101 条 ✓，全绿 ✓。全量 pytest 未跑 ✓。
+
+### 5 一条教训
+
+**大表里的相同值，是重复里最隐蔽的一种。** ✓ 它不长得像「抄了两遍
+代码」✓——它长得像一张**组织良好的配置表** ✓，每个键一行 ✓，整整齐齐 ✓。
+但相同值就是相同事实 ✓：pip 与 pip3 对联网动词的答案**不可能**不同 ✓，
+写两遍就等于埋了一处「将来只改一边」的雷 ✓。探针按「值集合」聚合才看得见
+它 ✓——按行读表永远看不见 ✓。从此扫重复不光扫模块之间 ✓，**也扫同一个
+字面量内部** ✓。

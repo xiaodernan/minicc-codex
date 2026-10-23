@@ -27,10 +27,16 @@ NETWORK_EXECUTABLES = frozenset({
     "ssh", "scp", "sftp", "rsync", "ftp", "tftp", "dig", "nslookup", "host",
     "invoke-webrequest", "invoke-restmethod", "iwr", "irm",
 })
+# Shared verb sets inside the table below: two spellings of one manager
+# (pip/pip3, powershell/pwsh) must never disagree about which verbs reach the
+# network, so each set is declared once and referenced by both keys.
+_PIP_NETWORK_SUBCOMMANDS = frozenset({"install", "download", "wheel", "search"})
+_POWERSHELL_WEB_CMDLETS = frozenset({"invoke-webrequest", "invoke-restmethod", "iwr", "irm"})
+
 # Package managers / build tools that reach the network for specific verbs.
 NETWORK_SUBCOMMANDS = {
-    "pip": {"install", "download", "wheel", "search"},
-    "pip3": {"install", "download", "wheel", "search"},
+    "pip": _PIP_NETWORK_SUBCOMMANDS,
+    "pip3": _PIP_NETWORK_SUBCOMMANDS,
     # python/python3/py: only `-m pip|uv|poetry|conda` counts (special-cased
     # in command_uses_network); `python -m pytest` must stay non-network.
     "python": set(),
@@ -65,8 +71,8 @@ NETWORK_SUBCOMMANDS = {
     "pipx": {"install", "run", "upgrade"},
     "conda": {"install", "update", "create"},
     "poetry": {"install", "add", "update", "publish"},
-    "powershell": {"invoke-webrequest", "invoke-restmethod", "iwr", "irm"},
-    "pwsh": {"invoke-webrequest", "invoke-restmethod", "iwr", "irm"},
+    "powershell": _POWERSHELL_WEB_CMDLETS,
+    "pwsh": _POWERSHELL_WEB_CMDLETS,
 }
 
 # Wrappers whose arguments are themselves command lines: recurse into them so
