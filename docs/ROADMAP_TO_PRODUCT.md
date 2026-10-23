@@ -30168,3 +30168,61 @@ grep 的匹配上限参数名在两处各拼一次：
 用 ✓。判别口诀 ✓：**「schema 声明一个名字、实现读取一个
 名字」的配对 ✓，名字立常量 ✓；rg 该名字的字面量 ✓，超过
 一处就是契约有裂 ✓。** **
+
+## 第四百四十八批 — M8-T464 — 搜索结果参数名一个家
+
+### 1 缺陷
+
+与 T463 同型的第二例：web_search 的结果上限参数名在
+两处各拼一次：
+
+- `tools/__init__.py:92`：`Param("max_results", "int",
+  min_value=1, max_value=8, ...)` ——schema 声明
+- `tools/web.py:370`：`args.get("max_results", 5)` ——
+  工具读取
+
+分叉后果同样是静默的：模型传了 `max_results=3`，工具
+读另一个键，默认值 5 生效——不多不少，只是「限制了却
+没限制」。web_search 是联网工具，多返回的结果还带着
+不可信内容进上下文，代价比 grep 那例更实。
+
+### 2 落地
+
+- `minicc/tools/web.py` 立模块常量 `MAX_RESULTS_PARAM =
+  "max_results"`，紧跟 `MAX_RESULTS = 8`（名字与值并列，
+  同 T463 的布局）
+- 读取点与 Param 声明共用常量；import 方向不变（init →
+  web）
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T464-264 | 读取点退回字面量 | 2 条红（census + 读取点断言 ✓） |
+| M8-T464-265 | Param 声明退回字面量 | 2 条红（census + 声明断言 ✓） |
+
+### 4 新增门禁
+
+`tests/test_the_max_results_param_have_one_home.py`（5 条）✓：
+
+1. 常量即线名 ✓
+2. schema 声明用常量 ✓（registry 里 web_search 的 params
+   含 `MAX_RESULTS_PARAM` ✓）
+3. 读取点用常量 ✓
+4. census ✓：`"max_results"` 字符串字面量在 minicc/ 下
+   **恰好一处** ✓（常量定义 ✓）
+5. 声明点形态 ✓：`Param(MAX_RESULTS_PARAM, ...)` ✓
+
+聚焦回归 ✓：新门 5 条 + plugin_api / memory 61 条 ✓，共
+66 条 ✓，全绿 ✓。webfetch 网络测试过慢且与本改动无关
+✓，未跑 ✓。全量 pytest 未跑 ✓。
+
+### 5 一条教训
+
+**T463 立的方法论立刻复用了第二次 ✓，说明这不是偶发是
+模式 ✓。** ✓ 判别式可以固化成一条巡检规则 ✓：**对
+`Param("X", ...)` 的每个 X ✓，rg 字面量 `"X"` ✓，命中超过
+一处（声明 + 读取 ✓）就立常量 ✓。** ✓ 两批之间只差一个
+发现 ✓：max_matches 的 cap 常量叫 MAX_GREP_MATCHES ✓、
+max_results 的叫 MAX_RESULTS ✓，命名惯例是「值常量在
+前 ✓、名常量随后 ✓」✓，后来者照着排就行 ✓。** **

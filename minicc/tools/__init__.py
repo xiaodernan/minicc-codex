@@ -31,7 +31,7 @@ from .registry import (
 )
 from .schemas import ToolCall, ToolResult, untrusted_tags
 from .todo import TODO_PRIORITIES, TODO_STATUSES, TodoTools
-from .web import web_search
+from .web import MAX_RESULTS_PARAM, web_search
 from .webfetch import webfetch
 
 if TYPE_CHECKING:
@@ -89,7 +89,7 @@ def build_registry(
     depth_p = Param("max_depth", "int", min_value=1, max_value=8, description="目录树最大深度")
     entries_p = Param("max_entries", "int", min_value=1, max_value=2000, description="最大条目数")
     search_query_p = Param("query", "str", required=True, max_len=500, description="要搜索的关键词；不要包含密钥或隐私数据")
-    search_limit_p = Param("max_results", "int", min_value=1, max_value=8, description="最多返回结果数")
+    search_limit_p = Param(MAX_RESULTS_PARAM, "int", min_value=1, max_value=8, description="最多返回结果数")
     fetch_url_p = Param("url", "str", required=True, max_len=2048, description="要抓取的 http/https 网页 URL")
     fetch_timeout_p = Param("timeout", "int", min_value=1, max_value=60, description="超时秒数 (默认 20)")
     old_p = Param("old", "str", required=True, description="要替换的旧文本 (必须精确匹配)")

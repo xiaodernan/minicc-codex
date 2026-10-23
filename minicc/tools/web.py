@@ -27,6 +27,10 @@ SEARCH_ENDPOINTS = (
 USER_AGENT = "minicc-web-search/0.4 (+local coding agent)"
 MAX_QUERY_CHARS = 500
 MAX_RESULTS = 8
+#: The wire name of web_search's result-cap parameter.  The schema declares
+#: it (tools/__init__.py) and ``web_search`` reads it; two spellings of one
+#: name mean the model's argument is silently dropped and the default wins.
+MAX_RESULTS_PARAM = "max_results"
 REQUEST_TIMEOUT = 12
 SEARCH_ATTEMPTS = 2
 SEARCH_CACHE_TTL = 300.0
@@ -367,7 +371,7 @@ def web_search(args: dict[str, object]) -> ToolResult:
         raise ToolError("搜索关键词不能为空")
     if len(raw_query) > MAX_QUERY_CHARS:
         raise ToolError(f"搜索关键词不能超过 {MAX_QUERY_CHARS} 个字符")
-    raw_limit = args.get("max_results", 5)
+    raw_limit = args.get(MAX_RESULTS_PARAM, 5)
     try:
         limit = max(1, min(MAX_RESULTS, int(raw_limit)))
     except (TypeError, ValueError) as exc:
