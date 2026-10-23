@@ -77,12 +77,30 @@ def extract_mention_tokens(message: str) -> list[str]:
     return _scan_mention_tokens(message)[0]
 
 
+def _record(
+    token: str, path: str, status: str, reason: str, truncated: bool
+) -> dict[str, Any]:
+    """The one shape of a mention record (M8-T407).
+
+    Four readers wrote these five fields out by hand - the two helpers below
+    and the two injection branches in ``build_mention_context``.  A field one
+    branch forgets is a record the event consumers read as missing data.
+    """
+    return {
+        "token": token,
+        "path": path,
+        "status": status,
+        "reason": reason,
+        "truncated": truncated,
+    }
+
+
 def _reject(token: str, reason: str) -> dict[str, Any]:
-    return {"token": token, "path": token, "status": "rejected", "reason": reason, "truncated": False}
+    return _record(token, token, "rejected", reason, False)
 
 
 def _annotate(token: str, status: str, reason: str) -> dict[str, Any]:
-    return {"token": token, "path": token, "status": status, "reason": reason, "truncated": False}
+    return _record(token, token, status, reason, False)
 
 
 def build_mention_context(
@@ -217,17 +235,14 @@ def build_mention_context(
             # one, so the same file was reported twice - and the "omitted"
             # bucket says the content was **not** included, which was false:
             # a prefix was.
-            records.append({
-                "token": token,
-                "path": rel,
-                "status": "injected",
-                "reason": "文件过大，仅注入开头片段" if oversized else "",
-                "truncated": True,
-            })
+            records.append(_record(
+                token, rel, "injected",
+                "文件过大，仅注入开头片段" if oversized else "", True,
+            ))
             continue
         used += len(text)
         chunks.append(f'<file path="{rel}">\n{text}\n</file>')
-        records.append({"token": token, "path": rel, "status": "injected", "reason": "", "truncated": False})
+        records.append(_record(token, rel, "injected", "", False))
     injected = sum(1 for item in records if item["status"] == "injected")
     rejected = sum(1 for item in records if item["status"] == "rejected")
     # M8-T329: the mentions past the cap are named in the block too - a
