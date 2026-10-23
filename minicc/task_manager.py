@@ -237,6 +237,19 @@ def _attachment_summary(item: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _orchestration_result(
+    answer: str, cancelled: bool, snapshots: list[dict[str, Any]]
+) -> dict[str, Any]:
+    """The one shape of an orchestration parent's final result.
+
+    The cancelled exit and the merged exit hand-wrote this three-key
+    record.  A key one copy forgets is a batch whose children (or whose
+    cancellation) the caller cannot see - ``children`` is the only
+    channel the merge verdict travels on.
+    """
+    return {"answer": answer, "cancelled": cancelled, "children": snapshots}
+
+
 def _attachment_record(
     name: str, mime_type: str, size_bytes: int, data: bytes
 ) -> dict[str, Any]:
@@ -1850,7 +1863,7 @@ class TaskManager:
                 return
 
             if parent.cancel_event.is_set():
-                result = {"answer": "批量任务已取消。", "cancelled": True, "children": snapshots}
+                result = _orchestration_result("批量任务已取消。", True, snapshots)
             elif any(item.get("status") in TASK_UNSUCCESSFUL_STATUSES for item in snapshots):
                 failed_children = ", ".join(
                     str(item.get("task_id") or "child")
@@ -1939,7 +1952,7 @@ class TaskManager:
                     f"子任务 {index}: {item.get('answer') or item.get('error') or item.get('status')}"
                     for index, item in enumerate(snapshots, start=1)
                 )
-                result = {"answer": answer, "cancelled": False, "children": snapshots}
+                result = _orchestration_result(answer, False, snapshots)
             parent.add_event(trace_event(
                 name="orchestrator",
                 status="error" if result.get("error") else "ok",
