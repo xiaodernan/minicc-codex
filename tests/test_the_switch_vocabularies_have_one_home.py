@@ -92,6 +92,17 @@ def test_no_module_inlines_a_switch_vocabulary() -> None:
             for name, (_, home_file, members) in HOMES.items():
                 if elements == frozenset(members) and relative != home_file:
                     offenders.append(f"{relative}:{node.lineno} spells {name}")
+            # M8-T399: the named subsets are facts too. task_manager spelled
+            # WRITABLE_PERMISSION_MODES by hand and only the subset-of-home
+            # check existed - nothing watched for a *second* copy.
+            for name, (subset_home, home_name) in SUBSETS.items():
+                subset = getattr(importlib.import_module(subset_home), name)
+                if (
+                    len(node.elts) >= 2
+                    and elements == frozenset(subset)
+                    and relative != subset_home.replace(".", "/") + ".py"
+                ):
+                    offenders.append(f"{relative}:{node.lineno} spells {name}")
     assert not offenders, "inline switch vocabularies outside their home: " + ", ".join(offenders)
 
 

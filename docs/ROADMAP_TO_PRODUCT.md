@@ -26189,3 +26189,58 @@ subagent 出身标记** ✓。少写一个标签 ✓，那条路径的产出就�
 复用在这里是**陷阱** ✓：可变的「同一个」会在调用方手里变形 ✓。
 对策是家不可变 ✓（tuple ✓）、用点复制 ✓（`[*HOME]` ✓）——
 **共享事实 ✓，但不共享状态** ✓。
+
+
+## 第三百八十三批 — M8-T399 — 可写权限模式子集第二个家：task_manager 手抄 WRITABLE_PERMISSION_MODES
+
+### 1 缺陷
+
+`WRITABLE_PERMISSION_MODES = frozenset({"acceptEdits", "yolo"})` 在
+`minicc/agent/subagent.py:68` 有家 ✓，T383 的门甚至还断言了它是
+`PERMISSION_MODES` 的**子集** ✓——但 `minicc/task_manager.py:2446` 把
+`{"acceptEdits", "yolo"}` 又手写了一遍 ✓：
+
+```python
+if task.permission_mode != "plan" and (task.allow_changes or task.permission_mode in {"acceptEdits", "yolo"}):
+```
+
+同一事实两个家 ✓：一边给子集立了名字 ✓、一边照样手抄 ✓。将来
+`PERMISSION_MODES` 加一种自动接受编辑的模式 ✓（比如 `acceptAll` ✓），
+subagent 的 tier 判定认 ✓、task_manager 的快照判定不认 ✓——
+**同一个任务 ✓，子代理肯写 ✓，任务快照却按只读处理 ✓**，两份行为对同一份
+配置给出不同答案 ✓。
+
+### 2 落地
+
+* **收口** ✓：`task_manager.py` 改为
+  `task.permission_mode in WRITABLE_PERMISSION_MODES` ✓，从
+  `.agent.subagent` 导入 ✓（与既有的 `.agent.*` 导入同向 ✓，无环 ✓）。
+* **门禁补漏** ✓：T383 的门原来只扫 7 个主词表的行内拼写 ✓，对两个
+  「命名子集」只查「是家的子集」✓、不查「有没有第二份手抄」✓——
+  本批把子集也纳入行内扫描 ✓（子集家文件自己豁免 ✓）。
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T399-183 | task_manager 判定退回行内 `{"acceptEdits", "yolo"}` | 1 条红（扩展后的子集扫描抓到 ✓） |
+
+### 4 门禁变化
+
+`tests/test_the_switch_vocabularies_have_one_home.py` 的
+`test_no_module_inlines_a_switch_vocabulary` 扩展 ✓：除 7 个主词表外 ✓，
+`SUBSETS` 里的命名子集也不许在家文件外出现行内拼写 ✓。
+（单元素子集 `EXEC_PERMISSION_MODES = {"yolo"}` 不扫 ✓——单字符串字面量
+在任何代码里都太常见 ✓，扫了只会误报 ✓；它的「子集 ⊆ 家」断言已由原有
+第 5 条覆盖 ✓。）
+
+聚焦回归 ✓：门 5 条 + `test_subagent_wiring.py` 共 19 条 ✓，全绿 ✓。
+全量 pytest 未跑 ✓。
+
+### 5 一条教训
+
+**「是家的子集」和「只有家」是两个断言，缺一个就漏。** ✓ T383 给子集
+立了名字 ✓、还验了子集关系 ✓，看起来已经很周全 ✓——但「别处不许再手抄
+一份」这条根本没问 ✓。子集比主词表更容易被手抄 ✓：它短 ✓、看起来人畜
+无害 ✓、抄的人觉得「就两个值 ✓，不至于分家」✓。门的教训与 T396 同源 ✓：
+**数数 ✓，别只问「在不在家」** ✓。

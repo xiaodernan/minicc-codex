@@ -44,6 +44,7 @@ from .agent.protocol import (
     TASK_UNSUCCESSFUL_STATUSES,
     validate_status_transition,
 )
+from .agent.subagent import WRITABLE_PERMISSION_MODES
 from .agent.tool_policy import WRITE_TOOL_NAMES
 from .audit import normalize_permission_mode
 from .config import TRUTHY, normalize_model_name, normalize_reasoning_effort
@@ -2443,7 +2444,7 @@ class TaskManager:
         try:
             from .snapshots import capture as capture_workspace_snapshot
 
-            if task.permission_mode != "plan" and (task.allow_changes or task.permission_mode in {"acceptEdits", "yolo"}):
+            if task.permission_mode != "plan" and (task.allow_changes or task.permission_mode in WRITABLE_PERMISSION_MODES):
                 task.checkpoint["workspace_snapshot"] = capture_workspace_snapshot(
                     Path(task.workspace_path),
                     task.task_id,
