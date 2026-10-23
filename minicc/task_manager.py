@@ -41,6 +41,7 @@ from .agent.protocol import (
     ACTIVE_TASK_STATUSES,
     PHASE_CARRYING_EVENT_KINDS,
     TERMINAL_TASK_STATUSES,
+    TASK_UNSUCCESSFUL_STATUSES,
     validate_status_transition,
 )
 from .agent.tool_policy import WRITE_TOOL_NAMES
@@ -1742,7 +1743,7 @@ class TaskManager:
                     parent.add_event({
                         "kind": "trace",
                         "name": "orchestrator",
-                        "status": "error" if child.get("status") in {"failed", "interrupted"} else "ok",
+                        "status": "error" if child.get("status") in TASK_UNSUCCESSFUL_STATUSES else "ok",
                         "phase": "planning",
                         "code": "subagent_finished",
                         "summary": f"子任务 {index} 已{child.get('status')}",
@@ -1787,7 +1788,7 @@ class TaskManager:
                     "summary": "只读侦察已完成，主 Agent 接管原始任务并开始实施",
                     "detail": {
                         "child_count": len(child_ids),
-                        "failed": sum(item.get("status") in {"failed", "interrupted"} for item in snapshots),
+                        "failed": sum(item.get("status") in TASK_UNSUCCESSFUL_STATUSES for item in snapshots),
                         "evidence": [_child_result_digest(item) for item in snapshots],
                         "merge_basis": "并行子任务的有限摘要和阶段证据；关键结论仍由主 Agent 重新检查",
                         "next_action": "主 Agent 重新检查关键文件，必要时修改并验证",
@@ -1800,11 +1801,11 @@ class TaskManager:
 
             if parent.cancel_event.is_set():
                 result = {"answer": "批量任务已取消。", "cancelled": True, "children": snapshots}
-            elif any(item.get("status") in {"failed", "interrupted"} for item in snapshots):
+            elif any(item.get("status") in TASK_UNSUCCESSFUL_STATUSES for item in snapshots):
                 failed_children = ", ".join(
                     str(item.get("task_id") or "child")
                     for item in snapshots
-                    if item.get("status") in {"failed", "interrupted"}
+                    if item.get("status") in TASK_UNSUCCESSFUL_STATUSES
                 )
                 result = {
                     "answer": f"批量任务未完成：子任务 {failed_children} 没有成功结束。",
@@ -1908,7 +1909,7 @@ class TaskManager:
                 "summary": "并行结果已整理，父任务即将交付",
                 "detail": {
                     "child_count": len(child_ids),
-                    "failed": sum(item.get("status") in {"failed", "interrupted"} for item in snapshots),
+                    "failed": sum(item.get("status") in TASK_UNSUCCESSFUL_STATUSES for item in snapshots),
                     "parallel_results": [_child_result_digest(item) for item in snapshots],
                     "merge_basis": "已完成子任务结果与合并器输出",
                     "result_summary": redact_text(str(result.get("answer") or result.get("error") or ""))[0][:1200],
@@ -2654,7 +2655,7 @@ class TaskManager:
         digest_matches = bool(checkpoint_digest) and checkpoint_digest == current_digest
         session_checkpoint = (
             not task.allow_changes
-            and task.status in {"interrupted", "failed"}
+            and task.status in TASK_UNSUCCESSFUL_STATUSES
             and SessionStore(workspace, task.session_id).exists
         )
         if session_checkpoint and safe_readonly and digest_matches:

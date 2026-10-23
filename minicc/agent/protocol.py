@@ -28,6 +28,10 @@ TERMINAL_TASK_STATUSES = frozenset({"completed", "failed", "cancelled", "interru
 #: names right here, and this one is *derivable* from them - so it is
 #: derived, rather than written down a twelfth time.
 ACTIVE_TASK_STATUSES = frozenset(TASK_STATUSES - TERMINAL_TASK_STATUSES)
+#: The terminal statuses that mean "the task did not succeed" (failed or interrupted).
+#: A task that was cancelled was not asked to succeed — it was asked to stop.
+#: A task that failed or was interrupted was expected to succeed but did not.
+TASK_UNSUCCESSFUL_STATUSES = frozenset({"failed", "interrupted"})
 #: The event kinds whose ``phase`` field moves the task's phase.
 #:
 #: M8-T375: this question was asked by **both** executors - the thread
@@ -248,6 +252,7 @@ __all__ = [
     "PHASE_CARRYING_EVENT_KINDS",
     "RuntimeEvent",
     "TASK_STATUSES",
+    "TASK_UNSUCCESSFUL_STATUSES",
     "TERMINAL_TASK_STATUSES",
     "validate_status_transition",
 ]
