@@ -308,6 +308,18 @@ def _merge_cost_estimator(model: str) -> Callable[[dict[str, Any]], float]:
     return estimate
 
 
+def _tree_entry(name: str, rel: str, kind: str, size: int) -> dict[str, Any]:
+    """The one shape of a file-tree entry.
+
+    The walk writes it twice - once for a directory (``size`` is
+    structurally zero, a directory has no byte count) and once for a
+    file.  A key one copy forgets is an entry the file tree renders
+    without a size or without a type, and the two branches sit seven
+    lines apart in the same closure.
+    """
+    return {"name": name, "path": rel, "type": kind, "size": size}
+
+
 def _audit_export_payload(
     workspace: Any, entries: list[dict[str, Any]], total: int
 ) -> dict[str, Any]:
@@ -1041,14 +1053,14 @@ class AgentService:
                     truncated = True
                     return
                 if child.is_dir():
-                    entries.append({"name": child.name, "path": rel, "type": "dir", "size": 0})
+                    entries.append(_tree_entry(child.name, rel, "dir", 0))
                     walk(child, level + 1)
                 else:
                     try:
                         size = child.stat().st_size
                     except OSError:
                         size = 0
-                    entries.append({"name": child.name, "path": rel, "type": "file", "size": size})
+                    entries.append(_tree_entry(child.name, rel, "file", size))
 
         walk(target, 1)
         return {
