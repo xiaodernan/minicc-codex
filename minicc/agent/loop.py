@@ -499,6 +499,26 @@ def _replan_constraints(*, verification_required: bool, feedback: list[dict[str,
     return constraints
 
 
+def _run_metrics(
+    result: TurnResult, runtime_budget: Budget, *, turns: int, tool_calls: int
+) -> dict[str, Any]:
+    """The one shape of a run's metrics summary.
+
+    Two exits hand-wrote it: the hook-blocked early return (which reports
+    zero turns and zero tool calls - the run never started) and the normal
+    end-of-run summary.  A key one exit forgets is a metrics row the report
+    reads as a missing face, and the two exits are exactly where a reader
+    cannot tell "not measured" from "not run".
+    """
+    return {
+        "turns": turns,
+        "tool_calls": tool_calls,
+        "trace_events": len(result.trace_events),
+        "tokens": dict(result.tokens_used),
+        "budget": runtime_budget.snapshot(),
+    }
+
+
 async def run_agent(
     provider: OpenAICompatibleProvider,
     registry: ToolRegistry,
@@ -828,13 +848,9 @@ async def run_agent(
                 code="hook_blocked_user_prompt",
                 detail={"reason": reason[:500]},
             )
-            result.metrics = {
-                "turns": 0,
-                "tool_calls": 0,
-                "trace_events": len(result.trace_events),
-                "tokens": dict(result.tokens_used),
-                "budget": runtime_budget.snapshot(),
-            }
+            result.metrics = _run_metrics(
+                result, runtime_budget, turns=0, tool_calls=0
+            )
             return result
     while max_turns is None or turn < max_turns:
         turn += 1
@@ -1895,13 +1911,10 @@ async def run_agent(
         result.answer = f"任务未完成：{result.error}"
         emit_trace("已达到最大执行轮次，停止继续调用工具", phase="failed", status="error", code="max_turns")
 
-    result.metrics = {
-        "turns": result.turns,
-        "tool_calls": result.tool_calls_total,
-        "trace_events": len(result.trace_events),
-        "tokens": dict(result.tokens_used),
-        "budget": runtime_budget.snapshot(),
-    }
+    result.metrics = _run_metrics(
+        result, runtime_budget,
+        turns=result.turns, tool_calls=result.tool_calls_total,
+    )
     if hooks_enabled:
         await run_hook("Stop", {
             "event": "Stop",
