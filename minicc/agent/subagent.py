@@ -81,6 +81,11 @@ DEFAULT_MAX_DEPTH = 2
 WAIT_POLL_SECONDS = 0.25
 PROGRESS_EMIT_SECONDS = 5.0
 _TOOL_LOG = ("tool", "summary")
+# Every ToolResult the subagent tool returns - ok, error, cancelled, timed out,
+# budget-exceeded - is untrusted child output *and* subagent-produced.  A
+# tuple, and every reader spreads it into a fresh list: the registry appends
+# "redacted" to a result's tags, and that must never reach the home.
+SUBAGENT_SECURITY_TAGS = ("untrusted", "subagent")
 
 _SUBAGENT_SLOTS = threading.BoundedSemaphore(MAX_CONCURRENT_SUBAGENTS)
 
@@ -544,7 +549,7 @@ class _SubagentRunner:
                 return ToolResult(
                     status="cancelled",
                     summary=f"[CANCELLED] 子代理被取消：{description}",
-                    security_tags=["untrusted", "subagent"],
+                    security_tags=[*SUBAGENT_SECURITY_TAGS],
                 )
             remaining = deadline - time.monotonic()
             if remaining <= 0:
@@ -569,7 +574,7 @@ class _SubagentRunner:
                 return ToolResult(
                     status="cancelled",
                     summary=f"[CANCELLED] 子代理被取消：{description}",
-                    security_tags=["untrusted", "subagent"],
+                    security_tags=[*SUBAGENT_SECURITY_TAGS],
                 )
             except BudgetExceeded as exc:
                 # M6-T1: a subagent that exhausts its own budget ends as a
@@ -585,7 +590,7 @@ class _SubagentRunner:
                     summary=f"[BUDGET] 子代理预算耗尽：{description}（{exc}）",
                     output="子代理在其独立预算内未完成，已终止。请缩小委派范围或拆成多步后重试。",
                     data={"description": description, "tool_log": tool_log, "budget_exceeded": True},
-                    security_tags=["untrusted", "subagent"],
+                    security_tags=[*SUBAGENT_SECURITY_TAGS],
                 )
         if timed_out:
             child_cancel.set()
@@ -599,7 +604,7 @@ class _SubagentRunner:
                 summary=f"[TIMEOUT] 子代理超时（>{int(self.timeout_seconds)}s）：{description}",
                 output="子代理超时被终止。请缩小调研范围后重试，或直接使用只读工具分步完成。",
                 data={"description": description, "tool_log": tool_log, "timed_out": True},
-                security_tags=["untrusted", "subagent"],
+                security_tags=[*SUBAGENT_SECURITY_TAGS],
             )
         # M8-T163: the child returned a result - its own usage (breakdown
         # intact) is the fold payload; the error branch below and the
@@ -623,7 +628,7 @@ class _SubagentRunner:
                     "tool_log": tool_log,
                     "error": str(result.error),
                 },
-                security_tags=["untrusted", "subagent"],
+                security_tags=[*SUBAGENT_SECURITY_TAGS],
             )
         answer = str(getattr(result, "answer", "") or "")
         usage = dict(getattr(result, "tokens_used", {}) or {})
@@ -655,7 +660,7 @@ class _SubagentRunner:
                 "tool_log": tool_log,
                 "timed_out": False,
             },
-            security_tags=["untrusted", "subagent"],
+            security_tags=[*SUBAGENT_SECURITY_TAGS],
         )
 
 
