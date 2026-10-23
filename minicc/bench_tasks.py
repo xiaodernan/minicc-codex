@@ -49,6 +49,8 @@ __all__ = [
     "require_prompt",
     "require_objective_shape",
     "spec_blockers",
+    "grader_type_illegal",
+    "grader_spec_unscoreable",
     "GRADER_SCRIPTS",
     "grade_file_contract",
     "grade_command_contract",
@@ -216,6 +218,30 @@ def require_writable_fixture(task: dict[str, Any]) -> None:
                     "两份内容写不进同一个工作区"
                 )
 
+#: M8-T478: the two sentences a bench loader raises when a task's grader cannot
+#: score.  ``validate_task`` (the v2 / legacy suites) and
+#: ``behavior_bench.validate_behavior_task`` (the behaviour suite) both refuse
+#: an unscoreable task, and both spelled these two sentences out by hand - so
+#: "this task file is broken" had two homes, and a task author who grepped for
+#: one found the refusals of one loader only.  Nothing fails; half the evidence
+#: just stops existing.
+#:
+#: ``task_id`` and ``kind`` arrive as **values**, already extracted by the
+#: caller, because the two doors reach this point with different guarantees
+#: about the task dict: the v2 door has already proved ``task["id"]`` is a
+#: non-empty string and that the grader is a dict, while the behaviour door has
+#: proved neither.  Formatting here instead of there would either change the
+#: bytes or make the shared sentence lie about what was checked.
+def grader_type_illegal(task_id: Any, kind: Any) -> str:
+    """The refusal for a grader type no loader on this host can run."""
+    return f"任务 {task_id} grader 类型非法: {kind}"
+
+
+def grader_spec_unscoreable(task_id: Any, blockers: list[str]) -> str:
+    """The refusal for a grader spec nobody can execute."""
+    return f"任务 {task_id} grader 规格无法判分: {'; '.join(blockers)}"
+
+
 def validate_task(task: dict[str, Any]) -> None:
     """Schema gate used by tests and by ``--suite v2`` loading.
 
@@ -243,7 +269,9 @@ def validate_task(task: dict[str, Any]) -> None:
     require_writable_fixture(task)
     grader = task["grader"]
     if not isinstance(grader, dict) or grader.get("type") not in GRADER_TYPES:
-        raise ValueError(f"任务 {task['id']} grader 类型非法: {grader.get('type') if isinstance(grader, dict) else grader}")
+        raise ValueError(grader_type_illegal(
+            task["id"], grader.get("type") if isinstance(grader, dict) else grader
+        ))
     # Same rule the grader applies, applied before the agent is paid: a spec nobody can
     # execute is a broken task file, not a workspace that failed.
     #
@@ -260,7 +288,7 @@ def validate_task(task: dict[str, Any]) -> None:
     # pins.
     blockers = loader_blockers(grader["type"], grader)
     if blockers:
-        raise ValueError(f"任务 {task['id']} grader 规格无法判分: {'; '.join(blockers)}")
+        raise ValueError(grader_spec_unscoreable(task["id"], blockers))
     minutes = task.get("max_minutes")
     if not isinstance(minutes, (int, float)) or isinstance(minutes, bool) or minutes <= 0:
         raise ValueError(f"任务 {task['id']} max_minutes 必须为正数")

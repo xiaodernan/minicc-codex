@@ -31288,3 +31288,82 @@ deny 规则拒绝` 是**一整个判词家族的前缀**——`...规则拒绝�
 聚焦回归 ✓：新门 12 条 + 权限/审批/拒绝规则/web 脸相关 18 个文件共 135
 条 ✓，`test_web_security.py` + `test_http_surface.py` 97 条 ✓，全绿 ✓。
 慢测试未跑 ✓，全量 pytest 未跑 ✓。
+
+## 第四百六十二批 — M8-T478 — bench 任务无法判分的两句判词一个家
+
+### 1 缺陷
+
+有两道门拒绝一个无法判分的 bench 任务：`bench_tasks.validate_task`（v2 /
+legacy 套件）与 `behavior_bench.validate_behavior_task`（behaviour 套件）。
+两道门都抛同样的两句话——grader 类型主机跑不了、grader 规格没人能执行——
+而且**两句话都是各写一遍的**：
+
+- `任务 {id} grader 类型非法: {kind}`（`bench_tasks.py` 与
+  `behavior_bench.py` 各一份）
+- `任务 {id} grader 规格无法判分: {blockers}`（同样各一份）
+
+于是「这个任务文件是坏的」这句话有两个家。任务作者 grep 一个短语，只能找到
+一道门的拒绝记录；另一道门的拒绝照样抛出、措辞照旧，只是不在同一次检索里。
+没有任何东西会失败，一半的证据就是不再出现。
+
+### 2 落地
+
+- 两个造句器安家在 `minicc/bench_tasks.py`，紧挨 `validate_task`（`bench_tasks`
+  已经是 bench 层的共享词汇表之家：`behavior_bench` 本来就在调
+  `bench_tasks.require_writable_fixture` / `spec_verifies_nothing` /
+  `graded_verdict`，家的方向天然成立，不引入新依赖）
+  - `grader_type_illegal(task_id, kind)`
+  - `grader_spec_unscoreable(task_id, blockers)`
+- `task_id` 与 `kind` 作**活值**由调用方取出后传入（T471 的老结论）：两道门
+  走到这里时对 task dict 的保证不同——v2 门已经证明 `task["id"]` 是非空字符
+  串、grader 是 dict，behaviour 门两样都没证明。在家里格式化要么改字节、要么
+  让共享的句子对自己没检查过的事情撒谎
+- `bench_tasks.validate_task` 与 `behavior_bench.validate_behavior_task` 全部
+  改引；`__all__` 补上两个名字
+- **四个句子字节完全未变**（脚本比对 ✓）：v2 的未知类型 / 非 dict grader /
+  无法判分规格，behaviour 的未知类型 / 无法判分规格，逐字相同
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T478-276 | behaviour 门把手拼类型判词改回去 | 2 条红（模板两个家 + 调用点 ✓） |
+| M8-T478-277 | behaviour 门把手拼规格判词改回去 | 2 条红（同上 ✓） |
+| M8-T478-278 | 家里的类型判词多一个空格 | 3 条红（模板唯一 + 钉字节 ✓） |
+| M8-T478-279 | 家里的规格判词多一个空格 | 2 条红（同上 ✓） |
+| M8-T478-280 | 第三个模块另手拼一份类型判词 | 1 条红（模板唯一 ✓） |
+| M8-T478-281 | 造句器不再渲染 task_id | 2 条红（钉字节 ✓） |
+
+六条全部 KILLED，恢复后字节相同。
+
+### 4 新增门禁
+
+新增 `tests/test_the_grader_refusal_sentences_have_one_home.py`（14 条）：
+
+1-2. **两个模板各只有一个承载者** ✓且在 `bench_tasks` ✓
+3-4. **无其他 f-string 以这两个模板开头** ✓（防手拼那条按开头判 ✓）
+5-6. 两个造句器各只定义一次 ✓
+7-8. **两个造句器各被两道门调用** ✓（恰好 2 个调用点，一边一个 ✓）
+9-10. 造句器渲染出钉住的字节 ✓
+11. **两道门对同一个任务拒得逐字节相同** ✓（同 id 同 kind ✓）
+12. 非 dict grader 仍然说清它收到了什么 ✓（对照 ✓）
+13. 无法判分的规格两道门都拒 ✓
+14. 可判分的任务两道门都放行 ✓（对照 ✓）
+
+### 5 一条教训
+
+**census 的单位要选在「句子」这一层，而不是「字符串」那一层。** 这两句判词都
+是 f-string，AST 里根本没有一句完整的常量——`f"任务 {task_id} grader 类型非法:
+{kind}"` 在树里是 `"任务 "` + FormattedValue + `" grader 类型非法: "` +
+FormattedValue。按常量普查只会看到两个碎片，按渲染后的文本普查又得先把任务跑
+起来。正解是**把 f-string 还原成模板**：字面段原样拼接、每个插值位记一个
+`{}`，于是 `f"任务 {a} grader 类型非法: {b}"` 与
+`f"任务 {x} grader 类型非法: {y}"` 被识别为同一句话——而这正是要守的性质：
+**同一句话的两种拼写就是同一个事实**。按渲染文本比对会整个漏掉它。
+
+这也让「防手拼按开头判」有了正确的施用对象：模板以自身开头却不等于自身的，
+就是多出来的那一份。
+
+聚焦回归 ✓：新门 14 条 + bench_tasks / behavior_bench / grader 系列 /
+loader 系列共 147 条 ✓，benchmark_runner + bench_compare 55 条 ✓，全绿 ✓。
+慢测试未跑 ✓，全量 pytest 未跑 ✓。

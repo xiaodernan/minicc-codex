@@ -216,10 +216,13 @@ def validate_behavior_task(task: dict[str, Any]) -> None:
     grader = task.get("grader") or {}
     kind = grader.get("type")
     if kind not in BEHAVIOR_GRADER_TYPES:
-        raise ValueError(f"任务 {task.get('id')} grader 类型非法: {kind}")
+        # M8-T478: the sentences come from ``bench_tasks``, which is where the
+        # v2 / legacy loader spells the same two refusals.  A task author who
+        # greps for one phrase now finds the refusals of both suites.
+        raise ValueError(bench_tasks.grader_type_illegal(task.get("id"), kind))
     blockers = spec_blockers(task) + fixture_blockers(task)
     if blockers:
-        raise ValueError(f"任务 {task.get('id')} grader 规格无法判分: {'; '.join(blockers)}")
+        raise ValueError(bench_tasks.grader_spec_unscoreable(task.get("id"), blockers))
     # Same owner the legacy and v2 doors ask: a fixture value that is not text would reach
     # the agent's workspace as Python repr.
     bench_tasks.require_writable_fixture(task)
