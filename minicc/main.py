@@ -16,9 +16,21 @@ from .agent.router import StageRouter, StageRoute
 from .agent.state import Budget, BudgetExceeded
 from .agent.subagent import DEFAULT_MAX_DEPTH, DEFAULT_MAX_TURNS, build_task_tool_spec
 from .allowlist import AllowlistError, add_session_rule
-from .audit import authorize_tool, effective_risk
+from .audit import PERMISSION_MODES, authorize_tool, effective_risk
 from .cli_io import cli_out
-from .config import MAX_TIMEOUT_SECONDS, SANDBOX_MODES, Config, ConfigError, load_config, normalize_model_name
+from .config import (
+    LLM_PROTOCOLS,
+    MAX_TIMEOUT_SECONDS,
+    PROVIDER_TYPES,
+    REASONING_EFFORTS,
+    SANDBOX_MODES,
+    TASK_EXECUTORS,
+    TOOL_MODES,
+    Config,
+    ConfigError,
+    load_config,
+    normalize_model_name,
+)
 from .commands import discover_commands, expand_slash_command
 from .hooks import HookRunner
 from .llm.base import system_msg, user_msg
@@ -185,8 +197,8 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--base-url", help="OpenAI 兼容接口地址")
     parser.add_argument("--api-key", help="接口密钥；也可通过 MINICC_API_KEY 设置")
     parser.add_argument("--model", help="模型名")
-    parser.add_argument("--reasoning-effort", choices=("low", "mid", "high", "xhigh", "max", "ultra"), help="推理强度")
-    parser.add_argument("--tool-mode", choices=("auto", "native", "envelope"), help="工具调用模式")
+    parser.add_argument("--reasoning-effort", choices=tuple(sorted(REASONING_EFFORTS)), help="推理强度")
+    parser.add_argument("--tool-mode", choices=tuple(sorted(TOOL_MODES)), help="工具调用模式")
     parser.add_argument("--output-style", help="输出风格：preset（concise/explanatory）或自定义文字；覆盖配置与环境变量")
     parser.add_argument("--compact-threshold", type=int, help="上下文压缩字符阈值")
     parser.add_argument("--max-turns", type=int, help="显式设置硬轮数预算（默认不限）")
@@ -195,9 +207,9 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--soft-max-tokens", type=int, help="软 token 预算（触发收尾，不硬中断）")
     parser.add_argument("--max-concurrent-tasks", type=int, help="并发任务上限 (1-64)")
     parser.add_argument("--sandbox", choices=tuple(sorted(SANDBOX_MODES)), help="命令执行沙箱模式")
-    parser.add_argument("--provider-type", choices=("auto", "openai", "anthropic"), help="provider 协议类型")
+    parser.add_argument("--provider-type", choices=tuple(sorted(PROVIDER_TYPES)), help="provider 协议类型")
     parser.add_argument("--fallback-models", help="逗号分隔的降级模型列表")
-    parser.add_argument("--task-executor", choices=("thread", "process"), help="任务执行器")
+    parser.add_argument("--task-executor", choices=tuple(sorted(TASK_EXECUTORS)), help="任务执行器")
     parser.add_argument("--auto-resume", action="store_true", help="web 启动时自动重排中断任务")
     parser.add_argument("--yolo", action="store_true", help="自动允许写文件和执行命令")
     parser.add_argument(
@@ -207,7 +219,7 @@ def _parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--permission-mode",
-        choices=("default", "plan", "acceptEdits", "yolo"),
+        choices=tuple(sorted(PERMISSION_MODES)),
         default="default",
         help="权限模式：plan 只读规划；acceptEdits 自动接受文件写入（命令仍需确认）；yolo 全部放行",
     )

@@ -52,7 +52,9 @@ def _runner(base, tmp_path, **kwargs) -> _SubagentRunner:
         (True, "plan", "readonly"),       # plan mode never writes
         (True, "acceptEdits", "write"),
         (True, "yolo", "exec"),
-        (True, "bypassPermissions", "exec"),
+        # bypassPermissions is not in PERMISSION_MODES (renamed to yolo); a stale
+        # spelling must fall closed, never grant a tier.
+        (True, "bypassPermissions", "readonly"),
     ],
 )
 def test_resolve_tier(writable, mode, expected):

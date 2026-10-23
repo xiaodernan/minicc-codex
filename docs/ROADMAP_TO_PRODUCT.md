@@ -25322,3 +25322,71 @@ clean 过滤器，所以量出来的 1/1 是 blob 层面的事实，不是工作
 这一批再多一轴 ✓：argparse 的 `choices` 是**元组** ✓，AST 扫描只认 `ast.Set` 就会看漏它 ✓。
 门要扫的是**值的形状** ✓，不是某一种语法糖 ✓。顺带那条循环导入也是同一回事 ✓：
 「sandbox 能单独导入」这件事没有门在看 ✓，所以它坏了三个月都没人知道 ✓。
+
+
+## 第三百六十七批 — M8-T383 — 六个开关词表九个家：config 校验 / provider 构造 / CLI choices 三面各写各的
+
+### 1 缺陷
+
+延续 T382 的形状 ✓，这次是一整族 ✓：六个「开关词表」在包里有 **9 处行内副本** ✓，分布在三张面孔上 ✓——
+
+| 词表 | 家（改前） | 行内副本 |
+| --- | --- | --- |
+| `TOOL_MODES` | **无** | `config.py`:750 校验、`llm/openai_provider.py`:537 构造校验、`main.py`:189 CLI choices |
+| `LLM_PROTOCOLS` | **无** | `config.py`:792 校验、`llm/openai_provider.py`:533 构造校验 |
+| `PROVIDER_TYPES` | **无** | `config.py`:828 校验、`main.py`:198 CLI choices |
+| `TASK_EXECUTORS` | **无** | `config.py`:849 校验、`main.py`:200 CLI choices |
+| `REASONING_EFFORTS` | `config.py`:51 | `main.py`:188 CLI choices |
+| `PERMISSION_MODES` | `audit.py`:270 | `main.py`:210 CLI choices |
+
+加一种模式要改两三处 ✓，漏一处就是「前门拒绝、后门接受」✓。
+
+### 2 落地
+
+* **建家** ✓：`config.py` 在 `SANDBOX_MODES` 旁新增 `TOOL_MODES` / `LLM_PROTOCOLS` /
+  `PROVIDER_TYPES` / `TASK_EXECUTORS` ✓；`REASONING_EFFORTS` 与 `PERMISSION_MODES` 已有家 ✓，
+  读者改为导入 ✓。
+* **九个读者**全改问家 ✓：config 四处校验 ✓、`openai_provider.py` 两处构造校验 ✓、
+  `main.py` 五个 `choices=tuple(sorted(HOME))` ✓（展示顺序随之按字典序 ✓，合法值集合不变 ✓）。
+
+### 3 门一上线就抓到一条真缺陷：子集里的死成员
+
+新门的「子集必须是家的子集」那条 ✓ 第一条就红 ✓：`minicc/agent/subagent.py`:68 的
+`WRITABLE_PERMISSION_MODES = {"acceptEdits", "yolo", "bypassPermissions"}` ✓——`bypassPermissions`
+**不在** `PERMISSION_MODES` 里 ✓，`normalize_permission_mode()` 对它直接 raise ✓（别名表里也没有它 ✓）。
+它是 Claude Code 旧词汇的遗骸 ✓（本项改名 `yolo` ✓）：**永远没有任何任务能带着这个模式抵达
+子代理** ✓，那两行集合却一直声称它授权写/执行 ✓。连 `tests/test_subagent_delegation.py` 都把
+`(True, "bypassPermissions", "exec")` 当事实钉着 ✓——死的词汇养出了活的测试 ✓。
+
+处理 ✓：两个集合删掉死成员 ✓（`WRITABLE = {"acceptEdits", "yolo"}` ✓、`EXEC = {"yolo"}` ✓）；
+测试那行改成 `(True, "bypassPermissions", "readonly")` ✓——**过时的拼写必须失败闭合** ✓，
+不许授予任何层级 ✓。
+
+### 4 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T383-164 | `main.py` 的 `--tool-mode` choices 退回行内元组 | 1 条红（行内扫描抓到 ✓） |
+| M8-T383-165 | `config.py` 的 provider-type 校验退回行内集合 | 1 条红（**家文件自己**只许声明一次那条抓到 ✓） |
+| M8-T383-166 | 把 `bypassPermissions` 复活回 `WRITABLE_PERMISSION_MODES` | 2 条红（子集门 ✓ + 改后的 delegation 测试 ✓） |
+
+### 5 新增门禁
+
+`tests/test_the_switch_vocabularies_have_one_home.py`（5 条）✓：
+
+1. 七个词表各自存在于自己的家 ✓、成员正确 ✓
+2. CLI 六个开关的 choices 与家相等 ✓（从家派生 ✓）
+3. **任何模块**不许行内拼写这些词表 ✓（AST 扫 `Set` 与 `Tuple` ✓）
+4. **家文件自己**也只许声明一次 ✓（防家内部长出第二个副本 ✓）
+5. 有名子集必须是家的子集 ✓（死成员/逃逸成员即红 ✓）
+
+聚焦回归 ✓：门 5 条 + `test_subagent_delegation.py` 15 条 + `test_core_llm.py` 17 条 +
+`test_cli_stage_routing.py` / `test_project_config.py` / `test_reasoning_effort.py` /
+`test_p0_p1_p2.py` 共 67 条 ✓，全绿 ✓。全量围栏未重跑 ✓。
+
+### 6 一条教训
+
+**子集比副本更危险。** ✓ 副本漂移了，读的人至少还能看出有两份 ✓；子集漂移了，它看起来
+永远是对的 ✓——`WRITABLE_PERMISSION_MODES` 声称的三个模式里有一个根本不存在 ✓，而这句话
+在源码里读了三年都像真的 ✓。所以门除了钉「家唯一」✓，还要钉「子集 ⊆ 家」✓：
+**声称属于一个词表的名字，必须真的在那个词表里** ✓。

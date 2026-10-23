@@ -54,6 +54,7 @@ from tenacity import (
     stop_after_attempt,
 )
 
+from ..config import LLM_PROTOCOLS, TOOL_MODES
 from .base import LLMResponse, is_nameless_tool_name, unique_tool_call_id
 from ..tools.schemas import tool_call_name
 from ..logging_setup import log_provider_event
@@ -530,11 +531,11 @@ class OpenAICompatibleProvider:
         self.timeout = timeout
         self._api_key = api_key
         self._max_retries = max(0, max_retries)
-        if protocol not in ("auto", "responses", "chat_completions"):
+        if protocol not in LLM_PROTOCOLS:
             raise ValueError(f"protocol 非法: {protocol!r}")
         self._protocol = "responses" if protocol in ("auto", "responses") else "chat_completions"
         self._protocol_locked = protocol != "auto"
-        if tool_mode not in ("auto", "native", "envelope"):
+        if tool_mode not in TOOL_MODES:
             raise ValueError(f"tool_mode 非法: {tool_mode!r}")
         self._mode = "envelope" if tool_mode == "envelope" else "native"
         self._mode_locked = tool_mode != "auto"

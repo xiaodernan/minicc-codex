@@ -65,8 +65,8 @@ SUBAGENT_TOOL_TIERS = {
 }
 # Permission modes that authorize a subagent to write without an interactive
 # approval prompt (a subagent cannot prompt the user mid-run).
-WRITABLE_PERMISSION_MODES = frozenset({"acceptEdits", "yolo", "bypassPermissions"})
-EXEC_PERMISSION_MODES = frozenset({"yolo", "bypassPermissions"})
+WRITABLE_PERMISSION_MODES = frozenset({"acceptEdits", "yolo"})
+EXEC_PERMISSION_MODES = frozenset({"yolo"})
 DEFAULT_MAX_TURNS = 24
 DEFAULT_TIMEOUT_SECONDS = 600.0
 MAX_CONCURRENT_SUBAGENTS = 3

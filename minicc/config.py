@@ -41,6 +41,13 @@ DEFAULT_MAX_DURATION_SECONDS: float | None = None
 DEFAULT_MAX_TOOL_CALLS: int | None = None
 DEFAULT_SANDBOX_MODE = "auto"
 SANDBOX_MODES = frozenset({"host", "docker", "auto"})
+# M8-T383: the switch vocabularies below were inline literals at each reader
+# (config validation, provider constructor, CLI choices) - three homes for
+# one fact each.  They live here now; every reader imports them.
+TOOL_MODES = frozenset({"auto", "native", "envelope"})
+LLM_PROTOCOLS = frozenset({"auto", "responses", "chat_completions"})
+PROVIDER_TYPES = frozenset({"auto", "openai", "anthropic"})
+TASK_EXECUTORS = frozenset({"thread", "process"})
 DEFAULT_SANDBOX_IMAGE = "python:3.11-slim"
 DEFAULT_CONTEXT_WINDOW_TOKENS = 300_000
 DEFAULT_MAX_CONCURRENT_TASKS = 8
@@ -747,7 +754,7 @@ def load_config(
     except ValueError as exc:
         raise ConfigError(f"MINICC_REASONING_EFFORT 非法: {exc}") from None
     resolved_mode = pick(tool_mode, "MINICC_TOOL_MODE", "tool_mode", "auto")
-    if resolved_mode not in ("auto", "native", "envelope"):
+    if resolved_mode not in TOOL_MODES:
         raise ConfigError(f"MINICC_TOOL_MODE 非法: {resolved_mode!r} (auto|native|envelope)")
 
     # Hard task-level execution budgets remain unlimited.  Keep these legacy
@@ -789,7 +796,7 @@ def load_config(
     resolved_protocol = pick(None, "MINICC_LLM_PROTOCOL", "llm_protocol", DEFAULT_LLM_PROTOCOL).strip().lower()
     aliases = {"chat": "chat_completions", "completions": "chat_completions", "response": "responses"}
     resolved_protocol = aliases.get(resolved_protocol, resolved_protocol)
-    if resolved_protocol not in {"auto", "responses", "chat_completions"}:
+    if resolved_protocol not in LLM_PROTOCOLS:
         raise ConfigError(
             f"MINICC_LLM_PROTOCOL 非法: {resolved_protocol!r} (auto|responses|chat_completions)"
         )
@@ -826,7 +833,7 @@ def load_config(
         workspace_roots.append(Path(part).expanduser().resolve())
 
     raw_provider_type = pick(None, "MINICC_PROVIDER_TYPE", "provider_type", "auto").strip().lower()
-    if raw_provider_type not in {"auto", "openai", "anthropic"}:
+    if raw_provider_type not in PROVIDER_TYPES:
         raise ConfigError(f"MINICC_PROVIDER_TYPE 非法: {raw_provider_type!r} (auto|openai|anthropic)")
     if raw_provider_type == "auto":
         haystack = f"{resolved_url} {resolved_model}".lower()
@@ -847,7 +854,7 @@ def load_config(
         raise ConfigError(f"MINICC_SUBAGENT_MAX_DEPTH 不是整数: {raw_subagent_depth!r}") from None
 
     task_executor = pick(None, "MINICC_TASK_EXECUTOR", "task_executor", "thread").strip().lower()
-    if task_executor not in {"thread", "process"}:
+    if task_executor not in TASK_EXECUTORS:
         raise ConfigError(f"MINICC_TASK_EXECUTOR 非法: {task_executor!r} (thread|process)")
 
     raw_fallbacks = pick(None, "MINICC_FALLBACK_MODELS", "fallback_models", "")
