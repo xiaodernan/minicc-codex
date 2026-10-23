@@ -27242,3 +27242,58 @@ core_task 127 条 ✓，共 185 条 ✓，全绿 ✓。全量 pytest 未跑 ✓�
 **可变的家（常量 dict ✓）本身就是缺陷** ✓，构造器（每次新建 ✓）才是家的
 正确形态 ✓。这与 T396「可变家是陷阱」隔着三百批再次相遇 ✓：
 有的教训值得反复相遇 ✓，因为每次相遇的形状都不一样 ✓。
+
+
+## 第四百零一批 — M8-T417 — tool 消息形状有家而邻居手抄：interrupted 修复另写一份
+
+### 1 缺陷
+
+`minicc/llm/base.py` ✓ 里**早就有** tool 结果消息的构造器 ✓
+（`tool_result_msg(tool_call_id, content)` ✓，T412 批的邻居 ✓），
+但 `minicc/agent/context.py` ✓ 的 `repair_interrupted_tool_rounds` ✓
+**另手抄了一份**三键 dict ✓：
+
+```python
+{"role": "tool", "tool_call_id": call_id, "content": "……"}
+```
+
+同一个形状 ✓，一个家有构造器 ✓、一个邻居手抄 ✓——这正是 T407 命名教训的
+活案例 ✓：`tool_result_msg` 这个名字说的是**用途** ✓，修复路径的作者
+不觉得那是在说自己的场景 ✓。形状一旦在某处漂移 ✓（比如 tool 消息将来
+要带 `name` 字段 ✓），修的人改构造器 ✓，**这个邻居原地不动** ✓。
+
+### 2 落地
+
+* `context.py` ✓ 引入 `tool_result_msg` ✓，手抄处改为一次调用 ✓。
+* 那段「中断未知」长文本提为命名常量 ✓ `INTERRUPTED_TOOL_RESULT` ✓
+  （它在文档里被引用 ✓、在测试里被断言 ✓，值得有名字 ✓）。
+* **行为逐字节不变** ✓（`role`/`tool_call_id`/`content` 三键与内容全同 ✓）。
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T417-208 | 修复处改回手写三键 dict | 1 条红（census 2 处 ✓） |
+| M8-T417-209 | 连 import 一起删掉 | 1 条红（行为 NameError ✓） |
+
+### 4 新增门禁
+
+`tests/test_the_tool_result_msg_have_one_home.py`（4 条）✓：
+
+1. 家的行为 ✓：三键形状 ✓
+2. 修复路径源码出现 `tool_result_msg` ✓
+3. 行为 ✓：修复后的消息 `role`/`tool_call_id`/`content` 俱全 ✓、
+   内容含 `INTERRUPTED_TOOL_RESULT` ✓
+4. census ✓：三键 tool 消息字面量**恰好一处** ✓且在家 ✓
+
+聚焦回归 ✓：新门 4 条 + 准确性/wire 配对/复用 id/core_llm 62 条 ✓ +
+core_agent/core_task 77 条 ✓，共 139 条 ✓，全绿 ✓。全量 pytest 未跑 ✓。
+
+### 5 一条教训
+
+**「已经有助手了」不是免抄金牌，「助手的名字像不像在说我」才是。** ✓
+T407 用改名（`_reject` → `_record` ✓）解决可见性 ✓；这一批说明还有
+另一种解法 ✓：**让门来找抄写处** ✓——census 不问「谁调用了构造器」✓，
+问「这个形状还被拼写了几次」✓。作者看不见家 ✓，门看得见 ✓。
+两批合起来是完整的纪律 ✓：**家的命名让人看见它 ✓，门的 census 让人
+逃不掉它** ✓。

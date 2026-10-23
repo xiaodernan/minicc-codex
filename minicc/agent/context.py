@@ -16,6 +16,7 @@ from collections import Counter
 from collections.abc import Iterator
 from typing import Any
 
+from ..llm.base import tool_result_msg
 from ..tools.registry import redact_text
 from ..tools.schemas import tool_call_name
 
@@ -125,6 +126,12 @@ def validate_tool_protocol(messages: list[dict[str, Any]]) -> None:
         raise ValueError("工具上下文协议无效：最后一个工具轮次缺少结果")
 
 
+#: The content a repaired interrupted round carries: the result is unknown,
+#: never invented as a success - the model is told to re-read the workspace
+#: instead of assuming its write landed.
+INTERRUPTED_TOOL_RESULT = "[INTERRUPTED_TOOL_RESULT] 上次执行被中断，未记录结果；执行是否产生副作用未知。先读取当前状态并核对已有修改，不要盲目重复写入。"
+
+
 def repair_interrupted_tool_rounds(messages: list[dict[str, Any]]) -> int:
     """Close interrupted historical rounds without repeating any tool action.
 
@@ -139,7 +146,7 @@ def repair_interrupted_tool_rounds(messages: list[dict[str, Any]]) -> int:
     def close_pending() -> None:
         nonlocal inserted
         for call_id in pending:
-            repaired.append({"role": "tool", "tool_call_id": call_id, "content": "[INTERRUPTED_TOOL_RESULT] 上次执行被中断，未记录结果；执行是否产生副作用未知。先读取当前状态并核对已有修改，不要盲目重复写入。"})
+            repaired.append(tool_result_msg(call_id, INTERRUPTED_TOOL_RESULT))
             inserted += 1
         pending.clear()
 
