@@ -8,6 +8,7 @@ import sys
 import threading
 from pathlib import Path
 
+from .config import SANDBOX_MODES
 from .tools.bash import run_bash, run_process
 from .tools.schemas import ToolResult
 
@@ -21,7 +22,7 @@ class SandboxRunner:
     """Run host commands by default, or explicit Docker isolation when enabled."""
 
     def __init__(self, mode: str = "host", image: str = "python:3.11-slim") -> None:
-        if mode not in {"host", "docker", "auto"}:
+        if mode not in SANDBOX_MODES:
             raise ValueError(f"sandbox mode 非法: {mode!r}")
         self.mode = mode
         self.image = image

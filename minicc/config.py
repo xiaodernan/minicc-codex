@@ -40,6 +40,7 @@ DEFAULT_TASK_RECOVERY_RETRIES = 2
 DEFAULT_MAX_DURATION_SECONDS: float | None = None
 DEFAULT_MAX_TOOL_CALLS: int | None = None
 DEFAULT_SANDBOX_MODE = "auto"
+SANDBOX_MODES = frozenset({"host", "docker", "auto"})
 DEFAULT_SANDBOX_IMAGE = "python:3.11-slim"
 DEFAULT_CONTEXT_WINDOW_TOKENS = 300_000
 DEFAULT_MAX_CONCURRENT_TASKS = 8
@@ -812,7 +813,7 @@ def load_config(
     sandbox_mode = pick(
         None, "MINICC_SANDBOX", "sandbox", DEFAULT_SANDBOX_MODE, alt_file_keys=("sandbox_mode",)
     ).strip().lower()
-    if sandbox_mode not in {"host", "docker", "auto"}:
+    if sandbox_mode not in SANDBOX_MODES:
         raise ConfigError(f"MINICC_SANDBOX 非法: {sandbox_mode!r} (host|docker|auto)")
     sandbox_image = pick(None, "MINICC_SANDBOX_IMAGE", "sandbox_image", DEFAULT_SANDBOX_IMAGE)
 

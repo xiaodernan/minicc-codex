@@ -18,7 +18,7 @@ from .agent.subagent import DEFAULT_MAX_DEPTH, DEFAULT_MAX_TURNS, build_task_too
 from .allowlist import AllowlistError, add_session_rule
 from .audit import authorize_tool, effective_risk
 from .cli_io import cli_out
-from .config import MAX_TIMEOUT_SECONDS, Config, ConfigError, load_config, normalize_model_name
+from .config import MAX_TIMEOUT_SECONDS, SANDBOX_MODES, Config, ConfigError, load_config, normalize_model_name
 from .commands import discover_commands, expand_slash_command
 from .hooks import HookRunner
 from .llm.base import system_msg, user_msg
@@ -194,7 +194,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--context-window", type=int, help="上下文窗口 token 数")
     parser.add_argument("--soft-max-tokens", type=int, help="软 token 预算（触发收尾，不硬中断）")
     parser.add_argument("--max-concurrent-tasks", type=int, help="并发任务上限 (1-64)")
-    parser.add_argument("--sandbox", choices=("auto", "host", "docker"), help="命令执行沙箱模式")
+    parser.add_argument("--sandbox", choices=tuple(sorted(SANDBOX_MODES)), help="命令执行沙箱模式")
     parser.add_argument("--provider-type", choices=("auto", "openai", "anthropic"), help="provider 协议类型")
     parser.add_argument("--fallback-models", help="逗号分隔的降级模型列表")
     parser.add_argument("--task-executor", choices=("thread", "process"), help="任务执行器")

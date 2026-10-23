@@ -38,7 +38,12 @@ if TYPE_CHECKING:
     # Import-time cycle guard: minicc.mcp imports tools.registry, so this
     # package must not import minicc.mcp at runtime (annotation-only use).
     from ..mcp import McpManager
-from ..sandbox import SandboxRunner
+    # Same shape as mcp above: minicc.sandbox imports minicc.tools.bash, so a
+    # runtime import here kills every sandbox-first entry (``import
+    # minicc.sandbox`` as the first minicc import died with a partially
+    # initialized module).  Annotation-only here; build_registry imports it
+    # lazily at its single runtime use.
+    from ..sandbox import SandboxRunner
 from ..worktree import WorktreeManager
 
 if TYPE_CHECKING:
@@ -54,6 +59,8 @@ def build_registry(
     worktree_manager: WorktreeManager | None = None,
 ) -> ToolRegistry:
     """Create a ToolRegistry with all built-in tools bound to *editor*."""
+    from ..sandbox import SandboxRunner
+
     reg = ToolRegistry()
     fs = FsTools(editor)
     workspace = editor.workspace

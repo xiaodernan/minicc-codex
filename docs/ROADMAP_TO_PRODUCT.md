@@ -24802,7 +24802,8 @@ Agent loop 要回答**同一个问题两次** ✓：
 
 | 编号 | 变异 | 验红 |
 | --- | --- | --- |
-| M8-T380-159 | 把其中一处改回手写 `{"failed", "interrupted"}` | 1 条红（结构断言抓到） |
+| M8-T380-159 | 把其中一处改回手写 `{"failed", "interrupted"}` | 1 条红（结构断言抓到）
+| M8-T381-161 | 把 webfetch.py 里的 `ALLOWED_SCHEMES` 改回 `frozenset({"http", "https"})` | 1 条红（结构断言抓到） |
 
 ### 4 新增门禁
 
@@ -25219,3 +25220,105 @@ clean 过滤器，所以量出来的 1/1 是 blob 层面的事实，不是工作
 （`_locator` 与 `BOX_CHECKED` 那条账是本仓库自己的口径，要照着读）；③那个丢 `第` 的标题是本道自己上一批
 落盘的字节，改它 = 一字符的勘误，还是一条门钉住「每个 `## …批` 标题都必须被批号读者索引到」更值钱——两件事
 分开量，别把它们写成同一笔。
+
+
+## 第三百六十五批 — M8-T381 — ALLOWED_SCHEMES 一个键三个家（补一笔正传）
+
+### 1 缺陷
+
+「URL 的合法 scheme」这个事实在包里有**三个行内副本** ✓：`minicc/tools/webfetch.py` 自己写了一份
+`frozenset({"http", "https"})` ✓，`minicc/webauth.py` 的 `origin_allowed` 手写 `{"http", "https"}` ✓，
+`minicc/netguard.py` 里还有第三份（SSRF 守卫自己用的 `ALLOWED_SCHEMES` ✓）。三份**没有同一个名字** ✓，
+改一处漏两处，就是「有的面孔放行、有的面孔拒绝」✓。
+
+### 2 落地
+
+* **建家** ✓：`ALLOWED_SCHEMES = frozenset({"http", "https"})` 留在 `minicc/netguard.py` ✓
+  （网络边界的地界上 ✓，`ensure_public_url` 自己就是第一个读者 ✓）。
+* **两个搬迁读者** ✓：`webfetch.py` 删掉自己那份、改从 netguard 导入 ✓；`webauth.py` 的
+  `origin_allowed` 同样改导入 ✓。
+
+### 3 变异验证
+
+已记在第三百六十四批的变异表 ✓（M8-T381-161 ✓）：把 `webfetch.py` 改回
+`frozenset({"http", "https"})` ✓，1 条红 ✓（结构断言抓到 ✓）。
+
+### 4 新增门禁
+
+`tests/test_the_allowed_schemes_have_one_home.py` ✓：家存在于 netguard ✓；任何模块都不许手写
+这两个 scheme ✓（AST 扫描 ✓）。
+
+> 补账说明 ✓：T381 的代码与门在 `9d7e1c5` 落地 ✓，当时只把变异行进账 ✓、正传欠着 ✓；本批补上 ✓，
+> 不改动任何已提交字节 ✓。
+
+## 第三百六十六批 — M8-T382 — sandbox 模式一个词表三个家，外加一条 sandbox-first 就死的循环导入
+
+### 1 缺陷
+
+「沙箱有哪几种模式」这个事实，在包里有**三个行内副本** ✓：
+
+| 行号 | 用途 |
+| --- | --- |
+| `minicc/config.py`:816 | `MINICC_SANDBOX` 配置校验 |
+| `minicc/sandbox.py`:25 | `SandboxRunner.__init__` 构造校验 |
+| `minicc/main.py`:197 | CLI `--sandbox` 的 argparse choices（**元组**拼写 ✓） |
+
+三个副本**没有名字** ✓。加一种模式要改三处 ✓，漏一处就是「配置层拒绝、构造层接受」✓。
+`config.py` 里 `REASONING_EFFORTS`、`STAGE_TIER_NAMES`、`TRUTHY` 都有家有名 ✓，沙箱词表没有理由例外 ✓。
+
+### 2 落地
+
+* **建家** ✓：`minicc/config.py` 新增 `SANDBOX_MODES = frozenset({"host", "docker", "auto"})` ✓，
+  紧挨 `DEFAULT_SANDBOX_MODE` ✓。
+* **三个读者**全改问那个家 ✓：`config.py` 的校验 ✓、`sandbox.py` 的构造校验 ✓、
+  `main.py` 的 `choices=tuple(sorted(SANDBOX_MODES))` ✓。CLI help 里三个值的展示顺序从
+  `auto host docker` 变为 `auto docker host` ✓，合法值集合不变 ✓。
+
+### 3 顺带修掉一条循环导入（新门第一条就跑出来的）
+
+新门要 `from minicc.sandbox import SANDBOX_MODES` ✓，一跑就红 ✓——红的不是词表 ✓：
+
+    ImportError: cannot import name 'SandboxRunner' from partially initialized
+    module 'minicc.sandbox' (most likely due to a circular import)
+
+**这个环在 HEAD 上就存在** ✓（`git stash` 后实测 `python -c "import minicc.sandbox"` 同样炸 ✓）：
+`minicc/sandbox.py` 模块级 `from .tools.bash import ...` ✓ → `minicc/tools/__init__.py` 改前第 41 行模块级
+`from ..sandbox import SandboxRunner` ✓ → sandbox 半初始化 ✓。只要 `minicc.sandbox` 是进程里**第一个**
+被导入的 minicc 模块就死 ✓；先导入 `minicc.tools` / `minicc.main` 的路径一直侥幸活着 ✓——全套件测试
+之所以绿 ✓，是因为按字母序收集时 `test_core_tools.py` 先导入 `minicc.tools.web` ✓，把环**绕开**了 ✓，
+不是它不存在 ✓。
+
+修法照文件里**已有的先例** ✓：`tools/__init__.py` 对 `..mcp` 那条 TYPE_CHECKING 守卫 ✓——
+`SandboxRunner` 改注解-only ✓，`build_registry()` 内唯一的运行时用法延迟导入 ✓。修完三个入口
+顺序全通 ✓：`import minicc.sandbox` / `import minicc.tools` / `import minicc.main` ✓。
+
+### 4 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T382-162 | `sandbox.py` 的校验改回行内 `{"host", "docker", "auto"}` | 1 条红（AST 集合扫描抓到 ✓） |
+| M8-T382-163 | `main.py` 的 choices 改回行内 `("auto", "host", "docker")` | 1 条红（AST 元组扫描抓到 ✓） |
+
+两次变异分别单独施加、分别恢复 ✓，门各红一次 ✓，恢复后 5 条全绿 ✓。
+
+### 5 新增门禁
+
+`tests/test_sandbox_mode_has_one_home.py`（5 条）✓：
+
+1. 家存在于 `config.py` 且成员正确 ✓
+2. `sandbox.py` 从 config 导入 ✓（sandbox-first 导入不再炸 ✓）
+3. **任何模块**都不许手写这三个值 ✓（AST 同时扫 `Set` **与** `Tuple` 两种字面量 ✓）
+4. `config` 导出 `SANDBOX_MODES` ✓
+5. CLI `--sandbox` 的 choices 与家相等 ✓（从家派生 ✓）
+
+聚焦回归 ✓：门 5 条 ✓ + `test_core_tools.py` 32 条 ✓ + 元门四只
+（`test_one_rule_one_home.py`、`test_five_places_where_one_fact_was_read_differently.py`、
+`test_a_tool_name_has_one_spelling_everywhere.py`、`test_four_doors_that_were_not_closed.py`）36 条 ✓，
+全绿 ✓。全量围栏未重跑 ✓（改的是常量安家与一条导入守卫 ✓，读者面已被上面的聚焦回归覆盖 ✓）。
+
+### 6 一条教训
+
+**「集合字面量」不是唯一的拼写。** ✓ 第三百六十四批的教训是「同一语义、不同顺序也是两个家」✓；
+这一批再多一轴 ✓：argparse 的 `choices` 是**元组** ✓，AST 扫描只认 `ast.Set` 就会看漏它 ✓。
+门要扫的是**值的形状** ✓，不是某一种语法糖 ✓。顺带那条循环导入也是同一回事 ✓：
+「sandbox 能单独导入」这件事没有门在看 ✓，所以它坏了三个月都没人知道 ✓。
