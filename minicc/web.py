@@ -308,6 +308,33 @@ def _merge_cost_estimator(model: str) -> Callable[[dict[str, Any]], float]:
     return estimate
 
 
+def _new_thread_record(
+    *,
+    thread_id: str,
+    session_id: str,
+    workspace_path: str,
+    task_thread_id: str,
+    created_at_epoch: float,
+) -> dict[str, Any]:
+    """The one shape of an RPC thread record.
+
+    Two sites mint it: the lookup that adopts an existing task's thread
+    and the start handler that creates a thread from a request.  Both
+    spell the same six keys - ``id`` mirrors ``thread_id`` because the
+    RPC surface and the task store name the same thing differently.  A
+    key one mint forgets is a record whose readers (the thread view and
+    the workspace index) see a missing field.
+    """
+    return {
+        "id": thread_id,
+        "thread_id": thread_id,
+        "session_id": session_id,
+        "workspace_path": workspace_path,
+        "task_thread_id": task_thread_id,
+        "created_at_epoch": created_at_epoch,
+    }
+
+
 class AgentService:
     """Bridge HTTP requests to isolated agent runs and background tasks."""
 
@@ -657,14 +684,13 @@ class AgentService:
         if not matching:
             raise KeyError(thread_id)
         first = min(matching, key=lambda item: item.created_at)
-        record = {
-            "id": thread_id,
-            "thread_id": thread_id,
-            "session_id": first.session_id,
-            "workspace_path": first.workspace_path,
-            "task_thread_id": first.thread_id,
-            "created_at_epoch": first.created_at,
-        }
+        record = _new_thread_record(
+            thread_id=thread_id,
+            session_id=first.session_id,
+            workspace_path=first.workspace_path,
+            task_thread_id=first.thread_id,
+            created_at_epoch=first.created_at,
+        )
         with self._rpc_thread_guard:
             record = self._rpc_threads.setdefault(thread_id, record)
             self._rpc_thread_put(thread_id, record)
@@ -700,14 +726,13 @@ class AgentService:
         with self._rpc_thread_guard:
             record = self._rpc_threads.setdefault(
                 thread_id,
-                {
-                    "id": thread_id,
-                    "thread_id": thread_id,
-                    "session_id": session_id,
-                    "workspace_path": str(workspace),
-                    "task_thread_id": task_thread_id,
-                    "created_at_epoch": time.time(),
-                },
+                _new_thread_record(
+                    thread_id=thread_id,
+                    session_id=session_id,
+                    workspace_path=str(workspace),
+                    task_thread_id=task_thread_id,
+                    created_at_epoch=time.time(),
+                ),
             )
             self._rpc_thread_put(thread_id, record)
             record = dict(record)

@@ -27593,3 +27593,61 @@ worker 子进程的五条生命周期日志——`worker_process_reaped` ✓、
 **所有站点都必须相同的** ✓。判别口诀 ✓：一个事件里**哪些键随场景变
 **（status/code/summary/risk/authorization ✓）、**哪些键是这条事件流的
 身份证**（kind/phase ✓）——后者进家 ✓，前者进参数 ✓。
+
+
+## 第四百零七批 — M8-T423 — RPC thread 记录六键两个家：认领与启动各铸一份
+
+### 1 缺陷
+
+RPC 面的一条 thread 记录是六键 ✓：`id`/`thread_id`（同一值的两个
+名字 ✓）/`session_id`/`workspace_path`/`task_thread_id`/
+`created_at_epoch` ✓。它有两个铸点 ✓：
+
+| 位置 | 场景 |
+| --- | --- |
+| `_rpc_thread_record` 方法内的认领分支 | 从既有任务**认领**一条 thread ✓ |
+| `_rpc_thread_start` | 从请求参数**新建**一条 thread ✓ |
+
+两个铸点相隔 40 多行 ✓，六键全同 ✓，只有**值的来源**不同 ✓
+（`first.created_at` vs `time.time()` ✓）。某个铸点漏一个键 ✓，thread
+视图（`_rpc_thread_view` ✓）和工作区索引（`_path_key(record
+["workspace_path"])` ✓）就把这条 thread 读成**缺字段** ✓——而 RPC
+调用方看到的是一个**半条 thread** ✓，不是一条报错 ✓。
+
+### 2 落地
+
+* `minicc/web.py` ✓ 立模块级 `_new_thread_record(*, thread_id,
+  session_id, workspace_path, task_thread_id, created_at_epoch)` ✓
+  （**避开既有方法名** `_rpc_thread_record` ✓，见 §5 ✓）。
+* 两个铸点改为调用 ✓，**行为逐字节不变** ✓（含 709 处
+  `str(workspace)` 的既有归一 ✓）。
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T423-220 | 认领铸点退回六键字面量 | 1 条红（census ✓） |
+| M8-T423-221 | 启动铸点退回六键字面量 | 1 条红（census ✓） |
+
+### 4 新增门禁
+
+`tests/test_the_rpc_thread_record_have_one_home.py`（3 条）✓：
+
+1. 家的行为 ✓：六键齐全 ✓、`id` 镜像 `thread_id` ✓
+2. census ✓：六键 dict 字面量在 minicc/ 下**恰好一处** ✓且在家 ✓
+3. 调用计数 ✓：`_new_thread_record(` 恰好 3 次 ✓（定义 + 两个铸点 ✓）
+
+聚焦回归 ✓：新门 3 条 + RPC 面 3 文件 88 条 ✓，共 91 条 ✓，全绿 ✓。
+全量 pytest 未跑 ✓。
+
+### 5 一条教训
+
+**立家之前先查户口 ✓：名字可能已经被占了。** ✓ 本批模块级构造器
+最初就叫 `_rpc_thread_record` ✓——和 676 行**既有的方法**
+`_rpc_thread_record(self, thread_id)`（查找/认领语义 ✓）撞名 ✓。
+两个作用域不同 ✓，Python 不报错 ✓，但门的调用计数当场穿帮 ✓
+（数出来 5 次不是 3 次 ✓）。家的名字要说**自己的形状** ✓：
+方法说的是「找到一条记录」✓，构造器说的是「铸一条新记录」✓——
+`_new_thread_record` 与 `_rpc_thread_record` 各归其位 ✓。判别
+口诀 ✓：`def` 旁边有 `self` 的是行为 ✓，没有的是形状 ✓；形状的名字
+里带上动作（`new_` ✓）就不会和行为撞车 ✓。
