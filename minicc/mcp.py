@@ -306,6 +306,27 @@ def _initialize_params(protocol_version: str) -> dict[str, Any]:
     }
 
 
+_JSONRPC_VERSION = "2.0"
+
+
+def _jsonrpc_request(msg_id: Any, method: str, params: dict[str, Any]) -> dict[str, Any]:
+    """The one JSON-RPC request envelope: version, id, method, params.
+
+    Three sites spell it - the stdio client's ``_request``, the HTTP
+    handshake's initialize, and the HTTP client's ``_request``.  The
+    ``id`` is how the answer is paired back to the caller (the HTTP
+    handshake pins it to 0 and the readers match on it), so a site
+    that drops or re-spells it is a request whose answer can never be
+    matched - it just times out.
+    """
+    return {
+        "jsonrpc": _JSONRPC_VERSION,
+        "id": msg_id,
+        "method": method,
+        "params": params,
+    }
+
+
 class McpStdioClient:
     """Persistent JSON-RPC-over-stdio client with a reader queue."""
 
@@ -484,7 +505,7 @@ class McpStdioClient:
         with self._write_lock:
             self._counter += 1
             request_id = self._counter
-            sent = self._write_locked({"jsonrpc": "2.0", "id": request_id, "method": method, "params": params})
+            sent = self._write_locked(_jsonrpc_request(request_id, method, params))
         if not sent:
             self._mark_dead("write failed")
             raise McpError(f"MCP server {self.config.name} 写入失败: {method}")
@@ -672,12 +693,9 @@ class McpHttpClient:
         )
 
     def _initialize(self) -> None:
-        status, content_type, body, session_id = self._post({
-            "jsonrpc": "2.0",
-            "id": 0,
-            "method": "initialize",
-            "params": _initialize_params("2025-03-26"),
-        })
+        status, content_type, body, session_id = self._post(
+            _jsonrpc_request(0, "initialize", _initialize_params("2025-03-26"))
+        )
         if status >= 400:
             raise McpError(f"MCP HTTP server {self.config.name} 初始化失败: HTTP {status}")
         self.session_id = session_id
@@ -718,12 +736,9 @@ class McpHttpClient:
         with self._lock:
             self._counter += 1
             request_id = self._counter
-        _status, content_type, body, _session = self._post({
-            "jsonrpc": "2.0",
-            "id": request_id,
-            "method": method,
-            "params": params,
-        })
+        _status, content_type, body, _session = self._post(
+            _jsonrpc_request(request_id, method, params)
+        )
         result = self._parse_body(content_type, body, expect_id=request_id)
         if result is None:
             raise McpError(f"MCP HTTP server {self.config.name} 请求无响应: {method}")

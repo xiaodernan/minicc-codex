@@ -29457,3 +29457,64 @@ error 流入终态——读者看到的是一个「完成了但答案很
 两种文本 ✓。判别口诀 ✓：**搜索同一个中文字符串（如
 「任务已取消」）在代码里的出现次数 ✓，两次以上就要问
 「这是不是一个章」 ✓。** **
+
+## 第四百三十九批 — M8-T455 — 请求信封四键一个家
+
+### 1 缺陷
+
+JSON-RPC 请求信封在 mcp.py 手写三处：
+
+- stdio `_request`（487 行）：`{"jsonrpc": "2.0", "id":
+  request_id, "method": method, "params": params}`
+- HTTP 握手 initialize（676 行）：同一个四键，id 钉死 0
+- HTTP `_request`（722 行）：同一个四键
+
+`id` 是配对键：HTTP 握手把它钉成 0、`_parse_body`
+按 `expect_id` 匹配响应。任何一处丢了 id、拼错键名、
+或把 "2.0" 写成别的值，表现不是报错而是**请求永远等
+不到回答直到超时」——读代码时三处信封逐个对比才能确
+认它们其实一样。版本字面量 "2.0" 也散在六处信封里。
+
+### 2 落地
+
+- `minicc/mcp.py` 立模块常量 `_JSONRPC_VERSION = "2.0"` 与
+  模块级 `_jsonrpc_request(msg_id, method, params)`，放在
+  T453 的 `_initialize_params` 之后（协议信封一族）
+- 三处请求收口；HTTP 握手的 id=0 由调用方传入（它本来就是
+  握手语义，不是信封语义）
+- docstring 点明 id 的配对职责：丢 id 的请求不是出错，是
+  超时
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T455-264 | stdio _request 退回手写 | 2 条红（census + 调用计数 ✓） |
+| M8-T455-265 | HTTP initialize 退回手写 | 2 条红（census + 调用计数 ✓） |
+| M8-T455-266 | HTTP _request 退回手写 | 2 条红（census + 调用计数 ✓） |
+
+### 4 新增门禁
+
+`tests/test_the_jsonrpc_request_have_one_home.py`（4 条）✓：
+
+1. 家的行为 ✓：四键透传 ✓
+2. 家的行为 ✓：版本恒为 "2.0" ✓
+3. census ✓：`{"id", "jsonrpc", "method", "params"}` 四键
+   dict 字面量在 minicc/ 下**恰好一处** ✓且在家 ✓
+4. 调用计数 ✓：`_jsonrpc_request(` 恰好 4 次 ✓（定义 + 三个
+   请求点 ✓）
+
+聚焦回归 ✓：新门 4 条 + mcp_stdio / mcp_http /
+initialize_params 门 24 条 ✓，共 28 条 ✓，全绿 ✓。全量
+pytest 未跑 ✓。
+
+### 5 一条教训
+
+**协议信封是「丢了不响、错了超时」的载荷 ✓，属于最该立
+家的一类 ✓。** ✓ 与 T446 的背景标志同族 ✓：键缺失不抛
+异常 ✓，只在运行时以「什么都没发生」的形式显形 ✓。协议
+字段（jsonrpc/id/method/params）比业务字段更危险 ✓——业
+务字段拼错 ✓，至少有个 None 顺着链路漂 ✓；协议字段拼
+错 ✓，对面直接按未知消息丢弃 ✓。判别口诀 ✓：**对面会
+按字段值决定理不理你的载荷 ✓（协议、RPC、事件名 ✓），
+拼装必须只有一个家 ✓。** **
