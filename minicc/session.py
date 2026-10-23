@@ -45,13 +45,27 @@ SESSION_FORMAT_VERSION = 1  # the only place this file's format version is writt
 #: field the CLI starts writing is invisible on disk until it is named here,
 #: and a field dropped here is silently absent from every reconnect.
 TOOL_LOG_FIELDS = ("index", "tool", "summary", "command", "output")
-_DEFAULT_VIEW = {
-    "version": SESSION_FORMAT_VERSION,
-    "last_item": 0,
-    "last_tool": 0,
-    "compact_tools": True,
-    "tool_history": [],
-}
+def _view_payload(
+    *,
+    last_item: int = 0,
+    last_tool: int = 0,
+    compact_tools: bool = True,
+    tool_history: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """The one shape of a persisted view payload.
+
+    Two spellings used to exist: this module's default constant and the
+    normalizer's return literal, five ``dict(_DEFAULT_VIEW)`` call sites
+    keeping them in step by hand.  A fresh payload per read also retires the
+    shared inner list a shallow copy used to hand out.
+    """
+    return {
+        "version": SESSION_FORMAT_VERSION,
+        "last_item": last_item,
+        "last_tool": last_tool,
+        "compact_tools": compact_tools,
+        "tool_history": tool_history if tool_history is not None else [],
+    }
 
 # M3-T7: serialise the atomic replace across processes (and threads). The web
 # process and detached worker subprocesses each have their own in-process locks,
@@ -308,7 +322,7 @@ class SessionStore:
             "version": SESSION_FORMAT_VERSION,
             "updated_at": datetime.now(UTC).isoformat(timespec="seconds"),
             "messages": self._with_message_ids(messages, stored),
-            "view": self.load_view() if self.exists else dict(_DEFAULT_VIEW),
+            "view": self.load_view() if self.exists else _view_payload(),
         }
         if isinstance(stored, dict):
             # Fork lineage and the original creation time survive every save.
@@ -454,7 +468,7 @@ class SessionStore:
                 "keep_messages": keep,
                 "at": now,
             },
-            "view": dict(_DEFAULT_VIEW),
+            "view": _view_payload(),
         }
         store._write_payload(fork_payload)
         return store
@@ -551,15 +565,15 @@ class SessionStore:
     def load_view(self) -> dict[str, Any]:
         """Load the CLI's small semantic reading anchor, never raw terminal state."""
         if not self.exists:
-            return dict(_DEFAULT_VIEW)
+            return _view_payload()
         try:
             payload = json.loads(_read_text_with_retry(self.path))
         except (OSError, ValueError) as exc:
             raise SessionError(f"无法读取 session 视图 {self.path}: {exc}") from exc
         raw = payload.get("view") if isinstance(payload, dict) else None
         if not isinstance(raw, dict):
-            return dict(_DEFAULT_VIEW)
-        view = dict(_DEFAULT_VIEW)
+            return _view_payload()
+        view = _view_payload()
         view["last_item"] = _non_negative_int(raw.get("last_item"))
         view["last_tool"] = _non_negative_int(raw.get("last_tool"))
         view["compact_tools"] = bool(raw.get("compact_tools", True))
@@ -591,17 +605,16 @@ class SessionStore:
         """Normalize a view payload before it is written to disk."""
         raw = view if isinstance(view, dict) else {}
         history = raw.get("tool_history")
-        return {
-            "version": SESSION_FORMAT_VERSION,
-            "last_item": _non_negative_int(raw.get("last_item")),
-            "last_tool": _non_negative_int(raw.get("last_tool")),
-            "compact_tools": bool(raw.get("compact_tools", True)),
-            "tool_history": [
+        return _view_payload(
+            last_item=_non_negative_int(raw.get("last_item")),
+            last_tool=_non_negative_int(raw.get("last_tool")),
+            compact_tools=bool(raw.get("compact_tools", True)),
+            tool_history=[
                 self._redacted_view_item(item)
                 for item in history[-24:]
                 if isinstance(item, dict)
             ] if isinstance(history, list) else [],
-        }
+        )
 
     @staticmethod
     def _redacted_view_item(item: dict[str, Any]) -> dict[str, Any]:
