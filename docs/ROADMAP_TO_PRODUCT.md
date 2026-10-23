@@ -27475,3 +27475,64 @@ core_session / task_contract / task_durability ✓）81 条 ✓，共 85 条 ✓
 事实」不等于「不是事实」✓：它是 usage **域**里的另一个事实 ✓，仍然
 只配有一个家 ✓。探针按「键集合 + 值」聚合才能把这类**值敏感**的重复
 捞出来 ✓：只看键集合的话 ✓，任何非零的渠道快照都会混进同一组 ✓。
+
+
+## 第四百零五批 — M8-T421 — worker 进程日志的结构化字段六个家：五条生命周期日志各抄一份
+
+### 1 缺陷
+
+worker 子进程的五条生命周期日志——`worker_process_reaped` ✓、
+`worker_process_detached` ✓、`worker_process_reaped_late` ✓、
+`worker_process_terminated` ✓、`worker_process_survived_terminate` ✓——
+每条都靠 `extra={"task_id": ..., "pid": ...}` 两键把日志行**接回它的
+任务和孩子进程** ✓。这同一对字段被**手抄五遍** ✓，加上第六条
+`worker_process_aborted` 的三键超集（多一个 `returncode` ✓），一个事实
+六个家 ✓。某个家漏一个键 ✓，那条进程事件就在日志读者眼里**接不回
+任务** ✓——排查 worker 行为时最难找的正是这种断线 ✓。
+
+### 2 落地
+
+* `minicc/task_manager.py` ✓ 立 `_worker_process_extra(task_id, process)` ✓
+  （**staticmethod** ✓）：两键投影一个家 ✓，pid 用 `getattr` 兜底 ✓。
+* 五处两键调用改为走家 ✓；abort 三键处改为 `{**家, "returncode": ...}`
+  **显式派生** ✓——abort 是唯一拿得到退出码的场景 ✓，家不替它
+  主张这个键 ✓。
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T421-216 | terminated 处退回两键字面量 | 1 条红（census ✓） |
+| M8-T421-217 | abort 处退回三键手抄 | 1 条红（pid 拼写计数 ✓） |
+
+### 4 新增门禁
+
+`tests/test_the_worker_process_extra_have_one_home.py`（4 条）✓：
+
+1. 家的行为 ✓：两键正确 ✓、无 pid 属性的句柄不炸 ✓
+2. census ✓：两键 dict 字面量在 minicc/ 下**恰好一处** ✓且在家 ✓
+3. pid 拼写计数 ✓：`"pid": getattr(process, "pid", None)` 恰好 1 次 ✓
+   ——连 abort 处想绕开派生都被抓 ✓
+4. 调用计数 ✓：`_worker_process_extra(` 恰好 7 次 ✓（定义 + 五调用 +
+   一派生 ✓）
+
+聚焦回归 ✓：新门 4 条 + worker 面 4 文件 50 条 ✓ + core_task 32 条 ✓
+（**分开跑** ✓，原因见 §5 ✓），共 86 条 ✓，全绿 ✓。
+
+### 5 一条教训
+
+**门测试验了家的行为 ✓，没验调用点的可运行性——是聚焦回归兜住了
+这个坑。** ✓ 家最初写成实例方法 ✓，门里用 `TaskManager._worker_process_extra(None,
+...)` 直接调 ✓，4 条全绿 ✓；但其中**一个调用点在
+`_reap_detached_worker` 这个 staticmethod 里** ✓——线程目标根本没有
+`self` ✓，真实运行时报 `NameError` ✓。是组合回归里那条
+`PytestUnhandledThreadExceptionWarning` 把它照出来的 ✓。教训有两条 ✓：
+
+1. **家放在哪个作用域 ✓，要看最弱的调用点** ✓：调用点里有
+   staticmethod ✓，家就得是 staticmethod ✓（或模块级函数 ✓）——
+   写家之前先把六个调用点的 `self` 可见性数一遍 ✓。
+2. 组合跑暴露的既有污染要**先证伪再背锅** ✓：本批首次组合回归
+   6 条红 ✓，`git stash` 后在干净代码上跑同样组合同样 6 条红 ✓——
+   是 test_task_worker/test_logging 与 test_core_task 之间**既有**的
+   状态污染 ✓（失败集还随顺序浮动 ✓），与本批无关 ✓，按纪律不修 ✓、
+   记录在案 ✓、分开跑规避 ✓。

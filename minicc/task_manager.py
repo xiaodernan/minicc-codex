@@ -2104,7 +2104,7 @@ class TaskManager:
             return
         try:
             process.wait(timeout=max(0.0, float(grace)))
-            LOG.debug("worker_process_reaped", extra={"task_id": task_id, "pid": getattr(process, "pid", None)})
+            LOG.debug("worker_process_reaped", extra=self._worker_process_extra(task_id, process))
             return
         except Exception:  # noqa: BLE001 - TimeoutExpired or a platform quirk
             pass
@@ -2112,7 +2112,7 @@ class TaskManager:
             return
         LOG.info(
             "worker_process_detached",
-            extra={"task_id": task_id, "pid": getattr(process, "pid", None)},
+            extra=self._worker_process_extra(task_id, process),
         )
         threading.Thread(
             target=self._reap_detached_worker,
@@ -2129,7 +2129,21 @@ class TaskManager:
             process.wait()
         except Exception:  # noqa: BLE001 - a reaper thread must never raise
             return
-        LOG.debug("worker_process_reaped_late", extra={"task_id": task_id, "pid": getattr(process, "pid", None)})
+        LOG.debug("worker_process_reaped_late", extra=TaskManager._worker_process_extra(task_id, process))
+
+    @staticmethod
+    def _worker_process_extra(task_id: str, process: Any) -> dict[str, Any]:
+        """The structured fields that tie a worker-process log line to its child.
+
+        Five worker-lifecycle log events reaped, detached, reaped-late,
+        terminated and survived-terminate - each hand-wrote these two
+        fields.  A key one copy forgets is a process event no log reader
+        can join back to its task.  The abort event adds ``returncode``
+        by spreading this home and naming its own key: an abort is the
+        only place the exit status exists, and the home must not claim
+        it for the rest.
+        """
+        return {"task_id": task_id, "pid": getattr(process, "pid", None)}
 
     def _detach_worker_handle(self, process: Any) -> None:
         """Relinquish ownership of a worker handle without killing the child.
@@ -2180,7 +2194,7 @@ class TaskManager:
         if process.poll() is None:
             LOG.info(
                 "worker_process_terminated",
-                extra={"task_id": task_id, "pid": getattr(process, "pid", None)},
+                extra=self._worker_process_extra(task_id, process),
             )
             try:
                 process.terminate()
@@ -2195,7 +2209,7 @@ class TaskManager:
             # the wait even though we could not stop the child.
             LOG.error(
                 "worker_process_survived_terminate",
-                extra={"task_id": task_id, "pid": getattr(process, "pid", None)},
+                extra=self._worker_process_extra(task_id, process),
             )
             threading.Thread(
                 target=self._reap_detached_worker,
@@ -2208,8 +2222,7 @@ class TaskManager:
             LOG.debug(
                 "worker_process_aborted",
                 extra={
-                    "task_id": task_id,
-                    "pid": getattr(process, "pid", None),
+                    **self._worker_process_extra(task_id, process),
                     "returncode": process.returncode,
                 },
             )
