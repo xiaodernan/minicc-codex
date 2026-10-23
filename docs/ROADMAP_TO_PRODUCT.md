@@ -31579,3 +31579,64 @@ sandbox.py 的硬编码默认值。
 
 聚焦回归 ✓：sandbox/config 直面 6 文件 **104 条** ✓（含新门禁 4 条 ✓），全
 绿 ✓。慢测试未跑 ✓，全量 pytest 未跑 ✓。
+
+## 第四百六十六批 — M8-T482 — 通道切换事件两个家：两个网关 provider 各手拼一份完整 trace_event
+
+### 1 缺陷
+
+付费通道额度池耗尽时（402，或带 credit 标识的 429），配了套餐通道的
+provider 会在任务中途切换，并用同一个 trace 事件把切换说出口。两个网关
+provider 各自手拼了这整条事件——`minicc/llm/anthropic_provider.py` 的
+`_switch_to_plan` 与 `minicc/llm/openai_provider.py` 的 `_emit_channel_switch`，
+七个字段里五个逐字相同：`name/status/phase/code/summary`。
+
+一处忘了改文案，界面就用上个季度的措辞解释这次切换；一处的 code 漂移，
+任务事件流里就再也找不到这次切换（`web.py:3295` 的注释就指着这个 code）。
+`tests/test_plan_channel.py` 只断言了 openai 那条路的 code，anthropic 那条
+路的同一事实没有任何门。
+
+### 2 落地
+
+家安在 `minicc/llm/usage.py`——那里本来就住着 `channel_counter` 与
+`channel_status_payload` 这两个同族的通道事实 ✓：
+
+- `CHANNEL_SWITCHED_CODE` / `CHANNEL_SWITCHED_SUMMARY` 两个常量 ✓
+- `channel_switched_event(status_code, error_type=None)` 产出整条事件 ✓：
+  信封五字段 + detail 的 `from`/`to` 都在家里；`error_type` 是 OpenAI 那条
+  线独有的载荷（它的裁决来自异常，类名随行）✓
+- detail 键序保持两个调用点原本的形状（anthropic: from,to,status_code；
+  openai: from,to,error_type,status_code），任何读者看到的载荷不变 ✓
+- 两个 provider 改为调用家，anthropic 的 `trace_event` 导入随之成了死导入，
+  一并删除 ✓（死代码是同一事实的第二个家）
+- 门禁 `tests/test_the_channel_switched_event_has_one_home.py` 7 条 ✓：家
+  值、整条事件形状、error_type 槽位、census、两个 provider 消费同一对象、
+  两条真实切换路径各往返一次 ✓
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T482-300 | anthropic 恢复手拼整条事件 | 红（census ✓） |
+| M8-T482-301 | openai 恢复手拼整条事件 | 红（census ✓） |
+| M8-T482-302 | 家的 summary 漂移一个字符 | 红（家值 ✓） |
+| M8-T482-303 | 家的 code 漂移 | 红（家值 ✓） |
+| M8-T482-304 | web.py 第三个家拼 code 字面量 | 红（census ✓） |
+| M8-T482-305 | openai 调用点丢掉 error_type 实参 | 红（往返 ✓） |
+
+六条全部 KILLED ✓，恢复后字节相同 ✓。
+
+### 4 一条教训
+
+**「同一事件的两次手拼」要按整条事件立家，而不是只立那句话。** 这条事件
+的两个拷贝里，真正逐字重复的是 code 和 summary，但把它们各自的常量提出来
+是不够的：信封的 name/status/phase 和 detail 的 from/to 同样在两个文件里
+各写一遍，下次加字段（比如 retry_after）时两边仍会各加各的。家的形状因此
+是一个**产出整条事件的函数**，可变的部分（status_code、error_type）做成
+参数——这跟 `channel_status_payload` 是同一种形状：共享信封，参数化载荷。
+
+另一个细节：detail 的键序也是契约的一部分。home 里按两个调用点原有的顺序
+拼 detail，JSON 序列化出来的字节不变；否则一次纯粹的「立家」会顺带改动
+线上事件的字节表示，而没有任何测试在为那个顺序站岗。
+
+聚焦回归 ✓：通道/usage 直面 8 文件 **49 条** ✓（含新门禁 7 条 ✓），全绿 ✓。
+慢测试未跑 ✓，全量 pytest 未跑 ✓。

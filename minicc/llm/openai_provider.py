@@ -62,7 +62,14 @@ from ..logging_setup import log_provider_event
 from .envelope import EnvelopeParseError, _render_envelope_action, envelope_system_suffix, parse_envelope
 from .stream_merge import AttemptTextAssembler, merge_retry_snapshot
 from .base import retry_detail
-from .usage import cache_summary, channel_counter, channel_status_payload, measured_usage, token_count
+from .usage import (
+    cache_summary,
+    channel_counter,
+    channel_status_payload,
+    channel_switched_event,
+    measured_usage,
+    token_count,
+)
 
 _RETRYABLE = (
     RateLimitError,
@@ -621,18 +628,8 @@ class OpenAICompatibleProvider:
 
     def _emit_channel_switch(self, exc: BaseException) -> None:
         if self._on_status is not None:
-            self._on_status(trace_event(
-                name="provider",
-                status="ok",
-                phase="planning",
-                code="provider_channel_switched",
-                summary="主通道额度已用尽（402/Credit 上限），本次任务改用 Step Plan 套餐通道",
-                detail={
-                    "from": "paid",
-                    "to": "plan",
-                    "error_type": type(exc).__name__,
-                    "status_code": getattr(exc, "status_code", None),
-                },
+            self._on_status(channel_switched_event(
+                getattr(exc, "status_code", None), type(exc).__name__,
             ))
 
     async def _attempt_once(
