@@ -73,9 +73,11 @@ from .route_wiring import (
 from .agent.state import AgentState, Budget, BudgetExceeded
 from .pricing import cost_usd as _pricing_cost_usd
 from .agent.protocol import (
+    budget_exceeded_error,
     budget_exceeded_event,
     CancellationToken,
     EventLog,
+    incomplete_answer,
     InvalidStatusTransition,
     validate_status_transition,
 )
@@ -2615,8 +2617,8 @@ class AgentService:
                             _stage_cost_estimator(stage_router, "review")(usage)
                         )
                     except BudgetExceeded as exc:
-                        target.error = f"Agent 预算超限: {exc}"
-                        target.answer = f"任务未完成：{target.error}"
+                        target.error = budget_exceeded_error(exc)
+                        target.answer = incomplete_answer(target.error)
                         # The run_agent path emits budget_exceeded from inside
                         # the loop; a judge-side trip must be just as visible,
                         # or the run would stop with no named cause in events.
@@ -2681,8 +2683,8 @@ class AgentService:
                         try:
                             runtime_state.budget.record_retry()
                         except BudgetExceeded as exc:
-                            aggregate.error = f"Agent 预算超限: {exc}"
-                            aggregate.answer = f"任务未完成：{aggregate.error}"
+                            aggregate.error = budget_exceeded_error(exc)
+                            aggregate.answer = incomplete_answer(aggregate.error)
                             break
                         provider_recoveries += 1
                         recovery_protocol = await recreate_provider_after_failure()
@@ -2715,8 +2717,8 @@ class AgentService:
                         try:
                             runtime_state.budget.record_retry()
                         except BudgetExceeded as exc:
-                            aggregate.error = f"Agent 预算超限: {exc}"
-                            aggregate.answer = f"任务未完成：{aggregate.error}"
+                            aggregate.error = budget_exceeded_error(exc)
+                            aggregate.answer = incomplete_answer(aggregate.error)
                             break
                         agent_recoveries += 1
                         recovery_event = trace_event(
@@ -2782,7 +2784,7 @@ class AgentService:
                             break
                         if verification.status == "blocked":
                             aggregate.error = f"验证器被阻止：{verification.actionable_hint}"
-                            aggregate.answer = f"任务未完成：{aggregate.error}"
+                            aggregate.answer = incomplete_answer(aggregate.error)
                             break
                         if verification.status == "timed_out":
                             # M8-T300: a timeout is not a failing test, so it
@@ -2794,7 +2796,7 @@ class AgentService:
                                 f"验证超时：{verification.actionable_hint or verification.command}"
                             )
                             aggregate.answer = (
-                                f"任务未完成：{aggregate.error}\n\n"
+                                f"{incomplete_answer(aggregate.error)}\n\n"
                                 f"验证命令：{verification.command}"
                             )
                             break
@@ -2802,15 +2804,15 @@ class AgentService:
                             if repair_attempts >= max_repairs:
                                 aggregate.error = f"验证失败，已达到 repair 上限 {max_repairs}"
                                 aggregate.answer = (
-                                    f"任务未完成：{aggregate.error}。\n\n"
+                                    f"{incomplete_answer(aggregate.error)}。\n\n"
                                     f"验证命令：{verification.command}\n{verification.output[-6000:]}"
                                 )
                                 break
                             try:
                                 runtime_state.budget.record_retry()
                             except BudgetExceeded as exc:
-                                aggregate.error = f"Agent 预算超限: {exc}"
-                                aggregate.answer = f"任务未完成：{aggregate.error}"
+                                aggregate.error = budget_exceeded_error(exc)
+                                aggregate.answer = incomplete_answer(aggregate.error)
                                 break
                             repair_attempts += 1
                             # M11-T4: the repair stage is a consumer too. If
@@ -2947,7 +2949,7 @@ class AgentService:
                                 "——继续重跑不会产生评审未见过的证据，已停止；"
                                 + _unconverged_verification_note(verification_results)
                             )
-                            aggregate.answer = f"任务未完成：{aggregate.error}"
+                            aggregate.answer = incomplete_answer(aggregate.error)
                             repeat_event = trace_event(
                                 name="completion_judge",
                                 status="error",
@@ -2983,7 +2985,7 @@ class AgentService:
                                 f"完成评估连续 {completion_continues} 轮要求继续但未收敛，已按上限停止；"
                                 + _unconverged_verification_note(verification_results)
                             )
-                            aggregate.answer = f"任务未完成：{aggregate.error}"
+                            aggregate.answer = incomplete_answer(aggregate.error)
                             capped_event = trace_event(
                                 name="completion_judge",
                                 status="error",
@@ -3015,7 +3017,7 @@ class AgentService:
                     if decision.status == "blocked":
                         reason = decision.rationale or "完成评估器无法确认任务可以继续"
                         aggregate.error = f"完成评估判定受阻：{reason}"
-                        aggregate.answer = f"任务未完成：{aggregate.error}"
+                        aggregate.answer = incomplete_answer(aggregate.error)
                         break
 
                     if decision.review_transient is False:
@@ -3027,7 +3029,7 @@ class AgentService:
                         # real cause instead.
                         detail = decision.error or "评审请求被模型端拒绝"
                         aggregate.error = f"完成评估请求被模型端拒绝：{detail}"
-                        aggregate.answer = f"任务未完成：{aggregate.error}"
+                        aggregate.answer = incomplete_answer(aggregate.error)
                         rejected_event = trace_event(
                             name="completion_judge",
                             status="error",
@@ -3062,7 +3064,7 @@ class AgentService:
                         continue
 
                     aggregate.error = "完成评估不可用，无法确认任务是否达到最终目标"
-                    aggregate.answer = f"任务未完成：{aggregate.error}"
+                    aggregate.answer = incomplete_answer(aggregate.error)
                     break
                 final = aggregate or TurnResult(answer="模型没有返回结果", error="Agent 没有返回结果")
                 if planner_result is not None:
@@ -3130,7 +3132,7 @@ class AgentService:
             original_answer = str(result.answer or "").strip()
             result.error = completion_guard
             result.answer = (
-                f"任务未完成：{completion_guard}。"
+                f"{incomplete_answer(completion_guard)}。"
                 + (f"\n\n模型最后输出：{original_answer}" if original_answer else "")
             )
         runtime_status = "cancelled" if result.cancelled else "failed" if result.error else "completed"

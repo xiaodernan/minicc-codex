@@ -30533,3 +30533,80 @@ warning`）**单跑通过** ✓，且已证明 argv 逐字节未变 ✓，判定
 的文件名和 docstring 早就宣告了它是契约的家 ✓，缺的只是
 把旗标搬进去 ✓——先问「现成的家在哪」✓，再问「要不要建
 新的」✓。
+
+## 第四百五十三批 — M8-T469 — 失败运行的答词与预算超限的错词一个家
+
+### 1 缺陷
+
+「运行没跑完」这件事有两个出口，两个出口的措辞都被手拼在很多
+地方。答词一侧：`任务未完成：{error}` 这个派生规则在
+`agent/loop.py` 11 处、`web.py` 13 处共 24 处手拼；错词一侧：
+`Agent 预算超限: {exc}` 共 9 处手拼。它们都是**拼错不报错、
+只静默失效**的形状：前缀里的全角冒号一旦在某处写成半角，Web
+面板那边的匹配就悄悄失配，用户看到的是一个长得像成功、
+其实是被腰斩的答案。更糟的是答词是**派生值**——
+`result.error` 本身已经存了真话，答词只是它的包装，包装规则
+散在 24 处就意味着同一个 error 在不同出口长出不同的人话。
+
+### 2 落地
+
+- 两个前缀常量与两个工厂函数安家 `minicc/agent/protocol.py`：
+  `INCOMPLETE_ANSWER_PREFIX = "任务未完成："`、
+  `BUDGET_EXCEEDED_ERROR_PREFIX = "Agent 预算超限: "`，
+  以及 `incomplete_answer(error)` / `budget_exceeded_error(error)`
+- `agent/loop.py`：11 处答词 + 5 处预算错词全部收口；另有
+  2 处原本是纯字面量块（停滞保护、验证未完成）没有 error
+  可包，改为 `incomplete_answer(...)` 让形状统一
+- `web.py`：13 处答词 + 4 处预算错词全部收口；3 处带后缀的
+  块（追加「…建议…」提示）改为 `f"{incomplete_answer(...)}..."`
+- `protocol.__all__` 顺手补齐了原先漏掉的
+  `budget_exceeded_event`
+- **答词逐字节不变**：所有 24 处的输出与改动前完全一致，
+  测试钉住的承重契约未被触动
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T469-264 | loop.py 一处答词写回 f-string 手拼 | 3 条红（census + 唯一定义 ✓） |
+| M8-T469-265 | web.py 一处答词写回 f-string 手拼 | 1 条红（census ✓） |
+| M8-T469-266 | 家里 `incomplete_answer` 多加一个空格 | 4 条红（值 + census ✓） |
+| M8-T469-267 | 前缀里的全角冒号改成半角 | 2 条红（census ✓） |
+| M8-T469-268 | 在 web.py 里另立一个同名 helper | 2 条红（唯一定义 ✓） |
+
+五条全部 KILLED ✓，恢复后字节相同 ✓。
+
+### 4 新增门禁
+
+`tests/test_the_failed_run_answer_have_one_home.py`（8 条）✓：
+
+1. `incomplete_answer("boom") == "任务未完成：boom"`、
+   空串也拼得出 `"任务未完成："` ✓
+2. `budget_exceeded_error(...)` 同理 ✓
+3. 前缀字面量在全树恰好一处且在 `protocol.py` ✓
+4. 预算前缀同理 ✓
+5. 无其他字面量以这两个前缀开头 ✓（census 用 AST 常量，
+   docstring 散文骗不过去 ✓）
+6. 两个 helper 函数只在 `protocol.py` 定义 ✓
+7. `__all__` 导出两者 ✓
+8. 同一判词在 loop 与 web 两边一致 ✓
+
+聚焦回归 ✓：新门 8 条 + core_agent / budget_exceeded_event 门 /
+subagent_delegation / subagent_budget_fold / merge_cost_budget_fold /
+planner_cost_budget_fold / planner_dag_budget_fold /
+cli_stage_routing / stage_route_enforcement / benchmark_runner /
+subagent_streaming 共 153 条 ✓，全绿 ✓。慢测试未跑 ✓，
+全量 pytest 未跑 ✓。
+
+### 5 一条教训
+
+**派生值比字面量更值得立家 ✓。** ✓ 前几批收的都是「同一个
+词写了两遍」✓，本批收的是「同一个**规则**写了两遍」✓：
+`任务未完成：{error}` 不是常量、是函数 ✓，24 处手拼等于 24
+份会各自漂移的派生逻辑 ✓。判别式可以推广 ✓：**凡是
+`f"{前缀}{某个字段}"` 的形状 ✓，前缀是常量、字段是活的 ✓，
+那么该收的不是前缀而是整个拼装动作 ✓**——只收前缀的话，
+`{error}` 那一侧照样能被人换成 `{error}（已终止）` 而 census
+毫无察觉 ✓。另一个附带发现 ✓：`protocol.__all__` 居然漏了
+`budget_exceeded_event` ✓，说明 `__all__` 本身就是一份需要门
+禁看着的清单 ✓，本批顺手补上并加了一条导出断言 ✓。

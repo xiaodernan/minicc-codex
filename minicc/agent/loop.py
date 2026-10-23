@@ -74,6 +74,7 @@ from .context import (
     repair_interrupted_tool_rounds,
     validate_tool_protocol,
 )
+from .protocol import budget_exceeded_error, incomplete_answer
 from .state import AgentState, Budget, BudgetExceeded
 from .verification_plan import build_verification_plan
 from .tool_policy import (
@@ -735,8 +736,8 @@ async def run_agent(
         try:
             runtime_budget.record_tool_call(len(raw_calls))
         except BudgetExceeded as exc:
-            result.error = f"Agent 预算超限: {exc}"
-            result.answer = f"任务未完成：{result.error}"
+            result.error = budget_exceeded_error(exc)
+            result.answer = incomplete_answer(result.error)
             emit_trace(result.error, phase="failed", status="error", code="budget_exceeded")
             return []
 
@@ -879,8 +880,8 @@ async def run_agent(
         try:
             runtime_budget.record_turn()
         except BudgetExceeded as exc:
-            result.error = f"Agent 预算超限: {exc}"
-            result.answer = f"任务未完成：{result.error}"
+            result.error = budget_exceeded_error(exc)
+            result.answer = incomplete_answer(result.error)
             emit_trace(result.error, phase="failed", status="error", code="budget_exceeded")
             break
         if runtime_budget.soft_limit_hit():
@@ -1038,7 +1039,7 @@ async def run_agent(
                 last_replan_trigger = "上一轮模型工具协议无效，需要先修正输出格式"
                 continue
             result.error = f"LLM 工具协议连续无效: {exc}"
-            result.answer = f"任务未完成：{result.error}"
+            result.answer = incomplete_answer(result.error)
             emit_trace(
                 result.error,
                 phase="failed",
@@ -1048,8 +1049,8 @@ async def run_agent(
             )
             break
         except BudgetExceeded as exc:
-            result.error = f"Agent 预算超限: {exc}"
-            result.answer = f"任务未完成：{result.error}"
+            result.error = budget_exceeded_error(exc)
+            result.answer = incomplete_answer(result.error)
             emit_trace(result.error, phase="failed", status="error", code="budget_exceeded")
             break
         except Exception as exc:
@@ -1107,8 +1108,8 @@ async def run_agent(
             if cost_estimator is not None:
                 runtime_budget.record_cost(cost_estimator(usage))
         except BudgetExceeded as exc:
-            result.error = f"Agent 预算超限: {exc}"
-            result.answer = f"任务未完成：{result.error}"
+            result.error = budget_exceeded_error(exc)
+            result.answer = incomplete_answer(result.error)
             emit_trace(result.error, phase="failed", status="error", code="budget_exceeded")
             break
 
@@ -1117,8 +1118,8 @@ async def run_agent(
             try:
                 runtime_budget.record_tool_call(len(response.tool_calls))
             except BudgetExceeded as exc:
-                result.error = f"Agent 预算超限: {exc}"
-                result.answer = f"任务未完成：{result.error}"
+                result.error = budget_exceeded_error(exc)
+                result.answer = incomplete_answer(result.error)
                 emit_trace(result.error, phase="failed", status="error", code="budget_exceeded")
                 break
             # M8-T341: the trace names the tools the way the dispatcher
@@ -1732,8 +1733,8 @@ async def run_agent(
                     )
                     continue
                 result.error = "Agent 停滞保护触发：恢复诊断后仍连续重复工具调用"
-                result.answer = (
-                    "任务未完成：连续工具调用没有产生新信息。执行器已经完成多次状态诊断和重新规划，"
+                result.answer = incomplete_answer(
+                    "连续工具调用没有产生新信息。执行器已经完成多次状态诊断和重新规划，"
                     "为避免无限循环暂时停止，且没有自动覆盖或回滚用户已有改动。"
                 )
                 emit_trace(
@@ -1768,7 +1769,7 @@ async def run_agent(
                 })
                 continue
             result.error = f"模型连续以非正常 finish_reason 结束（{finish_reason}），任务未完成"
-            result.answer = f"任务未完成：{result.error}"
+            result.answer = incomplete_answer(result.error)
             emit_trace(
                 result.error,
                 phase="failed",
@@ -1801,7 +1802,7 @@ async def run_agent(
                 )
                 continue
             result.error = "Agent 在错误路径恢复阶段没有取得新的工作区证据"
-            result.answer = f"任务未完成：{result.error}"
+            result.answer = incomplete_answer(result.error)
             emit_trace(
                 result.error,
                 phase="failed",
@@ -1817,7 +1818,7 @@ async def run_agent(
         if runtime_budget.soft_limit_hit() and soft_wrap_issued:
             if not text:
                 result.error = "软预算收束后模型返回空答案，没有可交付内容"
-                result.answer = f"任务未完成：{result.error}"
+                result.answer = incomplete_answer(result.error)
                 emit_trace(
                     result.error,
                     phase="failed",
@@ -1877,7 +1878,7 @@ async def run_agent(
                     continue
                 result.error = "Agent 在修改工作区后没有完成验证"
                 result.answer = (
-                    "任务未完成：修改工作区后没有完成验证，已停止提前交付。"
+                    incomplete_answer("修改工作区后没有完成验证，已停止提前交付。")
                     + (f"\n\n模型最后输出：{text}" if text else "")
                 )
                 emit_trace(
@@ -1891,7 +1892,7 @@ async def run_agent(
 
         if not text:
             result.error = "模型以空答案结束本轮，没有可交付内容"
-            result.answer = f"任务未完成：{result.error}"
+            result.answer = incomplete_answer(result.error)
             emit_trace(
                 result.error,
                 phase="failed",
@@ -1918,7 +1919,7 @@ async def run_agent(
         break
     else:
         result.error = f"Agent 达到最大执行轮次 {max_turns}，任务未完成"
-        result.answer = f"任务未完成：{result.error}"
+        result.answer = incomplete_answer(result.error)
         emit_trace("已达到最大执行轮次，停止继续调用工具", phase="failed", status="error", code="max_turns")
 
     result.metrics = _run_metrics(

@@ -234,6 +234,31 @@ class EventLog:
             self._condition.notify_all()
 
 
+#: The prefix a run's answer carries when it gave up: the run did not
+#: finish, and the reason follows immediately after it.  Twenty-four sites
+#: used to spell the prefix by hand - the agent loop, the web folds, the
+#: completion judge - and a site that dropped it published a bare error as
+#: if it were an answer, which is how a failed run reads like a finished
+#: one to everything downstream: the UI, the grader, the next turn's context.
+INCOMPLETE_ANSWER_PREFIX = "任务未完成："
+
+
+def incomplete_answer(error: object) -> str:
+    """The one shape of a failed run's answer: the prefix, then the reason."""
+    return f"{INCOMPLETE_ANSWER_PREFIX}{error}"
+
+
+#: The error text a budget trip carries.  Nine sites spelled it by hand, and
+#: ``budget_exceeded_event`` below publishes the very same trip under its
+#: ``str(error)`` - two spellings of one witness, drifting apart silently.
+BUDGET_EXCEEDED_ERROR_PREFIX = "Agent 预算超限: "
+
+
+def budget_exceeded_error(error: object) -> str:
+    """The one error text for a budget trip."""
+    return f"{BUDGET_EXCEEDED_ERROR_PREFIX}{error}"
+
+
 def budget_exceeded_event(
     stage: str,
     error: object,
@@ -280,13 +305,18 @@ def validate_status_transition(current: str, target: str) -> None:
 __all__ = [
     "ACTIVE_TASK_STATUSES",
     "ALLOWED_STATUS_TRANSITIONS",
+    "BUDGET_EXCEEDED_ERROR_PREFIX",
     "CancellationToken",
     "EventLog",
+    "INCOMPLETE_ANSWER_PREFIX",
     "InvalidStatusTransition",
     "PHASE_CARRYING_EVENT_KINDS",
     "RuntimeEvent",
     "TASK_STATUSES",
     "TASK_UNSUCCESSFUL_STATUSES",
     "TERMINAL_TASK_STATUSES",
+    "budget_exceeded_error",
+    "budget_exceeded_event",
+    "incomplete_answer",
     "validate_status_transition",
 ]
