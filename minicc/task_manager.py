@@ -35,6 +35,7 @@ from .agent.loop import TurnResult
 from .agent.orchestration import assess_complexity, build_auto_subtasks
 from .agent.planner import PlannerPolicy, build_plan
 from .agent.protocol import (
+    budget_exceeded_event,
     CancellationToken,
     EventLog,
     InvalidStatusTransition,
@@ -1883,17 +1884,9 @@ class TaskManager:
                     # so the trip is witnessed with the same named event the
                     # planner/judge/DAG/subagent folds emit - never swallowed,
                     # never fatal to the delivered merge.
-                    parent.add_event(trace_event(
-                        name="orchestrator",
-                        status="error",
-                        phase="merging",
-                        code="budget_exceeded",
-                        summary=str(result["budget_exceeded"]),
-                        detail={
-                            "stage": "merge",
-                            "error": str(result["budget_exceeded"]),
-                            "tokens_used": dict(result.get("tokens_used") or {}),
-                        },
+                    parent.add_event(budget_exceeded_event(
+                        "merge", result["budget_exceeded"],
+                        result.get("tokens_used"), name="orchestrator", phase="merging",
                     ))
                 # The subtask fold is not done here any more: it belongs to
                 # ``_roll_up_tokens``, which every terminal path below calls.

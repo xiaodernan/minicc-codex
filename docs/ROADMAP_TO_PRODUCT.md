@@ -27064,3 +27064,61 @@ sum of their parts」写了三年 ✓（比喻 ✓），三行数据照样可以
 census 门就红了 ✓。这一批还示范了**家的派生** ✓：四键记录不必自己存一份
 三键 ✓，`{**three_key_home(...), flag}` ✓ 让上层形状建立在下层形状之上 ✓——
 家的层次 ✓（计数器 → 计量记录 → 估算记录 ✓）比家的并列更难漂移 ✓。
+
+
+## 第三百九十八批 — M8-T414 — 预算越限见证事件六个家：六个折叠各手抄一份三键 detail
+
+### 1 缺陷
+
+「一次预算越限」在运行时有个**固定的见证形状** ✓：一个
+`budget_exceeded` ✓ trace 事件 ✓，detail 三键 ✓——`stage` ✓（哪个折叠撞的线 ✓）、
+`error` ✓（越限说什么 ✓）、`tokens_used` ✓（撞线时已经花了多少 ✓）。
+全包有 **6 个手写家** ✓：
+
+| 位置 | 阶段 |
+| --- | --- |
+| `main.py` ✓ | CLI subagent 折叠 ✓ |
+| `web.py` ✓ ×2 | web subagent 折叠 ✓ / planner 折叠 ✓ |
+| `web.py` ✓ | planner DAG 折叠 ✓ |
+| `web.py` ✓ | completion judge 折叠 ✓ |
+| `task_manager.py` ✓ | 批处理 merge 折叠 ✓ |
+
+其中 judge 那处是**近似逃逸** ✓：detail 只有两键 ✓（没有 `tokens_used` ✓）——
+同一个作用域里 `usage` 明明可取 ✓，写方只是没抄那一行 ✓。
+
+### 2 落地
+
+* `minicc/agent/protocol.py` ✓（运行时协议原语的家 ✓）立
+  `budget_exceeded_event(stage, error, tokens_used, *, name, phase)` ✓：
+  事件 + 三键 detail **一次成型** ✓，`tokens_used` 缺省为 `{}` ✓。
+* 6 处全部收口 ✓；judge 那处**补齐** `tokens_used` ✓——六种折叠从此
+  同一种见证形状 ✓，读方不必猜哪个阶段带花费、哪个不带 ✓。
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T414-202 | web subagent 折叠退回 `trace_event` 手写 | 1 条红（census 2 处 ✓） |
+| M8-T414-203 | task_manager merge 折叠退回手写 | 1 条红（census 2 处 ✓） |
+
+### 4 新增门禁
+
+`tests/test_the_budget_exceeded_event_have_one_home.py`（4 条）✓：
+
+1. 家的行为 ✓：事件五要素 + 三键 detail ✓
+2. 无花费的越限也带 `tokens_used` 键 ✓（judge 旧形状已统一 ✓）
+3. 三个发射模块都出现 `budget_exceeded_event` ✓
+4. census ✓：三键 detail 字面量**恰好一处** ✓且在家 ✓
+
+聚焦回归 ✓：新门 4 条 + 四个预算折叠测试 34 条 ✓ + core_task/
+stage_route/one_home 门 76 条 ✓，共 110 条 ✓，全绿 ✓。全量 pytest 未跑 ✓。
+
+### 5 一条教训
+
+**「见证」是比「记录」更硬的事实。** ✓ 一次越限发生了没有 ✓、在哪个阶段 ✓、
+当时花了多少 ✓——这三个答案**必须在同一个形状里** ✓，因为运维读事件流时
+是按「这个阶段的越限花了多少」来问的 ✓。judge 那处少一个键 ✓，表面看只是
+少一行字 ✓；实际上它让「review 阶段的越限」在花费维度上**永远缺席** ✓——
+不是零 ✓，是**不存在** ✓。而 `dict(tokens or {})` 这个缺省 ✓，把「没有
+花费可报」和「忘了报花费」**收敛成同一个显式的空** ✓：能区分这两者的系统 ✓
+才不会把后者当前者 ✓。

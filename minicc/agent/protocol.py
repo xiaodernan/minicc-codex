@@ -16,6 +16,8 @@ from collections import deque
 from dataclasses import dataclass, field
 from typing import Any
 
+from ..trace import trace_event
+
 
 TASK_STATUSES = frozenset({"queued", "running", "completed", "failed", "cancelled", "interrupted"})
 TERMINAL_TASK_STATUSES = frozenset({"completed", "failed", "cancelled", "interrupted"})
@@ -230,6 +232,38 @@ class EventLog:
         with self._condition:
             self._closed = True
             self._condition.notify_all()
+
+
+def budget_exceeded_event(
+    stage: str,
+    error: object,
+    tokens_used: dict[str, Any] | None,
+    *,
+    name: str,
+    phase: str,
+) -> dict[str, Any]:
+    """The one witness for a budget trip: a named event with a three-key detail.
+
+    Six folds used to hand-write this event - the CLI subagent fold, the web
+    subagent fold, the batch merge, the planner DAG, the planner fold and the
+    completion judge.  The detail answers three questions in one shape:
+    which stage tripped, what the trip said, and what had been spent when it
+    tripped.  A detail that forgets ``tokens_used`` still publishes - the
+    event is on the timeline and the spend is simply unattributed, which is
+    how a trip used to look like free work.
+    """
+    return trace_event(
+        name=name,
+        status="error",
+        phase=phase,
+        code="budget_exceeded",
+        summary=str(error),
+        detail={
+            "stage": stage,
+            "error": str(error),
+            "tokens_used": dict(tokens_used or {}),
+        },
+    )
 
 
 def validate_status_transition(current: str, target: str) -> None:

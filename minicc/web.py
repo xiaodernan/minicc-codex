@@ -73,6 +73,7 @@ from .route_wiring import (
 from .agent.state import AgentState, Budget, BudgetExceeded
 from .pricing import cost_usd as _pricing_cost_usd
 from .agent.protocol import (
+    budget_exceeded_event,
     CancellationToken,
     EventLog,
     InvalidStatusTransition,
@@ -1893,17 +1894,8 @@ class AgentService:
                     # The fold must not stop the run silently - a trip gets
                     # the same named budget_exceeded event the planner fold
                     # emits for its own overspend.
-                    budget_event = trace_event(
-                        name="subagent",
-                        status="error",
-                        phase="execution",
-                        code="budget_exceeded",
-                        summary=str(exc),
-                        detail={
-                            "stage": "subagent",
-                            "error": str(exc),
-                            "tokens_used": dict(usage),
-                        },
+                    budget_event = budget_exceeded_event(
+                        "subagent", exc, usage, name="subagent", phase="execution",
                     )
                     events.append(budget_event)
                     if on_event is not None:
@@ -2361,17 +2353,9 @@ class AgentService:
                             # M6-T2: the fold must not stop the run silently - a
                             # trip here gets the same named budget_exceeded event
                             # the completion judge emits for its own overspend.
-                            budget_event = trace_event(
-                                name="planner",
-                                status="error",
-                                phase="planning",
-                                code="budget_exceeded",
-                                summary=str(exc),
-                                detail={
-                                    "stage": "planner_dag",
-                                    "error": str(exc),
-                                    "tokens_used": dict(token_totals),
-                                },
+                            budget_event = budget_exceeded_event(
+                                "planner_dag", exc, token_totals,
+                                name="planner", phase="planning",
                             )
                             events.append(budget_event)
                             if on_event is not None:
@@ -2481,17 +2465,8 @@ class AgentService:
                                 _stage_cost_estimator(stage_router, "planning")(usage)
                             )
                         except BudgetExceeded as exc:
-                            budget_event = trace_event(
-                                name="planner",
-                                status="error",
-                                phase="planning",
-                                code="budget_exceeded",
-                                summary=str(exc),
-                                detail={
-                                    "stage": "planning",
-                                    "error": str(exc),
-                                    "tokens_used": dict(usage),
-                                },
+                            budget_event = budget_exceeded_event(
+                                "planning", exc, usage, name="planner", phase="planning",
                             )
                             events.append(budget_event)
                             if on_event is not None:
@@ -2572,13 +2547,9 @@ class AgentService:
                         # The run_agent path emits budget_exceeded from inside
                         # the loop; a judge-side trip must be just as visible,
                         # or the run would stop with no named cause in events.
-                        budget_event = trace_event(
-                            name="completion_judge",
-                            status="error",
-                            phase="review",
-                            code="budget_exceeded",
-                            summary=str(exc),
-                            detail={"stage": "review", "error": str(exc)},
+                        budget_event = budget_exceeded_event(
+                            "review", exc, usage,
+                            name="completion_judge", phase="review",
                         )
                         events.append(budget_event)
                         if on_event is not None:
