@@ -27350,3 +27350,66 @@ T407 用改名（`_reject` → `_record` ✓）解决可见性 ✓；这一批�
 其余三键是两个出口**必须一致**的事实 ✓。门的调用计数（恰好 3 次 ✓）
 比 census 更进一步 ✓：它连「家存在但某个出口没走」都抓得到 ✓——
 **census 管抄写 ✓，调用计数管绕开** ✓。
+
+
+## 第四百零三批 — M8-T419 — 传输中的附件记录三个家：run/worker/batch 各抄一份投影
+
+### 1 缺陷
+
+一条附件记录从磁盘走进任务载荷 ✓，要经过一次**投影** ✓：把存储形状
+（`size_bytes` / `path` / `data` 字节 ✓）变成传输形状（`name` /
+`mime_type` / `data_url` 三键 ✓）。这个投影在 `task_manager.py` 里有
+**三个手写家** ✓：
+
+| 位置 | 场景 |
+| --- | --- |
+| run 载荷 | 主任务运行时的附件清单 |
+| worker 载荷 | 工作线程消费的任务载荷 |
+| batch 载荷 | 批处理共享给同批任务的附件 |
+
+三份 dict 字面量键集完全相同 ✓，但没有任何东西保证它们**始终一致** ✓。
+某个家少抄一个键 ✓——比如 `mime_type` ✓——接收侧就把一张 PNG 读成
+**没有类型的附件** ✓，静默降级 ✓。而传输形状**不是**存储形状
+（`ATTACHMENT_FIELDS` 四键 ✓）：两者回答不同问题 ✓，不能互相替代 ✓，
+这也正是三处容易各自漂移的原因 ✓。
+
+### 2 落地
+
+* `minicc/task_manager.py` ✓ 立 `_attachment_summary(item)` ✓：三键投影
+  收在一处 ✓，`data_url` 复用已有构造器 `_attachment_data_url` ✓。
+* run/worker/batch 三个载荷的列表推导全部改为调用 ✓，**行为逐字节
+  不变** ✓。
+* docstring 明示与 `ATTACHMENT_FIELDS` 的分界 ✓：存储形状与传输形状
+  是**两个事实** ✓。
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T419-212 | worker 载荷退回三键字面量 | 2 条红（census + 调用计数 ✓） |
+| M8-T419-213 | batch 载荷退回三键字面量 | 2 条红（census + 调用计数 ✓） |
+
+### 4 新增门禁
+
+`tests/test_the_attachment_summary_have_one_home.py`（4 条）✓：
+
+1. 家的行为 ✓：三键齐全 ✓、`data_url` 以 `data:` 前缀开头 ✓
+2. 控制组 ✓：`ATTACHMENT_FIELDS` 是**存储形状** ✓，与传输形状
+   必须不相等 ✓——防止后人把两个事实合并 ✓
+3. 调用计数 ✓：`_attachment_summary(` 在 task_manager.py 恰好 4 次 ✓
+   （定义 + 三个载荷 ✓）
+4. census ✓：三键 dict 字面量**恰好一处** ✓且在家 ✓
+
+聚焦回归 ✓：新门 4 条 + 附件面 5 文件（batch_resume / core_agent /
+core_session / task_contract / task_durability ✓）81 条 ✓，共 85 条 ✓，
+全绿 ✓。全量 pytest 未跑 ✓。
+
+### 5 一条教训
+
+**传输形状与存储形状是邻居，最容易被误认为同一个事实。** ✓ 三处投影
+都紧挨着 `_load_attachment_payloads`（读 ✓）和存储词表
+`ATTACHMENT_FIELDS` ✓，作者扫一眼就「照着拼一个」✓。家立起来时第一件事
+**不是写代码 ✓，是写 docstring 划界** ✓：三键 ≠ 四键 ✓，`data_url` ≠
+`path` ✓。门里那条控制断言（传输形状 ≠ 存储形状 ✓）就是这条界线的
+**守门人** ✓——没有它 ✓，下一个人把 `size_bytes` 加进传输载荷时 ✓，
+门反而会为他鼓掌 ✓。

@@ -219,6 +219,23 @@ def _attachment_data_url(item: dict[str, Any]) -> str:
     return f"data:{mime_type};base64,{base64.b64encode(bytes(content)).decode('ascii')}"
 
 
+def _attachment_summary(item: dict[str, Any]) -> dict[str, Any]:
+    """The one shape of an attachment as it travels inside a task payload.
+
+    Three payload builders hand-wrote this projection - the run payload,
+    the worker payload and the batch payload.  It is *not*
+    ``ATTACHMENT_FIELDS``: that tuple is the stored shape (``size_bytes``
+    and ``path``), this is the transported one (``data_url``), and the two
+    answer different questions.  A key one copy forgets is an attachment
+    the receiving side reads as nameless or typeless.
+    """
+    return {
+        "name": item.get("name"),
+        "mime_type": item.get("mime_type"),
+        "data_url": _attachment_data_url(item),
+    }
+
+
 def _attachment_content_parts(attachments: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Build reusable image parts without duplicating attachment decoding."""
     return [
@@ -2033,7 +2050,7 @@ class TaskManager:
                 and task.context["recovery"].get("resume_session")
             ),
             "attachments": [
-                {"name": item.get("name"), "mime_type": item.get("mime_type"), "data_url": _attachment_data_url(item)}
+                _attachment_summary(item)
                 for item in self._load_attachment_payloads(task)
             ],
             "workspace_path": task.workspace_path,
@@ -2675,11 +2692,7 @@ class TaskManager:
             "reasoning_effort": task.reasoning_effort,
             "model": task.model,
             "attachments": [
-                {
-                    "name": item.get("name"),
-                    "mime_type": item.get("mime_type"),
-                    "data_url": _attachment_data_url(item),
-                }
+                _attachment_summary(item)
                 for item in self._load_attachment_payloads(task)
             ],
             "workspace_path": task.workspace_path,
@@ -2750,11 +2763,7 @@ class TaskManager:
             "shared_context": context.get("batch_shared_context", ""),
             "_orchestration_mode": context.get("batch_orchestration_mode", "manual"),
             "attachments": [
-                {
-                    "name": item.get("name"),
-                    "mime_type": item.get("mime_type"),
-                    "data_url": _attachment_data_url(item),
-                }
+                _attachment_summary(item)
                 for item in self._load_attachment_payloads(task)
             ],
             "workspace_path": task.workspace_path,
