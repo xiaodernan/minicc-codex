@@ -30865,3 +30865,72 @@ security_perimeter / m1_integrity / packaging 共 52 条 ✓，全绿 ✓。
 的那一条必须按开头判 ✓——按包含判会把本该独立的邻居一起收进来 ✓，
 按相等判又会漏掉 `f"路径越界: {x}"` 这种常量段恰好等于前缀的手拼
 点 ✓。两条断言各管一头 ✓，缺一条就有一个方向的漂移能活着走出去 ✓。**
+
+## 第四百五十七批 — M8-T473 — 参数 census 要学会跟着常量走
+
+### 1 缺陷
+
+`test_a_declared_parameter_is_a_parameter_the_tool_has.py` 的普查
+逻辑 `_handler_reads` 只认**字面量**：它在 handler 的 AST 里找
+`args.get("max_matches", ...)`，第一个参数必须是 `ast.Constant`。
+而 M8-T464 把 `max_matches` / `max_results` 两个参数名立了家
+（`MAX_MATCHES_PARAM` / `MAX_RESULTS_PARAM`），handler 现在写的是
+`args.get(MAX_MATCHES_PARAM, ...)`。于是普查报告
+`grep.max_matches` 与 `web_search.max_results` **从未被读取**——
+一条彻头彻尾的假红。
+
+这条假红比没有门禁更坏：它指着一段**刚被改进过**的代码说「你承
+诺了却没做到」，而最省事的修法恰好是退步——把常量内联回字面量，
+让名字重新失去家。**一个看不见间接层的门禁，会用 false positive
+把正确的重构往回拽。**
+
+### 2 落地
+
+- `_handler_reads` 新增 `literal()` 辅助：遇到 `ast.Name` 时从
+  `handler.__globals__` 里取出模块级常量的**值**再比较
+- 常量解析成别的拼写仍然算「没读到」——跟随常量不等于给任何拼写
+  开免罪牌
+- 补两条直接钉住这个能力的单测：常量间接读取算读到、字面量读取算
+  读到、读别的旋钮不算读到；以及「常量指向别的拼写时不算读到」
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T473-264 | 退回只认字面量的旧形状（本批要修的 bug） | 2 条红（普查 + 单测 ✓） |
+| M8-T473-265 | 跟随名字而不跟随值 | 2 条红（普查 + 单测 ✓） |
+| M8-T473-266 | 任何常量间接都放行（开免罪牌） | 1 条红（免罪牌单测 ✓） |
+| M8-T473-267 | 不再认字面量 | 2 条红（普查 + 单测 ✓） |
+| M8-T473-268 | 永远解析不到模块全局 | 2 条红（普查 + 单测 ✓） |
+
+五条全部 KILLED ✓，恢复后字节相同 ✓。
+
+### 4 门禁扩写
+
+`tests/test_a_declared_parameter_is_a_parameter_the_tool_has.py`
+（3 条 → 5 条）✓：
+
+- 原普查（每个已声明参数都被 handler 读到）恢复全绿 ✓
+- 新增 `test_a_read_through_a_constant_counts_as_a_read` ✓
+- 新增 `test_a_constant_that_names_something_else_is_not_a_read` ✓
+  （防止「跟随常量」退化成「任何间接都放行」✓）
+
+聚焦回归 ✓：本门 5 条 + security_perimeter / m1_integrity /
+packaging / ceilings_belong_to_the_tool /
+max_matches_param_have_one_home /
+five_places_where_one_fact_was_read_differently 共 77 条 ✓，
+全绿 ✓（此前该组合因这条假红而失败 ✓，现已修复 ✓）。
+慢测试未跑 ✓，全量 pytest 未跑 ✓。
+
+### 5 一条教训
+
+**门禁自己也会变成需要立家的那份事实 ✓。** ✓ 前几批收的是产品代码里
+的重复 ✓，本批收的是**门禁对产品代码的认知**落后了一个重构 ✓：
+`_handler_reads` 心里那份「参数怎么被读取」的模型 ✓，在 M8-T464
+之后就成了过期的第二份事实 ✓。判别式可以固化 ✓：**凡是「按源码形状
+做普查」的门禁 ✓，每立一个新家都要回头问一遍——这个门禁还认得新形
+状吗 ✓？** ✓ 本项目的门禁大量使用 AST census ✓，而 AST census 的本
+质就是「对源码形状的一份硬编码预期」 ✓，立的每一个家都在改它 ✓。
+更一般的说法 ✓：**false positive 和 false negative 一样会腐蚀代码
+库 ✓**——前者逼你退步 ✓，后者放你过关 ✓，而前者更隐蔽 ✓，因为它看
+起来像门禁在尽责 ✓。

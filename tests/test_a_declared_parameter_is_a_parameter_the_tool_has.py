@@ -27,7 +27,7 @@ from pathlib import Path
 from typing import Any
 
 from minicc.tools import build_registry
-from minicc.tools.fs import MAX_GLOB_RESULTS, Editor
+from minicc.tools.fs import MAX_GLOB_RESULTS, MAX_MATCHES_PARAM, Editor
 
 
 def _registry(tmp_path: Path):
@@ -35,20 +35,37 @@ def _registry(tmp_path: Path):
 
 
 def _handler_reads(handler: Any, key: str) -> bool:
-    """Whether the handler reads ``key`` out of its arguments."""
+    """Whether the handler reads ``key`` out of its arguments.
+
+    A read may go through a module-level constant:
+    ``args.get(MAX_MATCHES_PARAM, ...)`` where ``MAX_MATCHES_PARAM =
+    "max_matches"`` lives in the handler's own module.  That indirection is
+    the *better* shape - the name has one home - so the census has to follow
+    the constant instead of reporting the knob as unread and pushing the
+    next reader to inline it back out.  A constant that resolves to some
+    other spelling still fails the comparison, so nothing is excused.
+    """
     try:
         source = inspect.getsource(handler)
     except (OSError, TypeError):  # pragma: no cover - a C-level handler
         return True
     tree = ast.parse(textwrap.dedent(source))
+    module_globals = getattr(handler, "__globals__", {})
+
+    def literal(node: ast.AST) -> object:
+        if isinstance(node, ast.Constant):
+            return node.value
+        if isinstance(node, ast.Name):
+            return module_globals.get(node.id)
+        return None
+
     for node in ast.walk(tree):
         if (
             isinstance(node, ast.Call)
             and isinstance(node.func, ast.Attribute)
             and node.func.attr in {"get", "pop"}
             and node.args
-            and isinstance(node.args[0], ast.Constant)
-            and node.args[0].value == key
+            and literal(node.args[0]) == key
         ):
             return True
         if isinstance(node, ast.Subscript) and isinstance(node.slice, ast.Constant):
@@ -60,6 +77,37 @@ def _handler_reads(handler: Any, key: str) -> bool:
             ):
                 return True
     return False
+
+
+def _reads_through_a_constant(args: dict[str, Any]) -> None:
+    """A handler whose read goes through a module-level constant."""
+    args.get(MAX_MATCHES_PARAM, 1)
+
+
+def _reads_the_literal(args: dict[str, Any]) -> None:
+    args.get("max_matches", 1)
+
+
+def _reads_nothing(args: dict[str, Any]) -> None:
+    args.get("some_other_knob", 1)
+
+
+def test_a_read_through_a_constant_counts_as_a_read():
+    """M8-T464 gave ``max_matches`` a home; the census must follow it there."""
+    assert _handler_reads(_reads_through_a_constant, "max_matches")
+    assert _handler_reads(_reads_the_literal, "max_matches")
+    assert not _handler_reads(_reads_nothing, "max_matches")
+
+
+def test_a_constant_that_names_something_else_is_not_a_read():
+    """Following the constant must not become an excuse for any spelling."""
+    global MAX_MATCHES_PARAM
+    original = MAX_MATCHES_PARAM
+    MAX_MATCHES_PARAM = "max_matche"
+    try:
+        assert not _handler_reads(_reads_through_a_constant, "max_matches")
+    finally:
+        MAX_MATCHES_PARAM = original
 
 
 def test_every_declared_parameter_is_read_by_its_handler(tmp_path: Path) -> None:
