@@ -79,7 +79,9 @@ from .agent.protocol import (
     EventLog,
     incomplete_answer,
     InvalidStatusTransition,
+    MODEL_LAST_OUTPUT_MARKER,
     validate_status_transition,
+    VERIFICATION_GUARD_ERROR,
 )
 from .agent.rpc import RpcDispatcher
 from .agent.verifier import Verifier, VerificationResult
@@ -2060,8 +2062,6 @@ class AgentService:
                 # from a fixture.
                 last_review_request: dict[str, Any] | None = None
                 activity_at_last_review: tuple[int, int] | None = None
-                verification_guard_error = "Agent 在修改工作区后没有完成验证"
-
                 fallback_cursor = {"index": 0}
 
                 async def recreate_provider_after_failure() -> str:
@@ -2752,7 +2752,7 @@ class AgentService:
                     # an unverified partial edit.
                     if current.error and (
                         not writes
-                        or current.error != verification_guard_error
+                        or current.error != VERIFICATION_GUARD_ERROR
                     ) and not (stagnation_error and writes):
                         break
 
@@ -2871,9 +2871,9 @@ class AgentService:
                         # The verifier can recover the loop's provisional
                         # "verification required" error.  Do not let that
                         # implementation detail leak into a successful answer.
-                        if aggregate.error == verification_guard_error:
+                        if aggregate.error == VERIFICATION_GUARD_ERROR:
                             aggregate.error = None
-                            marker = "模型最后输出："
+                            marker = MODEL_LAST_OUTPUT_MARKER
                             if marker in aggregate.answer:
                                 aggregate.answer = aggregate.answer.rsplit(marker, 1)[-1].strip()
                         elif stagnation_error and verification.status in NON_FAILURE_VERIFICATION_STATUSES:
@@ -3133,7 +3133,7 @@ class AgentService:
             result.error = completion_guard
             result.answer = (
                 f"{incomplete_answer(completion_guard)}。"
-                + (f"\n\n模型最后输出：{original_answer}" if original_answer else "")
+                + (f"\n\n{MODEL_LAST_OUTPUT_MARKER}{original_answer}" if original_answer else "")
             )
         runtime_status = "cancelled" if result.cancelled else "failed" if result.error else "completed"
         runtime_state.finish(runtime_status, result.error)

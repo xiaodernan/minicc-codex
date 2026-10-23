@@ -248,6 +248,33 @@ def incomplete_answer(error: object) -> str:
     return f"{INCOMPLETE_ANSWER_PREFIX}{error}"
 
 
+#: The verdict the pre-finish verification guard publishes when the model
+#: tried to hand a result back after writing to the workspace without
+#: running verification.  The loop raises it as ``result.error``; the web
+#: fold reads it back as an *equality key* - ``current.error != guard``
+#: decides whether the fold keeps repairing or breaks out, and
+#: ``aggregate.error == guard`` decides whether to strip the guard's own
+#: provisional text out of what is about to become a successful answer.
+#: Two modules, one sentence, and the drift is silent: the fold stops
+#: recognising its own guard and either bails out of a repair it should
+#: have kept driving, or ships ``任务未完成：Agent 在修改工作区后没有完成验证``
+#: as a success.
+VERIFICATION_GUARD_ERROR = "Agent 在修改工作区后没有完成验证"
+
+#: What the guard says in the answer slot.  Deliberately shorter than the
+#: error above: the error is the machine-readable verdict, this is the
+#: human sentence the incomplete-answer prefix wraps.
+VERIFICATION_GUARD_ANSWER = "修改工作区后没有完成验证，已停止提前交付。"
+
+#: The marker separating a run's answer from the model's last raw output.
+#: Three sites share it - the loop appends it, the web completion guard
+#: appends it, and the web fold splits on it to cut the tail back off.  A
+#: site that spelled it by hand would append a tail nobody can cut: the
+#: split would simply not match and the raw output would stay glued to
+#: the answer forever.
+MODEL_LAST_OUTPUT_MARKER = "模型最后输出："
+
+
 #: The error text a budget trip carries.  Nine sites spelled it by hand, and
 #: ``budget_exceeded_event`` below publishes the very same trip under its
 #: ``str(error)`` - two spellings of one witness, drifting apart silently.
@@ -310,11 +337,14 @@ __all__ = [
     "EventLog",
     "INCOMPLETE_ANSWER_PREFIX",
     "InvalidStatusTransition",
+    "MODEL_LAST_OUTPUT_MARKER",
     "PHASE_CARRYING_EVENT_KINDS",
     "RuntimeEvent",
     "TASK_STATUSES",
     "TASK_UNSUCCESSFUL_STATUSES",
     "TERMINAL_TASK_STATUSES",
+    "VERIFICATION_GUARD_ANSWER",
+    "VERIFICATION_GUARD_ERROR",
     "budget_exceeded_error",
     "budget_exceeded_event",
     "incomplete_answer",

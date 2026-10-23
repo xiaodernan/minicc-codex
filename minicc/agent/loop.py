@@ -74,7 +74,13 @@ from .context import (
     repair_interrupted_tool_rounds,
     validate_tool_protocol,
 )
-from .protocol import budget_exceeded_error, incomplete_answer
+from .protocol import (
+    MODEL_LAST_OUTPUT_MARKER,
+    VERIFICATION_GUARD_ANSWER,
+    VERIFICATION_GUARD_ERROR,
+    budget_exceeded_error,
+    incomplete_answer,
+)
 from .state import AgentState, Budget, BudgetExceeded
 from .verification_plan import build_verification_plan
 from .tool_policy import (
@@ -1876,10 +1882,10 @@ async def run_agent(
                         detail={"turn": turn, "retry": verification_retries},
                     )
                     continue
-                result.error = "Agent 在修改工作区后没有完成验证"
+                result.error = VERIFICATION_GUARD_ERROR
                 result.answer = (
-                    incomplete_answer("修改工作区后没有完成验证，已停止提前交付。")
-                    + (f"\n\n模型最后输出：{text}" if text else "")
+                    incomplete_answer(VERIFICATION_GUARD_ANSWER)
+                    + (f"\n\n{MODEL_LAST_OUTPUT_MARKER}{text}" if text else "")
                 )
                 emit_trace(
                     result.error,

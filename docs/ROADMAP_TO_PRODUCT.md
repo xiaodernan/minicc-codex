@@ -30610,3 +30610,94 @@ subagent_streaming 共 153 条 ✓，全绿 ✓。慢测试未跑 ✓，
 毫无察觉 ✓。另一个附带发现 ✓：`protocol.__all__` 居然漏了
 `budget_exceeded_event` ✓，说明 `__all__` 本身就是一份需要门
 禁看着的清单 ✓，本批顺手补上并加了一条导出断言 ✓。
+
+## 第四百五十四批 — M8-T470 — 验证守卫的判词一个家
+
+### 1 缺陷
+
+「模型改完工作区却没跑验证就想交卷」这件事，判词被写了两遍，
+而且两遍之间是一条**等值契约**。`agent/loop.py` 把
+`Agent 在修改工作区后没有完成验证` 设为 `result.error`；
+`web.py` 把它抄成局部变量 `verification_guard_error`，然后在两处
+拿它当**键**去比：`current.error != verification_guard_error`
+决定修复循环是继续还是 `break`，
+`aggregate.error == verification_guard_error` 决定要不要把守卫自己
+那句 provisional 文本从即将成功的答案里剪掉。两个模块、一句判词，
+而漂移是完全沉默的：一旦 web 侧抄的那份和 loop 侧说的那句对不上，
+修复循环会在一句它已经不认识的错误面前提前退出，或者把
+`任务未完成：Agent 在修改工作区后没有完成验证` 当成成功答案发出
+去。同批还收了 `模型最后输出：` 这个标记——loop 追加它、web 的
+completion guard 追加它、web 又 `rsplit` 它来剪尾巴，三处共用一个
+ token，抄错一处的后果是尾巴再也剪不掉。
+
+### 2 落地
+
+- 三个常量安家 `minicc/agent/protocol.py`（T469 刚给这个模块立起
+  「agent 与消费方共享的消息词汇表」的身份，家无需新建）：
+  `VERIFICATION_GUARD_ERROR`、`VERIFICATION_GUARD_ANSWER`、
+  `MODEL_LAST_OUTPUT_MARKER`
+- `loop.py`：1879 行的判词、1881 行的答词、1882 行的标记全部改引
+  常量
+- `web.py`：**删掉**局部变量 `verification_guard_error`，两处比较
+  直接引常量；2876 行的 `marker` 与 3136 行的追加同样收口
+- 判词、答词、标记的字节完全未变，四份既有测试
+  （core_agent / m8_t58 / p0_p1_p2 / verification_nudge_contract）
+  钉住的承重契约未被触动
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T470-264 | loop 把判词写回字面量 | 1 条红（census ✓） |
+| M8-T470-265 | web 的等值键写回字面量 | 1 条红（census ✓） |
+| M8-T470-266 | 家里判词值末尾多一个空格 | 1 条红（值断言 ✓） |
+| M8-T470-267 | web 的 marker 写回字面量 | 1 条红（census ✓） |
+| M8-T470-268 | web 追加处写回字面量 marker | 1 条红（census ✓） |
+| M8-T470-269 | 家里 `__all__` 漏掉 marker | 1 条红（导出断言 ✓） |
+| M8-T470-270 | loop 的 import 漏掉 marker | 1 条红（import 断言 ✓） |
+
+七条全部 KILLED ✓，恢复后字节相同 ✓。
+
+**268 第一轮是 SURVIVED ✓**，因此收紧了门禁 ✓：见第 5 节 ✓。
+
+### 4 新增门禁
+
+`tests/test_the_verification_guard_verdict_has_one_home.py`（10 条）✓：
+
+1. 三个常量的值 ✓
+2. **包含式 census** ✓：三个判词在全家只被一个字符串常量承载 ✓，
+   且那一个在 `protocol.py` ✓
+3. 三个常量只被定义一次 ✓
+4. 家外零处重新绑定这三个名字 ✓（别名就是漂移 ✓）
+5. `__all__` 导出三者 ✓
+6. loop 从家 import 三者 ✓
+7. web 从家 import 它用到的那两个 ✓
+8. **标记往返** ✓：`f"\n\n{MARKER}{raw}"` 追加 →
+   `rsplit(MARKER, 1)[-1].strip()` 剪回 → 等于原文 ✓
+9. **跨模块同一对象** ✓：
+   `minicc.web.VERIFICATION_GUARD_ERROR is
+   minicc.agent.loop.VERIFICATION_GUARD_ERROR` ✓
+10. 守卫判词包进 `incomplete_answer` 的形状 ✓
+
+聚焦回归 ✓：新门 10 条 + verification_nudge_contract /
+m8_t58_inspection_fallback / core_agent /
+the_failed_run_answer_have_one_home 共 70 条 ✓，加
+p0_p1_p2 16 条 ✓，全绿 ✓。慢测试未跑 ✓，全量 pytest 未跑 ✓。
+
+### 5 一条教训
+
+**census 判「相等」会漏掉 f-string 里的同一个词 ✓。** ✓ 268 号变异
+把 web 追加处的 `MODEL_LAST_OUTPUT_MARKER` 换回字面量
+`"模型最后输出："` ✓，门禁全绿 ✓——因为那条 census 写的是
+`node.value == needle` ✓，而追加点其实是
+`f"\n\n模型最后输出：{x}"` ✓，它的常量段是
+`"\n\n模型最后输出："` ✓，跟 needle 根本不相等 ✓，于是整个站点
+从 census 里消失了 ✓。改成**包含式**（`needle in node.value`）之后
+247 立刻杀掉 ✓。判别式可以固化 ✓：**凡是「同一个词既被独立拼过、
+又被拼进 f-string」的家族 ✓，census 必须按包含判 ✓，按相等判等于
+给最危险的那一半开免罪牌 ✓**——因为手拼的人恰恰是最先把它写进
+f-string 的 ✓。另一条附带的 ✓：web 侧原先那个局部变量
+`verification_guard_error` 是个**别名** ✓，它和常量长得一样、比起来
+却不相等（如果谁改了字面量）✓，所以门禁专门加了一条「家外零绑
+定」✓，而落地时直接把别名删掉、让两处比较直连接量 ✓——别名是
+同一事实的第二个家 ✓，比字面量更隐蔽 ✓。
