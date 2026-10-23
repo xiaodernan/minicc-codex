@@ -26590,3 +26590,62 @@ T404 把写工具一族也纳入同一个机制 ✓——**机制复用两次 �
 前者手里的名单再抄一遍 ✓。看到 `for key in (...)` 和
 `{k: d[k] for k in (...)}` 这种成对结构 ✓，就要问一句 ✓：**这两个元组
 是同一个事实吗** ✓？本批的答案是 ✓。
+
+
+## 第三百九十批 — M8-T406 — 推理力别名表两个家：dict 字面量是 T383 门的盲区
+
+### 1 缺陷
+
+`{"standard": "mid", "medium": "mid", "very-high": "xhigh", …}` 这张
+**推理力别名表**被手写了**两次** ✓：
+
+| 家 | 读者 |
+| --- | --- |
+| `minicc/config.py`（`normalize_reasoning_effort` 内 ✓） | 配置层归一 ✓ |
+| `minicc/llm/openai_provider.py`（构造函数内 ✓） | provider 构造时再归一一遍 ✓ |
+
+同一事实两个家 ✓：一边认一个新别名 ✓（比如 `"标准": "mid"` ✓）另一边
+不认 ✓——配置层欣然收下 ✓、provider 构造时
+`reasoning_effort 非法` 当场炸掉 ✓，**错误信息离犯错的配置有两层远** ✓。
+两份表还各带一个**死键** `"very high"` ✓：两个读者都先做
+`.replace(" ", "-")` ✓，这个键**永远不可能被匹配** ✓——死成员在两个家里
+对称地活着 ✓，正说明两份是抄来的 ✓。
+
+### 2 落地
+
+* **建家** ✓：`config.py` 在 `REASONING_EFFORTS` 旁立模块级
+  `REASONING_EFFORT_ALIASES` ✓（死键 `"very high"` 随之删除 ✓——
+  两个读者都先做空格替换 ✓，它不可达 ✓）。
+* **两处收口** ✓：`normalize_reasoning_effort` 改问家 ✓；
+  `openai_provider.py` 从 `..config` 导入同一对象 ✓（该文件本来就从
+  config 导入 `LLM_PROTOCOLS`/`TOOL_MODES` ✓）。
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T406-190 | provider 构造退回行内别名字典 | 1 条红（dict 字面量扫描抓到 ✓） |
+
+### 4 新增门禁
+
+`tests/test_the_reasoning_effort_aliases_have_one_home.py`（4 条）✓：
+
+1. 家在 `config.py` ✓、八个别名齐全 ✓、**每个别名的落点都是真 effort** ✓
+2. provider 导入的是**同一个对象** ✓（`is` 断言 ✓）
+3. 全包只许一处 dict 字面量拼这张表 ✓（**AST 扫 dict ✓——T383 的门只扫
+   Set/Tuple ✓，dict 键是它的盲区 ✓，本批补上** ✓）
+4. 行为不变 ✓：`medium`/`very-high`/`极高`/`maximum` 照常归一 ✓、
+   非法值照旧抛错 ✓
+
+聚焦回归 ✓：门 4 条 + `test_reasoning_effort.py` + T383 门 +
+`test_project_config.py` 共 46 条 ✓，全绿 ✓。全量 pytest 未跑 ✓。
+
+### 5 一条教训
+
+**门扫什么形状，就管得住什么形状——写门时要问「换个容器抄还看得见吗」。** ✓
+T383 的门扫 `ast.Set | ast.Tuple` ✓，于是同样的词表换成
+`dict` 的**键**再抄一遍 ✓，门**一声不响** ✓。别名表天然长这样 ✓：
+`{别名: 正名}` 的键就是词表 ✓。从此家族的扫描口径加了 dict ✓——
+而方法上更一般的教训是 ✓：**门的扫描器和探针要用不同的形状假设** ✓，
+探针按「值」聚合 ✓（本批就是这样发现的 ✓），门按「节点类型」枚举 ✓，
+两者永远差一层 ✓，所以探针要定期重跑 ✓。

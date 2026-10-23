@@ -56,6 +56,20 @@ DEFAULT_MAX_CONCURRENT_TASKS = 8
 DEFAULT_MAX_COMPLETION_CONTINUES = 3
 DEFAULT_REASONING_EFFORT = "high"
 REASONING_EFFORTS = frozenset({"low", "mid", "high", "xhigh", "max", "ultra"})
+# M8-T406: UI/env spellings that map onto the efforts above. One table for
+# both readers - the config normalizer and the provider constructor - or an
+# alias one side accepts and the other rejects dies at provider construction
+# with a "reasoning_effort 非法" the config layer already waved through.
+REASONING_EFFORT_ALIASES = {
+    "standard": "mid",
+    "medium": "mid",
+    "very-high": "xhigh",
+    "veryhigh": "xhigh",
+    "maximum": "max",
+    "高": "high",
+    "极高": "xhigh",
+    "最高": "max",
+}
 # Spellings a user may write to mean "no limit" for the optional soft caps.
 # Both soft-cap readers (the int and the float closure) must agree, or "off"
 # caps one axis while silently capping the other.
@@ -343,18 +357,7 @@ def _routing_cost_number(value: object, path: str) -> float:
 def normalize_reasoning_effort(value: str | None, *, default: str = DEFAULT_REASONING_EFFORT) -> str:
     """Normalize UI/env aliases to the supported provider effort levels."""
     raw = str(value or default).strip().lower().replace("_", "-").replace(" ", "-")
-    aliases = {
-        "standard": "mid",
-        "medium": "mid",
-        "very-high": "xhigh",
-        "very high": "xhigh",
-        "veryhigh": "xhigh",
-        "maximum": "max",
-        "高": "high",
-        "极高": "xhigh",
-        "最高": "max",
-    }
-    normalized = aliases.get(raw, raw)
+    normalized = REASONING_EFFORT_ALIASES.get(raw, raw)
     if normalized not in REASONING_EFFORTS:
         raise ValueError(f"reasoning effort 非法: {value!r} (low|mid|high|xhigh|max|ultra)")
     return normalized

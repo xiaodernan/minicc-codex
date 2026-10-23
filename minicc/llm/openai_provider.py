@@ -54,7 +54,7 @@ from tenacity import (
     stop_after_attempt,
 )
 
-from ..config import LLM_PROTOCOLS, TOOL_MODES
+from ..config import LLM_PROTOCOLS, REASONING_EFFORT_ALIASES, TOOL_MODES
 from .base import LLMResponse, is_nameless_tool_name, unique_tool_call_id
 from ..tools.schemas import tool_call_name
 from ..logging_setup import log_provider_event
@@ -540,17 +540,7 @@ class OpenAICompatibleProvider:
         self._mode = "envelope" if tool_mode == "envelope" else "native"
         self._mode_locked = tool_mode != "auto"
         normalized_effort = str(reasoning_effort or "high").strip().lower().replace("_", "-").replace(" ", "-")
-        normalized_effort = {
-            "standard": "mid",
-            "medium": "mid",
-            "very-high": "xhigh",
-            "very high": "xhigh",
-            "veryhigh": "xhigh",
-            "maximum": "max",
-            "高": "high",
-            "极高": "xhigh",
-            "最高": "max",
-        }.get(normalized_effort, normalized_effort)
+        normalized_effort = REASONING_EFFORT_ALIASES.get(normalized_effort, normalized_effort)
         if normalized_effort not in REASONING_WIRE_VALUES:
             raise ValueError(f"reasoning_effort 非法: {reasoning_effort!r}")
         self._requested_reasoning_effort = normalized_effort
