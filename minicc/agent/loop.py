@@ -1171,7 +1171,7 @@ async def run_agent(
                     break
                 tc = ToolCall.from_openai(raw_tc)
                 result.tool_calls_total += 1
-                call_signature = _signature({"tool": tc.tool, "arguments": tc.arguments})
+                call_signature = _call_signature(tc.tool, tc.arguments)
 
                 # Permission gate.
                 # M8-T304: the risk a call **carries** is not always the
@@ -1396,7 +1396,7 @@ async def run_agent(
                     and not (tool_result.data or {}).get("duplicate")
                 ):
                     cache_tool_result(
-                        _signature({"tool": tc.tool, "arguments": tc.arguments}),
+                        _call_signature(tc.tool, tc.arguments),
                         tool_result,
                         _target_signature(workspace, tc.arguments),
                     )
@@ -1975,6 +1975,18 @@ def _signature(value: Any) -> str:
     """Stable, compact fingerprint for loop-progress detection."""
     raw = json.dumps(value, ensure_ascii=False, sort_keys=True, default=str, separators=(",", ":"))
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:20]
+
+
+def _call_signature(tool: str, arguments: dict[str, Any]) -> str:
+    """The identity of one tool call: which tool, with which arguments.
+
+    Two readers must agree on this identity or the memo breaks: the
+    batch dedup that rejects a repeated call and the cache that stores
+    and replays a read result both key on it.  A key one side spells
+    differently is a cache that never hits - or a dedup that never
+    fires - with nothing to show for it but a slower, loopier run.
+    """
+    return _signature({"tool": tool, "arguments": arguments})
 
 
 def _is_unproductive_result(result: ToolResult) -> bool:

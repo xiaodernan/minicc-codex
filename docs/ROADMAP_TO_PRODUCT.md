@@ -29092,3 +29092,63 @@ plan_channel 18 条 + core_llm / one_price_per_model 24
 （anthropic/openai、chat/responses）输出同一形状 ✓，
 公共模块立家 ✓；谁的 import 列表先变长 ✓，就说明家搬
 对了地方 ✓。** **
+
+## 第四百三十三批 — M8-T449 — 工具调用身份两键一个家
+
+### 1 缺陷
+
+`agent/loop.py` 里「一个工具调用的身份」被拼了两次：
+
+- 批内去重：`call_signature = _signature({"tool": tc.tool,
+  "arguments": tc.arguments})`，用于「本轮第 N 个调用与
+  本调用完全相同」的拒绝
+- 结果缓存：`cache_tool_result(_signature({"tool":
+  tc.tool, "arguments": tc.arguments}), ...)`，用于读结果
+  的存取键（配合 T354 的文件身份做二级键）
+
+两个消费点必须对「身份」的拼法完全一致：存缓存的键和
+查缓存的键（以及去重键）只要有一边多一个字段、少一个
+字段、或换个嵌套方式，缓存就永远打不中而没人报错——
+表现只是「同样的读取反复执行」，或者去重沉默失效。这
+种分叉不抛异常、不出错日志，只在运行变慢里显形。
+
+### 2 落地
+
+- `minicc/agent/loop.py` 立模块级 `_call_signature(tool,
+  arguments)`，紧跟 `_signature` 之后（它就是
+  `_signature` 的唯一固定输入形状）
+- 两处拼装收口；`_signature` 保持通用（loop 进度检测还
+  在用它），家的 docstring 写清「两个读者必须同构」的
+  理由
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T449-264 | 去重处退回手写 dict | 2 条红（census + 调用计数 ✓） |
+| M8-T449-265 | 缓存处退回手写 dict | 2 条红（census + 调用计数 ✓） |
+
+### 4 新增门禁
+
+`tests/test_the_call_signature_have_one_home.py`（4 条）✓：
+
+1. 家的行为 ✓：等于 `_signature` 作用于两键 dict ✓
+2. 家的行为 ✓：参数不同则指纹不同 ✓、工具不同则指纹
+   不同 ✓
+3. census ✓：`{"tool", "arguments"}` 两键 dict 字面量在
+   minicc/ 下**恰好一处** ✓且在家 ✓
+4. 调用计数 ✓：`_call_signature(` 恰好 3 次 ✓（定义 + 去重
+   + 缓存 ✓）
+
+聚焦回归 ✓：新门 4 条 + core_agent / accuracy_contracts 77
+条 ✓，共 81 条 ✓，全绿 ✓。全量 pytest 未跑 ✓。
+
+### 5 一条教训
+
+**键相同的两处 dict ✓，先问「是不是同一个消费者的存取
+两侧」✓——是的话优先级最高 ✓。** ✓ 普通重复载荷分叉
+的代价是数据不一致 ✓；而**缓存/去重键**分叉的代价是
+静默失效 ✓：没有异常、没有错误码 ✓，只有变慢和变
+笨 ✓。判别口诀 ✓：**同一个 dict 既被写进某个 store 又
+被用来查这个 store ✓，它就是一个键 ✓——键必须只有一
+个拼法 ✓。** **
