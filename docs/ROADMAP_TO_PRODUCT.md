@@ -25647,3 +25647,54 @@ diff 看不出关系 ✓、grep 搜不全 ✓、改一边忘另一边 ✓。门�
 问的那半边不知道 ✓——于是**行为变严** ✓（证据被无视 ✓），而不是变松 ✓。这类缺陷不报错 ✓、
 不崩溃 ✓，只是把正确的交付一次次打回 ✓（M8-T17 那种「四轮 125k token 还在原地」的圈 ✓，
 就是这么转起来的 ✓）。门钉「同一个对象」✓，就是钉「问的那半永远跟着记的那半走」✓。
+
+
+## 第三百七十三批 — M8-T389 — Python 测试运行器 {pytest, unittest}：身份归一与只读放行两个家
+
+### 1 缺陷
+
+「哪些可执行文件是 Python 测试运行器」这个事实有两个家 ✓：
+
+| 家 | 用途 |
+| --- | --- |
+| `minicc/agent/check_commands.py`:59 | `verification_identity`：把 `python -m pytest -q x` 归一成 `("pytest", "x")` ✓ |
+| `minicc/agent/verification_plan.py`:437 | `safe_verification_command`：**只读放行**——pytest/unittest 不需要写授权 ✓ |
+
+一个管「怎么称呼它」✓，一个管「它算不算安全检查」✓，各手写一份 ✓。
+（`tool_policy.py`:243 的六件套 `{"pytest", "unittest", "mypy", "pyright", "tsc", "compileall"}` 是另一个
+更大的事实 ✓——「白名单检查器」✓，本批不动它 ✓；门按**元素集合**判别 ✓，不会误伤 ✓。）
+
+加第三个运行器 ✓（比如 `tox` ✓）：这边归一了 ✓，那边仍要写授权 ✓——**验证命令在
+default 模式下被权限门拦下** ✓，而拦它的理由跟测试毫无关系 ✓。
+
+### 2 落地
+
+* **建家** ✓：`minicc/agent/check_commands.py` 新增
+  `PYTHON_TEST_RUNNERS = frozenset({"pytest", "unittest"})` ✓（命令解析模块 ✓，
+  `verification_plan.py` 本来就 import 它 ✓）。
+* **两个读者**改问家 ✓（同一对象 ✓）。
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T389-173 | `verification_plan.py` 的放行判断退回行内集合 | 1 条红（AST 扫描抓到 ✓） |
+
+### 4 新增门禁
+
+`tests/test_the_python_test_runners_have_one_home.py`（4 条）✓：
+
+1. 家在 `check_commands.py` ✓
+2. `verification_plan` 用**同一个对象** ✓
+3. 全包只许一处拼写 ✓（**且只认两元素集合** ✓，`tool_policy` 的六件套不误伤 ✓）
+4. 两个读者行为不变 ✓（`-q`/`-v` 被归一掉 ✓、`python -m pytest/unittest` 依旧只读放行 ✓）
+
+聚焦回归 ✓：门 4 条 + `test_m1_integrity.py` + `test_verification_nudge_contract.py` +
+`test_core_agent.py` 共 70 条 ✓，全绿 ✓。全量 pytest 未跑 ✓。
+
+### 5 一条教训
+
+**超集不是副本，但子集常常是。** ✓ 本批的两处是同一个两元素事实 ✓；而六件套那个集合
+**包含**这两元素 ✓，它却是另一个事实 ✓（「白名单检查器」≠「Python 测试运行器」✓）。
+门按集合**精确相等**判别 ✓，不按包含 ✓——否则每次加一个检查器 ✓，门就红一次 ✓，
+门就变成了噪音 ✓。判别精度与判别力 ✓，在这里是同一件事 ✓。

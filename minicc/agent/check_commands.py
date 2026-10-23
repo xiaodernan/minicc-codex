@@ -53,10 +53,18 @@ def checker_invocation(command: str) -> tuple[str, list[str]]:
     return executable, arguments
 
 
+# M8-T389: the Python test runners.  Two readers need this fact - the
+# identity normalizer below, and verification_plan's read-only short-circuit
+# that lets a checker run without a write grant - and each spelled the pair
+# itself.  A third runner added to one side only would be normalized here but
+# refused there (or vice versa).
+PYTHON_TEST_RUNNERS = frozenset({"pytest", "unittest"})
+
+
 def verification_identity(command: str) -> tuple[str, ...]:
     """Unify display variants, never different test selections."""
     executable, arguments = checker_invocation(command)
-    if executable in {"pytest", "unittest"}:
+    if executable in PYTHON_TEST_RUNNERS:
         arguments = [arg for arg in arguments if arg not in {"-q", "-v", "-vv", "-vvv", "--quiet", "--verbose"}]
         arguments = [arg.replace("\\", "/").removeprefix("./") for arg in arguments]
         return (executable, *arguments)

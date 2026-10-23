@@ -10,7 +10,7 @@ from collections import OrderedDict
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
-from .check_commands import command_parts, checker_invocation
+from .check_commands import PYTHON_TEST_RUNNERS, command_parts, checker_invocation
 from .test_selection import relevant_python_tests
 
 _DIGEST_CACHE: OrderedDict[str, tuple[tuple[int, int, int], bytes]] = OrderedDict()
@@ -434,7 +434,7 @@ def safe_verification_command(command: str, *, allow_project_scripts: bool = Fal
     if len(parts) == 3 and parts[:2] == ["node", "--check"]:
         return not parts[2].startswith("-")
     checker, _ = checker_invocation(command)
-    if checker in {"pytest", "unittest"}:
+    if checker in PYTHON_TEST_RUNNERS:
         return True
     # Project scripts execute workspace code: only tasks already authorized
     # for commands may use these checks.
