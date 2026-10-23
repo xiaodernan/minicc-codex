@@ -337,6 +337,21 @@ def _evidence_ref_ids(value: Any) -> set[str]:
 EVIDENCE_PACKET_SECTIONS = ("events", "verification_results", "conversation")
 
 
+def _event_arguments(event: dict[str, Any]) -> dict[str, Any]:
+    """The one reconstruction of a tool call's arguments from a trace event.
+
+    Both evidence checks rebuild the same two keys from an event: the
+    command text and whether it was backgrounded.  The flag must travel
+    with the command - a backgrounded command runs nothing, so dropping
+    it turns "started a test in the background" into "ran a test"
+    (M8-T279/M8-T296).  One builder keeps the pair inseparable.
+    """
+    return {
+        "command": str(event.get("command") or ""),
+        "run_in_background": bool(event.get("background")),
+    }
+
+
 def _enforce_completion_evidence(
     decision: CompletionDecision,
     events: list[dict[str, Any]],
@@ -385,10 +400,7 @@ def _enforce_completion_evidence(
         # A backgrounded command runs nothing, so it is not verification -
         # and the gate used to rebuild the arguments from the command alone,
         # which dropped the flag and let the background guard never fire.
-        event_arguments = {
-            "command": command,
-            "run_in_background": bool(event.get("background")),
-        }
+        event_arguments = _event_arguments(event)
         if event.get("name") == "bash" and is_verification_evidence(
             "bash", event_arguments, "ok"
         ):
@@ -521,10 +533,7 @@ def _enforce_completion_evidence(
                 # checked afterwards" - it runs nothing.
                 or is_verification_evidence(
                     str(event.get("name") or ""),
-                    {
-                        "command": event.get("command"),
-                        "run_in_background": bool(event.get("background")),
-                    },
+                    _event_arguments(event),
                     str(event.get("status")),
                 )
                 or (inspection_suffices and event.get("name") in INSPECTION_TOOL_NAMES)

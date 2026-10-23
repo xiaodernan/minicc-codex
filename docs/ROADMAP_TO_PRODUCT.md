@@ -28892,3 +28892,68 @@ detail 必须相同 ✓——summary 供人读 ✓，detail 供机器对比 ✓�
 猜 ✓。家把「何时出现」收成签名默认值 ✓：不传就没有 ✓，
 传了才出现 ✓。判别口诀 ✓：**载荷里带条件键的 ✓，拼装与
 条件必须同一个函数 ✓——条件散在调用方 ✓，下游就只能猜 ✓。** **
+
+## 第四百三十批 — M8-T446 — 事件参数两键一个家
+
+### 1 缺陷
+
+`_enforce_completion_evidence` 里两处证据检查各自从 trace
+event 重建工具调用参数：
+
+- 验证记录处：`{"command": command, "run_in_background":
+  bool(event.get("background"))}`
+- 写后检查处：同一个形状再拼一遍，command 甚至没归一
+  （直接传 `event.get("command")`）
+
+M8-T279/M8-T296 的注释已经说明这个键对的要害：background
+标志必须和 command 同行——漏了它，后台启动的命令（
+`status="ok"` 但什么都没跑）会被当成「跑过测试」，
+`verification_required` 与写后检查双双失守。两处各拼一次
+dict，就是给这条不变式留了两个腐烂点：将来给 event 加
+字段（比如 `timeout`、`cwd`），两处都要跟上，漏一处就
+是半边证据。
+
+### 2 落地
+
+- `minicc/agent/completion.py` 立模块级
+  `_event_arguments(event)`，放在 `_enforce_completion_evidence`
+  之前（唯一消费者）
+- 两处重建收口；家中统一归一 command（`str(... or "")`），
+  与第一处原行为一致，第二处原本传裸值、由 callee 归一，
+  行为不变
+- 家中钉死：command 与 run_in_background 永远成对出现，
+  「backgrounded 不是 verification」这条规则（tool_policy.py
+  的 M8-T279）的输入侧从此只有一处构造
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T446-266 | 验证记录处退回手写 dict | 2 条红（census + 调用计数 ✓） |
+| M8-T446-267 | 写后检查处退回手写 dict | 2 条红（census + 调用计数 ✓） |
+
+### 4 新增门禁
+
+`tests/test_the_event_arguments_have_one_home.py`（4 条）✓：
+
+1. 家的行为 ✓：两键透传 ✓
+2. 家的行为 ✓：缺字段时 command 归一为空串 ✓、flag 为
+   False ✓
+3. census ✓：`{"command", "run_in_background"}` 两键 dict
+   字面量在 minicc/ 下**恰好一处** ✓且在家 ✓
+4. 调用计数 ✓：`_event_arguments(` 恰好 3 次 ✓（定义 + 两个
+   证据检查 ✓）
+
+聚焦回归 ✓：新门 4 条 + accuracy_contracts /
+completion_liveness / m4_evidence_chain 67 条 ✓，共 71 条 ✓，
+全绿 ✓。全量 pytest 未跑 ✓。
+
+### 5 一条教训
+
+**历史上出过安全事故的键对 ✓，分叉零容忍 ✓。** ✓ 这个键对
+不是普通载荷 ✓：M8-T279 就是因为它分叉（只有 command 没有
+flag）导致后台命令冒充验证 ✓。修过一次的洞 ✓，更要用家把
+「成对出现」变成结构事实 ✓，而不是靠两处注释各喊一遍 ✓。
+判别口诀 ✓：**注释里写着「这个字段必须和某个字段一起」的
+地方 ✓，就是在指认一个还没立的家 ✓——注释是家的讣告 ✓，
+家是注释的墓碑 ✓。** **
