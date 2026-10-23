@@ -499,6 +499,21 @@ def _replan_constraints(*, verification_required: bool, feedback: list[dict[str,
     return constraints
 
 
+def _budget_snapshot(runtime_budget: Any) -> dict[str, Any]:
+    """The one shape of the budget counters a trace detail reports.
+
+    Three soft-budget trace events spell these two keys by hand - the
+    wrap-up notice (plus the two soft ceilings), and two copies of the
+    stop event that sit in different exits of the same loop.  A key one
+    copy forgets is a budget event the report cannot reconcile, and
+    ``elapsed_seconds`` is rounded here so no copy rounds differently.
+    """
+    return {
+        "tokens": runtime_budget.tokens,
+        "elapsed_seconds": round(runtime_budget.elapsed_seconds(), 3),
+    }
+
+
 def _run_metrics(
     result: TurnResult, runtime_budget: Budget, *, turns: int, tool_calls: int
 ) -> dict[str, Any]:
@@ -877,8 +892,7 @@ async def run_agent(
                     phase="planning",
                     code="soft_budget_wrap_up",
                     detail={
-                        "tokens": runtime_budget.tokens,
-                        "elapsed_seconds": round(runtime_budget.elapsed_seconds(), 3),
+                        **_budget_snapshot(runtime_budget),
                         "soft_max_tokens": runtime_budget.soft_max_tokens,
                         "soft_max_duration_seconds": runtime_budget.soft_max_duration_seconds,
                     },
@@ -893,10 +907,7 @@ async def run_agent(
                     "软预算收束轮次后仍超限，已停止",
                     phase="summarize",
                     code="soft_budget_stopped",
-                    detail={
-                        "tokens": runtime_budget.tokens,
-                        "elapsed_seconds": round(runtime_budget.elapsed_seconds(), 3),
-                    },
+                    detail=_budget_snapshot(runtime_budget),
                 )
                 break
         if cancellation_requested():
@@ -1820,10 +1831,7 @@ async def run_agent(
                 "软预算收束轮次后仍超限，已停止",
                 phase="summarize",
                 code="soft_budget_stopped",
-                detail={
-                    "tokens": runtime_budget.tokens,
-                    "elapsed_seconds": round(runtime_budget.elapsed_seconds(), 3),
-                },
+                detail=_budget_snapshot(runtime_budget),
             )
             break
 
