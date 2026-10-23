@@ -106,7 +106,7 @@ class TodoTools:
             status="ok",
             summary=summary + (f"（更新于 {updated_at}）" if updated_at else "（尚无清单）"),
             output=json.dumps(todos, ensure_ascii=False, indent=2),
-            data={"todos": todos, "updated_at": updated_at, "source": "read"},
+            data=_tool_data(todos, updated_at, "read"),
             security_tags=untrusted_tags(),
         )
 
@@ -123,9 +123,23 @@ class TodoTools:
             status="ok",
             summary=summary,
             output="\n".join(lines) or "(清单已清空)",
-            data={"todos": todos, "updated_at": updated_at, "source": "write"},
+            data=_tool_data(todos, updated_at, "write"),
             security_tags=untrusted_tags(),
         )
+
+
+def _tool_data(
+    todos: list[dict[str, str]], updated_at: str, source: str
+) -> dict[str, Any]:
+    """The one shape of the todo tool's structured result payload.
+
+    Read and write both report the same three keys - the checklist, when
+    it was last touched, and which verb produced this view.  A key one
+    copy forgets is a result the UI panel reads as a missing field, and
+    the on-disk payload (``{"todos", "updated_at"}``, no ``source``) is
+    a different fact that stays where it is.
+    """
+    return {"todos": todos, "updated_at": updated_at, "source": source}
 
 
 def _summarize(todos: list[dict[str, str]]) -> str:
