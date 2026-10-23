@@ -20,10 +20,10 @@ import secrets
 import tempfile
 import time
 from collections import deque
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from .clock import utc_now_iso
 from .tools.registry import redact_text
 
 try:  # Windows
@@ -344,7 +344,7 @@ class SessionStore:
         stored = self._stored_payload_or_none()
         payload = {
             "version": SESSION_FORMAT_VERSION,
-            "updated_at": datetime.now(UTC).isoformat(timespec="seconds"),
+            "updated_at": utc_now_iso(),
             "messages": self._with_message_ids(messages, stored),
             "view": self.load_view() if self.exists else _view_payload(),
         }
@@ -480,7 +480,7 @@ class SessionStore:
         store = SessionStore(self.workspace, target_id)
         if store.exists:
             raise SessionError(f"目标会话已存在: {target_id}")
-        now = datetime.now(UTC).isoformat(timespec="seconds")
+        now = utc_now_iso()
         fork_payload = {
             "version": SESSION_FORMAT_VERSION,
             "created_at": now,
@@ -525,7 +525,7 @@ class SessionStore:
         backup_path = self.path.with_name(f"{self.path.stem}.pre-rewind.json")
         self._write_payload_at(backup_path, payload)
         payload["messages"] = messages[:keep]
-        payload["updated_at"] = datetime.now(UTC).isoformat(timespec="seconds")
+        payload["updated_at"] = utc_now_iso()
         payload["rewound_at"] = payload["updated_at"]
         payload["rewound_removed"] = total - keep
         self._write_payload(payload)
@@ -621,7 +621,7 @@ class SessionStore:
                 raise SessionError(f"无法读取 session {self.path}: {exc}") from exc
             payload = raw if isinstance(raw, dict) else _empty_payload()
         payload["version"] = SESSION_FORMAT_VERSION
-        payload["updated_at"] = datetime.now(UTC).isoformat(timespec="seconds")
+        payload["updated_at"] = utc_now_iso()
         payload["view"] = self.load_view_payload(view)
         self._write_payload(payload)
 

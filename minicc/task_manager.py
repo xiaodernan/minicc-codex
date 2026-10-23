@@ -24,7 +24,6 @@ import uuid
 from collections import deque
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any
@@ -50,6 +49,7 @@ from .agent.protocol import (
 from .agent.subagent import WRITABLE_PERMISSION_MODES
 from .agent.tool_policy import WRITE_TOOL_NAMES
 from .audit import normalize_permission_mode
+from .clock import utc_iso
 from .config import TRUTHY, normalize_model_name, normalize_reasoning_effort
 from .input_guard import require_text
 from .llm.base import image_part
@@ -143,10 +143,6 @@ NO_CHANGE_MARKERS = (
     "不要修改", "禁止修改", "不修改", "只读", "只查看", "仅查看", "只回复",
     "不做修改", "do not modify", "without modifying", "read-only", "only reply",
 )
-def _iso(timestamp: float | None) -> str | None:
-    if timestamp is None:
-        return None
-    return datetime.fromtimestamp(timestamp, timezone.utc).isoformat()
 
 
 def _coerce_int(value: object, default: int = 0) -> int:
@@ -726,7 +722,7 @@ class TaskRecord:
             "status": self.status,
             "phase": self.phase,
             "state_version": self.state_version,
-            "finished_at": _iso(self.finished_at),
+            "finished_at": utc_iso(self.finished_at),
             "error": self.error,
             "cancel_reason": self.cancel_reason,
         }
@@ -945,9 +941,9 @@ class TaskRecord:
                 "created_at_epoch": self.created_at,
                 "status": self.status,
                 "phase": visible_phase,
-                "created_at": _iso(self.created_at),
-                "started_at": _iso(self.started_at),
-                "finished_at": _iso(self.finished_at),
+                "created_at": utc_iso(self.created_at),
+                "started_at": utc_iso(self.started_at),
+                "finished_at": utc_iso(self.finished_at),
                 "duration_seconds": _duration_seconds(self.started_at, self.finished_at, self.status),
                 "events": list(self.events),
                 "stream_text": self.stream_text,
@@ -1060,9 +1056,9 @@ class TaskRecord:
                 "created_at_epoch": self.created_at,
                 "status": self.status,
                 "phase": visible_phase,
-                "created_at": _iso(self.created_at),
-                "started_at": _iso(self.started_at),
-                "finished_at": _iso(self.finished_at),
+                "created_at": utc_iso(self.created_at),
+                "started_at": utc_iso(self.started_at),
+                "finished_at": utc_iso(self.finished_at),
                 "duration_seconds": _duration_seconds(self.started_at, self.finished_at, self.status),
                 "tokens_used": dict(self.tokens_used),
                 "cost_usd": pricing.cost_usd(self.model, self.tokens_used),

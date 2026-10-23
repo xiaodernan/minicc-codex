@@ -60,6 +60,7 @@ from .task_contract import (
     TaskResult,
     WORKSPACE_FLAG,
 )
+from .clock import utc_stamp
 from .llm.fake import FAKE_PROVIDER_ENV
 from .llm.usage import add_usage_totals
 
@@ -202,7 +203,7 @@ def _snapshot(
         "task_id": task_id,
         "session_id": session_id,
         "created_at_epoch": created_at,
-        "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(created_at)),
+        "created_at": utc_stamp(created_at),
         "workspace_path": str(workspace),
         "status": status,
         "phase": phase,

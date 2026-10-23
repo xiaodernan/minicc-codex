@@ -105,6 +105,7 @@ from .mentions import apply_mentions
 from .input_guard import require_text
 from .internal_paths import AUDIT_NAME, PERMISSIONS_NAME
 from .permissions import load_permission_rules, match_permission_rule
+from .clock import utc_iso
 from .config import (
     ConfigError,
     home_dir,
@@ -167,7 +168,6 @@ from .task_manager import (  # noqa: F401 - re-export for tests and AgentService
     _completion_review_event,
     _event_fingerprint,
     _is_bounded_readonly_plan,
-    _iso,
     _merge_turn_results,
     _multimodal_content,
     _normalize_attachments,
@@ -789,7 +789,7 @@ class AgentService:
             "session_id": record["session_id"],
             "workspace_path": record["workspace_path"],
             "created_at_epoch": record.get("created_at_epoch"),
-            "created_at": _iso(float(record["created_at_epoch"])) if record.get("created_at_epoch") else None,
+            "created_at": utc_iso(float(record["created_at_epoch"])) if record.get("created_at_epoch") else None,
             "status": latest.get("status", "idle") if latest else "idle",
             "active": bool(latest and latest.get("status") in ACTIVE_TASK_STATUSES),
             "turn_ids": [item["turn_id"] for item in turns],
@@ -3333,7 +3333,7 @@ class AgentService:
             # the shared task store, so the payload must not name one of them
             # as if the totals belonged to it.
             "scope": str(workspace_path) if workspace_path else "all_workspaces",
-            "generated_at": _iso(time.time()),
+            "generated_at": utc_iso(time.time()),
             "task_count": len(roots),
             "subtask_rows": subtask_rows,
             "tasks_by_status": by_status,

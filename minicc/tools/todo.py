@@ -18,6 +18,7 @@ import time
 from pathlib import Path
 from typing import Any
 
+from ..clock import utc_stamp
 from .registry import ToolError, ToolResult
 from .schemas import untrusted_tags
 
@@ -112,7 +113,7 @@ class TodoTools:
 
     def write(self, args: dict[str, object]) -> ToolResult:
         todos = normalize_todos(args.get("todos"))
-        updated_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        updated_at = utc_stamp()
         self._atomic_write({"todos": todos, "updated_at": updated_at})
         summary = _summarize(todos)
         lines = [

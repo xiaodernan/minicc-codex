@@ -31778,3 +31778,66 @@ argv flag 那一侧本来是好的（T468 已收口到 task_contract），坏的
 聚焦回归 ✓：worker/launcher 直面 5 批 **132 条** ✓（task_worker、core_task、
 logging、benchmark_runner、p0_p1_p2 及各道门禁 ✓），全绿 ✓。慢测试未跑 ✓，
 全量 pytest 未跑 ✓。
+
+## 第四百六十九批 — M8-T485 — UTC 时刻的线上格式三个家：九处手拼，三种拼法
+
+### 1 缺陷
+
+探针（扫 `strftime`/`gmtime`/`isoformat`/`fromtimestamp`）发现「现在几点渲染
+到线上」有三种拼法、九个现场：
+
+- `%Y-%m-%dT%H:%M:%SZ`（Z 后缀、整秒）——task_worker 的快照 `created_at`、
+  tools/memory 的记忆条目、tools/todo 的待办文件，共 3 处；
+- `datetime.now(UTC).isoformat(timespec="seconds")`（偏移后缀、整秒）——
+  session 的四处记录（save/fork/rewind/save_view）加 tools/editor 的默认时
+  钟，共 5 处；
+- `datetime.fromtimestamp(ts, timezone.utc).isoformat()`（微秒精度）——
+  task_manager 的 `_iso`，被 task_manager 自己七处加 web 两处使用。
+
+一种拼法在一个现场忘了跟着改，就是一根没人能比对的时间戳；一个 `gmtime`
+悄悄变成 `localtime`，就是一份创建时间差着宿主时区的快照。而 web.py 为了
+用 `_iso` 从一个模块 import 一个私有名——这本身就是「家不成立」的气味。
+
+### 2 落地
+
+- 新模块 `minicc/clock.py` ✓：三种拼法各一个命名建造器——
+  `utc_stamp(epoch=None)`（Z 后缀，epoch 可选）、`utc_now_iso()`（偏移、整
+  秒）、`utc_iso(timestamp)`（epoch 转微秒偏移，None 进 None 出）✓
+- 九个现场全部改为问家 ✓；随之而来的死导入一并删除：session 与 editor 的
+  `from datetime import UTC, datetime`、task_manager 的
+  `from datetime import datetime, timezone` ✓
+- task_manager 的 `_iso` 删除，web.py 改为从家 import `utc_iso`——跨模块
+  import 私有名的气味消除 ✓
+- 门禁 `tests/test_the_utc_wire_formats_have_one_home.py` 6 条 ✓：三种拼法
+  的形状（含 epoch=0/给定时刻的钉样往返）、census（每种机制全场只准出现一
+  次且只能在家里）、七个消费者同一对象、session 落盘字节与 task 记录字节
+  不变 ✓
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T485-318 | 家的格式串漂移（丢了 Z） | 红（家值 ✓） |
+| M8-T485-319 | todo.py 恢复手拼格式串 | 红（census ✓） |
+| M8-T485-320 | session.py 恢复手拼 isoformat | 红（census ✓） |
+| M8-T485-321 | 家的 gmtime 悄悄变 localtime | 红（往返 ✓） |
+| M8-T485-322 | web.py 再抄一份 epoch 渲染 | 红（census ✓） |
+| M8-T485-323 | 家的 utc_iso 丢掉 None 守卫 | 红（往返 ✓） |
+
+六条全部 KILLED ✓，恢复后字节相同 ✓。
+
+### 4 一条教训
+
+**「同一事实的多个家」常常不是逐字重复，而是同一意图的不同写法。** 前三批
+的重复都是字面量相同；这次三个家拼出来的是**不同的字符串**——`Z` 后缀、
+`+00:00` 整秒、`+00:00` 微秒。按字面量 census 一条都抓不到，必须按**机制**
+census：格式常量、`gmtime`、`isoformat(timespec=)`、`now(UTC)`、
+`fromtimestamp` 各数一遍。判别式从「这段文字出现了几次」换成「这个动作有
+几个执行者」。
+
+另一个气味：web.py 从 task_manager import 私有名 `_iso`。跨模块 import 私
+有名，说明那个函数的主人找错了——它服务的是「把 epoch 渲染到线上」这件
+事，不属于任务管理器。把家搬正之后，import 自然从私有变公有。
+
+聚焦回归 ✓：session/task/tools/web 四面 **192 条** ✓（含新门禁 6 条 ✓），
+全绿 ✓。慢测试未跑 ✓，全量 pytest 未跑 ✓。

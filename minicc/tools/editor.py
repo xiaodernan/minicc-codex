@@ -35,8 +35,9 @@ import time
 from collections.abc import Callable, Iterable
 from contextlib import suppress
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from pathlib import Path
+
+from ..clock import utc_now_iso
 
 MAX_READ_LINES = 2000
 
@@ -225,7 +226,7 @@ class AuditEntry:
 
 
 def _default_clock() -> str:
-    return datetime.now(UTC).isoformat(timespec="seconds")
+    return utc_now_iso()
 
 
 def _normalize_ws_line(line: str) -> str:

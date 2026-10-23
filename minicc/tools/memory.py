@@ -35,6 +35,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
+from ..clock import utc_stamp
 from ..config import ConfigError, home_dir
 from .registry import ToolError, ToolParamError, ToolResult, redact_text
 from .schemas import untrusted_tags
@@ -194,7 +195,7 @@ class MemoryTools:
         entry = MemoryEntry(
             id=entry_id,
             content=redacted_content,
-            created=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            created=utc_stamp(),
             source=redacted_source,
             scope=scope,
         )
