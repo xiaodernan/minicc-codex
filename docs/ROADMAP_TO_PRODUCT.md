@@ -28771,3 +28771,64 @@ fake 忘了跟 ✓，测试继续绿 ✓，分叉直到生产暴露 ✓。立家
 两边同源 ✓：改 `retry_detail` 就是同时改两边 ✓。判别口诀 ✓：
 **凡测试替身（fake/stub/mock 的非随机部分）手写了与真实
 实现相同形状的载荷 ✓，就是漏了一个家 ✓。** **
+
+## 第四百二十八批 — M8-T444 — 协议回退详情两键一个家
+
+### 1 缺陷
+
+`openai_provider.py` 有两个协议回退发射器，各自手写同一个
+trace detail：
+
+- `_emit_protocol_fallback`（端点级回退）：detail 是手写的
+  `{"protocol": "chat_completions", "error_type": type(exc).__name__}`
+- `_emit_transport_protocol_fallback`（传输级回退）：同一个
+  形状再手写一遍
+
+两处陈述同一个事实：Responses API 这条路被放弃、回退到
+Chat Completions，诱因是这个异常类型。分开手写意味着将来
+改上报协议名、改 error_type 的取法（比如改成异常链首个
+非包装类）时，两个发射器可能只改一个，两条 fallback 链路
+的形状静默分叉——而它们存在的意义正是让人对比「两次回
+退是不是同一类问题」。
+
+### 2 落地
+
+- `minicc/llm/openai_provider.py` 立模块级
+  `protocol_fallback_detail(exc)`，放在 `classify_provider_failure`
+  之前（同属 provider 失败判定一族）
+- 两个发射器改为 `detail=protocol_fallback_detail(exc)`
+- 家中钉死：协议名恒为 `chat_completions`（两个回退出口的
+  唯一落点），error_type 取 `type(exc).__name__`。**协议是
+  常量、异常是变量**——家收异常，常量协议留在家中
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T444-264 | 端点级回退退回手写 dict | 2 条红（census + 调用计数 ✓） |
+| M8-T444-265 | 传输级回退退回手写 dict | 2 条红（census + 调用计数 ✓） |
+
+### 4 新增门禁
+
+`tests/test_the_protocol_fallback_detail_have_one_home.py`（3 条）✓：
+
+1. 家的行为 ✓：协议恒为 chat_completions ✓，error_type 取异常
+   类名 ✓
+2. census ✓：`{"protocol", "error_type"}` 两键 dict 字面量在
+   minicc/ 下**恰好一处** ✓且在家 ✓
+3. 调用计数 ✓：`protocol_fallback_detail(` 恰好 3 次 ✓（定义 +
+   两个发射器 ✓）
+
+聚焦回归 ✓：新门 3 条 + core_llm 16 条 + model_fallback/
+anthropic/inspection 18 条 ✓，共 37 条 ✓，全绿 ✓。全量
+pytest 未跑 ✓。
+
+### 5 一条教训
+
+**同一对象的两个发射器是「对比型事实」✓，分叉的代价是诊断
+失灵 ✓。** ✓ 端点级回退与传输级回退不是同一个事件 ✓，但它
+们上报的 detail 是**同一种观测**（回退到哪、因为什么）✓。
+这类成对发射器还有一个更强的信号：它们的 summary 不同 ✓、
+detail 必须相同 ✓——summary 供人读 ✓，detail 供机器对比 ✓。
+判别口诀 ✓：**两个发射器的 summary 不同而 detail 相同 ✓，detail
+就该有一个家 ✓。** **

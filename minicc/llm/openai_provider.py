@@ -250,6 +250,18 @@ def _is_stream_retryable(exc: BaseException) -> bool:
     )
 
 
+def protocol_fallback_detail(exc: BaseException) -> dict[str, str]:
+    """Trace detail for a fallback to the chat_completions protocol.
+
+    Both fallback emitters (endpoint-level and transport-level) report the
+    same fact: the Responses API path was abandoned in favour of Chat
+    Completions because of this exception type. Keeping the shape here means
+    the two traces stay comparable and a change to the reported protocol or
+    error key lands once.
+    """
+    return {"protocol": "chat_completions", "error_type": type(exc).__name__}
+
+
 def classify_provider_failure(exc: BaseException) -> bool | None:
     """Whether re-issuing a request to the provider could change the outcome.
 
@@ -760,7 +772,7 @@ class OpenAICompatibleProvider:
                 phase="planning",
                 code="provider_protocol_fallback",
                 summary="当前网关不支持 Responses API，已自动回退到 Chat Completions 并继续任务",
-                detail={"protocol": "chat_completions", "error_type": type(exc).__name__},
+                detail=protocol_fallback_detail(exc),
             ))
 
     def _emit_transport_protocol_fallback(self, exc: BaseException) -> None:
@@ -771,7 +783,7 @@ class OpenAICompatibleProvider:
                 phase="planning",
                 code="provider_transport_fallback",
                 summary="Responses 连接在响应体阶段中断，已切换到 Chat Completions 继续任务",
-                detail={"protocol": "chat_completions", "error_type": type(exc).__name__},
+                detail=protocol_fallback_detail(exc),
             ))
 
     @staticmethod
