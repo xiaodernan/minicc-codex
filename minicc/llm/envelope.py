@@ -17,7 +17,7 @@ import ast
 import json
 from typing import Any
 
-from .base import is_nameless_tool_name
+from .base import is_nameless_tool_name, tool_call
 from ..tools.schemas import tool_call_name
 
 ENVELOPE_BLOCK = """\
@@ -191,8 +191,8 @@ def parse_envelope(content: str) -> dict[str, Any] | None:
     action = action.strip()
     if not isinstance(params, dict):
         raise EnvelopeParseError(f"信封 params 不是对象: {str(params)[:80]!r}", content=content)
-    return {
-        "id": _next_envelope_id(),
-        "type": "function",
-        "function": {"name": action, "arguments": json.dumps(params, ensure_ascii=False)},
-    }
+    return tool_call(
+        _next_envelope_id(),
+        action,
+        json.dumps(params, ensure_ascii=False),
+    )

@@ -55,7 +55,7 @@ from tenacity import (
 )
 
 from ..config import LLM_PROTOCOLS, REASONING_EFFORT_ALIASES, TOOL_MODES
-from .base import LLMResponse, is_nameless_tool_name, unique_tool_call_id
+from .base import LLMResponse, is_nameless_tool_name, tool_call, unique_tool_call_id
 from ..tools.schemas import tool_call_name
 from ..trace import trace_event
 from ..logging_setup import log_provider_event
@@ -1047,18 +1047,15 @@ class OpenAICompatibleProvider:
                     # call" that names no tool is noise, not a call for a
                     # tool the registry does not have.
                     continue
-                calls.append({
-                    "id": _unique_tool_call_id(
+                calls.append(tool_call(
+                    _unique_tool_call_id(
                         str(_read_field(item, "call_id", "") or _read_field(item, "id", "")),
                         f"responses-{index}",
                         seen_ids,
                     ),
-                    "type": "function",
-                    "function": {
-                        "name": name,
-                        "arguments": str(_read_field(item, "arguments", "{}")),
-                    },
-                })
+                    name,
+                    str(_read_field(item, "arguments", "{}")),
+                ))
                 continue
             if item_type != "message":
                 continue
@@ -1251,14 +1248,11 @@ class OpenAICompatibleProvider:
                 continue
             call_id = _unique_tool_call_id(str(slot["id"] or ""), f"call-{index}", seen_ids)
             calls.append(
-                {
-                    "id": call_id,
-                    "type": "function",
-                    "function": {
-                        "name": slot["name"],
-                        "arguments": slot["arguments"] or "{}",
-                    },
-                }
+                tool_call(
+                    call_id,
+                    slot["name"],
+                    slot["arguments"] or "{}",
+                )
             )
         return calls
 
@@ -1315,16 +1309,11 @@ class OpenAICompatibleProvider:
                 # 未知工具 ''".
                 continue
             tool_calls.append(
-                {
-                    "id": _unique_tool_call_id(str(getattr(tc, "id", None) or ""), f"call-{index}", seen_ids),
-                    "type": "function",
-                    "function": {
-                        "name": name,
-                        "arguments": (
-                            getattr(function, "arguments", "{}") if function else "{}"
-                        ),
-                    },
-                }
+                tool_call(
+                    _unique_tool_call_id(str(getattr(tc, "id", None) or ""), f"call-{index}", seen_ids),
+                    name,
+                    getattr(function, "arguments", "{}") if function else "{}",
+                )
             )
         return LLMResponse(
             content=getattr(msg, "content", None),

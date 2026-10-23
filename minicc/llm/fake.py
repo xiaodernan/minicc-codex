@@ -12,7 +12,7 @@ import os
 import re
 from typing import Any
 
-from .base import LLMResponse
+from .base import LLMResponse, tool_call
 from ..trace import trace_event
 
 
@@ -100,11 +100,11 @@ class FakeProvider:
             return LLMResponse(
                 content="",
                 tool_calls=[
-                    {
-                        "id": "fake-read-1",
-                        "type": "function",
-                        "function": {"name": "tree", "arguments": "{}"},
-                    }
+                    tool_call(
+                        "fake-read-1",
+                        "tree",
+                        "{}",
+                    )
                 ],
                 finish_reason="tool_calls",
                 usage=_FAKE_USAGE["tool"],

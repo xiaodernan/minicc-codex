@@ -111,6 +111,24 @@ def assistant_msg(
     return msg
 
 
+def tool_call(call_id: str, name: str, arguments: str) -> dict[str, Any]:
+    """The one shape of a function tool call on the wire.
+
+    Eight places used to write this three-key record by hand: the agent
+    loop's recovery call, the fake provider, the envelope action, and five
+    parse paths across the OpenAI and Anthropic providers.  ``type`` is
+    always ``"function"`` and the name/arguments pair always travels inside
+    a nested ``function`` dict - two facts a hand-written copy can get
+    subtly wrong (a flat ``name``, a missing ``type``), and the readers on
+    the other side read exactly these keys.
+    """
+    return {
+        "id": call_id,
+        "type": "function",
+        "function": {"name": name, "arguments": arguments},
+    }
+
+
 def tool_result_msg(tool_call_id: str, content: str) -> dict[str, Any]:
     return {
         "role": "tool",

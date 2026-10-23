@@ -33,7 +33,7 @@ try:  # httpx ships with the OpenAI SDK dependency; keep the import guarded.
 except ModuleNotFoundError:  # pragma: no cover - depends on the HTTP stack.
     httpx = None  # type: ignore[assignment]
 
-from .base import LLMResponse, as_dict, is_nameless_tool_name, safe_int, unique_tool_call_id
+from .base import LLMResponse, as_dict, is_nameless_tool_name, safe_int, tool_call, unique_tool_call_id
 from .usage import token_count
 from ..tools.schemas import tool_call_name
 from ..trace import trace_event
@@ -292,16 +292,13 @@ def response_to_llm(payload: dict[str, Any], model: str) -> LLMResponse:
                 # fixed on the OpenAI wire; the predicate has one home
                 # (``minicc/llm/base.py``) and both parse paths ask it.
                 continue
-            tool_calls.append({
-                "id": unique_tool_call_id(
+            tool_calls.append(tool_call(
+                unique_tool_call_id(
                     str(block.get("id") or ""), f"tool-{index}", seen_ids
                 ),
-                "type": "function",
-                "function": {
-                    "name": name,
-                    "arguments": json.dumps(block.get("input") or {}, ensure_ascii=False),
-                },
-            })
+                name,
+                json.dumps(block.get("input") or {}, ensure_ascii=False),
+            ))
     usage = _normalize_usage(payload.get("usage"))
     stop_reason = str(payload.get("stop_reason") or "end_turn")
     finish_reason = (
@@ -650,14 +647,14 @@ def _sse_to_llm(parsed: dict[str, Any], fallback_model: str) -> LLMResponse:
             # was then told it had forgotten a required argument - a wrong
             # diagnosis of its own call, sent back to it to repeat.
             arguments = raw_json
-        tool_calls.append({
-            # M8-T356: the same id repair as the JSON path (one home).
-            "id": unique_tool_call_id(
+        # M8-T356: the same id repair as the JSON path (one home).
+        tool_calls.append(tool_call(
+            unique_tool_call_id(
                 str(item.get("id") or ""), f"tool-{index}", seen_ids
             ),
-            "type": "function",
-            "function": {"name": item.get("name") or "", "arguments": arguments},
-        })
+            item.get("name") or "",
+            arguments,
+        ))
     usage = parsed.get("usage") or {}
     normalized = _normalize_usage(usage)
     stop_reason = str(parsed.get("stop_reason") or "end_turn")

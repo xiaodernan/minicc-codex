@@ -36,7 +36,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
 
-from ..llm.base import LLMResponse, TERMINAL_FINISH_REASONS, assistant_msg, tool_result_msg, user_msg
+from ..llm.base import LLMResponse, TERMINAL_FINISH_REASONS, assistant_msg, tool_call, tool_result_msg, user_msg
 from ..llm.envelope import EnvelopeParseError
 from ..llm.openai_provider import OpenAICompatibleProvider
 from ..llm.stream_merge import append_delta
@@ -684,11 +684,11 @@ async def run_agent(
             result.answer = "任务已取消。"
             return []
         raw_calls = [
-            {
-                "id": f"recovery-{attempt}-{index}",
-                "type": "function",
-                "function": {"name": name, "arguments": "{}"},
-            }
+            tool_call(
+                f"recovery-{attempt}-{index}",
+                name,
+                "{}",
+            )
             for index, name in enumerate(names, start=1)
         ]
         try:
