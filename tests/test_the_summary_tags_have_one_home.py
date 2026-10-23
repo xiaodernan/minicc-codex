@@ -1,4 +1,17 @@
-"""The tool-summary tag vocabulary must have exactly one home."""
+"""The tool-summary tag vocabulary must have exactly one home.
+
+M8-T480: ``CODE_`` now names **two** vocabularies and each has its own home.
+``tools/schemas.py`` owns the tool-summary tags - ``[UPPER_SNAKE]`` strings
+rendered by ``tagged()`` - and ``webserver.py`` owns the HTTP API's
+machine-readable error codes - ``lower_snake`` strings looked up over an
+exception's MRO (M8-T474).  They are different facts that happen to share a
+naming convention, so this door scopes its census to the homes and leaves each
+vocabulary's own door to pin its contents.  Before this batch the census read
+"every ``CODE_*`` in the package lives in ``schemas.py``", which M8-T474 turned
+into a permanent false red: the HTTP vocabulary is a legitimate second home,
+and a door that cannot tell two vocabularies apart ends up accusing a correct
+one.
+"""
 
 from __future__ import annotations
 
@@ -14,6 +27,12 @@ from minicc.tools.schemas import tagged
 
 REPO = pathlib.Path(__file__).resolve().parents[1]
 HOME = "minicc/tools/schemas.py"
+#: M8-T480: the two homes a ``CODE_*`` name may live in.  Each vocabulary has
+#: its own door (``test_the_error_code_vocabulary_have_one_home.py`` for the
+#: HTTP codes); this one only insists the name is defined once and in one of
+#: them, so a third home cannot appear unnoticed.
+API_HOME = "minicc/webserver.py"
+HOMES = frozenset({HOME, API_HOME})
 TAG_SHAPE = re.compile(r"^\[[A-Z][A-Z_0-9]*\]")
 
 #: Not tool-summary tags, and deliberately not in the vocabulary: ``[DONE]``
@@ -39,10 +58,14 @@ def _codes() -> dict[str, str]:
     return found
 
 
-def test_the_home_owns_every_code_name():
-    """A ``CODE_*`` name is defined once, in the vocabulary."""
+def _code_homes() -> dict[str, list[str]]:
+    """Every ``CODE_*`` name in the package, and the modules defining it."""
+    found: dict[str, list[str]] = {}
     for path in sorted((REPO / "minicc").rglob("*.py")):
+        if "__pycache__" in path.parts:
+            continue
         tree = ast.parse(path.read_text(encoding="utf-8"))
+        rel = path.relative_to(REPO).as_posix()
         for node in ast.walk(tree):
             if (
                 isinstance(node, ast.Assign)
@@ -50,8 +73,40 @@ def test_the_home_owns_every_code_name():
                 and isinstance(node.targets[0], ast.Name)
                 and node.targets[0].id.startswith("CODE_")
             ):
-                rel = path.relative_to(REPO).as_posix()
-                assert rel == HOME, (rel, node.lineno)
+                found.setdefault(node.targets[0].id, []).append(rel)
+    return found
+
+
+def test_a_code_name_is_defined_exactly_once():
+    """Two definitions of one name is the drift, whichever module they are in."""
+    duplicates = {name: homes for name, homes in _code_homes().items() if len(homes) != 1}
+    assert duplicates == {}, duplicates
+
+
+def test_every_code_name_lives_in_one_of_the_two_vocabulary_homes():
+    """A ``CODE_*`` name belongs to the summary tags or to the HTTP codes.
+
+    M8-T480: ``webserver.py`` is a legitimate second home (M8-T474), so the
+    census is the set of homes rather than the one module.  A third module
+    defining a ``CODE_*`` name is what this still refuses.
+    """
+    strangers = {name: homes for name, homes in _code_homes().items()
+                 if homes[0] not in HOMES}
+    assert strangers == {}, strangers
+
+
+def test_both_vocabularies_are_still_populated():
+    """Neither home may go quietly empty and leave the census vacuous."""
+    homes = _code_homes()
+    assert {name for name, where in homes.items() if where == [HOME]} == set(_codes()), homes
+    assert any(where == [API_HOME] for where in homes.values()), homes
+
+
+def test_the_two_vocabularies_share_no_name():
+    """One spelling in both homes would be one fact with two owners."""
+    summary = {name for name, where in _code_homes().items() if where == [HOME]}
+    api = {name for name, where in _code_homes().items() if where == [API_HOME]}
+    assert summary & api == set(), sorted(summary & api)
 
 
 def test_the_home_is_a_leaf_module():
