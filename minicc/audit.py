@@ -306,6 +306,37 @@ APPROVAL_DECISIONS = frozenset({"allow", "always", "deny"})
 PERMITTING_APPROVAL_DECISIONS = frozenset({"allow", "always"})
 
 
+def authorization_event(
+    tool: str,
+    *,
+    status: str,
+    code: str,
+    summary: str,
+    risk: str,
+    authorization: str,
+) -> dict[str, str]:
+    """The one shape of an authorization audit event.
+
+    Two sites write it: ``AuthorizationDecision.to_event`` (the verdict
+    of ``authorize_tool``) and the planner's whitelist gate in web.py,
+    which denies a call *before* ``authorize_tool`` ever sees it.  The
+    gate hand-copied all eight keys - a key it forgets is an
+    authorization event the audit reader cannot join with the decision
+    events around it, and ``kind``/``phase`` are exactly the two keys a
+    copier is most tempted to drop as "boilerplate".
+    """
+    return {
+        "kind": "authorization",
+        "name": tool,
+        "status": status,
+        "phase": "permission",
+        "code": code,
+        "summary": summary,
+        "risk": risk,
+        "authorization": authorization,
+    }
+
+
 @dataclass(frozen=True)
 class AuthorizationDecision:
     allowed: bool
@@ -314,16 +345,14 @@ class AuthorizationDecision:
     authorization: str
 
     def to_event(self, tool: str) -> dict[str, str]:
-        return {
-            "kind": "authorization",
-            "name": tool,
-            "status": "ok" if self.allowed else "denied",
-            "phase": "permission",
-            "code": "tool_authorized" if self.allowed else "tool_denied_by_policy",
-            "summary": self.reason,
-            "risk": self.risk,
-            "authorization": self.authorization,
-        }
+        return authorization_event(
+            tool,
+            status="ok" if self.allowed else "denied",
+            code="tool_authorized" if self.allowed else "tool_denied_by_policy",
+            summary=self.reason,
+            risk=self.risk,
+            authorization=self.authorization,
+        )
 
 
 def _executable_name(token: str) -> str:

@@ -27536,3 +27536,60 @@ worker 子进程的五条生命周期日志——`worker_process_reaped` ✓、
    是 test_task_worker/test_logging 与 test_core_task 之间**既有**的
    状态污染 ✓（失败集还随顺序浮动 ✓），与本批无关 ✓，按纪律不修 ✓、
    记录在案 ✓、分开跑规避 ✓。
+
+
+## 第四百零六批 — M8-T422 — 授权审计事件八键两个家：to_event 与 planner 白名单门各写一份
+
+### 1 缺陷
+
+一次授权裁决要落成审计事件时 ✓，形状是八键 ✓：`kind`/`name`/`status`/
+`phase`/`code`/`summary`/`risk`/`authorization` ✓。它有两个家 ✓：
+
+| 位置 | 场景 |
+| --- | --- |
+| `audit.py` `AuthorizationDecision.to_event` | `authorize_tool` 的裁决 ✓ |
+| `web.py` planner 白名单门 | 计划节点调了白名单外工具 ✓，**`authorize_tool` 之前**就拒了 ✓ |
+
+白名单门够不着 `AuthorizationDecision`（它拒绝时还没有裁决对象 ✓），
+于是**整份八键照抄** ✓。两处之间没有任何东西保证一致 ✓——某个家漏
+一个键 ✓，审计读者就**接不动**这条事件与周围裁决事件 ✓；而抄写者
+最容易丢的恰恰是 `kind`/`phase` 这两个「看起来是样板」的键 ✓。
+
+### 2 落地
+
+* `minicc/audit.py` ✓ 立模块级构造器 `authorization_event(tool, *,
+  status, code, summary, risk, authorization)` ✓：八键一个家 ✓，
+  `kind`/`phase` 两个不变量由家钉死 ✓。
+* `to_event` 改为派生 ✓——它只交代**裁决自己的四个陈述** ✓
+  （status/code/summary 由 allowed 决定 ✓、risk、authorization ✓）。
+* web.py 白名单门改为调用 ✓，M8-T308 的风险注释**原位保留** ✓，
+  行为逐字节不变 ✓。
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T422-218 | web.py 白名单门退回八键手写 | 1 条红（census ✓） |
+| M8-T422-219 | to_event 退回八键手写 | 1 条红（census ✓） |
+
+### 4 新增门禁
+
+`tests/test_the_authorization_event_have_one_home.py`（3 条）✓：
+
+1. 家的行为 ✓：八键齐全 ✓、`kind`/`phase` 两个不变量钉死 ✓
+2. census ✓：八键 dict 字面量在 minicc/ 下**恰好一处** ✓且在家 ✓
+3. 调用计数 ✓：audit.py 恰好 2 次（定义 + to_event ✓）、web.py
+   恰好 1 次（白名单门 ✓）
+
+聚焦回归 ✓：新门 3 条 + audit 面 4 文件 64 条 ✓ + planner/agent 面
+4 文件 59 条 ✓，共 126 条 ✓，全绿 ✓。全量 pytest 未跑 ✓。
+
+### 5 一条教训
+
+**「够不着裁决对象」不是照抄事件形状的理由。** ✓ 白名单门的作者
+面对一个**还没有被造出来的** `AuthorizationDecision` ✓，最自然的
+动作就是把看到的八键抄一遍 ✓——家的参数化（六个关键字参数 ✓）正是
+为这种「半张事件」准备的 ✓：调用方给出**自己知道的** ✓，家补上
+**所有站点都必须相同的** ✓。判别口诀 ✓：一个事件里**哪些键随场景变
+**（status/code/summary/risk/authorization ✓）、**哪些键是这条事件流的
+身份证**（kind/phase ✓）——后者进家 ✓，前者进参数 ✓。

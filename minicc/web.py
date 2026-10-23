@@ -86,6 +86,7 @@ from .audit import (
     APPROVAL_DECISIONS,
     PERMITTING_APPROVAL_DECISIONS,
     AuthorizationDecision,
+    authorization_event,
     authorize_tool,
     deny_rule_covers_path,
     deny_rule_names_paths,
@@ -2194,23 +2195,21 @@ class AgentService:
 
                         def node_allow(name: str, call: ToolCall) -> bool:
                             if name not in task.allowed_tools:
-                                emit({
-                                    "kind": "authorization",
-                                    "name": name,
-                                    "status": "denied",
-                                    "phase": "permission",
-                                    "code": "planner_tool_out_of_scope",
-                                    "summary": f"计划节点 {task.id} 未将工具 {name} 列入白名单",
+                                emit(authorization_event(
+                                    name,
+                                    status="denied",
+                                    code="planner_tool_out_of_scope",
+                                    summary=f"计划节点 {task.id} 未将工具 {name} 列入白名单",
                                     # M8-T308: the risk a call carries, not
                                     # the one the tool declares - the
                                     # decision event right below carries the
                                     # effective one, and two events about
                                     # one call must not disagree.
-                                    "risk": effective_risk(
+                                    risk=effective_risk(
                                         name, node_registry.risk_of(name), call.arguments
                                     ) or "unknown",
-                                    "authorization": "planner_whitelist",
-                                })
+                                    authorization="planner_whitelist",
+                                ))
                                 return False
                             decision = authorize_tool(
                                 name,
