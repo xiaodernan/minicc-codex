@@ -58,7 +58,10 @@ def test_no_module_inlines_the_decisions() -> None:
                 offenders.append(f"{relative}:{node.lineno} spells APPROVAL_DECISIONS")
             if elements == PERMITTING:
                 offenders.append(f"{relative}:{node.lineno} spells PERMITTING_APPROVAL_DECISIONS")
-    assert offenders and all(item.startswith(HOME + ":") for item in offenders), (
+    # Exactly the two home declarations in audit.py: the full vocabulary and
+    # its permitting subset.  A third spelling anywhere - even inside audit.py
+    # itself - is drift.
+    assert len(offenders) == 2 and all(item.startswith(HOME + ":") for item in offenders), (
         "the approval decisions are spelled inline outside the one declaration: "
         + ", ".join(offenders)
     )

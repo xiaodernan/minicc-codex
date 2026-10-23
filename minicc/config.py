@@ -56,6 +56,10 @@ DEFAULT_MAX_CONCURRENT_TASKS = 8
 DEFAULT_MAX_COMPLETION_CONTINUES = 3
 DEFAULT_REASONING_EFFORT = "high"
 REASONING_EFFORTS = frozenset({"low", "mid", "high", "xhigh", "max", "ultra"})
+# Spellings a user may write to mean "no limit" for the optional soft caps.
+# Both soft-cap readers (the int and the float closure) must agree, or "off"
+# caps one axis while silently capping the other.
+UNLIMITED_SENTINELS = frozenset({"0", "none", "off", "unlimited"})
 _MODEL_NAME_RE = re.compile(r"^[^\x00-\x20\x7f\"'\\]{1,200}$")
 DEFAULT_MAX_REPAIR_ATTEMPTS = 2
 DEFAULT_TASK_HISTORY_LIMIT = 24
@@ -767,7 +771,7 @@ def load_config(
 
     def _optional_positive_int(env_name: str, file_key: str) -> int | None:
         raw = pick(None, env_name, file_key, "").strip()
-        if not raw or raw.lower() in {"0", "none", "off", "unlimited"}:
+        if not raw or raw.lower() in UNLIMITED_SENTINELS:
             return None
         try:
             value = int(raw)
@@ -779,7 +783,7 @@ def load_config(
 
     def _optional_positive_float(env_name: str, file_key: str) -> float | None:
         raw = pick(None, env_name, file_key, "").strip()
-        if not raw or raw.lower() in {"0", "none", "off", "unlimited"}:
+        if not raw or raw.lower() in UNLIMITED_SENTINELS:
             return None
         try:
             value = float(raw)
