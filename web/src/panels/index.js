@@ -5,7 +5,7 @@ import { attachmentMarkup, escapeHtml, executionTrailMarkup, formatBytes, format
 import { openPanel, openTaskInWorkspace } from "../chat/stream.js";
 import { isTerminalTask, updateLiveTask } from "../core/api.js";
 import { t } from "../core/i18n.js";
-import { $, $$, ACTIVE_TASK_STATUSES, AUTH_STORAGE_KEY, MAX_RENDERED_TIMELINE_EVENTS, MAX_SEEN_EVENT_KEYS, TASK_PHASES, TERMINAL_TASK_STATUSES, finalizedTaskIds, runningTasks, runtime, state, taskBySession, taskTimerHandles } from "../core/state.js";
+import { $, $$, ACTIVE_TASK_STATUSES, AUTH_STORAGE_KEY, MAX_RENDERED_TIMELINE_EVENTS, MAX_SEEN_EVENT_KEYS, TASK_PHASES, TERMINAL_TASK_STATUSES, TODO_PRIORITIES, TODO_STATUSES, finalizedTaskIds, runningTasks, runtime, state, taskBySession, taskTimerHandles } from "../core/state.js";
 import { icon, refreshIcons } from "../icons.js";
 
 export function showToast(message) {
@@ -418,8 +418,8 @@ export function normalizeTodoEntries(rawTodos) {
     .filter((todo) => todo && typeof todo === "object" && String(todo.content || "").trim())
     .map((todo) => ({
       content: String(todo.content).trim().slice(0, 500),
-      status: ["pending", "in_progress", "completed"].includes(String(todo.status)) ? String(todo.status) : "pending",
-      priority: ["high", "medium", "low"].includes(String(todo.priority)) ? String(todo.priority) : "medium",
+      status: TODO_STATUSES.has(String(todo.status)) ? String(todo.status) : "pending",
+      priority: TODO_PRIORITIES.has(String(todo.priority)) ? String(todo.priority) : "medium",
     }))
     .slice(0, 50);
 }

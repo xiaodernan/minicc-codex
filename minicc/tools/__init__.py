@@ -30,7 +30,7 @@ from .registry import (
     validate_tool_spec,
 )
 from .schemas import ToolCall, ToolResult
-from .todo import TodoTools
+from .todo import TODO_PRIORITIES, TODO_STATUSES, TodoTools
 from .web import web_search
 from .webfetch import webfetch
 
@@ -124,8 +124,8 @@ def build_registry(
                     "type": "object",
                     "properties": {
                         "content": {"type": "string", "minLength": 1, "maxLength": 500},
-                        "status": {"type": "string", "enum": ["pending", "in_progress", "completed"]},
-                        "priority": {"type": "string", "enum": ["high", "medium", "low"]},
+                        "status": {"type": "string", "enum": list(TODO_STATUSES)},
+                        "priority": {"type": "string", "enum": list(TODO_PRIORITIES)},
                     },
                     "required": ["content"],
                 },

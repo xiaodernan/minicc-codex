@@ -165,6 +165,8 @@
     "interrupted"
   ]);
   var RESUMABLE_TASK_PHASES = /* @__PURE__ */ new Set(["failed", "cancelled", "interrupted"]);
+  var TODO_STATUSES = /* @__PURE__ */ new Set(["pending", "in_progress", "completed"]);
+  var TODO_PRIORITIES = /* @__PURE__ */ new Set(["high", "medium", "low"]);
   var MAX_SESSION_VIEW_CHARS = 18e4;
   var MAX_SEEN_EVENT_KEYS = 2048;
   var MAX_RENDERED_TIMELINE_EVENTS = 240;
@@ -2931,8 +2933,8 @@
     if (!Array.isArray(rawTodos)) return null;
     return rawTodos.filter((todo) => todo && typeof todo === "object" && String(todo.content || "").trim()).map((todo) => ({
       content: String(todo.content).trim().slice(0, 500),
-      status: ["pending", "in_progress", "completed"].includes(String(todo.status)) ? String(todo.status) : "pending",
-      priority: ["high", "medium", "low"].includes(String(todo.priority)) ? String(todo.priority) : "medium"
+      status: TODO_STATUSES.has(String(todo.status)) ? String(todo.status) : "pending",
+      priority: TODO_PRIORITIES.has(String(todo.priority)) ? String(todo.priority) : "medium"
     })).slice(0, 50);
   }
   function todosFromToolEvent(event) {

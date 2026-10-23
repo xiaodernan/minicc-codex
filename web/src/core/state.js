@@ -108,6 +108,13 @@ export const ACTIVE_TASK_PHASES = new Set([
 ]);
 // The phases that ended without an answer, so the task can be resumed.
 export const RESUMABLE_TASK_PHASES = new Set(["failed", "cancelled", "interrupted"]);
+// M8-T384: the todo checklist's vocabularies, mirroring ``TODO_STATUSES`` /
+// ``TODO_PRIORITIES`` in ``minicc/tools/todo.py``.  The backend validates
+// every entry against those tuples and the tool schema advertises them, so
+// the panel's normalizer must agree with them: a status the backend rejects
+// must not be rendered as if it were legal.  One home per vocabulary.
+export const TODO_STATUSES = new Set(["pending", "in_progress", "completed"]);
+export const TODO_PRIORITIES = new Set(["high", "medium", "low"]);
 export const MAX_SESSION_VIEW_CHARS = 180_000;
 export const MAX_SEEN_EVENT_KEYS = 2048;
 export const MAX_RENDERED_TIMELINE_EVENTS = 240;

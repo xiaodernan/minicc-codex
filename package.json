@@ -9,6 +9,7 @@
     "test:transport": "node tests/frontend_transport_smoke.mjs",
     "test:lifecycle": "node tests/frontend_lifecycle_smoke.mjs",
     "test:phase": "node tests/frontend_phase_classes_smoke.mjs && node tests/frontend_phase_one_home_smoke.mjs",
+    "test:todo": "node tests/frontend_todo_one_home_smoke.mjs",
     "test:scale": "node tests/frontend_scale_smoke.mjs",
     "test:arcade": "npm run test:game && npm run test:codex && npm run test:zombie",
     "test:all": "npm run test:web && npm run test:arcade",

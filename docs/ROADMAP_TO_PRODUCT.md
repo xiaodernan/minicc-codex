@@ -25390,3 +25390,54 @@ clean 过滤器，所以量出来的 1/1 是 blob 层面的事实，不是工作
 永远是对的 ✓——`WRITABLE_PERMISSION_MODES` 声称的三个模式里有一个根本不存在 ✓，而这句话
 在源码里读了三年都像真的 ✓。所以门除了钉「家唯一」✓，还要钉「子集 ⊆ 家」✓：
 **声称属于一个词表的名字，必须真的在那个词表里** ✓。
+
+
+## 第三百六十八批 — M8-T384 — todo 清单的两个词表各有三个家：后端校验 / 工具 schema / 前端 normalizer
+
+### 1 缺陷
+
+「清单条目能是什么状态、什么优先级」这两个事实，在仓库里有**三个家** ✓：
+
+| 家 | 内容 |
+| --- | --- |
+| `minicc/tools/todo.py`:22-23 | `TODO_STATUSES` / `TODO_PRIORITIES`（**校验用**的真家 ✓） |
+| `minicc/tools/__init__.py`:127-128 | todo_write 的 `input_schema` enum **手写副本** ✓ |
+| `web/src/panels/index.js`:421-422 | 前端 normalizer 的 `.includes([...])` **手写副本** ✓ |
+
+三份对同一件事各写一遍 ✓。后端加一个状态 ✓，schema 不认识 → 模型写了就被 `TodoError` 拒 ✓；
+前端加一个优先级 ✓，后端不认识 → 落库时被夹回 `medium` ✓。**两份副本都是沉默的那一半** ✓。
+
+### 2 落地
+
+* **后端** ✓：`tools/__init__.py` 改从 `.todo` 导入 ✓，schema enum 写 `list(TODO_STATUSES)` /
+  `list(TODO_PRIORITIES)` ✓——契约与校验从此同源 ✓。
+* **前端** ✓：`web/src/core/state.js` 新增 `TODO_STATUSES` / `TODO_PRIORITIES` 两个 Set ✓
+  （与 `TASK_PHASES` / `TERMINAL_TASK_STATUSES` 并列 ✓，注释写明镜像 `minicc/tools/todo.py` ✓）；
+  `panels/index.js` 的 normalizer 改导入使用 ✓。产物已重建 ✓（`npm run build:web` ✓，
+  `check:web` 绿 ✓）。
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T384-167 | schema 的 status enum 退回行内列表 | 1 条红（AST 扫描抓到 ✓；运行时成员相同所以 schema 相等那条不红——**拼写**归 AST 管 ✓） |
+| M8-T384-168 | 前端 normalizer 退回行内数组 | 1 条红（`frontend_todo_one_home_smoke.mjs` exit 1 ✓） |
+
+### 4 新增门禁
+
+* `tests/test_the_todo_vocabularies_have_one_home.py`（4 条）✓：家在 `todo.py` ✓；
+  todo_write schema 的 enum 与家相等 ✓（**运行时**从注册表把 spec 取出来断言 ✓）；
+  任何模块不许行内拼写 ✓（AST 扫 list/tuple/set ✓）；前端 `state.js` 的家两个词表都在 ✓。
+* `tests/frontend_todo_one_home_smoke.mjs`（Node ✓）：`web/src` 下除家以外不许手写这两份名单 ✓；
+  家必须两个词表都 export ✓。已接入 `package.json` 的 `test:todo` ✓。
+
+聚焦回归 ✓：Python 44 条（门 + `test_todo_tool.py` + `test_core_tools.py`）✓；
+前端 `test:web`（**带 `MINICC_FAKE_PROVIDER=1` 起真服务** ✓，timeline/product path/桌面/移动四面全过 ✓）、
+`test:phase` ✓、`test:optimization` ✓ 全绿 ✓。全量 pytest 未跑 ✓。
+
+### 5 一条教训
+
+**跨语言的同一事实，门也要跨语言。** ✓ 前三个批次（T382/T383）的门都是 Python AST ✓，
+这次第三个家住在 JS 里 ✓——只写 Python 门的话，前端那份副本**永远不在任何门的视野里** ✓。
+所以门分两半 ✓：Python 那半扫 `minicc/` ✓，Node 那半扫 `web/src/` ✓，
+两半各问各的问题 ✓（「拼写归 AST」与「成员归运行时」✓），合起来才盖住一个事实的全部家 ✓。
