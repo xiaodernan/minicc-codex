@@ -25,7 +25,7 @@ import urllib.request
 from html.parser import HTMLParser
 from typing import Any
 
-from ..netguard import ALLOWED_SCHEMES, BlockedAddressError, resolve_pinned_host
+from ..netguard import BlockedAddressError, parse_http_url, resolve_pinned_host
 
 from .registry import ToolError, ToolResult, redact_text, split_output
 from .schemas import untrusted_tags
@@ -193,12 +193,14 @@ def _resolve_pinned(host: str) -> str:
 
 
 def _validate_url(url: str) -> tuple[urllib.parse.ParseResult, str]:
-    """Validate scheme/host and resolve the host to a pinned IP for this hop."""
-    parsed = urllib.parse.urlsplit(url)
-    if parsed.scheme not in ALLOWED_SCHEMES:
-        raise ValueError(f"仅支持 http/https URL: {url!r}")
-    if not parsed.hostname:
-        raise ValueError(f"URL 缺少主机名: {url!r}")
+    """Validate scheme/host and resolve the host to a pinned IP for this hop.
+
+    The scheme-and-host half is ``netguard.parse_http_url`` - it used to be
+    a second copy of those two checks and their two sentences, which is how
+    the fetch tool and the SSRF guard came to own separate opinions about
+    what a legal URL is.  Only the pinning half is this module's own.
+    """
+    parsed = parse_http_url(url)
     return parsed, _resolve_pinned(parsed.hostname)
 
 

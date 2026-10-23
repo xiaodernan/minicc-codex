@@ -15,16 +15,27 @@ def test_the_allowed_schemes_exist_in_netguard() -> None:
     assert ALLOWED_SCHEMES == frozenset({"http", "https"})
 
 
-def test_webfetch_and_webauth_import_from_netguard() -> None:
-    """webfetch.py and webauth.py import ALLOWED_SCHEMES from netguard."""
-    from minicc.tools.webfetch import ALLOWED_SCHEMES as WeFetchSchemes
+def test_webauth_imports_the_scheme_vocabulary_from_netguard() -> None:
+    """webauth.py judges CORS origins, so it reads ALLOWED_SCHEMES directly."""
     from minicc.webauth import ALLOWED_SCHEMES as WebAuthSchemes
 
-    assert WeFetchSchemes == frozenset({"http", "https"})
     assert WebAuthSchemes == frozenset({"http", "https"})
 
-    # Verify they are the same value (structural assertion)
-    assert str(WeFetchSchemes) == str(WebAuthSchemes)
+
+def test_webfetch_reads_the_pre_flight_that_owns_the_scheme_gate() -> None:
+    """M8-T475: webfetch no longer spells the scheme gate itself.
+
+    It used to import ``ALLOWED_SCHEMES`` and re-run the scheme and
+    hostname checks with its own copy of both sentences.  It now calls
+    ``netguard.parse_http_url``, which owns those two checks - so the
+    vocabulary is still read from one home, one level further out.  This
+    gate had to learn the new shape, exactly as T473 taught: a census that
+    pins the *old* indirection pushes the next reader to undo the fix.
+    """
+    import minicc.netguard as netguard
+    from minicc.tools.webfetch import parse_http_url as webfetch_pre_flight
+
+    assert webfetch_pre_flight is netguard.parse_http_url
 
 
 def test_no_module_has_inline_http_https_set() -> None:

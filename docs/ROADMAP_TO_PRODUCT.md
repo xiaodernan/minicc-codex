@@ -31017,3 +31017,93 @@ http_surface 79 条 ✓，全绿 ✓。慢测试未跑 ✓，全量 pytest 未�
 ✓）。第一版 census 按包含判时它被误判成杂散 ✓，按值位判后仍会被算进
 去 ✓，最后靠**排除 dict 键**才把它正确排除 ✓——**同一个词出现在键位
 和值位时是两份不同的事实 ✓，census 必须能分辨键位与值位 ✓**。
+
+## 第四百五十九批 — M8-T475 — http(s) URL 预检一个家
+
+### 1 缺陷
+
+`netguard.py` 的模块 docstring 第一句就是「Shared SSRF checks for
+webfetch and HTTP MCP URLs」——家早就立好了，`ALLOWED_SCHEMES` 也有
+自己的门禁（M8-T381）。但**家只住到了解析之前的那两步之外**：
+`webfetch._validate_url` 自己抄了一份 scheme 检查和 hostname 检查，
+连两句判词都一并抄了：
+
+```python
+# netguard.assert_public_http_url          # webfetch._validate_url
+parsed = urllib.parse.urlsplit(url)        parsed = urllib.parse.urlsplit(url)
+if parsed.scheme not in ALLOWED_SCHEMES:   if parsed.scheme not in ALLOWED_SCHEMES:
+    raise ValueError(f"仅支持 http/https URL: {url!r}")   # 同一句
+if not parsed.hostname:                    if not parsed.hostname:
+    raise ValueError(f"URL 缺少主机名: {url!r}")           # 同一句
+```
+
+于是**面向 agent 的抓取工具和 SSRF 守卫对「什么算合法 URL」各持一份
+意见**。危险的是 hostname 那句：一个没有主机名的 URL，正是畸形或
+ scheme-relative 目标能走到解析器门口的原因，而这句话的两个拼写从此
+可以各自漂移——grep 它只能找到一半的拒绝记录。
+
+### 2 落地
+
+- `netguard.parse_http_url(url)` 立为预检唯一的家：解析 + scheme 检查
+  + hostname 检查，两句判词只在这里出现一次
+- `assert_public_http_url` 改为先过预检再做 `assert_public_host`
+- `webfetch._validate_url` 改为调用预检，只保留自己那半（ pin IP）
+- webfetch 不再 import `ALLOWED_SCHEMES`——scheme 门现在由预检持有
+- **四个URL × 两条路径的拒绝句子逐字节相同**（已脚本比对 ✓），
+  正常 URL 的解析结果不变 ✓
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T475-264 | webfetch 重新长出 scheme 检查（改前形状） | 3 条红（无第二副本 + census ✓） |
+| M8-T475-265 | webfetch 重新长出 hostname 检查 | 3 条红（无第二副本 ✓） |
+| M8-T475-266 | 家里的 scheme 判词改写 | 3 条红（census + 精确句 ✓） |
+| M8-T475-267 | 家里的 hostname 判词多一个空格 | 2 条红（精确句 + 开头判 ✓） |
+| M8-T475-268 | 预检不再检查 hostname | 4 条红（行为 ✓） |
+| M8-T475-269 | 在 mcp.py 里另立一个同名预检 | 1 条红（唯一定义 ✓） |
+
+六条全部 KILLED ✓，恢复后字节相同 ✓。
+
+**267 第一轮是 SURVIVED ✓**，因此收紧了门禁 ✓：见第 5 节 ✓。
+
+### 4 新增门禁 + 门禁学习新形状
+
+新增 `tests/test_the_http_url_pre_flight_has_one_home.py`（10 条）✓：
+
+1. 预检接受 http URL ✓
+2. 预检拒绝词汇表外的 scheme ✓（三种 ✓）
+3. 预检拒绝无主机名的 URL ✓（三种 ✓）
+4. **两句判词在全树只有一个承载者** ✓且在 netguard ✓
+5. **无其他常量以这两句开头** ✓（按开头判 ✓）
+6. **两句判词的精确字节** ✓
+7. 预检只被定义一次 ✓
+8. **webfetch 没有第二份 scheme / hostname 检查** ✓（AST 形状 ✓）
+9. webfetch 调的是家里那个对象 ✓（`is` 同一性 ✓）
+10. **两条路径对同一 URL 拒完全相同** ✓（逐字节 ✓）
+
+T473 的教训当场复用 ✓：`test_the_allowed_schemes_have_one_home.py` 原
+先断言「webfetch import ALLOWED_SCHEMES」，立家之后这条断言指向的
+恰好是**被删掉的间接层** ✓。已改为断言「webfetch 的 `parse_http_url`
+就是 netguard 的那个对象」 ✓——同一个「词汇表只有一个家」的事实 ✓，
+改成了认新形状的表达 ✓，而不是删掉了事 ✓。
+
+聚焦回归 ✓：新门 10 条 + allowed_schemes 门 5 条 + netguard_pure /
+webfetch / mcp_redirect / scheme_prefixes / webfetch_routes /
+netguard_blocks_reserved / netguard_blocks_multicast /
+malformed_input / allowlist / audit_authorization / config_surface /
+p0_p1_p2 / allowlist_validation 共 233 条 ✓，全绿 ✓（1 条 skip 为
+Windows 权限位平台性 ✓）。慢测试未跑 ✓，全量 pytest 未跑 ✓。
+
+### 5 一条教训
+
+**判「包含」的 census 看不见多出来的一个空格 ✓。** ✓ 267 号变异把家里
+的 `URL 缺少主机名: {url!r}` 改成两个空格 ✓，门禁全绿 ✓——因为判词
+断言写的是 `"URL 缺少主机名: " in str(exc)` ✓，而 `"URL 缺少主机名:  "`
+**包含** `"URL 缺少主机名: "` ✓。补了两条才杀掉 ✓：一条按**开头**判的
+无杂散断言 ✓（以 needle 开头却不等于 needle 的就是杂散 ✓），一条**精确
+字节**的判词断言 ✓。这和 T472 的教训是同一个形状的两次踩坑 ✓：
+**census 判包含会收进邻居 ✓，判相等会漏掉 f-string 常量段 ✓，判开头
+会漏掉多一个空格 ✓——三条断言各管一个方向 ✓，缺一条就有一个方向的
+漂移能活着走出去 ✓**。可以固化成一张表 ✓：防手拼按开头 ✓、查邻居按
+相等 ✓、钉字节按精确值 ✓。

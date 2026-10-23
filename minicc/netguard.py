@@ -111,13 +111,29 @@ def resolve_pinned_host(host: str, *, allow_env: str) -> str:
     return _resolve_and_validate(host)
 
 
-def assert_public_http_url(url: str, *, allow_env: str) -> urllib.parse.ParseResult:
-    """Parse an http(s) URL and reject private/loopback targets."""
+def parse_http_url(url: str) -> urllib.parse.ParseResult:
+    """The one scheme-and-host pre-flight for an http(s) URL.
+
+    Two callers need the same two refusals before anything touches the
+    network: a scheme outside ``ALLOWED_SCHEMES``, and a URL carrying no
+    hostname at all.  ``webfetch`` used to keep its own copy of both checks
+    *and* both sentences, so the agent-facing fetch tool and this guard
+    could disagree about what a legal URL is.  The hostname refusal is the
+    one that matters most: a URL without one is how a malformed or
+    scheme-relative target reaches a resolver at all, and the two spellings
+    of that sentence were already free to drift apart.
+    """
     parsed = urllib.parse.urlsplit(url)
     if parsed.scheme not in ALLOWED_SCHEMES:
         raise ValueError(f"仅支持 http/https URL: {url!r}")
     if not parsed.hostname:
         raise ValueError(f"URL 缺少主机名: {url!r}")
+    return parsed
+
+
+def assert_public_http_url(url: str, *, allow_env: str) -> urllib.parse.ParseResult:
+    """Parse an http(s) URL and reject private/loopback targets."""
+    parsed = parse_http_url(url)
     assert_public_host(parsed.hostname, allow_env=allow_env)
     return parsed
 
@@ -128,5 +144,6 @@ __all__ = [
     "BlockedAddressError",
     "assert_public_host",
     "assert_public_http_url",
+    "parse_http_url",
     "resolve_pinned_host",
 ]
