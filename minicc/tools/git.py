@@ -4,10 +4,30 @@ from __future__ import annotations
 
 import subprocess
 from pathlib import Path
+from typing import Any
 
 from .editor import EditError
 from .registry import ToolError, split_output
 from .schemas import ToolResult, untrusted_tags
+
+
+def _merge_probe(
+    branch: str, clean: bool, conflicts: list[str], tree_oid: str
+) -> dict[str, Any]:
+    """The one shape of a merge-tree probe result.
+
+    The clean branch and the conflicted branch of the probe hand-wrote
+    this four-key record.  A key one copy forgets is a probe whose
+    ``tree`` or ``conflicts`` the caller reads as missing - and the
+    caller decides whether to attempt the merge from exactly these
+    keys.
+    """
+    return {
+        "branch": branch,
+        "clean": clean,
+        "conflicts": conflicts,
+        "tree": tree_oid,
+    }
 
 
 def _safe_relative(workspace: Path, raw: str) -> str:
@@ -135,11 +155,11 @@ class GitTools:
         conflicts = [line for line in lines[1:] if line.strip()]
         if completed.returncode == 0 and not conflicts:
             body = f"merge {branch} -> HEAD 可以干净合并。"
-            data = {"branch": branch, "clean": True, "conflicts": [], "tree": tree_oid}
+            data = _merge_probe(branch, True, [], tree_oid)
             summary = f"合并预检通过: {branch} 无冲突"
         else:
             body = "\n".join(conflicts) or (completed.stderr or "").strip() or "merge-tree 失败"
-            data = {"branch": branch, "clean": False, "conflicts": conflicts[:50], "tree": tree_oid}
+            data = _merge_probe(branch, False, conflicts[:50], tree_oid)
             summary = f"合并预检: {branch} 有 {len(conflicts)} 个冲突项"
         return ToolResult(
             status="ok",
