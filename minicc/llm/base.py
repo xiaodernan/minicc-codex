@@ -137,6 +137,18 @@ def tool_result_msg(tool_call_id: str, content: str) -> dict[str, Any]:
     }
 
 
+def retry_detail(attempt: int, retry_limit: int) -> dict[str, int]:
+    """The one shape of the provider-retry trace detail.
+
+    The real stream retry and the fake provider's deliberate imitation
+    of it spell these two keys by hand.  The imitation exists so a log
+    or event assertion written against the fake describes the
+    production trace - a key it drops is a test that passes while the
+    real event's readers see nothing.
+    """
+    return {"attempt": attempt, "retry_limit": retry_limit}
+
+
 def image_part(url: str, detail: str | None = None) -> dict[str, Any]:
     """The one shape of an image part on the chat-completions wire.
 

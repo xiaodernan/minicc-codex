@@ -28706,3 +28706,68 @@ answer ✓。而这两个出口一个是「什么都没做」 ✓、一个是「
 默认值 ✓，不传就报错 ✓。判别口诀 ✓：**载荷里承载**业务成果**
 （列表、明细、快照 ✓）的键 ✓，比状态键更值得立家 ✓——状态键
 丢了会响 ✓，成果键丢了只会哑 ✓。**
+
+## 第四百二十七批 — M8-T443 — 重试详情两键一个家
+
+### 1 缺陷
+
+`provider_retry` 链路事件的 trace detail 是一个三键 dict
+（`provider`/`model`/`error_type` 之外的重试上下文键 ——
+`retry_detail(attempt, retry_limit)` 产出的 attempt/retry_limit
+两个键），在两个地方手写：
+
+- `minicc/llm/fake.py:95`：fake provider 模仿真实重试，detail
+  是手写的 `{"attempt": attempt + 1, "retry_limit": 2}`
+- `minicc/llm/openai_provider.py:1225`：真实重试路径，detail
+  是手写的 `{"attempt": attempt + 1, "retry_limit": self._max_retries + 1}`
+
+两处同一个事实（第几次尝试/共几次）各自拼 dict。改重试
+上限的语义时（例如重试次数从 N 改成 N+1，或 attempt 改成
+从 0 开始），必须记得同时改两个文件；漏一个，假提供商的
+日志形状就与真提供商分叉，测试对着 fake 断言、线上跑着
+真 provider，形状不一致只在生产暴露。
+
+### 2 落地
+
+- `minicc/llm/base.py` 立 `retry_detail(attempt, retry_limit)`，
+  放在 `image_part` 之前（同属 wire 载荷构造器一族）
+- `minicc/llm/fake.py`：手写 dict → `detail=retry_detail(attempt + 1, 2)`；
+  import 改为 `from .base import LLMResponse, retry_detail, tool_call`
+- `minicc/llm/openai_provider.py`：手写 dict →
+  `detail=retry_detail(attempt + 1, self._max_retries + 1)`；
+  新增 `from .base import retry_detail`
+- 语义钉在家中：attempt 是「第几次」（1 起），retry_limit 是
+  「最多几次」。fake 传 2（模仿固定两次重试），真 provider 传
+  `self._max_retries + 1`（配置驱动的上限）。**家收键，调用方
+  定值**——与 T420 `channel_counter` 同构。
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T443-262 | fake 退回手写 dict | 1 条红（census ✓） |
+| M8-T443-263 | openai_provider 退回手写 dict | 1 条红（census ✓） |
+
+### 4 新增门禁
+
+`tests/test_the_retry_detail_have_one_home.py`（3 条）✓：
+
+1. 家的行为 ✓：两键透传 ✓
+2. census ✓：`{"attempt": ..., "retry_limit": ...}` 形状的 dict
+   字面量在 minicc/ 下**恰好一处** ✓且在家 ✓
+3. 调用计数 ✓：`retry_detail(` 恰好 3 次 ✓（定义 + fake + 真
+   provider ✓）
+
+聚焦回归 ✓：新门 3 条 + test_logging 26 条 + test_core_llm 16
+条 ✓，共 45 条 ✓，全绿 ✓。全量 pytest 未跑 ✓。
+
+### 5 一条教训
+
+**fake 对真实现的模仿是抄写复发区 ✓，家的价值在「测试断言
+的形状 = 生产形状」✓。** ✓ fake provider 存在的意义是让测试
+看到与真实 provider 一样的载荷形状 ✓；当这个形状靠两边各自
+手写维持时 ✓，fake 就退化成「历史快照」✓——真实现演进后
+fake 忘了跟 ✓，测试继续绿 ✓，分叉直到生产暴露 ✓。立家之后
+两边同源 ✓：改 `retry_detail` 就是同时改两边 ✓。判别口诀 ✓：
+**凡测试替身（fake/stub/mock 的非随机部分）手写了与真实
+实现相同形状的载荷 ✓，就是漏了一个家 ✓。** **

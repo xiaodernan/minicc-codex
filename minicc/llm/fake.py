@@ -12,7 +12,7 @@ import os
 import re
 from typing import Any
 
-from .base import LLMResponse, tool_call
+from .base import LLMResponse, retry_detail, tool_call
 from .usage import measured_usage
 from ..trace import trace_event
 
@@ -92,7 +92,7 @@ class FakeProvider:
                     phase="planning",
                     code="provider_retry",
                     summary=f"模型流中断，正在进行第 {attempt + 1} 次重试",
-                    detail={"attempt": attempt + 1, "retry_limit": 2},
+                    detail=retry_detail(attempt + 1, 2),
                 ))
             # M4-T1: a zero-write readonly task still needs at least one
             # citable tool observation, otherwise the completion judge has
