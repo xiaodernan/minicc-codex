@@ -65,7 +65,7 @@ MAX_HOOK_ARG_CHARS = 4000
 #: per-hook cap bounds one hook; without an aggregate bound, N hooks of 60
 #: seconds each stalled one tool call for N minutes.
 MAX_HOOK_TOTAL_SECONDS = 60.0
-HOOKS_FILENAME = "hooks.json"
+from .internal_paths import HOOKS_FILENAME  # re-exported: the deny list reads it from here
 # Exit code a hook uses to explicitly deny/block (2 mirrors git hook style).
 HOOK_DENY_EXIT = 2
 

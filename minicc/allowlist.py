@@ -14,7 +14,7 @@ from typing import Any
 
 from .tools.registry import redact_text
 
-ALLOWLIST_NAME = "allowlist.json"
+from .internal_paths import ALLOWLIST_NAME  # re-exported: the deny list reads it from here
 
 _lock = threading.RLock()
 

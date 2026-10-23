@@ -14,6 +14,14 @@ import re
 from pathlib import Path, PurePosixPath
 from typing import Any
 
+from ..internal_paths import (
+    ALLOWLIST_NAME,
+    AUDIT_NAME,
+    HOOKS_FILENAME,
+    MCP_CONFIG_NAME,
+    PERMISSIONS_NAME,
+    TOKEN_FILE_NAME,
+)
 from .editor import EditError, Editor, StaleContextError
 from .registry import ToolError, split_output
 from .schemas import ToolResult
@@ -76,13 +84,13 @@ def _reject_graders(path: str) -> None:
 # could erase its own deny rules - the same self-escalation the allowlist
 # write was already blocked for.
 _MINICC_DENY_FILES = {
-    "allowlist.json",
-    "web_token.json",
-    "audit.jsonl",
-    "hooks.json",
-    "permissions.json",
+    ALLOWLIST_NAME,
+    TOKEN_FILE_NAME,
+    AUDIT_NAME,
+    HOOKS_FILENAME,
+    PERMISSIONS_NAME,
 }
-_MINICC_REDACT_FILES = {"mcp.json"}
+_MINICC_REDACT_FILES = {MCP_CONFIG_NAME}
 
 
 def _minicc_relative_parts(path: str) -> tuple[str, ...]:

@@ -97,6 +97,7 @@ from .audit import (
 from .changes import ChangeError, ChangeInspector
 from .commands import discover_commands, expand_slash_command
 from .mentions import apply_mentions
+from .internal_paths import AUDIT_NAME, PERMISSIONS_NAME
 from .permissions import load_permission_rules, match_permission_rule
 from .config import (
     ConfigError,
@@ -989,7 +990,7 @@ class AgentService:
         workspace = self._rpc_workspace_path(params)
         rules, error = load_permission_rules(workspace)
         return {
-            "path": (workspace / ".minicc" / "permissions.json").as_posix(),
+            "path": (workspace / ".minicc" / PERMISSIONS_NAME).as_posix(),
             "allow": rules["allow"],
             "deny": rules["deny"],
             "error": error,
@@ -1164,7 +1165,7 @@ class AgentService:
         """Effective declarative permission rules + any load error (M7-T3)."""
         rules, error = load_permission_rules(self.workspace)
         return {
-            "path": (self.workspace / ".minicc" / "permissions.json").as_posix(),
+            "path": (self.workspace / ".minicc" / PERMISSIONS_NAME).as_posix(),
             "allow": rules["allow"],
             "deny": rules["deny"],
             "error": error,
@@ -1611,7 +1612,7 @@ class AgentService:
         snapshot_task_id = str(payload.get("task_id") or "")
         journal = SnapshotJournal(workspace, snapshot_task_id) if snapshot_task_id and workspace_snapshot_exists(workspace, snapshot_task_id) else None
         editor = Editor(
-            workspace, audit_path=workspace / ".minicc" / "audit.jsonl",
+            workspace, audit_path=workspace / ".minicc" / AUDIT_NAME,
             before_write=journal.before_write if journal else None,
             after_write=journal.after_write if journal else None,
         )
@@ -3248,7 +3249,7 @@ class AgentService:
         ``limit`` matches instead of a filtered remainder of the last lines.
         """
         keep = _audit_level_filter(levels=levels, min_level=min_level)
-        audit_path = self.workspace / ".minicc" / "audit.jsonl"
+        audit_path = self.workspace / ".minicc" / AUDIT_NAME
         empty = _audit_export_payload(self.workspace, [], 0)
         if not audit_path.is_file():
             return empty

@@ -16,6 +16,7 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
+from .internal_paths import AUDIT_NAME
 from .tools.editor import _MUTATING_ACTIONS
 from .tools.registry import redact_text
 
@@ -154,7 +155,7 @@ class ChangeInspector:
         reports a clean workspace while ``/api/audit`` still shows the
         write.  The window is now disclosed.
         """
-        audit = self.workspace / ".minicc" / "audit.jsonl"
+        audit = self.workspace / ".minicc" / AUDIT_NAME
         if not audit.is_file():
             return set()
         paths: set[str] = set()

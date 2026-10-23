@@ -30226,3 +30226,68 @@ grep 的匹配上限参数名在两处各拼一次：
 发现 ✓：max_matches 的 cap 常量叫 MAX_GREP_MATCHES ✓、
 max_results 的叫 MAX_RESULTS ✓，命名惯例是「值常量在
 前 ✓、名常量随后 ✓」✓，后来者照着排就行 ✓。** **
+
+## 第四百四十九批 — M8-T465 — .minicc 内部文件名一个家
+
+### 1 缺陷
+
+`minicc/tools/fs.py` 的拒绝名单 `_MINICC_DENY_FILES` 手写了
+五个 `.minicc/` 内部文件名（allowlist.json / web_token.json /
+audit.jsonl / hooks.json / permissions.json），而它们的家主
+（allowlist.py / webauth.py / changes.py / hooks.py /
+permissions.py）各自又定义了一份同名常量，mcp.py 的配置路径
+还拼着 `.minicc/mcp.json`。**同一事实六处拼写**：家主改了
+文件名，拒绝名单不报错、不告警，只是静静地放过一个本该拦
+住的内部文件——守卫在守一扇已经不存在的门。
+
+### 2 落地
+
+- 新建叶子模块 `minicc/internal_paths.py`，托管六个常量
+  （`ALLOWLIST_NAME` / `AUDIT_NAME` / `HOOKS_FILENAME` /
+  `PERMISSIONS_NAME` / `TOKEN_FILE_NAME` / `MCP_CONFIG_NAME`）
+- **为什么必须是叶子模块**：allowlist / permissions / mcp
+  位于 tools 层之上（tools.registry 反向依赖它们），fs.py
+  直接 import 会成环；六个名字是纯数据，叶子模块是唯一
+  不会引入环的家
+- `allowlist.py` / `hooks.py` / `permissions.py` / `webauth.py`：
+  原字面量定义改为 `from .internal_paths import X`（保留模块
+  级名绑定，既有 import 方零改动）
+- `mcp.py`：`load_mcp_config` 路径改用 `MCP_CONFIG_NAME`
+- `changes.py` / `main.py` / `web.py`：`audit.jsonl` 四处
+  路径拼装改用 `AUDIT_NAME`；`web.py` 的 permissions 导入
+  改走 `internal_paths`
+- `tools/fs.py`：撤销四个会成环的 import，六常量改从
+  `..internal_paths` 导入；拒绝名单与 `_MINICC_REDACT_FILES`
+  全部引用常量
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T465-264 | mcp.py 路径退回字面量 `"mcp.json"` | 1 条红（census ✓） |
+| M8-T465-265 | fs.py 拒绝名单退回字面量 `"allowlist.json"` | 2 条红（census + fs 无名断言 ✓） |
+
+### 4 新增门禁
+
+`tests/test_the_minicc_filenames_have_one_home.py`（4 条）✓：
+
+1. 拒绝名单含五个内部文件名 ✓
+2. 六个常量即线名 ✓
+3. census ✓：六个名字的 `ast.Constant` 在 minicc/ 下各
+   **恰好一处**且都在 `internal_paths.py` ✓
+4. fs.py 无自己的文件名常量（AST 判定）✓
+
+聚焦回归 ✓：新门 4 条 + allowlist / hooks / permissions /
+webauth / mcp×5 / web_security / internal_dirs 共 194 条
+✓，全绿 ✓（4 条 Windows 平台跳过 ✓）。test_webfetch.py
+真实网络过慢 ✓，未跑 ✓。全量 pytest 未跑 ✓。
+
+### 5 一条教训
+
+**纯文本行匹配会被 docstring 散文骗到 ✓。** ✓ 第一版 census
+用 `grep` 数行 ✓，fs.py 的 docstring 散文里恰好有一句带
+引号的 `"web_token.json"` ✓，纯文本计数直接虚高 ✓。改
+成 AST `ast.Constant` 值相等判定后 ✓，散文与代码一眼分
+开 ✓。**教训 ✓：字符串 census 只认 AST 常量 ✓，不认文本
+行 ✓。** ✓ 另一条 ✓：census 窗口上方有长 docstring 时
+`lineno - 8` 看不见 `def` ✓，窗口要按需放到 12-24 行 ✓。

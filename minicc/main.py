@@ -19,6 +19,7 @@ from .agent.subagent import DEFAULT_MAX_DEPTH, DEFAULT_MAX_TURNS, build_task_too
 from .allowlist import AllowlistError, add_session_rule
 from .audit import PERMISSION_MODES, authorize_tool, effective_risk
 from .cli_io import cli_out
+from .internal_paths import AUDIT_NAME
 from .config import (
     LLM_PROTOCOLS,
     MAX_TIMEOUT_SECONDS,
@@ -852,7 +853,7 @@ def main(argv: list[str] | None = None) -> int:
         cli_out(f"workspace={workspace}")
         return 0
 
-    editor = Editor(workspace, audit_path=workspace / ".minicc" / "audit.jsonl")
+    editor = Editor(workspace, audit_path=workspace / ".minicc" / AUDIT_NAME)
     # M8-T138 (M5 recheck): the CLI must see workspace MCP servers exactly
     # like the web surface does (web.py builds its registry with
     # ``mcp_manager=self._mcp_for_workspace(workspace)``). Before this wiring

@@ -33,6 +33,7 @@ from pathlib import Path
 from typing import Any
 
 from . import __version__
+from .internal_paths import MCP_CONFIG_NAME
 from .logging_setup import get_logger
 from .netguard import SCHEME_PREFIXES, BlockedAddressError, assert_public_http_url
 from .tools.registry import (
@@ -197,7 +198,7 @@ def _config_flag(value: dict[str, Any], name: str, key: str) -> bool:
 
 
 def load_mcp_config(workspace: Path) -> list[McpServerConfig]:
-    path = workspace / ".minicc" / "mcp.json"
+    path = workspace / ".minicc" / MCP_CONFIG_NAME
     if not path.is_file():
         return []
     try:

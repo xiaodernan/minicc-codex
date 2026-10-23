@@ -64,7 +64,7 @@ def _atomic_replace(source: Path, dest: Path) -> None:
             if attempt == 7:
                 raise
             time.sleep(0.01 * (attempt + 1))
-TOKEN_FILE_NAME = "web_token.json"
+from .internal_paths import TOKEN_FILE_NAME  # re-exported: the deny list reads it from here
 TOKEN_BYTES = 32
 
 # `::0` is deliberately absent: it normalizes to `::`, the IPv6 UNSPECIFIED /

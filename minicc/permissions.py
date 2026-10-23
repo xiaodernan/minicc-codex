@@ -34,7 +34,7 @@ from .allowlist import (
 )
 from .tools.registry import redact_text
 
-PERMISSIONS_NAME = "permissions.json"
+from .internal_paths import PERMISSIONS_NAME  # re-exported: the deny list reads it from here
 
 _lock = threading.RLock()
 # (path, mtime_ns, size) -> (rules, error); file reads stay off the hot path.
