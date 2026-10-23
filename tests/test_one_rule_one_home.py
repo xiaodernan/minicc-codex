@@ -102,6 +102,44 @@ def test_the_write_tool_list_literal_exists_in_exactly_one_place() -> None:
     )
 
 
+# --- M8-T404: the write-tool subsets stay inside the write-tool universe -------
+
+
+#: Named subsets of WRITE_TOOL_NAMES that happen to hold the same two names
+#: today. They ask different questions (what a plan node may use, what may run
+#: in parallel, what a writable child gains) - so they stay separate names -
+#: but every one of them must stay *inside* the write-tool universe, or a
+#: typo or a new non-write tool would ride in under the write protection.
+WRITE_SUBSETS = {
+    "minicc.agent.graph": "WRITE_DAG_TOOLS",
+    "minicc.agent.loop": "PARALLEL_SAFE_WRITE_TOOLS",
+    "minicc.agent.subagent": "SUBAGENT_WRITE_TOOLS",
+}
+
+
+def test_every_named_write_subset_stays_inside_the_home() -> None:
+    """A subset that escapes the home is a tool the write gate never sees."""
+    import importlib
+
+    from minicc.agent.tool_policy import WRITE_TOOL_NAMES
+
+    for module_name, attr in WRITE_SUBSETS.items():
+        subset = getattr(importlib.import_module(module_name), attr)
+        assert set(subset) <= set(WRITE_TOOL_NAMES), (
+            f"{module_name}.{attr} escaped WRITE_TOOL_NAMES: "
+            f"{sorted(set(subset) - set(WRITE_TOOL_NAMES))}"
+        )
+
+
+def test_the_write_tier_is_still_the_readonly_set_plus_the_named_addition() -> None:
+    """The control: naming the addition did not change what a tier grants."""
+    from minicc.agent.subagent import EXEC_TOOLS, SUBAGENT_TOOLS, WRITE_TOOLS
+
+    assert WRITE_TOOLS == SUBAGENT_TOOLS | frozenset({"write_file", "edit_file"})
+    assert EXEC_TOOLS == WRITE_TOOLS | {"bash"}
+    assert "task" not in WRITE_TOOLS and "task" not in EXEC_TOOLS
+
+
 # --- M8-T307b: the network question has two halves ----------------------------
 
 

@@ -56,7 +56,12 @@ SUBAGENT_TOOLS = frozenset({
 # strict superset of the one before it; ``task`` is NEVER part of a tier (it is
 # added separately, depth-gated, so unbounded recursion stays structurally
 # impossible). No tier grants network tools.
-WRITE_TOOLS = SUBAGENT_TOOLS | frozenset({"write_file", "edit_file"})
+# M8-T404: what the write tier adds on top of the readonly set. Named so the
+# subset gate in tests/test_one_rule_one_home.py can check it stays inside
+# WRITE_TOOL_NAMES like its two same-valued siblings (the DAG write nodes and
+# the parallel-safe writes).
+SUBAGENT_WRITE_TOOLS = frozenset({"write_file", "edit_file"})
+WRITE_TOOLS = SUBAGENT_TOOLS | SUBAGENT_WRITE_TOOLS
 EXEC_TOOLS = WRITE_TOOLS | frozenset({"bash"})
 SUBAGENT_TOOL_TIERS = {
     "readonly": SUBAGENT_TOOLS,
