@@ -29152,3 +29152,63 @@ plan_channel 18 条 + core_llm / one_price_per_model 24
 笨 ✓。判别口诀 ✓：**同一个 dict 既被写进某个 store 又
 被用来查这个 store ✓，它就是一个键 ✓——键必须只有一
 个拼法 ✓。** **
+
+## 第四百三十四批 — M8-T450 — 守卫详情两键一个家
+
+### 1 缺陷
+
+两个「停止守卫」的 trace detail 各自手写：
+
+- `recovery_guard`：`detail={"turn": turn,
+  "retry_limit": STAGNATION_REPLAN_LIMIT}`
+- `verification_guard`：`detail={"turn": turn,
+  "retry_limit": VERIFICATION_RETRY_LIMIT}`
+
+两个守卫停机的理由不同（恢复阶段拿不到证据 / 改完不验
+证就交付），但上报的观测完全相同：第几轮熄火、耗尽的是
+哪个上限。分开手写意味着两条 trace 的键名可以各自漂移
+（一边 `retry_limit` 一边 `limit`），事后对比「模型是不
+是用尽了机会」时，两条记录读不出同一组数。limit 常量不
+同是事实（两个守卫的上限本来就不同），形状相同也是事实
+——前者是家的参数，后者是家的责任。
+
+### 2 落地
+
+- `minicc/agent/loop.py` 立模块级 `_guard_detail(turn,
+  retry_limit)`，放在 `_call_signature` 之前
+- 两个守卫的 detail 收口；常量仍由调用方传入（
+  `STAGNATION_REPLAN_LIMIT` / `VERIFICATION_RETRY_LIMIT`）
+- 与 T449 同一批发现的 `{"turn": ..., "attempt": ...}`
+  （1798 行）保持原样：attempt 是「第几次拒绝」，不是
+  「上限」，不同事实不进这个家
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T450-264 | recovery_guard 退回手写 | 2 条红（census + 调用计数 ✓） |
+| M8-T450-265 | verification_guard 退回手写 | 2 条红（census + 调用计数 ✓） |
+
+### 4 新增门禁
+
+`tests/test_the_guard_detail_have_one_home.py`（3 条）✓：
+
+1. 家的行为 ✓：两键透传 ✓
+2. census ✓：`{"turn", "retry_limit"}` 两键 dict 字面量在
+   minicc/ 下**恰好一处** ✓且在家 ✓
+3. 调用计数 ✓：`_guard_detail(` 恰好 3 次 ✓（定义 + 两个
+   守卫 ✓）
+
+聚焦回归 ✓：新门 3 条 + core_agent / completion_liveness
+76 条 ✓，共 79 条 ✓，全绿 ✓。全量 pytest 未跑 ✓。
+
+### 5 一条教训
+
+**成对的 trace detail ✓，summary 可以不同 ✓，detail 必须
+同构 ✓——这是 T444「对比型事实」的第二次显形 ✓。** ✓
+第一次在协议回退（端点级 vs 传输级）✓，这次在停机守卫
+（恢复 vs 验证）✓。两次的判别式一样 ✓：两个事件叙述不
+同的故事 ✓，但上报同一组观测供事后对比 ✓。limit 常量
+的差异恰好说明家的参数化方向 ✓——**家收形状 ✓，调用方
+定数值 ✓；反过来（家定数值、调用方拼形状）就是把两个事
+实焊死在一起 ✓。** **

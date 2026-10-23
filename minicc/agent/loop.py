@@ -1805,7 +1805,7 @@ async def run_agent(
                 phase="failed",
                 status="error",
                 code="recovery_guard",
-                detail={"turn": turn, "retry_limit": STAGNATION_REPLAN_LIMIT},
+                detail=_guard_detail(turn, STAGNATION_REPLAN_LIMIT),
             )
             break
 
@@ -1883,7 +1883,7 @@ async def run_agent(
                     phase="failed",
                     status="error",
                     code="verification_guard",
-                    detail={"turn": turn, "retry_limit": VERIFICATION_RETRY_LIMIT},
+                    detail=_guard_detail(turn, VERIFICATION_RETRY_LIMIT),
                 )
                 break
 
@@ -1975,6 +1975,18 @@ def _signature(value: Any) -> str:
     """Stable, compact fingerprint for loop-progress detection."""
     raw = json.dumps(value, ensure_ascii=False, sort_keys=True, default=str, separators=(",", ":"))
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:20]
+
+
+def _guard_detail(turn: int, retry_limit: int) -> dict[str, Any]:
+    """The trace detail of a guard that stopped the run.
+
+    Both stop-guards - the recovery guard and the verification guard -
+    report the same two numbers: the turn the guard fired on and the
+    retry limit that ran out.  One shape keeps the two traces
+    comparable: a reader diffing "the model exhausted its chances"
+    from "the guard fired early" reads two numbers, not two spellings.
+    """
+    return {"turn": turn, "retry_limit": retry_limit}
 
 
 def _call_signature(tool: str, arguments: dict[str, Any]) -> str:
