@@ -308,6 +308,21 @@ def _merge_cost_estimator(model: str) -> Callable[[dict[str, Any]], float]:
     return estimate
 
 
+def _sessions_payload(workspace: Any, sessions: list[dict[str, Any]]) -> dict[str, Any]:
+    """The one shape of a stored-sessions listing.
+
+    Two sites build it: the RPC method (sessions of the *resolved*
+    workspace) and the HTTP-facing lister (sessions of the *current*
+    one).  Same three keys, same counting rule - a key one copy forgets
+    is a listing the client renders without its count or its scope.
+    """
+    return {
+        "workspace_path": str(workspace),
+        "count": len(sessions),
+        "sessions": sessions,
+    }
+
+
 def _new_thread_record(
     *,
     thread_id: str,
@@ -893,11 +908,7 @@ class AgentService:
         """Stored conversations in the resolved workspace (forks are files too)."""
         workspace = self._rpc_workspace_path(params)
         sessions = list_sessions(workspace)
-        return {
-            "workspace_path": str(workspace),
-            "count": len(sessions),
-            "sessions": sessions,
-        }
+        return _sessions_payload(workspace, sessions)
 
     def _rpc_permissions_read(self, params: dict[str, Any]) -> dict[str, Any]:
         """Effective declarative permission rules for the resolved workspace."""
@@ -1058,11 +1069,7 @@ class AgentService:
     def list_stored_sessions(self) -> dict[str, Any]:
         """M8-T2: the session forest backing /api/sessions (forks are files)."""
         sessions = list_sessions(self.workspace)
-        return {
-            "workspace_path": str(self.workspace),
-            "count": len(sessions),
-            "sessions": sessions,
-        }
+        return _sessions_payload(self.workspace, sessions)
 
     def get_allowlist(self, session_id: str) -> dict[str, Any]:
         sid = str(session_id or "").strip()
