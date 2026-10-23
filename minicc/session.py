@@ -216,6 +216,18 @@ def _unsatisfied_tool_calls(messages: list[Any]) -> set[str]:
     return pending_tool_calls([item for item in messages if isinstance(item, dict)])
 
 
+def _empty_payload() -> dict[str, Any]:
+    """The one shape of the empty-session fallback payload.
+
+    ``save_view`` falls back to it twice - when the session file does
+    not exist yet, and when the file parsed to something that is not a
+    dict.  Both copies then stamp ``version`` again on the next line,
+    so a missing ``messages`` in one copy is a view saved onto a
+    payload the readers expect to carry the conversation.
+    """
+    return {"version": SESSION_FORMAT_VERSION, "messages": []}
+
+
 def _rewind_result(kept: int, removed: int, backup: str) -> dict[str, Any]:
     """The one shape of a rewind's outcome.
 
@@ -601,13 +613,13 @@ class SessionStore:
     def save_view(self, view: dict[str, Any]) -> None:
         """Persist view preferences and the bounded expandable tool index."""
         if not self.exists:
-            payload: dict[str, Any] = {"version": SESSION_FORMAT_VERSION, "messages": []}
+            payload: dict[str, Any] = _empty_payload()
         else:
             try:
                 raw = json.loads(_read_text_with_retry(self.path))
             except (OSError, ValueError) as exc:
                 raise SessionError(f"无法读取 session {self.path}: {exc}") from exc
-            payload = raw if isinstance(raw, dict) else {"version": SESSION_FORMAT_VERSION, "messages": []}
+            payload = raw if isinstance(raw, dict) else _empty_payload()
         payload["version"] = SESSION_FORMAT_VERSION
         payload["updated_at"] = datetime.now(UTC).isoformat(timespec="seconds")
         payload["view"] = self.load_view_payload(view)
