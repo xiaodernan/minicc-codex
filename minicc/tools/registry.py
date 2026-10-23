@@ -311,14 +311,7 @@ class ToolSpec:
 
     def openai_schema(self) -> dict[str, Any]:
         if self.input_schema is not None:
-            return {
-                "type": "function",
-                "function": {
-                    "name": self.name,
-                    "description": self.description,
-                    "parameters": self.input_schema,
-                },
-            }
+            return _openai_tool_wire(self.name, self.description, self.input_schema)
         properties: dict[str, Any] = {}
         required: list[str] = []
         type_map = {"str": "string", "int": "integer", "bool": "boolean", "list[str]": "array"}
@@ -331,18 +324,34 @@ class ToolSpec:
             properties[param.name] = schema
             if param.required:
                 required.append(param.name)
-        return {
-            "type": "function",
-            "function": {
-                "name": self.name,
-                "description": self.description,
-                "parameters": {
-                    "type": "object",
-                    "properties": properties,
-                    "required": required,
-                },
-            },
-        }
+        return _openai_tool_wire(
+            self.name,
+            self.description,
+            {"type": "object", "properties": properties, "required": required},
+        )
+
+
+def _openai_tool_wire(
+    name: str, description: str, parameters: dict[str, Any]
+) -> dict[str, Any]:
+    """The one wire shape of a tool as the OpenAI chat API declares it.
+
+    ``ToolSpec.openai_schema`` builds it on both of its paths - the
+    schema the tool registered and the schema derived from its params -
+    and a key one path forgets is a tool the model sees without its
+    parameters (it then guesses the arguments) or without its
+    description (it then misuses the tool).  The Anthropic wire is a
+    different shape (``input_schema``, not ``function.parameters``) and
+    stays where it is.
+    """
+    return {
+        "type": "function",
+        "function": {
+            "name": name,
+            "description": description,
+            "parameters": parameters,
+        },
+    }
 
 
 def validate_tool_spec(spec: ToolSpec) -> None:

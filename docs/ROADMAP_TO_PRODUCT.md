@@ -29579,3 +29579,66 @@ pytest 未跑 ✓。
 了 ✓。判别口诀 ✓：**枚举一个信封的键时 ✓，把「没有什么」
 也写进清单 ✓；清单里每一项（含缺席项）都该只有一个
 源头 ✓。** **
+
+## 第四百四十一批 — M8-T457 — 工具线封四键一个家
+
+### 1 缺陷
+
+`ToolSpec.openai_schema()` 的两个分支各自拼 OpenAI 工具
+线封：
+
+- 注册了 `input_schema` 的工具（早退分支）：`{"type":
+  "function", "function": {"name", "description",
+  "parameters": self.input_schema}}`
+- 从 `params` 推导 schema 的工具：同一个信封再拼一遍，
+  只有 parameters 是现场构造的
+
+同一个方法的两个 return 拼同一个 wire 形状——这是「同
+函数重复」，比跨文件重复更刺眼：将来改 OpenAI 的线封
+（比如加 `"strict": True`），两个分支都要改，漏一个就
+是「一部分工具带新字段、一部分不带」，模型对两类工具
+的行为差异无法归因。
+
+### 2 落地
+
+- `minicc/tools/registry.py` 立模块级 `_openai_tool_wire(
+  name, description, parameters)`，放在 `validate_tool_spec`
+  之前
+- 两个分支收口；parameters 作参数（给定 schema vs 推导
+  schema 是调用方的业务）
+- docstring 划界：Anthropic 线封（`input_schema` 键）是
+  不同形状，不进来
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T457-264 | 早退分支退回手写 | 2 条红（census + 调用计数 ✓） |
+| M8-T457-265 | 推导分支退回手写 | 2 条红（census + 调用计数 ✓） |
+
+### 4 新增门禁
+
+`tests/test_the_openai_tool_wire_have_one_home.py`（4 条）✓：
+
+1. 家的行为 ✓：三键 function 载荷 + 外层 type ✓
+2. 家的行为 ✓：`openai_schema` 两条路径都经家 ✓（注册
+   schema 透传 ✓）
+3. census ✓：`{"name", "description", "parameters"}` 三键
+   dict 字面量在 minicc/ 下**恰好一处** ✓且在家 ✓
+4. 调用计数 ✓：`_openai_tool_wire(` 恰好 3 次 ✓（定义 +
+   两个分支 ✓）
+
+聚焦回归 ✓：新门 4 条 + core_tools / subagent 安全标签门
+33 条 + plugin_api / todo 词表门 / subagent_task 56 条 ✓，
+共 93 条 ✓，全绿 ✓。全量 pytest 未跑 ✓。
+
+### 5 一条教训
+
+**同一函数多个 return 的相同载荷 ✓，是重复里最不该放过
+的一种 ✓——它们的距离只有几行 ✓，分叉时却最容易「以
+为改一处就行」 ✓。** ✓ 本次之前还专门核查了跨文件的
+`{"type": "object", "properties", "required"}` 四站点 ✓：
+那是 JSON Schema 词汇 ✓，不同 schema 文档的根节点是
+**不同事实** ✓，立家反而是过度设计 ✓。判别口诀 ✓：**同
+一函数内重复 → 必收 ✓；跨文件同形状 → 先问是不是同一
+个消费者的同一份数据 ✓，是才收 ✓。** **
