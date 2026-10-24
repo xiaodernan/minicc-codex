@@ -14,7 +14,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
-from .tools.registry import redact_text
+from .tools.registry import REDACTED_LLM_API_KEY, redact_text
 
 # M8-T343: "which statuses are terminal" has one home
 # (``agent.protocol``).  This module used to keep its own copy - three
@@ -196,7 +196,7 @@ class TaskStore:
                 # Older versions redacted the ``sk-`` substring inside
                 # ``task-...``. The relational primary key is authoritative
                 # and lets those records recover without data loss.
-                if not value.get("task_id") or "[REDACTED:llm_api_key]" in str(value.get("task_id")):
+                if not value.get("task_id") or REDACTED_LLM_API_KEY in str(value.get("task_id")):
                     value["task_id"] = str(row["task_id"])
                 output.append(value)
         return output
@@ -222,7 +222,7 @@ class TaskStore:
         # ``has_live_worker`` fell back to the legacy heartbeat heuristic
         # and could report a dead worker as alive (never re-queued) or a
         # live one as dead (killed mid-run).
-        if not value.get("task_id") or "[REDACTED:llm_api_key]" in str(value.get("task_id")):
+        if not value.get("task_id") or REDACTED_LLM_API_KEY in str(value.get("task_id")):
             value["task_id"] = str(row["task_id"])
         return value
 

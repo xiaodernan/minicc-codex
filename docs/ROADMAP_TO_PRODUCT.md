@@ -31841,3 +31841,69 @@ census：格式常量、`gmtime`、`isoformat(timespec=)`、`now(UTC)`、
 
 聚焦回归 ✓：session/task/tools/web 四面 **192 条** ✓（含新门禁 6 条 ✓），
 全绿 ✓。慢测试未跑 ✓，全量 pytest 未跑 ✓。
+## 第四百七十批 — M8-T486 — 脱敏标记词汇表两个家：日志面与模型面各写一份
+
+### 1 缺陷
+
+探针（扫 `[REDACTED` 字符串族）发现脱敏标记有三个家：
+
+- `[REDACTED:credential]` 在 `logging_setup.REDACTED` 与
+  `tools/registry.LABELLED_REDACTED` **各声明一份**——日志面与模型面各写
+  各的替换文本；
+- 「这个值是不是已经脱敏了」的前缀判断
+  `startswith("[REDACTED")` 在两个文件里各手拼一次；
+- `task_store` 为了修复被旧脱敏规则打残的 task_id，把
+  `[REDACTED:llm_api_key]` 这个标记按字面量又抄了两遍。
+
+标记在两个面上拼得不一样，就是同一个秘密在一张脸上被遮、在另一张脸上只
+是换了件衣服；前缀判断漏了一处，就是二次脱敏把标记越裹越长（M8-T290 修
+过的那条）——而 `_REDACT_RULES` 里 `sk-` 规则的替换文本也是第四处同值
+字面量，改一处漏三处，比漏改更隐蔽。
+
+### 2 落地
+
+- 家安 `minicc/tools/registry.py`——脱敏规则本来的家，logging_setup 本来
+  就 import 它 ✓：`REDACTED_PREFIX`（`[REDACTED`，含裸标记）、
+  `LABELLED_REDACTED`、`REDACTED_LLM_API_KEY` 三个常量加判问
+  `is_redacted()` ✓
+- logging_setup 的 `REDACTED` 改为别名 import 家的
+  `LABELLED_REDACTED`，`_MARKER_SPAN_RE` 改用
+  `re.escape(REDACTED_PREFIX)`，两处前缀判断改问 `is_redacted()` ✓
+- task_store 两处手拼改问 `REDACTED_LLM_API_KEY` ✓
+- registry 内 `_REDACT_RULES` 的 `sk-` 规则替换文本也改用家的常量 ✓
+- 门禁 `tests/test_the_redaction_marker_vocabulary_have_one_home.py`
+  7 条 ✓：家值与判问（含裸标记/空串边界）、census（每个标记字面量全场只
+  准在家里出现一次）、两张脸共享同一对象、task_store 用家的标记修复、日
+  志面真的用共享标记脱敏、二次脱敏不增长（M8-T290 性质）、两张脸对同一
+  秘密给出同一标记 ✓
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T486-324 | logging_setup 又声明一份自己的标记 | 红（census + 共享对象 ✓） |
+| M8-T486-325 | task_store 又手拼 llm 标记 | 红（census ✓） |
+| M8-T486-326 | registry 的 redact_text 恢复手拼前缀判断 | 红（census ✓） |
+| M8-T486-327 | is_redacted 窄化成只认 credential 标记 | 红（家值 ✓） |
+| M8-T486-328 | logging_setup 的日志面恢复手拼前缀判断 | 红（census ✓） |
+| M8-T486-329 | 家的前缀值漂移（丢掉裸标记） | 红（家值 ✓） |
+
+六条全部 KILLED ✓，恢复后字节相同 ✓。
+
+### 4 一条教训
+
+**安全词汇表的家，要放在「写标记的规则」旁边，而不是放在「读标记最勤的
+模块」里。** 脱敏标记最勤的读者是日志面，但家的正解是 tools/registry——
+标记是规则的产物，规则换一张脸，产物必须跟着换。logging_setup 用别名
+import（`LABELLED_REDACTED as REDACTED`）保留自己的旧名字，读者零改动，
+这正是「搬家不改门牌」的姿势：家可以搬，接口的旧名可以留，但**值只能有
+一份**。
+
+另一个值得记的判别式：`_MARKER_SPAN_RE` 这个正则本身也是标记的读者，它
+把 `[REDACTED` 焊死在正则里——正则里的字面量也是字面量，census 要连
+`re.compile` 的参数一起扫。`re.escape(REDACTED_PREFIX)` 之后，正则与判
+问共用同一个前缀常量，才算真的收口。
+
+聚焦回归 ✓：门禁 + logging + task_store 耐久 + 安全口 **216 条** ✓，全绿
+✓。慢测试未跑 ✓，全量 pytest 未跑 ✓。
+

@@ -88,10 +88,37 @@ _TOOL_NAME_RE = re.compile(
 )
 _PARAM_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
+#: The prefix every redaction marker starts with - the labelled forms below
+#: and the bare ``[REDACTED]`` the mcp.json header step writes.
+REDACTED_PREFIX = "[REDACTED"
+
+#: The replacement both faces use for a labelled secret: the log filter and
+#: the model context.  One value, because a marker the two faces spell
+#: differently is a secret masked on one face and merely labelled on the
+#: other.
+LABELLED_REDACTED = "[REDACTED:credential]"
+
+#: The marker the ``sk-`` rule writes.  ``task_store`` reads exactly this
+#: string to repair a task id an old redaction pass mangled (M8-T272).
+REDACTED_LLM_API_KEY = "[REDACTED:llm_api_key]"
+
+
+def is_redacted(value: str) -> bool:
+    """Whether a value is already a redaction marker (labelled or bare).
+
+    Both faces that mask labelled secrets - the log filter and the model
+    context - must skip an already-masked value: the quoted rule's value
+    pattern accepts brackets, so re-wrapping an existing marker grows the
+    text on every pass (M8-T290).  The two faces used to each spell the
+    prefix check by hand.
+    """
+    return value.startswith(REDACTED_PREFIX)
+
+
 _REDACT_RULES: tuple[tuple[re.Pattern[str], str], ...] = (
     # Do not match the ``sk-`` substring inside identifiers such as
     # ``task-...``; task ids must remain stable across durable reloads.
-    (re.compile(r"(?<![A-Za-z0-9])sk-[A-Za-z0-9_-]{8,}"), "[REDACTED:llm_api_key]"),
+    (re.compile(r"(?<![A-Za-z0-9])sk-[A-Za-z0-9_-]{8,}"), REDACTED_LLM_API_KEY),
     (re.compile(r"ghp_[A-Za-z0-9]{20,}"), "[REDACTED:github_token]"),
     (re.compile(r"github_pat_[A-Za-z0-9_]{20,}"), "[REDACTED:github_pat]"),
     (re.compile(r"AKIA[0-9A-Z]{16}"), "[REDACTED:aws_access_key]"),
@@ -138,9 +165,6 @@ KV_QUOTED_SECRET_RE = re.compile(
 KV_BARE_SECRET_RE = re.compile(
     rf"(?i)(?<![\w\"'-])({_SECRET_KEY}\s*[:=]\s*)([^\s,;}}\]\[]+)"
 )
-
-#: The replacement the model context uses for a labelled secret.
-LABELLED_REDACTED = "[REDACTED:credential]"
 
 #: Characters that mark a value as *code* rather than a credential.
 _CODE_VALUE_CHARS = "()[]{}<>,;=\"'` \t\n\r\\"
@@ -189,7 +213,7 @@ def redact_text(text: str) -> tuple[str, bool]:
         ) -> str:
             head = match.group(1)
             value = match.group(2)
-            if value.startswith("[REDACTED"):
+            if is_redacted(value):
                 return match.group(0)
             if not _looks_like_credential(value):
                 # M8-T292: not a credential - leave the code alone.

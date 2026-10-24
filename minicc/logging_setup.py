@@ -29,17 +29,19 @@ from .tools.registry import (
     KV_BARE_SECRET_RE,
     KV_QUOTED_SECRET_RE,
     QUERY_SECRET_RE,
+    is_redacted,
     redact_text,
+    LABELLED_REDACTED as REDACTED,
+    REDACTED_PREFIX,
 )
 
 ROOT_NAME = "minicc"
 LEVEL_ENV = "MINICC_LOG_LEVEL"
 FILE_ENV = "MINICC_LOG_FILE"
 DEFAULT_LEVEL = "WARNING"
-REDACTED = "[REDACTED:credential]"
 #: Any already-rendered redaction marker (ours or ``redact_text``'s labelled
 #: forms). Registered-value masking must never run inside one of these.
-_MARKER_SPAN_RE = re.compile(r"\[REDACTED[^\]]*\]")
+_MARKER_SPAN_RE = re.compile(re.escape(REDACTED_PREFIX) + r"[^\]]*\]")
 FORMAT = "%(asctime)s %(levelname)s %(name)s %(message)s"
 #: Registered secrets shorter than this are ignored — a 3-char token would
 #: redact half of an ordinary log line.
@@ -148,7 +150,7 @@ def redact(text: object) -> str:
     ):
         def _replace(match: re.Match[str], _has_tail: bool = has_tail) -> str:
             value = match.group(2)
-            if value.startswith("[REDACTED"):
+            if is_redacted(value):
                 # M8-T290: already masked - leave it alone.
                 return match.group(0)
             # M8-T290: the log masks **every** labelled value, including a
