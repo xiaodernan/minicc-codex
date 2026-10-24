@@ -398,6 +398,18 @@ def home_dir() -> Path:
     return root
 
 
+def workspace_not_directory_message(workspace: Path) -> str:
+    """The one wording of the "workspace is not a directory" verdict.
+
+    Both entry points - the CLI (``main``) and the web CLI (``web.main``) -
+    resolve ``--workspace`` and refuse a non-directory, and each spelled the
+    sentence by hand (M8-T492).  The failure modes differ (``_fatal`` exits
+    with the CLI's code, ``parser.error`` exits with argparse's), so the home
+    owns the words and each entry point keeps its own exit.
+    """
+    return f"工作区不是目录: {workspace}"
+
+
 def _read_config_json(path: Path) -> dict[str, Any]:
     """Load one config.json layer; a non-object top level is a ConfigError."""
     if not path.is_file():

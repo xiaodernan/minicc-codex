@@ -112,6 +112,7 @@ from .config import (
     home_dir,
     load_config,
     normalize_reasoning_effort,
+    workspace_not_directory_message,
 )
 from .allowlist import AllowlistError, add_session_rule, replace_session_rules, session_rules
 from .cli_io import cli_out
@@ -3389,7 +3390,7 @@ def main(argv: list[str] | None = None) -> int:
     configure_logging()
     workspace = args.workspace.expanduser().resolve()
     if not workspace.is_dir():
-        parser.error(f"工作区不是目录: {workspace}")
+        parser.error(workspace_not_directory_message(workspace))
     try:
         config = load_config(workspace=workspace)
     except ConfigError as exc:

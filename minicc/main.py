@@ -32,6 +32,7 @@ from .config import (
     ConfigError,
     load_config,
     normalize_model_name,
+    workspace_not_directory_message,
 )
 from .commands import discover_commands, expand_slash_command
 from .hooks import HookRunner
@@ -814,7 +815,7 @@ def main(argv: list[str] | None = None) -> int:
     # layer (<workspace>/.minicc/config.json) participates in resolution.
     workspace = args.workspace.expanduser().resolve()
     if not workspace.is_dir():
-        _fatal(f"工作区不是目录: {workspace}")
+        _fatal(workspace_not_directory_message(workspace))
 
     if args.list_sessions:
         _warn_unrun_prompt(args.prompt, "--list-sessions")

@@ -32187,3 +32187,50 @@ import 的模块，那个模块的**职责声明**就是家的资格说明书。
 聚焦回归 ✓：webfetch/mcp 重定向面 **40 条** ✓，全绿 ✓（test_webfetch.py
 约 5 分钟，列入慢测试清单 ✓）。全量 pytest 未跑 ✓。
 
+## 第四百七十六批 — M8-T492 — 工作区判词两个家：CLI 与 Web 入口各拼一句
+
+### 1 缺陷
+
+「工作区不是目录: X」有两个家：CLI 入口（`main.main`，`_fatal` 退出）与
+Web 入口（`web.main`，`parser.error` 退出）。两个入口解析同一个
+`--workspace`、拒绝同一种错误，句子却各拼一遍——一个入口改了措词另一个
+没跟上，就是同一件事在两个入口读到两句话。
+
+### 2 落地
+
+- 家安 `minicc/config.py`，紧挨 `home_dir`——工作区/配置根目录的解析本来
+  就住在这里：`workspace_not_directory_message(workspace)` ✓
+- 两个入口都改问家；失败方式不同（退出码一个走 `_fatal` 一个走
+  argparse），所以家只拥有**措词**，每个入口保留自己的退出路径 ✓
+- 门禁 `tests/test_the_workspace_verdict_has_one_home.py` 6 条 ✓：判词钉
+  死、census（全场恰一次）、两个入口都在问家（按调用形状计数）、两个入
+  口共享同一对象、**驱动真 CLI 入口**（SystemExit(2) + stderr 里的家句
+  子）、**驱动真 Web 入口**（同样 SystemExit(2) + stderr）✓
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T492-360 | main.py 恢复手拼判词 | 红（census ✓） |
+| M8-T492-361 | web.py 恢复手拼判词 | 红（census ✓） |
+| M8-T492-362 | 家里又声明一份副本 | 红（census ✓） |
+| M8-T492-363 | 家的判词漂移（不是目录改不存在） | 红（家值 ✓） |
+| M8-T492-364 | CLI 入口改用自己的措词 | 红（行为 ✓） |
+| M8-T492-365 | Web 入口改用自己的措词 | 红（行为 ✓） |
+
+六条全部 KILLED ✓，恢复后字节相同 ✓。
+
+### 4 一条教训
+
+**退出方式不同，不妨碍措词立一个家。** 两个入口一个 `_fatal`（退出码
+2、带 `minicc:` 前缀）一个 `parser.error`（argparse 的 usage + 退出码
+2）——失败机制是入口自己的事，句子是两个入口共享的事实。家的边界划在
+「说什么」，不划在「怎么失败」：把判词和退出机制一起打包成一个
+`assert_workspace_dir()` 反而会逼两个入口放弃各自的退出语义。判别式：共
+享的是**数据**（路径、键名、判词），不共享的是**控制流**（退出、抛给
+谁、什么码）。
+
+聚焦回归 ✓：CLI/config 入口面 **81 条** ✓（cli_stage_routing、
+cleanup_version、cli_compact、config_unknown_keys、project_config ✓），
+全绿 ✓。慢测试未跑 ✓，全量 pytest 未跑 ✓。
+
