@@ -70,6 +70,14 @@ from .internal_paths import HOOKS_FILENAME  # re-exported: the deny list reads i
 # Exit code a hook uses to explicitly deny/block (2 mirrors git hook style).
 HOOK_DENY_EXIT = 2
 
+#: M8-T513: the sentence a denial falls back to when the hook itself said
+#: nothing.  ``HookOutcome.denial_reason`` spelled it twice (the per-entry
+#: fallback and the nothing-denied fallback) and the runner spelled it a
+#: third time for a deny exit with no output - three hand-written copies of
+#: the one default a user sees when a hook refuses without explaining.  One
+#: constant; every reader asks it.
+DEFAULT_DENY_REASON = "hook denied"
+
 _NAME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_-]{0,63}$")
 
 
@@ -121,8 +129,8 @@ class HookOutcome:
     def denial_reason(self) -> str:
         for entry in self.outputs:
             if entry.get("decision") == "deny":
-                return str(entry.get("reason") or "hook denied")
-        return "hook denied"
+                return str(entry.get("reason") or DEFAULT_DENY_REASON)
+        return DEFAULT_DENY_REASON
 
 
 def _scrubbed_env(extra: dict[str, str] | None = None) -> dict[str, str]:
@@ -434,7 +442,7 @@ class HookRunner:
         if proc.returncode == 0:
             entry["decision"] = "allow"
         elif proc.returncode == HOOK_DENY_EXIT:
-            entry.update(decision="deny", reason=stdout or stderr or "hook denied")
+            entry.update(decision="deny", reason=stdout or stderr or DEFAULT_DENY_REASON)
         else:
             # Non-zero, non-deny exit: failure strategy decides.
             entry.update(

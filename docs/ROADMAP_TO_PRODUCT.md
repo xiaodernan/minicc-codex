@@ -33261,3 +33261,50 @@ CRLF，否则 `count == 1` 的断言会莫名失败（本轮实测踩到）。
 http_route_inventory、web_security、error_code_vocabulary、
 rejected_body、static_serving、batch_resume、route_wiring_pure、
 url_pre_flight ✓），全绿 ✓。慢测试未跑 ✓，全量 pytest 未跑 ✓。
+
+## 第四百九十七批 — M8-T513 — hook denied 默认判词三个家：拒绝而不解释时说的话
+
+### 1 缺陷
+
+hook 拒绝工具调用却什么都没说时，用户看到默认判词 `hook denied`。这句
+话有三个手拼家：`HookOutcome.denial_reason` 的每条目回退（有 deny 条目
+但 reason 为空）、它的「什么都没拒」回退、以及 runner 里 deny 退出码且
+无输出的分支。三处漂移的后果是同一事件在不同路径上给出不同解释——按消
+息匹配的上层（和人）对不上账。
+
+### 2 落地
+
+- 家安在 `minicc/hooks.py` 模块常量区，`HOOK_DENY_EXIT` 旁边：默认判词
+  和触发它的退出码是同一事实的两半 ✓
+- 三处全部改问家：`DEFAULT_DENY_REASON` ✓
+- 门禁 `tests/test_the_hook_denied_default_has_one_home.py` 4 条 ✓：pin
+  默认值、census（判词字面量全场恰 1 次且必须在家）、**两个读者各一条
+  行为断言**（`denial_reason` 三态：空 reason 回退、无 deny 回退、有
+  reason 原样通过——回退不是覆盖；runner 真跑 `exit 2` 无输出 hook，断言
+  entry 与 outcome 两处都落到默认判词）✓
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T513-488 | 每条目回退恢复手拼 | 红（census ✓） |
+| M8-T513-489 | 无拒绝回退恢复手拼 | 红（census ✓） |
+| M8-T513-490 | runner 分支恢复手拼 | 红（census ✓） |
+| M8-T513-491 | 家的默认值漂移 | 红（pin ✓） |
+| M8-T513-492 | 家里出现第二份副本 | 红（census ✓） |
+| M8-T513-493 | 每条目回退丢掉 or 回退 | 红（行为 ✓） |
+
+六条全部 KILLED ✓，恢复后字节相同 ✓。
+
+### 4 一条教训
+
+**回退值（fallback）是判词的一种，和消息文本同级。** `or` 右侧的默认
+值最容易被当成「不重要的一行」——它恰好在系统最异常的路径上（hook 拒
+绝却不解释）才出现在用户眼前，而那条路径平时没人走。本批门禁因此钉了
+「有 reason 原样通过」这条对照断言：只钉回退值本身，分不清回退和覆
+盖，一个把默认值当 always 用的变异会活得很好。
+
+聚焦回归 ✓：hooks 直面 **76 条** ✓（hooks、hooks_validation、
+hook_launch_failure、hooks_budget、hook_event_loop、hook_entry 门禁、
+hook_argument_redaction、subagent_hooks_inheritance ✓），全绿 ✓。慢测
+试未跑 ✓，全量 pytest 未跑 ✓。
