@@ -34,6 +34,7 @@ from .agent.loop import TurnResult
 from .agent.orchestration import assess_complexity, build_auto_subtasks
 from .agent.planner import PlannerPolicy, build_plan
 from .agent.protocol import (
+    BATCH_CANCELLED_ANSWER,
     TASK_CANCELLED_ANSWER,
     TASK_CANCELLED_ERROR,
     budget_exceeded_event,
@@ -282,7 +283,7 @@ def _cancelled_result(base: dict[str, Any]) -> dict[str, Any]:
     different messages across the two paths.
 
     Not the abort stamp (host shutdown keeps the answer and sets no
-    error) and not the batch notice ("批量任务已取消。") - those are
+    error) and not the batch notice (``BATCH_CANCELLED_ANSWER``) - those are
     different facts and stay where they are.
     """
     return {
@@ -1899,7 +1900,7 @@ class TaskManager:
                 return
 
             if parent.cancel_event.is_set():
-                result = _orchestration_result("批量任务已取消。", True, snapshots)
+                result = _orchestration_result(BATCH_CANCELLED_ANSWER, True, snapshots)
             elif any(item.get("status") in TASK_UNSUCCESSFUL_STATUSES for item in snapshots):
                 failed_children = ", ".join(
                     str(item.get("task_id") or "child")

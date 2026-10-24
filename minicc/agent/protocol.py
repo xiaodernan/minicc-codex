@@ -40,11 +40,19 @@ TERMINAL_TASK_STATUSES = frozenset({"completed", "failed", "cancelled", "interru
 #:
 #: The longer sentences that merely *begin* with these words
 #: (``任务已取消，已中止模型请求``, ``任务已取消，自动验证已停止。``) are
-#: different facts about different moments and stay where they are.  So does
-#: the batch notice ``批量任务已取消。``, and so does
-#: ``服务重启时任务被中断。`` - an interrupted task is not a cancelled one.
+#: different facts about different moments and stay where they are, and so
+#: does ``服务重启时任务被中断。`` - an interrupted task is not a cancelled
+#: one.  The batch notice below is the one near relative that *does* get a
+#: name: a cancelled batch is the same verdict at a wider scope, and the two
+#: faces that answer a cancelled batch - the task manager's watcher and the
+#: web face - each spelled it by hand (M8-T487).
 TASK_CANCELLED_ERROR = "任务已取消"
 TASK_CANCELLED_ANSWER = "任务已取消。"
+#: The sentence a cancelled *batch* answers with.  Same verdict, wider scope:
+#: the manager's cancelled exit and the web face each spelled it by hand, so
+#: a rename reached one face and not the other, and nothing failed anywhere
+#: (M8-T487).
+BATCH_CANCELLED_ANSWER = "批量任务已取消。"
 ACTIVE_TASK_STATUSES = frozenset(TASK_STATUSES - TERMINAL_TASK_STATUSES)
 #: The terminal statuses that mean "the task did not succeed" (failed or interrupted).
 #: A task that was cancelled was not asked to succeed — it was asked to stop.
@@ -348,6 +356,7 @@ def validate_status_transition(current: str, target: str) -> None:
 __all__ = [
     "ACTIVE_TASK_STATUSES",
     "ALLOWED_STATUS_TRANSITIONS",
+    "BATCH_CANCELLED_ANSWER",
     "BUDGET_EXCEEDED_ERROR_PREFIX",
     "CancellationToken",
     "EventLog",

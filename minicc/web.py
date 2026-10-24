@@ -73,6 +73,7 @@ from .route_wiring import (
 from .agent.state import AgentState, Budget, BudgetExceeded
 from .pricing import cost_usd as _pricing_cost_usd
 from .agent.protocol import (
+    BATCH_CANCELLED_ANSWER,
     budget_exceeded_error,
     budget_exceeded_event,
     CancellationToken,
@@ -1467,7 +1468,7 @@ class AgentService:
                     payload["budget_exceeded"] = budget_exceeded
                 return payload
             except AgentCancelled:
-                return {"answer": "批量任务已取消。", "cancelled": True}
+                return {"answer": BATCH_CANCELLED_ANSWER, "cancelled": True}
             finally:
                 await provider.close()
 
