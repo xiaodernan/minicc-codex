@@ -15,6 +15,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 from ..env_files import is_env_filename
+from ..secret_suffixes import KEY_MATERIAL_SUFFIXES
 from ..internal_paths import (
     ALLOWLIST_NAME,
     AUDIT_NAME,
@@ -48,12 +49,11 @@ SENSITIVE_NAMES = {
     "id_rsa",
     "id_ed25519",
 }
-SENSITIVE_SUFFIXES = (".pem", ".key", ".p12", ".pfx")
 
 
 def _is_sensitive_path(path: str) -> bool:
     name = Path(path).name.lower()
-    if name in SENSITIVE_NAMES or name.endswith(SENSITIVE_SUFFIXES):
+    if name in SENSITIVE_NAMES or name.endswith(KEY_MATERIAL_SUFFIXES):
         return True
     # M8-T510: the env family has one home; the ``.env.example`` carve-out is
     # this surface's own policy and stays visible here.

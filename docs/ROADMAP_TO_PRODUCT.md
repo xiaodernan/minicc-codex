@@ -33159,3 +33159,57 @@ cli_stage_routing、fake_provider_switch 门禁 ✓），全绿 ✓。慢测试�
 m4_evidence_chain、artefacts、change_gate、sensitive_refusal、
 evidence_index、file_preview_endpoint、verification_command_variants、
 verifier_lifecycle ✓），全绿 ✓。慢测试未跑 ✓，全量 pytest 未跑 ✓。
+
+## 第四百九十五批 — M8-T511 — 密钥材料后缀词表三个家：并集方向，fail-safe
+
+### 1 缺陷
+
+「带这个后缀的文件本身就是密钥」这张表有三个家、且**已经漂移**：文件工具
+知道四件（`minicc/tools/fs.py` 的 `SENSITIVE_SUFFIXES`），索引器知道五件
+（`minicc/agent/retrieval.py` 的 `SECRET_SUFFIXES`，多学了 `.kdbx`），验
+证 walk 行内只写了两件。后果不是报错而是静默：一把 `.p12` 证书，工具拒
+绝读，验证却当干净输入放行缓存复用——三个面对同一份密钥材料三个答
+案。
+
+### 2 落地
+
+- 家安在新叶子模块 `minicc/secret_suffixes.py`：读者分布在 `agent` 与
+  `tools`，只有叶子模块能同时被两者引用；与 `env_files.py` 分工——那个
+  管 env 家族名，这个管密钥材料后缀 ✓
+- 取向取**并集**：多拒一个文件是安全方向，少拒一个不是 ✓
+- 存成 tuple 而不是 set：文件工具要把它交给 `str.endswith`，另两面测归
+  属，tuple 两者都伺候 ✓
+- 门禁 `tests/test_the_key_material_suffixes_have_one_home.py` 5 条 ✓：
+  pin 元组值与类型、census（五个后缀字面量在 `minicc/` 各恰 1 次且必须
+  在家）、**三个面各一条行为断言**（fs 五件全拒、retrieval 五件全拦、
+  verification 五件全部禁用缓存复用）✓
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T511-476 | fs 恢复手拼四件套 | 红（census ✓） |
+| M8-T511-477 | retrieval 恢复手拼五件套 | 红（census ✓） |
+| M8-T511-478 | verification 恢复手拼两件套 | 红（census ✓） |
+| M8-T511-479 | 家丢掉 .kdbx | 红（fs/索引行为 ✓） |
+| M8-T511-480 | 家丢成 .pem/.key 两件 | 红（验证行为 ✓） |
+| M8-T511-481 | 家里出现第二份窄副本 | 红（census ✓） |
+
+六条全部 KILLED ✓，恢复后字节相同 ✓。
+
+### 4 一条教训
+
+**词表分叉的裁决标准是失效方向，不是读者数量。** 三个家乍看是三个事
+实（各自注释都写着「本模块的需要」），但同一个密钥材料文件在三个面得
+到三个答案，其中恰好有一个面在放行——并集让所有面向最严的一面看齐，
+这就是 fail-safe 方向。判别式：N 个词表描述同一个客观集合时，取向不
+看哪个读者多，看哪个方向的错误更贵。附带发现（留作后续候选）：
+`fs.py` 的 `SENSITIVE_NAMES` 是精确名单（只到 `credentials.json`），
+`retrieval.py` 的 `SECRET_STEMS` 是词干匹配（覆盖 `credentials.yaml`）——
+同一族「凭证仓库名」还有第二种形状的分叉，尚未收编。
+
+聚焦回归 ✓：三个面直面 **108 条** ✓（retrieval_enhanced、
+retrieval_skips_hidden_dirs、retrieval_notice、m4_evidence_chain、
+artefacts、change_gate、file_preview_endpoint、env_file_family 门禁、
+sensitive_refusal、listing_siblings、evidence_index ✓），全绿 ✓。慢测
+试未跑 ✓，全量 pytest 未跑 ✓。

@@ -39,6 +39,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from ..env_files import ENV_FILENAME
+from ..secret_suffixes import KEY_MATERIAL_SUFFIXES
 
 
 SKIP_DIRS = {".git", ".venv", "venv", "node_modules", "__pycache__", "output", "tmp", "data", ".minicc", "dist", "build", "coverage"}
@@ -47,8 +48,6 @@ SECRET_FILENAMES = {".env", ".env.local"}
 #: Basenames (casefolded, no suffix) that hold credentials rather than code.
 #: Matched exactly, and only on data files — see ``_SECRET_STORE_SUFFIXES``.
 SECRET_STEMS = {"secret", "secrets", "credential", "credentials"}
-#: Suffixes that are key material in their own right.
-SECRET_SUFFIXES = {".pem", ".key", ".p12", ".pfx", ".kdbx"}
 #: A name like ``credentials`` is a credential *store* when it holds data and
 #: ordinary code when it holds source. Without this split ``credentials.rs``
 #: and ``secrets.go`` would silently vanish from the index — measured, because
@@ -71,7 +70,7 @@ def is_secret_filename(name: str) -> bool:
     if folded in SECRET_FILENAMES or folded.startswith(ENV_FILENAME):
         return True
     path = Path(folded)
-    if path.suffix in SECRET_SUFFIXES:
+    if path.suffix in KEY_MATERIAL_SUFFIXES:
         return True
     if path.suffix not in _SECRET_STORE_SUFFIXES:
         return False
