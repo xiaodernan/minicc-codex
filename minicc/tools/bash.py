@@ -22,7 +22,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from .registry import split_output
+from .registry import exit_marker, split_output
 from .schemas import (
     CODE_CANCELLED,
     CODE_INVALID_ARGUMENTS,
@@ -494,7 +494,7 @@ def run_process(
         summary = f"(exit 0, {duration:.1f}s)"
     else:
         status = "error"
-        summary = f"[exit {proc.returncode}] ({summary_label}失败, {duration:.1f}s)"
+        summary = f"{exit_marker(proc.returncode)} ({summary_label}失败, {duration:.1f}s)"
 
     return ToolResult(
         status=status,

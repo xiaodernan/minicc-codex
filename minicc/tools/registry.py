@@ -700,3 +700,13 @@ def _redact_value(value: Any) -> Any:
 
 def truncate_to_result(text: str) -> tuple[str, str, bool]:
     return split_output(text)
+
+
+#: The one rendering of a non-zero process exit in a tool summary.  Both
+#: process-running tools - bash and git - spell this prefix by hand; a drift
+#: is a status marker that one tool's readers (the model, the event log)
+#: stop recognizing (M8-T493).  The success shapes differ per tool and stay
+#: per tool - only the failure marker is one fact.
+def exit_marker(code: int) -> str:
+    """The failure marker for a non-zero process exit."""
+    return f"[exit {code}]"

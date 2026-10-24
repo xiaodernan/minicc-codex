@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from .editor import EditError, resolve_in_workspace
-from .registry import ToolError, split_output
+from .registry import ToolError, exit_marker, split_output
 from .schemas import ToolResult, untrusted_tags
 
 
@@ -64,7 +64,7 @@ class GitTools:
             summary = f"git {' '.join(args)} (exit 0)"
             status = "ok"
         else:
-            summary = f"[exit {completed.returncode}] git {' '.join(args)}"
+            summary = f"{exit_marker(completed.returncode)} git {' '.join(args)}"
             status = "error"
         return ToolResult(
             status=status,

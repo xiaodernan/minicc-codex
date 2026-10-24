@@ -32234,3 +32234,54 @@ Web 入口（`web.main`，`parser.error` 退出）。两个入口解析同一个
 cleanup_version、cli_compact、config_unknown_keys、project_config ✓），
 全绿 ✓。慢测试未跑 ✓，全量 pytest 未跑 ✓。
 
+## 第四百七十七批 — M8-T493 — 进程退出标记两个家：bash 与 git 各拼一遍
+
+### 1 缺陷
+
+「[exit N]」是工具摘要里标记「进程非零退出」的前缀，有两个家：
+`tools/bash.py` 的失败分支与 `tools/git.py` 的失败分支。模型和事件日志
+都读这个标记——一个工具改了写法（`[exit code N]`、`(exit N)`）而另一个
+没跟上，就是一类读者在一种工具上再也认不出的状态标记。两个工具**成功**
+时的摘要形状各自不同（bash 带时长、git 带命令），那是对的；只有失败标
+记是同一个事实。
+
+### 2 落地
+
+- 家安 `minicc/tools/registry.py`——两个工具本来就都 import 的工具词汇
+  表家（工具名、脱敏标记都住在这儿）：`exit_marker(code)` ✓
+- 两个失败分支都改问家，摘要字节不变 ✓
+- 门禁 `tests/test_the_exit_marker_has_one_home.py` 6 条 ✓：标记钉死、
+  census（含 f-string 拼接，「[exit 」全场恰一次）、两个工具都在问家
+  （按调用形状计数）、两个工具共享同一对象、**驱动真 bash**（`python -c
+  "sys.exit(3)"`，退出码与摘要前缀逐字节对）、**驱动真 git**（不存在的
+  ref，退出码非零且摘要前缀对）✓
+- 踩一个 census 新坑：家自己的 **docstring** 里写了 ``[exit N]``，被自
+  己的 census 数成第二现场——子串 census 与精确相等 census 不一样，家的
+  文档措辞要避开被 census 的片段 ✓
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T493-366 | bash 恢复手拼标记 | 红（census ✓） |
+| M8-T493-367 | git 恢复手拼标记 | 红（census ✓） |
+| M8-T493-368 | 家里又声明一份副本 | 红（census ✓） |
+| M8-T493-369 | 家的标记漂移（加 code 字样） | 红（家值 ✓） |
+| M8-T493-370 | git 调用点把退出码写死成 1 | 红（行为 ✓） |
+| M8-T493-371 | bash 调用点把退出码写死成 0 | 红（行为 ✓） |
+
+六条全部 KILLED ✓，恢复后字节相同 ✓。
+
+### 4 一条教训
+
+**子串 census 会把家自己的文档数成第二个家。** 精确相等 census（T486）
+天然免疫——docstring 不可能恰好等于一个短标记；子串 census（T489/T491
+沿用）只要家的 docstring 或注释里提到了这个片段就会命中。注释不是 AST
+节点所以无害，但 **docstring 是字符串常量**。判别式：立家之后，家的
+docstring 要么复述「这是什么」而不写片段本身，要么 census 显式排除家的
+docstring 节点。本次选了前者——docstring 改成「The failure marker for a
+non-zero process exit」，片段本身只出现在 f-string 里。
+
+聚焦回归 ✓：core_tools **32 条** ✓，全绿 ✓。慢测试未跑 ✓，全量 pytest
+未跑 ✓。
+
