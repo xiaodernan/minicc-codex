@@ -33359,3 +33359,55 @@ SyntaxError。
 budget_fold、hooks_inheritance、task、wiring、streaming、verdicts 门禁、
 security_tags 门禁、parallel_bookkeeping ✓），全绿 ✓。慢测试未跑 ✓，全
 量 pytest 未跑 ✓。
+
+## 第四百九十九批 — M8-T515 — 工具上下文协议判词六个家：一个前缀，六种违约
+
+### 1 缺陷
+
+`minicc/agent/context.py` 的 `validate_tool_protocol` 用六条判词拒绝畸形
+的原生工具轮次，六条都手拼了同一个前缀 `工具上下文协议无效：`，其中两条
+还各自手拼了 `第 N 条` 的位置约定。前缀是这一族拒绝的**契约标记**——
+loop 的预检、修复通道、测试都按它匹配；哪天某一条改了措词，这条违约就
+对不上它的家族，而按前缀匹配的读者只会看到半族红、半族静默。
+
+### 2 落地
+
+- 家安在 `minicc/agent/context.py`，`validate_tool_protocol` 隔壁：前缀
+  常量 `TOOL_PROTOCOL_ERROR_PREFIX` + 组装函数
+  `tool_protocol_error(detail, position=None)`；0 基位置转 1 基句子的约
+  定只存在一份 ✓
+- 六处全部改问家；每条判词特有的尾部（「消息不是对象」「结果没有对应调
+  用」……）留在调用方——那是各自的违约描述，不是共享事实 ✓
+- 门禁 `tests/test_the_tool_protocol_error_has_one_home.py` 4 条 ✓：pin
+  前缀与位置约定（含无位置变体）、census（f-string 骨架**按开头**判，
+  全场恰 1 次且必须在家）、**六条判词各一个驱动用例**（真调
+  `validate_tool_protocol`，断言完整句子）、合法历史对照 ✓
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T515-500 | 「不是对象」判词恢复手拼 | 红（census ✓） |
+| M8-T515-501 | 「结果没有对应调用」恢复手拼 | 红（census ✓） |
+| M8-T515-502 | 「工具轮次缺少结果」恢复手拼 | 红（census ✓） |
+| M8-T515-503 | 家的前缀漂移 | 红（pin ✓） |
+| M8-T515-504 | 位置约定漏掉 +1 | 红（行为 ✓） |
+| M8-T515-505 | 一处读者丢掉位置参数 | 红（行为 ✓） |
+
+六条全部 KILLED ✓，恢复后字节相同 ✓。
+
+### 4 一条教训
+
+**同一族判词共享前缀时，census 必须按「f-string 骨架 + 开头」判——本轮
+因此抓住了三个漏网的变异。** 500/501/502 在第一版门下全部 SURVIVED：
+判据只数裸 `ast.Constant`，而手拼的判词在 f-string 里，其字面段是
+`工具上下文协议无效：第 ` 和 ` 条消息不是对象`，谁也不等于完整前缀。
+T514-495 是同一个坑的第一次（骨架精确相等漏掉带尾巴的读者），本轮是
+第二次（只数 Constant 漏掉全部 f-string 读者）。制度固化：**判据 =
+JoinedStr 骨架 + 裸 Constant，两者都按前缀判**；T497 三判表的「防手拼
+按开头判」从此包含「骨架也要按开头判」。
+
+聚焦回归 ✓：context/protocol 直面 **63 条** ✓（accuracy_contracts、
+evidence_row、reused_tool_call_id、context_payload 门禁、
+vision_context、model_context_redaction ✓），全绿 ✓。慢测试未跑 ✓，全量
+pytest 未跑 ✓。

@@ -83,6 +83,24 @@ def pending_tool_calls(messages: list[dict[str, Any]]) -> set[str]:
     return pending
 
 
+#: M8-T515: the marker every tool-protocol rejection carries.  Six judgments
+#: in ``validate_tool_protocol`` spelled the prefix by hand - two of them
+#: also spelled the ``第 N 条`` position convention - so the family could
+#: drift apart sentence by sentence while every reader (the loop's
+#: pre-flight, the repair pass, the tests) still matched only the prefix.
+TOOL_PROTOCOL_ERROR_PREFIX = "工具上下文协议无效："
+
+
+def tool_protocol_error(detail: str, position: int | None = None) -> str:
+    """The one wording of a tool-protocol rejection.
+
+    ``position`` is the 0-based index ``tool_round_walk`` yields; the
+    sentence is 1-based, so the conversion lives here, once.
+    """
+    where = f"第 {position + 1} 条" if position is not None else ""
+    return f"{TOOL_PROTOCOL_ERROR_PREFIX}{where}{detail}"
+
+
 def validate_tool_protocol(messages: list[dict[str, Any]]) -> None:
     """Reject incomplete or orphaned native tool rounds before network I/O.
 
@@ -102,28 +120,26 @@ def validate_tool_protocol(messages: list[dict[str, Any]]) -> None:
             # "reject illegal rounds before network I/O", and an
             # ``AttributeError`` is not a rejection anyone can catch on
             # purpose.
-            raise ValueError(
-                f"工具上下文协议无效：第 {position + 1} 条消息不是对象"
-            )
+            raise ValueError(tool_protocol_error("消息不是对象", position))
         if message.get("role") == "tool":
             call_id = str(message.get("tool_call_id") or "")
             if call_id not in pending:
-                raise ValueError(f"工具上下文协议无效：第 {position + 1} 条结果没有对应调用")
+                raise ValueError(tool_protocol_error("结果没有对应调用", position))
             continue
         if pending:
-            raise ValueError("工具上下文协议无效：工具轮次缺少结果")
+            raise ValueError(tool_protocol_error("工具轮次缺少结果"))
         calls = message.get("tool_calls") or []
         if calls:
             if message.get("role") != "assistant" or not isinstance(calls, list):
-                raise ValueError("工具上下文协议无效：调用必须属于 assistant 轮次")
+                raise ValueError(tool_protocol_error("调用必须属于 assistant 轮次"))
             seen: set[str] = set()
             for call in calls:
                 call_id = str(call.get("id") or "") if isinstance(call, dict) else ""
                 if not call_id or call_id in seen:
-                    raise ValueError("工具上下文协议无效：调用 ID 为空或重复")
+                    raise ValueError(tool_protocol_error("调用 ID 为空或重复"))
                 seen.add(call_id)
     if last_after:
-        raise ValueError("工具上下文协议无效：最后一个工具轮次缺少结果")
+        raise ValueError(tool_protocol_error("最后一个工具轮次缺少结果"))
 
 
 #: The content a repaired interrupted round carries: the result is unknown,
