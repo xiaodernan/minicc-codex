@@ -32135,3 +32135,55 @@ server 条目（主语是 server 名）。判词句子「不会被读取（已�
 project_config、mcp_recognized_keys_derive、mcp_transport_dead_keys、
 config_surface ✓），全绿 ✓。慢测试未跑 ✓，全量 pytest 未跑 ✓。
 
+## 第四百七十五批 — M8-T491 — 重定向上限判词两个家：两个 HTTP 客户端各拼一句
+
+### 1 缺陷
+
+探针发现「重定向超过 N 次，已停止跟踪」有两个家：`mcp.py` 的 HTTP 传输
+（主语是 server 名）与 `tools/webfetch.py` 的抓取循环（裸句）。两个 HTTP
+客户端放弃时的判词各拼一遍——一个改了措辞另一个没跟上，就是一类用户从没
+见过的错误消息。两个客户端各自的重定向上限常量（`MAX_MCP_REDIRECTS` /
+`MAX_REDIRECTS`）是两份独立策略，不合并；要收的只是那句话。
+
+### 2 落地
+
+- 家安 `minicc/netguard.py`——它的 docstring 本来就写着「Shared SSRF
+  checks for webfetch and HTTP MCP URLs」，这两个客户端共用的模块：
+  `redirect_limit_message(limit, subject="")`，主语可选 ✓
+- 两个客户端都改问家，消息字节不变 ✓
+- 门禁 `tests/test_the_redirect_limit_message_has_one_home.py` 6 条 ✓：
+  两种形状钉死、census（「次，已停止跟踪」全场恰一次）、两个客户端都在
+  问家（按调用形状计数）、两个客户端共享同一对象、**驱动真 webfetch 抓取
+  循环**（每跳都 302，上限获胜）、**驱动真 MCP POST 循环**（构造即初始
+  化，同样每跳 302）✓
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T491-354 | mcp 恢复手拼判词 | 红（census ✓） |
+| M8-T491-355 | webfetch 恢复手拼判词 | 红（census ✓） |
+| M8-T491-356 | 家里又声明一份副本 | 红（census ✓） |
+| M8-T491-357 | 家的判词漂移（停止跟踪改放弃） | 红（家值 ✓） |
+| M8-T491-358 | mcp 调用点丢掉主语 | 红（行为 ✓） |
+| M8-T491-359 | webfetch 调用点上限数差一 | 红（行为 ✓） |
+
+六条全部 KILLED ✓，恢复后字节相同 ✓。
+
+### 4 一条教训
+
+**家的落点看「共用的模块」，不看「先写的模块」。** 这句话的两个消费者
+是 webfetch 与 mcp，任何一方当家人都会让另一方 import 一个语义上无关的
+模块；而 netguard 的 docstring 早就宣布了「webfetch 与 MCP HTTP 共用」
+——家一直就在那儿，只是没人把这句话搬进去。判别式：给两个消费者找共同
+import 的模块，那个模块的**职责声明**就是家的资格说明书。
+
+两个实操坑：① `from minicc.tools import webfetch` 拿到的是包
+`__init__` 里同名的工具**函数**，不是模块——要模块对象（monkeypatch 属
+性）必须 `importlib.import_module("minicc.tools.webfetch")`；② MCP 客户
+端的 `_post` 在 `__init__` 的 `_initialize()` 里就被调用，行为测试要把
+`pytest.raises` 包在**构造**上，第一版包在显式调用上，压根没执行到。
+
+聚焦回归 ✓：webfetch/mcp 重定向面 **40 条** ✓，全绿 ✓（test_webfetch.py
+约 5 分钟，列入慢测试清单 ✓）。全量 pytest 未跑 ✓。
+

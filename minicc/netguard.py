@@ -147,3 +147,14 @@ __all__ = [
     "parse_http_url",
     "resolve_pinned_host",
 ]
+
+
+#: The one wording of the redirect-limit verdict.  Both HTTP clients that
+#: follow redirects - the webfetch tool and the MCP HTTP transport - spell
+#: this sentence when they give up: same fact, same words, one home
+#: (M8-T491).  ``subject`` names whoever gave up ("" for the bare tool
+#: message).
+def redirect_limit_message(limit: int, subject: str = "") -> str:
+    """The verdict for a redirect chain that outgrew its hop limit."""
+    prefix = f"{subject} " if subject else ""
+    return f"{prefix}重定向超过 {limit} 次，已停止跟踪"

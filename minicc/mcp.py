@@ -37,7 +37,7 @@ from .config import unrecognized_key_warning
 from .internal_paths import MCP_CONFIG_NAME
 from .jsonrpc import ERROR_METHOD_NOT_FOUND, JSONRPC_VERSION, method_not_found_message
 from .logging_setup import get_logger
-from .netguard import SCHEME_PREFIXES, BlockedAddressError, assert_public_http_url
+from .netguard import SCHEME_PREFIXES, BlockedAddressError, assert_public_http_url, redirect_limit_message
 from .tools.registry import (
     TOOL_NAME_BODY_CLASS,
     TOOL_NAME_MAX_CHARS,
@@ -707,7 +707,7 @@ class McpHttpClient:
             except (urllib.error.URLError, OSError) as exc:
                 raise McpError(f"MCP HTTP server {self.config.name} 不可达: {exc}") from None
         raise McpError(
-            f"MCP HTTP server {self.config.name} 重定向超过 {MAX_MCP_REDIRECTS} 次，已停止跟踪"
+            redirect_limit_message(MAX_MCP_REDIRECTS, f"MCP HTTP server {self.config.name}")
         )
 
     def _initialize(self) -> None:

@@ -25,7 +25,7 @@ import urllib.request
 from html.parser import HTMLParser
 from typing import Any
 
-from ..netguard import BlockedAddressError, parse_http_url, resolve_pinned_host
+from ..netguard import BlockedAddressError, parse_http_url, redirect_limit_message, resolve_pinned_host
 
 from .registry import ToolError, ToolResult, redact_text, split_output
 from .schemas import untrusted_tags
@@ -316,7 +316,7 @@ def fetch_url_text(
             result["final_url"] = current
             break
         else:
-            raise FetchError(f"重定向超过 {max_redirects} 次，已停止跟踪")
+            raise FetchError(redirect_limit_message(max_redirects))
 
         if status >= 400:
             raise FetchError(f"HTTP {status}，页面不可用")
