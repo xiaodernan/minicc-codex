@@ -61,7 +61,7 @@ from ..trace import trace_event
 from ..logging_setup import log_provider_event
 from .envelope import EnvelopeParseError, _render_envelope_action, envelope_system_suffix, parse_envelope
 from .stream_merge import AttemptTextAssembler, merge_retry_snapshot
-from .base import retry_detail
+from .base import retry_detail, stream_retry_summary
 from .usage import (
     cache_summary,
     channel_counter,
@@ -1231,7 +1231,7 @@ class OpenAICompatibleProvider:
                         status="error",
                         phase="planning",
                         code="provider_retry",
-                        summary=f"模型流中断，正在进行第 {attempt + 1} 次重试",
+                        summary=stream_retry_summary(attempt + 1),
                         detail=retry_detail(attempt + 1, self._max_retries + 1),
                     ))
                 await asyncio.sleep(_stream_retry_delay(exc, attempt))

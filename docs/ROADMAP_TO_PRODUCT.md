@@ -31963,3 +31963,63 @@ T479 的注释把批量判词和单任务判词正确地拆开（值不同），
 merge_cost_budget_fold、batch watcher、second scan）+ 既有两道取消/编排
 门禁 13 条 ✓，全绿 ✓。慢测试未跑 ✓，全量 pytest 未跑 ✓。
 
+## 第四百七十二批 — M8-T488 — 模型流重试判词两个家：fake 冒充的那条生产轨迹
+
+### 1 缺陷
+
+探针发现 `模型流中断，正在进行第 N 次重试` 有两个生产现场：真 provider
+（`openai_provider` 的流重试循环）与假 provider（`fake` 的故障注入）。
+fake 的存在意义就是**冒充生产轨迹**——它自己的注释写着「a log or event
+assertion written here describes the production trace」。同一个句子两边
+各拼一遍：真 provider 改了措辞而 fake 没跟上，所有针对 fake 的断言就在
+描述一条生产上再也写不出来的轨迹，而且全绿。同一条 trace 事件的另一
+半——`retry_detail` 的两个键——早就立了家在 `llm/base.py`，summary 这
+句却一直在外面漂。
+
+### 2 落地
+
+- 家安 `minicc/llm/base.py`，紧挨 `retry_detail`：模板常量
+  `STREAM_RETRY_SUMMARY` + 建造器 `stream_retry_summary(attempt)` ✓
+- 两个现场都改问家：真 provider 的流重试与 fake 的故障注入，attempt 的
+  「+1」语义随调用一起显式化 ✓
+- 门禁 `tests/test_the_stream_retry_summary_has_one_home.py` 6 条 ✓：家值
+  钉死（ attempt=1/3 两个样）、census（**含 f-string 的字面片段拼接**，
+  手拼 f-string 也逃不掉）、两个 provider 都在问家（按调用形状计数）、
+  两个 provider 共享同一对象、**进程内驱动 fake 真的发出生产句子**（monkeypatch
+  恢复环境变量，T484 教训）、流之前的「模型请求暂时失败」是另一个时刻的
+  另一个事实、全场恰一个现场 ✓
+- 踩一个新坑：census 用 `ast.walk` 会**把 f-string 的内部常量也单独走一
+  遍**，同一行算出两条；门禁要先收集 JoinedStr 的子节点 id 再跳过——
+  第一版门禁因此红过，修完才对 ✓
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T488-336 | openai_provider 恢复手拼 f-string | 红（census ✓） |
+| M8-T488-337 | fake 恢复手拼 f-string | 红（census ✓） |
+| M8-T488-338 | 家里又声明一份模板副本 | 红（census ✓） |
+| M8-T488-339 | 家的模板值漂移（重试改尝试） | 红（家值 ✓） |
+| M8-T488-340 | fake 的 attempt 差一（从 0 数起） | 红（行为 ✓） |
+| M8-T488-341 | openai_provider 的 attempt 差一 | 红（问家计数 ✓） |
+
+六条全部 KILLED ✓，恢复后字节相同 ✓。
+
+### 4 一条教训
+
+**测试替身的「逼真」本身就是一份契约，而契约的每一半都要立家。**
+`retry_detail` 的两个键立了家，summary 句子没有——于是「fake 模仿生
+产」这句话只对了一半：detail 漂移会被门禁抓到，summary 漂移不会。判别
+式：一个测试替身与生产之间**任何**共享的形状（键名、判词、字段序），
+只要替身是手写的，就是一对潜在的两个家。fake 的逼真度不是「质量属
+性」，是「契约面积」。
+
+另一个实操教训：census 扫 f-string 时，`ast.walk` 会把插值片段内部的
+常量节点也单独产出——同一行手拼的 f-string 会算出两条记录，`len == 1`
+的断言会以错误的方式红（或绿）。扫字符串字面量的 census 必须先收集
+`JoinedStr` 的子节点再排除，否则「恰好一个」的计数从根上不可信。
+
+聚焦回归 ✓：llm/agent/fake 直面 **122 条** ✓（core_llm、core_agent、
+fake switch 门禁、subagent_task、benchmark_runner 96 条 + logging 单跑
+26 条 ✓），全绿 ✓。慢测试未跑 ✓，全量 pytest 未跑 ✓。
+

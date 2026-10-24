@@ -149,6 +149,21 @@ def retry_detail(attempt: int, retry_limit: int) -> dict[str, int]:
     return {"attempt": attempt, "retry_limit": retry_limit}
 
 
+#: The one wording of the provider-retry trace summary.  The fake provider
+#: emits this exact sentence on purpose: an assertion written against the
+#: fake must describe the production trace (see ``retry_detail`` above).  A
+#: rename of the real sentence that the fake does not follow is a test that
+#: keeps passing while describing a trace production no longer emits
+#: (M8-T488).  The pre-stream ``模型请求暂时失败`` retry is a different fact
+#: about a different moment and keeps its own wording.
+STREAM_RETRY_SUMMARY = "模型流中断，正在进行第 {attempt} 次重试"
+
+
+def stream_retry_summary(attempt: int) -> str:
+    """The provider-retry summary for the given attempt number."""
+    return STREAM_RETRY_SUMMARY.format(attempt=attempt)
+
+
 def image_part(url: str, detail: str | None = None) -> dict[str, Any]:
     """The one shape of an image part on the chat-completions wire.
 
