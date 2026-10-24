@@ -135,7 +135,12 @@ _PLACE_WORD = re.compile("(?:" + _DIRECTIONS + ")")
 #: never reported as unchecked-by-design. ``## 8. 继续实施`` is a heading that *answers*
 #: 第8节, so the pair is checkable once the digit is admitted on both sides.
 _NUM = r"(\d+|[一二三四五六七八九十]+)"
-_SECTION = re.compile(rf"第{_NUM}节")
+#: Spaces here are the same citation, and this document ships them: ``见 ROADMAP 第 6 节``
+#: is how the records write it, so the strict form silently filed 24 live pointers as
+#: 「no locator」 and adjudicated none of them. Same discipline as ``_BATCH`` above - the
+#: key is built from ``group(1)`` by ``_numeral``, never from the matched text, so the
+#: spaced and unspaced spellings cannot fork into two different section numbers.
+_SECTION = re.compile(rf"第\s*{_NUM}\s*节")
 #: The batch axis needs its own class, and widening ``_NUM`` instead is a different
 #: claim: measured over the shipped corpus, admitting 百/千 in ``第N节`` changes 0
 #: verdicts (162 matches, 13 distinct numbers, before *and* after) because no section
@@ -269,6 +274,25 @@ def _numeral(word: str) -> int | None:
     return None
 
 
+#: One shape decides whether a heading declares a section number, and *both* tables below
+#: read it. ``[.、]`` is the shipped spelling (``## 四、明确不做什么``, ``## 8. 继续实施``);
+#: a bare space (``### 6 真发现：…``) is how a batch's own sub-items sign themselves, and
+#: that is what 「第 6 节」 written inside that batch actually points at. Requiring the
+#: separator, as the level-2 table alone used to, would leave each table with its own
+#: hand-copied notion of "declares a number" - the drift this repo keeps paying for.
+#: The separator may not be a random character: without the ``[.、]``-or-space rule,
+#: ``## 2026-09-25：M6-4 全量结案`` would declare 第2026节.
+_DECLARED_NUMBER = re.compile(r"^([一二三四五六七八九十]+|\d+)(?:\s*[.、]|\s)")
+
+
+def _declared_number(title: str) -> int | None:
+    """The section number a heading claims about itself, in canonical arithmetic."""
+    match = _DECLARED_NUMBER.match(title)
+    if match is None:
+        return None
+    return _numeral(match.group(1))
+
+
 def _numbered_headings(headings: list[Section]) -> dict[int, Section]:
     """Map ``N`` to the level-2 heading that declares itself section N.
 
@@ -281,12 +305,47 @@ def _numbered_headings(headings: list[Section]) -> dict[int, Section]:
     for section in headings:
         if section.level != 2:
             continue
-        match = re.match(r"^([一二三四五六七八九十]+|\d+)[.、]", section.title)
-        if match:
-            numeral = _numeral(match.group(1))
-            if numeral is not None:
-                out.setdefault(numeral, section)
+        numeral = _declared_number(section.title)
+        if numeral is not None:
+            out.setdefault(numeral, section)
     return out
+
+
+def _subsection_tables(headings: list[Section]) -> list[tuple[int, dict[int, Section]]]:
+    """Per batch section, the level-3 headings under it that declare a section number.
+
+    A record reads ``## 第 445 批 …`` then ``### 6 真发现：…``: 「见上面的第 6 节」 written
+    in that body means that sub-item, not the front matter's ``## 六、每个阶段应该跟踪的指标``.
+    Admitting the spaced citation alone would tie 24 real pointers to 22 answers of a
+    different question - green, and wrong. A batch declares itself with
+    ``_declared_batch_labels``, so the rule that gates the batch roster gates these tables
+    too; the front matter's ``## 一、`` sections own no table and keep resolving through the
+    document-wide table exactly as they did.
+    """
+    tables: list[tuple[int, dict[int, Section]]] = []
+    current: dict[int, Section] | None = None
+    for section in headings:
+        if section.level == 2:
+            current = {} if _declared_batch_labels(section.title) else None
+            if current is not None:
+                tables.append((section.line, current))
+        elif section.level == 3 and current is not None:
+            numeral = _declared_number(section.title)
+            if numeral is not None:
+                current.setdefault(numeral, section)
+    return tables
+
+
+def _enclosing_table(
+    tables: list[tuple[int, dict[int, Section]]], line: int
+) -> dict[int, Section] | None:
+    """The batch table a pointer lives inside, or ``None`` above the first batch heading."""
+    found: dict[int, Section] | None = None
+    for start, table in tables:
+        if start > line:
+            break
+        found = table
+    return found
 
 
 @lru_cache(maxsize=None)
@@ -721,6 +780,7 @@ def check_pointers(document: Path, text: str) -> tuple[list[Problem], int, dict[
     headings = sections(text)
     numbered = _numbered_headings(headings)
     batch_labels = _batch_labels(headings)
+    subsections = _subsection_tables(headings)
     labels = _declared_labels(text)
     problems: list[Problem] = []
     checked = 0
@@ -785,7 +845,12 @@ def check_pointers(document: Path, text: str) -> tuple[list[Problem], int, dict[
                     )
                 )
                 continue
-            target = numbered.get(numeral) if numeral is not None else None
+            enclosing = _enclosing_table(subsections, line)
+            target = (enclosing or {}).get(numeral) if numeral is not None else None
+            if target is None and numeral is not None:
+                # No batch-local answer: fall back to the document-wide table, then to the
+                # cross-document scan, so the front-matter citations keep their old target.
+                target = numbered.get(numeral)
             if target is not None:
                 continue
             found = _cross_document_sections(text, offset, numeral) if numeral is not None else []

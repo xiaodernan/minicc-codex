@@ -766,8 +766,13 @@ def test_an_arabic_section_number_is_a_locator_and_a_heading_answers_it() -> Non
     assert checked == boxes[dp.BOX_CHECKED] == 1, (checked, boxes)
     assert boxes[dp.BOX_WORD] == 0, "指针掉进词内箱就是没人查"
     assert len(_pointer_problems("# T\n\n## 8. 继续实施\n\n见第7节。\n")) == 1
-    # A number with no separator is a title, not a claim about being section N.
-    assert len(_pointer_problems("# T\n\n## 8 继续实施\n\n见第8节。\n")) == 1
+    # A digit followed by a space declares the same section: M8-T463 measured that the
+    # spaced spelling is what this repository ships in bulk (``### 8 基线（数字要带平面…）``),
+    # and one title shape may not mean "declaration" in a batch's own table and "just a
+    # title" in the document table — that is a hand-copied second rule, which is the bug.
+    assert _pointer_problems("# T\n\n## 8 继续实施\n\n见第8节。\n") == []
+    # What still is not a declaration: a number with no separator at all after it.
+    assert len(_pointer_problems("# T\n\n## 2026-09-25：某日记录\n\n见第2026节。\n")) == 1
 
 
 def test_an_arabic_pointer_to_a_nickname_still_needs_the_file_named() -> None:
