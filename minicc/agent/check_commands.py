@@ -1,6 +1,8 @@
 """Portable command tokenization and conservative verification identities."""
 from __future__ import annotations
 
+from minicc.shell_lexing import QUOTE_CHARS
+
 def command_parts(command: str) -> list[str]:
     """Parse literal argv without evaluating a shell or eating path slashes."""
     tokens: list[str] = []
@@ -14,7 +16,7 @@ def command_parts(command: str) -> list[str]:
             current.append(quote)
             index += 2
             continue
-        if char in {'"', "'"}:
+        if char in QUOTE_CHARS:
             if not quote:
                 quote = char
                 started = True

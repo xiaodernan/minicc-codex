@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Any
 
 from .registry import exit_marker, split_output
+from minicc.shell_lexing import QUOTE_CHARS
 from .schemas import (
     CODE_CANCELLED,
     CODE_INVALID_ARGUMENTS,
@@ -65,7 +66,7 @@ def _has_unquoted_background_operator(command: str) -> bool:
         if char == "^" and os.name == "nt":
             escaped = True
             continue
-        if char in {"'", '"'}:
+        if char in QUOTE_CHARS:
             if quote is None:
                 quote = char
             elif quote == char:
@@ -110,7 +111,7 @@ def _tokenize_segment(segment: str) -> list[str]:
         while (
             len(cleaned) >= 2
             and cleaned[0] == cleaned[-1]
-            and cleaned[0] in {"'", '"'}
+            and cleaned[0] in QUOTE_CHARS
         ):
             cleaned = cleaned[1:-1]
         if cleaned:
@@ -140,7 +141,7 @@ def split_command_argv(command: str) -> list[list[str]]:
                 quote = None
             index += 1
             continue
-        if char in {"'", '"'}:
+        if char in QUOTE_CHARS:
             quote = char
             current.append(char)
             index += 1

@@ -33411,3 +33411,49 @@ JoinedStr 骨架 + 裸 Constant，两者都按前缀判**；T497 三判表的「
 evidence_row、reused_tool_call_id、context_payload 门禁、
 vision_context、model_context_redaction ✓），全绿 ✓。慢测试未跑 ✓，全量
 pytest 未跑 ✓。
+
+## 第五百批 — M8-T516 — QUOTE_CHARS 一个键六个家：check_commands/bash/config
+
+### 1 缺陷
+
+引号字符集合 `{"'", '"'}` 这一事实出现在 **6 个地方** ✓：
+
+| 面 | 代码 | 用途 |
+| --- | --- | --- |
+| `minicc/agent/check_commands.py:17` ✓ | `if char in {'"', "'"}:` ✓ | 命令词法分析：识别引号字符 |
+| `minicc/tools/bash.py:68` ✓ | `if char in {"'", '"'}:` ✓ | 后台算符检测：跳过引号内的 & |
+| `minicc/tools/bash.py:113` ✓ | `and cleaned[0] in {"'", '"'}` ✓ | 词元清洗：去除首尾引号 |
+| `minicc/tools/bash.py:143` ✓ | `if char in {"'", '"'}:` ✓ | 命令分段：按未加引号的算符分段 |
+| `minicc/config.py:553` ✓ | `if quote in {'"', "'"} ...` ✓ | .env 解析：识别带引号的值 |
+| `minicc/config.py:921` ✓ | `part = raw_root.strip().strip('"')` ✓ | 工作区根路径：去除引号 |
+
+这些写法**完全等价**（仅顺序/风格不同）✓，却**各自手写** ✓，且**没有名字** ✓。
+
+其实这是个明确的语义：**"Shell 识别的引号字符"** ✓。
+
+### 2 落地
+
+* **建家** ✓：新建 `minicc/shell_lexing.py`，定义 `QUOTE_CHARS = frozenset({'"', "'"})` ✓
+* **6 处**全改问那个家 ✓（`from minicc.shell_lexing import QUOTE_CHARS`）✓。
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T516-163 | 把 bash.py 一处改回手写 `{"'", '"'}` | 1 条红（census ✓） |
+
+### 4 新增门禁
+
+`tests/test_the_quote_chars_have_one_home.py`（6 条）✓：
+
+1. **家在 shell_lexing.py** ✓：`QUOTE_CHARS` 存在且等于 `frozenset({'"', "'"})` ✓
+2. **check_commands.py 从 shell_lexing 导入** ✓
+3. **bash.py 从 shell_lexing 导入** ✓
+4. **config.py 从 shell_lexing 导入** ✓
+5. **没有模块硬码 `{"'", '"'}`** ✓：AST 扫描全包，`shell_lexing.py` 以外的集合均报红 ✓
+6. **同一值、同义务** ✓：四模块的 `QUOTE_CHARS` 引用同一常量 ✓
+
+### 5 一条教训
+
+**跨层级的词法事实最值得立家。** ✓
+引号字符是 Shell 词法的基础设施 ✓，`check_commands`（代理层）、`bash`（工具层）、`config`（配置层）三个层级都要用 ✓。没人立家时，每层都按各自记忆写一遍 ✓——改 Shell 规则时要改三处、漏一处 ✓。立家后只改一处、三层同步 ✓✓。

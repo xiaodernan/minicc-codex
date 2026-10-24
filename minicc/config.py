@@ -20,6 +20,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from minicc.shell_lexing import QUOTE_CHARS
+
 _LOGGER = logging.getLogger("minicc.config")
 
 # Default to the configured OpenAI-compatible gateway; callers can still
@@ -550,7 +552,7 @@ def _parse_env_file(path: Path) -> dict[str, str]:
         key, _, value = line.partition("=")
         value = value.strip()
         quote = value[:1]
-        if quote in {'"', "'"} and len(value) >= 2 and value.endswith(quote):
+        if quote in QUOTE_CHARS and len(value) >= 2 and value.endswith(quote):
             value = value[1:-1]
         else:
             # M2-T8: strip inline comments from unquoted values — a `#` after
@@ -560,7 +562,9 @@ def _parse_env_file(path: Path) -> dict[str, str]:
                 index = value.find(marker)
                 if index != -1:
                     value = value[:index]
-            value = value.rstrip().strip('"').strip("'")
+            value = value.rstrip()
+            for qc in QUOTE_CHARS:
+                value = value.strip(qc)
         values[key.strip()] = value
     return values
 
@@ -918,7 +922,9 @@ def load_config(
     raw_roots = pick(None, "MINICC_WORKSPACE_ROOTS", "workspace_roots", "")
     workspace_roots: list[Path] = []
     for raw_root in raw_roots.replace(",", os.pathsep).split(os.pathsep):
-        part = raw_root.strip().strip('"')
+        part = raw_root.strip()
+        for qc in QUOTE_CHARS:
+            part = part.strip(qc)
         if not part:
             continue
         workspace_roots.append(Path(part).expanduser().resolve())
