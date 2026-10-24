@@ -32895,3 +32895,49 @@ grep 都搜不到。
 聚焦回归 ✓：web/audit 直面 **42 条** ✓（logging、backup_is_not_change、
 batch_review ✓），全绿 ✓。慢测试未跑 ✓（test_http_surface 约 65s，避
 开），全量 pytest 未跑 ✓。
+
+## 第四百九十批 — M8-T506 — 快照路径越界判词两个家：_relative 与 _within
+
+### 1 缺陷
+
+探针发现「快照路径越界: X」在 `snapshots.py` 里有两个家：`_relative` 拒
+绝原始拼写里就含 `..`/盘符/绝对路径的路径，`_within` 拒绝解析后落到工作
+区外的路径。两处逐字相同（主语都是 rel）。一条坏路径从哪扇门进来，读到
+的就是哪份拼写——一处改了措词其余没跟上，没有任何测试会红。
+
+### 2 落地
+
+- 家安在 `minicc/snapshots.py` 模块层，紧挨 `_relative`——两个调用点都
+  在这个模块：`snapshot_path_escapes_message(rel)`，路径是参数 ✓
+- 两扇门全部改问家，消息字节不变 ✓
+- 门禁 `tests/test_the_snapshot_escape_verdict_has_one_home.py` 5 条 ✓：
+  判词钉死、census（精确相等，全场恰一次）、计数断言、**两扇门各一条端
+  到端行为断言**（原始拼写门真喂带 `..` 的反斜杠路径；解析门用
+  monkeypatch 换掉 `_relative` 的返回值隔离出 resolve 越界分支）✓
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T506-444 | 原始拼写门恢复手拼判词 | 红（census ✓） |
+| M8-T506-445 | 解析门恢复手拼判词 | 红（census ✓） |
+| M8-T506-446 | 家里又声明一份判词副本 | 红（census ✓） |
+| M8-T506-447 | 家的判词漂移（已拒绝后缀） | 红（家值 ✓） |
+| M8-T506-448 | 原始拼写门主语用未归一化的 raw | 红（行为 ✓） |
+| M8-T506-449 | 解析门主语用 target 路径对象 | 红（行为 ✓） |
+
+六条全部 KILLED ✓，恢复后字节相同 ✓。
+
+### 4 一条教训
+
+**门里再造一次门时，主语用哪个变量要钉死。** `_within` 内部对同一个
+`rel` 再跑一次 `_relative`，越界时渲染的是 `_within` 的入参、不是
+`_relative` 的返回值——写门禁时第一版断言猜错了主语（期望归一化后的拼
+写），红了才去读代码确认。判别式：一个函数把入参交给内部 helper 再自己
+报错时，「消息里的主语是入参还是 helper 的产出」必须由一个能区分两者的
+行为断言钉死；本批 448（raw vs 归一化 rel）和 449（rel vs target）两条
+变异杀的都是这个区别。
+
+聚焦回归 ✓：snapshot/containment 直面 **64 条** ✓（snapshots_pure、
+snapshots、workspace_containment、internal_dirs、error_code_vocabulary
+门禁 ✓），全绿 ✓。慢测试未跑 ✓，全量 pytest 未跑 ✓。

@@ -45,12 +45,22 @@ def snapshot_dir(workspace: Path, task_id: str) -> Path:
     return dest
 
 
+def snapshot_path_escapes_message(rel: str) -> str:
+    """The one wording of the snapshot path escape refusal.
+
+    ``_relative`` refuses a raw spelling that names outside the
+    workspace and ``_within`` refuses a resolved path that lands
+    outside it (M8-T506); the path is a parameter.
+    """
+    return f"快照路径越界: {rel}"
+
+
 def _relative(raw: object) -> str:
     if not isinstance(raw, str) or not raw:
         raise SnapshotError("快照包含空路径")
     rel = raw.replace("\\", "/")
     if "\0" in rel or ":" in rel or PureWindowsPath(rel).drive or PurePosixPath(rel).is_absolute() or ".." in PurePosixPath(rel).parts:
-        raise SnapshotError(f"快照路径越界: {rel}")
+        raise SnapshotError(snapshot_path_escapes_message(rel))
     parts = PurePosixPath(rel).parts
     if not parts or parts[0].casefold() in INTERNAL_DIRS:
         raise SnapshotError(f"快照包含内部路径: {rel}")
@@ -67,7 +77,7 @@ def _within(root: Path, rel: str) -> Path:
         if current.is_symlink() or (hasattr(current, "is_junction") and current.is_junction()):
             raise SnapshotError(f"快照不跟随文件链接: {rel}")
     if not target.resolve().is_relative_to(root.resolve()):
-        raise SnapshotError(f"快照路径越界: {rel}")
+        raise SnapshotError(snapshot_path_escapes_message(rel))
     return target
 
 
