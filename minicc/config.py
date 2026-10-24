@@ -437,6 +437,17 @@ def unwritable_file_message(subject: Path | str, exc: BaseException) -> str:
     return f"无法写入 {subject}: {exc}"
 
 
+def must_be_json_object_message(subject: str, actual: str) -> str:
+    """The one wording of the "this knob must be a JSON object" verdict.
+
+    ``pick_object`` spells it twice - the value written straight into
+    config.json as an array/scalar, and the JSON-string spelling that
+    parses to something other than an object (M8-T503); the subject
+    names the spelling that carried the value.
+    """
+    return f"{subject} 必须是 JSON 对象，实际是 {actual}"
+
+
 def _read_config_json(path: Path) -> dict[str, Any]:
     """Load one config.json layer; a non-object top level is a ConfigError."""
     if not path.is_file():
@@ -771,7 +782,7 @@ def load_config(
             # {"stage_routing": ["fast"]}) - never a string, so JSON parsing
             # would only produce a repr-shaped error message.
             raise ConfigError(
-                f"{source_name} 必须是 JSON 对象，实际是 {type(raw).__name__}"
+                must_be_json_object_message(source_name, type(raw).__name__)
             )
         try:
             parsed = json.loads(raw)
@@ -781,7 +792,7 @@ def load_config(
             ) from None
         if not isinstance(parsed, dict):
             raise ConfigError(
-                f"{source_name} 必须是 JSON 对象，实际是 {type(parsed).__name__}"
+                must_be_json_object_message(source_name, type(parsed).__name__)
             )
         return normalize_stage_routing(parsed, path=source_name)
 
