@@ -32546,3 +32546,54 @@ allowlist_validation、webauth_validation、missing_session 门禁 ✓），全
 webauth_validation、allowlist_validation、allowlist、config_surface、
 project_config、session_rewind、session_format_version、T497/T495 门禁
 ✓），全绿 ✓。慢测试未跑 ✓，全量 pytest 未跑 ✓。
+
+## 第四百八十三批 — M8-T499 — mention 注入拒绝判词四个家：两个检查点各拼两句
+
+### 1 缺陷
+
+探针发现 mention 注入的两条拒绝判词在 `mentions.py` 里各有**两个**家：
+「.minicc 认证/授权文件不允许注入」在原始 token 检查点（M2-T2）和 CJK
+收敛后路径检查点（M8-T65）各拼一次；「permissions.json deny 规则不允许注
+入」在原始 token 检查点（M8-T317）和收敛后检查点（M8-T290）各拼一次。
+四个家逐字相同。一条 mention 被拒，用户读到哪句措词取决于 token 是原样
+还是带了 CJK 粘连尾巴——一处改了措词其余三处没跟上，没有任何测试会红。
+
+### 2 落地
+
+- 两个家安在 `minicc/mentions.py` 模块层，紧挨 `_reject`——四个调用点都
+  在这个模块，家只服务这个模块；两条判词是两个事实（凭据门 vs deny 规
+  则门），各自一个家函数：`credential_injection_refusal()`、
+  `deny_rule_injection_refusal()` ✓
+- 四个调用点全部改问家，消息字节不变 ✓
+- 门禁 `tests/test_the_mention_injection_verdicts_have_one_home.py` 9 条
+  ✓：两个判词各钉值、census ×2（精确相等，各自全场恰一次）、四个调用
+  点都在问家（按调用形状计数 3=1 定义+2 检查点）、**四个检查点各一条端
+  到端行为断言**（原始/收敛 × 凭据/deny，真写坏权限文件、真驱动
+  mention 解析、比对完整 reason）✓
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T499-402 | 原始 token 凭据门恢复手拼判词 | 红（census ✓） |
+| M8-T499-403 | 收敛 deny 门恢复手拼判词 | 红（census ✓） |
+| M8-T499-404 | 凭据家里又声明一份判词副本 | 红（census ✓） |
+| M8-T499-405 | 凭据家的判词漂移（认证文件） | 红（家值 ✓） |
+| M8-T499-406 | 收敛凭据门拿的是 deny 判词 | 红（行为 ✓） |
+| M8-T499-407 | deny 家的判词漂移 | 红（家值 ✓） |
+
+六条全部 KILLED ✓，恢复后字节相同 ✓。
+
+### 4 一条教训
+
+**安全边界判词的家，行为断言要覆盖每扇「门」而不是每条「路径」。** 本批
+四个调用点是「两个判词 × 两个检查点」的乘积：检查点是因为 CJK 粘连回退
+（M8-T65/M8-T290 各自补的）而存在的，不是复制粘贴懒惰——所以家收编的是
+措词，两个检查点必须各自保留。变异 406（收敛凭据门拿 deny 判词）census
+和计数断言全都看不见，只有端到端驱动收敛路径才能杀。判别式：同一个判词
+在第 N 个检查点被复用，就要有第 N 条行为断言钉死它在该检查点的取值；
+检查点是安全语义的一部分，省掉的断言就是将来绕过边界的那个缺口。
+
+聚焦回归 ✓：mention/permission 直面 **83 条** ✓（mentions、mentions_pure、
+mentions_budget、records 门禁、cap 门禁、checkpoint 门禁、permissions_pure、
+deny veto 门禁 ✓），全绿 ✓。慢测试未跑 ✓，全量 pytest 未跑 ✓。

@@ -99,6 +99,26 @@ def _reject(token: str, reason: str) -> dict[str, Any]:
     return _record(token, token, "rejected", reason, False)
 
 
+def credential_injection_refusal() -> str:
+    """The one wording of the .minicc credential-file injection refusal.
+
+    The mention path spells it at both of its checkpoints - the raw
+    token and the CJK-converged path (M8-T65) - so a rename reached
+    the checkpoint somebody remembered and a user read a different
+    refusal depending on how the token was typed.
+    """
+    return ".minicc 认证/授权文件不允许注入"
+
+
+def deny_rule_injection_refusal() -> str:
+    """The one wording of the permissions deny-rule injection refusal.
+
+    Same two checkpoints (M8-T290 re-checks the deny gate on the
+    converged path); the sentence is one fact.
+    """
+    return "permissions.json deny 规则不允许注入"
+
+
 def _annotate(token: str, status: str, reason: str) -> dict[str, Any]:
     return _record(token, token, status, reason, False)
 
@@ -142,7 +162,7 @@ def build_mention_context(
         # Same .minicc credential gate the file tools enforce (M2-T2).
         sensitive = _minicc_sensitive_kind(token)
         if sensitive == "deny":
-            records.append(_reject(token, ".minicc 认证/授权文件不允许注入"))
+            records.append(_reject(token, credential_injection_refusal()))
             continue
         # M8-T317: the same deny rules the agent's own read is subject to.
         # The mention path is a **third** reader of the workspace (beside
@@ -151,7 +171,7 @@ def build_mention_context(
         # (``deny.paths``) was pasted into the model in full by an
         # ``@mention``.
         if tool_denied_by_rule(ws, "read_file", {"path": token}):
-            records.append(_reject(token, "permissions.json deny 规则不允许注入"))
+            records.append(_reject(token, deny_rule_injection_refusal()))
             continue
         try:
             resolved = (ws / raw).resolve()
@@ -184,7 +204,7 @@ def build_mention_context(
         # ——只查工作区边界不查敏感门，就是一条 bearer 外泄路径。
         walked_kind = _minicc_sensitive_kind(rel)
         if walked_kind == "deny":
-            records.append(_reject(original, ".minicc 认证/授权文件不允许注入"))
+            records.append(_reject(original, credential_injection_refusal()))
             continue
         if walked_kind == "redact":
             sensitive = "redact"
@@ -194,7 +214,7 @@ def build_mention_context(
         # (``secrets/k.txt`` does not match ``secrets/k.txt是什么``), and the
         # walk converges onto the very file the rule names.
         if tool_denied_by_rule(ws, "read_file", {"path": rel}):
-            records.append(_reject(original, "permissions.json deny 规则不允许注入"))
+            records.append(_reject(original, deny_rule_injection_refusal()))
             continue
         remaining = min(max_chars_per_file, max_total_chars - used)
         if remaining <= 0:
