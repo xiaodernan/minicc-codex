@@ -98,6 +98,19 @@ def _validate_read_window(offset: int, limit: int) -> None:
         raise EditError(f"limit={limit} 超过单次读取上限 {MAX_READ_LINES}")
 
 
+def missing_file_message(path: str, subject: str = "文件") -> str:
+    """The one wording of the file-is-missing verdict.
+
+    Five call sites spelled this sentence by hand - ``read_file_meta``,
+    ``read_file``, ``apply_edit``, ``delete`` and ``move``'s source - and a
+    wording only some of them follow is an error the model reads differently
+    depending on which door it walked through (M8-T494).  ``move``'s source
+    is the same sentence with a different subject noun, so the noun is the
+    parameter and the shape stays one.
+    """
+    return f"{subject}不存在: {path}"
+
+
 #: The one prefix a containment refusal carries.  Six sites used to spell the
 #: sentence by hand - two here, three in ``tools/fs.py`` (glob, grep, tree)
 #: and one in ``web.py`` (``/api/files``) - and the four outside this home
@@ -499,7 +512,7 @@ class Editor:
         _validate_read_window(offset, limit)
         target = self._resolve(path)
         if not target.is_file():
-            raise EditError(f"文件不存在: {path}")
+            raise EditError(missing_file_message(path))
         lines, raw = self._read_window(target, path, offset, limit)
         digest = sha256_digest(raw)
         self._audit(
@@ -521,7 +534,7 @@ class Editor:
         _validate_read_window(offset, limit)
         target = self._resolve(path)
         if not target.is_file():
-            raise EditError(f"文件不存在: {path}")
+            raise EditError(missing_file_message(path))
         result, raw = self._read_window(target, path, offset, limit)
         self._audit(
             "read",
@@ -659,7 +672,7 @@ class Editor:
             raise EditError("apply_edit 的 old 不能为空字符串")
         target = self._resolve(path)
         if not target.is_file():
-            raise EditError(f"文件不存在: {path}")
+            raise EditError(missing_file_message(path))
         before = self._check_expected_digest("edit", path, target, expected_digest)
         text = target.read_text(encoding="utf-8")
         count = text.count(old)
@@ -712,7 +725,7 @@ class Editor:
         source = self._resolve(src)
         destination = self._resolve(dst)
         if not source.is_file():
-            raise EditError(f"源文件不存在: {src}")
+            raise EditError(missing_file_message(src, "源文件"))
         if destination.exists():
             raise EditError(f"目标已存在: {dst}")
         before = self._digest_bytes(source)
@@ -733,7 +746,7 @@ class Editor:
     def delete(self, path: str) -> None:
         target = self._resolve(path)
         if not target.is_file():
-            raise EditError(f"文件不存在: {path}")
+            raise EditError(missing_file_message(path))
         before = self._digest_bytes(target)
         self._backup(target)
         if self._before_write is not None:
