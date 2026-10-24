@@ -164,6 +164,18 @@ def stream_retry_summary(attempt: int) -> str:
     return STREAM_RETRY_SUMMARY.format(attempt=attempt)
 
 
+#: The one wording of the mid-stream partial failure.  Both channels' streams
+#: can break after deltas were already delivered, and each channel raises its
+#: own partial error carrying this sentence.  The sentence reaches the model
+#: context through ``LLM 调用失败: {exc}``, so a wording only one channel
+#: follows is an error message the other channel's readers have never seen
+#: (M8-T489).  ``responses stream ended without a final response`` is a
+#: different moment and keeps its own sentence.
+def stream_broke_message(channel: str, chars: int, exc: BaseException) -> str:
+    """The partial-failure sentence for a stream that broke mid-delivery."""
+    return f"{channel} stream broke after delivering {chars} chars: {type(exc).__name__}"
+
+
 def image_part(url: str, detail: str | None = None) -> dict[str, Any]:
     """The one shape of an image part on the chat-completions wire.
 

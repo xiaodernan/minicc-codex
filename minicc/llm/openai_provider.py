@@ -61,7 +61,7 @@ from ..trace import trace_event
 from ..logging_setup import log_provider_event
 from .envelope import EnvelopeParseError, _render_envelope_action, envelope_system_suffix, parse_envelope
 from .stream_merge import AttemptTextAssembler, merge_retry_snapshot
-from .base import retry_detail, stream_retry_summary
+from .base import retry_detail, stream_broke_message, stream_retry_summary
 from .usage import (
     cache_summary,
     channel_counter,
@@ -951,8 +951,7 @@ class OpenAICompatibleProvider:
                 if emitted["chars"] == 0:
                     raise
                 raise ResponsesPartialError(
-                    f"responses stream broke after delivering {emitted['chars']} chars: "
-                    f"{type(exc).__name__}"
+                    stream_broke_message("responses", emitted["chars"], exc)
                 ) from exc
             finally:
                 await _close_stream(stream)

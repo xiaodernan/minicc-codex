@@ -32023,3 +32023,60 @@ assertion written here describes the production trace」。同一个句子两边
 fake switch 门禁、subagent_task、benchmark_runner 96 条 + logging 单跑
 26 条 ✓），全绿 ✓。慢测试未跑 ✓，全量 pytest 未跑 ✓。
 
+## 第四百七十三批 — M8-T489 — 流中断判词三个家：两个通道的各句 partial error
+
+### 1 缺陷
+
+探针发现「流在已经吐出字符之后断掉」的判词有三个家：
+`anthropic_provider` 的重试循环里一处（`{emitted}`）、SSE 消费器里一处
+（`{emitted['chars']}`，同一个文件两种变量拼法）、`openai_provider` 的
+Responses 流里一处（小写 `responses` 开头，还拆成了两个 f-string 拼接）。
+这句话经 ``LLM 调用失败: {exc}`` 流进模型上下文——一个通道改了措辞而
+另一个没跟上，就是模型在一种通道里从没见过的错误消息，没有任何测试会
+红。它与 T488 的 summary 句子是同一个「流的异常词汇表」的上下两半。
+
+### 2 落地
+
+- 家安 `minicc/llm/base.py`，紧挨 `stream_retry_summary`：
+  `stream_broke_message(channel, chars, exc)`——通道名当参数，两个通道
+  的消息字节不变 ✓
+- 三个现场全部改问家；anthropic 两处不同的变量拼法（`emitted` 与
+  `emitted["chars"]`）在调用处显式分叉，家里只有一种拼法 ✓
+- 门禁 `tests/test_the_stream_broke_message_has_one_home.py` 6 条 ✓：两
+  个通道的渲染钉死、census（含 f-string 拼接片段的「stream broke after
+  delivering」全场恰一次）、两个通道都在问家（按调用形状计数，anthropic
+  两处 openai 一处）、两个通道共享同一对象、**驱动真 SSE 消费器**（先
+  吐一个 5 字符 delta 再断链）验消息字节、`ended without a final
+  response` 是另一个时刻仍只有一个现场 ✓
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T489-342 | anthropic 重试循环处恢复手拼 | 红（census ✓） |
+| M8-T489-343 | anthropic SSE 消费器处恢复手拼 | 红（census ✓） |
+| M8-T489-344 | openai 处恢复手拼 | 红（census ✓） |
+| M8-T489-345 | 家的模板漂移（delivering 改 sent） | 红（家值 ✓） |
+| M8-T489-346 | SSE 处把计数器字典当字符数传 | 红（行为 ✓） |
+| M8-T489-347 | openai 处的通道名漂移 | 红（问家计数 ✓） |
+
+六条全部 KILLED ✓，恢复后字节相同 ✓。
+
+### 4 一条教训
+
+**同一个文件的同一个句子拼两遍，比跨文件重复更危险。** anthropic 两处
+相隔七十行、变量拼法还不一样（`{emitted}` 与 `{emitted['chars']}`）——
+按字面量 census 它们是两条不同的记录，按「句子」census（T478 的单位）
+才是一条。教训延续 T485：census 的单位是「句子/机制」，不是「字符串相
+等」；同一个文件内的重复不会因为「反正是同一个作者同一个文件」而变得
+无害，它只是让漂移多了一件同款外套。
+
+另一个收获：openai 那条原文把一句话拆成两个 f-string 拼接
+（`"...chars: " f"{type(exc).__name__}"`）——census  JoinedStr 拼接片
+段之后照样抓到。立家时把两行拼回一句，diff 变小的同时消息字节不变。
+
+聚焦回归 ✓：流式/通道直面 **41 条** ✓（responses_streaming、broken
+frame、anthropic_provider、anthropic_plan_channel、retry_detail 门禁、
+channel counter 门禁、rate_limit_retry、T488 门禁 ✓），全绿 ✓。慢测试
+未跑 ✓，全量 pytest 未跑 ✓。
+

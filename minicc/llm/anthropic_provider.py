@@ -33,7 +33,7 @@ try:  # httpx ships with the OpenAI SDK dependency; keep the import guarded.
 except ModuleNotFoundError:  # pragma: no cover - depends on the HTTP stack.
     httpx = None  # type: ignore[assignment]
 
-from .base import LLMResponse, as_dict, is_nameless_tool_name, safe_int, tool_call, unique_tool_call_id
+from .base import LLMResponse, as_dict, is_nameless_tool_name, safe_int, stream_broke_message, tool_call, unique_tool_call_id
 from .usage import (
     channel_counter,
     channel_status_payload,
@@ -536,7 +536,7 @@ class AnthropicProvider:
             except httpx.HTTPError as exc:
                 if emitted > 0:
                     raise AnthropicPartialError(
-                        f"Anthropic stream broke after delivering {emitted} chars: {type(exc).__name__}"
+                        stream_broke_message("Anthropic", emitted, exc)
                     ) from exc
                 if attempt > self.max_retries:
                     raise AnthropicProviderError(f"Anthropic 请求失败: {exc}") from exc
@@ -605,7 +605,7 @@ async def _consume_anthropic_sse(response: Any, on_delta: Any, emitted: dict[str
         if emitted["chars"] == 0:
             raise
         raise AnthropicPartialError(
-            f"Anthropic stream broke after delivering {emitted['chars']} chars: {type(exc).__name__}"
+            stream_broke_message("Anthropic", emitted["chars"], exc)
         ) from exc
     return {
         "text": "".join(text_parts),
