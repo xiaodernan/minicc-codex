@@ -33213,3 +33213,51 @@ retrieval_skips_hidden_dirs、retrieval_notice、m4_evidence_chain、
 artefacts、change_gate、file_preview_endpoint、env_file_family 门禁、
 sensitive_refusal、listing_siblings、evidence_index ✓），全绿 ✓。慢测
 试未跑 ✓，全量 pytest 未跑 ✓。
+
+## 第四百九十六批 — M8-T512 — task not found 判词三个家：404 的机器码有了家，人话没有
+
+### 1 缺陷
+
+「没有这个任务」这条拒绝由三处路由发出：任务读取（GET）、事件流
+（`_stream_task`）、POST 兜底。三处调用形状逐字相同——`_fail(404,
+"task not found", code=CODE_TASK_NOT_FOUND)`。机器码 `CODE_TASK_NOT_FOUND`
+早在 M8-T5 立了家（错误码词表），但跟着它一起发的**人话句子**是三份手
+拼：码和句子哪天漂移，按消息匹配的客户端就会在一半路由上认不出这个拒
+绝，而按码匹配的客户端毫无察觉。
+
+### 2 落地
+
+- 家安在 `minicc/webserver.py` 常量区，`CODE_TASK_NOT_FOUND` 的隔壁：
+  同一条拒绝的两半（码与句）住在一起 ✓
+- 三处全部改问家：`TASK_NOT_FOUND_MESSAGE` ✓
+- 门禁 `tests/test_the_task_not_found_message_has_one_home.py` 5 条 ✓：
+  pin 句子与码的值、census（句子字面量全场恰 1 次且必须在家）、**三条
+  路由各一条行为断言**（handler `__new__` + 记录器 fake：GET 任务读取、
+  events 流（真驱动 `_stream_task` 让其内部的 KeyError 分支真跑）、POST
+  resume 兜底；断言 `_fail` 收到的 404/句子/码三元组）✓
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T512-482 | GET 任务读取恢复手拼 | 红（census ✓） |
+| M8-T512-483 | events 流恢复手拼 | 红（census ✓） |
+| M8-T512-484 | POST 兜底恢复手拼 | 红（census ✓） |
+| M8-T512-485 | 家的句子漂移 | 红（pin ✓） |
+| M8-T512-486 | 家里出现第二份句子副本 | 红（census ✓） |
+| M8-T512-487 | GET 路由给句子配错码 | 红（行为 ✓） |
+
+六条全部 KILLED ✓，恢复后字节相同 ✓。
+
+### 4 一条教训
+
+**一条拒绝的「码」和「话」是同一条事实的两半，立家时要一起看。** 本批
+的码在 M8-T5 就有家，句子裸了十八批直到字符串 census 才扫到——立过家
+的事实旁边常常站着它的没家兄弟，复查时要按「家的判据」扫邻居，不按出现
+次数扫。操作教训一条：变异脚本按字节读文件时锚点必须用 LF 写再转回
+CRLF，否则 `count == 1` 的断言会莫名失败（本轮实测踩到）。
+
+聚焦回归 ✓：webserver 直面 **91 条** ✓（tasks_api_prefix 门禁、
+http_route_inventory、web_security、error_code_vocabulary、
+rejected_body、static_serving、batch_resume、route_wiring_pure、
+url_pre_flight ✓），全绿 ✓。慢测试未跑 ✓，全量 pytest 未跑 ✓。

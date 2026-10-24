@@ -77,6 +77,14 @@ CODE_TOO_MANY_EVENT_STREAMS = "too_many_event_streams"
 CODE_REQUEST_FAILED = "request_failed"
 CODE_INTERNAL_ERROR = "internal_error"
 
+#: M8-T512: the human-readable half of the same refusal.  ``CODE_TASK_NOT_FOUND``
+#: above had one home, but the sentence that travels with it was spelled by
+#: hand at all three readers - the task read, the event stream, and the POST
+#: catch-all - so the code and the sentence could drift apart, and a client
+#: matching on the message would see one route answer the old sentence and
+#: another answer something newer.  One sentence; every reader asks it.
+TASK_NOT_FOUND_MESSAGE = "task not found"
+
 ERROR_CODES: dict[type[BaseException], str] = {
     KeyError: CODE_TASK_NOT_FOUND,
     PermissionError: CODE_FORBIDDEN,
@@ -405,7 +413,7 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
             try:
                 self._json(self.server.service.tasks.get(task_id))
             except KeyError:
-                self._fail(404, "task not found", code=CODE_TASK_NOT_FOUND)
+                self._fail(404, TASK_NOT_FOUND_MESSAGE, code=CODE_TASK_NOT_FOUND)
             return
         if path == "/api/file":
             raw_path = (parse_qs(parsed.query).get("path") or [""])[0]
@@ -466,7 +474,7 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
         try:
             self.server.service.tasks.get(task_id)
         except KeyError:
-            self._fail(404, "task not found", code=CODE_TASK_NOT_FOUND)
+            self._fail(404, TASK_NOT_FOUND_MESSAGE, code=CODE_TASK_NOT_FOUND)
             return
 
         if not self.server.sse_slots.acquire(blocking=False):
@@ -709,7 +717,7 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
                 return
             self._fail(404, "not found", code=CODE_NOT_FOUND)
         except KeyError:
-            self._fail(404, "task not found", code=CODE_TASK_NOT_FOUND)
+            self._fail(404, TASK_NOT_FOUND_MESSAGE, code=CODE_TASK_NOT_FOUND)
         except (ValueError, json.JSONDecodeError, SessionError, WorktreeError, SnapshotError, AllowlistError, McpError) as exc:
             self._fail(400, str(exc), exc=exc)
         except Exception as exc:  # noqa: BLE001 - return a stable API error
