@@ -32799,3 +32799,53 @@ add_node 是编程期注册（图构造时），DAGPlan.validate 是计划期校
 聚焦回归 ✓：config 直面 **160 条** ✓（stage_routing 门禁、config_unknown
 keys、project_config、config_surface、T497/T498 门禁 ✓），全绿 ✓。慢测
 试未跑 ✓，全量 pytest 未跑 ✓。
+
+## 第四百八十八批 — M8-T504 — 重定向判词两个家：_download 的两条 3xx 出口
+
+### 1 缺陷
+
+探针发现「重定向缺少 Location 头（状态码 X）」在 `webfetch.py` 的
+`_download` 里有两个家：opener.open 成功返回 3xx 但无 Location 头的出
+口，和 3xx 被 urllib 提升为 HTTPError 的出口。两处逐字相同（只有状态码来
+源不同：`status` vs `exc.code`）。一个坏重定向从哪条路进来，读到的就是哪
+份拼写——一处改了措词其余没跟上，没有任何测试会红。
+
+### 2 落地
+
+- 家安在 `minicc/tools/webfetch.py` 模块层，紧挨 `_download`——两个调用
+  点都在它里面：`redirect_missing_location_message(status)`，状态码是参
+  数 ✓
+- 两条出口全部改问家，消息字节不变 ✓
+- 门禁 `tests/test_the_redirect_verdict_has_one_home.py` 5 条 ✓：判词钉
+  死、census（精确相等，全场恰一次）、计数断言、**两条出口各一条端到端
+  行为断言**（假 opener 分别给出「3xx 响应」和「3xx HTTPError」，真驱动
+  `_download`，比对完整消息）✓
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T504-432 | 成功 3xx 出口恢复手拼判词 | 红（census ✓） |
+| M8-T504-433 | HTTPError 出口恢复手拼判词 | 红（census ✓） |
+| M8-T504-434 | 家里又声明一份判词副本 | 红（census ✓） |
+| M8-T504-435 | 家的判词漂移（Location 头部） | 红（家值 ✓） |
+| M8-T504-436 | 成功出口把状态码钉成字面量 301 | 红（行为 ✓） |
+| M8-T504-437 | HTTPError 出口拿 reason 当状态码 | 红（行为 ✓） |
+
+六条全部 KILLED ✓，恢复后字节相同 ✓。
+
+### 4 一条教训
+
+**假 opener 是驱动网络路径最便宜的真的方式。** 两条出口的区别只在于
+urllib 把 3xx 呈现成「响应」还是「HTTPError」——真机网络上这取决于服务
+器怎么回，不可控；门禁没有去真的搭 HTTP 服务，而是在模块级换掉
+`_OPENER`，一次给出 3xx 响应、一次抛出 3xx HTTPError，两条路径在同一条
+测试会话里全部真驱动。判别式续 T496：行为断言要的是「这条生产路径真的
+走到、真的把家的输出交给读者」；故障的形态可以是假的，走过的路径必须
+是真的。
+
+聚焦回归 ✓：webfetch 直面 **52 条** ✓（allowed_schemes 门禁、http_url
+pre-flight 门禁、redirect_limit 门禁、head_tail 通道、malformed_input、
+one_rule_one_home ✓），全绿 ✓。注意：`test_one_rule_one_home.py` 单体
+约 6 分钟（全包扫描型门禁），以后聚焦回归避开它 ✓。慢测试未跑 ✓，全量
+pytest 未跑 ✓。

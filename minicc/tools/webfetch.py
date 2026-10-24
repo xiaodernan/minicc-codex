@@ -236,6 +236,16 @@ def _meta_charset(html_bytes: bytes) -> str | None:
     return tail[:end] or None
 
 
+def redirect_missing_location_message(status: int) -> str:
+    """The one wording of the redirect-without-Location refusal.
+
+    ``_download`` spells it at both exits - a 3xx response opened
+    successfully and a 3xx surfaced as HTTPError (M8-T504); the
+    status code is a parameter.
+    """
+    return f"重定向缺少 Location 头（状态码 {status}）"
+
+
 def _download(
     current: str,
     pinned_ip: str,
@@ -259,7 +269,7 @@ def _download(
             if status in (301, 302, 303, 307, 308):
                 location = response.headers.get("Location") or ""
                 if not location:
-                    raise FetchError(f"重定向缺少 Location 头（状态码 {status}）")
+                    raise FetchError(redirect_missing_location_message(status))
                 return status, "", location.encode("utf-8"), False
             payload = b""
             while len(payload) <= max_bytes:
@@ -273,7 +283,7 @@ def _download(
         if exc.code in (301, 302, 303, 307, 308):
             location = exc.headers.get("Location") or ""
             if not location:
-                raise FetchError(f"重定向缺少 Location 头（状态码 {exc.code}）") from None
+                raise FetchError(redirect_missing_location_message(exc.code)) from None
             return exc.code, "", location.encode("utf-8"), False
         raise FetchError(f"HTTP {exc.code}: {exc.reason}") from None
 
