@@ -217,6 +217,15 @@ def _validate_thread_id(raw: Any) -> str:
     return thread_id
 
 
+def unknown_audit_level_message(level: object) -> str:
+    """The one wording of the unknown-audit-level refusal.
+
+    Both the levels list and the min_level floor spell it (M8-T505);
+    the level is a parameter, the vocabulary is AUDIT_LEVELS.
+    """
+    return f"未知审计级别: {level}（可选：{', '.join(AUDIT_LEVELS)}）"
+
+
 def _audit_level_filter(
     *,
     levels: list[str] | None = None,
@@ -233,12 +242,12 @@ def _audit_level_filter(
         for raw in levels:
             name = str(raw).strip().casefold()
             if name not in AUDIT_LEVELS:
-                raise ValueError(f"未知审计级别: {raw}（可选：{', '.join(AUDIT_LEVELS)}）")
+                raise ValueError(unknown_audit_level_message(raw))
             allowed.add(name)
     if min_level:
         name = str(min_level).strip().casefold()
         if name not in AUDIT_LEVELS:
-            raise ValueError(f"未知审计级别: {min_level}（可选：{', '.join(AUDIT_LEVELS)}）")
+            raise ValueError(unknown_audit_level_message(min_level))
         floor = set(AUDIT_LEVELS[AUDIT_LEVELS.index(name):])
         allowed = floor if allowed is None else allowed & floor
     return allowed

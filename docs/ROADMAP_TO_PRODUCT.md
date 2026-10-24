@@ -32849,3 +32849,49 @@ pre-flight 门禁、redirect_limit 门禁、head_tail 通道、malformed_input�
 one_rule_one_home ✓），全绿 ✓。注意：`test_one_rule_one_home.py` 单体
 约 6 分钟（全包扫描型门禁），以后聚焦回归避开它 ✓。慢测试未跑 ✓，全量
 pytest 未跑 ✓。
+
+## 第四百八十九批 — M8-T505 — 未知审计级别判词两个家：levels 与 min_level
+
+### 1 缺陷
+
+探针发现「未知审计级别: X（可选：…）」在 `web.py` 的
+`_audit_level_filter` 里有两个家：levels 列表校验和 min_level 下限校验。
+两处逐字相同（只有主语不同：raw vs min_level）。一个未知级别从哪个参数
+进来，读到的就是哪份拼写——一处改了措词其余没跟上，没有任何测试会红。
+
+### 2 落地
+
+- 家安在 `minicc/web.py` 模块层，紧挨 `_audit_level_filter`——两个调用
+  点都在它里面：`unknown_audit_level_message(level)`，级别是参数，词表
+  引用 `AUDIT_LEVELS` ✓
+- 两个参数全部改问家，消息字节不变 ✓
+- 门禁 `tests/test_the_audit_level_verdict_has_one_home.py` 5 条 ✓：判词
+  钉死、census（精确相等，全场恰一次）、计数断言、**两个参数各一条端到
+  端行为断言**（真驱动 `_audit_level_filter`，比对完整消息）✓
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T505-438 | levels 参数恢复手拼判词 | 红（census ✓） |
+| M8-T505-439 | min_level 参数恢复手拼判词 | 红（census ✓） |
+| M8-T505-440 | 家里又声明一份判词副本 | 红（census ✓） |
+| M8-T505-441 | 家的判词漂移（未知的审计级别） | 红（家值 ✓） |
+| M8-T505-442 | levels 主语被 casefold 成小写 | 红（行为 ✓） |
+| M8-T505-443 | min_level 主语被 casefold 成小写 | 红（行为 ✓） |
+
+六条全部 KILLED ✓，恢复后字节相同 ✓。
+
+### 4 一条教训
+
+**主语必须是调用方写的原文，不是归一化后的查找键。** 本批第一版门禁
+用 `"bogus"`（全小写无空白）当未知级别，`raw` 和 `str(raw).strip()
+.casefold()` 渲染出来一模一样——442/443 两条主语变异因此漏杀。把测试值
+改成 `"Bogus"` 后立刻两条全红。判别式：行为断言选测试值时，要让它能把
+「原文」和「归一化形态」区分开；归一化（casefold/strip/resolve）是读方
+便自己做的，报错必须原样回报，否则用户拿到的消息对不上自己写的东西，
+grep 都搜不到。
+
+聚焦回归 ✓：web/audit 直面 **42 条** ✓（logging、backup_is_not_change、
+batch_review ✓），全绿 ✓。慢测试未跑 ✓（test_http_surface 约 65s，避
+开），全量 pytest 未跑 ✓。
