@@ -104,9 +104,9 @@ def test_two_spellings_of_one_number_stay_two_labels() -> None:
     both = "# T\n\n## 第两百二十批 甲\n\n## 第二百二十批 乙\n\n结论见「第二百二十批」。\n"
     problems, checked, _boxes = _reported(both)
     assert problems == [] and checked == 1, problems
-    labels = dp._batch_labels(dp.sections(both))
-    assert {"第两百二十批", "第二百二十批"} <= set(labels), sorted(labels)
-    assert labels["第两百二十批"].line != labels["第二百二十批"].line, labels
+    claims = dp._batch_claims(dp.sections(both))
+    assert {"第两百二十批", "第二百二十批"} <= set(claims), sorted(claims)
+    assert claims["第两百二十批"][0].line != claims["第二百二十批"][0].line, claims
     only_liang = "# T\n\n## 第两百二十批 甲\n\n结论见「第二百二十批」。\n"
     problems, checked, _boxes = _reported(only_liang)
     assert checked == 1 and len(problems) == 1, problems
@@ -125,9 +125,9 @@ def test_a_heading_that_only_mentions_a_batch_does_not_own_its_label() -> None:
         "# T\n\n## 第九十一批 正文\n\n## 4 顺手关掉第 91 批 §8 的那半边\n\n"
         "结论见「第91批」，另见「第九十一批」。\n"
     )
-    labels = dp._batch_labels(dp.sections(text))
-    assert "第九十一批" in labels, sorted(labels)
-    assert "第91批" not in labels, f"提到别的批次的标题认领了那个批号：{sorted(labels)}"
+    claims = dp._batch_claims(dp.sections(text))
+    assert "第九十一批" in claims, sorted(claims)
+    assert "第91批" not in claims, f"提到别的批次的标题认领了那个批号：{sorted(claims)}"
     problems, checked, _boxes = _reported(text)
     assert checked == 2, checked
     assert len(problems) == 1, problems
@@ -141,8 +141,8 @@ def test_a_bracket_colophon_is_a_declaration() -> None:
     text = "# T\n\n### M8 退出标准真跑记录（第七批，2026-09-23）\n\n结论见「第七批」。\n"
     problems, checked, _boxes = _reported(text)
     assert problems == [] and checked == 1, (problems, checked)
-    labels = dp._batch_labels(dp.sections(text))
-    assert labels["第七批"].line == 3, labels["第七批"]
+    claims = dp._batch_claims(dp.sections(text))
+    assert claims["第七批"][0].line == 3, claims["第七批"]
 
 
 def test_a_range_heading_does_not_lend_its_tail_number_to_the_roster() -> None:
@@ -153,9 +153,9 @@ def test_a_range_heading_does_not_lend_its_tail_number_to_the_roster() -> None:
         "# T\n\n## 附：第三百三十五~六十五批总账\n\n"
         "结论见「第三百三十五批」，另见「第六十五批」。\n"
     )
-    labels = dp._batch_labels(dp.sections(text))
-    assert "第六十五批" not in labels, sorted(labels)
-    assert "第三百三十五批" not in labels, sorted(labels)
+    claims = dp._batch_claims(dp.sections(text))
+    assert "第六十五批" not in claims, sorted(claims)
+    assert "第三百三十五批" not in claims, sorted(claims)
     problems, _checked, _boxes = _reported(text)
     assert len(problems) == 2, problems
     assert all("不存在" in detail for detail in problems), problems
@@ -179,7 +179,7 @@ def test_the_corpus_files_no_batch_pointer_as_unresolvable() -> None:
     roster_total = 0
     for document in dp.DEFAULT_DOCS:
         text = document.read_text(encoding="utf-8")
-        roster_total += len(dp._batch_labels(dp.sections(text)))
+        roster_total += len(dp._batch_claims(dp.sections(text)))
         problems, _checked, _boxes = dp.check_pointers(document, text)
         for problem in problems:
             if problem.kind == "POINTER" and _ANY_BATCH_LABEL.search(problem.detail):

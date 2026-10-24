@@ -151,7 +151,7 @@ _BATCH_NUM = r"(\d+|[零一二三四五六七八九十百千两]+)"
 #: Spaces on either side of the number are the same label: ``## 第 203 批 …`` is a heading
 #: this repository shipped, and 「第203批」 has to reach it. That is only safe because one
 #: function below builds the key from a match's *groups*, never from its text — the two
-#: hand-copied key expressions this used to have (in ``_batch_labels`` and at the check
+#: hand-copied key expressions this used to have (in the roster builder and at the check
 #: site) would have diverged the moment the spaces were admitted. ``第`` stays required:
 #: ``## 附：第三百三十五~六十五批…`` must not lend 「第六十五批」 to the roster.
 _BATCH = re.compile(rf"第\s*{_BATCH_NUM}\s*批(续二|续)?")
@@ -362,10 +362,11 @@ def _numbered_sections(path: Path) -> dict[int, Section]:
 def _batch_label(match: "re.Match[str]") -> str:
     """The one key for a batch match, built from its groups so spacing cannot fork it.
 
-    Both the roster and the check site call this. Two hand-copied f-strings once spelled
-    the same text and stayed in sync only by luck; the day 「第 203 批」 became readable,
-    a key built from ``group(0)`` at either site would have made that heading unpointable
-    — a false red about a section that exists.
+    ``_declared_batch_labels`` and the check site are its only callers, and that is
+    deliberate: two hand-copied f-strings once spelled the same text and stayed in sync
+    only by luck; the day 「第 203 批」 became readable, a key built from ``group(0)`` at
+    either site would have made that heading unpointable — a false red about a section
+    that exists.
     """
     return f"第{match.group(1)}批{match.group(2) or ''}"
 
@@ -379,9 +380,11 @@ def _batch_label(match: "re.Match[str]") -> str:
 #:     sections signed themselves, and 14 live pointers already resolve through it.
 #: Anything else is a *mention*: ``## 第一百八十一批 兑现第一百八十批的欠账`` is section 181
 #: talking about 180, and ``## 4 顺手关掉第 91 批 §8 …`` is a sub-item inside batch 203.
-#: Reading labels out of those titles hands a batch number to the wrong section, and
-#: ``setdefault`` then decides by document order which one a pointer lands on — the same
-#: rule ``_id_registry`` applies to ids for the same reason.
+#: Reading labels out of those titles hands a batch number to the wrong section, and a
+#: pointer would then land on a heading that never claimed to be that batch — the same
+#: rule ``_id_registry`` applies to ids for the same reason. Labels that two headings
+#: both claim stay two claims: ``_batch_claims`` keeps the list so the check site can see
+#: the double booking instead of resolving it by document order.
 _BATCH_DECLARED_AT_START = re.compile(rf"^第?\s*{_BATCH_NUM}\s*批(续二|续)?")
 _BATCH_DECLARED_IN_COLOPHON = re.compile(rf"[（(]\s*第\s*{_BATCH_NUM}\s*批(续二|续)?")
 
@@ -395,20 +398,25 @@ def _declared_batch_labels(title: str) -> list[str]:
     return out
 
 
-def _batch_labels(headings: list[Section]) -> dict[str, Section]:
-    """Every ``第N批`` a heading declares about itself, keyed by the canonical label.
+def _batch_claims(headings: list[Section]) -> dict[str, list[Section]]:
+    """Every heading that declares a batch label about itself, keyed by that label.
 
-    Built by running the declaration rule over the titles the pointers name, so a heading
-    that never says which batch it is cannot be pointed at — and 「第十五批续」 and
-    「第十五批续二」 stay two different sections. Keys are not value-canonical:
-    「第二百二十批」 and 「第两百二十批」 are two sections in this corpus, and merging them
-    by arithmetic would make one pointer answer for both.
+    A list, not a single section, because the ledger has double bookings: the shipped
+    roadmap holds labels declared by two headings each, and one declared by three.
+    Collapsing them here would hide exactly the fact the check site needs — that a
+    pointer's landing would be decided by document order rather than by evidence. The
+    census of which labels collide lives in the door that reads this, not in this comment.
     """
-    out: dict[str, Section] = {}
+    out: dict[str, list[Section]] = {}
     for section in headings:
         for token in _declared_batch_labels(section.title):
-            out.setdefault(token, section)
+            out.setdefault(token, []).append(section)
     return out
+
+
+def _batch_scope(section: Section) -> str:
+    """The text a pointer's id claim is audited against — one heading plus its body."""
+    return f"## {section.title}\n{section.body}"
 
 
 def _id_registry(scope_text: str) -> set[str]:
@@ -779,7 +787,7 @@ def check_pointers(document: Path, text: str) -> tuple[list[Problem], int, dict[
     """Return problems, the number of checked pointers, and the per-box counts."""
     headings = sections(text)
     numbered = _numbered_headings(headings)
-    batch_labels = _batch_labels(headings)
+    batch_claims = _batch_claims(headings)
     subsections = _subsection_tables(headings)
     labels = _declared_labels(text)
     problems: list[Problem] = []
@@ -819,6 +827,7 @@ def check_pointers(document: Path, text: str) -> tuple[list[Problem], int, dict[
         owners = _span_documents(span)
         target: Section | None = None
         remote: list[Section] = []
+        ambiguous: list[Section] = []
         for sec in secs:
             numeral = _numeral(sec.group(1))
             if owners:
@@ -862,30 +871,54 @@ def check_pointers(document: Path, text: str) -> tuple[list[Problem], int, dict[
             token = _batch_label(batch)
             # Exact labels only: 「第十五批续」 is not the section titled 续二, and
             # substring matching would let one pointer stand for three records.
-            target = batch_labels.get(token)
-            if target is None:
+            claims = batch_claims.get(token) or []
+            if not claims:
                 problems.append(Problem("POINTER", document.name, line, f"「{span}」 指向不存在的段落「{token}」"))
+                continue
+            if len(claims) == 1:
+                target = claims[0]
+                continue
+            # Two headings declare this label. Which one the pointer meant is not something
+            # document order can answer, so the pointer's own ids decide it: a claimant that
+            # declares *every* id the sentence names is evidence, and exactly one such
+            # claimant is an answer. Subset, not intersection — an id that both of them
+            # declare proves nothing about which one owns the rest of the sentence.
+            chosen = [s for s in claims if ids and set(ids) <= _id_registry(_batch_scope(s))]
+            if len(chosen) == 1:
+                target = chosen[0]
+                continue
+            ambiguous = claims
+            names = "、".join(f"第{s.line}行「{s.title[:24]}」" for s in claims)
+            problems.append(
+                Problem(
+                    "POINTER",
+                    document.name,
+                    line,
+                    f"「{span}」 指向的「{token}」有 {len(claims)} 个申报者（{names}），落点不该由文档顺序决定",
+                )
+            )
         for appendix in appendices:
             found = _appendix_section(appendix.group(0), headings)
             if found is None:
                 problems.append(Problem("POINTER", document.name, line, f"「{span}」 指向不存在的{appendix.group(0).strip()}"))
             else:
                 target = found
-        scope = f"## {target.title}\n{target.body}" if target is not None else text
-        registry = _id_registry(scope)
-        for section in remote:
-            registry |= _id_registry(f"## {section.title}\n{section.body}")
-        if target is None and not remote:
-            # ``见 docs/X.md P0-1`` declares the id in the other file's heading.
-            for path in _named_documents(text, offset):
-                registry |= _id_registry(path.read_text(encoding="utf-8"))
-        for identifier in ids:
-            if identifier in registry:
-                continue
-            where = f"「{target.title}」" if target is not None else "本文档"
-            problems.append(
-                Problem("POINTER", document.name, line, f"「{span}」 说 {identifier} 在{where}里，那里没有这个编号")
-            )
+        if not ambiguous:
+            scope = f"## {target.title}\n{target.body}" if target is not None else text
+            registry = _id_registry(scope)
+            for section in remote:
+                registry |= _id_registry(f"## {section.title}\n{section.body}")
+            if target is None and not remote:
+                # ``见 docs/X.md P0-1`` declares the id in the other file's heading.
+                for path in _named_documents(text, offset):
+                    registry |= _id_registry(path.read_text(encoding="utf-8"))
+            for identifier in ids:
+                if identifier in registry:
+                    continue
+                where = f"「{target.title}」" if target is not None else "本文档"
+                problems.append(
+                    Problem("POINTER", document.name, line, f"「{span}」 说 {identifier} 在{where}里，那里没有这个编号")
+                )
     harvested = len(list(_POINTER.finditer(_mask_code(text))))
     if harvested != sum(boxes.values()):
         # The account has to add up against an *independent* count of the markers.
