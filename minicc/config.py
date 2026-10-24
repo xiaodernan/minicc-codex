@@ -92,6 +92,21 @@ DEFAULT_SUBAGENT_MAX_DEPTH = 2
 TRUTHY = frozenset({"1", "true", "yes", "on"})
 
 
+# M8-T509: the provider sniff behind ``provider_type = auto``.  The rule used
+# to be spelled by hand at both of its readers - config resolution here, and
+# the CLI override path in ``main`` - and a rule that decides which wire
+# protocol to speak must not be able to drift between them: if one reader
+# learns a new Anthropic model family while the other still only knows
+# ``claude``, half of all sessions speak the wrong protocol and nothing turns
+# red.  One function; both readers ask it.  The asymmetry the gate pins is
+# deliberate-until-proven-otherwise: the haystack is casefolded, the model
+# prefix is not.
+def sniff_provider_type(base_url: str, model: str) -> str:
+    """Anthropic or OpenAI, judged from the endpoint and the model name."""
+    haystack = f"{base_url} {model}".lower()
+    return "anthropic" if ("anthropic" in haystack or model.startswith("claude")) else "openai"
+
+
 class ConfigError(RuntimeError):
     """Configuration is missing or malformed."""
 
@@ -912,8 +927,7 @@ def load_config(
     if raw_provider_type not in PROVIDER_TYPES:
         raise ConfigError(f"MINICC_PROVIDER_TYPE 非法: {raw_provider_type!r} (auto|openai|anthropic)")
     if raw_provider_type == "auto":
-        haystack = f"{resolved_url} {resolved_model}".lower()
-        provider_type = "anthropic" if ("anthropic" in haystack or resolved_model.startswith("claude")) else "openai"
+        provider_type = sniff_provider_type(resolved_url, resolved_model)
     else:
         provider_type = raw_provider_type
 

@@ -32,6 +32,7 @@ from .config import (
     ConfigError,
     load_config,
     normalize_model_name,
+    sniff_provider_type,
     workspace_not_directory_message,
 )
 from .commands import discover_commands, expand_slash_command
@@ -306,11 +307,7 @@ def _apply_cli_overrides(config: Config, args: argparse.Namespace) -> Config:
         updates["task_executor"] = args.task_executor
     if args.provider_type:
         if args.provider_type == "auto":
-            haystack = f"{config.base_url} {config.model}".lower()
-            updates["provider_type"] = (
-                "anthropic" if "anthropic" in haystack or config.model.startswith("claude")
-                else "openai"
-            )
+            updates["provider_type"] = sniff_provider_type(config.base_url, config.model)
         else:
             updates["provider_type"] = args.provider_type
     if args.fallback_models:

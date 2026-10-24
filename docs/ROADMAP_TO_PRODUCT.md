@@ -33052,3 +33052,52 @@ http_route_inventory 12、web_security/static_serving/rejected_body/
 error_code_vocabulary 51、pre_flight/route_wiring/router/
 stage_route_enforcement 103、http_surface 的 AST 普查 1），全绿 ✓。慢测
 试未跑 ✓，全量 pytest 未跑 ✓。
+
+## 第四百九十三批 — M8-T509 — provider 嗅探规则两个家：auto 之下说哪家协议
+
+### 1 缺陷
+
+`provider_type = auto` 时，用 (base_url, model) 嗅探该说 Anthropic 还是
+OpenAI 的 wire protocol。这条规则有两个家、逐字相同：`minicc/config.py`
+的配置解析（`load_config` 内）和 `minicc/main.py` 的 CLI 覆盖路径
+（`_apply_cli_overrides` 内）。规则在两边各自漂移的后果不是报错，而是整
+个会话发错误的协议格式——没有任何测试会红。
+
+### 2 落地
+
+- 家安在 `minicc/config.py`：provider 词表 `PROVIDER_TYPES` 本就住在那
+  里，嗅探读的就是那张词表决定的三个值；立
+  `sniff_provider_type(base_url, model)` ✓
+- 两个调用点全部改问家：config 的 auto 分支、main 的 `--provider-type auto` 分支 ✓
+- 门禁 `tests/test_the_provider_sniff_has_one_home.py` 4 条 ✓：家的真值
+  表（url 命中、model 前缀命中、都不命中；haystack 折大小写而 model 前
+  缀不折——这个不对称也钉住，防止「顺手清理」悄悄改行为）、census（精确
+  `"claude"` 常量与 `startswith("claude")` 调用形状全场各恰 1 次且必须
+  在家）、**两个读者各一条行为断言**（`load_config` 走 env 真解析三个方
+  向；`_apply_cli_overrides` 走 CLI 覆盖三个方向）✓
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T509-464 | main 恢复手拼规则 | 红（census ✓） |
+| M8-T509-465 | config 调用点恢复手拼 | 红（census ✓） |
+| M8-T509-466 | 家丢掉 model 前缀半 | 红（真值表 ✓） |
+| M8-T509-467 | 家丢掉 haystack 半 | 红（真值表 ✓） |
+| M8-T509-468 | 家里加第二处嗅探副本 | 红（census ✓） |
+| M8-T509-469 | main 调用传错参数位置 | 红（CLI 行为 ✓） |
+
+六条全部 KILLED ✓，恢复后字节相同 ✓（字节快照恢复，不碰 git）。
+
+### 4 一条教训
+
+**规则的两个读者不在同一层时，家放在词表层，不放调用方层。** 本批的家
+没有安在 main（调用方）也没有新建叶子模块，而是安在 config——provider
+词表的隔壁。判别式：一个重复事实的「输入词表」归谁，家就归谁。第二条
+是上批事故的制度化：**变异恢复一律用字节快照**，`git checkout HEAD --`
+只在已提交状态下才是安全网，未提交时它杀的是你自己的产品改动。
+
+聚焦回归 ✓：config/main 直面 **121 条** ✓（project_config、
+config_surface、config_unknown_keys、promises_that_the_code_did_not_keep、
+cli_stage_routing、fake_provider_switch 门禁 ✓），全绿 ✓。慢测试未跑
+✓，全量 pytest 未跑 ✓。
