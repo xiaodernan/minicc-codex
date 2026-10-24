@@ -14,6 +14,7 @@ from typing import Any
 
 from .tools.registry import redact_text
 
+from .config import unreadable_file_message
 from .internal_paths import ALLOWLIST_NAME  # re-exported: the deny list reads it from here
 
 _lock = threading.RLock()
@@ -50,7 +51,7 @@ def load_allowlist(workspace: Path) -> dict[str, Any]:
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as exc:
-            raise AllowlistError(f"无法读取 allowlist: {exc}") from exc
+            raise AllowlistError(unreadable_file_message("allowlist", exc)) from exc
     if not isinstance(payload, dict):
         raise AllowlistError("allowlist 必须是对象")
     sessions = payload.get("sessions")

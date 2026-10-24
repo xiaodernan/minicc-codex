@@ -33,7 +33,7 @@ from pathlib import Path
 from typing import Any
 
 from . import __version__
-from .config import unrecognized_key_warning
+from .config import unreadable_file_message, unrecognized_key_warning
 from .internal_paths import MCP_CONFIG_NAME
 from .jsonrpc import ERROR_METHOD_NOT_FOUND, JSONRPC_VERSION, method_not_found_message
 from .logging_setup import get_logger
@@ -210,7 +210,7 @@ def load_mcp_config(workspace: Path) -> list[McpServerConfig]:
         # failing to load.
         raw = json.loads(path.read_text(encoding="utf-8-sig"))
     except (OSError, json.JSONDecodeError) as exc:
-        raise McpError(f"无法读取 MCP 配置: {exc}") from exc
+        raise McpError(unreadable_file_message("MCP 配置", exc)) from exc
     entries = raw.get("servers", raw) if isinstance(raw, dict) else raw
     if not isinstance(entries, dict):
         raise McpError("MCP 配置需要 servers 对象")

@@ -65,6 +65,7 @@ MAX_HOOK_ARG_CHARS = 4000
 #: per-hook cap bounds one hook; without an aggregate bound, N hooks of 60
 #: seconds each stalled one tool call for N minutes.
 MAX_HOOK_TOTAL_SECONDS = 60.0
+from .config import unreadable_file_message
 from .internal_paths import HOOKS_FILENAME  # re-exported: the deny list reads it from here
 # Exit code a hook uses to explicitly deny/block (2 mirrors git hook style).
 HOOK_DENY_EXIT = 2
@@ -232,7 +233,7 @@ class HookRunner:
             # editors write by default.
             data = json.loads(path.read_text(encoding="utf-8-sig"))
         except (json.JSONDecodeError, OSError, UnicodeError) as exc:
-            raise _HookConfigUnreadable(f"无法读取 {path}: {exc}") from exc
+            raise _HookConfigUnreadable(unreadable_file_message(path, exc)) from exc
         if not isinstance(data, dict):
             raise HookConfigError(f"{path} 顶层必须是 JSON 对象")
         return data

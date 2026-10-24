@@ -32433,3 +32433,60 @@ core_task ✓），全绿 ✓。慢测试未跑 ✓，全量 pytest 未跑 ✓�
 pairing、merge_probe 门禁、exit_marker 门禁 ✓），全绿 ✓。慢测试未跑 ✓，
 全量 pytest 未跑 ✓。
 
+
+## 第四百八十一批 — M8-T497 — 无法读取判词七个家：七个 JSON 读者各拼一句
+
+### 1 缺陷
+
+探针发现「无法读取 X: 原因」在包里有七个家，横跨七个模块：config 的
+配置层（`_read_config_json`）、hooks 的 hooks.json、permissions 的
+permissions.json、webauth 的 token store、allowlist 的 allowlist.json、
+mcp 的 mcp.json、session 的会话文件三处（`_read_payload`、`load_view`、
+`save_view`）。七处逐字相同。一个文件坏了，用户读到哪句措词取决于坏的
+是哪个文件——一处改了措词其余六处没跟上，没有任何测试会红。
+
+### 2 落地
+
+- 家安在 `minicc/config.py`——七个读者里最大的那个，且它不 import 任何
+  包内模块，其余读者 import 它不会成环：`unreadable_file_message(subject,
+  exc)`，返回 `f"无法读取 {subject}: {exc}"` ✓
+- 七个读者全部改问家，消息字节不变 ✓；主语是参数（读的是什么各门自己
+  知道：完整路径、`PERMISSIONS_NAME`、`"allowlist"`、`"MCP 配置"`、
+  `f"session {self.path}"`、`f"session 视图 {self.path}"`）✓
+- 门禁 `tests/test_the_unreadable_file_verdict_has_one_home.py` 11 条 ✓：
+  判词钉死（含 Path/str 两种主语）、census（以「无法读取 」开头**且**以
+  「: 」结尾的字面量全场恰一次）、七个读者都在问家（按调用形状计数）、
+  七个模块共享同一个家对象、**每个读者一条端到端行为断言**（真写坏文
+  件、真驱动读取、比对完整消息）✓
+- census 判据「开头+结尾」双条件天然排除 config.py 里另一句「无法读取
+  {path}: 文件不是合法 UTF-8 文本」——那是「读到了但解码失败」，另一个
+  时刻的另一件事，按判别式留在原地 ✓
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T497-390 | permissions 读者恢复手拼判词 | 红（census ✓） |
+| M8-T497-391 | 家里又声明一份同模板判词副本 | 红（census ✓） |
+| M8-T497-392 | 家的判词漂移（无法读取文件） | 红（家值 ✓） |
+| M8-T497-393 | session 的 payload 门丢掉主语 | 红（行为 ✓） |
+| M8-T497-394 | hooks 降级路径把句子丢成空串 | 红（行为 ✓） |
+| M8-T497-395 | mcp 门主语漂移（MCP 配置→mcp.json） | 红（行为 ✓） |
+
+六条全部 KILLED ✓，恢复后字节相同 ✓。
+
+### 4 一条教训
+
+**判据的形状边界就是事实的边界，双条件（开头+结尾）比单条件更接近事
+实。** 本批第一次写变异 391 时，副本写成 `f"无法读取 x: y"`——常量部分
+以「y」结尾，不满足「以『: 』结尾」，census 没有红。这不是漏洞，恰是判
+据精确：形状不完整的句子不在这个事实家族里。真正该杀的副本是还原家模板
+的 `f"无法读取 {subject}: {exc}"`，改对形状后立刻 KILLED。判别式：census
+锁一个事实时，「开头」防换写法、「结尾」防加副本，两条一起上；同族的不
+同事实（「无法读取 X」 vs 「无法读取 X: 文件不是合法 UTF-8 文本」）靠
+形状差异天然分层，不需要在判据里写例外清单。
+
+聚焦回归 ✓：七读者直面 **144 条** ✓（hooks_validation、project_config、
+config_unknown_keys、session_fork、mcp_recognized_keys_derive、
+allowlist_validation、webauth_validation、missing_session 门禁 ✓），全
+绿 ✓。慢测试未跑 ✓，全量 pytest 未跑 ✓。

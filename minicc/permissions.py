@@ -34,6 +34,7 @@ from .allowlist import (
 )
 from .tools.registry import redact_text
 
+from .config import unreadable_file_message
 from .internal_paths import PERMISSIONS_NAME  # re-exported: the deny list reads it from here
 
 _lock = threading.RLock()
@@ -142,7 +143,7 @@ def load_permission_rules(workspace: Path) -> tuple[dict[str, list[str]], str]:
             # (hand-edited in a legacy code page) raised a bare
             # ``UnicodeDecodeError`` out of here - and this module's
             # contract says a malformed file is non-fatal.
-            error = f"无法读取 {PERMISSIONS_NAME}: {exc}"
+            error = unreadable_file_message(PERMISSIONS_NAME, exc)
         if error:
             rules = _empty_rules()
         entry = (rules, error)

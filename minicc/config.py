@@ -410,6 +410,20 @@ def workspace_not_directory_message(workspace: Path) -> str:
     return f"工作区不是目录: {workspace}"
 
 
+def unreadable_file_message(subject: Path | str, exc: BaseException) -> str:
+    """The one wording of the "this file could not be read" verdict.
+
+    Seven readers spelled it by hand - the config layers, the hooks file,
+    the permissions file, the web token store, the allowlist, the MCP
+    config and the session files - so a rename reached the readers somebody
+    remembered and a user read a different wording depending on which file
+    broke (M8-T497).  Each reader keeps its own failure mode (raise its own
+    error, or demote to a soft error string); the sentence is one fact, and
+    the subject names what could not be read.
+    """
+    return f"无法读取 {subject}: {exc}"
+
+
 def _read_config_json(path: Path) -> dict[str, Any]:
     """Load one config.json layer; a non-object top level is a ConfigError."""
     if not path.is_file():
@@ -417,7 +431,7 @@ def _read_config_json(path: Path) -> dict[str, Any]:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError) as exc:
-        raise ConfigError(f"无法读取 {path}: {exc}") from exc
+        raise ConfigError(unreadable_file_message(path, exc)) from exc
     except UnicodeDecodeError as exc:
         # M8-T277: UnicodeDecodeError is a ValueError, not an OSError and
         # not a JSONDecodeError, so the clause above did not catch it and

@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import Any
 
 from .clock import utc_now_iso
+from .config import unreadable_file_message
 from .tools.registry import redact_text
 
 try:  # Windows
@@ -381,7 +382,7 @@ class SessionStore:
         try:
             payload = json.loads(_read_text_with_retry(self.path))
         except (OSError, ValueError) as exc:
-            raise SessionError(f"无法读取 session {self.path}: {exc}") from exc
+            raise SessionError(unreadable_file_message(f"session {self.path}", exc)) from exc
         if not isinstance(payload, dict) or not isinstance(payload.get("messages"), list):
             raise SessionError(f"session 格式错误: {self.path}")
         declared = payload.get("version", SESSION_FORMAT_VERSION)
@@ -605,7 +606,7 @@ class SessionStore:
         try:
             payload = json.loads(_read_text_with_retry(self.path))
         except (OSError, ValueError) as exc:
-            raise SessionError(f"无法读取 session 视图 {self.path}: {exc}") from exc
+            raise SessionError(unreadable_file_message(f"session 视图 {self.path}", exc)) from exc
         raw = payload.get("view") if isinstance(payload, dict) else None
         if not isinstance(raw, dict):
             return _view_payload()
@@ -630,7 +631,7 @@ class SessionStore:
             try:
                 raw = json.loads(_read_text_with_retry(self.path))
             except (OSError, ValueError) as exc:
-                raise SessionError(f"无法读取 session {self.path}: {exc}") from exc
+                raise SessionError(unreadable_file_message(f"session {self.path}", exc)) from exc
             payload = raw if isinstance(raw, dict) else _empty_payload()
         payload["version"] = SESSION_FORMAT_VERSION
         payload["updated_at"] = utc_now_iso()
