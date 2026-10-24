@@ -42,6 +42,14 @@ MAX_SSE_CONNECTIONS = 32
 SSE_WRITE_TIMEOUT = 20.0
 MAX_BODY_BYTES = 18_000_000
 
+#: M8-T508: the task API route prefix. Four routes (the events stream, the
+#: task read, resume and cancel) each matched it with ``startswith`` and
+#: stripped it with ``removeprefix`` - eight hand-spelled copies of one
+#: fact. Change the prefix in the matcher but not the stripper and half of
+#: each route's traffic 404s with nothing turning red. One definition, and
+#: every matcher and stripper asks it.
+TASKS_API_PREFIX = "/api/tasks/"
+
 #: M8-T5: every API failure carries a machine-readable ``code`` so a client can
 #: branch on it instead of pattern-matching a human-readable message (or
 #: reading a bare 500). Looked up over the exception's MRO.
@@ -382,8 +390,8 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
                 "summary_only": not include_details,
             })
             return
-        if path.startswith("/api/tasks/") and path.endswith("/events"):
-            task_id = unquote(path.removeprefix("/api/tasks/").removesuffix("/events")).strip("/")
+        if path.startswith(TASKS_API_PREFIX) and path.endswith("/events"):
+            task_id = unquote(path.removeprefix(TASKS_API_PREFIX).removesuffix("/events")).strip("/")
             query = parse_qs(parsed.query)
             raw_after = (query.get("after") or [self.headers.get("Last-Event-ID", "0")])[0]
             try:
@@ -392,8 +400,8 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
                 after = 0
             self._stream_task(task_id, after=after)
             return
-        if path.startswith("/api/tasks/"):
-            task_id = unquote(path.removeprefix("/api/tasks/")).strip("/")
+        if path.startswith(TASKS_API_PREFIX):
+            task_id = unquote(path.removeprefix(TASKS_API_PREFIX)).strip("/")
             try:
                 self._json(self.server.service.tasks.get(task_id))
             except KeyError:
@@ -634,12 +642,12 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
             if path == "/api/tasks/batch":
                 self._json(self.server.service.tasks.submit_batch(payload), 202)
                 return
-            if path.endswith("/resume") and path.startswith("/api/tasks/"):
-                task_id = unquote(path.removeprefix("/api/tasks/").removesuffix("/resume")).strip("/")
+            if path.endswith("/resume") and path.startswith(TASKS_API_PREFIX):
+                task_id = unquote(path.removeprefix(TASKS_API_PREFIX).removesuffix("/resume")).strip("/")
                 self._json(self.server.service.tasks.resume(task_id), 202)
                 return
-            if path.endswith("/cancel") and path.startswith("/api/tasks/"):
-                task_id = unquote(path.removeprefix("/api/tasks/").removesuffix("/cancel")).strip("/")
+            if path.endswith("/cancel") and path.startswith(TASKS_API_PREFIX):
+                task_id = unquote(path.removeprefix(TASKS_API_PREFIX).removesuffix("/cancel")).strip("/")
                 self._json(self.server.service.tasks.cancel(task_id))
                 return
             if path == "/api/workspace/select":

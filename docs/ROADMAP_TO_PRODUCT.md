@@ -32994,3 +32994,61 @@ snapshots、workspace_containment、internal_dirs、error_code_vocabulary
 聚焦回归 ✓：impact/test-selection 直面 **57 条** ✓（change_impact、
 check_selection、impacted_tests、index_census、scan_warning 门禁 ✓），
 全绿 ✓。慢测试未跑 ✓，全量 pytest 未跑 ✓。
+
+## 第四百九十二批 — M8-T508 — 任务 API 路由前缀八个家：匹配器和剥离器必须同吃一个前缀
+
+### 1 缺陷
+
+`/api/tasks/` 这个前缀在 `minicc/webserver.py` 里有八个家：events 流、任
+务读取、resume、cancel 四条路由，各自 `startswith` 匹配一遍、
+`removeprefix` 剥离一遍。匹配器和剥离器是同一事实的两半——前缀改了匹配
+器忘了剥离器（或反之），路由就对一半流量 404，而没有任何测试会红。同
+文件的 `"/api/tasks"` 与 `"/api/tasks/batch"` 是另两条路由的精确匹
+配，不是这个事实，census 用精确相等天然不误伤。
+
+### 2 落地
+
+- 家安在 `minicc/webserver.py` 模块层常量区：`TASKS_API_PREFIX`，紧跟
+  `MAX_BODY_BYTES` 之后；4 处 `startswith(TASKS_API_PREFIX)` + 4 处
+  `removeprefix(TASKS_API_PREFIX)` 全部改问家 ✓
+- 门禁 `tests/test_the_tasks_api_prefix_has_one_home.py` 7 条 ✓：pin 常
+  量值、census（AST 精确相等，全场恰 1 次且必须在家文件里）、计数断言
+  （`TASKS_API_PREFIX` 出现 9 次 = 1 定义 + 4 匹配 + 4 剥离）、**4 条路
+  由各一条行为断言**（`MiniccRequestHandler.__new__` 配记录器 fake，
+  真驱动四条路由，断言 task_id 被正确取出）✓
+- 既有读者修复：`tests/test_http_route_inventory.py` 的
+  `_prefix_families` 普查原本只认字符串字面量，家立好之后它正好什么都看
+  不见——空集合静悄悄地「通过」。教它跟随家：模块层字符串常量表 + 无法
+  解析的参数**大声报错**而不是跳过 ✓
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T508-456 | events 匹配器手拼前缀 | 红（census ✓） |
+| M8-T508-457 | events 剥离器手拼前缀 | 红（census ✓） |
+| M8-T508-458 | 常量值漂移 | 红（pin ✓） |
+| M8-T508-459 | 家里加一份常量副本 | 红（census ✓） |
+| M8-T508-460 | task-read 匹配器手拼前缀 | 红（census ✓） |
+| M8-T508-461 | resume 剥离器用错前缀 | 红（行为 ✓） |
+| M8-T508-462 | 常量值漂移（读者视角） | 红（route inventory 普查 ✓） |
+| M8-T508-463 | 只改定义名不改引用 | 红（普查大声失败 ✓） |
+
+八条全部 KILLED ✓，恢复后字节相同 ✓。
+
+### 4 一条教训
+
+**家立好之后，按字面量做 census 的读者必须学会跟随家，否则家越纯，读者
+越瞎。** 本批立家后第一个红的是既有普查而不是新门禁——它按「字符串常
+量」扫 AST，前缀搬进常量后它扫到空集合，而空集合恰好满足它的旧断言。
+收编字面量是一次搬家：产品代码、新门禁、旧读者三张单子要一起改。第二
+条教训来自一次真实事故：**未提交时绝不能用 `git checkout HEAD --` 回
+滚**——它会把未提交的产品改动一起杀掉（本批因此重建了一次
+`webserver.py`）。变异恢复必须用字节快照写回，git 只在已提交状态才是
+安全网。
+
+聚焦回归 ✓：webserver 直面 **174 条** ✓（tasks_api_prefix 门禁 7、
+http_route_inventory 12、web_security/static_serving/rejected_body/
+error_code_vocabulary 51、pre_flight/route_wiring/router/
+stage_route_enforcement 103、http_surface 的 AST 普查 1），全绿 ✓。慢测
+试未跑 ✓，全量 pytest 未跑 ✓。

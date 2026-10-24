@@ -395,9 +395,31 @@ _PARKED_FAMILIES: dict[str, str] = {}
 _CATCH_ALL = "/api/"
 
 
+def _module_string_constants(tree: ast.Module) -> dict[str, str]:
+    """Module-level ``NAME = "..."`` bindings: the homes a literal moved into.
+
+    M8-T508 moved the ``/api/tasks/`` prefix into ``TASKS_API_PREFIX`` so the
+    matcher and the stripper share one home. A census that only reads string
+    literals would now see *no* prefix family at all and silently cover
+    nothing, so it has to follow the home. An unresolvable argument is a hard
+    error rather than a skip: the gate must fail loudly when a new indirection
+    appears, never quietly shrink its own inventory.
+    """
+    constants: dict[str, str] = {}
+    for node in tree.body:
+        if not (isinstance(node, ast.Assign) and isinstance(node.value, ast.Constant)
+                and isinstance(node.value.value, str)):
+            continue
+        for target in node.targets:
+            if isinstance(target, ast.Name):
+                constants[target.id] = node.value.value
+    return constants
+
+
 def _prefix_families() -> set[str]:
     """Every ``path.startswith("/api/...")`` family inside the verb handlers."""
     tree = ast.parse(WEBSERVER.read_text(encoding="utf-8"))
+    constants = _module_string_constants(tree)
     verbs = {"do_GET", "do_POST"}
     found: set[str] = set()
     for fn in (node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef) and node.name in verbs):
@@ -408,10 +430,21 @@ def _prefix_families() -> set[str]:
             receiver = node.func.value
             if not (isinstance(receiver, ast.Name) and receiver.id == "path"):
                 continue
-            if node.args and isinstance(node.args[0], ast.Constant) and isinstance(node.args[0].value, str):
-                value = node.args[0].value
-                if value.startswith("/api/") and value != _CATCH_ALL:
-                    found.add(value)
+            if not node.args:
+                continue
+            argument = node.args[0]
+            if isinstance(argument, ast.Constant) and isinstance(argument.value, str):
+                value = argument.value
+            elif isinstance(argument, ast.Name) and argument.id in constants:
+                value = constants[argument.id]
+            else:
+                raise AssertionError(
+                    "a path.startswith(...) argument is neither a string literal nor a "
+                    f"module-level string constant this census can resolve: {ast.dump(argument)}; "
+                    "teach _module_string_constants to follow it before trusting this gate"
+                )
+            if value.startswith("/api/") and value != _CATCH_ALL:
+                found.add(value)
     return found
 
 
