@@ -551,10 +551,10 @@ class _SubagentRunner:
             if parent_cancel is not None and parent_cancel.is_set():
                 child_cancel.set()
                 thread.join(timeout=15.0)
-                lifecycle("subagent_cancelled", "cancelled", f"子代理被取消：{description}")
+                lifecycle("subagent_cancelled", "cancelled", subagent_cancelled_message(description))
                 return ToolResult(
                     status="cancelled",
-                    summary=tagged(CODE_CANCELLED, f"子代理被取消：{description}"),
+                    summary=tagged(CODE_CANCELLED, subagent_cancelled_message(description)),
                     security_tags=untrusted_tags("subagent"),
                 )
             remaining = deadline - time.monotonic()
@@ -576,10 +576,10 @@ class _SubagentRunner:
             except AgentCancelled:
                 child_cancel.set()
                 thread.join(timeout=15.0)
-                lifecycle("subagent_cancelled", "cancelled", f"子代理被取消：{description}")
+                lifecycle("subagent_cancelled", "cancelled", subagent_cancelled_message(description))
                 return ToolResult(
                     status="cancelled",
-                    summary=tagged(CODE_CANCELLED, f"子代理被取消：{description}"),
+                    summary=tagged(CODE_CANCELLED, subagent_cancelled_message(description)),
                     security_tags=untrusted_tags("subagent"),
                 )
             except BudgetExceeded as exc:
@@ -594,7 +594,7 @@ class _SubagentRunner:
                 return ToolResult(
                     status="error",
                     summary=tagged(CODE_BUDGET, f"子代理预算耗尽：{description}（{exc}）"),
-                    output="子代理在其独立预算内未完成，已终止。请缩小委派范围或拆成多步后重试。",
+                    output=subagent_budget_failed_output(),
                     data={"description": description, "tool_log": tool_log, "budget_exceeded": True},
                     security_tags=untrusted_tags("subagent"),
                 )
@@ -603,11 +603,11 @@ class _SubagentRunner:
             thread.join(timeout=15.0)
             lifecycle(
                 "subagent_timed_out", "error",
-                f"子代理超时（>{int(self.timeout_seconds)}s）：{description}",
+                subagent_timeout_message(self.timeout_seconds, description),
             )
             return ToolResult(
                 status="timed_out",
-                summary=tagged(CODE_TIMEOUT, f"子代理超时（>{int(self.timeout_seconds)}s）：{description}"),
+                summary=tagged(CODE_TIMEOUT, subagent_timeout_message(self.timeout_seconds, description)),
                 output="子代理超时被终止。请缩小调研范围后重试，或直接使用只读工具分步完成。",
                 data={"description": description, "tool_log": tool_log, "timed_out": True},
                 security_tags=untrusted_tags("subagent"),
@@ -623,12 +623,12 @@ class _SubagentRunner:
             # as an ok result with an empty answer.
             lifecycle(
                 "subagent_failed", "error",
-                f"子代理失败：{description}（{result.error}）", error=str(result.error),
+                subagent_failed_message(description, result.error), error=str(result.error),
             )
             return ToolResult(
                 status="error",
-                summary=tagged(CODE_ERROR, f"子代理失败：{description}（{result.error}）"),
-                output="子代理在其独立预算内未完成，已终止。请缩小委派范围或拆成多步后重试。",
+                summary=tagged(CODE_ERROR, subagent_failed_message(description, result.error)),
+                output=subagent_budget_failed_output(),
                 data={
                     "description": description,
                     "tool_log": tool_log,
@@ -668,6 +668,46 @@ class _SubagentRunner:
             },
             security_tags=untrusted_tags("subagent"),
         )
+
+
+def subagent_cancelled_message(description: str) -> str:
+    """The one wording of the subagent cancellation verdict.
+
+    Two branches spell it - the parent's cancel flag and the child's
+    AgentCancelled - and each branch writes it twice (the lifecycle
+    event the audit sink reads, the ToolResult summary the parent
+    model reads), so four hand-written copies said the same thing
+    (M8-T500).
+    """
+    return f"子代理被取消：{description}"
+
+
+def subagent_budget_failed_output() -> str:
+    """The one wording of a budget-terminated subagent's output.
+
+    Both the BudgetExceeded branch and the named-error branch hand
+    the parent this sentence; one fact, two exits (M8-T500).
+    """
+    return "子代理在其独立预算内未完成，已终止。请缩小委派范围或拆成多步后重试。"
+
+
+def subagent_timeout_message(timeout_seconds: float, description: str) -> str:
+    """The one wording of the subagent timeout verdict.
+
+    The lifecycle event and the ToolResult summary both spell it
+    (M8-T500); the ceiling is a parameter so the sentence stays one
+    fact.
+    """
+    return f"子代理超时（>{int(timeout_seconds)}s）：{description}"
+
+
+def subagent_failed_message(description: str, error: object) -> str:
+    """The one wording of the subagent named-failure verdict.
+
+    The lifecycle event and the ToolResult summary both spell it
+    (M8-T500).
+    """
+    return f"子代理失败：{description}（{error}）"
 
 
 def _bounded_output(text: str, limit: int = 12000) -> tuple[str, str, bool]:

@@ -32597,3 +32597,56 @@ project_config、session_rewind、session_format_version、T497/T495 门禁
 聚焦回归 ✓：mention/permission 直面 **83 条** ✓（mentions、mentions_pure、
 mentions_budget、records 门禁、cap 门禁、checkpoint 门禁、permissions_pure、
 deny veto 门禁 ✓），全绿 ✓。慢测试未跑 ✓，全量 pytest 未跑 ✓。
+
+## 第四百八十四批 — M8-T500 — 子代理判词四个家：lifecycle 与 ToolResult 各拼一句
+
+### 1 缺陷
+
+探针发现子代理的四种结局判词在 `subagent.py` 里有十个家：取消（
+`子代理被取消：` ×4）、预算终止 output（×2）、超时（×2）、命名失败
+（×2）。每个分支都有两个读者——lifecycle 事件（审计 sink 读）和
+ToolResult 的 summary/output（父模型读），每处各拼一遍。一处改了措词
+其余没跟上，审计日志和模型读到的就是不同的事实，没有任何测试会红。
+
+### 2 落地
+
+- 四个家安在 `minicc/agent/subagent.py` 模块层，紧挨 `_bounded_output`——
+  所有调用点都在这个模块：`subagent_cancelled_message(description)`、
+  `subagent_budget_failed_output()`、
+  `subagent_timeout_message(timeout_seconds, description)`、
+  `subagent_failed_message(description, error)` ✓
+- 十个调用点全部改问家，消息字节不变 ✓；家只拥有措词，分支的控制流
+  （set cancel、join、返回哪个 status）留在原地 ✓
+- 门禁 `tests/test_the_subagent_verdicts_have_one_home.py` 14 条 ✓：四
+  个家各钉值、census ×4（每句全场恰一次）、计数断言（每家 3~5 处形
+  状）、**五条端到端行为断言**（cancel flag、AgentCancelled、预算、超
+  时、命名失败全部真驱动）✓
+- lifecycle 消息用 `on_trace` 捕获后同样进了行为断言——ToolResult 的
+  summary 和审计事件的 summary 是同一条判词的两个读者，都要钉 ✓
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T500-408 | AgentCancelled 分支 lifecycle 恢复手拼 | 红（census ✓） |
+| M8-T500-409 | 家里又声明一份取消判词副本 | 红（census ✓） |
+| M8-T500-410 | 取消家的判词漂移（已取消） | 红（家值 ✓） |
+| M8-T500-411 | cancel flag 分支 summary 不闻家 | 红（行为 ✓） |
+| M8-T500-412 | 超时 lifecycle 主语漂移（description→字面量） | 红（行为 ✓） |
+| M8-T500-413 | 失败分支 summary 拿的是预算判词 | 红（行为 ✓） |
+
+六条全部 KILLED ✓，恢复后字节相同 ✓。
+
+### 4 一条教训
+
+**同一条判词的第二个读者是审计事件，行为断言要连它一起钉。** 本批第一
+版门禁只断言了 ToolResult 的 summary/output，lifecycle 事件的消息没有
+任何断言——变异 412（lifecycle 的主语漂移）因此逃过一劫，补上
+`on_trace` 捕获后立刻 KILLED。判别式：家收编措词时，先数清楚这条措词
+有几个读者（模型读的 summary、审计读的 event、UI 读的 status），每个读
+者一条断言；「工具结果对了」不等于「审计日志也对」，后者恰恰是出事复
+盘时唯一可查的那份。
+
+聚焦回归 ✓：subagent 直面 **59 条** ✓（task、budget_fold、delegation、
+wiring、streaming、hooks_inheritance、security_tags 门禁、并行簿记门禁
+✓），全绿 ✓。慢测试未跑 ✓，全量 pytest 未跑 ✓。
