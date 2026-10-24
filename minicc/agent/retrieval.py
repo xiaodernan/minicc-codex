@@ -38,6 +38,8 @@ from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path
 
+from ..env_files import ENV_FILENAME
+
 
 SKIP_DIRS = {".git", ".venv", "venv", "node_modules", "__pycache__", "output", "tmp", "data", ".minicc", "dist", "build", "coverage"}
 TEXT_SUFFIXES = {".py", ".js", ".ts", ".tsx", ".jsx", ".mjs", ".cjs", ".css", ".html", ".json", ".md", ".yaml", ".yml", ".toml", ".go", ".rs", ".java", ".sql", ".vue", ".svelte"}
@@ -66,7 +68,7 @@ def is_secret_filename(name: str) -> bool:
     as indexing the store, so these names stay out entirely.
     """
     folded = name.casefold()
-    if folded in SECRET_FILENAMES or folded.startswith(".env"):
+    if folded in SECRET_FILENAMES or folded.startswith(ENV_FILENAME):
         return True
     path = Path(folded)
     if path.suffix in SECRET_SUFFIXES:

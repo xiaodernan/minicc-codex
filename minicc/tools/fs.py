@@ -14,6 +14,7 @@ import re
 from pathlib import Path, PurePosixPath
 from typing import Any
 
+from ..env_files import is_env_filename
 from ..internal_paths import (
     ALLOWLIST_NAME,
     AUDIT_NAME,
@@ -54,7 +55,9 @@ def _is_sensitive_path(path: str) -> bool:
     name = Path(path).name.lower()
     if name in SENSITIVE_NAMES or name.endswith(SENSITIVE_SUFFIXES):
         return True
-    return name == ".env" or (name.startswith(".env.") and name != ".env.example")
+    # M8-T510: the env family has one home; the ``.env.example`` carve-out is
+    # this surface's own policy and stays visible here.
+    return is_env_filename(name) and name != ".env.example"
 
 
 def _reject_sensitive(path: str) -> None:

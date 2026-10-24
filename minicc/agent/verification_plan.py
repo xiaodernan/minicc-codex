@@ -10,6 +10,7 @@ from collections import OrderedDict
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+from ..env_files import is_env_filename
 from .check_commands import PYTHON_TEST_RUNNERS, command_parts, checker_invocation
 from .test_selection import relevant_python_tests
 
@@ -153,7 +154,7 @@ def verification_state(
             path = Path(current) / name
             # Environment/secret inputs are intentionally not read into a
             # verification snapshot. Their presence disables reuse instead.
-            if name == ".env" or name.startswith(".env.") or path.suffix in {".pem", ".key"}:
+            if is_env_filename(name) or path.suffix in {".pem", ".key"}:
                 cacheable = False
                 # M8-T294: their **signature** still enters the digest, so a
                 # change in them is visible to the "the workspace changed

@@ -33101,3 +33101,61 @@ OpenAI 的 wire protocol。这条规则有两个家、逐字相同：`minicc/con
 config_surface、config_unknown_keys、promises_that_the_code_did_not_keep、
 cli_stage_routing、fake_provider_switch 门禁 ✓），全绿 ✓。慢测试未跑
 ✓，全量 pytest 未跑 ✓。
+
+## 第四百九十四批 — M8-T510 — env 文件家族三个家：`.env` 与 `.env.<profile>`
+
+### 1 缺陷
+
+「这个名字是 env 文件吗」有三个家、三种问法：索引器
+（`minicc/agent/retrieval.py` 的 `startswith(".env")` 宽网）、文件工具
+（`minicc/tools/fs.py`，精确 `.env` 或 `.env.` 前缀且豁免
+`.env.example`）、验证 walk（`minicc/agent/verification_plan.py`，同款但
+不豁免）。三个问题的**策略**故意不同——工具可读 `.env.example`，另两者
+不豁免；索引器的网故意更宽（连 `.envrc` 也拦）——但**家族形状**是一个
+事实：家族哪天多了成员，三处必须同时知道，而今天没有任何测试会红。
+
+### 2 落地
+
+- 家安在新叶子模块 `minicc/env_files.py`：读者分布在 `agent` 与
+  `tools`，tools 不能从 agent 导入，只有叶子模块能同时被两者引用；与
+  `internal_paths.py` 分工——那个管 `.minicc/` 内部文件名，这个管用户
+  工作区的 env 家族，config 层读 cwd 下字面 `.env` 当配置源是另一个事
+  实，保留自己的拼法 ✓
+- `is_env_filename(name)` 只拥有家族形状；三处策略差异全部留在调用方且
+  变得可见：fs 的 `.env.example` 豁免、verification 的不豁免、retrieval
+  的宽网（`startswith(ENV_FILENAME)`）✓
+- 门禁 `tests/test_the_env_file_family_has_one_home.py` 5 条 ✓：家的真值
+  表（含 `.envrc`/`.envx`/`prod.env` 边界）、census（谓词位置的
+  `.env`/`.env.` 字面量全场为 0；`is_env_filename`/`ENV_FILENAME`/
+  `ENV_FAMILY_PREFIX` 的 Load 引用计数钉死 2/2/1）、**三个面各一条行为
+  断言**（fs 八例含豁免、verification 用真目录树驱动含 `.env.example`
+  不豁免与 `.pem` 半条、retrieval 四例含宽网）✓
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T510-470 | fs 恢复手拼家族判词 | 红（census ✓） |
+| M8-T510-471 | verification 恢复手拼 | 红（census ✓） |
+| M8-T510-472 | retrieval 宽网恢复手拼 | 红（census ✓） |
+| M8-T510-473 | 家丢掉前缀半（只认精确 .env） | 红（真值表 ✓） |
+| M8-T510-474 | fs 丢掉 .env.example 豁免 | 红（fs 行为 ✓） |
+| M8-T510-475 | retrieval 宽网退化成严家庭 | 红（索引行为 ✓） |
+
+六条全部 KILLED ✓，恢复后字节相同 ✓。
+
+### 4 一条教训
+
+**同一事实的 N 个读者策略不同，不等于事实不同——把形状收编成家，把策
+略差异留在调用方，差异就从「隐式漂移」变成「可见声明」。** 本批三个读
+者对 `.env.example` 的答案两正一反，收编前这看起来像三个不同的事实所以
+没人敢动；收编后门禁把三个答案分别钉死，差异成了写出来的策略。第二个
+教训是 census 的位置感：只数**谓词位置**的字面量（比较符、startswith
+实参），config 层 `Path(".env")` 的配置源事实和集合成员里的 `.env` 因
+不在谓词位置而天然出局，不需要例外清单。
+
+聚焦回归 ✓：retrieval/verification/fs 直面 **118 条** ✓
+（retrieval_enhanced、retrieval_skips_hidden_dirs、retrieval_notice、
+m4_evidence_chain、artefacts、change_gate、sensitive_refusal、
+evidence_index、file_preview_endpoint、verification_command_variants、
+verifier_lifecycle ✓），全绿 ✓。慢测试未跑 ✓，全量 pytest 未跑 ✓。
