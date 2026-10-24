@@ -32941,3 +32941,56 @@ batch_review ✓），全绿 ✓。慢测试未跑 ✓（test_http_surface 约 6
 聚焦回归 ✓：snapshot/containment 直面 **64 条** ✓（snapshots_pure、
 snapshots、workspace_containment、internal_dirs、error_code_vocabulary
 门禁 ✓），全绿 ✓。慢测试未跑 ✓，全量 pytest 未跑 ✓。
+
+## 第四百九十一批 — M8-T507 — 测试文件名判词三个家：test_ 前缀与 _test.py 后缀
+
+### 1 缺陷
+
+机制探针（T485 留下的新方向：不数句子，数**判断的形状**）发现「名字是
+测试文件吗」这个谓词有三个家：`test_selection.py` 的目录遍历
+（`_test_files`）、`test_selection.py` 的收敛路径匹配、`impact.py` 的
+`_is_test`。三处逐字相同（`startswith("test_") or endswith("_test.py")`，
+主语不同）。哪处改了形状其余没跟上，选测试的集合就悄悄变了——没有任何
+测试会红。同文件里「函数名以 test_ 开头」（pytest 函数识别）是另一个事
+实，按判别式不进来。
+
+### 2 落地
+
+- 家安在 `minicc/agent/test_selection.py`——「选哪些测试」正是它的职
+  责；impact 引用它不成环（agent 包不依赖 impact，实测 import 通过）✓
+- 三处全部改问家：`is_test_filename(name)`，只拥有名字形状；`.py` 检查
+  留在调用方（遍历处需要，影响分析不需要）✓
+- 门禁 `tests/test_the_test_filename_predicate_has_one_home.py` 5 条 ✓：
+  谓词钉死（含「只认形状不管扩展名」的边界）、census（AST 找
+  startswith("test_") 与 endswith("_test.py") **成对**的 BoolOp，全场恰
+  一次——单边 startswith 的「函数名」判断天然不计入）、计数断言、**两
+  条端到端行为断言**（真遍历目录树只 yield 测试文件；`_is_test` 对四种
+  路径分类，含 \	ests/a_test.py\ 这个只有后缀半能命中的用例）✓
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T507-450 | 目录遍历恢复手拼谓词 | 红（census ✓） |
+| M8-T507-451 | 收敛匹配恢复手拼谓词 | 红（census ✓） |
+| M8-T507-452 | impact 恢复手拼谓词 | 红（census ✓） |
+| M8-T507-453 | 家里又声明一份谓词副本 | 红（census ✓） |
+| M8-T507-454 | 家丢掉后缀半（只认前缀） | 红（家值 ✓） |
+| M8-T507-455 | impact 只保留前缀半 | 红（行为 ✓） |
+
+六条全部 KILLED ✓，恢复后字节相同 ✓。
+
+### 4 一条教训
+
+**机制 census 打开的是字符串 census 看不到的一层：谓词、协议、格式。
+** 前十二批扫的是「说出来的话」，本批扫的是「做判断的方式」——三个
+`startswith/endswith` 配对没有任何一条消息文本相同，字符串 census 永远
+不会报它们，但它们确实是同一个事实的三个家。census 判据也随之上了一
+层：数「配对的 AST 形状」而不是数字面量；同族的「函数名 test_ 前缀」因
+形状不配对而天然出局，不需要例外清单。判别式：一个判断在 N 个模块里被
+用同样的参数拼写复现，它就是和判词同等级的事实；扫重复时要问「这话
+说过几遍」和「这判断下了几遍」两个问题。
+
+聚焦回归 ✓：impact/test-selection 直面 **57 条** ✓（change_impact、
+check_selection、impacted_tests、index_census、scan_warning 门禁 ✓），
+全绿 ✓。慢测试未跑 ✓，全量 pytest 未跑 ✓。

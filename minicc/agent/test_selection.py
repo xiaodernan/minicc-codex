@@ -35,12 +35,23 @@ def _test_imports(path: Path) -> set[str]:
     return imports
 
 
+def is_test_filename(name: str) -> bool:
+    """The one predicate deciding whether a file name is a test file.
+
+    The test walker and the impact analysis each spelled the pair
+    by hand (M8-T507): a name is a test when it leads with ``test_``
+    or ends with ``_test.py``.  The ``test_``-prefixed **function**
+    check is a different fact and stays out of here.
+    """
+    return name.startswith("test_") or name.endswith("_test.py")
+
+
 def _test_files(tests: Path):
     count = 0
     for folder, dirs, files in os.walk(tests):
         dirs[:] = sorted(d for d in dirs if not d.startswith(".") and d not in {"node_modules", "__pycache__"} and not (Path(folder) / d).is_symlink())
         for name in sorted(files):
-            if not name.endswith(".py") or not (name.startswith("test_") or name.endswith("_test.py")):
+            if not name.endswith(".py") or not is_test_filename(name):
                 continue
             yield Path(folder) / name
             count += 1
@@ -61,7 +72,7 @@ def relevant_python_tests(root: Path, changed: list[str]) -> list[str]:
             modules.add(module[4:])
         if module.endswith(".__init__"):
             modules.add(module[:-9])
-        if (path.name.startswith("test_") or path.name.endswith("_test.py")) and (root / path).is_file():
+        if is_test_filename(path.name) and (root / path).is_file():
             selected.add(path.as_posix())
         for candidate in (Path("tests") / f"test_{path.stem}.py", path.parent / f"test_{path.stem}.py"):
             if (root / candidate).is_file():

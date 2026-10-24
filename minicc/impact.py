@@ -16,6 +16,8 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any
 
+from .agent.test_selection import is_test_filename
+
 _JS_SUFFIXES = {".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".mts", ".cts"}
 _SUFFIXES = _JS_SUFFIXES | {".py"}
 _SKIP_DIRS = {"node_modules", "venv", "__pycache__", "dist", "build", "coverage", "output", "vendor"}
@@ -250,7 +252,7 @@ def _javascript_targets(path: str, parsed: _Parsed, known: set[str]) -> tuple[se
 def _is_test(path: str, parsed: _Parsed | None = None) -> bool:
     file = PurePosixPath(path)
     if file.suffix == ".py":
-        name_matches = file.name.startswith("test_") or file.name.endswith("_test.py")
+        name_matches = is_test_filename(file.name)
         test_location = len(file.parts) == 1 or bool(set(file.parts[:-1]) & {"test", "tests", "__tests__"})
         return name_matches and (test_location or bool(parsed and parsed.test_definitions))
     return bool(re.search(r"(?:^|[._-])(?:test|spec|smoke)(?:[._-]|$)", file.stem)) or "__tests__" in file.parts
