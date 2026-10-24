@@ -165,6 +165,26 @@ async def _wait_for_cancel(cancel_event: threading.Event) -> None:
         await asyncio.sleep(0.1)
 
 
+def max_duration_exhausted_message() -> str:
+    """The one wording of the max-duration BudgetExceeded verdict.
+
+    ``chat_with_cancellation`` has two timeout exits - the
+    ``wait_for`` race and the deadline task - and both raised this
+    sentence by hand (M8-T501).
+    """
+    return "最大执行时间已用尽，已取消当前模型请求"
+
+
+def soft_budget_stopped_summary() -> str:
+    """The one wording of the soft-budget stop trace summary.
+
+    The loop spells it at both stops - the wrap-up round that called
+    a tool again and the wrap-up round that answered in text - so a
+    rename reached one and not the other (M8-T501).
+    """
+    return "软预算收束轮次后仍超限，已停止"
+
+
 async def chat_with_cancellation(
     provider: OpenAICompatibleProvider,
     *,
@@ -187,7 +207,7 @@ async def chat_with_cancellation(
                 timeout=timeout_seconds,
             )
         except asyncio.TimeoutError as exc:
-            raise BudgetExceeded("最大执行时间已用尽，已取消当前模型请求") from exc
+            raise BudgetExceeded(max_duration_exhausted_message()) from exc
     if cancel_event.is_set():
         raise AgentCancelled
     request = asyncio.create_task(
@@ -216,7 +236,7 @@ async def chat_with_cancellation(
         if deadline is not None and deadline in done:
             request.cancel()
             await asyncio.gather(request, return_exceptions=True)
-            raise BudgetExceeded("最大执行时间已用尽，已取消当前模型请求")
+            raise BudgetExceeded(max_duration_exhausted_message())
         return request.result()
     finally:
         if not watcher.done():
@@ -934,7 +954,7 @@ async def run_agent(
                     or "已达到软预算上限，任务已收束。"
                 )
                 emit_trace(
-                    "软预算收束轮次后仍超限，已停止",
+                    soft_budget_stopped_summary(),
                     phase="summarize",
                     code="soft_budget_stopped",
                     detail=_budget_snapshot(runtime_budget),
@@ -1844,7 +1864,7 @@ async def run_agent(
             result.answer = text
             messages.append(assistant_msg(content=result.answer))
             emit_trace(
-                "软预算收束轮次后仍超限，已停止",
+                soft_budget_stopped_summary(),
                 phase="summarize",
                 code="soft_budget_stopped",
                 detail=_budget_snapshot(runtime_budget),

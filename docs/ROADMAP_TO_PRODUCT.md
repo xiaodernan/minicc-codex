@@ -32650,3 +32650,58 @@ ToolResult 的 summary/output（父模型读），每处各拼一遍。一处改
 聚焦回归 ✓：subagent 直面 **59 条** ✓（task、budget_fold、delegation、
 wiring、streaming、hooks_inheritance、security_tags 门禁、并行簿记门禁
 ✓），全绿 ✓。慢测试未跑 ✓，全量 pytest 未跑 ✓。
+
+## 第四百八十五批 — M8-T501 — loop 预算判词四个家：两条超时出口、两个停机点
+
+### 1 缺陷
+
+探针发现 loop 的两条预算判词各有两个家：「最大执行时间已用尽，已取消当前
+模型请求」在 `chat_with_cancellation` 的 `wait_for` 竞态出口和 deadline
+任务出口各拼一次；「软预算收束轮次后仍超限，已停止」在 `run_agent` 的
+wrap-up 轮又调工具停机点和 wrap-up 轮直接回答停机点各拼一次。一处改了
+措词其余没跟上，异常消息和审计事件读到的是不同的事实，没有任何测试会
+红。
+
+### 2 落地
+
+- 两个家安在 `minicc/agent/loop.py` 模块层，紧挨
+  `chat_with_cancellation`——第一条判词的调用点都在它里面，第二条在同
+  模块的 `run_agent`：`max_duration_exhausted_message()`、
+  `soft_budget_stopped_summary()` ✓
+- 四个调用点全部改问家，消息字节不变 ✓
+- 门禁 `tests/test_the_loop_budget_verdicts_have_one_home.py` 9 条 ✓：两
+  个家各钉值、census ×2（精确相等各自全场恰一次；同文件的
+  「最大执行时间已用尽」（无后缀）是另一个事实，相等判据天然不误
+  伤）、计数断言、**四条端到端行为断言**（wait_for 出口与 deadline 出
+  口用挂起 provider 真驱动；两个软预算停机点用
+  `soft_max_duration_seconds=0.0` 真驱动，分别走「又调工具」和「直接
+  回答」两条 wrap-up 路径）✓
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T501-414 | wait_for 出口恢复手拼判词 | 红（census ✓） |
+| M8-T501-415 | deadline 出口恢复手拼判词 | 红（census ✓） |
+| M8-T501-416 | 最大执行时间家的判词漂移 | 红（家值 ✓） |
+| M8-T501-417 | 软预算家的判词漂移 | 红（家值 ✓） |
+| M8-T501-418 | 工具轮停机点不闻家 | 红（行为 ✓） |
+| M8-T501-419 | 文本轮停机点不闻家 | 红（行为 ✓） |
+
+六条全部 KILLED ✓，恢复后字节相同 ✓。418/419 分别只红对应的那条行为
+断言，证明两条断言各自锁定各自的停机点。
+
+### 4 一条教训
+
+**停机点成对出现时，行为断言要能区分「哪一半」被打到。** 两个软预算停
+机点 emit 同一句话，如果只写一条 trace 断言，改坏任何一半都红——但红的那
+条断言说不出是哪一半坏了，而且理论上存在「两条断言其实都只覆盖同一
+半」的虚假安全感。本批用两个 provider（一轮调工具 / 一轮给文本）把两条
+路径分开驱动，再用 418/419 两条变异分别验证：每条断言只杀对应的那一
+半。判别式：同一判词有 N 个语义不同的停机点，就要有 N 条能互相区分的断
+言；验证方式是「每次只改一处，看到恰好一条断言红」，而不是「改一处、
+看到有断言红」。
+
+聚焦回归 ✓：loop/预算直面 **76 条** ✓（core_agent、budget_exceeded 门
+禁、budget_snapshot 门禁、merge/planner 成本折叠、subagent_task、
+subagent_budget_fold ✓），全绿 ✓。慢测试未跑 ✓，全量 pytest 未跑 ✓。
