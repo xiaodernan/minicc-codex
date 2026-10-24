@@ -32080,3 +32080,58 @@ frame、anthropic_provider、anthropic_plan_channel、retry_detail 门禁、
 channel counter 门禁、rate_limit_retry、T488 门禁 ✓），全绿 ✓。慢测试
 未跑 ✓，全量 pytest 未跑 ✓。
 
+## 第四百七十四批 — M8-T490 — 未识别键判词两个家：两个加载器各拼一套警告
+
+### 1 缺陷
+
+探针发现「你写了一个没有任何查找会读的键」这条警告有两个家：
+`config.py` 的 config.json 层（主语是层标签 + 文件路径）与 `mcp.py` 的
+server 条目（主语是 server 名）。判词句子「不会被读取（已按默认值运
+行）」和建议尾巴「，是否想写 X？」在两个加载器里各手拼一遍——一个加载
+器改了措辞而另一个没跟上，就是一类用户从没见过的警告，没有任何测试会
+红。mcp.py 里按传输限定的死键报告（「不会被读取（只有 X 传输会读
+它）」）是另一个时刻的另一件事，按判别式留在原地。
+
+### 2 落地
+
+- 家安 `minicc/config.py`，紧挨 `_unrecognized_layer_keys`——同一件事的
+  另一半（哪些键算未识别）本来就住在这里 ✓：
+  `unrecognized_key_warning(subject, key, hint)`，判词 + 尾巴一次成型 ✓
+- 两个加载器都改问家，消息字节不变 ✓；mcp.py 新增 `from .config import
+  unrecognized_key_warning`（无环：config 没有任何相对 import）✓
+- 门禁 `tests/test_the_unrecognized_key_warning_has_one_home.py` 7 条 ✓：
+  两种形状钉死、census（判词与尾巴全场各恰一次）、两个加载器都在问家
+  （按调用形状计数）、MCP 加载器共享同一对象、**驱动真 MCP 加载器**端
+  到端拿到完整警告、**驱动真 config 加载器**（MINICC_HOME 隔离 +  stray
+  key）拿到完整警告、传输限定报告仍只有一个现场 ✓
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T490-348 | config 调用点恢复手拼判词 | 红（census ✓） |
+| M8-T490-349 | mcp 调用点恢复手拼判词 | 红（census ✓） |
+| M8-T490-350 | 家里又声明一份判词副本 | 红（census ✓） |
+| M8-T490-351 | 家的判词漂移（丢括号注记） | 红（家值 ✓） |
+| M8-T490-352 | config 调用点把 hint 丢掉 | 红（行为 ✓） |
+| M8-T490-353 | mcp 调用点把建议永远置空 | 红（行为 ✓） |
+
+六条全部 KILLED ✓，恢复后字节相同 ✓。
+
+### 4 一条教训
+
+**「建议尾巴」是判词的一部分，立家时要连尾巴一起收。** 这条警告由两句
+组成：判词（键不会被读取）+ 尾巴（是否想写 X）。只把判词立家、尾巴留
+在原地，等于把同一事实又拆成两个家——门禁的 census 因此对两个片段各数
+一次。判别式：一条用户可见的消息，凡是以「主句 + 条件尾巴」形态拼出来
+的，家就要输出**整条**，调用方只准传数据（主语、键名、建议），不准传
+句子片段。
+
+另一个小坑：门禁数「调用形状」时，`from X import name` 这一行也会算进
+名字出现次数——第一版因此红了一次。计数要用带括号的调用形状
+（`name(`），import 行自然被排除。
+
+聚焦回归 ✓：config/mcp 加载面 **95 条** ✓（config_unknown_keys、
+project_config、mcp_recognized_keys_derive、mcp_transport_dead_keys、
+config_surface ✓），全绿 ✓。慢测试未跑 ✓，全量 pytest 未跑 ✓。
+

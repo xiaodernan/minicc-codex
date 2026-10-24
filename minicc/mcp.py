@@ -33,6 +33,7 @@ from pathlib import Path
 from typing import Any
 
 from . import __version__
+from .config import unrecognized_key_warning
 from .internal_paths import MCP_CONFIG_NAME
 from .jsonrpc import ERROR_METHOD_NOT_FOUND, JSONRPC_VERSION, method_not_found_message
 from .logging_setup import get_logger
@@ -225,9 +226,9 @@ def load_mcp_config(workspace: Path) -> list[McpServerConfig]:
         unknown = set(value) - RECOGNIZED_KEYS
         for key in sorted(unknown):
             hint = difflib.get_close_matches(key, RECOGNIZED_KEYS, n=1, cutoff=0.78)
-            msg = f"MCP server {name!r} 中的键 {key!r} 不会被读取（已按默认值运行）"
-            if hint:
-                msg += f"，是否想写 {hint[0]!r}？"
+            msg = unrecognized_key_warning(
+                f"MCP server {name!r}", key, hint[0] if hint else None
+            )
             LOG.warning(msg)
         
         command = _config_text(value, str(name), "command")

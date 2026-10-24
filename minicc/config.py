@@ -448,6 +448,25 @@ def _unrecognized_layer_keys(
     return found
 
 
+def unrecognized_key_warning(
+    subject: str, key: str, hint: str | None = None
+) -> str:
+    """The one wording of the "this key is never read" warning.
+
+    Two loaders spell this verdict: this module's config.json layers (the
+    subject is the layer label and the file path) and the MCP server
+    loader (the subject is the server name).  The verdict sentence and its
+    suggestion tail are one fact - a wording only one loader follows is a
+    warning the other loader's users have never seen (M8-T490).  The
+    transport-scoped dead-key report in ``mcp.py`` is a different fact and
+    keeps its own sentence.
+    """
+    line = f"{subject} 中的键 {key!r} 不会被读取（已按默认值运行）"
+    if hint:
+        line += f"，是否想写 {hint!r}？"
+    return line
+
+
 def _parse_env_file(path: Path) -> dict[str, str]:
     values: dict[str, str] = {}
     if not path.is_file():
@@ -967,9 +986,7 @@ def load_config(
                     "MINICC_SOFT_MAX_DURATION_SECONDS）"
                 )
             else:
-                line = f"{label} {path} 中的键 {key!r} 不会被读取（已按默认值运行）"
-                if hint:
-                    line += f"，是否想写 {hint!r}？"
+                line = unrecognized_key_warning(f"{label} {path}", key, hint)
             _LOGGER.warning(line)
             unrecognized.append(key)
 
