@@ -174,6 +174,18 @@ class SessionError(RuntimeError):
     """A session checkpoint is invalid or cannot be read/written."""
 
 
+def missing_session_message(name: str) -> str:
+    """The one wording of the session-is-missing verdict.
+
+    Three gates spelled this sentence by hand - ``_read_payload`` (the
+    backstop every reader goes through), ``rewind`` and
+    ``rewind_to_user_index`` - so a rename reached the gates somebody
+    remembered and the model read a different wording depending on which
+    door it walked through (M8-T495).
+    """
+    return f"会话不存在: {name}"
+
+
 def _replace_with_retry(source: Path, target: Path) -> None:
     for attempt in range(_REPLACE_ATTEMPTS):
         try:
@@ -365,7 +377,7 @@ class SessionStore:
 
     def _read_payload(self) -> dict[str, Any]:
         if not self.exists:
-            raise SessionError(f"会话不存在: {self.path.name}")
+            raise SessionError(missing_session_message(self.path.name))
         try:
             payload = json.loads(_read_text_with_retry(self.path))
         except (OSError, ValueError) as exc:
@@ -511,7 +523,7 @@ class SessionStore:
         """
         keep = _non_negative_int(keep_messages)
         if not self.exists:
-            raise SessionError(f"会话不存在: {self.path.name}")
+            raise SessionError(missing_session_message(self.path.name))
         payload = self._read_payload()
         messages = payload["messages"]
         total = len(messages)
@@ -541,7 +553,7 @@ class SessionStore:
         if n < 1:
             raise SessionError("user_index 至少为 1")
         if not self.exists:
-            raise SessionError(f"会话不存在: {self.path.name}")
+            raise SessionError(missing_session_message(self.path.name))
         payload = self._read_payload()
         messages = payload["messages"]
         seen = 0

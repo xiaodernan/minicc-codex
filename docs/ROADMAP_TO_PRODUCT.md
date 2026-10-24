@@ -32341,3 +32341,49 @@ non-zero process exit」，片段本身只出现在 f-string 里。
 file_preview_endpoint、empty_payload 门禁 ✓），全绿 ✓。慢测试未跑 ✓，
 全量 pytest 未跑 ✓。
 
+## 第四百七十九批 — M8-T495 — 会话不存在判词三个家：三扇门各拼一句
+
+### 1 缺陷
+
+探针发现「会话不存在: X」在 `session.py` 里有三个家：
+`_read_payload`（所有读取的兜底门）、`rewind`、`rewind_to_user_index`，
+三处逐字相同（都传 `self.path.name`）。模型从哪扇门进去，读到的就是哪份
+拼写——一处改了措词其余两处没跟上，没有任何测试会红。
+
+### 2 落地
+
+- 家安在 `minicc/session.py` 模块层，紧挨 `SessionError`——它要报告的异
+  常类：`missing_session_message(name)` ✓
+- 三个门全部改问家，消息字节不变 ✓
+- 门禁 `tests/test_the_missing_session_verdict_has_one_home.py` 6 条 ✓：
+  判词钉死、census（含「会话不存在」的字面量全场恰一次）、三个门都在问
+  家（按调用形状计数 4=1 定义+3 调用）、**三扇门各一条端到端行为断言**
+  （fork 走 `_read_payload` 兜底门、rewind、rewind_to_user_index 全部真
+  驱动）✓
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T495-378 | 三个门全部恢复手拼判词 | 红（census ✓） |
+| M8-T495-379 | 家里又声明一份判词副本 | 红（census ✓） |
+| M8-T495-380 | 家的判词漂移（会话文件不存在） | 红（家值 ✓） |
+| M8-T495-381 | _read_payload 门传 session_id 而不是文件名 | 红（行为 ✓） |
+| M8-T495-382 | rewind 门传 session_id 而不是文件名 | 红（行为 ✓） |
+| M8-T495-383 | rewind_to_user_index 门传 session_id 而不是文件名 | 红（行为 ✓） |
+
+六条全部 KILLED ✓，恢复后字节相同 ✓。
+
+### 4 一条教训
+
+**参数级变异要参数级行为断言去杀。** 上一批（T494）的教训是「行为覆盖
+按门数」，这一批把「门」细分到「参数」：三处调用长得一模一样，把其中一
+处的 `self.path.name` 换成 `self.session_id`，census 和计数断言全都看
+不见——只有端到端驱动那扇门、比对完整消息文本，才能发现「会话不存在:
+missing」和「会话不存在: missing.json」不是同一句话。判别式：家的每个
+参数，至少要有一个行为断言钉死它在该现场的取值；三处调用三个参数事
+实，就三条断言，省下的那两条都会变成将来的 SURVIVED。
+
+聚焦回归 ✓：session 直面 **63 条** ✓（session_fork、core_session、
+core_task ✓），全绿 ✓。慢测试未跑 ✓，全量 pytest 未跑 ✓。
+
