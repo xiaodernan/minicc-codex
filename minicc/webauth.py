@@ -64,7 +64,7 @@ def _atomic_replace(source: Path, dest: Path) -> None:
             if attempt == 7:
                 raise
             time.sleep(0.01 * (attempt + 1))
-from .config import unreadable_file_message
+from .config import unreadable_file_message, unwritable_file_message
 from .internal_paths import TOKEN_FILE_NAME  # re-exported: the deny list reads it from here
 TOKEN_BYTES = 32
 
@@ -177,7 +177,7 @@ def load_or_create_token(workspace: Path, explicit: str | None = None) -> tuple[
         _atomic_replace(tmp, store)
         temporary = None
     except OSError as exc:
-        raise WebAuthError(f"无法写入 {store}: {exc}") from exc
+        raise WebAuthError(unwritable_file_message(store, exc)) from exc
     finally:
         if temporary is not None:
             temporary.unlink(missing_ok=True)

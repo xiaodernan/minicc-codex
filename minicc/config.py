@@ -424,6 +424,19 @@ def unreadable_file_message(subject: Path | str, exc: BaseException) -> str:
     return f"无法读取 {subject}: {exc}"
 
 
+def unwritable_file_message(subject: Path | str, exc: BaseException) -> str:
+    """The one wording of the "this file could not be written" verdict.
+
+    The session payload writer, the web token store and the allowlist
+    writer each spelled it by hand (M8-T498), so a rename reached the
+    writer somebody remembered and a user read a different wording
+    depending on which file refused the write.  Each writer keeps its
+    own error type; the sentence is one fact, and the subject names
+    what could not be written.
+    """
+    return f"无法写入 {subject}: {exc}"
+
+
 def _read_config_json(path: Path) -> dict[str, Any]:
     """Load one config.json layer; a non-object top level is a ConfigError."""
     if not path.is_file():

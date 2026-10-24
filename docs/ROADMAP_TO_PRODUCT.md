@@ -32490,3 +32490,59 @@ mcp 的 mcp.json、session 的会话文件三处（`_read_payload`、`load_view`
 config_unknown_keys、session_fork、mcp_recognized_keys_derive、
 allowlist_validation、webauth_validation、missing_session 门禁 ✓），全
 绿 ✓。慢测试未跑 ✓，全量 pytest 未跑 ✓。
+
+## 第四百八十二批 — M8-T498 — 无法写入判词三个家：三个原子写手各拼一句
+
+### 1 缺陷
+
+探针发现「无法写入 X: 原因」在包里有三个家：session 的
+`_write_payload_at`、webauth 的 token store 保存、allowlist 的保存。三处
+逐字相同。一个文件写不进去，用户读到哪句措词取决于哪个写手失败——一处
+改了措词其余两处没跟上，没有任何测试会红。这是 T497「无法读取」判词的
+姊妹：同一族文件 IO 判词，读取侧立了家，写入侧还散着。
+
+### 2 落地
+
+- 家安在 `minicc/config.py`，紧挨「无法读取」的家——文件 IO 判词家族相
+  邻，且 config.py 不 import 任何包内模块，读者 import 不成环：
+  `unwritable_file_message(subject, exc)`，返回 `f"无法写入 {subject}:
+  {exc}"` ✓
+- 三个写手全部改问家，消息字节不变 ✓；主语是参数（`target`、`store`、
+  字面量 `"allowlist"`）✓
+- 门禁 `tests/test_the_unwritable_file_verdict_has_one_home.py` 7 条 ✓：
+  判词钉死（含 str/Path/字面量主语）、census（以「无法写入 」开头**且**
+  以「: 」结尾的字面量全场恰一次）、三个写手都在问家（按调用形状计
+  数）、四个模块共享同一个家对象、**每个写手一条端到端行为断言**（用
+  shim 让原子替换抛 OSError，三条写路径全部真驱动）✓
+- census 形状判据天然排除两句另一个事实的判词：「无法写入日志文件 %s，
+  已回退到 stderr: %s」（不以「无法写入 」开头）和「无法设置 X 权限」
+  （chmod 失败）✓
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T498-396 | session 写手恢复手拼判词 | 红（census ✓） |
+| M8-T498-397 | 家里又声明一份同模板判词副本 | 红（census ✓） |
+| M8-T498-398 | 家的判词漂移（无法写入文件） | 红（家值 ✓） |
+| M8-T498-399 | session 写手主语漂移（target→字面量） | 红（行为 ✓） |
+| M8-T498-400 | token store 写手把句子丢成空串 | 红（行为 ✓） |
+| M8-T498-401 | allowlist 主语漂移（allowlist→allowlist.json） | 红（行为 ✓） |
+
+六条全部 KILLED ✓，恢复后字节相同 ✓。
+
+### 4 一条教训
+
+**只出现一次的重复也是重复：探针的 2+ 次过滤器会漏掉家族新成员。** 本批
+探针（字符串 census 按「出现 ≥2 次」过滤）只报出 session 和 webauth 两
+处「无法写入」，allowlist.py 那处因为只出现一次被过滤掉——但它和另外两
+处逐字同事实。按 T497 立好的判据（以「无法写入 」开头且以「: 」结尾）
+单独扫一遍全包才抓到第三个家。判别式：判据的形状定义出来之后，要按判据
+本身扫全包，而不是按「出现次数」扫——次数过滤器预设了「重复才算事
+实」，而家族里完全可能只有一个读者还没被收编；上次漏掉的那一个，下次改
+措词时就是没被通知到的那一个。
+
+聚焦回归 ✓：写路径直面 **184 条** ✓（session_fork、core_session、
+webauth_validation、allowlist_validation、allowlist、config_surface、
+project_config、session_rewind、session_format_version、T497/T495 门禁
+✓），全绿 ✓。慢测试未跑 ✓，全量 pytest 未跑 ✓。

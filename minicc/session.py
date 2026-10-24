@@ -24,7 +24,7 @@ from pathlib import Path
 from typing import Any
 
 from .clock import utc_now_iso
-from .config import unreadable_file_message
+from .config import unreadable_file_message, unwritable_file_message
 from .tools.registry import redact_text
 
 try:  # Windows
@@ -591,7 +591,7 @@ class SessionStore:
                 _replace_with_retry(temp_path, target)
             consumed = True
         except OSError as exc:
-            raise SessionError(f"无法写入 {target}: {exc}") from exc
+            raise SessionError(unwritable_file_message(target, exc)) from exc
         finally:
             if not consumed:
                 try:

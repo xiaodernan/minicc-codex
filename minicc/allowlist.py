@@ -14,7 +14,7 @@ from typing import Any
 
 from .tools.registry import redact_text
 
-from .config import unreadable_file_message
+from .config import unreadable_file_message, unwritable_file_message
 from .internal_paths import ALLOWLIST_NAME  # re-exported: the deny list reads it from here
 
 _lock = threading.RLock()
@@ -99,7 +99,7 @@ def save_allowlist(workspace: Path, payload: dict[str, Any]) -> None:
                 temporary.unlink(missing_ok=True)
             except OSError:
                 pass
-            raise AllowlistError(f"无法写入 allowlist: {exc}") from exc
+            raise AllowlistError(unwritable_file_message("allowlist", exc)) from exc
 
 
 def session_rules(workspace: Path, session_id: str) -> dict[str, list[str]]:
