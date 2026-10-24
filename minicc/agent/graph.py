@@ -87,6 +87,16 @@ SUCCESS_STATUSES = frozenset({"ok", "done", "success", "completed", "passed"})
 FAILED_NODE_STATUSES = frozenset({"failed", "error"})
 
 
+def negative_retries_message(name: str) -> str:
+    """The one wording of the negative-retry validation verdict.
+
+    Two validators spell it - the StateGraph node registry and the
+    DAGPlan task table (M8-T502); the subject names whichever node
+    was refused.
+    """
+    return f"节点重试次数不能为负数: {name}"
+
+
 class StateGraph:
     """Bounded phase machine used as an observability axis, not the executor."""
 
@@ -100,7 +110,7 @@ class StateGraph:
         if node.name in self.nodes:
             raise GraphValidationError(f"重复节点: {node.name}")
         if node.max_retries < 0:
-            raise GraphValidationError(f"节点重试次数不能为负数: {node.name}")
+            raise GraphValidationError(negative_retries_message(node.name))
         self.nodes[node.name] = node
         return self
 
@@ -227,7 +237,7 @@ class DAGPlan:
         outgoing: dict[str, list[str]] = {task.id: [] for task in self.tasks}
         for task in self.tasks:
             if task.max_retries < 0:
-                raise GraphValidationError(f"节点重试次数不能为负数: {task.id}")
+                raise GraphValidationError(negative_retries_message(task.id))
             if task.id in task.depends_on:
                 raise GraphValidationError(f"节点不能依赖自身: {task.id}")
             for dependency in task.depends_on:

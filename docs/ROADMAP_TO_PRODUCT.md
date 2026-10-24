@@ -32705,3 +32705,48 @@ wrap-up 轮又调工具停机点和 wrap-up 轮直接回答停机点各拼一次
 聚焦回归 ✓：loop/预算直面 **76 条** ✓（core_agent、budget_exceeded 门
 禁、budget_snapshot 门禁、merge/planner 成本折叠、subagent_task、
 subagent_budget_fold ✓），全绿 ✓。慢测试未跑 ✓，全量 pytest 未跑 ✓。
+
+## 第四百八十六批 — M8-T502 — 节点重试判词两个家：StateGraph 与 DAGPlan 各拼一句
+
+### 1 缺陷
+
+探针发现「节点重试次数不能为负数: X」有两个家：`StateGraph.add_node`
+的节点注册校验和 `DAGPlan.validate` 的任务表校验。两处逐字相同（只有主语
+不同：node.name vs task.id）。一个负的 max_retries 从哪扇门进去，读到的
+就是哪份拼写——一处改了措词其余没跟上，没有任何测试会红。
+
+### 2 落地
+
+- 家安在 `minicc/agent/graph.py` 模块层，紧挨 `StateGraph`——两个调用点
+  都在这个模块：`negative_retries_message(name)`，主语是参数 ✓
+- 两个校验器全部改问家，消息字节不变 ✓
+- 门禁 `tests/test_the_negative_retry_verdict_has_one_home.py` 5 条 ✓：
+  判词钉死、census（精确相等，全场恰一次）、计数断言（3=1 定义+2 校
+  验）、**两个校验器各一条端到端行为断言**（add_node 和 DAGPlan.validate
+  真驱动，比对完整消息）✓
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T502-420 | add_node 校验恢复手拼判词 | 红（census ✓） |
+| M8-T502-421 | DAGPlan 校验恢复手拼判词 | 红（census ✓） |
+| M8-T502-422 | 家里又声明一份判词副本 | 红（census ✓） |
+| M8-T502-423 | 家的判词漂移（不可为负） | 红（家值 ✓） |
+| M8-T502-424 | add_node 门主语漂移（name→phase） | 红（行为 ✓） |
+| M8-T502-425 | DAGPlan 门主语漂移（id→kind） | 红（行为 ✓） |
+
+六条全部 KILLED ✓，恢复后字节相同 ✓。
+
+### 4 一条教训
+
+**同一判词的两个校验器保护的是两个入口，行为断言就要分两扇门。**
+add_node 是编程期注册（图构造时），DAGPlan.validate 是计划期校验（模型
+产出的计划落库前）——同一个「负重试」事实在两个时刻各守一扇门。变异
+424/425 把主语换掉，census 和计数断言全都看不见（调用形状没变），只有
+分别驱动两个入口、比对完整消息才能杀。判别式：参数级变异要参数级行为断
+言；两个调用点就是两扇门，哪怕它们的代码只差一个 `node.` 和 `task.`。
+
+聚焦回归 ✓：graph/plan 直面 **66 条** ✓（terminal_status、failed_node
+门禁、planner 承诺门禁、plan_node_tool_lists 门禁、core_agent ✓），全
+绿 ✓。慢测试未跑 ✓，全量 pytest 未跑 ✓。
