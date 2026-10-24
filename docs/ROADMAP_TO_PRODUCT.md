@@ -32387,3 +32387,49 @@ missing」和「会话不存在: missing.json」不是同一句话。判别式�
 聚焦回归 ✓：session 直面 **63 条** ✓（session_fork、core_session、
 core_task ✓），全绿 ✓。慢测试未跑 ✓，全量 pytest 未跑 ✓。
 
+## 第四百八十批 — M8-T496 — git 命令失败判词三个家：三个 runner 各拼一句
+
+### 1 缺陷
+
+探针发现「git 命令失败: X」在 `tools/git.py` 里有三个家：
+`GitTools._run`、`merge_precheck`、`_capture`，三处逐字相同。git 表面有
+三扇门（普通命令、merge 预检、摘要抓取），模型从哪扇门进去，读到的就是
+哪份拼写——一处改了措词其余两处没跟上，没有任何测试会红。
+
+### 2 落地
+
+- 家安在 `minicc/tools/git.py` 模块层，紧挨 `GitTools`——它服务的类：
+  `git_command_failed(exc)`，异常对象进、句子出 ✓
+- 三个 runner 全部改问家，消息字节不变 ✓
+- 门禁 `tests/test_the_git_failure_verdict_has_one_home.py` 6 条 ✓：判词
+  钉死、census（含「git 命令失败」的字面量全场恰一次）、三个 runner 都
+  在问家（按调用形状计数 4=1 定义+3 调用）、**三个 runner 各一条行为断
+  言**（用 subprocess shim 让每次 run 都超时，三扇门全部真驱动）✓
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T496-384 | 三个 runner 全部恢复手拼判词 | 红（census ✓） |
+| M8-T496-385 | 家里又声明一份判词副本 | 红（census ✓） |
+| M8-T496-386 | 家的判词漂移（命令执行失败） | 红（家值 ✓） |
+| M8-T496-387 | merge_precheck 用自己的措词 | 红（census ✓） |
+| M8-T496-388 | _capture 恢复手拼判词 | 红（census ✓） |
+| M8-T496-389 | 家的插值漂移（repr 化） | 红（家值 ✓） |
+
+六条全部 KILLED ✓，恢复后字节相同 ✓。
+
+### 4 一条教训
+
+**驱动三扇门不一定需要三个真环境。** 三个 runner 都走
+`subprocess.run`，行为断言没有去真的造超时/坏仓库，而是在模块级把
+`subprocess` 换成一个「每次 run 都抛 TimeoutExpired」的 shim
+（monkeypatch 自动恢复）——三个门在同一条测试会话里全部真驱动，每条断
+言只比对家的渲染。判别式：行为断言要的是「这条生产路径真的走到、真的
+把家的输出交给读者」，不是「真的发生一次网络/进程故障」；后者贵且慢，
+前者便宜且确定。
+
+聚焦回归 ✓：git 工具面 **17 条** ✓（git_workflow、subprocess_timeout_
+pairing、merge_probe 门禁、exit_marker 门禁 ✓），全绿 ✓。慢测试未跑 ✓，
+全量 pytest 未跑 ✓。
+

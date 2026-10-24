@@ -35,6 +35,17 @@ def _safe_relative(workspace: Path, raw: str) -> str:
     return Path(raw).as_posix()
 
 
+def git_command_failed(exc: BaseException) -> str:
+    """The one wording of the git-command failure verdict.
+
+    Three runners spell this sentence by hand - ``GitTools._run``,
+    ``merge_precheck`` and ``_capture`` - so a rename reached the runners
+    somebody remembered and the model read a different wording depending on
+    which git surface it walked through (M8-T496).
+    """
+    return f"git 命令失败: {exc}"
+
+
 class GitTools:
     """Bound to one workspace and limited to non-mutating Git commands."""
 
@@ -54,7 +65,7 @@ class GitTools:
                 shell=False,
             )
         except (OSError, subprocess.TimeoutExpired) as exc:
-            raise ToolError(f"git 命令失败: {exc}") from exc
+            raise ToolError(git_command_failed(exc)) from exc
 
         output = (completed.stdout or "").strip()
         if completed.stderr.strip():
@@ -140,7 +151,7 @@ class GitTools:
                 shell=False,
             )
         except (OSError, subprocess.TimeoutExpired) as exc:
-            raise ToolError(f"git 命令失败: {exc}") from exc
+            raise ToolError(git_command_failed(exc)) from exc
         output = (completed.stdout or "").strip()
         lines = output.splitlines() if output else []
         # merge-tree --write-tree --name-only: line 1 is the tree oid; in the
@@ -177,7 +188,7 @@ class GitTools:
                 shell=False,
             )
         except (OSError, subprocess.TimeoutExpired) as exc:
-            raise ToolError(f"git 命令失败: {exc}") from exc
+            raise ToolError(git_command_failed(exc)) from exc
         return (completed.stdout or "").strip()
 
     def _capture_list(self, args: list[str]) -> tuple[int, int]:
