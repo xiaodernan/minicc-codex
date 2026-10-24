@@ -33308,3 +33308,54 @@ hook 拒绝工具调用却什么都没说时，用户看到默认判词 `hook de
 hook_launch_failure、hooks_budget、hook_event_loop、hook_entry 门禁、
 hook_argument_redaction、subagent_hooks_inheritance ✓），全绿 ✓。慢测
 试未跑 ✓，全量 pytest 未跑 ✓。
+
+## 第四百九十八批 — M8-T514 — 子代理预算耗尽判词：M8-T500 家族里唯一没有家的成员
+
+### 1 缺陷
+
+M8-T500 给子代理的四种结局各立了消息家（取消、预算 output、超时、命
+名失败），但「预算耗尽」这条判词本身漏了：它的两个读者——lifecycle 事
+件（审计 sink 读）和 ToolResult summary（父模型读）——各自手拼
+`f"子代理预算耗尽：{description}"`。措词漂移时审计日志和模型读到的就不
+是同一条事实，没有任何测试会红。
+
+### 2 落地
+
+- 家安在 `minicc/agent/subagent.py`，紧挨家族其他成员：
+  `subagent_budget_exhausted_message(description)` ✓
+- 两个读者全部改问家；summary 的括号补语（`（{exc}）`）留在调用方拼
+  装——和 `subagent_failed_message` 的组成方式一致，差异可见而不是隐式 ✓
+- 门禁 `tests/test_the_subagent_budget_verdict_has_one_home.py` 3 条 ✓：
+  pin 句子、census（f-string 骨架**按开头**判，全场恰 1 次且必须在家）、
+  **一条行为断言同时钉两个读者**（真驱动预算分支：summary 带括号补
+  语、lifecycle 事件不带——两者分别钉住）✓
+
+### 3 变异验证
+
+| 编号 | 变异 | 验红 |
+| --- | --- | --- |
+| M8-T514-494 | lifecycle 读者恢复手拼 | 红（census ✓） |
+| M8-T514-495 | summary 读者恢复手拼 | 红（census ✓） |
+| M8-T514-496 | 家的措词漂移 | 红（pin ✓） |
+| M8-T514-497 | 家里出现第二份副本 | 红（census ✓） |
+| M8-T514-498 | summary 丢掉括号补语 | 红（行为 ✓） |
+| M8-T514-499 | lifecycle 悄悄拼上括号补语 | 红（行为 ✓） |
+
+六条全部 KILLED ✓，恢复后字节相同 ✓。
+
+### 4 一条教训
+
+**census 判据的形状错了，门禁会漏掉它本该杀的那个变异——本轮实测抓到
+一次。** 495 号变异（summary 处恢复手拼）在第一版门下 SURVIVED：判据
+用的骨架**精确相等**，而 summary 的模板骨架是 `子代理预算耗尽：（）`
+（多了括号补语的常量段），恰好不等于家的骨架。改成**开头判**（T497 的
+三判表：防手拼按开头判）后 495 立即红。判别式复盘：同一判词的 N 个读
+者若有不同的尾部装饰，census 必须按前缀判，否则装饰差异就是漏报。另
+一条操作教训：here-string 里写含 `\n` 的 Python 字符串，外层脚本会先把
+它解释掉，写文件后用 `python -c` 收集一下或直接后修，别等 pytest 报
+SyntaxError。
+
+聚焦回归 ✓：subagent 直面 **73 条** ✓（subagent_delegation、
+budget_fold、hooks_inheritance、task、wiring、streaming、verdicts 门禁、
+security_tags 门禁、parallel_bookkeeping ✓），全绿 ✓。慢测试未跑 ✓，全
+量 pytest 未跑 ✓。

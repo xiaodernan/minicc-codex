@@ -589,11 +589,14 @@ class _SubagentRunner:
                 thread.join(timeout=15.0)
                 lifecycle(
                     "subagent_budget_exceeded", "error",
-                    f"子代理预算耗尽：{description}", error=str(exc),
+                    subagent_budget_exhausted_message(description), error=str(exc),
                 )
                 return ToolResult(
                     status="error",
-                    summary=tagged(CODE_BUDGET, f"子代理预算耗尽：{description}（{exc}）"),
+                    summary=tagged(
+                        CODE_BUDGET,
+                        f"{subagent_budget_exhausted_message(description)}（{exc}）",
+                    ),
                     output=subagent_budget_failed_output(),
                     data={"description": description, "tool_log": tool_log, "budget_exceeded": True},
                     security_tags=untrusted_tags("subagent"),
@@ -708,6 +711,18 @@ def subagent_failed_message(description: str, error: object) -> str:
     (M8-T500).
     """
     return f"子代理失败：{description}（{error}）"
+
+
+def subagent_budget_exhausted_message(description: str) -> str:
+    """The one wording of the subagent budget-exhausted verdict.
+
+    The lifecycle event reads the base sentence; the ToolResult summary
+    appends the exception in parentheses at its call site, the way
+    ``subagent_failed_message`` composes it (M8-T500).  This was the one
+    verdict in the family without a home: two hand-written copies, one
+    per reader (M8-T514).
+    """
+    return f"子代理预算耗尽：{description}"
 
 
 def _bounded_output(text: str, limit: int = 12000) -> tuple[str, str, bool]:
