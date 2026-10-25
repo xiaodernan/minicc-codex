@@ -305,6 +305,11 @@ def normalize_permission_mode(value: object) -> str:
 APPROVAL_DECISIONS = frozenset({"allow", "always", "deny"})
 PERMITTING_APPROVAL_DECISIONS = frozenset({"allow", "always"})
 
+# M8-T518: the set of authorization codes that mean "task needs explicit
+# user approval for this call".  Shared by audit.py and web.py so both faces
+# agree on which codes trigger the interactive prompt.
+MISSING_TASK_AUTHORIZATIONS = frozenset({"missing_task_write", "missing_task_exec"})
+
 
 def authorization_event(
     tool: str,
@@ -573,7 +578,7 @@ def interpret_authorization_decision(decision: AuthorizationDecision) -> Allowan
         return AllowanceResult(None, decision.reason, decision)
 
     # Missing write/exec: interactive on both faces.
-    if decision.authorization in {"missing_task_write", "missing_task_exec"}:
+    if decision.authorization in MISSING_TASK_AUTHORIZATIONS:
         return AllowanceResult(None, decision.reason, decision)
 
     # Any other denial is absolute.
@@ -582,6 +587,7 @@ def interpret_authorization_decision(decision: AuthorizationDecision) -> Allowan
 
 __all__ = [
     "APPROVAL_DECISIONS",
+    "MISSING_TASK_AUTHORIZATIONS",
     "NETWORK_TOOL_NAMES",
     "PERMISSION_MODES",
     "PERMITTING_APPROVAL_DECISIONS",

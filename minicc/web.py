@@ -90,6 +90,7 @@ from .agent.verifier import Verifier, VerificationResult
 from .agent.verification_plan import build_verification_plan, changed_paths_from_events
 from .audit import (
     APPROVAL_DECISIONS,
+    MISSING_TASK_AUTHORIZATIONS,
     PERMITTING_APPROVAL_DECISIONS,
     AuthorizationDecision,
     authorization_event,
@@ -1836,7 +1837,7 @@ class AgentService:
             )
             if (
                 not decision.allowed
-                and decision.authorization in {"missing_task_write", "missing_task_exec"}
+                and decision.authorization in MISSING_TASK_AUTHORIZATIONS
             ):
                 # An allow rule only skips the interactive prompt; it can never
                 # change plan/yolo/network semantics.
