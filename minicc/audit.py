@@ -534,18 +534,66 @@ def authorize_tool(
     return AuthorizationDecision(False, "unknown", "未知工具风险，已拒绝执行", "unknown_risk")
 
 
+@dataclass(frozen=True)
+class AllowanceResult:
+    """Standardized result of interpreting an authorization decision.
+
+    The two faces (CLI/Web) share the same decision logic but differ in how
+    they interact with the user. This result captures the shared outcome so
+    the reason sentence has exactly one home.
+    """
+    allowed: bool | None  # True=allow, False=deny, None=need_interactive
+    reason: str
+    decision: AuthorizationDecision
+
+
+def interpret_authorization_decision(decision: AuthorizationDecision) -> AllowanceResult:
+    """Interpret an authorization decision into a face-agnostic result.
+
+    The core logic (which authorizations are always allow/deny vs need
+    interactive) lives here so both CLI and Web faces produce the same
+    reason sentence from the same decision.
+    """
+    if decision.allowed:
+        return AllowanceResult(True, decision.reason, decision)
+
+    # These authorizations are absolute denials on both faces.
+    if decision.authorization in {
+        "plan_mode_write",
+        "plan_mode_exec",
+        "unknown_risk",
+        "permission_rule_deny",
+    }:
+        return AllowanceResult(False, decision.reason, decision)
+
+    # Missing network is a denial on CLI, but Web treats it as interactive
+    # (the user might enable --allow-network).  Keep it as "needs interactive"
+    # so Web can ask; CLI will deny because it has no async prompt.
+    if decision.authorization == "missing_task_network":
+        return AllowanceResult(None, decision.reason, decision)
+
+    # Missing write/exec: interactive on both faces.
+    if decision.authorization in {"missing_task_write", "missing_task_exec"}:
+        return AllowanceResult(None, decision.reason, decision)
+
+    # Any other denial is absolute.
+    return AllowanceResult(False, decision.reason, decision)
+
+
 __all__ = [
     "APPROVAL_DECISIONS",
     "NETWORK_TOOL_NAMES",
     "PERMISSION_MODES",
     "PERMITTING_APPROVAL_DECISIONS",
     "WORKSPACE_WIDE_READ_TOOLS",
+    "AllowanceResult",
     "AuthorizationDecision",
     "authorize_tool",
     "command_uses_network",
     "deny_rule_covers_path",
     "deny_rule_names_paths",
     "effective_risk",
+    "interpret_authorization_decision",
     "is_network_tool",
     "normalize_permission_mode",
     "path_rule_denies_call",
