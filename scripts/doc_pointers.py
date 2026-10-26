@@ -469,16 +469,69 @@ def _cross_document_sections(text: str, offset: int, numeral: int) -> list[Secti
     return found
 
 
+#: A fence delimiter is a line that *opens or closes a block*, which means its run of
+#: backticks is the line's first content and is indented by at most three spaces (a tab
+#: counts as four columns, so a tab-indented run is not a delimiter here or in a
+#: renderer). ``re.M`` alone does not give that: the shipped reader paired ``` by byte
+#: order anywhere in the document, so a line *talking* about a fence joined the pairing and
+#: shifted every real boundary behind it by one. See ``_fence_blocks``.
+_FENCE_RUN = re.compile(r"^ {0,3}(`{3,}|~{3,})([^\n]*)", re.M)
+
+
+def _fence_blocks(text: str) -> tuple[list[tuple[int, int]], list[int]]:
+    """``([start, end), …)`` for every closed fence, plus the offsets of openers never closed.
+
+    Three rules, each of them load-bearing, and all three are what a markdown renderer does:
+
+    * a run that is *not* the first content of its line is prose mentioning a fence, not a
+      delimiter - ROADMAP L1550 writes ``逐 ```python``` 块`` inside a table cell and
+      L17119 writes ``（` ``` `）``; the byte-order reader paired those and reported 0
+      problems while holding 168 pointers invisible;
+    * a run carrying a second run of the same character on the same line is prose too,
+      because a delimiter line holds one run and its info string;
+    * once a block is open, only a **bare** run (no info string) of the **same character**
+      and **at least the opener's length** closes it. `````text`` opens, `````python`` inside
+      it is content, and a shorter run cannot end a longer block.
+
+    An opener that never closes is returned separately rather than silently swallowing the
+    rest of the document: the reader then keeps judging the prose below it, so the loss is
+    visible as a complaint about the document instead of a clean run.
+    """
+    ranges: list[tuple[int, int]] = []
+    block: tuple[int, int, str] | None = None
+    for match in _FENCE_RUN.finditer(text):
+        run, info = match.group(1), match.group(2)
+        if run[0] in info:
+            continue
+        if block is None:
+            block = (match.start(), len(run), run[0])
+            continue
+        start, length, char = block
+        if char == run[0] and len(run) >= length and info.strip() == "":
+            ranges.append((start, match.end()))
+            block = None
+    return ranges, ([] if block is None else [block[0]])
+
+
 def _mask_code(text: str) -> str:
-    """Blank out fenced blocks and inline code, keeping every offset in place.
+    """Blank out fenced blocks and inline code, keeping every offset *and every line* in place.
 
     A pointer written *inside* a code span is a quotation, not a reference: this
     README illustrates the M8-T34 defect by writing ``见「第十八批 M8-T34」`` in
     backticks, and harvesting that as a claim would make the gate red for the
-    wrong reason. Offsets are preserved so a hit still maps onto the original.
+    wrong reason. Offsets are preserved so a hit still maps onto the original, and
+    so do the newlines - blanking a block to spaces without them would keep the
+    offsets and move every line number, which is how a citation gets reported at a
+    line nobody wrote it on.
     """
-    blanked = re.sub(r"```.*?```", lambda m: " " * len(m.group(0)), text, flags=re.S)
-    return re.sub(r"`[^`\n]*`", lambda m: " " * len(m.group(0)), blanked)
+    out: list[str] = []
+    cursor = 0
+    for start, end in _fence_blocks(text)[0]:
+        out.append(text[cursor:start])
+        out.append(re.sub(r"[^\n]", " ", text[start:end]))
+        cursor = end
+    out.append(text[cursor:])
+    return re.sub(r"`[^`\n]*`", lambda m: " " * len(m.group(0)), "".join(out))
 
 
 def _locator(span: str) -> bool:
@@ -919,6 +972,19 @@ def check_pointers(document: Path, text: str) -> tuple[list[Problem], int, dict[
                 problems.append(
                     Problem("POINTER", document.name, line, f"「{span}」 说 {identifier} 在{where}里，那里没有这个编号")
                 )
+    for offset in _fence_blocks(text)[1]:
+        # A document whose fence never closes is a document whose renderer swallows the
+        # tail. This reader deliberately does not: the prose below stays judged, so the
+        # only way to learn that half the page is code is to say so here.
+        problems.append(
+            Problem(
+                "FENCE",
+                document.name,
+                _line_of(text, offset),
+                "这一行开了一个围栏，到文末都没有闭合；它之后的正文没有被当成代码削掉，"
+                "指针照判——但渲染器会把那一段整个吞进代码块",
+            )
+        )
     harvested = len(list(_POINTER.finditer(_mask_code(text))))
     if harvested != sum(boxes.values()):
         # The account has to add up against an *independent* count of the markers.
