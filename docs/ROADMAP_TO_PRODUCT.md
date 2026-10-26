@@ -33805,3 +33805,132 @@ ref 在别道推送之后就会评错底面，这一批正好撞上了。
 臂电池 `python D:/面试项目/mc-t470/arms_t518.py D:/面试项目/wt518`（暂存件名仍叫 t518，
 编号让号的对账记在同目录 `deltas_vs_frozen.md` D17）。预测写于任何带判决的运行之前
 （`D:/面试项目/mc-t470/frozen_predictions_t518.md`），偏离 D12–D17 逐条在册。
+
+## 第五百零四批 — M8-T520 — 精确值名册终于问边界：一个夹具的 test 不再改写 2843 行日志
+
+### 1 缺陷
+
+`minicc/logging_setup.py` 的脱敏名册收的是**精确值**：`register_secret(value)` 把解析后的
+api key / web token 存进模块全局 `_secrets`，`_registered()` 对每一条日志行做
+`segment.replace(secret, REDACTED)`。纯子串、不问边界。放它进场的唯一条件是
+`MIN_SECRET_LENGTH = 4`（只有 `len(raw) < 4` 才拒），而名册**没有任何撤出口**——无
+unregister、无按属主分域。于是同一个进程里，一个夹具的键会改写之后每一条日志。
+
+语料里真有这种夹具：`tests/test_completion_liveness.py:271` 与
+`tests/test_verifier_lifecycle.py:155` 都以 `api_key="test"` 构造 `Config`，
+`minicc/web.py:443` 把它交进名册。改前探针（单进程加载该模块，注册 `test`，逐行实测）：
+
+| 输入 | 改前的输出 |
+| --- | --- |
+| `task started in tests/test_core.py` | `task started in [REDACTED:credential]s/[REDACTED:credential]_core.py` |
+| `workspace D:/面试项目/minicc-codex/tests ready` | `.../minicc-codex/[REDACTED:credential]s ready` |
+| `the latest answer is attested` | `the la[REDACTED:credential] answer is at[REDACTED:credential]ed` |
+| `GET /api/tasks/attestation-404 200` | `GET /api/tasks/at[REDACTED:credential]ation-404 200` |
+
+四行全被改写。损伤不是抽象的：该门与
+`tests/test_the_unrecognized_key_warning_has_one_home.py` 同进程跑即 1 failed / 37 passed，
+判决文字里 pytest 的暂存目录名两处、那条用例名尾部被削成半截——**报错自己变成了不可读的证据**。
+本批落记录时被同一形状挡过一次（第五百零三批 §6 记的就是它）。
+
+改后同一次探针（注册同一个 `test`，同一把尺）：四行**逐字节不变**，而独立出现的那一处
+（`the run stopped after test failed`）照旧变 `REDACTED`。
+
+同一张仓库里另一条轴早就懂得边界：`minicc/tools/registry.py:121` 的 `sk-` 规则带着
+`(?<![A-Za-z0-9])`，注释理由是「task ids must remain stable」。**精确值名册是唯一不问边界
+的那一处**，本批把它接上。
+
+### 2 落地：一支加边界、一支一格不放宽、一条界不动
+
+| 刀 | 改法 | 少掉会怎样（实测臂） |
+| --- | --- | --- |
+| 词形支 | 值整体是 ASCII 词形（`[A-Za-z0-9_]+`）时，只在**两侧都不是 ASCII 词字符**处替换；边界类**只用 ASCII**，所以 CJK、`；`、`/`、`=`、空格都算分隔，中文里贴着写仍被削 | 臂 A1（前后视全删）红第 2/4/5/10 例；臂 A3（边界类换成 Unicode 的 `\w`）红第 6 例；臂 A7（只留前视）红第 2/4/10 例 |
+| 标点支 | 值含任何非 ASCII 词字符（`sk-…`、带 `.` `@` `-` 的键）时**维持纯子串**，一格不放宽——这是本批改动的安全上界 | 臂 A2（边界对所有值生效）红第 3/11 例 |
+| 分派 | 选支问的是**值自身的形状**，不是一个词表、也不是长度 | 臂 A6（词形值干脆不削）红 1/4/5/6/8/10 例；第 4/5 例的存在就是为了这两句话不许被写成特例表 |
+| 标记守卫 | `_MARKER_SPAN_RE` 那一段照旧：脱敏不在任何已存在的标记**内部**运行 | 臂 A5 红第 7/8 例（复刻 `tests/test_logging.py:736` 的语料形状） |
+| 进名册的下限 | `MIN_SECRET_LENGTH` 与其调用点**不改**：本批修的是「削成什么样」，不是「谁能进名册」 | 臂 A4（下限 4→8）红第 1/4/6/8/10 例——它放过的是 4~7 字符的真键；臂 A8（删掉下限本身）红第 5/9 例 |
+
+`_standalone_re` 用 `lru_cache` 编译，因为热路径是每条日志 × 每个已登记值；判据不依赖它
+（第 4 例的四次重复问的是形状，不是缓存）。
+
+### 3 语料读数：一支尺，改前 → 改后
+
+`D:/面试项目/mc-t470/blast_t520.py` 把 `docs/*.md` 与 `README.md` 共 **20 篇**（其中 15 篇含 `test`）逐行送进
+**各自平面自己的** `redact()`，注册值就是夹具那个 `test`：
+
+| 量 | 旧字节 | 新字节 |
+| --- | --- | --- |
+| 含 `test` 子串处 | 5522 | 5522 |
+| 其中独立出现 | 159 | 159 |
+| 真被改写的行 | **2843** | **138** |
+| 落下的标记数 | **5551** | **188** |
+
+算术闭合：两列的标记差 5551 − 188 = **5363**，与「子串 5522 − 独立 159 = 5363」逐格相等；
+两列共同剩下的 29 个标记来自值形状规则（`redact_text`），本批**一克没动**。这就是「修的是过削，
+不是放宽」的唯一数值证据：新支不减少任何一次脱敏，只停止改写比它长的词。
+
+### 4 门与回归
+
+门 `tests/test_a_word_shaped_credential_does_not_rewrite_ordinary_identifiers.py`：**11 腿 14 例**
+（第 4 例按四个合成词形值参数化），落地字节上 14/0/0。每腿自己把名册换成夹具值、结束后逐格还原——
+一个登记了词形值又不撤的门，会**制造**它自己要防的那种顺序依赖红。
+
+聚焦回归（门 + `tests/test_logging.py` + `tests/test_security_perimeter.py` +
+`tests/test_completion_liveness.py` + `tests/test_verifier_lifecycle.py` + `tests/test_memory.py` +
+`tests/test_permissions_approval.py`）`--collect-only` 先取分母：**137 collected、137 passed、0 failed**。
+活体那两条：门与 `tests/test_completion_liveness.py` 同进程 38 passed（改前同形是 1 failed / 37 passed）。
+臂电池 `D:/面试项目/mc-t470/arms_t520.py`，八把刀在 `D:/面试项目/wt520` 上逐臂按字节还原，
+基线 0 红、崩溃 0，静置 sha `b82f66f22551` 全程复核。
+
+全量围栏（`D:/面试项目/mc-t470/fence_31cd0b8.xml`，独立工作树 `wt520` 跑在自己提交之上）：
+**4035 collected、2 failed、0 errors、11 skipped**，用时 3675.8s。分母对账：第五百零三批围栏
+`fence_7a85b00.xml` 实取 **4021**，4021 + 14 = 4035 逐格相等——本批带进去的就是新门那 14 例，
+一条没少跑。冻结 §5 当时写的是「父提交 collected + 11」，那是门还是 11 腿时算的，第 4 例后来按
+四个合成词形值参数化成了 14 例，所以预测的分母增量按落地事实订正为 +14（腿 11 例、参数 14 例）。
+
+红：预测三条先于本批存在的红不许增减，实测**只剩两条**——`test_the_dynamic_route_list_still_matches_the_source`
+与 `test_every_emitter_asks_the_home` 原样还在，第三条
+`tests/test_the_unrecognized_key_warning_has_one_home.py::test_the_config_loader_emits_the_homes_sentence`
+**被本批修好了**。归因按字节而不是按猜测：`7a85b00`（上一次围栏的提交）到 `31cd0b8` 之间只有
+`0f34adc` 一笔，它只动 `docs/ROADMAP_TO_PRODUCT.md`；再问一遍那三件文件的账——`minicc/logging_setup.py`、
+`tests/test_the_unrecognized_key_warning_has_one_home.py`、`minicc/config.py`——在那区间里的提交数是 0。
+而那条红的旧报错文字自己就把机制写出来了——`py[REDACTED:credential]-of-18414` 与
+`[REDACTED:credential]_the_config_loader_emits_t0`，被改写的正是 `pytest` 这类比注册值长的标识符，
+即本批那张表的第一行同一个缺陷在真门里的实例。所以这条红不是消失，是**被判决了**：本批的不变量
+「不减少任何一次脱敏」在它身上照样成立（独立出现的 `test` 仍被削），只是不再削贴着写的词。
+
+一处必须披露的干扰：这笔围栏 00:35:20 起跑，而我在 00:42 把 `fcf2233`（ROADMAP 里两处
+`logging_setup.py:48` → `:49` 的**纯数字**订正，字节数与行数都不变）提交进同一个平面，也就是围栏
+跑的过程中一棵文件被换过。两条幸存的红与父提交同名同例，分母与预测逐格相等，`errors=0`，
+因此没有一条读数需要归因给那次改写；即便如此，它仍是一次**不干净的围栏**，下一批的围栏要在
+落完全部提交之后起跑。另一次更严重的干扰（臂与围栏共用一棵树、`fence_t520.xml` 作废）记在
+`D:/面试项目/mc-t470/deltas_vs_frozen.md`。
+
+### 5 反向对照与变异的两处偏差
+
+反向对照按派生的父提交取字节（`0f34adc` 的 `minicc/logging_setup.py`，平面除本批新门外与其逐字节
+相同）：新门 14 例跑出 **failures=7，全部是判决性断言红，0 崩溃**——第 2 例、第 4 例四个参数、
+第 5 例、第 10 例。旧字节上**合法绿**的那几条同样要说清：第 1 例绿（旧读者当然削独立出现的词形值，
+本批缺陷不在「削不削」而在「削到贴着写的地方」，所以判据必须两侧都写，单边断言在旧字节上是零证据）、
+第 3/11 例绿（标点支两把尺重合）、第 6 例绿（纯子串在中文旁边照样削——那一例的角色是臂 A3 的天花板腿，
+不是缺陷见证，冻结件把它预测成红是写反的一处，`D:/面试项目/mc-t470/deltas_vs_frozen.md` D20）。
+
+臂的实测集合里两处与冻结预测不同，都按实测订正、不改判据。**其一**：第一轮电池下第 1 例与第 10 例
+在「词形值干脆不削」那把刀上**照旧绿**，而冻结 §2.1 明写这一格不许绿。直接量：清空名册后
+`redact("provider key = test (retry 2)")` 仍把 `test` 削掉——放行的是 `_KV_BARE_RE` 那条标签规则
+（词表里有 `key`，`key` 后跟冒号或等号即削），不是本批改的支。那两条腿当时断言的是**别家的脱敏**。
+改法换载体不换判据：句子改成不带标签的「the run stopped after test failed」形状，重跑电池后第 1 例在
+A4/A6 下红、第 10 例在 A1/A4/A6/A7 下红，落地字节上仍 14 例全绿。**其二**：第 9 例按冻结 §2.9 的要求
+**由 `MIN_SECRET_LENGTH` 本身派生**（不许手钉 3/4），因此只移动该常数的臂动不了它——A4 测到的正是这份
+免疫，而「每腿至少被一臂点红」因此不成立，电池补了第八把刀 A8（删掉 `register_secret` 里的下限判断）。
+八臂下每腿至少一臂：C1:A4/A6，C2:A1/A7，C3:A2，C4:四臂，C5:A1/A6/A8，C6:A3/A4/A6，C7:A5，C8:A4/A5/A6，
+C9:A8，C10:A1/A4/A6/A7，C11:A2。
+
+### 6 本批不做
+
+- 不给名册加 unregister、不按属主分域：两者都会改变「真凭据永不进日志」这条不变量的强度，且要动
+  `minicc/web.py`（别道在飞的文件）。本批只在**不减少任何一次脱敏**的前提下停止改写普通标识符。
+- 不在注册点告警、不新增披露 API：一条会写进日志的说明本身要经过正在改的过滤器，收益小、耦合大。
+- `MIN_SECRET_LENGTH` 的取值本身不改，也不给它的注释写实测数字（测量数字进注释会腐烂）。
+- `_secrets` 无上限、按长度降序逐一替换的**成本**轴不裁。
+- 引用读者的围栏配对不在本批：`_code_spans` 仍与 `_mask_code` 用两把尺，第五百零三批 §6 量出
+  「今天没人判断的证据形状 1212 条」，那是下一位的账。
