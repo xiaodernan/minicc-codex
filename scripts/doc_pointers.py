@@ -513,6 +513,27 @@ def _fence_blocks(text: str) -> tuple[list[tuple[int, int]], list[int]]:
     return ranges, ([] if block is None else [block[0]])
 
 
+def _blank_fences(text: str) -> str:
+    """Blank every closed fence to spaces, keeping every offset *and every newline*.
+
+    This is the one answer to "are these bytes inside code?" and both readers have to take it from here.
+    The pointer reader needs it so a reference written inside a block is not harvested; the evidence reader
+    needs it so a block is not harvested as a claim. The rule was written twice, and the copies drifted:
+    the second one paired backtick runs by byte order, with no notion of a line, so a single mention of a
+    fence marker in the middle of a table cell re-paired every block after it. Offsets and newlines are
+    preserved because blanking a block without them keeps the byte positions but moves every line number,
+    which is how a citation gets reported at a line nobody wrote it on.
+    """
+    out: list[str] = []
+    cursor = 0
+    for start, end in _fence_blocks(text)[0]:
+        out.append(text[cursor:start])
+        out.append(re.sub(r"[^\n]", " ", text[start:end]))
+        cursor = end
+    out.append(text[cursor:])
+    return "".join(out)
+
+
 def _mask_code(text: str) -> str:
     """Blank out fenced blocks and inline code, keeping every offset *and every line* in place.
 
@@ -524,14 +545,7 @@ def _mask_code(text: str) -> str:
     offsets and move every line number, which is how a citation gets reported at a
     line nobody wrote it on.
     """
-    out: list[str] = []
-    cursor = 0
-    for start, end in _fence_blocks(text)[0]:
-        out.append(text[cursor:start])
-        out.append(re.sub(r"[^\n]", " ", text[start:end]))
-        cursor = end
-    out.append(text[cursor:])
-    return re.sub(r"`[^`\n]*`", lambda m: " " * len(m.group(0)), "".join(out))
+    return re.sub(r"`[^`\n]*`", lambda m: " " * len(m.group(0)), _blank_fences(text))
 
 
 def _locator(span: str) -> bool:
@@ -1148,7 +1162,14 @@ _RESOLVE_ROOTS = ("", "minicc", "web/src", "tests")
 _ABBREVIATION_ROOTS = _RESOLVE_ROOTS[1:]
 
 _CODE_SPAN = re.compile(r"`([^`\n]{1,140})`")
-_FENCE = re.compile(r"```.*?```", re.S)
+#: An inline code span, matched by run length: N backticks, content with no newline and no
+#: backtick (the 140 bound is the one ``_CODE_SPAN`` above already carries), and a closing run of
+#: *exactly* N. That pattern cannot be reused here once fenced blocks are blanked line-anchored:
+#: a prose run of two backticks lets it open a span on the run's *second* character, and the lone
+#: space it harvests then steals the opener of the citation wrapped inside the run. ``(?<!`)`` and
+#: ``(?!`)`` are the two ends of that rule, and tests/test_the_two_readers_share_one_fence_ruler.py
+#: has a leg for each of them.
+_CODE_RUN = re.compile(r"(?<!`)(`{1,})([^`\n]{1,140}?)\1(?!`)")
 _TEST_REF = re.compile(r"^(?P<file>[\w./\-]+\.py)::(?P<test>test_[a-z0-9_]+)$")
 _PATH_REF = re.compile(
     r"^(?P<path>[\w.\-/]+?\.(?:py|md|toml|json|txt|cfg|ini|sh|example|js|mjs|cjs|css|html))"
@@ -1218,6 +1239,7 @@ _QUOTED_STALE_PATH: dict[str, str] = {
 #: Removed on purpose. The document is not claiming the file is there; it is
 #: recording a deletion, and in the enforced case a test keeps it deleted.
 _RETIRED_PATH: dict[str, str] = {
+    "tests/test_the_require_text_have_one_home.py": "第四百四十二批（M8-T458，`48d5206`）立的 8 格门，在第四百五十批（M8-T466，`016f192`）随判据一起下沉到 `minicc/input_guard.py` 的 `require_text` 时删掉；同族门现在是 `tests/test_the_payload_field_guard_have_one_home.py`。第四百四十二批「新增门禁」那一节引的是当时的文件名，它记录的是那次搬家，不是在声明这个文件今天还在",
     "minicc/repl/repl.py": "第二百零七/八批记录里两次引这个名字，都是为了说它在 git 全史里从未存在"
     "（`git log --all --diff-filter=A -- minicc/repl/*.py` 只命中同目录的 __init__.py 自己）",
     "minicc/repl": "第二百零七批（M8-T179）删除的死包：唯一的文件是从第一个 MVP 提交起就 "
@@ -1244,6 +1266,7 @@ _RETIRED_PATH: dict[str, str] = {
 #: does the reader's ability to follow it; neither the tool nor the archivist
 #: should have to choose.
 _RETIRED_TEST_NAME: dict[str, str] = {
+    "test_witness_script_exists": "M8-T200（`0d22ad1`）加它进来的时候整个函数体就是 `assert True`，`8475c82`（M8-T201+M8-T245）把这一族空壳换成 `tests/test_silence_must_state_its_reason_mutation.py` 现在这 9 个 def；第二百四十五批那一行点的是删掉之前的名字，那节的记录写在 `ef2c90d`",
     "test_every_shipped_behaviour_task_has_well_shaped_items": "第九十九批更名为 "
     "`tests/test_behavior_cases_are_the_pair_the_grader_unpacks.py::test_behavior_load_door_accepts_all_shipped_behaviour_tasks`"
     "——第九十批已把它的体改成跑门（`validate_behavior_task`），名字却还在声称普查「项的形状」；"
@@ -1362,8 +1385,13 @@ def _exemption(span: str) -> str | None:
 
 
 def _code_spans(text: str) -> list[tuple[int, str]]:
-    fenced = _FENCE.sub(lambda m: " " * len(m.group(0)), text)
-    return [(match.start(), match.group(1).strip()) for match in _CODE_SPAN.finditer(fenced)]
+    """Every inline code span, read through the same fence ruler the pointer reader uses.
+
+    The offset points at the span's content, not its delimiters, so ``_line_of`` keeps mapping a verdict
+    onto the line the author wrote.
+    """
+    blanked = _blank_fences(text)
+    return [(m.start(2), m.group(2).strip()) for m in _CODE_RUN.finditer(blanked)]
 
 
 # --------------------------------------------------------------------------- #

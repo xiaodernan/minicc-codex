@@ -20785,7 +20785,7 @@ M8-T292a 一度用**内容哈希**做 memo 键——那确实能看见等长改�
 
 ### 2 落地
 
-`minicc/permissions.py`：缓存戳改成 `(st_ino, st_mtime_ns, st_ctime_ns, st_size)`——与仓库里其它 memo 同一形状（`verification_plan`、`impact`、`test_selection`、`changes`、`snapshots`、以及本批 M8-T292 的检索索引与资源缓存）。多出的两个量是**免费**的：那次 `stat` 本来就在做。
+`minicc/permissions.py`：缓存戳改成 `(st_ino, st_mtime_ns, st_ctime_ns, st_size)`——与仓库里其它 memo 同一形状（`verification_plan`、`impact`、`minicc/agent/test_selection.py`、`changes`、`snapshots`、以及本批 M8-T292 的检索索引与资源缓存）。多出的两个量是**免费**的：那次 `stat` 本来就在做。
 
 ### 3 变异验证
 
