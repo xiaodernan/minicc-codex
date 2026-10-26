@@ -33647,7 +33647,7 @@ passed / 11 skipped / 2268.17s**。三条红没有一条落在本批四个路径
   单跑绿（落地平面与配置邻域都是），只在整套里红。失败快照里期望串的三个 `test` 子串被换成了
   `[REDACTED:credential]`（`py…-of-18414`、`py…-11803`、`…_the_config_loader_emits_t0`），而
   `[REDACTED:credential]` 只有一个生产者：`minicc/logging_setup.py` 的注册脱敏。机理量得出来——
-  `MIN_SECRET_LENGTH = 4`（`logging_setup.py:48`）放行了词形值，`tests/test_completion_liveness.py:271`
+  `MIN_SECRET_LENGTH = 4`（`logging_setup.py:49`）放行了词形值，`tests/test_completion_liveness.py:271`
   与 `tests/test_verifier_lifecycle.py:155` 各造了一个 `Config(api_key="test")`，这类 Config 会经
   `minicc/task_worker.py:267` / `minicc/web.py:442` 的 `register_secret(...)` 进 `_secrets`——
   一个模块级、无按用例重置的集合。于是同一进程里后面的每条日志只要含 `test` 就被改写。
@@ -33783,7 +33783,7 @@ ref 在别道推送之后就会评错底面，这一批正好撞上了。
 - 块内出现「带信息串的栅口形状行」（普查里 2 行）不报判决：合法的嵌套例子与作者写漏的换行在这一格
   不可分，硬报会把真语料判红。
 - 引用轴向词（上方/下方）仍无人裁决，见第五百零一批 §6。
-- `minicc/logging_setup.py:48` 的 `MIN_SECRET_LENGTH = 4` 让一个**词形**凭据进模块全局脱敏名册，
+- `minicc/logging_setup.py:49` 的 `MIN_SECRET_LENGTH = 4` 让一个**词形**凭据进模块全局脱敏名册，
   此后同进程每条含该词的日志都被**子串**改写。本批顺手量到了载体，不是猜测：单进程注册 `test`
   之后四行普通文本**全部**被改（`tests/test_core.py`、`latest`、`attested`、`attestation-404` 都在
   词中间被削成 `[REDACTED:credential]`）；更要紧的是上面那条围栏里**先于本批存在**的红
