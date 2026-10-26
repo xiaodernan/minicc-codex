@@ -22,6 +22,7 @@ import re
 import sys
 import threading
 from collections.abc import Mapping
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -75,6 +76,19 @@ _secrets: set[str] = set()
 _configured = False
 
 
+#: A registered value is either word-shaped (masked only where it stands alone) or it is not
+#: (masked everywhere, as today). ``api_key="test"`` is word-shaped; ``sk-…`` is not. The
+#: boundary class is deliberately ASCII: a value written against CJK or punctuation still
+#: names the credential, so it still gets masked.
+_WORD_SHAPED_RE = re.compile(r"[A-Za-z0-9_]+\Z")
+
+
+@lru_cache(maxsize=64)
+def _standalone_re(value: str) -> re.Pattern[str]:
+    """Match *value* only where neither neighbour is an ASCII word character."""
+    return re.compile(r"(?<![A-Za-z0-9_])" + re.escape(value) + r"(?![A-Za-z0-9_])")
+
+
 def register_secret(value: object) -> None:
     """Remember one credential so no log line can echo it back.
 
@@ -95,6 +109,13 @@ def _registered(text: str) -> str:
     masked. Without the marker guard, a credential whose value happens to be an
     ordinary word (a test suite really did use ``api_key="secret"``) would be
     masked *inside* ``[REDACTED:secret]`` and every pass would grow the line.
+
+    M8-T520: masking a value with a plain ``replace`` also rewrote every
+    *identifier that contains it* - ``tests/`` and ``latest`` vanished from
+    operator-visible verdicts because a fixture had registered ``test``. A
+    word-shaped value is now masked only where it stands alone, which is what a
+    credential echo looks like. Values carrying punctuation keep the substring
+    rule: nothing about a real ``sk-…`` key is loosened here.
     """
     with _lock:
         values = sorted(_secrets, key=len, reverse=True) if _secrets else []
@@ -111,7 +132,9 @@ def _registered(text: str) -> str:
     for index in range(0, len(parts), 2):
         segment = parts[index]
         for secret in values:
-            if secret in segment:
+            if _WORD_SHAPED_RE.match(secret):
+                segment = _standalone_re(secret).sub(REDACTED, segment)
+            elif secret in segment:
                 segment = segment.replace(secret, REDACTED)
         parts[index] = segment
     return "".join(parts)
