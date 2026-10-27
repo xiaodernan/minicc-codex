@@ -205,6 +205,40 @@ def test_no_shipped_citation_lies_inside_a_closed_fence_block() -> None:
     assert offenders == [], f"块内逃逸的跨度 {len(offenders)} 条，前几条：{offenders[:4]}"
 
 
+#: 块体与块外的收尾指针写在夹具里而不是去船上找：全语料里没有「块内裸指针」这条
+#: 形状（上面那条腿断言的就是 0），所以这条腿只能靠夹具活。块体里故意放**裸**指针
+#: 而不是反引号跨度——内联那一遍会把跨度自己抹掉，掩码跳过公共抹除也看不出来。
+_MASK_FENCE_TEXT = (
+    "正文里的 `tests/test_in_prose.py` 要判断。\n"
+    "```text\n"
+    "示例里有一句裸指针：见 tests/test_in_a_block.py 的用法。\n"
+    "```\n"
+    "收尾：见 tests/test_after.py 的门。\n"
+)
+
+
+def test_the_pointer_readers_mask_blanks_fences_through_the_same_helper() -> None:
+    """The mask is the pointer reader's eyesight, so its fence pass must be the shared one.
+
+    Leg 1's fenced block is made of inline spans, so the mask's *inline* pass erases it even when the
+    fence pass is gone — that leg cannot see this clause (measured: the A10 knife left all 12 legs
+    green). Only a bare pointer inside the block separates the two passes: with the shared blanker the
+    whole region is spaces before the marker walk; without it the example's documentation pointer is
+    harvested as if the author had cited it.
+    """
+    masked = dp._mask_code(_MASK_FENCE_TEXT)
+    assert masked.count("\n") == _MASK_FENCE_TEXT.count("\n"), "掩码动了行数，判决会整体搬家"
+    body = masked.splitlines()[2]
+    assert set(body) <= {" "}, f"围栏体没被抹平，掩码与证据读者抹的不是同一批字节：{body!r}"
+    harvest = [span for _off, span, _box, _gap in dp._pointer_spans(_MASK_FENCE_TEXT)]
+    assert any(span.startswith("tests/test_after.py") for span in harvest), (
+        f"块外的真指针没了——掩码退化成了全抹：{harvest}"
+    )
+    assert all("tests/test_in_a_block.py" not in span for span in harvest), (
+        f"块内的裸指针被当引用收走了，掩码没有走过公共抹除：{harvest}"
+    )
+
+
 def test_the_sibling_citations_keep_their_reader_and_their_line() -> None:
     """The anti-regression leg: green before this batch, and it must stay green after it.
 
