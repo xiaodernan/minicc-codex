@@ -12,6 +12,7 @@ from __future__ import annotations
 import ast
 import importlib.metadata as importlib_metadata
 import json
+import re
 import subprocess
 import sys
 import time
@@ -550,6 +551,50 @@ def _live_root_files() -> list[str]:
     return sorted(p.name for p in REPO_ROOT.iterdir() if p.is_file())
 
 
+#: M8-T525: a directory in the repo root is a different shape from a file, and it
+#: needs its own rule.  The shape that matters is "an unpacked distribution":
+#: ``<project>-<version>``.  That is the name setuptools gives the staging
+#: directory it builds the sdist in.
+#:
+#: Measured on a clean plane: a **successful** ``setup.py sdist`` creates that
+#: directory and then removes it ("removing 'minicc-0.2.0' (and everything under
+#: it)"), so the directory is gone by the time the build returns.  An
+#: **interrupted** build leaves it behind - and the repo's own ``.gitignore``
+#: covers ``dist/``, ``build/`` and ``*.egg-info/`` but **not** ``minicc-0.2.0/``,
+#: so nothing else in the repository asks about it either.
+#:
+#: The rule wants a dotted numeric version, not just a dash and digits: a bare
+#: ``-149`` is how the scratch directories in this workspace are named, and a
+#: rule that reddened another lane's scratch directory would be a rule nobody
+#: would keep.
+_DIRECTORY_ARTIFACT_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9_]*-\d+\.\d+(?:\.\d+)*$")
+
+
+def _catching_directory_classes(name: str) -> list[str]:
+    """Every class label that claims *name* as a directory; empty means it is not one."""
+    if _DIRECTORY_ARTIFACT_PATTERN.match(name):
+        return ["unpacked distribution"]
+    return []
+
+
+def _root_directory_artifacts(names: list[str]) -> list[tuple[str, tuple[str, ...]]]:
+    """Every *names* entry that is a directory-shaped run output.
+
+    Takes a listing instead of reading the disk, so a witness can show that an
+    empty answer means "nothing matched" and not "nothing was looked at".
+    """
+    rows: list[tuple[str, tuple[str, ...]]] = []
+    for name in names:
+        labels = _catching_directory_classes(name)
+        if labels:
+            rows.append((name, tuple(labels)))
+    return rows
+
+
+def _live_root_dirs() -> list[str]:
+    return sorted(p.name for p in REPO_ROOT.iterdir() if p.is_dir())
+
+
 def test_a_run_log_is_named_whatever_its_batch_number() -> None:
     """The class rule sees what the thirteen names could not.
 
@@ -604,6 +649,38 @@ def test_a_clean_root_reads_empty() -> None:
     assert not any(".txt" in suffixes for _, suffixes, _, _ in _ARTIFACT_CLASSES), (
         "a .txt class would redden another lane's commit-message scratch mid-flight; "
         "the two ledger names are admitted by identity instead"
+    )
+
+
+def test_a_directory_named_like_an_unpacked_distribution_is_an_artifact() -> None:
+    """The shape, stated against a supply rather than against the disk.
+
+    A directory is a different shape from a file, so the file classes cannot
+    see it.  The name is the one setuptools gives the directory it stages an
+    sdist in - ``<project>-<version>`` - and a dotted numeric version is
+    required, so the scratch directories named ``-149`` in this workspace are
+    not caught by it.
+    """
+    rows = _root_directory_artifacts(
+        ["minicc-0.2.0", "minicc", "docs", ".scratch-t149", "build", "dist", "minicc.egg-info"]
+    )
+    assert rows == [("minicc-0.2.0", ("unpacked distribution",))], rows
+
+
+def test_the_live_repo_root_carries_no_unpacked_distribution_directory() -> None:
+    """The claim in this file's docstring, extended from files to directories.
+
+    The file half of that claim is measured by
+    ``test_the_live_repo_root_carries_no_run_output``; this is the directory
+    half.  A build that is interrupted leaves its staging directory behind, and
+    the repository's own ignore rules do not cover it.
+    """
+    listing = _live_root_dirs()
+    offenders = _root_directory_artifacts(listing)
+    assert offenders == [], (
+        "these are directories left in the directory every contributor works "
+        "from: %s || root holds %d directories: %s"
+        % (offenders, len(listing), ", ".join(listing))
     )
 
 
