@@ -2096,9 +2096,11 @@ def _is_unproductive_result(result: ToolResult) -> bool:
     ))
 
 
+from .tool_policy import CORE_WRITE_TOOLS
+
 # M6-T3: parallel write phase -------------------------------------------------
 
-PARALLEL_SAFE_WRITE_TOOLS = {"write_file", "edit_file"}
+PARALLEL_SAFE_WRITE_TOOLS = CORE_WRITE_TOOLS
 
 
 def _parallel_write_key(tool: str, arguments: Any) -> str | None:

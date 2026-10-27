@@ -43,7 +43,10 @@ READONLY_DAG_TOOLS = frozenset({"read_file", "grep", "git_status", "git_diff"})
 # disagree about what a write node may do, and the fallback would quietly
 # be the odd one out.
 INSPECT_DAG_TOOLS = frozenset({"read_file", "grep", "git_status"})
-WRITE_DAG_TOOLS = frozenset({"write_file", "edit_file"})
+from .tool_policy import CORE_WRITE_TOOLS
+
+INSPECT_DAG_TOOLS = frozenset({"read_file", "grep", "git_status"})
+WRITE_DAG_TOOLS = CORE_WRITE_TOOLS
 # M8-T402: the verify node's list survived T377 - the same shape (a template
 # writing its own tool list by hand), only twice instead of three times, and
 # the two templates could disagree about what "verify" may run.

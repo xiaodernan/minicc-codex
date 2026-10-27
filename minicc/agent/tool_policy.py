@@ -20,6 +20,12 @@ from ..tools.bash import split_command_argv
 # that runs ``sed -i`` or ``python patch.py`` mutates the workspace just as much,
 # so ``verification_required`` must trip for those too. Kept here (next to
 # ``is_verification_evidence``) so loop.py asks one stable question.
+# M8-T519: the core write tools (write_file, edit_file) are the base that
+# all write-tier subsets build on.  One home for the fact "these are the
+# basic file write tools" - used by WRITE_DAG_TOOLS, PARALLEL_SAFE_WRITE_TOOLS,
+# SUBAGENT_WRITE_TOOLS, and the full WRITE_TOOL_NAMES.
+CORE_WRITE_TOOLS = frozenset({"write_file", "edit_file"})
+
 WRITE_TOOL_NAMES = frozenset({"write_file", "edit_file", "worktree_create", "worktree_remove"})
 
 # M8-T390: the Node package managers.  Both questions below ask it -

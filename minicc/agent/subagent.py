@@ -37,6 +37,7 @@ import uuid
 from pathlib import Path
 from typing import Any, Callable
 
+from .tool_policy import CORE_WRITE_TOOLS
 from .loop import AgentCancelled, Budget, run_agent
 from .state import BudgetExceeded
 from ..logging_setup import quiet_loop_teardown
@@ -69,7 +70,9 @@ SUBAGENT_TOOLS = frozenset({
 # subset gate in tests/test_one_rule_one_home.py can check it stays inside
 # WRITE_TOOL_NAMES like its two same-valued siblings (the DAG write nodes and
 # the parallel-safe writes).
-SUBAGENT_WRITE_TOOLS = frozenset({"write_file", "edit_file"})
+# M8-T519: the write tier addition comes from the shared CORE_WRITE_TOOLS
+# constant so all write-tier subsets share the same base.
+SUBAGENT_WRITE_TOOLS = CORE_WRITE_TOOLS
 WRITE_TOOLS = SUBAGENT_TOOLS | SUBAGENT_WRITE_TOOLS
 EXEC_TOOLS = WRITE_TOOLS | frozenset({"bash"})
 SUBAGENT_TOOL_TIERS = {
