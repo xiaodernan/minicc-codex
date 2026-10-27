@@ -102,9 +102,10 @@ def test_every_name_a_facade_promises_is_one_it_binds() -> None:
 def test_every_script_has_an_audience_too() -> None:
     """``scripts/`` joined the floor in the same batch that wired it into CI.
 
-    ``reliability_probe.py`` has no test that runs it - and must not need one:
-    CI runs it on every push (an M1 exit criterion). Its audience is ``ci.yml``,
-    which is why the audience set is "tests plus workflows" and not "tests".
+    ``reliability_probe.py``'s M1 phase is run by CI on every push (an M1 exit
+    criterion); since M8-T528 a dedicated door also exercises its credential
+    phase in-process. The audience set stays "tests plus workflows" because the
+    pytest half's runner is still ``ci.yml``.
     """
     script = _load_script()
     audience, _references, _tests = script.build()
