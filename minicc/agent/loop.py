@@ -45,6 +45,7 @@ from ..audit import (
     effective_risk,
     is_network_tool,
     path_rule_denies_call,
+    path_rule_refusal_reason,
     tool_denied_by_rule,
 )
 from ..tools.schemas import (
@@ -1299,7 +1300,7 @@ async def run_agent(
                     denied = ToolResult(
                         status="denied",
                         summary=(
-                            tagged(CODE_DENIED, f"permissions.json deny 规则拒绝了此操作 ({tc.tool})")
+                            tagged(CODE_DENIED, path_rule_refusal_reason(workspace, tc.tool))
                             if rule_denied
                             else tagged(CODE_DENIED, f"用户拒绝了此操作 ({tc.tool})")
                         ),

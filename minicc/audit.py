@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from .allowlist import match_session_allowlist, path_rule_matches
+from .internal_paths import PERMISSIONS_NAME
 from .permissions import load_permission_rules, match_permission_rule
 from .tools.bash import is_readonly_command, split_command_argv
 from .tools.registry import AUTHORIZATION_RISKS
@@ -136,6 +137,28 @@ def is_network_tool(tool: str, capabilities: Iterable[str] = ()) -> bool:
     return str(tool or "") in NETWORK_TOOL_NAMES or "network" in set(capabilities or ())
 
 
+def policy_evaluation_error(workspace: Path | str | None) -> str:
+    """Why the workspace's permission policy could not be evaluated ("" when it could).
+
+    M8-T526: "no policy" and "a policy we cannot read" are two different
+    statements.  A missing ``permissions.json`` means there are no rules - that
+    is the normal case and it allows.  A file that is *there* but malformed or
+    unreadable means the rules the user wrote are **unknown**, and the old
+    answer to that was "no rules" - which turned an absolute veto into an
+    allow.
+
+    The error was already computed by :func:`minicc.permissions.load_permission_rules`
+    and thrown away by every caller.  This is the one home of the question.
+    """
+    if not workspace:
+        return ""
+    try:
+        _rules, error = load_permission_rules(Path(workspace))
+    except OSError as exc:
+        return f"{PERMISSIONS_NAME} 读不出来: {exc}"
+    return error
+
+
 def tool_denied_by_rule(
     workspace: Path | str | None,
     tool: str,
@@ -152,13 +175,22 @@ def tool_denied_by_rule(
     This is the read-side half of that promise: the caller asks the rule
     directly, without asking the user for a verdict.  A deny rule is an
     absolute veto, not a question.
+
+    M8-T526: the veto also holds when the policy **cannot be evaluated**.  A
+    policy that cannot be read is not a policy that allows, so the answer is
+    still "refused" - the file being unreadable is not the user's intent.
     """
     if not workspace:
         return False
+    if policy_evaluation_error(workspace):
+        # The rules are unknown, so nothing can be said about this call.
+        # Refusing is the only answer that keeps the promise above.
+        return True
     try:
         return match_permission_rule(Path(workspace), tool, arguments or {}) == "deny"
     except OSError:
-        return False
+        # Same reasoning: a refusal we cannot read is not an allowance.
+        return True
 
 
 def deny_rule_names_paths(workspace: Path | str | None) -> bool:
@@ -168,14 +200,33 @@ def deny_rule_names_paths(workspace: Path | str | None) -> bool:
     content of every path, including the ones a deny rule covers.  Such a
     read therefore has to be refused whenever the deny side names any path,
     even though no particular path was asked for.
+
+    M8-T526: a policy that cannot be evaluated names no path **and** forbids
+    none, so the workspace-wide read is refused as well - it carries the
+    content of every path, including the ones the unknown rules cover.
     """
     if not workspace:
         return False
     try:
-        rules, _error = load_permission_rules(Path(workspace))
+        rules, error = load_permission_rules(Path(workspace))
     except OSError:
-        return False
+        return True
+    if error:
+        return True
     return bool(rules["deny"]["paths"])
+
+
+def path_rule_refusal_reason(workspace: Path | str | None, tool: str) -> str:
+    """The sentence the model sees when the path rule refuses this call.
+
+    One home for the wording, because the refusal has **two** causes and a
+    sentence that names the wrong one is a sentence that sends the model (and
+    the operator) looking in the wrong place.
+    """
+    error = policy_evaluation_error(workspace)
+    if error:
+        return f"permissions.json 读不出来，先拒绝此操作 ({tool}): {error}"
+    return f"permissions.json deny 规则拒绝了此操作 ({tool})"
 
 
 #: M8-T338: the tools whose own target can be the **whole workspace** - the
@@ -465,6 +516,20 @@ def authorize_tool(
     # gate and the plan-node gate executed tools the checked-in project policy
     # refuses, and audited the reason as default_readonly or task_yolo. The veto
     # belongs in the shared decision function, above every flag branch.
+    #
+    # M8-T526: the veto also has to hold when the policy **cannot be read**.
+    # A malformed permissions.json used to answer "no rules", which is an
+    # allow - so a user whose deny rule had one typo in it lost the rule
+    # entirely, on this path and on the read path alike.
+    if workspace is not None:
+        policy_error = policy_evaluation_error(workspace)
+        if policy_error:
+            return AuthorizationDecision(
+                False,
+                risk or "unknown",
+                f"permissions.json 读不出来，先拒绝此操作（{policy_error}）",
+                "permission_policy_unreadable",
+            )
     if workspace is not None and match_permission_rule(workspace, tool, arguments) == "deny":
         return AuthorizationDecision(
             False,
@@ -568,6 +633,7 @@ def interpret_authorization_decision(decision: AuthorizationDecision) -> Allowan
         "plan_mode_exec",
         "unknown_risk",
         "permission_rule_deny",
+        "permission_policy_unreadable",
     }:
         return AllowanceResult(False, decision.reason, decision)
 
@@ -603,6 +669,8 @@ __all__ = [
     "is_network_tool",
     "normalize_permission_mode",
     "path_rule_denies_call",
+    "path_rule_refusal_reason",
+    "policy_evaluation_error",
     "tool_denied_by_rule",
     "tool_requires_authorization",
 ]
