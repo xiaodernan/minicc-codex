@@ -35,6 +35,7 @@ import time
 from pathlib import Path
 from typing import Any
 
+from .atomic_file import replace_with_retry
 from .tools.fs import GRADER_DIR_NAME
 
 __all__ = [
@@ -429,14 +430,12 @@ def _materialize(grader_dir: Path, name: str, source: str) -> Path:
         temporary = grader_dir / f".{name}.{os.getpid()}.{threading.get_ident()}.tmp"
         try:
             temporary.write_text(source, encoding="utf-8")
-            for attempt in range(8):
-                try:
-                    os.replace(temporary, script)
-                    break
-                except PermissionError:
-                    if attempt == 7:
-                        raise
-                    time.sleep(0.01 * (attempt + 1))
+            # M8-T523: the retry around the swap is the repository's one answer
+            # (``minicc/atomic_file.py``); the budget and the growing backoff
+            # stay here, because this grader script is worth waiting for.
+            replace_with_retry(
+                temporary, script, attempts=8, delay=lambda attempt: 0.01 * (attempt + 1)
+            )
         finally:
             temporary.unlink(missing_ok=True)
     return script

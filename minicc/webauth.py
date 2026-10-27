@@ -37,16 +37,15 @@ def _read_store_json(store: Path) -> object:
     swap can briefly get ACCESS_DENIED (Errno 13); the window is
     microseconds, so a short backoff always wins. JSONDecodeError is not
     retried - an atomic replace can never expose a half-written file.
+
+    The mechanism is the repository's one answer for that window
+    (``minicc/atomic_file.py``); the budget and the growing backoff stay here,
+    because this call site wants to give up sooner than the session checkpoint
+    does.  The last refusal still escapes as the same ``PermissionError``.
     """
-    last_exc: PermissionError | None = None
-    for attempt in range(8):
-        try:
-            return json.loads(store.read_text(encoding="utf-8"))
-        except PermissionError as exc:
-            last_exc = exc
-            time.sleep(0.005 * (attempt + 1))
-    assert last_exc is not None
-    raise last_exc
+    return json.loads(
+        read_text_with_retry(store, attempts=8, delay=lambda attempt: 0.005 * (attempt + 1))
+    )
 
 
 def _atomic_replace(source: Path, dest: Path) -> None:
@@ -55,15 +54,19 @@ def _atomic_replace(source: Path, dest: Path) -> None:
     On Windows, replacing a destination that another thread is reading (or
     replacing) fails with PermissionError; the window is microseconds, so
     the backoff always wins. POSIX replace is atomic and never hits this.
+
+    The mechanism is the repository's one answer (``minicc/atomic_file.py``);
+    only the growing backoff is this call site's own.
     """
-    for attempt in range(8):
-        try:
-            os.replace(source, dest)
-            return
-        except PermissionError:
-            if attempt == 7:
-                raise
-            time.sleep(0.01 * (attempt + 1))
+    replace_with_retry(
+        source,
+        dest,
+        attempts=8,
+        delay=lambda attempt: 0.01 * (attempt + 1),
+    )
+
+
+from .atomic_file import read_text_with_retry, replace_with_retry
 from .config import unreadable_file_message, unwritable_file_message
 from .internal_paths import TOKEN_FILE_NAME  # re-exported: the deny list reads it from here
 TOKEN_BYTES = 32

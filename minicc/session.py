@@ -25,6 +25,7 @@ from typing import Any
 
 from .clock import utc_now_iso
 from .config import unreadable_file_message, unwritable_file_message
+from .atomic_file import read_text_with_retry, replace_with_retry
 from .tools.registry import redact_text
 
 try:  # Windows
@@ -188,24 +189,27 @@ def missing_session_message(name: str) -> str:
 
 
 def _replace_with_retry(source: Path, target: Path) -> None:
-    for attempt in range(_REPLACE_ATTEMPTS):
-        try:
-            os.replace(source, target)
-            return
-        except PermissionError:
-            if attempt == _REPLACE_ATTEMPTS - 1:
-                raise
-            time.sleep(_REPLACE_RETRY_DELAY)
+    """Ride out a transient sharing violation on the swap.
+
+    The mechanism lives in ``minicc/atomic_file.py`` — one answer for the whole
+    repository, because the token store and the workspace catalog had their own
+    (and the catalog had none).  The budget stays here: this call site waits
+    longer than either of the others, because a session checkpoint is worth
+    waiting for.
+    """
+    replace_with_retry(
+        source, target, attempts=_REPLACE_ATTEMPTS, delay=_REPLACE_RETRY_DELAY
+    )
 
 
 def _read_text_with_retry(path: Path) -> str:
-    for attempt in range(_READ_ATTEMPTS):
-        try:
-            return path.read_text(encoding="utf-8")
-        except PermissionError:
-            if attempt == _READ_ATTEMPTS - 1:
-                raise
-            time.sleep(_READ_RETRY_DELAY)
+    """Ride out a transient sharing violation on the read.
+
+    Same one-answer rule as the swap above; the budget is this call site's own.
+    """
+    return read_text_with_retry(
+        path, attempts=_READ_ATTEMPTS, delay=_READ_RETRY_DELAY
+    )
 
 
 def _unsatisfied_tool_calls(messages: list[Any]) -> set[str]:

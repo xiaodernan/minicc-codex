@@ -11,6 +11,7 @@ import uuid
 from pathlib import Path
 from typing import IO, Any, Iterator
 
+from .atomic_file import read_text_with_retry, replace_with_retry
 from .config import home_dir
 from .logging_setup import get_logger
 
@@ -203,7 +204,12 @@ class WorkspaceCatalog:
         if not self.path.is_file():
             return []
         try:
-            payload = json.loads(self.path.read_text(encoding="utf-8"))
+            # M8-T523: a reader that is mid-read makes the writer's swap fail
+            # with WinError 5, and a reader that IS refused used to answer
+            # "the catalog is empty" - which is a wrong answer, not a
+            # degraded one.  Riding the window out costs a few milliseconds
+            # and keeps the list the user actually has.
+            payload = json.loads(read_text_with_retry(self.path, attempts=8, delay=0.005))
         except (OSError, ValueError):
             # M8-T277: ValueError covers both decode failures.  A catalog
             # that is not UTF-8 used to raise a bare UnicodeDecodeError out
@@ -220,12 +226,17 @@ class WorkspaceCatalog:
         while it holds the destination - both measured.  Losing a recent-folder entry is a
         cosmetic failure; refusing to start a second web server over one is not, so the
         write is best-effort and says where it went, and the staging file never outlives it.
+
+        M8-T523: the refusal is *transient* - the reader that caused it holds the
+        destination for microseconds - so the swap is ridden out (the
+        repository's one answer, ``minicc/atomic_file.py``) before the write is
+        given up on.  Before that, one refused swap silently dropped the write.
         """
         temporary = self.path.parent / f"{self.path.name}.{os.getpid()}.{uuid.uuid4().hex[:8]}.tmp"
         try:
             self.path.parent.mkdir(parents=True, exist_ok=True)
             temporary.write_text(json.dumps(items, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-            os.replace(temporary, self.path)
+            replace_with_retry(temporary, self.path, attempts=8, delay=0.005)
         except OSError as exc:
             LOG.warning(f"工作区目录写不回 {self.path.as_posix()}：{exc}")
             try:
