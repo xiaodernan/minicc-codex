@@ -34674,3 +34674,128 @@ M8-T522 更早已被第二百六十七批的撞号订正占用（改号登记不
 顺延为 M8-T528。落地脚本因此不再断言配对轴，改为断言：本批的任务号没有被任何标题申报
 过、取的号也没有、每个已声明批号的中文拼法都能由同一套写法逐字生成（拼法是从文档自己
 身上学的，不是背的）、且本批之上每个无记录的已发表任务号都有一笔已发表提交作主。
+
+## 第五百一十一批 — M8-T528 — CI 的凭据门改读产品自己的脱敏词表
+
+### 1 缺陷
+
+`scripts/reliability_probe.py` 的 M3 凭据段（CI 每次推送都跑的那个门）带着一张**私有的三把
+尺**：openai-style key、aws access id、pem banner。产品自己的脱敏词表在
+`minicc/tools/registry.py` 的 `_REDACT_RULES`——八条规则、七个带 marker token 的替换
+（llm_api_key、github_token、github_pat、aws_access_key、bearer_token、url_credentials、jwt）
+加一个裸的 PEM 块。门比产品窄：ghp_、github_pat_、Bearer、jdbc/redis/amqp 内嵌凭据、
+eyJ 开头的 JWT，这五族产品会抹、门看不见。
+
+落地前的配对测量（真实状态目录——探针默认的 `--credential-path`——854 个文件）：旧门
+0 命中；同一目录上新门读出 **10 条已发表命中**，全部是 bearer_token 一族、全部落在快照
+目录里同一份审计文档的各份副本上——匹配值与 git 追踪文件逐字相同，属披露不属泄漏；
+0 条泄漏。同一次测量里旧门对这 10 条全盲。
+
+第二处：`_configured_key` 按行首劈分读 `.env`——产品装载器 `_parse_env_file`
+（`minicc/config.py`）接受的六种拼法（裸键、带引号、export 前缀、等号两侧留白、缩进、
+行内注释）它只认一种；任何另一种拼法都会让 configured-key 那条尺**静默失效**。
+
+### 2 落地
+
+- **一把尺**：`_product_rules()` 从 `_REDACT_RULES` 现场推导——对每条规则的替换串抽
+  marker token 作规则名；裸 PEM 块的替换没有 token，落到 `private_key_block`。产品的词表
+  改了，门跟着改，中间没有手抄层。
+- **两条门自有的尺**：`pem_banner`（裸 BEGIN 行——产品要闭合成块才抹，门按形状报）与
+  `configured_api_key`（读出的 `.env` 值本身）。
+- **配置键走产品装载器**：`_configured_key` 改读 `_parse_env_file`；`.env` 坏掉时
+  ConfigError 被接住、该轮禁用 configured-key 尺、**不引用出错行的内容**。
+- **已发表判决**：一条命中只有在「该尺在该文件匹配到的每一个值都逐字出现在某个 git 追踪
+  文件里」时才算 published（披露）；任一值不在追踪面里即泄漏。追踪面惰性构建
+  （git ls-files 加内容，模块级缓存），只在有裸命中时才付这个成本。判决行报 files-read、
+  缺席目标逐个点名、「读零个文件什么也证不了」这句写进 PASS 行；exit 1 只对泄漏。
+- 观众钉：`tests/test_impacted_tests.py` 的 docstring 订正——凭据段自此有进程内门，观众集
+  仍是「tests 加 workflows」，因为 pytest 半边的 runner 仍是 ci.yml。
+
+### 3 读数：改前 → 改后（同一真实状态目录）
+
+| 量 | 改前（私有三把尺） | 改后（产品词表派生） |
+| --- | --- | --- |
+| 读取的规则 | 3（手抄） | 9（8 条产品规则 + pem_banner）|
+| findings | 0（全盲） | 10 published + 0 leak |
+| configured-key 认得的 .env 拼法 | 6 种里认 1 | 6 种全认（走 `_parse_env_file`）|
+| exit | 0（假阴） | 0（真阴，判决行说清读了多少）|
+
+### 4 门与臂电池
+
+门 `tests/test_reliability_probe_credentials.py`：**8 腿**。L_A 门读全产品规则（marker 名与
+pattern 逐条相等）；L_B 九个运行期拼装的产品形状逐个被门点名（与 redact_text 绑定）；
+L_BANNER 裸 banner 是门自有尺、产品抹不到它；L_C 配置键认全六种装载器拼法；L_BROKEN
+坏 `.env` 禁用该尺且不引用行内容；L_D published 两向判决＋判决串不带值；L_E 缺席目标照实
+报（files-read、ABSENT、读零文件）；L_F 泄漏 exit 1、判决点名 marker token、输出永不含
+匹配值。
+
+电池 `D:/面试项目/mc-t470/arms_t528.py`，六把刀只动 `scripts/reliability_probe.py`，逐臂按
+字节还原、sha 复核、PYTHONDONTWRITEBYTECODE=1、junit 分账（AssertionError 红与崩溃分开）：
+B1 私有三把尺回来、B2 配置键读回行首劈分、B3 published 判决丢弃、B4 判决串带匹配文本、
+B5 名字手抄（marker 绑定断）、B6 判决行不报 files-read。
+
+第一轮要如实记：B1/B4/B5 各比冻结预测多红一腿，逐条按 junit 原文归因——L_F 除了 exit-1
+与无内容外还钉「判决必须点名 marker token」，B1/B5 换回旧名字后 token 不再出现；L_B 按
+「path: rule」格式合同读判决，B4 把值拼进判决串即破坏该合同。三处都是预测太窄、不是门
+误红；预测表按归因修订后第二轮 **6/6 MATCHED、8/8 腿全被至少一把刀点红、零死臂**，基线
+绿、还原 sha 逐字节相等。
+
+围栏 `23ad436`（独立工作树 wt528f）：**4099 collected / 4081 passed / 7 failed / 0 errors / 11 skipped / 9094.36s**。
+分母不靠算术猜：把本轮 junit 与第五百一十批那份逐文件名相减，4054（上轮实测）+ 别道随
+`b2b2789` 并入的三张新门 12 + 12 + 11 例 + `test_cleanup_version` 新 2 例 + 本批新门 8 例
+= **4099**，逐格相等、丢失 0 例。
+
+预测要如实记。落地前冻结的预测是 **4062 collected / 4 failed**，两格都欠：分母只算了
+「上一份围栏的人口 + 我的 8 条腿」，而人口在我这笔代码落地之前就先被那次合并抬了 37 例；
+红的条数从 4 变 7。三条新红逐条按 junit 原文与安静复跑归因，一条都不接「大概是负载」：
+
+| 红 | 围栏读数 | 安静复跑（同一条腿） | 归因 |
+| --- | --- | --- | --- |
+| `test_index_build_makes_a_constant_number_of_filesystem_calls_per_file` | `(7.232, 7.208)`，7.208 > 7.0 | 72.9s，**照旧红** | 别道 `dcda114`（M8-T526）：`tool_denied_by_rule` 现在先问 `policy_evaluation_error`、再走 `match_permission_rule`，两处各自调 `load_permission_rules`，而它每次都 `Path.stat()` 一次；索引每个文件都要问这道拒绝 ⇒ 每文件多一次 stat。两平面对账（同一夹具、同一计数器）：`fce5a05` 上 stat = 1028/4103（250/1000 文件）、每文件 6.232/6.208；`23ad436` 上 stat = 1278/5103（正好 +250/+1000），`open`/`is_symlink`/`iterdir`/`walk` 四键逐格不动，每文件 7.232/7.208。承重文件 `minicc/audit.py` 在别的车道在飞——披露，不顺手修。 |
+| `test_clean_shutdown_aborts_a_worker_that_ignores_cancellation` | 120.904s 放弃（1117 次轮询、last value None） | 46.10s **绿** | 负载形状：本轮整跑 9094.36s，比上一轮 4566.34s 慢一倍；那条腿的 120s 预算等的是子进程走到 parked 模型调用，被机器吃掉的不是被代码改坏的。 |
+| `test_the_sibling_citations_keep_their_reader_and_their_line` | 判在 34554 行、作者写的是 1550 行 | 0.70s **照旧红** | **是我的**，而且红在腿上不在文档上：第五百一十批的记录正文（`e1a29ca`）在文末又引用了那两条兄弟引用各一次。读者现在认出 **4** 条跨度（1550 两条、34554 与 34555 各一条），两条都仍有读者——腿的第一个断言（「没有读者了」）是绿的；红在第二个断言：腿把跨度按名字压成 dict（留下**最后一**处），把「作者写的那一行」按行扫（留下**第一**处），同一个名字出现两处时这两半必然搬家。它钉的其实是「每个名字在全文只出现一次」，而这本账本每写一批就要引用一次名字。修在门：让腿逐处对上，而不是把记录里的引用抹掉。列为下一批候选 M8-T529。 |
+
+语料腿 `test_no_shipped_citation_lies_inside_a_closed_fence_block` 两轮都撞 900s 挂钟限
+（`fce5a05` 围栏 1012.4s、本轮 1407.4s），这一格既不接「大概是负载」，也不靠一次安静复跑——
+安静复跑被自己的守卫作废了：窗口内别道起工（`FOREIGN_BEFORE=[]`、`FOREIGN_AFTER=[39436,
+29324]` → VOID），按命令行认出自己的两个进程后停掉，此刻它在 1591.7s 墙钟里只用到 931.9 CPU
+秒（0.59 核）。判据换成把腿的两半拆开量 CPU（`D:/面试项目/mc-t470/probe_t529_leg_cpu.py`，`time.process_time()`
+五次取中位，别的车道进不了这个数）：腿对文档里**每一条**跨度都调一次 `_block_of(text, offset)`，
+而 `_block_of`（同文件 79-83 行）每次都重跑 `dp._fence_blocks(text)`——整篇 157 万字节再扫一遍。
+实测本轮 ROADMAP **23635 条跨度 × 单次全扫 31.25ms ≈ 738.6 CPU 秒**，父提交 23276 条 ≈ 727.4 秒，
+其余 19 篇默认文档合计约 0；两轮回栏之间算术只涨 **+1.5%**，墙钟却涨 **39%**——差的那一截才是
+机器吃的。而这条腿把 738.6 秒全花在「这段跨度落在哪个块里」这一句话上：另一支探针
+（`D:/面试项目/mc-t470/probe_t529_leg_cost.py`，墙钟计）量到查表形式 200 次 0.0001s，即 23635 次约 0.01s——同一件
+事从 738.6 秒到 0.01 秒，约七万倍的差别，而且它随时可能被一台够忙的机器推过那道限。模型读到
+的 738.6 秒比直接观察（那条腿到我停它时已烧 ≥931.9 CPU 秒仍未返回）还低一截，这里按低的记、
+把高的也记着：两条都指向同一处算术。修在门：`_fence_blocks(text)` 每篇文档算一次、
+成员判定查表——列为 M8-T529，与上表那条兄弟引用腿同批（同一文件、两半都是门自己的账，不碰
+`MIN_EVIDENCE` 也不碰引用读者的判据）。
+
+先于本批存在的三条红原样在列、文字与上一轮逐字相同：`minicc/agent/graph.py` 的
+`INSPECT_DAG_TOOLS` 定义在 45 与 48 行两遍（别道 `5fd8f4d` 的静态缺陷，该文件禁改，披露
+不修——安静复跑独立 3.9s 即红，与负载无关）；`test_the_dynamic_route_list_still_matches_the_source`
+的「前缀分派一族都没读到，这门就空转了」；`test_every_emitter_asks_the_home` 的
+`minicc/llm/anthropic_provider.py must ask the one home for the trace event shape`。errors 0。
+
+顺出的一条注释腐烂（不在红里，因为没人读它）：那条 7.0 界的 docstring 写着「250 files ->
+5.232、1000 files -> 5.208」，而两个平面的实测是 6.232/6.208 与 7.232/7.208——手抄进注释的
+读数比界先漂，界对实测的余量本来只有 0.792，不是 docstring 暗示的 1.792。
+
+### 5 本批不做
+
+- CI runner 上没有 `.minicc`——凭据段在 CI 上读 0 个文件，判决行照实说「读零个文件什么也
+  证不了」、exit 0。让 CI 对真实状态目录武装是运维决策，不是本批。
+- 产品 `url_credentials` 尺只认 jdbc、redis、amqp 三族；postgres、mysql 等带内嵌凭据的
+  URL 是**产品侧**缺口，本批不顺手修产品。语料不背书：把通用尺（任意 `scheme://user[:pw]@`）
+  架在 `git ls-files` 加真实状态目录的 8497 个文件上量，**0 命中、0 个读不出来的文件**
+  （`D:/面试项目/mc-t470/probe_t529_url_scheme.py`）——所以这条只能按**可达性**判（有没有
+  一条 shipped 路径把带内嵌凭据的 URL 送进 `redact_text`），不能按语料判，下一批先量可达。
+- 围栏量出的三处别处欠账本批不捎带：`minicc/audit.py` 那对重复的策略求值（每索引一个
+  文件多一次 `Path.stat`，`minicc/agent/retrieval.py:505` 的拒绝问句是它的读者）——该
+  文件在别的车道在飞；`test_the_two_readers_share_one_fence_ruler` 第 7 腿「按名字压跨度」
+  的形状，它把「同一名字出现两处」判成搬家，修法是让腿逐处对账；以及同文件那条语料腿的
+  每跨度全文重扫（上文量得 738.6 CPU 秒，改成每篇文档算一次围栏表即归零）。后两条同列
+  M8-T529：同一文件、都是门自己的账。
+- `MIN_EVIDENCE` 与引用读者的判据数值一克不动；那条 7.0 的文件系统调用界也不动——它现在
+  红得对，是产品多花了两次策略读取，不是界写窄了。
