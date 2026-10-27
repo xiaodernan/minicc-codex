@@ -33971,3 +33971,149 @@ C9:A8，C10:A1/A4/A6/A7，C11:A2。
 - `_secrets` 无上限、按长度降序逐一替换的**成本**轴不裁。
 - 引用读者的围栏配对不在本批：`_code_spans` 仍与 `_mask_code` 用两把尺，第五百零三批 §6 量出
   「今天没人判断的证据形状 1212 条」，那是下一位的账。
+
+## 第五百零五批 — M8-T523 — 一次被拒绝的交换是**一瞬间**，不是一个答案：四个调用点原来有四套答法
+
+### 1 先量：一个**问错了**的探针，和它纠正后的读数
+
+这一批的起点是一次复测。上一批（第二百六十八批，M8-T265）自己写下了一条边界：
+「清单仍然是**没有锁的**读-改-写——两个都成功的进程仍然会互相丢掉条目」。
+本批先量的就是这一条。
+
+**第一个探针量错了，而且量错的方式很有意思。** 它让两个进程各记 20 次，读落盘结果：
+
+```
+entries on disk : 12      alpha : 0      beta : 12
+```
+
+看着像「一整个进程的贡献没了」。但**清单上限就是 12 条**（`max_items=12`），所以当一个进程
+**整个跑完之后**另一个才开始时，最后 12 条必然全是后者的——**那是上限在干活，不是丢更新**。
+探针把上限读成了缺陷。路线图里早就记过同一个形状（`entries=12 alpha=12 beta=0`），
+所以这不是新发现，是**同一个读数第二次被误读**。
+
+**纠正后的量法**：总体必须**装得进上限**，否则上限永远能解释任何结果。改成两个进程、
+屏障同步、各记 3 次（6 条 < 12），并加一条**反向对照**：
+
+| 条件 | 协议 | 结果 |
+| --- | --- | --- |
+| 锁**开**（出货状态，`cd53a7a` 的跨进程侧车锁） | 2 进程 × 3 次 × 8 轮 | **8/8 轮六条全在** |
+| 锁**关**（把 `_acquire` 改成永远成功，即不串行化） | 同上 | **4/8 轮丢条目**（5 条、4 条、4 条） |
+
+结论：**M8-T319 的跨进程锁是真的在干活**（反向对照证明：拿掉锁就丢）。本批**不做**那个单位。
+
+### 2 但量到了另一个洞，而且它比丢更新更安静
+
+顺着「锁在干活」这条线往下量，量到的是**另一件事**：清单的**读**路径不拿锁，
+而 Windows 上一个读者把目标文件开着的那几微秒里，写者的 `os.replace` 会拿到
+**WinError 5**。量到的那一刻是：
+
+```
+neighbour holding the destination : True
+the write landed                 : False
+WRITE LOST                       : YES
+（只记了一条 warning，调用方什么都不知道）
+```
+
+写侧：`minicc/workspaces.py` 的 `_write` 只调**一次** `os.replace`，被拒了就记一条
+warning 把这次写丢掉。读侧：`_read` 捕 `OSError` 直接 `return []`——被拒一次，
+**整张最近目录表就变成空**。
+
+而同一个仓库里，对**同一个问题**已经有三套答法：
+
+| 位置 | 答法 |
+| --- | --- |
+| `minicc/session.py` | 平的 24 次 × 50ms 重试（写侧与读侧各一套） |
+| `minicc/webauth.py` | 8 次、递增退避（写侧与读侧各一套） |
+| `minicc/bench_tasks.py` | 8 次、递增退避（写侧） |
+| `minicc/workspaces.py` | **没有** |
+
+四套。第五套就是本批要收的那一套。
+
+### 3 落地
+
+**新模块 `minicc/atomic_file.py`**（唯一的答案）：
+
+| 函数 | 答的是哪一问 |
+| --- | --- |
+| `replace_with_retry(source, target, *, attempts, delay)` | 交换被拒：**等它过去**，预算用完才把最后一次拒绝抛出去 |
+| `read_text_with_retry(path, *, attempts, delay)` | 读取被拒：同上 |
+
+`delay` 收**浮点**（平的）或**可调用对象**（递增退避）——因为「等多久」是**调用点的决定**
+（会话检查点值得等得比「最近打开的文件夹」久），而「等」这件事的**形状**是仓库的。
+
+四个调用点改为引用它，**各自保留自己的预算与退避**：
+
+| 调用点 | 预算 | 退避 |
+| --- | --- | --- |
+| `minicc/session.py` | 24 次 × 50ms（写侧、读侧） | 平的 |
+| `minicc/webauth.py` | 8 次 | 写侧 0.01×(n+1)、读侧 0.005×(n+1) |
+| `minicc/bench_tasks.py` | 8 次 | 0.01×(n+1) |
+| `minicc/workspaces.py`（**新增**） | 8 次 | 0.005（平） |
+
+`minicc/workspaces.py` 的两处改动各带一句**为什么**：
+`_write` 现在用 `replace_with_retry`（一次被拒的交换不再丢掉这次写）；
+`_read` 现在用 `read_text_with_retry`（一次被拒的读不再把整张表变成空的）。
+
+### 4 门（`tests/test_the_catalog_waits_out_a_refused_swap_instead_of_dropping_the_write.py`，新跟踪文件，8 条）
+
+| 门 | 它独自承重的子句 |
+| --- | --- |
+| `…a_swap_refused_once_still_lands_the_write` | 被拒**一次**的那次写**仍然落地**（写侧） |
+| `…a_swap_refused_for_the_whole_budget_is_a_warning_and_no_raise` | 一直被拒 → **一条** warning 点名清单与原因、**不抛**、清单**没被改写** |
+| `…a_read_refused_once_still_returns_the_catalog` | 被拒**一次**的那次读**仍然返回清单**，不是空表（读侧） |
+| `…a_read_refused_for_the_whole_budget_degrades_to_empty_without_raising` | 一直被拒 → 空表但**不抛**（这一格两边都绿，是控制组） |
+| `…a_refused_swap_leaves_no_staging_file_behind` | 被拒后**不留暂存残骸**（M8-T265 那条在别的文件里，这里再钉一次） |
+| `…a_plain_write_still_lands_and_reads_back` | **控制组**：没被拒的写不许变形 |
+| `…one_repository_one_answer_to_the_sharing_violation` | **结构门**：全仓**只有** `atomic_file.py` 允许出现「捕 `PermissionError` 包住 `os.replace`/`read_text`」这个形状 |
+| `…the_shared_helper_rides_out_a_refusal_and_gives_up_loudly` | 那个助手自己：等过去，然后**把最后一次拒绝抛出去** |
+
+结构门的判据是**形状**（AST 找「`try` 捕 `PermissionError` 且体里有 `os.replace` 或
+`read_text`」），不是名单——名单是 M8-T179 的形状，它会在有人加第五套答法时变陈旧，
+而陈旧名单与完整名单无法区分。
+
+### 5 见证（私有平面 `plane195`，主树未动）
+
+**PRE-FIX 腿**（把出货的四份代码放回去、`atomic_file.py` 删掉，八条门一字不改地跑）：
+
+| 读数 | 值 |
+| --- | --- |
+| 红 | **3 / 8**：`…swap_refused_once_still_lands_the_write`、`…read_refused_once_still_returns_the_catalog`、`…one_repository_one_answer…` |
+| 绿 | **5 / 8**：**正是那五条两边都该绿的**（两条降级门、两条控制组、助手自证那条） |
+
+**变异臂**（每臂快照 → 改 → 跑 → `finally` 还原 → 复验 sha256）：
+
+| 臂 | 变异 | 实测红集 | 判定 |
+| --- | --- | --- | --- |
+| R1 | 清单不 ride out 被拒的交换（改回单次 `os.replace`） | 1 条（写侧那条） | MATCHED |
+| R2 | 清单不 ride out 被拒的读 | 1 条（读侧那条） | MATCHED |
+| R3 | `bench_tasks` 保留自己那套答法 | 1 条（结构门） | MATCHED |
+| R4 | 共享助手**吞掉**拒绝 | **4 条**（写侧两条、「留残骸」那条、助手自证那条） | MATCHED |
+| R5 | 共享助手**第一次**被拒就放弃 | 2 条（写侧那条、助手自证那条） | MATCHED |
+| R6 | `webauth` 保留自己那套答法 | 1 条（结构门） | MATCHED |
+| 控制 | 无变异 | `8 passed in 0.81s` | MATCHED |
+| 还原 | 快照逐字节还原 | 五个文件 sha 全部逐字节相同 | MATCHED |
+
+**R4 是这批最该留的一条**：把助手改成「吞掉拒绝」，**四条**门当场红——
+写侧那两条、降级那条（因为不抛了就不再有 warning）、以及助手自证那条。
+也就是说「等不过去就**大声说出来**」这件事，是有门承重的，不是一句注释。
+
+### 6 聚焦回归
+
+`tests/test_session_concurrency.py`、`test_core_session.py`、`test_session_fork.py`、
+`test_session_format_version.py`、`test_session_rewind.py`、`test_webauth_validation.py`、
+`test_bench_tasks.py`、`test_workspaces_pure.py`、两条清单门文件、
+`test_the_session_sidecar_lock_waits_no_longer_than_its_own_constants_promise.py`
+**124 passed / 4 skipped**（4 条跳过全是 POSIX 专有判据，Windows 上按设计跳过）。
+
+### 7 边界（本批**不**声称）
+
+- 本批只处理**瞬时**拒绝（读者开着目标文件的那几微秒）。**一直**被拒仍然失败、仍然降级
+  （清单这条路从不抛，M8-T265 定的口径）、仍然只有一条 warning 点名清单。
+- 本批**没有**给 `list()` 加锁：加锁会把读串行化到写上，而替换本来就是原子的——等一下就够。
+- `minicc/benchmarks.py`、`allowlist.py`、`snapshots.py`、`tools/editor.py`、`tools/memory.py`、
+  `tools/todo.py` 里那些**没有重试**的 `os.replace` **不在本批**：它们是原子写，
+  「这次原子写要不要也 ride out 一次拒绝」是**另一个问题**，本批的门也没有声称它们该 ride out。
+  这一条**挂成下一位候选**：同样的窗口在它们身上一样成立，而结构门现在**只**管
+  「已经写了第四套答法」的那一类。
+- 本批**没有**动 `minicc/session.py` 的锁实现（那是 M8-T353 的账），只把它的**重试**换成引用。
+
