@@ -34117,3 +34117,231 @@ warning 把这次写丢掉。读侧：`_read` 捕 `OSError` 直接 `return []`�
   「已经写了第四套答法」的那一类。
 - 本批**没有**动 `minicc/session.py` 的锁实现（那是 M8-T353 的账），只把它的**重试**换成引用。
 
+## 第五百零六批 — M8-T524 — 全仓只有一个地方交换文件：把剩下九处裸 `os.replace` 也交给那一个答案
+
+### 1 先量：这一类失败的**后果**与清单那一条**不同**
+
+上一批把清单的窗口修好了，并把它的边界写清：「`benchmarks.py`、`allowlist.py`、`snapshots.py`、
+`tools/editor.py`、`tools/memory.py`、`tools/todo.py` 里那些**没有重试**的 `os.replace`
+**不在本批**——它们是原子写，「这次原子写要不要也 ride out 一次拒绝」是**另一个问题**」。
+
+本批先量那个问题。每个写入点都**配一个读者把目标文件开着**再调一次，量到的是：
+
+| 写入点 | 读者占着目标文件时的结果 |
+| --- | --- |
+| `allowlist.save_allowlist` | 抛 `AllowlistError`（「无法写入 allowlist: [WinError 5] 拒绝访问。」） |
+| `editor._atomic_write`（**Agent 的写文件工具**） | 抛 `EditError`（「原子写失败 (…): [WinError 5] 拒绝访问。」） |
+| `todo._atomic_write` | 抛**裸** `PermissionError` |
+| `snapshots._save` | 抛**裸** `PermissionError` |
+
+**这条量出来的结论和清单那一条不一样，必须写清**：清单那次是**写悄悄没了**（只记一条
+warning，调用方什么都不知道），而这四处**每一次都大声失败**——它们抛异常、报出原因、
+不假装成功。所以这不是同一个量级的缺陷：**「一次没成的写」被报出来了，「一次被误报成
+成功的写」才是灾难**。
+
+但它们**共享同一个窗口**：读者占着目标文件的那几微秒里，一次**瞬时**的拒绝就让这次写失败。
+而瞬时与持续的区别，正是本批要兑现的那件事。
+
+### 2 落地：九处裸 `os.replace` 全部交给 `minicc/atomic_file.py`
+
+| 文件 | 处数 | 位置 |
+| --- | --- | --- |
+| `minicc/allowlist.py` | 1 | `save_allowlist` |
+| `minicc/benchmarks.py` | 1 | 评测结果落盘 |
+| `minicc/snapshots.py` | 3 | `_save`（清单）、`_copy_preimage`（快照前像）、restore 循环 |
+| `minicc/tools/editor.py` | 2 | `_atomic_write`（write_file）、`move` |
+| `minicc/tools/memory.py` | 1 | 记忆追加 |
+| `minicc/tools/todo.py` | 1 | 任务清单落盘 |
+
+九处的预算统一是 8 次 × 5ms（平的），与清单那条一致；**为什么是这一套**由 `minicc/atomic_file.py`
+回答，**等多久**由每个调用点自己写在这里。
+
+### 3 门：把结构门改成**强**的那一条
+
+上一批那条结构门管的是「谁自己写了一套答法」。本批把它改成更强的形状：
+**全仓只有 `minicc/atomic_file.py` 可以调用 `os.replace`**。于是
+「这次原子写有没有 ride out 一次拒绝」这个问题**只有一个地方要看**，而答案处处相同。
+
+门文件仍是 `tests/test_the_catalog_waits_out_a_refused_swap_instead_of_dropping_the_write.py`，
+本批由 8 条扩到 **12 条**（新增 4 条逐点的行为门）：
+
+| 门 | 它独自承重的子句 |
+| --- | --- |
+| `…a_transient_refusal_does_not_fail_the_allowlist_write` | allowlist 的写：被拒一次**仍然落地** |
+| `…a_transient_refusal_does_not_fail_the_agents_file_write` | **Agent 自己的写文件工具**：被拒一次**仍然落地** |
+| `…a_transient_refusal_does_not_fail_the_todo_write` | 任务清单的写：同上 |
+| `…a_transient_refusal_does_not_fail_the_snapshot_manifest_write` | 快照清单的写：同上 |
+| `…one_repository_one_answer_to_the_sharing_violation`（改强） | **只有** `atomic_file.py` 可以 `os.replace`；**没有**模块自己留一套答法；十个调用点**都**得导入那一个答案 |
+
+### 4 见证（私有平面 `plane195`，主树未动）
+
+**PRE-FIX 腿**（把六个出货模块放回去，九处裸 `os.replace` 原样，十二条门一字不改地跑）：
+
+| 读数 | 值 |
+| --- | --- |
+| 红 | **5 / 12**：四条逐点行为门（allowlist、agent 的写文件工具、todo、快照清单）＋ 结构门 |
+| 绿 | **7 / 12**：清单那两面的门（上一批已经修好）、两条降级门、两条控制组、助手自证那条 |
+
+**变异臂**（每臂快照 → 改 → 跑 → `finally` 还原 → 复验 sha256）：
+
+| 臂 | 变异 | 实测红集 | 判定 |
+| --- | --- | --- | --- |
+| S1 | allowlist 不再 ride out | 2 条（allowlist 那条 ＋ 结构门） | MATCHED |
+| S2 | Agent 的写文件工具不再 ride out | 2 条（那条 ＋ 结构门） | MATCHED |
+| S3 | todo 的写不再 ride out | 2 条（那条 ＋ 结构门） | MATCHED |
+| S4 | 快照清单不再 ride out | 2 条（那条 ＋ 结构门） | MATCHED |
+| S5 | 记忆的写不再 ride out | 1 条（结构门） | MATCHED |
+| S6 | 评测结果不再 ride out | 1 条（结构门） | MATCHED |
+| S7 | **那一个答案自己不再回答**（第一次被拒就放弃） | **6 条** | MATCHED |
+| 控制 | 无变异 | `12 passed in 2.52s` | MATCHED |
+| 还原 | 快照逐字节还原 | 七个文件 sha 全部逐字节相同 | MATCHED |
+
+**S5 与 S6 只带走结构门，这一条要说清**：记忆与评测结果这两处**没有**逐点的行为门
+（它们的写入路径没有一个便宜的可观测入口），它们的承重全在结构门上。这不是漏了一条臂，
+是**如实记下这两处的证据比别处薄**。
+
+### 5 聚焦回归
+
+平面（六个模块相关的十三个文件）**190 passed / 1 skipped**（跳过是 POSIX 专有判据）；
+落库后主树同集合 **129 passed**（`test_the_catalog_waits_out…`、`test_cleanup_version`、
+`test_allowlist`、`test_snapshots`、`test_todo_tool`、`test_memory`、`test_core_tools`、
+`test_bench_tasks`）。
+
+### 6 本批的围栏读数（顺带覆盖第二百六十七至二百六十九批）
+
+全量围栏（主树，HEAD `7520429`，自带第二百六十七至二百六十九批）：
+**4049 passed / 4 failed / 0 error / 8 skipped，用时 3639.41s**。
+
+四条红**逐条都不是本批的**，也不都是「预存在」的，逐条归因：
+
+| 红 | 归因 |
+| --- | --- |
+| `test_the_dynamic_route_list_still_matches_the_source` | **预存在红**：第二百一十九批 §5 已登记，原样还在 |
+| `test_every_emitter_asks_the_home` | **预存在红**：同上，原样还在 |
+| `test_no_module_defines_the_same_top_level_name_twice` | **别车道**：`minicc/agent/graph.py` 的 `INSPECT_DAG_TOOLS` 在第 45 与第 48 行各定义一次——该文件最后一次改动是 `5fd8f4d`（M8-T519，别车道，10-27 16:15），**本批一个字没碰它** |
+| `test_every_gate_file_on_disk_is_tracked_by_git` | **别车道的在途文件**：围栏跑的时候别车道有一个未跟踪的测试文件在盘上；围栏结束后再单跑该条**已绿**（`tests/` 下现在没有未跟踪文件） |
+
+### 7 边界（本批**不**声称）
+
+- 本批**只**处理**瞬时**拒绝。**一直**被拒时这九处**照样失败**——它们抛的是各自的
+  领域异常（`AllowlistError`／`EditError`）或裸 `PermissionError`，本批**没有**统一那些异常类型。
+  「`todo`／`snapshots` 抛裸 `PermissionError` 而不是自己的领域异常」这一条**单独挂成下一位候选**。
+- 本批**没有**给 `list()`／`load()` 之类的读侧加锁；读侧的 ride out 已经在上一批做完
+  （清单那两条读侧门）。
+- 记忆与评测结果两处**只有**结构门的承重，没有逐点行为门——见 §4。
+- 本批**没有**碰 `minicc/agent/graph.py`（别车道在途）与 `minicc/session.py` 的锁实现。
+
+## 第五百零七批 — M8-T525 — 一个被打断的构建会把自己的中间目录留在根上，而没有任何门问目录形状的产物
+
+### 1 欠的是哪一条
+
+第二百二十一批（M8-T192）自己写下了一条没落地的账：
+
+> 把总体换成「根目录的**文件**」以后，**目录形状的**运行产物仍然无人问。
+> 下一步要么由树的车主处置，要么**在干净平面上量出目录类规则能抓住真实产物**，
+> 再连同见证一起落。
+
+本批就是那个「量」的腿。它量的是一件**具体**的事：setuptools 的 sdist 在根上留下的那个目录。
+
+### 2 量到的真相（干净平面，实测）
+
+在一个干净的 worktree 平面上跑 `python setup.py sdist`：
+
+```
+copying minicc.egg-info\SOURCES.txt -> minicc-0.2.0\minicc.egg-info
+creating dist
+Creating tar archive
+removing 'minicc-0.2.0' (and everything under it)
+```
+
+**成功的 sdist 会把自己的中间目录删掉**——`minicc-0.2.0/` 只是它搭台子用的，
+台子拆了。所以成功构建的产物形状是 `dist/*.tar.gz`，而 `dist/` **在仓库自己的
+`.gitignore` 里**。
+
+把同一个 sdist **中途杀掉**（在它 `creating minicc-0.2.0` 之后 2.2 秒）：
+
+```
+killing the build mid-flight (pid 9076)
+...
+creating minicc-0.2.0
+creating minicc-0.2.0\benchmarks
+...
+```
+
+**被中断的构建把台子留在根上**，而仓库的 `.gitignore` 只覆盖 `dist/`、`build/`、
+`*.egg-info/`——**`minicc-0.2.0/` 一条都不覆盖**。这就是第二百二十一批那台机器上
+那个 194 个文件的目录的来处，也是**没有任何门问它**的原因：现有那条根目录整洁门
+只走**文件**。
+
+### 3 落地
+
+`tests/test_cleanup_version.py` 新增**目录形状**的类与两条门：
+
+| 东西 | 内容 |
+| --- | --- |
+| `_DIRECTORY_ARTIFACT_PATTERN` | `^[A-Za-z][A-Za-z0-9_]*-\d+\.\d+(?:\.\d+)*$`——**带点的数字版本** |
+| `_catching_directory_classes(name)` | 命中就归 `unpacked distribution` 一类 |
+| `_root_directory_artifacts(names)` | 吃**一份清单**不吃磁盘（与文件那条同规矩：空答案要能区分「没匹配上」与「没去看」） |
+| `_live_root_dirs()` | 只读**目录**那一半 |
+| `test_a_directory_named_like_an_unpacked_distribution_is_an_artifact` | **合成门**：拿一份供给清单问这条规则 |
+| `test_the_live_repo_root_carries_no_unpacked_distribution_directory` | **实读门**：读根上真实的目录清单 |
+
+**为什么版本必须带点**：这台工作区里的临时目录叫 `.scratch-t149`、`.scratch-t182`……
+一条「`-` 加数字」的规则会把**别车道的在途目录**染红，而那不是任何人做错了什么。
+所以规则要的是 `<项目名>-<带点的版本>`。
+
+### 4 见证：一个**真的**产物，不是夹具
+
+这是本批最想拿到的东西：**门在真的有那个产物的平面上红，在干净的平面上绿**。
+
+| 平面 | 读数 |
+| --- | --- |
+| **干净平面**（`plane195`，无中断构建） | `24 passed` |
+| **见证平面**（`plane_sdist`，上面有一个**真的**被中断的 sdist 留下的 `minicc-0.2.0/`） | `1 failed, 23 passed` |
+
+红的原文（节选）：
+
+```
+AssertionError: these are directories left in the directory every contributor works from:
+[('minicc-0.2.0', ('unpacked distribution',))] || root holds 12 directories:
+.github, __pycache__, benchmarks, dist, docs, ide, minicc, minicc-0.2.0, minicc.egg-info, scripts, tests, web
+```
+
+**这份物证不是写出来的夹具**：它是一次真的 `setup.py sdist` 被中途杀掉之后留在盘上的。
+而同一批门在干净平面上是绿的——**所以这条红说的是那个产物，不是这台机器的脾气**。
+
+**变异臂**（每臂快照 → 改 → 跑 → `finally` 还原 → 复验 sha256）：
+
+| 臂 | 变异 | 实测 | 判定 |
+| --- | --- | --- | --- |
+| T1 | 把目录类去掉（`_catching_directory_classes` 永远返回空） | 合成门红 | MATCHED |
+| T2 | 把模式放宽成 `-<数字>`（丢掉「带点」） | 合成门红（`.scratch-t149` 也会被抓住） | MATCHED |
+| T3 | **对照臂**：让 `_live_root_dirs()` 去读**文件** | 见证平面**变绿** | 预测＝实测 |
+| 还原 | 快照逐字节还原 | 逐字节相同 | MATCHED |
+
+T3 是**对照臂**不是红臂，预测就是「变绿」：它证明实读门**必须读目录**才能看见那个产物，
+所以 T1/T2 那两条红才是「类在干活」的证据，而不是「树是脏的」。
+
+### 5 聚焦回归
+
+`tests/test_cleanup_version.py` 整文件：干净平面 **24 passed**，见证平面 **23 passed / 1 failed**
+（那一条正是实读门）。
+
+### 6 边界（本批**不**声称）
+
+- 本批**只**管**目录形状**里的一类（`<项目名>-<带点版本>`）。`build/`、`dist/`、`*.egg-info/`
+  这些**合法的**构建目录**不在规则里**，它们归打包门管——本批**没有**改变那条分工。
+- 本批**没有**给被中断的构建做清理（那不是门该做的事）；它只让那个目录**被看见**。
+- 本批**没有**查别的目录形状（`__pycache__`、`node_modules`、`.venv` 之类都不问）。
+- 规则**不**依赖 `.gitignore`：能匹配上形状**并且**没被忽略的那一类今天就是空的，
+  但规则没有借 git 说话——那会把「仓库的忽略规则」变成「产物的事实」。
+
+### 7 下一位候选（补记）
+
+- `todo`／`snapshots` 抛**裸** `PermissionError` 而不是自己的领域异常（第五百零六批 §7 挂下的一条）。
+- 本批这条规则**只**认「带点的数字版本」。`<项目名>-<单数字>`（例如 `foo-1`）今天不认。
+- 根目录**文件**那半边与**目录**这半边现在分属两条门（同一个文件里），
+  「总体」仍然是「根目录里的东西」而不是两类分开的口径——这一条**记在这里**，不假装已经收口。
+
+
+
