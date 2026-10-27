@@ -14,6 +14,7 @@ from typing import IO, Any, Iterator
 from .atomic_file import read_text_with_retry, replace_with_retry
 from .config import home_dir
 from .logging_setup import get_logger
+from .sidecar_lock import LockPrimitives, hold_sidecar, sidecar_path_for
 
 try:  # Windows
     import msvcrt
@@ -40,60 +41,6 @@ LOG = get_logger("workspaces")
 #: recent folder is cosmetic, refusing to start a web server is not.
 _LOCK_ATTEMPTS = 40
 _LOCK_RETRY_DELAY = 0.05
-_LOCK_BYTES = 1
-
-
-def _lock_path_for(catalog_path: Path) -> Path:
-    """The sidecar protecting one catalog - the naming rule ``minicc/session.py`` uses too."""
-    return catalog_path.with_name(catalog_path.name + ".lock")
-
-
-def _acquire(lock_path: Path) -> tuple[IO[str] | None, OSError | None]:
-    """Open ``lock_path`` and take it.  Returns (handle, refusal); one of them is None.
-
-    ``LK_NBLCK`` is the mode this loop needs: measured against a neighbour process
-    holding one byte, ``LK_LOCK`` parks the caller for 9.2s before it admits defeat
-    with EDEADLOCK, while ``LK_NBLCK`` answers in 0.000s.  Retrying the immediate
-    answer is what keeps the ceiling below honest.
-    """
-    if msvcrt is None and fcntl is None:
-        return None, OSError("本机没有可用的跨进程锁原语（msvcrt 与 fcntl 均未导出）")
-    try:
-        lock_path.parent.mkdir(parents=True, exist_ok=True)
-        handle = open(lock_path, "a+")
-    except OSError as exc:
-        return None, exc
-    try:
-        for attempt in range(_LOCK_ATTEMPTS):
-            try:
-                handle.seek(0)
-                if msvcrt is not None:
-                    msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, _LOCK_BYTES)
-                else:
-                    fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-                return handle, None
-            except OSError as exc:
-                if attempt == _LOCK_ATTEMPTS - 1:
-                    raise exc
-                time.sleep(_LOCK_RETRY_DELAY)
-        raise OSError(f"锁重试循环走完 {_LOCK_ATTEMPTS} 次却没有判决")
-    except OSError as exc:
-        handle.close()
-        return None, exc
-
-
-def _release(handle: IO[str]) -> None:
-    """Put the lock back.  A refusal here is not fatal: closing the handle drops it."""
-    try:
-        handle.seek(0)
-        if msvcrt is not None:
-            msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, _LOCK_BYTES)
-        elif fcntl is not None:
-            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
-    except OSError as exc:
-        LOG.warning(f"工作区目录锁解不开，交给关闭句柄释放 {handle.name}：{exc}")
-    finally:
-        handle.close()
 
 
 @contextlib.contextmanager
@@ -103,17 +50,25 @@ def _advisory_lock(catalog_path: Path) -> Iterator[bool]:
     Yields whether the lock is actually held.  It never raises: a busy or
     unmakeable sidecar degrades to the unlocked write plus one WARNING naming the
     catalog, which is today's behaviour with a diagnosis attached.
+
+    M8-T527: the *mechanism* lives in ``minicc/sidecar_lock.py`` - the one home,
+    which ``minicc/session.py`` and ``minicc/tools/memory.py`` ask as well.  What
+    stays here is the *decision*: this path may not raise (M8-T265 - losing a
+    recent-folder entry is cosmetic, refusing to start a second web server over
+    one is not), so a refusal degrades and says so.
     """
-    handle, refusal = _acquire(_lock_path_for(catalog_path))
-    if refusal is not None:
-        LOG.warning(
-            f"工作区目录锁被其他进程占用，本次不带跨进程锁写入 {catalog_path.as_posix()}：{refusal}"
-        )
-    try:
-        yield refusal is None
-    finally:
-        if handle is not None:
-            _release(handle)
+    lock_path = sidecar_path_for(catalog_path)
+    with hold_sidecar(
+        lock_path,
+        attempts=_LOCK_ATTEMPTS,
+        delay=_LOCK_RETRY_DELAY,
+        primitives=LockPrimitives(msvcrt=msvcrt, fcntl=fcntl, time=time),
+    ) as outcome:
+        if not outcome.held:
+            LOG.warning(
+                f"工作区目录锁被其他进程占用，本次不带跨进程锁写入 {catalog_path.as_posix()}：{outcome.refusal}"
+            )
+        yield outcome.held
 
 
 def resolve_workspace_path(

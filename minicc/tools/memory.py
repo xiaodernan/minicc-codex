@@ -26,6 +26,7 @@ INVALID_ARGUMENTS.
 
 from __future__ import annotations
 
+import logging
 import os
 import re
 import secrets
@@ -35,11 +36,17 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
-from ..atomic_file import replace_with_retry
+from ..atomic_file import read_text_with_retry, replace_with_retry
 from ..clock import utc_stamp
 from ..config import ConfigError, home_dir
+from ..sidecar_lock import hold_sidecar, sidecar_path_for
 from .registry import ToolError, ToolParamError, ToolResult, redact_text
 from .schemas import untrusted_tags
+
+# M8-T527: the standard library logger, the way ``minicc/tools/editor.py``
+# does it - ``minicc.logging_setup`` imports ``minicc.tools.registry``, so
+# importing it from here closes a cycle (tools -> logging_setup -> tools).
+LOG = logging.getLogger("minicc.memory")
 
 MEMORY_FILE_NAME = "MEMORY.md"
 MEMORY_SCOPES = ("user", "project")
@@ -63,6 +70,19 @@ ENTRY_RE = re.compile(
 )
 
 _APPEND_LOCK = threading.Lock()
+
+# M8-T527: the sidecar lock's budget.  The memory file is small and the
+# read-modify-write inside the lock is short, so the ceiling is the catalog's
+# 40 x 50ms = 2s: long enough for a neighbour that is mid-append, short
+# enough that a wedged one does not hang a tool call.
+_LOCK_ATTEMPTS = 40
+_LOCK_RETRY_DELAY = 0.05
+
+# M8-T527: the read side rides out the same transient refusal with the
+# repository's one answer for it (``minicc/atomic_file.py``).  A reader that
+# is refused must not answer "there are no memories".
+_READ_ATTEMPTS = 24
+_READ_RETRY_DELAY = 0.05
 
 
 @dataclass(frozen=True)
@@ -122,10 +142,29 @@ class MemoryTools:
         raise ToolParamError(f"scope 非法: {scope!r}（只允许 {'|'.join(MEMORY_SCOPES)}）")
 
     def _read_file(self, path: Path, scope: str) -> list[MemoryEntry]:
+        """Read one scope's entries.
+
+        M8-T527: this used to answer "there are no memories" to a read that
+        was *refused* - a neighbouring process holding the file open on
+        Windows made ``read_text`` raise, and the answer to that is "I could
+        not read it", not "there is nothing there".  Measured on this plane
+        with one process appending and one reading: 29 of 519 reads answered
+        "no memories" while the file plainly had entries.  The refusal is
+        now ridden out with the repository's one answer for a transient
+        sharing violation (``minicc/atomic_file.py``); a refusal that
+        survives the budget is still reported, because a memory list that
+        silently says "none" is a wrong answer.
+        """
         try:
-            text = path.read_text(encoding="utf-8")
-        except (OSError, UnicodeError):
+            text = read_text_with_retry(path, attempts=_READ_ATTEMPTS, delay=_READ_RETRY_DELAY)
+        except FileNotFoundError:
+            # No file yet is not a failure: it is an empty memory file.
             return []
+        except (OSError, UnicodeError) as exc:
+            raise ToolError(
+                f"无法读取记忆文件 ({path}): {exc}。"
+                "请先修复该文件（编码或权限），再读取记忆。"
+            ) from exc
         return parse_entries(text, scope)
 
     def load(self, scope: str | None = None) -> list[MemoryEntry]:
@@ -141,8 +180,49 @@ class MemoryTools:
         return entries
 
     def append(self, entry: MemoryEntry) -> None:
+        """Append one entry to the memory file, atomically against other processes.
+
+        M8-T527: the read-modify-write below was guarded by ``_APPEND_LOCK``, a
+        ``threading.Lock`` - which speaks to this process and to nobody else.
+        ``~/.minicc/MEMORY.md`` (user scope) is one file for **every workspace
+        on the machine**, and the project scope one is one file for every
+        process in that workspace, so two processes that both succeeded still
+        dropped each other's entries.  Measured on this plane, two
+        barrier-synchronised children appending three entries each, six rounds:
+        0 of 6 rounds kept all six entries, and every round kept exactly
+        three - one child's worth.  With the sidecar lock around the same
+        read-modify-write: 6 of 6 rounds kept all six.
+
+        The lock is held across the read *and* the write, not around one of
+        them: a lock around the write alone still lets two processes read the
+        same old content and each write it back.
+
+        A refusal is **not** downgraded to an unlocked write.  Losing a
+        "recently opened folder" is cosmetic (M8-T265); losing a memory the
+        model was told it had stored is not - the entry is gone and nothing
+        says so.  So a neighbour that will not let go costs the ceiling and
+        then the write is refused with a diagnosis, which is the answer the
+        session checkpoint already gives.
+        """
         path = self.path_for(entry.scope)
         with _APPEND_LOCK:
+            with hold_sidecar(
+                sidecar_path_for(path),
+                attempts=_LOCK_ATTEMPTS,
+                delay=_LOCK_RETRY_DELAY,
+            ) as outcome:
+                if not outcome.held:
+                    raise ToolError(
+                        f"记忆文件正被另一个进程占用，本次没有写入 ({path}): {outcome.refusal}。"
+                        f"请稍后重试。"
+                    )
+                self._append_locked(path, entry)
+
+    def _append_locked(
+        self, path: Path, entry: MemoryEntry, *, existing: str | None = None
+    ) -> None:
+        """The read-modify-write itself.  The caller holds the sidecar lock."""
+        if existing is None:
             existing = ""
             if path.is_file():
                 try:
@@ -157,15 +237,15 @@ class MemoryTools:
                         f"无法读取记忆文件 ({path}): {exc}。"
                         "请先修复该文件（编码或权限），再写入记忆。"
                     ) from exc
-            if not existing:
-                existing = FILE_HEADER.format(scope=entry.scope) + "\n"
-            if not existing.endswith("\n"):
-                existing += "\n"
-            payload = existing + entry.to_line() + "\n"
-            path.parent.mkdir(parents=True, exist_ok=True)
-            tmp = path.with_suffix(f".{os.getpid()}.{time.time_ns()}.tmp")
-            tmp.write_text(payload, encoding="utf-8")
-            replace_with_retry(tmp, path, attempts=8, delay=0.005)
+        if not existing:
+            existing = FILE_HEADER.format(scope=entry.scope) + "\n"
+        if not existing.endswith("\n"):
+            existing += "\n"
+        payload = existing + entry.to_line() + "\n"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_suffix(f".{os.getpid()}.{time.time_ns()}.tmp")
+        tmp.write_text(payload, encoding="utf-8")
+        replace_with_retry(tmp, path, attempts=8, delay=0.005)
 
     # -- tool handlers -------------------------------------------------------
 
@@ -321,6 +401,16 @@ def render_memory_index(workspace: Path, *, max_entry_chars: int = INDEX_EXCERPT
     try:
         entries = MemoryTools(workspace).load()
     except ConfigError:
+        entries = []
+    except ToolError as exc:
+        # M8-T527: the tool surface reports a read failure (a model that asked
+        # "what do you remember" must not be told "nothing"), but the prompt
+        # surface may not die over it: a memory file the user hand-edited into
+        # a broken encoding must not make the agent unable to start.  So the
+        # prompt degrades - and says so in the log, the way the output-style
+        # file does (``minicc/output_style.py``), instead of pretending the
+        # workspace has no memories.
+        LOG.warning("长期记忆索引读取失败（本次不注入索引）: %s", exc)
         entries = []
     if not entries:
         return ""
