@@ -37,6 +37,7 @@ from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
 
+from ..atomic_file import replace_with_retry
 from ..clock import utc_now_iso
 
 MAX_READ_LINES = 2000
@@ -460,7 +461,7 @@ class Editor:
         try:
             with tmp.open("w", encoding="utf-8", newline="") as handle:
                 handle.write(normalized)
-            os.replace(tmp, target)
+            replace_with_retry(tmp, target, attempts=8, delay=0.005)
             if self._after_write is not None:
                 self._after_write(target)
         except OSError as exc:
@@ -735,7 +736,7 @@ class Editor:
             self._before_write(destination)
         destination.parent.mkdir(parents=True, exist_ok=True)
         try:
-            os.replace(source, destination)
+            replace_with_retry(source, destination, attempts=8, delay=0.005)
             if self._after_write is not None:
                 self._after_write(source)
                 self._after_write(destination)

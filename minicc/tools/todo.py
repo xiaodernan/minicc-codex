@@ -18,6 +18,7 @@ import time
 from pathlib import Path
 from typing import Any
 
+from ..atomic_file import replace_with_retry
 from ..clock import utc_stamp
 from .registry import ToolError, ToolResult
 from .schemas import untrusted_tags
@@ -85,7 +86,7 @@ class TodoTools:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         tmp = self.path.with_suffix(f".{os.getpid()}.{time.time_ns()}.tmp")
         tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-        os.replace(tmp, self.path)
+        replace_with_retry(tmp, self.path, attempts=8, delay=0.005)
 
     def read(self, _args: dict[str, object]) -> ToolResult:
         todos: list[dict[str, str]] = []

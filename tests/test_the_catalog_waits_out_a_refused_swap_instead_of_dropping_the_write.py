@@ -168,9 +168,11 @@ def test_a_plain_write_still_lands_and_reads_back(tmp_path: Path) -> None:
 
 def _modules() -> dict[str, ast.Module]:
     trees: dict[str, ast.Module] = {}
-    for path in sorted(PACKAGE_ROOT.glob("*.py")):
+    for path in sorted(PACKAGE_ROOT.rglob("*.py")):
         try:
-            trees[path.name] = ast.parse(path.read_text(encoding="utf-8"))
+            trees[path.relative_to(PACKAGE_ROOT).as_posix()] = ast.parse(
+                path.read_text(encoding="utf-8")
+            )
         except (OSError, SyntaxError):
             continue
     return trees
@@ -223,12 +225,79 @@ def _retry_shapes(tree: ast.Module) -> list[str]:
     return shapes
 
 
+def _flaky_replace(monkeypatch, *, refusals: int = 1) -> list[int]:
+    """Make ``os.replace`` refuse ``refusals`` times, then behave."""
+    real = os.replace
+    calls: list[int] = []
+
+    def flaky(source, target, *args, **kwargs):
+        calls.append(1)
+        if len(calls) <= refusals:
+            raise PermissionError(errno.EACCES, "模拟一次共享冲突")
+        return real(source, target, *args, **kwargs)
+
+    monkeypatch.setattr(os, "replace", flaky)
+    return calls
+
+
+def test_a_transient_refusal_does_not_fail_the_allowlist_write(tmp_path: Path, monkeypatch) -> None:
+    """The allowlist is read on every permission check - a reader is always there."""
+    from minicc.allowlist import save_allowlist
+
+    root = tmp_path / "ws"
+    (root / ".minicc").mkdir(parents=True, exist_ok=True)
+    calls = _flaky_replace(monkeypatch)
+    save_allowlist(root, {"bash": ["pytest"]})
+    assert len(calls) >= 2, calls
+
+
+def test_a_transient_refusal_does_not_fail_the_agents_file_write(tmp_path: Path, monkeypatch) -> None:
+    """The agent's own writer must not fail because a reader blinked."""
+    from minicc.tools.editor import Editor
+
+    target = tmp_path / "sample.py"
+    target.write_text("old\n", encoding="utf-8")
+    editor = Editor(workspace=tmp_path)
+    calls = _flaky_replace(monkeypatch)
+    editor._atomic_write(target, "new\n", "LF")
+    assert len(calls) >= 2, calls
+    assert target.read_text(encoding="utf-8") == "new\n"
+
+
+def test_a_transient_refusal_does_not_fail_the_todo_write(tmp_path: Path, monkeypatch) -> None:
+    """The todo list is written on every plan update."""
+    from minicc.tools.todo import TodoTools
+
+    todos = TodoTools(workspace=tmp_path)
+    calls = _flaky_replace(monkeypatch)
+    todos._atomic_write({"todos": []})
+    assert len(calls) >= 2, calls
+
+
+def test_a_transient_refusal_does_not_fail_the_snapshot_manifest_write(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """The snapshot manifest is written while the task is already running."""
+    from minicc.snapshots import _save
+
+    dest = tmp_path / "snap"
+    dest.mkdir(parents=True, exist_ok=True)
+    calls = _flaky_replace(monkeypatch)
+    _save(dest, {"files": [], "workspace": str(tmp_path)})
+    assert len(calls) >= 2, calls
+
+
 def test_one_repository_one_answer_to_the_sharing_violation() -> None:
-    """Four call sites had four answers; there is now one mechanism.
+    """Nine call sites had nine answers; there is now one mechanism.
 
     Structural, because the behavioural gates cannot see a second copy: a
     second copy of this handler is correct code that quietly becomes the third
     answer the next time somebody changes the budget somewhere else.
+
+    The strong form of the gate: **only** ``minicc/atomic_file.py`` may swap a
+    file.  Every atomic write in the package goes through it, so the question
+    "does this write ride out a transient refusal?" has exactly one place to
+    look, and the answer is the same everywhere.
     """
     trees = _modules()
     assert "atomic_file.py" in trees, sorted(trees)
@@ -241,14 +310,31 @@ def test_one_repository_one_answer_to_the_sharing_violation() -> None:
     }
     assert defined == {"replace_with_retry", "read_text_with_retry"}, defined
 
-    # The mechanism itself may only live in one place.
+    # The one place that swaps a file.
+    swappers = sorted(name for name, tree in trees.items() if _calls_os_replace(tree))
+    assert swappers == ["atomic_file.py"], (
+        f"these modules swap files themselves instead of asking the one answer: {swappers}"
+    )
+
+    # And no module may keep its own hand-rolled version of the same answer.
     copies = sorted(name for name, tree in trees.items() if _retry_shapes(tree))
     assert copies == ["atomic_file.py"], (
         f"these modules keep their own answer to the sharing violation: {copies}"
     )
 
     # And the call sites must actually import the one answer.
-    for name in ("session.py", "webauth.py", "workspaces.py", "bench_tasks.py"):
+    for name in (
+        "session.py",
+        "webauth.py",
+        "workspaces.py",
+        "bench_tasks.py",
+        "allowlist.py",
+        "benchmarks.py",
+        "snapshots.py",
+        "tools/editor.py",
+        "tools/memory.py",
+        "tools/todo.py",
+    ):
         source = trees[name]
         imported = set()
         for node in ast.walk(source):

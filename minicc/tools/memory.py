@@ -35,6 +35,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
+from ..atomic_file import replace_with_retry
 from ..clock import utc_stamp
 from ..config import ConfigError, home_dir
 from .registry import ToolError, ToolParamError, ToolResult, redact_text
@@ -164,7 +165,7 @@ class MemoryTools:
             path.parent.mkdir(parents=True, exist_ok=True)
             tmp = path.with_suffix(f".{os.getpid()}.{time.time_ns()}.tmp")
             tmp.write_text(payload, encoding="utf-8")
-            os.replace(tmp, path)
+            replace_with_retry(tmp, path, attempts=8, delay=0.005)
 
     # -- tool handlers -------------------------------------------------------
 

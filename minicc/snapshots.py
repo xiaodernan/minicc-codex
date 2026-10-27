@@ -12,6 +12,7 @@ import subprocess
 import threading
 from pathlib import Path, PurePosixPath, PureWindowsPath
 
+from .atomic_file import replace_with_retry
 from .changes import INTERNAL_DIRS
 from typing import Any
 
@@ -128,7 +129,7 @@ def _save(dest: Path, manifest: dict[str, Any]) -> None:
     temp = dest / f".manifest-{secrets.token_hex(6)}.tmp"
     try:
         temp.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-        os.replace(temp, dest / "manifest.json")
+        replace_with_retry(temp, dest / "manifest.json", attempts=8, delay=0.005)
     finally:
         temp.unlink(missing_ok=True)
 
@@ -153,7 +154,7 @@ def _copy_preimage(source: Path, target: Path, *, used: int, count: int) -> tupl
         if (stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns) != (after.st_size, after.st_mtime_ns, after.st_ctime_ns):
             raise SnapshotError("快照复制期间源文件已变化")
         digest = _digest(temporary)
-        os.replace(temporary, target)
+        replace_with_retry(temporary, target, attempts=8, delay=0.005)
         return str(digest), stat.st_size
     finally:
         temporary.unlink(missing_ok=True)
@@ -368,7 +369,7 @@ def restore(workspace: Path, task_id: str) -> dict[str, Any]:
                     temporary = target.parent / f".{target.name}.restore-{secrets.token_hex(6)}"
                     try:
                         shutil.copy2(src, temporary)
-                        os.replace(temporary, target)
+                        replace_with_retry(temporary, target, attempts=8, delay=0.005)
                     finally:
                         temporary.unlink(missing_ok=True)
                     restored.append(rel)

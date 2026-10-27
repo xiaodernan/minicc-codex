@@ -21,6 +21,7 @@ import threading
 import uuid
 from pathlib import Path
 from typing import Any, Sequence
+from .atomic_file import replace_with_retry
 from .behavior_bench import (behavior_tasks, fixture_digest, grade_behavior,
                             prepare_fixture, validate_behavior_task)
 from . import bench_tasks
@@ -169,7 +170,7 @@ def _write_results(path: Path, results: list[dict[str, Any]]) -> None:
             handle.write(redact_text(json.dumps(results, ensure_ascii=False, indent=2, allow_nan=False))[0] + "\n")
             handle.flush()
             os.fsync(handle.fileno())
-        os.replace(temporary, path)
+        replace_with_retry(temporary, path, attempts=8, delay=0.005)
     finally:
         if temporary is not None:
             temporary.unlink(missing_ok=True)

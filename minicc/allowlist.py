@@ -12,6 +12,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
+from .atomic_file import replace_with_retry
 from .tools.registry import redact_text
 
 from .config import unreadable_file_message, unwritable_file_message
@@ -93,7 +94,7 @@ def save_allowlist(workspace: Path, payload: dict[str, Any]) -> None:
     with _lock:
         try:
             temporary.write_text(body, encoding="utf-8")
-            os.replace(temporary, path)
+            replace_with_retry(temporary, path, attempts=8, delay=0.005)
         except OSError as exc:
             try:
                 temporary.unlink(missing_ok=True)
