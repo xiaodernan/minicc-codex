@@ -767,6 +767,73 @@ def test_get_diff_rejects_path_outside_workspace(live: _LiveServer) -> None:
     assert json.loads(body)["error"]
 
 
+def test_get_diff_reports_git_failure_without_a_fabricated_patch(live: _LiveServer, tmp_path: Path, monkeypatch) -> None:
+    from minicc.changes import ChangeInspector
+
+    (tmp_path / "notes.txt").write_text("one\ntwo\n", encoding="utf-8")
+    monkeypatch.setattr(ChangeInspector, "_git", lambda self, args: (
+        128, "", "fatal: unable to read object",
+    ))
+    status, _, body = _request(f"{live.url}/api/diff?path=notes.txt", method="GET")
+    assert status == 400
+    payload = json.loads(body)
+    assert payload["code"] == "change_error"
+    assert "Git" in payload["error"] and "notes.txt" in payload["error"]
+    assert "patch" not in payload
+    assert "additions" not in payload
+
+
+def test_get_diff_preserves_a_real_git_baseline_or_reports_its_read_failure(live: _LiveServer, tmp_path: Path, monkeypatch) -> None:
+    from minicc.changes import ChangeInspector
+
+    def git(*args):
+        return subprocess.run(
+            ["git", *args], cwd=tmp_path, check=True, capture_output=True,
+            text=True, encoding="utf-8", errors="replace",
+        ).stdout.strip()
+
+    git("init")
+    target = tmp_path / "notes.txt"
+    target.write_text("one\nbefore\n", encoding="utf-8")
+    git("add", "notes.txt")
+    tree = git("write-tree")
+    commit = git("-c", "user.name=Test", "-c", "user.email=test@example.invalid", "commit-tree", tree, "-m", "baseline")
+    git("update-ref", "HEAD", commit)
+    target.write_text("one\nafter\n", encoding="utf-8")
+
+    status, _, body = _request(f"{live.url}/api/diff?path=notes.txt", method="GET")
+    assert status == 200
+    payload = json.loads(body)
+    assert payload["status"] == "modified"
+    assert (payload["additions"], payload["deletions"]) == (1, 1)
+    assert "-before\n+after" in payload["patch"]
+
+    original = ChangeInspector._git
+
+    def fail_show(self, args):
+        if args[0] == "show":
+            return 128, "", "fatal: object read failed"
+        return original(self, args)
+
+    monkeypatch.setattr(ChangeInspector, "_git", fail_show)
+    status, _, body = _request(f"{live.url}/api/diff?path=notes.txt", method="GET")
+    assert status == 400
+    payload = json.loads(body)
+    assert payload["code"] == "change_error"
+    assert "notes.txt" in payload["error"]
+    assert "patch" not in payload
+
+
+def test_get_diff_refuses_a_broken_worktree_gitdir(live: _LiveServer, tmp_path: Path) -> None:
+    (tmp_path / ".git").write_text(f"gitdir: {(tmp_path / 'missing-gitdir').as_posix()}\n", encoding="utf-8")
+    (tmp_path / "notes.txt").write_text("one\ntwo\n", encoding="utf-8")
+    status, _, body = _request(f"{live.url}/api/diff?path=notes.txt", method="GET")
+    assert status == 400
+    payload = json.loads(body)
+    assert payload["code"] == "change_error"
+    assert "notes.txt" in payload["error"]
+
+
 def test_post_approval_validates_request_id(live: _LiveServer) -> None:
     status, _, body = _post_json(f"{live.url}/api/approval", {"request_id": "  ", "decision": "allow"})
     assert status == 400

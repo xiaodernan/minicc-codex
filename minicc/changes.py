@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import difflib
 import json
+import os
 import subprocess
 import threading
 from collections import OrderedDict
@@ -103,6 +104,8 @@ class ChangeInspector:
                 errors="replace",
                 timeout=20,
                 shell=False,
+                # The no-repository diagnostic is part of baseline detection.
+                env={**os.environ, "LC_ALL": "C"},
             )
         except (OSError, subprocess.TimeoutExpired):
             return 127, "", "git unavailable"
@@ -261,7 +264,23 @@ class ChangeInspector:
 
     def _baseline(self, path: str) -> str:
         code, stdout, _stderr = self._git(["show", f"HEAD:{path}"])
-        return stdout if code == 0 else ""
+        if code == 0:
+            return stdout
+        tree_code, entries, _ = self._git(["ls-tree", "-z", "HEAD", "--", path])
+        if tree_code == 0:
+            if not entries:
+                return ""
+        else:
+            head_code, _, head_error = self._git(["rev-parse", "--verify", "--quiet", "HEAD"])
+            if head_code == 128 and head_error.startswith("fatal: not a git repository (or any "):
+                return ""
+            if head_code == 1:
+                ref_code, ref, _ = self._git(["symbolic-ref", "--quiet", "HEAD"])
+                if ref_code == 0:
+                    exists_code, _, _ = self._git(["show-ref", "--verify", "--quiet", ref.strip()])
+                    if exists_code == 1:
+                        return ""
+        raise ChangeError(f"读取 Git 基线失败: {path}")
 
     @staticmethod
     def _text(path: Path) -> str:

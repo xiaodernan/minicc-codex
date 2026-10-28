@@ -174,5 +174,77 @@ def test_resolve_accepts_relative_path_inside_workspace():
     assert resolved.as_posix().endswith("src/main.py")
 
 
+@pytest.mark.parametrize("status", ["modified", "deleted", "renamed"])
+def test_diff_refuses_an_unreadable_tracked_baseline(tmp_path, monkeypatch, status):
+    target = tmp_path / "notes.txt"
+    if status != "deleted":
+        target.write_text("one\ntwo\n", encoding="utf-8")
+    inspector = ChangeInspector(tmp_path)
+    monkeypatch.setattr(inspector, "files_without_diff", lambda: [
+        {"path": "notes.txt", "status": status, "raw": " M notes.txt"},
+    ])
+
+    def git(args):
+        if args[0] == "show":
+            return 128, "", "fatal: unable to read object"
+        if args[0] == "ls-tree":
+            return 0, "100644 blob " + "a" * 40 + "\tnotes.txt\0", ""
+        if args[0] == "rev-parse":
+            return 0, "b" * 40 + "\n", ""
+        raise AssertionError(args)
+
+    monkeypatch.setattr(inspector, "_git", git)
+    with pytest.raises(ChangeError, match="Git.*notes.txt"):
+        inspector.diff("notes.txt")
+
+
+@pytest.mark.parametrize("code, error", [
+    (127, "git unavailable"),
+    (128, "fatal: bad config file"),
+    (128, "fatal: detected dubious ownership in repository"),
+    (128, "fatal: not a git repository: /missing/gitdir"),
+])
+def test_diff_refuses_git_failure_instead_of_inventing_additions(tmp_path, monkeypatch, code, error):
+    (tmp_path / "notes.txt").write_text("one\ntwo\n", encoding="utf-8")
+    inspector = ChangeInspector(tmp_path)
+    monkeypatch.setattr(inspector, "files_without_diff", lambda: [
+        {"path": "notes.txt", "status": "modified", "raw": "audit"},
+    ])
+    monkeypatch.setattr(inspector, "_git", lambda args: (code, "", error))
+    with pytest.raises(ChangeError, match="Git.*notes.txt"):
+        inspector.diff("notes.txt")
+
+
+@pytest.mark.parametrize("baseline_kind", ["absent-path", "unborn", "non-repository"])
+def test_diff_accepts_an_established_empty_baseline(tmp_path, monkeypatch, baseline_kind):
+    (tmp_path / "notes.txt").write_text("one\ntwo\n", encoding="utf-8")
+    inspector = ChangeInspector(tmp_path)
+    monkeypatch.setattr(inspector, "files_without_diff", lambda: [
+        {"path": "notes.txt", "status": "modified", "raw": "audit"},
+    ])
+
+    def git(args):
+        if baseline_kind == "non-repository":
+            return 128, "", "fatal: not a git repository (or any of the parent directories): .git"
+        if args[0] == "show":
+            return 128, "", "fatal: invalid object name 'HEAD'"
+        if args[0] == "ls-tree":
+            return (0, "", "") if baseline_kind == "absent-path" else (128, "", "fatal: Not a valid object name HEAD")
+        if args[0] == "rev-parse":
+            return 1, "", ""
+        if args[0] == "symbolic-ref":
+            return 0, "refs/heads/main\n", ""
+        if args[0] == "show-ref":
+            return 1, "", ""
+        raise AssertionError(args)
+
+    monkeypatch.setattr(inspector, "_git", git)
+    result = inspector.diff("notes.txt")
+    assert result["status"] == "modified"
+    assert result["additions"] == 2
+    assert result["deletions"] == 0
+    assert "+one\n+two" in result["patch"]
+
+
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__, "-q", "-W", "error"]))
