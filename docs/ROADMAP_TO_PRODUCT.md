@@ -35238,3 +35238,87 @@ A 的两条红是「`conftest.py` 没有把用户级配置指向隔离文件」�
 
 第一条与第二条是上一批全量围栏里**逐条在干净 HEAD 平面上复现过**的红；本批现在有了
 一份不再被钩子拖住的量具，下一位就从它们开始。
+
+## 第五百一十九批 — M8-T531 — 一条门自己的句柄漏给了下一个跑的人
+
+### 1 欠的是哪一条
+
+上一批（第五百一十八批）§5 表里的第一条：`f2f2af5` 的全量围栏在 `-W error` 下
+报了两条红、却只算**一次**泄漏——`tests/test_the_task_stream_length_has_one_meaning.py`
+里的一条结构门用 `open("minicc/task_manager.py").read()` 读源码。表达式结束即
+失去引用，句柄只能等 GC；回收落在**下一个**测试里，于是外层 `TextIOWrapper` 走
+`-W error` 的警告通道、怀里的 `FileIO` 走 pytest 的 unraisable 通道，同一条泄漏
+记了两次账，两次都不在漏它的那条门上。
+
+同一处还有第二笔：源码被 `ast.parse` 了**两遍**（第一棵赋给 `tree` 之后没被用过，
+循环里又 parse 了一遍）。它不影响判决，但说明这条门自己没有被读过。
+
+### 2 量到的真相（实测）
+
+- **探测器先点名出货字节**：同一条 AST 扫描读 `HEAD` 的字节 → `[(82, '.read')]`；
+  读修后的工作树 → `[]`。检测器不是为了修而写的，是先红了才修。
+- **机制在子进程里量过**：`-W error::ResourceWarning` 下，`open(...).read()` 加一次
+  `gc.collect()` 打印 `Exception ignored in: <_io.FileIO …>` 与
+  `ResourceWarning: unclosed file <_io.TextIOWrapper …>`，**退出码仍是 0**——
+  警告在析构里被吞成 `Exception ignored`。`Path.read_text` 读同一只文件一个字不打印。
+- **普查**（`minicc/` + `scripts/` + `tests/`，共 **547** 个 `.py`，AST 读而不是正则）：
+  `open()` 一共 **6** 处，其中 **5** 处赋给变量（侧车锁、目录写冲突、邻居握暂存名
+  这些场景要靠握着句柄），唯一当场消费的就是这一处。
+
+### 3 落地
+
+- 修 `tests/test_the_task_stream_length_has_one_meaning.py`：
+  `_TASK_MANAGER = Path(__file__).resolve().parent.parent / "minicc" / "task_manager.py"`，
+  `ast.parse(_TASK_MANAGER.read_text(encoding="utf-8"))` 一次，删掉第二次 parse。
+  路径从 `__file__` 推出，不再依赖 CWD。
+- 新门 `tests/test_the_file_handles_are_closed.py` 三条：
+  1. **结构**：三棵树里 `open(...)` 的结果不许当场被消费（`.read()`、`[...]`）；
+     放进 `with` 或赋给变量都可以；
+  2. **探测器自检**：写坏的源码必须被点名，握在手里的与 `with` 的不许被点名；
+  3. **运行期两向见证**：子进程读 **stderr**——泄漏那条必须出现 `unclosed file`，
+     `read_text` 那条必须一个字都没有。前者退出码是 0，所以断言不许押在退出码上。
+
+### 4 变异验证
+
+| 臂 | 变异 | 预测 | 实测 | 判定 |
+| --- | --- | --- | --- | --- |
+| A1 | 把测试改回出货字节的 `open(...).read()` | 结构门红，点名该文件与 `.read` | **1 failed in 33.07s**：`Left contains one more item: 'tests\test_the_task_stream_length_has_one_meaning.py:82 (open(...).read)'` | MATCHED |
+| A2 | 探测器删掉 Attribute 分支（只认 `[...]`） | 自检红；结构门绿（没有子句再看得见） | **1 failed in 15.24s**：`Right contains one more item: (1, '.read')`——探测器只剩 `[...]` 一支 | MATCHED |
+| A3 | 运行期见证改成只看退出码 | 泄漏那条不会红（rc=0）——门必须读 stderr | **1 failed in 15.27s**：`assert 0 != 0`，同一份 stderr 里 `unclosed file` 明明白白 | MATCHED |
+| A4 | 结构门只扫 `minicc/` + `scripts/`（拿掉 `tests/`） | 地板先红（90 < 500），结构扫描绿——两层各自说话 | **1 failed in 48.86s**：`assert 90 >= 500`——地板先于结构扫描说话 | MATCHED |
+
+### 5 门禁
+
+- 两条门文件 + `test_subprocess_decoding.py` 的那条规则：**8 passed in 177.01s**
+  （7 条是本批的两份文件；第 8 条是下面 §5 说的那条被本批踩响的既有规则）。
+- 受影响面（`scripts/impacted_tests.py --check` 点名的六份文件）首跑：**83 passed / 1 failed
+  in 800.29s**。那 1 条红**是本批自己的**：新门用 `sys.executable` 起子进程、父端钉了
+  `encoding="utf-8"`，却没声明子端的输出编码，撞上 `test_subprocess_decoding.py` 的
+  「半钉编码」规则（规则点的是新门里那只 `subprocess.run` 的捕获）。
+  补上 `env=dict(os.environ, PYTHONIOENCODING="utf-8")` 后同一条规则绿——**新写的门
+  也是站点**，仓库里早就有一条结构门在看着它。
+- 全量围栏：本批**没有**跑（上一批那种 ~47 分钟的一次）。本批只动了两份测试文件，
+  全量围栏里唯一会因此变化的就是上一批 §5 表里那条 `ResourceWarning` 红；它今天由
+  结构门与运行期见证两条腿分别看着。
+
+### 6 边界（本批**不**声称）
+
+- 结构门只认**字面** `open(...)`：`getattr(builtins, "open")(...)`、`io.open`、
+  别名赋值都不在人口里。今天三棵树没有这些写法；这不是一条结构保证。
+- 结构门只认**当场被消费**这一种形状：裸的一行 `open(p)`（结果直接丢弃）也是
+  同一种泄漏，但它不在人口里——今天三棵树没有这一行，而且这一条要抓的是
+  「表达式替人做了决定」的那种写法。要收它，得先给它一条自检腿。
+- 赋给变量的句柄只保证「有人持有」，**不**保证会被关：`minicc/sidecar_lock.py`
+  那只锁句柄就该握到进程退出。本批没有、也不该有「句柄必须 close」的结构门。
+- 运行期见证只证明**这一种**写法在 CPython 3.11 上会报 `ResourceWarning`；
+  别的解释器、别的资源（socket、scandir）各有自己的门（`tests/test_resource_hygiene.py`
+  管 scandir）。
+- 本批没有改 `-W error` 的会话配置，也没有动 pytest 的 unraisable 钩子。
+
+### 7 下一单位
+
+1. M8-T532（落第五百二十批）`test_every_emitter_asks_the_home`，红自 `1c12ec5`。
+2. M8-T533（落第五百二十一批）每文件两次 `Path.stat`（`minicc/agent/retrieval.py:509`
+   与 `:615`）加一个 TOCTOU。
+3. M8-T534（落第五百二十二批）CI 变异步只断言「退出码非零」，从不断言**为什么**非零。
+4. M8-T535（落第五百二十三批）M6-4 的「劣化 ≤15%」有读数、没有门。
