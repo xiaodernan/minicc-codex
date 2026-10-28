@@ -1351,6 +1351,7 @@ async def run_agent(
                         )
                     elif (
                         not network_call
+                        and tc.tool != "skill_read"
                         and call_signature in tool_result_cache
                         # M8-T354: the memo may only answer for the file it
                         # was taken from.  The user (or any other process) can
@@ -1433,6 +1434,8 @@ async def run_agent(
                     # read - and that holds for a tool that *declares* the
                     # network capability, not only for the two names.
                     and not is_network_tool(tc.tool, registry.capabilities_of(tc.tool))
+                    # Named skills depend on catalog precedence and live path permissions.
+                    and tc.tool != "skill_read"
                     and tool_result.status == "ok"
                     and not (tool_result.data or {}).get("duplicate")
                 ):

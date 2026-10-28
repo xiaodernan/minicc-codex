@@ -25,7 +25,7 @@ from ..internal_paths import (
     TOKEN_FILE_NAME,
 )
 from .editor import EditError, Editor, StaleContextError, path_escaped_workspace
-from .registry import ToolError, split_output
+from .registry import ToolError, redact_text, split_output
 from .schemas import ToolResult
 
 MAX_GLOB_RESULTS = 200
@@ -271,6 +271,29 @@ class FsTools:
         return None
 
     # -- handlers ------------------------------------------------------------
+
+    def skill_read(self, args: dict[str, Any]) -> ToolResult:
+        from ..commands import read_skill
+
+        try:
+            skill, body = read_skill(self.editor.workspace, str(args["name"]))
+        except ValueError as exc:
+            raise ToolError(str(exc)) from exc
+        # Windowing can separate a credential from the context that identifies it.
+        if redact_text(body)[1]:
+            raise ToolError(f"技能正文包含疑似凭据，拒绝读取: {skill.name}")
+        offset = int(args.get("offset", 1))
+        limit = int(args.get("limit", 2000))
+        lines = body.splitlines()
+        window = lines[offset - 1:offset - 1 + limit]
+        if not window:
+            raise ToolError(f"技能正文读取窗口为空或越界: {skill.name} (offset={offset}, limit={limit})")
+        rendered = "\n".join(f"{number:>6}\t{line}" for number, line in enumerate(window, start=offset))
+        return _file_result(
+            rendered,
+            f"读取技能 {skill.name} ({skill.scope}，正文行 {offset}-{offset + len(window) - 1}/{len(lines)})",
+            name=skill.name, scope=skill.scope,
+        )
 
     def read_file(self, args: dict[str, Any]) -> ToolResult:
         path = str(args["path"])
