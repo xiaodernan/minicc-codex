@@ -25,6 +25,7 @@ from __future__ import annotations
 import ast
 import importlib.util
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -163,6 +164,196 @@ def test_a_shrunken_denominator_is_reported_as_a_problem_not_a_percentage() -> N
     assert any("GET" in p for p in problems) and any("POST" in p for p in problems)
     blind = rc.inventory_problems(rc.summarize(_mini_sites(), set()), blind_spots=[(99, "/api/hidden")])
     assert any("/api/hidden" in p for p in blind)
+
+
+# ---------------------------------------------------------------------------
+# M8-T529: a route the reader cannot resolve is not a route that does not exist.
+#
+# ``webserver.py:51`` declares ``TASKS_API_PREFIX = "/api/tasks/"`` and dispatches
+# four routes through it - GET 401 (``{task_id}/events``), GET 411 (``{task_id}``),
+# POST 653 (``{task_id}/resume``), POST 657 (``{task_id}/cancel``). Measured on the
+# shipped bytes, the walker read all four as absent:
+#
+#     dispatch sites found: 30   GET: A 18/18 = 100.0%  B 18/18 = 100.0%
+#                               POST: A 12/12 = 100.0%  B 12/12 = 100.0%
+#     _prefix_families(source) == {}      (every prefix dispatch was one of these four)
+#     _reconcile(...)  -> 4x "hand-copied list declares a template the source no longer has"
+#     text_predicates == ast_predicates == 30   (both blind the same way, so the
+#                                                cross-check could not raise an eyebrow)
+#
+# Two things were wrong. The denominator shrank by four while 100% kept printing -
+# and the *diagnosis* pointed at the wrong reader: ``_reconcile`` blamed the hand-
+# copied list for templates "the source no longer has", when the source has all of
+# them at lines any editor can see. A read that fails answered as "there is no such
+# route", which is the same defect this campaign has been chasing in permissions, in
+# memory files and in slash commands. The floors in MIN_SITES (15/10) could not help:
+# 18 >= 15 and 12 >= 10 while four real routes went unmeasured.
+
+
+#: The same dispatcher, anchored the way ``webserver.py`` anchors it.
+_ANCHORED_DISPATCHER = '''
+JOBS_API_PREFIX = "/api/jobs/"
+
+class Handler:
+    def do_GET(self):
+        if path.startswith(JOBS_API_PREFIX):
+            self.read_job()
+            return
+
+    def do_POST(self):
+        if path.startswith(JOBS_API_PREFIX) and path.endswith("/events"):
+            self.stream_job()
+            return
+        if path.endswith("/cancel") and path.startswith(JOBS_API_PREFIX):
+            self.cancel_job()
+            return
+'''
+
+#: An anchor no reader can resolve: a name bound to something that is not a literal.
+_OPAQUE_DISPATCHER = '''
+JOBS_API_PREFIX = get_prefix_from_config()
+
+class Handler:
+    def do_POST(self):
+        if path.startswith(JOBS_API_PREFIX):
+            self.stream_job()
+            return
+        if path == "/api/a":
+            self.a()
+            return
+'''
+
+
+def test_a_route_anchored_on_a_module_constant_is_still_one_route() -> None:
+    """The walker resolves a named anchor through the literal it was bound to.
+
+    Shipped bytes read this fixture as zero dispatch sites: the branch qualified on
+    nothing, so it left the denominator, and a request that entered its body could
+    not be attributed to it either.  The three shapes below are the four real task
+    routes' shapes.
+    """
+    assert _shapes(rc.dispatch_sites(_ANCHORED_DISPATCHER)) == {
+        ("GET", frozenset({"/api/jobs/*"})),
+        ("POST", frozenset({"/api/jobs/*", "*/events"})),
+        ("POST", frozenset({"/api/jobs/*", "*/cancel"})),
+    }
+
+
+def test_the_dumb_reader_learns_the_named_spelling_so_the_cross_check_has_eyes() -> None:
+    """The two readers have to disagree when either goes blind, in both spellings.
+
+    Asserting only that they *agree* would be green on the shipped bytes, where both
+    read nothing - agreement between two blind readers is not evidence.  So this pins
+    what each one finds, then requires the two to match.
+    """
+    assert {literal for _, literal in rc.text_predicates(_ANCHORED_DISPATCHER)} == {"/api/jobs/"}
+    assert len(rc.text_predicates(_ANCHORED_DISPATCHER)) == 3
+    assert rc.ast_predicates(_ANCHORED_DISPATCHER) == set(rc.text_predicates(_ANCHORED_DISPATCHER))
+
+
+def test_an_anchor_nobody_can_read_becomes_a_complaint_not_a_quieter_denominator() -> None:
+    """Resolution has to fail loud, or the next unresolvable spelling repeats this.
+
+    A route call is a route call whether the walker can read its anchor or not, so
+    an unreadable anchor is reported by line and by the expression that defeated the
+    reader - never quietly subtracted from the total the percentage divides by.
+    """
+    unresolved = rc.unresolved_route_anchors(_OPAQUE_DISPATCHER)
+    assert unresolved == [(6, "JOBS_API_PREFIX")], unresolved
+    problems = rc.inventory_problems(
+        rc.summarize(rc.dispatch_sites(_OPAQUE_DISPATCHER), set()), unresolved=unresolved
+    )
+    assert any("JOBS_API_PREFIX" in p for p in problems), problems
+    # Resolving the same name is what makes the complaint go away - the only fix a
+    # reader can offer, and it has to be the one the message asks for.
+    readable = _OPAQUE_DISPATCHER.replace(
+        'JOBS_API_PREFIX = get_prefix_from_config()', 'JOBS_API_PREFIX = "/api/jobs/"'
+    )
+    assert rc.unresolved_route_anchors(readable) == []
+    readable_problems = rc.inventory_problems(
+        rc.summarize(rc.dispatch_sites(readable), set()),
+        unresolved=rc.unresolved_route_anchors(readable),
+    )
+    # The floors still complain about a two-site fixture, correctly; only the anchor
+    # complaint was in question here.
+    assert not any("anchors a route on" in p for p in readable_problems), readable_problems
+
+
+def test_the_run_itself_listens_to_the_anchor_complaint() -> None:
+    """An unreadable anchor has to reach the exit code of the documented command.
+
+    ``unresolved_route_anchors`` is only a gate while ``main`` feeds it to
+    ``inventory_problems``; a reader that reports to nobody is the same silent drop
+    with a nicer name.  The real dispatcher has no unreadable anchors, so no run of
+    the command can show the wiring - this is the cheapest thing that can.
+    """
+    main_body = SCRIPT.read_text(encoding="utf-8").split("def main(", 1)[1]
+    assert "unresolved_route_anchors(source_text)" in main_body, main_body[:1500]
+    assert re.search(r"inventory_problems\([^)]*unresolved=", main_body), main_body
+
+
+def _branch_route_lines(source: str) -> dict[str, set[int]]:
+    """Lines of every ``if`` in a handler whose ``path`` anchor is an ``/api/`` route.
+
+    The test resolves named anchors its own way - a scan of the module's assignments
+    plus the predicate operands - rather than calling the walker's helper, so this is a
+    third reader of the dispatcher and not an echo of the one under test.
+    """
+    tree = ast.parse(source)
+    consts: dict[str, str] = {}
+    for node in tree.body:
+        if isinstance(node, (ast.Assign, ast.AnnAssign)) and isinstance(node.value, ast.Constant):
+            names = node.targets if isinstance(node, ast.Assign) else [node.target]
+            for name in names:
+                if isinstance(name, ast.Name) and isinstance(node.value.value, str):
+                    consts[name.id] = node.value.value
+    lines: dict[str, set[int]] = {}
+    for func in (n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name in ("do_GET", "do_POST")):
+        verb = "GET" if func.name == "do_GET" else "POST"
+        for node in ast.walk(func):
+            if not isinstance(node, ast.If):
+                continue
+            anchors: list[str] = []
+            for test_node in ast.walk(node.test):
+                arg: ast.expr | None = None
+                if isinstance(test_node, ast.Compare) and getattr(test_node.left, "id", "") == "path":
+                    arg = test_node.comparators[0]
+                elif (
+                    isinstance(test_node, ast.Call)
+                    and getattr(test_node.func, "attr", "") in {"startswith", "endswith"}
+                    and getattr(test_node.func.value, "id", "") == "path"
+                    and test_node.args
+                ):
+                    arg = test_node.args[0]
+                if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
+                    anchors.append(arg.value)
+                elif isinstance(arg, ast.Name) and arg.id in consts:
+                    anchors.append(consts[arg.id])
+            if any(anchor.startswith("/api/") for anchor in anchors):
+                lines.setdefault(verb, set()).add(node.lineno)
+    return lines
+
+
+def test_the_live_dispatcher_accounts_for_every_route_it_contains() -> None:
+    """The denominator is the dispatcher, branch for branch - in both spellings.
+
+    Measured before the fix: this file's own reader found four route branches
+    (GET 401 and 411, POST 653 and 657, all anchored on ``TASKS_API_PREFIX``) that the
+    walker attributed to nothing, and the tool printed 30 sites as a perfect 100%.
+    """
+    source = (REPO_ROOT / "minicc" / "webserver.py").read_text(encoding="utf-8")
+    sites = rc.dispatch_sites(source)
+    parts = {(s.verb, frozenset(s.route.split())) for s in sites}
+    assert ("GET", frozenset({"/api/tasks/*"})) in parts, parts
+    assert ("GET", frozenset({"/api/tasks/*", "*/events"})) in parts, parts
+    assert ("POST", frozenset({"/api/tasks/*", "*/resume"})) in parts, parts
+    assert ("POST", frozenset({"/api/tasks/*", "*/cancel"})) in parts, parts
+    found = {verb: {s.compare_line for s in sites if s.verb == verb} for verb in ("GET", "POST")}
+    assert found == _branch_route_lines(source), (
+        "branches the walker missed, or a site the walker invented: "
+        f"{ {v: sorted(_branch_route_lines(source)[v] - found[v]) for v in found} }"
+    )
+    assert rc.unresolved_route_anchors(source) == []
 
 
 def test_the_documented_command_reproduces_the_number() -> None:

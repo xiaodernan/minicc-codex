@@ -34691,3 +34691,205 @@ A2 一次红七条不是噪声，是这件事的形状：原因一吞掉，**披
 - 本批的 `reason_text` 只有两面共用（列表与拒绝）。若 skills 面也来用这一句，
   **措辞的家**仍然只有一个；若它自己造一句，就该被「一个措辞」那条门拦住——
   那条门今天只拦 `expand_slash_command(…) or` 这个形状，不拦 paraphrase。
+
+## 第五百一十一批 — M8-T529 — 读不出常量的走查器把路由分母读小了
+
+### 1 欠的是哪一条
+
+`scripts/route_coverage.py` 认字面量，不认名字。`minicc/webserver.py:51` 写着
+`TASKS_API_PREFIX = "/api/tasks/"`，四条路由用这个名字锚定自己：
+
+| 分支 | 写法 | 走查器读到什么 |
+| --- | --- | --- |
+| `webserver.py:401` | `path.startswith(TASKS_API_PREFIX) and path.endswith("/events")` | 只有 `*/events`，不够 `/api/` 资格 → **整条丢弃** |
+| `webserver.py:411` | `path.startswith(TASKS_API_PREFIX)` | 什么都没读到 → **整条丢弃** |
+| `webserver.py:653` | `path.endswith("/resume") and path.startswith(TASKS_API_PREFIX)` | 同上 |
+| `webserver.py:657` | `path.endswith("/cancel") and path.startswith(TASKS_API_PREFIX)` | 同上 |
+
+`_route_of` 的两个分支都要求 `isinstance(node.args[0], ast.Constant)`，名字不是常量，
+于是返回 `None`；`_route_branches` 再按「有没有 `/api/` 开头的资格」筛一遍，这四条
+`If` 就此从分母里消失。
+
+这里坏了**两件事**，第二件比第一件更难看见：
+
+1. **分母小了，数字更好看。** 30 个站点的 100% 和 34 个站点的 100% 打印出来一模一样，
+   而 `MIN_SITES` 的 15/10 下限只会拦「整个写法变了」，拦不住「少了四条」——18 ≥ 15、
+   12 ≥ 10，下限一声不响。
+2. **账记到了错的那一侧。** 第五百一十批围栏里那条红（四条幻影探针）说的话是
+   「手抄清单声明了 `/api/tasks/{task_id}`，**源码里已没有这条前缀分派**」。源码里有，
+   在第 401 行，任何打开文件的人都看得见。是**读源码的那一侧**瞎了，而门把这句话
+   按在**抄清单的那一侧**头上。一个把责任指错方向的诊断，比没有诊断更糟：它教下一个人
+   去删掉那些其实正在被服务的模板。
+
+而两个读者**瞎在同一处**：`text_predicates` 那条「故意笨」的正则同样只认引号里的
+`/api/`。两边都读不到，`text - ast` 就是空集，这个文件专门为「一个抽取例程发现不了
+自己的洞」而设的交叉核对，恰好在这个洞上什么也没看见。
+
+### 2 量到的真相（实测）
+
+出货字节，同一份 `minicc/webserver.py`：
+
+```
+python scripts/route_coverage.py --check
+    dispatch sites found: 30   webserver.py lines executed: 378
+    GET:  A 18/18 = 100.0%     B 18/18 = 100.0%
+    POST: A 12/12 = 100.0%     B 12/12 = 100.0%
+    （退出码 0；没有 INVENTORY PROBLEM，没有 NOT ENTERED）
+
+text_predicates -> 30 条      ast_predicates -> 30 条     text - ast -> []
+_prefix_families(source) -> {}                      # 前缀分派**一共**只有那四条
+_reconcile(families, declared, labels) ->
+    'GET 手抄清单声明了 /api/tasks/{task_id}，源码里已没有这条前缀分派：幻影探针'
+    'GET 手抄清单声明了 /api/tasks/{task_id}/events，源码里已没有这条前缀分派：幻影探针'
+    'POST 手抄清单声明了 /api/tasks/{task_id}/cancel，源码里已没有这条前缀分派：幻影探针'
+    'POST 手抄清单声明了 /api/tasks/{task_id}/resume，源码里已没有这条前缀分派：幻影探针'
+```
+
+`_prefix_families` 是空集这件事，是 `assert families, "前缀分派一族都没读到，这门就空转了"`
+那条护栏在替整门报警——它说对了「门在空转」，说不出**为什么**：源码里有四条。
+
+补一条容易读错的：这**不是**「四条路由没人测」。B 口径在 30 个站点上是 100%，在 34 个
+站点上也是 100%——那四条分支的**函数体本来就执行过**（`tests/test_http_route_inventory.py`
+那套探针驱动着它们）。缺的从来不是覆盖，是**看见**：一个已经测到、却不计入分母的路由，
+比一个没测到的路由更危险，因为它让分母的缩水永远不会以「未覆盖」的形式出现。
+
+### 3 落地
+
+全部在**同一个家** `scripts/route_coverage.py`：
+
+| 东西 | 内容 |
+| --- | --- |
+| `_module_string_consts()` | 模块级 `NAME = "字符串"` 读一次；`AnnAssign` 也算，值不是字符串就跳过 |
+| `_anchor_value()` | 字面量与名字走**同一个解析**——比较式和 `startswith` 两半不可能对同一条路由给出两个答案 |
+| `_verb_ifs()` | 「处理器里的 `If`」只遍历一次，走查器与锚点清单共用它；再写一份遍历就是第二种发现不了自己的瞎法 |
+| `unresolved_route_anchors()` | 仍然读不出来的锚点的**唯一家**：报行号 + 拦住读者的那个式子（`ast.unparse`），**不**静默减去 |
+| `inventory_problems(..., unresolved=…)` | 抱怨接到 `--check` 的退出码上——一个只打印给 `main` 之外的读者的读数，等于没有读数 |
+| `_TEXT_NAMED_PREDICATE` / `_TEXT_CONST_ASSIGN` | 笨读者学会名字写法，并用**另一种机制**解析（正则扫列 0 的 `NAME = "…"`，不是走 AST）：两个读者现在只有「各自真的看见」这一条路能达成一致 |
+
+**修的是读源码的那一侧**，手抄清单一个字没动。把 `_DYNAMIC_ROUTES` 里的四条模板删掉
+能让第五百一十批的围栏立刻转绿，那是把「仓库的写法」改成「门方便的样子」——上一条批次
+许下的正是反过来做。
+
+### 4 见证
+
+- **PRE-FIX 腿**（把出货字节放回去跑新门，只跑纯 AST 的部分）：**6 failed / 9 passed**。
+  其中 5 条是行为红（断言拿到 `set()`、拿到 `{}`），1 条是 `AttributeError`——
+  `unresolved_route_anchors` 这个家**从前不存在**，这一半没法在旧字节上变红，§6 里记着。
+- **六臂全 MATCHED**；每臂还原后**逐字节相同**（sha256 复验），还原后控制组 **15 passed**。
+
+| 臂 | 变异 | 实测 | 判定 |
+| --- | --- | --- | --- |
+| A1 | `_anchor_value` 忘掉名字那一支 | 6 红——**含既有门** `test_the_live_inventory_exposes_the_surface…` | MATCHED |
+| A2 | `_module_string_consts` 一个都不认 | 同上 6 红 | MATCHED |
+| A3 | 笨读者不再扫名字写法 | 交叉核对门红（只有这条） | MATCHED |
+| A4 | `unresolved_route_anchors` 直接返回 `[]` | 「读不出来要响」门红 | MATCHED |
+| A5 | `inventory_problems` 收到抱怨却不计 | 同上 | MATCHED |
+| A6 | `main()` 不去问锚点 | 「接线」门红 | MATCHED |
+
+A1/A2 各红 6 条里有一条是**早就在仓库里的**那条交叉核对门：笨读者学会名字写法之后，
+它才第一次有能力发现走查器瞎掉。本批没有新写「发现不了自己的洞」这件事的机制，
+只是把已有那台的**眼睛**装上。
+
+### 5 聚焦回归
+
+- 门文件 `tests/test_route_coverage_measurement.py`（本批 +5 条）：**16 passed**。
+- 路由三件（本门 + `test_http_route_inventory.py` + `test_http_surface.py`）：**107 passed**。
+- `python scripts/route_coverage.py --check`：**34 站点**，GET A/B **20/20 = 100%**、
+  POST A/B **14/14 = 100%**，无 INVENTORY PROBLEM。
+- `python scripts/impacted_tests.py --check`：退出码 **0**。
+- `python scripts/doc_pointers.py --check`：退出码 **0**。
+
+**这一节自己也红过一次，记在这里**：§5 初稿把上面表格里的第一条写成了**门文件名与函数名
+拼起来的那一条**（一个不存在的测试名），
+又把围栏原文里的一个**库内**位置（带行号的那一种）直接抄了进来。`doc_pointers` 的证据读者
+把这两处都算成本仓的引用：一条**不存在**的测试名 + 一条**不在本仓**的文件。
+`-k "roadmap or placeholder or pointer or gate_file"` 因此红了 **10 条**（78 条门，
+21 分 49 秒）；改成 `test_the_task_stream_length_has_one_meaning.py::test_the_stream_length_is_the_same_object`
+全形、并把库路径写成「httpx 的 `Headers.keys()`（库文件，不在本仓）」之后，**78 passed**。
+这条不是笔误的宽度：路线图的引用是被**机器核对**的，写下一条不存在的名字和写下一条不存在的
+路由是同一种错——而这一次是**记录**在撒谎，不是代码。
+
+**全量围栏** `python -W error -m pytest -q` = **4098 passed / 4 failed / 8 skipped**（67 分 50 秒）。
+上一批的读数是 4090 / **7** failed / 8 skipped：本批**收掉一条**（下表最后一行，干净平面上实测红、
+本批字节上实测绿），第五百一十批自己收掉两条，剩下四条各有归属。
+
+**四条红逐条对干净 HEAD（`dba641a`，`git archive` 导出的 `plane529`）复跑过**：
+
+| 红 | 干净平面 | 归属 |
+| --- | --- | --- |
+| `test_the_task_stream_length_has_one_meaning.py::test_the_stream_length_is_the_same_object` | 同样红 | **先于本批存在**：`-W error` 下的 `ResourceWarning: unclosed FileIO`——一条门自己漏出的句柄。第五百一十三批（M8-T531）领走 |
+| `test_every_emitter_asks_the_home` | 同样红 | **先于本批存在**：`llm/anthropic_provider.py` 的字节里没有 `trace_event`。**根因已查到**：`1c12ec5`（第四百八十二批）把这条通道切换事件整条搬进 `llm/usage.channel_switched_event()`，提供者从此不再需要 `trace_event` 这个名字，而名单没跟着改——这条门从那时起就红了 **59 个提交**。第五百一十四批（M8-T532）领走 |
+| `test_index_build_makes_a_constant_number_of_filesystem_calls_per_file` | 同样红 | **先于本批存在**：每文件多了两次 `Path.stat`（比值读数与本批无关）。第五百一十五批（M8-T533）领走 |
+| `test_anthropic_plan_channel.py::test_credit_limit_429_switches` | **隔离单跑绿** | **不是本批**：围栏里的原文是 `ResourceWarning: unclosed <socket.socket [closed] fd=6640>`，被 `-W error` 顶在 httpx `Headers.keys()` 这一行——**跟它自己的断言无关**。GC 什么时候回收那只 socket，这笔账就记在**当时正在跑的那条测试**头上。本批没碰 LLM 路径 |
+
+最后一条是这次围栏里最值得记的一件事，因为它和第一条是**同一个形状**：泄漏的一方不把
+泄漏说出去，`-W error` 就替它把账推到别人身上。区别只在于泄漏的是文件句柄还是 socket，
+以及推给谁由 GC 决定。这条**记进 §7**，不与第一条合并（修法不同：那条改测试，这条要改
+provider 的 socket 生命周期）。
+
+本批**收掉的那条**（上一批的 §5 表里第五行，四条幻影探针）：
+
+| 断言 | 干净 HEAD | 本批 |
+| --- | --- | --- |
+| `test_the_dynamic_route_list_still_matches_the_source` | 红（`assert {}`——四条 `TASKS_API_PREFIX` 锚点在走查器里读成空） | **绿**（`1 passed`） |
+
+
+### 6 边界（本批**不**声称）
+
+- 名字解析只到**模块级、直接赋成字符串**为止。`get_prefix()` 返回的、`os.environ` 拼出来的、
+  类属性里的前缀，本批**不认**——但今天它们**会响**：响的是「这一条锚点我读不出来」，
+  而不是「这不是路由」。让下一条批次换个写法时不再静默，是本批要买的东西。
+- A4/A5/A6 那三臂的**家**在出货字节上还不存在：`unresolved_route_anchors` 那一半是**能力门**，
+  不是回归门。它保证下一次，不保证上一次已经修好——上一次是真修好了，证据是本批
+  `--check` 的读数从 30 变成 34。
+- 三个读者共享同一个前提：路由写在 `path` 这个变量名的比较式里。改成查表、装饰器或正则路由表，
+  三者**一起**瞎——那是 `MIN_SITES` 下限的活，本批没扩它，也没动那两个数字。
+- `unresolved_route_anchors` 只看 `do_GET`/`do_POST` 的 `If` **测试**。同一个锚点写在 `if`
+  之外（`match` 语句、三元表达式、`if any(...)`）今天**既不解析也不报**——本批没测这个形状。
+- 笨读者的名字解析只认列 0、双引号、整行一条赋值的形状（`_TEXT_CONST_ASSIGN` 的字面）。
+  这是**故意**让它比走查器笨：两个读者只能用「各自真的看见」来一致，共享机制就不叫交叉核对。
+  它少认的那些写法不会漏，因为有 `unresolved_route_anchors` 在 AST 那一侧兜着。
+- 本批**没有**动路由，也**没有**动 `_DYNAMIC_ROUTES` 那份手抄清单——它仍然是手抄的。
+  本批做的是让**读它的那一侧**配得上它。
+- 本批**不**声称读侧普查做完：第五百零八批 §7 那份清单（`agent/loop.py`、`changes.py`、
+  `task_worker.py`、`tools/*`、`web.py`、`webserver.py`、`workspaces.py` 等）仍在。
+
+### 7 下一位候选（补记）
+
+**本批围栏数出来的债，按「先让围栏回到绿」排在本族前面：**
+
+1. `test_every_emitter_asks_the_home`——`llm/anthropic_provider.py` 不在 `trace_event`
+   的八家名单里：它要么成为一个 emitter（那就有该被问的家），要么名单在撒谎。
+2. `test_the_stream_length_is_the_same_object`——`ResourceWarning: unclosed FileIO
+   ('minicc/task_manager.py', 'rb')`。按 `'rb'` 打开而不关，在 `-W error` 下是一枚
+   按时响的雷：它红在**谁碰巧在那一刻触发 GC** 的那条门上。
+3. `test_index_build_makes_a_constant_number_of_filesystem_calls_per_file`——每文件
+   `Path.stat` 从 3.1 涨到 5.1（两个形状各 +2.0，与规模无关）。先回答**哪一批**把这两次
+   stat 加进每个文件的，再决定是「收回这两次」还是「重记常数并说明为什么」。
+
+**本批新数出来的一条：**
+
+- 「分支级不变量」今天住在**门**里（`tests/test_route_coverage_measurement.py` 的
+  `_branch_route_lines`），没住在**脚本**里。`route_coverage.py --check` 仍然只按
+  `MIN_SITES` 那两个宽下限判断分母健不健康——15 对 20、10 对 14。把这条不变量搬进脚本，
+  让 CI 那一步自己拒绝缩水的分母，而不是等有人在门文件里重跑一次。
+
+**这一轮围栏又多数出来的一条（与上面第 2 条同形状、不同修法）：**
+
+- `test_anthropic_plan_channel.py::test_credit_limit_429_switches` 在全量里红、隔离单跑绿，
+  原文是 `ResourceWarning: unclosed <socket.socket [closed] fd=6640>`，被 `-W error`
+  顶在 httpx 的 `Headers.keys()` 那一行（库文件，不在本仓）。这条测试**没有**任何断言失败——它只是恰好在
+  GC 回收那只 socket 的那一刻握着 CPU。读法与文件句柄那条一样：**泄漏的一方不说话，
+  `-W error` 就替它把账推给当时在跑的任何人**；不同之处在于要修的是 provider 的
+  客户端生命周期（`async with`/`aclose()`），不是某条测试的一行 `open()`。
+  排在 `M8-T531` **之后**，因为那条改的是一行、这条要先量是谁漏的。
+
+**本族的下一位（读侧普查，第五百零八批 §7 那份清单）：**
+
+- `minicc/mcp.py`：两套传输各有一份 `list_tools` / `list_resources` / `list_prompts`，
+  「服务器答了但形状不对」与「这个服务器没有这项能力」都是同一个 `[]`，而 `/tools` 与
+  注册处把 `[]` 当事实——一台坏了的服务器在 agent 面前等于一台没有工具的服务器。
+  注意 `tool_specs()` 对 `McpError` **已经**有 `discovery_skips` 这个披露的家，
+  缺的是「答了、但答不出形状」那一半。**第五百一十二批领这条。**
+- `minicc/changes.py:_baseline`：`git show HEAD:<path>` 非零退出一律 `""`——
+  「取不到基线」被说成「基线是空的」，diff 于是把整份文件报成全新增。

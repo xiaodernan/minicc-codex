@@ -74,7 +74,39 @@ class DispatchSite:
         return f"{self.verb} {self.route} (line {self.compare_line})"
 
 
-def _route_of(node: ast.AST) -> tuple[str, str] | None:
+def _module_string_consts(tree: ast.Module) -> dict[str, str]:
+    """Top-level ``NAME = "string"`` bindings, so an anchor can be read through its name.
+
+    M8-T529: ``webserver.py`` says ``TASKS_API_PREFIX = "/api/tasks/"`` at module level
+    and dispatches with ``path.startswith(TASKS_API_PREFIX)``.  A walker that only
+    recognises the literal spelling drops those four branches from the denominator,
+    and 100% of 30 sites prints exactly like 100% of 34 - a smaller denominator
+    flatters the number instead of shrinking it.
+    """
+    consts: dict[str, str] = {}
+    for node in tree.body:
+        value = node.value if isinstance(node, (ast.Assign, ast.AnnAssign)) else None
+        if not isinstance(value, ast.Constant) or not isinstance(value.value, str):
+            continue
+        targets: list[ast.expr] = list(node.targets) if isinstance(node, ast.Assign) else [node.target]
+        for target in targets:
+            if isinstance(target, ast.Name):
+                consts[target.id] = value.value
+    return consts
+
+
+def _anchor_value(arg: ast.expr, consts: dict[str, str]) -> str | None:
+    """The literal a route anchor compares against, resolved through ``consts``."""
+    if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
+        return arg.value
+    if isinstance(arg, ast.Name):
+        value = consts.get(arg.id)
+        if isinstance(value, str):
+            return value
+    return None
+
+
+def _route_of(node: ast.AST, consts: dict[str, str]) -> tuple[str, str] | None:
     """Render one ``path`` predicate as ``(label, raw literal)``, or None.
 
     A suffix test such as ``path.endswith("/resume")`` is kept for the label but
@@ -87,10 +119,8 @@ def _route_of(node: ast.AST) -> tuple[str, str] | None:
         and node.left.id == "path"
         and len(node.comparators) == 1
     ):
-        comparator = node.comparators[0]
-        if isinstance(comparator, ast.Constant) and isinstance(comparator.value, str):
-            return comparator.value, comparator.value
-        return None
+        literal = _anchor_value(node.comparators[0], consts)
+        return (literal, literal) if literal is not None else None
     if (
         isinstance(node, ast.Call)
         and isinstance(node.func, ast.Attribute)
@@ -98,10 +128,10 @@ def _route_of(node: ast.AST) -> tuple[str, str] | None:
         and isinstance(node.func.value, ast.Name)
         and node.func.value.id == "path"
         and node.args
-        and isinstance(node.args[0], ast.Constant)
-        and isinstance(node.args[0].value, str)
     ):
-        literal = node.args[0].value
+        literal = _anchor_value(node.args[0], consts)
+        if literal is None:
+            return None
         # A compound test like `path.endswith("/resume") and path.startswith("/api/tasks/")`
         # splits its two halves across the BoolOp; keep which side of the path each
         # literal anchors to, so the label still reads as one route.
@@ -109,7 +139,7 @@ def _route_of(node: ast.AST) -> tuple[str, str] | None:
     return None
 
 
-def _test_predicates(test: ast.expr) -> list[tuple[int, str, str]]:
+def _test_predicates(test: ast.expr, consts: dict[str, str]) -> list[tuple[int, str, str]]:
     """Every ``path`` predicate inside a condition, including BoolOp operands.
 
     Reading only ``If.test`` as one whole predicate is what made the first version of
@@ -119,7 +149,7 @@ def _test_predicates(test: ast.expr) -> list[tuple[int, str, str]]:
     """
     found: list[tuple[int, str, str]] = []
     for node in ast.walk(test):
-        rendered = _route_of(node)
+        rendered = _route_of(node, consts)
         if rendered is not None:
             found.append((node.lineno, rendered[0], rendered[1]))
     found.sort()
@@ -137,20 +167,31 @@ def _body_lines(body: list[ast.stmt]) -> frozenset[int]:
     return frozenset(lines)
 
 
-def _route_branches(source_text: str):
-    """Yield ``(verb, predicates, body)`` for each qualifying route branch."""
-    tree = ast.parse(source_text)
+def _verb_ifs(tree: ast.Module):
+    """Yield ``(verb, ast.If)`` for every branch inside a route handler function.
+
+    One walk, shared by whoever reads the dispatcher: a second bespoke traversal is a
+    second way to disagree with the first, and the two readers agreeing by accident is
+    how a blind spot survives review.
+    """
     for func in (n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)):
         verb = _VERBS.get(func.name)
         if verb is None:
             continue
         for node in ast.walk(func):
-            if not isinstance(node, ast.If):
-                continue
-            predicates = _test_predicates(node.test)
-            if not any(raw.startswith("/api/") for _, _, raw in predicates):
-                continue
-            yield verb, predicates, node.body
+            if isinstance(node, ast.If):
+                yield verb, node
+
+
+def _route_branches(source_text: str):
+    """Yield ``(verb, predicates, body)`` for each qualifying route branch."""
+    tree = ast.parse(source_text)
+    consts = _module_string_consts(tree)
+    for verb, node in _verb_ifs(tree):
+        predicates = _test_predicates(node.test, consts)
+        if not any(raw.startswith("/api/") for _, _, raw in predicates):
+            continue
+        yield verb, predicates, node.body
 
 
 def dispatch_sites(source_text: str) -> list[DispatchSite]:
@@ -178,6 +219,47 @@ def ast_predicates(source_text: str) -> set[tuple[int, str]]:
     }
 
 
+def unresolved_route_anchors(source_text: str) -> list[tuple[int, str]]:
+    """``path`` comparisons whose anchor this reader still cannot resolve.
+
+    ``MIN_SITES`` catches a dispatcher that stops looking like a dispatcher.  It does
+    not catch one that loses four branches to a spelling the walker cannot read, and a
+    dropped branch is not a smaller surface - the route is still served, still
+    reachable, still unmeasured.  So an anchor the walker cannot see becomes a
+    complaint here instead of a quieter denominator: a read that fails is not a read
+    that found nothing.
+
+    Returns ``(line, source of the anchor)`` for every ``path`` comparison in a route
+    handler whose right-hand side is neither a string literal nor a module-level string
+    constant - a function call, a local, an attribute.
+    """
+    tree = ast.parse(source_text)
+    consts = _module_string_consts(tree)
+    unresolved: list[tuple[int, str]] = []
+    for _, node in _verb_ifs(tree):
+        for test_node in ast.walk(node.test):
+            arg: ast.expr | None = None
+            if (
+                isinstance(test_node, ast.Compare)
+                and isinstance(test_node.left, ast.Name)
+                and test_node.left.id == "path"
+                and len(test_node.comparators) == 1
+            ):
+                arg = test_node.comparators[0]
+            elif (
+                isinstance(test_node, ast.Call)
+                and isinstance(test_node.func, ast.Attribute)
+                and test_node.func.attr in {"startswith", "endswith"}
+                and isinstance(test_node.func.value, ast.Name)
+                and test_node.func.value.id == "path"
+                and test_node.args
+            ):
+                arg = test_node.args[0]
+            if arg is not None and _anchor_value(arg, consts) is None:
+                unresolved.append((test_node.lineno, ast.unparse(arg)))
+    return sorted(set(unresolved))
+
+
 def summarize(sites: list[DispatchSite], executed: set[int]) -> dict[str, dict[str, object]]:
     """Compute A (comparison ran) and B (branch body entered) per verb."""
     report: dict[str, dict[str, object]] = {}
@@ -195,7 +277,12 @@ def summarize(sites: list[DispatchSite], executed: set[int]) -> dict[str, dict[s
     return report
 
 
-def inventory_problems(report: dict[str, dict[str, object]], *, blind_spots: list[tuple[int, str]] = ()) -> list[str]:
+def inventory_problems(
+    report: dict[str, dict[str, object]],
+    *,
+    blind_spots: list[tuple[int, str]] = (),
+    unresolved: list[tuple[int, str]] = (),
+) -> list[str]:
     problems: list[str] = []
     for verb, floor in MIN_SITES.items():
         total = int(str(report[verb]["total"]))
@@ -211,6 +298,12 @@ def inventory_problems(report: dict[str, dict[str, object]], *, blind_spots: lis
             f"dispatch site claims it - the AST walker grew a blind spot, so the denominator "
             f"below is smaller than the real surface."
         )
+    for line, anchor in unresolved:
+        problems.append(
+            f"webserver.py:{line} anchors a route on {anchor}, which this walker cannot "
+            f"resolve to a literal - that branch left the denominator, so the percentages "
+            f"below measure less surface than the file serves."
+        )
     return problems
 
 
@@ -218,15 +311,29 @@ _TEXT_PREDICATE = re.compile(
     r'path\s*(?:==|!=|\.startswith\(|\.endswith\()\s*[\'"](/api/[^\'"]*)[\'"]'
 )
 
+#: The same comparison written with a named anchor: ``path.startswith(TASKS_API_PREFIX)``.
+_TEXT_NAMED_PREDICATE = re.compile(
+    r'path\s*(?:==|!=|\.startswith\(|\.endswith\()\s*([A-Za-z_][A-Za-z0-9_]*)\s*'
+)
+
+#: A module-level string assignment, read as text - a different mechanism from
+#: :func:`_module_string_consts`, which is the point of having two readers.
+_TEXT_CONST_ASSIGN = re.compile(r'^([A-Za-z_][A-Za-z0-9_]*) = "(/api/[^"]*)"', re.MULTILINE)
+
 
 def text_predicates(source_text: str) -> list[tuple[int, str]]:
     """A deliberately dumb second reader of the same surface.
 
-    It only knows how to find ``path == "/api/x"``, ``path.startswith("/api/x")`` and
-    ``path.endswith("/api/x")`` on a line of ``do_GET``/``do_POST``. Its job is not to
-    replace the AST walker - it is to disagree with it when the walker grows a blind
-    spot, which it did on the first run of this file (three compound tests). A single
-    extraction routine cannot notice its own gaps.
+    It knows the two spellings a route anchor takes on a line of ``do_GET``/``do_POST``:
+    ``path == "/api/x"`` and ``path.startswith(API_PREFIX)`` with ``API_PREFIX =
+    "/api/..."`` at module level. Its job is not to replace the AST walker - it is to
+    disagree with it when the walker grows a blind spot, which it did on the first run
+    of this file (three compound tests) and again on M8-T529 (four constant anchors,
+    which left the denominator while 100% kept printing).
+
+    The named spelling is resolved by matching text, not by walking the AST, so the two
+    readers can only agree by genuinely seeing the same route. Teaching this reader to
+    ignore names is what made the cross-check blind to its own partner going blind.
     """
     tree = ast.parse(source_text)
     ranges = {
@@ -234,12 +341,17 @@ def text_predicates(source_text: str) -> list[tuple[int, str]]:
         for node in ast.walk(tree)
         if isinstance(node, ast.FunctionDef) and node.name in _VERBS
     }
+    named = dict(_TEXT_CONST_ASSIGN.findall(source_text))
     found: list[tuple[int, str]] = []
     for lineno, line in enumerate(source_text.splitlines(), start=1):
         if not any(start <= lineno <= end for start, end in ranges):
             continue
         for match in _TEXT_PREDICATE.finditer(line):
             found.append((lineno, match.group(1)))
+        for match in _TEXT_NAMED_PREDICATE.finditer(line):
+            literal = named.get(match.group(1))
+            if literal is not None:
+                found.append((lineno, literal))
     return found
 
 
@@ -300,8 +412,9 @@ def main(argv: list[str] | None = None) -> int:
     sites, executed = measure(tuple(args.tests) or DEFAULT_TESTS, reuse=args.reuse, source=args.source)
     source_text = WEBSERVER.read_text(encoding="utf-8")
     blind_spots = sorted(set(text_predicates(source_text)) - ast_predicates(source_text))
+    unresolved = unresolved_route_anchors(source_text)
     report = summarize(sites, executed)
-    problems = inventory_problems(report, blind_spots=blind_spots)
+    problems = inventory_problems(report, blind_spots=blind_spots, unresolved=unresolved)
     for problem in problems:
         print(f"INVENTORY PROBLEM: {problem}")
 
