@@ -23,11 +23,11 @@ def git(root, *args):
 
 def test_summary_batches_git_and_preserves_unicode_rename_and_changes(tmp_path):
     git(tmp_path, "init")
-    git(tmp_path, "config", "user.email", "test@example.invalid")
-    git(tmp_path, "config", "user.name", "Test")
     (tmp_path / "原文件 name.txt").write_text("one\ntwo\nthree\n", encoding="utf-8")
     git(tmp_path, "add", ".")
-    git(tmp_path, "commit", "-m", "fixture")
+    tree = git(tmp_path, "write-tree").stdout.decode("ascii").strip()
+    commit = git(tmp_path, "-c", "user.name=Test", "-c", "user.email=test@example.invalid", "commit-tree", tree, "-m", "fixture").stdout.decode("ascii").strip()
+    git(tmp_path, "update-ref", "HEAD", commit)
     git(tmp_path, "mv", "原文件 name.txt", "目标 name.txt")
     (tmp_path / "目标 name.txt").write_text("one\ntwo\nthree\nfour\n", encoding="utf-8")
     (tmp_path / "new.txt").write_text("new\n", encoding="utf-8")
@@ -42,8 +42,7 @@ def test_summary_batches_git_and_preserves_unicode_rename_and_changes(tmp_path):
     assert result["目标 name.txt"]["additions"] == 1
     assert result["目标 name.txt"]["deletions"] == 0
     assert result["new.txt"]["additions"] == 1
-    assert calls.count("show") == 0
-    assert len(calls) == 3
+    assert calls == ["status", "rev-parse", "rev-parse", "diff"]
     assert inspector.diff("目标 name.txt")["additions"] == 1
     (tmp_path / "new.txt").write_text("new\nsecond\n", encoding="utf-8")
     assert next(item for item in inspector.files() if item["path"] == "new.txt")["additions"] == 2

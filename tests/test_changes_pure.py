@@ -246,5 +246,74 @@ def test_diff_accepts_an_established_empty_baseline(tmp_path, monkeypatch, basel
     assert "+one\n+two" in result["patch"]
 
 
+@pytest.fixture
+def nested_git_workspace(tmp_path):
+    import subprocess
+
+    workspace = tmp_path / "模块 workspace"
+    workspace.mkdir()
+
+    def git(*args):
+        return subprocess.run(
+            ["git", *args], cwd=tmp_path, check=True, capture_output=True,
+            text=True, encoding="utf-8", errors="replace",
+        ).stdout.strip()
+
+    git("init")
+    (tmp_path / "notes.txt").write_text("ROOT_BASELINE\n", encoding="utf-8")
+    (workspace / "notes.txt").write_text("NESTED_BASELINE\n", encoding="utf-8")
+    git("add", "notes.txt", f"{workspace.name}/notes.txt")
+    tree = git("write-tree")
+    commit = git("-c", "user.name=Test", "-c", "user.email=test@example.invalid", "commit-tree", tree, "-m", "fixture")
+    git("update-ref", "HEAD", commit)
+    return tmp_path, workspace, git
+
+
+def test_nested_workspace_uses_its_own_status_counts_and_baseline(nested_git_workspace):
+    root, workspace, git = nested_git_workspace
+    (root / "notes.txt").write_text("ROOT_CHANGED\nextra root line\n", encoding="utf-8")
+    (workspace / "notes.txt").write_text("NESTED_CHANGED\n", encoding="utf-8")
+    inspector = ChangeInspector(workspace)
+    summary = inspector.summary()
+    assert [item["path"] for item in summary["files"]] == ["notes.txt"], summary
+    assert (summary["total_files"], summary["additions"], summary["deletions"]) == (1, 1, 1)
+    diff = inspector.diff("notes.txt")
+    assert diff["status"] == "modified"
+    assert "-NESTED_BASELINE\n+NESTED_CHANGED" in diff["patch"]
+    assert "ROOT_" not in diff["patch"]
+
+
+def test_nested_workspace_ignores_changes_outside_its_root(nested_git_workspace):
+    root, workspace, git = nested_git_workspace
+    (root / "notes.txt").write_text("ROOT_CHANGED\n", encoding="utf-8")
+    inspector = ChangeInspector(workspace)
+    assert inspector.summary()["total_files"] == 0
+    diff = inspector.diff("notes.txt")
+    assert diff["status"] == "clean" and diff["patch"] == ""
+
+
+@pytest.mark.parametrize("direction", ["within", "incoming", "outgoing"])
+def test_nested_workspace_renames_stay_inside_the_selected_root(nested_git_workspace, direction):
+    root, workspace, git = nested_git_workspace
+    folder = workspace.name
+    source = "notes.txt" if direction == "incoming" else f"{folder}/notes.txt"
+    destination = "outside.txt" if direction == "outgoing" else f"{folder}/renamed.txt"
+    git("mv", source, destination)
+    inspector = ChangeInspector(workspace)
+    expected_path = "notes.txt" if direction == "outgoing" else "renamed.txt"
+    summary = inspector.summary()
+    assert [item["path"] for item in summary["files"]] == [expected_path], summary
+    diff = inspector.diff(expected_path)
+    if direction == "within":
+        assert diff["status"] == "renamed" and diff["patch"] == ""
+        assert (summary["additions"], summary["deletions"]) == (0, 0)
+    elif direction == "incoming":
+        assert diff["status"] == "added" and "+ROOT_BASELINE" in diff["patch"]
+        assert (summary["additions"], summary["deletions"]) == (1, 0)
+    else:
+        assert diff["status"] == "deleted" and "-NESTED_BASELINE" in diff["patch"]
+        assert (summary["additions"], summary["deletions"]) == (0, 1)
+
+
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__, "-q", "-W", "error"]))

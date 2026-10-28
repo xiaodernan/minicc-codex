@@ -112,21 +112,31 @@ class ChangeInspector:
         return result.returncode, result.stdout, result.stderr
 
     def _status_lines(self) -> list[str]:
-        code, stdout, _stderr = self._git(["status", "--porcelain=v1", "-z", "-uall"])
-        if code != 0:
+        self._renames.clear()
+        code, stdout, _stderr = self._git(["status", "--porcelain=v1", "-z", "-uall", "--", "."])
+        if code != 0 or not stdout:
             return []
-        # NUL records preserve spaces, Unicode and embedded newlines. A
-        # rename/copy carries destination first and source as the next record.
+        prefix_code, prefix, _ = self._git(["rev-parse", "--show-prefix"])
+        if prefix_code != 0:
+            raise ChangeError("读取 Git 工作区前缀失败")
+        prefix = prefix.removesuffix("\n")
+        # Porcelain stays repository-relative even when a pathspec selects a subdirectory.
         records = iter(stdout.split("\0"))
         output = []
-        self._renames.clear()
         for raw in records:
             if not raw:
                 continue
-            if "R" in raw[:2] or "C" in raw[:2]:
-                origin = next(records, "")
-                self._renames[raw[3:]] = origin
-            output.append(raw)
+            path = raw[3:]
+            renamed = "R" in raw[:2] or "C" in raw[:2]
+            origin = next(records, "") if renamed else ""
+            if not path.startswith(prefix):
+                continue
+            path = path[len(prefix):]
+            if renamed:
+                if not origin.startswith(prefix):
+                    raise ChangeError("Git 重命名来源超出工作区")
+                self._renames[path] = origin[len(prefix):]
+            output.append(raw[:3] + path)
         return output
 
     @staticmethod
@@ -244,11 +254,11 @@ class ChangeInspector:
         return self._computed_files()[:_MAX_FILES]
 
     def _numstat(self) -> dict[str, tuple[int, int]]:
-        code, stdout, _ = self._git(["diff", "--numstat", "-z", "--find-renames", "HEAD", "--"])
+        code, stdout, _ = self._git(["diff", "--relative", "--numstat", "-z", "--find-renames", "HEAD", "--", "."])
         if code != 0:
             # An unborn repository has no HEAD; staged additions still have
             # meaningful counts and untracked files are counted separately.
-            code, stdout, _ = self._git(["diff", "--cached", "--numstat", "-z", "--find-renames", "--"])
+            code, stdout, _ = self._git(["diff", "--cached", "--relative", "--numstat", "-z", "--find-renames", "--", "."])
         result = {}
         if code == 0:
             records = iter(stdout.split("\0"))
@@ -263,7 +273,7 @@ class ChangeInspector:
         return result
 
     def _baseline(self, path: str) -> str:
-        code, stdout, _stderr = self._git(["show", f"HEAD:{path}"])
+        code, stdout, _stderr = self._git(["show", f"HEAD:./{path}"])
         if code == 0:
             return stdout
         tree_code, entries, _ = self._git(["ls-tree", "-z", "HEAD", "--", path])
