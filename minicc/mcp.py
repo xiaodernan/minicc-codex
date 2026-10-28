@@ -74,6 +74,49 @@ def registry_safe(text: str) -> str:
     return _REGISTRY_UNSAFE_RE.sub("_", text)
 
 
+def _read_listing(
+    result: dict[str, Any],
+    key: str,
+    *,
+    id_keys: tuple[str, ...] = ("name",),
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """Read one ``*/list`` answer: the items it carries, plus what had to be left out.
+
+    A server that answers in a shape this client cannot read is **not** a server with
+    nothing to list, and only the caller can tell the two apart if the read hands back
+    the reason along with the items.  Both transports used to end every such read at
+    ``[]``, which made the broken server byte-identical to the empty one - to
+    ``tool_specs()``, which stopped registering its tools, and to ``status()``, which
+    kept publishing it as ``ok`` beside an empty ``skipped``.  The roster then printed
+    its tally over whatever surface survived, and nothing said which servers were
+    missing from it.
+
+    ``id_keys`` is the entry's identity, not a filter the server may ignore: an entry
+    that carries no identifier cannot be named to the model, so it leaves the list -
+    but it does not leave silently.
+    """
+    if key not in result:
+        return [], [f"result had no {key!r} key"]
+    raw = result[key]
+    if raw is None:
+        return [], [f"{key!r} was null"]
+    if not isinstance(raw, list):
+        return [], [f"{key!r} was a {type(raw).__name__}, not a list"]
+    reasons: list[str] = []
+    items = [item for item in raw if isinstance(item, dict)]
+    if len(items) != len(raw):
+        reasons.append(
+            f"{len(raw) - len(items)} of {len(raw)} {key} entries were not objects"
+        )
+    kept = [item for item in items if any(str(item.get(k) or "") for k in id_keys)]
+    if len(kept) != len(items):
+        reasons.append(
+            f"{len(items) - len(kept)} of {len(items)} {key} entries had no "
+            + "/".join(repr(k) for k in id_keys)
+        )
+    return kept, reasons
+
+
 def _content_to_tool_result(server: str, tool: str, result: dict[str, Any]) -> ToolResult:
     """Flatten MCP ``content`` into a bounded, untrusted ToolResult (M5-T1).
 
@@ -548,26 +591,34 @@ class McpStdioClient:
             # Foreign/stale response (e.g. a server-initiated id collision):
             # drop it and keep waiting for ours.
 
-    def list_tools(self) -> list[dict[str, Any]]:
-        result = self._request("tools/list", {})
-        tools = result.get("tools", [])
-        return tools if isinstance(tools, list) else []
+    def tools_listing(self) -> tuple[list[dict[str, Any]], list[str]]:
+        return _read_listing(self._request("tools/list", {}), "tools")
 
-    def list_resources(self) -> list[dict[str, Any]]:
+    def resources_listing(self) -> tuple[list[dict[str, Any]], list[str]]:
         try:
             result = self._request("resources/list", {})
-        except McpError:
-            return []
-        items = result.get("resources", [])
-        return items if isinstance(items, list) else []
+        except McpError as exc:
+            # An unsupported, timed-out or unreadable resources/list is still this
+            # server's answer about its own resources, so the reason has to travel
+            # with the (empty) items instead of ending the read there.
+            return [], [f"failed: {exc}"]
+        return _read_listing(result, "resources", id_keys=("uri", "name"))
 
-    def list_prompts(self) -> list[dict[str, Any]]:
+    def prompts_listing(self) -> tuple[list[dict[str, Any]], list[str]]:
         try:
             result = self._request("prompts/list", {})
-        except McpError:
-            return []
-        items = result.get("prompts", [])
-        return items if isinstance(items, list) else []
+        except McpError as exc:
+            return [], [f"failed: {exc}"]
+        return _read_listing(result, "prompts")
+
+    def list_tools(self) -> list[dict[str, Any]]:
+        return self.tools_listing()[0]
+
+    def list_resources(self) -> list[dict[str, Any]]:
+        return self.resources_listing()[0]
+
+    def list_prompts(self) -> list[dict[str, Any]]:
+        return self.prompts_listing()[0]
 
     def call_tool(self, name: str, arguments: dict[str, Any]) -> ToolResult:
         result = self._request("tools/call", {"name": name, "arguments": arguments})
@@ -690,6 +741,15 @@ class McpHttpClient:
                     return int(response.status), response.headers.get("Content-Type", ""), body, session_id
             except urllib.error.HTTPError as exc:
                 location = exc.headers.get("Location") or "" if exc.headers else ""
+                # An HTTPError *is* the response - it carries the connection.  Only
+                # the status and the headers are read here, so the socket is released
+                # now instead of being left for the garbage collector to notice, which
+                # parks one live socket per redirect hop (and, under -W error, bills
+                # whichever test happens to be running when it is finally collected).
+                # An error with no fp has no connection to give back, and the stdlib
+                # wrapper's close() walks that None: AttributeError, not a release.
+                if exc.fp is not None:
+                    exc.close()
                 if exc.code in {301, 302, 303, 307, 308} and location:
                     target = urllib.parse.urljoin(current, location)
                     try:
@@ -762,26 +822,31 @@ class McpHttpClient:
             raise McpError(f"MCP HTTP server {self.config.name} 请求无响应: {method}")
         return result
 
-    def list_tools(self) -> list[dict[str, Any]]:
-        result = self._request("tools/list", {})
-        tools = result.get("tools", [])
-        return tools if isinstance(tools, list) else []
+    def tools_listing(self) -> tuple[list[dict[str, Any]], list[str]]:
+        return _read_listing(self._request("tools/list", {}), "tools")
 
-    def list_resources(self) -> list[dict[str, Any]]:
+    def resources_listing(self) -> tuple[list[dict[str, Any]], list[str]]:
         try:
             result = self._request("resources/list", {})
-        except McpError:
-            return []
-        items = result.get("resources", [])
-        return items if isinstance(items, list) else []
+        except McpError as exc:
+            return [], [f"failed: {exc}"]
+        return _read_listing(result, "resources", id_keys=("uri", "name"))
 
-    def list_prompts(self) -> list[dict[str, Any]]:
+    def prompts_listing(self) -> tuple[list[dict[str, Any]], list[str]]:
         try:
             result = self._request("prompts/list", {})
-        except McpError:
-            return []
-        items = result.get("prompts", [])
-        return items if isinstance(items, list) else []
+        except McpError as exc:
+            return [], [f"failed: {exc}"]
+        return _read_listing(result, "prompts")
+
+    def list_tools(self) -> list[dict[str, Any]]:
+        return self.tools_listing()[0]
+
+    def list_resources(self) -> list[dict[str, Any]]:
+        return self.resources_listing()[0]
+
+    def list_prompts(self) -> list[dict[str, Any]]:
+        return self.prompts_listing()[0]
 
     def call_tool(self, name: str, arguments: dict[str, Any]) -> ToolResult:
         result = self._request("tools/call", {"name": name, "arguments": arguments})
@@ -878,6 +943,8 @@ class McpManager:
         self.clients: dict[str, Any] = {}
         self._client_lock = threading.RLock()
         self.discovery_skips: dict[str, str] = {}
+        #: Per server, the answers this pass could not read - named beside ``skipped``.
+        self.discovery_unreadable: dict[str, list[str]] = {}
 
     def _client(self, config: McpServerConfig) -> Any:
         with self._client_lock:
@@ -946,6 +1013,12 @@ class McpManager:
         from ``health()`` by server name (that method owns the ok/dead/unspawned 口径
         and never spawns), and ``states`` is counted from the rows this payload
         actually ships, so the tally can never disagree with the list beside it.
+
+        M8-T530 splits the two ways a server can be missing from the roster:
+        ``skipped`` is a server that never answered this pass, ``unreadable`` is
+        one that answered in a shape the reader could not use.  Collapsing them
+        would make a broken producer and an empty one the same row - which is the
+        report the bridge has to be able to tell apart.
         """
         states = {row["name"]: row["state"] for row in self.health()}
         servers = [
@@ -967,6 +1040,9 @@ class McpManager:
             "servers": servers,
             "states": tally,
             "skipped": dict(self.discovery_skips),
+            "unreadable": {
+                name: list(reasons) for name, reasons in self.discovery_unreadable.items()
+            },
         }
 
     def health(self) -> list[dict[str, Any]]:
@@ -983,6 +1059,25 @@ class McpManager:
             report.append({"name": config.name, "transport": config.transport, "state": state})
         return report
 
+    def _record_listing_notes(self, name: str, kind: str, reasons: list[str]) -> None:
+        """Publish - or clear - one server's unreadable answers for this pass.
+
+        The ``kind`` prefix is what makes the replace per kind: a pass that reads
+        ``tools`` fine must keep saying what ``resources`` could not be read as, and
+        a server that finally answers well must stop being named at all.  Notes
+        that never clear would be the same lie as a roster that never shrinks.
+        """
+        kept = [
+            text
+            for text in self.discovery_unreadable.get(name, [])
+            if not text.startswith(f"{kind}: ")
+        ]
+        merged = kept + [f"{kind}: {text}" for text in reasons]
+        if merged:
+            self.discovery_unreadable[name] = merged
+        else:
+            self.discovery_unreadable.pop(name, None)
+
     def tool_specs(self) -> list[ToolSpec]:
         specs: list[ToolSpec] = []
         taken: set[str] = set()
@@ -995,7 +1090,7 @@ class McpManager:
                     spawned_now.append(config.name)
                 if getattr(client, "dead", False):
                     raise McpError(f"MCP server {config.name} 不可用（已标记 dead）")
-                tools = client.list_tools()
+                tools, notes = client.tools_listing()
             except McpError as exc:
                 # M5-T5: a server that fails mid-discovery is marked dead and, if this pass
                 # just spawned it, reaped - so its child is never orphaned.  M8-T264: the pass
@@ -1007,10 +1102,18 @@ class McpManager:
                 self.discovery_skips[config.name] = str(exc)
                 LOG.warning(f"MCP server {config.name} 的工具发现失败，本趟跳过: {exc}")
                 continue
+            # M8-T530: an answer this reader could not read is disclosed here, not
+            # folded into "this server has no tools".  The server stays alive - a
+            # wrong shape is not a dead child, and marking it dead would reap a
+            # server that is answering perfectly well on the next pass.
+            self._record_listing_notes(config.name, "tools", notes)
+            if notes:
+                LOG.warning(
+                    f"MCP server {config.name} 的 tools/list 有读不出来的部分: "
+                    + "; ".join(notes)
+                )
             for item in tools:
                 name = str(item.get("name", ""))
-                if not name:
-                    continue
                 safe_name = self._unique_tool_name(config.name, name, taken)
                 schema = item.get("inputSchema") if isinstance(item.get("inputSchema"), dict) else {"type": "object", "properties": {}}
                 specs.append(ToolSpec(
@@ -1031,7 +1134,10 @@ class McpManager:
         """Bounded read-only context from resources/list + prompts/list (M5-T7).
 
         Each line is clamped to ``max_chars``; dead or unspawnable servers are
-        skipped rather than allowed to stall discovery.
+        skipped rather than allowed to stall discovery.  M8-T530: an answer that
+        could not be read is no longer the same as a server with nothing to show -
+        the reason goes to ``status()["unreadable"]`` instead of disappearing into
+        the client that caught it.
         """
         lines: list[str] = []
         for config in self.configs:
@@ -1044,20 +1150,26 @@ class McpManager:
             if getattr(client, "dead", False):
                 self._mark_dead(config.name, reap=False)
                 continue
-            for kind, items, key in (
-                ("resource", client.list_resources(), "uri"),
-                ("prompt", client.list_prompts(), "name"),
+            for kind, label, listing, id_keys in (
+                ("resources", "resource", client.resources_listing, ("uri", "name")),
+                ("prompts", "prompt", client.prompts_listing, ("name",)),
             ):
+                items, notes = listing()
+                self._record_listing_notes(config.name, kind, notes)
+                if notes:
+                    # The same disclosure the tools side gives: status() is what a
+                    # caller reads, the WARNING is what an operator sees while
+                    # watching a session that keeps showing no resources.
+                    LOG.warning(
+                        f"MCP server {config.name} 的 {kind}/list 有读不出来的部分: "
+                        + "; ".join(notes)
+                    )
                 for item in items:
                     if len(lines) >= max_items:
                         break
-                    if not isinstance(item, dict):
-                        continue
-                    ident = str(item.get(key) or item.get("name") or "")
-                    if not ident:
-                        continue
+                    ident = str(item.get(id_keys[0]) or item.get("name") or "")
                     desc = str(item.get("description") or "")
-                    line = f"- [mcp:{config.name}] {kind} {ident}"
+                    line = f"- [mcp:{config.name}] {label} {ident}"
                     if desc:
                         line += f" — {desc}"
                     lines.append(line[:max_chars])

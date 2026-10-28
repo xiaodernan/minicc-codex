@@ -34893,3 +34893,222 @@ provider 的 socket 生命周期）。
   缺的是「答了、但答不出形状」那一半。**第五百一十二批领这条。**
 - `minicc/changes.py:_baseline`：`git show HEAD:<path>` 非零退出一律 `""`——
   「取不到基线」被说成「基线是空的」，diff 于是把整份文件报成全新增。
+## 第五百一十二批 — M8-T530 — 一个答不出形状的 MCP 服务器，不是「没有工具」的服务器
+
+### 1 欠的是哪一条
+
+第五百零八批 §7 排进来、第五百一十一批 §7 顶到最前的那一条：`minicc/mcp.py` 里
+**六份** listing 读法，每份都以 `[]` 收尾。
+
+出货字节（`git archive HEAD` 的 `343e7572…` 那份）上，两套传输各抄一遍：
+
+| 家 | 位置 | 读法 | 「答不出形状」变成什么 |
+| --- | --- | --- | --- |
+| stdio | `minicc/mcp.py:551` | `tools = result.get("tools", [])` + `return tools if isinstance(tools, list) else []` | 缺键 → `[]`；`null` → `[]`；dict → `[]`；**字符串列表原样交出去** |
+| stdio | `minicc/mcp.py:556` | `except McpError: return []` | 超时、子进程已死、「resources not supported」**三种都**是 `[]` |
+| stdio | `minicc/mcp.py:564` | 同上（prompts） | 同上 |
+| http | `minicc/mcp.py:765/770/778` | 与 stdio 逐字同形的三份 | 同上 |
+| 管理器 | `minicc/mcp.py:1010` | `for item in tools:` → `str(item.get("name", ""))` → `if not name: continue` | 一项不是 dict 就 **`AttributeError`**；一项没有名字就**悄悄少一条** |
+| 管理器 | `minicc/mcp.py:1048` | `if not isinstance(item, dict): continue` / `if not ident: continue` | 每个调用点**再各自**筛一遍，一条都不说 |
+
+欠的东西分成三件，第三件最晚才被数出来：
+
+1. **读者只有一个出口。** `[]` 同时是「这台服务器没有工具」「这台服务器的回答我
+   读不懂」「这台服务器根本没答」三种事实；`status()` 里当时**没有**能接住第二种
+   的键（实测读出 `unreadable=null`——连键都不存在）。
+2. **坏形状能把好服务器拖倒。** `tool_specs()` 对 `McpError` 早就有 `discovery_skips`
+   这个家（M8-T264 就定了口径），但**没有** `McpError` 的
+   读不出——`{"tools": ["just", "strings"]}` 是一条合法 JSON-RPC 回答，它走到
+   `item.get(...)` 才炸；炸的是**整趟发现**，于是那台好好答了 `healthy_tool` 的
+   服务器也拿不到工具。
+3. **`resources`/`prompts` 那一半吞得更深。** 客户端就地 `except McpError: return []`，
+   管理器连「有一次失败」这件事都看不见；`resources_context()` 于是把空串交给
+   agent，说成「这些服务器没有资源」。
+
+**第二处（同一条缺陷的另一形状）**是围栏递过来的：`minicc/mcp.py:691`（出货字节）
+把 `3xx` 当**数据**读——只取 `exc.code` 与 `exc.headers["Location"]`，然后把那个
+`HTTPError` 丢掉。`HTTPError` **就是**那份响应：它怀里抱着连接。每一跳漏一只，
+最后一次非 `3xx` 的错误再漏一只。
+
+### 2 量到的真相（实测）
+
+同一个 spec 驱动的 stdio 服务器、同一套六条用例，两个平面各跑一遍
+（见证探针在暂存目录，不在本仓；`tool_specs()` 的条数、
+`resources_context()` 的字符串、`status()` 的两个键、以及有没有 WARNING）：
+
+**干净 HEAD（`343e7572…`）**
+
+| 服务器的回答 | `tool_specs()` | `status()` | WARNING |
+| --- | --- | --- | --- |
+| `result` 里根本没有 `tools` 键 | 0 条 | `skipped={}`、`unreadable` **键不存在** | 无 |
+| `tools=null` | 0 条 | 同上 | 无 |
+| `tools` 是个 dict | 0 条 | 同上 | 无 |
+| `tools` 里两项是字符串 | **`RAISES AttributeError: 'str' object has no attribute 'get'`** | 同上 | 无 |
+| `tools` 里一项没有 `name` | 0 条 | 同上 | 无 |
+| `resources/list` 明确报 `-32601` | 1 条（工具还在） | `context=""`、同上 | 无 |
+
+六条回答**互不相同**，出货字节给 agent 的是**同一句**「这里没什么」；其中一条把整趟
+发现炸掉。`states` 那边始终 `'ok': 1`——`[]` 不改变服务器的健康判定，所以
+**没有任何东西**会把「读不懂」和「没有」分开。
+
+**重定向那一跳漏了多少**（另一条暂存探针：脚本化的 opener + 真句柄 `io.FileIO`，
+`gc.collect()` 之后数 `ResourceWarning`）：
+
+| 链条 | HEAD | 本批 |
+| --- | --- | --- |
+| 三跳后成功 | **3** | 0 |
+| 两跳后被 `500` 拒 | **3** | 0 |
+| 第一跳就 `404` | **1** | 0 |
+
+三条链的「最后还开着」计数都是 **0**——`__del__` 到底把 fd 关了。这正是这条债难找的
+原因：**按「有没有漏着的句柄」去查，查不到；只有 `-W error` 在回收那一刻替它喊**，
+而喊的时候账记在当时握着 CPU 的**别人**头上。第五百一十一批 §5 表里那条
+`unclosed <socket.socket>` 就是这个形状的现场。
+
+### 3 落地
+
+**一个家**：`minicc/mcp.py:77` 的 `_read_listing(result, key, *, id_keys)`——返回
+**两样**东西：读得出来的条目，以及**每一条被留在外面的东西**各一句话（缺键、
+`null`、不是 list、N/M 项不是对象、N/M 项没有身份键）。
+
+| 落点 | 内容 |
+| --- | --- |
+| `mcp.py:594/597/607`、`825/828/835` | 两套传输各三个 `*_listing()`，全部走同一个家；`resources`/`prompts` 把 `McpError` 变成**跟着条目一起走的一句话**（`failed: …`），不再就地变成 `[]` |
+| `list_tools()` / `list_resources()` / `list_prompts()` | 降级成**投影**（`…listing()[0]`）：注册处桥与四条既有门读的一直是「纯 list」这个契约，契约不撕 |
+| `mcp.py:1062` `_record_listing_notes(name, kind, reasons)` | 披露的**唯一**写入处：按 `kind` 前缀**替换**（不是追加），本趟读得出来就**摘掉**这个名字——一条永不清账的备注，与一份永不缩小的名册是同一种谎 |
+| `mcp.py:947` + `status()` | `discovery_unreadable` 这个新键经 `status()["unreadable"]` 交出去；`skipped`（从没答）与 `unreadable`（答了、读不出）在 docstring 里**分开了口径** |
+| `tool_specs()` | 备注登记 + **WARNING**；`if not name: continue` 那道**悄悄少一条**的筛子删掉（家已经报过了） |
+| `resources_context()` | 两趟 kind 循环各登记一次，并且**同样响一条 WARNING**——量到的真相是 tools 侧会响、resources 侧只写字典，差一半 |
+| `mcp.py:751` | `if exc.fp is not None: exc.close()`——把 `HTTPError` 怀里那份连接还回去；`fp=None` 的**半初始化包装**不能关（标准库 `urllib.error` 在这种情况下**故意不**调用基类 `__init__`，关它会踩进 `tempfile._TemporaryFileWrapper.__getattr__`（库文件，不在本仓）的 `KeyError: 'file'`） |
+
+披露走的是**已经在 forwarding 的那条通道**，没有新接线：`minicc/web.py:1273`
+（`workspace_info()["mcp"]`）与 `minicc/webserver.py:454`（`GET /api/mcp`）都是把
+`status()` 原样转出去，所以 `unreadable` 一到家就同时到了这两个面。
+
+### 4 见证
+
+门：`tests/test_a_mcp_answer_that_cannot_be_read_is_not_an_empty_answer.py`（10 条，
+真 stdio 子进程，不 mock `subprocess`）+
+`tests/test_a_redirect_hop_that_keeps_its_socket.py`（4 条，脚本化 opener，不联网）。
+
+- **PRE-FIX 腿**（两份门文件放进 `git archive HEAD` 的干净平面复跑）：
+  **10 failed / 4 passed**。四条绿的分别是：投影契约、`unreadable` 不改变健康判定、
+  成功路径 `with` 仍会关、以及 `fp=None` 那一**过度纠正护栏**——它在旧字节上**本来
+  就是绿的**（旧字节根本不关），§6 记着这一条不是回归门。
+- **本批字节上：14 passed**。
+- **十二臂全 MATCHED，零条 DID NOT BITE**；每臂还原后逐字节相同（`sha256` 复验，
+  基线 `f5a16e66…`）。
+
+| 臂 | 变异回哪一种谎 | 实测 | 判定 |
+| --- | --- | --- | --- |
+| A1 | 缺键那一支重新闭嘴（`return [], []`） | 3 红 | MATCHED |
+| A2 | 不是 list 的答案被当成 list 收下 | 1 红 | MATCHED |
+| A3 | 身份条目筛选关掉（读得出 dict 就算数） | 1 红 | MATCHED |
+| A4 | 管理器不再登记 tools 那一趟的读不出 | 4 红 | MATCHED |
+| A5 | `resources_context` 不再登记 resources/prompts 的读不出 | 2 红 | MATCHED |
+| A6 | `status()` 不再把 `unreadable` 交出去 | 5 红 | MATCHED |
+| A7 | `_record_listing_notes` 变成整键覆盖（不清、不并） | 3 红 | MATCHED |
+| A8 | stdio 的 `resources_listing` 回到就地吞掉 `McpError` | 4 红 | MATCHED |
+| A9 | 重定向那一跳不把套接字还回去 | 2 红 | MATCHED |
+| A10 | resources 那一侧只对字典说话、不对操作者说话 | 1 红 | MATCHED |
+| A11 | tools 那一侧的 WARNING 关掉 | 1 红 | MATCHED |
+| A12 | 释放不看有没有连接可还（`fp=None`） | 1 红 | MATCHED |
+
+A12 是这批里唯一一条**由门自己教出来的**臂：把 `if exc.fp is not None` 摘掉之后，
+`test_the_redirect_limit_message_has_one_home.py::test_the_mcp_client_gives_up_with_the_homes_sentence`
+（出货字节上就在仓库里的一条门，它构造的正是 `fp=None` 的 `HTTPError`）**红了，但红
+报不出来**——pytest 格式化失败时要走异常链上的那个 `HTTPError`，而 `getattr(…, '__notes__')`
+落到缺 `file` 键的包装上，整场会话以 `INTERNALERROR` 结束、退出码 3。这条门最初的
+写法只接 `AttributeError`，因此**没抓到**它（`None.close()` 与 `KeyError: 'file'`
+不是一种东西）。改成 `except (AttributeError, KeyError)` 并写成断言之后，A12 交出
+的是**一条可读的红**。一个「坏了以后没人看得见」的门不是门——这条判据在这里既适用于
+被修的代码，也适用于修它的门。
+
+### 5 聚焦回归
+
+- 两份门文件：**14 passed**。
+- MCP 一族（`tests/` 里名字含 `mcp`/`redirect`/`network_gate` 的 15 个文件）：
+  **177 passed**——本批改前是 **INTERNALERROR + 159 passed**，即 §4 说的那条报不出
+  的红；改后同一选择集干净跑完。
+- 既有 `tests/test_the_network_gate_must_see_a_remote_mcp_tool.py` 的鸭子客户端补了
+  `tools_listing()`（管理器现在调它），`list_tools()` 留作它的投影。
+- HTTP 面：`tests/test_http_surface.py` + `tests/test_http_route_inventory.py`
+  **91 passed**。
+- `python scripts/doc_pointers.py --check`、`python scripts/route_coverage.py --check`、
+  `python scripts/impacted_tests.py --check`：退出码均 **0**。
+
+**全量围栏** `python -W error -m pytest -q` = **4113 passed / 3 failed / 8 skipped**（46 分 59 秒）。
+上一批的读数是 4098 passed / **4** failed / 8 skipped；本批新增 14 条门（总数 4102 → 4116，
+逐条对得上），红**从 4 条减到 3 条**，而这三条**逐条在干净 HEAD 平面上复跑过**
+（`git archive HEAD` 导出的那一份，`343e7572…`，三条合跑 1 分 40 秒，**3 failed**）：
+
+| 红 | 围栏里的读数 | 干净 HEAD | 归属 |
+| --- | --- | --- | --- |
+| `tests/test_the_task_stream_length_has_one_meaning.py::test_the_stream_length_is_the_same_object` | 同一只句柄被**两处**各记一次账：`ResourceWarning: unclosed file <_io.TextIOWrapper name='minicc/task_manager.py' mode='r' encoding='utf-8'>`，以及 `collect_unraisable` 在 `pytest_runtest_call` 里抛的 `Exception ignored in <_io.FileIO … mode='rb'>` | 同样红 | **先于本批存在**：一条门自己的裸 `open()`。**M8-T531（第五百一十三批）** |
+| `tests/test_the_trace_event_have_one_home.py::test_every_emitter_asks_the_home` | `AssertionError: minicc/llm/anthropic_provider.py must ask the one home…`（断言把整份源码印了出来） | 同样红 | **先于本批存在**：`1c12ec5` 起红。**M8-T532（第五百一十四批）** |
+| `tests/test_retrieval_enhanced.py::test_index_build_makes_a_constant_number_of_filesystem_calls_per_file` | `assert per_big <= 7.0` → `(7.232, 7.208)` | 同样红 | **先于本批存在**：每文件的 `Path.stat` 多两次。**M8-T533（第五百一十五批）** |
+
+第一条那一行值得再多写一句：一次 `open(path, encoding=…)` 漏的是**两层**对象——外层
+`TextIOWrapper` 与它怀里的 `FileIO`——围栏在**两个不同的时刻**各报了一次，一次走
+`-W error` 的警告通道，一次走 pytest 的 unraisable 通道。同一只句柄、两种红法、都不是
+漏它的那条门先红：这就是本批 §4 那条 A12 学到的同一件事——**泄漏的一方不说话，账由
+回收的时刻决定记在谁头上**。
+
+上一批 §5 表里第四条（`test_anthropic_plan_channel.py::test_credit_limit_429_switches`
+顶到 `unclosed <socket.socket>`）本轮**没有再红**。这**不是**因为它被修好了：provider
+那一侧的客户端生命周期本批一个字没动，红不红取决于 GC 什么时候收回那只 socket。
+这条债继续排在 M8-T531 **之后**，读数在这里记成「本轮未响」，不记成「已销」。
+
+### 6 边界（本批**不**声称）
+
+- **`fp=None` 那条是能力护栏，不是回归门**：它在出货字节上是绿的（旧字节不关连接，
+  所以也不会去关 `None`）。它保证的是下一次改这条释放时不再把 `HTTPError` 的另一种
+  合法形状踩坏，不证明上一次修好了什么。
+- 家只读到**条目形状**这一层：`inputSchema` 不是 dict、`description` 是数字，今天
+  仍然**照原样**进 `ToolSpec`（`tool_specs()` 只对 `inputSchema` 做过 isinstance）。
+  本批没有扩这一层，也没写下这一层的谎。
+- `unreadable` 到的是**机器读的面**：`GET /api/mcp`（`minicc/webserver.py:454`）与
+  `workspace_info()["mcp"]`（`minicc/web.py:1273`），两处都是把 `status()` 原样转出去。
+  全仓再没有别的 `/api/mcp` 引用者（余下的命中只有门与文档），也就是说本仓**没有**
+  前端消费这个面——所以「用户在面板上看得见」这句本批**不**声称。
+- 备注是**这一趟**的、进程内的：不落盘、不跨会话累计，也不去重每轮重复的同一条。
+  一台从没被问过工具的服务器**不会**出现在 `unreadable` 里——那不是「它读得出来」，
+  而是「还没人读过它」。
+- `resources_listing` 把**传输级** `McpError` 写成 `failed: {exc}`：超时、子进程已死、
+  服务器明确说不支持，三种在这里仍是**同一句话的形状**（内容不同）。本批买的是
+  「不再是空」，不是「三种分得开」。
+- `max_items` 提前 `break` 时，后面那些服务器**没有**被读过——本批既不把它们记成
+  读不出，也没有门核对「被跳过」与「被截断」这两种少。
+- 本批**没有**动 `McpManager` 的重试、`_mark_dead` 的判定，也**没有**动 stdio 与 http
+  两套传输之外的第三个读者；`discovery_skips` 的口径一个字没改。
+
+### 7 下一位候选（补记）
+
+**已经在任务清单上的（顺序不变）：**
+
+1. M8-T531（第五百一十三批）`tests/test_the_task_stream_length_has_one_meaning.py:82-85`
+   ——一条门自己的裸 `open().read()` 把句柄漏给**下一个**跑的人。与本批 §4 那条
+   `INTERNALERROR` 同族：门把自己的失效记到别人账上。
+2. M8-T532（第五百一十四批）`test_every_emitter_asks_the_home`——红自 `1c12ec5`。
+3. M8-T533（第五百一十五批）每文件两次 `Path.stat`（`minicc/agent/retrieval.py:509` 与
+   `:615`）加一个 TOCTOU。
+4. M8-T534（第五百一十六批）CI 变异步只断言「退出码非零」，从不断言**为什么**非零。
+5. M8-T535（第五百一十七批）M6-4 的「劣化 ≤15%」有读数、没有门。
+
+**本批新数出来的两条：**
+
+- `HTTPError(fp=None)` 会让 **pytest 的报告器**崩：任何**环绕**这条形状的测试一旦
+  失败，格式化异常链时踩进那个缺 `file` 键的包装，会话以 `INTERNALERROR` 收场，
+  红一条也读不出来。今天坐在上面的既有门是
+  `tests/test_the_redirect_limit_message_has_one_home.py::test_the_mcp_client_gives_up_with_the_homes_sentence`
+  （它自己**不**失败，但它一失败就没人能看见）。要做的是：让门**自带**可读的失败
+  （断言而不是让异常外逃），或给 conftest 一条「异常链里有半初始化 `HTTPError` 时
+  换个说法」的兜底。排在 M8-T531 **之后**，因为那条是一行、这条要先定「兜底住在哪」。
+- `resources_context()` 的 `max_items` 截断与「服务器没资源」今天仍是同一句 `""`。
+  本批把**读不出**从**没有**里分了出来，但**没读完**与**没有**还没分——那是同一家的
+  下一刀。
+
+**本族的下一位（读侧普查，第五百零八批 §7 那份清单）：**
+
+- `minicc/changes.py:_baseline`：`git show HEAD:<path>` 非零退出一律 `""`——
+  「取不到基线」被说成「基线是空的」，diff 于是把整份文件报成全新增。

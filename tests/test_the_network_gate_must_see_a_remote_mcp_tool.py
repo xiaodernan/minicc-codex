@@ -30,12 +30,17 @@ class _FakeClient:
 
     dead = False
 
-    def list_tools(self) -> list[dict[str, Any]]:
+    def tools_listing(self) -> tuple[list[dict[str, Any]], list[str]]:
+        # The read M8-T530 put behind the bridge: the items, and what the reader
+        # had to leave out.  This gate's server answers cleanly, so nothing was.
         return [{
             "name": "echo",
             "description": "echo back",
             "inputSchema": {"type": "object", "properties": {}},
-        }]
+        }], []
+
+    def list_tools(self) -> list[dict[str, Any]]:
+        return self.tools_listing()[0]
 
     def call_tool(self, name: str, arguments: dict[str, Any]) -> str:
         return "{}"
