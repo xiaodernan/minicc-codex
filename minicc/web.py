@@ -102,7 +102,12 @@ from .audit import (
     tool_denied_by_rule,
 )
 from .changes import ChangeError, ChangeInspector
-from .commands import discover_commands, expand_slash_command
+from .commands import (
+    command_file_failures,
+    discover_commands,
+    expand_slash_command,
+    slash_command_read_refusal,
+)
 from .mentions import apply_mentions
 from .input_guard import require_text
 from .internal_paths import AUDIT_NAME, PERMISSIONS_NAME
@@ -1243,7 +1248,13 @@ class AgentService:
         return _local(last_error)
 
     def list_commands(self) -> dict[str, Any]:
-        return {"commands": [c.to_public_dict() for c in discover_commands(self.workspace)]}
+        # ``unreadable`` is the other half of the list: a command file the user
+        # wrote that produced no command.  A listing that only shows what
+        # loaded teaches the user that the file is not there.
+        return {
+            "commands": [c.to_public_dict() for c in discover_commands(self.workspace)],
+            "unreadable": [f.to_public_dict() for f in command_file_failures(self.workspace)],
+        }
 
     def workspace_info(self) -> dict[str, Any]:
         try:
@@ -1546,7 +1557,17 @@ class AgentService:
         message = str(payload["message"])
         # M7-T2: custom slash commands expand server-side, so CLI and Web
         # share one template engine and the model receives the full prompt.
-        message = expand_slash_command(message, workspace) or message
+        expanded = expand_slash_command(message, workspace)
+        if expanded is None:
+            # M8-T528: ``None`` also means "the file for that name is on disk
+            # and we could not read it".  Forwarding the user's literal
+            # ``/name …`` to the model in that case asks the model to improvise
+            # with the button's label instead of the prompt behind it.
+            refusal = slash_command_read_refusal(message, workspace)
+            if refusal:
+                raise ValueError(refusal)
+            expanded = message
+        message = expanded
         session_id = str(payload.get("session_id") or "web-latest")
         # M8-T289: the fallback sink has to *collect* the approval frame as
         # well as log it.  It used to only log, so the ``approval_request``

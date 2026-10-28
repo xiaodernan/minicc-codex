@@ -35,7 +35,12 @@ from .config import (
     sniff_provider_type,
     workspace_not_directory_message,
 )
-from .commands import discover_commands, expand_slash_command
+from .commands import (
+    command_file_failures,
+    discover_commands,
+    expand_slash_command,
+    slash_command_read_refusal,
+)
 from .hooks import HookRunner
 from .llm.base import system_msg, user_msg
 from .llm.openai_provider import OpenAICompatibleProvider
@@ -630,6 +635,13 @@ async def _interactive(
                 for command in custom:
                     hint = f" {command.argument_hint}" if command.argument_hint else ""
                     cli_out(f"  /{command.name}{hint} — {command.description} [{command.scope}]")
+            for failure in command_file_failures(workspace or Path.cwd()):
+                # A file the user wrote that produced no command still has to
+                # show up here, or the honest-looking answer to "/help" is
+                # "no such command" about a file that is on disk.
+                cli_out(
+                    f"  /{failure.name} — {failure.reason_text}，未加载 [{failure.scope}] {failure.path}"
+                )
             continue
         if prompt == "/tools":
             cli_out("\n".join(_describe_tool(registry, name) for name in registry.names()))
@@ -726,7 +738,15 @@ async def _interactive(
         if prompt.startswith("/"):
             expanded = expand_slash_command(prompt, workspace or Path.cwd())
             if expanded is None:
-                cli_out(f"未知命令：{prompt.split(' ', 1)[0]}（/help 查看内置与自定义命令）")
+                refusal = slash_command_read_refusal(prompt, workspace or Path.cwd())
+                # "未知命令" is only the truth when nobody wrote a file by
+                # that name; for a file that is there and could not be read it
+                # sends the user to /help looking for a command that /help
+                # cannot show either.
+                cli_out(
+                    refusal
+                    or f"未知命令：{prompt.split(' ', 1)[0]}（/help 查看内置与自定义命令）"
+                )
                 continue
             prompt = expanded
         try:
@@ -1033,17 +1053,27 @@ def main(argv: list[str] | None = None) -> int:
         max_tokens=getattr(config, "subagent_max_tokens", None),
     ))
 
-    async def run() -> None:
+    async def run() -> int:
         quiet_loop_teardown()
         try:
             prompt = " ".join(args.prompt).strip()
             if prompt:
+                expanded = expand_slash_command(prompt, workspace)
+                if expanded is None:
+                    refusal = slash_command_read_refusal(prompt, workspace)
+                    if refusal:
+                        # One-shot mode has no REPL to correct itself in: the
+                        # only face it has is stdout, and the only verdict it
+                        # has is an exit code.
+                        cli_out(refusal)
+                        return 1
+                    expanded = prompt
                 await _turn(
                     provider,
                     registry,
                     messages,
                     config,
-                    expand_slash_command(prompt, workspace) or prompt,
+                    expanded,
                     session,
                     view,
                     stream=not args.no_stream,
@@ -1070,13 +1100,13 @@ def main(argv: list[str] | None = None) -> int:
                     route=planning_route,
                     fold_target=fold_target,
                 )
+            return 0
         finally:
             await provider.close()
             if mcp_manager is not None:
                 mcp_manager.close()
 
-    asyncio.run(run())
-    return 0
+    return asyncio.run(run())
 
 
 if __name__ == "__main__":

@@ -42,7 +42,6 @@ READONLY_DAG_TOOLS = frozenset({"read_file", "grep", "git_status", "git_diff"})
 # planner's validation, so nothing compared the two copies: they could
 # disagree about what a write node may do, and the fallback would quietly
 # be the odd one out.
-INSPECT_DAG_TOOLS = frozenset({"read_file", "grep", "git_status"})
 from .tool_policy import CORE_WRITE_TOOLS
 
 INSPECT_DAG_TOOLS = frozenset({"read_file", "grep", "git_status"})

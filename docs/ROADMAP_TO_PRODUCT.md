@@ -34535,3 +34535,159 @@ pre-fix 的读数非常具体：**每轮 `{0: 1, 1: 2}`**——两个进程各�
   （400×0.05s 与 40×0.05s）——那是策略，不是机制，本批**故意**没动。
 - 本批新增的 `MEMORY.md.lock` 侧车是**新出现在用户目录里的文件**；
   `~/.minicc/` 下面现在多了一个文件，`.gitignore` 与整洁门都不问它。
+
+
+## 第五百一十批 — M8-T528 — 一条读不出来的命令不是一条没写过的命令
+
+### 1 欠的是哪一条
+
+`minicc/commands.py` 用**一个值**回答**三个事实**：文件好好的、文件在但里面没有正文、
+文件在但**一个字节都没过来**。第三种不是第二种，而 `_read_markdown` 对三种都
+`return None`。
+
+`expand_slash_command` 的 `None` 被每个调用点翻译成同一句话——「这不是一个命令」——
+然后各自决定怎么处理这句「不是」：
+
+| 调用点 | 当时的答法 |
+| --- | --- |
+| `minicc/web.py:1549` | `expand_slash_command(message, workspace) or message`——把用户按下的那个按钮的**标签**当普通散文投给模型 |
+| `minicc/main.py:1046`（单发） | `… or prompt`——同上，且退出码 0 |
+| `minicc/main.py:727`（REPL） | 报「未知命令」——对一个**就在磁盘上**的文件说「没写过」 |
+
+命令文件是用户手写的：仓库自己**从不**写 `.minicc/commands/*.md`（全仓搜索：只有测试写）。
+所以到达那个状态的方式是**用记事本把它存成 ANSI**、**用 Windows PowerShell 的
+`Set-Content` 存出 BOM**、或者另一个进程正拿着这个文件。三条都不需要本仓库有 bug。
+
+### 2 量到的真相（实测）
+
+同一份门文件的前身探针，出货代码，`/review src/x.py`：
+
+```
+spelling=ok      文件在=True  /help列在=True   expand->模板      模型收到  「请审查 src/x.py 的改动。」
+spelling=gbk     文件在=True  /help列在=False  expand->None      模型收到  「/review src/x.py」
+spelling=empty   文件在=True  /help列在=False  expand->None      模型收到  「/review src/x.py」
+写者正持有着它   文件在=True  /help列在=False  expand->None      模型收到  「/review x」
+spelling=bom     文件在=True  /help列在=True   expand->模板      模型收到  「﻿---\ndescription: 审查当前改动\n---\n请审查…」
+```
+
+Web 面不是推理出来的：`AgentService.chat` 换成一个**记录用的 provider** 直接驱动，
+`/review 检查 src/x.py` 原样出现在送进模型的那条 message 里。
+
+BOM 那一行是另一种坏法：文件读得出来，所以它**不是**「读不出来」——它是
+「读出来了但没认出来」。`\ufeff` 贴在第一行上，`---` 起始行不再等于 `---`，
+前言块永远不闭合，于是用户写给系统看的 `description:` 变成了给模型的指令。
+
+### 3 落地
+
+| 东西 | 内容 |
+| --- | --- |
+| `commands._Markdown` | 一次读取**只有一个答案**：`(meta, body, reason, detail)`，`reason` 非空时 `body` 必为空 |
+| `READ_UNREADABLE` / `READ_UNDECODABLE` | 两个原因是两个原因：操作系统不给读、编码读不出来 |
+| `CommandFileFailure` + `command_file_failures()` | 「文件在，命令没有」的**唯一家**；`reason_text` 是这个原因的唯一措辞 |
+| `slash_command_read_refusal()` | 拒绝句的**唯一家**——三个调用面共用一句，不许各自 paraphrase |
+| `_scan_commands()` | 唯一一次遍历；`discover_commands` 与 `command_file_failures` 都是它的投影 |
+| 读取本身 | `encoding="utf-8-sig"`：BOM 剥掉，前言块认得出来 |
+
+**三个调用面，三种策略，各自留着**：
+
+| 调用点 | 展不开且文件读不出来时 |
+| --- | --- |
+| `minicc/web.py` `_chat_locked` | `raise ValueError(拒绝句)` → HTTP 400，模型一个字都收不到 |
+| `minicc/main.py` 单发 | 打出拒绝句，**不跑这一轮**，退出码 1 |
+| `minicc/main.py` REPL | 说拒绝句而不是「未知命令」；`/help` 里跟着列出「未加载」的那几个名字 |
+| `GET /api/commands` | 多一个 `unreadable` 半边——只有 name/scope/reason，**没有** path、**没有**内容 |
+
+**低层契约不动**：`discover_commands` 仍只交读得出来的命令；`expand_slash_command` 对
+「不是命令」仍返回 `None`。本批问的是另一个问题：**这句用户输入可以直接发给模型吗？**
+对一个名字底下**有文件而读不出来**的输入，这个问题只有一个诚实答案。
+
+**名字仍由证据裁**：project 级的文件坏了、user 级同名文件读得出来（以及反向），
+那是**一条能用的命令**，不报失败——对一个能用的名字说「读不出来」是反方向的谎。
+反过来，一个**没有正文**的 project 文件也**不**许抹掉另一级的坏文件：它自己什么都不定义，
+所以它没有资格充当「这个名字没问题」的证据。
+
+### 4 见证
+
+- **PRE-FIX 腿**（把出货字节放回去跑新门）：**收集期报错**——`command_file_failures`
+  这个家**从前不存在**。控制组（既有斜杠命令门 + 「四扇没关上的门」）：**22 passed**。
+- **七臂全 MATCHED**；每臂还原后**逐字节相同**（sha256 复验），还原后新门复跑 **15 passed**。
+
+| 臂 | 变异 | 实测 | 判定 |
+| --- | --- | --- | --- |
+| A1 | web 面退回「展不开就当普通消息」 | web 拒绝门红 | MATCHED |
+| A2 | 坏编码重新吞成空答案 | 8 红（列表/单发/REPL/拒绝句/影子全塌） | MATCHED |
+| A3 | 被另一级同名好文件遮住的坏文件也报失败 | 影子门红 | MATCHED |
+| A4 | 单发模式照旧投给模型并报成功 | 退出码门红 | MATCHED |
+| A5 | REPL 回到「未知命令」 | REPL 门红 | MATCHED |
+| A6 | BOM 不再剥掉 | BOM 门红 | MATCHED |
+| A7 | 调用点留一套自己的兜底（`… or message` 回来） | web 门 + 「没有第四答法」门双红 | MATCHED |
+
+A2 一次红七条不是噪声，是这件事的形状：原因一吞掉，**披露、拒绝、退出码**三层同时失去依据。
+
+### 5 聚焦回归
+
+- 新门文件 `tests/test_a_command_file_that_cannot_be_read_is_not_one_that_was_never_written.py`：**15 passed**。
+- 既有斜杠命令 + 四门：**22 passed**。
+- 受影响面（slash / http surface / route inventory）：**127 passed**。
+- CLI、session fork、项目配置、MCP stdio、打包、promise 门：**150 passed**。
+- `python scripts/route_coverage.py --check`：GET/POST 的 B 口径 **18/18、12/12 = 100%**。
+- **全量围栏** `python -W error -m pytest -q` = **4090 passed / 7 failed / 8 skipped**（58 分 04 秒）。
+
+**这七条红里没有一条是本批造的**——逐条在 `git archive HEAD` 导出的**干净平面**上复跑过：
+
+| 红 | 干净 HEAD（`62f1269`） | 本批 |
+| --- | --- | --- |
+| `test_no_module_defines_the_same_top_level_name_twice` | 同样红 | **本批判决并修掉**：`agent/graph.py:45` 与 `:48` 两个 `INSPECT_DAG_TOOLS`——第五百零三批（M8-T519）把 `from .tool_policy import CORE_WRITE_TOOLS` 插在两条同名赋值**中间**，留下了一份影子。两条字面量相同，所以行为不变；但「先看到的那条改了等于没改」正是这条门要拦的事 |
+| `test_every_gate_file_on_disk_is_tracked_by_git` | 不在 HEAD 上（新门文件是本批加的） | 随本批 `git add` 收掉 |
+| `test_the_configured_credential_is_not_forwarded_to_the_new_host` | 单跑 4 passed；全量里红 | **负载抖动**：这条门开本地 HTTP 服务并等超时。本批未动 MCP |
+| `test_index_build_makes_a_constant_number_of_filesystem_calls_per_file` | 同样红（7.232 / 7.208） | **先于本批存在**：第二十九批记的是 5.232 / 5.208，两个形状各自 **+2.0 每文件**，差值与规模无关——是每文件多了两次 `Path.stat`，不是机器负载。本批不动检索 |
+| `test_the_dynamic_route_list_still_matches_the_source` | 同样红 | **先于本批存在**：四条**幻影探针**（`GET /api/tasks/{task_id}`、`…/events`、`POST …/cancel`、`…/resume`）。源码里那几处前缀分派改问 `TASKS_API_PREFIX` 之后，读源码的门不再认识它是「/api/tasks」——门读的是字面量，出货的是常量 |
+| `test_the_stream_length_is_the_same_object` | 同样红 | **先于本批存在**：`-W error` 下 `ResourceWarning: unclosed FileIO name='minicc/task_manager.py'`——某处按 `'rb'` 打开源文件而没有关上 |
+| `test_every_emitter_asks_the_home` | 同样红 | **先于本批存在**：`llm/anthropic_provider.py` 的字节里没有 `trace_event`——八家名单上它是第九个说话的人 |
+
+上表后四行是**本批数出来的四条债**，逐条进 §7 排队；本批**只**领走第一条（一行的、可证明行为不变的那条），因为它是本批围栏读数的直接组成部分。
+
+### 6 边界（本批**不**声称）
+
+- 本批**没有**让「文件读不出来」变成**可恢复**的状态：拒绝是终点，用户必须自己把文件修好。
+- 正文为空**仍然**算「没有这条命令」，不是失败——用户写了一个空文件，那确实是他写的东西。
+- 本批**没有**给 skills 面同样的披露：`SKILL.md` 读不出来今天仍是静默跳过（同一个家已经能
+  说出原因，缺的是提示词面的第三个位置）。
+- `POST /api/tasks` 这条提交路径**本来就不做**斜杠命令展开，本批**没有**改变它——
+  因此 chat 面会展开、任务面不展开这件事仍然存在。
+- `GET /api/commands` 用的是**服务当前工作区**，而 chat 用的是**请求里解析出的工作区**。
+  这个不一致先于本批存在，本批**没有**动它——两面对同一个 workspace 各自问的是同一个家，
+  所以它们不会给出两个不同的原因，只会给出**不同目录**的原因。
+- 本批**不**声称读侧普查做完：第五百零八批 §7 那份清单（`agent/loop.py`、`changes.py`、
+  `task_worker.py`、`tools/*`、`web.py`、`webserver.py`、`workspaces.py` 等）仍在。
+- 拒绝句里带**文件路径**与操作系统原文（CLI 面）。`GET /api/commands` 的 `unreadable`
+  半边**不带**路径——那是 `to_public_dict` 早就定下的口径，本批跟着它。
+
+### 7 下一位候选（补记）
+
+**本批围栏数出来的四条债，按「先让围栏回到绿」排在本族前面：**
+
+1. `test_the_dynamic_route_list_still_matches_the_source`——四条幻影探针。门读字面量
+   `"/api/tasks"`，源码已经改问 `TASKS_API_PREFIX`；**读源码的那一侧**要改成认常量，
+   而不是把手抄清单改回字面量（那会把「仓库的写法」变成「门方便的样子」）。
+2. `test_every_emitter_asks_the_home`——`llm/anthropic_provider.py` 不在 `trace_event`
+   的八家名单里：它要么成为一个 emitter（那就有该被问的家），要么名单在撒谎。
+3. `test_the_stream_length_is_the_same_object`——`ResourceWarning: unclosed FileIO
+   ('minicc/task_manager.py', 'rb')`。按 `'rb'` 打开而不关，在 `-W error` 下是一枚
+   按时响的雷：它红在**谁碰巧在那一刻触发 GC** 的那条门上。
+4. `test_index_build_makes_a_constant_number_of_filesystem_calls_per_file`——每文件
+   `Path.stat` 从 3.1 涨到 5.1（两个形状各 +2.0，与规模无关）。先回答**哪一批**把这两次
+   stat 加进每个文件的，再决定是「收回这两次」还是「重记常数并说明为什么」。
+
+**本族的下一位（读侧普查，第五百零八批 §7 那份清单）：**
+
+- `minicc/mcp.py`：两套传输各有一份 `list_tools` / `list_resources` / `list_prompts`，
+  「服务器答了但形状不对」与「这个服务器没有这项能力」都是同一个 `[]`，而 `/tools` 与
+  注册处把 `[]` 当事实——一台坏了的服务器在 agent 面前等于一台没有工具的服务器。
+  注意 `tool_specs()` 对 `McpError` **已经**有 `discovery_skips` 这个披露的家，
+  缺的是「答了、但答不出形状」那一半。
+- `minicc/changes.py:_baseline`：`git show HEAD:<path>` 非零退出一律 `""`——
+  「取不到基线」被说成「基线是空的」，diff 于是把整份文件报成全新增。
+- 本批的 `reason_text` 只有两面共用（列表与拒绝）。若 skills 面也来用这一句，
+  **措辞的家**仍然只有一个；若它自己造一句，就该被「一个措辞」那条门拦住——
+  那条门今天只拦 `expand_slash_command(…) or` 这个形状，不拦 paraphrase。

@@ -36,6 +36,14 @@ RESERVED_COMMAND_NAMES = frozenset({
 _NAME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_-]{0,63}$")
 _POSITIONAL_RE = re.compile(r"\$\[?[1-9]\]?")
 
+#: Why a command file that exists produced no command.  Two answers, because
+#: they are two different jobs for the user: ``undecodable`` means the file is
+#: there but was written in an encoding this reader cannot read (Notepad and
+#: Windows PowerShell both produce it), ``unreadable`` means the operating
+#: system would not hand the bytes over at all.
+READ_UNREADABLE = "unreadable"
+READ_UNDECODABLE = "undecodable"
+
 
 @dataclass(frozen=True)
 class SlashCommand:
@@ -82,16 +90,37 @@ def _parse_front_matter(text: str) -> tuple[dict[str, str], str]:
     return meta, body
 
 
-def _read_markdown(path: Path) -> tuple[dict[str, str], str] | None:
+@dataclass(frozen=True)
+class _Markdown:
+    """One markdown file as the reader saw it - never two answers at once.
+
+    ``reason`` is "" when the bytes arrived; when it is not, ``body`` is ""
+    and the only honest statement about the file is the reason.
+    """
+
+    meta: dict[str, str]
+    body: str
+    reason: str = ""
+    detail: str = ""
+
+    @property
+    def failed(self) -> bool:
+        return bool(self.reason)
+
+
+def _read_markdown(path: Path) -> _Markdown:
     try:
-        text = path.read_text(encoding="utf-8")
-    except (OSError, UnicodeError):
-        return None
+        # utf-8-sig: a file saved as "UTF-8" by Windows PowerShell carries a
+        # BOM, and with plain utf-8 that BOM sticks to the first line - so the
+        # ``---`` opener is no longer the first line, the front matter is never
+        # closed, and the metadata block is handed to the model as instructions.
+        text = path.read_text(encoding="utf-8-sig")
+    except UnicodeError as exc:
+        return _Markdown({}, "", READ_UNDECODABLE, str(exc))
+    except OSError as exc:
+        return _Markdown({}, "", READ_UNREADABLE, str(exc))
     meta, body = _parse_front_matter(text)
-    body = body.strip()[:MAX_COMMAND_BODY_CHARS]
-    if not body:
-        return None
-    return meta, body
+    return _Markdown(meta, body.strip()[:MAX_COMMAND_BODY_CHARS], "", "")
 
 
 def _command_files(root: Path) -> list[Path]:
@@ -100,31 +129,142 @@ def _command_files(root: Path) -> list[Path]:
     return sorted(root.glob("*.md"))
 
 
-def discover_commands(workspace: Path, *, home: Path | None = None) -> list[SlashCommand]:
-    """Project commands override user commands by name; invalid files skip."""
+@dataclass(frozen=True)
+class CommandFileFailure:
+    """A command file that exists and produced no command."""
+
+    name: str
+    path: Path
+    scope: str
+    reason: str
+    detail: str
+
+    @property
+    def reason_text(self) -> str:
+        """The one wording of the reason - a listing and a refusal must not
+        invent two of their own."""
+        return "编码读不出来" if self.reason == READ_UNDECODABLE else "操作系统不给读"
+
+    def to_public_dict(self) -> dict[str, Any]:
+        # Same face as SlashCommand.to_public_dict: a listing shows that the
+        # name is broken, not what the file contains.
+        return {"name": self.name, "scope": self.scope, "reason": self.reason}
+
+
+def _command_roots(workspace: Path, home: Path | None) -> list[tuple[Path, str]]:
     from .config import home_dir
 
     user_root = (home or home_dir()) / COMMANDS_DIR_NAME
     project_root = Path(workspace) / ".minicc" / COMMANDS_DIR_NAME
+    return [(user_root, "user"), (project_root, "project")]
+
+
+def _scan_commands(
+    workspace: Path, *, home: Path | None = None
+) -> tuple[list[SlashCommand], list[CommandFileFailure]]:
+    """The one walk every reader of command files goes through.
+
+    Project scope wins name collisions, exactly as ``discover_commands`` has
+    always promised.  A name is reported as a failure only when **no** scope
+    produced a command for it - a broken project file shadowed by a working
+    user file is a command that works, and saying "读不出来" about it would be
+    a lie of the opposite shape.
+    """
     found: dict[str, SlashCommand] = {}
-    for root, scope in ((user_root, "user"), (project_root, "project")):
+    broken: dict[str, CommandFileFailure] = {}
+    for root, scope in _command_roots(workspace, home):
         for path in _command_files(root):
             name = path.stem
             if name in RESERVED_COMMAND_NAMES or not _NAME_RE.match(name):
                 continue
             parsed = _read_markdown(path)
-            if parsed is None:
+            if parsed.failed:
+                broken[name] = CommandFileFailure(
+                    name=name,
+                    path=path,
+                    scope=scope,
+                    reason=parsed.reason,
+                    detail=parsed.detail,
+                )
                 continue
-            meta, body = parsed
+            if not parsed.body:
+                # Readable, and there is no prompt in it.  That is a command
+                # that was never written, not a command we cannot read - so it
+                # is not a failure either, and it does not erase a broken file
+                # of the same name in the other scope: nothing here defines the
+                # name, and the user still deserves to be told which file is
+                # unreadable when they type it.
+                continue
+            broken.pop(name, None)
             found[name] = SlashCommand(
                 name=name,
-                description=str(meta.get("description") or body.splitlines()[0][:120]),
-                argument_hint=str(meta.get("argument-hint") or meta.get("argument_hint") or ""),
-                template=body,
+                description=str(parsed.meta.get("description") or parsed.body.splitlines()[0][:120]),
+                argument_hint=str(
+                    parsed.meta.get("argument-hint") or parsed.meta.get("argument_hint") or ""
+                ),
+                template=parsed.body,
                 path=path,
                 scope=scope,
             )
-    return sorted(found.values(), key=lambda command: command.name)
+    # Re-ordered so a project failure that the user scope later fixed is not
+    # reported: the loop above already pops those, and the user scope runs
+    # first, so a *user* failure shadowed by a working project file has to be
+    # dropped here.
+    failures = [f for name, f in sorted(broken.items()) if name not in found]
+    return sorted(found.values(), key=lambda command: command.name), failures
+
+
+def discover_commands(workspace: Path, *, home: Path | None = None) -> list[SlashCommand]:
+    """Project commands override user commands by name; unreadable files are
+    not commands - ask ``command_file_failures`` why a name is missing."""
+    commands, _failures = _scan_commands(workspace, home=home)
+    return commands
+
+
+def command_file_failures(workspace: Path, *, home: Path | None = None) -> list[CommandFileFailure]:
+    """Command files that are on disk and produced no command, by name."""
+    _commands, failures = _scan_commands(workspace, home=home)
+    return failures
+
+
+def _command_head(text: str) -> str:
+    """The command name ``/name args`` names, or "" when it names none."""
+    raw = str(text or "").strip()
+    if not raw.startswith("/"):
+        return ""
+    head = raw[1:].partition(" ")[0]
+    if not head or head in RESERVED_COMMAND_NAMES:
+        return ""
+    return head
+
+
+def slash_command_read_refusal(
+    text: str, workspace: Path, *, home: Path | None = None
+) -> str:
+    """The sentence to show instead of putting ``text`` in front of the model.
+
+    Returns "" when there is nothing to refuse - plain prose, a built-in, a
+    name nobody wrote, or a command that expanded fine.
+
+    The reason this exists as its own home is the shape of the failure it
+    replaces: an unreadable command file used to be indistinguishable from a
+    command that was never written, and every caller answers "not a command"
+    by forwarding the user's literal ``/name …`` to the model as ordinary
+    text.  The user pressed a button that runs their own curated prompt; what
+    the model received was the button's label.
+    """
+    head = _command_head(text)
+    if not head:
+        return ""
+    for failure in command_file_failures(workspace, home=home):
+        if failure.name != head:
+            continue
+        return (
+            f"自定义命令 /{head} 的定义文件在 {failure.scope} 级存在，但{failure.reason_text}"
+            f"（{failure.path}：{failure.detail}）。这条输入不会作为普通消息发给模型——"
+            "请先修好这个文件（存成 UTF-8，或释放占用它的进程）。"
+        )
+    return ""
 
 
 def _split_arguments(rest: str) -> list[str]:
@@ -141,6 +281,11 @@ def expand_slash_command(
 
     Plain messages, reserved built-ins and unknown ``/names`` all return None
     so behaviour is unchanged for everything that is not a custom command.
+
+    ``None`` is **not** "this name has no definition" - it is also what a
+    definition that could not be read looks like from here.  A caller that is
+    about to treat the user's text as ordinary prose must ask
+    ``slash_command_read_refusal`` first.
     """
     raw = str(text or "").strip()
     if not raw.startswith("/"):
@@ -179,15 +324,14 @@ def discover_skills(workspace: Path, *, home: Path | None = None) -> list[SkillE
             continue
         for skill_file in sorted(root.glob("*/SKILL.md")):
             parsed = _read_markdown(skill_file)
-            if parsed is None:
+            if not parsed.body:
                 continue
-            meta, _body = parsed
-            name = str(meta.get("name") or skill_file.parent.name)
+            name = str(parsed.meta.get("name") or skill_file.parent.name)
             if not _NAME_RE.match(name):
                 continue
             found[name] = SkillEntry(
                 name=name,
-                description=str(meta.get("description") or "")[:MAX_SKILL_DESCRIPTION_CHARS],
+                description=str(parsed.meta.get("description") or "")[:MAX_SKILL_DESCRIPTION_CHARS],
                 path=skill_file,
                 scope=scope,
             )
@@ -210,10 +354,15 @@ def skills_prompt_block(workspace: Path) -> str:
 __all__ = [
     "COMMANDS_DIR_NAME",
     "RESERVED_COMMAND_NAMES",
+    "CommandFileFailure",
+    "READ_UNDECODABLE",
+    "READ_UNREADABLE",
     "SkillEntry",
     "SlashCommand",
+    "command_file_failures",
     "discover_commands",
     "discover_skills",
     "expand_slash_command",
     "skills_prompt_block",
+    "slash_command_read_refusal",
 ]
