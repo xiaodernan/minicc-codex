@@ -5,7 +5,11 @@ summary() 与 snapshot() 同一个键（stream_length）同一个对象必须给
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from minicc.task_manager import TaskRecord
+
+_TASK_MANAGER = Path(__file__).resolve().parent.parent / "minicc" / "task_manager.py"
 
 
 def test_the_task_stream_length_has_one_meaning() -> None:
@@ -79,10 +83,9 @@ def test_the_summary_reports_tail_length_separately() -> None:
 def test_the_stream_length_is_the_same_object() -> None:
     """The value comes from the same field (structural assertion)."""
     import ast
-    src = open("minicc/task_manager.py", encoding="utf-8").read()
-    tree = ast.parse(src)
+    tree = ast.parse(_TASK_MANAGER.read_text(encoding="utf-8"))
     # Find summary() method
-    for node in ast.walk(ast.parse(src)):
+    for node in ast.walk(tree):
         if isinstance(node, ast.FunctionDef) and node.name == "summary":
             # Find the stream_length assignment in the returned dict
             for n in ast.walk(node):
