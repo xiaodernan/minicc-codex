@@ -35112,3 +35112,250 @@ A12 是这批里唯一一条**由门自己教出来的**臂：把 `if exc.fp is 
 
 - `minicc/changes.py:_baseline`：`git show HEAD:<path>` 非零退出一律 `""`——
   「取不到基线」被说成「基线是空的」，diff 于是把整份文件报成全新增。
+
+## 第五百一十三批 — M8-T531 — 一条门交给回收器的句柄，账由「谁放手」结算
+
+### 1 欠的是哪一条
+
+第五百一十二批 §7 排在第一位的那一条，也是那次围栏里**唯一一条红在自己名下**的债：
+`tests/test_the_task_stream_length_has_one_meaning.py:82` 用
+
+```python
+src = open("minicc/task_manager.py", encoding="utf-8").read()
+```
+
+读源文件。这一行把「读」写成了「一次表达式」，于是句柄**没有任何名字**能关它——它
+只能等回收器去关。同一函数里还留着两处一起把这条门变成「说了三件事、每件都不算」：
+
+| 位置 | 形状 | 为什么欠 |
+| --- | --- | --- |
+| `tests/test_the_task_stream_length_has_one_meaning.py:82` | `open(...).read()`，结果不进任何名字 | 句柄只能由回收器关；`-W error` 在关的那一刻替它喊 |
+| `:83` 与 `:85` | `tree = ast.parse(src)` 之后**没人用** `tree`，`:85` 又把同一个 `src` **再解析一遍** | 死名字是「这两份 AST 不是同一个对象」的唯一线索；读的人只能猜 |
+| `:102` | 走到函数末尾 `raise AssertionError("summary() method not found")` | 方法明明在，缺的是**键**——报告说方法不见了 |
+
+出货字节上这三条**都量得到**（§2），而且第三条不是文笔问题：两种互斥的失效交出
+**同一句**谎，谁照着这句话去修，都会去修错的那一半。
+
+### 2 量到的真相（实测）
+
+**① 这条门今天自己就是红的。** 单独跑（`python -W error -m pytest -q` 只指这一个
+文件，工作树）：
+
+```
+1 failed, 3 passed in 7.97s
+FAILED ...::test_the_stream_length_is_the_same_object
+E  pytest.PytestUnraisableExceptionWarning: Exception ignored in: <_io.FileIO name='minicc/task_manager.py' mode='rb' closefd=True>
+```
+
+**② 三次围栏都把它记在漏它的那条门名下**——`fence_528 / 529 / 530` 里两条读数
+（`ResourceWarning: unclosed file <_io.TextIOWrapper …>` 与 `collect_unraisable` 抛的
+`Exception ignored in <_io.FileIO … mode='rb'>`）逐条对回 section 头，**三次**都落在
+`test_the_stream_length_is_the_same_object` 自己那一段（`fence_530.txt` 的第 103 与
+第 192 行，段头在第 96 行）。所以本批**不**声称「围栏错怪过别人」；围栏这三次恰好
+算对了账。算错不需要等运气——见 ③。
+
+**③ 账由「谁放手」结算，不由「谁打开」结算。** 三个形状的暂存探针（A 漏一只临时
+句柄；B 把句柄寄存在模块级 list 里；C 什么都不读，只 `clear()` + `gc.collect()` +
+`assert 1 + 1 == 2`），同一场 `python -W error` 跑下来：
+
+| 探针里的第几条 | 它自己做了什么 | 实测 |
+| --- | --- | --- |
+| 甲 | `open(p).read()`，结果不进任何名字 | **FAILED**（`ResourceWarning: unclosed file <_io.TextIOWrapper name='…victim.txt'>`） |
+| 乙 | 把 `open(p)` 存进模块级 `HOLDER`，别的一句没写 | **PASSED** |
+| 丙 | 不读任何文件，只做 `HOLDER.clear()`、`gc.collect()`、`assert 1 + 1 == 2` | **FAILED**（同一只句柄：一次 TextIOWrapper、一次 unraisable FileIO） |
+
+`2 failed, 1 passed`。C 的断言到死都是真的，它红的是**别人**留下的句柄；真正漏的 B
+全绿。同一次量到的结算时刻（`warnings.catch_warnings(record=True)` + 真句柄）：
+
+| 时刻 | `ResourceWarning` 条数 |
+| --- | --- |
+| `open()` 之后、仍被引用（`gc.collect()` 也跑了） | **0** |
+| 丢掉最后一个引用之后 | **1**（`unclosed file <_io.TextIOWrapper name='…handle_victim.txt'>`） |
+
+这条就是普查值得存在的理由：它不是风格问题，是**记账归属**问题。
+
+**④ 普查：AST 数出来 1 处，文本数出来 2 处。** 同一批源码，两种数法：
+
+| 数法 | `tests/` | 多的那一条 |
+| --- | --- | --- |
+| 文本正则 `open\([^)]*\)\.(read|readlines)\(` | **2** | `tests/test_hooks.py:52` 的 `ECHO_SECRET = _cmd("print(open('secret.txt').read())")`——那是**交给子进程的字符串**，不是这里的调用 |
+| AST 走查（`open(...)` 的结果上直接取属性并调用） | **1** | 只有 `...:82` |
+
+把走查放宽到 `io.open(...)` 与 `Path(...).open(...)` 之后重新数三棵树：
+`tests/` **1** 处、`minicc/` **0** 处、`scripts/` **0** 处。
+另外把口径写死在一句话上：**「唯一的引用就是用它的那个表达式」**——把句柄存进名字
+的写法（`handle = open(lock_path, "a+")` 这类故意持有）今天三棵树里共 **8** 处，不
+归这条门管（§6）。
+
+**⑤ 「一句话顶两种失效」是量出来的。** 把出货字节那个函数的逻辑原样搬到合成源上：
+
+| 变异 | 门的报告 |
+| --- | --- |
+| 把 `summary()` 里的 `"stream_length"` 键改名（方法**还在**） | `AssertionError: summary() method not found` |
+| 把整个 `summary()` 删掉 | `AssertionError: summary() method not found` |
+
+**⑥ 顺手数到的另一处**：同一个名字被 `ast.parse` 两遍的写法，全 `tests/` 只剩
+`tests/test_no_field_is_invented_by_the_report_or_the_shell.py::test_the_coercions_the_door_replaces_are_still_there`
+（`BENCH_SRC` 在 131 与 136 各解析一次）。它是浪费、不是漏，排在 §7。
+
+### 3 落地
+
+**家只有一个**：「哪种资源可以交给回收器」这件事已经住在
+`tests/test_resource_hygiene.py`——那正是 conftest 的豁免说明（`conftest.py:154`）
+指着的那个文件。本批把它的清单从三条主张扩到**五条**，并让第 4、5 条各带一条实测。
+
+| 落点 | 内容 |
+| --- | --- |
+| `tests/test_resource_hygiene.py:61/69` | `_MIN_OPEN_CARRIER_FILES = 20`（实测 60，防「因为看不见所以绿」）、`_CLOSING_ATTRS = {"close"}`（`open(p,'a').close()` 不是漏） |
+| `tests/test_resource_hygiene.py:79` | `_censused_sources()`：`tests/*.py` + `minicc/` + `scripts/`，按「文件里必须有 `open(` 这四个字节」预筛——这是**必要事实**，不是放宽口径 |
+| `tests/test_resource_hygiene.py:90` | `_parse()` 走 `read_bytes().decode("utf-8")`：**量具自己不能带着被测的缺陷** |
+| `tests/test_resource_hygiene.py:99/108` | `_is_open_call()`（`open` / `io.open` / `Path.open` 三形）与 `_unclosable_reads()`：口径写进 docstring——「唯一的引用就是用它的那个表达式」 |
+| `tests/test_resource_hygiene.py:290` | `test_no_code_reads_a_file_with_a_handle_nobody_can_close`：普查 + 反空转下限 |
+| `tests/test_resource_hygiene.py:317` | `test_the_read_census_charges_a_call_and_not_a_string_of_one`：同一份片段里放**真调用 ×3**（`open` / `io.open` / `Path.open`）与**字符串里的同形 ×1**、`with` ×1、`open().close()` ×1，断言只数到那三行 |
+| `tests/test_resource_hygiene.py:345` | `test_a_parked_handle_is_paid_for_at_the_release`：②③ 那两条读数进仓，换解释器时它会先响 |
+| `tests/test_the_task_stream_length_has_one_meaning.py:22` | `TASK_MANAGER_SOURCE` 锚在 `__file__`，不再看 cwd |
+| `:93` | `_summary_method()`：**0 个** summary 与**多个** summary 各说各的（后者原来会被 `ast.walk` 的到达顺序替它决定读哪一个） |
+| `:111` | `_stream_length_value()`：方法在、键不在 → 说**键不在**，并带上方法所在行号 |
+| `:125` | 那条门现在读一次、解析**一次**、句柄由 `read_text()` 自己关 |
+| `:137/162/179` | 三条新腿：换目录仍读得到源；两个 summary 不算「读到哪个算哪个」；两种失效不共用一句话 |
+
+### 4 见证
+
+- **PRE-FIX 腿**（`git archive HEAD` 干净平面，只把本批的 `tests/test_resource_hygiene.py`
+  放进去）：**1 failed / 5 passed**，红的正是普查那条，offender 列表原样是
+  `['tests\\test_the_task_stream_length_has_one_meaning.py:82.read']`。
+- **本批字节**：`tests/test_resource_hygiene.py` **6 passed**；
+  `tests/test_the_task_stream_length_has_one_meaning.py` **7 passed**（改前同一份
+  选择集是 **1 failed / 3 passed**）。
+- **十一臂全 MATCHED，零条 DID NOT BITE**；每臂还原后逐字节相同（sha256 复验）。
+
+| 臂 | 变异回哪一种谎 | 实测 | 判定 |
+| --- | --- | --- | --- |
+| A1 | 结构性读回到裸 `open(...).read()` | 1 红（普查） | MATCHED |
+| A2 | 预筛改成大小写敏感（于是**什么都看不见**） | 1 红（反空转下限） | MATCHED |
+| A3 | `_CLOSING_ATTRS` 清空：`open().close()` 也被算成漏 | 1 红（植入片段） | MATCHED |
+| A4 | 只认裸 `open`，不认 `io.open`/`Path.open` | 1 红（植入片段） | MATCHED |
+| A5 | 把放手挪到结算之前：账回到「打开那一刻」 | 1 红（记账时刻） | MATCHED |
+| A6 | 两种失效回到同一句话 | 1 红（诊断腿） | MATCHED |
+| A7 | 摘掉「多个 summary」守卫 | 1 红（二义腿） | MATCHED |
+| A8 | 路径回到 cwd 相对 | 1 红（换目录腿） | MATCHED |
+| A9 | `_unclosable_reads` 只走不记（永远返回空） | 1 红（植入片段） | MATCHED |
+| A10 | 产品侧把 `self.stream_length` 换成 `len(self.stream_text)` | 1 红（结构腿） | MATCHED |
+| A11 | 产品侧把那个键**改名**（方法还在） | 3 红，结构腿交出的正是 `summary() (line 1003) builds no dict entry keyed 'stream_length' - the method is there; the key is what is missing` | MATCHED |
+
+A11 是本批要的那一句：同一种坏法，出货字节说「方法不见了」，本批说「方法在第
+1003 行，不见的是键」。
+
+### 5 聚焦回归
+
+**七文件选择集**（worker／句柄一族：`tests/test_resource_hygiene.py`、
+`tests/test_task_durability.py`、`tests/test_task_worker.py`、
+`tests/test_the_task_stream_length_has_one_meaning.py`、
+`tests/test_the_window_a_worker_publishes_is_the_one_its_config_asked_for.py`、
+`tests/test_the_worker_metadata_fields_have_one_home.py`、
+`tests/test_a_redirect_hop_that_keeps_its_socket.py`），`python -W error -m pytest -q`：
+
+| 平面 | 读数 | 红的是谁 |
+| --- | --- | --- |
+| 干净 HEAD（`git archive HEAD` 导出的平面，同一选择集） | **1 failed / 49 passed**（6 分 8 秒） | `test_the_stream_length_is_the_same_object`——就是本批那条句柄，`Exception ignored in: <_io.FileIO name='minicc/task_manager.py' mode='rb'>` |
+| 本批字节（工作树，同一选择集重跑） | **56 passed**（5 分 17 秒） | 无 |
+
+这两行放在一起才是**归属**证据，而不是一句「回归通过」。第一次跑工作树那份是
+`2 failed / 54 passed`，两条红都在 `tests/test_task_worker.py`
+（`test_manager_process_mode_runs_task_in_subprocess`、
+`test_clean_shutdown_aborts_a_worker_that_ignores_cancellation`，都报
+`RuntimeError: worker execution lease expired before completion`）。按「谁先红」的规矩
+先把**同一份选择集**搬到干净 HEAD 上重跑：这两条是绿的；工作树自己再跑一遍：也是绿的。
+所以这两条红**不能记在本批字节头上**。
+
+但「再跑一遍就绿」不是这台机器的常态，这里要把它写清楚而不是糊过去：本轮量到
+**这台机器上同时跑着别的项目的 pytest 与常驻服务**（`Get-CimInstance` 读到 01:38–01:49
+之间另有 4 组 pytest/uvicorn/embedding 进程），也就是说墙钟不由本批决定。这正是
+§7 那条 M8-T537 的家：**租约按墙钟结算的看门狗，在别人把 CPU 抢满时把还在跑的 worker
+判死**。本批对此的处置只有两条——不在红的读数上提交，以及把这条债写进清单；
+**没有**给它加超时、加重试，也**没有**声称「本机不会再出现」。
+
+- 本批之后，三棵树里「交给回收器的句柄」普查 offender 数是 **0**（§2 ④ 那 1 处已消）。
+- HTTP 面（与本批无关，作对照）：`tests/test_http_surface.py` +
+  `tests/test_http_route_inventory.py` **91 passed**。
+- `python scripts/doc_pointers.py --check`、`python scripts/route_coverage.py --check`、
+  `python scripts/impacted_tests.py --check`：退出码均 **0**。
+
+**全量围栏** `python -W error -m pytest -q` = **3 failed / 4119 passed / 8 skipped，
+7496.75s（2:04:56）**（04:51:35 起跑；同期这台机器上另有 4 组 pytest/uvicorn 常驻）。
+上一批是 **4113 passed / 3 failed / 8 skipped**；本批新增 6 条门（4113 → 4119，条数对得上），
+红**仍是 3 条，但不是同 3 条**：本批修掉的那条句柄红**已经不见了**，顶上来的那条
+与文档引用的那把门有关。逐条归属：
+
+| 红 | 读数 | 归属 |
+| --- | --- | --- |
+| `tests/test_the_trace_event_have_one_home.py::test_every_emitter_asks_the_home` | `minicc/llm/anthropic_provider.py must ask the one home…`（断言把整份源码印出来） | **先于本批存在**：红自 `1c12ec5`。**M8-T532（第五百一十四批）** |
+| `tests/test_retrieval_enhanced.py::test_index_build_makes_a_constant_number_of_filesystem_calls_per_file` | `AssertionError: (7.232, 7.208)`、`assert 7.208 <= 7.0` | **先于本批存在**：那条门自己的文档基线是 **5.232 / 5.208**，今天的读数恰好是 **+2.0/文件**。按调用者归属（1000 文件树实测 `Path.stat` 5103 次 = 5.103/文件）：`permissions.py:load_permission_rules` **2.000/文件**、`retrieval.py:_build_record` 1.000、`retrieval.py:_refresh` 1.000、`pathlib.py:lstat` 内部 1.102。**M8-T533（第五百一十五批）** 先收 `_build_record` 那一次（7.208 → 6.208，回到线内），`load_permission_rules` 那条排在 §7 |
+| `tests/test_the_two_readers_share_one_fence_ruler.py::test_no_shipped_citation_lies_inside_a_closed_fence_block` | **不是断言红**：`MINICC_TEST_HANG_LIMIT: this test took 1196.1s, over the 900s bound`——它跑完了，是被自己的界记成 failed 的 | **不是本批的字节**：本轮 `git status` 里工作树只改了 `tests/test_resource_hygiene.py` 与 `tests/test_the_task_stream_length_has_one_meaning.py`，这条门和 `docs/ROADMAP_TO_PRODUCT.md` 都是 HEAD 原字节。成本形状实测：`_block_of` 对**每一条** code span 重新解析整份文档——ROADMAP 本轮 1,591,870 个字符（2,824,724 字节）、**24,071 条** code span，单次 `_fence_blocks` 0.020s → `24,071 × 0.020 ≈ 482s` 是本机安静一点的下界；本批这条记录追加进去之后同一条量具读到 **24,261 条**（一批 +190），被抢满 CPU 就越过 900s 那条界。每批追加记录都在推高它，所以这不是「今天运气差」。把这一条腿单独再跑一次（只跑它所在的文件）：**1 failed / 11 passed in 964.37s**——红的仍然是那句 HANG_LIMIT，`offenders` 那条断言**一次都没红**；这条腿今天的内容是过关的，出问题的是它跑不完。（那次复跑中途本批的记录被追加进了文档，跨度数 24,071 → 24,261 差 0.8%，解释不了 964s 与 1196s 的差别，也就不用它来分锅。）**M8-T540（第五百二十二批）** 候选：一条门把「我跑不完」报成「我抓到了」 |
+
+
+处置只有两条，写清楚而不是糊过去：**不在红的读数上提交**本批的字节（这三条红里没有一条
+来自本批改的文件，前两条在 HEAD 平面上复跑过、第三条的门与它读的那份文档本轮都是 HEAD
+原字节），以及把新冒出来的这条债**记进清单而不是删掉读数**。本批**不**声称那把引用门
+跑得动——它今天跑完了、但跑得比自己的界慢，这正是上面那条归属要说的事。
+
+### 6 边界（本批**不**声称）
+
+- **普查只认「唯一的引用就是用它的那个表达式」**。把句柄存进名字再忘记关（三棵树
+  里今天 8 处）**不在口径内**——那批里多数是故意持有（锁、`a+` 打开后还要读），本批
+  没有能区分「故意」与「忘了」的量具。
+- 本批**没有**给「重复解析同一份源码」立门（§2 ⑥ 数到 1 处）。A 臂只证明句柄这条
+  口径会咬，不证明浪费有人管。
+- `_MIN_OPEN_CARRIER_FILES = 20` 是**下限**、不是 census：如果哪天只剩 19 个文件
+  还含 `open(`，门会红，但红的是「量具可能瞎了」，不是「代码坏了」。
+- `test_a_parked_handle_is_paid_for_at_the_release` 把 CPython 引用计数器的行为
+  （放手即 dealloc、dealloc 即警告）钉进门里。换一台没有引用计数的解释器，这条会
+  先响而不是先错。
+- 第 ② 条读数在这里说清楚：**三次围栏都没有把这只句柄记给过别人**。本批改的是
+  「下一次它会不会记错」，不是「上一次记错了」。§2 ③ 那个 `2 failed, 1 passed` 是
+  暂存探针造出来的场景，本仓今天**没有**那种寄存句柄的门。
+- 本批**没有**动 `minicc/` 任何产品代码（A10/A11 只是臂，跑完即还原并验 sha）。
+- **这台机器是共享的**：本轮 `Get-CimInstance` 读到本批围栏期间另有 4 组别的项目的
+  pytest／常驻服务在跑。所有墙钟数字（§4、§5 的秒数）都是**这台机器这一趟**的读数，
+  不是可复现的常数；本批只对「红的是哪条、说的什么」负责，不对秒数负责。
+- `tests/test_resource_hygiene.py` 现在一份文件跑 6 条门；本批**没有**为它做并行
+  或缓存（`_parse` 每次都重新读盘），换到的墙钟数字在 §5 里记着。
+
+### 7 下一位候选（补记）
+
+**已经在任务清单上的（顺序不变）：**
+
+1. M8-T532（第五百一十四批）`test_every_emitter_asks_the_home`——红自 `1c12ec5`。
+2. M8-T533（第五百一十五批）每文件两次 `Path.stat`（`minicc/agent/retrieval.py:509`
+   与 `:615`）加一个 TOCTOU。
+3. M8-T534（第五百一十六批）CI 变异步只断言「退出码非零」，从不断言**为什么**非零。
+4. M8-T535（第五百一十七批）M6-4 的「劣化 ≤15%」有读数、没有门。
+
+**本批新数出来的三条：**
+
+- M8-T536（第五百一十八批）`tests/test_no_field_is_invented_by_the_report_or_the_shell.py::test_the_coercions_the_door_replaces_are_still_there`
+  把 `BENCH_SRC` 解析两遍（131/136）。同族里更值钱的形状是「死名字」：`tree =
+  ast.parse(src)` 之后没人用——本批清了那条门自己，**没有**立普查。
+- M8-T537（第五百一十九批）`permissions.py:load_permission_rules` 在索引的每一行
+  文件上被问**两遍**（1000 文件的树实测 2000 次 `stat`，归属见 §5 那张表）。
+  入口是 `minicc/agent/retrieval.py:_is_denied_by_rules` → `audit.tool_denied_by_rule`：
+  它先 `policy_evaluation_error(workspace)`、再 `match_permission_rule(...)`，两边各自
+  走一次 `load_permission_rules`（那条函数**有**缓存，代价是每次问都要 `stat` 一回
+  规则文件）。于是「这份工作区有没有按路径的 deny 规则」这个**与文件无关**的问题，
+  被按文件问了两千次。M8-T526 还有一条更硬的理由：deny 的规则**在一轮刷新中间**变得
+  读不出时，同一棵树里前一半被索引、后一半被拒——一票否决权自己给了自己一个
+  不一致的答案。要量的是「一次刷新问一次」。
+- worker 的**租约是墙钟**，不是「这个 worker 还能不能说话」。§5 那两条红不是本批的
+  字节：同一台机器上并着别的 pytest 时，`tests/test_task_worker.py` 的两条门双双报
+  `RuntimeError: worker execution lease expired before completion`，而同一选择集在
+  干净 HEAD 上是绿的、这两条单独跑也是绿的。一个还在跑、只是**没抢到 CPU** 的
+  worker，在 manager 眼里和一只死了的 worker 是同一句话。要量的是租约拿什么计时、
+  被抢满时 worker 那一侧有没有机会说「我还活着」。
+- `tests/test_resource_hygiene.py` 的量具成本：本批让它从 3 条主张长到 5 条、
+  60 个文件重新读盘解析。若继续在同一家加主张，需要一次「读盘—解析—多条规则」的
+  合并；那是性能债，不影响判定。
+
+**本族的下一位（读侧普查，第五百零八批 §7 那份清单）：**
+
+- `minicc/changes.py:_baseline`：`git show HEAD:<path>` 非零退出一律 `""`——
+  「取不到基线」被说成「基线是空的」，diff 于是把整份文件报成全新增。
