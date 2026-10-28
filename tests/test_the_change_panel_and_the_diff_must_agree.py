@@ -18,13 +18,18 @@ from minicc.tools.editor import Editor
 
 
 def _git(workspace: Path, *args: str) -> None:
-    subprocess.run(
+    result = subprocess.run(
         ["git", *args],
         cwd=str(workspace),
         capture_output=True,
         encoding="utf-8",
         errors="replace",
+        timeout=120,
     )
+    if result.returncode != 0:
+        raise AssertionError(
+            f"git {' '.join(args)} failed: {result.stderr.strip()}"
+        )
 
 
 def _repo(workspace: Path) -> Path:

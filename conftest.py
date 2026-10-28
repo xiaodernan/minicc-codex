@@ -101,6 +101,37 @@ def pytest_runtest_makereport(item, call):
     return report
 
 
+# --- M8-T536: fixture repos must not inherit the machine's git policy -------
+#
+# Measured in this repository: the machine-wide ``~/.gitconfig`` sets
+# ``core.hooksPath`` to a directory of real commit hooks, so every temporary
+# fixture repo that runs ``git commit`` runs - and pays for - policy that lives
+# outside the repository. The 300-file change-panel fixture took over ten
+# minutes; the roadmap recorded a 14-minute stall behind one ``git commit``.
+# A suite's verdict must not be decided by the machine it runs on, and the same
+# hook could reject a fixture commit outright with its secret scan.
+#
+# The session therefore points git's *user-global* config (and the XDG config
+# it falls back to) at an empty file. System config is deliberately left alone:
+# it carries platform defaults such as ``core.autocrlf``, not per-user policy.
+# ``tests/test_the_fixtures_do_not_inherit_machine_git_policy.py`` witnesses
+# the isolation both ways.
+
+@pytest.fixture(scope="session", autouse=True)
+def _isolate_git_user_config(tmp_path_factory):
+    empty = tmp_path_factory.mktemp("git-config-isolation") / "empty.gitconfig"
+    empty.write_text("", encoding="utf-8")
+    previous = os.environ.get("GIT_CONFIG_GLOBAL")
+    os.environ["GIT_CONFIG_GLOBAL"] = str(empty)
+    try:
+        yield str(empty)
+    finally:
+        if previous is None:
+            os.environ.pop("GIT_CONFIG_GLOBAL", None)
+        else:
+            os.environ["GIT_CONFIG_GLOBAL"] = previous
+
+
 def suite_python() -> str:
     """The interpreter running this suite, quoted for use inside a shell command.
 
