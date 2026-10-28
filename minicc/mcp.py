@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import difflib
 import hashlib
+import http.client
 import json
 import os
 import queue
@@ -28,6 +29,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from collections.abc import Callable
 from dataclasses import dataclass, field, fields
 from pathlib import Path
 from typing import Any
@@ -115,6 +117,47 @@ def _read_listing(
             + "/".join(repr(k) for k in id_keys)
         )
     return kept, reasons
+
+
+MAX_MCP_LIST_PAGES = 32
+
+
+def _read_listing_pages(
+    request: Callable[[str, dict[str, Any]], dict[str, Any]],
+    key: str,
+    *,
+    id_keys: tuple[str, ...] = ("name",),
+) -> tuple[list[dict[str, Any]], list[str]]:
+    items: list[dict[str, Any]] = []
+    reasons: list[str] = []
+    params: dict[str, Any] = {}
+    seen: set[str] = set()
+    for page in range(1, MAX_MCP_LIST_PAGES + 1):
+        try:
+            result = request(f"{key}/list", params)
+        except McpError as exc:
+            if page == 1:
+                raise
+            reasons.append(f"page {page} failed: {exc}")
+            break
+        entries, notes = _read_listing(result, key, id_keys=id_keys)
+        items.extend(entries)
+        reasons.extend(f"page {page}: {note}" for note in notes)
+        if "nextCursor" not in result:
+            break
+        cursor = result["nextCursor"]
+        if not isinstance(cursor, str):
+            reasons.append(f"page {page}: nextCursor was not a string")
+            break
+        if cursor in seen:
+            reasons.append(f"page {page}: repeated cursor; listing is incomplete")
+            break
+        if page == MAX_MCP_LIST_PAGES:
+            reasons.append(f"page limit {MAX_MCP_LIST_PAGES} reached; listing is incomplete")
+            break
+        seen.add(cursor)
+        params = {"cursor": cursor}
+    return items, reasons
 
 
 def _content_to_tool_result(server: str, tool: str, result: dict[str, Any]) -> ToolResult:
@@ -592,24 +635,19 @@ class McpStdioClient:
             # drop it and keep waiting for ours.
 
     def tools_listing(self) -> tuple[list[dict[str, Any]], list[str]]:
-        return _read_listing(self._request("tools/list", {}), "tools")
+        return _read_listing_pages(self._request, "tools")
 
     def resources_listing(self) -> tuple[list[dict[str, Any]], list[str]]:
         try:
-            result = self._request("resources/list", {})
+            return _read_listing_pages(self._request, "resources", id_keys=("uri", "name"))
         except McpError as exc:
-            # An unsupported, timed-out or unreadable resources/list is still this
-            # server's answer about its own resources, so the reason has to travel
-            # with the (empty) items instead of ending the read there.
             return [], [f"failed: {exc}"]
-        return _read_listing(result, "resources", id_keys=("uri", "name"))
 
     def prompts_listing(self) -> tuple[list[dict[str, Any]], list[str]]:
         try:
-            result = self._request("prompts/list", {})
+            return _read_listing_pages(self._request, "prompts")
         except McpError as exc:
             return [], [f"failed: {exc}"]
-        return _read_listing(result, "prompts")
 
     def list_tools(self) -> list[dict[str, Any]]:
         return self.tools_listing()[0]
@@ -764,7 +802,7 @@ class McpHttpClient:
                     current = target
                     continue
                 raise McpError(f"MCP HTTP server {self.config.name} 返回 HTTP {exc.code}") from None
-            except (urllib.error.URLError, OSError) as exc:
+            except (urllib.error.URLError, OSError, http.client.HTTPException) as exc:
                 raise McpError(f"MCP HTTP server {self.config.name} 不可达: {exc}") from None
         raise McpError(
             redirect_limit_message(MAX_MCP_REDIRECTS, f"MCP HTTP server {self.config.name}")
@@ -823,21 +861,19 @@ class McpHttpClient:
         return result
 
     def tools_listing(self) -> tuple[list[dict[str, Any]], list[str]]:
-        return _read_listing(self._request("tools/list", {}), "tools")
+        return _read_listing_pages(self._request, "tools")
 
     def resources_listing(self) -> tuple[list[dict[str, Any]], list[str]]:
         try:
-            result = self._request("resources/list", {})
+            return _read_listing_pages(self._request, "resources", id_keys=("uri", "name"))
         except McpError as exc:
             return [], [f"failed: {exc}"]
-        return _read_listing(result, "resources", id_keys=("uri", "name"))
 
     def prompts_listing(self) -> tuple[list[dict[str, Any]], list[str]]:
         try:
-            result = self._request("prompts/list", {})
+            return _read_listing_pages(self._request, "prompts")
         except McpError as exc:
             return [], [f"failed: {exc}"]
-        return _read_listing(result, "prompts")
 
     def list_tools(self) -> list[dict[str, Any]]:
         return self.tools_listing()[0]

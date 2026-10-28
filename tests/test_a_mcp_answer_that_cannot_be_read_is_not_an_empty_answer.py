@@ -370,3 +370,47 @@ def test_both_halves_of_the_read_also_tell_the_operator(tmp_path: Path) -> None:
     text = " || ".join(captured)
     assert "tools/list 有读不出来的部分" in text, captured
     assert "resources/list 有读不出来的部分" in text, captured
+
+
+def test_stdio_manager_discovers_all_three_listings_after_an_empty_page(tmp_path: Path) -> None:
+    ws = _workspace(tmp_path, "paged", {
+        "srv": {"sequence": {
+            "tools/list": [
+                {"tools": [], "nextCursor": "tools-page-two"},
+                {"tools": [{"name": "later_tool"}]},
+            ],
+            "resources/list": [
+                {"resources": [], "nextCursor": "resources-page-two"},
+                {"resources": [{"uri": "file:///later-resource"}]},
+            ],
+            "prompts/list": [
+                {"prompts": [], "nextCursor": "prompts-page-two"},
+                {"prompts": [{"name": "later_prompt"}]},
+            ],
+        }},
+    })
+    manager = McpManager(ws)
+    try:
+        assert [spec.name for spec in manager.tool_specs()] == ["mcp__srv__later_tool"]
+        context = manager.resources_context()
+        assert "resource file:///later-resource" in context
+        assert "prompt later_prompt" in context
+        assert not _unreadable(manager)
+    finally:
+        manager.close()
+
+
+def test_stdio_manager_discloses_an_incomplete_paginated_listing(tmp_path: Path) -> None:
+    ws = _workspace(tmp_path, "page_failure", {
+        "srv": {"sequence": {"tools/list": [
+            {"tools": [{"name": "kept"}], "nextCursor": "next"},
+            {"__error__": "page unavailable"},
+        ]}},
+    })
+    manager = McpManager(ws)
+    try:
+        assert [spec.name for spec in manager.tool_specs()] == ["mcp__srv__kept"]
+        reasons = _unreadable(manager)["srv"]
+        assert any("tools:" in reason and "page 2" in reason and "page unavailable" in reason for reason in reasons)
+    finally:
+        manager.close()

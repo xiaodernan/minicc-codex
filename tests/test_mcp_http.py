@@ -12,7 +12,8 @@ from pathlib import Path
 
 import pytest
 
-from minicc.mcp import McpError, McpHttpClient, McpManager, load_mcp_config
+from minicc import mcp as mcp_mod
+from minicc.mcp import McpError, McpHttpClient, McpManager, McpStdioClient, load_mcp_config
 
 
 @pytest.fixture(autouse=True)
@@ -124,6 +125,93 @@ def mcp_url():
         f"shutdown() at {url}; its socket can still answer POST /mcp behind this "
         "fixture's back"
     )
+
+
+@pytest.fixture(params=[McpStdioClient, McpHttpClient], ids=["stdio", "http"])
+def listing_client(request):
+    return request.param.__new__(request.param)
+
+
+@pytest.mark.parametrize("kind", ["tools", "resources", "prompts"])
+@pytest.mark.parametrize("cursor", ["next page+/=", ""])
+def test_listing_follows_opaque_cursors(listing_client, kind, cursor):
+    calls = []
+    first = {"name": "first"}
+    last = {"name": "last"}
+
+    def request(method, params):
+        calls.append((method, params))
+        if len(calls) == 1:
+            return {kind: [first], "nextCursor": cursor}
+        assert params == {"cursor": cursor}
+        return {kind: [last]}
+
+    listing_client._request = request
+    items, reasons = getattr(listing_client, f"{kind}_listing")()
+    assert items == [first, last]
+    assert reasons == []
+    assert calls == [(f"{kind}/list", {}), (f"{kind}/list", {"cursor": cursor})]
+
+
+@pytest.mark.parametrize("kind", ["tools", "resources", "prompts"])
+def test_listing_stops_a_cursor_cycle_and_discloses_partial_results(listing_client, kind):
+    calls = []
+
+    def request(method, params):
+        calls.append(params)
+        assert len(calls) <= 3, "pagination did not stop its cursor cycle"
+        return {kind: [{"name": f"item_{len(calls)}"}], "nextCursor": "repeat"}
+
+    listing_client._request = request
+    items, reasons = getattr(listing_client, f"{kind}_listing")()
+    assert [item["name"] for item in items] == ["item_1", "item_2"]
+    assert len(calls) == 2
+    assert any("cursor" in reason and "repeat" in reason for reason in reasons)
+
+
+@pytest.mark.parametrize("kind", ["tools", "resources", "prompts"])
+@pytest.mark.parametrize("cursor", [None, 7, {}, []])
+def test_listing_reports_a_non_string_cursor(listing_client, kind, cursor):
+    listing_client._request = lambda method, params: {
+        kind: [{"name": "kept"}], "nextCursor": cursor,
+    }
+    items, reasons = getattr(listing_client, f"{kind}_listing")()
+    assert items == [{"name": "kept"}]
+    assert any("nextCursor" in reason and "string" in reason for reason in reasons)
+
+
+@pytest.mark.parametrize("kind", ["tools", "resources", "prompts"])
+def test_listing_keeps_earlier_pages_when_a_later_request_fails(listing_client, kind):
+    calls = []
+
+    def request(method, params):
+        calls.append(params)
+        if len(calls) == 1:
+            return {kind: [{"name": "kept"}], "nextCursor": "next"}
+        raise McpError("later page unavailable")
+
+    listing_client._request = request
+    items, reasons = getattr(listing_client, f"{kind}_listing")()
+    assert items == [{"name": "kept"}]
+    assert calls == [{}, {"cursor": "next"}]
+    assert any("page 2" in reason and "later page unavailable" in reason for reason in reasons)
+
+
+@pytest.mark.parametrize("kind", ["tools", "resources", "prompts"])
+def test_listing_page_limit_is_disclosed(listing_client, kind, monkeypatch):
+    monkeypatch.setattr(mcp_mod, "MAX_MCP_LIST_PAGES", 3)
+    calls = []
+
+    def request(method, params):
+        calls.append(params)
+        assert len(calls) <= 4, "pagination ignored its page limit"
+        return {kind: [{"name": f"item_{len(calls)}"}], "nextCursor": str(len(calls))}
+
+    listing_client._request = request
+    items, reasons = getattr(listing_client, f"{kind}_listing")()
+    assert [item["name"] for item in items] == ["item_1", "item_2", "item_3"]
+    assert len(calls) == 3
+    assert any("page limit" in reason and "3" in reason for reason in reasons)
 
 
 def test_config_requires_command_or_url(tmp_path: Path) -> None:
@@ -238,6 +326,72 @@ def test_manager_registers_http_tools(tmp_path: Path, mcp_url: str) -> None:
         assert specs[0].risk == "readonly"
     finally:
         manager.close()
+
+
+@pytest.mark.parametrize("truncated", [False, True])
+def test_manager_uses_http_pagination_and_reports_truncated_later_pages(tmp_path: Path, truncated) -> None:
+    seen = []
+
+    class PagedHandler(_FakeMcpHandler):
+        def do_POST(self):
+            message = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+            method = message["method"]
+            params = message.get("params", {})
+            if method == "notifications/initialized":
+                self._reply({}, status=202)
+                return
+            if method == "initialize":
+                result = {"protocolVersion": "2025-03-26", "capabilities": {}}
+            elif method == "tools/list":
+                seen.append(params)
+                if "cursor" not in params:
+                    result = {"tools": [{"name": "early_echo"}] if truncated else [], "nextCursor": "opaque +/= token"}
+                elif truncated:
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Content-Length", "50")
+                    self.end_headers()
+                    self.wfile.write(b"{")
+                    self.close_connection = True
+                    return
+                elif params["cursor"] == "opaque +/= token":
+                    result = {"tools": [{"name": "later_echo"}]}
+                else:
+                    self._reply({"jsonrpc": "2.0", "id": message["id"], "error": {"code": -32602, "message": "wrong cursor"}})
+                    return
+            elif method == "tools/call":
+                result = {"content": [{"type": "text", "text": params["name"] + ": " + params["arguments"]["text"]}]}
+            else:
+                result = {method.split("/")[0]: []}
+            self._reply({"jsonrpc": "2.0", "id": message["id"], "result": result})
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), PagedHandler)
+    url, thread = _start_serving(server)
+    config_dir = tmp_path / ".minicc"
+    config_dir.mkdir()
+    (config_dir / "mcp.json").write_text(json.dumps({
+        "servers": {"paged": {"url": url, "read_only": True}},
+    }), encoding="utf-8")
+    manager = McpManager(tmp_path)
+    try:
+        specs = manager.tool_specs()
+        tool_name = "early_echo" if truncated else "later_echo"
+        assert [spec.name for spec in specs] == [f"mcp__paged__{tool_name}"]
+        result = specs[0].handler({"text": "hello"})
+        assert result.status == "ok"
+        assert f"{tool_name}: hello" in result.render()
+        assert "untrusted" in result.security_tags
+        assert seen == [{}, {"cursor": "opaque +/= token"}]
+        if truncated:
+            assert any("page 2" in reason and "IncompleteRead" in reason for reason in manager.status()["unreadable"]["paged"])
+        else:
+            assert manager.status()["unreadable"] == {}
+    finally:
+        manager.close()
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+        assert not thread.is_alive()
 
 
 def test_manager_unreachable_http_server_is_skipped_and_disclosed(tmp_path: Path) -> None:
