@@ -541,7 +541,7 @@ class LocalEvidenceIndex:
                 # would never arrive.
                 built[rel] = self._record_built.get(rel, now)
             else:
-                record = self._build_record(path, rel)
+                record = self._build_record(path, rel, stat)
                 rebuilt += 1
                 # M8-T300: the timestamp records when the record was
                 # **built**, not when it was last seen.  Recording the
@@ -604,17 +604,13 @@ class LocalEvidenceIndex:
         self._records = tuple(records)
         self._stats = census
 
-    def _build_record(self, path: Path, rel: str) -> _FileRecord | None:
+    def _build_record(self, path: Path, rel: str, stat: os.stat_result) -> _FileRecord | None:
         try:
             with path.open("r", encoding="utf-8", errors="ignore") as stream:
                 text = stream.read(min(self.max_bytes, _SNAPSHOT_CHARS))
         except OSError:
             return None
         head = text[: self.max_bytes]
-        try:
-            mtime = path.stat().st_mtime
-        except OSError:
-            mtime = 0.0
         rel_cf = rel.casefold()
         return _FileRecord(
             rel=rel,
@@ -625,7 +621,7 @@ class LocalEvidenceIndex:
             symbols=_extract_symbols(head, path.suffix.casefold()),
             failures=tuple(FAILURE_RE.findall(head)[:6]),
             suffix=path.suffix.casefold(),
-            mtime=mtime,
+            mtime=stat.st_mtime,
             is_guidance=rel_cf in GUIDANCE_PATHS,
         )
 

@@ -35576,3 +35576,139 @@ snapshot → mutate → run → restore → 逐个重验 `minicc/**/*.py` 与门
 3. M8-T540（引用门 24,071 次全档重解析）**排在下一条围栏之前**：它不改变任何产品事实，
    但决定下一条围栏的墙钟。
 4. 沿用第五百一十三批 §7 的其余顺序。
+
+## 第五百一十五批 — M8-T533 — 一次刷新把「这文件什么时候写的」问两遍，第二遍还说了算
+
+### 1 欠的是哪一条
+
+第五百一十三批 §5 红表的第二条：`tests/test_retrieval_enhanced.py::test_index_build_makes_a_constant_number_of_filesystem_calls_per_file`
+（红话 `AssertionError: (7.232, 7.208)`，先于本批存在）。本批在**动产品字节之前**先把这条腿
+单独跑了一遍，读数原样复现（`1 failed in 34.66s`）——它不是被本批的改动解释出来的，是它先把
+本批叫出来的。
+
+现场是 `minicc/agent/retrieval.py` 的 `_refresh`（**本节的 `:行号` 全部引改前字节**，即
+`353b8cc` 的那一份；§3 里 `:544` 与 `:607` 改后仍在同一行，`:613-617` 那段在改后被删掉）：
+
+- `:509` 给每个候选文件 `stat = path.stat()`，`:533` 用它的四个字段拼缓存签名
+  `(st_ino, st_mtime_ns, st_ctime_ns, st_size)`；
+- 读完正文之后，`_build_record` 在 `:615` 对**同一个文件**再 `stat()` 一次，只要 `st_mtime`，
+  存进 `record.mtime`（`:628`）。
+
+campaign 的口径落在 `:616-617`：`except OSError: mtime = 0.0`。这不是「把文件当成不存在」
+——那有 `files_skipped` 一条诚实的通道——而是**给一次读不到的时间编一个能参与计算的数**。
+一条失败的读，答成了「问到了，答案是 1970 年」。
+
+### 2 量到的真相（实测）
+
+平面与真仓同读数（`scratch/probe_533.py` / `probe_533b.py` / `probe_533c.py`）：
+
+| 量 | 读数 |
+| --- | --- |
+| 冷构建每文件 `Path.stat`（50 / 200 文件两把） | **5.060 / 5.015** |
+| 同一棵树热刷新（没改）每文件 | **4.040 / 4.010** |
+| 冷−热之差 | **≈1.0/文件** = `_build_record` 那一次 |
+| 1000 文件按调用者归属 | `permissions.py:load_permission_rules` **2.000**、`retrieval.py:_refresh` 1.000、`retrieval.py:_build_record` **1.000**、`pathlib.py:lstat` 1.102 |
+| 第二条 `stat` 失败时 | 记录仍在：`mtime=0.0`（正好 epoch 零）→ `age_days` **20,755** → 新鲜度加分 `1.65e-208`；census 读 `files_indexed 3, files_skipped **0**` |
+| 两次 `stat` 之间把文件改写 | 缓存键 `1793213393.8` vs 记录 `1793216393.9`，差 **3000.1s**；正文是**改前**的，年龄读 `-3000s` 被 `:364` 的 `max(0.0, …)` 夹成 **0 天** → 拿满 `W_FRESHNESS = 3.0` 加分 |
+| 那条门在干净 HEAD 上的红话 | `AssertionError: (7.232, 7.208)`（门自己的文档基线是 5.232/5.208，即今天**多了 2.0/文件**） |
+
+方向要说清，否则这条会被读成「性能批」：**错的那一边是奖励**。过期正文拿到最新的时间，
+于是打分时被当成刚写的；而失败的那次读没有走「不知道」那条通道，它走的是「知道，且是 1970 年」。
+
+### 3 落地
+
+- `_build_record(self, path, rel, stat: os.stat_result)`：签名那次 `stat` **交给**正文构建者；
+  `:613-617` 的第二次 `stat` 与 `mtime = 0.0` 一起删除；记录写 `mtime=stat.st_mtime`。
+  一个问题，一个答案；那个编出来的纪元**失去了输入**。
+- 调用点 `:544` 传 `stat`。
+- 读者跟着改：`tests/test_the_index_window_expires_once_and_then_stops.py:35` 那个包住
+  `_build_record` 的计数桩，改前写的是 `def counting(path, rel)`（旧 arity），本批改成
+  `counting(path, rel, stat)`——**这个行号引的是改后的位置**，改前同一处在 `:33-39`。
+  **这是生产签名变了导致的读者更新**，不是把门改宽迁就工具——那条门钉的是「窗口到期后只重建
+  一次」，本批没碰它的判定，它在本批字节上照旧绿（§5）。
+- 语义取舍：年龄从此取**签名那次**的时间，即读体**之前**的那一份。文件正在被写时，报旧时间是
+  **保守**方向（显得更老，下次刷新签名对不上就重建）；原先报读体之后的时间是**乐观**方向
+  （过期正文拿满加分）。本批选保守。
+
+### 4 见证
+
+门：`tests/test_one_refresh_asks_the_write_time_once.py`（**5 条腿**）。
+
+| 字节 | 读数 |
+| --- | --- |
+| 干净 HEAD 产品字节 + 本批门（plane533，P0 臂） | **3 failed, 2 passed in 42.18s**：`test_the_refresh_is_the_only_reader_of_the_write_time`（`_build_record asked for the write time 6 times`）、`test_the_age_and_the_cache_key_are_the_same_answer`（`the cache key says 1793213393.8 and the age says 1793216393.9`）、`test_a_vanishing_body_does_not_invent_an_age`（`these records carry an invented epoch: mod_0…mod_5`）；腿四（字段腿）与腿五在旧字节上**本来就绿**——旧实现问的是自己的 `stat`，字段与分母都对 |
+| 同一份门字节装在**另一个**平面（plane531，其 `minicc/` 已逐文件验等于 HEAD） | **3 failed, 2 passed in 8.18s**，红的正是那三条腿 |
+| 落地字节（真仓） | **5 passed in 5.80s** |
+
+臂跑在 `scratch/plane533`（`git archive HEAD` + `apply_533.py`）。**臂的字节就是仓库的字节**，
+这件事是量出来的，不是推的：三个文件在 LF 归一后与真仓逐字节相同——
+`minicc/agent/retrieval.py` `e891ead38b23da5c`、
+`tests/test_the_index_window_expires_once_and_then_stops.py` `2e7e448a99de5956`、
+门 `4baab4f9d7b700ea`。每条臂跑完 restore，三条文件 sha256 逐条比对，任何一次不匹配直接终止；
+本批 6 条臂全部走完，无遗留。判定**逐腿**，不看退出码。
+
+| 臂 | 改的是产品字节的哪一处 | 应该红 / 应该绿 | 读数 | 判定 |
+| --- | --- | --- | --- | --- |
+| P0 | 反向打上本批补丁 = 干净 HEAD | 红一/二/三，绿四/五 | `3 failed, 2 passed` | MATCHED |
+| B1 | `mtime=stat.st_ctime`（同一个对象、别的字段） | 红四，绿一/二/三/五 | `1 failed, 4 passed` | MATCHED |
+| B2 | 把造出来的纪元留下：`mtime=0.0` | 红二/三/四/五，绿一 | `4 failed, 1 passed` | MATCHED |
+| B3 | 多问那一遍搬到调用方：`self._build_record(path, rel, path.stat())` | 红一，绿其余 | `1 failed, 4 passed` | MATCHED |
+| B4 | 反空转：`files = []` | 红一/二/四/五，绿三 | `4 failed, 1 passed` | MATCHED |
+| B5 | 缓存键里存秒不存纳秒 | 红二，绿其余 | `1 failed, 4 passed` | MATCHED |
+
+两条**臂的假设**被读数纠正，写在这里而不是抹掉：
+
+1. B1 第一遍预判「腿二也红」，实测腿二**绿**（第一轮判定记的是 DID NOT BITE）。原因量出来了：
+   腿二比的是**同一个 stat 对象**的两个字段，而夹具里的文件是刚创建的——它的 `ctime` 与 `mtime`
+   本来就是同一个数，所以「相等」这条腿看不见字段调换。腿四（先把 `mtime` 挪走 3000s）就是为
+   这一处才存在的，B1 改后钉的是「只有腿四咬得到」，重跑读 `1 failed, 4 passed` = MATCHED。
+2. B2 与 B3 原来在骨架里写成一条：「`_refresh` 把上一个文件的 stat 传进去」。那需要跨循环带一个
+   状态变量，而且不模拟任何真实缺陷；本批按读数把它拆成两条真会发生的形状——**造出来的默认值**
+   （B2，§2 第五条读数就是这个）与**多问的那一遍换个地方问**（B3）。
+
+每文件预算（同一把量具 `probe_533c.py`，1000 文件，**在真仓落地字节上重跑**）：
+`stat 4103`，`sum 6208 = **6.208** per file`（门的上限是 7.0）——与改前的 **7.208** 差**正好 1.0**，
+即每文件少问一遍。
+
+### 5 聚焦回归
+
+全部在真仓落地字节上跑：
+
+- 本批门 **5 passed in 5.80s**；干净 HEAD 上同一条门 **3 failed, 2 passed**（§4，两个平面各自独立）。
+- `tests/test_index_census.py` + `tests/test_the_index_window_expires_once_and_then_stops.py` +
+  `tests/test_an_external_change_must_not_be_served_from_the_memo.py`：**15 passed in 12.30s**
+  （平面同选择集 15 passed / 110.50s；另一个项目的 pytest 同时在跑，墙钟不计入结论）。
+- `tests/test_retrieval_enhanced.py`：**24 passed in 56.07s**——含第五百一十三批 §5 那条先于本批
+  的红，它本批**由红转绿**，而且是**同一条腿单独跑**先读红（`1 failed in 34.66s`，
+  `(7.232, 7.208)`）再读绿。
+- 三条 CI 检查器全部 rc=0，而最后这一遍是在**本批记录已经写进文档之后**的字节上读的：`doc_pointers --check` 读 20 份文档、629 个在仓文件、879 个标记里checked=116、citation-without-locator=52、3919 条 evidence 指针。写进之前那一份文档读 875 个标记、3905 条指针——差的 4 个标记、14 条指针就是本批记录自己带进来的。这一句报的是**它自己所在的这份文档**的数，所以它带一条额外的规矩：**动这一句就得重跑一次**，跑出来的数不等于写下来的数，这句就是假话；上一版在这里只写了改前那两个数，剩下半句「写进后自己给数」是把活儿推给读者——本批换成读数本身。`route_coverage --check`（34 个 dispatch site、378 行，GET A/B 20/20、POST A/B 14/14 = 100%）、`impacted_tests --check`（330 行影响集：第 100 行是本批门，第 124 行是 `minicc/agent/retrieval.py` 的既有读者，第 207 行是被本批跟着改了桩的那条窗口门）。
+
+**本批不跑全量围栏**（与第五百一十二批之前每批一条不同，见 §6）。围栏里这条红的红转绿，
+本批用「单独跑同一条腿，先复现红、再复现绿」代替——它比预告强，比围栏弱，弱在哪里写清楚：
+围栏还会跑另外 4,100 多条，本批只跑了这 44 条 + 门 5 条 + 影响集点名。
+
+### 6 边界（本批**不**声称）
+
+- 腿三（invented epoch）在落地字节上的绿是**分支消失**带来的：`_build_record` 不再问，
+  夹具打不中。所以同一条腿自己钉住 `not fired`，绿的原因写在红话里——它是**能力门**
+  （钉住「这条分支不存在」），不是回归门。
+- 每文件还剩 **4.103** 次 `stat`（1000 文件量具口径），其中 **2.000** 次来自
+  `permissions.py:load_permission_rules`——本批**没碰**，排 M8-T537（第五百一十九批）。
+  历史基线 5.208 与本批后 6.208 之间那 1.0 的差就是它。
+- 腿二（年龄=缓存键）比的是**同一个 stat 对象的两个字段**：当一份文件的 `ctime` 与 `mtime`
+  本来就是同一个数（刚创建的临时树就是这样，B1 实测），这条腿对字段调换是**绿的**。
+  「复用了传进来的对象」不等于「复用了对的字段」，钉住后半句的是腿四，不是腿二。
+- 门只钉「`_build_record` 问 0 次」与「年龄=签名的 mtime」；不钉 walk 里 `is_symlink` 那
+  1.102 次，也不钉缓存命中路径的开销。
+- 本批**没有**改那条 7.0 上限门的任何数字，也没有把它的读数打印出来——「一条天花板门不报
+  自己的读数」这件事本批只记录、不修。
+- 不声称全量围栏：见 §5 末。下一次围栏的红表应当比第五百一十三批少两条（本批的预算腿、
+  第五百一十四批的名单腿）。
+
+### 7 下一位候选（补记）
+
+1. M8-T537（第五百一十九批）：`load_permission_rules` 被按文件问两遍（2.000/文件）
+   ＋一轮刷新中间的否决权不一致——本批 §2 的归属表已经把它的份额点名了。
+2. 那条 7.0 天花板门「不报自己的读数」：§4 的 6.208 是靠**另一把量具**（`probe_533c.py`）
+   读出来的，门本身在绿的时候什么都不说。
+3. 沿用第五百一十三批、第五百一十四批 §7 的其余顺序。
