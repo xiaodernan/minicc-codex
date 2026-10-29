@@ -36657,12 +36657,15 @@ site（§5）。
 ### 7 下一位候选（补记）
 
 1. **同一棵树的目录走查，在一次 `--check` 里被问三遍**（本批新量出来的，与解析只隔
-   一层）：`_modules()` 被 `_read_trees`、`build`、`verified_facades` 各调一次；
-   `tests/*.py` 被列两次（`_read_trees` 直接 glob 一次，`_audience_documents` 再一次）。
-   实测 `scratch/probe_541c.py` 在共享工作树上 `--check` **rc=0、5.95s**，计数
-   `_modules` 3 次、`_audience_documents` 1 次、`_script_modules` 1 次。形状与解析
-   相同：一个在一次运行里不会变的事实被问了多次。要动它，先量「一次运行一次列目录」
-   会不会改变任何判定（下限、观众、门面豁免，三条都要重算）。
+   一层）：`_modules()` 被 `_read_trees`、`build`、`verified_facades` 各调一次，
+   `minicc` 下的 86 个模块因此走 3 遍；`tests` 下的 461 个文件列 **3 遍**
+   （`_read_trees`、`census_gates`、`_audience_documents` 各一次）——这里原先记为
+   「两次」，是只数了函数调用、漏掉 `census_gates` 自己那一遍的差；`scripts` 下的
+   4 个脚本与 1 份工作流各 1 遍。一次 `--check` 共 **8 次目录列举**。
+   实测 `scratch/probe_542a.py` 在干净克隆上 `--check` **rc=0、3.92s**：8 次列举，
+   按调用点摊开是 86 个模块 3 次、461 个测试文件 3 次、4 个脚本 1 次、1 份工作流
+   1 次。形状与解析相同：一个在一次运行里不会变的事实被问了多次。要动它，先量
+   「一次运行一次列目录」会不会改变任何判定（下限、观众、门面豁免，三条都要重算）。
 2. **「超时」该不该占用「判定」这个词**（第五百二十二批 §7 第 1 位）：未动。
    `conftest.py:87-101` 的钩子仍把跑过 900s 的腿改写成 failed；实例已由第五百二十二批
    消掉，词的问题还在。
