@@ -36829,13 +36829,13 @@ A5 单说：**丢弃一条快照对腿一是不可见的**——腿一数的是�
   那一节、过百的批次号仍被点数器读出、在仓文件不带冲突标记、任务表声明与落地一致、
   tests/ 下每个门都在册，加上引用门 12 条、第五百二十三批的门 4 条与本批门 4 条）在
   **干净克隆**（`git clone --shared` 到本批提交后的 HEAD，再提交本批记录）上
-  **@@RECORD_GATES@@**；共享工作树上同一条命令 **@@LIVE_GATES@@**，红的是另一条通道
+  ****72 passed****；共享工作树上同一条命令 ****70 passed / 2 failed****，红的是另一条通道
   未提交的改名与一条未跟踪的新门（第五百二十三批 §5 记过同一件事），不是本批的字节。
   **判据取干净克隆**：工作树的红是那棵树缺的东西，不是本批。
-- 三条检查器在干净克隆上：`doc_pointers --check` **rc=0**，读 **@@DOC_MARKERS@@**
-  个「见」标记（checked=@@DOC_CHECKED@@、citation-without-locator=@@DOC_CWL@@）、
-  **@@DOC_LINKS@@** 条链接、**@@DOC_EVIDENCE@@** 条 evidence 指针（@@DOC_PROSE@@ 条
-  路径声明在代码跨度之外）、**@@DOC_DOCS@@** 份文档、**@@DOC_FILES@@** 个在仓文件；
+- 三条检查器在干净克隆上：`doc_pointers --check` **rc=0**，读 ****907****
+  个「见」标记（checked=116、citation-without-locator=53）、
+  ****23**** 条链接、****4000**** 条 evidence 指针（75 条
+  路径声明在代码跨度之外）、****20**** 份文档、****635**** 个在仓文件；
   `route_coverage --check` rc=0（读数同上）；`impacted_tests --check` rc=0，打
   `no changes to measure`。这一句报的是**它自己所在的这份文档**的数，所以它带一条
   额外的规矩：**动这一句就得重跑一次**，跑出来的数不等于写下来的数，这句就是假话。
