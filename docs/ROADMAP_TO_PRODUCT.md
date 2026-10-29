@@ -36204,20 +36204,33 @@ sha256，读数 `arms_536.txt`）：
   差集——`--check` 在今天这颗脏工作树上打 23 行（见上一条），里面确有它，而路径集只有 13 行；
   21 这个数今天两种问法都读不出来，我复现不了它。同一份脚本、两种问法、两张会随工作树移动的
   名单，我却把不是这一趟的数写成了这一趟的。**本行唯一的证据是 argv 里那 13 个文件。**
-- 三条 CI 检查器全部 rc=0，最后这一遍是在**本批记录已经写进文档之后**的字节上读的：`doc_pointers --check` 读 20 份文档、632 个在仓文件、892 个标记里checked=116、citation-without-locator=53、3962 条 evidence 指针。写进之前那一份文档读 887 个标记、3936 条指针——差的 5 个标记、26 条指针就是本批记录自己带进来的。这一句报的是**它自己所在的这份文档**的数，所以它带一条额外的规矩：**动这一句就得重跑一次**，跑出来的数不等于写下来的数，这句就是假话。`route_coverage --check`（34 个 dispatch site、378 行，GET A/B 20/20、POST A/B 14/14 = 100%）、`impacted_tests --check`（23 行影响集：第 1 行是本批门所在的那条腿；这一遍的下限由这条命令自己算出来，读数是空）。
-- 记录形状门分两组跑，两组都在**本批记录最终写进文档之后**重跑过一遍；本机当时同时跑着
-  别的项目，所以这里只报**次数**，墙钟不给数。**快的一组**（批次号不被两个标题认领、prose
-  里的围栏标记不吞跨度、§ 引用落在它自己那一节、过百的批次号仍被点数器读出、在仓文件不带
-  冲突标记、任务表声明与落地一致，加上本批门 6 条）**54 passed**。**慢的一组**
+  同一份名单在 `plane536e`（干净 checkout，没有 `node_modules`）上读 **220 passed / 1 skipped**
+  （1584.51s；跳过的是 `test_web_assets_are_fresh.py:133` 那条 esbuild 依赖），两棵树的差别
+  只有这一处环境依赖，13 个文件一个不多。
+- 三条 CI 检查器在 `plane536e`（今天 HEAD + 本批三个路径，`git init` 之后工作树干净）上全部 rc=0：`doc_pointers --check` 读 20 份文档、632 个在仓文件、892 个标记里checked=116、citation-without-locator=53、3967 条 evidence 指针；写进之前那一份文档读 887 个标记、3936 条指针——差的 5 个标记、31 条指针就是本批记录自己带进来的。这一句报的是**它自己所在的这份文档**的数，所以它带一条额外的规矩：**动这一句就得重跑一次**，跑出来的数不等于写下来的数，这句就是假话。`route_coverage --check`（34 个 dispatch site、378 行，GET A/B 20/20、POST A/B 14/14 = 100%）；`impacted_tests --check` 在**干净树**上 rc=0、打 `no changes to measure`——它先答的那条下限读数是空，这正是本批要的形状（同一棵脏工作树上同一条命令打 23 行影响集，第 1 行是本批门）。
+- 记录形状门分两组跑，两组的读数**取自两棵不同的树**，理由各自写在它那一行里。**快的一组**
+  （批次号不被两个标题认领、prose 里的围栏标记不吞跨度、§ 引用落在它自己那一节、过百的
+  批次号仍被点数器读出、在仓文件不带冲突标记、任务表声明与落地一致，加上本批门 6 条）在
+  **工作树**上 **54 passed**（119.57s）：这一组必须读真仓库的历史——
+  `test_the_commit_the_row_names_exists_in_this_repository` 问的是表里那个提交在不在仓库里，
+  `plane536e` 只有一次提交，它必然红（平面读数 53 passed / 1 failed，红的就是它）。**慢的一组**
   （`tests/test_doc_pointers.py`、`tests/test_pointer_liveness_corpus.py`、
-  `tests/test_the_two_readers_share_one_fence_ruler.py`）**77 passed / 1 failed**（那一次 2223s）。
-  红的那条**不是判定红**：
+  `tests/test_the_two_readers_share_one_fence_ruler.py`）在 `plane536e` 上
+  **77 passed / 1 failed**（3244.71s）。红的那条**不是判定红**：
   `tests/test_the_two_readers_share_one_fence_ruler.py::test_no_shipped_citation_lies_inside_a_closed_fence_block`
-  的断言过了，是它在那一次跑到 1182.5s、越过 `conftest.py:36` 的 900s 默认上限，被
+  的断言过了，是它这一趟跑到 1423.6s、越过 `conftest.py:36` 的 900s 默认上限，被
   `conftest.py:87` 的 `pytest_runtest_makereport` 钩子改写成 failed——钩子打的文案说的是实话
-  （「took 1182.5s, over the 900s bound」），摘要行那句 `1 failed` 说的不是。本批把同一段判定
+  （「took 1423.6s, over the 900s bound」），摘要行那句 `1 failed` 说的不是。本批把同一段判定
   把 `_fence_blocks` 提出循环重算了一遍：**20 份文档、落地前与落地后各一遍，offenders 都是 0**。
   这条腿的慢有名字，见 §7 第 2 位。
+- **为什么慢的一组读平面，而快的一组读工作树**：本批收尾时同一棵工作树上另有一条**未提交**的
+  通道——`minicc/task_store.py`、`minicc/task_manager.py`、`tests/test_task_durability.py` 被改过，
+  `test_expired_lease_cannot_be_revived_by_same_owner` 在那棵树里改了名，而
+  `ROADMAP_TO_PRODUCT.md:13070` 的引用没跟着改。于是 `doc_pointers --check` 在**工作树**上报出
+  一条悬空证据，它属于那次改名、不属于本批；`test_doc_pointers.py` 里那三条读真文档的腿
+  因此在工作树上红过一轮，红的不是本批的字节。`plane536e` = 今天 HEAD + 本批三个路径
+  （`git init` 后工作树干净），慢的一组与三条检查器的读数都取自它。那条通道的文件本批
+  **一个字节都没碰**，也没把它算进任何一条读数——本批不为别人的未提交改动背书，也不替它收拾。
 
 ### 6 边界（本批**不**声称）
 
@@ -36242,6 +36255,8 @@ sha256，读数 `arms_536.txt`）：
 - 真实 `claims` 作业会不会因此变红：本批在干净平面上手算下限为 `[]`，今天这一改
   **不新增红**；但它从此**真的会红**——这是本批的目的，不是副作用。
 - 本批**不跑全量围栏**（约 58 分钟一趟）；跑的是上面这批影响集与三条检查器。
+- 本批的三组读数分别取自工作树与 `plane536e`（各自的理由写在 §5）；那条通道的三个文件本批
+  一个字节都没动，它的未提交改动不在本批任何一条读数里，也不在本批的判决里。
 
 ### 7 下一位候选（补记）
 
