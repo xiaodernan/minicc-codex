@@ -333,6 +333,19 @@ def verified_facades(modules: dict[str, Path] | None = None) -> set[str]:
     return verified
 
 
+def unattended(tests_per_module: dict[str, set[str]]) -> list[str]:
+    """Modules the floor has no answer for: no audience, no exemption, not a checked facade.
+
+    ``verified_facades()`` is hoisted out of the comprehension on purpose. It used to
+    sit inside the condition, so the package was re-walked once per candidate - and
+    because the only path that reached it needed a dirty worktree, on a clean checkout
+    the exemption had never walked anything at all (M8-T536).
+    """
+    facades = verified_facades()
+    return sorted(name for name, tests in tests_per_module.items()
+                  if not tests and name not in EXEMPT and name not in facades)
+
+
 def _changed_paths(since: str | None) -> list[str]:
     if since:
         out = subprocess.run(("git", "-C", str(REPO_ROOT), "diff", "--name-only", since),
@@ -356,6 +369,19 @@ def main(argv: list[str] | None = None) -> int:
 
     tests_per_module, _tests, all_tests = build()
     gates = census_gates()
+
+    # M8-T536: the floor is a property of the tree, so it is answered here rather
+    # than below, where an empty diff returns first. ``actions/checkout`` leaves
+    # nothing uncommitted, so on every CI run the ``--check`` half of this tool -
+    # the step named "Every module has an audience that can notice its change" -
+    # printed "no changes to measure" and exited 0 having never computed a floor.
+    # Measured on a clean export with a committed minicc/__no_audience__.py.
+    if args.check:
+        floor = unattended(tests_per_module)
+        if floor:
+            print("modules no test reaches: " + ", ".join(floor), file=sys.stderr)
+            return 1
+
     changed = args.paths or _changed_paths(args.since)
     if not changed:
         print("no changes to measure", file=sys.stderr)
@@ -431,13 +457,6 @@ def main(argv: list[str] | None = None) -> int:
     if not ordered:
         print("no test file reaches the changed paths", file=sys.stderr)
 
-    if args.check:
-        floor = sorted(name for name, tests in tests_per_module.items()
-                       if not tests and name not in EXEMPT
-                       and name not in verified_facades())
-        if floor:
-            print("modules no test reaches: " + ", ".join(floor), file=sys.stderr)
-            return 1
     return 0
 
 

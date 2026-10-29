@@ -36026,3 +36026,236 @@ junit 的 5 个 testcase 1 个 failure、compare 退出码 1 一字不变**—�
 4. `--check` 在干净工作树上先返回、覆盖度下限从来没在 CI 上算过（第五百一十八批）。
 5. 读不出 `permissions.json` 的那次 stat，答的是「没有规则，也没有错」（第五百一十九批，
    素材已备）。
+
+## 第五百一十八批 — M8-T536 — 一步写着「每个模块都有观众」的 CI，在干净工作树上永远答「没有改动」
+
+### 1 欠的是哪一条
+
+`scripts/impacted_tests.py` 在文件头给自己写过合同（HEAD:38-40）：
+
+> Exit code 0 means the impact set was computed (and, with ``--check``, that the
+> floor holds).
+
+`main` 的形状跟这句合同不一致（HEAD 445 行）：`:357-362` 先算普查、再取
+`changed = args.paths or _changed_paths(args.since)`，**空就 `return 0`**，打的只有
+一行 `no changes to measure`；而 `--check` 的下限块在 `:434-440`——在那个 return
+**后面**。
+
+CI 的合同写在 `.github/workflows/ci.yml:100`：步骤名
+`Every module has an audience that can notice its change`，命令
+`python scripts/impacted_tests.py --check`，前面是 `actions/checkout`。
+**checkout 之后工作树是干净的**——`git diff --name-only HEAD` 与
+`ls-files --others --exclude-standard` 都是空串——于是这一步每次都走 `:361` 的
+return，下限一次都没算过。它从来没有拒过任何一次提交，不是因为没有无观众的模块，
+是因为它没问过。
+
+本该看着这条的门是 `tests/test_impacted_tests.py:118`
+`test_the_impact_floor_is_wired_into_ci`，它的断言在 `:126`：
+
+```
+assert "python scripts/impacted_tests.py --check" in workflow
+```
+
+**问的是命令有没有写进 workflow，不是命令按 CI 的方式跑起来做不做那件事**。它的
+docstring 基线还写着「A floor nobody runs is the hand-copied list it replaced」
+——这句话今天读起来是一次点名。
+
+全仓能搜到这条命令行的地方只有三处（`.github/workflows/ci.yml:100`、脚本自己的
+docstring `:31`、上面那条字符串断言）：本仓**跑过** `impacted_tests.py --check` 的腿
+是 **0** 条，`tests/test_impacted_tests.py` 那 18 条里没有一条把 `--check` 交进 argv。
+
+这个形状在本仓是**已有**的，不是本批新造的规矩：另外两条 claim 检查器各有一条真的把
+自己文档里那条命令跑一遍的腿——
+`tests/test_pointer_liveness_corpus.py::test_the_documented_command_still_passes_with_a_relative_document`
+与 `tests/test_route_coverage_measurement.py::test_the_documented_command_reproduces_the_number`
+（后者的 docstring 写着它是「the only proof that a clean checkout can recompute the
+figure the roadmap quotes」）。三条检查器里只有 `impacted_tests` 少这一条腿，而少的
+这条恰好是 CI 每天在跑的那条。
+
+campaign 从第五百一十五批起在收的那一类缺陷，第四次出现在同一个形状上：读不出来的
+东西被写成一个读出来的值（`mtime = 0.0`、「我没跑起来」压成「我抓到了」、「没有 A/B」
+压成「差值为零」，现在是**「没算」压成「算过，且通过」**）。
+
+### 2 量到的真相（实测，2026-10-29 本机）
+
+CI 条件上的判决（`scratch/probe_536d.py` 跑在 `plane536c` = 今天的
+`git archive HEAD` 导出 631 个文件 + `git init`/`add`/`commit`，使 `git diff HEAD`
+与未跟踪列表**都为空串**；读数在 `head_witness_536.txt`）：
+
+| 同一棵树的状态 | `python scripts/impacted_tests.py --check` | 它说的话 | 手算下限 |
+| --- | --- | --- | --- |
+| 干净、没有无主模块 | **0** | `no changes to measure` | `[]` |
+| 干净 + **已提交**的 `__no_audience__.py`（种进 `minicc` 包） | **0** | `no changes to measure` | **`['minicc.__no_audience__']`** |
+| 同一棵树，路径显式交进去（开发者的跑法） | 1 | `changed module(s) no test can notice: minicc.__no_audience__` | 同上 |
+| 同一棵树，`--since HEAD~1` | 1 | 同上 | 同上 |
+
+第二行是 CI 每天的状态：往 `minicc/` 里加一个没人 import 的模块、提交、推上去，
+claims 作业**绿**。方向要说清，因为它决定本批算修了什么：**今天没有东西被藏着**——
+真实仓库今天的下限就是空（下表第 4 行）。缺的不是一个已经存在的受害者，是
+**这条门不可能红**；同一个输入在开发者脏工作树上反倒会红——一个安全门是否生效
+取决于手头有没有未提交改动。
+
+下限在 HEAD 上到底跑没跑过（`scratch/probe_536e.py` 跑在 `plane536d` = 同一份 HEAD
+字节、同样干净）：
+
+| 量 | 读数 |
+| --- | --- |
+| 干净 checkout 上一次 `--check` 里 `verified_facades()` 被调 | **0** 次（15.33s，与别的作业共享机器，只有次数可迁移） |
+| 同一棵树改成「有一个未提交、无观众的模块」 | 退 1，但那句话是 diff 半说的；`verified_facades()` 仍 **0** 次 |
+| 单次 `verified_facades()` 的成本 | 7 个名字解析、0.01s；4 个 `__init__` 里 3 个声明 `__all__`，返回 3 个已核验门面 |
+| HEAD 平面上的普查 | 90 个模块、458 个测试文件、观众为空的模块 **0** 个；落地后测试文件变 459（本批门自己），模块数与「观众为空」的数都不变 → 这一改**不新增红** |
+| HEAD 之前本仓跑过这条命令行的腿 | **0** 条 |
+
+顺带量到的成本（同一条 `HEAD:437` 表达式与这三个检查器；`scratch/probe_536f.py`，
+包住 `ast.parse` 后各跑一次 `--check`）：
+
+| 检查器 | 一次 `--check` 的 `ast.parse` | 不同源码 | 冗余解析 |
+| --- | --- | --- | --- |
+| `impacted_tests.py`（HEAD 字节） | 1002 | 544 | **458** |
+| `impacted_tests.py`（本批字节） | 1011 | 545 | 466 |
+| `route_coverage.py` | 4 | 1 | 3（同一份 757 行 `minicc/webserver.py` 解析 4 遍） |
+| `doc_pointers.py` | 458 | 458 | **0**（三个里唯一已经共享解析的） |
+
+两行 `impacted_tests` 的差是本批自己带进来的：+9 次解析 = 那份门文件被数两遍（+2）
+加**下限第一次真的走了一遍整包门面豁免**（+7，0.01s）。花 0.01s 买到一个真的判决，
+本批认为这笔账要写在记录里而不是一句「更严了」带过。
+
+### 3 落地
+
+一个家：`scripts/impacted_tests.py`（HEAD 445 行 → 落地 464 行；raw sha
+`02e10bd1996e` → `dcc5f8d2beff`，与平面 `plane536b` 逐字节相同）。
+
+- 下限块从 `main` 尾部**提到 `changed` 之前**（:372-383），仍由 `args.check` 触发，
+  命中就 `return 1`。下限是**树的属性**，不该由 diff 代它回答。
+- 新增 `unattended(tests_per_module)`（:336-347）：`verified_facades()` **提到推导式
+  外面**（:344），一次算完；`EXEMPT` 照旧生效。
+- 尾部原来那段推导删掉，只剩 `return 0`。
+- 注释里写清**为什么**在这里答（checkout 留不下未提交改动、这一步曾永远打
+  `no changes to measure`），防止下一位把它「整理」回 diff 之后。
+
+**没有**动的东西，是决定的一部分：`.github/workflows/ci.yml` 一字未改（命令、步骤名
+都不需要改——要改的是命令自己做不做那件事）；`test_the_impact_floor_is_wired_into_ci`
+不改（那条字符串门已经有家，本批不立第二条）；`:448` 的 `unseen` 半不动（那是 diff
+的问题）；`EXEMPT`、`verified_facades()` 的判据都不动。
+
+### 4 见证
+
+门：`tests/test_a_clean_checkout_still_answers_the_floor.py`（6 条腿、202 行 CRLF，
+raw sha `2ec594a2fe23`，与平面逐字节相同）。合成树 =
+`minicc/{__init__,attended,orphan0[,orphan1]}.py` + 一个 import 了 `minicc.attended`
+的测试 + 一个引用 `scripts/impacted_tests.py` 的 workflow；脚本字节从真仓原样复制，
+所以 `REPO_ROOT` 指向合成树——门问的是这个工具的行为，不是这个仓库的内容。
+
+| 阶段 | 读数 |
+| --- | --- |
+| HEAD 字节（`plane536b` = 今天的 `git archive HEAD` + 本批门） | **2 failed / 4 passed**（3.97s）：红的是腿一「干净 checkout 仍要结算下限」与腿五「门面豁免只推一次」；对照四条（无无主模块要绿、不带 `--check` 不越权、豁免仍归 diff 半管、普查不是空的）本来就该绿 |
+| 本批字节 + 本批门（平面） | **6 passed**（4.57s） |
+| 落地后的真实仓库 | **6 passed**（4.94s） |
+
+门落地后，CI 那条命令在同一个平面上重跑（`plane536c` 打上本批字节）：
+种着 `__no_audience__.py`（`minicc` 包下）的干净树 → **exit 1**、`modules no test reaches:
+minicc.__no_audience__`；拔掉之后重新提交成干净树 → **exit 0**、`no changes to
+measure`。这就是本批要的形状：**同一条命令、同一个 CI 状态，从此先答下限。**
+
+六条臂（`scratch/arms_536b.py`，今天重跑；每条改完即还原并复验脚本与门自身的
+sha256，读数 `arms_536.txt`）：
+
+| 臂 | 改了什么 | 期望 | 红的腿 | 判定 |
+| --- | --- | --- | --- | --- |
+| A1 | 下限块整条删掉 | L1+L5 红 | L1、L5 | MATCHED |
+| A2 | 下限块放回提前 return **之后**（原形状） | 只 L1 红 | L1 | MATCHED |
+| A3 | `verified_facades()` 塞回推导式条件里 | 只 L5 红 | L5 | MATCHED |
+| A4 | `unattended()` 不再看 `EXEMPT` | 只 L4 红 | L4 | MATCHED |
+| A5 | 去掉 `args.check` 守卫（普通调用也结算下限） | 只 L3 红 | L3 | MATCHED |
+| A6 | `PACKAGE` 指向不存在的包（普查读空） | L1+L4+L5+L6 红 | L1、L4、L5、L6 | MATCHED |
+
+**六 MATCHED**，平面收尾时脚本与门都停在批次字节。三处前提是写错的、后来改对，
+留在记录里：
+
+1. **腿四的第一版前提是错的**：它断言显式路径跑法仍打
+   `changed module(s) no test can notice`。本批字节上它**红了**——下限先答，同一个
+   无主模块两句话等价。这不是产品的错，是这条腿问错了问题；改成问**两句话不等价的
+   那个输入**：`EXEMPT` 里有它。下限放过它，diff 半必须仍然点名，且「下限不许把豁免
+   当装饰」。
+2. **A6 的第一版期望是 `{L1,L4,L6}`**，实读多一条 L5。也是腿对臂错：包被指空之后
+   `main` 无话可说，腿五要的 `code==1` 自然拿不到。**普查读空必须从每条读判定的腿
+   都看得见。**
+3. **臂驱动第一版把门文件名当相对路径传给 pytest**（cwd 已经是平面根），六条臂全部
+   `no tests ran`、`red=[]`，于是每条都报 `DID NOT BITE`——**一次没跑的臂照样能产出
+   一个看起来像结论的判定**。驱动现在见到 `no tests ran` 直接中止整轮。
+
+第 3 条今天以另一种形式又抓了我一次：本批的回归命令第一次是这么红的——把 `tee` 写的
+清单用 `tr '\n' ' '` 拆成 argv，Windows 下管道里的 `print` 写的是 CRLF，于是每条路径
+尾巴上挂着一个 `\r`，pytest 报 `file or directory not found`、`no tests ran`、退出码
+**4**（重跑一次才确认，`broken_argv_536.txt`）。**数字是对的，是它自己说了实话**；
+我第一遍只读了 `tail` 的最后一行文本就往下走。同一课的另一种犯法：
+**一个什么都没读的跑，只要没人读它的退出码，就能长得像一次绿。**
+
+### 5 聚焦回归
+
+- 真实仓库：`scripts/impacted_tests.py` 的影响集——把 `scripts/impacted_tests.py` 自己作为路径
+  交进去打出的 **13 个测试文件**——连着本批门一起跑完 **221 passed**（本行的数读的是记录写进
+  文档之后的字节；那一趟 1806s，与别的项目共享机器，只有次数可迁移）。名单里有
+  `tests/test_impacted_tests.py` 原有 18 条腿、`tests/test_doc_pointers.py`、
+  `tests/test_route_coverage_measurement.py` 与本批自己那条门；**没有** `tests/test_ci_hygiene.py`——它钉的是
+  wheel、junit 产物、gate floor 那些事，与本批这条命令行无关，正是 §1 说的那件事的另一面。
+  **本行第一版是错的，错在我把两张名单读成了一张**：它写「21 个测试文件」，名单里还列了
+  `tests/test_a_gate_is_only_a_gate_once_it_is_in_the_repo.py`。那个名字属于**另一种问法**打出的
+  差集——`--check` 在今天这颗脏工作树上打 23 行（见上一条），里面确有它，而路径集只有 13 行；
+  21 这个数今天两种问法都读不出来，我复现不了它。同一份脚本、两种问法、两张会随工作树移动的
+  名单，我却把不是这一趟的数写成了这一趟的。**本行唯一的证据是 argv 里那 13 个文件。**
+- 三条 CI 检查器全部 rc=0，最后这一遍是在**本批记录已经写进文档之后**的字节上读的：`doc_pointers --check` 读 20 份文档、632 个在仓文件、892 个标记里checked=116、citation-without-locator=53、3962 条 evidence 指针。写进之前那一份文档读 887 个标记、3936 条指针——差的 5 个标记、26 条指针就是本批记录自己带进来的。这一句报的是**它自己所在的这份文档**的数，所以它带一条额外的规矩：**动这一句就得重跑一次**，跑出来的数不等于写下来的数，这句就是假话。`route_coverage --check`（34 个 dispatch site、378 行，GET A/B 20/20、POST A/B 14/14 = 100%）、`impacted_tests --check`（23 行影响集：第 1 行是本批门所在的那条腿；这一遍的下限由这条命令自己算出来，读数是空）。
+- 记录形状门分两组跑，两组都在**本批记录最终写进文档之后**重跑过一遍；本机当时同时跑着
+  别的项目，所以这里只报**次数**，墙钟不给数。**快的一组**（批次号不被两个标题认领、prose
+  里的围栏标记不吞跨度、§ 引用落在它自己那一节、过百的批次号仍被点数器读出、在仓文件不带
+  冲突标记、任务表声明与落地一致，加上本批门 6 条）**54 passed**。**慢的一组**
+  （`tests/test_doc_pointers.py`、`tests/test_pointer_liveness_corpus.py`、
+  `tests/test_the_two_readers_share_one_fence_ruler.py`）**77 passed / 1 failed**（那一次 2223s）。
+  红的那条**不是判定红**：
+  `tests/test_the_two_readers_share_one_fence_ruler.py::test_no_shipped_citation_lies_inside_a_closed_fence_block`
+  的断言过了，是它在那一次跑到 1182.5s、越过 `conftest.py:36` 的 900s 默认上限，被
+  `conftest.py:87` 的 `pytest_runtest_makereport` 钩子改写成 failed——钩子打的文案说的是实话
+  （「took 1182.5s, over the 900s bound」），摘要行那句 `1 failed` 说的不是。本批把同一段判定
+  把 `_fence_blocks` 提出循环重算了一遍：**20 份文档、落地前与落地后各一遍，offenders 都是 0**。
+  这条腿的慢有名字，见 §7 第 2 位。
+
+### 6 边界（本批**不**声称）
+
+- **不声称「同一份源码解析两遍」被修了。** §2 第三张表是成本读数，不是判定口径；
+  一份量具一次只换一个口径。已排 §7 第一位。
+- **门跑在合成树里**：它证的是「提前 return 挡住了下限」这个机制与修法，不证真实
+  仓库的下限内容——内容由 `tests/test_impacted_tests.py` 的
+  `test_every_module_is_reachable_from_a_test_or_is_a_verified_facade` 看着，本批
+  不立第二条家。
+- **不声称 `verified_facades()` 的豁免判据是对的。** 本批只把它从「每个候选推一次」
+  改成「每棵树推一次」（腿五看着次数，不看着结论）。
+- 腿一的 `git diff HEAD == ""` 断言是这条腿的前提，不是被测对象；`git` 不在 PATH 时
+  腿**主动 fail 说自己没跑**，不替下限作答。
+- `--check` 现在在下限违规时**不再计算 diff**（提前 return），那条路径上不再打印
+  影响集。两句话在 CI 里各只会出现一次；本批不声称这更好，只声称它更短。
+- **不声称 CI 从此每次都做普查**：下限只在 `--check` 被要求时算，普通调用仍是
+  diff-only（腿三钉住这条边界，A5 是它的臂）。
+- **不声称那条红的记录形状门是本批抓出来的，也不声称它的判定错了。** §5 记了本批对它
+  重算的谓词（20 份文档 × 落地前后，offenders=0）；本批既不修它的耗时（§7 第 2 位），
+  也不把 `conftest.py:36` 的 900s 调大——调大只会让它继续以错的方式慢着，而这条门红一次
+  的代价由下一个动它的人付。
+- 真实 `claims` 作业会不会因此变红：本批在干净平面上手算下限为 `[]`，今天这一改
+  **不新增红**；但它从此**真的会红**——这是本批的目的，不是副作用。
+- 本批**不跑全量围栏**（约 58 分钟一趟）；跑的是上面这批影响集与三条检查器。
+
+### 7 下一位候选（补记）
+
+1. **检查器把同一份源码解析两遍、解析出来的名字没人读**：§2 第三张表的 458/466 次
+   冗余，外加 `main` 把 `build()` 的第二个返回值直接绑成 `_tests` 丢掉（HEAD 平面上
+   459 条在册）。它和第五百一十八批同族——**读了不用**与**没读就说读了**是一枚钱的两面。
+2. **一条门把「我跑不完」报成「我抓到了」**（§5 慢的那一组实测）：
+   `_block_of()`（`tests/test_the_two_readers_share_one_fence_ruler.py:79-83`）在**每个跨度**
+   的循环里重新扫一遍整篇文档的围栏，于是这条腿的耗时是「跨度数 × 整篇扫描」；今天它
+   1182.5s 越过 900s 上限被钩子判成 failed，而它的谓词本批重算过两遍、结论是没抓到东西。
+   该改的是这条腿怎么读一篇文档，以及**超时该不该占用「判定」这个词**——两件事都要量出来
+   再动，不在本批的口径里。
+3. **「劣化 15%」这条声明的相对线仍然没有读者**（第五百一十七批 §6/§7 排下来的）：
+   `GATE_METRICS` 里没有 delta 项，而那条线一旦有读者就必须先把 nightly 那一步的
+   自比改成真 A/B——两件事由
+   `tests/test_a_self_compare_is_not_published_as_an_ab.py` 的腿十一钉在一起，不能分开做。
+4. 沿用第五百一十三批 §7 的其余顺序。
