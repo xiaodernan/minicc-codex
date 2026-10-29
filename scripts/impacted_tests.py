@@ -46,6 +46,7 @@ import ast
 import re
 import subprocess
 import sys
+from collections.abc import Mapping
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -77,7 +78,33 @@ def _walks_the_tree(tree: ast.Module) -> bool:
     )
 
 
-def census_gates() -> dict[str, frozenset[str]]:
+class UnreadableSource(Exception):
+    """A source file that cannot be read as UTF-8 Python. One reader, one failure."""
+
+
+def _parse(path: Path) -> ast.Module:
+    """The one home for turning a source file into a tree.
+
+    Both halves of ``--check`` judge every ``tests/*.py`` file: the import graph
+    (``build``) asks what it references, the census (``census_gates``) which repo
+    roots it walks. Each half used to own a ``read_text`` + ``ast.parse`` pair,
+    and the two did not even decode alike - the graph replaced undecodable bytes,
+    the census required UTF-8 and raised ``UnicodeDecodeError`` past the ``except
+    (OSError, SyntaxError)`` written to survive exactly that file.
+    """
+    try:
+        return ast.parse(path.read_text(encoding="utf-8"))
+    except (OSError, SyntaxError, UnicodeDecodeError) as exc:
+        raise UnreadableSource(f"cannot read {path}: {type(exc).__name__}: {exc}") from exc
+
+
+def _read_trees() -> dict[Path, ast.Module]:
+    """Every source this run walks, read once. Raises ``UnreadableSource`` on the first failure."""
+    paths = list(_modules().values()) + sorted((REPO_ROOT / "tests").glob("*.py"))
+    return {path: _parse(path) for path in paths}
+
+
+def census_gates(trees: Mapping[Path, ast.Module] | None = None) -> dict[str, frozenset[str]]:
     """``{test file: the repo roots it scans}``, derived from the test files.
 
     A census gate's subject is the repository, not a module: it walks a directory
@@ -94,13 +121,19 @@ def census_gates() -> dict[str, frozenset[str]]:
     Derived rather than listed here because a hand-kept table is the M8-T179
     shape - it goes stale the day somebody adds a gate, and a stale table is
     indistinguishable from a complete one.
+
+    ``trees`` is the snapshot ``main`` read once and hands to both readers; a
+    caller that passes nothing still gets one honest read here, and that read's
+    failures are the only ones this reader may drop without a word.
     """
     gates: dict[str, frozenset[str]] = {}
     for path in sorted((REPO_ROOT / "tests").glob("*.py")):
-        try:
-            tree = ast.parse(path.read_text(encoding="utf-8"))
-        except (OSError, SyntaxError):
-            continue
+        tree = trees.get(path) if trees is not None else None
+        if tree is None:
+            try:
+                tree = _parse(path)
+            except UnreadableSource:
+                continue
         if not _walks_the_tree(tree):
             continue
         roots = frozenset(
@@ -140,12 +173,9 @@ def _resolver(modules: dict[str, Path]):
     return resolve
 
 
-def _imports(path: Path, resolve) -> set[str]:
+def _imports(path: Path, resolve, tree: ast.Module | None = None) -> set[str]:
     """Modules this file imports, relative or absolute, including ``from X import Y``."""
-    try:
-        tree = ast.parse(path.read_text(encoding="utf-8"))
-    except (OSError, SyntaxError) as exc:  # pragma: no cover - reported by the caller
-        raise SystemExit(f"cannot parse {path}: {exc}") from exc
+    tree = _parse(path) if tree is None else tree
     found: set[str] = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
@@ -170,16 +200,16 @@ def _imports(path: Path, resolve) -> set[str]:
     return found
 
 
-def _test_references(path: Path, resolve) -> set[str]:
+def _test_references(path: Path, resolve, tree: ast.Module | None = None) -> set[str]:
     """What a test file reaches: imports plus every ``minicc.x`` string it carries.
 
     The string half is not decoration. ``monkeypatch.setattr("minicc.web.AgentService", ...)``
     reaches ``minicc.web`` without importing it, and a test that only patches a module
     still notices when that module changes.
     """
-    text = path.read_text(encoding="utf-8", errors="replace")
+    tree = _parse(path) if tree is None else tree
     found: set[str] = set()
-    for node in ast.walk(ast.parse(text)):
+    for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             for alias in node.names:
                 name = resolve(alias.name)
@@ -203,7 +233,7 @@ def _test_references(path: Path, resolve) -> set[str]:
     return found
 
 
-def _document_references(name: str, path: Path, resolve) -> set[str]:
+def _document_references(name: str, path: Path, resolve, tree: ast.Module | None = None) -> set[str]:
     """What one audience document reaches.
 
     A ``.py`` document is parsed: imports plus the ``minicc.x`` / ``scripts/x.py``
@@ -212,7 +242,7 @@ def _document_references(name: str, path: Path, resolve) -> set[str]:
     parsing YAML as Python is how the first version of this function crashed.
     """
     if name.endswith(".py"):
-        return _test_references(path, resolve)
+        return _test_references(path, resolve, tree)
     text = path.read_text(encoding="utf-8", errors="replace")
     found: set[str] = set()
     for mention in STRING_REF.findall(text):
@@ -254,13 +284,21 @@ def _audience_documents() -> list[tuple[str, Path]]:
     return documents
 
 
-def build() -> tuple[dict[str, set[str]], dict[str, set[str]], set[str]]:
-    """(audience per module, per-document references, all test files)."""
+def build(trees: Mapping[Path, ast.Module] | None = None) -> tuple[dict[str, set[str]], dict[str, set[str]], set[str]]:
+    """(audience per module, per-document references, all test files).
+
+    ``trees`` is the snapshot ``main`` read once for both halves of ``--check``;
+    without it every document is read by this call, through the same ``_parse``.
+    """
+    known: Mapping[Path, ast.Module] = trees if trees is not None else {}
     modules = _modules()
     resolve = _resolver(modules)
-    production = {name: _imports(path, resolve) for name, path in modules.items()}
+    production = {name: _imports(path, resolve, known.get(path)) for name, path in modules.items()}
     documents = _audience_documents()
-    references = {name: _document_references(name, path, resolve) for name, path in documents}
+    references = {
+        name: _document_references(name, path, resolve, known.get(path))
+        for name, path in documents
+    }
     audience: dict[str, set[str]] = {name: set() for name in modules}
     for name in _script_modules():
         audience.setdefault(name, set())
@@ -271,9 +309,9 @@ def build() -> tuple[dict[str, set[str]], dict[str, set[str]], set[str]]:
     return audience, references, {name for name, _ in documents if name.endswith(".py")}
 
 
-def _bound_names(path: Path) -> set[str]:
+def _bound_names(path: Path, tree: ast.Module | None = None) -> set[str]:
     """Every name this module binds: imports, defs, classes, assignments."""
-    tree = ast.parse(path.read_text(encoding="utf-8"))
+    tree = _parse(path) if tree is None else tree
     names: set[str] = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store):
@@ -295,9 +333,9 @@ def _bound_names(path: Path) -> set[str]:
     return names
 
 
-def _promised_names(path: Path) -> set[str] | None:
+def _promised_names(path: Path, tree: ast.Module | None = None) -> set[str] | None:
     """The ``__all__`` of a module, or ``None`` when it declares none."""
-    tree = ast.parse(path.read_text(encoding="utf-8"))
+    tree = _parse(path) if tree is None else tree
     for node in ast.walk(tree):
         if isinstance(node, ast.Assign) and any(
             isinstance(target, ast.Name) and target.id == "__all__" for target in node.targets
@@ -307,7 +345,10 @@ def _promised_names(path: Path) -> set[str] | None:
     return None
 
 
-def verified_facades(modules: dict[str, Path] | None = None) -> set[str]:
+def verified_facades(
+    modules: dict[str, Path] | None = None,
+    trees: Mapping[Path, ast.Module] | None = None,
+) -> set[str]:
     """Package ``__init__`` files whose ``__all__`` is exactly what they bind.
 
     A pure re-export facade has no behaviour of its own to test, so the floor
@@ -319,21 +360,31 @@ def verified_facades(modules: dict[str, Path] | None = None) -> set[str]:
     nothing imported it.
 
     A facade earns its exemption by being checked, not by being listed.
+
+    One tree answers both questions - what the file promises and what it binds -
+    rather than each reader reading the file again.
     """
     modules = _modules() if modules is None else modules
+    known: Mapping[Path, ast.Module] = trees if trees is not None else {}
     verified: set[str] = set()
     for name, path in modules.items():
         if not name.endswith(".__init__"):
             continue
-        promised = _promised_names(path)
+        tree = known.get(path)
+        if tree is None:
+            tree = _parse(path)
+        promised = _promised_names(path, tree)
         if promised is None:
             continue
-        if promised and promised <= _bound_names(path):
+        if promised and promised <= _bound_names(path, tree):
             verified.add(name)
     return verified
 
 
-def unattended(tests_per_module: dict[str, set[str]]) -> list[str]:
+def unattended(
+    tests_per_module: dict[str, set[str]],
+    trees: Mapping[Path, ast.Module] | None = None,
+) -> list[str]:
     """Modules the floor has no answer for: no audience, no exemption, not a checked facade.
 
     ``verified_facades()`` is hoisted out of the comprehension on purpose. It used to
@@ -341,7 +392,7 @@ def unattended(tests_per_module: dict[str, set[str]]) -> list[str]:
     because the only path that reached it needed a dirty worktree, on a clean checkout
     the exemption had never walked anything at all (M8-T536).
     """
-    facades = verified_facades()
+    facades = verified_facades(trees=trees)
     return sorted(name for name, tests in tests_per_module.items()
                   if not tests and name not in EXEMPT and name not in facades)
 
@@ -367,8 +418,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--check", action="store_true", help="also gate the coverage floor")
     args = parser.parse_args(argv)
 
-    tests_per_module, _tests, all_tests = build()
-    gates = census_gates()
+    try:
+        trees = _read_trees()
+    except UnreadableSource as exc:
+        # A file this run cannot read is a finding about the tree, not a document
+        # with no references: answering the floor and the census from a partial
+        # read would grade the missing file as absent rather than unreadable.
+        print(exc, file=sys.stderr)
+        return 1
+    tests_per_module, _references, all_tests = build(trees)
+    gates = census_gates(trees)
 
     # M8-T536: the floor is a property of the tree, so it is answered here rather
     # than below, where an empty diff returns first. ``actions/checkout`` leaves
@@ -377,7 +436,7 @@ def main(argv: list[str] | None = None) -> int:
     # printed "no changes to measure" and exited 0 having never computed a floor.
     # Measured on a clean export with a committed minicc/__no_audience__.py.
     if args.check:
-        floor = unattended(tests_per_module)
+        floor = unattended(tests_per_module, trees)
         if floor:
             print("modules no test reaches: " + ", ".join(floor), file=sys.stderr)
             return 1

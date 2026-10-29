@@ -36450,3 +36450,222 @@ A3 单说：它对语料腿是**不可见**的——`_code_spans` 先抹围栏�
    字符的 ROADMAP，是一次线性，不是本批的形状。`test_an_outer_backtick_run_does_not_steal_the_span_it_wraps`
    每份文档调一次 `_code_spans`，修后 0.54s。两条都只记下，不动：本批的门只量「建尺次数
    跟不跟跨度走」，不量单条检查器自身的成本。
+
+## 第五百二十三批 — M8-T541 — 检查器把同一份源码解析两遍，解析出来的名字没人读
+
+### 1 欠的是哪一条
+
+第五百一十八批 §7 第 1 位原话：
+
+> **检查器把同一份源码解析两遍、解析出来的名字没人读**：§2 第三张表的 458/466 次
+> 冗余，外加 `main` 把 `build()` 的第二个返回值直接绑成 `_tests` 丢掉（HEAD 平面上
+> 459 条在册）。它和第五百一十八批同族——**读了不用**与**没读就说读了**是一枚钱的两面。
+
+这条候选有两半，本批量到的真相把它们分开了。
+
+**重复解析的那一半是真的，而且比 458/466 更大。** 第五百一十八批之后又落了两批，
+每批的门文件都被同一次 `--check` 数两遍，今天的读数是 **1013 次解析 / 546 份不同
+源码 / 467 次冗余**。冗余不是三处小毛病，是**一条主路**：460 个测试文件各被
+`_test_references`（HEAD:182）与 `census_gates`（HEAD:101）读一遍；4 个门面
+`__init__` 被 `_imports`（:146）、`_promised_names`（:300）、`_bound_names`（:276）
+读 2–3 遍；`route_coverage.py` 把同一份 757 行的 `minicc/webserver.py` 解析 **4 遍**
+（HEAD:188 两次、:236、:338）。这条主路每加一批门就长一笔，不是会自己消失的债务。
+
+**「解析出来的名字没人读」的那一半比候选说的窄。** `build()` 的第二个返回值（每份
+文档的引用集）在 `main` 里绑成 `_tests` 后确实没人读，但它在**门外**有读者：
+`tests/test_impacted_tests.py::test_the_floor_is_not_diluted_by_the_census_gates`
+用它守「下限不被普查门稀释」。所以它不是死值，`main` 的那个绑定才是死名字。本批把
+绑定改名 `_references`（让它说的是它装的东西），**不删**这个返回值——删了那条门就
+只剩一个更弱的说法。
+
+**而同一个文件上的两遍读法，答案可以不一样。** 图的那一遍用
+`read_text(errors="replace")`（HEAD:182），普查的那一遍要 UTF-8（HEAD:101），
+它的 `except (OSError, SyntaxError)` 接不住 `UnicodeDecodeError`——那是 `ValueError`，
+不是 `OSError`。一个解不开的测试文件，图那半把它判成一份「没有引用的文档」，普查那半
+让整个 `--check` 死掉；仓里今天没有这样的文件，所以两个数都印得出来，谁也没见过分歧。
+**「读不出来」被答成「没有引用」**，是 campaign 从第五百一十五批起在收的同一类
+（`mtime = 0.0`、「我没跑起来」压成「我抓到了」、「没有 A/B」压成 `delta 0.0`、
+「没算」压成「算过且通过」、超时压成 failed）。
+
+所以本批的口径是：**一次运行，一份源码只读一次、只解一次码；解不开的那份被点名，
+整次运行拒绝回答**——而不是让两个半场各答各的。
+
+### 2 量到的真相（实测，2026-10-30 本机）
+
+语料：`plane541` = HEAD `d4e6a55` 的 `git archive` 导出（633 个在仓文件），
+`git init` / `add` / `commit` 后一个提交 `da6795c`、工作树干净；下列读数取自本批
+记录写进文档**之前**的字节。计法是 `scratch/probe_541.py`：sitecustomize 包住
+`ast.parse`，按调用点与源码 sha1 记账，跑三个检查器的 `--check`。
+
+| 检查器 | 修前：解析 / 不同源码 / 冗余 | 修后 | 对照 |
+| --- | --- | --- | --- |
+| `impacted_tests --check` | **1013 / 546 / 467** | **546 / 546 / 0** | — |
+| `route_coverage --check` | **4 / 1 / 3** | **1 / 1 / 0** | — |
+| `doc_pointers --check` | 460 / 460 / 0 | 460 / 460 / 0 | 已经是一份源码一次 |
+
+修前那 1013 次按调用点摊开（HEAD 行号）：
+
+| 调用点 | 次数 | 是什么 |
+| --- | --- | --- |
+| `impacted_tests.py:182` `_test_references` | 460 | 图：每份测试文件的引用 |
+| `impacted_tests.py:101` `census_gates` | 460 | 普查：同一批测试文件走哪棵树 |
+| `impacted_tests.py:146` `_imports` | 86 | 生产模块的 import 边 |
+| `impacted_tests.py:300` `_promised_names` | 4 | 门面的 `__all__` |
+| `impacted_tests.py:276` `_bound_names` | 3 | 门面绑定的名字 |
+| `route_coverage.py:188` / `:236` / `:338` | 2 / 1 / 1 | 同一份 webserver 文本的四个读者 |
+
+修后整条通路只剩一个调用点：`_parse`（`impacted_tests.py:96`、`route_coverage.py:198`）。
+546 = 460 个测试文件 + 86 个模块；与 `doc_pointers` 的 460 不是同一口径——引用门只读
+`tests/*.py`，不读 `minicc/`。
+
+**墙钟**（同一台机器、同一次探针，只做同探针内的前后对照）：
+
+| 检查器 | 修前 | 修后 |
+| --- | --- | --- |
+| `impacted_tests --check` | 8.50s | 6.19s |
+| `route_coverage --check` | 98.02s | 46.14s |
+| `doc_pointers --check` | 72.14s | 72.14s（对照，没动） |
+
+`route_coverage` 那 52 秒**不是本批买回来的**：多解析三次 757 行源码只值几十毫秒，
+两次跑之间机器负载不同。本节只把墙钟列出来，判决用解析次数——它与机器和负载无关。
+
+**解码分歧的实测**（`scratch/probe_541b.py`，同一份含 `0xff` 字节的文件）：
+图那半用 `errors="replace"` 解析成功；普查那半抛
+`UnicodeDecodeError: 'utf-8' codec can't decode byte 0xff in position 6: invalid start byte`，
+越过那条为「一个坏文件不该带走整个工具」写下的 `except`。§4 的红把同一形状钉在门里。
+
+### 3 落地
+
+一个家：读一份源码这件事只有一个入口，两个半场拿同一份快照。
+
+1. `scripts/impacted_tests.py`：
+   - 新增 `UnreadableSource`（:81）与 `_parse(path)`（:85）：一次 `read_text` + 一次
+     `ast.parse`，把 `OSError`、`SyntaxError`、`UnicodeDecodeError` 折成同一个**声明
+     出来的失败**；
+   - 新增 `_read_trees()`（:101）：`minicc/` 的 86 个模块与 `tests/*.py` 的 460 个文件
+     各读一次，成一个 `dict[Path, ast.Module]`；`main`（:422）在回答任何问题之前先建它；
+   - `census_gates(trees)`（:107）按路径从快照取树；`build(trees)`（:287）把
+     `known.get(path)` 交给每个读者；`_imports`（:176）、`_test_references`（:203）、
+     `_document_references`（:236）、`_bound_names`（:312）、`_promised_names`（:336）
+     各多一个可选的 `tree`——不传时仍走同一个 `_parse`，所以单独调用某个读者的测试
+     也只有一条读法，不是两条；
+   - `verified_facades(trees=)`（:348）：一棵树同时回答「它承诺什么」与「它绑定什么」
+     （以前这两个问题各读一次，`_imports` 还会再读一次）；`unattended(tests_per_module,
+     trees)`（:384）把快照传下去；
+   - `main`（:422-426）：读不出来就打印 `UnreadableSource`（带类型与文件名）并返回 1，
+     **不**用半份读物去回答下限或 diff；
+   - `_tests` → `_references`：死名字改名，值保留（理由见 §1）。
+2. `scripts/route_coverage.py`：
+   - `_parse(source_text)`（:187-188）以**文本**为键、`@lru_cache(maxsize=8)`；四个读者
+     （`_route_branches` :203、`text_predicates` :251、`unresolved_route_anchors` :353）
+     都走它。为什么以文本为键：测试直接把字符串交进来，没有路径可键；文件一改，文本
+     就变，缓存自然失效。为什么有界：一个长命进程不因缓存无界地长。
+   - 为什么不去掉 `text_predicates` 自己那次解析：它是**故意**的第二个读者（文本读法），
+     与 AST 读者互为对照；共用一棵树不改变两个读者看的东西，只改变它被解析几次。
+3. 测试侧：
+   - `tests/test_impacted_tests.py` 的三个门桩 `lambda: …` 改成 `lambda trees=None: …`
+     （`main` 现在调 `build(trees)`）；`tests/test_a_clean_checkout_still_answers_the_floor.py`
+     的计数包装收 `**kwargs`；
+   - 新门 `tests/test_a_source_is_parsed_once_per_check.py`（4 条腿、CRLF、6,960 字节）。
+
+**没有**动的东西，是决定的一部分：产品代码一行未改；`conftest.py` 未改；CI 工作流
+未改；共享工作树上另一条通道的三个已改文件与未跟踪文件一个字节都没碰。
+
+### 4 见证（红先绿后，六条臂）
+
+**红**：`plane541` 上只放门、不放修法（HEAD `d4e6a55` + 门文件），
+`python -m pytest -q tests/test_a_source_is_parsed_once_per_check.py` →
+**4 failed in 10.29s**：
+
+- 腿一红在计数上：`AssertionError: 468 of 1015 parses re-read a source this run already
+  parsed: the second read is the first read's answer`，`assert 1015 == 547`——门的文件
+  自己也在被数着（比 §2 的 1013/546 各多 1），门不躲开它自己；
+- 腿二红在 `AssertionError: the dispatcher's own text was parsed 4 times in one run;
+  its four readers all want the same tree`，`assert 4 == 1`；
+- 腿三红在 `AssertionError: an undecodable test file killed the census with
+  UnicodeDecodeError: 'utf-8' codec can't decode byte 0xff in position 2: invalid start byte`；
+- 腿四红在 `AssertionError: an undecodable test file killed --check with
+  UnicodeDecodeError: …`——一个解不开的文件把整条命令带走，而不是被点名。
+
+**绿**：`python apply_541.py` 之后同一条命令 → **4 passed in 8.51s**（今天复跑基线
+4 passed in 9.60s）。
+
+**六条臂**（`scratch/mutate_541.py`，跑在已落地的 `plane541` 上；每条臂都核对还原后
+的 sha256，图案落 0 次就报「arm not applied」而不是静默通过）：
+
+| 臂 | 改什么 | 预期红 | 实际 |
+| --- | --- | --- | --- |
+| A1 | 普查不再取快照，自己重解析 | 腿一 | MATCHED（1 failed / 3 passed, 12.87s） |
+| A2 | 图读者不再取快照，自己重解析 | 腿一 | MATCHED（1 failed / 3 passed, 12.07s） |
+| A3 | `verified_facades()` 不接快照 | 腿一 | MATCHED（1 failed / 3 passed, 8.53s） |
+| A4 | 走查器的一个读者绕过缓存 | 腿二 | MATCHED（1 failed / 3 passed, 9.27s） |
+| A5 | `_parse` 不接 `UnicodeDecodeError` | 腿三、腿四 | MATCHED（2 failed / 2 passed, 8.79s） |
+| A6 | 普查不吞 `UnreadableSource` | 腿三 | MATCHED（1 failed / 3 passed, 8.75s） |
+
+A5 是另一半：修「一份源码一次解码」最容易造出来的新缺陷是「读不出来的仍然被算成
+读得出来」；两条解码腿就是为它立的。A1–A3 说明计数腿咬的是快照本身，不是某一条读者
+的写法。修后语料上的判定没变：下限仍是空、普查仍是同一批门、路由仍是 34 个 dispatch
+site（§5）。
+
+### 5 聚焦回归
+
+- 四道门（`tests/test_impacted_tests.py`、`tests/test_a_clean_checkout_still_answers_the_floor.py`、
+  `tests/test_route_coverage_measurement.py`、新门）在共享工作树上连着跑完
+  **44 passed in 150.81s**，一条红都没有。
+- 三条检查器在共享工作树上：`route_coverage --check` **rc=0**（34 个 dispatch site、
+  378 行，GET A/B 20/20、POST A/B 14/14）；`impacted_tests --check` **rc=0**，打出的
+  影响集 331 行——那是另一条通道三个已改模块的观众，本批只读不判；`doc_pointers --check`
+  **rc=1**，三条 `DANGLING EVIDENCE` 全是另一条通道**未提交**的那次租约测试改名
+  （第五百一十八批 §5、第五百二十二批 §5 各记过同一件事），不是本批的字节。本批记录
+  因此**不写那个名字**：本批用描述指它，不给引用门再添第四条悬空证据。
+- 记录形状门（批次号不被两个标题认领、prose 里的围栏标记不吞跨度、§ 引用落在它自己
+  那一节、过百的批次号仍被点数器读出、在仓文件不带冲突标记、任务表声明与落地一致、
+  tests/ 下每个门都在册，加上引用门 12 条与本批门 4 条）在**干净克隆**（`git clone
+  --shared` 到 HEAD `d4e6a55`，再提交本批 6 个路径；历史完整、没有别人的未提交改动）
+  上 **68 passed**；共享工作树上同一条命令 **66 passed / 2 failed in 127.40s**，
+  两条红都不是本批的字节：一条是引用门指着那次未提交改名，另一条是在册门
+  （`tests/` 下每个门禁文件都必须被 git 跟踪）指着另一条通道一条**未跟踪**的新门。
+  本批不替它 `git add`，也不写它们的名字。**判据取干净克隆**：工作树的红是那棵树
+  缺的东西（未提交的改名、未入册的门），不是本批。
+- 三条检查器在干净克隆上：`doc_pointers --check` **rc=0**，读 **900** 个
+  「见」标记（checked=116、citation-without-locator=53）、
+  **23** 条链接、**3990** 条 evidence 指针（75 条路径声明在
+  代码跨度之外）、**20** 份文档、**634** 个在仓文件；`route_coverage --check`
+  rc=0（读数同上）；`impacted_tests --check` rc=0、打 `no changes to measure`——干净
+  树上没有改动，下限读数是空。这一句报的是**它自己所在的这份文档**的数，所以它带一条
+  额外的规矩：**动这一句就得重跑一次**，跑出来的数不等于写下来的数，这句就是假话。
+  本批的最后一次 `doc_pointers --check` 是在这句定稿之后跑的，写下来的就是它印出来的。
+
+### 6 边界（本批**不**声称）
+
+- **不声称解析成本归零。** 546 次解析还在，那是「一份源码一次」的地板；本批删的是
+  同一份源码的第二次、第三次读，不是第一次。
+- **不声称 `main` 读了引用集。** 它仍然不读；值保留是因为门外有读者（§1）。改的只是
+  那个绑定不再假装自己叫 `_tests`。
+- **不声称产品代码的解码策略变了。** 本批只动两个检查器；产品代码怎么对待坏字节，
+  不在本批口径里。
+- **不声称普查库函数会拒绝坏文件。** `census_gates` 仍然把读不动的文件**丢掉**（它
+  能答的只是它读得动的那些）；**拒绝**的是入口 `main`——整次运行不拿半份读物回答
+  下限与 diff。两个调用点，两条错误政策，一个读者。
+- **不声称工作流的读法变了。** `.yml` 仍按文本读、按 `errors="replace"` 解——它
+  回答的是「这一行有没有提到某个模块」，不是 AST。被严格解码的是**要被解析的
+  Python 源码**；两种文档、两种保真度，在本批之前就是这样。
+- **不跑全量围栏**（约 58 分钟一趟）；跑的是四道门、记录形状门与三条检查器。
+- 共享工作树上另一条通道的三个已改文件与若干未跟踪文件不在本批任何一条读数里，
+  也不在本批的判决里；本批的判据取自干净克隆。
+
+### 7 下一位候选（补记）
+
+1. **同一棵树的目录走查，在一次 `--check` 里被问三遍**（本批新量出来的，与解析只隔
+   一层）：`_modules()` 被 `_read_trees`、`build`、`verified_facades` 各调一次；
+   `tests/*.py` 被列两次（`_read_trees` 直接 glob 一次，`_audience_documents` 再一次）。
+   实测 `scratch/probe_541c.py` 在共享工作树上 `--check` **rc=0、5.95s**，计数
+   `_modules` 3 次、`_audience_documents` 1 次、`_script_modules` 1 次。形状与解析
+   相同：一个在一次运行里不会变的事实被问了多次。要动它，先量「一次运行一次列目录」
+   会不会改变任何判定（下限、观众、门面豁免，三条都要重算）。
+2. **「超时」该不该占用「判定」这个词**（第五百二十二批 §7 第 1 位）：未动。
+   `conftest.py:87-101` 的钩子仍把跑过 900s 的腿改写成 failed；实例已由第五百二十二批
+   消掉，词的问题还在。
+3. **引用门那一遍 47s 的线性扫描**（第五百二十二批 §7 第 4 位）：未动，不是本批的形状。
+4. **M8-T537 / M8-T538 / M8-T539**：分别由另一条通道与本仓排定的顺序占用，本批不碰；
+   T538 的前提仍要在落地前重新核一遍再算。

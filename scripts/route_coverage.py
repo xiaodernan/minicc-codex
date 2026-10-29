@@ -39,6 +39,7 @@ import subprocess
 import sys
 import tempfile
 from dataclasses import dataclass, field
+from functools import lru_cache
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -183,9 +184,23 @@ def _verb_ifs(tree: ast.Module):
                 yield verb, node
 
 
+@lru_cache(maxsize=8)
+def _parse(source_text: str) -> ast.Module:
+    """The tree of this source text, built once per process.
+
+    Four readers ask the dispatcher's own text four questions - which branches
+    dispatch, which predicates the AST sees, which anchors it cannot resolve, and
+    what a deliberately dumb text reader sees - and each used to call ``ast.parse``
+    itself, so one dispatcher was parsed four times per run. The source is a
+    value; the tree of that value is built once and handed out. A different text -
+    a fixture, an edited dispatcher - is a different key and gets its own tree.
+    """
+    return ast.parse(source_text)
+
+
 def _route_branches(source_text: str):
     """Yield ``(verb, predicates, body)`` for each qualifying route branch."""
-    tree = ast.parse(source_text)
+    tree = _parse(source_text)
     consts = _module_string_consts(tree)
     for verb, node in _verb_ifs(tree):
         predicates = _test_predicates(node.test, consts)
@@ -233,7 +248,7 @@ def unresolved_route_anchors(source_text: str) -> list[tuple[int, str]]:
     handler whose right-hand side is neither a string literal nor a module-level string
     constant - a function call, a local, an attribute.
     """
-    tree = ast.parse(source_text)
+    tree = _parse(source_text)
     consts = _module_string_consts(tree)
     unresolved: list[tuple[int, str]] = []
     for _, node in _verb_ifs(tree):
@@ -335,7 +350,7 @@ def text_predicates(source_text: str) -> list[tuple[int, str]]:
     readers can only agree by genuinely seeing the same route. Teaching this reader to
     ignore names is what made the cross-check blind to its own partner going blind.
     """
-    tree = ast.parse(source_text)
+    tree = _parse(source_text)
     ranges = {
         (node.lineno, node.end_lineno or node.lineno)
         for node in ast.walk(tree)

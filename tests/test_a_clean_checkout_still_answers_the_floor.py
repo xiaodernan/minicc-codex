@@ -174,9 +174,9 @@ def test_the_facade_exemption_is_derived_once_not_once_per_candidate(tmp_path) -
     calls: list[int] = []
     real = script.verified_facades
 
-    def counting(modules=None):
+    def counting(modules=None, **kwargs):
         calls.append(1)
-        return real(modules)
+        return real(modules, **kwargs)
 
     script.verified_facades = counting
     try:
