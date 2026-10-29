@@ -48,6 +48,7 @@ import subprocess
 import sys
 from collections.abc import Mapping
 from pathlib import Path
+from typing import NamedTuple
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 PACKAGE = "minicc"
@@ -98,13 +99,17 @@ def _parse(path: Path) -> ast.Module:
         raise UnreadableSource(f"cannot read {path}: {type(exc).__name__}: {exc}") from exc
 
 
-def _read_trees() -> dict[Path, ast.Module]:
+def _read_trees(listings: Listings | None = None) -> dict[Path, ast.Module]:
     """Every source this run walks, read once. Raises ``UnreadableSource`` on the first failure."""
-    paths = list(_modules().values()) + sorted((REPO_ROOT / "tests").glob("*.py"))
+    listings = _listings() if listings is None else listings
+    paths = list(listings.modules.values()) + list(listings.tests)
     return {path: _parse(path) for path in paths}
 
 
-def census_gates(trees: Mapping[Path, ast.Module] | None = None) -> dict[str, frozenset[str]]:
+def census_gates(
+    trees: Mapping[Path, ast.Module] | None = None,
+    tests: tuple[Path, ...] | None = None,
+) -> dict[str, frozenset[str]]:
     """``{test file: the repo roots it scans}``, derived from the test files.
 
     A census gate's subject is the repository, not a module: it walks a directory
@@ -124,10 +129,13 @@ def census_gates(trees: Mapping[Path, ast.Module] | None = None) -> dict[str, fr
 
     ``trees`` is the snapshot ``main`` read once and hands to both readers; a
     caller that passes nothing still gets one honest read here, and that read's
-    failures are the only ones this reader may drop without a word.
+    failures are the only ones this reader may drop without a word. ``tests`` is
+    the listing the same run already performed; without it this call lists the
+    directory once, for itself.
     """
+    tests = tuple(sorted((REPO_ROOT / "tests").glob("*.py"))) if tests is None else tests
     gates: dict[str, frozenset[str]] = {}
-    for path in sorted((REPO_ROOT / "tests").glob("*.py")):
+    for path in tests:
         tree = trees.get(path) if trees is not None else None
         if tree is None:
             try:
@@ -153,6 +161,25 @@ def _modules() -> dict[str, Path]:
             continue
         found[".".join(path.relative_to(REPO_ROOT).with_suffix("").parts)] = path
     return found
+
+
+class Listings(NamedTuple):
+    """The four directories one run walks, each listed exactly once."""
+
+    modules: dict[str, Path]
+    tests: tuple[Path, ...]
+    scripts: dict[str, Path]
+    workflows: tuple[Path, ...]
+
+
+def _listings() -> Listings:
+    """Every directory this run needs, listed once and handed to every reader."""
+    return Listings(
+        modules=_modules(),
+        tests=tuple(sorted((REPO_ROOT / "tests").glob("*.py"))),
+        scripts=_script_modules(),
+        workflows=tuple(sorted(WORKFLOWS.glob("*.yml"))),
+    )
 
 
 def _resolver(modules: dict[str, Path]):
@@ -272,35 +299,46 @@ def _script_modules() -> dict[str, Path]:
             for path in sorted((REPO_ROOT / SCRIPTS).glob("*.py"))}
 
 
-def _audience_documents() -> list[tuple[str, Path]]:
+def _audience_documents(listings: Listings | None = None) -> list[tuple[str, Path]]:
     """Everything that can notice a change: the test suite, then the workflows.
 
     A CI step that runs a script is an audience for that script. Leaving it out
     would have flagged ``reliability_probe.py`` - an M1 exit criterion that has
     gated every push since M1 - as an orphan.
     """
-    documents = [(path.name, path) for path in sorted((REPO_ROOT / "tests").glob("*.py"))]
-    documents += [(path.name, path) for path in sorted(WORKFLOWS.glob("*.yml"))]
+    if listings is None:
+        tests = tuple(sorted((REPO_ROOT / "tests").glob("*.py")))
+        workflows = tuple(sorted(WORKFLOWS.glob("*.yml")))
+    else:
+        tests, workflows = listings.tests, listings.workflows
+    documents = [(path.name, path) for path in tests]
+    documents += [(path.name, path) for path in workflows]
     return documents
 
 
-def build(trees: Mapping[Path, ast.Module] | None = None) -> tuple[dict[str, set[str]], dict[str, set[str]], set[str]]:
+def build(
+    trees: Mapping[Path, ast.Module] | None = None,
+    listings: Listings | None = None,
+) -> tuple[dict[str, set[str]], dict[str, set[str]], set[str]]:
     """(audience per module, per-document references, all test files).
 
     ``trees`` is the snapshot ``main`` read once for both halves of ``--check``;
     without it every document is read by this call, through the same ``_parse``.
+    ``listings`` is the directory snapshot those trees were read from; without
+    it this call lists each directory once, for itself.
     """
     known: Mapping[Path, ast.Module] = trees if trees is not None else {}
-    modules = _modules()
+    listings = _listings() if listings is None else listings
+    modules = listings.modules
     resolve = _resolver(modules)
     production = {name: _imports(path, resolve, known.get(path)) for name, path in modules.items()}
-    documents = _audience_documents()
+    documents = _audience_documents(listings)
     references = {
         name: _document_references(name, path, resolve, known.get(path))
         for name, path in documents
     }
     audience: dict[str, set[str]] = {name: set() for name in modules}
-    for name in _script_modules():
+    for name in listings.scripts:
         audience.setdefault(name, set())
     for document, refs in references.items():
         for module in _closure(refs, production):
@@ -384,6 +422,7 @@ def verified_facades(
 def unattended(
     tests_per_module: dict[str, set[str]],
     trees: Mapping[Path, ast.Module] | None = None,
+    modules: dict[str, Path] | None = None,
 ) -> list[str]:
     """Modules the floor has no answer for: no audience, no exemption, not a checked facade.
 
@@ -392,7 +431,7 @@ def unattended(
     because the only path that reached it needed a dirty worktree, on a clean checkout
     the exemption had never walked anything at all (M8-T536).
     """
-    facades = verified_facades(trees=trees)
+    facades = verified_facades(modules=modules, trees=trees)
     return sorted(name for name, tests in tests_per_module.items()
                   if not tests and name not in EXEMPT and name not in facades)
 
@@ -419,15 +458,16 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     try:
-        trees = _read_trees()
+        listings = _listings()
+        trees = _read_trees(listings)
     except UnreadableSource as exc:
         # A file this run cannot read is a finding about the tree, not a document
         # with no references: answering the floor and the census from a partial
         # read would grade the missing file as absent rather than unreadable.
         print(exc, file=sys.stderr)
         return 1
-    tests_per_module, _references, all_tests = build(trees)
-    gates = census_gates(trees)
+    tests_per_module, _references, all_tests = build(trees, listings)
+    gates = census_gates(trees, listings.tests)
 
     # M8-T536: the floor is a property of the tree, so it is answered here rather
     # than below, where an empty diff returns first. ``actions/checkout`` leaves
@@ -436,7 +476,7 @@ def main(argv: list[str] | None = None) -> int:
     # printed "no changes to measure" and exited 0 having never computed a floor.
     # Measured on a clean export with a committed minicc/__no_audience__.py.
     if args.check:
-        floor = unattended(tests_per_module, trees)
+        floor = unattended(tests_per_module, trees, listings.modules)
         if floor:
             print("modules no test reaches: " + ", ".join(floor), file=sys.stderr)
             return 1

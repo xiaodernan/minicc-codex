@@ -36672,3 +36672,212 @@ site（§5）。
 3. **引用门那一遍 47s 的线性扫描**（第五百二十二批 §7 第 4 位）：未动，不是本批的形状。
 4. **M8-T537 / M8-T538 / M8-T539**：分别由另一条通道与本仓排定的顺序占用，本批不碰；
    T538 的前提仍要在落地前重新核一遍再算。
+
+## 第五百二十四批 — M8-T542 — 一次 `--check` 把同一棵树的目录走查 8 遍，其中两棵走了 3 遍
+
+### 1 欠的是哪一条
+
+第五百二十三批 §7 第 1 位原话（更正后的版本，更正提交 `7e6c537`）：
+
+> **同一棵树的目录走查，在一次 `--check` 里被问三遍**（本批新量出来的，与解析只隔
+> 一层）：`_modules()` 被 `_read_trees`、`build`、`verified_facades` 各调一次，
+> `minicc` 下的 86 个模块因此走 3 遍；`tests` 下的 461 个文件列 **3 遍**
+> （`_read_trees`、`census_gates`、`_audience_documents` 各一次）……`scripts` 下的
+> 4 个脚本与 1 份工作流各 1 遍。一次 `--check` 共 **8 次目录列举**。
+
+这条与第五百二十三批的解析债务只隔一层：那个批次让**一份源码**在一次运行里只读一次，
+但**一份源码在哪**这件事仍然被问了 8 遍。两次列举之间没有任何东西会改变目录内容——
+这个工具是单线程的，运行期不写仓库，也不下载——所以第 2 到第 8 次列举拿到的都是第 1 次
+的答案，只是又付了一遍钱：`minicc` 的 86 个模块被 `rglob` 走 3 遍，`tests` 的 462 个
+文件（含本批的门自己）被 `glob` 列 3 遍，`scripts` 与工作流各 1 遍。这批门每加一条，
+`tests` 那三遍就更贵一点，而它不会自己消失。
+
+本批的口径只有一句：**一次运行，一棵树只列一次目录；四份列举作为同一份快照传给每一个
+读者**。判据是列举次数，不是秒——列举次数与机器和负载无关。
+
+### 2 量到的真相（实测，2026-10-30 本机）
+
+**语料**：`plane542` = HEAD `7e6c537` 的 `git archive` 导出（634 个在仓文件 + 本批门
+落盘后 635 个），`git init` 后提交 `e0bf2ae`；下列读数取自本批记录写进文档**之前**的
+字节。计法是 `scratch/probe_542b.py`：包住 `Path.glob` / `Path.rglob`，按调用点记账，
+跑 `impacted_tests.py --check`；同一支探针在**同一棵盘上树**（462 个测试文件、86 个
+模块、4 个脚本、1 份工作流）分别量修前与修后。
+
+| 目录 | 修前列举 | 修前调用点 | 修后列举 | 修后调用点 |
+| --- | --- | --- | --- | --- |
+| `minicc` 的 86 个模块 | **3** | `:151` `_modules`，由 `_read_trees`、`build`、`verified_facades` 各调一次 | **1** | `:159` `_modules`，只由 `_listings` 调 |
+| `tests` 的 462 个文件 | **3** | `:103` `_read_trees`、`:130` `census_gates`、`:282` `_audience_documents` | **1** | `:180` `_listings` |
+| `scripts` 的 4 个脚本 | 1 | `:272` `_script_modules` | 1 | `:300` `_script_modules`，只由 `_listings` 调 |
+| 工作流 1 份 | 1 | `:283` `_audience_documents` | 1 | `:182` `_listings` |
+| **合计** | **8** | | **4** | |
+
+（行号：修前是 `7e6c537` 的文件，修后是本批落地的文件——加了代码，行号跟着挪。）
+
+**三条判定的重算**，同一棵盘上树、修前修后逐位对照（`sha256` 取摘要前 16 位）：
+
+| 判定 | 结构 | 修前 | 修后 |
+| --- | --- | --- | --- |
+| 观众 | 90 个模块 → 测试集 | `f2ec5533f2053dda` | `f2ec5533f2053dda` |
+| 引用 | 463 份文档 → 引用集 | `d05aa4756656b6e2` | `d05aa4756656b6e2` |
+| 全部测试 | 462 个名字 | `b27241d1054a3aaf` | `b27241d1054a3aaf` |
+| 普查 | 门 → 它扫的根 | `d41f814eed9ca464` | `d41f814eed9ca464` |
+| 门面豁免 | 3 个已验证门面 | `d10618727ab205eb` | `d10618727ab205eb` |
+| 下限 | 空 | `[]` | `[]` |
+
+下限在盘上树是空的——空集合最容易被「两边都空」冒充相等。所以同一支探针还在**合成树**上
+重算了一遍：5 个模块、2 个测试、1 个已验证门面（`minicc.pkg`）、1 个没人到达的模块
+（`minicc.pkg.x`）、1 条工作流。修前修后逐位相同：下限恰好是 `['minicc.pkg.x']`，门面
+恰好是 `['minicc.pkg.__init__']`，普查恰好是 `{'test_walks_the_tree.py': ['minicc']}`，
+观众摘要 `e347a4f3c000cfd8`、引用摘要 `7b0a3e2b3ba1d79a`。**三条判定都被重算过，不是
+「盘上树是空所以看起来没变」。**
+
+**墙钟**（同一台机器、同一棵盘上树，各跑 3 次 `--check`）：
+
+| 状态 | 三次读数 | 中位 |
+| --- | --- | --- |
+| 修前（8 次列举） | 11.76s / 14.83s / 15.27s | 14.83s |
+| 修后（4 次列举） | 15.61s / 11.05s / 5.34s | 11.05s |
+
+后一组里 5.34s 与 15.61s 的差比前后中位差还大。**本节不拿墙钟当判据**：少列三次 462 个
+文件的目录只值几十毫秒，中位差主要来自负载。判决用列举次数。
+
+### 3 落地
+
+一份快照，四个字段，一个入口；每个读者都多一个可选参数，不传时仍各自诚实列举一次。
+
+1. `scripts/impacted_tests.py`：
+   - 新增 `Listings`（:166）与 `_listings()`（:175）：`modules`、`tests`、`scripts`、
+     `workflows` 四个字段，每份目录只列举一次；
+   - `_read_trees(listings=None)`（:102）、`census_gates(trees=None, tests=None)`（:109）、
+     `_audience_documents(listings=None)`（:302）、`build(trees=None, listings=None)`
+     （:319）、`unattended(tests_per_module, trees=None, modules=None)`（:422）各接一个
+     可选快照；不传时仍走原来的列举，所以单独调用某个读者的测试看到的仍是一条读法；
+   - `main`（:461-479）在建树之前先建快照，把同一份 `Listings` 交给
+     `_read_trees`、`build`、`census_gates`、`unattended` 与 `verified_facades`；
+   - `verified_facades` 的 `modules=` 参数本来就有（第五百二十三批），本批只是让 `main`
+     把它填上。
+2. `tests/test_impacted_tests.py`：三个把 `build` 换成桩的腿，桩签名从
+   `lambda trees=None:` 改成 `lambda trees=None, listings=None:`（`main` 现在传两个参数）。
+3. 新门 `tests/test_a_tree_is_listed_once_per_check.py`（190 行、4 条腿）：
+   - 腿一数**列举次数**：包住 `Path.glob` / `Path.rglob`，跑一次 `--check`，断言恰好 4 次、
+     每个目录恰好 1 次，且每次的条数与盘上直接列举一致（列举没被截断）；
+   - 腿二堵住「读者背着快照再列」：取过快照后，把 `_modules`、`_script_modules`、
+     `Path.glob`、`Path.rglob` 全部换成会抛异常的桩，再调 `build` / `census_gates` /
+     `unattended`；任何一次再列举都会红；
+   - 腿三在合成树上把三条判定算两遍（快照路径 vs 独立读者路径），断言逐位相等，并断言
+     下限非空且恰好是被孤立的那个模块；
+   - 腿四让 `main --check` 在合成树上返回 1、点名没人到达的模块、**不**点名已验证门面。
+4. **为什么不用缓存、也不改 `Path.glob` 的全局行为**：一个进程级缓存键不住任何东西，长命
+   进程会拿旧树回答新问题；T541 的 `@lru_cache` 安全是因为它以源码文本为键，文本变则缓存
+   失效，而目录列举没有这样的键。所以本批用显式传参：快照的生命周期就是一次 `main`。
+5. **为什么 `Listings` 是 `NamedTuple` 而不是 `@dataclass(slots=True)`**：第一次落地用了
+   dataclass，`tests/test_impacted_tests.py` 的加载器不把模块注册进 `sys.modules`，而
+   dataclass 的 slots 路径要读 `sys.modules[cls.__module__].__dict__`——14 条腿当场红在
+   `AttributeError: 'NoneType' object has no attribute '__dict__'`。改的是类型本身，不是
+   加载器：同一个脚本有两种加载方式这件事记进 §7，不在本批扩大。
+
+### 4 见证（红先绿后，六条臂）
+
+**红**：`plane542red` 上只放门、不放修法（HEAD `7e6c537` + 门文件，`scripts/impacted_tests.py`
+仍是修前版本），`python -m pytest -q tests/test_a_tree_is_listed_once_per_check.py` →
+**3 failed / 1 passed in 9.38s**：
+
+- 腿一红在计数上：`AssertionError: 8 directory listings in one --check; each of the four
+  directories is one fact and is asked once`，`assert 8 == 4`；
+- 腿二、腿三红在 `AttributeError: module 'minicc_impacted_readers_t542' has no attribute
+  '_listings'`——修前没有快照这个入口；
+- 腿四**在修前就是绿的**：它守的是下限不被快照稀释，不是修前的缺陷；这条腿为修法而
+  立，A5/A6 两条臂证明它在修后仍然有牙。
+
+**绿**：`plane542` 上同一条命令 → **4 passed in 12.75s**（今天复跑基线 12.82s）。
+
+**六条臂**（`scratch/mutate_542.py`，跑在已落地的 `plane542` 上；每条臂都核对还原后的
+sha256，图案落 0 次或多于 1 次就报「arm not applied」而不是静默通过）：
+
+| 臂 | 改什么 | 预期红 | 实际 |
+| --- | --- | --- | --- |
+| A1 | `build` 不接文档快照，自己重列 | 腿一、腿二 | MATCHED（2 failed / 2 passed, 11.63s） |
+| A2 | `census_gates` 不接测试快照，自己重列 | 腿一、腿二 | MATCHED（2 failed / 2 passed, 12.69s） |
+| A3 | `verified_facades` 不接模块快照，自己重列 | 腿一、腿二 | MATCHED（2 failed / 2 passed, 13.10s） |
+| A4 | `_read_trees` 不接快照，自己重列 | 腿一 | MATCHED（1 failed / 3 passed, 13.41s） |
+| A5 | 快照建好后丢掉最后一个测试文件 | 腿三 | MATCHED（1 failed / 3 passed, 14.48s） |
+| A6 | 下限不接模块快照，自己重列 | 腿一 | MATCHED（1 failed / 3 passed, 14.03s） |
+
+A5 单说：**丢弃一条快照对腿一是不可见的**——腿一数的是目录列举返回了什么，而截断发生在
+列举之后；能看见它的是腿三的等值判定。计数腿与等值腿的分工是有意的：前者防「多列」，
+后者防「列了却没用全」。A1–A4、A6 说明计数腿咬的是快照本身，不是某一条读者的写法。
+
+修后语料上的判定没变：观众仍是 90 个模块、引用仍是 463 份文档、普查仍是同一批门、下限
+仍是空、门面豁免仍是 3 个（§2）。**本批改的是成本，不是答案。**
+
+### 5 聚焦回归
+
+- 五道门（`tests/test_impacted_tests.py` 18 条、`tests/test_a_clean_checkout_still_answers_the_floor.py`
+  6 条、`tests/test_route_coverage_measurement.py` 16 条、第五百二十三批的门 4 条、本批门
+  4 条）在 `plane542` 上一次跑完 **48 passed in 177.05s**，一条红都没有。第五百二十三批
+  的「一份源码只解一次」仍是绿的，它钉住的解析不变量没有被本批碰坏。
+- 第一次落地不是一次就绿的，两处都记下来：`@dataclass(slots=True)` 让 14 条腿红在
+  `sys.modules` 上（§3 第 5 条），三个 `build` 桩让 3 条腿红在参数个数上；两处都改在
+  源头（类型与桩签名），没有改门的判据。最终那 48 条是改完之后的读数。
+- 三条检查器在 `plane542`（提交后工作树干净）上：`route_coverage --check` **rc=0**
+  （34 个 dispatch site、378 行，GET A/B 20/20、POST A/B 14/14）；`impacted_tests --check`
+  **rc=0**，打 `no changes to measure`——干净树上没有改动，下限读数是空；
+  `doc_pointers --check` **rc=0**，读 **900** 个「见」标记（checked=116、
+  citation-without-locator=53）、**23** 条链接、**3990** 条 evidence 指针、**20** 份文档、
+  **635** 个在仓文件（比第五百二十三批多一个，就是本批的门）。
+- 记录形状门（批次号不被两个标题认领、prose 里的围栏标记不吞跨度、§ 引用落在它自己
+  那一节、过百的批次号仍被点数器读出、在仓文件不带冲突标记、任务表声明与落地一致、
+  tests/ 下每个门都在册，加上引用门 12 条、第五百二十三批的门 4 条与本批门 4 条）在
+  **干净克隆**（`git clone --shared` 到本批提交后的 HEAD，再提交本批记录）上
+  **@@RECORD_GATES@@**；共享工作树上同一条命令 **@@LIVE_GATES@@**，红的是另一条通道
+  未提交的改名与一条未跟踪的新门（第五百二十三批 §5 记过同一件事），不是本批的字节。
+  **判据取干净克隆**：工作树的红是那棵树缺的东西，不是本批。
+- 三条检查器在干净克隆上：`doc_pointers --check` **rc=0**，读 **@@DOC_MARKERS@@**
+  个「见」标记（checked=@@DOC_CHECKED@@、citation-without-locator=@@DOC_CWL@@）、
+  **@@DOC_LINKS@@** 条链接、**@@DOC_EVIDENCE@@** 条 evidence 指针（@@DOC_PROSE@@ 条
+  路径声明在代码跨度之外）、**@@DOC_DOCS@@** 份文档、**@@DOC_FILES@@** 个在仓文件；
+  `route_coverage --check` rc=0（读数同上）；`impacted_tests --check` rc=0，打
+  `no changes to measure`。这一句报的是**它自己所在的这份文档**的数，所以它带一条
+  额外的规矩：**动这一句就得重跑一次**，跑出来的数不等于写下来的数，这句就是假话。
+  本批的最后一次 `doc_pointers --check` 是在这句定稿之后跑的，写下来的就是它印出来的。
+
+### 6 边界（本批**不**声称）
+
+- **不声称墙钟变快。** 中位从 14.83s 到 11.05s，但修后那组自己从 5.34s 跨到 15.61s；
+  本批买回来的是 4 次列举，不是几秒钟。
+- **不声称列目录的成本归零。** 4 次列举还在，那是「一份目录一次」的地板；本批删的是
+  第 2 到第 8 次。
+- **不声称组合调用也只列一次。** 快照的生命周期是一次入口调用：`main` 里是 4 次；一个
+  调用者若先 `_read_trees()` 再 `build(trees)`，两个入口各列一次，合计仍然是 8 次。
+  本批把契约放在入口上，不放在全局缓存上（§3 第 4 条的理据）。
+- **不声称运行期的目录变化会被看见。** 快照冻结的是**第一次列举时**的树；运行中新建的
+  文件不会被这一次运行看见。在静态检出上这与修前同义，在活的树上这是一个决定：一次
+  运行回答的是它开始时的树。第五百二十三批的 `_read_trees` 已经冻结了解析集合，本批把
+  同一件事扩到四份列举。
+- **不声称列举失败被折成了声明的失败。** 目录读不动（`OSError`）仍按原来的路径抛出；
+  本批只把**文件可读性**留给第五百二十三批的 `UnreadableSource`。
+- **不声称两个加载器已经统一。** `tests/test_impacted_tests.py` 仍不注册 `sys.modules`，
+  第五百二十三批的门仍注册；本批只是让自己的类型不依赖这条差别（§7 第 3 位）。
+- **没有改产品代码。** 本批只动一个检查器、一个测试文件的三个桩、一个新门。
+- **不跑全量围栏**（约 58 分钟一趟）；跑的是五道门、记录形状门与三条检查器。
+- 共享工作树上另一条通道的三个已改文件与若干未跟踪文件不在本批任何一条读数里，也不在
+  本批的判决里；本批的判据取自干净克隆。
+
+### 7 下一位候选（补记）
+
+1. **「超时」该不该占用「判定」这个词**（第五百二十二批 §7 第 1 位）：未动。
+   `conftest.py:87-101` 的钩子仍把跑过 900s 的腿改写成 failed；实例已由第五百二十二批
+   消掉，词的问题还在。
+2. **引用门那一遍 47s 的线性扫描**（第五百二十二批 §7 第 4 位）：未动，不是本批的形状。
+3. **同一个脚本有两个加载器，一个注册 `sys.modules`、一个不注册**（本批撞出来的）：
+   `tests/test_impacted_tests.py` 的 `_load_script` 不注册，第五百二十三批的门的 `_load`
+   注册。今天两个加载器都能跑，只因为 `impacted_tests.py` 里没有需要 `sys.modules` 的
+   类型声明；本批把 `Listings` 从 dataclass 改成 `NamedTuple` 绕开了它，**绕开不是修好**。
+   要动它，先量：仓里还有几个测试用 importlib 加载脚本、其中几个注册了、几个脚本里有
+   `@dataclass(slots=True)`；然后把加载这件事收成一个家。
+4. **`minicc` 的 86 个模块仍被解析一遍、列举一遍，但二者的集合由两个函数各自决定**
+   （`_modules` 与 `_read_trees` 的路径拼接）：今天它们同源；将来若有一个读者只要路径、
+   不要树，快照已经能回答，但没有任何门钉住「路径集合与树集合相等」。这是一条与
+   T541/T542 同族的候选，本批不做。
+5. **M8-T537 / M8-T538 / M8-T539**：分别由另一条通道与本仓排定的顺序占用，本批不碰；
+   T538 的前提仍要在落地前重新核一遍再算。

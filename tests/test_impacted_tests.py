@@ -185,7 +185,7 @@ def test_the_tool_reports_a_change_no_test_can_see() -> None:
     opposite: the change is invisible to the suite by construction.
     """
     script = _load_script()
-    script.build = lambda trees=None: ({"minicc.orphan": set()}, {}, set())  # type: ignore[assignment]
+    script.build = lambda trees=None, listings=None: ({"minicc.orphan": set()}, {}, set())  # type: ignore[assignment]
     assert script.main(["minicc/orphan.py"]) == 1
 
 
@@ -202,7 +202,7 @@ def test_the_tool_reports_a_module_the_graph_has_never_seen(
     knows nothing and a module that does exist.
     """
     script = _load_script()
-    monkeypatch.setattr(script, "build", lambda trees=None: ({}, {}, set()))
+    monkeypatch.setattr(script, "build", lambda trees=None, listings=None: ({}, {}, set()))
     assert script.main(["minicc/benchmarks.py"]) == 1
 
 
@@ -215,7 +215,7 @@ def test_a_module_that_no_longer_exists_is_not_a_finding(
     is why the two cases are pinned next to each other instead of in prose.
     """
     script = _load_script()
-    monkeypatch.setattr(script, "build", lambda trees=None: ({}, {}, set()))
+    monkeypatch.setattr(script, "build", lambda trees=None, listings=None: ({}, {}, set()))
     assert script.main(["minicc/gone_forever.py"]) == 0
 
 
