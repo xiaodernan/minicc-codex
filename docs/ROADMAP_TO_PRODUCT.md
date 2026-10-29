@@ -35712,3 +35712,173 @@ campaign 的口径落在 `:616-617`：`except OSError: mtime = 0.0`。这不是�
 2. 那条 7.0 天花板门「不报自己的读数」：§4 的 6.208 是靠**另一把量具**（`probe_533c.py`）
    读出来的，门本身在绿的时候什么都不说。
 3. 沿用第五百一十三批、第五百一十四批 §7 的其余顺序。
+
+## 第五百一十六批 — M8-T534 — 反向变异门把「我没跑起来」和「我抓到了」压成同一个成功
+
+### 1 欠的是哪一条
+
+现场是 `.github/workflows/ci.yml:221-229`（job `web-smoke-mutation`，M4-T2 立的变异门；
+**本节的 `:行号` 全部引改前字节**，即 `a19537c` 的那一份）。它的形状是一个取反的比特：
+
+```
+if npm run test:web; then
+  echo "MUTATION NOT CAUGHT: web smoke passed against an unreachable provider"
+  exit 1
+fi
+echo "mutation caught: web smoke correctly failed against an unreachable provider"
+```
+
+- 它读的是「烟测非零」，写的是「链路在应该断的地方断了」。这两件事不是同一件事，而这一步
+  没有任何东西把它们分开。
+- 被测方也没有第二句话可说：`tests/web_smoke.mjs` 整份 413 行，只在**成功终点** `:410` 打印
+  一次（`web smoke passed: timeline, product path, desktop, mobile`）。「我没跑起来」在这份
+  文件里**没有任何可被读到的形式**，所以门不可能问到它——这不是门偷懒，是它要问的那一位
+  在两边都没有出口。
+- campaign 的口径这次落在量具自己头上：一次**读不到**被答成**读到了，答案是链路断了**。
+  全仓只有一道反向门（§2 普查），它压的正是这一位。
+
+### 2 量到的真相（实测）
+
+2026-10-29 本机，真 npm 11.12.1 / node 24.15.0 / playwright 1.62.1 + chromium 151.0.7922.34 /
+真产品服务器。脚本 `scratch/door_534.py`，逐场景完整输出 `scratch/door_S0.log` 到
+`scratch/door_S5.log`，汇总 `scratch/door_534.txt`。每一步跑的都是 ci.yml 里那一段 shell
+**本身**，不是它的抄本。
+
+| 场景 | 提供者 | 烟测实际死在哪 | 门说什么 | 门退出码 |
+| --- | --- | --- | --- | --- |
+| S0 没有服务器（8791 空的） | — | `page.goto: net::ERR_CONNECTION_REFUSED`，`runAgentTimelineSmoke`（四个 suite 的第 1 个） | `mutation caught` | **0**（16s） |
+| S3 `package.json` 里脚本改名 | fake（好的） | node `Cannot find module` | `mutation caught` | **0**（5s） |
+| S4 烟测文件被删 | fake（好的） | 同上 | `mutation caught` | **0**（4s） |
+| S5 第 1 个 suite 里一条 DOM 断言被改错 | fake（好的） | `AssertionError [ERR_ASSERTION]: Help menu should remain` | `mutation caught` | **0**（74s） |
+| S1 `MINICC_BASE_URL=https://example.invalid/v1` | 不可达 | `runProductPathSmoke` | `mutation caught` | **0**（182s）← 唯一合法的那次 |
+| S2 fake provider，一切正常 | fake（好的） | 没死，四个 suite 全过 | `MUTATION NOT CAUGHT` | 1（146s）← 正向那半本来就是好的 |
+
+**六个场景里五个读同一句话、同一个退出码，而其中三个（S3 改名、S4 删文件、S5 第 1 个 suite
+就断言失败）与提供者是否可达毫无关系。**
+
+普查（同一份 ci.yml，腿六用的口径）：反向门共 **1** 道（`ci.yml:226` 那句
+`MUTATION NOT CAUGHT`）；`:160`/`:215` 的 `if curl -fsS ... ; then` 是就绪重试、`:320` 的
+`if [ -z "$MINICC_API_KEY" ]` 是 nightly 的密钥检查，都不是「取反即成功」的门。仓里
+**已经有一条做对的**：`tests/test_mutation_cells_react_to_the_code_they_name.py:399-414`——
+`:413` 在 `returncode != 0` 且既没有 `FAILED` 行也不是「collect 干净」时判为没跑起来，
+`:414` 为此 `raise AssertionError(f"{probe} did not run: …")`，正是「进程没跑起来」与
+「它抓到了」的分开。本批照这一条写 CI 那一步。
+
+### 3 落地
+
+1. `tests/web_smoke.mjs` 打两行「到过哪里」的证据（不是结论）：`chromium.launch(...)`
+   **之后** `:407` 打 `web smoke: browser up (chromium)`，进 `runProductPathSmoke` **之前**
+   `:410` 打 `web smoke: suite product path`（这两个 `:行号` 引改后字节；原成功终点从 `:410`
+   移到 `:414`，全文 413 行变 417 行）。
+2. `ci.yml` 那一步（改后 `:221-246`）改成**显式取码 + 两条证据检查**：`set +e` →
+   `code=$?`（`:227`）→ `cat web-smoke-mutation.log` → 只有 `[ "$code" -eq 0 ]` 才允许说
+   `MUTATION NOT CAUGHT`；非零但缺「浏览器起来了」以 `REVERSE DOOR DID NOT RUN` 红（`:238`），
+   缺「进过产品路径」以 `REVERSE DOOR GUARDED NOTHING` 红（`:242`）；两行都在才说
+   `mutation caught: web smoke reached the product path and failed there (exit $code)`（`:246`）。
+3. 门：`tests/test_a_reverse_door_says_which_side_it_closed.py` 六条腿。四条**真的执行**
+   这一步的 shell（从 ci.yml 里抽出那段、用桩 `npm` 报指定的行与退出码），两条查文本一致
+   与普查——臂不需要骗过一个文本匹配器，它得骗过一道正在跑的门。
+
+### 4 见证
+
+平面是 `git show HEAD:` 导出的今天字节（`scratch/plane534c` 打上本批落地、`scratch/plane534d`
+只放 HEAD 与门）。仓库对应文件与平面的 **LF 归一 sha 相同**：`ci.yml` 17,263B/仓库 393 个 CRLF
+对平面 16,870B/LF，`web_smoke.mjs` 30,974B/417 CRLF 对 30,557B，门 10,681B 两边都 LF
+（**逐字节相同**）。
+
+| 平面字节 | 读数 |
+| --- | --- |
+| 干净 HEAD + 本批门 | **4 failed, 2 passed**（3.52s，`scratch/head_witness_534.txt`） |
+| 本批字节 + 本批门 | **6 passed**（3.39s） |
+
+HEAD 上四条红的红话都读得出原因：腿一 `the step claimed 'mutation caught' while the smoke
+produced no evidence it ever started; a renamed script, a missing browser or a deleted smoke
+file look like this: exit=0 output='mutation caught: …'`；腿三 `the door claimed a caught
+mutation for a run that never entered the product path it guards`；腿五 `the mutation step no
+longer asks for ['web smoke: browser up', 'web smoke: suite product path']: a door that checks
+one of the two evidence lines is a door that reads the other one as free`；腿六 `these reverse
+doors press 'did not run' and 'caught it' into one success: ['- name: Run web smoke (expected
+to fail)']`。腿二、腿四在 HEAD 上**本来就绿**——它们问的是门**已有的**那半（真断了要说 caught、
+真过了要说 NOT caught），这两半本来就是好的。
+
+臂（`scratch/arms_534.py` 逐腿判定，不是只看退出码；汇总 `scratch/arms_534_landed.txt`，
+每条臂完整报告 `scratch/arm534_*_full.txt`。腿号：一 `does_not_claim_a_catch`、二
+`ran_and_failed_still_closes`、三 `dies_before_the_chain`、四 `passing_smoke_opens`、五
+`markers_printed`、六 `every_declared_reverse_door`）：
+
+| 臂 | 改的是落地的哪一处 | 应该红 / 应该绿 | 读数 | 判定 |
+| --- | --- | --- | --- | --- |
+| C1 | 两步证据里去掉「浏览器起来了」那条 `grep`：门只信一半 | 红一/五，绿二/三/四/六 | 2 failed, 4 passed（4.96s） | MATCHED |
+| C2 | `code=$?` 改成 `code=0`：门对任何运行都说「没抓到」 | 红一/二/三，绿四/五/六 | 3 failed, 3 passed（5.54s） | MATCHED |
+| C3 | 把 `browser up` 打在 `chromium.launch` **之前** | 红五，绿其余 | 1 failed, 5 passed（5.50s） | MATCHED |
+| C4 | 再挂一道反向门、不带证据 | 红六，绿其余 | 1 failed, 5 passed（4.59s） | MATCHED |
+| C5 | 烟测不再宣布进过产品路径 | 红五，绿其余 | 1 failed, 5 passed（4.99s） | MATCHED |
+| C6 | 把这一步改名（门抽不出 shell） | 红一~五，绿六 | 5 failed, 1 passed（3.92s） | MATCHED |
+
+臂的字节归还：每条臂跑完 restore，三份文件（门 / `ci.yml` / `web_smoke.mjs`）sha256 逐条比对，
+任何一次不匹配直接终止——本轮 6 条臂全部走完，无遗留。
+
+两处前提被读数纠正，留在记录里而不是抹掉：
+
+1. **C2 第一版只读到 1 条红**，预判的腿一/腿三都绿。原因在腿上不在臂上：那两条当时只断言
+   「这一步非零」，而 C2 造的恰是**恒非零**的门。修法不是替臂让路，是把**拒绝的理由**钉进
+   断言（`REVERSE DOOR DID NOT RUN` / `REVERSE DOOR GUARDED NOTHING`），于是「为错误的原因
+   拒绝」不再是绿。改完 C2 读 3 failed，C1 也**多红一条腿**（去掉一条 `grep` 后门仍然拒绝，
+   但理由是错的那半）。
+2. 本批最初的本地复现整批读成「烟测失败」，实际是 `bash` 解析到 `System32\bash.exe`
+   （WSL relay，`execvpe(/bin/bash) failed`）。这正是本批要抓的那类错：**量具没跑起来的时候，
+   它报的是被测对象的结果**。现在 shell 候选必须先自己 `echo ok` 跑通才算数，跑不通的门腿
+   明说「这几条腿没跑」而不是绿。
+
+### 5 聚焦回归
+
+- **真跑落地后的那一步**（`scratch/real_534.py`；shell 从**落地后的 ci.yml 里抽出来**，
+  逐场景输出 `scratch/real_R3.log` / `scratch/real_R1.log` / `scratch/real_R2.log`，汇总
+  `scratch/real_534.txt`）：
+  - R3 端口上什么都没有（§2 的 S0，HEAD 读成 caught）：这一步 **exit=1**，说
+    `REVERSE DOOR GUARDED NOTHING: the smoke exited 1 before reaching the product path`，
+    证据读数为 `browser up=True product path=False`，死在 `runAgentTimelineSmoke`（11s）。
+    **这一条就是本批的全部主张落地后的样子**：同一次运行，HEAD 说 caught/exit 0，改后说
+    「它守的东西没跑到」/exit 1。
+  - R1 提供者是好的 fake（§2 的 S2）：**exit=1** 说 `MUTATION NOT CAUGHT`，两行证据都在
+    （42s）。取反的那半没被本批改坏，而「真烟测确实打那两行」在这里是**测出来的**，不再是
+    假设。
+  - R2 提供者不可达（§2 的 S1）：**exit=0** 说
+    `mutation caught: web smoke reached the product path and failed there (exit 1)`，两行证据
+    都在，死在 `runProductPathSmoke`（78s）。这道门存在的意义就是这一次读数。
+- 真仓：`tests/test_a_reverse_door_says_which_side_it_closed.py` + `tests/test_ci_hygiene.py`
+  **17 passed in 4.88s**（读同一份 yml 的那 11 条没有被本批的改写碰红）；
+  `node --check tests/web_smoke.mjs` 通过。
+- 三条 CI 检查器全部 rc=0，最后这一遍是在**本批记录已经写进文档之后**的字节上读的：`doc_pointers --check` 读 20 份文档、630 个在仓文件、882 个标记里checked=116、citation-without-locator=52、3924 条 evidence 指针。写进之前那一份文档读 879 个标记、3919 条指针——差的 3 个标记、5 条指针就是本批记录自己带进来的。这一句报的是**它自己所在的这份文档**的数，所以它带一条额外的规矩：**动这一句就得重跑一次**，跑出来的数不等于写下来的数，这句就是假话。`route_coverage --check`（34 个 dispatch site、378 行，GET A/B 20/20、POST A/B 14/14 = 100%）、`impacted_tests --check`（20 行影响集：第 2 行是本批门所在的那条腿）。
+
+**本批不跑全量围栏**，与第五百一十五批同口径：本批动的是 CI 的一步与烟测的两行 `console.log`，
+能被它们吹红的东西已经有名字了（§4 的六条臂 + §5 的三次真跑 + 读同一份 yml 的 11 条）。
+围栏还会跑另外四千多条，本批只跑了这 17 条。
+
+### 6 边界（本批**不**声称）
+
+- **没在 GitHub runner 上跑过**。腿与真跑用的都是同一段 shell、本机 Git Bash。GitHub 的
+  `bash -e` 默认不开 `pipefail`，本批写法不依赖它（显式取 `$?`，不经过管道）。
+- R1/R2/R3 的**版本**是本机 node 24.15.0 + chromium 151.0.7922.34；runner 矩阵上的烟测是否
+  打这两行，本批没测过。
+- 桩 `npm` 只证明「证据在 / 不在时门走哪条分支」，真烟测打不打那两行由 §5 的三次真跑回答；
+  两边各自成立，谁也不能替谁。
+- 证据只到「进过产品路径」。不钉路径里每一步都执行（provider → agent → verifier → completion
+  的中间步），要钉那个得让烟测逐步打点，本批没做。
+- 其余两个 suite（desktop / mobile）没有 marker：本批只给被反向门守护的那条链打点，给别的
+  suite 打点会诱导下一批把这道门当成守它们——它不守。
+- 腿六的普查按**声明词**（`MUTATION NOT CAUGHT`）认门，所以 C6 改名之后它仍绿。这条绿要说清：
+  它证明普查不依赖步骤名，不证明改名没有代价（腿一~五就是代价）。
+- 真跑发生在平面（`scratch/plane534`，自带 `node_modules`），npm 写的日志与截图都落在平面，
+  仓库根没有被 npm 碰过；平面那两份输入与仓库字节一致（LF 归一 sha，见 §4）。
+- 不声称全量围栏，见 §5 末。下一次围栏的红表应当比第五百一十三批少两条（那条 7.0 天花板腿
+  已由第五百一十五批转绿）。
+
+### 7 下一位候选（补记）
+
+1. 「一条天花板门不报自己的读数」：`tests/test_retrieval_enhanced.py:265-292` 那条 7.0 上限，
+   红话里读 `(7.232, 7.208)` 是巧合，**绿的时候它一个字也不说**（第五百一十五批 §6 记下这件事）。
+   它与本批同形：一条门把「我量到了」压成「没什么可说的」。
+2. M8-T537（第五百一十九批）：`load_permission_rules` 被按文件问两遍（2.000 次/文件）
+   ＋一轮刷新中间的否决权不一致。
+3. 沿用第五百一十三批、第五百一十五批 §7 的其余顺序。

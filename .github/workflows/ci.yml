@@ -222,11 +222,28 @@ jobs:
         env:
           MINICC_WEB_URL: http://127.0.0.1:8766
         run: |
-          if npm run test:web; then
+          set +e
+          npm run test:web > web-smoke-mutation.log 2>&1
+          code=$?
+          set -e
+          cat web-smoke-mutation.log
+          if [ "$code" -eq 0 ]; then
             echo "MUTATION NOT CAUGHT: web smoke passed against an unreachable provider"
             exit 1
           fi
-          echo "mutation caught: web smoke correctly failed against an unreachable provider"
+          # one bit cannot tell "the chain broke where it should" from "the smoke never
+          # ran": a renamed script, an unhurried browser or a suite-1 assert all exit 1.
+          # the smoke says where it got to; no evidence means the gate is broken, not
+          # that the mutation was caught.
+          grep -q "web smoke: browser up" web-smoke-mutation.log || {
+            echo "REVERSE DOOR DID NOT RUN: the smoke exited $code without launching a browser"
+            exit 1
+          }
+          grep -q "web smoke: suite product path" web-smoke-mutation.log || {
+            echo "REVERSE DOOR GUARDED NOTHING: the smoke exited $code before reaching the product path"
+            exit 1
+          }
+          echo "mutation caught: web smoke reached the product path and failed there (exit $code)"
       - name: Upload mutation server log
         if: always()
         uses: actions/upload-artifact@v4

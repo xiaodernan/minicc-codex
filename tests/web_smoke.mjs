@@ -402,8 +402,12 @@ async function runMobileSmoke(browser) {
 
 await mkdir(screenshotsDir, { recursive: true });
 const browser = await chromium.launch({ headless: true });
+// the CI mutation gate reads these two lines as proof of execution: its own verdict is
+// "the suite failed", and a suite that never started fails the same way.
+console.log("web smoke: browser up (chromium)");
 try {
   await runAgentTimelineSmoke(browser);
+  console.log("web smoke: suite product path");
   await runProductPathSmoke(browser);
   await runDesktopSmoke(browser);
   await runMobileSmoke(browser);
