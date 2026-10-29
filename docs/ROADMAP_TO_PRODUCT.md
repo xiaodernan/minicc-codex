@@ -35882,3 +35882,147 @@ to fail)']`。腿二、腿四在 HEAD 上**本来就绿**——它们问的是�
 2. M8-T537（第五百一十九批）：`load_permission_rules` 被按文件问两遍（2.000 次/文件）
    ＋一轮刷新中间的否决权不一致。
 3. 沿用第五百一十三批、第五百一十五批 §7 的其余顺序。
+
+## 第五百一十七批 — M8-T535 — 同一份报告放在比较的两边，六个差值就不是量出来的 0
+
+### 1 欠的是哪一条
+
+`minicc/bench_compare.py` 自己在模块 docstring 里写过一句标准（HEAD:22）：
+
+> The comparator never fabricates a conclusion: an unavailable metric yields a
+> ``None`` delta and a note, never a zero.
+
+这句话盖住了「某侧没有可评分任务」这一类不可用——`compare_reports` 也确实照着写了
+两条 note（HEAD:367「（None，而非 0）」、HEAD:382 成本缺失）。它没盖住的是第二类
+不可用：**两侧之间没有移动可量**，因为两边的读数是同一个。而 nightly 每天都在制造
+这种输入：`.github/workflows/ci.yml:372` 写的是
+
+```
+--baseline output/nightly-v2.json --variant output/nightly-v2.json
+```
+
+同一个路径放在比较的两边。比较器拿到的是两份解析后的 JSON，它看不见路径，只看得见
+「两侧数字一样」，于是把六个「移动」字段（HEAD:474-479）按算术写成 `0.0`，并给
+`pass_at_1_delta_ci` 算出一条 ±0.348 的 Newcombe 区间——同一个样本和自己比的产物。
+产物 `output/nightly-compare.json` 上传时，这些行读起来像「准确率、成本、延迟都没有
+劣化」。
+
+M4 的退出标准第 5 条（`docs/ROADMAP_TO_PRODUCT.md:190`）说的是「A/B 对比器 gate 违反
+时 exit code 1」——那条今天成立；本批欠的是它的前提：**判决之前，差值本身得是真的**。
+campaign 从第五百一十五批起就在收的那一类缺陷在此处第三次出现：读不出来的东西被写成
+一个读出来的值（`mtime = 0.0`、「我没跑起来」压成「我抓到了」、现在是「没有 A/B」压成
+「差值为零」）。
+
+### 2 量到的真相（实测，2026-10-29 本机）
+
+| 量 | 读数 | 出处 |
+| --- | --- | --- |
+| nightly 交给比较器的形状 | 同一个文件、同一个 sha，放在两边 | `.github/workflows/ci.yml:372` |
+| 真实跑出来的判决字段（HEAD 字节） | `pass_at_1_delta` **0.0**、`pass_at_1_delta_ci` **[-0.138, 0.138]**、`latency_p50/p95_delta_ms` **0.0 / 0.0**、三个类目 delta 全 **0.0** | `real_535.txt` 的 `### HEAD` 段（24 条 v2、fake provider、`--repeat 2`、五条 gate 原样） |
+| 同一份产物里的 notes | 只有 2 条：成本缺失、`--repeat=2 < 10`。**没有任何一行说这次没有 A/B** | 同上 |
+| 同族里已经是 null 的字段 | `cost_per_success_delta = null`（fake provider 无价格） | 同上——「读不到」与「算出来是 0」在同一个 JSON 里并存 |
+| 差值今天参不参与判决 | **不参与**：`_gate_actual`（HEAD:506）只读 `comparison["variant"]`，`GATE_METRICS`（HEAD:54）八项里没有 delta | 复核 M8-T182 那张两向门的同一处 |
+| 报告自带的时钟能不能当身份 | **不能**：`build_report` ×50 三连测得到 4 / 4 / 7 个不同 `generated_at_epoch`，相邻 49 对里 **46 / 46 / 43 对相等**；`time.time()` 紧循环 2000 次只跨 **1** 个刻度 | `probe_535d.txt` |
+| 派生后果 | 按戳判「同一次测量」会把**真实** A/B 的差值抹成 None——那是遮蔽回归，比本批要修的谎更重 | 由上一行直接得出，臂 E3 实测 |
+
+### 3 落地
+
+一个家：`minicc/bench_compare.py`（HEAD 682 行 → 落地 738 行）。
+
+- `MOVEMENT_FIELDS`（:328）——六个「两侧之间」的字段名，注释里写明两侧各自的数**不在**
+  这份清单里，因为它们是量到的。
+- `_blank_movement()`（:338）——把六个字段与每个 `categories[*]["delta"]` 就地置 None；
+  只有这一处会清值。
+- `compare_reports(..., same_report: bool | None = None)`（:353）——**判据由调用方陈述**，
+  因为只有调用方看得见自己的两个输入是不是同一份东西；发布 `"same_measurement"`（:511），
+  True 时清值并补一句 note（:523-529），None 时如实是「没人说过」而不是「不是」。
+- `main()`（:685、:704）——读字节一次、`same_report=base_raw == var_raw`。**字节相等是这里
+  唯一的证明**：改名后的副本（`cp a.json b.json`）算自比，同刻度的两次真实运行不算。
+  注释里写进 46/49 那次实测，防止下一位用时钟「简化」它。
+- 模块 docstring（:22-28）把「never fabricates」那句补全：第二种不可用由 `same_report`
+  承担，读者不必再从一列零里猜。
+
+**没有**动的东西，是决定的一部分：`ci.yml:372` 那一步仍然把同一个文件放在两边（改成真
+A/B 需要基线文件的家，那是 15% 那条线的单位），`latency_p95_ms<=600000` 这条绝对线
+一字未改（把它按声明标准放宽成 950s 会真的遮蔽回归）。本批只让这一步的产物**停止说谎**。
+
+### 4 见证
+
+门：`tests/test_a_self_compare_is_not_published_as_an_ab.py`（11 条腿，261 行 CRLF，与
+平面 raw-identical `69cc079e8e921e`；被改文件 raw-identical `05aafa8c204337`）。
+
+| 阶段 | 读数 |
+| --- | --- |
+| HEAD 字节（`plane535head`，今天的 `git archive HEAD`） | **8 failed / 3 passed**（`head_witness_535e.txt`） |
+| 落地后（平面，再真实仓库） | **11 passed**（平面与真实仓库各一遍） |
+
+HEAD 就绿着的三条是**本批不许动**的三条，门没有把「没做 A/B」修成「什么都读不到」：
+腿二（两侧各自的 pass@1/p95/cost 仍是量到的数）、腿九（gate 仍读 variant，违反→exit 1、
+满足→exit 0）、腿十一（`GATE_METRICS` 里一旦出现 delta 项、而 nightly 还在自比 → 红）。
+
+八条臂（`arms_535.txt`，跑在**已修正的落地**上，每条跑完还原并复验 sha256）：
+
+| 臂 | 变异 | 红的腿 | 读数 |
+| --- | --- | --- | --- |
+| E1 | CLI 永远说「不是同一次测量」 | 5 | MATCHED |
+| E2 | CLI 永远说「是同一次测量」 | 2 | MATCHED |
+| E3 | **把判据换成报告自带的时钟** | 1（只有腿八） | MATCHED |
+| E4 | 清顶层、忘分类目 | 1 | MATCHED |
+| E5 | 把两侧各自的读数也抹掉 | 2（腿二 + 腿九） | MATCHED |
+| E6 | note 换成一句听起来正常的赞美 | 1 | MATCHED |
+| E7 | 把判决改名 | 5 | MATCHED |
+| E8 | 判决照写、值不动 | 4 | MATCHED |
+
+两条纪律是这批问出来的：
+
+1. **E3 证明「按戳判」不是等价实现**——它只被专门钉这件事的腿八点名，其余十条腿在两种
+   判据下同绿。少一条腿八，本批会带着一个「抹掉真实 A/B」的实现进主干。
+2. **E8 的第一版期望表写错了**：我把腿七列进 pass，harness 报 `DID NOT BITE`。原因是腿七
+   不只问判决写没写 True，还问判决后面跟着的数清没清。**期望表错了就改期望表**，
+   门没有错——这一句和第五百一十六批的腿一同形，这次是它自己抓到了我的表。
+
+真实端到端：同一条 nightly 命令（`--suite v2 --run` 生成报告，再原样 compare）在 HEAD 与
+落地两个平面上各跑一遍（`real_535.txt`）：六个差值与三个类目 delta 从 `0.0` → `null`，
+notes 从 2 条 → 3 条，`same_measurement` 从无 → `true`；而**五条 gate 的 actual/violated、
+junit 的 5 个 testcase 1 个 failure、compare 退出码 1 一字不变**——门管的还是那些事，
+本批只把「没有做过比较」这件事从算术的副产品改写成一句陈述。
+（fake provider 下 `pass_at_1>=0.3` 必然违反，因为模型不做任何事；它在这里是两个平面的
+共同常量，不是本批的判决。）
+
+还有一次踩坑要记进方法论：`### FIXED` 那一段第一次跑出来的正是 **E8 的形状**（判决 true、
+值没清）——因为我把它和后台的臂作业同时在 `plane535` 上跑，读到了臂中途的变异文件。
+**见证必须在静止的平面上取**；重跑段 `### FIXED2` 才是落地代码的读数。
+
+### 5 聚焦回归
+
+- 真实仓库：门 11 条 + 邻居（`test_bench_compare` 22、`test_benchmark_runner`、
+  `test_ci_hygiene`、`test_bench_tasks`、`test_pricing`、`test_behavior_bench`）
+  一次跑完 **118 passed in 138.69s**。
+- 三条 CI 检查器全部 rc=0，最后这一遍是在**本批记录已经写进文档之后**的字节上读的：`doc_pointers --check` 读 20 份文档、631 个在仓文件、887 个标记里checked=116、citation-without-locator=52、3936 条 evidence 指针。写进之前那一份文档读 882 个标记、3924 条指针——差的 5 个标记、12 条指针就是本批记录自己带进来的。这一句报的是**它自己所在的这份文档**的数，所以它带一条额外的规矩：**动这一句就得重跑一次**，跑出来的数不等于写下来的数，这句就是假话。`route_coverage --check`（34 个 dispatch site、378 行，GET A/B 20/20、POST A/B 14/14 = 100%）、`impacted_tests --check`（220 行影响集：第 5 行是本批门所在的那条腿）。
+
+### 6 边界（本批**不**声称）
+
+- **不声称 15% 那条相对线有了读者。** 落地后 `GATE_METRICS` 里仍然没有 delta 项；
+  `docs/ROADMAP_TO_PRODUCT.md:464` 声明的标准（相对 M4 基线劣化 ≤15%）与
+  `ci.yml:377` 执行的绝对线（600s）仍然是两条，且 600s 比文档基线 826s 更严。本批只
+  加了腿十一，使「先给差值门、后修自比」这个顺序不可能悄悄发生。
+- **不声称 nightly 那一步现在做了 A/B。** 它仍然是同一个文件放在两边；产物从「像结论的
+  零」变成「明说没有 A/B 的 null」，但那一步**还是没有比较**。
+- **不声称 `same_report` 覆盖库调用者。** 直接调 `compare_reports` 的人没有告知，判决就是
+  None（腿十），差值仍按算术给——那是「没人说得清」的如实，不是修好。要它成为修好，得
+  让调用方能给出身份（路径、sha 或 run id），而报告里今天没有 run id。
+- **不声称基线数字有了家。** `docs/BENCHMARK_EVALUATION.md:52-53` 那两行（115s / 826s）
+  仍是转述，原始读数 `output/evaluation-full.md` 在仓库外；读不到 ≠ 没有劣化。
+- 本批不跑全量围栏；门与邻居是上面那两条读数。
+
+### 7 下一位候选（补记）
+
+1. **15% 那条线连同它的基线之家**：现在被腿十一挡在门外——它必须和「nightly 不再自比」
+   同一批落地（三向一致：`GATE_METRICS` / `GATE_FLOORS` / `ci.yml`），并且读不到基线就红。
+2. `same_measurement` 今天只有比较器写、`render_delta_table` 不读它：表里那一行是 `N/A`，
+   「为什么是 N/A」只在 notes 里。给它一行表头位置是低成本的一次跟进。
+3. 报告里没有 run id：`build_report` 只写 `generated_at_epoch`（`minicc/benchmarks.py:331`），
+   所以库层判据只能是「调用方说」。补一个稳定身份是把判据从 CLI 下放到库的前提。
+4. `--check` 在干净工作树上先返回、覆盖度下限从来没在 CI 上算过（第五百一十八批）。
+5. 读不出 `permissions.json` 的那次 stat，答的是「没有规则，也没有错」（第五百一十九批，
+   素材已备）。

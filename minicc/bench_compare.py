@@ -20,7 +20,14 @@ many independent draws back each report; per the roadmap pass@k is only claimed
 when N >= 10 *and* the reports actually carry per-draw outcomes.
 
 The comparator never fabricates a conclusion: an unavailable metric yields a
-``None`` delta and a note, never a zero.
+``None`` delta and a note, never a zero.  A movement metric is unavailable in a
+second way, which no per-side reading can show: the caller may hand the comparator
+the same report twice - the nightly's own shape, ``--baseline X --variant X``.
+Subtracting one reading from itself is arithmetic, not measurement, so
+``compare_reports`` takes ``same_report`` from the caller (only the caller can see
+that its two inputs are one file), blanks the movement fields when it is True, and
+publishes ``same_measurement`` so a reader never has to infer the fact from a
+column of zeroes.  ``None`` there means nobody said - not that they differed.
 """
 
 from __future__ import annotations
@@ -314,6 +321,28 @@ def _pass_at_k(rows: Sequence[dict[str, Any]], k: int) -> float | None:
     return round(total / len(gradable), 4)
 
 
+#: The keys that answer "did the variant move relative to the baseline".  Each of
+#: them is a subtraction *between* the two sides, so each is undefined when both
+#: sides are one reading - see ``compare_reports``' ``same_report``.  The per-side
+#: numbers are not in this list: they were measured, and stay in the report.
+MOVEMENT_FIELDS = (
+    "pass_at_1_delta",
+    "pass_at_1_delta_ci",
+    "cost_per_success_delta",
+    "cost_per_success_delta_ci",
+    "latency_p50_delta_ms",
+    "latency_p95_delta_ms",
+)
+
+
+def _blank_movement(comparison: dict[str, Any]) -> None:
+    """In place: every value that claims movement becomes "no reading" (``None``)."""
+    for key in MOVEMENT_FIELDS:
+        comparison[key] = None
+    for block in comparison["categories"].values():
+        block["delta"] = None
+
+
 def compare_reports(
     baseline: object,
     variant: object,
@@ -321,8 +350,16 @@ def compare_reports(
     repeat: int = 1,
     bootstrap_iterations: int = 2000,
     seed: int = 20260921,
+    same_report: bool | None = None,
 ) -> dict[str, Any]:
-    """Align two reports task-by-task and compute the movement between them."""
+    """Align two reports task-by-task and compute the movement between them.
+
+    ``same_report`` is the caller's statement about the two inputs it was handed:
+    True means they are one report placed on both sides, which leaves no movement
+    to measure, so the fields in ``MOVEMENT_FIELDS`` and every category delta come
+    out ``None``.  Left as ``None`` when the caller did not say, and published as
+    such - "not told" is not evidence that the sides differed.
+    """
     base_rows, base_metrics = _normalize_rows(baseline)
     var_rows, var_metrics = _normalize_rows(variant)
     # M8-T159: the suite identity rides along from the report top level. A raw
@@ -431,7 +468,7 @@ def compare_reports(
         else:
             pass_at_k = {"k": k, "baseline": base_pk, "variant": var_pk}
 
-    return {
+    comparison: dict[str, Any] = {
         "schema_version": 1,
         "aligned_task_count": len(shared),
         "baseline_only_task_ids": base_only,
@@ -471,6 +508,7 @@ def compare_reports(
             # Batch 181: same ride-along as the baseline block.
             "false_completion_rate": var_metrics.get("false_completion_rate"),
         },
+        "same_measurement": same_report,
         "pass_at_1_delta": pass_delta,
         "pass_at_1_delta_ci": pass_delta_ci,
         "cost_per_success_delta": cost_delta,
@@ -482,6 +520,14 @@ def compare_reports(
         "repeat": k,
         "notes": notes,
     }
+    if same_report is True:
+        _blank_movement(comparison)
+        comparison["notes"].append(
+            "两侧是同一次测量（比较的两边是同一份报告）：本次没有 A/B，六个差值字段与"
+            "分类目 delta 本是同一个读数自减的算术结果、不是量到的移动，已置 None（而非 0）；"
+            "两侧各自的指标仍在 baseline/variant 块里。"
+        )
+    return comparison
 
 
 def parse_gate(spec: str) -> dict[str, Any]:
@@ -636,16 +682,26 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("--bootstrap-iterations 不能为负")
 
     try:
-        baseline = json.loads(args.baseline.read_text(encoding="utf-8"))
-        variant = json.loads(args.variant.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+        base_raw = args.baseline.read_bytes()
+        var_raw = args.variant.read_bytes()
+        baseline = json.loads(base_raw.decode("utf-8"))
+        variant = json.loads(var_raw.decode("utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         parser.error(f"读取报告失败: {exc}")
 
+    # M8-T535: the nightly hands one path to both sides (--baseline
+    # output/nightly-v2.json --variant output/nightly-v2.json), so the byte
+    # comparison below is what the step actually deserves.  The reports' own clock
+    # is not a substitute: generated_at_epoch comes from time.time(), and on a
+    # coarse tick two different runs share the same float - measured on one host,
+    # 46 of 49 adjacent build_report calls.  Blanking on that would erase real
+    # movement, which hides the regressions this module exists to catch.
     comparison = compare_reports(
         baseline, variant,
         repeat=args.repeat,
         bootstrap_iterations=args.bootstrap_iterations,
         seed=args.seed,
+        same_report=base_raw == var_raw,
     )
 
     # Gate assembly lives in evaluate_gates; main() only translates its
