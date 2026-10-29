@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import importlib.util
 import sys
+from collections.abc import Iterable
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -76,8 +77,21 @@ def _spans(text: str) -> set[str]:
     return {span for _off, span in dp._code_spans(text)}
 
 
-def _block_of(text: str, offset: int) -> tuple[int, int] | None:
-    for start, end in dp._fence_blocks(text)[0]:
+def _fence_ranges(text: str) -> list[tuple[int, int]]:
+    """One document, one pairing.
+
+    M8-T540: this used to be ``_block_of(text, offset)``, which rebuilt the whole
+    document's fence ruler *per span*.  On the shipped documents that is 24,071
+    pairings of a 2.9 MB corpus for one leg; the M8-T536 run took 1423.6s, crossed
+    ``conftest.py:36``'s 900s bound, and the hook at ``conftest.py:87`` rewrote a
+    passing call report into ``failed``.  A fence ruler is a property of the
+    document, so it is built once and asked per span.
+    """
+    return dp._fence_blocks(text)[0]
+
+
+def _block_of(ranges: list[tuple[int, int]], offset: int) -> tuple[int, int] | None:
+    for start, end in ranges:
         if start <= offset < end:
             return (start, end)
     return None
@@ -193,15 +207,22 @@ def test_the_evidence_reader_and_the_pointer_reader_blank_the_same_fenced_bytes(
 # --------------------------------------------------------------------------- #
 
 
-def test_no_shipped_citation_lies_inside_a_closed_fence_block() -> None:
+def _offenders_in_blocks(documents: Iterable[Path]) -> list[tuple[str, str]]:
+    """One ruler build per document; every span is asked against that build."""
     offenders: list[tuple[str, str]] = []
-    for document in dp.DEFAULT_DOCS:
+    for document in documents:
         if not document.exists():
             continue
         text = document.read_text(encoding="utf-8", errors="replace")
+        ranges = _fence_ranges(text)
         for offset, span in dp._code_spans(text):
-            if _block_of(text, offset) is not None:
+            if _block_of(ranges, offset) is not None:
                 offenders.append((document.name, span))
+    return offenders
+
+
+def test_no_shipped_citation_lies_inside_a_closed_fence_block() -> None:
+    offenders = _offenders_in_blocks(dp.DEFAULT_DOCS)
     assert offenders == [], f"块内逃逸的跨度 {len(offenders)} 条，前几条：{offenders[:4]}"
 
 
