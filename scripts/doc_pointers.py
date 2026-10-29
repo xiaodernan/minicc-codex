@@ -1290,6 +1290,23 @@ _DECLINED_PATH: dict[str, str] = {
     "交付选了后者；这个拼法从未存在",
 }
 
+#: A test name a draft used and the delivery declined to ship. The mirror of
+#: ``_DECLINED_PATH`` for the one thing the evidence reader resolves without a
+#: slash: a bare test name. The record quotes these spellings to say they are
+#: **not** in the package - which is the same sentence ``_RETIRED_TEST_NAME``
+#: cannot carry, because a retired name once shipped and these never did.
+_DECLINED_TEST_NAME: dict[str, str] = {
+    "test_every_emitter_reaches_the_home": "第五百一十四批（M8-T532）草案给这条腿起的名字；落地时"
+    "把名字改回出货名 `test_every_emitter_asks_the_home`——11 条在仓引用（含 "
+    "`docs/ROADMAP_TO_PRODUCT.md:34821` 那条认账）指向它，而这条腿问的问题从未变过，变的只是什么算"
+    "答案。这个拼法从未进入仓库，文档引它正是在记录这次「改名退回」",
+    "test_the_provider_channel_switch_still_arrives_at_the_home": "第五百一十四批（M8-T532）写好又"
+    "删掉的一条腿：核对之后发现 `tests/test_the_channel_switched_event_has_one_home.py:43` 已把 "
+    "`channel_switched_event(402)` 的七个键逐个钉死、`:88-89` 钉了两个提供者拿的是同一个对象、"
+    "`:92-108` 钉了 `_switch_to_plan(402)` 发出来的就是那条——再加一条就是第二个家。这个拼法从未进入"
+    "仓库，文档引它正是在记录这次删除",
+}
+
 #: Dated review snapshots: a line number in one of these was true on the date in
 #: the filename, and rewriting it would falsify the record. Existence and test
 #: names are still checked; ``:line`` is not.
@@ -1322,6 +1339,7 @@ _EVIDENCE_TABLES = (
     _RETIRED_PATH,
     _RETIRED_TEST_NAME,
     _DECLINED_PATH,
+    _DECLINED_TEST_NAME,
 )
 
 

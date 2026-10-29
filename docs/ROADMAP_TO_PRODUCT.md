@@ -35359,3 +35359,220 @@ A11 是本批要的那一句：同一种坏法，出货字节说「方法不见�
 
 - `minicc/changes.py:_baseline`：`git show HEAD:<path>` 非零退出一律 `""`——
   「取不到基线」被说成「基线是空的」，diff 于是把整份文件报成全新增。
+
+## 第五百一十四批 — M8-T532 — 一条门问「名字还在不在」，答的是「够不够得着家」
+
+### 1 欠的是哪一条
+
+第五百一十三批 §5 红表的第一条，而且这条红**先于本批存在**：`docs/ROADMAP_TO_PRODUCT.md:34821`
+已经写下「名单没跟着改——这条门从那时起就红了 59 个提交。第五百一十四批（M8-T532）领走」。
+
+- 家：`minicc/trace.py:22` 的 `trace_event`（第三百九十五批 / M8-T411 立的家，
+  `docs/ROADMAP_TO_PRODUCT.md:26923`）。
+- 门：`tests/test_the_trace_event_have_one_home.py`，出货字节 `:67-73`——对**手抄的 8 个模块名**
+  逐个 `assert "trace_event" in source`。
+- 起点：`1c12ec5`（**M8-T482 = 第四百六十六批**，`docs/ROADMAP_TO_PRODUCT.md:31620`）把 anthropic
+  提供者的通道切换事件整条搬进 `minicc/llm/usage.py:105` 的 `channel_switched_event()`。
+  提供者 `minicc/llm/anthropic_provider.py:40` 只导入那个工厂、`:424` 只调用工厂，因此它的字节里
+  从此再没有 `trace_event` 这七个字母。
+
+**顺带改对一处批次号**：认账的那一行 `docs/ROADMAP_TO_PRODUCT.md:34821` 把 `1c12ec5` 写成
+「第四百八十二批」——第四百八十二批是 M8-T498（`:32531`），`1c12ec5` 是 M8-T482 =
+第四百六十六批。本批沿用那句「红了 59 个提交」，不沿用那个错的序数。
+
+这条债的形状要说准，否则下一批会修错东西：**家仍然只有一个；变的是「问家的路」不再
+是那个名字**。门没有读错数字，门读的是**另一个问题**——「名字还在不在」，而产品事实是
+「够不够得着家」。
+
+### 2 量到的真相（实测）
+
+下表全部在本批落地字节上于**真仓**复测（`importlib` 直接调门里的走查器，非平面）：
+
+| 量 | 读数 |
+| --- | --- |
+| `minicc/` 里够得着家的模块 | **10** |
+| 出货门里手抄名单 | **8** |
+| 名单看不见的两个 | `minicc/agent/protocol.py:313`（`budget_exceeded_event`）、`minicc/llm/usage.py:105`（`channel_switched_event`）——**都是工厂** |
+| 只通过工厂够得着的模块 | **恰好 1 个**：`minicc/llm/anthropic_provider.py:424` |
+| 走查规模 | 86 个文件、1414 个作用域、7392 个调用目标 |
+| 够得着家的 (文件, 作用域) 节点 | 33 |
+| 换个解析规则（把 `self.X` 也按同文件方法解析） | **仍是 10**，不增不减 |
+| 名单内**纯撞名**的假绿 | **0** |
+
+**「假绿」这条差点写错，写在这里是为了别再写错**：第一次普查把
+`minicc/llm/fake.py` 报成「名单里的人其实没问家」——因为走查器只进函数体，而
+`fake.py:43-45` 在**模块级**用 `measured_usage(...)` 造夹具。修掉走查器后假绿归零。
+另一次差点写错的是把 `minicc/agent/state.py:190/196`（`trace_events` 字段、`add_trace`
+**接收方**）说成门今天的错——它不在名单里，所以那是这个模式的**危险**，不是今天的事实。
+
+**「按文件连边」这个显而易见的修法是错的，错在谁身上都点名了**：它读数 **13**，多出来
+三个——`minicc/agent/completion.py:23` 导入 `classify_provider_failure`、
+`minicc/benchmarks.py:31` 导入 `fake_provider_active`、`minicc/task_worker.py:35` 从
+`agent.protocol` 导入的是**两个常量**。三条边都指向「确实够得着家的文件」，但没有一条
+问的是家。**边必须按符号连，不按文件连。**
+
+**同形门一共 8 条**（`assert "<名字>" in source` + 手抄模块名单）：
+
+| 门 | 名字 | 名单 | 够得着 | 名单少算了 |
+| --- | --- | --- | --- | --- |
+| `test_the_trace_event_have_one_home.py` | `trace_event` | 8 | **10** | `agent/protocol.py`、`llm/usage.py` |
+| `test_the_measured_usage_have_one_home.py` | `measured_usage` | 3 | **8** | `agent/loop.py`、`agent/subagent.py`、`llm/usage.py`、`main.py`、`web.py` |
+| `test_the_estimated_usage_have_one_home.py` | `estimated_usage` | 2 | **4** | `agent/subagent.py`、`main.py` |
+| `test_the_budget_exceeded_event_have_one_home.py` | `budget_exceeded_event` | 3 | 3 | — |
+| `test_the_tool_call_have_one_home.py` | `tool_call` | 5 | 5 | — |
+
+（另两条不是可调用名：`MISSING_TASK_AUTHORIZATIONS` 是 `minicc/audit.py:362` 的 frozenset，
+worker-argv 那条断言的是 import 字符串——**量具读不了，不是产品有错**。）
+
+### 3 落地
+
+只换量具的口径，产品字节一条不动。量具自己也补了一格，就在本节最后一条——那一格是记录逼出来的。
+
+- 名单改成**推导 + 对照**：`_call_scopes()`（`:75`）产出「导入绑定 / 每作用域的调用目标 /
+  每文件的作用域名」，`_nodes_asking_the_home()`（`:190`）以家为种子按**符号**做不动点，
+  `_modules_asking_the_home()`（`:216`）去掉家本身。相对导入按**声明文件的包**解析，
+  所以 `from ..trace import trace_event` 在 `agent/loop.py` 里读成 `minicc.trace`——
+  工厂因此可见。
+- `EMITTERS`（`:31`）**保留为契约**，10 项全列。两条腿各管一个方向：
+  `test_every_emitter_asks_the_home`（`:245`）答「名单里的人还够不够得着家」，
+  `test_the_declared_list_is_the_set_that_reaches_the_home`（`:265`）答「够得着家的人
+  名单里全不全」。**红话两个方向都说**，因为只说一边就是又一次「名单没有分母」。
+- **腿名不改**：`test_every_emitter_asks_the_home` 这个名字有 11 条出货引用指向它
+  （含 `docs/ROADMAP_TO_PRODUCT.md:34821` 那条认账），改名会让那 11 条变成假引用。
+  问题从未变过，变的只是「什么算答案」——docstring `:248-249` 写死了这件事。
+- 一条新腿**写好之后删掉，不装**：`test_the_provider_channel_switch_still_arrives_at_the_home`。
+  先去核对了「这条腿问的是不是已经有人问过」：
+  `tests/test_the_channel_switched_event_has_one_home.py:43` 已把 `channel_switched_event(402)`
+  的**七个键逐个钉死**，`:88-89` 钉了两个提供者拿的是**同一个对象**，`:92-108` 钉了
+  `_switch_to_plan(402)` **发出来的就是那条**。再加一条就是第二条家。本批**不留重复门**——
+  这条如果写了，§6 就得承认自己没查。
+- 反空转三条下界（`:287`/`:292`/`:296`）：`len(reached) >= _MIN_REACHING_MODULES = 5`、
+  `len(binds) >= 50`、`sum(len(targets)) > 1000`。没有它们，「两个空集合相等」就是绿。
+- **本批第三个文件是 `scripts/doc_pointers.py`**，而且是记录逼出来的，不是顺手改的。
+  记录写完之后跑 `doc_pointers --check`，它读 **rc=1**、两条 `DANGLING EVIDENCE`，红话是
+  「既不是测试文件名也不是任何测试函数名」——两条都点在**本批自己**写的句子上：一条是上面
+  那条「写好之后删掉，不装」的腿，一条是 §4 开头那句「草案把它改名叫 reaches、落地改回
+  asks」。作者当时只有两条路：**把记录改成不指名**（就是造假），或者让量具说得出「这个拼法
+  从未进过仓库」。
+  `_RETIRED_TEST_NAME` 说的那句「retired」在这里不成立——退过的名字曾经出货，这两个从未。
+  所以加一张表 `_DECLINED_TEST_NAME`（两行、每行带强制理由），挂进 `_EVIDENCE_TABLES`。
+  它不是放宽：`check_exempt_tables` 两头都要活——理由为空即 bug、`key not in haystack`
+  报陈旧、`hits == 0` 报死行；改完 `doc_pointers --check` 读 **rc=0**，`exemption_usage`
+  在 20 份文档、24 条豁免行里读出**两条新行各命中 1 次、死行 0 条**。
+  这张表的存在理由与 `_RETIRED_TEST_NAME` 自己被立起来时写的那句是同一句
+  （`scripts/doc_pointers.py:1259-1260`）：
+  **量具读不出一种真话时，作者只剩两条路——把记录改成假的，或者一直红**。第九十九批
+  （M8-T113）为「改过名的腿」立了那张表，本批为「从未出货的腿」补上它缺的那一格
+  （`scripts/doc_pointers.py:1298`）。
+
+### 4 见证
+
+平面：`C:\Users\18414\.qoder-cn\scratch\plane531`（`git archive HEAD` 导出）。臂纪律
+snapshot → mutate → run → restore → 逐个重验 `minicc/**/*.py` 与门文件自己的 sha256，
+任何一条不一致整轮中止；每臂**完整** pytest 报告落 `scratch/arm_landed_<臂>_full.txt`。
+平面的 `minicc/` 与 HEAD 逐字节相同（`verify_plane531.py`：541 个跟踪 `.py`，3 条差异全在
+`tests/`，其中两条是该平面早于第五百一十三批提交导出所致，本批的臂不收集它们）。
+
+**本批门在干净 HEAD 产品字节上的底**：真仓 `6 passed in 11.59s`（6 条腿）。这一条是量具类
+批次的底，不是可省的装饰：本批**不动产品字节**，所以「换口径之后门是绿的」必须由绿转绿的
+读数说话，而出货口径在同一份字节上是**红的**（A7：`1 failed, 3 passed`，红话点名
+`minicc/llm/anthropic_provider.py`）。门绿了而产品没动——这正是本批要的效果；产品有没有
+真的够得着家，由下面 A1/A5/A6 三条臂答。
+
+**臂的读数全部在落地字节上重跑过**（驱动 `scratch/arms_532_landed.py`）。第一轮臂跑的是
+**草案字节**——草案把这条腿改名叫 `test_every_emitter_reaches_the_home`，落地时把名字改回
+出货名并多两行 docstring，其余逐字节相同。判定必须由仓库里的字节读出来才算，所以十条臂
+一条不剩全部重跑，判定与第一轮**逐臂一致**：
+
+| 臂 | 改了什么 | 期望 | 落地字节读数 | 判定 |
+| --- | --- | --- | --- | --- |
+| A1 | `usage.channel_switched_event` 不再问家（手拼字典，调用整条消失） | 红 | `2 failed, 4 passed in 10.90s` | MATCHED |
+| A2 | 新门名单里删掉真发射的 `web.py`（blind 方向） | 红 | `1 failed in 4.11s` | MATCHED |
+| A2b | **同一处删除**交给出货字节 | 绿 | `1 passed in 1.17s` | MATCHED |
+| A3 | 新门名单里塞进 `agent/state.py`（只有 `trace_events` 字段撞名） | 红 | `2 failed in 7.55s` | MATCHED |
+| A3b | **同一处塞入**交给出货字节 | 绿 | `1 passed in 1.16s` | MATCHED |
+| A4 | `HOME_FUNCTION` 种子拼错（家改名而门不知道） | 反空转红 | `1 failed in 5.31s` | MATCHED |
+| A5 | 符号粒度换成文件粒度 | 红且点名三个 | `1 failed in 4.52s` | MATCHED |
+| A6 | 把家**别名导出**、`fake.py` 改用别名问 | 红在 fake | `2 failed, 4 passed in 11.06s` | MATCHED |
+| A6b | 同一处别名交给出货字节 | 只披露 | `1 failed, 3 passed in 3.51s`（红的仍是 A7 那条旧红） | DISCLOSED |
+| A7 | PRE-FIX：出货字节门在本包上本来就红 | 红且点名 anthropic | `1 failed, 3 passed in 3.39s` | MATCHED |
+
+**九 MATCHED、一 DISCLOSED**。三处前提写错又改对，必须留在记录里，否则下一批会把它们
+当成新事实：
+
+1. **出货门在 HEAD 上是红的**（A7 量到），红话点名 `minicc/llm/anthropic_provider.py`——
+   它今天 `grep -c trace_event` 读 **0**，却通过 `:40` 导入、`:424` 调用
+   `usage.channel_switched_event` 够着家。旧门问的是**名字**，家确实只有一个，是**问家的路**
+   不再是那个名字。
+2. 因此**任何**往出货门名单上加/删一项的对照臂，都被这条既存的红**挡在第一个名单项**
+   上（`assert` 逐模块、遇到第一个就停），新加的那项**根本问不到**。第一版 A2b/A3b 就死在
+   这里：A2b 读 `1 failed`（判定 DID NOT BITE），A3b 读的是本批没声称的那条红。改法是臂里
+   **先清掉既存阻塞**（从出货名单删掉 anthropic 那一项），再问本臂的问题——两条于是都读到
+   `1 passed`：出货门既看不见被删掉的 `web.py`（25 处含家名），也照收只有字段撞名的
+   `state.py`。**「门绿」与「名单是对的」在旧口径下没有关系。**
+3. 臂第一轮记的是**草案字节**的节点 id。改名两行之差不动走查逻辑，但「同一份判定」这件事
+   只能靠重跑证明，不能靠推理。
+
+### 5 聚焦回归
+
+- 本批门单跑（真仓，落地字节）：**6 passed in 11.59s**。
+- 同一家族 8 个文件（本批门 + 另 4 条同形名门 + `test_the_channel_switched_event_has_one_home.py`
+  + 元门 `test_a_fact_may_have_only_one_home.py` + `test_a_checker_that_emits_is_a_write_too.py`）：
+  真仓 **39 passed in 30.16s**（记录定稿之前同一把选择集读 27.88s——文档字节不算输入，但两条都写下来，免得下一批以为墙钟是结论）；平面同一把选择集 **39 passed / 98.02s**。两条读数**条数一致**
+  （平面那轮与另一个项目的 pytest 同时跑，墙钟不计入结论）。
+- 三条 CI 检查器全部 rc=0（在**最终树**上跑：门 + 记录 + `scripts/doc_pointers.py`）：
+  `doc_pointers --check` 汇总 `checked=116 of 875` markers、23 links、3905 evidence
+  pointers、20 documents、628 tracked files——与第五百一十三批那次（870 markers、3857
+  evidence、`citation-without-locator=52`）相比，markers 与 evidence 的增量全部是本批记录
+  自己写进去的；`checked` 仍是 116、`citation-without-locator` 仍是 52，即本批**没有新增一种
+  没落点的引用**（第一版草稿在这里写的是一个指向本节末尾的裸引用句，那一轮读数是
+  `citation-without-locator=53`——它自己就是那条新增的没落点引用，改写之后才回到 52）；
+  `route_coverage --check` 34 个 dispatch site、`webserver.py` 378 行执行，GET A/B 均
+  20/20、POST A/B 均 14/14 = 100%；`impacted_tests --check` 输出 24 行，其中
+  `tests/test_the_trace_event_have_one_home.py` 与 `tests/test_doc_pointers.py` 各自对应本批
+  动的两个代码文件。
+- 检查器自己的回归：`tests/test_doc_pointers.py` + `tests/test_a_checker_that_emits_is_a_write_too.py`
+  = **67 passed in 590.02s (0:09:50)**（另一个项目的 pytest 同时在跑，墙钟不计入结论）。
+- roadmap 形状的六条门（批次号唯一性、分节引用、第九十九批之后的中文序、
+  `tests/test_pointer_liveness_corpus.py`、围栏闭合、两个读档者共用一把尺）：
+  **58 passed, 1 deselected in 360.92s (0:06:00)**。deselect 的那一条是
+  `tests/test_the_two_readers_share_one_fence_ruler.py::test_no_shipped_citation_lies_inside_a_closed_fence_block`
+  ——第五百一十三批 §5 记下的第二条红，本批不碰它，它也不该被本批的读数掩盖。
+- 走查读数在本批字节上复测：86 / 1414 / 7392 / reached=10=declared（§2 的表就是这么来的）。
+
+**本批对围栏的预告**：第五百一十三批 §5 的红表第一条就是这条腿（先于本批存在，自 `1c12ec5`）。
+本批不动产品字节、只换这条门的口径，所以它**应当由红转绿**——转绿不是产品变好了，是量具
+不再用「名字还在不在」回答「够不够得着家」。产品侧的真实覆盖由 A1/A5/A6 三条臂答。
+另外两条红（`test_retrieval_enhanced.py::test_index_build_makes_a_constant_number_of_filesystem_calls_per_file`、
+`test_the_two_readers_share_one_fence_ruler.py::test_no_shipped_citation_lies_inside_a_closed_fence_block`）
+本批一条不碰。
+
+### 6 边界（本批**不**声称）
+
+- 不动 `minicc/` 任何产品字节；平面的 `minicc/` 与 HEAD 逐字节相同已验。本批一共动**三个**
+  文件：门 `tests/test_the_trace_event_have_one_home.py`、记录 `docs/ROADMAP_TO_PRODUCT.md`、
+  量具 `scripts/doc_pointers.py`。第三条**只加表不放宽**：新增的 `_DECLINED_TEST_NAME` 让
+  「从未出货的名字」成为一种可登记的真话，四条既有校验（理由非空、key 在文档里、命中数 >0、
+  引用能否解析）一条都没动——`tests/test_doc_pointers.py` 与门的回归一起绿（67 passed）就是
+  这条不放宽的读数。
+- **本批不跑全量围栏**。这条门的红转绿只有单跑、同族 8 文件、十条臂三类读数支持；围栏的
+  账由下一条围栏结（下一条围栏的起点是第五百一十三批那条 `3 failed / 4119 passed / 8 skipped`，
+  本批把其中一条红的口径换掉）。
+- 另两条盲门（`measured_usage`、`estimated_usage`）**排进 §7**，不在本批一起改：一份量具
+  一次只换一个口径，否则红了说不清是谁。
+- 走查不解析 `getattr`/动态派发、不跨包边界（只走 `minicc/`）、`self.` 保守不解析——
+  §2 已量到「换规则不改变读数」。反空转下界是 **5**，所以本批不声称「10 是精确的产品事实」，
+  只声称「名单与走查在同一份字节上不打架，且差集已被两条方向相反的腿各管一边」。
+- 家今天仍有第二条腿没门：`_trace_dict_literals` 只数 `"kind": "trace"` 的字面量，
+  不看键序、不看谁调用它。
+
+### 7 下一位候选（补记）
+
+1. **同形名门的另外两条**：`test_the_measured_usage_have_one_home.py`（名单 3、够得着 **8**）
+   与 `test_the_estimated_usage_have_one_home.py`（名单 2、够得着 **4**）。§2 已经把差集
+   逐模块点名，本批的走查器可直接复用——一份量具一次只换一个口径，所以拆成一批。
+2. M8-T537（第五百一十九批）`load_permission_rules` 每文件被问两遍；它排出的
+   「一轮否决权问两遍规则（2.000 stat/文件）」是同一条线上的下一站。
+3. M8-T540（引用门 24,071 次全档重解析）**排在下一条围栏之前**：它不改变任何产品事实，
+   但决定下一条围栏的墙钟。
+4. 沿用第五百一十三批 §7 的其余顺序。
