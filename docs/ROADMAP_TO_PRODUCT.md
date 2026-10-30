@@ -35711,3 +35711,58 @@ A 的两条红是「`conftest.py` 没有把用户级配置指向隔离文件」�
 2. M8-T539（新）nightly 其余绝对门的值没有读者：`pass_at_1>=0.3` 自称「初始保守、待真实画像后上调」，`grading_coverage>=0.9` 与 M4 验收句的 `grading_coverage=1.0` 是否同一口径，先量清楚再决定配哪种读者。
 3. M8-T540（新）`minicc/mentions.py` 对每个提及问一次 `tool_denied_by_rule`（第 173、216 行），每次两次装载；先量一条含 N 个提及的消息的 stat 次数，再决定是否值得改成每条消息一个 matcher。
 
+
+## 第五百二十六批 — M8-T537 — 变异判决说得出是哪条套件失败：timeline / desktop / mobile 也各自署名
+
+### 1 缺陷
+
+第五百二十二批给 `tests/web_smoke.mjs` 的产品路径断言发了稳定的失败码（`SMOKE_FAILURE_CODE=PRODUCT_PATH_*`），判决脚本只接受完成码。那一批的边界句自己记着：**timeline / desktop / mobile 三条套件的失败仍无代码，判决只能拒绝且说不出是哪条**。
+
+也就是说，当天若 timeline 套件在 CI 上失败（页面结构回归、冻结的 trace 数据不再可见、展开/折叠控件失灵），`web_smoke_verdict.py` 的拒绝理由与「浏览器没装」完全同形——都是「the smoke exited 1 without naming a failure code」。三条套件里任何一条坏掉，每晚的变异步都会以同一个不能归因的句子拒绝，看日志的人无从知道该去修哪条。
+
+### 2 量到的真相（2026-10-30，本机 node 子进程）
+
+- 失败：`runNamedSuite("TIMELINE_SUITE_FAILED", () => { throw … })` → stderr 打印一行 `SMOKE_FAILURE_CODE=TIMELINE_SUITE_FAILED`，退出码非零；
+- 成功：同一个包装器跑不抛错的套件 → stderr 无码，退出码 0；
+- 嵌套：产品路径的 `failProductPath` 已自己发码并给错误打标记，外层再包一层套件包装器也**不会**补发第二个码——日志里最后一个码仍是产品码，判决不会被套件码遮蔽。
+
+### 3 落地
+
+- 新建 `tests/web_smoke_suites.mjs`：`runNamedSuite(code, run)` 在捕获套件错误时发一次码再重抛（已署名的错误不重发）；`failProductPath(code, message)` 从 smoke 挪入此模块，发码后把错误标记为已署名。
+- `tests/web_smoke.mjs`：删除本地的 `failProductPath`，改为从模块导入；主流程把 timeline / desktop / mobile 三条套件各自包进自己的码；**产品路径保持裸调用**（它的五个码比套件码更细，包起来反而被套件码替换）。
+- 新增 `tests/test_the_other_suites_name_themselves_too.py`（七格）：
+  - 三条 node 子进程行为腿（失败发码、成功无码、嵌套不遮蔽）；
+  - 两条静态绑定（三条套件各自被自己的码包住；产品路径不被包）；
+  - 一条模块归属（smoke 不再自带第二份 `failProductPath`，emit 站点在模块里）；
+  - 一条判决句子腿（合成日志 `MOBILE_SUITE_FAILED` → 拒绝且理由点名该码、并且不再是「without naming a failure code」）。
+
+### 4 变异验证（交付字节，逐条恢复并核对 sha256）
+
+| 臂 | 改动（交付字节上的单点） | 预测 | 实测 |
+| --- | --- | --- | --- |
+| A1 | `web_smoke_suites.mjs`：`if (!error?.smokeCodeNamed) announce(code);` → `void code;` | 只有「失败套件打印自己的码」红 | 13 passed, 1 failed——红的就是 `test_a_failed_suite_prints_its_own_code`；MATCHED |
+| A2 | 同文件：守卫恒真（`if (true) announce(code);`），外层补发第二个码 | 只有「外层不遮蔽产品码」红 | 13 passed, 1 failed——`test_an_outer_wrapper_does_not_shadow_the_product_path_code`；MATCHED |
+| A3 | `web_smoke.mjs`：timeline 拆回裸调用 | 只有「三条套件各自被自己的码包住」红 | 13 passed, 1 failed——`test_every_suite_call_is_wrapped_with_its_own_code`；MATCHED |
+
+每条臂在 finally 里按字节恢复并核对 sha256（模块 `6aeba9212af35fae`、smoke `e2be505d4e400924`）；三次红都只有预测的那一格，变异门自身的 7 格在每条臂下都绿。
+
+### 5 门禁
+
+- 焦点集（`test_the_other_suites_name_themselves_too.py` + `test_the_mutation_gate_names_why_the_smoke_failed.py` 两份文件共 14 格）：**14 passed in 2.41s**（臂前基线；A1/A2/A3 各自只把预测的那一格变红，见 §4）
+- 受影响面（`scripts/impacted_tests.py` 对改动路径点名 17 份文件）：**267 passed in 362.73s (0:06:02)**，17 份文件全绿（`impacted_tests.py` 对改动路径点名 16 份，加上与 smoke 互读的变异门测试共 17 份；首跑 266 绿 1 红，红的是「门文件必须在 git 里」——新测试当时尚未登记，`git add` 后该门 4 passed，整套在暂存后的树上复跑即左读数）
+- 文档面（本记录写入后）：**250 passed in 1791.88s (0:29:51)**，15 份读 ROADMAP 的门全绿（本记录写入后的最终字节），15 份读 ROADMAP 的门全绿（本记录写入后的最终字节）。
+
+### 6 边界（本批**不**声称）
+
+- 不改判决脚本的接受集：仍然只有 `PRODUCT_PATH_NO_COMPLETION_VERDICT` 判「抓到变异」。套件码只让**拒绝**变得可归因，不会把别的失败读成抓到。
+- 套件码是整条套件的：timeline 里任何一条断言失败都发同一个 `TIMELINE_SUITE_FAILED`。没有给每条断言细分的码——那会把 smoke 变成一张与断言清单同步维护的码表，而产品路径的五个码已经覆盖了变异关心的链路。
+- 没有在 CI 上真跑：本批的证据是 node 子进程对交付模块的行为，加上 smoke 源码的静态绑定。真机 smoke 需要服务器与 Chromium，留给下一次推送的 CI 记录。
+- 没有改 `npm run test:web` 的入口，也没有改三条套件内部的断言。
+- 不声称「任何套件失败都会被每晚看见」：变异步的日志只在 nightly / 手动触发时上传，且套件码只出现在 smoke 的 stderr（CI 已把它重定向进 `web-smoke-mutation.log`）。
+
+### 7 下一单位
+
+1. M8-T539（承第五百二十四批 §7）nightly 其余绝对门的**值**没有读者：`GATE_FLOORS` 手抄的 0.3 / 0.9 / 0 / 600000 与 workflow 的 `--gate` 没有门核对逐项相等；`pass_at_1` 的注释仍说真模型准确率「未表征」，而路线图已有三次干净全量画像（13/24、22/24、24/24）。
+2. M8-T540（承第五百二十四批 §7）`minicc/mentions.py` 对每个提及问两次 `tool_denied_by_rule`（token 与收敛后的 rel），每次两次装载；一条含 N 个提及的消息最多付 4N 次 stat。
+3. M8-T541（新）`grading_coverage` 同名两口径：骨架报告（未运行）回退到「有 grader 的任务占比」，运行报告是「已运行样本中有评分结果的比例」；文档只定义了后者，M4 验收句的 1.0 用的是前者。
+
