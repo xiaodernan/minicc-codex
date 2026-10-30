@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 import { chromium } from "playwright";
+import { failProductPath, runNamedSuite } from "./web_smoke_suites.mjs";
 
 const baseUrl = process.env.MINICC_WEB_URL || "http://127.0.0.1:8765";
 const screenshotsDir = "output";
@@ -9,14 +10,12 @@ function state(page, expression) {
   return page.evaluate((source) => window.eval(source), expression);
 }
 
-// M8-T534: a failed assertion must name itself. The mutation CI step runs this
+// M8-T534/M8-T537: every suite names its failure. The mutation CI step runs this
 // smoke against an unreachable provider and needs to tell "the product path did
 // not complete" apart from "the browser never launched"; scripts/web_smoke_verdict.py
 // accepts only the completion code and rejects an unattributed non-zero exit.
-function failProductPath(code, message) {
-  console.error(`SMOKE_FAILURE_CODE=${code}`);
-  assert.fail(message);
-}
+// The emit sites live in tests/web_smoke_suites.mjs so a node child can drive
+// them without launching Chromium (tests/test_the_other_suites_name_themselves_too.py).
 
 async function runAgentTimelineSmoke(browser) {
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
@@ -421,10 +420,10 @@ async function runMobileSmoke(browser) {
 await mkdir(screenshotsDir, { recursive: true });
 const browser = await chromium.launch({ headless: true });
 try {
-  await runAgentTimelineSmoke(browser);
+  await runNamedSuite("TIMELINE_SUITE_FAILED", () => runAgentTimelineSmoke(browser));
   await runProductPathSmoke(browser);
-  await runDesktopSmoke(browser);
-  await runMobileSmoke(browser);
+  await runNamedSuite("DESKTOP_SUITE_FAILED", () => runDesktopSmoke(browser));
+  await runNamedSuite("MOBILE_SUITE_FAILED", () => runMobileSmoke(browser));
   console.log("web smoke passed: timeline, product path, desktop, mobile");
 } finally {
   await browser.close();
