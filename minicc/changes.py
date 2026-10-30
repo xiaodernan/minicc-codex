@@ -204,6 +204,14 @@ class ChangeInspector:
         disappearing without a word when it did not parse at all).  The
         first line of a tail cut at ``_AUDIT_TAIL_BYTES`` is dropped before
         the count — that partial is made by the cut, not by corruption.
+
+        M8-T556: this reader also vetoed every path that begins with a
+        dot - a clause that predates ``_ignored_path`` and outlived it.
+        The tool's own state (``.git``, ``.minicc``) is already refused
+        by the predicate the git-status reader uses, so the extra clause
+        only hid user dotfiles: a gitignored ``.env`` was recorded by the
+        audit, unseen by git, and answered as no such file.  Both
+        readers now decide with ``_ignored_path`` alone.
         """
         self._audit_window_truncated = False
         self._audit_unreadable_lines = 0
@@ -246,7 +254,7 @@ class ChangeInspector:
                 if action and action not in _CHANGING_AUDIT_ACTIONS:
                     continue
                 path = str(item.get("path") or "").replace("\\", "/")
-                if path and not path.startswith(".") and not _ignored_path(path):
+                if path and not _ignored_path(path):
                     paths.add(path)
         except (OSError, ValueError, TypeError) as exc:
             return set(), (
