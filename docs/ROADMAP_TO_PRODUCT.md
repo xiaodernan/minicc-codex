@@ -35555,3 +35555,46 @@ A 的两条红是「`conftest.py` 没有把用户级配置指向隔离文件」�
 1. M8-T535（落第五百二十三批）M6-4 的「劣化 ≤15%」有读数、没有门（状态表自己写着「缺的是自动化，不是读数」）。方向：给 `minicc/bench_compare.py` 已有的 `--gate` 加一条从单一常数取容差的劣化上限，用合成 run JSON 测三态（+30% 红、+5% 绿、缺基线不可解释）。
 2. M8-T536（新）`minicc/snapshots.py` 的 `_is_denied_by_rules` 每文件一次、每次两次装载，同一形状；修法同 521：每轮建一次 `denied_by_rule_matcher`。
 3. M8-T537（新）timeline / desktop / mobile 三条套件也各发一个码；判决仍只接受完成码，但拒绝时能说出是哪条套件失败，而不是「没点名原因」。
+
+## 第五百二十三批 — M8-T538 — CRLF 检出被读成「资产过期」：构建新鲜门在开发平台上常红
+
+### 1 缺陷
+
+第五百二十二批的受影响面里，`tests/test_web_assets_are_fresh.py` 的 P3 在本机红，六个文件全部报 stale。量到的真相不是资产过期：HEAD 的 `web/app.js`（304141 字符）与 `web/game.js`（109497 字符）都和当前 esbuild 的输出**逐字符相等**。红的是 `scripts/build-web.mjs` 的 `--check`：它拿 esbuild 的 LF 生成物逐字符比对工作树里的文件，而 Windows 检出（`core.autocrlf=true`）把每个文本文件都转成了 CRLF。于是这条门在 LF 的 CI 上永远绿、在开发平台上永远红——一条只在没人看的平台上报警的门。
+
+### 2 落地
+
+- `scripts/build-web.mjs`：`writeIfNeeded` 的读侧先归一 CRLF→LF 再比较。写盘内容不归一（仍是 LF，由 git 决定检出形态），manifest 哈希也不变。
+- 曾把 `web/styles.css` 的哈希输入也加上归一，臂 A2 实测 2 passed：esbuild 压缩 CSS 会去掉换行，哈希本就与 EOL 无关。那一行是无见证分支，撤掉，本批只留被臂证明的那一处。
+- `tests/test_web_assets_are_fresh.py` 新增 P4（`test_a_crlf_checkout_is_not_a_stale_build`）：自建 CRLF 平面——复制 src/bundles/manifest/构建脚本，把所有文本写成 CRLF，放在 `node_modules/.cache` 下（Node 的解析会沿祖先目录找到本仓的 esbuild，避免 junction 删除时递归进真 `node_modules`）——跑 `--check` 必须绿；再往 `web/app.js` 追加一行，必须红且点名 `app.js`。第二条腿防止「检查器不再看」也能通过。平面在 `finally` 里删除。
+
+### 3 变异验证（交付字节，逐条恢复并核对 sha256）
+
+| 臂 | 刀 | 预测 | 实测 | 判 |
+| --- | --- | --- | --- | --- |
+| A1 | `writeIfNeeded` 的读侧不归一（`normalizeEol` 撤掉） | P3 + P4 红 | 2 failed：`test_the_sources_build_to_the_bundles_the_manifest_names`、`test_a_crlf_checkout_is_not_a_stale_build`；4 passed | MATCHED |
+| A2 | 给 `styles.css` 的哈希输入加归一（原实现的额外一刀） | P4 红 | 2 passed —— 压缩后换行不存在，归一无差异 | 判据修正：不发布无见证分支，撤掉该行 |
+
+臂前后 `scripts/build-web.mjs` 的 sha256 一致（56c0238000fe）。
+
+### 4 门禁
+
+- `tests/test_web_assets_are_fresh.py`：**6 passed in 1.99s**（P1/P2/控制/P3/P4/清单下限）。
+- `node scripts/build-web.mjs --check`：修前六行 stale、**rc=1**；修后 **rc=0**。
+- `node --check scripts/build-web.mjs` 通过。
+- 交付字节：`scripts/build-web.mjs` 56c0238000fe、`tests/test_web_assets_are_fresh.py` 10d81768287f。
+- 受影响面（`scripts/impacted_tests.py` 对两个改动路径点名 21 份测试文件）：**358 passed in 610.72s (10:10)**，21 份文件全绿。
+- 文档面（本记录写入后）：**250 passed in 976.97s (16:16)**，15 份门全绿（本记录写入后的最终字节）。
+
+### 5 边界（本批**不**声称）
+
+- 只归一静态检查的比较；写盘内容和 manifest 哈希没变，HEAD 的 bundle 与生成物逐字符相等就是这条边界的证据。
+- 没改 CI 工作流；LF 检出上的行为不变（归一在 LF 输入上是恒等）。
+- P4 仍受 `needs_build` 约束：没有 `node_modules` 的 Python 作业跳过它，真实资产漂移继续由 P3 与 CI 的 `check:web` 把关。
+- 没检查 `web/vendor`、`favicon.svg` 等构建不读的文件。
+
+### 6 下一单位
+
+1. M8-T535（落第五百二十四批）M6-4 的「劣化 ≤15%」有读数、没有门（状态表自己写着「缺的是自动化，不是读数」）。方向：给 `minicc/bench_compare.py` 已有的 `--gate` 加一条从单一常数取容差的劣化上限，用合成 run JSON 测三态（+30% 红、+5% 绿、缺基线不可解释）。
+2. M8-T536（新）`minicc/snapshots.py` 的 `_is_denied_by_rules` 每文件一次、每次两次装载，同一形状；修法同 521：每轮建一次 `denied_by_rule_matcher`。
+3. M8-T537（新）timeline / desktop / mobile 三条套件也各发一个码；判决仍只接受完成码，但拒绝时能说出是哪条套件失败，而不是「没点名原因」。
