@@ -461,7 +461,7 @@
 | latency_p50_ms / latency_p95_ms | 端到端，按 category 分解 | 基线 P50 115s / P95 826s 写入 `docs/BENCHMARK_EVALUATION.md`；M6 起作为回归门 | M4 基线，M6+ 门禁 |
 | llm_turn_p95_ms | 单次 provider 请求 | 随 M5 MCP P99 一并跟踪 | M4 · **第一百八十二批实测：全仓 0 命中，从未实现** |
 | turns_per_success / tool_repeat_rate | 停滞检测与压缩是否真在省 token | 不升（A/B 判据） | M4 起 · **第一百八十二批实测：这两个名字今天都没有读者**——`turns_per_success` 不在报告的任何指标键里（`build_report` 的 17 个键里没有它）；`tool_repeat_rate` 已按用户口径在 M8-T118 删除，`tests/test_behavior_bench.py::test_tool_repeat_rate_is_retired_not_nulled` 断言它不得回来 |
-| fan-out 回归护栏 | token/task 与 P95 相对 M4 基线 | 劣化 ≤15%，否则回退 fan-out 阈值 | M6 · **第一百八十二批实测 + 第一百八十五批更正**：`bench_compare` 与 `benchmarks` 里**没有任何 15% 阈值或常驻门**（第一百八十二批的结论）；**但这条标准的"目标"已被一次真实全量跑结过案**——2026-09-25 的 24 条全量（见本节下方跨里程碑表 `M6-4` 行）：p50 **50.2s** / p95 **~107s** 全部落在 M4 基线（115s/826s）的 +15% 线内。**缺的是自动化，不是读数** |
+| fan-out 回归护栏 | token/task 与 P95 相对 M4 基线 | 劣化 ≤15%，否则回退 fan-out 阈值 | M6 · **第一百八十二批实测 + 第一百八十五批更正**：`bench_compare` 与 `benchmarks` 里**没有任何 15% 阈值或常驻门**（第一百八十二批的结论）；**但这条标准的"目标"已被一次真实全量跑结过案**——2026-09-25 的 24 条全量（见本节下方跨里程碑表 `M6-4` 行）：p50 **50.2s** / p95 **~107s** 全部落在 M4 基线（115s/826s）的 +15% 线内。**缺的是自动化，不是读数**。**第五百二十四批**：15% 容差已入 `minicc/bench_compare.py` 的 `M6_4_TOLERANCE`，`tests/test_the_m6_4_degradation_standard_has_a_reader.py` 证明 nightly 的 p95 绝对门（600000ms）至少和这条标准一样严；相对门本身不另加——它落在现有绝对门里面，是空门 |
 | 委派率 / 平均并行子代理数 | 含 task 工具调用的任务占比 | M6 后从 0 起步，深度恒 ≤2、并发恒 ≤3 | M6 |
 | **成本** | | | |
 | cost_per_success_usd / tokens_per_success | 含失败尝试摊销；未知模型显式 None 不估算 | `cost_available` 恒 100% | M4 |
@@ -35598,3 +35598,61 @@ A 的两条红是「`conftest.py` 没有把用户级配置指向隔离文件」�
 1. M8-T535（落第五百二十四批）M6-4 的「劣化 ≤15%」有读数、没有门（状态表自己写着「缺的是自动化，不是读数」）。方向：给 `minicc/bench_compare.py` 已有的 `--gate` 加一条从单一常数取容差的劣化上限，用合成 run JSON 测三态（+30% 红、+5% 绿、缺基线不可解释）。
 2. M8-T536（新）`minicc/snapshots.py` 的 `_is_denied_by_rules` 每文件一次、每次两次装载，同一形状；修法同 521：每轮建一次 `denied_by_rule_matcher`。
 3. M8-T537（新）timeline / desktop / mobile 三条套件也各发一个码；判决仍只接受完成码，但拒绝时能说出是哪条套件失败，而不是「没点名原因」。
+
+## 第五百二十四批 — M8-T535 — M6-4 的「劣化 ≤15%」只有读数和名册：容差没有读者，绝对门放宽也没人红
+
+### 1 缺陷
+
+状态表自己写着（`docs/ROADMAP_TO_PRODUCT.md` 第 464 行）：`bench_compare` 与 `benchmarks` 里**没有任何 15% 阈值或常驻门**，并给了结论「缺的是自动化，不是读数」。随后批次 210 在 `tests/test_ci_hygiene.py` 加了对账门（`GATE_FLOORS` ↔ nightly 的 `--gate`），但它只对账**指标名**：nightly 里有 `--gate latency_p95_ms<=600000`、表里也写了 `latency_p95_ms`，门就绿。把 600000 改成 3600000（一小时），名册不变，门照样绿；`minicc/bench_compare.py` 里也没有任何 15% 常数。于是「劣化 ≤15%，否则回退 fan-out 阈值」这句话在全仓没有读者：文档写着、状态表写着、代码不知道。
+
+### 2 量到的真相（2026-10-30，本机）
+
+- 基线：`docs/BENCHMARK_EVALUATION.md` 第 53 行，`latency_p95_ms` **826s**（同表 `latency_p50_ms` 115s）；同节记录 28/30 completed、约 1158 万 token。
+- 15% 允许的上界：826000 × 1.15 = **949900ms**。
+- nightly 现有绝对门：`.github/workflows/ci.yml:368` `--gate latency_p95_ms<=600000`——比标准的上界**严 349900ms**。
+- 所以按批次 185 的原始方向「给 `--gate` 补一条相对劣化上限」在这个仓库里是**空门**：新加的 `--gate latency_p95_ms<=949900` 会被现有 600000 完全盖住，任何能让相对门红的 run 早已被绝对门判红。相对门只有在绝对门被放宽到 949900 以上时才可能先红，而「绝对门被放宽」正是这条标准要防的漂移本身。
+- 另一半 token/task：文档只有总量（约 1158 万 / 30 任务），没有逐任务基线；逐任务下限会是编出来的读数，本批不造。
+
+### 3 落地
+
+- `minicc/bench_compare.py`：新增 `M6_4_TOLERANCE = 0.15` 与 `M6_4_METRIC = "latency_p95_ms"`，注释写明基线**故意不复制**进代码——单一来源是文档，门去读它；复制一份会让文档与门各说各话而无人裁决。
+- 新增 `tests/test_the_m6_4_degradation_standard_has_a_reader.py`（四格）：
+  - 文档基线必须仍是 826s：改基线等于重新定标准，要一条记录下来的决定，不能靠编辑文档静默放宽；
+  - nightly 的 p95 绝对门必须**至少和标准一样严**（`floor <= baseline × (1 + 容差)`），不合格或缺失时消息点名两个数字；
+  - 合成工作流双向自测谓词：strict 600000 绿；loose 1000000 红且消息含 `1000000ms` 与 `949900ms`；缺失 p95 行红且消息含 `no --gate latency_p95_ms floor`——只测活文件等于没测谓词；
+  - 常数入册：容差必须恰是 0.15；`M6_4_METRIC` 在 `GATE_METRICS` 里，且 `GATE_FLOORS` 说它的主人是 nightly。
+- 状态表第 464 行的状态列：从「没有任何 15% 阈值或常驻门」改为本批之后的事实（常数额 + 至少一样严的门，相对门为空门因而不加），历史读数原样保留。
+
+### 4 变异验证（交付字节，逐条恢复并核对 sha256）
+
+| 臂 | 刀 | 预测 | 实测 | 判 |
+| --- | --- | --- | --- | --- |
+| A1 | nightly 的 p95 门放宽：600000 → 1000000 | 新门「至少一样严」格红，CI 卫生门全绿 | 1 failed 14 passed：`test_the_nightly_floor_is_at_least_as_strict_as_the_m6_4_standard` | MATCHED |
+| A2 | 删掉 nightly 的 `--gate latency_p95_ms<=600000` 行 | 新门「至少一样严」格红 + CI 卫生门两格红 | 3 failed 12 passed：`test_the_nightly_floor_is_at_least_as_strict_as_the_m6_4_standard`、`test_ci_hygiene.py::test_every_gate_metric_declares_who_pins_its_floor`、`test_ci_hygiene.py::test_ci_declares_pr_and_nightly_eval_jobs` | MISMATCH（预测 2，实测 3） |
+| A3 | `M6_4_METRIC` 改成 `latency_p50_ms` | 常数入册格红 | 1 failed 3 passed：`test_the_standard_names_a_metric_the_nightly_actually_gates` | MATCHED |
+
+三条臂各自只写一份文件、在自己的 finally 里恢复：ci.yml 臂前后 `eb6d58a3b1f5`、bench_compare 臂前后 `6fd493169ad9`，逐条核对一致。
+
+电池缺陷（记账为判据修正，不是产品结果）：首轮把三条臂放进一个循环、只在循环后恢复，A2 写 ci.yml、A3 只写 bench_compare，于是 A3 跑在 A2 已删除的 ci.yml 上，读到 2 failed；按臂隔离重跑得 1 failed 3 passed。A2 的 3 failed 不受影响：它自己就是从基字节写起的。
+
+### 5 门禁
+
+- 焦点集：**15 passed in 0.50s**（新门 4 格 + CI 卫生门 11 格）。
+- 受影响面（`scripts/impacted_tests.py` 对两个改动路径点名 219 份文件）：**1897 passed in 1224.89s (0:20:24)**，219 份文件全绿。
+- 文档面（本记录写入后）：首跑 **10 failed, 240 passed in 930.83s (0:15:30)**，十条红全部归因于一处——状态表把常数写成「文件名.常数名」的点号形式，指针门把它读成路径（`DANGLING EVIDENCE …:464`）；改成 `minicc/bench_compare.py` 的 `M6_4_TOLERANCE` 后 `scripts/doc_pointers.py --check` 干净，重跑 **250 passed in 1116.60s (0:18:36)**，15 份门全绿（本记录写入后的最终字节）。
+
+### 6 边界（本批**不**声称）
+
+- 没有新增 CI 门。本批给已有标准配的是**读者**，不是把相对劣化做成 nightly gate——那会是空门（见 §2）。
+- 「至少一样严」证明的是 `ci.yml` 里那行静态阈值；nightly 真跑时的读数（以及 real-model 的 p95）不在本批。
+- token/task 保持散文：没有逐任务基线，写门就是编数；要做先得有一次记录下逐任务基线、并由文档宣布它接替 M4 基线的真实运行。
+- 文档里的 826s 与测试里的 `P95_BASELINE_MS = 826_000` 是两份：一份是被门读的数据，一份是「改基线需要新决定」的钉。改基线要同时改两处，这正是「新决定」的成本，不是重复数据。
+- 谓词只认 `--gate latency_p95_ms<=<数字>` 这一种拼法。nightly 若改成带引号或加空格（`--gate "latency_p95_ms<=600000"`），会被读成「没有门」而红——伪红而不是伪绿，偏向失败的一侧。
+- 没有改 nightly 的其余门槛（`pass_at_1>=0.3`、`grading_coverage>=0.9` 等）。它们同样只有名册没有值钉；其中 `grading_coverage` 与 M4 验收句「grading_coverage=1.0」的关系记为下一单位，不在这里顺手判。
+
+### 7 下一单位
+
+1. M8-T536（新）`minicc/snapshots.py` 的 `_is_denied_by_rules` 每文件一次、每次两次装载，同一形状；修法同 521：每轮建一次 `denied_by_rule_matcher`。
+2. M8-T537（新）timeline / desktop / mobile 三条套件也各发一个码；判决仍只接受完成码，但拒绝时能说出是哪条套件失败，而不是「没点名原因」。
+3. M8-T539（新）nightly 其余绝对门的**值**没有读者：`pass_at_1>=0.3` 的注释自称「初始保守、待真实画像后上调」，`grading_coverage>=0.9` 与 M4 验收句的 `grading_coverage=1.0` 是否同一口径，先量清楚再决定配哪种读者。
+
