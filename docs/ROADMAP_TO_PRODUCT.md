@@ -35498,3 +35498,60 @@ A 的两条红是「`conftest.py` 没有把用户级配置指向隔离文件」�
    容差的 `--gate`，用合成 run JSON 测三态（+30% 红、+5% 绿、缺基线不可解释）。
 3. M8-T536（新）`snapshots._is_denied_by_rules` 每文件一次、每次两次装载，同一形状；
    修法与 A2 相反，用本批的 matcher。
+
+## 第五百二十二批 — M8-T534 — 变异步只认「非零退出」：基础设施错误被读成抓到变异
+
+### 1 缺陷
+
+`.github/workflows/ci.yml` 的 `web-smoke-mutation` 步在修前的形状是：跑 `npm run test:web`，然后用 shell 的 `if ... then ... exit 1; fi` 判断——**任何**非零退出都打印「mutation caught」。这一步存在的理由是证明 submit → provider → agent → verifier → completion 这条链在不可达 provider 下不会静默通过；可它唯一的读数是退出码，而退出码分不出这条链与基础设施：`npx playwright install` 失败、`npm ci` 失败、smoke 文件里的语法错误、页面根本没打开，都会以同一个「非零」让变异步变绿。
+
+（修前的服务器启动步有 `curl -fsS` 把关，起不来会红；但浏览器安装、依赖安装与 smoke 自身的任何错误都落在「Run web smoke」这一步。）
+
+### 2 量到的真相（2026-10-30，本机）
+
+- 用 CI 同样的 env 起服务器（dummy key、`MINICC_BASE_URL` 指向不可达域名、不设 fake provider，监听 127.0.0.1:8799），跑修前的 `tests/web_smoke.mjs`：**rc=1**，失败点在 completion 断言「product path task must reach completion_complete; an unreachable provider must not silently pass」。
+- 同一份修前日志交给本批的判决脚本：**rc=1**「mutation not attributed: the smoke exited 1 without naming a failure code」。也就是说：这个失败与「浏览器没装」在旧读数下**完全同形**，日志里没有任何机器可读的原因可供步判断。
+- 结论：变异本身是有效的（产品路径确实失败），缺的是**失败的署名**。
+
+### 3 落地
+
+- `tests/web_smoke.mjs`：产品路径的五条断言改走 `failProductPath(code, message)`——先向 stderr 打 `SMOKE_FAILURE_CODE=<CODE>`，再抛断言错误。五个代码：`PRODUCT_PATH_NO_TERMINAL_STATE`、`PRODUCT_PATH_NO_COMPLETION_VERDICT`、`PRODUCT_PATH_NO_TOOL_EVIDENCE`、`PRODUCT_PATH_TOOL_METRIC_STALE`、`PRODUCT_PATH_CONSOLE_ERRORS`。
+- 新增 `scripts/web_smoke_verdict.py`：`decide(exit_code, log)` 只在「退出码非零 + 最后一个代码是 `PRODUCT_PATH_NO_COMPLETION_VERDICT`」时判抓到；退出码 0、无代码、别的代码、日志缺失一律拒绝并打印原因。CLI 退出码即判决。
+- `.github/workflows/ci.yml`：变异步改为 `set +e` 捕获 rc、把 smoke 输出写进 `web-smoke-mutation.log`、`cat` 后交给判决脚本；产物上传改为两份日志。
+- 新增 `tests/test_the_mutation_gate_names_why_the_smoke_failed.py`：判定四态、CLI 双向、缺日志、两处绑定点——completion 断言必须自己发这个码（不是别处），CI 必须走判决脚本且不再有裸的 `if npm run test:web; then`。
+- 交付字节：`scripts/web_smoke_verdict.py` 613b83f0278a、`tests/web_smoke.mjs` 8402241f084d、`.github/workflows/ci.yml` eb6d58a3b1f5、`tests/test_the_mutation_gate_names_why_the_smoke_failed.py` d96fa9a29edc。
+
+### 4 变异验证（三条，交付字节，逐条恢复并核对 sha256）
+
+| 臂 | 刀 | 预测 | 实测 | 判 |
+| --- | --- | --- | --- | --- |
+| A1 | 判决脚本不再接受 EXPECTED_CODE（比较对象换成 NEVER_EMITTED） | 完成码单测 + CLI 双向红 | 2 failed：`test_the_completion_verdict_code_is_the_caught_mutation`、`test_the_cli_exit_code_follows_the_verdict` | MATCHED |
+| A2 | smoke 把完成码改成 PRODUCT_PATH_COMPLETION_MISSING | 绑定点红 | 1 failed：`test_the_completion_assertion_emits_the_code_the_verdict_accepts` | MATCHED |
+| A3 | CI 把判决脚本调用换成 echo | CI 绑定点红 | 1 failed：`test_the_ci_step_reads_the_smoke_log_through_the_verdict` | MATCHED |
+
+臂前后逐文件断言 sha256 一致；恢复后整份新门禁 rc=0。
+
+### 5 门禁
+
+- 焦点集（3 份文件）：**28 passed in 1.20s**（新门禁 + CI 卫生门 + README 运行声明门）。
+- 真机三态：
+  - 不可达 provider（修后 smoke）：rc=1，日志里 `SMOKE_FAILURE_CODE=PRODUCT_PATH_NO_COMPLETION_VERDICT`；判决 **rc=0**「mutation caught」。
+  - 修前日志：判决 **rc=1**（无码）。
+  - fake provider 正常服务器（127.0.0.1:8801）：smoke **rc=0**「web smoke passed: timeline, product path, desktop, mobile」，代码行 0 条；判决 **rc=1**「MUTATION NOT CAUGHT」——正常路径没有被这组断言判红。
+- 受影响面（`scripts/impacted_tests.py` 对四个改动路径点名 22 份测试文件）：3 failed、362 passed in 609.83s。三条红全部有归属：两条是新增门禁自己的子进程调用不合解码门（缺 errors= 与子进程码钉），本批修好后合跑 tests/test_the_mutation_gate_names_why_the_smoke_failed.py + tests/test_subprocess_decoding.py：28 passed in 74.51s；第三条 test_web_assets_are_fresh 是既有假红，见边界。
+- 文档面（本记录写入后）：**250 passed in 976.83s (16:16)**，15 份读 ROADMAP 的门全绿（本记录写入后的最终字节）。
+
+### 6 边界（本批**不**声称）
+
+- 只给产品路径的断言编码。timeline / desktop / mobile 三条套件失败仍无代码，判决脚本会拒绝——这是有意的：这次变异只应该由产品路径的完成断言证明；其他套件的失败要人看。
+- 判决脚本不解析 Playwright 的其他输出，也不区分「服务器没起」与「浏览器没装」：两者都属于「未点名原因」，同样拒绝。服务器启动仍由健康检查那一步把关。
+- 没有改 fake-provider 的绿色路径断言，也没有改变异服务器的 env（仍是不可达 base URL、无 fake provider）。
+- 构建新鲜门（tests/test_web_assets_are_fresh.py）在本机 CRLF 工作树上红，与本批无关：实测 HEAD 的 web/app.js（304141 字符）与 web/game.js（109497 字符）都和当前 esbuild 的输出逐字符相等；红的原因是 scripts/build-web.mjs 的 --check 拿 LF 的生成物逐字符比对被 autocrlf 转成 CRLF 的工作树文件（styles.css 的哈希同理）。CI 的 LF 检出不受影响；本批只记录量到的字节相等，修法留到下一批。
+- 本机读数代替不了 CI runner：本条只声称本机三态与静态绑定；CI 上真跑要等下一次推送。
+- 没有改 `npm run test:web` 的入口（仍是 `node tests/web_smoke.mjs`），也没有改其他 Playwright 套件。
+
+### 7 下一单位
+
+1. M8-T535（落第五百二十三批）M6-4 的「劣化 ≤15%」有读数、没有门（状态表自己写着「缺的是自动化，不是读数」）。方向：给 `minicc/bench_compare.py` 已有的 `--gate` 加一条从单一常数取容差的劣化上限，用合成 run JSON 测三态（+30% 红、+5% 绿、缺基线不可解释）。
+2. M8-T536（新）`minicc/snapshots.py` 的 `_is_denied_by_rules` 每文件一次、每次两次装载，同一形状；修法同 521：每轮建一次 `denied_by_rule_matcher`。
+3. M8-T537（新）timeline / desktop / mobile 三条套件也各发一个码；判决仍只接受完成码，但拒绝时能说出是哪条套件失败，而不是「没点名原因」。
