@@ -37757,3 +37757,73 @@ A 与 B 一个答案；B 是真话，A 是「这条记录我读不出来」被�
 5. 第五百三十二批 §7 第 2 位：`_git` 的 127 哨兵把 OSError 与超时压成一句。
 6. 第五百二十九批 §7 第 2 位：waiver 拒绝的理由只进 trace，不上报。
 7. `conftest.py:87` 起的超时措辞；第五百二十八批 §7 的恢复摘要 `dirty_read_error`。
+
+## 第五百三十五批 — M8-T553 — `.minicc` 是普通文件时，变更视图答的还是「没有审计记录」
+
+### 1 欠的是哪一条
+
+第五百三十四批 §7 第 1 位。`_audit_paths()` 在 `.minicc/audit.jsonl` 不存在时答「没有审计记录」——对「`workspace/.minicc` 是一个普通文件」这种形状，这句话不成立：**路径再往下不可能有记录**，审计写入早就失败过，那些改动没有任何一条被记下来。修前这里和「从没写过审计」拿到同一个 `return set(), None`，`summary()` 答 `total_files: 0` 且无理由，`diff()` 答 `clean` 加空补丁。
+
+同一位候选里的「断掉的符号链接」本机造不出来：Python 3.11.1 / Windows 上 `os.symlink` 抛 `OSError [WinError 1314] 客户端没有所需的特权`，门里摆不出这个形状，留在 §7。
+
+### 2 量到的真相（实测）
+
+修前，非仓库工作区（审计是唯一证人），经 `summary()` 与 `diff()`：
+
+| 形状 | total_files | audit 理由 | diff(notes.md) |
+| --- | --- | --- | --- |
+| A `.minicc` 是普通文件 | 0 | 无 | clean，空补丁 |
+| B 没有 `.minicc`（对照） | 0 | 无 | clean，空补丁 |
+| C `.minicc` 是目录、没有审计文件（对照） | 0 | 无 | clean，空补丁 |
+| D 可读审计，记了一次写（对照） | 1 | 无 | modified，整文件新增 |
+| E `.minicc/audit.jsonl` 是目录（第五百三十四批对照） | 0 | 不是一个文件 | clean，非空补丁 |
+
+A 与 B、C 一个答案；B、C 是真话（那里没有记录），A 是「这条路径不可能有记录」被答成了「它没记录过」。
+
+修后同一探针：A 的 `summary["audit_read_error"]` 是「审计记录（.minicc/audit.jsonl）的父路径（.minicc）不是一个目录……git 看不到的改动没有兜底」，`diff()` 带同一理由、补丁从空变成整文件新增（`+hello`）；B、C、D 一个数没变；E 保持第五百三十四批的「不是一个文件」。
+
+### 3 落地
+
+- `minicc/changes.py` `_audit_paths` 的存在性分支：`exists()` 的目录理由之后，再看父路径——`audit.parent.exists() and not audit.parent.is_dir()` 时答「父路径（.minicc）不是一个目录」；父路径不存在（没有 `.minicc`）或父路径是目录但没有记录，仍答 `None`。下游不用改。
+- 新门 `tests/test_a_trail_under_a_non_directory_parent_is_not_a_missing_trail.py` 七条：父路径是文件的 summary 理由、diff 理由、diff 不空各一条；四条对照（没有 `.minicc` 仍 `None`、`.minicc` 目录但没有记录仍 `None`、可读审计仍列文件、目录形状的审计保持自己的理由且不带「父路径」）。
+
+### 4 见证（红先绿后，臂）
+
+- **红先**：新门在 HEAD 的干净导出上 `3 failed, 4 passed in 8.39s`——三条父路径门全红，四条对照在 HEAD 上就是绿的（防修法过头）。
+- **绿后**：新门在共享树上 `7 passed in 14.79s`。
+- **plane553**（`git archive HEAD` + 本批文件）：新门 + `tests/test_changes_pure.py` `26 passed in 5.61s`（下表 A0）。
+- 五臂 + 对照（baseline sha256 `17489e12…`，逐臂恢复后核对）：
+
+| 臂 | 改什么 | 预期红 | 实际 |
+| --- | --- | --- | --- |
+| A0 | 对照：不改 | 绿 | MATCHED rc=0：`26 passed in 5.61s` |
+| A1 | 父路径分支拿掉 | 父路径理由门 | MATCHED rc=1：`3 failed, 23 passed in 42.93s`，红里点名 `test_a_trail_under_a_file_parent_is_not_a_missing_trail` |
+| A2 | summary 有理由，diff 不带 | diff 理由门 | MATCHED rc=1：`2 failed, 24 passed in 12.77s`，红里点名 `test_the_diff_carries_the_parent_reason` |
+| A3 | 父路径分支永远成立 | 没有 `.minicc` 的对照 | MATCHED rc=1：`2 failed, 24 passed in 12.84s`，红里点名 `test_the_control_no_minicc_is_still_none` 与 `test_the_control_a_directory_parent_without_a_trail_is_still_none` |
+| A4 | 父路径存在就报失败（不看是不是目录） | `.minicc` 目录无记录的对照 | MATCHED rc=1：`1 failed, 25 passed in 41.98s`，红里点名 `test_the_control_a_directory_parent_without_a_trail_is_still_none` |
+| A5 | 存在性分支永远进入 | 可读审计的对照 | MATCHED rc=1：`1 failed, 25 passed in 37.15s`，红里点名 `test_the_control_a_readable_trail_still_lists_the_write` |
+
+### 5 聚焦回归
+
+- 共享树上五个文件（本批门 + 第五百三十四批门 + 第五百三十一批门 + 第五百三十二批门 + `tests/test_changes_pure.py`）：`50 passed in 179.07s`。
+- 干净克隆（HEAD + 本批代码提交 + 本记录）：`50 passed in 134.34s`。
+- 干净克隆上的 `doc_pointers.py --check`（本句定稿后重跑）：rc=0；958 个「见」标记（116 条进受检箱、56 条落在 citation-without-locator）、23 条链接、4161 条 evidence 指针（75 条路径断言在代码跨度之外）、20 份文档、646 个在仓文件；`route_coverage.py --check` 与 `impacted_tests.py --check` 均 rc=0。
+- 全围栏：**本批不重跑**（约 58 分钟一趟）；父提交的上一轮围栏在 `5faa568` 上 `4195 passed, 11 skipped`，EXIT=0。本批改动只在其上 5 增 0 删，判定取干净克隆上的门集与检查器。
+
+### 6 边界（本批**不**声称）
+
+- **不声称断掉的符号链接会被认出来。** trail 是断链、或 `.minicc` 是断链时 `exists()` 都是 False，仍答「没有审计记录」。本机（Python 3.11.1 / Windows，无符号链接特权）造不出这个形状，门里没有它的读数。
+- **不声称 `.minicc` 不可读（权限等）时行为一致。** 本批只看「父路径存在且不是目录」；`PermissionError` 落在第五百三十一批的 except 上还是更早的 `exists()` 上，没有测。
+- **不声称写侧会报告失败。** 审计写入失败的那条路径没动；本批只改读侧的回答。
+- **不声称界面会显示理由。** 键随 RPC 回答回到调用方，`web/src` 里没有一处读它（与第五百三十批至第五百三十四批同一条）。
+- **不声称修法覆盖 `.minicc` 之外的父路径。** trail 的父路径只有 `.minicc` 一个，别的父路径不在读法里。
+
+### 7 下一位候选
+
+1. **断掉的符号链接**（trail 或 `.minicc`）：`is_symlink()` 为 True 而 `exists()` 为 False，仍被当成「没有审计记录」；需要一个能建符号链接的平台来见证。
+2. **`_test_files` 走满 500 个文件就停**（第五百三十三批 §7 第 2 位）：测试目录再大的那部分从来没被看过。
+3. **`deny_rule_covers_path` 把读不出来的策略答成「这条路径没被拒绝」**（第五百三十三批 §7 第 1 位）。
+4. 第五百三十二批 §7 第 1 位：数字路径与不含 `"path"` 的审计行。
+5. 第五百三十二批 §7 第 2 位：`_git` 的 127 哨兵把 OSError 与超时压成一句。
+6. 第五百二十九批 §7 第 2 位：waiver 拒绝的理由只进 trace，不上报。
+7. `conftest.py:87` 起的超时措辞；第五百二十八批 §7 的恢复摘要 `dirty_read_error`。
