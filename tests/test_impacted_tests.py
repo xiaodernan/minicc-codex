@@ -38,7 +38,12 @@ SCRIPT = REPO_ROOT / "scripts" / "impacted_tests.py"
 
 def _load_script():
     spec = importlib.util.spec_from_file_location("impacted_tests_under_test", SCRIPT)
+    assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
+    # scripts/ is not a package; dataclasses under ``from __future__ import
+    # annotations`` resolve their annotations through sys.modules, so the module
+    # has to be registered before it executes.
+    sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
 
