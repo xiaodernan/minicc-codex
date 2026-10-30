@@ -21,12 +21,18 @@ Three cells, in the order a reader meets them:
   a failure would redden CI for a missing toolchain, not for stale assets - the
   exact opposite of what this gate is for. The static cells P1/P2 need neither and
   still run everywhere; ``check:web`` in the JavaScript job owns P3 in CI.
+
+* P4 - a CRLF checkout is not a stale build. The gate compares text files; on
+  Windows (``core.autocrlf=true``) every file is CRLF while esbuild emits LF, so
+  P3 was permanently red on the developer platform for a checkout artifact.
+  P4 builds its own CRLF plane, so the cell means the same thing on every host.
 """
 from __future__ import annotations
 
 import json
 import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -156,3 +162,77 @@ def test_the_sources_build_to_the_bundles_the_manifest_names() -> None:
     assert "stale" not in output.lower(), (
         f"the build reported staleness without failing:\n{output}"
     )
+
+
+# --- P4: a CRLF checkout is not a stale build -----------------------------
+
+
+def _crlf_plane() -> Path:
+    """A copy of the web sources and bundles with every text file in CRLF.
+
+    It lives under ``node_modules/.cache`` on purpose: Node's resolver walks up
+    ancestor directories, so the copied build script finds the repository's own
+    ``esbuild`` without a junction (whose removal can recurse into the target).
+    """
+    cache = REPO / "node_modules" / ".cache"
+    cache.mkdir(parents=True, exist_ok=True)
+    plane = Path(tempfile.mkdtemp(prefix="crlf-plane-", dir=str(cache)))
+    (plane / "scripts").mkdir()
+    (plane / "web").mkdir()
+    shutil.copytree(WEB / "src", plane / "web" / "src")
+    shutil.copytree(ASSETS, plane / "web" / "assets")
+    for name in ("app.js", "game.js", "styles.css", "asset-manifest.json"):
+        shutil.copy2(WEB / name, plane / "web" / name)
+    shutil.copy2(BUILD_SCRIPT, plane / "scripts" / "build-web.mjs")
+    for path in list((plane / "web").rglob("*")) + [plane / "scripts" / "build-web.mjs"]:
+        if path.is_file():
+            raw = path.read_bytes()
+            if b"\x00" not in raw:
+                path.write_bytes(raw.replace(b"\r\n", b"\n").replace(b"\n", b"\r\n"))
+    return plane
+
+
+def _run_build_check(plane: Path) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [NODE or "node", str(plane / "scripts" / "build-web.mjs"), "--check"],
+        cwd=str(plane),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=300,
+    )
+
+
+@needs_build
+def test_a_crlf_checkout_is_not_a_stale_build() -> None:
+    """P4: line endings come from the checkout, not from the sources.
+
+    Measured on Windows before the normalisation: six of six files were reported
+    stale while HEAD's committed bundles were byte-identical to esbuild's LF
+    output. A gate that is red on the development machine for a checkout
+    artifact trains its readers to ignore it. The scratch plane makes the
+    platform fact explicit instead of trusting the host, so this cell is
+    meaningful on Linux too. The second phase appends a comment to ``app.js``
+    and demands a red - without it the cell would pass just as well if the
+    checker had stopped looking.
+    """
+    plane = _crlf_plane()
+    try:
+        clean = _run_build_check(plane)
+        output = clean.stdout + clean.stderr
+        assert clean.returncode == 0, f"a CRLF checkout was reported stale:\n{output}"
+        assert "stale" not in output.lower(), (
+            f"the build reported staleness without failing:\n{output}"
+        )
+
+        drifted = plane / "web" / "app.js"
+        drifted.write_bytes(drifted.read_bytes() + b"// drift\r\n")
+        dirty = _run_build_check(plane)
+        dirty_output = dirty.stdout + dirty.stderr
+        assert dirty.returncode != 0, "the drift phase went green; P4 is vacuous"
+        assert "app.js is stale" in dirty_output, (
+            "the drift phase failed without naming the edited bundle:\n" + dirty_output
+        )
+    finally:
+        shutil.rmtree(plane, ignore_errors=True)

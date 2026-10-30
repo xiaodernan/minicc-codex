@@ -17,6 +17,12 @@ const srcDir = join(root, "web", "src");
 const outDir = join(root, "web");
 const check = process.argv.includes("--check");
 
+// A Windows checkout converts text files to CRLF (core.autocrlf), while esbuild
+// always emits LF. Comparing the two byte-for-byte reports every asset as stale
+// on the developer platform; only the line endings differ. Normalise the read
+// side so the gate answers "did the sources drift", not "which checkout made it".
+const normalizeEol = (text) => text.replace(/\r\n/g, "\n");
+
 async function bundle(entry, outfile) {
   const result = await build({
     absWorkingDir: root,
@@ -40,7 +46,7 @@ function writeIfNeeded(path, content) {
   if (check) {
     let current = "";
     try {
-      current = readFileSync(path, "utf8");
+      current = normalizeEol(readFileSync(path, "utf8"));
     } catch {
       current = "";
     }
