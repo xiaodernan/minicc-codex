@@ -183,19 +183,18 @@ def test_the_low_level_contract_did_not_move(tmp_path: Path) -> None:
 def test_every_reader_of_the_gate_inherits_the_refusal(tmp_path: Path) -> None:
     """The gate has one home, so every face that asks it inherits the fix.
 
-    The mention injection, the evidence index and the snapshot copy are three
-    other readers of ``tool_denied_by_rule``; they must all refuse when the
-    policy is broken, not just the one the agent's own calls go through.
+    Two shapes read the gate: the one-shot home (the agent loop, the mention
+    injection) and the matcher built on it (the evidence index loads it once
+    per refresh, the snapshot copy once per capture).  Both must refuse when
+    the policy is broken, not just the one the agent's own calls go through.
     """
     workspace = _broken(tmp_path)
-    # M8-T533: the evidence index asks through the matcher (it loads the
-    # policy once per refresh and keeps asking); the snapshot copy still
-    # asks the one-shot home.  Both must refuse a policy they cannot read.
+    # M8-T533/M8-T536: the index and the snapshot copy ask through the
+    # matcher and keep asking; the one-shot home is still what the loop asks.
     from minicc.audit import denied_by_rule_matcher
-    from minicc.snapshots import _is_denied_by_rules as _snapshot_denied
 
+    assert tool_denied_by_rule(workspace, "read_file", {"path": DENIED}) is True
     assert denied_by_rule_matcher(workspace)("read_file", {"path": DENIED}) is True
-    assert _snapshot_denied(workspace, DENIED) is True
 
 
 def test_the_agent_asks_the_same_home_for_the_reason(tmp_path: Path) -> None:
