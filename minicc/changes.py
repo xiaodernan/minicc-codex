@@ -172,8 +172,8 @@ class ChangeInspector:
             status = "modified"
         return status, path
 
-    def _audit_paths(self) -> set[str]:
-        """Paths the editor **changed**, from the audit trail.
+    def _audit_paths(self) -> tuple[set[str], str | None]:
+        """Paths the editor **changed**, from the audit trail — and why not.
 
         M8-T300: the action was ignored, so a ``read`` landed in the same
         set as a ``write`` - and the fallback then reported every file the
@@ -186,12 +186,20 @@ class ChangeInspector:
         reads) pushes the writes out of the window, and the change panel
         reports a clean workspace while ``/api/audit`` still shows the
         write.  The window is now disclosed.
+
+        M8-T549: the whole read used to sit in ``except ...: return set()``
+        — the empty set an audit trail with no writes produces.  Every read
+        of the trail now answers: ``None`` means *the trail was read*, and
+        an OS failure carries a reason.  The existence check moved inside
+        the try for the same reason: on 3.11 ``Path.is_file`` raises, and
+        one unreadable stat used to turn the summary into a 500.
         """
+        self._audit_window_truncated = False
         audit = self.workspace / ".minicc" / AUDIT_NAME
-        if not audit.is_file():
-            return set()
         paths: set[str] = set()
         try:
+            if not audit.is_file():
+                return set(), None
             # Read a bounded tail; audit histories can be many megabytes.
             with audit.open("rb") as stream:
                 stream.seek(max(0, audit.stat().st_size - 256_000))
@@ -211,9 +219,12 @@ class ChangeInspector:
                 path = str(item.get("path") or "").replace("\\", "/")
                 if path and not path.startswith(".") and not _ignored_path(path):
                     paths.add(path)
-        except (OSError, ValueError, TypeError):
-            return set()
-        return paths
+        except (OSError, ValueError, TypeError) as exc:
+            return set(), (
+                f"审计记录（.minicc/{AUDIT_NAME}）读不出来"
+                f"（{type(exc).__name__}: {exc}），git 看不到的改动没有兜底"
+            )
+        return paths, None
 
     def _computed_files(self) -> list[dict[str, Any]]:
         """Every changed file, with its counts.  Not truncated."""
@@ -330,7 +341,9 @@ class ChangeInspector:
         status = status_map.get(path, "clean")
         # M8-T548: every entry in ``status_map`` came from the status read, so
         # ``files_without_diff`` above has just refreshed the reason.
-        return self._diff_for_target(target, path, status, self._status_read_error)
+        return self._diff_for_target(
+            target, path, status, self._status_read_error, self._audit_read_error
+        )
 
     def _diff_for_target(
         self,
@@ -338,6 +351,7 @@ class ChangeInspector:
         path: str,
         status: str,
         status_read_error: str | None = None,
+        audit_read_error: str | None = None,
     ) -> dict[str, Any]:
         # Untracked files have no HEAD baseline; avoid a subprocess for each
         # one when the workspace is a fresh interview repository.
@@ -348,11 +362,15 @@ class ChangeInspector:
             and target.is_file()
             and status == "clean"
             and not status_read_error
+            and not audit_read_error
         ):
             # M8-T548: ``clean`` when the status table could not be read is a
             # guess, and copying the file onto its own baseline would print
             # an empty patch for a file that did change - the same collapse
             # one level down.
+            # M8-T549: the audit trail is the other source that could have
+            # named this file; with it unreadable the same guess is made, so
+            # the shortcut waits for both reads.
             before = after
 
         if not before and not after:
@@ -379,6 +397,8 @@ class ChangeInspector:
             # M8-T548: ``status`` may be the ``clean`` fallback; the reason
             # says whether it could be trusted.
             "status_read_error": status_read_error or None,
+            # M8-T549: the fallback trail's own read failure travels beside it.
+            "audit_read_error": audit_read_error or None,
         }
 
     def files_without_diff(self) -> list[dict[str, Any]]:
@@ -389,7 +409,8 @@ class ChangeInspector:
             status, path = self._parse_status(raw)
             if path and not _ignored_path(path):
                 items[path] = _status_record(path, status, raw)
-        for path in self._audit_paths():
+        audit_paths, self._audit_read_error = self._audit_paths()
+        for path in audit_paths:
             # M8-T310: the audit records the **raw** argument the model
             # passed (``sub/../notes.md``), while git records the clean
             # relative path (``notes.md``).  Keying the audit fallback by
@@ -434,6 +455,8 @@ class ChangeInspector:
             # M8-T548: ``total_files: 0`` from a failed read is not "nothing
             # changed"; the reason travels with the answer.
             "status_read_error": getattr(self, "_status_read_error", None),
+            # M8-T549: the same answer for the fallback trail.
+            "audit_read_error": getattr(self, "_audit_read_error", None),
             "workspace": self.workspace.as_posix(),
         }
 
