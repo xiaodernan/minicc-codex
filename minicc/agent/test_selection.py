@@ -89,6 +89,11 @@ def relevant_python_tests(root: Path, changed: list[str]) -> list[str]:
                     continue
                 imports = _test_imports(test)
             except (OSError, UnicodeError, SyntaxError):
+                # M8-T551: a test file that could not be read may well import
+                # the changed module - that is exactly what could not be
+                # checked.  Dropping it shrank the verification silently;
+                # keeping it lets pytest report the file's own failure.
+                selected.add(test.relative_to(root).as_posix())
                 continue
             if modules & imports:
                 selected.add(test.relative_to(root).as_posix())
