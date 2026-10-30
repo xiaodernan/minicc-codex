@@ -9,6 +9,15 @@ function state(page, expression) {
   return page.evaluate((source) => window.eval(source), expression);
 }
 
+// M8-T534: a failed assertion must name itself. The mutation CI step runs this
+// smoke against an unreachable provider and needs to tell "the product path did
+// not complete" apart from "the browser never launched"; scripts/web_smoke_verdict.py
+// accepts only the completion code and rejects an unattributed non-zero exit.
+function failProductPath(code, message) {
+  console.error(`SMOKE_FAILURE_CODE=${code}`);
+  assert.fail(message);
+}
+
 async function runAgentTimelineSmoke(browser) {
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   const consoleErrors = [];
@@ -306,20 +315,29 @@ async function runProductPathSmoke(browser) {
   while (Date.now() < terminalDeadline && (await page.locator("#messageList .loading").count()) > 0) {
     await page.waitForTimeout(500);
   }
-  assert.equal(
-    await page.locator("#messageList .loading").count(),
-    0,
-    "product path task never reached a terminal state (spinner still present after 90s)",
-  );
+  if ((await page.locator("#messageList .loading").count()) !== 0) {
+    failProductPath(
+      "PRODUCT_PATH_NO_TERMINAL_STATE",
+      "product path task never reached a terminal state (spinner still present after 90s)",
+    );
+  }
   const completed = await page.locator('#messageList [data-stage-code="completion_complete"]').count();
-  assert.ok(
-    completed >= 1,
-    "product path task must reach completion_complete; an unreachable provider must not silently pass",
-  );
+  if (completed < 1) {
+    failProductPath(
+      "PRODUCT_PATH_NO_COMPLETION_VERDICT",
+      "product path task must reach completion_complete; an unreachable provider must not silently pass",
+    );
+  }
   const toolEvents = await page.locator("#messageList details.tool-event").count();
-  assert.ok(toolEvents >= 1, `product path task must produce at least one tool evidence card, got ${toolEvents}`);
-  assert.notEqual(await page.locator("#toolMetric").innerText(), "0", "tool metric must reflect at least one executed tool");
-  assert.deepEqual(consoleErrors, [], `product path browser errors: ${consoleErrors.join(" | ")}`);
+  if (toolEvents < 1) {
+    failProductPath("PRODUCT_PATH_NO_TOOL_EVIDENCE", `product path task must produce at least one tool evidence card, got ${toolEvents}`);
+  }
+  if ((await page.locator("#toolMetric").innerText()) === "0") {
+    failProductPath("PRODUCT_PATH_TOOL_METRIC_STALE", "tool metric must reflect at least one executed tool");
+  }
+  if (consoleErrors.length !== 0) {
+    failProductPath("PRODUCT_PATH_CONSOLE_ERRORS", `product path browser errors: ${consoleErrors.join(" | ")}`);
+  }
   await page.close();
 }
 

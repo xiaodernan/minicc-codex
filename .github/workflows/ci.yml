@@ -218,21 +218,29 @@ jobs:
             sleep 1
           done
           curl -fsS http://127.0.0.1:8766/api/health
-      - name: Run web smoke (expected to fail)
+      # M8-T534: this step used to read *any* non-zero exit as "mutation caught",
+      # so a missing browser, a server that never bound its port, or a syntax
+      # error satisfied the gate while the product path was never exercised.
+      # The smoke now prints SMOKE_FAILURE_CODE=<CODE>; the verdict script
+      # accepts only the completion-verdict code and rejects everything else.
+      - name: Run web smoke (expected to fail for the product-path reason)
         env:
           MINICC_WEB_URL: http://127.0.0.1:8766
         run: |
-          if npm run test:web; then
-            echo "MUTATION NOT CAUGHT: web smoke passed against an unreachable provider"
-            exit 1
-          fi
-          echo "mutation caught: web smoke correctly failed against an unreachable provider"
-      - name: Upload mutation server log
+          set +e
+          npm run test:web > web-smoke-mutation.log 2>&1
+          rc=$?
+          set -e
+          cat web-smoke-mutation.log
+          python scripts/web_smoke_verdict.py --exit-code "$rc" --log web-smoke-mutation.log
+      - name: Upload mutation logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: server-mutation-log
-          path: server-mutation.log
+          path: |
+            server-mutation.log
+            web-smoke-mutation.log
 
   # M4-T8 PR eval gate: fast (<15m), fake provider, no real key, no real cost.
   # The fake provider cannot solve content graders (pass_at_1 is 0 by design),
