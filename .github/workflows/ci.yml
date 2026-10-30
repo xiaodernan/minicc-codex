@@ -348,10 +348,13 @@ jobs:
           --json-out output/nightly-v2.json --markdown-out output/nightly-v2.md
       - name: Apply absolute gates and emit JUnit
         if: steps.real_key.outputs.present == 'true'
-        # Initial floors are deliberately conservative because real-model v2
-        # accuracy is not yet characterized; ratchet pass_at_1 upward as the
-        # nightly history establishes a stable baseline. Lowering any threshold
-        # below the achieved value (or raising it impossibly) turns this red.
+        # M8-T539: the five floors below are pinned twice - here and in
+        # minicc/bench_compare.py::GATE_FLOORS - and
+        # tests/test_the_nightly_floor_values_have_a_reader.py compares the two
+        # numbers, so either side drifting alone is red. pass_at_1>=0.3 sits
+        # inside the worst clean full-suite portrait the roadmap states in prose
+        # (13/24 = 0.5417, the M6-4 baseline); a floor above that portrait would
+        # red a run nobody called a regression, and a floor of 0 gates nothing.
         # M8-T182: grading_refusal_count<=0 is the one floor that needs no
         # characterization - a refusal means the grader declined, could not run,
         # the host could not write, or the operator aborted, and none of those
