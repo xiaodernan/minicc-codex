@@ -37526,3 +37526,90 @@ C 是真话，D 是对照；A、B、F 是「这条记录我没读到」——与
 5. 第五百二十七批 §7 第 2 位：两条子集门。
 6. `conftest.py:87` 起的超时措辞。
 7. 第五百二十八批 §7：恢复摘要要不要带出 `dirty_read_error`（那批只把它写进了 manifest）。
+
+## 第五百三十二批 — M8-T550 — 审计记录里读不出的一行，被当成没有这一行
+
+### 1 欠的是哪一条
+
+第五百三十一批 §7 第 1 位。`_audit_paths()` 把审计尾部按行解析：`json.loads` 失败的那一行 `continue`——无声消失；**解析得出来、却不是对象**的那一行直接走到 `item.get`，`AttributeError` 穿出 `summary()`，也穿出 `diff()`。两种读不出的形状，一个答「没有这一行」，一个把整个变更面板答成 500。
+
+这个兜底是 git 看不到的改动的唯一证人：它漏掉一行，文件清单就少一个文件；它崩一次，整张面板一起没。第五百三十批与第五百三十一批把「读失败」与「没有变更」分开到了文件级与记录级，但**记录里面的行**还没有这一分：一行坏掉，其余行照常作证，那一行本身既不列也不说。
+
+同一个读取上还有一处是**切口自己造出来的坏行**：尾部从 `size - 256_000` 开始读，第一行按构造就是半条记录。它原来能安稳落地，只因为半行通常不含 `"path"`、过不了预过滤；一旦切口落在 `"path"` 之前而半行里带着这个词，它就被当成一条坏记录无声跳过——而每读一次大审计就跳一次。
+
+### 2 量到的真相（实测）
+
+修前，非仓库工作区（审计是唯一证人），经 `summary()` 与 `diff()`：
+
+| 形状 | total_files | 计数键 | 结果 |
+| --- | --- | --- | --- |
+| A 一条好记录 + 一行 `["path", "notes.md"]` | — | 无 | summary 与 diff 都抛 `AttributeError: 'list' object has no attribute 'get'` |
+| B 一条好记录 + 一行截断的 JSON | 1 | 无 | 截断行无声消失，没有任何披露 |
+| C 只有好记录（对照） | 1 | 无 | — |
+| D 287,000 字节，尾巴首行是切口造出的半行 | 1，truncated=True | 无 | 半行被当坏行无声跳过 |
+| E 只有一行 `["path", "notes.md"]` | — | 无 | summary 抛 `AttributeError` |
+| F `path` 是数字 123 | 0 | 无 | 数字路径被无声丢弃（仍是，§6） |
+
+A 与 E 是崩溃，B 与 D 是沉默，C 是真话，F 是另一条无声丢弃。五种形状里没有一种让调用方知道「有一行没读到」。
+
+修后同一探针：A `total=1 unreadable=1`，`diff("notes.md")` 不再抛错、补丁是整文件新增（`+hello`）；B `1/1`；C `1/0`；D `1/0` 且 `truncated=True`——切口造出的半行**不**计数，大审计不给自己记坏账；E `total=0 unreadable=1`——没有可读记录，但那一行没读到这件事被说出来了；F 仍是 `0/0`，留在 §7。
+
+### 3 落地
+
+- `minicc/changes.py:53` 新增 `_AUDIT_TAIL_BYTES = 256_000`——切口大小从内联数字变成有名字的常量，注释说明「这么长的尾巴按构造从中途开始」。
+- `minicc/changes.py:209` 每次读取先把 `_audit_unreadable_lines` 归零——计数属于这一次读，和截断标志同一条规矩。
+- `minicc/changes.py:217-218` 文件大小只取一次进局部变量，`seek` 与切口判断用同一个数；`:221-222` 当真发生了切口且有行时，丢掉第一行——它是切口造的，不是记录坏了。
+- `minicc/changes.py:229-233` `json.loads` 失败与非对象解析各记一次计数再 `continue`：不再沉默，也不再崩。
+- `minicc/changes.py:369` `diff()` 把计数交给 `_diff_for_target`；`:372` 形参新增 `audit_unreadable_lines`；`:391` 「基线为空就把文件自己当作基线」的捷径要计数为零才开——坏行可能点名的正是这个文件；`:431` 每文件载荷带 `audit_unreadable_lines`。
+- `minicc/changes.py:491` `summary()` 的回答新增 `audit_unreadable_lines`（每次 summary 都先跑 `files_without_diff()`，所以缓存命中也不会喂旧计数）。
+- 新门 `tests/test_an_audit_line_that_could_not_be_read_is_counted_not_dropped.py` 八条：非对象行不崩 summary / 不崩 diff、截断行被计数、切口半行不计数、diff 带计数、坏行拦住捷径，两条对照门（只有可读记录计零、没有审计记录计零）。
+
+### 4 见证（红先绿后，臂）
+
+- **红先**：最终门的字节在 HEAD 的干净导出上 `6 failed, 2 passed in 4.37s`——六条失败门（非对象 summary / 非对象 diff / 截断行计数 / 切口半行 / diff 计数 / 捷径）全红，两条对照门在 HEAD 上就是绿的（防修法过头）。
+- **绿后**：新门在共享树上 `8 passed in 2.99s`。
+- **plane550**（`git archive HEAD` + 本批文件）：两个门文件 `18 passed in 9.76s`（下表 A0）。
+- 九臂（baseline sha256 `a7bf254e…`，逐臂恢复后核对）：
+
+| 臂 | 改什么 | 预期红 | 实际 |
+| --- | --- | --- | --- |
+| A0 | 对照：不改 | 绿 | MATCHED（18 passed，9.76s） |
+| A1 | 去掉 `isinstance(item, dict)` 守卫 | 非对象行不崩那条 | MATCHED（4 failed、14 passed，10.28s） |
+| A2 | `json.loads` 失败回到无声 `continue` | 截断行被计数那条 | MATCHED（1 failed、17 passed，9.82s） |
+| A3 | 尾巴首行不再丢弃 | 切口半行不计数那条 | MATCHED（1 failed、17 passed，11.58s） |
+| A4 | summary 不返回计数 | 非对象行不崩那条 | MATCHED（3 failed、15 passed，11.73s） |
+| A5 | diff 载荷不带计数 | diff 带计数那条 | MATCHED（1 failed、17 passed，10.74s） |
+| A6 | 捷径不看计数 | 坏行拦住捷径那条 | MATCHED（1 failed、17 passed，9.79s） |
+| A7 | 捷径永不开 | 第五百三十一批的干净对照门 | MATCHED（1 failed、17 passed，9.97s） |
+| A8 | 每次读都记一条坏行 | 只有可读记录计零那条 | MATCHED（7 failed、11 passed，10.06s） |
+
+九臂每一条都 rc≠0 且红里点名了被瞄的门，字节逐臂恢复、sha256 核过。CRLF：`minicc/changes.py` 498 行 CRLF、0 裸 LF，`git diff --numstat` 是 36 增 2 删，不是整文件重写。
+
+**夹具走过三次弯路**：① 40 字节整倍数的记录让 256,000 的切口永远落在行首（256000 能被 40 整除），根本没有半行可丢，A3 无从咬；② 换约 900 字节的记录，切出来的半行落在 500 行窗口之外，`lines[-500:]` 看不见它；③ 同一形状下 256KB 的尾巴装不满 500 行，一条「`audit_window_truncated is True`」的断言是假前提。最终夹具 600 条约 901 字节的记录，切口落在 `"path"` 之前的 padding 里，并把 `0 < cut % per < long_record.index('"path"')` 这一前提断言进门里——门自己证明它落在要考的分支上，而不是假设。
+
+### 5 聚焦回归
+
+- 共享树上七个文件（本批门 + 第五百三十一批门 + 第五百三十批门 + `tests/test_changes_pure.py` + `tests/test_core_tools.py` + `tests/test_the_change_panel_and_the_diff_must_agree.py` + `tests/test_five_places_where_one_fact_was_read_differently.py`）：`93 passed in 197.91s`。
+- 共享树上另外三个引用 `ChangeInspector` 的文件（`test_optimization_core.py`、`test_three_places_that_lost_what_they_were_protecting.py`、`test_what_a_review_of_this_batch_found.py`）：`26 passed, 1 skipped in 33.41s`（跳过的是本平台没有 symlink，既有行为）。
+- 干净克隆（HEAD + 本批代码提交 + 本记录）：`26 passed in 84.43s`。
+- 干净克隆上的 `doc_pointers.py --check`（本句定稿后重跑）：rc=0；949 个「见」标记（116 条进受检箱、54 条落在 citation-without-locator）、23 条链接、4120 条 evidence 指针（75 条路径断言在代码跨度之外）、20 份文档、643 个在仓文件；同一份文档在共享树上跑只多出那 4 条外来行。
+- 全围栏：**本批不重跑**（约 58 分钟一趟）；其父提交 `5faa568`（第五百三十一批的代码提交）上刚跑过 `python -W error -m pytest -q`：`4195 passed, 11 skipped in 3477.26s`，EXIT=0。本批改动只在其上 36 增 2 删，判定取干净克隆上的三门集与检查器。
+
+### 6 边界（本批**不**声称）
+
+- **不声称界面会显示计数。** 键随 RPC 回答回到调用方，但 `web/src` 里没有一处读它（与第五百三十批、第五百三十一批同一条）。
+- **不声称计数覆盖整个审计。** 只读尾部 256KB、只看最后 500 行；窗口之外的行没有读，也就没有数。窗口本身由 `audit_window_truncated` 披露。
+- **不声称不含 `"path"` 的行会被过目。** 预过滤在读之前就跳过它们——这么设计是为了让常见情形便宜；代价是一条连 `"path"` 都没剩下的坏行不进计数。要不要为它加一遍复核，留在 §7。
+- **不声称数字路径是读失败。** F 里 `path: 123` 被 `str()` 成 `"123"` 后当路径用，文件不存在就丢弃，计数不变；那是一条记录写坏了、不是读坏了，§7 记着。
+- **不声称补丁是精确的。** 计数非零时捷径不开，一个其实没改、也没有任何可读记录点名的文件会被画成整文件新增——与第五百三十批、第五百三十一批同一条取舍：读不出来时，宁可报多也不报「没有变化」。
+- **不声称非对象行只有数组形状。** 带 `"path"` 字样、能解析成字符串或数字的行同属一类，都被计数；门里只摆了数组这个最常出现的例子。
+
+### 7 下一位候选
+
+1. **数字路径与不含 `"path"` 的行**（F）：`path: 123` 被 `str()` 后当路径、文件不在就丢弃；不含 `"path"` 的坏行根本不进计数（§6）——要不要把「记录形状不对」也计入一次。
+2. **`_git` 的 127 哨兵把 OSError 与 20 秒超时压成一句**（第五百三十批 §3 自己披露两者不可分、第五百三十一批 §7 第 2 位原样保留）：分开需要给 `_git` 一条判别，变更视图与循环两处共用。
+3. **`is_file()` 为 False 的目录形状**（第五百三十一批 §7 第 3 位）：要不要一句话，以及 `.minicc` 父目录读不出来时算不算审计读失败。
+4. 第五百二十九批 §7 第 2 位：waiver 拒绝的理由只进 trace，不上报。
+5. 第五百二十七批 §7 第 2 位：两条子集门。
+6. `conftest.py:87` 起的超时措辞。
+7. 第五百二十八批 §7：恢复摘要要不要带出 `dirty_read_error`（那批只把它写进了 manifest）。
