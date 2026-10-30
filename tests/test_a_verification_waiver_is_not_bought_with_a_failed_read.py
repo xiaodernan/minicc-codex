@@ -144,6 +144,36 @@ def test_a_read_that_succeeded_and_found_nothing_still_waives(
     assert error is None, (error, codes)
 
 
+def test_a_git_that_cannot_run_is_a_failed_read(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``OSError`` is never 「no repository」 — git did not run at all."""
+    workspace = _workspace(tmp_path)
+
+    def no_git():
+        raise FileNotFoundError("git")
+
+    _stub_git(monkeypatch, no_git)
+    paths, reason = _git_changed_paths(workspace)
+    assert paths == [] and isinstance(reason, str) and reason, (paths, reason)
+    assert "无法运行" in reason, reason
+
+
+def test_a_git_that_timed_out_is_a_failed_read(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A 15-second timeout is the tree being too big to read, not a clean tree."""
+    workspace = _workspace(tmp_path)
+
+    def slow():
+        raise subprocess.TimeoutExpired(["git", "status"], 15)
+
+    _stub_git(monkeypatch, slow)
+    paths, reason = _git_changed_paths(workspace)
+    assert paths == [] and isinstance(reason, str) and reason, (paths, reason)
+    assert "超时" in reason, reason
+
+
 def test_the_helper_reports_why_it_could_not_read_the_tree(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
