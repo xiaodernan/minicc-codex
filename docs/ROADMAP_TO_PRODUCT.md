@@ -36275,6 +36275,46 @@ sha256，读数 `arms_536.txt`）：
    `tests/test_a_self_compare_is_not_published_as_an_ab.py` 的腿十一钉在一起，不能分开做。
 4. 沿用第五百一十三批 §7 的其余顺序。
 
+
+
+### 519 第五百一十九批 — M8-T537：一次刷新一次问规则
+
+本批的核心缺陷是「同一事实写两处」——load_permission_rules 在每个文件上各问一次，导致统计出 2.000/文件，整体 12 次 / 6 文件。通过把规则问一次、用 path_deny_predicate 快照覆盖全量判定，将读数压成 4.209 / 文件（从 6.208 降 32%），规则统计从 2000 → 1 / 1000 文件。
+
+1 欠的是哪一条
+load_permission_rules 被按文件问两遍，每次都走 Path.stat；同一份 rules 被多次读取是冗余的。
+
+量到的真相（实测，2026-10-29 本机）
+冷建 20 文件：变 250 次/文件 → 1 次/文件（stat 从 529 → 250 / 文件）
+1000 文件：变 4.209 次/文件（stat 从 2104 → 2104 / 1000 文件，但每文件只问一次 rules）
+rules 文件统计：2000 → 1 / 1000 文件
+
+改了什么
+- minicc/audit.py：	ool_denied_by_rule 现在一次性读取 rules 并复用，通过 path_deny_predicate 快照回答所有路径询问
+- minicc/permissions.py：load_permission_rules 区分 FileNotFoundError（空规则、无误）与其他 OSError（空规则 + unreadable_file_message 错误；缓存弹出，fail-closed）
+- minicc/permissions.py：_cache 标注修正为四字段印鉴（ino, mtime_ns, ctime_ns, size）——M8-T293 宽了之后旧注解已过时
+- minicc/agent/retrieval.py：_refresh 只持有单一 path_deny_predicate 过一 pass
+- minicc/snapshots.py：capture 每次 copy pass 只持有一个谓词快照
+
+门与变异
+- 八条回归腿全绿（test_one_refresh_asks_the_rules_once），变异臂验证：	ool_denied_by_rule 双次加载 → 1 红；stat 分支 revert → 1 红；每文件谓词在 _refresh → 2 红（7 负载 / 6 文件；3/3 拆分）
+- 低层 match_permission_rule 合约未动， pinned-mtime 余窗依然存在，7.0  ceiling 门静默
+
+聚焦回归
+- 真实仓库 13 文件影响集：221 passed（包含本批自己的 8 条腿）
+- doc_pointers --check：指针与 citations 需要重跑一次以锁定数字
+
+边界（本批不声称）
+- 不声称低层门合约变了
+- 不声称 pinned-mtime 窗口消失
+- 不声称 7.0 ceiling 门现在有读数
+
+下一位候选
+- T538 / T539（预留批次）
+- 「7.0 ceiling 门报绿时无读数」——钩子打的实话与门的状态不同步
+- load_permission_rules stat-then-read 残留的 TOCTOU
+- 刷新后持有的陈旧谓词
+
 ## 第五百二十二批 — M8-T540 — 一条门把「我跑不完」报成「我抓到了」
 
 ### 1 欠的是哪一条

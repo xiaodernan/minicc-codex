@@ -8,14 +8,14 @@ task history.
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from .allowlist import match_session_allowlist, path_rule_matches
 from .internal_paths import PERMISSIONS_NAME
-from .permissions import load_permission_rules, match_permission_rule
+from .permissions import load_permission_rules, match_permission_rule, match_rules
 from .tools.bash import is_readonly_command, split_command_argv
 from .tools.registry import AUTHORIZATION_RISKS
 
@@ -182,15 +182,51 @@ def tool_denied_by_rule(
     """
     if not workspace:
         return False
-    if policy_evaluation_error(workspace):
+    # M8-T537: this used to ask the file twice - ``policy_evaluation_error``
+    # and then ``match_permission_rule``, each of which loads the rules on its
+    # own.  Two loads are two chances to read two different files, and the
+    # second answer decided whether the path was refused.  One question, one
+    # load, both answers from it.
+    try:
+        rules, error = load_permission_rules(Path(workspace))
+    except OSError:
+        # A refusal we cannot read is not an allowance.
+        return True
+    if error:
         # The rules are unknown, so nothing can be said about this call.
         # Refusing is the only answer that keeps the promise above.
         return True
+    return match_rules(rules, tool, arguments or {}) == "deny"
+
+
+def path_deny_predicate(workspace: Path | str | None) -> Callable[[str], bool]:
+    """A deny decision that holds for **one pass** over a workspace.
+
+    M8-T537: a refresh asks the same rules file about every candidate path.
+    Asking ``tool_denied_by_rule`` per file meant two ``stat`` calls per file
+    (2000 for a 1000-file tree, measured) and - the worse half - two answers
+    *inside one pass* whenever the file changed half-way through it: the
+    measured shape was 3 files indexed and 7 denied under one refresh, which
+    is the same split answer M8-T526 closed at the policy level.
+
+    The rules are a property of the workspace at a moment, so a pass reads
+    them once and judges every path in that pass by that snapshot.  The
+    predicate keeps ``tool_denied_by_rule``'s answers: no workspace allows,
+    an unreadable policy denies, and ``deny`` wins over ``allow``.
+    """
+    if not workspace:
+        return lambda _rel: False
     try:
-        return match_permission_rule(Path(workspace), tool, arguments or {}) == "deny"
+        rules, error = load_permission_rules(Path(workspace))
     except OSError:
-        # Same reasoning: a refusal we cannot read is not an allowance.
-        return True
+        return lambda _rel: True
+    if error:
+        return lambda _rel: True
+
+    def denied(rel: str) -> bool:
+        return match_rules(rules, "read_file", {"path": rel}) == "deny"
+
+    return denied
 
 
 def deny_rule_names_paths(workspace: Path | str | None) -> bool:
@@ -522,7 +558,11 @@ def authorize_tool(
     # allow - so a user whose deny rule had one typo in it lost the rule
     # entirely, on this path and on the read path alike.
     if workspace is not None:
-        policy_error = policy_evaluation_error(workspace)
+        # M8-T537: one load answers both of the next two questions.  Asking
+        # them separately let a policy that became unreadable *between* the
+        # two loads pass the readability check and then be matched against
+        # the empty rules - the veto fell back to an allow.
+        rules, policy_error = load_permission_rules(Path(workspace))
         if policy_error:
             return AuthorizationDecision(
                 False,
@@ -530,13 +570,13 @@ def authorize_tool(
                 f"permissions.json 读不出来，先拒绝此操作（{policy_error}）",
                 "permission_policy_unreadable",
             )
-    if workspace is not None and match_permission_rule(workspace, tool, arguments) == "deny":
-        return AuthorizationDecision(
-            False,
-            risk or "unknown",
-            "permissions.json deny 规则拒绝",
-            "permission_rule_deny",
-        )
+        if match_rules(rules, tool, arguments) == "deny":
+            return AuthorizationDecision(
+                False,
+                risk or "unknown",
+                "permissions.json deny 规则拒绝",
+                "permission_rule_deny",
+            )
     mode = normalize_permission_mode(permission_mode)
     declared = set(capabilities or ())
     network_tool = is_network_tool(tool, declared)
@@ -668,6 +708,7 @@ __all__ = [
     "interpret_authorization_decision",
     "is_network_tool",
     "normalize_permission_mode",
+    "path_deny_predicate",
     "path_rule_denies_call",
     "path_rule_refusal_reason",
     "policy_evaluation_error",

@@ -399,10 +399,14 @@ def _is_denied_by_rules(workspace: Path, rel: str) -> bool:
     (``audit.tool_denied_by_rule``) - the same question the agent loop asks
     for the model's own calls, so a path is either denied everywhere or
     nowhere.
-    """
-    from ..audit import tool_denied_by_rule
 
-    return tool_denied_by_rule(workspace, "read_file", {"path": rel})
+    M8-T537: a caller with many paths builds one
+    ``audit.path_deny_predicate`` and asks that; this single-shot form is
+    the same predicate applied once.
+    """
+    from ..audit import path_deny_predicate
+
+    return path_deny_predicate(workspace)(rel)
 
 
 class LocalEvidenceIndex:
@@ -495,6 +499,14 @@ class LocalEvidenceIndex:
         denied = 0
         now = time.time()
         files = self._files()
+        # M8-T537: one read of the rules for the whole pass.  Asking per file
+        # cost two ``stat`` calls per file (2000 for 1000 files, measured),
+        # and a file edited half-way through a pass split it: the same
+        # refresh answered "indexed" for the first 3 candidates and "denied"
+        # for the remaining 7.  A pass has one policy.
+        from ..audit import path_deny_predicate
+
+        denied_by_rules = path_deny_predicate(self.workspace)
         for path, rel in files:
             # M8-T351: the index points the model at candidate files, so a
             # path the deny rules refuse must not be pointed at: the rule is
@@ -502,7 +514,7 @@ class LocalEvidenceIndex:
             # workspace.  The count is disclosed in the census (a denied path
             # is missing **by policy**, not by a budget - so it does not make
             # the walk "incomplete").
-            if _is_denied_by_rules(self.workspace, rel):
+            if denied_by_rules(rel):
                 denied += 1
                 continue
             try:

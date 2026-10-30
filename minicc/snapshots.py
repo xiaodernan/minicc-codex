@@ -206,6 +206,11 @@ def capture(workspace: Path, task_id: str) -> dict[str, Any]:
         sizes: dict[str, int] = {}
         used = 0
         dirty, dirty_error = _git_dirty_files(root)
+        # M8-T537: one rules snapshot for the whole copy pass - the deny side
+        # is a fact about the workspace, not about the file being copied.
+        from .audit import path_deny_predicate
+
+        denied_by_rules = path_deny_predicate(root)
         for rel in dirty:
             # M8-T350: the deny rules have to reach the **copy** too.  A
             # snapshot preserves the dirty files, so a path the user denied
@@ -215,7 +220,7 @@ def capture(workspace: Path, task_id: str) -> dict[str, Any]:
             # file the rule refused.  The pre-image of a denied path is not
             # needed either: the agent cannot change that path, so there is
             # nothing to roll back.
-            if _is_denied_by_rules(root, rel):
+            if denied_by_rules(rel):
                 skipped.append(rel)
                 reasons[rel] = "permissions.json deny 规则覆盖该路径，未保留前置镜像"
                 continue
@@ -246,10 +251,13 @@ def _is_denied_by_rules(workspace: Path, rel: str) -> bool:
     (``audit.tool_denied_by_rule``) - the same question the agent loop asks
     for the model's own calls, so a path is either denied everywhere or
     nowhere.
-    """
-    from .audit import tool_denied_by_rule
 
-    return tool_denied_by_rule(workspace, "read_file", {"path": rel})
+    M8-T537: the single-shot form asks the same predicate once; a caller with
+    many paths (``capture``) builds the predicate once instead.
+    """
+    from .audit import path_deny_predicate
+
+    return path_deny_predicate(workspace)(rel)
 
 
 def _digest(path: Path) -> str | None:
