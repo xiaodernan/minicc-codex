@@ -64,6 +64,7 @@ from ..tools.schemas import (
     untrusted_tags,
 )
 from ..tools.registry import ToolRegistry, redact_text
+from ..gitprobe import work_tree_verdict
 from ..hooks import payloads_for_result, payloads_for_tool_call
 from ..trace import trace_event
 from .context import (
@@ -528,7 +529,7 @@ def _git_changed_paths(workspace: str | Path | None) -> tuple[list[str], str | N
     except (OSError, subprocess.SubprocessError) as exc:
         return [], f"git status 无法运行: {exc}"
     if result.returncode != 0:
-        kind, detail = _git_repository_verdict(workspace)
+        kind, detail = work_tree_verdict(workspace)
         if kind == "no":
             return [], None
         stderr = (result.stderr or "").strip().splitlines()
@@ -553,35 +554,6 @@ def _git_changed_paths(workspace: str | Path | None) -> tuple[list[str], str | N
             "分不清哪些是本次写入的"
         )
     return changed, None
-
-
-def _git_repository_verdict(workspace: str | Path) -> tuple[str, str]:
-    """Ask git whether the directory even has a work tree, after status failed.
-
-    ``git status`` exits 128 both for "not a git repository" - where an
-    empty changed list is the truth - and for "this is a repository I am
-    forbidden to read" (``dubious ownership``), where an empty list would be
-    the M8-T547 collapse again.  The probe separates the two.  ``"unknown"``
-    covers a probe that could not run or answer: the caller keeps the
-    failure, because an unreadable tree must not pass for a clean one.
-    """
-    try:
-        probe = subprocess.run(
-            ["git", "rev-parse", "--is-inside-work-tree"],
-            cwd=str(workspace),
-            capture_output=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=10,
-        )
-    except (OSError, subprocess.SubprocessError) as exc:
-        return "unknown", f"rev-parse 无法运行: {exc}"
-    if probe.returncode == 0:
-        return ("yes" if probe.stdout.strip() == "true" else "no"), ""
-    stderr = (probe.stderr or "").strip()
-    if "not a git repository" in stderr:
-        return "no", ""
-    return "unknown", (stderr.splitlines()[0][:200] if stderr else f"退出码 {probe.returncode}")
 
 
 def _replan_constraints(*, verification_required: bool, feedback: list[dict[str, Any]]) -> list[str]:

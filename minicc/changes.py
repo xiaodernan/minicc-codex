@@ -16,6 +16,7 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
+from .gitprobe import work_tree_verdict
 from .internal_paths import AUDIT_NAME
 from .tools.editor import _MUTATING_ACTIONS
 from .tools.registry import redact_text
@@ -108,10 +109,18 @@ class ChangeInspector:
             return 127, "", "git unavailable"
         return result.returncode, result.stdout, result.stderr
 
-    def _status_lines(self) -> list[str]:
-        code, stdout, _stderr = self._git(["status", "--porcelain=v1", "-z", "-uall"])
+    def _status_lines(self) -> tuple[list[str], str | None]:
+        """Git's status records — and why, if the tree could not be read.
+
+        M8-T548: the failure branches used to answer ``[]``, the same list a
+        clean tree produces, so the change panel reported 「没有变更」 about a
+        workspace whose git had refused.  ``None`` now means *the tree was
+        read*; a workspace that is not a repository (or has no work tree)
+        is still a readable, supported empty baseline.
+        """
+        code, stdout, stderr = self._git(["status", "--porcelain=v1", "-z", "-uall"])
         if code != 0:
-            return []
+            return [], self._status_failure(code, stderr)
         # NUL records preserve spaces, Unicode and embedded newlines. A
         # rename/copy carries destination first and source as the next record.
         records = iter(stdout.split("\0"))
@@ -124,7 +133,30 @@ class ChangeInspector:
                 origin = next(records, "")
                 self._renames[raw[3:]] = origin
             output.append(raw)
-        return output
+        return output, None
+
+    def _status_failure(self, code: int, stderr: str) -> str | None:
+        """The reason a failed ``git status`` is a failed read, or ``None``.
+
+        ``_git`` answers 127 / "git unavailable" for both an OSError and a
+        20-second timeout — git did not run at all.  Its own non-zero exits
+        are split by ``work_tree_verdict``: no repository is a fact about
+        the workspace (the module exists for workspaces with no commit, and
+        a workspace with no repository at all is the same kind of fact);
+        everything else is a tree we were not allowed to read.
+        """
+        if code == 127 and "git unavailable" in stderr:
+            return "git status 无法运行（20 秒超时或 PATH 里没有 git），变更清单没有读出来"
+        kind, detail = work_tree_verdict(self.workspace)
+        if kind == "no":
+            return None
+        reason = f"git status 退出码 {code}"
+        first = (stderr or "").strip().splitlines()
+        if first:
+            reason += f": {first[0][:200]}"
+        if kind == "unknown":
+            reason += f"（且无法确认这是不是仓库：{detail}）"
+        return reason
 
     @staticmethod
     def _parse_status(raw: str) -> tuple[str, str]:
@@ -296,14 +328,31 @@ class ChangeInspector:
                 key = str(item["path"])
             status_map[key] = str(item.get("status") or "clean")
         status = status_map.get(path, "clean")
-        return self._diff_for_target(target, path, status)
+        # M8-T548: every entry in ``status_map`` came from the status read, so
+        # ``files_without_diff`` above has just refreshed the reason.
+        return self._diff_for_target(target, path, status, self._status_read_error)
 
-    def _diff_for_target(self, target: Path, path: str, status: str) -> dict[str, Any]:
+    def _diff_for_target(
+        self,
+        target: Path,
+        path: str,
+        status: str,
+        status_read_error: str | None = None,
+    ) -> dict[str, Any]:
         # Untracked files have no HEAD baseline; avoid a subprocess for each
         # one when the workspace is a fresh interview repository.
         before = "" if status == "added" else self._baseline(self._renames.get(path, path))
         after = self._text(target)
-        if not before and target.is_file() and status == "clean":
+        if (
+            not before
+            and target.is_file()
+            and status == "clean"
+            and not status_read_error
+        ):
+            # M8-T548: ``clean`` when the status table could not be read is a
+            # guess, and copying the file onto its own baseline would print
+            # an empty patch for a file that did change - the same collapse
+            # one level down.
             before = after
 
         if not before and not after:
@@ -327,12 +376,16 @@ class ChangeInspector:
             "additions": additions,
             "deletions": deletions,
             "source": "git-or-empty-baseline",
+            # M8-T548: ``status`` may be the ``clean`` fallback; the reason
+            # says whether it could be trusted.
+            "status_read_error": status_read_error or None,
         }
 
     def files_without_diff(self) -> list[dict[str, Any]]:
         """Return status records without recursively calculating every diff."""
         items: dict[str, dict[str, Any]] = {}
-        for raw in self._status_lines():
+        raw_lines, self._status_read_error = self._status_lines()
+        for raw in raw_lines:
             status, path = self._parse_status(raw)
             if path and not _ignored_path(path):
                 items[path] = _status_record(path, status, raw)
@@ -378,6 +431,9 @@ class ChangeInspector:
             "audit_window_truncated": bool(
                 getattr(self, "_audit_window_truncated", False)
             ),
+            # M8-T548: ``total_files: 0`` from a failed read is not "nothing
+            # changed"; the reason travels with the answer.
+            "status_read_error": getattr(self, "_status_read_error", None),
             "workspace": self.workspace.as_posix(),
         }
 
