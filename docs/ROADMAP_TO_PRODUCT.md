@@ -35409,3 +35409,92 @@ A 的两条红是「`conftest.py` 没有把用户级配置指向隔离文件」�
    装不上、服务器没起来、配置写错，都会读成「变异被抓到」。
 3. M8-T535（落第五百二十三批）M6-4 的「劣化 ≤15%」有读数、没有门（现状表自己写着
    「缺的是自动化，不是读数」）。
+
+## 第五百二十一批 — M8-T533 — 每文件的两次 deny stat：先修红
+
+### 1 欠的是哪一条
+
+上一批 §7 的第一位：`test_index_build_makes_a_constant_number_of_filesystem_calls_per_file`
+在 HEAD 上红（`assert 7.208 <= 7.0`）。差分已把它钉在 M8-T351（`897366c`，2026-10-22）
+给 `_refresh` 加的每文件 deny 询问上：`audit.tool_denied_by_rule` 每次调用装载两次策略
+（`policy_evaluation_error` 一次、`match_permission_rule` 一次），而
+`load_permission_rules` 每次装载都 stat 一次 `.minicc/permissions.json`。
+
+同一段循环里还有第二笔：`_build_record` 在读完文件之后又 `path.stat()` 一次取 mtime。
+它既是每文件的第三次 stat，也是 TOCTOU——mtime 来自读之后，正文来自读之前。
+
+### 2 量到的真相
+
+- 修前（HEAD 单跑同一条门）：`assert 7.208 <= 7.0, (7.232, 7.208)`。
+- 修后（本批交付字节，门自己的计数器，250/1000 文件）：
+  `{'stat': 530, 'open': 250, 'is_symlink': 277, 'iterdir': 2, 'walk': 1}` = **4.240/文件**；
+  `{'stat': 2105, 'open': 1000, 'is_symlink': 1102, 'iterdir': 2, 'walk': 1}` = **4.210/文件**；
+  比例 **0.9929**。每文件去掉 3 次 stat（规则装载 2 + `_build_record` 1），换回每轮
+  refresh 固定 2 次规则 stat（matcher 装载时的 `policy_evaluation_error` +
+  `load_permission_rules`；5 文件与 50 文件实测同为 2）。
+- 差分（只读测量）：把 matcher 换回「每个文件新建一次」，5 文件读到 10 次规则 stat、
+  50 文件读到 100 次；门读 `10 stats for 5 files, 100 for 50`。
+
+### 3 落地
+
+- `minicc/permissions.py`：`match_rules(rules, tool, arguments)` 是「deny > allow > None」
+  的唯一实现（rule 已装载）；`match_permission_rule` 装载后交给它。
+- `minicc/audit.py`：`denied_by_rule_matcher(workspace)` 把装载一次的规则封成谓词；
+  `tool_denied_by_rule` 改走它，单次调用从 2 次装载降到 1 次。三条 fail-closed
+  （无 workspace 允许、策略读不出来全拒、匹配时 `OSError` 拒绝）都搬进 matcher。
+- `minicc/agent/retrieval.py`：`_refresh` 在循环外建一次 matcher；删掉
+  `_is_denied_by_rules`；`_build_record(path, rel, stat)` 用遍历时已有的签名取 mtime。
+- `tests/test_retrieval_enhanced.py`：docstring 换新读数；天花板 7.0 → **4.5**。
+- 新增 `tests/test_a_record_uses_the_signature_it_was_handed.py`：builder 不再 stat
+  交来的文件；refresh 交给它的正是写进 memo 键的那个签名。
+- 新增 `tests/test_the_deny_question_is_asked_once_per_refresh.py`：5 与 50 文件的规则
+  stat 次数相等且 ≥1。
+- `tests/test_a_policy_that_cannot_be_read_is_not_a_policy_that_allows.py`：读者继承
+  条款改走 matcher（索引现在的问法）；`snapshots` 一侧不动。
+- `tests/test_the_index_window_expires_once_and_then_stops.py`：包装器接受第三个参数。
+
+### 4 变异验证（三条，交付字节，逐条恢复并核对 sha256）
+
+| 臂 | 刀 | 预测 | 实测 | 判 |
+| --- | --- | --- | --- | --- |
+| A1 | `_build_record` 恢复 `path.stat()` | builder 单测红 + 调用计数门红 | 2 failed 1 passed：`_build_record asked for a stat it was handed`；`(5.24, 5.21)` | MATCHED |
+| A2 | matcher 改为每文件新建 | 每轮一次门红 + 调用计数门红 | 2 failed：`10 stats for 5 files, 100 for 50`；`(6.232, 6.208)` | MATCHED |
+| A3 | 删掉 matcher 的 fail-closed 条款 | 两条策略门红（malformed 路径拒绝、读者继承） | 2 failed 9 passed，正是那两条 | MATCHED |
+
+恢复：retrieval `3b23f2c7908a`、audit `bbfbbb20f0b8`，臂前后一致。
+
+### 5 门禁
+
+- 焦点集（7 份文件）：**56 passed in 36.21s**。
+- 受影响面（`scripts/impacted_tests.py` 点名 369 项，去掉一份下划线助手后 368 份测试文件）：
+  **3433 passed, 4 skipped, 1 failed in 1489.32s (24:49)**。那 1 条红是本批自己的落地顺序：
+  两份新门文件当时只在工作树、未进 git，`test_a_gate_is_only_a_gate_once_it_is_in_the_repo.py`
+  点名了它们。`git add` 后该门 + 焦点集复跑：**25 passed in 33.63s**。
+
+- 文档面（15 份读 ROADMAP 的门）：**250 passed in 956.32s (15:56)**；此前同一套门 10 failed 全部源于本批记录里一条把 bench_compare 指到 scripts/ 的悬空引用（含三条豁免自测的下游红），改成真实文件后一次全绿。
+
+### 6 边界（本批**不**声称）
+
+- 规则只装载一次意味着：一轮 refresh 进行中写入的 `permissions.json` 要等下一轮才被
+  索引看见。旧形状在每文件装载时能「中途」看见，代价是每文件 2 次 stat；这里选的是
+  「一轮一个快照」，不是「实时」。
+- `load_permission_rules` 仍然每次调用 stat 文件；本批改的是调用者的次数，不是缓存。
+- mtime 现在描述的是**读之前**的签名：读写交错时正文可能比 mtime 新，直到下一次签名
+  变化触发重建——新鲜度打分因此偏保守，不会偏乐观。
+- `minicc/snapshots.py:197` 仍按文件调用一次 `tool_denied_by_rule`（每次 2 次装载），
+  同一形状；脏文件数量通常很小，且没有门看着——记为下一单位。
+- 没有改 `-W error`、没有改规则匹配本身（`_match_patterns` 未动）。
+- 受影响面已含 `minicc/` 与 `tests/` 根族门；没有另跑一份与本次改动无关的慢腿。
+
+### 7 下一单位
+
+1. M8-T534（落第五百二十二批）CI 变异步只断言「退出码非零」，从不断言**为什么**非零：
+   `.github/workflows/ci.yml` 里 `if npm run test:web; then ... exit 1; fi`——Playwright
+   装不上、服务器没起来、配置写错，都会读成「变异被抓到」。方向：让产品路径的失败带
+   一个稳定代码，CI 只认那个代码；用合成的三份日志（基础设施错误 / 预期代码 / 成功）
+   测判决脚本。
+2. M8-T535（落第五百二十三批）M6-4 的「劣化 ≤15%」有读数、没有门（状态表自己写着
+   「缺的是自动化，不是读数」）。方向：给 `minicc/bench_compare.py` 一个从单一常数取
+   容差的 `--gate`，用合成 run JSON 测三态（+30% 红、+5% 绿、缺基线不可解释）。
+3. M8-T536（新）`snapshots._is_denied_by_rules` 每文件一次、每次两次装载，同一形状；
+   修法与 A2 相反，用本批的 matcher。
