@@ -35656,3 +35656,58 @@ A 的两条红是「`conftest.py` 没有把用户级配置指向隔离文件」�
 2. M8-T537（新）timeline / desktop / mobile 三条套件也各发一个码；判决仍只接受完成码，但拒绝时能说出是哪条套件失败，而不是「没点名原因」。
 3. M8-T539（新）nightly 其余绝对门的**值**没有读者：`pass_at_1>=0.3` 的注释自称「初始保守、待真实画像后上调」，`grading_coverage>=0.9` 与 M4 验收句的 `grading_coverage=1.0` 是否同一口径，先量清楚再决定配哪种读者。
 
+
+## 第五百二十五批 — M8-T536 — 快照逐个脏文件问两次权限：5 个文件 10 次 stat，50 个文件 100 次
+
+### 1 缺陷
+
+第五百二十一批的同一形状在 `minicc/snapshots.py`：`capture` 对每个脏文件调 `_is_denied_by_rules` → `audit.tool_denied_by_rule`，那是一次性入口，每调一次装载两次策略（一次看能否求值、一次匹配），而 `load_permission_rules` 每次装载都 stat 一次 `.minicc/permissions.json`。于是一次 capture 为每个脏文件付两次 stat。
+
+同一次调用里量到第二个缺陷：策略文件坏掉时 `tool_denied_by_rule` 一律拒绝（这是对的），但 `capture` 写下的跳过理由固定是「permissions.json deny 规则覆盖该路径」——用户从没写过那条规则；真实原因是策略读不出来（`policy_evaluation_error` 的字符串被丢掉了）。快照的跳过理由里，一条不存在的规则和一条真实的拒绝长得一样。
+
+### 2 量到的真相（2026-10-30，本机探针）
+
+- 修前：5 个脏文件 → **10** 次 `permissions.json` stat；50 个 → **100** 次（每文件 2 次），两次都复制 5/50 个文件。
+- 修后：5 个 → **3** 次；50 个 → **3** 次（每轮一个常数），复制 5/50。
+- 那 3 次是：一次 `policy_evaluation_error`（只为理由那一句）＋matcher 自己的两次（批 521 已量到 matcher 的固定成本是 2）。
+- 坏策略探针（修前）：3 个脏文件全部被跳过，理由是「permissions.json deny 规则覆盖该路径」；修后同一场景的理由以「无法读取 permissions.json: …」开头。
+
+### 3 落地
+
+- `minicc/snapshots.py`：`capture` 在循环外读一次 `policy_evaluation_error(root)`、建一次 `denied_by_rule_matcher(root)`；循环里只问谓词。跳过理由按 `policy_error` 分支：读不出来就点名读不出来，否则仍是规则覆盖那句。删掉 `_is_denied_by_rules`（已无调用者）。
+- 新增 `tests/test_the_snapshot_deny_question_is_asked_once_per_capture.py`（两格）：
+  - 计数门：5 与 50 个脏文件下 `permissions.json` 的 stat 次数相等且 ≥1，(复制数)=(5, 50) 证明 capture 真的走完了每个文件；
+  - 坏策略门：全部候选进 skipped、`files` 与磁盘上的前置镜像都为空、每个理由同时含「无法读取」与 `permissions.json`——这一格同时钉住 fail-closed 与理由的归属。
+- `tests/test_a_policy_that_cannot_be_read_is_not_a_policy_that_allows.py`：读者继承条款从「一次性 home + `_is_denied_by_rules`」改成「一次性 home + matcher」两种形状；索引与快照都走 matcher，循环里的拒绝由上面那格行为门接住。
+
+### 4 变异验证（交付字节，逐条恢复并核对 sha256）
+
+| 臂 | 刀 | 预测 | 实测 | 判 |
+| --- | --- | --- | --- | --- |
+| A1 | 谓词改为每文件新建 matcher（`denied_by_rule_matcher(root)(…)`） | 计数门红 | 1 failed 16 passed：`test_the_deny_question_does_not_grow_with_the_file_count` | MATCHED |
+| A2 | 理由分支写死（`if policy_error` → `if False`） | 坏策略门红 | 1 failed 16 passed：`test_an_unreadable_policy_refuses_every_candidate_and_says_why` | MATCHED |
+| A3 | 谓词短路（`if False and denied(…)`） | 坏策略门 + 走私门三格红 | 4 failed 13 passed：坏策略门 + `test_a_denied_path_is_not_copied_into_the_snapshot`、`test_the_agent_cannot_read_the_denied_content_through_the_snapshot`、`test_the_skip_is_disclosed` | MATCHED |
+
+每条臂只写 `minicc/snapshots.py`、在自己的 finally 里恢复；臂前后 sha256 一致（c31ac70bca346743）。
+
+### 5 门禁
+
+- 焦点集（4 份文件）：**18 passed in 10.39s**。
+- 受影响面（`scripts/impacted_tests.py` 对三个改动路径点名 324 份文件）：**2965 passed, 3 skipped in 1828.99s (0:30:28)**，324 份文件全绿（3 条 skip 是平台无 symlink 的既有跳过，非本批红）
+- 文档面（本记录写入后）：**250 passed in 1569.27s (0:26:09)**，15 份读 ROADMAP 的门全绿（本记录写入后的最终字节）。
+
+### 6 边界（本批**不**声称）
+
+- 一次 capture 一个策略快照：循环进行中写入的 `permissions.json` 要等下一次 capture 才被看见。旧形状每文件重读，能「中途」看见，代价是每文件 2 次 stat；这里选的是一轮一个快照。
+- 理由来自循环前的一次读，判定来自 matcher 的另一次读。两次之间被改写的策略会让理由与判定对不上（同一轮的边缘）；没有把两次读并成一次，因为 `denied_by_rule_matcher` 不暴露它的求值错误。
+- matcher 不是缓存：`load_permission_rules` 仍然每次调用都 stat；本批改的是调用次数（每文件 → 每轮），不是装载本身。
+- 理由只在「读不出来」与「规则覆盖」两种之间分支，没有把命中的具体规则抄进理由——matcher 只回答是与否。
+- 其余直接调用 `tool_denied_by_rule` 的地方（agent 循环、mentions、web 路由、commands）都是一次用户动作问一次，不在本批。
+- 没有改快照的复制、上限、回滚与 manifest 形状。
+
+### 7 下一单位
+
+1. M8-T537（新）timeline / desktop / mobile 三条套件也各发一个码；判决仍只接受完成码，但拒绝时能说出是哪条套件失败，而不是「没点名原因」。
+2. M8-T539（新）nightly 其余绝对门的值没有读者：`pass_at_1>=0.3` 自称「初始保守、待真实画像后上调」，`grading_coverage>=0.9` 与 M4 验收句的 `grading_coverage=1.0` 是否同一口径，先量清楚再决定配哪种读者。
+3. M8-T540（新）`minicc/mentions.py` 对每个提及问一次 `tool_denied_by_rule`（第 173、216 行），每次两次装载；先量一条含 N 个提及的消息的 stat 次数，再决定是否值得改成每条消息一个 matcher。
+
