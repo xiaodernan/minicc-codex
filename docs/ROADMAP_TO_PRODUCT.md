@@ -37973,3 +37973,76 @@ Web 文件树两条读数（同一探针）：B 形状 `status='error'`、`entri
 5. 第五百二十九批 §7 第 2 位：waiver 拒绝的理由只进 trace，不上报。
 6. `conftest.py:87` 起的超时措辞；第五百二十八批 §7 的恢复摘要 `dirty_read_error`。
 7. **选择器的解析成本**：500 个测试文件在本机约 13 秒（Defender 实时扫描主导）；超过 512 条缓存后重解析。上限之内的成本没有读数。
+
+## 第五百三十八批 — M8-T556 — 审计记下的点文件，被答成「没有这个文件」
+
+### 1 欠的是哪一条
+
+第五百三十七批 §7 排出的下一位候选之一。`_audit_paths()` 是 git 看不见的改动的唯一证人，它在收下一条记录时过两道理查：`not path.startswith(".")` 与 `not _ignored_path(path)`。第二道已经精确拒绝工具自己的状态——`.git`、`.minicc`、`.venv`、`node_modules`、`output` 等，`_ignored_path` 有门、有单测；第一道来自初始 MVP 提交 `a9da019`，比 `_ignored_path` 更早，之后一直没人重看过。它把**每一个**用户点文件也一并拒掉：`.env`、`.gitignore`、`.editorconfig` 都进不了清单，`audit_unreadable_lines` 也不加一——读得出来，只是被答成不存在。
+
+同一份清单的另一个来源（git status）从来只用 `_ignored_path`（`minicc/changes.py:458`）。两个来源于是对「哪些路径算改了」给出两个答案。最锋利的形状在仓库里：`.env` 被 `.gitignore` 掉，模型写下 `.env`，审计记下了这次写，git status 只报 `?? .minicc/`——审计是唯一证人，而变更面板答 `total_files=0`，`diff(".env")` 答 `clean`、空补丁。
+
+### 2 量到的真相（实测）
+
+探针在仓库外跑（同一份探针修前修后各一次），全部经 `summary()` 与 `diff(".env")`：
+
+| 形状 | 修前 | 修后 |
+| --- | --- | --- |
+| A 非仓库：`.env`、`.gitignore`、`notes.md` 与一个名字真叫 `123` 的文件各有一条可读记录 | `files=['123','notes.md']`，total=2，计数 0 | `files=['.env','.gitignore','123','notes.md']`，total=4 |
+| B 非仓库：只有 `.env` 一条记录 | total=0；`diff(".env")` 是 clean、空补丁 | status=modified，补丁含 `+TOKEN=abc` |
+| C 仓库：`.env` 在 `.gitignore` 里，写后只有审计记下 | git status=`?? .minicc/`；total=0 | total=1，raw=audit |
+| D 仓库：被跟踪的 `.editorconfig` 改了（git 看得见） | total=1 | total=1，仍是同一条 |
+| E 对照：`.env` 存在，记录只点名 `notes.md` | total=1（只有 `notes.md`） | 同 |
+| F 对照：`.minicc/…`、`node_modules/…`、`output/…` 各一条记录 | total=1（只有 `notes.md`） | 同 |
+| G 对照：记录点名 `.env`，文件不存在 | total=0 | 同 |
+
+A 里同时露出第二条无声丢弃（数字 `path` 变成真名 `123` 的文件），本批不动它（§6）。门在 HEAD 上红先跑：`4 failed, 4 passed in 8.04s`——A/B/C 三条与 C 的 diff 全红，四条对照门本来就绿。
+
+### 3 落地
+
+- `minicc/changes.py:207-214`：`_audit_paths` 的文档串新增 M8-T556 段——第一道理查早于 `_ignored_path`、且已被它取代；工具自己的状态由同一判定拒绝，多出来的只有用户点文件。
+- `minicc/changes.py:257`：条件改为 `if path and not _ignored_path(path)`，与 git status 侧（`minicc/changes.py:458`）同一个判定。一行条件、一处家。
+- 新门 `tests/test_a_dotfile_the_audit_recorded_is_not_answered_absent.py` 八条：点文件被列出（:68）、dotfile 的 diff 不再 clean（:80）、gitignored 的唯一证人被列出且 raw=audit（:88）、它的 diff（:105）、被跟踪的点文件只列一次（:117），以及三条对照——没被记录点名的点文件仍不列（:131）、内部路径仍不列（:138）、记录点名但已不存在的点文件仍不列（:154）。
+
+### 4 见证（红先绿后，臂）
+
+- **红先**：门在 HEAD 上 `4 failed, 4 passed in 8.04s`——失败四条正是 A/B/C 与 diff 的四条；四条对照门在 HEAD 上就绿（防修法过头）。
+- **绿后**：共享树上 `8 passed in 4.46s`。
+- **plane556**（`git clone --shared` 于代码提交 `2443c08` + 本批两个文件）：A0 对照 `8 passed in 6.75s`。
+- 五臂（baseline sha256 `e6d83f2a…`，逐臂恢复后核对）：
+
+| 臂 | 改什么 | 预期红 | 实际 |
+| --- | --- | --- | --- |
+| A0 | 对照：不改 | 绿 | MATCHED（8 passed，6.75s） |
+| A1 | 恢复点文件那道理查 | 四条点文件门 | MATCHED（4 failed、4 passed，6.12s） |
+| A2 | 连 `_ignored_path` 一起去掉 | 内部路径对照门 | MATCHED（1 failed、7 passed，6.26s） |
+| A3 | 只挡 `.git/`/`.minicc/` 前缀，不挡其它内部路径 | 内部路径对照门 | MATCHED（1 failed、7 passed，5.44s） |
+| A4 | 点文件记录计入 `audit_unreadable_lines` 但仍不列出 | 四条点文件门 | MATCHED（4 failed、4 passed，6.76s） |
+
+A2 与 A3 是两条不同方向的过头修法（全放开 / 只挡一半），都只咬内部路径那条对照；A4 是「披露但不列出」的替代答案，四条点文件门仍红——本批要的是列出来，不是加一个计数。
+
+CRLF：`minicc/changes.py` 516 行 CRLF、0 裸 LF，`git diff --numstat` 是 9 增 1 删，不是整文件重写。新门 160 行、6768 字节，LF（新文件，git 检出时归一）。
+
+### 5 聚焦回归
+
+- 共享树上十三个文件（本批门；五份审计/变更门；`tests/test_changes_pure.py`、`tests/test_core_tools.py`、`tests/test_the_change_panel_and_the_diff_must_agree.py`、`tests/test_five_places_where_one_fact_was_read_differently.py` 与三个引用 `ChangeInspector` 的文件）：`140 passed, 1 skipped in 196.05s`（跳过的是本平台没有 symlink，既有行为）。
+- 干净克隆（`2443c08`，无共享树的他道脏文件）：同一组 `140 passed, 1 skipped in 151.49s`。
+- 干净克隆上的 `scripts/doc_pointers.py --check`：rc=0；971 个「见」标记（116 条进受检箱、56 条落在 citation-without-locator）、23 条链接、4194 条 evidence 指针（75 条路径断言在代码跨度之外）、20 份文档、649 个在仓文件。
+- 同一克隆上 `scripts/route_coverage.py --check` rc=0（GET 20/20、POST 14/14 全 B 100%）；`scripts/impacted_tests.py --check` rc=0；引用门三文件 `tests/test_doc_pointers.py`、`tests/test_no_document_quotes_a_content_addressed_bundle.py`、`tests/test_retrieval_enhanced.py`：`85 passed in 325.28s`。
+- 全围栏：**本批不重跑**（约 58 分钟一趟）；最近一次全围栏在其祖先 `5faa568` 上跑过 `python -W error -m pytest -q`：`4195 passed, 11 skipped in 3477.26s`，EXIT=0。其后的改动是第五百三十七批的 36 增 2 删与本批的 9 增 1 删，判定取干净克隆上的门集与检查器。
+
+### 6 边界（本批**不**声称）
+
+- **不声称点文件的补丁不泄露内容。** 列出的只有路径；补丁仍走 `redact_text`，真实凭据照旧被抹。
+- **不声称数字 `path` 已经修好。** `path: 123` 仍被 `str()` 成真名 `123` 的文件（A 里被列出）；空、缺失、字典形状的 `path` 仍被无声跳过——这是「记录写坏了」，不是「读不出来」，与 T550 §6 同一条，§7 记着。
+- **不声称窗口外的记录被过目。** 仍是尾部 256KB、最后 500 行；窗口本身由 `audit_window_truncated` 披露。
+- **不声称被删除的点文件会被列出。** 审计兜底仍只列现存文件（对照 G）。
+- **不声称 git 侧行为变了。** `.gitignore` 的规则没有被读、没有被改；变的是审计兜底不再额外拒绝 git 已经看不见的文件。
+- **不声称界面会显示新东西。** 本批没有新增键，`web/src` 不用改。
+
+### 7 下一位候选
+
+1. **数字、空、缺失的 `path`**（同 T550 §7 #1，A 里可见）：`path: 123` 被 `str()` 后当路径、文件在就列出；空/缺失/dict 被无声丢弃——要不要把「记录形状不对」也计一次，并且不再把数字当路径。
+2. **`_git` 的 127 哨兵**把 OSError 与 20 秒超时压成同一个 `git unavailable`（`minicc/changes.py:100-114`），两者都没被区分。
+3. **破损符号链接**：本平台没有 symlink 权限，需要一个能造 symlink 的门面。
+4. **选择器解析成本**（500 文件约 13s），T555 §7 之前记着。
