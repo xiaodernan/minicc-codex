@@ -212,9 +212,21 @@ class ChangeInspector:
         only hid user dotfiles: a gitignored ``.env`` was recorded by the
         audit, unseen by git, and answered as no such file.  Both
         readers now decide with ``_ignored_path`` alone.
+
+        M8-T557: and the record's own path was coerced, not read.
+        The line pre-filter required the word ``"path"``;
+        ``str(value or "")`` then turned ``123`` into a path -
+        matching a real file of that name when one existed - and
+        turned the other shapes into names no file has.  The
+        window is parsed line by line now; only a non-blank string
+        is a path, and a record that names none is counted in
+        ``_audit_records_without_path``.  It names no file, so
+        unlike an unreadable line it does not hold the clean
+        shortcut in ``diff()``.
         """
         self._audit_window_truncated = False
         self._audit_unreadable_lines = 0
+        self._audit_records_without_path = 0
         audit = self.workspace / ".minicc" / AUDIT_NAME
         paths: set[str] = set()
         try:
@@ -240,8 +252,6 @@ class ChangeInspector:
                 lines = lines[1:]
             self._audit_window_truncated = len(lines) > _AUDIT_WINDOW_LINES
             for line in lines[-_AUDIT_WINDOW_LINES:]:
-                if '"path"' not in line:
-                    continue
                 try:
                     item = json.loads(line)
                 except ValueError:
@@ -253,8 +263,16 @@ class ChangeInspector:
                 action = str(item.get("action") or "").strip().lower()
                 if action and action not in _CHANGING_AUDIT_ACTIONS:
                     continue
-                path = str(item.get("path") or "").replace("\\", "/")
-                if path and not _ignored_path(path):
+                raw_path = item.get("path")
+                if not isinstance(raw_path, str) or not raw_path.strip():
+                    # M8-T557: a record that names no usable path named no
+                    # file.  ``str(value or "")`` used to turn ``123`` into
+                    # a real path and the other shapes into names no file
+                    # has; both were then matched against the workspace.
+                    self._audit_records_without_path += 1
+                    continue
+                path = raw_path.replace("\\", "/")
+                if not _ignored_path(path):
                     paths.add(path)
         except (OSError, ValueError, TypeError) as exc:
             return set(), (
@@ -385,6 +403,7 @@ class ChangeInspector:
             self._status_read_error,
             self._audit_read_error,
             self._audit_unreadable_lines,
+            self._audit_records_without_path,
         )
 
     def _diff_for_target(
@@ -395,6 +414,7 @@ class ChangeInspector:
         status_read_error: str | None = None,
         audit_read_error: str | None = None,
         audit_unreadable_lines: int = 0,
+        audit_records_without_path: int = 0,
     ) -> dict[str, Any]:
         # Untracked files have no HEAD baseline; avoid a subprocess for each
         # one when the workspace is a fresh interview repository.
@@ -417,6 +437,9 @@ class ChangeInspector:
             # the shortcut waits for both reads.
             # M8-T550: a line the audit could not read could have named this
             # file too; the shortcut waits for every line as well.
+            # M8-T557: a record with no path is deliberately absent from
+            # this condition - it named no file, so it cannot have named
+            # this one.
             before = after
 
         if not before and not after:
@@ -447,6 +470,8 @@ class ChangeInspector:
             "audit_read_error": audit_read_error or None,
             # M8-T550: and how many of its lines the window could not read.
             "audit_unreadable_lines": int(audit_unreadable_lines),
+            # M8-T557: records that parsed but named no usable path.
+            "audit_records_without_path": int(audit_records_without_path),
         }
 
     def files_without_diff(self) -> list[dict[str, Any]]:
@@ -508,6 +533,10 @@ class ChangeInspector:
             # M8-T550: a line that could not be read is counted, not dropped.
             "audit_unreadable_lines": int(
                 getattr(self, "_audit_unreadable_lines", 0)
+            ),
+            # M8-T557: a record that named no usable path is counted too.
+            "audit_records_without_path": int(
+                getattr(self, "_audit_records_without_path", 0)
             ),
             "workspace": self.workspace.as_posix(),
         }
