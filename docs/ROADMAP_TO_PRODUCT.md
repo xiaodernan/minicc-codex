@@ -36447,7 +36447,7 @@ A3 单说：它对语料腿是**不可见**的——`_code_spans` 先抹围栏�
    本批没动。
 4. **`test_the_shipped_roadmap_answers_every_evidence_shaped_citation` 占了这个文件的大头**：
    `--durations=13` 读到 56.19s 里 47.26s 是它——`check_evidence` 走一遍 1,647,149 个
-   字符的 ROADMAP，是一次线性，不是本批的形状。`test_an_outer_backtick_run_does_not_steal_the_span_it_wraps`
+   字符的 ROADMAP，当时记成「一次线性」；第五百二十六批剖开是每引用一次把前缀重数一遍（25,389 条跨度合计重扫 20,130,532,078 字符），不是本批的形状。`test_an_outer_backtick_run_does_not_steal_the_span_it_wraps`
    每份文档调一次 `_code_spans`，修后 0.54s。两条都只记下，不动：本批的门只量「建尺次数
    跟不跟跨度走」，不量单条检查器自身的成本。
 
@@ -36669,7 +36669,7 @@ site（§5）。
 2. **「超时」该不该占用「判定」这个词**（第五百二十二批 §7 第 1 位）：未动。
    `conftest.py:87-101` 的钩子仍把跑过 900s 的腿改写成 failed；实例已由第五百二十二批
    消掉，词的问题还在。
-3. **引用门那一遍 47s 的线性扫描**（第五百二十二批 §7 第 4 位）：未动，不是本批的形状。
+3. **引用门那一遍 47s 的扫描**（第五百二十二批 §7 第 4 位；第五百二十六批剖开：不是线性，是每引用一次重数前缀）：未动，不是本批的形状。
 4. **M8-T537 / M8-T538 / M8-T539**：分别由另一条通道与本仓排定的顺序占用，本批不碰；
    T538 的前提仍要在落地前重新核一遍再算。
 
@@ -36869,7 +36869,7 @@ A5 单说：**丢弃一条快照对腿一是不可见的**——腿一数的是�
 1. **「超时」该不该占用「判定」这个词**（第五百二十二批 §7 第 1 位）：未动。
    `conftest.py:87-101` 的钩子仍把跑过 900s 的腿改写成 failed；实例已由第五百二十二批
    消掉，词的问题还在。
-2. **引用门那一遍 47s 的线性扫描**（第五百二十二批 §7 第 4 位）：未动，不是本批的形状。
+2. **引用门那一遍 47s 的扫描**（第五百二十二批 §7 第 4 位；第五百二十六批剖开：不是线性，是每引用一次重数前缀）：未动，不是本批的形状。
 3. **同一个脚本有两个加载器，一个注册 `sys.modules`、一个不注册**（本批撞出来的）：
    `tests/test_impacted_tests.py` 的 `_load_script` 不注册，第五百二十三批的门的 `_load`
    注册。今天两个加载器都能跑，只因为 `impacted_tests.py` 里没有需要 `sys.modules` 的
@@ -37020,7 +37020,7 @@ A5 单说：**丢弃一条快照对腿一是不可见的**——腿一数的是�
 
 1. **「超时」该不该占用「判定」这个词**（第五百二十二批 §7 第 1 位）：未动。
    `conftest.py:87-101` 的钩子仍把跑过 900s 的腿改写成 failed。
-2. **引用门那一遍 47s 的线性扫描**（第五百二十二批 §7 第 4 位）：未动，不是本批的形状。
+2. **引用门那一遍 47s 的扫描**（第五百二十二批 §7 第 4 位；第五百二十六批剖开：不是线性，是每引用一次重数前缀）：未动，不是本批的形状。
 3. **十三个加载器收成一个家**（第五百二十四批 §7 第 3 位的后半句）：本批把数目量清
    （13/12/1）、把缺口补上、把规则立起来；共享实现仍未动，门会保证收编过程中没有
    加载器掉队。
@@ -37030,3 +37030,82 @@ A5 单说：**丢弃一条快照对腿一是不可见的**——腿一数的是�
 5. **路径集合与树集合的相等**（第五百二十四批 §7 第 4 位）：未动。
 6. **M8-T537 / M8-T538 / M8-T539**：分别由另一条通道与本仓排定的顺序占用，本批不碰；
    T538 的前提仍要在落地前重新核一遍再算。
+
+## 第五百二十六批 — M8-T544 — 行号尺把整份文档的前缀重数一遍，每引用一次数一次
+
+### 1 欠的是哪一条
+
+第五百二十二批 §7 第 4 位与第五百二十五批 §7 第 2 位都把这条写成同一句话：「引用门那一遍 47s 的线性扫描」，两次都没有问那 47 秒花在哪。本批先做了这两批都没做的事：把 `check_evidence` 放进 cProfile。读数很干脆——25,389 次 `_line_of` 调用里，`str.count` 占 17.98s 中的 14.24s；`_line_of` 修前是 `text.count("\n", 0, offset) + 1`，每回答一条跨度「在第几行」，就把 1.67MB 的文档从第 0 字节数到引用处。这不是一次线性扫描：文档不变，问题越多，被重数的前缀总长按「问题数 × 平均偏移」增长。
+
+欠的不是「一条门跑得慢」。欠的是一个没被剖开的读数被发布成了一个结论——整条腿 47s 被记成「线性」，于是两批都把它排在门外。这场战役一直在清的是同一类东西：测量没做完，判决先写好。
+
+### 2 量到的真相（实测）
+
+测量树是第五百二十五批的修法与门已落、记录未落的那棵树（roadmap 1,673,984 字符、36,884 行）：
+
+- `_line_of` 修前（`scripts/doc_pointers.py` 第 256 行）：`return text.count("\n", 0, offset) + 1`。
+- `check_evidence` 的循环**先问行号、再判形状**：25,389 条 code span 每一条都问一次 `_line_of`；随后 `_evidence_shape` 只把 3,769 条认作证据（`checked=3769`），其余 21,620 条的行号没有任何读者。
+- 逐条调用 `_line_of` **14.56s**；25,389 条跨度的偏移合计 **20,130,532,078** 字符——这是修前每跑一遍 `check_evidence` 要从同一份 1.67MB 文档里重读的总量。
+- 整个 `check_evidence` **16.83s**；cProfile 同一次调用 17.98s，其中 `str.count` 14.24s（25,389 次）、`_all_test_names` 的 AST 解析 2.33s、读文件 0.70s。
+- 同形的第二个读者：`sections()` 对每个标题内联同一条前缀计数；3,061 个标题合计重扫 **3,035,722,612** 字符，**2.15s**。
+- 本批落地的树（roadmap 1,680,305 字符、37,033 行、25,463 条跨度）：`_line_of` 全量 **0.02s**，`sections()` **0.04s**，`check_evidence` **2.72s**（余下 2.3s 是 `_all_test_names` 每进程一次的 AST 解析，不是行号尺）。
+
+### 3 落地
+
+1. `scripts/doc_pointers.py` 新增三个函数、改掉两个读者：
+   - `_newline_positions(text)`（第 257 行）：一次 `re.finditer` 扫出全部换行偏移，返回元组。**故意不缓存**——这样「缓存丢了」在量具上表现为扫描次数，而不是悄悄变慢。
+   - 第 263 行 `@lru_cache(maxsize=4) _line_index(text)`：一份文档的那一次扫描，按文档文本缓存。一次运行读二十份文档、一次处理一份，四个位置够用；淘汰的代价是重扫一遍（毫秒级）。
+   - 第 268 行 `_line_of(text, offset)`：`bisect_left(_line_index(text), offset) + 1`。与旧定义逐字节相同：换行位置严格小于 offset 的个数加一。
+   - 第 240 行 `sections()` 的内联前缀计数改成 `_line_of(text, match.start())`：两个读者共用同一把尺的同一份索引。
+2. 新门 `tests/test_the_line_ruler_sweeps_a_document_once.py`，三条腿：
+   - 腿一 `test_no_reader_asks_a_document_for_the_same_prefix_twice`：用 `str` 子类在文档对象本身计数 `count`/`find`/`rfind`/`index`/`rindex` 的前缀调用与 `splitlines` 的整档扫描，跑 `check_evidence` 与 `sections`，断言前缀调用 **0** 次、整档扫描不超过 1 次。
+   - 腿二 `test_one_sweep_answers_every_line_question_about_one_document`：把 `_newline_positions` 换成计数包装，对同一份文档问 1,800 个行号，断言只扫 **1** 遍；`sections` 不得再扫；第二份文档才允许第 2 遍。扫描函数不缓存，丢掉 `_line_index` 的缓存就表现为 1,800 遍。
+   - 腿三 `test_the_indexed_answer_is_the_prefix_count_answer`：新尺与旧定义逐偏移比较——合成文档的每个偏移（含正好落在换行上的）、`sections` 的每个标题、shipped roadmap 上每第 97 条跨度与每第 419 个换行（采样超过 300 个）。
+3. **为什么修尺，而不是把调用点挪到判形状之后**：`check_evidence` 先问行号再判形状，21,620 问的答案没人读；把 `_line_of` 挪到形状判定之后能省掉八成调用，但那是让调用点绕开这把尺，`sections` 的 3,061 问还在，下一个读者仍会照抄。修尺之后一问只是一次二分，调用点怎么排都不再是成本问题。挪调用点仍是候选（§7 第 1 位）。
+
+### 4 见证（红先绿后，七条臂）
+
+**红**：`plane544`（HEAD 329f1df 的树，只放门、不放修法）上 `python -m pytest -q tests/test_the_line_ruler_sweeps_a_document_once.py` → **2 failed / 1 passed in 3.15s**：腿一 `assert 881 == 0`（合成文档 840 条跨度 + 41 个标题，各一次前缀计数）；腿二 `行号尺没有一次可数的扫描`；腿三在修前是绿的——它守的是「答案不变」，旧实现就是那条定义本身。
+
+**绿**：同一棵 `plane544` 打上修法后同一条命令 → **3 passed in 3.66s**。
+
+**七条臂**（`scratch/mutate_544.py`，跑在已提交的 `plane544` 上；每条臂核对还原后的 sha256，图案落 0 次报「arm not applied」）：
+
+| 臂 | 改什么 | 预期红 | 实际 |
+| --- | --- | --- | --- |
+| A0 | 对照：不改 | 绿 | MATCHED（3 passed in 3.50s） |
+| A1 | `_line_of` 改回前缀计数 | 腿一、腿二 | MATCHED（2 failed / 1 passed in 3.94s） |
+| A2 | 去掉 `_line_index` 的缓存 | 腿二 | MATCHED（1 failed / 2 passed in 6.58s） |
+| A3 | `bisect_right`：换行偏移落到下一行 | 腿三 | MATCHED（1 failed / 2 passed in 3.38s） |
+| A4 | 少掉 `+ 1` | 腿三 | MATCHED（1 failed / 2 passed in 2.55s） |
+| A5 | `sections` 保留自己的前缀计数 | 腿一 | MATCHED（1 failed / 2 passed in 4.15s） |
+| A6 | 扫描读错字符（找 `\r` 而不是 `\n`） | 腿三 | MATCHED（1 failed / 2 passed in 3.82s） |
+
+三条腿各自至少有一条臂能看见它；A0 证明这套臂也会说「什么都没改」。修后语料上的判定没变：合成文档的 `check_evidence` 与 `sections` 答案同修前，shipped roadmap 上 3,000 多个采样偏移逐条相等。**本批改的是尺，不是答案。**
+
+### 5 聚焦回归
+
+- 八个文件（本批门 + `tests/test_doc_pointers.py`、`tests/test_the_two_readers_share_one_fence_ruler.py`、`tests/test_a_prose_mention_of_a_fence_opens_no_block.py`、`tests/test_a_section_citation_is_answered_by_the_section_it_lives_under.py`、`tests/test_batch_numbers_past_ninety_nine_are_read_by_the_pointer_checker.py`、`tests/test_a_module_is_registered_before_a_loader_executes_it.py`、`tests/test_the_evidence_packet_sections_have_one_home.py`）在 `plane544` 上 **107 passed in 377.07s**，一条红都没有。
+- 共享工作树上只跑本批的门：**3 passed in 11.18s**。另一条通道的未提交改名不影响这条门——它只比较行号，不解析引用。
+- 共享工作树的检查器 `doc_pointers --check` **rc=1**，恰好 4 条 DANGLING：13070、36228、36412 三条旧引用，加 36979 那条第五百二十五批记录自己引用的名字；全部是另一条通道未提交的改名。**判据取干净克隆**，这 4 条不是本批的字节。
+- 干净克隆 `clone544`（c66d61b + 本记录）上：八个文件与记录形状门共 **127 passed in 319.04s**；`doc_pointers --check` **rc=0**，读 **922** 个「见」标记（checked=**116**、citation-without-locator=**53**）、**23** 条链接、**4023** 条 evidence 指针（**75** 条路径声明在代码跨度之外）、**20** 份文档、**637** 个在仓文件；`route_coverage --check` **rc=0**（**34** 个 dispatch site、**378** 行，GET A/B 20/20、POST A/B 14/14）；`impacted_tests --check` **rc=0**，打 `no changes to measure`。这一句报的是它自己所在的这份文档的数，所以它带一条额外的规矩：**动这一句就得重跑一次**；本批的最后一次 `doc_pointers --check` 是在这句定稿之后跑的，写下来的就是它印出来的。
+
+### 6 边界（本批**不**声称）
+
+- **不声称行号尺之外没有别的读者在扫前缀。** 本批只统一了 `_line_of` 与 `sections` 两个读者；别的读者若另有前缀计数，不在本批的量里。
+- **不声称 `check_evidence` 的 2.72s 已经是地板。** 其中 2.3s 是 `_all_test_names` 每进程一次的 AST 解析，另有余项；本批只拿走行号尺的 14.24s。
+- **不声称 `lru_cache(maxsize=4)` 适合所有使用形态。** 那是按「一次运行读二十份文档、一次处理一份」量的；超出时淘汰只付一次重扫，不改变答案。
+- **不声称腿一能看见所有按引用重扫的写法。** 它看见的是 Python 层的前缀调用与「扫描函数被调了几次」；每引用一次 `re.search` 的写法绕过这两条，能守住的只有腿三的答案等价。
+- **不声称共享工作树的 4 条 DANGLING 是本批的字节。** 它们是另一条通道未提交的改名，第五百二十五批已经定性。
+- **没有改产品代码。** 本批只动检查器脚本的两个函数、一个读者的一行与一个新门。
+- **不跑全量围栏**（约 58 分钟一趟）；跑的是八个文件的聚焦集、记录形状门与三条检查器。
+
+### 7 下一位候选
+
+1. **`check_evidence` 在判形状之前问行号**（本批量到）：25,389 问里 21,620 问的答案没有读者。修尺之后每问只是二分，但「先问再判」这个顺序本身仍是一个候选，不是本批的形状。
+2. **「超时」该不该占用「判定」这个词**（第五百二十二批 §7 第 1 位）：未动。`conftest.py:87-101` 的钩子仍把跑过 900s 的腿改写成 failed。
+3. **一条坏引用让十条门把病因指错**（第五百二十五批 §7 第 4 位）：未动。
+4. **`_all_test_names` 每进程一次的 2.3s AST 解析**（本批量的）：它现在是 `check_evidence` 余项里最大的一块；要动它，是「一次运行只解一次」的另一半。
+5. **十三个加载器收成一个家**（第五百二十五批 §7 第 3 位）：未动。
+6. **路径集合与树集合的相等**（第五百二十四批 §7 第 4 位）：未动。
+7. **M8-T537 / M8-T538 / M8-T539**：分别由另一条通道与本仓排定的顺序占用，本批不碰；T538 开始前要看它前面那件事的结果。
