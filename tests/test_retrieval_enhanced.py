@@ -265,14 +265,18 @@ def test_thousand_file_index_builds_within_budget(tmp_path: Path) -> None:
 def test_index_build_makes_a_constant_number_of_filesystem_calls_per_file(tmp_path: Path) -> None:
     """Two scales, one ratio: the quantity has to stop being a stopwatch.
 
-    Measured for this exact code: 250 files -> 5.232 calls per file, 1000 files
-    -> 5.208, ratio 0.9954, and those per-file figures were identical across all
-    six probe runs; the wall time of the very same 250-file build read 0.74,
-    0.99, 1.27, 0.82, 1.91 and 0.94 seconds (the batch record's table).  The
-    ceiling catches a constant that grew (more syscalls per file), the ratio
-    catches syscalls growing *with* the file count; different failure modes, so
-    both stay.  What neither sees is work that costs CPU and no syscalls: with
-    an ``O(n^2 log n)`` scan on ``_refresh`` they moved by zero calls.
+    Measured for this exact code: 250 files -> 4.240 calls per file, 1000 files
+    -> 4.210, ratio 0.9929.  The earlier shape read 5.232 / 5.208 (identical
+    across six probe runs) and the wall time of the very same 250-file build
+    read 0.74, 0.99, 1.27, 0.82, 1.91 and 0.94 seconds - which is why the
+    judgement is a call count and not a timer.  M8-T533 took one call per file
+    out of this number: the deny question used to stat the rules file twice
+    per candidate and the record builder stat'ed each file a second time.
+    The ceiling catches a constant that grew (more syscalls per file), the
+    ratio catches syscalls growing *with* the file count; different failure
+    modes, so both stay.  What neither sees is work that costs CPU and no
+    syscalls: with an ``O(n^2 log n)`` scan on ``_refresh`` they moved by zero
+    calls.
     """
     small = tmp_path / "small"
     big = tmp_path / "big"
@@ -289,7 +293,7 @@ def test_index_build_makes_a_constant_number_of_filesystem_calls_per_file(tmp_pa
     assert big_calls["walk"] == 1
     per_small = sum(small_calls.values()) / small_files
     per_big = sum(big_calls.values()) / big_files
-    assert per_big <= 7.0, (per_small, per_big)
+    assert per_big <= 4.5, (per_small, per_big)
     assert per_big / per_small <= 1.25, (per_small, per_big)
 
 

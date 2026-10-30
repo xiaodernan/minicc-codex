@@ -188,10 +188,13 @@ def test_every_reader_of_the_gate_inherits_the_refusal(tmp_path: Path) -> None:
     policy is broken, not just the one the agent's own calls go through.
     """
     workspace = _broken(tmp_path)
-    from minicc.agent.retrieval import _is_denied_by_rules
+    # M8-T533: the evidence index asks through the matcher (it loads the
+    # policy once per refresh and keeps asking); the snapshot copy still
+    # asks the one-shot home.  Both must refuse a policy they cannot read.
+    from minicc.audit import denied_by_rule_matcher
     from minicc.snapshots import _is_denied_by_rules as _snapshot_denied
 
-    assert _is_denied_by_rules(workspace, DENIED) is True
+    assert denied_by_rule_matcher(workspace)("read_file", {"path": DENIED}) is True
     assert _snapshot_denied(workspace, DENIED) is True
 
 

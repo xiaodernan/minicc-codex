@@ -392,19 +392,6 @@ def query_terms(query: str) -> tuple[str, ...]:
     return plan.terms + plan.path_patterns
 
 
-def _is_denied_by_rules(workspace: Path, rel: str) -> bool:
-    """Whether the workspace's deny rules cover this workspace-relative path.
-
-    M8-T351: the question is asked of the **one home** of the rules
-    (``audit.tool_denied_by_rule``) - the same question the agent loop asks
-    for the model's own calls, so a path is either denied everywhere or
-    nowhere.
-    """
-    from ..audit import tool_denied_by_rule
-
-    return tool_denied_by_rule(workspace, "read_file", {"path": rel})
-
-
 class LocalEvidenceIndex:
     def __init__(
         self,
@@ -494,15 +481,23 @@ class LocalEvidenceIndex:
         skipped = 0
         denied = 0
         now = time.time()
+        # M8-T351: the index points the model at candidate files, so a path
+        # the deny rules refuse must not be pointed at: the rule is an
+        # absolute veto, and the index is another reader of the same
+        # workspace.  The count is disclosed in the census (a denied path is
+        # missing **by policy**, not by a budget - so it does not make the
+        # walk "incomplete").
+        #
+        # M8-T533: the veto is the **one home**'s (``audit``), but the rules
+        # are loaded once per refresh rather than once per file - the
+        # question is the same for every candidate, and the previous shape
+        # stat'ed ``.minicc/permissions.json`` twice per file.
+        from ..audit import denied_by_rule_matcher
+
+        denied_by_rule = denied_by_rule_matcher(self.workspace)
         files = self._files()
         for path, rel in files:
-            # M8-T351: the index points the model at candidate files, so a
-            # path the deny rules refuse must not be pointed at: the rule is
-            # an absolute veto, and the index is another reader of the same
-            # workspace.  The count is disclosed in the census (a denied path
-            # is missing **by policy**, not by a budget - so it does not make
-            # the walk "incomplete").
-            if _is_denied_by_rules(self.workspace, rel):
+            if denied_by_rule("read_file", {"path": rel}):
                 denied += 1
                 continue
             try:
@@ -541,7 +536,7 @@ class LocalEvidenceIndex:
                 # would never arrive.
                 built[rel] = self._record_built.get(rel, now)
             else:
-                record = self._build_record(path, rel)
+                record = self._build_record(path, rel, stat)
                 rebuilt += 1
                 # M8-T300: the timestamp records when the record was
                 # **built**, not when it was last seen.  Recording the
@@ -604,17 +599,20 @@ class LocalEvidenceIndex:
         self._records = tuple(records)
         self._stats = census
 
-    def _build_record(self, path: Path, rel: str) -> _FileRecord | None:
+    def _build_record(
+        self, path: Path, rel: str, stat: os.stat_result
+    ) -> _FileRecord | None:
         try:
             with path.open("r", encoding="utf-8", errors="ignore") as stream:
                 text = stream.read(min(self.max_bytes, _SNAPSHOT_CHARS))
         except OSError:
             return None
         head = text[: self.max_bytes]
-        try:
-            mtime = path.stat().st_mtime
-        except OSError:
-            mtime = 0.0
+        # M8-T533: the signature was taken **before** this read, so it is the
+        # state the caller decided with.  Asking again afterwards was a second
+        # stat per file *and* a TOCTOU: a file changed between the two reads
+        # could hand a later mtime to content that no longer matches it.
+        mtime = stat.st_mtime
         rel_cf = rel.casefold()
         return _FileRecord(
             rel=rel,

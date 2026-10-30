@@ -32,9 +32,9 @@ def _counted_index(workspace: Path) -> tuple[LocalEvidenceIndex, list[str]]:
 
     original = index._build_record
 
-    def counting(path: Path, rel: str):
+    def counting(path: Path, rel: str, stat):
         builds.append(rel)
-        return original(path, rel)
+        return original(path, rel, stat)
 
     index._build_record = counting  # type: ignore[method-assign]
     return index, builds

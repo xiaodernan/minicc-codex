@@ -8,14 +8,14 @@ task history.
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from .allowlist import match_session_allowlist, path_rule_matches
 from .internal_paths import PERMISSIONS_NAME
-from .permissions import load_permission_rules, match_permission_rule
+from .permissions import load_permission_rules, match_permission_rule, match_rules
 from .tools.bash import is_readonly_command, split_command_argv
 from .tools.registry import AUTHORIZATION_RISKS
 
@@ -182,15 +182,40 @@ def tool_denied_by_rule(
     """
     if not workspace:
         return False
-    if policy_evaluation_error(workspace):
-        # The rules are unknown, so nothing can be said about this call.
-        # Refusing is the only answer that keeps the promise above.
-        return True
+    return denied_by_rule_matcher(workspace)(tool, arguments)
+
+
+def denied_by_rule_matcher(workspace: Path | str | None) -> Callable[[str, dict[str, Any] | None], bool]:
+    """Return the veto as a predicate, loading the policy **once**.
+
+    M8-T533: the evidence index asks this question about every candidate file.
+    ``tool_denied_by_rule`` loads the policy twice per call (once to see
+    whether it is readable, once to match), so one index refresh used to stat
+    ``.minicc/permissions.json`` twice per file.  A reader that asks many
+    times loads the loaded rules once and keeps asking the same verdict.
+
+    The fail-closed clauses are the ones above, evaluated at load time: no
+    workspace allows, an unreadable policy refuses every call, and an
+    ``OSError`` while matching is a refusal too.
+    """
+    if not workspace:
+        return lambda _tool, _arguments=None: False
     try:
-        return match_permission_rule(Path(workspace), tool, arguments or {}) == "deny"
+        if policy_evaluation_error(workspace):
+            # The rules are unknown, so nothing can be said about any call.
+            return lambda _tool, _arguments=None: True
+        rules, _error = load_permission_rules(Path(workspace))
     except OSError:
-        # Same reasoning: a refusal we cannot read is not an allowance.
-        return True
+        return lambda _tool, _arguments=None: True
+
+    def denied(tool: str, arguments: dict[str, Any] | None = None) -> bool:
+        try:
+            return match_rules(rules, tool, arguments) == "deny"
+        except OSError:
+            # A refusal we cannot read is not an allowance.
+            return True
+
+    return denied
 
 
 def deny_rule_names_paths(workspace: Path | str | None) -> bool:
@@ -664,6 +689,7 @@ __all__ = [
     "command_uses_network",
     "deny_rule_covers_path",
     "deny_rule_names_paths",
+    "denied_by_rule_matcher",
     "effective_risk",
     "interpret_authorization_decision",
     "is_network_tool",

@@ -151,11 +151,15 @@ def load_permission_rules(workspace: Path) -> tuple[dict[str, list[str]], str]:
         return entry
 
 
-def match_permission_rule(
-    workspace: Path, tool: str, arguments: dict[str, Any] | None
+def match_rules(
+    rules: dict[str, Any], tool: str, arguments: dict[str, Any] | None
 ) -> str | None:
-    """"deny" > "allow" > None. Deny always wins over allow."""
-    rules, _error = load_permission_rules(workspace)
+    """The same "deny" > "allow" > None verdict, against already-loaded rules.
+
+    M8-T533: a reader that asks the rules of many calls (the evidence index
+    asks once per file) can load them once and keep asking; the verdict is
+    the one below, not a second implementation of it.
+    """
     args = arguments if isinstance(arguments, dict) else {}
     if _match_patterns(tool, args, rules["deny"]):
         return "deny"
@@ -164,9 +168,18 @@ def match_permission_rule(
     return None
 
 
+def match_permission_rule(
+    workspace: Path, tool: str, arguments: dict[str, Any] | None
+) -> str | None:
+    """"deny" > "allow" > None. Deny always wins over allow."""
+    rules, _error = load_permission_rules(workspace)
+    return match_rules(rules, tool, arguments)
+
+
 __all__ = [
     "PERMISSIONS_NAME",
     "PermissionConfigError",
     "load_permission_rules",
     "match_permission_rule",
+    "match_rules",
 ]
