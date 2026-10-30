@@ -118,6 +118,17 @@ COVERED_BY: dict[str, str] = {
     "pass_at_1_ex_infra": "pass_at_1",
 }
 
+#: M6-4: p95 latency may not degrade past the M4 baseline by more than 15%.
+#: The baseline is deliberately not copied here - it is read out of
+#: ``docs/BENCHMARK_EVALUATION.md`` by
+#: tests/test_the_m6_4_degradation_standard_has_a_reader.py, which also proves
+#: that the nightly's absolute floor is at least as strict as this tolerance
+#: allows. A second copy of the number would let the document and the door
+#: disagree; the standard's other half (token/task) stays prose because the
+#: document records only a total, not a per-task baseline.
+M6_4_TOLERANCE = 0.15
+M6_4_METRIC = "latency_p95_ms"
+
 
 def _is_number(value: object) -> bool:
     return type(value) in (int, float) and math.isfinite(value)
