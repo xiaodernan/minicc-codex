@@ -47,6 +47,10 @@ _CHANGING_AUDIT_ACTIONS = _MUTATING_ACTIONS
 #: history pushes older entries out of the window, so the window is
 #: disclosed rather than silently shrinking the change list.
 _AUDIT_WINDOW_LINES = 500
+#: M8-T550: bytes of the audit tail that are read.  A tail this long starts
+#: mid-record by construction; that first line is a known partial, not a
+#: record that could not be read.
+_AUDIT_TAIL_BYTES = 256_000
 _SUMMARY_CACHE: OrderedDict[str, tuple[object, list[dict[str, Any]]]] = OrderedDict()
 _CACHE_LOCK = threading.Lock()
 
@@ -193,8 +197,16 @@ class ChangeInspector:
         an OS failure carries a reason.  The existence check moved inside
         the try for the same reason: on 3.11 ``Path.is_file`` raises, and
         one unreadable stat used to turn the summary into a 500.
+
+        M8-T550: a line that could not be read as a record is not a line
+        that never existed.  It is counted in ``_audit_unreadable_lines``
+        (instead of crashing the panel when it parsed to a non-object, or
+        disappearing without a word when it did not parse at all).  The
+        first line of a tail cut at ``_AUDIT_TAIL_BYTES`` is dropped before
+        the count — that partial is made by the cut, not by corruption.
         """
         self._audit_window_truncated = False
+        self._audit_unreadable_lines = 0
         audit = self.workspace / ".minicc" / AUDIT_NAME
         paths: set[str] = set()
         try:
@@ -202,9 +214,12 @@ class ChangeInspector:
                 return set(), None
             # Read a bounded tail; audit histories can be many megabytes.
             with audit.open("rb") as stream:
-                stream.seek(max(0, audit.stat().st_size - 256_000))
+                size = audit.stat().st_size
+                stream.seek(max(0, size - _AUDIT_TAIL_BYTES))
                 tail = stream.read().decode("utf-8", errors="replace")
             lines = tail.splitlines()
+            if size > _AUDIT_TAIL_BYTES and lines:
+                lines = lines[1:]
             self._audit_window_truncated = len(lines) > _AUDIT_WINDOW_LINES
             for line in lines[-_AUDIT_WINDOW_LINES:]:
                 if '"path"' not in line:
@@ -212,6 +227,10 @@ class ChangeInspector:
                 try:
                     item = json.loads(line)
                 except ValueError:
+                    self._audit_unreadable_lines += 1
+                    continue
+                if not isinstance(item, dict):
+                    self._audit_unreadable_lines += 1
                     continue
                 action = str(item.get("action") or "").strip().lower()
                 if action and action not in _CHANGING_AUDIT_ACTIONS:
@@ -342,7 +361,12 @@ class ChangeInspector:
         # M8-T548: every entry in ``status_map`` came from the status read, so
         # ``files_without_diff`` above has just refreshed the reason.
         return self._diff_for_target(
-            target, path, status, self._status_read_error, self._audit_read_error
+            target,
+            path,
+            status,
+            self._status_read_error,
+            self._audit_read_error,
+            self._audit_unreadable_lines,
         )
 
     def _diff_for_target(
@@ -352,6 +376,7 @@ class ChangeInspector:
         status: str,
         status_read_error: str | None = None,
         audit_read_error: str | None = None,
+        audit_unreadable_lines: int = 0,
     ) -> dict[str, Any]:
         # Untracked files have no HEAD baseline; avoid a subprocess for each
         # one when the workspace is a fresh interview repository.
@@ -363,6 +388,7 @@ class ChangeInspector:
             and status == "clean"
             and not status_read_error
             and not audit_read_error
+            and not audit_unreadable_lines
         ):
             # M8-T548: ``clean`` when the status table could not be read is a
             # guess, and copying the file onto its own baseline would print
@@ -371,6 +397,8 @@ class ChangeInspector:
             # M8-T549: the audit trail is the other source that could have
             # named this file; with it unreadable the same guess is made, so
             # the shortcut waits for both reads.
+            # M8-T550: a line the audit could not read could have named this
+            # file too; the shortcut waits for every line as well.
             before = after
 
         if not before and not after:
@@ -399,6 +427,8 @@ class ChangeInspector:
             "status_read_error": status_read_error or None,
             # M8-T549: the fallback trail's own read failure travels beside it.
             "audit_read_error": audit_read_error or None,
+            # M8-T550: and how many of its lines the window could not read.
+            "audit_unreadable_lines": int(audit_unreadable_lines),
         }
 
     def files_without_diff(self) -> list[dict[str, Any]]:
@@ -457,6 +487,10 @@ class ChangeInspector:
             "status_read_error": getattr(self, "_status_read_error", None),
             # M8-T549: the same answer for the fallback trail.
             "audit_read_error": getattr(self, "_audit_read_error", None),
+            # M8-T550: a line that could not be read is counted, not dropped.
+            "audit_unreadable_lines": int(
+                getattr(self, "_audit_unreadable_lines", 0)
+            ),
             "workspace": self.workspace.as_posix(),
         }
 
