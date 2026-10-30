@@ -78,25 +78,35 @@ def _footer(out: str) -> str:
     return lines[0]
 
 
-def test_a_subset_check_does_not_invent_dead_exemptions(capsys) -> None:
+def test_a_subset_check_does_not_invent_dead_exemptions(capsys, monkeypatch) -> None:
     """The whole point of the batch: a one-document report must say what the corpus says.
 
     Before this batch the corpus run reported nothing while *every* single-document
     run reported 1–14 dead exemption rows. A reviewer who then deleted the 「stale」
     entries the tool had just named would have removed live policy — which is why
     this gate loops the whole population instead of picking the worst offender.
+
+    What a subset run may repeat is the baseline, and the baseline is measured, not
+    assumed empty: on the night this was written the shared tree carried four
+    findings from another lane (committed roadmap citations naming a test that lane
+    had just renamed away), and this gate filed all four as invented. The inventory
+    complaint manufactured below stands in for that finding; a regression that
+    answers liveness from the caller's subset still adds rows on top of it.
     """
-    rc_all, rows_all, out_all = _run(dp, ["--check", "--quiet", *[str(p) for p in dp.DEFAULT_DOCS]], capsys)
-    assert rc_all == 0, f"整个语料本来是干净的，这一轮先红了：{rows_all}"
+    monkeypatch.setitem(dp.MIN_EVIDENCE, "docs/ROADMAP_TO_PRODUCT.md", 10**9)
+    _, rows_all, out_all = _run(dp, ["--check", "--quiet", *[str(p) for p in dp.DEFAULT_DOCS]], capsys)
+    assert any("低于下限" in row for row in rows_all), f"植入的无关发现没有进基线：{rows_all}"
     assert _SUBSET_SIZE.search(_footer(out_all)).group(1) == str(len(dp.DEFAULT_DOCS))
+    baseline = set(rows_all)
 
     offenders = []
     for document in dp.DEFAULT_DOCS:
         rc, rows, _ = _run(dp, ["--check", "--quiet", str(document)], capsys)
-        if rc != 0 or rows:
-            offenders.append(f"{document.name}: rc={rc} {rows[:2]}")
+        invented = [row for row in rows if row not in baseline]
+        if invented:
+            offenders.append(f"{document.name}: rc={rc} {invented[:2]}")
     assert offenders == [], (
-        "单文档 --check 报出了整个语料没有的死行（豁免的生命力被按调用方递进来的子集回答了；"
+        "单文档 --check 报出了整个语料基线里没有的死行（豁免的生命力被按调用方递进来的子集回答了；"
         f"{len(dp.DEFAULT_DOCS)} 份文档里这些子集仍然报错）：{offenders}"
     )
 
@@ -110,16 +120,25 @@ def test_a_relative_document_is_checked_instead_of_crashing(capsys, monkeypatch)
     checking nothing.
     """
     monkeypatch.chdir(REPO_ROOT)
+    # The same manufactured baseline as the gate above: a row this run did not cause
+    # is not a sign that the run failed to produce a report.
+    monkeypatch.setitem(dp.MIN_EVIDENCE, "docs/ROADMAP_TO_PRODUCT.md", 10**9)
+    _, baseline_rows, _ = _run(dp, ["--check", "--quiet", *[str(p) for p in dp.DEFAULT_DOCS]], capsys)
+    assert any("低于下限" in row for row in baseline_rows), f"植入的无关发现没有进基线：{baseline_rows}"
+    baseline = set(baseline_rows)
     offenders = []
     for document in dp.DEFAULT_DOCS:
         relative = document.relative_to(REPO_ROOT).as_posix()
         rc, rows, out = _run(dp, ["--check", "--quiet", relative], capsys)
         footer = _SUBSET_SIZE.search(_footer(out))
-        if rc != 0 or rows or footer is None or footer.group(1) != "1":
-            offenders.append(f"{relative}: rc={rc} rows={rows[:2]} footer={footer and footer.group(0)}")
+        invented = [row for row in rows if row not in baseline]
+        if invented or footer is None or footer.group(1) != "1":
+            offenders.append(
+                f"{relative}: rc={rc} invented={invented[:2]} footer={footer and footer.group(0)}"
+            )
     assert offenders == [], (
         f"相对路径的子集检查没有交出一份「我查过了」的报告（本批之前它是 ValueError + exit 1，"
-        f"stdout 一行结果都没有）：{offenders}"
+        f"stdout 一行结果都没有），或者报出了基线里没有的行：{offenders}"
     )
 
 
@@ -161,7 +180,7 @@ def test_the_report_names_the_population_its_verdict_came_from(capsys, tmp_path,
     )
 
 
-def test_a_genuinely_dead_exemption_is_still_declared_dead_under_a_subset_check(capsys) -> None:
+def test_a_genuinely_dead_exemption_is_still_declared_dead_under_a_subset_check(capsys, monkeypatch) -> None:
     """Reverse control: widening the corpus must not widen the verdict into silence.
 
     Without this gate, ``problems.extend(check_exempt_tables(liveness_corpus))``
@@ -173,6 +192,12 @@ def test_a_genuinely_dead_exemption_is_still_declared_dead_under_a_subset_check(
     planted[key] = "本轮植入：量「放宽语料」有没有把检查本身放宽成无话可说"
     original = dp._EVIDENCE_TABLES
     argv = ["--check", "--quiet", str(README), str(ROADMAP)]
+    # Both runs live on a tree that may carry another lane's finding, so the clean
+    # verdict is the baseline measured here, not the empty list. The manufactured
+    # complaint also proves the comparison is a difference rather than a count.
+    monkeypatch.setitem(dp.MIN_EVIDENCE, "docs/ROADMAP_TO_PRODUCT.md", 10**9)
+    rc_base, rows_base, _ = _run(dp, argv, capsys)
+    assert any("低于下限" in row for row in rows_base), f"植入的无关发现没有进基线：{rows_base}"
     dp._EVIDENCE_TABLES = tuple(planted if t is plain else t for t in original)
     try:
         rc, rows, _ = _run(dp, argv, capsys)
@@ -182,9 +207,12 @@ def test_a_genuinely_dead_exemption_is_still_declared_dead_under_a_subset_check(
     assert rc == 1 and len(named) == 1 and "已无任何文档引用" in named[0], (
         f"植入一条谁都不引用的豁免，子集检查却不再点它：rc={rc} rows={rows}"
     )
+    assert [line for line in rows if line not in rows_base] == named, (
+        f"植入一条死键，报告里动的却不止它：基线外的新行 {[line for line in rows if line not in rows_base]}"
+    )
     assert dp._EVIDENCE_TABLES == original, "表格恢复失败，后面的门会读到植入的键"
     rc_clean, rows_clean, _ = _run(dp, argv, capsys)
-    assert rc_clean == 0 and rows_clean == [], f"撤掉植入之后同一组子集仍然红：{rows_clean}"
+    assert rc_clean == rc_base and rows_clean == rows_base, f"撤掉植入之后同一组子集离开了基线：{rows_clean}"
 
 
 def test_a_shipped_document_counts_even_when_the_caller_hands_over_another_one(capsys) -> None:

@@ -270,8 +270,10 @@ def test_documented_command_runs_end_to_end() -> None:
         env=dict(os.environ, PYTHONIOENCODING="utf-8"),
         cwd=REPO_ROOT,
     )
-    assert result.returncode == 0, result.stdout + result.stderr
-    assert "DANGLING" not in result.stdout
+    # 「Runs end to end」 is this gate's subject; the corpus being clean is not, and
+    # asserting it here made a shared tree's foreign finding look like a broken
+    # command. The exit code still has to agree with the report it printed.
+    assert result.returncode == (1 if "DANGLING" in result.stdout else 0), result.stdout[-800:] + result.stderr[-800:]
     assert "pointers" in result.stdout
 
 
@@ -482,7 +484,7 @@ def test_each_resolve_root_answers_a_shipped_citation() -> None:
     assert len(answered) == len(dp._RESOLVE_ROOTS) - 1
 
 
-def test_a_path_claim_written_outside_backticks_gets_its_own_reader() -> None:
+def test_a_path_claim_written_outside_backticks_gets_its_own_reader(monkeypatch) -> None:
     # The evidence reader only looks inside code spans, so dropping the backticks
     # would be a way to write a dangling path that no gate sees. This is that
     # other half: bare names are still shorthand, a slash makes it a claim.
@@ -490,8 +492,16 @@ def test_a_path_claim_written_outside_backticks_gets_its_own_reader() -> None:
         "docs/NOPE_XYZ.md",
         "minicc/config.py",
     ]
+    # Only this reader's complaints are this gate's subject. The tree is shared:
+    # on the night this was written four committed roadmap citations named a test
+    # another lane had just renamed away, and this gate reded with the prose
+    # extractor as the accused. An unrelated complaint is manufactured below so a
+    # return to the whole-list assertion cannot be green.
+    monkeypatch.setitem(dp.MIN_EVIDENCE, "docs/ROADMAP_TO_PRODUCT.md", 10**9)
     problems, stats = dp.check_document(_ROADMAP)
-    assert stats.prose_paths >= 1 and problems == []
+    assert stats.prose_paths >= 1
+    assert [p for p in problems if p.kind == "INVENTORY"], problems
+    assert [p for p in problems if p.kind == "PROSE"] == [], problems
 
 
 # --------------------------------------------------------------------------- #
@@ -552,7 +562,7 @@ def test_a_file_only_this_machine_has_is_red_on_this_machine_too(tmp_path: Path)
     assert later.check_document(document)[0] == []
 
 
-def test_an_unreachable_exemption_reports_itself_as_dead(tmp_path: Path) -> None:
+def test_an_unreachable_exemption_reports_itself_as_dead(tmp_path: Path, monkeypatch) -> None:
     documents = [d for d in dp.DEFAULT_DOCS if d.exists()]
     usage = dp.exemption_usage(documents)
     assert len(usage) == sum(len(table) for table in dp._EVIDENCE_TABLES)
@@ -561,7 +571,16 @@ def test_an_unreachable_exemption_reports_itself_as_dead(tmp_path: Path) -> None
     # the verdict or the inventory moves. M8-T37 shipped five keys that could
     # never be reached at all, and the reason nobody noticed is that nobody had
     # asked a table whether it fired.
-    _, base = dp.check_document(_ROADMAP)
+    base_problems, base = dp.check_document(_ROADMAP)
+    # A gate that compares two runs must measure the baseline: on the night this
+    # was written the shared tree carried four findings from another lane
+    # (committed roadmap citations naming a test that lane had just renamed away),
+    # and this gate filed all four under the exemption key it removes. One
+    # unrelated complaint is manufactured here so that mis-filing cannot be green.
+    monkeypatch.setitem(dp.MIN_EVIDENCE, "docs/ROADMAP_TO_PRODUCT.md", 10**9)
+    dirty = dp.check_document(_ROADMAP)[0]
+    assert [p for p in dirty if p.kind == "INVENTORY"], dirty
+    assert all(p in dirty for p in base_problems), (base_problems, dirty)
     build = dp._BUILD_OUTPUT_PATH
     narrowed = {key: reason for key, reason in build.items() if key != "minicc/web_static"}
     dp._EVIDENCE_TABLES = tuple(narrowed if t is build else t for t in dp._EVIDENCE_TABLES)
@@ -575,9 +594,9 @@ def test_an_unreachable_exemption_reports_itself_as_dead(tmp_path: Path) -> None
     # own record added two citations of this key and a hand-written `== 2` went red
     # on the batch that was busy proving hand-written counts are worthless.
     freed_here = [p for p in freed if "minicc/web_static" in p.detail]
-    assert freed == freed_here, freed
+    assert [p for p in freed if p not in dirty] == freed_here, freed
     assert len(freed_here) == dp.exemption_usage([_ROADMAP])["minicc/web_static"] >= 1, freed
-    assert dp.check_document(_ROADMAP)[0] == []
+    assert dp.check_document(_ROADMAP)[0] == dirty
     # A "not a repository path" key has the other job: it *admits* the citation as
     # a claim before excusing it, so removing one moves the inventory instead of
     # the verdict. Asserting only reds would call every such key dead.
@@ -696,7 +715,10 @@ def test_the_box_account_is_printed_and_adds_up_on_the_shipped_documents() -> No
         env=dict(os.environ, PYTHONIOENCODING="utf-8"),
         cwd=REPO_ROOT,
     )
-    assert result.returncode == 0, result.stdout + result.stderr
+    # The account is this gate's subject; whether the shared tree is clean is not.
+    # The exit code still has to follow the printed report: a finding exits 1, and
+    # silence exits 0.
+    assert result.returncode == (1 if "DANGLING" in result.stdout else 0), result.stdout[-800:] + result.stderr[-800:]
     summary = result.stdout.strip().splitlines()[-1]
     markers = int(re.search(r"(\d+) 「见」 markers", summary).group(1))
     assert "markers=" in result.stdout
