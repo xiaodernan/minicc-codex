@@ -37827,3 +37827,73 @@ A 与 B、C 一个答案；B、C 是真话（那里没有记录），A 是「这
 5. 第五百三十二批 §7 第 2 位：`_git` 的 127 哨兵把 OSError 与超时压成一句。
 6. 第五百二十九批 §7 第 2 位：waiver 拒绝的理由只进 trace，不上报。
 7. `conftest.py:87` 起的超时措辞；第五百二十八批 §7 的恢复摘要 `dirty_read_error`。
+
+## 第五百三十六批 — M8-T554 — 测试目录走满 500 个文件就停，后面的文件被当成「与改动无关」
+
+### 1 欠的是哪一条
+
+第五百三十三批 §7 第 2 位（同一句在第五百三十四、三十五批 §7 里两次顺延）。`_test_files` 是验证选择的目录走查器：走满 500 个测试文件就 `return`。`relevant_python_tests` 拿到的永远是「前 500 个」——第 501 个之后的文件**从来没被看过**，它们既不会被解析 import，也不会进选择集；在验证计划里，这个答案与「它不 import 被改的模块」不可区分。
+
+本仓库眼下有 471 个测试文件，还没走到上限；所以这是一个还没被踩到的洞，不是正在发生的故障。§2 的表是把它摆出来量。
+
+### 2 量到的真相（实测）
+
+修前，工作区含 `src/package/module.py`（改动）与 `tests/` 下 500 个填充测试文件 + 一个 importer（`test_zzz_importer.py`，排序在最后），经 `_test_files` 与 `relevant_python_tests`：
+
+| 形状 | walker 产量 | 选择结果 |
+| --- | --- | --- |
+| A 501 个测试文件，importer 排第 501 个 | 500 | `[]` |
+| B 501 个测试文件，没有 importer（对照） | 500 | `[]` |
+| C 500 个测试文件，importer 排第 500 个（对照） | 500 | `[importer]` |
+| D 小目录，importer 在内（对照） | 1 | `[importer]` |
+
+A 与 B 一个答案；B 是真话（目录里确实没有 importer），A 是「第 501 个文件没被看过」被答成了「它不相关」。
+
+修后同一探针：walker 产量 501；A、B 形状（目录超过 500）`relevant_python_tests` 与 `build_verification_plan` 都抛 `ValueError`（消息含「500」「定向验证的选择会被截断」「请缩小改动范围或直接运行全量回归」）；C、D 一个数没变。
+
+### 3 落地
+
+- `minicc/agent/test_selection.py`：`_test_files` 变回纯走查器（不再自带上限）；上限挪到读侧 `relevant_python_tests`——`_SCAN_LIMIT = 500`，走过的第 501 个测试文件在解析之前抛 `ValueError`。**拒绝不是缩小后的名单**：调用方要么把它转成「验证被阻止」交给用户，要么跑全量回归。
+- 新门 `tests/test_a_test_directory_past_the_scan_window_is_not_checked.py` 六条：walker 走满 501 个；501 个文件时选择与计划都拒绝；500 个文件的边界对照仍选中最后一个；小目录的选中与不选中两条对照。两个 501/500 文件的工作区用模块级 fixture 只建一次（`tmp_path_factory`），解析结果走 `_IMPORTS` 缓存。
+
+### 4 见证（红先绿后，臂）
+
+- **红先**：新门在 HEAD 的干净导出上 `3 failed, 3 passed in 42.51s`——walker 产量、选择拒绝、计划拒绝三条全红，三条对照在 HEAD 上就是绿的（防修法过头）。
+- **绿后**：新门在共享树上 `6 passed in 33.42s`。
+- **plane554**（`git archive HEAD` + 本批文件）：新门 + `tests/test_check_selection.py` `11 passed in 49.62s`（下表 A0）。
+- 五臂 + 对照（baseline sha256 `96c29137…`，逐臂恢复后核对）：
+
+| 臂 | 改什么 | 预期红 | 实际 |
+| --- | --- | --- | --- |
+| A0 | 对照：不改 | 绿 | MATCHED rc=0：`11 passed in 49.62s` |
+| A1 | 拒绝拿掉（回到静悄悄截断） | 选择拒绝门 | MATCHED rc=1：`2 failed, 9 passed in 47.48s`，红里点名 `test_a_directory_past_the_scan_window_is_refused` 与 `test_the_plan_refuses_a_directory_past_the_scan_window` |
+| A2 | 数匹配数而不是走过的文件数 | 选择拒绝门 | MATCHED rc=1：`2 failed, 9 passed in 64.33s`，红里点名同两条 |
+| A3 | 边界差一（`>=` 而不是 `>`） | 窗口内最后一个文件的对照 | MATCHED rc=1：`1 failed, 10 passed in 34.98s`，红里点名 `test_the_control_the_last_file_inside_the_window_is_selected` |
+| A4 | 任何目录都拒绝（不看上限） | 小目录选中的对照 | MATCHED rc=1：`4 failed, 7 passed in 37.00s`，红里点名 `test_the_control_a_small_directory_still_selects_the_importer` |
+| A5 | walker 再次自带 500 上限 | walker 走满门 | MATCHED rc=1：`3 failed, 8 passed in 43.53s`，红里点名 `test_the_walker_yields_every_test_file` |
+
+### 5 聚焦回归
+
+- 共享树上八个文件（本批门 + `tests/test_check_selection.py` + `tests/test_the_test_filename_predicate_has_one_home.py` + 第五百三十三批门 + 四个引用 `build_verification_plan` 的文件）：`52 passed, 1 skipped in 71.47s`（跳过的是本平台文件名不能带引号）。
+- 干净克隆（HEAD + 本批代码提交 + 本记录）：`52 passed, 1 skipped in 98.60s`。
+- 干净克隆上的 `doc_pointers.py --check`（本句定稿后重跑）：rc=0；961 个「见」标记（116 条进受检箱、56 条落在 citation-without-locator）、23 条链接、4172 条 evidence 指针（75 条路径断言在代码跨度之外）、20 份文档、647 个在仓文件；`route_coverage.py --check` 与 `impacted_tests.py --check` 均 rc=0。
+- 全围栏：**本批不重跑**（约 58 分钟一趟）；父提交的上一轮围栏在 `5faa568` 上 `4195 passed, 11 skipped`，EXIT=0。本批改动只在其上 10 增 4 删，判定取干净克隆上的门集与检查器。
+
+### 6 边界（本批**不**声称）
+
+- **不声称大目录会变快。** 每多一个测试文件就多一次 stat、读取与解析（`_IMPORTS` 缓存 512 条之外会重解析）；本批只把「没看过」这一截从静默变红，没有优化成本。
+- **不声称 500 这个数是最优的。** 它是既有上限，本批没有调数值；调的只是「到了上限怎么办」。
+- **不声称超过 500 的目录还能产出定向计划。** 选择与计划现在直接抛 `ValueError`；web 路径把它记成 `blocked` 的 `actionable_hint`，`is_verification_configured` 按「有检查」处理（宁可多要一次检查）。
+- **不声称 `_test_imports` 的 512 条 LRU 缓存不是截断。** 它是缓存：淘汰只影响速度，不改变选择集合。
+- **不声称走查器的目录排除变了。** 点目录、`node_modules`、`__pycache__`、符号链接目录仍不进遍历。
+- **不声称 250KB 尺寸策略与本批有交互。** 大文件仍按尺寸策略跳过，本批只动「走了多少个」。
+
+### 7 下一位候选
+
+1. **断掉的符号链接**（trail 或 `.minicc`）：`is_symlink()` 为 True 而 `exists()` 为 False，仍被当成「没有审计记录」；需要一个能建符号链接的平台来见证。
+2. **`deny_rule_covers_path` 把读不出来的策略答成「这条路径没被拒绝」**（第五百三十三批 §7 第 1 位）。
+3. 第五百三十二批 §7 第 1 位：数字路径与不含 `"path"` 的审计行。
+4. 第五百三十二批 §7 第 2 位：`_git` 的 127 哨兵把 OSError 与超时压成一句。
+5. 第五百二十九批 §7 第 2 位：waiver 拒绝的理由只进 trace，不上报。
+6. `conftest.py:87` 起的超时措辞；第五百二十八批 §7 的恢复摘要 `dirty_read_error`。
+7. **选择器的解析成本**：500 个测试文件在本机约 13 秒（Defender 实时扫描主导）；超过 512 条缓存后重解析。上限之内的成本没有读数。
