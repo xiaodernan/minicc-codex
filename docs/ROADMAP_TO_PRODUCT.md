@@ -36772,7 +36772,8 @@ site（§5）。
    失效，而目录列举没有这样的键。所以本批用显式传参：快照的生命周期就是一次 `main`。
 5. **为什么 `Listings` 是 `NamedTuple` 而不是 `@dataclass(slots=True)`**：第一次落地用了
    dataclass，`tests/test_impacted_tests.py` 的加载器不把模块注册进 `sys.modules`，而
-   dataclass 的 slots 路径要读 `sys.modules[cls.__module__].__dict__`——14 条腿当场红在
+   dataclass 建类时要经 `sys.modules[cls.__module__]` 解析字符串注解
+   （`dataclasses.py:712`）——14 条腿当场红在
    `AttributeError: 'NoneType' object has no attribute '__dict__'`。改的是类型本身，不是
    加载器：同一个脚本有两种加载方式这件事记进 §7，不在本批扩大。
 
@@ -36880,4 +36881,152 @@ A5 单说：**丢弃一条快照对腿一是不可见的**——腿一数的是�
    不要树，快照已经能回答，但没有任何门钉住「路径集合与树集合相等」。这是一条与
    T541/T542 同族的候选，本批不做。
 5. **M8-T537 / M8-T538 / M8-T539**：分别由另一条通道与本仓排定的顺序占用，本批不碰；
+   T538 的前提仍要在落地前重新核一遍再算。
+
+## 第五百二十五批 — M8-T543 — 十三个脚本加载器，十二个注册 sys.modules，一个不注册
+
+### 1 欠的是哪一条
+
+第五百二十四批 §7 第 3 位把这件事写成了候选：同一个脚本有两个加载器，一个注册
+`sys.modules`，一个不注册；当批把 `Listings` 从 dataclass 换成 `NamedTuple` 绕开了它，
+并且明写「绕开不是修好」。本批补的就是那一步：把不注册的加载器改成正着注册，再立一条
+规则，让下一个写加载器的人没有机会再绕过。
+
+欠的不是「让某一批的腿变绿」。第五百二十四批的腿最后是绿的，被加载的脚本也没有错；
+欠的是一个执行了模块却不登记它的加载器——它会把「模块没登记」报成「模块自己坏了」。
+这场战役一直在清的就是这一类：一个失败被发布成一个判决。
+
+### 2 量到的真相（实测）
+
+- `tests/` 下用 `spec.loader.exec_module` 手工执行脚本的地方共 **13** 处；**12** 处在
+  执行前写了 `sys.modules[spec.name] = module`，**1** 处没有：`tests/test_impacted_tests.py`
+  的 `_load_script`（修前 39–43 行，spec 在 40 行、exec 在 42 行）。
+- 被这些加载器执行的脚本里带 `@dataclass` 的类：`scripts/doc_pointers.py` 3 个（全部
+  `frozen=True, slots=True`）、`scripts/route_coverage.py` 1 个、`scripts/impacted_tests.py`
+  **0** 个；四份脚本都有 `from __future__ import annotations`。
+- 合成实验：一份 future-annotations + dataclass 的脚本，**注册后**用加载器执行，带 slots
+  与不带 slots 的两类都正常建类；**不注册**则同一个
+  `AttributeError: 'NoneType' object has no attribute '__dict__'`，出处
+  `dataclasses.py:712`。触发点是字符串注解在 `_is_type` 里经
+  `sys.modules[cls.__module__]` 解析，**不是 slots 路径**：第五百二十四批 §3 第 5 条把
+  病因记在 slots 上，本批实测 `@dataclass(frozen=True)`（不带 slots）同样红，已在该条
+  就地更正。
+- 今天 `scripts/impacted_tests.py` 里没有 dataclass，所以那个加载器照常工作：缺陷是
+  潜伏的，任何一次运行都看不见它。能看见它的是关于形状的规则——这正是本批立的门。
+- 普查规模：修前 `tests/*.py` **462** 个；共享工作树 **464** 个（另一条通道的未跟踪
+  门与本批的门）；干净克隆 **463** 个。
+
+### 3 落地
+
+1. `tests/test_impacted_tests.py::_load_script` 补上 `assert spec is not None and
+   spec.loader is not None`，并在 `exec_module` 之前写 `sys.modules[spec.name] = module`。
+   这与另外 12 个加载器同形；修的是加载器，不是被加载的脚本。
+2. 新门 `tests/test_a_module_is_registered_before_a_loader_executes_it.py`，三条腿：
+   - 腿一（规则）：扫描 `tests/*.py`，对每个 `exec_module(<module>)` 调用，要求它的
+     最内层包围函数里、且在该调用之前，存在一条 `sys.modules[<x>.name] = <module>`，
+     右侧就是被执行的同一个模块名。键以 `.name` 结尾（`spec.name`、`module.__name__`
+     都收），右侧必须同名，位置必须先于执行；违规报 `文件:行: 执行 module 前没有登记
+     它`。规则把本门自己也算进去。
+   - 腿二（语义）：用登记过的加载器读 `tests/test_impacted_tests.py`，把它的 `SCRIPT`
+     换成临时目录里一份 future-annotations + dataclass 的脚本，调真实的 `_load_script`，
+     断言类建得出来、实例可用。
+   - 腿三（对照）：同一份脚本用 `exec(compile(...))` 在一个不在 `sys.modules` 里的
+     命名空间里执行，断言抛出 `AttributeError`——规则守的失败是真的会发生，不是风格。
+3. **为什么是规则，不是把十三个加载器收成一个家**：家回答的是「加载怎么写」，规则回答
+   的是「每个加载器都登记了吗」。就算把十三份收成一份，下一个人仍可以在新文件里直接
+   写 `exec_module` 绕过那个家；规则扫的是 `tests/*.py`，收不收都看得见。收成一个家
+   仍是候选（§7 第 3 位），但它替代不了这条规则。
+4. **规则与语义各守一半**：腿一只认形状——A5 臂把注册塞进 `if False:`，注册节点确实在
+   调用之前，腿一照样绿，能看见这次失败的只有腿二；A6 臂拆掉另一个加载器的注册，腿二
+   看不见（那两次运行并不经过它），腿一看见了。两条腿不是互相重复。
+
+### 4 见证（红先绿后，六条臂）
+
+**红**：`plane543red`（修前 `b63746f` 的树，只放门、不放修法）上
+`python -m pytest -q tests/test_a_module_is_registered_before_a_loader_executes_it.py`
+→ **2 failed / 1 passed in 2.41s**：
+
+- 腿一：`AssertionError: ['test_impacted_tests.py:42: executes module without
+  registering it in sys.modules']`——全树恰好一处；
+- 腿二：`AttributeError: 'NoneType' object has no attribute '__dict__'`，栈顶是
+  `dataclasses.py:712`；
+- 腿三在修前就是绿的：它守的是机制，不是修前的缺陷；A3/A4 两条臂证明它在修后仍有牙。
+
+**绿**：`plane543` 上同一条命令 → **3 passed in 3.04s**。
+
+**六条臂**（`scratch/mutate_543.py` 与逐臂补测，跑在已提交的 `plane543` 上；每条臂核对
+还原后的 sha256，图案落 0 次就报「arm not applied」；命令都是本门 + `test_impacted_tests.py`
+两个文件）：
+
+| 臂 | 改什么 | 预期红 | 实际 |
+| --- | --- | --- | --- |
+| A1 | 删掉 `_load_script` 的注册 | 腿一、腿二 | MATCHED（2 failed / 19 passed, 68.71s） |
+| A2 | 把注册挪到 `exec_module` 之后 | 腿一、腿二 | MATCHED（2 failed / 19 passed, 66.53s） |
+| A3 | 注册一个不是该模块的对象（`= None`） | 腿一、腿二 | MATCHED（2 failed / 19 passed, 62.75s） |
+| A4 | 用模块不会拿来找自己的键注册（`spec.name + "_wrong"`） | 腿一、腿二 | MATCHED（2 failed / 19 passed, 63.69s） |
+| A5 | 把注册塞进永不执行的 `if False:` | 腿二 | MATCHED（1 failed / 20 passed, 68.35s） |
+| A6 | 拆掉另一个加载器（`test_doc_pointers.py`）的注册 | 腿一 | MATCHED（1 failed / 20 passed, 61.45s） |
+
+修后语料上的判定没变（§5）：171 条门全绿，被加载的脚本一个都没改。**本批改的是加载器，
+不是答案。**
+
+### 5 聚焦回归
+
+- 十四个文件（13 个含加载器的测试文件 + 本批门）在 `plane543` 上 **171 passed in
+  641.47s**，一条红都没有。
+- 共享工作树上同一条命令 **10 failed / 161 passed in 557.13s**。10 条红全部由另一条
+  通道的未提交改名引起：`tests/test_task_durability.py` 的工作树版本删掉了
+  `test_expired_lease_cannot_be_revived_by_same_owner`（HEAD 的 43 行还有它），而
+  `docs/ROADMAP_TO_PRODUCT.md` 的 13070、36228、36412 行仍引用这个名字。检查器在
+  `plane543` 上 rc=0；在共享树上 rc=1，先报这 3 条 DANGLING，本记录落进来之后又多了
+  第 4 条——就是本段引用的这个名字（干净克隆上 0 条）；假定「文档本身干净」的门因此
+  把同一条病因重复报了 10 次。**判据取干净克隆**；这 10 条红不是本批的字节。
+- 三条检查器在 `plane543`（提交后工作树干净）上：`doc_pointers --check` **rc=0**，读
+  **907** 个「见」标记（checked=116、citation-without-locator=53）、**23** 条链接、
+  **4000** 条 evidence 指针（75 条路径声明在代码跨度之外）、**20** 份文档、
+  **636** 个在仓文件（比第五百二十四批多一个，就是本批的门）；`route_coverage --check`
+  **rc=0**（34 个 dispatch site、378 行，GET A/B 20/20、POST A/B 14/14，自带 91 条
+  测试 26.33s 全绿）；`impacted_tests --check` **rc=0**，打 `no changes to measure`
+  ——干净树上没有改动，下限读数是空。
+- 记录形状门（批次号不被两个标题认领、prose 里的围栏标记不吞跨度、§ 引用落在它自己
+  那一节、过百的批次号仍被点数器读出、在仓文件不带冲突标记、任务表声明与落地一致、
+  tests/ 下每个门都在册）加上十四个文件的聚焦集，在**干净克隆**上
+  **184 passed in 642.29s**。三条检查器在克隆上：`doc_pointers --check` **rc=0**，读
+  **917** 个「见」标记（checked=116、citation-without-locator=53）、**23** 条链接、
+  **4010** 条 evidence 指针（**75** 条路径声明在代码跨度之外）、**20** 份文档、
+  **636** 个在仓文件；`route_coverage --check` rc=0（读数
+  同上）；`impacted_tests --check` rc=0，打 `no changes to measure`。这一句报的是
+  **它自己所在的这份文档**的数，所以它带一条额外的规矩：**动这一句就得重跑一次**；
+  本批的最后一次 `doc_pointers --check` 是在这句定稿之后跑的，写下来的就是它印出来的。
+
+### 6 边界（本批**不**声称）
+
+- **不声称十三个加载器已经收成一个家。** 它们仍是十三份同形的六行代码；本批立的是
+  规则，不是共享实现（§3 第 3 条）。
+- **不声称腿一是语义判定。** 它只认形状：注册代码写在永不执行的分支里它也会绿，能看见
+  的是腿二（A5）。
+- **不声称注册会被清理。** 执行完不把模块从 `sys.modules` 移除——这是另外 12 个加载器
+  一直以来的行为，本批把第 13 个对齐到它，不扩大。
+- **不声称失败只发生在 slots dataclass 上。** 不带 slots 的 dataclass 在 future
+  annotations 下同样红（§2）。
+- **不重新裁决第五百二十四批的 `NamedTuple`。** 该决定有它自己的理由；本批只更正它对
+  病因的记法，不动类型本身。
+- **没有改产品代码。** 本批只动一个测试文件的加载器与一个新门。
+- **不跑全量围栏**（约 58 分钟一趟）；跑的是十四个文件的聚焦集、记录形状门与三条检查器。
+- 共享工作树上另一条通道的三个已改文件与若干未跟踪文件不在本批任何一条读数里，也不在
+  本批的判决里；本批的判据取自干净克隆。
+
+### 7 下一位候选（补记）
+
+1. **「超时」该不该占用「判定」这个词**（第五百二十二批 §7 第 1 位）：未动。
+   `conftest.py:87-101` 的钩子仍把跑过 900s 的腿改写成 failed。
+2. **引用门那一遍 47s 的线性扫描**（第五百二十二批 §7 第 4 位）：未动，不是本批的形状。
+3. **十三个加载器收成一个家**（第五百二十四批 §7 第 3 位的后半句）：本批把数目量清
+   （13/12/1）、把缺口补上、把规则立起来；共享实现仍未动，门会保证收编过程中没有
+   加载器掉队。
+4. **一条坏引用让十条门把病因指错**（本批撞出来的）：共享树上一个未提交的改名让 10 条
+   门红掉，其中一条的断言消息把病因说成「豁免键失效」。断言「文档本身干净」的门在做
+   集合比较时，应当先减去基线里的问题，而不是假定基线为空。不是本批的形状。
+5. **路径集合与树集合的相等**（第五百二十四批 §7 第 4 位）：未动。
+6. **M8-T537 / M8-T538 / M8-T539**：分别由另一条通道与本仓排定的顺序占用，本批不碰；
    T538 的前提仍要在落地前重新核一遍再算。
