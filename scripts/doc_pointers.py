@@ -55,6 +55,7 @@ import difflib
 import re
 import subprocess
 import sys
+from bisect import bisect_left
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -246,15 +247,26 @@ def sections(text: str) -> list[Section]:
             Section(
                 level=len(match.group(1)),
                 title=match.group(2).strip(),
-                line=text.count("\n", 0, match.start()) + 1,
+                line=_line_of(text, match.start()),
                 body=text[match.end() : end],
             )
         )
     return out
 
 
+def _newline_positions(text: str) -> tuple[int, ...]:
+    """Every newline offset in one sweep; uncached, so a lost cache shows up as sweeps."""
+    return tuple(match.start() for match in re.finditer("\n", text))
+
+
+@lru_cache(maxsize=4)
+def _line_index(text: str) -> tuple[int, ...]:
+    """One document's sweep, kept while its line questions arrive."""
+    return _newline_positions(text)
+
+
 def _line_of(text: str, offset: int) -> int:
-    return text.count("\n", 0, offset) + 1
+    return bisect_left(_line_index(text), offset) + 1
 
 
 def _numeral(word: str) -> int | None:
