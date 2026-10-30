@@ -82,16 +82,30 @@ def _within(root: Path, rel: str) -> Path:
     return target
 
 
-def _git_dirty_files(workspace: Path) -> list[str]:
+def _git_dirty_files(workspace: Path) -> tuple[list[str], str | None]:
+    """``(changed files, why the list could not be read)``.
+
+    M8-T546: this used to return a bare list, and its three failure branches
+    all returned ``[]`` — so 「the tree is clean」, 「git is not on PATH」,
+    「git refused (index.lock, dubious ownership, 128)」 and 「git timed out」
+    were one answer.  ``capture`` stored that answer as a complete snapshot:
+    the manifest said ``files: []`` and the task checkpoint said
+    ``captured: True``, about a workspace nobody had looked at.
+    """
     try:
         completed = subprocess.run(
             ["git", "status", "--porcelain=v1", "-z", "-uall"], cwd=workspace,
             capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=20, check=False,
         )
-    except (OSError, subprocess.TimeoutExpired):
-        return []
+    except subprocess.TimeoutExpired:
+        return [], "git status 超时（20 秒）：工作区可能太大，脏文件清单没有读出来"
+    except OSError as exc:
+        return [], f"git status 无法运行: {exc}"
     if completed.returncode != 0:
-        return []
+        # git's own words are the actionable half (safe.directory, index.lock,
+        # not a repository); the exit code alone would not tell a user where to look.
+        detail = (completed.stderr or "").strip().splitlines()
+        return [], f"git status 退出码 {completed.returncode}" + (f": {detail[0][:200]}" if detail else "")
     files: list[str] = []
     seen: set[str] = set()
     records = iter(completed.stdout.split("\0"))
@@ -105,7 +119,7 @@ def _git_dirty_files(workspace: Path) -> list[str]:
             continue
         seen.add(path)
         files.append(path)
-    return files
+    return files, None
 
 
 def _load(dest: Path, root: Path) -> dict[str, Any]:
@@ -135,11 +149,17 @@ def _save(dest: Path, manifest: dict[str, Any]) -> None:
 
 
 def _summary(manifest: dict[str, Any]) -> dict[str, Any]:
-    complete = not manifest.get("skipped")
-    return {key: manifest.get(key, []) for key in ("task_id", "files", "missing", "skipped")} | {
+    # M8-T546: a dirty read that failed leaves nothing to restore, so the
+    # summary may not call the capture complete — the reason travels with it.
+    dirty_error = manifest.get("dirty_read_error")
+    complete = not manifest.get("skipped") and not dirty_error
+    summary = {key: manifest.get(key, []) for key in ("task_id", "files", "missing", "skipped")} | {
         "captured": complete, "complete": complete, "partial": not complete,
         "skipped_reasons": manifest.get("skipped_reasons", {}),
     }
+    if dirty_error:
+        summary["reason"] = str(dirty_error)
+    return summary
 
 
 def _copy_preimage(source: Path, target: Path, *, used: int, count: int) -> tuple[str, int]:
@@ -185,7 +205,8 @@ def capture(workspace: Path, task_id: str) -> dict[str, Any]:
         reasons: dict[str, str] = {}
         sizes: dict[str, int] = {}
         used = 0
-        for rel in _git_dirty_files(root):
+        dirty, dirty_error = _git_dirty_files(root)
+        for rel in dirty:
             # M8-T350: the deny rules have to reach the **copy** too.  A
             # snapshot preserves the dirty files, so a path the user denied
             # (``secrets/*``) was copied into
@@ -213,7 +234,7 @@ def capture(workspace: Path, task_id: str) -> dict[str, Any]:
             digests[rel] = digest
             sizes[rel] = size
             used += size
-        manifest = {"version": 2, "task_id": task_id, "files": copied, "digests": digests, "sizes": sizes, "missing": missing, "skipped": skipped, "skipped_reasons": reasons, "workspace": str(root)}
+        manifest = {"version": 2, "task_id": task_id, "files": copied, "digests": digests, "sizes": sizes, "missing": missing, "skipped": skipped, "skipped_reasons": reasons, "workspace": str(root), "dirty_read_error": dirty_error}
         _save(dest, manifest)
         return _summary(manifest)
 

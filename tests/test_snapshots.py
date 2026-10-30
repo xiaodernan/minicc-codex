@@ -65,7 +65,7 @@ def test_literal_arrow_is_preserved_by_nul_parser(tmp_path, monkeypatch):
     from types import SimpleNamespace
     from minicc.snapshots import _git_dirty_files
     monkeypatch.setattr("minicc.snapshots.subprocess.run", lambda *args, **kwargs: SimpleNamespace(returncode=0, stdout="?? literal -> name.txt\0R  新名.txt\0旧名.txt\0"))
-    assert _git_dirty_files(tmp_path) == ["literal -> name.txt", "新名.txt"]
+    assert _git_dirty_files(tmp_path) == (["literal -> name.txt", "新名.txt"], None)
 
 
 def test_snapshot_manifest_filename_cannot_collide_with_user_file(tmp_path):
@@ -176,7 +176,8 @@ def test_more_than_400_dirty_files_are_not_silently_dropped(tmp_path, monkeypatc
     from minicc.snapshots import _git_dirty_files
     records = "".join(f"?? file-{index}.txt\0" for index in range(450))
     monkeypatch.setattr("minicc.snapshots.subprocess.run", lambda *args, **kwargs: SimpleNamespace(returncode=0, stdout=records))
-    assert len(_git_dirty_files(tmp_path)) == 450
+    files, error = _git_dirty_files(tmp_path)
+    assert len(files) == 450 and error is None
 
 
 def test_restore_rejects_active_workspace(tmp_path):
