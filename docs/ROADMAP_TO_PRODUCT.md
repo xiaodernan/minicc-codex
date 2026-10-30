@@ -37275,3 +37275,85 @@ C、D 与 B 逐字段相同，落盘的清单也相同：`files: []`、`missing:
 5. **「超时」该不该占用「判定」这个词**（第五百二十二批 §7 第 1 位）：未动。`conftest.py:87-101` 仍把跑过 900s 的腿改写成 failed。
 6. **十三个加载器收成一个家**（第五百二十五批 §7 第 3 位）：未动。
 7. **M8-T537 / M8-T538 / M8-T539**：分别由另一条通道与本仓排定的顺序占用，本批不碰。
+
+## 第五百二十九批 — M8-T547 — 读不出改了哪些文件的循环，答的是「这个工作区没有可运行的检查」
+
+### 1 欠的是哪一条
+
+第五百二十八批 §7 第 1 位。交付裁决前，循环对「写入之后有没有验证」有一项**可满足性豁免**（M8-T58）：工作区对本次改动客观上没有任何可运行的检查时，写入后的只读检视就是唯一可能的证据类别。判据是一句问话——`_plan_has_runnable_check(workspace, sorted(changed_paths))`（`minicc/agent/loop.py:1942` 起的回退分支）。
+
+`changed_paths` 两个来源：写入工具自己报的 `path`，以及 bash 写入时向 git 要的清单（`_git_changed_paths`，`:486`）。而 git 的四种失败——超时、`OSError`、退出码非零、改动文件超过 64 个——全部 `return []`：**和「树是干净的」同一个答案**。空集交给验证计划，按「没有改动文件」去映射测试，命令列表必然为空，于是判据答「这个工作区没有可运行的检查」——对一个 pytest 就摆在旁边、`app.py` 刚被写过的仓库说了这句错话，验证要求被静默豁免。
+
+这正是第五百零四批（M8-T281）修过的那句话，只换了个入口回来：上一次是「bash 写入没有 path」，这一次是「path 的清单读不出来」。第五百零八、五百一十、五百一十二批收的也都是同一类：**一次读不出来，被答成「没有数据」**。
+
+### 2 量到的真相（实测）
+
+修前探针（bash 写、`read_file`、答「done」；工作区里有一个刚被写过的 `app.py` 和一个能跑它的测试文件；把 `git status` 打进失败态）：`_plan_has_runnable_check(ws, [])` 为 `False`、`plan(['app.py'])` 为 `True`；一轮跑完 trace 里有 `verification_satisfied_by_inspection` 和 `run_finished`；豁免成立，`nudge` 没发，`result.error` 是 `None`，3 次模型调用后带着「已完成」收工。
+
+修后同一探针的五种形状（`verification_required_before_finish` 是要求补验证的提醒，`error` 是最终交卷状态）：
+
+| 形状 | helper 的回答 | 豁免 | refused trace | nudge | error |
+| --- | --- | --- | --- | --- | --- |
+| A `git status` 正常，树没改 | `([], None)` | 成立 | 无 | 无 | None（M8-T58 照旧生效） |
+| B 退出 128（dubious ownership） | `([], "git status 退出码 128: fatal: detected dubious ownership…")` | 不成立 | 有 | 有 | 验证守卫 |
+| C 超时 | `([], "git status 超时（15 秒）…")` | 不成立 | 有 | 有 | 验证守卫 |
+| D git 无法运行 | `([], "git status 无法运行: git")` | 不成立 | 有 | 有 | 验证守卫 |
+| E 65 个改动文件 | `([], "工作树里有 65 个改动文件，超过 64 个上限…")` | 不成立 | 有 | 有 | 验证守卫 |
+
+C、D、E 与 B 逐格相同，只有理由不同——这正是要的形状：**「不知道」和「没有」不再共用一个词**，而真正干净的树（A）一个字没变。
+
+### 3 落地
+
+- `minicc/agent/loop.py:486` `_git_changed_paths` 返回 `(paths, reason)`：`None` 现在读作「树读过了」。四个失败分支各带理由——超时 15 秒（`git status 超时（15 秒）：工作区可能太大，改动清单没有读出来`）、`OSError`（`git status 无法运行: {exc}`）、非零退出（`git status 退出码 {rc}` 加 git 自己 stderr 的第一行，截 200 字符）、超过 `_GIT_CHANGED_MAX`（`工作树里有 N 个改动文件，超过 64 个上限，分不清哪些是本次写入的`）。
+- `minicc/agent/loop.py:558` 新增 `_git_repository_verdict`：`git status` 失败后问 `git rev-parse --is-inside-work-tree`，把「不是仓库 / 没有工作树」——那是可读的事实，答 `([], None)`，M8-T58 对无检查工作区的回退才不会误伤——和「是仓库但读不了」（dubious ownership 等，答 yes）分开；探针本身跑不起来时答 unknown，理由里附上探针的错，失败照旧成立。
+- `minicc/agent/loop.py:706` 循环里新增 `git_changed_error`，`:1590` 调用点解包并记账；**只置不清**：后来的成功读也救不回「这一次写入改了哪些文件」。
+- `minicc/agent/loop.py:1946` 回退判据先看这笔账：记过账就发一条 `verification_waiver_refused_by_failed_read`（带理由），不适用检视豁免，验证要求保留原守卫。
+- 新门 `tests/test_a_verification_waiver_is_not_bought_with_a_failed_read.py` 七条：豁免门（工作区确有可跑检查，只因读失败而豁免——修前红在豁免真的成立）；对照组（干净的空清单仍豁免，M8-T58 不许误伤）；两条失败分支门（OSError、超时，各验理由字样）；理由门（128 且理由带 git 原话）；上限门（65 个文件是「分不清」）；不误伤门（真实 git 上的普通目录答 `([], None)`）。
+- `tests/test_a_bash_write_names_no_path.py` 三处调用点跟着改签名；行为断言不变，另加「成功路径的 reason 必须是 None」。
+
+### 4 见证（红先绿后，臂）
+
+- **红先**：新门（当时五条）在 HEAD 上 `4 failed, 1 passed in 8.23s`。豁免门停在 `verification_satisfied_by_inspection` 出现在 trace 里——不是形状断言，是病本身；另三条停在解包形状（旧签名只回一个列表）；对照组在 HEAD 上就是绿的——它是防修法过头的那条。
+- **绿后**：两个门文件在共享树上 `12 passed in 8.97s`。
+- **plane547**（`git archive HEAD` + 本批三个文件）：同一个两文件集 `12 passed in 9.51s`（下表 A0）。
+
+| 臂 | 改什么 | 预期红 | 实际 |
+| --- | --- | --- | --- |
+| A0 | 对照：不改 | 绿 | MATCHED（12 passed，9.51s） |
+| A1 | 回退判据丢掉 `if git_changed_error`（收回修前规则） | 豁免门 | MATCHED（1 failed，16.28s） |
+| A2 | 非零退出分支回到 `([], None)` | 理由门 | MATCHED（2 failed，14.93s） |
+| A3 | 超上限分支回到 `([], None)`（M8-T295 的旧词） | 上限门 | MATCHED（1 failed，15.32s） |
+| A4 | 一切 `git status` 失败都当成「不是仓库」 | 理由门 | MATCHED（2 failed，14.49s） |
+| A5 | 调用点把理由丢掉（helper 对、没人听） | 豁免门 | MATCHED（1 failed，13.94s） |
+| A6 | 普通目录被当成读失败 | 不误伤门（连带豁免门） | MATCHED（2 failed，13.07s） |
+| A7 | 两条异常分支回到 `([], None)` | OSError 门（连带超时门） | MATCHED（2 failed，13.40s） |
+
+判定沿用第五百二十七批 §7 第 1 位：rc 非零**且**红输出点名被瞄准的门才算数。每臂按字节还原并核对 sha256（基线 `5ee07e42…`），八臂跑完 `all arms restored; sha256 verified`。
+
+两处如实说明：一是臂架第一次跑就崩了——`OSERROR_GATE` 常量忘了定义，`NameError` 退出码也是非零，那次一条臂都没有算数（这正是 T545 那条教训的现场复现），补上常量后整批重跑；二是上限门的桩最初把 65 条记录用 `\0` 拼在一行，而 `git status --porcelain` 是每行一条——修前那次红是解包形状，桩的毛病被挡住了，第一次绿之后才发现并改成逐行，A3 那一行就是这条分支真的被判过死刑的证明。
+
+### 5 聚焦回归
+
+- 共享树上九个与验证守卫相邻的文件（两个门文件、M8-T58 回退、提醒协议、bash 写入的恢复守卫、工作区外写入、恢复探针两条、`tests/test_core_agent.py`）：`79 passed in 27.93s`。
+- plane547 上两文件集：`12 passed in 9.51s`（见 §4）。
+- 干净克隆（HEAD + 本批两个代码提交 + 本记录）：79 passed in 37.44s。
+- 干净克隆上的 `doc_pointers.py --check`（本句定稿后重跑）：rc=0；940 个「见」标记（116 条进受检箱、54 条落在 citation-without-locator）、23 条链接、4080 条 evidence 指针（75 条路径断言在代码跨度之外）、20 份文档、639 个在仓文件；同一份文档在共享树上跑只多出那 4 条外来行。
+
+### 6 边界（本批**不**声称）
+
+- **不声称模型能看见理由。** 理由进了 trace（`verification_waiver_refused_by_failed_read` 的 `detail.reason`），没有进交给模型的消息；模型收到的仍是「先完成验证」的提醒，最终交卷仍是验证守卫的错误。
+- **不声称读不出树的无检查工作区还能收工。** 这类任务现在会走到验证守卫（保守方向：不知道就别豁免）；若 git 长期读不了而工作区确实没有检查，这是比以前更严格、也更诚实的失败。
+- **不声称 `rev-parse` 的判词永远准。** 探针只能区分「git 自己的话里有没有 not a git repository」；别的失败一律按读失败处理，宁可多要一次验证。
+- **不声称 `git status` 的路径解析完全正确。** 引号包裹的非 ASCII 路径照旧只做去引号，没有 C 风格反转义——与本批无关的既有边界。
+- **没有动 `task_manager.py` / `task_store.py` / `test_task_durability.py`**：那条通道正占着它们，本批一个字没碰；判据取干净克隆。
+- **不跑全量围栏**；跑的是相邻文件集、新门红绿、八个臂与干净克隆。
+
+### 7 下一位候选
+
+1. **`changes.py` 的 `_status_lines`**（第五百二十八批 §7 第 2 位，未动）：`git` 失败时返回 `[]`，变更视图于是答「没有变更」——同一个词用在两个意思上，同一个坍缩的下一站。
+2. **豁免被拒这件事只有 trace 知道**：`verification_waiver_refused_by_failed_read` 的 `detail.reason` 不进模型消息也不进最终错误文本，模型只能看见「请先验证」。把理由接进提醒（或守卫错误）是下一步的自然延伸。
+3. **`_git_repository_verdict` 的 unknown 分支**：理由只附探针自己的错，不区分 `safe.directory` 这类可操作的话——与非零退出分支的「截 git 原话」还不一样齐。
+4. **第五百二十七批 §7 第 2 位的两条子集门**：`test_the_report_names_the_population_its_verdict_came_from` 的 `extra[0] == 0` 与 `test_the_documented_command_still_passes_with_a_relative_document` 的 `rc == 0`，仍是「打印集合恰好不含 roadmap 才绿」，未动。
+5. **「超时」该不该占用「判定」这个词**（第五百二十二批 §7 第 1 位）：未动。`conftest.py:87-101` 仍把跑过 900s 的腿改写成 failed。
+6. **十三个加载器收成一个家**（第五百二十五批 §7 第 3 位）：未动。
+7. **M8-T537 / M8-T538 / M8-T539**：分别由另一条通道与本仓排定的顺序占用，本批不碰。
