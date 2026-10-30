@@ -48,7 +48,8 @@ def test_a_bash_write_contributes_the_files_git_reports(tmp_path: Path) -> None:
     _git(workspace, "commit", "-m", "init")
     (workspace / "app.py").write_text("print('bye')\n", encoding="utf-8")
 
-    changed = _git_changed_paths(workspace)
+    changed, reason = _git_changed_paths(workspace)
+    assert reason is None, f"a readable tree must not report an error: {reason}"
     assert "app.py" in changed, f"git's changed files were not reported: {changed}"
 
 
@@ -67,13 +68,16 @@ def test_the_probe_answers_yes_for_a_workspace_that_has_a_check(tmp_path: Path) 
 
 
 def test_a_non_git_workspace_reports_nothing(tmp_path: Path) -> None:
-    """The control: no repository, no answer - and no exception."""
-    assert _git_changed_paths(tmp_path) == []
+    """The control: no repository, no answer, no exception - and no error either.
+
+    M8-T547: "not a repository" is a readable fact, not a failed read.
+    """
+    assert _git_changed_paths(tmp_path) == ([], None)
 
 
 def test_a_missing_workspace_reports_nothing() -> None:
-    assert _git_changed_paths(None) == []
-    assert _git_changed_paths("") == []
+    assert _git_changed_paths(None) == ([], None)
+    assert _git_changed_paths("") == ([], None)
 
 
 def test_the_loop_asks_git_after_a_bash_write(
@@ -94,9 +98,9 @@ def test_the_loop_asks_git_after_a_bash_write(
 
     asked: list[object] = []
 
-    def fake_git_changed(workspace: object) -> list[str]:
+    def fake_git_changed(workspace: object) -> tuple[list[str], None]:
         asked.append(workspace)
-        return ["app.py"]
+        return ["app.py"], None
 
     monkeypatch.setattr("minicc.agent.loop._git_changed_paths", fake_git_changed)
 

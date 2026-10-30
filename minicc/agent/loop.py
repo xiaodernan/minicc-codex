@@ -483,8 +483,8 @@ def _rule_covers_this_call(
     return tool_denied_by_rule(workspace, tool, args)
 
 
-def _git_changed_paths(workspace: str | Path | None) -> list[str]:
-    """Files git reports as changed, for a write that named no path.
+def _git_changed_paths(workspace: str | Path | None) -> tuple[list[str], str | None]:
+    """Files git reports as changed - and why, if it could not tell.
 
     M8-T281: a bash write carries no ``path`` argument, so the changed set
     stayed empty - and the satisfiability probe then answered "this
@@ -496,10 +496,20 @@ def _git_changed_paths(workspace: str | Path | None) -> list[str]:
     working tree, so a busy workspace would produce a superset of the files
     this command touched - and the verification plan built from it would
     name tests for files nobody changed.  Past the ceiling the honest
-    answer is "I cannot tell", which the caller treats as no evidence.
+    answer is "I cannot tell".
+
+    M8-T547: "I cannot tell" used to be spelled ``[]`` - the same word as
+    "nothing changed".  The caller feeds this set to the satisfiability
+    probe, so a failed read became the sentence "this workspace has no
+    runnable check", which waived the post-write verification for exactly
+    the workspaces that do have checks.  The second half of the return is
+    the reason, and ``None`` now means "*the tree was read*".  A workspace
+    that is not a repository - or has no work tree - is not a failed read:
+    there is no changed-file fact to obtain there, and the M8-T58 fallback
+    for checkless workspaces must keep working.
     """
     if not workspace:
-        return []
+        return [], None
     try:
         result = subprocess.run(
             ["git", "status", "--porcelain"],
@@ -513,10 +523,21 @@ def _git_changed_paths(workspace: str | Path | None) -> list[str]:
             errors="replace",
             timeout=15,
         )
-    except (OSError, subprocess.SubprocessError):
-        return []
+    except subprocess.TimeoutExpired:
+        return [], "git status 超时（15 秒）：工作区可能太大，改动清单没有读出来"
+    except (OSError, subprocess.SubprocessError) as exc:
+        return [], f"git status 无法运行: {exc}"
     if result.returncode != 0:
-        return []
+        kind, detail = _git_repository_verdict(workspace)
+        if kind == "no":
+            return [], None
+        stderr = (result.stderr or "").strip().splitlines()
+        reason = f"git status 退出码 {result.returncode}"
+        if stderr:
+            reason += f": {stderr[0][:200]}"
+        if kind == "unknown":
+            reason += f"（且无法确认这是不是仓库：{detail}）"
+        return [], reason
     changed: list[str] = []
     for line in result.stdout.splitlines():
         entry = line[3:].strip() if len(line) > 3 else ""
@@ -527,8 +548,40 @@ def _git_changed_paths(workspace: str | Path | None) -> list[str]:
             changed.append(entry)
     if len(changed) > _GIT_CHANGED_MAX:
         # M8-T295: too many to be "what this command changed".
-        return []
-    return changed
+        return [], (
+            f"工作树里有 {len(changed)} 个改动文件，超过 {_GIT_CHANGED_MAX} 个上限，"
+            "分不清哪些是本次写入的"
+        )
+    return changed, None
+
+
+def _git_repository_verdict(workspace: str | Path) -> tuple[str, str]:
+    """Ask git whether the directory even has a work tree, after status failed.
+
+    ``git status`` exits 128 both for "not a git repository" - where an
+    empty changed list is the truth - and for "this is a repository I am
+    forbidden to read" (``dubious ownership``), where an empty list would be
+    the M8-T547 collapse again.  The probe separates the two.  ``"unknown"``
+    covers a probe that could not run or answer: the caller keeps the
+    failure, because an unreadable tree must not pass for a clean one.
+    """
+    try:
+        probe = subprocess.run(
+            ["git", "rev-parse", "--is-inside-work-tree"],
+            cwd=str(workspace),
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        return "unknown", f"rev-parse 无法运行: {exc}"
+    if probe.returncode == 0:
+        return ("yes" if probe.stdout.strip() == "true" else "no"), ""
+    stderr = (probe.stderr or "").strip()
+    if "not a git repository" in stderr:
+        return "no", ""
+    return "unknown", (stderr.splitlines()[0][:200] if stderr else f"退出码 {probe.returncode}")
 
 
 def _replan_constraints(*, verification_required: bool, feedback: list[dict[str, Any]]) -> list[str]:
@@ -648,6 +701,9 @@ async def run_agent(
     verification_retries = 0
     # M8-T58: 写入路径与写入后的只读检视——「无检查工作区」的检视回退判据。
     changed_paths: set[str] = set()
+    # M8-T547: 改动清单没读出来（git 失败/超时/超上限）时记下原因；一旦记下，
+    # 「工作区没有可运行的检查」这句话就不再成立，回退不适用。
+    git_changed_error: str | None = None
     post_write_inspection = False
     last_round_feedback: list[dict[str, Any]] = []
     last_replan_trigger = "初始任务上下文"
@@ -1531,9 +1587,14 @@ async def run_agent(
                         # whole task's event loop (the parallel read fan-out,
                         # the SSE pump and the approval wait) for the
                         # duration of ``git status``.
-                        changed_paths.update(
-                            await asyncio.to_thread(_git_changed_paths, workspace)
+                        git_paths, git_error = await asyncio.to_thread(
+                            _git_changed_paths, workspace
                         )
+                        changed_paths.update(git_paths)
+                        if git_error:
+                            # 只置不清：后来的成功读也救不回「这一次写入改了
+                            # 哪些文件」这个问题——它已经错过了。
+                            git_changed_error = git_error
                 # 新一轮写入重置换证阶段：此前的检视不再覆盖最新改动。
                 post_write_inspection = False
             # M8-T58: 写入之后的只读检视（read_file/git_diff）是「无检查工作区」
@@ -1878,22 +1939,29 @@ async def run_agent(
             # 满足，写入后的只读检视（read_file/git_diff）是唯一可能的证据
             # 类别，与完成评估层的 M8-T54 同判据。此回退不豁免「写入后未
             # 检视」：没有任何检视证据的任务仍走原守卫。
-            if (
-                post_write_inspection
-                and workspace
-                and not _plan_has_runnable_check(workspace, sorted(changed_paths))
-            ):
-                verification_required = False
-                emit_trace(
-                    "工作区没有可运行的客观检查，写入后的检视证据视为完成验证",
-                    phase="planning",
-                    code="verification_satisfied_by_inspection",
-                    detail={
-                        "turn": turn,
-                        "changed_paths": sorted(changed_paths)[:8],
-                        "basis": "verification plan 对改动路径没有产出任何命令",
-                    },
-                )
+            if post_write_inspection and workspace:
+                # M8-T547: 改动清单没读出来时，空集不是「什么都没改」——它是
+                # 「不知道改了什么」。拿它去问「有没有可跑的检查」，答案必然是
+                # 「没有」，而这正是第五〇四批修掉的那句错话。不知道就不适用回退。
+                if git_changed_error:
+                    emit_trace(
+                        "改动清单没有读出来，不能判断工作区有没有可运行的检查：检视回退不适用",
+                        phase="planning",
+                        code="verification_waiver_refused_by_failed_read",
+                        detail={"turn": turn, "reason": git_changed_error},
+                    )
+                elif not _plan_has_runnable_check(workspace, sorted(changed_paths)):
+                    verification_required = False
+                    emit_trace(
+                        "工作区没有可运行的客观检查，写入后的检视证据视为完成验证",
+                        phase="planning",
+                        code="verification_satisfied_by_inspection",
+                        detail={
+                            "turn": turn,
+                            "changed_paths": sorted(changed_paths)[:8],
+                            "basis": "verification plan 对改动路径没有产出任何命令",
+                        },
+                    )
             if verification_required:
                 if verification_retries < VERIFICATION_RETRY_LIMIT:
                     verification_retries += 1
