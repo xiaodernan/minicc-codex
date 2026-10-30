@@ -37613,3 +37613,80 @@ A 与 E 是崩溃，B 与 D 是沉默，C 是真话，F 是另一条无声丢弃
 5. 第五百二十七批 §7 第 2 位：两条子集门。
 6. `conftest.py:87` 起的超时措辞。
 7. 第五百二十八批 §7：恢复摘要要不要带出 `dirty_read_error`（那批只把它写进了 manifest）。
+
+## 第五百三十三批 — M8-T551 — 读不出来的测试文件，被当成与这次改动无关的测试
+
+### 1 欠的是哪一条
+
+第五百零八批（M8-T526）§7 留下的「读侧普查」清单里的一条，位置在 `minicc/agent/test_selection.py` 的 `except (OSError, UnicodeError, SyntaxError): continue`。验证计划靠解析每个测试文件的 import 判断「这次改动该跑哪些测试」；解析不了的文件被 `continue` 跳过——**与一个什么相关 import 都没有的测试文件同一个答案**。
+
+这个答案交给的是 `build_verification_plan`：它把选中的文件拼成 `python -m pytest -q …`。一个读不出来的测试文件如果恰好 import 了被改的模块，它就从命令里消失了；模型跑完一条绿的命令，验收证据里没有任何一处说「有一个文件没被看过」。改坏一个测试文件（语法错、编码坏、读权限没了），验证集只会变小，不会变红。
+
+### 2 量到的真相（实测）
+
+修前，工作区含 `src/package/module.py`（改动）与 `tests/` 下若干文件，经 `relevant_python_tests` 与 `build_verification_plan`：
+
+| 形状 | 选择结果 | 计划命令 |
+| --- | --- | --- |
+| A 可读 importer + 语法坏 importer | 只有可读那个 | 只跑可读那个 |
+| B 可读 importer + 非 UTF-8 importer | 只有可读那个 | 只跑可读那个 |
+| C 可读 importer + 读取抛 OSError 的 importer | 只有可读那个 | 只跑可读那个 |
+| D 可读、但 import 不相关（对照） | 只有可读那个 | — |
+| E 文件名匹配（对照） | 被选中 | — |
+| F 超过 250KB 的可读 importer | 不选（尺寸策略） | — |
+| G 没有 tests 目录（对照） | 空 | — |
+
+A、B、C 是三种不同的读失败，三种都答「与这次改动无关」。D、E、G 是真话；F 是策略，不是失败。
+
+修后同一探针：A、B、C 的选择里都出现了那个读不出来的文件，计划命令也把它列进去（`python -m pytest -q "tests/test_broken.py" "tests/test_good.py"` 等）；D、E、F、G 一个数没变。
+
+### 3 落地
+
+- `minicc/agent/test_selection.py:91` 起：`except (OSError, UnicodeError, SyntaxError)` 不再 `continue` 了事，而是把走过的这个文件加进选择——读不出来正说明「它 import 了什么」没被查过，丢掉它就是悄悄缩小验证集；留着它，pytest 会把文件自己的失败报出来。注释写明这条理由。
+- 新门 `tests/test_a_test_file_that_could_not_be_read_is_not_an_unrelated_test.py` 八条：三种读失败各一条（语法错 / 非 UTF-8 / 读取抛 OSError）、计划命令含该文件一条，四条对照（可读不相关仍不选、文件名匹配仍选、没有 tests 目录仍空、超过 250KB 仍按尺寸策略跳过）。
+
+### 4 见证（红先绿后，臂）
+
+- **红先**：新门在 HEAD 的干净导出上 `4 failed, 4 passed in 22.36s`——三条读失败门与计划命令门全红，四条对照门在 HEAD 上就是绿的（防修法过头）。
+- **绿后**：新门在共享树上 `8 passed in 25.99s`。
+- **plane551**（`git archive HEAD` + 本批文件）：新门 + `tests/test_check_selection.py` `13 passed in 67.41s`（下表 A0）。
+- 七臂 + 对照（baseline sha256 `51af59fa…`，逐臂恢复后核对；A7 第一次没咬，重瞄后另算一次，见下）：
+
+| 臂 | 改什么 | 预期红 | 实际 |
+| --- | --- | --- | --- |
+| A0 | 对照：不改 | 绿 | MATCHED rc=0：`13 passed in 37.30s` |
+| A1 | 读失败回到无声 `continue` | 语法坏那条 | MATCHED rc=1：`4 failed, 9 passed in 49.47s`，红里点名 `test_an_unreadable_importer_is_not_dropped` 与 `test_the_plan_runs_the_file_it_could_not_read` |
+| A2 | 只接 `UnicodeError`，其余照旧崩 | 语法坏那条 | MATCHED rc=1：`3 failed, 10 passed in 93.77s`，红里点名同两条 |
+| A3 | 每个测试文件都选（不看 import） | 可读不相关对照 | MATCHED rc=1：`2 failed, 11 passed in 23.52s`，红里点名 `test_the_control_a_readable_unrelated_importer_stays_out` 与 `test_ast_discovery_handles_src_layout_multiline_alias_and_ignores_comments` |
+| A4 | 超过 250KB 的文件也记一笔 | 尺寸策略对照 | MATCHED rc=1：`1 failed, 12 passed in 43.78s`，红里点名 `test_the_control_the_size_policy_is_unchanged` |
+| A5 | 记绝对路径 | 语法坏那条 | MATCHED rc=1：`4 failed, 9 passed in 66.06s`，红里点名同 A1 两条 |
+| A6 | 只记文件名 | 语法坏那条 | MATCHED rc=1：`4 failed, 9 passed in 53.17s`，红里点名同 A1 两条 |
+| A7 | 文件名匹配那段拿掉 | 文件名匹配对照 | 第一次 NOT MATCHED（见下）；重瞄后 MATCHED rc=1：`1 failed, 12 passed in 40.21s`，红里点名 `test_the_control_a_filename_match_is_still_selected` |
+
+A7 的第一次没咬，如实记：臂删的是 `if is_test_filename(path.name) and (root / path).is_file():` 整块——但被改的文件 `src/package/module.py` 不是测试文件名，这段根本走不到；门 6 走的是它后面的 stem 候选循环 `for candidate in (Path("tests") / f"test_{path.stem}.py", path.parent / f"test_{path.stem}.py"):`。那一跑 rc=0、`13 passed in 26.12s`，`NOT MATCHED`，不作为证据；重瞄成 `for candidate in ():` 后重跑才得到上表 A7 那一行（同一次重跑里 A0 对照 `13 passed in 28.51s`，两臂都恢复并核对 sha256）。
+
+### 5 聚焦回归
+
+- 共享树上九个文件（本批门 + 另外八个引用 `minicc/agent/test_selection.py` 与 `build_verification_plan` 的文件）：`76 passed, 1 failed, 1 skipped in 225.79s`。唯一的红是 `tests/test_the_two_readers_share_one_fence_ruler.py::test_the_shipped_roadmap_answers_every_evidence_shaped_citation`，它点的是别的通道未提交改名留下的 4 条 `test_expired_lease_cannot_be_revived_by_same_owner`（第五百四十批记过同一形状）；跳过的是本平台文件名不能带引号。判据取干净克隆。
+- 干净克隆（HEAD + 本批代码提交 + 本记录）：`77 passed, 1 skipped in 112.53s`。
+- 干净克隆上的 `doc_pointers.py --check`（本句定稿后重跑）：rc=0；953 个「见」标记（116 条进受检箱、56 条落在 citation-without-locator）、23 条链接、4136 条 evidence 指针（75 条路径断言在代码跨度之外）、20 份文档、644 个在仓文件；`route_coverage.py --check` 与 `impacted_tests.py --check` 均 rc=0。
+- 全围栏：**本批不重跑**（约 58 分钟一趟）；父提交 `e5906e2`（第五百三十二批的代码提交）的上一轮围栏在 `5faa568` 上 `4195 passed, 11 skipped`，EXIT=0。本批改动只在其上 5 增 0 删，判定取干净克隆上的门集与检查器。
+
+### 6 边界（本批**不**声称）
+
+- **不声称计划会解释为什么这个文件在名单里。** 选择结果只是一个路径列表，没有标签；披露靠 pytest 自己的收集错误，不靠计划措辞。
+- **不声称验证集不再被任何东西悄悄缩小。** `_test_files` 走满 500 个文件就停（第五百四十批的同族截断写法），那是上限不是读失败，本批没动。
+- **不声称超过 250KB 的文件会被过目。** 尺寸策略还在：大文件不解析、不选，门里明确断言它保持不选（§4 A0/A4）。
+- **不声称一个与改动无关的坏文件会被识别出来。** 读不出来就不知道它 import 什么；它会进入每一次定向验证——这是「不知道」的代价，方向是宁可多跑。
+- **不声称选择器等于 pytest 的收集。** 它按 import 语法猜相关性；被选中不等于会被执行，收集错误由 pytest 报。
+- **不声称本批完成了读侧普查。** 第五百零八批 §7 的清单还有别的站点；本批只处理 `test_selection.py` 这一处。
+
+### 7 下一位候选
+
+1. **`deny_rule_covers_path` 把读不出来的策略答成「这条路径没被拒绝」**（`minicc/audit.py` 里 T337 加的每路径检查；第五百零八批只修了同文件三处）：`load_permission_rules` 的错误与 OSError 都落成 `False`，与 `deny_rule_names_paths` / `tool_denied_by_rule` 的「读不出就拒绝」相反。
+2. **`_test_files` 走满 500 个文件就停**：测试目录再大的那部分从来没被看过，选择集悄悄少一截。
+3. 第五百三十二批 §7 第 1 位：数字路径与不含 `"path"` 的审计行。
+4. 第五百三十二批 §7 第 2 位：`_git` 的 127 哨兵把 OSError 与超时压成一句。
+5. 第五百三十二批 §7 第 3 位：目录形状的审计路径。
+6. 第五百二十九批 §7 第 2 位：waiver 拒绝的理由只进 trace，不上报。
+7. `conftest.py:87` 起的超时措辞；第五百二十八批 §7 的恢复摘要 `dirty_read_error`。
