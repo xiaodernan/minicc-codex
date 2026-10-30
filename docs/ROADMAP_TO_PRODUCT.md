@@ -37197,3 +37197,81 @@ A5 单说：**丢弃一条快照对腿一是不可见的**——腿一数的是�
 6. **十三个加载器收成一个家**（第五百二十五批 §7 第 3 位）：未动。
 7. **路径集合与树集合的相等**（第五百二十四批 §7 第 4 位）：未动。
 8. **M8-T537 / M8-T538 / M8-T539**：分别由另一条通道与本仓排定的顺序占用，本批不碰。
+
+## 第五百二十八批 — M8-T546 — 读不出脏文件清单的快照，答的是「工作区是干净的」
+
+### 1 欠的是哪一条
+
+产品在给一个可写任务开工之前，会先替工作区拍一张快照（`task_manager.py:2569` 调 `snapshots.capture`），摘要存进任务的 `workspace_snapshot` 检查点。这张快照要保住的是**脏文件的前置镜像**——编辑器工具写过的文件另有日记账，而 bash 写、命令副作用只靠这份清单。
+
+清单来自 `git status`。而 `_git_dirty_files` 只返回一个列表：超时返回 `[]`，`OSError` 返回 `[]`，退出码非零返回 `[]`，干净的树也返回 `[]`。于是「树是干净的」和「我根本没看见这棵树」是同一个答案；`capture` 把它写成 `files: []` 的清单，`_summary` 说 `captured: True, complete: True`，任务带着「已完整保存」的检查点开始修改用户的文件。
+
+读失败的理由都是用户真会撞上的：`fatal: detected dubious ownership`（safe.directory）、并发 git 命令持有的 `index.lock`、大树上的 20 秒超时、PATH 里没有 git。**一条读不出来的清单不是一条干净的清单**——这是第五百零八批、第五百一十批、第五百一十二批一直在收的那一类，这一件在产品的回滚承诺上。
+
+### 2 量到的真相（实测）
+
+四个临时仓库（三个各有一个未跟踪文件），`snapshots.capture` 在 HEAD 上的回答：
+
+| 情形 | captured | complete | partial | files |
+| --- | --- | --- | --- | --- |
+| A git 正常，有一个脏文件 | True | True | False | `['a.txt']` |
+| B git 正常，没有脏文件 | True | True | False | `[]` |
+| C `git status` 抛 OSError | True | True | False | `[]` |
+| D `git status` 退出 128（dubious ownership） | True | True | False | `[]` |
+
+C、D 与 B 逐字段相同，落盘的清单也相同：`files: []`、`missing: []`、`skipped: []`，全文没有一个字提到读失败——理由没有地方可放。任务检查点原样收下这份摘要，之后 `restore` 只会得到空的 `restored`。
+
+修后同一条探针：B 仍是 `captured=True`，C、D 变成 `captured=False, complete=False, partial=True`，`reason` 分别带「git status 无法运行: …」「git status 退出码 128: fatal: detected dubious ownership…」，清单里落 `dirty_read_error`。
+
+### 3 落地
+
+- `minicc/snapshots.py:85` `_git_dirty_files` 返回 `(files, error)`：超时（`git status 超时（20 秒）：工作区可能太大，脏文件清单没有读出来`）、`OSError`（`git status 无法运行: {exc}`）、非零退出（`git status 退出码 {rc}` 加上 git 自己 stderr 的第一行，截 200 字符——`safe.directory`、`index.lock` 这些可操作的话都在 git 自己嘴里，光留退出码不指路）。成功路径多返回一个 `None`。
+- `minicc/snapshots.py:208` `capture` 解包；`:237` 清单新增 `dirty_read_error` 键（成功时是 `null`），失败的理由随清单落盘。
+- `minicc/snapshots.py:151-157` `_summary`：`complete` 现在要求 `skipped` 为空**且**脏清单读成功；失败时摘要带 `reason`，`captured`/`complete` 为 False、`partial` 为 True。
+- `tests/test_snapshots.py` 两处直接调用点跟着改签名（镂空箭头解析、450 个文件不丢）；行为断言不变。
+- 新门 `tests/test_a_snapshot_that_could_not_read_the_tree_is_not_a_clean_tree.py`：三条失败门（OSError / 退出码 128 且理由带 git 原话 / 超时）共用 `_refused` 形状——`captured` 与 `complete` 为 False、`partial` 为 True、`reason` 非空且与落盘清单里的 `dirty_read_error` 相等；一次失败之后第二次 capture 仍答 False（拒绝记在清单里，不是第一次返回里的临时状态）。第四条是**对照门**：干净仓库必须仍答 `captured=True`、清单里 `dirty_read_error` 为 `None`——否则「所有工作区都不可读」也能满足前三条。
+- 调用方（`task_manager.py`）一个字没动：它本来就原样存摘要，`{"captured": False}` 也是它认得的形状。
+
+### 4 见证（红先绿后，臂）
+
+- **红先**：新门在 HEAD 上 `3 failed, 1 passed in 2.46s`，三条失败门全部停在 `assert summary["captured"] is False`；对照门在 HEAD 上就是绿的——这正是设计：它不是本批要修的病，它是防止修法过头的那条。
+- **绿后**：`tests/test_a_snapshot_that_could_not_read_the_tree_is_not_a_clean_tree.py` + `tests/test_snapshots.py` + `tests/test_snapshots_pure.py` 在共享树上 `46 passed in 25.10s`。
+- **plane546**（`git archive HEAD` + 本批三个文件）：同一个三文件集 `46 passed in 25.96s`。
+
+| 臂 | 改什么 | 预期红 | 实际 |
+| --- | --- | --- | --- |
+| A0 | 对照：不改 | 绿 | MATCHED（4 passed，6.42s） |
+| A1 | 三个失败分支改回 `return [], None` | 三条失败门 | MATCHED（3 failed，6.01s，点名 OSError 门） |
+| A2 | `_summary` 去掉 `and not dirty_error` | 三条失败门 | MATCHED（3 failed，7.41s） |
+| A3 | 清单落盘时丢掉 `dirty_read_error`（摘要仍对） | 三条失败门的落盘断言 | MATCHED（3 failed，6.47s） |
+| A4 | 成功的读也返回一个错误 | 对照门（其余三条应仍绿） | MATCHED（1 failed，3 passed，6.57s） |
+
+臂架带上了第五百二十七批 §7 第 1 位的教训：判定要求**红消息点名被瞄准的那条门**，不只看 rc；A1–A3 都点名了 `test_git_that_cannot_run_is_not_a_clean_tree`，A4 点名了对照门。每臂改完按字节还原并核对 sha256（`c06a716a…`），五臂跑完 `all arms restored; sha256 verified`。
+
+第一次跑臂架时三个多行锚点 0 命中，因为锚点是 LF、文件是 CRLF——那次一条臂也没有算数，臂架改成按文件自己的换行风格拼锚点后整批重跑，上表是重跑的数。
+
+### 5 聚焦回归
+
+- 共享树上 20 个 import `minicc.snapshots` 的测试文件（除另一条通道正占着的 `tests/test_task_durability.py`；`tests/test_core_llm.py` 只是提到这个词，不 import）：19 个文件 191 passed in 231.50s（0:03:51），再加上真正调用 capture/restore 的 `tests/test_core_agent.py` 45 passed in 42.88s——236 条全绿。
+- plane546 上三文件集：46 passed in 25.96s（见 §4）。
+- 干净克隆 `clone546`（HEAD + 本批代码提交 + 本记录）：46 passed in 53.68s（0:00:53）。
+- 干净克隆上的 `doc_pointers.py --check`（本句定稿后重跑）：rc=0；935 个「见」标记（116 条进受检箱、54 条落在 citation-without-locator）、23 条链接、4070 条 evidence 指针（75 条路径断言在代码跨度之外）、20 份文档、638 个在仓文件；同一份文档在共享树上跑只多出那 4 条外来行。
+
+### 6 边界（本批**不**声称）
+
+- **不声称失败的理由会出现在界面上。** `workspace_snapshot` 的读者只有任务检查点本身；`web/src` 里没有一处读它。本批保证的是**答话的人**能拿到理由，不是用户能看见。
+- **不声称 `restore` 会拒绝一份读不出来的快照。** 日记账照旧回滚编辑器写过的文件；清单为空时 `restored` 为空——那仍然是一句真话，只是它前面现在有一句「读失败」。
+- **不声称非 git 工作区从此有保护。** 它们得到的是诚实的「读不出来」，不是前置镜像。
+- **不声称 git 会重试。** 一次尝试、20 秒，与原来一样。
+- **没有动 `task_manager.py`**：那条通道正占着它和 `task_store.py`、`test_task_durability.py`，本批一个字没碰；判据取干净克隆。
+- **不跑全量围栏**；跑的是快照相关文件集、新门的红绿、五个臂与干净克隆。
+
+### 7 下一位候选
+
+1. **同一个坍缩在 `agent/loop.py:486` 的 `_git_changed_paths`**：三个失败分支同样 `return []`，而 `:1884` 拿这个空集去问「这个工作区有没有可跑的检查」——第五百零四批（M8-T281）当初修的就是这句话说错的下场，现在它又能经由「git 读失败」回来。快照这半边已经答「读不出来」，验证计划那半边还没有。
+2. **`changes.py` 的 `_status_lines`**（`:110` 附近）：`git` 失败时返回 `[]`，变更视图于是答「没有变更」——同一个词用在两个意思上。
+3. **读不出清单的快照配一句 `restore` 的说明**：`restore` 现在对这样的快照只回空 `restored`，不把清单里的 `dirty_read_error` 带进它自己的摘要。
+4. **第五百二十七批 §7 第 2 位的两条子集门**：`test_the_report_names_the_population_its_verdict_came_from` 的 `extra[0] == 0` 与 `test_the_documented_command_still_passes_with_a_relative_document` 的 `rc == 0`，仍是「打印集合恰好不含 roadmap 才绿」，未动。
+5. **「超时」该不该占用「判定」这个词**（第五百二十二批 §7 第 1 位）：未动。`conftest.py:87-101` 仍把跑过 900s 的腿改写成 failed。
+6. **十三个加载器收成一个家**（第五百二十五批 §7 第 3 位）：未动。
+7. **M8-T537 / M8-T538 / M8-T539**：分别由另一条通道与本仓排定的顺序占用，本批不碰。
