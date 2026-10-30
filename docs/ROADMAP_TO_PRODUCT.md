@@ -37357,3 +37357,90 @@ C、D、E 与 B 逐格相同，只有理由不同——这正是要的形状：*
 5. **「超时」该不该占用「判定」这个词**（第五百二十二批 §7 第 1 位）：未动。`conftest.py:87-101` 仍把跑过 900s 的腿改写成 failed。
 6. **十三个加载器收成一个家**（第五百二十五批 §7 第 3 位）：未动。
 7. **M8-T537 / M8-T538 / M8-T539**：分别由另一条通道与本仓排定的顺序占用，本批不碰。
+
+## 第五百三十批 — M8-T548 — 读不出 git 变更的变更视图，答的是「没有变更」
+
+### 1 欠的是哪一条
+
+第五百二十九批 §7 第 1 位、第五百二十八批 §7 第 2 位。工作台右侧的变更面板由 `ChangeInspector.summary()` 供数（`minicc/web.py:983` 的 RPC 路由直接返回它的字典）。文件清单来自 `_status_lines()`：`git status --porcelain=v1 -z -uall` 的输出。而那个函数只回一个列表，`git status` 的每一种失败都回 `[]`——**和干净的树同一个答案**。
+
+干净的空清单在这里往往是真话：本模块的存在理由就是「新建的工作区还没有一次提交」，非仓库目录更是支持的形态。但 `fatal: detected dubious ownership`、`index.lock`、20 秒超时、PATH 里没有 git——这四种读失败也回同一句话，变更面板于是对着一棵改过的、却读不出来的树说「没有变更」。
+
+每文件的路由（`ChangeInspector.diff()`）同病两处：状态表读不出来，目标文件的状态落到 `clean` 回退；而 `clean` 有一条捷径「基线为空就把文件自己当作基线」，补丁因此是空的——**一个改过的文件被画成没改**。
+
+### 2 量到的真相（实测）
+
+修前 `summary()` 的六种形状（临时仓库；D/E/F 用 `git status` 桩打进失败态）：
+
+| 形状 | total_files | 错误键 |
+| --- | --- | --- |
+| A 仓库，改了一个文件 | 1 | 无 |
+| B 仓库，干净 | 0 | 无 |
+| C 非仓库目录（支持的形态） | 0 | 无 |
+| D 仓库，status 退出 128（dubious ownership） | 0 | 无 |
+| E git 无法运行 | 0 | 无 |
+| F status 超时 | 0 | 无 |
+
+B 是真话，C 是支持的空基线，D、E、F 是「这棵树我没读到」——五种形状，一个答案。`diff()` 量到两层：只 status 读不出、基线仍读得到时，补丁是真的（`git show` 读 HEAD 的基线还工作），只有 `status` 一词是假的；**全部 git 都读不出时，补丁是空字符串**，`+two` 那一行不在里面。
+
+修后同一探针：D 的 `summary["status_read_error"]` 是 `"git status 退出码 128: fatal: detected dubious ownership…"`，E、F 各带「无法运行（20 秒超时或 PATH 里没有 git）」；A、B、C 仍是 `None`，`total_files` 一个数没变。
+
+### 3 落地
+
+- `minicc/changes.py:112` `_status_lines` 返回 `(lines, reason)`：`None` 读作「树读过了」；`:138` `_status_failure` 给出理由——`_git` 的 127 哨兵（`git unavailable`）是「git 根本没跑起来」（超时与 OSError 共用一句，两者在这里不可分），其余非零退出由 `work_tree_verdict` 分诊：不是仓库（没有工作树也一样）是可读的事实，答 `None`；是仓库但读不了，答「`git status` 退出码 N」加 git 自己 stderr 的第一行（截 200 字符），探针判不出来时再附上探针的错。
+- `minicc/changes.py:387` `files_without_diff` 把理由记在 `_status_read_error`；`:436` `summary()` 的回答新增 `status_read_error` 键（成功与支持形态都是 `None`）。
+- `minicc/changes.py:333` `diff()` 把同一理由交给 `_diff_for_target`；`:381` 每文件回答带 `status_read_error`；`:350` 状态表未知时不再走「基线为空就当作没改」的捷径——全 git 都读不出时补丁会把整个文件列为新增，比「没有变化」诚实（§6 说明它不是精确补丁）。
+- `minicc/gitprobe.py:18` 新增 `work_tree_verdict`——第五百二十九批在循环里写的私有探针搬到这里，一个家两个读者。`minicc/agent/loop.py:67` 改为 import、`:532` 改调共享名；第五百二十九批记录里 `loop.py:558` 指的私有函数已经搬走（那条记录是当时的快照，这里的索引指向新家）。
+- 新门 `tests/test_a_change_view_that_could_not_read_git_is_not_a_clean_tree.py` 八条：三条失败门（128 带 git 原话 / git 无法运行 / 超时）都断言 `status_read_error` 非空且带对应字样；两条对照门（干净仓库、非仓库目录）断言是 `None`；`diff` 两条（理由随载荷回来；全 git 失败时补丁不许是空的）；一条干净文件的补丁仍为空。
+
+### 4 见证（红先绿后，臂）
+
+- **红先**：新门在 HEAD 上 `5 failed, 3 passed in 12.34s`——三条失败门停在 `status_read_error` 是 `None`，diff 理由门同样，补丁门停在 `patch == ''`；三条对照门在 HEAD 上就是绿的（防修法过头）。
+- **绿后**：新门在共享树上 `8 passed in 10.26s`。
+- **plane548**（`git archive HEAD` + 本批四个文件）：三个门文件 `20 passed in 23.84s`（下表 A0）。
+
+| 臂 | 改什么 | 预期红 | 实际 |
+| --- | --- | --- | --- |
+| A0 | 对照：不改 | 绿 | MATCHED（20 passed，21.15s） |
+| A1 | `_status_lines` 失败分支回到 `([], None)` | 三条失败门 | MATCHED（5 failed，29.44s） |
+| A2 | 非仓库也答一个理由 | 非仓库对照门 | MATCHED（1 failed，30.89s） |
+| A3 | 127 哨兵分支拿掉 | 无法运行门、超时门 | MATCHED（2 failed，30.53s） |
+| A4 | `summary()` 不带理由 | 三条失败门的摘要断言 | MATCHED（3 failed，29.30s） |
+| A5 | 读者算出理由又丢掉 | 全部理由门 | MATCHED（6 failed，46.25s） |
+| A6 | `diff()` 不把理由传下去 | diff 理由门 | MATCHED（2 failed，30.68s） |
+| A7 | 干净捷径不看守理由 | 空补丁门 | MATCHED（1 failed，26.63s） |
+| A8 | 共享探针把「不是仓库」读成 unknown | 非仓库对照门（连带循环的两条非仓库门） | MATCHED（3 failed，73.21s） |
+
+A8 单跑一次点名了三条：`tests/test_a_change_view_that_could_not_read_git_is_not_a_clean_tree.py::test_a_workspace_that_is_not_a_repository_is_not_a_failed_read`、`tests/test_a_bash_write_names_no_path.py::test_a_non_git_workspace_reports_nothing`、`tests/test_a_verification_waiver_is_not_bought_with_a_failed_read.py::test_a_workspace_that_is_not_a_repository_is_not_a_failed_read`——一个家、两个读者，规则被改坏时两边的对照门一起红。
+
+判定沿用第五百二十七批 §7 第 1 位：rc 非零**且**红输出点名被瞄准的门才算数。每臂按字节还原并核对两个目标的 sha256（`changes.py` 基线 `f38769a4…`、`gitprobe.py` 基线 `f78332dc…`），九臂跑完 `all arms restored; sha256 verified`。A5/A6/A8 的耗时明显偏高（46–82 秒），是同一台机器上并行负载的抖动，不是变异体变慢。
+
+两处如实说明：一是 A8 第一次瞄错了分支——改的是探针 `returncode == 0` 里的三元，而普通目录在更早的 stderr 分支就返回了，那一跑 rc=0、20 passed，**没有咬中**，重瞄 `not a git repository` 分支后才有上表那一行；二是本批中途用脚本把 `_status_failure` 的两个 `return ""` 改成 `return None` 时，脚本的读写把 `changes.py` 的 CRLF 抹成了 LF，发现后按字节恢复并核对 `git ls-files --eol` 的工作树一列回到 CRLF，之后才重跑门与臂。
+
+### 5 聚焦回归
+
+- 共享树上五个文件（本批门 + `tests/test_changes_pure.py` + `tests/test_core_tools.py` + 第五百二十九批的两个门）：`71 passed in 49.04s`。
+- 共享树上另外六个引用 `ChangeInspector` 的文件（`tests/test_five_places_where_one_fact_was_read_differently.py`、`tests/test_http_surface.py`、`tests/test_optimization_core.py`、`tests/test_the_change_panel_and_the_diff_must_agree.py`、`tests/test_three_places_that_lost_what_they_were_protecting.py`、`tests/test_what_a_review_of_this_batch_found.py`）：`121 passed, 1 skipped in 215.81s`（跳过的是本平台没有 symlink，既有行为）。
+- plane548 上三文件集：`20 passed in 23.84s`（见 §4）。
+- 干净克隆（HEAD + 本批代码提交 + 本记录）：`20 passed in 21.30s`。
+- 干净克隆上的 `doc_pointers.py --check`（本句定稿后重跑）：rc=0；943 个「见」标记（116 条进受检箱、54 条落在 citation-without-locator）、23 条链接、4100 条 evidence 指针（75 条路径断言在代码跨度之外）、20 份文档、641 个在仓文件；同一份文档在共享树上跑只多出那 4 条外来行。
+
+### 6 边界（本批**不**声称）
+
+- **不声称界面会显示这个理由。** 键随 RPC 回答回到了调用方，但 `web/src` 里没有一处读 `total_files`，也没有一处读这个新键；渲染层不在本批的改动里。
+- **不声称 `_audit_paths` 的读失败也会说出来。** 审计文件读不出来时它仍 `return set()`——同一坍缩的下一站，列在 §7。
+- **不声称 `diff()` 的 `status` 词汇表变了。** 读不出时它仍可能是 `clean` 回退；真话在新键里，两者要一起读。
+- **不声称全 git 失败时的补丁是精确的。** 那时整个文件会被列为新增——方向是「全都变了」而不是「什么都没变」，但不是真实的编辑量。
+- **不声称 127 哨兵能分开超时与 OSError。** `_git` 把两者压成同一句，本批原样保留这句。
+- **没有动 `task_manager.py` / `task_store.py` / `test_task_durability.py`**：那条通道正占着它们，本批一个字没碰；判据取干净克隆。
+- **不跑全量围栏**；跑的是相邻文件集、新门红绿、九个臂与干净克隆。
+
+### 7 下一位候选
+
+1. **`_audit_paths` 的读失败**（`minicc/changes.py:143` 起的回退路径）：`except (OSError, ValueError, TypeError): return set()`——审计文件读不出来时，回退答「没有审计记录」，与「没有这条记录」同一个词。
+2. **`_git` 的 127 哨兵**：`OSError` 与超时压成「git unavailable」，失败理由只能写「20 秒超时或 PATH 里没有 git」；要分开得让 `_git` 自己带原因（它现在是四处的共用私件）。
+3. **第五百二十九批 §7 第 2 位，未动**：豁免被拒的理由只有 trace 知道，模型收到的仍是「请先验证」。
+4. **第五百二十七批 §7 第 2 位的两条子集门**：仍是「打印集合恰好不含 roadmap 才绿」。
+5. **「超时」该不该占用「判定」这个词**（第五百二十二批 §7 第 1 位）：未动。`conftest.py:87-101` 仍把跑过 900s 的腿改写成 failed。
+6. **十三个加载器收成一个家**（第五百二十五批 §7 第 3 位）：未动。
+7. **M8-T537 / M8-T538 / M8-T539**：分别由另一条通道与本仓排定的顺序占用，本批不碰。
