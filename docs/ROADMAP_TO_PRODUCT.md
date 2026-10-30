@@ -37109,3 +37109,91 @@ A5 单说：**丢弃一条快照对腿一是不可见的**——腿一数的是�
 5. **十三个加载器收成一个家**（第五百二十五批 §7 第 3 位）：未动。
 6. **路径集合与树集合的相等**（第五百二十四批 §7 第 4 位）：未动。
 7. **M8-T537 / M8-T538 / M8-T539**：分别由另一条通道与本仓排定的顺序占用，本批不碰；T538 开始前要看它前面那件事的结果。
+
+## 第五百二十七批 — M8-T545 — 门把别人的悬空引用记成自己主体的失败
+
+### 1 欠的是哪一条
+
+第五百二十五批 §7 第 4 位把它记下来了：共享树上一个未提交的改名让 10 条门红掉，其中一条的断言消息把病因说成「豁免键失效」；它给出的规则是「断言『文档本身干净』的门在做集合比较时，应当先减去基线里的问题，而不是假定基线为空」。
+
+这条欠了两批（第五百二十六批先修了行号尺，本批才轮到它）。而且它给的规则**说反了一半**：一条真的在声称「文档干净」的门不能减去基线——减了就成了「干净，除非有别人的问题」，那样的门永远不会因为一条悬空引用变红。真正该减基线的是另一类门：它们的主题不是「干净」，而是两次跑之间的**差**——子集跑与语料跑、拿掉一把豁免键与没拿、同一组参数跑两遍。这类门把「我这次跑出来的每一行都该属于我的主题」当成了「这棵树没有别人的行」。本批先把这两类门分开，再只修第二类。
+
+### 2 量到的真相（实测）
+
+- 共享树：`tests/test_task_durability.py` 第 43 行（HEAD）定义的那个租约测试，工作树里已经没有——另一条通道未提交的改名；`docs/ROADMAP_TO_PRODUCT.md` 的 13070、36228、36412、36979 行仍按名字引用它。检查器 `doc_pointers --check` **rc=1**：922 个「见」标记（checked=116、citation-without-locator=53）、23 条链接、4023 条 evidence 指针（75 条路径声明在代码跨度之外）、20 份文档、637 个在仓文件；四条 DANGLING 全部是它。
+- 七条行为门在共享树上全红，每一条都把自己的主题写进了红原因：
+  - `test_a_subset_check_does_not_invent_dead_exemptions`：`assert 1 == 0`，消息 `整个语料本来是干净的，这一轮先红了：['DANGLING EVIDENCE …:13070 …', …]`（四条全列）——它的主题是「子集不许发明死行」，红原因却是「语料本身不干净」。
+  - `test_a_relative_document_is_checked_instead_of_crashing`：offenders 里一条 `docs/ROADMAP_TO_PRODUCT.md: rc=1 rows=[13070, 36228] footer=in 1 documents`——它的主题是「相对路径也得交一份报告」，红原因却是报告里带了别人的行。
+  - `test_a_genuinely_dead_exemption_is_still_declared_dead_under_a_subset_check`：`撤掉植入之后同一组子集仍然红：[13070, 36228, 36412, 36979]`——它的主题是「植入的死键必须被点名」，红原因却是撤掉植入之后还剩四条别人的行。
+  - `test_a_path_claim_written_outside_backticks_gets_its_own_reader`：`assert (60 >= 1 and [Problem(kind=…13070…)] == [])`——它的主题是「散文路径声明有自己的读者」，红原因却是别的 reader 的四条。
+  - `test_an_unreachable_exemption_reports_itself_as_dead`：移除 `minicc/web_static` 那把键之后 `assert freed == freed_here` 红了，消息里四条全是别人的行，没有一条点名那把键——**这就是第五百二十五批记下的那句「病因说成豁免键失效」的原件**。
+  - `test_the_box_account_is_printed_and_adds_up_on_the_shipped_documents`：`assert result.returncode == 0` 把整份 20 份文档的账和四条 DANGLING 一起打了出来——它的主题是「总账加得起来」，红原因却是退出码。
+  - `test_documented_command_runs_end_to_end`：同一个形状——它的主题是「这条命令跑得完」，旧断言把「这棵树干净」也压了进去。
+- 合计读数：语料文件 **3 failed / 5 passed in 105.12s**；`test_doc_pointers.py` 的两条（exemption、box）**2 failed in 38.12s**；prose 与 documented command 各自单独红过。
+- 另一侧：同一份文档在干净树上没有任何问题（第五百二十五批的 plane543 rc=0），所以这四条是共享树的**外来行**，不是文档的字节。判据取干净克隆这条规矩不因为本批而变。
+- 关键读数：这七条门里有 **4 条**（exemption、subset、relative、dead-key）是「差」门，**2 条**（documented command、box）是「退出码跟着报告走」门，**1 条**（prose）是「只看自己那一箱」门。三种修法，一个共同点：把「别人的行」和「我的主题」分开，而不是把别人的行当成没发生。
+
+### 3 落地
+
+1. 「差」门先量基线，再比较（4 条）：
+   - `test_an_unreachable_exemption_reports_itself_as_dead`（`tests/test_doc_pointers.py` 第 565 行）：在动表之前先跑一遍 `base_problems, base = dp.check_document(_ROADMAP)`（第 574 行）；植入一条无关的 INVENTORY 发现（第 580 行，`MIN_EVIDENCE` 改成 10**9），拿 `dirty`（第 581 行）；移除 `minicc/web_static` 之后只比较**基线外**的新行（第 597 行）；恢复之后再断言一遍 `== dirty`（第 599 行）。
+   - `test_a_subset_check_does_not_invent_dead_exemptions`（`tests/test_pointer_liveness_corpus.py` 第 81 行）：先跑语料基线（第 97 行），拿 `baseline = set(rows_all)`（第 100 行），单文档跑只把**基线外**的行记成 invented（第 105 行）。
+   - `test_a_relative_document_is_checked_instead_of_crashing`（第 114 行）：同一份基线（第 126 行），`invented`（第 134 行）。
+   - `test_a_genuinely_dead_exemption_is_still_declared_dead_under_a_subset_check`（第 183 行）：基线（第 199 行），植入死键之后只允许**一行**是基线外的新行（第 210 行），撤掉植入后同一组子集必须回到基线（第 215 行）。
+2. 「只看自己那一箱」门（1 条）：`test_a_path_claim_written_outside_backticks_gets_its_own_reader`（第 487 行）的签名加 `monkeypatch`，植入一条 INVENTORY 发现（第 500 行），断言 INVENTORY 在、PROSE 空（第 503-504 行）。
+3. 「退出码跟着报告走」门（2 条）：`test_documented_command_runs_end_to_end`（第 261 行，断言第 276 行）与`test_the_box_account_is_printed_and_adds_up_on_the_shipped_documents`（第 706 行，断言第 721 行）把 `returncode == 0` 换成 `returncode == (1 if "DANGLING" in stdout else 0)`；失败消息从整份 stdout 改成尾部 800 字符。
+4. **为什么植入的是一条 INVENTORY 发现，不是一把死键**：`check_exempt_tables` 遇到形状或陈旧问题会提前返回，死键会被它遮住；`MIN_EVIDENCE` 的发现出现在每次包含 roadmap 的跑里，且不是本批任何一条门的主题。这样「撤掉修法」在本机就能咬人，不依赖共享树当晚脏不脏。
+5. **两条以「干净」为主体的门不动**：`test_shipped_documents_have_no_dangling_references` 与 `tests/test_the_two_readers_share_one_fence_ruler.py` 里的`test_the_shipped_roadmap_answers_every_evidence_shaped_citation` 仍然断言 `problems == []`。它们在共享树上红是判决的一部分——如果有人把「减去基线」用到它们身上，`--check` 就再也不会因为一条悬空引用变红了。**这是本批与第五百二十五批那句话的唯一分歧。**
+
+### 4 见证（红先绿后，臂）
+
+**红（共享树，修前）**：七条行为门全红，读数见 §2（语料 3 failed / 5 passed in 105.12s；`test_doc_pointers.py` 两条 2 failed in 38.12s；prose 与 documented command 各自单独红过）。红的原因不是「文档坏了」，是「别人的四条进了我的比较」。
+
+**绿（plane545，带一条植入的外来引用）**：`plane545` 是 HEAD 241f7f2 的 `git archive`，基线提交 d8c8c1d；往 roadmap 第 37115 行植入一条外来引用（test_nobody_defined_this_one，树里没有任何定义），让这棵树对检查器来说带一条外来悬空行，然后跑七条修后的门 → **7 passed in 457.88s**。同一棵树上检查器 `--check` rc=1，只点这条植入的行；`test_shipped_documents_have_no_dangling_references`（C1，未修，以干净为主体）**红并点名它**（1 failed in 9.93s）——这条门仍然看得见悬空引用，本批没有把它减没。
+
+**七条臂与两个对照**（`scratch/mutate_545.py`，跑在 `plane545` 上，植入保持在场；每条臂改一处、跑一条门、按字节还原并核对 sha256；图案落 0 次报 `arm not applied`）：
+
+| 臂 | 改什么 | 预期红 | 实际 |
+| --- | --- | --- | --- |
+| A0 | 对照：不改（就是 §4 的那次绿跑） | 绿 | MATCHED（7 passed in 457.88s） |
+| C1 | 未修的那条干净门，带植入 | 红且点名植入 | MATCHED（1 failed in 9.93s） |
+| A1 | prose 门改回整张名单 | 同一条门 | MATCHED（1 failed in 18.50s） |
+| A2 | exemption 门直接比较两次跑 | 同一条门 | MATCHED（1 failed in 168.60s） |
+| A3 | box 门改回 `returncode == 0` | 同一条门 | MATCHED（1 failed in 9.87s） |
+| A4 | documented command 改回 `returncode == 0` | 同一条门 | MATCHED（1 failed in 10.37s） |
+| A5 | subset 门改回「任何一行都算发明」 | 同一条门 | MATCHED（1 failed in 12.98s） |
+| A6 | relative 门改回「任何一行都算失败」 | 同一条门 | MATCHED（1 failed in 16.99s；第一次 27.65s 的假 MATCHED 见下） |
+| A7 | dead-key 门撤掉植入后要求空报告 | 同一条门 | MATCHED（1 failed in 95.43s） |
+
+一条臂的红必须点名植入的那条引用才算数——臂架的判定只看了 rc，A6 的第一次就是这样假 MATCHED 的：还原块少了一行 `invented = …`，却留下消息里的 `invented[:2]`，门在构造消息时 `NameError`，rc 非零但不是因为看见了植入。按旧形完整重跑 16.99s，红消息里点名 test_nobody_defined_this_one。**A6 记的是重跑的那一次**；这条教训本身是 §7 的候选。
+
+**自带的牙口（A1 单独量）**：prose 门在一棵干净树上也要能咬——`MIN_EVIDENCE` 植入之后它绿（5.12s），把它的断言改回整张名单就红（6.78s），两边都点名同一份报告。没有这一条，A1 在干净树上的绿只能证明「没有别人的行时它不响」。
+
+### 5 聚焦回归
+
+- plane545 上三个文件（`tests/test_doc_pointers.py`、`tests/test_pointer_liveness_corpus.py`、`tests/test_the_two_readers_share_one_fence_ruler.py`）：78 passed in 971.62s（0:16:11）。
+- 共享树上只跑七条修后的门：7 passed in 725.19s（0:12:05）——四条外来行都在场，七条全绿；这是本批的「绿」在真实脏树上的版本。
+- 干净克隆 `clone545`（HEAD + 两个测试文件提交 + 本记录）上同一个五文件聚焦集（上面三个，加上两条批号门）：97 passed in 705.02s（0:11:45）。
+- 干净克隆上的 `doc_pointers --check`（本句定稿后重跑）：rc=0；930 个「见」标记（116 条进受检箱、54 条落在 citation-without-locator；比记录写入前多出的那一个来自这句话本身）、23 条链接、4055 条 evidence 指针（75 条路径断言在代码跨度之外）、20 份文档、637 个在仓文件；同一份文档在共享树上跑只多出那 4 条外来行。
+- 共享工作树上的另一条通道（`minicc/task_manager.py`、`minicc/task_store.py`、`tests/test_task_durability.py` 与未跟踪文件）不在本批的读数里；判据取干净克隆。
+
+### 6 边界（本批**不**声称）
+
+- **不声称所有「假定基线为空」的门都被本批找齐。** 本批修的是在共享树上真红的那七条（`check_document` 只在两个文件里被调用，这是搜过的面）；同一份文件里还有别处写着「这一轮应当没有 DANGLING」的断言，它们今晚的打印集合里不含 roadmap，所以没红——没红不等于改过。
+- **不声称「减去基线」是给干净门用的。** 两条以干净为主体的门保持 `problems == []`，在脏树上红是它们的职责。
+- **不声称这七条门在干净树上的绿是「修好了」的证据。** 干净树上旧门也是绿的；本批的证据是「同一棵脏树上，旧门红、新门绿，且把修法撤掉就重新红」。
+- **不声称臂的红都是因为看见了植入。** 臂的判据是 rc 非零；A6 第一次的 NameError 证明了 rc 不够。只有红消息点名 test_nobody_defined_this_one 的臂才算数。
+- **不声称共享工作树的 4 条 DANGLING 是本批的字节。** 它们是另一条通道未提交的改名，第五百二十五批已经定性。
+- **没有改产品代码。** 本批只动两个测试文件里的七条门。
+- **不跑全量围栏**（约 58 分钟一趟）；跑的是三个文件的聚焦集、七条门在脏树上的重跑、记录形状门与干净克隆上的检查器。
+
+### 7 下一位候选
+
+1. **臂的判据只看 rc**（本批撞出来的）：A6 第一次用 `NameError` 冒充 MATCHED。变异臂的红必须点名它预期的主题；臂架的判定该收一条「红消息里有没有那个名字」的断言。位置在 scratch 的臂架上，不在仓里。
+2. **同一份文件里剩下的「这一轮应当没有 DANGLING」**（本批量的）：`test_the_report_names_the_population_its_verdict_came_from` 的 `extra[0] == 0 and extra[1] == []` 与 `test_the_documented_command_still_passes_with_a_relative_document` 的 `rc == 0` 今晚不红，是因为打印集合里不含 roadmap；一旦有人把 roadmap 递进去就会重演本批。这是同一条规则的下一步收编，不是本批的形状。
+3. **`check_evidence` 在判形状之前问行号**（第五百二十六批 §7 第 1 位）：未动。
+4. **「超时」该不该占用「判定」这个词**（第五百二十二批 §7 第 1 位）：未动。`conftest.py:87-101` 的钩子仍把跑过 900s 的腿改写成 failed。
+5. **`_all_test_names` 每进程一次的 2.3s AST 解析**（第五百二十六批 §7 第 4 位）：未动。
+6. **十三个加载器收成一个家**（第五百二十五批 §7 第 3 位）：未动。
+7. **路径集合与树集合的相等**（第五百二十四批 §7 第 4 位）：未动。
+8. **M8-T537 / M8-T538 / M8-T539**：分别由另一条通道与本仓排定的顺序占用，本批不碰。
