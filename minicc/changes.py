@@ -216,6 +216,11 @@ class ChangeInspector:
                         f"审计记录（.minicc/{AUDIT_NAME}）不是一个文件"
                         "（可能是目录），读不出来，git 看不到的改动没有兜底"
                     )
+                if audit.parent.exists() and not audit.parent.is_dir():
+                    return set(), (
+                        f"审计记录（.minicc/{AUDIT_NAME}）的父路径（.minicc）"
+                        "不是一个目录，读不出来，git 看不到的改动没有兜底"
+                    )
                 return set(), None
             # Read a bounded tail; audit histories can be many megabytes.
             with audit.open("rb") as stream:
