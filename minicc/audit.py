@@ -302,13 +302,25 @@ def deny_rule_covers_path(workspace: Path | str | None, rel_path: str) -> bool:
     The verdict is asked per entry, and a container directory is covered too
     (see :func:`_pattern_covers_container`): the point is that a denied path
     is not *visible* through any surface, not that the panel dies.
+
+    M8-T555: and "cannot be evaluated" is not "does not cover".  A policy
+    that cannot be read leaves the rules unknown, so it covers every path -
+    the same answer the three siblings give (M8-T526).  Answering False here
+    turned an unknown veto into an allowance for any surface that asks this
+    home - the one home T337/T338/T344 established for new reads.
     """
     if not workspace or not rel_path:
         return False
     try:
-        rules, _error = load_permission_rules(Path(workspace))
+        rules, error = load_permission_rules(Path(workspace))
     except OSError:
-        return False
+        return True
+    if error:
+        # M8-T555: a policy that cannot be evaluated does not deny **nothing**
+        # - the rules are unknown, so every path is still covered.  The three
+        # sibling predicates already refuse on this condition; this per-path
+        # home was the one that turned the unknown into "not denied".
+        return True
     patterns = rules["deny"]["paths"]
     if not patterns:
         return False
