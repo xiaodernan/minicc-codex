@@ -37897,3 +37897,79 @@ A 与 B 一个答案；B 是真话（目录里确实没有 importer），A 是�
 5. 第五百二十九批 §7 第 2 位：waiver 拒绝的理由只进 trace，不上报。
 6. `conftest.py:87` 起的超时措辞；第五百二十八批 §7 的恢复摘要 `dirty_read_error`。
 7. **选择器的解析成本**：500 个测试文件在本机约 13 秒（Defender 实时扫描主导）；超过 512 条缓存后重解析。上限之内的成本没有读数。
+
+## 第五百三十七批 — M8-T555 — 策略读不出来时，这条路径被答成「没被规则覆盖」
+
+### 1 欠的是哪一条
+
+第五百三十三批 §7 第 1 位（同一句在第五百三十四、三十五、三十六批 §7 里三次顺延）。`minicc/audit.py` 里「这条路径被 deny 规则覆盖吗」只有一个家：`deny_rule_covers_path`（M8-T337 加的每路径检查，`__all__` 导出，给新读路由问）。M8-T526 把同门三个判词统一成「读不出来的策略 = 规则未知 = 拒绝」：`tool_denied_by_rule`、`deny_rule_names_paths`、`path_rule_refusal_reason`。这个家漏了：它把 `load_permission_rules` 返回的 error 丢掉（`rules, _error = ...`），`OSError` 也答成 False——于是「策略读不出来」被答成「这条路径没被规则覆盖」。
+
+今天唯一的调用面是 Web 文件树（`minicc/web.py:1081`），而它先在工具轴上整条拒绝（`minicc/web.py:1044` 问 `tool_denied_by_rule`，M8-T526 的拒绝），所以浏览器没有漏出被保护的路径；漏的是**判词本身**。它被导出成新读路由的入口（T337/T338/T344 三次都是「新路由忘了问」），谁直接问它，谁就继承「未知 = 没有规则」。
+
+### 2 量到的真相（实测）
+
+修前，同一份探针在七种工作区上问四个判词（工作区含 `secrets/key.txt` 与 `public.txt`）：
+
+| 形状 | policy_error | names_paths | tool_denied(secret) | covers(secret) | covers(public) |
+| --- | --- | --- | --- | --- | --- |
+| A 合法的 deny `secrets/*` | `''` | True | True | True | False |
+| A2 合法的 deny `other.txt` | `''` | True | False | False | False |
+| B 非法 JSON | 有 | True | True | **False** | False |
+| C `permissions.json` 是目录 | 有 | True | True | **False** | False |
+| D 没有 `permissions.json` | `''` | False | False | False | False |
+| E 读时 PermissionError | 有 | True | True | **False** | False |
+| F stat 时 PermissionError | `''` | **False** | **False** | **False** | False |
+
+B/C/E 三个同门都答「拒绝」，只有这个家答「没覆盖」；D 是应当的允许（没有策略就是没有规则）；A/A2 是应当的对照。F 是下一层（§6/§7）：`load_permission_rules` 把 stat 的 OSError 答成「没有规则，也没有错」，四个同门一起答 False。
+
+Web 文件树两条读数（同一探针）：B 形状 `status='error'`、`entries=[]`（工具轴整条拒绝，**面板没有漏**）；F 形状 `entries=['public.txt', 'secrets', 'secrets/key.txt']`（**面板列出了待保护的路径**——下一层的活洞）。
+
+修后（同一探针重跑）：B/C/E 的 `covers(secret)` 与 `covers(public)` 都变 True（未知策略覆盖每一条路径，与三个同门一致）；D 仍 False；A/A2 一个数没变；F 仍 False（下一层没碰）。
+
+### 3 落地
+
+- `minicc/audit.py` `deny_rule_covers_path`：把丢掉的 error 读回来——`rules, error = load_permission_rules(...)`，`OSError` 与「有 error」都答 True（与 `deny_rule_names_paths` 同一条判词、同一次 load）；`patterns` 为空仍答 False（没有策略 = 没有规则）。每个条目仍然只问一次 `load_permission_rules`（一次 stat），没有为读 error 多问一遍；`_pattern_covers_container` 一字未动。
+- 新门 `tests/test_a_path_is_not_uncovered_when_the_policy_cannot_be_evaluated.py` 七条：非法策略、策略路径是目录、读不出的策略三条正面（未知覆盖每一条路径）；缺失策略与两条可读策略（写下的那条覆盖、别的一律不覆盖）三条对照；树面板对被拒路径仍不列出（唯一的调用面保持承诺）。
+- docstring 补 M8-T555 一段：unknown ≠ does not cover，同门先例即 M8-T526，这个家的弱答案是新读路由的陷阱。
+
+### 4 见证（红先绿后，臂）
+
+- **红先**：新门 + 两扇旧门（T337、T526）在未改的共享树上 `3 failed, 20 passed in 48.22s`——正好是 B/C/E 三条正面红，全部对照绿。
+- **绿后**：同一组 `23 passed in 17.06s`。
+- **plane555**（`git clone --shared` 的 HEAD + 本批文件）：新门 `7 passed in 29.16s`（下表 A0）。
+- 六臂（baseline sha256 `7b12ee48…`，逐臂恢复后核对）：
+
+| 臂 | 改什么 | 预期红 | 实际 |
+| --- | --- | --- | --- |
+| A0 | 对照：不改 | 绿 | MATCHED rc=0：`7 passed in 29.16s` |
+| A1 | 回到丢 error、OSError 答 False | 非法策略门 | MATCHED rc=1：`3 failed, 4 passed in 37.86s`，红里点名 `test_a_malformed_policy_covers_the_path_it_denied`（连同目录、读不出文件两条） |
+| A2 | 只把 OSError 改成 True，仍丢 error | 非法策略门 | MATCHED rc=1：`3 failed, 4 passed in 59.29s`，红里点名同一条 |
+| A3 | 对照：只翻不可达的 OSError 分支 | 绿（该分支今天走不到） | MATCHED rc=0：`7 passed in 80.84s`——`load_permission_rules` 内部已捕获 stat 的 OSError，raise 不到这个家 |
+| A4 | 修过头：每条路径都答覆盖 | 缺失策略对照 | MATCHED rc=1：`3 failed, 4 passed in 69.00s`，红里点名 `test_a_missing_policy_still_covers_nothing`（连同两条可读策略对照） |
+| A5 | 修过头：有规则就覆盖一切，不看路径 | 可读策略对照 | MATCHED rc=1：`2 failed, 5 passed in 91.45s`，红里点名 `test_a_readable_policy_still_draws_its_own_line` 与 `test_a_readable_policy_naming_another_path_covers_neither` |
+
+### 5 聚焦回归
+
+- 共享树上 21 个文件（本批门 + T337/T526 两扇旧门 + deny 规则、预览、树路由、权限、允许清单、恢复探针、快照、证据索引、树条目、权限缓存等）：`202 passed in 524.68s`，EXIT=0。
+- 干净克隆（HEAD + 本批代码提交 + 本记录）：`202 passed in 106.99s`。
+- 干净克隆上的 `doc_pointers.py --check`（本句定稿后重跑）：rc=0；965 个「见」标记（116 条进受检箱、56 条落在 citation-without-locator）、23 条链接、4181 条 evidence 指针（75 条路径断言在代码跨度之外）、20 份文档、648 个在仓文件；`route_coverage.py --check` 与 `impacted_tests.py --check` 均 rc=0。
+- 全围栏：**本批不重跑**（约 58 分钟一趟）；父提交的上一轮围栏在 `5faa568` 上 `4195 passed, 11 skipped`，EXIT=0。本批改动只在其上 14 增 2 删（实现）加一个 167 行的新门，判定取干净克隆上的门集与检查器。
+
+### 6 边界（本批**不**声称）
+
+- **不声称浏览器面板的行为变了。** 唯一调用面在工具轴上先整条拒绝（M8-T526）；实测 B 形状仍是 `status='error'`、`entries=[]`。本批修的是这个家自己的判词——它被导出成新读路由的入口。
+- **不声称 stat 读不出的策略也被拒。** `load_permission_rules` 把 stat 的 OSError（含 PermissionError）答成「没有规则，也没有错」，四个同门在那种工作区里一起答 False；实测 F 形状下面板列出 `secrets/key.txt` 与 `secrets/`。这是下一层的家（§7 第 1 位），本批没碰。
+- **不声称断掉的符号链接策略被见证。** 本机 `os.symlink` 报 `WinError 1314`（无特权），这个形状要一个能建符号链接的平台。
+- **不声称 OSError 分支被实测。** 它今天不可达（`load_permission_rules` 自己捕获 stat 的 OSError）；保留 `True` 是与 `deny_rule_names_paths` 的同一条判词，A3 对照显示翻成 False 也不会红。
+- **不声称低层约定变了。** `match_permission_rule` 对坏策略仍答 `None`（T526 的边界）；本批只动「这条路径被覆盖吗」这个家。
+- **不声称每条目的成本变了。** 仍然每个条目一次 `load_permission_rules`（一次 stat）；没有第二次问。
+
+### 7 下一位候选
+
+1. **`load_permission_rules` 把 stat 的 OSError 答成「没有规则，也没有错」**（本批 §2 的 F 行、§6 第 2 条）：四个同门一起答 False，文件树面板实测列出 `secrets/key.txt` 与 `secrets/`；修法是让 stat 的非 FileNotFoundError 走 error（`policy_evaluation_error` 与四个家自动继承），并顺带定 NotADirectoryError（`.minicc` 是普通文件）的判词。
+2. **断掉的符号链接**（trail 或 `.minicc`）：`is_symlink()` 为 True 而 `exists()` 为 False，仍被当成「没有审计记录」；需要一个能建符号链接的平台来见证。
+3. 第五百三十二批 §7 第 1 位：数字路径与不含 `"path"` 的审计行。
+4. 第五百三十二批 §7 第 2 位：`_git` 的 127 哨兵把 OSError 与超时压成一句。
+5. 第五百二十九批 §7 第 2 位：waiver 拒绝的理由只进 trace，不上报。
+6. `conftest.py:87` 起的超时措辞；第五百二十八批 §7 的恢复摘要 `dirty_read_error`。
+7. **选择器的解析成本**：500 个测试文件在本机约 13 秒（Defender 实时扫描主导）；超过 512 条缓存后重解析。上限之内的成本没有读数。
