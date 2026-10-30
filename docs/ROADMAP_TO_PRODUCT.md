@@ -37444,3 +37444,85 @@ A8 单跑一次点名了三条：`tests/test_a_change_view_that_could_not_read_g
 5. **「超时」该不该占用「判定」这个词**（第五百二十二批 §7 第 1 位）：未动。`conftest.py:87-101` 仍把跑过 900s 的腿改写成 failed。
 6. **十三个加载器收成一个家**（第五百二十五批 §7 第 3 位）：未动。
 7. **M8-T537 / M8-T538 / M8-T539**：分别由另一条通道与本仓排定的顺序占用，本批不碰。
+
+## 第五百三十一批 — M8-T549 — 读不出审计记录的变更视图，答的是「没有变更」
+
+### 1 欠的是哪一条
+
+第五百三十批 §7 第 1 位。变更面板的文件清单有两个来源：一个是刚配了失败理由的 `git status`，另一个是**审计记录的兜底** `_audit_paths()`——专收「git 看不到但 agent 动过」的文件。它的整个读取包在 `except (OSError, ValueError, TypeError): return set()` 里：读失败与「审计一次写也没记」是同一个词。
+
+在一个没有仓库的工作区里，这个兜底是唯一的证人。读不出来时，`summary()` 答 `total_files: 0`，`diff()` 答 `clean` 加空补丁——第五百三十批刚拆掉的那个坍缩，在兜底这一侧还站着。
+
+同一条读取上还有两处：`if not audit.is_file()` 在 try 之外，而 3.11 的 `Path.is_file` 不吞 OSError——一次 stat 失败让整次 summary 抛出 500；`_audit_window_truncated` 一旦置 True 就再不重置，之后的失败读会沿用上一次读到的截断说法。
+
+### 2 量到的真相（实测）
+
+修前，非仓库工作区（审计是唯一证人）与一个真仓库上，经 `summary()` 与 `diff()`：
+
+| 形状 | total_files | audit 理由 | diff(notes.md) |
+| --- | --- | --- | --- |
+| A 审计文件打不开（PermissionError） | 0 | 无 | clean，空补丁 |
+| B 打得开，取大小的 stat 失败 | 0 | 无 | clean，空补丁 |
+| B2 「它存在吗」这一问失败 | 抛出 OSError | — | — |
+| C 没有审计文件（支持的形态） | 0 | 无 | clean，空补丁 |
+| D 审计可读，记了一次写 | 1 | 无 | modified，整文件新增 |
+| F 先读到截断，再读失败 | 0，仍称 truncated=True | 无 | — |
+
+C 是真话，D 是对照；A、B、F 是「这条记录我没读到」——与「它没记录过」同一句话。B2 比沉默更糟：异常直接穿出 summary。G、H 两个旁支也量了：一行 `["path", "notes.md"]` 能通过 `json.loads`、却不是对象，`item.get` 抛 AttributeError 让整次 summary 崩掉；审计路径是个目录时 `is_file()` 为 False，按「没有审计记录」处理，也没有理由。
+
+修后同一探针：A、B、B2 的 `summary["audit_read_error"]` 都是「审计记录（.minicc/audit.jsonl）读不出来（PermissionError/OSError: …），git 看不到的改动没有兜底」；A、B 的 `diff("notes.md")` 从空补丁变成整文件新增（`+hello`），B2 不再崩；C、D 仍是 `None`；真仓库里 git 的一半照常列出 `a.txt`，只是多带一条理由；F2 的 truncated 回到 False 并带理由。G 仍崩，H 仍无理由，都留在 §7。
+
+### 3 落地
+
+- `minicc/changes.py:175` `_audit_paths` 返回 `(paths, reason)`：`None` 读作「这条记录读过了」；`:197` 每次调用先把 `_audit_window_truncated` 归零——截断的说法属于这一次读；`:201` 存在性检查移进 try；`:223` 失败理由带异常类型与原话，并说明缺的是哪一半（「git 看不到的改动没有兜底」）。
+- `minicc/changes.py:412` `files_without_diff` 把理由记在 `_audit_read_error`；`:459` `summary()` 的回答新增 `audit_read_error` 键（成功、没有审计文件、路径是目录都是 `None`）。
+- `minicc/changes.py:345` `diff()` 把同一理由交给 `_diff_for_target`；`:401` 每文件载荷带 `audit_read_error`；`:365` 「基线为空就把文件自己当作基线」的捷径现在要两个读都成功才开：审计失明时补丁把整个文件列为新增，比「没有变化」诚实（§6 说明它不是精确补丁）。
+- 新门 `tests/test_a_change_view_that_could_not_read_the_audit_is_not_a_clean_tree.py` 十条：五条失败门（打不开 / 取大小的 stat / 存在性检查 / diff 理由 / 空补丁）、一条「截断说法不沿用」门、一条「git 的一半照常回答」门、三条对照门（可读审计仍列文件、没有审计文件不是失败、可读审计下干净文件仍空补丁）。
+
+### 4 见证（红先绿后，臂）
+
+- **红先**：新门在 HEAD 上 `7 failed, 3 passed in 5.96s`——五条失败门、截断门、git 一半门全红；存在性检查那条的红是 OSError（旧字节直接崩，不是断言失败，§6 披露）。三条对照门在 HEAD 上就是绿的（防修法过头）。
+- **绿后**：新门在共享树上 `10 passed in 4.00s`。
+- **plane549**（`git archive HEAD`）：十条门 `10 passed in 4.96s`（下表 A0）。
+- 十臂（baseline sha256 `2c4a4301…`，逐臂恢复后核对）：
+
+| 臂 | 改什么 | 预期红 | 实际 |
+| --- | --- | --- | --- |
+| A0 | 对照：不改 | 绿 | MATCHED（10 passed，4.96s） |
+| A1 | 失败分支回到 `return set(), None` | 打不开那条 | MATCHED（7 failed、3 passed，5.28s） |
+| A2 | summary 不返回 `audit_read_error` | 打不开那条 | MATCHED（5 failed、5 passed，5.04s） |
+| A3 | diff 载荷不带 `audit_read_error` | diff 理由那条 | MATCHED（2 failed、8 passed，5.27s） |
+| A4 | 捷径不看审计失明 | 空补丁那条 | MATCHED（1 failed、9 passed，4.73s） |
+| A5 | 截断标志不再归零 | 截断门 | MATCHED（1 failed、9 passed，4.47s） |
+| A6 | 可读的审计也被称失败 | 可读审计列文件那条 | MATCHED（2 failed、8 passed，4.94s） |
+| A7 | 捷径永不开 | 干净文件空补丁那条 | MATCHED（1 failed、9 passed，5.83s） |
+| A8 | 审计一条都不贡献 | 可读审计列文件那条 | MATCHED（8 failed、2 passed，7.28s） |
+| A9 | 存在性检查搬回 try 之外 | 存在性检查那条 | MATCHED（1 failed、9 passed，6.41s） |
+
+十臂每一条都 rc≠0 且红里点名了被瞄的门，字节逐臂恢复、sha256 核过。CRLF：`minicc/changes.py` 464 行 CRLF、0 裸 LF，`git diff --stat` 是 32 增 9 删，不是整文件重写。
+
+### 5 聚焦回归
+
+- 共享树上四个文件（本批门 + 第五百三十批的门 + `tests/test_changes_pure.py` + `tests/test_core_tools.py`）：`69 passed in 28.07s`。
+- 共享树上另外六个引用 `ChangeInspector` 的文件：`121 passed, 1 skipped in 188.98s`（跳过的是本平台没有 symlink，既有行为）。
+- 干净克隆（HEAD + 本批代码提交 + 本记录）：`30 passed in 26.74s`。
+- 干净克隆上的 `doc_pointers.py --check`（本句定稿后重跑）：rc=0；945 个「见」标记（116 条进受检箱、54 条落在 citation-without-locator）、23 条链接、4109 条 evidence 指针（75 条路径断言在代码跨度之外）、20 份文档、642 个在仓文件；同一份文档在共享树上跑只多出那 4 条外来行。
+- 全围栏 `python -W error -m pytest -q` 在本批代码提交的干净克隆上（`5faa568`）：`4195 passed, 11 skipped in 3477.26s (0:57:57)`，EXIT=0。
+
+### 6 边界（本批**不**声称）
+
+- **不声称界面会显示这个理由。** 键随 RPC 回答回到了调用方，但 `web/src` 里没有一处读它；渲染层不在本批的改动里（与第五百三十批同一条）。
+- **不声称记录里解析不了的行会被说出来。** `json.loads` 失败仍 `continue`——被读的尾巴的第一行本来就不完整，逐行跳过是设计。但一行「能解析、却不是对象」的记录会让整次 summary 崩掉（实测 G），那是崩溃不是沉默，列在 §7 第 1 位。
+- **不声称「审计路径是个目录」是读失败。** `is_file()` 为 False，按「没有审计记录」回答，没有理由；要不要给这个形状一句话，留在 §7。
+- **不声称补丁是精确的。** 审计失明时，一个 git 没提过、其实也没改的文件会被画成整文件新增——这是第五百三十批 §6 同一条取舍：读不出来时，宁可报多也不报「没有变化」。
+- **存在性检查那条门的红是 OSError，不是断言失败。** 旧字节在这一问上直接崩，所以这半条是能力门而非行为门；在 `Path.is_file` 会吞掉 OSError 的 Python 上，同一形状退化成沉默的坍缩——修法对两者都是同一个 try。
+
+### 7 下一位候选
+
+1. **审计记录里「能解析、不是对象」的一行让整次 summary 崩**（实测 G：`AttributeError: 'list' object has no attribute 'get'`）：`minicc/changes.py:216` 的 `item.get` 前没有类型判断。
+2. **`_git` 的 127 哨兵把 OSError 与 20 秒超时压成一句**（第五百三十批 §3 自己披露两者不可分）：分开需要给 `_git` 一条判别，变更视图与循环两处共用。
+3. **`is_file()` 为 False 的目录形状**（H）要不要一句话，以及 `.minicc` 父目录读不出来时算不算审计读失败。
+4. 第五百二十九批 §7 第 2 位：waiver 拒绝的理由只进 trace，不上报。
+5. 第五百二十七批 §7 第 2 位：两条子集门。
+6. `conftest.py:87` 起的超时措辞。
+7. 第五百二十八批 §7：恢复摘要要不要带出 `dirty_read_error`（那批只把它写进了 manifest）。
