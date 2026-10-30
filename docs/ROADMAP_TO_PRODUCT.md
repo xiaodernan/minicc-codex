@@ -35766,3 +35766,56 @@ A 的两条红是「`conftest.py` 没有把用户级配置指向隔离文件」�
 2. M8-T540（承第五百二十四批 §7）`minicc/mentions.py` 对每个提及问两次 `tool_denied_by_rule`（token 与收敛后的 rel），每次两次装载；一条含 N 个提及的消息最多付 4N 次 stat。
 3. M8-T541（新）`grading_coverage` 同名两口径：骨架报告（未运行）回退到「有 grader 的任务占比」，运行报告是「已运行样本中有评分结果的比例」；文档只定义了后者，M4 验收句的 1.0 用的是前者。
 
+
+## 第五百二十七批 — M8-T539 — nightly 的绝对门有登记册、没有读者：五个值两侧手抄，注释还在说「未表征」
+
+### 1 缺陷
+
+`minicc/bench_compare.py` 的 `GATE_FLOORS` 与 `.github/workflows/ci.yml` 各手抄一份 nightly 绝对门：`pass_at_1>=0.3`、`grading_coverage>=0.9`、`grading_refusal_count<=0`、`latency_p95_ms<=600000`、`false_completion_rate<=0`。第二百一十批给每个可门禁指标配了**名册**读者（`tests/test_ci_hygiene.py` 要求登记表覆盖词表、且「nightly」行与 workflow 的门名集合两向相等），但**值**没有人比对：任一侧单独把 0.3 改成 0.4，门名集合仍相等，夜间的实际松紧与登记表写着的松紧已经不是一回事。
+
+同一处的两句注释也过期了：`GATE_FLOORS["pass_at_1"]` 说真模型 v2 准确率「not yet characterised」，workflow 说「not yet characterized」——而路线图已记录三次干净全量画像（13/24、22/24、24/24）。workflow 还写着「Lowering any threshold below the achieved value (or raising it impossibly) turns this red」——没有任何门实现这句话。
+
+### 2 量到的真相（2026-10-31，本机）
+
+- 五个值今天两侧相等，但此前没有任何读者读这个相等。
+- 画像的散文拼法 `pass@1 **P/T = 0.xxxx**` 在路线图里只有 13/24 = 0.5417（三处）；22/24 = 0.9167、24/24 = 1.0 只出现在表格行中，没有这个前缀。因此读者按散文拼法取最差值，并把 `(13, 24)` 钉住：散文拼法一变，门红并要求重读路线图。
+- 更宽的模式 `(\d+)/(\d+) = (0\.\d+)` 实测会读入 10 处、5 个不同比，其中含 `0/14 = 0.0` 与 `93/96 = 0.9688` 这类非 pass@1 的数，所以不采用；读者只认 `pass@1 **…**` 这一种拼法。
+
+### 3 落地
+
+- `minicc/bench_compare.py`：`GATE_FLOORS["pass_at_1"]` 的注释改为点名最差干净画像（13/24 = 0.5417，M6-4 基线）与读者门。
+- `.github/workflows/ci.yml`：nightly 门的注释重写——五个值在此与 `GATE_FLOORS` 各钉一次，由新门逐项比对；`pass_at_1>=0.3` 坐在 `(0, 13/24]` 内；删掉「lowering turns this red」这句没有实现的断言。
+- 新增 `tests/test_the_nightly_floor_values_have_a_reader.py`（七格）：
+  - 两向对账：`GATE_FLOORS` 的 nightly 行与 workflow 的 `--gate` 逐项同名、同算子、同值；
+  - `pass_at_1` 在 `(0, 13/24]`，且散文里最差的画像仍是 `(13, 24)`；
+  - 两处注释都点名 13/24，且都不再声称「未表征」；
+  - 三个合成红：登记表漂到 0.9、门值高于画像（0.6）、门值为 0；外加一句过期注释的合成红。
+
+### 4 变异验证（交付字节，逐条恢复并核对 sha256）
+
+| 臂 | 改动（交付字节上的单点） | 预测 | 实测 |
+| --- | --- | --- | --- |
+| A1 | `GATE_FLOORS["pass_at_1"]` 的 nightly 值 0.3 → 0.4 | 只有两向对账那一格红 | 21 passed, 1 failed——`test_the_registry_and_the_workflow_name_the_same_floors`；MATCHED |
+| A2 | `ci.yml` 的 `--gate pass_at_1>=0.3` → `>=0.35`（另一侧漂移） | 同一格红 | 21 passed, 1 failed——同一格；MATCHED |
+| A3 | 整条 `pass_at_1` 注释替换为不含 13/24 的一句 | 只有注释点名格红 | 首版只删注释里两处 13/24 的一处：22 全绿——刀没碰到判决点（退化变异）；重瞄为整条替换后 21 passed, 1 failed——`test_the_comments_name_the_portrait_instead_of_claiming_there_is_none`；MATCHED |
+
+每条臂在 finally 里按字节恢复并核对 sha256（`bench_compare.py` `51e2001c4efaf5ca`、`ci.yml` `944f18cdaa7ca919`）；A3 的首版作废是因为注释自己就点两次 13/24，留下一处仍满足「点名」——这与「缺席断言要列全拼法」同形：变异必须先证明自己删掉的是判决读的那一处。
+
+### 5 门禁
+
+- 焦点集（`test_the_nightly_floor_values_have_a_reader.py` + `test_ci_hygiene.py` + `test_a_gate_is_only_a_gate_once_it_is_in_the_repo.py` 三份文件共 22 格）：**22 passed in 3.02s**（臂前基线；A1/A2 各把两向对账那一格变红，A3 重瞄后把注释格变红，见 §4）
+- 受影响面（`scripts/impacted_tests.py` 对改动路径点名 220 份文件）：**1904 passed in 1649.93s (0:27:29)**，220 份文件全绿（列表含 1 份共用助手 `tests/_silence_reason_shared.py`，pytest 收集 0 格；首跑因列表文件带 `\r` 一个文件都没找到，剥掉 CR 后见左读数）
+- 文档面（本记录写入后）：**257 passed in 990.50s (0:16:30)**，16 份读 ROADMAP 的门全绿（15 份既有 + 本批新增 1 份；本记录写入后的最终字节，含本批新门 7 格）
+
+### 6 边界（本批**不**声称）
+
+- 不改任何门的**值**：只给已有的五个值加读者。`pass_at_1` 仍是 0.3。
+- 不实现「把门槛降到画像以下会红」：本门只要求 `pass_at_1` 落在 `(0, 13/24]`，比 0.3 更低但非零的值仍是合法的（例如 0.2），注释也不再声称相反的话。真正的「不许降」是另一种东西（高水位账本），留给后续候选。
+- 画像读取只认散文拼法 `pass@1 **P/T = 0.xxxx**`；表格行里的 22/24、24/24 不被解析，`(13, 24)` 的钉子是一句「重读路线图」的提醒，不是全量画像普查。
+- 合成红是进程内构造（喂进 `_floor_problems` 的字典），不是对 HCL 或 YAML 解析器的测试。
+- 不在本批重跑 nightly：本批不碰评测执行路径，只碰门值与注释。
+
+### 7 下一单位
+
+1. M8-T540（承第五百二十四批 §7）`minicc/mentions.py` 对每个提及问两次 `tool_denied_by_rule`（token 与收敛后的 rel），每次两次装载；一条含 N 个提及的消息最多付 4N 次 stat。
+2. M8-T541（承第五百二十六批 §7）`grading_coverage` 同名两口径：骨架报告回退到「有 grader 的任务占比」，运行报告是「已运行样本中有评分结果的比例」；`docs/BENCHMARK_EVALUATION.md:28` 只定义了后者，而 M4 验收句的 `grading_coverage=1.0` 用的是前者。
