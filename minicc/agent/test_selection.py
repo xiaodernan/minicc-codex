@@ -9,6 +9,7 @@ from pathlib import Path
 
 _IMPORTS: OrderedDict[str, tuple[tuple[int, int, int], set[str]]] = OrderedDict()
 _LOCK = threading.Lock()
+_SCAN_LIMIT = 500
 
 
 def _test_imports(path: Path) -> set[str]:
@@ -47,16 +48,12 @@ def is_test_filename(name: str) -> bool:
 
 
 def _test_files(tests: Path):
-    count = 0
     for folder, dirs, files in os.walk(tests):
         dirs[:] = sorted(d for d in dirs if not d.startswith(".") and d not in {"node_modules", "__pycache__"} and not (Path(folder) / d).is_symlink())
         for name in sorted(files):
             if not name.endswith(".py") or not is_test_filename(name):
                 continue
             yield Path(folder) / name
-            count += 1
-            if count >= 500:
-                return
 
 
 def relevant_python_tests(root: Path, changed: list[str]) -> list[str]:
@@ -81,7 +78,16 @@ def relevant_python_tests(root: Path, changed: list[str]) -> list[str]:
         return sorted(selected)
     tests = root / "tests"
     if tests.is_dir():
+        walked = 0
         for test in _test_files(tests):
+            walked += 1
+            if walked > _SCAN_LIMIT:
+                # M8-T554: stopping at the window answered 「与改动无关」 for
+                # files nobody looked at.  A refusal is not a shrunken list.
+                raise ValueError(
+                    f"tests 目录超过 {_SCAN_LIMIT} 个测试文件：定向验证的选择会被截断，"
+                    "请缩小改动范围或直接运行全量回归"
+                )
             if test.is_symlink() or not test.resolve().is_relative_to(root):
                 continue
             try:
