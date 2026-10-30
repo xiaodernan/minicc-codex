@@ -37690,3 +37690,70 @@ A7 的第一次没咬，如实记：臂删的是 `if is_test_filename(path.name)
 5. 第五百三十二批 §7 第 3 位：目录形状的审计路径。
 6. 第五百二十九批 §7 第 2 位：waiver 拒绝的理由只进 trace，不上报。
 7. `conftest.py:87` 起的超时措辞；第五百二十八批 §7 的恢复摘要 `dirty_read_error`。
+
+## 第五百三十四批 — M8-T552 — 审计路径是个目录时，变更视图答的是「没有审计记录」
+
+### 1 欠的是哪一条
+
+第五百三十一批 §7 第 3 位。`_audit_paths()` 用一句 `if not audit.is_file(): return set(), None` 回答「这条记录有没有」。文件不存在是「没有记录」——真话；**存在、但不是文件**（目录，或者别的不是文件的东西）也落进同一个 False——一条读不出来的记录，和一条从没写过的记录，同一个答案。
+
+在没有仓库的工作区里，这条审计是唯一证人：它读不出来，`summary()` 答 `total_files: 0` 且没有任何理由，`diff()` 答 `clean` 加空补丁。第五百三十一批把读失败的理由接到 summary、diff 与捷径上；本批是那个接线在源头剩下的一个洞——失败还没被认出来。
+
+### 2 量到的真相（实测）
+
+修前，非仓库工作区（审计是唯一证人），经 `summary()` 与 `diff()`：
+
+| 形状 | total_files | audit 理由 | diff(notes.md) |
+| --- | --- | --- | --- |
+| A `.minicc/audit.jsonl` 是目录 | 0 | 无 | clean，空补丁 |
+| B 没有审计文件（对照） | 0 | 无 | clean，空补丁 |
+| C 可读审计，记了一次写（对照） | 1 | 无 | modified，整文件新增 |
+
+A 与 B 一个答案；B 是真话，A 是「这条记录我读不出来」被答成了「它没记录过」。
+
+修后同一探针：A 的 `summary["audit_read_error"]` 是「审计记录（.minicc/audit.jsonl）……不是一个文件（可能是目录）……git 看不到的改动没有兜底」，`diff()` 带同一理由、补丁从空变成整文件新增（`+hello`）；B、C 仍是 `None`，`total_files` 一个数没变。
+
+### 3 落地
+
+- `minicc/changes.py` `_audit_paths` 的存在性分支：`is_file()` 为 False 时再看 `exists()`——存在就答理由（不是一个文件，可能是目录），不存在仍是 `None`。下游不用改：summary 的 `audit_read_error`、diff 的理由与「捷径等两个读都成功」都是第五百三十一批接好的。
+- 新门 `tests/test_an_audit_path_that_is_not_a_file_is_not_a_missing_trail.py`：目录形状的 summary 理由、diff 理由、diff 不空各一条；对照三条（没有审计仍是 `None`、可读审计仍列文件、可读审计下干净文件仍空补丁）。
+
+### 4 见证（红先绿后，臂）
+
+- **红先**：新门在 HEAD 的干净导出上 `3 failed, 3 passed in 18.03s`——三条目录形状门全红，三条对照在 HEAD 上就是绿的（防修法过头）。
+- **绿后**：新门在共享树上 `6 passed in 25.68s`。
+- **plane552**（`git archive HEAD` + 本批文件）：新门 + `tests/test_changes_pure.py` `25 passed in 21.96s`（下表 A0）。
+- 五臂 + 对照（baseline sha256 `00021e71…`，逐臂恢复后核对）：
+
+| 臂 | 改什么 | 预期红 | 实际 |
+| --- | --- | --- | --- |
+| A0 | 对照：不改 | 绿 | MATCHED rc=0：`25 passed in 9.36s` |
+| A1 | 目录形状回到「没有记录」 | summary 理由门 | MATCHED rc=1：`3 failed, 22 passed in 9.28s`，红里点名 `test_a_directory_shaped_trail_is_not_a_missing_trail` |
+| A2 | summary 有理由，diff 不带 | diff 理由门 | MATCHED rc=1：`2 failed, 23 passed in 10.39s`，红里点名 `test_the_diff_carries_the_same_reason` |
+| A3 | 捷径不看审计失明（退回第五百三十批之前） | 补丁不空门 | MATCHED rc=1：`1 failed, 24 passed in 14.21s`，红里点名 `test_a_modified_file_does_not_diff_to_nothing` |
+| A4 | 缺审计文件也报失败 | 没有审计的对照 | MATCHED rc=1：`1 failed, 24 passed in 8.53s`，红里点名 `test_the_control_a_missing_trail_is_still_none` |
+| A5 | 可读审计也报失败 | 可读审计的对照 | MATCHED rc=1：`2 failed, 23 passed in 7.05s`，红里点名 `test_the_control_a_readable_trail_still_lists_the_write` |
+
+### 5 聚焦回归
+
+- 共享树上四个文件（本批门 + 第五百三十一批门 + 第五百三十批门 + `tests/test_changes_pure.py`）：`43 passed in 17.42s`。
+- 干净克隆（HEAD + 本批代码提交 + 本记录）：`43 passed in 18.11s`。
+- 干净克隆上的 `doc_pointers.py --check`（本句定稿后重跑）：rc=0；955 个「见」标记（116 条进受检箱、56 条落在 citation-without-locator）、23 条链接、4147 条 evidence 指针（75 条路径断言在代码跨度之外）、20 份文档、645 个在仓文件；`route_coverage.py --check` 与 `impacted_tests.py --check` 均 rc=0。
+- 全围栏：**本批不重跑**（约 58 分钟一趟）；父提交的上一轮围栏在 `5faa568` 上 `4195 passed, 11 skipped`，EXIT=0。判定取干净克隆上的门集与检查器。
+
+### 6 边界（本批**不**声称）
+
+- **不声称坏符号链接也是读失败。** 断掉的链接 `exists()` 为 False，仍答「没有审计记录」——那是另一个形状，留在 §7。
+- **不声称 `.minicc` 本身是普通文件时行为一致。** 实测（Python 3.11.1 / Windows）：`.minicc` 是普通文件时，`audit.is_file()` 与 `audit.exists()` 都返回 False、不抛异常——仍答「没有审计记录」。第五百三十一批的 `except (OSError, …)` 接得住 `NotADirectoryError`，但流程走不到那里；这条能力差本批没动。
+- **不声称管道、设备文件这些形状被测过。** 门里摆得出来的只有目录；其余形状走同一个 `exists()` 分支，但没有在门的读数里。
+- **不声称界面会显示理由。** 键随 RPC 回答回到调用方，`web/src` 里没有一处读它（与第五百三十批至第五百三十三批同一条）。
+
+### 7 下一位候选
+
+1. **断掉的符号链接（以及 `.minicc` 本身是普通文件）**：`exists()` 为 False，仍被当成「没有审计记录」。
+2. **`_test_files` 走满 500 个文件就停**（第五百三十三批 §7 第 2 位）：测试目录再大的那部分从来没被看过。
+3. **`deny_rule_covers_path` 把读不出来的策略答成「这条路径没被拒绝」**（第五百三十三批 §7 第 1 位）。
+4. 第五百三十二批 §7 第 1 位：数字路径与不含 `"path"` 的审计行。
+5. 第五百三十二批 §7 第 2 位：`_git` 的 127 哨兵把 OSError 与超时压成一句。
+6. 第五百二十九批 §7 第 2 位：waiver 拒绝的理由只进 trace，不上报。
+7. `conftest.py:87` 起的超时措辞；第五百二十八批 §7 的恢复摘要 `dirty_read_error`。
