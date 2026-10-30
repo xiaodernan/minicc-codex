@@ -35322,3 +35322,90 @@ A 的两条红是「`conftest.py` 没有把用户级配置指向隔离文件」�
    与 `:615`）加一个 TOCTOU。
 3. M8-T534（落第五百二十二批）CI 变异步只断言「退出码非零」，从不断言**为什么**非零。
 4. M8-T535（落第五百二十三批）M6-4 的「劣化 ≤15%」有读数、没有门。
+
+## 第五百二十批 — M8-T532 — 门自己的前提比产品旧了
+
+### 1 欠的是哪一条
+
+上一批 §7 的第一条。`tests/test_the_trace_event_have_one_home.py::test_every_emitter_asks_the_home`
+自 `1c12ec5`（M8-T482）起红，红得只剩一句话：
+`minicc/llm/anthropic_provider.py must ask the one home for the trace event shape`。
+
+### 2 量到的真相（实测）
+
+- `git show 1c12ec5`：anthropic 把自建的七键字面量交给 `usage.channel_switched_event`，
+  `trace_event` 的 import 随字面量一起删掉了。产品侧每一处 trace 事件仍只有一个家；
+  **过期的是这条门的判据**——它按「文件里出现 trace_event 这五个字母」数人。
+- 以 AST 重扫 `minicc/` 下 **86** 个模块：**55** 个函数到达 trace 家（含传递闭包），
+  **10** 个模块里至少有一处调用落在家里；T411 钉的 8 个 emitter 全在这 10 个里。
+  anthropic 的家谱是 `_switch_to_plan → _create_stream_on → _create_stream → chat`，
+  源头只有 `usage.channel_switched_event` 一处。
+- 裸名普查会多报 5 个模块（`benchmarks`、`task_store`、`task_worker`、`webserver` 等）：
+  `session.execute()`、`provider.chat()` 只是**撞名**。精确走法要解析 import 与
+  `self.`，解析不了的接收者不算——本批按这个标准收窄了人口。
+
+### 3 落地
+
+- 重写 `tests/test_the_trace_event_have_one_home.py`，判据从四条变成六条：
+  - 家 = 函数体里（传递地）到达 `("minicc.trace", "trace_event")` 的函数；
+  - 路 = 模块里至少一处调用解析到某个家；
+  - 解析只认三种形状：本模块函数、`from X import name` / `import X as m` 的绑定名、
+    `self.<method>`；
+  - 两条判决拆开：`test_the_three_domain_homes_are_still_in_the_family`（三个域名家
+    的普查）与 `test_every_emitter_asks_the_home`（地板 60 个模块 + 8 个 emitter 必须
+    到达）。一条臂因此只红一条，归因不再被第一条红挡住；
+  - 新增自检 `test_the_reach_walk_follows_a_domain_home_and_ignores_a_stranger`：
+    四模块的合成平面证明「一跳域名家算数」，也证明 `session.domain_home()` 不算数。
+- 字面量普查（`"kind": "trace"` 恰好一处、在 `minicc/trace.py`）原样保留：手写字面量
+  仍只有这一条见证。
+
+### 4 变异验证（在已提交字节 `0828fd3` 上）
+
+| 臂 | 变异 | 预测 | 实测 | 判定 |
+| --- | --- | --- | --- | --- |
+| A1 | 删掉 anthropic 唯一一处 `channel_switched_event(...)` 调用 | 只有 emitter 那条红，点名 anthropic | **1 failed, 5 passed in 11.40s**：`these modules no longer reach the trace home: minicc/llm/anthropic_provider.py` | MATCHED |
+| A2 | 让 `usage.channel_switched_event` 手写七键字典 | 三条全红：域名家普查、emitter、字面量 | **3 failed, 3 passed in 11.43s**：`stopped seeing a domain home: channel_switched_event`；`no longer reach ... anthropic_provider.py`；`spelled by hand ... minicc/llm/usage.py:125, minicc/trace.py:35`（2 == 1） | MATCHED |
+| A3 | 把域名家改名成 `channel_switched`（usage 与两个 provider） | 只有普查那条红；产品仍正确 | **1 failed, 5 passed in 7.79s**：`stopped seeing a domain home: channel_switched_event` | MATCHED |
+
+还原后基线复跑：**6 passed in 8.07s**；驱动器在每个臂前后比对文件字节，还原是逐字节的。
+
+### 5 门禁
+
+- 本文件（提交字节）：**6 passed in 8.07s**。
+- 受影响面（`scripts/impacted_tests.py` 点名的 16 份文件）：**1 failed, 258 passed
+  in 1811.05s**。那 1 条红不是本批的：
+  `test_retrieval_enhanced.py::test_index_build_makes_a_constant_number_of_filesystem_calls_per_file`
+  读 `assert 7.208 <= 7.0, (7.232, 7.208)`；本批只改一份测试文件，retrieval 侧一行没动。
+  单独复跑同一条：**1 failed in 26.53s**，可复现。
+- 差分归因（只读测量，同一棵树 250 文件，用门自己的计数器）：把 `_is_denied_by_rules`
+  桩成 False → `stat 778 / open 250 / is_symlink 277 / iterdir 2 / walk 1`，**5.232/file**，
+  与门 docstring 里记的 5.232 一字不差；带真检查 → `stat 1278 / open 250 / ...`，
+  **7.232/file**。**每文件正好多两次 stat**，来自 M8-T351（`897366c`，2026-10-22）给
+  `_refresh` 加的「每个文件问一次 deny 规则」——`897366c~1` 的同一文件没有这处调用。
+  这条红自那时起就在产品里；本批的受影响面带上了它。
+- 全量围栏：本批**没有**跑（只动一份测试文件）。但上面那条红在任何一次全量围栏里
+  都会出现，已排为下一位的第一件事。
+
+### 6 边界（本批**不**声称）
+
+- 调用解析只认三种形状。`self.x.method()`、`getattr`、别名再导出、`*` 导入都在人口
+  之外：它们会让一个真 emitter 看不见（字面量普查仍兜着手写记录）。
+- 函数以 `(模块, 名字)` 计；同一模块里两个同名函数会合并，闭包可能**多认**亲戚，
+  但不会漏掉一个直接调用家的函数。
+- `KNOWN_HOMES` 是三个名字的普查，不是形状门：**改名会红**（§4 的 A3 是按设计红），
+  它问的是「这个家还在不在」，不是「它长什么样」。
+- 地板 60 防的是「扫描几乎什么都没读到」，不防「少了 26 个模块」。
+- 8 个 emitter 仍是人写的普查名册；本批派生的是「它们是否到达」，不是「它们是谁」。
+
+### 7 下一单位
+
+1. M8-T533（落第五百二十一批）**先修红**：`test_index_build_makes_a_constant_number_of_filesystem_calls_per_file`
+   在 HEAD 上红（7.208 > 7.0）。差分已把它钉在 T351 的每文件 deny 询问上（每文件
+   2 次 stat）。方向：每轮 refresh 只装一次规则（或把装好的 matcher 传进循环），让
+   per-file 常数回到实测的 5.232；顺带把 `_build_record` 的第二次 stat 换成遍历时
+   已有的签名（TOCTOU 与那一次 stat 一起消失）。
+2. M8-T534（落第五百二十二批）CI 变异步只断言「退出码非零」，从不断言**为什么**非零：
+   `.github/workflows/ci.yml` 里 `if npm run test:web; then ... exit 1`——Playwright
+   装不上、服务器没起来、配置写错，都会读成「变异被抓到」。
+3. M8-T535（落第五百二十三批）M6-4 的「劣化 ≤15%」有读数、没有门（现状表自己写着
+   「缺的是自动化，不是读数」）。
