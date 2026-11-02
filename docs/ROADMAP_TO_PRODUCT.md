@@ -35819,3 +35819,63 @@ A 的两条红是「`conftest.py` 没有把用户级配置指向隔离文件」�
 
 1. M8-T540（承第五百二十四批 §7）`minicc/mentions.py` 对每个提及问两次 `tool_denied_by_rule`（token 与收敛后的 rel），每次两次装载；一条含 N 个提及的消息最多付 4N 次 stat。
 2. M8-T541（承第五百二十六批 §7）`grading_coverage` 同名两口径：骨架报告回退到「有 grader 的任务占比」，运行报告是「已运行样本中有评分结果的比例」；`docs/BENCHMARK_EVALUATION.md:28` 只定义了后者，而 M4 验收句的 `grading_coverage=1.0` 用的是前者。
+
+## 第五百二十八批 — M8-T540 — mention 的两个 deny 检查点各自装载策略：一条消息最多付 42 次 stat
+
+### 1 缺陷
+
+M8-T317 给 @-提及注入接上了 `permissions.json` 的 deny 否决（提及是工作区的第三个读者），M8-T290 又在 CJK 回退**收敛后的路径**上重查一次。两个检查点都问 `audit.tool_denied_by_rule`，而它每次调用把策略装载**两遍**（先探能不能读，再匹配），`load_permission_rules` 每次装载 stat 一次规则文件。一条含 N 个提及的消息因此付 `4N + 2` 次 `.minicc/permissions.json` 的 stat；`MENTION_MAX_FILES = 10`，所以最坏是每条消息 42 次。
+
+同一形状在别处已经修过：M8-T533 把证据索引换成 `audit.denied_by_rule_matcher`（装载一次、反复问同一个判决），M8-T536 把快照拷贝换成同一个家。mention 这条读者是漏下的那一个——它同样每问一次就重装一遍。
+
+### 2 量到的真相（2026-11-02，本机）
+
+按 `Path.stat` 计名 `permissions.json`，同一进程内数：
+
+| 消息 | 落地前 | 落地后 |
+| --- | --- | --- |
+| 1 个提及 + 1 条被 deny 的路径 | 6 | 2 |
+| 2 个提及 + 1 条被 deny 的路径 | 10 | 2 |
+| 8 个提及 + 1 条被 deny 的路径 | 34 | 2 |
+| 精确名规则、不带尾巴的 token | 2（第一检查点即拒） | 2 |
+| 精确名规则、带 CJK 尾巴的 token | 4（第一检查点匹配不到，收敛后第二检查点拒） | 2 |
+| `@f0.txt @secrets/k.txt是什么` 一句 | 8 | 2 |
+
+判决一字未变：被规则点名的路径仍被拒、内容仍不进块、缺策略仍照旧放行、读不出的策略仍全线拒。
+
+### 3 落地
+
+- `minicc/mentions.py`：`from .audit import denied_by_rule_matcher`；`ws = workspace.resolve()` 之后构造一个 `denied`，两个检查点都问它。装载点写明 M8-T540——第二个检查点因此不再额外付费。
+- 新增 `tests/test_the_mention_deny_question_is_asked_once_per_message.py`（五格）：
+  - 成本两格：2 个提及与 8 个提及的 stat 次数必须相等（且 `>= 1`，防止门被改瞎）；带 CJK 尾巴那一句整条消息 `stats == 2`；
+  - 判决三格：glob 规则仍拒它点名的路径、缺策略仍被查找且放行、坏策略全线拒（M8-T526 的 fail-closed 经由同一个 matcher 继承）。
+
+### 4 变异验证（交付字节 `77a8a45635b43600`，逐条恢复并核对 sha256）
+
+| 臂 | 改动（交付字节上的单点） | 预测 | 实测 |
+| --- | --- | --- | --- |
+| A1 | 第一个检查点改回 `denied_by_rule_matcher(ws)(...)`（每条提及重装一遍策略） | 只有两条成本腿红（`..._does_not_grow_with_the_mention_count`、`..._two_checkpoints_share_one_policy_load`），判决腿全绿 → 2 failed, 82 passed | 2 failed, 82 passed——红的正是那两格；MATCHED |
+| A2 | 第二个检查点问 `token` | 1 failed（粘连 token 匹配不到精确规则 → 泄密） | **84 passed, 0 failed——退化变异**：CJK 回退循环把 `token` 逐字削减，走到第二检查点时 `token == rel`，这一刀不改变任何行为。重瞄为 `original`（真正的原始 token）→ 2 failed, 82 passed：预测的那格红，另多一条既有见证 `test_the_mention_injection_verdicts_have_one_home.py::test_the_converged_deny_gate_emits_the_homes_sentence`。欠计的是红集（那一格本就以「精确名规则 + 尾巴」读同一个检查点），不是代码 |
+| A3 | `denied_by_rule_matcher(ws)` → `denied_by_rule_matcher(None)`（mention 不再查规则） | 9 failed / 76 passed：新门五格 + 四条既有见证（four_doors 的 mention 拒、verdicts 两格、what_a_review 的 CJK 精确规则格） | 焦点集 **8 failed, 76 passed——人群写错，不是代码写错**：`test_what_a_review_of_this_batch_found.py` 不在焦点集里。同一变异下单独跑那一格：1 failed（`test_an_exact_path_rule_survives_the_cjk_tail`，`TOPSECRET` 进块）。合计 9 红，与预测同一集合 |
+
+每条臂在 finally 里按字节恢复并核对 sha256（`minicc/mentions.py` `77a8a45635b43600`）。两次预测失误都记在臂本身：一次刀落在等价的变量名上（退化变异），一次把人群写大了一圈（焦点集不含那条既有见证）。
+
+### 5 门禁
+
+- 焦点集（`test_the_mention_deny_question_is_asked_once_per_message.py` + mention 侧 3 份既有门 + 注入判词/记录两家 2 份 + deny 策略与装载 3 份 + 「门必须被 git 跟踪」1 份 + M8-T317 四扇门 1 份，共 11 份文件 84 格）：**84 passed in 82.83s**（臂前基线；A1 红两条成本腿、A2 重瞄后红两条、A3 红焦点集内八条，见 §4）
+- 受影响面（`scripts/impacted_tests.py` 对改动路径点名 325 份文件）：**2970 passed, 3 skipped in 4572.06s (1:16:12)**，325 份文件全绿（3 格 skip 全是本机无符号链接特权：`test_slash_commands.py:308` 两格、`test_what_a_review_of_this_batch_found.py:301` 一格，与本批无关；列表含 1 份共用助手 `tests/_silence_reason_shared.py`，pytest 收集 0 格）
+- 文档面（本记录写入后）：**257 passed in 1482.31s (0:24:42)**，16 份读 ROADMAP 的门全绿（本记录写入后的最终字节）
+
+### 6 边界（本批**不**声称）
+
+- 不改判决：deny 规则、`.minicc` 凭据门、脱敏门、无策略放行的语义一字未动，变的只有装载次数。
+- 一条消息内策略被冻结：装载一次意味着处理这条消息期间外部改写 `permissions.json`，后半条消息看不见。这与索引（每次刷新一次）、快照（每次捕获一次）同语义；本批不声称「策略变更立即生效」。
+- 只钉 stat 次数，没有测 wall time：stat 是可复现的计数，墙钟在共享机器上不是。
+- 被拒提及的记录 `path` 仍是**原始 token**（带 CJK 尾巴），注入条目记的是收敛后的相对路径——本批没改这个显示形状，留给后续候选。
+- 不实现「第二个检查点必须读 `rel` 这个变量名」的门：A2 的第一版证明收敛后 `token == rel`，任何按变量名判定的门都会白过。被见证的是判决本身。
+
+### 7 下一单位
+
+1. M8-T541（承第五百二十六批 §7）`grading_coverage` 同名两口径：`minicc/benchmarks.py:349` 在**有已运行行**时是 `gradable/completed`（运行口径），**没有行**时回退到 `definition_gradable/tasks`（定义口径）；`docs/BENCHMARK_EVALUATION.md:28` 只定义了前者（「已运行样本中具备评分结果的比例」），而注释写明骨架用它断言 `coverage=1.0`。同一键在两处报告里是两个不同的量。
+2. M8-T542（本批探针露出，已量）`minicc/web.py:1081` 的文件树**逐条目**调用 `minicc/audit.py:318` 的 `deny_rule_covers_path`，而它每次装载规则文件：一次列表现付 **条目数 + 3** 次 stat（实测 5 条目 → 8、50 条目 → 53；`max_entries = 2000` ⇒ 最坏约 2003 次）。同一条路的第二个缺陷是这个家的 fail-open：策略为 `{not json` 时它对被点名路径答 **False**，`tool_denied_by_rule` 对同一次调用答 **True**（M8-T526 的 fail-closed 没进这个家）。本批实测该不一致**从树路由不可达**——坏策略下路由在遍历前就被 M8-T344 的整视图拒绝挡住（`status='error'`，列表为空）；因此它是纵深防御缺陷而非现行泄漏，修的时候两条一起：装载改成本地 matcher，判决改成语义上与家一致。
+3. M8-T543（本批 §6 露出）被拒提及的记录 `path` 记原始 token、注入记录记收敛后的相对路径：实测 `@secrets/k.txt是什么` 的记录是 `('secrets/k.txt是什么', 'secrets/k.txt是什么', 'rejected')`，同一条消息里注入的 `@f0.txt` 记 `f0.txt`。按 path 关联两类记录的事件消费者拿到的是两个名字。
