@@ -38325,3 +38325,99 @@ CRLF：`minicc/changes.py` 603 行 CRLF、0 裸 LF，`git show --numstat` 是 33
 3. **`_git` 的 127 哨兵**把 OSError 与 20 秒超时压成同一个 `git unavailable`（`minicc/changes.py:100-113`）。
 4. **破损符号链接**：本平台没有 symlink 权限，需要一个能造 symlink 的门面。
 5. **选择器解析成本**（500 文件约 13s）。
+
+## 第五百四十二批 — M8-T560 — 审计里的移动只说了源，目标那头被答成「没有这个文件」
+
+### 1 欠的是哪一条
+
+第五百四十一批 §7 排的第 1 位（那一格里其实装着 `delete` 与 `move` 两个形状，本批只取 `move`）。`_audit_paths` 读一条记录，读的是它的 `path`：
+
+```
+path = raw_path.replace("\\", "/")
+...
+if not _ignored_path(path):
+    paths.add(path)
+```
+
+而 `move` 那一行的 `path` 装的是**源**——`minicc/tools/editor.py:768` 写的是 `self._audit("move", src, f"→ {dst}", before_digest=before)`。移动做完，源已经不在了；兜底那一步只列**还在**的文件（`minicc/changes.py:565` 的 `(self.workspace / key).is_file()`），于是这一行说得出动作、说得出一个路径，面板却答「什么都没变」。真正被这次操作创造出来的那个文件——新位置——只在 `detail` 里，从来没被读过。
+
+git 看得见两头的时候（源 ` D`、目标 `?? `）这条不成立；成立的是 git **看不见**的两种工作区：**没有仓库**（审计是唯一来源）和**目标被 `.gitignore` 挡住**。同一条线还长出一个反向的担心：`→ 名字` 这个拼法在编辑器里被两处用（`move` 的目标、`backup` 的副本），读法必须有且只有一个家，而且要**读不出就不造**——一个空的 `→ `、一个装进容器的 `detail`、一个不在仓外的路径都不许变成一个文件名。
+
+判据的家本来就只有一个：动作集合是 `_MUTATING_ACTIONS`（`minicc/tools/editor.py:195`）在 `minicc/changes.py:45` 的别名（第五百四十一批把闸门前移到那里）。本批把 `→ 路径` 的**读法**也收进同一个家：新增 `move_destination()`，由写这一行的编辑器自己提供，面板只问它。
+
+### 2 量到的真相（实测）
+
+先记一笔**探针自己的错**：`probe_560.py` 第一趟里凡是真跑编辑器的形状（P1/P2/P3/P4/P8）都写成 `Editor(ws)`，而 `audit_path` 缺省时**根本不落轨迹**（`minicc/tools/editor.py:382`：`if self.audit_path is None: return`）。那一趟的 `total=0` 量的是「没有审计可读」，不是本批的缺陷——红先若只靠它，会把「测不到」当成「测到了」。修好的探针给每个真跑的形状显式传 `audit_path=ws/.minicc/audit.jsonl`，两趟各跑一遍：修前的代码（HEAD `75e627b` 的字节，`plane560red`）与修后的代码（`plane560`），**同一棵树、同一份脚本**：
+
+| 形状 | 修前 | 修后 |
+| --- | --- | --- |
+| P1 无仓库，真跑 `move(notes.md → out/renamed.md)` | `total=0 files=[]` | `total=1 ('out/renamed.md', 'modified', 'audit')`；`diff` = `modified`、patch 83 字节、`add=2` |
+| P1b 同上，问**已经不在的源** | `diff(notes.md): clean` | 仍旧 `clean`、空补丁——本批不给源一个形状（见 §7 第 1 位） |
+| P2 git 仓库 + `out/` 被忽略 | `total=2`，只有 `.gitignore added` 与 `notes.md deleted` | `total=3`，多出 `out/renamed.md`（`audit`） |
+| P3 无仓库，真跑 `delete` | `total=0` | `total=0`（不变——本批不动它） |
+| P4 git 里删掉被跟踪的文件（对照） | `total=1 deleted`，patch 71 | 完全不变 |
+| P5 合成 `move` 行，`detail` 没有箭头 | `total=0` | `total=0`（不造目标） |
+| P6 合成 `move` 行，目标是个目录 | `total=0` | `total=0` |
+| P7 对照：无仓库里一条真 `write` | `total=1 keep.txt (audit)` | 完全不变 |
+| P8 对照：git 看得见两头的真移动 | `total=2`（源 ` D` + 目标 `??`） | `total=2`，**没有重复列** |
+
+P8 是这批量法的护栏：`files_without_diff` 把 git 的行和审计的行按 `_resolved_relative` 合成一把钥匙（第五百三十六批那条规矩），审计多读出一个目标，靠它才不会变成同一文件的第二行。
+
+### 3 落地
+
+- `minicc/tools/editor.py:218-221`：新增常量 `DETAIL_TARGET_PREFIX = "→ "`，把这条拼法钉在一处；`:224-239` 新增 `move_destination(detail)`——不是字符串就不是路径，`strip()` 后不以标记开头就不是路径，标记之后只剩空白也不是路径。**发明一个目标就是报一次记录没说过的改动。**
+- `minicc/tools/editor.py:768-770`：移动那行的写出侧改用了同一个常量（`f"{DETAIL_TARGET_PREFIX}{dst}"`），写和读从同一处拿拼法。`backup` 那处的 `→ 名字`（`:416`）**不动**——它记的是副本，不是工作区的改动，而它的动作 `backup` 本来就被动作闸门挡在集合之外。
+- `minicc/changes.py:21`、`:246-252`：面板 import 那个家，`_audit_paths` 文档串新增 M8-T560 段。
+- `minicc/changes.py:319-331`：循环尾部在**源那一步之后**加一段 `if action == "move":`——只有移动才读目标；读出来的目标走和源同一份归一化（`replace("\\", "/")`）与同一份忽略名单（`_ignored_path`），然后才进集合。位置也是有意的：它排在**动作 → 路径 → 拒绝**三道闸门之后，所以一条源读不出来的记录（`path=123`）仍旧只进 `audit_records_without_path`，一条被拒绝的移动既不写源也不写目标。
+- 新门 `tests/test_a_move_in_the_audit_is_answered_at_its_destination.py` 二十一条：目标那一头四条——真移动列出现在还在的那个文件并带 `raw="audit"`（:71）、编辑器之外手写的同一拼法（:80）、列出来的目标在详情页要说 `modified` 且补丁非空（:90）、`gitignore` 挡住的目标照列（:101）；三条对照——git 看得见两头时每个路径只出现一次（:117）、真 `write` 那条路没被改道（:127）、`delete` 的形状本批不给它一个新形状（:134）；不造东西的七条——没有箭头（:147）、`→ `/`→   `/`→\t`（:156）、`detail` 是容器/数字/布尔/`null` 而 `str()` 出来的名字**真的在树上**（:164）、箭头出现在 `write` 那一行（:174）、容器 `detail` 不许把同一次审计里那条写得出来的记录一起带走（:182）、目标在仓外（:199）、目标是目录（:207）；形状与家的七条——反斜杠拼法列出来是同一个文件（:215）、反斜杠拼法的内部目标不许被读成改动（:228）、源读不出来时目标也不读（:241）、目标在 `.minicc/` 里时只列源（:252）、被拒绝的移动不加目标（:265）、`backup` 那一行不加目标（:279）、`→ 路径` 只有一个家（:295）。
+
+### 4 见证（红先绿后，臂）
+
+- **红先**：门的最终字节 + HEAD 的代码（`plane560red`）：`6 failed, 15 passed in 7.92s`（RED_RC=1）。红的六条正是「目标那一头」的四条 + 反斜杠那条 + 一个家那条；其余十五条（对照、不造东西、顺序）在修前**本来就是绿的**——这一句是本批的护栏：修法不能改它们的答案。
+- **绿后**：共享树 `21 passed in 16.73s`（GATE_RC=0）。中途两次量到的读法：门从十八条加到二十条时 `20 passed in 7.99s`，第二十一条进来时 `21 passed in 9.92s`。
+- **兄弟审计门**（第五百三十至五百四十一批那九条一起）：`90 passed in 274.00s`（SIB_RC=0，十八 test 那版的门上量的；§5 的聚焦集是它的超集）。
+- `plane560`（本批两个文件 + 门的最终字节；基线 sha256 `minicc/changes.py 9ac6779a03bd…`、`minicc/tools/editor.py 5ff4ee5c8f16…`）。八臂逐条恢复字节、两把 sha 全部 MATCHED：
+
+| 臂 | 改什么 | 预期红 | 实际 |
+| --- | --- | --- | --- |
+| A0 | 对照：不改 | 绿 | MATCHED（21 passed，16.31s） |
+| A1 | 整块拿掉（等于本批没发生） | 「目标那一头」四条 + 反斜杠 + 一个家 | MATCHED（6 failed、15 passed，14.33s）——**与红先同一组** |
+| A2 | 读法退回强转：`str(detail)`，箭头不在也当目标 | 只有「`str()` 出来的名字真的在树上」那条 | MATCHED（1 failed、20 passed，17.63s） |
+| A3 | 目标不做反斜杠归一化 | 反斜杠内部目标那条 | **绿（21 passed，11.39s）**——本机量不出来，理由见下段 |
+| A4 | 箭头不再只属于 `move` | 「箭头出现在 `write` 的 detail 里」 | MATCHED（1 failed、20 passed，12.69s） |
+| A5 | 目标读到源那道闸门**之前** | 「源读不出来时目标也不读」 | MATCHED（1 failed、20 passed，14.42s） |
+| A6 | 目标不过忽略名单 | `.minicc/` 目标 + 反斜杠 `.minicc\` 目标 | MATCHED（2 failed、19 passed，12.90s） |
+| A7 | `move` 不再列源（过头修的另一边） | 「`.minicc/` 里只列源」+ 反斜杠那条 + 容器那条 | MATCHED（3 failed、18 passed，11.21s） |
+| A8 | 拼法在面板里又拼一份（第二个家） | 只有「只有一个家」那条 | MATCHED（1 failed、20 passed，12.75s） |
+
+臂跑过两遍：第一遍的 `editor.py` 基线是 `48c6f80b4b00…`（写侧注释还差两个 `#:` 前缀），九个臂的红集合与上表**逐条一致**；把字节定稿成 `5ff4ee5c8f16…` 之后整组重跑，才是上表的时间。
+
+**A3 绿这件事记下来，不当成过。** 摘掉 `destination.replace("\\", "/")` 在本机一个门也红不了：`_ignored_path` 自己就会 `path.replace("\\", "/")`（`minicc/changes.py:65`），而 `_resolved_relative` 走 `Path.resolve()`，Windows 上反斜杠是分隔符——两道下游各归一化一次，这行就看不出差别。它不是装饰：同一份脚本量到 `PurePosixPath("out\\renamed.md").parts == ('out\\renamed.md',)` 而 `PureWindowsPath(...).parts == ('out', 'renamed.md')`——在 POSIX 上反斜杠是文件名的普通字符，`is_file()` 会答没有这个文件。留着它是为了和**源**那一行已有的归一化（`minicc/changes.py:311`）拿同一份规矩，不是一处归一化一处不归一化。
+
+CRLF：`minicc/changes.py` 623 行 CRLF、0 裸 LF（30372 字节），`minicc/tools/editor.py` 840 行 CRLF、0 裸 LF（35244 字节）；两处的脚本改动都先断言锚点命中一次再写回。新门 306 行、14115 字节，LF（新文件，检出时归一）。本批代码提交 `bb26000` 的 `git show --numstat`：3 files changed、353 增 2 删——353 行里 306 行是新门，两份源码合计 47 增 2 删，不是整文件重写。
+
+### 5 聚焦回归
+
+- 共享树上二十四个文件（本批门；第五百三十至五百四十一批的审计/变更门；`tests/test_changes_pure.py`、`tests/test_snapshots.py`、`tests/test_workspaces_pure.py`、`tests/test_workspace_gate_is_asked_by_every_entry.py`、`tests/test_the_workspace_containment_have_one_home.py`、`tests/test_the_minicc_gate_judges_the_path_the_file_actually_names.py`、`tests/test_the_change_gate_does_not_depend_on_reusability.py`、`tests/test_the_audit_export_payload_have_one_home.py`、`tests/test_five_places_where_one_fact_was_read_differently.py`、`tests/test_audit_authorization.py`、`tests/test_a_write_outside_the_workspace_is_judged_as_a_write.py`）：`275 passed, 1 skipped in 392.10s`（跳过的是本平台没有 symlink，既有行为）。
+- 干净克隆（`bb26000`，无共享树的他道脏文件；`minicc/changes.py 9ac6779a03bd…`、`minicc/tools/editor.py 5ff4ee5c8f16…`、门 306 行）：同一组二十四文件 `275 passed, 1 skipped in 810.85s`——计数一致，时间是共享树的两倍，这一趟旁边还有别的道在读盘。
+- 同一个改动**加上本批记录**后的干净克隆：`scripts/doc_pointers.py --check` rc=0（996 个「见」标记（116 条进受检箱、57 条落在 citation-without-locator）、23 条链接、4280 条 evidence 指针（75 条路径断言在代码跨度之外）、20 份文档、653 个在仓文件）；`scripts/route_coverage.py --check` rc=0——`91 passed in 228.09s`，dispatch sites 34、`webserver.py` 走了 378 行，GET A 20/20、B 20/20，POST A 14/14、B 14/14（B 全 100%）；`scripts/impacted_tests.py --check` rc=0（干净树，答的是没有改动可量）；引用门三文件 `85 passed in 1325.71s`——这一趟跑在带本批记录的干净克隆里，比第五百四十一批那趟单独跑的 `382.03s` 慢三倍多（同一台机器上旁边还有别的道在读盘）：计数可比，时间不可比。引用门那一趟跑的记录字节只比定稿少了 §4 末尾那一句 numstat（两句之间 `doc_pointers` 的两把总数一致：996 标记、4280 条 evidence 指针，rc=0，复量过）。
+- 全围栏：**本批不重跑**（约 58 分钟一趟）；最近一次全围栏在其祖先 `5faa568` 上跑过 `python -W error -m pytest -q`：`4195 passed, 11 skipped in 3477.26s`，EXIT=0。其后的代码改动是第五百三十九批、五百四十批、五百五十九批与本批，判定取干净克隆上的门集与三个检查器。
+
+### 6 边界（本批**不**声称）
+
+- **不声称窗口外的行被看过。** 仍是尾部 256KB、最后 500 行；窗口由 `audit_window_truncated` 披露。
+- **不声称源那一头学会了这件事。** P1b 实测：无仓库里问已经不在的源，`diff` 仍答 `clean`、空补丁。`delete` 的行同理——本批只把**还在**的那一头读出来，消失的那一头记在 §7 第 1 位。
+- **不声称目标是「一次新增」。** 它进清单时用的是兜底那一格的 `("modified", "audit")`（`minicc/changes.py:566`），不是 `added`——面板知道这个文件被这次操作写出来了，不知道它以前存不存在（git 看得见时以 git 的 `??` 为准，P8 实测 `added`）。
+- **不声称移动一定写出一个可读的目标。** 编辑器之外的手写轨迹可以有 `move` 行没有 `→ `、`→` 后面是空白、是容器、是目录、在仓外、在 `.minicc/` 里——这六种本批的答案都是「不列」，其中前三种**没有任何计数**说它被读过（`audit_records_without_*` 那几本账只管动作与路径，不管 `detail`）。要不要给它一本新账，是 §7 第 2 位。
+- **不声称读法用在别的拼法上。** `backup` 的 `→ 名字`、拒绝行的 `拒绝: … 目标已存在 …` 都不读目标；`DETAIL_TARGET_PREFIX` 只被 `move` 的写出侧与本批的读侧用到。
+- **不声称界面显示这次多出来的文件。** 面板的答案经 RPC 回到调用方，`web/src` 里没有一处读 `move` 的目标——本批改的是回答本身。
+- **不声称 POSIX 上的形状被量过。** A3 在本机绿（见 §4 末段），那是平台差别，不是「这行没用」。
+
+### 7 下一位候选
+
+1. **`delete` 与移动的源那一头**：兜底只列还在的文件，`delete` 点名的、`move` 的源都不在——面板既不说它没了，也不给一个形状。要定的是判据：窗口里先创建后删除算不算净零（按路径的首末动作），以及 `diff` 该不该把「已消失」画成一份全删的补丁。
+2. **`detail` 读不出形状的账**：`→` 缺失、空白、容器这三种现在既不漏计也不多计，但没有任何键说「有一行我读不出它的目标」。与第五百五十批「坏行计而不丢」同族。
+3. **`status` 的 `clean` 兜底**：不在清单里的文件被默认成「没改」（`minicc/changes.py:451`），而 `diff` 能算出一个非空补丁——面板说没改、详情页给出整份文件。与第五百三十批同族：`clean` 是**读不出来的猜测**。
+4. **`_git` 的 127 哨兵**把 OSError 与 20 秒超时压成同一个 `git unavailable`（`minicc/changes.py:100-113`）。
+5. **破损符号链接**：本平台没有 symlink 权限，需要一个能造 symlink 的门面。
+6. **选择器解析成本**（500 文件约 13s）。
