@@ -38046,3 +38046,89 @@ CRLF：`minicc/changes.py` 516 行 CRLF、0 裸 LF，`git diff --numstat` 是 9 
 2. **`_git` 的 127 哨兵**把 OSError 与 20 秒超时压成同一个 `git unavailable`（`minicc/changes.py:100-114`），两者都没被区分。
 3. **破损符号链接**：本平台没有 symlink 权限，需要一个能造 symlink 的门面。
 4. **选择器解析成本**（500 文件约 13s），T555 §7 之前记着。
+
+## 第五百三十九批 — M8-T557 — 说不出路径的审计记录，被强转成一个文件路径
+
+### 1 欠的是哪一条
+
+第五百三十八批 §7 与第五百三十批 §7 都排着的第 1 位。`_audit_paths()` 读一条记录要过三步：先用子串 `'"path"' not in line` 预过滤，再 `json.loads`，最后 `path = str(item.get("path") or "")`。前两步在第五百三十批被分开记账（读不出来的行进 `audit_unreadable_lines`，并且挡住 `diff()` 的 clean 捷径）；**第三步从来没人看过**——它把「记录里的 path 字段」当成「一定能变成一个路径字符串」。
+
+于是两种谎从同一个表达式里出来。一种是**指鹿为马**：`path: 123` 被 `str()` 成 `"123"`，工作区里恰好有一个真名叫 `123` 的文件时，面板把那个文件列成「已改」——记录点的是一个数字，答的却是另一个文件。另一种是**沉默**：`null`、`""`、`"   "`、`{"a": "b"}`、`["notes.md"]` 被 `str()` 成没有文件会叫的名字，落到 `is_file` 上丢掉，计数不加一；而一条整个丢了 `path` 键的记录，如果那一行别处也不带 `path` 这个词，**连解析都没发生**。同一份审计还是 git 看不见的那些改动的唯一证人：它说不出路径，面板就答「没有这个改动」，没人知道是记录坏了还是真没改。
+
+### 2 量到的真相（实测）
+
+探针在仓库外跑（同一份探针修前修后各一次），每个形状一个独立非仓库工作区，经 `summary()`；M 另问一次 `diff("readme.txt")`：
+
+| 形状 | 修前 | 修后 |
+| --- | --- | --- |
+| A 对照 `path: "notes.md"` | total=1，unreadable=0，无新键 | total=1，计数 0 |
+| B `path: 123` 且工作区里真有一个叫 `123` 的文件 | `files=['123']`，total=1，计数 0 | total=0，`audit_records_without_path=1` |
+| C `path: 456`（没有这个文件） | total=0，计数 0 | total=0，计数 1 |
+| D `path: null` | total=0，计数 0 | 计数 1 |
+| E `path: ""` | total=0，计数 0 | 计数 1 |
+| F `path: "   "` | total=0，计数 0 | 计数 1 |
+| G `path: {"a": "b"}` | total=0，计数 0 | 计数 1 |
+| H `path: ["notes.md"]` | total=0，计数 0 | 计数 1 |
+| I `path: true` | total=0，计数 0 | 计数 1 |
+| J 无 `path` 键，别处带 `path` 字样 | total=0，计数 0 | 计数 1 |
+| K 无 `path` 键，整行没有 `path` 字样 | total=0，计数 0（预过滤跳过，没解析） | 计数 1 |
+| L 对照 `path: "123"`（字符串），文件在 | total=1，列出 `123` | 同——类型才是判据，不是长得像不像数字 |
+| M 对照：一条坏记录 + 一个没被点名的文件 | diff 答 clean、空补丁 | 同：clean、空补丁，且计数 1 |
+
+B 是本批最锋利的形状，K 是最沉默的形状。新门在 HEAD 上红先跑：`7 failed, 3 passed in 17.35s`——七条红是六个形状加 diff 载荷，三条绿是 L/M/A 三个对照。
+
+### 3 落地
+
+- `minicc/changes.py:215-224`：`_audit_paths` 文档串新增 M8-T557 段——预过滤要的是词，强转要的是字符串，两者都不是「这条记录点了一个文件」。
+- `minicc/changes.py:229`：每次读取把 `_audit_records_without_path` 归零，和截断标志、坏行计数同一条规矩（计数属于这一次读）。
+- `minicc/changes.py:254`：窗口里的每一行都进解析——预过滤摘掉了。窗口最多 500 行，而一条正常记录本来就带着 `"path"`、本来就会被解析，所以省下的从来不是常见情形，只是坏行。
+- `minicc/changes.py:266-273`：`item.get("path")` 只在「是字符串且不全是空白」时才是路径，否则计数并跳过；不再 `str()`。
+- `minicc/changes.py:406`、`:417`、`:473-474`：`diff()` 把计数交给 `_diff_for_target`，形参新增，每文件载荷带 `audit_records_without_path`。
+- `minicc/changes.py:440-442`：clean 捷径的条件**不加**这个计数，并注明为什么——说不出路径的记录没点名任何文件，也就没点名这一个；能点名文件的只有读不出来的行（第五百三十批）。
+- `minicc/changes.py:537-540`：`summary()` 的回答新增该键。
+- 新门 `tests/test_an_audit_record_without_a_path_is_counted_not_coerced.py` 十条：数字不顶替真文件（:52）、数字无同名文件也计数（:61）、null（:69）、空白（:76）、字典与列表（:88）、丢了 `path` 键的两种写法（:99），三条对照——字符串 `"123"` 仍列（:111）、好记录计零（:121）、坏记录不挡 clean 捷径（:129），外加 diff 载荷带计数（:139）。
+
+### 4 见证（红先绿后，臂）
+
+- **红先**：最终门的字节在 HEAD（`752c619`）的干净树之外跑 `7 failed, 3 passed in 17.35s`；三条对照门在 HEAD 上就绿（防修法过头）。
+- **绿后**：共享树上 `10 passed in 5.36s`。
+- **plane557**（`git clone --shared` 于 `752c619` + 本批两个文件）：A0 对照 `10 passed in 2.37s`。
+- 五臂（baseline sha256 `87d7ce29…`，逐臂恢复后核对）：
+
+| 臂 | 改什么 | 预期红 | 实际 |
+| --- | --- | --- | --- |
+| A0 | 对照：不改 | 绿 | MATCHED（10 passed，2.37s） |
+| A1 | 回到 `str(item.get("path") or "")` | 六个形状 + diff 载荷 | MATCHED（7 failed、3 passed，3.15s） |
+| A2 | 把 `"path"` 子串预过滤装回去 | 「丢了键」那条 | MATCHED（1 failed、9 passed，3.65s） |
+| A3 | 无路径记录并进 `audit_unreadable_lines` | 六个形状 + diff 载荷 + **捷径对照** | MATCHED（8 failed、2 passed，3.63s） |
+| A4 | 只挡 `None` 与空白，其余仍 `str()` | 数字两条 + 字典列表 + diff 载荷 | MATCHED（4 failed、6 passed，3.15s） |
+
+A2 证明摘预过滤是有证人的一条改动，不是顺手清理；A3 是「并进已有计数」这条省事路的代价——它让一条根本没点名任何文件的记录去挡每个文件的 clean 捷径，捷径对照当场红；A4 是最像正确修的半修：类型检查只做一半，`123` 照样顶替真文件。
+
+CRLF：`minicc/changes.py` 545 行 CRLF、0 裸 LF，`git diff --numstat` 是 33 增 4 删，不是整文件重写。新门 147 行、6045 字节，LF（新文件，git 检出时归一）。
+
+### 5 聚焦回归
+
+- 共享树上十五个文件（本批门；第五百三十一至五百三十八批的审计/变更门；`tests/test_changes_pure.py`、`tests/test_core_tools.py`、`tests/test_the_change_panel_and_the_diff_must_agree.py`、`tests/test_five_places_where_one_fact_was_read_differently.py`、`tests/test_a_backup_is_not_a_workspace_change.py` 与三个引用 `ChangeInspector` 的文件）：`155 passed, 1 skipped in 169.07s`（跳过的是本平台没有 symlink，既有行为）。
+- 干净克隆（`a890547`，无共享树的他道脏文件）：同一组 `155 passed, 1 skipped in 263.49s`。
+- 干净克隆上的 `scripts/doc_pointers.py --check`：rc=0；975 个「见」标记（116 条进受检箱、56 条落在 citation-without-locator）、23 条链接、4205 条 evidence 指针（75 条路径断言在代码跨度之外）、20 份文档、650 个在仓文件。
+- 同一克隆上 `scripts/route_coverage.py --check` rc=0（GET 20/20、POST 14/14 全 B 100%）；`scripts/impacted_tests.py --check` rc=0；引用门三文件 `85 passed in 635.14s`。
+- 全围栏：**本批不重跑**（约 58 分钟一趟）；最近一次全围栏在其祖先 `5faa568` 上跑过 `python -W error -m pytest -q`：`4195 passed, 11 skipped in 3477.26s`，EXIT=0。其后的改动是第五百三十七批的 36 增 2 删、第五百三十八批的 9 增 1 删与本批的 33 增 4 删，判定取干净克隆上的门集与检查器。
+
+### 6 边界（本批**不**声称）
+
+- **不声称窗口外的行被看过。** 仍是尾部 256KB、最后 500 行，窗口本身由 `audit_window_truncated` 披露。
+- **不声称坏 JSON 进了新计数。** 解析不出对象仍进 `audit_unreadable_lines`（第五百三十批），并仍挡住 clean 捷径——那种行可能点名的正是被问的文件；本批的计数只管「读出来了、但说不出路径」。
+- **不声称非变更动作的坏路径被计数。** `read`/`backup` 等先被动作过滤跳过——它们改不了工作区，其坏路径也不影响变更清单。
+- **不声称路径被规范化。** 只拒绝空与纯空白；`" notes.md "` 这种带内容的空白按原样送去解析，多半照样落空（与修前一致）。
+- **不声称被删除的文件会被列出。** 审计兜底仍只列现存文件；`delete` 记录点名的文件已经不在，面板依旧不说。
+- **不声称界面显示这个计数。** 键随 RPC 回答回到调用方，`web/src` 里没有一处读它（与第五百三十、五百三十一、五百三十二批同一条）。
+- **不声称记录是编辑器写坏的源头。** 本批改的是读侧；写侧仍在 `AuditEntry` 里原样带上调用方给的 `path`，为什么会出现数字/字典，本批不追。
+
+### 7 下一位候选
+
+1. **`delete` 记录点名的文件已不在**：审计兜底只列 `is_file` 为真的路径，于是「删了一个 git 没跟的文件」在面板里是「没变」——与 §6 同一条，需要一个能说出「被删除」的形状。
+2. **`action` 也是强转的**：`str(item.get("action") or "")` 把 `123` 变成 `"123"`，落不进 `_CHANGING_AUDIT_ACTIONS` 就被当非变更跳过——与修前的 `path` 同一个形状，只是方向相反。
+3. **`_git` 的 127 哨兵**把 OSError 与 20 秒超时压成同一个 `git unavailable`（`minicc/changes.py:100-114`）。
+4. **破损符号链接**：本平台没有 symlink 权限，需要一个能造 symlink 的门面。
+5. **选择器解析成本**（500 文件约 13s）。
