@@ -38132,3 +38132,99 @@ CRLF：`minicc/changes.py` 545 行 CRLF、0 裸 LF，`git diff --numstat` 是 33
 3. **`_git` 的 127 哨兵**把 OSError 与 20 秒超时压成同一个 `git unavailable`（`minicc/changes.py:100-114`）。
 4. **破损符号链接**：本平台没有 symlink 权限，需要一个能造 symlink 的门面。
 5. **选择器解析成本**（500 文件约 13s）。
+
+## 第五百四十批 — M8-T558 — 审计里被拒绝的操作，被答成「改了这个文件」
+
+### 1 欠的是哪一条
+
+第五百三十九批 §7 排的第 1 位是「`delete` 记录点名的文件已不在」。去读写出侧（`minicc/tools/editor.py` 的每一个 `self._audit(...)`）想确认那个形状时，撞见同一份轨迹里另一种行：**拒绝行**。编辑器有五个拒绝点——digest 前缀截断（`minicc/tools/editor.py:568`）、digest 不匹配（`minicc/tools/editor.py:586`）、空白归一化后锚点不唯一（`minicc/tools/editor.py:685`）、`old` 未命中（`minicc/tools/editor.py:706`）、`old` 命中多处（`minicc/tools/editor.py:709`）——它们都在**落盘之前**记一行，动作字段写的是 `edit`/`write`/`create`，`detail` 以「拒绝」开头。
+
+这件事早就有 home：`audit_level`（`minicc/tools/editor.py:205`）按 `_DENIED_PREFIXES` 把这种行判成 `warning`，`/api/audit` 的级别过滤就靠它（`minicc/web.py:3285` 在记录没带级别时现算）。变更面板读**同一份** `.minicc/audit.jsonl`，却只问「动作是不是会改文件的那种」——`_CHANGING_AUDIT_ACTIONS` 那一道闸门（第五百二十六批立的）——从不问「这一行的操作发生了没有」。于是模型在一次 stale-digest 死循环里攒下的每一行拒绝，都被面板记成一次修改：非仓库工作区里，它还会把整份文件画成新增。
+
+### 2 量到的真相（实测）
+
+同一个探针在仓库外跑，修前修后各一次；每个形状一个独立工作区，经 `summary()`，并各问一次 `diff("notes.md")`：
+
+| 形状 | 修前 | 修后 |
+| --- | --- | --- |
+| A1 非仓库工作区，唯一一行是 `edit` + 「拒绝: old 未命中任何位置」 | `notes.md` modified、`total=1`，diff 把整份文件画成 `+2` 行 | `total=0`，diff clean、空补丁 |
+| A2 git 仓库，HEAD 与工作区同一个内容 | `total=1` 说 modified，补丁却是空的——面板与详情页两个答案 | `total=0` |
+| A3 `write` + 「拒绝: STALE_CONTEXT (digest 不匹配…)」 | 同 A1（`+1` 全文件） | `total=0` |
+| A4 前导空格 / `Refused:` / `denied:` / 裸「拒绝」四种写法 | 四条都 `total=1` | 四条都 `total=0` |
+| A5 五条拒绝 + 一条真写 | `total_files=2`，其中一个文件从没被写过 | `total=1`，只列真写的那个 |
+| B 对照：一条真 `write` | `total=1` | `total=1` |
+| C 对照：先真写、后拒绝 | `total=1` | 仍 `total=1`，计数 1 |
+| D 对照：整个没有 `detail` 键 | `total=1` | `total=1` |
+| E 对照：`detail` 是个字典 | `total=1` | `total=1`（认不出拒绝，就往安全方向走） |
+| F 对照：真改动的描述里**含**「拒绝」二字 | `total=1` | 仍 `total=1`——前缀才是判据 |
+| G 拒绝行自己写着 `level="notice"` | `total=1` | `total=0` |
+
+新门在 HEAD（`9388504`）上红先跑：`14 failed, 1 passed in 23.58s`。那条一上来就绿的是 clean 捷径对照——今天它就走捷径，修法不能让它改道。
+
+第二个探针对着「跳过拒绝行会不会把真改动也跳过」问四个形状（都在 git 仓库里）：
+
+| 形状 | 答 |
+| --- | --- |
+| I git 看见用户并发改了 `notes.md`，轨迹里只有一行拒绝 | `total=1`，`('notes.md', 'modified', ' M notes.md')`——git 那句话照常作证，`refused=1` 单独记账 |
+| J git 看见用户删了跟踪文件，同样只有一行拒绝 | `total=1`，`('notes.md', 'deleted', ' D notes.md')` |
+| K gitignore 挡住的文件有一条真 `write`，另有别处的拒绝 | `total=1`，`('secret.txt', 'modified', 'audit')` |
+| M gitignore 挡住的文件真被改了，但轨迹里唯一一行是**点名它**的拒绝 | `total=0` |
+
+M 是本批付出的代价，记在 §6。
+
+### 3 落地
+
+- `minicc/changes.py:21`：从编辑器那个家多带一个名字进来——`_MUTATING_ACTIONS` 已经在第五百二十六批从同一处取，「这一行是不是拒绝」也没有第二个家。
+- `minicc/changes.py:227-234`：`_audit_paths` 文档串新增 M8-T558 段。
+- `minicc/changes.py:239`：每次读取把 `_audit_refused_records` 归零，与截断标志、坏行计数、无路径计数同一条规矩（计数属于这一次读）。
+- `minicc/changes.py:285-290`：路径闸门之后问 `audit_level(action, item.get("detail"))`，判成 `warning` 的行计数并跳过——它没写过任何文件。判据是**动作 + 描述**现算，不是记录自己带的那格 `level`。
+- `minicc/changes.py:423`、`:435`、`:497`：`diff()` 把计数交给 `_diff_for_target`，形参新增，每文件载荷带 `audit_refused_records`。
+- `minicc/changes.py:461-463`：clean 捷径的条件**不加**这个计数，并注明理由——与第五百三十九批同形：拒绝行说「我没写」，也就没说「这个文件写过」；能挡捷径的只有读不出来的行（第五百三十二批）。
+- `minicc/changes.py:565-567`：`summary()` 的回答新增该键。
+- 新门 `tests/test_a_refused_action_in_the_audit_is_not_answered_a_change.py` 十五条：四种动作的拒绝（:64、:74、:83、:94）、四种前缀写法（:102）、五条计五（:120），六条对照——真写在前仍在列（:136）、描述含二字不是拒绝（:147）、无 `detail` 键仍列（:156）、级别写错也算拒绝（:164）、拒绝不挡捷径（:172）、只有真改动的轨迹计零（:192）、没有轨迹计零（:200），外加 diff 载荷带计数（:181）和一条家规（:207）：`_DENIED_PREFIXES = ` 在 `minicc/` 里只出现在 `editor.py`，而 `changes.py` 里必须出现 `audit_level(`。
+
+### 4 见证（红先绿后，臂）
+
+- **红先**：最终门的字节在 `9388504` 的干净树上跑 `14 failed, 1 passed in 23.58s`。
+- **绿后**：共享树上 `15 passed in 19.25s`。
+- **plane558**（`git clone --shared` 于 `9388504` + 本批两个文件）：A0 对照 `15 passed in 67.42s`。
+- 六臂（baseline sha256 `c8f1bfd5…`，逐臂恢复后核对全部 MATCHED）：
+
+| 臂 | 改什么 | 预期红 | 实际 |
+| --- | --- | --- | --- |
+| A0 | 对照：不改 | 绿 | MATCHED（15 passed，67.42s） |
+| A1 | 摘掉整个闸门 | 六个形状 + 计数 + 载荷 + 家规 | MATCHED（10 failed、5 passed，20.76s） |
+| A2 | 改成信记录里那格 `level` | 级别标错的那条 + 六个形状 | MATCHED（10 failed、5 passed，34.28s） |
+| A3 | 把拒绝计数并进 clean 捷径 | 捷径对照 + 拒绝行的 diff | MATCHED（2 failed、13 passed，24.95s） |
+| A4 | 面板自己写「拒绝」前缀，不问家 | 英文前缀 + 家规 | MATCHED（2 failed、13 passed，35.03s） |
+| A5 | 描述里**出现**「拒绝」就算拒绝 | 含二字的对照 + 家规 | MATCHED（3 failed、12 passed，51.59s） |
+| A6 | 只计数、不跳过（半修） | 六个形状里的「列出」 | MATCHED（6 failed、9 passed，39.99s） |
+
+A2 是最像正确修的那条替代路：`/api/audit` 存的就是这个字段，直接读它省事——但它是**写侧的结论**，规则改了旧行不会跟着改；家规把两条路都按住。A4 复制了半张前缀表，中文形状全绿、`Refused:`/`denied:` 当场漏回「改了」——这正是 `_DENIED_PREFIXES` 只有一个家的理由。A5 是过头修：把「旧文含拒绝二字」这种真改动的记录吃掉了。A6 证明 `continue` 才是修法，计数只是它的账。
+
+CRLF：`minicc/changes.py` 572 行 CRLF、0 裸 LF，`git diff --numstat` 是 28 增 1 删，不是整文件重写。新门 222 行、9762 字节，LF（新文件，git 检出时归一）。
+
+### 5 聚焦回归
+
+- 共享树上十七个文件（本批门；第五百三十至五百三十九批的审计/变更门；`tests/test_changes_pure.py`、`tests/test_core_tools.py`、`tests/test_optimization_core.py`、`tests/test_the_change_panel_and_the_diff_must_agree.py`、`tests/test_the_status_record_have_one_home.py`、`tests/test_five_places_where_one_fact_was_read_differently.py`、`tests/test_three_places_that_lost_what_they_were_protecting.py`、`tests/test_what_a_review_of_this_batch_found.py`、`tests/test_a_backup_is_not_a_workspace_change.py`）：`174 passed, 1 skipped in 424.25s`（跳过的是本平台没有 symlink，既有行为）。
+- 干净克隆（`3d99c6f`，无共享树的他道脏文件）：同一组再加 `tests/test_logging.py`（`audit_level` 那个家的既有门）：`200 passed, 1 skipped in 560.09s`。
+- 同一个改动**加上本批记录**后的干净克隆（`3d99c6f` + 本文）：`scripts/doc_pointers.py --check` rc=0——982 个「见」标记（116 条进受检箱、56 条落在 citation-without-locator）、23 条链接、4232 条 evidence 指针（75 条路径断言在代码跨度之外）、20 份文档、651 个在仓文件；`scripts/route_coverage.py --check` rc=0（GET 20/20、POST 14/14，B 全 100%）；`scripts/impacted_tests.py --check` rc=0；引用门三文件 `85 passed in 968.22s`（这条与上面那组并行跑，计时偏高）。
+- 全围栏：**本批不重跑**（约 58 分钟一趟）；最近一次全围栏在其祖先 `5faa568` 上跑过 `python -W error -m pytest -q`：`4195 passed, 11 skipped in 3477.26s`，EXIT=0。其后的改动是第五百三十八批的 9 增 1 删、第五百三十九批的 33 增 4 删与本批的 28 增 1 删，判定取干净克隆上的门集与检查器。
+
+### 6 边界（本批**不**声称）
+
+- **不声称窗口外的行被看过。** 仍是尾部 256KB、最后 500 行；窗口本身由 `audit_window_truncated` 披露。
+- **不声称写出侧永远不会把真改动标成拒绝。** 判据是 `audit_level` 的前缀规则；本批实测的是当前五个拒绝点都在落盘之前（`minicc/tools/editor.py:568`、`:586`、`:685`、`:706`、`:709`）。将来谁在落盘之后记一行「拒绝」，这条判据会把它当没发生——那是写侧的错，本批不替它兜。
+- **不声称被拒绝的文件真的没变。** 面板不再拿拒绝行**单独**作证：git 看得见的那一侧照旧列出（I 形状 ` M notes.md`、J 形状 ` D notes.md`，两条都把 `refused=1` 另外记账）。代价是 M 形状——文件被 git 看不见的人改了，而轨迹里唯一点名它的行是一行拒绝，面板现在答「没变」。那行本来就说的是「我没写」，它从来不是那次改动的证人；修前它是**假证人**。
+- **不声称认不出来的拒绝会被计入拒绝。** `detail` 不是字符串时 `audit_level` 对它做 `str()`，任何形状都以 `{` 或 `[` 开头，落不进前缀表——这类行仍按改动列出（安全方向：宁可多列一个，不少列一个）。
+- **不声称既无路径又是拒绝的行进了拒绝计数。** 它先过第五百三十九批那道路径闸门，落在 `audit_records_without_path` 里。
+- **不声称界面显示这个计数。** 键随 RPC 回答回到调用方，`web/src` 里没有一处读它（与第五百三十至五百三十九批同一条）。
+- **不声称删除与移动的形状被修。** `delete` 点名的文件仍不进清单；`move` 记录点的是**源路径**（`minicc/tools/editor.py:745`），成功后源文件已不在，而新位置只写在 `detail` 的 `→ dst` 里——面板既不说源没了，也不说目标多了。
+
+### 7 下一位候选
+
+1. **`delete`/`move` 记录点名的文件已不在**：审计兜底只列 `is_file` 为真的路径。形状比第五百三十九批 §7 记的更大——`move` 的源路径消失、目标从不作为路径出现。要么给面板一个「被删除」的形状，要么让 `move` 的目标从 `detail` 里出来；两者都要先解决「窗口里先创建后删除是不是净零」这个问题，所以本批没动。
+2. **`action` 也是强转的**：`str(item.get("action") or "")` 把 `123` 变成 `"123"`，落不进 `_CHANGING_AUDIT_ACTIONS` 就被当非变更跳过——与修前的 `path` 同形，方向相反。
+3. **`_git` 的 127 哨兵**把 OSError 与 20 秒超时压成同一个 `git unavailable`（`minicc/changes.py:100-114`）。
+4. **破损符号链接**：本平台没有 symlink 权限，需要一个能造 symlink 的门面。
+5. **选择器解析成本**（500 文件约 13s）。
