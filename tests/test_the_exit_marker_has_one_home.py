@@ -114,4 +114,4 @@ def test_git_reports_a_failing_command_with_the_homes_marker(tmp_path: Path) -> 
     assert result.exit_code != 0
     assert result.summary.startswith(exit_marker(result.exit_code) + " git "), (
         result.summary
-    )
+    )

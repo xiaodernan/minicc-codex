@@ -103,4 +103,4 @@ def test_the_rewind_to_user_gate_raises_the_homes_sentence(tmp_path: Path) -> No
     session = SessionStore(tmp_path, "missing")
     with pytest.raises(SessionError) as excinfo:
         session.rewind_to_user_index(1)
-    assert str(excinfo.value) == missing_session_message("missing.json")
+    assert str(excinfo.value) == missing_session_message("missing.json")

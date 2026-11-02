@@ -130,4 +130,4 @@ def test_the_capture_runner_raises_the_homes_sentence(
         GitTools(tmp_path).summary({})
     assert str(excinfo.value) == git_command_failed(
         subprocess.TimeoutExpired(cmd="git", timeout=30)
-    )
+    )

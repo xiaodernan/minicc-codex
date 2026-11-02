@@ -91,4 +91,4 @@ def test_the_notice_flows_into_the_orchestration_result() -> None:
         "answer": BATCH_CANCELLED_ANSWER,
         "cancelled": True,
         "children": [{"id": 1}],
-    }
+    }

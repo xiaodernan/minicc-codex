@@ -147,4 +147,4 @@ def test_the_no_final_response_sentence_is_a_different_fact() -> None:
     assert len(offenders) == 1 and offenders[0].startswith(OPENAI + ":"), (
         "the no-final-response sentence is one fact with one site: "
         + ", ".join(offenders)
-    )
+    )

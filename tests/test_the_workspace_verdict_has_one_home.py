@@ -98,4 +98,4 @@ def test_the_web_entry_refuses_with_the_homes_sentence(
     with pytest.raises(SystemExit) as excinfo:
         web_main(["--workspace", str(missing)])
     assert excinfo.value.code == 2
-    assert workspace_not_directory_message(missing) in capsys.readouterr().err
+    assert workspace_not_directory_message(missing) in capsys.readouterr().err

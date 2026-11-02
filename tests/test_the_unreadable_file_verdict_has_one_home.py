@@ -221,4 +221,4 @@ def test_the_session_readers_emit_the_homes_sentence(tmp_path: Path) -> None:
         session.save_view({})
     assert str(excinfo.value).startswith(
         f"无法读取 session {session.path}: "
-    ), excinfo.value
+    ), excinfo.value
