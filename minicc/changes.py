@@ -18,7 +18,7 @@ from typing import Any
 
 from .gitprobe import work_tree_verdict
 from .internal_paths import AUDIT_NAME
-from .tools.editor import _MUTATING_ACTIONS
+from .tools.editor import _MUTATING_ACTIONS, audit_level
 from .tools.registry import redact_text
 
 
@@ -223,10 +223,20 @@ class ChangeInspector:
         ``_audit_records_without_path``.  It names no file, so
         unlike an unreadable line it does not hold the clean
         shortcut in ``diff()``.
+
+        M8-T558: and a line whose own action was refused was
+        read as a change.  Every refusal site in the editor
+        records the attempt *before* anything is written, and
+        ``audit_level`` - the same function ``/api/audit``
+        filters by - calls such a line a warning.  A refusal
+        wrote nothing, so it names no file; it is counted in
+        ``_audit_refused_records``.  The panel asks the rule
+        rather than trusting the ``level`` the line carries.
         """
         self._audit_window_truncated = False
         self._audit_unreadable_lines = 0
         self._audit_records_without_path = 0
+        self._audit_refused_records = 0
         audit = self.workspace / ".minicc" / AUDIT_NAME
         paths: set[str] = set()
         try:
@@ -272,6 +282,12 @@ class ChangeInspector:
                     self._audit_records_without_path += 1
                     continue
                 path = raw_path.replace("\\", "/")
+                if audit_level(action, item.get("detail")) == "warning":
+                    # M8-T558: the rule that marks a refusal is the
+                    # editor's own - each refusal site audits before
+                    # it writes.  A refused action changed no file.
+                    self._audit_refused_records += 1
+                    continue
                 if not _ignored_path(path):
                     paths.add(path)
         except (OSError, ValueError, TypeError) as exc:
@@ -404,6 +420,7 @@ class ChangeInspector:
             self._audit_read_error,
             self._audit_unreadable_lines,
             self._audit_records_without_path,
+            self._audit_refused_records,
         )
 
     def _diff_for_target(
@@ -415,6 +432,7 @@ class ChangeInspector:
         audit_read_error: str | None = None,
         audit_unreadable_lines: int = 0,
         audit_records_without_path: int = 0,
+        audit_refused_records: int = 0,
     ) -> dict[str, Any]:
         # Untracked files have no HEAD baseline; avoid a subprocess for each
         # one when the workspace is a fresh interview repository.
@@ -440,6 +458,9 @@ class ChangeInspector:
             # M8-T557: a record with no path is deliberately absent from
             # this condition - it named no file, so it cannot have named
             # this one.
+            # M8-T558: a refusal is absent for the same reason - the
+            # editor wrote nothing, so the line is no evidence that this
+            # file changed either.
             before = after
 
         if not before and not after:
@@ -472,6 +493,8 @@ class ChangeInspector:
             "audit_unreadable_lines": int(audit_unreadable_lines),
             # M8-T557: records that parsed but named no usable path.
             "audit_records_without_path": int(audit_records_without_path),
+            # M8-T558: records whose own action was refused.
+            "audit_refused_records": int(audit_refused_records),
         }
 
     def files_without_diff(self) -> list[dict[str, Any]]:
@@ -537,6 +560,10 @@ class ChangeInspector:
             # M8-T557: a record that named no usable path is counted too.
             "audit_records_without_path": int(
                 getattr(self, "_audit_records_without_path", 0)
+            ),
+            # M8-T558: a refused action changed no file, so it lists none.
+            "audit_refused_records": int(
+                getattr(self, "_audit_refused_records", 0)
             ),
             "workspace": self.workspace.as_posix(),
         }
