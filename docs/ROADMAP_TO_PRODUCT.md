@@ -35879,3 +35879,116 @@ M8-T317 给 @-提及注入接上了 `permissions.json` 的 deny 否决（提及�
 1. M8-T541（承第五百二十六批 §7）`grading_coverage` 同名两口径：`minicc/benchmarks.py:349` 在**有已运行行**时是 `gradable/completed`（运行口径），**没有行**时回退到 `definition_gradable/tasks`（定义口径）；`docs/BENCHMARK_EVALUATION.md:28` 只定义了前者（「已运行样本中具备评分结果的比例」），而注释写明骨架用它断言 `coverage=1.0`。同一键在两处报告里是两个不同的量。
 2. M8-T542（本批探针露出，已量）`minicc/web.py:1081` 的文件树**逐条目**调用 `minicc/audit.py:318` 的 `deny_rule_covers_path`，而它每次装载规则文件：一次列表现付 **条目数 + 3** 次 stat（实测 5 条目 → 8、50 条目 → 53；`max_entries = 2000` ⇒ 最坏约 2003 次）。同一条路的第二个缺陷是这个家的 fail-open：策略为 `{not json` 时它对被点名路径答 **False**，`tool_denied_by_rule` 对同一次调用答 **True**（M8-T526 的 fail-closed 没进这个家）。本批实测该不一致**从树路由不可达**——坏策略下路由在遍历前就被 M8-T344 的整视图拒绝挡住（`status='error'`，列表为空）；因此它是纵深防御缺陷而非现行泄漏，修的时候两条一起：装载改成本地 matcher，判决改成语义上与家一致。
 3. M8-T543（本批 §6 露出）被拒提及的记录 `path` 记原始 token、注入记录记收敛后的相对路径：实测 `@secrets/k.txt是什么` 的记录是 `('secrets/k.txt是什么', 'secrets/k.txt是什么', 'rejected')`，同一条消息里注入的 `@f0.txt` 记 `f0.txt`。按 path 关联两类记录的事件消费者拿到的是两个名字。
+
+## 第五百二十九批 — M8-T542 — 文件树逐条目装载策略，而它的家把「读不出来」丢掉了
+
+### 1 缺陷
+
+`minicc/web.py` 的 `file_tree`（`/api/files`）遍历工作区，**每个条目**问一次
+`minicc/audit.py` 的 `deny_rule_covers_path`（M8-T337 把 deny 规则接到树上是对的，
+接的方式是逐条问）。而这个家每次被问都重新 `load_permission_rules`：一次列表 =
+条目数次装载，再加路由自己的三次。实测（改前）：
+
+| 条目数 | `permissions.json` 的 stat 次数 |
+| --- | --- |
+| 5 | 8 |
+| 50 | 53 |
+
+斜率是 **+1 每条目**，`max_entries = 2000` ⇒ 最坏约 2003 次。同一族已经修过三次：
+M8-T533（证据索引）、M8-T536（快照拷贝）、M8-T540（mention 的两个检查点）——
+都是「一份策略被同一个读者问很多次」；这是第三个读者，也是第一次把**装载成本**
+钉进门禁的树侧。
+
+第二个缺陷在这个家**自己身上**：它把 `load_permission_rules` 返回的 error 直接
+丢掉（`rules, _error = …`），于是一份**读不出来**的 `permissions.json` 对它点名的
+路径答「不覆盖」——而 `tool_denied_by_rule` 对同一次调用答 True（M8-T526 立的
+「读不出来的策略不是放行的策略」从没进过这个门）。本批实测这个不一致**从树路由
+不可达**：坏策略下路由在遍历之前就被 M8-T344 的整视图拒绝挡住（`status='error'`、
+条目为空）。所以它是**纵深防御**缺陷而不是现行泄漏——修的时候两条一起，让家的
+裁决与否决一致。
+
+### 2 量到的真相（2026-11-02，本机）
+
+- 改前斜率 8 / 53（上表）；改后 1、5、50、200 条目**都是 4 次** stat（路由
+  `tool_denied_by_rule` 两次 + matcher 两次），与条目数无关。
+- 坏策略 `{not json` 下：`deny_rule_covers_path(ws, "n0.txt")` 改前 **False**、
+  `tool_denied_by_rule(ws, "read_file", {"path": "n0.txt"})` **True**——两面对同一条
+  读不出来规则给两个答案。
+- 从路由侧走：同目录 `file_tree()` 返回 `status='error'`、`entries=[]`（M8-T344
+  挡在遍历前），因此第二缺陷在本批**没有**用户可见的行为差；本门的见证直接问家。
+- 「被点名的路径」这条边界是量出来的：matcher 在坏策略下对 `covers("n0.txt")`
+  答 True、对 `covers("")`（工作区根，任何模式都点不到它）答 False——若把它写成
+  无条件 True，那句话就变成「整个视图都被拒」，是另一条断言。
+
+### 3 落地
+
+* `minicc/audit.py`：新增 `deny_rule_covers_path_matcher(workspace) -> Callable[[str], bool]`，
+  **装载一次**；fail-closed 在装载期一次判定——没有工作区 ⇒ 什么都不覆盖（正常
+  情况），策略读不出来 ⇒ 调用者**点名**的路径全算覆盖（未点名的根不算），装载
+  抛 `OSError` ⇒ 同上。`deny_rule_covers_path` 保留为一问一答的家，签名、返回与
+  「空路径不覆盖」的守卫都不变，只是委派给 matcher。
+* `minicc/web.py`：`file_tree` 在遍历**前**建一个 matcher（`path_is_denied`），逐条目
+  问它；路由级的工具轴拒绝（M8-T344）与条目级的路径轴拒绝（M8-T337）行为不变。
+* 新增 `tests/test_the_file_tree_lists_its_entries_under_one_policy_load.py`（5 格）：
+  装载成本不随条目数增长（并钉住被拒目录确实不列出，防止「不问了所以不涨」的假
+  绿）；坏策略下家对**每个**被点名路径 fail-closed；坏策略下无名路径（根）不算被
+  点名；合法策略仍只覆盖它点名的东西（对照）；没有策略的工作区照旧列全（含
+  `secrets/k.txt`——没有规则就没有藏）。
+
+### 4 变异验证（交付字节，逐条恢复并核对 sha256）
+
+| 编号 | 变异 | 预测 | 实测 |
+| --- | --- | --- | --- |
+| M8-T542-A1 | `minicc/web.py`：把「一次列表建一个 matcher」改回「每个条目建一个」（`path_is_denied(rel)` → `deny_rule_covers_path_matcher(self.workspace)(rel)`） | 1 红（装载成本腿） | 1 红 / 14 绿 **MATCHED** |
+| M8-T542-A2 | `minicc/audit.py`：新 matcher 的 fail-closed 条件永不成立（追加 `and False`） | 2 红（坏策略两腿） | 2 红 / 13 绿 **MATCHED** |
+| M8-T542-A3 | `minicc/audit.py`：`_pattern_covers_container` 永不命中（整个判定括起来 `and False`） | 4 红 | 4 红 / 11 绿 **MATCHED** |
+| M8-T542-A4 | `minicc/audit.py`：坏策略下不再问「这条路径有没有被点名」（`str(rel_path or "").strip()` → `str(rel_path or "unnamed")`） | 1 红（无名路径腿） | 1 红 / 14 绿 **MATCHED** |
+| M8-T542-R | 反向对照：`minicc/audit.py` + `minicc/web.py` 回到 HEAD 字节，新门与 M8-T337 的门一起跑 | 3 红 / 7 绿 | 3 红 / 7 绿 **MATCHED**（红的正是三条新代码腿；M8-T337 的 5 条在旧字节上照旧绿） |
+
+两条判据缺陷记在臂本身：
+
+* **A3 的第一版是退化变异。** 写作 `return rel == head or rel.startswith(head + "/") and False`
+  ——`and` 的优先级高于 `or`，所以它只砍掉了后半（前缀延伸），`rel == head` 仍在，
+  两条腿要的形状没变：15 全绿＝零证据。重瞄成整式 `return (rel == head or rel.startswith(head + "/")) and False`
+  之后才是预测的 4 红。
+* **臂电池的运行器差点整批空跑。** 第一版把 `"-m", "pytest"` 写成了一个参数
+  `"-m pytest"`，子进程报 `No module named pytest`、退出码 1、**红集为空**——
+  如果只看 rc 会当成「臂没打通」，看 `MISSING` 对照才发现是量具坏了。补了一条
+  不带变异的 P 探针（15 passed）之后才开臂。
+
+
+### 5 门禁
+
+- 焦点集（9 份文件，deny 规则两面、树路由、预览路由、同意点普查）：**82 passed in 13.38s**
+- 受影响面（`scripts/impacted_tests.py` 对 `minicc/audit.py`、`minicc/web.py` 与本门点名 **368** 份文件）：**3400 passed, 4 skipped in 1390.06s**（4 条 skip 全是本机无符号链接特权）
+- 文档面（本记录写入后）：规范文档门禁集（按 `ROADMAP_TO_PRODUCT` 这个词取，16 份文件）**257 passed in 994.52s**；`scripts/doc_pointers.py --check --quiet` 退出码 **0**，本节记的两条行号引用（`minicc/commands.py:321`、`docs/BENCHMARK_EVALUATION.md:28`）都被核对器读回；台账门（`tests/test_doc_pointers.py` 等一批 7 份文件，它们读的就是本文）在这份记录上跑过**两遍**（847.09s、732.84s），两次都是 **119 passed**——写第二遍的数是因为第一遍之后我改了这一句本身的措辞。
+  这一句里的**总数**我故意没写：第一次填数时我抄了「896 个标记 / 3965 条证据指针」，而那句话本身就是被数的东西——填完再跑，两个数各自 +1（897 / 3967）。计数包含计数器自己时，记录只能写**判决**（退出码 0）或写「填完之后的读数」，不能写「填进去之前的读数」。
+
+### 6 边界（本批**不**声称）
+
+- 不改**任何判决的形状**：合法策略下哪些路径被覆盖，与 M8-T337 立的规则逐字一致
+  （文件命中、容器目录命中、点名文件不牵连周围目录）。本批只动「问几次」和
+  「读不出来时答什么」。
+- 第二缺陷**不是现行泄漏**：坏策略下树路由在遍历前就返回 `status='error'`
+  （M8-T344），本批没让任何原本可见的东西消失，也没让任何原本消失的东西可见。
+- 装载成本是**每次列表 4 次 stat**，不是 0：路由的工具轴问一次、matcher 问一次，
+  两侧仍各自装载（把它合成一次要改 `tool_denied_by_rule` 的公开签名，留给后续）。
+- `max_entries`、`depth`、`SKIP_DIRS`、`_escapes_workspace` 一律不动。
+- fail-closed 的「未点名 ⇒ 不覆盖」只对**工作区根**这一种输入成立；本门不声称
+  `covers(".")`、`covers("   ")` 之类的写法（它们会先被 `strip()` 折成空，行为
+  同根，但没有独立的腿）。
+- 不在本批跑真模型的 nightly：本批不碰评测执行路径。
+
+### 7 下一单位
+
+1. M8-T541（承第五百二十六批 §7）`grading_coverage` 同名两口径：骨架报告回退到
+   「有 grader 的任务占比」，运行报告是「已运行样本中有评分结果的比例」；
+   `docs/BENCHMARK_EVALUATION.md:28` 只定义了后者，而 M4 验收句的
+   `grading_coverage=1.0` 用的是前者。
+2. M8-T543 `minicc/mentions.py`：被拒的 mention 记录里 `path` 存的是**原始 token**，
+   注入成功的那条存的是**收敛后的 rel**——同一份记录两种口径，事后按路径核对规则
+   要认两种拼法。
+3. M8-T544（候选，已定位未量）`minicc/commands.py:321` 的 `_skill_file_allowed` 对每
+   一个 `SKILL.md` 问**两次** `tool_denied_by_rule`（`read_file` 与 `skill_read`），
+   每次两次装载 ⇒ `discover_commands` 在 375 行按 `*/SKILL.md` 遍历 N 个技能时付
+   约 **4N** 次 stat——与 M8-T540 修掉的 mention 形状同族；本批只定位、未量斜率。
