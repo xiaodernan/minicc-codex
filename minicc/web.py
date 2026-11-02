@@ -95,7 +95,7 @@ from .audit import (
     AuthorizationDecision,
     authorization_event,
     authorize_tool,
-    deny_rule_covers_path,
+    deny_rule_covers_path_matcher,
     deny_rule_names_paths,
     effective_risk,
     normalize_permission_mode,
@@ -1054,6 +1054,12 @@ class AgentService:
         max_entries = 2000
         entries: list[dict[str, Any]] = []
         truncated = False
+        # M8-T542: one policy load **per listing**.  The walk below asks the
+        # deny question for every entry (up to `max_entries`), and the
+        # one-shot home read `permissions.json` on each answer - 5 entries
+        # cost 8 stats, 50 cost 53.  The verdict is the same one either way,
+        # so the listing takes the matcher that loads the rules once.
+        path_is_denied = deny_rule_covers_path_matcher(self.workspace)
 
         def walk(directory: Path, level: int) -> None:
             nonlocal truncated
@@ -1078,7 +1084,7 @@ class AgentService:
                 # own ``tree`` call was refused by the same rule.  A denied
                 # path is not visible through any surface; the rest of the
                 # workspace still is.
-                if deny_rule_covers_path(self.workspace, rel):
+                if path_is_denied(rel):
                     continue
                 if len(entries) >= max_entries:
                     truncated = True

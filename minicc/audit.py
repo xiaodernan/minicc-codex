@@ -327,22 +327,62 @@ def deny_rule_covers_path(workspace: Path | str | None, rel_path: str) -> bool:
     The verdict is asked per entry, and a container directory is covered too
     (see :func:`_pattern_covers_container`): the point is that a denied path
     is not *visible* through any surface, not that the panel dies.
+
+    A reader that asks about **many** paths takes
+    :func:`deny_rule_covers_path_matcher` instead; this one-shot home loads the
+    policy for a single question.
     """
     if not workspace or not rel_path:
         return False
+    return deny_rule_covers_path_matcher(workspace)(rel_path)
+
+
+def deny_rule_covers_path_matcher(workspace: Path | str | None) -> Callable[[str], bool]:
+    """Return "a deny rule covers this path" as a predicate, loading once.
+
+    M8-T542: two defects in one door.
+
+    * :func:`deny_rule_covers_path` read the rules file **per question**, so a
+      workspace listing (the Web file tree asks once per entry, up to
+      ``max_entries``) paid one stat of ``.minicc/permissions.json`` per entry.
+      Same shape as M8-T533 (evidence index) and M8-T536 (snapshot copy) - the
+      matcher loads the policy once and every path asks the same loaded rules.
+    * the old home **threw the load error away**, so a ``permissions.json``
+      that cannot be read answered "not covered" for the path the user had
+      named, while :func:`tool_denied_by_rule` answers True for the same call
+      (M8-T526).  Rules we cannot read are not rules that allow: the predicate
+      fails closed and both faces agree.
+
+    An absent workspace has no rules, so nothing is covered - the normal case.
+    """
+    if not workspace:
+        return lambda _rel_path: False
+
+    def every_named_path(rel_path: str) -> bool:
+        # The rules are unknown, so every path the caller *names* may be one of
+        # them.  The workspace root has no name to check.
+        return bool(str(rel_path or "").strip())
+
     try:
+        if policy_evaluation_error(workspace):
+            return every_named_path
         rules, _error = load_permission_rules(Path(workspace))
     except OSError:
-        return False
+        return every_named_path
+
     patterns = rules["deny"]["paths"]
-    if not patterns:
-        return False
-    rel = str(rel_path).replace("\\", "/").strip()
-    if not rel:
-        return False
-    if path_rule_matches(rel, patterns):
-        return True
-    return any(_pattern_covers_container(pattern, rel) for pattern in patterns)
+
+    def covers(rel_path: str) -> bool:
+        if not rel_path or not patterns:
+            return False
+        rel = str(rel_path).replace("\\", "/").strip()
+        if not rel:
+            return False
+        if path_rule_matches(rel, patterns):
+            return True
+        return any(_pattern_covers_container(pattern, rel) for pattern in patterns)
+
+    return covers
 
 
 # Task-level permission modes, aligned with Claude Code:
@@ -688,6 +728,7 @@ __all__ = [
     "authorize_tool",
     "command_uses_network",
     "deny_rule_covers_path",
+    "deny_rule_covers_path_matcher",
     "deny_rule_names_paths",
     "denied_by_rule_matcher",
     "effective_risk",
