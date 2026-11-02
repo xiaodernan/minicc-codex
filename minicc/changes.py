@@ -18,7 +18,7 @@ from typing import Any
 
 from .gitprobe import work_tree_verdict
 from .internal_paths import AUDIT_NAME
-from .tools.editor import _MUTATING_ACTIONS, audit_level
+from .tools.editor import _MUTATING_ACTIONS, audit_level, move_destination
 from .tools.registry import redact_text
 
 
@@ -242,6 +242,14 @@ class ChangeInspector:
         counted in ``_audit_records_without_action``.  Unlike a
         refusal, such a record still names a file, so it holds
         the clean shortcut in ``diff()``.
+
+        M8-T560: a ``move`` line names its source, and the
+        source is what the operation removes.  The file that
+        exists afterwards is spelled only in ``detail`` (the
+        editor's own arrow form), and only that line's
+        reader - ``move_destination`` - may turn it into a path.
+        A move the audit recorded is a change git cannot always
+        see, so the destination joins the set next to the source.
         """
         self._audit_window_truncated = False
         self._audit_unreadable_lines = 0
@@ -309,6 +317,18 @@ class ChangeInspector:
                     continue
                 if not _ignored_path(path):
                     paths.add(path)
+                if action == "move":
+                    # M8-T560: the source named above is gone by the time
+                    # this line is read, so on its own it lists a file that
+                    # no longer exists.  The destination is the change the
+                    # model made; the editor's own reader turns the detail
+                    # into it, and nothing is listed when the line does not
+                    # spell one.
+                    destination = move_destination(item.get("detail"))
+                    if destination:
+                        destination = destination.replace("\\", "/")
+                        if not _ignored_path(destination):
+                            paths.add(destination)
         except (OSError, ValueError, TypeError) as exc:
             return set(), (
                 f"审计记录（.minicc/{AUDIT_NAME}）读不出来"

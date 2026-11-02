@@ -215,6 +215,29 @@ def audit_level(action: str, detail: str = "") -> str:
         return "warning"
     return "notice" if str(action or "") in _MUTATING_ACTIONS else "info"
 
+#: The other end of an audit line.  ``move`` names its source in
+#: ``path`` and puts the destination here; ``backup`` uses the same
+#: spelling for the copy it just made.
+DETAIL_TARGET_PREFIX = "→ "
+
+
+def move_destination(detail: object) -> str:
+    """The path a ``move`` line names as its destination, or "" for none.
+
+    The destination is the half that survives the operation - ``path``
+    holds the source, which is gone - so a reader that wants the file
+    that exists now has to take it out of the detail.  Anything that is
+    not a non-blank path after the prefix names no file, and inventing
+    one would report a change the record never claimed (M8-T560).
+    """
+    if not isinstance(detail, str):
+        return ""
+    text = detail.strip()
+    marker = DETAIL_TARGET_PREFIX.strip()
+    if not text.startswith(marker):
+        return ""
+    return text[len(marker):].strip()
+
 
 @dataclass(frozen=True)
 class AuditEntry:
@@ -742,7 +765,9 @@ class Editor:
                 self._after_write(destination)
         except OSError as exc:
             raise EditError(f"移动失败 ({src} → {dst}): {exc}") from exc
-        self._audit("move", src, f"→ {dst}", before_digest=before)
+        self._audit(
+            "move", src, f"{DETAIL_TARGET_PREFIX}{dst}", before_digest=before
+        )
 
     def delete(self, path: str) -> None:
         target = self._resolve(path)
