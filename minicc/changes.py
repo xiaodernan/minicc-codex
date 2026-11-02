@@ -232,11 +232,22 @@ class ChangeInspector:
         wrote nothing, so it names no file; it is counted in
         ``_audit_refused_records``.  The panel asks the rule
         rather than trusting the ``level`` the line carries.
+
+        M8-T559: the action was coerced the way the path used
+        to be.  ``str(value or "")`` turned ``["write"]`` into
+        a word no action set knows, and an empty action slipped
+        past the ``if action and ...`` filter - so a record
+        that said nothing about its action was read as a change.
+        Only a non-blank string is an action now; the rest are
+        counted in ``_audit_records_without_action``.  Unlike a
+        refusal, such a record still names a file, so it holds
+        the clean shortcut in ``diff()``.
         """
         self._audit_window_truncated = False
         self._audit_unreadable_lines = 0
         self._audit_records_without_path = 0
         self._audit_refused_records = 0
+        self._audit_records_without_action = 0
         audit = self.workspace / ".minicc" / AUDIT_NAME
         paths: set[str] = set()
         try:
@@ -270,8 +281,16 @@ class ChangeInspector:
                 if not isinstance(item, dict):
                     self._audit_unreadable_lines += 1
                     continue
-                action = str(item.get("action") or "").strip().lower()
-                if action and action not in _CHANGING_AUDIT_ACTIONS:
+                raw_action = item.get("action")
+                if not isinstance(raw_action, str) or not raw_action.strip():
+                    # M8-T559: a record that does not say which action it
+                    # was cannot say it changed this file - and the old
+                    # ``str()`` both invented a word (``123``) and let an
+                    # empty one slip past the filter below.
+                    self._audit_records_without_action += 1
+                    continue
+                action = raw_action.strip().lower()
+                if action not in _CHANGING_AUDIT_ACTIONS:
                     continue
                 raw_path = item.get("path")
                 if not isinstance(raw_path, str) or not raw_path.strip():
@@ -421,6 +440,7 @@ class ChangeInspector:
             self._audit_unreadable_lines,
             self._audit_records_without_path,
             self._audit_refused_records,
+            self._audit_records_without_action,
         )
 
     def _diff_for_target(
@@ -433,6 +453,7 @@ class ChangeInspector:
         audit_unreadable_lines: int = 0,
         audit_records_without_path: int = 0,
         audit_refused_records: int = 0,
+        audit_records_without_action: int = 0,
     ) -> dict[str, Any]:
         # Untracked files have no HEAD baseline; avoid a subprocess for each
         # one when the workspace is a fresh interview repository.
@@ -445,6 +466,7 @@ class ChangeInspector:
             and not status_read_error
             and not audit_read_error
             and not audit_unreadable_lines
+            and not audit_records_without_action
         ):
             # M8-T548: ``clean`` when the status table could not be read is a
             # guess, and copying the file onto its own baseline would print
@@ -461,6 +483,9 @@ class ChangeInspector:
             # M8-T558: a refusal is absent for the same reason - the
             # editor wrote nothing, so the line is no evidence that this
             # file changed either.
+            # M8-T559: a record that cannot say its action is the other
+            # case - it still names a file, and that file may be this one,
+            # so the shortcut waits for it like it waits for a bad line.
             before = after
 
         if not before and not after:
@@ -495,6 +520,8 @@ class ChangeInspector:
             "audit_records_without_path": int(audit_records_without_path),
             # M8-T558: records whose own action was refused.
             "audit_refused_records": int(audit_refused_records),
+            # M8-T559: records that never said which action they were.
+            "audit_records_without_action": int(audit_records_without_action),
         }
 
     def files_without_diff(self) -> list[dict[str, Any]]:
@@ -564,6 +591,10 @@ class ChangeInspector:
             # M8-T558: a refused action changed no file, so it lists none.
             "audit_refused_records": int(
                 getattr(self, "_audit_refused_records", 0)
+            ),
+            # M8-T559: a record that named no action named no change.
+            "audit_records_without_action": int(
+                getattr(self, "_audit_records_without_action", 0)
             ),
             "workspace": self.workspace.as_posix(),
         }
