@@ -1,9 +1,9 @@
 """M8-T561（第五百四十三批）：审计里已经消失的那一半，被答成「什么都没变」。
 
 `_audit_paths` 把 `delete` 记的那条**路径**放进集合，兜底那一步却只列还在的文件
-（`minicc/changes.py:565` 的 `(self.workspace / key).is_file()`）——而 `delete`
-这一行说的那个文件，正因为这次操作成功才不在（`minicc/tools/editor.py:786` 在
-`target.unlink()` 之后才写下这一行，删除前它还 `self._backup(target)`（:777）把内容
+（`minicc/changes.py:733` 的 `(self.workspace / key).is_file()`）——而 `delete`
+这一行说的那个文件，正因为这次操作成功才不在（`minicc/tools/editor.py:847` 在
+`target.unlink()` 之后才写下这一行，删除前它还 `self._backup(target)`（:838）把内容
 digest 过一遍）。于是这一行说得出动作、说得出一个路径、也说得出它删掉过什么，面板却
 答「什么都没变」，`diff` 还答 `clean` 加空补丁。
 
@@ -106,12 +106,17 @@ def test_a_synthetic_delete_record_lists_the_file_that_is_gone(tmp_path: Path) -
 
 
 def test_the_listed_deletion_is_not_answered_a_clean_tree(tmp_path: Path) -> None:
-    """清单列了它，详情页就不能再说它 `clean`。"""
+    """清单列了它，详情页就不能再说它 `clean`。
+
+    第五百四十三批这一格只钉得住状态：那时补丁还是空的（那条批次的 §6 写了它不
+    声称什么）。第五百四十四批把预像从编辑器自己留的副本里读了回来，所以这里
+    钉的是「状态 + 内容都说得出」。
+    """
     workspace = _workspace(tmp_path, "detail")
     _delete(workspace, "notes.md")
     diff = ChangeInspector(workspace).diff("notes.md")
     assert diff["status"] == "deleted", diff
-    assert diff["patch"] == "" and diff["deletions"] == 0, diff
+    assert diff["deletions"] == 2 and "-hello world" in diff["patch"], diff
 
 
 def test_an_untracked_file_removed_from_a_repository_is_listed(tmp_path: Path) -> None:

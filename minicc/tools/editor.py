@@ -255,6 +255,26 @@ def move_destination(detail: object) -> str:
     not a non-blank path after the prefix names no file, and inventing
     one would report a change the record never claimed (M8-T560).
     """
+    return _arrow_target(detail)
+
+
+def backup_copy_name(record: object) -> str:
+    """The copy a ``backup`` line says it kept, or "" when it says nothing.
+
+    A copy line writes ``→ {name}`` (`_backup` above), i.e. the same arrow
+    form a ``move`` line uses, so the form is read through one home; what
+    the name means differs, which is why this is a separate question
+    rather than a second call site of ``move_destination``.  The name is a
+    file inside the backup directory, not a path - ``backup_copy_path``
+    is the reader that keeps it there (M8-T562).
+    """
+    if not isinstance(record, dict):
+        return ""
+    return _arrow_target(record.get("detail"))
+
+
+def _arrow_target(detail: object) -> str:
+    """What the arrow in an audit line's detail points at, or "" for none."""
     if not isinstance(detail, str):
         return ""
     text = detail.strip()
@@ -262,6 +282,24 @@ def move_destination(detail: object) -> str:
     if not text.startswith(marker):
         return ""
     return text[len(marker):].strip()
+
+
+def backup_directory(workspace: Path) -> Path:
+    """Where the editor keeps the copies it makes - the one spelling."""
+    return Path(workspace) / ".minicc" / "backup"
+
+
+def backup_copy_path(workspace: Path, name: object) -> Path | None:
+    """The copy a ``backup`` line names, or None when the name is no copy.
+
+    The line holds a bare filename, and the reader has to keep it inside
+    the backup directory: a name with a separator in it (``../x``, ``a/b``,
+    an absolute path) is a request to read somewhere else, and the panel
+    that honours it reads files the agent never said it copied (M8-T562).
+    """
+    if not isinstance(name, str) or not name or name != Path(name).name:
+        return None
+    return backup_directory(workspace) / name
 
 
 @dataclass(frozen=True)
@@ -359,9 +397,7 @@ class Editor:
         after_write: Callable[[Path], None] | None = None,
     ) -> None:
         self.workspace = Path(workspace).resolve()
-        self.backup_dir = (
-            Path(backup_dir) if backup_dir is not None else self.workspace / ".minicc" / "backup"
-        )
+        self.backup_dir = Path(backup_dir) if backup_dir is not None else backup_directory(self.workspace)
         self.audit_path = Path(audit_path) if audit_path is not None else None
         self._clock = clock or _default_clock
         self.audit: list[AuditEntry] = []

@@ -18,7 +18,15 @@ from typing import Any
 
 from .gitprobe import work_tree_verdict
 from .internal_paths import AUDIT_NAME
-from .tools.editor import _MUTATING_ACTIONS, audit_level, deletion_witness, move_destination
+from .tools.editor import (
+    _MUTATING_ACTIONS,
+    audit_level,
+    backup_copy_name,
+    backup_copy_path,
+    deletion_witness,
+    move_destination,
+    sha256_digest,
+)
 from .tools.registry import redact_text
 
 
@@ -51,6 +59,19 @@ _AUDIT_WINDOW_LINES = 500
 #: mid-record by construction; that first line is a known partial, not a
 #: record that could not be read.
 _AUDIT_TAIL_BYTES = 256_000
+#: M8-T562: what the panel can say about the content a witnessed deletion
+#: removed.  The four words are the answer, and they are not interchangeable:
+#: a copy that was never recorded, a copy that cannot be shown, and a copy
+#: whose bytes are not the ones the line digested are three different facts -
+#: collapsing them into an empty patch is how "I could not read it" becomes
+#: "there was nothing there" (the family this campaign is about).
+PREIMAGE_READ = "copy"
+PREIMAGE_NOT_RECORDED = "not-recorded"
+PREIMAGE_NOT_READABLE = "not-readable"
+PREIMAGE_MISMATCH = "digest-mismatch"
+#: ``source`` when the pre-image came out of the editor's own copy instead of
+#: out of git, so a reader can tell which baseline a patch was built on.
+PREIMAGE_SOURCE = "audit-backup-copy"
 _SUMMARY_CACHE: OrderedDict[str, tuple[object, list[dict[str, Any]]]] = OrderedDict()
 _CACHE_LOCK = threading.Lock()
 
@@ -85,6 +106,11 @@ class ChangeInspector:
     def __init__(self, workspace: str | Path) -> None:
         self.workspace = Path(workspace).resolve()
         self._renames: dict[str, str] = {}
+        # M8-T562: resolved path -> (what the delete line digested, the copies
+        # the window recorded for it).  Filled by ``files_without_diff``, read
+        # lazily by ``_diff_for_target`` - the list must not pay for a read
+        # only the detail page asks for.
+        self._audit_preimage_sources: dict[str, tuple[str, list[tuple[str, str]]]] = {}
 
     def _resolve(self, raw_path: str) -> Path:
         if not isinstance(raw_path, str) or not raw_path.strip():
@@ -265,12 +291,25 @@ class ChangeInspector:
         path's last action has to be the deletion, and its first action
         must not be a creation - a file born and buried inside the window
         leaves the workspace as it was.
+
+        M8-T562: the same pass files the two halves a deletion's content is
+        made of - what the ``delete`` line digested and what the ``backup``
+        lines said they kept - beside the path each names.  A copy line is
+        still not a change, so it joins none of the sets above; reading it
+        here costs no second pass over the trail, and the copies are opened
+        only when a detail page asks (``_read_deletion_preimage``).
         """
         self._audit_window_truncated = False
         self._audit_unreadable_lines = 0
         self._audit_records_without_path = 0
         self._audit_refused_records = 0
         self._audit_records_without_action = 0
+        # M8-T562: the two halves of a witnessed deletion, kept apart from the
+        # change sets because a copy line is not a change (M8-T300 said so
+        # about ``read`` and ``backup``) and the digest alone names no file.
+        self._audit_deletion_witnesses = {}
+        self._audit_backup_copies = {}
+        self._audit_preimage_sources = {}
         audit = self.workspace / ".minicc" / AUDIT_NAME
         paths: set[str] = set()
         first_action: dict[str, str] = {}
@@ -316,6 +355,17 @@ class ChangeInspector:
                     self._audit_records_without_action += 1
                     continue
                 action = raw_action.strip().lower()
+                if action == "backup":
+                    # M8-T562: a copy line changes no file, so it must not join
+                    # the change sets - M8-T300 was right about that.  It is
+                    # still the only line that says *where* the content a later
+                    # delete removed was kept, so its name and its digest are
+                    # filed beside the path it names.  A refusal never wrote a
+                    # copy (M8-T558's rule), a line that names no path is no
+                    # file's copy, and a digest that is not a string witnesses
+                    # nothing (M8-T559's gate, M8-T561's witness).
+                    self._note_backup_copy(item)
+                    continue
                 if action not in _CHANGING_AUDIT_ACTIONS:
                     continue
                 raw_path = item.get("path")
@@ -337,11 +387,15 @@ class ChangeInspector:
                     paths.add(path)
                     first_action.setdefault(path, action)
                     last_action[path] = action
-                    if action == "delete" and deletion_witness(item):
+                    if action == "delete" and (witness := deletion_witness(item)):
                         # M8-T561: the line that digested the bytes it
                         # removed is the only one that can say a file was
                         # there to begin with.
                         witnessed.add(path)
+                        # M8-T562: and it is the same line that says *what*
+                        # was there.  The last one wins, the same way the last
+                        # action decides whether the path is gone at all.
+                        self._audit_deletion_witnesses[path] = witness
                 if action == "move":
                     # M8-T560: the source named above is gone by the time
                     # this line is read, so on its own it lists a file that
@@ -365,6 +419,71 @@ class ChangeInspector:
             if last_action.get(path) == "delete" and first_action.get(path) != "create"
         }
         return paths, deletions, None
+
+    def _note_backup_copy(self, item: dict) -> None:
+        """File the copy a ``backup`` line says it kept, beside its path.
+
+        Only `_backup` writes such a line, and it writes it after the copy
+        succeeded, so a name is read out of the arrow form the same reader
+        uses everywhere (`backup_copy_name`) - a refusal detail never spells
+        one, which is why M8-T558's verdict is not asked again here.
+        """
+        name = backup_copy_name(item)
+        digest = deletion_witness(item)
+        raw_path = item.get("path")
+        if not name or not digest or not isinstance(raw_path, str) or not raw_path.strip():
+            return
+        path = raw_path.replace("\\", "/")
+        if _ignored_path(path):
+            return
+        self._audit_backup_copies.setdefault(path, []).append((digest, name))
+
+    def _read_deletion_preimage(self, path: str) -> tuple[str, str]:
+        """What a witnessed deletion removed, and what stopped us saying so.
+
+        The editor digested the file before unlinking it and copied it into
+        its own backup directory, so the window normally holds both halves:
+        the ``delete`` line's witness and the ``backup`` line's name.  The
+        pair is made by the digest, not by the name and not by the order the
+        lines were written (M8-T562), and the bytes are believed only after
+        they digest to the witness - a copy somebody overwrote since is not
+        the content this deletion removed.  Every other answer is said out
+        loud: ``not-recorded`` when no line names a copy for that content,
+        ``not-readable`` when one does but its bytes cannot be shown here,
+        ``digest-mismatch`` when they are not the digested bytes.  All three
+        used to be the same empty patch.
+        """
+        source = self._audit_preimage_sources.get(path)
+        if not source:
+            return "", ""
+        witness, copies = source
+        unreadable = False
+        mismatch = False
+        for digest, name in reversed(copies):
+            if digest != witness:
+                continue
+            copy = backup_copy_path(self.workspace, name)
+            if copy is None:
+                unreadable = True
+                continue
+            try:
+                body = copy.read_bytes()
+            except OSError:
+                unreadable = True
+                continue
+            if sha256_digest(body) != witness:
+                mismatch = True
+                continue
+            try:
+                return PREIMAGE_READ, body.decode("utf-8")
+            except UnicodeDecodeError:
+                unreadable = True
+                continue
+        if mismatch:
+            return PREIMAGE_MISMATCH, ""
+        if unreadable:
+            return PREIMAGE_NOT_READABLE, ""
+        return PREIMAGE_NOT_RECORDED, ""
 
     def _computed_files(self) -> list[dict[str, Any]]:
         """Every changed file, with its counts.  Not truncated."""
@@ -509,6 +628,22 @@ class ChangeInspector:
         # one when the workspace is a fresh interview repository.
         before = "" if status == "added" else self._baseline(self._renames.get(path, path))
         after = self._text(target)
+        source = "git-or-empty-baseline"
+        preimage = ""
+        if status == "deleted":
+            # M8-T562: the trail said this file was deleted and digested what
+            # was in it, and git has nothing to say (no repository, untracked
+            # file, ignored path).  The content is not lost - the editor kept a
+            # copy - so an empty patch here was the panel answering "there was
+            # nothing in it" about bytes it never went and looked at.
+            # A deletion git already showed keeps git's own pre-image: ``before``
+            # is not empty there, and the verdict stays "" because the list
+            # never filed an audit source beside it.
+            verdict, text = self._read_deletion_preimage(path)
+            preimage = verdict
+            if verdict == PREIMAGE_READ and not before:
+                before = text
+                source = PREIMAGE_SOURCE
         if (
             not before
             and target.is_file()
@@ -558,7 +693,10 @@ class ChangeInspector:
             "patch": patch,
             "additions": additions,
             "deletions": deletions,
-            "source": "git-or-empty-baseline",
+            "source": source,
+            # M8-T562: what the panel can say about the content a deletion
+            # removed - "" when the question does not arise here.
+            "deletion_preimage": preimage,
             # M8-T548: ``status`` may be the ``clean`` fallback; the reason
             # says whether it could be trusted.
             "status_read_error": status_read_error or None,
@@ -604,6 +742,16 @@ class ChangeInspector:
             key = self._resolved_relative(path)
             if key and key not in items and not (self.workspace / key).exists():
                 items[key] = _status_record(key, "deleted", "audit")
+                witness = self._audit_deletion_witnesses.get(path)
+                if witness:
+                    # M8-T562: filed under the resolved key, the same one the
+                    # detail page asks with.  The copies are only looked at
+                    # when somebody opens that page - the list does not pay
+                    # for a read it never shows.
+                    self._audit_preimage_sources[key] = (
+                        witness,
+                        self._audit_backup_copies.get(path, []),
+                    )
         return list(items.values())
 
     def _resolved_relative(self, raw_path: str) -> str:
