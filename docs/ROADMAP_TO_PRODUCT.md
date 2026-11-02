@@ -38228,3 +38228,100 @@ CRLF：`minicc/changes.py` 572 行 CRLF、0 裸 LF，`git diff --numstat` 是 28
 3. **`_git` 的 127 哨兵**把 OSError 与 20 秒超时压成同一个 `git unavailable`（`minicc/changes.py:100-114`）。
 4. **破损符号链接**：本平台没有 symlink 权限，需要一个能造 symlink 的门面。
 5. **选择器解析成本**（500 文件约 13s）。
+
+## 第五百四十一批 — M8-T559 — 说不出动作的审计记录，被答成一次修改
+
+### 1 欠的是哪一条
+
+第五百四十批 §7 排的第 2 位：`action` 和修前的 `path` 是同一条流水线上的前一站，用的是同一种强转。`_audit_paths` 读动作用的是
+
+```
+action = str(item.get("action") or "").strip().lower()
+if action and action not in _CHANGING_AUDIT_ACTIONS:
+    continue
+```
+
+一个表达式给出**两种相反的错**。**没有动作的记录**——键缺失、`null`、空串、整串空格——被 `or ""` 和 `strip()` 收成 `""`，而 `""` 是假值，`if action and ...` 那道过滤器根本不跑；记录于是穿过去，只要它点了一个文件，面板就答「改了」。这是本战役母题反着长的样子：一条说不出自己是什么动作的行，被当成一次说得出形状的修改。**动作写成容器**的记录（`["write"]`、`{"name": "write"}`、`123`、`True`）走另一头：`str()` 把它们变成集合里不存在的词，于是被 `continue` 丢掉——既不进清单，也不进任何计数，第五百三十二批立的那本「读出来但用不了」的账上完全没有它们的痕迹。
+
+判据的家本来就只有一个：`_CHANGING_AUDIT_ACTIONS` 是编辑器的 `_MUTATING_ACTIONS`（`minicc/tools/editor.py:195`）在 `minicc/changes.py:45` 的别名。本批不问第二个家，只把「这条记录说得出自己的动作吗」问在查集合**之前**。
+
+### 2 量到的真相（实测）
+
+探针 `probe_559.py`（仓库外；每个形状一个独立工作区，**没有 git**——审计是唯一来源；都经 `summary()`，并各问一次 `diff("notes.md")`）：
+
+| 形状（轨迹里就这一条记录） | 修前 | 修后 |
+| --- | --- | --- |
+| A 对照 `action="write"` + `path="notes.md"` | `total=1` 列 `notes.md`，diff 带补丁 | `total=1`，不变 |
+| B 整条记录没有 `action` 键 | `total=1`，`('notes.md', 'modified', 'audit')` | `total=0`，计进 `without_action=1` |
+| C `action=null` | `total=1` | `total=0`，计数 1 |
+| D `action=""` | `total=1` | `total=0`，计数 1 |
+| E `action="   "` | `total=1` | `total=0`，计数 1 |
+| F `action=["write"]` | `total=0`、`diff` 答 `clean` 且**空补丁**（捷径开火）、四个计数全 0 | `total=0`、计数 1、捷径按住，补丁算出来了 |
+| G `action={"name":"write"}` | 同 F | 同 F 修后 |
+| H `action=123` | 同 F | 同 F 修后 |
+| I `action=true` | 同 F | 同 F 修后 |
+| J `action="READ"`（大写、非变更动作） | `total=0`、计数 0 | 完全不变——不该计的一点没多计 |
+| K 对照 `action=" write "` | `total=1` | `total=1`（strip 照旧生效） |
+| L 对照 `action="read"` | `total=0` | `total=0` |
+| M `action=123`、文件 `notes.md` 真的在 | `total=0`、空补丁（捷径把它画成没改） | `total=0`、补丁非空 |
+| N 两条：`action=["write"]` 无路径 + 一条没动作却写「拒绝: x」的路径行 | `refused=1`、`without_action=0` | `refused=0`、`without_action=1`——同一条行**换了家** |
+| O 对照：两条真记录（`write` + `edit`） | `total=2` | `total=2` |
+
+新门的字节在 HEAD（`d8c9937`）上红先跑：`11 failed, 1 passed in 9.89s`。逐条原因（同一棵红树复跑一遍 `--tb=line`）：前三条形状（:61、:71、:80）红在**「列出来了」**——面板真的把 `notes.md` 报成 `modified`；容器对照与「只计一次」那两条（:91、:100）和载荷那条（:119）红在 `KeyError: 'audit_records_without_action'`——这个键今天不存在；捷径那条（:109）红在**「补丁是空的」**——动作说不出，diff 却把它点名的文件画成没改。四条对照（:131、:139、:147、:166）全部只红在同一个 KeyError，面板对它们的答案本来就是对的；唯一一上来就绿的是第五百四十批那条拒绝行不挡捷径的对照（:150）——修法不能让它改道。
+
+### 3 落地
+
+- `minicc/changes.py:236-245`：`_audit_paths` 文档串新增 M8-T559 段，把两种错和「它为什么和拒绝行相反」写在一起。
+- `minicc/changes.py:250`：每次读取把 `_audit_records_without_action` 归零——与截断标志、坏行、无路径、拒绝同一规矩：计数属于这一次读。
+- `minicc/changes.py:284-294`：路径闸门**之前**先问动作。动作必须是非空白字符串，`raw_action.strip().lower()` 之后才查集合；说不出动作的记录计一次并跳过——它说不出自己改没改这个文件。顺序是有意的：把闸门放在路径之后，同一条记录会被记两次（既无动作又无路径），旧行为正是让一条无路径的「拒绝」先落在 `refused` 上。
+- `minicc/changes.py:443`、`:456`、`:523-524`：`diff()` 把计数交给 `_diff_for_target`，形参新增，每文件载荷带 `audit_records_without_action`。
+- `minicc/changes.py:469`、`:486-489`：clean 捷径的条件**加**这个计数。这是本批与第五百三十九、五百四十批相反的地方：无路径的行没点任何文件，拒绝的行什么都没写过，而说不出动作的行**点了一个文件**——那个文件可能就是正在被问的这一个，所以捷径必须等它。
+- `minicc/changes.py:595-597`：`summary()` 的回答新增该键。
+- 新门 `tests/test_an_audit_record_without_an_action_is_not_answered_a_change.py` 十二条：无 `action` 键（:57）、`null`（:67）、空串/空格/制表符（:75）、四种容器形状计而不丢（:84）、既无动作又无路径只计一次（:95）、说不出动作按住捷径（:104）、diff 载荷带计数（:115），五条对照——大写非变更动作不列也不计（:126）、带空格的 ` write ` 照列（:134）、真写照列（:142）、第五百四十批的拒绝行仍不挡捷径（:150）、没有轨迹时计 0（:162）。
+
+### 4 见证（红先绿后，臂）
+
+- **红先**：`11 failed, 1 passed in 9.89s`（门的最终字节 + HEAD 的代码；逐条原因见 §2 末段）。
+- **绿后**：共享树上 `12 passed in 7.36s`；兄弟审计门一起（第五百三十至五百四十批）`47 passed in 29.19s`。
+- **plane559**（`git clone --shared` 于 `d8c9937` + 本批两个文件，基线 sha256 `c2be7e5d…`）：A0 对照 `12 passed in 6.99s`。
+- 七臂 + 一条补臂（逐臂恢复后核对全部 MATCHED）：
+
+| 臂 | 改什么 | 预期红 | 实际 |
+| --- | --- | --- | --- |
+| A0 | 对照：不改 | 绿 | MATCHED（12 passed，6.99s） |
+| A1 | 退回旧强转 | 三个形状红在**列出**（:61/:71/:80），其余红在计数与载荷 | MATCHED（7 failed、5 passed，5.51s） |
+| A2 | 跳过但不计数 | 全红在**记账**（:64/:72/:81/:91/:100），一条「列出」都不红 | MATCHED（7 failed、5 passed，6.15s） |
+| A3 | 计数不进 clean 捷径 | 只有按住捷径那条 | MATCHED（1 failed、11 passed，7.64s） |
+| A4 | 记账记到无路径那本上 | 与 A2 同一组（:100 先红，家错） | MATCHED（7 failed、5 passed，7.10s） |
+| A5 | 计了又照样列出来（半修） | 五个「不该列」的形状 | MATCHED（5 failed、7 passed，6.17s） |
+| A6 | 不 strip 就查集合 | 带空格真动作那条对照 | MATCHED（1 failed、11 passed，7.18s） |
+| A7 | 两个家一起加（补臂） | 只有「无路径计数不为它跳动」那条（:101） | MATCHED（1 failed、11 passed，5.79s） |
+
+A1 与 A2/A4 的红**集合一样大**，但红在不同那行上：A1 的三条形状失败在 `assert [item["path"] ...] == []`（面板列出来了），A2、A4 失败在 `assert summary["audit_records_without_action"] == 1`（没记账）——这靠 `--tb=line` 复读一遍才分得开（`19.92s / 3.01s / 5.88s`，红集合与首跑一致）。A2 与 A4 的区别在记到哪一本，门里 `:100` 与 `:101` 是成对的：A4 先红在 :100（该记的没记），补臂 A7 两个都记，就只红在 :101（不该动的无路径计数被顶高了）。A5 是半修——它证明了修法的关键是 `continue`，计数只是它的账。A6 证明 `strip()` 不是装饰：`" write "` 是编辑器之外的人手写的轨迹里会出现的形状，摘掉它就是把一条真改动画成没改。
+
+CRLF：`minicc/changes.py` 603 行 CRLF、0 裸 LF，`git show --numstat` 是 33 增 2 删，不是整文件重写。新门 172 行、8136 字节，LF（新文件，git 检出时归一）。
+
+### 5 聚焦回归
+
+- 共享树上十九个文件（本批门；第五百三十至五百四十批的审计/变更门；`tests/test_changes_pure.py`、`tests/test_core_tools.py`、`tests/test_optimization_core.py`、`tests/test_the_change_panel_and_the_diff_must_agree.py`、`tests/test_the_status_record_have_one_home.py`、`tests/test_five_places_where_one_fact_was_read_differently.py`、`tests/test_three_places_that_lost_what_they_were_protecting.py`、`tests/test_what_a_review_of_this_batch_found.py`、`tests/test_a_backup_is_not_a_workspace_change.py`、`tests/test_logging.py`）：`212 passed, 1 skipped in 182.38s`（跳过的是本平台没有 symlink，既有行为）。
+- 干净克隆（`b2afe41`，无共享树的他道脏文件）：同一组十九个文件 `212 passed, 1 skipped in 212.11s`。
+- 同一个改动**加上本批记录**后的干净克隆：`scripts/doc_pointers.py --check` rc=0——986 个「见」标记（116 条进受检箱、56 条落在 citation-without-locator）、23 条链接、4254 条 evidence 指针（75 条路径断言在代码跨度之外）、20 份文档、652 个在仓文件；`scripts/route_coverage.py --check` rc=0（GET 20/20、POST 14/14，B 全 100%）；`scripts/impacted_tests.py --check` rc=0（干净树，答的是没有改动可量）；引用门三文件 `85 passed in 382.03s`（这一趟单独跑，不与上面那组并行，计时比第五百四十批那次低）。
+- 全围栏：**本批不重跑**（约 58 分钟一趟）；最近一次全围栏在其祖先 `5faa568` 上跑过 `python -W error -m pytest -q`：`4195 passed, 11 skipped in 3477.26s`，EXIT=0。其后的代码改动是第五百四十批的 28 增 1 删（`3d99c6f`，另加 222 行新门）与本批的 33 增 2 删（`b2afe41`，另加 172 行新门），判定取干净克隆上的门集与检查器。
+
+### 6 边界（本批**不**声称）
+
+- **不声称窗口外的行被看过。** 仍是尾部 256KB、最后 500 行；窗口本身由 `audit_window_truncated` 披露。
+- **不声称写出侧写不出没有动作的记录。** 编辑器每个 `_audit(...)` 都传字面量动作，`_audit`（`minicc/tools/editor.py:328-349`）自己也不检查参数；本批管的是**读进来的那一份**——轨迹文件是可以由编辑器之外的人手写的。
+- **不声称说不出动作的记录真的没改文件。** 它不再**单独**作证：git 看得见的那一侧照旧列出，捷径也按住让 `diff` 去算真补丁（F/M 形状）。方向与第五百四十批相反——那里多列是假证人，这里少列会漏掉真改动，所以按住捷径的是它。
+- **不声称计数之间不搬家。** 闸门有序：动作 → 路径 → 拒绝。一条既没动作又没路径的记录只进 `audit_records_without_action`，一条没动作的「拒绝」行从 `audit_refused_records` **搬到** `audit_records_without_action`（N 形状实测：`refused` 1 → 0）。以后拿旧记录里的计数对账，要按这个顺序读。
+- **不声称 `diff` 的 `status` 学会了这件事。** 捷径按住了，补丁算出来了，但 `status` 仍来自 `status_map.get(path, "clean")`（`minicc/changes.py:431`）——git 读不出来、审计又不敢作证时，它答 `clean` 而补丁非空。那是另一层，记在 §7 第 2 位。
+- **不声称界面显示这个计数。** 键随 RPC 回答回到调用方，`web/src` 里没有一处读它（与第五百三十至五百四十批同一条）。
+- **不声称删除与移动的形状被修。** `delete` 点名的文件已不在，兜底那一步 `(self.workspace / key).is_file()`（`minicc/changes.py:545`）把它丢掉；`move` 记的是**源路径**（`minicc/tools/editor.py:745`），新位置只在 `detail` 的 `→ dst` 里——面板既不说源没了，也不说目标多了。本批先让动作读得准，下一批才动它。
+
+### 7 下一位候选
+
+1. **`delete`/`move` 记录点名的文件**：兜底只列还在的那一个。`delete` 的行点一个已消失的文件（要不要计？算不算一次「改动」？），`move` 的行点源、目标藏在 `detail` 里——先要定「窗口里先创建后删除是不是净零」这个判据（按路径的首末动作），所以本批没动。
+2. **`status` 的 `clean` 兜底**：不在清单里的文件被默认成「没改」（`minicc/changes.py:542`），而 `diff` 现在能算出一个非空补丁——面板说没改、详情页给出整份文件。与第五百三十批同族：`clean` 是**读不出来的猜测**，不是读出来的答案。
+3. **`_git` 的 127 哨兵**把 OSError 与 20 秒超时压成同一个 `git unavailable`（`minicc/changes.py:100-113`）。
+4. **破损符号链接**：本平台没有 symlink 权限，需要一个能造 symlink 的门面。
+5. **选择器解析成本**（500 文件约 13s）。
