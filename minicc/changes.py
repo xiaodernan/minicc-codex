@@ -18,7 +18,7 @@ from typing import Any
 
 from .gitprobe import work_tree_verdict
 from .internal_paths import AUDIT_NAME
-from .tools.editor import _MUTATING_ACTIONS, audit_level, move_destination
+from .tools.editor import _MUTATING_ACTIONS, audit_level, deletion_witness, move_destination
 from .tools.registry import redact_text
 
 
@@ -176,8 +176,12 @@ class ChangeInspector:
             status = "modified"
         return status, path
 
-    def _audit_paths(self) -> tuple[set[str], str | None]:
+    def _audit_paths(self) -> tuple[set[str], set[str], str | None]:
         """Paths the editor **changed**, from the audit trail — and why not.
+
+        The first set is every path a changing action named.  The second is
+        the half of it that names a file the trail says is **gone** - see
+        the M8-T561 note below.
 
         M8-T300: the action was ignored, so a ``read`` landed in the same
         set as a ``write`` - and the fallback then reported every file the
@@ -250,6 +254,17 @@ class ChangeInspector:
         reader - ``move_destination`` - may turn it into a path.
         A move the audit recorded is a change git cannot always
         see, so the destination joins the set next to the source.
+
+        M8-T561: a ``delete`` line names the file it removed, and that
+        file is absent by construction - which is exactly the shape the
+        ``is_file`` fallback in ``files_without_diff`` cannot answer, so
+        the panel said nothing had changed about a file the trail watched
+        disappear.  The deletions travel beside the paths instead of
+        inside them, and only for what the window actually says: the line
+        has to carry the content it removed (``deletion_witness``), the
+        path's last action has to be the deletion, and its first action
+        must not be a creation - a file born and buried inside the window
+        leaves the workspace as it was.
         """
         self._audit_window_truncated = False
         self._audit_unreadable_lines = 0
@@ -258,19 +273,22 @@ class ChangeInspector:
         self._audit_records_without_action = 0
         audit = self.workspace / ".minicc" / AUDIT_NAME
         paths: set[str] = set()
+        first_action: dict[str, str] = {}
+        last_action: dict[str, str] = {}
+        witnessed: set[str] = set()
         try:
             if not audit.is_file():
                 if audit.exists():
-                    return set(), (
+                    return set(), set(), (
                         f"审计记录（.minicc/{AUDIT_NAME}）不是一个文件"
                         "（可能是目录），读不出来，git 看不到的改动没有兜底"
                     )
                 if audit.parent.exists() and not audit.parent.is_dir():
-                    return set(), (
+                    return set(), set(), (
                         f"审计记录（.minicc/{AUDIT_NAME}）的父路径（.minicc）"
                         "不是一个目录，读不出来，git 看不到的改动没有兜底"
                     )
-                return set(), None
+                return set(), set(), None
             # Read a bounded tail; audit histories can be many megabytes.
             with audit.open("rb") as stream:
                 size = audit.stat().st_size
@@ -317,6 +335,13 @@ class ChangeInspector:
                     continue
                 if not _ignored_path(path):
                     paths.add(path)
+                    first_action.setdefault(path, action)
+                    last_action[path] = action
+                    if action == "delete" and deletion_witness(item):
+                        # M8-T561: the line that digested the bytes it
+                        # removed is the only one that can say a file was
+                        # there to begin with.
+                        witnessed.add(path)
                 if action == "move":
                     # M8-T560: the source named above is gone by the time
                     # this line is read, so on its own it lists a file that
@@ -330,11 +355,16 @@ class ChangeInspector:
                         if not _ignored_path(destination):
                             paths.add(destination)
         except (OSError, ValueError, TypeError) as exc:
-            return set(), (
+            return set(), set(), (
                 f"审计记录（.minicc/{AUDIT_NAME}）读不出来"
                 f"（{type(exc).__name__}: {exc}），git 看不到的改动没有兜底"
             )
-        return paths, None
+        deletions = {
+            path
+            for path in witnessed
+            if last_action.get(path) == "delete" and first_action.get(path) != "create"
+        }
+        return paths, deletions, None
 
     def _computed_files(self) -> list[dict[str, Any]]:
         """Every changed file, with its counts.  Not truncated."""
@@ -552,7 +582,7 @@ class ChangeInspector:
             status, path = self._parse_status(raw)
             if path and not _ignored_path(path):
                 items[path] = _status_record(path, status, raw)
-        audit_paths, self._audit_read_error = self._audit_paths()
+        audit_paths, audit_deletions, self._audit_read_error = self._audit_paths()
         for path in audit_paths:
             # M8-T310: the audit records the **raw** argument the model
             # passed (``sub/../notes.md``), while git records the clean
@@ -564,6 +594,16 @@ class ChangeInspector:
             key = self._resolved_relative(path)
             if key and key not in items and (self.workspace / key).is_file():
                 items[key] = _status_record(key, "modified", "audit")
+        for path in sorted(audit_deletions):
+            # M8-T561: the loop above can only speak for files that are still
+            # here, and the file a ``delete`` line names is not - so the one
+            # change the trail says most plainly was the one the panel had no
+            # word for.  Git already naming it wins (``key not in items``),
+            # and so does the tree: a file that is back, or a directory in
+            # its place, is not something that disappeared.
+            key = self._resolved_relative(path)
+            if key and key not in items and not (self.workspace / key).exists():
+                items[key] = _status_record(key, "deleted", "audit")
         return list(items.values())
 
     def _resolved_relative(self, raw_path: str) -> str:

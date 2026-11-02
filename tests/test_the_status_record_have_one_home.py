@@ -46,4 +46,4 @@ def test_census_exactly_one_literal_and_it_is_the_home():
 
 def test_call_sites_use_the_home():
     source = (REPO / "minicc/changes.py").read_text(encoding="utf-8")
-    assert source.count("_status_record(") == 3
+    assert source.count("_status_record(") == 4

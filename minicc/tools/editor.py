@@ -220,6 +220,31 @@ def audit_level(action: str, detail: str = "") -> str:
 #: spelling for the copy it just made.
 DETAIL_TARGET_PREFIX = "→ "
 
+#: How a ``delete`` line says what it removed: the digest of the bytes
+#: that were in the file before it went away.
+BEFORE_DIGEST_KEY = "before_digest"
+
+
+def deletion_witness(record: object) -> str:
+    """What a ``delete`` line says it removed, or "" when it says nothing.
+
+    ``Editor.delete`` digests the file before unlinking it, so a line with
+    a non-blank digest is one the editor watched a real file disappear -
+    while a line without it says only that something was *called* delete.
+    A record may be listed only for what it actually says, which is the
+    rule M8-T558 applies to a refusal and M8-T559 to an actionless record;
+    reading a deletion off a line that holds no content would report a
+    file that never existed as gone (M8-T561).  The whole record is taken,
+    not the field, so the key's spelling keeps one home here and the
+    panel cannot drift off it.
+    """
+    if not isinstance(record, dict):
+        return ""
+    raw = record.get(BEFORE_DIGEST_KEY)
+    if not isinstance(raw, str):
+        return ""
+    return raw.strip()
+
 
 def move_destination(detail: object) -> str:
     """The path a ``move`` line names as its destination, or "" for none.
@@ -256,7 +281,7 @@ class AuditEntry:
             "action": self.action,
             "path": self.path,
             "detail": self.detail,
-            "before_digest": self.before_digest,
+            BEFORE_DIGEST_KEY: self.before_digest,
             "after_digest": self.after_digest,
             "level": self.level,
         }

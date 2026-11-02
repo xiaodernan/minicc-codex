@@ -131,12 +131,13 @@ def test_the_control_a_real_write_is_still_listed(tmp_path: Path) -> None:
     assert _paths(ChangeInspector(workspace).summary()) == ["keep.txt"]
 
 
-def test_the_control_a_deleted_file_is_not_answered_a_change(tmp_path: Path) -> None:
-    """`delete` 点名的文件已经不在了——本批不给它一个形状（见 §7）。"""
+def test_the_control_a_deleted_file_is_answered_by_its_own_batch(tmp_path: Path) -> None:
+    """`delete` 点名的文件已经不在了——那一头由第五百四十三批给形状，本批的门只盯目标。"""
     workspace = _workspace(tmp_path, "delete-control")
     Editor(workspace, audit_path=workspace / ".minicc" / "audit.jsonl").delete("notes.md")
     summary = ChangeInspector(workspace).summary()
-    assert _paths(summary) == [], summary
+    assert _paths(summary) == ["notes.md"], summary
+    assert [str(item["status"]) for item in summary["files"]] == ["deleted"], summary
     assert summary["audit_records_without_action"] == 0, summary
 
 
