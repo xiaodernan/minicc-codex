@@ -73,6 +73,21 @@ mismatch at will; and a *writer's* codec can be, which is what makes M8-T58's
 three-parent-codec gate work wherever it runs.  Consequence, measured on both hosts:
 deleting the worktree pin reddens the structural git rule everywhere but reddens the
 behavioral gate only on a host whose default is not UTF-8.
+
+M8-T564 took the question this file asked about ``errors=`` and put it one level
+deeper.  ``has_errors`` was ``"errors" in self.keywords`` - it counted declarations -
+and the fence run of that batch found a call site that had been compliant by that
+measure since M8-T556 while the rule itself kept accepting three spellings of the very
+shape it exists to catch.  Measured with the same bad bytes decoded by each handler
+name: ``errors="strict"``, ``errors=None`` and the encode-side names
+``xmlcharrefreplace`` / ``namereplace`` do not protect the stream - on this host the
+reader thread dies and ``run`` returns ``rc=0`` with ``stdout`` set to ``None``, so
+``check=True`` reports success and the caller's ``needle in result.stdout`` becomes a
+``TypeError`` about ``None`` rather than an answer about the child.  The predicate is
+now ``declares_lossy_handler``, which reads the *value* against
+``_LOSSY_DECODE_HANDLERS``, and the two ends of that rule are gated from both sides:
+the table is re-derived by decoding, and the swallow is re-derived by running the
+planted shapes as children.
 """
 
 from __future__ import annotations
@@ -80,8 +95,10 @@ from __future__ import annotations
 import ast
 import io
 import json
+import os
 import re
 import subprocess
+import sys
 import tempfile
 import tokenize
 from pathlib import Path
@@ -262,6 +279,17 @@ def _attribute_reads(tree: ast.AST, name: str) -> set[str]:
     }
 
 
+#: The handlers that cannot raise while *decoding*, measured on this interpreter by
+#: decoding the same bad bytes with every name ``codecs`` documents (M8-T564).  This is
+#: the whole answer to the question the rule asks - presence is not:
+#: ``xmlcharrefreplace`` and ``namereplace`` are encode-side handlers, and handing them
+#: to a decoder raises ``TypeError`` inside the reader thread, which swallows the stream
+#: exactly like ``strict`` does.  A value the AST cannot read as one of these names is
+#: not a pass either: the instrument cannot show a variable holds a lossy handler, and
+#: the shape that hides a swallowed stream is precisely what it is here to find.
+_LOSSY_DECODE_HANDLERS = frozenset({"replace", "ignore", "backslashreplace", "surrogateescape"})
+
+
 class Capture:
     """One subprocess call, as the AST saw it."""
 
@@ -280,8 +308,18 @@ class Capture:
         return self._true_constant("text") or self._true_constant("universal_newlines")
 
     @property
-    def has_errors(self) -> bool:
-        return "errors" in self.keywords
+    def declares_lossy_handler(self) -> bool:
+        """Whether the ``errors=`` this call names cannot raise while decoding.
+
+        M8-T564 replaced the presence test (``"errors" in self.keywords``) with this.
+        The measured reason: ``errors="strict"``, ``errors=None`` and
+        ``errors="xmlcharrefreplace"`` each return the same answer as writing nothing -
+        ``rc=0`` with ``stdout`` swallowed to ``None`` - so a rule that only asked
+        whether the keyword was there was counting declarations, not protection.
+        """
+
+        node = self.keywords.get("errors")
+        return isinstance(node, ast.Constant) and node.value in _LOSSY_DECODE_HANDLERS
 
     @property
     def encoding(self) -> object:
@@ -476,7 +514,7 @@ def text_captures(captures: list[Capture]) -> list[Capture]:
 
 
 def strict_text_captures(captures: list[Capture]) -> list[Capture]:
-    return [item for item in captures if item.text_mode and not item.has_errors]
+    return [item for item in captures if item.text_mode and not item.declares_lossy_handler]
 
 
 def git_captures(captures: list[Capture]) -> list[Capture]:
@@ -663,6 +701,27 @@ SYNTHETIC_GIT = (
     "subprocess.run(['git', 'status'], capture_output=True, text=True, errors='replace')\n"
 )
 SYNTHETIC_BYTES = "import subprocess\nsubprocess.run(['git', 'status'], capture_output=True)\n"
+#: The four spellings M8-T564 measured as *not* a declaration of protection: a literal
+#: ``'strict'``, an explicit ``None`` (which ``subprocess`` reads as ``'strict'``), an
+#: encode-side handler that raises while decoding, and a name the AST cannot resolve.
+#: Each of them used to satisfy a rule that only asked whether ``errors=`` was there.
+SYNTHETIC_STRICT_HANDLER = (
+    "import subprocess\n"
+    "subprocess.run(['echo', 'hi'], capture_output=True, text=True, errors='strict')\n"
+)
+SYNTHETIC_ERRORS_NONE = (
+    "import subprocess\n"
+    "subprocess.run(['echo', 'hi'], capture_output=True, text=True, errors=None)\n"
+)
+SYNTHETIC_ERRORS_ENCODE_SIDE = (
+    "import subprocess\n"
+    "subprocess.run(['echo', 'hi'], capture_output=True, text=True, errors='xmlcharrefreplace')\n"
+)
+SYNTHETIC_ERRORS_VARIABLE = (
+    "import subprocess\n"
+    "handler = 'replace'\n"
+    "subprocess.run(['echo', 'hi'], capture_output=True, text=True, errors=handler)\n"
+)
 SYNTHETIC_EMBEDDED = (
     "GRADER = '''\nimport subprocess\nproc = subprocess.run('make', shell=True, capture_output=True, text=True)\n'''\n"
 )
@@ -1422,3 +1481,162 @@ def test_the_real_table_names_the_code_that_ships() -> None:
         "minicc/bench_tasks.py::_run_grader subprocess.run",
         "minicc/benchmarks.py::run_benchmark subprocess.run",
     ], sorted(_VERDICT_NEUTRAL_CAPTURES)
+
+
+#: Every handler name a reader could plausibly write, plus two that cannot be written
+#: as a name at all (``None``, and the variable case the table test covers separately).
+#: The table below is derived from this list by decoding, so it is a measurement and not
+#: a list of preferences.
+_HANDLER_CANDIDATES = (
+    "strict",
+    "replace",
+    "ignore",
+    "backslashreplace",
+    "surrogateescape",
+    "xmlcharrefreplace",
+    "namereplace",
+    "surrogatepass",
+    "",
+    "no-such-handler",
+)
+
+#: Bytes that are invalid in every codec in play, and a run of valid UTF-8 after them:
+#: a stream whose second half is exactly what a swallowed reader loses.
+_BAD_BYTES = b"git says: \xff\xfe ok \xe4\xb8\xad\n"
+
+
+def _handler_never_raises(name: str) -> bool:
+    try:
+        _BAD_BYTES.decode("utf-8", name)
+    except (UnicodeDecodeError, TypeError, ValueError, LookupError):
+        return False
+    return True
+
+
+def _rule_accepts_handler(name: str) -> bool:
+    captured = _scan_source(
+        "import subprocess\n"
+        f"subprocess.run(['echo', 'hi'], capture_output=True, text=True, errors={name!r})\n"
+    )
+    assert len(captured) == 1, captured
+    return not strict_text_captures(captured)
+
+
+def test_the_handler_table_is_the_set_that_cannot_raise_while_decoding() -> None:
+    """One fact, two instruments: what decoding does, and what the rule lets through.
+
+    M8-T564 measured the disagreement this pins.  With the old presence test, four of
+    these names - ``strict``, ``xmlcharrefreplace``, ``namereplace``, ``surrogatepass`` -
+    were read as declarations of protection while raising on the very bytes a reader is
+    here to survive; ``xmlcharrefreplace`` and ``namereplace`` are the trap, because they
+    are real ``codecs`` names that only ever apply to *encoding*, and a decoder handed one
+    gets ``TypeError`` inside the reader thread - the same lost stream, no warning.
+    """
+
+    lossy = {name for name in _HANDLER_CANDIDATES if _handler_never_raises(name)}
+    accepted = {name for name in _HANDLER_CANDIDATES if _rule_accepts_handler(name)}
+    assert len(lossy) >= 4 and len(accepted) >= 4, (sorted(lossy), sorted(accepted))
+    assert accepted == lossy, (
+        f"rule accepts {sorted(accepted)} but decoding proves {sorted(lossy)} can never raise"
+    )
+    assert lossy == set(_LOSSY_DECODE_HANDLERS), sorted(lossy ^ set(_LOSSY_DECODE_HANDLERS))
+
+
+def test_a_planted_declaration_of_a_strict_handler_is_an_offender() -> None:
+    """Four kwargs that read like a declaration and protect nothing - each needs a red witness.
+
+    The last line is the one that keeps this honest: every one of these shapes *has*
+    ``errors=`` in its keywords, which is the question the rule used to ask.
+    """
+
+    for source in (
+        SYNTHETIC_STRICT_HANDLER,
+        SYNTHETIC_ERRORS_NONE,
+        SYNTHETIC_ERRORS_ENCODE_SIDE,
+        SYNTHETIC_ERRORS_VARIABLE,
+    ):
+        captured = _scan_source(source)
+        assert len(captured) == 1, (source, captured)
+        assert len(strict_text_captures(captured)) == 1, source
+        assert "errors" in captured[0].keywords, source
+    assert strict_text_captures(_scan_source(SYNTHETIC_LOSSY)) == [], SYNTHETIC_LOSSY
+
+
+#: A child that answers one question about one capture - did any text arrive, and did
+#: the call raise on the way to saying so.  The handler is spliced in, so four spellings
+#: of the same call can be compared as answers instead of as keywords.  The report is
+#: pure ASCII, so the parent's own read is never the thing that breaks here.
+_CHILD_REPORT = (
+    "import json, subprocess, sys\n"
+    "report = dict(rc=None, got_text=False, raised=None)\n"
+    "try:\n"
+    "    result = subprocess.run([sys.executable, sys.argv[1]], capture_output=True, text=True,\n"
+    "                            encoding='utf-8', check=False{handler})\n"
+    "except Exception as exc:\n"
+    "    report['raised'] = type(exc).__name__\n"
+    "else:\n"
+    "    report['rc'] = result.returncode\n"
+    "    report['got_text'] = bool(result.stdout)\n"
+    "print(json.dumps(report))\n"
+)
+_DIRTY_CHILD = "import sys\nsys.stdout.buffer.write(b'git says: \\xff\\xfe nope\\n')\n"
+
+
+def _capture_report(tmp_path: Path, handler: str) -> dict:
+    dirty = tmp_path / "dirty_child.py"
+    dirty.write_text(_DIRTY_CHILD, encoding="utf-8")
+    reporter = tmp_path / "reporter.py"
+    reporter.write_text(_CHILD_REPORT.format(handler=handler), encoding="utf-8")
+    result = subprocess.run(
+        [sys.executable, str(reporter), str(dirty)],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=True,
+        env={**os.environ, "PYTHONIOENCODING": "utf-8"},
+    )
+    return json.loads(result.stdout)
+
+
+def test_a_declared_strict_handler_swallows_the_same_stream_as_no_declaration(
+    tmp_path: Path,
+) -> None:
+    """Why the value, not the keyword: three spellings return one answer, and it is not the child's.
+
+    Measured on the cp936 host that registered this batch: ``run`` returns ``rc=0`` with
+    ``stdout`` set to ``None`` - the decode raised inside subprocess's own reader thread -
+    so ``check=True`` reports success and the caller's ``needle in result.stdout`` becomes
+    a ``TypeError`` about ``None``.  A POSIX host where the decode happens in the calling
+    thread gets the same *outcome* through ``raised``; the invariant is that no text
+    arrives, whichever way the stream was lost.
+    """
+
+    plain = _capture_report(tmp_path, "")
+    declared_strict = _capture_report(tmp_path, ", errors='strict'")
+    declared_none = _capture_report(tmp_path, ", errors=None")
+    assert plain["got_text"] is False, plain
+    assert declared_strict == plain, (declared_strict, plain)
+    assert declared_none == plain, (declared_none, plain)
+    for handler in ("xmlcharrefreplace", "namereplace", "surrogatepass"):
+        report = _capture_report(tmp_path, f", errors='{handler}'")
+        assert report["got_text"] is False, (handler, report)
+    lossy = _capture_report(tmp_path, ", errors='replace'")
+    assert lossy["rc"] == 0 and lossy["got_text"] is True, lossy
+    assert lossy != plain, (lossy, plain)
+
+
+def test_this_files_exemption_cannot_hide_a_live_capture() -> None:
+    """The exclusion in ``scanned_captures`` covers planted scripts, not calls made here.
+
+    Without this line, "the scanner skips this file" would also mean "a strict capture
+    added to this file is invisible" - the one place a swallowed stream could ship inside
+    the gate written to catch it.
+    """
+
+    here = Path(__file__).resolve()
+    live = [item for item in _module_captures(here, here.name) if not item.in_embedded_script]
+    text = [item for item in live if item.text_mode]
+    assert len(text) >= 1, "this file makes no text-mode capture at all; the check below is vacuous"
+    offenders = [item.label() for item in strict_text_captures(text)]
+    assert offenders == [], offenders
