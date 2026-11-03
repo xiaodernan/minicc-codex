@@ -317,6 +317,31 @@ def build_report(tasks: list[dict[str, Any]], results: list[dict[str, Any]] | No
         task for task in tasks
         if isinstance(task.get("grader"), dict) or task.get("verify_command")
     ]
+    # M8-T541: this key carried two different quantities and the report never said
+    # which one a reader had. Measured on the shipped v2 suite (24 tasks, 24 of them
+    # declaring a grader): the declaration-only report - `--suite v2` with no
+    # `--run`, the invocation the roadmap's M4 acceptance is written against -
+    # publishes `grading_coverage = 1.0` with
+    # `executed_count = 0` and `gradable_task_count = 24`, while the same suite's
+    # task definitions plus three completed rows (two judged, one declaring no
+    # grader) publish 0.6667. docs/BENCHMARK_EVALUATION.md
+    # defines only the second one ("已运行样本中具备评分结果的比例"), and the note
+    # below is a statement over executed rows that the first report cannot satisfy
+    # (24 + 0 + 0 against an executed_count of 0). The number, the count and the name
+    # of the quantity are now decided in this one branch, so a reader is told which
+    # share it is looking at and the basis cannot disagree with the number beside it.
+    if completed:
+        grading_coverage: float | None = round(len(gradable) / len(completed), 4)
+        grading_coverage_basis: str | None = "executed"
+        graded_task_count = len(gradable)
+    elif tasks:
+        grading_coverage = round(len(definition_gradable) / len(tasks), 4)
+        grading_coverage_basis = "declared"
+        graded_task_count = len(definition_gradable)
+    else:
+        grading_coverage = None
+        grading_coverage_basis = None
+        graded_task_count = len(definition_gradable)
     # M8-T185: the acceptance rate is published under two names -
     # ``pass_at_1`` and ``acceptance_success_rate``, which
     # docs/BENCHMARK_EVALUATION.md lists as one metric with two spellings. Until
@@ -346,8 +371,9 @@ def build_report(tasks: list[dict[str, Any]], results: list[dict[str, Any]] | No
             # the pass-rate denominator.
             "pass_at_1": acceptance_rate,
             "execution_completion_rate": round(sum(row["status"] == "completed" for row in completed) / len(completed), 4) if completed else None,
-            "grading_coverage": round(len(gradable) / len(completed), 4) if completed else (round(len(definition_gradable) / len(tasks), 4) if tasks else None),
-            "gradable_task_count": len(gradable) if completed else len(definition_gradable),
+            "grading_coverage": grading_coverage,
+            "grading_coverage_basis": grading_coverage_basis,
+            "gradable_task_count": graded_task_count,
             # A grader that could not judge is not a failed task and not an
             # ungraded one either; without its own column a report reader only
             # sees the denominator shrink (M8-T80 wrote the field, nothing read it).
@@ -410,6 +436,7 @@ def build_report(tasks: list[dict[str, Any]], results: list[dict[str, Any]] | No
             "Tokens and cost per success include expenditure on failed attempts; missing measurements keep these metrics null.",
             "REFUSED means nobody judged this workspace: the grader declined (exit 2), could not be run, the host could not write the workspace, or the operator aborted the run; it is not a pass, a failure, or a task without a grader.",
             "Every executed row lands in exactly one of three verdicts: judged (gradable_task_count), refused (grading_refusal_count), or no grader at all (no_grader_count). grading_coverage is the judged share, so the two counts together say what the rest of the denominator is made of - a task with no grader and no verify_command was never going to be judged, which is a property of the suite, not of the run.",
+            "grading_coverage_basis says which quantity grading_coverage and gradable_task_count carry: 'executed' is over the rows that ran (the identity above is an executed-basis statement), 'declared' is over the task definitions and appears only when nothing ran - executed_count is then 0 and gradable_task_count counts declared graders, not judged rows. A report naming no basis at all predates this key.",
             "reviewer_false_negative_count counts rows recorded failed whose objective grader, re-run only as a diagnostic, reports passed; it measures the reviewer, not the suite score. An oracle that reports zero cases checked nothing, so its pass does not count, and one that names no known grader is not trusted either.",
         ],
     }
@@ -433,7 +460,7 @@ def markdown_report(report: dict[str, Any]) -> str:
     # a hand-written copy is a second owner of "which metrics exist" and silently
     # drops any key added to only one of the two places (M8-T86). The declared
     # reading order is honoured, then every remaining key is printed in sorted order.
-    preferred = ("execution_completion_rate", "grading_coverage", "gradable_task_count", "grading_refusal_count", "no_grader_count", "acceptance_success_rate", "false_completion_rate", "reviewer_false_negative_count", "infra_failure_count", "pass_at_1", "pass_at_1_ex_infra", "latency_p50_ms", "latency_p95_ms", "tokens_per_success", "cost_per_success_usd", "mean_repair_attempts", "token_usage_available", "cost_available")
+    preferred = ("execution_completion_rate", "grading_coverage", "grading_coverage_basis", "gradable_task_count", "grading_refusal_count", "no_grader_count", "acceptance_success_rate", "false_completion_rate", "reviewer_false_negative_count", "infra_failure_count", "pass_at_1", "pass_at_1_ex_infra", "latency_p50_ms", "latency_p95_ms", "tokens_per_success", "cost_per_success_usd", "mean_repair_attempts", "token_usage_available", "cost_available")
     for key in [k for k in preferred if k in metrics] + sorted(set(metrics) - set(preferred)):
         lines.append(f"| {key} | {value(metrics.get(key))} |")
     lines.extend(["", "| Task | Category | Status | Passed |", "| --- | --- | --- | --- |"])

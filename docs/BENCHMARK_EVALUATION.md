@@ -25,7 +25,8 @@
 | 指标 | 含义 |
 |---|---|
 | `execution_completion_rate` | 执行流程正常结束的比例 |
-| `grading_coverage` | 已运行样本中具备评分结果的比例 |
+| `grading_coverage` | 已运行样本中具备评分结果的比例；一条样本都没运行时该键改报任务定义里声明了评分器的比例，两种量由下一行区分 |
+| `grading_coverage_basis` | 上一行当下是哪一种量：`executed` 或 `declared`；没有样本也没有任务时为 `null`。`gradable_task_count` 跟着同一个口径走，所以 `declared` 下它数的是「声明了评分器的任务」，不是「被判决的行」 |
 | `acceptance_success_rate` / `pass_at_1` | 有评分样本的独立验收通过率；不把未评分样本算成通过 |
 | `false_completion_rate` | 有评分样本中，宣称完成但验收失败的比例 |
 | `tokens_per_success` / `cost_per_success_usd` | 所有运行（包含失败）的开销除以成功数；任一运行缺测时为 `null` |

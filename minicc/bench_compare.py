@@ -90,7 +90,15 @@ GATE_FLOORS: dict[str, str] = {
     "pass_at_1_ex_infra": "unfloored: pass_at_1 is the gated rate and keeps the frozen denominator (M8-T154)",
     "cost_per_success_usd": "unfloored: pricing is unavailable for the shipped provider, so it is null on every run so far",
     "latency_p95_ms": "nightly <=600000",
-    "grading_coverage": "nightly >=0.9",
+    # M8-T541: the floor is written for the executed basis, and a report that ran
+    # nothing publishes 1.0 on the declared one. Measured before this batch, in the
+    # shape this job actually uses (`.github/workflows/ci.yml` applies the gates
+    # self-referentially, baseline == variant): `--suite v2` with no `--run`, then
+    # that report as both sides of `--gate grading_coverage>=0.9` → 通过, rc=0;
+    # the same report as the variant against a three-row run of the same suite also
+    # returned 通过, because a gate reads only the variant side. A pair whose sides
+    # state different bases now gates None, which _gate_holds fails closed on.
+    "grading_coverage": "nightly >=0.9 - executed basis; a pair stating two different bases gates None (M8-T541)",
     # M8-T182: a refusal is never a legitimate outcome - the grader declined
     # (exit 2), could not be run, the host could not write the workspace, or the
     # operator aborted - so zero is the one floor that needs no characterisation.
@@ -341,6 +349,18 @@ def compare_reports(
     # rather than inventing a suite name.
     base_suite = baseline.get("suite_version") if isinstance(baseline, dict) else None
     var_suite = variant.get("suite_version") if isinstance(variant, dict) else None
+    # M8-T541: the second identity a comparison needs and cannot invent. A report
+    # publishes grading_coverage either over the rows that ran or over the task
+    # definitions that declare a grader, and `build_report` picks the quantity by
+    # whether anything ran - so the declaration-only report (the roadmap's M4
+    # invocation, `--suite v2` with no `--run`) carries 1.0 with executed_count 0
+    # while a three-row run of the same suite carries 0.6667. Gating that against
+    # the nightly's own `grading_coverage>=0.9` was measured to return 通过 rc=0
+    # for a report in which nothing ran. Like suite_version, an absent basis (a
+    # report predating the key) is compared as unknown rather than refused; a pair
+    # that *states* two different bases has no shared quantity to threshold.
+    base_coverage_basis = base_metrics.get("grading_coverage_basis")
+    var_coverage_basis = var_metrics.get("grading_coverage_basis")
     base_by_id = _index(base_rows)
     var_by_id = _index(var_rows)
     shared = [tid for tid in base_by_id if tid in var_by_id]
@@ -363,6 +383,20 @@ def compare_reports(
         notes.append(
             f"套件不同：baseline 是 {base_suite}，variant 是 {var_suite}——两个任务 "
             "ID 空间不相交，对齐数与差值不具可比性。"
+        )
+    # M8-T541: both bases must be *stated* to refuse - a missing one reads as
+    # unknown, which is what M8-T159 decided for a missing suite identity.
+    coverage_comparable = not (
+        base_coverage_basis and var_coverage_basis
+        and base_coverage_basis != var_coverage_basis
+    )
+    if not coverage_comparable:
+        notes.append(
+            f"口径不同：baseline 的 grading_coverage 是 {base_coverage_basis}"
+            f"（{'已运行行里有判决的比例' if base_coverage_basis == 'executed' else '任务定义里声明了评分器的比例'}），"
+            f"variant 是 {var_coverage_basis}"
+            f"（{'已运行行里有判决的比例' if var_coverage_basis == 'executed' else '任务定义里声明了评分器的比例'}）——"
+            "同一个键的两种量，对该指标的 gate 一律不判（视为违反）。"
         )
 
     pass_delta = (
@@ -454,6 +488,8 @@ def compare_reports(
             "latency_p50_ms": base_lat["p50"],
             "latency_p95_ms": base_lat["p95"],
             "grading_coverage": base_metrics.get("grading_coverage"),
+            # M8-T541: the basis travels with the number it describes.
+            "grading_coverage_basis": base_coverage_basis,
             # M8-T118: the two refusal-family counts ride along so --gate can
             # threshold them; a report that never computed them gates fail-closed.
             "grading_refusal_count": base_metrics.get("grading_refusal_count"),
@@ -474,6 +510,8 @@ def compare_reports(
             "latency_p50_ms": var_lat["p50"],
             "latency_p95_ms": var_lat["p95"],
             "grading_coverage": var_metrics.get("grading_coverage"),
+            # M8-T541: the basis travels with the number it describes.
+            "grading_coverage_basis": var_coverage_basis,
             "grading_refusal_count": var_metrics.get("grading_refusal_count"),
             "reviewer_false_negative_count": var_metrics.get("reviewer_false_negative_count"),
             # M8-T155: same ride-along as the baseline block.
@@ -491,6 +529,10 @@ def compare_reports(
         "categories": category_breakdown,
         "pass_at_k": pass_at_k,
         "repeat": k,
+        # M8-T541: what a gate on grading_coverage may judge at all. The published
+        # numbers stay in the table untouched - refusing is the gate's decision, not
+        # a rewrite of a report.
+        "grading_coverage_comparable": coverage_comparable,
         "notes": notes,
     }
 
@@ -514,8 +556,18 @@ def parse_gate(spec: str) -> dict[str, Any]:
     raise ValueError(f"gate 缺少比较符（>=, <=, >, <）: {spec}")
 
 
-def _gate_actual(variant: dict[str, Any], metric: str) -> float | None:
-    value = variant.get(metric)
+def _gate_actual(comparison: dict[str, Any], metric: str) -> float | None:
+    """The reading a gate judges: the variant's value, or None when there is none.
+
+    M8-T541: two reports on different bases share no grading_coverage to threshold,
+    so the gate receives None - the shape ``_gate_holds`` already fails closed on,
+    the same shape as a metric the report never computed. Handing the gate the
+    declared 1.0 would let a report in which nothing ran satisfy a floor written for
+    runs.
+    """
+    if metric == "grading_coverage" and comparison.get("grading_coverage_comparable") is False:
+        return None
+    value = comparison.get("variant", {}).get(metric)
     return value if _is_number(value) else None
 
 
@@ -533,11 +585,10 @@ def _gate_holds(actual: float | None, op: str, threshold: float) -> bool:
 
 def evaluate_gates(comparison: dict[str, Any], gates: Sequence[str]) -> list[dict[str, Any]]:
     """Evaluate every gate against the *variant* metrics; return all results."""
-    variant = comparison.get("variant", {})
     results: list[dict[str, Any]] = []
     for spec in gates:
         gate = parse_gate(spec)
-        actual = _gate_actual(variant, gate["metric"])
+        actual = _gate_actual(comparison, gate["metric"])
         holds = _gate_holds(actual, gate["op"], gate["threshold"])
         results.append({**gate, "actual": actual, "violated": not holds})
     return results
@@ -555,6 +606,11 @@ def _fmt_ci(ci: object, digits: int = 4) -> str:
     if not isinstance(ci, (list, tuple)) or len(ci) != 2:
         return "N/A"
     return f"[{_fmt(ci[0], digits)}, {_fmt(ci[1], digits)}]"
+
+
+def _fmt_basis(value: object) -> str:
+    """Which quantity a coverage number is a share of; absent reads as unknown."""
+    return str(value) if value else "unknown"
 
 
 def render_delta_table(comparison: dict[str, Any], gates: Sequence[dict[str, Any]] = ()) -> str:
@@ -577,7 +633,11 @@ def render_delta_table(comparison: dict[str, Any], gates: Sequence[dict[str, Any
         f"| cost 差值 bootstrap 95% CI | — | — | {_fmt_ci(comparison['cost_per_success_delta_ci'], 6)} |",
         f"| latency_p50_ms | {_fmt(base['latency_p50_ms'], 1)} | {_fmt(var['latency_p50_ms'], 1)} | {_fmt(comparison['latency_p50_delta_ms'], 1)} |",
         f"| latency_p95_ms | {_fmt(base['latency_p95_ms'], 1)} | {_fmt(var['latency_p95_ms'], 1)} | {_fmt(comparison['latency_p95_delta_ms'], 1)} |",
-        f"| grading_coverage | {_fmt(base['grading_coverage'])} | {_fmt(var['grading_coverage'])} | — |",
+        # M8-T541: each cell names the quantity it is a share of. Two numbers under
+        # one label are not a comparison unless the labels agree - a declared 1.0
+        # (nothing ran) beside an executed 0.6667 used to read as a coverage gain.
+        f"| grading_coverage | {_fmt(base['grading_coverage'])} ({_fmt_basis(base.get('grading_coverage_basis'))}) "
+        f"| {_fmt(var['grading_coverage'])} ({_fmt_basis(var.get('grading_coverage_basis'))}) | — |",
     ]
     if comparison.get("categories"):
         lines.extend(["", "| Category | 任务 | pass@1 base | pass@1 var | 差值 |", "| --- | ---: | ---: | ---: | ---: |"])
