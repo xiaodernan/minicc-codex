@@ -588,10 +588,10 @@ class ChangeInspector:
             row = {**item, "additions": counts[0], "deletions": counts[1]}
             if item["status"] == "deleted":
                 # M8-T563: the detail page has read this file's content out of
-                # the editor's own copy since M8-T562, while the list still
-                # answered 0 lines for it - one fact, two answers in the same
-                # payload.  The verdict travels in the same key the detail
-                # page uses, so a row that could not be counted says why
+                # the editor's own copy since M8-T562, while the list answered
+                # 0 lines for it until this batch - one fact, two answers in
+                # the same payload.  The verdict travels in the same key the
+                # detail page uses, so a row that could not be counted says why
                 # instead of borrowing the word for "there was nothing in it".
                 # A deletion git already counted is not asked (no source is
                 # filed for it), so git's number stays git's number.
