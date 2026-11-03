@@ -150,12 +150,16 @@ def test_the_control_a_deletion_git_can_see_keeps_its_provenance(tmp_path: Path)
     assert summary["total_files"] == 1, summary
 
 
-def test_the_control_the_deletion_counts_do_not_invent_lines(tmp_path: Path) -> None:
-    """git 看不见内容时不硬造行数：这一条既不加行也不删行。"""
+def test_the_deletion_counts_the_lines_the_copy_kept(tmp_path: Path) -> None:
+    """git 看不见这条删除，编辑器留下的副本看得见——数它不是硬造行数。
+
+    第五百四十三批把这一格钉成对照（「不硬造」）；第五百四十四批从副本里读回了
+    预像，第五百四十五批让清单跟着同一个数走，于是这一条从对照变成了作证。
+    """
     workspace = _workspace(tmp_path, "counts")
     _delete(workspace, "notes.md")
     entry = _summary(workspace)["files"][0]
-    assert (entry["additions"], entry["deletions"]) == (0, 0), entry
+    assert (entry["additions"], entry["deletions"]) == (0, 2), entry
 
 
 # --------------------------------------------------------------------------

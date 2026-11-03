@@ -372,14 +372,27 @@ def test_every_diff_carries_the_verdict(tmp_path: Path) -> None:
 
 
 def test_the_list_still_says_no_numbers(tmp_path: Path) -> None:
-    """清单那格的数字来自 numstat，兜底那格是 0/0——本批只补详情页的补丁。"""
+    """数不出来的那一路，清单仍是 0/0——第五百四十五批对齐的是读得出来的那条。
+
+    本批写下这一条时它钉的是「清单不跟着补丁走」；那件事现在成立了，名字留下
+    （本批的 §2、§4、§6 都按这个名字引用过它），形状换成**真正数不出来**的一种：
+    delete 行有 witness，窗口里没有配得上它的 backup 行。
+    """
+    from minicc.tools.editor import sha256_digest
+
     workspace = _workspace(tmp_path, "E10")
-    _editor(workspace).delete("notes.md")
+    digest = sha256_digest(FILES["notes.md"].encode("utf-8"))
+    _audit(workspace, [
+        {"action": "delete", "path": "notes.md", "detail": "", "before_digest": digest},
+    ])
+    (workspace / "notes.md").unlink()
     entry = ChangeInspector(workspace).summary()["files"][0]
     assert (entry["status"], entry["raw"], entry["additions"], entry["deletions"]) == (
         "deleted", "audit", 0, 0
     ), entry
-    assert _diff(workspace, "notes.md")["deletions"] == 2, entry
+    diff = _diff(workspace, "notes.md")
+    assert diff["deletions"] == 0, diff
+    assert diff["deletion_preimage"] == "not-recorded", diff
 
 
 # --------------------------------------------------------------------------

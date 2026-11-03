@@ -102,14 +102,35 @@ def _status_record(path: str, status: str, raw: str) -> dict[str, Any]:
     return {"path": path, "status": status, "raw": raw}
 
 
+def _patch_counts(patch: str) -> tuple[int, int]:
+    """How many lines a unified patch adds and how many it removes.
+
+    M8-T563: the two file-header lines are dropped by *position*, not by
+    prefix.  Counting ``-`` lines that do not start with ``---`` silently
+    throws away a removed line whose own content begins with ``--`` (it
+    renders as ``--- ...``), and the same is true of an added ``++`` line -
+    so the number stopped being the number of lines the patch shows.  The
+    list and the detail page now read the same ruler: a deletion counted
+    in one place cannot answer a different figure in the other.
+    """
+    lines = patch.splitlines()
+    if len(lines) >= 2 and lines[0].startswith("---") and lines[1].startswith("+++"):
+        lines = lines[2:]
+    additions = sum(1 for line in lines if line.startswith("+"))
+    deletions = sum(1 for line in lines if line.startswith("-"))
+    return additions, deletions
+
+
 class ChangeInspector:
     def __init__(self, workspace: str | Path) -> None:
         self.workspace = Path(workspace).resolve()
         self._renames: dict[str, str] = {}
         # M8-T562: resolved path -> (what the delete line digested, the copies
         # the window recorded for it).  Filled by ``files_without_diff``, read
-        # lazily by ``_diff_for_target`` - the list must not pay for a read
-        # only the detail page asks for.
+        # lazily by ``_diff_for_target``.  M8-T563: the list reads it too, for
+        # the deletions git never counted - the number a row carries and the
+        # patch the detail page shows are one fact, so they are read once,
+        # from this filing, and nowhere else.
         self._audit_preimage_sources: dict[str, tuple[str, list[tuple[str, str]]]] = {}
 
     def _resolve(self, raw_path: str) -> Path:
@@ -485,6 +506,42 @@ class ChangeInspector:
             return PREIMAGE_NOT_READABLE, ""
         return PREIMAGE_NOT_RECORDED, ""
 
+    def _preimage_signature(self, complete: list[dict[str, Any]]) -> tuple:
+        """The bytes a listed deletion may be counted at, as the disk has them.
+
+        M8-T563: the fingerprint covered the working files and HEAD alone.  A
+        row counted out of a backup copy has one more input - that copy's
+        bytes - and it does not touch the file that is gone: prune the copy
+        and the memo keeps serving the number the disk can no longer show.
+        The trail needs no entry of its own; every reading of it that changes
+        a row's number changes this filing, and the filing is what these
+        entries are built from.  Only the candidates the read would actually
+        open are stat'ed (the ones whose digest is the witness), and no bytes
+        are read here.
+        """
+        entries: list[tuple] = []
+        for item in complete:
+            if item.get("status") != "deleted":
+                continue
+            source = self._audit_preimage_sources.get(str(item["path"]))
+            if not source:
+                continue
+            witness, copies = source
+            for digest, name in copies:
+                if digest != witness:
+                    continue
+                copy = backup_copy_path(self.workspace, name)
+                if copy is None:
+                    entries.append((str(item["path"]), str(name), None))
+                    continue
+                try:
+                    stat = copy.stat()
+                except OSError:
+                    entries.append((str(item["path"]), str(name), None))
+                    continue
+                entries.append((str(item["path"]), str(name), stat.st_mtime_ns, stat.st_ctime_ns, stat.st_size))
+        return tuple(entries)
+
     def _computed_files(self) -> list[dict[str, Any]]:
         """Every changed file, with its counts.  Not truncated."""
         complete = sorted(self.files_without_diff(), key=lambda item: item["path"].casefold())
@@ -503,7 +560,11 @@ class ChangeInspector:
         # change. rev-parse handles linked worktrees without assuming .git/.
         code, head, _ = self._git(["rev-parse", "HEAD"])
         key = str(self.workspace)
-        fingerprint = (head if code == 0 else "", tuple(signature))
+        # M8-T563: a row may now be counted out of a backup copy, and neither
+        # the copy nor the trail touches the deleted file's own stat.  Without
+        # this third half, pruning the copy left the list serving a number the
+        # disk can no longer show - the stale memo, one level up.
+        fingerprint = (head if code == 0 else "", tuple(signature), self._preimage_signature(complete))
         with _CACHE_LOCK:
             cached = _SUMMARY_CACHE.get(key)
             if cached and cached[0] == fingerprint:
@@ -524,7 +585,22 @@ class ChangeInspector:
                     counts = (len(self._text(self._resolve(item["path"])).splitlines()), 0)
             except ChangeError:
                 pass
-            output.append({**item, "additions": counts[0], "deletions": counts[1]})
+            row = {**item, "additions": counts[0], "deletions": counts[1]}
+            if item["status"] == "deleted":
+                # M8-T563: the detail page has read this file's content out of
+                # the editor's own copy since M8-T562, while the list still
+                # answered 0 lines for it - one fact, two answers in the same
+                # payload.  The verdict travels in the same key the detail
+                # page uses, so a row that could not be counted says why
+                # instead of borrowing the word for "there was nothing in it".
+                # A deletion git already counted is not asked (no source is
+                # filed for it), so git's number stays git's number.
+                verdict, text = self._read_deletion_preimage(str(item["path"]))
+                if verdict:
+                    row["deletion_preimage"] = verdict
+                    if verdict == PREIMAGE_READ:
+                        row["deletions"] = len(text.splitlines())
+            output.append(row)
         with _CACHE_LOCK:
             _SUMMARY_CACHE[key] = (fingerprint, deepcopy(output))
             _SUMMARY_CACHE.move_to_end(key)
@@ -685,8 +761,7 @@ class ChangeInspector:
             )
             patch = "\n".join(lines)
         patch, _ = redact_text(patch)
-        additions = sum(1 for line in patch.splitlines() if line.startswith("+") and not line.startswith("+++"))
-        deletions = sum(1 for line in patch.splitlines() if line.startswith("-") and not line.startswith("---"))
+        additions, deletions = _patch_counts(patch)
         return {
             "path": path,
             "status": status,
