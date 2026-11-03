@@ -39207,3 +39207,273 @@ AST 自扫，以及 7 个真跑的孩子进程，全部远小于这条门本来�
 取舍：第 2 位已经有两支探针与一套设计（按 `{relative}.` 前缀枚举 `backup_directory`，只在窗口
 没给名字时进入现有循环），第 1 位是新量出来的、形状更近的一格。本批把第 1 位排在前面：
 它就在生产的路上（每一个非 UTF-8 文件名都会走），而第 2 位只在窗口截断时才出现。
+
+## 第五百四十七批 — M8-T565 — 清单里那个带替换字符的名字被当成地址，一个有三行的文件答成「新增了 0 行」
+
+### 1 欠的是哪一条
+
+第五百四十六批 §7 第 1 位交出来的就是这一格，而且它把形状说得比本批标题还准：
+「**替换字符被当成路径名**（U2/U3/U4）：清单列出一个打不开的名字，并把一个有三行的文件答成
+『新增了 0 行』」。上一批管的是 `_git` 那一次解码**有没有**声明容错——量出来的是那一步确实
+容错了，孤立代理项被换成 `U+FFFD` 才出门。本批管的是那个换回来的字符串**接下来被怎么对待**。
+
+它被当成地址用了。`files_without_diff` 把 git 记录里的名字直接当键收下，
+`_computed_files` 数未跟踪那一路的行数时做
+`self._text(self._resolve(item["path"]))`（HEAD 的 `minicc/changes.py:585`）：
+`_resolve` 把「`bad\ufffd.md`」拼进工作区，`_text` 第一步 `is_file()` 就是 False，
+于是返回 `""`，`len("".splitlines())` 是 0。**读失败发生在解码那一步，答案却写成「这文件是空的」**
+——这正是本运动一路在堵的那个塌陷，只是这次塌在离现场更远的地方：坏掉的字节早就被处理过了，
+剩下一个看起来完全正常的字符串在替它说话。
+
+同一格还连着两处：`diff("bad\udcff.md")`（磁盘上真正的名字）在状态表里查不到——表按渲染
+那一格键控——于是落进 `clean` 兜底，`before` 与 `after` 都是空，补丁 0 字节；
+`diff("bad\ufffd.md")` 答 `added`、也是 0 字节。**一个文件，两种写法，两个都不对，而且互不相同。**
+第五百四十六批 §6 已经把「不声称读回来的内容是对的」写在边界上，本批就是去领那条账。
+
+### 2 量到的真相（实测）
+
+探针 `scratch/probe_565.py`～`probe_565e.py`，五支都跑在 `scratch/pre565`——HEAD
+`366b2e9`（第五百四十六批的记录）的干净克隆——日志 `scratch/probe565_clone.log`、
+`probe565b_clone.log`、`probe565c_clone.log`、`probe565d_clone.log`、`probe565e_clone.log`。
+本机 Windows / cp936，Python 3.11。
+
+**Q1 一个有三行的文件答成「新增了 0 行」**（W1 + X1 + X3）：
+
+| 磁盘上那一项 | 真行数 | 清单那一格 `path` | 那一格的 `add` | `diff(那一格)` |
+| --- | --- | --- | --- | --- |
+| `bad\udcff.md` | 3 | `bad<U+FFFD>.md`（`raw='?? bad<U+FFFD>.md'`） | **0** | `status='added'`、`add=0`、`patch_len=0` |
+| `plain.md` | 1 | `plain.md` | 1 | `status='added'`、`add=1`、`patch_len=49` |
+
+同一台机器、同一次 `files_without_diff()`，隔壁那一格什么都对。X3 量到塌在哪一步：
+`_resolve('bad<U+FFFD>.md')` 照常拼出那条路径，`is_file()` 是 False（`X3 字面路径存在吗：False`），
+`_text()` 因此返回 `''`——磁盘上那份有 13 字——而 `''.splitlines()` 的长度是 0。
+`is_file()` 说「没有这个文件」，调用方听见的是「这个文件是空的」。
+
+**Q2 那个替换字符是 git 自己写的**（X5）：`-z -uall` 出来的字节是
+`b'?? bad\xef\xbf\xbd.md\x00'`。git 在 Windows 上就把编不动的名字换成 `U+FFFD`（合法的
+UTF-8 三字节），`_git` 那一趟 `errors="replace"` 看见的是一段完全合法的 UTF-8——它没做错任何事，
+它也没有能力把这一格还原。所以清单里那个字符既可能是「别的名字的替身」，也可能就是一个
+**真叫这个名字**的文件：X2 里磁盘上只有 `bad<U+FFFD>.md` 一份时，那一格 `add=3`、补丁头是
+`@@ -0,0 +1,3`，
+全对。尺子必须两头都问，不能只看有没有那个字符。
+
+**Q3 配不配得上是可测的，不是猜的**（W1 末行 + W2）：把磁盘名字按 git 那一趟做过的事重做一遍
+（`encode("utf-8","surrogateescape")` 再 `decode("utf-8","replace")`），得到
+`render(bad\udcff.md)='bad<U+FFFD>.md'`——与清单那一格逐字相等，父目录里逐个名字渲染**命中 1 份**。
+欠的从来不是信息，是一次没问。
+
+**Q4 同一个文件，两种写法，两个都不对，而且互不相同**（X4 + W3 + W5 + X25）：
+
+| 问法 | 答 |
+| --- | --- |
+| `diff("bad\udcff.md")`（磁盘真名） | `status='clean'`、`add=0 del=0`（状态表按渲染那一格键控，查不到就落进 `clean` 兜底） |
+| `diff("bad<U+FFFD>.md")`（清单那一格） | `status='added'`、`add=0`、补丁 0 字节 |
+| 审计那一路记同一个文件（W5，无仓库） | `status='modified'`、`add=2`、补丁是真补丁 |
+| 磁盘上同时有 `bad<U+FFFD>.md`（2 行 `WRONG`/`FILE`）与 `bad\udcff.md`（3 行）（W3） | **1 格**，`add=2`，补丁 `+WRONG`/`+FILE`——读的是**隔壁那一份** |
+
+W5 那一行是本运动熟悉的形状：同一个检查器，名字从 git 的字节里来就要错，从编辑器手里来就对。
+W3 更贵：错的那一格不仅数错，还把另一份文件的内容端上来，`raw`、`status`、`path` 三样全绿。
+
+**Q5 替换不只在最后一段**（W6 + X14~X17 + X20）：`-uall` 把一个坏名字的目录摊平成一条条文件
+记录，坏掉的半截藏在中间——W6 里 `d/bad\udcff.md` 出门的是 `?? d/bad<U+FFFD>.md`，那一格 `add=0`；
+X17 里目录名字面上就是 `bad<U+FFFD>`，那一格 `add=2` 而磁盘上有 3 行。X17 还定下匹配的方向：拿磁盘那一段 `bad\udcff` 当键去找，**命中 0 份**；拿清单那一段
+`bad<U+FFFD>` 当键、把磁盘每一项渲染了来比，命中 2 份——尺子只能往一个方向量：渲染磁盘，
+比对清单。X20 里同一个字符串可以从两种段划分
+渲染出来，`path` 与 `raw` 是同一个串（X12），所以拿清单字符串自己当证据推不出形状。
+
+**Q6 尺子的两头，取错一头会读错文件**（X11 + X8）：同目录里 `a\udcff.md` 与 `a<U+FFFD>.md` 都在：
+
+| 尺子 | 那一格命中几份 |
+| --- | --- |
+| `encode(surrogateescape)` + `decode(replace)` | **2 份**——两份都渲染成那一格，诚实的歧义 |
+| 只把磁盘名字 `decode(replace)`（不先 encode） | 1 份——把 `\udcff` 那份排除在外，于是那一格被当成字面名的地址，读走 `a<U+FFFD>.md` 的行数 |
+
+第二行不是理论：它就是臂 A2。X8 量到尺子的边界——名字里带**段外**孤立代理项（`hi\ud800.md`）时
+`surrogateescape` 编码直接抛 `UnicodeEncodeError`，渲染算不出来；`_rendered_form` 交 `None`，
+那一格不猜（今天它答 `add=0`，磁盘 3 行）。X9/X10 是尺子量得平的两种混排：两个段内代理项渲染成
+两个 `U+FFFD`，代理项夹正常中文时中文完好。
+
+**Q7 归不到一份的行数，今天也在写数字**（W4 + X21 + X22 + X23 + X24）：
+
+| 形状 | git 出门 | 清单 | 今天答 | 渲染命中 |
+| --- | --- | --- | --- | --- |
+| `a\udcfe.md` + `a\udcff.md`（W4，都是坏名） | 1 条 | 1 格 | `add=0` | 2 份 |
+| `a\udcff.md`(2 行) + `a<U+FFFD>.md`(1 行)（X21） | 1 条 | 1 格 | `add=1` | 2 份 |
+| `a\udcff.md`(1) + `a\udcfe.md`(2) + `a<U+FFFD>.md`(3)（X24） | 1 条 | 1 格 | `add=3` | 3 份 |
+| 再加一份正常名 `ab.md`（X22） | 2 条 | 2 格 | `ab.md` `add=1`（对）＋同一格 `add=1` | 1 / 2 份 |
+| 两份坏名但渲染不同 `a\udcff.md`/`b\udcff.md`（X23） | 2 条 | 2 格 | 各自 `add=0` | 各 1 份 |
+
+X23 是本批真正要修的形状：一份文件、一个名字、渲染唯一命中，可今天那格答 0——它连自己的
+那一份都没读到。X21/X24 则是「好几份挤进一格」，任何单个数字都是假数；本批把这两种都交出来，
+前者读它自己的文件，后者写 `None`。
+
+**Q8 这件事有多贵**（X6 + X19）：200 个名字的目录里列目录＋逐个渲染 `0.0010 s`（命中 0），
+2000 个名字（连 `.` 共 2001 项）`0.0038 s`；按段渲染两段（`X19`，2000 项那一层）`0.0061 s`。尺子只对**带 `U+FFFD` 的那几格**出动，正常名字一次也不问；
+一次 `summary()` 本身被 git 子进程主导，这点列目录淹在噪声里。
+
+**Q9 没有任何键披露这件事**（W8）：`diff()` 的 13 个键、每行的 5 个键、`summary()` 的 14 个键里，
+没有一个说「这一格的名字是渲染出来的」。今天一页面上写 `add=0` 与写 `add=3` 的格子长得一模一样，
+`total_files=2`，`status_read_error=None`——所有能说的都说了，说的都是「没事」。
+
+**Q10 顺手量到但本批不领的账**（X14/X15/X16）：目录名里带段内孤立代理项时，
+`git status -z -uall` 出门 **0 条记录**——不是 1 条坏的，是一条也没有：`summary total=0 additions=0`，
+`diff(替换名)` 与 `diff(真名)` 都答 `status='clean'`，磁盘上那 3/2/4 行没人提。这是「工作区是干净的」
+那一问的另一条腿，记在 §7 第 1 位。
+
+### 3 落地
+
+尺子只有一把，放在 `minicc/changes.py`，两处消费者共用它。
+
+- `minicc/changes.py:108` `_rendered_form(name)`：`name.encode("utf-8", "surrogateescape")`
+  再 `.decode("utf-8", "replace")`（`:126`）——把磁盘名字按 git 那一趟做过的事重做一遍，
+  得到清单里应当出现的那一格。编不动的（段外孤立代理项，`U+D800` 是常见的那个）返回 `None`，
+  不猜。
+- `minicc/changes.py:938` `_listed_sources(rel_path)`：**按段**走（`:952`），因为 git 的替换
+  不只在最后一段——`-uall` 会把一个坏名字的目录摊平成一条条文件记录，于是坏的那半藏在中间。
+  等号的方向是量出来的（X17）：比的是「磁盘名字渲染之后」等于「清单里那一段」；反过来把清单
+  那一段渲染了去对磁盘上的名字，在目录名被替换的形状上一次也命不中。最后一段只认文件
+  （`:967`，`-uall` 从不把
+  目录单独列成记录）。列不出来的目录（`:961`/`:962`）不交名字，于是与「没有任何一项配得上
+  这个名字」同答，按 `unmatched` 披露出去——它不假装命中，也不自成一个第三种判定。
+- `minicc/changes.py:975` `_resolve_listed_names(items)`：只对**名字里带 `SUBSTITUTED_CHAR`
+  的记录**（`:90`）问这把尺——没有那个字符的名字就是磁盘的拼写，因为 Python 解码 git 的字节
+  只会造出这个字符，不会造出别的。审计那一路跳过（`item["raw"] == "audit"`）：它的 path 是
+  编辑器收到的字符串，不是字节的解码，把它当地址用是对的。判定三种（`:86`/`:87`/`:88`）：
+  一份且就是自己 → `""`；一份且是别的名字 → `substituted`；零份 → `unmatched`；两份以上 →
+  `ambiguous`。结果放在 `:176` 的 `self._name_verdicts`，`minicc/changes.py:927` 在
+  `files_without_diff` 出口处一次算好——清单与详情页因此读同一份判定。
+- `minicc/changes.py:641` 数不出来时写 `None`，不写 0：`ambiguous`/`unmatched` 这两格
+  的行数归不到任何一个文件，`0` 是「这文件里没东西」，而这里的事实是「这几个文件我分不开」。
+  `minicc/changes.py:649` 把判定随每行带出去（`name_resolution`）。
+- `minicc/changes.py:603` 备忘录指纹改问**源文件**的 stat：按渲染名字 stat 永远 miss，
+  每条可疑记录都以 `(raw, None, None)` 进指纹，改文件也不会让指纹变——那是第五百四十五批
+  那格 stale memo 换一个层级重演。
+- `minicc/changes.py:747` 状态表除了渲染那一格，再以磁盘拼写 `setdefault` 一个键；
+  `minicc/changes.py:753` 详情页跟着判定把 `target` 换成真正的文件（URL 里只可能带渲染
+  那一格，所以必须让渲染那一格能用）。
+- `minicc/changes.py:792`/`:800`/`:858`：两种归不了的判定下，`before`/`after` 都不读，
+  补丁为空，`additions`/`deletions` 都是 `None`。
+- `minicc/changes.py:1046` 顶层加 `substituted_names`：这一页里有几格的名字是渲染出来的，
+  不是一行一行数出来的形容词。
+- 门在 `tests/test_a_listed_name_that_is_a_rendering_is_not_an_address.py`（13 条，294 行）。
+  13 条一条不落地都先 `_repo()` 起真 git、再问 `files_without_diff()`/`diff()`/`summary()`——
+  本批要修的是「清单那一格被当成地址」，那就必须让清单真出过格。其中 `:134` 与 `:193` 两条额外
+  直接问尺子本身（`_listed_sources`）：「两个目录名渲染成同一格」这一形状在 Windows 上做不出
+  两条 git 记录（Q10），不这么问就只能把该测的形状写成假的。`:241` 那道 skipif 守着 `:249`，
+  条件是 `sys.platform != "win32"`：门里那条 reason 说得直白——POSIX 上名字经 surrogateescape
+  一来一回，尺子总能把它量回原来那一格，于是「渲染得出来却配不回去」这一问在那边无从发生。
+
+### 4 见证（红先绿后，臂）
+
+红先：门是一条条长起来的，每长一条都在 HEAD 上红过一遍——`scratch/pre565`（`366b2e9` 的干净克隆）
+里 `probet565_redfirst.log` `11 failed in 11.04s` → `probet565_redfirst_final.log` `12 failed in 2.42s`
+（`RC=1`）→ `probet565_redfirst13.log` `13 failed in 3.73s`（`RC=1`）。13 条红的都是本批点名的那一格，
+没有一条靠别人红。
+
+绿后：同一组门在落地字节上 `13 passed in 2.67s`（`scratch/probet565_green_shared2.log`）；
+臂板 `C0_control`（同一平面、什么都不改）`52 passed in 95.39s`（`scratch/arm565_all.log`）。
+
+臂板 `scratch/mutate_565.py`，平面 `scratch/clone565` = HEAD + 本批定稿字节；每条臂只改一个形状，
+跑 `GATE_SET`（本批的门 + `tests/test_changes_pure.py` + `tests/test_the_change_panel_and_the_diff_must_agree.py`
++ `tests/test_the_status_record_have_one_home.py` + `tests/test_five_places_where_one_fact_was_read_differently.py`），
+逐字节还原并比 sha256。表里每一行都是 `rc=1`、红的都在本批门里、两份文件 `restored … MATCHED`。
+
+| 臂 | 只改的那一处 | 红的（全在本批门里） | 还原 |
+| --- | --- | --- | --- |
+| `C0_control` | 什么都不改 | 无——`52 passed in 95.39s` | MATCHED |
+| `A1_ruler_never_asked` | `:987` 那道守卫换成 `if True:`——每一格都 `continue`，尺子一次也没问 | 10 条，含 `test_the_detail_page_reads_the_file_the_list_named`、`test_the_summary_counts_the_rows_whose_names_are_renderings` | MATCHED |
+| `A2_render_side_is_replace` | `:123` 的 `encode(..., "surrogateescape")` 换成 `encode(..., "replace")`——渲染出来的不是 git 那一格，是 `?` | 9 条 | MATCHED |
+| `A3_first_hit_wins` | `:997` 的 `ambiguous` 分支改成「命中几份都取第一份」 | 2 条：`test_two_disk_names_that_render_alike_are_not_answered_with_one_number`、`test_the_ambiguous_row_does_not_borrow_a_number_from_the_detail_page` | MATCHED |
+| `A4_last_segment_only` | `:952` 的 `split("/")` 改成 `[-1:]`——只走最后一段 | 2 条：`test_a_normal_parent_reaches_a_bad_leaf`、`test_the_ruler_that_reads_git_s_step_backwards_names_every_source` | MATCHED |
+| `A5_null_becomes_zero` | `:641` 的 `counts = (None, None)` 改成 `(0, 0)` | 2 条：`test_a_name_the_ruler_cannot_reproduce_says_so_instead_of_answering_zero`、`test_two_disk_names_that_render_alike_are_not_answered_with_one_number` | MATCHED |
+| `A6_the_table_keeps_one_spelling` | `:745` 撤掉磁盘拼写那个键的 `setdefault`——状态表只留渲染那一格 | 1 条：`test_the_two_spellings_of_one_file_answer_with_one_number` | MATCHED |
+| `A7_the_detail_page_stays_at_the_rendering` | `:753` 换成 `if False:`——详情页不再跟着判定换文件 | 3 条：`test_the_detail_page_reads_the_file_the_list_named`、`test_the_two_spellings_of_one_file_answer_with_one_number`、`test_two_bad_names_that_render_apart_each_keep_their_own_number` | MATCHED |
+| `A8_fingerprint_ignores_the_source` | `:603` 的指纹改回只 stat 清单那一格（`listed_source or` 撤掉） | 1 条：`test_editing_the_file_behind_a_rendering_invalidates_the_listed_number` | MATCHED |
+| `A9_summary_count_is_a_word` | `:1046` 写死成 `"substituted_names": 0` | 1 条：`test_the_summary_counts_the_rows_whose_names_are_renderings` | MATCHED |
+
+每一份红的都点名本批的门，没有一条靠邻居红；`C0_control` 全绿；每条臂跑完 `changes.py`
+与门文件都逐字节还原并比 sha256（`dfa010c53f5caa51` / `b5c86da5efe12a56`）。
+
+A1 红 10 条、A2 红 9 条，其中 8 条同名，剩下的几条正好把「不量」与「量错一侧」分开：
+`test_the_ruler_that_reads_git_s_step_backwards_names_every_source` 直接问 `_listed_sources`
+（门里两条单元级问法之一），所以只有尺子本身坏（A2）才红——A1 关的是调用方那道守卫，这条绕过了
+它；`test_a_name_the_ruler_cannot_reproduce_says_so_instead_of_answering_zero` 反过来，A2 把所有
+可疑格一并推成 `unmatched`，那一问要的恰好就是 `unmatched`，于是它绿，而 A1 让名字退回 `""`
+才红。A6 只红一条也讲得通：状态表少那一个键，只影响「拿磁盘拼写来问」那一路。
+
+### 5 聚焦回归
+
+全在干净克隆里量，平面 `scratch/clone565`（HEAD `366b2e9` + 本批定稿字节，两份文件的 sha256
+与 §4 那两条一致）：
+
+- 门 + 四个邻居（`test_changes_pure`、`test_the_change_panel_and_the_diff_must_agree`、
+  `test_the_status_record_have_one_home`、`test_five_places_where_one_fact_was_read_differently`）：
+  `52 passed in 95.39s`（臂板 `C0_control`，`scratch/arm565_all.log`）。
+- 变更这条巷子 22 份文件（清单/详情页/审计那一路的门 + 备忘录 + 每查一次列一次 +
+  备份不算变更 + `test_change_impact`）：`257 passed in 218.05s`（`scratch/focused565a_clone.log`）。
+- 消费这份 payload 的那一头（`test_http_surface`、deny 规则要走到 preview/diff 路由、
+  payload 键的户籍 `test_the_summary_tags_have_one_home`、变更门不依赖可复用性、审计授权）：
+  `160 passed in 31.83s`（`scratch/focused565b_clone.log`）。
+- 三把检查器都在落地字节上重跑：`scripts/doc_pointers.py --check` rc=0
+  （`checked 117 of 1035 「见」 markers … 4454 evidence pointers … over 656 tracked files`，
+  `scratch/doc_pointers565_clone.log`）；`scripts/route_coverage.py --check` rc=0（各路由
+  A/B 都是 100.0%，`scratch/route_coverage565_clone.log`）；`scripts/impacted_tests.py --check`
+  rc=0，且它点名的 347 份受影响测试里就有本批新门（`scratch/impacted_tests565_clone.log:21`）。
+- 全围栏。第一次跑在「代码已落地、门还没进仓库」的克隆 `scratch/post565` 上（HEAD 仍是
+  `366b2e9`，两份文件按定稿字节拷进去）：`1 failed, 4389 passed, 11 skipped in 2758.02s`
+  （`scratch/fence565_untracked_run.log`）。那一条红的正是 `test_a_gate_is_only_a_gate_once_it_is_in_the_repo`
+  （`tests/test_a_gate_is_only_a_gate_once_it_is_in_the_repo.py:65`），它点名的就是本批那份还没
+  被 `git ls-files` 看见的门，并直接给出该跑的 `git add`——这条门是本运动自己钉的：一份不在仓库
+  里的门不是门。4401 条对上一批的 4388 条，差 13 条正好是本批的门。
+  代码与门提交成 `eeda869` 之后，在同一提交的干净克隆 `scratch/fence565` 上重跑：
+  `4390 passed, 11 skipped in 2721.37s (0:45:21)`（`scratch/fence565.log`）——一条红也没有，
+  上一跑那一条红的正是「门必须进仓库」那一问，进了仓库它就闭嘴。
+- 记录本身进文档之后再量一次：`eeda869` 的干净克隆 `scratch/cite565` 里换上拼好的
+  `docs/ROADMAP_TO_PRODUCT.md`（3,268,911 字节 / 39,479 行 / 全 CRLF / `bare_lf=0`），
+  引用门 `tests/test_doc_pointers.py` + `tests/test_no_document_quotes_a_content_addressed_bundle.py`
+  + `tests/test_retrieval_enhanced.py` 共 `85 passed in 219.33s`（`scratch/citegate565_clone.log`），
+  `scripts/doc_pointers.py --check` rc=0——「见」标记从 1035 走到 1041、证据指针从 4454 走到 4505、
+  受检文件从 656 走到 657（那 1 份就是本批的门），本批记录里的每一条引用都被自己的尺子量过
+  （`scratch/doc565_clone.log`）。
+
+### 6 边界（本批**不**声称）
+
+1. **不声称 git 的记录数是全的。** X21/X24 量到磁盘上 2～3 项渲染成同一个名字时，
+   `git status -z -uall` 只出门 **1 条**——不是本批漏读，是 git 在 Windows 上就没写全。本批只在
+   清单已有的一格上判「这个名字是渲染出来的」，`total_files` 里那几份消失的项本批不找回、也不
+   声称它们还在（§7 第 1 位是同一个塌陷更难看的一条腿）。
+2. **不声称段外的孤立代理项能还原。** X8：名字里带 `U+D800` 时 `surrogateescape` 编码抛
+   `UnicodeEncodeError`，`_rendered_form`（`minicc/changes.py:108`）交 `None`，那一格落进
+   `unmatched` 并写 `None`。本批保证它不再答 0，不保证它答得出行数。
+3. **不声称目录那一层读得动。** X14/X15/X16（git 出门 0 条记录）原样留着，本批只把
+   `X17` 那种「目录名字面就是替换字符」的形状接住。
+4. **不声称面板把这件事画出来了。** `name_resolution` 与 `substituted_names` 只到 JSON 为止——
+   `grep` 过 `web/`、`ide/`、`scripts/`，除了 `minicc/changes.py` 自己没有任何消费者（本批不
+   假装加了 UI）。`web/app.js:2086` 数行数读的是 `Number(item.additions || 0)`：JSON 里是 null
+   就不再冒充 0，但画出来仍是 `+0`。§7 里有这一格。
+5. **不声称歧义是靠「git 给了几条」判的。** 判定用的是磁盘逐项渲染的命中数
+   （`_listed_sources`，`:938`），与 git 出门几条记录无关——X22 里加一份正常名，两条记录两格，
+   互不污染；X23 里两份坏名渲染不同，各自唯一命中。
+6. **不声称详情页在歧义形状下能指出文件。** `substituted` 那一格详情页换成读源文件（`:753`），
+   `ambiguous`/`unmatched` 那一格 `target` 只能退回「我分不清」，补丁为空——这是给的答案，不是
+   读到的答案。
+7. **不声称 `sources[0]` 有顺序含义。** `substituted` 只在 `len(sources) == 1` 时取第一个元素
+   （`:991`～`:993`），命中集合的大小就是判据，与 `iterdir()` 的顺序无关。
+8. **不声称这一批改了 `_git` 的解码。** 那是第五百四十六批；本批用的是它容错之后交出来的
+   那个串，改的是「拿它当地址用」的这一步。
+
+### 7 下一位候选
+
+1. **git 一个字都不报的那棵目录**（Q10，X14/X15/X16 实测）：目录名里带段内孤立代理项时
+   `git status -z -uall` 出门 0 条记录，`summary total=0 additions=0`，`diff(真名)` 也答 `clean`，
+   而磁盘上那 3/2/4 行一直在那儿。**读失败发生在上一个进程里，账本上写的是「工作区是干净的」。**
+   这条腿比本批所有形状都干净：没有任何一条记录可以标，也没有任何一把尺子能问——要问的是
+   「`-uall` 有没有可能一条也不报，而我怎么知道」。
+2. **窗外那份配得上的副本没人点名**（第五百四十八批）：`audit_window_truncated` 只说得出
+   「窗外还有行没读」这一个布尔（`minicc/changes.py:402`），可备份配对那一步（`_note_backup_copy`，
+   `:486`）只翻窗口里的行，于是一条被挤出窗外的 `backup` 记录让详情页答 `not-recorded`——
+   「没记」与「我没翻到」在 payload 里是同一个答案。
+3. **面板把 null 行数画成 `+0`**（§6 第 4 条）：键已经给了，画的是旧形状。
+4. 带着的账：`audit_window_truncated` 记的是行还是字节——`:400`～`:402` 里字节先切（`_AUDIT_TAIL_BYTES`，
+   `:61`）、行再数，两个 cutoff 只报一个布尔；`clean` 兜底本身（`:748`）；`_git` 的 127 哨兵；
+   `exists()` 分不出形状；selector 解析成本；未跟踪行的双计；listing 读上限。
