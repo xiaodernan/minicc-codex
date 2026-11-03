@@ -133,6 +133,17 @@ def _annotate(token: str, status: str, reason: str) -> dict[str, Any]:
     return _record(token, token, status, reason, False)
 
 
+def _annotation_line(item: dict[str, Any]) -> str:
+    """The one line the model reads about a mention that carried no content.
+
+    M8-T549: this sentence used to be spelled by hand in *both* rendering
+    branches, and the second copy silently dropped the ``read_file`` advice
+    that the first one gives - so whether the model was told how to recover
+    depended on whether some other file happened to be injected.
+    """
+    return f'<file path="{item["path"]}" status="{item["status"]}">{item["reason"]}</file>'
+
+
 def build_mention_context(
     message: str,
     workspace: Path,
@@ -286,7 +297,6 @@ def build_mention_context(
         chunks.append(f'<file path="{rel}">\n{text}\n</file>')
         records.append(_record(token, rel, "injected", "", False))
     injected = sum(1 for item in records if item["status"] == "injected")
-    rejected = sum(1 for item in records if item["status"] == "rejected")
     # M8-T329: the mentions past the cap are named in the block too - a
     # silent drop reads exactly like a mention that was never written.
     dropped_note = ""
@@ -295,36 +305,37 @@ def build_mention_context(
             f"[truncated] 以下引用超出单次提及条数上限（最多 {MENTION_MAX_FILES} 条），"
             "未包含内容，可用 read_file 读取：" + "、".join(dropped)
         )
-    if injected:
+    # M8-T548: every verdict the pass reached gets a line, and it is built in
+    # one place.  ``missing`` and ``binary`` used to reach the block only when
+    # some *other* mention was injected successfully; a message that was pure
+    # loss - one unreadable file, one absent file - handed the model an empty
+    # block, which reads exactly like a mention that was never written.  That
+    # is the shape M8-T329 closed for the count channel.
+    annotations = [
+        _annotation_line(item)
+        for item in records
+        if item["status"] in {"rejected", "missing", "binary"}
+    ]
+    notes: list[str] = []
+    if omitted:
+        notes.append(
+            "[truncated] 以下引用超出注入预算，未包含内容，可用 read_file 读取："
+            + "、".join(omitted)
+        )
+    if dropped_note:
+        notes.append(dropped_note)
+    # The block is empty exactly when there is nothing to say - not when the
+    # saying happened to land on the branch that had no injections.
+    if injected or annotations or notes:
         header = (
-            "[用户引用文件] 以下内容按 @-提及自动注入（路径相对工作区，超长部分已截断）；"
-            "需要完整内容时请用 read_file 工具重新读取。"
-        )
-        parts = [header, *chunks]
-        for item in records:
-            if item["status"] == "rejected":
-                parts.append(f'<file path="{item["path"]}" status="rejected">{item["reason"]}</file>')
-            elif item["status"] in {"missing", "binary"}:
-                parts.append(f'<file path="{item["path"]}" status="{item["status"]}">{item["reason"]}</file>')
-        if omitted:
-            parts.append(
-                "[truncated] 以下引用超出注入预算，未包含内容，可用 read_file 读取：" + "、".join(omitted)
+            "[用户引用文件]"
+            if not injected
+            else (
+                "[用户引用文件] 以下内容按 @-提及自动注入（路径相对工作区，超长部分已截断）；"
+                "需要完整内容时请用 read_file 工具重新读取。"
             )
-        if dropped_note:
-            parts.append(dropped_note)
-        return "\n\n".join(parts), records
-    if rejected or omitted or dropped_note:
-        parts = ["[用户引用文件]"]
-        parts.extend(
-            f'<file path="{item["path"]}" status="rejected">{item["reason"]}</file>'
-            for item in records
-            if item["status"] == "rejected"
         )
-        if omitted:
-            parts.append("[truncated] 以下引用超出注入预算，未包含内容：" + "、".join(omitted))
-        if dropped_note:
-            parts.append(dropped_note)
-        return "\n\n".join(parts), records
+        return "\n\n".join([header, *chunks, *annotations, *notes]), records
     return "", records
 
 
