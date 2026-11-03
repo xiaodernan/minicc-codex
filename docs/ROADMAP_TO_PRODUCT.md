@@ -38521,3 +38521,109 @@ D4 与 D11 修前修后都是 0——那是**判据**要的答案，不是「测
 4. **`_git` 的 127 哨兵**把 OSError 与 20 秒超时压成同一个 `git unavailable`（`minicc/changes.py:100-113`）。
 5. **能分辨的 `exists()`**：破损符号链接与权限错误这两个形状需要一个分得开的门面（本平台造不出 symlink，需要一个能建的门）。
 6. **选择器解析成本**（500 文件约 13s）。
+
+## 第五百四十四批 — M8-T562 — 审计说文件没了，备份里那份内容还没人读
+
+### 1 欠的是哪一条
+
+第五百四十三批 §7 排的第 1 位（「备份里那份内容」）。第五百四十三批让面板说出「这个文件被删掉了」，但它说不出**删掉了什么**：详情页的 `before` 只问 HEAD，`after` 对一个不在的文件答 `""`——于是 `additions`/`deletions` 双双为 0、补丁 0 字节。探针 probe_562 在修前树上实测 E1/E10：状态 `deleted`、`patch_len=0`、`source=git-or-empty-baseline`。
+
+内容并没有丢。`Editor.delete` 在 `target.unlink()` 之前先 `_backup(target)`：那条 `backup` 行把副本的名字写进 `detail`（`→ {name}`），把副本内容的 digest 写进 `before_digest`——和紧随其后的 `delete` 行是**同一个值**；副本就躺在 `.minicc/backup/` 里。第五百四十三批已经把这一行的 witness 读进来了（`deletion_witness`），却从来不去看那一格——面板答「里面没东西」，答的是它没去看的字节。这正是本战役从第五百三十批起钉的那一族的**反向形状**：不是「读不出来就说没有」，而是「根本没去读，就说没有」。
+
+判据要同时钉住六种不对的答案，不只是把补丁加长：**配对按 digest**，不按名字、也不按窗口里谁写在前面（`[delete, backup]` 这种倒序行是真会出现的）；**副本先 digest 过才采信**（后来被人改写过的那一份，不是这次删除移走的内容，按名字读它等于凭空造出一份并不属于这里的补丁）；**名字不许走出那一格**（`detail` 写 `→ ../../outside.md` 时读它就是把面板的读文件权限交给一条轨迹里的字符串）；**三种说不出必须分得开**——没记过、读不出来、对不上，从前是同一个空补丁；**不跟 git 抢答案**（git 已经给得出预像的那一条仍以 git 为准）；**只有一个家**——目录拼法、箭头拼法、digest 校验各只许有一处。
+
+新的读者仍按第五百四十二、五百四十三批定下的位置收进编辑器自己：`backup_copy_name()`、`backup_directory()`、`backup_copy_path()` 写在**写这一行的** `minicc/tools/editor.py` 里，面板问路而不自己造地址；`→` 这一种拼法从此经 `_arrow_target()` 一个家读出（`move_destination` 与 `backup_copy_name` 都在它上面）。
+
+### 2 量到的真相（实测）
+
+两趟**同一份脚本**（`probe_562.py`，第二次给它加了 `preimage=` 一列，好让修前也答得出「这一格当时还不存在」），只是代码字节不同：修前 = HEAD `4a012a5` 的 blob（`plane562red`，changes.py 32,096 字节 / 663 行 LF、editor.py 35,475 字节 / 865 行 LF，`git show` 出来是 LF），修后 = 落地后的树（changes.py 40,438 字节 / 811 CRLF / 0 条裸 LF、editor.py 37,913 字节 / 901 CRLF / 0 条裸 LF）。真跑编辑器的形状一律显式传 `audit_path`（第五百四十二批 §2 记的那个自纠错）。
+
+| 形状 | 修前 | 修后 |
+| --- | --- | --- |
+| E1 无仓库，真跑 `delete(notes.md)`，问 `diff` | `deleted`、patch 0、`source=git-or-empty-baseline`、`preimage=<KEY ABSENT>` | patch **71**、`del=2`、`source=audit-backup-copy`、`preimage=copy` |
+| E2 先 `write_file` 再 `delete`（两条 backup） | patch 0 | patch **57**、`del=1`、`preimage=copy`——只有 digest 等于 witness 的那一份是预像，不是最新的那条行 |
+| E3 副本被裁剪掉（行还在、文件不在） | patch 0 | patch 0、`preimage=not-readable`（与「从来没记过」不再是同一个词） |
+| E4 副本后来被人改写 | patch 0 | patch 0、`preimage=digest-mismatch`、补丁里**不含**改写后的那句 |
+| E5 副本是二进制（探针这样改写了它） | patch 0 | patch 0、`preimage=digest-mismatch`——**探针这个形状是错的**：改写副本必然同时改坏 digest，它量到的是 E4。真的「字节对得上但不是文本」要把两行的 digest 一起换过去，门里那条 `test_a_binary_copy_is_answered_as_not_readable` 是这个形状，答 `not-readable` |
+| E6 对照：git 看得见这条删除 | `deleted`、patch 71、`del=2`、`source=git-or-empty-baseline` | **完全不变**（本批不抢 git 的预像；`preimage` 仍是空串） |
+| E7 净零：`create` 后 `delete` | `total=0`、`diff(temp.md) clean` | 完全不变（根本不该有预像） |
+| E8 `detail` 的名字走到 backup 目录之外 | patch 0 | patch 0、`preimage=not-readable`、不读 `../../outside.md` |
+| E9 digest 是数字 `123` | `total=0`、`diff clean` | 完全不变（第五百四十三批那道闸门先挡住：说不出证人的行不列，也就无所谓预像） |
+| E10 清单上的数字（同 E1） | `add=0 del=0` 且 `diff` 也是 0/0 | 清单**仍** `add=0 del=0`，`diff` 是 `add=0 del=2`（见 §6 第 1 条、§7 第 1 位） |
+| E11 同一个 digest 提名两份副本 | patch 0 | patch 71、`preimage=copy`——只有一份的字节真能 digest 成它 |
+| E12 对得上 digest 的行是**别的路径**的 | patch 0 | patch 0、`preimage=not-recorded`（配对按路径查，不全局拿 digest 顶） |
+| E13 `backup` 行写在 `delete` 行**之后** | patch 0 | patch 71、`preimage=copy`（窗口顺序不是一句承诺） |
+
+E10 那一格是本批**故意没动**的：清单的数字来自 numstat，审计兜底那格是 0/0。红先时它是一条会红的门（`test_the_list_still_says_no_numbers` 钉住「本批只补详情页」），落地后它绿——这条绿是本批的边界，不是漏网。
+
+### 3 落地
+
+- `minicc/tools/editor.py:261-273` 新读者 `backup_copy_name(record)`：不是 dict 答 `""`，其余交给 `:276-284` 的 `_arrow_target(detail)`——`move_destination`（`:249-258`）也改成走它，`→` 这一种拼法从此只有一个家（`DETAIL_TARGET_PREFIX.strip()` 在整份编辑器里只出现一次，门 `:405` 钉这一条）。
+- `minicc/tools/editor.py:287-289` `backup_directory(workspace)`、`:292-302` `backup_copy_path(workspace, name)`：名字**必须是裸文件名**（`name != Path(name).name` 一律 `None`），面板因此拿不到走出那一格的路。`Editor.__init__` 的 `:400` 改用 `backup_directory(self.workspace)`——同一格地址在编辑器里也只剩一处拼法（门 `:389` 钉 `inspect.getsource(editor_module).count('".minicc" / "backup"') == 1`，并断言面板里**没有**这个字面量）。
+- `minicc/changes.py:68-74` 五个常量：`PREIMAGE_READ = "copy"`、`PREIMAGE_NOT_RECORDED = "not-recorded"`、`PREIMAGE_NOT_READABLE = "not-readable"`、`PREIMAGE_MISMATCH = "digest-mismatch"`、`PREIMAGE_SOURCE = "audit-backup-copy"`。
+- `minicc/changes.py:358-368`：`backup` 行在动作闸门处**先单独走一条路**——`_note_backup_copy(item)` 之后 `continue`。它不改进任何东西（第五百四十批 §M8-T300 那句「backup 不是变更」仍然成立，`tests/test_a_backup_is_not_a_workspace_change.py` 一字未改且绿），但它是唯一说得出「内容被放在哪儿」的一行。`:423-439` 把 `(digest, 副本名)` 记在**它自己点名的那条路径**下（digest 读不出来、路径说不出、被忽略的位置都不记）。
+- `minicc/changes.py:390-398`：`delete` 行的 witness 除进了 `witnessed` 集合外，现在按路径存一份（最后一条赢，和本批「末动作说了算」那条既有规则同一种裁决）。`:110-113`/`:310-312` 每次读先起三本账并清空。
+- `minicc/changes.py:441-486` `_read_deletion_preimage(path)`：拿这条路径的 witness，**倒着**走过它自己的副本候选，先比 digest（`:463`），再看名字走不走得出那一格（`:465-468`）、读不读得开（`:469-472`）、字节 digest 得不得回去（`:474-476`），最后才是能不能按 utf-8 显示（`:477-481`）。三种说不出各自说出口：`digest-mismatch` 优先于 `not-readable` 优先于 `not-recorded`（`:482-486`）。
+- `minicc/changes.py:631-646` 接线：只有 `status == "deleted"` 才问这一格；**`before` 非空时不抢**（git 给得出就用 git 的，E6 实测不变），采信了才把 `source` 换成 `audit-backup-copy`。`:699` 新增 `"deletion_preimage"` 一格——任何一次 `diff` 都答得出它，包括没删过谁的路径（那时是空串）。补丁仍走 `redact_text`（门 `:176`），计数仍从补丁数出来。
+- `minicc/changes.py:745-753`：`files_without_diff` 的删除循环里，把 witness 与它的副本候选一并登记到**解析后的键**下——详情页就是拿这个键来问的。登记的是**出处**，副本的字节要等到有人打开那一页才读（清单不为它付一次读）。
+- 门：`tests/test_an_audit_deletion_is_answered_with_the_content_it_removed.py` 22 条——读得出来 6（`:98,:110,:123,:144,:162,:176`）、读不出来 7（`:194,:206,:216,:233,:245,:271,:283`）、对照 4（`:311,:321,:335,:351`）、形状 1（`:363`）、清单边界 1（`:374`）、家规 3（`:389,:405,:422`）。第五百四十三批那条 `test_the_listed_deletion_is_not_answered_a_clean_tree`（`tests/test_a_delete_in_the_audit_is_answered_at_the_file_that_is_gone.py:108`）从「只钉状态」改成钉「状态 + 内容都说得出」（`del == 2` 且补丁里有 `-hello world`），它文档串里写明第五百四十三批那一格钉住的是空补丁。
+
+### 4 见证（红先绿后，臂）
+
+红先：新门在 `plane562red`（HEAD 字节：changes.py 32,096、editor.py 35,475）上单独跑 **`17 failed, 5 passed in 5.11s`**。绿的 5 条是本批**不该红**的对照——`test_a_git_visible_deletion_keeps_its_own_patch`、`test_a_net_zero_window_has_no_preimage_to_read`、`test_a_non_string_digest_is_still_not_a_witness`、`test_a_file_that_came_back_is_not_answered_a_deletion`，加上家规 `test_the_arrow_form_is_read_through_one_home`（修前 `→` 本来就只有一个读者，它靠 C6 臂才显出抓得住东西）。
+
+落地后：新门与第五百四十三批门一起 **`47 passed in 12.71s`**（22 + 25）；二十七个文件的聚焦家族见 §5。
+
+三处**自己写错**，都在绿之前改掉，据实记下：
+
+① `test_the_backup_directory_has_one_spelling` 最初断言 `'"backup"' not in changes_source`——它连动作字面量 `action == "backup"` 一起挡了，落地后立刻假红；改成断言那一格**地址**的字面量不在面板里，并要求面板确实向 `backup_copy_path(` 问路。
+② 三条对照最初按修前的答案写成 `diff["deletion_preimage"] == ""`，而这一格当时**根本不存在**（`KeyError`）——那是「门还没落地就会红」而不是本批的形状；改成走 `_preimage()`（缺键答 `""`），另加 `test_every_diff_carries_the_verdict` 专门钉这一格的存在。
+③ `test_a_name_that_leaves_the_backup_directory_is_not_read` 最初把窗外那份文件摆在 `tmp_path/outside.md`（工作区之外），而面板即使**掉了地址闸门**拼出来的也是 `workspace/outside.md`——一个不存在的位置。于是臂 C9 第一趟 **`rc=0`、`83 passed`：一条绿臂，不算见证**。把门改成把 `secret.md` 就摆在 `.minicc/` 里（`.minicc/backup/../secret.md` 正是它，digest 也按它写）：掉了闸门面板就真的读得到、并把一份轨迹从没说它复制过的内容当预像——复跑 C9 **`rc=1`、红在瞄准的那一条**。这一条是本批门自己的缺陷，记下来比为它辩解有用。
+
+还有一处**提交前钩子拦下来的**：`test_the_recovered_patch_is_still_redacted` 原本用 22 个字符的 `sk-…` 串当假密钥，`core.hooksPath` 上那份全局 `pre-commit` 按 `sk-[A-Za-z0-9_-]{20,}` 判为疑似密钥，`git commit` 被拦（**没有跳过钩子**）。`redact_text` 的 `sk-` 规则只要 8 个字符以上（`minicc/tools/registry.py:121`），于是把值改成 16 个字符并加一条 `assert diff["patch"]`——这一来它不再是纯对照：修前补丁是空的，它也跟着红了，所以红先从 `16 failed, 6 passed` 变成上面的 **`17 failed, 5 passed`**，而它归进「读得出来」那一组（§3）。
+
+| 臂 | 改什么 | 预期红 | 实际 |
+| --- | --- | --- | --- |
+| C0 | 对照：不改 | 绿 | MATCHED（`83 passed`，20.64s） |
+| C1 | 整条接线拆掉（`status == "deleted"` 那段不问了） | 读得出来那一圈 + 第五百四十三批改成作证的那条 | MATCHED（15 failed、68 passed，23.44s）：13 条内容门 + 脱敏那条 + `the_list_still_says_no_numbers` + 第五百四十三批的 `the_listed_deletion_is_not_answered_a_clean_tree` |
+| C2 | 「读不出来」坍缩成「没记过」（半修） | 三条 not-readable | MATCHED（3 failed、80 passed，24.21s）：裁剪掉的、二进制的、走出那一格的 |
+| C3 | 副本不再 digest 校验（过头信任名字） | 改写那条 + 家规「先验再信」 | MATCHED（3 failed、80 passed，23.44s）——另牵出 `only_the_copy_that_digests_to_the_witness_is_believed`：不校验就谈不上「只信配得上的那一份」 |
+| C4 | 只认第一条候选就放弃（不倒着走） | 「只信 digest 配得上的那一份」 | MATCHED（1 failed、82 passed，24.92s） |
+| C5 | 面板里再拼一次目录地址（第二个家，答案本来不变） | 只有「目录只有一个家」 | MATCHED（2 failed、81 passed，21.79s）——家规红之外**走出那一格那条也红**：面板自己拼的地址把 `→ ../secret.md` 读得开了，第二个家不只是难看 |
+| C6 | 面板里自己拆箭头（第二个家） | 箭头那个家 | MATCHED（3 failed、80 passed，21.00s）：本批这条之外，第五百四十批 `test_the_destination_is_read_through_one_home` 同红，另多出一条 `a_refused_backup_line_names_no_copy`（拆法搬进面板后拒行的拼法也变了） |
+| C7 | 第一条 witness 赢（改掉「最后一条说了算」） | 重复删除那条 | MATCHED（1 failed、82 passed，21.31s） |
+| C8 | 出处只在 `delete` 分支登记（键不再对每次 `diff` 存在） | 「每一次 diff 都答得出这一格」 | MATCHED（1 failed、82 passed，21.41s） |
+| C9 | 地址闸门整个去掉（名字不再要求是裸文件名） | 走出那一格那条 | **第一趟 rc=0（83 passed）——门太弱，见上文 ③**；门加强后 MATCHED（1 failed、82 passed，24.18s） |
+| C10 | witness 读法退回强转 | 非字符串 digest 那条 | MATCHED（2 failed、81 passed，20.55s）：本批这条 + 第五百四十三批的 `a_digest_that_is_not_a_string_is_not_a_witness` |
+
+（十条臂全部 rc!=0 且红在瞄准的门上；多出来的红都在**同一族**，逐条列在上表。本批没有绿臂可披露——C9 的第一趟是**门太弱**造成的，把门加强之后它成了红，那一条就是本批门自己的缺陷。表里的读数是加强后的门（sha256 `1b3e76035df8d776…`）在无抢盘时段跑的（控制臂 `83 passed`、每条臂 80 上下面包着 83 的总数）；加强前那一张门字节（`3d4241ae3c74447c…`）的第一趟留在 `arm562_all.log`，差别只在 C1 多一条红、C5 少一条红。每条臂跑完逐字节还原并核 sha256，`restored MATCHED` 与臂同行打印。臂板 `plane562` 是落地后从共享树复制的 `minicc/` + `tests/` + `scripts/`，HEAD 字节另存一份对照板 `plane562red` 供 §2 的修前列量。）
+
+### 5 聚焦回归
+
+- 共享树上二十七个文件（本批门 22 条；第五百四十三批门 25 条；第五百四十至五百四十二批的审计/变更门；清单那个家 `tests/test_the_status_record_have_one_home.py`；M8-T300 的 `tests/test_a_backup_is_not_a_workspace_change.py`；`tests/test_changes_pure.py`、`tests/test_snapshots.py`、`tests/test_workspaces_pure.py`、`tests/test_workspace_gate_is_asked_by_every_entry.py`、`tests/test_the_workspace_containment_have_one_home.py`、`tests/test_the_minicc_gate_judges_the_path_the_file_actually_names.py`、`tests/test_the_change_gate_does_not_depend_on_reusability.py`、`tests/test_the_audit_export_payload_have_one_home.py`、`tests/test_the_audit_level_verdict_has_one_home.py`、`tests/test_the_change_panel_and_the_diff_must_agree.py`、`tests/test_five_places_where_one_fact_was_read_differently.py`、`tests/test_audit_authorization.py`、`tests/test_a_write_outside_the_workspace_is_judged_as_a_write.py`、`tests/test_an_external_change_must_not_be_served_from_the_memo.py`）：`326 passed, 1 skipped in 191.61s`（跳过的是本平台没有 symlink，既有行为）。
+- 干净克隆（`4a012a5` + 本批四个落地文件，逐字节与臂板一致：`minicc/changes.py 54426f2027b85f9a…`、`minicc/tools/editor.py 0ad0c1b6280f1573…`、新门 `1b3e76035df8d776…`；新门 `git add -N` 进索引）：同一组二十七文件 `326 passed, 1 skipped in 195.27s`——计数与共享树一致。这两趟用的是**加强后**的门字节（§4 的 ③），与臂表同一份。
+- 带本批记录的干净克隆（`8c9ed26` + 这份记录，新门 `git add -N` 进索引——检查器只走在仓文件里）：`scripts/doc_pointers.py --check` rc=0（1012 个「见」标记（116 条进受检箱、58 条落在 citation-without-locator、9 条由读链接的一方接走、7 条由读 evidence 的一方接走、8 条 code-span-names-a-file、2 条 cites-a-quoted-name、4 条 path-in-prose、808 条在词里）、23 条链接、4368 条 evidence 指针（75 条路径断言在代码跨度之外）、20 份文档、655 个在仓文件）；`scripts/route_coverage.py --check` rc=0——`91 passed in 26.34s`，dispatch sites 34、`webserver.py` 走了 378 行，GET A 20/20、B 20/20，POST A 14/14、B 14/14（B 全 100%）；`scripts/impacted_tests.py --check` rc=0，量出 6 个受影响测试文件（`tests/test_doc_pointers.py`、`tests/test_retrieval_enhanced.py` 等引用类）——这一趟脏的只有记录本身，代码已经进了 HEAD，所以本批门不在名单里，与第五百四十三批那趟「带着五个落地文件的脏树量出 350 个」不是同一种读数。
+- 引用门三文件（`tests/test_doc_pointers.py`、`tests/test_no_document_quotes_a_content_addressed_bundle.py`、`tests/test_retrieval_enhanced.py`）在带本批记录的干净克隆里按**定稿字节**重跑：`85 passed in 229.97s`，rc=0。这一趟最初跑在本节那两条总数改写之前的记录字节上（那一份量到 1011 条标记与 4363 条 evidence 指针），改写之后在同样的字节上重过一遍——克隆与共享树里那份记录逐字节一致（`b4cdbc6d76215954…`）。定稿字节的 `scripts/doc_pointers.py --check` 也单独复量过：rc=0，写的与量的一致。
+- 全围栏：**本批不重跑**（约 58 分钟一趟）；最近一次全围栏在其祖先 `5faa568` 上跑过 `python -W error -m pytest -q`：`4195 passed, 11 skipped in 3477.26s`，EXIT=0。其后的代码改动是第五百三十九至五百四十四批，判定取干净克隆上的门集与三个检查器。
+
+### 6 边界（本批**不**声称）
+
+- **不声称清单上的数字跟着补丁走。** E10 实测：`diff` 说 `del=2`，同一份清单那一格仍是 `add=0 del=0`。`_computed_files` 的计数来自 numstat，审计兜底那一格从来没算过行数的概念；把它对齐是 §7 第 1 位——本批只补详情页，`test_the_list_still_says_no_numbers` 钉住了这一点。
+- **不声称窗外的那一行被看过。** 仍是尾部 256KB、最后 500 行。这一条对本批比对第五百四十三批更要紧：`delete` 行在窗内、写它副本名的 `backup` 行被挤到窗外时，面板答的是 `not-recorded`——而磁盘上那份副本好好地躺着。截断由 `audit_window_truncated` 披露，本批不声称它不会把「读得到」说成「没记过」。
+- **不声称候选之间的取舍是 chronology。** `reversed(copies)` 是「最新一条 backup 先试」，本批没有门能分辨它与「最早先试」两种写法在只有一份候选配得上时的差别；配不上的形状（E4/E5）由 digest 校验挡住，不是由顺序挡住。
+- **不声称 `digest-mismatch` 与 `not-readable` 同时出现时的取舍有依据。** 现规则是 mismatch 优先（`minicc/changes.py:482-485`）：一条「点名了但读不开」和一条「读得开但字节不对」并存时，面板说的是最近一次能确认的失败，不是最轻的那一次。
+- **不声称 `move` 的源学会了这件事。** 源那一头内容还在，只是换了名字，本批不给它预像（`status` 也不是 `deleted`）。第五百四十三批 §7 第 2 位仍是它。
+- **不声称副本被删掉之后还能补回来。** `_prune_backups` 只留最新若干份（`minicc/tools/editor.py:482`起），本批不改配额，也不声称面板知道「这一份是被裁剪掉的」还是「从来没写过」——它只能照着轨迹里那一行说它说了的话。
+- **不声称副本内容是安全的。** 补丁与预像同走 `redact_text`（门 `:176`），但副本躺在工作树里，任何能读工作区的读者都能读到它——本批没动这一格权限形状。
+- **不声称 `clean` 那一格学会了分辨。** 不在清单里的路径仍默认成 `clean`（§7 第 2 位），本批只保证它带出一个空串的 `deletion_preimage`。
+- **不声称全量围栏跑过。** 上一次全量是祖先 `5faa568` 的 `4195 passed, 11 skipped in 3477.26s`；本批只跑聚焦与检查器。
+
+### 7 下一位候选
+
+1. **同一件事两处答案**：E10 实测详情页 `del=2`、清单 `del=0`。`_status_record` 造的兜底那一格从来没带过行数（`minicc/changes.py:744`），`_computed_files` 的计数只从 numstat 来（`:512`、`:545`），`summary` 的 `additions`/`deletions` 再把清单加起来。要定的是判据：审计来源的删除该不该数出它的行、数了以后 git 与审计并存时以谁为准。与 `tests/test_five_places_where_one_fact_was_read_differently.py` 同族。
+2. **窗口把副本名挤出窗外**：`delete` 行在窗内、`backup` 行在窗外时磁盘上有副本而面板说 `not-recorded`。需要一个把截断与这一格连起来的形状——「窗外可能还有一行说过它在哪儿」不等于「没记过」。
+3. **`move` 的源那一头**：源确实不在了，但内容还在另一个名字下——列 `deleted` 会把一次操作报成两处改动，什么都不列又是第五百四十二批 §7 说的那半句话。
+4. **`status` 的 `clean` 兜底**：不在清单里的文件被默认成「没改」，而 `diff` 能算出一个非空补丁。与第五百三十批同族：`clean` 是**读不出来的猜测**。
+5. **`_git` 的 127 哨兵**把 OSError 与 20 秒超时压成同一个 `git unavailable`。
+6. **能分辨的 `exists()`**：破损符号链接与权限错误这两个形状需要一个分得开的门面。
+7. **选择器解析成本**（500 文件约 13s）。
