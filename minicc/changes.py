@@ -820,9 +820,9 @@ class ChangeInspector:
                 witness = self._audit_deletion_witnesses.get(path)
                 if witness:
                     # M8-T562: filed under the resolved key, the same one the
-                    # detail page asks with.  The copies are only looked at
-                    # when somebody opens that page - the list does not pay
-                    # for a read it never shows.
+                    # detail page asks with.  M8-T563: the list asks with it
+                    # too - a listed deletion is counted from this same
+                    # filing, so the two answers cannot come from two rulers.
                     self._audit_preimage_sources[key] = (
                         witness,
                         self._audit_backup_copies.get(path, []),
