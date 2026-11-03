@@ -35992,3 +35992,188 @@ M8-T533（证据索引）、M8-T536（快照拷贝）、M8-T540（mention 的两
    一个 `SKILL.md` 问**两次** `tool_denied_by_rule`（`read_file` 与 `skill_read`），
    每次两次装载 ⇒ `discover_commands` 在 375 行按 `*/SKILL.md` 遍历 N 个技能时付
    约 **4N** 次 stat——与 M8-T540 修掉的 mention 形状同族；本批只定位、未量斜率。
+## 第五百三十批 — M8-T541 — 一个键两种口径：grading_coverage 现在自报口径，跨口径的对照不判
+
+### 1 缺陷
+
+- `grading_coverage` 这一个键在同一个函数里承载**两种量**：`minicc/benchmarks.py:333`
+  起的分支——有已运行行时是「已判决的行 / 已运行的行」，一行都没有时回退到「声明了
+  grader 的任务 / 全部任务」。两份报告印出来的键名一模一样，读者拿不到任何线索判断
+  自己看的是哪一个。
+- `docs/BENCHMARK_EVALUATION.md:28` 只定义了第一种（「已运行样本中具备评分结果的
+  比例」）；报告 notes 里那条「每条已执行的行恰好落进三种判决之一」的恒等式同样是
+  **运行口径**上的陈述——骨架报告（24 个可判 + 0 拒绝 + 0 无 grader，对着
+  `executed_count=0`）根本不满足它。
+- 危害是门，不是措辞。nightly 把绝对门槛**自比**施加（`.github/workflows/ci.yml` 从
+  M4-T8 那节的注释起就写着 baseline == variant），而一份 `executed_count=0` 的报告
+  在这个形状下发布的是定义口径的 1.0：实测改前 `--suite v2`（不带 `--run`）的报告
+  同时放进两侧、配 nightly 自己的 `--gate grading_coverage>=0.9`，返回
+  **通过 rc=0**。同一条门还有第二个形状：把那份骨架报告放进 variant 槽、三行运行
+  放进 baseline 槽也返回 **通过 rc=0**，反过来（骨架当 baseline）才是违反——
+  gate 只读 variant，所以同一对报告换个槽位结论就反过来。
+
+### 2 量到的真相（2026-11-02，本机；出厂 v2 套件 24 个任务全部声明 grader）
+
+| 报告 | fixture | executed | gradable_task_count | grading_coverage | 口径声明 |
+|---|---:|---:|---:|---:|---|
+| `python -m minicc.benchmarks --suite v2`（不带 `--run`，改前） | 24 | 0 | 24 | 1.0 | 无 |
+| 同套件任务定义 + 三行已完成（两行有判决、一行不声明 grader，本批探针构造，改前） | 24 | 3 | 2 | 0.6667 | 无 |
+
+| `minicc.bench_compare --gate grading_coverage>=0.9` | 改前实测 | 改后实测 |
+|---|---|---|
+| 骨架报告自比（nightly 施加绝对门的形状） | **rc=0 通过（实际=1）** | rc=0 通过（实际=1，两侧都写 `(declared)`） |
+| 三行运行自比 | rc=1 违反（实际=0.6667） | rc=1 违反（实际=0.6667，两侧都写 `(executed)`） |
+| 骨架当 baseline、运行当 variant | rc=1 违反（实际=0.6667） | rc=1 违反（实际=None，表里印 `N/A`）＋一条「口径不同」note |
+| 运行当 baseline、骨架当 variant | **rc=0 通过（实际=1）** | rc=1 违反（实际=None，表里印 `N/A`）＋一条「口径不同」note |
+| 两份**改前**的旧产物互比（都不带口径键） | 同上两行 | 与改前逐字一致，表里写 `(unknown)` |
+
+第三、四行是这条门存在的理由：一对不可比的数既能红也能绿，取决于谁进 variant 槽。
+第五行是本批故意留的口子——**没说过口径**不等于**说了两种口径**：
+`minicc/bench_compare.py:389` 只在两侧都点名且不相等时才判不可比，缺键读作
+`unknown` 并继续比较。这是 M8-T159 对缺失 `suite_version` 已经做过的决定，本批照搬；
+否则每一条合法的老-老对照都会因为报告从未声称能回答的问题而红。
+
+**本记录的第一版 §1 写错过一次**，留在这里：它说「nightly 用的就是不带 `--run` 的
+那个调用」。读 `ci.yml` 的 PR 评测步与 nightly 评测步（两处都带 `--run`）否证了它。
+与骨架口径真正对齐的是路线图 M4 的验收句（`--suite v2` 不带 `--run` 就该输出
+`grading_coverage=1.0`）加上 nightly 的**自比形状**——也就是本节表第一行那条实测。
+写「谁用了这个口径」之前要先读调用点，不能读指标名。
+
+### 3 落地
+
+* `minicc/benchmarks.py`：口径、数字、计数三样东西在**同一个分支**里一次决定
+  （`if completed:` ⇒ `executed`；`elif tasks:` ⇒ `declared`；两者皆无 ⇒ `None`），
+  这样口径不可能与它旁边的数字不同意。新键 `grading_coverage_basis` 随 metrics 一起
+  发布，`markdown_report` 的阅读顺序把它紧排在 `grading_coverage` 之后，notes 追加
+  一条说明「`gradable_task_count` 跟着同一个口径」。
+* `minicc/bench_compare.py`：两侧各把自己的口径带进 comparison 的 `baseline` /
+  `variant` 小字典；不可比时追加一条「口径不同：……」note，并把 `_gate_actual`
+  的签名从「只看 variant」改成拿到整个 comparison（`minicc/bench_compare.py:559`），
+  使该指标的 gate 取到 `None` ⇒ 按违反处理；delta 表那一行印成
+  `1 (declared) | 0.6667 (executed)`；`GATE_FLOORS["grading_coverage"]` 的说明补上
+  它写就的口径，并把上面两条实测（自比通过、跨口径不判）写在旁边。
+* `docs/BENCHMARK_EVALUATION.md`：`grading_coverage` 一行改写成「两种量、没运行任何
+  东西时取后者」，并新增 `grading_coverage_basis` 一行讲三个取值各自的分母。
+* 新门 `tests/test_the_coverage_metric_names_which_share_it_reports.py`（10 例）：
+  两种报告各钉自己的口径；一条形状普查断言「数字 == 用该口径的分母算出来的商」，
+  使口径与数字不可能分家；出厂 CLI 调用（`--suite v2` 不带 `--run`）在真子进程里跑，
+  并钉住 markdown 里两行相邻；跨口径对照两个方向都拒（note 恰好一条、gate 取 None、
+  `main()` 返回 1）；**同口径**的对照照旧只判数字（declared 对 declared 拿到 1.0 且
+  无 note，executed 对 executed 拿到 0.6667 且违反）；缺键的老产物按 unknown 比较并
+  在表里印出 `(unknown)`；nightly 地板的文字点名口径、数字仍从 ci.yml 派生；notes
+  点名新键；以及「口径不是 gate 词表项」——它既不在 `GATE_METRICS` 也不在
+  `GATE_FLOORS`，`parse_gate("grading_coverage_basis>=1")` 必须是 `ValueError`。
+
+### 4 变异验证（交付字节，逐条恢复并核对 sha256）
+
+| 编号 | 变异 | 预测（写于任何运行之前） | 实测 |
+|---|---|---|---|
+| P | 不变异，交付字节跑新门 | 10 绿 | 10 passed **MATCHED** |
+| R | 两份产品文件回到 HEAD 字节 | 9 红 / 1 绿 | 9 红 / 1 绿 **MATCHED**（绿的那条正是「口径不是 gate 词表项」——它对 HEAD 也成立） |
+| A1 | declared 分支也写 `executed` | 4 红 | 4 红 **MATCHED** |
+| A2 | 运行分支的计数取定义侧 | 2 红 | 2 红 **MATCHED** |
+| A3 | 拒绝条件永不成立（`is False` → `is None`） | 1 红 | 1 红 **MATCHED** |
+| A4 | metrics 字典不再发布新键 | 5 红 | **6 红 / 4 绿 DIVERGED** |
+| A5 | `preferred` 阅读顺序丢掉新键 | 1 红 | 1 红 **MATCHED** |
+| A6 | notes 里那条说明改到没人点名 | 1 红 | 1 红 **MATCHED** |
+
+**A4 的 5 是我算错的，不是门漏了什么。** 预测表按「哪些腿读 metrics 里的这个键」点名，
+漏了「老产物对照」那条腿自己也是**先造一份今天的报告、再把键删掉**来冒充历史——它
+依赖产品确实写了这个键。按程序顺序把这条腿补进推导，实测 6 就是派生出来的数；修正
+表后重跑仍是 6 红，红集与点名逐条一致。
+
+同一条腿第一次红出来是 `KeyError: 'grading_coverage_basis'`：红是真的，但形状是
+「量具坏了」而不是「断言被否证」。补了一句
+`assert "grading_coverage_basis" in executed["metrics"]` 让它红成它自己那句主张，
+补完把 P 与 R 各重跑一遍（10 绿、9 红 / 1 绿，都没变）。
+
+### 5 门禁
+
+- 焦点集（新门与指标邻域共 10 份文件：`test_bench_compare`、`test_benchmark_runner`、
+  `test_behavior_bench`、`test_bench_tasks`、`test_metric_and_oracle_reach_report`、
+  `test_ci_hygiene`、`test_the_nightly_floor_values_have_a_reader`、
+  `test_benchmark_evaluation_doc`、`test_core`）：**148 passed in 41.18s**（同一份
+  字节在臂电池之前也跑过一次 148 passed in 21.36s——两次之间只有注释行的差别）。
+- 受影响面（`scripts/impacted_tests.py` 对本批四个文件点名 **223** 份文件）：
+  **1949 passed in 2231.81s (0:37:11)**，退出码 **0**（`-q --tb=line`，逐条流式落
+  `t530_impacted.log`，末尾 `rc=0` 是自己打的那一行不是管道的）。这一轮之前有两次
+  不成立的运行：跑到 14% 时我改了一行产品注释，那两次的读数都不再能声称量的是交付
+  字节——停掉重跑的代价是三十七分钟，而「先跑完再改」在这里不是效率问题：不改完再跑，
+  上一节那些数就量不到交付字节，那句话变成假的。
+- 文档面：规范文档门禁集（名册由 `tests/` 里点名 `ROADMAP_TO_PRODUCT` 的文件派生，
+  本轮 **16** 份）在交付字节上 **257 passed in 1542.92s (0:25:42)**（本记录落盘**前**
+  那一轮，无一条失败）；落盘**后**同一份名册复跑，仍 257 条、无失败——本记录给文档
+  加的是散文，不给门加用例，所以这条数字不随落盘变化。
+  `scripts/doc_pointers.py --check --quiet` 退出码 **0**。
+  本批**不写这条命令的总数**，也不写「填进去之前」的读数：上一批已经记过原因——
+  这句话本身在被数的那堆东西里，填完再跑，每个数都会 +1。
+- 行尾：四份交付文件各量一次，`count(\r\n) == count(\n)` 且孤立 CR 为 0；
+  `docs/ROADMAP_TO_PRODUCT.md` 由落盘脚本按它自己的 EOL 重编码本记录、写完回读复量
+  （CRLF 计数 == LF 计数、孤立 CR 0；这条不写总行数，因为那行数就是它自己）。
+  `git ls-files --eol` 在 642 个被追踪文件上是 639 `i/lf w/crlf` + 2 `i/lf w/lf` +
+  1 `i/none w/none`（`benchmarks/tasks.v2.json` 被 git 判为无行尾），没有一例
+  `i/crlf` 或 `i/mixed`——第五百二十九批修完之后，这条不变式**仍然没有门**，
+  已登记为 M8-T545（见 §7）。
+
+### 6 边界（本批**不**声称）
+
+- 不动 `grading_coverage` 的**任何一个分母**：运行口径仍是 `gradable/completed`，
+  定义口径仍是 `definition_gradable/tasks`。本批只让报告说出它给的是哪一个，并让
+  跨口径的对照不再判数字。
+- 不取消定义口径的回退，也不禁止拿骨架报告做比较。两侧同口径时数字照判（§2 表头
+  两行实测：declared 自比 1.0 通过、executed 自比 0.6667 违反）。批的是**跨口径相减
+  且不披露**，不是「没跑就不许打印」。
+- 不改 `pass_at_1`、`execution_completion_rate`、`no_grader_count` 等既有指标的
+  算法或名字；`tests/test_metric_and_oracle_reach_report.py` 那条「印出的键集 ==
+  metrics 的键集」是派生的，新键自动被读到，本批没有为它写豁免。
+- 口径缺失按 `unknown` **继续比较**，不是拒绝。本批不声称能区分「一份很老的报告」和
+  「一份坏掉的报告」——它们都不带这个键，而把两者一起拒绝会让所有历史产物失效。
+- 不新增 gate 词表项：`grading_coverage_basis` 不可被 `--gate` 阈值化（第 3 节最后
+  一条腿钉的就是这个）。
+- 不在本批跑真模型的 nightly：本批只动报告与对照的口径披露，执行路径一字未改。
+- 不声称本批的编号在全仓库唯一。`main` 道的第五百二十三批也叫 **M8-T541**（检查器把
+  同一份源码解析两遍），而本道从第五百二十六批 §7 起就把这个号留给本批这个缺陷；
+  两条道在 T535..T542 这一段已经各自编过、对不上（本道第五百二十八批 = M8-T540，
+  `main` 道第五百二十二批也叫 M8-T540，是两个不同的缺陷，`git merge-base` 停在
+  a1afdbe9）。本批不追溯改已落地的号：那要把八个头图和它们之间的 §7 认领一起动。
+  §7 里点名的 T543..T547 在 `main` 道同样已被别的缺陷用过（T543 = 十三个脚本加载器），
+  下一批认领时按本道的 §7 续，不在这里替两条道裁号。
+
+### 7 下一单位
+
+1. M8-T543 `minicc/mentions.py`：`token` 与 `path` 各有两个量。九腿判据已在交付字节
+   之外起草并实测（`6 failed, 3 passed in 24.23s`，HEAD 产品字节）：被规则拒的
+   `@secrets\k.txt是什么` 记 `('secrets\\k.txt是什么', 'secrets\\k.txt是什么')`，
+   同一文件的注入记录记 `('src\\a.py', 'src/a.py')`——`path` 在收敛处写 posix 相对
+   路径、在两条收敛后的拒绝门（`mentions.py:213/225`）写原始 `original`、在
+   二进制/超预算/读失败（`:230/245/249`）写**就地改写过的** `token`（反斜杠留着）；
+   `token` 在成功侧是削过尾巴的收敛结果、在被拒侧是原样。分裂的根源是回退循环
+   （`:193-202`）**就地改写**外层循环变量 `token`，五个分支读的是不同时刻的它。
+   本批定下的契约写成一条可派生的不变式：`path != token` 只对「收敛到一个真实
+   工作区文件」成立——把未收敛那侧也做分隔符归一会废掉这个记号，故不归一。
+2. M8-T544（已定位未量斜率）`minicc/commands.py:321` 的 `_skill_file_allowed` 对每
+   一个 `SKILL.md` 问**两次** `tool_denied_by_rule`（`read_file` 与 `skill_read`），
+   每次两次装载 ⇒ `discover_commands` 遍历 N 个技能时付约 **4N** 次 stat——与
+   M8-T540 修掉的 mention 形状同族。
+3. M8-T546（本批读调用点时顺手量到）PR 评测步的内联断言
+   `.github/workflows/ci.yml:288` 写的是 `m["grading_coverage"] == 1.0`，那一段只
+   读三个比率，**不问 `executed_count`**：一条所有任务都 `not_run` 的 behavior 运行
+   会把定义口径的 1.0 交出去，断言照绿——与本批修掉的自比形状是同一个洞的另一半
+   （门侧本批已判，断言侧还没人问口径）。
+4. M8-T545（本批 §5 量出现状，尚无门）「被追踪的文本文件行尾只能是两种之一」这条
+   不变式没有门：第五百二十九批靠前缀二分才发现 8 个文件的 blob 停在 CRLF，而自检测
+   式 `count(\r\n) == count(\n)` 对 `\r\r\n` 天生看不见（两个计数一起动）。判据直接
+   拿 git 自己的说法最便宜：`git ls-files --eol` 里出现 `i/crlf` 或 `i/mixed` 就是
+   「git 拒绝为整个文件做转换」的那一件事，一条命令、642 行、无子进程风暴。
+5. M8-T547（T543 探针顺手量到，尚未立案）标注块把 `item["path"]` **原文**插进
+   XML 式属性：`mentions.py:292/294/305` 渲染 `path="{item["path"]}"`，而
+   `MENTION_TOKEN_RE`（`:31`）的字符类只排除空白、`@`、\u3000-\u303f、\uff00-\uffef，
+   `_TRAILING_PUNCTUATION`（`:38`）只削**尾**标点——引号在中段就留着。实测（临时
+   工作区，无同名文件）：`@../out.txt"y` 的块文本是
+   `<file path="../out.txt"y" status="rejected">路径超出工作区范围</file>`，
+   `@C:/Windows/nope.ini"z` 同形。注入侧被回退循环救了一次（`@a.txt"onmouseover="x`
+   收敛成 `a.txt` 才写进块），未收敛侧没人救。读者实测只有一层：在 `web/src` 里
+   搜 `records` 找不到渲染 `detail.records` 的地方（面板的 `innerHTML` 只吃
+   `fileIndex` 与自家文案，且带 `escapeHtml`），所以这块唯一的去处是模型的
+   user message——掉的是「用户能伪造一条看起来像系统标注的行」，不是 XSS。立案前
+   先说清这一点，别把严重性写高。
