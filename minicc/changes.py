@@ -72,6 +72,22 @@ PREIMAGE_MISMATCH = "digest-mismatch"
 #: ``source`` when the pre-image came out of the editor's own copy instead of
 #: out of git, so a reader can tell which baseline a patch was built on.
 PREIMAGE_SOURCE = "audit-backup-copy"
+#: M8-T565: what the panel can say about a name git wrote with a substitution
+#: character in it.  ``_git`` decodes git's stdout with ``errors="replace"``, so
+#: a file whose name git could not put into UTF-8 arrives in the listing as that
+#: rendering - and the listing has been using the rendering as an address: the
+#: path does not exist, ``_text`` answers ``""``, and a three-line file is
+#: reported as "added, 0 lines".  The three verdicts are not interchangeable:
+#: one disk entry renders into this name (``substituted`` - the number and the
+#: patch come from that file), several do (``ambiguous`` - no number is
+#: attributable), none does (``unmatched`` - the name could not be tied back at
+#: all).  "" is the fourth state and means the name is its own rendering, which
+#: is what every ordinary path is.
+NAME_SUBSTITUTED = "substituted"
+NAME_AMBIGUOUS = "ambiguous"
+NAME_UNMATCHED = "unmatched"
+#: The character git's decoder writes for bytes it could not read.
+SUBSTITUTED_CHAR = "\ufffd"
 _SUMMARY_CACHE: OrderedDict[str, tuple[object, list[dict[str, Any]]]] = OrderedDict()
 _CACHE_LOCK = threading.Lock()
 
@@ -87,6 +103,27 @@ def _ignored_path(path: str) -> bool:
     if normalized.startswith("./"):
         normalized = normalized[2:]
     return normalized in INTERNAL_DIRS or normalized.startswith(_IGNORED_PREFIXES)
+
+
+def _rendered_form(name: str) -> str | None:
+    """What git's record says a disk name looks like, or ``None``.
+
+    M8-T565: git writes the name's bytes, and ``_git`` decodes them with
+    ``errors="utf-8"``/``errors="replace"``, so every byte that is not valid
+    UTF-8 in that position becomes one ``U+FFFD``.  On Windows git substitutes
+    ``U+FFFD`` for an unpaired surrogate itself, which is the same answer for
+    the ``surrogateescape`` range Python puts those bytes back into.  Running
+    the name through those two steps is therefore git's own step, and it is the
+    only way a listed name can be traced back to the file it came from.
+    ``None`` is honest about the limit: a surrogate outside that range (U+D800
+    is the common one) cannot be encoded at all here, while git still renders
+    it - so such a name can only ever be reported as unmatched.
+    """
+    try:
+        raw = name.encode("utf-8", "surrogateescape")
+    except UnicodeEncodeError:
+        return None
+    return raw.decode("utf-8", "replace")
 
 
 def _status_record(path: str, status: str, raw: str) -> dict[str, Any]:
@@ -132,6 +169,11 @@ class ChangeInspector:
         # patch the detail page shows are one fact, so they are read once,
         # from this filing, and nowhere else.
         self._audit_preimage_sources: dict[str, tuple[str, list[tuple[str, str]]]] = {}
+        # M8-T565: git's rendered name -> (verdict, the disk name it was made
+        # from).  Filled by ``files_without_diff``, read by the counting loop,
+        # by ``diff`` and by ``summary`` - one ruler, so a row's number and the
+        # detail page cannot disagree about which file a name stands for.
+        self._name_verdicts: dict[str, tuple[str, str]] = {}
 
     def _resolve(self, raw_path: str) -> Path:
         if not isinstance(raw_path, str) or not raw_path.strip():
@@ -551,8 +593,14 @@ class ChangeInspector:
         # signature now covers every file the inspector knows about.
         signature = []
         for item in complete:
+            # M8-T565: a row whose name is a rendering is counted out of the
+            # file that rendering came from, so it is that file's stat the memo
+            # has to watch.  Keying the fingerprint by the name that opens
+            # nothing left every entry ``(raw, None, None)`` - a stale number
+            # no edit could invalidate.
+            verdict, listed_source = self._name_verdicts.get(str(item["path"]), ("", ""))
             try:
-                stat = self._resolve(item["path"]).stat()
+                stat = self._resolve(listed_source or str(item["path"])).stat()
                 signature.append((item["raw"], stat.st_mtime_ns, stat.st_ctime_ns, stat.st_size, self._renames.get(item["path"])))
             except (OSError, ChangeError):
                 signature.append((item["raw"], None, None))
@@ -577,15 +625,28 @@ class ChangeInspector:
         # truncated (and the truncation is disclosed); the totals are not.
         for item in complete:
             counts = stats.get(item["path"], (0, 0))
+            name_verdict, listed_source = self._name_verdicts.get(str(item["path"]), ("", ""))
             try:
                 if item["raw"].startswith("??") or code != 0:
                     # Before the first commit HEAD is an empty baseline.
                     # Cached numstat sees only staged content; the worktree
                     # may contain additional edits or a staged-then-deleted file.
-                    counts = (len(self._text(self._resolve(item["path"])).splitlines()), 0)
+                    # M8-T565: this is the branch that reads the **disk**, and a
+                    # name git wrote with a substitution in it is not a disk
+                    # path.  One file makes that name, so the lines counted are
+                    # that file's.  None or several make it, and no number is
+                    # this row's - which is said as ``None``, not as 0, because
+                    # "0 lines" is the answer this campaign keeps meeting.
+                    if name_verdict in (NAME_AMBIGUOUS, NAME_UNMATCHED):
+                        counts = (None, None)
+                    else:
+                        counts = (
+                            len(self._text(self._resolve(listed_source or str(item["path"]))).splitlines()),
+                            0,
+                        )
             except ChangeError:
                 pass
-            row = {**item, "additions": counts[0], "deletions": counts[1]}
+            row = {**item, "additions": counts[0], "deletions": counts[1], "name_resolution": name_verdict}
             if item["status"] == "deleted":
                 # M8-T563: the detail page has read this file's content out of
                 # the editor's own copy since M8-T562, while the list answered
@@ -672,8 +733,30 @@ class ChangeInspector:
                 # key here - and letting ``_resolve`` raise would turn the
                 # diff route into a 500.
                 key = str(item["path"])
-            status_map[key] = str(item.get("status") or "clean")
+            status = str(item.get("status") or "clean")
+            status_map[key] = status
+            # M8-T565: a listed name that is a rendering has been the table's
+            # only key, so the disk's own spelling missed it and this route
+            # invented a baseline for a file the list had just named - one file,
+            # two answers ("clean" here, "added" there), which is the same
+            # defect M8-T304 closed for the raw/relative spelling.  Both
+            # spellings now reach the record; the rendered one is the only one
+            # that can travel in a URL, so it is the one that must keep working.
+            _verdict, listed_source = self._name_verdicts.get(key, ("", ""))
+            if listed_source:
+                status_map.setdefault(listed_source, status)
         status = status_map.get(path, "clean")
+        # The caller may have spelled the path as the disk holds it or as git
+        # rendered it; the verdict is filed under the rendering either way.
+        listed = path if SUBSTITUTED_CHAR in path else (_rendered_form(path) or "")
+        name_verdict, listed_source = self._name_verdicts.get(listed, ("", ""))
+        if name_verdict == NAME_SUBSTITUTED:
+            try:
+                # The rendering is the only spelling that can travel in a URL,
+                # so the route follows it back to the file on disk.
+                target = self._resolve(listed_source)
+            except ChangeError:
+                pass
         # M8-T548: every entry in ``status_map`` came from the status read, so
         # ``files_without_diff`` above has just refreshed the reason.
         return self._diff_for_target(
@@ -686,6 +769,7 @@ class ChangeInspector:
             self._audit_records_without_path,
             self._audit_refused_records,
             self._audit_records_without_action,
+            name_verdict,
         )
 
     def _diff_for_target(
@@ -699,11 +783,21 @@ class ChangeInspector:
         audit_records_without_path: int = 0,
         audit_refused_records: int = 0,
         audit_records_without_action: int = 0,
+        name_resolution: str = "",
     ) -> dict[str, Any]:
+        # M8-T565: two of the three verdicts mean no disk file can be named for
+        # this record, so there is nothing to read and no number to show.  The
+        # answer is "no number, and here is why" - not the empty patch of a file
+        # that has three lines in it, which is what ``after = ""`` used to become.
+        unattributable = name_resolution in (NAME_AMBIGUOUS, NAME_UNMATCHED)
         # Untracked files have no HEAD baseline; avoid a subprocess for each
         # one when the workspace is a fresh interview repository.
-        before = "" if status == "added" else self._baseline(self._renames.get(path, path))
-        after = self._text(target)
+        before = (
+            ""
+            if status == "added" or unattributable
+            else self._baseline(self._renames.get(path, path))
+        )
+        after = "" if unattributable else self._text(target)
         source = "git-or-empty-baseline"
         preimage = ""
         if status == "deleted":
@@ -761,7 +855,7 @@ class ChangeInspector:
             )
             patch = "\n".join(lines)
         patch, _ = redact_text(patch)
-        additions, deletions = _patch_counts(patch)
+        additions, deletions = (None, None) if unattributable else _patch_counts(patch)
         return {
             "path": path,
             "status": status,
@@ -769,6 +863,9 @@ class ChangeInspector:
             "additions": additions,
             "deletions": deletions,
             "source": source,
+            # M8-T565: the verdict on the name this record was written with -
+            # "" when the name is the disk's own spelling.
+            "name_resolution": name_resolution,
             # M8-T562: what the panel can say about the content a deletion
             # removed - "" when the question does not arise here.
             "deletion_preimage": preimage,
@@ -827,6 +924,7 @@ class ChangeInspector:
                         witness,
                         self._audit_backup_copies.get(path, []),
                     )
+        self._resolve_listed_names(items)
         return list(items.values())
 
     def _resolved_relative(self, raw_path: str) -> str:
@@ -836,6 +934,68 @@ class ChangeInspector:
             return target.relative_to(self.workspace).as_posix()
         except (OSError, ValueError, ChangeError):
             return ""
+
+    def _listed_sources(self, rel_path: str) -> list[str]:
+        """The workspace-relative names that render into a listed name.
+
+        M8-T565: walked segment by segment, because git's substitution is not
+        confined to the last segment - a directory whose name git could not
+        write arrives as ``bad/inner.md`` with the ``bad`` half replaced.  A
+        segment is a match when ``_rendered_form`` of the disk name equals the
+        segment as listed, so a faithful segment matches exactly one entry (an
+        ambiguous one several).  Only files are returned for the last segment:
+        ``-uall`` lists directory contents, never a directory, so a directory
+        that renders into a record's name is not the file the record is about.
+        An unlistable directory contributes nothing, which is the same answer
+        as "no entry makes this name" and is disclosed as such.
+        """
+        parts = rel_path.split("/")
+        level: list[tuple[str, Path]] = [("", self.workspace)]
+        for index, part in enumerate(parts):
+            if not part or part in (".", ".."):
+                return []
+            last = index == len(parts) - 1
+            nxt: list[tuple[str, Path]] = []
+            for rel, directory in level:
+                try:
+                    entries = list(directory.iterdir())
+                except (OSError, ValueError):
+                    continue
+                for entry in entries:
+                    if _rendered_form(entry.name) != part:
+                        continue
+                    if last and not entry.is_file():
+                        continue
+                    nxt.append((f"{rel}/{entry.name}".lstrip("/"), entry))
+            if not nxt:
+                return []
+            level = nxt
+        return [rel for rel, _ in level]
+
+    def _resolve_listed_names(self, items: dict[str, dict[str, Any]]) -> None:
+        """Say what each listed name that git wrote with a substitution in it stands for.
+
+        Only names carrying ``SUBSTITUTED_CHAR`` are asked: a name without it
+        is the disk's own spelling, because Python's decode of git's bytes
+        invents that character and nothing else.  Audit rows are skipped -
+        their path is a string the editor was handed, not a decoding of bytes,
+        so treating it as an address is correct.  A single source that *is* the
+        listed name leaves no verdict: the file is literally named that.
+        """
+        verdicts: dict[str, tuple[str, str]] = {}
+        for path, item in items.items():
+            if SUBSTITUTED_CHAR not in path or item["raw"] == "audit":
+                continue
+            sources = self._listed_sources(path)
+            if len(sources) == 1 and sources[0] == path:
+                verdicts[path] = ("", "")
+            elif len(sources) == 1:
+                verdicts[path] = (NAME_SUBSTITUTED, sources[0])
+            elif not sources:
+                verdicts[path] = (NAME_UNMATCHED, "")
+            else:
+                verdicts[path] = (NAME_AMBIGUOUS, "")
+        self._name_verdicts = verdicts
 
     def summary(self) -> dict[str, Any]:
         # M8-T305 / T307: the totals cover every changed file; the list is
@@ -878,6 +1038,13 @@ class ChangeInspector:
             # M8-T559: a record that named no action named no change.
             "audit_records_without_action": int(
                 getattr(self, "_audit_records_without_action", 0)
+            ),
+            # M8-T565: how many of these names are git's rendering rather than
+            # the disk's spelling.  One row's verdict says which file it stands
+            # for; this says how much of the list was written that way, so a
+            # panel can tell a workspace full of such names from one row.
+            "substituted_names": sum(
+                1 for item in complete if item.get("name_resolution")
             ),
             "workspace": self.workspace.as_posix(),
         }
