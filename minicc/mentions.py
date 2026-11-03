@@ -99,6 +99,16 @@ def _reject(token: str, reason: str) -> dict[str, Any]:
     return _record(token, token, "rejected", reason, False)
 
 
+def _converged(token: str, path: str, status: str, reason: str) -> dict[str, Any]:
+    """A verdict reached **after** the walk resolved to a real workspace file.
+
+    ``path`` is that file's workspace-relative posix path while ``token`` stays
+    the scanned spelling; ``_reject``/``_annotate`` are for the other side, where
+    there is no resolved path to report (M8-T543).
+    """
+    return _record(token, path, status, reason, False)
+
+
 def credential_injection_refusal() -> str:
     """The one wording of the .minicc credential-file injection refusal.
 
@@ -158,7 +168,6 @@ def build_mention_context(
     used = 0
     omitted: list[str] = []
     for token in tokens:
-        original = token
         raw = Path(token.replace("\\", "/"))
         # "C:/..." is only absolute on Windows; match drive letters explicitly
         # so the rejection is identical on every platform.
@@ -190,18 +199,19 @@ def build_mention_context(
         # Hand-typed CJK text can glue onto the token (``@a.py是什么``); walk
         # the token back one character at a time to the longest prefix that
         # resolves to a real workspace file.
-        while not resolved.is_file() and token:
-            token = token[:-1]
-            if not token:
+        candidate = token
+        while not resolved.is_file() and candidate:
+            candidate = candidate[:-1]
+            if not candidate:
                 break
             try:
-                resolved = (ws / Path(token.replace("\\", "/"))).resolve()
+                resolved = (ws / Path(candidate.replace("\\", "/"))).resolve()
             except OSError:
                 break
             if not resolved.is_relative_to(ws):
                 break
-        if not token or not resolved.is_file():
-            records.append(_annotate(original, "missing", "工作区内没有这个文件"))
+        if not candidate or not resolved.is_file():
+            records.append(_annotate(token, "missing", "工作区内没有这个文件"))
             continue
         rel = resolved.relative_to(ws).as_posix()
         # M8-T65: 敏感门必须在**回退收敛后的真实路径**上重过一次。原始
@@ -210,7 +220,9 @@ def build_mention_context(
         # ——只查工作区边界不查敏感门，就是一条 bearer 外泄路径。
         walked_kind = _minicc_sensitive_kind(rel)
         if walked_kind == "deny":
-            records.append(_reject(original, credential_injection_refusal()))
+            records.append(
+                _converged(token, rel, "rejected", credential_injection_refusal())
+            )
             continue
         if walked_kind == "redact":
             sensitive = "redact"
@@ -222,12 +234,14 @@ def build_mention_context(
         # M8-T540: the second checkpoint asks the **same** matcher, so the
         # re-check costs nothing extra.
         if denied("read_file", {"path": rel}):
-            records.append(_reject(original, deny_rule_injection_refusal()))
+            records.append(
+                _converged(token, rel, "rejected", deny_rule_injection_refusal())
+            )
             continue
         remaining = min(max_chars_per_file, max_total_chars - used)
         if remaining <= 0:
             omitted.append(rel)
-            records.append(_annotate(token, "omitted", "超出注入预算"))
+            records.append(_converged(token, rel, "omitted", "超出注入预算"))
             continue
         try:
             # M8-T278: the 32 KB ceiling used to be applied *after* the read:
@@ -242,11 +256,11 @@ def build_mention_context(
             with resolved.open("rb") as handle:
                 data = handle.read(MENTION_READ_BYTES)
         except OSError:
-            records.append(_annotate(token, "missing", "文件读取失败"))
+            records.append(_converged(token, rel, "missing", "文件读取失败"))
             continue
         oversized = size > MENTION_READ_BYTES
         if b"\x00" in data:
-            records.append(_annotate(token, "binary", "二进制文件不注入内容"))
+            records.append(_converged(token, rel, "binary", "二进制文件不注入内容"))
             continue
         text = data.decode("utf-8", errors="ignore").replace("\r\n", "\n")
         if sensitive == "redact":
