@@ -36377,3 +36377,198 @@ L9（五字段形状，M8-T407）。
    `@../out.txt"y` 那一形照旧。行号按交付字节重量：`:306`（rejected，注入分支）、
    `:308`（missing/binary）、`:319`（rejected，零注入分支）——第五百三十批抄的
    `:292/294/305` 是本批的改前字节，别再往下抄。
+
+## 第五百三十二批 — M8-T548 + M8-T549 — 判决要进块：块非空的唯一理由不该是「恰好有个文件被注入了」
+
+### 1 缺陷
+
+`minicc/mentions.py` 的渲染器按「有没有注入」分岔（改前 `:298` `if injected:` 与
+`:316` `if rejected or omitted or dropped_note:`，尾部 `:328` `return "", records`）：
+
+- **注入分支**（`:304-308`）把 `rejected` / `missing` / `binary` 三种判决都标注进块；
+- **零注入分支**（`:318-322`）只标注 `rejected`，`missing` 与 `binary` 落到
+  `:328` 的空串。
+
+于是一条 `@nosuch.py`、一条 `@bin.dat` 交给模型的是**空块**，而
+`@ok.py @nosuch.py @bin.dat` 把两条都写了出来。M8-T329 给「超出条数上限」那条通道
+补的正是这一形——**静默丢掉读起来像从没写过**。一条 `missing` 判决对模型来说就是
+「这个文件我没读到」那句话本身；它掉在块外，模型只剩下猜自己是不是看错了路径。
+
+同一片地方还有两个手抄的家，而且它们的危害不等：
+
+1. 被拒标注那句 f-string 在 `:306`（注入分支）与 `:319`（零注入分支）各拼一遍。
+   第五百三十一批的臂 A7 就被这个骗过一次：针只钉了一处，九腿全绿。
+2. 「超出注入预算」那句也有两个家，**两句给读者的补救不一样**：`:311` 说
+   「可用 read_file 读取」，`:324` 只说「未包含内容」。读者能不能得到补救，取决于
+   有没有**别的**文件恰好被注入了。
+
+### 2 量到的真相
+
+判据先在交付字节之外写好（`Temp/t544_gate.py`，十腿），再落到仓库、在**改前的产品
+字节**上量它描述的形状：`6 failed, 4 passed in 1.36s`（退出码 1，逐条 `--tb=line` 存 `t544_prefix_gate.log`）。
+臂电池里把产品字节换成 `e6146bb` 的 HEAD blob 那一臂（R）复现了同一个红集，
+那一次是 `6 failed, 4 passed in 1.03s`——两次都是量出来的，不是推出来的。
+
+下表里的短名就是 §4 用的短名，展开是：
+BINARY=`…a_binary_mention_is_named_even_with_nothing_injected`、
+MISSING=`…a_missing_mention_is_named_even_with_nothing_injected`、
+REJECTED=`…a_rejected_mention_is_named_even_with_nothing_injected`、
+INJECT=`…an_injection_still_annotates_the_other_verdicts`、
+CENSUS=`…the_block_is_empty_exactly_when_the_message_has_no_mention`、
+APPLY=`…apply_mentions_still_leaves_a_mention_less_message_alone`、
+PATHS=`…the_zero_injection_block_names_the_resolved_path`、
+HOME=`…the_annotation_sentences_each_have_one_home`、
+HEADER=`…a_pure_loss_block_does_not_claim_it_injected_anything`、
+ADVICE=`…the_over_budget_note_offers_the_reader_the_same_way_out`。
+
+红的是这六条，每条附它自己的判决文本：
+
+| 腿（短名） | 改前实测（`--tb=line` 的行号是判据自己的） | 判决 |
+|---|---|---|
+| BINARY | `:74 assert '' != ''` | `@binaryblob` 一个人的消息交给模型的是空串 |
+| MISSING | `:81 assert '' != ''` | 同上，`@nosuchthing` |
+| CENSUS | `:123 AssertionError: ('@nosuchthing', True, '')` | 有提及而块为空——11 条消息里第一条就撞上 |
+| APPLY | `:136 assert 'status="missing"' in '@nosuchthing'` | 消息原样退回，模型不知道自己没读到 |
+| HOME | `:157 assert 2 == 0`（`被拒标注仍按状态手抄（2 处）`） | `:306` 与 `:319` 各拼一遍那句话 |
+| HEADER | `:173 assert '' != ''` | 这条钉两件事，改前红在第一件（块为空）；「不谎称已注入」那半句由 A4 兑现 |
+
+其余四条（REJECTED / INJECT / PATHS / ADVICE）改前是绿的：它们钉的是这片地方
+**已经**做对的部分，本批不许它们退化——A6 那一臂专门把三条压红，用来证明新家
+没有把老合同换成新合同。
+
+一处**既有判据与本批对撞**，必须点名：`tests/test_mentions.py` 里
+`test_missing_binary_are_annotated_without_content` 的**函数名说「被标注」**，而
+它最后一行钉的是 `assert block == ""  # nothing injected, nothing rejected -> no
+block`——改前它把上一节那个缺陷当成合同钉着（第五百三十一批之后仍然）。本批把这条
+断言换成钉两条标注都在，并保留「正文不进块」那半句；名字不改，因为它说的是这件事
+本来该说的。这不叫「测试坏了」：一条判据在产品名称与断言互相矛盾时，红的那一侧
+才是真相，而本批让真相进块。
+
+### 3 落地
+
+改机制，不改措词：
+
+1. 新的模块级助手 `_annotation_line(item)`（`:136`，句子在 `:144`）——一条判决一行，
+   **只拼一次**，读 `item["status"]` 而不是按状态写死。M8-T549 收的就是这两个家。
+2. 判决名册在 `:314-318` 一次性算出 `annotations`：`status` 属于
+   `{rejected, missing, binary}` 的记录每人一行。**没有注入也要算**——这一句是
+   M8-T548 的全部。
+3. 两条注句收进同一个 `notes` 列表（`:319-326`），超预算那句从此恒带
+   「可用 read_file 读取」。
+4. 块的空与非空改由「有没有话要说」决定：`:329`
+   `if injected or annotations or notes:`，尾部 `:339` 保留 `return "", records`。
+   派生不变式＝判据普查腿：**块非空 ⟺ 这条消息里有 @-提及**。
+5. 头句按分支给两种：有注入才说「以下内容按 @-提及自动注入…请用 read_file 重新
+   读取」；纯判决的块只说 `[用户引用文件]`。块非空但内容一条都没注入时，那句
+   「已自动注入」本身就是对模型的第二次谎。
+6. 删掉 `rejected = sum(...)`（`:289` 改前）——它唯一的读者就是那个分支条件；判决
+   进块后条件不再问它。`injected = sum(...)` 保留，它仍被 `:329` 与头句两处读。
+7. 上一节那条 `test_mentions.py` 的断言按新合同改写。
+
+本批不动文档：没有一份文档描述过块在「零注入」时该长成什么样（`docs/` 里搜
+「用户引用文件 / 提及 / mention」命中的是 M7-T5 验收行与打包批次，说的是有没有块，
+不是块里有几句判决）。
+
+### 4 变异验证
+
+十臂全 MATCHED，预测在任何一臂运行之前写进脚本（P、R、A1–A8；`Temp/t544_notes.md`
+05:38 名册，05:44 有一处**跑臂前**的推导修订，见本节末）：
+
+| 臂 | 针（LF 匹配，计数钉死为 1） | 预测红集 | 实测 |
+|---|---|---|---|
+| P | 交付字节 | 无 | `10 passed in 1.23s` MATCHED |
+| R | 产品回到 `e6146bb` 的 blob | BINARY MISSING CENSUS APPLY HOME HEADER | `6 failed, 4 passed in 1.03s` MATCHED |
+| A1 | `annotations` 只收 rejected | BINARY MISSING INJECT CENSUS APPLY HEADER | `6 failed, 4 passed in 1.66s` MATCHED |
+| A2 | 助手不输出 reason | BINARY MISSING REJECTED HOME | `4 failed, 6 passed in 1.43s` MATCHED |
+| A3 | 超预算那句退回不带建议的短句 | ADVICE | `1 failed, 9 passed in 1.19s` MATCHED |
+| A4 | 头句恒用「已自动注入」（`if not injected` → `if False`） | HEADER | `1 failed, 9 passed in 1.17s` MATCHED |
+| A5 | 收成一个家但仍按状态手抄 | HOME | `1 failed, 9 passed in 1.28s` MATCHED |
+| A6 | 块的空与非空仍按「有没有注入」判 | BINARY MISSING REJECTED CENSUS APPLY PATHS HEADER | `7 failed, 3 passed in 1.09s` MATCHED |
+| A7 | 助手写 `item["token"]` 而不是收敛后的 `item["path"]` | PATHS | `1 failed, 9 passed in 1.26s` MATCHED |
+| A8 | 反转：只有没注入时才构造标注行 | INJECT | `1 failed, 9 passed in 1.27s` MATCHED |
+
+十腿每条至少被一臂判红，没有一条腿无人判（脚本末尾按名册打印，不靠我数）；平面
+字节末尾按 sha256 回到交付字节（`37d01aacb853`）。A1/A8 是本批的两把方向刀：A1 拔掉
+「missing/binary 也要有行」，A8 把它挂回「只有没注入时才有行」——后者恰好是改前的
+形状，它让「注入分支仍要给判决行」那条腿红，而 A1 红不到这一条（A1 把整张名册削窄，
+A8 只在有注入时削）。
+
+三件值得留下的过程事实：
+
+- **A2 的红集在跑臂之前 widen 过一次**（05:44 的推导修订，那时一台未开）。原判
+  BINARY / MISSING / REJECTED 三条点名 reason 的腿，漏了 HOME：助手返回的那一行
+  **就是** HOME 腿数的拼法 `status="{item["status"]}">{item["reason"]}`，把 reason
+  抽掉后这一串在源码里从 1 个家变成 0 个。结构腿读字节、行为腿读输出，同一把刀
+  同时切到两个平面，这不是意外，是这条门本来就该有的样子；但它必须在跑之前记下，
+  否则事后补的预测只是给测量套一件外衣。
+- **平面身份探针第一版假 STOP**。它写的是「`import minicc.mentions` 的 `__file__`
+  里要含平面目录名」，而平面住在 `D:\面试项目\` 下：子进程按 cp936 打印、父进程按
+  utf-8 解码，那五个字一进来就成 mojibake，比较必然不成立——**身份明明对，探针报
+  错**。改成让子进程自己在 `abspath()` 两侧比、只打印 `0/1`（数字不过编码这一关），
+  父进程读到的是一条不依赖字节的判决。凡是跨进程 witness 要穿过非 ASCII 路径，
+  判决就应当在**产生它的那一侧**算完。
+- **臂电池跑在独立平面**（`D:\面试项目\t543-plane`，仓库的兄弟目录），与第五百三十
+  一批同法；R 臂的产品字节取自 `git show e6146bb:minicc/mentions.py`（LF，15068
+  字节），写进平面前按平面自己的 EOL 重编成 CRLF（15415 字节，与仓库工作树那份同
+  sha256）。每臂都从交付字节重新起算，针的计数在替换前钉死。
+
+### 5 门禁
+
+- 交付字节落地后、三层门禁之前，先把八份读这片地方的判据一起跑了一遍
+  （`test_a_mention_verdict_reaches_the_model_without_an_injection.py`、`test_mentions.py`、
+  `test_mentions_budget.py`、`test_mentions_pure.py`、两份 one-home 门、531 那份记录门、
+  超条数那份门）：**74 passed in 13.09s**，退出码 0。§2 那一轮「6 failed, 4 passed」与这一轮之间
+  只隔着一次产品字节写入。
+- mention 邻域（名册由 `tests/` 里文本含 `mentions|apply_mentions|build_mention_context`
+  的文件派生，本轮 **31** 份——比第五百三十一批多出的那一份就是本批的新判据；名册
+  重新从树里派生，没有抄上一批的清单）：421 passed, 1 skipped in 792.61s (0:13:12)，退出码 0；运行前后整棵被追踪树的指纹同为 `380225a820a350d8`（644 条路径），即 `at_rest=yes`。与 §2 之前写下的预测对账：预测 **421 passed**（531 的 411 加本批新判据 10 条），实测就是 421，skip 的那一条仍是 `test_what_a_review_of_this_batch_found.py:301`（本机没有符号链接权限）。
+- 受影响面（`scripts/impacted_tests.py minicc/mentions.py` 点名 **325** 条路径，比第五百三十一批多那一份新判据）：2965 passed, 3 skipped in 2108.93s (0:35:08)，退出码 0；运行前后整棵被追踪树的指纹同为 `380225a820a350d8`（644 条路径），即 `at_rest=yes`。预测 **2965 passed**（2955 + 10），实测 2965；3 条 skip 与上一批同形。这一轮跑在代码提交**之后**，所以树里已经带着交付字节。
+- 文档面（名册由 `tests/` 里点名 `ROADMAP_TO_PRODUCT` 的文件派生，本轮 **16** 份，与第五百三十一批同一份）：257 passed in 1054.19s (0:17:34)，退出码 0；运行前后整棵被追踪树的指纹同为 `380225a820a350d8`（644 条路径），即 `at_rest=yes`。本批不给文档面加用例（新判据不读 ROADMAP），预测仍是 **257** 条——实测相符。**这一轮跑在本记录落盘之前**：本批给文档加的只有散文，不给门加用例，落盘之后 `scripts/doc_pointers.py --check` 与那两份读文档的门会再量一次，读数写进下一批。
+- 行尾：交付的三份文件（`minicc/mentions.py`、新判据、被改写的 `tests/test_mentions.py`）
+  落盘后各量一次，`count(\r\n) == count(\n)`、孤立 CR 为 0；`git ls-files --eol` 在 644 个
+  被追踪文件上是 641 i/lf w/crlf + 2 i/lf w/lf + 1 i/none w/none，没有一例 `i/crlf` 或 `i/mixed`，本批三份交付全部落在
+  `i/lf w/crlf` 那一档。这条不变式仍然没有门（M8-T545，见 §7）。
+  平面里那份字节与仓库 `minicc/mentions.py` 同 sha256（`37d01aacb853`），§4 的臂因此
+  说的是交付字节，不是副本。
+- 本批不写 `scripts/doc_pointers.py --check` 的总数，也不写「填进去之前」的读数：
+  上一批已经记过原因——这句话本身在被数的那堆东西里，填完再跑，每个数都会 +1。
+
+### 6 边界（本批**不**声称）
+
+- 不声称「块非空 ⟺ 有提及」这条不变式对**所有**未来的状态名成立。`:317` 那张名册
+  仍是手抄的 `{rejected, missing, binary}`；新加一种判决而不进名册，块会照旧沉默。
+  普查腿覆盖的是今天存在的五种状态，见 §7 第 1 项。
+- 不声称 `omitted` 的两条通道（超条数、超预算）各有一行标注。它们进 `notes`，
+  不进 `annotations`——`dropped` 那条按 `token` 点名（它从未收敛，token 是唯一可用
+  的量），`omitted` 那条按 `rel` 点名（第五百三十一批的契约）。本批没动这两个量。
+- 不声称标注里的 `path` 做了属性转义：`:144` 仍是原文插值（M8-T547 仍在册），
+  只是家从三个变成一个。
+- 不声称头句两种形状是文案的终点，也不声称 `records` 有标注块之外的消费者——
+  第五百三十批在 `web/src` 搜过渲染处，本批沿用那个结果并标为沿用。
+- 不声称改前的零注入分支是「写错的那一支」：它对 `rejected` 的处理与注入分支
+  **一字不差**，本批把它的家换掉，语义没换（REJECTED 腿在 R 臂里是绿的，
+  A6 才让它红）。
+- 单位号 M8-T548 / M8-T549 是本道（`dev/minicc-reliability-4ba3`）自认的前沿号；
+  `main` 那道上同号单位说的是别的缺陷（第五百三十批 §6 记过分叉与理由）。
+- 本批未做全量套件；邻域与受影响面两条大面之外的门没有读数。
+
+### 7 下一单位
+
+1. M8-T550（本批 §6 第 1 项量到的形状）`:317` 的判决名册与 `_record` 能发出的
+   `status` 取值两张名册**双向对账**：加一种状态而不进块，今天没有一条腿会红。
+   刀形现成——在产品里加一个从未进名册的状态（如把 `missing` 换成 `not_found`），
+   让「块非空 ⟺ 有提及」那条普查腿与一名新腿一起红，并配一支「名册加了这个状态、
+   记录侧忘了」的反向。
+2. M8-T544（第五百三十批 §7 留下）`minicc/commands.py` 的 `_skill_file_allowed`
+   对每个 SKILL.md 问两次 `tool_denied_by_rule` ⇒ 遍历 N 个技能付约 **4N** 次 stat，
+   与 M8-T540 同族；那一刀的判据是「一条消息/一次发现里策略装载几次」。
+3. M8-T545（第五百三十批 §7 留下，尚无门）`git ls-files --eol` 里出现 `i/crlf` 或
+   `i/mixed` 就是「git 拒绝为整个文件做转换」那件事；自检测式
+   `count(\r\n) == count(\n)` 对 `\r\r\n` 天生看不见。
+4. M8-T546（第五百三十批 §7 留下）`.github/workflows/ci.yml:288` 的内联断言
+   `m["grading_coverage"] == 1.0` 只读比率不问口径；CI 那句断言还没人问
+   `executed_count`。
+5. M8-T547（本批把家收成一个，剩下的才是它）标注块把 `item["path"]` 原文插进
+   `path="…"`：行号按交付字节重量——`:144`（所有判决共用的一行）与 `:285/:297`
+   （注入正文的 chunk，用 `rel`）。第五百三十一批抄的 `:306/:308/:319` 是本批的
+   改前字节，别再往下抄。
