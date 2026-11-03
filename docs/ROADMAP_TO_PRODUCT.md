@@ -38892,3 +38892,318 @@ N 行；`summary()` 的总账（`minicc/changes.py:852`）把这些 0 加起来�
 取舍：第 1 位是围栏里现成的一条红，先把它按回去——门已经在那儿、红的也是它，本批欠的
 只是把那份捕获换成肯说清解码器的写法。第 2 位与第 3 位是同一次实测里长出来的两格，
 第 2 位欠得最久（第五百四十二、三、四批连续三次把它记在边界上），排在其后。
+
+## 第五百四十六批 — M8-T564 — 门问的是「有没有写 errors」，不是「写的那一个肯不肯容错」
+
+### 1 欠的是哪一条
+
+第五百四十五批 §7 第 1 位交出来的是围栏里那条现成的红：
+`test_no_text_mode_capture_asks_for_a_strict_decoder` 点名
+`tests/test_a_dotfile_the_audit_recorded_is_not_answered_absent.py:54` 那份 git 捕获用的是严格
+解码器。把那条捕获补上 `errors="replace"` 只花一行，欠的账本批就清了——可是量到第 2 节才发现
+红只是门口，屋子里坐着的是判据本身。
+
+那条门从第五百三十八批起就把这个站点当成**合规**：它的判据是
+`item.text_mode and not item.has_errors`，而 `has_errors` 是 `"errors" in self.keywords`——
+它问的是「这一处有没有写 `errors=`」，不是「写的那一个肯不肯容错」。于是同一把尺子中，
+`errors="strict"`、`errors=None`、`errors="xmlcharrefreplace"`、`errors=handler` 四种写法
+全部通过，而这四种在第 2 节那组字节上的行为和「压根没写」**同一个答案**：`rc=0`，
+`stdout` 是 `None`，孩子的话一个字也没剩下。`check=True` 在这一趟不报任何事，
+调用方下一次摸 `.stdout` 才撞到 `TypeError`——那时候现场已经只剩一个类型名。
+
+这是读失败运动里最省纸的一种：**声明了读法，就等于读到了**。本批把问句换掉
+（`declares_lossy_handler`，值对着实测出来的容错表判），并把那张表两头钉住：一头由解码
+重新量出来，一头由孩子重新答出来。
+
+### 2 量到的真相（实测）
+
+探针 `scratch/probe_t564.py`（`scratch/probet564_pre.log`，跑在本批之前的 HEAD `0603fa8`）
+与 `scratch/probe_t564b.py`（`scratch/probet564b_pre.log`）。
+
+**Q1 同一把尺子，四种写法**（今天 =  Presence 判据；新 = 值判据）：
+
+| 形状 | `has_errors` | 今天算 offender | 新规则算 offender |
+| --- | --- | --- | --- |
+| 没写 `errors=` | False | **是** | 是 |
+| `errors="strict"` | True | 否 | **是** |
+| `errors=None` | True | 否 | **是** |
+| `errors="xmlcharrefreplace"` | True | 否 | **是** |
+| `errors=handler`（变量） | True | 否 | **是** |
+| `errors=codecs.strict_error`（属性） | True | 否 | **是** |
+| `errors=""` / `errors="UTF8-ERRORS"` | True | 否 | **是** |
+| `errors="replace"` / `ignore` / `backslashreplace` / `surrogateescape` | True | 否 | 否 |
+
+**Q5 那张容错表是怎么量出来的**（`_BAD_BYTES = b"git says: \xff\xfe ok \xe4\xb8\xad\n"`，
+同一份字节按各名字解码）：
+
+| `errors=` 的名字 | 解码这一趟 | 算不算容错 |
+| --- | --- | --- |
+| `strict` | `UnicodeDecodeError` | 否 |
+| `replace` | 18 字（`\ufffd\ufffd` 两位照单收下，后半段 `中` 完好） | 是 |
+| `ignore` | 16 字 | 是 |
+| `backslashreplace` | 24 字（`\xff\xfe` 原样写回） | 是 |
+| `surrogateescape` | 18 字（`\udcff\udcfe`） | 是 |
+| `xmlcharrefreplace` | **`TypeError: don't know how to handle UnicodeDecodeError in e`** | 否 |
+| `namereplace` | **`TypeError`** 同上 | 否 |
+| `surrogatepass` | `UnicodeDecodeError`（它只放行代理项本身，`0xff` 依然非法） | 否 |
+| `""` / `"UTF8-ERRORS"` | `LookupError: unknown error handler name` | 否 |
+
+`xmlcharrefreplace` / `namereplace` 是这一节里最值钱的一格：它们是 `codecs` 的真名字，
+写起来像一个明确的声明，而它们只对**编码**成立——交给解码器就在读者线程里抛 `TypeError`，
+流照样没。Presence 判据把它们当保护，实测它们与不写同答。
+
+**Q6 吞掉的到底是 `None` 还是空串**（Windows / cp936 主机，`capture_output=True` 两路都开）：
+
+| 孩子写什么 | 父端形状 | rc | `stdout` | `stderr` |
+| --- | --- | --- | --- | --- |
+| stdout 吐坏字节 | 没写 errors | 0 | **None** | `''` |
+| 同上 | `errors='strict'` | 0 | None | `''` |
+| 同上 | `errors=None` | 0 | None | `''` |
+| 同上 | `errors='replace'` | 0 | `'xx \ufffd\ufffd yy\n'` | `''` |
+| 同上 | 机器 locale（不写 encoding） | 0 | None | `''` |
+| stdout 干净、stderr 吐坏字节 | 没写 errors | 0 | `'fine\n'` | **None** |
+| 同上 | `errors='replace'` | 0 | `'fine\n'` | `'\ufffd\ufffd boom\n'` |
+| 两路都坏 | 没写 errors | 0 | None | None |
+| 干净 | 任一种 | 0 | `'fine\n'` | `''` |
+| （对照）bytes 模式 | `capture_output=True` 无 text | 0 | `b'xx \xff\xfe yy\n'` | — |
+
+三件事：① 被吞的是整条流，`rc` 与退出码无关（`check=True` 因此一个字也不报）；② 两路流
+**各死各的**——stdout 干净时它照常回来，坏的那一路单独变成 `None`，所以「stdout 有内容」
+并不能证明这次读没坏；③ bytes 模式是全收的，这也是本规则不管 bytes 模式的原因。
+
+**Q3 git 这一路**（本站点真正跑的到底是哪一种）：
+
+| 形状 | 实测 |
+| --- | --- |
+| `git -c i18n.logOutputEncoding=GBK log --format=%s`（提交信息是中文） | 孩子吐 `b'\xca\xd7\xb4\xce...'`，**不是合法 UTF-8**；严格捕获后 `stdout=None`，`replace` 读回 11 字 |
+| 站点自己跑的 `git status --porcelain`（quotepath 默认开） | `b'?? "\\344\\270\\255..."'` 纯 ASCII → 合法 UTF-8 |
+| 同一条命令 `-c core.quotepath=false` | `b'?? \xe4\xb8\xad...'` 合法 UTF-8（git for Windows 把 UTF-16 名字转成 UTF-8） |
+| 生产那条 `-z -uall`（不转义） | 同上，合法 UTF-8 |
+| 造一个 Windows 名字里带孤立代理项的文件 `bad\udcff.md` | git 吐 `b'bad\xef\xbf\xbd.md'`（U+FFFD）——仍是合法 UTF-8 |
+
+即：在**这台机器上**，git 的路径输出咬不到严格解码器；能咬到的是**被 git 自己重新编码过的那一路**
+（`i18n.logOutputEncoding`，中文主机上真有人这么配）。所以 §6 写清楚：站点那一格本批量到的是
+潜在，不是已经发生的吞流；被本批真正堵住的，是「以后有人把 `errors=` 写成上面四种之一」。
+
+**Q4 全仓名单**（判据换成值判据之后红多少）：
+
+```
+all=124 text=64 embedded=4 strict_today=1 strict_new_rule=1
+git_caps=18 git_without_utf8=0 py_children=15 half_pinned=0
+offenders today: ['tests/test_a_dotfile_the_audit_recorded_is_not_answered_absent.py:54 subprocess.run']
+errors= 的值全仓只有 'replace'；非常量节点 0 处
+```
+
+——新规则今天不多咬任何一处：仓里现存的所有 `errors=` 都写着 `replace`，唯一的 offender 就是
+围栏点名的那一格。红不因此变多，绿也不再是「有人写了关键字」换来的。
+
+### 3 落地
+
+- **判据换问句**：`Capture.has_errors`（`"errors" in self.keywords`）→
+  `Capture.declares_lossy_handler`（`tests/test_subprocess_decoding.py:311`），值是常量且落在
+  `_LOSSY_DECODE_HANDLERS`（`tests/test_subprocess_decoding.py:290`，四个名字由 Q5 量出）里才算
+  声明了保护；`strict_text_captures`（`tests/test_subprocess_decoding.py:516`）跟着改这一格。
+  非常量（变量、属性）**也不算**——这台仪器证明不了 `handler` 里躺着什么，写清字面量是它要求的代价。
+- **两头钉住这张表**：`test_the_handler_table_is_the_set_that_cannot_raise_while_decoding`
+  （`tests/test_subprocess_decoding.py:1525`）把「解码不会抛的名字集合」与「规则放行的名字集合」
+  与 `_LOSSY_DECODE_HANDLERS` 三者对齐，并带分母下限（`len(lossy) >= 4 and len(accepted) >= 4`），
+  两侧任何一边塌成空集都红。
+- **四种写法各要一个红见证**：`test_a_planted_declaration_of_a_strict_handler_is_an_offender`
+  （`tests/test_subprocess_decoding.py:1545`）对四份 planted 源码（`SYNTHETIC_STRICT_HANDLER`
+  `:708`、`SYNTHETIC_ERRORS_NONE` `:712`、`SYNTHETIC_ERRORS_ENCODE_SIDE` `:716`、
+  `SYNTHETIC_ERRORS_VARIABLE` `:720`）要求「恰好一条 offender」，并要求
+  `"errors" in captured[0].keywords` 一起成立——最后一行是老判据的墓碑：形状**有过**关键字，
+  规则仍然要判它红。
+- **行为不能只靠读代码**：`test_a_declared_strict_handler_swallows_the_same_stream_as_no_declaration`
+  （`tests/test_subprocess_decoding.py:1602`，孩子脚本 `_CHILD_REPORT` `:1569`、脏字节
+  `_DIRTY_CHILD` `:1582`、`_capture_report` `:1585`）让同一个「吐坏字节的孩子」被四种父端形状读，
+  断言 `errors='strict'` 与 `errors=None` 的答词与「没写」**逐字段相等**，
+  `xmlcharrefreplace`/`namereplace`/`surrogatepass` 同样拿不到文本，而 `replace` 拿到。
+  跨平台写法：POSIX 上解码发生在调用线程、答词是 `raised`，Windows 上是 `rc=0 + got_text=False`，
+  断言只看「文本到没到」，不看异常叫什么。
+- **豁免不能顺手藏住自己**：`test_this_files_exemption_cannot_hide_a_live_capture`
+  （`tests/test_subprocess_decoding.py:1629`）扫本文件自己，剔掉 embedded 那批 planted 源码，
+  要求「本文件真正会跑的每一条 text-mode 捕获都声明了容错处理器」，并带 `len(text) >= 1` 的
+  分母下限——「扫描器跳过这个文件」从此只覆盖**装进字符串的证人**，不覆盖这个文件自己伸出去的手。
+- **站点那一格**：`tests/test_a_dotfile_the_audit_recorded_is_not_answered_absent.py:61` 补
+  `errors="replace"`。这是第五百三十八批落下的形状，本批按 §7 第 1 位把它按回去。
+
+### 4 见证（红先绿后，臂）
+
+**红先**：见证用**定稿的那一份**，规则留在 HEAD——干净克隆 `scratch/pre564`
+（`git clone --no-hardlinks` 自 `0603fa8`，只把 `tests/test_subprocess_decoding.py` 覆盖成本批的
+混合字节 74,228B、sha `59d50170799fbefb`：新表 `_LOSSY_DECODE_HANDLERS`、四份 planted 源码、
+三条新证人全在，而 `strict_text_captures` 仍是老的那一格 `not item.has_errors`）。
+五条点名的门：**`3 failed, 2 passed in 11.88s`**、RC=1
+（`scratch/probet564_redfirst_named.log`；同一组五条更早还跑过一趟
+`3 failed, 2 passed in 16.96s`，`scratch/probet564_redfirst.log`）。红的三条：
+
+- `test_the_handler_table_is_the_set_that_cannot_raise_while_decoding`——
+  `rule accepts ['', 'backslashreplace', 'ignore', 'namereplace', 'no-such-handler', 'replace',
+  'strict', 'surrogateescape', 'surrogatepass', 'xmlcharrefreplace'] but decoding proves
+  ['backslashreplace', 'ignore', 'replace', 'surrogateescape'] can never raise`：
+  老判据把送进去的十个名字全放行，解码只证明其中四个 never raise。
+- `test_a_planted_declaration_of_a_strict_handler_is_an_offender`——`assert 0 == 1`：
+  `errors='strict'` 那份 planted 源码在老判据下 offender 数是 0。
+- `test_no_text_mode_capture_asks_for_a_strict_decoder`——第五百四十五批围栏留下的同一条红、
+  同一个点名（`tests/test_a_dotfile_the_audit_recorded_is_not_answered_absent.py:54`），
+  在「新见证 + 老规则 + HEAD 站点」里仍然红。
+
+绿的 2 条是本批不该改动的对照：
+`test_a_declared_strict_handler_swallows_the_same_stream_as_no_declaration`（它量的是解码本身，
+与规则那一格无关，修前修后都该绿——它的红来自另一个臂，见 A7）与
+`test_this_files_exemption_cannot_hide_a_live_capture`（本文件自己伸出去的每条活捕获都写了
+`replace`，修前也成立）。两条绿的都在本批的名单里，是为了证明红不是因为门跑不起来。
+
+**HEAD 自己那一趟**（同一份 HEAD 字节、20 条老门，`scratch/cost564_pre`）：
+**`1 failed, 19 passed in 86.03s`**、RC=1（`scratch/cost564_pre_gate.log`）——红的就是围栏那条，
+HEAD 的站点确实一个字也没写。这一趟同时定了「改的是问句不是数量」：老判据对 HEAD 全仓咬出 1 处，
+本批的新判据也只咬出 1 处（§2 Q4）。
+
+**绿后**：站点补上 `errors="replace"`、`strict_text_captures` 换成值判据之后，臂板上整份门文件 +
+站点文件 **`32 passed in 68.73s`**、rc=0（`scratch/arm564_all.log` 的 `C0_control`）——上面点名的
+五条红与两条绿对照都在这 32 条里，一起绿。共享树上本批两个落地文件加追踪门那条
+（`tests/test_subprocess_decoding.py` 24 条 + 站点 8 条 + `test_a_gate_is_only_a_gate_once_it_is_in_the_repo.py`）：
+**`1 failed, 35 passed in 72.84s`**、RC=1（`scratch/shared564_gate_site_hygiene.log`）——
+32 条本批的门全绿，唯一一条红不是本批的形状：
+`test_every_gate_file_on_disk_is_tracked_by_git` 点名的是另一条道那份还没提交、因此 git 还不认识的
+门文件（文件名里带 live_worker 与 wall_clock），本批不代它 add、也不改那条门；
+同一条门在臂板（HEAD 的克隆，那份文件根本不在树里）里是绿的。
+
+**臂**（`scratch/mutate_564.py`，臂板 `scratch/clone564` 是带落地字节的干净克隆：
+`tests/test_subprocess_decoding.py 790c5feb298786cd…`（74,843B）、
+`tests/test_a_dotfile_the_audit_recorded_is_not_answered_absent.py 21d0935c1ad62cfb…`（6,794B）；
+门集 2 个文件 32 条；每臂跑完按字节还原并复核 sha，逐臂两侧都 `restored MATCHED`；
+对照组 `C0_control` rc=0、32 passed in 68.73s。读数在 `scratch/arm564_all.log`）：
+
+| 臂 | 改哪一处 | 想要它红的门 | 实测 |
+| --- | --- | --- | --- |
+| A1_presence_only | 判据退回「有没有写关键字」（`strict_text_captures` 用 `has_errors`） | 表 + planted | rc=1 `2 failed, 30 passed in 62.38s`：`test_a_planted_declaration_of_a_strict_handler_is_an_offender`、`test_the_handler_table_is_the_set_that_cannot_raise_while_decoding` |
+| A2_table_short | 表里删掉 `surrogateescape` | 表 | rc=1 `1 failed, 31 passed in 58.85s`：只有表那条红 |
+| A3_table_long | 表里塞进 `xmlcharrefreplace`（只对编码成立的那一个） | 表 + planted | rc=1 `2 failed, 30 passed in 60.90s`：表（两侧对齐）与 planted 里 `errors='xmlcharrefreplace'` 那份 |
+| A4_any_constant | 值判据退回「是常量就算」 | 表 + planted | rc=1 `2 failed, 30 passed in 59.97s`：同一对 |
+| A5_site_unfixed | 站点那行 `errors=` 拿掉 | standing 门 | rc=1 `1 failed, 31 passed in 60.95s`：`test_no_text_mode_capture_asks_for_a_strict_decoder`，红句仍点名 `:54` |
+| A6_live_capture_in_the_gate | 把本文件 `_capture_report` 那条活捕获的 `errors=` 拿掉 | 自扫门 | rc=1 `1 failed, 31 passed in 79.99s`：`test_this_files_exemption_cannot_hide_a_live_capture` |
+| A7_witness_always_reports_text | 把行为证人改成「无论怎样都答拿到了文本」 | 行为门 | rc=1 `1 failed, 31 passed in 77.14s`：`test_a_declared_strict_handler_swallows_the_same_stream_as_no_declaration` |
+
+七臂 + 对照全部按点名落点：`C0_control` 绿，A1–A7 一律 rc=1，红的都是本批要它红的那一条，
+两侧文件每臂都 `restored MATCHED`。A2 只被一条门挡住（表少一个名字时 planted 四份仍被值判据
+正确放行），已按实写上；本批不声称任何一处形状有两道锁。
+
+**成本**：同一份门文件单独跑，HEAD 的 20 条 **`1 failed, 19 passed in 86.03s`**，
+落地后的 24 条 **`1 failed, 23 passed in 86.04s`**（`scratch/cost564_pre_gate.log` /
+`scratch/cost564_post_gate.log`，两趟背靠背跑在同一个克隆 `scratch/cost564_pre`，
+落地那一趟把站点的 `errors=` 留着不动，因此仍红——这一红正好证明「只换判据、不修站点」
+也能被门咬住；第二趟的数字与本批的判定无关，只看时间）。
+时间没有分开：这 4 条新门加的是 10 次进程内解码、4 份 planted 源码的解析、一次对本文件的
+AST 自扫，以及 7 个真跑的孩子进程，全部远小于这条门本来就付的那一次全仓走查（124 个文件）。
+两趟与围栏、聚焦集并行，墙钟受争用影响，判定只看红绿。
+
+### 5 聚焦回归
+
+- 干净克隆的臂板 `scratch/clone564`（HEAD `0603fa8` + 本批两个落地文件，逐字节与共享树一致：
+  `tests/test_subprocess_decoding.py 790c5feb298786cd…`、
+  `tests/test_a_dotfile_the_audit_recorded_is_not_answered_absent.py 21d0935c1ad62cfb…`）
+  上跑本批的 26 文件聚焦集（`scratch/focused564_files.txt`）：
+  **`222 passed in 240.48s (0:04:00)`**、RC=0（`scratch/focused564_plane.log`）。
+  名单里除了本批的门与站点，都是与这台仪器同族的家：AST 门的「一条事实一个家」两条
+  （`test_a_fact_may_have_only_one_home.py`、`test_one_rule_one_home.py`）、三门卫生
+  （`test_ci_hygiene.py`、`test_import_hygiene.py`、`test_resource_hygiene.py`、
+  `test_no_test_module_imports_a_windows_only_module.py`）、门要进仓那条追踪门、
+  broad-except 四文件（静默必须说理由）、读失败运动里另外两个 AST 现场
+  （`test_a_test_file_that_could_not_be_read_is_not_an_unrelated_test.py`、
+  `test_a_test_directory_past_the_scan_window_is_not_checked.py`）、
+  超时配对与后台 shell、`test_impacted_tests.py`、解析一次/列一次那两条、
+  反向门要说清关的是哪一边、干净检出仍要答分母。
+- 共享树上同一组落地文件 + 追踪门：**`1 failed, 35 passed in 72.84s`**、RC=1
+  （`scratch/shared564_gate_site_hygiene.log`）。唯一一条红不是本批的形状：
+  `test_every_gate_file_on_disk_is_tracked_by_git` 点名的是另一条道那份还没提交、因此 git 还不
+  认识的门文件（文件名里带 live_worker 与 wall_clock），本批不代它 add、也不改那条门；
+  同一条门在臂板与全围栏里都是绿的——那两棵树里没有这份未跟踪文件。
+- 三个检查器在同一份带记录的克隆（`scratch/rec564`：HEAD `20a7c6b` + 这份记录，逐字节由
+  `scratch/splice_544.py` 落的，CRLF、`bare_lf=0`）：
+  `scripts/doc_pointers.py --check` **rc=0**（1035 个「见」标记（117 条进受检箱、59 条落在
+  citation-without-locator、9 条由读链接的一方接走、7 条由读 evidence 的一方接走、
+  8 条 code-span-names-a-file、2 条 cites-a-quoted-name、4 条 path-in-prose、829 条在词里）、
+  23 条链接、4454 条 evidence 指针（76 条路径断言在代码跨度之外）、20 份文档、656 个在仓文件，
+  `scratch/dp564_final6.log`——这一趟读的就是定稿字节，两边各读一遍比过 sha256）；
+  `scripts/route_coverage.py --check` rc=0——`91 passed in 24.73s`，
+  dispatch sites 34、`webserver.py` 走了 378 行，GET A 20/20、B 20/20，POST A 14/14、B 14/14
+  （`scratch/rc564_final.log`）；`scripts/impacted_tests.py --check` rc=0，量出 6 个受影响测试文件
+  （`scratch/it564_final.log`）。
+  与本批之前的同一把尺子比（`scratch/dp564_head_baseline.log`：共享树上、还没有这份记录的
+  roadmap，rc=1 只因为另一条道在工作树里删掉了一个被旧记录点名的测试名，总量那几格仍然可读）：
+  「见」标记 1026 → 1035、
+  词里 820 → 829、evidence 指针 4420 → 4454，其余分档（受检 117、citation-without-locator 59、
+  读链接的一方 9、读 evidence 的一方 7、code-span-names-a-file 8、cites-a-quoted-name 2、
+  path-in-prose 4、链接 23、代码跨度之外的路径断言 76、文档 20、在仓文件 656）一字未动——
+  多出来的全部落在本批这一段里。
+- 全围栏（`scratch/fence564`：HEAD `0603fa8` + 本批两个落地文件的干净克隆，逐字节与共享树
+  一致，`python -X utf8 -W error -m pytest -q`）：
+  **`4377 passed, 11 skipped in 1998.80s (0:33:18)`**、EXIT=0（`scratch/fence564.log`）。
+  上一次围栏（第五百四十五批 §5）是 `1 failed, 4372 passed, 11 skipped`——少掉的那一条红就是
+  本批按 §7 第 1 位还清的那一笔，多出的 4 条是本批新增的四条门，11 条跳过仍是本平台没有
+  symlink 特权与既有的那些平台跳过。追踪门 `test_every_gate_file_on_disk_is_tracked_by_git`
+  在这一棵树里绿（那份未跟踪的别道门文件不在克隆里）。这一趟与臂板、聚焦集、引用门预跑并行，
+  墙钟因此比上一次短（2289.65s → 1998.80s），判定只看红绿。
+- 引用门三文件（`tests/test_doc_pointers.py`、
+  `tests/test_no_document_quotes_a_content_addressed_bundle.py`、`tests/test_retrieval_enhanced.py`）
+  在同一份带记录的克隆里（`scratch/rec564`，与上面三个检查器同一棵树）：草稿字节那一趟
+  **`85 passed in 334.27s`**、RC=0（`scratch/citegate564_record_draft.log`）——那一趟读的是
+  「检查器那一段还没写完」的记录（那一份量到 1034 条标记与 4450 条 evidence 指针），
+  与围栏并行，墙钟因此偏长（引用门单独一趟通常 220–310s）。
+  定稿字节上同一组门再跑一趟：85 条全绿、RC=0，秒数只留在 `scratch/citegate564_record_final.log`
+  里，不抄进本句——抄进来就不是那一趟所读的字节了。那一趟读的是 `scratch/rec564` 里那份
+  与共享树逐字节一致的 roadmap（两边各读一遍比过 sha256），跑完之后 `doc_pointers.py --check`
+  的分档与上面所引逐项相同。两趟判定相同，本批这一段没给引用门留下悬空点名。
+
+### 6 边界（本批**不**声称）
+
+- **不声称站点那一格已经吞过流。** Q3 在这台机器上量到的是：`git status --porcelain`
+  （quotepath 默认开）与 `-z` 两路输出的都是合法 UTF-8，孤立代理项的文件名也被 git 自己换成
+  `U+FFFD` 之后才出门。这条红是形状违规，不是事故现场。本批真正堵住的是
+  「以后有人把 `errors=` 写成不容错的那一个」。
+- **不声称认得间接写法。** `errors=handler` 哪怕 `handler` 真躺着 `'replace'` 也判红——
+  这是本批挑的取舍：这台仪器不去解一条数据流。代价写在 §3，收益是「写清字面量」成为唯一形状。
+- **不声称表是完备的。** `_LOSSY_DECODE_HANDLERS` 由 `_HANDLER_CANDIDATES` 那 10 个名字量出，
+  不是 `codecs` 的全部名字；`errors` 还接受**可调用对象**（`codecs.strict_error` 那种），
+  本批一律按「读不出来」判红，没有去量哪一个可调用对象其实不抛。
+- **不声称管到了 bytes 模式之外的一切形状。** `ENTRY_POINTS` 里的 `Popen`/`check_output`/`check_call`
+  走的仍是同一格 `text_mode` 判定；`Popen(...).communicate()` 之后再自己 `.decode()` 的写法
+  不落在这条规则眼里，本批没有门。
+- **不声称能分辨死掉的是哪一路。** Q6 第 6、7 行：stdout 干净、stderr 坏时，`stdout` 照常回来而
+  `stderr` 变 `None`——「有文本」不能证明这次读没坏。规则管的是调用点有没有声明容错，
+  不管某一次实际死了哪一路。
+- **不声称读回来的内容是对的。** `errors="replace"` 之后 `U+FFFD` 仍然会被当成一个路径名继续用
+  （`scratch/probet564c_post.log` 把这条量成了下一位的第 1 候选，见 §7）。本批的许诺只到
+  「不许把整条流吞成没有」。
+
+### 7 下一位候选
+
+`scratch/probe_t564c.py`（`scratch/probet564c_post.log`，跑在本批落地字节上）量出一个新的第 1 位，
+它比本批 §6 最后一条更粗：
+
+| 形状 | 实测 |
+| --- | --- |
+| U1 磁盘上真有 `bad\udcff.md`（三行），仓库里 git 看得见 | `git add -A` 自己就拒：`error: open("bad\ufffd.md"): No such file or directory`，索引为空 |
+| U2 `summary()` 里那一格 | `path='bad\ufffd.md'`（码点 `0xfffd`）、`raw='?? bad\ufffd.md'` |
+| U3 拿那一格去问 `diff()` | `status='added'`、`add=0`、补丁 0 字节——磁盘上那个文件有三行 |
+| U4 拿**真名字**去问 `diff()` | `status='clean'`——git 那一侧没有这条路径，也没人披露两处指的是同一个文件 |
+| U5 同一名字走审计那一路（无仓库） | `path='bad\udcff.md'`、`raw='audit'`、`add=2`、`diff` 给出真补丁——**代理项本身不是问题，被替换掉的那一步才是** |
+
+1. **替换字符被当成路径名**（U2/U3/U4）：清单列出一个打不开的名字，并把一个有三行的文件答成
+   「新增了 0 行」。这仍然是读失败运动的形状，只是这次读失败发生在**解码**那一步，
+   而答案写成了「这文件是空的」。生产里 git 那一路的 `errors="replace"` 从 MVP（`a9da019`，
+   2026-08-24）就在那儿（`git log -S` 只落到那一笔与本批无关的旧提交），本批量的是它换回来的
+   那个名字接下来被怎么对待。
+2. **窗外那份配得上的副本没人点名**（第五百四十五批 §7 第 2 位，探针已量：
+   `scratch/probe_564.py` / `scratch/probe_564c.py` 的 C1、W2、W4、W7）——欠得最久的一格，
+   第五百四十二、三、四批连续三次把它记在边界上。
+3. **`audit_window_truncated` 只看行不看字节**（上一条记录的 W3）：`minicc/changes.py:355`
+   尾巴 seek 之后 `:360` 仍按 `len(lines) > _AUDIT_WINDOW_LINES` 判定。
+4. **`clean` 兜底**、**`_git` 的 127 哨兵**、**能分辨的 `exists()`**、**选择器解析成本**、
+   **未跟踪行的两处数法**、**清单那次读的上限**。
+
+取舍：第 2 位已经有两支探针与一套设计（按 `{relative}.` 前缀枚举 `backup_directory`，只在窗口
+没给名字时进入现有循环），第 1 位是新量出来的、形状更近的一格。本批把第 1 位排在前面：
+它就在生产的路上（每一个非 UTF-8 文件名都会走），而第 2 位只在窗口截断时才出现。
