@@ -38627,3 +38627,268 @@ E10 那一格是本批**故意没动**的：清单的数字来自 numstat，审�
 5. **`_git` 的 127 哨兵**把 OSError 与 20 秒超时压成同一个 `git unavailable`。
 6. **能分辨的 `exists()`**：破损符号链接与权限错误这两个形状需要一个分得开的门面。
 7. **选择器解析成本**（500 文件约 13s）。
+
+## 第五百四十五批 — M8-T563 — 清单说 0 行，详情页说 del=N——同一件事两个答案
+
+### 1 欠的是哪一条
+
+第五百四十四批把删除前的内容从编辑器自己留的副本里读了回来，但它在自己的 §6 里
+写下了那一格没动：**「不声称清单上的数字跟着补丁走」**——E10 实测「`diff` 说
+`del=2`，同一份清单那一格仍是 `add=0 del=0`」，并把它交给 §7 第 1 位。本批就是
+那一位。
+
+同一份 payload 里两处答案：`summary()["files"]` 那一格报 0 行，`diff()` 那一格报
+N 行；`summary()` 的总账（`minicc/changes.py:852`）把这些 0 加起来报给面板与模型。
+「这次删除没拿走一行」是一句从没数过的地方说出来的假话——不是猜的，是清单这一路从来没
+问过副本，而它隔壁那一路已经问了。
+
+这也是读失败运动的形状换了个方向：不是「读不出来就说没有」，而是**「读得出来，
+但只有一个地方去读」**。
+
+### 2 量到的真相（实测）
+
+探针 `scratch/probe_563.py`（修前 `probe563_pre.log`、修后 `probe563_post.log`，
+两份都是同一支脚本、同一组形状）：
+
+| 形状 | 修前：清单 / 总账 | 修前：详情页 | 修后：清单 / 总账 | 修后：详情页 |
+| --- | --- | --- | --- | --- |
+| S1 无仓库真跑 delete（三行） | 0/0，sum_del=0 | del=3 | 0/3，sum_del=3 | del=3 |
+| S3 仓库里被 .gitignore 挡住的位置 | 0/0 | del=2 | 0/2 | del=2 |
+| S4 从没提交过的文件被删 | 0/0 | del=2 | 0/2 | del=2 |
+| S6 write 之后再 delete | 0/0 | del=1 | 0/1 | del=1 |
+| S7 两条删除（3 行 + 1 行） | sum_del=0 | 各说 3 与 1 | sum_del=4 | 各说 3 与 1 |
+| S12 create 之后 delete（编辑器没记 create） | 0/0 | del=1 | 0/1 | del=1 |
+| S11 先算清单再裁剪副本 | 第二趟仍是旧账（0/0，无从分道） | — | 第一趟 0/3、第二趟 0/0 | del=0，词 `not-readable` |
+| S8 副本读不出来 | 0/0 | del=0 | 0/0（**数不出来**，词跟着走） | del=0 |
+| S2 对照：git 看得见这条删除 | 0/3 | del=3 | 0/3（未动） | del=3 |
+| S5 / S9 / S10 对照：write、写回来、move 目标 | 3/0、2/0、1/0 | 同 | 同（未动） | 同 |
+
+计数口径另有一支探针 `scratch/probe_563b.py`（`probe563b_pre.log`）：详情页的
+`deletions` 数的是补丁里 `-` 行的条数，用 `startswith("---")` 跳文件头，于是内容
+里以 `--` 起头的那一行被当成表头丢掉——
+
+| 内容形状 | 行数（`splitlines()`） | 修前详情页说的 `del` |
+| --- | --- | --- |
+| `one\ntwo\nthree\n` | 3 | 3 |
+| `-- config line\nsecond\n` | 2 | **1** |
+| `++ build flag\nsecond\n`（新增侧） | 2 | **1**（`add`） |
+| `one\ntwo`（末行无换行） | 2 | 2 |
+| ``（空文件） | 0 | 0 |
+
+即：**清单若只按 `splitlines()` 数，就在 `--` 那一格与详情页再度分道**（2 对 1）。
+本批因此先统一尺子，再对齐两处。
+
+### 3 落地
+
+- **一把尺子**：`_patch_counts(patch)`（`minicc/changes.py:105`）按**位置**丢掉两行
+  文件头（第一行 `---`、第二行 `+++`），其余以 `+` / `-` 起头的行才是新增与删除的
+  行数；`diff()` 那两处内联的前缀过滤收进这一格（`minicc/changes.py:764`）。内容
+  里以 `--` 起头的一行不再被当成表头，`++` 同理。
+- **清单跟着同一份读数走**：`_computed_files` 的行循环（`minicc/changes.py:589`）
+  在 `status == "deleted"` 时问一次 `_read_deletion_preimage`（同一位读者，
+  `minicc/changes.py:462`），把答词写进与详情页**同一个键名**
+  `deletion_preimage`（`minicc/changes.py:600`）；答词是「读回来了」时，那一格的
+  `deletions` 就是那份内容的行数（`minicc/changes.py:602`）。git 已经数到的删除不
+  会走到这里——第五百四十四批的登记只发生在 git 没报这条路径时
+  （`minicc/changes.py:826`），所以 git 的账还是 git 的账。
+- **指纹吃下数出来的那些字节**：`_preimage_signature`（`minicc/changes.py:509`）把
+  「这一行真会打开的那几份副本」（digest 等于见证的那些）的 mtime/ctime/size 收进
+  缓存指纹（`minicc/changes.py:567`）。不这么做，裁剪掉的副本仍会被当成躺在隔壁——
+  S11 就是那一格。审计记录本身不进指纹：任何会改动答词或行数的读法，都必然改动
+  这份候选名单，指纹吃候选名单即吃到它。
+- **两处移动的旧门**：第五百四十三批那条名为 test_the_control_the_deletion_counts_do_not_invent_lines
+  的门在本批改了名——旧名字不写成代码跨度，因为仓里再没有那个函数，引用门会去追一个
+  不会回来的人；新名字 `test_the_deletion_counts_the_lines_the_copy_kept` 从对照（0/0）
+  变成作证（0/2）；第五百四十四批的 `test_the_list_still_says_no_numbers` 名字留着（本批
+  之前它的 §2/§4/§6 三处按这个名字引用过它），形状换成**真正数不出来**的那一种
+  （delete 行有见证、窗口里没有配得上它的 backup 行）：清单仍 0/0，详情页仍 del=0，
+  两处都带着词。
+
+### 4 见证（红先绿后，臂）
+
+**红先**：门字节用**定稿的那一份**，代码用 HEAD（`98d95ec`，即第五百四十四批之后、
+本批之前）——干净克隆 `scratch/red563b`（`git clone --no-hardlinks` 后只覆盖三个门
+文件，新门 `git add -N` 进索引）：
+
+- 本批新门 `tests/test_the_change_list_counts_the_lines_the_deletion_removed.py`
+  23 条：**19 failed, 4 passed in 26.39s**，RC=1（`scratch/red563b_newgate.log`）。
+  绿的 4 条是本批不该改动的对照：`test_a_deletion_git_already_counted_keeps_gits_number`
+  （git 数到的那条删除）、`test_a_write_still_counts_the_lines_that_are_here`、
+  `test_a_file_that_is_back_is_not_counted_as_removed`、`test_a_clean_tree_lists_no_numbers`
+  ——修前修后都该绿，它们钉的是「本批不抢的那几路」。红的 19 条里
+  `test_the_patch_lines_are_counted_in_one_place` 与 `test_the_stale_memo_is_the_fingerprint_job`
+  是家规/指纹那两条：修前 HEAD 的 `diff()` 用两处内联前缀过滤、且没有
+  `_preimage_signature` 这一格，它们同样答不出。
+- 两处移动的旧门（`tests/test_a_delete_in_the_audit_is_answered_at_the_file_that_is_gone.py`
+  与 `tests/test_an_audit_deletion_is_answered_with_the_content_it_removed.py`，共 47 条）
+  在同一份 HEAD 代码上：**1 failed, 46 passed in 28.50s**，RC=1
+  （`scratch/red563b_moved.log`）。红的是第五百四十三批那条从对照改成作证的
+  `test_the_deletion_counts_the_lines_the_copy_kept`（HEAD 答 0/0，本批该答 0/2）；
+  第五百四十四批的 `test_the_list_still_says_no_numbers` 在修前修后都绿——它现在描述的是
+  **真正数不出来**的那一种形状（delete 行有见证、窗口里没有配得上它的 `backup` 行），
+  这种形状本批不改变它的答案，这正是那条门留在原名里的理由（§3 最后一条）。
+
+**绿后**：本批门集 7 个文件（新门 + 第五百四十四批门 + 第五百四十三批门 +
+`tests/test_changes_pure.py` + `tests/test_the_change_panel_and_the_diff_must_agree.py` +
+`tests/test_snapshots.py` + `tests/test_the_status_record_have_one_home.py`）在带落地字节
+的干净克隆 `scratch/clone563` 上：**115 passed in 112.99s**（`scratch/green563_plane.log`），
+臂的对照组 `C0_control` 同一组：**115 passed in 116.16s**、rc=0、恢复后 sha `restored MATCHED`
+（`scratch/arm563_control.log`）。
+
+**臂**（`scratch/mutate_563.py`，臂板 `scratch/clone563` 是带落地字节的干净克隆：
+`minicc/changes.py 093280617491db13…`、三门 `6651dfed1c8b05bb…` / `9ebac4750898035f…` /
+`d12e256d8ac69fc2…`；门集 7 个文件 115 条；每臂跑完按字节还原并复核 sha，逐臂
+`restored MATCHED`；对照组 `C0_control` rc=0、115 passed in 116.16s。读数在
+`scratch/arm563_all.log`）：
+
+| 臂 | 改哪一处 | 想要它红的门 | 实测 |
+| --- | --- | --- | --- |
+| A1_fix_removed | 整块拿掉：清单不问预像（等于本批没发生） | 本批门 16 条 + 第五百四十三批那条改成作证的门 | rc=1 `17 failed, 98 passed in 120.02s`，红的 17 条全在本批门与 `test_the_deletion_counts_the_lines_the_copy_kept` |
+| A2_word_without_number | 写了答词却不把行数换掉（`row["deletions"]=` 那一行改成 `pass`） | 同上——数与词必须一起来 | rc=1 `11 failed, 104 passed in 113.54s` |
+| A3_number_without_word | 数了行数但不写答词（丢掉 `row["deletion_preimage"]=`） | 「数不出来那一路要说为什么」的 6 条 + 家规 `test_a_row_never_invents_a_fifth_word` | rc=1 `7 failed, 108 passed in 142.25s` |
+| A4_word_only_when_read | 只在读回来时才写词（`if verdict:` → `if verdict == PREIMAGE_READ:`） | 数不出来的 4 条 + 第五词家规 | rc=1 `5 failed, 110 passed in 190.41s` |
+| A5_unreadable_collapses | 「读不出来」压成「没记过」（本运动的老毛病） | 本批 2 条 + 第五百四十四批 3 条（`not_readable` 那三条） | rc=1 `5 failed, 110 passed in 155.24s` |
+| A6_prefix_header_rule | 尺子退回前缀匹配（`startswith("---")` 跳表头） | `--` 起头那两条 | rc=1 `2 failed, 113 passed in 132.23s`，红的正是 `test_a_deleted_line_that_reads_like_a_patch_header_is_still_counted` 与 `test_an_added_line_that_reads_like_a_patch_header_is_still_counted` |
+| A7_second_ruler | 清单侧另起一把尺子（`not line.startswith("--")`） | 同形那一条 | rc=1 `1 failed, 114 passed in 136.41s`，红的只有 `test_a_deleted_line_that_reads_like_a_patch_header_is_still_counted`——两处一致那条门在这个臂下仍绿，因为它四种形状里没有 `--` 行：**这一臂只被一条门挡住**，本批不声称它有两道锁 |
+| A8_signature_blind | 指纹不吃副本的 stat（`_preimage_signature` 直接返回 `()`） | 陈旧缓存那条 | rc=1 `1 failed, 114 passed in 140.56s`，红的只有 `test_a_copy_pruned_after_the_list_ran_is_not_still_counted`；「第二趟该命中缓存」那条在此臂下仍绿（两趟都瞎，仍然一致），本批不声称它有两道锁 |
+
+八臂全部 rc=1、红在点名的门上、`restored MATCHED`；没有一臂是绿的。A7 与 A8 各只被
+一条门挡住，已经按实写上。
+
+**成本**：探针 `scratch/cost_563.py`（60 个文件、每个 40 行，真跑 `Editor.delete`
+60 次；`scratch/cost563.log`）。同一支脚本分别指向 HEAD 的干净克隆
+（`scratch/clone563_pre`）与落地后的共享树：
+
+| 量 | HEAD | 落地后 |
+| --- | --- | --- |
+| P1 清单第一趟 | 0.382s，`del=0` | 0.663s，`del=2400` |
+| P1 清单第二趟 | 0.271s，缓存 HIT | 0.288s，缓存 HIT |
+| P2 详情页逐个问 60 次 `diff` | 29.353s，每次 `del=40` | 33.551s，每次 `del=40` |
+| P3 第一趟里落进 `.minicc` 的 stat 次数 | 2 | 62（60 条删除 + 2 次既有） |
+
+即：清单第一趟为每一条「git 没数过、但审计有见证」的删除多付一次读（60 条共
++0.281s，约每条 4.7 毫秒），第二趟仍是缓存命中，指纹那一半多出的 stat 正好等于
+删除行的条数（只点名叫到的候选，不翻倍）。详情页那 60 次 `diff` 本来就是同一份
+读的 60 倍——本批把「一次」交给了清单，没有把「六十次」塞给它。两趟都在臂与围栏
+并行时量，墙钟数字受争用影响，`del` 与 stat 计数不受影响。
+
+### 5 聚焦回归
+
+- 共享树上二十八个文件（本批门 23 条；第五百四十四批门 25 条；第五百四十三批门 22 条；
+  第五百四十至五百四十二批的审计/变更门；清单那个家 `tests/test_the_status_record_have_one_home.py`；
+  M8-T300 的 `tests/test_a_backup_is_not_a_workspace_change.py`；`tests/test_changes_pure.py`、
+  `tests/test_snapshots.py`、`tests/test_workspaces_pure.py` 等）：
+  **`349 passed, 1 skipped in 276.31s`**（`scratch/focused563_shared_final.log`，RC=0；
+  跳过的是本平台没有 symlink 特权，既有行为）。名单见 `scratch/focused563_files.txt`
+  ——第五百四十四批那二十七条加本批新门。
+- 注释跟改之后（两笔只改注释的落地：登记处那一格从「清单不会去读」改成现在的答案；
+  行循环里「清单仍然答 0 行」补上「直到本批」）：四条删除相关的门 **`74 passed in 26.04s`**、
+  RC=0（`scratch/green563_commentfix.log` / `scratch/green563_commentfix2.log`）。
+  代码落地字节从 `850daa1` 的 `093280617491db13…` 走到 `f39fb01` 的 `de15c6e39b141ca7…`
+  （44,505 字节、886 CRLF、`bare_lf=0`），差的只有那 7 行注释。
+
+- 干净克隆（`98d95ec` + 本批四个落地文件，逐字节与共享树一致：`minicc/changes.py
+  093280617491db13…`、新门 `6651dfed1c8b05bb…`、两处移动的旧门 `9ebac4750898035f…` /
+  `d12e256d8ac69fc2…`）：本批门集 7 文件 **`115 passed in 112.99s`**
+  （`scratch/green563_plane.log`，与臂板的 `C0_control` 同一组字节、同一组门）。
+- **全围栏重跑**（欠了六批，这次补上）：同一份落地字节的干净克隆
+  `scratch/fence563`，`python -W error -m pytest -q`：**`1 failed, 4372 passed, 11 skipped
+  in 2289.65s (0:38:09)`**、EXIT=1（`scratch/fence563.log`）。唯一的一条红不是本批的：
+  `tests/test_subprocess_decoding.py::test_no_text_mode_capture_asks_for_a_strict_decoder`
+  点名 `tests/test_a_dotfile_the_audit_recorded_is_not_answered_absent.py:54` 那份 git 捕获
+  要的是严格解码器——在本批之前的 HEAD（`98d95ec`）克隆里同一条门给出同一句红（13.37s），
+  共享树 `f39fb01` 上也是同一句。它落在最近那次围栏（`5faa568`，`4195 passed`）之后，
+  本批不动它，交给 §7；其余 4372 条在带本批代码的树上全绿。围栏这一趟与臂、与引用门
+  预跑并行，墙钟因此比上一次（3477.26s）短，判定只看红绿。
+- 引用门三文件（`tests/test_doc_pointers.py`、
+  `tests/test_no_document_quotes_a_content_addressed_bundle.py`、
+  `tests/test_retrieval_enhanced.py`）在 HEAD（`f39fb01`）的干净克隆里 **`85 passed in 310.08s`**、
+  RC=0（`scratch/citegate563_head.log`）；同一组门在共享树上量到 2 failed，红的两条都指向
+  `test_expired_lease_cannot_be_revived_by_same_owner`——那是另一条道未提交的
+  `tests/test_task_durability.py` 改动删掉的名字，本批不碰它（记录与本批读数的引用门在
+  带记录的干净克隆里跑，见下一条）。
+
+- 带本批记录的干净克隆（`f39fb01` + 这份记录，`scratch/rec563`）：
+  `scripts/doc_pointers.py --check` rc=0（1026 个「见」标记（117 条进受检箱、59 条落在
+  citation-without-locator、9 条由读链接的一方接走、7 条由读 evidence 的一方接走、
+  8 条 code-span-names-a-file、2 条 cites-a-quoted-name、4 条 path-in-prose、820 条在词里）、
+  23 条链接、4420 条 evidence 指针（76 条路径断言在代码跨度之外）、20 份文档、656 个在仓文件）——
+  这一趟读的是本批定稿字节，与草稿那一趟（`scratch/dp563_second.log`）逐项相同。`scripts/route_coverage.py --check` rc=0——`91 passed in 41.41s`，
+  dispatch sites 34、`webserver.py` 走了 378 行，GET A 20/20、B 20/20，POST A 14/14、B 14/14
+  （`scratch/rc563.log`）；`scripts/impacted_tests.py --check` rc=0，量出 6 个受影响测试文件
+  （`scratch/it563.log`）——这一趟脏的只有记录本身，代码已经进了 HEAD，所以本批门不在名单里。
+- 引用门三文件在同一份带记录的克隆里（`scratch/rec563`，那份 roadmap 与共享树的定稿逐字节
+  一致，两边各读一遍比过 sha256）：
+  **`85 passed in 222.28s`**、RC=0（`scratch/citegate563_record_finalbytes.log`）。在此之前，同一组门
+  在草稿字节（那一份量到 1025 条标记与 4420 条 evidence 指针）上也跑过两趟，
+  `85 passed in 230.22s` 与 `85 passed in 220.19s`、RC=0（`scratch/citegate563_record_draft.log` /
+  `scratch/citegate563_record_final.log`）；本批门自己那一趟在
+  `scratch/green563_plane.log` 与两条注释落地后的 `scratch/green563_commentfix2.log` 里。
+
+### 6 边界（本批**不**声称）
+
+- **不声称清单与详情页对**修改**的数法已经一致。** 修改行的 `additions` 仍来自
+  git 的 numstat（`minicc/changes.py:579` 的 `stats.get`），详情页的 `additions`
+  来自它自己那把尺子。同一个已跟踪文件被改 3 行、git 数成 2 行时，两处仍可能不同。
+  本批只对齐删除那一路——那是唯一一处「一边数了、另一边压根没数」。
+- **不声称未跟踪文件的行数与 git 的账相等。** 无仓库时清单退成「工作区里现在有几行」
+  （`minicc/changes.py:585`），那是当前文件、不是补丁；`++`/`--` 那把尺子修的是
+  补丁侧，两把尺子的适用范围本就不同。
+- **不声称窗外那份副本被看过。** 第五百四十四批 §6 第 2 条仍然成立：`delete` 行在
+  窗内、写它副本名的 `backup` 行被挤到窗外时，两处现在**一致地**答
+  `not-recorded`、一致地数成 0——一致是本批给的，读回来不是。
+- **不声称副本内容等于 HEAD 那一版。** 先改后删时副本是删除那一刻的内容（S6：1 行），
+  git 看不见这条路径时没有「HEAD 那一版」可比；本批报的是那一刻的行数。
+- **不声称指纹覆盖得住审计的额度。** 候选名单不变、而答词因窗口截断而改变的形状，
+  本批没有门能造出来（造它需要同一份 digest 与同一批副本名下让名单成员被截掉），
+  因此指纹里没为它留格。
+- **不声称清单里那次读是有界的。** `_MAX_FILES`（`minicc/changes.py:48`，120）截的是
+  **展示**，`_computed_files` 的行循环仍走全部文件（M8-T307 的账），本批把副本的读放进
+  了这个循环里，读的是整份字节、没有上限。实测 `scratch/cost_563b.py`
+  （`scratch/cost563b.log`）：8 条删除、每条一份 2MB 副本（合计 16,383KB），落地后的
+  第一趟 `0.287s`、`deletions` 合计 209,712 行；HEAD 那份同样本 `0.169s`、合计 0。
+  时间受磁盘支配，但**行数与字节数是照单全收的**——更大的删除集合要付多少，本批没有门。
+- **不声称围栏里那条红被本批修掉。** 全围栏这次重跑了（§5 第三条）：`4372 passed,
+  11 skipped`，唯一一条红 `test_no_text_mode_capture_asks_for_a_strict_decoder` 点的不是
+  本批的字节（在本批之前的 HEAD 上同红），本批没碰它，它在 §7 第 1 位。
+
+### 7 下一位候选
+
+两支探针先把下一位与再下一位的形状量清楚：`scratch/probe_564.py`
+（`scratch/probe564_post.log`）与 `scratch/probe_564c.py`（`scratch/probe564c_post.log`），
+都跑在本批落地字节上。前者量到第 2 位比本批 §6 第 3 条写的更粗：
+
+| 形状 | 实测 |
+| --- | --- |
+| W1 控制：`delete` 与 `backup` 都在窗内 | 清单 0/3 词 `copy`、详情页 del=3，两处一致（本批的成果） |
+| W2 600 行 filler 把两行挤出**行**窗 | 清单里**这一格根本不存在**（`None/None`、无词），详情页 del=0、补丁 0 字节；`audit_window_truncated=True`；磁盘上仍躺着 1 份 digest 配得上的副本 |
+| W3 300 行大 detail 把两行挤出**字节**窗（401,470B > 256KB，行数 302 < 500） | 与 W2 同答，但 `audit_window_truncated=**False**`——尾巴 seek 造成的截断从来没被披露 |
+| W4 先改后删（盘上两份候选）再挤出窗外 | 见证单独就能定出那一份（按路径前缀 + digest 命中 1 份），不需要 `backup` 行在场 |
+| W5 副本被裁剪 **且** 名字在窗外 | 盘上 0 份配得上——那一种「真的不知道」与 W2/W3 被答成同一个词 |
+| W6 前缀重叠（`notes.md` 与 `notes.md.txt` 内容相同） | 按前缀点名命中 2 份，digest 分不开（同一份内容）——但两份字节相同，读哪一份都不是假话 |
+| W7 60 条窗外删除 | 一趟 summary 0.250s；盘上 60 份副本，其中 60 份「按前缀 + digest」配得上，清单里 `del>0` 的格 = 0 |
+
+1. **围栏量出的那一条红**：`tests/test_subprocess_decoding.py::test_no_text_mode_capture_asks_for_a_strict_decoder`
+   点名 `tests/test_a_dotfile_the_audit_recorded_is_not_answered_absent.py:54` 那份 git 捕获
+   用的是严格解码器（`text=True`、`encoding="utf-8"`、没有 `errors`）——子进程吐出非 UTF-8
+   字节时那条捕获会抛，孩子的话就这么被吞了。它是第五百三十八批落下的、最近那次围栏
+   （`5faa568`）之后才第一次被扫到的一条，六批聚焦回归都没看见它。**下一位做这一条。**
+2. **窗外那份配得上的副本没人点名**（C1，另有 W2/W3/W4/W7）：边界正好切在
+   `backup` 行与 `delete` 行之间时（`scratch/probe_564c.py`、
+   `scratch/probe564c_post.log`：C1 的 x.md 清单 `0/0`、详情页 `del=0` 补丁 0 字节，
+   两处同答 `not-recorded`），见证就在窗内那一行、盘上那份副本的 digest 就等于它
+   （实测「其中 digest 等于见证的=1」）——名字只从窗外的 `backup` 行读，
+   `_audit_backup_copies` 空了就把「窗口没给我名字」说成「从来没记过」。
+   C2（两行都在窗外）更粗：清单里**连这一格都不存在**，详情页无词、0 字节。
+3. **`audit_window_truncated` 只看行不看字节**（W3）：`minicc/changes.py:355` 的
+   尾巴 seek 之后，`:360` 仍用 `len(lines) > _AUDIT_WINDOW_LINES` 判定，被字节窗吃掉的
+   记录一个字也不披露。
+4. **`clean` 兜底**：状态读不出来时那一格答 `clean`。
+5. **`_git` 的 127 哨兵**：git 不可用与 HEAD 不存在都走 `code != 0`
+   （`minicc/changes.py:561` 那一趟 rev-parse）。
+6. **能分辨的 `exists()`**、**选择器解析成本**（500 文件约 13s）、**未跟踪行的两处数法**
+   （本批 §6 第 1、2 条留的口子）、**清单那次读的上限**（本批 §6 第 6 条留的口子）。
+
+取舍：第 1 位是围栏里现成的一条红，先把它按回去——门已经在那儿、红的也是它，本批欠的
+只是把那份捕获换成肯说清解码器的写法。第 2 位与第 3 位是同一次实测里长出来的两格，
+第 2 位欠得最久（第五百四十二、三、四批连续三次把它记在边界上），排在其后。
