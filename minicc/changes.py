@@ -324,7 +324,9 @@ class ChangeInspector:
         (instead of crashing the panel when it parsed to a non-object, or
         disappearing without a word when it did not parse at all).  The
         first line of a tail cut at ``_AUDIT_TAIL_BYTES`` is dropped before
-        the count — that partial is made by the cut, not by corruption.
+        the count when it does not parse as a record — a partial is made by
+        the cut, not by corruption.  M8-T567: a first line that does parse
+        is a whole record, and the old unconditional drop lost it.
 
         M8-T556: this reader also vetoed every path that begins with a
         dot - a clause that predates ``_ignored_path`` and outlived it.
