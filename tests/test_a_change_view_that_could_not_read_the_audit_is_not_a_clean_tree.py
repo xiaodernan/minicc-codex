@@ -40,7 +40,7 @@ from pathlib import Path
 
 import pytest
 
-from minicc.changes import ChangeInspector
+from minicc.changes import _AUDIT_TAIL_BYTES, ChangeInspector
 
 
 def _git(workspace: Path, *args: str) -> None:
@@ -235,12 +235,27 @@ def test_the_control_a_clean_file_with_a_readable_audit_still_diffs_to_nothing(
 
 
 def test_a_truncation_claim_does_not_survive_a_failed_read(tmp_path: Path) -> None:
-    """The window flag belongs to the read that made it."""
+    """The window flag belongs to the read that made it.
+
+    M8-T567: this used to make the truncation with 501 records - the 500-line
+    cap that batch removed.  The claim is now made the way the window is
+    actually cut: one record longer than the byte tail.
+    """
     workspace = _plain(tmp_path)
-    audit = _write_audit(workspace, records=501)
+    audit = _write_audit(workspace)
+    big = json.dumps(
+        {
+            "action": "write",
+            "path": "notes.md",
+            "detail": "x" * (_AUDIT_TAIL_BYTES + 4096),
+        },
+        ensure_ascii=False,
+    )
+    audit.write_text(audit.read_text(encoding="utf-8") + big + "\n", encoding="utf-8")
     inspector = ChangeInspector(workspace)
     first = inspector.summary()
     assert first["audit_window_truncated"] is True, first
+    assert first["audit_bytes_unread"] > 0, first
 
     with _DenyRead(audit):
         second = inspector.summary()
@@ -248,6 +263,9 @@ def test_a_truncation_claim_does_not_survive_a_failed_read(tmp_path: Path) -> No
     assert second["audit_window_truncated"] is False, (
         f"这次读失败了，却沿用上一次读到的截断说法：{second}"
     )
+    # M8-T567: the number belongs to the read that made it too - a failed read
+    # answers "unknown", not zero.
+    assert second["audit_bytes_unread"] is None, second
     assert second.get("audit_read_error"), second
 
 
