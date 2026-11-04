@@ -879,6 +879,7 @@ class ChangeInspector:
             and not audit_read_error
             and not audit_unreadable_lines
             and not audit_records_without_action
+            and not audit_window_truncated
         ):
             # M8-T548: ``clean`` when the status table could not be read is a
             # guess, and copying the file onto its own baseline would print
@@ -898,6 +899,11 @@ class ChangeInspector:
             # M8-T559: a record that cannot say its action is the other
             # case - it still names a file, and that file may be this one,
             # so the shortcut waits for it like it waits for a bad line.
+            # M8-T568: a trail the window cut is a partial read, and the
+            # records it dropped still name files - so the flag that says
+            # this reading did not see the whole trail holds the shortcut
+            # too, and an empty patch stops being a claim that nothing was
+            # recorded about a file the window never looked at.
             before = after
 
         if not before and not after:
@@ -942,6 +948,9 @@ class ChangeInspector:
             # M8-T566: the reason ``deletion_preimage`` may answer
             # ``not-in-window`` - this reading did not see the whole trail, and
             # the page that shows the word is the page that has to say that.
+            # M8-T568: it is also the reason the ``clean`` shortcut above
+            # declined, so a whole-file patch beside ``status: clean`` reads
+            # as "I could not rule this out", not as a change git saw.
             "audit_window_truncated": bool(audit_window_truncated),
             # M8-T567: and how much of the trail was never read at all - the
             # flag says the window was cut, this says by how much.  ``None``
