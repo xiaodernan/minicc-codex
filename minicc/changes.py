@@ -1082,11 +1082,33 @@ class ChangeInspector:
         # additions/deletions covered only the first 120.
         complete = self._computed_files()
         files = complete[:_MAX_FILES]
+        # M8-T569: a row that could not be counted carries ``None`` since
+        # M8-T565, and summing with ``or 0`` folded that answer back into "0
+        # lines" - the total was the countable half called the whole.  One
+        # uncounted row now blanks both totals, and says how many rows did it.
+        uncounted = sum(
+            1
+            for item in complete
+            if item.get("additions") is None or item.get("deletions") is None
+        )
+        additions = (
+            None
+            if uncounted
+            else sum(int(item.get("additions") or 0) for item in complete)
+        )
+        deletions = (
+            None
+            if uncounted
+            else sum(int(item.get("deletions") or 0) for item in complete)
+        )
         return {
             "files": files,
             "total_files": len(complete),
-            "additions": sum(int(item.get("additions") or 0) for item in complete),
-            "deletions": sum(int(item.get("deletions") or 0) for item in complete),
+            "additions": additions,
+            "deletions": deletions,
+            # The count survives the ``_MAX_FILES`` cut the list above does
+            # not: a row outside the shown list still has a home here.
+            "files_without_counts": uncounted,
             "truncated": len(complete) > len(files),
             "shown_files": len(files),
             # M8-T312: the audit window is disclosed too - a change that
