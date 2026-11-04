@@ -1,5 +1,11 @@
 """Gates for M8-T521: the evidence reader must read fences with the same ruler as the pointer reader.
 
+M8-T555 closes a cost this file introduced while it was fixing the ruler: the corpus leg below
+answers "is this offset fenced?" once per code span, and through ``_block_of`` it bought a whole
+new document scan for every one of them.  The ruler is now read **once per document** and the
+answer is a search over the ranges it produced - measured by
+``test_the_corpus_leg_buys_the_fence_ruler_once_per_document``, the leg that counts the scans.
+
 Two readers walk the shipped documents. ``_mask_code`` decides which bytes are code before a *pointer* is
 harvested; ``_code_spans`` decides which bytes are code before an *evidence* citation is judged. Through
 M8-T520 those were two different rulers: the pointer reader was converted (M8-T519) to a line-anchored
@@ -16,9 +22,13 @@ purpose: a gate that only measured "the reader now sees more" would have shipped
 
 from __future__ import annotations
 
+import ast
 import importlib.util
+import inspect
 import sys
+import tempfile
 from pathlib import Path
+from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SCRIPT = REPO_ROOT / "scripts" / "doc_pointers.py"
@@ -72,15 +82,46 @@ _PROSE_MENTION_TEXT = (
 )
 
 
+#: Offset shapes the search is asked about, each one a place a real document puts a span:
+#: nothing open, one block, blocks with prose between, a tilde fence, an opener that never
+#: closes, a block starting at byte 0, and the empty document.
+_RULER_FIXTURES = (
+    ("no fence", "正文里的 `tests/test_outside.py` 是引用。\n"),
+    ("empty", ""),
+    ("block at zero", "```py\n示例 `tests/test_in_first.py`\n```\n"),
+    ("one block", "前面 `tests/test_before.py`。\n```py\n里面 `tests/test_inside.py`\n```\n"),
+    ("many blocks", "```\na\n```\n间 `tests/test_between.py`\n```\nb\n```\n间后\n"),
+    ("tilde block", "~~~text\n里面 `tests/test_in_tilde.py`\n~~~\n后 `tests/test_after.py`\n"),
+    ("unclosed opener", "正文 `tests/test_prose.py`\n```py\n里面 `tests/test_unclosed.py`\n"),
+    ("info string close", "```py\n内容\n```extra\n还是内容 `tests/test_still_open.py`\n```\n"),
+)
+
+
 def _spans(text: str) -> set[str]:
     return {span for _off, span in dp._code_spans(text)}
 
 
-def _block_of(text: str, offset: int) -> tuple[int, int] | None:
-    for start, end in dp._fence_blocks(text)[0]:
-        if start <= offset < end:
-            return (start, end)
-    return None
+def _block_of(ranges: list[tuple[int, int]], offset: int) -> tuple[int, int] | None:
+    """Which closed fence holds ``offset``, from a ruler the caller already read.
+
+    ``_fence_blocks`` walks the document left to right, so its ranges arrive ascending and
+    disjoint - each one ends before the next opens - which makes the last range starting at or
+    before ``offset`` the only candidate, and makes the answer a function of the number of
+    blocks rather than of the document.  Until M8-T555 this function bought the ruler itself,
+    once per span: O(spans x document), and on the shipped ROADMAP that is what pushed the
+    corpus leg past the suite's own 900 s hang limit.
+    """
+    low, high = 0, len(ranges)
+    while low < high:
+        middle = (low + high) // 2
+        if ranges[middle][0] <= offset:
+            low = middle + 1
+        else:
+            high = middle
+    if low == 0:
+        return None
+    start, end = ranges[low - 1]
+    return (start, end) if offset < end else None
 
 
 # --------------------------------------------------------------------------- #
@@ -199,8 +240,9 @@ def test_no_shipped_citation_lies_inside_a_closed_fence_block() -> None:
         if not document.exists():
             continue
         text = document.read_text(encoding="utf-8", errors="replace")
+        ranges = dp._fence_blocks(text)[0]
         for offset, span in dp._code_spans(text):
-            if _block_of(text, offset) is not None:
+            if _block_of(ranges, offset) is not None:
                 offenders.append((document.name, span))
     assert offenders == [], f"块内逃逸的跨度 {len(offenders)} 条，前几条：{offenders[:4]}"
 
@@ -308,3 +350,115 @@ def test_no_exemption_row_is_dead_after_the_rulers_merge() -> None:
     # same verdict as a row nobody reaches, and a KeyError would grade as a crash instead of a red.
     dead = [key for key in _MERGED_RULER_ROWS if usage.get(key, 0) == 0]
     assert dead == [], f"合并尺之后这些豁免一条在仓引用都没命中，是死行：{dead}"
+
+
+# --------------------------------------------------------------------------- #
+# 4. M8-T555: the same ruler, bought once per document - and the cost of buying it per span.
+# --------------------------------------------------------------------------- #
+
+
+def _fenced_corpus(directory: Path, name: str, spans: int) -> Path:
+    """A document of ``spans`` inline citations with one closed fence at the end.
+
+    The citations name nothing that has to exist: the corpus leg asks only whether a span sits
+    inside a block, so a longer document means more questions, not more work the leg should do.
+    """
+    body = "".join(f"第 {index} 行提到 `tests/test_{index}.py` 一次。\n" for index in range(spans))
+    document = directory / name
+    document.write_text(f"{body}```py\n示例里没有跨度。\n```\n", encoding="utf-8", newline="\n")
+    return document
+
+
+def _scan_count(spans: int) -> int:
+    """How many whole-document fence scans the corpus leg buys for a document of ``spans`` spans.
+
+    The leg is named here rather than passed in: a witness that measures a copy handed to it from
+    outside would stay green while the shipped leg went on buying the ruler per span.
+    """
+    calls: list[int] = []
+    shipped = dp._fence_blocks
+    original = dp.DEFAULT_DOCS
+
+    def _spy(text: str) -> Any:
+        calls.append(1)
+        return shipped(text)
+
+    with tempfile.TemporaryDirectory(prefix="minicc-t555-corpus-") as scratch:
+        document = _fenced_corpus(Path(scratch), f"corpus{spans}.md", spans)
+        dp._fence_blocks = _spy  # type: ignore[assignment]
+        dp.DEFAULT_DOCS = [document]  # type: ignore[assignment]
+        try:
+            test_no_shipped_citation_lies_inside_a_closed_fence_block()
+        finally:
+            dp._fence_blocks = shipped  # type: ignore[assignment]
+            dp.DEFAULT_DOCS = original  # type: ignore[assignment]
+    return len(calls)
+
+
+def test_the_corpus_leg_buys_the_fence_ruler_once_per_document() -> None:
+    """The scan count must not move when the document grows spans - that count is the defect.
+
+    M8-T555 was not a wrong verdict: the corpus leg ended with ``offenders == []`` on every
+    document in the corpus.  It spent 1,029.1 s getting there and the suite's own hang limit
+    stopped it, which turns the repository's evidence red for a load reason.  ``_code_spans``
+    already reads the ruler once, so a repaired leg buys one more scan per document and no
+    scan per span.
+    """
+    small = _scan_count(100)
+    large = _scan_count(400)
+    assert small > 0, small
+    assert large == small, (
+        f"同一判据在 100 跨度的档上买了 {small} 次整档扫描，在 400 跨度的档上买了 {large} 次："
+        "尺子的开销随跨度数长，就是每答一个跨度重扫一遍文档"
+    )
+    assert small <= 2, (
+        f"每档至多两次整档扫描（``_code_spans`` 的抹除加上面这里的一次），实测 {small} 次"
+    )
+
+
+def test_the_binary_answer_is_the_linear_answer_at_every_offset_shape() -> None:
+    """The search changed how the answer is found, not what it says - checked against the scan.
+
+    The first clause is what makes this leg red on pre-fix bytes rather than a crash: it binds
+    the helper's own parameter names, so a document handed to a caller that expects ranges would
+    be graded as a TypeError instead of as a refusal.
+    """
+    parameters = list(inspect.signature(_block_of).parameters)
+    assert parameters == ["ranges", "offset"], (
+        f"_block_of 现在收的是 {parameters}：逐项答案又拿起了文档本身，而不是那把读好的尺子"
+    )
+    for label, text in _RULER_FIXTURES:
+        ranges = dp._fence_blocks(text)[0]
+        for offset in range(len(text) + 1):
+            linear = next(((start, end) for start, end in ranges if start <= offset < end), None)
+            assert _block_of(ranges, offset) == linear, (label, offset, linear)
+
+
+def test_the_ranges_the_search_trusts_arrive_ascending_and_disjoint() -> None:
+    """The search is only sound if the ruler's ranges are sorted and never overlap - measured.
+
+    This is the invariant ``_block_of`` bets the corpus leg on, so it is pinned on the shipped
+    corpus itself rather than argued from the loop that builds the ranges.
+    """
+    documents = [document for document in dp.DEFAULT_DOCS if document.exists()]
+    assert documents, dp.DEFAULT_DOCS
+    for document in documents:
+        text = document.read_text(encoding="utf-8", errors="replace")
+        ranges = dp._fence_blocks(text)[0]
+        for start, end in ranges:
+            assert 0 <= start < end <= len(text), (document.name, start, end, len(text))
+        for (start, end), (next_start, _next_end) in zip(ranges, ranges[1:]):
+            assert end <= next_start, (document.name, start, end, next_start)
+
+
+def test_the_explanation_says_the_ruler_is_bought_once_per_document() -> None:
+    """The cost was invisible because nothing in the file said who pays for the ruler.
+
+    A leg that measures a cost is worth little if the file's own explanation still reads as
+    though the answer were free, so this leg charges the docstring for the sentence and for the
+    name of the leg that measures it.
+    """
+    docstring = ast.get_docstring(ast.parse(Path(__file__).resolve().read_text(encoding="utf-8")))
+    assert docstring is not None, Path(__file__)
+    assert "once per document" in docstring, docstring[-400:]
+    assert "test_the_corpus_leg_buys_the_fence_ruler_once_per_document" in docstring, docstring[-400:]
