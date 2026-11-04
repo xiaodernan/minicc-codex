@@ -140,7 +140,8 @@ def _attribute(value: str) -> str:
     ``<`` and ``>`` inside a token, and on the un-converged side the reported
     path **is** that token.  Interpolated raw, a quote closes the attribute and
     every reader - the model included - gets half the name.  File bodies and the
-    two note sentences are prose, not attributes, and stay byte-for-byte.
+    two note sentences are prose, not attributes; a body keeps its text apart
+    from the block's own markup tokens, which ``_body`` folds (M8-T551).
     """
     return (
         value.replace("&", "&amp;")
@@ -148,6 +149,31 @@ def _attribute(value: str) -> str:
         .replace(">", "&gt;")
         .replace('"', "&quot;")
     )
+
+
+_STRUCTURAL_TOKENS = (
+    ("</file", "&lt;/file"),
+    ("<file", "&lt;file"),
+    ("[用户引用文件]", "&#91;用户引用文件&#93;"),
+)
+
+
+def _body(text: str) -> str:
+    """Fold a file body's copies of the block's own markup (M8-T551).
+
+    The renderer delimits every injection with ``<file ...>`` / ``</file>`` and
+    announces the block with ``[用户引用文件]``.  A body quoting one of those used to
+    arrive as structure: a single ``</file>`` made the strict reader raise and let
+    the forgiving one discard everything after it, while a ``<file path="...">``
+    invented a file nobody had read.  Ordinary code keeps its bytes - only the
+    three tokens above are folded, and each folds back for a reader.  Both file
+    tokens are prefixes: folding a whole ``</file>`` leaves a body's
+    ``</filepath>`` raw after its ``<filepath`` opener turned into text, which is a
+    newer breakage than the forgery.
+    """
+    for token, escaped in _STRUCTURAL_TOKENS:
+        text = text.replace(token, escaped)
+    return text
 
 
 def _annotation_line(item: dict[str, Any]) -> str:
@@ -303,7 +329,7 @@ def build_mention_context(
             text = text[:cut if cut > remaining // 2 else remaining]
             used += len(text)
             chunks.append(
-                f'<file path="{_attribute(rel)}">\n{text}\n[truncated]</file>'
+                f'<file path="{_attribute(rel)}">\n{_body(text)}\n[truncated]</file>'
             )
             # M8-T299: one record per mention.  The oversized branch used to
             # add an "omitted" record *and* fall through to the "injected"
@@ -316,7 +342,7 @@ def build_mention_context(
             ))
             continue
         used += len(text)
-        chunks.append(f'<file path="{_attribute(rel)}">\n{text}\n</file>')
+        chunks.append(f'<file path="{_attribute(rel)}">\n{_body(text)}\n</file>')
         records.append(_record(token, rel, "injected", "", False))
     injected = sum(1 for item in records if item["status"] == "injected")
     # M8-T329: the mentions past the cap are named in the block too - a
