@@ -37074,3 +37074,153 @@ ROUND, HOME, TABLE）。平面 `D:\面试项目\t555-plane` 是仓库的同级�
    天生看不见。
 5. M8-T546（第五百三十批 §7 留下）：`.github/workflows/ci.yml:288` 的内联断言
    `m["grading_coverage"] == 1.0` 只读比率不问口径，还没人问 `executed_count`。
+
+## 第五百三十六批 — M8-T553 — 折形自己也是正文写得出来的字：八行表把实体行排在原形行之前
+
+### 1 缺陷
+
+第五百三十四批与第五百三十五批把正文里的四枚块标记折成字符实体，于是「块里出现原形标记」
+这件事重新只属于渲染器。可折是有**拼法**的，而拼法就是文件里能写的字节：磁盘上一个文件把
+`&#91;truncated&#93;` 原样写进正文，它进块之后与「渲染器把别人的 `[truncated]` 折起来」的产物
+**逐字节相同**。两条被本仓钉住的解码读者（`html.parser` 的 convert_charrefs、ElementTree 的
+`.text`）把它解回 `[truncated]`，而 records 那侧说 `truncated=False`——被伪造的还是那句话，
+只是这次伪造者不必写方括号，写的是方括号的实体名。属性侧不会出这种事：`_attribute`（`:146-151`）
+第一句就把 `&` 折成 `&amp;`，所以属性里写不出任何实体形；正文侧从来不泛折 `&`，只折那四枚名，
+于是它的**输出拼法**一直是可以被抄的。
+
+### 2 量到的真相
+
+量测在 `3806a96` 的归档平面 `D:\面试项目\t556-plane` 上做（产品 `47eaf4a61f95`，
+`inside plane: True`，折表的键 `['</file', '<file', '[用户引用文件]', '[truncated]']`），
+脚本与读数 = `Temp/t556_measure.py` → `Temp/t556_measure.log`，七种形状各渲染一次：
+
+- 正文写实体形截断声明：块里原形 `[truncated]` 计数 0，实体字节 `&#91;truncated&#93;` 计数 1，
+  两种读者的元素文本里 `[truncated]` 各 1，`records truncated=[False]`——伪造到位。
+- 正文混写原形与实体形：块里 `&#91;truncated&#93;` 计数 2，两种读者读到 `[truncated]` 计数 2，
+  也就是「渲染器只承认一次」的那句计数被翻倍。
+- 正文写二层形 `&amp;#91;truncated&amp;#93;`：一次解码得回**一层**折形（`&#91;truncated&#93;`），
+  即解码读者停在「渲染器自己的拼法」上——这一条本批不修，钉成边界（见 §6 第 1 项）。
+- 正文写普通的 `<div>`：`ET.fromstring` 抛 `ParseError: not well-formed (invalid token)`——
+  「严格读者」这个词在本批只用于**把整块裹进 `<root>` 之后**的读数，不用于断言块本身可解析。
+
+判据先红：新门 `tests/test_a_body_that_writes_the_folded_spelling_of_a_marker.py` 在改前字节上
+`Temp/t556_gate_prefix2.log` = 8 failed, 3 passed in 0.54s，红的八条是
+`test_a_body_writing_the_folded_spelling_lands_on_a_deeper_level`、
+`test_a_body_writing_the_folded_tag_spelling_forge_no_second_close`、
+`test_a_body_writing_the_folded_header_spelling_stays_a_body`、
+`test_each_folded_spelling_in_the_block_means_exactly_one_body_marker`、
+`test_a_decoding_reader_gets_the_bodies_own_bytes_back`、
+`test_a_body_at_the_second_level_lands_one_level_up`、
+`test_the_fold_table_covers_every_spelling_the_block_can_carry`、
+`test_the_entity_rows_run_before_the_rows_that_emit_them`；
+绿的三条正是本批不许动的地板（渲染器自己的标记、正文里普通的 `&`、正文里非标记的方括号词）。
+这份判据不是写完就有效的：头一版（`Temp/t556_gate_prefix.log`，同样 8 failed, 3 passed）被复查出
+四处判据自身的问题——名册腿按标记拼文件名（`<file.txt` 在 Windows 上根本开不出来，红会变成
+`OSError` 而不是断言）、截断地板腿吃了默认预算而不是显式预算、二层腿少算了一个换行、
+`&amp`/`&123;` 这类正文喂给 `ET.fromstring` 会抛（严格读者的那条声称于是挪进不带 `&` 的子名册）。
+四处都在同一次改名前的红之后修掉，红集不变。
+
+### 3 落地
+
+`minicc/mentions.py` 的 `_STRUCTURAL_TOKENS`（交付字节 `:154-163`，改前是 `:154-159`）从四行变
+八行：四枚实体形各一行，排在**发出它们的那四行原形之前**，替换值是它们的二层形。顺序就是修法——
+`_body` 的那趟循环（交付字节 `:190-191`）把八行各做一次 `str.replace`，若原形行先跑，它产出的
+`&#91;truncated&#93;` 会被后面的实体行再吃一层，
+于是正文写原形标记也落不到「一次解码得回自己」的位置。`_body` 的 docstring 补了这一段。
+同笔改的三处判据形状：第五百三十四批的表宽腿（`len(rows) == 4` → `== 8`，并把四枚折形逐行点名）、
+第五百三十五批的名册正则（`_TAG_OR_BRACKET` 加 `&lt;/?file` 与 `&#91;…&#93;` 两支，
+`_census` 多渲一种「正文抄了渲染器那四枚原形」的形状，于是发射的拼法从 4 枚变 8 枚、宽度腿跟着变宽）。
+
+基线两套字节都要点名：交付的工作树 `minicc/mentions.py` = `e36efd8e4e10` / 18832 B（CRLF），
+其 LF 形 = `bd281f4bb7f6` / 18410 B；父提交 `3806a96` 的该文件按 LF blob 取出是
+`f089e37d455a` / 17755 B，胀回 CRLF 是 `47eaf4a61f95` / 18166 B——改前量测与反向对照臂用的都是
+后一套。净额 = 工作树 +666 B、LF +655 B、+11 行（四行表 + 七行 docstring，含一个空行），
+而 666 − 655 恰是那 11 行的一枚枚 CR——两套口径自己对自己。本仓
+`core.autocrlf=true` 且无 `.gitattributes`，「HEAD 的 blob sha」与「工作树 sha」差的就是每行一枚 CR，
+所以两处分开记。新判据工作树字节 = `f6e6fe070f7b` / 11509 B（LF 归一后 `3bb176c2dc2d` / 11233 B）。
+
+### 4 变异验证
+
+平面 = `git archive` 自 `3806a96` 解出的 `D:\面试项目\t556-plane`（父字节，四行表），
+交付判据由脚本从工作树原样复制进去；每臂写完立刻核对「平面自己的模块」身份
+（`minicc.mentions.__file__` 落在平面内）并以 sha 报出。腿名册由 `--collect-only` 现派生，
+与 `Temp/t556_arm_predictions.md` 里那份名字多重集相等才开跑。预测先写、臂后跑，
+`Temp/t556_arms2.log` = 7/7 MATCHED：
+
+| 臂 | 刀 | 预测红集 | 实测 | 臂模块 sha |
+|----|----|----------|----|------------|
+| P | 交付字节 | 无红，11 绿 | 0 failed, 11 passed | `e36efd8e4e10` |
+| R | 反向对照 = `3806a96` 的四行表 | L1 L2 L3 L4 L5 L6 L10 L11 | 8 failed, 3 passed，名字全中 | `47eaf4a61f95` |
+| A1 | 八行顺序翻转（原形在前） | L4 L5 L10 L11 | 4 failed, 7 passed | `306e61c364f2` |
+| A2 | 删掉 `("&lt;file", "&amp;lt;file")` 一行 | L5 L6 L10 L11 | 4 failed, 7 passed | `913576a2a538` |
+| A3 | 把 `&#91;truncated&#93;` 那行的值改成它自己 | L1 L4 L5 L6 L11 | 5 failed, 6 passed | `f07c27971d30` |
+| A4 | 把 `&#91;truncated&#93;` 折回**原形** | L1 L4 L5 L6 L11 | 5 failed, 6 passed | `a8823365dc21` |
+| A5 | 把折伸出正文之外（`header = _body(header)`） | L3 L10 | 2 failed, 9 passed | `6748f54763af` |
+
+- L 号 = 该文件按定义顺序的 11 条腿，名字多重集与预测文件一致；三条地板腿 L7 L8 L9 在七臂里
+  全绿——没有一把刀把它们牵连进去，于是它们既是「本批不许动」的地板，也不是任何一刀的副产品。
+- A1 与 A4 的机理不同，红集也不同：A1（折吃自己的输出）红 L4 L5 L10 L11，
+  A4（折出一个可伪造的原形）多红 L1 与 L6。把两者分开的是「折形不得出现在块里」这条断言与
+  `escaped.startswith("&")` 那条子句，而不是腿数。
+- 首轮电池（`Temp/t556_arms.log`）除了 P 全部 MISMATCH，原因在**电池自己**：`-rf` 摘要行以 CR 结尾，
+  我那条 `^FAILED \S+::(\w+)$` 的 `$` 收不到名字，于是红集为空、valid 判假。数数（8/4/4/5/5/2）
+  当场与预测相符，说明缺的只是归因；修的是采集，不是预测，也不许改预测——修完才有上面那张表。
+- 退出时平面恢复成交付字节并打印 sha（`matches delivered=True`）。
+
+### 5 门禁
+
+三道围栏在同一份字节上跑，`Temp/t543_run.py` 自己写 rc，日志末行是 `rc=N` 与 `DONE`；
+预测写在 `Temp/t556_fence_predictions.md`（开跑之前）。
+
+- 邻域 `nb536`（35 个文件）：`464 passed, 1 skipped in 864.10s (0:14:24)`，`rc=0`，
+  `tree=5381a1b2e5811377`，`at_rest=yes`，`tracked=647`。
+- 受影响 `im536`（329 个文件）：`3008 passed, 3 skipped in 1706.48s (0:28:26)`，`rc=0`，
+  `tree=5381a1b2e5811377`，`at_rest=yes`，`tracked=647`。
+- 文档 `doc536`（16 个文件）：`257 passed in 1404.36s (0:23:24)`，`rc=0`，
+  `tree=5381a1b2e5811377`，`at_rest=yes`，`tracked=647`。
+- 第五百三十五批 §5 许下的「落盘后再量一次」兑现了：`Temp/t543_doc535b.log` =
+  doc535b 16 个文件、`257 passed in 1054.05s (0:17:34)`、`rc=0`、`at_rest=yes`、
+  `tracked=647`，树指纹 `70a598d3dc5fd927`（与代码围栏那三次的指纹不同，
+  正是记录落盘之后的一套字节）。
+- **行数对账**（派生自上面几道围栏自己的输出与 `git ls-files --eol`，不是抄的）：围栏那几行的 tracked=647 是它们各自起跑时的被追踪行数；本批新判据进 index 之后这里是 648 行，多出的那一行就是它。
+  这一刻 648 行 = 645 `i/lf w/crlf` + 2 `i/lf w/lf` + 1 `i/none w/none`；`i/crlf` 与 `i/mixed` 都为零，但那是量出来的，不是门保的（§6 第 6 项）。
+- `doc_pointers` 的读数在文档面里，本批不往任何地方抄它的总数；它点名 ROADMAP 的指针跨度，
+  记录落盘后必须由下一批再量一次（与第五百三十五批同法）。
+- 围栏期间工作树一个 tracked 字节都没动（`at_rest=yes`）；新判据在围栏跑完之后才进 index。
+
+### 6 边界
+
+1. 二层形不折：正文写 `&amp;#91;truncated&amp;#93;`，一次解码得回 `&#91;truncated&#93;`——
+   不是原形标记，也不是正文自己的字节。L6（`test_a_body_at_the_second_level_lands_one_level_up`）
+   把这件事钉成「停在一层」的声称，而不是「修好了」。要往下折就得给二层再留一行，或者把正文侧
+   改成属性侧那样的 `&` 先折（见 §7 第 1 项），两条路都没走。
+2. 名册只覆盖那八枚形：`_census`/`test_the_fold_table_covers_every_spelling_the_block_can_carry`
+   扫的是「原形 ∪ 它的折形」，正文里的 `&lt;div`、`&#60;`、`&#x5b;` 这些同族写法仍在表外——
+   本批评的是「抄渲染器自己的拼法」，不是「正文不许出现实体」。
+3. 不声称块是一份能解析的 XML 文档；也不声称模型按元素读块。本批钉的两种读者是程序读者，
+   且严格那位是**裹进 `<root>` 之后**的读数。
+4. 属性侧与正文侧仍不对称：`_attribute` 先折 `&`，`_body` 只折名册里的形。本批把正文侧的
+   实体形补进表里，但没把两侧统一，也没声称它们统一。
+5. `item["status"]` 与 `item["reason"]` 仍**原样**插进元素，既不经 `_attribute` 也不经 `_body`；
+   今天 14 处调用点送进去的全是字面量（第五百三十五批 §6 第 4 项按 ast 逐处读过）。
+   那是「没人插得进去」而不是「插不进去」，名册双向对账仍是 M8-T550。
+6. 不声称 EOL 有门：`git ls-files --eol` 里 `i/crlf`/`i/mixed` 为零是量出来的，不是门保的（M8-T545）。
+7. 不声称围栏的腿数变化由本批解释：本批只加一条文件（11 条腿），两道围栏的增量恰为 11，
+   文档面名册与上一批同名册（16 个文件），增量为 0。
+
+### 7 下一单位
+
+1. M8-T554（本批 §6 第 1、4 项）：正文侧的 `&` 到底该不该像属性侧那样**先整体折一层**。
+   先把三种口径量一次——只折名册（今天的八行）、折名册再补一行二层、正文统一 `&`→`&amp;`——
+   看「一次解码得回正文原字节」这条声称在哪一版成立、代价是正文里 `&amp;`/`&nbsp;` 这些
+   既有字节的阅读噪声涨多少，再决定落地哪版。今天没有一条腿问这件事。
+2. M8-T550（第五百三十二批 §7 第 1 项，行号按本批交付字节重抄）：`:381` 的判决名册
+   （`{"rejected", "missing", "binary"}`）与 `_record`／`_converged` 能发出的 `status` 取值
+   两张名册**双向对账**——加一种状态而不进块，今天没有一条腿会红。
+3. M8-T544（第五百三十批 §7 留下）：`minicc/commands.py` 的 `_skill_file_allowed` 对每个 SKILL.md
+   问两次 `tool_denied_by_rule` ⇒ N 个技能付约 **4N** 次 stat，与 M8-T540 同族。
+4. M8-T545（第五百三十批 §7 留下，尚无门）：`git ls-files --eol` 里出现 `i/crlf` 或 `i/mixed`
+   就是「git 拒绝为整个文件做转换」那件事；自检测式 `count(\r\n) == count(\n)` 对 `\r\r\n`
+   天生看不见。
+5. M8-T546（第五百三十批 §7 留下）：`.github/workflows/ci.yml:288` 的内联断言只读比率不问口径，
+   还没人就同一个扫描问 `executed_count` 那一只脚。
