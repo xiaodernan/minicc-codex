@@ -152,6 +152,10 @@ def _attribute(value: str) -> str:
 
 
 _STRUCTURAL_TOKENS = (
+    ("&lt;/file", "&amp;lt;/file"),
+    ("&lt;file", "&amp;lt;file"),
+    ("&#91;用户引用文件&#93;", "&amp;#91;用户引用文件&amp;#93;"),
+    ("&#91;truncated&#93;", "&amp;#91;truncated&amp;#93;"),
     ("</file", "&lt;/file"),
     ("<file", "&lt;file"),
     ("[用户引用文件]", "&#91;用户引用文件&#93;"),
@@ -175,6 +179,13 @@ def _body(text: str) -> str:
     tokens are prefixes: folding a whole ``</file>`` leaves a body's
     ``</filepath>`` raw after its ``<filepath`` opener turned into text, which is a
     newer breakage than the forgery.
+
+    M8-T553 adds the four entity rows and puts them *first*: a file can write the
+    folded spelling itself, and a verbatim ``&#91;truncated&#93;`` then lands as
+    exactly the bytes the renderer uses for somebody's real marker -- invisible to
+    a byte scan, and back to a raw marker after one decode.  A row may not eat the
+    output of a row that runs after it, so the deeper spelling is consumed before
+    the shallower one produces it.
     """
     for token, escaped in _STRUCTURAL_TOKENS:
         text = text.replace(token, escaped)

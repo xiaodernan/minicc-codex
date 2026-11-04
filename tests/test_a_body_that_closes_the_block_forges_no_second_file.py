@@ -184,6 +184,10 @@ def test_the_structural_tokens_have_one_table():
     source = MODULE_SOURCE.read_text(encoding="utf-8").replace("\r\n", "\n")
     assert source.count("_STRUCTURAL_TOKENS = (") == 1
     for row in (
+        '("&lt;/file", "&amp;lt;/file"),',
+        '("&lt;file", "&amp;lt;file"),',
+        '("&#91;用户引用文件&#93;", "&amp;#91;用户引用文件&amp;#93;"),',
+        '("&#91;truncated&#93;", "&amp;#91;truncated&amp;#93;"),',
         '("</file", "&lt;/file"),',
         '("<file", "&lt;file"),',
         '("[用户引用文件]", "&#91;用户引用文件&#93;"),',
@@ -195,5 +199,5 @@ def test_the_structural_tokens_have_one_table():
         for line in source.split("\n")
         if line.startswith('    ("') and line.endswith("),")
     ]
-    assert len(rows) == 4, rows
+    assert len(rows) == 8, rows
     assert source.count('("</file>", ') == 0, "闭标记又变回整枚形了"
