@@ -34,7 +34,6 @@ from pathlib import Path
 from minicc import changes as changes_module
 from minicc.changes import (
     _AUDIT_TAIL_BYTES,
-    _AUDIT_WINDOW_LINES,
     ChangeInspector,
 )
 from minicc.tools.editor import Editor, sha256_digest
@@ -145,7 +144,6 @@ def test_the_byte_window_is_disclosed_beside_the_word(tmp_path: Path) -> None:
     _write_trail(workspace, [backup, *_filler(300, 1000), delete])
     summary = ChangeInspector(workspace).summary()
     assert _bytes_outside(workspace) > 0, _trail(workspace).stat().st_size
-    assert len(_lines(workspace)) <= _AUDIT_WINDOW_LINES, len(_lines(workspace))
     assert summary["audit_window_truncated"] is True, summary
 
 
@@ -160,18 +158,23 @@ def test_the_detail_page_says_which_half_of_the_trail_was_never_read(tmp_path: P
     assert diff["deletion_preimage"] == "not-in-window", diff
 
 
-def test_a_copy_line_pushed_out_by_the_line_cap_is_not_answered_as_never_recorded(
+def test_a_copy_line_past_the_line_cap_is_read_not_answered_as_never_recorded(
     tmp_path: Path,
 ) -> None:
-    """E4（探针 Q3）：整份文件都在字节窗内，`backup` 行被 500 行上限挤掉。"""
+    """E4（探针 Q3，第五百四十九批改口）：整份文件都在字节窗内，`backup` 行排在第 602 条。
+
+    第五百四十八批在这一格答 `not-in-window`——那是当时的事实：500 行上限把
+    `backup` 行丢掉了。第五百四十九批把上限撤掉，这一行**读得到**，所以副本配得上，
+    预像该答 `copy` 并给出内容。
+    """
     workspace = _workspace(tmp_path, "cap", {"notes.md": BODY})
     _deleted(workspace)
     backup, delete = _pair(workspace, "notes.md")
     _write_trail(workspace, [backup, *_filler(600, 4), delete])
     assert _bytes_outside(workspace) == 0, _trail(workspace).stat().st_size
-    assert len(_lines(workspace)) > _AUDIT_WINDOW_LINES, len(_lines(workspace))
     diff = _diff(workspace, "notes.md")
-    assert diff["deletion_preimage"] == "not-in-window", diff
+    assert diff["deletion_preimage"] == "copy", diff
+    assert "-hello world" in diff["patch"], diff
 
 
 def test_a_record_split_by_the_byte_boundary_is_not_a_record_that_was_never_written(
@@ -241,7 +244,6 @@ def test_a_pruned_copy_seen_in_window_outweighs_the_window_being_cut(tmp_path: P
     for copy in (workspace / ".minicc" / "backup").iterdir():
         copy.unlink()
     _write_trail(workspace, [*_filler(600, 4), backup, delete])
-    assert len(_lines(workspace)) > _AUDIT_WINDOW_LINES, len(_lines(workspace))
     diff = _diff(workspace, "notes.md")
     assert diff["deletion_preimage"] == "not-readable", diff
 

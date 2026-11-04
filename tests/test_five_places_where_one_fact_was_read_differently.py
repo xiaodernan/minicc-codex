@@ -218,8 +218,15 @@ def test_a_directory_named_like_a_build_artefact_is_still_hidden(tmp_path: Path)
 # --- M8-T312: the audit window is disclosed ------------------------------------
 
 
-def test_the_audit_window_truncation_is_disclosed(tmp_path: Path) -> None:
-    """A change pushed out of the window must not silently disappear."""
+def test_a_busy_audit_trail_does_not_hide_the_change(tmp_path: Path) -> None:
+    """M8-T312, reshaped by M8-T567: the change is kept, not merely disclosed.
+
+    The 500-line cap used to throw this write out of the window while the trail
+    was well inside the byte tail; the panel disclosed the cut but still
+    reported a clean workspace.  With the cap gone the write is read, so the
+    guarantee this gate protects is stronger: a busy trail cannot hide a change
+    at all.
+    """
     workspace = tmp_path / "ws"
     workspace.mkdir()
     editor = Editor(workspace, audit_path=workspace / ".minicc" / "audit.jsonl")
@@ -228,6 +235,6 @@ def test_the_audit_window_truncation_is_disclosed(tmp_path: Path) -> None:
         editor.read_file("a.py")
 
     summary = ChangeInspector(workspace).summary()
-    assert summary.get("audit_window_truncated") is True, (
-        "the audit window dropped entries and said nothing"
-    )
+    assert [item["path"] for item in summary["files"]] == ["a.py"], summary["files"]
+    assert summary["audit_window_truncated"] is False, summary
+    assert summary["audit_bytes_unread"] == 0, summary

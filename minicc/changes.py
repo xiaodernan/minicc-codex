@@ -58,13 +58,10 @@ _MAX_FILES = 120
 #: set is the editor's own - two copies of "did this change the workspace"
 #: are two answers waiting to diverge.
 _CHANGING_AUDIT_ACTIONS = _MUTATING_ACTIONS
-#: M8-T312: how many audit lines the change panel looks at.  A busy audit
-#: history pushes older entries out of the window, so the window is
-#: disclosed rather than silently shrinking the change list.
-_AUDIT_WINDOW_LINES = 500
-#: M8-T550: bytes of the audit tail that are read.  A tail this long starts
-#: mid-record by construction; that first line is a known partial, not a
-#: record that could not be read.
+#: M8-T550: bytes of the audit tail that are read.  M8-T567: the cut lands
+#: mid-record only when it has to - a first line that parses is a record, and
+#: the old "by construction" assumption dropped a whole record whenever the
+#: cut happened to land on a boundary.
 _AUDIT_TAIL_BYTES = 256_000
 #: M8-T562: what the panel can say about the content a witnessed deletion
 #: removed.  The four words are the answer, and they are not interchangeable:
@@ -77,11 +74,11 @@ PREIMAGE_NOT_RECORDED = "not-recorded"
 PREIMAGE_NOT_READABLE = "not-readable"
 PREIMAGE_MISMATCH = "digest-mismatch"
 #: M8-T566: the fifth word, and it is not a synonym of ``not-recorded``.  The
-#: trail is read as a bounded tail (``_AUDIT_TAIL_BYTES``) and only its last
-#: ``_AUDIT_WINDOW_LINES`` lines are looked at, so a ``backup`` line can be
-#: outside what was read while the ``delete`` line it pairs with is inside.
-#: Saying ``not-recorded`` there is the panel claiming the editor never wrote
-#: a copy, on the strength of a reading that never looked that far.
+#: trail is read as a bounded tail (``_AUDIT_TAIL_BYTES``), so a ``backup``
+#: line can be outside what was read while the ``delete`` line it pairs with
+#: is inside.  Saying ``not-recorded`` there is the panel claiming the editor
+#: never wrote a copy, on the strength of a reading that never looked that far.
+#: M8-T567: the line cap is gone, so this word follows the byte cut alone.
 PREIMAGE_NOT_IN_WINDOW = "not-in-window"
 #: ``source`` when the pre-image came out of the editor's own copy instead of
 #: out of git, so a reader can tell which baseline a patch was built on.
@@ -110,6 +107,19 @@ _CACHE_LOCK = threading.Lock()
 # Two readers need this fact - change inspection skips them, and the snapshot
 # journal refuses them - and each used to spell the set out itself.  One home.
 INTERNAL_DIRS = frozenset({".git", ".minicc"})
+
+
+def _parses_as_record(line: str) -> bool:
+    """Whether a line is a whole audit record rather than a tail fragment.
+
+    M8-T567: the byte cut only produces a fragment when the cut lands inside
+    a record; when it lands on a boundary, the same first line is a record,
+    and dropping it loses a change the window actually read.
+    """
+    try:
+        return isinstance(json.loads(line), dict)
+    except ValueError:
+        return False
 
 
 def _ignored_path(path: str) -> bool:
@@ -381,6 +391,7 @@ class ChangeInspector:
         only when a detail page asks (``_read_deletion_preimage``).
         """
         self._audit_window_truncated = False
+        self._audit_bytes_unread: int | None = 0
         self._audit_unreadable_lines = 0
         self._audit_records_without_path = 0
         self._audit_refused_records = 0
@@ -399,11 +410,13 @@ class ChangeInspector:
         try:
             if not audit.is_file():
                 if audit.exists():
+                    self._audit_bytes_unread = None
                     return set(), set(), (
                         f"审计记录（.minicc/{AUDIT_NAME}）不是一个文件"
                         "（可能是目录），读不出来，git 看不到的改动没有兜底"
                     )
                 if audit.parent.exists() and not audit.parent.is_dir():
+                    self._audit_bytes_unread = None
                     return set(), set(), (
                         f"审计记录（.minicc/{AUDIT_NAME}）的父路径（.minicc）"
                         "不是一个目录，读不出来，git 看不到的改动没有兜底"
@@ -415,17 +428,19 @@ class ChangeInspector:
                 stream.seek(max(0, size - _AUDIT_TAIL_BYTES))
                 tail = stream.read().decode("utf-8", errors="replace")
             lines = tail.splitlines()
-            if size > _AUDIT_TAIL_BYTES and lines:
+            # M8-T567: when the tail starts mid-record its first line is a
+            # fragment; when the cut lands on a record boundary it is a whole
+            # record, and the old unconditional drop threw it away without a
+            # word.  Parse first, decide after.
+            if size > _AUDIT_TAIL_BYTES and lines and not _parses_as_record(lines[0]):
                 lines = lines[1:]
-            # M8-T566: the question this flag answers is "did the panel read
-            # the whole trail", and there are two ways not to: the byte tail
-            # never looked at the head, and the line cap drops lines that were
-            # read.  Counting only the cap (the old ``len(lines) > `` test) left
-            # a 320 KB trail reporting nothing was missed.
-            self._audit_window_truncated = (
-                size > _AUDIT_TAIL_BYTES or len(lines) > _AUDIT_WINDOW_LINES
-            )
-            for line in lines[-_AUDIT_WINDOW_LINES:]:
+            # M8-T566 asked whether the whole trail was read; M8-T567 splits
+            # that answer into the facts it was made of.  The 500-line cap is
+            # gone - the byte window is the only bound - so the flag is the
+            # byte cut, and ``_audit_bytes_unread`` says by how much.
+            self._audit_bytes_unread = max(0, size - _AUDIT_TAIL_BYTES)
+            self._audit_window_truncated = self._audit_bytes_unread > 0
+            for line in lines:
                 try:
                     item = json.loads(line)
                 except ValueError:
@@ -497,6 +512,7 @@ class ChangeInspector:
                         if not _ignored_path(destination):
                             paths.add(destination)
         except (OSError, ValueError, TypeError) as exc:
+            self._audit_bytes_unread = None
             return set(), set(), (
                 f"审计记录（.minicc/{AUDIT_NAME}）读不出来"
                 f"（{type(exc).__name__}: {exc}），git 看不到的改动没有兜底"
@@ -542,11 +558,12 @@ class ChangeInspector:
         used to be the same empty patch.
 
         M8-T566: ``not-recorded`` is only owed by a reading that saw the whole
-        trail.  When the window cut records - by bytes or by lines - and none
-        of them named a copy for this path, the honest answer is
-        ``not-in-window``: nothing was seen, and the reader knows it did not
-        look everywhere.  The other three words stand on facts the window
-        cannot undo, so they are still said first.
+        trail.  When the window cut records and none of them named a copy for
+        this path, the honest answer is ``not-in-window``: nothing was seen,
+        and the reader knows it did not look everywhere.  The other three
+        words stand on facts the window cannot undo, so they are still said
+        first.  M8-T567: "cut" now means the byte tail only - the 500-line cap
+        that used to discard lines already read is gone.
         """
         source = self._audit_preimage_sources.get(path)
         if not source:
@@ -805,6 +822,7 @@ class ChangeInspector:
             self._audit_records_without_action,
             name_verdict,
             bool(self._audit_window_truncated),
+            self._audit_bytes_unread,
         )
 
     def _diff_for_target(
@@ -820,6 +838,7 @@ class ChangeInspector:
         audit_records_without_action: int = 0,
         name_resolution: str = "",
         audit_window_truncated: bool = False,
+        audit_bytes_unread: int | None = None,
     ) -> dict[str, Any]:
         # M8-T565: two of the three verdicts mean no disk file can be named for
         # this record, so there is nothing to read and no number to show.  The
@@ -922,6 +941,13 @@ class ChangeInspector:
             # ``not-in-window`` - this reading did not see the whole trail, and
             # the page that shows the word is the page that has to say that.
             "audit_window_truncated": bool(audit_window_truncated),
+            # M8-T567: and how much of the trail was never read at all - the
+            # flag says the window was cut, this says by how much.  ``None``
+            # is the third answer: the trail could not be read, so the number
+            # is unknown rather than zero.
+            "audit_bytes_unread": (
+                None if audit_bytes_unread is None else int(audit_bytes_unread)
+            ),
         }
 
     def files_without_diff(self) -> list[dict[str, Any]]:
@@ -1057,6 +1083,14 @@ class ChangeInspector:
             # rather than report a clean workspace.
             "audit_window_truncated": bool(
                 getattr(self, "_audit_window_truncated", False)
+            ),
+            # M8-T567: the other half of the window.  ``None`` when the trail
+            # could not be read - zero would be the claim that nothing was
+            # missed, which is exactly what a failed read cannot say.
+            "audit_bytes_unread": (
+                None
+                if self._audit_bytes_unread is None
+                else int(self._audit_bytes_unread)
             ),
             # M8-T548: ``total_files: 0`` from a failed read is not "nothing
             # changed"; the reason travels with the answer.
