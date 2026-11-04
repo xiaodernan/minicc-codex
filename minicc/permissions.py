@@ -37,16 +37,16 @@ from .tools.registry import redact_text
 from .config import unreadable_file_message
 from .internal_paths import PERMISSIONS_NAME  # re-exported: the deny list reads it from here
 
-_lock = threading.RLock()
+class PermissionConfigError(ValueError):
+    """permissions.json is malformed at the schema level (non-fatal)."""
+
+
+_lock = threading.Lock()
 # str(path) -> (stamp, (rules, error)); file reads stay off the hot path.  The
 # stamp is the four-field witness (ino, mtime_ns, ctime_ns, size) - the
 # annotation used to claim the old two-field shape long after M8-T293 widened
 # it.
 _cache: dict[str, tuple[tuple[int, int, int, int], tuple[dict[str, list[str]], str]]] = {}
-
-
-class PermissionConfigError(ValueError):
-    """permissions.json is malformed at the schema level (non-fatal)."""
 
 
 def _empty_rules() -> dict[str, dict[str, list[str]]]:
@@ -149,7 +149,7 @@ def load_permission_rules(workspace: Path) -> tuple[dict[str, list[str]], str]:
             payload = json.loads(path.read_text(encoding="utf-8"))
             rules, _ = _validate(payload)
         except PermissionConfigError as exc:
-            # M8-T285: this comes **first** - it is a ``ValueError``, and the
+            # M8-T285: this comes ``first`` - it is a ``ValueError``, and the
             # decode clause below catches every ``ValueError``.
             error = f"{PERMISSIONS_NAME} 非法: {exc}"
         except (OSError, ValueError) as exc:

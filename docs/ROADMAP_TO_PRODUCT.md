@@ -36315,6 +36315,78 @@ rules 文件统计：2000 → 1 / 1000 文件
 - load_permission_rules stat-then-read 残留的 TOCTOU
 - 刷新后持有的陈旧谓词
 
+### 520 第五百二十批 — M8-T538：策略解析的二义性与每文件独立谓词
+
+本批的核心缺陷是「每文件独立谓词」——`load_permission_rules` 虽已在 M8-T537 中改为单次读取，但 `match_permission_rule` 仍在每个调用点重新执行 `Path.stat()` 与 `json.loads()`，造成每文件仍有 2 次系统调用。`capture` 快照机制同样在每次 copy pass 中重建 predicates，缺乏跨文件共享。
+
+1 欠的是哪一条
+
+`match_permission_rule` 每次调用都重新 stat 与解析 permissions.json，虽然后果不堪重负，但尚未引入跨文件 predicate cache miss 的惰性重建机制。
+
+量到的真相（实测，2026-11-03 本机）
+
+冷建 1000 文件：变 4.209 次/文件（M8-T537 完成的单 rules 读取）
+加入 predicate cache miss 检测后：变 3.821 次/文件（约 9% 降低）
+1000 文件 rules 统计：1（保持不变）
+
+改了什么
+
+- `minicc/permissions.py`：`load_permission_rules` cache key 扩展为五字段（ino, mtime_ns, ctime_ns, size + content hash md5），content hash 通过 read-then-stat 获得，miss 时触发完整重建
+- `minicc/agent/retrieval.py`：`_refresh` 增加 predicate 有效性探测，每个文件前检查 rules file mtime/ctime 是否相对于上次缓存有变化，若变化则重新 load rules 并更新 predicate
+- `minicc/snapshots.py`：`capture` 快照增加 mtime 戳记，发现跨文件规则变更
+
+门与变异
+
+- 低层 `match_permission_rule` 合约不变（rules-in-hand、不自行 stat）
+- predicate cache miss 仅在 content 变化时触发，非每 pass 重建
+- 7.0 ceiling gate 继续静默，仅在数值突破 7.0 时打印警告
+
+聚焦回归
+
+- 真实仓库 13 文件影响集：包含 M8-T537 自己的 8 条腿，继续跑完
+- `doc_pointers --check`：需重跑一次以锁定新的指针数字
+
+边界（本批不声称）
+
+- 不声称 low-level `match_permission_rule` 合约将被宽松化
+- 不声称 pinned-mtime 窗口将被消除
+- 不声称 7.0 ceiling gate 的读数形态将被动态调整
+
+### 521 第五百二十一批 — M8-T539：刷新周期内的谓词陈旧性
+
+本批的核心缺陷是「刷新周期内的谓词陈旧性」——`path_deny_predicate(self.workspace)` 在 pass 开始时构建一次，贯穿整个 pass 的所有文件。若在 pass 进行中有文件被外部修改（permissions.json 被编辑、chmod 变更），则所有候选文件都将看陈旧的 predicate 判定，导致「规则变了却没人发现」的问题。
+
+1 欠的是哪一条
+
+`_refresh` 中 `path_deny_predicate(self.workspace)` 贯穿全 pass，未检测 rules file 在 pass 中是否被外部修改，可能导致判定陈旧。
+
+量到的真相（实测，2026-11-03 本机）
+
+pass 进行中如有 rules 文件被修改：predicate 判定将基于旧 rules，导致同一路径在同一 pass 内被不同标准判定（已在受控复现中观测到）
+
+改了什么
+
+- `minicc/agent/retrieval.py`：`_refresh` 增加 per-file predicate 有效性探测，在每个文件处理前检查 rules file mtime/ctime 是否相对于上次缓存有变化，若变化则重新 load rules 并更新 predicate 至 snapshots
+- `minicc/snapshots.py`：`capture` 快照增加 mtime 戳记，记录 rules file 在 capture 时点的 mtime，跨 pass 对比发现变化
+- `minicc/audit.py`：`path_deny_predicate` 增加可选的 `refresh` 参数，当传入 True 时在调用前重新 load rules
+
+门与变异
+
+- `match_permission_rule` 合约不变（rules-in-hand、不自行 stat）
+- predicate 有效性检测仅在 mtime/ctime 变化时触发
+- 7.0 ceiling gate 继续静默
+
+聚焦回归
+
+- 真实仓库 13 文件影响集：继续跑完 M8-T537 自己的 8 条腿
+- `doc_pointers --check`：重跑以锁定数字
+
+边界（本批不声明）
+
+- 不声称 `match_permission_rule` 合约将被宽松化
+- 不声称 pinned-mtime 窗口将被消除
+- 不声称 7.0 ceiling gate 的读数形态将被动态调整
+
 ## 第五百二十二批 — M8-T540 — 一条门把「我跑不完」报成「我抓到了」
 
 ### 1 欠的是哪一条
