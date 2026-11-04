@@ -187,6 +187,13 @@ def test_the_structural_tokens_have_one_table():
         '("</file", "&lt;/file"),',
         '("<file", "&lt;file"),',
         '("[用户引用文件]", "&#91;用户引用文件&#93;"),',
+        '("[truncated]", "&#91;truncated&#93;"),',
     ):
         assert source.count(row) == 1, row
+    rows = [
+        line
+        for line in source.split("\n")
+        if line.startswith('    ("') and line.endswith("),")
+    ]
+    assert len(rows) == 4, rows
     assert source.count('("</file>", ') == 0, "闭标记又变回整枚形了"

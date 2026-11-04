@@ -155,18 +155,23 @@ _STRUCTURAL_TOKENS = (
     ("</file", "&lt;/file"),
     ("<file", "&lt;file"),
     ("[用户引用文件]", "&#91;用户引用文件&#93;"),
+    ("[truncated]", "&#91;truncated&#93;"),
 )
 
 
 def _body(text: str) -> str:
-    """Fold a file body's copies of the block's own markup (M8-T551).
+    """Fold a file body's copies of the block's own markup (M8-T551, M8-T552).
 
     The renderer delimits every injection with ``<file ...>`` / ``</file>`` and
-    announces the block with ``[用户引用文件]``.  A body quoting one of those used to
+    announces the block with ``[用户引用文件]``, and admits a short excerpt with
+    ``[truncated]``.  A body quoting one of those used to
     arrive as structure: a single ``</file>`` made the strict reader raise and let
     the forgiving one discard everything after it, while a ``<file path="...">``
-    invented a file nobody had read.  Ordinary code keeps its bytes - only the
-    three tokens above are folded, and each folds back for a reader.  Both file
+    invented a file nobody had read.  ``[truncated]`` is M8-T552: written by a body
+    it claimed an excerpt the renderer never cut, while the record still said
+    ``truncated=False``.  Ordinary code keeps its bytes - only the tokens above are
+    folded, each folds back for a reader, and the fold runs on bodies only, so the
+    renderer's own markers stay raw.  Both file
     tokens are prefixes: folding a whole ``</file>`` leaves a body's
     ``</filepath>`` raw after its ``<filepath`` opener turned into text, which is a
     newer breakage than the forgery.
