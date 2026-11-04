@@ -133,6 +133,23 @@ def _annotate(token: str, status: str, reason: str) -> dict[str, Any]:
     return _record(token, token, status, reason, False)
 
 
+def _attribute(value: str) -> str:
+    """The one escaping of a name interpolated into a ``path="..."`` attribute.
+
+    The block is XML-shaped evidence (M8-T547): the scanner keeps ``"``, ``&``,
+    ``<`` and ``>`` inside a token, and on the un-converged side the reported
+    path **is** that token.  Interpolated raw, a quote closes the attribute and
+    every reader - the model included - gets half the name.  File bodies and the
+    two note sentences are prose, not attributes, and stay byte-for-byte.
+    """
+    return (
+        value.replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;")
+    )
+
+
 def _annotation_line(item: dict[str, Any]) -> str:
     """The one line the model reads about a mention that carried no content.
 
@@ -141,7 +158,10 @@ def _annotation_line(item: dict[str, Any]) -> str:
     that the first one gives - so whether the model was told how to recover
     depended on whether some other file happened to be injected.
     """
-    return f'<file path="{item["path"]}" status="{item["status"]}">{item["reason"]}</file>'
+    return (
+        f'<file path="{_attribute(item["path"])}"'
+        f' status="{item["status"]}">{item["reason"]}</file>'
+    )
 
 
 def build_mention_context(
@@ -282,7 +302,9 @@ def build_mention_context(
             cut = text[:remaining].rfind("\n")
             text = text[:cut if cut > remaining // 2 else remaining]
             used += len(text)
-            chunks.append(f'<file path="{rel}">\n{text}\n[truncated]</file>')
+            chunks.append(
+                f'<file path="{_attribute(rel)}">\n{text}\n[truncated]</file>'
+            )
             # M8-T299: one record per mention.  The oversized branch used to
             # add an "omitted" record *and* fall through to the "injected"
             # one, so the same file was reported twice - and the "omitted"
@@ -294,7 +316,7 @@ def build_mention_context(
             ))
             continue
         used += len(text)
-        chunks.append(f'<file path="{rel}">\n{text}\n</file>')
+        chunks.append(f'<file path="{_attribute(rel)}">\n{text}\n</file>')
         records.append(_record(token, rel, "injected", "", False))
     injected = sum(1 for item in records if item["status"] == "injected")
     # M8-T329: the mentions past the cap are named in the block too - a
