@@ -317,15 +317,25 @@ def path_rule_denies_call(
     workspace-wide ``git_diff`` and ``tree`` without asking, and the probe's
     results went straight into the conversation the model reads.  The rule now
     has one home, and every reader asks it.
+
+    M8-T538: loads the rules once and reuses them for both checks instead of
+    asking ``tool_denied_by_rule`` and then ``deny_rule_names_paths``,
+    each of which loads the file on its own.  One question, one load.
     """
     if not workspace:
         return False
     args = arguments if isinstance(arguments, dict) else {}
-    if tool_denied_by_rule(workspace, tool, args):
+    try:
+        rules, error = load_permission_rules(Path(workspace))
+    except OSError:
+        return True
+    if error:
+        return True
+    if match_rules(rules, tool, args) == "deny":
         return True
     if str(tool or "") not in WORKSPACE_WIDE_READ_TOOLS:
         return False
-    return deny_rule_names_paths(workspace)
+    return bool(rules["deny"]["paths"])
 
 
 def _pattern_covers_container(pattern: str, rel: str) -> bool:
