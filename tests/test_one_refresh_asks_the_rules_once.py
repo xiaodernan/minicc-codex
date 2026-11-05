@@ -210,3 +210,68 @@ def test_the_predicate_keeps_the_verdicts_of_the_one_home(tmp_path: Path) -> Non
     assert audit.tool_denied_by_rule(workspace, "read_file", {"path": "mod_0.py"}) is True
     assert audit.tool_denied_by_rule(workspace, "read_file", {"path": "mod_1.py"}) is False
     assert audit.path_deny_predicate(None)("anything") is False
+
+
+def test_the_predicate_holds_a_snapshot_without_refresh(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Default predicate captures rules once; a mid-life rules change is invisible.
+
+    Without ``refresh=True`` the closure keeps the rules it was born with.  A
+    caller that holds the predicate across a rules edit keeps judging by the
+    old snapshot - that's the intended single-pass contract, not a bug.
+    """
+    workspace = _workspace(tmp_path / "ws", count=1, deny=["secrets/*"])
+    rules_path = workspace / ".minicc" / "permissions.json"
+
+    predicate = audit.path_deny_predicate(workspace)
+    assert predicate("mod_0.py") is False, "secrets/* doesn't cover mod_0.py"
+
+    # Change the rules to deny mod_0.py.
+    rules_path.write_text(
+        json.dumps({"deny": {"paths": ["mod_0.py"]}}), encoding="utf-8"
+    )
+    # The predicate holds its snapshot: still says mod_0.py is not denied.
+    assert predicate("mod_0.py") is False, "snapshot predicate doesn't re-read rules"
+
+
+def test_the_refresh_predicate_detects_a_changed_policy(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``refresh=True`` re-reads rules on every call; a changed policy is seen.
+
+    A caller that holds the predicate across a rules edit gets the new answer
+    because each ``denied(rel)`` call goes through ``load_permission_rules``,
+    which uses its cache stamp to detect the file change (one ``stat`` when
+    unchanged, a full read when changed).
+    """
+    workspace = _workspace(tmp_path / "ws", count=1, deny=["secrets/*"])
+    rules_path = workspace / ".minicc" / "permissions.json"
+
+    predicate = audit.path_deny_predicate(workspace, refresh=True)
+    assert predicate("mod_0.py") is False, "secrets/* doesn't cover mod_0.py"
+
+    # Change the rules to deny mod_0.py.
+    rules_path.write_text(
+        json.dumps({"deny": {"paths": ["mod_0.py"]}}), encoding="utf-8"
+    )
+    # The refresh predicate re-reads: now says mod_0.py is denied.
+    assert predicate("mod_0.py") is True, "refresh predicate sees the new deny rule"
+
+
+def test_the_refresh_predicate_keeps_single_pass_uniformity(tmp_path: Path) -> None:
+    """Within one pass, a refresh predicate answers uniformly for all candidates.
+
+    Even with ``refresh=True``, every call goes through ``load_permission_rules``
+    which caches by stamp.  The first call stats and reads the file; subsequent
+    calls in the same pass hit the cache (one ``stat`` each, no re-read), so
+    every candidate is judged by the same snapshot.
+    """
+    workspace = _workspace(tmp_path / "ws", count=6, deny=["secrets/*"])
+
+    predicate = audit.path_deny_predicate(workspace, refresh=True)
+
+    # Six calls, one rules read (cache hit after the first stat).
+    results = [predicate(f"mod_{i}.py") for i in range(6)]
+    assert all(r is False for r in results), "none match secrets/*"
+

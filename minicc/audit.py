@@ -199,7 +199,7 @@ def tool_denied_by_rule(
     return match_rules(rules, tool, arguments or {}) == "deny"
 
 
-def path_deny_predicate(workspace: Path | str | None) -> Callable[[str], bool]:
+def path_deny_predicate(workspace: Path | str | None, *, refresh: bool = False) -> Callable[[str], bool]:
     """A deny decision that holds for **one pass** over a workspace.
 
     M8-T537: a refresh asks the same rules file about every candidate path.
@@ -213,11 +213,30 @@ def path_deny_predicate(workspace: Path | str | None) -> Callable[[str], bool]:
     them once and judges every path in that pass by that snapshot.  The
     predicate keeps ``tool_denied_by_rule``'s answers: no workspace allows,
     an unreadable policy denies, and ``deny`` wins over ``allow``.
+
+    M8-T539: when ``refresh`` is true, the returned predicate re-reads the
+    rules file on every call (through ``load_permission_rules``, which uses
+    its cache stamp so an unchanged file costs only one ``stat``).  This lets
+    a caller that holds the predicate across refreshes detect when the rules
+    file has changed, instead of judging by a stale snapshot.
     """
     if not workspace:
         return lambda _rel: False
+    workspace = Path(workspace)
+
+    if refresh:
+        def denied(rel: str) -> bool:
+            try:
+                rules, error = load_permission_rules(workspace)
+            except OSError:
+                return True
+            if error:
+                return True
+            return match_rules(rules, "read_file", {"path": rel}) == "deny"
+        return denied
+
     try:
-        rules, error = load_permission_rules(Path(workspace))
+        rules, error = load_permission_rules(workspace)
     except OSError:
         return lambda _rel: True
     if error:
