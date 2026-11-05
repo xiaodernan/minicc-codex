@@ -109,19 +109,6 @@ _CACHE_LOCK = threading.Lock()
 INTERNAL_DIRS = frozenset({".git", ".minicc"})
 
 
-def _parses_as_record(line: str) -> bool:
-    """Whether a line is a whole audit record rather than a tail fragment.
-
-    M8-T567: the byte cut only produces a fragment when the cut lands inside
-    a record; when it lands on a boundary, the same first line is a record,
-    and dropping it loses a change the window actually read.
-    """
-    try:
-        return isinstance(json.loads(line), dict)
-    except ValueError:
-        return False
-
-
 def _ignored_path(path: str) -> bool:
     normalized = path.replace("\\", "/").lstrip("/")
     if normalized.startswith("./"):
@@ -394,6 +381,7 @@ class ChangeInspector:
         """
         self._audit_window_truncated = False
         self._audit_bytes_unread: int | None = 0
+        self._audit_records_split: int | None = 0
         self._audit_unreadable_lines = 0
         self._audit_records_without_path = 0
         self._audit_refused_records = 0
@@ -413,12 +401,14 @@ class ChangeInspector:
             if not audit.is_file():
                 if audit.exists():
                     self._audit_bytes_unread = None
+                    self._audit_records_split = None
                     return set(), set(), (
                         f"审计记录（.minicc/{AUDIT_NAME}）不是一个文件"
                         "（可能是目录），读不出来，git 看不到的改动没有兜底"
                     )
                 if audit.parent.exists() and not audit.parent.is_dir():
                     self._audit_bytes_unread = None
+                    self._audit_records_split = None
                     return set(), set(), (
                         f"审计记录（.minicc/{AUDIT_NAME}）的父路径（.minicc）"
                         "不是一个目录，读不出来，git 看不到的改动没有兜底"
@@ -427,21 +417,36 @@ class ChangeInspector:
             # Read a bounded tail; audit histories can be many megabytes.
             with audit.open("rb") as stream:
                 size = audit.stat().st_size
-                stream.seek(max(0, size - _AUDIT_TAIL_BYTES))
+                start = max(0, size - _AUDIT_TAIL_BYTES)
+                prev = b""
+                if start:
+                    # M8-T573: whether the first line is a whole record is a
+                    # fact about the byte before the window, not a guess about
+                    # whether the line parses.  A cut inside a record leaves no
+                    # line terminator there; a cut on a boundary does.
+                    stream.seek(start - 1)
+                    prev = stream.read(1)
+                stream.seek(start)
                 tail = stream.read().decode("utf-8", errors="replace")
             lines = tail.splitlines()
-            # M8-T567: when the tail starts mid-record its first line is a
-            # fragment; when the cut lands on a record boundary it is a whole
-            # record, and the old unconditional drop threw it away without a
-            # word.  Parse first, decide after.
-            if size > _AUDIT_TAIL_BYTES and lines and not _parses_as_record(lines[0]):
+            # M8-T567 kept a whole record at a boundary.  M8-T573: the record a
+            # cut split in two is not dropped without a word - its tail is, and
+            # ``_audit_records_split`` says one record was not read whole.  A
+            # whole line that is not a record is no longer mistaken for that
+            # fragment: it goes through the parser and is counted as unreadable.
+            self._audit_records_split = 0
+            if start and prev == b"\r" and lines and not lines[0]:
+                # The window begins on the LF half of a CRLF terminator.
                 lines = lines[1:]
+            elif start and prev not in (b"\n", b"\r") and lines:
+                lines = lines[1:]
+                self._audit_records_split = 1
             # M8-T566 asked whether the whole trail was read; M8-T567 splits
             # that answer into the facts it was made of.  The 500-line cap is
             # gone - the byte window is the only bound - so the flag is the
             # byte cut, and ``_audit_bytes_unread`` says by how much.
-            self._audit_bytes_unread = max(0, size - _AUDIT_TAIL_BYTES)
-            self._audit_window_truncated = self._audit_bytes_unread > 0
+            self._audit_bytes_unread = start
+            self._audit_window_truncated = start > 0
             for line in lines:
                 try:
                     item = json.loads(line)
@@ -515,6 +520,7 @@ class ChangeInspector:
                             paths.add(destination)
         except (OSError, ValueError, TypeError) as exc:
             self._audit_bytes_unread = None
+            self._audit_records_split = None
             return set(), set(), (
                 f"审计记录（.minicc/{AUDIT_NAME}）读不出来"
                 f"（{type(exc).__name__}: {exc}），git 看不到的改动没有兜底"
@@ -825,6 +831,7 @@ class ChangeInspector:
             name_verdict,
             bool(self._audit_window_truncated),
             self._audit_bytes_unread,
+            self._audit_records_split,
         )
 
     def _diff_for_target(
@@ -841,6 +848,7 @@ class ChangeInspector:
         name_resolution: str = "",
         audit_window_truncated: bool = False,
         audit_bytes_unread: int | None = None,
+        audit_records_split: int | None = 0,
     ) -> dict[str, Any]:
         # M8-T565: two of the three verdicts mean no disk file can be named for
         # this record, so there is nothing to read and no number to show.  The
@@ -958,6 +966,13 @@ class ChangeInspector:
             # is unknown rather than zero.
             "audit_bytes_unread": (
                 None if audit_bytes_unread is None else int(audit_bytes_unread)
+            ),
+            # M8-T573: how many records the window began inside of.  One is
+            # possible; zero means every line the window read started at a
+            # record boundary.  ``None`` travels with a failed read, like the
+            # byte count beside it.
+            "audit_records_split": (
+                None if audit_records_split is None else int(audit_records_split)
             ),
         }
 
@@ -1124,6 +1139,12 @@ class ChangeInspector:
                 None
                 if self._audit_bytes_unread is None
                 else int(self._audit_bytes_unread)
+            ),
+            # M8-T573: the split count travels with the byte count.
+            "audit_records_split": (
+                None
+                if self._audit_records_split is None
+                else int(self._audit_records_split)
             ),
             # M8-T548: ``total_files: 0`` from a failed read is not "nothing
             # changed"; the reason travels with the answer.

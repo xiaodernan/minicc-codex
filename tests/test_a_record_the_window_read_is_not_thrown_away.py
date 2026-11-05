@@ -187,7 +187,7 @@ def test_a_whole_record_at_the_byte_boundary_is_read(tmp_path: Path) -> None:
 
 
 def test_a_fragment_at_the_byte_boundary_is_still_a_fragment(tmp_path: Path) -> None:
-    """E9：切点落在记录中间——残片丢掉，且不算「读不出来的一行」。"""
+    """E9：切点落在记录中间——残片丢掉，且不算「读不出来的一行」；T573 起有数。"""
     workspace = _workspace(tmp_path, "fragment")
     filler = _filler()
     name = "c"
@@ -202,6 +202,7 @@ def test_a_fragment_at_the_byte_boundary_is_still_a_fragment(tmp_path: Path) -> 
     summary = _summary(workspace)
     assert name not in [item["path"] for item in summary["files"]], summary["files"]
     assert summary["audit_unreadable_lines"] == 0, summary
+    assert summary["audit_records_split"] == 1, summary
     assert summary["audit_bytes_unread"] == size - TAIL, summary
 
 
