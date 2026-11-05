@@ -599,12 +599,20 @@ def authorize_tool(
                 f"permissions.json 读不出来，先拒绝此操作（{policy_error}）",
                 "permission_policy_unreadable",
             )
-        if match_rules(rules, tool, arguments) == "deny":
+        verdict = match_rules(rules, tool, arguments)
+        if verdict == "deny":
             return AuthorizationDecision(
                 False,
                 risk or "unknown",
                 "permissions.json deny 规则拒绝",
                 "permission_rule_deny",
+            )
+        if verdict == "allow":
+            return AuthorizationDecision(
+                True,
+                risk or "unknown",
+                "permissions.json allow 规则放行",
+                "permission_rule_allow",
             )
     mode = normalize_permission_mode(permission_mode)
     declared = set(capabilities or ())

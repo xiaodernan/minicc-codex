@@ -1833,18 +1833,10 @@ class AgentService:
             # M7-T3: a declarative deny rule is an absolute veto, and it covers
             # read-only tools too, so denying a path like `.env` blocks reads.
             # M8-T477: that veto is asked **once**, inside
-            # ``audit.authorize_tool``.  This gate used to re-decide it by hand
-            # before calling the shared function, which gave the reason sentence
-            # and the ``permission_rule_deny`` authorization code a second home.
-            # A rename in the shared decision would then reach only the faces
-            # that went through it, and the web face would keep emitting the old
-            # wording for a refusal the CLI face had stopped naming - the
-            # operator greps one phrase and finds half the refusals.  The
-            # hand-built copy also reported the *effective* risk while the
-            # shared decision reports the risk it was handed, so two faces of
-            # one refusal could disagree about how dangerous the refused call
-            # was.  ``rule`` survives only for the allow branch below.
-            rule = match_permission_rule(workspace, name, call.arguments)
+            # ``audit.authorize_tool``.  One load now answers both the deny
+            # and allow questions - the caller no longer calls
+            # ``match_permission_rule`` separately and loads the rules a
+            # second time.
             decision = authorize_tool(
                 name,
                 risk,
@@ -1862,7 +1854,7 @@ class AgentService:
             ):
                 # An allow rule only skips the interactive prompt; it can never
                 # change plan/yolo/network semantics.
-                if rule == "allow":
+                if decision.authorization == "permission_rule_allow":
                     return emit_decision(name, AuthorizationDecision(
                         True, decision.risk,
                         "permissions.json allow 规则放行", "permission_rule_allow",
