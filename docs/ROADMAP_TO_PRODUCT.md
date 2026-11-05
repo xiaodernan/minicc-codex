@@ -38425,10 +38425,10 @@ junit 里都没有一份名册外的文件。**没有预测之外的红。**
 12 条 drift 里最远的一条是 `minicc/main.py:154`，目标 token 在 147 行（−7）。
 
 **名册**：本批实际改瞄 **11 条引用**，收敛到 **10 个 (path, line) 目标**——
-`:163` 被两份说明同时引用。11 条里 7 条原文落在空行；其余 4 条是验证状态表里
-非空但指错的行。
+`:163` 被两份说明同时引用。11 条里 7 条原文落在空行；其余 4 条是非空但指错的行——3 条在验证状态表里，
+1 条是 record 文件的 `mcp.py:67`。
 
-**读者普查**：`scripts/doc_pointers.py` 只解析 `docs/` 与 README 的指针；`tests/` 下
+**读者普查**：`scripts/doc_pointers.py` 只解析 `docs/` 与 README 的指针；本批之前，`tests/` 下
 没有任何门读 `path:line` 的语义（`test_a_per_span_answer_re_scans_no_whole_document_ruler.py`
 引用 `scripts/doc_pointers.py:503` 是在测它，不是读测试说明）。判据自己的说明在
 `tests/` 里第一次成为「引用有读者」的反例载体——这也是 A5 臂后来踩到的地方。
@@ -38583,3 +38583,46 @@ A8 修完测量更准。
 测试侧余账新开一条（编号与 M8-T562 一起立）：**10 条 drift 与 27 条 unpinned 的读法
 批次**——把一个句子说的「那一行」读出来，并决定哪些概念型引用值得升级成字面 token。
 不排在 M8-T561 之前：同一族的「行号引用」问题应该先把文档侧判完，再回测试侧收尾。
+
+### 8 落盘复量
+
+落盘两笔：代码 `dbfc403`、记录 `7bd69c4`（ROADMAP +204 行、14,055 B）。随后同三面在
+**交付字节**上重跑（`Temp/t654_chain541b.py`，仍然一次一面）。
+
+名册**重新派生**而不是沿用第一轮（`Temp/t651_rosters541b.py`，谓词与解析器与第一轮逐字相同）：
+mention 29、impacted 338、doc 16、nb 30、并集 370，与第一轮**逐名相同**（增 0、删 0），
+全部 tracked。
+
+分母同样先收（`Temp/t652_collect541b.py`，只收集不执行）：**298 / 3,390 / 261**，
+与第一轮逐 id 相同，added 0 / removed 0——记录那笔只往文档里加了 204 行正文，没有加任何
+测试模块。
+
+预测写在 `Temp/t653_predictions541b.md`，落笔早于派生、分母与任何一次第二轮 pytest。
+
+| 面 | 预测 | 实测 | rc | 墙钟 | 树 |
+|---|---|---|---|---|---|
+| `nb541b` | 298 passed, 0 skipped, 0 failed | 298 passed, 0 skipped, 0 failed | 0 | 71.64 s | `041b8f1caea7423f` |
+| `im541b` | 3,387 passed, 3 skipped, 0 failed | 3,387 passed, 3 skipped, 0 failed | 0 | 1,286.90 s | 同上 |
+| `doc541b` | 261 passed, 0 skipped, 0 failed | 261 passed, 0 skipped, 0 failed | 0 | 287.97 s | 同上 |
+
+junit 合计 `tests=298 / 3,390 / 261`、`failures=0`、`errors=0`、`skipped=0 / 3 / 0`、
+通过合计 3,946；三条 skip 只有两个文件里的三个名字，与预测逐字相同：
+`test_slash_commands.py` 的两条
+`test_skill_links_cannot_expose_files_outside_the_catalog[file-project]`/`[file-user]`
+（`WinError 1314`），以及 `test_what_a_review_of_this_batch_found.py` 的
+`test_a_diff_over_a_path_outside_the_workspace_does_not_raise`（`symlinks unavailable`）。
+三面开跑前与收尾都读到 `tracked=653`、同一指纹 `041b8f1caea7423f`、`at_rest=yes`——这一轮
+评的是记录提交之后的那棵树，中途没有人动过它。
+
+本批新判据的 6 条腿在 `nb541b` 与 `im541b` 两面都被逐条跑到（腿名从 junit 现读，6/6 齐全）。
+名册与 junit 两向对账：`nb541b` 30/30 份文件都交了腿；`im541b` 370 份里 369 份交了腿，
+唯一没交的是共享夹具 `tests/_silence_reason_shared.py`；`doc541b` 16/16。反向：三面 junit 里
+都没有一份名册外的文件。**没有预测之外的红。**
+
+交付树上的 `--check`（含本节的字节）rc=0：页脚 948 个「见」标记、23 条链接、
+4,138 个证据指针，over 653 tracked files（第五百四十批交付时是 946 / 23 / 4,116 / 652）。
+墙钟只作记录（同一面两轮 67.77 s / 71.64 s、1,582.28 s / 1,286.90 s、352.18 s / 287.97 s，
+差别来自宿主负载），判据取 rc 与 junit，不取秒数。
+
+复读记录时订正 §2 两句：4 条非空指错行不是全在验证状态表里（3 条在表里，1 条是 record
+文件的 `mcp.py:67`）；「`tests/` 下没有任何门读 `path:line`」补上时态「本批之前」。
