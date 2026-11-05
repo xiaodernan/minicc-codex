@@ -136,12 +136,12 @@ def _annotate(token: str, status: str, reason: str) -> dict[str, Any]:
 def _attribute(value: str) -> str:
     """The one escaping of a name interpolated into a ``path="..."`` attribute.
 
-    The block is XML-shaped evidence (M8-T547): the scanner keeps ``"``, ``&``,
-    ``<`` and ``>`` inside a token, and on the un-converged side the reported
-    path **is** that token.  Interpolated raw, a quote closes the attribute and
-    every reader - the model included - gets half the name.  File bodies and the
-    two note sentences are prose, not attributes; a body keeps its text apart
-    from the block's own markup tokens, which ``_body`` folds (M8-T551).
+    The ``<file ...>`` element is XML-shaped evidence (M8-T547): the scanner keeps
+    ``"``, ``&``, ``<`` and ``>`` inside a token, so a raw quote closes the attribute
+    and every reader gets half the name.  It is **not promised well-formed
+    XML** (M8-T557): only the attribute is escaped, so a body's bare ``&``/``<``
+    makes a strict reader reject it; bodies keep their bytes (M8-T554).
+    File bodies and the two note sentences are prose, not attributes.
     """
     return (
         value.replace("&", "&amp;")
