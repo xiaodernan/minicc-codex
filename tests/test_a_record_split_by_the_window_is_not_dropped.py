@@ -12,6 +12,7 @@
 修法：窗口第一行是不是整条，由窗口前一个字节决定（换行=边界），不再由「这行
 能不能解析成对象」猜。整行但不是记录的行照常进 `audit_unreadable_lines`；被切开
 的记录尾巴仍丢掉（它的开头在窗外），但 `audit_records_split` 说有一条没读全。
+切点正好落在行终止符上时，窗口第一行是空串——那是边界，不是残片（F8/F9）。
 """
 
 from __future__ import annotations
@@ -93,6 +94,26 @@ def _boundary_trail() -> tuple[list[bytes], int]:
     return [_filler() * 1000, whole, _filler() * after], 1000 * 64
 
 
+def _terminator_trail(crlf: bool) -> tuple[list[bytes], int]:
+    """切点正好落在记录末尾的行终止符上：LF 的那个 LF，或 CRLF 的那个 CR。"""
+    unit = 65 if crlf else 64
+    term = 2 if crlf else 1
+    fill = _filler()
+    if crlf:
+        fill = fill.replace(b"\n", b"\r\n")
+    rest = TAIL - term
+    width = 0
+    while True:
+        blob = _delete("gone" + "x" * width + ".md")
+        if crlf:
+            blob = blob.replace(b"\n", b"\r\n")
+        if len(blob) % unit == rest % unit:
+            break
+        width += 1
+    after = (rest - len(blob)) // unit
+    return [fill * 1000, blob, fill * after], 1000 * unit - term
+
+
 def test_a_record_cut_by_the_window_is_counted(tmp_path: Path) -> None:
     blobs, cut = _split_trail()
     workspace = _workspace(tmp_path, "split")
@@ -117,6 +138,22 @@ def test_a_whole_record_at_the_window_start_is_not_called_split(tmp_path: Path) 
     assert any(path.startswith("gone") for path in paths), summary["files"]
     assert summary["audit_unreadable_lines"] == 0, summary
     assert summary["audit_bytes_unread"] == size - TAIL, summary
+
+
+def test_a_window_that_begins_on_a_terminator_is_not_called_split(tmp_path: Path) -> None:
+    """F8/F9：切点落在行终止符上——第一行是空串，但没有记录被切开。"""
+    for crlf in (False, True):
+        blobs, cut = _terminator_trail(crlf)
+        workspace = _workspace(tmp_path, f"terminator-{crlf}")
+        size = _write(workspace, blobs)
+        summary = _summary(workspace)
+        assert size - TAIL == cut, (crlf, size, cut)
+        assert summary.get("audit_records_split", 0) == 0, (crlf, summary)
+        assert summary["audit_unreadable_lines"] == 0, (crlf, summary)
+        assert any(
+            item["path"].startswith("gone") for item in summary["files"]
+        ), (crlf, summary["files"])
+        assert summary["audit_bytes_unread"] == size - TAIL, (crlf, summary)
 
 
 def test_a_whole_line_that_is_not_a_record_is_counted_as_unreadable(tmp_path: Path) -> None:

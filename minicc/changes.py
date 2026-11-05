@@ -435,8 +435,11 @@ class ChangeInspector:
             # whole line that is not a record is no longer mistaken for that
             # fragment: it goes through the parser and is counted as unreadable.
             self._audit_records_split = 0
-            if start and prev == b"\r" and lines and not lines[0]:
-                # The window begins on the LF half of a CRLF terminator.
+            if start and lines and not lines[0]:
+                # The window begins on a line terminator - an LF, or one half
+                # of a CRLF pair.  The record before it ended where the window
+                # begins, so nothing was cut in half; the empty line carries
+                # no record and is not counted as unreadable either.
                 lines = lines[1:]
             elif start and prev not in (b"\n", b"\r") and lines:
                 lines = lines[1:]
