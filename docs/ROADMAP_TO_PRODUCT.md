@@ -38117,3 +38117,221 @@ junit 合计 `tests=174 / 3,133 / 261`、`failures=0`、`errors=0`、`skipped=0 
 4,106 个证据指针，over 651 tracked files。这组数比记录落盘前（931 / 23 / 4,089 / 650）大：差的那一份
 就是本批记录自己写的正文加新判据被跟踪这一件事——不是缺陷，也不许被哪道门钉成精确值；
 预测文件里点名要归因的正是这一类，而这一轮没有任何门因为这几个数变红。
+
+## 第五百四十批 — M8-T557 — 「块是 XML 形的」这句话的射程：元素与属性，不是整块
+
+### 1 缺陷
+
+被判的是 shipped 说明里的一句话：`minicc/mentions.py` 的 `_attribute` 开头写
+「The block is XML-shaped evidence (M8-T547)」。主语是**整块**。
+
+第五百三十八批在 §2 量到：普通语料 17 条正文里有 9 条让严格读者 raise，因为 `_body`
+只折四枚标记，裸 `&` 与裸 `<` 原样进块。那一批把这条事实记进 §6 第 4 项、留给本批
+判（「要么给块加一层真正的转义，要么把声称降级并写明代价」）。但它没有回答一个更
+前面的问题：**这句话到底有没有读者**。仓库里没有任何门断言「块 / 元素 / 属性」三者
+中哪一个是 XML 形的，也没有任何门把「正文保字节」与「整块可解析」的取舍钉在一起。
+
+按本弧的判法（第五百三十八批的 L7/L8：说明里的声称必须有腿读它），一条没有读者的
+声称会和代码脱钩：下一次有人给正文加转义、或反过来把说明改回「整块」，都无人拦。
+
+### 2 量到的真相
+
+读的是交付字节（HEAD `7ffe488`；`Temp/t603_measure557.py`，读数
+`Temp/t603_measure557.log`）。
+
+**普通语料**。仍由 `git ls-files minicc scripts` 里含 `&` 的行按桶派生：45 行、7 桶、
+17 条正文。严格读者 parse 8、raise 9、readers-disagree 0——与第五百三十八批的读数
+逐数相同。九条 raise 的正文全部含 `&`：三条裸 `&`、三条 `&&`、两条 `&amp;` 拼法、
+一条 `&lt;` 拼法；最小的 offender 是 `value.replace("&", "&amp;")`。
+
+**正文形状五格**：plain parse；bare-amp raise（invalid token）；bare-lt raise
+（mismatched tag）；valid-entity parse；folded-marker parse。`<` 与 `&` 是两条不同的
+破坏路径：前者开一个渲染器从未发射的元素，后者让实体解码器拒绝整块。
+
+**读者普查**：`minicc` **0** 份、`scripts` **0** 份导入 XML/HTML 解析器；`tests` 5 份，
+全部是 mention 家族判据。其中 5 处 `ET.fromstring("<root>"+block+"</root>")` 读**整块**
+（4 份文件），1 处只读单个 `<file>` 元素（`test_a_path_with_a_quote_still_round_trips_
+through_the_block.py:137`）。读整块的 5 份，正文都把元字符写成实体拼法，所以读得下。
+
+**声称的载体**只有一处：`minicc/mentions.py:139` 的那句话；`minicc` / `scripts` 里没有
+任何「well-formed」「良构」字样。**属性侧五格**（`a&b.txt`、`a<b>.txt`、`a>b.txt`、
+`x&y".txt`、`p&q.txt`）严格读者都 parse 并逐字拿回 path。
+
+判：这不是「再修一处转义」。给正文加真转义就是第五百三十八批量过的 D3——把每个普通
+`&` 重写，「普通正文逐字节回来」那一族判据会红；仓库已经在那一批选了正文保字节。而
+整块可解析与正文保字节在 XML 里不可兼得：裸 `&` 与裸 `<` 正是破坏解析的两个字符，
+CDATA 也挡不住 `]]>`。所以本批**不加转义层**，把声称从「块」窄到「元素/属性」，并把
+代价钉成可执行的断言。
+
+### 3 落地
+
+1. `_attribute` 的说明（`minicc/mentions.py:136-145`）。**逐行等长**：改前改后都是
+   422 行的文件、这段都是 9 行（签名、摘要、空行、6 行正文、闭合）。理由：文件里有
+   6 处 `mentions.py:<行号>` 引用（`docs/ROADMAP_TO_PRODUCT.md` 三处：
+   `:213/225` 出现两次、`:292/294/305` 出现两次；`tests/test_a_mention_record_names_
+   the_file_it_resolved_to.py` 的说明同样两对）。新增一行就会把它们整体挪位，而
+   `doc_pointers` 只查得到「指向的文件存在、行号在界内」，查不出「那一行已经不是被
+   引用的那句」——挪位是无声的（M8-T561 立案的正是这类漂移）。等长改法让六处引用原地
+   不动，`sed -n '213p;225p;292p;294p;305p'` 改前改后逐字节相同。
+
+   新说明的三句被判：①`The ``<file ...>`` element is XML-shaped evidence`（主语从块
+   改成元素）；②`It is **not promised well-formed XML** (M8-T557)`（写明代价与批次）；
+   ③`bodies keep their bytes (M8-T554)`（写下取舍的另一半）。说明里不抄 9/17 这类
+   读数——语料从源码现推，数字会随无关编辑腐坏；判据钉机制，记录才写这一天的读数。
+
+2. 新判据 `tests/test_the_block_promises_xml_only_where_it_escapes.py`，8 条腿：
+   正文裸 `&` raise / 裸 `<` 开结构 raise（各带实体拼法的对照）；宽恕读者继续读；
+   属性四枚元字符各自 parse 且往返；正文区域逐字节等于磁盘字节；`_body` 普通正文
+   原样、标记照折；`minicc` 零 XML 解析器（带正向对照与非空人口）；说明的三句。
+
+3. 产品行为零变化：只有一处 docstring 变窄。`_STRUCTURAL_TOKENS`、`_body`、
+   `_attribute` 的行为与行号一律未动。模块字节：18,885 B `d162828b7e5a` →
+   18,882 B `f52fdca795597520`（−3 B，全部在说明里）；LF 形
+   `5b3231acb057` 18,463 B。
+
+### 4 变异验证
+
+预测写在电池任何一次运行之前（`Temp/t605_arm_predictions557.md`）。每条臂只改一处
+产品字节，跑新判据一份文件，还原后要求 sha256 回到 `f52fdca795597520`
+（`Temp/t605_arms557.py`，读数 `Temp/t605_arms557.log`）。**12 个配置全部 MATCHED，
+0 处未还原。**
+
+| 臂 | 改动 | 预测红 | 实测红 |
+|---|---|---|---|
+| A0 | 不动 | 0 | 0（8 passed） |
+| A1 | 说明换回「The block is XML-shaped」旧句 | 1（第 8 条） | 1（同） |
+| A2 | 属性 `&` 行改恒等 | 1（第 4 条） | 1（同） |
+| A3 | `_body` 表首插 `("&","&amp;")`（D3 一刀） | 4（1、2、5、6） | 4（同） |
+| A4 | `_body` 表删 `</file` 行 | 1（第 6 条） | 1（同） |
+| A5 | `_body` 表首插 `("<","&lt;")` | 3（2、5、6） | 3（同） |
+| A6 | 属性 `"` 行改恒等 | 1（第 4 条） | 1（同） |
+| A7 | `minicc` 顶部加 `import xml.etree.ElementTree` | 1（第 7 条） | 1（同） |
+| A8 | `not promised well-formed` → `not promised valid` | 1（第 8 条第二句） | 1（同） |
+| A9 | `_body` 遇含 `&` 正文直接返回空串 | 5（1、2、3、5、6） | 5（同） |
+| A10 | 说明加回旧句、保留新句 | 1（第 8 条第三句） | 1（同） |
+| A11 | 属性 `<` 行改恒等 | 1（第 4 条子串断言） | 1（同） |
+
+A1/A8/A10 分别打说明那三句；A2/A6/A11 分别打属性四行里的 `&`、`"`、`<`；A3/A5 是
+两种「错误地给正文加转义」，代价腿（第 5、6 条）必红；A9 是「清空正文让 XML 过」的
+极端修法；A7 证明第 7 条腿读的是生产模块的导入面。第 3 条腿由 A9 打红（清空后正文
+片段消失），第 2 条腿由 A3/A5/A9 打红，第 1 条由 A3/A9 打红——八条腿都有臂。
+### 5 门禁
+
+三面在**尚未提交的交付字节**上跑第一轮（说明窄化与新判据此时都还在工作树里），一次只跑一面——
+第五百三十七批 §6 第 3 项那条律：语料腿自带挂钟上限，并发会让腿互相抢算力。链是
+`Temp/t609_chain540.py`，每面的壳是 `Temp/t543_run.py`，它打印名册大小、开跑前后的树指纹与
+被评的子进程自己的 rc。
+
+**这一轮先修量具，再读数。** 第一次 `nb540` 读出「471 passed, 1 failed, 8 errors, 1 skipped」，
+九条红全在 `tests/test_packaging.py`，错误文本一律 `ModuleNotFoundError: No module named 'setuptools'`；
+而 539 的 `Temp/t576_im539.xml` 里同一个文件 13 条腿全过（含 `test_installed_console_scripts_run_from_a_real_install`
+45.386 s）。归因是量出来的：首跑前后树指纹同为 `609e84225cb8c40c`、`at_rest=yes`，仓库字节没动；
+共享 venv（`D:\面试项目\.venv`，uv 3.12.13）在这两天之间被别道 prune，`pip` 与 `setuptools` 一起消失。
+修复全在量具侧，仓库零改动：`uv pip install setuptools`（84.2.1）后 11 passed / 2 failed；
+再 `uv pip install pip`（26.3），并给三面加
+`PYTHONPATH=D:\面试项目\.venv\Lib\site-packages`——packaging 的真实安装腿用
+`python -m venv --system-site-packages` 建嵌套 venv，依赖从**解释器的 base** 继承；CI 的解释器
+就是 base（setup-python 3.11 + `pip install -e .[dev]`），而本地围栏解释器是 virtualenv
+（base 是空的 uv 3.12）⇒ 嵌套 venv 看不到 `openai`。PYTHONPATH 把外层 venv 的运行期依赖借给
+嵌套 venv，模拟 CI 的 system-site 继承；两条腿先单独量过，**2 passed（151.54 s）**
+（`Temp/t615_pkg_pythonpath.log`）。首跑产物留档 `Temp/t609_nb540_instrument_gap.{xml,log}`，
+不进任何读数表——它量的是被 prune 的量具，不是交付字节。
+
+| 面 | 名册 | 文件 | junit tests | passed | failed | skipped | rc | 墙钟 |
+|---|---|---|---|---|---|---|---|---|
+| `nb540` | `t607_roster_mention.txt` | 37 | 481 | 480 | 0 | 1 | 0 | 681.85 s |
+| `im540` | `t607_roster_union.txt` | 350 | 3,221 | 3,218 | 0 | 3 | 0 | 2,302.39 s |
+| `doc540` | `t607_roster_doc.txt` | 16 | 261 | 261 | 0 | 0 | 0 | 437.95 s |
+
+三面读到同一棵树：`tree_before=tree_after=609e84225cb8c40c`、651 份被跟踪文件、`at_rest=yes`，
+所以三份读数评的是同一组字节，期间没有别道把提交写进我的工作树。
+
+对账（`Temp/t609_fence_predictions540.md` 的「量具修复后的重预测」段写于第二次链启动之前）：
+
+- **三个分母逐面命中预测**：481 / 3,221 / 261。首跑那份被 prune 的量具上也收到 481——分母在
+  两种量具上一致，收集从未缺过一份文件。
+- **skip 共 4 条、只有 3 个名字**，全部是主机没有创建符号链接的特权：
+  `test_skill_links_cannot_expose_files_outside_the_catalog[file-project]` 与 `[file-user]`
+  （`tests/test_slash_commands.py`，本机 `WinError 1314`）、
+  `test_a_diff_over_a_path_outside_the_workspace_does_not_raise`
+  （`tests/test_what_a_review_of_this_batch_found.py`，它在 `nb540` 与 `im540` 两面都在名册里，
+  所以各跳一次）。前两个名字与 539 的三条 skip 中的两个逐字相同；第三条 539 也有。
+- 本批新判据的 8 条腿在 `nb540` 与 `im540` 两面都被逐条跑到（腿名从 junit 现读，8 条齐全）。
+- 名册与 junit 两向对账：`nb540` 37/37 份文件都交了腿；`im540` 350 份里 349 份交了腿，唯一没交的
+  是 `tests/_silence_reason_shared.py`（夹具共享模块，不是名册漏收）；`doc540` 16/16。
+  反向：三面 junit 里都没有一份名册外的文件。
+- **没有预测之外的红。** 三面合计 3,963 条腿（3,959 passed + 4 skipped）、0 failed、0 errors。
+
+落盘（代码一笔、记录一笔）之后，同三面在交付字节上重跑一轮，读数进下面「### 8 落盘复量」。
+### 6 边界
+
+1. **不声称模型「按元素读」块。** 模型读的是散文；本批钉的是两个程序读者
+   （`ElementTree` 与 `html.parser(convert_charrefs=True)`），以及生产模块的导入面。
+2. **「没有生产读者」是按导入面量的**：`git ls-files minicc` 里没有 XML/HTML 解析器
+   导入。动态导入（`importlib.import_module("xml…")`）、别名到 `__import__` 的路径、
+   子进程里的外部工具都不在普查里；第 7 条腿只要看见一个声明式导入就红，逼下一次
+   决定，而不是声称数据流已被证明。
+3. **不钉 9/17 这个数。** 语料从 `git ls-files minicc scripts` 的含 `&` 行现推，源码
+   一变它就变。判据钉机制（裸 `&`/`<` → raise；实体拼法 → parse），记录才写这一天的
+   读数。第五百三十八批的 9/17 与本批复量的 9/17 两次独立读数相同，但这不构成钉死它
+   的理由。
+4. **等长改法只保护 `_attribute` 之后的引用。** 在 `_attribute` 之前插入一行，六处
+   `mentions.py:<行号>` 引用一样会漂；`doc_pointers` 只查存在与界内，查不出「那一行
+   已不是被引用的那句」。本批不做全仓的行号引用普查——那是 M8-T561。
+5. **不声称「块不是 XML 形的」。** 干净正文的整块可以 parse（第 1、2 条腿各带实体
+   拼法的对照）；被窄化的是**承诺**，不是形状。`<file>` 元素与属性仍然是 XML 形的，
+   属性四枚元字符各过一行转义。
+6. **宽面 350 份是这个批次的读数，不是一条门。** 它比 539 宽面多 6 份：5 份是 539
+   的谓词收不到的旧文件、1 份是本批新判据；宽面没有丢 539 的任何一份，且
+   `test_no_document_quotes_a_content_addressed_bundle.py` 被显式加入——这正是
+   M8-T562 立案的两向对账，本批仍按手做（`Temp/t607_rosters540.py` 打印 dropped 与
+   gained）。门还没立。
+7. **第一次先红读数里，行为腿的红是量具错。** 第一版判据把 `ET` 的 `.text`（含渲染器
+   自己的首尾换行）直接与磁盘字节比、又按 `status=="injected"` 读注入侧元素（注入侧
+   只有 `path`），于是 3 条行为腿红。改成按块自己的框架读、按元素真实形状读之后，
+   交付字节上只剩说明那一句红。归因写在 `Temp/t604_predict557.md` 里，逐条列出。
+8. **本批有两次围栏被提前终止，都作废、都不进任何读数表。** 第一次是 `nb540` 跑到
+   103 条时我开始改未跟踪判据的说明（未跟踪文件不在树指纹里，`at_rest` 抓不到它），
+   整面作废、`im540` 未开始即被杀。第二次在第一面完成之后：`nb540` 读出九条
+   packaging 红（全是 venv 缺 `setuptools`），`im540` 启动后被我停掉——它量的会是
+   同一把被 prune 的尺子。两次的首跑产物分别留在当时的日志与
+   `Temp/t609_nb540_instrument_gap.{xml,log}` 里；正文的读数只取修复量具之后的完整链。
+9. **量具被外来变动 prune 过，修的是量具不是仓库。** 539 的 `Temp/t576_im539.xml` 里
+   `tests.test_packaging` 的 13 条腿全过（含真实安装腿 45.386 s）；本批首跑同一文件
+   九条红全部是 `ModuleNotFoundError: No module named 'setuptools'`，而首跑前后树指纹
+   同为 `609e84225cb8c40c`、`at_rest=yes`。共享 venv（`D:\面试项目\.venv`，uv 3.12.13）
+   在这两天之间被别道 prune，`pip` 与 `setuptools` 一起消失。修复三步都只动量具：
+   `setuptools` 84.2.1；`pip` 26.3（真实安装腿要 `sys.executable -m pip install --target`，
+   此前 venv 连 pip 都没有）；以及给三面加
+   `PYTHONPATH=D:\面试项目\.venv\Lib\site-packages`——packaging 的嵌套 venv 用
+   `--system-site-packages` 从**解释器的 base** 继承依赖，CI 的解释器就是 base
+   （setup-python 3.11 + `pip install -e .[dev]`），本地围栏解释器是 virtualenv
+   （base 是空的 uv 3.12）⇒ 嵌套 venv 看不到 `openai`。这条边界值得单列：围栏指纹
+   只看得见被跟踪的仓库字节，看不见 Python 环境；别的道 prune 一次 venv，门照样
+   「跑完」，但尺子已经量不到一部分套件。
+10. **PYTHONPATH 是模拟，不是 CI 本身。** 它把外层 venv 的运行期依赖借给嵌套 venv，
+    与 CI 从 base 继承同一套包；先查过遮蔽（该 site-packages 里没有 `minicc`、`tests`、
+    `scripts`、`conftest` 同名包），反空转腿仍要求 `minicc` 解析到 wheel 内部；两条
+    修复后的 packaging 腿在整面重跑之前单独量到 2 passed（151.54 s，
+    `Temp/t615_pkg_pythonpath.log`）。packaging 的权威读数仍是 CI 的 3.11 作业，
+    本机这三面只证明「本批改动没有让这 350 份名册里的任何一条腿改变判决」。
+
+### 7 下一单位
+
+按 539 §7 的排期，本批结掉了第 1 项（M8-T557）。下一批从第 2 项开始：
+
+1. **M8-T558**：`tests/*.py` 的说明普查——哪些说明里的声称没有任何腿读它，先把人口
+   量出来。
+2. **M8-T561**：行号引用漂移。已知读数：25 处引用里 12 处逐字命中、9 处漂（+5/+11）、
+   4 处指向空行。本批的等长改法只证明「不动行号」是可能的，没有解决漂移本身。
+3. **M8-T562**：宽面单调增长门＋文档读者门。本批手做了「344 一份不丢、新增 6」与
+   bundle 门入宽面；下一批把它变成断言，否则下一轮还会靠记忆。
+4. **M8-T559**：口径交换＋对 537 的 C5 与本批 BOUND 的强制重分类。
+5. **M8-T560**：`sections` 仍是最大的一笔前缀账单（6,710 次里 3,252 次问的不是被检
+   文档自己的字节）。
+6. **M8-T550、M8-T544、M8-T545、M8-T546**：仍是各自的旧账，顺序不变。
+
+量具一侧新开一条：**围栏开跑前先验量具**（`pip`/`setuptools` 在不在、packaging 的
+嵌套 venv 能不能看到运行期依赖）。本批的教训是它不会被树指纹抓到；要不要把它写成
+链脚本里的一个前置探针，留给 M8-T562 一起判——那条门本来就要管名册与读者，量具
+普查是它的同族问题。
