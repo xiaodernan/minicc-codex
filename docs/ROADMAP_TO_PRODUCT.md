@@ -37462,3 +37462,306 @@ pytest 输出整份在 `Temp/t561_arms.log` 里，`Temp/t561_regrade.py` 直接�
    问两次 `tool_denied_by_rule` ⇒ N 个技能付约 4N 次 stat。
 5. M8-T545（第五百三十批 §7 留下，尚无门）：`i/crlf`/`i/mixed` 与 `\r\r\n` 的自检盲区。
 6. M8-T546（第五百三十批 §7 留下）：`.github/workflows/ci.yml:288` 的内联断言只读比率不问口径。
+## 第五百三十八批 — M8-T554 — 折回的恒等式只到第 1 层：说明里那句「每个 token 都得回原字节」被 0—4 层的扫描否掉了
+
+### 1 缺陷
+
+`minicc/mentions.py` 的 `_body` 说明里有一条不带层级限定的声称（旧字节 `:176-178`）：
+
+    Ordinary code keeps its bytes - only the tokens above are folded, each folds back for
+    a reader, and the fold runs on bodies only, so the renderer's own markers stay raw.
+
+写下它的那笔不是第五百三十六批——`git log -S "each folds back for a reader"` 只点出 `5352b0d`
+（第五百三十四批 M8-T551）。第五百三十六批 `3a8f1d6` 把 `&#91;truncated&#93;` 这一类**实体形**
+加进折表下方，把这句话所描述的表从 4 行长成 8 行，却没有回头改这句话本身。
+
+`each folds back for a reader` 读起来是一条**层级无关**的声称：表里每个 token 折出的那一层，
+读者解码一次就得回写它的那个正文自己的字节。写下这句话的时候，仓库里量过的只有两层——
+第五百三十六批的 `test_a_body_at_the_second_level_lands_one_level_up` 钉住了第 2 层会升回第 1 层，
+第 3 层往上没有任何腿，也没有任何人问过「这张 8 行的表究竟够得着多深」。
+
+正文能写的拼法没有上界：文件既可以写 `</file`，也可以写 `&lt;/file`（表的原形行折出来的那一层），
+还可以写 `&amp;lt;/file`——那是表第一条行的**输出**，而在交付的 8 行表里它不是任何一行的**键**，
+所以从这一层往上没有任何行管得着，只能靠表自己在实体行里用的那个 `&`→`&amp;` 折一层层加下去。
+于是缺陷有两处，一处在字节一处在词上：
+
+1. 说明过宽。被指控的那句话不是行为，而是 shipped 注释里对行为的一条声称；按本弧一直用的判法，
+   注释里的声称必须有腿读它，否则它就和代码脱钩了。本批把这条判法落成 L7、L8 两条腿（见 §3）——
+   第五百三十四批写下那句声称的时候，并没有给它配过读者。
+2. 恒等式的**射程**没有任何腿钉。0 层与 1 层由第五百三十四/五百三十五/五百三十六批的腿钉着，
+   第 3 层往上完全没人量——所以「修好它」还是「接受它」在这个仓库里连证据都还没有。
+
+### 2 量到的真相
+
+层级律（`Temp/t557_law.py`，读的是 `D:/面试项目/t557-plane` 那份模块——扫描发生在改说明之前，
+而本批只改说明，`_STRUCTURAL_TOKENS` 前后一字未动，所以这张表就是交付字节里的那张表；
+读数 `Temp/t557_law2.log`）。四枚标记
+`</file`、`<file`、`[用户引用文件]`、`[truncated]` 各扫 0—4 层，共 20 块，每块都过两个读者
+（宽容读者 `html.parser(convert_charrefs=True)` 与严格读者 `xml.etree`）：
+
+| 正文写的层 | 一次解码后块里读到的层 | verbatim | 块里多出的原形字节 |
+|-----------|----------------------|----------|------------------|
+| 0 | 0 | True | 0 |
+| 1 | 1 | True | 0 |
+| 2 | 1 | False | 0 |
+| 3 | 2 | False | 0 |
+| 4 | 3 | False | 0 |
+
+四枚标记二十行读数一模一样（第 0 层的 `extra_folded_spellings=1` 是渲染器自己那枚标记，
+`[truncated]` 一列在干净块里是 0 次，其余三枚是 1 次），且 `every swept block parses and
+yields one <file>: True`。律是：**0 层与 1 层逐字节回来；d ≥ 2 的正文一次解码升一级，
+既不会掉回原形标记，也拿不回自己的字节**。
+
+第一次扫描（`Temp/t557_law.log`）连 0/1 层都读成 `verbatim=False`——二十行全 False，与本批
+已在仓库里的腿直接矛盾。错在量具：`Temp/t557_law.py:95` 那行比较时，块内文本 `strip("\n")`
+剥了首尾换行，而正文 `body` 自己那个行尾换行没剥（改后两边都剥）。差的就是一个换行。
+**一条与既有判据矛盾的读数先怀疑量具**，这条流程第一次救回的不是结论而是量它的尺。
+
+两种「修好它」的设计也量了，不是想当然（`Temp/t557_measure.py`，读数
+`Temp/t557_measure.log`、`Temp/t557_measure2.log`；对已发货判据的影响 `Temp/t557_gates.log`）：
+
+- **D2 = 12 行表**（给每枚标记再加一条「二层→三层」的行）。对抗语料从 0—2 层扫到 0—3 层时，
+  D1 的 not-verbatim 从 8 涨到 16，D2 也从 0 涨到 8——加高一层之后新一层照样被扫到，
+  墙只是挪高了一层，不是被拆掉。
+  跑已发货的三条折形判据：**6 failed, 26 passed**，红的全是表宽/表形状的地板腿
+  （`test_the_fold_table_is_exactly_as_wide_as_the_block`、`test_the_structural_tokens_have_one_table`、
+  `test_no_fold_row_marks_a_marker_the_block_never_emits`、`test_the_fold_table_covers_every_spelling_the_block_can_carry`）。
+- **D3 = 5 行表**（`("&", "&amp;")` 排在四枚原形之前，即属性侧的第一步）。它确实让恒等式变成
+  层级无关：对抗语料 not-verbatim 0，普通语料 not-verbatim 也从 7 归 0。代价是块里每个 `&` 都被重写：
+  普通语料 17 条正文里 `&amp;` 由 12 处涨到 34 处（正文自己就有 34 个 `&`），
+  全仓普查 3,188 个 `&` 分布在 97 / 648 个文件里，最密的 `web/assets/app.ce175ce422caa991.js` 一个文件 746 个。
+  跑已发货判据：**13 failed, 19 passed**，红的正是「普通代码保持字节」那一族腿
+  （`test_ordinary_ampersands_keep_their_bytes`、`test_an_ordinary_body_still_lands_byte_for_byte`、
+  `test_bracketed_words_that_are_not_the_marker_stay_byte_for_byte`）。
+  也就是说：仓库早就在「正文保持字节」和「块是良构 XML」之间选了前者，D3 是把这笔选择翻过来，
+  不是免费的加严。
+- 顺带量到一条**本批不动**的事实，单独记进 §6 第 4 项：普通语料 17 条里 9 条让严格读者 raise
+  （D1 与 D2 同为 9，D3 降到 2），因为 `_body` 只折表里四个 token，裸 `&` 与裸 `<` 原样进块；
+  两个读者之间 `readers-disagree` 恒为 0（严格读者能 parse 时两者文本一致）。
+
+### 3 落地
+
+改动只有两处，都不动产品行为：
+
+1. `_body` 的说明换成量到的律（`Temp/t557_splice_docstring.py`）。新说明仍占同一段 docstring：定界符
+   在 `:167` 与 `:189`，中间 21 行正文（脚本对改前改后都数一遍，`len(body) == 21`）。
+   `minicc/mentions.py` 仍是 422 行、**0 行移动**——脚本先把锚点钉在
+   `_STRUCTURAL_TOKENS = (` 仍在 `:154`、循环两行仍在 `:190-191`，再重排；行号一挪就 refuse。
+   这么做的理由是仓库里确实有按行号读这份文件的声称：`docs/ROADMAP_TO_PRODUCT.md` 里与本批
+   无关的两条记录引用 `mentions.py:213/225` 与 `mentions.py:292/294/305`，
+   `tests/test_a_mention_record_names_the_file_it_resolved_to.py` 两处都引用同一对拼法，
+   而 `doc_pointers` 有一条腿按行号核对它点名的文件（`test_a_line_number_is_checked_against_the_file_it_claims`）。
+   模块字节：改前 `e36efd8e4e10` 18,832 B → 交付 `d162828b7e5a` 18,885 B（+53 B），LF 形 `a2df39a7af14` 18,463 B。
+   新说明里三处字面是判据要读的：L7 要看见 `levels 0 and 1` 与 `one level up`、并要看不见
+   `each folds back`，L8 要看见量这条律的判据文件名（`one decode lifts the body's copy exactly
+   one level up` 这整句在说明里跨了行，腿读的是它结尾那半截）。
+2. 新判据 `tests/test_a_body_that_writes_a_deeper_spelling_lands_one_level_up.py`，8 条腿
+   （`1943e362230d` 9,477 B / 215 行；草稿 `37a2443d4e3c` 9,406 B / 214 行，§4 会讲那一行怎么进去的；
+   最后 +13 B 是本批的律折回到这份判据自己的说明上，§5 讲）：
+
+   | 腿 | 钉什么 |
+   |----|--------|
+   | L1 `test_the_deeper_rows_are_the_same_ampersand_fold` | 对每枚标记各说一次：键为原形的那行折出的拼法，自己也作键存在于表里，而它的值就是那个键的 `&`→`&amp;` 折——本文件扫的梯子因此是表自己的规则，不是手写例子 |
+   | L2 `test_a_body_at_level_zero_or_one_decodes_back_to_its_own_bytes` | 恒等式成立的那两层，逐字节 |
+   | L3 `test_a_body_deeper_than_the_table_lands_exactly_one_level_up` | 射程之外：升一级，既不掉回原形也不是原字节 |
+   | L4 `test_no_level_leaves_a_raw_marker_in_the_block` | 字节轴：任何一层都不往块里送多余的原形标记，`truncated` 记录恒 False |
+   | L5 `test_every_level_keeps_the_block_one_file_element` | 结构轴：20 块都 parse，都只有一个 `<file path="f.txt">` |
+   | L6 `test_the_fold_owns_no_bare_ampersand_and_reaches_no_further` | 本批量过而没取的两个设计：表里没有裸 `&` 键、宽 8 行、第 3 层不在表里 |
+   | L7 `test_the_explanation_says_where_the_identity_stops` | 说明必须说「0 与 1」并说「升一级」，且 `each folds back` 不得回来 |
+   | L8 `test_the_explanation_names_the_leg_that_measures_the_law` | 注释里的测量边界必须点名量它的腿，否则数字会烂掉 |
+
+   阶梯由表派生：`_spelling(raw, depth)` 先查表，表里没有就用那四条「键自己已是折形」的行所用的
+   同一个 `&`→`&amp;` 折继续往下——所以扫到的每一层都是**文件真能写出来的拼法**，不是本文件发明的例子。
+
+改前先红（`Temp/t558_gate_prefix.log`，平面 = 改前字节 + 本批判据）：**2 failed, 6 passed**，
+红的正是 L7、L8——行为本来就对，错的是那句声称和「没人量过射程」这件事。
+落地后（`Temp/t562_gate_after.log`、`Temp/t562_shipped_gates.log`）：新判据 `0 failed, 8 passed`，
+已发货三条折形判据 `0 failed, 32 passed`。
+
+### 4 变异验证
+
+预测先写：`Temp/t558_arm_predictions.md`（标题已改回本批编号，第五百三十七批那一份是它的姊妹）。
+平面 = `git archive` 的 `bb1051f`，判据从工作树复制进去，每臂只替换 `minicc/mentions.py`，
+跑且只跑这一份判据。
+
+**先证平面，再信它评的东西。** 电池原本写着平面是 `3a8f1d6`（第五百三十六批）的归档——
+`Temp/t562_probe.py` 新加的 `prove_plane()` 把 `git archive` 的字节逐个比到磁盘，量出
+`plane: archive=649 files  on-disk=649  missing=0 extra=[]  differs=['minicc\\mentions.py']`
+（以 `bb1051f` 为参照），并证明 `bb1051f:minicc/mentions.py` 与 `3a8f1d6:minicc/mentions.py`
+是同一个 blob `067b6983f280`：第五百三十七批只动文档和两条围栏尺，一个 `minicc/` 字节都没动。
+所以 R 臂确实是本批的改前字节，而「平面 = 3a8f1d6」那句是错的标签——写错的标签不会让红假，
+但会让下一个读者去找一个不存在的树。电池自己也在跑之前重推一遍名册
+（`ref files=649 + the copied-in gate = 650 on disk`）。
+
+电池之前先做**进程内机理重推**（第五百三十七批的记录写着自己的教训：九臂里五条「从源码推理」的
+预测是错的，错只在机理跑起来之后才看得见）。`Temp/t562_probe.py` 不经 pytest：把每把刀写进平面、
+`importlib.reload` 重绑模块字典，再逐条直接调用这 8 条腿，只有 `AssertionError` 记为红，
+其余异常单独记 `CRASH` 当零证据。第一轮（`Temp/t563_probe.log`）9 个配置里 8 个与预测的红集一致，
+唯一差别是 A5 的到达形状：`L1 CRASH KeyError: '&lt;/file'`。
+
+这条判为**判据缺陷**，不改预测：L1 声称的是「表里那条更深的行就是第一行输出的折形」，
+可它靠一次查键替自己说话——五行表没有二层行，腿在断言之前就掉了。
+`Temp/t563_splice_gate.py` 在查键之前加一条 `assert first in keys, (raw, first, sorted(keys))`
+（判据 +58 B / +1 行，仍是 8 条腿；这块 `keys = _keys()` 在文件里不唯一，脚本按整块四行定位），
+改完在交付字节上复跑：新判据 `0 failed, 8 passed`。第二轮机理重推（`Temp/t563_probe2.log`）
+**9 个配置 0 条与预测不符**，且每处红都是 assert。
+
+九臂电池 `Temp/t558_arms.py` 的实测（读数 `Temp/t563_arms.log`，rc=0，平面模块收尾还原
+`d162828b7e5a` matches delivered=True）：
+
+| 臂 | 刀 | 预测红集 | 实测 | 读数 | 平面模块 |
+|----|----|----------|------|------|----------|
+| P | 交付字节 | 无红 | 无红 | 0 failed, 8 passed | `d162828b7e5a` |
+| R | `3a8f1d6` 的模块（改前说明） | L7 L8 | L7 L8 | 2 failed, 6 passed | `e36efd8e4e10` |
+| A1 | 八行顺序翻转（原形在前） | L2 | L2 | 1 failed, 7 passed | `660a522c03e2` |
+| A2 | `("&#91;truncated&#93;", "&#91;truncated&#93;")` 折成自己 | L1 L2 L3 L6 | 同 | 4 failed, 4 passed | `10ec65ecf49c` |
+| A3 | `("&#91;truncated&#93;", "[truncated]")` 折回原形 | L1 L2 L3 L6 | 同 | 4 failed, 4 passed | `dfbe408170a2` |
+| A4 | 十二行表（D2 的刀） | L3 L6 | 同 | 2 failed, 6 passed | `abee2cebd050` |
+| A5 | 五行表 `&` 在前（D3 的刀） | L1 L3 L6 | 同 | 3 failed, 5 passed | `92ac3b1b876b` |
+| A6 | 抹掉说明里的判据文件名 | L8 | L8 | 1 failed, 7 passed | `2ba2a59eebca` |
+| A7 | 把 `each folds back for a reader` 原样加回 | L7 | L7 | 1 failed, 7 passed | `a1e0b04ee024` |
+
+**arms: 9/9 MATCHED**，每臂 `valid=True`（failed+passed=8 且红名数与 failed 数相等）。
+§6 第 9 项那次自纠改的是这份判据自己的模块说明（+13 B），电池因此在交付字节上又跑了一遍
+（`Temp/t565_arms.log`，开头那句 `delivered gate sha=1943e362230d bytes=9477`）：九个配置的读数与
+上面那张表逐字相同，仍 9/9 MATCHED——「本批的红集不由量具的注释决定」这一条在这里是量出来的，
+不是推出来的。
+两处值得留在记录里的细节：
+
+- A2 与 A3 红集相同而机理不同（折成自己 vs 折回原形），本文件的四条轴分不开它们；
+  能分开的是第五百三十六批那条「块里每个折形恰指一次正文标记」的计数腿——本批故意不重复它，
+  两条判据合起来才把这张表围住。
+- A4/A5 是 §2 那两个被拒绝的设计的刀：它们的红集说，取 D2 会踩表宽与外推钉，取 D3 会同时
+  踩层级律、表宽与「不吞裸 `&`」——与本批独立量到的 shipped 判据红数（6 / 13）方向一致，
+  两条路都不许悄悄回来。
+
+### 5 门禁
+
+三道围栏的名单全部派生（`Temp/t563_rosters.py`：邻域按 `mentions|apply_mentions|build_mention_context`
+从 `tests/` 现读，impacted 由仓库自己的 `scripts/impacted_tests.py minicc/mentions.py` 列，
+文档面按 `ROADMAP_TO_PRODUCT` 现读），先收集后跑（`Temp/t563_fence_predictions.md` 在跑之前写好）。
+
+名单派生一次、三面各跑两次：九臂电池之后，按本批自己的律重读这份判据的模块说明，量出两处关于
+文件自身的假声称（§6 第 9 项），改完字节就变了——先前那三道围栏量的不再是交付字节。本批不按
+「一条注释影响不到谁」讲道理（§5 第 4 条那条红正是讲道理差点放过去的东西），而是三次收集与三道
+围栏在新字节上全部重来：`Temp/t565_fence_predictions.md` 写在复跑之前，下面这张表读的是复跑
+（`tree_before=85f523c399fb4a76`）。改注释之前那一套（`f9803944671d991a`：`Temp/t543_nb538.log`、
+`Temp/t543_im538.log`、`Temp/t543_doc538.log`、`Temp/t543_im538b.log`）不删，留在下面第 4 条里
+当 socket 那一族的红率证据与「为什么要复跑」的凭据。
+
+| 面 | 名单 | collected（新字节） | 跑前预测 | 实测（新字节） | log |
+|----|------|-----------|----------|------|-----|
+| neighbor | 36 文件（536 的 35 ＋ 本批判据） | 473 (23.10 s) | 472 passed, 1 skipped, rc=0 | **472 passed, 1 skipped in 963.85s (0:16:03)**，rc=0、`at_rest=yes`——与预测逐字相符 | `Temp/t543_nb538d.log` |
+| impacted | 331 文件（536 的 329 ＋ 本批判据 ＋ 537 那份 per-span） | 3024 (134.07 s) | 3021 passed, 3 skipped, rc=0 | **3021 passed, 3 skipped in 1760.32s (0:29:20)**，rc=0、`at_rest=yes`——与预测逐字相符，首轮那条 socket 红没有回来 | `Temp/t543_im538d.log` |
+| doc | 16 文件（与 536/537 同名册，diff 为空） | 261 (13.00 s) | 261 passed, rc=0 | **261 passed in 616.30s (0:10:16)**，rc=0、`at_rest=yes`——与预测逐字相符 | `Temp/t543_doc538d.log` |
+
+新字节上的三次收集与旧字节上的三次收集分母逐字相同（473 / 3024 / 261），这是那次改动
+（+13 B、0 行、`def test_` 仍 8）应有的样子；旧字节那一套的收集时间是 28.01 / 170.97 / 15.23 s。
+
+分母能整除：473 = 465 ＋ 8；3024 = 3011 ＋ 8 ＋ 5（`def test_` 数：本批判据 8、
+per-span 5；537 改过的 `test_the_two_readers_share_one_fence_ruler.py` 16 条腿在两批的名单里是同一份文件，
+不进差）。两套字节各自的所有收集与所有跑，`tree_before` 在套内逐字相同（旧 `f9803944671d991a`、
+新 `85f523c399fb4a76`），两段的 `tracked` 都是 650（HEAD 的 649 ＋ 已 stage 的本批判据）——
+复跑期间没有外来写入，所以两套都是有效读数，也只有两套各自内部可以互相比较。
+
+**那一条红，按跑前写下的四步次序归因**（不许反过来）：
+
+1. 原文点名的是 `tests/test_a_rejected_request_body_must_not_poison_the_connection.py::
+   test_a_chunked_body_is_refused_and_the_connection_is_not_reused`，`--tb=line` 只留一行：
+   `C:\Program Files\Python311\Lib\socket.py:706: ConnectionAbortedError: [WinError 10053]
+   你的主机中的软件中止了一个已建立的连接。`
+2. 不是外来写入：那一套字节上的三次收集与三次跑（外加下面第 4 条的复跑）树指纹同为
+   `f9803944671d991a`，跑完后再叫一次 `t543_run.fingerprint()` 仍是 `f9803944671d991a`、
+   `tracked=650`——所以 `at_rest=yes`，这次跑是有效读数，本批的 3024 分母也与名册一致
+   （多出的 8 条腿全绿）。新字节那一套同理，六个读数全是 `85f523c399fb4a76`。
+3. 本批的 delta 到不了它：改的是一段 docstring（产品行为一字节未动）加一份新判据，
+   两者都不碰 socket；这条腿与 `minicc/mentions.py` 之间只有 `impacted_tests.py` 的传递导入边。
+   §6 第 9 项那次自纠（判据说明里的两个词）同理——它连产品字节都没碰。
+4. 于是量了两件事而不是讲道理：**隔离复跑 5/5 绿**（首轮 31.14 s，其后四次各约 6 s，
+   三份断言每次都过），以及**整面复跑**拿红率（同一份名册、同一组参数；先在旧字节上复跑一次
+   `Temp/t543_im538b.log`，再在交付字节上跑 `Temp/t543_im538d.log`，两次都排在记录落盘之前，
+   以免文档面的语料腿读到两套字节）。旧字节那次：`roster=331`、`tree_before=f9803944671d991a`
+   （与首轮同一套字节）、**3021 passed, 3 skipped in 1856.18s (0:30:56)**、rc=0——那条腿这次绿了。
+   交付字节那次：`roster=331`、`tree_before=85f523c399fb4a76`（就是上面这张表的那套字节）、
+   **3021 passed, 3 skipped in 1760.32s (0:29:20)**、rc=0、`at_rest=yes`——也绿。
+   整面一共跑了三次（首轮加两次复跑），这条红出现 1 次，就是首轮那次。
+
+判语：这是那条腿自己那一族的瞬时红，不是本批的效应，也不是预测写反了方向。本仓库早就把这族
+病记在文档里——`docs/ROADMAP_TO_PRODUCT.md:662` 写 M3-T1 时正是为了让 Windows 不在
+「未读体即关连接」上抛 `ConnectionAbortedError`/WSAECONNABORTED，才把排空请求体挪到 Origin 校验
+之前；那条腿今天仍是「chunked 被拒且残留字节没有污染下一个请求」的见证
+（同一份文档 `:19865` 记着它的职责）。所以本批既不摘它、也不松任何断言、也不改预测去迁就实测；
+要把置信度抬上去只有复跑，复跑的读数与这条归因一起留在本记录里，供下一批核对。
+
+**第五百三十七批 §5 欠的「落盘后再量一次」，本批就是那份「下一批」**，读数在这儿：
+文档面 `Temp/t543_doc537b.log` = roster 16、`261 passed in 783.91s (0:13:03)`、rc=0，
+`tree_before=17a8ace3573c3184`——与 537 自己三道围栏那次的 `6cf0cebc99fb2633` 不同，
+正是记录落盘**之后**的一套字节（`Temp/t543_doc537.log` 与它并排读）。
+同一时刻的 `scripts/doc_pointers.py --check` 也跑了：`rc=0`，末行
+「checked 116 of 924 「见」 markers（checked=116 citation-without-locator=53 …
+word-interior=725），23 links (2 of them into git-ignored generated output) and 4061 evidence
+pointers (78 path claims sit outside code spans) in 20 documents … over 650 tracked files」
+（`Temp/t563_doccheck537pay.log`）。这一支量的确是「带 537 记录而不带本批记录」的字节：
+它跑在本批记录落盘之前、本批判据已进 index 之后，所以末尾那句 650 与上面三道围栏的 650 同源。
+
+**本批自己也欠同一笔**：上面 doc 面那 261 条跑在本记录落盘**之前**；落盘之后文档面与
+`--check` 必须再由下一批量一次（与 535/536/537 同法），本批不往记录里抄任何这类总数——
+它们在落盘之前量的不是这份文档。
+
+### 6 边界
+
+1. **律只到第 1 层是量出来的，不是证出来的。** 腿扫的是 0—4 层；第 5 层往上靠 L3 的构造外推
+   （表外每多写一层，块里就原样带过去一层，一次解码升一级）。这条外推没有独立的腿，
+   如果哪天块的读者改成多次解码，L3 与 L2 都得重看。
+2. **拒绝的两种设计与代价**：D2（12 行）只把墙挪高一层且踩 6 条已发货腿；
+   D3（`&` 先折）确实让恒等式层级无关，但要重写每一个 `&`（普通语料 12→34 处，全仓 3,188 处）
+   并踩 13 条已发货腿。L6 是把这两个选择钉住的腿，不是把它们写进注释了事。
+3. **表宽 8 行、`_body` 只认这四枚标记的拼法**这两件事同时被 L6（`len(keys) == 8`）与 536 的
+   宽度地板钉着；任何一侧加宽都会先在那里红。
+4. **裸 `&` 与裸 `<` 仍然原样进块**：普通语料 17 条里 9 条让严格 XML 读者 raise
+   （`Temp/t557_measure2.log` 的 `strict-raised` 列，D1/D2 各 9，D3 为 2）。
+   本批按「正文保持字节」这条既有选择留着它，但这条选择的**代价**（块不总是良构 XML）
+   到目前为止没有一条腿钉着——写进 §7 第 2 项立案。
+5. 说明里的 `levels 0 and 1` 与「升一级」由 L7 钉，判据文件名由 L8 钉；
+   但 L7/L8 读的是 `_body.__doc__` 的字面串，说明若被改写而律不变，它们会红——这是有意为之的耦合。
+6. 本批**没有测**：一条消息里两个 @-提及（两块并排）时层级的交互；`_attribute` 侧的同一条律
+   （属性先折 `&`，所以属性的恒等式与正文不同形——第五百三十二批 §3 就写下了这个不对称）。
+7. 量具自己也会错：第一次层级扫描把 0/1 层读成非恒等，原因是比较时只剥了一边的换行
+   （`Temp/t557_law.py:95`）。以后所有「与既有判据矛盾」的读数，先怀疑读法再怀疑产品。
+8. 崩溃形状的红不算证据：A5 第一轮那处 `KeyError` 让 L1 多算了一条「说不清自己为什么红」的证词，
+   电池前的机理重推第一次真正抓到的就是这个。这条流程（预测 → 进程内重推 → 修判据 → 电池）
+   保留为本批之后的固定次序。
+9. **量具的说明也在律的管下，但它自己没有读者。** 按本批的律重读这份判据自己的模块说明，量出两处不符：
+   说明写 `Two more legs pin the two designs`，可钉那两个设计的只有 L6 一条腿（L6 自己的说明就写着
+   `priced in one leg`），照那句数文件该有 9 条腿而实际只有 8 条；说明又把
+   `each folds back for a reader` 说成随第五百三十六批（M8-T553）那次修复一起进来的，而
+   `git log -S"each folds back for a reader" -- minicc/mentions.py` 只点名 `5352b0d`（M8-T551），
+   M8-T553 只是把表加长、没写那句。两处都在复跑之前改掉（`Temp/t565_splice_gate.py`，
+   +13 B / 0 行 / 仍 8 条腿 / 仍 215 行），代价是三道围栏全部重跑（§5）。
+   值得留在记录里的是**为什么没有门会替我抓这件事**：读「一个模块的 `__doc__`」的腿全仓只有本批
+   L7/L8 那两条，而它们读的是 `_body`（名册见 `Temp/t565_docgrep.log`）——判据模块自己的说明
+   没有读者，所以数错的腿数不会红。这条立案为 §7 第 7 项。
+
+### 7 下一单位
+
+1. M8-T556（第五百三十七批 §6 第 1 项登记、§7 第 2 项立案）：`_line_of` 前缀家族。第五百三十七批
+   数的是四个**循环站点**（`scripts/doc_pointers.py` 的 `:863`、`:989`、`:1054`、`:1556`）外加
+   `check_evidence` 主循环里那条「先算行号再筛形状」的 `:1557`；本批按调用点现数得**六处**
+   （`:786`、`:818`、`:892`、`:997`、`:1074`、`:1557`；`:256-257` 是定义
+   `text.count("\n", 0, offset) + 1`，不算调用），多出的两处在 `_check_quoted_name` 与
+   `_check_name_targets`。先量单调推进与缓存两种口径各自付什么，判据要能说明为什么它不属于
+   整档那一类，而不只是把它排除；537 的 B5 腿钉着改判条件（口径一变即与整档同价）。
+2. M8-T557（本批 §6 第 4 项新立）：正文里的裸 `&`／裸 `<` 让严格读者在 17 条普通正文上 raise 9 次，
+   而仓库已选择「正文保持字节」。要么给块加一层真正的转义（并说清它和 D3 差在哪），
+   要么把「块是良构 XML」这条声称降级并写明代价。先量再判，别在判据里预设立场。
+3. M8-T550（第五百三十二批 §7 第 1 项）：判决名册与 `_record`／`_converged` 能发出的 `status`
+   取值双向对账。
+4. M8-T544（第五百三十批 §7 留下）：`minicc/commands.py` 的 `_skill_file_allowed` 对每个 SKILL.md
+   问两次 `tool_denied_by_rule` ⇒ N 个技能付约 4N 次 stat。
+5. M8-T545（第五百三十批 §7 留下，尚无门）：`i/crlf`／`i/mixed` 与 `\r\r\n` 的自检盲区。
+6. M8-T546（第五百三十批 §7 留下）：`.github/workflows/ci.yml:288` 的内联断言只读比率不问口径。
+7. M8-T558（本批 §6 第 9 项新立）：判据模块自己的说明没有读者。普查「说明里数出来的东西」与
+   文件真值——用 AST 在每份 `tests/*.py` 的模块 docstring 里找数量声称（腿数、表宽、被点名的腿名），
+   与同一文件现推的真值（`def test_` 计数、`_STRUCTURAL_TOKENS` 的行数、被引用腿是否存在）对账，
+   先量全仓有多少处不符、其中多少处已经烂掉了；判据必须说清「为什么这件事归普查，而不是再多写一条
+   像 L7/L8 那样的定点读」，别只把本批那一处补上就算结案。
