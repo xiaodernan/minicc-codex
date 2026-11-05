@@ -18,11 +18,14 @@ one inside a loop over that scanner's own results all change what the census rep
 of those can pass by editing a list in this file.
 
 One boundary, disclosed rather than hidden.  ``_line_of`` also answers per item by scanning
-``text``, but only the prefix up to the offset (``text.count("\\n", 0, offset)``), measured at
-39.7 us per call - about 1.0 s inside ``check_evidence``'s 24.8 s.  It is a different charge at
-a different size, so it lives in its own roster and its own leg, and
+``text``, but only the prefix up to the offset (``text.count("\\n", 0, offset)``), so its price
+grows with how far into the document an item sits rather than with the document.  It is a
+different charge at a different size, so it lives in its own roster and its own leg, and
 ``test_the_prefix_line_answer_is_a_separate_charge_and_is_named_as_one`` keeps that split on the
-record instead of letting a narrow roster claim the repository is clean.
+record instead of letting a narrow roster claim the repository is clean.  The size of that
+charge is not quoted here, because a reading copied into this paragraph has no reader that
+re-runs it: the family is measured from the shipped reader's own calls - requests, admissions
+and the bill for the requests thrown away - by ``test_a_line_number_is_asked_only_for_an_item_the_reader_admits.py``.
 """
 
 from __future__ import annotations

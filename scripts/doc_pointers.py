@@ -246,7 +246,7 @@ def sections(text: str) -> list[Section]:
             Section(
                 level=len(match.group(1)),
                 title=match.group(2).strip(),
-                line=text.count("\n", 0, match.start()) + 1,
+                line=_line_of(text, match.start()),
                 body=text[match.end() : end],
             )
         )
@@ -814,12 +814,17 @@ def _check_name_targets(
     dozens of times, and demanding a unique match would only teach writers to type
     a directory. A name git ignores is a run's own output: still a citation, but
     judged the way the link reader judges products, not as a missing file.
+
+    Only a ``name`` target can be answered here, so a citation whose targets the kind
+    filter throws away admits nothing and is asked for no line number (M8-T556, judged
+    by ``test_a_line_number_is_asked_only_for_an_item_the_reader_admits.py``).
     """
-    line = _line_of(text, offset)
     problems: list[Problem] = []
-    for kind, span in targets:
-        if kind != "name":
-            continue
+    named = [span for kind, span in targets if kind == "name"]
+    if not named:
+        return problems
+    line = _line_of(text, offset)
+    for span in named:
         ref = _NAME_REF.match(span)
         assert ref is not None, span  # _gap_targets only files what it matches
         path = ref.group("path")
@@ -1545,7 +1550,13 @@ def _evidence_shape(span: str) -> str | None:
 
 
 def check_evidence(document: Path, text: str) -> tuple[list[Problem], int]:
-    """Verify every file / line / attribute / test-name claim inside inline code."""
+    """Verify every file / line / attribute / test-name claim inside inline code.
+
+    A code span admits itself as a claim only through ``_evidence_shape``, and the line
+    number is asked after that: most spans in a document are plain names, and counting
+    newlines up to one of those answers a question nobody asked (M8-T556, judged by
+    ``test_a_line_number_is_asked_only_for_an_item_the_reader_admits.py``).
+    """
     relative = document.relative_to(REPO_ROOT).as_posix() if document.is_relative_to(REPO_ROOT) else document.name
     if relative in _OUT_OF_SCOPE_DOCS:
         return [], 0
@@ -1554,9 +1565,9 @@ def check_evidence(document: Path, text: str) -> tuple[list[Problem], int]:
     stems = {module.stem for module in (REPO_ROOT / "tests").glob("*.py") if _holds(f"tests/{module.name}")}
     checked = 0
     for offset, span in _code_spans(text):
-        line = _line_of(text, offset)
         if _evidence_shape(span) is None:
             continue
+        line = _line_of(text, offset)
         checked += 1
         # An exemption is registered against the *citation as written*, so it has
         # to be consulted before any of the sub-checks. Reading it only in the
