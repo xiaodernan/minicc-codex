@@ -38335,3 +38335,47 @@ A1/A8/A10 分别打说明那三句；A2/A6/A11 分别打属性四行里的 `&`�
 嵌套 venv 能不能看到运行期依赖）。本批的教训是它不会被树指纹抓到；要不要把它写成
 链脚本里的一个前置探针，留给 M8-T562 一起判——那条门本来就要管名册与读者，量具
 普查是它的同族问题。
+
+### 8 落盘复量
+
+落盘两笔：代码 `1f52e35`、记录 `d497272`（ROADMAP +218 行；落盘时按 junit 订正 §5 的合计
+3,960 → 3,963，并给批次标题补了前置空行）。随后同三面在**交付字节**上重跑
+（`Temp/t622_chain540_round2.py`，仍然一次一面）。
+
+名册**重新派生**而不是沿用第一轮（`Temp/t619_rosters_round2_540.py`，谓词与解析器与第一轮逐字相同）：
+mention 37、impacted 332、doc 16、宽面并集 350，与第一轮**逐名相同**（增 0、删 0）；并且宽面 350 份
+现在全部在 `git ls-files` 里——第一轮唯一那条「本机有、git 没跟踪」的悬空引用（本批新判据）随代码
+那笔提交消失。分母同样先收（`Temp/t620_collect_round2_540.py`，只收集不执行）：**481 / 3,221 / 261**，
+与第一轮逐 id 相同，added 0 / removed 0——记录那笔只往文档里加了 218 行正文，没有加任何测试模块。
+预测写在 `Temp/t627_predictions540b.md`，落笔早于派生、分母与任何一次第二轮 pytest。
+
+| 面 | 预测 | 实测 | rc | 墙钟 | 树 |
+|---|---|---|---|---|---|
+| `nb540b` | 480 passed, 1 skipped, 0 failed | 480 passed, 1 skipped, 0 failed | 0 | 501.64 s | `849d34c20e2cc0c7` |
+| `im540b` | 3,218 passed, 3 skipped, 0 failed | 3,218 passed, 3 skipped, 0 failed | 0 | 1,641.84 s | 同上 |
+| `doc540b` | 261 passed, 0 skipped, 0 failed | 261 passed, 0 skipped, 0 failed | 0 | 682.91 s | 同上 |
+
+junit 合计 `tests=481 / 3,221 / 261`、`failures=0`、`errors=0`、`skipped=1 / 3 / 0`、通过合计 3,959；
+四条 skip 只有三个名字，与预测逐字相同：`test_slash_commands.py` 的两条
+`test_skill_links_cannot_expose_files_outside_the_catalog[file-project]`/`[file-user]`（`WinError 1314`），
+以及 `test_what_a_review_of_this_batch_found.py` 的
+`test_a_diff_over_a_path_outside_the_workspace_does_not_raise`（它在 `nb540b` 与 `im540b` 两面各跳一次）。
+三面开跑前与收尾都读到 `tracked=652`、同一指纹 `849d34c20e2cc0c7`、`at_rest=yes`——这一轮评的是
+提交之后的那棵树，中途没有人动过它。
+
+本批新判据的 8 条腿在 `nb540b` 与 `im540b` 两面都被逐条跑到（腿名从 junit 现读，8 条齐全，与
+`t608` 收集里的 8 条相同）。名册与 junit 两向对账：`nb540b` 37/37 份文件都交了腿；`im540b` 350 份里
+349 份交了腿，唯一没交的是共享夹具 `tests/_silence_reason_shared.py`；`doc540b` 16/16。反向：三面
+junit 里都没有一份名册外的文件。**没有预测之外的红。**
+
+`doc540b` 这一轮把提交前那十条红归因钉死了：同一名册在代码提交前读出 10 failed / 251 passed
+（`Temp/t626_doc_pre.xml`，红分布在 `test_doc_pointers`（6 条）、`test_pointer_liveness_corpus`（3 条）、
+`test_the_two_readers_share_one_fence_ruler`（1 条）三份文件里，offender 全部是 ROADMAP 里那处指向
+尚未被跟踪的新判据 `tests/test_the_block_promises_xml_only_where_it_escapes.py` 的引用，当时在第 38181 行），
+代码提交让它落地后同面复跑 **261 passed**（`Temp/t626_doc_pre2.xml`，366.13 s），交付字节上再读一遍
+仍是 261 passed。墙钟只作记录（同一面三轮 437.95 s / 366.13 s / 682.91 s，差别来自宿主负载），
+判据取 rc 与 junit，不取秒数。
+
+交付树上的 `--check`（`Temp/t632_doccheck540.log`）rc=0：页脚 946 个「见」标记、23 条链接、
+4,116 个证据指针，over 652 tracked files（539 落盘时是 942 / 23 / 4,106 / 651）。差的那几份全部
+来自本批记录正文与它新点名的判据被跟踪——不是缺陷，也不许被哪道门钉成精确值。
