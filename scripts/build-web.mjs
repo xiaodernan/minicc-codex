@@ -35,6 +35,10 @@ async function bundle(entry, outfile) {
   return file.text;
 }
 
+// A Windows checkout writes CRLF (core.autocrlf) where esbuild emits LF.
+// Line endings are not content; everything else must still match exactly.
+const normalizeEol = (text) => text.replace(/\r\n/g, "\n");
+
 function writeIfNeeded(path, content) {
   mkdirSync(dirname(path), { recursive: true });
   if (check) {
@@ -44,7 +48,7 @@ function writeIfNeeded(path, content) {
     } catch {
       current = "";
     }
-    if (current !== content) {
+    if (normalizeEol(current) !== normalizeEol(content)) {
       console.error(`${path} is stale — run \`npm run build:web\``);
       process.exitCode = 1;
       return false;
