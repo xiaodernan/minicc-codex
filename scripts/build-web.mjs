@@ -41,19 +41,19 @@ const normalizeEol = (text) => text.replace(/\r\n/g, "\n");
 
 function writeIfNeeded(path, content) {
   mkdirSync(dirname(path), { recursive: true });
+  let current = "";
+  try {
+    current = readFileSync(path, "utf8");
+  } catch {
+    current = "";
+  }
+  // A build that changes nothing should write nothing: on a CRLF checkout a
+  // needless rewrite leaves `git status` claiming the artifacts changed.
+  if (normalizeEol(current) === normalizeEol(content)) return true;
   if (check) {
-    let current = "";
-    try {
-      current = readFileSync(path, "utf8");
-    } catch {
-      current = "";
-    }
-    if (normalizeEol(current) !== normalizeEol(content)) {
-      console.error(`${path} is stale — run \`npm run build:web\``);
-      process.exitCode = 1;
-      return false;
-    }
-    return true;
+    console.error(`${path} is stale — run \`npm run build:web\``);
+    process.exitCode = 1;
+    return false;
   }
   writeFileSync(path, content, "utf8");
   return true;
