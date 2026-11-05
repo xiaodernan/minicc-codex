@@ -111,7 +111,7 @@ from .commands import (
 from .mentions import apply_mentions
 from .input_guard import require_text
 from .internal_paths import AUDIT_NAME, PERMISSIONS_NAME
-from .permissions import load_permission_rules, match_permission_rule
+from .permissions import load_permission_rules
 from .clock import utc_iso
 from .config import (
     ConfigError,
