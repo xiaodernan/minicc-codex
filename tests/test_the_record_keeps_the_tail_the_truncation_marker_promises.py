@@ -10,7 +10,7 @@ Measured on the main tree before this batch (read-only probes, in-process + AST 
 Three coupled failures, all of them a number copied instead of read:
 
 1. ``tests/test_mcp_stdio.py:140`` asserted ``len(result.output) <= 6000`` on the one
-   field ``_content_to_tool_result`` (``minicc/mcp.py:67``) never fills, so it was true
+   field ``_content_to_tool_result`` (``minicc/mcp.py:163``) never fills, so it was true
    for a server answer of any length; ``:141``/``:142`` and
    ``tests/test_background_shell.py:373`` bounded the same budget with hand-typed
    2000/4000/7000, and ``HEAD_CHARS``/``TAIL_CHARS`` had no mention anywhere in
@@ -22,7 +22,7 @@ Three coupled failures, all of them a number copied instead of read:
 3. ``minicc/web.py:1498``/``:1988`` clip at 8000, which only stays honest while the
    summary is under ~1962 chars. The MCP summary is ``f"MCP {server}/{tool}"`` and the
    tool name comes from the server's own ``tools/list``: ``_unique_tool_name`` caps the
-   *registry* name at ``minicc/mcp.py:730``, the summary at ``minicc/mcp.py:69`` never
+   *registry* name at ``minicc/mcp.py:1014``, the summary at ``minicc/mcp.py:180`` never
    passes through it.
 
 The fix is ``ToolResult.record_text(ceiling)``: the ceiling governs the raw ``output``

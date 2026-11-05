@@ -8,7 +8,7 @@ silently weaken it:
 
   * The durable event record is the per-task snapshot's ``events`` field
     (``task_manager.TaskRecord.snapshot()`` embeds ``list(self.events)`` at
-    ``minicc/task_manager.py:805``). Surviving a restart == surviving in the
+    ``minicc/task_manager.py:949``). Surviving a restart == surviving in the
     snapshot.
   * ``EventLog`` (``minicc/agent/protocol.py:121``) is an in-memory, bounded
     replay buffer for SSE clients. It has NO disk backing — a fresh instance

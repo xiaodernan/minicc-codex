@@ -10,11 +10,11 @@
 
 | 位置 | 集合 | 问的是什么 |
 | --- | --- | --- |
-| `verifier.py:61` ✓ | `{passed, skipped}` ✓ | "这次验证**没发现问题**" ✓ |
-| `verifier.py:62-69` ✓ | 六个 ✓ | 事件 code 的表 ✓ |
-| `completion.py:342` ✓ | `{failed, blocked, cancelled, timed_out}` ✓ | "这次验证**没给出可用结论**" ✓ |
-| `web.py:2850` ✓ | `{passed, skipped}` ✓ | 同第一行 ✓ |
-| `completion.py:394` ✓ | `{error, failed, blocked, cancelled, timed_out, denied}` ✓ | **单项检查**的状态 ✓（**另一套词表** ✓，`error`/`denied` ✓ 不是验证状态 ✓） |
+| `verifier.py:85` ✓ | `{passed, skipped}` ✓ | "这次验证**没发现问题**" ✓ |
+| `verifier.py:89-96` ✓ | 六个 ✓ | 事件 code 的表 ✓ |
+| `completion.py:366` ✓ | `{failed, blocked, cancelled, timed_out}` ✓ | "这次验证**没给出可用结论**" ✓ |
+| `web.py:2924` ✓ | `{passed, skipped}` ✓ | 同第一行 ✓ |
+| `completion.py:415` ✓ | `{error, failed, blocked, cancelled, timed_out, denied}` ✓ | **单项检查**的状态 ✓（**另一套词表** ✓，`error`/`denied` ✓ 不是验证状态 ✓） |
 
 于是"**这个验证状态算不算问题**"这个问题 ✓，在**三个模块**里各有答案 ✓。
 一旦词表**多一个状态** ✓，一个面会当它"没问题" ✓、另一个面会当它"没结论" ✓。

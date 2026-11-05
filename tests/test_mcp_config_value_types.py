@@ -350,7 +350,7 @@ def test_the_loader_still_refuses_an_entry_that_declares_neither(tmp_path: Path)
     """The repair must not eat M8-T140's verdict.
 
     「缺少 command 或 url」 is shipped text that other gates read
-    (``tests/test_mcp_config_validation.py:47``, ``tests/test_mcp_http.py:134``);
+    (``tests/test_mcp_config_validation.py:47``, ``tests/test_mcp_http.py:217``);
     this batch only takes the *wrong-type* shapes off that sentence.
     """
     for index, entry in enumerate(({"args": []}, {}, {"command": "", "url": ""}, {"command": "   "}, {"url": None})):

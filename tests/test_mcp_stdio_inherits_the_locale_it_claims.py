@@ -252,7 +252,7 @@ for line in sys.stdin:
 def test_the_locale_a_parent_carries_arrives_in_a_real_child(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """The shipped seam: a spawned MCP server, not this interpreter, must see the locale.
 
-    ``_content_to_tool_result`` (mcp.py:52) fills ``head``/``tail`` and never ``output``,
+    ``_content_to_tool_result`` (mcp.py:163) fills ``head``/``tail`` and never ``output``,
     so this reads ``render()``; asserting on ``output`` here would be a permanently true
     claim (the shape M8-T244 registers).
     """
