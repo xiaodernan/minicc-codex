@@ -96,9 +96,9 @@ from .audit import (
     authorization_event,
     authorize_tool,
     deny_rule_covers_path,
-    deny_rule_names_paths,
     effective_risk,
     normalize_permission_mode,
+    path_rule_denies_call,
     tool_denied_by_rule,
 )
 from .changes import ChangeError, ChangeInspector
@@ -3227,11 +3227,7 @@ class AgentService:
         # call was refused by that rule and the browser was not.  The path
         # axis does not depend on the tool name, so the path rules keep
         # reaching this route exactly as before.
-        denied = tool_denied_by_rule(self.workspace, "git_diff", arguments)
-        if not raw_path and not denied:
-            # A workspace-wide diff carries the content of every path.
-            denied = deny_rule_names_paths(self.workspace)
-        if denied:
+        if path_rule_denies_call(self.workspace, "git_diff", arguments):
             return {
                 "status": "error",
                 "summary": "permissions.json deny 规则拒绝了此差异视图",
