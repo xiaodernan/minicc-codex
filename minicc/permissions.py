@@ -109,6 +109,11 @@ def _path(workspace: Path) -> Path:
     return Path(workspace) / ".minicc" / PERMISSIONS_NAME
 
 
+def _rules_unreadable_msg(exc: OSError) -> str:
+    """Return the unreadable-file error message for permission rules."""
+    return unreadable_file_message(PERMISSIONS_NAME, exc)
+
+
 def load_permission_rules(workspace: Path) -> tuple[dict[str, list[str]], str]:
     """Return (rules, error). Missing file → empty rules, no error.
 
@@ -129,7 +134,7 @@ def load_permission_rules(workspace: Path) -> tuple[dict[str, list[str]], str]:
         return _empty_rules(), ""
     except OSError as exc:
         _cache.pop(key, None)
-        return _empty_rules(), unreadable_file_message(PERMISSIONS_NAME, exc)
+        return _empty_rules(), _rules_unreadable_msg(exc)
     # M8-T293: the stamp carries ``ino`` and ``ctime`` too, like every other
     # memo in this repository.  With only ``(mtime, size)`` an equal-length
     # rewrite of the rules file (``"secrets/*"`` -> ``"secretz/*"``) left the
@@ -158,7 +163,7 @@ def load_permission_rules(workspace: Path) -> tuple[dict[str, list[str]], str]:
             # (hand-edited in a legacy code page) raised a bare
             # ``UnicodeDecodeError`` out of here - and this module's
             # contract says a malformed file is non-fatal.
-            error = unreadable_file_message(PERMISSIONS_NAME, exc)
+            error = _rules_unreadable_msg(exc)
         if error:
             rules = _empty_rules()
         entry = (rules, error)
