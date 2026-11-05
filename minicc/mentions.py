@@ -166,26 +166,26 @@ _STRUCTURAL_TOKENS = (
 def _body(text: str) -> str:
     """Fold a file body's copies of the block's own markup (M8-T551, M8-T552).
 
-    The renderer delimits every injection with ``<file ...>`` / ``</file>`` and
+    The renderer delimits every injection with ``<file ...>`` / ``</file>``,
     announces the block with ``[用户引用文件]``, and admits a short excerpt with
-    ``[truncated]``.  A body quoting one of those used to
-    arrive as structure: a single ``</file>`` made the strict reader raise and let
-    the forgiving one discard everything after it, while a ``<file path="...">``
-    invented a file nobody had read.  ``[truncated]`` is M8-T552: written by a body
-    it claimed an excerpt the renderer never cut, while the record still said
-    ``truncated=False``.  Ordinary code keeps its bytes - only the tokens above are
-    folded, each folds back for a reader, and the fold runs on bodies only, so the
-    renderer's own markers stay raw.  Both file
-    tokens are prefixes: folding a whole ``</file>`` leaves a body's
-    ``</filepath>`` raw after its ``<filepath`` opener turned into text, which is a
-    newer breakage than the forgery.
+    ``[truncated]``.  A body quoting one of those used to arrive as structure:
+    one ``</file>`` made the strict reader raise and the forgiving one discard
+    everything after it, while ``<file path="...">`` invented a file nobody had
+    read.  ``[truncated]`` is M8-T552: a body's own copy claimed an excerpt the
+    renderer never cut while the record still said ``truncated=False``.  Only
+    the tokens above fold, and only bodies fold, so ordinary code and the
+    renderer's own markers keep their bytes.  Both file tokens are prefixes:
+    folding a whole ``</file>`` leaves a body's ``</filepath>`` raw after its
+    ``<filepath`` opener became text - newer breakage than the forgery.
 
-    M8-T553 adds the four entity rows and puts them *first*: a file can write the
-    folded spelling itself, and a verbatim ``&#91;truncated&#93;`` then lands as
-    exactly the bytes the renderer uses for somebody's real marker -- invisible to
-    a byte scan, and back to a raw marker after one decode.  A row may not eat the
-    output of a row that runs after it, so the deeper spelling is consumed before
-    the shallower one produces it.
+    M8-T553 adds the four entity rows *first*: a file can write the folded
+    spelling itself, and a verbatim ``&#91;truncated&#93;`` then lands as exactly
+    the bytes the renderer uses for somebody's real marker -- back to a raw
+    marker after one decode.  A row may not eat the output of a row after it.
+    That identity reaches levels 0 and 1 only: past the table's reach one
+    decode lifts the body's copy exactly one level up -- never a raw marker,
+    never its own bytes (M8-T554, swept for levels 0-4 by
+    ``test_a_body_that_writes_a_deeper_spelling_lands_one_level_up.py``).
     """
     for token, escaped in _STRUCTURAL_TOKENS:
         text = text.replace(token, escaped)
