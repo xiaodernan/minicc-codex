@@ -103,11 +103,15 @@ def test_a_write_recorded_before_the_window_shows_its_bytes(tmp_path: Path) -> N
 
 
 def test_the_number_beside_the_patch_says_what_was_not_read(tmp_path: Path) -> None:
-    """同一个现场：补丁不再为空，「没读的字节」这个数也还在。"""
+    """同一个现场：补丁不再为空；T574 起切点那条读回来，数的是它开头之前那一段。"""
     workspace = _workspace(tmp_path, "outside-number", {"late.md": "one\ntwo\nthree\n"})
-    size = _write(workspace, [_edit("late.md"), _pad()])
+    data = _edit("late.md") + _pad()
+    size = _write(workspace, [data])
+    start = size - TAIL
+    head = data.rfind(b"\n", 0, start) + 1
     diff = _diff(workspace, "late.md")
-    assert diff["audit_bytes_unread"] == size - TAIL, diff
+    assert head < start, (head, start)
+    assert diff["audit_bytes_unread"] == head, diff
     assert diff["audit_read_error"] is None, diff
 
 
@@ -163,9 +167,13 @@ def test_a_committed_untouched_file_is_not_turned_into_an_addition(
 
 
 def test_a_file_named_inside_the_window_is_still_modified(tmp_path: Path) -> None:
-    """X4：窗切过、这一格在窗内——不该因为「切过」就一律不答。"""
+    """X4：窗切过、这一格在窗内——不该因为「切过」就一律不答。
+
+    T574 起，切点所在的填充记录头在 64 KB 之外，窗口照旧切过；窗内的那条
+    edit 仍必须答 modified。
+    """
     workspace = _workspace(tmp_path, "inside", {"seen.md": "a\n"})
-    _write(workspace, [_pad(), _edit("seen.md")])
+    _write(workspace, [_pad(70_000), _edit("seen.md")])
     diff = _diff(workspace, "seen.md")
     assert diff["status"] == "modified", diff
     assert diff["additions"] == 1, diff

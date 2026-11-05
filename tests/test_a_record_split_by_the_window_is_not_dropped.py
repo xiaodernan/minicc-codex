@@ -13,6 +13,10 @@
 能不能解析成对象」猜。整行但不是记录的行照常进 `audit_unreadable_lines`；被切开
 的记录尾巴仍丢掉（它的开头在窗外），但 `audit_records_split` 说有一条没读全。
 切点正好落在行终止符上时，窗口第一行是空串——那是边界，不是残片（F8/F9）。
+
+第五百五十六批（T574）起，头在窗外 64 KB 以内的记录会被读回整条；本门的两格
+（中间切点、详情页）因此改成一条头在 66,000 字节外的 delete——这种记录仍是
+T573 说的「有一条没读全」，尾巴丢掉、split=1。读回整条的那一族在 T574 的门里。
 """
 
 from __future__ import annotations
@@ -79,12 +83,28 @@ def _boundary_delete() -> bytes:
         width += 1
 
 
-def _split_trail() -> tuple[list[bytes], int]:
-    """切点落在一条 128 字节 delete 记录的正中间。"""
-    half = _delete("c", "dd")
-    assert len(half) == 128, len(half)
-    after = (TAIL - len(half) // 2) // 64
-    return [_filler() * 1000, half, _filler() * after], 1000 * 64 + len(half) // 2
+def _pad_to(rem: int) -> bytes:
+    width = 0
+    while True:
+        blob = _edit("pad.md", "z" * width)
+        if len(blob) % 64 == rem:
+            return blob
+        width += 1
+        assert width < 400, width
+
+
+def _unrecoverable_trail() -> tuple[list[bytes], int]:
+    """切点落在一条头的距离超过回扫上限的 delete 记录里（65,600 字节处）。"""
+    record = _delete("c", "0" * 70_000)
+    cut_in = 65_600
+    assert len(record) > cut_in, (len(record), cut_in)
+    prefix = _filler() * 1000
+    cut = len(prefix) + cut_in
+    suffix = cut + TAIL - len(prefix) - len(record)
+    assert suffix >= 0, suffix
+    pad = _pad_to(suffix % 64)
+    count = (suffix - len(pad)) // 64
+    return [prefix, record, _filler() * count, pad], cut
 
 
 def _boundary_trail() -> tuple[list[bytes], int]:
@@ -115,7 +135,8 @@ def _terminator_trail(crlf: bool) -> tuple[list[bytes], int]:
 
 
 def test_a_record_cut_by_the_window_is_counted(tmp_path: Path) -> None:
-    blobs, cut = _split_trail()
+    """T573 的中间切点：头在 65,600 字节外——读不回来，split=1、清单没有它。"""
+    blobs, cut = _unrecoverable_trail()
     workspace = _workspace(tmp_path, "split")
     size = _write(workspace, blobs)
     summary = _summary(workspace)
@@ -170,7 +191,7 @@ def test_a_whole_line_that_is_not_a_record_is_counted_as_unreadable(tmp_path: Pa
 
 
 def test_the_detail_page_carries_the_split_count(tmp_path: Path) -> None:
-    blobs, _cut = _split_trail()
+    blobs, _cut = _unrecoverable_trail()
     workspace = _workspace(tmp_path, "detail")
     size = _write(workspace, blobs)
     diff = _diff(workspace, "c")

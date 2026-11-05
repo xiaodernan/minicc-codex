@@ -28,6 +28,8 @@ from minicc.changes import ChangeInspector
 from minicc.tools.editor import Editor
 
 TAIL = changes_module._AUDIT_TAIL_BYTES
+# 落地之前常量还不存在；默认值让红是断言红，不是收集错误。
+RECOVERY = getattr(changes_module, "_AUDIT_RECOVERY_BYTES", 65_536)
 DIGEST = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 
 
@@ -78,10 +80,6 @@ def _diff(workspace: Path, path: str) -> dict:
     return ChangeInspector(workspace).diff(path)
 
 
-def _size(workspace: Path) -> int:
-    return _trail_path(workspace).stat().st_size
-
-
 # --------------------------------------------------------------------------
 # 读到手又丢掉的那一族
 # --------------------------------------------------------------------------
@@ -110,14 +108,19 @@ def test_a_line_the_window_read_but_could_not_parse_is_counted(tmp_path: Path) -
 
 
 def test_the_bytes_outside_the_tail_are_reported(tmp_path: Path) -> None:
-    """E3：窗外 64,937 字节——现在有一个数说得出它。"""
+    """E3：窗外 64,937 字节——现在有一个数说得出它；T574 起切点那条读回来，
+    这个数说的是它开头之前仍没读的那一段。"""
     workspace = _workspace(tmp_path, "far")
     filler = _edit("x" * 90 + ".md", "y" * 120)
     count = TAIL // len(filler) + 200
-    size = _write(workspace, [_delete("gone.md")] + [filler] * count)
+    data = _delete("gone.md") + filler * count
+    size = _write(workspace, [data])
+    start = size - TAIL
+    head = data.rfind(b"\n", 0, start) + 1
     summary = _summary(workspace)
     assert size > TAIL, size
-    assert summary["audit_bytes_unread"] == size - TAIL, summary
+    assert 0 < head <= start, (head, start)
+    assert summary["audit_bytes_unread"] == head, summary
     assert summary["audit_window_truncated"] is True, summary
 
 
@@ -126,10 +129,12 @@ def test_the_detail_page_carries_the_same_number(tmp_path: Path) -> None:
     workspace = _workspace(tmp_path, "both")
     filler = _edit("x" * 90 + ".md", "y" * 120)
     count = TAIL // len(filler) + 200
-    size = _write(workspace, [_delete("gone.md")] + [filler] * count)
+    data = _delete("gone.md") + filler * count
+    size = _write(workspace, [data])
+    head = data.rfind(b"\n", 0, size - TAIL) + 1
     summary = _summary(workspace)
     diff = _diff(workspace, "gone.md")
-    assert diff["audit_bytes_unread"] == summary["audit_bytes_unread"] == size - TAIL, (
+    assert diff["audit_bytes_unread"] == summary["audit_bytes_unread"] == head, (
         diff["audit_bytes_unread"],
         summary["audit_bytes_unread"],
     )
@@ -187,18 +192,25 @@ def test_a_whole_record_at_the_byte_boundary_is_read(tmp_path: Path) -> None:
 
 
 def test_a_fragment_at_the_byte_boundary_is_still_a_fragment(tmp_path: Path) -> None:
-    """E9：切点落在记录中间——残片丢掉，且不算「读不出来的一行」；T573 起有数。"""
+    """E9：切点落在记录中间——残片丢掉，且不算「读不出来的一行」；T573 起有数。
+
+    T574 起，头在回扫上限之内的碎片会整条读回来，所以这一格改用头在 64 KB 之外
+    的记录：它仍是一条读不回的残片。
+    """
     workspace = _workspace(tmp_path, "fragment")
     filler = _filler()
     name = "c"
-    blob = _delete(name, "dd")
-    assert len(blob) == 128, len(blob)
-    after = (TAIL - len(blob) // 2) // 64
-    trail = filler * 1000 + blob + filler * after
-    want = 1000 * 64 + len(blob) // 2
+    blob = _delete(name, "0" * 70_000)
+    cut_in = 65_600
+    cut_in += (len(blob) - cut_in) % 64
+    assert RECOVERY < cut_in < len(blob), (cut_in, len(blob))
+    cut = 1000 * 64 + cut_in
+    suffix = cut + TAIL - 1000 * 64 - len(blob)
+    assert suffix >= 0 and suffix % 64 == 0, suffix
+    trail = filler * 1000 + blob + filler * (suffix // 64)
     size = _write(workspace, [trail])
-    assert size - TAIL == want, (size, want)
-    assert not trail[want:].startswith(b'{"action"'), trail[want : want + 24]
+    assert size - TAIL == cut, (size, cut)
+    assert not trail[cut:].startswith(b'{"action"'), trail[cut : cut + 24]
     summary = _summary(workspace)
     assert name not in [item["path"] for item in summary["files"]], summary["files"]
     assert summary["audit_unreadable_lines"] == 0, summary
@@ -247,15 +259,19 @@ def test_the_preimage_word_still_stands_on_the_byte_cut(tmp_path: Path) -> None:
 
 
 def test_the_byte_cut_still_carries_its_number_beside_the_word(tmp_path: Path) -> None:
-    """同一个现场，数也在：词与数说的是同一道切法。"""
+    """同一个现场，数也在：词与数说的是同一道切法；T574 起数到读回来的那条开头。"""
     workspace = _workspace(tmp_path, "word-number", {"notes.md": "hello\n"})
     editor = _editor(workspace)
     editor.delete("notes.md")
     filler = _edit("x" * 90 + ".md", "y" * 120)
     count = TAIL // len(filler) + 200
-    _write(workspace, [filler] * count + [_delete("notes.md")])
+    data = filler * count + _delete("notes.md")
+    size = _write(workspace, [data])
+    start = size - TAIL
+    head = data.rfind(b"\n", 0, start) + 1
     diff = _diff(workspace, "notes.md")
-    assert diff["audit_bytes_unread"] == _size(workspace) - TAIL, diff
+    assert head <= start, (head, start)
+    assert diff["audit_bytes_unread"] == head, diff
 
 
 def test_the_line_cap_has_no_home_left(tmp_path: Path) -> None:

@@ -63,6 +63,12 @@ _CHANGING_AUDIT_ACTIONS = _MUTATING_ACTIONS
 #: the old "by construction" assumption dropped a whole record whenever the
 #: cut happened to land on a boundary.
 _AUDIT_TAIL_BYTES = 256_000
+#: M8-T574: how far before the window a torn record's head may sit and still be
+#: read back.  The live trail's cut is 210 bytes from the previous terminator
+#: and its longest tail line is 330, so this bound is generous for real trails
+#: while keeping a pathological single-line trail from turning one detail page
+#: into an unbounded read.
+_AUDIT_RECOVERY_BYTES = 65_536
 #: M8-T562: what the panel can say about the content a witnessed deletion
 #: removed.  The four words are the answer, and they are not interchangeable:
 #: a copy that was never recorded, a copy that cannot be shown, and a copy
@@ -428,22 +434,40 @@ class ChangeInspector:
                     prev = stream.read(1)
                 stream.seek(start)
                 tail = stream.read().decode("utf-8", errors="replace")
-            lines = tail.splitlines()
-            # M8-T567 kept a whole record at a boundary.  M8-T573: the record a
-            # cut split in two is not dropped without a word - its tail is, and
-            # ``_audit_records_split`` says one record was not read whole.  A
-            # whole line that is not a record is no longer mistaken for that
-            # fragment: it goes through the parser and is counted as unreadable.
-            self._audit_records_split = 0
-            if start and lines and not lines[0]:
-                # The window begins on a line terminator - an LF, or one half
-                # of a CRLF pair.  The record before it ended where the window
-                # begins, so nothing was cut in half; the empty line carries
-                # no record and is not counted as unreadable either.
-                lines = lines[1:]
-            elif start and prev not in (b"\n", b"\r") and lines:
-                lines = lines[1:]
-                self._audit_records_split = 1
+                lines = tail.splitlines()
+                # M8-T567 kept a whole record at a boundary.  M8-T573: the
+                # record a cut split in two is not dropped without a word.
+                # M8-T574: when its head is within reach, the record is read
+                # back whole instead; the split is only kept for a head
+                # farther than ``_AUDIT_RECOVERY_BYTES``.
+                self._audit_records_split = 0
+                if start and lines and not lines[0]:
+                    # The window begins on a line terminator - an LF, or one
+                    # half of a CRLF pair.  The record before it ended where
+                    # the window begins, so nothing was cut in half; the empty
+                    # line carries no record and is not counted as unreadable.
+                    lines = lines[1:]
+                elif start and prev not in (b"\n", b"\r") and lines:
+                    back = min(start, _AUDIT_RECOVERY_BYTES)
+                    stream.seek(start - back)
+                    prefix = stream.read(back)
+                    cut = max(prefix.rfind(b"\n"), prefix.rfind(b"\r"))
+                    if cut >= 0:
+                        head = start - back + cut + 1
+                    elif start <= _AUDIT_RECOVERY_BYTES:
+                        # No terminator anywhere before the window: the record
+                        # begins at the file's first byte.
+                        head = 0
+                    else:
+                        head = None
+                    if head is None:
+                        lines = lines[1:]
+                        self._audit_records_split = 1
+                    else:
+                        stream.seek(head)
+                        tail = stream.read().decode("utf-8", errors="replace")
+                        lines = tail.splitlines()
+                        start = head
             # M8-T566 asked whether the whole trail was read; M8-T567 splits
             # that answer into the facts it was made of.  The 500-line cap is
             # gone - the byte window is the only bound - so the flag is the
@@ -970,9 +994,9 @@ class ChangeInspector:
             "audit_bytes_unread": (
                 None if audit_bytes_unread is None else int(audit_bytes_unread)
             ),
-            # M8-T573: how many records the window began inside of.  One is
-            # possible; zero means every line the window read started at a
-            # record boundary.  ``None`` travels with a failed read, like the
+            # M8-T573: how many records the window began inside of and could
+            # not read back whole.  Zero means every record the window touched
+            # was read whole; ``None`` travels with a failed read, like the
             # byte count beside it.
             "audit_records_split": (
                 None if audit_records_split is None else int(audit_records_split)
@@ -1143,7 +1167,8 @@ class ChangeInspector:
                 if self._audit_bytes_unread is None
                 else int(self._audit_bytes_unread)
             ),
-            # M8-T573: the split count travels with the byte count.
+            # M8-T573: the split count travels with the byte count - the
+            # records the window cut and could not read back whole.
             "audit_records_split": (
                 None
                 if self._audit_records_split is None
