@@ -36,6 +36,8 @@ import pathlib
 import sys
 from typing import Any, Iterable
 
+import pytest
+
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
 SCRIPT = REPO_ROOT / "scripts" / "doc_pointers.py"
 
@@ -342,3 +344,50 @@ def test_the_corpus_pass_reads_each_named_document_once() -> None:
     assert 0 < len(counts) < len(documents), (
         f"语料通行没有走到外来文档，或把每一份都读了：{len(counts)} / {len(documents)}")
     assert all(path.suffix == ".md" for path in counts), sorted(counts)
+
+
+@pytest.mark.parametrize("reference, declaration", [
+    ("第3节", "## 3. 目标章节\n\n正文。\n"),
+    ("P0-1", "## P0-1\n\n正文。\n"),
+], ids=["section", "id"])
+def test_a_new_cli_pass_refreshes_the_foreign_answers(
+    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str], reference: str, declaration: str,
+) -> None:
+    reader = _load("minicc_doc_pointers_t560_fresh_pass")
+    current = tmp_path / "CURRENT.md"
+    foreign = tmp_path / "FOREIGN.md"
+    current.write_text(
+        f"## 1. 本文\n\n见 [FOREIGN.md](FOREIGN.md) {reference}。\n", encoding="utf-8")
+    foreign.write_text(declaration, encoding="utf-8")
+    monkeypatch.setattr(reader, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(reader, "DEFAULT_DOCS", (current, foreign))
+    monkeypatch.setattr(reader, "_tracked_files", lambda: frozenset({current.name, foreign.name}))
+    monkeypatch.setattr(reader, "check_exempt_tables", lambda documents: [])
+    reads: list[pathlib.Path] = []
+    original = pathlib.Path.read_text
+
+    def spy(path: pathlib.Path, *args: Any, **kwargs: Any) -> str:
+        if sys._getframe(1).f_code.co_name in READ_CALLERS:
+            reads.append(path)
+        return original(path, *args, **kwargs)
+
+    monkeypatch.setattr(pathlib.Path, "read_text", spy)
+    argv = [str(current), "--check", "--quiet"]
+    first = reader.main(argv)
+    first_output = capsys.readouterr().out
+    assert first == 0, first_output
+    assert reads == [foreign], reads
+
+    foreign.write_text("## 1. 余下章节\n\n正文。\n", encoding="utf-8")
+    second = reader.main(argv)
+    second_output = capsys.readouterr().out
+    assert second == 1, (reference, second_output)
+    assert "DANGLING POINTER" in second_output and reference in second_output, second_output
+    assert reads == [foreign, foreign], reads
+
+    foreign.write_text(declaration, encoding="utf-8")
+    third = reader.main(argv)
+    third_output = capsys.readouterr().out
+    assert third == 0, third_output
+    assert reads == [foreign, foreign, foreign], reads

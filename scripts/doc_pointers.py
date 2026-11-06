@@ -278,15 +278,15 @@ def sections(text: str, starts: tuple[int, ...] | None = None) -> list[Section]:
     ``starts`` is the newline index when the caller already bought one; built here otherwise.
     """
     starts = _newline_index(text) if starts is None else starts
-    return [
-        Section(
+    out: list[Section] = []
+    for heading in _headlines(text):
+        out.append(Section(
             level=heading.level,
             title=heading.title,
             line=_line_of(starts, heading.offset),
             body=heading.body,
-        )
-        for heading in _headlines(text)
-    ]
+        ))
+    return out
 
 
 def _newline_index(text: str) -> tuple[int, ...]:
@@ -1835,6 +1835,8 @@ def main(argv: list[str] | None = None) -> int:
     # same reason ``ensure_utf8_output`` already gives for never letting a
     # printing problem become an exit-code problem.
     documents = [path.resolve() for path in args.documents]
+    _document_text.cache_clear()
+    _numbered_sections.cache_clear()
 
     problems: list[Problem] = []
     totals = {"pointers": 0, "markers": 0, "links": 0, "evidence": 0, "prose_paths": 0, "links_generated": 0}
