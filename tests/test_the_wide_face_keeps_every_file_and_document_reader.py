@@ -58,6 +58,7 @@ def _tracked() -> list[str]:
         capture_output=True,
         text=True,
         encoding="utf-8",
+        errors="replace",
     )
     return proc.stdout.splitlines()
 
