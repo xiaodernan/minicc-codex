@@ -485,15 +485,18 @@ def test_the_two_alternative_readings_answer_every_request_the_shipped_one_answe
     the measurement that justified the swap; the leg names the numbers in its message and pins
     only the order.
 
-    Only requests made on the checked document's own text are replayed: an index built for one
-    document cannot answer offsets read out of another, and the door census names who asks in that
-    other way rather than letting the exception disappear from the count.
+    Only requests made on the checked document's own text are replayed.  Until M8-T560 the
+    cross-document table was built by ``sections`` on another file's bytes, so exactly one caller -
+    ``sections`` - legitimately appeared on the far side and the exception had to be named.  The
+    foreign table is now built without a line ruler at all, so that exception is empty: a non-empty
+    set here would mean a named document is again being numbered with the ruler of the document
+    under check, or with a second copy of it.
     """
     cap = _capture()
     texts = {document.name: text for document, text in _corpus()}
     foreign = {caller for caller, events in cap["asked"].items()
                if any(not own for _doc, _offset, _line, own in events)}
-    assert foreign <= {"sections"}, sorted(foreign)
+    assert foreign == set(), sorted(foreign)
     streams = {caller: [(name, offset, line) for name, offset, line, own in events if own]
                for caller, events in cap["asked"].items()}
     retired_chars = sum(offset for events in streams.values() for _n, offset, _l in events)

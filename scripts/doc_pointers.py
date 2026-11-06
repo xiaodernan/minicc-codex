@@ -56,9 +56,11 @@ import difflib
 import re
 import subprocess
 import sys
+from collections.abc import Iterable
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
+from typing import Protocol
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_DOCS = tuple(sorted((REPO_ROOT / "docs").glob("*.md"))) + (REPO_ROOT / "README.md",)
@@ -216,6 +218,16 @@ class Section:
 
 
 @dataclass(frozen=True, slots=True)
+class Headline:
+    """A heading and the text beneath it, without the line number a foreign answer never needs."""
+
+    offset: int
+    level: int
+    title: str
+    body: str
+
+
+@dataclass(frozen=True, slots=True)
 class Problem:
     kind: str
     document: str
@@ -237,25 +249,44 @@ class Stats:
     links_generated: int = 0
 
 
+def _headlines(text: str) -> list[Headline]:
+    """Every heading with the span beneath it, until the next heading - and no line ruler.
+
+    The foreign reader asks only what a document *declares*; the line a heading sits on is a
+    property of the checked document's ruler.  Splitting the scan from the numbering is what
+    lets a named document be read without paying ``_newline_index`` / ``_line_of`` for every
+    heading it owns (M8-T560); ``sections`` is this list plus that one line each.
+    """
+    found = list(_HEADING.finditer(text))
+    out: list[Headline] = []
+    for index, match in enumerate(found):
+        end = found[index + 1].start() if index + 1 < len(found) else len(text)
+        out.append(
+            Headline(
+                offset=match.start(),
+                level=len(match.group(1)),
+                title=match.group(2).strip(),
+                body=text[match.end() : end],
+            )
+        )
+    return out
+
+
 def sections(text: str, starts: tuple[int, ...] | None = None) -> list[Section]:
     """Every heading with the span beneath it, until the next heading.
 
     ``starts`` is the newline index when the caller already bought one; built here otherwise.
     """
     starts = _newline_index(text) if starts is None else starts
-    found = list(_HEADING.finditer(text))
-    out: list[Section] = []
-    for index, match in enumerate(found):
-        end = found[index + 1].start() if index + 1 < len(found) else len(text)
-        out.append(
-            Section(
-                level=len(match.group(1)),
-                title=match.group(2).strip(),
-                line=_line_of(starts, match.start()),
-                body=text[match.end() : end],
-            )
+    return [
+        Section(
+            level=heading.level,
+            title=heading.title,
+            line=_line_of(starts, heading.offset),
+            body=heading.body,
         )
-    return out
+        for heading in _headlines(text)
+    ]
 
 
 def _newline_index(text: str) -> tuple[int, ...]:
@@ -304,7 +335,15 @@ def _declared_number(title: str) -> int | None:
     return _numeral(match.group(1))
 
 
-def _numbered_headings(headings: list[Section]) -> dict[int, Section]:
+class _Numbered(Protocol):
+    """What the numbering rule reads: a level, a title, and the body the title owns."""
+
+    level: int
+    title: str
+    body: str
+
+
+def _numbered_headings(headings: Iterable[_Numbered]) -> dict[int, _Numbered]:
     """Map ``N`` to the level-2 heading that declares itself section N.
 
     Two spellings are in use here: the roadmap writes ``## 四、明确不做什么`` while
@@ -312,7 +351,7 @@ def _numbered_headings(headings: list[Section]) -> dict[int, Section]:
     says 「第8节」. Both have to be tied to their number before a section pointer means
     anything; a heading that declares no number cannot be pointed at.
     """
-    out: dict[int, Section] = {}
+    out: dict[int, _Numbered] = {}
     for section in headings:
         if section.level != 2:
             continue
@@ -360,14 +399,26 @@ def _enclosing_table(
 
 
 @lru_cache(maxsize=None)
-def _numbered_sections(path: Path) -> dict[int, Section]:
+def _document_text(path: Path) -> str:
+    """The bytes of a named document, read once per pass.
+
+    Every foreign question - the section table, the id registry - is answered from this one
+    read: the answer cannot be fresher than the pass, because the pass judges one snapshot.
+    """
+    return path.read_text(encoding="utf-8")
+
+
+@lru_cache(maxsize=None)
+def _numbered_sections(path: Path) -> dict[int, _Numbered]:
     """Read another document's section table the same way this document's is read.
 
     Memoised because a pointer may name the same file dozens of times, and because
     ``_numbered_headings`` is the *only* rule for what owns a number — a second,
-    hand-written notion of "does document X have a 第N节" is where drift starts.
+    hand-written notion of "does document X have a 第N节" is where drift starts.  The table
+    comes from ``_headlines`` over the one read: a foreign answer carries no line number, so
+    it buys no newline index either (M8-T560).
     """
-    return _numbered_headings(sections(path.read_text(encoding="utf-8")))
+    return _numbered_headings(_headlines(_document_text(path)))
 
 
 def _batch_label(match: "re.Match[str]") -> str:
@@ -464,17 +515,40 @@ def _named_documents(text: str, offset: int) -> list[Path]:
     return found
 
 
-def _cross_document_sections(text: str, offset: int, numeral: int) -> list[Section]:
+def _same_document(path: Path, document: Path) -> bool:
+    """Whether the named path *is* the document under check, not merely spelled alike.
+
+    The checker is handed the text it judges; the disk may already hold a different revision.
+    Answering a self-citation from disk would judge bytes the caller never asked about, so the
+    comparison is by resolved path and the caller's own table answers the question.
+    """
+    try:
+        return path.resolve() == document.resolve()
+    except OSError:
+        return False
+
+
+def _cross_document_sections(
+    document: Path,
+    numbered: dict[int, _Numbered],
+    text: str,
+    offset: int,
+    numeral: int,
+) -> list[_Numbered]:
     """Resolve ``第N节`` inside every document the sentence names explicitly.
 
     ``复核命令见审核文档第十二节`` cannot be checked: "审核文档" is not a file a
     tool can find, and it happens to be the one document whose 第十二节 does
     exist. ``见 docs/X.md 第N节`` is checkable, so that is the form the gate
-    accepts.
+    accepts.  A document that names *itself* is answered from the caller's table, not from
+    disk; every other named document is read through the one memoised door.
     """
-    found: list[Section] = []
+    found: list[_Numbered] = []
     for path in _named_documents(text, offset):
-        target = _numbered_headings(sections(path.read_text(encoding="utf-8"))).get(numeral)
+        if _same_document(path, document):
+            target = numbered.get(numeral)
+        else:
+            target = _numbered_sections(path).get(numeral)
         if target is not None:
             found.append(target)
     return found
@@ -913,8 +987,8 @@ def check_pointers(document: Path, text: str) -> tuple[list[Problem], int, dict[
         line = _line_of(starts, offset)
         problems += _span_name_claims(document, text, starts, offset, span)
         owners = _span_documents(span)
-        target: Section | None = None
-        remote: list[Section] = []
+        target: _Numbered | None = None
+        remote: list[_Numbered] = []
         ambiguous: list[Section] = []
         for sec in secs:
             numeral = _numeral(sec.group(1))
@@ -925,9 +999,13 @@ def check_pointers(document: Path, text: str) -> tuple[list[Problem], int, dict[
                 # different answer to a different question. Measured before the change: that
                 # false green and the control case (the section really is here) produced
                 # byte-identical readings, so nothing in the account could tell them apart.
-                hit: Section | None = None
+                hit: _Numbered | None = None
                 for _, path in owners:
-                    if path is not None and (section := _numbered_sections(path).get(numeral)) is not None:
+                    if path is None:
+                        continue
+                    section = (numbered.get(numeral) if _same_document(path, document)
+                               else _numbered_sections(path).get(numeral))
+                    if section is not None:
                         hit = section
                         break
                 if hit is not None:
@@ -950,7 +1028,10 @@ def check_pointers(document: Path, text: str) -> tuple[list[Problem], int, dict[
                 target = numbered.get(numeral)
             if target is not None:
                 continue
-            found = _cross_document_sections(text, offset, numeral) if numeral is not None else []
+            found = (
+                _cross_document_sections(document, numbered, text, offset, numeral)
+                if numeral is not None else []
+            )
             if found:
                 remote += found  # the sentence names the file that owns the section
                 continue
@@ -996,10 +1077,11 @@ def check_pointers(document: Path, text: str) -> tuple[list[Problem], int, dict[
             registry = _id_registry(scope)
             for section in remote:
                 registry |= _id_registry(f"## {section.title}\n{section.body}")
-            if target is None and not remote:
+            if target is None and not remote and ids:
                 # ``见 docs/X.md P0-1`` declares the id in the other file's heading.
                 for path in _named_documents(text, offset):
-                    registry |= _id_registry(path.read_text(encoding="utf-8"))
+                    scope_text = text if _same_document(path, document) else _document_text(path)
+                    registry |= _id_registry(scope_text)
             for identifier in ids:
                 if identifier in registry:
                     continue

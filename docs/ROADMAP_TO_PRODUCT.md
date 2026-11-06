@@ -1761,7 +1761,7 @@ iterdir-only heads           : 11 ['.git', '.minicc', '.playwright-cli', '.pytes
 claims under disk-only heads : 64 Counter({'.minicc': 33, 'output': 28, '.venv': 3})
 ```
 
-那 64 条引用就是 29 条清单差的来源（一条 span 可以在多个文档里出现，去重后按形状判据另算）。`_abbreviation_heads()`、`_resolve_path()`、`tests/` 下的模块名清单也一并改成读索引（`_holds()` 一个入口，`scripts/doc_pointers.py:654`）——**同一个坏味道不可能只在一处**。
+那 64 条引用就是 29 条清单差的来源（一条 span 可以在多个文档里出现，去重后按形状判据另算）。`_abbreviation_heads()`、`_resolve_path()`、`tests/` 下的模块名清单也一并改成读索引（`_holds()` 一个入口，`scripts/doc_pointers.py:728`）——**同一个坏味道不可能只在一处**。
 
 2. 链接判据从二态换成**三态**：被跟踪 → 绿；被 gitignore → 记为 `generated`（照计数、照在总结行里打印、不报红）；**本机有但 git 没跟踪 → 也算红**。第三条是本批新加的，方向与第一条相反：前两条挡的是"我的绿是假的"，这一条挡的是"只有作者看得见的断链"——如果只判存在性，我在本地新建一个没 `git add` 的文件、文档里指它，`--check` 会一直绿到我推送那天。
 
@@ -1799,7 +1799,7 @@ C 格是本批最想要的一格：只往那份**干净检出**里种四个 giti
           _QUOTED_STALE_PATH 2/5、_RETIRED_PATH 2/11、_DECLINED_PATH 1/2
 ```
 
-为什么它们零命中：不带斜杠的裸文件名在判据里**不构成定位符断言**（那是 M8-T37 自己为 `loop.py` 立的规则），所以这五个键从来没被咨询的机会。**这里学到的判据值得单独记**：豁免键有两种角色——**挡红的**（删掉 `minicc/web_static` → 恰好 2 条红）和**准入的**（删掉 `.minicc/` → 一条红都不产生，只是清单从 782 缩水）。只按"删掉会不会变红"量活性，第二种键永远量不到，所以 `exemption_usage()`（`scripts/doc_pointers.py:846`）量的是"这条键实际答上了几条引用"，命中 0 就是死行。测试里三种情形分开断言：陈旧（没人引用）→ 只有陈旧那条红；被引用但不可达（只写路径前缀、没有文件）→ 只有死行那条红；正常 → 无红。
+为什么它们零命中：不带斜杠的裸文件名在判据里**不构成定位符断言**（那是 M8-T37 自己为 `loop.py` 立的规则），所以这五个键从来没被咨询的机会。**这里学到的判据值得单独记**：豁免键有两种角色——**挡红的**（删掉 `minicc/web_static` → 恰好 2 条红）和**准入的**（删掉 `.minicc/` → 一条红都不产生，只是清单从 782 缩水）。只按"删掉会不会变红"量活性，第二种键永远量不到，所以 `exemption_usage()`（`scripts/doc_pointers.py:920`）量的是"这条键实际答上了几条引用"，命中 0 就是死行。测试里三种情形分开断言：陈旧（没人引用）→ 只有陈旧那条红；被引用但不可达（只写路径前缀、没有文件）→ 只有死行那条红；正常 → 无红。
 
 **门是活的（四条变异，基线 sha256 `405dc6168fb3`，逐条字节还原并复验）**：
 
@@ -14094,7 +14094,7 @@ MINICC_ROUTE_COVERAGE {"GET": {"answered": 19, "total": 19, "percent": 100.0},
 | 标识符 | 今天的对应物 | 判 |
 | --- | --- | --- |
 | `_reject_grader_dir`（M4-T5） | `_reject_graders`（`minicc/tools/fs.py:58`，`GRADER_DIR_NAME = ".graders"`，读路径 `:173` 调用） | 改名，规则与调用点都在 |
-| `_cn_numeral`（M8-T40） | `_NUM = r"(\d+\|[一二三四五六七八九十]+)"`（`scripts/doc_pointers.py:138`，供 `_SECTION` / `_BATCH` 用） | 改名，职能相同（"两侧都认阿拉伯数字"） |
+| `_cn_numeral`（M8-T40） | `_NUM = r"(\d+\|[一二三四五六七八九十]+)"`（`scripts/doc_pointers.py:140`，供 `_SECTION` / `_BATCH` 用） | 改名，职能相同（"两侧都认阿拉伯数字"） |
 | `_UNPROBED_FAMILIES`（M8-T34） | `_PARKED_FAMILIES: dict[str, str] = {}`（`tests/test_http_route_inventory.py:391`，注释写着"Empty on purpose: nothing is parked today"）＋同名格子 `test_prefix_dispatched_families_are_probed_or_parked_with_a_reason` | **按行所述清空后改名**，机制还在 |
 | `_cli_subagent_trace`（M6-T2） | CLI 的子代理轨迹今天走 `log_task_event`（`minicc/main.py:27` 导入、`:417` 调用） | 折进既有漏斗 |
 
@@ -37240,7 +37240,7 @@ ROADMAP 一份 2,974,217 B 的文档、26,041 个跨度，每次扫档 43.1 ms�
 是本批的罪名。
 
 同一形状在仓库读者侧也有一份：`scripts/doc_pointers.py` 的四个循环用 `_line_of(text, offset)`
-逐项回答（`:884`、`:1010`、`:1076`、`:1585`）。`_line_of` 是 `text.count("\n", 0, offset)`，
+逐项回答（`:958`、`:1092`、`:1158`、`:1667`）。`_line_of` 是 `text.count("\n", 0, offset)`，
 **只扫到那个偏移为止**，单价 39.7 µs，整批约 1.0 s（`check_evidence` 全档 24.8 s 里的一截）。
 它是真代价，但不是杀掉这条腿的那把刀，本批不折进同一张名册——折进去名册就再也说不出「仓库里
 没有逐项重扫整档的循环」这句强话（见 §6 第 1 项，→ M8-T556）。
@@ -37422,8 +37422,8 @@ pytest 输出整份在 `Temp/t561_arms.log` 里，`Temp/t561_regrade.py` 直接�
 
 ### 6 边界
 
-1. 前缀家族没修，只登记：`_line_of` 的四个循环站点（`scripts/doc_pointers.py` 的 `:884`、`:1010`、
-   `:1076`、`:1585`）留在整档名册之外，由 B5 数出来并钉住「`_line_of` 不在派生名册里」。B5 同时
+1. 前缀家族没修，只登记：`_line_of` 的四个循环站点（`scripts/doc_pointers.py` 的 `:958`、`:1092`、
+   `:1158`、`:1667`）留在整档名册之外，由 B5 数出来并钉住「`_line_of` 不在派生名册里」。B5 同时
    钉住改判条件：一旦 `_line_of` 不再是「数到 offset 为止」的前缀 `count`（它的第三个实参不再是
    变量、第二实参不再是 0），它就与整档同价，必须进上面那张名册——那时红的是 B5，不是沉默。
    顺带量到一件事：`check_evidence` 的主循环在 `:1557` **先算行号再筛形状**，所以每一枚跨度的
@@ -37745,8 +37745,8 @@ pointers (78 path claims sit outside code spans) in 20 documents … over 650 tr
 ### 7 下一单位
 
 1. M8-T556（第五百三十七批 §6 第 1 项登记、§7 第 2 项立案）：`_line_of` 前缀家族。第五百三十七批
-   数的是四个**循环站点**（`scripts/doc_pointers.py` 的 `:884`、`:1010`、`:1076`、`:1585`）外加
-   `check_evidence` 主循环里那条「先算行号再筛形状」的第 1557 行（M8-T556 之后已挪到筛形状之后，现 `:1588`）；本批按调用点现数得**六处**
+   数的是四个**循环站点**（`scripts/doc_pointers.py` 的 `:958`、`:1092`、`:1158`、`:1667`）外加
+   `check_evidence` 主循环里那条「先算行号再筛形状」的第 1557 行（M8-T556 之后已挪到筛形状之后，现 `:1670`）；本批按调用点现数得**六处**
    （`:786`、`:818`、`:892`、`:997`、`:1074`、`:1557`；`:256-257` 是定义
    `text.count("\n", 0, offset) + 1`，不算调用），多出的两处在 `_check_quoted_name` 与
    `_check_name_targets`。先量单调推进与缓存两种口径各自付什么，判据要能说明为什么它不属于
@@ -37771,7 +37771,7 @@ pointers (78 path claims sit outside code spans) in 20 documents … over 650 tr
 ### 1 缺陷
 
 第五百三十九批写这条时，家族唯一的门是 `scripts/doc_pointers.py` 第 256–257 行（M8-T559 把它换成了
-:266-267 的索引二分；下面引的是当时的字节）：
+:297-298 的索引二分；下面引的是当时的字节）：
 
     def _line_of(text: str, offset: int) -> int:
         return text.count("\n", 0, offset) + 1
@@ -38389,7 +38389,7 @@ junit 里都没有一份名册外的文件。**没有预测之外的红。**
 排期把它写成「先把人口量出来」，因为没人知道测试说明里到底有多少条 `path:line` 引用。
 
 第一件事是一个结构缺口：`scripts/doc_pointers.py` 的解析面只有 `docs/*.md` 与 README
-（`DEFAULT_DOCS`，`scripts/doc_pointers.py:64`），测试说明里的 `path:line`
+（`DEFAULT_DOCS`，`scripts/doc_pointers.py:66`），测试说明里的 `path:line`
 （例如 `tests/test_bench_tasks.py:339`）没有任何读者。文档侧的普查回答的是「文档里的
 指针指没指到被跟踪的文件」；测试说明这一侧从来不在人口里。
 
@@ -38431,7 +38431,7 @@ junit 里都没有一份名册外的文件。**没有预测之外的红。**
 
 **读者普查**：`scripts/doc_pointers.py` 只解析 `docs/` 与 README 的指针；本批之前，`tests/` 下
 没有任何门读 `path:line` 的语义（`test_a_per_span_answer_re_scans_no_whole_document_ruler.py`
-引用 `scripts/doc_pointers.py:514` 是在测它，不是读测试说明）。判据自己的说明在
+引用 `scripts/doc_pointers.py:588` 是在测它，不是读测试说明）。判据自己的说明在
 `tests/` 里第一次成为「引用有读者」的反例载体——这也是 A5 臂后来踩到的地方。
 
 判：这不是「把 48 条都修一遍」。27 条没有字面 token，机械改瞄只会把「我不知道」写成
@@ -39173,7 +39173,7 @@ L2 = 第 2 条、L3 = 第 3 条。
 
 **pin（3 条腿）**：被行号移位挪动的 11 处引用机械重瞄；539 §1 的历史字节不改，改写为
 「第五百三十九批写它时是第 256–257 行，M8-T559 换成了 :266-267 的索引二分」。本批新增
-`scripts/doc_pointers.py` 的 6 个引用（`:245`、`:261`、`:875`、`:876`、`:1072`、`:1580`），
+`scripts/doc_pointers.py` 的 6 个引用（`:280`、`:292`、`:949`、`:950`、`:1154`、`:1662`），
 逐条进 PINS；PINS 与 ROADMAP 两向集合相等由 pin-1 判；MIN_CITES 19 不变。
 
 ### 4 突变臂
