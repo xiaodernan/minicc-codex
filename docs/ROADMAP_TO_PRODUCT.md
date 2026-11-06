@@ -38856,3 +38856,178 @@ A10 的必需字面量 `[1556]` 实际打印成 `1556]`。修完后重跑，11/1
 - 跳过的 10 条与第一轮逐名相同（用 junit 的 testcase 名与 reason 逐条比对）；没有预测之外的红。
 
 交付树上的 `--check`（含本节的字节）rc=0：页脚 953 个「见」标记、23 条链接、4,156 个证据指针、20 份文档，over 654 tracked files（第五百四十一批交付时是 948 / 23 / 4,138 / 653）。
+
+## 第五百四十三批 — M8-T562 — 宽面名册进仓库、文档读者按结构认
+
+### 1 缺陷
+
+判的是第五百四十二批 §7 排期里的第 1 项（M8-T562），两件事一起判：
+
+1. **宽面名册不在仓库里。** 第五百三十八批 §6 第 10 条第一次写明「宽面必须既不丢上一次跑过的、
+   也不漏本批点名的」这条规则**没有门**，靠手做两向对账；第五百三十九批的宽面 344 份、
+   第五百四十批 350 份、第五百四十一批 370 份都是手对出来的。第五百四十一批的名册住在
+   `Temp/` 里，随清扫器一起没了；第五百四十二批只能把宽面改成「全量重派」的 479 份，
+   而那份名册也只活在仓库外的 `_t561/roster_im_all.txt` 里。下一批问不出「我的面有没有丢掉
+   上一面跑过的文件」——因为没有一份交付物可问。
+2. **「哪些门在读全部文档」一直被字节针回答。** 本批预量（`_t543/doc_reader_census.txt`）
+   里，针 `DEFAULT_DOCS` 收 9 份，其中一份是第五百四十二批的判据自己：它把赋值语句当字面量
+   钉在 `PINS[63]` 里，一个文档也不读。结构（AST）人口也是 9 份，但多出来的那一份是
+   `tests/test_no_document_quotes_a_content_addressed_bundle.py`——它用 `DOCS.rglob("*.md")`
+   读遍文档，却一次也不拼 `DEFAULT_DOCS`。**两个人口一样大，成员各换了一个**：只报数
+   分不出它们。
+
+伤害是具体的：若按字节针决定宽面成员，第五百四十二批的判据会被当成「文档读者」收进名册
+（而它什么也不读），真正读遍 `docs/*.md` 的那一份反倒看不见。「读全部文档的门必须在宽面里」
+因此需要一条**按结构准入**的规则，而不是一条按字节匹配的规则。
+
+### 2 量到的真相
+
+预量发生在任何落盘之前：`git ls-files tests/*.py` 是 479 份，索引里没有 `tests/fence_rosters/`；
+第五百四十二批的宽面名册只在仓库外；第五百四十一批的 370 份名册已随 `Temp/` 消失
+（历史读数引自各批记录，摘在 `_t543/wide_history.txt`：539 的 344、540 的 350、541 的 370、
+542 的 479）。
+
+**同一批字节上的两个人**（量具 `_t543/doc_reader_census.txt`）：
+
+| 人口 | 文件数 | 多出来的那一个 | 缺的那个 |
+|---|---|---|---|
+| 字节针 `DEFAULT_DOCS` | 9 | `tests/test_a_roadmap_cite_of_the_pointer_checker_can_be_read.py`：只在字符串常量里钉了赋值，不读文档 | `tests/test_no_document_quotes_a_content_addressed_bundle.py`：用 `rglob("*.md")` 读文档，不拼 `DEFAULT_DOCS` |
+| AST 结构 | 9 | `tests/test_no_document_quotes_a_content_addressed_bundle.py`：`rglob("*.md")` | —（542 判据不在里面） |
+
+两者的其余 8 份相同：都按属性读 `dp.DEFAULT_DOCS`。结构人口的 9 份全部在 479 份宽面里。
+
+**落盘后字节针会变成 10。** 本批新判据自己的源码里也带着 `DEFAULT_DOCS` 与 `glob("*.md")`
+两个字面量（样本与控制用），字节针把它也算成读者；AST 人口仍是 9。这就是为什么新判据的
+控制腿拿第五百四十二批的判据当载体：**只提不读**在字节上永远像读者。
+
+**名册冻结**：把预量当天的 479 个名字原样写进 `tests/fence_rosters/wide.txt`（LF、排序、
+逐名等于 `git ls-files tests/*.py`），作为「上一次宽面实际跑过的文件集」。
+
+### 3 判据
+
+新文件 `tests/test_the_wide_face_keeps_every_file_and_document_reader.py`，3 条腿：
+
+1. `test_every_file_of_the_wide_baseline_is_still_a_tracked_test`——名册必须是被跟踪的
+   `tests/*.py`、排序、无重复、行数不低于落地时的 479；随后两向点名：名册里有、索引里没有的名字
+   逐条列出（宽面只许变宽；要删就先改名册并在记录里点名）。
+2. `test_every_document_reader_is_inside_the_wide_baseline`——按 AST 从全部跟踪测试里派生读者：
+   读 `DEFAULT_DOCS`（属性或裸名）、或对常量 `*.md` 模式调用 `glob`/`rglob`。两个见证各钉一种
+   拼法（`test_doc_pointers.py` 的属性读法、rglob 判据的调用读法），读者地板 9 份，
+   然后把不在名册里的读者逐份点名。
+3. `test_a_mention_of_a_reader_is_not_a_reader`——7 个合成样本钉住结构/字面量的分界（字符串常量
+   里的读法、属性、裸名、`rglob`、`*.py`、非常量模式、`.md.txt` 后缀），再把第五百四十二批的
+   判据原样过一遍：它的源码里必须仍含那个字面量（控制不失载体），结构人口必须看不见它，
+   而它在名册里（排除的是读者身份，不是文件）。
+
+名册是**冻结的上一次跑集**，不是本批的宽面：本批自己的判据进宽面（§5 的 480 份）但不进
+这份 479 行的名册。将来任何一份新读者落地，第 2 条腿会要求它在同一批里被收进名册；
+这份新判据自己若被放宽后的谓词认成读者，也会走同一条路（A6 臂实测的正是这一条）。
+
+### 4 突变臂
+
+电池 11 个配置（A0–A10），预测写在 `_t543/predictions.md` 与它的首跑订正里，早于任何一次
+pytest；驱动 `_t543/arms.py` 每次改动都断言替换数恰为 1，臂后按 sha256 还原两份文件
+（判据文件 / 名册），结尾打印 `restored: True`。
+
+首跑 **9/11**，两个 MISMATCH 都按**预测漏推**记，判据不弱：
+
+- **A3**（名册截到前 10 行）实测红 L1、L2、**L3**。漏推 L3：最后一条断言要求「只提不读的判据
+  也在宽面里」，截断后的名册里没有它。
+- **A6**（词法预收）实测红 **L2**、L3。漏推 L2：词法谓词把**本判据自己的文件**也算成读者
+  （它源码里带着两个字面量），而它是新文件、不在 542 的 479 行名册里——「读者不在名册」也红。
+  这条红是判据在正常工作：词法谓词一旦放宽，新判据确实从未在 542 的宽面里跑过。不为这条臂
+  把判据加进名册（那会让 L2 绿得有假）。
+
+订正后重跑，**11/11 MATCHED**，`restored: True`（逐字节）。腿名缩写：L1 = 第 1 条、
+L2 = 第 2 条、L3 = 第 3 条。
+
+| 臂 | 改动 | 预测红 | 实测红 |
+|---|---|---|---|
+| A0 | 不动 | 0（3 passed） | 0（3 passed） |
+| A1 | 名册删掉 `tests/test_doc_pointers.py` | L1、L2 | L1、L2 |
+| A2 | 名册按序插入一个不存在的测试名（ghost） | L1 | L1（stale name） |
+| A3 | 名册截到前 10 行 | L1、L2、L3（订正后） | L1、L2、L3 |
+| A4 | 谓词对 `DEFAULT_DOCS` 属性与裸名都失明 | L2、L3 | L2、L3 |
+| A5 | 谓词对 `glob`/`rglob` 调用失明 | L2、L3 | L2、L3 |
+| A6 | AST 前加词法预收（含字面量就记读者） | L2、L3（订正后） | L2、L3 |
+| A7 | `MENTION_ONLY` 改指 rglob 见证 | L3 | L3 |
+| A8 | 交换名册前两行 | L1 | L1（未排序） |
+| A9 | 名册重复第一行 | L1 | L1（重复行） |
+| A10 | `MENTION_ONLY` 改指本判据自己 | L3 | L3（不在 479 行名册里） |
+
+**不可达分支的披露**：L1 的「名册里有、索引里没有」这一侧，`git ls-files` 读的是索引，
+工作树上移走文件不改变跟踪状态；在共享索引上做 `git rm --cached` 会碰别人的暂存区。
+因此这一侧由 A2 从名册一侧见证（名字失效时红），不声明「删掉一份跟踪文件」也测过。
+
+另有一处**判据首稿缺陷**在提交前就修掉、不进臂表：第 1 条腿最初按字节断言名册「没有 CR」。
+仓库 `core.autocrlf=true`：blob 是 LF，检出却是 CRLF，这条断言会在别的平面上红。改成
+`read_text` 的通用换行读法，两个平面读出同一串名字。
+
+### 5 门禁
+
+三面在**已提交的代码字节**上跑（`d5ebce4`；记录尚未写）。名册从 `git ls-files` 现推
+（`_t543/fence.py`），分母先收（`pytest --collect-only`，只收集不执行），预测写在
+`_t543/fence_predictions.md`，早于任何一次执行。
+
+| 面 | 名册 | 文件 | junit tests | passed | failed | skipped | rc | 墙钟 |
+|---|---|---|---|---|---|---|---|---|
+| `nb543` | `roster_nb.txt` | 14 | 172 | 172 | 0 | 0 | 0 | 308.82 s |
+| `doc543` | `roster_doc.txt` | 17 | 264 | 264 | 0 | 0 | 0 | 250.92 s |
+| `im543` | `roster_im_all.txt` | 480 | 4403 | 4393 | 0 | 10 | 0 | 1284.30 s |
+
+**名册定义：**
+
+- `nb543`——`tests/` 里字节含 `doc_pointers` 的跟踪文件，加上本批自己的新判据：**14 份**。
+  上一批 13 份；多出来的一份就是本批的判据（它把 `tests/test_doc_pointers.py` 当属性见证点名）。
+- `doc543`——`tests/` 里字节点名 `ROADMAP_TO_PRODUCT` 的跟踪文件：**17 份**，与上一批相同。
+  本批判据不读 ROADMAP，也没有新增人对。
+- `im543`——**全部跟踪的测试文件加本批新判据：480 份**（479 + 本判据）。这就是新判据
+  要求宽面「只许变宽」的那一面：542 的 479 份一份不少，本批的 480 份全部是跟踪测试。
+
+**对账（全部读自 junit 与驱动的树指纹，不手抄）：**
+
+- 三个分母逐面命中预收值：nb 172/172、doc 264/264、im 4403/4403；合计 4839 条腿。
+- 合计 4829 passed + 10 skipped，0 failed、0 errors；三面 rc 0/0/0。
+- 本批新判据的 3 条腿在 nb 面 3/3、im 面 3/3（腿名从 junit 现读）；doc 面 0/3 是对的——本批判据不读 ROADMAP，不在 doc 名册里。
+- 名册与 junit 两向对账：`nb543` 14/14 份文件都交了腿；`doc543` 17/17；`im543` 480 份里 479 份交了腿，唯一的空是共享夹具 `tests/_silence_reason_shared.py`（不是名册漏收）；反向：三面 junit 里都没有一份名册外的文件。
+- 跳过的 10 条与 542 交付轮**逐名相同**（用 junit 的 classname::name 对集合），逐条：
+  - tests.test_a_path_must_not_be_rewritten_into_another_path::test_a_plan_skips_an_unquotable_path_instead_of_dying | this platform does not allow a quote in a file name
+  - tests.test_allowlist_validation::test_unreadable_file_raises | Windows does not enforce read permission for file owner
+  - tests.test_slash_commands::test_skill_links_cannot_expose_files_outside_the_catalog[file-project] | host cannot create links: [WinError 1314] 客户端没有所需的特权。
+  - tests.test_slash_commands::test_skill_links_cannot_expose_files_outside_the_catalog[file-user] | host cannot create links: [WinError 1314] 客户端没有所需的特权。
+  - tests.test_the_minicc_gate_judges_the_path_the_file_actually_names::test_a_symlink_named_innocuously_cannot_smuggle_the_token_out | symlinks unavailable on this platform: [WinError 1314] 客户端没有所需的特权。
+  - tests.test_webauth_validation::test_unreadable_file_raises | Windows does not enforce read permission for file owner
+  - tests.test_webauth_validation::test_unwritable_parent_raises | Windows permission model differs
+  - tests.test_webauth_validation::test_created_token_has_owner_only_permissions | Permission check is POSIX-specific
+  - tests.test_webauth_validation::test_existing_token_with_world_readable_permissions_is_not_fixed | Permission check is POSIX-specific
+  - tests.test_what_a_review_of_this_batch_found::test_a_diff_over_a_path_outside_the_workspace_does_not_raise | symlinks unavailable on this platform
+- 树：`tree_before=tree_after=1efbdc7362d0b65b`，被跟踪文件 656 份，三面依次执行，`at_rest=yes`。
+
+### 6 边界
+
+1. **判据管的是名册，不是执行。** 第 1 条腿回答「名册里的文件今天还在不在」；「它们真的
+   各跑过一次」由 §5 的 junit 与树指纹回答。两者不能互相代替。
+2. **`git ls-files` 读索引。** 一份被跟踪的文件从工作树上移走，第 1 条腿仍绿；这种删除会让
+   围栏的 pytest 直接报收集错误，由 §5 抓。A2 只从名册一侧见证「名册里有、索引里没有」。
+3. **AST 谓词只认常量模式。** `glob(pattern)` 这种运行时拼出来的模式不猜；读者若用变量拼
+   模式，落在人口之外，靠名册手收。谓词只认 `DEFAULT_DOCS` 与 `*.md` 两种读法。
+4. **名册是 542 的跑集，不是本批的面。** 本批判据跑在 480 份的宽面里，但不在 479 行名册里。
+   将来它若被放宽后的谓词认成读者，第 2 条腿会红——A6 臂量到的就是这条红；修法是把它收进
+   名册，而不是放宽谓词。
+5. **地板数是字面量。** 479 是落地时的读数；真要缩减宽面（删掉一份测试），必须同时改名册
+   （否则第 1 条腿红）、改地板、在记录里点名。判据只强迫那次编辑发生，不评价理由好坏。
+6. **只提不读的控制只有一份载体。** 它钉的是「这个拼法出现在字符串里」与「它不读」两件事，
+   不是一条关于散文的规则；换一份只提不读的门，控制要连同谓词一起换。
+7. **名册的行尾不在判据里。** blob 是 LF，`core.autocrlf=true` 检出成 CRLF；判据用通用换行
+   读法，两个平面读出同一串名字。第 1 条腿查的是成员，不是字节。
+8. **`doc_pointers.py --check` 在新判据与本节字节上仍 rc=0。** 页脚 961 个「见」标记、23 条链接、4,169 个证据指针、20 份文档，over 656 tracked files。
+
+### 7 下一单位
+
+按第五百四十二批 §7 的排期，本批结掉了第 1 项。下一批从第 2 项开始：
+
+1. **M8-T559**：口径交换＋对 537 的 C5 与本批 BOUND 的强制重分类。
+2. **M8-T560**：`sections` 仍是最大的一笔前缀账单（6,710 次里 3,252 次问的不是被检文档
+   自己的字节）。
+3. **M8-T550、M8-T544、M8-T545、M8-T546**：仍是各自的旧账，顺序不变。
+4. 测试侧余账：10 条 drift 与 27 条 unpinned 的读法批次，编号与本批的宽面门一起落在这里。
