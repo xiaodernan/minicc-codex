@@ -51,6 +51,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+import bisect
 import difflib
 import re
 import subprocess
@@ -236,8 +237,12 @@ class Stats:
     links_generated: int = 0
 
 
-def sections(text: str) -> list[Section]:
-    """Every heading with the span beneath it, until the next heading."""
+def sections(text: str, starts: tuple[int, ...] | None = None) -> list[Section]:
+    """Every heading with the span beneath it, until the next heading.
+
+    ``starts`` is the newline index when the caller already bought one; built here otherwise.
+    """
+    starts = _newline_index(text) if starts is None else starts
     found = list(_HEADING.finditer(text))
     out: list[Section] = []
     for index, match in enumerate(found):
@@ -246,15 +251,21 @@ def sections(text: str) -> list[Section]:
             Section(
                 level=len(match.group(1)),
                 title=match.group(2).strip(),
-                line=_line_of(text, match.start()),
+                line=_line_of(starts, match.start()),
                 body=text[match.end() : end],
             )
         )
     return out
 
 
-def _line_of(text: str, offset: int) -> int:
-    return text.count("\n", 0, offset) + 1
+def _newline_index(text: str) -> tuple[int, ...]:
+    """Every newline offset in ``text``; bought once per document by its caller."""
+    return tuple(match.start() for match in re.finditer("\n", text))
+
+
+def _line_of(starts: tuple[int, ...], offset: int) -> int:
+    """1-based line of ``offset``, bisected over the index the caller bought."""
+    return bisect.bisect_right(starts, offset - 1) + 1
 
 
 def _numeral(word: str) -> int | None:
@@ -608,7 +619,9 @@ def _span_documents(span: str) -> list[tuple[str, Path | None]]:
     return out
 
 
-def _span_name_claims(document: Path, text: str, offset: int, span: str) -> list[Problem]:
+def _span_name_claims(
+    document: Path, text: str, starts: tuple[int, ...], offset: int, span: str
+) -> list[Problem]:
     """Answer the bare file names a marker asserts, using the name rule that already exists.
 
     ``carried-by-link-reader`` and ``citation-without-locator`` are each a promise about who
@@ -618,7 +631,7 @@ def _span_name_claims(document: Path, text: str, offset: int, span: str) -> list
     reader only parses code spans, and the prose-path reader requires a slash. That is the
     same gap M8-T41 closed for names *inside* backticks, so the same resolver is reused.
     """
-    return _check_name_targets(document, text, offset, [("name", name) for name in _span_names(span)])
+    return _check_name_targets(document, text, starts, offset, [("name", name) for name in _span_names(span)])
 
 
 def _link_target(match: re.Match[str]) -> str:
@@ -771,7 +784,8 @@ def _declared_labels(text: str) -> list[tuple[int, int, str]]:
 
 
 def _check_quoted_name(
-    document: Path, text: str, offset: int, name: str, labels: list[tuple[int, int, str]]
+    document: Path, text: str, starts: tuple[int, ...], offset: int, name: str,
+    labels: list[tuple[int, int, str]],
 ) -> list[Problem]:
     """Answer a pointer that names its target 「X」 with a place-word in front.
 
@@ -783,7 +797,7 @@ def _check_quoted_name(
     """
     tail = _AFTER_MARKER.match(text, offset + (2 if text.startswith("参见", offset) else 1))
     direction = (tail.group(1) or "") if tail else ""
-    line = _line_of(text, offset)
+    line = _line_of(starts, offset)
     hits = [start for start, end, label in labels if name in label and not start <= offset < end]
     if direction.startswith("上"):
         hits = [start for start in hits if start < offset]
@@ -804,7 +818,8 @@ def _check_quoted_name(
 
 
 def _check_name_targets(
-    document: Path, text: str, offset: int, targets: list[tuple[str, str]]
+    document: Path, text: str, starts: tuple[int, ...], offset: int,
+    targets: list[tuple[str, str]],
 ) -> list[Problem]:
     """Resolve the file names a citation points at that no other reader parses.
 
@@ -823,7 +838,7 @@ def _check_name_targets(
     named = [span for kind, span in targets if kind == "name"]
     if not named:
         return problems
-    line = _line_of(text, offset)
+    line = _line_of(starts, offset)
     for span in named:
         ref = _NAME_REF.match(span)
         assert ref is not None, span  # _gap_targets only files what it matches
@@ -857,7 +872,8 @@ def _check_name_targets(
 
 def check_pointers(document: Path, text: str) -> tuple[list[Problem], int, dict[str, int]]:
     """Return problems, the number of checked pointers, and the per-box counts."""
-    headings = sections(text)
+    starts = _newline_index(text)
+    headings = sections(text, starts)
     numbered = _numbered_headings(headings)
     batch_claims = _batch_claims(headings)
     subsections = _subsection_tables(headings)
@@ -868,20 +884,20 @@ def check_pointers(document: Path, text: str) -> tuple[list[Problem], int, dict[
     for offset, span, box, targets in _pointer_spans(text):
         boxes[box] += 1
         if box == BOX_CODE_NAME:
-            problems += _check_name_targets(document, text, offset, targets)
+            problems += _check_name_targets(document, text, starts, offset, targets)
             continue
         if box == BOX_QUOTED_NAME:
             # Counted in its own box and answered here; it is *not* added to the
             # ``checked`` headline total, which would make that integer no longer mean
             # "a locator-shaped target resolved" for every reader of the summary line.
-            problems += _check_quoted_name(document, text, offset, span, labels)
+            problems += _check_quoted_name(document, text, starts, offset, span, labels)
             continue
         if box in (BOX_LINK_TEXT, BOX_NO_LOCATOR):
             # The hand-off is only for the claim the other reader parses. A name written in
             # prose beside it stays this marker's business, and answering it here keeps the
             # box's meaning intact: 「carried-by-link-reader」 still says *the link* is
             # someone else's work, not that the whole span is.
-            problems += _span_name_claims(document, text, offset, span)
+            problems += _span_name_claims(document, text, starts, offset, span)
             continue
         if box != BOX_CHECKED:
             # Every non-checked box is counted and named in the summary: that is the
@@ -894,8 +910,8 @@ def check_pointers(document: Path, text: str) -> tuple[list[Problem], int, dict[
         appendices = list(_APPENDIX.finditer(span))
         ids = _ID.findall(span)
         checked += 1
-        line = _line_of(text, offset)
-        problems += _span_name_claims(document, text, offset, span)
+        line = _line_of(starts, offset)
+        problems += _span_name_claims(document, text, starts, offset, span)
         owners = _span_documents(span)
         target: Section | None = None
         remote: list[Section] = []
@@ -999,7 +1015,7 @@ def check_pointers(document: Path, text: str) -> tuple[list[Problem], int, dict[
             Problem(
                 "FENCE",
                 document.name,
-                _line_of(text, offset),
+                _line_of(starts, offset),
                 "这一行开了一个围栏，到文末都没有闭合；它之后的正文没有被当成代码削掉，"
                 "指针照判——但渲染器会把那一段整个吞进代码块",
             )
@@ -1053,6 +1069,7 @@ def check_links(document: Path, text: str) -> tuple[list[Problem], int, int]:
     reported as a dangling link. The cost is the accepted one: a broken link that only
     ever appears inside code is invisible here too.
     """
+    starts = _newline_index(text)
     problems: list[Problem] = []
     checked = 0
     generated = 0
@@ -1076,7 +1093,7 @@ def check_links(document: Path, text: str) -> tuple[list[Problem], int, int]:
             if here
             else f"链接目标 {target} 不存在"
         )
-        problems.append(Problem("LINK", document.name, _line_of(text, match.start()), detail))
+        problems.append(Problem("LINK", document.name, _line_of(starts, match.start()), detail))
     return problems, checked, generated
 
 
@@ -1560,6 +1577,7 @@ def check_evidence(document: Path, text: str) -> tuple[list[Problem], int]:
     relative = document.relative_to(REPO_ROOT).as_posix() if document.is_relative_to(REPO_ROOT) else document.name
     if relative in _OUT_OF_SCOPE_DOCS:
         return [], 0
+    starts = _newline_index(text)
     problems: list[Problem] = []
     names = _all_test_names()
     stems = {module.stem for module in (REPO_ROOT / "tests").glob("*.py") if _holds(f"tests/{module.name}")}
@@ -1567,7 +1585,7 @@ def check_evidence(document: Path, text: str) -> tuple[list[Problem], int]:
     for offset, span in _code_spans(text):
         if _evidence_shape(span) is None:
             continue
-        line = _line_of(text, offset)
+        line = _line_of(starts, offset)
         checked += 1
         # An exemption is registered against the *citation as written*, so it has
         # to be consulted before any of the sub-checks. Reading it only in the

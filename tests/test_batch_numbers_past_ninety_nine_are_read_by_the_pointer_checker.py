@@ -184,11 +184,12 @@ def test_the_corpus_files_no_batch_pointer_as_unresolvable() -> None:
         for problem in problems:
             if problem.kind == "POINTER" and _ANY_BATCH_LABEL.search(problem.detail):
                 reds.append((document.name, problem.line, problem.detail[:70]))
+        starts = dp._newline_index(text)
         for offset, span, box, _targets in dp._pointer_spans(text):
             if _ANY_BATCH_LABEL.search(span) is None:
                 continue
             if box != dp.BOX_CHECKED:
-                unchecked.append((document.name, dp._line_of(text, offset), box, span[:48]))
+                unchecked.append((document.name, dp._line_of(starts, offset), box, span[:48]))
     assert unchecked == [], f"批号指针仍落在没人裁决的箱子里：{unchecked}"
     assert reds == [], f"批号指针被判成指向不存在，而标题就在文档里：{reds}"
     assert roster_total >= 360, f"名册只剩 {roster_total} 个批号键：读者又开始看不见大于一百的批号"

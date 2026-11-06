@@ -43,17 +43,17 @@ STOPS = "。；！？"
 #: line -> the thing the citing sentence says is there.  A pin is the line's
 #: stripped text, so indentation may change and a reflow may not.
 PINS = {
-    63: 'DEFAULT_DOCS = tuple(sorted((REPO_ROOT / "docs").glob("*.md"))) + (REPO_ROOT / "README.md",)',
-    137: '_NUM = r"(\\d+|[一二三四五六七八九十]+)"',
-    256: "def _line_of(text: str, offset: int) -> int:",
-    503: "run, info = match.group(1), match.group(2)",
-    641: '"""``carried-by-link-reader`` is a promise that another reader answers for this',
-    831: "if _git_ignored(path):",
-    868: "for offset, span, box, targets in _pointer_spans(text):",
-    994: "for offset in _fence_blocks(text)[1]:",
-    1059: "for match in _LINK.finditer(_mask_code(text)):",
-    1567: "for offset, span in _code_spans(text):",
-    1570: "line = _line_of(text, offset)",
+    64: 'DEFAULT_DOCS = tuple(sorted((REPO_ROOT / "docs").glob("*.md"))) + (REPO_ROOT / "README.md",)',
+    138: '_NUM = r"(\\d+|[一二三四五六七八九十]+)"',
+    266: "def _line_of(starts: tuple[int, ...], offset: int) -> int:",
+    514: "run, info = match.group(1), match.group(2)",
+    654: '"""``carried-by-link-reader`` is a promise that another reader answers for this',
+    846: "if _git_ignored(path):",
+    884: "for offset, span, box, targets in _pointer_spans(text):",
+    1010: "for offset in _fence_blocks(text)[1]:",
+    1076: "for match in _LINK.finditer(_mask_code(text)):",
+    1585: "for offset, span in _code_spans(text):",
+    1588: "line = _line_of(starts, offset)",
 }
 
 #: The corpus at the time the gate landed: nine clusters, 19 citations.  The

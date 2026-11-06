@@ -17,12 +17,13 @@ reader** rather than typed out here: renaming a scanner, adding one, or handing 
 one inside a loop over that scanner's own results all change what the census reports, and none
 of those can pass by editing a list in this file.
 
-One boundary, disclosed rather than hidden.  ``_line_of`` also answers per item by scanning
-``text``, but only the prefix up to the offset (``text.count("\\n", 0, offset)``), so its price
-grows with how far into the document an item sits rather than with the document.  It is a
-different charge at a different size, so it lives in its own roster and its own leg, and
-``test_the_prefix_line_answer_is_a_separate_charge_and_is_named_as_one`` keeps that split on the
-record instead of letting a narrow roster claim the repository is clean.  The size of that
+One boundary, re-adjudicated by M8-T559 rather than dropped.  ``_line_of`` used to answer per
+item by scanning ``text`` up to the offset (``text.count("\\n", 0, offset)``); the swap gave that
+walk a named buyer, ``_newline_index``, which each asking channel calls once per document, and
+``_line_of`` now bisects the bought tuple instead of touching the text.  Both halves are judged
+here: the derived roster admits the builder and still excludes the per-item answer - now because
+it scans nothing, not because its scan is short - by
+``test_the_whole_document_charge_is_bought_once_at_each_asking_channel``.  The size of either
 charge is not quoted here, because a reading copied into this paragraph has no reader that
 re-runs it: the family is measured from the shipped reader's own calls - requests, admissions
 and the bill for the requests thrown away - by ``test_a_line_number_is_asked_only_for_an_item_the_reader_admits.py``.
@@ -51,8 +52,11 @@ WHOLE_TEXT_METHODS = frozenset({"finditer", "findall", "fullmatch", "search", "m
 #: The scanners this defect family spans, as a *floor* on the derived roster.
 CHARGED_SCANNERS = ("_fence_blocks", "_blank_fences", "_mask_code", "_code_spans")
 
-#: The disclosed neighbouring charge - prefix-bounded, so outside the whole-document roster.
-PREFIX_SCANNER = "_line_of"
+#: The bought whole-document charge: it walks ``text``, so the derived roster must admit it.
+INDEX_BUILDER = "_newline_index"
+
+#: The per-item answer over the bought index: it scans no text, so the roster still excludes it.
+BOUNDED_READER = "_line_of"
 
 
 def _load(name: str = "minicc_doc_pointers_t555") -> Any:
@@ -210,19 +214,18 @@ def _sites(tree: ast.Module, label: str, scanners: set[str]) -> list[dict[str, A
     return sites
 
 
-def census(paths: list[pathlib.Path], extra_scanners: set[str] = frozenset()) -> list[dict[str, Any]]:
-    """Run the walk over the tree.  ``extra_scanners`` is how the disclosed prefix charge stays
-    enumerated: the same walk, with ``_line_of`` added, reports the family left for the next batch.
+def census(paths: list[pathlib.Path]) -> list[dict[str, Any]]:
+    """Run the walk over the tree.
 
-    Memoised per roster, because the census reading its own tree twice is the same bill this
-    batch is closing.
+    Memoised, because the census reading its own tree twice is the same bill this batch is
+    closing.
     """
-    key = frozenset(extra_scanners)
-    if key in _CENSUS_CACHE:
-        return _CENSUS_CACHE[key]
+    global _CENSUS_CACHE
+    if _CENSUS_CACHE is not None:
+        return _CENSUS_CACHE
     reader = _parse(SCRIPT)
     assert reader is not None, SCRIPT
-    base = derived_scanners(reader) | key
+    base = derived_scanners(reader)
     sites: list[dict[str, Any]] = []
     for path in paths:
         tree = _parse(path)
@@ -230,11 +233,11 @@ def census(paths: list[pathlib.Path], extra_scanners: set[str] = frozenset()) ->
             continue
         label = path.relative_to(REPO_ROOT).as_posix()
         sites += _sites(tree, label, base | derived_scanners(tree))
-    _CENSUS_CACHE[key] = sites
+    _CENSUS_CACHE = sites
     return sites
 
 
-_CENSUS_CACHE: dict[frozenset[str], list[dict[str, Any]]] = {}
+_CENSUS_CACHE: list[dict[str, Any]] | None = None
 
 
 def _snippet_sites(source: str) -> list[dict[str, Any]]:
@@ -371,48 +374,83 @@ def test_the_census_reaches_a_chain_of_helpers_that_pass_the_document_along() ->
     assert {site["answered_by"] for site in charged} & {"_answer", "_inner"}, charged
 
 
-def test_the_scanner_roster_is_derived_and_covers_every_document_walker_it_needs() -> None:
+def test_the_scanner_roster_is_derived_and_admits_the_index_builder() -> None:
     """Nobody may shrink the census by editing a list - the roster is read off the reader.
 
     The four names are the floor: they are the scanners this defect family spans, and a rename
     or a deletion that drops one of them out of the derived set goes red here rather than making
-    the census quietly blind.
+    the census quietly blind.  M8-T559 swapped the prefix count for a per-document index, so the
+    roster's boundary moved with the reading: ``_newline_index`` walks the whole document and is
+    admitted here, while ``_line_of`` no longer touches text and stays out.
     """
     reader = _parse(SCRIPT)
     assert reader is not None, SCRIPT
     scanners = derived_scanners(reader)
     missing = sorted(name for name in CHARGED_SCANNERS if name not in scanners)
     assert missing == [], (f"名册不再认得这些整档扫描器：{missing}；现存 {sorted(scanners)}")
-    assert PREFIX_SCANNER not in scanners, sorted(scanners)
+    assert INDEX_BUILDER in scanners, sorted(scanners)
+    assert BOUNDED_READER not in scanners, sorted(scanners)
 
 
-def test_the_prefix_line_answer_is_a_separate_charge_and_is_named_as_one() -> None:
-    """The roster's boundary, read off the shipped source rather than assumed, and enumerated.
+def _enclosing_def(tree: ast.Module) -> dict[int, str]:
+    """``lineno -> the module-level def it sits in``; nested defs keep their outermost owner."""
+    owner: dict[int, str] = {}
+    for node in tree.body:
+        if isinstance(node, ast.FunctionDef):
+            for child in ast.walk(node):
+                if hasattr(child, "lineno"):
+                    owner.setdefault(child.lineno, node.name)
+    return owner
 
-    ``_line_of`` walks ``text`` per item too, but only up to the offset, so its cost is a prefix
-    rather than a document; the shipped reader asks it inside four loops.  That is a real charge
-    and it is *not* what killed the leg, so it is disclosed here - with its sites counted -
-    instead of being folded into a roster that could then claim the repository is clean.
+
+def _calls_under_loops(tree: ast.AST, name: str) -> list[ast.Call]:
+    """Calls to ``name`` that sit under a loop, where the buy would be paid once per item."""
+    found: list[ast.Call] = []
+
+    def walk(node: ast.AST, depth: int) -> None:
+        if isinstance(node, (ast.For, ast.AsyncFor, ast.While, ast.comprehension)):
+            depth += 1
+        if depth and isinstance(node, ast.Call) and _callee(node) == name:
+            found.append(node)
+        for child in ast.iter_child_nodes(node):
+            walk(child, depth)
+
+    walk(tree, 0)
+    return found
+
+
+def test_the_whole_document_charge_is_bought_once_at_each_asking_channel() -> None:
+    """The retired prefix boundary, re-read: who pays for the whole document now, and how often.
+
+    ``_line_of`` used to be the family's only door and a *prefix* charge, which is why the roster
+    deliberately left it out.  M8-T559 moved that walk to ``_newline_index``; this leg reads the
+    consequence off the shipped source rather than assuming it.  The builder walks its own
+    parameter - which is what puts it in the roster the leg above derives - and it is called only
+    by the four asking channels, never under a loop, so the whole document is bought once per
+    document rather than once per item.  The per-item answer touches no text at all.  The size of
+    either bill is measured by
+    ``test_a_line_number_is_asked_only_for_an_item_the_reader_admits.py``.
     """
     reader = _parse(SCRIPT)
     assert reader is not None, SCRIPT
+    builders = [fn for fn in reader.body
+                if isinstance(fn, ast.FunctionDef) and fn.name == INDEX_BUILDER]
+    assert builders, f"{INDEX_BUILDER} 不在读者里：整档的账没人买了"
+    builder = builders[0]
+    builder_params = {argument.arg for argument in builder.args.args}
+    walks = [call for call in ast.walk(builder) if isinstance(call, ast.Call)]
+    assert any(_walks_one_of(call, builder_params, set()) is not None
+               for call in walks), f"{INDEX_BUILDER} 不再走自己的参数：整档的账没人买了"
+    owner = _enclosing_def(reader)
+    buyers = {owner.get(call.lineno, "<module>") for call in ast.walk(reader)
+              if isinstance(call, ast.Call) and _callee(call) == INDEX_BUILDER}
+    assert buyers == {"sections", "check_pointers", "check_links", "check_evidence"}, buyers
+    under = _calls_under_loops(reader, INDEX_BUILDER)
+    assert under == [], [(call.lineno, call.args[0].id) for call in under if call.args]
     definition = next(fn for fn in reader.body
-                      if isinstance(fn, ast.FunctionDef) and fn.name == PREFIX_SCANNER)
-    bounded = [
-        call for call in ast.walk(definition)
-        if isinstance(call, ast.Call) and _callee(call) == "count" and len(call.args) == 3
-        and isinstance(call.args[1], ast.Constant) and call.args[1].value == 0
-        and not isinstance(call.args[2], ast.Constant)
-    ]
-    assert bounded, (
-        f"{PREFIX_SCANNER} 不再是「数到 offset 为止」的前缀扫描：它现在和整档扫描同价，"
-        "就必须进上面那个派生名册，这条腿正是改判的地方"
-    )
-    prefix_sites = census(_population(), extra_scanners={PREFIX_SCANNER})
-    in_reader = sorted({(site["line"], site["answered_by"], site["name"])
-                        for site in prefix_sites if site["file"] == "scripts/doc_pointers.py"})
-    assert len(in_reader) >= 4, in_reader
-    assert any(answered == PREFIX_SCANNER for _line, answered, _name in in_reader), in_reader
-    assert {name for _line, _answered, name in in_reader} == {"text"}, in_reader
-    whole = census(_population())
-    assert len(prefix_sites) > len(whole), (len(prefix_sites), len(whole))
+                      if isinstance(fn, ast.FunctionDef) and fn.name == BOUNDED_READER)
+    params = {argument.arg for argument in definition.args.args}
+    touching = [call for call in ast.walk(definition)
+                if isinstance(call, ast.Call) and isinstance(call.func, ast.Attribute)
+                and isinstance(call.func.value, ast.Name) and call.func.value.id in params]
+    assert touching == [], touching

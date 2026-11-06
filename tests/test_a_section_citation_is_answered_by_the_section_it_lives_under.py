@@ -279,12 +279,13 @@ def test_the_corpus_adjudicates_every_section_citation_it_holds() -> None:
         for problem in problems:
             if problem.kind == "POINTER" and _ANY_SECTION_CITATION.search(problem.detail):
                 reds.append((document.name, problem.line, problem.detail[:70]))
+        starts = dp._newline_index(text)
         for offset, span, box, _targets in dp._pointer_spans(text):
             if _ANY_SECTION_CITATION.search(span) is None:
                 continue
             census += 1
             if box != dp.BOX_CHECKED:
-                unchecked.append((document.name, dp._line_of(text, offset), box, span[:48]))
+                unchecked.append((document.name, dp._line_of(starts, offset), box, span[:48]))
     assert unchecked == [], f"节引用仍落在没人裁决的箱子里：{unchecked}"
     assert reds == [], f"节引用被判成指向不存在，而编号就在标题里：{reds}"
     assert census >= 20, f"普查只收到 {census} 条节引用：读者又开始看不见带空格的编号"

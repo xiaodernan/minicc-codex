@@ -256,6 +256,7 @@ def test_the_sibling_citations_keep_their_reader_and_their_line() -> None:
     """
     text = _ROADMAP.read_text(encoding="utf-8")
     offsets = {span: off for off, span in dp._code_spans(text) if span in _SIBLING_CITATIONS}
+    starts = dp._newline_index(text)
     for citation in _SIBLING_CITATIONS:
         assert citation in offsets, f"{citation} 没有读者了：换尺换掉了它的定界符"
         written = next(
@@ -263,7 +264,7 @@ def test_the_sibling_citations_keep_their_reader_and_their_line() -> None:
             for number, line in enumerate(text.splitlines(), start=1)
             if f"`{citation}`" in line
         )
-        reported = dp._line_of(text, offsets[citation])
+        reported = dp._line_of(starts, offsets[citation])
         assert reported == written, f"{citation} 判在 {reported} 行，作者写的是 {written} 行"
 
 

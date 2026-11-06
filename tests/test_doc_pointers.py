@@ -793,8 +793,9 @@ def test_the_corpus_holds_arabic_pointers_and_the_tool_now_reads_every_one() -> 
     in_word = []
     for document in dp.DEFAULT_DOCS:
         text = document.read_text(encoding="utf-8")
+        starts = dp._newline_index(text)
         for offset, span, box, _targets in dp._pointer_spans(text):
-            line = dp._line_of(text, offset)
+            line = dp._line_of(starts, offset)
             if re.search(r"第\d+(?:节|批)", span):
                 arabic.append((document.name, line, span, box))
                 if box == dp.BOX_WORD:
@@ -1041,12 +1042,13 @@ def test_every_shipped_quoted_name_pointer_answers_for_itself() -> None:
     tenants = 0
     for document in dp.DEFAULT_DOCS:
         text = document.read_text(encoding="utf-8")
+        starts = dp._newline_index(text)
         labels = dp._declared_labels(text)
         for offset, span, box, _targets in dp._pointer_spans(text):
             if box != dp.BOX_QUOTED_NAME:
                 continue
             tenants += 1
-            problems = dp._check_quoted_name(document, text, offset, span, labels)
+            problems = dp._check_quoted_name(document, text, starts, offset, span, labels)
             assert problems == [], (document.name, span)
     assert tenants >= 1, f"引号命名箱只剩 {tenants} 条，这条门已经是空的"
 
