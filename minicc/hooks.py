@@ -78,8 +78,6 @@ HOOK_DENY_EXIT = 2
 #: constant; every reader asks it.
 DEFAULT_DENY_REASON = "hook denied"
 
-_NAME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_-]{0,63}$")
-
 
 class HookConfigError(RuntimeError):
     """hooks.json is malformed; the hook system stays disabled."""
