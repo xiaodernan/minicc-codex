@@ -39299,5 +39299,37 @@ discarded、real/kept、cold、enumeration、channel-admits、ALT（HEAD 脚本�
 
 ### 8 落盘复量
 
-[填：两笔提交、第二轮三面、树指纹、--check 页脚]
+交付是两笔提交：`f9075c5`（代码 + 机械重瞄，10 个文件）与 `e82698d`（记录 + 六个钉子，
+2 个文件，+240 行）。第一轮围栏在 `f9075c5` 的代码字节上跑（§5）；第二轮在 `e82698d`
+之后的字节上跑，那时工作树干净、`HEAD == e82698d`。
+
+第二轮的名册重推与分母重收（`collect2`）：三面 `roster_same=True`；与第一轮 junit 逐名
+对账 `added=0 removed=0`；收集 172 / 264 / 4,403。预测写在
+`_t544/fence_predictions_round2.md`，落笔于重推与重收之后、任何一次第二轮执行之前
+（收集只收集不执行）。
+
+| 面 | 预测 | 实测 | rc | 墙钟 | 树 |
+|---|---|---|---|---|---|
+| `nb544b` | 172 passed, 0 skipped, 0 failed | 172 passed, 0 skipped, 0 failed | 0 | 170.96 s | `8ba265706a6013c7` |
+| `doc544b` | 264 passed, 0 skipped, 0 failed | 264 passed, 0 skipped, 0 failed | 0 | 120.18 s | 同上 |
+| `im544b` | 4,393 passed, 10 skipped, 0 failed | 4,393 passed, 10 skipped, 0 failed | 0 | 1271.94 s | 同上 |
+
+三面读到同一棵树：`tree_before=tree_after=8ba265706a6013c7`、656 份被跟踪文件、`at_rest=yes`。
+这一轮评的是记录提交之后的那棵树，中途没有人动过它。
+
+对账：
+
+- 三个分母逐面命中预测：172 / 264 / 4,403。
+- 合计 4,839 条腿（4,829 passed + 10 skipped）、0 failed、0 errors，三面 rc 全 0。
+- 本批判据的 19 条腿在 nb 与 im 面逐条跑到（5 + 11 + 3，腿数从 junit 现读）；doc 面 3/3
+  （只有 pin），与第一轮相同。
+- 名册与 junit 两向对账：`nb544b` 14/14；`doc544b` 17/17；`im544b` 480 份里 479 份交了腿，
+  唯一没交的是共享夹具 `tests/_silence_reason_shared.py`；反向：三面 junit 里没有名册外的文件。
+- 跳过的 10 条与第一轮逐名相同；没有预测之外的红。
+- 交付树上的 `--check`（含本节的字节）rc=0：页脚 966 个「见」标记、23 条链接、
+  4,183 个证据指针、20 份文档，over 656 tracked files（543 交付时是
+  962 / 23 / 4,170 / 20）。
+
+本批没有新增测试模块；记录只往 ROADMAP 加正文。测试文件里唯一的改动是 pin 表（+6 个
+钉子），它在第二轮的三面里都跑到了。
 
