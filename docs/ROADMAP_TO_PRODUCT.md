@@ -39067,3 +39067,237 @@ L2 = 第 2 条、L3 = 第 3 条。
 - 跳过的 10 条与第一轮逐名相同（用 junit 的 testcase 名与 reason 逐条比对）；没有预测之外的红。
 
 交付树上的 `--check`（含本节的字节）rc=0：页脚 962 个「见」标记、23 条链接、4170 个证据指针、20 份文档，over 656 tracked files（本批记录交付时是 961 / 23 / 4,169 / 656）
+
+## 第五百四十四批 — M8-T559 — 行号的口径交换：整档索引买一次，逐项只二分
+
+### 1 缺陷
+
+判的是第五百四十三批 §7 的第 1 项（M8-T559）：第五百三十九批把 `_line_of` 的前缀读法定价、
+登记为 M8-T556，并在 C5 与 BOUND 腿里钉住**改判条件**——第三个实参不再是变量、第二实参不再是 0
+时，它就和整档扫描同价，必须进整档名册。本批就是触发那次改判的批次：把逐项前缀扫描换成
+**每份文档买一次的换行索引**，逐项只做二分。
+
+交换本身不是难点，难点是它同时推翻两处名册声称：
+
+1. 第五百三十七批的 C5 说「`_line_of` 是前缀，是另一笔账，不进整档名册」——换口径之后
+   前半句不成立，后半句仍要成立（它不再碰文本，所以仍不进名册）。旧 C5 的第一条改判
+   子句（找前缀 `count`）会直接红。
+2. 第五百三十八批的 BOUND 腿把「前缀 count 恰好一处」钉成答案的形状——换口径之后这条
+   断言没有主语。它要改判成「读的是调用方买来的索引，且只做一次 `bisect_right`」。
+
+两条必须同一笔改：只改口径、让名册继续把 `_line_of` 当前缀外人，记录就同时说了两件事
+（它已不扫前缀 / 它仍是前缀），而两条腿会一起红。交付变体 B 在 HEAD 自己的两道门上实测的
+正是这对红集：先把 538 的捕获壳按新签名适配（只动量具、不动断言），2 failed / 14 passed，
+红的恰是 C5 与 BOUND（`_t544/variant_b_run2.log`）。
+
+### 2 量到的真相
+
+**(a) 两条候选口径在 HEAD 自己的门上。** 量具不读源码：把 HEAD 的判据文件按原名临时放回，
+跑完在 `finally` 里还原脚本与两门，逐字节验 sha。
+
+| 候选 | 537 | 538 | 合计 | 红集 |
+|---|---|---|---|---|
+| 变体 D：按文本缓存的 `_line_of(text, offset)` | 3 failed / 2 passed | 1 failed / 10 passed | **4 failed / 12 passed** | 537 B1、B4、C5；538 BOUND |
+| 变体 B：调用方买索引、`_line_of(starts, offset)` | 0 failed / 5 passed | 1 failed / 10 passed（壳已适配） | **2 failed / 14 passed** | 537 C5；538 BOUND |
+
+变体 D 的日志 `_t544/variant_d_run.log`（4 failed / 12 passed，13.35 s；脚本 sha 还原为
+`6ba0c14d`）。D 是「只把前缀扫描缓存起来、签名不动」：价格降了，身份没变——537 的普查照样
+把 `_line_of` 算成整档扫描（B1），名册照样得把它收进去（B4），C5/BOUND 也红。**这不是一次
+提速，是一次换账**：缓存文本的读法被否掉，是因为它没有把整档的走法交给一个新的所有者，
+`_line_of` 仍然是那个逐项扫全文的人。D 的缓存表还按文本键留着每份文档和索引，本身也是一笔
+没人释放的账。
+
+变体 B 的日志 `_t544/variant_b_run2.log`：只适配 538 的捕获壳（`counted_sections` 接受新签名），
+断言一条不改，红集恰是必须重判的那两条腿，其余 14 条绿。
+
+**(b) 旧门对交付读者的计数。** `_t544/old_gates_on_new_reader.log`：537 1 failed / 4 passed；
+538 8 failed / 3 passed——其中只有 BOUND 是语义红，另 7 条是捕获壳在新签名上抛
+`counted_sections() takes 1 positional argument but 2 were given`（`scripts/doc_pointers.py`
+第 876 行）。所以本批只把 C5 + BOUND 算作行为证据；7 条壳红单独记，不当证据。
+
+**(c) 交付字节上的账单**（`_t544/measure_544.py` 从 538 自己的捕获里读，不手抄）：
+
+- 23 份文档（22 在范围内；`SPECPROOF_ASSESSMENT.md` 在范围外），11,101 次请求：
+  `sections` 6,800、`check_evidence` 4,172、`check_pointers` 117、`_check_name_targets` 9、
+  `_check_quoted_name` 2、`check_links` 1。
+- 7,804 次请求问的是被检文档自己的字节；3,297 次是外来字节，全在 `sections` 名下
+  （跨文档引用读的是目标文件）。
+- 72 次整档买索引，68 次买的是被检文档自己的文本；按买家 23（`check_pointers`）
+  + 23（`check_links`）+ 22（`check_evidence`）；按文档最多 3 次。
+- 账单（字符）：per-document 1,928,236 < **交付 5,782,606** < cursor 7,402,940
+  < per-site 9,277,394 < 退役前缀 6,737,594,618；四种读法对同一批请求的答案 wrong=0。
+  交付读法是这套量具里的第二便宜，比退役前缀省 1,165.1×；三通道各自买索引比「每文档共享
+  一次」贵 3.0×，这是三个通道彼此独立入口的代价，留给 §6 与 §7，不在本批改。
+- 唯一一处 `re.finditer("\n", <名字>)` 在 `_newline_index` 里（第 263 行）；门外植入一份
+  副本，门会点名它（`sections`，植入样本第 4 行）。
+
+### 3 判据
+
+**537（5 条腿）**：B1 树普查（>400 文件）为空；B2 合成样本两向（重扫被点名、买了尺之后
+再线性走不点名）；B3 两跳助手；B4 派生名册——四个整档扫描器地板、`_newline_index` 必须在、
+`_line_of` 必须不在；**C5 换成 B5** `test_the_whole_document_charge_is_bought_once_at_each_asking_channel`：
+`_newline_index` 走自己的参数；买家恰是 `sections`、`check_pointers`、`check_links`、
+`check_evidence`；没有一处买在循环里；`_line_of` 不碰它的任何参数。
+
+**538（11 条腿，重判两条）**：
+
+- **BOUND** 换成 `test_the_answer_is_a_bounded_read_of_the_index_the_caller_bought`：参数表恰为
+  `["starts", "offset"]`；`_line_of` 不碰这两个名字；恰一次 `bisect_right(starts, …)`；再按路径
+  加载 537 的判据模块，用它**自己的** `derived_scanners` 确认 `_newline_index` 在、`_line_of` 不在。
+- **ALT** `test_the_two_alternative_readings_answer_every_request_the_shipped_one_answers`：
+  三种备选读法逐请求重放，wrong 必须为空；账单序保持 per-document < cursor < per-site <
+  退役前缀；新增交付账单的读数——同一（文档，买家）至多买一次、买家 ⊆ 从源码派生的买家、
+  走查里 `sections` 不自己买、`0 < 68 < 7,804`、交付字符 < 退役字符。
+- **门（door）腿**从「前缀 count 一扇门」改成「换行索引一扇门」：`_index_scans` 在
+  `_newline_index` 外必须为空，门外植入的副本会被点名。
+- identity / discarded / real-kept / cold / enumeration / channel-admits 五条的行为断言不变，
+  捕获改按索引口径。
+- **量具修正**：捕获原先用 `id() → text` 表认领索引；A3 臂（逐项买一次）下这张表必须留住每个
+  索引，攒到数 GB，identity 在内存压力下先红（同一次运行 739 s）。改成携带来源文本的
+  `Bought(tuple)` 子类后，认领是对象自己的属性；同一条 A3 臂 178 s，identity 绿，真实红是
+  B1/B5/ALT/PIN1。这条修正本身就是「量具不得比被量的东西更贵」的一次实测。
+- 两条说明腿照旧：测试文件仍点本文件名；`check_evidence` 与 `_check_name_targets` 的说明
+  仍写「先筛后问」。
+
+**五个外部调用点**（测试侧，全部先买索引再进循环）：
+
+1. `tests/test_a_prose_mention_of_a_fence_opens_no_block.py`——`_spans()` 在推导式前买一次；
+   掩码/原文的逐偏移比较前各买一次。
+2. `tests/test_a_section_citation_is_answered_by_the_section_it_lives_under.py`——`_pointer_spans`
+   循环前买一次。
+3. `tests/test_batch_numbers_past_ninety_nine_are_read_by_the_pointer_checker.py`——同上。
+4. `tests/test_doc_pointers.py`——两处：循环前买一次；调用方把索引传给 `_check_quoted_name`
+   的新参数（`document, text, starts, offset, name, labels`）。
+5. `tests/test_the_two_readers_share_one_fence_ruler.py`——先算 offsets，再买一次索引，
+   逐条引用只二分。
+
+**pin（3 条腿）**：被行号移位挪动的 11 处引用机械重瞄；539 §1 的历史字节不改，改写为
+「第五百三十九批写它时是第 256–257 行，M8-T559 换成了 :266-267 的索引二分」。本批新增
+`scripts/doc_pointers.py` 的 6 个引用（`:245`、`:261`、`:875`、`:876`、`:1072`、`:1580`），
+逐条进 PINS；PINS 与 ROADMAP 两向集合相等由 pin-1 判；MIN_CITES 19 不变。
+
+### 4 突变臂
+
+电池 10 个配置（A0–A9），预测写在 `_t544/predictions_544.md`，早于任何一次臂执行；驱动
+`_t544/arms.py` 每次改动都断言替换数恰为 1，臂后按 sha256 还原五份文件（脚本、537、538、
+pin、ROADMAP），臂间验 at rest。**全部 MATCHED**（`_t544/arms_544.log`）：
+
+| 臂 | 改动 | 预测红 | 实测红 | 墙钟 |
+|---|---|---|---|---|
+| A0 | 不动（交付字节） | 无 | 无（19 passed） | 14.42 s |
+| A1 | `_line_of` 里加一条死的 `starts.count(0)` | B5、BOUND、pin-1 | 同预测 | 12.07 s |
+| A2 | `check_links` 内联重建 `re.finditer("\n", text)` | door、ALT、pin-1 | 同预测 | 8.68 s |
+| A3 | `check_evidence` 把 `_newline_index(text)` 挪进 `_code_spans` 循环 | B1、B5、ALT、pin-1 | 同预测 | 178.15 s |
+| A4 | `sections` 不再接受调用方交来的索引 | ALT | ALT | 9.02 s |
+| A5 | 撤掉 M8-T556 的次序：先问行号再筛形状 | identity、discarded、pin-1 | 同预测 | 9.10 s |
+| A6 | ROADMAP 的引用数字改错一位 | pin-1 | pin-1 | 8.75 s |
+| A7 | PINS[266] 改回旧签名 token | pin-1 | pin-1 | 8.89 s |
+| A8 | `bisect_right` 换成 `bisect_left` | BOUND、ALT | 同预测 | 8.50 s |
+| A9 | 反向对照：脚本换成 HEAD blob | 见下 | 11 failed / 8 passed | 3.68 s |
+
+**四次预测订正**（每次都只改预测、不改臂、不放宽断言）：
+
+1. **A1–A3 的 pin-1**：这些臂**插了一行**，脚本 266 行以下的每个行号都 +1，而 pin-1 钉的是
+   「ROADMAP 的引用行上必须有那个 token」。写预测时只看了「臂改了什么机制」，没看「臂改了几行」。
+2. **A2 的 ALT**：内联重建把 `starts` 换成一个没经过 `_newline_index` 的元组，捕获端因此把
+   `check_links` 的请求判成外来文本；ALT 的 `foreign <= {"sections"}` 红。这不是判据过严：
+   那条子句正是「答案必须来自读者买的索引」的见证，A2 恰好制造了第二条来路。
+3. **A3 的 B1 与 identity**：B1 是判据算对了、我算漏了——被迭代的 `_code_spans(text)` 自己就是
+   整档扫描，循环体逐项再买一次索引，正是本门要抓的形状；census 点名
+   `(scripts/doc_pointers.py, 1585, _code_spans, _newline_index)`。identity 是量具伪影（见 §3 的
+   `Bought(tuple)` 修正）；修正后同一臂的 identity 绿。
+4. **A5 的 pin-1**：行数没变，但 `line = _line_of(starts, offset)` 从第 1588 行移到第 1586 行，
+   pin 表钉在 1588 的正是这句话；写预测时只查了行数，没查「被钉的那一行是否还在原处」。
+
+**A9 的两栏**：断言红——537 B4、B5，538 BOUND，pin-1；入口错误红——538 的 identity、
+discarded、real/kept、cold、enumeration、channel-admits、ALT（HEAD 脚本没有 `_newline_index`，
+`_capture()` 在入口就抛 AttributeError，走不到自己的断言）；预测绿——537 B1/B2/B3、538 door、
+两条说明腿、pin-2/pin-3。A9 的职责是反向对照：断言栏为它作证；错误栏不单独当作任何一条腿的
+行为证据，那些腿的行为证据由 A3/A4/A5/A8 各自给出。
+
+### 5 门禁
+
+三面在**已提交的代码字节**上跑（`f9075c5`；记录尚未写）。名册从 `git ls-files` 现推
+（`_t544/fence.py`），分母先收（`pytest --collect-only`，只收集不执行），预测写在
+`_t544/fence_predictions.md`，早于任何一次执行。
+
+| 面 | 名册 | 文件 | junit tests | passed | failed | skipped | rc | 墙钟 |
+|---|---|---|---|---|---|---|---|---|
+| `nb544` | `roster_nb.txt` | 14 | 172 | 172 | 0 | 0 | 0 | 460.61 s |
+| `doc544` | `roster_doc.txt` | 17 | 264 | 264 | 0 | 0 | 0 | 307.57 s |
+| `im544` | `roster_im_all.txt` | 480 | 4403 | 4393 | 0 | 10 | 0 | 2409.07 s |
+
+**名册定义：**
+
+- `nb544`——`tests/` 里字节含 `doc_pointers` 的跟踪文件：**14 份**，与 543 相同。本批没有
+  新增测试文件；537、538、pin 三份判据在 543 时就已经入册。
+- `doc544`——`tests/` 里字节点名 `ROADMAP_TO_PRODUCT` 的跟踪文件：**17 份**，与 543 相同。
+  537 与 538 不读 ROADMAP，不在这一面。
+- `im544`——**全部跟踪的测试文件：480 份**，与 543 相同。本批不新增模块，宽面一份不多、
+  一份不少。
+
+**对账（全部读自 junit 与驱动的树指纹，不手抄）：**
+
+- 三个分母逐面命中预收值：nb 172/172、doc 264/264、im 4403/4403；合计 4,839 条腿。
+- 合计 4,829 passed + 10 skipped，0 failed、0 errors；三面 rc 0/0/0。
+- 本批三份判据共 19 条腿：`nb544` 19/19（537 的 5 条、538 的 11 条、pin 的 3 条），
+  `im544` 同样 19/19；`doc544` 3/3，正好是 pin 的 3 条——另两份判据不在 doc 名册里。
+- 名册与 junit 两向对账：`nb544` 14/14 份文件都交了腿；`doc544` 17/17；`im544` 480 份里
+  479 份交了腿，唯一的空是共享夹具 `tests/_silence_reason_shared.py`（不是名册漏收）；
+  反向：三面 junit 里都没有一份名册外的文件。
+- 跳过的 10 条与 543 交付轮**逐名相同**（用 junit 的 classname::name 对集合），逐条：
+  - tests.test_a_path_must_not_be_rewritten_into_another_path::test_a_plan_skips_an_unquotable_path_instead_of_dying | this platform does not allow a quote in a file name
+  - tests.test_allowlist_validation::test_unreadable_file_raises | Windows does not enforce read permission for file owner
+  - tests.test_slash_commands::test_skill_links_cannot_expose_files_outside_the_catalog[file-project] | host cannot create links: [WinError 1314] 客户端没有所需的特权。
+  - tests.test_slash_commands::test_skill_links_cannot_expose_files_outside_the_catalog[file-user] | host cannot create links: [WinError 1314] 客户端没有所需的特权。
+  - tests.test_the_minicc_gate_judges_the_path_the_file_actually_names::test_a_symlink_named_innocuously_cannot_smuggle_the_token_out | symlinks unavailable on this platform: [WinError 1314] 客户端没有所需的特权。
+  - tests.test_webauth_validation::test_unreadable_file_raises | Windows does not enforce read permission for file owner
+  - tests.test_webauth_validation::test_unwritable_parent_raises | Windows permission model differs
+  - tests.test_webauth_validation::test_created_token_has_owner_only_permissions | Permission check is POSIX-specific
+  - tests.test_webauth_validation::test_existing_token_with_world_readable_permissions_is_not_fixed | Permission check is POSIX-specific
+  - tests.test_what_a_review_of_this_batch_found::test_a_diff_over_a_path_outside_the_workspace_does_not_raise | symlinks unavailable on this platform
+- 树：`tree_before=tree_after=41a3f019cb949daf`，被跟踪文件 656 份，三面依次执行，
+  `at_rest=yes`。
+- 墙钟不是判据：`im544` 比 543 的同一面慢近一倍（2409 s vs 1284 s），那段时间同机另有一个
+  本仓以外的 `pytest apps/ai/tests` 进程在跑。三面的 junit、名册、分母与跳过名单都和预测
+  一致；这里只记录事实，不把墙钟当结果，也不把它的长度归因给被测树。
+
+### 6 边界
+
+1. **三通道各自买索引，不是每文档共享一次。** 交付账单 5,782,606 字符，per-document 共享只要
+   1,928,236（3.0× 更少）。不共享是因为 `check_pointers`、`check_links`、`check_evidence` 是三个
+   独立入口，谁也不知道另两个人要不要同一份索引；真要共享，得先有一个持有索引的文档级入口。
+   这是另一笔签名改动，不在 M8-T559 里。
+2. **`sections` 的默认路径仍会自己买。** 调用方不交索引时它自己 `_newline_index(text)`；
+   本次走查里它一次也没买（买家 23/23/22），因为 `check_pointers` 每次都把索引交了下去。
+   537 的 B5 仍把 `sections` 列在买家名册里（默认路径是真实存在的），538 的 ALT 则要求走查里
+   它一次也不买——两条腿说的是两件事。
+3. **`_line_of` 仍不进名册，理由换了。** 它不再碰任何文本，所以「前缀外人」这个身份保留；
+   整档的账搬到了 `_newline_index`，由同一份派生名册准入。若将来有人在 `_line_of` 里重新碰
+   参数，BOUND 的 `touching == []` 会先红。
+4. **旧门的壳红不算证据。** 旧 538 对交付读者 8 红里 7 红是 `counted_sections` 的元数错误；
+   把它们算成行为红会把「换了签名」夸大成「换了语义」。本批只认 C5 + BOUND。
+5. **变体 D 被否的是身份，不是价格。** 它的缓存还把每份文档和索引长期留在字典里；即使价格
+   更低，也没有解决「谁该拥有整档走法」这个问题。
+6. **历史引用与当前引用分开写。** 539 §1 引的是当时的旧字节，数字保留为「第 256–257 行」；
+   当前的门写在 :266-267。pin-1 钉的是当前字节，不替历史句子作证。
+7. **`--check` 的页脚是交付字节的读数**，不是本段落的声称；§8 会把它与三面围栏一起量。
+8. **重瞄是机械的，语义不自动跟随。** 11 处引用按行移位改数字；其中 539 §1 因为引用了旧代码，
+   单独改写为历史/当前两段。将来别的记录若也引用「当时的字节」，同样的处理要走同一条路。
+
+### 7 下一单位
+
+按第五百四十三批 §7 的排期，本批结掉了第 1 项。下一批从第 2 项开始：
+
+1. **M8-T560**：`sections` 的外来重读。本批同一量具读到 `sections` 6,800 次请求，其中 3,297 次
+   问的不是被检文档自己的字节（543 排期时的 6,710 / 3,252 是旧捕获的口径；下一批以本批的
+   捕获为准）。这是目前最大的一笔「答案正确但对象错了」的账。
+2. **M8-T550、M8-T544、M8-T545、M8-T546**：仍是各自的旧账，顺序不变。
+3. 测试侧余账：10 条 drift 与 27 条 unpinned 的读法批次，编号与本批的宽面门一起落在这里。
+4. 本批量到但**不立案**的一笔：三通道共享索引可省 3.0×（5,782,606 → 1,928,236 字符）。
+   它需要文档级入口持有索引，是签名改动，挂在 M8-T560 的对照读数里，不另开单位。
+
+### 8 落盘复量
+
+[填：两笔提交、第二轮三面、树指纹、--check 页脚]
+
