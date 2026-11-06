@@ -116,9 +116,10 @@ MAX_VISIBLE_MODEL_UPDATE_CHARS = 1200
 MAX_PUBLIC_TOOL_OBSERVATION_CHARS = 900
 MAX_PUBLIC_TOOL_DATA_CHARS = 2400
 VISION_CONTEXT_MARKER = "[持久视觉上下文]"
-# Inspection tools are not verification. Post-write evidence must come from
-# bash test/lint commands (see ``is_verification_evidence``).
-VERIFY_TOOL_NAMES = frozenset({"bash"})
+# M8-T56/M8-T58: post-write evidence must come from bash test/lint commands,
+# not from inspection calls.  The decision lives in
+# ``minicc/agent/tool_policy.py`` (``is_verification_evidence``); this module
+# carries no second copy of the whitelist.
 # M8-T388: the read-only tools whose use after a write counts as a
 # post-write inspection (M8-T58).  The loop records the fact and the
 # completion gate asks it; each used to spell the pair itself, and a
