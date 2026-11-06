@@ -97,8 +97,6 @@ DEFAULT_MAX_DEPTH = 2
 #: 600s ``future.result``.
 WAIT_POLL_SECONDS = 0.25
 PROGRESS_EMIT_SECONDS = 5.0
-_TOOL_LOG = ("tool", "summary")
-
 _SUBAGENT_SLOTS = threading.BoundedSemaphore(MAX_CONCURRENT_SUBAGENTS)
 
 TaskToolProviderFactory = Callable[[], Any]

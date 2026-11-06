@@ -38,7 +38,6 @@ from .schemas import (
 )
 
 DEFAULT_TIMEOUT = 120
-MAX_OUTPUT_CHARS = 32_000
 MAX_CAPTURE_BYTES = 256_000
 # M6-T4: background shells are tracked in a process-wide registry. Retained
 # output per shell is capped (a ring buffer), only a bounded number run at once,
