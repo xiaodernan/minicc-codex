@@ -1857,7 +1857,7 @@ class AgentService:
                 if decision.authorization == "permission_rule_allow":
                     return emit_decision(name, AuthorizationDecision(
                         True, decision.risk,
-                        "permissions.json allow 规则放行", "permission_rule_allow",
+                        decision.reason, "permission_rule_allow",
                     ))
                 # No static rule covers the call → ask the user over the event
                 # stream, auto-deny on timeout/cancel (M7-T3).
