@@ -16,6 +16,7 @@ from collections import deque
 from dataclasses import dataclass, field
 from typing import Any
 
+from .state import MAX_TRACE_EVENTS
 from ..trace import trace_event
 
 
@@ -170,7 +171,7 @@ class RuntimeEvent:
 class EventLog:
     """Bounded append-only log with condition-based replay for SSE clients."""
 
-    def __init__(self, *, task_id: str, limit: int = 1024, start_sequence: int = 0) -> None:
+    def __init__(self, *, task_id: str, limit: int = MAX_TRACE_EVENTS, start_sequence: int = 0) -> None:
         self.task_id = task_id
         self.limit = max(32, int(limit))
         self._next_sequence = max(0, int(start_sequence))

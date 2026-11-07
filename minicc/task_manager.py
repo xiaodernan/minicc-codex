@@ -30,7 +30,8 @@ from typing import TYPE_CHECKING, Any
 
 from .agent.completion import CompletionDecision
 from .agent.graph import DAGPlan, READONLY_DAG_KINDS, READONLY_DAG_TOOLS, fixed_plan
-from .agent.loop import TurnResult
+from .agent.loop import MAX_RESULT_COMPACTION_ENTRIES, MAX_RESULT_USAGE_ENTRIES, TurnResult
+from .agent.state import MAX_TRACE_EVENTS
 from .agent.orchestration import assess_complexity, build_auto_subtasks
 from .agent.planner import PlannerPolicy, build_plan
 from .agent.protocol import (
@@ -342,10 +343,10 @@ def _merge_turn_results(previous: TurnResult | None, current: TurnResult) -> Tur
     previous.cancelled = current.cancelled
     previous.turns += current.turns
     previous.tool_calls_total += current.tool_calls_total
-    previous.denied_tools = [*previous.denied_tools, *current.denied_tools][-64:]
-    previous.trace_events = [*previous.trace_events, *current.trace_events][-1024:]
-    previous.usage_by_turn = [*previous.usage_by_turn, *current.usage_by_turn][-64:]
-    previous.compaction_events = [*previous.compaction_events, *current.compaction_events][-64:]
+    previous.denied_tools = [*previous.denied_tools, *current.denied_tools][-64:]  # different fact: the loop-guard denial ring, named nowhere
+    previous.trace_events = [*previous.trace_events, *current.trace_events][-MAX_TRACE_EVENTS:]
+    previous.usage_by_turn = [*previous.usage_by_turn, *current.usage_by_turn][-MAX_RESULT_USAGE_ENTRIES:]
+    previous.compaction_events = [*previous.compaction_events, *current.compaction_events][-MAX_RESULT_COMPACTION_ENTRIES:]
     add_usage_totals(previous.tokens_used, current.tokens_used)
     previous.context = dict(current.context)
     previous.completion = dict(current.completion)

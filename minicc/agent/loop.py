@@ -91,7 +91,7 @@ from .protocol import (
     budget_exceeded_error,
     incomplete_answer,
 )
-from .state import AgentState, Budget, BudgetExceeded
+from .state import AgentState, Budget, BudgetExceeded, MAX_TRACE_EVENTS
 from .verification_plan import build_verification_plan
 from .tool_policy import (
     is_verification_evidence,
@@ -114,7 +114,6 @@ VERIFICATION_RETRY_LIMIT = 2
 SEARCH_FAILURE_LIMIT = 2
 PROTOCOL_REPAIR_LIMIT = 2
 RECOVERY_PROBE_TOOLS = ("git_status", "git_diff", "tree")
-MAX_RESULT_TRACE_EVENTS = 1024
 MAX_RESULT_USAGE_ENTRIES = 64
 MAX_RESULT_COMPACTION_ENTRIES = 64
 MAX_TOOL_CACHE_ENTRIES = 128
@@ -726,8 +725,8 @@ async def run_agent(
             detail=detail,
         )
         result.trace_events.append(event)
-        if len(result.trace_events) > MAX_RESULT_TRACE_EVENTS:
-            del result.trace_events[: len(result.trace_events) - MAX_RESULT_TRACE_EVENTS]
+        if len(result.trace_events) > MAX_TRACE_EVENTS:
+            del result.trace_events[: len(result.trace_events) - MAX_TRACE_EVENTS]
         if runtime_state is not None:
             runtime_state.add_trace(event)
         if on_trace is not None:
