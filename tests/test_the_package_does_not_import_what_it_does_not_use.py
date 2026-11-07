@@ -11,7 +11,9 @@ its imports:
 * if an import is absent the module does not depend on it;
 * an import that is only a re-export says so, and stays.
 
-This gate sweeps every ``.py`` under ``minicc/`` with an AST, skipping:
+This gate sweeps every ``.py`` under ``minicc/`` plus the two root files the
+package cannot avoid loading (``conftest.py`` for the test suite and
+``setup.py`` for the distribution) with an AST, skipping:
 
 * ``__future__`` markers — behaviour hints, not names;
 * lines marked ``# noqa: F401`` or commented ``re-export`` — declared public
@@ -28,6 +30,8 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 PACKAGE = REPO / "minicc"
+ROOT_PY = tuple(REPO.glob("*.py"))  # setup.py, conftest.py
+SCRIPTS_PY = tuple((REPO / "scripts").glob("*.py"))
 
 
 def _load(path: Path) -> tuple[ast.Module, list[str]]:
@@ -37,7 +41,7 @@ def _load(path: Path) -> tuple[ast.Module, list[str]]:
 
 def test_no_module_scope_import_is_unreferenced() -> None:
     offenders: list[str] = []
-    for path in sorted(PACKAGE.rglob("*.py")):
+    for path in (*sorted(PACKAGE.rglob("*.py")), *ROOT_PY, *SCRIPTS_PY):
         tree, lines = _load(path)
         used = {node.id for node in ast.walk(tree) if isinstance(node, ast.Name)}
         exported = _explicit_exports(tree)
