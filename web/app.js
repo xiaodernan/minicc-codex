@@ -4172,7 +4172,7 @@
       const traceClass = status === "error" ? "trace-error" : "trace-ok";
       const detail = traceDetail(event, { omitText: event.code === "model_update" });
       const publicText = event.code === "model_update" && typeof event.detail?.text === "string" ? event.detail.text : "";
-      const tracePhase = event.code === "run_finished" ? "review" : event.phase;
+      const tracePhase = event.phase;
       const isModelEvent = String(event.code || "") === "model_update";
       const summary = isModelEvent && event.code === "model_update" ? state.locale === "zh" ? `\u884C\u52A8\u8BF4\u660E \xB7 \u7B2C ${event.detail?.turn || ""} \u8F6E` : `Action \xB7 turn ${event.detail?.turn || ""}` : String(event.summary || traceLabel(event));
       const publicMarkup = publicText ? `<div class="trace-public-plan"><span>${escapeHtml(state.locale === "zh" ? "\u516C\u5F00\u884C\u52A8" : "Public action")}</span><div>${formatText(publicText)}</div></div>` : "";

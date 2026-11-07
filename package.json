@@ -12,6 +12,7 @@
     "test:trace": "node tests/frontend_trace_code_one_home_smoke.mjs",
     "test:effort": "node tests/frontend_reasoning_effort_one_home_smoke.mjs",
     "test:i18n": "node tests/frontend_i18n_dict_one_home_smoke.mjs",
+    "test:tracephase": "node tests/frontend_trace_phase_one_home_smoke.mjs",
     "test:todo": "node tests/frontend_todo_one_home_smoke.mjs",
     "test:approval": "node tests/frontend_approval_one_home_smoke.mjs",
     "test:scale": "node tests/frontend_scale_smoke.mjs",

@@ -133,6 +133,7 @@ jobs:
           node --check tests/frontend_trace_code_one_home_smoke.mjs
           node --check tests/frontend_reasoning_effort_one_home_smoke.mjs
           node --check tests/frontend_i18n_dict_one_home_smoke.mjs
+          node --check tests/frontend_trace_phase_one_home_smoke.mjs
           npm run check:web
       - name: Install browser for focused UI contracts
         run: npx playwright install chromium --with-deps
@@ -145,6 +146,7 @@ jobs:
           npm run test:trace
           npm run test:effort
           npm run test:i18n
+          npm run test:tracephase
           npm run test:scale
 
   web-smoke:

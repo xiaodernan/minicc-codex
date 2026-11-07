@@ -1670,7 +1670,9 @@ export function toolEventHtml(event, animate = false, anchor = "", open = false)
     const traceClass = status === "error" ? "trace-error" : "trace-ok";
     const detail = traceDetail(event, { omitText: event.code === "model_update" });
     const publicText = event.code === "model_update" && typeof event.detail?.text === "string" ? event.detail.text : "";
-    const tracePhase = event.code === "run_finished" ? "review" : event.phase;
+    // M8-T565: the phase is the backend's answer; run_finished always arrives
+    // as "review", so no second copy of that decision lives here.
+    const tracePhase = event.phase;
     const isModelEvent = String(event.code || "") === "model_update";
     const summary = isModelEvent && event.code === "model_update"
       ? (state.locale === "zh" ? `行动说明 · 第 ${event.detail?.turn || ""} 轮` : `Action · turn ${event.detail?.turn || ""}`)
