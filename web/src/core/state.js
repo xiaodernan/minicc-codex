@@ -2,6 +2,11 @@
 import { BoundedMap, BoundedSet } from "./bounded-cache.js";
 import { SESSION_CACHE_PREFIX } from "./session-cache.js";
 
+// The reasoning-effort vocabulary, one home. The Python backend already owns
+// REASONING_EFFORTS (minicc/config.py); this is the same fact for the UI,
+// and frontend_reasoning_effort_one_home_smoke.mjs pins both spellings.
+export const REASONING_EFFORTS = ["low", "mid", "high", "xhigh", "max", "ultra"];
+
 export const state = {
   sessionId: localStorage.getItem("minicc-session") || "interview-1",
   allowChanges: localStorage.getItem("minicc-allow") === "true",
@@ -20,7 +25,7 @@ export const state = {
   models: [],
   modelCatalogError: "",
   modelCatalogLoading: false,
-  reasoningEffort: ["low", "mid", "high", "xhigh", "max", "ultra"].includes(localStorage.getItem("minicc-reasoning")) ? localStorage.getItem("minicc-reasoning") : "high",
+  reasoningEffort: REASONING_EFFORTS.includes(localStorage.getItem("minicc-reasoning")) ? localStorage.getItem("minicc-reasoning") : "high",
   busy: false,
   submitting: false,
   focusMode: localStorage.getItem("minicc-focus-mode") === "true",

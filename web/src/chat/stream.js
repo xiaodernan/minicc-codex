@@ -6,7 +6,7 @@ import { captureViewScope, isViewScopeCurrent } from "../core/scope.js";
 import { attachmentMarkup, cacheTaskDetail, escapeHtml, executionTrailMarkup, formatText, loadTaskHistory, persistSessionView, renderSession, sessionViewKey } from "./markdown.js";
 import { applyTaskEvent, completeTask, finishLiveTask, isTerminalTask, pollTask, updateBoundTask, updateLiveTask } from "../core/api.js";
 import { t } from "../core/i18n.js";
-import { $, $$, ACTIVE_TASK_STATUSES, authHeaders, authQuery, renderedHistoryKeys, RESUMABLE_TASK_PHASES, runtime, runningTasks, sessionMarkup, state, taskBySession, taskDetailLoads, taskDetailsById, taskEventSources, taskHistoryBySession, taskHistoryListBySession, taskWatchers } from "../core/state.js";
+import { $, $$, ACTIVE_TASK_STATUSES, authHeaders, authQuery, renderedHistoryKeys, RESUMABLE_TASK_PHASES, runtime, runningTasks, sessionMarkup, state, taskBySession, taskDetailLoads, taskDetailsById, taskEventSources, taskHistoryBySession, taskHistoryListBySession, taskWatchers, REASONING_EFFORTS } from "../core/state.js";
 import { icon, refreshIcons } from "../icons.js";
 import { addAssistantMessage, addLoadingMessage, addUserMessage, bindRunningTask, closeMentionPopover, compactNumber, effectiveTaskPermissions, eventSequence, eventTimelineMarkup, formatDuration, isCurrentTaskScope, isSessionBusy, phaseLabel, refreshFileTree, refreshFileTreeSoon, runtimeMetricsMarkup, sessionTaskBindings, setBusy, setConnection, setSession, setTaskTransportStatus, showAuthModal, showToast, taskDuration, taskMetrics, taskSessionKey, updateReasoningControl, updateTaskDock } from "../panels/index.js";
 
@@ -351,7 +351,7 @@ export async function loadWorkspace() {
     state.contextWindowTokens = Number(info.context_window_tokens || state.contextWindowTokens || 300000);
     if (!localStorage.getItem("minicc-model") && info.model) state.model = String(info.model);
     void loadModelCatalog({ quiet: true });
-    if (!localStorage.getItem("minicc-reasoning") && ["low", "mid", "high", "xhigh", "max", "ultra"].includes(info.reasoning_effort)) state.reasoningEffort = info.reasoning_effort;
+    if (!localStorage.getItem("minicc-reasoning") && REASONING_EFFORTS.includes(info.reasoning_effort)) state.reasoningEffort = info.reasoning_effort;
     updateReasoningControl();
     const name = info.name || "workspace";
     $("#workspaceName").textContent = name;
@@ -674,7 +674,7 @@ export async function loadModelCatalog({ quiet = false } = {}) {
 
 export function openSettingsPanel() {
   const current = state.locale === "zh" ? "中文" : "English";
-  const effortMarkup = ["low", "mid", "high", "xhigh", "max", "ultra"].map((effort) => "<option value=\"" + effort + "\" " + (state.reasoningEffort === effort ? "selected" : "") + ">" + escapeHtml(t("reasoning." + effort)) + "</option>").join("");
+  const effortMarkup = REASONING_EFFORTS.map((effort) => "<option value=\"" + effort + "\" " + (state.reasoningEffort === effort ? "selected" : "") + ">" + escapeHtml(t("reasoning." + effort)) + "</option>").join("");
   const languageButtons = "<div class=\"settings-block\"><span>" + t("panel.language") + "</span><strong>" + current + "</strong><div class=\"settings-locale\"><button class=\"locale-option " + (state.locale === "zh" ? "active" : "") + "\" data-set-locale=\"zh\">中文</button><button class=\"locale-option " + (state.locale === "en" ? "active" : "") + "\" data-set-locale=\"en\">English</button></div></div>";
   const modelNote = state.modelCatalogError || (state.locale === "zh" ? "从当前网关读取可用模型；新的任务会使用此选择。" : "Loads models from the configured gateway; new tasks use this choice.");
   const modelBlock = `<div class="settings-block"><span>${t("panel.model")}</span><div class="settings-model"><select id="modelSelect" aria-label="${escapeHtml(t("panel.model"))}">${modelOptionsMarkup()}</select><button type="button" class="panel-secondary model-refresh" id="refreshModelCatalog" title="${escapeHtml(t("panel.modelRefresh"))}">↻</button></div><small class="settings-note">${escapeHtml(modelNote)}</small></div>`;

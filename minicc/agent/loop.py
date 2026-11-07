@@ -904,7 +904,7 @@ async def run_agent(
         requested = str(status.get("requested") or "")
         active = str(status.get("active") or "")
         if requested:
-            effort_label = {"low": "低", "mid": "中", "high": "高", "xhigh": "极高", "max": "最高"}.get(requested, requested)
+            effort_label = {"low": "低", "mid": "中", "high": "高", "xhigh": "极高", "max": "最高", "ultra": "Ultra"}.get(requested, requested)
             emit_trace(
                 f"已启用{effort_label}推理强度；界面展示阶段摘要，不展示模型私有思维链",
                 phase="planning",

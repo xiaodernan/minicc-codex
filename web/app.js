@@ -75,6 +75,7 @@
   }
 
   // web/src/core/state.js
+  var REASONING_EFFORTS = ["low", "mid", "high", "xhigh", "max", "ultra"];
   var state = {
     sessionId: localStorage.getItem("minicc-session") || "interview-1",
     allowChanges: localStorage.getItem("minicc-allow") === "true",
@@ -89,7 +90,7 @@
     models: [],
     modelCatalogError: "",
     modelCatalogLoading: false,
-    reasoningEffort: ["low", "mid", "high", "xhigh", "max", "ultra"].includes(localStorage.getItem("minicc-reasoning")) ? localStorage.getItem("minicc-reasoning") : "high",
+    reasoningEffort: REASONING_EFFORTS.includes(localStorage.getItem("minicc-reasoning")) ? localStorage.getItem("minicc-reasoning") : "high",
     busy: false,
     submitting: false,
     focusMode: localStorage.getItem("minicc-focus-mode") === "true",
@@ -2017,7 +2018,7 @@
       state.contextWindowTokens = Number(info.context_window_tokens || state.contextWindowTokens || 3e5);
       if (!localStorage.getItem("minicc-model") && info.model) state.model = String(info.model);
       void loadModelCatalog({ quiet: true });
-      if (!localStorage.getItem("minicc-reasoning") && ["low", "mid", "high", "xhigh", "max", "ultra"].includes(info.reasoning_effort)) state.reasoningEffort = info.reasoning_effort;
+      if (!localStorage.getItem("minicc-reasoning") && REASONING_EFFORTS.includes(info.reasoning_effort)) state.reasoningEffort = info.reasoning_effort;
       updateReasoningControl();
       const name = info.name || "workspace";
       $("#workspaceName").textContent = name;
@@ -2312,7 +2313,7 @@
   }
   function openSettingsPanel() {
     const current = state.locale === "zh" ? "\u4E2D\u6587" : "English";
-    const effortMarkup = ["low", "mid", "high", "xhigh", "max", "ultra"].map((effort) => '<option value="' + effort + '" ' + (state.reasoningEffort === effort ? "selected" : "") + ">" + escapeHtml(t("reasoning." + effort)) + "</option>").join("");
+    const effortMarkup = REASONING_EFFORTS.map((effort) => '<option value="' + effort + '" ' + (state.reasoningEffort === effort ? "selected" : "") + ">" + escapeHtml(t("reasoning." + effort)) + "</option>").join("");
     const languageButtons = '<div class="settings-block"><span>' + t("panel.language") + "</span><strong>" + current + '</strong><div class="settings-locale"><button class="locale-option ' + (state.locale === "zh" ? "active" : "") + '" data-set-locale="zh">\u4E2D\u6587</button><button class="locale-option ' + (state.locale === "en" ? "active" : "") + '" data-set-locale="en">English</button></div></div>';
     const modelNote = state.modelCatalogError || (state.locale === "zh" ? "\u4ECE\u5F53\u524D\u7F51\u5173\u8BFB\u53D6\u53EF\u7528\u6A21\u578B\uFF1B\u65B0\u7684\u4EFB\u52A1\u4F1A\u4F7F\u7528\u6B64\u9009\u62E9\u3002" : "Loads models from the configured gateway; new tasks use this choice.");
     const modelBlock = `<div class="settings-block"><span>${t("panel.model")}</span><div class="settings-model"><select id="modelSelect" aria-label="${escapeHtml(t("panel.model"))}">${modelOptionsMarkup()}</select><button type="button" class="panel-secondary model-refresh" id="refreshModelCatalog" title="${escapeHtml(t("panel.modelRefresh"))}">\u21BB</button></div><small class="settings-note">${escapeHtml(modelNote)}</small></div>`;
@@ -5257,7 +5258,7 @@
       }
       if (event.target.id !== "reasoningEffortSelect") return;
       const value = event.target.value;
-      if (!["low", "mid", "high", "xhigh", "max", "ultra"].includes(value)) return;
+      if (!REASONING_EFFORTS.includes(value)) return;
       state.reasoningEffort = value;
       localStorage.setItem("minicc-reasoning", value);
       updateReasoningControl();
