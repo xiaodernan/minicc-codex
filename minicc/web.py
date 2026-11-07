@@ -93,6 +93,8 @@ from .permissions import load_permission_rules
 from .clock import utc_iso
 from .config import (
     ConfigError,
+    DEFAULT_COMPACT_THRESHOLD,
+    DEFAULT_CONTEXT_WINDOW_TOKENS,
     home_dir,
     load_config,
     workspace_not_directory_message,
@@ -942,7 +944,7 @@ class AgentService:
             "model": self.config.model,
             "endpoint": self.config.base_url,
             "sandbox": self.sandbox.status(),
-            "context_window_tokens": int(getattr(self.config, "context_window_tokens", 300_000)),
+            "context_window_tokens": int(getattr(self.config, "context_window_tokens", DEFAULT_CONTEXT_WINDOW_TOKENS)),
             "recent_workspaces": self.workspace_catalog.list(),
         }
 
@@ -1256,7 +1258,7 @@ class AgentService:
                 "default": "full" if self.config.yolo else "per_task",
                 "host_commands": self.sandbox.status().get("backend") == "host",
             },
-            "context_window_tokens": int(getattr(self.config, "context_window_tokens", 300_000)),
+            "context_window_tokens": int(getattr(self.config, "context_window_tokens", DEFAULT_CONTEXT_WINDOW_TOKENS)),
             "reasoning_effort": str(getattr(self.config, "reasoning_effort", "high")),
             "max_repair_attempts": int(getattr(self.config, "max_repair_attempts", 2)),
             "worktrees": worktrees,
@@ -2332,13 +2334,13 @@ class AgentService:
                                 node_registry,
                                 node_messages,
                                 max_turns=NODE_AGENT_MAX_TURNS,
-                                compact_threshold=int(getattr(self.config, "compact_threshold", 300_000)),
+                                compact_threshold=int(getattr(self.config, "compact_threshold", DEFAULT_COMPACT_THRESHOLD)),
                                 on_tool=node_tool,
                                 on_trace=node_trace,
                                 should_allow=node_allow,
                                 should_cancel=(cancel_event.is_set if cancel_event is not None else None),
                                 cancel_event=cancel_event,
-                                context_limit_tokens=int(getattr(self.config, "context_window_tokens", 300_000)),
+                                context_limit_tokens=int(getattr(self.config, "context_window_tokens", DEFAULT_CONTEXT_WINDOW_TOKENS)),
                                 # Reconnaissance is its own stage: the inspect
                                 # route's caps govern the node when configured,
                                 # the built-in constants remain the default.
@@ -2659,7 +2661,7 @@ class AgentService:
                         on_context=on_context,
                         on_compaction=on_compaction,
                         on_trace=on_trace,
-                        context_limit_tokens=int(getattr(self.config, "context_window_tokens", 300_000)),
+                        context_limit_tokens=int(getattr(self.config, "context_window_tokens", DEFAULT_CONTEXT_WINDOW_TOKENS)),
                         should_allow=should_allow,
                         should_cancel=(cancel_event.is_set if cancel_event is not None else None),
                         cancel_event=cancel_event,

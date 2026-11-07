@@ -36,6 +36,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
 
+from ..config import DEFAULT_COMPACT_THRESHOLD, DEFAULT_CONTEXT_WINDOW_TOKENS
 from ..llm.base import LLMResponse, TERMINAL_FINISH_REASONS, assistant_msg, tool_call, tool_result_msg, user_msg
 from ..llm.envelope import EnvelopeParseError
 from ..llm.openai_provider import OpenAICompatibleProvider
@@ -621,7 +622,7 @@ async def run_agent(
     messages: list[dict[str, Any]],
     *,
     max_turns: int | None = None,
-    compact_threshold: int = 300_000,
+    compact_threshold: int = DEFAULT_COMPACT_THRESHOLD,
     on_stream: Callable[[str], None] | None = None,
     on_tool: Callable[[ToolCall, ToolResult], None] | None = None,
     on_usage: Callable[[dict[str, Any]], None] | None = None,
@@ -631,7 +632,7 @@ async def run_agent(
     should_allow: Callable[[str, ToolCall], bool] | None = None,
     should_cancel: Callable[[], bool] | None = None,
     cancel_event: threading.Event | None = None,
-    context_limit_tokens: int = 300_000,
+    context_limit_tokens: int = DEFAULT_CONTEXT_WINDOW_TOKENS,
     budget: Budget | None = None,
     cost_estimator: Callable[[dict[str, Any]], float] | None = None,
     runtime_state: AgentState | None = None,

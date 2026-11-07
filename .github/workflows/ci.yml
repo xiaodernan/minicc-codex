@@ -136,6 +136,7 @@ jobs:
           node --check tests/frontend_trace_phase_one_home_smoke.mjs
           node --check tests/frontend_permission_mode_one_home_smoke.mjs
           node --check tests/frontend_web_session_id_one_home_smoke.mjs
+          node --check tests/frontend_context_window_one_home_smoke.mjs
           npm run check:web
       - name: Install browser for focused UI contracts
         run: npx playwright install chromium --with-deps
@@ -151,6 +152,7 @@ jobs:
           npm run test:tracephase
           npm run test:perm
           npm run test:sessionid
+          npm run test:context
           npm run test:scale
 
   web-smoke:
