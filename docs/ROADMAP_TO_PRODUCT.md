@@ -38981,3 +38981,59 @@ docs、web  bundle 源码）**零次**出现的名字。读者相信「写出来
    - **#2**：`web-latest` 这个默认 session 名字 8 处拼写（含 JS），无人命名；
    - **#13**：approval decisions 前后端各自硬编码、互不对照（已有两扇各管一面的门，缺第三扇对照门）。
 3. 十三个加载器裁定不变。
+
+## 第五百六十二批 — M8-T580 — UI 权限模式也只有一个家了（state.js 导出，Python 侧门对照）
+
+### 1 欠的是哪一条
+
+「权限模式是哪四个」——`{default, plan, acceptEdits, yolo}`。Python 后端早就有家
+（`minicc/audit.py` 的 `PERMISSION_MODES`，被 `test_the_switch_vocabularies_have_one_home.py`
+钉住）。前端却手抄了**三处**：`web/src/core/state.js` 内联数组（localStorage 校验）、
+`web/src/panels/index.js` 导出数组、`web/index.html` 的四个 `data-mode` 按钮——没人把它们
+与后端 home 对照。加一个模式（或改名）时三处都要人肉同步。
+
+### 2 量到的真相（实测）
+
+- `web/src/core/state.js`（修前）：`["default", "plan", "acceptEdits", "yolo"].includes(...)` 内联。
+- `web/src/panels/index.js`（修前）：`export const PERMISSION_MODES = ["default", "plan", "acceptEdits", "yolo"];`（`main.js` 的键盘左右移切换从这里 import）。
+- `web/index.html`：四个 `data-mode="default|plan|acceptEdits|yolo"` 按钮（静态 HTML，无法 import）。
+- Python home `minicc/audit.py`：`PERMISSION_MODES = frozenset({"default", "plan", "acceptEdits", "yolo"})` + `_PERMISSION_MODE_ALIASES`（别名表，不在本批 scope）。
+- 全 repo 只这三处 JS/HTML 手抄（新门另有 AST/正则普查兜底）。
+
+### 3 落地
+
+- `web/src/core/state.js`：新增 `export const PERMISSION_MODES = ["default", "plan", "acceptEdits", "yolo"];`（紧挨 `REASONING_EFFORTS` 那扇 UI home 家门），localStorage 校验改用家。
+- `web/src/panels/index.js`：删手抄，`import { ..., PERMISSION_MODES, ... } from "../core/state.js"`，再 `export { PERMISSION_MODES };` 保持 `main.js` 契约不变。
+- `web/index.html`：不动（静态按钮），由门钉住顺序与数量。
+- `tests/frontend_permission_mode_one_home_smoke.mjs`（新门，4 条连环断言）：
+  1. `core/state.js` 必须导出恰好 `["default", "plan", "acceptEdits", "yolo"]`；
+  2. Python home（`minicc/audit.py`）包含同一四组；
+  3. `index.html` 的 `data-mode` 出现顺序必须一致；
+  4. `web/src` 不允许再出现该数组字面量；`panels/index.js` 必须是 re-export 而非第二扇门。
+- `package.json`：新增 `test:perm`；`.github/workflows/ci.yml` 的 js-check job 增加 `node --check` + `npm run test:perm`。
+- 前端 bundle 重新构建（`app.js`、`asset-manifest.json`、`web/assets/` 换新哈希 bundle，剔除 stale）。
+
+### 4 见证（红先绿后）
+
+- 红臂：`git stash push web/src/core/state.js web/src/panels/index.js` 后跑新门 → AssertionError「core/state.js must export PERMISSION_MODES」（red）；`git stash pop` 后 → `M8-T580 ok...`（green）。
+- 焦点回归（本地全绿）：`test:perm` + `test:effort` + `test:phase` + `test:todo` + `test:approval` + `test:i18n` + `test:trace` + `test:tracephase` + `test:optimization` + `test:transport` + `test:lifecycle` + `test:scale`；`npm run check:web` 干净；`tests/test_web_assets_are_fresh.py` 5 passed。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量 pytest 套件（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 `index.html` 可以 import JS——它是静态按钮，由门按顺序钉住；
+- 不声称 Python 侧别名表（`_PERMISSION_MODE_ALIASES`）与模式集合同步——别名表另有语义，另批；
+- 不声称 CI 全绿：`ubuntu-latest` job 自批 553 起零次被调度；Windows 腿为唯一近期绿（批 560 tip）。推本批后 `js-check` 才会运行，结果另记；
+- 不声称 `optimize/scale` 数值是性能承诺——本机实测顺带而已。
+
+### 7 下一位候选
+
+1. **推本批后等 js-check 与 Windows 腿跑完再推下一批**（每次 push 都会取消前一个 in-progress run）。
+2. 下一批强度排序：
+   - **#6 / #11**：已钉住 frozenset 的 dict 镜像——`REASONING_EFFORTS` 的三张手抄表（`openai_provider.py` 两张：`REASONING_WIRE_VALUES`、`REASONING_FALLBACKS`；`loop.py` 一张内联中文表）与 `VERIFICATION_STATUSES` 的两张（`verifier.py` 的 status→code、status→zh summary）——断言「key set == home」即可；
+   - **#2**：`web-latest` 这个默认 session 名字 8 处拼写（含 JS markdown.js、task_contract.py、task_worker.py argparse 默认值、web.py），无人命名；
+   - **#13**：approval decisions 前后端各自硬编码、互不对照（已有两扇各管一面的门，缺第三扇对照门）。
+3. 十三个加载器裁定不变。
