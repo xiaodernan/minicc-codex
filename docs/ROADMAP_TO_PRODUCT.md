@@ -37885,3 +37885,54 @@ zh/en 两份表 parity 完好（48/48），坏的是「后端发的 code 名字�
 1. 两个 CI 腿回来后确认转绿（M8-T555 修复 + 本批）；再扫一遍是否还有环境依赖型失败。
 2. 事件词汇普查续：`"kind": "trace"` 之外的编排事件（如 task_manager 的 `kind=` 事件）是否也有同类匿名面。
 3. 第五百二十七批 §7 的 2 位两条子集门未动。
+
+## 第五百三十九批 — M8-T557 — 可核对证据判据只有一个家
+
+### 1 欠的是哪一刀
+
+一个事实——「哪条执行证据能给目标背书」——住完成评估（``minicc/agent/completion.py``）：
+真门用它决定 reviewer 引用的证据是否可采信。fake provider 是测试驱动的脚本化评委，
+它要产出一条真门肯收的引用，就必须问同一个家——可它在 ``_select_citable_evidence``
+里重新手抄了一份同一条判据（write / verification / error 可采信；trace 不可采信；
+否则按 tool name 判）。两份逐字相同却没有共同主人时，真门的漂移就会被「假评委」
+悄悄吸收，测试永远绿。
+
+### 2 量到的真相（实测）
+
+HEAD 前：``minicc/llm/fake.py`` 内联手抄了该判据（普查命中 ``fake.py:171``，
+``kind != "trace" and name and name != "agent"``）；完成评估侧是嵌套
+``_is_citable_evidence`` 里的一份。本批之后：events 分桶的判据是
+``is_citable_evidence_item`` 一个家，真门与假评委都问它。
+
+### 3 落地
+
+- `minicc/agent/completion.py`：新增公开函数 ``is_citable_evidence_item(item)``
+  （`__all__` 增加导出）；嵌套 ``_is_citable_evidence`` 的 events 分桶改为问它。
+- `minicc/llm/fake.py`：删除手抄判据；``_select_citable_evidence`` 内惰性导入并问
+  ``is_citable_evidence_item``（llm 不在模块导入时拉起 agent 的 import 体量）。
+
+### 4 见证（红先绿后，臂）
+
+- 新门 ``tests/test_the_citable_evidence_predicate_has_one_home.py``：行为钉
+  （write / verification / error 三种可采信；trance 与 agent 具名不可采信；空字典不可
+  采信）+ 两个消费者都问家 + 普查（``kind != "trace"`` 内联只允许出现在家里）。
+  修前 3 红（ImportError / 消费者未问家 / 普查命中 ``fake.py:171``）；修后 3 绿。
+- 行为变异（write 分支改 False）→ 行为钉红，恢复 → 绿。
+- 相关门文件集：``58 passed``（本批门 + completion_liveness + waiver + p0_p1_p2）；
+  ``test_core_agent.py`` ``45 passed``；恢复后再跑 ``79 passed``。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（信任两个远端 CI 腿 + 受影响门）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 conversation 与 verification_results 两个分桶也统一了——它们回答的是不同的
+  事实（任务性质的可引述性、验证器已接受的结果清单），留在门里；
+- 不声称假评委的其他逻辑换（只换 citable 判据这一条）。
+
+### 7 下一位候
+
+1. 两个 CI 腿回来后确认转绿；若再扫出环境依赖型失败，按同一模式解耦。
+2. 证据词汇普查续：``"kind": "completion_judge"`` 这样的编排事件载荷是否也有同族拷贝。
+3. 第五百二十七批 §7 的 2 位两条子集门未动。
