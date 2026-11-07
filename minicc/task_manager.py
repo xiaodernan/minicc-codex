@@ -51,7 +51,7 @@ from .agent.subagent import WRITABLE_PERMISSION_MODES
 from .agent.tool_policy import WRITE_TOOL_NAMES
 from .audit import normalize_permission_mode
 from .clock import utc_iso
-from .config import TRUTHY, normalize_model_name, normalize_reasoning_effort
+from .config import DEFAULT_TASK_COMPACTION_LIMIT, DEFAULT_TASK_USAGE_LIMIT, TRUTHY, normalize_model_name, normalize_reasoning_effort
 from .input_guard import require_text
 from .llm.base import image_part
 from .llm.fake import fake_provider_active
@@ -105,8 +105,6 @@ MAX_BATCH_TASKS = 16
 # manager copy that forgot a status would never finish that task.
 DEFAULT_TASK_EVENT_LIMIT = 768
 DEFAULT_TASK_STREAM_LIMIT = 16_000
-DEFAULT_TASK_USAGE_LIMIT = 64
-DEFAULT_TASK_COMPACTION_LIMIT = 64
 DEFAULT_TASK_QUEUE_LIMIT = 32
 TASK_SHUTDOWN_GRACE_SECONDS = 8.0
 # M4-7 / M8-T14: how long shutdown waits for a still-running detached worker
