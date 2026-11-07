@@ -38222,3 +38222,51 @@ HEAD：Python 有家（`REASONING_EFFORTS`），loop 这一份半家（五档缺
 1. CI 双腿回来后确认转绿（539–545 各批等最新 run）。
 2. i18n 字典 zh/en parity 门（`web/src/core/i18n.js`：两种语言的 key 集必须相等；缺一出一红）——下一个前端一家门。
 3. 第五百二十五批 §7 的 3 位：十三个加载器——已裁定不合并，本批不主张。
+
+## 第五百四十六批 — M8-T564 — i18n 字典两种语言一个形状，缺键的 English 白屏
+
+### 1 欠的是哪一条
+
+同一事实——UI 词表——被拆成 zh/en 两块互不知照：`web/src/core/i18n.js` 的字典，没任何人钉它们 key 对称。
+第五百四十二批的「渲染不崩、缺键按 key 原样输出」路径（``t()`` 的 ``|| key`` 兜底）把缺口藏得很干净：
+英文玩家看见的不是一句提示，是一串原始键（``game.noSun``/``game.victory``/``game.recharging``/``game.waveClear``），
+而日文玩家看见的是中文翻译（缺的这四个 en 里都没有对应文本——zh 有，en 没有）。
+
+### 2 量到的真相（实测）
+
+- 普查：zh 386 keys、en 382 keys；差集 `game.noSun`、`game.recharging`、`game.victory`、`game.waveClear`（zh 独有）；
+  两字典各自无重复 key。
+- 这四个键的消费点：`web/src/game.js` 的 `setGameStatus("game.noSun")` 等（间接传参，所以第五百四十三批的字面量普查没咬住它）。
+- 红先行：新门暂存 `web/src/core/i18n.js` 改动 → 报 4 个缺键（红）；恢复 → 绿。
+
+### 3 落地
+
+- `web/src/core/i18n.js`：en 块补 4 个键（与 zh 同义）。
+- `tests/frontend_i18n_dict_one_home_smoke.mjs`（新门）：zh/en key 集逐字相等（双向都断言）+ 无重复键 +
+  web/src 下**每个**字面量 `t("...")` 引用在双语字典里都有翻译。
+- `package.json`：`test:i18n`；`ci.yml` js-check 接进 `node --check` 与 `npm run test:i18n`。
+- 重建产物：`web/app.js`、`asset-manifest.json` 与 `web/assets/` 下按内容哈希命名的新 bundle
+  （清单即真相；旧哈希文件在仓库里不留痕）。
+
+### 4 见证（红先绿后，臂）
+
+- 修前红（见 §2）；修后绿：`npm run test:i18n` OK（`zh/en carry the same 385 keys; 144 literal t() references all resolve`）；
+  `npm run check:web` clean；`npm run test:phase`/`test:trace`/`test:effort` 零影响。
+
+### 5 聚焦回归
+
+- 前端门全绿；未跑 Python 套件（本批零 Python 改动）；信任两个远端 CI 腿 + 受影响门。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 144 个字面量 key 之外的间接引用（如 `t("phase." + phase)` 动态合成键）被本门覆盖——那些键的覆盖由
+  「键集相等」+「语言端全键断言」承载；
+- 不声称所有 UI 文本都经 `t()`——直拼字符串是另一个家族（缺输出面），本批不碰；
+- 不声称全量套件本地全绿。
+
+### 7 下一位候选
+
+1. CI 双腿回来后确认转绿（539–546 各批等最新 run）。
+2. 前端门并进 `test:phase` 一体化？不——分开 `test:*` 按批次可读。下一只
+   「`t()` 永缺键断言 + 双语 smoke 按键合并计数维护」：非必要。
+3. 第五百二十五批 §7 的 3 位：十三个加载器——已裁定不合并。
