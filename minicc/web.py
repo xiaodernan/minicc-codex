@@ -98,6 +98,8 @@ from .config import (
     home_dir,
     load_config,
     workspace_not_directory_message,
+    LLM_PROTOCOL_CHAT_COMPLETIONS,
+    LLM_PROTOCOL_RESPONSES,
 )
 from .allowlist import AllowlistError, add_session_rule, replace_session_rules, session_rules
 from .cli_io import cli_out
@@ -2078,11 +2080,11 @@ class AgentService:
                     current_protocol = provider.protocol()
                     protocol_status = provider.protocol_status()
                     next_protocol = current_protocol
-                    if protocol_status.get("requested") == "auto" and current_protocol == "responses":
+                    if protocol_status.get("requested") == "auto" and current_protocol == LLM_PROTOCOL_RESPONSES:
                         # A transport failure after the response body starts is
                         # usually gateway-specific. Keep the retry atomic and
                         # use the older, broadly supported endpoint next.
-                        next_protocol = "chat_completions"
+                        next_protocol = LLM_PROTOCOL_CHAT_COMPLETIONS
                     await provider.close()
                     # M11-T4: recovery stays in the stage the run is in - a
                     # repair-stage provider must not resurrect as the

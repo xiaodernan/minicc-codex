@@ -54,7 +54,7 @@ from tenacity import (
     stop_after_attempt,
 )
 
-from ..config import LLM_PROTOCOLS, REASONING_EFFORT_ALIASES, TOOL_MODES
+from ..config import LLM_PROTOCOL_CHAT_COMPLETIONS, LLM_PROTOCOL_RESPONSES, LLM_PROTOCOLS, REASONING_EFFORT_ALIASES, TOOL_MODES
 from .base import LLMResponse, is_nameless_tool_name, tool_call, unique_tool_call_id
 from ..tools.schemas import tool_call_name
 from ..trace import trace_event
@@ -266,7 +266,7 @@ def protocol_fallback_detail(exc: BaseException) -> dict[str, str]:
     the two traces stay comparable and a change to the reported protocol or
     error key lands once.
     """
-    return {"protocol": "chat_completions", "error_type": type(exc).__name__}
+    return {"protocol": LLM_PROTOCOL_CHAT_COMPLETIONS, "error_type": type(exc).__name__}
 
 
 def classify_provider_failure(exc: BaseException) -> bool | None:
@@ -550,7 +550,7 @@ class OpenAICompatibleProvider:
         self._max_retries = max(0, max_retries)
         if protocol not in LLM_PROTOCOLS:
             raise ValueError(f"protocol 非法: {protocol!r}")
-        self._protocol = "responses" if protocol in ("auto", "responses") else "chat_completions"
+        self._protocol = LLM_PROTOCOL_RESPONSES if protocol in ("auto", LLM_PROTOCOL_RESPONSES) else LLM_PROTOCOL_CHAT_COMPLETIONS
         self._protocol_locked = protocol != "auto"
         if tool_mode not in TOOL_MODES:
             raise ValueError(f"tool_mode 非法: {tool_mode!r}")
@@ -646,7 +646,7 @@ class OpenAICompatibleProvider:
         the plan retry inherits the same loop guards.
         """
         try:
-            if self._protocol == "responses":
+            if self._protocol == LLM_PROTOCOL_RESPONSES:
                 response = await self._responses_once(messages, tools, on_delta, use_native)
             else:
                 response = await self._chat_completions_once(messages, tools, on_delta, use_native)
@@ -661,7 +661,7 @@ class OpenAICompatibleProvider:
                 raise
             self._channel = "plan"
             self._emit_channel_switch(exc)
-            if self._protocol == "responses":
+            if self._protocol == LLM_PROTOCOL_RESPONSES:
                 response = await self._responses_once(messages, tools, on_delta, use_native)
             else:
                 response = await self._chat_completions_once(messages, tools, on_delta, use_native)
@@ -734,16 +734,16 @@ class OpenAICompatibleProvider:
             try:
                 return await self._attempt_once(messages, tools, on_delta, use_native)
             except Exception as exc:
-                if self._protocol == "responses" and not self._protocol_locked and self._looks_like_responses_rejection(exc):
-                    self._protocol = "chat_completions"
+                if self._protocol == LLM_PROTOCOL_RESPONSES and not self._protocol_locked and self._looks_like_responses_rejection(exc):
+                    self._protocol = LLM_PROTOCOL_CHAT_COMPLETIONS
                     self._emit_protocol_fallback(exc)
                     continue
                 if (
-                    self._protocol == "responses"
+                    self._protocol == LLM_PROTOCOL_RESPONSES
                     and not self._protocol_locked
                     and self._looks_like_responses_transport_failure(exc)
                 ):
-                    self._protocol = "chat_completions"
+                    self._protocol = LLM_PROTOCOL_CHAT_COMPLETIONS
                     self._emit_transport_protocol_fallback(exc)
                     continue
                 if not isinstance(exc, BadRequestError):
@@ -951,7 +951,7 @@ class OpenAICompatibleProvider:
                 if emitted["chars"] == 0:
                     raise
                 raise ResponsesPartialError(
-                    stream_broke_message("responses", emitted["chars"], exc)
+                    stream_broke_message(LLM_PROTOCOL_RESPONSES, emitted["chars"], exc)
                 ) from exc
             finally:
                 await _close_stream(stream)
