@@ -1234,3 +1234,35 @@ def test_tracked_text_files_hold_no_bare_control_bytes() -> None:
     assert scan(b"a\x08b") == {8: 1}
     assert scan(b"del\x7f here") == {127: 1}
     assert scan(b"tab\tand\r\n and space are fine") == {}
+
+
+# --------------------------------------------------------------------------- #
+# M8-T559: the line-number question is asked only of spans that are location
+# claims at all (第五百二十六批 §7 第 3 位: 21,620 of the roadmap's 25,389
+# code spans are not evidence, and every one of them used to pay a line
+# question first).
+# --------------------------------------------------------------------------- #
+
+def test_a_span_that_is_not_a_location_claim_is_never_asked_where_it_lives(monkeypatch) -> None:
+    module = _load("minicc_doc_pointers_line_counter")
+    text = "# T\n\n" + "\n".join(f"说明见 `token_{index}`，与位置无关。" for index in range(40)) + "\n"
+    asked = []
+    original = module._line_of
+
+    def counting_line_of(doc_text, offset):
+        asked.append(offset)
+        return original(doc_text, offset)
+
+    monkeypatch.setattr(module, "_line_of", counting_line_of)
+    problems, checked = module.check_evidence(_ROADMAP, text)
+    assert checked == 0
+    assert problems == []
+    assert asked == [], (
+        f"the line-number question was asked for non-evidence spans: {asked}"
+    )
+
+    asked.clear()
+    text = "# T\n\n结论见 `tests/test_doc_pointers.py::test_a_citation_to_a_moved_test_says_where_it_lives`。\n"
+    problems, checked = module.check_evidence(_ROADMAP, text)
+    assert checked == 1
+    assert asked, "an evidence-shaped span was never even asked the line-number question"

@@ -1584,7 +1584,10 @@ def check_evidence(document: Path, text: str) -> tuple[list[Problem], int]:
     stems = {module.stem for module in (REPO_ROOT / "tests").glob("*.py") if _holds(f"tests/{module.name}")}
     checked = 0
     for offset, span in _code_spans(text):
-        line = _line_of(text, offset)
+        # The shape question first, the line-number question after: a span that
+        # is not a location claim (or is exempt) never earns the line number,
+        # no matter how cheap the sweep is. 21,620 of the roadmap's code spans
+        # skipped this step once; every one of them used to pay it.
         if _evidence_shape(span) is None:
             continue
         checked += 1
@@ -1594,6 +1597,7 @@ def check_evidence(document: Path, text: str) -> tuple[list[Problem], int]:
         # a past-EOF complaint against a file that does exist.
         if _exemption(span) is not None:
             continue
+        line = _line_of(text, offset)
         ref = _TEST_REF.match(span)
         if ref:
             target = _resolve_path(ref.group("file"))
