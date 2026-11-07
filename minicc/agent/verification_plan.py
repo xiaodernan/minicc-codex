@@ -12,6 +12,8 @@ from pathlib import Path
 from typing import Any
 from ..env_files import is_env_filename
 from ..secret_suffixes import KEY_MATERIAL_SUFFIXES
+from ..tools.fs import SKIP_DIRS  # the "no signal for the fingerprint" set is
+                                  # the tools' own hidden-entry policy
 from .check_commands import PYTHON_TEST_RUNNERS, command_parts, checker_invocation
 from .test_selection import relevant_python_tests
 
@@ -141,13 +143,14 @@ def verification_state(
     total_bytes = 0
     suffixes = {".py", ".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".json", ".toml", ".css", ".html", ".yaml", ".yml", ".txt", ".csv", ".tsv", ".xml", ".ini", ".cfg", ".lock", ".sql", ".vue", ".svelte", ".md", ".markdown", ".rst", ".adoc", ".sh", ".bash", ".zsh", ".ps1", ".bat", ".cmd", ".svg", ".png", ".jpg", ".jpeg", ".gif", ".ico", ".webp", ".c", ".h", ".cc", ".cpp", ".hpp", ".go", ".rs", ".java", ".kt", ".rb", ".php", ".swift", ".scss", ".sass", ".less", ".diff", ".patch"}
     for current, dirs, files in os.walk(root):
+        # M8-T562: the fingerprint skips what the tools hide, plus its own two
+        # scan-noise names.  A second spelling of the shared core drifted once:
+        # the fingerprint kept descending into .hg/.idea/target when the tools'
+        # hidden set already knew better.
+        skip_here = SKIP_DIRS | {".playwright-cli", "output"}
         dirs[:] = sorted(
             d for d in dirs
-            if d not in {
-                ".git", ".venv", ".minicc", ".pytest_cache", ".mypy_cache",
-                ".ruff_cache", ".playwright-cli", "venv", "node_modules",
-                "output", "__pycache__", "dist", "build",
-            }
+            if d not in skip_here
             and d not in GENERATED_ARTIFACT_DIRS  # M8-T280
             and not (Path(current) / d).is_symlink()
         )
