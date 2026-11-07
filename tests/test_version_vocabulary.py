@@ -41,6 +41,7 @@ DECLARED_ROLES: dict[tuple[str, str], str] = {
     ("minicc/jsonrpc.py", "JSONRPC_VERSION"): "branched",
     ("minicc/llm/anthropic_provider.py", "ANTHROPIC_VERSION"): "announced",
     ("minicc/session.py", "SESSION_FORMAT_VERSION"): "branched",
+    ("minicc/snapshots.py", "WORKSPACE_SNAPSHOT_MANIFEST_VERSION"): "branched",
     ("minicc/task_contract.py", "TASK_SCHEMA_VERSION"): "branched",
     ("minicc/task_worker.py", "WORKER_VERSION"): "announced",
     ("minicc/tools/registry.py", "TOOL_API_VERSION"): "branched",
@@ -49,7 +50,10 @@ DECLARED_ROLES: dict[tuple[str, str], str] = {
 
 # Modules that write a version into a durable format on disk. Those get the
 # strict rule: publishing the number is not enough, something must read it.
-DURABLE_FORMAT_MODULES = {"minicc/agent/context.py", "minicc/session.py"}
+# The workspace snapshot manifest is read back across sessions and by the
+# restore path, so a version bump with no reader is exactly the defect the
+# rule refuses silently-wrong legacy-file behaviour for.
+DURABLE_FORMAT_MODULES = {"minicc/agent/context.py", "minicc/session.py", "minicc/snapshots.py"}
 
 
 def _module_constants(tree: ast.Module) -> dict[str, object]:

@@ -38,7 +38,6 @@ def test_a_hang_crosser_gets_its_own_named_line() -> None:
             "    assert True\n",
             encoding="utf-8",
         )
-        env = dict(os.environ, MINICC_TEST_HANG_LIMIT="0.05", PYTHONIOENCODING="utf-8")
         result = subprocess.run(
             [sys.executable, "-m", "pytest", "-q", "--no-header", str(probe)],
             cwd=REPO,
@@ -46,7 +45,7 @@ def test_a_hang_crosser_gets_its_own_named_line() -> None:
             text=True,
             encoding="utf-8",
             errors="replace",
-            env=env,
+            env=dict(os.environ, MINICC_TEST_HANG_LIMIT="0.05", PYTHONIOENCODING="utf-8"),
             timeout=120,
         )
         combined = (result.stdout or "") + (result.stderr or "")
@@ -69,7 +68,6 @@ def test_the_clean_run_does_not_print_the_hang_line() -> None:
     try:
         probe = probe_dir / "test_clean_probe.py"
         probe.write_text("def test_fast():\n    assert True\n", encoding="utf-8")
-        env = dict(os.environ, MINICC_TEST_HANG_LIMIT="0.05", PYTHONIOENCODING="utf-8")
         result = subprocess.run(
             [sys.executable, "-m", "pytest", "-q", "--no-header", str(probe)],
             cwd=REPO,
@@ -77,7 +75,7 @@ def test_the_clean_run_does_not_print_the_hang_line() -> None:
             text=True,
             encoding="utf-8",
             errors="replace",
-            env=env,
+            env=dict(os.environ, MINICC_TEST_HANG_LIMIT="0.05", PYTHONIOENCODING="utf-8"),
             timeout=120,
         )
         combined = (result.stdout or "") + (result.stderr or "")
