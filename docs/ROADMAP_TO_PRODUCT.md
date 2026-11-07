@@ -38874,3 +38874,56 @@ guard 之前。
 2. 看 `setup.py` 的 `shutil.copy` 等是否还能再精简——参看我的 `_setup_conftest_sweep.py`
    结论：不放账的临时文件都已删除。
 3. 第五百二十五批 §7 的 3 位：十三个加载器——裁定不合并、立规则（不变）。
+
+## 第五百六十批 — M8-T578 — 全仓「没人用的常数」也有一扇门了（TASK_STREAM_INTERVAL 死在案头）
+
+### 1 欠的是哪一条
+
+M8-T575 交付的是「模块级 import 不允许无人引用」。但同一套疲劳位还有一族是
+**模块级常数**：一个全大写、定义在 `minicc/` 里、整个仓里（含 tests/、scripts/、
+docs、web  bundle 源码）**零次**出现的名字。读者相信「写出来的常数一定在某个地方有
+意义」——它却什么都没意义。上一批门只盯 import 不盯常数，这一路漏网。
+
+### 2 量到的真相（实测）
+
+- 一轮旁路普查（name→files 索引版，按定义点剔除 assignment-target Name）：整个仓里只找到一个这样的常数——定义在 `minicc/task_manager.py:98`，名字含 `TASK_STREAM_INTERVAL`，`0.06` 秒。
+  - 定义：`task_manager.py` 第 98 行。
+  - 唯一其它出现：`minicc/web.py` 再导出块里的同一个名字——即把它 `from .task_manager import` 进 `web.py`（noqa re-export 块），而且没人用。
+  - 全仓其它所有文件（含 .md / .js / .json / .toml / .yaml）：**零次**。
+- 这两个出现一起删掉——常数 + 它的死再导出。`__all__` 里没有它（task_manager 无 `__all__`）。
+- 红先行：新门在修前红——点名 `minicc/task_manager.py:98: TASK_STREAM_INTERVAL`；修后绿。
+- 门自残自察：门文里禁止写出真实常数名——第一次红臂失败，就是因为本门自己的 docstring 里写了 `TASK_STREAM_INTERVAL = 0.06` 这个字符串触发了「string 常量里出现名字 = 有引用」的放宽规则。已改 docstring 为匿名描述；红臂此后如实红。
+
+### 3 落地
+
+- `minicc/task_manager.py`：删定义（一行）。
+- `minicc/web.py`：删再导出行。
+- `tests/test_the_package_does_not_define_what_the_repo_never_uses.py`（新门）：
+  - 扫描范围：`minicc/` 全包 + `tests/` + `scripts/` + 仓根 .py。
+  - 定义点：模块级 `Assign`（含 tuple/list 解包）。
+  - 常数形状：全大写/数字/下划线 或 `_私有`；dunder 跳过；本模块 `__all__` 里声明的跳过。
+  - 引用判据：仓内任一 `Name` 出现（剔除定义点自身）＋ 任一 string 常量中的标识符 token（import 别名不算——纯再导出且无消费者会被本门点名）。
+  - 不含注释（注释不是引用）；不含 `getattr` 字符串（该形态若将来出现，名字会落进 `__all__` 或本批边界 §6 会说）。
+
+### 4 见证（红先绿后）
+
+- 红臂：`git stash push minicc/task_manager.py minicc/web.py` 后跑新门 → 1 failed，点名 `minicc/task_manager.py:98: TASK_STREAM_INTERVAL`；`git stash pop` 后 → 1 passed。
+- 焦点回归：`test_core_task.py` + `test_task_contract.py` + `test_task_durability.py` + `test_task_persistence.py` + `test_task_store_durability_contract.py` + 新门 + 旧 import 门 = 71 passed。`import minicc.web / task_manager / snapshots` = import ok。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（见 §7：当前 CI 双腿都未能跑完）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称门能抓到「string 里被提到但实际无人代码引用」的常数——那是放宽规则换来的误报容忍，本门宁可漏一条也不误杀；
+- 不声称公开 API 常数不受保护——那本来就是 `__all__` 的职责，得明示；
+- 不声称 `minicc/` 之外的定义点也被钉（门只查 `minicc/` 里的**定义**；引用面扫全仓）；
+- 不声称全量套件本地全绿——untrusted；
+- **不声称 CI 双腿已绿**：当前 tip 之前唯一一次绿是上一条 lane 的 tip（M8-T571 修复）。本批 tip 推到 `m8-t537` 后会取消上一个已死 8 小时挂在 windows-latest「Run test suite」步骤的僵尸 run（已手工 cancel），ubuntu-latest 各 job 自 2026-11-07 18:22Z 起零次被调度——runner 池在后端不可见，取消后是否能恢复调度只能观察。
+
+### 7 下一位候选
+
+1. 推完本批后观察 `gh run list --branch m8-t537 --limit 3`：新 run 若仍零调度/再次僵尸，说明当前是账号级 CI 容量问题（windows-latest 与 ubuntu-latest 都不派发），需明确报告而不是谎称绿；若开始跑动，等 Windows 腿后在 ledger 追记结果。
+2. 十三个加载器裁定仍不变（不合并、立规则）。
+3. `build/` 未被 gate 扫描（生成物），不纳入。
