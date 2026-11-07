@@ -15,6 +15,12 @@ ALLOWED_SCHEMES = frozenset({"http", "https"})
 # silently misses a scheme added to ALLOWED_SCHEMES.
 SCHEME_PREFIXES = tuple(f"{scheme}://" for scheme in sorted(ALLOWED_SCHEMES))
 
+#: The statuses that carry a Location and may be followed as a redirect.
+#: Both HTTP clients that permit redirects - the webfetch tool and the MCP
+#: HTTP transport - special-case exactly this set, each having spelled it
+#: out by hand until M8-T579 consolidated the fact here.
+REDIRECT_STATUSES = frozenset({301, 302, 303, 307, 308})
+
 
 class BlockedAddressError(ValueError):
     """A hostname resolved to a private, loopback, or reserved address."""
@@ -140,6 +146,7 @@ def assert_public_http_url(url: str, *, allow_env: str) -> urllib.parse.ParseRes
 
 __all__ = [
     "ALLOWED_SCHEMES",
+    "REDIRECT_STATUSES",
     "SCHEME_PREFIXES",
     "BlockedAddressError",
     "assert_public_host",
