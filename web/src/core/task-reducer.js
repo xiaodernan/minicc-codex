@@ -1,10 +1,11 @@
 // Pure task protocol reduction: no DOM, storage, transport, or UI imports.
-const LIMIT = 2048;
+import { MAX_SEEN_EVENT_KEYS } from "./bounded-cache.js";
+
 const sequenceOf = (value) => Math.max(0, Number(value) || 0);
 const boundedAdd = (previous, value) => {
   const next = new Set(previous || []);
   if (value) next.add(value);
-  while (next.size > LIMIT) next.delete(next.values().next().value);
+  while (next.size > MAX_SEEN_EVENT_KEYS) next.delete(next.values().next().value);
   return next;
 };
 export function reduceTaskEvent(binding, envelope) {
@@ -24,7 +25,7 @@ export function reduceTaskEvent(binding, envelope) {
       const events = [...(data.events || [])];
       const existing = events.findIndex((item) => (event.event_id && item.event_id === event.event_id) || (event.item_id && item.item_id === event.item_id));
       if (existing < 0) events.push(event); else events[existing] = { ...events[existing], ...event };
-      data.events = events.slice(-2048);
+      data.events = events.slice(-MAX_SEEN_EVENT_KEYS);
       break;
     }
     case "stream_delta": {

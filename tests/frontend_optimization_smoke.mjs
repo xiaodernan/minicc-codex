@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { readFile, mkdir, writeFile } from "node:fs/promises";
+import { resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { chromium } from "playwright";
-const importSource = async (path) => import(`data:text/javascript;base64,${Buffer.from(await readFile(path)).toString("base64")}`);
+const importSource = async (path) => import(pathToFileURL(resolve(path)).href);
 const { reduceTaskEvent } = await importSource("web/src/core/task-reducer.js");
 const original = { data: { stream_text: "", events: [] }, cursor: 0, seenEventIds: new Set(), seenSequences: new Set() };
 let binding = reduceTaskEvent(original, { sequence: 1, event_id: "one", kind: "timeline", payload: { kind: "tool", name: "grep", item_id: "tool", status: "running" } });

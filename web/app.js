@@ -1,5 +1,6 @@
 (() => {
   // web/src/core/bounded-cache.js
+  var MAX_SEEN_EVENT_KEYS = 2048;
   var BoundedMap = class extends Map {
     constructor(limit) {
       super();
@@ -28,9 +29,9 @@
   // web/src/core/session-cache.js
   var SESSION_CACHE_PREFIX = "minicc-session-view:";
   var INDEX_KEY = "minicc-session-cache-index-v1";
+  var MAX_SESSION_VIEW_CHARS = 18e4;
   var MAX_ENTRIES = 24;
   var MAX_TOTAL_CHARS = 12e5;
-  var MAX_ENTRY_CHARS = 18e4;
   function storeSessionMarkup(key, markup) {
     try {
       const storage = window.localStorage;
@@ -53,7 +54,7 @@
         return true;
       };
       const source = String(markup || "");
-      if (!source || source.length > MAX_ENTRY_CHARS) storage.removeItem(key);
+      if (!source || source.length > MAX_SESSION_VIEW_CHARS) storage.removeItem(key);
       else {
         while (order.length >= MAX_ENTRIES || total + source.length > MAX_TOTAL_CHARS) if (!evict()) break;
         while (true) {
@@ -169,8 +170,6 @@
   var RESUMABLE_TASK_PHASES = /* @__PURE__ */ new Set(["failed", "cancelled", "interrupted"]);
   var TODO_STATUSES = /* @__PURE__ */ new Set(["pending", "in_progress", "completed"]);
   var TODO_PRIORITIES = /* @__PURE__ */ new Set(["high", "medium", "low"]);
-  var MAX_SESSION_VIEW_CHARS = 18e4;
-  var MAX_SEEN_EVENT_KEYS = 2048;
   var MAX_RENDERED_TIMELINE_EVENTS = 240;
   var $ = (selector) => document.querySelector(selector);
   var $$ = (selector) => [...document.querySelectorAll(selector)];
@@ -1290,12 +1289,11 @@
   }
 
   // web/src/core/task-reducer.js
-  var LIMIT = 2048;
   var sequenceOf = (value) => Math.max(0, Number(value) || 0);
   var boundedAdd = (previous, value) => {
     const next = new Set(previous || []);
     if (value) next.add(value);
-    while (next.size > LIMIT) next.delete(next.values().next().value);
+    while (next.size > MAX_SEEN_EVENT_KEYS) next.delete(next.values().next().value);
     return next;
   };
   function reduceTaskEvent(binding, envelope) {
@@ -1313,7 +1311,7 @@
         const existing = events.findIndex((item) => event.event_id && item.event_id === event.event_id || event.item_id && item.item_id === event.item_id);
         if (existing < 0) events.push(event);
         else events[existing] = { ...events[existing], ...event };
-        data.events = events.slice(-2048);
+        data.events = events.slice(-MAX_SEEN_EVENT_KEYS);
         break;
       }
       case "stream_delta": {

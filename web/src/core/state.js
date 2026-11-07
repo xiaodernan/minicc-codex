@@ -126,8 +126,12 @@ export const RESUMABLE_TASK_PHASES = new Set(["failed", "cancelled", "interrupte
 // must not be rendered as if it were legal.  One home per vocabulary.
 export const TODO_STATUSES = new Set(["pending", "in_progress", "completed"]);
 export const TODO_PRIORITIES = new Set(["high", "medium", "low"]);
-export const MAX_SESSION_VIEW_CHARS = 180_000;
-export const MAX_SEEN_EVENT_KEYS = 2048;
+// The session-view and event-retention caps live in their one homes
+// (session-cache.js owns the per-view markup cap; bounded-cache.js owns
+// the event-identity cap). Re-exported here so existing importers keep
+// working - new consumers should import from the homes.
+export { MAX_SESSION_VIEW_CHARS } from "./session-cache.js";
+export { MAX_SEEN_EVENT_KEYS } from "./bounded-cache.js";
 export const MAX_RENDERED_TIMELINE_EVENTS = 240;
 
 export const $ = (selector) => document.querySelector(selector);
