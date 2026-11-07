@@ -39580,3 +39580,48 @@ config.py 之外，这条门却要求它恰好出现在 openai_provider.py。
 1. 一次性推批 569/570/571/572/573 后，等 Windows 腿完整周期再动下一批；
 2. 修复在本 lane 之内——主 worktree 的并发会话仍未释放合并（`UU docs/ROADMAP_TO_PRODUCT.md`）；
 3. 十三个加载器裁定不变。
+
+## 第五百七十四批 — M8-T592 — inspector 三个 tab 也只有一个家了
+
+### 1 欠的是哪一条
+
+「inspector 有哪三个 tab」——`changes`、`files`、`verification`。这个集合被四处手抄：
+`web/src/chat/stream.js` 的 validator 内联数组（非法 tab 回落到 `changes`）、
+`web/index.html` 的三个 `data-inspector-tab` 按钮、`web/src/core/state.js` 的 `runtime.inspectorTab`
+初值，以及 main.js 由按钮读写的键序——都没有名、没有人对照。
+
+### 2 量到的真相（实测）
+
+- 普查 `web/**/*.js`、`index.html`：tab 词表共 3 个手拼点（不含生成 bundle）——stream.js validator、
+  index.html 按钮、state.js 初值。无其它文件拼写该三元组。
+
+### 3 落地
+
+- `web/src/core/state.js`：新增 `export const INSPECTOR_TABS = ["changes", "files", "verification"];`（`#:` 注释说明用途）；`runtime.inspectorTab = INSPECTOR_TABS[0]`（派生默认，不再手拼）。
+- `web/src/chat/stream.js`：import 增加 `INSPECTOR_TABS`；validator 改问家；非法 tab 回落 `INSPECTOR_TABS[0]`。
+- `tests/frontend_inspector_tab_one_home_smoke.mjs`（新门，5 条）：家导出三个 tab 且序正确；index.html 按钮顺序一致；runtime 默认派生自家（`INSPECTOR_TABS[0]`）；`web/src` 不许再拼三元组字面量；stream.js 不得残留内联数组且必须 import 家。
+- `package.json`：新增 `test:inspector`；CI js-check job 增加 `node --check` + `npm run test:inspector`。
+- bundle 重建（`app.js`/`asset-manifest`/`assets/` 换新哈希）。
+
+### 4 见证（红先绿后）
+
+- 红臂：stash state.js/stream.js → 门红（"core/state.js must export INSPECTOR_TABS"）；pop → 绿。
+- 焦点回归：全部前端门绿（inspector/perm/sessionid/context/eventretention/approval/todo/phase/trace/tracephase/tracedetail/i18n/effort）；
+  `npm run check:web` 干净（app.js + game.js up to date，assets clean）。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 index.html 可以 import JS——静态按钮顺序由门钉住；
+- 不声称 tab 对应的 section ids（changesSection/fileTreeSection/verificationSection/overviewSection）也合一——那是另一组标识符，另批；
+- 不声称 main.js 的点击绑定被统一——它读 `data-inspector-tab`，属性顺序已由门钉；
+- 不声称 CI js-check 已跑——该 job 今日仍未被调度。
+
+### 7 下一位候选
+
+1. 推批 574+575 后等 Windows 腿一个完整周期；
+2. **todo_write 的 schema 与校验器对账**（schema 的 maxItems/maxLength/required 与 `todo.py` 的 `MAX_TODOS`/`MAX_CONTENT_CHARS` 及 normalizer 的返回键/必填集无人钉）——下一批本批做；
+3. 十三个加载器裁定不变。
