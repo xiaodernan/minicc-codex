@@ -39670,3 +39670,46 @@ required=["content"]、返回键 content/status/priority）。两处都可以独
 1. 推批 574+575 后等 Windows 腿一个完整周期；
 2. **schema↔validator 的全量普查**：对 `tools/__init__.py` 中所有带 `input_schema` 的 ToolSpec，逐一 AST 抽出声明的数字/枚举/必填，对照各自模块的校验常数——同样的手抄模式很可能在其它工具重演；
 3. 十三个加载器裁定不变。
+
+## 第五百七十六批 — M8-T594 — memory 工具三个声明上限与它们的校验器对账
+
+### 1 欠的是哪一条
+
+「memory 工具接受多大的量」被写了两遍：`tools/__init__.py` 里 `Param` 的声明
+（`mem_content_p.max_len=500`、`mem_source_p.max_len=40`、`mem_limit_p.min_value=1/max_value=100`），
+和 `memory.py` 校验器里的常数/钳制（`MAX_MEMORY_CHARS=500`、`MAX_SOURCE_CHARS=40`（截断而非拒绝）、
+`list_entries` 的 `max(1, min(100, limit))` 钳制，默认 `DEFAULT_LIST_LIMIT=20`）。
+同样的手抄模式——这就是批 575 留在账本 §7 的第一条候选。
+
+### 2 量到的真相（实测）
+
+- `mem_content_p` 的 500 与 `MAX_MEMORY_CHARS` 恰好一致；`mem_source_p` 的 40 与 `MAX_SOURCE_CHARS` 恰好一致（校验器截断）；`mem_limit_p` 的 1..100 与校验器钳制恰好一致；`DEFAULT_LIST_LIMIT == 20`，与 Param description 里的「默认 20」一致。
+- 本批第一版门挂了：`const` 闭包晚绑定把所有 Param 的常数看成最后一次循环的值——已修（default-arg 绑定，注释说明）。
+- 注入红臂：`mem_content_p.max_len 500 → 512` → 门红，点名「(512) drifted from memory.MAX_MEMORY_CHARS (500)」；恢复后绿。
+
+### 3 落地
+
+- `tests/test_the_memory_tool_declarations_match_their_validators.py`（新门，AST 直读 Param 声明）：
+  钉三对等值 + `DEFAULT_LIST_LIMIT == 20`（Param description 里的「20」是散文，不钉）。
+
+### 4 见证（红先绿后，注入红臂）
+
+- 见 §2（注入红臂点名 512-vs-500；闭包坑修正后绿）。
+- 焦点回归：`test_memory.py` + `test_the_memory_file_is_shared_so_it_must_be_locked.py` + 新门 = 30 passed。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称钳制表达式 `max(1, min(100, limit))` 本身被钉——只钉两侧的数字；
+- 不声称 `mem_id_p`(32)、`mem_query_p`(200)、`mem_scope_p`(64) 有对账面——它们是契约级封顶，校验器侧没有同名常数可钉；
+- 不声称 description 里的散文与常数一致——那是文档面，另一批；
+- 不声称 CI 全绿：js-check/ubuntu 仍零次被调度；Windows 腿绿窗口为最近一次推送（批 573 tip）。
+
+### 7 下一位候选
+
+1. 推批 576 后等 Windows 腿一个完整周期；
+2. **Param↔validator 对账的系统普查**：`max_len`、`min_value`、`max_value` 的每处 Param 声明，逐一找它的校验面——也许还有 `read_file` 的 byte 上限、`bash` 的 timeout 封顶等；逐个举证，能对才对，对不上的记录为「契约级封顶，无第二面」；
+3. 十三个加载器裁定不变。
