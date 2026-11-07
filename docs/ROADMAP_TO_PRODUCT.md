@@ -38418,3 +38418,48 @@ M8-T566（第五百四十八批）把 `authorization_event` 的七键底座交�
 
 1. CI 双腿回来后确认转绿（最新树 = 60b20bc + M8-T566/547/548/549 各批）。
 2. 第五百二十五批 §7 的 3 位：十三个加载器——已裁定不合并、立规则。
+
+## 第五百五十批 — M8-T568 — 路径集合与树集合相等了：两种读者走的是同一串源码
+
+### 1 欠的是哪一条
+
+第五百二十四批 §7 第 4 位点名的存量候选「路径集合与树集合的相等」：`scripts/impacted_tests.py`
+的 `_read_trees` 里 `list(listings.modules.values()) + list(listings.tests)`——模块的列举与
+树读取由同一处手拼，「今天同源」只是恰好，将来只要路径不要树的读者不可能回答
+「我恰好读了这批源码」，且没有任何门钉住这件事。
+
+### 2 量到的真相（实测）
+
+- HEAD：两处读者各抄一份路径拼接；没人钉 keys 与路径串一致。
+- 封口门红先行：新门修前 3 红（home `_listed_sources` 不存在，AttributeError）；修后绿。
+
+### 3 落地
+
+- `scripts/impacted_tests.py`：路径枚举抽成 `_listed_sources(listings)` 一个家；
+  `_read_trees` 问它。
+- `tests/test_the_impacted_tests_trees_and_paths_are_one_set.py`（新门）：
+  家 = 清单；树 keys 相等且无重复；两次 listings 快照逐字段相等；将来只想要路径的读者
+  能拿到同一串。
+
+### 4 见证（红先绿后，臂）
+
+- 修前红（见 §2）；修后 4 passed；`test_impacted_tests.py` 与同族门 32 passed；
+  `python scripts/impacted_tests.py --check` rc=0（打印出 26 个受影响门，串列正常）。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（信任两个远端 CI 腿 + 受影响门）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 scripts / workflows / docs 现在也归解析——它们故意不在 `_listed_sources` 的形状里
+  （脚本被门 walk、工作流按文本读、docs 不属源码），集合不同；
+- 不声称全量套件本地全绿。
+
+### 7 下一位候选
+
+1. CI 双腿回来后确认转绿（tip run 42383346936 正在跑）。
+2. 「超时应该不该占用『判定』这个词」（conftest.py 把跑过 900s 的腿改写成 failed）——
+   第五百二十二批 §7 第 1 位；第五百二十二批自己说明过：换一个词要先有一个新读者，今天没有。
+   仍不动。
+3. 第五百二十五批 §7 的 3 位：十三个加载器收成一个家——第五百二十五批裁定「只立规则，不合并」。
