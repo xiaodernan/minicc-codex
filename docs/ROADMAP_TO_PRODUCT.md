@@ -39384,3 +39384,56 @@ home 早就有了，只是没人用——加一个字节的窗口调上调下，
 1. 等 tip `e543fcf`（批 567–568）的 Windows 腿跑完 → 推批 569 → 再等一个完整周期；
 2. #10：trace-detail key 词表（panels/index.js 两份 13/62 键清单）——先想清楚门钉的是 keys 还是 labels；
 3. 十三个加载器裁定不变。
+
+## 第五百七十批 — M8-T588 — trace-detail 两个渲染器不再自带平行 key 清单
+
+### 1 欠的是哪一条
+
+`web/src/panels/index.js` 有两个几乎同职的渲染器渲染 `event.detail`：
+`traceDetailPreview`（列表预览，截断）和 `traceDetail`（展开全文）。每个渲染器
+手持**两份**平行结构——zh/en 标签 dict + 一份 `const keys = [...]`（或内联数组）
+——两个结构独立维护、互不对账。实测它们已经漂了：预览的清单里有一把
+`recovery_inspection_required`，展开渲染器的 dict 里根本没有它——展开视图里
+这个字段会静默丢失。
+
+### 2 量到的真相（实测）
+
+- 预览：zh 13 键 == en 13 键（顺序一致）；内联 key 数组与 dict 顺序一致。
+- 展开：zh 59 键（修后）== en 59 键；`const keys` 数组与 dict 顺序一致。
+- 预览 keys ⊄ 展开 keys（差 `recovery_inspection_required`）。
+- 修后普查：`for (const key of [` 0 处、`const keys = [` 0 处、`Object.keys(labels)` 2 处、`recovery_inspection_required` 4 处（两个 dict × zh/en 各一）。
+
+### 3 落地
+
+- `traceDetail`：删 `const keys = [...]` 手抄；`for (const key of Object.keys(labels))`；
+  zh/en dict 各加 `recovery_inspection_required: "写入保护" / "write guard"`（与预览同词），
+  放在 verification_required 之后。
+- `traceDetailPreview`：删内联清单；`Object.keys(labels)`。
+- `tests/frontend_trace_detail_one_home_smoke.mjs`（新门）：两渲染器不得出现手抄清单；
+  两渲染器 zh/en dict 键集各自相等；预览键集 ⊆ 展开键集；两者都认识 `recovery_inspection_required`。
+- `package.json`：新增 `test:tracedetail`；CI js-check job 增加 `node --check` + `npm run test:tracedetail`。
+- bundle 重建（app.js/asset-manifest 换新哈希）。
+
+### 4 见证（红先绿后，注入红臂）
+
+- 红臂：stash panels/index.js → 门红（"the hand-written key list is back"）；pop → 绿。
+- 焦点回归：`npm run check:web`（app.js + game.js up to date，assets clean）；
+  `test:trace` / `test:tracephase` / `test:i18n` / `test:optimization` / `test:tracedetail` 全绿；
+  `node --check web/src/panels/index.js` ok。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 preview/detail 的 zh/en 措辞被统一——短形与长形本来可以长得不一样（如 tool_count），本批只钉键集；
+- 不声称 `logging_setup.py` 里那份 Python 侧 key 子集被统一——它是日志面的允许集合，与渲染面是另一个事实；
+- 不声称 bundle 无变化——本批重建了 app.js 与 assets 哈希；
+- 不声称 CI 全绿：批 569/570 尚未推送；`ubuntu-latest` 仍零次被调度。
+
+### 7 下一位候选
+
+1. 等 tip `e543fcf`（批 567–568）的 Windows 腿跑完 → 推批 569+570 → 再等一个完整周期；
+2. #12 的遗留：`web.py` 里 `"auto"` 一处保留手拼（有意，见批 568 边界）；
+3. 十三个加载器裁定不变。
