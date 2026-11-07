@@ -39437,3 +39437,50 @@ home 早就有了，只是没人用——加一个字节的窗口调上调下，
 1. 等 tip `e543fcf`（批 567–568）的 Windows 腿跑完 → 推批 569+570 → 再等一个完整周期；
 2. #12 的遗留：`web.py` 里 `"auto"` 一处保留手拼（有意，见批 568 边界）；
 3. 十三个加载器裁定不变。
+
+## 第五百七十一批 — M8-T589 — 补全判词键契约也有一个家了（fake 端与家对齐）
+
+### 1 欠的是哪一条
+
+「补全判词长什么样」——六个键：`status`、`confidence`、`rationale`、`missing`、
+`next_action`、`evidence`。这个契约在三处手写：`completion.py` 的 `to_dict`（渲染）、
+`completion.py` 的 `required` 集（`status=="complete"` 时的必备子集）、以及 fake provider
+的 judge 输出。三处互不隶属——`to_dict` 多加一个字段、fake 不跟进，或 `required` 悄悄多要一个，
+都只有运行时才知道。
+
+### 2 量到的真相（实测）
+
+- AST 普查（排除 docstring）：携带 ≥3 个六键的 Dict 恰 2 处且都恰好等于六键
+  ——`fake.py:96`（judge 输出）与 `completion.py:86`（`to_dict` 的 base literal）；
+- 携带 ≥3 个六键的 Set 恰 1 处——`completion.py:605` 的 `required`，且恰好是六键的
+  真子集（不含 `status`——判决 status 是被评审的结果，不是必填佐证）。
+
+### 3 落地
+
+- `tests/test_the_completion_verdict_keys_have_one_home.py`（新门，3 条）：
+  1. fake judge 的 payload dict 键集 == 六键家；
+  2. `to_dict` 的 base literal 键集 == 六键家；
+  3. 解析器的 `required` 集 ⊆ 六键家。
+
+### 4 见证（红先绿后，注入红臂）
+
+- 注入红臂：fake judge 加 `"verdict": "ok"` → 门红，点名「extra {'verdict'}, missing set()」；
+  `git checkout -- minicc/llm/fake.py` 恢复后 3 passed。
+- `test_completion_liveness.py` = 31 passed。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 fake 的其余线路（stream 重试、vision judge 等）也被钉住——本门只钉六键契约本体；
+- 不声称 `to_dict` 的附加键（`error`/`usage`）受家约束——它们是条件字段，另算；
+- 不声称 Python↔JS 补全侧对齐——补全流渲染（前端）属另一事实；
+- 不声称 CI 全绿：批 569/570/571 尚未推送（等当前 Windows 腿）。
+
+### 7 下一位候选
+
+1. 等 tip `e543fcf`（批 567–568）Windows 腿跑完 → 推批 569/570/571 → 再等一个完整周期；
+2. #6 的遗留面已全部收完（批 563+566）；
+3. 十三个加载器裁定不变。
