@@ -38512,3 +38512,44 @@ M8-T566（第五百四十八批）把 `authorization_event` 的七键底座交�
    真要做的是门禁不是一个家（M8-T543 已钉规则）。
 3. 各前端门已全部落位；下一只可能的候选是 `web/src/game.js` 与 `web/src/panels/index.js` 之间
    的共享事实（GAME_DIFFICULTIES / zh-en 都已经齐），暂无挂账。
+
+## 第五百五十二批 — M8-T570 — 快照清单格式版本一个家（数字 2 三处手拼）
+
+### 1 欠的是哪一条
+
+`version: 2`（工作区快照的清单格式版）此前写在 `minicc/snapshots.py` 里三处——capture 写一处
+（`"version": 2`），`before_write` 兜底读一处（`== 2`），`restore` 再读一处（`== 2 else`）——
+三处互不知照。清单版本一旦与后续 readers 漂移（写 3、读 2），restore 静默走 legacy 布局，
+文件要么消失要么把 `files` 指向错误的根，且不报任何错。
+
+### 2 量到的真相（实测）
+
+- HEAD：三处手拼 `2`。封口门红先行：新门修前 3 红（home 常量不存在；家里没问家）；修后绿。
+- 行为钉：真实 `git init` 工作区 → `capture` → 清单文件 `version` 等于常量；`tracked.py` 以脏路径被记下。
+
+### 3 落地
+
+- `minicc/snapshots.py`：新增公开常量 `WORKSPACE_SNAPSHOT_MANIFEST_VERSION = 2`；
+  三处改为问它；`__all__` 增加导出。
+- `tests/test_the_workspace_snapshot_manifest_version_has_one_home.py`（新门）。
+
+### 4 见证（红先绿后，臂）
+
+- 修前红 / 修后绿；snapshot 相关门 21 passed。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（信任两个远端 CI 腿 + 受影响门）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称迁移路径存在（仍是 version 2 的格式，legacy 分支仍在；常量就是 2 这件事没变）；
+- 不声称别的文件的 `version` 字段也被归一（`session.py`/`snapshots-restore` 的 JSON 版本字段是
+  别的事实——GRAPH 没什么好归一的）；
+- 不声称全量套件本地全绿。
+
+### 7 下一位候选
+
+1. CI 双腿回来后确认转绿（tip run 之最新树为 f6e9afb + 本批各次提交）。
+2. 装货文件 `minicc/task_manager.py:2964 "version": 1`——task checkpoint 快照的自带版本，单处，不改。
+3. 第五百二十五批 §7 的 3 位：十三个加载器——第五百二十五批裁定只立规则不合并。
