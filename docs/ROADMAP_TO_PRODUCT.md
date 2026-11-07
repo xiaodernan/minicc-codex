@@ -39949,3 +39949,59 @@ reducer.js 在绑定上也维护同样的两条清单（`usage_by_turn`、`compa
 1. 等第 577–581 个 Windows 腿绿 → 全量信号跟踪；
 2. 主 worktree 的合并进度——那条屋里 `UU ROADMAP` 没动过，仍未到降落窗口；
 3. 十三个加载器裁定不变。
+
+## 第五百八十二批 — M8-T600 — 植物/僵尸注册表两个名字也只有一个家了
+
+### 1 欠的是哪一条
+
+`web/src/game.js` 里的实体表全是手拼 key——19 种植物（`plantCost` 等 7 张全量表）与
+19 种僵尸（`zombieProfiles` 等 3 张全量表 + `ZOMBIE_BODY_COLORS`）。只要某张全量表少
+一行，fallback 就在渲染/逻辑里静默接管：本次普查发现 `ZOMBIE_BODY_COLORS` 缺了
+`scout`/`shield`/`storm` 三种——这三种僵尸数月以来一直画成 `walker` 的身体色，全靠
+`ZOMBIE_BODY_COLORS[zombie.type] || ZOMBIE_BODY_COLORS.walker` 兜底。
+
+### 2 量到的真相（实测）
+
+- 植物 7 表全量一致（19/19）：`plantCost`（`PLANT_TYPES` 由它派生）、`plantHealth`、`plantColor`、
+  `plantCooldown`、`codexPlantNames`、`codexPlantIcons`、`codexPlantSpecials`。
+- 植物 `plantProfiles` 是**刻意子集**（10 种带特性的植物）——合法，门钉「⊆ 植物注册表」。
+- 僵尸 2 表全量一致：`codexZombieNames`、`codexZombieSkills`；`zombieProfiles`（注册表本体）19/19。
+- `ZOMBIE_BODY_COLORS`：16/19，缺 `scout`、`shield`、`storm`（数月）。
+
+### 3 落地
+
+- `web/src/game.js`：`ZOMBIE_BODY_COLORS` 补齐三色（`scout: "#6f7a4f"`、`shield: "#4f5f73"`、
+  `storm: "#424c5e"`，与现存低饱和调色板一致）。
+- `tests/game_entity_registry_smoke.mjs`（新门）：
+  1. 植物注册表 == `plantCost` keys（19）；`PLANT_TYPES` 必须由它派生（`Object.keys(plantCost)`）；
+  2. 7 张植物全量表的 key 集合必须**恰好**等于植物注册表；
+  3. 僵尸注册表 == `zombieProfiles` keys（19）；
+  4. 3 张僵尸全量表必须恰好等于僵尸注册表；
+  5. 子集表 `plantProfiles` 必须是植物注册表的子集。
+  字典解析为深度感知（跳过嵌套对象），不依赖字符串切分。
+- `package.json`：新增 `test:registry`；CI js-check job 增加 `node --check` + `npm run test:registry`。
+- bundle 重建（game.js/asset-manifest/assets 换哈希）。
+
+### 4 见证（红先绿后）
+
+- 红臂：stash game.js → 门红，点名「scout,storm,shield missing」；pop 后绿。
+- 本地全量实跑（fake provider，`python -m minicc.web --port 8765`）：`test:game` ✓、`test:codex` ✓（「19 plants + 19 zombies」）、`test:zombie` ✓；
+  `npm run check:web` 干净（game.js up to date，assets clean）。
+- 服务器进程与 smoke 日志均已删除（20612 已杀，log 删除）。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量 pytest 套件（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称三种新颜色是美术验收过的最终配色——它们够用、在调色板家族里，完善色是美术面，不是这批账的目标；
+- 不声称 `plantProfiles` 也必须 19/19——它是刻意的 10 键子集，门钉的是「不越界」，不是「凑数」；
+- 不声称 codex 与游戏本体之间的平衡外的任何契约（文案/数值）；
+- 不声称 CI js-check 已跑——该 job 今日仍零次被调度。
+
+### 7 下一位候选
+
+1. 等第 577–582 个 Windows 腿绿（本批 push 后 ~20 分钟）；
+2. `logging_setup.py` 的日志面 detail-key 子集与渲染面两种词表的对照——是 #10 的尾项，是子集对照而不是同家事实，需要先想清楚门钉哪个事实；
+3. 十三个加载器裁定不变。
