@@ -39087,3 +39087,59 @@ wire 值、fallback、中文标签、事件 code、中文 summary——靠的是
 2. #2：`web-latest` 默认 session 名字 8 处拼写（含 JS、argparse 默认值、task_contract 字段默认值）——命名 + 家 + 门；
 3. #13：approval decisions 前后端各自硬编码、互不对照——补第三扇对照门（`frontend_approval_one_home_smoke.mjs` ↔ `test_the_approval_decisions_have_one_home.py`）；
 4. 十三个加载器裁定不变。
+
+## 第五百六十四批 — M8-T582 — 默认 session 名字也只有一个家了（WEB_SESSION_ID）
+
+### 1 欠的是哪一条
+
+「任务没说是哪个 session 时，它属于哪个」——这个事实的答案是字符串 `web-latest`。
+它被手抄了八处：`TaskRequest` 数据类默认值、`from_payload` 的兜底、`task_manager`
+两处（事件归档 + 状态同步）、worker 的 argparse 默认值、`web.py` 两处、`markdown.js`
+两处兜底、以及一个测试夹具——没有名字、没有家、没有人钉。前端在 JS 里只能靠手抄，
+Python 端连常数都没有。两端从未被人对照。
+
+### 2 量到的真相（实测）
+
+- 全仓普查（`.py`/`.js`/`.md`/`.json`）：`minicc/` 7 处、`tests/` 1 处、`web/src` 2 处、
+  `docs/ROADMAP_TO_PRODUCT.md` 4 处（文档豁免）、生成 bundle 4 处（重新构建自动反映）。
+- 无论怎么改都必须同步的，恰是这两端：Python（数据类默认值）与 JS（渲染期兜底）。
+
+### 3 落地
+
+- `minicc/task_contract.py`：新增 `WEB_SESSION_ID = "web-latest"`（`#:` 注释说明谁引用它）；
+  `TaskRequest.session_id` 默认值与 `from_payload` 兜底改问家。
+- `minicc/task_manager.py`：import 增加 `WEB_SESSION_ID`，两处改问家。
+- `minicc/task_worker.py`：import 增加 `WEB_SESSION_ID`，`SESSION_ID_FLAG` 的 argparse 默认值改问家。
+- `minicc/web.py`：`from .task_contract import WEB_SESSION_ID`（新 import，非 noqa 块，仅用一处外加两个站点），两处改问家。
+- `tests/test_auto_resume.py`：夹具 `session_id` 改用家（不再手拼字面量）。
+- `web/src/chat/markdown.js`：**不改**（JS 无法 import Python），两个内联字面量由新门钉住。
+- `tests/frontend_web_session_id_one_home_smoke.mjs`（新门）：
+  1. `task_contract.py` 必须 `WEB_SESSION_ID = "web-latest"`；
+  2. `minicc/` 下任何其它文件不得出现该字面量（无论代码还是注释）；
+  3. `markdown.js` 必须恰好出现两个该字面量；
+  4. `web/src` 下其它 .js 不得出现。
+- `package.json`：新增 `test:sessionid`；`.github/workflows/ci.yml` 的 js-check job 增加 `node --check` + `npm run test:sessionid`。
+
+### 4 见证（红先绿后）
+
+- 绿臂：新门 `M8-T582 ok`；红臂：`git stash push` 五个 Python 源码文件后，门死在第一关「minicc/task_contract.py must define WEB_SESSION_ID」（red）；`git stash pop` 后绿。
+- 焦点回归：`test_task_contract.py` + `test_auto_resume.py` + `test_core_task.py` + `test_task_durability.py` = 60 passed；`test:sessionid` + `test:perm` 绿；`npm run check:web` 干净（markdown.js 未动）。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称文档（ROADMAP 等）也不允许该字面量——文档可引用字符串本身；
+- 不声称 markdown.js 可以从 Python 导入——JS 面只能钉值，不共用符号；
+- 不声称生成 bundle 也被钉住——bundle 由 `check:web` 保证是 src 的忠实产物；
+- 不声称 CI 全绿：批 562/563 的推送尚未发；`ubuntu-latest` 腿仍零次被调度。
+- 路径分隔符已在门里做归一化（`path.normalize` 双侧）——这是本批唯一一个真实 bug，修自第一次跑的 AssertionError。
+
+### 7 下一位候选
+
+1. **推批 562+563+564 后，先等 js-check 与 Windows 腿的完整周期再推下一批**（推送节奏仍然快于 job 时长）。
+2. #13：approval decisions 前后端各自硬编码、互不对照——补第三扇对照门（`frontend_approval_one_home_smoke.mjs` 与 `test_the_approval_decisions_have_one_home.py` 各管一面）；
+3. #6/#11 已在批 563 完成（M8-T581 门）；
+4. 十三个加载器裁定不变。
