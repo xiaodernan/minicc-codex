@@ -37655,3 +37655,39 @@ HEAD 前，`_git` 返回 ``(code, stdout, stderr)``，两个失败分支共用�
 1. 第五百二十九批 §7 第 2 位未动：豁免被拒的理由只有 trace 知道，模型收到的仍
    是「请先验证」.
 2. 第五百二十七批 §7 第 2 位的两条子集门：仍是「打印集合恰好不含 roadmap 才绿」.
+
+
+## 第五百三十四批 — M8-T552 — 被拒的验证理由进了模型消息
+
+### 1 欠的是哪一条
+
+第五百三十一批 §7 第 3 位（豁免被拒只进 trace）：``verification_waiver_refused_by_failed_read``
+的 ``detail.reason`` 不进模型消息也不进最终错误文本，模型只能看见「请先验证」。
+
+### 2 量到的真相（实测）
+
+HEAD 前：failed-read 豁免被拒时，reason 只进 ``detail``（trace），模型消息只吃通用
+nudge。M8-T552 之后：refusal 分支把 ``git_changed_error`` 接进用户消息。
+
+### 3 落地
+
+- `minicc/agent/loop.py`：refusal 分支把 ``git_changed_error`` 接进用户消息。
+
+### 4 见证（红先绿后，臂）
+
+- 新门 `tests/test_a_verification_waiver_is_not_bought_with_a_failed_read.py::
+  test_the_refusal_reaches_the_model_with_the_reason`：红先（reason 不进消息 → 断言
+  ``dubious ownership`` 不落进 joined 消息）；绿后同文件 18 passed 全绿。
+
+### 5 聚焦回归
+
+- 本批相关门文件集：`18 passed in 13.61s`。
+
+### 6 边界（本批**不**声称）
+
+- 不声称最终错误文本也换（本批只接进提醒）。
+
+### 7 下一位候选
+
+1. 第五百二十九批 §7 第 2 位未动：豁免被拒的理由只在 trace 知道，模型收不到。
+2. 第五百二十七批 §7 第 2 位的两条子集门：仍是「打印集合恰好不含 roadmap 才绿」.
