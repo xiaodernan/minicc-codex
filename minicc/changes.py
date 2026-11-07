@@ -16,7 +16,11 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
-from .gitprobe import work_tree_verdict
+from .gitprobe import (
+    git_status_exit_reason,
+    git_status_unavailable_reason,
+    work_tree_verdict,
+)
 from .internal_paths import AUDIT_NAME
 from .tools.editor import _MUTATING_ACTIONS
 from .tools.registry import redact_text
@@ -146,14 +150,13 @@ class ChangeInspector:
         everything else is a tree we were not allowed to read.
         """
         if code == 127 and "git unavailable" in stderr:
-            return "git status 无法运行（20 秒超时或 PATH 里没有 git），变更清单没有读出来"
+            # ``_git`` collapsed an OSError / timeout into this shape, so the
+            # reader cannot name the exception; the note is the timeout / PATH one.
+            return git_status_unavailable_reason(timeout_seconds=20, subject="变更清单")
         kind, detail = work_tree_verdict(self.workspace)
         if kind == "no":
             return None
-        reason = f"git status 退出码 {code}"
-        first = (stderr or "").strip().splitlines()
-        if first:
-            reason += f": {first[0][:200]}"
+        reason = git_status_exit_reason(code, stderr)
         if kind == "unknown":
             reason += f"（且无法确认这是不是仓库：{detail}）"
         return reason

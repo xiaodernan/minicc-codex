@@ -14,6 +14,11 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 
 from .atomic_file import replace_with_retry
 from .changes import INTERNAL_DIRS
+from .gitprobe import (
+    git_status_exit_reason,
+    git_status_timeout_reason,
+    git_status_unavailable_reason,
+)
 from typing import Any
 
 _SAFE_TASK_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,80}$")
@@ -98,14 +103,13 @@ def _git_dirty_files(workspace: Path) -> tuple[list[str], str | None]:
             capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=20, check=False,
         )
     except subprocess.TimeoutExpired:
-        return [], "git status 超时（20 秒）：工作区可能太大，脏文件清单没有读出来"
+        return [], git_status_timeout_reason(20, "脏文件清单")
     except OSError as exc:
-        return [], f"git status 无法运行: {exc}"
+        return [], git_status_unavailable_reason(exc)
     if completed.returncode != 0:
         # git's own words are the actionable half (safe.directory, index.lock,
         # not a repository); the exit code alone would not tell a user where to look.
-        detail = (completed.stderr or "").strip().splitlines()
-        return [], f"git status 退出码 {completed.returncode}" + (f": {detail[0][:200]}" if detail else "")
+        return [], git_status_exit_reason(completed.returncode, completed.stderr)
     files: list[str] = []
     seen: set[str] = set()
     records = iter(completed.stdout.split("\0"))
