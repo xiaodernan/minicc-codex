@@ -38378,3 +38378,43 @@ HEAD：全包里 `minicc/agent/loop.py` 发的 phase=\"review\" 是 run_finished
 1. CI 双腿回来后确认转绿（本批的树 = 60b20bc + 本批，最新 run 覆盖）。
 2. `minicc/llm/usage.py` 的 `channel_switched_event`：已是「家 → usage 包内 factory」形态，无需动。
 3. 第五百二十五批 §7 的 3 位：十三个加载器——已裁定不合并、立规则。
+
+## 第五百四十九批 — M8-T567 — 全量套件抓出的分行字面量：八键授权门不知道自己搬了家
+
+### 1 欠的是哪一条
+
+M8-T566（第五百四十八批）把 `authorization_event` 的七键底座交给一个家
+（`trace_event(kind="authorization")`）之后，授权门原有的「包内恰好一处八键字面量」
+签名悬空了——期望的那份字面量已经不存在了。全量套件一跑就咬住。
+
+### 2 量到的真相（实测）
+
+全量：`4228 passed` / **2 failed**——本批回归（`test_the_eight_keys_are_spelled_exactly_once_in_the_package`）
+与 `test_packaging.py::test_installed_console_scripts_run_from_a_real_install`。后者与本批改动无关：
+`python -m venv --system-site-packages` 继承的是 `C:\Program Files\Python311`（本机不带 `openai`），
+不带 `.venv` 自己的 site-packages；该门本就声明离线、依赖由系统提供。**CI 上绿**（runner python 有 openai）。
+
+### 3 落地
+
+`tests/test_the_authorization_event_have_one_home.py`：新契约 = 包内 **零** 八键字面量
+（除家外且家内也不再需要字面量）+ 家内仍持有 `kind="authorization"` 与 `event["authorization"] = authorization`。
+
+### 4 见证（红先绿后，臂）
+
+- 修前红（全量套件一片里那一条红）；修后该门文件 3 passed。
+- 全量重跑：`4229 passed` / 8 skipped / **1 failed**（packaging 本机环境缺 openai；CI 的口径是干净 runner python，那里绿）。
+
+### 5 聚焦回归
+
+- 见 §2/§4：全量重跑 4229 passed；未另列举式跑。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 packaging 门在本机会过（环境缺 openai；CI 口径干净 runner python，那里绿，本批不动它也不声称修好）；
+- 不声称授权事件的行为变了（键序不变、结构不变）；
+- 不声称全量零失败（这一项是环境）。
+
+### 7 下一位候选
+
+1. CI 双腿回来后确认转绿（最新树 = 60b20bc + M8-T566/547/548/549 各批）。
+2. 第五百二十五批 §7 的 3 位：十三个加载器——已裁定不合并、立规则。
