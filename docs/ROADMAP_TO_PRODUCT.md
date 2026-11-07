@@ -37613,3 +37613,45 @@ HEAD 前，三处手写同一事实的不同措辞：`loop.py` 的超时 / OSErr
    四处的共用私件）。
 2. 第五百二十九批 §7 第 2 位未动：豁免被拒的理由只有 trace 知道，模型收到的仍
    是「请先验证」.
+
+
+## 第五百三十三批 — M8-T551 — _git 不再把「没跑」压成 127 / git unavailable
+
+### 1 欠的是哪一条
+
+第五百三十一批（M8-T549）把「读不出审计记录」修了，第五百三十二批（M8-T550）把
+「读不出改动清单的失败措辞」收进 `minicc/gitprobe.py`；本批处理的是同一坍缩的
+源头——`changes.py` 的 `_git` 用一个 except 收两个失败（OSError / TimeoutExpired），
+都回 ``127 / "git unavailable"``，失败理由只能从 sentinel 反推。
+
+### 2 量到的真相（实测）
+
+HEAD 前，`_git` 返回 ``(code, stdout, stderr)``，两个失败分支共用一句；M8-T551
+之后，`_git` 返回 ``(code, stdout, stderr, reason)``，timeout 与 unrunnable 各有
+各的句子（`git_status_timeout_reason` / `git_status_unavailable_reason`）。
+
+### 3 落地
+
+- `minicc/changes.py`：`_git` 返回 ``(code, stdout, stderr, reason)``，失败分支
+  各自产出 reason；`_status_lines` 把 reason 交给 `_status_failure`。
+
+### 4 见证（红先绿后，臂）
+
+- 新门 `tests/test_the_git_status_read_reason_has_one_home.py::test_the_shared_git_helper_carries_the_failure_reason`
+  红先：HEAD 上 `_git` 是三元返回、新门即红；绿后同门 + 本批相关门文件集
+  `44 passed in 25.91s`。
+
+### 5 聚焦回归
+
+- 本批相关门文件集：`44 passed in 25.91s`。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 `_git` 对 diff / show / rev-parse 的 reason 语义（它们只看 code）。
+- 不声称全量围栏（全量在远端 CI 判）。
+
+### 7 下一位候选
+
+1. 第五百二十九批 §7 第 2 位未动：豁免被拒的理由只有 trace 知道，模型收到的仍
+   是「请先验证」.
+2. 第五百二十七批 §7 第 2 位的两条子集门：仍是「打印集合恰好不含 roadmap 才绿」.
