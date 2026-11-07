@@ -6,7 +6,7 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-from .editor import EditError, resolve_in_workspace
+from .editor import resolve_in_workspace
 from .registry import ToolError, exit_marker, split_output
 from .schemas import ToolResult, untrusted_tags
 

@@ -9,7 +9,7 @@ import threading
 import time
 import uuid
 from pathlib import Path
-from typing import IO, Any, Iterator
+from typing import Any, Iterator
 
 from .atomic_file import read_text_with_retry, replace_with_retry
 from .config import home_dir

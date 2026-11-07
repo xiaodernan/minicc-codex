@@ -20,7 +20,6 @@ import os
 import secrets
 import string
 import tempfile
-import time
 from pathlib import Path
 from urllib.parse import urlsplit
 

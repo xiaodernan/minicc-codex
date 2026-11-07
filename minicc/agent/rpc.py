@@ -7,7 +7,6 @@ that delegate to the existing task/thread runtime.
 
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass
 from typing import Any, Callable, Mapping
 

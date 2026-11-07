@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import json
 import sys
 from dataclasses import replace
 from pathlib import Path
@@ -21,7 +20,6 @@ from .audit import PERMISSION_MODES, authorize_tool, effective_risk
 from .cli_io import cli_out
 from .internal_paths import AUDIT_NAME
 from .config import (
-    LLM_PROTOCOLS,
     MAX_TIMEOUT_SECONDS,
     PROVIDER_TYPES,
     REASONING_EFFORTS,

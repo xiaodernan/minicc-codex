@@ -38713,3 +38713,69 @@ Ubuntu 腿因 concurrency 被取消（最新推送顶替），Windows 腿 `pytho
 2. 其它重模块的 dead-import 普查（`task_manager.py`、`web.py` 已 cleaned）——
    同一套 gate 可以推广，但下一步前先看远端腿回消息，确认本批一个家稳住。
 3. 第五百二十五批 §7 的 3 位：十三个加载器——裁定不合并、立规则（不变）。
+
+## 第五百五十七批 — M8-T575 — 全包零未引用模块级 import（一份普查门保持整个包干净）
+
+### 1 欠的是哪一条
+
+上一批 M8-T574 的「web.py 死 import」普查工具跑出一个惊人的账单：整个 `minicc/` 下
+十几个模块都带着只被自己遗忘的 import——
+直到本批为止，「无人引用的模块级 import 是被允许的」这条潜规则一直默许着：
+读模块的人必须靠眼睛数一遍才能发现，没有任何一种门会在 CI 里告诉他「这里有 5 个永远不
+会被引用的名字」。
+
+### 2 量到的真相（实测）
+
+- 普查 `minicc/` 全包：未引用模块级 import **12 个**，分布在 11 个文件：
+  - `minicc/agent/rpc.py`：`logging`（被 `logging.getLogger("minicc.rpc")` 在注释里提及，注释本身不是引用）
+  - `minicc/audit.py`：`match_permission_rule`（`__all__` 没有它，真没用）
+  - `minicc/bench_tasks.py`：`time`（仅出现在 import 行）
+  - `minicc/config.py`：`field`（注释里两次提到，`@dataclass` 的字段本体才用 dataclass 不用 field）
+  - `minicc/main.py`：`json` + `LLM_PROTOCOLS`（config.py 用 LLM_PROTOCOLS 但 main.py 自己没用）
+  - `minicc/snapshots.py`：`os`
+  - `minicc/tools/__init__.py`：`Path`（from pathlib import Path 后从未用）
+  - `minicc/tools/git.py`：`EditError`（同一 import 行的 resolve_in_workspace 被用）
+  - `minicc/webauth.py`：`time`
+  - `minicc/webserver.py`：`Path`
+  - `minicc/workspaces.py`：`IO`
+- M8-T574 一同交付的 web.py 专用门被本批取代——新门的规则覆盖整包（含 `__init__.py` 的显式 `__all__` 再导出）。
+- 红先行：新门修前红（11 offenders 全列出）；修后绿。
+- 三个 `__init__.py`（`agent/`、`llm/`、`tools/`）里**都列了 `__all__`**——那些
+  22+9+7 个名字是再导出，不是死名字；门跳过它们。
+
+### 3 落地
+
+- 临时普查脚本未留在仓里（一次性工具，跑完即删）。
+- `minicc/` 11 个文件：删 12 个未引用模块级 import（main.py 删 2 个）。
+- `tests/test_the_package_does_not_import_what_it_does_not_use.py`（M8-T575 新门，本批全权负责）：
+  AST 遍历 `minicc/` 全包 .py；`__future__` / `# noqa: F401` / 显式 `__all__` 跳过；
+  其余模块级 import 必须出现在本模块的 AST 里，否则直接报红并点名文件:行:名字。
+- `tests/test_the_web_module_keeps_no_dead_imports.py`：已删除（与新门等价且新门范围更全，重复守门没必要）。
+
+### 4 见证（红先绿后，臂）
+
+- 新门 M8-T575：修前红（11 offenders），修后绿。
+- 相关门：`test_the_trace_event_have_one_home.py` + `test_the_verification_event_has_one_home.py`
+  + `test_the_authorization_event_have_one_home.py` + `test_version_vocabulary.py`
+  + `test_a_synchronous_chat_run_must_be_able_to_ask_for_an_approval.py` 共 24 passed；
+  `test_core_agent.py` + `test_completion_liveness.py` + `tests/test_a_command_file_that_cannot_be_read_is_not_one_that_was_never_written.py` 共 91 passed。
+- 红臂：普查命中任一未修模块即红，是 `python -m pytest tests/test_the_package_does_not_import_what_it_does_not_use.py -v`。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（信任两个远端 CI 腿 + 受影响门）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称允许 `__init__.py` 的 `__all__` 可以任意加名字——所有门覆盖会同样要求它们出现
+  在 AST 里或 `__all__` 里，没有「免死金牌」路径；
+- 不声称不允许 `# noqa: F401` 随便写——那需要 reviewer 自己审查，门只知道「有这一行」；
+- 不声称 `__init__.py` 的再导出列表与实际使用者同步——换个上下游不影响（import ≠ API 适配）；
+- 不声称全量套件本地全绿。
+
+### 7 下一位候选
+
+1. CI 双腿回来后确认转绿（tip = 本批提交）。
+2. 最强的相关子集门：有没有下一个「全包内只被自己遗忘」的名字普查可固化——比如
+   未引用的模块级常数（`AGENT_...`、`_...` 命名私有常量）——同一套方法。
+3. 第五百二十五批 §7 的 3 位：十三个加载器——裁定不合并、立规则（不变）。

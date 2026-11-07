@@ -15,7 +15,7 @@ from typing import Any
 
 from .allowlist import match_session_allowlist, path_rule_matches
 from .internal_paths import PERMISSIONS_NAME
-from .permissions import load_permission_rules, match_permission_rule, match_rules
+from .permissions import load_permission_rules, match_rules
 from .tools.bash import is_readonly_command, split_command_argv
 from .tools.registry import AUTHORIZATION_RISKS
 from .trace import trace_event

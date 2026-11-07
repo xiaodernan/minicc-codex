@@ -7,7 +7,6 @@ ready for the agent loop.
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 from .bash import (
