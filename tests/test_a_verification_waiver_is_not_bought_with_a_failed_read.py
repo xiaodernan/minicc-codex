@@ -125,7 +125,8 @@ def test_a_failed_changed_read_does_not_waive_the_verification(
         f"读不出改动清单，却把「没有可运行的检查」当成了答案：{codes}"
     )
     assert "verification_required_before_finish" in codes, codes
-    assert error == VERIFICATION_GUARD_ERROR, (error, codes)
+    assert error.startswith(VERIFICATION_GUARD_ERROR), (error, codes)
+    assert "dubious ownership" in error, (error, codes)
 
 
 def test_a_read_that_succeeded_and_found_nothing_still_waives(

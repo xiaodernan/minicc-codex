@@ -1965,7 +1965,9 @@ async def run_agent(
                         detail={"turn": turn, "retry": verification_retries},
                     )
                     continue
-                result.error = VERIFICATION_GUARD_ERROR
+                result.error = VERIFICATION_GUARD_ERROR + (
+                    f"\n\n{git_changed_error}" if git_changed_error else ""
+                )
                 result.answer = (
                     incomplete_answer(VERIFICATION_GUARD_ANSWER)
                     + (f"\n\n{MODEL_LAST_OUTPUT_MARKER}{text}" if text else "")
