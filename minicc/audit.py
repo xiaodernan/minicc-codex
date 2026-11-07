@@ -18,6 +18,7 @@ from .internal_paths import PERMISSIONS_NAME
 from .permissions import load_permission_rules, match_permission_rule, match_rules
 from .tools.bash import is_readonly_command, split_command_argv
 from .tools.registry import AUTHORIZATION_RISKS
+from .trace import trace_event
 
 
 # M3-T4: argv-aware network detection. The old substring blacklist missed
@@ -445,17 +446,22 @@ def authorization_event(
     authorization event the audit reader cannot join with the decision
     events around it, and ``kind``/``phase`` are exactly the two keys a
     copier is most tempted to drop as "boilerplate".
+
+    M8-T566: the base record now goes through the one home
+    (``minicc/trace.py``) with ``kind="authorization"``; this factory only
+    adds its own two flat keys.
     """
-    return {
-        "kind": "authorization",
-        "name": tool,
-        "status": status,
-        "phase": "permission",
-        "code": code,
-        "summary": summary,
-        "risk": risk,
-        "authorization": authorization,
-    }
+    event = trace_event(
+        name=tool,
+        status=status,
+        phase="permission",
+        code=code,
+        summary=summary,
+        kind="authorization",
+    )
+    event["risk"] = risk
+    event["authorization"] = authorization
+    return event
 
 
 @dataclass(frozen=True)

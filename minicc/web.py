@@ -632,21 +632,24 @@ class AgentService:
                 self._approval_groups[group.request_id] = group
                 self._approval_by_key[merge_key] = group.request_id
         if not merged and on_event is not None:
-            on_event({
-                "kind": "approval_request",
-                "name": tool,
-                "status": "pending",
-                "phase": "permission",
-                "code": "approval_requested",
-                "summary": f"等待用户批准 {tool}：{reason}",
-                "risk": risk,
-                "request_id": group.request_id,
-                "task_id": task_id,
-                "tool": tool,
-                "preview": preview,
-                "reason": reason,
-                "timeout_seconds": wait_seconds,
-            })
+            # M8-T566: the approval frames ride the one home; the flat
+            # keys are this frame's own payload.
+            frame = trace_event(
+                name=tool,
+                status="pending",
+                phase="permission",
+                code="approval_requested",
+                summary=f"等待用户批准 {tool}：{reason}",
+                kind="approval_request",
+            )
+            frame["risk"] = risk
+            frame["request_id"] = group.request_id
+            frame["task_id"] = task_id
+            frame["tool"] = tool
+            frame["preview"] = preview
+            frame["reason"] = reason
+            frame["timeout_seconds"] = wait_seconds
+            on_event(frame)
         deadline = time.monotonic() + max(0.0, wait_seconds)
         while not group.resolved:
             if cancel_event is not None and cancel_event.is_set():
@@ -676,23 +679,24 @@ class AgentService:
                 if waiter in group.waiters:
                     group.waiters.remove(waiter)
         if not merged and on_event is not None:
-            on_event({
-                "kind": "approval_resolved",
-                "name": tool,
-                "status": "ok" if decision in PERMITTING_APPROVAL_DECISIONS else "denied",
-                "phase": "permission",
-                "code": "approval_resolved",
-                "summary": (
+            frame = trace_event(
+                name=tool,
+                status="ok" if decision in PERMITTING_APPROVAL_DECISIONS else "denied",
+                phase="permission",
+                code="approval_resolved",
+                summary=(
                     f"审批结果：{decision}"
                     + ("（超时自动拒绝）" if group_timed_out else "")
                     + ("（任务已取消）" if cancelled else "")
                 ),
-                "request_id": group.request_id,
-                "task_id": task_id,
-                "decision": decision,
-                "timed_out": group_timed_out,
-                "cancelled": cancelled,
-            })
+                kind="approval_resolved",
+            )
+            frame["request_id"] = group.request_id
+            frame["task_id"] = task_id
+            frame["decision"] = decision
+            frame["timed_out"] = group_timed_out
+            frame["cancelled"] = cancelled
+            on_event(frame)
         return {
             "decision": decision,
             "timed_out": group_timed_out,
