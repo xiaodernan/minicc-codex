@@ -39713,3 +39713,51 @@ required=["content"]、返回键 content/status/priority）。两处都可以独
 1. 推批 576 后等 Windows 腿一个完整周期；
 2. **Param↔validator 对账的系统普查**：`max_len`、`min_value`、`max_value` 的每处 Param 声明，逐一找它的校验面——也许还有 `read_file` 的 byte 上限、`bash` 的 timeout 封顶等；逐个举证，能对才对，对不上的记录为「契约级封顶，无第二面」；
 3. 十三个加载器裁定不变。
+
+## 第五百七十七批 — M8-T595 — HTTP 工具四个声明上限与人工核对终结
+
+### 1 欠的是哪一条
+
+「webfetch/web_search 接受多大的量」——四处声明与 handler 的校验各自手拼：
+
+- `fetch_timeout_p` 的 `max_value=60` vs `webfetch` 的钳制 `max(1.0, min(60.0, timeout))`；
+- `search_limit_p` 的 `max_value=8` vs `web.py` 的 `max(1, min(MAX_RESULTS, ...))`（`MAX_RESULTS == 8`）；
+- `search_query_p` 的 `max_len=500` vs `web.py` 的 `MAX_QUERY_CHARS == 500`（handler raise 超过它）；
+- `fetch_timeout_p` description 的「默认 20」 vs `webfetch.DEFAULT_TIMEOUT == 20.0`。
+
+### 2 量到的真相（实测）
+
+- 普查 `tools/` 下 `max|min` 钳制点（含 `args.get`）：web.py:376、webfetch:442、memory:318、webfetch clamp 是唯一相关的三对；`web.py` 另有 `MAX_QUERY_CHARS = 500` raise 点（查询过长即拒绝，与 Param 上限同一事实）。
+- `bash` 的 `timeout_p [1..600]` 没有 handler 钳制——声明即唯一执法点，不算对账面（账本记一笔）。
+- `minicc.tools.webfetch` 被 `from .webfetch import webfetch` 遮蔽成函数——门用 `importlib.import_module` 直取模块（修复了一次 AttributeError）。
+
+### 3 落地
+
+- `minicc/tools/webfetch.py`：新增 `MIN_TIMEOUT = 1.0` / `MAX_TIMEOUT = 60.0`（`#:` 注释说明谁问它们）；钳制改 `max(MIN_TIMEOUT, min(MAX_TIMEOUT, timeout))`。
+- `minicc/tools/__init__.py`：`.web` import 增加 `MAX_QUERY_CHARS, MAX_RESULTS`；`.webfetch` import 增加 `MIN_TIMEOUT, MAX_TIMEOUT`；
+  `search_query_p.max_len → MAX_QUERY_CHARS`；`search_limit_p.max_value → MAX_RESULTS`；`fetch_timeout_p` 的 min/max → `int(MIN_TIMEOUT)` / `int(MAX_TIMEOUT)`。
+- `tests/test_the_http_tool_declarations_match_their_validators.py`（新门）：
+  家常数存在（1.0/60.0/20.0/8/500）；三处 Param 的 AST 引用家名（`int(MIN_TIMEOUT)` 等）；钳制式引用家名（源码扫描）。
+
+### 4 见证（红先绿后，注入红臂）
+
+- 红臂（stash 两个源码文件）：两条断言都红——`MIN_TIMEOUT` 属性不存在、钳制仍是裸 `min(60.0…`；pop 后 2 passed。
+- 闭包坑修后复绿（与批 576 同类）。
+- 焦点回归：`test_webfetch.py` + `test_webfetch_routes_its_page_through_the_head_tail_channel.py` + `test_the_search_result_have_one_home.py` = 39 passed。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 `bash.timeout_p` 与任何 handler 对账——它没有第二面（声明即执法）；
+- 不声称 `web.REQUEST_TIMEOUT = 12` 被声明参数引用——它是内部实现细节，非工具入口契约；
+- 不声称 Param description 的中文散文与常数一致——散文不钉；
+- 不声称其余工具（fs/read/editor 等）的 Param 与 handler 对账——本批只对 HTTP 三兄弟四处。
+
+### 7 下一位候选
+
+1. 推批 577 后等 Windows 腿一个完整周期；
+2. **fs/editor 侧 Param↔handler 对账普查**（`read_file` 的 offset/limit 钳制、`edit_file` 的 digest 形态、`grep` 的 MAX_MATCHES 等）；不够格对不上时明确不做并记账；
+3. 十三个加载器裁定不变。
