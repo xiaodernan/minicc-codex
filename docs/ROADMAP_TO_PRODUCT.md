@@ -39901,3 +39901,51 @@ reducer.js 在绑定上也维护同样的两条清单（`usage_by_turn`、`compa
 1. **1024 聚合**：state.py `MAX_TRACE_EVENTS`、loop.py `MAX_RESULT_TRACE_EVENTS`、protocol.py `EventLog.__init__(limit=1024)`、task_manager.py `[-1024:]`——同一事实「1024 条轨迹保留」，给它一个家（state → 派生 loop/protocol/task_manager）；
 2. 等第 577/578/579/580 个 Windows 腿绿；
 3. 十三个加载器裁定不变。
+
+## 第五百八十一批 — M8-T599 — 1024 条轨迹保留宽度只有一个家
+
+### 1 欠的是哪一条
+
+「每条绑定保留多少条轨迹」——1024。这个宽度被**四处**手抄：
+`state.py` 的 `MAX_TRACE_EVENTS = 1024`、`loop.py` 的 `MAX_RESULT_TRACE_EVENTS = 1024`（同值同义）、
+`protocol.py` 的 `EventLog.__init__(limit=1024)`、`task_manager.py` 的 merge helper（`[-1024:]`）。
+改宽时得四处同时动；谁先忘谁静默。
+在 review 中另外澄清两处同号但不是这一事实（不并）：`task_manager.py` 的 `6/12 * 1024 * 1024`（图片字节 MB 换算）与 `attachment bytes`、`denied_tools` 的 64 环（denial 环，单独事实）。
+
+### 2 量到的真相（实测）
+
+- AST 普查：1024 的相关 Constant 恰好是这四个点（state/loop/protocol/task_manager 的合并修剪）。
+- `protocol.py` 是 EventLog 的边界（SSE 客户端有界回放）——家放在 `state.py`，loop 与 protocol 与 task_manager 都问它，import 方向无环（state 不 import 任何 agent 内部模块）。
+- 红臂（stash 三个源文件）：门红，点名 `loop.py:117` 与 `protocol.py:173` 与 `[-1024:]`；pop 后 3 passed。
+
+### 3 落地
+
+- `minicc/agent/state.py`：不动（家保持）。
+- `minicc/agent/loop.py`：删 `MAX_RESULT_TRACE_EVENTS`；`from .state import ... MAX_TRACE_EVENTS`，裁剪点改问家。
+- `minicc/agent/protocol.py`：`from .state import MAX_TRACE_EVENTS`；`EventLog.__init__(limit=MAX_TRACE_EVENTS)`。
+- `minicc/task_manager.py`：import `MAX_TRACE_EVENTS`（state）与 `MAX_RESULT_USAGE_ENTRIES` / `MAX_RESULT_COMPACTION_ENTRIES`（loop）；
+  merge 里 `-1024:`/`-64:` 三处改问家；`denied_tools` 的 64 保留（单独事实）。
+- `tests/test_the_one_thousand_twenty_four_has_one_home.py`（新门）：家定义了 == 1024；`loop.py`/`protocol.py` 不得残留 int 1024；
+  `task_manager.py` 的 `[-1024:]` 被钉为禁用（必须 `[-MAX_TRACE_EVENTS:]`）。
+
+### 4 见证（红先绿后）
+
+- 见 §2。
+- 焦点回归：`test_core_agent.py` + `test_completion_liveness.py` + `test_core_task.py` + `test_task_contract.py` + `test_task_durability.py` = 134 passed。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 `EventLog` 可以无限长——仍是有界 `deque(maxlen=…)`，只是边界值问家；
+- 不声称 reducer 的 2048 也被并了——批 567 已钉；
+- 不声称 `task-reducer.js` 也有"type home"声明——它经 frontend_result_entry_caps_one_home_smoke（批 580）与本批聚合门分工管。
+- 首版门把 MB 换算 `1024` 误判红了一次——已收窄成 loop/protocol 空扫 + task_manager 切片断言。
+
+### 7 下一位候选
+
+1. 等第 577–581 个 Windows 腿绿 → 全量信号跟踪；
+2. 主 worktree 的合并进度——那条屋里 `UU ROADMAP` 没动过，仍未到降落窗口；
+3. 十三个加载器裁定不变。
