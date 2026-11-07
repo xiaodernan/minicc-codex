@@ -95,7 +95,6 @@ MAX_ATTACHMENT_BYTES = 6 * 1024 * 1024
 MAX_ATTACHMENT_TOTAL_BYTES = 12 * 1024 * 1024
 LOG = get_logger("task")
 MAX_BATCH_TASKS = 16
-TASK_STREAM_INTERVAL = 0.06
 # M8-T343: "which statuses are terminal" has **one** home
 # (``agent.protocol``).  This module used to keep its own copy, and so did
 # ``task_store`` - three copies of one fact.  They agree today, but a copy
