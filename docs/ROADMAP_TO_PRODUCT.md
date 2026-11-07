@@ -37691,3 +37691,41 @@ nudge。M8-T552 之后：refusal 分支把 ``git_changed_error`` 接进用户消
 
 1. 第五百二十九批 §7 第 2 位未动：豁免被拒的理由只在 trace 知道，模型收不到。
 2. 第五百二十七批 §7 第 2 位的两条子集门：仍是「打印集合恰好不含 roadmap 才绿」.
+
+
+## 第五百三十五批 — M8-T553 — 被拒的理由进了守卫错误
+
+### 1 欠的是哪一条
+
+第五百三十四批（M8-T552）把「读不出改动清单」被拒的理由接进模型消息；本批处理
+同一条的第二半——守卫错误本身（``VERIFICATION_GUARD_ERROR`` 留在
+``minicc/agent/protocol.py`` 一个家）在「改动清单读失败」被拒、重试耗尽时，也要带上
+那个理由。
+
+### 2 量到的真相（实测）
+
+HEAD 前：被拒后最终错误仍是干净的 ``VERIFICATION_GUARD_ERROR``。M8-T553 之后：带
+上 ``git_changed_error`` 的理由。
+
+### 3 落地
+
+- `minicc/agent/loop.py`：retry 耗尽时的守卫错误追加 ``git_changed_error``。
+
+### 4 见证（红先绿后，臂）
+
+- 本批改 ``tests/test_a_verification_waiver_is_not_bought_with_a_failed_read.py``：
+  断言最终错误以 ``VERIFICATION_GUARD_ERROR`` 开头且含 ``dubious ownership``；
+  22 passed（验证豁免门 + 守卫 verdict 门 + git-status 一家门）全绿。
+
+### 5 聚焦回归
+
+- 本批相关门文件集：`22 passed in 16.19s`。
+
+### 6 边界（本批**不**声称）
+
+- 不声称最终答案文本换（本批只接守卫错误）。
+
+### 7 下一位候选
+
+1. 第五百二十九批 §7 第 2 位未动：豁免被拒的理由只在 trace 知道，模型收不到。
+2. 第五百二十七批 §7 第 2 位的两条子集门：仍是「打印集合恰好不含 roadmap 才绿」.
