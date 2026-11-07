@@ -39037,3 +39037,53 @@ docs、web  bundle 源码）**零次**出现的名字。读者相信「写出来
    - **#2**：`web-latest` 这个默认 session 名字 8 处拼写（含 JS markdown.js、task_contract.py、task_worker.py argparse 默认值、web.py），无人命名；
    - **#13**：approval decisions 前后端各自硬编码、互不对照（已有两扇各管一面的门，缺第三扇对照门）。
 3. 十三个加载器裁定不变。
+
+## 第五百六十三批 — M8-T581 — 五本已钉住的 frozenset，它们的 dict 镜像也必须对齐
+
+### 1 欠的是哪一条
+
+已经有门钉住 `REASONING_EFFORTS`（`minicc/config.py`）和 `VERIFICATION_STATUSES`
+（`minicc/agent/verifier.py`）的**成员**是什么。但这两个词表是怎么「翻译」成数据的——
+wire 值、fallback、中文标签、事件 code、中文 summary——靠的是一组手抄 dict：
+`REASONING_WIRE_VALUES`、`REASONING_FALLBACKS`、`loop.py` 的内联 `effort_label`、
+`verifier.py::to_event()` 的 `code` 与 `summary`。home 加一个成员（比如过去给
+`REASONING_EFFORTS` 加 `ultra` 时），镜像 dict 就永久缺一行，而且没人会发现——
+门只查 home，行为测试只覆盖你想得到的分支。
+
+### 2 量到的真相（实测）
+
+- AST 全仓普查（venv 解释器）：`minicc/` 下携带 ≥3 个 effort 名作 key 的 dict 共 3 个（`REASONING_WIRE_VALUES`、`REASONING_FALLBACKS`、`loop.py:907 effort_label`），全部当前为完整集合；携带 ≥3 个 status 名作 key 的 dict 共 3 个（`verifier.py:90`、`:98` 完整；`completion.py:800 _REPAIR_INSTRUCTION` **故意是子集**）。
+- `REASONING_EFFORT_ALIASES` 的 key 全是别名（standard/medium/极高…），与 home 零交叠——不受本门影响。
+- 没有发现携带 home 之外成员的 dict（杂家 dict = 0）。
+
+### 3 落地
+
+- `tests/test_the_mirror_maps_are_keyed_by_their_homes.py`（新门，5 条）：
+  1–2. 通用子集规则：`minicc/` 下任一 dict 若 ≥3 个 key 出自 effort 集 / status 集，必须**全部落在该集合内**（堵住拼写/越界成员）；
+  3. `REASONING_WIRE_VALUES` 与 `REASONING_FALLBACKS` 必须 keyed by 恰好 effort home；
+  4. `loop.py` 中携带 ≥3 effort key 的 dict（内联 effort_label 标签表）同上——容许位置不限；
+  5. `verifier.py` 中两个携带 status key 的 dict（`to_event` 的 code/summary）必须 keyed by 恰好 status home。
+  刻意子集（如 `_REPAIR_INSTRUCTION`）仍合法——子集规则，不是严格集合规则。
+
+### 4 见证（红先绿后，注入红臂）
+
+- 注入红臂：`minicc/agent/loop.py` 的 effort_label 内联表删掉 `"xhigh": "极高",` → 门红，点名「must be keyed by exactly ['high','low','max','mid','ultra','xhigh'], got [...]」；`git checkout -- minicc/agent/loop.py` 恢复 → 5 passed。
+- 回归：`test_the_verification_statuses_have_one_home.py` + `test_the_switch_vocabularies_have_one_home.py` + 新门 = 16 passed。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称别处没有「携带 ≥3 个 home 成员 key 的 dict 必须完整」这类第三处镜像——发现即删或补全，本门覆盖全 `minicc/`，没漏；
+- 不声称子集 dict 的语义被钉（`_REPAIR_INSTRUCTION` 的子集是有意的，只受「仍在 home 内」约束）；
+- 不声称 JS 侧的镜像（`state.js REASONING_EFFORTS`、UI 标签表）受此门管辖——那是 `frontend_reasoning_effort_one_home_smoke.mjs` 的活；
+- 不声称 CI 全绿：本批未推，`ubuntu-latest` 腿仍零次被调度。
+
+### 7 下一位候选
+
+1. 推本批后等 Windows 腿（tip 的 run）跑完再推下一批——推送节奏快于 job 时长会永久饿死它。
+2. #2：`web-latest` 默认 session 名字 8 处拼写（含 JS、argparse 默认值、task_contract 字段默认值）——命名 + 家 + 门；
+3. #13：approval decisions 前后端各自硬编码、互不对照——补第三扇对照门（`frontend_approval_one_home_smoke.mjs` ↔ `test_the_approval_decisions_have_one_home.py`）；
+4. 十三个加载器裁定不变。
