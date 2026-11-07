@@ -3905,7 +3905,7 @@
     if (typeof detail !== "object" || Array.isArray(detail)) return detailValueText(detail, 96);
     const labels = state.locale === "zh" ? { turn: "\u8F6E\u6B21", previous_turn: "\u4E0A\u4E00\u8F6E", tool_count: "\u5DE5\u5177", results: "\u7ED3\u679C", observed: "\u5DF2\u89C2\u5BDF", observations: "\u89C2\u5BDF", constraints: "\u7EA6\u675F", failed_tools: "\u5931\u8D25", verification_required: "\u9700\u9A8C\u8BC1", recovery_inspection_required: "\u5199\u5165\u4FDD\u62A4", assessment: "\u53CD\u9988", trigger: "\u89E6\u53D1", next_action: "\u4E0B\u4E00\u6B65" } : { turn: "turn", previous_turn: "previous", tool_count: "tools", results: "results", observed: "observed", observations: "observations", constraints: "constraints", failed_tools: "failed", verification_required: "verify", recovery_inspection_required: "write guard", assessment: "assessment", trigger: "trigger", next_action: "next" };
     const parts = [];
-    for (const key of ["turn", "previous_turn", "tool_count", "results", "observed", "observations", "constraints", "failed_tools", "verification_required", "recovery_inspection_required", "assessment", "trigger", "next_action"]) {
+    for (const key of Object.keys(labels)) {
       const value = detail[key];
       if (value == null || value === "") continue;
       const compact = Array.isArray(value) ? state.locale === "zh" ? `${value.length} \u9879` : `${value.length} items` : detailValueText(value, 96);
@@ -3980,6 +3980,7 @@
       failed_tools: "\u5931\u8D25\u5DE5\u5177",
       needs_repair: "\u9700\u8981\u4FEE\u590D",
       verification_required: "\u9700\u8981\u9A8C\u8BC1",
+      recovery_inspection_required: "\u5199\u5165\u4FDD\u62A4",
       assessment: "\u53CD\u9988\u5224\u65AD",
       replan_trigger: "\u91CD\u89C4\u5212\u89E6\u53D1",
       parallel_mode: "\u5E76\u884C\u6A21\u5F0F",
@@ -4039,6 +4040,7 @@
       failed_tools: "failed tools",
       needs_repair: "needs repair",
       verification_required: "verification required",
+      recovery_inspection_required: "write guard",
       assessment: "assessment",
       replan_trigger: "re-plan trigger",
       parallel_mode: "parallel mode",
@@ -4051,8 +4053,7 @@
       turns: "turns",
       tool_calls: "tool calls"
     };
-    const keys = ["turn", "previous_turn", "tool_count", "tools", "answer_chars", "duration_ms", "duration_seconds", "count", "names", "statuses", "max_turns", "turn_policy", "child_count", "child", "failed", "retry", "retry_limit", "partial_chars", "error_type", "requested", "active", "wire_value", "task_id", "tokens", "automatic", "complexity_score", "complexity_threshold", "complexity_reasons", "attempt", "confidence", "rationale", "missing", "next_action", "evidence", "error", "trigger", "observed", "observations", "constraints", "basis", "public_plan", "results", "structured_data", "new_information", "failed_tools", "needs_repair", "verification_required", "assessment", "replan_trigger", "parallel_mode", "max_concurrency", "dependency_shape", "merge_strategy", "parallel_results", "merge_basis", "result_summary", "turns", "tool_calls"];
-    for (const key of keys) {
+    for (const key of Object.keys(labels)) {
       if (detail[key] == null) continue;
       parts.push(`${labels[key] || key}: ${detailValueText(detail[key])}`);
     }
