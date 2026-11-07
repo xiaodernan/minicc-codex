@@ -38821,3 +38821,56 @@ Ubuntu 腿因 concurrency 被取消（最新推送顶替），Windows 腿 `pytho
 1. CI 跑最新 tip；
 2. 决定记账是否切下一批；
 3. 第五百二十五批 §7 的 3 位：十三个加载器（仍按裁定：立规则、不合并）。
+
+## 第五百五十九批 — M8-T577 — 门覆盖的「活代码」范围扩到全仓（root 加 scripts）
+
+### 1 欠的是哪一条
+
+第五百五十七批（M8-T575）交付了挂在 `minicc/` 下的全包门。`conftest.py` 与
+`setup.py` 是包外却仍然是「随仓加载」的两个文件——它们的 import 质量同样影响所有读者，
+只是没人钉过。这一批把门覆盖范围从 `minicc/` 扩到整个仓根。顺带发现 `conftest.py`
+有个死名字：`time`（第 12 行）——整个文件从来没用过，而它 import 在 fp 探针/
+guard 之前。
+
+### 2 量到的真相（实测）
+
+- HEAD：`conftest.py` import 了 `time`；全文件无 `time.` 调用或裸名引用。
+- 本批普查覆盖：`minicc/` 全包 + `setup.py` + `conftest.py` + `scripts/*.py`，把范围
+  列举在门的 `ROOT_PY` / `SCRIPTS_PY` 常量里，将来要加新 .py 得先进仓根放一个显式位置。
+- 门（`tests/test_the_package_does_not_import_what_it_does_not_use.py`）：同一 AST 普查
+  带词表的扫描；修前红（`conftest.py:12: time`），修后绿。
+- 无其它 root/scripts 的 .py 还存在死 import（本轮实测）。
+
+### 3 落地
+
+- `minicc/` 不改（上一批已处理）；
+- `conftest.py`：删 `import time`（第 12 行）；
+- `tests/test_the_package_does_not_import_what_it_does_not_use.py` 扩范围：
+  - 新增 `ROOT_PY = tuple(REPO.glob("*.py"))`（`conftest.py`、`setup.py`）
+  - 新增 `SCRIPTS_PY = tuple((REPO / "scripts").glob("*.py"))`
+  - 遍历顺序按文件类型分桶，门失败消息同一份；注释 / docstring 同步更新。
+
+### 4 见证（红先绿后，臂）
+
+- 修前红（`conftest.py:12: time` 被门点名）；修后绿。
+- 相关门：`test_a_hang_limit_rewrite_is_named_in_the_summary.py` + `test_hang_watchdog.py`（子进程
+  起嵌套 pytest 的全套）共 5 passed。
+- 一轮 AST 扫描：没有任何其它 .py 触发；门对自己自身文件（它在 tests/ 下，不在 scope）无影响。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（信任两个远端 CI 腿 + 受影响门）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 `tests/**/*.py` 的 import 质量——第三方建议：测试文件 import 不是最重要的生产面；
+- 不声称 `node_modules/` 不存在死 import（无证据可证明、也没扫过）；
+- 不声称 CI 双腿已绿两条腿都过了；
+- 不声称全量套件本地全绿。
+
+### 7 下一位候选
+
+1. CI 双腿回来后确认转绿（tip = 本批提交）。
+2. 看 `setup.py` 的 `shutil.copy` 等是否还能再精简——参看我的 `_setup_conftest_sweep.py`
+   结论：不放账的临时文件都已删除。
+3. 第五百二十五批 §7 的 3 位：十三个加载器——裁定不合并、立规则（不变）。
