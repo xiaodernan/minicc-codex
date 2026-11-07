@@ -115,6 +115,19 @@ assert.deepEqual(
 const dup = zh.filter((code, index) => zh.indexOf(code) !== index);
 assert.deepEqual([...new Set(dup)], [], `the zh map repeats keys: ${[...new Set(dup)].join(", ")}`);
 
+// 6. the hidden routine codes are not a second home for the vocabulary
+const hidden = source.match(/const hiddenRoutineTraceCodes = new Set\(\[([^\]]+)\]\)/);
+assert(hidden, "panels/index.js must define hiddenRoutineTraceCodes");
+const hiddenCodes = [...hidden[1].matchAll(/"([a-z_]+)"/g)].map((m) => m[1]);
+assert(hiddenCodes.length > 0, "the hidden routine codes set is empty");
+for (const code of hiddenCodes) {
+  const mintedOrFrontend = minted.has(code) || FRONTEND_ONLY.includes(code);
+  assert(
+    mintedOrFrontend,
+    `the UI hides routine code ${code} that the backend never mints (drift: a name the filter will silently ignore)`,
+  );
+}
+
 // 4. no hand-written copy of the map outside its home
 const files = [];
 async function walk(dir) {
