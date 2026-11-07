@@ -39143,3 +39143,46 @@ Python 端连常数都没有。两端从未被人对照。
 2. #13：approval decisions 前后端各自硬编码、互不对照——补第三扇对照门（`frontend_approval_one_home_smoke.mjs` 与 `test_the_approval_decisions_have_one_home.py` 各管一面）；
 3. #6/#11 已在批 563 完成（M8-T581 门）；
 4. 十三个加载器裁定不变。
+
+## 第五百六十五批 — M8-T583 — 前后端审批裁决三值互不再对着干
+
+### 1 欠的是哪一条
+
+「审批裁决有哪些值」——`{allow, always, deny}`。Python 侧 `minicc/audit.py` 早钉住，
+JS 侧 `web/src/core/approvals.js` 也钉住，两扇门各管一面、互不对照。approvals.js 自己的
+注释甚至写着「a door test keeps the two faces in sync」——**这个注释说的门根本不存在**。
+哪面改了词，另一面不会有任何信号：后端接受 `always` 而前端没按钮、或前端发了后端不认识的值，
+都能无声上线。
+
+### 2 量到的真相（实测）
+
+- 既有两扇门：`tests/test_the_approval_decisions_have_one_home.py`（Python 面，含 web.py 消费同一对象、无模块内联全集/子集、未知裁决被拒）与 `tests/frontend_approval_one_home_smoke.mjs`（JS 面）。
+- 两扇门之间没有任何一扇读对面文件。
+- approvals.js 注释声称的「两扇门对齐」此前无证据。
+
+### 3 落地
+
+- `tests/test_the_approval_decisions_have_one_home.py`：新增 `test_the_js_home_matches_the_python_home`——正则读 `web/src/core/approvals.js` 的 `export const APPROVAL_DECISIONS = [...]`，断言其集合与 `minicc.audit.APPROVAL_DECISIONS` 恰好相等，失败时点名两边各自的值。
+- approvals.js 的注释从「claims」变成事实——本批之后确有此门。
+
+### 4 见证（红先绿后，注入红臂）
+
+- 注入红臂：approvals.js 的数组删掉 `"always"` → 新门红，点名「JS has ['allow', 'deny'], Python has ['allow', 'always', 'deny']」；`git checkout -- web/src/core/approvals.js` 恢复后 5 passed。
+- 回归：`npm run test:approval`（M8-T394 ok）＋ 整个 Python 门 5 passed。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 JS 侧有 permitting 子集（只有 allow/always/deny 三值对齐；permitting 语义留在 Python 面）；
+- 不声称审批*动作*（allow/always/deny 按钮、卡片的审批流程）已对齐——那是行为面，另有 gate；
+- 不声称 `PERMITTING_APPROVAL_DECISIONS` 的语义跨端同步——JS 侧无此概念；
+- 不声称 CI 全绿：批 562–564 仍待以一次推送发出（等 Windows 腿当前 run 结束）。
+
+### 7 下一位候选
+
+1. 推 562–565 的六个提交后，先等 js-check + Windows 腿的完整周期再推下一批；
+2. #4：300_000 这一魔法数（默认 context window / compact 阈值）散布约 11 处（Python 7 + JS `state.js` 1 + getattr 兜底 3）——收家 config.py 既有 `DEFAULT_CONTEXT_WINDOW_TOKENS` / `DEFAULT_COMPACT_THRESHOLD`，或立「兜底必须读家」规则；涉及面广，单独一批；
+3. 十三个加载器裁定不变。
