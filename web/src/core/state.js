@@ -7,11 +7,17 @@ import { SESSION_CACHE_PREFIX } from "./session-cache.js";
 // and frontend_reasoning_effort_one_home_smoke.mjs pins both spellings.
 export const REASONING_EFFORTS = ["low", "mid", "high", "xhigh", "max", "ultra"];
 
+// The permission-mode vocabulary, one home for the UI. The Python backend
+// already owns PERMISSION_MODES (minicc/audit.py); this is the same fact for
+// the workbench, and frontend_permission_mode_one_home_smoke.mjs pins both
+// spellings (plus the static data-mode buttons in index.html).
+export const PERMISSION_MODES = ["default", "plan", "acceptEdits", "yolo"];
+
 export const state = {
   sessionId: localStorage.getItem("minicc-session") || "interview-1",
   allowChanges: localStorage.getItem("minicc-allow") === "true",
   allowNetwork: localStorage.getItem("minicc-network") === "true",
-  permissionMode: ["default", "plan", "acceptEdits", "yolo"].includes(localStorage.getItem("minicc-permission-mode"))
+  permissionMode: PERMISSION_MODES.includes(localStorage.getItem("minicc-permission-mode"))
     ? localStorage.getItem("minicc-permission-mode")
     : "default",
   locale: localStorage.getItem("minicc-locale") || "zh",

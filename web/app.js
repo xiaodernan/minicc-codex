@@ -76,11 +76,12 @@
 
   // web/src/core/state.js
   var REASONING_EFFORTS = ["low", "mid", "high", "xhigh", "max", "ultra"];
+  var PERMISSION_MODES = ["default", "plan", "acceptEdits", "yolo"];
   var state = {
     sessionId: localStorage.getItem("minicc-session") || "interview-1",
     allowChanges: localStorage.getItem("minicc-allow") === "true",
     allowNetwork: localStorage.getItem("minicc-network") === "true",
-    permissionMode: ["default", "plan", "acceptEdits", "yolo"].includes(localStorage.getItem("minicc-permission-mode")) ? localStorage.getItem("minicc-permission-mode") : "default",
+    permissionMode: PERMISSION_MODES.includes(localStorage.getItem("minicc-permission-mode")) ? localStorage.getItem("minicc-permission-mode") : "default",
     locale: localStorage.getItem("minicc-locale") || "zh",
     theme: ["light", "dark"].includes(localStorage.getItem("minicc-theme")) ? localStorage.getItem("minicc-theme") : "light",
     workspacePath: "",
@@ -2879,7 +2880,6 @@
     if (sessionId === state.sessionId) state.activeTaskId = bindings[bindings.length - 1].taskId;
     setBusy(true);
   }
-  var PERMISSION_MODES = ["default", "plan", "acceptEdits", "yolo"];
   function effectiveTaskPermissions() {
     const mode = state.permissionMode;
     return {

@@ -5,7 +5,7 @@ import { attachmentMarkup, escapeHtml, executionTrailMarkup, formatBytes, format
 import { openPanel, openTaskInWorkspace } from "../chat/stream.js";
 import { isTerminalTask, updateLiveTask } from "../core/api.js";
 import { t } from "../core/i18n.js";
-import { $, $$, ACTIVE_TASK_STATUSES, AUTH_STORAGE_KEY, MAX_RENDERED_TIMELINE_EVENTS, MAX_SEEN_EVENT_KEYS, TASK_PHASES, TERMINAL_TASK_STATUSES, TODO_PRIORITIES, TODO_STATUSES, finalizedTaskIds, runningTasks, runtime, state, taskBySession, taskTimerHandles } from "../core/state.js";
+import { $, $$, ACTIVE_TASK_STATUSES, AUTH_STORAGE_KEY, MAX_RENDERED_TIMELINE_EVENTS, MAX_SEEN_EVENT_KEYS, PERMISSION_MODES, TASK_PHASES, TERMINAL_TASK_STATUSES, TODO_PRIORITIES, TODO_STATUSES, finalizedTaskIds, runningTasks, runtime, state, taskBySession, taskTimerHandles } from "../core/state.js";
 import { icon, refreshIcons } from "../icons.js";
 
 export function showToast(message) {
@@ -340,7 +340,10 @@ export function restoreSessionTask(sessionId) {
   setBusy(true);
 }
 
-export const PERMISSION_MODES = ["default", "plan", "acceptEdits", "yolo"];
+// The permission-mode vocabulary lives in core/state.js (same fact the
+// Python backend owns as PERMISSION_MODES); re-exported here because
+// main.js consumes it from this module's surface.
+export { PERMISSION_MODES };
 
 // Effective per-task permission flags for the selected mode. `plan` forces the
 // read-only flags, `yolo` implies both; `default`/`acceptEdits` honor the
