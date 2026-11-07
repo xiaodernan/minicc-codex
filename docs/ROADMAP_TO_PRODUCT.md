@@ -37859,8 +37859,8 @@ zh/en 两份表 parity 完好（48/48），坏的是「后端发的 code 名字�
   一个家，web/src 别处不得手抄（普查）。
 - `package.json`：新增 `test:trace`；`ci.yml` js-check 增加 `node --check` 与
   `npm run test:trace`，与 test:phase 同列。
-- 重建产物：`web/app.js`、`web/asset-manifest.json`、`web/assets/app.fa8ef473550f5505.js`
-  （替换 `app.ce175ce422caa991.js`，旧文件已不在仓库里）。
+- 重建产物：`web/app.js`、`web/asset-manifest.json` 与 `web/assets/` 下按内容哈希命名的
+  三份产物（清单即真相；旧哈希文件在仓库里不留痕）。
 
 ### 4 见证（红先绿后，臂）
 
@@ -38176,3 +38176,49 @@ pull_request 与夜间 real-key 评估跑自己的分组，push 永远不能取�
 2. JS/TS 扩展名的三处集合（retrieval / verification_plan / impact）——各自的「为谁收文件」不同，
    语义不同，暂缓收编。
 3. 第五百二十五批 §7 的 3 位：十三个加载器——已由第五百二十五批裁定不合并、立规则，本批不主张。
+
+## 第五百四十五批 — M8-T563 — 推理档位表一个家（UI 与 Python 对齐）
+
+### 1 欠的是哪一条
+
+同一事实——「推理档位有哪几档」——被拼了五次却没有共同主人：Python 侧 `minicc/config.py`
+的 `REASONING_EFFORTS`（六档 + 家所在）；`minicc/agent/loop.py` 的 zh 标签表（**缺 ultra**）；
+JS 侧三处手拼：`core/state.js` 一处、`chat/stream.js` 两处、`main.js` 一处。没有任何人钉它们对齐——
+一个 ultra 档任务在 UI 的设置面板里就是一份与后端不同的词汇。
+
+### 2 量到的真相（实测）
+
+HEAD：Python 有家（`REASONING_EFFORTS`），loop 这一份半家（五档缺 ultra）；JS 四处手拼，i18n 对六档齐备。
+红先行：新门在修前红（`core/state.js` 未导出 `REASONING_EFFORTS`）；修后绿。
+
+### 3 落地
+
+- `web/src/core/state.js`：新增导出 `REASONING_EFFORTS`（六档，与 Python 家同序）；自己那份初始化改问家。
+- `web/src/chat/stream.js`、`web/src/main.js`：三处手拼副本改问家（import 自 `core/state.js`）。
+- `minicc/agent/loop.py`：zh 标签表补 `ultra`（Python 侧半家的同一事实）。
+- `tests/frontend_reasoning_effort_one_home_smoke.mjs`（新门）：JS 家导出六档且同序；Python 家同集；
+  i18n 两种语言都有名字；别处不得拼六元数组。
+- `package.json`：`test:effort`；`ci.yml` js-check 接进 `node --check` 与 `npm run test:effort`。
+- 重建产物：`web/app.js`、`asset-manifest.json` 与 `web/assets/` 下按内容哈希命名的新 bundle
+  （清单即真相；旧哈希文件在仓库里不留痕）。
+
+### 4 见证（红先绿后，臂）
+
+- 修前红（见 §2）；修后绿：`npm run test:effort` OK；`npm run check:web` clean；`npm run test:phase`/`test:trace` 零影响；Python `test_core_agent` 45 passed。
+
+### 5 聚焦回归
+
+- 前端门全绿；Python 45 passed；未跑全量套件（信任两个远端 CI 腿 + 受影响门）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 `normalize_reasoning_effort` 的语义被改（未动）；
+- 不声称 `openai_provider.py` 里的 `REASONING_EFFORT_ALIASES` 与家统一（那一份是别名表，不是这件事）；
+- 不声称新门钉住了 i18n 字典的 zh/en parity（key 集对称；那是另一个家族的门）；
+- 不声称全量套件本地全绿。
+
+### 7 下一位候选
+
+1. CI 双腿回来后确认转绿（539–545 各批等最新 run）。
+2. i18n 字典 zh/en parity 门（`web/src/core/i18n.js`：两种语言的 key 集必须相等；缺一出一红）——下一个前端一家门。
+3. 第五百二十五批 §7 的 3 位：十三个加载器——已裁定不合并，本批不主张。
