@@ -38316,3 +38316,65 @@ HEAD：全包里 `minicc/agent/loop.py` 发的 phase=\"review\" 是 run_finished
 2. `panels/index.js` 里 `event.code === "model_update"` / `"model_update_history"` 这类按 code 的分支
    是否也有同族第二份判词（下一批普查）。
 3. 第五百二十五批 §7 的 3 位：十三个加载器——已裁定不合并。
+
+## 第五百四十八批 — M8-T566 — 经一个家发出去的事件：四处手拼七键
+
+### 1 欠的是哪一条
+
+`trace.py` 的家（`trace_event`）把 kind 钉死 `"trace"`，另两个 phase-carrying 的 kind
+没人能问家；于是这批遗产躲在自己的字母序里没被第五百二十批那次「四十六份手拼」扫到：
+
+- `minicc/agent/verifier.py`：验证事件（kind=\"verification\"）
+- `minicc/audit.py`：`authorization_event`（kind=\"authorization\"，两个消费点共用，但自己手拼七键）
+- `minicc/web.py`：`approval_request` 与 `approval_resolved` 两个审批帧（kind 各一）
+
+四处手拼同一个七键形状。任何一处都会让家里加了键（或改了键序/细节）的六个兄弟事件
+悄悄漂移。
+
+### 2 量到的真相（实测）
+
+- 封口门红先行：`tests/test_the_verification_event_has_one_home.py` 3 红——
+  `trace_event()` 不接受 `kind`；verifier 没问家；六键核心普查命中
+  `verifier.py:105`、`audit.py:449`、`web.py:635`、`web.py:679`。
+- 修复一个参数：`trace_event(..., kind=...)`，默认仍是 `"trace"`，旧调用点零改动。
+
+### 3 落地
+
+- `minicc/trace.py`：`trace_event` 增加 keyword-only 的 `kind`；docstring 同步。
+- `minicc/agent/verifier.py`：验证事件经 home 铸造；扁平 `command` / `write` 留在现场
+  （completion 门按事件宽度读它们）。
+- `minicc/audit.py`：`authorization_event` 经 home；扁平 `risk` / `authorization`；
+  **键序逐字节不变**。
+- `minicc/web.py`：approval_request / approval_resolved 两帧经 home；扁平键不动；
+  **键序逐字节不变**。
+- `tests/test_the_verification_event_has_one_home.py`（新门）。
+- `tests/test_the_trace_event_have_one_home.py` 两处更新：EMITTERS 加入
+  `minicc/agent/verifier.py` 与 `minicc/audit.py`；「`kind: trace` 恰好一处字面量」的
+  签名在 home 改用变量后退化，新契约 = 包内零 `"kind": "trace"` 字面量
+  + home 持有 `"kind": kind`。
+
+### 4 见证（红先绿后，臂）
+
+- 见 §2；相关门：新一家门 3 passed、`test_the_trace_event_have_one_home.py` 6 passed；
+  audit 授权 / 审批门 / 同步 chat 审批帧 / completion_liveness / logging 共 125 passed；
+  `test_core_agent.py` + `test_task_durability.py` 55 passed。
+- 变异臂：verifier 把 kind 写回内联拼装 → 新门与普查双红；恢复 → 绿。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（信任两个远端 CI 腿 + 受影响门）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 `TraceEvent`（`agent/state.py` 的 node_entered 状态机记录）也并进家
+  （它带 `event_id` / `created_at_epoch`，是另一种记录，关键语义不同，不合并）；
+- 不声称审批帧的 `request_id` / `task_id` 语义被动（未动，只是键的来源问家）；
+- 不声称 key 序对验证事件逐字节不变（detail 位置换到扁平 extras 之前；
+  消费方都按键访问，无人按位置读，本批不承诺）；
+- 不声称全量套件本地全绿。
+
+### 7 下一位候选
+
+1. CI 双腿回来后确认转绿（本批的树 = 60b20bc + 本批，最新 run 覆盖）。
+2. `minicc/llm/usage.py` 的 `channel_switched_event`：已是「家 → usage 包内 factory」形态，无需动。
+3. 第五百二十五批 §7 的 3 位：十三个加载器——已裁定不合并、立规则。
