@@ -38640,6 +38640,11 @@ Ubuntu 腿因 concurrency 被取消（最新推送顶替），Windows 腿 `pytho
 
 - 前端门全绿（phase/trace/effort/i18n/tracephase/check:web）；未跑 Python 套件
   （本批零 Python 改动）；以两个远端 CI 腿为准。
+- **提交可视化提示**：HEAD `25a3472` 对 `docs/ROADMAP_TO_PRODUCT.md` 的 diffstat
+  是 `38609- / 38654+`——**不是重删重写**，而是文件 CRLF→LF 的一次性归一
+  （当时用 `Path.write_text` 追溯把全文件的换行符都统一成 `\n` 了）。按内容
+  `git diff --ignore-cr-at-eol` 读出只有 **45 行净增**（本批账本段），0 行被删。
+  本批账本的行尾归一是顺手的一次性事实，后续不再追加这种大 diff。
 
 ### 6 边界（本批**不**声称）
 
