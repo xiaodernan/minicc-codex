@@ -39855,3 +39855,49 @@ re-export 出去。把默认 64 改成 128，两个家能继续各活各的而�
 2. **reducer 的 64**（task-reducer.js `.slice(-64)` ×2）与 loop 的 `MAX_RESULT_USAGE_ENTRIES`/`MAX_RESULT_COMPACTION_ENTRIES` 对账（Python↔JS 门，effort/todo 的同款）；
 3. `EventLog.limit=1024`（protocol.py）与 `MAX_TRACE_EVENTS`（state.py）与 `MAX_RESULT_TRACE_EVENTS`（loop.py）与 `task_manager [-1024:]` 的 1024 聚合——下一批候选；
 4. 十三个加载器裁定不变。
+
+## 第五百八十批 — M8-T598 — reducer 的两个 64 也钉上了 Python 的家
+
+### 1 欠的是哪一条
+
+「每轮 usage 行和 compaction 事件各保留多少条」——Python 侧 `loop.py` 有两个具名常数
+（`MAX_RESULT_USAGE_ENTRIES` / `MAX_RESULT_COMPACTION_ENTRIES`，均 64，不同事实同一宽度）；
+reducer.js 在绑定上也维护同样的两条清单（`usage_by_turn`、`compaction_events`），却手拼
+裸 `.slice(-64)` 两处。两边谁都没对齐。
+
+### 2 量到的真相（实测）
+
+- reducer.js：`.slice(-64)` 恰 2 处，且恰好是 `usage_by_turn` 与 `compaction_events` 的两行。
+- loop.py：两个常数定义处 + 使用处（1168、1015）。见批 563 的镜像门（dict 形状）与本批互为补充。
+- 无其它 `.slice(-64)`。
+
+### 3 落地
+
+- `tests/frontend_result_entry_caps_one_home_smoke.mjs`（新门，3 钉）：
+  1. loop.py 必须声明两个常数且值相同（64）；
+  2. reducer.js 中 `.slice(-64)` 恰 2 处，且只能出现在 `usage_by_turn` / `compaction_events` 行；
+  3. `web/src` 下其它 .js 不得出现 `.slice(-64)`。
+- `package.json`：新增 `test:entrycaps`；CI js-check job 增加 `node --check` + `npm run test:entrycaps`。
+- 前端未动（reducer.js 内容没变），bundle 不需要重建。
+
+### 4 见证（红先绿后，注入红臂）
+
+- 注入：reducer 一处 `.slice(-64) → .slice(-128)` → 门红，点名「expected exactly 2 .slice(-64) sites, found 1」；`git checkout --` 恢复后绿。
+- 门自身：绿臂（见 §4 结尾）。
+
+### 5 聚焦回归
+
+- 前端套件余量已在批 574/576 环境验证；本批 reducer.js 未动，js bundle 不变。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 reducer 与 loop 共享同一常数——JS 无法 import Python，门只做**值对齐**，不做静态链接；
+- 不声称 task-reducer 的 `MAX_SEEN_EVENT_KEYS=2048` 相关家被改动——那是批 567 的已钉面；
+- 不声称 CI js-check 已跑——该 job 今日仍零次被调度；
+- 不声称 1024 的聚合（`EventLog.limit=1024` vs `state.MAX_TRACE_EVENTS` vs `loop.MAX_RESULT_TRACE_EVENTS` vs `task_manager [-1024:]`）——下一批候选。
+
+### 7 下一位候选
+
+1. **1024 聚合**：state.py `MAX_TRACE_EVENTS`、loop.py `MAX_RESULT_TRACE_EVENTS`、protocol.py `EventLog.__init__(limit=1024)`、task_manager.py `[-1024:]`——同一事实「1024 条轨迹保留」，给它一个家（state → 派生 loop/protocol/task_manager）；
+2. 等第 577/578/579/580 个 Windows 腿绿；
+3. 十三个加载器裁定不变。
