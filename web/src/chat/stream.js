@@ -6,7 +6,7 @@ import { captureViewScope, isViewScopeCurrent } from "../core/scope.js";
 import { attachmentMarkup, cacheTaskDetail, escapeHtml, executionTrailMarkup, formatText, loadTaskHistory, persistSessionView, renderSession, sessionViewKey } from "./markdown.js";
 import { applyTaskEvent, completeTask, finishLiveTask, isTerminalTask, pollTask, updateBoundTask, updateLiveTask } from "../core/api.js";
 import { t } from "../core/i18n.js";
-import { $, $$, ACTIVE_TASK_STATUSES, authHeaders, authQuery, renderedHistoryKeys, RESUMABLE_TASK_PHASES, runtime, runningTasks, sessionMarkup, state, taskBySession, taskDetailLoads, taskDetailsById, taskEventSources, taskHistoryBySession, taskHistoryListBySession, taskWatchers, REASONING_EFFORTS } from "../core/state.js";
+import { $, $$, ACTIVE_TASK_STATUSES, authHeaders, authQuery, INSPECTOR_TABS, renderedHistoryKeys, RESUMABLE_TASK_PHASES, runtime, runningTasks, sessionMarkup, state, taskBySession, taskDetailLoads, taskDetailsById, taskEventSources, taskHistoryBySession, taskHistoryListBySession, taskWatchers, REASONING_EFFORTS } from "../core/state.js";
 import { icon, refreshIcons } from "../icons.js";
 import { addAssistantMessage, addLoadingMessage, addUserMessage, bindRunningTask, closeMentionPopover, compactNumber, effectiveTaskPermissions, eventSequence, eventTimelineMarkup, formatDuration, isCurrentTaskScope, isSessionBusy, phaseLabel, refreshFileTree, refreshFileTreeSoon, runtimeMetricsMarkup, sessionTaskBindings, setBusy, setConnection, setSession, setTaskTransportStatus, showAuthModal, showToast, taskDuration, taskMetrics, taskSessionKey, updateReasoningControl, updateTaskDock } from "../panels/index.js";
 
@@ -837,7 +837,7 @@ export function exportChat() {
 }
 
 export function switchInspectorTab(tab) {
-  runtime.inspectorTab = ["changes", "files", "verification"].includes(tab) ? tab : "changes";
+  runtime.inspectorTab = INSPECTOR_TABS.includes(tab) ? tab : INSPECTOR_TABS[0];
   $$(".inspector-tab").forEach((item) => {
     const active = item.dataset.inspectorTab === runtime.inspectorTab;
     item.classList.toggle("active", active);

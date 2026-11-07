@@ -124,9 +124,10 @@
     if (!token || url.includes("token=")) return url;
     return `${url}${url.includes("?") ? "&" : "?"}token=${encodeURIComponent(token)}`;
   }
+  var INSPECTOR_TABS = ["changes", "files", "verification"];
   var runtime = {
     workspaceVersion: 0,
-    inspectorTab: "changes",
+    inspectorTab: INSPECTOR_TABS[0],
     initialMessageMarkup: "",
     sessionViewReady: false,
     renderedTaskListKey: "",
@@ -2472,7 +2473,7 @@
     showToast(state.locale === "zh" ? "\u5BF9\u8BDD\u5DF2\u5BFC\u51FA" : "Chat exported");
   }
   function switchInspectorTab(tab) {
-    runtime.inspectorTab = ["changes", "files", "verification"].includes(tab) ? tab : "changes";
+    runtime.inspectorTab = INSPECTOR_TABS.includes(tab) ? tab : INSPECTOR_TABS[0];
     $$(".inspector-tab").forEach((item) => {
       const active = item.dataset.inspectorTab === runtime.inspectorTab;
       item.classList.toggle("active", active);

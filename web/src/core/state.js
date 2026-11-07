@@ -72,9 +72,14 @@ export function authQuery(url) {
   return `${url}${url.includes("?") ? "&" : "?"}token=${encodeURIComponent(token)}`;
 }
 
+// The inspector-tab vocabulary, one home for the UI. The three tab buttons
+// in index.html and the validator in chat/stream.js both mean exactly
+// these; frontend_inspector_tab_one_home_smoke.mjs pins both spellings.
+export const INSPECTOR_TABS = ["changes", "files", "verification"];
+
 export const runtime = {
   workspaceVersion: 0,
-  inspectorTab: "changes",
+  inspectorTab: INSPECTOR_TABS[0],
   initialMessageMarkup: "",
   sessionViewReady: false,
   renderedTaskListKey: "",
