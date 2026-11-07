@@ -38657,3 +38657,59 @@ Ubuntu 腿因 concurrency 被取消（最新推送顶替），Windows 腿 `pytho
 
 1. CI 双腿转绿后确认（远端当前排队中，Nightly 按约跳过，Linux 腿等队列消化）。
 2. §7 各处仍按五百二十五批的裁定：加载器只立规则不合并。
+
+## 第五百五十六批 — M8-T574 — web 模块不再携带假装需要、其实没人用的导入
+
+### 1 欠的是哪一条
+
+`minicc/web.py` 是仓里 import 最长的文件，整个模块从旧形状继承了大量导入——
+模块头 `from collections import deque`、`import inspect`、`import math`、
+`import base64`、`import binascii`、`import hashlib` 等一大串，以及
+`from .agent.orchestration import build_auto_subtasks`、
+`from .route_wiring import _PROVIDER_FAMILY` 等。读者按 import 列表以为模块需要
+它们，点进来发现全是零引用——模块自己从来没说清它到底依赖什么。本批把
+"导入列表=模块依赖图"这件事还原。
+
+### 2 量到的真相（实测）
+
+- HEAD：一条 `python -c` 的 AST 普查点出 **33** 个模块级死名字
+  （`deque`、`inspect`、`math`、`re`、`sys`、`os`、`base64`、`binascii`、
+  `hashlib`、`ThreadPoolExecutor`、`SimpleNamespace`、`parse_qs`、`unquote`、
+  `urlsplit`、`fixed_plan` …），其中 16 个用户库、17 个自家模块内符号。
+- 逐个亲身核对才动手删（grep + AST Name 检查，区别对待 re-export / noqa）；
+  误删 `effective_risk` / `deny_rule_covers_path` 这种再补回来。
+- 红先行：`tests/test_the_web_module_keeps_no_dead_imports.py` 修前红
+  （33 offenders），修后绿。
+
+### 3 落地
+
+- `minicc/web.py`：删 33 个零引用的模块级 import（含 `asyncio` 等一整族）；
+  没有人用、外界也没消费（跨文件 grep 也不引用它们的）再确认一遍。
+- `tests/test_the_web_module_keeps_no_dead_imports.py`（新门）：解析 web.py AST，
+  对每个模块级 import（跳过 `__future__` 与 `# noqa: F401` 的再导出），
+  要求其 Name 出现在模块的 AST 里。
+
+### 4 见证（红先绿后，臂）
+
+- 修前红（见 §2：33 offenders）；修后绿（1 passed）。跨文件零引用确认。
+- `import minicc.web` 本身 = `import ok`。
+- 相关门文件集：79 passed（core_agent + completion_liveness + sync-chat + 本批门）。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（信任两个远端 CI 腿 + 受影响门）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称别的模块也不导入死名字（本批只看 web.py——它的 import 列表是仓里最重的，
+  若其它文件也有问题，另一遍单独洗）；
+- 不声称 re-export 被禁——`MiniccRequestHandler` 这种 `# noqa: F401` 的 re-export 仍留着；
+- 不声称 web.py 可以被视作 ide 框架的一部分（它是个桥，责任范围在「哪些 import 没人用」）；
+- 不声称全量套件本地全绿。
+
+### 7 下一位候选
+
+1. CI 双腿回来后确认转绿（tip = 本批提交）。
+2. 其它重模块的 dead-import 普查（`task_manager.py`、`web.py` 已 cleaned）——
+   同一套 gate 可以推广，但下一步前先看远端腿回消息，确认本批一个家稳住。
+3. 第五百二十五批 §7 的 3 位：十三个加载器——裁定不合并、立规则（不变）。
