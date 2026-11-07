@@ -38927,3 +38927,57 @@ docs、web  bundle 源码）**零次**出现的名字。读者相信「写出来
 1. 推完本批后观察 `gh run list --branch m8-t537 --limit 3`：新 run 若仍零调度/再次僵尸，说明当前是账号级 CI 容量问题（windows-latest 与 ubuntu-latest 都不派发），需明确报告而不是谎称绿；若开始跑动，等 Windows 腿后在 ledger 追记结果。
 2. 十三个加载器裁定仍不变（不合并、立规则）。
 3. `build/` 未被 gate 扫描（生成物），不纳入。
+
+## 第五百六十一批 — M8-T579 — 重定向五个状态码只有一个家了（webfetch/mcp 两处都问 netguard）
+
+### 1 欠的是哪一条
+
+「哪五个状态码带 Location、可以跟随重定向」——`{301, 302, 303, 307, 308}`。
+这是网络客户端联合处置的**同一个事实**：webfetch 工具和 MCP HTTP 传输都必须
+ special-case 它。它被两处手抄——webfetch 抄了三次、mcp 抄了一次——共四个
+手抄点，没有家、没有名、没有门。加一个状态或减一个状态时，四处必须同时改，
+人只能靠眼睛。M8-T491 已经把「重定向超次数结论」收了家（`redirect_limit_message`），
+这次轮到状态集合本身。
+
+### 2 量到的真相（实测）
+
+- `minicc/tools/webfetch.py:269,283,323`：`in (301, 302, 303, 307, 308)` 三处（元组拼写）。
+- `minicc/mcp.py:753`：`exc.code in {301, 302, 303, 307, 308}`（集合拼写）。
+- 全仓 AST 普查：除这四处外，没有别的 `.py`（`minicc/`）拼写 ≥3 个这五个码的容器（普查脚本：`frozenset` 调用的第一实参 Set 也计入）。
+- `minicc/netguard.py` 本来就是两个 HTTP 客户端共享的网络纪律住处（`ALLOWED_SCHEMES`、`SCHEME_PREFIXES`、`redirect_limit_message`），所以集合落这里。
+
+### 3 落地
+
+- `minicc/netguard.py`：新增 `REDIRECT_STATUSES = frozenset({301, 302, 303, 307, 308})`（`#:` 注释说明谁在用、为何落这）；`__all__` 增加同名导出。
+- `minicc/tools/webfetch.py`：import 增加 `REDIRECT_STATUSES`，三处元组拼写改问家。
+- `minicc/mcp.py`：netguard 导入增加 `REDIRECT_STATUSES`，集合拼写改问家。
+- `tests/test_the_redirect_status_set_has_one_home.py`（新门）：
+  1. 家门：`minicc/netguard.py` 必须把 `REDIRECT_STATUSES` 定义为**恰好**这五个码（`frozenset({...})` 或裸 `set` 语法都认）；
+  2. 无其家门：`minicc/` 下任何文件（除家本身）不得拼写含 ≥3 个这五码的 set/tuple/list/`frozenset({...})` 容器。
+
+### 4 见证（红先绿后）
+
+- 绿臂（修后）：新门 2 passed；红臂（`git stash push` 三个源码文件）：新门 2 failed，点名 `minicc/mcp.py:753`、`minicc/tools/webfetch.py:269/283/323` 四处复写点；`git stash pop` 恢复后 2 passed。
+- 焦点回归：`test_an_mcp_redirect_target_must_pass_the_gate_too.py` + `test_a_redirect_hop_that_keeps_its_socket.py` + `test_netguard_blocks_multicast.py` + `test_netguard_blocks_reserved.py` + `test_netguard_pure.py` + `test_the_redirect_limit_message_has_one_home.py` + `test_the_redirect_verdict_has_one_home.py` + 新门 + `test_webfetch.py` + `test_webfetch_routes_its_page_through_the_head_tail_channel.py` = **94 passed**。
+- 顺带：本批 push 之前，run `42402611003`（tip `293af58`）的 `Python tests (windows-latest)` job **success**——M8-T571 修复以来第一次 Windows 腿绿（ubuntu-latest 与余下轻量 job 仍排队零次被调度，见 §6）。
+
+### 5 聚焦回归
+
+- 见 §4；全量套件未本地跑（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 webfetch/mcp 之外的客户端也同集（仓里就这两个重定向客户端；若将来出现，新门会点名）；
+- 不声称 JS 侧也手抄过这五个码（本批未扫 JS；结论严限于 Python 包内）；
+- **不声称 CI ubuntu-latest 腿绿**：自批 553 起，该 job 在每个 m8-t537 run 里都排队、零次被分配 runner；nightly `schedule` 事件在 `main` 上各 job 都能跑（Windows+Ubuntu 都 failure，属 main 已知红）。Windows 腿 42402611003 绿是唯一一次当前代绿。
+- 不声称全量套件本地全绿。
+
+### 7 下一位候选
+
+1. **先等本批 tip 的 Windows 腿跑完再推下一批**（每次 push 都会取消前一个 in-progress run——新洞察：本 lane 的推送节奏快于 Windows 腿的 ~20 分钟，前一个绿就是这样没等到）。本批 push 后至少静置一个完整 job 周期。
+2. 下一批候选（按新普查强度排序）：
+   - **#3**：前后端权限模式 `{default, plan, acceptEdits, yolo}`——Python 侧 `audit.py PERMISSION_MODES` 有门，JS 侧三处（`state.js` 内联数组、`panels/index.js` 导出数组、`index.html` 四个 data-mode 按钮）无人钉；补一扇跨面门最划算；
+   - **#6 / #11**：已钉住的 frozenset 的 dict 镜像表——`REASONING_EFFORTS` 的三张手抄表（`openai_provider.py` 两张 + `loop.py` 一张）与 `VERIFICATION_STATUSES` 的两张（`verifier.py`）——形状是「key set == home」可直接判；
+   - **#2**：`web-latest` 这个默认 session 名字 8 处拼写（含 JS），无人命名；
+   - **#13**：approval decisions 前后端各自硬编码、互不对照（已有两扇各管一面的门，缺第三扇对照门）。
+3. 十三个加载器裁定不变。
