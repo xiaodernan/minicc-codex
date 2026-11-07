@@ -39625,3 +39625,48 @@ config.py 之外，这条门却要求它恰好出现在 openai_provider.py。
 1. 推批 574+575 后等 Windows 腿一个完整周期；
 2. **todo_write 的 schema 与校验器对账**（schema 的 maxItems/maxLength/required 与 `todo.py` 的 `MAX_TODOS`/`MAX_CONTENT_CHARS` 及 normalizer 的返回键/必填集无人钉）——下一批本批做；
 3. 十三个加载器裁定不变。
+
+## 第五百七十五批 — M8-T593 — todo_write 的声明 schema 与它背后的校验器对账了
+
+### 1 欠的是哪一条
+
+「todo_write 的契约是什么」被写了两遍：`tools/__init__.py` 里的 `input_schema`
+（maxItems、content 的 minLength/maxLength、status/priority 的 enum、required 字段），
+和 `todo.py` 里的校验器（`MAX_TODOS`、`MAX_CONTENT_CHARS`、`TODO_STATUSES`、`TODO_PRIORITIES`、
+required=["content"]、返回键 content/status/priority）。两处都可以独自变动而无人发现——
+模型拿到的工具声明就成了谎言，且只有运行时在最坏路径上才知道。
+
+### 2 量到的真相（实测）
+
+- 今天两处**恰好**一致：`maxItems == MAX_TODOS == 50`、`content.maxLength == MAX_CONTENT_CHARS == 500`、
+  `minLength == 1`（校验器拒绝 strip 后为空）、enum 就写着 `list(TODO_STATUSES)`/`list(TODO_PRIORITIES)`、
+  `items.required == ["content"]`、`schema.required == ["todos"]`、entry 键集 == {content, status, priority}。
+- `TODO_STATUSES/TODO_PRIORITIES` 已经由 `test_the_todo_vocabularies_have_one_home.py` 钉；前端镜像由 `frontend_todo_one_home_smoke.mjs` 钉；
+  本批补上的是**schema 数字与字段面**的对账。
+
+### 3 落地
+
+- `tests/test_the_todo_write_schema_matches_its_validator.py`（新门，AST 直读 schema 字面量）：
+  逐条钉住 §2 列的全部对账点；`todo.MAX_TODOS == 50`、`MAX_CONTENT_CHARS == 500`、两个 enum 元组的值也在门里断言。
+
+### 4 见证（红先绿后，注入红臂）
+
+- 注入 `maxItems: 50 → 64` → 门红，点名「schema maxItems (64) drifted from todo.MAX_TODOS (50)」；`git checkout -- minicc/tools/__init__.py` 恢复后绿。
+- 焦点回归：`test_todo_tool.py` + `test_the_todo_tool_data_have_one_home.py` + `test_the_todo_vocabularies_have_one_home.py` + 新门 = 16 passed。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称其它 ToolSpec 的内联 schema 与各自校验器也已对账——`tools/__init__.py` 里其它带 `input_schema` 的工具同样存在这类手抄（如 MAX_RESULTS_PARAM、bash 的 timeout 上限等），它们是一以贯之的后续批次；
+- 不声称 schema 的人读文档与声明一致——只对账值；
+- 不声称前端门管 schema——前端门管 UI 侧镜像，本门管工具声明侧；
+- 不声称 CI 全绿：js-check/ubuntu 仍零次被调度；Windows 腿绿窗口为最近一次推送。
+
+### 7 下一位候选
+
+1. 推批 574+575 后等 Windows 腿一个完整周期；
+2. **schema↔validator 的全量普查**：对 `tools/__init__.py` 中所有带 `input_schema` 的 ToolSpec，逐一 AST 抽出声明的数字/枚举/必填，对照各自模块的校验常数——同样的手抄模式很可能在其它工具重演；
+3. 十三个加载器裁定不变。
