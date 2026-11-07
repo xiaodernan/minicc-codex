@@ -1925,6 +1925,18 @@ async def run_agent(
                         code="verification_waiver_refused_by_failed_read",
                         detail={"turn": turn, "reason": git_changed_error},
                     )
+                    # M8-T552: the refusal reason travels into the model's next
+                    # message - the trace alone left the model with only the
+                    # generic nudge, never knowing why the read failed.
+                    messages.append({
+                        "role": "user",
+                        "content": (
+                            "[执行器提示] 上次写入后的改动清单没有读出来（"
+                            f"{git_changed_error}），所以不能把它当成「没有可运行的检查」"
+                            "而豁免验证。先通过可信的方式重新取得改动清单"
+                            "（git status / read_file / git_diff），再决定下一步。"
+                        ),
+                    })
                 elif not _plan_has_runnable_check(workspace, sorted(changed_paths)):
                     verification_required = False
                     emit_trace(

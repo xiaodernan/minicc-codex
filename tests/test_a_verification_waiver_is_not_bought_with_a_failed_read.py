@@ -174,6 +174,27 @@ def test_a_git_that_timed_out_is_a_failed_read(
     assert "超时" in reason, reason
 
 
+def test_the_refusal_reaches_the_model_with_the_reason(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """M8-T552: the failed-read refusal carries the read's reason to the model."""
+    workspace = _workspace(tmp_path)
+    _stub_git(monkeypatch, _refused_status)
+    assert _plan_has_runnable_check(workspace, ["app.py"]) is True
+
+    agent = _BashThenInspectThenStop()
+    messages: list[dict[str, object]] = [{"role": "user", "content": "改一下 app.py"}]
+    asyncio.run(run_agent(
+        agent,
+        build_registry(Editor(workspace)),
+        messages,
+        on_trace=lambda event: None,
+        workspace=workspace,
+    ))
+    joined = "\n".join(str(m.get("content") or "") for m in messages)
+    assert "dubious ownership" in joined, joined
+
+
 def test_the_helper_reports_why_it_could_not_read_the_tree(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
