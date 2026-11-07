@@ -8,6 +8,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from minicc.task_contract import WEB_SESSION_ID
 from minicc.task_store import TaskStore
 from minicc.web import AgentService
 
@@ -15,7 +16,7 @@ from minicc.web import AgentService
 def _snapshot(tmp_path: Path, task_id: str) -> dict:
     return {
         "task_id": task_id,
-        "session_id": "web-latest",
+        "session_id": WEB_SESSION_ID,
         "created_at_epoch": time.time(),
         "created_at": "2026-09-13T00:00:00Z",
         "workspace_path": str(tmp_path),

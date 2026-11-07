@@ -79,6 +79,7 @@ from .task_contract import (
     TaskRequest,
     TaskResult,
     WORKSPACE_FLAG,
+    WEB_SESSION_ID,
     resolve_task_permissions,
 )
 from .task_execution import WORKER_METADATA_FIELDS, WorkerDetached, WorkerSnapshotMirror, has_live_worker
@@ -1093,7 +1094,7 @@ class TaskRecord:
             error = "服务重启时任务被中断，可重新运行。"
         task = cls(
             task_id=str(data.get("task_id") or f"task-restored-{uuid.uuid4().hex[:8]}"),
-            session_id=str(data.get("session_id") or "web-latest"),
+            session_id=str(data.get("session_id") or WEB_SESSION_ID),
             message=str(data.get("prompt") or data.get("preview") or ""),
             allow_changes=bool(data.get("allow_changes")),
             thread_id=str(data.get("thread_id") or ""),
@@ -1496,7 +1497,7 @@ class TaskManager:
                 auto_payload["_orchestration_mode"] = "auto"
                 auto_payload["_orchestration_assessment"] = assessment.snapshot()
                 return self.submit_batch(auto_payload)
-        session_id = str(payload.get("session_id") or "web-latest")
+        session_id = str(payload.get("session_id") or WEB_SESSION_ID)
         allow_changes, allow_network, permission_mode = _resolve_task_permissions(
             payload, yolo=self.service.config.yolo
         )

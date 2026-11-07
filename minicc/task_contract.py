@@ -13,6 +13,13 @@ from .audit import normalize_permission_mode
 
 TASK_SCHEMA_VERSION = 2
 
+#: The session id the web face calls the current session.  A task that
+#: arrives without a ``session_id`` rides here: the dataclass default, the
+#: payload fallback, the worker's argv default, web.py's two readers and the
+#: JS face all mean the same string, so it is spelled once and referenced
+#: everywhere else (the JS literal is pinned to it by a frontend gate).
+WEB_SESSION_ID = "web-latest"
+
 #: The worker argv contract: one spelling per flag, read by the launcher that
 #: builds the command line and by the parser that reads it back.  The two
 #: sides live in different processes, so a drift between them is never a
@@ -65,7 +72,7 @@ def resolve_task_permissions(payload: Mapping[str, Any], *, yolo: bool = False) 
 class TaskRequest:
     message: str
     task_id: str = ""
-    session_id: str = "web-latest"
+    session_id: str = WEB_SESSION_ID
     workspace_path: str = ""
     allow_changes: bool = False
     allow_network: bool = False
@@ -89,7 +96,7 @@ class TaskRequest:
         return cls(
             message=message,
             task_id=str(payload.get("task_id") or ""),
-            session_id=str(payload.get("session_id") or "web-latest"),
+            session_id=str(payload.get("session_id") or WEB_SESSION_ID),
             workspace_path=str(payload.get("workspace_path") or ""),
             allow_changes=changes,
             allow_network=network,

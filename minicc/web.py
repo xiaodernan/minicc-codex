@@ -126,6 +126,7 @@ from .worktree import WorktreeError, WorktreeManager
 from .webserver import MiniccHTTPServer, MiniccRequestHandler  # noqa: F401 - re-export
 from .workspaces import WorkspaceCatalog, resolve_workspace_path
 
+from .task_contract import WEB_SESSION_ID
 from .task_manager import (  # noqa: F401 - re-export for tests and AgentService
     ACTIVE_TASK_STATUSES,
     CHANGE_INTENT_MARKERS,
@@ -1488,7 +1489,7 @@ class AgentService:
         cancel_event: threading.Event | None = None,
     ) -> dict[str, Any]:
         message = require_text(payload.get("message"), "message")
-        session_id = str(payload.get("session_id") or "web-latest")
+        session_id = str(payload.get("session_id") or WEB_SESSION_ID)
         allow_changes, allow_network, _mode = _resolve_task_permissions(
             payload, yolo=self.config.yolo
         )
@@ -1548,7 +1549,7 @@ class AgentService:
                 raise ValueError(refusal)
             expanded = message
         message = expanded
-        session_id = str(payload.get("session_id") or "web-latest")
+        session_id = str(payload.get("session_id") or WEB_SESSION_ID)
         # M8-T289: the fallback sink has to *collect* the approval frame as
         # well as log it.  It used to only log, so the ``approval_request``
         # frame - the one carrying the ``request_id`` the client needs in

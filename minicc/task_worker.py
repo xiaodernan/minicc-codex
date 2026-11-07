@@ -59,6 +59,7 @@ from .task_contract import (
     TaskRequest,
     TaskResult,
     WORKSPACE_FLAG,
+    WEB_SESSION_ID,
 )
 from .clock import utc_stamp
 from .llm.fake import FAKE_PROVIDER_ENV
@@ -491,7 +492,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="minicc-task-worker", description="Run one minicc task in a detached process")
     parser.add_argument(WORKSPACE_FLAG, required=True)
     parser.add_argument(TASK_ID_FLAG, required=True)
-    parser.add_argument(SESSION_ID_FLAG, default="web-latest")
+    parser.add_argument(SESSION_ID_FLAG, default=WEB_SESSION_ID)
     parser.add_argument(MESSAGE_FLAG, required=True)
     parser.add_argument(STORE_PATH_FLAG, default=None, help="SQLite path; defaults to <workspace>/.minicc/tasks.sqlite3")
     parser.add_argument(CANCEL_FILE_FLAG, default=None, help="Poll this file; its creation cancels the task")
