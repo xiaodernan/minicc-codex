@@ -37989,3 +37989,50 @@ HEAD 前：``minicc/llm/fake.py`` 内联手抄了该判据（普查命中 ``fake
 2. 第五百二十七批 §7 的 1 位未动：臂架的判据只看 rc（臂架在 scratch 里，不在仓里）。
 3. 第五百二十六批 §7 的 3 位：`check_evidence` 在判形状之前问行号——未动。
 4. 第五百二十五批 §7 的 3 位：十三个加载器收成一个家——未动。
+
+## 第五百四十一批 — M8-T559 — 证据判定在问行号之前先问形状
+
+### 1 欠的是哪一条
+
+第五百二十六批 §7 点名的存量欠账（第五百二十六批 §7 第 1 位，第五百四十批再度点名）：
+`check_evidence`（`scripts/doc_pointers.py`）对 roadmap 的 25,389 个 code span 里**每一个**先问行号
+（`_line_of`）、再问形状（`_evidence_shape`）——而 `_evidence_shape` 只对 3,769 个通过
+`checked=3769`。约 21,620 个非判据 span 白问了一句行号。这不是错字，是「先问值不值，再问哪行」
+这个次序倒了。
+
+### 2 量到的真相（实测）
+
+封口门（新 `test_a_span_that_is_not_a_location_claim_is_never_asked_where_it_lives`）：
+往 `_line_of` 上挂计数器，给一个 40 个非证据 span 的合成文档跑 `check_evidence`——修前被问 40 次（红），
+修后 0 次（绿）；再喂一个 evidence-shaped span（确实存在的测试引用，`checked == 1`），
+计数非空——判据该被问的那问一句也不少。
+
+### 3 落地
+
+- `scripts/doc_pointers.py`：把 `line = _line_of(text, offset)` 挪到豁免判定之后——只有
+  「是位置声明」和「没有豁免」两关都过之后才算行号；注释说明次序。
+- `tests/test_doc_pointers.py`：追加门 M8-T559，钉两件事：非判据 span 零行号问；
+  evidence-shaped span 必须被问（带正控，避免「谁也不敢问」的假绿）。
+
+### 4 见证（红先绿后，臂）
+
+- 修前红（见 §2：40 次白问）；修后绿。
+- `tests/test_doc_pointers.py`：59 passed in 74.07s；`tests/test_pointer_liveness_corpus.py`：8 passed。
+- `doc_pointers --check` 退出码不变（本批只改次序，不改判定结果）。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（信任两个远端 CI 腿 + 受影响门）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 `_line_of` 本来就慢——`_line_index` 有 lru_cache，单次 bisect 很便宜；本批修的是
+  「该不该问」这件事本身（第五百二十六批录的 14.56s 是没缓存的那一代）；
+- 不声称 21,620 / 3,769 这个配比对本批合入之后的 roadmap 仍然精确成立——那是第五百二十六批量的那一刻的量；
+- 不声称全量套件本地全绿。
+
+### 7 下一位候选
+
+1. 两个 CI 腿回来后确认转绿。
+2. 第五百二十六批 §7 的 4 位：`_all_test_names` 每进程一次的 2.3s AST 扫描——未动。
+3. 第五百二十五批 §7 的 3 位：十三个加载器收成一个家——未动。
