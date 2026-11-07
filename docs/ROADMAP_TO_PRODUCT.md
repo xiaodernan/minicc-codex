@@ -38607,3 +38607,48 @@ Ubuntu 腿因 concurrency 被取消（最新推送顶替），Windows 腿 `pytho
    （本批 + M8-T570）；下一只是审视有没有其它 `VERSION` 常量同样还没进表——以最新的
    `test_version_vocabulary.py::test_census_and_declared_table_are_the_same_set` 为唯一计数器。
 3. 第五百二十五批 §7 的 3 位：十三个加载器——裁定不合并、立规则。
+
+## 第五百五十四批 — M8-T572 — 隐藏的例行 code 也必须是后端真的发得出的 code
+
+### 1 欠的是哪一条
+
+`web/src/panels/index.js` 的 `hiddenRoutineTraceCodes` 把四条 code 从
+人机可见的时间线抹掉（`model_decision`、`tool_round_finished`、
+`feedback_observed`、`replan`）——都是例行事件。这个集合在 **M8-T556**
+钉住的「每个 text 都是后端发得出的 code」之外，自己也有资格变成漂移源：
+谁加了一个看起来合理的 code 却其实后端永远不发，过滤假装存在，没人能看懂
+为什么要加。这一批把这条门扩成成员 ⊆ 后端可发出的 code 的普查。
+
+### 2 量到的真相（实测）
+
+- HEAD：`hiddenRoutineTraceCodes` 的四成员都是后端真的可发的 code（`resolve ambient` 验证）；
+  但没有任何一扇门会挡住下一个加的人。
+- 红先行：`_mutate_hidden.py` 种下 `no_such_code_ever_emitted` → 新断言精确点名它（红）；
+  `git checkout` 复位 → 绿。
+
+### 3 落地
+
+- `tests/frontend_trace_code_one_home_smoke.mjs`：增第 6 段断言——从 `panels/index.js`
+  读取 `hiddenRoutineTraceCodes` 的成员，`assert hiddenCodes.length > 0`，且每个成员 ∈
+  （后端发码 ∪ FRONTEND_ONLY）。
+
+### 4 见证（红先绿后，臂）
+
+- 见 §2。修前绿 / 修后红 / 复位绿。`npm run check:web` clean。
+
+### 5 聚焦回归
+
+- 前端门全绿（phase/trace/effort/i18n/tracephase/check:web）；未跑 Python 套件
+  （本批零 Python 改动）；以两个远端 CI 腿为准。
+
+### 6 边界（本批**不**声称）
+
+- 不声称「隐藏的例行事件就该隐藏」——隐藏本身是产品判定，本门不改判；
+  本门只钉「隐藏的 code 后端确实发得出」；
+- 不声称 JS 里其他按 code 过滤的地方都被收（`eventImportance` 是另一回事，不替它定规则）；
+- 不声称全量回归本地跑过。
+
+### 7 下一位候选
+
+1. CI 双腿转绿后确认（远端当前排队中，Nightly 按约跳过，Linux 腿等队列消化）。
+2. §7 各处仍按五百二十五批的裁定：加载器只立规则不合并。
