@@ -37828,3 +37828,60 @@ gh run 42350242004（M8-T553 ledger 推送）两个腿各报一条同样的失�
 2. 事件词汇普查：web/CLI/JS 各折叠面还藏着哪些手抄的 code 集合与判据（接
    第五百三十六批 §7 第 1 位）。
 3. 第五百二十七批 §7 的 2 位两条子集门未动。
+
+## 第五百三十八批 — M8-T556 — 前端追踪事件 chip 给每一个发过的 code 起了名字
+
+### 1 欠的是哪一刀
+
+`web/src/panels/index.js` 的 `traceLabel` 拿事件 code 查一张 zh/en 双语名字表；查不到就
+回落到「阶段事件」/"Stage event"。这一批量到的真相是：后端真正发出的 code 有 91 个
+（字面量普查 `code="…"` 与 `"code": "…"`，覆盖 `minicc/` 全包），外加动态发码点 15 个
+（distinct 后为 13：f-string 四个 + verifier 四个 + recovery_mode 三个 + 编排条件两个），
+合计 93 个，而名字表只覆盖 48 个——`approval_requested`、`budget_exceeded`、`cancelled`、
+`protocol_guard`、`session_checkpoint`……这些事件在时间线上是一颗没有名字的「阶段事件」。
+zh/en 两份表 parity 完好（48/48），坏的是「后端发的 code 名字表不知道」这一侧。
+
+### 2 量到的真相（实测）
+
+- 普查（临时脚本，已删）：`minicc/` 全包字面量 91 个 + 动态点 13 个 = 93 个发码；
+  名字表 48 个，缺 46 个（两个动态点 `auto_orchestration_triggered`/`batch_started` 已有
+  名字、`model_update_history` 是前端自合成码，都不算缺）。
+- 修前先红：新门暂存 `panels/index.js` 改动 → 跑，46 个无名 code 全部列出；恢复后绿。
+
+### 3 落地
+
+- `web/src/panels/index.js`：zh/en 两图各补齐 46 个名字（93 个发码 ∪ 前端合成码
+  `model_update_history` = 94 个 key，双图齐平）。
+- `tests/frontend_trace_code_one_home_smoke.mjs`（新门 M8-T556）：
+  普查 `minicc/**/*.py` 的字面量发码（`code="…"` / `"code": "…"`）+ 动态点显式清单
+  （带位置注释），断言四件事：① 每个发码在 zh 与 en 都有名字；② 两图 key 集完全一致；
+  ③ 没有死标签（每个名字都对应发码或前端合成码）；④ 名字表只存在于 `traceLabel`
+  一个家，web/src 别处不得手抄（普查）。
+- `package.json`：新增 `test:trace`；`ci.yml` js-check 增加 `node --check` 与
+  `npm run test:trace`，与 test:phase 同列。
+- 重建产物：`web/app.js`、`web/asset-manifest.json`、`web/assets/app.fa8ef473550f5505.js`
+  （替换 `app.ce175ce422caa991.js`，旧文件已不在仓库里）。
+
+### 4 见证（红先绿后，臂）
+
+- 修前红（见 §2）；修后 `M8-T556 ok: traceLabel names all 93 minted codes in both languages (zh/en parity 94 keys)`。
+- 行为变异（心算）：从任一 map 删掉一个发码即红（assertion 会列出缺名 code）；从
+  任一 map 删掉的对称检查会咬住 zh/en parity 一侧。
+- `npm run test:trace`、`npm run test:phase`、`npm run check:web` 全绿。
+
+### 5 聚焦回归
+
+- 前端门全绿（test:trace / test:phase / check:web）；
+- 未跑全量 Python 套件（与后端无关；Python 本批零改动）；两个远端 CI 腿待本批推送回来的结果。
+
+### 6 边界（本批**不**声称）
+
+- 不声称「Stage event」回退不存在（回退仍是未知 code 的安全网，本批只是后端不再发未知 code）；
+- 不声称 web/app.js 手改——app.js 由 `npm run build:web` 生成，源按 §3 走；
+- 不声称全量套件本地全绿。
+
+### 7 下一位候
+
+1. 两个 CI 腿回来后确认转绿（M8-T555 修复 + 本批）；再扫一遍是否还有环境依赖型失败。
+2. 事件词汇普查续：`"kind": "trace"` 之外的编排事件（如 task_manager 的 `kind=` 事件）是否也有同类匿名面。
+3. 第五百二十七批 §7 的 2 位两条子集门未动。
