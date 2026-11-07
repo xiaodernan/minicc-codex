@@ -9,6 +9,16 @@ on:
     - cron: "17 18 * * *"
   workflow_dispatch:
 
+# M8-T561: one run per (ref, event) at a time.  Push runs on the same
+# branch supersede each other, so the latest tree is the one that gets
+# the runner — the previous eight queued runs were each destined to
+# re-verify a tree that had already been replaced by a newer push.
+# Pull requests and the nightly real-key eval keep their own groups on
+# the same ref, so a push can never cancel a scheduled or PR run.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
 jobs:
   pytest:
     name: Python tests (${{ matrix.os }})
