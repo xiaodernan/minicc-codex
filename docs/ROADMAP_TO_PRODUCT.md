@@ -39288,3 +39288,50 @@ home 早就有了，只是没人用——加一个字节的窗口调上调下，
 2. #12：LLM protocol 三个名字在回退路径被手抄（`("auto", "responses")`、`chat_completions` 字面量）——switch-vocabulary 门扩展或新门；
 3. #10：trace-detail key 词表（panels/index.js 两份 13/62 键清单）——前端面门；
 4. 十三个加载器裁定不变。
+
+## 第五百六十八批 — M8-T586 — LLM protocol 两个非 auto 成员也有了名字和门
+
+### 1 欠的是哪一条
+
+「协议是哪几个」——`LLM_PROTOCOLS`（config.py：`auto`/`responses`/`chat_completions`）
+有门钉住成员集合；但代码里一旦逻辑钉在某一条 wire 上，就直接手拼字面量：provider 构造时
+决定默认协议、transport/endpoint 两条 fallback 翻转、主体流中断的协议标记、recovery
+路径的轮转——web.py 一处、openai_provider.py 八处、trace detail 一处，共 **13 处**
+手抄字符串。加一个新协议（或给 wire 改名）时没有任何信号。
+
+### 2 量到的真相（实测）
+
+- AST 普查（剔除 docstring）：`responses` 10 处、`chat_completions` 8 处（去重后共 13 个非 home 位点：openai_provider 269/553/553/649/664/737/738/742/746/954、web.py 2081/2085、config.py 892 的别名表在 home 内保留）。
+- `"auto"` 34 处且大量是**不相关**语义（sandbox mode、tool_mode、auto-approve 等）——刻意不命名、不钉；
+  只给两个专指一条 wire 的成员命名。
+- 没有发现 docstring 之外的杂拼写（docstring 可自由引用字面量，门不拦文档）。
+
+### 3 落地
+
+- `minicc/config.py`：新增 `LLM_PROTOCOL_RESPONSES = "responses"`、`LLM_PROTOCOL_CHAT_COMPLETIONS = "chat_completions"`（注释说明 `auto` 为何不命名）；别名表（line ~892）改用常数；home 文件内随意拼写。
+- `minicc/llm/openai_provider.py`：config import 增加三名成员（RESPONSES/CHAT）；fallback detail（`protocol_fallback_detail`）、构造默认解析、两条 fallback 翻转条件与赋值（4 处）、plan-retry 分支（2 处）、`stream_broke_message` 的协议实参——共 11 处字面量改问家。
+- `minicc/web.py`：config 导入块增加两个常数；recovery 路径的 `requested == "auto"` 比较与 `next_protocol` 轮转（2 处）改问家。
+- `tests/test_the_llm_protocol_members_have_one_home.py`（新门）：① 两个命名常数存在、值正确、且 ∈ `LLM_PROTOCOLS`；② `minicc/` 下除 `config.py` 之外不得拼写这两个字符串常数（docstring 豁免）。
+
+### 4 见证（红先绿后）
+
+- 绿臂：新门 2 passed；红臂（stash 三个源码文件）：复现 **13 处**字面量逐一被门点名（见 §2）；pop 后绿。
+- 焦点回归：`test_anthropic_provider.py` + `test_the_fake_provider_switch_has_one_home.py` + `test_the_protocol_fallback_detail_have_one_home.py` + `test_the_provider_sniff_has_one_home.py` + `test_the_switch_vocabularies_have_one_home.py` + 新门 = 29 passed；`test_m8_t58_inspection_fallback.py` + `test_model_fallback.py` + `test_the_fallback_list_never_offers_the_resolved_primary.py` + `test_the_openai_tool_wire_have_one_home.py` + `test_a_synchronous_chat_run_must_be_able_to_ask_for_an_approval.py` = 17 passed。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 `"auto"` 有门——它跨多个不相关词表，钉了必然误伤（本次只有 2/3 成员被钉）；
+- 不声称 `provider.protocol()` 的返回值字面量被统一——今天 reader 侧都经常量；
+- 不声称虚假的「常数传播到任意外部消费者」——常数未加 `__all__`（config.py 无 `__all__`），home 的契约是模块导入；
+- 不声称 CI 全绿：批 567/568 尚未推送（等当前 Windows 腿跑完）。
+
+### 7 下一位候选
+
+1. 等 run 42407295209（tip `43cf945`）Windows 腿跑完 → 一次推批 567+568 → 再等一个完整周期；
+2. #10：trace-detail key 词表（panels/index.js 两份 13/62 键清单）——前端面门，注：key 清单是渲染层「人类可读标签」的允许集合，需要想清楚门钉的是 keys 还是 labels；
+3. #15：六个 stage 名在四个测试里被手抄——测试侧门（keyed set == STAGE_NAMES）；
+4. 十三个加载器裁定不变。
