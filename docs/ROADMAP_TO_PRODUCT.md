@@ -37556,3 +37556,60 @@ A8 单跑一次点名了三条：`tests/test_a_change_view_that_could_not_read_g
 5. **「超时」该不该占用「判定」这个词**（第五百二十二批 §7 第 1 位）：未动。`conftest.py:87-101` 仍把跑过 900s 的腿改写成 failed。
 6. **十三个加载器收成一个家**（第五百二十五批 §7 第 3 位）：未动。
 7. **M8-T537 / M8-T538 / M8-T539**：分别由另一条通道与本仓排定的顺序占用，本批不碰。
+
+
+## 第五百三十二批 — M8-T550 — 读不出改动清单的失败措辞，终于只剩一个家
+
+### 1 欠的是哪一条
+
+第五百三十一批（M8-T549）把「读不出审计记录」修了（`_audit_paths` 的回退从
+「没有审计记录」答成可读失败）；本批处理的是同坍缩的**措辞**一侧：失败句子仍在
+agent loop、snapshot、变更视图三个家手里，分诊进了 `minicc/gitprobe.py` 但措辞
+没动。
+
+### 2 量到的真相（实测）
+
+HEAD 前，三处手写同一事实的不同措辞：`loop.py` 的超时 / OSError 分支、
+`snapshots.py` 的三个失败分支、`changes.py` 的 127 哨兵与非零退出分支。修复后，
+三处全部改走 `minicc/gitprobe.py` 新增的 builder
+（`git_status_unavailable_reason` / `git_status_timeout_reason` /
+`git_status_exit_reason`），措辞只在探针一处。
+
+### 3 落地
+
+- `minicc/gitprobe.py`：新增三个失败措辞 builder，把「问 git 与说为什么」一起
+  安一个家。
+- `minicc/agent/loop.py`：`_git_changed_paths` 三个失败分支改调 builder。
+- `minicc/snapshots.py`：`_git_dirty_files` 三个失败分支改调 builder。
+- `minicc/changes.py`：`_status_failure` 127 哨兵分支改调
+  `git_status_unavailable_reason(timeout_seconds=20, subject="变更清单")`；
+  非零退出改调 `git_status_exit_reason(code, stderr)`。
+
+### 4 见证（红先绿后，臂）
+
+- 新门 `tests/test_the_git_status_read_reason_has_one_home.py`（3 条）：家固定
+  各失败句的措辞、各失败句只在探针一处被拼、读者都去问家。
+- **红先**：对探针里改过的句子做变异（`退出码` → `退出了`）→ 行为钉
+  （`test_the_home_pins_each_failure_sentence`）与一处家门
+  （`test_each_failure_sentence_has_exactly_one_home`）**同时红**；还原后全绿。
+- **绿后**：本批相关门文件集 `33 passed in 20.21s`。
+
+### 5 聚焦回归
+
+- 共享树上本批门 + 验证豁免门 + 变更视图门 + snapshot 门 + 工作区判词门 +
+  bash 改写门：`33 passed in 20.21s`。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 `_git` 哨兵能分开超时与 OSError（`_git` 仍压成 127 / `git unavailable`，
+  措辞层面由 builder 吸收，分派不动）。
+- 不声称全量围栏（全量在远端 CI 判）。
+- 不声称 `summary()` / `diff()` 的键形状变了（键不动，理由来源变）。
+
+### 7 下一位候选
+
+1. **`_git` 的 127 哨兵**：`OSError` 与超时压成「git unavailable」，失败理由只能
+   写「20 秒超时或 PATH 里没有 git」；要分开得让 `_git` 自己带原因（它现在是
+   四处的共用私件）。
+2. 第五百二十九批 §7 第 2 位未动：豁免被拒的理由只有 trace 知道，模型收到的仍
+   是「请先验证」.
