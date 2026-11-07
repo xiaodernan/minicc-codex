@@ -38036,3 +38036,45 @@ HEAD 前：``minicc/llm/fake.py`` 内联手抄了该判据（普查命中 ``fake
 1. 两个 CI 腿回来后确认转绿。
 2. 第五百二十六批 §7 的 4 位：`_all_test_names` 每进程一次的 2.3s AST 扫描——未动。
 3. 第五百二十五批 §7 的 3 位：十三个加载器收成一个家——未动。
+
+## 第五百四十二批 — M8-T560 — 测试名索引每进程一遍，不再逐文档重建
+
+### 1 欠的是哪一条
+
+第五百二十六批 §7 点名的存量欠账第 4 位（第五百四十分再度点名）：`_all_test_names` 没有缓存——
+`--check` 每类一份文档（20 份）都重建一次「整个 tests/ 的测试名映射」。
+注：`_test_definitions`（每文件 AST）与 `_tracked_files` 早已走缓存；真重复的是 glob 之后的
+found 字典合成。
+
+### 2 量到的真相（实测）
+
+- HEAD 前：`_all_test_names()` 每次调用返回新字典；封口门
+  `test_the_all_names_scan_is_answered_once_per_process` 红（`first is second` 不成立：这一门用身份认证钉「每进程一份」）。
+- 红臂：暂存脚本改动 → 该门红；`test_a_test_file_is_parsed_once_per_process` 修前绿——
+  `_test_definitions` 本来就有 `@lru_cache(maxsize=None)`，本批把它钉成不变式门，而不是声称「修好」。
+- 修后：两条门绿；`tests/test_doc_pointers.py` 61 passed in 74s；加 `tests/test_pointer_liveness_corpus.py`：69 passed in 157.72s；`doc_pointers --check` exit 0。
+
+### 3 落地
+
+- `scripts/doc_pointers.py`：`_all_test_names` 加 `@lru_cache(maxsize=1)` 与注释
+  （一个进程一份 suite 映射；引用的测试名是这个进程不该重新造一遍的事实）。
+- `tests/test_doc_pointers.py`：追加两条门（一条钉本批，一条钉 `_test_definitions` 早有的缓存）。
+
+### 4 见证（红先绿后，臂）
+
+- 见 §2。
+
+### 5 聚焦回归
+
+- 见 §2；未跑全量套件（信任两个远端 CI 腿 + 受影响门）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称修前每文档白交 2.3s（那是没缓存的那一代的量；真重复的是映射合成，这批钉的是「不重建」本身）；
+- 不声称 `--check` 变快了多少数字——本批只钉行为，不立 benchmark；
+- 不声称全量套件本地全绿。
+
+### 7 下一位候选
+
+1. 两个 CI 腿回来后确认转绿。
+2. 第五百二十五批 §7 的 3 位：十三个加载器收成一个家——未动。
