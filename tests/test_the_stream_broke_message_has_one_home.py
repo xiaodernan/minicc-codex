@@ -96,8 +96,11 @@ def test_both_channels_ask_the_home() -> None:
     assert anthropic.count('stream_broke_message("Anthropic"') == 2, (
         "both Anthropic raise sites must ask the home"
     )
-    assert openai.count('stream_broke_message("responses"') == 1, (
-        "the Responses raise site must ask the home"
+    # M8-T586: the Responses raise site now names the protocol through the
+    # config home, not a raw literal - the raw literal is banned outside
+    # minicc/config.py by its own gate.
+    assert openai.count("stream_broke_message(LLM_PROTOCOL_RESPONSES") == 1, (
+        "the Responses raise site must ask the home, naming the protocol through the config constant"
     )
 
 
