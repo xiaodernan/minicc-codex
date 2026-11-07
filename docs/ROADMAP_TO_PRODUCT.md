@@ -39186,3 +39186,51 @@ JS 侧 `web/src/core/approvals.js` 也钉住，两扇门各管一面、互不对
 1. 推 562–565 的六个提交后，先等 js-check + Windows 腿的完整周期再推下一批；
 2. #4：300_000 这一魔法数（默认 context window / compact 阈值）散布约 11 处（Python 7 + JS `state.js` 1 + getattr 兜底 3）——收家 config.py 既有 `DEFAULT_CONTEXT_WINDOW_TOKENS` / `DEFAULT_COMPACT_THRESHOLD`，或立「兜底必须读家」规则；涉及面广，单独一批；
 3. 十三个加载器裁定不变。
+
+## 第五百六十六批 — M8-T584 — 300_000 这一行魔法数字也只有一个家了
+
+### 1 欠的是哪一条
+
+「默认上下文窗口多少、什么时候触发压缩」——同一个 300_000 被写在 **11 个点**：
+`agent/context.py` 两个默认值、`agent/loop.py` 两个形参默认值、`web.py` 五处 getattr 兜底
+（两处 `context_window_tokens`、一处 `compact_threshold`）、`web/src/core/state.js` 一个 UI 预置、
+加上 `config.py` 自己两个 home 定义（`DEFAULT_CONTEXT_WINDOW_TOKENS`、`DEFAULT_COMPACT_THRESHOLD`）。
+home 早就有了，只是没人用——加一个字节的窗口调上调下，就得人肉找 9 个点。
+
+### 2 量到的真相（实测）
+
+- AST 普查：本批修前 `minicc/` 下 `300_000`/`300000` 字面量恰 9 处（两个 home 除外）：context.py 610/644、loop.py 624/634、web.py 945/1259/2335/2341/2662。
+- 语义拆分：`compact_threshold` 与 `context_limit_tokens` 本应各问各 home（两 knob 日后可分叉）。
+
+### 3 落地
+
+- `minicc/agent/context.py`：import `DEFAULT_COMPACT_THRESHOLD`；两处 `threshold: int = 300_000` 改问家。
+- `minicc/agent/loop.py`：新增 `from ..config import DEFAULT_COMPACT_THRESHOLD, DEFAULT_CONTEXT_WINDOW_TOKENS`；`compact_threshold` → COMPACT_THRESHOLD；`context_limit_tokens` → CONTEXT_WINDOW_TOKENS。
+- `minicc/web.py`：config 导入块增加两个 home；五处 getattr 兜底全部改问家。
+- `tests/test_the_three_hundred_thousand_has_one_home.py`（新门）：① `minicc/` 下除 `config.py` 外禁止出现 int 字面量 `300_000`（AST 常量，underscore 与否任意拼写）；② `config.py` 中两个 home 仍等于 `300_000`。
+- `tests/frontend_context_window_one_home_smoke.mjs`（新门）：state.js 的 `contextWindowTokens` 必须等于 config.py 的 `DEFAULT_CONTEXT_WINDOW_TOKENS`（underscore 归一化对比）。
+- `package.json`：新增 `test:context`；CI js-check job 增加 `node --check` + `npm run test:context`。
+
+### 4 见证（红先绿后）
+
+- 绿臂：新门 2 passed；红臂（`git stash push` 三个 Python 源码文件）：新门红，点名 **9 处**字面量（见 §2）；`git stash pop` 后绿。
+- 焦点回归：`test_core_agent.py` + `test_completion_liveness.py` = 76 passed；`test_a_message_that_mentions_the_checkpoint_is_not_one.py` + `test_the_cli_compact_triggers_context_compaction.py` + `test_the_context_payload_have_one_home.py` + `test_the_model_context_must_redact_what_the_log_already_redacted.py` + `test_the_vision_context_has_one_normalizer.py` = 35 passed；`node tests/frontend_context_window_one_home_smoke.mjs` = M8-T584 ok；`npm run check:web` 无需重建（state.js 未动）。
+- 顺带：批 561 的 tip（`1173c9d`）的 Windows 腿 **success**（run 42405256740）；js-check 与 Windows 腿经历完整周期后本批才推送。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 `index.html` 的静态 "0 / 300k" 占位文案被钉——那是静态文案，与 pre-seed 数值是另一个量；静态文案要动它需要人工翻译批；
+- 不声称 compact 阈值与窗口可以任意不同——今天两个 home 都是 300_000；谁要分叉自行改 home 即可，调用点不再绑定；
+- 不声称 token 计数器在 hydration 前显示正确——预置值只作占位；
+- 不声称 CI 全绿：`ubuntu-latest` 腿仍零次被调度；Nightly 跳过。
+
+### 7 下一位候选
+
+1. 推完 562–566 后，先等 js-check + Windows 腿的完整周期再推下一批；
+2. #5：客户端渲染缓存上限（180_000 / 24 / 1_200_000 / 2048 等）——`session-cache.js` 与 `state.js` 各自手抄同一组上限，`task-reducer.js` 的 2048 与 `state.js MAX_SEEN_EVENT_KEYS` 是同一事实，无共享家；
+3. #12：LLM protocol 三个名字在回退路径里被手抄（`("auto", "responses")`、`chat_completions` 字面量）——`test_the_switch_vocabularies_have_one_home.py` 扩语义或新门；
+4. 十三个加载器裁定不变。
