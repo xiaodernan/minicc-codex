@@ -38463,3 +38463,52 @@ M8-T566（第五百四十八批）把 `authorization_event` 的七键底座交�
    第五百二十二批 §7 第 1 位；第五百二十二批自己说明过：换一个词要先有一个新读者，今天没有。
    仍不动。
 3. 第五百二十五批 §7 的 3 位：十三个加载器收成一个家——第五百二十五批裁定「只立规则，不合并」。
+
+## 第五百五十一批 — M8-T569 — 挂死改写有了自己的读者，不再与判定同词
+
+### 1 欠的是哪一条
+
+第五百二十二批 §7 第 1 位点名的存量候选：conftest.py 的钩子把跑过 900s 的腿从 passed
+改写成 failed；第五百二十二批自己写明了为什么不动——"换一个词要先有一个新读者，今天没有"。
+这一批把那个读者造出来：会话结束打印一行具名的 hang-class 报告（谁跨过了、几条），
+不再与「断言判定出失败」同词出现在总结行。
+
+### 2 量到的真相（实测）
+
+- 修前：summary 里挂死与失败同词（「failed」里藏着两类：断言假的与挂死的过期）。
+- 红先行：子进程跑一个带慢腿的探针套件、`MINICC_TEST_HANG_LIMIT=0.05` → 新门红（会话结束没有具名行）；
+  反向（干净套件）绿。防证：合法干净套件不打印 hang 行。
+- 修后：`MINICC_TEST_HANG_LIMIT: 1 test crossed the hang bound (not a verdict): .pytest_tmp_hang_probe/test_hang_probe.py::test_slow`。
+
+### 3 落地
+
+- `conftest.py`：钩子把被改写的腿按 nodeid 记入 `_HANG_REWRITES`；新增
+  `pytest_sessionfinish` 具名打印一行（`N test(s) crossed the hang bound (not a verdict): <nodeids>`）；
+  空则完全无声。不动 outcome（failed 仍是 failed，判定语义不变）——把读者造出来是闭词欠的第一步。
+- `tests/test_a_hang_limit_rewrite_is_named_in_the_summary.py`（新门）：两条腿（改写一具名一行 /
+  干净套件无声）。
+
+### 4 见证（红先绿后，臂）
+
+- 修前红（新门两条腿各自的红）；修后 2 passed；触及 conftest 的同族门 48 passed
+  （`test_impacted_tests.py` 与规则弧线、命令文件与 git reason 一家门）。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（信任两个远端 CI 腿 + 受影响门）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 pytest 的 `short summary` 会把 hang-class 分开列出来（pytest 的汇总行仍归 outcome=failed；
+  这一具名行是 hang 类与断言类的分界线，挂在 sessionfinish 上）；
+- 不声称 outcome 被改成别的词（pytest 的 outcome 词表是它的，不发明；第五百二十二批 §7 原话如此）；
+- 不声称冲突计数的零/非零以外的含义（只数改写了几条、叫谁）；
+- 不声称全量套件本地全绿。
+
+### 7 下一位候选
+
+1. CI 双腿回来后确认转绿（tip run 42383346936 的最新版：已 cancel 并替换为最新树）。
+2. 「十三个加载器收成一个家」（第五百二十五批 §7 第 3 位）——第五百二十五批裁定只立规则不合并，
+   真要做的是门禁不是一个家（M8-T543 已钉规则）。
+3. 各前端门已全部落位；下一只可能的候选是 `web/src/game.js` 与 `web/src/panels/index.js` 之间
+   的共享事实（GAME_DIFFICULTIES / zh-en 都已经齐），暂无挂账。
