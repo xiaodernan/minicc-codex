@@ -38122,3 +38122,57 @@ pull_request 与夜间 real-key 评估跑自己的分组，push 永远不能取�
 1. CI 双腿回来后确认转绿（排队消化后，以最新 run 为口径）。
 2. 第五百二十五批 §7 的 3 位：十三个加载器——第五百二十五批已裁定不合并、立规则。
    可重评是否补一条「新加载器必须登记 sys.modules」的门。
+
+## 第五百四十四批 — M8-T562 — 不可走的目录名单一个家，指纹跟工具共用
+
+### 1 欠的是哪一条
+
+同一事实——「哪些目录没有信号、不值得走进去」——被拼成了三个家：
+
+- `minicc/tools/fs.py` 的 `SKIP_DIRS`（17 条，工具面：glob/grep/tree 隐藏）
+- `minicc/agent/retrieval.py` 的 `SKIP_DIRS`（12 条，检索面：本地证据索引剪枝）
+- `minicc/agent/verification_plan.py` walk 剪枝的手拼集合（13 条，指纹面：复用判定的依赖闭包）
+
+三份互不知晓且已经漂移（指纹面还在走 ``.hg``/``.idea``/``target``/``.graders``，工具与检索都已经不走）。
+而指纹正是「这次验证的输入没变，复用上一轮」这个判定的依据——它把工具面明确隐藏的目录也算进去，
+等于让什么都不是的目录决定复用。
+
+### 2 量到的真相（实测）
+
+- 封口门红先行：`tests/test_the_skip_dirs_have_one_home.py` 修前 3 红——指纹面没问家；
+  AST 普查命中 `retrieval.py:45` 与 `verification_plan.py:146`（两个手拼副本）；
+  行为钉（`.graders` 目录一进工作区指纹就变）。
+- 行为变异（`skip_here` 缩成 `{".git", ".venv"}`）→ 行为钉红，恢复 → 绿。
+
+### 3 落地
+
+- `minicc/tools/fs.py`：`SKIP_DIRS` 维持为一个家（本批不动它；既有消费者不变）。
+- `minicc/agent/retrieval.py`：`SKIP_DIRS = _HIDDEN_DIRS | {"output", "tmp", "data", "coverage"}`，
+  即「共用隐藏集 + 检索面自己的四个扫描噪声名」；导出名不变（`test_retrieval_skips_hidden_dirs.py` 契约不破）。
+- `minicc/agent/verification_plan.py`：walk 剪枝改为 `SKIP_DIRS | {".playwright-cli", "output"}`，
+  手拼集合删除；`from ..tools.fs import SKIP_DIRS`。
+- 新门 `tests/test_the_skip_dirs_have_one_home.py`（家存在性 / 两个消费者问家 / AST 普查 ≥8 条同名即红 / 行为钉）。
+
+### 4 见证（红先绿后，臂）
+
+- 见 §2。相关门：`tests/test_the_skip_dirs_have_one_home.py` + `test_retrieval_skips_hidden_dirs.py`
+  + `test_m4_evidence_chain.py` 共 12 passed；准确合同、索引普查、核心 agent、证据链相关门集
+  107 passed + 1 平台跳。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（信任两个远端 CI 腿 + 受影响门）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 impact.py 的 `_SKIP_DIRS` 也要收（import 扫描面自有语义：`vendor`、`coverage`——同名项 5 条，
+  普查阈值 INL_SAMPLE=8，放行）；
+- 不声称指纹会更快——本批钉的是「剪枝与隐藏策略一致」这件事，不立 benchmark；
+- 不声称全量套件本地全绿。
+
+### 7 下一位候选
+
+1. CI 双腿回来后确认转绿（539–544 各批等待同一个最新 run）。
+2. JS/TS 扩展名的三处集合（retrieval / verification_plan / impact）——各自的「为谁收文件」不同，
+   语义不同，暂缓收编。
+3. 第五百二十五批 §7 的 3 位：十三个加载器——已由第五百二十五批裁定不合并、立规则，本批不主张。
