@@ -38553,3 +38553,57 @@ M8-T566（第五百四十八批）把 `authorization_event` 的七键底座交�
 1. CI 双腿回来后确认转绿（tip run 之最新树为 f6e9afb + 本批各次提交）。
 2. 装货文件 `minicc/task_manager.py:2964 "version": 1`——task checkpoint 快照的自带版本，单处，不改。
 3. 第五百二十五批 §7 的 3 位：十三个加载器——第五百二十五批裁定只立规则不合并。
+
+## 第五百五十三批 — M8-T571 — CI 两红两先行：子进程编码声明漂移 与 快照常量进词表
+
+### 1 欠的是哪一条
+
+C203202 那一批 CI 两腿各红在自己那条测试，都是我前两批的新门自己跑出来的：
+
+- `test_subprocess_decoding.py`：`test_a_hang_limit_rewrite_is_named_in_the_summary.py` 的两处
+  `subprocess.run` 写了父进程 `encoding="utf-8"` + `errors="replace"`，但把 `PYTHONIOENCODING`
+  藏在了调用之外的 env 字典里——"half-pinned captures (parent utf-8, child undeclared)"。
+- `test_version_vocabulary.py`：新增 `WORKSPACE_SNAPSHOT_MANIFEST_VERSION` 没进 `DECLARED_ROLES`，
+  也没进 `DURABLE_FORMAT_MODULES`——新身份的一个家只钉了我的新门，没钉仓库里既有的这座。
+
+### 2 量到的真相（实测）
+
+Windows 腿 run 42384691854：`test_subprocess_decoding.py::test_a_pinned_parent_decoder_over_our_own_python_child_pins_the_child_too` FAILED；
+`test_version_vocabulary.py::test_census_and_declared_table_are_the_same_set` FAILED。
+Ubuntu 腿因 concurrency 被取消（最新推送顶替），Windows 腿 `python -m pytest -q` 报
+`2 failed, 4237 passed, 9 skipped in 1155.63s`。
+
+### 3 落地
+
+- `tests/test_a_hang_limit_rewrite_is_named_in_the_summary.py`：env 改为调用内联的
+  `dict(os.environ, MINICC_TEST_HANG_LIMIT="0.05", PYTHONIOENCODING="utf-8")`——AST 判子进程编码的
+  家（`test_subprocess_decoding.py`）认 `subprocess.run` 的段内文本，不认调用外的变量名；**两个调用同修**。
+- `tests/test_version_vocabulary.py`：`DECLARED_ROLES` 新增
+  `("minicc/snapshots.py", "WORKSPACE_SNAPSHOT_MANIFEST_VERSION"): "branched"`；
+  `DURABLE_FORMAT_MODULES` 加入 `minicc/snapshots.py`（清单是落盘到 `.minicc/snapshots/<task>/manifest.json`
+  的耐久文件，且 restore 真的读它——"只写不读"正是这条门守的失败形状）。
+
+### 4 见证（红先绿后，臂）
+
+两处红都是 `python -m pytest -q` 在远端 Windows 腿上实测；本地修前同两个门文件 31 passed；
+`test_version_vocabulary.py` —— 含 " durable format version with no reader" 的断言——修后全绿。
+
+### 5 聚焦回归
+
+- `python -m pytest tests/test_version_vocabulary.py tests/test_subprocess_decoding.py
+  tests/test_a_hang_limit_rewrite_is_named_in_the_summary.py -q`（255.02s，31 passed）。
+- 未跑全量套件（本机高 CPU 不可靠，以两个远端腿为准）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 Ubuntu 腿已**变绿**——这次 Windows 腿从 C203202 切到 T571 tip，两条腿都还没在最新树上跑完；
+- 不声称 4237 passed 这个数在别处可复现——本轮直接引自远端 job 日志实机读数；
+- 不声称 CONTRIBUTING 规则提到的「每批全量」被满足（本地无法跑完全量；远端腿上跑的那次是 Windows 腿）。
+
+### 7 下一位候选
+
+1. CI 双腿回来后确认转绿（tip = 本批提交，Ubuntu 腿先等它跑起来）。
+2. `snapshots.py` 的 `WORKSPACE_SNAPSHOT_MANIFEST_VERSION` 这个「家」已在两处腿上钉住
+   （本批 + M8-T570）；下一只是审视有没有其它 `VERSION` 常量同样还没进表——以最新的
+   `test_version_vocabulary.py::test_census_and_declared_table_are_the_same_set` 为唯一计数器。
+3. 第五百二十五批 §7 的 3 位：十三个加载器——裁定不合并、立规则。
