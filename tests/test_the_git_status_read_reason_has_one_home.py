@@ -15,7 +15,10 @@ them, and no reader hand-spells the sentence.
 from __future__ import annotations
 
 import ast
+import subprocess
 from pathlib import Path
+
+import pytest
 
 REPO = Path(__file__).resolve().parents[1]
 PACKAGE = REPO / "minicc"
@@ -90,3 +93,30 @@ def test_the_readers_ask_the_single_home() -> None:
         src = (REPO / rel).read_text(encoding="utf-8")
         for builder in builders:
             assert builder in src, f"{rel} must ask the gitprobe home via {builder}"
+
+
+def test_the_shared_git_helper_carries_the_failure_reason(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """M8-T551: the shared ``_git`` carries the reason, so timeout and
+    unrunnable-git are no longer one collapsed answer."""
+    import minicc.changes as changes
+    from minicc.changes import ChangeInspector
+
+    def timed_out():
+        raise subprocess.TimeoutExpired(["git", "status"], 20)
+
+    real_run = subprocess.run
+
+    def run(argv, *args, **kwargs):
+        if isinstance(argv, list) and argv[:2] == ["git", "status"]:
+            return timed_out()
+        return real_run(argv, *args, **kwargs)
+
+    monkeypatch.setattr(changes.subprocess, "run", run)
+    workspace = tmp_path / "plain"
+    workspace.mkdir()
+    lines, reason = ChangeInspector(workspace)._status_lines()
+    assert lines == []
+    assert reason is not None
+    assert "超时" in reason, reason
