@@ -31,6 +31,13 @@ MAX_SNAPSHOT_FILES = 400
 MAX_SNAPSHOT_FILE_BYTES = 16 * 1024 * 1024
 MAX_SNAPSHOT_TOTAL_BYTES = 64 * 1024 * 1024
 
+#: The workspace-snapshot manifest's format version. Written once (capture),
+#: read twice (before_write fallback, restore) — a manifest that mis-reads
+#: its own version wipes every touched file with a ``missing`` entry, so the
+#: number is one fact with one home. Legacy manifests (version < 2) get the
+#: legacy layout; anything new is written ``2`` until a real migration exists.
+WORKSPACE_SNAPSHOT_MANIFEST_VERSION = 2
+
 
 class SnapshotError(RuntimeError):
     """A task snapshot cannot be captured or restored."""
@@ -243,7 +250,7 @@ def capture(workspace: Path, task_id: str) -> dict[str, Any]:
             digests[rel] = digest
             sizes[rel] = size
             used += size
-        manifest = {"version": 2, "task_id": task_id, "files": copied, "digests": digests, "sizes": sizes, "missing": missing, "skipped": skipped, "skipped_reasons": reasons, "workspace": str(root), "dirty_read_error": dirty_error}
+        manifest = {"version": WORKSPACE_SNAPSHOT_MANIFEST_VERSION, "task_id": task_id, "files": copied, "digests": digests, "sizes": sizes, "missing": missing, "skipped": skipped, "skipped_reasons": reasons, "workspace": str(root), "dirty_read_error": dirty_error}
         _save(dest, manifest)
         return _summary(manifest)
 
@@ -314,7 +321,7 @@ class SnapshotJournal:
                     raise SnapshotError(f"文件在任务快照后被外部修改，拒绝覆盖: {rel}")
             if rel not in manifest["files"] and rel not in manifest.get("missing", []):
                 if target.is_file():
-                    source_root = self.dest / "files" if manifest.get("version") == 2 else self.dest
+                    source_root = self.dest / "files" if manifest.get("version") == WORKSPACE_SNAPSHOT_MANIFEST_VERSION else self.dest
                     backup = _within(source_root, rel)
                     used = sum(int(size) for size in manifest.get("sizes", {}).values())
                     digest, size = _copy_preimage(target, backup, used=used, count=len(manifest["files"]))
@@ -374,7 +381,7 @@ def restore(workspace: Path, task_id: str) -> dict[str, Any]:
     # had just added.
     with _MANIFEST_LOCK:
         manifest = _load(dest, root)
-        source_root = dest / "files" if manifest.get("version") == 2 else dest
+        source_root = dest / "files" if manifest.get("version") == WORKSPACE_SNAPSHOT_MANIFEST_VERSION else dest
         journal = manifest.get("touched")
         if journal is not None and not isinstance(journal, dict):
             raise SnapshotError("快照写入记录格式错误")
@@ -428,4 +435,4 @@ def exists(workspace: Path, task_id: str) -> bool:
         return False
 
 
-__all__ = ["SnapshotError", "SnapshotJournal", "capture", "exists", "restore", "snapshot_dir"]
+__all__ = ["SnapshotError", "SnapshotJournal", "WORKSPACE_SNAPSHOT_MANIFEST_VERSION", "capture", "exists", "restore", "snapshot_dir"]
