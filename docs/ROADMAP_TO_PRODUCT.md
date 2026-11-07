@@ -40005,3 +40005,52 @@ reducer.js 在绑定上也维护同样的两条清单（`usage_by_turn`、`compa
 1. 等第 577–582 个 Windows 腿绿（本批 push 后 ~20 分钟）；
 2. `logging_setup.py` 的日志面 detail-key 子集与渲染面两种词表的对照——是 #10 的尾项，是子集对照而不是同家事实，需要先想清楚门钉哪个事实；
 3. 十三个加载器裁定不变。
+
+## 第五百八十三批 — M8-T601 — 日志白名单里不再有「暗处从不匹配」的死成员
+
+### 1 欠的是哪一条
+
+`describe_event`（`minicc/logging_setup.py`）为运维日志打印事件的 `detail` 子集——
+六键白名单 `turn, attempt, retry, tool_count, risk, authorization`。普查发现
+`risk` 与 `authorization` 在全 `minicc/` 没有任何一处以 **detail 字典 key** 出现：
+`authorization` 只作为 `audit.py` 的 `event["authorization"] = …` 顶层字段赋值存在；
+`risk` 同样只在顶层（`audit.py:462`、`web.py:626/1760/2264` 的顶层 dict/frame）。
+白名单读的是 `detail`，这两个成员**永远匹配不上、永远打印不了**，读者却会以为
+authorization 的风险等级已经在日志里。
+
+### 2 量到的真相（实测）
+
+- AST 全深度字典 key 普查：`risk` → 只出现在顶层 dict/emit；`authorization` → 只以 `Subscript` 赋值形式出现，**零个 dict key**。
+- `turn` / `attempt` / `retry` / `tool_count` → 各处 dict key 现存（`loop.py`、`task_manager.py`、`web.py` 等）。
+- 前端词表（58 键 detail 快照）与这份运维白名单是不同的事实（不同问题），不并。
+- 注：本批第一版红臂把 `"authorization"` 注入白名单复红时，`git checkout --` 顺手把**本批未提交的修复**一起回滚了——红臂套路错了（未提交文件不能用 checkout）；已重新手工恢复修复。账本特意记下这个手法错误。
+
+### 3 落地
+
+- `minicc/logging_setup.py`：白名单删掉 `risk`、`authorization`（不可匹配的死成员）；注释写明「每个成员必须至少有一个 dict key 被 minted」。
+- `tests/test_the_log_allowlist_members_are_minted_somewhere.py`（新门，2 条）：
+  1. 白名单每个成员必须在 `minicc/` 至少一个 dict 字面量里以常数 key 出现；
+  2. 当前白名单精确等于 `["turn", "attempt", "retry", "tool_count"]`（挡住「以后又塞进来没人 minted 的成员」）。
+
+### 4 见证（红先绿后）
+
+- 红臂：白名单注入 `authorization` → 门红，点名「['authorization']」；移除后绿。
+  （`git checkout` 的误用事故见 §2，已手工恢复修复，再次验证 2 passed。）
+- 焦点回归：`test_logging.py` + `test_a_new_logger_must_go_through_get_logger.py` + `test_the_tool_log_fields_have_one_home.py` + `test_the_request_failed_log_have_one_home.py` + `test_the_task_snapshot_write_failed_log_has_one_home.py` + `test_the_model_context_must_redact_what_the_log_already_redacted.py` = 62 passed。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称已验证运维是否需要 risk/authorization 出现在日志里——若确实需要，
+  正解是把授权事件的顶层字段接进描述器（另一批，另一个决定），不是把死成员留在白名单；
+- 不声称日志做了字段级脱敏的新增——`summary[:200]`、`kind`/`code`/`status` 的打印语义不动；
+- 不声称前端词典跟着删 key——前端是独立词表，不受影响。
+
+### 7 下一位候选
+
+1. 等 Windows 腿（tip 50438fc）跑完之后再推这批；连同批 582/583 一起，等一个完整周期；
+2. Authorization 的运维可见性——若需要，另一批把 authorization 的顶层 risk/authorization 以新字段或新行打进 task 日志；
+3. 十三个加载器裁定不变。
