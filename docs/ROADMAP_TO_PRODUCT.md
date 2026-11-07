@@ -37780,3 +37780,51 @@ HEAD 前：``minicc/web.py`` 闭包里手抄六条 code（``tool_round_finished`
 
 1. 事件词汇普查：web/CLI/JS 各折叠面还藏着哪些手抄的 code 集合与判据，逐个收进唯一家。
 2. 第五百二十七批 §7 的 2 位两条子集门未动：仍是「打印集合恰好不超过 roadmap 才绿」。
+
+## 第五百三十七批 — M8-T555 — CI 双腿的命令文件门里没有部署环境
+
+### 1 欠的是哪一刀
+
+m8-t537 分支最近几次推送，CI 两个腿（Windows + Ubuntu）都红在同一条：
+`tests/test_a_command_file_that_cannot_be_read_is_not_one_that_was_never_written.py::test_the_cli_one_shot_refuses_with_a_nonzero_exit`。
+不是代码缺陷，是测试没和部署环境解耦：本机 `.env` 里有 key，CI 没有。
+
+CI 无 `MINICC_API_KEY` → `_load` → `_fatal`（`minicc/main.py`）→ `cli_out(..., file=sys.stderr)`
+→ 测试把 `cli_out` 替换成只收 `*args` 的 lambda → TypeError；而且 `_fatal` 走 `SystemExit(2)`，
+测试根本走不到它要钉的拒绝路径。
+
+### 2 量到的真相（实测）
+
+gh run 42350242004（M8-T553 ledger 推送）两个腿各报一条同样的失败：
+`FAILED ...::test_the_cli_one_shot_refuses_with_a_nonzero_exit - TypeError: ... <lambda>() got an unexpected keyword argument 'file'`
+（Windows: 1 failed, 4212 passed, 9 skipped；Ubuntu: 1 failed, 4208 passed, 4 skipped）。
+本地（`.env` 有 key）该测 1 绿——环境差，不是行为差。
+
+### 3 落地
+
+- 两处 `cli_out` stub（一次性 CLI 测试 + 同文件 REPL 测试）改为 `lambda *args, **_kwargs:`。
+- 一次性 CLI 测试补 `monkeypatch.setenv("MINICC_API_KEY", "sk-test-key")`——与
+  `test_cli_stage_routing.py` 等仓库里其余 CLI 测试同一模式。
+
+### 4 见证（红先绿后，臂）
+
+- 模拟 CI 环境（shell 清空 `MINICC_API_KEY`）：本批提交前按失败签名出红（CI 实测 TypeError，
+  且 `_fatal` 会走 `SystemExit(2)`）；修后 `15 passed in 5.01s`。
+- 未动：`_fatal` 的 `file=sys.stderr` 语义与 exit code 2；测试仍钉的是「一条读不出来的命令
+  不是一条没写过的命令」这条事实（拒绝路径），只是不再依赖本机 `.env`。
+
+### 5 聚焦回归
+
+- 该文件 `15 passed`（清空 key 的环境）；其余无关门文件不受影响。
+
+### 6 边界（本批**不**声称）
+
+- 不声称两个 CI 腿已经转绿——这要等本次推送回来的结果；
+- 不声称分支历史上所有失败都由这一条引起——这是唯一一处实测失败位。
+
+### 7 下一位候
+
+1. 本批推送后确认两腿转绿；若再扫出其余环境依赖型测试，按同一模式解耦。
+2. 事件词汇普查：web/CLI/JS 各折叠面还藏着哪些手抄的 code 集合与判据（接
+   第五百三十六批 §7 第 1 位）。
+3. 第五百二十七批 §7 的 2 位两条子集门未动。
