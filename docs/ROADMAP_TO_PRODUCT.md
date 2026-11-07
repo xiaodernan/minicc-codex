@@ -39805,3 +39805,53 @@ required=["content"]、返回键 content/status/priority）。两处都可以独
 1. 等 tip `a6bc685`+577+578 的 Windows 腿绿之后，再逐个取证——本批的修补本身不增加 CI 风险，但需 CI 最终认可；
 2. **对批 577 所有 `String.Replace` 命中文本的结构化普查**（mem_content_p 挂到 MAX_QUERY_CHARS 这类「批 577 全改命中」正是同一手法出的事故）——把它固化成一条 AST/普查门而不是靠眼睛；
 3. 十三个加载器裁定不变。
+
+## 第五百七十九批 — M8-T597 — 任务账务的两个 64 上限也终于只有一个家
+
+### 1 欠的是哪一条
+
+「任务账务的默认保留条数」——`DEFAULT_TASK_USAGE_LIMIT` 与 `DEFAULT_TASK_COMPACTION_LIMIT`。
+两个常数都是 64，语义同一（每任务的 usage/compaction 保留配额），却在 `minicc/config.py`
+（配置层，负责 `MINICC_TASK_USAGE_LIMIT`/`MINICC_TASK_COMPACTION_LIMIT` 的 pick + 8-512 校验）和
+`minicc/task_manager.py`（服务层消费它们）各写了一份——`web.py` 再从 task_manager 一石三鸟地
+re-export 出去。把默认 64 改成 128，两个家能继续各活各的而不吱声。
+
+### 2 量到的真相（实测）
+
+- 两个常数的两份定义逐字节一致（64）；README 的环境变量表也是 64。
+- consumers：config.py（pick + Config 默认）、task_manager.py（`usage_limit`/`compaction_limit`
+  属性赋值与构造参数）、web.py（re-export 给 external/tests）。
+- §7 的 #4-adjacent 项证明两个 64 family（loop 的 `MAX_RESULT_USAGE_ENTRIES`/`MAX_RESULT_COMPACTION_ENTRIES`、
+  以及 `task_worker.py:418` 的 `[-64:]`）是**另一个词表**（per-binding 结果项保留）——
+  本文不并它们（更多事实，另批）。
+
+### 3 落地
+
+- `minicc/config.py`：不动（家保持它所在的层）。
+- `minicc/task_manager.py`：删两份重复定义；`from .config import ... DEFAULT_TASK_COMPACTION_LIMIT, DEFAULT_TASK_USAGE_LIMIT, ...`。
+- `minicc/web.py`：re-export 块里移除这两个名字；改为直接 `from .config import DEFAULT_TASK_COMPACTION_LIMIT, DEFAULT_TASK_USAGE_LIMIT  # noqa: F401 - re-export for tests and AgentService`。
+- `tests/test_the_task_limits_have_one_home.py`（新门，3 条）：① 家里两名常数存在且 == 64；
+  ② `minicc/` 下任何别处不许定义这两名（AST Assign/AnnAssign）；③ 家里必须有 `MINICC_TASK_USAGE_LIMIT`/`MINICC_TASK_COMPACTION_LIMIT` 且含 "8-512" 的校验词（env 契约）。
+
+### 4 见证（红先绿后）
+
+- 红臂：stash task_manager.py/web.py → 新门红，点名「minicc/task_manager.py:108/109」；pop 后 3 passed。
+- 焦点回归：`test_core_task.py` + `test_task_contract.py` + `test_task_durability.py` + `test_task_persistence.py` + `test_task_store_durability_contract.py` + `test_a_start_must_not_rewrite_every_restored_task.py` + `test_one_tasks_failed_terminal_write_must_not_abort_the_shutdown_of_the_others.py` + 新门 = 86 passed；`import minicc.web` = ok。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 loop 的 `MAX_RESULT_USAGE_ENTRIES` / `MAX_RESULT_COMPACTION_ENTRIES` 和 JS 的 `task-reducer.js slice(-64)` 被统一——它们是 per-binding 保留面的独立词表，另批（reducer 已被 frontend_event_retention 门管辖其 2048；64 那一对留给下一批）；
+- 不声称 README 的 env 表被钉——散文字面不钉；
+- 不声称 `.noqa F401` 的语义被检——只钉住「两名常数只有一份定义」。
+- 批 577 的两个 `String.Replace` 事故修正后，本 lane 的字节级批量替换已暂停（终生教训）：以后声明常数都走 AST/探针确认。
+
+### 7 下一位候选
+
+1. 等第 577/578/579 个 Windows 腿绿 → 再评估降落到 main 的时机；
+2. **reducer 的 64**（task-reducer.js `.slice(-64)` ×2）与 loop 的 `MAX_RESULT_USAGE_ENTRIES`/`MAX_RESULT_COMPACTION_ENTRIES` 对账（Python↔JS 门，effort/todo 的同款）；
+3. `EventLog.limit=1024`（protocol.py）与 `MAX_TRACE_EVENTS`（state.py）与 `MAX_RESULT_TRACE_EVENTS`（loop.py）与 `task_manager [-1024:]` 的 1024 聚合——下一批候选；
+4. 十三个加载器裁定不变。
