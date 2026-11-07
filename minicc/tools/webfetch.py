@@ -33,6 +33,11 @@ from .schemas import untrusted_tags
 MAX_BYTES_DEFAULT = 512 * 1024
 MAX_REDIRECTS = 3
 DEFAULT_TIMEOUT = 20.0
+#: The timeout window the handler enforces (clamped to [MIN_TIMEOUT, MAX_TIMEOUT]).
+#: The tool schema's int caps ask these same constants (tools/__init__.py);
+#: hand-spelled 1/60 in both places used to be kept in step by memory alone.
+MIN_TIMEOUT = 1.0
+MAX_TIMEOUT = 60.0
 MAX_TITLE_CHARS = 300
 FETCH_PREVIEW_CHARS = 8000
 USER_AGENT = "minicc-webfetch/0.1 (+local coding agent)"
@@ -439,7 +444,7 @@ def webfetch(args: dict[str, object]) -> ToolResult:
         timeout = float(raw_timeout)  # type: ignore[arg-type]
     except (TypeError, ValueError) as exc:
         raise ToolError("timeout 必须是数字") from exc
-    timeout = max(1.0, min(60.0, timeout))
+    timeout = max(MIN_TIMEOUT, min(MAX_TIMEOUT, timeout))
     return build_tool_result(fetch_url_text(raw_url, timeout=timeout))
 
 

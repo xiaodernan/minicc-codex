@@ -30,8 +30,8 @@ from .registry import (
 )
 from .schemas import CODE_RUNTIME_GUARD, ToolCall, ToolResult, tagged, untrusted_tags
 from .todo import TODO_PRIORITIES, TODO_STATUSES, TodoTools
-from .web import MAX_RESULTS_PARAM, web_search
-from .webfetch import webfetch
+from .web import MAX_QUERY_CHARS, MAX_RESULTS, MAX_RESULTS_PARAM, web_search
+from .webfetch import MAX_TIMEOUT, MIN_TIMEOUT, webfetch
 
 if TYPE_CHECKING:
     # Import-time cycle guard: minicc.mcp imports tools.registry, so this
@@ -85,12 +85,12 @@ def build_registry(
     pattern_p = Param("pattern", "str", required=True, max_len=512, description="glob 或正则模式")
     include_p = Param("include", "str", max_len=256, description="文件名过滤 (glob, 如 *.py)")
     max_matches_p = Param(MAX_MATCHES_PARAM, "int", min_value=1, max_value=500, description="最大匹配数")
-    depth_p = Param("max_depth", "int", min_value=1, max_value=8, description="目录树最大深度")
+    depth_p = Param("max_depth", "int", min_value=1, max_value=MAX_RESULTS, description="目录树最大深度")
     entries_p = Param("max_entries", "int", min_value=1, max_value=2000, description="最大条目数")
-    search_query_p = Param("query", "str", required=True, max_len=500, description="要搜索的关键词；不要包含密钥或隐私数据")
-    search_limit_p = Param(MAX_RESULTS_PARAM, "int", min_value=1, max_value=8, description="最多返回结果数")
+    search_query_p = Param("query", "str", required=True, max_len=MAX_QUERY_CHARS, description="要搜索的关键词；不要包含密钥或隐私数据")
+    search_limit_p = Param(MAX_RESULTS_PARAM, "int", min_value=1, max_value=MAX_RESULTS, description="最多返回结果数")
     fetch_url_p = Param("url", "str", required=True, max_len=2048, description="要抓取的 http/https 网页 URL")
-    fetch_timeout_p = Param("timeout", "int", min_value=1, max_value=60, description="超时秒数 (默认 20)")
+    fetch_timeout_p = Param("timeout", "int", min_value=int(MIN_TIMEOUT), max_value=int(MAX_TIMEOUT), description="超时秒数 (默认 20)")
     old_p = Param("old", "str", required=True, description="要替换的旧文本 (必须精确匹配)")
     new_p = Param("new", "str", required=True, description="替换后的新文本")
     content_p = Param("content", "str", required=True, description="文件全部内容")
@@ -136,7 +136,7 @@ def build_registry(
 
     # -- long-term memory (M8-T1): append-only .minicc/MEMORY.md agent state --
     memory = MemoryTools(workspace)
-    mem_content_p = Param("content", "str", required=True, max_len=500, description="要记住的单行结论（写入前自动脱敏，禁止密钥/隐私/个人信息）")
+    mem_content_p = Param("content", "str", required=True, max_len=MAX_QUERY_CHARS, description="要记住的单行结论（写入前自动脱敏，禁止密钥/隐私/个人信息）")
     mem_scope_p = Param("scope", "str", max_len=64, description="'user'（~/.minicc/MEMORY.md，跨项目）或 'project'（本工作区 .minicc/MEMORY.md，默认）；这是枚举值，不是路径")
     mem_source_p = Param("source", "str", max_len=40, description="条目来源标注（默认 model）")
     mem_id_p = Param("id", "str", required=True, max_len=32, description="记忆条目 id（如 mem-1a2b3c4d）")
