@@ -39335,3 +39335,52 @@ home 早就有了，只是没人用——加一个字节的窗口调上调下，
 2. #10：trace-detail key 词表（panels/index.js 两份 13/62 键清单）——前端面门，注：key 清单是渲染层「人类可读标签」的允许集合，需要想清楚门钉的是 keys 还是 labels；
 3. #15：六个 stage 名在四个测试里被手抄——测试侧门（keyed set == STAGE_NAMES）；
 4. 十三个加载器裁定不变。
+
+## 第五百六十九批 — M8-T587 — 六个 stage 的名字在测试里也只能问家
+
+### 1 欠的是哪一条
+
+`STAGE_NAMES`（`minicc/config.py`）是六个 pipeline stage 名的家，有门钉住成员集合。
+但四个测试文件手拼了完整六名——两处 `test_router.py` 的等价循环、
+`test_stage_routing_config_reaches_the_router.py` 的 `STAGES` 元组、
+`test_custom_model_card_fields_reach_a_reader.py` 的 `STAGES` 元组。
+加第七个 stage 时，这些循环会静默跳过它——没有任何信号，而「等价性检查覆盖全部 stage」
+恰恰是那几个测试存在的意义。
+
+### 2 量到的真相（实测）
+
+- AST 普查：tests/ 下携带 ≥5 个 stage 名的容器恰 4 处（见 §1）；其余测试只手拼子集或只用 home。
+- 两个测试文件已通过 `config_module` / `minicc_config` 间接 import minicc.config——直接改用 `tuple(sorted(...STAGE_NAMES))`，保持 `STAGES` 名不变、使用点不动。
+- `test_router.py` 两个内联元组 → `for stage in sorted(STAGE_NAMES):`。
+- 无其它 tests/ 容器携带 ≥5 个名（修后普查为空）。
+
+### 3 落地
+
+- `tests/test_router.py`：config import 增加 `STAGE_NAMES`；两处循环改 `sorted(STAGE_NAMES)`。
+- `tests/test_stage_routing_config_reaches_the_router.py`：`STAGES = tuple(sorted(config_module.STAGE_NAMES))`。
+- `tests/test_custom_model_card_fields_reach_a_reader.py`：`STAGES = tuple(sorted(minicc_config.STAGE_NAMES))`。
+- `tests/test_the_stage_names_have_one_home_in_the_tests_too.py`（新门）：① tests/ 下任何容器携带 ≥5 个 stage 名即红（引导问家）；② `STAGE_NAMES` 的家必须等于恰好这六个名。
+  门自带「字符串拆名」把戏——直接写六名字面量会让门自缚。
+- 红臂（`git stash push` 三个测试文件）：门红，点名 4 处；pop 后绿。
+
+### 4 见证（红先绿后，注入红臂）
+
+- 红：`tests/test_router.py:84`、`:383`、`test_stage_routing_config_reaches_the_router.py:54`、`test_custom_model_card_fields_reach_a_reader.py:51` 四处逐一被门点名；绿：2 passed。
+- 焦点回归：`test_router.py` + `test_stage_routing_config_reaches_the_router.py` = 101 passed；`test_custom_model_card_fields_reach_a_reader.py` = 5 passed。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称其它子集拼写被统一——只钉「≥5 名的全拼写」，子集按各人语义保留；
+- 不声称 `minicc/` 里没有手拼（router/router 等已有行为断言覆盖）；
+- 不声称 CI 全绿：批 569 尚未推送（等当前 Windows 腿）；
+- 门对自己自缚问题已用字符串拆名规避——注释说明。
+
+### 7 下一位候选
+
+1. 等 tip `e543fcf`（批 567–568）的 Windows 腿跑完 → 推批 569 → 再等一个完整周期；
+2. #10：trace-detail key 词表（panels/index.js 两份 13/62 键清单）——先想清楚门钉的是 keys 还是 labels；
+3. 十三个加载器裁定不变。
