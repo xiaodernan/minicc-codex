@@ -8,39 +8,23 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import base64
-import binascii
-from collections import deque
-import hashlib
-import inspect
 import json
-import math
-import mimetypes
-import re
 import threading
 import time
 import uuid
-from concurrent.futures import Future, ThreadPoolExecutor
-import dataclasses
-import os
-import sys
 from dataclasses import dataclass, field
-from types import SimpleNamespace
-from datetime import datetime, timezone
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Callable
-from urllib.parse import parse_qs, unquote, urlsplit
 
 try:  # httpx ships with the OpenAI SDK dependency; keep the import guarded.
     import httpx
 except ModuleNotFoundError:  # pragma: no cover - depends on the HTTP stack.
     httpx = None  # type: ignore[assignment]
 
-from .agent.graph import DAGPlan, PlanTask, aggregate_dag_tokens, build_coding_workflow, execute_dag, fixed_plan
+from .agent.graph import DAGPlan, PlanTask, aggregate_dag_tokens, build_coding_workflow, execute_dag
 from .agent.completion import CompletionDecision, judge_completion
 from .agent.loop import AgentCancelled, TurnResult, build_tool_feedback, chat_with_cancellation, run_agent, stamp_cancelled
-from .agent.orchestration import assess_complexity, build_auto_subtasks
+from .agent.orchestration import assess_complexity
 from .agent.verifier import NON_FAILURE_VERIFICATION_STATUSES
 from .agent.planner import (
     DEFAULT_ALLOWED_TOOLS,
@@ -52,19 +36,17 @@ from .agent.planner import (
     parse_planner_response,
 )
 from .agent.repair import repair_scope
-from .agent.retrieval import LocalEvidenceIndex, census_is_complete, census_notice, get_evidence_index
+from .agent.retrieval import census_is_complete, census_notice, get_evidence_index
 from .agent.subagent import DEFAULT_MAX_DEPTH, DEFAULT_MAX_TURNS, build_task_tool_spec
 from .webauth import (
     WebAuth,
     WebAuthError,
-    cors_origin,
     is_loopback_host,
     load_or_create_token,
     token_store_path,
 )
 from .agent.router import StageRouter
 from .route_wiring import (
-    _PROVIDER_FAMILY,
     _route_provider_spec,
     _route_turn_cap,
     _stage_cost_estimator,
@@ -76,14 +58,10 @@ from .agent.protocol import (
     BATCH_CANCELLED_ANSWER,
     budget_exceeded_error,
     budget_exceeded_event,
-    CancellationToken,
-    EventLog,
     incomplete_answer,
-    InvalidStatusTransition,
     MODEL_LAST_OUTPUT_MARKER,
     session_persist_required,
     TASK_CANCELLED_ANSWER,
-    validate_status_transition,
     VERIFICATION_GUARD_ERROR,
 )
 from .agent.rpc import RpcDispatcher
@@ -98,7 +76,6 @@ from .audit import (
     authorize_tool,
     deny_rule_covers_path,
     effective_risk,
-    normalize_permission_mode,
     path_rule_denies_call,
     tool_denied_by_rule,
 )
@@ -118,7 +95,6 @@ from .config import (
     ConfigError,
     home_dir,
     load_config,
-    normalize_reasoning_effort,
     workspace_not_directory_message,
 )
 from .allowlist import AllowlistError, add_session_rule, replace_session_rules, session_rules
@@ -140,7 +116,7 @@ from .llm.usage import add_usage_totals, cache_summary, estimated_usage
 from .mcp import McpError, McpManager, mcp_absent_status
 from .prompt import build_system_prompt
 from .sandbox import SandboxRunner
-from .session import SessionError, SessionStore, list_sessions
+from .session import SessionStore, list_sessions
 from .tools import Editor, ToolCall, ToolResult, build_registry
 from .tools.editor import AUDIT_LEVELS, audit_level, path_escaped_workspace
 from .trace import trace_event
