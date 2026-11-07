@@ -39761,3 +39761,47 @@ required=["content"]、返回键 content/status/priority）。两处都可以独
 1. 推批 577 后等 Windows 腿一个完整周期；
 2. **fs/editor 侧 Param↔handler 对账普查**（`read_file` 的 offset/limit 钳制、`edit_file` 的 digest 形态、`grep` 的 MAX_MATCHES 等）；不够格对不上时明确不做并记账；
 3. 十三个加载器裁定不变。
+
+## 第五百七十八批 — M8-T596 — 自己手滑的两个「同值不同事家」被掰回来
+
+### 1 欠的是哪一条
+
+批 577（M8-T595）用一次字节级 `String.Replace` 替换两处声明，图省事把「数字一样、事实不同」的常数缝到了一起：
+
+1. `depth_p.max_value = 8`（tree 深度封顶的**边界声明**，fs 侧特意不写第二份）——被缝进 `web.MAX_RESULTS`（web_search 结果上限，也是 8）；
+2. `mem_content_p.max_len = 500`（memory 的 MAX_MEMORY_CHARS=500 一致）——被缝进 `web.MAX_QUERY_CHARS`（web_search 查询长截断，又是 500）。
+
+这两处是「同值不同事家」：数字重合不等于事实相同，正是本 lane 反复钉的那种债——只是这次是我亲手制造的。
+
+### 2 量到的真相（实测）
+
+- `fs.py` 注释明说 ceilings 在工具声明里（`max_depth <= 8, max_entries <= 2000`）——fs 侧没有 `depth`/`entries` 的钳制常数，也没有常数而有 5 个 reader chunk `limit=2000`（read_file 内部读暂停粒度——另一个 2000，同号不同事，不并）。
+- 批 576 的门（`test_the_memory_tool_declarations_match_their_validators.py`）在批 577 推之后立刻红——它要求 `mem_content("max_len")` 等于 memory 的家，而批 577 后它变成 Name `MAX_QUERY_CHARS`，返回 None，断言失败，CI 之前还没见到。**门起作用了。**
+- 批 404 条老约定（「lookalikes keep separate names」）没有被胁迫——值相同、事实不同的两组常数必须各自待在自己的家里。
+
+### 3 落地
+
+- `minicc/tools/__init__.py`：`depth_p.max_value` 改回字面量 8；`mem_content_p.max_len` 改回字面量 500（批 576 门要求的家即 memory 的家，数字对齐即可，不必起名）。
+- `tests/test_the_tree_ceilings_live_at_the_tool_boundary.py`（新门）：`depth_p.max_value` 与 `entries_p.max_value` 必须是 AST Constant 8 / 2000——不许 Name 出别的词表家。
+
+### 4 见证（红先绿后）
+
+- 红臂：`git stash push minicc/tools/__init__.py`（HEAD 仍是 MAX_RESULTS Name）→ 新门红，点名「not a name reaching into another vocabulary」；`git checkout -- ...` 后绿。
+- 焦点回归：`test_the_memory_tool_declarations_match_their_validators.py` + `test_the_tree_ceilings_live_at_the_tool_boundary.py` + `test_the_http_tool_declarations_match_their_validators.py` + `test_the_todo_write_schema_matches_its_validator.py` = 5 passed；`test_a_declared_parameter_is_a_parameter_the_tool_has.py` + `test_core_tools.py` + `test_the_ceilings_belong_to_the_tool_not_the_caller.py` + `test_every_wire_form_carries_the_same_tool_name.py` = 45 passed。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称批 577 的字节级 Replace 已被穷尽审计——本批修了其中两处（.memory/tree），第三处以上的隐藏缝（若还有）会由现有门**逐一显形**；
+- 不声称 fs.py 的 2000 reader chunk 与工具边界 2000 有联系——它们是另一件事，不合并；
+- 不声称 description 中文与常数一致——description 散文不钉值；
+- 不声称 CI 全绿：当前 tip 的 Windows 腿在跑；批 577 的 Windows 腿尚未见到。
+
+### 7 下一位候选
+
+1. 等 tip `a6bc685`+577+578 的 Windows 腿绿之后，再逐个取证——本批的修补本身不增加 CI 风险，但需 CI 最终认可；
+2. **对批 577 所有 `String.Replace` 命中文本的结构化普查**（mem_content_p 挂到 MAX_QUERY_CHARS 这类「批 577 全改命中」正是同一手法出的事故）——把它固化成一条 AST/普查门而不是靠眼睛；
+3. 十三个加载器裁定不变。
