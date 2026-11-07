@@ -39532,3 +39532,51 @@ home 早就有了，只是没人用——加一个字节的窗口调上调下，
 1. 等 tip `e543fcf`（批 567–568）Windows 腿跑完 → 推批 569/570/571/572 → 再等一个完整周期；
 2. 普查剩余项（#8 game.js 19 个 plant/zombie key、#14 的 1024/64 上限跨语言）——强度一般，除非出现新证据不做；
 3. 十三个加载器裁定不变。
+
+## 第五百七十三批 — M8-T591 — 门与家对齐：Responses 抛错点恢复 CI 绿
+
+### 1 欠的是哪一条
+
+CI `Python tests (windows-latest)` 对 tip `e543fcf`（批 567–568）红了一条——
+`tests/test_the_stream_broke_message_has_one_home.py::test_both_channels_ask_the_home`：
+「the Responses raise site must ask the home」。根因是批 568 把
+`stream_broke_message("responses", ...)` 改成了问协议 home（`LLM_PROTOCOL_RESPONSES`）——
+与协议家门禁一致，却撞上这条**先验**的断言，它要求 callsite 出现裸字面量
+`stream_broke_message("responses"`。两扇门各自为营：协议成员家禁止该字面量出现在
+config.py 之外，这条门却要求它恰好出现在 openai_provider.py。
+
+### 2 量到的真相（实测）
+
+- 作业 `128511340543`（run `42408510372`）：`1 failed, 4252 passed, 9 skipped in 1239.65s (0:20:39)`；唯一失败点如实命名；日志经 `gh api .../actions/jobs/<id>/logs` 取回 195,906 字节。
+- 修法只能二选一：回退批 568（不做——那是本 lane 的既定方向），或让这条门接受具名常数（做）。
+
+### 3 落地
+
+- `tests/test_the_stream_broke_message_has_one_home.py`：`test_both_channels_ask_the_home` 改为断言
+  `openai.count("stream_broke_message(LLM_PROTOCOL_RESPONSES") == 1`（注释写明批 568 的协议家常数是唯一合法拼法）。
+  语义不变——仍要求抛错点「问 home」，只是协议名改从配置 home 读。
+- 临时日志文件（`ci_failed_log.txt`）已删除。
+
+### 4 见证（红先绿后）
+
+- 修前红：CI Windows 腿唯一失败 = 上述断言（见 §2）。
+- 修后绿（本地）：`test_the_stream_broke_message_has_one_home.py` + `test_the_llm_protocol_members_have_one_home.py` = 8 passed；
+  相关面：`test_the_stream_retry_summary_has_one_home.py` 6 passed；`test_m8_t58_inspection_fallback.py` 4 passed；
+  `test_the_recovery_guard_must_also_stop_a_write_done_through_bash.py` 同链 7 passed。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件本地——CI 全量跑出过一次完整读数，恰好只这一条红。
+
+### 6 边界（本批**不**声称）
+
+- 不声称批 568 的其余部分已在 CI 上被验证——全量只红这一条，且已修；
+- 不声称其余排队作业（ubuntu-latest / Claim checkers / M1 probe / PR eval / js-check）有结果——它们至今零次被调度；
+- 不声称修复重新引入裸字面量——协议成员家门禁仍然红它；
+- 不声称本批推送后 CI 必然全绿——等 Windows 腿下一次完整周期。
+
+### 7 下一位候选
+
+1. 一次性推批 569/570/571/572/573 后，等 Windows 腿完整周期再动下一批；
+2. 修复在本 lane 之内——主 worktree 的并发会话仍未释放合并（`UU docs/ROADMAP_TO_PRODUCT.md`）；
+3. 十三个加载器裁定不变。
