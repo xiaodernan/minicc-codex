@@ -342,6 +342,26 @@ def budget_exceeded_event(
     )
 
 
+#: The trace codes that mean a session conversation has to be re-saved: the
+#: ones after which a resumed run must not start from a half-finished turn.
+#: The web face used to spell this set by hand inside its event sink - the
+#: fact has one home (the event vocabulary, here) and the sink must ask it
+#: instead of keeping a second copy of the answer.
+SESSION_PERSIST_TRACE_CODES = frozenset({
+    "tool_round_finished",
+    "verification_required_before_finish",
+    "provider_stream_error",
+    "budget_exceeded",
+    "stagnation_guard",
+    "run_finished",
+})
+
+
+def session_persist_required(event: dict[str, Any]) -> bool:
+    """May this trace event require a session conversation re-save?"""
+    return str(event.get("code") or "") in SESSION_PERSIST_TRACE_CODES
+
+
 def validate_status_transition(current: str, target: str) -> None:
     current = str(current or "")
     target = str(target or "")
@@ -367,6 +387,8 @@ __all__ = [
     "TASK_CANCELLED_ANSWER",
     "TASK_CANCELLED_ERROR",
     "RuntimeEvent",
+    "SESSION_PERSIST_TRACE_CODES",
+    "session_persist_required",
     "TASK_STATUSES",
     "TASK_UNSUCCESSFUL_STATUSES",
     "TERMINAL_TASK_STATUSES",

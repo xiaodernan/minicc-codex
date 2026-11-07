@@ -81,6 +81,7 @@ from .agent.protocol import (
     incomplete_answer,
     InvalidStatusTransition,
     MODEL_LAST_OUTPUT_MARKER,
+    session_persist_required,
     TASK_CANCELLED_ANSWER,
     validate_status_transition,
     VERIFICATION_GUARD_ERROR,
@@ -1811,14 +1812,7 @@ class AgentService:
             events.append(dict(event))
             if on_event is not None:
                 on_event(events[-1])
-            if event.get("code") in {
-                "tool_round_finished",
-                "verification_required_before_finish",
-                "provider_stream_error",
-                "budget_exceeded",
-                "stagnation_guard",
-                "run_finished",
-            }:
+            if session_persist_required(event):
                 store.save(messages)
 
         def emit_decision(name: str, decision: AuthorizationDecision) -> bool:
