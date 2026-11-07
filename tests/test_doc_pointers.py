@@ -1266,3 +1266,28 @@ def test_a_span_that_is_not_a_location_claim_is_never_asked_where_it_lives(monke
     problems, checked = module.check_evidence(_ROADMAP, text)
     assert checked == 1
     assert asked, "an evidence-shaped span was never even asked the line-number question"
+
+
+# --------------------------------------------------------------------------- #
+# M8-T560: the reader does not rebuild the suite's test-name map for every
+# document it checks (第五百二十六批 §7 第 4 位: the found-map was rebuilt
+# once per check_evidence call; a cited name is a fact a process cannot
+# make stale).
+# --------------------------------------------------------------------------- #
+
+def test_a_test_file_is_parsed_once_per_process() -> None:
+    module = _load("minicc_doc_pointers_definitions_cache")
+    target = REPO_ROOT / "tests" / "test_logging.py"
+    first = module._test_definitions(target)
+    second = module._test_definitions(target)
+    assert first is second, (
+        "the memoization of a test file's definitions is gone: a cited name is "
+        "a fact a process cannot make stale"
+    )
+
+
+def test_the_all_names_scan_is_answered_once_per_process() -> None:
+    module = _load("minicc_doc_pointers_names_cache")
+    first = module._all_test_names()
+    second = module._all_test_names()
+    assert first is second, "the suite's test-name map was rebuilt instead of answered from memory"

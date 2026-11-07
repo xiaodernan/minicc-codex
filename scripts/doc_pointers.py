@@ -1369,12 +1369,15 @@ def _test_definitions(path: Path) -> dict[str, int]:
     }
 
 
+@lru_cache(maxsize=1)
 def _all_test_names() -> dict[str, str]:
     """Every test function name under tracked ``tests/*.py``, mapped to its file.
 
     An untracked test module is excluded for the same reason an untracked source
     file is: citing a test that only exists on this machine is a citation that
-    resolves in neither a fresh clone nor CI.
+    resolves in neither a fresh clone nor CI.  Computed once per process: the
+    whole suite's AST was re-parsed for every document checked, and a cited
+    name is a fact a process cannot make stale.
     """
     found: dict[str, str] = {}
     for module in sorted((REPO_ROOT / "tests").glob("*.py")):
