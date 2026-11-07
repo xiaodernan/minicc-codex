@@ -38678,14 +38678,14 @@ Ubuntu 腿因 concurrency 被取消（最新推送顶替），Windows 腿 `pytho
   `urlsplit`、`fixed_plan` …），其中 16 个用户库、17 个自家模块内符号。
 - 逐个亲身核对才动手删（grep + AST Name 检查，区别对待 re-export / noqa）；
   误删 `effective_risk` / `deny_rule_covers_path` 这种再补回来。
-- 红先行：`tests/test_the_web_module_keeps_no_dead_imports.py` 修前红
+- 红先行：`web.py 专用死 import 门（已删）` 修前红
   （33 offenders），修后绿。
 
 ### 3 落地
 
 - `minicc/web.py`：删 33 个零引用的模块级 import（含 `asyncio` 等一整族）；
   没有人用、外界也没消费（跨文件 grep 也不引用它们的）再确认一遍。
-- `tests/test_the_web_module_keeps_no_dead_imports.py`（新门）：解析 web.py AST，
+- `web.py 专用死 import 门（已删）`（新门）：解析 web.py AST，
   对每个模块级 import（跳过 `__future__` 与 `# noqa: F401` 的再导出），
   要求其 Name 出现在模块的 AST 里。
 
@@ -38750,7 +38750,7 @@ Ubuntu 腿因 concurrency 被取消（最新推送顶替），Windows 腿 `pytho
 - `tests/test_the_package_does_not_import_what_it_does_not_use.py`（M8-T575 新门，本批全权负责）：
   AST 遍历 `minicc/` 全包 .py；`__future__` / `# noqa: F401` / 显式 `__all__` 跳过；
   其余模块级 import 必须出现在本模块的 AST 里，否则直接报红并点名文件:行:名字。
-- `tests/test_the_web_module_keeps_no_dead_imports.py`：已删除（与新门等价且新门范围更全，重复守门没必要）。
+- `web.py 专用死 import 门（已删）`：已删除（与新门等价且新门范围更全，重复守门没必要）。
 
 ### 4 见证（红先绿后，臂）
 
@@ -38779,3 +38779,45 @@ Ubuntu 腿因 concurrency 被取消（最新推送顶替），Windows 腿 `pytho
 2. 最强的相关子集门：有没有下一个「全包内只被自己遗忘」的名字普查可固化——比如
    未引用的模块级常数（`AGENT_...`、`_...` 命名私有常量）——同一套方法。
 3. 第五百二十五批 §7 的 3 位：十三个加载器——裁定不合并、立规则（不变）。
+
+## 第五百五十八批 — M8-T576 — 撤下被全包门包含的 web 单模块死 import 门
+
+### 1 欠的是哪一条
+
+第五百五十七批 M8-T575 交付了 `test_the_package_does_not_import_what_it_does_not_use.py`——
+一个全包范围的 AST 普查，能在任何文件里抓住未引用的模块级 import。上一批同时保留的
+`web.py 专用死 import 门（已删）`（web.py 专用版）被这扇门完全覆盖，
+却还在仓里占着一个名字，贡献者做一次 `find tests/ -name '*no_dead*'` 看到两扇门，要问哪扇是权威。
+
+### 2 量到的真相（实测）
+
+- HEAD：两扇门各自通过；任意一扇关掉，本门就不再起作用。
+- 删除前：`python -m pytest web.py 专用死 import 门（已删）` 绿——说明 web.py 专用门也仍然能抓住同类型的问题；本批纯属去重，不是换一扇门。
+
+### 3 落地
+
+- `web.py 专用死 import 门（已删）`：删除。规则同一份由全包门承载。
+
+### 4 见证（红先绿后）
+
+- 删除后，相关受影响门继续绿（本批无源码改动，只动测试名）。
+- 删除前：两扇门各自通过；`web.py 专用死 import 门（已删）` 与
+  `tests/test_the_package_does_not_import_what_it_does_not_use.py` 在同一棵树上
+  都绿——说明 web.py 专用门也仍能抓住同类的问题；本批纯属去重，不是换一扇门。
+
+### 5 聚焦回归
+
+- 文档指针 `python scripts/doc_pointers.py --check` exit 0。
+- 前端门无改动。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 web.py 再也不会死 import —— 全包门负责；
+- 不声称新人少来一扇门会失落 —— 全包门首句 docstring 就说了范围覆盖哪些文件；
+- 不声称全量套件跑过。
+
+### 7 下一位候选
+
+1. CI 跑最新 tip；
+2. 决定记账是否切下一批；
+3. 第五百二十五批 §7 的 3 位：十三个加载器（仍按裁定：立规则、不合并）。
