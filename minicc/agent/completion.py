@@ -252,6 +252,24 @@ def _review_content(prompt: str, vision_context: list[dict[str, Any]] | None) ->
     ]
 
 
+def is_citable_evidence_item(item: dict[str, Any]) -> bool:
+    """The one judgment of which execution-evidence item can certify a goal.
+
+    Consumed by the completion review (its events bucket) **and** by the
+    fake provider, which is the scripted judge the tests drive the loop
+    through - the fake must produce citations the real gate would accept,
+    or the wiring would be tested against a private copy of the rule.
+    The conversation and verification_results buckets answer to different
+    facts (the task's nature, what the verifier accepted), so they stay
+    with the callers; this predicate owns exactly the events-bucket one.
+    """
+    if item.get("write") or item.get("kind") == "verification" or item.get("status") == "error":
+        return True
+    if item.get("kind") == "trace":
+        return False
+    return bool(item.get("name")) and item.get("name") != "agent"
+
+
 async def judge_completion(
     provider: Any,
     *,
@@ -457,11 +475,7 @@ def _enforce_completion_evidence(
             return True
         if key == "conversation":
             return conversation_is_citable
-        if item.get("write") or item.get("kind") == "verification" or item.get("status") == "error":
-            return True
-        if item.get("kind") == "trace":
-            return False
-        return bool(item.get("name")) and item.get("name") != "agent"
+        return is_citable_evidence_item(item)
 
     packet_ids = {
         item["id"]
@@ -797,6 +811,7 @@ __all__ = [
     "CompletionDecision",
     "COMPLETION_REVIEW_SYSTEM",
     "build_completion_review_prompt",
+    "is_citable_evidence_item",
     "judge_completion",
     "parse_completion_decision",
 ]
