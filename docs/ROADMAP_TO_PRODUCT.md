@@ -39234,3 +39234,57 @@ home 早就有了，只是没人用——加一个字节的窗口调上调下，
 2. #5：客户端渲染缓存上限（180_000 / 24 / 1_200_000 / 2048 等）——`session-cache.js` 与 `state.js` 各自手抄同一组上限，`task-reducer.js` 的 2048 与 `state.js MAX_SEEN_EVENT_KEYS` 是同一事实，无共享家；
 3. #12：LLM protocol 三个名字在回退路径里被手抄（`("auto", "responses")`、`chat_completions` 字面量）——`test_the_switch_vocabularies_have_one_home.py` 扩语义或新门；
 4. 十三个加载器裁定不变。
+
+## 第五百六十七批 — M8-T585 — 事件保留上限与 session 视图大小上限各一个家
+
+### 1 欠的是哪一条
+
+前端两组「上限数字」被分散手抄，互不相识：
+
+- **2048**：`task-reducer.js` 的 `const LIMIT = 2048`（seenSequences/seenEventIds 去重集）+ `events.slice(-2048)`（时间线保留）；`state.js` 的 `MAX_SEEN_EVENT_KEYS = 2048`（panels 侧 seen 跟踪器）；`finalizedTaskIds = new BoundedSet(2048)`（已完成任务 id 的保留）。
+- **180_000**：`session-cache.js` 的 `MAX_ENTRY_CHARS`（localStorage 持久化上限）与 `state.js` 的 `MAX_SESSION_VIEW_CHARS = 180_000`（DOM 渲染截断上限）——同一 session 视图字符上限的两条线。
+
+### 2 量到的真相（实测）
+
+- 普查 web/src 全部 `.js`：上述 2048 出现 5 处（bound-cache 未建家前）、180_000 出现 2 处；无其它文件拼写。
+- `bounded-cache.js` 原是纯净叶模块（无 UI/storage import）；`task-reducer.js` 以「纯 reducer，不 import UI」为契约——它不能直接 import state.js（state.js 会碰 localStorage），所以 2048 的家必须是叶模块。
+- `finalizedTaskIds` 的 2048 是「已完成任务身份保留上限」，与事件身份去重/时间线保留不是同一事实——**刻意不并**，它是门里唯一允许裸拼的 2048。
+- 约束：`frontend_optimization_smoke.mjs` 曾以 base64 `data:` URL 内联 import `task-reducer.js`——它无法看到 reducer 新加的 `./bounded-cache.js` 相对 import。改为 `pathToFileURL(resolve(...))` 后恢复（import 机制本身比 data-URL 更正确）。
+  本批因此修了一个**自引入的测试**依赖问题：优化 smoke 红了两轮（先是 resolve 失败，然后 readFile 残留——已确认 readFile 仍在使用、依赖平衡）。
+
+### 3 落地
+
+- `web/src/core/bounded-cache.js`：新增 `export const MAX_SEEN_EVENT_KEYS = 2048;`（事件身份去重/时间线保留上限的唯一家）。
+- `web/src/core/task-reducer.js`：删本地 `LIMIT`；import 叶家，`boundedAdd` 与时间线 slice 都问家。
+- `web/src/core/session-cache.js`：`MAX_ENTRY_CHARS` → `export const MAX_SESSION_VIEW_CHARS = 180_000;`（同名改导出，语义同一：session 视图字符上限）。
+- `web/src/core/state.js`：删两处裸常数，改 `export { MAX_SEEN_EVENT_KEYS } from "./bounded-cache.js";` 与 `export { MAX_SESSION_VIEW_CHARS } from "./session-cache.js";`（re-export，既有 importer 不动）。
+- `tests/frontend_event_retention_one_home_smoke.mjs`（新门）：断言两处 home 定义、state.js 的 re-export 行、task-reducer 不许再拼 2048、全 src 裸 `2048`/`180000` 只有 home 与 finalizedTaskIds 豁免。
+- `package.json`：新增 `test:eventretention`；CI js-check job 增加 `node --check` + `npm run test:eventretention`。
+- `tests/frontend_optimization_smoke.mjs`：import 机制改 `file:` URL（见 §2）。
+- bundle 重建（`app.js`/`asset-manifest.json`/`web/assets/` 换新哈希）。
+
+### 4 见证（红先绿后）
+
+- 新门 `M8-T585 ok`（修后）；红臂（stash 四个 src 文件）→ 门红（"bounded-cache.js must own MAX_SEEN_EVENT_KEYS"）；pop → 绿。
+- 全量前端套件本地绿：test:eventretention / perm / sessionid / context / approval / todo / phase / trace / tracephase / i18n / effort / optimization / transport / lifecycle / scale（optimization 先红后绿，修复见 §2）。
+- `npm run check:web`：app.js + game.js up to date，assets clean（3 bundles）。
+- 批 566 的 tip（`43cf945`）Windows 腿在跑（run 42407295209）；本批不推。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量 pytest 套件（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 `MAX_ENTRIES = 24` 与 `BoundedMap(24)`（state.js sessionMarkup）是同一事实——一个管 localStorage 条目数、一个管内存渲染表，两处压力不同，不并；
+- 不声称 `MAX_TOTAL_CHARS = 1_200_000` 并入任何家——它是持久化总量预算，独立事实；
+- 不声称 `finalizedTaskIds` 的 2048 被统一——门里豁免它并点名；
+- 不声称 bundle 无变化——本批重建了 app.js 与 assets 哈希；
+- 不声称 CI 全绿：js-check/Windows 腿尚未见本批 tip 的结果；`ubuntu-latest` 仍零次被调度。
+
+### 7 下一位候选
+
+1. 等 run 42407295209（tip `43cf945`）Windows 腿跑完后，推批 567，再等一个完整周期；
+2. #12：LLM protocol 三个名字在回退路径被手抄（`("auto", "responses")`、`chat_completions` 字面量）——switch-vocabulary 门扩展或新门；
+3. #10：trace-detail key 词表（panels/index.js 两份 13/62 键清单）——前端面门；
+4. 十三个加载器裁定不变。
