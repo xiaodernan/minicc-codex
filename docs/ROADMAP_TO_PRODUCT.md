@@ -37729,3 +37729,54 @@ HEAD 前：被拒后最终错误仍是干净的 ``VERIFICATION_GUARD_ERROR``。M
 
 1. 第五百二十九批 §7 第 2 位未动：豁免被拒的理由只在 trace 知道，模型收不到。
 2. 第五百二十七批 §7 第 2 位的两条子集门：仍是「打印集合恰好不含 roadmap 才绿」.
+
+## 第五百三十六批 — M8-T554 — 会话持久化触发事件集只有一个家
+
+### 1 欠的是哪一刀
+
+一个事实——「哪些 trace code 之后，对话必须重新落盘才有意义」——此前只在 web 模块的
+``AgentService._chat_locked`` 事件闭包里拼了一份 code 集合。事实的本来家是事件词汇表
+（``minicc/agent/protocol.py``：``VERIFICATION_GUARD_ERROR``、``budget_exceeded_event`` 们
+都住这儿），web 手抄了一份；一个事实两个家，就是同族缺陷。
+
+### 2 量到的真相（实测）
+
+HEAD 前：``minicc/web.py`` 闭包里手抄六条 code（``tool_round_finished``、
+``verification_required_before_finish``、``provider_stream_error``、``budget_exceeded``、
+``stagnation_guard``、``run_finished``），协议层对此没有答案；本批封口门的 AST 普查在
+``minicc/web.py:1814`` 定位到这份集合。M8-T554 之后：六条 code 与判据
+（``session_persist_required(event)``）都在协议层，web 闭包只问一个家。
+
+### 3 落地
+
+- `minicc/agent/protocol.py`：新增 ``SESSION_PERSIST_TRACE_CODES`` 与
+  ``session_persist_required(event)``；两者都进 ``__all__``。
+- `minicc/web.py`：``on_trace`` 改为 ``session_persist_required(event)``；协议层
+  import 增加 ``session_persist_required``（web 不直接引用常量名）。
+
+### 4 见证（红先绿后，臂）
+
+- 新门 ``tests/test_the_session_persist_trace_codes_have_one_home.py``：行为钉
+  （六个 code 各答 True，``model_decision`` / ``tool_round_started`` / ``milestone`` / 空串
+  答 False）+ web 门问唯一家 + AST 普查（无模块在家外拼这份集合）。修前 3 红
+  （ImportError / web 未问家 / 普查命中 ``minicc/web.py:1814``）；修后 3 绿。行为变异
+  （predicate 改成永远 False）→ 行为钉红，恢复 → 绿。
+- 相关门文件集：``29 passed``（本批门 + budget_exceeded_event 一家门 +
+  phase_carrying_event_kinds 一家门 + failed_run_answer 一家门 + trace_event 一家门 +
+  task_unsuccessful_statuses 一家门）；sync chat / logging / waiver 相关门
+  ``36 passed``。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（本机高 CPU 不可靠，以两个远端 CI 腿为准）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称六条 code 够不够（集合内容一条没动，行为同前）；
+- 不声称 web 折叠面其他事件词汇也一家了；
+- 不声称全量套件本地全绿。
+
+### 7 下一位候
+
+1. 事件词汇普查：web/CLI/JS 各折叠面还藏着哪些手抄的 code 集合与判据，逐个收进唯一家。
+2. 第五百二十七批 §7 的 2 位两条子集门未动：仍是「打印集合恰好不超过 roadmap 才绿」。
