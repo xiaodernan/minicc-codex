@@ -139,6 +139,7 @@ jobs:
           node --check tests/frontend_context_window_one_home_smoke.mjs
           node --check tests/frontend_trace_detail_one_home_smoke.mjs
           node --check tests/frontend_inspector_tab_one_home_smoke.mjs
+          node --check tests/frontend_result_entry_caps_one_home_smoke.mjs
           node --check tests/frontend_event_retention_one_home_smoke.mjs
           npm run check:web
       - name: Install browser for focused UI contracts
@@ -155,6 +156,7 @@ jobs:
           npm run test:tracephase
           npm run test:tracedetail
           npm run test:inspector
+          npm run test:entrycaps
           npm run test:perm
           npm run test:sessionid
           npm run test:context
