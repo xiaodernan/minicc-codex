@@ -323,7 +323,9 @@ def describe_event(event: Mapping[str, Any] | None) -> str:
         f"phase={item.get('phase') or '-'}",
     ]
     if isinstance(detail, Mapping):
-        for key in ("turn", "attempt", "retry", "tool_count", "risk", "authorization"):
+        # Every member must actually be minted as a dict key somewhere in
+        # minicc/, or it is dead weight in the allowlist (a silent never-print).
+        for key in ("turn", "attempt", "retry", "tool_count"):
             if key in detail:
                 fields.append(f"{key}={detail.get(key)}")
     summary = str(item.get("summary") or item.get("observation") or "")
