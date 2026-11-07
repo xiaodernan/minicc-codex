@@ -38270,3 +38270,49 @@ HEAD：Python 有家（`REASONING_EFFORTS`），loop 这一份半家（五档缺
 2. 前端门并进 `test:phase` 一体化？不——分开 `test:*` 按批次可读。下一只
    「`t()` 永缺键断言 + 双语 smoke 按键合并计数维护」：非必要。
 3. 第五百二十五批 §7 的 3 位：十三个加载器——已裁定不合并。
+
+## 第五百四十七批 — M8-T565 — 前端不替后端判阶段：run_finished 的 phase 只回一个家
+
+### 1 欠的是哪一条
+
+`web/src/panels/index.js` 的 `toolEventHtml` 里写着 `event.code === "run_finished" ? "review" : event.phase` ——
+这条三元就是「run_finished → review」这件事的第二个家。后端（`minicc/agent/loop.py`）的
+`emit_trace("执行结束，待验收", phase="review", code="run_finished")` 永远发 review；
+前端抄了一份。它什么都不多做，但一旦后端改判（phase 交付 review 之外的给 stop 或 verify），
+JS 那一份会默默把用户看到的 phase 锁死在 review——彼此都以为自己对。
+
+### 2 量到的真相（实测）
+
+HEAD：全包里 `minicc/agent/loop.py` 发的 phase=\"review\" 是 run_finished 的唯一来源；JS 手抄一份同一个判词。
+红先行：新门暂存 `panels/index.js` 改动 → 红，精确命中 `panels/index.js:1673: "run_finished" ? "review"`；修后绿。
+
+### 3 落地
+
+- `web/src/panels/index.js`：删掉三元；`tracePhase` 直接取 `event.phase`；注释钉死「phase 是后端的答案」。
+- `tests/frontend_trace_phase_one_home_smoke.mjs`（新门）：遍历 `web/src`，
+  禁止任何模块出现「按事件 code 选 phase」的三元形状（`"x" ? "planning|tool|review|…"`）。
+- `package.json`：`test:tracephase`；`ci.yml` js-check 接进 `node --check` + `npm run test:tracephase`。
+- 重建产物：`web/app.js`、`asset-manifest.json` 与 `web/assets/` 下按内容哈希命名的新 bundle
+  （清单即真相；旧哈希文件在仓库里不留痕）。
+
+### 4 见证（红先绿后，臂）
+
+- 修前红（见 §2）；修后绿：`npm run test:tracephase` OK；`npm run check:web` clean；
+  `test:phase`/`test:trace`/`test:effort`/`test:i18n` 零影响。
+
+### 5 聚焦回归
+
+- 前端门全绿；未跑 Python 套件（本批零 Python 改动）；信任两个远端 CI 腿 + 受影响门。
+
+### 6 边界（本批**不**声称）
+
+- 不声称后端 phase 词表被改（未动）；不声称 JS 里其他按 code 分支（`model_update` 等）都属于同一类——
+  本门钉的是「判 phase」这一类；
+- 不声称全量套件本地全绿。
+
+### 7 下一位候选
+
+1. CI 双腿回来后确认转绿（539–547 各批等最新 run）。
+2. `panels/index.js` 里 `event.code === "model_update"` / `"model_update_history"` 这类按 code 的分支
+   是否也有同族第二份判词（下一批普查）。
+3. 第五百二十五批 §7 的 3 位：十三个加载器——已裁定不合并。
