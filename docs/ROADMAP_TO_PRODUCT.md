@@ -37936,3 +37936,56 @@ HEAD 前：``minicc/llm/fake.py`` 内联手抄了该判据（普查命中 ``fake
 1. 两个 CI 腿回来后确认转绿；若再扫出环境依赖型失败，按同一模式解耦。
 2. 证据词汇普查续：``"kind": "completion_judge"`` 这样的编排事件载荷是否也有同族拷贝。
 3. 第五百二十七批 §7 的 2 位两条子集门未动。
+
+## 第五百四十批 — M8-T558 — 两条「指望基线为空」的文档门，按豁免维度量基线
+
+### 1 欠的是哪一条
+
+第五百二十七批 §7 第 2 位点名的两条存量门：`tests/test_pointer_liveness_corpus.py` 里的
+`test_the_report_names_the_population_its_verdict_came_from`（断言 `extra[0] == 0 and extra[1] == []`）与
+`test_the_documented_command_still_passes_with_a_relative_document`（断言 `rc == 0`）。两条都指望
+「这一轮报告是空的」——在共享脏树上，别人通道未提交的改名让 roadmap 带上外来悬空行时，哪条门先红
+都不是因为它看见了自己要钉的事实，而是因为它指望基线为空。
+
+### 2 量到的真相（实测）
+
+- 子集跑（alien 文档 run）按检查器语义只打印：**EXEMPT 豁免行**（按「调用方递进的语料并集」判定）、
+  它自己引用带来的发现行（alien 没引用 ⇒ 无），以及分母行。roadmap 的外来 EVIDENCE/指针行不会进
+  alien run——子集门唯一真会漂移的维度是豁免表，这正是第五百二十四/二十五/二十七批盯的那件事。
+- 子进程跑（相对路径）：rc 应当随**报告本身**走，而不是指望 0。
+- 红臂：把 `main` 里的 `liveness_corpus = list(dict.fromkeys([*DEFAULT_DOCS, *documents]))`
+  临时改回 `list(dict.fromkeys(documents))`（「按调用方递进的子集回答」——第五百二十一/五百二十四批
+  修掉的那个形状）→ **两条门都红**：alien 门红（点名 14+ 行外来死行，rc 与豁免判定同时对不上）；
+  子进程门红（豁免判定与语料基线逐行不一致）。恢复 → 8 passed。
+
+### 3 落地
+
+`tests/test_pointer_liveness_corpus.py`：
+- alien 文档门：按 kind 分行——EXEMPT 行与「整个语料的 run」实测基线逐行比较（alien 一条引用都没给，
+  所以两个 run 的豁免判定必须逐字相同）；非 EXEMPT 行断言为零；rc 与报告对应。
+- 子进程门：子进程的 EXEMPT 行必须与同一并集语料的 in-process 基线逐字相同；rc 跟随报告
+  （`1 if 有发现 else 0`，不预设干净）；保留「不 Traceback / 分母行存在」两个 CLI 侧断言。
+
+### 4 见证（红先绿后，臂）
+
+- 修前：两条门在干净树上绿（基线刚好真的是空的），脏树上会红于别人的行——第五百二十七批 §2 已量到。
+- 修后：本机 `tests/test_pointer_liveness_corpus.py` 8 passed in 145.30s；加上 `tests/test_doc_pointers.py`：58 passed in 193.16s。
+- 红臂：见 §2，退回历史形状 → 两条门都红；恢复 → 8 passed。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（信任两个远端 CI 腿 + 受影响门）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称豁免表在脏树上的红被「修没」——脏树上别人通道的外来 EXEMPT 行仍会让这两条门红，它们红是职责；
+- 不声称这是给脏树披甲：alien run 比较的是豁免维度；EVIDENCE/指针/LINK 这些 roadmap 的外来行不属于
+  alien 这个子集的主题，本批不把它们声称成「看见过」；
+- 不声称全量套件本地全绿。
+
+### 7 下一位候选
+
+1. 两个 CI 腿回来后确认转绿（含 M8-T555 环境解耦、M8-T556 前端标签、M8-T557 citable 判据、本批两条文档门）。
+2. 第五百二十七批 §7 的 1 位未动：臂架的判据只看 rc（臂架在 scratch 里，不在仓里）。
+3. 第五百二十六批 §7 的 3 位：`check_evidence` 在判形状之前问行号——未动。
+4. 第五百二十五批 §7 的 3 位：十三个加载器收成一个家——未动。
