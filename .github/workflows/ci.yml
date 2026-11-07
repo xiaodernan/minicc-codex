@@ -120,6 +120,7 @@ jobs:
           node --check tests/zombie_spawn_smoke.mjs
           node --check tests/frontend_phase_classes_smoke.mjs
           node --check tests/frontend_phase_one_home_smoke.mjs
+          node --check tests/frontend_trace_code_one_home_smoke.mjs
           npm run check:web
       - name: Install browser for focused UI contracts
         run: npx playwright install chromium --with-deps
@@ -129,6 +130,7 @@ jobs:
           npm run test:transport
           npm run test:lifecycle
           npm run test:phase
+          npm run test:trace
           npm run test:scale
 
   web-smoke:
