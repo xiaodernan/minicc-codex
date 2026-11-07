@@ -39484,3 +39484,51 @@ home 早就有了，只是没人用——加一个字节的窗口调上调下，
 1. 等 tip `e543fcf`（批 567–568）Windows 腿跑完 → 推批 569/570/571 → 再等一个完整周期；
 2. #6 的遗留面已全部收完（批 563+566）；
 3. 十三个加载器裁定不变。
+
+## 第五百七十二批 — M8-T590 — readonly/write/exec 三级风险只有一个家
+
+### 1 欠的是哪一条
+
+「工具声明的风险有哪三级」——`RISK_LEVELS = ("readonly", "write", "exec")`（`minicc/tools/registry.py`）
+有家；但围着它还有 hand-copy：`RISK_ORDER`（同文件的风险序 dict）、`subagent.py` 的
+`SUBAGENT_TOOL_TIERS`（tier→工具集 dict）与 `mode_note`（tier→中文说明 dict，`{...}[self.tier]` 订阅）、
+`planner.py` 的 `PLANNER_KINDS`/`PLANNER_KIND_TOOLS`（刻意的**超集**，readonly/write/exec + review + merge——另一个词表，不是复制）。
+任何一个家新增/改名三级中的某级，这些 dict 只会以运行时 KeyError 报警，或从不报警。
+
+### 2 量到的真相（实测）
+
+- AST 普查（含嵌套/AnnAssign/`{...}[x]` 订阅解包）：携带恰好 {readonly, write, exec} 的容器共 4 处——`registry.py` 的 `RISK_LEVELS`（家）、`RISK_ORDER`、`subagent.py` 的 `SUBAGENT_TOOL_TIERS`（:78）、`mode_note`（:466）；`planner.py` 两处是五成员超集，豁免。
+- `AUTHORIZATION_RISKS`（家，派生自 RISK_LEVELS − readonly）、`RISK_ORDER` 的序、`SUBAGENT_TOOL_TIERS` 的键集——全部与家一致（本批注入反证两次，见 §4）。
+- `test_the_mirror_maps_are_keyed_by_their_homes.py` 的同款子集纪律在此不适用——三级三本 dict 都必须等于家，不是子集。
+
+### 3 落地
+
+- `tests/test_the_risk_tiers_have_one_home.py`（新门，4 条）：
+  1. 家本身是三级且序为 readonly→write→exec；`RISK_ORDER` 键集与序、`AUTHORIZATION_RISKS` 恰等于家除 readonly；
+  2. `SUBAGENT_TOOL_TIERS` 键集 == 家；
+  3. `PLANNER_KINDS == {readonly, write, exec, review, merge}` 且 `PLANNER_KIND_TOOLS` 键集 == `PLANNER_KINDS`（超集被钉住，日后漂移可见）；
+  4. `minicc/` 下任何携带恰好三级的容器必须在四个列举位点之一，否则红——新手抄不许静默加入。
+  AST 扫描器覆盖嵌套作用域、`AnnAssign`（`RISK_ORDER: dict[str, int] = ...`）和 `{...}[self.tier]` 订阅解包——本批第一版门就栽在这三点上，逐一补齐。
+
+### 4 见证（红先绿后，注入红臂×2）
+
+- 注入一（改家侧）：`SUBAGENT_TOOL_TIERS` 删掉 `"exec"` 成员 → 门红，点名「Extra items in the right set: 'exec'」；`git checkout -- minicc/agent/subagent.py` 恢复。
+- 注入二（新增手抄）：临时 `一个临时 probe 模块（已删）`（`TIER_MAP = {"readonly": 1, "write": 2, "exec": 3}`）→ 门红，点名 `一个临时 probe 模块（已删）:1: TIER_MAP`；删除后绿。
+- 门自身绿臂：4 passed。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 `planner.py` 的五成员词表与三级词表「统一」——它确实更大，门只钉它没有丢掉三级成员；
+- 不声称 mode_note 的中文文案被统一——门只钉它的键集仍是三级；
+- 不声称 `CAPABILITY_MIN_RISK` 的**值**受家约束（它是能力→下限风险，另一事实）；
+- 不声称 CI 全绿：批 569/570/571/572 尚未推送（等当前 Windows 腿跑完）。
+
+### 7 下一位候选
+
+1. 等 tip `e543fcf`（批 567–568）Windows 腿跑完 → 推批 569/570/571/572 → 再等一个完整周期；
+2. 普查剩余项（#8 game.js 19 个 plant/zombie key、#14 的 1024/64 上限跨语言）——强度一般，除非出现新证据不做；
+3. 十三个加载器裁定不变。
