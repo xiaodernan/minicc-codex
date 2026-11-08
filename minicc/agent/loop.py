@@ -51,6 +51,8 @@ from ..audit import (
 )
 from ..tools.schemas import (
     TOOL_STATUS_OK,
+    TOOL_STATUS_DENIED,
+    TOOL_STATUS_ERROR,
     CODE_DENIED,
     CODE_DUPLICATE_TOOL_CALL,
     CODE_HOOK_DENIED,
@@ -1484,7 +1486,7 @@ async def run_agent(
                     on_tool(tc, tool_result)
                 if (
                     hooks_enabled
-                    and tool_result.status != "denied"
+                    and tool_result.status != TOOL_STATUS_DENIED
                     and not (tool_result.data or {}).get("duplicate")
                     and not (tool_result.data or {}).get("cached")
                 ):
@@ -1534,7 +1536,7 @@ async def run_agent(
                     search_call.tool, registry.capabilities_of(search_call.tool)
                 ):
                     continue
-                if search_result.status == "error":
+                if search_result.status == TOOL_STATUS_ERROR:
                     search_failures += 1
                     if search_failures == SEARCH_FAILURE_LIMIT:
                         emit_trace(

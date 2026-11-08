@@ -14,7 +14,7 @@ from typing import Any, Callable
 from copy import deepcopy
 
 from ..tools.bash import run_bash
-from ..tools.schemas import TOOL_STATUS_OK, ToolResult
+from ..tools.schemas import TOOL_STATUS_CANCELLED, TOOL_STATUS_OK, TOOL_STATUS_TIMED_OUT, ToolResult
 from ..tools.registry import redact_text
 from ..trace import trace_event  # the one home for the event record
 from .verification_plan import VerificationCommand, VerificationPlan, build_verification_plan, safe_verification_command, verification_state
@@ -253,9 +253,9 @@ class Verifier:
         # output, fix it and run it again".  The model was then sent to
         # repair a command that had not failed at all, and the repair loop
         # kept re-running it until the cap.
-        if tool_result.status == "cancelled":
+        if tool_result.status == TOOL_STATUS_CANCELLED:
             status = "cancelled"
-        elif tool_result.status == "timed_out":
+        elif tool_result.status == TOOL_STATUS_TIMED_OUT:
             status = "timed_out"
         elif tool_result.status == TOOL_STATUS_OK and tool_result.exit_code in (None, 0):
             status = "passed"
