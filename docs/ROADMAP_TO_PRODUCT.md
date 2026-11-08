@@ -41800,3 +41800,38 @@ hook 事件身份 `PreToolUse`/`PostToolUse`/`UserPromptSubmit`/`Stop` 由 `mini
 1. 监控 42482986858；全绿后按顺序推送 620–623（及后续本地提交），legs 进行中不推送；若失败先红→绿+账本再推。
 2. 继续搜“同一事实两处归属”：`task_contract`/`task_execution` 的 `cancelled` payload **字段名**若作为独立契约事实建立一处归属（与 `TASK_STATUS_*`/`BUDGET_EXCEEDED_FIELD` 类似的字段名常量模式），需排除 status 值域。
 3. 十一实验面保持冻结；`main` 合并继续冻结。
+## 批次 624 — M8-T642：task result `cancelled` payload 字段名有一处归属（task_contract↔task_execution）
+
+### 1 是否真是同一事实
+
+`minicc.task_contract.TaskResult`（`from_payload`/`to_payload`/metadata 排除）与 `minicc.task_execution` 产出的任务结果 payload 使用 `"cancelled"` 作为同一 **契约字段名**。该事实**不同于** `TASK_STATUS_CANCELLED`（状态值）。跨模块同名字符串代表同一 payload 字段契约，适合一处归属。
+
+### 2 命中点（实测，范围 `task_contract.py`、`task_execution.py`）
+
+- `task_contract.py`：`payload.get("cancelled")`、metadata 排除集合中的 `"cancelled"`、`to_payload` 输出键 `"cancelled"`（3 处）+ 常量定义。
+- `task_execution.py`：结果 payload 键 `"cancelled"`（1 处；其值侧已在 M8-T637 归属 `TASK_STATUS_*`）。
+
+### 3 改动
+
+- `minicc/task_contract.py`：新增 `RESULT_FIELD_CANCELLED = "cancelled"`（M8-T642，字段名事实，一处归属），替换契约读/写/排除中的裸字面量。
+- `minicc/task_execution.py`：导入并使用 `RESULT_FIELD_CANCELLED` 作为 payload 键（值仍为 `TASK_STATUS_CANCELLED` 比较结果）。
+- `tests/test_task_result_cancelled_field_has_one_home.py`（新）：home 常量 + 范围内裸 `"cancelled"` Constant 扫描（仅允许 `RESULT_FIELD_CANCELLED` 定义）；与 M8-T637 的 task_execution 状态值门禁互补（语义/关注点不同）。
+
+### 4 验证（命令与输出要点）
+
+- `pytest tests/test_task_result_cancelled_field_has_one_home.py tests/test_task_status_literals_in_task_execution_have_one_home.py -q` 3 passed。
+
+### 5 聚焦回归
+
+- 上述 3 项 + `tests/test_task_contract.py`、`tests/test_batch_wiring.py`、`tests/test_task_durability.py` 共 41 passed。未跑全量基准回归/CI 双端。
+
+### 6 边界（哪些**未**触碰）
+
+- 仅 `task_contract`/`task_execution` 的结果 `cancelled` **字段名**；不触碰 `TASK_STATUS_CANCELLED`、task_manager/web/worker/main/benchmarks 中同名字段的读写（多为同契约但触点分散且与 status/payload 域交错，需后续分批、可门禁时再收口）；不触碰 `cancelled` bool 变量名/参数名。
+- 未推送：CI 42482986858（tip `576b93e`）in_progress，legs 进行中不推送；620–624 本地待该 run 全绿后按纪律推送。
+
+### 7 下一位候选
+
+1. 监控 42482986858；全绿后按顺序推送 620–624（及后续本地提交），legs 进行中不推送；若失败先红→绿+账本再推。
+2. 继续搜“同一事实两处归属”：`RESULT_FIELD_CANCELLED` 在 `task_manager`/`web`/`task_worker`/`main` 的 task-result payload 读写是否可分批收口（需严格排除 status 值与 IPC/非 task-result 语境）；或其他 task result 字段名（`answer`/`error`/`tokens_used`）的跨模块契约归属。
+3. 十一实验面保持冻结；`main` 合并继续冻结。

@@ -6,6 +6,10 @@ permissions or drop inputs when moving a task between executors.
 
 from __future__ import annotations
 
+# M8-T642: task result contract field name (cross-module payload fact).
+# Distinct from TASK_STATUS_CANCELLED (status value).
+RESULT_FIELD_CANCELLED = "cancelled"
+
 from dataclasses import asdict, dataclass, field
 from typing import Any, Mapping
 
@@ -128,7 +132,7 @@ class TaskResult:
         return cls(
             answer=str(payload.get("answer") or ""),
             error=str(payload.get("error") or ""),
-            cancelled=bool(payload.get("cancelled")),
+            cancelled=bool(payload.get(RESULT_FIELD_CANCELLED)),
             tokens_used=dict(usage) if isinstance(usage, dict) else {},
             metadata={
                 key: value
@@ -136,9 +140,9 @@ class TaskResult:
                 # ``children_rolled_up`` is host billing bookkeeping: a
                 # produced payload must not be able to claim the subtree was
                 # already folded and so skip the fold.
-                if key not in {"answer", "error", "cancelled", "tokens_used", "children_rolled_up"}
+                if key not in {"answer", "error", RESULT_FIELD_CANCELLED, "tokens_used", "children_rolled_up"}
             },
         )
 
     def to_payload(self) -> dict[str, Any]:
-        return {**self.metadata, "answer": self.answer, "error": self.error, "cancelled": self.cancelled, "tokens_used": dict(self.tokens_used)}
+        return {**self.metadata, "answer": self.answer, "error": self.error, RESULT_FIELD_CANCELLED: self.cancelled, "tokens_used": dict(self.tokens_used)}

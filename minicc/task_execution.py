@@ -7,7 +7,7 @@ from typing import Any
 
 from .agent.protocol import TASK_STATUS_CANCELLED, TASK_STATUS_INTERRUPTED
 from .task_store import TaskStore
-from .task_contract import TaskResult
+from .task_contract import RESULT_FIELD_CANCELLED, TaskResult
 
 # M8-T391: the worker-metadata fields a snapshot carries across the
 # process boundary.  The mirror below copies them out of the snapshot and
@@ -93,7 +93,7 @@ class WorkerSnapshotMirror:
             **result,
             "answer": str(result.get("answer") or snapshot.get("stream_text") or ""),
             "error": str(snapshot.get("error") or result.get("error") or ("worker task was interrupted" if snapshot.get("status") == TASK_STATUS_INTERRUPTED else "")),
-            "cancelled": snapshot.get("status") == TASK_STATUS_CANCELLED,
+            RESULT_FIELD_CANCELLED: snapshot.get("status") == TASK_STATUS_CANCELLED,
             "tokens_used": dict(snapshot.get("usage") or snapshot.get("tokens_used") or {}),
         }).to_payload()
         # The fold flag is host-owned bookkeeping, so it travels from the
