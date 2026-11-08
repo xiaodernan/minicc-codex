@@ -41255,3 +41255,41 @@ CLI（`minicc/main.py`）与 Web 运行时（`minicc/web.py`）在记录阶段�
 1. 监控 42475362988；全绿后按顺序推送本地已提交批次（604–608）并遵守 legs-in-progress 不推送纪律；若失败则先红→绿修复并记账。
 2. 继续搜“同一事实两处归属”（可门禁、非 lookalike）：`hook_denied`/`always_denied`/`capability_unavailable` 等若作为同一授权码事实跨模块出现则归属；或 `budget_exceeded` dict-key 事实需先判定是否与 trace code 同事实（避免 lookalike 合并）。
 3. 十一实验面保持冻结；`main` 合并继续冻结（并发 worktree 冲突会话）。
+## 批次 609 — M8-T627：修复 CI 42475362988 两项门禁回归（601/603 声明形态兼容），不改语义
+
+### 1 是否真是同一事实
+
+本批不是新增“同一事实两处归属”收敛，而是修复已推送 601/603 引入的门禁兼容回归，恢复既有“单一归属/声明唯一”门禁对同一事实的判定：
+- 601 将 `minicc.audit.PERMISSION_MODES` 改为由常量元素组成的 frozenset，导致 `tests/test_the_switch_vocabularies_have_one_home.py::test_the_home_itself_declares_each_vocabulary_exactly_once` 无法识别其字面量声明（CI 双端 0 hits）。
+- 603 在 `minicc.agent.protocol` 新增 `TASK_KINDS`，但 `tests/test_the_task_kinds_have_one_home.py` 仅通过属性访问引用，`tests/test_the_package_does_not_define_what_the_repo_never_uses.py` 将其判为仓库无引用。
+
+### 2 命中点（实测，CI 日志）
+
+- `minicc/audit.py`（601 后形态）：`PERMISSION_MODES = frozenset({PERMISSION_MODE_DEFAULT, ...})`，switch-vocab 门禁按 `ast.Constant` 元素匹配，计数为 0。
+- `minicc/agent/protocol.py:36`：`TASK_KINDS` 定义存在；`tests/test_the_task_kinds_have_one_home.py` 使用 `p.TASK_KINDS`（属性访问）未被“never uses”扫描器计为名称/字符串引用。
+
+### 3 改动（行为保持）
+
+- `minicc/audit.py`：`PERMISSION_MODES` 恢复为 `frozenset({"default","plan","acceptEdits","yolo"})` 的字面量声明形态（switch-vocab/前端 smoke 兼容）；保留 `PERMISSION_MODE_*` 单值常量（601 契约）不变；`PERMISSION_MODES` 成员值与常量集合仍相等。
+- `tests/test_the_task_kinds_have_one_home.py`：改为 `from minicc.agent.protocol import ... TASK_KINDS` 并以名称引用断言，使 `TASK_KINDS` 对“never uses”扫描器可见；断言语义不变。
+
+### 4 验证（命令与输出要点）
+
+- CI 失败（42475362988，tip 1d56505，含 601–603）：Ubuntu/Windows 双端 `test_the_package_does_not_define_what_the_repo_never_uses.py::test_no_constant_is_defined_without_any_repository_reference`（`TASK_KINDS`）与 `test_the_switch_vocabularies_have_one_home.py::test_the_home_itself_declares_each_vocabulary_exactly_once`（`PERMISSION_MODES` 0 times）失败；其余 4309 passed/4 skipped（Ubuntu 汇总）。
+- 本地绿：`pytest tests/test_the_switch_vocabularies_have_one_home.py tests/test_the_package_does_not_define_what_the_repo_never_uses.py tests/test_the_task_kinds_have_one_home.py tests/test_the_permission_mode_names_have_one_home.py -q` → 10 passed；`node --test tests/frontend_permission_mode_one_home_smoke.mjs` → 1 passed；`pytest tests/test_the_authorization_decision_codes_have_one_home.py tests/test_the_missing_task_authorization_codes_have_one_home.py tests/test_the_permission_rule_authorization_codes_have_one_home.py tests/test_permissions_pure.py -q` → 29 passed。
+
+### 5 聚焦回归
+
+- 见第 4 节（合计 40 项 Python + 1 项 Node smoke）。未跑全量基准回归/本地 CI 双端全量。
+
+### 6 边界（哪些**未**触碰）
+
+- 不改变权限模式/任务 kind/授权码语义；不删除 `PERMISSION_MODE_*` 或 `TASK_KINDS`；不修改 switch-vocab/never-uses/frontend smoke 门禁逻辑（仅使生产/测试形态满足既有契约）。
+- 604–608 本地已提交变更保持不变（仅在当前 `audit.py` 形态上做最小兼容调整）。
+- 推送纪律：42475362988 已完成且失败；本批修复后可推送 604–609 以修复 pushed 侧失败。推送后新 run legs 进行中不再推送。
+
+### 7 下一位候选
+
+1. 推送 604–609（含本修复）到 `origin/m8-t537`；监控新 CI run，全绿前不再推送，若失败则先红→绿修复并记账。
+2. 继续搜“同一事实两处归属”（可门禁、非 lookalike）：优先排查 trace/event/载荷字段名与既有 home 的脱节点（如 `budget_exceeded` dict-key 事实需先判定域）；避免与 trace code/不同状态域 lookalike 合并。
+3. 十一实验面保持冻结；`main` 合并继续冻结（并发 worktree 冲突会话）。
