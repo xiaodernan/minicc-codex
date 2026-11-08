@@ -17,6 +17,8 @@ from pathlib import Path
 from typing import Any
 
 from .gitprobe import (
+    WORK_TREE_VERDICT_NO,
+    WORK_TREE_VERDICT_UNKNOWN,
     git_status_exit_reason,
     git_status_timeout_reason,
     git_status_unavailable_reason,
@@ -172,10 +174,10 @@ class ChangeInspector:
         if reason is not None:
             return reason
         kind, detail = work_tree_verdict(self.workspace)
-        if kind == "no":
+        if kind == WORK_TREE_VERDICT_NO:
             return None
         failure = git_status_exit_reason(code, stderr)
-        if kind == "unknown":
+        if kind == WORK_TREE_VERDICT_UNKNOWN:
             failure += f"（且无法确认这是不是仓库：{detail}）"
         return failure
 

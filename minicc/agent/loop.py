@@ -69,6 +69,8 @@ from ..tools.schemas import (
 )
 from ..tools.registry import ToolRegistry, redact_text
 from ..gitprobe import (
+    WORK_TREE_VERDICT_NO,
+    WORK_TREE_VERDICT_UNKNOWN,
     git_status_exit_reason,
     git_status_timeout_reason,
     git_status_unavailable_reason,
@@ -546,10 +548,10 @@ def _git_changed_paths(workspace: str | Path | None) -> tuple[list[str], str | N
         return [], git_status_unavailable_reason(exc)
     if result.returncode != 0:
         kind, detail = work_tree_verdict(workspace)
-        if kind == "no":
+        if kind == WORK_TREE_VERDICT_NO:
             return [], None
         reason = git_status_exit_reason(result.returncode, result.stderr or "")
-        if kind == "unknown":
+        if kind == WORK_TREE_VERDICT_UNKNOWN:
             reason += f"（且无法确认这是不是仓库：{detail}）"
         return [], reason
     changed: list[str] = []

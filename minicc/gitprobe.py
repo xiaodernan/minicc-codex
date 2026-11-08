@@ -20,6 +20,11 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
+# M8-T628: work-tree verdict kind vocabulary (one home).
+WORK_TREE_VERDICT_YES = "yes"
+WORK_TREE_VERDICT_NO = "no"
+WORK_TREE_VERDICT_UNKNOWN = "unknown"
+
 
 def work_tree_verdict(workspace: str | Path) -> tuple[str, str]:
     """One of ``("yes", "")``, ``("no", "")``, ``("unknown", why)``.
@@ -41,13 +46,13 @@ def work_tree_verdict(workspace: str | Path) -> tuple[str, str]:
             timeout=10,
         )
     except (OSError, subprocess.SubprocessError) as exc:
-        return "unknown", f"rev-parse 无法运行: {exc}"
+        return WORK_TREE_VERDICT_UNKNOWN, f"rev-parse 无法运行: {exc}"
     if probe.returncode == 0:
-        return ("yes" if probe.stdout.strip() == "true" else "no"), ""
+        return (WORK_TREE_VERDICT_YES if probe.stdout.strip() == "true" else WORK_TREE_VERDICT_NO), ""
     stderr = (probe.stderr or "").strip()
     if "not a git repository" in stderr:
-        return "no", ""
-    return "unknown", (stderr.splitlines()[0][:200] if stderr else f"退出码 {probe.returncode}")
+        return WORK_TREE_VERDICT_NO, ""
+    return WORK_TREE_VERDICT_UNKNOWN, (stderr.splitlines()[0][:200] if stderr else f"退出码 {probe.returncode}")
 
 
 def git_status_unavailable_reason(
