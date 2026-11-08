@@ -42515,3 +42515,28 @@ dev/minicc-reliability-4ba3 的 M8-T551-M8-T557 把 mention 的 `<file path="…
 
 - 未对 `task_manager` 其余裸 `proto.*` 字面量做扫描（那些多数是 `result.transition_status(target)` 以及 `transition_status(TASK_STATUS_*)` 已是常量）；phase 与 status 仍按 domain 分离（`PHASE_*` vs `TASK_STATUS_*`）；`validate_status_transition` 依赖 `TASK_STATUSES` 交集行为不变；不改参数名/状态机/序列化行为。
 - CI 42521223901（d537e0c）`in_progress`，legs 进行中**不推送**；本批次本地累积，等 CI 双端全绿后按纪律推送。
+
+## 批次 647 — M8-T665：reconnect 路径 `task.status = "running"` 改用 `TASK_STATUS_RUNNING`
+
+### 1 是否真是同一事实
+
+`minicc.task_manager` 的 "reconnect" 段（`has_live_worker` 为真时把任务挂回运行态）
+直接写字符串字面量 `"running"`，与 `minicc.agent.protocol.TASK_STATUS_RUNNING`
+（协议状态常量家的唯一成员之一）是同一任务状态事实。`PHASE_*` 与 `TASK_STATUS_*`
+分域，本次只动 status。
+
+### 2 改动
+
+- `minicc/task_manager.py`：`task.status = "running"` → `task.status = TASK_STATUS_RUNNING`（`TASK_STATUS_RUNNING` 已由 M8-T664 引入的导入覆盖）。
+- 未跟踪任务执行器的 fence/lease 逻辑不动；`MISSING TASK_STATUS_*` 之外不新增常量。
+
+### 3 验证
+
+- `..\minicc-codex\.venv\Scripts\python.exe -m pytest tests/test_task_durability.py tests/test_task_manager_phase_literals_have_one_home.py -q` → **11 passed**。
+- `python scripts/doc_pointers.py --check` 通过。
+
+### 4 边界
+
+- 不触及 `task_contract`/`RESULT_FIELD_CANCELLED` 的 `"cancelled"` 字面量接缝（`_orchestration_result`/`_cancelled_result` 的两处 dict key），留待下一批。
+- 不触及 cancel-file 的 `"cancelled"` IPC 文本（两处 `cancel_file.write_text("cancelled")`）——那是跨进程协议字面量，不是 result-contract 字段。
+- CI 42526318333（`44db5be`）为 docs-only 提交，**不受本提交影响**；本批随 `m8-t537` 推送时由其 CI 复核。
