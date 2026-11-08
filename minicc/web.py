@@ -155,7 +155,7 @@ from .worktree import WorktreeError, WorktreeManager
 from .webserver import MiniccHTTPServer, MiniccRequestHandler  # noqa: F401 - re-export
 from .workspaces import WorkspaceCatalog, resolve_workspace_path
 
-from .task_contract import WEB_SESSION_ID
+from .task_contract import RESULT_FIELD_CANCELLED, WEB_SESSION_ID
 from .task_manager import (  # noqa: F401 - re-export for tests and AgentService
     ACTIVE_TASK_STATUSES,
     CHANGE_INTENT_MARKERS,

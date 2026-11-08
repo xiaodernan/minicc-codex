@@ -41969,3 +41969,40 @@ hook 事件身份 `PreToolUse`/`PostToolUse`/`UserPromptSubmit`/`Stop` 由 `mini
 1. 监控 42485072840；全绿后按顺序推送 626–628（及后续本地提交），legs 进行中不推送；若失败先红→绿+账本再推。
 2. 继续搜“同一事实两处归属”：task-result payload 的 `answer`/`error`/`tokens_used` 字段名若跨 `task_contract`/`task_execution`/`task_manager`/`web`/worker 同域；或 cancel-file IPC marker `"cancelled"` 的 writer/reader 契约归属（与 payload 字段分域）。
 3. 十一实验面保持冻结；`main` 合并继续冻结。
+## 批次 629 — M8-T647：task result `tokens_used` payload 字段名有一处归属，并修复 627/629 引入的 import 回归
+
+### 1 是否真是同一事实
+
+`minicc.task_contract` 与 `minicc.task_execution` 在任务结果 payload 中读/写的 `tokens_used` 字段名是同一契约事实。Python 属性名 `self.tokens_used`/变量名不是字符串字面量归属问题。
+
+### 2 命中点（实测）
+
+- `task_contract.py`：`payload.get("tokens_used")`、metadata 排除集合、`to_payload` 输出键。
+- `task_execution.py`：输出 payload 键、兼容读取 `snapshot.get("usage") or snapshot.get("tokens_used")`（第二处初漏改，门禁红臂捕获后补齐）。
+
+### 3 改动
+
+- `minicc/task_contract.py`：新增 `RESULT_FIELD_TOKENS_USED = "tokens_used"`（M8-T647），替换契约字段名字面量。
+- `minicc/task_execution.py`：导入并使用 `RESULT_FIELD_TOKENS_USED`（输出键与兼容读取）。
+- `minicc/web.py`：**回归修复**——627 将运行结果 payload 键改为 `RESULT_FIELD_CANCELLED` 但 `task_contract` 导入仅有 `WEB_SESSION_ID`、缺少 `RESULT_FIELD_CANCELLED`，导致 `NameError`（`test_batch_wiring` 3 条失败复现）；补充 `from .task_contract import RESULT_FIELD_CANCELLED, WEB_SESSION_ID`。此为 627 的提交缺陷修复，语义与 627 意图一致。
+- `tests/test_task_result_tokens_used_field_has_one_home.py`（新）：home 常量 + scoped 裸字面量门禁（允许定义赋值）。
+
+### 4 验证（命令与输出要点）
+
+- 红臂：`test_task_result_tokens_used_field_has_one_home` 失败于 `task_execution.py:65 snapshot.get("tokens_used")`；补齐后 2 passed。
+- 回归修复验证：`test_batch_wiring` 3 条（merge/metrics/folded number）由 `NameError: RESULT_FIELD_CANCELLED` 失败恢复为 3 passed。
+
+### 5 聚焦回归
+
+- `tests/test_task_result_tokens_used_field_has_one_home.py`、`tests/test_task_result_cancelled_field_has_one_home.py`、`tests/test_task_status_literals_in_task_execution_have_one_home.py`、`tests/test_batch_wiring.py`（定向 3 条 + 同批次语境下通过的前置项按需）/contract/execution 相关聚焦测试通过（见提交时记录）。未跑全量基准回归/CI 双端。
+
+### 6 边界（哪些**未**触碰）
+
+- 仅 `task_contract`/`task_execution` 的 `tokens_used` payload 字段名与 web 627 import 修复；不触碰 `usage`、snapshot `usage` 键、LLM usage dict、其他模块 `tokens_used`。
+- 未推送：CI 42485072840（tip `dda195d`）in_progress 时 626–629 本地待推送；该 run 全绿后按纪律推送，legs 进行中不推送（注意 627 已在本地提交但含 import 缺陷，629 一并修复后再推送）。
+
+### 7 下一位候选
+
+1. 监控 42485072840；全绿后按顺序推送 626–629，legs 进行中不推送；若失败先红→绿+账本再推。**推送内容包含 627 的 import 修复（629）**。
+2. 继续搜“同一事实两处归属”：`answer`/`error` payload 字段名在 `task_contract`+`task_execution` 的小范围归属；或 `RESULT_FIELD_TOKENS_USED` 的 worker/web/manager 同域分批扩展。
+3. 十一实验面保持冻结；`main` 合并继续冻结。
