@@ -41590,3 +41590,73 @@ hook 事件身份 `PreToolUse`/`PostToolUse`/`UserPromptSubmit`/`Stop` 由 `mini
 1. 监控 42481274789；全绿则当前本地仅 617 待后续按纪律推送；若失败先红→绿+账本再推，legs 进行中不推送。
 2. 继续搜“同一事实两处归属”：phase 字面量 `"planning"` 在 `agent/loop.py` 默认、`task_manager.set_phase`/快照恢复、`web.py` budget_exceeded_event stage 实参与 `PHASE_PLANNING` 同事实重复（需核对签名/序列化语义后再门禁）；或 `on_failure` 的 `continue` 策略值若跨模块成为同事实（当前仅 hooks.py）。
 3. 十一实验面保持冻结；`main` 合并继续冻结。
+## 批次 618 — M8-T636：运行时 phase 字面量（`planning`/作用域内 `merging`）在 loop/task_manager 归属 protocol（stage 标签分域）
+
+### 1 是否真是同一事实
+
+`minicc.agent.loop` 的默认 phase、`minicc.task_manager` 的 `set_phase`/快照恢复/合并阶段判断中使用的 `"planning"`/`"merging"`，与 `minicc.agent.protocol` 的 `PHASE_PLANNING`/`PHASE_MERGING` 是同一运行时 phase 事实。`minicc.web` 中预算/路由/代价估算使用的 `"planning"` 等是 **stage 标签事实**（与 `budget_exceeded_event(stage=..., phase=PHASE_PLANNING)` 的 `stage` 参数同域，但不同于 phase 常量归属的调用点），明确分域、不触碰。
+
+### 2 命中点（实测，作用域 `agent/loop.py`、`task_manager.py`）
+
+- `loop.py`：`phase: str = "planning"` 默认值。
+- `task_manager.py`：`set_phase("planning")`（2 处）、`set_phase("merging")`（1 处，M8-T636 同批补齐）、`snapshot.get("phase") or "planning"`、`phase=PHASE_MERGING if parent.phase == "merging" else "planning"`。
+- `web.py`（**排除**，stage 事实）：`stage_router.route("planning")`、`current_stage={"name":"planning"}`、代价估算 stage key、`budget_exceeded_event("planning", ..., phase=PHASE_PLANNING)` 的 `stage` 实参。
+
+### 3 改动
+
+- `minicc/agent/loop.py`、`minicc/task_manager.py`：将作用域内 runtime phase 裸字面量替换为 `PHASE_PLANNING`/`PHASE_MERGING`（两模块已从 `agent.protocol` 导入对应常量；行为不变）。
+- `tests/test_the_planning_phase_fact_has_one_home.py`（新）：门禁范围文件中 `planning`/`merging` Constant 为 0；预算/路由 stage 标签不同事实不在范围。
+
+### 4 验证（命令与输出要点）
+
+- 红臂/补齐：门禁先暴露 `task_manager.py:1926 set_phase("merging")` 漏改，修复后绿臂。
+- 绿臂：`pytest tests/test_the_planning_phase_fact_has_one_home.py -q` 1 passed。
+
+### 5 聚焦回归
+
+- `tests/test_the_planning_phase_fact_has_one_home.py`、`tests/test_the_orchestration_result_have_one_home.py`、`tests/test_batch_wiring.py`、`tests/test_the_loop_budget_verdicts_have_one_home.py`、`tests/test_the_budget_exceeded_event_have_one_home.py`、`tests/test_the_budget_exceeded_code_has_one_home.py` 共 31 passed（`..\minicc-codex\.venv\Scripts\python.exe -m pytest ... -q`）。未跑全量基准回归/CI 双端。
+
+### 6 边界（哪些**未**触碰）
+
+- 仅约束 `agent/loop.py`、`task_manager.py` 的 runtime phase 字面量归属；**不**将 web budget/router stage `"planning"`/`"planner_dag"` 等归并为 phase 常量（不同事实/签名域）。
+- 未推送：CI 42481274789（tip `d956648`）in_progress，legs 进行中不推送；617 本地已提交待后续按纪律推送。
+
+### 7 下一位候选
+
+1. 监控 42481274789；全绿后按顺序推送 617、618（及其后本地提交），legs 进行中不推送；若失败先红→绿+账本再推。
+2. 继续搜“同一事实两处归属”：`task_manager`/其他模块中 `status == "cancelled"/"failed"/"running"` 等若与 `protocol` 状态常量/状态机事实重复且同域可门禁（需区分状态值归属与 UI/测试字面量）；或 `budget_exceeded_event` 的 `stage` 标签是否应有独立一处归属（仅当跨模块同一 stage 事实且不与 phase 混淆）。
+3. 十一实验面保持冻结；`main` 合并继续冻结。
+## 批次 619 — M8-T637：`task_execution` 中任务快照状态值归属 protocol（payload 键名分域）
+
+### 1 是否真是同一事实
+
+`minicc.task_execution` 从任务快照读取的状态值 `interrupted`/`cancelled` 与 `minicc.agent.protocol.TASK_STATUS_INTERRUPTED`/`TASK_STATUS_CANCELLED` 是同一任务状态事实。结果载荷中的 `cancelled` 等**字段名**是 API/schema 事实，不是状态码归属；verifier/graph/LLM/benchmark 的同名状态属于不同域，未触碰。
+
+### 2 命中点（实测）
+
+- `minicc/task_execution.py`：`snapshot.get("status") == "interrupted"`、`snapshot.get("status") == "cancelled"` 共 2 处任务状态值比较；同文件结果 dict 含 `"cancelled"` 键名（不同事实，保留）。
+
+### 3 改动
+
+- `minicc/task_execution.py`：从 `minicc.agent.protocol` 导入 `TASK_STATUS_CANCELLED`/`TASK_STATUS_INTERRUPTED`，替换快照状态值比较（行为不变）。
+- `tests/test_task_status_literals_in_task_execution_have_one_home.py`（新）：门禁 `task_execution.py` 中裸任务状态 Constant（跳过 `ast.Dict` key 位置，避免把 payload 字段名误判为状态码事实）。
+
+### 4 验证（命令与输出要点）
+
+- 红臂：门禁首次运行失败，暴露 `line 96` 的 `"cancelled"` **dict key** 被误扫；修正门禁（跳过 Dict key）后绿臂。
+- 绿臂：`pytest tests/test_task_status_literals_in_task_execution_have_one_home.py -q` 1 passed。
+
+### 5 聚焦回归
+
+- `tests/test_task_status_literals_in_task_execution_have_one_home.py`、`tests/test_batch_wiring.py`、`tests/test_get_must_repair_the_id_the_way_load_does.py`、`tests/test_task_durability.py`、`tests/test_the_worker_metadata_fields_have_one_home.py`、`tests/test_task_contract.py`、`tests/test_task_store_durability_contract.py` 共 58 passed（`..\minicc-codex\.venv\Scripts\python.exe -m pytest ... -q`）。未跑全量基准回归/CI 双端。
+
+### 6 边界（哪些**未**触碰）
+
+- 仅 `task_execution.py` 的任务快照状态值比较；不触碰 verifier/graph/LLM/benchmark 状态域，不触碰 payload 字段名归属，不扩展到 `task_manager`/`web` 中需细分域的状态字面量（后续需逐条确认“任务状态同事实”）。
+- 未推送：CI 42481274789（tip `d956648`）in_progress，legs 进行中不推送；617–619 本地待后续按纪律推送。
+
+### 7 下一位候选
+
+1. 监控 42481274789；全绿后按顺序推送 617–619（及后续本地提交），legs 进行中不推送；若失败先红→绿+账本再推。
+2. 继续搜“同一事实两处归属”：`benchmarks.py` 中记录/条目 `status == "completed"` 若与 `TASK_STATUS_COMPLETED` 同属任务执行状态事实可评估（需确认 benchmark 状态词汇与任务状态同域）；或 `task_store`/恢复路径中的任务状态值比较。均需排除 verifier/LLM/graph 域。
+3. 十一实验面保持冻结；`main` 合并继续冻结。

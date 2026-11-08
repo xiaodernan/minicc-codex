@@ -5,6 +5,7 @@ from __future__ import annotations
 import time
 from typing import Any
 
+from .agent.protocol import TASK_STATUS_CANCELLED, TASK_STATUS_INTERRUPTED
 from .task_store import TaskStore
 from .task_contract import TaskResult
 
@@ -91,8 +92,8 @@ class WorkerSnapshotMirror:
         payload = TaskResult.from_payload({
             **result,
             "answer": str(result.get("answer") or snapshot.get("stream_text") or ""),
-            "error": str(snapshot.get("error") or result.get("error") or ("worker task was interrupted" if snapshot.get("status") == "interrupted" else "")),
-            "cancelled": snapshot.get("status") == "cancelled",
+            "error": str(snapshot.get("error") or result.get("error") or ("worker task was interrupted" if snapshot.get("status") == TASK_STATUS_INTERRUPTED else "")),
+            "cancelled": snapshot.get("status") == TASK_STATUS_CANCELLED,
             "tokens_used": dict(snapshot.get("usage") or snapshot.get("tokens_used") or {}),
         }).to_payload()
         # The fold flag is host-owned bookkeeping, so it travels from the
