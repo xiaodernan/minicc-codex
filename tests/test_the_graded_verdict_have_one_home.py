@@ -21,6 +21,11 @@ PRODUCERS = {
     "minicc/behavior_bench.py": ("grade_answer_rubric", "grade_behavior"),
 }
 
+#: The four keys a "nobody judged this workspace" verdict carries - the
+#: ``grading_refused`` marker makes one face read differently from a judged
+#: pass=None mistake.
+REFUSAL_KEYS = {"passed", "grader_type", "grading_refused", "refusal"}
+
 
 def _small_verdict_literals(path: Path) -> list[ast.Dict]:
     tree = ast.parse(path.read_text(encoding="utf-8"))
@@ -90,6 +95,17 @@ def test_no_module_spells_a_verdict_outside_the_home() -> None:
         "a graded verdict is spelled by hand outside its one home "
         f"({HOME}): " + ", ".join(offenders)
     )
+
+
+def test_the_refusal_set_is_four_keys_in_the_home() -> None:
+    """The ``_no_result`` shape is one constructor, one four-key set."""
+    from minicc.bench_tasks import NO_RESULT_KEYS, _no_result
+
+    assert NO_RESULT_KEYS == REFUSAL_KEYS
+    out = _no_result("python_behavior", "nothing to check")
+    assert set(out) == REFUSAL_KEYS
+    assert out["grading_refused"] is True
+    assert out["passed"] is None
 
 
 def test_the_verdict_family_stays_three_constructors() -> None:

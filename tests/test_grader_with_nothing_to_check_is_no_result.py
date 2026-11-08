@@ -24,7 +24,7 @@ import pytest
 import minicc.bench_tasks as bench_tasks
 from minicc.benchmarks import build_report
 
-NO_RESULT_KEYS = {"passed", "grader_type", "grading_refused", "refusal"}
+from minicc.bench_tasks import NO_RESULT_KEYS
 
 # (grader type, the spec key that carries the work, shapes that carry none of it)
 EMPTY_SHAPES = [

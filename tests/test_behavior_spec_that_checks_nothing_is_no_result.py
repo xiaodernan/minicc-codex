@@ -29,7 +29,7 @@ import minicc.behavior_bench as behavior_bench
 from minicc.benchmarks import build_report
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-NO_RESULT_KEYS = {"passed", "grader_type", "grading_refused", "refusal"}
+from minicc.bench_tasks import NO_RESULT_KEYS
 
 
 @pytest.fixture
