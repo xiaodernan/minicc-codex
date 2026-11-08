@@ -40870,3 +40870,44 @@ CLI（`minicc/main.py`）与 Web 运行时（`minicc/web.py`）在记录阶段�
 2. （可选）同域扩展：`task_manager.py`/`task_worker.py` 内任务状态的 `dict` 赋值字面量是否可安全归一
    （需逐处确认语义确为任务生命周期状态）。
 3. 十三个加载器裁定不变；`main` 合并阻塞不变。
+
+## 第五百九十九批 — M8-T617 — 生命周期状态 dict 字面量同域扩展
+
+### 1 欠的是哪一条
+
+598（M8-T616）将生命周期模块的任务状态**比较**归一，但刻意未覆盖 `{"status": "..."}`
+赋值形态；`task_manager.py` 2 处（cancelled/interrupted 快照）与 `task_worker.py` 1 处
+（running 初始状态）仍裸写任务生命周期状态字面量，属同一事实。
+
+### 2 量到的真相（实测）
+
+- 扩展门检出 3 处：`task_manager.py:2343` cancelled、`task_manager.py:1832` interrupted、
+  `task_worker.py:282` running，语义均为任务生命周期状态（经上下文确认，非工具/DAG/校验域）。
+
+### 3 落地
+
+- `tests/test_the_task_status_literals_have_one_home_in_lifecycle.py`：新增
+  `test_no_bare_task_status_dict_literals_in_lifecycle_modules`（同域限定）。
+- `minicc/task_manager.py`、`minicc/task_worker.py`：3 处改用 `TASK_STATUS_*`；
+  `task_worker.py` 补充 protocol 导入。
+
+### 4 见证（红先绿后）
+
+- 红臂：3 处 dict offender 点名。绿臂：3/3 通过。
+
+### 5 聚焦回归
+
+- `test_the_task_status_literals_have_one_home_in_lifecycle.py` 3 passed；
+  `test_the_task_phases_have_one_home.py` 3 passed。未跑全量套件（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 仍不触碰工具/校验/DAG 等域的 `status` 字面量（不同事实/lookalike）。
+- 不声称 CI 双腿全绿——42471664961 仍在跑；597–599 及 phase-smoke 修复未推送。
+
+### 7 下一位候选
+
+1. 42471664961 完成后：若因 JS 失败整体失败，推送本地 597–599 + phase-smoke 修复触发新绿跑；
+   若意外绿则按序推送未推送提交（并确认无 legs 在跑）。
+2. 继续普查同域/跨面可无歧义归一的“同事实两家”。
+3. 十三个加载器裁定不变；`main` 合并阻塞不变。
