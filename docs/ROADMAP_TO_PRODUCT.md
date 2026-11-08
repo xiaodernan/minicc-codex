@@ -40488,3 +40488,49 @@ total 看不见这三个拷贝。
 2. 全仓未被门覆盖的「字面量同值不同事家」的语料——下一轮还会尽力做深层扫描——只欠两个策略维度：
    a. 测试 fixture skeleton（特别是 `{enabled, tiers, stage_map, custom_models}` 在 6+ 文件，约 21 处拷贝）——T ere is enough depth there to be a batch; b. 找出还有没找完的「letters of the alphabet」这一路。
 3. 十三个加载器裁定不变。
+
+## 第五百九十二批 — M8-T610 — approval 帧的 60 秒超时归一 + 跨语言门
+
+### 1 欠的是哪一条
+
+"用户拒绝 / 同意"的 approval 帧在 web 后端有 `APPROVAL_TIMEOUT_SECONDS = 60.0`——
+60 秒——是必须前端也一样记着的截止点。`web/src/core/approvals.js` 里抄了两遍：
+`Number(event.timeout_seconds || 60) || 60`——外层 和 内层 `|| 60` 各一份。没有任何门
+对照过前端这条 60 与 Python 那条 60——哪边改一个，另一边照旧。
+
+### 2 量到的真相（实测）
+
+- Python：`minicc/web.py:173` 的 `APPROVAL_TIMEOUT_SECONDS = 60.0`，通过 `# SSE ` approval_request`/`approval_resolved`` 两帧身份被消费；出现在 front-end `pending` map 重建时的秒数。
+- JS：approvals.js 第 84 行 `Number(event.timeout_seconds || 60) || 60`——双 60 拷贝。
+- 没有任何测试/gate 把这两个粘在一起。
+
+### 3 落地
+
+- `web/src/core/approvals.js`：新增 `export const APPROVAL_TIMEOUT_SECONDS = 60;`，第 84 行改为 `Number(event.timeout_seconds) || APPROVAL_TIMEOUT_SECONDS`，不再声明任何裸 60；注释写明 M8-T610 与 Python home。
+- `tests/frontend_approval_timeout_one_home_smoke.mjs`（新门，3 钉）：
+  ① JS home 存在且值良好；
+  ② JS home 的数值 == minicc/web.py 的 `APPROVAL_TIMEOUT_SECONDS`；
+  ③ approvals.js 中不得残余 `60` 裸字面量（除具名常数声明本身外）。
+- `package.json`：`test:approval` 扩展为运行 `frontend_approval_one_home_smoke.mjs && frontend_approval_timeout_one_home_smoke.mjs`；CI js-check 增加 `node --check` 行。
+
+### 4 见证（红先绿后）
+
+- 红臂（stash approvals.js）：门红——断言「approvals.js must export APPROVAL_TIMEOUT_SECONDS」（修前红）；pop 后绿。
+- 焦点回归：`check:web` 干净（bundle 重建）；`test:approval` 绿（approval mode 与 timeout 两扇门都 ok）。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 approval 帧的 flat key 集合（`request_id`、`tool`、`preview`、`reason`、`decision` …）也被对齐 —— 两边各自维护，本批不合并；
+- 不声称 `APPROVAL_TIMEOUT_SECONDS` 导出到 Python 的某处——它是 web.py 私有常数，front-end 不得也不应 import 反向依赖；
+- 不声称 front-end 侧具名常数也被重复——注入路径在 Python home 是权威，front-end 仅跟随；
+- 不声称 approval frame 的 kind（`approval_request`、`approval_resolved`）被钉——不同的事实、同一组帧可以手拼，本批不负责。
+
+### 7 下一位候选
+
+1. CI 双腿仍跑批 591 tip——推这批会取消它（cancel-in-progress），等 leg 回来后再推；
+2. approval 帧的 flat key 对齐（`request_id`、`tool`/`preview`/`reason`）——两个测试 + 一页两个 hello-world 应覆盖；
+3. 十三个加载器裁定不变。
