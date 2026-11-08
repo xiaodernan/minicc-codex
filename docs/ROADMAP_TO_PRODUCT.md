@@ -41033,3 +41033,39 @@ CLI（`minicc/main.py`）与 Web 运行时（`minicc/web.py`）在记录阶段�
 1. 监控 42473678896；全绿后按顺序推送本地已提交批次（601、602）并遵守 legs-in-progress 不推送纪律；若失败则先红→绿修复并记账。
 2. 继续搜“同一事实两处归属”（可门禁、非 lookalike）：如 `task_kind`（`batch`/`subtask`/`task`）在 `task_manager`/`web` 的比较与赋值是否同一事实且有自然归属；或 `missing_task_network` 授权码与 `MISSING_TASK_AUTHORIZATIONS` 集合/字面量归属（需先确认语义边界，避免改变行为）。
 3. 十一实验面保持冻结；`main` 合并继续冻结（并发 worktree 冲突会话）。
+## 批次 603 — M8-T621：任务 kind 词汇（task/batch/subtask）有一处归属（manager↔web），无范围外扩
+
+### 1 是否真是同一事实
+
+任务生命周期/路由中的 kind 词汇（`task`/`batch`/`subtask`，含持久化默认值、`_task_kind` 载荷字段、自动编排与批次判定）在 `minicc.task_manager` 与 `minicc.web` 中以裸字面量重复比较/赋值，是同一事实的两处归属。`minicc.agent.protocol` 已承载任务状态等协议词汇，是自然归属点。
+
+### 2 命中点（实测）
+
+- `minicc/task_manager.py`：`task_kind` 默认值、持久化/载荷回退、`task.task_kind == "batch"/"subtask"`、`task_kind="batch"`、`_task_kind` 赋值与 `else "task"` 分支（12 处，均在 `task_kind`/`_task_kind` 语境行）。
+- `minicc/web.py`：`task_kind` 默认值、批次/子任务分支与完成判定（4 处）。
+
+### 3 改动
+
+- `minicc/agent/protocol.py`：新增 `TASK_KIND_TASK`/`TASK_KIND_BATCH`/`TASK_KIND_SUBTASK` 与 `TASK_KINDS`（M8-T621，一处归属）。
+- `minicc/task_manager.py`、`minicc/web.py`：从 `.agent.protocol` 导入 `TASK_KIND_*`；将 `task_kind`/`_task_kind` 语境中的裸 kind 字面量替换为常量（比较、关键字参数、字典值、`or` 回退默认值保持同值语义）。
+- `tests/test_the_task_kinds_have_one_home.py`（新）：红臂 2 项（home 缺常量；`task_manager`/`web` 在 `task_kind`/`_task_kind` 语境行存在裸 kind 字面量）→ 绿臂。
+
+### 4 验证（命令与输出要点）
+
+- 红臂：`pytest tests/test_the_task_kinds_have_one_home.py -q` 2 failed（`AttributeError: TASK_KIND_TASK`；列出 `task_manager.py` 12 处 + `web.py` 4 处）。
+- 绿臂：同门禁 2 passed；`import minicc.agent.protocol, minicc.task_manager, minicc.web` 通过。
+
+### 5 聚焦回归
+
+- `tests/test_the_task_kinds_have_one_home.py`、`tests/test_batch_wiring.py`、`tests/test_batch_resume.py`、`tests/test_the_batch_cancelled_notice_has_one_home.py`、`tests/test_the_orchestration_result_have_one_home.py`、`tests/test_task_contract.py` 共 41 passed（`..\minicc-codex\.venv\Scripts\python.exe -m pytest ... -q`）。未跑全量基准回归/CI 双端。
+
+### 6 边界（哪些**未**触碰）
+
+- 仅约束 `task_manager.py`/`web.py` 中 `task_kind`/`_task_kind` 语境的 kind 词汇；不触碰其他域同词、`task_kind` 字段/载荷键名本身、批次编排/恢复/取消语义、`task_contract` 请求结构。
+- 未推送/未落 `main`：CI 42473678896（tip 88f3ad5）Python 双端仍 in_progress；本地 601/602 已提交未推，603 本批待该 run 全绿或失败修复后按纪律推送，legs 进行中不推送。
+
+### 7 下一位候选
+
+1. 监控 42473678896；全绿后按顺序推送本地已提交批次（601、602、603）并遵守 legs-in-progress 不推送纪律；若失败则先红→绿修复并记账。
+2. 继续搜“同一事实两处归属”（可门禁、非 lookalike）：如 `missing_task_network` 授权码字面量在 `audit.py`/`main.py` 与 `MISSING_TASK_AUTHORIZATIONS` 的归属/语义边界（**仅在不改变集合成员行为、门禁可证明同事实时**处理）；或其他已有 home 的协议/状态字面量脱节点。
+3. 十一实验面保持冻结；`main` 合并继续冻结（并发 worktree 冲突会话）。
