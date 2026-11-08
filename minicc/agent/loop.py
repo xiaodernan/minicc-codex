@@ -43,6 +43,8 @@ from ..llm.openai_provider import OpenAICompatibleProvider
 from ..llm.stream_merge import append_delta
 from ..llm.usage import add_usage_totals, cache_summary, estimated_usage
 from ..audit import (
+    RISK_READONLY,
+    RISK_WRITE,
     effective_risk,
     is_network_tool,
     path_rule_denies_call,
@@ -1296,7 +1298,7 @@ async def run_agent(
                 # question one step earlier: may this call change the
                 # workspace?
                 if recovery_inspection_required and (
-                    risk == "write" or predicts_workspace_write(tc.tool, tc.arguments)
+                    risk == RISK_WRITE or predicts_workspace_write(tc.tool, tc.arguments)
                 ):
                     immediate_results[index] = (
                         tc,
@@ -1371,7 +1373,7 @@ async def run_agent(
                             ),
                         )
                         continue
-                if risk == "readonly":
+                if risk == RISK_READONLY:
                     # M8-T307: the network question has two halves - the
                     # well-known names and the ``network`` **capability** a
                     # tool may declare.  The loop used to ask only the
@@ -1470,7 +1472,7 @@ async def run_agent(
                     continue
                 tc, tool_result = item
                 if (
-                    effective_risk(tc.tool, registry.risk_of(tc.tool), tc.arguments) == "readonly"
+                    effective_risk(tc.tool, registry.risk_of(tc.tool), tc.arguments) == RISK_READONLY
                     # M8-T307: a network answer is not reproducible, so it
                     # must not be cached and replayed as if it were a local
                     # read - and that holds for a tool that *declares* the
@@ -1592,7 +1594,7 @@ async def run_agent(
             ):
                 post_write_inspection = True
             recovery_inspection_observed = any(
-                effective_risk(call.tool, registry.risk_of(call.tool), call.arguments) == "readonly"
+                effective_risk(call.tool, registry.risk_of(call.tool), call.arguments) == RISK_READONLY
                 and tool_result.status == TOOL_STATUS_OK
                 and not (tool_result.data or {}).get("duplicate")
                 for call, tool_result in immediate_results.values()
@@ -1609,7 +1611,7 @@ async def run_agent(
                         immediate_results,
                         lambda call, tool_result: effective_risk(
                             call.tool, registry.risk_of(call.tool), call.arguments
-                        ) == "readonly"
+                        ) == RISK_READONLY
                         and tool_result.status == TOOL_STATUS_OK
                         and not (tool_result.data or {}).get("duplicate"),
                     ),

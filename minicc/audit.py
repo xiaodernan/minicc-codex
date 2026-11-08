@@ -584,6 +584,12 @@ def _writes_outside_workspace(tool: str, arguments: dict[str, Any] | None) -> bo
     return scope == "user"
 
 
+# M8-T629: tool risk level vocabulary (one home).
+RISK_READONLY = "readonly"
+RISK_WRITE = "write"
+RISK_EXEC = "exec"
+
+
 def effective_risk(
     tool: str,
     risk: str | None,
@@ -598,7 +604,7 @@ def effective_risk(
     is not the whole story and every consumer has to ask this question the
     same way.
     """
-    if risk == "readonly" and _writes_outside_workspace(tool, arguments):
+    if risk == RISK_READONLY and _writes_outside_workspace(tool, arguments):
         return "write"
     return risk or "unknown"
 
@@ -684,18 +690,18 @@ def authorize_tool(
         return denied
 
     if mode == "yolo":
-        if risk == "readonly" or tool in NETWORK_TOOL_NAMES:
+        if risk == RISK_READONLY or tool in NETWORK_TOOL_NAMES:
             return AuthorizationDecision(True, risk or "unknown", "任务为 yolo 模式，工具已放行", AUTHORIZATION_TASK_YOLO)
         return AuthorizationDecision(True, risk or "unknown", "任务为 yolo 模式，写入与命令已放行", AUTHORIZATION_TASK_YOLO)
-    if network_tool and risk == "readonly":
+    if network_tool and risk == RISK_READONLY:
         if allow_network:
             return AuthorizationDecision(True, "network_readonly", "本任务已明确授权联网查询", AUTHORIZATION_TASK_NETWORK)
         return _allowlist_override(
             AuthorizationDecision(False, "network_readonly", "联网查询需要当前任务单独授权", AUTHORIZATION_MISSING_TASK_NETWORK)
         )
-    if risk == "readonly":
+    if risk == RISK_READONLY:
         return AuthorizationDecision(True, "readonly", "只读工具已允许", AUTHORIZATION_DEFAULT_READONLY)
-    if risk == "write":
+    if risk == RISK_WRITE:
         if mode == "plan":
             return AuthorizationDecision(False, "write", "计划模式只允许只读工具，写入已拒绝", AUTHORIZATION_PLAN_MODE_WRITE)
         if network_tool and not allow_network:
@@ -707,7 +713,7 @@ def authorize_tool(
         return _allowlist_override(
             AuthorizationDecision(False, "write", "写入工具需要当前任务明确授权", AUTHORIZATION_MISSING_TASK_WRITE)
         )
-    if risk == "exec":
+    if risk == RISK_EXEC:
         if mode == "plan":
             return AuthorizationDecision(False, "exec", "计划模式只允许只读工具，命令已拒绝", AUTHORIZATION_PLAN_MODE_EXEC)
         command = arguments.get("command", "")
@@ -785,6 +791,9 @@ __all__ = [
     "AUTHORIZATION_PERMISSION_RULE_ALLOW",
     "AUTHORIZATION_PERMISSION_RULE_DENY",
     "AUTHORIZATION_USER_DENIED",
+    "RISK_EXEC",
+    "RISK_READONLY",
+    "RISK_WRITE",
     "AUTHORIZATION_UNKNOWN_RISK",
     "AUTHORIZATION_TASK_YOLO",
     "AUTHORIZATION_DEFAULT_READONLY",
