@@ -20,8 +20,17 @@ from .state import MAX_TRACE_EVENTS
 from ..trace import trace_event
 
 
-TASK_STATUSES = frozenset({"queued", "running", "completed", "failed", "cancelled", "interrupted"})
-TERMINAL_TASK_STATUSES = frozenset({"completed", "failed", "cancelled", "interrupted"})
+
+# M8-T616: individual task lifecycle status constants (one home for comparisons).
+TASK_STATUS_QUEUED = "queued"
+TASK_STATUS_RUNNING = "running"
+TASK_STATUS_COMPLETED = "completed"
+TASK_STATUS_FAILED = "failed"
+TASK_STATUS_CANCELLED = "cancelled"
+TASK_STATUS_INTERRUPTED = "interrupted"
+
+TASK_STATUSES = frozenset({TASK_STATUS_QUEUED, TASK_STATUS_RUNNING, TASK_STATUS_COMPLETED, TASK_STATUS_FAILED, TASK_STATUS_CANCELLED, TASK_STATUS_INTERRUPTED})
+TERMINAL_TASK_STATUSES = frozenset({TASK_STATUS_COMPLETED, TASK_STATUS_FAILED, TASK_STATUS_CANCELLED, TASK_STATUS_INTERRUPTED})
 #: The statuses that mean "the task has not finished yet" - the third
 #: question about a task's state, and the one that had no name.
 #:
@@ -58,7 +67,7 @@ ACTIVE_TASK_STATUSES = frozenset(TASK_STATUSES - TERMINAL_TASK_STATUSES)
 #: The terminal statuses that mean "the task did not succeed" (failed or interrupted).
 #: A task that was cancelled was not asked to succeed — it was asked to stop.
 #: A task that failed or was interrupted was expected to succeed but did not.
-TASK_UNSUCCESSFUL_STATUSES = frozenset({"failed", "interrupted"})
+TASK_UNSUCCESSFUL_STATUSES = frozenset({TASK_STATUS_FAILED, TASK_STATUS_INTERRUPTED})
 #: The event kinds whose ``phase`` field moves the task's phase.
 #:
 #: M8-T375: this question was asked by **both** executors - the thread
@@ -480,6 +489,12 @@ __all__ = [
     "RuntimeEvent",
     "SESSION_PERSIST_TRACE_CODES",
     "session_persist_required",
+    "TASK_STATUS_CANCELLED",
+    "TASK_STATUS_COMPLETED",
+    "TASK_STATUS_FAILED",
+    "TASK_STATUS_INTERRUPTED",
+    "TASK_STATUS_QUEUED",
+    "TASK_STATUS_RUNNING",
     "TASK_STATUSES",
     "TASK_UNSUCCESSFUL_STATUSES",
     "TERMINAL_TASK_STATUSES",

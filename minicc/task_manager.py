@@ -48,6 +48,10 @@ from .agent.protocol import (
     PHASE_REVIEW,
     TASK_CANCELLED_ANSWER,
     TASK_CANCELLED_ERROR,
+    TASK_STATUS_CANCELLED,
+    TASK_STATUS_COMPLETED,
+    TASK_STATUS_FAILED,
+    TASK_STATUS_INTERRUPTED,
     TASK_UNSUCCESSFUL_STATUSES,
     TERMINAL_TASK_STATUSES,
     budget_exceeded_event,
@@ -967,11 +971,11 @@ class TaskRecord:
                 result_payload = dict(self.result)
                 if self.status in {"cancelled", "interrupted"}:
                     result_payload.update(
-                        answer=self.error or (TASK_CANCELLED_ANSWER if self.status == "cancelled" else "服务重启时任务被中断。"),
+                        answer=self.error or (TASK_CANCELLED_ANSWER if self.status == TASK_STATUS_CANCELLED else "服务重启时任务被中断。"),
                         error=self.error,
-                        cancelled=self.status == "cancelled",
+                        cancelled=self.status == TASK_STATUS_CANCELLED,
                     )
-                elif self.status == "failed":
+                elif self.status == TASK_STATUS_FAILED:
                     result_payload["error"] = self.error or result_payload.get("error") or "任务失败"
                 output.update(result_payload)
             # Result payloads come from a provider and must never be allowed
@@ -996,7 +1000,7 @@ class TaskRecord:
                     "children_rolled_up": self.children_rolled_up,
                 }
             )
-            if self.status == "cancelled":
+            if self.status == TASK_STATUS_CANCELLED:
                 output["answer"] = self.error or TASK_CANCELLED_ANSWER
                 output["cancelled"] = True
             return output
@@ -1141,7 +1145,7 @@ class TaskRecord:
         task.metrics.update(cache_summary(task.tokens_used))
         stored_result = task.result or {}
         if (
-            task.status == "completed"
+            task.status == TASK_STATUS_COMPLETED
             and _requires_workspace_change(task.message)
             and not _has_successful_workspace_write(task.events)
             and not task.error
@@ -1262,7 +1266,7 @@ class TaskManager:
         if str(getattr(self.service.config, "auto_resume_on_start", "")).lower() not in TRUTHY:
             return
         for task in list(self.tasks.values()):
-            if task.status != "interrupted" or task.parent_id or task.checkpoint.get("resumed_task_id"):
+            if task.status != TASK_STATUS_INTERRUPTED or task.parent_id or task.checkpoint.get("resumed_task_id"):
                 continue
             # A live worker process keeps refreshing its heartbeat; re-queuing
             # such a task would run it twice, so leave it to the worker.
@@ -1363,7 +1367,7 @@ class TaskManager:
                     continue
                 if task.cancel_event.is_set():
                     task.request_cancel(task.cancel_event.reason or "parent_cancelled")
-            if task.status == "cancelled":
+            if task.status == TASK_STATUS_CANCELLED:
                 self._persist_task(task, force=True)
                 continue
             self._session_active[key] = task_id
@@ -2627,7 +2631,7 @@ class TaskManager:
             task.apply_result(result)
             self._roll_up_tokens(task)
             with task.lock:
-                cancelled = cancelled_by_user or bool(result.get("cancelled")) or task.status == "cancelled"
+                cancelled = cancelled_by_user or bool(result.get("cancelled")) or task.status == TASK_STATUS_CANCELLED
                 failed = bool(result.get("error")) and not cancelled
                 if task.status not in TERMINAL_TASK_STATUSES:
                     target = "cancelled" if cancelled else "failed" if failed else "completed"
@@ -2639,7 +2643,7 @@ class TaskManager:
                         )
                     except InvalidStatusTransition:
                         pass
-                elif failed and task.status != "cancelled" and not task.error:
+                elif failed and task.status != TASK_STATUS_CANCELLED and not task.error:
                     task.error = str(result.get("error"))
                 # M2/M1 fix: finalize the checkpoint *while still holding the
                 # lock*, so a status poller can never observe `completed`
@@ -2674,14 +2678,14 @@ class TaskManager:
                     try:
                         task.transition_status(
                             target,
-                            error=TASK_CANCELLED_ERROR if target == "cancelled" else f"{type(exc).__name__}: {exc}",
-                            reason=task.cancel_event.reason if target == "cancelled" else None,
+                            error=TASK_CANCELLED_ERROR if target == TASK_STATUS_CANCELLED else f"{type(exc).__name__}: {exc}",
+                            reason=task.cancel_event.reason if target == TASK_STATUS_CANCELLED else None,
                         )
                     except InvalidStatusTransition:
                         pass
-                elif task.status == "cancelled" and not task.error:
+                elif task.status == TASK_STATUS_CANCELLED and not task.error:
                     task.error = TASK_CANCELLED_ERROR
-        finish = LOG.error if task.status == "failed" else LOG.info
+        finish = LOG.error if task.status == TASK_STATUS_FAILED else LOG.info
         finish(
             "task_finished task_id=%s status=%s total_tokens=%s error=%s",
             task.task_id,
