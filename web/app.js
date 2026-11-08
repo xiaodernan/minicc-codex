@@ -1355,6 +1355,7 @@
   }
 
   // web/src/core/approvals.js
+  var APPROVAL_TIMEOUT_SECONDS = 60;
   var APPROVAL_DECISIONS = ["allow", "always", "deny"];
   var pending2 = /* @__PURE__ */ new Map();
   var ticker = 0;
@@ -1418,7 +1419,7 @@
     node.className = "approval-card";
     node.setAttribute("role", "alertdialog");
     node.setAttribute("aria-label", t("approval.title"));
-    const timeoutSeconds = Number(event.timeout_seconds || 60) || 60;
+    const timeoutSeconds = Number(event.timeout_seconds) || APPROVAL_TIMEOUT_SECONDS;
     const buttons = APPROVAL_DECISIONS.map(
       (decision) => `<button type="button"${decision === "deny" ? ' class="approval-deny"' : ""} data-decision="${decision}">${escapeHtml(t(`approval.${decision}`))}</button>`
     ).join("");

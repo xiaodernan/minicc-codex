@@ -2,6 +2,12 @@
 // event stream as answerable cards. The agent thread blocks server-side until
 // the user decides or the timeout auto-denies, so the card mirrors that
 // deadline locally and drops itself once an approval_resolved frame arrives.
+//
+// M8-T610: the 60-second deadline was spelled twice by hand (the `|| 60` fallback
+// had two copies in this file); the shared home is minicc/web.py's
+// APPROVAL_TIMEOUT_SECONDS. The JS side keeps its own named constant, and a
+// gate pins the two faces to each other.
+export const APPROVAL_TIMEOUT_SECONDS = 60;
 import { requestJson } from "./transport.js";
 import { t } from "./i18n.js";
 import { escapeHtml } from "../chat/markdown.js";
@@ -81,7 +87,7 @@ function addCard(event) {
   node.className = "approval-card";
   node.setAttribute("role", "alertdialog");
   node.setAttribute("aria-label", t("approval.title"));
-  const timeoutSeconds = Number(event.timeout_seconds || 60) || 60;
+  const timeoutSeconds = Number(event.timeout_seconds) || APPROVAL_TIMEOUT_SECONDS;
   const buttons = APPROVAL_DECISIONS.map(
     (decision) =>
       `<button type="button"${decision === "deny" ? ' class="approval-deny"' : ""} data-decision="${decision}">${escapeHtml(t(`approval.${decision}`))}</button>`,

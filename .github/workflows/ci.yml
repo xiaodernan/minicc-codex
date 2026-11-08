@@ -143,6 +143,7 @@ jobs:
           node --check tests/game_entity_registry_smoke.mjs
           node --check tests/frontend_result_entry_caps_one_home_smoke.mjs
           node --check tests/frontend_event_retention_one_home_smoke.mjs
+          node --check tests/frontend_approval_timeout_one_home_smoke.mjs
           npm run check:web
       - name: Install browser for focused UI contracts
         run: npx playwright install chromium --with-deps
