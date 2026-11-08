@@ -42276,3 +42276,34 @@ hook 事件身份 `PreToolUse`/`PostToolUse`/`UserPromptSubmit`/`Stop` 由 `mini
 ### 5 状态
 
 - CI 42490220279（633, `f658e10`）**completed/success**。634–637 本地提交待推送（推送前无 legs 进行中）；推送后监控新 run，legs 进行中不再推送。
+## 批次 638 — M8-T656：`doc_pointers` 统一：m8-t537 与 dev/minicc-reliability-4ba3 两线合流为一个检查器
+
+### 1 是否真是同一事实
+
+m8-t537 与 `dev/minicc-reliability-4ba3` 各自推进了同一检查器 `scripts/doc_pointers.py`，两条实现互不兼容（`_line_of(text, ...)` 对 `_line_of(starts, ...)`）。本批次以 dev 线实现为底（外来章节表 `_headlines`、`_document_text`/`_numbered_sections` 备忘、`_same_document` 自指判别、`_newline_index` 贯穿 `sections`/`check_*`、`_span_name_claims` 的 kind-gated 行号），叠加 m8-t537 独有的 `_DECLINED_TEST_NAME` 证据表（加入 `_EVIDENCE_TABLES`）与 `_all_test_names` 的 `@lru_cache(maxsize=1)`，合流为一套实现。
+
+### 2 命中点（实测）
+
+- m8-t537 两个测试与 dev 签名不符：`tests/test_doc_pointers.py` 两条用例适配为 `dp._line_of(dp._newline_index(text), offset)` 与 `_check_quoted_name(document, text, dp._newline_index(text), offset, span, labels)`；断言逻辑不变。
+- `_all_test_names` 缓存恢复为 `@lru_cache(maxsize=1)`（与 m8-t537 的进程级一次扫描意图一致）。
+- 注意：本次只统一 `doc_pointers` 本体与直接测试；**未合并** `dev/minicc-reliability-4ba3` 的其他文件（web.py / agent/* / CI / ROADMAP 序号对账、其余 20+ 冲突文件均另批）。
+
+### 3 改动
+
+- `scripts/doc_pointers.py`：统一为 dev 线签名（`starts` 传递）；补入 `_DECLINED_TEST_NAME`/`_EVIDENCE_TABLES` 与 `_all_test_names` 缓存。
+- `tests/test_doc_pointers.py`：两条用例按统一签名适配。
+
+### 4 验证（命令与输出要点）
+
+- `pytest tests/test_doc_pointers.py tests/test_batch_numbers_past_ninety_nine_are_read_by_the_pointer_checker.py -q` → **69 passed**。
+- `python scripts/doc_pointers.py --check` → 通过（1105 markers / 4863 evidence / 723 tracked files）。
+- 全量 `pytest tests/ --tb=no -q` 在本地 harness 超时（未完成、无质量结论）；本批次以聚焦套件 + `doc_pointers --check` + CI 双端为验证门。
+
+### 5 边界（哪些**未**触碰）
+
+- 不改变 `doc_pointers` 判词/证据表语义；不并入其他 dev 线文件；不改 `ROADMAP` 批次/任务编号规则；`integration/doc-pointers-unify` 仅用于本批次统一实现。
+- push 规则不变：新 run legs 进行中不推送；若该批次改动失败，先红→绿+账本再推。
+
+### 6 集成分支
+
+- `integration/doc-pointers-unify`（基于 `m8-t537@bfb95da`）；验证通过后并入 `m8-t537` 并按纪律推送。
