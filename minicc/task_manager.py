@@ -79,6 +79,7 @@ from . import pricing
 from .session import SessionStore
 from .task_store import TaskStore
 from .task_contract import (
+    RESULT_FIELD_CANCELLED,
     ALLOW_CHANGES_FLAG,
     ALLOW_NETWORK_FLAG,
     CANCEL_FILE_FLAG,
@@ -281,7 +282,7 @@ def _orchestration_result(
     cancellation) the caller cannot see - ``children`` is the only
     channel the merge verdict travels on.
     """
-    return {"answer": answer, "cancelled": cancelled, "children": snapshots}
+    return {"answer": answer, RESULT_FIELD_CANCELLED: cancelled, "children": snapshots}
 
 
 def _cancelled_result(base: dict[str, Any]) -> dict[str, Any]:
@@ -303,7 +304,7 @@ def _cancelled_result(base: dict[str, Any]) -> dict[str, Any]:
         **base,
         "answer": TASK_CANCELLED_ANSWER,
         "error": TASK_CANCELLED_ERROR,
-        "cancelled": True,
+        RESULT_FIELD_CANCELLED: True,
     }
 
 
@@ -399,7 +400,7 @@ def _completion_guard_message(
     if (
         not _requires_workspace_change(message)
         or (getattr(result, "error", None) and not ignore_result_error)
-        or getattr(result, "cancelled", False)
+        or getattr(result, RESULT_FIELD_CANCELLED, False)
     ):
         return None
     if _has_successful_workspace_write(events):
@@ -1010,7 +1011,7 @@ class TaskRecord:
             )
             if self.status == TASK_STATUS_CANCELLED:
                 output["answer"] = self.error or TASK_CANCELLED_ANSWER
-                output["cancelled"] = True
+                output[RESULT_FIELD_CANCELLED] = True
             return output
 
     def summary(self) -> dict[str, Any]:
@@ -1158,7 +1159,7 @@ class TaskRecord:
             and not _has_successful_workspace_write(task.events)
             and not task.error
             and not bool(stored_result.get("error"))
-            and not bool(stored_result.get("cancelled"))
+            and not bool(stored_result.get(RESULT_FIELD_CANCELLED))
             and not (
                 isinstance(stored_result.get("completion"), dict)
                 and str(stored_result["completion"].get("status") or "") == "complete"
@@ -1923,7 +1924,7 @@ class TaskManager:
                 result = {
                     "answer": f"批量任务未完成：子任务 {failed_children} 没有成功结束。",
                     "error": "一个或多个并行子任务失败或被中断",
-                    "cancelled": False,
+                    RESULT_FIELD_CANCELLED: False,
                     "children": snapshots,
                 }
             elif hasattr(self.service, "merge_batch"):
@@ -2020,7 +2021,7 @@ class TaskManager:
             parent.apply_result(result)
             self._roll_up_tokens(parent)
             with parent.lock:
-                target = TASK_STATUS_CANCELLED if result.get("cancelled") else TASK_STATUS_FAILED if result.get("error") else TASK_STATUS_COMPLETED
+                target = TASK_STATUS_CANCELLED if result.get(RESULT_FIELD_CANCELLED) else TASK_STATUS_FAILED if result.get("error") else TASK_STATUS_COMPLETED
                 if parent.status not in TERMINAL_TASK_STATUSES:
                     try:
                         parent.transition_status(target, error=str(result.get("error")) if result.get("error") else None)
@@ -2350,7 +2351,7 @@ class TaskManager:
         snapshot.update({
             "status": TASK_STATUS_CANCELLED,
             "error": "宿主已关闭，工作进程被中止",
-            "result": {**result, "answer": str(result.get("answer") or ""), "cancelled": True},
+            "result": {**result, "answer": str(result.get("answer") or ""), RESULT_FIELD_CANCELLED: True},
             "heartbeat_at_epoch": time.time(),
         })
         if not store.upsert(snapshot, lease_owner=owner):
@@ -2420,7 +2421,7 @@ class TaskManager:
             self._roll_up_tokens(task)
             if task.status not in TERMINAL_TASK_STATUSES:
                 task.transition_status(
-                    TASK_STATUS_CANCELLED if result.get("cancelled") else TASK_STATUS_FAILED if result.get("error") else TASK_STATUS_COMPLETED,
+                    TASK_STATUS_CANCELLED if result.get(RESULT_FIELD_CANCELLED) else TASK_STATUS_FAILED if result.get("error") else TASK_STATUS_COMPLETED,
                     error=str(result.get("error") or "") or None,
                 )
         except WorkerDetached:
@@ -2634,12 +2635,12 @@ class TaskManager:
                 result = self.service._run_chat(self._execution_request(task).to_payload(), **kwargs)
             result = TaskResult.from_payload(result).to_payload()
             cancelled_by_user = task.cancel_event.is_set()
-            if cancelled_by_user and not result.get("cancelled"):
+            if cancelled_by_user and not result.get(RESULT_FIELD_CANCELLED):
                 result = _cancelled_result(result)
             task.apply_result(result)
             self._roll_up_tokens(task)
             with task.lock:
-                cancelled = cancelled_by_user or bool(result.get("cancelled")) or task.status == TASK_STATUS_CANCELLED
+                cancelled = cancelled_by_user or bool(result.get(RESULT_FIELD_CANCELLED)) or task.status == TASK_STATUS_CANCELLED
                 failed = bool(result.get("error")) and not cancelled
                 if task.status not in TERMINAL_TASK_STATUSES:
                     target = TASK_STATUS_CANCELLED if cancelled else TASK_STATUS_FAILED if failed else TASK_STATUS_COMPLETED
