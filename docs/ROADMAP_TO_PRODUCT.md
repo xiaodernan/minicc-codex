@@ -40770,3 +40770,51 @@ CLI（`minicc/main.py`）与 Web 运行时（`minicc/web.py`）在记录阶段�
 2. 评估 `budget_exceeded` trace code 归一（`minicc/agent/protocol.py` helper 已存在，
    `minicc/agent/loop.py` 5 处裸 `code="budget_exceeded"` 可改用 home 常量）。
 3. 十三个加载器裁定不变；`main` 合并阻塞不变。
+
+## 第五百九十七批 — M8-T615 — budget_exceeded trace code 归一
+
+### 1 欠的是哪一条
+
+`minicc/agent/loop.py` 在 5 处预算超限分支手写 `code="budget_exceeded"`；`protocol.py` 的
+`budget_exceeded_event` helper 与 `SESSION_PERSIST_TRACE_CODES` 集合同样承载该字符串。
+同一事实（预算超限 trace code）在 loop 侧 5 处 + protocol 内部多处裸写，且 loop 与 helper
+的 code 字面量可独立漂移。
+
+### 2 量到的真相（实测）
+
+- `minicc/agent/loop.py` 5 处 `code="budget_exceeded"`（822/966/1131/1188/1198 行，实测门点名）。
+- `protocol.py` helper 内 `code="budget_exceeded"`、`SESSION_PERSIST_TRACE_CODES` 含裸成员；
+  `budget_exceeded_event`/`budget_exceeded_error` helper 已是预算语义家，但 code 字符串未命名。
+
+### 3 落地
+
+- `minicc/agent/protocol.py`：新增 `BUDGET_EXCEEDED_CODE = "budget_exceeded"`（M8-T615，
+  附 `# code="budget_exceeded"` 保持 `frontend_trace_code_one_home_smoke` 可扫描），加入 `__all__`；
+  helper 改用常量，`SESSION_PERSIST_TRACE_CODES` 改用常量成员。
+- `minicc/agent/loop.py`：合并进既有括号式 protocol 导入并将 5 处裸字面量改为 `BUDGET_EXCEEDED_CODE`。
+- `tests/test_the_budget_exceeded_code_has_one_home.py`（新门，2 条）：home 定义正确；
+  `minicc/` 内除 home 外不得裸写 `budget_exceeded` code 字面量。
+
+### 4 见证（红先绿后）
+
+- 红臂：`ImportError` + loop 5 处 offender 点名。
+- 绿臂：2 passed；`frontend_trace_code_one_home_smoke` 仍绿（93 minted codes）。
+
+### 5 聚焦回归
+
+- `tests/test_the_budget_exceeded_code_has_one_home.py`、`test_the_loop_budget_verdicts_have_one_home.py`
+  共 11 passed；trace-code smoke 绿。未跑全量套件（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称预算相关的所有字符串/事件形态已完全收敛（`budget_exceeded_event` helper 形态、错误前缀等
+  既有家保持不变）。
+- 不声称 CI 双腿在本批提交时已全绿——推送前须确认 594-596 tip（run `42471664961`）全绿且无 legs 在跑；
+  本地 597 未推送。
+
+### 7 下一位候选
+
+1. 确认 run `42471664961`（594-596 tip）双腿全绿后推送本地 597；若腿红，先红→绿修复并记账。
+2. 继续普查 `minicc/` 内 `code="..."` 跨文件重复且可无歧义归一者（排除已由 smoke 的 EXTRA_DYNAMIC/
+   特殊形态覆盖且语义不同的情况）。
+3. 十三个加载器裁定不变；`main` 合并阻塞不变。
