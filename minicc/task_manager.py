@@ -914,7 +914,7 @@ class TaskRecord:
                 self.metrics = dict(result_metrics)
             self.metrics.update(cache_summary(self.tokens_used))
             self.state_version += 1
-            self._publish_locked("result", {"answer": result_copy.get("answer"), "error": result_copy.get("error"), "state_version": self.state_version})
+            self._publish_locked("result", {RESULT_FIELD_ANSWER: result_copy.get(RESULT_FIELD_ANSWER), RESULT_FIELD_ERROR: result_copy.get(RESULT_FIELD_ERROR), "state_version": self.state_version})
             return True
 
     def wait_events(self, after: int = 0, timeout: float | None = None) -> tuple[list[dict[str, Any]], bool]:

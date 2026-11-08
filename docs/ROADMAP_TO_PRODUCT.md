@@ -42255,3 +42255,24 @@ hook 事件身份 `PreToolUse`/`PostToolUse`/`UserPromptSubmit`/`Stop` 由 `mini
 1. 监控 42490220279；全绿后按纪律推送 634–636，legs 进行中不推送；失败先红→绿+账本。
 2. 继续“同一事实两处归属”窄收口：`task_worker`/`web` 若存在 task-result `children_rolled_up`/同域字段读写可评估；task_manager 中剩余明确 task-result payload `error` 构造/读取（严格排除 snapshot/attr/status/event）；其他跨模块契约字段名。cancel IPC 内容非读取契约，暂不归并。
 3. 主仓 `m8-t537`→`main` 及 `dev/minicc-reliability-4ba3` 集成仍阻塞于并发会话持有 `D:\面试项目\minicc-codex`；`m8-t117-121-land` 分析显示在 m8-t537 上基本已集成/被取代，待最终定向测试确认。十一实验面冻结。
+## 批次 637 — M8-T655：`task_manager` result 事件发布中的 `answer`/`error` 契约字段补漏
+
+### 1 是否真是同一事实
+
+`task_manager.apply_result` 发布 `result` 事件时从 `result_copy` 读取并输出的 `answer`/`error` 字段名，与 task-result 契约 `RESULT_FIELD_ANSWER`/`RESULT_FIELD_ERROR` 同一事实（633/635 同域延续；633 未覆盖 `result_copy.get("answer"/"error")` 与该事件 dict 键）。
+
+### 2 命中点
+
+- `_publish_locked("result", {"answer": result_copy.get("answer"), "error": result_copy.get("error"), ...})` → 使用 `RESULT_FIELD_*`。
+
+### 3 验证
+
+- `py_compile` 通过；`pytest tests/test_task_durability.py tests/test_task_contract.py -q` 26 passed；`doc_pointers --check` 通过。
+
+### 4 边界
+
+- 仅该事件发布点；事件 `state_version` 等其他键不变；不改变事件语义。
+
+### 5 状态
+
+- CI 42490220279（633, `f658e10`）**completed/success**。634–637 本地提交待推送（推送前无 legs 进行中）；推送后监控新 run，legs 进行中不再推送。
