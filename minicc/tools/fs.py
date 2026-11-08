@@ -26,7 +26,7 @@ from ..internal_paths import (
 )
 from .editor import EditError, Editor, StaleContextError, path_escaped_workspace
 from .registry import ToolError, split_output
-from .schemas import ToolResult
+from .schemas import TOOL_STATUS_OK, ToolResult
 
 MAX_GLOB_RESULTS = 200
 MAX_GREP_MATCHES = 100
@@ -198,7 +198,7 @@ def _redact_mcp_headers(text: str) -> str:
 def _file_result(text: str, summary: str, **data: Any) -> ToolResult:
     head, tail, truncated = split_output(text)
     return ToolResult(
-        status="ok", summary=summary, head=head, tail=tail,
+        status=TOOL_STATUS_OK, summary=summary, head=head, tail=tail,
         truncated=truncated, data=dict(data),
     )
 
@@ -329,7 +329,7 @@ class FsTools:
         except EditError as exc:
             raise ToolError(str(exc)) from exc
         return ToolResult(
-            status="ok",
+            status=TOOL_STATUS_OK,
             summary=(
                 f"写入 {path} ({len(content)} chars, "
                 f"新 digest {_digest_note(self.editor, path)}…)"
@@ -353,7 +353,7 @@ class FsTools:
         except EditError as exc:
             raise ToolError(str(exc)) from exc
         return ToolResult(
-            status="ok",
+            status=TOOL_STATUS_OK,
             summary=f"编辑 {path} ({len(old)}→{len(new)} chars, 新 digest {_digest_note(self.editor, path)}…)",
             data={"digest": self.editor.file_digest(path)},
         )

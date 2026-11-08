@@ -28,7 +28,7 @@ from .registry import (
     approval_preview,
     validate_tool_spec,
 )
-from .schemas import CODE_RUNTIME_GUARD, ToolCall, ToolResult, tagged, untrusted_tags
+from .schemas import CODE_RUNTIME_GUARD, TOOL_STATUS_ERROR, TOOL_STATUS_OK, ToolCall, ToolResult, tagged, untrusted_tags
 from .todo import TODO_PRIORITIES, TODO_STATUSES, TodoTools
 from .web import MAX_QUERY_CHARS, MAX_RESULTS, MAX_RESULTS_PARAM, web_search
 from .webfetch import MAX_TIMEOUT, MIN_TIMEOUT, webfetch
@@ -157,7 +157,7 @@ def build_registry(
         if bool(args.get("run_in_background", False)):
             if sandbox.status().get("backend") != "host":
                 return ToolResult(
-                    status="error",
+                    status=TOOL_STATUS_ERROR,
                     summary=tagged(
                         CODE_RUNTIME_GUARD,
                         "后台 shell 仅在 host 沙箱模式下可用；"
@@ -182,15 +182,15 @@ def build_registry(
     reg.register(ToolSpec("kill_shell", "终止一个后台 shell 的整个进程树。", "exec", (shell_id_p,), _kill_shell_handler))
 
     def _worktree_list(_args: dict) -> ToolResult:
-        return ToolResult(status="ok", summary="Git worktree 列表", output=json.dumps(worktree_manager.list(), ensure_ascii=False, indent=2))
+        return ToolResult(status=TOOL_STATUS_OK, summary="Git worktree 列表", output=json.dumps(worktree_manager.list(), ensure_ascii=False, indent=2))
 
     def _worktree_create(args: dict) -> ToolResult:
         item = worktree_manager.create(str(args["name"]), args.get("branch"))
-        return ToolResult(status="ok", summary=f"创建 worktree {item['name']}", output=json.dumps(item, ensure_ascii=False))
+        return ToolResult(status=TOOL_STATUS_OK, summary=f"创建 worktree {item['name']}", output=json.dumps(item, ensure_ascii=False))
 
     def _worktree_remove(args: dict) -> ToolResult:
         item = worktree_manager.remove(str(args["name"]), bool(args.get("force", False)))
-        return ToolResult(status="ok", summary=f"移除 worktree {item['name']}", output=json.dumps(item, ensure_ascii=False))
+        return ToolResult(status=TOOL_STATUS_OK, summary=f"移除 worktree {item['name']}", output=json.dumps(item, ensure_ascii=False))
 
     reg.register(ToolSpec("worktree_list", "列出 Git worktree。", "readonly", (), _worktree_list))
     reg.register(ToolSpec("worktree_create", "创建隔离 Git worktree；需要用户允许写入。", "write", (name_p, branch_p), _worktree_create))

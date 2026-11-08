@@ -28,7 +28,7 @@ from typing import Any
 from ..netguard import BlockedAddressError, REDIRECT_STATUSES, parse_http_url, redirect_limit_message, resolve_pinned_host
 
 from .registry import ToolError, ToolResult, redact_text, split_output
-from .schemas import untrusted_tags
+from .schemas import TOOL_STATUS_OK, untrusted_tags
 
 MAX_BYTES_DEFAULT = 512 * 1024
 MAX_REDIRECTS = 3
@@ -415,7 +415,7 @@ def build_tool_result(result: dict[str, Any]) -> ToolResult:
         head = f"{provenance}\n\n{text}\n\n{note}"
         tail = ""
     return ToolResult(
-        status="ok",
+        status=TOOL_STATUS_OK,
         summary=summary,
         head=head,
         tail=tail,

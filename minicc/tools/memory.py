@@ -41,7 +41,7 @@ from ..clock import utc_stamp
 from ..config import ConfigError, home_dir
 from ..sidecar_lock import hold_sidecar, sidecar_path_for
 from .registry import ToolError, ToolParamError, ToolResult, redact_text
-from .schemas import untrusted_tags
+from .schemas import TOOL_STATUS_OK, untrusted_tags
 
 # M8-T527: the standard library logger, the way ``minicc/tools/editor.py``
 # does it - ``minicc.logging_setup`` imports ``minicc.tools.registry``, so
@@ -273,7 +273,7 @@ class MemoryTools:
         if changed or source_changed:
             summary += "；检测到疑似密钥，已脱敏后落盘"
         return ToolResult(
-            status="ok",
+            status=TOOL_STATUS_OK,
             summary=summary,
             output=entry.to_line(),
             data={"entry": entry.to_dict()},
@@ -289,7 +289,7 @@ class MemoryTools:
         if not matches:
             raise ToolError(f"未找到记忆 {memory_id!r}（用 memory_list 查看现有条目）")
         return ToolResult(
-            status="ok",
+            status=TOOL_STATUS_OK,
             summary=f"{len(matches)} 条记忆全文（id={memory_id}）",
             output="\n".join(entry.to_line() for entry in matches),
             data={"entries": [entry.to_dict() for entry in matches]},
@@ -316,7 +316,7 @@ class MemoryTools:
             for entry in entries
         ]
         return ToolResult(
-            status="ok",
+            status=TOOL_STATUS_OK,
             summary=(
                 f"{len(entries)} 条长期记忆（scope={'all' if scope is None else scope}, "
                 f"排序={reason}{', query=' + repr(query) if query.strip() else ''}）"

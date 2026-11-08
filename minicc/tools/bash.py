@@ -31,8 +31,12 @@ from .schemas import (
     CODE_TIMED_OUT,
     CODE_TOOL_ERROR,
     CODE_UNKNOWN_SHELL,
-    UNTRUSTED_TAG,
+    TOOL_STATUS_CANCELLED,
+    TOOL_STATUS_ERROR,
+    TOOL_STATUS_OK,
+    TOOL_STATUS_TIMED_OUT,
     ToolResult,
+    UNTRUSTED_TAG,
     tagged,
     untrusted_tags,
 )
@@ -354,7 +358,7 @@ def run_process(
     """Run a process while polling for cancellation and bounded timeout."""
     if cancel_event is not None and cancel_event.is_set():
         return ToolResult(
-            status="cancelled",
+            status=TOOL_STATUS_CANCELLED,
             summary=tagged(CODE_CANCELLED, f"{summary_label}已取消，未启动进程"),
             security_tags=[*(security_tags or []), "runtime_guard"],
         )
@@ -373,7 +377,7 @@ def run_process(
         )
     except OSError as exc:
         return ToolResult(
-            status="error",
+            status=TOOL_STATUS_ERROR,
             summary=tagged(CODE_TOOL_ERROR, f"无法执行命令: {exc}"),
             duration=round(time.monotonic() - started, 3),
             security_tags=[*(security_tags or []), UNTRUSTED_TAG],
@@ -482,18 +486,18 @@ def run_process(
         tags.append(UNTRUSTED_TAG)
 
     if outcome == "cancelled":
-        status = "cancelled"
+        status = TOOL_STATUS_CANCELLED
         summary = tagged(CODE_CANCELLED, f"{summary_label}已取消并终止进程树 ({duration:.1f}s)")
         tags.append("runtime_guard")
     elif outcome == "timed_out":
-        status = "timed_out"
+        status = TOOL_STATUS_TIMED_OUT
         summary = tagged(CODE_TIMED_OUT, f"{summary_label}超时 ({timeout}s)，已终止进程树")
         tags.append("runtime_guard")
     elif proc.returncode == 0:
-        status = "ok"
+        status = TOOL_STATUS_OK
         summary = f"(exit 0, {duration:.1f}s)"
     else:
-        status = "error"
+        status = TOOL_STATUS_ERROR
         summary = f"{exit_marker(proc.returncode)} ({summary_label}失败, {duration:.1f}s)"
 
     return ToolResult(
@@ -525,11 +529,11 @@ def run_bash(
     explicit and tracked, not an escape from the tool lifecycle.
     """
     if not command or not command.strip():
-        return ToolResult(status="error", summary=tagged(CODE_INVALID_ARGUMENTS, "command 不能为空"))
+        return ToolResult(status=TOOL_STATUS_ERROR, summary=tagged(CODE_INVALID_ARGUMENTS, "command 不能为空"))
     detached_reason = detached_command_reason(command)
     if detached_reason:
         return ToolResult(
-            status="error",
+            status=TOOL_STATUS_ERROR,
             summary=tagged(CODE_RUNTIME_GUARD, f"{detached_reason}；命令未启动"),
             security_tags=untrusted_tags("runtime_guard"),
             data={
@@ -633,7 +637,7 @@ def start_background_shell(command: str, workspace: Path) -> ToolResult:
         _bg_prune_locked()
         if _bg_running_count_locked() >= MAX_CONCURRENT_BACKGROUND:
             return ToolResult(
-                status="error",
+                status=TOOL_STATUS_ERROR,
                 summary=tagged(CODE_RUNTIME_GUARD, f"后台 shell 已达并发上限（{MAX_CONCURRENT_BACKGROUND}）"),
                 output="请先用 kill_shell 结束不再需要的后台 shell，或等待其退出。",
                 data={"code": "background_limit_reached", "retryable": True},
@@ -652,7 +656,7 @@ def start_background_shell(command: str, workspace: Path) -> ToolResult:
             )
         except OSError as exc:
             return ToolResult(
-                status="error",
+                status=TOOL_STATUS_ERROR,
                 summary=tagged(CODE_TOOL_ERROR, f"无法启动后台命令: {exc}"),
                 security_tags=untrusted_tags("background_shell"),
             )
@@ -666,7 +670,7 @@ def start_background_shell(command: str, workspace: Path) -> ToolResult:
         _BG_ORDER.append(shell.shell_id)
     threading.Thread(target=_bg_reader, args=(shell,), daemon=True, name=f"minicc-bg-{shell.shell_id}").start()
     return ToolResult(
-        status="ok",
+        status=TOOL_STATUS_OK,
         summary=f"已在后台启动 shell {shell.shell_id}",
         output=(
             f"shell_id={shell.shell_id}\n"
@@ -682,7 +686,7 @@ def _bg_shell_or_error(shell_id: str) -> tuple[_BackgroundShell | None, ToolResu
         shell = _BG_SHELLS.get(str(shell_id))
     if shell is None:
         return None, ToolResult(
-            status="error",
+            status=TOOL_STATUS_ERROR,
             summary=tagged(CODE_UNKNOWN_SHELL, f"找不到后台 shell {shell_id!r}"),
             data={"available": _bg_known_ids()},
             security_tags=untrusted_tags("background_shell"),
@@ -721,7 +725,7 @@ def poll_background_shell(shell_id: str, *, since_start: bool = False) -> ToolRe
     full_text = f"{status_line}\n{body}{dropped_note}"
     head, tail, truncated = split_output(full_text)
     return ToolResult(
-        status="ok",
+        status=TOOL_STATUS_OK,
         summary=f"后台 shell {shell.shell_id} 输出" + ("（已结束）" if finished else "（运行中）"),
         head=head,
         tail=tail,
@@ -756,7 +760,7 @@ def kill_background_shell(shell_id: str) -> ToolResult:
             shell.exit_code = exit_code
             exit_code = shell.exit_code
     return ToolResult(
-        status="ok",
+        status=TOOL_STATUS_OK,
         summary=(
             f"后台 shell {shell.shell_id} 已结束"
             if already else f"已终止后台 shell {shell.shell_id} 的进程树"

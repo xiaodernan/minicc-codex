@@ -17,7 +17,7 @@ from urllib.request import Request, urlopen
 
 from ..netguard import SCHEME_PREFIXES
 from .registry import ToolError
-from .schemas import ToolResult, untrusted_tags
+from .schemas import TOOL_STATUS_OK, ToolResult, untrusted_tags
 
 SEARCH_ENDPOINTS = (
     ("Bing", "https://www.bing.com/search?q={}"),
@@ -389,7 +389,7 @@ def web_search(args: dict[str, object]) -> ToolResult:
     cache_note = "（缓存）" if fetched.cached else ""
     diagnostic_note = f"；诊断：{'；'.join(fetched.diagnostics[-3:])}" if fetched.diagnostics else ""
     return ToolResult(
-        status="ok",
+        status=TOOL_STATUS_OK,
         summary=f"联网搜索 {raw_query!r}，通过 {fetched.source}{cache_note}返回 {len(results)} 条结果{diagnostic_note}",
         output=output,
         data={

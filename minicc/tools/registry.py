@@ -33,6 +33,9 @@ from .schemas import (
     CODE_UNKNOWN_TOOL,
     HEAD_CHARS,
     TAIL_CHARS,
+    TOOL_STATUS_CANCELLED,
+    TOOL_STATUS_DENIED,
+    TOOL_STATUS_ERROR,
     ToolCall,
     ToolResult,
     tagged,
@@ -272,7 +275,7 @@ class ToolRegistrationError(ValueError):
 
 def error_result(code: str, message: str) -> ToolResult:
     return ToolResult(
-        status="error",
+        status=TOOL_STATUS_ERROR,
         summary=tagged(code, message),
         security_tags=untrusted_tags(),
     )
@@ -280,7 +283,7 @@ def error_result(code: str, message: str) -> ToolResult:
 
 def denied_result(message: str) -> ToolResult:
     return ToolResult(
-        status="denied",
+        status=TOOL_STATUS_DENIED,
         summary=tagged(CODE_DENIED, message),
         security_tags=untrusted_tags(),
     )
@@ -643,7 +646,7 @@ class ToolRegistry:
             )
         if cancel_event is not None and cancel_event.is_set():
             return ToolResult(
-                status="cancelled",
+                status=TOOL_STATUS_CANCELLED,
                 summary=tagged(CODE_CANCELLED, f"任务已取消，未执行工具 {call.tool}"),
                 security_tags=untrusted_tags("runtime_guard"),
             )
