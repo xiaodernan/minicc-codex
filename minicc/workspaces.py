@@ -39,8 +39,6 @@ LOG = get_logger("workspaces")
 #: will not let go costs two seconds and then degrades to the unlocked write,
 #: because M8-T265 already established that this path must not raise: losing a
 #: recent folder is cosmetic, refusing to start a web server is not.
-_LOCK_ATTEMPTS = 40
-_LOCK_RETRY_DELAY = 0.05
 
 
 @contextlib.contextmanager
@@ -58,10 +56,9 @@ def _advisory_lock(catalog_path: Path) -> Iterator[bool]:
     one is not), so a refusal degrades and says so.
     """
     lock_path = sidecar_path_for(catalog_path)
+    # The retry budget and delay are the one home's defaults (sidecar_lock.py).
     with hold_sidecar(
         lock_path,
-        attempts=_LOCK_ATTEMPTS,
-        delay=_LOCK_RETRY_DELAY,
         primitives=LockPrimitives(msvcrt=msvcrt, fcntl=fcntl, time=time),
     ) as outcome:
         if not outcome.held:

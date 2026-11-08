@@ -25,8 +25,17 @@ from typing import Any
 
 from .clock import utc_now_iso
 from .config import unreadable_file_message, unwritable_file_message
-from .atomic_file import read_text_with_retry, replace_with_retry
-from .sidecar_lock import LockPrimitives, hold_sidecar
+from .atomic_file import (
+    DEFAULT_ATTEMPTS,
+    DEFAULT_DELAY,
+    read_text_with_retry,
+    replace_with_retry,
+)
+from .sidecar_lock import (
+    LockPrimitives,
+    hold_sidecar,
+    DEFAULT_DELAY as SIDECAR_DEFAULT_DELAY,
+)
 from .tools.registry import redact_text
 
 try:  # Windows
@@ -84,14 +93,16 @@ def _view_payload(
 # (the one home - ``workspaces.py`` and ``tools/memory.py`` ask the same one); what
 # stays here is this call site's budget and its refusal verdict.
 _LOCK_ATTEMPTS = 400
-_LOCK_RETRY_DELAY = 0.05
+# The retry delay for the session lock is the sidecar home's default: a
+# neighbour that refuses you costs this many copies.
+_LOCK_RETRY_DELAY = SIDECAR_DEFAULT_DELAY
 
 # Windows sharing violation: a reader that holds the target open without the
 # sidecar lock (load/list/_stored_payload_or_none) makes os.replace fail with
 # WinError 5 exactly while the replace is attempted. The retry is safe: the
 # temp file survives until a replace succeeds, so retrying is idempotent.
-_REPLACE_ATTEMPTS = 24
-_REPLACE_RETRY_DELAY = 0.05
+_REPLACE_ATTEMPTS = DEFAULT_ATTEMPTS
+_REPLACE_RETRY_DELAY = DEFAULT_DELAY
 
 #: The mirror image of the comment above: while a writer holds the target mid
 #: ``os.replace``, the *reader* is the one that gets ``PermissionError``. The
@@ -99,8 +110,8 @@ _REPLACE_RETRY_DELAY = 0.05
 #: few milliseconds and re-reading is correct - and without it a reader saw
 #: "session unreadable", while ``save()``'s swallowed variant silently
 #: re-assigned every message id.
-_READ_ATTEMPTS = 24
-_READ_RETRY_DELAY = 0.05
+_READ_ATTEMPTS = DEFAULT_ATTEMPTS
+_READ_RETRY_DELAY = DEFAULT_DELAY
 
 
 @contextlib.contextmanager
