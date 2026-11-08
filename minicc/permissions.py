@@ -151,11 +151,16 @@ def load_permission_rules(workspace: Path) -> tuple[dict[str, list[str]], str]:
         return entry
 
 
-def match_permission_rule(
-    workspace: Path, tool: str, arguments: dict[str, Any] | None
+def match_rules(
+    rules: dict[str, dict[str, list[str]]], tool: str, arguments: dict[str, Any] | None
 ) -> str | None:
-    """"deny" > "allow" > None. Deny always wins over allow."""
-    rules, _error = load_permission_rules(workspace)
+    """"deny" > "allow" > None, judged against rules already in hand.
+
+    M8-T537: the verdict used to exist only behind ``match_permission_rule``,
+    which loads the file itself - so every caller that also needed the
+    *error* had to load twice and could read two different files.  The
+    answer is a function of the rules, so it takes rules, not a workspace.
+    """
     args = arguments if isinstance(arguments, dict) else {}
     if _match_patterns(tool, args, rules["deny"]):
         return "deny"
@@ -164,9 +169,18 @@ def match_permission_rule(
     return None
 
 
+def match_permission_rule(
+    workspace: Path, tool: str, arguments: dict[str, Any] | None
+) -> str | None:
+    """"deny" > "allow" > None. Deny always wins over allow."""
+    rules, _error = load_permission_rules(workspace)
+    return match_rules(rules, tool, arguments)
+
+
 __all__ = [
     "PERMISSIONS_NAME",
     "PermissionConfigError",
     "load_permission_rules",
     "match_permission_rule",
+    "match_rules",
 ]

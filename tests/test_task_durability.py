@@ -40,22 +40,40 @@ def test_lease_has_single_owner_and_can_recover_after_expiry(tmp_path: Path) -> 
     assert stores[1].upsert(snapshot, lease_owner="replacement")
 
 
-def test_expired_lease_cannot_be_revived_by_same_owner(tmp_path: Path) -> None:
-    """M3-T5: a late heartbeat must not extend an already-expired lease.
+def test_an_expired_lease_stays_with_its_owner_until_someone_takes_it(
+    tmp_path: Path,
+) -> None:
+    """M8-T538: the fence on a lease is the owner, not the clock.
 
-    The owner's heartbeat UPDATE lacked the `expires > now` fence, so a
-    frozen worker revived its own lease forever, has_live_worker kept
-    reporting it alive, and auto-resume refused to re-queue the task.
+    M3-T5 read "a frozen worker revived its own lease" and made the clock a
+    fence (``expires > now`` in the heartbeat UPDATE).  A frozen process sends
+    no heartbeat, so the clock never stopped it; what the clock did stop was
+    the one case that is not a fault - a live worker that was starved of CPU
+    (or whose machine slept) for longer than the TTL, which came back to find
+    its own unclaimed lease expired and its task dead with "lease expired
+    before completion".
+
+    The double-execution fence is the owner match, plus ``claim_lease``'s
+    ``expires <= now`` clause: a *different* owner may take an expired lease,
+    and from that moment the previous owner's heartbeat and fenced writes are
+    refused.  So the only process that can revive an expired row is the one
+    the task is still assigned to.
     """
     store = TaskStore(tmp_path / "tasks.sqlite3")
     assert store.claim_lease("task", "owner-a", pid=1)
     # Force expiry: negative ttl writes expires into the past.
     assert store.heartbeat_lease("task", "owner-a", pid=1, ttl=-1)
-    # Same owner, expired lease: the heartbeat must now fail.
-    assert not store.heartbeat_lease("task", "owner-a", pid=1)
     assert not has_live_worker(store, {"task_id": "task", "status": "running"})
-    # The abandoned lease is claimable and the new owner can heartbeat.
+    # The starved worker coming back renews its own lease.  It is not a second
+    # worker: nobody else could have sent this owner's heartbeat.
+    assert store.heartbeat_lease("task", "owner-a", pid=1)
+    assert has_live_worker(store, {"task_id": "task", "status": "running"})
+    # Expiry followed by a takeover is the other order, and there the clock
+    # does matter: the new owner wins and the old one is fenced out.
+    assert store.heartbeat_lease("task", "owner-a", pid=1, ttl=-1)
     assert store.claim_lease("task", "owner-b", pid=2)
+    assert not store.heartbeat_lease("task", "owner-a", pid=1)
+    assert store.get_lease("task")["owner"] == "owner-b"
     assert store.heartbeat_lease("task", "owner-b", pid=2)
 
 

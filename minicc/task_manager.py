@@ -122,6 +122,14 @@ WORKER_REAP_GRACE_SECONDS = 0.5
 # flag, so this bound is what a shutdown pays for a worker that is mid-request.
 WORKER_SHUTDOWN_GRACE_SECONDS = 5.0
 WORKER_TERMINATE_WAIT_SECONDS = 5.0
+# M8-T538: how long the host watches a lease stay expired before it believes
+# the worker is gone.  The worker renews every ``HEARTBEAT_INTERVAL`` (5s), so
+# two renewals of silence is already generous - the point is that "expired on
+# the first tick I looked" is not evidence.  After a CPU starvation or a
+# machine sleep, the host and the worker resume at the same moment; whichever
+# looks first must not convict the other.  A worker that is really dead simply
+# never renews, and this grace is the only thing its task waits for.
+LEASE_REVIVAL_GRACE_SECONDS = 12.0
 # M8-T374: the tools that write the workspace have **one** home - the tool
 # policy module, which already answers "did this call write?" from it.  This
 # name used to be a **second copy** of the same four names, and it guarded
@@ -2349,6 +2357,10 @@ class TaskManager:
         mirror = WorkerSnapshotMirror(task)
         cancel_file = Path(task.workspace_path) / ".minicc" / "cancel" / f"{task.task_id}.flag"
         cancel_written = False
+        # M8-T538: when the lease was first seen expired.  Silence is only
+        # charged to the worker once this loop has *observed* it for the whole
+        # grace - a loop that was itself unable to run has not observed anything.
+        stale_since: float | None = None
         while True:
             if self._closing:
                 raise WorkerDetached()
@@ -2392,8 +2404,23 @@ class TaskManager:
             # M3-T6: recheck the lease even while the process handle is alive, so
             # a hung worker that stopped heartbeating is detected and requeued
             # instead of blocking forever on a live-but-stalled subprocess.
+            #
+            # M8-T538: "stopped heartbeating" is measured in time this loop was
+            # actually able to watch.  Raising on the first expired tick made a
+            # starved-but-live worker indistinguishable from a dead one: after a
+            # stall the host and the worker wake together, and if the host polls
+            # inside the worker's 5s renewal window it convicted a healthy
+            # process.  The worker can now revive its own lease
+            # (``TaskStore.heartbeat_lease``), and this grace is the window in
+            # which it gets to do that.
             if snapshot and not has_live_worker(store, snapshot):
-                raise RuntimeError("worker execution lease expired before completion")
+                now_monotonic = time.monotonic()
+                if stale_since is None:
+                    stale_since = now_monotonic
+                if now_monotonic - stale_since >= LEASE_REVIVAL_GRACE_SECONDS:
+                    raise RuntimeError("worker execution lease expired before completion")
+            else:
+                stale_since = None
             time.sleep(0.2)
 
     def _reconnect_worker(self, task: TaskRecord) -> None:

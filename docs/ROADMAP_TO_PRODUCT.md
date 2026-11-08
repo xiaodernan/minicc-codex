@@ -39740,3 +39740,36 @@ B5 名字手抄（marker 绑定断）、B6 判决行不报 files-read。
   M8-T529：同一文件、都是门自己的账。
 - `MIN_EVIDENCE` 与引用读者的判据数值一克不动；那条 7.0 的文件系统调用界也不动——它现在
   红得对，是产品多花了两次策略读取，不是界写窄了。
+
+## 第五百六十六批 — M8-T566 — 另一条通道的在飞改动并轨补记：deny 一次读、租约 owner 栅栏、`not-in-window` 第三个词
+
+### 1 这一批是什么
+
+共享工作树 `D:\面试项目\minicc-codex` 里压着一批**写完未提交**的改动（本地未推送分支上前人留下的在飞代码，含三个未跟踪门文件），按本仓顺序排定由本通道收口。本批把它们逐个核过、补齐账本、入库。代码注释里
+保留的 **M8-T537**（retrieval/audit 的一次策略读取）、**M8-T538**（task_store/task_manager 的租约 owner 栅栏与宽恕窗）、**M8-T566**（`changes.PREIMAGE_NOT_IN_WINDOW`）是另一条通道给同一事实的编号，本批不改名。
+计数器沿用本仓已用过的 M8-T566（本仓至此最大是 M8-T565）。
+
+### 2 改动（八个在仓文件 + 三个门）
+
+- **`permissions.py`**：`match_permission_rule` 拆出 **`match_rules(rules, tool, arguments)`**——判决本质上是已手上的规则的函数，单独规则装载是第二遍系统读；`match_permission_rule` 保留原签名（工作区版）并改走 `match_rules`，既有调用方逐字不变。
+- **`audit.py`**：`tool_denied_by_rule` 改为**一次装载答两问**（`load_permission_rules` 一次，`policy_evaluation_error` 的判定与 `match_rules` 的 deny 从同一份规则里出）；新增 **`path_deny_predicate(workspace)`**——一次 refresh 一遍规则快照，逐路径问句从同一份快照作答；`authorize_tool` 的可读性检查与 deny 检查从两次装载合成一次。
+- **`agent/retrieval.py`**：`_is_denied_by_rules` 改走 `path_deny_predicate`；`LocalEvidenceIndex._refresh` 一次 refresh **装载一次规则**（此前每候选文件一次，实测 2 stat/文件）。
+- **`task_store.py`**：`heartbeat_lease` 撤下 `expires > now` 时钟栅栏（理由随注释落库：被冻结的进程根本不发心跳，时钟栅栏拦不到的唯一受害者是被饿死超过 TTL 的健康 worker）；owner 判定才是双执行栅栏；`upsert` 的 fenced 写同步撤下时钟下半句，owner 仍是必须。
+- **`task_manager.py`**：新增 **`LEASE_REVIVAL_GRACE_SECONDS = 12.0`**；`_watch_worker`（挂机点）把「租约过期」的判罚延迟到**本 loop 自己观察了整整一个宽恕窗**之后（`stale_since` 单调钟记账，清零重走）；饿死/睡眠唤醒后的健康 worker 不再被一记 `RuntimeError` 误杀。
+- **`changes.py`**：新增 **`PREIMAGE_NOT_IN_WINDOW = "not-in-window"`**——尾窗读不完（字节尾 `> _AUDIT_TAIL_BYTES` **或**行数 `> _AUDIT_WINDOW_LINES`，旧判据只看行数）时，找不到 backup 副本的 honest 答复从 `not-recorded`（「编辑器从没写过副本」）改成 `not-in-window`；`audit_window_truncated` 进入 `_preimage_verdict` 的词序（`not-readable → digest-mismatch → not-in-window → not-recorded`）与 payload `summary["audit_window_truncated"] = bool(...)`。
+- **`task_contract` 验收线合并**：`TaskResult.to_payload` 未动；本批只完成另一通道已写好的段，冲突部分留到并轨批。
+- **测试**：`test_task_durability.py` 重写 `test_an_expired_lease_stays_with_its_owner_until_someone_takes_it`（同一 owner 先到期续期、`claim_lease` 接管后旧主心跳与写双双被拒、`has_live_worker` 双向判定）；新增三个门文件 `tests/test_a_live_worker_is_not_killed_by_a_wall_clock.py`、`tests/test_one_refresh_asks_the_rules_once.py`、`tests/test_a_copy_line_the_window_never_reached_is_not_a_copy_that_was_never_recorded.py`；`test_retrieval_enhanced.py` 给 7.0 ceiling 加了 stderr 可观测行（非断言）。
+
+### 3 验证（本机实测，2026-11-09）
+
+- 新门三剑客：`pytest tests/test_task_durability.py tests/test_one_refresh_asks_the_rules_once.py -q` → **16 passed**；`pytest tests/test_a_live_worker_is_not_killed_by_a_wall_clock.py -q` → **6 passed**；`pytest tests/test_a_copy_line_the_window_never_reached_is_not_a_copy_that_was_never_recorded.py -q` → **12 passed**。
+- 影响集：`pytest tests/test_retrieval_enhanced.py tests/test_an_audit_deletion_is_answered_with_the_content_it_removed.py tests/test_the_change_list_counts_the_lines_the_deletion_removed.py -q` → **69 passed**；`pytest tests/test_permission_deny_veto_is_asked_by_every_consent_site.py tests/test_permissions_pure.py tests/test_permission_modes.py -q` → **44 passed**。
+- `python scripts/doc_pointers.py --check` 出口 **0**（117 markers / 4537 evidence / 20 文档 / 658 tracked files —— 本仓计数）。
+- 八份改动文件的尾行从 CRLF 归一化为 LF（仓内默认），`git diff` 现在只剩真实内容差异（**205+ / 41−**，不是 7,084 行的换行假象）。
+
+### 4 本批不做 / 边界
+
+- 三个 `.minicc` 运行态与 `scratch/` 下探针、七个 `_*.txt`/`_*.py` 暂存文件**一个字节没碰**，仍为未跟踪文件。
+- 本批只把另一通道的改动按本仓纪律入库；`m8-t537` 线到本仓的合流是下一批的事（两条通道都改过 `task_manager.py`/`permissions.py`/`audit.py`/`changes.py`，冲突按文件逐个对账，不在本批里混处理）。
+- 本地 `main` 尚落后 origin 已合并部分，推送前要等并轨批 CI 绿；本批不单独推送。
+- `test_retrieval_enhanced` 的新 print 只是可观测性，不改变任何断言。

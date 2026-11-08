@@ -69,6 +69,13 @@ PREIMAGE_READ = "copy"
 PREIMAGE_NOT_RECORDED = "not-recorded"
 PREIMAGE_NOT_READABLE = "not-readable"
 PREIMAGE_MISMATCH = "digest-mismatch"
+#: M8-T566: the fifth word, and it is not a synonym of ``not-recorded``.  The
+#: trail is read as a bounded tail (``_AUDIT_TAIL_BYTES``) and only its last
+#: ``_AUDIT_WINDOW_LINES`` lines are looked at, so a ``backup`` line can be
+#: outside what was read while the ``delete`` line it pairs with is inside.
+#: Saying ``not-recorded`` there is the panel claiming the editor never wrote
+#: a copy, on the strength of a reading that never looked that far.
+PREIMAGE_NOT_IN_WINDOW = "not-in-window"
 #: ``source`` when the pre-image came out of the editor's own copy instead of
 #: out of git, so a reader can tell which baseline a patch was built on.
 PREIMAGE_SOURCE = "audit-backup-copy"
@@ -399,7 +406,14 @@ class ChangeInspector:
             lines = tail.splitlines()
             if size > _AUDIT_TAIL_BYTES and lines:
                 lines = lines[1:]
-            self._audit_window_truncated = len(lines) > _AUDIT_WINDOW_LINES
+            # M8-T566: the question this flag answers is "did the panel read
+            # the whole trail", and there are two ways not to: the byte tail
+            # never looked at the head, and the line cap drops lines that were
+            # read.  Counting only the cap (the old ``len(lines) > `` test) left
+            # a 320 KB trail reporting nothing was missed.
+            self._audit_window_truncated = (
+                size > _AUDIT_TAIL_BYTES or len(lines) > _AUDIT_WINDOW_LINES
+            )
             for line in lines[-_AUDIT_WINDOW_LINES:]:
                 try:
                     item = json.loads(line)
@@ -515,6 +529,13 @@ class ChangeInspector:
         ``not-readable`` when one does but its bytes cannot be shown here,
         ``digest-mismatch`` when they are not the digested bytes.  All three
         used to be the same empty patch.
+
+        M8-T566: ``not-recorded`` is only owed by a reading that saw the whole
+        trail.  When the window cut records - by bytes or by lines - and none
+        of them named a copy for this path, the honest answer is
+        ``not-in-window``: nothing was seen, and the reader knows it did not
+        look everywhere.  The other three words stand on facts the window
+        cannot undo, so they are still said first.
         """
         source = self._audit_preimage_sources.get(path)
         if not source:
@@ -546,6 +567,8 @@ class ChangeInspector:
             return PREIMAGE_MISMATCH, ""
         if unreadable:
             return PREIMAGE_NOT_READABLE, ""
+        if self._audit_window_truncated:
+            return PREIMAGE_NOT_IN_WINDOW, ""
         return PREIMAGE_NOT_RECORDED, ""
 
     def _preimage_signature(self, complete: list[dict[str, Any]]) -> tuple:
@@ -770,6 +793,7 @@ class ChangeInspector:
             self._audit_refused_records,
             self._audit_records_without_action,
             name_verdict,
+            bool(self._audit_window_truncated),
         )
 
     def _diff_for_target(
@@ -784,6 +808,7 @@ class ChangeInspector:
         audit_refused_records: int = 0,
         audit_records_without_action: int = 0,
         name_resolution: str = "",
+        audit_window_truncated: bool = False,
     ) -> dict[str, Any]:
         # M8-T565: two of the three verdicts mean no disk file can be named for
         # this record, so there is nothing to read and no number to show.  The
@@ -882,6 +907,10 @@ class ChangeInspector:
             "audit_refused_records": int(audit_refused_records),
             # M8-T559: records that never said which action they were.
             "audit_records_without_action": int(audit_records_without_action),
+            # M8-T566: the reason ``deletion_preimage`` may answer
+            # ``not-in-window`` - this reading did not see the whole trail, and
+            # the page that shows the word is the page that has to say that.
+            "audit_window_truncated": bool(audit_window_truncated),
         }
 
     def files_without_diff(self) -> list[dict[str, Any]]:

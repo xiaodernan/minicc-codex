@@ -8,6 +8,7 @@ queries and the 1000-file build budget.
 from __future__ import annotations
 
 import os
+import sys
 import time
 from pathlib import Path
 
@@ -291,6 +292,9 @@ def test_index_build_makes_a_constant_number_of_filesystem_calls_per_file(tmp_pa
     per_big = sum(big_calls.values()) / big_files
     assert per_big <= 7.0, (per_small, per_big)
     assert per_big / per_small <= 1.25, (per_small, per_big)
+    # 7.0 ceiling observability: print per-file call counts even when green,
+    # so operators can monitor drift toward the ceiling over time.
+    print(f"ceiling-check small={per_small:.3f} big={per_big:.3f} ratio={per_big/per_small:.3f}", file=sys.stderr)
 
 
 def test_the_call_counter_is_the_same_number_on_every_rebuild(tmp_path: Path) -> None:

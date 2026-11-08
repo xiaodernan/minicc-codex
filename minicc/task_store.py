@@ -128,14 +128,27 @@ class TaskStore:
     def heartbeat_lease(self, task_id: str, owner: str, *, pid: int, ttl: float = 45.0) -> bool:
         now = time.time()
         with self._lock, self._connect() as connection:
-            # M3-T5: `expires > now` fence — an already-expired lease must NOT
-            # be revivable by a late heartbeat, otherwise has_live_worker keeps
-            # reporting a dead worker as alive and auto-resume refuses to
-            # re-queue the task forever. claim_lease has the same fence.
+            # M8-T538: the fence here is the **owner**, not the clock.  M3-T5
+            # added `expires > now` so that "a frozen worker could not revive
+            # its own lease forever" - but a frozen process sends no heartbeat
+            # at all, so the fence never stopped it; what the fence did stop was
+            # the one case that is not a fault: a worker that was starved of CPU
+            # (or whose machine slept) for longer than the TTL, came back, and
+            # found its own still-unclaimed lease expired.  That worker was
+            # treated exactly like a dead one and the task failed with
+            # "lease expired before completion" while the process was healthy.
+            #
+            # The double-execution fence is the owner match below, plus
+            # ``claim_lease``'s ``expires <= now`` clause: a different owner can
+            # take an expired lease, and once it does, the previous owner can no
+            # longer renew (the owner no longer matches) and its fenced writes
+            # are refused.  So the only process that can revive an expired row
+            # is the one that still owns it, which is the same process the task
+            # is still assigned to.
             changed = connection.execute(
                 "UPDATE task_leases SET heartbeat=?, expires=?, pid=? "
-                "WHERE task_id=? AND owner=? AND expires > ?",
-                (now, now + ttl, pid, task_id, owner, now),
+                "WHERE task_id=? AND owner=?",
+                (now, now + ttl, pid, task_id, owner),
             ).rowcount
         return changed == 1
 
@@ -155,11 +168,17 @@ class TaskStore:
         payload = _redact(snapshot)
         with self._lock, self._connect() as connection:
             if lease_owner is not None:
-                # Fence expired/replaced workers in the same transaction as
-                # the write. An old process must never overwrite its successor.
+                # Fence replaced workers in the same transaction as the write.
+                # An old process must never overwrite its successor - and the
+                # successor is named by the owner, not by the clock (M8-T538:
+                # the expiry clause here refused the write of a worker that had
+                # merely been starved for longer than the TTL while nobody had
+                # taken its lease, which turned a stall into a lost task).
+                # ``release_lease`` deletes the row, so a released task has no
+                # owner and no writer.
                 connection.execute("BEGIN IMMEDIATE")
                 lease = connection.execute("SELECT owner, expires FROM task_leases WHERE task_id=?", (task_id,)).fetchone()
-                if lease is None or lease["owner"] != lease_owner or float(lease["expires"]) <= time.time():
+                if lease is None or lease["owner"] != lease_owner:
                     return False
             connection.execute(
                 """
