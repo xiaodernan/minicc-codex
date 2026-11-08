@@ -446,6 +446,9 @@ APPROVAL_FRAME_RESOLVED_KIND = "approval_resolved"
 AUTHORIZATION_MISSING_TASK_WRITE = "missing_task_write"
 AUTHORIZATION_MISSING_TASK_EXEC = "missing_task_exec"
 AUTHORIZATION_MISSING_TASK_NETWORK = "missing_task_network"
+AUTHORIZATION_PERMISSION_RULE_ALLOW = "permission_rule_allow"
+AUTHORIZATION_PERMISSION_RULE_DENY = "permission_rule_deny"
+AUTHORIZATION_USER_DENIED = "user_denied"
 
 # Network is handled separately and is intentionally not a member of
 # MISSING_TASK_AUTHORIZATIONS (web interactive-approval flow contract).
@@ -640,14 +643,14 @@ def authorize_tool(
                 False,
                 risk or "unknown",
                 "permissions.json deny 规则拒绝",
-                "permission_rule_deny",
+                AUTHORIZATION_PERMISSION_RULE_DENY,
             )
         if verdict == "allow":
             return AuthorizationDecision(
                 True,
                 risk or "unknown",
                 "permissions.json allow 规则放行",
-                "permission_rule_allow",
+                AUTHORIZATION_PERMISSION_RULE_ALLOW,
             )
     mode = normalize_permission_mode(permission_mode)
     declared = set(capabilities or ())
@@ -744,7 +747,7 @@ def interpret_authorization_decision(decision: AuthorizationDecision) -> Allowan
         "plan_mode_write",
         "plan_mode_exec",
         "unknown_risk",
-        "permission_rule_deny",
+        AUTHORIZATION_PERMISSION_RULE_DENY,
         "permission_policy_unreadable",
     }:
         return AllowanceResult(False, decision.reason, decision)
@@ -771,6 +774,9 @@ __all__ = [
     "AUTHORIZATION_MISSING_TASK_EXEC",
     "AUTHORIZATION_MISSING_TASK_NETWORK",
     "AUTHORIZATION_MISSING_TASK_WRITE",
+    "AUTHORIZATION_PERMISSION_RULE_ALLOW",
+    "AUTHORIZATION_PERMISSION_RULE_DENY",
+    "AUTHORIZATION_USER_DENIED",
     "NETWORK_TOOL_NAMES",
     "PERMISSION_MODES",
     "PERMISSION_MODE_ACCEPT_EDITS",

@@ -82,6 +82,8 @@ from .audit import (
     APPROVAL_FRAME_REQUEST_KIND,
     APPROVAL_FRAME_RESOLVED_KIND,
     MISSING_TASK_AUTHORIZATIONS,
+    AUTHORIZATION_PERMISSION_RULE_ALLOW,
+    AUTHORIZATION_USER_DENIED,
     PERMISSION_MODE_PLAN,
     PERMITTING_APPROVAL_DECISIONS,
     AuthorizationDecision,
@@ -1843,10 +1845,10 @@ class AgentService:
             ):
                 # An allow rule only skips the interactive prompt; it can never
                 # change plan/yolo/network semantics.
-                if decision.authorization == "permission_rule_allow":
+                if decision.authorization == AUTHORIZATION_PERMISSION_RULE_ALLOW:
                     return emit_decision(name, AuthorizationDecision(
                         True, decision.risk,
-                        decision.reason, "permission_rule_allow",
+                        decision.reason, AUTHORIZATION_PERMISSION_RULE_ALLOW,
                     ))
                 # No static rule covers the call → ask the user over the event
                 # stream, auto-deny on timeout/cancel (M7-T3).
@@ -1906,7 +1908,7 @@ class AgentService:
                 else:
                     why = "用户已拒绝"
                 return emit_decision(name, AuthorizationDecision(
-                    False, decision.risk, why, "user_denied",
+                    False, decision.risk, why, AUTHORIZATION_USER_DENIED,
                 ))
             return emit_decision(name, decision)
 
