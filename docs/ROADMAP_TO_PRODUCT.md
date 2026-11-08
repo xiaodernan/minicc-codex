@@ -41868,3 +41868,37 @@ hook 事件身份 `PreToolUse`/`PostToolUse`/`UserPromptSubmit`/`Stop` 由 `mini
 1. 监控 42482986858；全绿后按顺序推送 620–625（及后续本地提交），legs 进行中不推送；若失败先红→绿+账本再推。
 2. 继续搜“同一事实两处归属”：`RESULT_FIELD_CANCELLED` 在 `web.py`/`main.py` 读取 task result 的 `cancelled`（`result.get("cancelled")`/`result.cancelled` 在明确 task-result 语境）可分批评估；`task_manager` 内 payload 字段与状态/IPC 域混杂需更窄规则。或 `answer`/`error`/`tokens_used` 结果字段名是否形成跨模块同事实。
 3. 十一实验面保持冻结；`main` 合并继续冻结。
+## 批次 626 — M8-T644：`task_manager` 中 task-result payload `cancelled` 字段名接回契约归属（IPC marker 分域）
+
+### 1 是否真是同一事实
+
+`minicc.task_manager` 构造/读取的任务结果 payload 中 `"cancelled"` 字段名（`result.get(...)`/`stored_result.get(...)`/`getattr(result,...)`/payload dict key/`output[...]` 写入）与 `minicc.task_contract.RESULT_FIELD_CANCELLED` 是同一契约字段事实。cancel 文件 `write_text("cancelled")` 为 **IPC/文件标记**事实，`TASK_STATUS_*` 为状态值事实，均不同域，保留。
+
+### 2 命中点（实测，已收口 payload 字段名）
+
+- payload 读：`stored_result.get("cancelled")`、多处 `result.get("cancelled")`、`getattr(result, "cancelled", False)`。
+- payload 写/构造：`{"cancelled": cancelled, ...}`、`output["cancelled"]=True`、批次/结果 dict 中 `"cancelled": True/False`（任务取消结果、子任务失败汇总、result 子对象）。
+
+### 3 改动
+
+- `minicc/task_manager.py`：从 `.task_contract` 导入 `RESULT_FIELD_CANCELLED`，将上述 task-result payload 字段名替换为常量（行为不变）；保留 cancel marker `write_text("cancelled")`（2275/2375 现行行号附近）与所有 `TASK_STATUS_*`/payload 非该字段事实。
+
+### 4 验证（命令与输出要点）
+
+- 剩余 `"cancelled"` 字面量仅为 IPC cancel marker：`cancel_file.write_text("cancelled", ...)` 两处（经脚本检查）。
+- `py_compile minicc/task_manager.py` 通过。
+
+### 5 聚焦回归
+
+- `tests/test_task_manager_phase_literals_have_one_home.py`、`tests/test_task_contract.py`、`tests/test_batch_wiring.py`、`tests/test_task_durability.py` 共 39 passed。未跑全量基准回归/CI 双端。
+
+### 6 边界（哪些**未**触碰）
+
+- 不触碰 cancel-file IPC 内容、`TASK_STATUS_*`、`result.cancelled`/局部变量名、其他 payload 字段（`answer`/`error`/`tokens_used`/`children`）的归属；不扩展到 web/main 的 response/result 字段（需确认与 task-result 契约同域）。未为 task_manager 全域 `"cancelled"` 加宽泛门禁（混域）。
+- CI：42482986858（tip `576b93e`，617–619）**completed/success**；620–626 本地可按纪律推送（推送前该 run 已完成且 green）。推送后新 run legs 进行中不再推送。
+
+### 7 下一位候选
+
+1. 推送 620–626；监控新 run，若失败先红→绿+账本再推，legs 进行中不推送。
+2. 继续搜“同一事实两处归属”：`web.py` 中 `{"cancelled": True}`/`result.cancelled` 写入的 API/result 契约字段若与 task-result `RESULT_FIELD_CANCELLED` 同域可评估；`answer`/`error`/`tokens_used`/`children` 等跨模块 payload 字段名；IPC cancel marker `"cancelled"` 若跨 writer/reader 同事实可单独归属（不同于 task-result 字段）。
+3. 十一实验面保持冻结；`main` 合并继续冻结。
