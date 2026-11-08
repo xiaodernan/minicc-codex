@@ -41331,3 +41331,39 @@ CLI（`minicc/main.py`）与 Web 运行时（`minicc/web.py`）在记录阶段�
 1. 监控 42477151851；全绿后按顺序推送本地待推提交（`e2d1349` 609 ledger、610 code+ledger）并遵守 legs-in-progress 不推送纪律；若失败则先红→绿修复并记账。
 2. 继续搜“同一事实两处归属”（可门禁、非 lookalike）：其他 git/work-tree 状态码或 verdict 消费点；注意区分与工具结果/任务/验证状态的 lookalike。
 3. 十一实验面保持冻结；`main` 合并继续冻结（并发 worktree 冲突会话）。
+## 批次 611 — M8-T630：工具风险等级名（readonly/write/exec）在风险比较上下文有一处归属
+
+### 1 是否真是同一事实
+
+工具风险等级 `readonly`/`write`/`exec` 在授权与 agent-loop 门控中作为同一语义事实参与 `risk`/`effective_risk` 比较。`minicc.audit` 已拥有风险语义与 `effective_risk`；`minicc.agent.loop` 复用同一风险判断。裸字面量散落在两处比较逻辑中。
+
+### 2 命中点（实测，`risk`/`effective_risk` 上下文）
+
+- `minicc/audit.py`：`risk == "readonly"/"write"/"exec"` 等 6 处。
+- `minicc/agent/loop.py`：`risk == "readonly"/"write"` 与 `effective_risk(...) == "readonly"`（含跨行 lambda）共 5 处。
+
+### 3 改动
+
+- `minicc/audit.py`：新增 `RISK_READONLY`/`RISK_WRITE`/`RISK_EXEC`（M8-T630）并导出；在风险比较行（结合上下文窗口）替换字面量。
+- `minicc/agent/loop.py`：从 `..audit` 导入 `RISK_READONLY`/`RISK_WRITE`；替换风险/`effective_risk` 比较字面量。
+- `tests/test_the_risk_level_names_have_one_home.py`（新）：红臂 2 项→绿臂；门禁限定“行或前两行含 `risk`/`effective_risk` 的 Compare”以避开其他域同词 lookalike。
+
+### 4 验证（命令与输出要点）
+
+- 红臂：`pytest tests/test_the_risk_level_names_have_one_home.py -q` 2 failed，列出 audit 6 + loop 5 共 11 处。
+- 绿臂：同门禁 2 passed；`import minicc.audit, minicc.agent.loop` 通过，`RISK_READONLY/WRITE/EXEC` 值正确。
+
+### 5 聚焦回归
+
+- `tests/test_the_risk_level_names_have_one_home.py`、`tests/test_permissions_pure.py`、`tests/test_permissions_approval.py`、`tests/test_the_authorization_decision_codes_have_one_home.py`、`tests/test_the_loop_budget_verdicts_have_one_home.py` 共 57 passed（`..\minicc-codex\.venv\Scripts\python.exe -m pytest ... -q`）。未跑全量基准回归/CI 双端。
+
+### 6 边界（哪些**未**触碰）
+
+- 仅约束 `audit.py`/`agent/loop.py` 中风险比较上下文的 `readonly`/`write`/`exec` 风险等级字面量；不触碰 `network` 风险语义表达、工具注册表风险声明、配置/执行器/模式中的同词、`effective_risk` 行为本身。
+- 未推送/未落 `main`：CI 42477151851（tip 7efe612）仍 in_progress；本地待推含 609 ledger、610 code+ledger、611 本批，须待该 run 全绿或失败修复后按纪律推送，legs 进行中不推送。
+
+### 7 下一位候选
+
+1. 监控 42477151851；全绿后按顺序推送本地待推提交并遵守 legs-in-progress 不推送纪律；若失败则先红→绿修复并记账。
+2. 继续搜“同一事实两处归属”（可门禁、非 lookalike）：工具注册表/授权决策中 `network` 风险值是否与同一风险词汇事实脱节（需确认与 `readonly/write/exec` 同域）；或其他 gateable 协议/状态脱节点。
+3. 十一实验面保持冻结；`main` 合并继续冻结（并发 worktree 冲突会话）。
