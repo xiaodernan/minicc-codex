@@ -42006,3 +42006,38 @@ hook 事件身份 `PreToolUse`/`PostToolUse`/`UserPromptSubmit`/`Stop` 由 `mini
 1. 监控 42485072840；全绿后按顺序推送 626–629，legs 进行中不推送；若失败先红→绿+账本再推。**推送内容包含 627 的 import 修复（629）**。
 2. 继续搜“同一事实两处归属”：`answer`/`error` payload 字段名在 `task_contract`+`task_execution` 的小范围归属；或 `RESULT_FIELD_TOKENS_USED` 的 worker/web/manager 同域分批扩展。
 3. 十一实验面保持冻结；`main` 合并继续冻结。
+## 批次 630 — M8-T648：task result `answer`/`error` payload 字段名有一处归属（task_contract↔task_execution）
+
+### 1 是否真是同一事实
+
+`minicc.task_contract` 与 `minicc.task_execution` 在任务结果 payload 中使用的 `answer`/`error` 字段名是同一契约事实。文案中的“error”字样/异常类型名不是该字符串常量归属问题。
+
+### 2 命中点（实测）
+
+- `task_contract.py`：`payload.get("answer"/"error")`、metadata 排除集合、`to_payload` 键。
+- `task_execution.py`：`answer`/`error` payload 键及 `result`/`snapshot` 读取。
+
+### 3 改动
+
+- `minicc/task_contract.py`：新增 `RESULT_FIELD_ANSWER`/`RESULT_FIELD_ERROR`（M8-T648），替换契约字段名字面量。
+- `minicc/task_execution.py`：导入并使用上述常量。
+- `tests/test_task_result_answer_error_fields_have_one_home.py`（新）：home 常量 + scoped 裸字面量门禁。
+
+### 4 验证（命令与输出要点）
+
+- `pytest tests/test_task_result_answer_error_fields_have_one_home.py tests/test_task_result_tokens_used_field_has_one_home.py tests/test_task_result_cancelled_field_has_one_home.py tests/test_task_status_literals_in_task_execution_have_one_home.py -q` 7 passed。
+
+### 5 聚焦回归
+
+- `tests/test_task_result_answer_error_fields_have_one_home.py`、`tests/test_task_contract.py`、`tests/test_batch_wiring.py` 共 31 passed。未跑全量基准回归/CI 双端。
+
+### 6 边界（哪些**未**触碰）
+
+- 仅 `task_contract`/`task_execution` payload 字段名；不触碰广泛存在的 `answer`/`error` 变量名、日志文案、LLM/tool result 其他域、`stream_text`/snapshot 其他键。
+- 未推送：CI 42485072840（tip `dda195d`）in_progress 时 626–630 本地待推送；该 run 全绿后按纪律推送，legs 进行中不推送（推送栈含 627 import 修复）。
+
+### 7 下一位候选
+
+1. 监控 42485072840；全绿后按顺序推送 626–630，legs 进行中不推送；若失败先红→绿+账本再推。
+2. 继续搜“同一事实两处归属”：`RESULT_FIELD_ANSWER/ERROR/TOKENS_USED/CANCELLED` 在 `task_worker`/`task_manager`/`web` task-result payload 同域的分批收口（混域文件用窄门禁）；或 `children`/`children_rolled_up` 等结果字段归属。
+3. 十一实验面保持冻结；`main` 合并继续冻结。

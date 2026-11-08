@@ -7,7 +7,7 @@ from typing import Any
 
 from .agent.protocol import TASK_STATUS_CANCELLED, TASK_STATUS_INTERRUPTED
 from .task_store import TaskStore
-from .task_contract import RESULT_FIELD_CANCELLED, RESULT_FIELD_TOKENS_USED, TaskResult
+from .task_contract import RESULT_FIELD_ANSWER, RESULT_FIELD_CANCELLED, RESULT_FIELD_ERROR, RESULT_FIELD_TOKENS_USED, TaskResult
 
 # M8-T391: the worker-metadata fields a snapshot carries across the
 # process boundary.  The mirror below copies them out of the snapshot and
@@ -91,8 +91,8 @@ class WorkerSnapshotMirror:
         result = dict(snapshot.get("result") or {})
         payload = TaskResult.from_payload({
             **result,
-            "answer": str(result.get("answer") or snapshot.get("stream_text") or ""),
-            "error": str(snapshot.get("error") or result.get("error") or ("worker task was interrupted" if snapshot.get("status") == TASK_STATUS_INTERRUPTED else "")),
+            RESULT_FIELD_ANSWER: str(result.get(RESULT_FIELD_ANSWER) or snapshot.get("stream_text") or ""),
+            RESULT_FIELD_ERROR: str(snapshot.get(RESULT_FIELD_ERROR) or result.get(RESULT_FIELD_ERROR) or ("worker task was interrupted" if snapshot.get("status") == TASK_STATUS_INTERRUPTED else "")),
             RESULT_FIELD_CANCELLED: snapshot.get("status") == TASK_STATUS_CANCELLED,
             RESULT_FIELD_TOKENS_USED: dict(snapshot.get("usage") or snapshot.get(RESULT_FIELD_TOKENS_USED) or {}),
         }).to_payload()

@@ -11,6 +11,9 @@ from __future__ import annotations
 RESULT_FIELD_CANCELLED = "cancelled"
 # M8-T647: task result tokens field name (cross-module payload fact).
 RESULT_FIELD_TOKENS_USED = "tokens_used"
+# M8-T648: task result answer/error field names (cross-module payload fact).
+RESULT_FIELD_ANSWER = "answer"
+RESULT_FIELD_ERROR = "error"
 
 from dataclasses import asdict, dataclass, field
 from typing import Any, Mapping
@@ -132,8 +135,8 @@ class TaskResult:
     def from_payload(cls, payload: Mapping[str, Any]) -> "TaskResult":
         usage = payload.get(RESULT_FIELD_TOKENS_USED)
         return cls(
-            answer=str(payload.get("answer") or ""),
-            error=str(payload.get("error") or ""),
+            answer=str(payload.get(RESULT_FIELD_ANSWER) or ""),
+            error=str(payload.get(RESULT_FIELD_ERROR) or ""),
             cancelled=bool(payload.get(RESULT_FIELD_CANCELLED)),
             tokens_used=dict(usage) if isinstance(usage, dict) else {},
             metadata={
@@ -142,9 +145,9 @@ class TaskResult:
                 # ``children_rolled_up`` is host billing bookkeeping: a
                 # produced payload must not be able to claim the subtree was
                 # already folded and so skip the fold.
-                if key not in {"answer", "error", RESULT_FIELD_CANCELLED, RESULT_FIELD_TOKENS_USED, "children_rolled_up"}
+                if key not in {RESULT_FIELD_ANSWER, RESULT_FIELD_ERROR, RESULT_FIELD_CANCELLED, RESULT_FIELD_TOKENS_USED, "children_rolled_up"}
             },
         )
 
     def to_payload(self) -> dict[str, Any]:
-        return {**self.metadata, "answer": self.answer, "error": self.error, RESULT_FIELD_CANCELLED: self.cancelled, RESULT_FIELD_TOKENS_USED: dict(self.tokens_used)}
+        return {**self.metadata, RESULT_FIELD_ANSWER: self.answer, RESULT_FIELD_ERROR: self.error, RESULT_FIELD_CANCELLED: self.cancelled, RESULT_FIELD_TOKENS_USED: dict(self.tokens_used)}
