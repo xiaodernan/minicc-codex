@@ -950,7 +950,7 @@ class TaskRecord:
                 "execution_message": self.execution_message,
                 "parent_id": self.parent_id,
                 "child_task_ids": list(self.child_task_ids),
-                "children_rolled_up": self.children_rolled_up,
+                RESULT_FIELD_CHILDREN_ROLLED_UP: self.children_rolled_up,
                 "usage_limit": self.usage_limit,
                 "compaction_limit": self.compaction_limit,
                 "event_protocol": "minicc.events.v1",
@@ -1011,7 +1011,7 @@ class TaskRecord:
                     # Same reason: the flag decides whether the subtree still
                     # needs folding, and a model-authored payload must not be
                     # able to suppress that billing step.
-                    "children_rolled_up": self.children_rolled_up,
+                    RESULT_FIELD_CHILDREN_ROLLED_UP: self.children_rolled_up,
                 }
             )
             if self.status == TASK_STATUS_CANCELLED:
@@ -1129,7 +1129,7 @@ class TaskRecord:
             execution_message=str(data.get("execution_message")) if data.get("execution_message") else None,
             parent_id=data.get("parent_id"),
             child_task_ids=[str(item) for item in data.get("child_task_ids") or []],
-            children_rolled_up=bool(data.get("children_rolled_up")),
+            children_rolled_up=bool(data.get(RESULT_FIELD_CHILDREN_ROLLED_UP)),
             event_limit=_coerce_int(data.get("event_limit"), DEFAULT_TASK_EVENT_LIMIT),
             stream_limit=_coerce_int(data.get("stream_limit"), DEFAULT_TASK_STREAM_LIMIT),
             usage_limit=_coerce_int(data.get("usage_limit"), DEFAULT_TASK_USAGE_LIMIT),

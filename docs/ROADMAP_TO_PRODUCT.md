@@ -42219,3 +42219,39 @@ hook 事件身份 `PreToolUse`/`PostToolUse`/`UserPromptSubmit`/`Stop` 由 `mini
 1. CI 42490220279（633）仍 in_progress，legs 进行中**不推送**；634、635 本地已提交，待 42490220279 全绿后按纪律依次/合并推送语境处理（均在 m8-t537 线），legs 进行中不推送；若 42490220279 失败先红→绿+账本再推。
 2. 继续搜“同一事实两处归属”：`task_manager` 中仍有少量 `getattr(result,"error")`/发布事件/快照读取等混域 `error`（633 明确未收口）；`children_rolled_up` 在 task_manager `result.get`/snapshot schema 同域扩展需窄规则；cancel-file IPC marker writer/reader。
 3. 主仓/`main` 集成阻塞不变；`m8-t117-121-land` 与 `m8-t537` 在 `webauth.py`/`tools/fs.py`/`tools/webfetch.py` 有重叠，集成需冲突处理（见 `C:\Users\18414\AppData\Local\Temp\opencode\minicc-integration-inventory-wt519.md`）。十一实验面冻结。
+## 批次 636 — M8-T654：`task_manager` snapshot/restore 与 result 读取的 `children_rolled_up` 接回契约字段归属
+
+### 1 是否真是同一事实
+
+`minicc.task_manager` 在应用 task-result payload 时读取 `children_rolled_up`（`result.get(...)`）、以及在任务快照序列化/恢复中读写 `children_rolled_up` 键，与 `task_contract.RESULT_FIELD_CHILDREN_ROLLED_UP`/`task_execution.WorkerSnapshotMirror` 使用的是同一折叠标记字段名事实（634 已在 contract+execution 立家）。`self.children_rolled_up`/构造参数/属性为内部状态，不是字段名字面量归属问题。
+
+### 2 命中点（实测）
+
+- `apply_result`：`result.get("children_rolled_up")` → `result.get(RESULT_FIELD_CHILDREN_ROLLED_UP)`（task-result payload 同域读）。
+- 快照写出：两处 `"children_rolled_up": self.children_rolled_up` → `RESULT_FIELD_CHILDREN_ROLLED_UP: ...`。
+- 快照恢复：`data.get("children_rolled_up")` → `data.get(RESULT_FIELD_CHILDREN_ROLLED_UP)`。
+
+### 3 改动
+
+- `minicc/task_manager.py`：导入并使用 `RESULT_FIELD_CHILDREN_ROLLED_UP`；内部属性名/语义不变。
+
+### 4 验证（命令与输出要点）
+
+- `py_compile minicc/task_manager.py` 通过。
+- `pytest tests/test_task_durability.py tests/test_task_store_durability_contract.py tests/test_task_contract.py -q` 35 passed。
+- `python scripts/doc_pointers.py --check` 通过。
+
+### 5 聚焦回归
+
+- task durability/store/contract 通过。未跑全量基准回归/CI 双端。
+
+### 6 边界（哪些**未**触碰）
+
+- 不改变 `children_rolled_up` 属性名、折叠语义、持久化值；仅统一字段名字面量归属。未加 task_manager 宽域门禁（混域）。
+- CI 42490220279（633）仍 in_progress，legs 进行中**不推送**；634–636 本地已提交。
+
+### 7 下一位候选
+
+1. 监控 42490220279；全绿后按纪律推送 634–636，legs 进行中不推送；失败先红→绿+账本。
+2. 继续“同一事实两处归属”窄收口：`task_worker`/`web` 若存在 task-result `children_rolled_up`/同域字段读写可评估；task_manager 中剩余明确 task-result payload `error` 构造/读取（严格排除 snapshot/attr/status/event）；其他跨模块契约字段名。cancel IPC 内容非读取契约，暂不归并。
+3. 主仓 `m8-t537`→`main` 及 `dev/minicc-reliability-4ba3` 集成仍阻塞于并发会话持有 `D:\面试项目\minicc-codex`；`m8-t117-121-land` 分析显示在 m8-t537 上基本已集成/被取代，待最终定向测试确认。十一实验面冻结。
