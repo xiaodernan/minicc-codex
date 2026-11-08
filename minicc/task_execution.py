@@ -7,7 +7,14 @@ from typing import Any
 
 from .agent.protocol import TASK_STATUS_CANCELLED, TASK_STATUS_INTERRUPTED
 from .task_store import TaskStore
-from .task_contract import RESULT_FIELD_ANSWER, RESULT_FIELD_CANCELLED, RESULT_FIELD_ERROR, RESULT_FIELD_TOKENS_USED, TaskResult
+from .task_contract import (
+    RESULT_FIELD_ANSWER,
+    RESULT_FIELD_CANCELLED,
+    RESULT_FIELD_CHILDREN_ROLLED_UP,
+    RESULT_FIELD_ERROR,
+    RESULT_FIELD_TOKENS_USED,
+    TaskResult,
+)
 
 # M8-T391: the worker-metadata fields a snapshot carries across the
 # process boundary.  The mirror below copies them out of the snapshot and
@@ -99,6 +106,6 @@ class WorkerSnapshotMirror:
         # The fold flag is host-owned bookkeeping, so it travels from the
         # snapshot field rather than from the (model-authored) result body — and
         # only when set, otherwise the two executors would not normalise alike.
-        if snapshot.get("children_rolled_up"):
-            payload["children_rolled_up"] = True
+        if snapshot.get(RESULT_FIELD_CHILDREN_ROLLED_UP):
+            payload[RESULT_FIELD_CHILDREN_ROLLED_UP] = True
         return payload

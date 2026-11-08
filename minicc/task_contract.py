@@ -14,6 +14,8 @@ RESULT_FIELD_TOKENS_USED = "tokens_used"
 # M8-T648: task result answer/error field names (cross-module payload fact).
 RESULT_FIELD_ANSWER = "answer"
 RESULT_FIELD_ERROR = "error"
+# M8-T652: task result children_rolled_up bookkeeping field name (cross-module payload fact).
+RESULT_FIELD_CHILDREN_ROLLED_UP = "children_rolled_up"
 
 from dataclasses import asdict, dataclass, field
 from typing import Any, Mapping
@@ -145,7 +147,7 @@ class TaskResult:
                 # ``children_rolled_up`` is host billing bookkeeping: a
                 # produced payload must not be able to claim the subtree was
                 # already folded and so skip the fold.
-                if key not in {RESULT_FIELD_ANSWER, RESULT_FIELD_ERROR, RESULT_FIELD_CANCELLED, RESULT_FIELD_TOKENS_USED, "children_rolled_up"}
+                if key not in {RESULT_FIELD_ANSWER, RESULT_FIELD_ERROR, RESULT_FIELD_CANCELLED, RESULT_FIELD_TOKENS_USED, RESULT_FIELD_CHILDREN_ROLLED_UP}
             },
         )
 

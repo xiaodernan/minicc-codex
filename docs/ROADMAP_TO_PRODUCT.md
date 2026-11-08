@@ -42146,3 +42146,40 @@ hook 事件身份 `PreToolUse`/`PostToolUse`/`UserPromptSubmit`/`Stop` 由 `mini
 1. **CI 42486878597 已 completed/failure**（tip `818da65`，626–632），失败已由本批次门禁兼容修复并本地验证；提交 633 后在无 legs 进行中时推送，监控新 run，若失败先红→绿+账本再推，legs 进行中不推送。
 2. 继续搜“同一事实两处归属”：`RESULT_FIELD_CHILDREN`/`children_rolled_up` 在 `task_contract`/`task_execution`/`task_manager`/`web` 的 task-result 同域归属（仅当 `children` 为同一 task-result 契约字段）；`task_manager` 中剩余 `error` payload 键在**明确 task-result 构造**语境的窄收口（需避开 status/event/attr 混域）；cancel-file IPC marker `"cancelled"` writer/reader 若同事实可单独归属（不同于 payload 字段）。
 3. `m8-t537`→`main` 合并仍阻塞于主仓并发会话（`D:\面试项目\minicc-codex` `UU docs/ROADMAP_TO_PRODUCT.md`, `MERGE_HEAD`）——不触碰；并行整理 `dev/minicc-reliability-4ba3`、`m8-t117-*`、相关 detached worktree 的未合并差异与可移植证据，准备主仓释放后的集成。十一实验面冻结。
+## 批次 634 — M8-T652：task result `children_rolled_up` payload 字段名有一处归属（task_contract↔task_execution）
+
+### 1 是否真是同一事实
+
+`minicc.task_contract` 与 `minicc.task_execution` 在任务结果 payload/快照兼容读取中使用的 `children_rolled_up` 字段名是同一契约/折叠记账字段事实。`task_manager` 内部 `self.children_rolled_up` 属性、快照/记录 schema 键与 `result.get("children_rolled_up")` 等属混域/内部层，本批次未纳入范围。
+
+### 2 命中点（实测，范围 `task_contract.py`、`task_execution.py`）
+
+- `task_contract.py`：metadata 排除集合中的 `"children_rolled_up"`（`from_payload` 防止模型/生产者伪造已折叠标记）。
+- `task_execution.py`：`snapshot.get("children_rolled_up")` 读取与 `payload["children_rolled_up"]=True` 写入（host-owned fold flag 跨进程/快照传递）。
+
+### 3 改动
+
+- `minicc/task_contract.py`：新增 `RESULT_FIELD_CHILDREN_ROLLED_UP = "children_rolled_up"`（M8-T652），替换 metadata 排除中的裸字面量。
+- `minicc/task_execution.py`：导入并使用 `RESULT_FIELD_CHILDREN_ROLLED_UP`。
+- `tests/test_task_result_children_rolled_up_field_has_one_home.py`（新）：home 常量 + scoped 裸字面量门禁（允许定义赋值）。
+
+### 4 验证（命令与输出要点）
+
+- `..\minicc-codex\.venv\Scripts\python.exe -m py_compile minicc/task_contract.py minicc/task_execution.py` 通过。
+- `pytest tests/test_task_result_children_rolled_up_field_has_one_home.py tests/test_task_result_tokens_used_field_has_one_home.py tests/test_task_result_answer_error_fields_have_one_home.py tests/test_task_contract.py -q` 22 passed。
+- `python scripts/doc_pointers.py --check` 通过。
+
+### 5 聚焦回归
+
+- 上述 task-result 字段/contract 门禁与契约测试通过。未跑全量基准回归/CI 双端。
+
+### 6 边界（哪些**未**触碰）
+
+- 仅 `task_contract`/`task_execution` 的 `children_rolled_up` payload 字段名；不触碰 `task_manager` 的内部属性/快照 schema/`result.get("children_rolled_up")`（可后续在确认同域且窄门禁时评估）；不触碰 `children`（orchestration result shape-home 由 `_orchestration_result`/census gate 约束，形式与 key 归属需谨慎分域）；不改变折叠/计费语义。
+- CI 42490220279（633 push, tip `f658e10`）**in_progress**，legs 进行中**不推送**；634 本地已提交，待 42490220279 全绿后按纪律推送，legs 进行中不推送。
+
+### 7 下一位候选
+
+1. 监控 42490220279；全绿后推送 634（及后续本地提交），legs 进行中不推送；若失败先红→绿+账本再推。
+2. 继续搜“同一事实两处归属”：`children` 在 task-result/orchestration payload 的同域归属需尊重 `_orchestration_result` shape-home census（literal-key home）与混域场景；`task_manager`/`web` 中 task-result `children_rolled_up`/`children` 的窄收口可评估；cancel-file IPC marker `"cancelled"` writer/reader（不同于 payload 字段/状态值）。
+3. 集成准备：`m8-t117-121-land`（5 commits，netguard/webfetch/security，8 files，低冲突）与 `dev/minicc-reliability-4ba3`（与 main 大幅分叉，ROADMAP/docs 密集）需在主仓释放后按冲突域分批集成；当前仅在 wt519 做只读差异/测试可行性分析，不触碰 `D:\面试项目\minicc-codex`。十一实验面冻结。
