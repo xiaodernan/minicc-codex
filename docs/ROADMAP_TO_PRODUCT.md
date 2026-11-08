@@ -41293,3 +41293,41 @@ CLI（`minicc/main.py`）与 Web 运行时（`minicc/web.py`）在记录阶段�
 1. 推送 604–609（含本修复）到 `origin/m8-t537`；监控新 CI run，全绿前不再推送，若失败则先红→绿修复并记账。
 2. 继续搜“同一事实两处归属”（可门禁、非 lookalike）：优先排查 trace/event/载荷字段名与既有 home 的脱节点（如 `budget_exceeded` dict-key 事实需先判定域）；避免与 trace code/不同状态域 lookalike 合并。
 3. 十一实验面保持冻结；`main` 合并继续冻结（并发 worktree 冲突会话）。
+## 批次 610 — M8-T628：work-tree verdict kind 词汇（yes/no/unknown）有一处归属（gitprobe→changes/loop）
+
+### 1 是否真是同一事实
+
+`gitprobe.work_tree_verdict()` 返回 `(kind, detail)`，其 `kind` 取值 `yes`/`no`/`unknown`。该词汇由 `minicc.gitprobe` 产出，并在 `minicc.changes`、`minicc.agent.loop` 中按同一语义比较以区分“无仓库事实”“不可读/未知”“有工作树”。裸字面量跨产出与消费模块重复同一事实。
+
+### 2 命中点（实测）
+
+- `minicc/gitprobe.py`：`work_tree_verdict` 的 4 个返回点使用 `"yes"`/`"no"`/`"unknown"` 字面量。
+- `minicc/changes.py`：`kind == "no"` / `kind == "unknown"`（git 状态失败后的 verdict 分支）。
+- `minicc/agent/loop.py`：`kind == "no"` / `kind == "unknown"`（同一 verdict 分支）。
+
+### 3 改动
+
+- `minicc/gitprobe.py`：新增 `WORK_TREE_VERDICT_YES`/`NO`/`UNKNOWN`（M8-T628，一处归属），`work_tree_verdict` 返回常量。
+- `minicc/changes.py`、`minicc/agent/loop.py`：导入 verdict kind 常量，替换 `kind == "no"/"unknown"` 比较。
+- `tests/test_the_work_tree_verdict_kinds_have_one_home.py`（新）：红臂 2 项（home 缺常量；`gitprobe`/`changes`/`loop` 裸字面量，home 仅允许常量定义）→ 绿臂。
+
+### 4 验证（命令与输出要点）
+
+- 红臂：`pytest tests/test_the_work_tree_verdict_kinds_have_one_home.py -q` 2 failed，列出 gitprobe 5 + changes 2 + loop 2 共 9 处。
+- 绿臂：同门禁 2 passed；`import minicc.gitprobe, minicc.changes, minicc.agent.loop` 通过。
+
+### 5 聚焦回归
+
+- `tests/test_the_work_tree_verdict_kinds_have_one_home.py`、`tests/test_a_change_view_that_could_not_read_git_is_not_a_clean_tree.py`、`tests/test_a_snapshot_that_could_not_read_the_tree_is_not_a_clean_tree.py` 共 14 passed（`..\minicc-codex\.venv\Scripts\python.exe -m pytest ... -q`）。未跑全量基准回归/CI 双端。
+
+### 6 边界（哪些**未**触碰）
+
+- 仅约束 work-tree verdict kind 词汇在 `gitprobe`/`changes`/`agent.loop` 的归属；不改变 `work_tree_verdict` 判定逻辑、git 状态错误文案/原因构造、变更视图/快照/agent loop 的分支语义。
+- 未审计其他可能消费 `work_tree_verdict` 的模块（若存在）——本批范围以实测裸字面量比较点为准；后续若出现同事实脱节点可扩展门禁。
+- 未推送/未落 `main`：CI 42477151851（tip 7efe612，含 604–609 代码/609 代码修复但 **609 ledger `e2d1349` 仍在本地未推**）in_progress；610 本地提交后须待该 run 全绿或失败修复后按纪律推送（含 609 ledger + 610），legs 进行中不推送。
+
+### 7 下一位候选
+
+1. 监控 42477151851；全绿后按顺序推送本地待推提交（`e2d1349` 609 ledger、610 code+ledger）并遵守 legs-in-progress 不推送纪律；若失败则先红→绿修复并记账。
+2. 继续搜“同一事实两处归属”（可门禁、非 lookalike）：其他 git/work-tree 状态码或 verdict 消费点；注意区分与工具结果/任务/验证状态的 lookalike。
+3. 十一实验面保持冻结；`main` 合并继续冻结（并发 worktree 冲突会话）。
