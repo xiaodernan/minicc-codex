@@ -180,9 +180,13 @@ def test_run_one_never_produces_a_decision_spelling_without_a_reader() -> None:
         if isinstance(node, ast.FunctionDef) and node.name == "_run_one"
     )
 
+    _hook_decision_names = {"HOOK_DECISION_ALLOW": "allow", "HOOK_DECISION_DENY": "deny"}
+
     def constants(node: ast.expr) -> list[str]:
         if isinstance(node, ast.Constant) and isinstance(node.value, str):
             return [node.value]
+        if isinstance(node, ast.Name) and node.id in _hook_decision_names:
+            return [_hook_decision_names[node.id]]
         if isinstance(node, ast.IfExp):
             return constants(node.body) + constants(node.orelse)
         return []

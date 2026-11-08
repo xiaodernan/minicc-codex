@@ -78,7 +78,7 @@ from ..gitprobe import (
     git_status_unavailable_reason,
     work_tree_verdict,
 )
-from ..hooks import payloads_for_result, payloads_for_tool_call
+from ..hooks import HOOK_DECISION_ALLOW, HOOK_DECISION_DENY, payloads_for_result, payloads_for_tool_call
 from ..trace import trace_event
 from .context import (
     VISUAL_PART_TYPES,
@@ -781,9 +781,9 @@ async def run_agent(
         outcome = await asyncio.to_thread(hooks.run, event, payload)
         for entry in getattr(outcome, "outputs", []):
             emit_trace(
-                f"Hook {event} 执行完成（{entry.get('decision', 'allow')}）: {entry.get('command', '')}",
+                f"Hook {event} 执行完成（{entry.get('decision', HOOK_DECISION_ALLOW)}）: {entry.get('command', '')}",
                 phase=PHASE_TOOL,
-                status="error" if entry.get("decision") == "deny" else "ok",
+                status="error" if entry.get("decision") == HOOK_DECISION_DENY else "ok",
                 code="hook_executed",
                 detail=dict(entry),
             )

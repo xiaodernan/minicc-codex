@@ -41482,3 +41482,40 @@ subagent/task_manager/web 在结果/载荷对象中使用 `"budget_exceeded"` �
 1. 监控 42479351486；全绿后按顺序推送 `2e59ff2` + 614 提交；若失败先红→绿+账本再推，legs 进行中不推送。
 2. 继续搜“同一事实两处归属”（可门禁、非 lookalike）：hook 决策 `allow/deny` 词汇在 `hooks.py`（产出）与 `agent/loop.py`（消费）的同事实归属（需确认 home 与权限决策域分离）；或其他跨模块契约字段键/事件码脱节点。
 3. 十一实验面保持冻结；`main` 合并继续冻结。
+## 批次 615 — M8-T633：hook 决策词汇（allow/deny）有一处归属（hooks→agent.loop 消费）
+
+### 1 是否真是同一事实
+
+hook 执行域的决策值 `allow`/`deny` 由 `minicc.hooks` 产出（HookOutcome/entry、`on_failure` deny 分支语义）并由 `minicc.agent.loop` 消费（读取 hook entry decision）。裸字面量跨产出与消费重复同一 hook 域事实。该事实**不同于**权限规则/授权决策域的 `permission_rule_allow/deny` 等码（audit 归属），门禁仅覆盖 hook 域上下文。
+
+### 2 命中点（实测）
+
+- `minicc/hooks.py`：HookOutcome 默认/比较、entry 写入、`on_failure` 含 `deny` 的校验与分支、失败回退决策等共 15 处 `allow`/`deny` 字面量（hook 域）。
+- `minicc/agent/loop.py`：hook entry 消费行 `entry.get('decision', 'allow')` / `== 'deny'`（2 处）。
+
+### 3 改动
+
+- `minicc/hooks.py`：新增 `HOOK_DECISION_ALLOW`/`HOOK_DECISION_DENY`（M8-T633，hook 域一处归属）；替换 hook 决策/`on_failure` deny 相关字面量（行为不变）。
+- `minicc/agent/loop.py`：从 `..hooks` 导入 `HOOK_DECISION_*`，替换 hook decision 消费比较/默认值。
+- `tests/test_the_hook_decisions_have_one_home.py`（新）：红臂 2 项→绿臂；`loop.py` 仅门禁含 `decision`/`hook` 上下文的行以避开非 hook 域 lookalike。
+- `tests/test_hook_launch_failure_honours_the_deny_policy.py`：`test_run_one_never_produces_a_decision_spelling_without_a_reader` 的 AST 词表普查兼容 `HOOK_DECISION_ALLOW/DENY` Name 形式（M8-T633 常量化后的同一事实），仍断言 `_run_one` 仅产出 `allow/deny` 两种决策拼写且分支覆盖不变量。
+
+### 4 验证（命令与输出要点）
+
+- 红臂：`pytest tests/test_the_hook_decisions_have_one_home.py -q` 2 failed，列出 hooks 15 + loop 2（共 17 处命中，含 loop 决策消费行）。
+- 绿臂：同门禁 2 passed；`import minicc.hooks, minicc.agent.loop` 通过。
+
+### 5 聚焦回归
+
+- `tests/test_the_hook_decisions_have_one_home.py`、`tests/test_hooks.py`、`tests/test_hooks_validation.py`、`tests/test_hook_launch_failure_honours_the_deny_policy.py`（含兼容修复）、`tests/test_the_hook_denied_default_has_one_home.py`、`tests/test_the_hook_entry_have_one_home.py`、`tests/test_a_hook_argument_is_redacted_before_it_is_cut.py`、`tests/test_a_set_of_hooks_shares_one_budget.py` 共 51 passed（`..\minicc-codex\.venv\Scripts\python.exe -m pytest ... -q`）。未跑全量基准回归/CI 双端。
+
+### 6 边界（哪些**未**触碰）
+
+- 仅约束 hook 域 `allow/deny` 决策词汇在 `hooks.py`/`agent/loop.py`（决策消费上下文）的归属；不触碰权限/授权域 deny/allow 码与规则、`on_failure="continue"` 策略值（不同事实）、hook 事件名/载荷/执行语义。
+- 未推送/未落 `main`：CI 42479351486（tip `f45e6bb`）in_progress；本地 `2e59ff2`（613 ledger）+ 614 + 615 待推送，须待该 run 全绿（或失败修复）后按纪律推送，legs 进行中不推送。
+
+### 7 下一位候选
+
+1. 监控 42479351486；全绿后按顺序推送 `2e59ff2`、614、615；若失败先红→绿+账本再推，legs 进行中不推送。
+2. 继续搜“同一事实两处归属”（可门禁、非 lookalike）：`hooks.py` 中 `on_failure` 策略值 `continue` 若在配置/校验与运行时同事实重复可评估（需与 hook decision 分域）；或其他 trace/event/契约字段的脱节点。
+3. 十一实验面保持冻结；`main` 合并继续冻结。
