@@ -1248,7 +1248,7 @@ class TaskManager:
                 if snapshot.get("status") in ACTIVE_TASK_STATUSES and has_live_worker(self.store, snapshot):
                     # Inspect the original durable lease before rewriting a
                     # running record as interrupted. The worker owns writes.
-                    task.status = "running"
+                    task.status = TASK_STATUS_RUNNING
                     task.phase = str(snapshot.get("phase") or PHASE_PLANNING)
                     task.error = None
                     self._detached_tasks.add(task.task_id)
