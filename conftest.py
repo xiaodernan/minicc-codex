@@ -9,7 +9,6 @@ import inspect
 import os
 import sys
 import threading
-import time
 from typing import Any
 
 import pytest
@@ -34,6 +33,14 @@ _HAS_PYTEST_ASYNCIO = importlib.util.find_spec("pytest_asyncio") is not None
 # asserted from pytest's own measured duration, so the run keeps its report either way.
 
 DEFAULT_HANG_LIMIT_SECONDS = 900.0
+
+#: The tests this process rewrote from ``passed`` to ``failed`` for crossing the
+#: bound - the one named home for the hang class. The summary line files them
+#: under "failed" together with assertion verdicts, and that was the word batch
+#: 522 flagged as the hang class's homelessness. This list gives the rewrite a
+#: reader: session finish prints one named line, so a CI log sees the hang
+#: class without opening the report body to find who crossed.
+_HANG_REWRITES: list[tuple[str, float]] = []
 
 
 def hang_limit_seconds():
@@ -98,7 +105,27 @@ def pytest_runtest_makereport(item, call):
             + "s bound. Before this hook, a test that stopped returning stalled the whole"
             " run silently (M8-T45 boundary 3)."
         )
+        _HANG_REWRITES.append((item.nodeid, report.duration))
     return report
+
+
+def pytest_sessionfinish(session, exitstatus) -> None:
+    """Report the hang class on its own line; the summary files it with verdicts.
+
+    The rewrite in ``pytest_runtest_makereport`` is deliberate (a hung test must
+    not be swallowed), which is why the word "failed" cannot name the class
+    today. The class gets its own named line here instead - a reader for the
+    rewrite, so the word problem from M8-T522 is closed by giving the class a
+    listener instead of renaming pytest's outcome.
+    """
+    if not _HANG_REWRITES:
+        return
+    noun = "test" if len(_HANG_REWRITES) == 1 else "tests"
+    names = ", ".join(nodeid for nodeid, _ in _HANG_REWRITES)
+    sys.stderr.write(
+        f"\nMINICC_TEST_HANG_LIMIT: {len(_HANG_REWRITES)} {noun} crossed the hang bound"
+        f" (not a verdict): {names}\n"
+    )
 
 
 # --- M8-T536: fixture repos must not inherit the machine's git policy -------
