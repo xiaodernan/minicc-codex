@@ -42108,3 +42108,41 @@ hook 事件身份 `PreToolUse`/`PostToolUse`/`UserPromptSubmit`/`Stop` 由 `mini
 1. 监控 42485072840；全绿后按顺序推送 626–632，legs 进行中不推送；若失败先红→绿+账本再推。
 2. 继续搜“同一事实两处归属”：`task_manager` 中 `result/stored_result.get("answer"/"error"/"tokens_used")` 与 payload 构造的 task-result 同域字段（已做 cancelled；需窄模式避开快照/事件/其他 dict）；`children` 字段跨 `task_contract`/`task_execution`/`task_manager`/`web` 归属。
 3. `m8-t537`→`main` 合并仍阻塞于主仓并发会话（不触碰）；在 wt519 持续推进并准备合并说明。十一实验面冻结。
+## 批次 633 — M8-T651：`task_manager` 中 task-result payload 的 `answer`/`error`/`tokens_used` 字段名接回契约归属（混域窄改 + 门禁兼容）
+
+### 1 是否真是同一事实
+
+`minicc.task_manager` 在明确的 task-result payload 读写/构造语境中使用的 `answer`/`error`/`tokens_used` 字段名，与 `minicc.task_contract.RESULT_FIELD_ANSWER`/`RESULT_FIELD_ERROR`/`RESULT_FIELD_TOKENS_USED`（648/630 立家，631/632 已扩展至 worker/web 同域）是同一契约字段事实。`data.get(...)` 快照/原始记录读取、`self.task.error`/`task.error` 属性、`status="error"`、事件 detail schema、以及其他非 task-result payload 的 `error` 文本/键属于不同事实，未触碰。
+
+### 2 命中点（实测，窄改）
+
+- payload 读：`result.get("answer"/"error"/"tokens_used")`、`stored_result.get/setdefault/[]` 的 error/answer、`result_copy["tokens_used"]`、`result_payload["error"]`、`child.get("answer"/"error")`、`child.snapshot().get("tokens_used")`、`item.get("tokens_used")` 等 task-result 同域上下文。
+- payload 构造：合并子任务结果、批次失败汇总、取消清理结果、损坏快照恢复结果等明确 task-result dict 中的 `answer`/`error`/`tokens_used` 键。
+
+### 3 改动
+
+- `minicc/task_manager.py`：导入 `RESULT_FIELD_ANSWER`/`RESULT_FIELD_ERROR`/`RESULT_FIELD_TOKENS_USED`（保留既有 `RESULT_FIELD_CANCELLED`），将上述同域字段名替换为常量（行为不变，字符串值同）。**未**替换 `data.get(...)` 快照/原始记录路径、属性/状态/事件 schema 等混域用法。
+- **门禁兼容（修复 CI 42486878597，626–632 tip `818da65` 的 3 个失败）**：633 初始常量化误触了 shape-home 函数的字面量形式，已恢复——`_cancelled_result` 返回 dict 保持 `{"answer","error","cancelled"}` 字符串键（满足 `test_the_cancelled_result_have_one_home` census）；`_orchestration_result` 返回 `{"answer","cancelled","children"}` 字符串键（满足 `test_the_orchestration_result_have_one_home`）。`minicc/web.py` 批次取消返回保留 `"answer": BATCH_CANCELLED_ANSWER` 键形式以满足 `test_the_batch_cancelled_notice_has_one_home` 的 web 面检查（`cancelled` 仍用 `RESULT_FIELD_CANCELLED`）；API 值语义不变。
+
+### 4 验证（命令与输出要点）
+
+- `..\minicc-codex\.venv\Scripts\python.exe -m py_compile minicc/task_manager.py minicc/web.py` 通过；`import minicc.task_manager` OK。
+- CI 失败三项复验：`tests/test_the_batch_cancelled_notice_has_one_home.py`、`tests/test_the_cancelled_result_have_one_home.py`、`tests/test_the_orchestration_result_have_one_home.py` + 相关 field/phase/contract gates 共 37 passed。
+- 定向：`tests/test_task_durability.py tests/test_task_store_durability_contract.py` 19 passed；`test_batch_wiring::test_merge_batch_uses_the_task_model_and_configured_protocol` 及 4 个 roll-up/折叠相关 case 通过（全量 `test_batch_wiring` 在本地 harness 下曾超时，定向与关键用例验证）。
+- `python scripts/doc_pointers.py --check` 通过。
+
+### 5 聚焦回归
+
+- 字段/状态/phase/契约/取消 shape 门禁与 task durability/store/batch wiring 定向用例通过（见上）。未跑全量基准回归；push 后依赖 CI 双端验证（push 前确认无 legs 进行中）。
+
+### 6 边界（哪些**未**触碰）
+
+- `task_manager` 中 `data.get(...)` 原始/快照读取、`self.error`/`task.error`、`status="error"`、completion/error 事件 schema、`stream_text`、非 task-result dict、IPC cancel marker `write_text("cancelled")` 等混域事实未改。
+- shape-home census gate 要求其 home 函数以字符串字面量返回特定键集——本批次尊重该门禁边界；`RESULT_FIELD_*` 常量用于同域 payload 读写/非 home 构造，不与 shape-home 形式冲突。
+- 不触碰 approval/verdict/LLM usage/`children`/`session_id` 等其他契约域；不改变 API 值语义。
+
+### 7 下一位候选
+
+1. **CI 42486878597 已 completed/failure**（tip `818da65`，626–632），失败已由本批次门禁兼容修复并本地验证；提交 633 后在无 legs 进行中时推送，监控新 run，若失败先红→绿+账本再推，legs 进行中不推送。
+2. 继续搜“同一事实两处归属”：`RESULT_FIELD_CHILDREN`/`children_rolled_up` 在 `task_contract`/`task_execution`/`task_manager`/`web` 的 task-result 同域归属（仅当 `children` 为同一 task-result 契约字段）；`task_manager` 中剩余 `error` payload 键在**明确 task-result 构造**语境的窄收口（需避开 status/event/attr 混域）；cancel-file IPC marker `"cancelled"` writer/reader 若同事实可单独归属（不同于 payload 字段）。
+3. `m8-t537`→`main` 合并仍阻塞于主仓并发会话（`D:\面试项目\minicc-codex` `UU docs/ROADMAP_TO_PRODUCT.md`, `MERGE_HEAD`）——不触碰；并行整理 `dev/minicc-reliability-4ba3`、`m8-t117-*`、相关 detached worktree 的未合并差异与可移植证据，准备主仓释放后的集成。十一实验面冻结。

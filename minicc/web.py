@@ -1495,7 +1495,7 @@ class AgentService:
                     payload[BUDGET_EXCEEDED_FIELD] = budget_exceeded
                 return payload
             except AgentCancelled:
-                return {RESULT_FIELD_ANSWER: BATCH_CANCELLED_ANSWER, RESULT_FIELD_CANCELLED: True}
+                return {"answer": BATCH_CANCELLED_ANSWER, RESULT_FIELD_CANCELLED: True}
             finally:
                 await provider.close()
 
