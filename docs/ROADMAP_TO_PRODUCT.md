@@ -40171,3 +40171,46 @@ kind 在 UI 静默丢弃。对齐任务没有任何门拦,也没有谁提到它�
 1. 等这个 tip 的 Windows 腿跑完（push 后 ~20 分钟）——批 584+585 一并在场，批 584 已绿；
 2. 中文 effort 标签拼写对齐（Python `loop.py` 的内联标签表与 `STATE_ED_LABELS`/i18n `reasoning.{low,…,ultra}` 的 `zh` 列——两处独立维护，从未对照，drift 一条也能同时全绿）——下一个主力批；
 3. 十三个加载器裁定不变。
+
+## 第五百八十六批 — M8-T604 — 中文 effort 六处文案的两个源,拼写上钉了
+
+### 1 欠的是哪一条
+
+「这六种推理等级在中文里叫什么」——这个事实被 Python(`minicc/agent/loop.py` 的内联
+`effort_label` 表)和前端(`web/src/core/i18n.js` 的 `reasoning.*` zh 列)各写了一遍。
+两个拷贝从没人对照。今天字节一致——但靠历史巧合;改任意一面,另一面照样全绿,
+UI 和 CLI 日志就描述了不同的名字,没有任何信号。
+
+### 2 量到的真相（实测）
+
+- Python: `effort_label = {"low": 低, "mid": 中, "high": 高, "xhigh": 极高, "max": 最高, "ultra": "Ultra"}`
+- i18n `zh`: `reasoning.low/mid/high/xhigh/max/ultra = 低/中/高/极高/最高/Ultra`
+- 两者逐字节吻合（`\xe4\xbd\x8e` 等比对吻合），但两面各自独立维护。
+
+### 3 落地
+
+- `tests/test_the_effort_labels_share_one_spelling.py`（新门，2 条）：
+  ① 两面六个中文标签逐字节相同（键集也必须一致）；
+  ② Python 面涵盖 `REASONING_EFFORTS` 家（不得缺对岸）。
+
+### 4 见证（红先绿后）
+
+- 红臂：i18n `reasoning.mid` 的「中」改成「狆」→ 门红，点名「mid: python=…中… vs i18n=…狆…」；
+  `git checkout --` 恢复后绿。
+- 门本身：2 passed。
+
+### 5 聚焦回归
+
+- 未跑全量套件（本机 CPU 不可靠）；前端 effort 门在批 584/585 路径复跑过。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 en 列与 Python 面一致——en 是 UI 英文读法，且 Python 面本来就只有中文；
+- 不声称努力等级的**含义**被钉——只钉名字；
+- 不声称 CI 双腿都已绿：第 584 推后腿会在途（如触发），最新 Windows 绿停在批 580 的 tip 上（M8-T598）。
+
+### 7 下一位候选
+
+1. 批 584/585 的 CI 绿灯回来确认后再推；
+2. 中文 effort 文案的所有关联面（`panel.reasoningNote` 里提到 low/medium/high 等 level 名）——判断是否独立事实，若不独立，标记 deferred；
+3. 十三个加载器裁定不变。
