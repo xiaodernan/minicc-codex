@@ -36,6 +36,7 @@ from .agent.protocol import (
     PHASE_CARRYING_EVENT_KINDS,
     PHASE_PLANNING,
     TASK_CANCELLED_ERROR,
+    TASK_STATUS_RUNNING,
 )
 from .logging_setup import get_logger, log_task_event, register_secret
 from .task_store import TaskStore
@@ -279,7 +280,7 @@ def _run_owned_worker_inner(args: argparse.Namespace, workspace: Path, store: Ta
                 return
             stop_event.wait(CANCEL_POLL_SECONDS)
 
-    state: dict[str, Any] = {"status": "running", "phase": PHASE_PLANNING, "stream": "", "stream_length": 0, "events": [], "events_truncated": 0, "usage": None, "answer": "", "error": "", "result": None}
+    state: dict[str, Any] = {"status": TASK_STATUS_RUNNING, "phase": PHASE_PLANNING, "stream": "", "stream_length": 0, "events": [], "events_truncated": 0, "usage": None, "answer": "", "error": "", "result": None}
     state_lock = threading.RLock()
     flush_lock = threading.Lock()
     created_at = time.time()

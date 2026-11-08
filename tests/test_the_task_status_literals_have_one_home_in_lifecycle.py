@@ -54,7 +54,6 @@ def test_no_bare_task_status_comparisons_in_lifecycle_modules() -> None:
                 for op, comp in zip(node.ops, node.comparators):
                     if isinstance(op, (ast.Eq, ast.NotEq)) and isinstance(comp, ast.Constant) and comp.value in STATUSES:
                         offenders.append(f"{rel}:{comp.lineno} compares to {comp.value!r}")
-                    # also left side in reversed? ast.Compare has left + comparators
                 if isinstance(node.left, ast.Constant) and node.left.value in STATUSES:
                     for op in node.ops:
                         if isinstance(op, (ast.Eq, ast.NotEq)):
@@ -62,5 +61,30 @@ def test_no_bare_task_status_comparisons_in_lifecycle_modules() -> None:
                             break
     assert offenders == [], (
         "bare task status comparisons in lifecycle modules - ask TASK_STATUS_* "
+        "from minicc.agent.protocol:\n" + "\n".join(offenders)
+    )
+
+
+def test_no_bare_task_status_dict_literals_in_lifecycle_modules() -> None:
+    offenders: list[str] = []
+    for path in sorted(SCOPED):
+        try:
+            src = path.read_text(encoding="utf-8")
+            tree = ast.parse(src, filename=str(path))
+        except Exception:
+            continue
+        rel = path.relative_to(REPO).as_posix()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Dict):
+                for k, v in zip(node.keys, node.values):
+                    if (
+                        isinstance(k, ast.Constant)
+                        and k.value == "status"
+                        and isinstance(v, ast.Constant)
+                        and v.value in STATUSES
+                    ):
+                        offenders.append(f"{rel}:{v.lineno} dict status {v.value!r}")
+    assert offenders == [], (
+        "bare task status dict literals in lifecycle modules - ask TASK_STATUS_* "
         "from minicc.agent.protocol:\n" + "\n".join(offenders)
     )

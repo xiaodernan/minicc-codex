@@ -1829,7 +1829,7 @@ class TaskManager:
                         # failure; otherwise the parent watcher can loop forever.
                         snapshots.append({
                             "task_id": child_id,
-                            "status": "interrupted",
+                            "status": TASK_STATUS_INTERRUPTED,
                             "phase": PHASE_INTERRUPTED,
                             "error": "子任务记录不存在，按中断处理",
                             "answer": "",
@@ -2340,7 +2340,7 @@ class TaskManager:
         result = snapshot.get("result")
         result = dict(result) if isinstance(result, dict) else {}
         snapshot.update({
-            "status": "cancelled",
+            "status": TASK_STATUS_CANCELLED,
             "error": "宿主已关闭，工作进程被中止",
             "result": {**result, "answer": str(result.get("answer") or ""), "cancelled": True},
             "heartbeat_at_epoch": time.time(),
