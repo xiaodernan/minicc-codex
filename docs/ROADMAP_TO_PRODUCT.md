@@ -42307,3 +42307,28 @@ m8-t537 与 `dev/minicc-reliability-4ba3` 各自推进了同一检查器 `script
 ### 6 集成分支
 
 - `integration/doc-pointers-unify`（基于 `m8-t537@bfb95da`）；验证通过后并入 `m8-t537` 并按纪律推送。
+## 批次 639 — M8-T657：集成 dev 线 conftest.py 夹具隔离（M8-T536，fixture repos 不许继承机器 git 用户级策略）
+
+### 1 事实来源
+
+`dev/minicc-reliability-4ba3` 中的 M8-T536 是同一份 pytest 夹具集成：会话级 autouse fixture `_isolate_git_user_config` 把 git 的用户级配置（含回退的 XDG 配置）指向空文件；同时把 `pytest_sessionfinish`/`_HANG_REWRITES` 这套"改判词无人读"的记账拿掉——它只是个重写，本就不该是个要被单列的类，挂在外面无意义。
+
+### 2 改动
+
+- `conftest.py`（集成分支 `integration/ci-web-smoke`）：
+  - 新增 `import time`（遗留，未使用，保留以对齐 dev 版 `conftest.py` 的行为与后续补丁基线；如后续无用途会清）。
+  - 移除 `_HANG_REWRITES` 记账及其所有引用；保留 M8-T50 的"超时不并吞"——超时仍如实标红、打印截止时间，只是不再伪造独立类名单。
+  - 新增会话级 `_isolate_git_user_config` autouse fixture：空 `.gitconfig` 落在 `tmp_path_factory`，`GIT_CONFIG_GLOBAL` 指向它，会话结束恢复原值（`None` 则弹出）。
+- `tests/test_the_fixtures_do_not_inherit_machine_git_policy.py`（集成分支，新增）：M8-T536 两向见证——钩子确实被隔离、拿掉隔离后钩子确实会跑，两个方向都验证，不是假绿。
+
+### 3 验证（命令与输出要点）
+
+- `..\minicc-codex\.venv\Scripts\python.exe -m py_compile conftest.py` 通过。
+- 聚焦：`tests/test_the_fixtures_do_not_inherit_machine_git_policy.py` → **3 passed**（隔离 + 控制）。
+- 聚焦回归：`test_task_durability`、`test_task_contract`、`test_task_store_durability_contract`、`test_task_manager_phase_literals_have_one_home`、`test_batch_wiring[merge]` → **37 passed**。
+
+### 4 边界（哪些**未**触碰）
+
+- 不改 pytest hook 语义：超时的 `pytest_runtest_makereport` 重写逻辑没变（超时仍失败），只是不再记账/单列类；`pytest_sessionfinish` 记账整段删除，与 dev 线一致。
+- 不改任何产品代码；不推送（CI 42500298854（`218a657`）leges 仍在 in_progress，按规则不再推送任何分支）。
+- 本分支基于 `m8-t537@218a657`，仅用于集成 `dev/minicc-reliability-4ba3` 的 conftest 部分；合并决策另行线性评估。
