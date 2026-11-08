@@ -36,6 +36,9 @@ from .agent.protocol import (
     PHASE_CARRYING_EVENT_KINDS,
     PHASE_PLANNING,
     TASK_CANCELLED_ERROR,
+    TASK_STATUS_CANCELLED,
+    TASK_STATUS_COMPLETED,
+    TASK_STATUS_FAILED,
     TASK_STATUS_RUNNING,
 )
 from .logging_setup import get_logger, log_task_event, register_secret
@@ -452,29 +455,29 @@ def _run_owned_worker_inner(args: argparse.Namespace, workspace: Path, store: Ta
         result = TaskResult.from_payload(result).to_payload()
         with state_lock:
             cancelled = bool(result.get("cancelled"))
-            state["status"] = "cancelled" if cancelled else "completed"
+            state["status"] = TASK_STATUS_CANCELLED if cancelled else TASK_STATUS_COMPLETED
             state["answer"] = str(result.get("answer") or "")
             state["result"] = dict(result)
             # A cancelled task may still carry an explanatory error string;
             # the cancelled status must win over it.
             if result.get("error") and not cancelled:
-                state["status"] = "failed"
+                state["status"] = TASK_STATUS_FAILED
                 state["error"] = str(result["error"])[:500]
             state["usage"] = dict(result.get("tokens_used") or {})
-        _final_flush("completed")
+        _final_flush(TASK_STATUS_COMPLETED)
         return 0
     except AgentCancelled:
-        state["status"] = "cancelled"
+        state["status"] = TASK_STATUS_CANCELLED
         state["error"] = TASK_CANCELLED_ERROR
-        _final_flush("cancelled")
+        _final_flush(TASK_STATUS_CANCELLED)
         return 0
     except BaseException as exc:  # noqa: BLE001 - the worker owns its failure record
         LOG.error(
             "worker_failed task_id=%s error=%s", args.task_id, exc, exc_info=exc
         )
-        state["status"] = "failed"
+        state["status"] = TASK_STATUS_FAILED
         state["error"] = f"{type(exc).__name__}: {exc}"[:500]
-        _final_flush("failed")
+        _final_flush(TASK_STATUS_FAILED)
         return 1
     finally:
         LOG.info(

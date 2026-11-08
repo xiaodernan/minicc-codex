@@ -41767,3 +41767,36 @@ hook 事件身份 `PreToolUse`/`PostToolUse`/`UserPromptSubmit`/`Stop` 由 `mini
 1. 监控 42482986858；全绿后按顺序推送 620–622（及后续本地提交），legs 进行中不推送；若失败先红→绿+账本再推。
 2. 继续搜“同一事实两处归属”：`task_worker.py` 中 `state["status"] = "cancelled"/"completed"` 若确认是任务状态事实且可安全引用 `TASK_STATUS_*`（注意 worker 独立进程/导入面）；或 `task_contract`/`task_execution` 的 `cancelled` payload 字段名若建立独立契约常量归属（不与状态码混淆）。
 3. 十一实验面保持冻结；`main` 合并继续冻结。
+## 批次 623 — M8-T641：`task_worker` 任务状态字面量归属 `TASK_STATUS_*`（payload 字段分域）
+
+### 1 是否真是同一事实
+
+`minicc.task_worker` 写入 `state["status"]` 并传给 `_final_flush` 的 `cancelled`/`completed`/`failed`，与 `minicc.agent.protocol.TASK_STATUS_*` 是同一任务状态事实。`bool(result.get("cancelled"))` 中 `"cancelled"` 为 **task result payload 字段名**，不同事实，保留。
+
+### 2 命中点（实测）
+
+- `state["status"] = "cancelled" if cancelled else "completed"`、`"failed"`、`"cancelled"`；`_final_flush("completed"/"cancelled"/"failed")`。
+
+### 3 改动
+
+- `minicc/task_worker.py`：导入 `TASK_STATUS_CANCELLED`/`TASK_STATUS_COMPLETED`/`TASK_STATUS_FAILED`，替换上述状态字面量；保留 payload `result.get("cancelled")`。
+- `tests/test_task_worker_status_literals_have_one_home.py`（新）：门禁 worker 中裸任务状态 Constant，跳过 dict key、`.get(...)` payload 字段实参等不同事实位置。
+
+### 4 验证（命令与输出要点）
+
+- `pytest tests/test_task_worker_status_literals_have_one_home.py -q` 1 passed；`py_compile minicc/task_worker.py` 通过。
+
+### 5 聚焦回归
+
+- `tests/test_task_worker_status_literals_have_one_home.py`、`tests/test_task_durability.py`、`tests/test_batch_wiring.py`、`tests/test_task_store_durability_contract.py`、`tests/test_task_contract.py` 共 48 passed。未跑全量基准回归/CI 双端。
+
+### 6 边界（哪些**未**触碰）
+
+- 仅 worker 状态事实；不改变 worker/状态机/flush 语义；不触碰 payload `cancelled` 字段名归属及 `TASK_STATUS_RUNNING` 既有用法。
+- 未推送：CI 42482986858（tip `576b93e`）in_progress 时 620–623 本地累积；该 run 全绿后按纪律推送，legs 进行中不推送。
+
+### 7 下一位候选
+
+1. 监控 42482986858；全绿后按顺序推送 620–623（及后续本地提交），legs 进行中不推送；若失败先红→绿+账本再推。
+2. 继续搜“同一事实两处归属”：`task_contract`/`task_execution` 的 `cancelled` payload **字段名**若作为独立契约事实建立一处归属（与 `TASK_STATUS_*`/`BUDGET_EXCEEDED_FIELD` 类似的字段名常量模式），需排除 status 值域。
+3. 十一实验面保持冻结；`main` 合并继续冻结。
