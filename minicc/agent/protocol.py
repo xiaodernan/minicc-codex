@@ -396,6 +396,11 @@ BUDGET_EXCEEDED_CODE = "budget_exceeded"  # code="budget_exceeded"
 BUDGET_EXCEEDED_FIELD = "budget_exceeded"
 
 
+# M8-T639: budget_exceeded_event stage labels (cross-module call sites).
+# Distinct from PHASE_* (runtime phase) even when values align.
+BUDGET_STAGE_SUBAGENT = "subagent"
+
+
 def budget_exceeded_error(error: object) -> str:
     """The one error text for a budget trip."""
     return f"{BUDGET_EXCEEDED_ERROR_PREFIX}{error}"
@@ -515,6 +520,7 @@ __all__ = [
     "STAGE_ROUTE_CODE",
     "BUDGET_EXCEEDED_CODE",
     "BUDGET_EXCEEDED_FIELD",
+    "BUDGET_STAGE_SUBAGENT",
     "incomplete_answer",
     "validate_status_transition",
 ]

@@ -41696,3 +41696,38 @@ hook 事件身份 `PreToolUse`/`PostToolUse`/`UserPromptSubmit`/`Stop` 由 `mini
 1. 推送 617–620；监控新 run，若失败先红→绿+账本再推，legs 进行中不推送。
 2. 继续搜“同一事实两处归属”：`task_store`/其他任务域模块中 `snapshot.status`/`.status` 与 `TASK_STATUS_*` 的裸字面量（排除 dict key/schema 字段名、排除 verifier/graph/LLM/benchmark）；或 `benchmarks` 仅在确认与任务状态完全同域时再评估。
 3. 十一实验面保持冻结；`main` 合并继续冻结。
+## 批次 621 — M8-T639：`budget_exceeded_event` 的 subagent stage/name 标签有一处归属（main↔web）
+
+### 1 是否真是同一事实
+
+`budget_exceeded_event(..., name=..., phase=...)` 在 `minicc.main` 与 `minicc.web` 的 subagent 预算超限路径中使用 `"subagent"` 作为 stage（首参）与 `name`，是同一跨模块预算阶段/事件名事实。`merge`/`planner_dag`/`planning`(stage)/`review` 等当前仅单处出现，未扩张；stage 与 `PHASE_*`/`TASK_STATUS_*` 分属不同事实域。
+
+### 2 命中点（实测）
+
+- `minicc/main.py`：CLI subagent 预算超限事件 `("subagent", ..., name="subagent", phase=PHASE_EXECUTION)`。
+- `minicc/web.py`：web subagent 预算超限事件同形态。
+
+### 3 改动
+
+- `minicc/agent/protocol.py`：新增 `BUDGET_STAGE_SUBAGENT = "subagent"`（M8-T639，注释标明与 `PHASE_*` 分域）并加入 `__all__`。
+- `minicc/main.py`、`minicc/web.py`：导入并使用 `BUDGET_STAGE_SUBAGENT` 替换上述 stage/name 字面量（行为不变）。
+- `tests/test_the_subagent_budget_stage_has_one_home.py`（新）：home 常量 + AST 扫描 scoped 模块中 `budget_exceeded_event` 调用的 `"subagent"` Constant 实参/关键字值。
+
+### 4 验证（命令与输出要点）
+
+- 绿臂：`pytest tests/test_the_subagent_budget_stage_has_one_home.py -q` 2 passed。
+
+### 5 聚焦回归
+
+- `tests/test_the_subagent_budget_stage_has_one_home.py`、`tests/test_the_budget_exceeded_event_have_one_home.py`、`tests/test_the_budget_exceeded_code_has_one_home.py`、`tests/test_the_budget_exceeded_result_field_has_one_home.py` 共 10 passed（`..\minicc-codex\.venv\Scripts\python.exe -m pytest ... -q`）。未跑全量基准回归/CI 双端。
+
+### 6 边界（哪些**未**触碰）
+
+- 仅 subagent 预算 stage/name 的跨模块重复；不为单处 stage（merge/planner_dag/planning/review）预先常量化为“同事实两处”修复；不改变 `budget_exceeded_event` 签名/语义；不触碰 `PHASE_*`。
+- 未推送：CI 42482986858（tip `576b93e`，619）in_progress，legs 进行中不推送；620、621 本地待该 run 全绿后按纪律推送，legs 进行中不推送。
+
+### 7 下一位候选
+
+1. 监控 42482986858；全绿后按顺序推送 620、621（及后续本地提交），legs 进行中不推送；若失败先红→绿+账本再推。
+2. 继续搜“同一事实两处归属”：其他跨模块重复的 budget stage/trace 合约字段（仅在同事实且多处出现时）；`task_contract`/`task_execution` 间 `cancelled` **payload 字段名**若确认为同一契约字段事实且需一处归属，可评估（区别于 `TASK_STATUS_CANCELLED` 值）。
+3. 十一实验面保持冻结；`main` 合并继续冻结。

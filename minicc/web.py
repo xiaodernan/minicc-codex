@@ -70,6 +70,7 @@ from .agent.protocol import (
     TASK_KIND_TASK,
     VERIFICATION_GUARD_ERROR,
     BUDGET_EXCEEDED_FIELD,
+    BUDGET_STAGE_SUBAGENT,
     budget_exceeded_error,
     budget_exceeded_event,
     incomplete_answer,
@@ -1999,7 +2000,7 @@ class AgentService:
                     # the same named budget_exceeded event the planner fold
                     # emits for its own overspend.
                     budget_event = budget_exceeded_event(
-                        "subagent", exc, usage, name="subagent", phase=PHASE_EXECUTION,
+                        BUDGET_STAGE_SUBAGENT, exc, usage, name=BUDGET_STAGE_SUBAGENT, phase=PHASE_EXECUTION,
                     )
                     events.append(budget_event)
                     if on_event is not None:

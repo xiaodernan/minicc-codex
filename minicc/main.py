@@ -11,7 +11,7 @@ from typing import Any, Callable, NoReturn
 
 from .agent.context import compact_with_checkpoint, message_chars
 from .agent.loop import TurnResult, build_tool_feedback, run_agent
-from .agent.protocol import PHASE_EXECUTION, PHASE_PLANNING, STAGE_ROUTE_CODE, budget_exceeded_event
+from .agent.protocol import BUDGET_STAGE_SUBAGENT, PHASE_EXECUTION, PHASE_PLANNING, STAGE_ROUTE_CODE, budget_exceeded_event
 from .audit import AUTHORIZATION_MISSING_TASK_NETWORK, AUTHORIZATION_PLAN_MODE_EXEC, AUTHORIZATION_PLAN_MODE_WRITE, AUTHORIZATION_UNKNOWN_RISK, PERMISSION_MODE_PLAN
 from .agent.router import StageRouter, StageRoute
 from .agent.state import Budget, BudgetExceeded
@@ -1008,7 +1008,7 @@ def main(argv: list[str] | None = None) -> int:
         except BudgetExceeded as exc:
             log_task_event(
                 budget_exceeded_event(
-                    "subagent", exc, usage, name="subagent", phase=PHASE_EXECUTION,
+                    BUDGET_STAGE_SUBAGENT, exc, usage, name=BUDGET_STAGE_SUBAGENT, phase=PHASE_EXECUTION,
                 ),
                 task_id=session.path.stem if session else "cli",
             )
