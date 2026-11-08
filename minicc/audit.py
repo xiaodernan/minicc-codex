@@ -442,7 +442,17 @@ APPROVAL_FRAME_RESOLVED_KIND = "approval_resolved"
 # M8-T518: the set of authorization codes that mean "task needs explicit
 # user approval for this call".  Shared by audit.py and web.py so both faces
 # agree on which codes trigger the interactive prompt.
-MISSING_TASK_AUTHORIZATIONS = frozenset({"missing_task_write", "missing_task_exec"})
+# M8-T624: missing-task authorization code vocabulary (one home).
+AUTHORIZATION_MISSING_TASK_WRITE = "missing_task_write"
+AUTHORIZATION_MISSING_TASK_EXEC = "missing_task_exec"
+AUTHORIZATION_MISSING_TASK_NETWORK = "missing_task_network"
+
+# Network is handled separately and is intentionally not a member of
+# MISSING_TASK_AUTHORIZATIONS (web interactive-approval flow contract).
+MISSING_TASK_AUTHORIZATIONS = frozenset({
+    AUTHORIZATION_MISSING_TASK_WRITE,
+    AUTHORIZATION_MISSING_TASK_EXEC,
+})
 
 
 def authorization_event(
@@ -670,7 +680,7 @@ def authorize_tool(
         if allow_network:
             return AuthorizationDecision(True, "network_readonly", "本任务已明确授权联网查询", "task_network")
         return _allowlist_override(
-            AuthorizationDecision(False, "network_readonly", "联网查询需要当前任务单独授权", "missing_task_network")
+            AuthorizationDecision(False, "network_readonly", "联网查询需要当前任务单独授权", AUTHORIZATION_MISSING_TASK_NETWORK)
         )
     if risk == "readonly":
         return AuthorizationDecision(True, "readonly", "只读工具已允许", "default_readonly")
@@ -679,12 +689,12 @@ def authorize_tool(
             return AuthorizationDecision(False, "write", "计划模式只允许只读工具，写入已拒绝", "plan_mode_write")
         if network_tool and not allow_network:
             return _allowlist_override(
-                AuthorizationDecision(False, "write", "该工具声明了联网能力，需要先获得本任务的联网授权", "missing_task_network")
+                AuthorizationDecision(False, "write", "该工具声明了联网能力，需要先获得本任务的联网授权", AUTHORIZATION_MISSING_TASK_NETWORK)
             )
         if mode == "acceptEdits" or allow_changes:
             return AuthorizationDecision(True, "write", "本任务已明确授权写入", "task_write")
         return _allowlist_override(
-            AuthorizationDecision(False, "write", "写入工具需要当前任务明确授权", "missing_task_write")
+            AuthorizationDecision(False, "write", "写入工具需要当前任务明确授权", AUTHORIZATION_MISSING_TASK_WRITE)
         )
     if risk == "exec":
         if mode == "plan":
@@ -694,14 +704,14 @@ def authorize_tool(
             if allow_changes and allow_network:
                 return AuthorizationDecision(True, "network_exec", "本任务已明确授权网络命令", "task_network")
             return _allowlist_override(
-                AuthorizationDecision(False, "network_exec", "网络命令需要单独授权", "missing_task_network")
+                AuthorizationDecision(False, "network_exec", "网络命令需要单独授权", AUTHORIZATION_MISSING_TASK_NETWORK)
             )
         if tool == "bash" and is_readonly_command(str(command)):
             return AuthorizationDecision(True, "readonly_exec", "受限只读验证命令已允许", "safe_verification")
         if allow_changes:
             return AuthorizationDecision(True, "exec", "本任务已明确授权命令执行", "task_exec")
         return _allowlist_override(
-            AuthorizationDecision(False, "exec", "命令执行需要当前任务明确授权", "missing_task_exec")
+            AuthorizationDecision(False, "exec", "命令执行需要当前任务明确授权", AUTHORIZATION_MISSING_TASK_EXEC)
         )
     return AuthorizationDecision(False, "unknown", "未知工具风险，已拒绝执行", "unknown_risk")
 
@@ -742,7 +752,7 @@ def interpret_authorization_decision(decision: AuthorizationDecision) -> Allowan
     # Missing network is a denial on CLI, but Web treats it as interactive
     # (the user might enable --allow-network).  Keep it as "needs interactive"
     # so Web can ask; CLI will deny because it has no async prompt.
-    if decision.authorization == "missing_task_network":
+    if decision.authorization == AUTHORIZATION_MISSING_TASK_NETWORK:
         return AllowanceResult(None, decision.reason, decision)
 
     # Missing write/exec: interactive on both faces.
@@ -758,6 +768,9 @@ __all__ = [
     "APPROVAL_FRAME_REQUEST_KIND",
     "APPROVAL_FRAME_RESOLVED_KIND",
     "MISSING_TASK_AUTHORIZATIONS",
+    "AUTHORIZATION_MISSING_TASK_EXEC",
+    "AUTHORIZATION_MISSING_TASK_NETWORK",
+    "AUTHORIZATION_MISSING_TASK_WRITE",
     "NETWORK_TOOL_NAMES",
     "PERMISSION_MODES",
     "PERMISSION_MODE_ACCEPT_EDITS",

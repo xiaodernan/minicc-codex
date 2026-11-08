@@ -12,7 +12,7 @@ from typing import Any, Callable, NoReturn
 from .agent.context import compact_with_checkpoint, message_chars
 from .agent.loop import TurnResult, build_tool_feedback, run_agent
 from .agent.protocol import PHASE_EXECUTION, PHASE_PLANNING, STAGE_ROUTE_CODE, budget_exceeded_event
-from .audit import PERMISSION_MODE_PLAN
+from .audit import AUTHORIZATION_MISSING_TASK_NETWORK, PERMISSION_MODE_PLAN
 from .agent.router import StageRouter, StageRoute
 from .agent.state import Budget, BudgetExceeded
 from .agent.subagent import DEFAULT_MAX_DEPTH, DEFAULT_MAX_TURNS, build_task_tool_spec
@@ -404,7 +404,7 @@ def _permission_gate(
         if decision.authorization in {"plan_mode_write", "plan_mode_exec", "unknown_risk"}:
             cli_out(f"\n[minicc] 已拒绝 {name} ({_tool_preview(call)}): {decision.reason}")
             return False
-        if decision.authorization == "missing_task_network":
+        if decision.authorization == AUTHORIZATION_MISSING_TASK_NETWORK:
             cli_out(f"\n[minicc] 联网工具需要 --allow-network：{name} ({_tool_preview(call)})")
             return False
         if risk not in AUTHORIZATION_RISKS:

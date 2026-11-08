@@ -41143,3 +41143,40 @@ CLI（`minicc/main.py`）与 Web 运行时（`minicc/web.py`）在记录阶段�
 1. 监控 42475362988；全绿后按顺序推送本地已提交批次（604、605）并遵守 legs-in-progress 不推送纪律；若失败则先红→绿修复并记账。
 2. 继续搜“同一事实两处归属”（可门禁、非 lookalike）：agent/web 其他位置 `*_result.status`/`ToolResult.status` 对工具状态字面量的 Compare 脱节点；或 `missing_task_network` 授权码名字面量在 `audit.py`/`main.py` 归属（仅常量化比较，不改 `MISSING_TASK_AUTHORIZATIONS` 成员语义，需门禁证明）。
 3. 十一实验面保持冻结；`main` 合并继续冻结（并发 worktree 冲突会话）。
+## 批次 606 — M8-T624：missing-task 授权码名字有一处归属（audit↔main），保持集合语义不变
+
+### 1 是否真是同一事实
+
+`missing_task_write`/`missing_task_exec`/`missing_task_network` 是授权决策码名字，属于 `minicc.audit` 授权词汇的同一事实。它们散落在 `audit.py` 的决策构造/比较/`MISSING_TASK_AUTHORIZATIONS` 字面量，以及 `main.py` 的比较中。`web.py` 仅通过 `MISSING_TASK_AUTHORIZATIONS` 集合判断交互审批流，**不**依赖裸字面量。
+
+### 2 命中点（实测）
+
+- `minicc/audit.py`：`MISSING_TASK_AUTHORIZATIONS` 含 `missing_task_write`/`missing_task_exec` 字面量；4 处 `AuthorizationDecision(..., "missing_task_network")`；1 处 `decision.authorization == "missing_task_network"`；2 处 write/exec 决策码字面量。
+- `minicc/main.py`：`decision.authorization == "missing_task_network"`。
+
+### 3 改动（行为保持）
+
+- `minicc/audit.py`：新增 `AUTHORIZATION_MISSING_TASK_WRITE`/`AUTHORIZATION_MISSING_TASK_EXEC`/`AUTHORIZATION_MISSING_TASK_NETWORK`（M8-T624）；`MISSING_TASK_AUTHORIZATIONS` 由 write/exec 常量构造，**仍仅包含 write+exec，不包含 network**（与既有 web 交互审批流契约一致）；替换决策构造与比较中的裸字面量；`__all__` 导出新常量。
+- `minicc/main.py`：导入并使用 `AUTHORIZATION_MISSING_TASK_NETWORK`。
+- `tests/test_the_missing_task_authorization_codes_have_one_home.py`（新）：红臂 2 项（home 缺常量；`audit.py`/`main.py` 裸字面量）；绿臂同时断言 `MISSING_TASK_AUTHORIZATIONS == {WRITE, EXEC}` 且 `NETWORK not in`（行为契约）。
+
+### 4 验证（命令与输出要点）
+
+- 红臂：`pytest tests/test_the_missing_task_authorization_codes_have_one_home.py -q` 2 failed，列出 audit 8 处 + main 1 处（共 9）。
+- 绿臂：同门禁 2 passed；`MISSING_TASK_AUTHORIZATIONS == ['missing_task_exec','missing_task_write']`，network 非成员。
+
+### 5 聚焦回归
+
+- `tests/test_the_missing_task_authorization_codes_have_one_home.py`、`tests/test_permissions_approval.py`、`tests/test_permissions_pure.py`、`tests/test_the_approval_decisions_have_one_home.py`、`tests/test_a_synchronous_chat_run_must_be_able_to_ask_for_an_approval.py` 共 53 passed（`..\minicc-codex\.venv\Scripts\python.exe -m pytest ... -q`）。未跑全量基准回归/CI 双端。
+
+### 6 边界（哪些**未**触碰）
+
+- **未改变 `MISSING_TASK_AUTHORIZATIONS` 成员语义**（network 仍不在集合内，web 行为不变）；仅常量化名字/比较/构造。
+- 未触碰授权原因/风险标签/其他 `authorization` 码（如 `permission_rule_allow`）的归属；未改 `web.py`（仅消费集合）。
+- 未推送/未落 `main`：CI 42475362988（tip 1d56505，含 601–603）仍 in_progress；本地 604–606 已提交/待提交，须待该 run 全绿或失败修复后按纪律推送，legs 进行中不推送。
+
+### 7 下一位候选
+
+1. 监控 42475362988；全绿后按顺序推送本地已提交批次（604、605、606）并遵守 legs-in-progress 不推送纪律；若失败则先红→绿修复并记账。
+2. 继续搜“同一事实两处归属”（可门禁、非 lookalike）：`permission_rule_allow`/`permission_rule_deny` 等授权码名字是否跨模块裸字面量且有归属；或 agent `status="error"/"ok"` 作为事件状态字段值是否与某事件状态 home 脱节（需先区分事实域）。
+3. 十一实验面保持冻结；`main` 合并继续冻结（并发 worktree 冲突会话）。
