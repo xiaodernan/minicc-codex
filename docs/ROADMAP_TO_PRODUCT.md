@@ -13067,7 +13067,7 @@ netguard 都动过（M8-T117 的 `::0`、M3-T2 的 `.local`、M3-T5 的栅栏注
 | 变异（`finally` 逐字还原，`git diff --stat` 0 行） | 结果 | 红的正是 |
 | --- | --- | --- |
 | A：webauth.py `LOOPBACK_SUFFIXES` 回植 `.local`（M3-T2 拆掉的缺陷原样回种） | `2 failed, 16 passed in 10.43s` | `test_loopback_host_detection`（`assert not is_loopback_host("evil.local")` → `assert not True`）＋ `test_cross_origin_state_change_rejected_before_any_work`（`assert 500 == 403`——Origin 被当回环后请求穿透到业务层崩 500，而非在门上 403 被拒：端到端路径同样红） |
-| B：task_store.py `heartbeat_lease` 删 `AND expires > ?` 栅栏（M3-T5 的一行防线） | `1 failed, 1 passed in 5.08s` | `test_expired_lease_cannot_be_revived_by_same_owner`（`assert not True`——过期租约被迟到心跳复活）；`test_lease_has_single_owner_and_can_recover_after_expiry` 仍绿——变异只拆栅栏不伤正常租约路径，是精准变异的标志 |
+| B：task_store.py `heartbeat_lease` 删 `AND expires > ?` 栅栏（M3-T5 的一行防线） | `1 failed, 1 passed in 5.08s` | `test_an_expired_lease_stays_with_its_owner_until_someone_takes_it`（M8-T538 改名前叫 test_an_expired_lease_stays_with_its_owner_until_someone_takes_it——`assert not True`——过期租约被迟到心跳复活）；`test_lease_has_single_owner_and_can_recover_after_expiry` 仍绿——变异只拆栅栏不伤正常租约路径，是精准变异的标志 |
 | 基线（还原后复跑） | **27 passed in 5.56s** | — |
 
 变异 A 顺手量到一个有趣的读数：`.local` 回植后，跨站请求不再是干净的 403
@@ -36225,7 +36225,7 @@ sha256，读数 `arms_536.txt`）：
   这条腿的慢有名字，见 §7 第 2 位。
 - **为什么慢的一组读平面，而快的一组读工作树**：本批收尾时同一棵工作树上另有一条**未提交**的
   通道——`minicc/task_store.py`、`minicc/task_manager.py`、`tests/test_task_durability.py` 被改过，
-  `test_expired_lease_cannot_be_revived_by_same_owner` 在那棵树里改了名，而
+  `test_an_expired_lease_stays_with_its_owner_until_someone_takes_it`（今名 `test_an_expired_lease_stays_with_its_owner_until_someone_takes_it`）在那棵树里改了名，而
   `ROADMAP_TO_PRODUCT.md:13070` 的引用没跟着改。于是 `doc_pointers --check` 在**工作树**上报出
   一条悬空证据，它属于那次改名、不属于本批；`test_doc_pointers.py` 里那三条读真文档的腿
   因此在工作树上红过一轮，红的不是本批的字节。`plane536e` = 今天 HEAD + 本批三个路径
@@ -36409,7 +36409,7 @@ A3 单说：它对语料腿是**不可见**的——`_code_spans` 先抹围栏�
 - 影响集（`scripts/impacted_tests.py` 按 argv 路径模式给这两个路径算出的 **17 个测试文件**）在 `plane519`（HEAD `d98b40e` + 本批两个路径，提交后干净）上连着本批门一起跑完 **268 passed in 1080.96s (0:18:00)**，一条红都没有。名单里包含回读 git 的那几条（`tests/test_a_gate_is_only_a_gate_once_it_is_in_the_repo.py`、`tests/test_impacted_tests.py`、`tests/test_route_coverage_measurement.py`）：它们在这个平面上答的是「提交后的仓库」，不是脏工作树。
 - 这条文件本身：`python -m pytest -q tests/test_the_two_readers_share_one_fence_ruler.py` → **12 passed in 60.79s**（wall 83.56s，含解释器启动；`--durations` 那一遍 56.19s）；只选那一条腿 → **1 passed in 2.59s**（wall 10.03s），文件内计时 0.73s；新门三条腿 **3 passed in 2.09s**。修前同一条腿上表是 964.37s–1423.6s。文件其余 11 条腿的成本本批没动，其中最大的一条是 47.26s（§7 第 4 位）。
 
-- 记录形状门（批次号不被两个标题认领、prose 里的围栏标记不吞跨度、§ 引用落在它自己那一节、过百的批次号仍被点数器读出、在仓文件不带冲突标记、任务表声明与落地一致，加上本批门 3 条与引用门 12 条）在三棵树上读数不同，**每一棵缺的东西都写得出来**：`plane540`（记录已提交，历史只有一个导出提交）**62 passed / 1 failed**，红的是 `test_the_commit_the_row_names_exists_in_this_repository`——它要 `0185533` 这个提交，单提交平面没有历史；共享工作树（有历史，但另一条通道的改名还没提交）**62 passed / 1 failed**，红的是 `test_the_shipped_roadmap_answers_every_evidence_shaped_citation`——另一条通道未提交的改名让 `test_expired_lease_cannot_be_revived_by_same_owner` 在**工作树**里没有了（ROADMAP 两条引用点着它，第五百一十八批 §5 记过同一个名字）；`git clone --shared` 到 HEAD `3bdce1e` 的干净副本（有历史、没有别人的未提交改动）**63 passed in 229.59s**，一条红都没有。**判据取第三棵**：前两棵的红各自是那棵树缺的东西，不是本批。
+- 记录形状门（批次号不被两个标题认领、prose 里的围栏标记不吞跨度、§ 引用落在它自己那一节、过百的批次号仍被点数器读出、在仓文件不带冲突标记、任务表声明与落地一致，加上本批门 3 条与引用门 12 条）在三棵树上读数不同，**每一棵缺的东西都写得出来**：`plane540`（记录已提交，历史只有一个导出提交）**62 passed / 1 failed**，红的是 `test_the_commit_the_row_names_exists_in_this_repository`——它要 `0185533` 这个提交，单提交平面没有历史；共享工作树（有历史，但另一条通道的改名还没提交）**62 passed / 1 failed**，红的是 `test_the_shipped_roadmap_answers_every_evidence_shaped_citation`——另一条通道未提交的改名让 test_an_expired_lease_stays_with_its_owner_until_someone_takes_it（今名 `test_an_expired_lease_stays_with_its_owner_until_someone_takes_it`）在**工作树**里没有了（ROADMAP 两条引用点着它，第五百一十八批 §5 记过同一个名字）；`git clone --shared` 到 HEAD `3bdce1e` 的干净副本（有历史、没有别人的未提交改动）**63 passed in 229.59s**，一条红都没有。**判据取第三棵**：前两棵的红各自是那棵树缺的东西，不是本批。
 
 - 三条 CI 检查器在 `plane540`（HEAD `d98b40e` + 本批两个路径 + 本批记录，提交后工作树干净）上全部 rc=0：`doc_pointers --check` 读 20 份文档、633 个在仓文件、896 个标记里checked=116、citation-without-locator=53、3980 条 evidence 指针；写进之前那一份文档读 892 个标记、3967 条指针——差的 4 个标记、13 条指针就是本批记录自己带进来的。这一句报的是**它自己所在的这份文档**的数，所以它带一条额外的规矩：**动这一句就得重跑一次**，跑出来的数不等于写下来的数，这句就是假话。`route_coverage --check`（34 个 dispatch site、378 行，GET A/B 20/20、POST A/B 14/14 = 100%）；`impacted_tests --check` 在干净树上 rc=0、打 `no changes to measure`——下限读数是空；记录还没提交的那棵树上同一条命令打 5 行影响集（记录也是一次改动）。
 
@@ -36976,7 +36976,7 @@ A5 单说：**丢弃一条快照对腿一是不可见的**——腿一数的是�
   641.47s**，一条红都没有。
 - 共享工作树上同一条命令 **10 failed / 161 passed in 557.13s**。10 条红全部由另一条
   通道的未提交改名引起：`tests/test_task_durability.py` 的工作树版本删掉了
-  `test_expired_lease_cannot_be_revived_by_same_owner`（HEAD 的 43 行还有它），而
+  `test_an_expired_lease_stays_with_its_owner_until_someone_takes_it`（今名 `test_an_expired_lease_stays_with_its_owner_until_someone_takes_it`；HEAD 的 43 行还有它），而
   `docs/ROADMAP_TO_PRODUCT.md` 的 13070、36228、36412 行仍引用这个名字。检查器在
   `plane543` 上 rc=0；在共享树上 rc=1，先报这 3 条 DANGLING，本记录落进来之后又多了
   第 4 条——就是本段引用的这个名字（干净克隆上 0 条）；假定「文档本身干净」的门因此
@@ -37667,7 +37667,7 @@ A7 的第一次没咬，如实记：臂删的是 `if is_test_filename(path.name)
 
 ### 5 聚焦回归
 
-- 共享树上九个文件（本批门 + 另外八个引用 `minicc/agent/test_selection.py` 与 `build_verification_plan` 的文件）：`76 passed, 1 failed, 1 skipped in 225.79s`。唯一的红是 `tests/test_the_two_readers_share_one_fence_ruler.py::test_the_shipped_roadmap_answers_every_evidence_shaped_citation`，它点的是别的通道未提交改名留下的 4 条 `test_expired_lease_cannot_be_revived_by_same_owner`（第五百四十批记过同一形状）；跳过的是本平台文件名不能带引号。判据取干净克隆。
+- 共享树上九个文件（本批门 + 另外八个引用 `minicc/agent/test_selection.py` 与 `build_verification_plan` 的文件）：`76 passed, 1 failed, 1 skipped in 225.79s`。唯一的红是 `tests/test_the_two_readers_share_one_fence_ruler.py::test_the_shipped_roadmap_answers_every_evidence_shaped_citation`，它点的是别的通道未提交改名留下的 4 条 test_an_expired_lease_stays_with_its_owner_until_someone_takes_it（今名 `test_an_expired_lease_stays_with_its_owner_until_someone_takes_it`；第五百四十批记过同一形状）；跳过的是本平台文件名不能带引号。判据取干净克隆。
 - 干净克隆（HEAD + 本批代码提交 + 本记录）：`77 passed, 1 skipped in 112.53s`。
 - 干净克隆上的 `doc_pointers.py --check`（本句定稿后重跑）：rc=0；953 个「见」标记（116 条进受检箱、56 条落在 citation-without-locator）、23 条链接、4136 条 evidence 指针（75 条路径断言在代码跨度之外）、20 份文档、644 个在仓文件；`route_coverage.py --check` 与 `impacted_tests.py --check` 均 rc=0。
 - 全围栏：**本批不重跑**（约 58 分钟一趟）；父提交 `e5906e2`（第五百三十二批的代码提交）的上一轮围栏在 `5faa568` 上 `4195 passed, 11 skipped`，EXIT=0。本批改动只在其上 5 增 0 删，判定取干净克隆上的门集与检查器。
@@ -38804,7 +38804,7 @@ N 行；`summary()` 的总账（`minicc/changes.py:852`）把这些 0 加起来�
   `tests/test_no_document_quotes_a_content_addressed_bundle.py`、
   `tests/test_retrieval_enhanced.py`）在 HEAD（`f39fb01`）的干净克隆里 **`85 passed in 310.08s`**、
   RC=0（`scratch/citegate563_head.log`）；同一组门在共享树上量到 2 failed，红的两条都指向
-  `test_expired_lease_cannot_be_revived_by_same_owner`——那是另一条道未提交的
+  test_an_expired_lease_stays_with_its_owner_until_someone_takes_it（今名 `test_an_expired_lease_stays_with_its_owner_until_someone_takes_it`）——那是另一条道未提交的
   `tests/test_task_durability.py` 改动删掉的名字，本批不碰它（记录与本批读数的引用门在
   带记录的干净克隆里跑，见下一条）。
 
@@ -39477,3 +39477,266 @@ A1 红 10 条、A2 红 9 条，其中 8 条同名，剩下的几条正好把「�
 4. 带着的账：`audit_window_truncated` 记的是行还是字节——`:400`～`:402` 里字节先切（`_AUDIT_TAIL_BYTES`，
    `:61`）、行再数，两个 cutoff 只报一个布尔；`clean` 兜底本身（`:748`）；`_git` 的 127 哨兵；
    `exists()` 分不出形状；selector 解析成本；未跟踪行的双计；listing 读上限。
+## 第五百一十批 — M8-T521 — 两把围栏尺并成一把：证据读者的字节配对退役
+
+### 1 缺陷
+
+`scripts/doc_pointers.py` 里「这些字节是不是代码」这个问题一直有两个答案。指针读者在
+第五百零三批（M8-T519）已经改成按行锚定的状态机 `_fence_blocks`：围栏开在行首、按行收，
+行中间的反引号串不管；证据读者 `_code_spans` 却还留着第五百零三批之前的字节配对
+（三反引号跨换行非贪婪配对、带 re.S）。字节配对是**对整份文件的相位锁**：正文里任何一句
+提到围栏标记的反引号串，都会把它后面的每一对真围栏重新配错。
+
+落地前实测（`D:/面试项目/mc-t470/probe_t521_hidden.py` 对 shipped 20 篇语料）：**12 条证据形状的跨度落在闭合
+围栏内部**——一条被当成声明的引文；同一次测量还从语料里读出 **4 个空白跨度**（字节配对
+从一串反引号的中间起头，配出来的「跨度」是空的，但读者照样把它判了）。ROADMAP 第 1550 行
+在表格单元里写「逐 ```python``` 块」的那一格是重灾区：行锚定尺正确地不抹它，剩下的三个
+反引号被内联尺与相邻两条引用的开头错配，于是同行的
+`test_late_registration_never_silently_replaces_a_builtin` 与
+`test_override_is_explicit_and_leaves_an_audit_trail` 两条引用**从来没有过读者**。
+
+三把候选尺在同一语料、同一豁免名册上的对账（`D:/面试项目/mc-t470/probe_t521_ruler.py`，判决前冻结）：
+
+| 尺 | 跨度 | 证据形状 | 相对 shipped 丢引用 |
+| --- | --- | --- | --- |
+| shipped（字节配对块尺 + 单反引号内联尺） | 17571 | 2433 | — |
+| 只换块尺 | 25051 | 3645 | 丢 2 条（上面那两条兄弟引用） |
+| 块尺换行锚定 + 内联按游程长度配对 | 25041 | 3649 | 丢 0，净增 520 个不同证据串 / +1216 次出现 |
+
+本批取第三行：**块尺并、内联尺也换**。只换块尺不换内联尺会把那两条兄弟引用吃掉——这正是
+把「换尺」写成两步都量过的原因。
+
+### 2 落地：一个帮手、一条游程规则、三条处置
+
+- **一个帮手**：抹围栏收进 `_blank_fences(text)`——闭围栏抹成空格、逐字节保长、逐行保
+  换行。指针读者的 `_mask_code` 与证据读者 `_code_spans` 都走它；旧常量 `_FENCE` 随之无读者，
+  删除（本批缺陷的根就是抄了两份）。
+- **一条游程规则**：行内 code span 改成 `_CODE_RUN`——N 个反引号开、内容不含换行与反引号
+  （上限 140，沿用旧 `_CODE_SPAN` 已有的同一个界）、恰好 N 个反引号收。开与收各留一个环视，
+  各有一条腿撑着（错配的收尾、外面一对反引号吃掉里面引用的开头）；落地时量过另外两个环视
+  在全部 20 篇语料的 25041 条跨度与 7 个反引号夹具上与去掉它们的写法**零分歧**，是惰性问题，
+  按「不留在船上」删掉了——度量数字与订正记在 `D:/面试项目/mc-t470/deltas_vs_frozen.md` D23。
+- **三条处置**（新尺净点红的恰好三条）：`test_witness_script_exists` 与
+  `tests/test_the_require_text_have_one_home.py` 进 `_RETIRED_TEST_NAME` / `_RETIRED_PATH`
+  两张退役名册，各带创建/删除的提交理由；ROADMAP 第 20788 行 memo 载体清单里那个裸词干
+  改写成它指的载体 `minicc/agent/test_selection.py`——为 776 次裸名里的
+  1 次放宽一整类判据不值得，将来真缺一个同名函数时读者不能闭眼放行。
+- `_code_spans` 的返回改成跨度内容自己的偏移，`_line_of` 仍把判决落回作者写的那一行；
+  未闭合的 opener 由第五百零三批的判决负责，本批的读者在未闭合时照旧逐行判下去。
+
+### 3 语料读数：改前 → 改后
+
+| 量 | 改前（字节配对） | 改后（一把尺） | 读者 |
+| --- | --- | --- | --- |
+| 落在闭围栏内部的证据形状跨度 | **12** | **0** | 门第 6 腿逐篇扫描 |
+| 空白跨度 | **4** | **0** | 门第 4 腿的空白子句 |
+| 兄弟两条引用 | 无读者 | 各自命中、行号逐格对上 | 门第 7 腿 |
+| 跨度总数 / 证据形状数 | 17571 / 2433 | 25041 / 3649 | 探针对账 |
+
+### 4 门与臂电池
+
+门 `tests/test_the_two_readers_share_one_fence_ruler.py`：**13 腿**。第 13 腿
+（指针读者的掩码走同一个帮手）是电池打出来的：第一轮电池里 A10 那把刀
+（掩码不再走公共抹除）**零红**——按「一刀不红的臂不该存在」拒绝这个读数，
+`D:/面试项目/mc-t470/probe_t521_a10gap.py` 在两种底面上复测，发现原第 6 腿围栏体里写的全是行内跨度，
+掩码自己的行内那一遍本来就会抹掉它们，那条腿分辨不了「走没走公共抹除」；
+新腿在围栏体里放一条**裸指针**（不带反引号的「见 X」），只有围栏那一遍能抹它。
+A10 在 13 腿底面上重跑，红且只红在这一条。
+
+电池 `D:/面试项目/mc-t470/arms_t521.py`，11 把刀分五个平面（a/b/c/d/e），逐臂按字节还原、还原后 sha 逐一复核、
+`PYTHONDONTWRITEBYTECODE=1`、junit 分账（AssertionError 红与崩溃分开），全程崩溃 0：
+
+| 刀 | 红腿数 | 底面 |
+| --- | --- | --- |
+| A1 证据读者退回字节配对 | 6 | ff082b8（12 腿） |
+| A2 证据读者不抹围栏 | 5 | 同上 |
+| A3 删收尾环视 | 2 | 同上 |
+| A4 删开头环视 | 1 | 同上 |
+| A5 定长三反引号 | 10 | 同上 |
+| A6 定长单反引号 | 1 | 同上 |
+| A7 删 retired 函数名行 | 3 | 同上 |
+| A8 删 retired 路径行 | 3 | 同上 |
+| A9 引用改回裸词干 | 1 | 同上 |
+| A10 掩码不走公共抹除 | 0 → 补第 13 腿后 1 | fce5a05（13 腿） |
+| A11 旧的两把尺原样回来 | 6 | 两底面各跑一遍，同集 |
+
+12 腿底面上每腿至少一臂点红（第 7、8 两腿——兄弟引用与未闭合 opener——由 A5 独点，
+一把大刀不等于可以少写腿；13 腿底面上 A10/A11 复跑收尾）。a/b/c/d 四轮基线全绿（a 轮基线
+12 passed 0 红；d 轮按别的进程已评落地字节而跳过基线），e 轮基线 13 passed 0 红。
+
+落地本身有一段要如实记的第一轮：02:02 那次落地（带两个后来删掉的惰性环视）前四步全绿，
+指针活性普查那步 rc=1，落地脚本按自己的规矩把三件载体还原、本批不落。那次失败的机制
+**没能归因**：日志只留下进度点，腿名与报错都没存下来；今天把环视原样装回去对同一步重跑
+是 8 passed（226.08s），而第一轮的新门跑了 742.96s、安静的第二轮只要 463.01s——第一轮
+跑在第五百零四批围栏还占着机器的时段里。所以这一格记作**未归因的作废轮**：作废处置本身
+（任何一步红就不落）是对的，环视的删除由零分歧测量决定、与那步红无关。03:18 第二轮
+全绿（新门 12 例、第五百零三批围栏门 11 例、doc_pointers 自家门 58 例、指针活性普查 8 例、
+文档普查 88 例），落成 `ff082b8`。A10 补腿那笔 `fce5a05` 推送时与别道的 `5fd8f4d`
+在远端撞车——两边文件零交集（我的门文件，他们的 tool_policy/graph/loop/subagent），
+rebase 后干净落上。
+
+围栏 `fce5a05`（独立工作树 wt521f）：**4054 collected / 4039 passed / 4 failed / 0 errors /
+11 skipped / 4566.34s**。分母对账：第五百零四批围栏实测 4035 + 别道 `5fd8f4d` 的门 6 例 +
+本批新门 13 例 = 4054，逐格相等。四条红各有其主：两条先于本批存在（
+`test_the_dynamic_route_list_still_matches_the_source`、`test_every_emitter_asks_the_home`，
+与第五百零四批围栏同一对）；一条是别道 `5fd8f4d` 落进的新静态缺陷——
+`test_no_module_defines_the_same_top_level_name_twice` 量出 `minicc/agent/graph.py` 的
+`INSPECT_DAG_TOOLS` 在 45 与 48 行定义了两次——那是禁改文件，本批披露不修；最后一条是
+本批自己的语料腿 `test_no_shipped_citation_lies_inside_a_closed_fence_block` 被
+`MINICC_TEST_HANG_LIMIT` 杀死：围栏全程 76 分钟、19 条泄漏线程争 GIL 的时段里它跑了
+1012.4s 超过 900s 界，而同一台机器安静时同一腿只需 602.9s——负载形状，不是判据形状。
+归因复跑（安静机器、同两个文件）14 collected：门 13 腿全绿，唯一失败的是那条普查腿
+（`INSPECT_DAG_TOOLS` defined at lines 45 and 48，3.9s 即红）——别道那处静态缺陷
+独立复现、与负载无关；全程 659.3s，errors 0。
+
+### 5 与冻结件的差
+
+四处，全部按实测订正、判据一字未改，详见 `D:/面试项目/mc-t470/deltas_vs_frozen.md`：D21 门腿 9 → 12、
+旧字节判决 6 红 → 9 红（两条 run-length 腿在旧尺下都红，冻结没算到）；D22 冻结把那两条
+兄弟引用写成「没有读者」是反的——字节尺今天照样读它们，只有「换块尺不换内联尺」才会
+吃掉它们，所以它们的角色是反回归天花板腿不是缺陷见证；D23 两个环视是惰性的，删；
+D24 刀 8 把 → 11 把（两把环视刀换成真有腿可红的、不抹围栏与掩码分家各一刀、
+落回旧尺 A11、A10 补腿后复跑）。
+
+### 6 本批不做
+
+- `_BARE_TEST` 的大小写敏感性不动：变异名（`test_mutation_A1_remove_comment_makes_p2_red`、
+  `test_mutation_B1_add_bare_silent_handler` 这一族）今天照旧不判，
+  这是先于本批存在的另一处失明，本批披露不顺手修。
+- `MIN_EVIDENCE` 与引用读者的判据数值一克不动；`checked` 只涨不跌由门的地板腿守着。
+- CI 上凭据门读的比产品自己的秘密词表窄——那是 M8-T528 量好的账，本批不捎带。
+
+### 7 让号：第五百零五至五百零九批已由并行车道落走
+
+初稿把本批写作第五百零五批（批号 = M8-T − 16 的配对，由第五百零四批那一格推来）。本批的
+代码 ff082b8 与 fce5a05 落进历史之后，记录在等自己的围栏；等待期间并行车道连落五批，把
+第五百零五批（M8-T523）到第五百零九批（M8-T527）逐格占走，T − 16 配对随之作废。
+M8-T522 更早已被第二百六十七批的撞号订正占用（改号登记不抹），所以凭据门那批的候选号
+顺延为 M8-T528。落地脚本因此不再断言配对轴，改为断言：本批的任务号没有被任何标题申报
+过、取的号也没有、每个已声明批号的中文拼法都能由同一套写法逐字生成（拼法是从文档自己
+身上学的，不是背的）、且本批之上每个无记录的已发表任务号都有一笔已发表提交作主。
+
+## 第五百一十一批 — M8-T528 — CI 的凭据门改读产品自己的脱敏词表
+
+### 1 缺陷
+
+`scripts/reliability_probe.py` 的 M3 凭据段（CI 每次推送都跑的那个门）带着一张**私有的三把
+尺**：openai-style key、aws access id、pem banner。产品自己的脱敏词表在
+`minicc/tools/registry.py` 的 `_REDACT_RULES`——八条规则、七个带 marker token 的替换
+（llm_api_key、github_token、github_pat、aws_access_key、bearer_token、url_credentials、jwt）
+加一个裸的 PEM 块。门比产品窄：ghp_、github_pat_、Bearer、jdbc/redis/amqp 内嵌凭据、
+eyJ 开头的 JWT，这五族产品会抹、门看不见。
+
+落地前的配对测量（真实状态目录——探针默认的 `--credential-path`——854 个文件）：旧门
+0 命中；同一目录上新门读出 **10 条已发表命中**，全部是 bearer_token 一族、全部落在快照
+目录里同一份审计文档的各份副本上——匹配值与 git 追踪文件逐字相同，属披露不属泄漏；
+0 条泄漏。同一次测量里旧门对这 10 条全盲。
+
+第二处：`_configured_key` 按行首劈分读 `.env`——产品装载器 `_parse_env_file`
+（`minicc/config.py`）接受的六种拼法（裸键、带引号、export 前缀、等号两侧留白、缩进、
+行内注释）它只认一种；任何另一种拼法都会让 configured-key 那条尺**静默失效**。
+
+### 2 落地
+
+- **一把尺**：`_product_rules()` 从 `_REDACT_RULES` 现场推导——对每条规则的替换串抽
+  marker token 作规则名；裸 PEM 块的替换没有 token，落到 `private_key_block`。产品的词表
+  改了，门跟着改，中间没有手抄层。
+- **两条门自有的尺**：`pem_banner`（裸 BEGIN 行——产品要闭合成块才抹，门按形状报）与
+  `configured_api_key`（读出的 `.env` 值本身）。
+- **配置键走产品装载器**：`_configured_key` 改读 `_parse_env_file`；`.env` 坏掉时
+  ConfigError 被接住、该轮禁用 configured-key 尺、**不引用出错行的内容**。
+- **已发表判决**：一条命中只有在「该尺在该文件匹配到的每一个值都逐字出现在某个 git 追踪
+  文件里」时才算 published（披露）；任一值不在追踪面里即泄漏。追踪面惰性构建
+  （git ls-files 加内容，模块级缓存），只在有裸命中时才付这个成本。判决行报 files-read、
+  缺席目标逐个点名、「读零个文件什么也证不了」这句写进 PASS 行；exit 1 只对泄漏。
+- 观众钉：`tests/test_impacted_tests.py` 的 docstring 订正——凭据段自此有进程内门，观众集
+  仍是「tests 加 workflows」，因为 pytest 半边的 runner 仍是 ci.yml。
+
+### 3 读数：改前 → 改后（同一真实状态目录）
+
+| 量 | 改前（私有三把尺） | 改后（产品词表派生） |
+| --- | --- | --- |
+| 读取的规则 | 3（手抄） | 9（8 条产品规则 + pem_banner）|
+| findings | 0（全盲） | 10 published + 0 leak |
+| configured-key 认得的 .env 拼法 | 6 种里认 1 | 6 种全认（走 `_parse_env_file`）|
+| exit | 0（假阴） | 0（真阴，判决行说清读了多少）|
+
+### 4 门与臂电池
+
+门 `tests/test_reliability_probe_credentials.py`：**8 腿**。L_A 门读全产品规则（marker 名与
+pattern 逐条相等）；L_B 九个运行期拼装的产品形状逐个被门点名（与 redact_text 绑定）；
+L_BANNER 裸 banner 是门自有尺、产品抹不到它；L_C 配置键认全六种装载器拼法；L_BROKEN
+坏 `.env` 禁用该尺且不引用行内容；L_D published 两向判决＋判决串不带值；L_E 缺席目标照实
+报（files-read、ABSENT、读零文件）；L_F 泄漏 exit 1、判决点名 marker token、输出永不含
+匹配值。
+
+电池 `D:/面试项目/mc-t470/arms_t528.py`，六把刀只动 `scripts/reliability_probe.py`，逐臂按
+字节还原、sha 复核、PYTHONDONTWRITEBYTECODE=1、junit 分账（AssertionError 红与崩溃分开）：
+B1 私有三把尺回来、B2 配置键读回行首劈分、B3 published 判决丢弃、B4 判决串带匹配文本、
+B5 名字手抄（marker 绑定断）、B6 判决行不报 files-read。
+
+第一轮要如实记：B1/B4/B5 各比冻结预测多红一腿，逐条按 junit 原文归因——L_F 除了 exit-1
+与无内容外还钉「判决必须点名 marker token」，B1/B5 换回旧名字后 token 不再出现；L_B 按
+「path: rule」格式合同读判决，B4 把值拼进判决串即破坏该合同。三处都是预测太窄、不是门
+误红；预测表按归因修订后第二轮 **6/6 MATCHED、8/8 腿全被至少一把刀点红、零死臂**，基线
+绿、还原 sha 逐字节相等。
+
+围栏 `23ad436`（独立工作树 wt528f）：**4099 collected / 4081 passed / 7 failed / 0 errors / 11 skipped / 9094.36s**。
+分母不靠算术猜：把本轮 junit 与第五百一十批那份逐文件名相减，4054（上轮实测）+ 别道随
+`b2b2789` 并入的三张新门 12 + 12 + 11 例 + `test_cleanup_version` 新 2 例 + 本批新门 8 例
+= **4099**，逐格相等、丢失 0 例。
+
+预测要如实记。落地前冻结的预测是 **4062 collected / 4 failed**，两格都欠：分母只算了
+「上一份围栏的人口 + 我的 8 条腿」，而人口在我这笔代码落地之前就先被那次合并抬了 37 例；
+红的条数从 4 变 7。三条新红逐条按 junit 原文与安静复跑归因，一条都不接「大概是负载」：
+
+| 红 | 围栏读数 | 安静复跑（同一条腿） | 归因 |
+| --- | --- | --- | --- |
+| `test_index_build_makes_a_constant_number_of_filesystem_calls_per_file` | `(7.232, 7.208)`，7.208 > 7.0 | 72.9s，**照旧红** | 别道 `dcda114`（M8-T526）：`tool_denied_by_rule` 现在先问 `policy_evaluation_error`、再走 `match_permission_rule`，两处各自调 `load_permission_rules`，而它每次都 `Path.stat()` 一次；索引每个文件都要问这道拒绝 ⇒ 每文件多一次 stat。两平面对账（同一夹具、同一计数器）：`fce5a05` 上 stat = 1028/4103（250/1000 文件）、每文件 6.232/6.208；`23ad436` 上 stat = 1278/5103（正好 +250/+1000），`open`/`is_symlink`/`iterdir`/`walk` 四键逐格不动，每文件 7.232/7.208。承重文件 `minicc/audit.py` 在别的车道在飞——披露，不顺手修。 |
+| `test_clean_shutdown_aborts_a_worker_that_ignores_cancellation` | 120.904s 放弃（1117 次轮询、last value None） | 46.10s **绿** | 负载形状：本轮整跑 9094.36s，比上一轮 4566.34s 慢一倍；那条腿的 120s 预算等的是子进程走到 parked 模型调用，被机器吃掉的不是被代码改坏的。 |
+| `test_the_sibling_citations_keep_their_reader_and_their_line` | 判在 34554 行、作者写的是 1550 行 | 0.70s **照旧红** | **是我的**，而且红在腿上不在文档上：第五百一十批的记录正文（`e1a29ca`）在文末又引用了那两条兄弟引用各一次。读者现在认出 **4** 条跨度（1550 两条、34554 与 34555 各一条），两条都仍有读者——腿的第一个断言（「没有读者了」）是绿的；红在第二个断言：腿把跨度按名字压成 dict（留下**最后一**处），把「作者写的那一行」按行扫（留下**第一**处），同一个名字出现两处时这两半必然搬家。它钉的其实是「每个名字在全文只出现一次」，而这本账本每写一批就要引用一次名字。修在门：让腿逐处对上，而不是把记录里的引用抹掉。列为下一批候选 M8-T529。 |
+
+语料腿 `test_no_shipped_citation_lies_inside_a_closed_fence_block` 两轮都撞 900s 挂钟限
+（`fce5a05` 围栏 1012.4s、本轮 1407.4s），这一格既不接「大概是负载」，也不靠一次安静复跑——
+安静复跑被自己的守卫作废了：窗口内别道起工（`FOREIGN_BEFORE=[]`、`FOREIGN_AFTER=[39436,
+29324]` → VOID），按命令行认出自己的两个进程后停掉，此刻它在 1591.7s 墙钟里只用到 931.9 CPU
+秒（0.59 核）。判据换成把腿的两半拆开量 CPU（`D:/面试项目/mc-t470/probe_t529_leg_cpu.py`，`time.process_time()`
+五次取中位，别的车道进不了这个数）：腿对文档里**每一条**跨度都调一次 `_block_of(text, offset)`，
+而 `_block_of`（同文件 79-83 行）每次都重跑 `dp._fence_blocks(text)`——整篇 157 万字节再扫一遍。
+实测本轮 ROADMAP **23635 条跨度 × 单次全扫 31.25ms ≈ 738.6 CPU 秒**，父提交 23276 条 ≈ 727.4 秒，
+其余 19 篇默认文档合计约 0；两轮回栏之间算术只涨 **+1.5%**，墙钟却涨 **39%**——差的那一截才是
+机器吃的。而这条腿把 738.6 秒全花在「这段跨度落在哪个块里」这一句话上：另一支探针
+（`D:/面试项目/mc-t470/probe_t529_leg_cost.py`，墙钟计）量到查表形式 200 次 0.0001s，即 23635 次约 0.01s——同一件
+事从 738.6 秒到 0.01 秒，约七万倍的差别，而且它随时可能被一台够忙的机器推过那道限。模型读到
+的 738.6 秒比直接观察（那条腿到我停它时已烧 ≥931.9 CPU 秒仍未返回）还低一截，这里按低的记、
+把高的也记着：两条都指向同一处算术。修在门：`_fence_blocks(text)` 每篇文档算一次、
+成员判定查表——列为 M8-T529，与上表那条兄弟引用腿同批（同一文件、两半都是门自己的账，不碰
+`MIN_EVIDENCE` 也不碰引用读者的判据）。
+
+先于本批存在的三条红原样在列、文字与上一轮逐字相同：`minicc/agent/graph.py` 的
+`INSPECT_DAG_TOOLS` 定义在 45 与 48 行两遍（别道 `5fd8f4d` 的静态缺陷，该文件禁改，披露
+不修——安静复跑独立 3.9s 即红，与负载无关）；`test_the_dynamic_route_list_still_matches_the_source`
+的「前缀分派一族都没读到，这门就空转了」；`test_every_emitter_asks_the_home` 的
+`minicc/llm/anthropic_provider.py must ask the one home for the trace event shape`。errors 0。
+
+顺出的一条注释腐烂（不在红里，因为没人读它）：那条 7.0 界的 docstring 写着「250 files ->
+5.232、1000 files -> 5.208」，而两个平面的实测是 6.232/6.208 与 7.232/7.208——手抄进注释的
+读数比界先漂，界对实测的余量本来只有 0.792，不是 docstring 暗示的 1.792。
+
+### 5 本批不做
+
+- CI runner 上没有 `.minicc`——凭据段在 CI 上读 0 个文件，判决行照实说「读零个文件什么也
+  证不了」、exit 0。让 CI 对真实状态目录武装是运维决策，不是本批。
+- 产品 `url_credentials` 尺只认 jdbc、redis、amqp 三族；postgres、mysql 等带内嵌凭据的
+  URL 是**产品侧**缺口，本批不顺手修产品。语料不背书：把通用尺（任意 `scheme://user[:pw]@`）
+  架在 `git ls-files` 加真实状态目录的 8497 个文件上量，**0 命中、0 个读不出来的文件**
+  （`D:/面试项目/mc-t470/probe_t529_url_scheme.py`）——所以这条只能按**可达性**判（有没有
+  一条 shipped 路径把带内嵌凭据的 URL 送进 `redact_text`），不能按语料判，下一批先量可达。
+- 围栏量出的三处别处欠账本批不捎带：`minicc/audit.py` 那对重复的策略求值（每索引一个
+  文件多一次 `Path.stat`，`minicc/agent/retrieval.py:505` 的拒绝问句是它的读者）——该
+  文件在别的车道在飞；`test_the_two_readers_share_one_fence_ruler` 第 7 腿「按名字压跨度」
+  的形状，它把「同一名字出现两处」判成搬家，修法是让腿逐处对账；以及同文件那条语料腿的
+  每跨度全文重扫（上文量得 738.6 CPU 秒，改成每篇文档算一次围栏表即归零）。后两条同列
+  M8-T529：同一文件、都是门自己的账。
+- `MIN_EVIDENCE` 与引用读者的判据数值一克不动；那条 7.0 的文件系统调用界也不动——它现在
+  红得对，是产品多花了两次策略读取，不是界写窄了。

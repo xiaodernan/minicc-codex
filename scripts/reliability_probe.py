@@ -8,9 +8,23 @@ it can gate a dedicated CI job (red on any regression).
 The second phase is the M3 credential gate, made measurable: the roadmap's
 literal "`grep -rn sk-` 零命中" cannot be satisfied by this codebase, because
 `task-<hex>` ids contain the substring `sk-` - a month-old local web log holds
-19k such matches. The scan therefore looks for credential *shapes* (long
-OpenAI-style keys, AWS ids, PEM banners, and the configured key value itself)
-and reports only file paths and rule names, never the matched text.
+19k such matches. The scan therefore looks for credential *shapes* and reports
+only file paths and rule names, never the matched text.
+
+Since M8-T528 the gate's rule table is *derived* from the product's own
+redaction table (``minicc.tools.registry``): the CI gate may not read narrower
+than what minicc itself masks. Two gate-only extras stay on top of the product
+table: the bare PEM banner (the product rule needs a closed ``BEGIN..END``
+block; an unclosed banner is still a leak shape) and the configured
+``MINICC_API_KEY`` value itself, read through the product's own ``.env`` loader
+(``config._parse_env_file``) so it sees every spelling the product sees.
+
+A finding whose matched value already occurs verbatim in a git-tracked file is
+classified *published*: it is a copy of something the repository already
+discloses (the audit doc's own illustration text, for example), reported as
+counts and paths, never content, and it does not fail the gate. Every verdict
+line reports how many files were actually read, so a scan over an absent state
+directory can never look like a clean scan over hundreds of files.
 
 Usage:
     python scripts/reliability_probe.py
@@ -26,6 +40,10 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(REPO_ROOT))
+
+from minicc.config import ConfigError, _parse_env_file  # noqa: E402
+from minicc.tools import registry  # noqa: E402
 
 # Each entry maps an M1 defect to the regression case that fails red on the
 # pre-fix code and green after. Keeping node ids explicit means the probe stays
@@ -46,23 +64,42 @@ PROBE_TARGETS: tuple[tuple[str, str], ...] = (
 #: like a leaked key to the repository's own pre-commit secret hook.
 _PEM_BANNER = "-----BEGIN " + "PR" + "IVATE KEY-----"
 
-#: name -> matcher. Every rule is chosen so that task/session ids do not match.
-CREDENTIAL_RULES: tuple[tuple[str, re.Pattern[str]], ...] = (
-    ("openai-style key", re.compile(r"\bsk-[A-Za-z0-9_-]{20,}")),
-    ("aws access id", re.compile(r"\bAKIA[0-9A-Z]{16}\b")),
-    ("pem private key", re.compile(re.escape(_PEM_BANNER))),
+#: The product marks its redactions ``[REDACTED:llm_api_key]`` and
+#: ``[REDACTED PRIVATE KEY]``. The gate names each rule after the marker token,
+#: so a rule the product renames or adds renames or adds a gate rule with it.
+_MARKER = re.compile(r"\[REDACTED[: ]([a-z_]+)\]")
+
+
+def _product_rules() -> tuple[tuple[str, re.Pattern[str]], ...]:
+    rules: list[tuple[str, re.Pattern[str]]] = []
+    for pattern, replacement in registry._REDACT_RULES:
+        found = _MARKER.search(replacement)
+        rules.append((found.group(1) if found else "private_key_block", pattern))
+    return tuple(rules)
+
+
+#: The CI credential gate reads the product's own redaction table, plus one
+#: gate-only extra: the bare banner, which the product's closed-block rule
+#: cannot see.
+CREDENTIAL_RULES: tuple[tuple[str, re.Pattern[str]], ...] = _product_rules() + (
+    ("pem_banner", re.compile(re.escape(_PEM_BANNER))),
 )
+
 SCAN_SUFFIXES = {".log", ".json", ".jsonl", ".txt", ".md", ".sqlite3", ""}
 
 
-def _configured_key() -> str:
-    env_file = REPO_ROOT / ".env"
-    if not env_file.is_file():
+def _configured_key(env_path: Path | None = None) -> str:
+    """Read the configured key the way the product reads it, so every loader
+    spelling (``export`` prefix, spaces around ``=``, indentation, quoting,
+    inline comments) is visible to the configured-key rule too."""
+    try:
+        values = _parse_env_file(env_path or (REPO_ROOT / ".env"))
+    except ConfigError:
+        # The error message quotes the offending line - never print it.
+        print("  credential phase: .env unreadable (ConfigError, line content withheld); "
+              "configured-key rule disabled this run")
         return ""
-    for line in env_file.read_text(encoding="utf-8", errors="replace").splitlines():
-        if line.startswith("MINICC_API_KEY="):
-            return line.split("=", 1)[1].strip().strip('"').strip("'")
-    return ""
+    return values.get("MINICC_API_KEY", "")
 
 
 def _label(path: Path) -> str:
@@ -72,13 +109,47 @@ def _label(path: Path) -> str:
         return str(path)
 
 
-def scan_credentials(paths: list[Path]) -> list[str]:
-    """Return "``file: rule``" findings. Never includes matched content."""
-    findings: list[str] = []
+_TRACKED: list[str] | None = None
+
+
+def _published_texts() -> list[str]:
+    """Contents of every git-tracked file; computed once, only when findings exist."""
+    global _TRACKED
+    if _TRACKED is None:
+        out = subprocess.run(["git", "ls-files", "-z"], cwd=str(REPO_ROOT), capture_output=True)
+        names = [raw.decode("utf-8", "replace") for raw in out.stdout.split(b"\0") if raw]
+        texts: list[str] = []
+        for name in names:
+            try:
+                texts.append((REPO_ROOT / name).read_text(encoding="utf-8", errors="replace"))
+            except OSError:
+                continue
+        _TRACKED = texts
+    return _TRACKED
+
+
+def _is_published(value: str, published_texts: list[str]) -> bool:
+    return any(value in text for text in published_texts)
+
+
+def scan_credentials(
+    paths: list[Path],
+    published_provider=None,
+) -> tuple[list[str], list[str], int]:
+    """Return ``(leak, published, files_read)``. Findings are "``file: rule``"
+    strings; matched content never reaches them.
+
+    A rule's finding in a file is *published* only when every value that rule
+    matched there occurs verbatim in a tracked file; one un-published value
+    makes the whole finding a leak."""
+    leak: list[str] = []
+    published: list[str] = []
+    files_read = 0
+    raw: list[tuple[Path, str, list[str]]] = []
     key = _configured_key()
     for root in paths:
         if not root.is_dir():
-            print(f"  credential path is not a directory, skipped: {root}")
+            print(f"  credential target is not a directory, skipped: {root}")
             continue
         for candidate in sorted(root.rglob("*")):
             if not candidate.is_file():
@@ -89,12 +160,45 @@ def scan_credentials(paths: list[Path]) -> list[str]:
                 text = candidate.read_text(encoding="utf-8", errors="ignore")
             except OSError:
                 continue
+            files_read += 1
             for name, pattern in CREDENTIAL_RULES:
-                if pattern.search(text):
-                    findings.append(f"{_label(candidate)}: {name}")
+                values = [m.group(0) for m in pattern.finditer(text)]
+                if values:
+                    raw.append((candidate, name, values))
             if len(key) >= 12 and key in text:
-                findings.append(f"{_label(candidate)}: configured api key")
-    return findings
+                raw.append((candidate, "configured_api_key", [key]))
+    published_texts = published_provider() if (raw and published_provider is not None) else None
+    for candidate, name, values in raw:
+        finding = f"{_label(candidate)}: {name}"
+        if published_texts is not None and all(_is_published(v, published_texts) for v in values):
+            published.append(finding)
+        else:
+            leak.append(finding)
+    return leak, published, files_read
+
+
+def credential_phase(targets: list[Path]) -> int:
+    """Run the credential scan and print an honest verdict; return the exit code."""
+    leak, published, files_read = scan_credentials(targets, published_provider=_published_texts)
+    print(f"reliability probe: credential scan: {files_read} file(s) read over {len(targets)} target(s), "
+          f"{len(leak)} leak finding(s), {len(published)} published finding(s)")
+    if files_read == 0:
+        print("  no file was read; a scan over zero files certifies nothing about local state")
+        for target in targets:
+            print(f"  target: {target} ({'present' if target.is_dir() else 'ABSENT'})")
+    for finding in leak[:20]:
+        print(f"  leak: {finding}")
+    for finding in published[:20]:
+        print(f"  published: {finding} (value occurs in tracked files; disclosure, not a leak)")
+    if leak:
+        print("reliability probe: FAIL (M3 credential gate) — local state holds secret shapes")
+        return 1
+    if files_read == 0:
+        print("reliability probe: PASS (M1 defects stay fixed; credential scan read zero files - "
+              "nothing was certified about local state)")
+    else:
+        print("reliability probe: PASS (M1 defects stay fixed; no un-published credential shapes in state)")
+    return 0
 
 
 def main() -> int:
@@ -118,16 +222,7 @@ def main() -> int:
         return result.returncode
 
     targets = [Path(raw) for raw in (args.credential_path or [REPO_ROOT / ".minicc"])]
-    findings = scan_credentials(targets)
-    print(f"reliability probe: credential scan over {len(targets)} path(s), "
-          f"{len(findings)} finding(s)")
-    for finding in findings[:20]:
-        print(f"  {finding}")
-    if findings:
-        print("reliability probe: FAIL (M3 credential gate) — local state holds secret shapes")
-        return 1
-    print("reliability probe: PASS (M1 defects stay fixed; no credential shapes in state)")
-    return 0
+    return credential_phase(targets)
 
 
 if __name__ == "__main__":
