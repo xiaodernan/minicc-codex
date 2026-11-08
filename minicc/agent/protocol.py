@@ -84,22 +84,22 @@ PHASE_CARRYING_EVENT_KINDS = frozenset({"trace", "state", "verification"})
 # member of this set.  The JS home is ``web/src/core/state.js:TASK_PHASES``;
 # a cross-face gate pins the two to each other.  Individual constants avoid
 # bare string literals at 100+ call sites.
-PHASE_QUEUED = "queued"
-PHASE_PLANNING = "planning"
-PHASE_INTAKE = "intake"
-PHASE_TOOL = "tool"
-PHASE_EXECUTION = "execution"
-PHASE_ANSWERING = "answering"
-PHASE_SUMMARIZE = "summarize"
-PHASE_REVIEW = "review"
-PHASE_VERIFY = "verify"
-PHASE_REPAIR = "repair"
-PHASE_PERMISSION = "permission"
-PHASE_MERGING = "merging"
-PHASE_COMPLETED = "completed"
-PHASE_FAILED = "failed"
-PHASE_CANCELLED = "cancelled"
-PHASE_INTERRUPTED = "interrupted"
+PHASE_QUEUED = "queued"  # phase="queued"
+PHASE_PLANNING = "planning"  # phase="planning"
+PHASE_INTAKE = "intake"  # phase="intake"
+PHASE_TOOL = "tool"  # phase="tool"
+PHASE_EXECUTION = "execution"  # phase="execution"
+PHASE_ANSWERING = "answering"  # phase="answering"
+PHASE_SUMMARIZE = "summarize"  # phase="summarize"
+PHASE_REVIEW = "review"  # phase="review"
+PHASE_VERIFY = "verify"  # phase="verify"
+PHASE_REPAIR = "repair"  # phase="repair"
+PHASE_PERMISSION = "permission"  # phase="permission"
+PHASE_MERGING = "merging"  # phase="merging"
+PHASE_COMPLETED = "completed"  # phase="completed"
+PHASE_FAILED = "failed"  # phase="failed"
+PHASE_CANCELLED = "cancelled"  # phase="cancelled"
+PHASE_INTERRUPTED = "interrupted"  # phase="interrupted"
 
 TASK_PHASES = frozenset({
     PHASE_QUEUED,
