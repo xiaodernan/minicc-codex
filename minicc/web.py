@@ -1485,14 +1485,14 @@ class AgentService:
                         budget_exceeded = str(exc)
                 payload = {
                     "answer": response.text or "并行子任务已完成，但合并器没有返回文字。",
-                    "cancelled": False,
+                    RESULT_FIELD_CANCELLED: False,
                     "tokens_used": dict(response.usage),
                 }
                 if budget_exceeded:
                     payload[BUDGET_EXCEEDED_FIELD] = budget_exceeded
                 return payload
             except AgentCancelled:
-                return {"answer": BATCH_CANCELLED_ANSWER, "cancelled": True}
+                return {"answer": BATCH_CANCELLED_ANSWER, RESULT_FIELD_CANCELLED: True}
             finally:
                 await provider.close()
 
@@ -1527,7 +1527,7 @@ class AgentService:
                 # held) and can never be evicted, so a cancelled request
                 # with a fresh session id grows the table without limit.
                 self._release_session_lock_inflight(workspace, session_id)
-                return {"answer": TASK_CANCELLED_ANSWER, "cancelled": True, "session_id": session_id, "events": []}
+                return {"answer": TASK_CANCELLED_ANSWER, RESULT_FIELD_CANCELLED: True, "session_id": session_id, "events": []}
         # M8-T294: the lock has now been held, so it is safe to evict later.
         self._mark_session_lock_used(workspace, session_id)
         try:
@@ -3190,7 +3190,7 @@ class AgentService:
             "completion": dict(result.completion),
             "events": events,
             "session_id": session_id,
-            "cancelled": result.cancelled,
+            RESULT_FIELD_CANCELLED: result.cancelled,
             "completion_guard": completion_guard,
         }
 

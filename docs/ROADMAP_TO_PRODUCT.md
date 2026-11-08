@@ -41902,3 +41902,37 @@ hook 事件身份 `PreToolUse`/`PostToolUse`/`UserPromptSubmit`/`Stop` 由 `mini
 1. 推送 620–626；监控新 run，若失败先红→绿+账本再推，legs 进行中不推送。
 2. 继续搜“同一事实两处归属”：`web.py` 中 `{"cancelled": True}`/`result.cancelled` 写入的 API/result 契约字段若与 task-result `RESULT_FIELD_CANCELLED` 同域可评估；`answer`/`error`/`tokens_used`/`children` 等跨模块 payload 字段名；IPC cancel marker `"cancelled"` 若跨 writer/reader 同事实可单独归属（不同于 task-result 字段）。
 3. 十一实验面保持冻结；`main` 合并继续冻结。
+## 批次 627 — M8-T645：`web.py` task/batch result payload 的 `cancelled` 字段名接回契约归属（approval 域分离）
+
+### 1 是否真是同一事实
+
+`minicc.web` 在 task/batch 执行结果 payload 中返回的 `cancelled` 字段（合并/批次结果、取消响应、运行结果响应）与 `task_contract.RESULT_FIELD_CANCELLED` 是同一任务结果契约字段事实。approval group 的 `cancelled` 标志是**审批域**事实，不合并。
+
+### 2 命中点（实测）
+
+- `web.py`：批次 payload `cancelled: False`、`AgentCancelled` 返回 `{"cancelled": True,...}`（batch/task）、运行结果响应 `"cancelled": result.cancelled`。
+- 保留：approval frame/响应中的 `frame["cancelled"]` / `"cancelled": cancelled`（审批组取消，不是 task-result 契约字段同一归属点）。
+
+### 3 改动
+
+- `minicc/web.py`：导入 `RESULT_FIELD_CANCELLED`，替换上述 task/batch result payload 字段名；`result.cancelled` 属性读取与 approval 域字面量保持不变。
+- 复用 `tests/test_task_result_cancelled_field_has_one_home.py` 的契约归属校验（本批次未扩展其扫描范围；web 混域明显，暂不加宽泛门禁）。
+
+### 4 验证（命令与输出要点）
+
+- `py_compile minicc/web.py` 通过；定向检查 approval 行 695/700 保留裸键、1488/1495/1530/3193 使用 `RESULT_FIELD_CANCELLED`。
+
+### 5 聚焦回归
+
+- `tests/test_task_result_cancelled_field_has_one_home.py`、`tests/test_task_contract.py`、`tests/test_the_budget_exceeded_result_field_has_one_home.py` 共 20 passed。未跑全量基准回归/CI 双端。
+
+### 6 边界（哪些**未**触碰）
+
+- 不触碰 approval `cancelled`、`runtime_status` 字面量（status 事实，另案）、`verdict.get("cancelled")` 等非 task-result 契约域；不改变 API 语义/字段值。
+- 未推送：CI 42485072840（tip `dda195d`）in_progress，legs 进行中不推送；626(ledger+code)+627 本地待该 run 全绿后按纪律推送。
+
+### 7 下一位候选
+
+1. 监控 42485072840；全绿后按顺序推送 626、627（及后续本地提交），legs 进行中不推送；若失败先红→绿+账本再推。
+2. 继续搜“同一事实两处归属”：`web.py` `runtime_status = "cancelled"/"failed"/"completed"`（task status 事实，`TASK_STATUS_*` 已在 protocol）；或 `answer`/`error`/`tokens_used`/`children` payload 字段名跨模块归属（需确认契约同域）。
+3. 十一实验面保持冻结；`main` 合并继续冻结。
