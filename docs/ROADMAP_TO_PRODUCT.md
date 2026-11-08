@@ -40666,3 +40666,53 @@ total 看不见这三个拷贝。
 2. 继续普查：同类“词汇/枚举值”在 Python 发射与 JS/协议消费间是否仍有手拼（只收一问一答、
    生产代码可无歧义归一者）；关注 task `status` 在 Python 非 protocol 发射点的裸字面量残留。
 3. 十三个加载器裁定不变；`main` 合并阻塞不变（不触碰主 worktree 并发会话文件）。
+
+## 第五百九十五批 — M8-T613 — provider_retry trace code 归一
+
+### 1 欠的是哪一条
+
+`minicc/llm/openai_provider.py` 与 `minicc/llm/fake.py` 在瞬时失败重试时各自手写
+`code="provider_retry"` 发射 trace 事件。两处表达同一事实（提供方重试），却无共享 home，
+任一侧改名另一侧静默漂移。
+
+### 2 量到的真相（实测）
+
+- `minicc/llm/fake.py:117`、`minicc/llm/openai_provider.py:1233` 各 1 处 `code="provider_retry"` 裸字面量。
+- `minicc/agent/protocol.py` 已承载 trace/预算等词汇，是 LLM 层可依赖的轻量协议 home
+  （`fake.py`/`openai_provider.py` 均已从 `..agent.protocol` 导入）。
+
+### 3 落地
+
+- `minicc/agent/protocol.py`：新增 `PROVIDER_RETRY_CODE = "provider_retry"`（M8-T613），加入
+  `__all__`。
+- `minicc/llm/fake.py`、`minicc/llm/openai_provider.py`：导入并使用 `PROVIDER_RETRY_CODE`，
+  不再手写 code 字面量（fake.py 中注释性提及保留）。
+- `tests/test_the_provider_retry_code_has_one_home.py`（新门，2 条）：home 定义正确；
+  `minicc/` 内除 home 外不得以 `code=`/dict 形式裸写 `provider_retry`。
+
+### 4 见证（红先绿后）
+
+- 红臂：`ImportError`（home 缺常量）+ 2 处 offender（`fake.py`、`openai_provider.py`）点名。
+- 绿臂：2 passed。
+
+### 5 聚焦回归
+
+- `tests/test_the_provider_retry_code_has_one_home.py`、`test_the_fake_provider_switch_has_one_home.py`、
+  `test_the_llm_protocol_members_have_one_home.py`、`test_the_provider_sniff_has_one_home.py`
+  共 13 passed。未跑全量套件（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 `budget_exceeded` / `stage_route` 等其他跨文件重复 trace code 已一并归一（候选已发现，
+  需单独批次评估其 home 与调用形态）。
+- 不声称 LLM 层所有 trace `code` 字面量均已消除——仅处理 `provider_retry` 这一明确同事实重复。
+- 不声称 CI 双腿在本批提交时已全绿——推送前须确认 593 tip（run `42470220279`）及后续链路
+  的 legs 不在运行且前序 tip 绿；当前本地还有未推送的 594/595 提交。
+
+### 7 下一位候选
+
+1. 确认 run `42470220279`（批 593 tip）双腿全绿后，按序推送本地 594、595（含各自 ledger）；
+   若腿红，先红→绿修复并记账。
+2. 评估 `budget_exceeded` trace code（protocol 已有 helper/event 形态，loop 仍有裸字面量）
+   与 `stage_route`（main/web 各一处）的归一方案，择一清晰者下一批落地。
+3. 十三个加载器裁定不变；`main` 合并阻塞不变。
