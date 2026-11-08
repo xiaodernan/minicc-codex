@@ -27,7 +27,7 @@ import json
 from collections.abc import Callable
 from typing import Any
 from urllib.parse import urlparse
-from ..agent.protocol import PHASE_PLANNING
+from ..agent.protocol import PHASE_PLANNING, PROVIDER_RETRY_CODE
 
 try:
     import httpx
@@ -1230,7 +1230,7 @@ class OpenAICompatibleProvider:
                         name="provider",
                         status="error",
                         phase=PHASE_PLANNING,
-                        code="provider_retry",
+                        code=PROVIDER_RETRY_CODE,
                         summary=stream_retry_summary(attempt + 1),
                         detail=retry_detail(attempt + 1, self._max_retries + 1),
                     ))

@@ -366,6 +366,10 @@ MODEL_LAST_OUTPUT_MARKER = "模型最后输出："
 #: ``str(error)`` - two spellings of one witness, drifting apart silently.
 BUDGET_EXCEEDED_ERROR_PREFIX = "Agent 预算超限: "
 
+# M8-T613: trace code emitted when an LLM provider retries a transient failure.
+# Both provider implementations (openai_provider, fake) mint the same event.
+PROVIDER_RETRY_CODE = "provider_retry"
+
 
 def budget_exceeded_error(error: object) -> str:
     """The one error text for a budget trip."""
@@ -476,6 +480,7 @@ __all__ = [
     "VERIFICATION_GUARD_ERROR",
     "budget_exceeded_error",
     "budget_exceeded_event",
+    "PROVIDER_RETRY_CODE",
     "incomplete_answer",
     "validate_status_transition",
 ]
