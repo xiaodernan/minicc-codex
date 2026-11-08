@@ -48,6 +48,9 @@ from .agent.protocol import (
     PHASE_REVIEW,
     TASK_CANCELLED_ANSWER,
     TASK_CANCELLED_ERROR,
+    TASK_KIND_BATCH,
+    TASK_KIND_SUBTASK,
+    TASK_KIND_TASK,
     TASK_STATUS_CANCELLED,
     TASK_STATUS_COMPLETED,
     TASK_STATUS_FAILED,
@@ -521,7 +524,7 @@ class TaskRecord:
     model: str = ""
     attachments: list[dict[str, Any]] = field(default_factory=list, repr=False)
     workspace_path: str = ""
-    task_kind: str = "task"
+    task_kind: str = TASK_KIND_TASK
     orchestration_mode: str = "none"
     parent_id: str | None = None
     child_task_ids: list[str] = field(default_factory=list)
@@ -1109,7 +1112,7 @@ class TaskRecord:
             model=str(data.get("model") or ""),
             attachments=[dict(item) for item in data.get("attachments") or [] if isinstance(item, dict)],
             workspace_path=str(data.get("workspace_path") or ""),
-            task_kind=str(data.get("task_kind") or "task"),
+            task_kind=str(data.get("task_kind") or TASK_KIND_TASK),
             orchestration_mode=str(data.get("orchestration_mode") or "none"),
             orchestration_context=str(data.get("orchestration_context") or ""),
             execution_message=str(data.get("execution_message")) if data.get("execution_message") else None,
@@ -1372,7 +1375,7 @@ class TaskManager:
                 continue
             self._session_active[key] = task_id
             try:
-                if task.task_kind == "batch" and task_id in self._batch_children_pending:
+                if task.task_kind == TASK_KIND_BATCH and task_id in self._batch_children_pending:
                     threading.Thread(
                         target=self._start_batch,
                         args=(task_id,),
@@ -1489,8 +1492,8 @@ class TaskManager:
 
     def submit(self, payload: dict[str, Any]) -> dict[str, Any]:
         message = require_text(payload.get("message"), "message")
-        task_kind = str(payload.get("_task_kind") or "task")
-        if not payload.get("_skip_auto_orchestration") and task_kind == "task":
+        task_kind = str(payload.get("_task_kind") or TASK_KIND_TASK)
+        if not payload.get("_skip_auto_orchestration") and task_kind == TASK_KIND_TASK:
             assessment = assess_complexity(
                 message,
                 attachment_count=len(payload.get("attachments") or []) if isinstance(payload.get("attachments"), list) else 0,
@@ -1610,7 +1613,7 @@ class TaskManager:
             model=model,
             attachments=self._persist_attachments(Path(workspace_path), parent_task_id, normalized_attachments),
             workspace_path=workspace_path,
-            task_kind="batch",
+            task_kind=TASK_KIND_BATCH,
             orchestration_mode=orchestration_mode,
             event_limit=self.event_limit,
             stream_limit=self.stream_limit,
@@ -1656,7 +1659,7 @@ class TaskManager:
             if shared_context:
                 item["message"] = f"{prefix if orchestration_mode != 'auto' else '[自动子任务]'}\nShared context:\n{shared_context}\n\nTask:\n{message}"
             item["_skip_auto_orchestration"] = True
-            item["_task_kind"] = "subtask"
+            item["_task_kind"] = TASK_KIND_SUBTASK
             item["_defer_schedule"] = True
             # M3-T9: reuse the parent's single persisted attachment copy so a
             # 16-subtask batch does not write the same bytes 16 times.
@@ -2745,7 +2748,7 @@ class TaskManager:
         current = str(getattr(self.service, "workspace", ""))
         if task.workspace_path and current and _path_key(task.workspace_path) != _path_key(current):
             raise ValueError("请先切换到任务所属工作区，再重新运行任务")
-        if task.task_kind == "batch":
+        if task.task_kind == TASK_KIND_BATCH:
             # M3-T9: a batch parent must be rebuilt with all subtask prompts,
             # not flattened into a single task that loses every child.
             return self._resume_batch(task)
@@ -2783,8 +2786,8 @@ class TaskManager:
                 for item in self._load_attachment_payloads(task)
             ],
             "workspace_path": task.workspace_path,
-            "_skip_auto_orchestration": bool(task.parent_id or task.task_kind == "subtask"),
-            "_task_kind": "subtask" if task.task_kind == "subtask" else "task",
+            "_skip_auto_orchestration": bool(task.parent_id or task.task_kind == TASK_KIND_SUBTASK),
+            "_task_kind": TASK_KIND_SUBTASK if task.task_kind == TASK_KIND_SUBTASK else TASK_KIND_TASK,
             "_defer_schedule": True,
         })
         with self.lock:
@@ -2894,7 +2897,7 @@ class TaskManager:
             if not active:
                 self._remove_queued_task_locked(task)
                 self._schedule_session_locked(self._session_key(task))
-            elif task.task_kind == "batch":
+            elif task.task_kind == TASK_KIND_BATCH:
                 # A cancelled batch watcher must not block a later task. Its
                 # children use independent session keys and are cancelled
                 # above; _release_session_slot is idempotent when the watcher

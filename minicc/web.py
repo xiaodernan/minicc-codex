@@ -65,6 +65,9 @@ from .agent.protocol import (
     PHASE_REVIEW,
     STAGE_ROUTE_CODE,
     TASK_CANCELLED_ANSWER,
+    TASK_KIND_BATCH,
+    TASK_KIND_SUBTASK,
+    TASK_KIND_TASK,
     VERIFICATION_GUARD_ERROR,
     budget_exceeded_error,
     budget_exceeded_event,
@@ -1694,11 +1697,11 @@ class AgentService:
         subagent_usage: dict[str, Any] = {}
         subagent_usage_rows: list[dict[str, Any]] = []
         complexity = assess_complexity(message, attachment_count=len(attachments))
-        task_kind = str(payload.get("task_kind") or "task")
+        task_kind = str(payload.get("task_kind") or TASK_KIND_TASK)
         planner_requested = (
             bool(payload.get("planner_requested"))
-            or task_kind == "batch"
-            or (task_kind != "subtask" and complexity.should_fan_out)
+            or task_kind == TASK_KIND_BATCH
+            or (task_kind != TASK_KIND_SUBTASK and complexity.should_fan_out)
         )
 
         def enter_runtime_node(node: str, phase: str) -> None:
@@ -3135,7 +3138,7 @@ class AgentService:
             and str(result.error).startswith("完成评估")
         )
         completion_guard = None
-        if str(payload.get("task_kind") or "") != "subtask" and completion_status != "complete":
+        if str(payload.get("task_kind") or "") != TASK_KIND_SUBTASK and completion_status != "complete":
             completion_guard = _completion_guard_message(
                 message,
                 result,
