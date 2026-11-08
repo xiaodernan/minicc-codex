@@ -41216,3 +41216,42 @@ CLI（`minicc/main.py`）与 Web 运行时（`minicc/web.py`）在记录阶段�
 1. 监控 42475362988；全绿后按顺序推送本地已提交批次（604–607）并遵守 legs-in-progress 不推送纪律；若失败则先红→绿修复并记账。
 2. 继续搜“同一事实两处归属”（可门禁、非 lookalike）：`budget_exceeded` 作为**同一载荷/结果字段名**（`task_manager`/`web`/`subagent` 的 dict key）是否应有归属（需确认与 `BUDGET_EXCEEDED_CODE` trace 码是同事实还是仅同形）；或其他授权码/事件码的脱节点。
 3. 十一实验面保持冻结；`main` 合并继续冻结（并发 worktree 冲突会话）。
+## 批次 608 — M8-T626：授权决策码词汇（allow/deny/plan/task/risk）有一处归属（audit/main/web）
+
+### 1 是否真是同一事实
+
+`AuthorizationDecision.authorization` 的码名字（`unknown_risk`、`task_yolo`、`default_readonly`、`permission_policy_unreadable`、`session_allowlist`、`task_network`、`plan_mode_write`/`exec`、`task_write`/`exec`、`safe_verification`、`user_approved`）属于 `minicc.audit` 授权词汇同一事实族。它们在 `audit.py` 决策构造/元组、`main.py` 计划/风险门控集合、`web.py` 用户批准构造中以裸字面量重复。
+
+### 2 命中点（实测）
+
+- `minicc/audit.py`：上述码在 `AuthorizationDecision` 构造与授权码元组中共 17 处。
+- `minicc/main.py`：`{"plan_mode_write", "plan_mode_exec", "unknown_risk"}` 门控集合 3 处字面量。
+- `minicc/web.py`：`"user_approved"` 构造 1 处。
+
+### 3 改动（行为保持）
+
+- `minicc/audit.py`：新增 12 个 `AUTHORIZATION_*` 常量（M8-T626）并导出；替换决策构造/元组字面量（常量定义行保留字面量 RHS）。
+- `minicc/main.py`：导入 `AUTHORIZATION_PLAN_MODE_{WRITE,EXEC}`、`AUTHORIZATION_UNKNOWN_RISK`，替换门控集合字面量。
+- `minicc/web.py`：导入 `AUTHORIZATION_USER_APPROVED`，替换构造字面量。
+- `tests/test_the_authorization_decision_codes_have_one_home.py`（新）：红臂 2 项→绿臂；仅门禁名字归属，不改变语义。
+
+### 4 验证（命令与输出要点）
+
+- 红臂：`pytest tests/test_the_authorization_decision_codes_have_one_home.py -q` 2 failed，列出 audit 17 + main 3 + web 1 共 21 处。
+- 绿臂：同门禁 2 passed；`import minicc.audit, minicc.main, minicc.web` 通过。
+
+### 5 聚焦回归
+
+- `tests/test_the_authorization_decision_codes_have_one_home.py`、`tests/test_permissions_approval.py`、`tests/test_permissions_pure.py`、`tests/test_the_missing_task_authorization_codes_have_one_home.py`、`tests/test_the_permission_rule_authorization_codes_have_one_home.py` 共 50 passed（`..\minicc-codex\.venv\Scripts\python.exe -m pytest ... -q`）。未跑全量基准回归/CI 双端。
+
+### 6 边界（哪些**未**触碰）
+
+- 仅常量化上述授权决策码名字；不改变 `authorize_tool`/审批流/风险判定逻辑、`MISSING_TASK_AUTHORIZATIONS` 成员语义、权限规则/会话 allowlist 行为、主流程分支条件。
+- 未覆盖未在范围模块中裸字面量化的其他潜在授权码（若存在）；未触碰 `code=`/trace/event 码域的不同事实。
+- 未推送/未落 `main`：CI 42475362988（tip 1d56505，含 601–603）仍 in_progress；本地 604–608 已提交/待提交，须待该 run 全绿或失败修复后按纪律推送，legs 进行中不推送。
+
+### 7 下一位候选
+
+1. 监控 42475362988；全绿后按顺序推送本地已提交批次（604–608）并遵守 legs-in-progress 不推送纪律；若失败则先红→绿修复并记账。
+2. 继续搜“同一事实两处归属”（可门禁、非 lookalike）：`hook_denied`/`always_denied`/`capability_unavailable` 等若作为同一授权码事实跨模块出现则归属；或 `budget_exceeded` dict-key 事实需先判定是否与 trace code 同事实（避免 lookalike 合并）。
+3. 十一实验面保持冻结；`main` 合并继续冻结（并发 worktree 冲突会话）。
