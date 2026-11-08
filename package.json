@@ -19,6 +19,7 @@
     "test:tracephase": "node tests/frontend_trace_phase_one_home_smoke.mjs",
  "test:tracedetail": "node tests/frontend_trace_detail_one_home_smoke.mjs",
  "test:inspector": "node tests/frontend_inspector_tab_one_home_smoke.mjs",
+ "test:kinds": "node tests/frontend_task_event_kinds_one_home_smoke.mjs",
  "test:registry": "node tests/game_entity_registry_smoke.mjs",
  "test:entrycaps": "node tests/frontend_result_entry_caps_one_home_smoke.mjs",
     "test:todo": "node tests/frontend_todo_one_home_smoke.mjs",

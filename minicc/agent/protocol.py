@@ -70,6 +70,26 @@ TASK_UNSUCCESSFUL_STATUSES = frozenset({"failed", "interrupted"})
 #: **different phases** for the same event stream.
 PHASE_CARRYING_EVENT_KINDS = frozenset({"trace", "state", "verification"})
 
+#: The kinds of task events this runtime emits on the task-event stream, and
+#: that the web face's reducer consumes.
+#:
+#: M8-T603: the same eight kinds were spelled at twelve emit sites (thread
+#: executor twelve, detached worker one) and again as eight ``case ""`` arms
+#: in the reducer's switch - two hand-kept copies of one fact deciding which
+#: worker event wakes which reducer arm. A drifted or new kind is silently
+#: dropped in the UI (the switch has no default arm) and nothing fails
+#: anywhere. The single home for the vocabulary is this constant.
+TASK_EVENT_KINDS = frozenset({
+    "timeline",
+    "stream_delta",
+    "state",
+    "status",
+    "usage",
+    "context",
+    "compaction",
+    "result",
+})
+
 # A terminal state is immutable.  In particular, a late provider callback may
 # finish after cancellation, but it cannot turn the task green again.
 ALLOWED_STATUS_TRANSITIONS: dict[str, frozenset[str]] = {
@@ -385,6 +405,7 @@ __all__ = [
     "InvalidStatusTransition",
     "MODEL_LAST_OUTPUT_MARKER",
     "PHASE_CARRYING_EVENT_KINDS",
+    "TASK_EVENT_KINDS",
     "TASK_CANCELLED_ANSWER",
     "TASK_CANCELLED_ERROR",
     "RuntimeEvent",
