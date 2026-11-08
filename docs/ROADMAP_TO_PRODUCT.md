@@ -41405,3 +41405,41 @@ CLI（`minicc/main.py`）与 Web 运行时（`minicc/web.py`）在记录阶段�
 1. 落地批次 613（修复 CI 42477151851 的门禁兼容回归），全绿后推送 609 ledger + 610 + 611 + 612 + 613；监控新 CI run，legs 进行中不推送。
 2. 继续搜“同一事实两处归属”（可门禁、非 lookalike）：其他内置工具名（`read_file`/`write_file`/`edit_file`/`grep`/`git_*` 等）若在跨模块 tool/name 比较上下文形成同事实脱节点，可分批处理；注意与权限能力/风险/注册名域 lookalike 区分。
 3. 十一实验面保持冻结；`main` 合并继续冻结（并发 worktree 冲突会话）。
+## 批次 613 — M8-T631：修复 CI 42477151851 门禁兼容回归（604/607/608 引入的字面量/行锚点漂移），不改语义
+
+### 1 是否真是同一事实
+
+本批不是新增“同一事实两处归属”收敛，而是修复已推送代码（含 604/607/608）与既有“单一归属”门禁之间的兼容回归，恢复对同一事实的判定：
+- `tests/test_one_rule_one_home.py::test_the_write_tool_list_literal_exists_in_exactly_one_place` 将 write-tool 列表的唯一归属锚定在 `tool_policy.py:29`；604（及后续本地 612）插入 import 导致同一字面量集合移行，但“仅在 `minicc/agent/tool_policy.py` 出现一次”的同一事实不变。
+- `tests/test_the_deny_veto_has_one_home.py` 通过扫描 `AuthorizationDecision(...)` 调用内的字符串常量识别 `permission_rule_deny`/reason 的唯一载体与 `authorize_tool` 构造点；607/608 将授权码改为命名常量 `AUTHORIZATION_PERMISSION_RULE_DENY`（M8-T625 的合法归属），导致该门禁无法识别同一事实。
+
+### 2 命中点（实测，CI 42477151851，tip 7efe612）
+
+- Ubuntu/Windows：`test_one_rule_one_home.py` 报告 `['minicc/agent/tool_policy.py:30'] != ['...:29']`（唯一出现位置仍在 home 文件）。
+- Ubuntu/Windows：`test_the_deny_veto_has_one_home.py::test_the_authorization_code_has_exactly_one_carrier_inside_a_decision` 得到 `[]`；`::test_the_deny_decision_is_built_inside_exactly_one_function` 期望 `[(minicc/audit.py, authorize_tool)]` 得到 `[]`（因决策码以 `AUTHORIZATION_PERMISSION_RULE_DENY` Name 传入）。
+
+### 3 改动（行为/不变量保持）
+
+- `tests/test_one_rule_one_home.py`：断言改为“`offenders` 恰好 1 项且位于 `minicc/agent/tool_policy.py:`”，保持“仅一处、且在 home 文件”的不变量，不再绑定行号。
+- `tests/test_the_deny_veto_has_one_home.py`：`_decision_strings`/`_decision_builders` 识别 `AUTHORIZATION_PERMISSION_RULE_DENY` Name 形式（M8-T625 常量化后的同一决策码载体）；仍要求唯一载体在 `minicc/audit.py` 且 deny 决策仅由 `authorize_tool` 构造，reason 仍为调用内字符串字面量并继续受原断言约束。未放宽“其他决策不得携带该码/前缀”类不变量。
+- 注：613 代码改动实际随 `f45e6bb`（批次 612 ledger 提交，分批暂存/锁重试导致）一并进入历史；本提交补记账并保证门禁/账本一致。
+
+### 4 验证（命令与输出要点）
+
+- CI 失败（42477151851）：上述 3 项失败，4316 passed / 4 skipped。
+- 本地绿：`pytest tests/test_one_rule_one_home.py tests/test_the_deny_veto_has_one_home.py tests/test_the_bash_tool_name_has_one_home.py -q` → 23 passed。
+
+### 5 聚焦回归
+
+- 见第 4 节。未跑全量基准回归/本地 CI 双端全量（依赖后续推送 CI）。
+
+### 6 边界（哪些**未**触碰）
+
+- 不改变 `permission_rule_deny` 决策语义、`AUTHORIZATION_PERMISSION_RULE_DENY` 常量归属（607/608）、`WRITE_TOOL_NAMES` 归属/成员/行为（604/612 未改其事实）、`authorize_tool` 逻辑。
+- 仅调整两项门禁的识别方式以兼容已建立的命名归属/非语义行移位；未修改生产代码。
+
+### 7 下一位候选
+
+1. 推送本地待推提交（`e2d1349` 609 ledger、610、611、612 code+ledger 含 613 修复、613 ledger）到 `origin/m8-t537`；监控新 CI run，legs 进行中不推送，若失败先红→绿修复并记账。
+2. 继续搜“同一事实两处归属”（可门禁、非 lookalike）：其他内置工具名跨模块 tool/name 比较脱节点的分批收敛；或 `network` 风险值与 `RISK_*` 同域归属（需确认同事实）。注意区分权限能力/注册名域。
+3. 十一实验面保持冻结；`main` 合并继续冻结（并发 worktree 冲突会话）。
