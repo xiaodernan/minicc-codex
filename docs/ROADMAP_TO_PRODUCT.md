@@ -40383,3 +40383,57 @@ HOOK_EVENTS（`minicc/hooks.py` vs `test_hooks_validation.py`）、GRADER_SCRIPT
 2. `（仓根）conftest.py` 中可能还有其它重复 fixture vocabulary（如 phase classes、todo statuses、
    zombie path fixture 等），下一轮全量 AST 普查查找；
 3. 十三个加载器裁定不变。
+
+## 第五百九十批 — M8-T608 — vacuous-oracle 三策略与 in-flight 子集各归一家
+
+### 1 欠的是哪一条
+
+- `VACUOUS_ORACLE_POLICIES`：`benchmarks.py` 写的是内联 `("allow", "deny", "require_case_count")`，
+  `tests/test_oracle_vacuous_policy.py` 的 parametrize 把同样三个字面量各写一遍，
+  home 增删任何一条都不会被任何信号感知。
+- `ACTIVE_TASK_PHASES`：`state.js` 写的字面量子集与自己 `TASK_PHASES`（去掉终态四个）几乎一致，
+  却单独手拼，而 home 可以派生它——两份拷贝的漂移只是一个"新增 in-flight 阶段"，但它不会告诉你
+  「这一份写着少了 pruning」，只告诉你是死的。
+
+### 2 量到的真相（实测）
+
+- benchmarks.py：三策略只被一处 inline `("allow", "deny", "require_case_count")` 使用；`VACUOUS_ORACLE_POLICY`（默认"allow"）已是 `VACUOUS_ORACLE_POLICIES[0]`。
+- 测试：`test_oracle_vacuous_policy.py` 的 parametrize 把三策略逐字写过，两个策略的测例函数名里出现同串。
+- `ACTIVE_TASK_PHASES`：`TASK_PHASES` 有 11 个 in-flight + 4 个 terminal（共 16）；`ACTIVE_TASK_PHASES` 精确 `TASK_PHASES` 去掉 4 个 terminal——重叠 11/11。
+
+### 3 落地
+
+- `minicc/benchmarks.py`：新增 `VACUOUS_ORACLE_POLICIES`；`_oracle_says_pass` 内 inline 元组改为查家。
+- `tests/test_oracle_vacuous_policy.py`：从 `minicc.benchmarks` 导入 `VACUOUS_ORACLE_POLICIES`；parametrize 改为 `list(VACUOUS_ORACLE_POLICIES)`；`VACUOUS_ORACLE_POLICY == VACUOUS_ORACLE_POLICIES[0]` 的契约钉住。
+- `tests/test_the_vacuous_oracle_policies_have_one_home.py`（新门，2 条）：
+  ① home 元组 == 恰好 `("allow", "deny", "require_case_count")`；
+  ② `VACUOUS_ORACLE_POLICY == VACUOUS_ORACLE_POLICIES[0]`；
+  ③ `minicc/` 下任何模块不得再定义 `VACUOUS_ORACLE_POLICIES`。
+- `web/src/core/state.js`：`ACTIVE_TASK_PHASES` 改为从 `TASK_PHASES` 派生（
+  `[...TASK_PHASES].filter((phase) => !TERMINAL_TASK_STATUSES.has(phase))`），与 `ACTIVE_TASK_STATUSES` 保持同一种派生风格。
+- `tests/frontend_phase_one_home_smoke.mjs`（既有门，延伸论证）：断言 `ACTIVETASK_PHASES` 字段写法**必须**是派生式；hand-list 即红。
+- bundle 重建（`app.js`/`asset-manifest`/`assets/` 换新哈希）。
+
+### 4 见证（红先绿后）
+
+- Python 门：绿臂 2 passed；红臂（stash `benchmarks.py`）→ 新门红（ImportError 点名 home 缺少 `VACUOUS_ORACLE_POLICIES`）；pop 后绿。
+- 前端门：绿臂 `M8-T370 ok`；红臂（stash `web/src/core/state.js`）→ 断言 `ACTIVE_TASK_PHASES must derive…` 红；pop 后绿。
+- 全部门相关 focused 回归：Python 42 passed；前端 `phase` 绿。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 `VACUOUS_ORACLE_POLICIES` 被导出到 `__all__`（`benchmarks.py` 无 `__all__`）；
+- 不声称 front-end `RESUMABLE_TASK_PHASES` 也派生了——它是「终态里 failed/cancelled/interrupted」这个子问，不是"in-flight"，也没漂移的证据——边界保留；
+- 不声称 CI 全跑完——推本批后腿需要重新分配，上一条 tip fa551ab 的 Python 腿仍在 run 42465062669 进程中[等前一 tip 跑完再推]；
+
+### 7 下一位候选
+
+1. 等 tip（fa54ab → 589）双腿绿后推本批；
+2. 剩余领域：`STAGE_NAMES` 已在批 587 回归中对齐；`GUIDANCE_FILES` 在批 589 对齐；剩下 honorable
+   - `stage-routing config skeleton`（约 21 处测试里手拼同一份 config skeleton，可以用一个 fixture 合并）；
+   - `six-key completion verdict` 的 fixture 拷贝（已有门钉住渲染/payload 的那几处，但零敲碎打的 `confidence=` 位字符串可能还有）；
+3. 十三个加载器裁定不变。
