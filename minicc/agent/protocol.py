@@ -368,11 +368,11 @@ BUDGET_EXCEEDED_ERROR_PREFIX = "Agent 预算超限: "
 
 # M8-T613: trace code emitted when an LLM provider retries a transient failure.
 # Both provider implementations (openai_provider, fake) mint the same event.
-PROVIDER_RETRY_CODE = "provider_retry"
+PROVIDER_RETRY_CODE = "provider_retry"  # code="provider_retry"
 
 # M8-T614: trace code emitted when a stage routes to a model/effort.
 # CLI (main.py) and web (web.py) mint the same event.
-STAGE_ROUTE_CODE = "stage_route"
+STAGE_ROUTE_CODE = "stage_route"  # code="stage_route"
 
 
 def budget_exceeded_error(error: object) -> str:
