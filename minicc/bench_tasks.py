@@ -31,7 +31,6 @@ import re
 import subprocess
 import sys
 import threading
-import time
 from pathlib import Path
 from typing import Any
 
@@ -465,6 +464,12 @@ def _run_grader(
 
 _GRADER_REFUSED = 2
 
+#: The four keys a "nobody judged this workspace" verdict carries. One
+#: constructor mints them; the tests that read the shape ask the same four
+#: names. A rename here reaches every reader; nothing has to be spelled
+#: twice.
+NO_RESULT_KEYS = frozenset({"passed", "grader_type", "grading_refused", "refusal"})
+
 
 def _no_result(grader_type: str, reason: str, *, case_count: int | None = None,
                exit_code: int | None = None) -> dict[str, Any]:
@@ -478,6 +483,7 @@ def _no_result(grader_type: str, reason: str, *, case_count: int | None = None,
         "passed": None, "grader_type": grader_type, "grading_refused": True,
         "refusal": reason[:300],
     }
+    assert set(out) == NO_RESULT_KEYS
     if exit_code is not None:
         out["exit_code"] = exit_code
     if case_count is not None:

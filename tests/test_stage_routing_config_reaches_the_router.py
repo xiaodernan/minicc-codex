@@ -51,7 +51,7 @@ from minicc.config import (
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 ROUTER_SOURCE = REPO_ROOT / "minicc" / "agent" / "router.py"
-STAGES = ("inspect", "planning", "implement", "verify", "repair", "review")
+STAGES = tuple(sorted(config_module.STAGE_NAMES))
 
 # The example from the router's own docstring, kept here as the artifact a user
 # would actually copy.  Section 2 proves it still parses out of that docstring.

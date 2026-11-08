@@ -16,6 +16,7 @@ from collections import Counter
 from collections.abc import Iterator
 from typing import Any
 
+from ..config import DEFAULT_COMPACT_THRESHOLD
 from ..llm.base import image_part, tool_result_msg
 from ..tools.registry import redact_text
 from ..tools.schemas import CODE_INTERRUPTED_TOOL_RESULT, tagged, tool_call_name
@@ -607,7 +608,7 @@ def _is_checkpoint_message(message: dict[str, Any]) -> bool:
 def compact_with_checkpoint(
     messages: list[dict[str, Any]],
     *,
-    threshold: int = 300_000,
+    threshold: int = DEFAULT_COMPACT_THRESHOLD,
     keep_recent: int = 6,
 ) -> tuple[list[dict[str, Any]], dict[str, Any] | None]:
     """Return compacted messages and a structured checkpoint, if triggered."""
@@ -641,7 +642,7 @@ def compact_with_checkpoint(
     return [*system_msgs, _checkpoint_message(checkpoint), *tail], checkpoint
 
 
-def compact(messages: list[dict[str, Any]], *, threshold: int = 300_000, keep_recent: int = 6) -> list[dict[str, Any]]:
+def compact(messages: list[dict[str, Any]], *, threshold: int = DEFAULT_COMPACT_THRESHOLD, keep_recent: int = 6) -> list[dict[str, Any]]:
     """Backward-compatible wrapper returning only the compacted messages."""
     return compact_with_checkpoint(messages, threshold=threshold, keep_recent=keep_recent)[0]
 

@@ -20,7 +20,7 @@ from types import SimpleNamespace
 import pytest
 
 from minicc.agent.router import ModelTier, StageRouter
-from minicc.config import ConfigError, load_config
+from minicc.config import ConfigError, STAGE_NAMES, load_config
 
 
 # The documented shape from StageRouter's docstring, verbatim: if this ever
@@ -81,7 +81,7 @@ def _router(overrides: dict[str, object] | None = None) -> StageRouter:
     ids=["none", "empty", "explicit-false", "fully-configured-but-disabled"],
 )
 def test_routing_stays_inert_until_enabled(config: dict[str, object] | None) -> None:
-    for stage in ("planning", "inspect", "implement", "verify", "repair", "review"):
+    for stage in sorted(STAGE_NAMES):
         route = StageRouter("terra", 100.0, stage_routing_config=config).route(stage)
         assert route.model == "terra", stage
         assert route.model_tier is ModelTier.BALANCED, stage
@@ -380,7 +380,7 @@ def test_stage_routing_is_absent_by_default_and_routing_stays_inert(
     router = StageRouter(
         config.model, config.timeout, stage_routing_config=config.stage_routing
     )
-    for stage in ("planning", "inspect", "implement", "verify", "repair", "review"):
+    for stage in sorted(STAGE_NAMES):
         assert router.route(stage).model == config.model, stage
 
 

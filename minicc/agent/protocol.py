@@ -16,11 +16,27 @@ from collections import deque
 from dataclasses import dataclass, field
 from typing import Any
 
+from .state import MAX_TRACE_EVENTS
 from ..trace import trace_event
 
 
-TASK_STATUSES = frozenset({"queued", "running", "completed", "failed", "cancelled", "interrupted"})
-TERMINAL_TASK_STATUSES = frozenset({"completed", "failed", "cancelled", "interrupted"})
+
+# M8-T616: individual task lifecycle status constants (one home for comparisons).
+TASK_STATUS_QUEUED = "queued"
+TASK_STATUS_RUNNING = "running"
+TASK_STATUS_COMPLETED = "completed"
+TASK_STATUS_FAILED = "failed"
+TASK_STATUS_CANCELLED = "cancelled"
+TASK_STATUS_INTERRUPTED = "interrupted"
+
+# M8-T621: task kind vocabulary (one home).
+TASK_KIND_TASK = "task"
+TASK_KIND_BATCH = "batch"
+TASK_KIND_SUBTASK = "subtask"
+TASK_KINDS = frozenset({TASK_KIND_TASK, TASK_KIND_BATCH, TASK_KIND_SUBTASK})
+
+TASK_STATUSES = frozenset({TASK_STATUS_QUEUED, TASK_STATUS_RUNNING, TASK_STATUS_COMPLETED, TASK_STATUS_FAILED, TASK_STATUS_CANCELLED, TASK_STATUS_INTERRUPTED})
+TERMINAL_TASK_STATUSES = frozenset({TASK_STATUS_COMPLETED, TASK_STATUS_FAILED, TASK_STATUS_CANCELLED, TASK_STATUS_INTERRUPTED})
 #: The statuses that mean "the task has not finished yet" - the third
 #: question about a task's state, and the one that had no name.
 #:
@@ -57,7 +73,7 @@ ACTIVE_TASK_STATUSES = frozenset(TASK_STATUSES - TERMINAL_TASK_STATUSES)
 #: The terminal statuses that mean "the task did not succeed" (failed or interrupted).
 #: A task that was cancelled was not asked to succeed — it was asked to stop.
 #: A task that failed or was interrupted was expected to succeed but did not.
-TASK_UNSUCCESSFUL_STATUSES = frozenset({"failed", "interrupted"})
+TASK_UNSUCCESSFUL_STATUSES = frozenset({TASK_STATUS_FAILED, TASK_STATUS_INTERRUPTED})
 #: The event kinds whose ``phase`` field moves the task's phase.
 #:
 #: M8-T375: this question was asked by **both** executors - the thread
@@ -68,6 +84,67 @@ TASK_UNSUCCESSFUL_STATUSES = frozenset({"failed", "interrupted"})
 #: worker and the same task run in a thread could therefore show
 #: **different phases** for the same event stream.
 PHASE_CARRYING_EVENT_KINDS = frozenset({"trace", "state", "verification"})
+
+# M8-T612: the task phase vocabulary.  Every ``phase=`` / ``"phase":`` value
+# emitted by the Python runtime and recognized by the web frontend is a
+# member of this set.  The JS home is ``web/src/core/state.js:TASK_PHASES``;
+# a cross-face gate pins the two to each other.  Individual constants avoid
+# bare string literals at 100+ call sites.
+PHASE_QUEUED = "queued"  # phase="queued"
+PHASE_PLANNING = "planning"  # phase="planning"
+PHASE_INTAKE = "intake"  # phase="intake"
+PHASE_TOOL = "tool"  # phase="tool"
+PHASE_EXECUTION = "execution"  # phase="execution"
+PHASE_ANSWERING = "answering"  # phase="answering"
+PHASE_SUMMARIZE = "summarize"  # phase="summarize"
+PHASE_REVIEW = "review"  # phase="review"
+PHASE_VERIFY = "verify"  # phase="verify"
+PHASE_REPAIR = "repair"  # phase="repair"
+PHASE_PERMISSION = "permission"  # phase="permission"
+PHASE_MERGING = "merging"  # phase="merging"
+PHASE_COMPLETED = "completed"  # phase="completed"
+PHASE_FAILED = "failed"  # phase="failed"
+PHASE_CANCELLED = "cancelled"  # phase="cancelled"
+PHASE_INTERRUPTED = "interrupted"  # phase="interrupted"
+
+TASK_PHASES = frozenset({
+    PHASE_QUEUED,
+    PHASE_PLANNING,
+    PHASE_INTAKE,
+    PHASE_TOOL,
+    PHASE_EXECUTION,
+    PHASE_ANSWERING,
+    PHASE_SUMMARIZE,
+    PHASE_REVIEW,
+    PHASE_VERIFY,
+    PHASE_REPAIR,
+    PHASE_PERMISSION,
+    PHASE_MERGING,
+    PHASE_COMPLETED,
+    PHASE_FAILED,
+    PHASE_CANCELLED,
+    PHASE_INTERRUPTED,
+})
+
+#: The kinds of task events this runtime emits on the task-event stream, and
+#: that the web face's reducer consumes.
+#:
+#: M8-T603: the same eight kinds were spelled at twelve emit sites (thread
+#: executor twelve, detached worker one) and again as eight ``case ""`` arms
+#: in the reducer's switch - two hand-kept copies of one fact deciding which
+#: worker event wakes which reducer arm. A drifted or new kind is silently
+#: dropped in the UI (the switch has no default arm) and nothing fails
+#: anywhere. The single home for the vocabulary is this constant.
+TASK_EVENT_KINDS = frozenset({
+    "timeline",
+    "stream_delta",
+    "state",
+    "status",
+    "usage",
+    "context",
+    "compaction",
+    "result",
+})
 
 # A terminal state is immutable.  In particular, a late provider callback may
 # finish after cancellation, but it cannot turn the task green again.
@@ -170,7 +247,7 @@ class RuntimeEvent:
 class EventLog:
     """Bounded append-only log with condition-based replay for SSE clients."""
 
-    def __init__(self, *, task_id: str, limit: int = 1024, start_sequence: int = 0) -> None:
+    def __init__(self, *, task_id: str, limit: int = MAX_TRACE_EVENTS, start_sequence: int = 0) -> None:
         self.task_id = task_id
         self.limit = max(32, int(limit))
         self._next_sequence = max(0, int(start_sequence))
@@ -304,6 +381,25 @@ MODEL_LAST_OUTPUT_MARKER = "模型最后输出："
 #: ``str(error)`` - two spellings of one witness, drifting apart silently.
 BUDGET_EXCEEDED_ERROR_PREFIX = "Agent 预算超限: "
 
+# M8-T613: trace code emitted when an LLM provider retries a transient failure.
+# Both provider implementations (openai_provider, fake) mint the same event.
+PROVIDER_RETRY_CODE = "provider_retry"  # code="provider_retry"
+
+# M8-T614: trace code emitted when a stage routes to a model/effort.
+# CLI (main.py) and web (web.py) mint the same event.
+STAGE_ROUTE_CODE = "stage_route"  # code="stage_route"
+
+# M8-T615: trace code for budget trips (helper, session-persist set, loop emitters).
+BUDGET_EXCEEDED_CODE = "budget_exceeded"  # code="budget_exceeded"
+# M8-T632: result/payload field key for budget-exceeded flag (distinct fact
+# from BUDGET_EXCEEDED_CODE, the trace/event code, even when values match).
+BUDGET_EXCEEDED_FIELD = "budget_exceeded"
+
+
+# M8-T639: budget_exceeded_event stage labels (cross-module call sites).
+# Distinct from PHASE_* (runtime phase) even when values align.
+BUDGET_STAGE_SUBAGENT = "subagent"
+
 
 def budget_exceeded_error(error: object) -> str:
     """The one error text for a budget trip."""
@@ -332,7 +428,7 @@ def budget_exceeded_event(
         name=name,
         status="error",
         phase=phase,
-        code="budget_exceeded",
+        code=BUDGET_EXCEEDED_CODE,
         summary=str(error),
         detail={
             "stage": stage,
@@ -340,6 +436,26 @@ def budget_exceeded_event(
             "tokens_used": dict(tokens_used or {}),
         },
     )
+
+
+#: The trace codes that mean a session conversation has to be re-saved: the
+#: ones after which a resumed run must not start from a half-finished turn.
+#: The web face used to spell this set by hand inside its event sink - the
+#: fact has one home (the event vocabulary, here) and the sink must ask it
+#: instead of keeping a second copy of the answer.
+SESSION_PERSIST_TRACE_CODES = frozenset({
+    "tool_round_finished",
+    "verification_required_before_finish",
+    "provider_stream_error",
+    BUDGET_EXCEEDED_CODE,
+    "stagnation_guard",
+    "run_finished",
+})
+
+
+def session_persist_required(event: dict[str, Any]) -> bool:
+    """May this trace event require a session conversation re-save?"""
+    return str(event.get("code") or "") in SESSION_PERSIST_TRACE_CODES
 
 
 def validate_status_transition(current: str, target: str) -> None:
@@ -363,10 +479,36 @@ __all__ = [
     "INCOMPLETE_ANSWER_PREFIX",
     "InvalidStatusTransition",
     "MODEL_LAST_OUTPUT_MARKER",
+    "PHASE_ANSWERING",
+    "PHASE_CANCELLED",
     "PHASE_CARRYING_EVENT_KINDS",
+    "PHASE_COMPLETED",
+    "PHASE_EXECUTION",
+    "PHASE_FAILED",
+    "PHASE_INTAKE",
+    "PHASE_INTERRUPTED",
+    "PHASE_MERGING",
+    "PHASE_PERMISSION",
+    "PHASE_PLANNING",
+    "PHASE_QUEUED",
+    "PHASE_REPAIR",
+    "PHASE_REVIEW",
+    "PHASE_SUMMARIZE",
+    "PHASE_TOOL",
+    "PHASE_VERIFY",
+    "TASK_PHASES",
+    "TASK_EVENT_KINDS",
     "TASK_CANCELLED_ANSWER",
     "TASK_CANCELLED_ERROR",
     "RuntimeEvent",
+    "SESSION_PERSIST_TRACE_CODES",
+    "session_persist_required",
+    "TASK_STATUS_CANCELLED",
+    "TASK_STATUS_COMPLETED",
+    "TASK_STATUS_FAILED",
+    "TASK_STATUS_INTERRUPTED",
+    "TASK_STATUS_QUEUED",
+    "TASK_STATUS_RUNNING",
     "TASK_STATUSES",
     "TASK_UNSUCCESSFUL_STATUSES",
     "TERMINAL_TASK_STATUSES",
@@ -374,6 +516,11 @@ __all__ = [
     "VERIFICATION_GUARD_ERROR",
     "budget_exceeded_error",
     "budget_exceeded_event",
+    "PROVIDER_RETRY_CODE",
+    "STAGE_ROUTE_CODE",
+    "BUDGET_EXCEEDED_CODE",
+    "BUDGET_EXCEEDED_FIELD",
+    "BUDGET_STAGE_SUBAGENT",
     "incomplete_answer",
     "validate_status_transition",
 ]

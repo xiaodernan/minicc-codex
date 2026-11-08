@@ -21,7 +21,7 @@ from typing import Any
 from ..atomic_file import replace_with_retry
 from ..clock import utc_stamp
 from .registry import ToolError, ToolResult
-from .schemas import untrusted_tags
+from .schemas import TOOL_STATUS_OK, untrusted_tags
 
 TODO_STATUSES = ("pending", "in_progress", "completed")
 TODO_PRIORITIES = ("high", "medium", "low")
@@ -105,7 +105,7 @@ class TodoTools:
             updated_at = str(stored.get("updated_at") or "")
         summary = _summarize(todos)
         return ToolResult(
-            status="ok",
+            status=TOOL_STATUS_OK,
             summary=summary + (f"（更新于 {updated_at}）" if updated_at else "（尚无清单）"),
             output=json.dumps(todos, ensure_ascii=False, indent=2),
             data=_tool_data(todos, updated_at, "read"),
@@ -122,7 +122,7 @@ class TodoTools:
             for index, todo in enumerate(todos)
         ]
         return ToolResult(
-            status="ok",
+            status=TOOL_STATUS_OK,
             summary=summary,
             output="\n".join(lines) or "(清单已清空)",
             data=_tool_data(todos, updated_at, "write"),

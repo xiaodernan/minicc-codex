@@ -25,14 +25,19 @@ import urllib.request
 from html.parser import HTMLParser
 from typing import Any
 
-from ..netguard import BlockedAddressError, parse_http_url, redirect_limit_message, resolve_pinned_host
+from ..netguard import BlockedAddressError, REDIRECT_STATUSES, parse_http_url, redirect_limit_message, resolve_pinned_host
 
 from .registry import ToolError, ToolResult, redact_text, split_output
-from .schemas import untrusted_tags
+from .schemas import TOOL_STATUS_OK, untrusted_tags
 
 MAX_BYTES_DEFAULT = 512 * 1024
 MAX_REDIRECTS = 3
 DEFAULT_TIMEOUT = 20.0
+#: The timeout window the handler enforces (clamped to [MIN_TIMEOUT, MAX_TIMEOUT]).
+#: The tool schema's int caps ask these same constants (tools/__init__.py);
+#: hand-spelled 1/60 in both places used to be kept in step by memory alone.
+MIN_TIMEOUT = 1.0
+MAX_TIMEOUT = 60.0
 MAX_TITLE_CHARS = 300
 FETCH_PREVIEW_CHARS = 8000
 USER_AGENT = "minicc-webfetch/0.1 (+local coding agent)"
@@ -266,7 +271,7 @@ def _download(
     try:
         with opener.open(request, timeout=timeout) as response:
             status = int(response.status)
-            if status in (301, 302, 303, 307, 308):
+            if status in REDIRECT_STATUSES:
                 location = response.headers.get("Location") or ""
                 if not location:
                     raise FetchError(redirect_missing_location_message(status))
@@ -280,7 +285,7 @@ def _download(
             truncated = len(payload) > max_bytes
             return status, response.headers.get("Content-Type", ""), payload[:max_bytes], truncated
     except urllib.error.HTTPError as exc:
-        if exc.code in (301, 302, 303, 307, 308):
+        if exc.code in REDIRECT_STATUSES:
             location = exc.headers.get("Location") or ""
             if not location:
                 raise FetchError(redirect_missing_location_message(exc.code)) from None
@@ -320,7 +325,7 @@ def fetch_url_text(
             status, content_type, payload, truncated = _download(
                 current, pinned_ip, timeout=timeout, max_bytes=max_bytes
             )
-            if status in (301, 302, 303, 307, 308):
+            if status in REDIRECT_STATUSES:
                 current = urllib.parse.urljoin(current, payload.decode("utf-8", errors="replace").strip())
                 continue
             result["final_url"] = current
@@ -410,7 +415,7 @@ def build_tool_result(result: dict[str, Any]) -> ToolResult:
         head = f"{provenance}\n\n{text}\n\n{note}"
         tail = ""
     return ToolResult(
-        status="ok",
+        status=TOOL_STATUS_OK,
         summary=summary,
         head=head,
         tail=tail,
@@ -439,7 +444,7 @@ def webfetch(args: dict[str, object]) -> ToolResult:
         timeout = float(raw_timeout)  # type: ignore[arg-type]
     except (TypeError, ValueError) as exc:
         raise ToolError("timeout 必须是数字") from exc
-    timeout = max(1.0, min(60.0, timeout))
+    timeout = max(MIN_TIMEOUT, min(MAX_TIMEOUT, timeout))
     return build_tool_result(fetch_url_text(raw_url, timeout=timeout))
 
 

@@ -10,6 +10,7 @@ from ..trace import trace_event
 from .base import safe_int
 
 
+
 USAGE_TOKEN_KEYS = (
     "prompt_tokens",
     "completion_tokens",
@@ -122,10 +123,12 @@ def channel_switched_event(status_code: Any, error_type: str | None = None) -> d
     if error_type is not None:
         detail["error_type"] = error_type
     detail["status_code"] = status_code
+    from ..agent.protocol import PHASE_PLANNING
+
     return trace_event(
         name="provider",
         status="ok",
-        phase="planning",
+        phase=PHASE_PLANNING,
         code=CHANNEL_SWITCHED_CODE,
         summary=CHANNEL_SWITCHED_SUMMARY,
         detail=detail,

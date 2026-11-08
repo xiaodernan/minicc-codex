@@ -6,9 +6,9 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-from .editor import EditError, resolve_in_workspace
+from .editor import resolve_in_workspace
 from .registry import ToolError, exit_marker, split_output
-from .schemas import ToolResult, untrusted_tags
+from .schemas import TOOL_STATUS_OK, ToolResult, untrusted_tags
 
 
 def _merge_probe(
@@ -116,7 +116,7 @@ class GitTools:
             f"last commit: {last_commit or '(none)'}",
         ]
         return ToolResult(
-            status="ok",
+            status=TOOL_STATUS_OK,
             summary=f"Git 摘要: {branch or '?'}，{len(dirty)} 个未提交文件",
             output="\n".join(lines),
             data={
@@ -168,7 +168,7 @@ class GitTools:
             data = _merge_probe(branch, False, conflicts[:50], tree_oid)
             summary = f"合并预检: {branch} 有 {len(conflicts)} 个冲突项"
         return ToolResult(
-            status="ok",
+            status=TOOL_STATUS_OK,
             summary=summary,
             output=body,
             data=data,

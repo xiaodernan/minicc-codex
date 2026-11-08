@@ -26,6 +26,7 @@ from ..tools.registry import redact_text
 from ..tools.schemas import tool_call_name
 from .tool_policy import is_verification_evidence
 from .verifier import UNUSABLE_VERIFICATION_STATUSES
+from ..tools.names import TOOL_NAME_BASH
 
 
 COMPLETION_STATUSES = frozenset({"complete", "continue", "blocked", "unknown"})
@@ -252,6 +253,24 @@ def _review_content(prompt: str, vision_context: list[dict[str, Any]] | None) ->
     ]
 
 
+def is_citable_evidence_item(item: dict[str, Any]) -> bool:
+    """The one judgment of which execution-evidence item can certify a goal.
+
+    Consumed by the completion review (its events bucket) **and** by the
+    fake provider, which is the scripted judge the tests drive the loop
+    through - the fake must produce citations the real gate would accept,
+    or the wiring would be tested against a private copy of the rule.
+    The conversation and verification_results buckets answer to different
+    facts (the task's nature, what the verifier accepted), so they stay
+    with the callers; this predicate owns exactly the events-bucket one.
+    """
+    if item.get("write") or item.get("kind") == "verification" or item.get("status") == "error":
+        return True
+    if item.get("kind") == "trace":
+        return False
+    return bool(item.get("name")) and item.get("name") != "agent"
+
+
 async def judge_completion(
     provider: Any,
     *,
@@ -401,7 +420,7 @@ def _enforce_completion_evidence(
         # and the gate used to rebuild the arguments from the command alone,
         # which dropped the flag and let the background guard never fire.
         event_arguments = _event_arguments(event)
-        if event.get("name") == "bash" and is_verification_evidence(
+        if event.get("name") == TOOL_NAME_BASH and is_verification_evidence(
             "bash", event_arguments, "ok"
         ):
             record(command, str(event.get("status") or "unknown"))
@@ -457,11 +476,7 @@ def _enforce_completion_evidence(
             return True
         if key == "conversation":
             return conversation_is_citable
-        if item.get("write") or item.get("kind") == "verification" or item.get("status") == "error":
-            return True
-        if item.get("kind") == "trace":
-            return False
-        return bool(item.get("name")) and item.get("name") != "agent"
+        return is_citable_evidence_item(item)
 
     packet_ids = {
         item["id"]
@@ -797,6 +812,7 @@ __all__ = [
     "CompletionDecision",
     "COMPLETION_REVIEW_SYSTEM",
     "build_completion_review_prompt",
+    "is_citable_evidence_item",
     "judge_completion",
     "parse_completion_decision",
 ]

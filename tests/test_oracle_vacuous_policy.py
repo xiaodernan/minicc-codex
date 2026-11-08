@@ -21,7 +21,7 @@ from typing import Any
 
 import pytest
 
-from minicc.benchmarks import VACUOUS_ORACLE_POLICY, _oracle_says_pass
+from minicc.benchmarks import VACUOUS_ORACLE_POLICIES, VACUOUS_ORACLE_POLICY, _oracle_says_pass
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -48,7 +48,7 @@ def test_the_default_policy_is_the_one_the_measurement_was_taken_under() -> None
     was produced under a different口径 than the one now in force, and the
     roadmap record that measured the ratio stops describing this code.
     """
-    assert VACUOUS_ORACLE_POLICY == "allow"
+    assert VACUOUS_ORACLE_POLICY == VACUOUS_ORACLE_POLICIES[0]
     assert _oracle_says_pass(_row({"passed": True})) is True
 
 
@@ -98,7 +98,7 @@ def test_an_unknown_policy_value_fails_closed(policy) -> None:
     (float("inf"), False),  # nor is an infinity
     (float("nan"), False),  # nor is a NaN, which compares >= 1 as False anyway
 ])
-@pytest.mark.parametrize("mode", ["allow", "deny", "require_case_count"])
+@pytest.mark.parametrize("mode", list(VACUOUS_ORACLE_POLICIES))
 def test_a_counted_oracle_is_judged_on_its_count_under_every_policy(
     policy, mode: str, count: object, expected: bool
 ) -> None:

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import json
 import sys
 from dataclasses import replace
 from pathlib import Path
@@ -12,7 +11,8 @@ from typing import Any, Callable, NoReturn
 
 from .agent.context import compact_with_checkpoint, message_chars
 from .agent.loop import TurnResult, build_tool_feedback, run_agent
-from .agent.protocol import budget_exceeded_event
+from .agent.protocol import BUDGET_STAGE_SUBAGENT, PHASE_EXECUTION, PHASE_PLANNING, STAGE_ROUTE_CODE, budget_exceeded_event
+from .audit import AUTHORIZATION_MISSING_TASK_NETWORK, AUTHORIZATION_PLAN_MODE_EXEC, AUTHORIZATION_PLAN_MODE_WRITE, AUTHORIZATION_UNKNOWN_RISK, PERMISSION_MODE_PLAN
 from .agent.router import StageRouter, StageRoute
 from .agent.state import Budget, BudgetExceeded
 from .agent.subagent import DEFAULT_MAX_DEPTH, DEFAULT_MAX_TURNS, build_task_tool_spec
@@ -21,7 +21,6 @@ from .audit import PERMISSION_MODES, authorize_tool, effective_risk
 from .cli_io import cli_out
 from .internal_paths import AUDIT_NAME
 from .config import (
-    LLM_PROTOCOLS,
     MAX_TIMEOUT_SECONDS,
     PROVIDER_TYPES,
     REASONING_EFFORTS,
@@ -63,6 +62,7 @@ from .session import SessionError, SessionStore, list_sessions
 from .tools import Editor, ToolCall, ToolRegistry, ToolResult, approval_preview, build_registry
 from .tools.registry import AUTHORIZATION_RISKS
 from .trace import trace_event
+from .tools.names import TOOL_NAME_BASH
 
 
 class StreamWriter:
@@ -337,7 +337,7 @@ def _apply_cli_overrides(config: Config, args: argparse.Namespace) -> Config:
     # ``changes`` off), so the same configuration meant "read-only plan" on
     # the Web and "everything allowed" on the CLI.  ``plan`` is the safe
     # direction, so it wins.
-    if args.permission_mode == "plan" and config.yolo:
+    if args.permission_mode == PERMISSION_MODE_PLAN and config.yolo:
         updates["yolo"] = False
     return replace(config, **updates) if updates else config
 
@@ -351,7 +351,7 @@ def _tool_preview(call: ToolCall) -> str:
     it.  One home for the preview: ``minicc.tools.approval_preview``.
     """
     preview = approval_preview(call.tool, call.arguments, limit=240)
-    if call.tool == "bash":
+    if call.tool == TOOL_NAME_BASH:
         return f"command={preview!r}"
     path = call.arguments.get("path")
     if path is not None:
@@ -402,10 +402,10 @@ def _permission_gate(
         )
         if decision.allowed:
             return True
-        if decision.authorization in {"plan_mode_write", "plan_mode_exec", "unknown_risk"}:
+        if decision.authorization in {AUTHORIZATION_PLAN_MODE_WRITE, AUTHORIZATION_PLAN_MODE_EXEC, AUTHORIZATION_UNKNOWN_RISK}:
             cli_out(f"\n[minicc] 已拒绝 {name} ({_tool_preview(call)}): {decision.reason}")
             return False
-        if decision.authorization == "missing_task_network":
+        if decision.authorization == AUTHORIZATION_MISSING_TASK_NETWORK:
             cli_out(f"\n[minicc] 联网工具需要 --allow-network：{name} ({_tool_preview(call)})")
             return False
         if risk not in AUTHORIZATION_RISKS:
@@ -449,7 +449,7 @@ def _permission_gate(
             if workspace is not None and session_id:
                 try:
                     kwargs: dict[str, str] = {}
-                    if name == "bash":
+                    if name == TOOL_NAME_BASH:
                         command = str(call.arguments.get("command") or "").strip()
                         if command:
                             kwargs["command"] = command
@@ -500,7 +500,7 @@ async def _turn(
     fold_target: dict[str, Any] | None = None,
 ) -> TurnResult:
     messages.append(user_msg(prompt))
-    if permission_mode == "plan":
+    if permission_mode == PERMISSION_MODE_PLAN:
         messages.append(system_msg(
             "[计划模式] 本任务是只读规划模式：写入与命令工具会被拒绝。"
             "请完成调研后输出实施计划（目标、步骤、涉及文件、验证方式、风险）。"
@@ -514,8 +514,8 @@ async def _turn(
             trace_event(
                 name="router",
                 status="ok",
-                phase="planning",
-                code="stage_route",
+                phase=PHASE_PLANNING,
+                code=STAGE_ROUTE_CODE,
                 summary="已应用规划阶段的模型与请求策略（CLI）",
                 detail=route.to_dict(),
             ),
@@ -1008,7 +1008,7 @@ def main(argv: list[str] | None = None) -> int:
         except BudgetExceeded as exc:
             log_task_event(
                 budget_exceeded_event(
-                    "subagent", exc, usage, name="subagent", phase="execution",
+                    BUDGET_STAGE_SUBAGENT, exc, usage, name=BUDGET_STAGE_SUBAGENT, phase=PHASE_EXECUTION,
                 ),
                 task_id=session.path.stem if session else "cli",
             )

@@ -48,7 +48,7 @@ REPO = Path(__file__).resolve().parents[1]
 PKG = REPO / "minicc"
 
 MODEL = "gw-t195"
-STAGES = ("planning", "inspect", "implement", "verify", "repair", "review")
+STAGES = tuple(sorted(minicc_config.STAGE_NAMES))
 KEY_SET = "MINICC_T195_KEY_SET"
 KEY_UNSET = "MINICC_T195_KEY_UNSET"
 

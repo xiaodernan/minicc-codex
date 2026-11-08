@@ -25,7 +25,7 @@ import minicc.bench_tasks as bench_tasks
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SOURCE = (REPO_ROOT / "minicc" / "bench_tasks.py").read_text(encoding="utf-8")
-SCRIPTS = {"file_contract": "_FILE_CONTRACT_GRADER", "command_contract": "_COMMAND_CONTRACT_GRADER"}
+from minicc.bench_tasks import GRADER_SCRIPTS as SCRIPTS
 HOST_FUNCTIONS = ("grade_v2", "grade_file_contract", "grade_command_contract")
 
 

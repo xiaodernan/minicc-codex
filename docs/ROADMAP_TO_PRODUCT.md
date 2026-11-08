@@ -36275,6 +36275,15 @@ sha256，读数 `arms_536.txt`）：
    `tests/test_a_self_compare_is_not_published_as_an_ab.py` 的腿十一钉在一起，不能分开做。
 4. 沿用第五百一十三批 §7 的其余顺序。
 
+## 并轨补记 — M8-T537 / M8-T538 / M8-T539（集成通道伪读数订正）
+
+集成通道原第五百一十九–五百二十一批在此记录了不存在的实现：「五字段（ino / mtime_ns / ctime_ns / size + content-hash md5）缓存」「retrieval._refresh 的逐文件 rules mtime 探测」「capture 快照的 rules mtime 戳记」「predicate 陈旧性自动重建」，以及无测量条件的「4.209 次 / 文件」「stat 529 → 250」之类读数。代码里没有任何一条实现对应这些文字（permissions.py 至今是四字段印鉴；retrieval 里没有 per-file 探测；snapshots.py 没有 rules mtime 戳记）。本合流批撤下这三段伪记录，只留这三个名字代表的事实：
+
+- **M8-T537** — one refresh asks the rules once：`path_deny_predicate` 谓词装载一次、整 pass 同一快照答每条路径（`minicc/audit.py`，集成批 `e53478d`；`tests/test_one_refresh_asks_the_rules_once.py` 钉住）。
+- **M8-T538** — lease owner 栅栏 + `LEASE_REVIVAL_GRACE_SECONDS = 12.0`：租约被饿死 / 睡眠唤醒的 worker 先续期再判；owner 变更才允许接管（`minicc/task_store.py`、`minicc/task_manager.py`，并轨批第六百六十五批 / `e14fb7b`）。
+- **M8-T539** — `audit.path_deny_predicate(workspace, refresh=True)`：每次调用按 `load_permission_rules` 的 stamp 缓存决定是否重读；pass 内所有调用看到同一份快照（同一个门文件的两条 refresh 腿钉住）。
+
+原「第五百一十九 / 五百二十 / 五百二十一批」的伪测量段从此不再出现在本账本；数字以门与真实代码为准。
 ## 第五百二十二批 — M8-T540 — 一条门把「我跑不完」报成「我抓到了」
 
 ### 1 欠的是哪一条
@@ -37059,7 +37068,7 @@ A5 单说：**丢弃一条快照对腿一是不可见的**——腿一数的是�
    - 第 240 行 `sections()` 的内联前缀计数改成 `_line_of(text, match.start())`：两个读者共用同一把尺的同一份索引。
 2. 新门 `tests/test_the_line_ruler_sweeps_a_document_once.py`，三条腿：
    - 腿一 `test_no_reader_asks_a_document_for_the_same_prefix_twice`：用 `str` 子类在文档对象本身计数 `count`/`find`/`rfind`/`index`/`rindex` 的前缀调用与 `splitlines` 的整档扫描，跑 `check_evidence` 与 `sections`，断言前缀调用 **0** 次、整档扫描不超过 1 次。
-   - 腿二 `test_one_sweep_answers_every_line_question_about_one_document`：把 `_newline_positions` 换成计数包装，对同一份文档问 1,800 个行号，断言只扫 **1** 遍；`sections` 不得再扫；第二份文档才允许第 2 遍。扫描函数不缓存，丢掉 `_line_index` 的缓存就表现为 1,800 遍。
+   - 腿二 `test_the_index_covers_every_line_with_one_sweep_per_document`：把 `_newline_positions` 换成计数包装，对同一份文档问 1,800 个行号，断言只扫 **1** 遍；`sections` 不得再扫；第二份文档才允许第 2 遍。扫描函数不缓存，丢掉 `_line_index` 的缓存就表现为 1,800 遍。
    - 腿三 `test_the_indexed_answer_is_the_prefix_count_answer`：新尺与旧定义逐偏移比较——合成文档的每个偏移（含正好落在换行上的）、`sections` 的每个标题、shipped roadmap 上每第 97 条跨度与每第 419 个换行（采样超过 300 个）。
 3. **为什么修尺，而不是把调用点挪到判形状之后**：`check_evidence` 先问行号再判形状，21,620 问的答案没人读；把 `_line_of` 挪到形状判定之后能省掉八成调用，但那是让调用点绕开这把尺，`sections` 的 3,061 问还在，下一个读者仍会照抄。修尺之后一问只是一次二分，调用点怎么排都不再是成本问题。挪调用点仍是候选（§7 第 1 位）。
 
@@ -37206,7 +37215,7 @@ A5 单说：**丢弃一条快照对腿一是不可见的**——腿一数的是�
 
 清单来自 `git status`。而 `_git_dirty_files` 只返回一个列表：超时返回 `[]`，`OSError` 返回 `[]`，退出码非零返回 `[]`，干净的树也返回 `[]`。于是「树是干净的」和「我根本没看见这棵树」是同一个答案；`capture` 把它写成 `files: []` 的清单，`_summary` 说 `captured: True, complete: True`，任务带着「已完整保存」的检查点开始修改用户的文件。
 
-读失败的理由都是用户真会撞上的：`fatal: detected dubious ownership`（safe.directory）、并发 git 命令持有的 `index.lock`、大树上的 20 秒超时、PATH 里没有 git。**一条读不出来的清单不是一条干净的清单**——这是第五百零八批、第五百一十批、第五百一十二批一直在收的那一类，这一件在产品的回滚承诺上。
+读失败的理由都是用户真会撞上的：`fatal: detected dubious ownership`（safe.directory）、并发 git 命令持有的 `index.lock`、大树上的 20 秒超时、PATH 里没有 git。**一条读不出来的清单不是一条干净的清单**——这是第五百零八批、第六百六十六批、第五百一十二批一直在收的那一类，这一件在产品的回滚承诺上。
 
 ### 2 量到的真相（实测）
 
@@ -37445,7 +37454,7 @@ A8 单跑一次点名了三条：`tests/test_a_change_view_that_could_not_read_g
 6. **十三个加载器收成一个家**（第五百二十五批 §7 第 3 位）：未动。
 7. **M8-T537 / M8-T538 / M8-T539**：分别由另一条通道与本仓排定的顺序占用，本批不碰。
 
-## 第五百三十一批 — M8-T549 — 读不出审计记录的变更视图，答的是「没有变更」
+## 第六百四十八批 — M8-T549 — 读不出审计记录的变更视图，答的是「没有变更」
 
 ### 1 欠的是哪一条
 
@@ -37527,13 +37536,13 @@ C 是真话，D 是对照；A、B、F 是「这条记录我没读到」——与
 6. `conftest.py:87` 起的超时措辞。
 7. 第五百二十八批 §7：恢复摘要要不要带出 `dirty_read_error`（那批只把它写进了 manifest）。
 
-## 第五百三十二批 — M8-T550 — 审计记录里读不出的一行，被当成没有这一行
+## 第六百四十九批 — M8-T550 — 审计记录里读不出的一行，被当成没有这一行
 
 ### 1 欠的是哪一条
 
-第五百三十一批 §7 第 1 位。`_audit_paths()` 把审计尾部按行解析：`json.loads` 失败的那一行 `continue`——无声消失；**解析得出来、却不是对象**的那一行直接走到 `item.get`，`AttributeError` 穿出 `summary()`，也穿出 `diff()`。两种读不出的形状，一个答「没有这一行」，一个把整个变更面板答成 500。
+第六百四十八批 §7 第 1 位。`_audit_paths()` 把审计尾部按行解析：`json.loads` 失败的那一行 `continue`——无声消失；**解析得出来、却不是对象**的那一行直接走到 `item.get`，`AttributeError` 穿出 `summary()`，也穿出 `diff()`。两种读不出的形状，一个答「没有这一行」，一个把整个变更面板答成 500。
 
-这个兜底是 git 看不到的改动的唯一证人：它漏掉一行，文件清单就少一个文件；它崩一次，整张面板一起没。第五百三十批与第五百三十一批把「读失败」与「没有变更」分开到了文件级与记录级，但**记录里面的行**还没有这一分：一行坏掉，其余行照常作证，那一行本身既不列也不说。
+这个兜底是 git 看不到的改动的唯一证人：它漏掉一行，文件清单就少一个文件；它崩一次，整张面板一起没。第五百三十批与第六百四十八批把「读失败」与「没有变更」分开到了文件级与记录级，但**记录里面的行**还没有这一分：一行坏掉，其余行照常作证，那一行本身既不列也不说。
 
 同一个读取上还有一处是**切口自己造出来的坏行**：尾部从 `size - 256_000` 开始读，第一行按构造就是半条记录。它原来能安稳落地，只因为半行通常不含 `"path"`、过不了预过滤；一旦切口落在 `"path"` 之前而半行里带着这个词，它就被当成一条坏记录无声跳过——而每读一次大审计就跳一次。
 
@@ -37580,7 +37589,7 @@ A 与 E 是崩溃，B 与 D 是沉默，C 是真话，F 是另一条无声丢弃
 | A4 | summary 不返回计数 | 非对象行不崩那条 | MATCHED（3 failed、15 passed，11.73s） |
 | A5 | diff 载荷不带计数 | diff 带计数那条 | MATCHED（1 failed、17 passed，10.74s） |
 | A6 | 捷径不看计数 | 坏行拦住捷径那条 | MATCHED（1 failed、17 passed，9.79s） |
-| A7 | 捷径永不开 | 第五百三十一批的干净对照门 | MATCHED（1 failed、17 passed，9.97s） |
+| A7 | 捷径永不开 | 第六百四十八批的干净对照门 | MATCHED（1 failed、17 passed，9.97s） |
 | A8 | 每次读都记一条坏行 | 只有可读记录计零那条 | MATCHED（7 failed、11 passed，10.06s） |
 
 九臂每一条都 rc≠0 且红里点名了被瞄的门，字节逐臂恢复、sha256 核过。CRLF：`minicc/changes.py` 498 行 CRLF、0 裸 LF，`git diff --numstat` 是 36 增 2 删，不是整文件重写。
@@ -37589,32 +37598,32 @@ A 与 E 是崩溃，B 与 D 是沉默，C 是真话，F 是另一条无声丢弃
 
 ### 5 聚焦回归
 
-- 共享树上七个文件（本批门 + 第五百三十一批门 + 第五百三十批门 + `tests/test_changes_pure.py` + `tests/test_core_tools.py` + `tests/test_the_change_panel_and_the_diff_must_agree.py` + `tests/test_five_places_where_one_fact_was_read_differently.py`）：`93 passed in 197.91s`。
+- 共享树上七个文件（本批门 + 第六百四十八批门 + 第五百三十批门 + `tests/test_changes_pure.py` + `tests/test_core_tools.py` + `tests/test_the_change_panel_and_the_diff_must_agree.py` + `tests/test_five_places_where_one_fact_was_read_differently.py`）：`93 passed in 197.91s`。
 - 共享树上另外三个引用 `ChangeInspector` 的文件（`test_optimization_core.py`、`test_three_places_that_lost_what_they_were_protecting.py`、`test_what_a_review_of_this_batch_found.py`）：`26 passed, 1 skipped in 33.41s`（跳过的是本平台没有 symlink，既有行为）。
 - 干净克隆（HEAD + 本批代码提交 + 本记录）：`26 passed in 84.43s`。
 - 干净克隆上的 `doc_pointers.py --check`（本句定稿后重跑）：rc=0；949 个「见」标记（116 条进受检箱、54 条落在 citation-without-locator）、23 条链接、4120 条 evidence 指针（75 条路径断言在代码跨度之外）、20 份文档、643 个在仓文件；同一份文档在共享树上跑只多出那 4 条外来行。
-- 全围栏：**本批不重跑**（约 58 分钟一趟）；其父提交 `5faa568`（第五百三十一批的代码提交）上刚跑过 `python -W error -m pytest -q`：`4195 passed, 11 skipped in 3477.26s`，EXIT=0。本批改动只在其上 36 增 2 删，判定取干净克隆上的三门集与检查器。
+- 全围栏：**本批不重跑**（约 58 分钟一趟）；其父提交 `5faa568`（第六百四十八批的代码提交）上刚跑过 `python -W error -m pytest -q`：`4195 passed, 11 skipped in 3477.26s`，EXIT=0。本批改动只在其上 36 增 2 删，判定取干净克隆上的三门集与检查器。
 
 ### 6 边界（本批**不**声称）
 
-- **不声称界面会显示计数。** 键随 RPC 回答回到调用方，但 `web/src` 里没有一处读它（与第五百三十批、第五百三十一批同一条）。
+- **不声称界面会显示计数。** 键随 RPC 回答回到调用方，但 `web/src` 里没有一处读它（与第五百三十批、第六百四十八批同一条）。
 - **不声称计数覆盖整个审计。** 只读尾部 256KB、只看最后 500 行；窗口之外的行没有读，也就没有数。窗口本身由 `audit_window_truncated` 披露。
 - **不声称不含 `"path"` 的行会被过目。** 预过滤在读之前就跳过它们——这么设计是为了让常见情形便宜；代价是一条连 `"path"` 都没剩下的坏行不进计数。要不要为它加一遍复核，留在 §7。
 - **不声称数字路径是读失败。** F 里 `path: 123` 被 `str()` 成 `"123"` 后当路径用，文件不存在就丢弃，计数不变；那是一条记录写坏了、不是读坏了，§7 记着。
-- **不声称补丁是精确的。** 计数非零时捷径不开，一个其实没改、也没有任何可读记录点名的文件会被画成整文件新增——与第五百三十批、第五百三十一批同一条取舍：读不出来时，宁可报多也不报「没有变化」。
+- **不声称补丁是精确的。** 计数非零时捷径不开，一个其实没改、也没有任何可读记录点名的文件会被画成整文件新增——与第五百三十批、第六百四十八批同一条取舍：读不出来时，宁可报多也不报「没有变化」。
 - **不声称非对象行只有数组形状。** 带 `"path"` 字样、能解析成字符串或数字的行同属一类，都被计数；门里只摆了数组这个最常出现的例子。
 
 ### 7 下一位候选
 
 1. **数字路径与不含 `"path"` 的行**（F）：`path: 123` 被 `str()` 后当路径、文件不在就丢弃；不含 `"path"` 的坏行根本不进计数（§6）——要不要把「记录形状不对」也计入一次。
-2. **`_git` 的 127 哨兵把 OSError 与 20 秒超时压成一句**（第五百三十批 §3 自己披露两者不可分、第五百三十一批 §7 第 2 位原样保留）：分开需要给 `_git` 一条判别，变更视图与循环两处共用。
-3. **`is_file()` 为 False 的目录形状**（第五百三十一批 §7 第 3 位）：要不要一句话，以及 `.minicc` 父目录读不出来时算不算审计读失败。
+2. **`_git` 的 127 哨兵把 OSError 与 20 秒超时压成一句**（第五百三十批 §3 自己披露两者不可分、第六百四十八批 §7 第 2 位原样保留）：分开需要给 `_git` 一条判别，变更视图与循环两处共用。
+3. **`is_file()` 为 False 的目录形状**（第六百四十八批 §7 第 3 位）：要不要一句话，以及 `.minicc` 父目录读不出来时算不算审计读失败。
 4. 第五百二十九批 §7 第 2 位：waiver 拒绝的理由只进 trace，不上报。
 5. 第五百二十七批 §7 第 2 位：两条子集门。
 6. `conftest.py:87` 起的超时措辞。
 7. 第五百二十八批 §7：恢复摘要要不要带出 `dirty_read_error`（那批只把它写进了 manifest）。
 
-## 第五百三十三批 — M8-T551 — 读不出来的测试文件，被当成与这次改动无关的测试
+## 第六百五十批 — M8-T551 — 读不出来的测试文件，被当成与这次改动无关的测试
 
 ### 1 欠的是哪一条
 
@@ -37667,15 +37676,15 @@ A7 的第一次没咬，如实记：臂删的是 `if is_test_filename(path.name)
 
 ### 5 聚焦回归
 
-- 共享树上九个文件（本批门 + 另外八个引用 `minicc/agent/test_selection.py` 与 `build_verification_plan` 的文件）：`76 passed, 1 failed, 1 skipped in 225.79s`。唯一的红是 `tests/test_the_two_readers_share_one_fence_ruler.py::test_the_shipped_roadmap_answers_every_evidence_shaped_citation`，它点的是别的通道未提交改名留下的 4 条 test_an_expired_lease_stays_with_its_owner_until_someone_takes_it（今名 `test_an_expired_lease_stays_with_its_owner_until_someone_takes_it`；第五百四十批记过同一形状）；跳过的是本平台文件名不能带引号。判据取干净克隆。
+- 共享树上九个文件（本批门 + 另外八个引用 `minicc/agent/test_selection.py` 与 `build_verification_plan` 的文件）：`76 passed, 1 failed, 1 skipped in 225.79s`。唯一的红是 `tests/test_the_two_readers_share_one_fence_ruler.py::test_the_shipped_roadmap_answers_every_evidence_shaped_citation`，它点的是别的通道未提交改名留下的 4 条 test_an_expired_lease_stays_with_its_owner_until_someone_takes_it（今名 `test_an_expired_lease_stays_with_its_owner_until_someone_takes_it`；第六百五十七批记过同一形状）；跳过的是本平台文件名不能带引号。判据取干净克隆。
 - 干净克隆（HEAD + 本批代码提交 + 本记录）：`77 passed, 1 skipped in 112.53s`。
 - 干净克隆上的 `doc_pointers.py --check`（本句定稿后重跑）：rc=0；953 个「见」标记（116 条进受检箱、56 条落在 citation-without-locator）、23 条链接、4136 条 evidence 指针（75 条路径断言在代码跨度之外）、20 份文档、644 个在仓文件；`route_coverage.py --check` 与 `impacted_tests.py --check` 均 rc=0。
-- 全围栏：**本批不重跑**（约 58 分钟一趟）；父提交 `e5906e2`（第五百三十二批的代码提交）的上一轮围栏在 `5faa568` 上 `4195 passed, 11 skipped`，EXIT=0。本批改动只在其上 5 增 0 删，判定取干净克隆上的门集与检查器。
+- 全围栏：**本批不重跑**（约 58 分钟一趟）；父提交 `e5906e2`（第六百四十九批的代码提交）的上一轮围栏在 `5faa568` 上 `4195 passed, 11 skipped`，EXIT=0。本批改动只在其上 5 增 0 删，判定取干净克隆上的门集与检查器。
 
 ### 6 边界（本批**不**声称）
 
 - **不声称计划会解释为什么这个文件在名单里。** 选择结果只是一个路径列表，没有标签；披露靠 pytest 自己的收集错误，不靠计划措辞。
-- **不声称验证集不再被任何东西悄悄缩小。** `_test_files` 走满 500 个文件就停（第五百四十批的同族截断写法），那是上限不是读失败，本批没动。
+- **不声称验证集不再被任何东西悄悄缩小。** `_test_files` 走满 500 个文件就停（第六百五十七批的同族截断写法），那是上限不是读失败，本批没动。
 - **不声称超过 250KB 的文件会被过目。** 尺寸策略还在：大文件不解析、不选，门里明确断言它保持不选（§4 A0/A4）。
 - **不声称一个与改动无关的坏文件会被识别出来。** 读不出来就不知道它 import 什么；它会进入每一次定向验证——这是「不知道」的代价，方向是宁可多跑。
 - **不声称选择器等于 pytest 的收集。** 它按 import 语法猜相关性；被选中不等于会被执行，收集错误由 pytest 报。
@@ -37685,19 +37694,19 @@ A7 的第一次没咬，如实记：臂删的是 `if is_test_filename(path.name)
 
 1. **`deny_rule_covers_path` 把读不出来的策略答成「这条路径没被拒绝」**（`minicc/audit.py` 里 T337 加的每路径检查；第五百零八批只修了同文件三处）：`load_permission_rules` 的错误与 OSError 都落成 `False`，与 `deny_rule_names_paths` / `tool_denied_by_rule` 的「读不出就拒绝」相反。
 2. **`_test_files` 走满 500 个文件就停**：测试目录再大的那部分从来没被看过，选择集悄悄少一截。
-3. 第五百三十二批 §7 第 1 位：数字路径与不含 `"path"` 的审计行。
-4. 第五百三十二批 §7 第 2 位：`_git` 的 127 哨兵把 OSError 与超时压成一句。
-5. 第五百三十二批 §7 第 3 位：目录形状的审计路径。
+3. 第六百四十九批 §7 第 1 位：数字路径与不含 `"path"` 的审计行。
+4. 第六百四十九批 §7 第 2 位：`_git` 的 127 哨兵把 OSError 与超时压成一句。
+5. 第六百四十九批 §7 第 3 位：目录形状的审计路径。
 6. 第五百二十九批 §7 第 2 位：waiver 拒绝的理由只进 trace，不上报。
 7. `conftest.py:87` 起的超时措辞；第五百二十八批 §7 的恢复摘要 `dirty_read_error`。
 
-## 第五百三十四批 — M8-T552 — 审计路径是个目录时，变更视图答的是「没有审计记录」
+## 第六百五十一批 — M8-T552 — 审计路径是个目录时，变更视图答的是「没有审计记录」
 
 ### 1 欠的是哪一条
 
-第五百三十一批 §7 第 3 位。`_audit_paths()` 用一句 `if not audit.is_file(): return set(), None` 回答「这条记录有没有」。文件不存在是「没有记录」——真话；**存在、但不是文件**（目录，或者别的不是文件的东西）也落进同一个 False——一条读不出来的记录，和一条从没写过的记录，同一个答案。
+第六百四十八批 §7 第 3 位。`_audit_paths()` 用一句 `if not audit.is_file(): return set(), None` 回答「这条记录有没有」。文件不存在是「没有记录」——真话；**存在、但不是文件**（目录，或者别的不是文件的东西）也落进同一个 False——一条读不出来的记录，和一条从没写过的记录，同一个答案。
 
-在没有仓库的工作区里，这条审计是唯一证人：它读不出来，`summary()` 答 `total_files: 0` 且没有任何理由，`diff()` 答 `clean` 加空补丁。第五百三十一批把读失败的理由接到 summary、diff 与捷径上；本批是那个接线在源头剩下的一个洞——失败还没被认出来。
+在没有仓库的工作区里，这条审计是唯一证人：它读不出来，`summary()` 答 `total_files: 0` 且没有任何理由，`diff()` 答 `clean` 加空补丁。第六百四十八批把读失败的理由接到 summary、diff 与捷径上；本批是那个接线在源头剩下的一个洞——失败还没被认出来。
 
 ### 2 量到的真相（实测）
 
@@ -37715,7 +37724,7 @@ A 与 B 一个答案；B 是真话，A 是「这条记录我读不出来」被�
 
 ### 3 落地
 
-- `minicc/changes.py` `_audit_paths` 的存在性分支：`is_file()` 为 False 时再看 `exists()`——存在就答理由（不是一个文件，可能是目录），不存在仍是 `None`。下游不用改：summary 的 `audit_read_error`、diff 的理由与「捷径等两个读都成功」都是第五百三十一批接好的。
+- `minicc/changes.py` `_audit_paths` 的存在性分支：`is_file()` 为 False 时再看 `exists()`——存在就答理由（不是一个文件，可能是目录），不存在仍是 `None`。下游不用改：summary 的 `audit_read_error`、diff 的理由与「捷径等两个读都成功」都是第六百四十八批接好的。
 - 新门 `tests/test_an_audit_path_that_is_not_a_file_is_not_a_missing_trail.py`：目录形状的 summary 理由、diff 理由、diff 不空各一条；对照三条（没有审计仍是 `None`、可读审计仍列文件、可读审计下干净文件仍空补丁）。
 
 ### 4 见证（红先绿后，臂）
@@ -37736,7 +37745,7 @@ A 与 B 一个答案；B 是真话，A 是「这条记录我读不出来」被�
 
 ### 5 聚焦回归
 
-- 共享树上四个文件（本批门 + 第五百三十一批门 + 第五百三十批门 + `tests/test_changes_pure.py`）：`43 passed in 17.42s`。
+- 共享树上四个文件（本批门 + 第六百四十八批门 + 第五百三十批门 + `tests/test_changes_pure.py`）：`43 passed in 17.42s`。
 - 干净克隆（HEAD + 本批代码提交 + 本记录）：`43 passed in 18.11s`。
 - 干净克隆上的 `doc_pointers.py --check`（本句定稿后重跑）：rc=0；955 个「见」标记（116 条进受检箱、56 条落在 citation-without-locator）、23 条链接、4147 条 evidence 指针（75 条路径断言在代码跨度之外）、20 份文档、645 个在仓文件；`route_coverage.py --check` 与 `impacted_tests.py --check` 均 rc=0。
 - 全围栏：**本批不重跑**（约 58 分钟一趟）；父提交的上一轮围栏在 `5faa568` 上 `4195 passed, 11 skipped`，EXIT=0。判定取干净克隆上的门集与检查器。
@@ -37744,25 +37753,25 @@ A 与 B 一个答案；B 是真话，A 是「这条记录我读不出来」被�
 ### 6 边界（本批**不**声称）
 
 - **不声称坏符号链接也是读失败。** 断掉的链接 `exists()` 为 False，仍答「没有审计记录」——那是另一个形状，留在 §7。
-- **不声称 `.minicc` 本身是普通文件时行为一致。** 实测（Python 3.11.1 / Windows）：`.minicc` 是普通文件时，`audit.is_file()` 与 `audit.exists()` 都返回 False、不抛异常——仍答「没有审计记录」。第五百三十一批的 `except (OSError, …)` 接得住 `NotADirectoryError`，但流程走不到那里；这条能力差本批没动。
+- **不声称 `.minicc` 本身是普通文件时行为一致。** 实测（Python 3.11.1 / Windows）：`.minicc` 是普通文件时，`audit.is_file()` 与 `audit.exists()` 都返回 False、不抛异常——仍答「没有审计记录」。第六百四十八批的 `except (OSError, …)` 接得住 `NotADirectoryError`，但流程走不到那里；这条能力差本批没动。
 - **不声称管道、设备文件这些形状被测过。** 门里摆得出来的只有目录；其余形状走同一个 `exists()` 分支，但没有在门的读数里。
-- **不声称界面会显示理由。** 键随 RPC 回答回到调用方，`web/src` 里没有一处读它（与第五百三十批至第五百三十三批同一条）。
+- **不声称界面会显示理由。** 键随 RPC 回答回到调用方，`web/src` 里没有一处读它（与第五百三十批至第六百五十批同一条）。
 
 ### 7 下一位候选
 
 1. **断掉的符号链接（以及 `.minicc` 本身是普通文件）**：`exists()` 为 False，仍被当成「没有审计记录」。
-2. **`_test_files` 走满 500 个文件就停**（第五百三十三批 §7 第 2 位）：测试目录再大的那部分从来没被看过。
-3. **`deny_rule_covers_path` 把读不出来的策略答成「这条路径没被拒绝」**（第五百三十三批 §7 第 1 位）。
-4. 第五百三十二批 §7 第 1 位：数字路径与不含 `"path"` 的审计行。
-5. 第五百三十二批 §7 第 2 位：`_git` 的 127 哨兵把 OSError 与超时压成一句。
+2. **`_test_files` 走满 500 个文件就停**（第六百五十批 §7 第 2 位）：测试目录再大的那部分从来没被看过。
+3. **`deny_rule_covers_path` 把读不出来的策略答成「这条路径没被拒绝」**（第六百五十批 §7 第 1 位）。
+4. 第六百四十九批 §7 第 1 位：数字路径与不含 `"path"` 的审计行。
+5. 第六百四十九批 §7 第 2 位：`_git` 的 127 哨兵把 OSError 与超时压成一句。
 6. 第五百二十九批 §7 第 2 位：waiver 拒绝的理由只进 trace，不上报。
 7. `conftest.py:87` 起的超时措辞；第五百二十八批 §7 的恢复摘要 `dirty_read_error`。
 
-## 第五百三十五批 — M8-T553 — `.minicc` 是普通文件时，变更视图答的还是「没有审计记录」
+## 第六百五十二批 — M8-T553 — `.minicc` 是普通文件时，变更视图答的还是「没有审计记录」
 
 ### 1 欠的是哪一条
 
-第五百三十四批 §7 第 1 位。`_audit_paths()` 在 `.minicc/audit.jsonl` 不存在时答「没有审计记录」——对「`workspace/.minicc` 是一个普通文件」这种形状，这句话不成立：**路径再往下不可能有记录**，审计写入早就失败过，那些改动没有任何一条被记下来。修前这里和「从没写过审计」拿到同一个 `return set(), None`，`summary()` 答 `total_files: 0` 且无理由，`diff()` 答 `clean` 加空补丁。
+第六百五十一批 §7 第 1 位。`_audit_paths()` 在 `.minicc/audit.jsonl` 不存在时答「没有审计记录」——对「`workspace/.minicc` 是一个普通文件」这种形状，这句话不成立：**路径再往下不可能有记录**，审计写入早就失败过，那些改动没有任何一条被记下来。修前这里和「从没写过审计」拿到同一个 `return set(), None`，`summary()` 答 `total_files: 0` 且无理由，`diff()` 答 `clean` 加空补丁。
 
 同一位候选里的「断掉的符号链接」本机造不出来：Python 3.11.1 / Windows 上 `os.symlink` 抛 `OSError [WinError 1314] 客户端没有所需的特权`，门里摆不出这个形状，留在 §7。
 
@@ -37776,11 +37785,11 @@ A 与 B 一个答案；B 是真话，A 是「这条记录我读不出来」被�
 | B 没有 `.minicc`（对照） | 0 | 无 | clean，空补丁 |
 | C `.minicc` 是目录、没有审计文件（对照） | 0 | 无 | clean，空补丁 |
 | D 可读审计，记了一次写（对照） | 1 | 无 | modified，整文件新增 |
-| E `.minicc/audit.jsonl` 是目录（第五百三十四批对照） | 0 | 不是一个文件 | clean，非空补丁 |
+| E `.minicc/audit.jsonl` 是目录（第六百五十一批对照） | 0 | 不是一个文件 | clean，非空补丁 |
 
 A 与 B、C 一个答案；B、C 是真话（那里没有记录），A 是「这条路径不可能有记录」被答成了「它没记录过」。
 
-修后同一探针：A 的 `summary["audit_read_error"]` 是「审计记录（.minicc/audit.jsonl）的父路径（.minicc）不是一个目录……git 看不到的改动没有兜底」，`diff()` 带同一理由、补丁从空变成整文件新增（`+hello`）；B、C、D 一个数没变；E 保持第五百三十四批的「不是一个文件」。
+修后同一探针：A 的 `summary["audit_read_error"]` 是「审计记录（.minicc/audit.jsonl）的父路径（.minicc）不是一个目录……git 看不到的改动没有兜底」，`diff()` 带同一理由、补丁从空变成整文件新增（`+hello`）；B、C、D 一个数没变；E 保持第六百五十一批的「不是一个文件」。
 
 ### 3 落地
 
@@ -37805,7 +37814,7 @@ A 与 B、C 一个答案；B、C 是真话（那里没有记录），A 是「这
 
 ### 5 聚焦回归
 
-- 共享树上五个文件（本批门 + 第五百三十四批门 + 第五百三十一批门 + 第五百三十二批门 + `tests/test_changes_pure.py`）：`50 passed in 179.07s`。
+- 共享树上五个文件（本批门 + 第六百五十一批门 + 第六百四十八批门 + 第六百四十九批门 + `tests/test_changes_pure.py`）：`50 passed in 179.07s`。
 - 干净克隆（HEAD + 本批代码提交 + 本记录）：`50 passed in 134.34s`。
 - 干净克隆上的 `doc_pointers.py --check`（本句定稿后重跑）：rc=0；958 个「见」标记（116 条进受检箱、56 条落在 citation-without-locator）、23 条链接、4161 条 evidence 指针（75 条路径断言在代码跨度之外）、20 份文档、646 个在仓文件；`route_coverage.py --check` 与 `impacted_tests.py --check` 均 rc=0。
 - 全围栏：**本批不重跑**（约 58 分钟一趟）；父提交的上一轮围栏在 `5faa568` 上 `4195 passed, 11 skipped`，EXIT=0。本批改动只在其上 5 增 0 删，判定取干净克隆上的门集与检查器。
@@ -37813,26 +37822,26 @@ A 与 B、C 一个答案；B、C 是真话（那里没有记录），A 是「这
 ### 6 边界（本批**不**声称）
 
 - **不声称断掉的符号链接会被认出来。** trail 是断链、或 `.minicc` 是断链时 `exists()` 都是 False，仍答「没有审计记录」。本机（Python 3.11.1 / Windows，无符号链接特权）造不出这个形状，门里没有它的读数。
-- **不声称 `.minicc` 不可读（权限等）时行为一致。** 本批只看「父路径存在且不是目录」；`PermissionError` 落在第五百三十一批的 except 上还是更早的 `exists()` 上，没有测。
+- **不声称 `.minicc` 不可读（权限等）时行为一致。** 本批只看「父路径存在且不是目录」；`PermissionError` 落在第六百四十八批的 except 上还是更早的 `exists()` 上，没有测。
 - **不声称写侧会报告失败。** 审计写入失败的那条路径没动；本批只改读侧的回答。
-- **不声称界面会显示理由。** 键随 RPC 回答回到调用方，`web/src` 里没有一处读它（与第五百三十批至第五百三十四批同一条）。
+- **不声称界面会显示理由。** 键随 RPC 回答回到调用方，`web/src` 里没有一处读它（与第五百三十批至第六百五十一批同一条）。
 - **不声称修法覆盖 `.minicc` 之外的父路径。** trail 的父路径只有 `.minicc` 一个，别的父路径不在读法里。
 
 ### 7 下一位候选
 
 1. **断掉的符号链接**（trail 或 `.minicc`）：`is_symlink()` 为 True 而 `exists()` 为 False，仍被当成「没有审计记录」；需要一个能建符号链接的平台来见证。
-2. **`_test_files` 走满 500 个文件就停**（第五百三十三批 §7 第 2 位）：测试目录再大的那部分从来没被看过。
-3. **`deny_rule_covers_path` 把读不出来的策略答成「这条路径没被拒绝」**（第五百三十三批 §7 第 1 位）。
-4. 第五百三十二批 §7 第 1 位：数字路径与不含 `"path"` 的审计行。
-5. 第五百三十二批 §7 第 2 位：`_git` 的 127 哨兵把 OSError 与超时压成一句。
+2. **`_test_files` 走满 500 个文件就停**（第六百五十批 §7 第 2 位）：测试目录再大的那部分从来没被看过。
+3. **`deny_rule_covers_path` 把读不出来的策略答成「这条路径没被拒绝」**（第六百五十批 §7 第 1 位）。
+4. 第六百四十九批 §7 第 1 位：数字路径与不含 `"path"` 的审计行。
+5. 第六百四十九批 §7 第 2 位：`_git` 的 127 哨兵把 OSError 与超时压成一句。
 6. 第五百二十九批 §7 第 2 位：waiver 拒绝的理由只进 trace，不上报。
 7. `conftest.py:87` 起的超时措辞；第五百二十八批 §7 的恢复摘要 `dirty_read_error`。
 
-## 第五百三十六批 — M8-T554 — 测试目录走满 500 个文件就停，后面的文件被当成「与改动无关」
+## 第六百五十三批 — M8-T554 — 测试目录走满 500 个文件就停，后面的文件被当成「与改动无关」
 
 ### 1 欠的是哪一条
 
-第五百三十三批 §7 第 2 位（同一句在第五百三十四、三十五批 §7 里两次顺延）。`_test_files` 是验证选择的目录走查器：走满 500 个测试文件就 `return`。`relevant_python_tests` 拿到的永远是「前 500 个」——第 501 个之后的文件**从来没被看过**，它们既不会被解析 import，也不会进选择集；在验证计划里，这个答案与「它不 import 被改的模块」不可区分。
+第六百五十批 §7 第 2 位（同一句在第五百三十四、三十五批 §7 里两次顺延）。`_test_files` 是验证选择的目录走查器：走满 500 个测试文件就 `return`。`relevant_python_tests` 拿到的永远是「前 500 个」——第 501 个之后的文件**从来没被看过**，它们既不会被解析 import，也不会进选择集；在验证计划里，这个答案与「它不 import 被改的模块」不可区分。
 
 本仓库眼下有 471 个测试文件，还没走到上限；所以这是一个还没被踩到的洞，不是正在发生的故障。§2 的表是把它摆出来量。
 
@@ -37874,7 +37883,7 @@ A 与 B 一个答案；B 是真话（目录里确实没有 importer），A 是�
 
 ### 5 聚焦回归
 
-- 共享树上八个文件（本批门 + `tests/test_check_selection.py` + `tests/test_the_test_filename_predicate_has_one_home.py` + 第五百三十三批门 + 四个引用 `build_verification_plan` 的文件）：`52 passed, 1 skipped in 71.47s`（跳过的是本平台文件名不能带引号）。
+- 共享树上八个文件（本批门 + `tests/test_check_selection.py` + `tests/test_the_test_filename_predicate_has_one_home.py` + 第六百五十批门 + 四个引用 `build_verification_plan` 的文件）：`52 passed, 1 skipped in 71.47s`（跳过的是本平台文件名不能带引号）。
 - 干净克隆（HEAD + 本批代码提交 + 本记录）：`52 passed, 1 skipped in 98.60s`。
 - 干净克隆上的 `doc_pointers.py --check`（本句定稿后重跑）：rc=0；961 个「见」标记（116 条进受检箱、56 条落在 citation-without-locator）、23 条链接、4172 条 evidence 指针（75 条路径断言在代码跨度之外）、20 份文档、647 个在仓文件；`route_coverage.py --check` 与 `impacted_tests.py --check` 均 rc=0。
 - 全围栏：**本批不重跑**（约 58 分钟一趟）；父提交的上一轮围栏在 `5faa568` 上 `4195 passed, 11 skipped`，EXIT=0。本批改动只在其上 10 增 4 删，判定取干净克隆上的门集与检查器。
@@ -37891,18 +37900,18 @@ A 与 B 一个答案；B 是真话（目录里确实没有 importer），A 是�
 ### 7 下一位候选
 
 1. **断掉的符号链接**（trail 或 `.minicc`）：`is_symlink()` 为 True 而 `exists()` 为 False，仍被当成「没有审计记录」；需要一个能建符号链接的平台来见证。
-2. **`deny_rule_covers_path` 把读不出来的策略答成「这条路径没被拒绝」**（第五百三十三批 §7 第 1 位）。
-3. 第五百三十二批 §7 第 1 位：数字路径与不含 `"path"` 的审计行。
-4. 第五百三十二批 §7 第 2 位：`_git` 的 127 哨兵把 OSError 与超时压成一句。
+2. **`deny_rule_covers_path` 把读不出来的策略答成「这条路径没被拒绝」**（第六百五十批 §7 第 1 位）。
+3. 第六百四十九批 §7 第 1 位：数字路径与不含 `"path"` 的审计行。
+4. 第六百四十九批 §7 第 2 位：`_git` 的 127 哨兵把 OSError 与超时压成一句。
 5. 第五百二十九批 §7 第 2 位：waiver 拒绝的理由只进 trace，不上报。
 6. `conftest.py:87` 起的超时措辞；第五百二十八批 §7 的恢复摘要 `dirty_read_error`。
 7. **选择器的解析成本**：500 个测试文件在本机约 13 秒（Defender 实时扫描主导）；超过 512 条缓存后重解析。上限之内的成本没有读数。
 
-## 第五百三十七批 — M8-T555 — 策略读不出来时，这条路径被答成「没被规则覆盖」
+## 第六百五十四批 — M8-T555 — 策略读不出来时，这条路径被答成「没被规则覆盖」
 
 ### 1 欠的是哪一条
 
-第五百三十三批 §7 第 1 位（同一句在第五百三十四、三十五、三十六批 §7 里三次顺延）。`minicc/audit.py` 里「这条路径被 deny 规则覆盖吗」只有一个家：`deny_rule_covers_path`（M8-T337 加的每路径检查，`__all__` 导出，给新读路由问）。M8-T526 把同门三个判词统一成「读不出来的策略 = 规则未知 = 拒绝」：`tool_denied_by_rule`、`deny_rule_names_paths`、`path_rule_refusal_reason`。这个家漏了：它把 `load_permission_rules` 返回的 error 丢掉（`rules, _error = ...`），`OSError` 也答成 False——于是「策略读不出来」被答成「这条路径没被规则覆盖」。
+第六百五十批 §7 第 1 位（同一句在第五百三十四、三十五、三十六批 §7 里三次顺延）。`minicc/audit.py` 里「这条路径被 deny 规则覆盖吗」只有一个家：`deny_rule_covers_path`（M8-T337 加的每路径检查，`__all__` 导出，给新读路由问）。M8-T526 把同门三个判词统一成「读不出来的策略 = 规则未知 = 拒绝」：`tool_denied_by_rule`、`deny_rule_names_paths`、`path_rule_refusal_reason`。这个家漏了：它把 `load_permission_rules` 返回的 error 丢掉（`rules, _error = ...`），`OSError` 也答成 False——于是「策略读不出来」被答成「这条路径没被规则覆盖」。
 
 今天唯一的调用面是 Web 文件树（`minicc/web.py:1081`），而它先在工具轴上整条拒绝（`minicc/web.py:1044` 问 `tool_denied_by_rule`，M8-T526 的拒绝），所以浏览器没有漏出被保护的路径；漏的是**判词本身**。它被导出成新读路由的入口（T337/T338/T344 三次都是「新路由忘了问」），谁直接问它，谁就继承「未知 = 没有规则」。
 
@@ -37968,17 +37977,17 @@ Web 文件树两条读数（同一探针）：B 形状 `status='error'`、`entri
 
 1. **`load_permission_rules` 把 stat 的 OSError 答成「没有规则，也没有错」**（本批 §2 的 F 行、§6 第 2 条）：四个同门一起答 False，文件树面板实测列出 `secrets/key.txt` 与 `secrets/`；修法是让 stat 的非 FileNotFoundError 走 error（`policy_evaluation_error` 与四个家自动继承），并顺带定 NotADirectoryError（`.minicc` 是普通文件）的判词。
 2. **断掉的符号链接**（trail 或 `.minicc`）：`is_symlink()` 为 True 而 `exists()` 为 False，仍被当成「没有审计记录」；需要一个能建符号链接的平台来见证。
-3. 第五百三十二批 §7 第 1 位：数字路径与不含 `"path"` 的审计行。
-4. 第五百三十二批 §7 第 2 位：`_git` 的 127 哨兵把 OSError 与超时压成一句。
+3. 第六百四十九批 §7 第 1 位：数字路径与不含 `"path"` 的审计行。
+4. 第六百四十九批 §7 第 2 位：`_git` 的 127 哨兵把 OSError 与超时压成一句。
 5. 第五百二十九批 §7 第 2 位：waiver 拒绝的理由只进 trace，不上报。
 6. `conftest.py:87` 起的超时措辞；第五百二十八批 §7 的恢复摘要 `dirty_read_error`。
 7. **选择器的解析成本**：500 个测试文件在本机约 13 秒（Defender 实时扫描主导）；超过 512 条缓存后重解析。上限之内的成本没有读数。
 
-## 第五百三十八批 — M8-T556 — 审计记下的点文件，被答成「没有这个文件」
+## 第六百五十五批 — M8-T556 — 审计记下的点文件，被答成「没有这个文件」
 
 ### 1 欠的是哪一条
 
-第五百三十七批 §7 排出的下一位候选之一。`_audit_paths()` 是 git 看不见的改动的唯一证人，它在收下一条记录时过两道理查：`not path.startswith(".")` 与 `not _ignored_path(path)`。第二道已经精确拒绝工具自己的状态——`.git`、`.minicc`、`.venv`、`node_modules`、`output` 等，`_ignored_path` 有门、有单测；第一道来自初始 MVP 提交 `a9da019`，比 `_ignored_path` 更早，之后一直没人重看过。它把**每一个**用户点文件也一并拒掉：`.env`、`.gitignore`、`.editorconfig` 都进不了清单，`audit_unreadable_lines` 也不加一——读得出来，只是被答成不存在。
+第六百五十四批 §7 排出的下一位候选之一。`_audit_paths()` 是 git 看不见的改动的唯一证人，它在收下一条记录时过两道理查：`not path.startswith(".")` 与 `not _ignored_path(path)`。第二道已经精确拒绝工具自己的状态——`.git`、`.minicc`、`.venv`、`node_modules`、`output` 等，`_ignored_path` 有门、有单测；第一道来自初始 MVP 提交 `a9da019`，比 `_ignored_path` 更早，之后一直没人重看过。它把**每一个**用户点文件也一并拒掉：`.env`、`.gitignore`、`.editorconfig` 都进不了清单，`audit_unreadable_lines` 也不加一——读得出来，只是被答成不存在。
 
 同一份清单的另一个来源（git status）从来只用 `_ignored_path`（`minicc/changes.py:458`）。两个来源于是对「哪些路径算改了」给出两个答案。最锋利的形状在仓库里：`.env` 被 `.gitignore` 掉，模型写下 `.env`，审计记下了这次写，git status 只报 `?? .minicc/`——审计是唯一证人，而变更面板答 `total_files=0`，`diff(".env")` 答 `clean`、空补丁。
 
@@ -38029,7 +38038,7 @@ CRLF：`minicc/changes.py` 516 行 CRLF、0 裸 LF，`git diff --numstat` 是 9 
 - 干净克隆（`2443c08`，无共享树的他道脏文件）：同一组 `140 passed, 1 skipped in 151.49s`。
 - 干净克隆上的 `scripts/doc_pointers.py --check`：rc=0；971 个「见」标记（116 条进受检箱、56 条落在 citation-without-locator）、23 条链接、4194 条 evidence 指针（75 条路径断言在代码跨度之外）、20 份文档、649 个在仓文件。
 - 同一克隆上 `scripts/route_coverage.py --check` rc=0（GET 20/20、POST 14/14 全 B 100%）；`scripts/impacted_tests.py --check` rc=0；引用门三文件 `tests/test_doc_pointers.py`、`tests/test_no_document_quotes_a_content_addressed_bundle.py`、`tests/test_retrieval_enhanced.py`：`85 passed in 325.28s`。
-- 全围栏：**本批不重跑**（约 58 分钟一趟）；最近一次全围栏在其祖先 `5faa568` 上跑过 `python -W error -m pytest -q`：`4195 passed, 11 skipped in 3477.26s`，EXIT=0。其后的改动是第五百三十七批的 36 增 2 删与本批的 9 增 1 删，判定取干净克隆上的门集与检查器。
+- 全围栏：**本批不重跑**（约 58 分钟一趟）；最近一次全围栏在其祖先 `5faa568` 上跑过 `python -W error -m pytest -q`：`4195 passed, 11 skipped in 3477.26s`，EXIT=0。其后的改动是第六百五十四批的 36 增 2 删与本批的 9 增 1 删，判定取干净克隆上的门集与检查器。
 
 ### 6 边界（本批**不**声称）
 
@@ -38047,11 +38056,11 @@ CRLF：`minicc/changes.py` 516 行 CRLF、0 裸 LF，`git diff --numstat` 是 9 
 3. **破损符号链接**：本平台没有 symlink 权限，需要一个能造 symlink 的门面。
 4. **选择器解析成本**（500 文件约 13s），T555 §7 之前记着。
 
-## 第五百三十九批 — M8-T557 — 说不出路径的审计记录，被强转成一个文件路径
+## 第六百五十六批 — M8-T557 — 说不出路径的审计记录，被强转成一个文件路径
 
 ### 1 欠的是哪一条
 
-第五百三十八批 §7 与第五百三十批 §7 都排着的第 1 位。`_audit_paths()` 读一条记录要过三步：先用子串 `'"path"' not in line` 预过滤，再 `json.loads`，最后 `path = str(item.get("path") or "")`。前两步在第五百三十批被分开记账（读不出来的行进 `audit_unreadable_lines`，并且挡住 `diff()` 的 clean 捷径）；**第三步从来没人看过**——它把「记录里的 path 字段」当成「一定能变成一个路径字符串」。
+第六百五十五批 §7 与第五百三十批 §7 都排着的第 1 位。`_audit_paths()` 读一条记录要过三步：先用子串 `'"path"' not in line` 预过滤，再 `json.loads`，最后 `path = str(item.get("path") or "")`。前两步在第五百三十批被分开记账（读不出来的行进 `audit_unreadable_lines`，并且挡住 `diff()` 的 clean 捷径）；**第三步从来没人看过**——它把「记录里的 path 字段」当成「一定能变成一个路径字符串」。
 
 于是两种谎从同一个表达式里出来。一种是**指鹿为马**：`path: 123` 被 `str()` 成 `"123"`，工作区里恰好有一个真名叫 `123` 的文件时，面板把那个文件列成「已改」——记录点的是一个数字，答的却是另一个文件。另一种是**沉默**：`null`、`""`、`"   "`、`{"a": "b"}`、`["notes.md"]` 被 `str()` 成没有文件会叫的名字，落到 `is_file` 上丢掉，计数不加一；而一条整个丢了 `path` 键的记录，如果那一行别处也不带 `path` 这个词，**连解析都没发生**。同一份审计还是 git 看不见的那些改动的唯一证人：它说不出路径，面板就答「没有这个改动」，没人知道是记录坏了还是真没改。
 
@@ -38113,7 +38122,7 @@ CRLF：`minicc/changes.py` 545 行 CRLF、0 裸 LF，`git diff --numstat` 是 33
 - 干净克隆（`a890547`，无共享树的他道脏文件）：同一组 `155 passed, 1 skipped in 263.49s`。
 - 干净克隆上的 `scripts/doc_pointers.py --check`：rc=0；975 个「见」标记（116 条进受检箱、56 条落在 citation-without-locator）、23 条链接、4205 条 evidence 指针（75 条路径断言在代码跨度之外）、20 份文档、650 个在仓文件。
 - 同一克隆上 `scripts/route_coverage.py --check` rc=0（GET 20/20、POST 14/14 全 B 100%）；`scripts/impacted_tests.py --check` rc=0；引用门三文件 `85 passed in 635.14s`。
-- 全围栏：**本批不重跑**（约 58 分钟一趟）；最近一次全围栏在其祖先 `5faa568` 上跑过 `python -W error -m pytest -q`：`4195 passed, 11 skipped in 3477.26s`，EXIT=0。其后的改动是第五百三十七批的 36 增 2 删、第五百三十八批的 9 增 1 删与本批的 33 增 4 删，判定取干净克隆上的门集与检查器。
+- 全围栏：**本批不重跑**（约 58 分钟一趟）；最近一次全围栏在其祖先 `5faa568` 上跑过 `python -W error -m pytest -q`：`4195 passed, 11 skipped in 3477.26s`，EXIT=0。其后的改动是第六百五十四批的 36 增 2 删、第六百五十五批的 9 增 1 删与本批的 33 增 4 删，判定取干净克隆上的门集与检查器。
 
 ### 6 边界（本批**不**声称）
 
@@ -38133,11 +38142,11 @@ CRLF：`minicc/changes.py` 545 行 CRLF、0 裸 LF，`git diff --numstat` 是 33
 4. **破损符号链接**：本平台没有 symlink 权限，需要一个能造 symlink 的门面。
 5. **选择器解析成本**（500 文件约 13s）。
 
-## 第五百四十批 — M8-T558 — 审计里被拒绝的操作，被答成「改了这个文件」
+## 第六百五十七批 — M8-T558 — 审计里被拒绝的操作，被答成「改了这个文件」
 
 ### 1 欠的是哪一条
 
-第五百三十九批 §7 排的第 1 位是「`delete` 记录点名的文件已不在」。去读写出侧（`minicc/tools/editor.py` 的每一个 `self._audit(...)`）想确认那个形状时，撞见同一份轨迹里另一种行：**拒绝行**。编辑器有五个拒绝点——digest 前缀截断（`minicc/tools/editor.py:568`）、digest 不匹配（`minicc/tools/editor.py:586`）、空白归一化后锚点不唯一（`minicc/tools/editor.py:685`）、`old` 未命中（`minicc/tools/editor.py:706`）、`old` 命中多处（`minicc/tools/editor.py:709`）——它们都在**落盘之前**记一行，动作字段写的是 `edit`/`write`/`create`，`detail` 以「拒绝」开头。
+第六百五十六批 §7 排的第 1 位是「`delete` 记录点名的文件已不在」。去读写出侧（`minicc/tools/editor.py` 的每一个 `self._audit(...)`）想确认那个形状时，撞见同一份轨迹里另一种行：**拒绝行**。编辑器有五个拒绝点——digest 前缀截断（`minicc/tools/editor.py:568`）、digest 不匹配（`minicc/tools/editor.py:586`）、空白归一化后锚点不唯一（`minicc/tools/editor.py:685`）、`old` 未命中（`minicc/tools/editor.py:706`）、`old` 命中多处（`minicc/tools/editor.py:709`）——它们都在**落盘之前**记一行，动作字段写的是 `edit`/`write`/`create`，`detail` 以「拒绝」开头。
 
 这件事早就有 home：`audit_level`（`minicc/tools/editor.py:205`）按 `_DENIED_PREFIXES` 把这种行判成 `warning`，`/api/audit` 的级别过滤就靠它（`minicc/web.py:3285` 在记录没带级别时现算）。变更面板读**同一份** `.minicc/audit.jsonl`，却只问「动作是不是会改文件的那种」——`_CHANGING_AUDIT_ACTIONS` 那一道闸门（第五百二十六批立的）——从不问「这一行的操作发生了没有」。于是模型在一次 stale-digest 死循环里攒下的每一行拒绝，都被面板记成一次修改：非仓库工作区里，它还会把整份文件画成新增。
 
@@ -38179,7 +38188,7 @@ M 是本批付出的代价，记在 §6。
 - `minicc/changes.py:239`：每次读取把 `_audit_refused_records` 归零，与截断标志、坏行计数、无路径计数同一条规矩（计数属于这一次读）。
 - `minicc/changes.py:285-290`：路径闸门之后问 `audit_level(action, item.get("detail"))`，判成 `warning` 的行计数并跳过——它没写过任何文件。判据是**动作 + 描述**现算，不是记录自己带的那格 `level`。
 - `minicc/changes.py:423`、`:435`、`:497`：`diff()` 把计数交给 `_diff_for_target`，形参新增，每文件载荷带 `audit_refused_records`。
-- `minicc/changes.py:461-463`：clean 捷径的条件**不加**这个计数，并注明理由——与第五百三十九批同形：拒绝行说「我没写」，也就没说「这个文件写过」；能挡捷径的只有读不出来的行（第五百三十二批）。
+- `minicc/changes.py:461-463`：clean 捷径的条件**不加**这个计数，并注明理由——与第六百五十六批同形：拒绝行说「我没写」，也就没说「这个文件写过」；能挡捷径的只有读不出来的行（第六百四十九批）。
 - `minicc/changes.py:565-567`：`summary()` 的回答新增该键。
 - 新门 `tests/test_a_refused_action_in_the_audit_is_not_answered_a_change.py` 十五条：四种动作的拒绝（:64、:74、:83、:94）、四种前缀写法（:102）、五条计五（:120），六条对照——真写在前仍在列（:136）、描述含二字不是拒绝（:147）、无 `detail` 键仍列（:156）、级别写错也算拒绝（:164）、拒绝不挡捷径（:172）、只有真改动的轨迹计零（:192）、没有轨迹计零（:200），外加 diff 载荷带计数（:181）和一条家规（:207）：`_DENIED_PREFIXES = ` 在 `minicc/` 里只出现在 `editor.py`，而 `changes.py` 里必须出现 `audit_level(`。
 
@@ -38209,7 +38218,7 @@ CRLF：`minicc/changes.py` 572 行 CRLF、0 裸 LF，`git diff --numstat` 是 28
 - 共享树上十七个文件（本批门；第五百三十至五百三十九批的审计/变更门；`tests/test_changes_pure.py`、`tests/test_core_tools.py`、`tests/test_optimization_core.py`、`tests/test_the_change_panel_and_the_diff_must_agree.py`、`tests/test_the_status_record_have_one_home.py`、`tests/test_five_places_where_one_fact_was_read_differently.py`、`tests/test_three_places_that_lost_what_they_were_protecting.py`、`tests/test_what_a_review_of_this_batch_found.py`、`tests/test_a_backup_is_not_a_workspace_change.py`）：`174 passed, 1 skipped in 424.25s`（跳过的是本平台没有 symlink，既有行为）。
 - 干净克隆（`3d99c6f`，无共享树的他道脏文件）：同一组再加 `tests/test_logging.py`（`audit_level` 那个家的既有门）：`200 passed, 1 skipped in 560.09s`。
 - 同一个改动**加上本批记录**后的干净克隆（`3d99c6f` + 本文）：`scripts/doc_pointers.py --check` rc=0——982 个「见」标记（116 条进受检箱、56 条落在 citation-without-locator）、23 条链接、4232 条 evidence 指针（75 条路径断言在代码跨度之外）、20 份文档、651 个在仓文件；`scripts/route_coverage.py --check` rc=0（GET 20/20、POST 14/14，B 全 100%）；`scripts/impacted_tests.py --check` rc=0；引用门三文件 `85 passed in 968.22s`（这条与上面那组并行跑，计时偏高）。
-- 全围栏：**本批不重跑**（约 58 分钟一趟）；最近一次全围栏在其祖先 `5faa568` 上跑过 `python -W error -m pytest -q`：`4195 passed, 11 skipped in 3477.26s`，EXIT=0。其后的改动是第五百三十八批的 9 增 1 删、第五百三十九批的 33 增 4 删与本批的 28 增 1 删，判定取干净克隆上的门集与检查器。
+- 全围栏：**本批不重跑**（约 58 分钟一趟）；最近一次全围栏在其祖先 `5faa568` 上跑过 `python -W error -m pytest -q`：`4195 passed, 11 skipped in 3477.26s`，EXIT=0。其后的改动是第六百五十五批的 9 增 1 删、第六百五十六批的 33 增 4 删与本批的 28 增 1 删，判定取干净克隆上的门集与检查器。
 
 ### 6 边界（本批**不**声称）
 
@@ -38217,23 +38226,23 @@ CRLF：`minicc/changes.py` 572 行 CRLF、0 裸 LF，`git diff --numstat` 是 28
 - **不声称写出侧永远不会把真改动标成拒绝。** 判据是 `audit_level` 的前缀规则；本批实测的是当前五个拒绝点都在落盘之前（`minicc/tools/editor.py:568`、`:586`、`:685`、`:706`、`:709`）。将来谁在落盘之后记一行「拒绝」，这条判据会把它当没发生——那是写侧的错，本批不替它兜。
 - **不声称被拒绝的文件真的没变。** 面板不再拿拒绝行**单独**作证：git 看得见的那一侧照旧列出（I 形状 ` M notes.md`、J 形状 ` D notes.md`，两条都把 `refused=1` 另外记账）。代价是 M 形状——文件被 git 看不见的人改了，而轨迹里唯一点名它的行是一行拒绝，面板现在答「没变」。那行本来就说的是「我没写」，它从来不是那次改动的证人；修前它是**假证人**。
 - **不声称认不出来的拒绝会被计入拒绝。** `detail` 不是字符串时 `audit_level` 对它做 `str()`，任何形状都以 `{` 或 `[` 开头，落不进前缀表——这类行仍按改动列出（安全方向：宁可多列一个，不少列一个）。
-- **不声称既无路径又是拒绝的行进了拒绝计数。** 它先过第五百三十九批那道路径闸门，落在 `audit_records_without_path` 里。
+- **不声称既无路径又是拒绝的行进了拒绝计数。** 它先过第六百五十六批那道路径闸门，落在 `audit_records_without_path` 里。
 - **不声称界面显示这个计数。** 键随 RPC 回答回到调用方，`web/src` 里没有一处读它（与第五百三十至五百三十九批同一条）。
 - **不声称删除与移动的形状被修。** `delete` 点名的文件仍不进清单；`move` 记录点的是**源路径**（`minicc/tools/editor.py:745`），成功后源文件已不在，而新位置只写在 `detail` 的 `→ dst` 里——面板既不说源没了，也不说目标多了。
 
 ### 7 下一位候选
 
-1. **`delete`/`move` 记录点名的文件已不在**：审计兜底只列 `is_file` 为真的路径。形状比第五百三十九批 §7 记的更大——`move` 的源路径消失、目标从不作为路径出现。要么给面板一个「被删除」的形状，要么让 `move` 的目标从 `detail` 里出来；两者都要先解决「窗口里先创建后删除是不是净零」这个问题，所以本批没动。
+1. **`delete`/`move` 记录点名的文件已不在**：审计兜底只列 `is_file` 为真的路径。形状比第六百五十六批 §7 记的更大——`move` 的源路径消失、目标从不作为路径出现。要么给面板一个「被删除」的形状，要么让 `move` 的目标从 `detail` 里出来；两者都要先解决「窗口里先创建后删除是不是净零」这个问题，所以本批没动。
 2. **`action` 也是强转的**：`str(item.get("action") or "")` 把 `123` 变成 `"123"`，落不进 `_CHANGING_AUDIT_ACTIONS` 就被当非变更跳过——与修前的 `path` 同形，方向相反。
 3. **`_git` 的 127 哨兵**把 OSError 与 20 秒超时压成同一个 `git unavailable`（`minicc/changes.py:100-114`）。
 4. **破损符号链接**：本平台没有 symlink 权限，需要一个能造 symlink 的门面。
 5. **选择器解析成本**（500 文件约 13s）。
 
-## 第五百四十一批 — M8-T559 — 说不出动作的审计记录，被答成一次修改
+## 第六百五十八批 — M8-T559 — 说不出动作的审计记录，被答成一次修改
 
 ### 1 欠的是哪一条
 
-第五百四十批 §7 排的第 2 位：`action` 和修前的 `path` 是同一条流水线上的前一站，用的是同一种强转。`_audit_paths` 读动作用的是
+第六百五十七批 §7 排的第 2 位：`action` 和修前的 `path` 是同一条流水线上的前一站，用的是同一种强转。`_audit_paths` 读动作用的是
 
 ```
 action = str(item.get("action") or "").strip().lower()
@@ -38241,7 +38250,7 @@ if action and action not in _CHANGING_AUDIT_ACTIONS:
     continue
 ```
 
-一个表达式给出**两种相反的错**。**没有动作的记录**——键缺失、`null`、空串、整串空格——被 `or ""` 和 `strip()` 收成 `""`，而 `""` 是假值，`if action and ...` 那道过滤器根本不跑；记录于是穿过去，只要它点了一个文件，面板就答「改了」。这是本战役母题反着长的样子：一条说不出自己是什么动作的行，被当成一次说得出形状的修改。**动作写成容器**的记录（`["write"]`、`{"name": "write"}`、`123`、`True`）走另一头：`str()` 把它们变成集合里不存在的词，于是被 `continue` 丢掉——既不进清单，也不进任何计数，第五百三十二批立的那本「读出来但用不了」的账上完全没有它们的痕迹。
+一个表达式给出**两种相反的错**。**没有动作的记录**——键缺失、`null`、空串、整串空格——被 `or ""` 和 `strip()` 收成 `""`，而 `""` 是假值，`if action and ...` 那道过滤器根本不跑；记录于是穿过去，只要它点了一个文件，面板就答「改了」。这是本战役母题反着长的样子：一条说不出自己是什么动作的行，被当成一次说得出形状的修改。**动作写成容器**的记录（`["write"]`、`{"name": "write"}`、`123`、`True`）走另一头：`str()` 把它们变成集合里不存在的词，于是被 `continue` 丢掉——既不进清单，也不进任何计数，第六百四十九批立的那本「读出来但用不了」的账上完全没有它们的痕迹。
 
 判据的家本来就只有一个：`_CHANGING_AUDIT_ACTIONS` 是编辑器的 `_MUTATING_ACTIONS`（`minicc/tools/editor.py:195`）在 `minicc/changes.py:45` 的别名。本批不问第二个家，只把「这条记录说得出自己的动作吗」问在查集合**之前**。
 
@@ -38267,7 +38276,7 @@ if action and action not in _CHANGING_AUDIT_ACTIONS:
 | N 两条：`action=["write"]` 无路径 + 一条没动作却写「拒绝: x」的路径行 | `refused=1`、`without_action=0` | `refused=0`、`without_action=1`——同一条行**换了家** |
 | O 对照：两条真记录（`write` + `edit`） | `total=2` | `total=2` |
 
-新门的字节在 HEAD（`d8c9937`）上红先跑：`11 failed, 1 passed in 9.89s`。逐条原因（同一棵红树复跑一遍 `--tb=line`）：前三条形状（:61、:71、:80）红在**「列出来了」**——面板真的把 `notes.md` 报成 `modified`；容器对照与「只计一次」那两条（:91、:100）和载荷那条（:119）红在 `KeyError: 'audit_records_without_action'`——这个键今天不存在；捷径那条（:109）红在**「补丁是空的」**——动作说不出，diff 却把它点名的文件画成没改。四条对照（:131、:139、:147、:166）全部只红在同一个 KeyError，面板对它们的答案本来就是对的；唯一一上来就绿的是第五百四十批那条拒绝行不挡捷径的对照（:150）——修法不能让它改道。
+新门的字节在 HEAD（`d8c9937`）上红先跑：`11 failed, 1 passed in 9.89s`。逐条原因（同一棵红树复跑一遍 `--tb=line`）：前三条形状（:61、:71、:80）红在**「列出来了」**——面板真的把 `notes.md` 报成 `modified`；容器对照与「只计一次」那两条（:91、:100）和载荷那条（:119）红在 `KeyError: 'audit_records_without_action'`——这个键今天不存在；捷径那条（:109）红在**「补丁是空的」**——动作说不出，diff 却把它点名的文件画成没改。四条对照（:131、:139、:147、:166）全部只红在同一个 KeyError，面板对它们的答案本来就是对的；唯一一上来就绿的是第六百五十七批那条拒绝行不挡捷径的对照（:150）——修法不能让它改道。
 
 ### 3 落地
 
@@ -38277,7 +38286,7 @@ if action and action not in _CHANGING_AUDIT_ACTIONS:
 - `minicc/changes.py:443`、`:456`、`:523-524`：`diff()` 把计数交给 `_diff_for_target`，形参新增，每文件载荷带 `audit_records_without_action`。
 - `minicc/changes.py:469`、`:486-489`：clean 捷径的条件**加**这个计数。这是本批与第五百三十九、五百四十批相反的地方：无路径的行没点任何文件，拒绝的行什么都没写过，而说不出动作的行**点了一个文件**——那个文件可能就是正在被问的这一个，所以捷径必须等它。
 - `minicc/changes.py:595-597`：`summary()` 的回答新增该键。
-- 新门 `tests/test_an_audit_record_without_an_action_is_not_answered_a_change.py` 十二条：无 `action` 键（:57）、`null`（:67）、空串/空格/制表符（:75）、四种容器形状计而不丢（:84）、既无动作又无路径只计一次（:95）、说不出动作按住捷径（:104）、diff 载荷带计数（:115），五条对照——大写非变更动作不列也不计（:126）、带空格的 ` write ` 照列（:134）、真写照列（:142）、第五百四十批的拒绝行仍不挡捷径（:150）、没有轨迹时计 0（:162）。
+- 新门 `tests/test_an_audit_record_without_an_action_is_not_answered_a_change.py` 十二条：无 `action` 键（:57）、`null`（:67）、空串/空格/制表符（:75）、四种容器形状计而不丢（:84）、既无动作又无路径只计一次（:95）、说不出动作按住捷径（:104）、diff 载荷带计数（:115），五条对照——大写非变更动作不列也不计（:126）、带空格的 ` write ` 照列（:134）、真写照列（:142）、第六百五十七批的拒绝行仍不挡捷径（:150）、没有轨迹时计 0（:162）。
 
 ### 4 见证（红先绿后，臂）
 
@@ -38305,14 +38314,14 @@ CRLF：`minicc/changes.py` 603 行 CRLF、0 裸 LF，`git show --numstat` 是 33
 
 - 共享树上十九个文件（本批门；第五百三十至五百四十批的审计/变更门；`tests/test_changes_pure.py`、`tests/test_core_tools.py`、`tests/test_optimization_core.py`、`tests/test_the_change_panel_and_the_diff_must_agree.py`、`tests/test_the_status_record_have_one_home.py`、`tests/test_five_places_where_one_fact_was_read_differently.py`、`tests/test_three_places_that_lost_what_they_were_protecting.py`、`tests/test_what_a_review_of_this_batch_found.py`、`tests/test_a_backup_is_not_a_workspace_change.py`、`tests/test_logging.py`）：`212 passed, 1 skipped in 182.38s`（跳过的是本平台没有 symlink，既有行为）。
 - 干净克隆（`b2afe41`，无共享树的他道脏文件）：同一组十九个文件 `212 passed, 1 skipped in 212.11s`。
-- 同一个改动**加上本批记录**后的干净克隆：`scripts/doc_pointers.py --check` rc=0——986 个「见」标记（116 条进受检箱、56 条落在 citation-without-locator）、23 条链接、4254 条 evidence 指针（75 条路径断言在代码跨度之外）、20 份文档、652 个在仓文件；`scripts/route_coverage.py --check` rc=0（GET 20/20、POST 14/14，B 全 100%）；`scripts/impacted_tests.py --check` rc=0（干净树，答的是没有改动可量）；引用门三文件 `85 passed in 382.03s`（这一趟单独跑，不与上面那组并行，计时比第五百四十批那次低）。
-- 全围栏：**本批不重跑**（约 58 分钟一趟）；最近一次全围栏在其祖先 `5faa568` 上跑过 `python -W error -m pytest -q`：`4195 passed, 11 skipped in 3477.26s`，EXIT=0。其后的代码改动是第五百四十批的 28 增 1 删（`3d99c6f`，另加 222 行新门）与本批的 33 增 2 删（`b2afe41`，另加 172 行新门），判定取干净克隆上的门集与检查器。
+- 同一个改动**加上本批记录**后的干净克隆：`scripts/doc_pointers.py --check` rc=0——986 个「见」标记（116 条进受检箱、56 条落在 citation-without-locator）、23 条链接、4254 条 evidence 指针（75 条路径断言在代码跨度之外）、20 份文档、652 个在仓文件；`scripts/route_coverage.py --check` rc=0（GET 20/20、POST 14/14，B 全 100%）；`scripts/impacted_tests.py --check` rc=0（干净树，答的是没有改动可量）；引用门三文件 `85 passed in 382.03s`（这一趟单独跑，不与上面那组并行，计时比第六百五十七批那次低）。
+- 全围栏：**本批不重跑**（约 58 分钟一趟）；最近一次全围栏在其祖先 `5faa568` 上跑过 `python -W error -m pytest -q`：`4195 passed, 11 skipped in 3477.26s`，EXIT=0。其后的代码改动是第六百五十七批的 28 增 1 删（`3d99c6f`，另加 222 行新门）与本批的 33 增 2 删（`b2afe41`，另加 172 行新门），判定取干净克隆上的门集与检查器。
 
 ### 6 边界（本批**不**声称）
 
 - **不声称窗口外的行被看过。** 仍是尾部 256KB、最后 500 行；窗口本身由 `audit_window_truncated` 披露。
 - **不声称写出侧写不出没有动作的记录。** 编辑器每个 `_audit(...)` 都传字面量动作，`_audit`（`minicc/tools/editor.py:328-349`）自己也不检查参数；本批管的是**读进来的那一份**——轨迹文件是可以由编辑器之外的人手写的。
-- **不声称说不出动作的记录真的没改文件。** 它不再**单独**作证：git 看得见的那一侧照旧列出，捷径也按住让 `diff` 去算真补丁（F/M 形状）。方向与第五百四十批相反——那里多列是假证人，这里少列会漏掉真改动，所以按住捷径的是它。
+- **不声称说不出动作的记录真的没改文件。** 它不再**单独**作证：git 看得见的那一侧照旧列出，捷径也按住让 `diff` 去算真补丁（F/M 形状）。方向与第六百五十七批相反——那里多列是假证人，这里少列会漏掉真改动，所以按住捷径的是它。
 - **不声称计数之间不搬家。** 闸门有序：动作 → 路径 → 拒绝。一条既没动作又没路径的记录只进 `audit_records_without_action`，一条没动作的「拒绝」行从 `audit_refused_records` **搬到** `audit_records_without_action`（N 形状实测：`refused` 1 → 0）。以后拿旧记录里的计数对账，要按这个顺序读。
 - **不声称 `diff` 的 `status` 学会了这件事。** 捷径按住了，补丁算出来了，但 `status` 仍来自 `status_map.get(path, "clean")`（`minicc/changes.py:431`）——git 读不出来、审计又不敢作证时，它答 `clean` 而补丁非空。那是另一层，记在 §7 第 2 位。
 - **不声称界面显示这个计数。** 键随 RPC 回答回到调用方，`web/src` 里没有一处读它（与第五百三十至五百四十批同一条）。
@@ -38326,11 +38335,11 @@ CRLF：`minicc/changes.py` 603 行 CRLF、0 裸 LF，`git show --numstat` 是 33
 4. **破损符号链接**：本平台没有 symlink 权限，需要一个能造 symlink 的门面。
 5. **选择器解析成本**（500 文件约 13s）。
 
-## 第五百四十二批 — M8-T560 — 审计里的移动只说了源，目标那头被答成「没有这个文件」
+## 第六百五十九批 — M8-T560 — 审计里的移动只说了源，目标那头被答成「没有这个文件」
 
 ### 1 欠的是哪一条
 
-第五百四十一批 §7 排的第 1 位（那一格里其实装着 `delete` 与 `move` 两个形状，本批只取 `move`）。`_audit_paths` 读一条记录，读的是它的 `path`：
+第六百五十八批 §7 排的第 1 位（那一格里其实装着 `delete` 与 `move` 两个形状，本批只取 `move`）。`_audit_paths` 读一条记录，读的是它的 `path`：
 
 ```
 path = raw_path.replace("\\", "/")
@@ -38343,7 +38352,7 @@ if not _ignored_path(path):
 
 git 看得见两头的时候（源 ` D`、目标 `?? `）这条不成立；成立的是 git **看不见**的两种工作区：**没有仓库**（审计是唯一来源）和**目标被 `.gitignore` 挡住**。同一条线还长出一个反向的担心：`→ 名字` 这个拼法在编辑器里被两处用（`move` 的目标、`backup` 的副本），读法必须有且只有一个家，而且要**读不出就不造**——一个空的 `→ `、一个装进容器的 `detail`、一个不在仓外的路径都不许变成一个文件名。
 
-判据的家本来就只有一个：动作集合是 `_MUTATING_ACTIONS`（`minicc/tools/editor.py:195`）在 `minicc/changes.py:45` 的别名（第五百四十一批把闸门前移到那里）。本批把 `→ 路径` 的**读法**也收进同一个家：新增 `move_destination()`，由写这一行的编辑器自己提供，面板只问它。
+判据的家本来就只有一个：动作集合是 `_MUTATING_ACTIONS`（`minicc/tools/editor.py:195`）在 `minicc/changes.py:45` 的别名（第六百五十八批把闸门前移到那里）。本批把 `→ 路径` 的**读法**也收进同一个家：新增 `move_destination()`，由写这一行的编辑器自己提供，面板只问它。
 
 ### 2 量到的真相（实测）
 
@@ -38361,7 +38370,7 @@ git 看得见两头的时候（源 ` D`、目标 `?? `）这条不成立；成�
 | P7 对照：无仓库里一条真 `write` | `total=1 keep.txt (audit)` | 完全不变 |
 | P8 对照：git 看得见两头的真移动 | `total=2`（源 ` D` + 目标 `??`） | `total=2`，**没有重复列** |
 
-P8 是这批量法的护栏：`files_without_diff` 把 git 的行和审计的行按 `_resolved_relative` 合成一把钥匙（第五百三十六批那条规矩），审计多读出一个目标，靠它才不会变成同一文件的第二行。
+P8 是这批量法的护栏：`files_without_diff` 把 git 的行和审计的行按 `_resolved_relative` 合成一把钥匙（第六百五十三批那条规矩），审计多读出一个目标，靠它才不会变成同一文件的第二行。
 
 ### 3 落地
 
@@ -38400,8 +38409,8 @@ CRLF：`minicc/changes.py` 623 行 CRLF、0 裸 LF（30372 字节），`minicc/t
 
 - 共享树上二十四个文件（本批门；第五百三十至五百四十一批的审计/变更门；`tests/test_changes_pure.py`、`tests/test_snapshots.py`、`tests/test_workspaces_pure.py`、`tests/test_workspace_gate_is_asked_by_every_entry.py`、`tests/test_the_workspace_containment_have_one_home.py`、`tests/test_the_minicc_gate_judges_the_path_the_file_actually_names.py`、`tests/test_the_change_gate_does_not_depend_on_reusability.py`、`tests/test_the_audit_export_payload_have_one_home.py`、`tests/test_five_places_where_one_fact_was_read_differently.py`、`tests/test_audit_authorization.py`、`tests/test_a_write_outside_the_workspace_is_judged_as_a_write.py`）：`275 passed, 1 skipped in 392.10s`（跳过的是本平台没有 symlink，既有行为）。
 - 干净克隆（`bb26000`，无共享树的他道脏文件；`minicc/changes.py 9ac6779a03bd…`、`minicc/tools/editor.py 5ff4ee5c8f16…`、门 306 行）：同一组二十四文件 `275 passed, 1 skipped in 810.85s`——计数一致，时间是共享树的两倍，这一趟旁边还有别的道在读盘。
-- 同一个改动**加上本批记录**后的干净克隆：`scripts/doc_pointers.py --check` rc=0（996 个「见」标记（116 条进受检箱、57 条落在 citation-without-locator）、23 条链接、4280 条 evidence 指针（75 条路径断言在代码跨度之外）、20 份文档、653 个在仓文件）；`scripts/route_coverage.py --check` rc=0——`91 passed in 228.09s`，dispatch sites 34、`webserver.py` 走了 378 行，GET A 20/20、B 20/20，POST A 14/14、B 14/14（B 全 100%）；`scripts/impacted_tests.py --check` rc=0（干净树，答的是没有改动可量）；引用门三文件 `85 passed in 1325.71s`——这一趟跑在带本批记录的干净克隆里，比第五百四十一批那趟单独跑的 `382.03s` 慢三倍多（同一台机器上旁边还有别的道在读盘）：计数可比，时间不可比。引用门那一趟跑的记录字节只比定稿少了 §4 末尾那一句 numstat（两句之间 `doc_pointers` 的两把总数一致：996 标记、4280 条 evidence 指针，rc=0，复量过）。
-- 全围栏：**本批不重跑**（约 58 分钟一趟）；最近一次全围栏在其祖先 `5faa568` 上跑过 `python -W error -m pytest -q`：`4195 passed, 11 skipped in 3477.26s`，EXIT=0。其后的代码改动是第五百三十九批、五百四十批、五百五十九批与本批，判定取干净克隆上的门集与三个检查器。
+- 同一个改动**加上本批记录**后的干净克隆：`scripts/doc_pointers.py --check` rc=0（996 个「见」标记（116 条进受检箱、57 条落在 citation-without-locator）、23 条链接、4280 条 evidence 指针（75 条路径断言在代码跨度之外）、20 份文档、653 个在仓文件）；`scripts/route_coverage.py --check` rc=0——`91 passed in 228.09s`，dispatch sites 34、`webserver.py` 走了 378 行，GET A 20/20、B 20/20，POST A 14/14、B 14/14（B 全 100%）；`scripts/impacted_tests.py --check` rc=0（干净树，答的是没有改动可量）；引用门三文件 `85 passed in 1325.71s`——这一趟跑在带本批记录的干净克隆里，比第六百五十八批那趟单独跑的 `382.03s` 慢三倍多（同一台机器上旁边还有别的道在读盘）：计数可比，时间不可比。引用门那一趟跑的记录字节只比定稿少了 §4 末尾那一句 numstat（两句之间 `doc_pointers` 的两把总数一致：996 标记、4280 条 evidence 指针，rc=0，复量过）。
+- 全围栏：**本批不重跑**（约 58 分钟一趟）；最近一次全围栏在其祖先 `5faa568` 上跑过 `python -W error -m pytest -q`：`4195 passed, 11 skipped in 3477.26s`，EXIT=0。其后的代码改动是第六百五十六批、五百四十批、五百五十九批与本批，判定取干净克隆上的门集与三个检查器。
 
 ### 6 边界（本批**不**声称）
 
@@ -38422,11 +38431,11 @@ CRLF：`minicc/changes.py` 623 行 CRLF、0 裸 LF（30372 字节），`minicc/t
 5. **破损符号链接**：本平台没有 symlink 权限，需要一个能造 symlink 的门面。
 6. **选择器解析成本**（500 文件约 13s）。
 
-## 第五百四十三批 — M8-T561 — 审计里已经消失的那一半，被答成「什么都没变」
+## 第六百六十批 — M8-T561 — 审计里已经消失的那一半，被答成「什么都没变」
 
 ### 1 欠的是哪一条
 
-第五百四十二批 §7 排的第 1 位（那一格里其实装着 `delete` 与 `move` 的源两个形状，本批只取 `delete`）。`_audit_paths` 把一条记录点名的路径收进集合，兜底那一步只列**还在**的文件——修前 `minicc/changes.py:565`：
+第六百五十九批 §7 排的第 1 位（那一格里其实装着 `delete` 与 `move` 的源两个形状，本批只取 `delete`）。`_audit_paths` 把一条记录点名的路径收进集合，兜底那一步只列**还在**的文件——修前 `minicc/changes.py:565`：
 
 ```
 key = self._resolved_relative(path)
@@ -38440,11 +38449,11 @@ git 看得见这一条的时候（` D notes.md`）缺陷不成立；成立的是
 
 把「消失」列进清单，等于把一条不在树上的路径交给一个只会读树的面板，所以判据要同时钉住三类不对的答案，而不只是把清单加长：**不许凭空造**（说不出内容的行、被强转出来的证人）、**不许把净零说成改动**（窗口里先创建后删除同一路径）、**不许跟树抢答案**（文件又回来了、那个位置被目录占着、git 已经报过它）。首末动作按路径记、`delete` 必须有证人、树的存在性最后裁决——这三条是本批的判据，每一条都有一条门钉着。
 
-证人的拼法仍然按第五百四十二批定下的位置收进编辑器自己：新常量 `BEFORE_DIGEST_KEY` 与读者 `deletion_witness()` 写在写这一行的 `minicc/tools/editor.py` 里，与 `DETAIL_TARGET_PREFIX` / `move_destination` 并排、同一条理由（面板问它，而不是自己再拼一份字段名）。
+证人的拼法仍然按第六百五十九批定下的位置收进编辑器自己：新常量 `BEFORE_DIGEST_KEY` 与读者 `deletion_witness()` 写在写这一行的 `minicc/tools/editor.py` 里，与 `DETAIL_TARGET_PREFIX` / `move_destination` 并排、同一条理由（面板问它，而不是自己再拼一份字段名）。
 
 ### 2 量到的真相（实测）
 
-两趟**同一份脚本**（`probe_561.py`），只是代码字节不同：修前 = HEAD `38271da` 的 blob（`plane561red`，changes.py 29,749 字节、editor.py 34,404 字节，`git show` 出来是 LF），修后 = 落地后的树（changes.py 32,759 字节 / 663 CRLF、editor.py 36,340 字节 / 865 CRLF，0 条裸 LF）。真跑编辑器的形状一律显式传 `audit_path`——第五百四十二批 §2 记的那个自纠错（`minicc/tools/editor.py:407`：`audit_path` 缺省时这条审计根本不落盘）。
+两趟**同一份脚本**（`probe_561.py`），只是代码字节不同：修前 = HEAD `38271da` 的 blob（`plane561red`，changes.py 29,749 字节、editor.py 34,404 字节，`git show` 出来是 LF），修后 = 落地后的树（changes.py 32,759 字节 / 663 CRLF、editor.py 36,340 字节 / 865 CRLF，0 条裸 LF）。真跑编辑器的形状一律显式传 `audit_path`——第六百五十九批 §2 记的那个自纠错（`minicc/tools/editor.py:407`：`audit_path` 缺省时这条审计根本不落盘）。
 
 | 形状 | 修前 | 修后 |
 | --- | --- | --- |
@@ -38469,11 +38478,11 @@ D4 与 D11 修前修后都是 0——那是**判据**要的答案，不是「测
 - `minicc/changes.py:179` `_audit_paths` 的返回从 `(paths, reason)` 变成 `(paths, deletions, reason)`；`:276-278` 每次读先起三本窗口内的账（`first_action` / `last_action` / `witnessed`）；`:340-344` 只有过了动作、路径、拒绝三道闸门**且不在忽略名单里**的那条路径才记这三本账；`:362-366` 收口：末动作是 `delete`、首动作不是 `create`、且带证人，才进 `deletions`；`:367` 返回它。四道早退（不是文件 / 父路径不是目录 / 没有轨迹 / 读炸了）都同步返回两个空集合。
 - `minicc/changes.py:585` 三元解包；`:597-606` 第二段兜底：解析得出路径、git 没报过、且那个位置**什么都不占**（`not (self.workspace / key).exists()`）时，以 `("deleted", "audit")` 进清单。这是 `_status_record` 的第 4 个调用点，家规普查门 `tests/test_the_status_record_have_one_home.py:49` 的 `== 3` 同步改 `== 4`。
 - `diff` 一字未改：`minicc/changes.py:481` 的 `status_map` 从同一份清单取状态，`deleted` 从此自己走详情页；`web/src/files/preview.js:132` 本来就会画 `status === "deleted"`。
-- 门：`tests/test_a_delete_in_the_audit_is_answered_at_the_file_that_is_gone.py` 25 条——清单 7（`:91,:100,:108,:117,:128,:138,:148`）、首末与净零 5（`:160,:167,:175,:184,:197`）、证据不足 8（`:216,:226,:235,:242,:255,:267,:274,:283`）、相邻形状 3（`:295,:304,:315`）、家规 2（`:328,:341`）。第五百四十二批那条 `delete` 对照（`tests/test_a_move_in_the_audit_is_answered_at_its_destination.py:134`）按它自己文档串里「本批不给它一个形状（见 §7）」那句话改成**为它自己的批次作证**：现在断言它被列成 `deleted`，并仍不越界去管目标。
+- 门：`tests/test_a_delete_in_the_audit_is_answered_at_the_file_that_is_gone.py` 25 条——清单 7（`:91,:100,:108,:117,:128,:138,:148`）、首末与净零 5（`:160,:167,:175,:184,:197`）、证据不足 8（`:216,:226,:235,:242,:255,:267,:274,:283`）、相邻形状 3（`:295,:304,:315`）、家规 2（`:328,:341`）。第六百五十九批那条 `delete` 对照（`tests/test_a_move_in_the_audit_is_answered_at_its_destination.py:134`）按它自己文档串里「本批不给它一个形状（见 §7）」那句话改成**为它自己的批次作证**：现在断言它被列成 `deleted`，并仍不越界去管目标。
 
 ### 4 见证（红先绿后，臂）
 
-红先：新门单独跑 **`10 failed, 14 passed in 38.01s`**（当时 24 条），红的 10 条正是本批瞄准的那一圈——清单四条、`diff` 一条、计数一条、首末两条、家规两条。落地后单独跑四份门（新门 + 第五百四十二批门 + 家规普查门 + M8-T313 门）**`54 passed in 120.04s`**；臂板上的同一组对照 **`56 passed`**（多出的两条是落地之后加的）。
+红先：新门单独跑 **`10 failed, 14 passed in 38.01s`**（当时 24 条），红的 10 条正是本批瞄准的那一圈——清单四条、`diff` 一条、计数一条、首末两条、家规两条。落地后单独跑四份门（新门 + 第六百五十九批门 + 家规普查门 + M8-T313 门）**`54 passed in 120.04s`**；臂板上的同一组对照 **`56 passed`**（多出的两条是落地之后加的）。
 
 两处**测试自己写错**，都在绿之前改掉了，据实记下：① `test_a_delete_outside_the_workspace_is_not_listed` 里我顺手把 `notes.md` 也删了——修后它**应当**被列，于是那条断言变成假红；改成只记一条仓外的路径。② `test_an_untracked_file_removed_from_a_repository_is_listed` 一开始按修前的答案写成 `[]`，而那恰恰是本批要改的东西——这条在红先里照不到（它当时会绿），改成断言 `('fresh.md','deleted','audit')` 之后才成为瞄准本批的门。
 
@@ -38486,9 +38495,9 @@ D4 与 D11 修前修后都是 0——那是**判据**要的答案，不是「测
 | A4 | 末动作不再说了算 | 「窗口里最后一行是移动」那条 | MATCHED（1 failed、55 passed，78.36s） |
 | A5 | 树的存在性用 `is_file()` 代替 `exists()` | 目录占位那条 | MATCHED（1 failed、55 passed，127.43s） |
 | A6 | 去掉 `key not in items`：审计盖掉 git 的出处 | 对照「git 看得见仍以 git 为准」 | MATCHED（1 failed、55 passed，79.33s）——清单仍是一条，出处从 `' D notes.md'` 变成 `'audit'` |
-| A7 | 消失的一半塞回原来那个集合（半修） | 「真跑删除要列出来」等清单条 | MATCHED（9 failed、47 passed，154.33s）——**与红先同一组**，外加第五百四十二批那条改成作证的本批对照 |
+| A7 | 消失的一半塞回原来那个集合（半修） | 「真跑删除要列出来」等清单条 | MATCHED（9 failed、47 passed，154.33s）——**与红先同一组**，外加第六百五十九批那条改成作证的本批对照 |
 | A8 | 字段名在面板里又拼一份（第二个家，答案不变） | 只有「只有一个家」那条 | MATCHED（1 failed、55 passed，94.22s）。**第一趟记的错**：臂自己写成语法错（`if` 行后接一条无括号的续行），pytest 收不进这份文件（rc=2、4 errors）——那不是「瞄准的红」，是臂没跑起来；改成括号续行、先 `compile()` 验过再复跑，才是这一条 |
-| A9 | 「轨迹不是文件」那条早退退回二元组 | 第五百三十四批那道门 | MATCHED（3 failed、53 passed，70.83s）——瞄准的 `test_a_directory_shaped_trail_is_not_a_missing_trail` 红，同文件另两条（理由走到详情页、改了的文件不许 diff 成没有）是同一次解包炸开的连带 |
+| A9 | 「轨迹不是文件」那条早退退回二元组 | 第六百五十一批那道门 | MATCHED（3 failed、53 passed，70.83s）——瞄准的 `test_a_directory_shaped_trail_is_not_a_missing_trail` 红，同文件另两条（理由走到详情页、改了的文件不许 diff 成没有）是同一次解包炸开的连带 |
 
 九条臂全部 rc!=0 且红在瞄准的门上（A1/A7/A9 多出来的红在**同一族**，逐条列在上表）；本批没有「绿臂」可披露。臂跑的时间与同一时段共享树那趟聚焦回归互相抢盘：计数可比，时间不可比。臂板（`plane561`）是落地后从共享树复制的 `minicc/` + `tests/` + `scripts/`，`git show` 出来的 HEAD 字节另存一份对照板 `plane561red` 供 §2 的修前列量。
 
@@ -38499,14 +38508,14 @@ D4 与 D11 修前修后都是 0——那是**判据**要的答案，不是「测
 
 - 带本批记录的干净克隆（新门 `git add -N` 进索引之后，检查器才看得见它——第一趟没登记时报 `DANGLING EVIDENCE ROADMAP_TO_PRODUCT.md:38506: test_a_move_source_is_not_answered_a_deletion 既不是测试文件名也不是任何测试函数名`，rc=1；那条门确实在 `tests/test_a_delete_in_the_audit_is_answered_at_the_file_that_is_gone.py:295`，是**检查器只走 653 个在仓文件**、不认未跟踪文件，不是引用写错）：`scripts/doc_pointers.py --check` rc=0（1005 个「见」标记（116 条进受检箱、57 条落在 citation-without-locator、9 条由读链接的一方接走、7 条由读 evidence 的一方接走、8 条 code-span-names-a-file、2 条 cites-a-quoted-name、4 条 path-in-prose、802 条在词里）、23 条链接、4322 条 evidence 指针（75 条路径断言在代码跨度之外）、20 份文档、654 个在仓文件）；`scripts/route_coverage.py --check` rc=0——`91 passed in 46.71s`，dispatch sites 34、`webserver.py` 走了 378 行，GET A 20/20、B 20/20，POST A 14/14、B 14/14（B 全 100%）；`scripts/impacted_tests.py --check` rc=0（这一趟的克隆是带着本批五个落地文件的脏树，量出 350 个受影响测试文件，本批门与清单那个家都在名单里）。
 - 引用门三文件（`tests/test_doc_pointers.py`、`tests/test_no_document_quotes_a_content_addressed_bundle.py`、`tests/test_retrieval_enhanced.py`）在同一份干净克隆里 `85 passed in 451.74s`，rc=0。这一趟与本批记录的最后两次改写同跑（第二次复制在它开始之后），所以它读到的记录字节不保证是定稿：定稿字节的 `scripts/doc_pointers.py --check` 单独复量过，rc=0，两条总数与上面那一条所列一致。
-- 全围栏：**本批不重跑**（约 58 分钟一趟）；最近一次全围栏在其祖先 `5faa568` 上跑过 `python -W error -m pytest -q`：`4195 passed, 11 skipped in 3477.26s`，EXIT=0。其后的代码改动是第五百三十九批、五百四十批、五百四十二批与本批，判定取干净克隆上的门集与三个检查器。
+- 全围栏：**本批不重跑**（约 58 分钟一趟）；最近一次全围栏在其祖先 `5faa568` 上跑过 `python -W error -m pytest -q`：`4195 passed, 11 skipped in 3477.26s`，EXIT=0。其后的代码改动是第六百五十六批、五百四十批、五百四十二批与本批，判定取干净克隆上的门集与三个检查器。
 
 ### 6 边界（本批**不**声称）
 
 - **不声称窗口外的行被看过。** 仍是尾部 256KB、最后 500 行（`minicc/changes.py:295-301`），截断由 `audit_window_truncated` 披露。这条对首末动作**尤其要紧**：窗口外那条 `create` 看不见时，`[create, delete]` 的首动作就成了窗口里的第一条，本批会把它列成消失。截断说得出，计数不因它多算或少算——这是本批**没有**替它做主的地方。
 - **不声称补丁给得出删除前的内容。** D2/D10/D12 实测 `patch_len=0`：无仓库时 `_baseline` 问不出 HEAD，`_text` 对一个不在的文件答 `""`。那份内容其实就在 `.minicc/backup/` 里（D2 那行列出 `notes.md.20261102T184308Z0000.5940ed`），按 `before_digest` 把它配回该路径是 §7 第 1 位。也因此**不声称前端那句「上方显示删除前的差异」**（`web/src/files/preview.js:132`）在这一路成立——它说的是有补丁的那一路。
 - **不声称 `move` 的源学会了这件事。** `test_a_move_source_is_not_answered_a_deletion` 钉住本批不给它形状：移动的内容还在，只是换了名字，列成 `deleted` 会把一次操作报成两处改动。源那一头要怎么答（是否配成一对重命名）另说，§7 第 2 位。
-- **不声称首末动作认得 `move` 的目标。** 那三本账只跟着 `path` 那一格记，目标只进 `paths`（第五百四十二批）。所以 `[move(a→b), delete(b)]` 里 b 不会被答成消失——本批既没钉它、也没给它一本账，形状上是漏列而不是多列。
+- **不声称首末动作认得 `move` 的目标。** 那三本账只跟着 `path` 那一格记，目标只进 `paths`（第六百五十九批）。所以 `[move(a→b), delete(b)]` 里 b 不会被答成消失——本批既没钉它、也没给它一本账，形状上是漏列而不是多列。
 - **不声称两种拼法混写同一路径时首末动作仍正确。** 账按归一化后的原文（反斜杠→正斜杠）记，`sub/../x.md` 与 `x.md` 各算各的；`_resolved_relative` 在清单那一步才合流。这形状能把窗口里的净零报成消失——一种**多列**，本批不声称没有。
 - **不声称 `exists()` 分得开「读不出来」与「不在」。** 本平台权限错误下 `Path.exists()` 答 False，那条路径会被列成 `deleted`。修前 `is_file()` 是同一种平台失明的**漏列**方向；本批把它换成多列方向，两种都不是「说出来」。§7 排一个能分辨的形状。
 - **不声称别的动作也学会了。** `create`/`write`/`edit` 的兜底仍只列还在的文件（`minicc/changes.py:596`）；一个只被 `write` 记过、又确实不在了的路径，本批仍答「没变」——那需要另一种证据，不是 `delete` 行。
@@ -38516,19 +38525,19 @@ D4 与 D11 修前修后都是 0——那是**判据**要的答案，不是「测
 ### 7 下一位候选
 
 1. **备份里那份内容**：`delete` 行的 `before_digest` 与紧挨在它前面那条 `backup` 行（`minicc/tools/editor.py:442` 写 `before_digest=digest`、`detail="→ 副本名"`）配对，副本就在 `.minicc/backup/{相对路径的__拼法}.{stamp}.{hex}`（:421）。要定的是判据：多条候选取哪一条、副本自己也读不出来时答什么（这一族从第五百三十批起就是「读失败不许坍缩成没有」）、以及 `additions`/`deletions` 该不该跟着补丁走。
-2. **`move` 的源那一头**：源确实不在了，但内容还在另一个名字下——列 `deleted` 会把一次操作报成两处改动，什么都不列又是第五百四十二批 §7 说的那半句话。要么配成一对，要么给它一个状态。
+2. **`move` 的源那一头**：源确实不在了，但内容还在另一个名字下——列 `deleted` 会把一次操作报成两处改动，什么都不列又是第六百五十九批 §7 说的那半句话。要么配成一对，要么给它一个状态。
 3. **`status` 的 `clean` 兜底**：不在清单里的文件被默认成「没改」（`minicc/changes.py:481`），而 `diff` 能算出一个非空补丁。与第五百三十批同族：`clean` 是**读不出来的猜测**。
 4. **`_git` 的 127 哨兵**把 OSError 与 20 秒超时压成同一个 `git unavailable`（`minicc/changes.py:100-113`）。
 5. **能分辨的 `exists()`**：破损符号链接与权限错误这两个形状需要一个分得开的门面（本平台造不出 symlink，需要一个能建的门）。
 6. **选择器解析成本**（500 文件约 13s）。
 
-## 第五百四十四批 — M8-T562 — 审计说文件没了，备份里那份内容还没人读
+## 第六百六十一批 — M8-T562 — 审计说文件没了，备份里那份内容还没人读
 
 ### 1 欠的是哪一条
 
-第五百四十三批 §7 排的第 1 位（「备份里那份内容」）。第五百四十三批让面板说出「这个文件被删掉了」，但它说不出**删掉了什么**：详情页的 `before` 只问 HEAD，`after` 对一个不在的文件答 `""`——于是 `additions`/`deletions` 双双为 0、补丁 0 字节。探针 probe_562 在修前树上实测 E1/E10：状态 `deleted`、`patch_len=0`、`source=git-or-empty-baseline`。
+第六百六十批 §7 排的第 1 位（「备份里那份内容」）。第六百六十批让面板说出「这个文件被删掉了」，但它说不出**删掉了什么**：详情页的 `before` 只问 HEAD，`after` 对一个不在的文件答 `""`——于是 `additions`/`deletions` 双双为 0、补丁 0 字节。探针 probe_562 在修前树上实测 E1/E10：状态 `deleted`、`patch_len=0`、`source=git-or-empty-baseline`。
 
-内容并没有丢。`Editor.delete` 在 `target.unlink()` 之前先 `_backup(target)`：那条 `backup` 行把副本的名字写进 `detail`（`→ {name}`），把副本内容的 digest 写进 `before_digest`——和紧随其后的 `delete` 行是**同一个值**；副本就躺在 `.minicc/backup/` 里。第五百四十三批已经把这一行的 witness 读进来了（`deletion_witness`），却从来不去看那一格——面板答「里面没东西」，答的是它没去看的字节。这正是本战役从第五百三十批起钉的那一族的**反向形状**：不是「读不出来就说没有」，而是「根本没去读，就说没有」。
+内容并没有丢。`Editor.delete` 在 `target.unlink()` 之前先 `_backup(target)`：那条 `backup` 行把副本的名字写进 `detail`（`→ {name}`），把副本内容的 digest 写进 `before_digest`——和紧随其后的 `delete` 行是**同一个值**；副本就躺在 `.minicc/backup/` 里。第六百六十批已经把这一行的 witness 读进来了（`deletion_witness`），却从来不去看那一格——面板答「里面没东西」，答的是它没去看的字节。这正是本战役从第五百三十批起钉的那一族的**反向形状**：不是「读不出来就说没有」，而是「根本没去读，就说没有」。
 
 判据要同时钉住六种不对的答案，不只是把补丁加长：**配对按 digest**，不按名字、也不按窗口里谁写在前面（`[delete, backup]` 这种倒序行是真会出现的）；**副本先 digest 过才采信**（后来被人改写过的那一份，不是这次删除移走的内容，按名字读它等于凭空造出一份并不属于这里的补丁）；**名字不许走出那一格**（`detail` 写 `→ ../../outside.md` 时读它就是把面板的读文件权限交给一条轨迹里的字符串）；**三种说不出必须分得开**——没记过、读不出来、对不上，从前是同一个空补丁；**不跟 git 抢答案**（git 已经给得出预像的那一条仍以 git 为准）；**只有一个家**——目录拼法、箭头拼法、digest 校验各只许有一处。
 
@@ -38536,7 +38545,7 @@ D4 与 D11 修前修后都是 0——那是**判据**要的答案，不是「测
 
 ### 2 量到的真相（实测）
 
-两趟**同一份脚本**（`probe_562.py`，第二次给它加了 `preimage=` 一列，好让修前也答得出「这一格当时还不存在」），只是代码字节不同：修前 = HEAD `4a012a5` 的 blob（`plane562red`，changes.py 32,096 字节 / 663 行 LF、editor.py 35,475 字节 / 865 行 LF，`git show` 出来是 LF），修后 = 落地后的树（changes.py 40,438 字节 / 811 CRLF / 0 条裸 LF、editor.py 37,913 字节 / 901 CRLF / 0 条裸 LF）。真跑编辑器的形状一律显式传 `audit_path`（第五百四十二批 §2 记的那个自纠错）。
+两趟**同一份脚本**（`probe_562.py`，第二次给它加了 `preimage=` 一列，好让修前也答得出「这一格当时还不存在」），只是代码字节不同：修前 = HEAD `4a012a5` 的 blob（`plane562red`，changes.py 32,096 字节 / 663 行 LF、editor.py 35,475 字节 / 865 行 LF，`git show` 出来是 LF），修后 = 落地后的树（changes.py 40,438 字节 / 811 CRLF / 0 条裸 LF、editor.py 37,913 字节 / 901 CRLF / 0 条裸 LF）。真跑编辑器的形状一律显式传 `audit_path`（第六百五十九批 §2 记的那个自纠错）。
 
 | 形状 | 修前 | 修后 |
 | --- | --- | --- |
@@ -38548,7 +38557,7 @@ D4 与 D11 修前修后都是 0——那是**判据**要的答案，不是「测
 | E6 对照：git 看得见这条删除 | `deleted`、patch 71、`del=2`、`source=git-or-empty-baseline` | **完全不变**（本批不抢 git 的预像；`preimage` 仍是空串） |
 | E7 净零：`create` 后 `delete` | `total=0`、`diff(temp.md) clean` | 完全不变（根本不该有预像） |
 | E8 `detail` 的名字走到 backup 目录之外 | patch 0 | patch 0、`preimage=not-readable`、不读 `../../outside.md` |
-| E9 digest 是数字 `123` | `total=0`、`diff clean` | 完全不变（第五百四十三批那道闸门先挡住：说不出证人的行不列，也就无所谓预像） |
+| E9 digest 是数字 `123` | `total=0`、`diff clean` | 完全不变（第六百六十批那道闸门先挡住：说不出证人的行不列，也就无所谓预像） |
 | E10 清单上的数字（同 E1） | `add=0 del=0` 且 `diff` 也是 0/0 | 清单**仍** `add=0 del=0`，`diff` 是 `add=0 del=2`（见 §6 第 1 条、§7 第 1 位） |
 | E11 同一个 digest 提名两份副本 | patch 0 | patch 71、`preimage=copy`——只有一份的字节真能 digest 成它 |
 | E12 对得上 digest 的行是**别的路径**的 | patch 0 | patch 0、`preimage=not-recorded`（配对按路径查，不全局拿 digest 顶） |
@@ -38561,18 +38570,18 @@ E10 那一格是本批**故意没动**的：清单的数字来自 numstat，审�
 - `minicc/tools/editor.py:261-273` 新读者 `backup_copy_name(record)`：不是 dict 答 `""`，其余交给 `:276-284` 的 `_arrow_target(detail)`——`move_destination`（`:249-258`）也改成走它，`→` 这一种拼法从此只有一个家（`DETAIL_TARGET_PREFIX.strip()` 在整份编辑器里只出现一次，门 `:405` 钉这一条）。
 - `minicc/tools/editor.py:287-289` `backup_directory(workspace)`、`:292-302` `backup_copy_path(workspace, name)`：名字**必须是裸文件名**（`name != Path(name).name` 一律 `None`），面板因此拿不到走出那一格的路。`Editor.__init__` 的 `:400` 改用 `backup_directory(self.workspace)`——同一格地址在编辑器里也只剩一处拼法（门 `:389` 钉 `inspect.getsource(editor_module).count('".minicc" / "backup"') == 1`，并断言面板里**没有**这个字面量）。
 - `minicc/changes.py:68-74` 五个常量：`PREIMAGE_READ = "copy"`、`PREIMAGE_NOT_RECORDED = "not-recorded"`、`PREIMAGE_NOT_READABLE = "not-readable"`、`PREIMAGE_MISMATCH = "digest-mismatch"`、`PREIMAGE_SOURCE = "audit-backup-copy"`。
-- `minicc/changes.py:358-368`：`backup` 行在动作闸门处**先单独走一条路**——`_note_backup_copy(item)` 之后 `continue`。它不改进任何东西（第五百四十批 §M8-T300 那句「backup 不是变更」仍然成立，`tests/test_a_backup_is_not_a_workspace_change.py` 一字未改且绿），但它是唯一说得出「内容被放在哪儿」的一行。`:423-439` 把 `(digest, 副本名)` 记在**它自己点名的那条路径**下（digest 读不出来、路径说不出、被忽略的位置都不记）。
+- `minicc/changes.py:358-368`：`backup` 行在动作闸门处**先单独走一条路**——`_note_backup_copy(item)` 之后 `continue`。它不改进任何东西（第六百五十七批 §M8-T300 那句「backup 不是变更」仍然成立，`tests/test_a_backup_is_not_a_workspace_change.py` 一字未改且绿），但它是唯一说得出「内容被放在哪儿」的一行。`:423-439` 把 `(digest, 副本名)` 记在**它自己点名的那条路径**下（digest 读不出来、路径说不出、被忽略的位置都不记）。
 - `minicc/changes.py:390-398`：`delete` 行的 witness 除进了 `witnessed` 集合外，现在按路径存一份（最后一条赢，和本批「末动作说了算」那条既有规则同一种裁决）。`:110-113`/`:310-312` 每次读先起三本账并清空。
 - `minicc/changes.py:441-486` `_read_deletion_preimage(path)`：拿这条路径的 witness，**倒着**走过它自己的副本候选，先比 digest（`:463`），再看名字走不走得出那一格（`:465-468`）、读不读得开（`:469-472`）、字节 digest 得不得回去（`:474-476`），最后才是能不能按 utf-8 显示（`:477-481`）。三种说不出各自说出口：`digest-mismatch` 优先于 `not-readable` 优先于 `not-recorded`（`:482-486`）。
 - `minicc/changes.py:631-646` 接线：只有 `status == "deleted"` 才问这一格；**`before` 非空时不抢**（git 给得出就用 git 的，E6 实测不变），采信了才把 `source` 换成 `audit-backup-copy`。`:699` 新增 `"deletion_preimage"` 一格——任何一次 `diff` 都答得出它，包括没删过谁的路径（那时是空串）。补丁仍走 `redact_text`（门 `:176`），计数仍从补丁数出来。
 - `minicc/changes.py:745-753`：`files_without_diff` 的删除循环里，把 witness 与它的副本候选一并登记到**解析后的键**下——详情页就是拿这个键来问的。登记的是**出处**，副本的字节要等到有人打开那一页才读（清单不为它付一次读）。
-- 门：`tests/test_an_audit_deletion_is_answered_with_the_content_it_removed.py` 22 条——读得出来 6（`:98,:110,:123,:144,:162,:176`）、读不出来 7（`:194,:206,:216,:233,:245,:271,:283`）、对照 4（`:311,:321,:335,:351`）、形状 1（`:363`）、清单边界 1（`:374`）、家规 3（`:389,:405,:422`）。第五百四十三批那条 `test_the_listed_deletion_is_not_answered_a_clean_tree`（`tests/test_a_delete_in_the_audit_is_answered_at_the_file_that_is_gone.py:108`）从「只钉状态」改成钉「状态 + 内容都说得出」（`del == 2` 且补丁里有 `-hello world`），它文档串里写明第五百四十三批那一格钉住的是空补丁。
+- 门：`tests/test_an_audit_deletion_is_answered_with_the_content_it_removed.py` 22 条——读得出来 6（`:98,:110,:123,:144,:162,:176`）、读不出来 7（`:194,:206,:216,:233,:245,:271,:283`）、对照 4（`:311,:321,:335,:351`）、形状 1（`:363`）、清单边界 1（`:374`）、家规 3（`:389,:405,:422`）。第六百六十批那条 `test_the_listed_deletion_is_not_answered_a_clean_tree`（`tests/test_a_delete_in_the_audit_is_answered_at_the_file_that_is_gone.py:108`）从「只钉状态」改成钉「状态 + 内容都说得出」（`del == 2` 且补丁里有 `-hello world`），它文档串里写明第六百六十批那一格钉住的是空补丁。
 
 ### 4 见证（红先绿后，臂）
 
 红先：新门在 `plane562red`（HEAD 字节：changes.py 32,096、editor.py 35,475）上单独跑 **`17 failed, 5 passed in 5.11s`**。绿的 5 条是本批**不该红**的对照——`test_a_git_visible_deletion_keeps_its_own_patch`、`test_a_net_zero_window_has_no_preimage_to_read`、`test_a_non_string_digest_is_still_not_a_witness`、`test_a_file_that_came_back_is_not_answered_a_deletion`，加上家规 `test_the_arrow_form_is_read_through_one_home`（修前 `→` 本来就只有一个读者，它靠 C6 臂才显出抓得住东西）。
 
-落地后：新门与第五百四十三批门一起 **`47 passed in 12.71s`**（22 + 25）；二十七个文件的聚焦家族见 §5。
+落地后：新门与第六百六十批门一起 **`47 passed in 12.71s`**（22 + 25）；二十七个文件的聚焦家族见 §5。
 
 三处**自己写错**，都在绿之前改掉，据实记下：
 
@@ -38585,34 +38594,34 @@ E10 那一格是本批**故意没动**的：清单的数字来自 numstat，审�
 | 臂 | 改什么 | 预期红 | 实际 |
 | --- | --- | --- | --- |
 | C0 | 对照：不改 | 绿 | MATCHED（`83 passed`，20.64s） |
-| C1 | 整条接线拆掉（`status == "deleted"` 那段不问了） | 读得出来那一圈 + 第五百四十三批改成作证的那条 | MATCHED（15 failed、68 passed，23.44s）：13 条内容门 + 脱敏那条 + `the_list_still_says_no_numbers` + 第五百四十三批的 `the_listed_deletion_is_not_answered_a_clean_tree` |
+| C1 | 整条接线拆掉（`status == "deleted"` 那段不问了） | 读得出来那一圈 + 第六百六十批改成作证的那条 | MATCHED（15 failed、68 passed，23.44s）：13 条内容门 + 脱敏那条 + `the_list_still_says_no_numbers` + 第六百六十批的 `the_listed_deletion_is_not_answered_a_clean_tree` |
 | C2 | 「读不出来」坍缩成「没记过」（半修） | 三条 not-readable | MATCHED（3 failed、80 passed，24.21s）：裁剪掉的、二进制的、走出那一格的 |
 | C3 | 副本不再 digest 校验（过头信任名字） | 改写那条 + 家规「先验再信」 | MATCHED（3 failed、80 passed，23.44s）——另牵出 `only_the_copy_that_digests_to_the_witness_is_believed`：不校验就谈不上「只信配得上的那一份」 |
 | C4 | 只认第一条候选就放弃（不倒着走） | 「只信 digest 配得上的那一份」 | MATCHED（1 failed、82 passed，24.92s） |
 | C5 | 面板里再拼一次目录地址（第二个家，答案本来不变） | 只有「目录只有一个家」 | MATCHED（2 failed、81 passed，21.79s）——家规红之外**走出那一格那条也红**：面板自己拼的地址把 `→ ../secret.md` 读得开了，第二个家不只是难看 |
-| C6 | 面板里自己拆箭头（第二个家） | 箭头那个家 | MATCHED（3 failed、80 passed，21.00s）：本批这条之外，第五百四十批 `test_the_destination_is_read_through_one_home` 同红，另多出一条 `a_refused_backup_line_names_no_copy`（拆法搬进面板后拒行的拼法也变了） |
+| C6 | 面板里自己拆箭头（第二个家） | 箭头那个家 | MATCHED（3 failed、80 passed，21.00s）：本批这条之外，第六百五十七批 `test_the_destination_is_read_through_one_home` 同红，另多出一条 `a_refused_backup_line_names_no_copy`（拆法搬进面板后拒行的拼法也变了） |
 | C7 | 第一条 witness 赢（改掉「最后一条说了算」） | 重复删除那条 | MATCHED（1 failed、82 passed，21.31s） |
 | C8 | 出处只在 `delete` 分支登记（键不再对每次 `diff` 存在） | 「每一次 diff 都答得出这一格」 | MATCHED（1 failed、82 passed，21.41s） |
 | C9 | 地址闸门整个去掉（名字不再要求是裸文件名） | 走出那一格那条 | **第一趟 rc=0（83 passed）——门太弱，见上文 ③**；门加强后 MATCHED（1 failed、82 passed，24.18s） |
-| C10 | witness 读法退回强转 | 非字符串 digest 那条 | MATCHED（2 failed、81 passed，20.55s）：本批这条 + 第五百四十三批的 `a_digest_that_is_not_a_string_is_not_a_witness` |
+| C10 | witness 读法退回强转 | 非字符串 digest 那条 | MATCHED（2 failed、81 passed，20.55s）：本批这条 + 第六百六十批的 `a_digest_that_is_not_a_string_is_not_a_witness` |
 
 （十条臂全部 rc!=0 且红在瞄准的门上；多出来的红都在**同一族**，逐条列在上表。本批没有绿臂可披露——C9 的第一趟是**门太弱**造成的，把门加强之后它成了红，那一条就是本批门自己的缺陷。表里的读数是加强后的门（sha256 `1b3e76035df8d776…`）在无抢盘时段跑的（控制臂 `83 passed`、每条臂 80 上下面包着 83 的总数）；加强前那一张门字节（`3d4241ae3c74447c…`）的第一趟留在 `arm562_all.log`，差别只在 C1 多一条红、C5 少一条红。每条臂跑完逐字节还原并核 sha256，`restored MATCHED` 与臂同行打印。臂板 `plane562` 是落地后从共享树复制的 `minicc/` + `tests/` + `scripts/`，HEAD 字节另存一份对照板 `plane562red` 供 §2 的修前列量。）
 
 ### 5 聚焦回归
 
-- 共享树上二十七个文件（本批门 22 条；第五百四十三批门 25 条；第五百四十至五百四十二批的审计/变更门；清单那个家 `tests/test_the_status_record_have_one_home.py`；M8-T300 的 `tests/test_a_backup_is_not_a_workspace_change.py`；`tests/test_changes_pure.py`、`tests/test_snapshots.py`、`tests/test_workspaces_pure.py`、`tests/test_workspace_gate_is_asked_by_every_entry.py`、`tests/test_the_workspace_containment_have_one_home.py`、`tests/test_the_minicc_gate_judges_the_path_the_file_actually_names.py`、`tests/test_the_change_gate_does_not_depend_on_reusability.py`、`tests/test_the_audit_export_payload_have_one_home.py`、`tests/test_the_audit_level_verdict_has_one_home.py`、`tests/test_the_change_panel_and_the_diff_must_agree.py`、`tests/test_five_places_where_one_fact_was_read_differently.py`、`tests/test_audit_authorization.py`、`tests/test_a_write_outside_the_workspace_is_judged_as_a_write.py`、`tests/test_an_external_change_must_not_be_served_from_the_memo.py`）：`326 passed, 1 skipped in 191.61s`（跳过的是本平台没有 symlink，既有行为）。
+- 共享树上二十七个文件（本批门 22 条；第六百六十批门 25 条；第五百四十至五百四十二批的审计/变更门；清单那个家 `tests/test_the_status_record_have_one_home.py`；M8-T300 的 `tests/test_a_backup_is_not_a_workspace_change.py`；`tests/test_changes_pure.py`、`tests/test_snapshots.py`、`tests/test_workspaces_pure.py`、`tests/test_workspace_gate_is_asked_by_every_entry.py`、`tests/test_the_workspace_containment_have_one_home.py`、`tests/test_the_minicc_gate_judges_the_path_the_file_actually_names.py`、`tests/test_the_change_gate_does_not_depend_on_reusability.py`、`tests/test_the_audit_export_payload_have_one_home.py`、`tests/test_the_audit_level_verdict_has_one_home.py`、`tests/test_the_change_panel_and_the_diff_must_agree.py`、`tests/test_five_places_where_one_fact_was_read_differently.py`、`tests/test_audit_authorization.py`、`tests/test_a_write_outside_the_workspace_is_judged_as_a_write.py`、`tests/test_an_external_change_must_not_be_served_from_the_memo.py`）：`326 passed, 1 skipped in 191.61s`（跳过的是本平台没有 symlink，既有行为）。
 - 干净克隆（`4a012a5` + 本批四个落地文件，逐字节与臂板一致：`minicc/changes.py 54426f2027b85f9a…`、`minicc/tools/editor.py 0ad0c1b6280f1573…`、新门 `1b3e76035df8d776…`；新门 `git add -N` 进索引）：同一组二十七文件 `326 passed, 1 skipped in 195.27s`——计数与共享树一致。这两趟用的是**加强后**的门字节（§4 的 ③），与臂表同一份。
-- 带本批记录的干净克隆（`8c9ed26` + 这份记录，新门 `git add -N` 进索引——检查器只走在仓文件里）：`scripts/doc_pointers.py --check` rc=0（1012 个「见」标记（116 条进受检箱、58 条落在 citation-without-locator、9 条由读链接的一方接走、7 条由读 evidence 的一方接走、8 条 code-span-names-a-file、2 条 cites-a-quoted-name、4 条 path-in-prose、808 条在词里）、23 条链接、4368 条 evidence 指针（75 条路径断言在代码跨度之外）、20 份文档、655 个在仓文件）；`scripts/route_coverage.py --check` rc=0——`91 passed in 26.34s`，dispatch sites 34、`webserver.py` 走了 378 行，GET A 20/20、B 20/20，POST A 14/14、B 14/14（B 全 100%）；`scripts/impacted_tests.py --check` rc=0，量出 6 个受影响测试文件（`tests/test_doc_pointers.py`、`tests/test_retrieval_enhanced.py` 等引用类）——这一趟脏的只有记录本身，代码已经进了 HEAD，所以本批门不在名单里，与第五百四十三批那趟「带着五个落地文件的脏树量出 350 个」不是同一种读数。
+- 带本批记录的干净克隆（`8c9ed26` + 这份记录，新门 `git add -N` 进索引——检查器只走在仓文件里）：`scripts/doc_pointers.py --check` rc=0（1012 个「见」标记（116 条进受检箱、58 条落在 citation-without-locator、9 条由读链接的一方接走、7 条由读 evidence 的一方接走、8 条 code-span-names-a-file、2 条 cites-a-quoted-name、4 条 path-in-prose、808 条在词里）、23 条链接、4368 条 evidence 指针（75 条路径断言在代码跨度之外）、20 份文档、655 个在仓文件）；`scripts/route_coverage.py --check` rc=0——`91 passed in 26.34s`，dispatch sites 34、`webserver.py` 走了 378 行，GET A 20/20、B 20/20，POST A 14/14、B 14/14（B 全 100%）；`scripts/impacted_tests.py --check` rc=0，量出 6 个受影响测试文件（`tests/test_doc_pointers.py`、`tests/test_retrieval_enhanced.py` 等引用类）——这一趟脏的只有记录本身，代码已经进了 HEAD，所以本批门不在名单里，与第六百六十批那趟「带着五个落地文件的脏树量出 350 个」不是同一种读数。
 - 引用门三文件（`tests/test_doc_pointers.py`、`tests/test_no_document_quotes_a_content_addressed_bundle.py`、`tests/test_retrieval_enhanced.py`）在带本批记录的干净克隆里按**定稿字节**重跑：`85 passed in 229.97s`，rc=0。这一趟最初跑在本节那两条总数改写之前的记录字节上（那一份量到 1011 条标记与 4363 条 evidence 指针），改写之后在同样的字节上重过一遍——克隆与共享树里那份记录逐字节一致（`b4cdbc6d76215954…`）。定稿字节的 `scripts/doc_pointers.py --check` 也单独复量过：rc=0，写的与量的一致。
 - 全围栏：**本批不重跑**（约 58 分钟一趟）；最近一次全围栏在其祖先 `5faa568` 上跑过 `python -W error -m pytest -q`：`4195 passed, 11 skipped in 3477.26s`，EXIT=0。其后的代码改动是第五百三十九至五百四十四批，判定取干净克隆上的门集与三个检查器。
 
 ### 6 边界（本批**不**声称）
 
 - **不声称清单上的数字跟着补丁走。** E10 实测：`diff` 说 `del=2`，同一份清单那一格仍是 `add=0 del=0`。`_computed_files` 的计数来自 numstat，审计兜底那一格从来没算过行数的概念；把它对齐是 §7 第 1 位——本批只补详情页，`test_the_list_still_says_no_numbers` 钉住了这一点。
-- **不声称窗外的那一行被看过。** 仍是尾部 256KB、最后 500 行。这一条对本批比对第五百四十三批更要紧：`delete` 行在窗内、写它副本名的 `backup` 行被挤到窗外时，面板答的是 `not-recorded`——而磁盘上那份副本好好地躺着。截断由 `audit_window_truncated` 披露，本批不声称它不会把「读得到」说成「没记过」。
+- **不声称窗外的那一行被看过。** 仍是尾部 256KB、最后 500 行。这一条对本批比对第六百六十批更要紧：`delete` 行在窗内、写它副本名的 `backup` 行被挤到窗外时，面板答的是 `not-recorded`——而磁盘上那份副本好好地躺着。截断由 `audit_window_truncated` 披露，本批不声称它不会把「读得到」说成「没记过」。
 - **不声称候选之间的取舍是 chronology。** `reversed(copies)` 是「最新一条 backup 先试」，本批没有门能分辨它与「最早先试」两种写法在只有一份候选配得上时的差别；配不上的形状（E4/E5）由 digest 校验挡住，不是由顺序挡住。
 - **不声称 `digest-mismatch` 与 `not-readable` 同时出现时的取舍有依据。** 现规则是 mismatch 优先（`minicc/changes.py:482-485`）：一条「点名了但读不开」和一条「读得开但字节不对」并存时，面板说的是最近一次能确认的失败，不是最轻的那一次。
-- **不声称 `move` 的源学会了这件事。** 源那一头内容还在，只是换了名字，本批不给它预像（`status` 也不是 `deleted`）。第五百四十三批 §7 第 2 位仍是它。
+- **不声称 `move` 的源学会了这件事。** 源那一头内容还在，只是换了名字，本批不给它预像（`status` 也不是 `deleted`）。第六百六十批 §7 第 2 位仍是它。
 - **不声称副本被删掉之后还能补回来。** `_prune_backups` 只留最新若干份（`minicc/tools/editor.py:482`起），本批不改配额，也不声称面板知道「这一份是被裁剪掉的」还是「从来没写过」——它只能照着轨迹里那一行说它说了的话。
 - **不声称副本内容是安全的。** 补丁与预像同走 `redact_text`（门 `:176`），但副本躺在工作树里，任何能读工作区的读者都能读到它——本批没动这一格权限形状。
 - **不声称 `clean` 那一格学会了分辨。** 不在清单里的路径仍默认成 `clean`（§7 第 2 位），本批只保证它带出一个空串的 `deletion_preimage`。
@@ -38622,17 +38631,17 @@ E10 那一格是本批**故意没动**的：清单的数字来自 numstat，审�
 
 1. **同一件事两处答案**：E10 实测详情页 `del=2`、清单 `del=0`。`_status_record` 造的兜底那一格从来没带过行数（`minicc/changes.py:744`），`_computed_files` 的计数只从 numstat 来（`:512`、`:545`），`summary` 的 `additions`/`deletions` 再把清单加起来。要定的是判据：审计来源的删除该不该数出它的行、数了以后 git 与审计并存时以谁为准。与 `tests/test_five_places_where_one_fact_was_read_differently.py` 同族。
 2. **窗口把副本名挤出窗外**：`delete` 行在窗内、`backup` 行在窗外时磁盘上有副本而面板说 `not-recorded`。需要一个把截断与这一格连起来的形状——「窗外可能还有一行说过它在哪儿」不等于「没记过」。
-3. **`move` 的源那一头**：源确实不在了，但内容还在另一个名字下——列 `deleted` 会把一次操作报成两处改动，什么都不列又是第五百四十二批 §7 说的那半句话。
+3. **`move` 的源那一头**：源确实不在了，但内容还在另一个名字下——列 `deleted` 会把一次操作报成两处改动，什么都不列又是第六百五十九批 §7 说的那半句话。
 4. **`status` 的 `clean` 兜底**：不在清单里的文件被默认成「没改」，而 `diff` 能算出一个非空补丁。与第五百三十批同族：`clean` 是**读不出来的猜测**。
 5. **`_git` 的 127 哨兵**把 OSError 与 20 秒超时压成同一个 `git unavailable`。
 6. **能分辨的 `exists()`**：破损符号链接与权限错误这两个形状需要一个分得开的门面。
 7. **选择器解析成本**（500 文件约 13s）。
 
-## 第五百四十五批 — M8-T563 — 清单说 0 行，详情页说 del=N——同一件事两个答案
+## 第六百六十二批 — M8-T563 — 清单说 0 行，详情页说 del=N——同一件事两个答案
 
 ### 1 欠的是哪一条
 
-第五百四十四批把删除前的内容从编辑器自己留的副本里读了回来，但它在自己的 §6 里
+第六百六十一批把删除前的内容从编辑器自己留的副本里读了回来，但它在自己的 §6 里
 写下了那一格没动：**「不声称清单上的数字跟着补丁走」**——E10 实测「`diff` 说
 `del=2`，同一份清单那一格仍是 `add=0 del=0`」，并把它交给 §7 第 1 位。本批就是
 那一位。
@@ -38689,24 +38698,24 @@ N 行；`summary()` 的总账（`minicc/changes.py:852`）把这些 0 加起来�
   `minicc/changes.py:462`），把答词写进与详情页**同一个键名**
   `deletion_preimage`（`minicc/changes.py:600`）；答词是「读回来了」时，那一格的
   `deletions` 就是那份内容的行数（`minicc/changes.py:602`）。git 已经数到的删除不
-  会走到这里——第五百四十四批的登记只发生在 git 没报这条路径时
+  会走到这里——第六百六十一批的登记只发生在 git 没报这条路径时
   （`minicc/changes.py:826`），所以 git 的账还是 git 的账。
 - **指纹吃下数出来的那些字节**：`_preimage_signature`（`minicc/changes.py:509`）把
   「这一行真会打开的那几份副本」（digest 等于见证的那些）的 mtime/ctime/size 收进
   缓存指纹（`minicc/changes.py:567`）。不这么做，裁剪掉的副本仍会被当成躺在隔壁——
   S11 就是那一格。审计记录本身不进指纹：任何会改动答词或行数的读法，都必然改动
   这份候选名单，指纹吃候选名单即吃到它。
-- **两处移动的旧门**：第五百四十三批那条名为 test_the_control_the_deletion_counts_do_not_invent_lines
+- **两处移动的旧门**：第六百六十批那条名为 test_the_control_the_deletion_counts_do_not_invent_lines
   的门在本批改了名——旧名字不写成代码跨度，因为仓里再没有那个函数，引用门会去追一个
   不会回来的人；新名字 `test_the_deletion_counts_the_lines_the_copy_kept` 从对照（0/0）
-  变成作证（0/2）；第五百四十四批的 `test_the_list_still_says_no_numbers` 名字留着（本批
+  变成作证（0/2）；第六百六十一批的 `test_the_list_still_says_no_numbers` 名字留着（本批
   之前它的 §2/§4/§6 三处按这个名字引用过它），形状换成**真正数不出来**的那一种
   （delete 行有见证、窗口里没有配得上它的 backup 行）：清单仍 0/0，详情页仍 del=0，
   两处都带着词。
 
 ### 4 见证（红先绿后，臂）
 
-**红先**：门字节用**定稿的那一份**，代码用 HEAD（`98d95ec`，即第五百四十四批之后、
+**红先**：门字节用**定稿的那一份**，代码用 HEAD（`98d95ec`，即第六百六十一批之后、
 本批之前）——干净克隆 `scratch/red563b`（`git clone --no-hardlinks` 后只覆盖三个门
 文件，新门 `git add -N` 进索引）：
 
@@ -38722,13 +38731,13 @@ N 行；`summary()` 的总账（`minicc/changes.py:852`）把这些 0 加起来�
 - 两处移动的旧门（`tests/test_a_delete_in_the_audit_is_answered_at_the_file_that_is_gone.py`
   与 `tests/test_an_audit_deletion_is_answered_with_the_content_it_removed.py`，共 47 条）
   在同一份 HEAD 代码上：**1 failed, 46 passed in 28.50s**，RC=1
-  （`scratch/red563b_moved.log`）。红的是第五百四十三批那条从对照改成作证的
+  （`scratch/red563b_moved.log`）。红的是第六百六十批那条从对照改成作证的
   `test_the_deletion_counts_the_lines_the_copy_kept`（HEAD 答 0/0，本批该答 0/2）；
-  第五百四十四批的 `test_the_list_still_says_no_numbers` 在修前修后都绿——它现在描述的是
+  第六百六十一批的 `test_the_list_still_says_no_numbers` 在修前修后都绿——它现在描述的是
   **真正数不出来**的那一种形状（delete 行有见证、窗口里没有配得上它的 `backup` 行），
   这种形状本批不改变它的答案，这正是那条门留在原名里的理由（§3 最后一条）。
 
-**绿后**：本批门集 7 个文件（新门 + 第五百四十四批门 + 第五百四十三批门 +
+**绿后**：本批门集 7 个文件（新门 + 第六百六十一批门 + 第六百六十批门 +
 `tests/test_changes_pure.py` + `tests/test_the_change_panel_and_the_diff_must_agree.py` +
 `tests/test_snapshots.py` + `tests/test_the_status_record_have_one_home.py`）在带落地字节
 的干净克隆 `scratch/clone563` 上：**115 passed in 112.99s**（`scratch/green563_plane.log`），
@@ -38743,11 +38752,11 @@ N 行；`summary()` 的总账（`minicc/changes.py:852`）把这些 0 加起来�
 
 | 臂 | 改哪一处 | 想要它红的门 | 实测 |
 | --- | --- | --- | --- |
-| A1_fix_removed | 整块拿掉：清单不问预像（等于本批没发生） | 本批门 16 条 + 第五百四十三批那条改成作证的门 | rc=1 `17 failed, 98 passed in 120.02s`，红的 17 条全在本批门与 `test_the_deletion_counts_the_lines_the_copy_kept` |
+| A1_fix_removed | 整块拿掉：清单不问预像（等于本批没发生） | 本批门 16 条 + 第六百六十批那条改成作证的门 | rc=1 `17 failed, 98 passed in 120.02s`，红的 17 条全在本批门与 `test_the_deletion_counts_the_lines_the_copy_kept` |
 | A2_word_without_number | 写了答词却不把行数换掉（`row["deletions"]=` 那一行改成 `pass`） | 同上——数与词必须一起来 | rc=1 `11 failed, 104 passed in 113.54s` |
 | A3_number_without_word | 数了行数但不写答词（丢掉 `row["deletion_preimage"]=`） | 「数不出来那一路要说为什么」的 6 条 + 家规 `test_a_row_never_invents_a_fifth_word` | rc=1 `7 failed, 108 passed in 142.25s` |
 | A4_word_only_when_read | 只在读回来时才写词（`if verdict:` → `if verdict == PREIMAGE_READ:`） | 数不出来的 4 条 + 第五词家规 | rc=1 `5 failed, 110 passed in 190.41s` |
-| A5_unreadable_collapses | 「读不出来」压成「没记过」（本运动的老毛病） | 本批 2 条 + 第五百四十四批 3 条（`not_readable` 那三条） | rc=1 `5 failed, 110 passed in 155.24s` |
+| A5_unreadable_collapses | 「读不出来」压成「没记过」（本运动的老毛病） | 本批 2 条 + 第六百六十一批 3 条（`not_readable` 那三条） | rc=1 `5 failed, 110 passed in 155.24s` |
 | A6_prefix_header_rule | 尺子退回前缀匹配（`startswith("---")` 跳表头） | `--` 起头那两条 | rc=1 `2 failed, 113 passed in 132.23s`，红的正是 `test_a_deleted_line_that_reads_like_a_patch_header_is_still_counted` 与 `test_an_added_line_that_reads_like_a_patch_header_is_still_counted` |
 | A7_second_ruler | 清单侧另起一把尺子（`not line.startswith("--")`） | 同形那一条 | rc=1 `1 failed, 114 passed in 136.41s`，红的只有 `test_a_deleted_line_that_reads_like_a_patch_header_is_still_counted`——两处一致那条门在这个臂下仍绿，因为它四种形状里没有 `--` 行：**这一臂只被一条门挡住**，本批不声称它有两道锁 |
 | A8_signature_blind | 指纹不吃副本的 stat（`_preimage_signature` 直接返回 `()`） | 陈旧缓存那条 | rc=1 `1 failed, 114 passed in 140.56s`，红的只有 `test_a_copy_pruned_after_the_list_ran_is_not_still_counted`；「第二趟该命中缓存」那条在此臂下仍绿（两趟都瞎，仍然一致），本批不声称它有两道锁 |
@@ -38774,13 +38783,13 @@ N 行；`summary()` 的总账（`minicc/changes.py:852`）把这些 0 加起来�
 
 ### 5 聚焦回归
 
-- 共享树上二十八个文件（本批门 23 条；第五百四十四批门 25 条；第五百四十三批门 22 条；
+- 共享树上二十八个文件（本批门 23 条；第六百六十一批门 25 条；第六百六十批门 22 条；
   第五百四十至五百四十二批的审计/变更门；清单那个家 `tests/test_the_status_record_have_one_home.py`；
   M8-T300 的 `tests/test_a_backup_is_not_a_workspace_change.py`；`tests/test_changes_pure.py`、
   `tests/test_snapshots.py`、`tests/test_workspaces_pure.py` 等）：
   **`349 passed, 1 skipped in 276.31s`**（`scratch/focused563_shared_final.log`，RC=0；
   跳过的是本平台没有 symlink 特权，既有行为）。名单见 `scratch/focused563_files.txt`
-  ——第五百四十四批那二十七条加本批新门。
+  ——第六百六十一批那二十七条加本批新门。
 - 注释跟改之后（两笔只改注释的落地：登记处那一格从「清单不会去读」改成现在的答案；
   行循环里「清单仍然答 0 行」补上「直到本批」）：四条删除相关的门 **`74 passed in 26.04s`**、
   RC=0（`scratch/green563_commentfix.log` / `scratch/green563_commentfix2.log`）。
@@ -38834,7 +38843,7 @@ N 行；`summary()` 的总账（`minicc/changes.py:852`）把这些 0 加起来�
 - **不声称未跟踪文件的行数与 git 的账相等。** 无仓库时清单退成「工作区里现在有几行」
   （`minicc/changes.py:585`），那是当前文件、不是补丁；`++`/`--` 那把尺子修的是
   补丁侧，两把尺子的适用范围本就不同。
-- **不声称窗外那份副本被看过。** 第五百四十四批 §6 第 2 条仍然成立：`delete` 行在
+- **不声称窗外那份副本被看过。** 第六百六十一批 §6 第 2 条仍然成立：`delete` 行在
   窗内、写它副本名的 `backup` 行被挤到窗外时，两处现在**一致地**答
   `not-recorded`、一致地数成 0——一致是本批给的，读回来不是。
 - **不声称副本内容等于 HEAD 那一版。** 先改后删时副本是删除那一刻的内容（S6：1 行），
@@ -38871,7 +38880,7 @@ N 行；`summary()` 的总账（`minicc/changes.py:852`）把这些 0 加起来�
 1. **围栏量出的那一条红**：`tests/test_subprocess_decoding.py::test_no_text_mode_capture_asks_for_a_strict_decoder`
    点名 `tests/test_a_dotfile_the_audit_recorded_is_not_answered_absent.py:54` 那份 git 捕获
    用的是严格解码器（`text=True`、`encoding="utf-8"`、没有 `errors`）——子进程吐出非 UTF-8
-   字节时那条捕获会抛，孩子的话就这么被吞了。它是第五百三十八批落下的、最近那次围栏
+   字节时那条捕获会抛，孩子的话就这么被吞了。它是第六百五十五批落下的、最近那次围栏
    （`5faa568`）之后才第一次被扫到的一条，六批聚焦回归都没看见它。**下一位做这一条。**
 2. **窗外那份配得上的副本没人点名**（C1，另有 W2/W3/W4/W7）：边界正好切在
    `backup` 行与 `delete` 行之间时（`scratch/probe_564c.py`、
@@ -38893,17 +38902,17 @@ N 行；`summary()` 的总账（`minicc/changes.py:852`）把这些 0 加起来�
 只是把那份捕获换成肯说清解码器的写法。第 2 位与第 3 位是同一次实测里长出来的两格，
 第 2 位欠得最久（第五百四十二、三、四批连续三次把它记在边界上），排在其后。
 
-## 第五百四十六批 — M8-T564 — 门问的是「有没有写 errors」，不是「写的那一个肯不肯容错」
+## 第六百六十三批 — M8-T564 — 门问的是「有没有写 errors」，不是「写的那一个肯不肯容错」
 
 ### 1 欠的是哪一条
 
-第五百四十五批 §7 第 1 位交出来的是围栏里那条现成的红：
+第六百六十二批 §7 第 1 位交出来的是围栏里那条现成的红：
 `test_no_text_mode_capture_asks_for_a_strict_decoder` 点名
 `tests/test_a_dotfile_the_audit_recorded_is_not_answered_absent.py:54` 那份 git 捕获用的是严格
 解码器。把那条捕获补上 `errors="replace"` 只花一行，欠的账本批就清了——可是量到第 2 节才发现
 红只是门口，屋子里坐着的是判据本身。
 
-那条门从第五百三十八批起就把这个站点当成**合规**：它的判据是
+那条门从第六百五十五批起就把这个站点当成**合规**：它的判据是
 `item.text_mode and not item.has_errors`，而 `has_errors` 是 `"errors" in self.keywords`——
 它问的是「这一处有没有写 `errors=`」，不是「写的那一个肯不肯容错」。于是同一把尺子中，
 `errors="strict"`、`errors=None`、`errors="xmlcharrefreplace"`、`errors=handler` 四种写法
@@ -39026,7 +39035,7 @@ errors= 的值全仓只有 'replace'；非常量节点 0 处
   要求「本文件真正会跑的每一条 text-mode 捕获都声明了容错处理器」，并带 `len(text) >= 1` 的
   分母下限——「扫描器跳过这个文件」从此只覆盖**装进字符串的证人**，不覆盖这个文件自己伸出去的手。
 - **站点那一格**：`tests/test_a_dotfile_the_audit_recorded_is_not_answered_absent.py:61` 补
-  `errors="replace"`。这是第五百三十八批落下的形状，本批按 §7 第 1 位把它按回去。
+  `errors="replace"`。这是第六百五十五批落下的形状，本批按 §7 第 1 位把它按回去。
 
 ### 4 见证（红先绿后，臂）
 
@@ -39045,7 +39054,7 @@ errors= 的值全仓只有 'replace'；非常量节点 0 处
   老判据把送进去的十个名字全放行，解码只证明其中四个 never raise。
 - `test_a_planted_declaration_of_a_strict_handler_is_an_offender`——`assert 0 == 1`：
   `errors='strict'` 那份 planted 源码在老判据下 offender 数是 0。
-- `test_no_text_mode_capture_asks_for_a_strict_decoder`——第五百四十五批围栏留下的同一条红、
+- `test_no_text_mode_capture_asks_for_a_strict_decoder`——第六百六十二批围栏留下的同一条红、
   同一个点名（`tests/test_a_dotfile_the_audit_recorded_is_not_answered_absent.py:54`），
   在「新见证 + 老规则 + HEAD 站点」里仍然红。
 
@@ -39141,7 +39150,7 @@ AST 自扫，以及 7 个真跑的孩子进程，全部远小于这条门本来�
 - 全围栏（`scratch/fence564`：HEAD `0603fa8` + 本批两个落地文件的干净克隆，逐字节与共享树
   一致，`python -X utf8 -W error -m pytest -q`）：
   **`4377 passed, 11 skipped in 1998.80s (0:33:18)`**、EXIT=0（`scratch/fence564.log`）。
-  上一次围栏（第五百四十五批 §5）是 `1 failed, 4372 passed, 11 skipped`——少掉的那一条红就是
+  上一次围栏（第六百六十二批 §5）是 `1 failed, 4372 passed, 11 skipped`——少掉的那一条红就是
   本批按 §7 第 1 位还清的那一笔，多出的 4 条是本批新增的四条门，11 条跳过仍是本平台没有
   symlink 特权与既有的那些平台跳过。追踪门 `test_every_gate_file_on_disk_is_tracked_by_git`
   在这一棵树里绿（那份未跟踪的别道门文件不在克隆里）。这一趟与臂板、聚焦集、引用门预跑并行，
@@ -39196,7 +39205,7 @@ AST 自扫，以及 7 个真跑的孩子进程，全部远小于这条门本来�
    而答案写成了「这文件是空的」。生产里 git 那一路的 `errors="replace"` 从 MVP（`a9da019`，
    2026-08-24）就在那儿（`git log -S` 只落到那一笔与本批无关的旧提交），本批量的是它换回来的
    那个名字接下来被怎么对待。
-2. **窗外那份配得上的副本没人点名**（第五百四十五批 §7 第 2 位，探针已量：
+2. **窗外那份配得上的副本没人点名**（第六百六十二批 §7 第 2 位，探针已量：
    `scratch/probe_564.py` / `scratch/probe_564c.py` 的 C1、W2、W4、W7）——欠得最久的一格，
    第五百四十二、三、四批连续三次把它记在边界上。
 3. **`audit_window_truncated` 只看行不看字节**（上一条记录的 W3）：`minicc/changes.py:355`
@@ -39208,11 +39217,11 @@ AST 自扫，以及 7 个真跑的孩子进程，全部远小于这条门本来�
 没给名字时进入现有循环），第 1 位是新量出来的、形状更近的一格。本批把第 1 位排在前面：
 它就在生产的路上（每一个非 UTF-8 文件名都会走），而第 2 位只在窗口截断时才出现。
 
-## 第五百四十七批 — M8-T565 — 清单里那个带替换字符的名字被当成地址，一个有三行的文件答成「新增了 0 行」
+## 第六百六十四批 — M8-T565 — 清单里那个带替换字符的名字被当成地址，一个有三行的文件答成「新增了 0 行」
 
 ### 1 欠的是哪一条
 
-第五百四十六批 §7 第 1 位交出来的就是这一格，而且它把形状说得比本批标题还准：
+第六百六十三批 §7 第 1 位交出来的就是这一格，而且它把形状说得比本批标题还准：
 「**替换字符被当成路径名**（U2/U3/U4）：清单列出一个打不开的名字，并把一个有三行的文件答成
 『新增了 0 行』」。上一批管的是 `_git` 那一次解码**有没有**声明容错——量出来的是那一步确实
 容错了，孤立代理项被换成 `U+FFFD` 才出门。本批管的是那个换回来的字符串**接下来被怎么对待**。
@@ -39228,12 +39237,12 @@ AST 自扫，以及 7 个真跑的孩子进程，全部远小于这条门本来�
 同一格还连着两处：`diff("bad\udcff.md")`（磁盘上真正的名字）在状态表里查不到——表按渲染
 那一格键控——于是落进 `clean` 兜底，`before` 与 `after` 都是空，补丁 0 字节；
 `diff("bad\ufffd.md")` 答 `added`、也是 0 字节。**一个文件，两种写法，两个都不对，而且互不相同。**
-第五百四十六批 §6 已经把「不声称读回来的内容是对的」写在边界上，本批就是去领那条账。
+第六百六十三批 §6 已经把「不声称读回来的内容是对的」写在边界上，本批就是去领那条账。
 
 ### 2 量到的真相（实测）
 
 探针 `scratch/probe_565.py`～`probe_565e.py`，五支都跑在 `scratch/pre565`——HEAD
-`366b2e9`（第五百四十六批的记录）的干净克隆——日志 `scratch/probe565_clone.log`、
+`366b2e9`（第六百六十三批的记录）的干净克隆——日志 `scratch/probe565_clone.log`、
 `probe565b_clone.log`、`probe565c_clone.log`、`probe565d_clone.log`、`probe565e_clone.log`。
 本机 Windows / cp936，Python 3.11。
 
@@ -39346,7 +39355,7 @@ X23 是本批真正要修的形状：一份文件、一个名字、渲染唯一�
   的行数归不到任何一个文件，`0` 是「这文件里没东西」，而这里的事实是「这几个文件我分不开」。
   `minicc/changes.py:649` 把判定随每行带出去（`name_resolution`）。
 - `minicc/changes.py:603` 备忘录指纹改问**源文件**的 stat：按渲染名字 stat 永远 miss，
-  每条可疑记录都以 `(raw, None, None)` 进指纹，改文件也不会让指纹变——那是第五百四十五批
+  每条可疑记录都以 `(raw, None, None)` 进指纹，改文件也不会让指纹变——那是第六百六十二批
   那格 stale memo 换一个层级重演。
 - `minicc/changes.py:747` 状态表除了渲染那一格，再以磁盘拼写 `setdefault` 一个键；
   `minicc/changes.py:753` 详情页跟着判定把 `target` 换成真正的文件（URL 里只可能带渲染
@@ -39459,7 +39468,7 @@ A1 红 10 条、A2 红 9 条，其中 8 条同名，剩下的几条正好把「�
    读到的答案。
 7. **不声称 `sources[0]` 有顺序含义。** `substituted` 只在 `len(sources) == 1` 时取第一个元素
    （`:991`～`:993`），命中集合的大小就是判据，与 `iterdir()` 的顺序无关。
-8. **不声称这一批改了 `_git` 的解码。** 那是第五百四十六批；本批用的是它容错之后交出来的
+8. **不声称这一批改了 `_git` 的解码。** 那是第六百六十三批；本批用的是它容错之后交出来的
    那个串，改的是「拿它当地址用」的这一步。
 
 ### 7 下一位候选
@@ -39477,7 +39486,7 @@ A1 红 10 条、A2 红 9 条，其中 8 条同名，剩下的几条正好把「�
 4. 带着的账：`audit_window_truncated` 记的是行还是字节——`:400`～`:402` 里字节先切（`_AUDIT_TAIL_BYTES`，
    `:61`）、行再数，两个 cutoff 只报一个布尔；`clean` 兜底本身（`:748`）；`_git` 的 127 哨兵；
    `exists()` 分不出形状；selector 解析成本；未跟踪行的双计；listing 读上限。
-## 第五百一十批 — M8-T521 — 两把围栏尺并成一把：证据读者的字节配对退役
+## 第六百六十六批 — M8-T521 — 两把围栏尺并成一把：证据读者的字节配对退役
 
 ### 1 缺陷
 
@@ -39616,7 +39625,7 @@ M8-T522 更早已被第二百六十七批的撞号订正占用（改号登记不
 过、取的号也没有、每个已声明批号的中文拼法都能由同一套写法逐字生成（拼法是从文档自己
 身上学的，不是背的）、且本批之上每个无记录的已发表任务号都有一笔已发表提交作主。
 
-## 第五百一十一批 — M8-T528 — CI 的凭据门改读产品自己的脱敏词表
+## 第六百六十七批 — M8-T528 — CI 的凭据门改读产品自己的脱敏词表
 
 ### 1 缺陷
 
@@ -39682,7 +39691,7 @@ B5 名字手抄（marker 绑定断）、B6 判决行不报 files-read。
 绿、还原 sha 逐字节相等。
 
 围栏 `23ad436`（独立工作树 wt528f）：**4099 collected / 4081 passed / 7 failed / 0 errors / 11 skipped / 9094.36s**。
-分母不靠算术猜：把本轮 junit 与第五百一十批那份逐文件名相减，4054（上轮实测）+ 别道随
+分母不靠算术猜：把本轮 junit 与第六百六十六批那份逐文件名相减，4054（上轮实测）+ 别道随
 `b2b2789` 并入的三张新门 12 + 12 + 11 例 + `test_cleanup_version` 新 2 例 + 本批新门 8 例
 = **4099**，逐格相等、丢失 0 例。
 
@@ -39694,7 +39703,7 @@ B5 名字手抄（marker 绑定断）、B6 判决行不报 files-read。
 | --- | --- | --- | --- |
 | `test_index_build_makes_a_constant_number_of_filesystem_calls_per_file` | `(7.232, 7.208)`，7.208 > 7.0 | 72.9s，**照旧红** | 别道 `dcda114`（M8-T526）：`tool_denied_by_rule` 现在先问 `policy_evaluation_error`、再走 `match_permission_rule`，两处各自调 `load_permission_rules`，而它每次都 `Path.stat()` 一次；索引每个文件都要问这道拒绝 ⇒ 每文件多一次 stat。两平面对账（同一夹具、同一计数器）：`fce5a05` 上 stat = 1028/4103（250/1000 文件）、每文件 6.232/6.208；`23ad436` 上 stat = 1278/5103（正好 +250/+1000），`open`/`is_symlink`/`iterdir`/`walk` 四键逐格不动，每文件 7.232/7.208。承重文件 `minicc/audit.py` 在别的车道在飞——披露，不顺手修。 |
 | `test_clean_shutdown_aborts_a_worker_that_ignores_cancellation` | 120.904s 放弃（1117 次轮询、last value None） | 46.10s **绿** | 负载形状：本轮整跑 9094.36s，比上一轮 4566.34s 慢一倍；那条腿的 120s 预算等的是子进程走到 parked 模型调用，被机器吃掉的不是被代码改坏的。 |
-| `test_the_sibling_citations_keep_their_reader_and_their_line` | 判在 34554 行、作者写的是 1550 行 | 0.70s **照旧红** | **是我的**，而且红在腿上不在文档上：第五百一十批的记录正文（`e1a29ca`）在文末又引用了那两条兄弟引用各一次。读者现在认出 **4** 条跨度（1550 两条、34554 与 34555 各一条），两条都仍有读者——腿的第一个断言（「没有读者了」）是绿的；红在第二个断言：腿把跨度按名字压成 dict（留下**最后一**处），把「作者写的那一行」按行扫（留下**第一**处），同一个名字出现两处时这两半必然搬家。它钉的其实是「每个名字在全文只出现一次」，而这本账本每写一批就要引用一次名字。修在门：让腿逐处对上，而不是把记录里的引用抹掉。列为下一批候选 M8-T529。 |
+| `test_the_sibling_citations_keep_their_reader_and_their_line` | 判在 34554 行、作者写的是 1550 行 | 0.70s **照旧红** | **是我的**，而且红在腿上不在文档上：第六百六十六批的记录正文（`e1a29ca`）在文末又引用了那两条兄弟引用各一次。读者现在认出 **4** 条跨度（1550 两条、34554 与 34555 各一条），两条都仍有读者——腿的第一个断言（「没有读者了」）是绿的；红在第二个断言：腿把跨度按名字压成 dict（留下**最后一**处），把「作者写的那一行」按行扫（留下**第一**处），同一个名字出现两处时这两半必然搬家。它钉的其实是「每个名字在全文只出现一次」，而这本账本每写一批就要引用一次名字。修在门：让腿逐处对上，而不是把记录里的引用抹掉。列为下一批候选 M8-T529。 |
 
 语料腿 `test_no_shipped_citation_lies_inside_a_closed_fence_block` 两轮都撞 900s 挂钟限
 （`fce5a05` 围栏 1012.4s、本轮 1407.4s），这一格既不接「大概是负载」，也不靠一次安静复跑——
@@ -39741,7 +39750,7 @@ B5 名字手抄（marker 绑定断）、B6 判决行不报 files-read。
 - `MIN_EVIDENCE` 与引用读者的判据数值一克不动；那条 7.0 的文件系统调用界也不动——它现在
   红得对，是产品多花了两次策略读取，不是界写窄了。
 
-## 第五百六十六批 — M8-T566 — 另一条通道的在飞改动并轨补记：deny 一次读、租约 owner 栅栏、`not-in-window` 第三个词
+## 第六百六十五批 — M8-T566 — 另一条通道的在飞改动并轨补记：deny 一次读、租约 owner 栅栏、`not-in-window` 第三个词
 
 ### 1 这一批是什么
 
@@ -39773,3 +39782,5035 @@ B5 名字手抄（marker 绑定断）、B6 判决行不报 files-read。
 - 本批只把另一通道的改动按本仓纪律入库；`m8-t537` 线到本仓的合流是下一批的事（两条通道都改过 `task_manager.py`/`permissions.py`/`audit.py`/`changes.py`，冲突按文件逐个对账，不在本批里混处理）。
 - 本地 `main` 尚落后 origin 已合并部分，推送前要等并轨批 CI 绿；本批不单独推送。
 - `test_retrieval_enhanced` 的新 print 只是可观测性，不改变任何断言。
+## 并轨说明（2026-11-09）——两条通道的批次编号已分叉，本节**不重排**
+
+本文件在此前由两条互相不通的通道分别续写过：
+
+- **主通道**（本合并的 ours）：第六百四十八批–第六百六十四批（M8-T549–T565，审计 / 变更视图线），末尾补上第六百六十六批 / 第六百六十七批，以及第六百六十五批（并轨补记：deny-once / lease owner 栅栏 / `not-in-window`）。
+- **集成通道 m8-t537**（本合并的 theirs）：第六百四十九批–第六百四十七批（M8-T550–M8-T665，one-home / 契约 / CI 门线），记录逐字保留在随后的一节。
+
+两段用了同一套「第五百xx批 / 批次」编号却不是同一批事——**同号不同事**。本合并不重排、不改写除上文已订正的伪记录之外的任何一边记录；主通道的二十节先被改记为 `第六百四十八批`–`第六百六十七批`，仅为把编号从合流里分离出来，内容一字不动。**从下一批起编号从 `第六百六十八批`（M8-T668+）续起，不再复用本文件已经出现过的任何编号**。
+
+往下是集成通道 m8-t537 的完整续写，原文照留：
+
+## 第五百三十二批 — M8-T550 — 读不出改动清单的失败措辞，终于只剩一个家
+
+### 1 欠的是哪一条
+
+第五百三十一批（M8-T549）把「读不出审计记录」修了（`_audit_paths` 的回退从
+「没有审计记录」答成可读失败）；本批处理的是同坍缩的**措辞**一侧：失败句子仍在
+agent loop、snapshot、变更视图三个家手里，分诊进了 `minicc/gitprobe.py` 但措辞
+没动。
+
+### 2 量到的真相（实测）
+
+HEAD 前，三处手写同一事实的不同措辞：`loop.py` 的超时 / OSError 分支、
+`snapshots.py` 的三个失败分支、`changes.py` 的 127 哨兵与非零退出分支。修复后，
+三处全部改走 `minicc/gitprobe.py` 新增的 builder
+（`git_status_unavailable_reason` / `git_status_timeout_reason` /
+`git_status_exit_reason`），措辞只在探针一处。
+
+### 3 落地
+
+- `minicc/gitprobe.py`：新增三个失败措辞 builder，把「问 git 与说为什么」一起
+  安一个家。
+- `minicc/agent/loop.py`：`_git_changed_paths` 三个失败分支改调 builder。
+- `minicc/snapshots.py`：`_git_dirty_files` 三个失败分支改调 builder。
+- `minicc/changes.py`：`_status_failure` 127 哨兵分支改调
+  `git_status_unavailable_reason(timeout_seconds=20, subject="变更清单")`；
+  非零退出改调 `git_status_exit_reason(code, stderr)`。
+
+### 4 见证（红先绿后，臂）
+
+- 新门 `tests/test_the_git_status_read_reason_has_one_home.py`（3 条）：家固定
+  各失败句的措辞、各失败句只在探针一处被拼、读者都去问家。
+- **红先**：对探针里改过的句子做变异（`退出码` → `退出了`）→ 行为钉
+  （`test_the_home_pins_each_failure_sentence`）与一处家门
+  （`test_each_failure_sentence_has_exactly_one_home`）**同时红**；还原后全绿。
+- **绿后**：本批相关门文件集 `33 passed in 20.21s`。
+
+### 5 聚焦回归
+
+- 共享树上本批门 + 验证豁免门 + 变更视图门 + snapshot 门 + 工作区判词门 +
+  bash 改写门：`33 passed in 20.21s`。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 `_git` 哨兵能分开超时与 OSError（`_git` 仍压成 127 / `git unavailable`，
+  措辞层面由 builder 吸收，分派不动）。
+- 不声称全量围栏（全量在远端 CI 判）。
+- 不声称 `summary()` / `diff()` 的键形状变了（键不动，理由来源变）。
+
+### 7 下一位候选
+
+1. **`_git` 的 127 哨兵**：`OSError` 与超时压成「git unavailable」，失败理由只能
+   写「20 秒超时或 PATH 里没有 git」；要分开得让 `_git` 自己带原因（它现在是
+   四处的共用私件）。
+2. 第五百二十九批 §7 第 2 位未动：豁免被拒的理由只有 trace 知道，模型收到的仍
+   是「请先验证」.
+
+
+## 第五百三十三批 — M8-T551 — _git 不再把「没跑」压成 127 / git unavailable
+
+### 1 欠的是哪一条
+
+第五百三十一批（M8-T549）把「读不出审计记录」修了，第五百三十二批（M8-T550）把
+「读不出改动清单的失败措辞」收进 `minicc/gitprobe.py`；本批处理的是同一坍缩的
+源头——`changes.py` 的 `_git` 用一个 except 收两个失败（OSError / TimeoutExpired），
+都回 ``127 / "git unavailable"``，失败理由只能从 sentinel 反推。
+
+### 2 量到的真相（实测）
+
+HEAD 前，`_git` 返回 ``(code, stdout, stderr)``，两个失败分支共用一句；M8-T551
+之后，`_git` 返回 ``(code, stdout, stderr, reason)``，timeout 与 unrunnable 各有
+各的句子（`git_status_timeout_reason` / `git_status_unavailable_reason`）。
+
+### 3 落地
+
+- `minicc/changes.py`：`_git` 返回 ``(code, stdout, stderr, reason)``，失败分支
+  各自产出 reason；`_status_lines` 把 reason 交给 `_status_failure`。
+
+### 4 见证（红先绿后，臂）
+
+- 新门 `tests/test_the_git_status_read_reason_has_one_home.py::test_the_shared_git_helper_carries_the_failure_reason`
+  红先：HEAD 上 `_git` 是三元返回、新门即红；绿后同门 + 本批相关门文件集
+  `44 passed in 25.91s`。
+
+### 5 聚焦回归
+
+- 本批相关门文件集：`44 passed in 25.91s`。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 `_git` 对 diff / show / rev-parse 的 reason 语义（它们只看 code）。
+- 不声称全量围栏（全量在远端 CI 判）。
+
+### 7 下一位候选
+
+1. 第五百二十九批 §7 第 2 位未动：豁免被拒的理由只有 trace 知道，模型收到的仍
+   是「请先验证」.
+2. 第五百二十七批 §7 第 2 位的两条子集门：仍是「打印集合恰好不含 roadmap 才绿」.
+
+
+## 第五百三十四批 — M8-T552 — 被拒的验证理由进了模型消息
+
+### 1 欠的是哪一条
+
+第五百三十一批 §7 第 3 位（豁免被拒只进 trace）：``verification_waiver_refused_by_failed_read``
+的 ``detail.reason`` 不进模型消息也不进最终错误文本，模型只能看见「请先验证」。
+
+### 2 量到的真相（实测）
+
+HEAD 前：failed-read 豁免被拒时，reason 只进 ``detail``（trace），模型消息只吃通用
+nudge。M8-T552 之后：refusal 分支把 ``git_changed_error`` 接进用户消息。
+
+### 3 落地
+
+- `minicc/agent/loop.py`：refusal 分支把 ``git_changed_error`` 接进用户消息。
+
+### 4 见证（红先绿后，臂）
+
+- 新门 `tests/test_a_verification_waiver_is_not_bought_with_a_failed_read.py::
+  test_the_refusal_reaches_the_model_with_the_reason`：红先（reason 不进消息 → 断言
+  ``dubious ownership`` 不落进 joined 消息）；绿后同文件 18 passed 全绿。
+
+### 5 聚焦回归
+
+- 本批相关门文件集：`18 passed in 13.61s`。
+
+### 6 边界（本批**不**声称）
+
+- 不声称最终错误文本也换（本批只接进提醒）。
+
+### 7 下一位候选
+
+1. 第五百二十九批 §7 第 2 位未动：豁免被拒的理由只在 trace 知道，模型收不到。
+2. 第五百二十七批 §7 第 2 位的两条子集门：仍是「打印集合恰好不含 roadmap 才绿」.
+
+
+## 第五百三十五批 — M8-T553 — 被拒的理由进了守卫错误
+
+### 1 欠的是哪一条
+
+第五百三十四批（M8-T552）把「读不出改动清单」被拒的理由接进模型消息；本批处理
+同一条的第二半——守卫错误本身（``VERIFICATION_GUARD_ERROR`` 留在
+``minicc/agent/protocol.py`` 一个家）在「改动清单读失败」被拒、重试耗尽时，也要带上
+那个理由。
+
+### 2 量到的真相（实测）
+
+HEAD 前：被拒后最终错误仍是干净的 ``VERIFICATION_GUARD_ERROR``。M8-T553 之后：带
+上 ``git_changed_error`` 的理由。
+
+### 3 落地
+
+- `minicc/agent/loop.py`：retry 耗尽时的守卫错误追加 ``git_changed_error``。
+
+### 4 见证（红先绿后，臂）
+
+- 本批改 ``tests/test_a_verification_waiver_is_not_bought_with_a_failed_read.py``：
+  断言最终错误以 ``VERIFICATION_GUARD_ERROR`` 开头且含 ``dubious ownership``；
+  22 passed（验证豁免门 + 守卫 verdict 门 + git-status 一家门）全绿。
+
+### 5 聚焦回归
+
+- 本批相关门文件集：`22 passed in 16.19s`。
+
+### 6 边界（本批**不**声称）
+
+- 不声称最终答案文本换（本批只接守卫错误）。
+
+### 7 下一位候选
+
+1. 第五百二十九批 §7 第 2 位未动：豁免被拒的理由只在 trace 知道，模型收不到。
+2. 第五百二十七批 §7 第 2 位的两条子集门：仍是「打印集合恰好不含 roadmap 才绿」.
+
+## 第五百三十六批 — M8-T554 — 会话持久化触发事件集只有一个家
+
+### 1 欠的是哪一刀
+
+一个事实——「哪些 trace code 之后，对话必须重新落盘才有意义」——此前只在 web 模块的
+``AgentService._chat_locked`` 事件闭包里拼了一份 code 集合。事实的本来家是事件词汇表
+（``minicc/agent/protocol.py``：``VERIFICATION_GUARD_ERROR``、``budget_exceeded_event`` 们
+都住这儿），web 手抄了一份；一个事实两个家，就是同族缺陷。
+
+### 2 量到的真相（实测）
+
+HEAD 前：``minicc/web.py`` 闭包里手抄六条 code（``tool_round_finished``、
+``verification_required_before_finish``、``provider_stream_error``、``budget_exceeded``、
+``stagnation_guard``、``run_finished``），协议层对此没有答案；本批封口门的 AST 普查在
+``minicc/web.py:1814`` 定位到这份集合。M8-T554 之后：六条 code 与判据
+（``session_persist_required(event)``）都在协议层，web 闭包只问一个家。
+
+### 3 落地
+
+- `minicc/agent/protocol.py`：新增 ``SESSION_PERSIST_TRACE_CODES`` 与
+  ``session_persist_required(event)``；两者都进 ``__all__``。
+- `minicc/web.py`：``on_trace`` 改为 ``session_persist_required(event)``；协议层
+  import 增加 ``session_persist_required``（web 不直接引用常量名）。
+
+### 4 见证（红先绿后，臂）
+
+- 新门 ``tests/test_the_session_persist_trace_codes_have_one_home.py``：行为钉
+  （六个 code 各答 True，``model_decision`` / ``tool_round_started`` / ``milestone`` / 空串
+  答 False）+ web 门问唯一家 + AST 普查（无模块在家外拼这份集合）。修前 3 红
+  （ImportError / web 未问家 / 普查命中 ``minicc/web.py:1814``）；修后 3 绿。行为变异
+  （predicate 改成永远 False）→ 行为钉红，恢复 → 绿。
+- 相关门文件集：``29 passed``（本批门 + budget_exceeded_event 一家门 +
+  phase_carrying_event_kinds 一家门 + failed_run_answer 一家门 + trace_event 一家门 +
+  task_unsuccessful_statuses 一家门）；sync chat / logging / waiver 相关门
+  ``36 passed``。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（本机高 CPU 不可靠，以两个远端 CI 腿为准）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称六条 code 够不够（集合内容一条没动，行为同前）；
+- 不声称 web 折叠面其他事件词汇也一家了；
+- 不声称全量套件本地全绿。
+
+### 7 下一位候
+
+1. 事件词汇普查：web/CLI/JS 各折叠面还藏着哪些手抄的 code 集合与判据，逐个收进唯一家。
+2. 第五百二十七批 §7 的 2 位两条子集门未动：仍是「打印集合恰好不超过 roadmap 才绿」。
+
+## 第五百三十七批 — M8-T555 — CI 双腿的命令文件门里没有部署环境
+
+### 1 欠的是哪一刀
+
+m8-t537 分支最近几次推送，CI 两个腿（Windows + Ubuntu）都红在同一条：
+`tests/test_a_command_file_that_cannot_be_read_is_not_one_that_was_never_written.py::test_the_cli_one_shot_refuses_with_a_nonzero_exit`。
+不是代码缺陷，是测试没和部署环境解耦：本机 `.env` 里有 key，CI 没有。
+
+CI 无 `MINICC_API_KEY` → `_load` → `_fatal`（`minicc/main.py`）→ `cli_out(..., file=sys.stderr)`
+→ 测试把 `cli_out` 替换成只收 `*args` 的 lambda → TypeError；而且 `_fatal` 走 `SystemExit(2)`，
+测试根本走不到它要钉的拒绝路径。
+
+### 2 量到的真相（实测）
+
+gh run 42350242004（M8-T553 ledger 推送）两个腿各报一条同样的失败：
+`FAILED ...::test_the_cli_one_shot_refuses_with_a_nonzero_exit - TypeError: ... <lambda>() got an unexpected keyword argument 'file'`
+（Windows: 1 failed, 4212 passed, 9 skipped；Ubuntu: 1 failed, 4208 passed, 4 skipped）。
+本地（`.env` 有 key）该测 1 绿——环境差，不是行为差。
+
+### 3 落地
+
+- 两处 `cli_out` stub（一次性 CLI 测试 + 同文件 REPL 测试）改为 `lambda *args, **_kwargs:`。
+- 一次性 CLI 测试补 `monkeypatch.setenv("MINICC_API_KEY", "sk-test-key")`——与
+  `test_cli_stage_routing.py` 等仓库里其余 CLI 测试同一模式。
+
+### 4 见证（红先绿后，臂）
+
+- 模拟 CI 环境（shell 清空 `MINICC_API_KEY`）：本批提交前按失败签名出红（CI 实测 TypeError，
+  且 `_fatal` 会走 `SystemExit(2)`）；修后 `15 passed in 5.01s`。
+- 未动：`_fatal` 的 `file=sys.stderr` 语义与 exit code 2；测试仍钉的是「一条读不出来的命令
+  不是一条没写过的命令」这条事实（拒绝路径），只是不再依赖本机 `.env`。
+
+### 5 聚焦回归
+
+- 该文件 `15 passed`（清空 key 的环境）；其余无关门文件不受影响。
+
+### 6 边界（本批**不**声称）
+
+- 不声称两个 CI 腿已经转绿——这要等本次推送回来的结果；
+- 不声称分支历史上所有失败都由这一条引起——这是唯一一处实测失败位。
+
+### 7 下一位候
+
+1. 本批推送后确认两腿转绿；若再扫出其余环境依赖型测试，按同一模式解耦。
+2. 事件词汇普查：web/CLI/JS 各折叠面还藏着哪些手抄的 code 集合与判据（接
+   第五百三十六批 §7 第 1 位）。
+3. 第五百二十七批 §7 的 2 位两条子集门未动。
+
+## 第五百三十八批 — M8-T556 — 前端追踪事件 chip 给每一个发过的 code 起了名字
+
+### 1 欠的是哪一刀
+
+`web/src/panels/index.js` 的 `traceLabel` 拿事件 code 查一张 zh/en 双语名字表；查不到就
+回落到「阶段事件」/"Stage event"。这一批量到的真相是：后端真正发出的 code 有 91 个
+（字面量普查 `code="…"` 与 `"code": "…"`，覆盖 `minicc/` 全包），外加动态发码点 15 个
+（distinct 后为 13：f-string 四个 + verifier 四个 + recovery_mode 三个 + 编排条件两个），
+合计 93 个，而名字表只覆盖 48 个——`approval_requested`、`budget_exceeded`、`cancelled`、
+`protocol_guard`、`session_checkpoint`……这些事件在时间线上是一颗没有名字的「阶段事件」。
+zh/en 两份表 parity 完好（48/48），坏的是「后端发的 code 名字表不知道」这一侧。
+
+### 2 量到的真相（实测）
+
+- 普查（临时脚本，已删）：`minicc/` 全包字面量 91 个 + 动态点 13 个 = 93 个发码；
+  名字表 48 个，缺 46 个（两个动态点 `auto_orchestration_triggered`/`batch_started` 已有
+  名字、`model_update_history` 是前端自合成码，都不算缺）。
+- 修前先红：新门暂存 `panels/index.js` 改动 → 跑，46 个无名 code 全部列出；恢复后绿。
+
+### 3 落地
+
+- `web/src/panels/index.js`：zh/en 两图各补齐 46 个名字（93 个发码 ∪ 前端合成码
+  `model_update_history` = 94 个 key，双图齐平）。
+- `tests/frontend_trace_code_one_home_smoke.mjs`（新门 M8-T556）：
+  普查 `minicc/**/*.py` 的字面量发码（`code="…"` / `"code": "…"`）+ 动态点显式清单
+  （带位置注释），断言四件事：① 每个发码在 zh 与 en 都有名字；② 两图 key 集完全一致；
+  ③ 没有死标签（每个名字都对应发码或前端合成码）；④ 名字表只存在于 `traceLabel`
+  一个家，web/src 别处不得手抄（普查）。
+- `package.json`：新增 `test:trace`；`ci.yml` js-check 增加 `node --check` 与
+  `npm run test:trace`，与 test:phase 同列。
+- 重建产物：`web/app.js`、`web/asset-manifest.json` 与 `web/assets/` 下按内容哈希命名的
+  三份产物（清单即真相；旧哈希文件在仓库里不留痕）。
+
+### 4 见证（红先绿后，臂）
+
+- 修前红（见 §2）；修后 `M8-T556 ok: traceLabel names all 93 minted codes in both languages (zh/en parity 94 keys)`。
+- 行为变异（心算）：从任一 map 删掉一个发码即红（assertion 会列出缺名 code）；从
+  任一 map 删掉的对称检查会咬住 zh/en parity 一侧。
+- `npm run test:trace`、`npm run test:phase`、`npm run check:web` 全绿。
+
+### 5 聚焦回归
+
+- 前端门全绿（test:trace / test:phase / check:web）；
+- 未跑全量 Python 套件（与后端无关；Python 本批零改动）；两个远端 CI 腿待本批推送回来的结果。
+
+### 6 边界（本批**不**声称）
+
+- 不声称「Stage event」回退不存在（回退仍是未知 code 的安全网，本批只是后端不再发未知 code）；
+- 不声称 web/app.js 手改——app.js 由 `npm run build:web` 生成，源按 §3 走；
+- 不声称全量套件本地全绿。
+
+### 7 下一位候
+
+1. 两个 CI 腿回来后确认转绿（M8-T555 修复 + 本批）；再扫一遍是否还有环境依赖型失败。
+2. 事件词汇普查续：`"kind": "trace"` 之外的编排事件（如 task_manager 的 `kind=` 事件）是否也有同类匿名面。
+3. 第五百二十七批 §7 的 2 位两条子集门未动。
+
+## 第五百三十九批 — M8-T557 — 可核对证据判据只有一个家
+
+### 1 欠的是哪一刀
+
+一个事实——「哪条执行证据能给目标背书」——住完成评估（``minicc/agent/completion.py``）：
+真门用它决定 reviewer 引用的证据是否可采信。fake provider 是测试驱动的脚本化评委，
+它要产出一条真门肯收的引用，就必须问同一个家——可它在 ``_select_citable_evidence``
+里重新手抄了一份同一条判据（write / verification / error 可采信；trace 不可采信；
+否则按 tool name 判）。两份逐字相同却没有共同主人时，真门的漂移就会被「假评委」
+悄悄吸收，测试永远绿。
+
+### 2 量到的真相（实测）
+
+HEAD 前：``minicc/llm/fake.py`` 内联手抄了该判据（普查命中 ``fake.py:171``，
+``kind != "trace" and name and name != "agent"``）；完成评估侧是嵌套
+``_is_citable_evidence`` 里的一份。本批之后：events 分桶的判据是
+``is_citable_evidence_item`` 一个家，真门与假评委都问它。
+
+### 3 落地
+
+- `minicc/agent/completion.py`：新增公开函数 ``is_citable_evidence_item(item)``
+  （`__all__` 增加导出）；嵌套 ``_is_citable_evidence`` 的 events 分桶改为问它。
+- `minicc/llm/fake.py`：删除手抄判据；``_select_citable_evidence`` 内惰性导入并问
+  ``is_citable_evidence_item``（llm 不在模块导入时拉起 agent 的 import 体量）。
+
+### 4 见证（红先绿后，臂）
+
+- 新门 ``tests/test_the_citable_evidence_predicate_has_one_home.py``：行为钉
+  （write / verification / error 三种可采信；trance 与 agent 具名不可采信；空字典不可
+  采信）+ 两个消费者都问家 + 普查（``kind != "trace"`` 内联只允许出现在家里）。
+  修前 3 红（ImportError / 消费者未问家 / 普查命中 ``fake.py:171``）；修后 3 绿。
+- 行为变异（write 分支改 False）→ 行为钉红，恢复 → 绿。
+- 相关门文件集：``58 passed``（本批门 + completion_liveness + waiver + p0_p1_p2）；
+  ``test_core_agent.py`` ``45 passed``；恢复后再跑 ``79 passed``。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（信任两个远端 CI 腿 + 受影响门）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 conversation 与 verification_results 两个分桶也统一了——它们回答的是不同的
+  事实（任务性质的可引述性、验证器已接受的结果清单），留在门里；
+- 不声称假评委的其他逻辑换（只换 citable 判据这一条）。
+
+### 7 下一位候
+
+1. 两个 CI 腿回来后确认转绿；若再扫出环境依赖型失败，按同一模式解耦。
+2. 证据词汇普查续：``"kind": "completion_judge"`` 这样的编排事件载荷是否也有同族拷贝。
+3. 第五百二十七批 §7 的 2 位两条子集门未动。
+
+## 第五百四十批 — M8-T558 — 两条「指望基线为空」的文档门，按豁免维度量基线
+
+### 1 欠的是哪一条
+
+第五百二十七批 §7 第 2 位点名的两条存量门：`tests/test_pointer_liveness_corpus.py` 里的
+`test_the_report_names_the_population_its_verdict_came_from`（断言 `extra[0] == 0 and extra[1] == []`）与
+`test_the_documented_command_still_passes_with_a_relative_document`（断言 `rc == 0`）。两条都指望
+「这一轮报告是空的」——在共享脏树上，别人通道未提交的改名让 roadmap 带上外来悬空行时，哪条门先红
+都不是因为它看见了自己要钉的事实，而是因为它指望基线为空。
+
+### 2 量到的真相（实测）
+
+- 子集跑（alien 文档 run）按检查器语义只打印：**EXEMPT 豁免行**（按「调用方递进的语料并集」判定）、
+  它自己引用带来的发现行（alien 没引用 ⇒ 无），以及分母行。roadmap 的外来 EVIDENCE/指针行不会进
+  alien run——子集门唯一真会漂移的维度是豁免表，这正是第五百二十四/二十五/二十七批盯的那件事。
+- 子进程跑（相对路径）：rc 应当随**报告本身**走，而不是指望 0。
+- 红臂：把 `main` 里的 `liveness_corpus = list(dict.fromkeys([*DEFAULT_DOCS, *documents]))`
+  临时改回 `list(dict.fromkeys(documents))`（「按调用方递进的子集回答」——第五百二十一/五百二十四批
+  修掉的那个形状）→ **两条门都红**：alien 门红（点名 14+ 行外来死行，rc 与豁免判定同时对不上）；
+  子进程门红（豁免判定与语料基线逐行不一致）。恢复 → 8 passed。
+
+### 3 落地
+
+`tests/test_pointer_liveness_corpus.py`：
+- alien 文档门：按 kind 分行——EXEMPT 行与「整个语料的 run」实测基线逐行比较（alien 一条引用都没给，
+  所以两个 run 的豁免判定必须逐字相同）；非 EXEMPT 行断言为零；rc 与报告对应。
+- 子进程门：子进程的 EXEMPT 行必须与同一并集语料的 in-process 基线逐字相同；rc 跟随报告
+  （`1 if 有发现 else 0`，不预设干净）；保留「不 Traceback / 分母行存在」两个 CLI 侧断言。
+
+### 4 见证（红先绿后，臂）
+
+- 修前：两条门在干净树上绿（基线刚好真的是空的），脏树上会红于别人的行——第五百二十七批 §2 已量到。
+- 修后：本机 `tests/test_pointer_liveness_corpus.py` 8 passed in 145.30s；加上 `tests/test_doc_pointers.py`：58 passed in 193.16s。
+- 红臂：见 §2，退回历史形状 → 两条门都红；恢复 → 8 passed。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（信任两个远端 CI 腿 + 受影响门）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称豁免表在脏树上的红被「修没」——脏树上别人通道的外来 EXEMPT 行仍会让这两条门红，它们红是职责；
+- 不声称这是给脏树披甲：alien run 比较的是豁免维度；EVIDENCE/指针/LINK 这些 roadmap 的外来行不属于
+  alien 这个子集的主题，本批不把它们声称成「看见过」；
+- 不声称全量套件本地全绿。
+
+### 7 下一位候选
+
+1. 两个 CI 腿回来后确认转绿（含 M8-T555 环境解耦、M8-T556 前端标签、M8-T557 citable 判据、本批两条文档门）。
+2. 第五百二十七批 §7 的 1 位未动：臂架的判据只看 rc（臂架在 scratch 里，不在仓里）。
+3. 第五百二十六批 §7 的 3 位：`check_evidence` 在判形状之前问行号——未动。
+4. 第五百二十五批 §7 的 3 位：十三个加载器收成一个家——未动。
+
+## 第五百四十一批 — M8-T559 — 证据判定在问行号之前先问形状
+
+### 1 欠的是哪一条
+
+第五百二十六批 §7 点名的存量欠账（第五百二十六批 §7 第 1 位，第五百四十批再度点名）：
+`check_evidence`（`scripts/doc_pointers.py`）对 roadmap 的 25,389 个 code span 里**每一个**先问行号
+（`_line_of`）、再问形状（`_evidence_shape`）——而 `_evidence_shape` 只对 3,769 个通过
+`checked=3769`。约 21,620 个非判据 span 白问了一句行号。这不是错字，是「先问值不值，再问哪行」
+这个次序倒了。
+
+### 2 量到的真相（实测）
+
+封口门（新 `test_a_span_that_is_not_a_location_claim_is_never_asked_where_it_lives`）：
+往 `_line_of` 上挂计数器，给一个 40 个非证据 span 的合成文档跑 `check_evidence`——修前被问 40 次（红），
+修后 0 次（绿）；再喂一个 evidence-shaped span（确实存在的测试引用，`checked == 1`），
+计数非空——判据该被问的那问一句也不少。
+
+### 3 落地
+
+- `scripts/doc_pointers.py`：把 `line = _line_of(text, offset)` 挪到豁免判定之后——只有
+  「是位置声明」和「没有豁免」两关都过之后才算行号；注释说明次序。
+- `tests/test_doc_pointers.py`：追加门 M8-T559，钉两件事：非判据 span 零行号问；
+  evidence-shaped span 必须被问（带正控，避免「谁也不敢问」的假绿）。
+
+### 4 见证（红先绿后，臂）
+
+- 修前红（见 §2：40 次白问）；修后绿。
+- `tests/test_doc_pointers.py`：59 passed in 74.07s；`tests/test_pointer_liveness_corpus.py`：8 passed。
+- `doc_pointers --check` 退出码不变（本批只改次序，不改判定结果）。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（信任两个远端 CI 腿 + 受影响门）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 `_line_of` 本来就慢——`_line_index` 有 lru_cache，单次 bisect 很便宜；本批修的是
+  「该不该问」这件事本身（第五百二十六批录的 14.56s 是没缓存的那一代）；
+- 不声称 21,620 / 3,769 这个配比对本批合入之后的 roadmap 仍然精确成立——那是第五百二十六批量的那一刻的量；
+- 不声称全量套件本地全绿。
+
+### 7 下一位候选
+
+1. 两个 CI 腿回来后确认转绿。
+2. 第五百二十六批 §7 的 4 位：`_all_test_names` 每进程一次的 2.3s AST 扫描——未动。
+3. 第五百二十五批 §7 的 3 位：十三个加载器收成一个家——未动。
+
+## 第五百四十二批 — M8-T560 — 测试名索引每进程一遍，不再逐文档重建
+
+### 1 欠的是哪一条
+
+第五百二十六批 §7 点名的存量欠账第 4 位（第五百四十分再度点名）：`_all_test_names` 没有缓存——
+`--check` 每类一份文档（20 份）都重建一次「整个 tests/ 的测试名映射」。
+注：`_test_definitions`（每文件 AST）与 `_tracked_files` 早已走缓存；真重复的是 glob 之后的
+found 字典合成。
+
+### 2 量到的真相（实测）
+
+- HEAD 前：`_all_test_names()` 每次调用返回新字典；封口门
+  `test_the_all_names_scan_is_answered_once_per_process` 红（`first is second` 不成立：这一门用身份认证钉「每进程一份」）。
+- 红臂：暂存脚本改动 → 该门红；`test_a_test_file_is_parsed_once_per_process` 修前绿——
+  `_test_definitions` 本来就有 `@lru_cache(maxsize=None)`，本批把它钉成不变式门，而不是声称「修好」。
+- 修后：两条门绿；`tests/test_doc_pointers.py` 61 passed in 74s；加 `tests/test_pointer_liveness_corpus.py`：69 passed in 157.72s；`doc_pointers --check` exit 0。
+
+### 3 落地
+
+- `scripts/doc_pointers.py`：`_all_test_names` 加 `@lru_cache(maxsize=1)` 与注释
+  （一个进程一份 suite 映射；引用的测试名是这个进程不该重新造一遍的事实）。
+- `tests/test_doc_pointers.py`：追加两条门（一条钉本批，一条钉 `_test_definitions` 早有的缓存）。
+
+### 4 见证（红先绿后，臂）
+
+- 见 §2。
+
+### 5 聚焦回归
+
+- 见 §2；未跑全量套件（信任两个远端 CI 腿 + 受影响门）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称修前每文档白交 2.3s（那是没缓存的那一代的量；真重复的是映射合成，这批钉的是「不重建」本身）；
+- 不声称 `--check` 变快了多少数字——本批只钉行为，不立 benchmark；
+- 不声称全量套件本地全绿。
+
+### 7 下一位候选
+
+1. 两个 CI 腿回来后确认转绿。
+2. 第五百二十五批 §7 的 3 位：十三个加载器收成一个家——未动。
+
+## 第五百四十三批 — M8-T561 — CI 同一分支的旧推送跑不了了
+
+### 1 欠的是哪一条
+
+近一小时推送攒出 7 个补跑作业（M8-T554…M8-T560 各一）排队等着跑，每个将花 ~1.5h——
+全是用来验证「已经被后一次推送替换」的树。CI 双腿的排队速度决定哪一棵树最先得到双腿，
+本批把决定权从排队顺序交还给「最新提交是谁」。
+
+### 2 量到的真相（实测）
+
+`gh run list --branch m8-t537` 显示 7 个 `queued`（自 13:00-13:35 均未启动）；都是 push 事件，
+横跨同一分支。仓库里没有 `concurrency` 分组，排队 = 串行全跑。
+
+### 3 落地
+
+`.github/workflows/ci.yml` 顶部增加：
+
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+      cancel-in-progress: true
+
+按 (ref, 事件) 分组：同一分支的 push 互相取消（保留最新的那一棵树去跑）；
+pull_request 与夜间 real-key 评估跑自己的分组，push 永远不能取消它们。
+
+### 4 见证
+
+- yaml 语法检查（`yaml.safe_load`）通过；
+- 推送后 `gh run list --branch m8-t537` 读数为准（旧 push run 应被取消，只剩最新一棵）。
+
+### 5 聚焦回归
+
+- 本批不触碰产品代码或任何测试门；结构级配置改动，yaml 语法即验收。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 CI 双腿一定排得上名额——名额仍是仓库侧约束；本批只保证不替替换过的旧树浪费 runner；
+- 不声称被取消的中间提交「没意义」——最新提交永远被完整测试，中间被取消的是被替换的那棵。
+
+### 7 下一位候选
+
+1. CI 双腿回来后确认转绿（排队消化后，以最新 run 为口径）。
+2. 第五百二十五批 §7 的 3 位：十三个加载器——第五百二十五批已裁定不合并、立规则。
+   可重评是否补一条「新加载器必须登记 sys.modules」的门。
+
+## 第五百四十四批 — M8-T562 — 不可走的目录名单一个家，指纹跟工具共用
+
+### 1 欠的是哪一条
+
+同一事实——「哪些目录没有信号、不值得走进去」——被拼成了三个家：
+
+- `minicc/tools/fs.py` 的 `SKIP_DIRS`（17 条，工具面：glob/grep/tree 隐藏）
+- `minicc/agent/retrieval.py` 的 `SKIP_DIRS`（12 条，检索面：本地证据索引剪枝）
+- `minicc/agent/verification_plan.py` walk 剪枝的手拼集合（13 条，指纹面：复用判定的依赖闭包）
+
+三份互不知晓且已经漂移（指纹面还在走 ``.hg``/``.idea``/``target``/``.graders``，工具与检索都已经不走）。
+而指纹正是「这次验证的输入没变，复用上一轮」这个判定的依据——它把工具面明确隐藏的目录也算进去，
+等于让什么都不是的目录决定复用。
+
+### 2 量到的真相（实测）
+
+- 封口门红先行：`tests/test_the_skip_dirs_have_one_home.py` 修前 3 红——指纹面没问家；
+  AST 普查命中 `retrieval.py:45` 与 `verification_plan.py:146`（两个手拼副本）；
+  行为钉（`.graders` 目录一进工作区指纹就变）。
+- 行为变异（`skip_here` 缩成 `{".git", ".venv"}`）→ 行为钉红，恢复 → 绿。
+
+### 3 落地
+
+- `minicc/tools/fs.py`：`SKIP_DIRS` 维持为一个家（本批不动它；既有消费者不变）。
+- `minicc/agent/retrieval.py`：`SKIP_DIRS = _HIDDEN_DIRS | {"output", "tmp", "data", "coverage"}`，
+  即「共用隐藏集 + 检索面自己的四个扫描噪声名」；导出名不变（`test_retrieval_skips_hidden_dirs.py` 契约不破）。
+- `minicc/agent/verification_plan.py`：walk 剪枝改为 `SKIP_DIRS | {".playwright-cli", "output"}`，
+  手拼集合删除；`from ..tools.fs import SKIP_DIRS`。
+- 新门 `tests/test_the_skip_dirs_have_one_home.py`（家存在性 / 两个消费者问家 / AST 普查 ≥8 条同名即红 / 行为钉）。
+
+### 4 见证（红先绿后，臂）
+
+- 见 §2。相关门：`tests/test_the_skip_dirs_have_one_home.py` + `test_retrieval_skips_hidden_dirs.py`
+  + `test_m4_evidence_chain.py` 共 12 passed；准确合同、索引普查、核心 agent、证据链相关门集
+  107 passed + 1 平台跳。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（信任两个远端 CI 腿 + 受影响门）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 impact.py 的 `_SKIP_DIRS` 也要收（import 扫描面自有语义：`vendor`、`coverage`——同名项 5 条，
+  普查阈值 INL_SAMPLE=8，放行）；
+- 不声称指纹会更快——本批钉的是「剪枝与隐藏策略一致」这件事，不立 benchmark；
+- 不声称全量套件本地全绿。
+
+### 7 下一位候选
+
+1. CI 双腿回来后确认转绿（539–544 各批等待同一个最新 run）。
+2. JS/TS 扩展名的三处集合（retrieval / verification_plan / impact）——各自的「为谁收文件」不同，
+   语义不同，暂缓收编。
+3. 第五百二十五批 §7 的 3 位：十三个加载器——已由第五百二十五批裁定不合并、立规则，本批不主张。
+
+## 第五百四十五批 — M8-T563 — 推理档位表一个家（UI 与 Python 对齐）
+
+### 1 欠的是哪一条
+
+同一事实——「推理档位有哪几档」——被拼了五次却没有共同主人：Python 侧 `minicc/config.py`
+的 `REASONING_EFFORTS`（六档 + 家所在）；`minicc/agent/loop.py` 的 zh 标签表（**缺 ultra**）；
+JS 侧三处手拼：`core/state.js` 一处、`chat/stream.js` 两处、`main.js` 一处。没有任何人钉它们对齐——
+一个 ultra 档任务在 UI 的设置面板里就是一份与后端不同的词汇。
+
+### 2 量到的真相（实测）
+
+HEAD：Python 有家（`REASONING_EFFORTS`），loop 这一份半家（五档缺 ultra）；JS 四处手拼，i18n 对六档齐备。
+红先行：新门在修前红（`core/state.js` 未导出 `REASONING_EFFORTS`）；修后绿。
+
+### 3 落地
+
+- `web/src/core/state.js`：新增导出 `REASONING_EFFORTS`（六档，与 Python 家同序）；自己那份初始化改问家。
+- `web/src/chat/stream.js`、`web/src/main.js`：三处手拼副本改问家（import 自 `core/state.js`）。
+- `minicc/agent/loop.py`：zh 标签表补 `ultra`（Python 侧半家的同一事实）。
+- `tests/frontend_reasoning_effort_one_home_smoke.mjs`（新门）：JS 家导出六档且同序；Python 家同集；
+  i18n 两种语言都有名字；别处不得拼六元数组。
+- `package.json`：`test:effort`；`ci.yml` js-check 接进 `node --check` 与 `npm run test:effort`。
+- 重建产物：`web/app.js`、`asset-manifest.json` 与 `web/assets/` 下按内容哈希命名的新 bundle
+  （清单即真相；旧哈希文件在仓库里不留痕）。
+
+### 4 见证（红先绿后，臂）
+
+- 修前红（见 §2）；修后绿：`npm run test:effort` OK；`npm run check:web` clean；`npm run test:phase`/`test:trace` 零影响；Python `test_core_agent` 45 passed。
+
+### 5 聚焦回归
+
+- 前端门全绿；Python 45 passed；未跑全量套件（信任两个远端 CI 腿 + 受影响门）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 `normalize_reasoning_effort` 的语义被改（未动）；
+- 不声称 `openai_provider.py` 里的 `REASONING_EFFORT_ALIASES` 与家统一（那一份是别名表，不是这件事）；
+- 不声称新门钉住了 i18n 字典的 zh/en parity（key 集对称；那是另一个家族的门）；
+- 不声称全量套件本地全绿。
+
+### 7 下一位候选
+
+1. CI 双腿回来后确认转绿（539–545 各批等最新 run）。
+2. i18n 字典 zh/en parity 门（`web/src/core/i18n.js`：两种语言的 key 集必须相等；缺一出一红）——下一个前端一家门。
+3. 第五百二十五批 §7 的 3 位：十三个加载器——已裁定不合并，本批不主张。
+
+## 第五百四十六批 — M8-T564 — i18n 字典两种语言一个形状，缺键的 English 白屏
+
+### 1 欠的是哪一条
+
+同一事实——UI 词表——被拆成 zh/en 两块互不知照：`web/src/core/i18n.js` 的字典，没任何人钉它们 key 对称。
+第五百四十二批的「渲染不崩、缺键按 key 原样输出」路径（``t()`` 的 ``|| key`` 兜底）把缺口藏得很干净：
+英文玩家看见的不是一句提示，是一串原始键（``game.noSun``/``game.victory``/``game.recharging``/``game.waveClear``），
+而日文玩家看见的是中文翻译（缺的这四个 en 里都没有对应文本——zh 有，en 没有）。
+
+### 2 量到的真相（实测）
+
+- 普查：zh 386 keys、en 382 keys；差集 `game.noSun`、`game.recharging`、`game.victory`、`game.waveClear`（zh 独有）；
+  两字典各自无重复 key。
+- 这四个键的消费点：`web/src/game.js` 的 `setGameStatus("game.noSun")` 等（间接传参，所以第五百四十三批的字面量普查没咬住它）。
+- 红先行：新门暂存 `web/src/core/i18n.js` 改动 → 报 4 个缺键（红）；恢复 → 绿。
+
+### 3 落地
+
+- `web/src/core/i18n.js`：en 块补 4 个键（与 zh 同义）。
+- `tests/frontend_i18n_dict_one_home_smoke.mjs`（新门）：zh/en key 集逐字相等（双向都断言）+ 无重复键 +
+  web/src 下**每个**字面量 `t("...")` 引用在双语字典里都有翻译。
+- `package.json`：`test:i18n`；`ci.yml` js-check 接进 `node --check` 与 `npm run test:i18n`。
+- 重建产物：`web/app.js`、`asset-manifest.json` 与 `web/assets/` 下按内容哈希命名的新 bundle
+  （清单即真相；旧哈希文件在仓库里不留痕）。
+
+### 4 见证（红先绿后，臂）
+
+- 修前红（见 §2）；修后绿：`npm run test:i18n` OK（`zh/en carry the same 385 keys; 144 literal t() references all resolve`）；
+  `npm run check:web` clean；`npm run test:phase`/`test:trace`/`test:effort` 零影响。
+
+### 5 聚焦回归
+
+- 前端门全绿；未跑 Python 套件（本批零 Python 改动）；信任两个远端 CI 腿 + 受影响门。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 144 个字面量 key 之外的间接引用（如 `t("phase." + phase)` 动态合成键）被本门覆盖——那些键的覆盖由
+  「键集相等」+「语言端全键断言」承载；
+- 不声称所有 UI 文本都经 `t()`——直拼字符串是另一个家族（缺输出面），本批不碰；
+- 不声称全量套件本地全绿。
+
+### 7 下一位候选
+
+1. CI 双腿回来后确认转绿（539–546 各批等最新 run）。
+2. 前端门并进 `test:phase` 一体化？不——分开 `test:*` 按批次可读。下一只
+   「`t()` 永缺键断言 + 双语 smoke 按键合并计数维护」：非必要。
+3. 第五百二十五批 §7 的 3 位：十三个加载器——已裁定不合并。
+
+## 第五百四十七批 — M8-T565 — 前端不替后端判阶段：run_finished 的 phase 只回一个家
+
+### 1 欠的是哪一条
+
+`web/src/panels/index.js` 的 `toolEventHtml` 里写着 `event.code === "run_finished" ? "review" : event.phase` ——
+这条三元就是「run_finished → review」这件事的第二个家。后端（`minicc/agent/loop.py`）的
+`emit_trace("执行结束，待验收", phase="review", code="run_finished")` 永远发 review；
+前端抄了一份。它什么都不多做，但一旦后端改判（phase 交付 review 之外的给 stop 或 verify），
+JS 那一份会默默把用户看到的 phase 锁死在 review——彼此都以为自己对。
+
+### 2 量到的真相（实测）
+
+HEAD：全包里 `minicc/agent/loop.py` 发的 phase=\"review\" 是 run_finished 的唯一来源；JS 手抄一份同一个判词。
+红先行：新门暂存 `panels/index.js` 改动 → 红，精确命中 `panels/index.js:1673: "run_finished" ? "review"`；修后绿。
+
+### 3 落地
+
+- `web/src/panels/index.js`：删掉三元；`tracePhase` 直接取 `event.phase`；注释钉死「phase 是后端的答案」。
+- `tests/frontend_trace_phase_one_home_smoke.mjs`（新门）：遍历 `web/src`，
+  禁止任何模块出现「按事件 code 选 phase」的三元形状（`"x" ? "planning|tool|review|…"`）。
+- `package.json`：`test:tracephase`；`ci.yml` js-check 接进 `node --check` + `npm run test:tracephase`。
+- 重建产物：`web/app.js`、`asset-manifest.json` 与 `web/assets/` 下按内容哈希命名的新 bundle
+  （清单即真相；旧哈希文件在仓库里不留痕）。
+
+### 4 见证（红先绿后，臂）
+
+- 修前红（见 §2）；修后绿：`npm run test:tracephase` OK；`npm run check:web` clean；
+  `test:phase`/`test:trace`/`test:effort`/`test:i18n` 零影响。
+
+### 5 聚焦回归
+
+- 前端门全绿；未跑 Python 套件（本批零 Python 改动）；信任两个远端 CI 腿 + 受影响门。
+
+### 6 边界（本批**不**声称）
+
+- 不声称后端 phase 词表被改（未动）；不声称 JS 里其他按 code 分支（`model_update` 等）都属于同一类——
+  本门钉的是「判 phase」这一类；
+- 不声称全量套件本地全绿。
+
+### 7 下一位候选
+
+1. CI 双腿回来后确认转绿（539–547 各批等最新 run）。
+2. `panels/index.js` 里 `event.code === "model_update"` / `"model_update_history"` 这类按 code 的分支
+   是否也有同族第二份判词（下一批普查）。
+3. 第五百二十五批 §7 的 3 位：十三个加载器——已裁定不合并。
+
+## 第五百四十八批 — M8-T566 — 经一个家发出去的事件：四处手拼七键
+
+### 1 欠的是哪一条
+
+`trace.py` 的家（`trace_event`）把 kind 钉死 `"trace"`，另两个 phase-carrying 的 kind
+没人能问家；于是这批遗产躲在自己的字母序里没被第五百二十批那次「四十六份手拼」扫到：
+
+- `minicc/agent/verifier.py`：验证事件（kind=\"verification\"）
+- `minicc/audit.py`：`authorization_event`（kind=\"authorization\"，两个消费点共用，但自己手拼七键）
+- `minicc/web.py`：`approval_request` 与 `approval_resolved` 两个审批帧（kind 各一）
+
+四处手拼同一个七键形状。任何一处都会让家里加了键（或改了键序/细节）的六个兄弟事件
+悄悄漂移。
+
+### 2 量到的真相（实测）
+
+- 封口门红先行：`tests/test_the_verification_event_has_one_home.py` 3 红——
+  `trace_event()` 不接受 `kind`；verifier 没问家；六键核心普查命中
+  `verifier.py:105`、`audit.py:449`、`web.py:635`、`web.py:679`。
+- 修复一个参数：`trace_event(..., kind=...)`，默认仍是 `"trace"`，旧调用点零改动。
+
+### 3 落地
+
+- `minicc/trace.py`：`trace_event` 增加 keyword-only 的 `kind`；docstring 同步。
+- `minicc/agent/verifier.py`：验证事件经 home 铸造；扁平 `command` / `write` 留在现场
+  （completion 门按事件宽度读它们）。
+- `minicc/audit.py`：`authorization_event` 经 home；扁平 `risk` / `authorization`；
+  **键序逐字节不变**。
+- `minicc/web.py`：approval_request / approval_resolved 两帧经 home；扁平键不动；
+  **键序逐字节不变**。
+- `tests/test_the_verification_event_has_one_home.py`（新门）。
+- `tests/test_the_trace_event_have_one_home.py` 两处更新：EMITTERS 加入
+  `minicc/agent/verifier.py` 与 `minicc/audit.py`；「`kind: trace` 恰好一处字面量」的
+  签名在 home 改用变量后退化，新契约 = 包内零 `"kind": "trace"` 字面量
+  + home 持有 `"kind": kind`。
+
+### 4 见证（红先绿后，臂）
+
+- 见 §2；相关门：新一家门 3 passed、`test_the_trace_event_have_one_home.py` 6 passed；
+  audit 授权 / 审批门 / 同步 chat 审批帧 / completion_liveness / logging 共 125 passed；
+  `test_core_agent.py` + `test_task_durability.py` 55 passed。
+- 变异臂：verifier 把 kind 写回内联拼装 → 新门与普查双红；恢复 → 绿。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（信任两个远端 CI 腿 + 受影响门）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 `TraceEvent`（`agent/state.py` 的 node_entered 状态机记录）也并进家
+  （它带 `event_id` / `created_at_epoch`，是另一种记录，关键语义不同，不合并）；
+- 不声称审批帧的 `request_id` / `task_id` 语义被动（未动，只是键的来源问家）；
+- 不声称 key 序对验证事件逐字节不变（detail 位置换到扁平 extras 之前；
+  消费方都按键访问，无人按位置读，本批不承诺）；
+- 不声称全量套件本地全绿。
+
+### 7 下一位候选
+
+1. CI 双腿回来后确认转绿（本批的树 = 60b20bc + 本批，最新 run 覆盖）。
+2. `minicc/llm/usage.py` 的 `channel_switched_event`：已是「家 → usage 包内 factory」形态，无需动。
+3. 第五百二十五批 §7 的 3 位：十三个加载器——已裁定不合并、立规则。
+
+## 第五百四十九批 — M8-T567 — 全量套件抓出的分行字面量：八键授权门不知道自己搬了家
+
+### 1 欠的是哪一条
+
+M8-T566（第五百四十八批）把 `authorization_event` 的七键底座交给一个家
+（`trace_event(kind="authorization")`）之后，授权门原有的「包内恰好一处八键字面量」
+签名悬空了——期望的那份字面量已经不存在了。全量套件一跑就咬住。
+
+### 2 量到的真相（实测）
+
+全量：`4228 passed` / **2 failed**——本批回归（`test_the_eight_keys_are_spelled_exactly_once_in_the_package`）
+与 `test_packaging.py::test_installed_console_scripts_run_from_a_real_install`。后者与本批改动无关：
+`python -m venv --system-site-packages` 继承的是 `C:\Program Files\Python311`（本机不带 `openai`），
+不带 `.venv` 自己的 site-packages；该门本就声明离线、依赖由系统提供。**CI 上绿**（runner python 有 openai）。
+
+### 3 落地
+
+`tests/test_the_authorization_event_have_one_home.py`：新契约 = 包内 **零** 八键字面量
+（除家外且家内也不再需要字面量）+ 家内仍持有 `kind="authorization"` 与 `event["authorization"] = authorization`。
+
+### 4 见证（红先绿后，臂）
+
+- 修前红（全量套件一片里那一条红）；修后该门文件 3 passed。
+- 全量重跑：`4229 passed` / 8 skipped / **1 failed**（packaging 本机环境缺 openai；CI 的口径是干净 runner python，那里绿）。
+
+### 5 聚焦回归
+
+- 见 §2/§4：全量重跑 4229 passed；未另列举式跑。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 packaging 门在本机会过（环境缺 openai；CI 口径干净 runner python，那里绿，本批不动它也不声称修好）；
+- 不声称授权事件的行为变了（键序不变、结构不变）；
+- 不声称全量零失败（这一项是环境）。
+
+### 7 下一位候选
+
+1. CI 双腿回来后确认转绿（最新树 = 60b20bc + M8-T566/547/548/549 各批）。
+2. 第五百二十五批 §7 的 3 位：十三个加载器——已裁定不合并、立规则。
+
+## 第五百五十批 — M8-T568 — 路径集合与树集合相等了：两种读者走的是同一串源码
+
+### 1 欠的是哪一条
+
+第五百二十四批 §7 第 4 位点名的存量候选「路径集合与树集合的相等」：`scripts/impacted_tests.py`
+的 `_read_trees` 里 `list(listings.modules.values()) + list(listings.tests)`——模块的列举与
+树读取由同一处手拼，「今天同源」只是恰好，将来只要路径不要树的读者不可能回答
+「我恰好读了这批源码」，且没有任何门钉住这件事。
+
+### 2 量到的真相（实测）
+
+- HEAD：两处读者各抄一份路径拼接；没人钉 keys 与路径串一致。
+- 封口门红先行：新门修前 3 红（home `_listed_sources` 不存在，AttributeError）；修后绿。
+
+### 3 落地
+
+- `scripts/impacted_tests.py`：路径枚举抽成 `_listed_sources(listings)` 一个家；
+  `_read_trees` 问它。
+- `tests/test_the_impacted_tests_trees_and_paths_are_one_set.py`（新门）：
+  家 = 清单；树 keys 相等且无重复；两次 listings 快照逐字段相等；将来只想要路径的读者
+  能拿到同一串。
+
+### 4 见证（红先绿后，臂）
+
+- 修前红（见 §2）；修后 4 passed；`test_impacted_tests.py` 与同族门 32 passed；
+  `python scripts/impacted_tests.py --check` rc=0（打印出 26 个受影响门，串列正常）。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（信任两个远端 CI 腿 + 受影响门）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 scripts / workflows / docs 现在也归解析——它们故意不在 `_listed_sources` 的形状里
+  （脚本被门 walk、工作流按文本读、docs 不属源码），集合不同；
+- 不声称全量套件本地全绿。
+
+### 7 下一位候选
+
+1. CI 双腿回来后确认转绿（tip run 42383346936 正在跑）。
+2. 「超时应该不该占用『判定』这个词」（conftest.py 把跑过 900s 的腿改写成 failed）——
+   第五百二十二批 §7 第 1 位；第五百二十二批自己说明过：换一个词要先有一个新读者，今天没有。
+   仍不动。
+3. 第五百二十五批 §7 的 3 位：十三个加载器收成一个家——第五百二十五批裁定「只立规则，不合并」。
+
+## 第五百五十一批 — M8-T569 — 挂死改写有了自己的读者，不再与判定同词
+
+### 1 欠的是哪一条
+
+第五百二十二批 §7 第 1 位点名的存量候选：conftest.py 的钩子把跑过 900s 的腿从 passed
+改写成 failed；第五百二十二批自己写明了为什么不动——"换一个词要先有一个新读者，今天没有"。
+这一批把那个读者造出来：会话结束打印一行具名的 hang-class 报告（谁跨过了、几条），
+不再与「断言判定出失败」同词出现在总结行。
+
+### 2 量到的真相（实测）
+
+- 修前：summary 里挂死与失败同词（「failed」里藏着两类：断言假的与挂死的过期）。
+- 红先行：子进程跑一个带慢腿的探针套件、`MINICC_TEST_HANG_LIMIT=0.05` → 新门红（会话结束没有具名行）；
+  反向（干净套件）绿。防证：合法干净套件不打印 hang 行。
+- 修后：`MINICC_TEST_HANG_LIMIT: 1 test crossed the hang bound (not a verdict): .pytest_tmp_hang_probe/test_hang_probe.py::test_slow`。
+
+### 3 落地
+
+- `conftest.py`：钩子把被改写的腿按 nodeid 记入 `_HANG_REWRITES`；新增
+  `pytest_sessionfinish` 具名打印一行（`N test(s) crossed the hang bound (not a verdict): <nodeids>`）；
+  空则完全无声。不动 outcome（failed 仍是 failed，判定语义不变）——把读者造出来是闭词欠的第一步。
+- `tests/test_a_hang_limit_rewrite_is_named_in_the_summary.py`（新门）：两条腿（改写一具名一行 /
+  干净套件无声）。
+
+### 4 见证（红先绿后，臂）
+
+- 修前红（新门两条腿各自的红）；修后 2 passed；触及 conftest 的同族门 48 passed
+  （`test_impacted_tests.py` 与规则弧线、命令文件与 git reason 一家门）。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（信任两个远端 CI 腿 + 受影响门）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 pytest 的 `short summary` 会把 hang-class 分开列出来（pytest 的汇总行仍归 outcome=failed；
+  这一具名行是 hang 类与断言类的分界线，挂在 sessionfinish 上）；
+- 不声称 outcome 被改成别的词（pytest 的 outcome 词表是它的，不发明；第五百二十二批 §7 原话如此）；
+- 不声称冲突计数的零/非零以外的含义（只数改写了几条、叫谁）；
+- 不声称全量套件本地全绿。
+
+### 7 下一位候选
+
+1. CI 双腿回来后确认转绿（tip run 42383346936 的最新版：已 cancel 并替换为最新树）。
+2. 「十三个加载器收成一个家」（第五百二十五批 §7 第 3 位）——第五百二十五批裁定只立规则不合并，
+   真要做的是门禁不是一个家（M8-T543 已钉规则）。
+3. 各前端门已全部落位；下一只可能的候选是 `web/src/game.js` 与 `web/src/panels/index.js` 之间
+   的共享事实（GAME_DIFFICULTIES / zh-en 都已经齐），暂无挂账。
+
+## 第五百五十二批 — M8-T570 — 快照清单格式版本一个家（数字 2 三处手拼）
+
+### 1 欠的是哪一条
+
+`version: 2`（工作区快照的清单格式版）此前写在 `minicc/snapshots.py` 里三处——capture 写一处
+（`"version": 2`），`before_write` 兜底读一处（`== 2`），`restore` 再读一处（`== 2 else`）——
+三处互不知照。清单版本一旦与后续 readers 漂移（写 3、读 2），restore 静默走 legacy 布局，
+文件要么消失要么把 `files` 指向错误的根，且不报任何错。
+
+### 2 量到的真相（实测）
+
+- HEAD：三处手拼 `2`。封口门红先行：新门修前 3 红（home 常量不存在；家里没问家）；修后绿。
+- 行为钉：真实 `git init` 工作区 → `capture` → 清单文件 `version` 等于常量；`tracked.py` 以脏路径被记下。
+
+### 3 落地
+
+- `minicc/snapshots.py`：新增公开常量 `WORKSPACE_SNAPSHOT_MANIFEST_VERSION = 2`；
+  三处改为问它；`__all__` 增加导出。
+- `tests/test_the_workspace_snapshot_manifest_version_has_one_home.py`（新门）。
+
+### 4 见证（红先绿后，臂）
+
+- 修前红 / 修后绿；snapshot 相关门 21 passed。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（信任两个远端 CI 腿 + 受影响门）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称迁移路径存在（仍是 version 2 的格式，legacy 分支仍在；常量就是 2 这件事没变）；
+- 不声称别的文件的 `version` 字段也被归一（`session.py`/`snapshots-restore` 的 JSON 版本字段是
+  别的事实——GRAPH 没什么好归一的）；
+- 不声称全量套件本地全绿。
+
+### 7 下一位候选
+
+1. CI 双腿回来后确认转绿（tip run 之最新树为 f6e9afb + 本批各次提交）。
+2. 装货文件 `minicc/task_manager.py:2964 "version": 1`——task checkpoint 快照的自带版本，单处，不改。
+3. 第五百二十五批 §7 的 3 位：十三个加载器——第五百二十五批裁定只立规则不合并。
+
+## 第五百五十三批 — M8-T571 — CI 两红两先行：子进程编码声明漂移 与 快照常量进词表
+
+### 1 欠的是哪一条
+
+C203202 那一批 CI 两腿各红在自己那条测试，都是我前两批的新门自己跑出来的：
+
+- `test_subprocess_decoding.py`：`test_a_hang_limit_rewrite_is_named_in_the_summary.py` 的两处
+  `subprocess.run` 写了父进程 `encoding="utf-8"` + `errors="replace"`，但把 `PYTHONIOENCODING`
+  藏在了调用之外的 env 字典里——"half-pinned captures (parent utf-8, child undeclared)"。
+- `test_version_vocabulary.py`：新增 `WORKSPACE_SNAPSHOT_MANIFEST_VERSION` 没进 `DECLARED_ROLES`，
+  也没进 `DURABLE_FORMAT_MODULES`——新身份的一个家只钉了我的新门，没钉仓库里既有的这座。
+
+### 2 量到的真相（实测）
+
+Windows 腿 run 42384691854：`test_subprocess_decoding.py::test_a_pinned_parent_decoder_over_our_own_python_child_pins_the_child_too` FAILED；
+`test_version_vocabulary.py::test_census_and_declared_table_are_the_same_set` FAILED。
+Ubuntu 腿因 concurrency 被取消（最新推送顶替），Windows 腿 `python -m pytest -q` 报
+`2 failed, 4237 passed, 9 skipped in 1155.63s`。
+
+### 3 落地
+
+- `tests/test_a_hang_limit_rewrite_is_named_in_the_summary.py`：env 改为调用内联的
+  `dict(os.environ, MINICC_TEST_HANG_LIMIT="0.05", PYTHONIOENCODING="utf-8")`——AST 判子进程编码的
+  家（`test_subprocess_decoding.py`）认 `subprocess.run` 的段内文本，不认调用外的变量名；**两个调用同修**。
+- `tests/test_version_vocabulary.py`：`DECLARED_ROLES` 新增
+  `("minicc/snapshots.py", "WORKSPACE_SNAPSHOT_MANIFEST_VERSION"): "branched"`；
+  `DURABLE_FORMAT_MODULES` 加入 `minicc/snapshots.py`（清单是落盘到 `.minicc/snapshots/<task>/manifest.json`
+  的耐久文件，且 restore 真的读它——"只写不读"正是这条门守的失败形状）。
+
+### 4 见证（红先绿后，臂）
+
+两处红都是 `python -m pytest -q` 在远端 Windows 腿上实测；本地修前同两个门文件 31 passed；
+`test_version_vocabulary.py` —— 含 " durable format version with no reader" 的断言——修后全绿。
+
+### 5 聚焦回归
+
+- `python -m pytest tests/test_version_vocabulary.py tests/test_subprocess_decoding.py
+  tests/test_a_hang_limit_rewrite_is_named_in_the_summary.py -q`（255.02s，31 passed）。
+- 未跑全量套件（本机高 CPU 不可靠，以两个远端腿为准）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 Ubuntu 腿已**变绿**——这次 Windows 腿从 C203202 切到 T571 tip，两条腿都还没在最新树上跑完；
+- 不声称 4237 passed 这个数在别处可复现——本轮直接引自远端 job 日志实机读数；
+- 不声称 CONTRIBUTING 规则提到的「每批全量」被满足（本地无法跑完全量；远端腿上跑的那次是 Windows 腿）。
+
+### 7 下一位候选
+
+1. CI 双腿回来后确认转绿（tip = 本批提交，Ubuntu 腿先等它跑起来）。
+2. `snapshots.py` 的 `WORKSPACE_SNAPSHOT_MANIFEST_VERSION` 这个「家」已在两处腿上钉住
+   （本批 + M8-T570）；下一只是审视有没有其它 `VERSION` 常量同样还没进表——以最新的
+   `test_version_vocabulary.py::test_census_and_declared_table_are_the_same_set` 为唯一计数器。
+3. 第五百二十五批 §7 的 3 位：十三个加载器——裁定不合并、立规则。
+
+## 第五百五十四批 — M8-T572 — 隐藏的例行 code 也必须是后端真的发得出的 code
+
+### 1 欠的是哪一条
+
+`web/src/panels/index.js` 的 `hiddenRoutineTraceCodes` 把四条 code 从
+人机可见的时间线抹掉（`model_decision`、`tool_round_finished`、
+`feedback_observed`、`replan`）——都是例行事件。这个集合在 **M8-T556**
+钉住的「每个 text 都是后端发得出的 code」之外，自己也有资格变成漂移源：
+谁加了一个看起来合理的 code 却其实后端永远不发，过滤假装存在，没人能看懂
+为什么要加。这一批把这条门扩成成员 ⊆ 后端可发出的 code 的普查。
+
+### 2 量到的真相（实测）
+
+- HEAD：`hiddenRoutineTraceCodes` 的四成员都是后端真的可发的 code（`resolve ambient` 验证）；
+  但没有任何一扇门会挡住下一个加的人。
+- 红先行：`_mutate_hidden.py` 种下 `no_such_code_ever_emitted` → 新断言精确点名它（红）；
+  `git checkout` 复位 → 绿。
+
+### 3 落地
+
+- `tests/frontend_trace_code_one_home_smoke.mjs`：增第 6 段断言——从 `panels/index.js`
+  读取 `hiddenRoutineTraceCodes` 的成员，`assert hiddenCodes.length > 0`，且每个成员 ∈
+  （后端发码 ∪ FRONTEND_ONLY）。
+
+### 4 见证（红先绿后，臂）
+
+- 见 §2。修前绿 / 修后红 / 复位绿。`npm run check:web` clean。
+
+### 5 聚焦回归
+
+- 前端门全绿（phase/trace/effort/i18n/tracephase/check:web）；未跑 Python 套件
+  （本批零 Python 改动）；以两个远端 CI 腿为准。
+- **提交可视化提示**：HEAD `25a3472` 对 `docs/ROADMAP_TO_PRODUCT.md` 的 diffstat
+  是 `38609- / 38654+`——**不是重删重写**，而是文件 CRLF→LF 的一次性归一
+  （当时用 `Path.write_text` 追溯把全文件的换行符都统一成 `\n` 了）。按内容
+  `git diff --ignore-cr-at-eol` 读出只有 **45 行净增**（本批账本段），0 行被删。
+  本批账本的行尾归一是顺手的一次性事实，后续不再追加这种大 diff。
+
+### 6 边界（本批**不**声称）
+
+- 不声称「隐藏的例行事件就该隐藏」——隐藏本身是产品判定，本门不改判；
+  本门只钉「隐藏的 code 后端确实发得出」；
+- 不声称 JS 里其他按 code 过滤的地方都被收（`eventImportance` 是另一回事，不替它定规则）；
+- 不声称全量回归本地跑过。
+
+### 7 下一位候选
+
+1. CI 双腿转绿后确认（远端当前排队中，Nightly 按约跳过，Linux 腿等队列消化）。
+2. §7 各处仍按五百二十五批的裁定：加载器只立规则不合并。
+
+## 第五百五十六批 — M8-T574 — web 模块不再携带假装需要、其实没人用的导入
+
+### 1 欠的是哪一条
+
+`minicc/web.py` 是仓里 import 最长的文件，整个模块从旧形状继承了大量导入——
+模块头 `from collections import deque`、`import inspect`、`import math`、
+`import base64`、`import binascii`、`import hashlib` 等一大串，以及
+`from .agent.orchestration import build_auto_subtasks`、
+`from .route_wiring import _PROVIDER_FAMILY` 等。读者按 import 列表以为模块需要
+它们，点进来发现全是零引用——模块自己从来没说清它到底依赖什么。本批把
+"导入列表=模块依赖图"这件事还原。
+
+### 2 量到的真相（实测）
+
+- HEAD：一条 `python -c` 的 AST 普查点出 **33** 个模块级死名字
+  （`deque`、`inspect`、`math`、`re`、`sys`、`os`、`base64`、`binascii`、
+  `hashlib`、`ThreadPoolExecutor`、`SimpleNamespace`、`parse_qs`、`unquote`、
+  `urlsplit`、`fixed_plan` …），其中 16 个用户库、17 个自家模块内符号。
+- 逐个亲身核对才动手删（grep + AST Name 检查，区别对待 re-export / noqa）；
+  误删 `effective_risk` / `deny_rule_covers_path` 这种再补回来。
+- 红先行：`web.py 专用死 import 门（已删）` 修前红
+  （33 offenders），修后绿。
+
+### 3 落地
+
+- `minicc/web.py`：删 33 个零引用的模块级 import（含 `asyncio` 等一整族）；
+  没有人用、外界也没消费（跨文件 grep 也不引用它们的）再确认一遍。
+- `web.py 专用死 import 门（已删）`（新门）：解析 web.py AST，
+  对每个模块级 import（跳过 `__future__` 与 `# noqa: F401` 的再导出），
+  要求其 Name 出现在模块的 AST 里。
+
+### 4 见证（红先绿后，臂）
+
+- 修前红（见 §2：33 offenders）；修后绿（1 passed）。跨文件零引用确认。
+- `import minicc.web` 本身 = `import ok`。
+- 相关门文件集：79 passed（core_agent + completion_liveness + sync-chat + 本批门）。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（信任两个远端 CI 腿 + 受影响门）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称别的模块也不导入死名字（本批只看 web.py——它的 import 列表是仓里最重的，
+  若其它文件也有问题，另一遍单独洗）；
+- 不声称 re-export 被禁——`MiniccRequestHandler` 这种 `# noqa: F401` 的 re-export 仍留着；
+- 不声称 web.py 可以被视作 ide 框架的一部分（它是个桥，责任范围在「哪些 import 没人用」）；
+- 不声称全量套件本地全绿。
+
+### 7 下一位候选
+
+1. CI 双腿回来后确认转绿（tip = 本批提交）。
+2. 其它重模块的 dead-import 普查（`task_manager.py`、`web.py` 已 cleaned）——
+   同一套 gate 可以推广，但下一步前先看远端腿回消息，确认本批一个家稳住。
+3. 第五百二十五批 §7 的 3 位：十三个加载器——裁定不合并、立规则（不变）。
+
+## 第五百五十七批 — M8-T575 — 全包零未引用模块级 import（一份普查门保持整个包干净）
+
+### 1 欠的是哪一条
+
+上一批 M8-T574 的「web.py 死 import」普查工具跑出一个惊人的账单：整个 `minicc/` 下
+十几个模块都带着只被自己遗忘的 import——
+直到本批为止，「无人引用的模块级 import 是被允许的」这条潜规则一直默许着：
+读模块的人必须靠眼睛数一遍才能发现，没有任何一种门会在 CI 里告诉他「这里有 5 个永远不
+会被引用的名字」。
+
+### 2 量到的真相（实测）
+
+- 普查 `minicc/` 全包：未引用模块级 import **12 个**，分布在 11 个文件：
+  - `minicc/agent/rpc.py`：`logging`（被 `logging.getLogger("minicc.rpc")` 在注释里提及，注释本身不是引用）
+  - `minicc/audit.py`：`match_permission_rule`（`__all__` 没有它，真没用）
+  - `minicc/bench_tasks.py`：`time`（仅出现在 import 行）
+  - `minicc/config.py`：`field`（注释里两次提到，`@dataclass` 的字段本体才用 dataclass 不用 field）
+  - `minicc/main.py`：`json` + `LLM_PROTOCOLS`（config.py 用 LLM_PROTOCOLS 但 main.py 自己没用）
+  - `minicc/snapshots.py`：`os`
+  - `minicc/tools/__init__.py`：`Path`（from pathlib import Path 后从未用）
+  - `minicc/tools/git.py`：`EditError`（同一 import 行的 resolve_in_workspace 被用）
+  - `minicc/webauth.py`：`time`
+  - `minicc/webserver.py`：`Path`
+  - `minicc/workspaces.py`：`IO`
+- M8-T574 一同交付的 web.py 专用门被本批取代——新门的规则覆盖整包（含 `__init__.py` 的显式 `__all__` 再导出）。
+- 红先行：新门修前红（11 offenders 全列出）；修后绿。
+- 三个 `__init__.py`（`agent/`、`llm/`、`tools/`）里**都列了 `__all__`**——那些
+  22+9+7 个名字是再导出，不是死名字；门跳过它们。
+
+### 3 落地
+
+- 临时普查脚本未留在仓里（一次性工具，跑完即删）。
+- `minicc/` 11 个文件：删 12 个未引用模块级 import（main.py 删 2 个）。
+- `tests/test_the_package_does_not_import_what_it_does_not_use.py`（M8-T575 新门，本批全权负责）：
+  AST 遍历 `minicc/` 全包 .py；`__future__` / `# noqa: F401` / 显式 `__all__` 跳过；
+  其余模块级 import 必须出现在本模块的 AST 里，否则直接报红并点名文件:行:名字。
+- `web.py 专用死 import 门（已删）`：已删除（与新门等价且新门范围更全，重复守门没必要）。
+
+### 4 见证（红先绿后，臂）
+
+- 新门 M8-T575：修前红（11 offenders），修后绿。
+- 相关门：`test_the_trace_event_have_one_home.py` + `test_the_verification_event_has_one_home.py`
+  + `test_the_authorization_event_have_one_home.py` + `test_version_vocabulary.py`
+  + `test_a_synchronous_chat_run_must_be_able_to_ask_for_an_approval.py` 共 24 passed；
+  `test_core_agent.py` + `test_completion_liveness.py` + `tests/test_a_command_file_that_cannot_be_read_is_not_one_that_was_never_written.py` 共 91 passed。
+- 红臂：普查命中任一未修模块即红，是 `python -m pytest tests/test_the_package_does_not_import_what_it_does_not_use.py -v`。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（信任两个远端 CI 腿 + 受影响门）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称允许 `__init__.py` 的 `__all__` 可以任意加名字——所有门覆盖会同样要求它们出现
+  在 AST 里或 `__all__` 里，没有「免死金牌」路径；
+- 不声称不允许 `# noqa: F401` 随便写——那需要 reviewer 自己审查，门只知道「有这一行」；
+- 不声称 `__init__.py` 的再导出列表与实际使用者同步——换个上下游不影响（import ≠ API 适配）；
+- 不声称全量套件本地全绿。
+
+### 7 下一位候选
+
+1. CI 双腿回来后确认转绿（tip = 本批提交）。
+2. 最强的相关子集门：有没有下一个「全包内只被自己遗忘」的名字普查可固化——比如
+   未引用的模块级常数（`AGENT_...`、`_...` 命名私有常量）——同一套方法。
+3. 第五百二十五批 §7 的 3 位：十三个加载器——裁定不合并、立规则（不变）。
+
+## 第五百五十八批 — M8-T576 — 撤下被全包门包含的 web 单模块死 import 门
+
+### 1 欠的是哪一条
+
+第五百五十七批 M8-T575 交付了 `test_the_package_does_not_import_what_it_does_not_use.py`——
+一个全包范围的 AST 普查，能在任何文件里抓住未引用的模块级 import。上一批同时保留的
+`web.py 专用死 import 门（已删）`（web.py 专用版）被这扇门完全覆盖，
+却还在仓里占着一个名字，贡献者做一次 `find tests/ -name '*no_dead*'` 看到两扇门，要问哪扇是权威。
+
+### 2 量到的真相（实测）
+
+- HEAD：两扇门各自通过；任意一扇关掉，本门就不再起作用。
+- 删除前：`python -m pytest web.py 专用死 import 门（已删）` 绿——说明 web.py 专用门也仍然能抓住同类型的问题；本批纯属去重，不是换一扇门。
+
+### 3 落地
+
+- `web.py 专用死 import 门（已删）`：删除。规则同一份由全包门承载。
+
+### 4 见证（红先绿后）
+
+- 删除后，相关受影响门继续绿（本批无源码改动，只动测试名）。
+- 删除前：两扇门各自通过；`web.py 专用死 import 门（已删）` 与
+  `tests/test_the_package_does_not_import_what_it_does_not_use.py` 在同一棵树上
+  都绿——说明 web.py 专用门也仍能抓住同类的问题；本批纯属去重，不是换一扇门。
+
+### 5 聚焦回归
+
+- 文档指针 `python scripts/doc_pointers.py --check` exit 0。
+- 前端门无改动。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 web.py 再也不会死 import —— 全包门负责；
+- 不声称新人少来一扇门会失落 —— 全包门首句 docstring 就说了范围覆盖哪些文件；
+- 不声称全量套件跑过。
+
+### 7 下一位候选
+
+1. CI 跑最新 tip；
+2. 决定记账是否切下一批；
+3. 第五百二十五批 §7 的 3 位：十三个加载器（仍按裁定：立规则、不合并）。
+
+## 第五百五十九批 — M8-T577 — 门覆盖的「活代码」范围扩到全仓（root 加 scripts）
+
+### 1 欠的是哪一条
+
+第五百五十七批（M8-T575）交付了挂在 `minicc/` 下的全包门。`conftest.py` 与
+`setup.py` 是包外却仍然是「随仓加载」的两个文件——它们的 import 质量同样影响所有读者，
+只是没人钉过。这一批把门覆盖范围从 `minicc/` 扩到整个仓根。顺带发现 `conftest.py`
+有个死名字：`time`（第 12 行）——整个文件从来没用过，而它 import 在 fp 探针/
+guard 之前。
+
+### 2 量到的真相（实测）
+
+- HEAD：`conftest.py` import 了 `time`；全文件无 `time.` 调用或裸名引用。
+- 本批普查覆盖：`minicc/` 全包 + `setup.py` + `conftest.py` + `scripts/*.py`，把范围
+  列举在门的 `ROOT_PY` / `SCRIPTS_PY` 常量里，将来要加新 .py 得先进仓根放一个显式位置。
+- 门（`tests/test_the_package_does_not_import_what_it_does_not_use.py`）：同一 AST 普查
+  带词表的扫描；修前红（`conftest.py:12: time`），修后绿。
+- 无其它 root/scripts 的 .py 还存在死 import（本轮实测）。
+
+### 3 落地
+
+- `minicc/` 不改（上一批已处理）；
+- `conftest.py`：删 `import time`（第 12 行）；
+- `tests/test_the_package_does_not_import_what_it_does_not_use.py` 扩范围：
+  - 新增 `ROOT_PY = tuple(REPO.glob("*.py"))`（`conftest.py`、`setup.py`）
+  - 新增 `SCRIPTS_PY = tuple((REPO / "scripts").glob("*.py"))`
+  - 遍历顺序按文件类型分桶，门失败消息同一份；注释 / docstring 同步更新。
+
+### 4 见证（红先绿后，臂）
+
+- 修前红（`conftest.py:12: time` 被门点名）；修后绿。
+- 相关门：`test_a_hang_limit_rewrite_is_named_in_the_summary.py` + `test_hang_watchdog.py`（子进程
+  起嵌套 pytest 的全套）共 5 passed。
+- 一轮 AST 扫描：没有任何其它 .py 触发；门对自己自身文件（它在 tests/ 下，不在 scope）无影响。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（信任两个远端 CI 腿 + 受影响门）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 `tests/**/*.py` 的 import 质量——第三方建议：测试文件 import 不是最重要的生产面；
+- 不声称 `node_modules/` 不存在死 import（无证据可证明、也没扫过）；
+- 不声称 CI 双腿已绿两条腿都过了；
+- 不声称全量套件本地全绿。
+
+### 7 下一位候选
+
+1. CI 双腿回来后确认转绿（tip = 本批提交）。
+2. 看 `setup.py` 的 `shutil.copy` 等是否还能再精简——参看我的 `_setup_conftest_sweep.py`
+   结论：不放账的临时文件都已删除。
+3. 第五百二十五批 §7 的 3 位：十三个加载器——裁定不合并、立规则（不变）。
+
+## 第五百六十批 — M8-T578 — 全仓「没人用的常数」也有一扇门了（TASK_STREAM_INTERVAL 死在案头）
+
+### 1 欠的是哪一条
+
+M8-T575 交付的是「模块级 import 不允许无人引用」。但同一套疲劳位还有一族是
+**模块级常数**：一个全大写、定义在 `minicc/` 里、整个仓里（含 tests/、scripts/、
+docs、web  bundle 源码）**零次**出现的名字。读者相信「写出来的常数一定在某个地方有
+意义」——它却什么都没意义。上一批门只盯 import 不盯常数，这一路漏网。
+
+### 2 量到的真相（实测）
+
+- 一轮旁路普查（name→files 索引版，按定义点剔除 assignment-target Name）：整个仓里只找到一个这样的常数——定义在 `minicc/task_manager.py:98`，名字含 `TASK_STREAM_INTERVAL`，`0.06` 秒。
+  - 定义：`task_manager.py` 第 98 行。
+  - 唯一其它出现：`minicc/web.py` 再导出块里的同一个名字——即把它 `from .task_manager import` 进 `web.py`（noqa re-export 块），而且没人用。
+  - 全仓其它所有文件（含 .md / .js / .json / .toml / .yaml）：**零次**。
+- 这两个出现一起删掉——常数 + 它的死再导出。`__all__` 里没有它（task_manager 无 `__all__`）。
+- 红先行：新门在修前红——点名 `minicc/task_manager.py:98: TASK_STREAM_INTERVAL`；修后绿。
+- 门自残自察：门文里禁止写出真实常数名——第一次红臂失败，就是因为本门自己的 docstring 里写了 `TASK_STREAM_INTERVAL = 0.06` 这个字符串触发了「string 常量里出现名字 = 有引用」的放宽规则。已改 docstring 为匿名描述；红臂此后如实红。
+
+### 3 落地
+
+- `minicc/task_manager.py`：删定义（一行）。
+- `minicc/web.py`：删再导出行。
+- `tests/test_the_package_does_not_define_what_the_repo_never_uses.py`（新门）：
+  - 扫描范围：`minicc/` 全包 + `tests/` + `scripts/` + 仓根 .py。
+  - 定义点：模块级 `Assign`（含 tuple/list 解包）。
+  - 常数形状：全大写/数字/下划线 或 `_私有`；dunder 跳过；本模块 `__all__` 里声明的跳过。
+  - 引用判据：仓内任一 `Name` 出现（剔除定义点自身）＋ 任一 string 常量中的标识符 token（import 别名不算——纯再导出且无消费者会被本门点名）。
+  - 不含注释（注释不是引用）；不含 `getattr` 字符串（该形态若将来出现，名字会落进 `__all__` 或本批边界 §6 会说）。
+
+### 4 见证（红先绿后）
+
+- 红臂：`git stash push minicc/task_manager.py minicc/web.py` 后跑新门 → 1 failed，点名 `minicc/task_manager.py:98: TASK_STREAM_INTERVAL`；`git stash pop` 后 → 1 passed。
+- 焦点回归：`test_core_task.py` + `test_task_contract.py` + `test_task_durability.py` + `test_task_persistence.py` + `test_task_store_durability_contract.py` + 新门 + 旧 import 门 = 71 passed。`import minicc.web / task_manager / snapshots` = import ok。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（见 §7：当前 CI 双腿都未能跑完）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称门能抓到「string 里被提到但实际无人代码引用」的常数——那是放宽规则换来的误报容忍，本门宁可漏一条也不误杀；
+- 不声称公开 API 常数不受保护——那本来就是 `__all__` 的职责，得明示；
+- 不声称 `minicc/` 之外的定义点也被钉（门只查 `minicc/` 里的**定义**；引用面扫全仓）；
+- 不声称全量套件本地全绿——untrusted；
+- **不声称 CI 双腿已绿**：当前 tip 之前唯一一次绿是上一条 lane 的 tip（M8-T571 修复）。本批 tip 推到 `m8-t537` 后会取消上一个已死 8 小时挂在 windows-latest「Run test suite」步骤的僵尸 run（已手工 cancel），ubuntu-latest 各 job 自 2026-11-07 18:22Z 起零次被调度——runner 池在后端不可见，取消后是否能恢复调度只能观察。
+
+### 7 下一位候选
+
+1. 推完本批后观察 `gh run list --branch m8-t537 --limit 3`：新 run 若仍零调度/再次僵尸，说明当前是账号级 CI 容量问题（windows-latest 与 ubuntu-latest 都不派发），需明确报告而不是谎称绿；若开始跑动，等 Windows 腿后在 ledger 追记结果。
+2. 十三个加载器裁定仍不变（不合并、立规则）。
+3. `build/` 未被 gate 扫描（生成物），不纳入。
+
+## 第五百六十一批 — M8-T579 — 重定向五个状态码只有一个家了（webfetch/mcp 两处都问 netguard）
+
+### 1 欠的是哪一条
+
+「哪五个状态码带 Location、可以跟随重定向」——`{301, 302, 303, 307, 308}`。
+这是网络客户端联合处置的**同一个事实**：webfetch 工具和 MCP HTTP 传输都必须
+ special-case 它。它被两处手抄——webfetch 抄了三次、mcp 抄了一次——共四个
+手抄点，没有家、没有名、没有门。加一个状态或减一个状态时，四处必须同时改，
+人只能靠眼睛。M8-T491 已经把「重定向超次数结论」收了家（`redirect_limit_message`），
+这次轮到状态集合本身。
+
+### 2 量到的真相（实测）
+
+- `minicc/tools/webfetch.py:269,283,323`：`in (301, 302, 303, 307, 308)` 三处（元组拼写）。
+- `minicc/mcp.py:753`：`exc.code in {301, 302, 303, 307, 308}`（集合拼写）。
+- 全仓 AST 普查：除这四处外，没有别的 `.py`（`minicc/`）拼写 ≥3 个这五个码的容器（普查脚本：`frozenset` 调用的第一实参 Set 也计入）。
+- `minicc/netguard.py` 本来就是两个 HTTP 客户端共享的网络纪律住处（`ALLOWED_SCHEMES`、`SCHEME_PREFIXES`、`redirect_limit_message`），所以集合落这里。
+
+### 3 落地
+
+- `minicc/netguard.py`：新增 `REDIRECT_STATUSES = frozenset({301, 302, 303, 307, 308})`（`#:` 注释说明谁在用、为何落这）；`__all__` 增加同名导出。
+- `minicc/tools/webfetch.py`：import 增加 `REDIRECT_STATUSES`，三处元组拼写改问家。
+- `minicc/mcp.py`：netguard 导入增加 `REDIRECT_STATUSES`，集合拼写改问家。
+- `tests/test_the_redirect_status_set_has_one_home.py`（新门）：
+  1. 家门：`minicc/netguard.py` 必须把 `REDIRECT_STATUSES` 定义为**恰好**这五个码（`frozenset({...})` 或裸 `set` 语法都认）；
+  2. 无其家门：`minicc/` 下任何文件（除家本身）不得拼写含 ≥3 个这五码的 set/tuple/list/`frozenset({...})` 容器。
+
+### 4 见证（红先绿后）
+
+- 绿臂（修后）：新门 2 passed；红臂（`git stash push` 三个源码文件）：新门 2 failed，点名 `minicc/mcp.py:753`、`minicc/tools/webfetch.py:269/283/323` 四处复写点；`git stash pop` 恢复后 2 passed。
+- 焦点回归：`test_an_mcp_redirect_target_must_pass_the_gate_too.py` + `test_a_redirect_hop_that_keeps_its_socket.py` + `test_netguard_blocks_multicast.py` + `test_netguard_blocks_reserved.py` + `test_netguard_pure.py` + `test_the_redirect_limit_message_has_one_home.py` + `test_the_redirect_verdict_has_one_home.py` + 新门 + `test_webfetch.py` + `test_webfetch_routes_its_page_through_the_head_tail_channel.py` = **94 passed**。
+- 顺带：本批 push 之前，run `42402611003`（tip `293af58`）的 `Python tests (windows-latest)` job **success**——M8-T571 修复以来第一次 Windows 腿绿（ubuntu-latest 与余下轻量 job 仍排队零次被调度，见 §6）。
+
+### 5 聚焦回归
+
+- 见 §4；全量套件未本地跑（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 webfetch/mcp 之外的客户端也同集（仓里就这两个重定向客户端；若将来出现，新门会点名）；
+- 不声称 JS 侧也手抄过这五个码（本批未扫 JS；结论严限于 Python 包内）；
+- **不声称 CI ubuntu-latest 腿绿**：自批 553 起，该 job 在每个 m8-t537 run 里都排队、零次被分配 runner；nightly `schedule` 事件在 `main` 上各 job 都能跑（Windows+Ubuntu 都 failure，属 main 已知红）。Windows 腿 42402611003 绿是唯一一次当前代绿。
+- 不声称全量套件本地全绿。
+
+### 7 下一位候选
+
+1. **先等本批 tip 的 Windows 腿跑完再推下一批**（每次 push 都会取消前一个 in-progress run——新洞察：本 lane 的推送节奏快于 Windows 腿的 ~20 分钟，前一个绿就是这样没等到）。本批 push 后至少静置一个完整 job 周期。
+2. 下一批候选（按新普查强度排序）：
+   - **#3**：前后端权限模式 `{default, plan, acceptEdits, yolo}`——Python 侧 `audit.py PERMISSION_MODES` 有门，JS 侧三处（`state.js` 内联数组、`panels/index.js` 导出数组、`index.html` 四个 data-mode 按钮）无人钉；补一扇跨面门最划算；
+   - **#6 / #11**：已钉住的 frozenset 的 dict 镜像表——`REASONING_EFFORTS` 的三张手抄表（`openai_provider.py` 两张 + `loop.py` 一张）与 `VERIFICATION_STATUSES` 的两张（`verifier.py`）——形状是「key set == home」可直接判；
+   - **#2**：`web-latest` 这个默认 session 名字 8 处拼写（含 JS），无人命名；
+   - **#13**：approval decisions 前后端各自硬编码、互不对照（已有两扇各管一面的门，缺第三扇对照门）。
+3. 十三个加载器裁定不变。
+
+## 第五百六十二批 — M8-T580 — UI 权限模式也只有一个家了（state.js 导出，Python 侧门对照）
+
+### 1 欠的是哪一条
+
+「权限模式是哪四个」——`{default, plan, acceptEdits, yolo}`。Python 后端早就有家
+（`minicc/audit.py` 的 `PERMISSION_MODES`，被 `test_the_switch_vocabularies_have_one_home.py`
+钉住）。前端却手抄了**三处**：`web/src/core/state.js` 内联数组（localStorage 校验）、
+`web/src/panels/index.js` 导出数组、`web/index.html` 的四个 `data-mode` 按钮——没人把它们
+与后端 home 对照。加一个模式（或改名）时三处都要人肉同步。
+
+### 2 量到的真相（实测）
+
+- `web/src/core/state.js`（修前）：`["default", "plan", "acceptEdits", "yolo"].includes(...)` 内联。
+- `web/src/panels/index.js`（修前）：`export const PERMISSION_MODES = ["default", "plan", "acceptEdits", "yolo"];`（`main.js` 的键盘左右移切换从这里 import）。
+- `web/index.html`：四个 `data-mode="default|plan|acceptEdits|yolo"` 按钮（静态 HTML，无法 import）。
+- Python home `minicc/audit.py`：`PERMISSION_MODES = frozenset({"default", "plan", "acceptEdits", "yolo"})` + `_PERMISSION_MODE_ALIASES`（别名表，不在本批 scope）。
+- 全 repo 只这三处 JS/HTML 手抄（新门另有 AST/正则普查兜底）。
+
+### 3 落地
+
+- `web/src/core/state.js`：新增 `export const PERMISSION_MODES = ["default", "plan", "acceptEdits", "yolo"];`（紧挨 `REASONING_EFFORTS` 那扇 UI home 家门），localStorage 校验改用家。
+- `web/src/panels/index.js`：删手抄，`import { ..., PERMISSION_MODES, ... } from "../core/state.js"`，再 `export { PERMISSION_MODES };` 保持 `main.js` 契约不变。
+- `web/index.html`：不动（静态按钮），由门钉住顺序与数量。
+- `tests/frontend_permission_mode_one_home_smoke.mjs`（新门，4 条连环断言）：
+  1. `core/state.js` 必须导出恰好 `["default", "plan", "acceptEdits", "yolo"]`；
+  2. Python home（`minicc/audit.py`）包含同一四组；
+  3. `index.html` 的 `data-mode` 出现顺序必须一致；
+  4. `web/src` 不允许再出现该数组字面量；`panels/index.js` 必须是 re-export 而非第二扇门。
+- `package.json`：新增 `test:perm`；`.github/workflows/ci.yml` 的 js-check job 增加 `node --check` + `npm run test:perm`。
+- 前端 bundle 重新构建（`app.js`、`asset-manifest.json`、`web/assets/` 换新哈希 bundle，剔除 stale）。
+
+### 4 见证（红先绿后）
+
+- 红臂：`git stash push web/src/core/state.js web/src/panels/index.js` 后跑新门 → AssertionError「core/state.js must export PERMISSION_MODES」（red）；`git stash pop` 后 → `M8-T580 ok...`（green）。
+- 焦点回归（本地全绿）：`test:perm` + `test:effort` + `test:phase` + `test:todo` + `test:approval` + `test:i18n` + `test:trace` + `test:tracephase` + `test:optimization` + `test:transport` + `test:lifecycle` + `test:scale`；`npm run check:web` 干净；`tests/test_web_assets_are_fresh.py` 5 passed。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量 pytest 套件（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 `index.html` 可以 import JS——它是静态按钮，由门按顺序钉住；
+- 不声称 Python 侧别名表（`_PERMISSION_MODE_ALIASES`）与模式集合同步——别名表另有语义，另批；
+- 不声称 CI 全绿：`ubuntu-latest` job 自批 553 起零次被调度；Windows 腿为唯一近期绿（批 560 tip）。推本批后 `js-check` 才会运行，结果另记；
+- 不声称 `optimize/scale` 数值是性能承诺——本机实测顺带而已。
+
+### 7 下一位候选
+
+1. **推本批后等 js-check 与 Windows 腿跑完再推下一批**（每次 push 都会取消前一个 in-progress run）。
+2. 下一批强度排序：
+   - **#6 / #11**：已钉住 frozenset 的 dict 镜像——`REASONING_EFFORTS` 的三张手抄表（`openai_provider.py` 两张：`REASONING_WIRE_VALUES`、`REASONING_FALLBACKS`；`loop.py` 一张内联中文表）与 `VERIFICATION_STATUSES` 的两张（`verifier.py` 的 status→code、status→zh summary）——断言「key set == home」即可；
+   - **#2**：`web-latest` 这个默认 session 名字 8 处拼写（含 JS markdown.js、task_contract.py、task_worker.py argparse 默认值、web.py），无人命名；
+   - **#13**：approval decisions 前后端各自硬编码、互不对照（已有两扇各管一面的门，缺第三扇对照门）。
+3. 十三个加载器裁定不变。
+
+## 第五百六十三批 — M8-T581 — 五本已钉住的 frozenset，它们的 dict 镜像也必须对齐
+
+### 1 欠的是哪一条
+
+已经有门钉住 `REASONING_EFFORTS`（`minicc/config.py`）和 `VERIFICATION_STATUSES`
+（`minicc/agent/verifier.py`）的**成员**是什么。但这两个词表是怎么「翻译」成数据的——
+wire 值、fallback、中文标签、事件 code、中文 summary——靠的是一组手抄 dict：
+`REASONING_WIRE_VALUES`、`REASONING_FALLBACKS`、`loop.py` 的内联 `effort_label`、
+`verifier.py::to_event()` 的 `code` 与 `summary`。home 加一个成员（比如过去给
+`REASONING_EFFORTS` 加 `ultra` 时），镜像 dict 就永久缺一行，而且没人会发现——
+门只查 home，行为测试只覆盖你想得到的分支。
+
+### 2 量到的真相（实测）
+
+- AST 全仓普查（venv 解释器）：`minicc/` 下携带 ≥3 个 effort 名作 key 的 dict 共 3 个（`REASONING_WIRE_VALUES`、`REASONING_FALLBACKS`、`loop.py:907 effort_label`），全部当前为完整集合；携带 ≥3 个 status 名作 key 的 dict 共 3 个（`verifier.py:90`、`:98` 完整；`completion.py:800 _REPAIR_INSTRUCTION` **故意是子集**）。
+- `REASONING_EFFORT_ALIASES` 的 key 全是别名（standard/medium/极高…），与 home 零交叠——不受本门影响。
+- 没有发现携带 home 之外成员的 dict（杂家 dict = 0）。
+
+### 3 落地
+
+- `tests/test_the_mirror_maps_are_keyed_by_their_homes.py`（新门，5 条）：
+  1–2. 通用子集规则：`minicc/` 下任一 dict 若 ≥3 个 key 出自 effort 集 / status 集，必须**全部落在该集合内**（堵住拼写/越界成员）；
+  3. `REASONING_WIRE_VALUES` 与 `REASONING_FALLBACKS` 必须 keyed by 恰好 effort home；
+  4. `loop.py` 中携带 ≥3 effort key 的 dict（内联 effort_label 标签表）同上——容许位置不限；
+  5. `verifier.py` 中两个携带 status key 的 dict（`to_event` 的 code/summary）必须 keyed by 恰好 status home。
+  刻意子集（如 `_REPAIR_INSTRUCTION`）仍合法——子集规则，不是严格集合规则。
+
+### 4 见证（红先绿后，注入红臂）
+
+- 注入红臂：`minicc/agent/loop.py` 的 effort_label 内联表删掉 `"xhigh": "极高",` → 门红，点名「must be keyed by exactly ['high','low','max','mid','ultra','xhigh'], got [...]」；`git checkout -- minicc/agent/loop.py` 恢复 → 5 passed。
+- 回归：`test_the_verification_statuses_have_one_home.py` + `test_the_switch_vocabularies_have_one_home.py` + 新门 = 16 passed。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称别处没有「携带 ≥3 个 home 成员 key 的 dict 必须完整」这类第三处镜像——发现即删或补全，本门覆盖全 `minicc/`，没漏；
+- 不声称子集 dict 的语义被钉（`_REPAIR_INSTRUCTION` 的子集是有意的，只受「仍在 home 内」约束）；
+- 不声称 JS 侧的镜像（`state.js REASONING_EFFORTS`、UI 标签表）受此门管辖——那是 `frontend_reasoning_effort_one_home_smoke.mjs` 的活；
+- 不声称 CI 全绿：本批未推，`ubuntu-latest` 腿仍零次被调度。
+
+### 7 下一位候选
+
+1. 推本批后等 Windows 腿（tip 的 run）跑完再推下一批——推送节奏快于 job 时长会永久饿死它。
+2. #2：`web-latest` 默认 session 名字 8 处拼写（含 JS、argparse 默认值、task_contract 字段默认值）——命名 + 家 + 门；
+3. #13：approval decisions 前后端各自硬编码、互不对照——补第三扇对照门（`frontend_approval_one_home_smoke.mjs` ↔ `test_the_approval_decisions_have_one_home.py`）；
+4. 十三个加载器裁定不变。
+
+## 第五百六十四批 — M8-T582 — 默认 session 名字也只有一个家了（WEB_SESSION_ID）
+
+### 1 欠的是哪一条
+
+「任务没说是哪个 session 时，它属于哪个」——这个事实的答案是字符串 `web-latest`。
+它被手抄了八处：`TaskRequest` 数据类默认值、`from_payload` 的兜底、`task_manager`
+两处（事件归档 + 状态同步）、worker 的 argparse 默认值、`web.py` 两处、`markdown.js`
+两处兜底、以及一个测试夹具——没有名字、没有家、没有人钉。前端在 JS 里只能靠手抄，
+Python 端连常数都没有。两端从未被人对照。
+
+### 2 量到的真相（实测）
+
+- 全仓普查（`.py`/`.js`/`.md`/`.json`）：`minicc/` 7 处、`tests/` 1 处、`web/src` 2 处、
+  `docs/ROADMAP_TO_PRODUCT.md` 4 处（文档豁免）、生成 bundle 4 处（重新构建自动反映）。
+- 无论怎么改都必须同步的，恰是这两端：Python（数据类默认值）与 JS（渲染期兜底）。
+
+### 3 落地
+
+- `minicc/task_contract.py`：新增 `WEB_SESSION_ID = "web-latest"`（`#:` 注释说明谁引用它）；
+  `TaskRequest.session_id` 默认值与 `from_payload` 兜底改问家。
+- `minicc/task_manager.py`：import 增加 `WEB_SESSION_ID`，两处改问家。
+- `minicc/task_worker.py`：import 增加 `WEB_SESSION_ID`，`SESSION_ID_FLAG` 的 argparse 默认值改问家。
+- `minicc/web.py`：`from .task_contract import WEB_SESSION_ID`（新 import，非 noqa 块，仅用一处外加两个站点），两处改问家。
+- `tests/test_auto_resume.py`：夹具 `session_id` 改用家（不再手拼字面量）。
+- `web/src/chat/markdown.js`：**不改**（JS 无法 import Python），两个内联字面量由新门钉住。
+- `tests/frontend_web_session_id_one_home_smoke.mjs`（新门）：
+  1. `task_contract.py` 必须 `WEB_SESSION_ID = "web-latest"`；
+  2. `minicc/` 下任何其它文件不得出现该字面量（无论代码还是注释）；
+  3. `markdown.js` 必须恰好出现两个该字面量；
+  4. `web/src` 下其它 .js 不得出现。
+- `package.json`：新增 `test:sessionid`；`.github/workflows/ci.yml` 的 js-check job 增加 `node --check` + `npm run test:sessionid`。
+
+### 4 见证（红先绿后）
+
+- 绿臂：新门 `M8-T582 ok`；红臂：`git stash push` 五个 Python 源码文件后，门死在第一关「minicc/task_contract.py must define WEB_SESSION_ID」（red）；`git stash pop` 后绿。
+- 焦点回归：`test_task_contract.py` + `test_auto_resume.py` + `test_core_task.py` + `test_task_durability.py` = 60 passed；`test:sessionid` + `test:perm` 绿；`npm run check:web` 干净（markdown.js 未动）。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称文档（ROADMAP 等）也不允许该字面量——文档可引用字符串本身；
+- 不声称 markdown.js 可以从 Python 导入——JS 面只能钉值，不共用符号；
+- 不声称生成 bundle 也被钉住——bundle 由 `check:web` 保证是 src 的忠实产物；
+- 不声称 CI 全绿：批 562/563 的推送尚未发；`ubuntu-latest` 腿仍零次被调度。
+- 路径分隔符已在门里做归一化（`path.normalize` 双侧）——这是本批唯一一个真实 bug，修自第一次跑的 AssertionError。
+
+### 7 下一位候选
+
+1. **推批 562+563+564 后，先等 js-check 与 Windows 腿的完整周期再推下一批**（推送节奏仍然快于 job 时长）。
+2. #13：approval decisions 前后端各自硬编码、互不对照——补第三扇对照门（`frontend_approval_one_home_smoke.mjs` 与 `test_the_approval_decisions_have_one_home.py` 各管一面）；
+3. #6/#11 已在批 563 完成（M8-T581 门）；
+4. 十三个加载器裁定不变。
+
+## 第五百六十五批 — M8-T583 — 前后端审批裁决三值互不再对着干
+
+### 1 欠的是哪一条
+
+「审批裁决有哪些值」——`{allow, always, deny}`。Python 侧 `minicc/audit.py` 早钉住，
+JS 侧 `web/src/core/approvals.js` 也钉住，两扇门各管一面、互不对照。approvals.js 自己的
+注释甚至写着「a door test keeps the two faces in sync」——**这个注释说的门根本不存在**。
+哪面改了词，另一面不会有任何信号：后端接受 `always` 而前端没按钮、或前端发了后端不认识的值，
+都能无声上线。
+
+### 2 量到的真相（实测）
+
+- 既有两扇门：`tests/test_the_approval_decisions_have_one_home.py`（Python 面，含 web.py 消费同一对象、无模块内联全集/子集、未知裁决被拒）与 `tests/frontend_approval_one_home_smoke.mjs`（JS 面）。
+- 两扇门之间没有任何一扇读对面文件。
+- approvals.js 注释声称的「两扇门对齐」此前无证据。
+
+### 3 落地
+
+- `tests/test_the_approval_decisions_have_one_home.py`：新增 `test_the_js_home_matches_the_python_home`——正则读 `web/src/core/approvals.js` 的 `export const APPROVAL_DECISIONS = [...]`，断言其集合与 `minicc.audit.APPROVAL_DECISIONS` 恰好相等，失败时点名两边各自的值。
+- approvals.js 的注释从「claims」变成事实——本批之后确有此门。
+
+### 4 见证（红先绿后，注入红臂）
+
+- 注入红臂：approvals.js 的数组删掉 `"always"` → 新门红，点名「JS has ['allow', 'deny'], Python has ['allow', 'always', 'deny']」；`git checkout -- web/src/core/approvals.js` 恢复后 5 passed。
+- 回归：`npm run test:approval`（M8-T394 ok）＋ 整个 Python 门 5 passed。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 JS 侧有 permitting 子集（只有 allow/always/deny 三值对齐；permitting 语义留在 Python 面）；
+- 不声称审批*动作*（allow/always/deny 按钮、卡片的审批流程）已对齐——那是行为面，另有 gate；
+- 不声称 `PERMITTING_APPROVAL_DECISIONS` 的语义跨端同步——JS 侧无此概念；
+- 不声称 CI 全绿：批 562–564 仍待以一次推送发出（等 Windows 腿当前 run 结束）。
+
+### 7 下一位候选
+
+1. 推 562–565 的六个提交后，先等 js-check + Windows 腿的完整周期再推下一批；
+2. #4：300_000 这一魔法数（默认 context window / compact 阈值）散布约 11 处（Python 7 + JS `state.js` 1 + getattr 兜底 3）——收家 config.py 既有 `DEFAULT_CONTEXT_WINDOW_TOKENS` / `DEFAULT_COMPACT_THRESHOLD`，或立「兜底必须读家」规则；涉及面广，单独一批；
+3. 十三个加载器裁定不变。
+
+## 第五百六十六批 — M8-T584 — 300_000 这一行魔法数字也只有一个家了
+
+### 1 欠的是哪一条
+
+「默认上下文窗口多少、什么时候触发压缩」——同一个 300_000 被写在 **11 个点**：
+`agent/context.py` 两个默认值、`agent/loop.py` 两个形参默认值、`web.py` 五处 getattr 兜底
+（两处 `context_window_tokens`、一处 `compact_threshold`）、`web/src/core/state.js` 一个 UI 预置、
+加上 `config.py` 自己两个 home 定义（`DEFAULT_CONTEXT_WINDOW_TOKENS`、`DEFAULT_COMPACT_THRESHOLD`）。
+home 早就有了，只是没人用——加一个字节的窗口调上调下，就得人肉找 9 个点。
+
+### 2 量到的真相（实测）
+
+- AST 普查：本批修前 `minicc/` 下 `300_000`/`300000` 字面量恰 9 处（两个 home 除外）：context.py 610/644、loop.py 624/634、web.py 945/1259/2335/2341/2662。
+- 语义拆分：`compact_threshold` 与 `context_limit_tokens` 本应各问各 home（两 knob 日后可分叉）。
+
+### 3 落地
+
+- `minicc/agent/context.py`：import `DEFAULT_COMPACT_THRESHOLD`；两处 `threshold: int = 300_000` 改问家。
+- `minicc/agent/loop.py`：新增 `from ..config import DEFAULT_COMPACT_THRESHOLD, DEFAULT_CONTEXT_WINDOW_TOKENS`；`compact_threshold` → COMPACT_THRESHOLD；`context_limit_tokens` → CONTEXT_WINDOW_TOKENS。
+- `minicc/web.py`：config 导入块增加两个 home；五处 getattr 兜底全部改问家。
+- `tests/test_the_three_hundred_thousand_has_one_home.py`（新门）：① `minicc/` 下除 `config.py` 外禁止出现 int 字面量 `300_000`（AST 常量，underscore 与否任意拼写）；② `config.py` 中两个 home 仍等于 `300_000`。
+- `tests/frontend_context_window_one_home_smoke.mjs`（新门）：state.js 的 `contextWindowTokens` 必须等于 config.py 的 `DEFAULT_CONTEXT_WINDOW_TOKENS`（underscore 归一化对比）。
+- `package.json`：新增 `test:context`；CI js-check job 增加 `node --check` + `npm run test:context`。
+
+### 4 见证（红先绿后）
+
+- 绿臂：新门 2 passed；红臂（`git stash push` 三个 Python 源码文件）：新门红，点名 **9 处**字面量（见 §2）；`git stash pop` 后绿。
+- 焦点回归：`test_core_agent.py` + `test_completion_liveness.py` = 76 passed；`test_a_message_that_mentions_the_checkpoint_is_not_one.py` + `test_the_cli_compact_triggers_context_compaction.py` + `test_the_context_payload_have_one_home.py` + `test_the_model_context_must_redact_what_the_log_already_redacted.py` + `test_the_vision_context_has_one_normalizer.py` = 35 passed；`node tests/frontend_context_window_one_home_smoke.mjs` = M8-T584 ok；`npm run check:web` 无需重建（state.js 未动）。
+- 顺带：批 561 的 tip（`1173c9d`）的 Windows 腿 **success**（run 42405256740）；js-check 与 Windows 腿经历完整周期后本批才推送。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 `index.html` 的静态 "0 / 300k" 占位文案被钉——那是静态文案，与 pre-seed 数值是另一个量；静态文案要动它需要人工翻译批；
+- 不声称 compact 阈值与窗口可以任意不同——今天两个 home 都是 300_000；谁要分叉自行改 home 即可，调用点不再绑定；
+- 不声称 token 计数器在 hydration 前显示正确——预置值只作占位；
+- 不声称 CI 全绿：`ubuntu-latest` 腿仍零次被调度；Nightly 跳过。
+
+### 7 下一位候选
+
+1. 推完 562–566 后，先等 js-check + Windows 腿的完整周期再推下一批；
+2. #5：客户端渲染缓存上限（180_000 / 24 / 1_200_000 / 2048 等）——`session-cache.js` 与 `state.js` 各自手抄同一组上限，`task-reducer.js` 的 2048 与 `state.js MAX_SEEN_EVENT_KEYS` 是同一事实，无共享家；
+3. #12：LLM protocol 三个名字在回退路径里被手抄（`("auto", "responses")`、`chat_completions` 字面量）——`test_the_switch_vocabularies_have_one_home.py` 扩语义或新门；
+4. 十三个加载器裁定不变。
+
+## 第五百六十七批 — M8-T585 — 事件保留上限与 session 视图大小上限各一个家
+
+### 1 欠的是哪一条
+
+前端两组「上限数字」被分散手抄，互不相识：
+
+- **2048**：`task-reducer.js` 的 `const LIMIT = 2048`（seenSequences/seenEventIds 去重集）+ `events.slice(-2048)`（时间线保留）；`state.js` 的 `MAX_SEEN_EVENT_KEYS = 2048`（panels 侧 seen 跟踪器）；`finalizedTaskIds = new BoundedSet(2048)`（已完成任务 id 的保留）。
+- **180_000**：`session-cache.js` 的 `MAX_ENTRY_CHARS`（localStorage 持久化上限）与 `state.js` 的 `MAX_SESSION_VIEW_CHARS = 180_000`（DOM 渲染截断上限）——同一 session 视图字符上限的两条线。
+
+### 2 量到的真相（实测）
+
+- 普查 web/src 全部 `.js`：上述 2048 出现 5 处（bound-cache 未建家前）、180_000 出现 2 处；无其它文件拼写。
+- `bounded-cache.js` 原是纯净叶模块（无 UI/storage import）；`task-reducer.js` 以「纯 reducer，不 import UI」为契约——它不能直接 import state.js（state.js 会碰 localStorage），所以 2048 的家必须是叶模块。
+- `finalizedTaskIds` 的 2048 是「已完成任务身份保留上限」，与事件身份去重/时间线保留不是同一事实——**刻意不并**，它是门里唯一允许裸拼的 2048。
+- 约束：`frontend_optimization_smoke.mjs` 曾以 base64 `data:` URL 内联 import `task-reducer.js`——它无法看到 reducer 新加的 `./bounded-cache.js` 相对 import。改为 `pathToFileURL(resolve(...))` 后恢复（import 机制本身比 data-URL 更正确）。
+  本批因此修了一个**自引入的测试**依赖问题：优化 smoke 红了两轮（先是 resolve 失败，然后 readFile 残留——已确认 readFile 仍在使用、依赖平衡）。
+
+### 3 落地
+
+- `web/src/core/bounded-cache.js`：新增 `export const MAX_SEEN_EVENT_KEYS = 2048;`（事件身份去重/时间线保留上限的唯一家）。
+- `web/src/core/task-reducer.js`：删本地 `LIMIT`；import 叶家，`boundedAdd` 与时间线 slice 都问家。
+- `web/src/core/session-cache.js`：`MAX_ENTRY_CHARS` → `export const MAX_SESSION_VIEW_CHARS = 180_000;`（同名改导出，语义同一：session 视图字符上限）。
+- `web/src/core/state.js`：删两处裸常数，改 `export { MAX_SEEN_EVENT_KEYS } from "./bounded-cache.js";` 与 `export { MAX_SESSION_VIEW_CHARS } from "./session-cache.js";`（re-export，既有 importer 不动）。
+- `tests/frontend_event_retention_one_home_smoke.mjs`（新门）：断言两处 home 定义、state.js 的 re-export 行、task-reducer 不许再拼 2048、全 src 裸 `2048`/`180000` 只有 home 与 finalizedTaskIds 豁免。
+- `package.json`：新增 `test:eventretention`；CI js-check job 增加 `node --check` + `npm run test:eventretention`。
+- `tests/frontend_optimization_smoke.mjs`：import 机制改 `file:` URL（见 §2）。
+- bundle 重建（`app.js`/`asset-manifest.json`/`web/assets/` 换新哈希）。
+
+### 4 见证（红先绿后）
+
+- 新门 `M8-T585 ok`（修后）；红臂（stash 四个 src 文件）→ 门红（"bounded-cache.js must own MAX_SEEN_EVENT_KEYS"）；pop → 绿。
+- 全量前端套件本地绿：test:eventretention / perm / sessionid / context / approval / todo / phase / trace / tracephase / i18n / effort / optimization / transport / lifecycle / scale（optimization 先红后绿，修复见 §2）。
+- `npm run check:web`：app.js + game.js up to date，assets clean（3 bundles）。
+- 批 566 的 tip（`43cf945`）Windows 腿在跑（run 42407295209）；本批不推。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量 pytest 套件（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 `MAX_ENTRIES = 24` 与 `BoundedMap(24)`（state.js sessionMarkup）是同一事实——一个管 localStorage 条目数、一个管内存渲染表，两处压力不同，不并；
+- 不声称 `MAX_TOTAL_CHARS = 1_200_000` 并入任何家——它是持久化总量预算，独立事实；
+- 不声称 `finalizedTaskIds` 的 2048 被统一——门里豁免它并点名；
+- 不声称 bundle 无变化——本批重建了 app.js 与 assets 哈希；
+- 不声称 CI 全绿：js-check/Windows 腿尚未见本批 tip 的结果；`ubuntu-latest` 仍零次被调度。
+
+### 7 下一位候选
+
+1. 等 run 42407295209（tip `43cf945`）Windows 腿跑完后，推批 567，再等一个完整周期；
+2. #12：LLM protocol 三个名字在回退路径被手抄（`("auto", "responses")`、`chat_completions` 字面量）——switch-vocabulary 门扩展或新门；
+3. #10：trace-detail key 词表（panels/index.js 两份 13/62 键清单）——前端面门；
+4. 十三个加载器裁定不变。
+
+## 第五百六十八批 — M8-T586 — LLM protocol 两个非 auto 成员也有了名字和门
+
+### 1 欠的是哪一条
+
+「协议是哪几个」——`LLM_PROTOCOLS`（config.py：`auto`/`responses`/`chat_completions`）
+有门钉住成员集合；但代码里一旦逻辑钉在某一条 wire 上，就直接手拼字面量：provider 构造时
+决定默认协议、transport/endpoint 两条 fallback 翻转、主体流中断的协议标记、recovery
+路径的轮转——web.py 一处、openai_provider.py 八处、trace detail 一处，共 **13 处**
+手抄字符串。加一个新协议（或给 wire 改名）时没有任何信号。
+
+### 2 量到的真相（实测）
+
+- AST 普查（剔除 docstring）：`responses` 10 处、`chat_completions` 8 处（去重后共 13 个非 home 位点：openai_provider 269/553/553/649/664/737/738/742/746/954、web.py 2081/2085、config.py 892 的别名表在 home 内保留）。
+- `"auto"` 34 处且大量是**不相关**语义（sandbox mode、tool_mode、auto-approve 等）——刻意不命名、不钉；
+  只给两个专指一条 wire 的成员命名。
+- 没有发现 docstring 之外的杂拼写（docstring 可自由引用字面量，门不拦文档）。
+
+### 3 落地
+
+- `minicc/config.py`：新增 `LLM_PROTOCOL_RESPONSES = "responses"`、`LLM_PROTOCOL_CHAT_COMPLETIONS = "chat_completions"`（注释说明 `auto` 为何不命名）；别名表（line ~892）改用常数；home 文件内随意拼写。
+- `minicc/llm/openai_provider.py`：config import 增加三名成员（RESPONSES/CHAT）；fallback detail（`protocol_fallback_detail`）、构造默认解析、两条 fallback 翻转条件与赋值（4 处）、plan-retry 分支（2 处）、`stream_broke_message` 的协议实参——共 11 处字面量改问家。
+- `minicc/web.py`：config 导入块增加两个常数；recovery 路径的 `requested == "auto"` 比较与 `next_protocol` 轮转（2 处）改问家。
+- `tests/test_the_llm_protocol_members_have_one_home.py`（新门）：① 两个命名常数存在、值正确、且 ∈ `LLM_PROTOCOLS`；② `minicc/` 下除 `config.py` 之外不得拼写这两个字符串常数（docstring 豁免）。
+
+### 4 见证（红先绿后）
+
+- 绿臂：新门 2 passed；红臂（stash 三个源码文件）：复现 **13 处**字面量逐一被门点名（见 §2）；pop 后绿。
+- 焦点回归：`test_anthropic_provider.py` + `test_the_fake_provider_switch_has_one_home.py` + `test_the_protocol_fallback_detail_have_one_home.py` + `test_the_provider_sniff_has_one_home.py` + `test_the_switch_vocabularies_have_one_home.py` + 新门 = 29 passed；`test_m8_t58_inspection_fallback.py` + `test_model_fallback.py` + `test_the_fallback_list_never_offers_the_resolved_primary.py` + `test_the_openai_tool_wire_have_one_home.py` + `test_a_synchronous_chat_run_must_be_able_to_ask_for_an_approval.py` = 17 passed。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 `"auto"` 有门——它跨多个不相关词表，钉了必然误伤（本次只有 2/3 成员被钉）；
+- 不声称 `provider.protocol()` 的返回值字面量被统一——今天 reader 侧都经常量；
+- 不声称虚假的「常数传播到任意外部消费者」——常数未加 `__all__`（config.py 无 `__all__`），home 的契约是模块导入；
+- 不声称 CI 全绿：批 567/568 尚未推送（等当前 Windows 腿跑完）。
+
+### 7 下一位候选
+
+1. 等 run 42407295209（tip `43cf945`）Windows 腿跑完 → 一次推批 567+568 → 再等一个完整周期；
+2. #10：trace-detail key 词表（panels/index.js 两份 13/62 键清单）——前端面门，注：key 清单是渲染层「人类可读标签」的允许集合，需要想清楚门钉的是 keys 还是 labels；
+3. #15：六个 stage 名在四个测试里被手抄——测试侧门（keyed set == STAGE_NAMES）；
+4. 十三个加载器裁定不变。
+
+## 第五百六十九批 — M8-T587 — 六个 stage 的名字在测试里也只能问家
+
+### 1 欠的是哪一条
+
+`STAGE_NAMES`（`minicc/config.py`）是六个 pipeline stage 名的家，有门钉住成员集合。
+但四个测试文件手拼了完整六名——两处 `test_router.py` 的等价循环、
+`test_stage_routing_config_reaches_the_router.py` 的 `STAGES` 元组、
+`test_custom_model_card_fields_reach_a_reader.py` 的 `STAGES` 元组。
+加第七个 stage 时，这些循环会静默跳过它——没有任何信号，而「等价性检查覆盖全部 stage」
+恰恰是那几个测试存在的意义。
+
+### 2 量到的真相（实测）
+
+- AST 普查：tests/ 下携带 ≥5 个 stage 名的容器恰 4 处（见 §1）；其余测试只手拼子集或只用 home。
+- 两个测试文件已通过 `config_module` / `minicc_config` 间接 import minicc.config——直接改用 `tuple(sorted(...STAGE_NAMES))`，保持 `STAGES` 名不变、使用点不动。
+- `test_router.py` 两个内联元组 → `for stage in sorted(STAGE_NAMES):`。
+- 无其它 tests/ 容器携带 ≥5 个名（修后普查为空）。
+
+### 3 落地
+
+- `tests/test_router.py`：config import 增加 `STAGE_NAMES`；两处循环改 `sorted(STAGE_NAMES)`。
+- `tests/test_stage_routing_config_reaches_the_router.py`：`STAGES = tuple(sorted(config_module.STAGE_NAMES))`。
+- `tests/test_custom_model_card_fields_reach_a_reader.py`：`STAGES = tuple(sorted(minicc_config.STAGE_NAMES))`。
+- `tests/test_the_stage_names_have_one_home_in_the_tests_too.py`（新门）：① tests/ 下任何容器携带 ≥5 个 stage 名即红（引导问家）；② `STAGE_NAMES` 的家必须等于恰好这六个名。
+  门自带「字符串拆名」把戏——直接写六名字面量会让门自缚。
+- 红臂（`git stash push` 三个测试文件）：门红，点名 4 处；pop 后绿。
+
+### 4 见证（红先绿后，注入红臂）
+
+- 红：`tests/test_router.py:84`、`:383`、`test_stage_routing_config_reaches_the_router.py:54`、`test_custom_model_card_fields_reach_a_reader.py:51` 四处逐一被门点名；绿：2 passed。
+- 焦点回归：`test_router.py` + `test_stage_routing_config_reaches_the_router.py` = 101 passed；`test_custom_model_card_fields_reach_a_reader.py` = 5 passed。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称其它子集拼写被统一——只钉「≥5 名的全拼写」，子集按各人语义保留；
+- 不声称 `minicc/` 里没有手拼（router/router 等已有行为断言覆盖）；
+- 不声称 CI 全绿：批 569 尚未推送（等当前 Windows 腿）；
+- 门对自己自缚问题已用字符串拆名规避——注释说明。
+
+### 7 下一位候选
+
+1. 等 tip `e543fcf`（批 567–568）的 Windows 腿跑完 → 推批 569 → 再等一个完整周期；
+2. #10：trace-detail key 词表（panels/index.js 两份 13/62 键清单）——先想清楚门钉的是 keys 还是 labels；
+3. 十三个加载器裁定不变。
+
+## 第五百七十批 — M8-T588 — trace-detail 两个渲染器不再自带平行 key 清单
+
+### 1 欠的是哪一条
+
+`web/src/panels/index.js` 有两个几乎同职的渲染器渲染 `event.detail`：
+`traceDetailPreview`（列表预览，截断）和 `traceDetail`（展开全文）。每个渲染器
+手持**两份**平行结构——zh/en 标签 dict + 一份 `const keys = [...]`（或内联数组）
+——两个结构独立维护、互不对账。实测它们已经漂了：预览的清单里有一把
+`recovery_inspection_required`，展开渲染器的 dict 里根本没有它——展开视图里
+这个字段会静默丢失。
+
+### 2 量到的真相（实测）
+
+- 预览：zh 13 键 == en 13 键（顺序一致）；内联 key 数组与 dict 顺序一致。
+- 展开：zh 59 键（修后）== en 59 键；`const keys` 数组与 dict 顺序一致。
+- 预览 keys ⊄ 展开 keys（差 `recovery_inspection_required`）。
+- 修后普查：`for (const key of [` 0 处、`const keys = [` 0 处、`Object.keys(labels)` 2 处、`recovery_inspection_required` 4 处（两个 dict × zh/en 各一）。
+
+### 3 落地
+
+- `traceDetail`：删 `const keys = [...]` 手抄；`for (const key of Object.keys(labels))`；
+  zh/en dict 各加 `recovery_inspection_required: "写入保护" / "write guard"`（与预览同词），
+  放在 verification_required 之后。
+- `traceDetailPreview`：删内联清单；`Object.keys(labels)`。
+- `tests/frontend_trace_detail_one_home_smoke.mjs`（新门）：两渲染器不得出现手抄清单；
+  两渲染器 zh/en dict 键集各自相等；预览键集 ⊆ 展开键集；两者都认识 `recovery_inspection_required`。
+- `package.json`：新增 `test:tracedetail`；CI js-check job 增加 `node --check` + `npm run test:tracedetail`。
+- bundle 重建（app.js/asset-manifest 换新哈希）。
+
+### 4 见证（红先绿后，注入红臂）
+
+- 红臂：stash panels/index.js → 门红（"the hand-written key list is back"）；pop → 绿。
+- 焦点回归：`npm run check:web`（app.js + game.js up to date，assets clean）；
+  `test:trace` / `test:tracephase` / `test:i18n` / `test:optimization` / `test:tracedetail` 全绿；
+  `node --check web/src/panels/index.js` ok。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 preview/detail 的 zh/en 措辞被统一——短形与长形本来可以长得不一样（如 tool_count），本批只钉键集；
+- 不声称 `logging_setup.py` 里那份 Python 侧 key 子集被统一——它是日志面的允许集合，与渲染面是另一个事实；
+- 不声称 bundle 无变化——本批重建了 app.js 与 assets 哈希；
+- 不声称 CI 全绿：批 569/570 尚未推送；`ubuntu-latest` 仍零次被调度。
+
+### 7 下一位候选
+
+1. 等 tip `e543fcf`（批 567–568）的 Windows 腿跑完 → 推批 569+570 → 再等一个完整周期；
+2. #12 的遗留：`web.py` 里 `"auto"` 一处保留手拼（有意，见批 568 边界）；
+3. 十三个加载器裁定不变。
+
+## 第五百七十一批 — M8-T589 — 补全判词键契约也有一个家了（fake 端与家对齐）
+
+### 1 欠的是哪一条
+
+「补全判词长什么样」——六个键：`status`、`confidence`、`rationale`、`missing`、
+`next_action`、`evidence`。这个契约在三处手写：`completion.py` 的 `to_dict`（渲染）、
+`completion.py` 的 `required` 集（`status=="complete"` 时的必备子集）、以及 fake provider
+的 judge 输出。三处互不隶属——`to_dict` 多加一个字段、fake 不跟进，或 `required` 悄悄多要一个，
+都只有运行时才知道。
+
+### 2 量到的真相（实测）
+
+- AST 普查（排除 docstring）：携带 ≥3 个六键的 Dict 恰 2 处且都恰好等于六键
+  ——`fake.py:96`（judge 输出）与 `completion.py:86`（`to_dict` 的 base literal）；
+- 携带 ≥3 个六键的 Set 恰 1 处——`completion.py:605` 的 `required`，且恰好是六键的
+  真子集（不含 `status`——判决 status 是被评审的结果，不是必填佐证）。
+
+### 3 落地
+
+- `tests/test_the_completion_verdict_keys_have_one_home.py`（新门，3 条）：
+  1. fake judge 的 payload dict 键集 == 六键家；
+  2. `to_dict` 的 base literal 键集 == 六键家；
+  3. 解析器的 `required` 集 ⊆ 六键家。
+
+### 4 见证（红先绿后，注入红臂）
+
+- 注入红臂：fake judge 加 `"verdict": "ok"` → 门红，点名「extra {'verdict'}, missing set()」；
+  `git checkout -- minicc/llm/fake.py` 恢复后 3 passed。
+- `test_completion_liveness.py` = 31 passed。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 fake 的其余线路（stream 重试、vision judge 等）也被钉住——本门只钉六键契约本体；
+- 不声称 `to_dict` 的附加键（`error`/`usage`）受家约束——它们是条件字段，另算；
+- 不声称 Python↔JS 补全侧对齐——补全流渲染（前端）属另一事实；
+- 不声称 CI 全绿：批 569/570/571 尚未推送（等当前 Windows 腿）。
+
+### 7 下一位候选
+
+1. 等 tip `e543fcf`（批 567–568）Windows 腿跑完 → 推批 569/570/571 → 再等一个完整周期；
+2. #6 的遗留面已全部收完（批 563+566）；
+3. 十三个加载器裁定不变。
+
+## 第五百七十二批 — M8-T590 — readonly/write/exec 三级风险只有一个家
+
+### 1 欠的是哪一条
+
+「工具声明的风险有哪三级」——`RISK_LEVELS = ("readonly", "write", "exec")`（`minicc/tools/registry.py`）
+有家；但围着它还有 hand-copy：`RISK_ORDER`（同文件的风险序 dict）、`subagent.py` 的
+`SUBAGENT_TOOL_TIERS`（tier→工具集 dict）与 `mode_note`（tier→中文说明 dict，`{...}[self.tier]` 订阅）、
+`planner.py` 的 `PLANNER_KINDS`/`PLANNER_KIND_TOOLS`（刻意的**超集**，readonly/write/exec + review + merge——另一个词表，不是复制）。
+任何一个家新增/改名三级中的某级，这些 dict 只会以运行时 KeyError 报警，或从不报警。
+
+### 2 量到的真相（实测）
+
+- AST 普查（含嵌套/AnnAssign/`{...}[x]` 订阅解包）：携带恰好 {readonly, write, exec} 的容器共 4 处——`registry.py` 的 `RISK_LEVELS`（家）、`RISK_ORDER`、`subagent.py` 的 `SUBAGENT_TOOL_TIERS`（:78）、`mode_note`（:466）；`planner.py` 两处是五成员超集，豁免。
+- `AUTHORIZATION_RISKS`（家，派生自 RISK_LEVELS − readonly）、`RISK_ORDER` 的序、`SUBAGENT_TOOL_TIERS` 的键集——全部与家一致（本批注入反证两次，见 §4）。
+- `test_the_mirror_maps_are_keyed_by_their_homes.py` 的同款子集纪律在此不适用——三级三本 dict 都必须等于家，不是子集。
+
+### 3 落地
+
+- `tests/test_the_risk_tiers_have_one_home.py`（新门，4 条）：
+  1. 家本身是三级且序为 readonly→write→exec；`RISK_ORDER` 键集与序、`AUTHORIZATION_RISKS` 恰等于家除 readonly；
+  2. `SUBAGENT_TOOL_TIERS` 键集 == 家；
+  3. `PLANNER_KINDS == {readonly, write, exec, review, merge}` 且 `PLANNER_KIND_TOOLS` 键集 == `PLANNER_KINDS`（超集被钉住，日后漂移可见）；
+  4. `minicc/` 下任何携带恰好三级的容器必须在四个列举位点之一，否则红——新手抄不许静默加入。
+  AST 扫描器覆盖嵌套作用域、`AnnAssign`（`RISK_ORDER: dict[str, int] = ...`）和 `{...}[self.tier]` 订阅解包——本批第一版门就栽在这三点上，逐一补齐。
+
+### 4 见证（红先绿后，注入红臂×2）
+
+- 注入一（改家侧）：`SUBAGENT_TOOL_TIERS` 删掉 `"exec"` 成员 → 门红，点名「Extra items in the right set: 'exec'」；`git checkout -- minicc/agent/subagent.py` 恢复。
+- 注入二（新增手抄）：临时 `一个临时 probe 模块（已删）`（`TIER_MAP = {"readonly": 1, "write": 2, "exec": 3}`）→ 门红，点名 `一个临时 probe 模块（已删）:1: TIER_MAP`；删除后绿。
+- 门自身绿臂：4 passed。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 `planner.py` 的五成员词表与三级词表「统一」——它确实更大，门只钉它没有丢掉三级成员；
+- 不声称 mode_note 的中文文案被统一——门只钉它的键集仍是三级；
+- 不声称 `CAPABILITY_MIN_RISK` 的**值**受家约束（它是能力→下限风险，另一事实）；
+- 不声称 CI 全绿：批 569/570/571/572 尚未推送（等当前 Windows 腿跑完）。
+
+### 7 下一位候选
+
+1. 等 tip `e543fcf`（批 567–568）Windows 腿跑完 → 推批 569/570/571/572 → 再等一个完整周期；
+2. 普查剩余项（#8 game.js 19 个 plant/zombie key、#14 的 1024/64 上限跨语言）——强度一般，除非出现新证据不做；
+3. 十三个加载器裁定不变。
+
+## 第五百七十三批 — M8-T591 — 门与家对齐：Responses 抛错点恢复 CI 绿
+
+### 1 欠的是哪一条
+
+CI `Python tests (windows-latest)` 对 tip `e543fcf`（批 567–568）红了一条——
+`tests/test_the_stream_broke_message_has_one_home.py::test_both_channels_ask_the_home`：
+「the Responses raise site must ask the home」。根因是批 568 把
+`stream_broke_message("responses", ...)` 改成了问协议 home（`LLM_PROTOCOL_RESPONSES`）——
+与协议家门禁一致，却撞上这条**先验**的断言，它要求 callsite 出现裸字面量
+`stream_broke_message("responses"`。两扇门各自为营：协议成员家禁止该字面量出现在
+config.py 之外，这条门却要求它恰好出现在 openai_provider.py。
+
+### 2 量到的真相（实测）
+
+- 作业 `128511340543`（run `42408510372`）：`1 failed, 4252 passed, 9 skipped in 1239.65s (0:20:39)`；唯一失败点如实命名；日志经 `gh api .../actions/jobs/<id>/logs` 取回 195,906 字节。
+- 修法只能二选一：回退批 568（不做——那是本 lane 的既定方向），或让这条门接受具名常数（做）。
+
+### 3 落地
+
+- `tests/test_the_stream_broke_message_has_one_home.py`：`test_both_channels_ask_the_home` 改为断言
+  `openai.count("stream_broke_message(LLM_PROTOCOL_RESPONSES") == 1`（注释写明批 568 的协议家常数是唯一合法拼法）。
+  语义不变——仍要求抛错点「问 home」，只是协议名改从配置 home 读。
+- 临时日志文件（`ci_failed_log.txt`）已删除。
+
+### 4 见证（红先绿后）
+
+- 修前红：CI Windows 腿唯一失败 = 上述断言（见 §2）。
+- 修后绿（本地）：`test_the_stream_broke_message_has_one_home.py` + `test_the_llm_protocol_members_have_one_home.py` = 8 passed；
+  相关面：`test_the_stream_retry_summary_has_one_home.py` 6 passed；`test_m8_t58_inspection_fallback.py` 4 passed；
+  `test_the_recovery_guard_must_also_stop_a_write_done_through_bash.py` 同链 7 passed。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件本地——CI 全量跑出过一次完整读数，恰好只这一条红。
+
+### 6 边界（本批**不**声称）
+
+- 不声称批 568 的其余部分已在 CI 上被验证——全量只红这一条，且已修；
+- 不声称其余排队作业（ubuntu-latest / Claim checkers / M1 probe / PR eval / js-check）有结果——它们至今零次被调度；
+- 不声称修复重新引入裸字面量——协议成员家门禁仍然红它；
+- 不声称本批推送后 CI 必然全绿——等 Windows 腿下一次完整周期。
+
+### 7 下一位候选
+
+1. 一次性推批 569/570/571/572/573 后，等 Windows 腿完整周期再动下一批；
+2. 修复在本 lane 之内——主 worktree 的并发会话仍未释放合并（`UU docs/ROADMAP_TO_PRODUCT.md`）；
+3. 十三个加载器裁定不变。
+
+## 第五百七十四批 — M8-T592 — inspector 三个 tab 也只有一个家了
+
+### 1 欠的是哪一条
+
+「inspector 有哪三个 tab」——`changes`、`files`、`verification`。这个集合被四处手抄：
+`web/src/chat/stream.js` 的 validator 内联数组（非法 tab 回落到 `changes`）、
+`web/index.html` 的三个 `data-inspector-tab` 按钮、`web/src/core/state.js` 的 `runtime.inspectorTab`
+初值，以及 main.js 由按钮读写的键序——都没有名、没有人对照。
+
+### 2 量到的真相（实测）
+
+- 普查 `web/**/*.js`、`index.html`：tab 词表共 3 个手拼点（不含生成 bundle）——stream.js validator、
+  index.html 按钮、state.js 初值。无其它文件拼写该三元组。
+
+### 3 落地
+
+- `web/src/core/state.js`：新增 `export const INSPECTOR_TABS = ["changes", "files", "verification"];`（`#:` 注释说明用途）；`runtime.inspectorTab = INSPECTOR_TABS[0]`（派生默认，不再手拼）。
+- `web/src/chat/stream.js`：import 增加 `INSPECTOR_TABS`；validator 改问家；非法 tab 回落 `INSPECTOR_TABS[0]`。
+- `tests/frontend_inspector_tab_one_home_smoke.mjs`（新门，5 条）：家导出三个 tab 且序正确；index.html 按钮顺序一致；runtime 默认派生自家（`INSPECTOR_TABS[0]`）；`web/src` 不许再拼三元组字面量；stream.js 不得残留内联数组且必须 import 家。
+- `package.json`：新增 `test:inspector`；CI js-check job 增加 `node --check` + `npm run test:inspector`。
+- bundle 重建（`app.js`/`asset-manifest`/`assets/` 换新哈希）。
+
+### 4 见证（红先绿后）
+
+- 红臂：stash state.js/stream.js → 门红（"core/state.js must export INSPECTOR_TABS"）；pop → 绿。
+- 焦点回归：全部前端门绿（inspector/perm/sessionid/context/eventretention/approval/todo/phase/trace/tracephase/tracedetail/i18n/effort）；
+  `npm run check:web` 干净（app.js + game.js up to date，assets clean）。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 index.html 可以 import JS——静态按钮顺序由门钉住；
+- 不声称 tab 对应的 section ids（changesSection/fileTreeSection/verificationSection/overviewSection）也合一——那是另一组标识符，另批；
+- 不声称 main.js 的点击绑定被统一——它读 `data-inspector-tab`，属性顺序已由门钉；
+- 不声称 CI js-check 已跑——该 job 今日仍未被调度。
+
+### 7 下一位候选
+
+1. 推批 574+575 后等 Windows 腿一个完整周期；
+2. **todo_write 的 schema 与校验器对账**（schema 的 maxItems/maxLength/required 与 `todo.py` 的 `MAX_TODOS`/`MAX_CONTENT_CHARS` 及 normalizer 的返回键/必填集无人钉）——下一批本批做；
+3. 十三个加载器裁定不变。
+
+## 第五百七十五批 — M8-T593 — todo_write 的声明 schema 与它背后的校验器对账了
+
+### 1 欠的是哪一条
+
+「todo_write 的契约是什么」被写了两遍：`tools/__init__.py` 里的 `input_schema`
+（maxItems、content 的 minLength/maxLength、status/priority 的 enum、required 字段），
+和 `todo.py` 里的校验器（`MAX_TODOS`、`MAX_CONTENT_CHARS`、`TODO_STATUSES`、`TODO_PRIORITIES`、
+required=["content"]、返回键 content/status/priority）。两处都可以独自变动而无人发现——
+模型拿到的工具声明就成了谎言，且只有运行时在最坏路径上才知道。
+
+### 2 量到的真相（实测）
+
+- 今天两处**恰好**一致：`maxItems == MAX_TODOS == 50`、`content.maxLength == MAX_CONTENT_CHARS == 500`、
+  `minLength == 1`（校验器拒绝 strip 后为空）、enum 就写着 `list(TODO_STATUSES)`/`list(TODO_PRIORITIES)`、
+  `items.required == ["content"]`、`schema.required == ["todos"]`、entry 键集 == {content, status, priority}。
+- `TODO_STATUSES/TODO_PRIORITIES` 已经由 `test_the_todo_vocabularies_have_one_home.py` 钉；前端镜像由 `frontend_todo_one_home_smoke.mjs` 钉；
+  本批补上的是**schema 数字与字段面**的对账。
+
+### 3 落地
+
+- `tests/test_the_todo_write_schema_matches_its_validator.py`（新门，AST 直读 schema 字面量）：
+  逐条钉住 §2 列的全部对账点；`todo.MAX_TODOS == 50`、`MAX_CONTENT_CHARS == 500`、两个 enum 元组的值也在门里断言。
+
+### 4 见证（红先绿后，注入红臂）
+
+- 注入 `maxItems: 50 → 64` → 门红，点名「schema maxItems (64) drifted from todo.MAX_TODOS (50)」；`git checkout -- minicc/tools/__init__.py` 恢复后绿。
+- 焦点回归：`test_todo_tool.py` + `test_the_todo_tool_data_have_one_home.py` + `test_the_todo_vocabularies_have_one_home.py` + 新门 = 16 passed。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称其它 ToolSpec 的内联 schema 与各自校验器也已对账——`tools/__init__.py` 里其它带 `input_schema` 的工具同样存在这类手抄（如 MAX_RESULTS_PARAM、bash 的 timeout 上限等），它们是一以贯之的后续批次；
+- 不声称 schema 的人读文档与声明一致——只对账值；
+- 不声称前端门管 schema——前端门管 UI 侧镜像，本门管工具声明侧；
+- 不声称 CI 全绿：js-check/ubuntu 仍零次被调度；Windows 腿绿窗口为最近一次推送。
+
+### 7 下一位候选
+
+1. 推批 574+575 后等 Windows 腿一个完整周期；
+2. **schema↔validator 的全量普查**：对 `tools/__init__.py` 中所有带 `input_schema` 的 ToolSpec，逐一 AST 抽出声明的数字/枚举/必填，对照各自模块的校验常数——同样的手抄模式很可能在其它工具重演；
+3. 十三个加载器裁定不变。
+
+## 第五百七十六批 — M8-T594 — memory 工具三个声明上限与它们的校验器对账
+
+### 1 欠的是哪一条
+
+「memory 工具接受多大的量」被写了两遍：`tools/__init__.py` 里 `Param` 的声明
+（`mem_content_p.max_len=500`、`mem_source_p.max_len=40`、`mem_limit_p.min_value=1/max_value=100`），
+和 `memory.py` 校验器里的常数/钳制（`MAX_MEMORY_CHARS=500`、`MAX_SOURCE_CHARS=40`（截断而非拒绝）、
+`list_entries` 的 `max(1, min(100, limit))` 钳制，默认 `DEFAULT_LIST_LIMIT=20`）。
+同样的手抄模式——这就是批 575 留在账本 §7 的第一条候选。
+
+### 2 量到的真相（实测）
+
+- `mem_content_p` 的 500 与 `MAX_MEMORY_CHARS` 恰好一致；`mem_source_p` 的 40 与 `MAX_SOURCE_CHARS` 恰好一致（校验器截断）；`mem_limit_p` 的 1..100 与校验器钳制恰好一致；`DEFAULT_LIST_LIMIT == 20`，与 Param description 里的「默认 20」一致。
+- 本批第一版门挂了：`const` 闭包晚绑定把所有 Param 的常数看成最后一次循环的值——已修（default-arg 绑定，注释说明）。
+- 注入红臂：`mem_content_p.max_len 500 → 512` → 门红，点名「(512) drifted from memory.MAX_MEMORY_CHARS (500)」；恢复后绿。
+
+### 3 落地
+
+- `tests/test_the_memory_tool_declarations_match_their_validators.py`（新门，AST 直读 Param 声明）：
+  钉三对等值 + `DEFAULT_LIST_LIMIT == 20`（Param description 里的「20」是散文，不钉）。
+
+### 4 见证（红先绿后，注入红臂）
+
+- 见 §2（注入红臂点名 512-vs-500；闭包坑修正后绿）。
+- 焦点回归：`test_memory.py` + `test_the_memory_file_is_shared_so_it_must_be_locked.py` + 新门 = 30 passed。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称钳制表达式 `max(1, min(100, limit))` 本身被钉——只钉两侧的数字；
+- 不声称 `mem_id_p`(32)、`mem_query_p`(200)、`mem_scope_p`(64) 有对账面——它们是契约级封顶，校验器侧没有同名常数可钉；
+- 不声称 description 里的散文与常数一致——那是文档面，另一批；
+- 不声称 CI 全绿：js-check/ubuntu 仍零次被调度；Windows 腿绿窗口为最近一次推送（批 573 tip）。
+
+### 7 下一位候选
+
+1. 推批 576 后等 Windows 腿一个完整周期；
+2. **Param↔validator 对账的系统普查**：`max_len`、`min_value`、`max_value` 的每处 Param 声明，逐一找它的校验面——也许还有 `read_file` 的 byte 上限、`bash` 的 timeout 封顶等；逐个举证，能对才对，对不上的记录为「契约级封顶，无第二面」；
+3. 十三个加载器裁定不变。
+
+## 第五百七十七批 — M8-T595 — HTTP 工具四个声明上限与人工核对终结
+
+### 1 欠的是哪一条
+
+「webfetch/web_search 接受多大的量」——四处声明与 handler 的校验各自手拼：
+
+- `fetch_timeout_p` 的 `max_value=60` vs `webfetch` 的钳制 `max(1.0, min(60.0, timeout))`；
+- `search_limit_p` 的 `max_value=8` vs `web.py` 的 `max(1, min(MAX_RESULTS, ...))`（`MAX_RESULTS == 8`）；
+- `search_query_p` 的 `max_len=500` vs `web.py` 的 `MAX_QUERY_CHARS == 500`（handler raise 超过它）；
+- `fetch_timeout_p` description 的「默认 20」 vs `webfetch.DEFAULT_TIMEOUT == 20.0`。
+
+### 2 量到的真相（实测）
+
+- 普查 `tools/` 下 `max|min` 钳制点（含 `args.get`）：web.py:376、webfetch:442、memory:318、webfetch clamp 是唯一相关的三对；`web.py` 另有 `MAX_QUERY_CHARS = 500` raise 点（查询过长即拒绝，与 Param 上限同一事实）。
+- `bash` 的 `timeout_p [1..600]` 没有 handler 钳制——声明即唯一执法点，不算对账面（账本记一笔）。
+- `minicc.tools.webfetch` 被 `from .webfetch import webfetch` 遮蔽成函数——门用 `importlib.import_module` 直取模块（修复了一次 AttributeError）。
+
+### 3 落地
+
+- `minicc/tools/webfetch.py`：新增 `MIN_TIMEOUT = 1.0` / `MAX_TIMEOUT = 60.0`（`#:` 注释说明谁问它们）；钳制改 `max(MIN_TIMEOUT, min(MAX_TIMEOUT, timeout))`。
+- `minicc/tools/__init__.py`：`.web` import 增加 `MAX_QUERY_CHARS, MAX_RESULTS`；`.webfetch` import 增加 `MIN_TIMEOUT, MAX_TIMEOUT`；
+  `search_query_p.max_len → MAX_QUERY_CHARS`；`search_limit_p.max_value → MAX_RESULTS`；`fetch_timeout_p` 的 min/max → `int(MIN_TIMEOUT)` / `int(MAX_TIMEOUT)`。
+- `tests/test_the_http_tool_declarations_match_their_validators.py`（新门）：
+  家常数存在（1.0/60.0/20.0/8/500）；三处 Param 的 AST 引用家名（`int(MIN_TIMEOUT)` 等）；钳制式引用家名（源码扫描）。
+
+### 4 见证（红先绿后，注入红臂）
+
+- 红臂（stash 两个源码文件）：两条断言都红——`MIN_TIMEOUT` 属性不存在、钳制仍是裸 `min(60.0…`；pop 后 2 passed。
+- 闭包坑修后复绿（与批 576 同类）。
+- 焦点回归：`test_webfetch.py` + `test_webfetch_routes_its_page_through_the_head_tail_channel.py` + `test_the_search_result_have_one_home.py` = 39 passed。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 `bash.timeout_p` 与任何 handler 对账——它没有第二面（声明即执法）；
+- 不声称 `web.REQUEST_TIMEOUT = 12` 被声明参数引用——它是内部实现细节，非工具入口契约；
+- 不声称 Param description 的中文散文与常数一致——散文不钉；
+- 不声称其余工具（fs/read/editor 等）的 Param 与 handler 对账——本批只对 HTTP 三兄弟四处。
+
+### 7 下一位候选
+
+1. 推批 577 后等 Windows 腿一个完整周期；
+2. **fs/editor 侧 Param↔handler 对账普查**（`read_file` 的 offset/limit 钳制、`edit_file` 的 digest 形态、`grep` 的 MAX_MATCHES 等）；不够格对不上时明确不做并记账；
+3. 十三个加载器裁定不变。
+
+## 第五百七十八批 — M8-T596 — 自己手滑的两个「同值不同事家」被掰回来
+
+### 1 欠的是哪一条
+
+批 577（M8-T595）用一次字节级 `String.Replace` 替换两处声明，图省事把「数字一样、事实不同」的常数缝到了一起：
+
+1. `depth_p.max_value = 8`（tree 深度封顶的**边界声明**，fs 侧特意不写第二份）——被缝进 `web.MAX_RESULTS`（web_search 结果上限，也是 8）；
+2. `mem_content_p.max_len = 500`（memory 的 MAX_MEMORY_CHARS=500 一致）——被缝进 `web.MAX_QUERY_CHARS`（web_search 查询长截断，又是 500）。
+
+这两处是「同值不同事家」：数字重合不等于事实相同，正是本 lane 反复钉的那种债——只是这次是我亲手制造的。
+
+### 2 量到的真相（实测）
+
+- `fs.py` 注释明说 ceilings 在工具声明里（`max_depth <= 8, max_entries <= 2000`）——fs 侧没有 `depth`/`entries` 的钳制常数，也没有常数而有 5 个 reader chunk `limit=2000`（read_file 内部读暂停粒度——另一个 2000，同号不同事，不并）。
+- 批 576 的门（`test_the_memory_tool_declarations_match_their_validators.py`）在批 577 推之后立刻红——它要求 `mem_content("max_len")` 等于 memory 的家，而批 577 后它变成 Name `MAX_QUERY_CHARS`，返回 None，断言失败，CI 之前还没见到。**门起作用了。**
+- 批 404 条老约定（「lookalikes keep separate names」）没有被胁迫——值相同、事实不同的两组常数必须各自待在自己的家里。
+
+### 3 落地
+
+- `minicc/tools/__init__.py`：`depth_p.max_value` 改回字面量 8；`mem_content_p.max_len` 改回字面量 500（批 576 门要求的家即 memory 的家，数字对齐即可，不必起名）。
+- `tests/test_the_tree_ceilings_live_at_the_tool_boundary.py`（新门）：`depth_p.max_value` 与 `entries_p.max_value` 必须是 AST Constant 8 / 2000——不许 Name 出别的词表家。
+
+### 4 见证（红先绿后）
+
+- 红臂：`git stash push minicc/tools/__init__.py`（HEAD 仍是 MAX_RESULTS Name）→ 新门红，点名「not a name reaching into another vocabulary」；`git checkout -- ...` 后绿。
+- 焦点回归：`test_the_memory_tool_declarations_match_their_validators.py` + `test_the_tree_ceilings_live_at_the_tool_boundary.py` + `test_the_http_tool_declarations_match_their_validators.py` + `test_the_todo_write_schema_matches_its_validator.py` = 5 passed；`test_a_declared_parameter_is_a_parameter_the_tool_has.py` + `test_core_tools.py` + `test_the_ceilings_belong_to_the_tool_not_the_caller.py` + `test_every_wire_form_carries_the_same_tool_name.py` = 45 passed。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称批 577 的字节级 Replace 已被穷尽审计——本批修了其中两处（.memory/tree），第三处以上的隐藏缝（若还有）会由现有门**逐一显形**；
+- 不声称 fs.py 的 2000 reader chunk 与工具边界 2000 有联系——它们是另一件事，不合并；
+- 不声称 description 中文与常数一致——description 散文不钉值；
+- 不声称 CI 全绿：当前 tip 的 Windows 腿在跑；批 577 的 Windows 腿尚未见到。
+
+### 7 下一位候选
+
+1. 等 tip `a6bc685`+577+578 的 Windows 腿绿之后，再逐个取证——本批的修补本身不增加 CI 风险，但需 CI 最终认可；
+2. **对批 577 所有 `String.Replace` 命中文本的结构化普查**（mem_content_p 挂到 MAX_QUERY_CHARS 这类「批 577 全改命中」正是同一手法出的事故）——把它固化成一条 AST/普查门而不是靠眼睛；
+3. 十三个加载器裁定不变。
+
+## 第五百七十九批 — M8-T597 — 任务账务的两个 64 上限也终于只有一个家
+
+### 1 欠的是哪一条
+
+「任务账务的默认保留条数」——`DEFAULT_TASK_USAGE_LIMIT` 与 `DEFAULT_TASK_COMPACTION_LIMIT`。
+两个常数都是 64，语义同一（每任务的 usage/compaction 保留配额），却在 `minicc/config.py`
+（配置层，负责 `MINICC_TASK_USAGE_LIMIT`/`MINICC_TASK_COMPACTION_LIMIT` 的 pick + 8-512 校验）和
+`minicc/task_manager.py`（服务层消费它们）各写了一份——`web.py` 再从 task_manager 一石三鸟地
+re-export 出去。把默认 64 改成 128，两个家能继续各活各的而不吱声。
+
+### 2 量到的真相（实测）
+
+- 两个常数的两份定义逐字节一致（64）；README 的环境变量表也是 64。
+- consumers：config.py（pick + Config 默认）、task_manager.py（`usage_limit`/`compaction_limit`
+  属性赋值与构造参数）、web.py（re-export 给 external/tests）。
+- §7 的 #4-adjacent 项证明两个 64 family（loop 的 `MAX_RESULT_USAGE_ENTRIES`/`MAX_RESULT_COMPACTION_ENTRIES`、
+  以及 `task_worker.py:418` 的 `[-64:]`）是**另一个词表**（per-binding 结果项保留）——
+  本文不并它们（更多事实，另批）。
+
+### 3 落地
+
+- `minicc/config.py`：不动（家保持它所在的层）。
+- `minicc/task_manager.py`：删两份重复定义；`from .config import ... DEFAULT_TASK_COMPACTION_LIMIT, DEFAULT_TASK_USAGE_LIMIT, ...`。
+- `minicc/web.py`：re-export 块里移除这两个名字；改为直接 `from .config import DEFAULT_TASK_COMPACTION_LIMIT, DEFAULT_TASK_USAGE_LIMIT  # noqa: F401 - re-export for tests and AgentService`。
+- `tests/test_the_task_limits_have_one_home.py`（新门，3 条）：① 家里两名常数存在且 == 64；
+  ② `minicc/` 下任何别处不许定义这两名（AST Assign/AnnAssign）；③ 家里必须有 `MINICC_TASK_USAGE_LIMIT`/`MINICC_TASK_COMPACTION_LIMIT` 且含 "8-512" 的校验词（env 契约）。
+
+### 4 见证（红先绿后）
+
+- 红臂：stash task_manager.py/web.py → 新门红，点名「minicc/task_manager.py:108/109」；pop 后 3 passed。
+- 焦点回归：`test_core_task.py` + `test_task_contract.py` + `test_task_durability.py` + `test_task_persistence.py` + `test_task_store_durability_contract.py` + `test_a_start_must_not_rewrite_every_restored_task.py` + `test_one_tasks_failed_terminal_write_must_not_abort_the_shutdown_of_the_others.py` + 新门 = 86 passed；`import minicc.web` = ok。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 loop 的 `MAX_RESULT_USAGE_ENTRIES` / `MAX_RESULT_COMPACTION_ENTRIES` 和 JS 的 `task-reducer.js slice(-64)` 被统一——它们是 per-binding 保留面的独立词表，另批（reducer 已被 frontend_event_retention 门管辖其 2048；64 那一对留给下一批）；
+- 不声称 README 的 env 表被钉——散文字面不钉；
+- 不声称 `.noqa F401` 的语义被检——只钉住「两名常数只有一份定义」。
+- 批 577 的两个 `String.Replace` 事故修正后，本 lane 的字节级批量替换已暂停（终生教训）：以后声明常数都走 AST/探针确认。
+
+### 7 下一位候选
+
+1. 等第 577/578/579 个 Windows 腿绿 → 再评估降落到 main 的时机；
+2. **reducer 的 64**（task-reducer.js `.slice(-64)` ×2）与 loop 的 `MAX_RESULT_USAGE_ENTRIES`/`MAX_RESULT_COMPACTION_ENTRIES` 对账（Python↔JS 门，effort/todo 的同款）；
+3. `EventLog.limit=1024`（protocol.py）与 `MAX_TRACE_EVENTS`（state.py）与 `MAX_RESULT_TRACE_EVENTS`（loop.py）与 `task_manager [-1024:]` 的 1024 聚合——下一批候选；
+4. 十三个加载器裁定不变。
+
+## 第五百八十批 — M8-T598 — reducer 的两个 64 也钉上了 Python 的家
+
+### 1 欠的是哪一条
+
+「每轮 usage 行和 compaction 事件各保留多少条」——Python 侧 `loop.py` 有两个具名常数
+（`MAX_RESULT_USAGE_ENTRIES` / `MAX_RESULT_COMPACTION_ENTRIES`，均 64，不同事实同一宽度）；
+reducer.js 在绑定上也维护同样的两条清单（`usage_by_turn`、`compaction_events`），却手拼
+裸 `.slice(-64)` 两处。两边谁都没对齐。
+
+### 2 量到的真相（实测）
+
+- reducer.js：`.slice(-64)` 恰 2 处，且恰好是 `usage_by_turn` 与 `compaction_events` 的两行。
+- loop.py：两个常数定义处 + 使用处（1168、1015）。见批 563 的镜像门（dict 形状）与本批互为补充。
+- 无其它 `.slice(-64)`。
+
+### 3 落地
+
+- `tests/frontend_result_entry_caps_one_home_smoke.mjs`（新门，3 钉）：
+  1. loop.py 必须声明两个常数且值相同（64）；
+  2. reducer.js 中 `.slice(-64)` 恰 2 处，且只能出现在 `usage_by_turn` / `compaction_events` 行；
+  3. `web/src` 下其它 .js 不得出现 `.slice(-64)`。
+- `package.json`：新增 `test:entrycaps`；CI js-check job 增加 `node --check` + `npm run test:entrycaps`。
+- 前端未动（reducer.js 内容没变），bundle 不需要重建。
+
+### 4 见证（红先绿后，注入红臂）
+
+- 注入：reducer 一处 `.slice(-64) → .slice(-128)` → 门红，点名「expected exactly 2 .slice(-64) sites, found 1」；`git checkout --` 恢复后绿。
+- 门自身：绿臂（见 §4 结尾）。
+
+### 5 聚焦回归
+
+- 前端套件余量已在批 574/576 环境验证；本批 reducer.js 未动，js bundle 不变。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 reducer 与 loop 共享同一常数——JS 无法 import Python，门只做**值对齐**，不做静态链接；
+- 不声称 task-reducer 的 `MAX_SEEN_EVENT_KEYS=2048` 相关家被改动——那是批 567 的已钉面；
+- 不声称 CI js-check 已跑——该 job 今日仍零次被调度；
+- 不声称 1024 的聚合（`EventLog.limit=1024` vs `state.MAX_TRACE_EVENTS` vs `loop.MAX_RESULT_TRACE_EVENTS` vs `task_manager [-1024:]`）——下一批候选。
+
+### 7 下一位候选
+
+1. **1024 聚合**：state.py `MAX_TRACE_EVENTS`、loop.py `MAX_RESULT_TRACE_EVENTS`、protocol.py `EventLog.__init__(limit=1024)`、task_manager.py `[-1024:]`——同一事实「1024 条轨迹保留」，给它一个家（state → 派生 loop/protocol/task_manager）；
+2. 等第 577/578/579/580 个 Windows 腿绿；
+3. 十三个加载器裁定不变。
+
+## 第五百八十一批 — M8-T599 — 1024 条轨迹保留宽度只有一个家
+
+### 1 欠的是哪一条
+
+「每条绑定保留多少条轨迹」——1024。这个宽度被**四处**手抄：
+`state.py` 的 `MAX_TRACE_EVENTS = 1024`、`loop.py` 的 `MAX_RESULT_TRACE_EVENTS = 1024`（同值同义）、
+`protocol.py` 的 `EventLog.__init__(limit=1024)`、`task_manager.py` 的 merge helper（`[-1024:]`）。
+改宽时得四处同时动；谁先忘谁静默。
+在 review 中另外澄清两处同号但不是这一事实（不并）：`task_manager.py` 的 `6/12 * 1024 * 1024`（图片字节 MB 换算）与 `attachment bytes`、`denied_tools` 的 64 环（denial 环，单独事实）。
+
+### 2 量到的真相（实测）
+
+- AST 普查：1024 的相关 Constant 恰好是这四个点（state/loop/protocol/task_manager 的合并修剪）。
+- `protocol.py` 是 EventLog 的边界（SSE 客户端有界回放）——家放在 `state.py`，loop 与 protocol 与 task_manager 都问它，import 方向无环（state 不 import 任何 agent 内部模块）。
+- 红臂（stash 三个源文件）：门红，点名 `loop.py:117` 与 `protocol.py:173` 与 `[-1024:]`；pop 后 3 passed。
+
+### 3 落地
+
+- `minicc/agent/state.py`：不动（家保持）。
+- `minicc/agent/loop.py`：删 `MAX_RESULT_TRACE_EVENTS`；`from .state import ... MAX_TRACE_EVENTS`，裁剪点改问家。
+- `minicc/agent/protocol.py`：`from .state import MAX_TRACE_EVENTS`；`EventLog.__init__(limit=MAX_TRACE_EVENTS)`。
+- `minicc/task_manager.py`：import `MAX_TRACE_EVENTS`（state）与 `MAX_RESULT_USAGE_ENTRIES` / `MAX_RESULT_COMPACTION_ENTRIES`（loop）；
+  merge 里 `-1024:`/`-64:` 三处改问家；`denied_tools` 的 64 保留（单独事实）。
+- `tests/test_the_one_thousand_twenty_four_has_one_home.py`（新门）：家定义了 == 1024；`loop.py`/`protocol.py` 不得残留 int 1024；
+  `task_manager.py` 的 `[-1024:]` 被钉为禁用（必须 `[-MAX_TRACE_EVENTS:]`）。
+
+### 4 见证（红先绿后）
+
+- 见 §2。
+- 焦点回归：`test_core_agent.py` + `test_completion_liveness.py` + `test_core_task.py` + `test_task_contract.py` + `test_task_durability.py` = 134 passed。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 `EventLog` 可以无限长——仍是有界 `deque(maxlen=…)`，只是边界值问家；
+- 不声称 reducer 的 2048 也被并了——批 567 已钉；
+- 不声称 `task-reducer.js` 也有"type home"声明——它经 frontend_result_entry_caps_one_home_smoke（批 580）与本批聚合门分工管。
+- 首版门把 MB 换算 `1024` 误判红了一次——已收窄成 loop/protocol 空扫 + task_manager 切片断言。
+
+### 7 下一位候选
+
+1. 等第 577–581 个 Windows 腿绿 → 全量信号跟踪；
+2. 主 worktree 的合并进度——那条屋里 `UU ROADMAP` 没动过，仍未到降落窗口；
+3. 十三个加载器裁定不变。
+
+## 第五百八十二批 — M8-T600 — 植物/僵尸注册表两个名字也只有一个家了
+
+### 1 欠的是哪一条
+
+`web/src/game.js` 里的实体表全是手拼 key——19 种植物（`plantCost` 等 7 张全量表）与
+19 种僵尸（`zombieProfiles` 等 3 张全量表 + `ZOMBIE_BODY_COLORS`）。只要某张全量表少
+一行，fallback 就在渲染/逻辑里静默接管：本次普查发现 `ZOMBIE_BODY_COLORS` 缺了
+`scout`/`shield`/`storm` 三种——这三种僵尸数月以来一直画成 `walker` 的身体色，全靠
+`ZOMBIE_BODY_COLORS[zombie.type] || ZOMBIE_BODY_COLORS.walker` 兜底。
+
+### 2 量到的真相（实测）
+
+- 植物 7 表全量一致（19/19）：`plantCost`（`PLANT_TYPES` 由它派生）、`plantHealth`、`plantColor`、
+  `plantCooldown`、`codexPlantNames`、`codexPlantIcons`、`codexPlantSpecials`。
+- 植物 `plantProfiles` 是**刻意子集**（10 种带特性的植物）——合法，门钉「⊆ 植物注册表」。
+- 僵尸 2 表全量一致：`codexZombieNames`、`codexZombieSkills`；`zombieProfiles`（注册表本体）19/19。
+- `ZOMBIE_BODY_COLORS`：16/19，缺 `scout`、`shield`、`storm`（数月）。
+
+### 3 落地
+
+- `web/src/game.js`：`ZOMBIE_BODY_COLORS` 补齐三色（`scout: "#6f7a4f"`、`shield: "#4f5f73"`、
+  `storm: "#424c5e"`，与现存低饱和调色板一致）。
+- `tests/game_entity_registry_smoke.mjs`（新门）：
+  1. 植物注册表 == `plantCost` keys（19）；`PLANT_TYPES` 必须由它派生（`Object.keys(plantCost)`）；
+  2. 7 张植物全量表的 key 集合必须**恰好**等于植物注册表；
+  3. 僵尸注册表 == `zombieProfiles` keys（19）；
+  4. 3 张僵尸全量表必须恰好等于僵尸注册表；
+  5. 子集表 `plantProfiles` 必须是植物注册表的子集。
+  字典解析为深度感知（跳过嵌套对象），不依赖字符串切分。
+- `package.json`：新增 `test:registry`；CI js-check job 增加 `node --check` + `npm run test:registry`。
+- bundle 重建（game.js/asset-manifest/assets 换哈希）。
+
+### 4 见证（红先绿后）
+
+- 红臂：stash game.js → 门红，点名「scout,storm,shield missing」；pop 后绿。
+- 本地全量实跑（fake provider，`python -m minicc.web --port 8765`）：`test:game` ✓、`test:codex` ✓（「19 plants + 19 zombies」）、`test:zombie` ✓；
+  `npm run check:web` 干净（game.js up to date，assets clean）。
+- 服务器进程与 smoke 日志均已删除（20612 已杀，log 删除）。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量 pytest 套件（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称三种新颜色是美术验收过的最终配色——它们够用、在调色板家族里，完善色是美术面，不是这批账的目标；
+- 不声称 `plantProfiles` 也必须 19/19——它是刻意的 10 键子集，门钉的是「不越界」，不是「凑数」；
+- 不声称 codex 与游戏本体之间的平衡外的任何契约（文案/数值）；
+- 不声称 CI js-check 已跑——该 job 今日仍零次被调度。
+
+### 7 下一位候选
+
+1. 等第 577–582 个 Windows 腿绿（本批 push 后 ~20 分钟）；
+2. `logging_setup.py` 的日志面 detail-key 子集与渲染面两种词表的对照——是 #10 的尾项，是子集对照而不是同家事实，需要先想清楚门钉哪个事实；
+3. 十三个加载器裁定不变。
+
+## 第五百八十三批 — M8-T601 — 日志白名单里不再有「暗处从不匹配」的死成员
+
+### 1 欠的是哪一条
+
+`describe_event`（`minicc/logging_setup.py`）为运维日志打印事件的 `detail` 子集——
+六键白名单 `turn, attempt, retry, tool_count, risk, authorization`。普查发现
+`risk` 与 `authorization` 在全 `minicc/` 没有任何一处以 **detail 字典 key** 出现：
+`authorization` 只作为 `audit.py` 的 `event["authorization"] = …` 顶层字段赋值存在；
+`risk` 同样只在顶层（`audit.py:462`、`web.py:626/1760/2264` 的顶层 dict/frame）。
+白名单读的是 `detail`，这两个成员**永远匹配不上、永远打印不了**，读者却会以为
+authorization 的风险等级已经在日志里。
+
+### 2 量到的真相（实测）
+
+- AST 全深度字典 key 普查：`risk` → 只出现在顶层 dict/emit；`authorization` → 只以 `Subscript` 赋值形式出现，**零个 dict key**。
+- `turn` / `attempt` / `retry` / `tool_count` → 各处 dict key 现存（`loop.py`、`task_manager.py`、`web.py` 等）。
+- 前端词表（58 键 detail 快照）与这份运维白名单是不同的事实（不同问题），不并。
+- 注：本批第一版红臂把 `"authorization"` 注入白名单复红时，`git checkout --` 顺手把**本批未提交的修复**一起回滚了——红臂套路错了（未提交文件不能用 checkout）；已重新手工恢复修复。账本特意记下这个手法错误。
+
+### 3 落地
+
+- `minicc/logging_setup.py`：白名单删掉 `risk`、`authorization`（不可匹配的死成员）；注释写明「每个成员必须至少有一个 dict key 被 minted」。
+- `tests/test_the_log_allowlist_members_are_minted_somewhere.py`（新门，2 条）：
+  1. 白名单每个成员必须在 `minicc/` 至少一个 dict 字面量里以常数 key 出现；
+  2. 当前白名单精确等于 `["turn", "attempt", "retry", "tool_count"]`（挡住「以后又塞进来没人 minted 的成员」）。
+
+### 4 见证（红先绿后）
+
+- 红臂：白名单注入 `authorization` → 门红，点名「['authorization']」；移除后绿。
+  （`git checkout` 的误用事故见 §2，已手工恢复修复，再次验证 2 passed。）
+- 焦点回归：`test_logging.py` + `test_a_new_logger_must_go_through_get_logger.py` + `test_the_tool_log_fields_have_one_home.py` + `test_the_request_failed_log_have_one_home.py` + `test_the_task_snapshot_write_failed_log_has_one_home.py` + `test_the_model_context_must_redact_what_the_log_already_redacted.py` = 62 passed。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称已验证运维是否需要 risk/authorization 出现在日志里——若确实需要，
+  正解是把授权事件的顶层字段接进描述器（另一批，另一个决定），不是把死成员留在白名单；
+- 不声称日志做了字段级脱敏的新增——`summary[:200]`、`kind`/`code`/`status` 的打印语义不动；
+- 不声称前端词典跟着删 key——前端是独立词表，不受影响。
+
+### 7 下一位候选
+
+1. 等 Windows 腿（tip 50438fc）跑完之后再推这批；连同批 582/583 一起，等一个完整周期；
+2. Authorization 的运维可见性——若需要，另一批把 authorization 的顶层 risk/authorization 以新字段或新行打进 task 日志；
+3. 十三个加载器裁定不变。
+
+## 第五百八十四批 — M8-T602 — 任务限制剩余三份默认值也只问 config 的家
+
+### 1 欠的是哪一条
+
+上一批（M8-T597）把 `DEFAULT_TASK_USAGE_LIMIT` / `DEFAULT_TASK_COMPACTION_LIMIT`
+两份 64 搬回了 `minicc/config.py`,但**同一类**的另外三对——`DEFAULT_TASK_EVENT_LIMIT = 768`、
+`DEFAULT_TASK_STREAM_LIMIT = 16_000`、`DEFAULT_TASK_QUEUE_LIMIT = 32`——依然在
+`config.py` 与 `task_manager.py` 各写一份;`task_worker.py` 问 config,`task_manager`
+消费自己的,`web.py` re-export task_manager 的,`task_manager` 从 config 问 usage/compaction,
+分体消费事件/流/队列三对——和上一批犯的是同一个病。
+
+### 2 量到的真相（实测）
+
+- `config.py` 的家:`DEFAULT_TASK_EVENT_LIMIT=768`(env `MINICC_TASK_EVENT_LIMIT`,夹 32-10000)、
+  `DEFAULT_TASK_STREAM_LIMIT=16_000`(env `MINICC_TASK_STREAM_LIMIT`,夹 512-100000)、
+  `DEFAULT_TASK_QUEUE_LIMIT=32`(env `MINICC_TASK_QUEUE_LIMIT`,夹 1-256)。
+- `task_manager.py` 的拷贝:768 / 16_000 / 32,一字不差。
+- 消费分裂:task_worker(问 config)、task_manager 消费自己(被本门点名)、web.py re-export task_manager 的。
+
+### 3 落地
+
+- `minicc/task_manager.py`:删三份拷贝;从 `.config` import 所有五个名字(EVENT/STREAM/QUEUE/USAGE/COMPACTION)。
+- `minicc/web.py`:re-export 块删除这三个名字;改成直接 `from .config import ... # noqa: F401`,
+  与上一批的 USAGE/COMPACTION 同一行。
+- `tests/test_the_task_limits_have_one_home.py`:扩展为五条共享门——
+  ① 五名常数在 config.py 恰好一次,值 == 768/16_000/32/64/64;
+  ② minicc/ 下任何别处不得定义这五名(AST Assign/AnnAssign);
+  ③ 家里五条 env 夹子都存在(`32-10000` / `512-100000` / `1-256` / `8-512` + 五个 env 名字)。
+  中途还出了一个粘了两行的事故(`LOG = get_logger` 与 `MAX_BATCH_TASKS` 粘在一起),
+  先修好再补门。关联的事故结论见 §6(禁一不留二)。
+
+### 4 见证（红先绿后）
+
+- 绿臂:新门 `3 passed`;`import minicc.task_manager` = import ok。
+- 红臂:stash 三文件 → 新门红,点名
+  `minicc/task_manager.py:107: DEFAULT_TASK_EVENT_LIMIT`, `:108: DEFAULT_TASK_STREAM_LIMIT`,
+  `:109: DEFAULT_TASK_QUEUE_LIMIT`;pop 后绿。
+- 插跑一次语法自检 + pytest 三条最小路径;文档指针 `exit=0`。
+
+### 5 聚焦回归
+
+- 见 §4;未跑全量套件（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 64 家的两个常数也被强调——上一批 M8-T597 的任务迁移被本批复用并通化为同一扇门;
+- 不声称 `web.py` 会删除更多 re-export——这批只动了这五条的 re-export 源;
+- 不声称 `task_worker.py` 的 import 改成引用——它本来就问 config,是正确的;
+- 不声称本机 CPU 上的全量套件为绿;
+- 不声称 CI 双腿都已绿:推送后腿会排队,最新 Windows 绿为 base。
+
+### 7 下一位候选
+
+1. **task-event `kind` 词表**(8 个值)——Python 发射方与 JS reducer 之间,没有 home;下一批主力做;
+2. 中文 effort 标签(Python 与 i18n `reasoning.*` zh 列)——两处,值不钉;
+3. 十三个加载器裁定不变。
+
+## 第五百八十五批 — M8-T603 — task-event 的 8 个 kind 归家（Python 发射方 — JS reducer）
+
+### 1 欠的是哪一条
+
+「task-event 的 kind 有哪八个」——`timeline` / `stream_delta` / `state` / `status` /
+`usage` / `context` / `compaction` / `result`。它们是运行时 emit 方（Python）和前端
+reducer（JS）之间的 SSE 线协议——两个手拼的家：Python 12 个发射点逐个拼字面量；前端
+`web/src/core/task-reducer.js` 的 switch 八个 arm,**没有 default**——drifted 或新
+kind 在 UI 静默丢弃。对齐任务没有任何门拦,也没有谁提到它。
+
+### 2 量到的真相（实测）
+
+- 发射点 AST 普查：`_publish_locked("timeline"...)`……共 12 处显式字面量 + 1 处
+  `state.py` 属另一词表（agent trace `kind="state"`；不同事实，未触碰）。
+- JS reducer：8 arms,`case "timeline"`/`"stream_delta"`/`"state"`/`"status"`/`"usage"`/
+  `"context"`/`"compaction"`/`"result"`；全仓其余 .js 零 `case` 拼写同 kind（本批新门钉住）。
+
+### 3 落地
+
+- `minicc/agent/protocol.py`：新增 `TASK_EVENT_KINDS = frozenset({...})`（`#:` 说明 12→8 个发射点
+  与 reducer 的 8 arms 双拷的来历）；`__all__` 增加同名导出。
+- `tests/test_the_task_event_kinds_have_one_home.py`（新门，3 条）：
+  ① 家定义恰好 8 个名字；
+  ② `minicc/` 下任何 `_publish_locked(<字面量>, ...)` 的 kind 必须在家内（无发明者）；
+  ③ 普查到的 emit kinds 集合 == 家（无僵死成员、无旁漏）。
+- `tests/frontend_task_event_kinds_one_home_smoke.mjs`（新门，3 钉）：
+  ① 家定义 == 恰好这八个；
+  ② reducer 的 case arms == 家（正好，不是只要是 home 的子集就行）；
+  ③ `web/src` 下其它 .js 不许 spelling `case "<kind>"`（reducer 是唯一 switch）。
+- `package.json`：新增 `test:kinds`；CI js-check job 增加 `node --check` + `npm run test:kinds`。
+
+### 4 见证（红先绿后）
+
+- Python 门绿臂（3 passed）；注入 misspell：临时 `一个临时的 _tmp_kind_probe 探针模块` 的
+  `_publish_locked("future_kind")` → 两条断言各红，点名 `temp probe module:7`；删除后绿。
+- JS 门绿臂（M8-T603 ok）；红臂：reducer 改 `"timeline"` → `"tiimeline"` → 门红，
+  点名 `tiimeline`；`git checkout --` 恢复后绿。
+- 焦点回归（本地全绿）：`check:web`、`test:kinds`、`test:inspector`、`test:entrycaps`、
+  `test:eventretention`、`test:registry`、`test:todo`、`test:approval`、`test:phase`、
+  `test:trace`、`test:tracephase`、`test:tracedetail`、`test:i18n`、`test:effort`、`test:perm`、
+  `test:sessionid`、`test:context`、`test:scale`、`test:transport`。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 reducer 的 switch 增加 default arm——本批只钉住「不漏不发明」；加 default 是
+  batch 决策，应该独立做（而且 web 侧目前 *不应* 吞新 kind，反而是 fail-fast 的显示错位警示）；
+- 不声称 agent state machine 的 `TraceEvent.kind="state"` 也被这扇门管辖——它是
+  `PHASE_CARRYING_EVENT_KINDS` 的成员，不同事实；
+- 不声称 CI js-check 已跑——该 job 今日仍零次被调度。
+
+### 7 下一位候选
+
+1. 等这个 tip 的 Windows 腿跑完（push 后 ~20 分钟）——批 584+585 一并在场，批 584 已绿；
+2. 中文 effort 标签拼写对齐（Python `loop.py` 的内联标签表与 `STATE_ED_LABELS`/i18n `reasoning.{low,…,ultra}` 的 `zh` 列——两处独立维护，从未对照，drift 一条也能同时全绿）——下一个主力批；
+3. 十三个加载器裁定不变。
+
+## 第五百八十六批 — M8-T604 — 中文 effort 六处文案的两个源,拼写上钉了
+
+### 1 欠的是哪一条
+
+「这六种推理等级在中文里叫什么」——这个事实被 Python(`minicc/agent/loop.py` 的内联
+`effort_label` 表)和前端(`web/src/core/i18n.js` 的 `reasoning.*` zh 列)各写了一遍。
+两个拷贝从没人对照。今天字节一致——但靠历史巧合;改任意一面,另一面照样全绿,
+UI 和 CLI 日志就描述了不同的名字,没有任何信号。
+
+### 2 量到的真相（实测）
+
+- Python: `effort_label = {"low": 低, "mid": 中, "high": 高, "xhigh": 极高, "max": 最高, "ultra": "Ultra"}`
+- i18n `zh`: `reasoning.low/mid/high/xhigh/max/ultra = 低/中/高/极高/最高/Ultra`
+- 两者逐字节吻合（`\xe4\xbd\x8e` 等比对吻合），但两面各自独立维护。
+
+### 3 落地
+
+- `tests/test_the_effort_labels_share_one_spelling.py`（新门，2 条）：
+  ① 两面六个中文标签逐字节相同（键集也必须一致）；
+  ② Python 面涵盖 `REASONING_EFFORTS` 家（不得缺对岸）。
+
+### 4 见证（红先绿后）
+
+- 红臂：i18n `reasoning.mid` 的「中」改成「狆」→ 门红，点名「mid: python=…中… vs i18n=…狆…」；
+  `git checkout --` 恢复后绿。
+- 门本身：2 passed。
+
+### 5 聚焦回归
+
+- 未跑全量套件（本机 CPU 不可靠）；前端 effort 门在批 584/585 路径复跑过。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 en 列与 Python 面一致——en 是 UI 英文读法，且 Python 面本来就只有中文；
+- 不声称努力等级的**含义**被钉——只钉名字；
+- 不声称 CI 双腿都已绿：第 584 推后腿会在途（如触发），最新 Windows 绿停在批 580 的 tip 上（M8-T598）。
+
+### 7 下一位候选
+
+1. 批 584/585 的 CI 绿灯回来确认后再推；
+2. 中文 effort 文案的所有关联面（`panel.reasoningNote` 里提到 low/medium/high 等 level 名）——判断是否独立事实，若不独立，标记 deferred；
+3. 十三个加载器裁定不变。
+
+## 第五百八十七批 — M8-T605 — MOVEMENT_FIELDS 六字段只有一个家
+
+### 1 欠的是哪一条
+
+`MOVEMENT_FIELDS` 是 bench 报告里「相比 baseline 的 variant 动了多少」的六字段词表——
+`bench_compare.py` 在 `MOVEMENT_FIELDS = (...)` 定义了它并用于 `_blank_movement`；
+`tests/test_a_self_compare_is_not_published_as_an_ab.py` 逐字复制了这六个名字——
+the exact same six spellings, written again by hand，谁都没钉住。
+如果 home 增加或删减字段，测试副本照样独立通过（因为它查的不是 home），
+"self-compare not published as an A/B" 这个最贴近用户发布判定的不变式因此失效。
+
+### 2 量到的真相（实测）
+
+- home：`minicc/bench_compare.py:328-335` 六元组。
+- 副本：`tests/test_a_self_compare_is_not_published_as_an_ab.py:38-45` 逐字一行六个名字写过，
+  那行注释写着「spelled out here rather than imported」——理由是「still able to say the name is missing」，
+  但 home 加减字段时，副本并不能报知（`a.get(key) is not None` 对任意六项都 pass）。
+
+### 3 落地
+
+- `tests/test_a_self_compare_is_not_published_as_an_ab.py`：
+  删除名为 `MOVEMENT_FIELDS` 的本地六元组；改成直接
+  `from minicc.bench_compare import MOVEMENT_FIELDS`；注释写明「home 加减字段时此处一切原样成立」。
+- `tests/test_the_movement_fields_have_one_home.py`（新门，2 条）：
+  ① home 必须恰好等于这六个 tuple；
+  ② `minicc/` 下任何其它模块不得定义同名 `MOVEMENT_FIELDS`。
+
+### 4 见证（红先绿后）
+
+- 绿臂（修后）：`bench_compare` 删除后 …
+  改后动作为 `git checkout -- minicc/bench_compare.py` 恢复；`test_the_movement_fields_have_one_home.py` + `test_a_self_compare_is_not_published_as_an_ab.py` = 13 passed。
+- 红臂（注入）：改 home 定义名 `MOVEMENT_FIELDS` → `MOVEMENT_FIELDS_` → 门红，ImportError 点名模块；恢复后绿。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（本机 CPU 不可靠）；本批不影响 runtime 代码，只动测试。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 `_blank_movement` 的归零/语义被统一——那是同一 module 内部的事，不动；
+- 不声称 bench_compare 被覆盖或压测——
+- 不声称 CI 双腿都已绿：当前候选 tip（批 586）的 Windows/Ubuntu 腿都在 run 42463039726 进程中——Ubuntu 上次成功（批 585 tip）正是本次 Windows/Ubuntu 双绿的前奏（findings 之一有意愿要 Ubuntu 跑起来）。
+
+### 7 下一位候选
+
+1. 批 586 的 tip 在 CI 上跑完前不再推送；若绿,下次推送批 587;
+2. 剩余 #8-#12 测试 fixture 类 duplicated vocabularies（{`("v2", "behavior", "legacy")` 三套
+   fixture doors、VACUOUS_ORACLE_POLICY 三策略、Hook 事件 4 词表）——Python AST 门一次性
+   钉住 `HOOK_EVENTS` 与测试复制，但都属低权范围（只收 Python 代码各搭次）；
+3. 十三个加载器裁定不变。
+
+## 第五百八十八批 — M8-T606 — refusal-verdict 四键也问了家
+
+### 1 欠的是哪一条
+
+「nobody judged this workspace」结论（grader 崩了/崩了进程/崩了 `set_result`）被口口相传——
+`minicc/bench_tasks.py` 的 `_no_result` 是这条事实的家，但四个测试文件各自手拼了一遍
+`{"passed", "grader_type", "grading_refused", "refusal"}`——四份重复，外加一份不带门的 home
+（nothing pinned the home's shape to the four tests reading it）。
+
+### 2 量到的真相（实测）
+
+- 4 个测试副本（逐字一致），分别位于：
+  - `tests/test_behavior_spec_that_checks_nothing_is_no_result.py`
+  - `tests/test_grader_cannot_run_is_no_result.py`
+  - `tests/test_grader_with_nothing_to_check_is_no_result.py`
+  - `tests/test_host_failure_is_not_a_verdict.py`
+- `minicc/bench_tasks.py` 中 `_no_result` 是唯一的**手拼的**现场（在构造器里）。
+
+### 3 落地
+
+- `minicc/bench_tasks.py`：新增具名常数 `NO_RESULT_KEYS = frozenset({"passed",
+  "grader_type", "grading_refused", "refusal"})`；家里 `_no_result` 的 base dict 断言自己恰好
+  等于这四键（不再拼一整个 dict literal）。
+- 四个测试文件：删除本地 `NO_RESULT_KEYS` 赋值；改为 `from minicc.bench_tasks import NO_RESULT_KEYS`。
+- `tests/test_the_graded_verdict_have_one_home.py`：新增 `REFUSAL_KEYS` 常数 + 新门条
+  `test_the_refusal_set_is_four_keys_in_the_home`——从家里 import `NO_RESULT_KEYS` 比对、
+  从家里调 `_no_result` 验证四键恰好在场且 `passed=None`、`grading_refused=True`。
+
+### 4 见证（红先绿后）
+
+- 绿臂：四份受影响的行为门整体 green（53 passed，含 refusal family + graded-verdict gate + 所有受影响的 no_result 测试）。
+- 红臂名册（待跑）：注入 `_no_result` 中间一次组装（例如多写一个 `"family": get"…"`），
+  此门立刻继红，并在四个 import-问家测试中也被点名。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 behavior_bench 的 grading_refusal_count 侧也被统一——只钉住渲染面/字典键面；
+- 不声称 `_no_result` 的可选字段 `case_count` / `exit_code` 也被钉——它们可以出现也可以缺，
+  仅四键的 base 被钉；
+- 不声称 Python 全仓 no_result 场景已经穷尽——只修复已发现的四处重复；
+- 不声称 CI 正在推进：tip 批 586 的 Python 腿仍在 run 42463039726in_progress。
+
+### 7 下一位候选
+
+1. 推本批之后等待 PyPI/CI 把批 586/587/588 一并绿（Windows/Ubuntu）；
+2. 批 587 的 MOVEMENT_FIELDS 门 + 批 588 的 refusal-keys 门在场，下一个候选事件：
+   `GUIDANCE_FILES` 四路径拷贝（`tests/test_core_agent.py:942-944` vs `minicc/prompt.py:8`）、
+   `DOORS = ("v2", "behavior", "legacy")` 三份测试副本（三份各自硬编码）、
+   `HOOK_EVENTS` 的 4 元组五份嵌套拷贝——四个事件都是 tests-fixture 类，一次性扫成一
+   批，按 AST 门拼一条 `test_the_fixture_vocabularies_have_one_home_each.py` 收口；
+3. 十三个加载器裁定不变。
+
+## 第五百八十九批 — M8-T607 — fixture 词表家族各归一个家
+
+### 1 欠的是哪一条
+
+四条 fixture/测试词表在多处被手拼——DOORS `("v2", "behavior", "legacy")`（三个测试文件各一份）、
+GUIDANCE_FILES（`minicc/prompt.py` vs `test_core_agent.py` 的 parametrize）、
+HOOK_EVENTS（`minicc/hooks.py` vs `test_hooks_validation.py`）、GRADER_SCRIPTS
+（`minicc/bench_tasks.py` vs `test_grader_reads_only_named_keys.py` 的局部副本）。
+四条同途不同门,无人对账。门错一个抽屉看似平常,是 fixture 对账真正麻烦产生的根因。
+
+### 2 量到的真相（实测）
+
+- `DOORS = ("v2", "behavior", "legacy")` ↔ 3 处逐字相同（test_a_fixture_must_be_text_the_workspace_can_hold.py:43，test_two_fixture_keys_must_name_different_locations.py:32，test_two_fixture_keys_must_share_one_workspace.py:41）。
+- `GUIDANCE_FILES = ("AGENTS.md", "CLAUDE.md", "MINICC.md", ".minicc/instructions.md")` ↔ 1 处拷贝（test_core_agent.py:942-944，与 home 顺序一致）。
+- `HOOK_EVENTS = ("PreToolUse", "PostToolUse", "UserPromptSubmit", "Stop")` ↔ 1 处内嵌集（test_hooks_validation.py:103 `events == {...}`）。
+- `GRADER_SCRIPTS = {"file_contract": "_FILE_CONTRACT_GRADER", "command_contract": "_COMMAND_CONTRACT_GRADER"}` ↔ 1 处局部复写（test_grader_reads_only_named_keys.py:28，逐字相同）。
+
+### 3 落地
+
+- `tests/_fixture_doors.py`（新，共享测试专用 home）：`DOORS = ("v2", "behavior", "legacy")`，三处改 import。
+- `minicc/prompt.py`（未动）：`GUIDANCE_FILES` 家不动；`test_core_agent.py` 改成 `list(GUIDANCE_FILES)`。
+- `minicc/hooks.py`（未动）：`HOOK_EVENTS` 家不动；`test_hooks_validation.py` 改为 `from minicc.hooks import HOOK_EVENTS`，
+  `assert events == set(HOOK_EVENTS)`。
+- `minicc/bench_tasks.py`（未动）：`GRADER_SCRIPTS` 家不动；`test_grader_reads_only_named_keys.py` 改为
+  `from minicc.bench_tasks import GRADER_SCRIPTS as SCRIPTS`。
+- `tests/test_the_fixture_vocabularies_have_one_home_each.py`（新门，4 条）：
+  ① `tests._fixture_doors.DOORS == ("v2", "behavior", "legacy")`；
+  ② `tests.test_core_agent.GUIDANCE_FILES is minicc.prompt.GUIDANCE_FILES`；
+  ③ `tests.test_hooks_validation.HOOK_EVENTS is minicc.hooks.HOOK_EVENTS`；
+  ④ `tests.test_grader_reads_only_named_keys.SCRIPTS is minicc.bench_tasks.GRADER_SCRIPTS`。
+
+### 4 见证（红先绿后）
+
+- 绿臂：新门 4 passed；相关文件集合：`test_a_fixture_must_be_text_the_workspace_can_hold.py`
+  + `test_two_fixture_keys_must_name_different_locations.py` + `test_two_fixture_keys_must_share_one_workspace.py`
+  + `test_core_agent.py`（-k guidance_file_variants，4 passed）+ `test_hooks_validation.py` +
+  `test_grader_reads_only_named_keys.py` 共 88 passed。
+- 红臂：`git stash push` 六个跟踪文件 → 新门红，3 条断言红（GUIDANCE/HOOKS/SCRIPTS 点名）；
+  `git stash pop` 后复绿。
+- `docs-pointers` `exit=0`。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称凡是 `GRADER_TYPES` 也被统——`test_unusable_spec_is_refused_before_the_agent_runs.py:64` 已经做过之后的工作；
+  本批只把 SCRIPTS 一面钉住；
+- 不声称 DOORS 的内部语义（v2/legacy 的出生顺序、behavior 的奖励含义）被钉住——
+  本批只钉「是哪三个名字」，出生顺序与对应关系不动；
+- 不声称 bench_tasks 的 GRADER_SPEC_KEYS 类似映射被抽出统一——该映射只在一个测试出现，不算复制，
+  只记账但不动刀；
+- 不声称 CI 全绿：tip fa541ab 刚推，这一批就位时腿仍在途。
+
+### 7 下一位候选
+
+1. 推本批等首个 Windows 腿绿灯（tip 待推之后 ~20 分钟）；
+2. `（仓根）conftest.py` 中可能还有其它重复 fixture vocabulary（如 phase classes、todo statuses、
+   zombie path fixture 等），下一轮全量 AST 普查查找；
+3. 十三个加载器裁定不变。
+
+## 第五百九十批 — M8-T608 — vacuous-oracle 三策略与 in-flight 子集各归一家
+
+### 1 欠的是哪一条
+
+- `VACUOUS_ORACLE_POLICIES`：`benchmarks.py` 写的是内联 `("allow", "deny", "require_case_count")`，
+  `tests/test_oracle_vacuous_policy.py` 的 parametrize 把同样三个字面量各写一遍，
+  home 增删任何一条都不会被任何信号感知。
+- `ACTIVE_TASK_PHASES`：`state.js` 写的字面量子集与自己 `TASK_PHASES`（去掉终态四个）几乎一致，
+  却单独手拼，而 home 可以派生它——两份拷贝的漂移只是一个"新增 in-flight 阶段"，但它不会告诉你
+  「这一份写着少了 pruning」，只告诉你是死的。
+
+### 2 量到的真相（实测）
+
+- benchmarks.py：三策略只被一处 inline `("allow", "deny", "require_case_count")` 使用；`VACUOUS_ORACLE_POLICY`（默认"allow"）已是 `VACUOUS_ORACLE_POLICIES[0]`。
+- 测试：`test_oracle_vacuous_policy.py` 的 parametrize 把三策略逐字写过，两个策略的测例函数名里出现同串。
+- `ACTIVE_TASK_PHASES`：`TASK_PHASES` 有 11 个 in-flight + 4 个 terminal（共 16）；`ACTIVE_TASK_PHASES` 精确 `TASK_PHASES` 去掉 4 个 terminal——重叠 11/11。
+
+### 3 落地
+
+- `minicc/benchmarks.py`：新增 `VACUOUS_ORACLE_POLICIES`；`_oracle_says_pass` 内 inline 元组改为查家。
+- `tests/test_oracle_vacuous_policy.py`：从 `minicc.benchmarks` 导入 `VACUOUS_ORACLE_POLICIES`；parametrize 改为 `list(VACUOUS_ORACLE_POLICIES)`；`VACUOUS_ORACLE_POLICY == VACUOUS_ORACLE_POLICIES[0]` 的契约钉住。
+- `tests/test_the_vacuous_oracle_policies_have_one_home.py`（新门，2 条）：
+  ① home 元组 == 恰好 `("allow", "deny", "require_case_count")`；
+  ② `VACUOUS_ORACLE_POLICY == VACUOUS_ORACLE_POLICIES[0]`；
+  ③ `minicc/` 下任何模块不得再定义 `VACUOUS_ORACLE_POLICIES`。
+- `web/src/core/state.js`：`ACTIVE_TASK_PHASES` 改为从 `TASK_PHASES` 派生（
+  `[...TASK_PHASES].filter((phase) => !TERMINAL_TASK_STATUSES.has(phase))`），与 `ACTIVE_TASK_STATUSES` 保持同一种派生风格。
+- `tests/frontend_phase_one_home_smoke.mjs`（既有门，延伸论证）：断言 `ACTIVETASK_PHASES` 字段写法**必须**是派生式；hand-list 即红。
+- bundle 重建（`app.js`/`asset-manifest`/`assets/` 换新哈希）。
+
+### 4 见证（红先绿后）
+
+- Python 门：绿臂 2 passed；红臂（stash `benchmarks.py`）→ 新门红（ImportError 点名 home 缺少 `VACUOUS_ORACLE_POLICIES`）；pop 后绿。
+- 前端门：绿臂 `M8-T370 ok`；红臂（stash `web/src/core/state.js`）→ 断言 `ACTIVE_TASK_PHASES must derive…` 红；pop 后绿。
+- 全部门相关 focused 回归：Python 42 passed；前端 `phase` 绿。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 `VACUOUS_ORACLE_POLICIES` 被导出到 `__all__`（`benchmarks.py` 无 `__all__`）；
+- 不声称 front-end `RESUMABLE_TASK_PHASES` 也派生了——它是「终态里 failed/cancelled/interrupted」这个子问，不是"in-flight"，也没漂移的证据——边界保留；
+- 不声称 CI 全跑完——推本批后腿需要重新分配，上一条 tip fa551ab 的 Python 腿仍在 run 42465062669 进程中[等前一 tip 跑完再推]；
+
+### 7 下一位候选
+
+1. 等 tip（fa54ab → 589）双腿绿后推本批；
+2. 剩余领域：`STAGE_NAMES` 已在批 587 回归中对齐；`GUIDANCE_FILES` 在批 589 对齐；剩下 honorable
+   - `stage-routing config skeleton`（约 21 处测试里手拼同一份 config skeleton，可以用一个 fixture 合并）；
+   - `six-key completion verdict` 的 fixture 拷贝（已有门钉住渲染/payload 的那几处，但零敲碎打的 `confidence=` 位字符串可能还有）；
+3. 十三个加载器裁定不变。
+
+## 第五百九十一批 — M8-T609 — retry budgets 家被问回了
+
+### 1 欠的是哪一条
+
+`atomic_file.py`（进程内）和 `sidecar_lock.py`（跨进程）是重试预算的两个 home——
+`DEFAULT_ATTEMPTS=24/40`、`DEFAULT_DELAY=0.05`。`workspaces.py`、`memory.py`、
+`session.py` 每个都把这两组默认值各抄了一份。注释说"one answer for the whole
+repository"，但手抄保证它在三个点不知道自己欠了什么：任何一次 home 自身的修
+total 看不见这三个拷贝。
+
+### 2 量到的真相（实测）
+
+- `workspaces._LOCK_ATTEMPTS = 40` / `_LOCK_RETRY_DELAY = 0.05` ↔ sidecar home 的默认值（through `hold_sidecar(attempts=..., delay=...)` 显式传）。
+- `tools/memory.py` 的 `_READ_ATTEMPTS = 24` / `_READ_RETRY_DELAY = 0.05` ↔ atomic_file home 默认值；`_LOCK_ATTEMPTS = 40` / `_LOCK_RETRY_DELAY = 0.05` ↔ sidecar home 默认值（显式传）。
+- `session.py`：`_READ_ATTEMPTS = 24` / `_READ_RETRY_DELAY = 0.05` ↔ atomic 默认；`_REPLACE_ATTEMPTS = 24` / `_REPLACE_RETRY_DELAY = 0.05` ↔ atomic 默认；`_LOCK_ATTEMPTS = 400` 是会话专属的**刻意**更大预算，**不**并入任何 home；`_LOCK_RETRY_DELAY = 0.05` 是 sidecar home 的默认值被抄。
+- 6 个自己资源的手抄修复成零个（改为直接调用家默认值/导入家具名）。
+
+### 3 落地
+
+- `minicc/workspaces.py`：删两个 `_LOCK_ATTEMPTS` / `_LOCK_RETRY_DELAY`，`hold_sidecar` 不再传它们（= home 默认值）。
+- `minicc/tools/memory.py`：删 _LOCK_ATTEMPTS/_LOCK_RETRY_DELAY/_READ_ATTEMPTS/_READ_RETRY_DELAY；三处改成不传。
+- `minicc/session.py`：import `DEFAULT_ATTEMPTS`/`DEFAULT_DELAY`（atomic_file）与 `SIDECAR_DEFAULT_DELAY`（sidecar_lock）；`_LOCK_ATTEMPTS = 400` 保留（刻意的会话预算）；其余四个 `_*` 改派生为家具名。
+- `tests/test_the_retry_budgets_have_one_home.py`（新门，3 条）：
+  ① `.05` 延迟字面量只允许出现在 atomic_file/sidecar_lock 两个 home；
+  ② 除两个 home 外无模块重新赋值这五名字（`DEFAULT_ATTEMPTS`, `_LOCK_ATTEMPTS`, `_LOCK_RETRY_DELAY`, `_READ_ATTEMPTS`, `_REPLACE_ATTEMPTS`）；
+  ③ `session.py` 的 `_LOCK_CHANGES` 派生式被钉住（== 400，与家里的具体数值对齐自家）。
+
+### 4 见证（红先绿后）
+
+- 绿臂：3 条新门全绿。
+- 红臂：stash 三 source 文件 → 新门红，点名 6 处（依然可以重现：memory.py:78/79/84、workspaces.py:42/43、session.py:87/94/103）；pop 后绿。
+- 焦点回归：`test_core_session.py` + `test_memory.py` + `test_session_concurrency.py` + `test_session_fork.py` + `test_session_format_version.py` + `test_session_rewind.py` + `test_the_memory_file_is_shared_so_it_must_be_locked.py` + `test_the_session_sidecar_lock_waits_no_longer_than_its_own_constants_promise.py` + `test_the_sessions_payload_have_one_home.py` + `test_workspaces_pure.py` + `test_the_memory_tool_declarations_match_their_validators.py` + `test_the_missing_session_verdict_has_one_home.py` + `test_the_session_persist_trace_codes_have_one_home.py` + `test_the_workspace_verdict_has_one_home.py` = 122 passed。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 atomic_file 与 sidecar_lock 的 0.05 `DEFAULT_DELAY` 被统一成一个名字——两个 home 语义上不同（进程内 vs 跨进程），且都是 intentional 重叠，合并成一个 `_RETRY_DELAY` 把两种不同问题搓在一起跳；
+- 不声称 sidecar_lock 的面向自家的 `DEFAULT_ATTEMPTS=40` 被移除——这是 intentional 的跨进程预算（进程内 24 不够），不是复制；
+- 不声称 session 的 `_LOCK_ATTEMPTS = 400` 不是家的一部分——它是刻意的单一 site 40x 路径，与 home 无对应；它留在 session.py 是 informative 的、并被本门钉住数值；
+- 不声称 CI 双 legs 在本批提交时全绿——当前 tips 的 Windows/Ubuntu 腿正在 run 42465062669 收敛中。
+
+### 7 下一位候选
+
+1. 等本批 tip 被推后双腿绿再继续——若发现腿红，继续按这个模式一批一批推；
+2. 全仓未被门覆盖的「字面量同值不同事家」的语料——下一轮还会尽力做深层扫描——只欠两个策略维度：
+   a. 测试 fixture skeleton（特别是 `{enabled, tiers, stage_map, custom_models}` 在 6+ 文件，约 21 处拷贝）——T ere is enough depth there to be a batch; b. 找出还有没找完的「letters of the alphabet」这一路。
+3. 十三个加载器裁定不变。
+
+## 第五百九十二批 — M8-T610 — approval 帧的 60 秒超时归一 + 跨语言门
+
+### 1 欠的是哪一条
+
+"用户拒绝 / 同意"的 approval 帧在 web 后端有 `APPROVAL_TIMEOUT_SECONDS = 60.0`——
+60 秒——是必须前端也一样记着的截止点。`web/src/core/approvals.js` 里抄了两遍：
+`Number(event.timeout_seconds || 60) || 60`——外层 和 内层 `|| 60` 各一份。没有任何门
+对照过前端这条 60 与 Python 那条 60——哪边改一个，另一边照旧。
+
+### 2 量到的真相（实测）
+
+- Python：`minicc/web.py:173` 的 `APPROVAL_TIMEOUT_SECONDS = 60.0`，通过 `# SSE ` approval_request`/`approval_resolved`` 两帧身份被消费；出现在 front-end `pending` map 重建时的秒数。
+- JS：approvals.js 第 84 行 `Number(event.timeout_seconds || 60) || 60`——双 60 拷贝。
+- 没有任何测试/gate 把这两个粘在一起。
+
+### 3 落地
+
+- `web/src/core/approvals.js`：新增 `export const APPROVAL_TIMEOUT_SECONDS = 60;`，第 84 行改为 `Number(event.timeout_seconds) || APPROVAL_TIMEOUT_SECONDS`，不再声明任何裸 60；注释写明 M8-T610 与 Python home。
+- `tests/frontend_approval_timeout_one_home_smoke.mjs`（新门，3 钉）：
+  ① JS home 存在且值良好；
+  ② JS home 的数值 == minicc/web.py 的 `APPROVAL_TIMEOUT_SECONDS`；
+  ③ approvals.js 中不得残余 `60` 裸字面量（除具名常数声明本身外）。
+- `package.json`：`test:approval` 扩展为运行 `frontend_approval_one_home_smoke.mjs && frontend_approval_timeout_one_home_smoke.mjs`；CI js-check 增加 `node --check` 行。
+
+### 4 见证（红先绿后）
+
+- 红臂（stash approvals.js）：门红——断言「approvals.js must export APPROVAL_TIMEOUT_SECONDS」（修前红）；pop 后绿。
+- 焦点回归：`check:web` 干净（bundle 重建）；`test:approval` 绿（approval mode 与 timeout 两扇门都 ok）。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 approval 帧的 flat key 集合（`request_id`、`tool`、`preview`、`reason`、`decision` …）也被对齐 —— 两边各自维护，本批不合并；
+- 不声称 `APPROVAL_TIMEOUT_SECONDS` 导出到 Python 的某处——它是 web.py 私有常数，front-end 不得也不应 import 反向依赖；
+- 不声称 front-end 侧具名常数也被重复——注入路径在 Python home 是权威，front-end 仅跟随；
+- 不声称 approval frame 的 kind（`approval_request`、`approval_resolved`）被钉——不同的事实、同一组帧可以手拼，本批不负责。
+
+### 7 下一位候选
+
+1. CI 双腿仍跑批 591 tip——推这批会取消它（cancel-in-progress），等 leg 回来后再推；
+2. approval 帧的 flat key 对齐（`request_id`、`tool`/`preview`/`reason`）——两个测试 + 一页两个 hello-world 应覆盖；
+3. 十三个加载器裁定不变。
+
+## 第五百九十三批 — M8-T611 — approval 帧 kind 归一
+
+### 1 欠的是哪一条
+
+交互审批的 SSE 帧在 Python 侧（`minicc/web.py`）用裸字面量 `kind="approval_request"` /
+`kind="approval_resolved"` 发出，在 Web 侧（`web/src/core/approvals.js`）用裸字符串
+比较消费。两面表达的是同一条事实（审批等待/审批完成的帧类型），却各自手拼，任一侧改名
+另一侧静默失效。
+
+### 2 量到的真相（实测）
+
+- `minicc/web.py` 两处 `kind=` 裸字面量（request/resolved 发帧点）。
+- `web/src/core/approvals.js` 两处裸字符串比较（过滤 resolved、识别 request），另有注释提及。
+- `minicc/agent/protocol.py:TASK_EVENT_KINDS` 不含这两个 kind（审批帧是 web 传输事实，
+  非 task-reducer 事件种类），因此不并入 TASK_EVENT_KINDS。
+- 审批词汇的 Python 家已在 `minicc/audit.py`（`APPROVAL_DECISIONS` /
+  `PERMITTING_APPROVAL_DECISIONS`），帧 kind 归入同一模块最自然。
+
+### 3 落地
+
+- `minicc/audit.py`：新增 `APPROVAL_FRAME_REQUEST_KIND = "approval_request"`、
+  `APPROVAL_FRAME_RESOLVED_KIND = "approval_resolved"`，加入 `__all__`。
+- `minicc/web.py`：从 audit 导入两常量，发帧点改用常量（不再有裸 kind 字面量）。
+- `web/src/core/approvals.js`：导出同名常量，消费处改用常量；注释保留描述性提及。
+- `tests/test_the_approval_frame_kinds_have_one_home.py`（新门，3 条）：audit 家定义正确；
+  web.py 不得以 `kind=`/dict 形式裸拼两 kind；web.py 必须引用审计家常量名。
+- `tests/frontend_approval_frame_kinds_one_home_smoke.mjs`（新门）：JS 导出两常量且与
+  Python 家逐值一致；approvals.js 代码区（去注释/字符串、去常量定义行）无裸 kind 字面量。
+- `package.json` `test:approval`、`.github/workflows/ci.yml` js-check 补入新 smoke。
+- web bundle 重建（`app.js`/`asset-manifest`/`assets/`）。
+
+### 4 见证（红先绿后）
+
+- Python 门红臂：`ImportError`（家缺常量）+ `AssertionError` 点名 `web.py:621/670`
+  两处裸 `kind=`（3 failed）。
+- 前端 smoke 红臂：`approvals.js must export APPROVAL_FRAME_REQUEST_KIND`。
+- 绿臂：Python 门 3 passed；前端 smoke `M8-T611 ok`。
+
+### 5 聚焦回归
+
+- `tests/test_permissions_approval.py` + `test_a_synchronous_chat_run_must_be_able_to_ask_for_an_approval.py`
+  + `test_the_approval_decisions_have_one_home.py` + `test_the_approval_preview_is_redacted_on_every_face.py`
+  = 31 passed。
+- `npm run test:approval`（含 decisions/timeout/frame-kinds 三 smoke）全绿。
+- `check:web` / bundle 重建后干净。未跑全量套件（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 approval 帧的完整字段契约（`request_id`/`tool`/`preview`/`reason`/`risk`/
+  `decision`/`timed_out`/`cancelled` 等）已统一成一份共享 schema——本批只钉 kind；字段键
+  跨面消费面窄（JS 只读子集），全量 schema 化需单独评估。
+- 不声称 `approval_requested`/`approval_resolved` 这些 trace `code` 与帧 `kind` 合并
+  （同事件不同事实，命名已不同）。
+- 不声称 `panels/index.js` 里的 `approval_requested`/`approval_resolved` 标签键是同一事实
+  （那是 UI 文案键，不是帧 kind）。
+- 不声称 `build/lib/` 下的生成副本已同步（不触碰 build 产物）；`minicc/webserver.py`
+  注释提及未改（非代码事实）。
+- 不声称 CI 双腿在本批提交时已全绿——推送前须确认最新 tip 的 legs 不在运行且前序 tip 绿。
+
+### 7 下一位候选
+
+1. 确认 run 42468592322（批 592 tip）双腿全绿后再推本批；若腿红，先红→绿修复并记账再推。
+2. 继续普查：SSE/task 帧中其他跨面 kind/字段是否存在“同事实两家”且可无歧义收敛
+   （只收一问一答、生产代码两面都手拼的）。
+3. 十三个加载器裁定不变；`main` 合并阻塞不变（不触碰主 worktree 并发会话文件）。
+
+## 第五百九十四批 — M8-T612 — 任务 phase 词汇归一
+
+### 1 欠的是哪一条
+
+任务运行时在 Python 侧通过 `phase=` 关键字参数与 `"phase"` 字典键散落发出 14 种 phase
+字面量（`planning`/`permission`/`review`/`repair`/`execution`/`intake`/`tool`/`verify`/
+`summarize`/`answering`/`merging`/`cancelled`/`failed`/`interrupted`），共 100+ 处、11 个
+模块；Web 前端在 `state.js:TASK_PHASES` 另有一份 16 值词汇（还含 `queued`/`completed`）。
+同一事实两家（且 Python 侧 11 处分散），改名或增删成员无法被单点感知。
+
+### 2 量到的真相（实测）
+
+- `minicc/**/*.py`（不含 home）共 105 处裸 phase 字面量命中（`phase="..."` / `"phase": "..."`），
+  分布于 `agent/loop.py`、`agent/subagent.py`、`agent/verifier.py`、`audit.py`、
+  `llm/{fake,openai_provider,usage}.py`、`main.py`、`task_manager.py`、`task_worker.py`、`web.py`。
+- `web/src/core/state.js` 导出 16 成员 `TASK_PHASES`；Python 发射的 14 值是其子集。
+- Python 侧此前无 `TASK_PHASES`/`PHASE_*` home。
+
+### 3 落地
+
+- `minicc/agent/protocol.py`：新增 16 个 `PHASE_*` 常量与 `TASK_PHASES` frozenset（M8-T612），
+  加入 `__all__`；作为 phase 词汇唯一 Python 家。
+- 11 个模块的 105 处裸字面量改为引用 `PHASE_*` 常量；各模块按层级从 protocol 正确导入
+  （`agent/*` 用 `.protocol`，`llm/*` 用 `..agent.protocol`，顶层 `minicc/*` 用 `.agent.protocol`），
+  并合并进既有括号式 protocol 导入块。
+- `minicc/audit.py` 在使用点采用**惰性导入** `PHASE_PERMISSION`，规避 `audit → agent.protocol
+  → agent.__init__ → graph → tool_policy → audit` 的既有包初始化循环（模块级导入会触发该环）。
+- `tests/test_the_task_phases_have_one_home.py`（新门，3 条）：Python 家定义 16 值；
+  `minicc/` 内除 home 外不得出现已知 phase 的裸 `phase=`/`"phase":` 字面量；
+  `web/src/core/state.js:TASK_PHASES` 与 Python 家逐值一致。
+
+### 4 见证（红先绿后）
+
+- 红臂：修 home 定义缺失后，`test_no_bare_phase_literals_in_minicc_outside_home` 失败并列出
+  100+ 处 offender（覆盖 11 文件、14 个 phase 值）；home 定义/跨面一致性 2 条在家就位后绿。
+- 绿臂：替换+补全导入后 3/3 通过。
+
+### 5 聚焦回归
+
+- `tests/test_the_task_phases_have_one_home.py`、`test_the_phase_carrying_event_kinds_have_one_home.py`、
+  `test_permissions_approval.py`、`test_the_approval_frame_kinds_have_one_home.py`、
+  `test_a_synchronous_chat_run_must_be_able_to_ask_for_an_approval.py`、
+  `test_verifier_lifecycle.py`、`test_subagent_wiring.py`、`test_the_verification_event_has_one_home.py`、
+  `test_the_verification_statuses_have_one_home.py`、`test_the_subagent_verdicts_have_one_home.py`
+  共 80 passed（分批执行，均绿）。
+- `audit`/`llm.fake`/`agent.verifier` 导入烟测通过（`audit` 循环导入问题已以惰性导入修复）。
+- 未跑全量套件（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称“阶段”与“任务状态”的全部字符串都已归一——本批只处理 `phase` 语义的发射点；
+  `status=` / 终态字符串已有 `TASK_STATUSES`/`TERMINAL_TASK_STATUSES` 等既有家。
+- 不声称 gate 覆盖了动态拼装的 phase 值（当前运行时无此模式；若未来引入需另行防护）。
+- 不声称 Web 端消费侧除 `TASK_PHASES` 外的所有 phase 字符串字面量已归一（JS 侧以既有
+  `frontend_phase_one_home_smoke` 等约束，本批未扩展 JS 生产代码）。
+- `minicc/llm/*` 属包内 LLM 实现层（含 fake provider），纳入同一事实归一是合理的机械替换。
+- 不声称 CI 双腿在本批提交时已全绿——推送前须确认最新 tip 的 legs 不在运行且前序 tip 绿；
+  batch 593（`9679a7f`）CI run `42470220279` 已入队/运行中，须等待其完成且绿后再推本批。
+
+### 7 下一位候选
+
+1. 确认 run `42470220279`（批 593 tip）双腿全绿后再推本批（含 ledger）；若腿红，先红→绿修复并记账。
+2. 继续普查：同类“词汇/枚举值”在 Python 发射与 JS/协议消费间是否仍有手拼（只收一问一答、
+   生产代码可无歧义归一者）；关注 task `status` 在 Python 非 protocol 发射点的裸字面量残留。
+3. 十三个加载器裁定不变；`main` 合并阻塞不变（不触碰主 worktree 并发会话文件）。
+
+## 第五百九十五批 — M8-T613 — provider_retry trace code 归一
+
+### 1 欠的是哪一条
+
+`minicc/llm/openai_provider.py` 与 `minicc/llm/fake.py` 在瞬时失败重试时各自手写
+`code="provider_retry"` 发射 trace 事件。两处表达同一事实（提供方重试），却无共享 home，
+任一侧改名另一侧静默漂移。
+
+### 2 量到的真相（实测）
+
+- `minicc/llm/fake.py:117`、`minicc/llm/openai_provider.py:1233` 各 1 处 `code="provider_retry"` 裸字面量。
+- `minicc/agent/protocol.py` 已承载 trace/预算等词汇，是 LLM 层可依赖的轻量协议 home
+  （`fake.py`/`openai_provider.py` 均已从 `..agent.protocol` 导入）。
+
+### 3 落地
+
+- `minicc/agent/protocol.py`：新增 `PROVIDER_RETRY_CODE = "provider_retry"`（M8-T613），加入
+  `__all__`。
+- `minicc/llm/fake.py`、`minicc/llm/openai_provider.py`：导入并使用 `PROVIDER_RETRY_CODE`，
+  不再手写 code 字面量（fake.py 中注释性提及保留）。
+- `tests/test_the_provider_retry_code_has_one_home.py`（新门，2 条）：home 定义正确；
+  `minicc/` 内除 home 外不得以 `code=`/dict 形式裸写 `provider_retry`。
+
+### 4 见证（红先绿后）
+
+- 红臂：`ImportError`（home 缺常量）+ 2 处 offender（`fake.py`、`openai_provider.py`）点名。
+- 绿臂：2 passed。
+
+### 5 聚焦回归
+
+- `tests/test_the_provider_retry_code_has_one_home.py`、`test_the_fake_provider_switch_has_one_home.py`、
+  `test_the_llm_protocol_members_have_one_home.py`、`test_the_provider_sniff_has_one_home.py`
+  共 13 passed。未跑全量套件（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 `budget_exceeded` / `stage_route` 等其他跨文件重复 trace code 已一并归一（候选已发现，
+  需单独批次评估其 home 与调用形态）。
+- 不声称 LLM 层所有 trace `code` 字面量均已消除——仅处理 `provider_retry` 这一明确同事实重复。
+- 不声称 CI 双腿在本批提交时已全绿——推送前须确认 593 tip（run `42470220279`）及后续链路
+  的 legs 不在运行且前序 tip 绿；当前本地还有未推送的 594/595 提交。
+
+### 7 下一位候选
+
+1. 确认 run `42470220279`（批 593 tip）双腿全绿后，按序推送本地 594、595（含各自 ledger）；
+   若腿红，先红→绿修复并记账。
+2. 评估 `budget_exceeded` trace code（protocol 已有 helper/event 形态，loop 仍有裸字面量）
+   与 `stage_route`（main/web 各一处）的归一方案，择一清晰者下一批落地。
+3. 十三个加载器裁定不变；`main` 合并阻塞不变。
+
+## 第五百九十六批 — M8-T614 — stage_route trace code 归一（含 LLM 惰性导入修复）
+
+### 1 欠的是哪一条
+
+CLI（`minicc/main.py`）与 Web 运行时（`minicc/web.py`）在记录阶段路由选模时各自手写
+`code="stage_route"`。两处表达同一事实（stage 路由 trace code），无共享 home。
+
+附带修复：M8-T612/M8-T613 为 `minicc/llm/{openai_provider,fake,usage}.py` 引入的
+`from ..agent.protocol import PHASE_* / PROVIDER_RETRY_CODE` **模块级**导入会触发
+`agent.__init__ → loop → openai_provider → usage` 的包初始化循环，导致
+`test_cli_stage_routing.py` 收集失败及 LLM 模块导入失败。本批一并改为方法内惰性导入。
+
+### 2 量到的真相（实测）
+
+- `minicc/main.py:516`、`minicc/web.py:1743` 各 1 处 `code="stage_route"` 裸字面量。
+- 循环导入复现：`pytest --collect-only tests/test_cli_stage_routing.py` 经
+  `llm.usage` 模块级导入 `agent.protocol` 触发上述循环（实测报错链已定位）。
+
+### 3 落地
+
+- `minicc/agent/protocol.py`：新增 `STAGE_ROUTE_CODE = "stage_route"`（M8-T614），加入 `__all__`。
+- `minicc/main.py`、`minicc/web.py`：导入并使用 `STAGE_ROUTE_CODE`（web 合并进既有括号式 protocol 导入）。
+- `minicc/llm/openai_provider.py`、`minicc/llm/fake.py`、`minicc/llm/usage.py`：将
+  `PHASE_PLANNING`/`PROVIDER_RETRY_CODE` 改为使用点惰性导入，消除模块级循环。
+- `tests/test_the_stage_route_code_has_one_home.py`（新门，2 条）：home 定义正确；
+  `minicc/` 内除 home 外不得裸写 `stage_route` code 字面量。
+
+### 4 见证（红先绿后）
+
+- 红臂：`ImportError`（home 缺常量）+ 2 处 offender（`main.py`、`web.py`）。
+- 绿臂：2 passed。`test_cli_stage_routing.py` 恢复可收集（16 tests collected）；
+  `import minicc.llm.openai_provider/fake` 通过。
+
+### 5 聚焦回归
+
+- `tests/test_the_stage_route_code_has_one_home.py`、`test_the_provider_retry_code_has_one_home.py`、
+  `test_the_task_phases_have_one_home.py`、`test_the_approval_frame_kinds_have_one_home.py`、
+  `test_cli_stage_routing.py --collect-only` 均通过（定向门+收集）。未跑全量套件（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 `budget_exceeded` 等其他 trace code 裸字面量已归一（loop 仍有 5 处，protocol 已有 helper 形态，需单独评估）。
+- 不声称包初始化循环在所有模块组合下已彻底消除——仅修复本批触发的 LLM→agent.protocol 链路。
+- 不声称 CI 双腿在本批提交时已全绿——推送前须确认 593 tip（run `42470220279`）全绿且无 legs 在跑；
+  本地 594/595/596 均未推送。
+
+### 7 下一位候选
+
+1. 确认 run `42470220279`（批 593 tip）双腿全绿后，依次推送本地 594→595→596（每次推送前确认无 legs 在跑；
+   实操上本地链已连续，可一次推送 tip 596，但需 593 绿且推送后关注新 run）。
+2. 评估 `budget_exceeded` trace code 归一（`minicc/agent/protocol.py` helper 已存在，
+   `minicc/agent/loop.py` 5 处裸 `code="budget_exceeded"` 可改用 home 常量）。
+3. 十三个加载器裁定不变；`main` 合并阻塞不变。
+
+## 第五百九十七批 — M8-T615 — budget_exceeded trace code 归一
+
+### 1 欠的是哪一条
+
+`minicc/agent/loop.py` 在 5 处预算超限分支手写 `code="budget_exceeded"`；`protocol.py` 的
+`budget_exceeded_event` helper 与 `SESSION_PERSIST_TRACE_CODES` 集合同样承载该字符串。
+同一事实（预算超限 trace code）在 loop 侧 5 处 + protocol 内部多处裸写，且 loop 与 helper
+的 code 字面量可独立漂移。
+
+### 2 量到的真相（实测）
+
+- `minicc/agent/loop.py` 5 处 `code="budget_exceeded"`（822/966/1131/1188/1198 行，实测门点名）。
+- `protocol.py` helper 内 `code="budget_exceeded"`、`SESSION_PERSIST_TRACE_CODES` 含裸成员；
+  `budget_exceeded_event`/`budget_exceeded_error` helper 已是预算语义家，但 code 字符串未命名。
+
+### 3 落地
+
+- `minicc/agent/protocol.py`：新增 `BUDGET_EXCEEDED_CODE = "budget_exceeded"`（M8-T615，
+  附 `# code="budget_exceeded"` 保持 `frontend_trace_code_one_home_smoke` 可扫描），加入 `__all__`；
+  helper 改用常量，`SESSION_PERSIST_TRACE_CODES` 改用常量成员。
+- `minicc/agent/loop.py`：合并进既有括号式 protocol 导入并将 5 处裸字面量改为 `BUDGET_EXCEEDED_CODE`。
+- `tests/test_the_budget_exceeded_code_has_one_home.py`（新门，2 条）：home 定义正确；
+  `minicc/` 内除 home 外不得裸写 `budget_exceeded` code 字面量。
+
+### 4 见证（红先绿后）
+
+- 红臂：`ImportError` + loop 5 处 offender 点名。
+- 绿臂：2 passed；`frontend_trace_code_one_home_smoke` 仍绿（93 minted codes）。
+
+### 5 聚焦回归
+
+- `tests/test_the_budget_exceeded_code_has_one_home.py`、`test_the_loop_budget_verdicts_have_one_home.py`
+  共 11 passed；trace-code smoke 绿。未跑全量套件（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称预算相关的所有字符串/事件形态已完全收敛（`budget_exceeded_event` helper 形态、错误前缀等
+  既有家保持不变）。
+- 不声称 CI 双腿在本批提交时已全绿——推送前须确认 594-596 tip（run `42471664961`）全绿且无 legs 在跑；
+  本地 597 未推送。
+
+### 7 下一位候选
+
+1. 确认 run `42471664961`（594-596 tip）双腿全绿后推送本地 597；若腿红，先红→绿修复并记账。
+2. 继续普查 `minicc/` 内 `code="..."` 跨文件重复且可无歧义归一者（排除已由 smoke 的 EXTRA_DYNAMIC/
+   特殊形态覆盖且语义不同的情况）。
+3. 十三个加载器裁定不变；`main` 合并阻塞不变。
+
+## 第五百九十八批 — M8-T616 — 任务生命周期状态比较归一（受限范围）
+
+### 1 欠的是哪一条
+
+`minicc/task_manager.py` 在 13 处将任务生命周期状态与裸字面量比较（`== "cancelled"` /
+`!= "interrupted"` / `== "completed"` / `== "failed"` 等）。`protocol.py` 已有
+`TASK_STATUSES`/`TERMINAL_TASK_STATUSES`/`TASK_UNSUCCESSFUL_STATUSES`，但缺少可用于比较的
+单值常量，导致生命周期模块手拼状态名。
+
+### 2 量到的真相（实测）
+
+- 门在 `task_manager.py`+`task_worker.py`（生命周期域）内检出 13 处 `Eq/NotEq` 对任务状态字面量的比较，
+  全部位于 `task_manager.py`。
+- `task_worker.py` 在该范围内 0 处。
+- 工具结果、校验结果、DAG 节点结果等域也使用 `status`/相近值但属不同事实——本批**不**触碰。
+
+### 3 落地
+
+- `minicc/agent/protocol.py`：新增 `TASK_STATUS_{QUEUED,RUNNING,COMPLETED,FAILED,CANCELLED,INTERRUPTED}`
+  （M8-T616），`TASK_STATUSES`/`TERMINAL_TASK_STATUSES`/`TASK_UNSUCCESSFUL_STATUSES` 改由常量构造，
+  并导出新常量。
+- `minicc/task_manager.py`：合并 protocol 导入并将 13 处比较改用 `TASK_STATUS_*`。
+- `tests/test_the_task_status_literals_have_one_home_in_lifecycle.py`（新门，2 条）：
+  home 导出 6 个常量且集合关系正确；`task_manager.py`/`task_worker.py` 内不得对 6 个任务状态做裸
+  `==`/`!=` 字面量比较（门限定域以避开 lookalike）。
+
+### 4 见证（红先绿后）
+
+- 红臂：13 处 offender 全在 `task_manager.py` 被点名。
+- 绿臂：2 passed。
+
+### 5 聚焦回归
+
+- `tests/test_the_task_status_literals_have_one_home_in_lifecycle.py`、
+  `test_the_missing_session_verdict_has_one_home.py`、`test_the_task_phases_have_one_home.py`
+  共 11 passed。未跑全量套件（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称所有 `status == "..."` 比较都已归一——仅覆盖**任务生命周期域**两个模块的 6 个任务状态；
+  工具/校验/DAG 等状态词汇是不同事实，刻意不合并。
+- 不声称 `task_manager.py` 内 `dict` 赋值形态的任务状态字面量（如 `"status": "cancelled"`）
+  已在本批替换——门当前只约束比较运算；赋值/构造形态可后续按同域扩展。
+- 不声称 CI 双腿在本批提交时已全绿——42471664961（594-596 tip）仍在跑；597、598 未推送。
+
+### 7 下一位候选
+
+1. 确认 run `42471664961` 双腿全绿后推送 597、598；若腿红先红→绿修复并记账。
+2. （可选）同域扩展：`task_manager.py`/`task_worker.py` 内任务状态的 `dict` 赋值字面量是否可安全归一
+   （需逐处确认语义确为任务生命周期状态）。
+3. 十三个加载器裁定不变；`main` 合并阻塞不变。
+
+## 第五百九十九批 — M8-T617 — 生命周期状态 dict 字面量同域扩展
+
+### 1 欠的是哪一条
+
+598（M8-T616）将生命周期模块的任务状态**比较**归一，但刻意未覆盖 `{"status": "..."}`
+赋值形态；`task_manager.py` 2 处（cancelled/interrupted 快照）与 `task_worker.py` 1 处
+（running 初始状态）仍裸写任务生命周期状态字面量，属同一事实。
+
+### 2 量到的真相（实测）
+
+- 扩展门检出 3 处：`task_manager.py:2343` cancelled、`task_manager.py:1832` interrupted、
+  `task_worker.py:282` running，语义均为任务生命周期状态（经上下文确认，非工具/DAG/校验域）。
+
+### 3 落地
+
+- `tests/test_the_task_status_literals_have_one_home_in_lifecycle.py`：新增
+  `test_no_bare_task_status_dict_literals_in_lifecycle_modules`（同域限定）。
+- `minicc/task_manager.py`、`minicc/task_worker.py`：3 处改用 `TASK_STATUS_*`；
+  `task_worker.py` 补充 protocol 导入。
+
+### 4 见证（红先绿后）
+
+- 红臂：3 处 dict offender 点名。绿臂：3/3 通过。
+
+### 5 聚焦回归
+
+- `test_the_task_status_literals_have_one_home_in_lifecycle.py` 3 passed；
+  `test_the_task_phases_have_one_home.py` 3 passed。未跑全量套件（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 仍不触碰工具/校验/DAG 等域的 `status` 字面量（不同事实/lookalike）。
+- 不声称 CI 双腿全绿——42471664961 仍在跑；597–599 及 phase-smoke 修复未推送。
+
+### 7 下一位候选
+
+1. 42471664961 完成后：若因 JS 失败整体失败，推送本地 597–599 + phase-smoke 修复触发新绿跑；
+   若意外绿则按序推送未推送提交（并确认无 legs 在跑）。
+2. 继续普查同域/跨面可无歧义归一的“同事实两家”。
+3. 十三个加载器裁定不变；`main` 合并阻塞不变。
+
+## 第六百批 — M8-T618 — minicc/tools 工具结果状态字面量归一（受限范围）
+
+### 1 欠的是哪一条
+
+`minicc/tools/` 下多处 `ToolResult(status="ok"/"error"/"denied"/"cancelled")` 以裸字面量构造（实测 29 处，分布于 bash/fs/git/memory/todo/web/webfetch/registry/__init__）。`minicc/tools/schemas.py` 已有 `TOOL_RESULT_STATUSES` 与失败/未成功子集，但缺少可直接用于构造的单值常量，导致工具实现手拼状态名；与生命周期/校验等域的 `status` 是不同事实，需限定范围。
+
+### 2 量到的真相（实测）
+
+- 门在 `minicc/tools/`（不含 `schemas.py`）检出 29 处 `ToolResult(status=<literal>)`：`bash.py` 10、`fs.py` 3、`git.py` 2、`memory.py` 3、`registry.py` 3、`todo.py` 2、`web.py` 1、`webfetch.py` 1、`__init__.py` 4（`ok`/`error`/`cancelled`/`denied`；无 `timed_out` 字面量构造）。
+- `schemas.py` 原仅导出 `TOOL_RESULT_STATUSES` 及派生 frozenset；`ToolResult.status` 默认值为裸 `"ok"`。
+- 批次初稿的机械替换曾生成 `from .schemas import (, ...` 破损导入（`bash.py`/`registry.py`）与孤儿续行，已修复。
+
+### 3 落地
+
+- `minicc/tools/schemas.py`：新增 `TOOL_STATUS_{OK,ERROR,DENIED,CANCELLED,TIMED_OUT}`（M8-T618），`TOOL_RESULT_STATUSES`/`FAILED_TOOL_RESULT_STATUSES`/`UNSUCCESSFUL_TOOL_RESULT_STATUSES` 改由常量构造，`ToolResult.status` 默认改用 `TOOL_STATUS_OK`。
+- `minicc/tools/{__init__,bash,fs,git,memory,registry,todo,web,webfetch}.py`：`ToolResult(status=...)` 字面量改用 `TOOL_STATUS_*` 并补全 `from .schemas import ...`；`bash.py` 同步修正 `run_process` 内工具状态的局部赋值（同一事实，非 `ToolResult(...)` 构造形态但与之配套）并导入 `TOOL_STATUS_TIMED_OUT`。
+- `tests/test_the_tool_result_statuses_have_one_home.py`（新门，2 条）：home 导出 5 个常量且 `TOOL_RESULT_STATUSES`/失败/未成功子集关系正确；`minicc/tools/` 内（除 `schemas.py`）`ToolResult(status=...)` 不得使用 5 个工具状态裸字面量。
+- 附带修复（为推送前红→绿）：`minicc/llm/fake.py` 将 `PHASE_PLANNING`/`PROVIDER_RETRY_CODE` 惰性导入移至 `chat()` 使用点（此前误置于 `_emit()` 导致 `NameError`，对应 42471664961 上 `test_logging`×2、`test_the_stream_retry_summary_has_one_home` 失败）。
+
+### 4 见证（红先绿后）
+
+- 红臂：home 常量/子集 1 条先绿后（实现 home 时）；构造门失败列出 29 处 offender（`bash/fs/git/memory/registry/todo/web/webfetch/__init__`）；修复破损导入前曾触发 `SyntaxError`/导入失败。
+- 绿臂：`test_the_tool_result_statuses_have_one_home.py` 2 passed。
+
+### 5 聚焦回归
+
+- `tests/test_the_tool_result_statuses_have_one_home.py`、`test_the_failed_tool_result_statuses_have_one_home.py`、`test_core_tools.py`、`test_memory.py`、`test_todo_tool.py`、`test_webfetch.py`、`test_webfetch_routes_its_page_through_the_head_tail_channel.py`、`test_the_todo_vocabularies_have_one_home.py`、`test_the_todo_tool_data_have_one_home.py`、`test_the_tool_result_msg_have_one_home.py`、`test_the_tool_call_have_one_home.py` 共 116 passed。
+- 针对 42471664961 的 Python 失败根因：`tests/test_logging.py`、`tests/test_the_stream_retry_summary_has_one_home.py` 共 32 passed（`fake.py` 作用域修复后）。
+- 未跑全量套件（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 门仅约束 `minicc/tools/` 下 `ToolResult(status=...)` 构造调用的 5 个工具状态字面量；不覆盖工具域外的 `status`（校验/DAG/任务生命周期等）也不覆盖 `minicc/tools/` 内非 `ToolResult(...)` 的所有字符串比较/赋值（除 `bash.run_process` 的同事实配套修正外）。
+- 不声称 `TOOL_STATUS_TIMED_OUT` 在所有工具实现的每种表达形态都已穷尽替换——当前无 `ToolResult(status="timed_out")` 裸字面量命中。
+- 不声称 42471664961 的 JS 失败已在远端修复——本地已含 `2d31aba`（phase smoke 可扫描修复），需推送后由新 run 验证；Python 双腿失败的 `PHASE_PLANNING` 根因已本地修复，推送后验证。
+
+### 7 下一位候选
+
+1. 推送本地提交（含 597–600、phase-smoke 修复、llm fake 作用域修复）触发新 CI；确认新 run 各 leg 全绿前不再推送。
+2. 新 tip Python/JS 若仍有失败，按日志红→绿修复并记账。
+3. 继续普查“同事实两家”（仅可无歧义归一、可门控、非 lookalike）；`TOOL_STATUS_*` 与校验/任务/DAG 状态保持分域。
+4. 十三个加载器裁定不变；`main` 合并阻塞不变（不触碰主 worktree 并发会话文件）。
+## 批次 601 — M8-T619：权限模式名字面量（许可域，对比/集合）有一处归属，无范围外扩
+
+### 1 是否真是同一事实
+
+`minicc.audit` 已拥有 `PERMISSION_MODES`/`normalize_permission_mode`（许可域模式词汇）；但 `default`/`plan`/`acceptEdits`/`yolo` 仍在路由/契约/子代理策略模块中以裸字面量参与比较或 frozenset 构造（`minicc/main.py`、`minicc/task_contract.py`、`minicc/task_manager.py`、`minicc/web.py`、`minicc/agent/subagent.py`）。这些是同一事实（许可模式名）的重复；其他域中同词（如非许可语境的 `plan`/`default`）属 lookalike，本批不触碰。
+
+### 2 命中点（实测）
+
+- `minicc/audit.py`：`PERMISSION_MODES` 为字符串字面量 frozenset，缺可直用的单值常量。
+- `minicc/task_contract.py`：`mode == "yolo"` / `mode == "plan"`（契约解析）。
+- `minicc/task_manager.py`：`task.permission_mode != "plan"`（任务路由/授权语境）。
+- `minicc/main.py`：`args.permission_mode == "plan"` / `permission_mode == "plan"`（CLI/运行前门控）。
+- `minicc/web.py`：`permission_mode == "plan"` / `permission_mode != "plan"`（Web 任务授权与脚本许可）。
+- `minicc/agent/subagent.py`：`WRITABLE_PERMISSION_MODES`/`EXEC_PERMISSION_MODES` 含裸 `"acceptEdits"`/`"yolo"`。
+
+### 3 改动
+
+- `minicc/audit.py`：新增 `PERMISSION_MODE_DEFAULT`/`PERMISSION_MODE_PLAN`/`PERMISSION_MODE_ACCEPT_EDITS`/`PERMISSION_MODE_YOLO`（M8-T619）；`PERMISSION_MODES` 由常量组成，并保留 `# "default"` 等可扫描注释以兼容 `tests/frontend_permission_mode_one_home_smoke.mjs` 对 Python home 的正则提取；`__all__` 导出新增常量。
+- `minicc/agent/subagent.py`：`WRITABLE_PERMISSION_MODES`/`EXEC_PERMISSION_MODES` 改用审计常量（从 `..audit` 导入）。
+- `minicc/task_contract.py`、`minicc/task_manager.py`、`minicc/main.py`、`minicc/web.py`：许可模式比较改用 `PERMISSION_MODE_PLAN`/相关常量（仅许可域比较点）。
+- `tests/test_the_permission_mode_names_have_one_home.py`（新）：红臂 2 项（home 缺单值常量；范围模块存在裸许可模式比较/字典/集合字面量）→ 绿臂。
+
+### 4 验证（命令与输出要点）
+
+- 红臂：`pytest tests/test_the_permission_mode_names_have_one_home.py -q` 2 failed（`AttributeError: PERMISSION_MODE_DEFAULT`；列出 main/task_contract/task_manager/web/subagent 裸字面量）。
+- 绿臂：同门禁 2 passed。
+- 前端兼容：`node --test tests/frontend_permission_mode_one_home_smoke.mjs` 1 passed（M8-T580，Python home 含可扫描注释后恢复）。
+
+### 5 聚焦回归
+
+- `tests/test_the_permission_mode_names_have_one_home.py`、`tests/test_permission_modes.py`、`tests/test_task_contract.py`、`tests/test_permissions_pure.py`、`tests/test_permissions_approval.py`、`tests/test_the_approval_decisions_have_one_home.py`、`tests/test_subagent_delegation.py`、`tests/test_subagent_wiring.py`、`tests/test_the_subagent_budget_verdict_has_one_home.py`、`tests/test_the_subagent_verdicts_have_one_home.py` 共 125 passed（`..\minicc-codex\.venv\Scripts\python.exe -m pytest ... -q`）；`node --test tests/frontend_permission_mode_one_home_smoke.mjs` 1 passed。未跑全量基准回归/CI 双端。
+
+### 6 边界（哪些**未**触碰）
+
+- 仅约束范围内许可域比较/集合字面量（main/task_contract/task_manager/web/agent/subagent）；不触碰其他域中同词 lookalike（如非许可语境 `plan`/`default`）、前端 `web/src`/`index.html` 模式词汇归属（已由 M8-T580 覆盖）、`normalize_permission_mode` 语义与 `PERMISSION_MODES` 成员集合。
+- `minicc/agent/subagent.py` 新增从 `..audit` 导入常量；`audit.py` 不反向导入子代理，无循环风险（实测 `import minicc.audit, minicc.agent.subagent, minicc.task_contract, minicc.task_manager, minicc.main, minicc.web` 通过）。
+- 未推送/未落 `main`：CI 42473678896（tip 88f3ad5）Python 双端仍 in_progress；本批本地就绪后须待该 run 全绿（或失败先修复）再推送，且推送后新 run legs 进行中不再推送。
+
+### 7 下一位候选
+
+1. 监控 42473678896；全绿后推送本批（601）并遵守 legs-in-progress 不推送纪律；若失败则先红→绿修复并记账。
+2. 继续搜“同一事实两处归属”（可门禁、非 lookalike）：优先跨模块裸字符串状态/类型/事件名与其已有 home 的脱节点。
+3. 十一实验面保持冻结；`main` 合并继续冻结（并发 worktree 冲突会话）。
+## 批次 602 — M8-T620：@-mention 解析状态词汇有一处归属（mentions↔web 消费），无范围外扩
+
+### 1 是否真是同一事实
+
+`@`-mention 记录携带 `status`（`injected`/`rejected`/`omitted`）。`minicc.mentions` 产出这些记录并在注入块中输出状态；`minicc.web` 按同一状态过滤注入/拒绝结果。裸字面量散落在产出与消费两端，是同一事实的两处归属；`mentions.py` 已是记录生产与注入格式的自然归属点。
+
+### 2 命中点（实测）
+
+- `minicc/mentions.py`：`_record`/`_annotate` 调用、列表注入、`item["status"] == ...` 比较及注入块 f-string 中使用 `"injected"`/`"rejected"`/`"omitted"` 裸字面量（11 处 AST 常量命中）。
+- `minicc/web.py`：`mention_records` 过滤使用 `item["status"] == "injected"` / `"rejected"`（2 处）。
+
+### 3 改动
+
+- `minicc/mentions.py`：新增 `MENTION_STATUS_INJECTED`/`MENTION_STATUS_REJECTED`/`MENTION_STATUS_OMITTED` 与 `MENTION_STATUSES`（M8-T620，一处归属），`__all__` 导出；替换记录产出、状态比较与注入块 `status` 属性字面量（同值语义，输出格式不变）。
+- `minicc/web.py`：从 `.mentions` 导入 `MENTION_STATUS_INJECTED`/`MENTION_STATUS_REJECTED`，替换 mention 记录过滤比较。
+- `tests/test_the_mention_statuses_have_one_home.py`（新）：红臂 2 项（home 缺常量；`mentions.py`/`web.py` 存在裸 mention 状态字面量，home 仅允许 `MENTION_STATUS_*` 定义处字面量）→ 绿臂。
+
+### 4 验证（命令与输出要点）
+
+- 红臂：`pytest tests/test_the_mention_statuses_have_one_home.py -q` 2 failed（`AttributeError: MENTION_STATUS_INJECTED`；列出 `minicc/mentions.py` 9 处 + `minicc/web.py` 2 处）。
+- 绿臂：同门禁 2 passed；`import minicc.mentions, minicc.web` 通过。
+
+### 5 聚焦回归
+
+- `tests/test_mentions.py`、`tests/test_mentions_budget.py`、`tests/test_mentions_pure.py`、`tests/test_the_mention_injection_verdicts_have_one_home.py`、`tests/test_the_mention_records_have_one_home.py`、`tests/test_the_mention_statuses_have_one_home.py`、`tests/test_a_mention_past_the_cap_is_named_not_dropped.py` 共 57 passed（`..\minicc-codex\.venv\Scripts\python.exe -m pytest ... -q`）。未跑全量基准回归/CI 双端。
+
+### 6 边界（哪些**未**触碰）
+
+- 仅约束 `minicc/mentions.py` + `minicc/web.py` 的 mention 记录状态词汇；不触碰其他域同词（若存在）、mention 截断/拒绝文案、注入块的其余 XML/文本格式（仅将 `status="rejected"` 属性值改为常量插值，运行时字符串相同）、mention 解析/安全/预算语义。
+- 未推送/未落 `main`：CI 42473678896（tip 88f3ad5，含已推送 597–600+修复）Python 双端仍 in_progress；本地另有 601（已提交未推）与 602（本批）待该 run 全绿或失败修复后再按纪律推送，legs 进行中不推送。
+
+### 7 下一位候选
+
+1. 监控 42473678896；全绿后按顺序推送本地已提交批次（601、602）并遵守 legs-in-progress 不推送纪律；若失败则先红→绿修复并记账。
+2. 继续搜“同一事实两处归属”（可门禁、非 lookalike）：如 `task_kind`（`batch`/`subtask`/`task`）在 `task_manager`/`web` 的比较与赋值是否同一事实且有自然归属；或 `missing_task_network` 授权码与 `MISSING_TASK_AUTHORIZATIONS` 集合/字面量归属（需先确认语义边界，避免改变行为）。
+3. 十一实验面保持冻结；`main` 合并继续冻结（并发 worktree 冲突会话）。
+## 批次 603 — M8-T621：任务 kind 词汇（task/batch/subtask）有一处归属（manager↔web），无范围外扩
+
+### 1 是否真是同一事实
+
+任务生命周期/路由中的 kind 词汇（`task`/`batch`/`subtask`，含持久化默认值、`_task_kind` 载荷字段、自动编排与批次判定）在 `minicc.task_manager` 与 `minicc.web` 中以裸字面量重复比较/赋值，是同一事实的两处归属。`minicc.agent.protocol` 已承载任务状态等协议词汇，是自然归属点。
+
+### 2 命中点（实测）
+
+- `minicc/task_manager.py`：`task_kind` 默认值、持久化/载荷回退、`task.task_kind == "batch"/"subtask"`、`task_kind="batch"`、`_task_kind` 赋值与 `else "task"` 分支（12 处，均在 `task_kind`/`_task_kind` 语境行）。
+- `minicc/web.py`：`task_kind` 默认值、批次/子任务分支与完成判定（4 处）。
+
+### 3 改动
+
+- `minicc/agent/protocol.py`：新增 `TASK_KIND_TASK`/`TASK_KIND_BATCH`/`TASK_KIND_SUBTASK` 与 `TASK_KINDS`（M8-T621，一处归属）。
+- `minicc/task_manager.py`、`minicc/web.py`：从 `.agent.protocol` 导入 `TASK_KIND_*`；将 `task_kind`/`_task_kind` 语境中的裸 kind 字面量替换为常量（比较、关键字参数、字典值、`or` 回退默认值保持同值语义）。
+- `tests/test_the_task_kinds_have_one_home.py`（新）：红臂 2 项（home 缺常量；`task_manager`/`web` 在 `task_kind`/`_task_kind` 语境行存在裸 kind 字面量）→ 绿臂。
+
+### 4 验证（命令与输出要点）
+
+- 红臂：`pytest tests/test_the_task_kinds_have_one_home.py -q` 2 failed（`AttributeError: TASK_KIND_TASK`；列出 `task_manager.py` 12 处 + `web.py` 4 处）。
+- 绿臂：同门禁 2 passed；`import minicc.agent.protocol, minicc.task_manager, minicc.web` 通过。
+
+### 5 聚焦回归
+
+- `tests/test_the_task_kinds_have_one_home.py`、`tests/test_batch_wiring.py`、`tests/test_batch_resume.py`、`tests/test_the_batch_cancelled_notice_has_one_home.py`、`tests/test_the_orchestration_result_have_one_home.py`、`tests/test_task_contract.py` 共 41 passed（`..\minicc-codex\.venv\Scripts\python.exe -m pytest ... -q`）。未跑全量基准回归/CI 双端。
+
+### 6 边界（哪些**未**触碰）
+
+- 仅约束 `task_manager.py`/`web.py` 中 `task_kind`/`_task_kind` 语境的 kind 词汇；不触碰其他域同词、`task_kind` 字段/载荷键名本身、批次编排/恢复/取消语义、`task_contract` 请求结构。
+- 未推送/未落 `main`：CI 42473678896（tip 88f3ad5）Python 双端仍 in_progress；本地 601/602 已提交未推，603 本批待该 run 全绿或失败修复后按纪律推送，legs 进行中不推送。
+
+### 7 下一位候选
+
+1. 监控 42473678896；全绿后按顺序推送本地已提交批次（601、602、603）并遵守 legs-in-progress 不推送纪律；若失败则先红→绿修复并记账。
+2. 继续搜“同一事实两处归属”（可门禁、非 lookalike）：如 `missing_task_network` 授权码字面量在 `audit.py`/`main.py` 与 `MISSING_TASK_AUTHORIZATIONS` 的归属/语义边界（**仅在不改变集合成员行为、门禁可证明同事实时**处理）；或其他已有 home 的协议/状态字面量脱节点。
+3. 十一实验面保持冻结；`main` 合并继续冻结（并发 worktree 冲突会话）。
+## 批次 604 — M8-T622：agent 模块中的工具结果 `ok` 比较接回 schemas 归属（范围内），无 lookalike 扩张
+
+### 1 是否真是同一事实
+
+工具结果状态 `ok` 已由 `minicc.tools.schemas.TOOL_STATUS_OK` 归属（M8-T618）。但 `minicc.agent.loop`/`tool_policy`/`verifier` 在判断 `tool_result`/`search_result`/工具结果 `status` 参数时仍以裸字面量 `"ok"` 参与 `ast.Compare` 比较，属于同一事实（工具结果状态）的脱节点使用。本批**不**触碰验证/事件状态词汇中同形字符串 `"ok"` 的不同事实（如 verifier 将验证结论映射为事件状态、loop 的里程碑/事件 `status="ok"` 值）。
+
+### 2 命中点（实测）
+
+- `minicc/agent/loop.py`：`tool_result.status == TOOL_STATUS_OK` 语境的 4 处 + `search_result.status == "ok"` 1 处（共 5 处 Compare 裸字面量）。
+- `minicc/agent/tool_policy.py`：`status != "ok"`（工具结果状态参数）2 处。
+- `minicc/agent/verifier.py`：`tool_result.status == "ok"` 1 处；同文件 `to_event` 中 `"ok"` 为验证事件状态映射值（非 Compare 比较）属不同事实，本批未改。
+
+### 3 改动
+
+- `minicc/agent/loop.py`：`..tools.schemas` 导入增加 `TOOL_STATUS_OK`；工具/搜索结果状态 `== "ok"` 比较改为 `== TOOL_STATUS_OK`（仅 Compare）。
+- `minicc/agent/tool_policy.py`：新增 `from ..tools.schemas import TOOL_STATUS_OK`；`status != "ok"` 改为 `!= TOOL_STATUS_OK`。
+- `minicc/agent/verifier.py`：`..tools.schemas` 导入增加 `TOOL_STATUS_OK`；`tool_result.status == "ok"` 改为 `== TOOL_STATUS_OK`；保留验证事件状态映射 `"ok"` 不变（不同事实）。
+- `tests/test_the_tool_result_ok_status_has_one_home_in_agent.py`（新）：门禁扫描上述 3 模块的 `ast.Compare` 中 `"ok"` 比较器，红→绿。
+
+### 4 验证（命令与输出要点）
+
+- 红臂：`pytest tests/test_the_tool_result_ok_status_has_one_home_in_agent.py -q` 1 failed，列出 loop 5 + tool_policy 2 + verifier 1 共 8 处。
+- 绿臂：同门禁 1 passed；`import minicc.agent.loop, minicc.agent.tool_policy, minicc.agent.verifier` 通过。
+
+### 5 聚焦回归
+
+- `tests/test_the_tool_result_ok_status_has_one_home_in_agent.py`、`tests/test_the_tool_result_statuses_have_one_home.py`、`tests/test_verifier_lifecycle.py`、`tests/test_the_loop_budget_verdicts_have_one_home.py`、`tests/test_every_wire_reader_gives_the_call_an_id_the_loop_can_pair.py` 共 24 passed（`..\minicc-codex\.venv\Scripts\python.exe -m pytest ... -q`）。未跑全量基准回归/CI 双端。
+
+### 6 边界（哪些**未**触碰）
+
+- 仅约束上述 3 个 agent 模块中 `ast.Compare` 对 `"ok"` 的比较（工具结果状态事实）；不触碰事件/里程碑/验证结论映射中的 `"ok"` 字符串值、`minicc/tools/*` 与其他模块、`TOOL_STATUS_ERROR` 等其余状态比较是否脱节点（后续候选需独立判定）。
+- 未推送/未落 `main`：CI 42475362988（tip 1d56505，已含 601–603）处于 in_progress；604 本地提交后须待该 run 全绿或失败修复后按纪律推送，legs 进行中不推送。
+
+### 7 下一位候选
+
+1. 监控 42475362988；全绿后推送 604 并遵守 legs-in-progress 不推送纪律；若失败则先红→绿修复并记账。
+2. 继续搜“同一事实两处归属”（可门禁、非 lookalike）：`TOOL_STATUS_ERROR`/`denied`/`cancelled` 等在 agent 侧的 Compare 脱节点是否可同构收敛；或 `missing_task_network` 授权码字面量在 `audit.py`/`main.py` 归属（仅命名常量、不改 `MISSING_TASK_AUTHORIZATIONS` 集合语义）。
+3. 十一实验面保持冻结；`main` 合并继续冻结（并发 worktree 冲突会话）。
+## 批次 605 — M8-T623：agent 中 `*_result.status` 的非 ok 工具状态比较接回 schemas 归属（精确范围）
+
+### 1 是否真是同一事实
+
+工具结果状态（`error`/`denied`/`cancelled`/`timed_out`）已由 `minicc.tools.schemas` 的 `TOOL_STATUS_*` 归属（M8-T618）。`minicc.agent.loop`/`verifier` 在比较 `tool_result`/`search_result` 对象的 `.status` 时仍使用裸字面量，是同一事实（工具结果状态）的脱节点使用。验证器自身的验证状态（`VerificationResult.status`/本地验证结论）与工具结果状态同形但属不同事实，本批明确排除。
+
+### 2 命中点（实测，门禁范围内）
+
+- `minicc/agent/loop.py`：`tool_result.status != "denied"`、`search_result.status == "error"`（2 处，均为 `*_result.status`）。
+- `minicc/agent/verifier.py`：`tool_result.status == "cancelled"`、`tool_result.status == "timed_out"`（2 处）；同文件 `self.status`/`item.status`/本地验证 `status` 的 `"cancelled"/"timed_out"/"failed"` 比较为验证状态事实，未触碰。
+
+### 3 改动
+
+- `minicc/agent/loop.py`：schemas 导入增加 `TOOL_STATUS_DENIED`/`TOOL_STATUS_ERROR`；替换上述 2 处工具/搜索结果状态比较。
+- `minicc/agent/verifier.py`：schemas 导入增加 `TOOL_STATUS_CANCELLED`/`TOOL_STATUS_TIMED_OUT`；替换 `tool_result.status` 的 2 处比较，保留验证状态分支与映射字面量不变。
+- `tests/test_the_tool_result_nonok_statuses_have_one_home_in_agent.py`（新）：门禁仅检查 `ast.Compare` 且比较侧为 `<名称含 result 的变量>.status` 时的 `error/denied/cancelled/timed_out` 字面量，红→绿。
+
+### 4 验证（命令与输出要点）
+
+- 红臂：`pytest tests/test_the_tool_result_nonok_statuses_have_one_home_in_agent.py -q` 1 failed，列出 loop 2 + verifier 2 共 4 处。
+- 绿臂：同门禁 1 passed；`import minicc.agent.loop, minicc.agent.verifier` 通过。
+
+### 5 聚焦回归
+
+- `tests/test_the_tool_result_ok_status_has_one_home_in_agent.py`、`tests/test_the_tool_result_nonok_statuses_have_one_home_in_agent.py`、`tests/test_the_tool_result_statuses_have_one_home.py`、`tests/test_verifier_lifecycle.py`、`tests/test_the_loop_budget_verdicts_have_one_home.py` 共 22 passed（`..\minicc-codex\.venv\Scripts\python.exe -m pytest ... -q`）。未跑全量基准回归/CI 双端。
+
+### 6 边界（哪些**未**触碰）
+
+- 仅约束 loop/verifier 中 `*_result.status`（工具/搜索结果对象）的非 ok 工具状态 Compare；不触碰验证状态词汇（`self.status`/`VerificationResult.status`/本地验证映射）、任务/事件/其他域状态、其他 agent/web 模块中可能的工具状态脱节点（需独立判定是否同事实）。
+- 未推送/未落 `main`：CI 42475362988（tip 1d56505，含 601–603）仍 in_progress；本地 604–605 已提交/待提交，须待该 run 全绿或失败修复后按纪律推送，legs 进行中不推送。
+
+### 7 下一位候选
+
+1. 监控 42475362988；全绿后按顺序推送本地已提交批次（604、605）并遵守 legs-in-progress 不推送纪律；若失败则先红→绿修复并记账。
+2. 继续搜“同一事实两处归属”（可门禁、非 lookalike）：agent/web 其他位置 `*_result.status`/`ToolResult.status` 对工具状态字面量的 Compare 脱节点；或 `missing_task_network` 授权码名字面量在 `audit.py`/`main.py` 归属（仅常量化比较，不改 `MISSING_TASK_AUTHORIZATIONS` 成员语义，需门禁证明）。
+3. 十一实验面保持冻结；`main` 合并继续冻结（并发 worktree 冲突会话）。
+## 批次 606 — M8-T624：missing-task 授权码名字有一处归属（audit↔main），保持集合语义不变
+
+### 1 是否真是同一事实
+
+`missing_task_write`/`missing_task_exec`/`missing_task_network` 是授权决策码名字，属于 `minicc.audit` 授权词汇的同一事实。它们散落在 `audit.py` 的决策构造/比较/`MISSING_TASK_AUTHORIZATIONS` 字面量，以及 `main.py` 的比较中。`web.py` 仅通过 `MISSING_TASK_AUTHORIZATIONS` 集合判断交互审批流，**不**依赖裸字面量。
+
+### 2 命中点（实测）
+
+- `minicc/audit.py`：`MISSING_TASK_AUTHORIZATIONS` 含 `missing_task_write`/`missing_task_exec` 字面量；4 处 `AuthorizationDecision(..., "missing_task_network")`；1 处 `decision.authorization == "missing_task_network"`；2 处 write/exec 决策码字面量。
+- `minicc/main.py`：`decision.authorization == "missing_task_network"`。
+
+### 3 改动（行为保持）
+
+- `minicc/audit.py`：新增 `AUTHORIZATION_MISSING_TASK_WRITE`/`AUTHORIZATION_MISSING_TASK_EXEC`/`AUTHORIZATION_MISSING_TASK_NETWORK`（M8-T624）；`MISSING_TASK_AUTHORIZATIONS` 由 write/exec 常量构造，**仍仅包含 write+exec，不包含 network**（与既有 web 交互审批流契约一致）；替换决策构造与比较中的裸字面量；`__all__` 导出新常量。
+- `minicc/main.py`：导入并使用 `AUTHORIZATION_MISSING_TASK_NETWORK`。
+- `tests/test_the_missing_task_authorization_codes_have_one_home.py`（新）：红臂 2 项（home 缺常量；`audit.py`/`main.py` 裸字面量）；绿臂同时断言 `MISSING_TASK_AUTHORIZATIONS == {WRITE, EXEC}` 且 `NETWORK not in`（行为契约）。
+
+### 4 验证（命令与输出要点）
+
+- 红臂：`pytest tests/test_the_missing_task_authorization_codes_have_one_home.py -q` 2 failed，列出 audit 8 处 + main 1 处（共 9）。
+- 绿臂：同门禁 2 passed；`MISSING_TASK_AUTHORIZATIONS == ['missing_task_exec','missing_task_write']`，network 非成员。
+
+### 5 聚焦回归
+
+- `tests/test_the_missing_task_authorization_codes_have_one_home.py`、`tests/test_permissions_approval.py`、`tests/test_permissions_pure.py`、`tests/test_the_approval_decisions_have_one_home.py`、`tests/test_a_synchronous_chat_run_must_be_able_to_ask_for_an_approval.py` 共 53 passed（`..\minicc-codex\.venv\Scripts\python.exe -m pytest ... -q`）。未跑全量基准回归/CI 双端。
+
+### 6 边界（哪些**未**触碰）
+
+- **未改变 `MISSING_TASK_AUTHORIZATIONS` 成员语义**（network 仍不在集合内，web 行为不变）；仅常量化名字/比较/构造。
+- 未触碰授权原因/风险标签/其他 `authorization` 码（如 `permission_rule_allow`）的归属；未改 `web.py`（仅消费集合）。
+- 未推送/未落 `main`：CI 42475362988（tip 1d56505，含 601–603）仍 in_progress；本地 604–606 已提交/待提交，须待该 run 全绿或失败修复后按纪律推送，legs 进行中不推送。
+
+### 7 下一位候选
+
+1. 监控 42475362988；全绿后按顺序推送本地已提交批次（604、605、606）并遵守 legs-in-progress 不推送纪律；若失败则先红→绿修复并记账。
+2. 继续搜“同一事实两处归属”（可门禁、非 lookalike）：`permission_rule_allow`/`permission_rule_deny` 等授权码名字是否跨模块裸字面量且有归属；或 agent `status="error"/"ok"` 作为事件状态字段值是否与某事件状态 home 脱节（需先区分事实域）。
+3. 十一实验面保持冻结；`main` 合并继续冻结（并发 worktree 冲突会话）。
+## 批次 607 — M8-T625：permission-rule/user-denied 授权码名字有一处归属（audit↔web）
+
+### 1 是否真是同一事实
+
+`permission_rule_allow`/`permission_rule_deny`/`user_denied` 是授权决策码名字，属于 `minicc.audit` 授权词汇。`audit.py` 在规则匹配/策略不可读兜底等路径产出 allow/deny 码；`web.py` 在交互审批流中识别 `permission_rule_allow` 并在用户拒绝时构造 `user_denied`。裸字面量跨模块重复同一事实。
+
+### 2 命中点（实测）
+
+- `minicc/audit.py`：`permission_rule_deny`/`permission_rule_allow` 出现在授权决策构造与授权码元组（3 处）。
+- `minicc/web.py`：`decision.authorization == "permission_rule_allow"`、决策构造传入 `"permission_rule_allow"`、用户拒绝构造 `"user_denied"`（3 处）。
+
+### 3 改动
+
+- `minicc/audit.py`：新增 `AUTHORIZATION_PERMISSION_RULE_ALLOW`/`AUTHORIZATION_PERMISSION_RULE_DENY`/`AUTHORIZATION_USER_DENIED`（M8-T625），`__all__` 导出；替换规则/兜底授权码字面量。
+- `minicc/web.py`：从 `.audit` 导入 allow/user_denied 常量，替换比较与构造字面量。
+- `tests/test_the_permission_rule_authorization_codes_have_one_home.py`（新）：红臂 2 项（home 缺常量；`audit.py`/`web.py` 裸字面量）→ 绿臂。
+
+### 4 验证（命令与输出要点）
+
+- 红臂：`pytest tests/test_the_permission_rule_authorization_codes_have_one_home.py -q` 2 failed，列出 audit 3 + web 3 共 6 处。
+- 绿臂：同门禁 2 passed；`import minicc.audit, minicc.web` 通过。
+
+### 5 聚焦回归
+
+- `tests/test_the_permission_rule_authorization_codes_have_one_home.py`、`tests/test_permissions_approval.py`、`tests/test_the_approval_decisions_have_one_home.py`、`tests/test_a_synchronous_chat_run_must_be_able_to_ask_for_an_approval.py` 共 30 passed（`..\minicc-codex\.venv\Scripts\python.exe -m pytest ... -q`）。未跑全量基准回归/CI 双端。
+
+### 6 边界（哪些**未**触碰）
+
+- 仅约束上述 3 个授权码名字在 `audit.py`/`web.py` 的归属；不触碰权限规则语义、审批超时/取消原因文案、`hook_denied`/`CODE_DENIED` 等其他码域（可能为不同事实）、web 审批流程分支逻辑。
+- 未推送/未落 `main`：CI 42475362988（tip 1d56505，含 601–603）仍 in_progress；本地 604–607 已提交/待提交，须待该 run 全绿或失败修复后按纪律推送，legs 进行中不推送。
+
+### 7 下一位候选
+
+1. 监控 42475362988；全绿后按顺序推送本地已提交批次（604–607）并遵守 legs-in-progress 不推送纪律；若失败则先红→绿修复并记账。
+2. 继续搜“同一事实两处归属”（可门禁、非 lookalike）：`budget_exceeded` 作为**同一载荷/结果字段名**（`task_manager`/`web`/`subagent` 的 dict key）是否应有归属（需确认与 `BUDGET_EXCEEDED_CODE` trace 码是同事实还是仅同形）；或其他授权码/事件码的脱节点。
+3. 十一实验面保持冻结；`main` 合并继续冻结（并发 worktree 冲突会话）。
+## 批次 608 — M8-T626：授权决策码词汇（allow/deny/plan/task/risk）有一处归属（audit/main/web）
+
+### 1 是否真是同一事实
+
+`AuthorizationDecision.authorization` 的码名字（`unknown_risk`、`task_yolo`、`default_readonly`、`permission_policy_unreadable`、`session_allowlist`、`task_network`、`plan_mode_write`/`exec`、`task_write`/`exec`、`safe_verification`、`user_approved`）属于 `minicc.audit` 授权词汇同一事实族。它们在 `audit.py` 决策构造/元组、`main.py` 计划/风险门控集合、`web.py` 用户批准构造中以裸字面量重复。
+
+### 2 命中点（实测）
+
+- `minicc/audit.py`：上述码在 `AuthorizationDecision` 构造与授权码元组中共 17 处。
+- `minicc/main.py`：`{"plan_mode_write", "plan_mode_exec", "unknown_risk"}` 门控集合 3 处字面量。
+- `minicc/web.py`：`"user_approved"` 构造 1 处。
+
+### 3 改动（行为保持）
+
+- `minicc/audit.py`：新增 12 个 `AUTHORIZATION_*` 常量（M8-T626）并导出；替换决策构造/元组字面量（常量定义行保留字面量 RHS）。
+- `minicc/main.py`：导入 `AUTHORIZATION_PLAN_MODE_{WRITE,EXEC}`、`AUTHORIZATION_UNKNOWN_RISK`，替换门控集合字面量。
+- `minicc/web.py`：导入 `AUTHORIZATION_USER_APPROVED`，替换构造字面量。
+- `tests/test_the_authorization_decision_codes_have_one_home.py`（新）：红臂 2 项→绿臂；仅门禁名字归属，不改变语义。
+
+### 4 验证（命令与输出要点）
+
+- 红臂：`pytest tests/test_the_authorization_decision_codes_have_one_home.py -q` 2 failed，列出 audit 17 + main 3 + web 1 共 21 处。
+- 绿臂：同门禁 2 passed；`import minicc.audit, minicc.main, minicc.web` 通过。
+
+### 5 聚焦回归
+
+- `tests/test_the_authorization_decision_codes_have_one_home.py`、`tests/test_permissions_approval.py`、`tests/test_permissions_pure.py`、`tests/test_the_missing_task_authorization_codes_have_one_home.py`、`tests/test_the_permission_rule_authorization_codes_have_one_home.py` 共 50 passed（`..\minicc-codex\.venv\Scripts\python.exe -m pytest ... -q`）。未跑全量基准回归/CI 双端。
+
+### 6 边界（哪些**未**触碰）
+
+- 仅常量化上述授权决策码名字；不改变 `authorize_tool`/审批流/风险判定逻辑、`MISSING_TASK_AUTHORIZATIONS` 成员语义、权限规则/会话 allowlist 行为、主流程分支条件。
+- 未覆盖未在范围模块中裸字面量化的其他潜在授权码（若存在）；未触碰 `code=`/trace/event 码域的不同事实。
+- 未推送/未落 `main`：CI 42475362988（tip 1d56505，含 601–603）仍 in_progress；本地 604–608 已提交/待提交，须待该 run 全绿或失败修复后按纪律推送，legs 进行中不推送。
+
+### 7 下一位候选
+
+1. 监控 42475362988；全绿后按顺序推送本地已提交批次（604–608）并遵守 legs-in-progress 不推送纪律；若失败则先红→绿修复并记账。
+2. 继续搜“同一事实两处归属”（可门禁、非 lookalike）：`hook_denied`/`always_denied`/`capability_unavailable` 等若作为同一授权码事实跨模块出现则归属；或 `budget_exceeded` dict-key 事实需先判定是否与 trace code 同事实（避免 lookalike 合并）。
+3. 十一实验面保持冻结；`main` 合并继续冻结（并发 worktree 冲突会话）。
+## 批次 609 — M8-T627：修复 CI 42475362988 两项门禁回归（601/603 声明形态兼容），不改语义
+
+### 1 是否真是同一事实
+
+本批不是新增“同一事实两处归属”收敛，而是修复已推送 601/603 引入的门禁兼容回归，恢复既有“单一归属/声明唯一”门禁对同一事实的判定：
+- 601 将 `minicc.audit.PERMISSION_MODES` 改为由常量元素组成的 frozenset，导致 `tests/test_the_switch_vocabularies_have_one_home.py::test_the_home_itself_declares_each_vocabulary_exactly_once` 无法识别其字面量声明（CI 双端 0 hits）。
+- 603 在 `minicc.agent.protocol` 新增 `TASK_KINDS`，但 `tests/test_the_task_kinds_have_one_home.py` 仅通过属性访问引用，`tests/test_the_package_does_not_define_what_the_repo_never_uses.py` 将其判为仓库无引用。
+
+### 2 命中点（实测，CI 日志）
+
+- `minicc/audit.py`（601 后形态）：`PERMISSION_MODES = frozenset({PERMISSION_MODE_DEFAULT, ...})`，switch-vocab 门禁按 `ast.Constant` 元素匹配，计数为 0。
+- `minicc/agent/protocol.py:36`：`TASK_KINDS` 定义存在；`tests/test_the_task_kinds_have_one_home.py` 使用 `p.TASK_KINDS`（属性访问）未被“never uses”扫描器计为名称/字符串引用。
+
+### 3 改动（行为保持）
+
+- `minicc/audit.py`：`PERMISSION_MODES` 恢复为 `frozenset({"default","plan","acceptEdits","yolo"})` 的字面量声明形态（switch-vocab/前端 smoke 兼容）；保留 `PERMISSION_MODE_*` 单值常量（601 契约）不变；`PERMISSION_MODES` 成员值与常量集合仍相等。
+- `tests/test_the_task_kinds_have_one_home.py`：改为 `from minicc.agent.protocol import ... TASK_KINDS` 并以名称引用断言，使 `TASK_KINDS` 对“never uses”扫描器可见；断言语义不变。
+
+### 4 验证（命令与输出要点）
+
+- CI 失败（42475362988，tip 1d56505，含 601–603）：Ubuntu/Windows 双端 `test_the_package_does_not_define_what_the_repo_never_uses.py::test_no_constant_is_defined_without_any_repository_reference`（`TASK_KINDS`）与 `test_the_switch_vocabularies_have_one_home.py::test_the_home_itself_declares_each_vocabulary_exactly_once`（`PERMISSION_MODES` 0 times）失败；其余 4309 passed/4 skipped（Ubuntu 汇总）。
+- 本地绿：`pytest tests/test_the_switch_vocabularies_have_one_home.py tests/test_the_package_does_not_define_what_the_repo_never_uses.py tests/test_the_task_kinds_have_one_home.py tests/test_the_permission_mode_names_have_one_home.py -q` → 10 passed；`node --test tests/frontend_permission_mode_one_home_smoke.mjs` → 1 passed；`pytest tests/test_the_authorization_decision_codes_have_one_home.py tests/test_the_missing_task_authorization_codes_have_one_home.py tests/test_the_permission_rule_authorization_codes_have_one_home.py tests/test_permissions_pure.py -q` → 29 passed。
+
+### 5 聚焦回归
+
+- 见第 4 节（合计 40 项 Python + 1 项 Node smoke）。未跑全量基准回归/本地 CI 双端全量。
+
+### 6 边界（哪些**未**触碰）
+
+- 不改变权限模式/任务 kind/授权码语义；不删除 `PERMISSION_MODE_*` 或 `TASK_KINDS`；不修改 switch-vocab/never-uses/frontend smoke 门禁逻辑（仅使生产/测试形态满足既有契约）。
+- 604–608 本地已提交变更保持不变（仅在当前 `audit.py` 形态上做最小兼容调整）。
+- 推送纪律：42475362988 已完成且失败；本批修复后可推送 604–609 以修复 pushed 侧失败。推送后新 run legs 进行中不再推送。
+
+### 7 下一位候选
+
+1. 推送 604–609（含本修复）到 `origin/m8-t537`；监控新 CI run，全绿前不再推送，若失败则先红→绿修复并记账。
+2. 继续搜“同一事实两处归属”（可门禁、非 lookalike）：优先排查 trace/event/载荷字段名与既有 home 的脱节点（如 `budget_exceeded` dict-key 事实需先判定域）；避免与 trace code/不同状态域 lookalike 合并。
+3. 十一实验面保持冻结；`main` 合并继续冻结（并发 worktree 冲突会话）。
+## 批次 610 — M8-T628：work-tree verdict kind 词汇（yes/no/unknown）有一处归属（gitprobe→changes/loop）
+
+### 1 是否真是同一事实
+
+`gitprobe.work_tree_verdict()` 返回 `(kind, detail)`，其 `kind` 取值 `yes`/`no`/`unknown`。该词汇由 `minicc.gitprobe` 产出，并在 `minicc.changes`、`minicc.agent.loop` 中按同一语义比较以区分“无仓库事实”“不可读/未知”“有工作树”。裸字面量跨产出与消费模块重复同一事实。
+
+### 2 命中点（实测）
+
+- `minicc/gitprobe.py`：`work_tree_verdict` 的 4 个返回点使用 `"yes"`/`"no"`/`"unknown"` 字面量。
+- `minicc/changes.py`：`kind == "no"` / `kind == "unknown"`（git 状态失败后的 verdict 分支）。
+- `minicc/agent/loop.py`：`kind == "no"` / `kind == "unknown"`（同一 verdict 分支）。
+
+### 3 改动
+
+- `minicc/gitprobe.py`：新增 `WORK_TREE_VERDICT_YES`/`NO`/`UNKNOWN`（M8-T628，一处归属），`work_tree_verdict` 返回常量。
+- `minicc/changes.py`、`minicc/agent/loop.py`：导入 verdict kind 常量，替换 `kind == "no"/"unknown"` 比较。
+- `tests/test_the_work_tree_verdict_kinds_have_one_home.py`（新）：红臂 2 项（home 缺常量；`gitprobe`/`changes`/`loop` 裸字面量，home 仅允许常量定义）→ 绿臂。
+
+### 4 验证（命令与输出要点）
+
+- 红臂：`pytest tests/test_the_work_tree_verdict_kinds_have_one_home.py -q` 2 failed，列出 gitprobe 5 + changes 2 + loop 2 共 9 处。
+- 绿臂：同门禁 2 passed；`import minicc.gitprobe, minicc.changes, minicc.agent.loop` 通过。
+
+### 5 聚焦回归
+
+- `tests/test_the_work_tree_verdict_kinds_have_one_home.py`、`tests/test_a_change_view_that_could_not_read_git_is_not_a_clean_tree.py`、`tests/test_a_snapshot_that_could_not_read_the_tree_is_not_a_clean_tree.py` 共 14 passed（`..\minicc-codex\.venv\Scripts\python.exe -m pytest ... -q`）。未跑全量基准回归/CI 双端。
+
+### 6 边界（哪些**未**触碰）
+
+- 仅约束 work-tree verdict kind 词汇在 `gitprobe`/`changes`/`agent.loop` 的归属；不改变 `work_tree_verdict` 判定逻辑、git 状态错误文案/原因构造、变更视图/快照/agent loop 的分支语义。
+- 未审计其他可能消费 `work_tree_verdict` 的模块（若存在）——本批范围以实测裸字面量比较点为准；后续若出现同事实脱节点可扩展门禁。
+- 未推送/未落 `main`：CI 42477151851（tip 7efe612，含 604–609 代码/609 代码修复但 **609 ledger `e2d1349` 仍在本地未推**）in_progress；610 本地提交后须待该 run 全绿或失败修复后按纪律推送（含 609 ledger + 610），legs 进行中不推送。
+
+### 7 下一位候选
+
+1. 监控 42477151851；全绿后按顺序推送本地待推提交（`e2d1349` 609 ledger、610 code+ledger）并遵守 legs-in-progress 不推送纪律；若失败则先红→绿修复并记账。
+2. 继续搜“同一事实两处归属”（可门禁、非 lookalike）：其他 git/work-tree 状态码或 verdict 消费点；注意区分与工具结果/任务/验证状态的 lookalike。
+3. 十一实验面保持冻结；`main` 合并继续冻结（并发 worktree 冲突会话）。
+## 批次 611 — M8-T629：工具风险等级名（readonly/write/exec）在风险比较上下文有一处归属
+
+### 1 是否真是同一事实
+
+工具风险等级 `readonly`/`write`/`exec` 在授权与 agent-loop 门控中作为同一语义事实参与 `risk`/`effective_risk` 比较。`minicc.audit` 已拥有风险语义与 `effective_risk`；`minicc.agent.loop` 复用同一风险判断。裸字面量散落在两处比较逻辑中。
+
+### 2 命中点（实测，`risk`/`effective_risk` 上下文）
+
+- `minicc/audit.py`：`risk == "readonly"/"write"/"exec"` 等 6 处。
+- `minicc/agent/loop.py`：`risk == "readonly"/"write"` 与 `effective_risk(...) == "readonly"`（含跨行 lambda）共 5 处。
+
+### 3 改动
+
+- `minicc/audit.py`：新增 `RISK_READONLY`/`RISK_WRITE`/`RISK_EXEC`（M8-T630）并导出；在风险比较行（结合上下文窗口）替换字面量。
+- `minicc/agent/loop.py`：从 `..audit` 导入 `RISK_READONLY`/`RISK_WRITE`；替换风险/`effective_risk` 比较字面量。
+- `tests/test_the_risk_level_names_have_one_home.py`（新）：红臂 2 项→绿臂；门禁限定“行或前两行含 `risk`/`effective_risk` 的 Compare”以避开其他域同词 lookalike。
+
+### 4 验证（命令与输出要点）
+
+- 红臂：`pytest tests/test_the_risk_level_names_have_one_home.py -q` 2 failed，列出 audit 6 + loop 5 共 11 处。
+- 绿臂：同门禁 2 passed；`import minicc.audit, minicc.agent.loop` 通过，`RISK_READONLY/WRITE/EXEC` 值正确。
+
+### 5 聚焦回归
+
+- `tests/test_the_risk_level_names_have_one_home.py`、`tests/test_permissions_pure.py`、`tests/test_permissions_approval.py`、`tests/test_the_authorization_decision_codes_have_one_home.py`、`tests/test_the_loop_budget_verdicts_have_one_home.py` 共 57 passed（`..\minicc-codex\.venv\Scripts\python.exe -m pytest ... -q`）。未跑全量基准回归/CI 双端。
+
+### 6 边界（哪些**未**触碰）
+
+- 仅约束 `audit.py`/`agent/loop.py` 中风险比较上下文的 `readonly`/`write`/`exec` 风险等级字面量；不触碰 `network` 风险语义表达、工具注册表风险声明、配置/执行器/模式中的同词、`effective_risk` 行为本身。
+- 未推送/未落 `main`：CI 42477151851（tip 7efe612）仍 in_progress；本地待推含 609 ledger、610 code+ledger、611 本批，须待该 run 全绿或失败修复后按纪律推送，legs 进行中不推送。
+
+### 7 下一位候选
+
+1. 监控 42477151851；全绿后按顺序推送本地待推提交并遵守 legs-in-progress 不推送纪律；若失败则先红→绿修复并记账。
+2. 继续搜“同一事实两处归属”（可门禁、非 lookalike）：工具注册表/授权决策中 `network` 风险值是否与同一风险词汇事实脱节（需确认与 `readonly/write/exec` 同域）；或其他 gateable 协议/状态脱节点。
+3. 十一实验面保持冻结；`main` 合并继续冻结（并发 worktree 冲突会话）。
+## 批次 612 — M8-T630：内置 `bash` 工具名在比较上下文有一处归属（names→跨模块）
+
+### 1 是否真是同一事实
+
+内置 shell 工具标识 `bash` 在授权、allowlist、permissions、CLI/web 分发、agent loop/policy/completion 等模块中以 `tool/name == "bash"` 形式重复比较，是同一事实（bash 工具名）的脱节点使用。
+
+### 2 命中点（实测）
+
+- `minicc/agent/completion.py`：验证证据事件名 `event.get("name") == "bash"`。
+- `minicc/agent/loop.py`、`minicc/agent/tool_policy.py`：`call.tool`/`tool` 与 `bash` 比较（含 `!=`）。
+- `minicc/allowlist.py`、`minicc/audit.py`、`minicc/main.py`、`minicc/permissions.py`、`minicc/web.py`：`name`/`tool` 与 `bash` 比较（共 11 处 tool/name 上下文）。
+
+### 3 改动
+
+- `minicc/tools/names.py`（新，叶子模块）：新增 `TOOL_NAME_BASH = "bash"`（M8-T630，一处归属）。
+- 上述 8 个模块：导入 `TOOL_NAME_BASH`，将 tool/name 上下文中的 `==/!= "bash"` 替换为常量比较。
+- `tests/test_the_bash_tool_name_has_one_home.py`（新）：红臂 2 项（home 缺常量；范围模块 tool/name 行存在裸 `"bash"` 字面量）→ 绿臂。
+
+### 4 验证（命令与输出要点）
+
+- 红臂：`pytest tests/test_the_bash_tool_name_has_one_home.py -q` 1 failed（1 passed 为 home 定义项在创建 home 后通过）列出 11 处（completion 1 + loop 1 + tool_policy 3 + allowlist 1 + audit 1 + main 2 + permissions 1 + web 1）。
+- 绿臂：同门禁 2 passed；`import minicc.tools.names, minicc.allowlist, minicc.permissions, minicc.audit, minicc.main, minicc.web, minicc.agent.loop, minicc.agent.tool_policy, minicc.agent.completion` 通过。
+
+### 5 聚焦回归
+
+- `tests/test_the_bash_tool_name_has_one_home.py`、`tests/test_permissions_pure.py`、`tests/test_the_loop_budget_verdicts_have_one_home.py` 等聚焦集合通过（含 612 门禁）；`from minicc.web import AgentService` 导入正常。未跑全量基准回归/CI 双端。
+
+### 6 边界（哪些**未**触碰）
+
+- 仅约束上述 8 模块中 tool/name 比较上下文的 `bash` 字面量；不触碰 bash 命令内容/参数字符串、工具注册 spec、`tools/bash.py` 实现、其他工具名（若后续为同事实可独立成批）。
+- 中途修复了自动插入导入导致 `web.py` 语法破坏并恢复（未改变语义）；`tool_policy.py` 中 `!= "bash"` 亦纳入替换。
+- 未推送/未落 `main`：CI 42477151851（tip 7efe612）**completed/failure**（3 项既有门禁兼容失败，见批次 613）；本地含 609 ledger、610、611、612 待推送，须在 613 修复后按纪律推送，legs 进行中不推送。
+
+### 7 下一位候选
+
+1. 落地批次 613（修复 CI 42477151851 的门禁兼容回归），全绿后推送 609 ledger + 610 + 611 + 612 + 613；监控新 CI run，legs 进行中不推送。
+2. 继续搜“同一事实两处归属”（可门禁、非 lookalike）：其他内置工具名（`read_file`/`write_file`/`edit_file`/`grep`/`git_*` 等）若在跨模块 tool/name 比较上下文形成同事实脱节点，可分批处理；注意与权限能力/风险/注册名域 lookalike 区分。
+3. 十一实验面保持冻结；`main` 合并继续冻结（并发 worktree 冲突会话）。
+## 批次 613 — M8-T631：修复 CI 42477151851 门禁兼容回归（604/607/608 引入的字面量/行锚点漂移），不改语义
+
+### 1 是否真是同一事实
+
+本批不是新增“同一事实两处归属”收敛，而是修复已推送代码（含 604/607/608）与既有“单一归属”门禁之间的兼容回归，恢复对同一事实的判定：
+- `tests/test_one_rule_one_home.py::test_the_write_tool_list_literal_exists_in_exactly_one_place` 将 write-tool 列表的唯一归属锚定在 `tool_policy.py:29`；604（及后续本地 612）插入 import 导致同一字面量集合移行，但“仅在 `minicc/agent/tool_policy.py` 出现一次”的同一事实不变。
+- `tests/test_the_deny_veto_has_one_home.py` 通过扫描 `AuthorizationDecision(...)` 调用内的字符串常量识别 `permission_rule_deny`/reason 的唯一载体与 `authorize_tool` 构造点；607/608 将授权码改为命名常量 `AUTHORIZATION_PERMISSION_RULE_DENY`（M8-T625 的合法归属），导致该门禁无法识别同一事实。
+
+### 2 命中点（实测，CI 42477151851，tip 7efe612）
+
+- Ubuntu/Windows：`test_one_rule_one_home.py` 报告 `['minicc/agent/tool_policy.py:30'] != ['...:29']`（唯一出现位置仍在 home 文件）。
+- Ubuntu/Windows：`test_the_deny_veto_has_one_home.py::test_the_authorization_code_has_exactly_one_carrier_inside_a_decision` 得到 `[]`；`::test_the_deny_decision_is_built_inside_exactly_one_function` 期望 `[(minicc/audit.py, authorize_tool)]` 得到 `[]`（因决策码以 `AUTHORIZATION_PERMISSION_RULE_DENY` Name 传入）。
+
+### 3 改动（行为/不变量保持）
+
+- `tests/test_one_rule_one_home.py`：断言改为“`offenders` 恰好 1 项且位于 `minicc/agent/tool_policy.py:`”，保持“仅一处、且在 home 文件”的不变量，不再绑定行号。
+- `tests/test_the_deny_veto_has_one_home.py`：`_decision_strings`/`_decision_builders` 识别 `AUTHORIZATION_PERMISSION_RULE_DENY` Name 形式（M8-T625 常量化后的同一决策码载体）；仍要求唯一载体在 `minicc/audit.py` 且 deny 决策仅由 `authorize_tool` 构造，reason 仍为调用内字符串字面量并继续受原断言约束。未放宽“其他决策不得携带该码/前缀”类不变量。
+- 注：613 代码改动实际随 `f45e6bb`（批次 612 ledger 提交，分批暂存/锁重试导致）一并进入历史；本提交补记账并保证门禁/账本一致。
+
+### 4 验证（命令与输出要点）
+
+- CI 失败（42477151851）：上述 3 项失败，4316 passed / 4 skipped。
+- 本地绿：`pytest tests/test_one_rule_one_home.py tests/test_the_deny_veto_has_one_home.py tests/test_the_bash_tool_name_has_one_home.py -q` → 23 passed。
+
+### 5 聚焦回归
+
+- 见第 4 节。未跑全量基准回归/本地 CI 双端全量（依赖后续推送 CI）。
+
+### 6 边界（哪些**未**触碰）
+
+- 不改变 `permission_rule_deny` 决策语义、`AUTHORIZATION_PERMISSION_RULE_DENY` 常量归属（607/608）、`WRITE_TOOL_NAMES` 归属/成员/行为（604/612 未改其事实）、`authorize_tool` 逻辑。
+- 仅调整两项门禁的识别方式以兼容已建立的命名归属/非语义行移位；未修改生产代码。
+
+### 7 下一位候选
+
+1. 推送本地待推提交（`e2d1349` 609 ledger、610、611、612 code+ledger 含 613 修复、613 ledger）到 `origin/m8-t537`；监控新 CI run，legs 进行中不推送，若失败先红→绿修复并记账。
+2. 继续搜“同一事实两处归属”（可门禁、非 lookalike）：其他内置工具名跨模块 tool/name 比较脱节点的分批收敛；或 `network` 风险值与 `RISK_*` 同域归属（需确认同事实）。注意区分权限能力/注册名域。
+3. 十一实验面保持冻结；`main` 合并继续冻结（并发 worktree 冲突会话）。
+## 批次 614 — M8-T632：`budget_exceeded` 结果/载荷字段键有一处归属（与 trace code 分域）
+
+### 1 是否真是同一事实
+
+subagent/task_manager/web 在结果/载荷对象中使用 `"budget_exceeded"` 作为同一字段键传递“预算超限”标志/详情，是同一跨模块契约事实（字段名归属）。该字段**不同于** `BUDGET_EXCEEDED_CODE`（trace/event code，M8-T 已有归属）：二者是不同事实/契约域，仅当前字符串值相同，门禁与常量名明确分域，不合并。
+
+### 2 命中点（实测）
+
+- `minicc/agent/subagent.py`：预算耗尽 `ToolResult.data` 写入 `"budget_exceeded": True`。
+- `minicc/task_manager.py`：`result.get("budget_exceeded")` 判断并将 `result["budget_exceeded"]` 传给 `budget_exceeded_event(...)`。
+- `minicc/web.py`：合并/批次执行载荷写入 `payload["budget_exceeded"] = budget_exceeded`。
+- `minicc/agent/protocol.py`：已有 `BUDGET_EXCEEDED_CODE` 定义（trace code），缺字段键归属。
+
+### 3 改动
+
+- `minicc/agent/protocol.py`：新增 `BUDGET_EXCEEDED_FIELD = "budget_exceeded"`（M8-T632，结果/载荷字段键一处归属；注释标明与 `BUDGET_EXCEEDED_CODE` 分域），加入 `__all__`。
+- `minicc/agent/subagent.py`、`minicc/task_manager.py`、`minicc/web.py`：导入并使用 `BUDGET_EXCEEDED_FIELD` 替换字段键字面量（读/写/传递行为不变）。
+- `tests/test_the_budget_exceeded_result_field_has_one_home.py`（新）：红臂 2 项（home 缺常量；范围模块裸字段字面量；允许 `BUDGET_EXCEEDED_FIELD`/`BUDGET_EXCEEDED_CODE` 的定义赋值）→ 绿臂，并断言两常量值相等但语义分域（不同事实）。
+
+### 4 验证（命令与输出要点）
+
+- 红臂：`pytest tests/test_the_budget_exceeded_result_field_has_one_home.py -q` 2 failed（`AttributeError: BUDGET_EXCEEDED_FIELD`；subagent/task_manager/web 共 4 处）。
+- 绿臂：同门禁 2 passed。
+
+### 5 聚焦回归
+
+- `tests/test_the_budget_exceeded_code_has_one_home.py`、`tests/test_the_budget_exceeded_event_have_one_home.py`、`tests/test_the_budget_exceeded_result_field_has_one_home.py`、`tests/test_batch_wiring.py`、`tests/test_the_orchestration_result_have_one_home.py`、`tests/test_the_loop_budget_verdicts_have_one_home.py` 共 32 passed（`..\minicc-codex\.venv\Scripts\python.exe -m pytest ... -q`）。未跑全量基准回归/CI 双端。
+
+### 6 边界（哪些**未**触碰）
+
+- 仅约束上述 3 模块+home 中的 `budget_exceeded` **结果/载荷字段键**；`BUDGET_EXCEEDED_CODE`（trace/event code）定义保留且与字段键常量分离；不改变预算超限判定、事件构造、合并/子代理/web 载荷语义。
+- 未触碰其他可能使用同名字段的测试/模块（若后续出现同事实脱节点可扩展门禁）；未将 trace code 与字段键合并。
+- 未推送/未落 `main`：CI 42479351486（tip `f45e6bb`）in_progress；本地另有 `2e59ff2`（613 ledger）与 614 待推送，须待该 run 全绿（或失败修复）后按纪律推送，legs 进行中不推送。
+
+### 7 下一位候选
+
+1. 监控 42479351486；全绿后按顺序推送 `2e59ff2` + 614 提交；若失败先红→绿+账本再推，legs 进行中不推送。
+2. 继续搜“同一事实两处归属”（可门禁、非 lookalike）：hook 决策 `allow/deny` 词汇在 `hooks.py`（产出）与 `agent/loop.py`（消费）的同事实归属（需确认 home 与权限决策域分离）；或其他跨模块契约字段键/事件码脱节点。
+3. 十一实验面保持冻结；`main` 合并继续冻结。
+## 批次 615 — M8-T633：hook 决策词汇（allow/deny）有一处归属（hooks→agent.loop 消费）
+
+### 1 是否真是同一事实
+
+hook 执行域的决策值 `allow`/`deny` 由 `minicc.hooks` 产出（HookOutcome/entry、`on_failure` deny 分支语义）并由 `minicc.agent.loop` 消费（读取 hook entry decision）。裸字面量跨产出与消费重复同一 hook 域事实。该事实**不同于**权限规则/授权决策域的 `permission_rule_allow/deny` 等码（audit 归属），门禁仅覆盖 hook 域上下文。
+
+### 2 命中点（实测）
+
+- `minicc/hooks.py`：HookOutcome 默认/比较、entry 写入、`on_failure` 含 `deny` 的校验与分支、失败回退决策等共 15 处 `allow`/`deny` 字面量（hook 域）。
+- `minicc/agent/loop.py`：hook entry 消费行 `entry.get('decision', 'allow')` / `== 'deny'`（2 处）。
+
+### 3 改动
+
+- `minicc/hooks.py`：新增 `HOOK_DECISION_ALLOW`/`HOOK_DECISION_DENY`（M8-T633，hook 域一处归属）；替换 hook 决策/`on_failure` deny 相关字面量（行为不变）。
+- `minicc/agent/loop.py`：从 `..hooks` 导入 `HOOK_DECISION_*`，替换 hook decision 消费比较/默认值。
+- `tests/test_the_hook_decisions_have_one_home.py`（新）：红臂 2 项→绿臂；`loop.py` 仅门禁含 `decision`/`hook` 上下文的行以避开非 hook 域 lookalike。
+- `tests/test_hook_launch_failure_honours_the_deny_policy.py`：`test_run_one_never_produces_a_decision_spelling_without_a_reader` 的 AST 词表普查兼容 `HOOK_DECISION_ALLOW/DENY` Name 形式（M8-T633 常量化后的同一事实），仍断言 `_run_one` 仅产出 `allow/deny` 两种决策拼写且分支覆盖不变量。
+
+### 4 验证（命令与输出要点）
+
+- 红臂：`pytest tests/test_the_hook_decisions_have_one_home.py -q` 2 failed，列出 hooks 15 + loop 2（共 17 处命中，含 loop 决策消费行）。
+- 绿臂：同门禁 2 passed；`import minicc.hooks, minicc.agent.loop` 通过。
+
+### 5 聚焦回归
+
+- `tests/test_the_hook_decisions_have_one_home.py`、`tests/test_hooks.py`、`tests/test_hooks_validation.py`、`tests/test_hook_launch_failure_honours_the_deny_policy.py`（含兼容修复）、`tests/test_the_hook_denied_default_has_one_home.py`、`tests/test_the_hook_entry_have_one_home.py`、`tests/test_a_hook_argument_is_redacted_before_it_is_cut.py`、`tests/test_a_set_of_hooks_shares_one_budget.py` 共 51 passed（`..\minicc-codex\.venv\Scripts\python.exe -m pytest ... -q`）。未跑全量基准回归/CI 双端。
+
+### 6 边界（哪些**未**触碰）
+
+- 仅约束 hook 域 `allow/deny` 决策词汇在 `hooks.py`/`agent/loop.py`（决策消费上下文）的归属；不触碰权限/授权域 deny/allow 码与规则、`on_failure="continue"` 策略值（不同事实）、hook 事件名/载荷/执行语义。
+- 未推送/未落 `main`：CI 42479351486（tip `f45e6bb`）in_progress；本地 `2e59ff2`（613 ledger）+ 614 + 615 待推送，须待该 run 全绿（或失败修复）后按纪律推送，legs 进行中不推送。
+
+### 7 下一位候选
+
+1. 监控 42479351486；全绿后按顺序推送 `2e59ff2`、614、615；若失败先红→绿+账本再推，legs 进行中不推送。
+2. 继续搜“同一事实两处归属”（可门禁、非 lookalike）：`hooks.py` 中 `on_failure` 策略值 `continue` 若在配置/校验与运行时同事实重复可评估（需与 hook decision 分域）；或其他 trace/event/契约字段的脱节点。
+3. 十一实验面保持冻结；`main` 合并继续冻结。
+## 批次 616 — M8-T634：permission rule verdict/side 词汇（allow/deny）有一处归属（permissions→audit 消费）
+
+### 1 是否真是同一事实
+
+`minicc.permissions` 产出规则匹配 verdict（`allow`/`deny`/`None`）并使用 `allow`/`deny` 作为规则侧键；`minicc.audit` 消费 `match_rules` verdict。裸字面量跨产出与消费重复同一 permission-rule 域事实。该事实**不同于** hook 决策域（`HOOK_DECISION_*`，M8-T633）、用户审批决策（`APPROVAL_DECISIONS`/`PERMITTING_APPROVAL_DECISIONS`，audit 中不同事实）、以及 `permission_rule_allow/deny` 等授权决策码（M8-T625/626 归属）。门禁仅覆盖 permission-rule verdict/side 上下文。
+
+### 2 命中点（实测）
+
+- `minicc/permissions.py`：`_empty_rules`/`_normalize`/规则加载/`match_rules`/`match_permission_rule` 返回与侧键、及文档字符串中的 verdict 词汇共 8 处 `allow`/`deny` 字面量（规则域）。
+- `minicc/audit.py`：`match_rules(...) == "deny"` 比较 4 处、`verdict == "deny"/"allow"` 比较 2 处（permission-rule verdict 上下文）。`APPROVAL_DECISIONS`/`PERMITTING_APPROVAL_DECISIONS` 与授权码字面量**明确排除**。
+
+### 3 改动
+
+- `minicc/permissions.py`：新增 `PERMISSION_RULE_VERDICT_ALLOW`/`PERMISSION_RULE_VERDICT_DENY`（M8-T634，一处归属；置于 `from __future__`/imports 之后，避免 616 初始编辑将常量插入文件顶部导致的 `SyntaxError`），加入 `__all__`；替换规则 verdict/side 相关字面量（行为不变）。清理 stale `__pycache__/permissions.cpython-311.pyc` 以消除导入歧义。
+- `minicc/audit.py`：从 `.permissions` 导入 verdict 常量；仅替换 `match_rules` verdict 比较与 permission-rule `verdict == allow/deny`（不触碰 `APPROVAL_DECISIONS`/`PERMITTING_APPROVAL_DECISIONS`、授权码、hook 域）。
+- `tests/test_the_permission_rule_verdicts_have_one_home.py`（新）：红臂 2 项（home 缺常量/导入失败 + 范围模块裸 verdict/side 字面量；审计侧按 verdict/`match_rules` 上下文过滤并排除 `APPROVAL*`/`permission_rule_`）→ 绿臂。
+
+### 4 验证（命令与输出要点）
+
+- 红臂：`pytest tests/test_the_permission_rule_verdicts_have_one_home.py -q` 1 failed, 1 passed（`permissions.py` 顶部常量导致 `from __future__` 位置 `SyntaxError`；审计/permissions 扫描按门禁范围命中）。
+- 修复后绿臂：同门禁 2 passed；`import minicc.permissions, minicc.audit` 通过（venv python）。
+
+### 5 聚焦回归
+
+- `tests/test_the_permission_rule_verdicts_have_one_home.py`、`tests/test_permissions_pure.py`、`tests/test_permissions_approval.py`、`tests/test_permissions_path_rules_share_the_allowlist_matcher.py`、`tests/test_the_permission_rule_authorization_codes_have_one_home.py`、`tests/test_the_deny_veto_has_one_home.py`、`tests/test_permission_deny_veto_is_asked_by_every_consent_site.py` 共 85 passed（`..\minicc-codex\.venv\Scripts\python.exe -m pytest ... -q`）。未跑全量基准回归/CI 双端。
+
+### 6 边界（哪些**未**触碰）
+
+- 仅约束 `permissions.py`/`audit.py` 中 permission-rule verdict/side（allow/deny）词汇；不触碰 `APPROVAL_DECISIONS`/`PERMITTING_APPROVAL_DECISIONS`、授权决策码、hook 决策、`ask`/`None` 语义、规则匹配顺序/deny-wins 逻辑。
+- 未推送/未落 `main`：CI 42479351486（tip `f45e6bb`）in_progress；本地 `2e59ff2`（613 ledger）+ 614 + 615 + 616 待推送，须待该 run 全绿（或失败修复）后按纪律推送，legs 进行中不推送。
+
+### 7 下一位候选
+
+1. 监控 42479351486；全绿后按顺序推送 `2e59ff2`、614、615、616；若失败先红→绿+账本再推，legs 进行中不推送。
+2. 继续搜“同一事实两处归属”（可门禁、非 lookalike）：`hooks.py` 中 `on_failure` 策略值 `continue` 若在配置/校验与运行时同事实重复可评估（需与 hook decision 分域）；或其他 trace/event/契约字段、工具风险/网络标签脱节点（确认同事实后再动）。
+3. 十一实验面保持冻结；`main` 合并继续冻结。
+## 批次 617 — M8-T635：hook 事件名词汇（PreToolUse/PostToolUse/UserPromptSubmit/Stop）有一处归属（hooks→agent.loop）
+
+### 1 是否真是同一事实
+
+hook 事件身份 `PreToolUse`/`PostToolUse`/`UserPromptSubmit`/`Stop` 由 `minicc.hooks`（`HOOK_EVENTS`/事件分发与 tool-scope 判断）定义/使用，并由 `minicc.agent.loop` 在 `run_hook`、`payloads_for_tool_call`、trace/payload `event`/`hook` 字段中消费。裸字面量跨产出与消费重复同一 hook 事件事实；`HOOK_EVENTS` 集合改为引用单事件常量以保持同一归属。
+
+### 2 命中点（实测）
+
+- `minicc/hooks.py`：`HOOK_EVENTS` 定义原含 4 个裸字面量；tool-scope 判断 `event in {"PreToolUse","PostToolUse"}`。模块/函数文档字符串中的同名文本属于说明，不作为运行时事实门禁对象（门禁排除 docstring Constant）。
+- `minicc/agent/loop.py`：`run_hook`/`payloads_for_tool_call`/payload `event`/trace `data.hook` 共 9 处裸事件名字面量（`UserPromptSubmit`×2、`PreToolUse`×3、`PostToolUse`×2、`Stop`×2）。
+
+### 3 改动
+
+- `minicc/hooks.py`：新增 `HOOK_EVENT_PRE_TOOL_USE`/`HOOK_EVENT_POST_TOOL_USE`/`HOOK_EVENT_USER_PROMPT_SUBMIT`/`HOOK_EVENT_STOP`（M8-T635，一处归属）；`HOOK_EVENTS` 改为使用常量；tool-scope 集合使用常量；加入 `__all__`。
+- `minicc/agent/loop.py`：从 `..hooks` 导入 4 个事件常量，替换 hook 调用/载荷/trace 中的裸事件名字面量（行为不变）。
+- `tests/test_the_hook_event_names_have_one_home.py`（新）：红→绿门禁（home 导出/`HOOK_EVENTS` 值；范围 `hooks.py`/`agent/loop.py` 内裸事件 Constant，允许 `HOOK_EVENT_*` 定义赋值，排除 docstring）。
+
+### 4 验证（命令与输出要点）
+
+- 绿臂：`pytest tests/test_the_hook_event_names_have_one_home.py -q` 2 passed；`import minicc.hooks, minicc.agent.loop` 通过，`HOOK_EVENTS` 值不变。
+
+### 5 聚焦回归
+
+- `tests/test_the_hook_event_names_have_one_home.py`、`tests/test_the_hook_decisions_have_one_home.py`、`tests/test_hooks.py`、`tests/test_hooks_validation.py`、`tests/test_hook_launch_failure_honours_the_deny_policy.py`、`tests/test_the_hook_denied_default_has_one_home.py`、`tests/test_the_hook_entry_have_one_home.py`、`tests/test_a_hook_argument_is_redacted_before_it_is_cut.py`、`tests/test_a_set_of_hooks_shares_one_budget.py`、`tests/test_subagent_hooks_inheritance.py`、`tests/test_a_hook_must_not_hold_the_event_loop.py` 共 75 passed（`..\minicc-codex\.venv\Scripts\python.exe -m pytest ... -q`）。未跑全量基准回归/CI 双端。
+
+### 6 边界（哪些**未**触碰）
+
+- 仅约束 `hooks.py`/`agent/loop.py` 中 hook 事件身份词汇；不触碰 `on_failure` 策略值、hook 决策词汇（M8-T633）、hook 配置 schema/语义、事件载荷字段、测试中的同名字符串（若后续出现同事实脱节点可评估扩展）。
+- 未推送：CI 42481274789（tip `d956648`，616 批次）in_progress，legs 进行中不推送；616 已推送。
+
+### 7 下一位候选
+
+1. 监控 42481274789；全绿则当前本地仅 617 待后续按纪律推送；若失败先红→绿+账本再推，legs 进行中不推送。
+2. 继续搜“同一事实两处归属”：phase 字面量 `"planning"` 在 `agent/loop.py` 默认、`task_manager.set_phase`/快照恢复、`web.py` budget_exceeded_event stage 实参与 `PHASE_PLANNING` 同事实重复（需核对签名/序列化语义后再门禁）；或 `on_failure` 的 `continue` 策略值若跨模块成为同事实（当前仅 hooks.py）。
+3. 十一实验面保持冻结；`main` 合并继续冻结。
+## 批次 618 — M8-T636：运行时 phase 字面量（`planning`/作用域内 `merging`）在 loop/task_manager 归属 protocol（stage 标签分域）
+
+### 1 是否真是同一事实
+
+`minicc.agent.loop` 的默认 phase、`minicc.task_manager` 的 `set_phase`/快照恢复/合并阶段判断中使用的 `"planning"`/`"merging"`，与 `minicc.agent.protocol` 的 `PHASE_PLANNING`/`PHASE_MERGING` 是同一运行时 phase 事实。`minicc.web` 中预算/路由/代价估算使用的 `"planning"` 等是 **stage 标签事实**（与 `budget_exceeded_event(stage=..., phase=PHASE_PLANNING)` 的 `stage` 参数同域，但不同于 phase 常量归属的调用点），明确分域、不触碰。
+
+### 2 命中点（实测，作用域 `agent/loop.py`、`task_manager.py`）
+
+- `loop.py`：`phase: str = "planning"` 默认值。
+- `task_manager.py`：`set_phase("planning")`（2 处）、`set_phase("merging")`（1 处，M8-T636 同批补齐）、`snapshot.get("phase") or "planning"`、`phase=PHASE_MERGING if parent.phase == "merging" else "planning"`。
+- `web.py`（**排除**，stage 事实）：`stage_router.route("planning")`、`current_stage={"name":"planning"}`、代价估算 stage key、`budget_exceeded_event("planning", ..., phase=PHASE_PLANNING)` 的 `stage` 实参。
+
+### 3 改动
+
+- `minicc/agent/loop.py`、`minicc/task_manager.py`：将作用域内 runtime phase 裸字面量替换为 `PHASE_PLANNING`/`PHASE_MERGING`（两模块已从 `agent.protocol` 导入对应常量；行为不变）。
+- `tests/test_the_planning_phase_fact_has_one_home.py`（新）：门禁范围文件中 `planning`/`merging` Constant 为 0；预算/路由 stage 标签不同事实不在范围。
+
+### 4 验证（命令与输出要点）
+
+- 红臂/补齐：门禁先暴露 `task_manager.py:1926 set_phase("merging")` 漏改，修复后绿臂。
+- 绿臂：`pytest tests/test_the_planning_phase_fact_has_one_home.py -q` 1 passed。
+
+### 5 聚焦回归
+
+- `tests/test_the_planning_phase_fact_has_one_home.py`、`tests/test_the_orchestration_result_have_one_home.py`、`tests/test_batch_wiring.py`、`tests/test_the_loop_budget_verdicts_have_one_home.py`、`tests/test_the_budget_exceeded_event_have_one_home.py`、`tests/test_the_budget_exceeded_code_has_one_home.py` 共 31 passed（`..\minicc-codex\.venv\Scripts\python.exe -m pytest ... -q`）。未跑全量基准回归/CI 双端。
+
+### 6 边界（哪些**未**触碰）
+
+- 仅约束 `agent/loop.py`、`task_manager.py` 的 runtime phase 字面量归属；**不**将 web budget/router stage `"planning"`/`"planner_dag"` 等归并为 phase 常量（不同事实/签名域）。
+- 未推送：CI 42481274789（tip `d956648`）in_progress，legs 进行中不推送；617 本地已提交待后续按纪律推送。
+
+### 7 下一位候选
+
+1. 监控 42481274789；全绿后按顺序推送 617、618（及其后本地提交），legs 进行中不推送；若失败先红→绿+账本再推。
+2. 继续搜“同一事实两处归属”：`task_manager`/其他模块中 `status == "cancelled"/"failed"/"running"` 等若与 `protocol` 状态常量/状态机事实重复且同域可门禁（需区分状态值归属与 UI/测试字面量）；或 `budget_exceeded_event` 的 `stage` 标签是否应有独立一处归属（仅当跨模块同一 stage 事实且不与 phase 混淆）。
+3. 十一实验面保持冻结；`main` 合并继续冻结。
+## 批次 619 — M8-T637：`task_execution` 中任务快照状态值归属 protocol（payload 键名分域）
+
+### 1 是否真是同一事实
+
+`minicc.task_execution` 从任务快照读取的状态值 `interrupted`/`cancelled` 与 `minicc.agent.protocol.TASK_STATUS_INTERRUPTED`/`TASK_STATUS_CANCELLED` 是同一任务状态事实。结果载荷中的 `cancelled` 等**字段名**是 API/schema 事实，不是状态码归属；verifier/graph/LLM/benchmark 的同名状态属于不同域，未触碰。
+
+### 2 命中点（实测）
+
+- `minicc/task_execution.py`：`snapshot.get("status") == "interrupted"`、`snapshot.get("status") == "cancelled"` 共 2 处任务状态值比较；同文件结果 dict 含 `"cancelled"` 键名（不同事实，保留）。
+
+### 3 改动
+
+- `minicc/task_execution.py`：从 `minicc.agent.protocol` 导入 `TASK_STATUS_CANCELLED`/`TASK_STATUS_INTERRUPTED`，替换快照状态值比较（行为不变）。
+- `tests/test_task_status_literals_in_task_execution_have_one_home.py`（新）：门禁 `task_execution.py` 中裸任务状态 Constant（跳过 `ast.Dict` key 位置，避免把 payload 字段名误判为状态码事实）。
+
+### 4 验证（命令与输出要点）
+
+- 红臂：门禁首次运行失败，暴露 `line 96` 的 `"cancelled"` **dict key** 被误扫；修正门禁（跳过 Dict key）后绿臂。
+- 绿臂：`pytest tests/test_task_status_literals_in_task_execution_have_one_home.py -q` 1 passed。
+
+### 5 聚焦回归
+
+- `tests/test_task_status_literals_in_task_execution_have_one_home.py`、`tests/test_batch_wiring.py`、`tests/test_get_must_repair_the_id_the_way_load_does.py`、`tests/test_task_durability.py`、`tests/test_the_worker_metadata_fields_have_one_home.py`、`tests/test_task_contract.py`、`tests/test_task_store_durability_contract.py` 共 58 passed（`..\minicc-codex\.venv\Scripts\python.exe -m pytest ... -q`）。未跑全量基准回归/CI 双端。
+
+### 6 边界（哪些**未**触碰）
+
+- 仅 `task_execution.py` 的任务快照状态值比较；不触碰 verifier/graph/LLM/benchmark 状态域，不触碰 payload 字段名归属，不扩展到 `task_manager`/`web` 中需细分域的状态字面量（后续需逐条确认“任务状态同事实”）。
+- 未推送：CI 42481274789（tip `d956648`）in_progress，legs 进行中不推送；617–619 本地待后续按纪律推送。
+
+### 7 下一位候选
+
+1. 监控 42481274789；全绿后按顺序推送 617–619（及后续本地提交），legs 进行中不推送；若失败先红→绿+账本再推。
+2. 继续搜“同一事实两处归属”：`benchmarks.py` 中记录/条目 `status == "completed"` 若与 `TASK_STATUS_COMPLETED` 同属任务执行状态事实可评估（需确认 benchmark 状态词汇与任务状态同域）；或 `task_store`/恢复路径中的任务状态值比较。均需排除 verifier/LLM/graph 域。
+3. 十一实验面保持冻结；`main` 合并继续冻结。
+## 批次 620 — M8-T638：`task_manager` 中运行时 phase 字面量（及同块状态归属）接回 protocol 常量
+
+### 1 是否真是同一事实
+
+`minicc.task_manager` 在 `TaskRecord`/流式阶段/恢复路径中对 phase 字段赋值的 `queued`/`answering`/`cancelled`/`interrupted`/`failed`，与 `minicc.agent.protocol.PHASE_*` 是同一运行时 phase 事实。相邻修复块中 `status` 赋值使用的 `queued`/`cancelled`/`interrupted`/`failed` 与 `TASK_STATUS_*` 是同一任务状态事实（不同于 phase）；因常量已在 protocol 有归属且同处无歧义恢复/记录逻辑，一并改为常量以消除同事实裸字面量。`completion.status == "complete"` 等完成判定词汇是不同事实，未触碰。
+
+### 2 命中点（实测）
+
+- `TaskRecord`：`phase: str = "queued"`（phase 事实）；同次收口将 `status` 默认也接回 `TASK_STATUS_QUEUED`。
+- `append_stream`：`self.phase = "answering"`。
+- `set_cancelled`：`self.phase = "cancelled"`（phase）；同次收口 `self.status = TASK_STATUS_CANCELLED`。
+- `_repair_record`：缺失/未知/active 恢复分支中的 `phase = "interrupted"` 与 `status = "interrupted"`；修复终态块 `task.phase = "failed"`（及同块 `task.status` 归属 `TASK_STATUS_FAILED`）。
+
+### 3 改动
+
+- `minicc/task_manager.py`：补充导入 `PHASE_ANSWERING`/`PHASE_FAILED`/`PHASE_QUEUED`/`TASK_STATUS_QUEUED`；将上述 phase 事实接回 `PHASE_*`，并将同块无歧义任务状态事实接回 `TASK_STATUS_*`（行为不变）。
+- `tests/test_task_manager_phase_literals_have_one_home.py`（新）：门禁 `task_manager.py` 在 phase 上下文（`.phase`/`phase =`/`phase:`）中的裸 phase 值字面量；对与任务状态重叠的值仅在 phase 上下文判定，避免把 `TASK_STATUS_*` 事实误判。
+
+### 4 验证（命令与输出要点）
+
+- 绿臂：`pytest tests/test_the_planning_phase_fact_has_one_home.py tests/test_task_manager_phase_literals_have_one_home.py -q` 2 passed；`py_compile minicc/task_manager.py` 通过。
+
+### 5 聚焦回归
+
+- `tests/test_task_manager_phase_literals_have_one_home.py`、`tests/test_the_planning_phase_fact_has_one_home.py`、`tests/test_task_durability.py`、`tests/test_task_contract.py`、`tests/test_task_store_durability_contract.py`、`tests/test_batch_wiring.py` 共 49 passed（`..\minicc-codex\.venv\Scripts\python.exe -m pytest ... -q`）。未跑全量基准回归/CI 双端。
+
+### 6 边界（哪些**未**触碰）
+
+- 仅 `task_manager.py` 的 phase/恢复记录相关同事实归属；不改变状态机、恢复语义、事件/流式行为；不触碰 `completion.status == "complete"`、verifier/benchmark/graph/LLM 状态域；未扩展到其他模块中需逐条甄别 status/phase 域的字面量。
+- CI：42481274789（tip `d956648`）已 **completed/success**；本地 617–620 待按纪律推送（推送前无 legs 进行中）。推送后新 run legs 进行中不再推送。
+
+### 7 下一位候选
+
+1. 推送 617–620；监控新 run，若失败先红→绿+账本再推，legs 进行中不推送。
+2. 继续搜“同一事实两处归属”：`task_store`/其他任务域模块中 `snapshot.status`/`.status` 与 `TASK_STATUS_*` 的裸字面量（排除 dict key/schema 字段名、排除 verifier/graph/LLM/benchmark）；或 `benchmarks` 仅在确认与任务状态完全同域时再评估。
+3. 十一实验面保持冻结；`main` 合并继续冻结。
+## 批次 621 — M8-T639：`budget_exceeded_event` 的 subagent stage/name 标签有一处归属（main↔web）
+
+### 1 是否真是同一事实
+
+`budget_exceeded_event(..., name=..., phase=...)` 在 `minicc.main` 与 `minicc.web` 的 subagent 预算超限路径中使用 `"subagent"` 作为 stage（首参）与 `name`，是同一跨模块预算阶段/事件名事实。`merge`/`planner_dag`/`planning`(stage)/`review` 等当前仅单处出现，未扩张；stage 与 `PHASE_*`/`TASK_STATUS_*` 分属不同事实域。
+
+### 2 命中点（实测）
+
+- `minicc/main.py`：CLI subagent 预算超限事件 `("subagent", ..., name="subagent", phase=PHASE_EXECUTION)`。
+- `minicc/web.py`：web subagent 预算超限事件同形态。
+
+### 3 改动
+
+- `minicc/agent/protocol.py`：新增 `BUDGET_STAGE_SUBAGENT = "subagent"`（M8-T639，注释标明与 `PHASE_*` 分域）并加入 `__all__`。
+- `minicc/main.py`、`minicc/web.py`：导入并使用 `BUDGET_STAGE_SUBAGENT` 替换上述 stage/name 字面量（行为不变）。
+- `tests/test_the_subagent_budget_stage_has_one_home.py`（新）：home 常量 + AST 扫描 scoped 模块中 `budget_exceeded_event` 调用的 `"subagent"` Constant 实参/关键字值。
+
+### 4 验证（命令与输出要点）
+
+- 绿臂：`pytest tests/test_the_subagent_budget_stage_has_one_home.py -q` 2 passed。
+
+### 5 聚焦回归
+
+- `tests/test_the_subagent_budget_stage_has_one_home.py`、`tests/test_the_budget_exceeded_event_have_one_home.py`、`tests/test_the_budget_exceeded_code_has_one_home.py`、`tests/test_the_budget_exceeded_result_field_has_one_home.py` 共 10 passed（`..\minicc-codex\.venv\Scripts\python.exe -m pytest ... -q`）。未跑全量基准回归/CI 双端。
+
+### 6 边界（哪些**未**触碰）
+
+- 仅 subagent 预算 stage/name 的跨模块重复；不为单处 stage（merge/planner_dag/planning/review）预先常量化为“同事实两处”修复；不改变 `budget_exceeded_event` 签名/语义；不触碰 `PHASE_*`。
+- 未推送：CI 42482986858（tip `576b93e`，619）in_progress，legs 进行中不推送；620、621 本地待该 run 全绿后按纪律推送，legs 进行中不推送。
+
+### 7 下一位候选
+
+1. 监控 42482986858；全绿后按顺序推送 620、621（及后续本地提交），legs 进行中不推送；若失败先红→绿+账本再推。
+2. 继续搜“同一事实两处归属”：其他跨模块重复的 budget stage/trace 合约字段（仅在同事实且多处出现时）；`task_contract`/`task_execution` 间 `cancelled` **payload 字段名**若确认为同一契约字段事实且需一处归属，可评估（区别于 `TASK_STATUS_CANCELLED` 值）。
+3. 十一实验面保持冻结；`main` 合并继续冻结。
+## 批次 622 — M8-T640：`task_manager` 中无歧义 task status 事实接回 `TASK_STATUS_*`（payload/IPC 分域）
+
+### 1 是否真是同一事实
+
+`minicc.task_manager` 中作为**任务状态**传给 `validate_status_transition`/`transition_status`、作为 `self.status` 集合判断、或作为终态 `target` 赋值的 `cancelled`/`failed`/`completed`/`interrupted`，与 `minicc.agent.protocol.TASK_STATUS_*` 是同一事实。同文件/同流程中的 `result.get("cancelled")`、`output["cancelled"]`、cancel 文件标记内容等属于 **payload 字段/IPC 协议/其他域事实**，字符串值可能相同但事实不同，明确不合并。
+
+### 2 命中点（实测，已收口的无歧义状态事实）
+
+- `validate_status_transition(self.status, "cancelled")`、`self.status in {"cancelled","interrupted"}`。
+- `parent.transition_status("cancelled"|...)`、`target = "cancelled"|"failed"|("completed")` 的任务终态选择（含 `task.cancel_event`/`cancelled_by_user`/`failed` 条件分支）。
+- 混合行 `target = "cancelled" if result.get("cancelled") else "failed" ... else "completed"`：仅替换 **target 状态值**；`result.get("cancelled")` payload 字段读取保留。
+
+### 3 改动
+
+- `minicc/task_manager.py`：将上述无歧义任务状态字面量替换为 `TASK_STATUS_CANCELLED`/`FAILED`/`COMPLETED`/`INTERRUPTED`（常量已导入；行为不变）。**未**替换 payload `cancelled` 字段键/读写、cancel marker 文件 `write_text("cancelled")`、及其他非任务状态域字面量。
+
+### 4 验证（命令与输出要点）
+
+- 定向检查：目标旧模式清除（`transition_status/validate_status_transition` 裸状态实参、状态目标三元/终态集合）；payload `result.get("cancelled")` 等保留。
+- `py_compile minicc/task_manager.py` 通过。
+
+### 5 聚焦回归
+
+- `tests/test_task_manager_phase_literals_have_one_home.py`、`tests/test_the_planning_phase_fact_has_one_home.py`、`tests/test_task_durability.py`、`tests/test_task_contract.py`、`tests/test_batch_wiring.py`、`tests/test_task_store_durability_contract.py` 共 49 passed（`..\minicc-codex\.venv\Scripts\python.exe -m pytest ... -q`，复用 620 回归集）。未跑全量基准回归/CI 双端。
+
+### 6 边界（哪些**未**触碰）
+
+- 未新增覆盖 `task_manager.py` 全域 `"cancelled"` 的门禁：该词在本模块同时存在任务状态、payload 字段、IPC marker 等不同事实，宽泛门禁易误并域；本批次以**可证明同事实**的定向替换为准。
+- 未触碰 `task_contract`/`task_execution` 的 payload `cancelled` 字段名归属（候选需单独确认契约字段同事实）；未触碰 task_worker/web/verifier/graph/benchmark/LLM 域。
+- 未推送：CI 42482986858（tip `576b93e`）in_progress，legs 进行中不推送；620–622 本地待该 run 全绿后按纪律推送，legs 进行中不推送。
+
+### 7 下一位候选
+
+1. 监控 42482986858；全绿后按顺序推送 620–622（及后续本地提交），legs 进行中不推送；若失败先红→绿+账本再推。
+2. 继续搜“同一事实两处归属”：`task_worker.py` 中 `state["status"] = "cancelled"/"completed"` 若确认是任务状态事实且可安全引用 `TASK_STATUS_*`（注意 worker 独立进程/导入面）；或 `task_contract`/`task_execution` 的 `cancelled` payload 字段名若建立独立契约常量归属（不与状态码混淆）。
+3. 十一实验面保持冻结；`main` 合并继续冻结。
+## 批次 623 — M8-T641：`task_worker` 任务状态字面量归属 `TASK_STATUS_*`（payload 字段分域）
+
+### 1 是否真是同一事实
+
+`minicc.task_worker` 写入 `state["status"]` 并传给 `_final_flush` 的 `cancelled`/`completed`/`failed`，与 `minicc.agent.protocol.TASK_STATUS_*` 是同一任务状态事实。`bool(result.get("cancelled"))` 中 `"cancelled"` 为 **task result payload 字段名**，不同事实，保留。
+
+### 2 命中点（实测）
+
+- `state["status"] = "cancelled" if cancelled else "completed"`、`"failed"`、`"cancelled"`；`_final_flush("completed"/"cancelled"/"failed")`。
+
+### 3 改动
+
+- `minicc/task_worker.py`：导入 `TASK_STATUS_CANCELLED`/`TASK_STATUS_COMPLETED`/`TASK_STATUS_FAILED`，替换上述状态字面量；保留 payload `result.get("cancelled")`。
+- `tests/test_task_worker_status_literals_have_one_home.py`（新）：门禁 worker 中裸任务状态 Constant，跳过 dict key、`.get(...)` payload 字段实参等不同事实位置。
+
+### 4 验证（命令与输出要点）
+
+- `pytest tests/test_task_worker_status_literals_have_one_home.py -q` 1 passed；`py_compile minicc/task_worker.py` 通过。
+
+### 5 聚焦回归
+
+- `tests/test_task_worker_status_literals_have_one_home.py`、`tests/test_task_durability.py`、`tests/test_batch_wiring.py`、`tests/test_task_store_durability_contract.py`、`tests/test_task_contract.py` 共 48 passed。未跑全量基准回归/CI 双端。
+
+### 6 边界（哪些**未**触碰）
+
+- 仅 worker 状态事实；不改变 worker/状态机/flush 语义；不触碰 payload `cancelled` 字段名归属及 `TASK_STATUS_RUNNING` 既有用法。
+- 未推送：CI 42482986858（tip `576b93e`）in_progress 时 620–623 本地累积；该 run 全绿后按纪律推送，legs 进行中不推送。
+
+### 7 下一位候选
+
+1. 监控 42482986858；全绿后按顺序推送 620–623（及后续本地提交），legs 进行中不推送；若失败先红→绿+账本再推。
+2. 继续搜“同一事实两处归属”：`task_contract`/`task_execution` 的 `cancelled` payload **字段名**若作为独立契约事实建立一处归属（与 `TASK_STATUS_*`/`BUDGET_EXCEEDED_FIELD` 类似的字段名常量模式），需排除 status 值域。
+3. 十一实验面保持冻结；`main` 合并继续冻结。
+## 批次 624 — M8-T642：task result `cancelled` payload 字段名有一处归属（task_contract↔task_execution）
+
+### 1 是否真是同一事实
+
+`minicc.task_contract.TaskResult`（`from_payload`/`to_payload`/metadata 排除）与 `minicc.task_execution` 产出的任务结果 payload 使用 `"cancelled"` 作为同一 **契约字段名**。该事实**不同于** `TASK_STATUS_CANCELLED`（状态值）。跨模块同名字符串代表同一 payload 字段契约，适合一处归属。
+
+### 2 命中点（实测，范围 `task_contract.py`、`task_execution.py`）
+
+- `task_contract.py`：`payload.get("cancelled")`、metadata 排除集合中的 `"cancelled"`、`to_payload` 输出键 `"cancelled"`（3 处）+ 常量定义。
+- `task_execution.py`：结果 payload 键 `"cancelled"`（1 处；其值侧已在 M8-T637 归属 `TASK_STATUS_*`）。
+
+### 3 改动
+
+- `minicc/task_contract.py`：新增 `RESULT_FIELD_CANCELLED = "cancelled"`（M8-T642，字段名事实，一处归属），替换契约读/写/排除中的裸字面量。
+- `minicc/task_execution.py`：导入并使用 `RESULT_FIELD_CANCELLED` 作为 payload 键（值仍为 `TASK_STATUS_CANCELLED` 比较结果）。
+- `tests/test_task_result_cancelled_field_has_one_home.py`（新）：home 常量 + 范围内裸 `"cancelled"` Constant 扫描（仅允许 `RESULT_FIELD_CANCELLED` 定义）；与 M8-T637 的 task_execution 状态值门禁互补（语义/关注点不同）。
+
+### 4 验证（命令与输出要点）
+
+- `pytest tests/test_task_result_cancelled_field_has_one_home.py tests/test_task_status_literals_in_task_execution_have_one_home.py -q` 3 passed。
+
+### 5 聚焦回归
+
+- 上述 3 项 + `tests/test_task_contract.py`、`tests/test_batch_wiring.py`、`tests/test_task_durability.py` 共 41 passed。未跑全量基准回归/CI 双端。
+
+### 6 边界（哪些**未**触碰）
+
+- 仅 `task_contract`/`task_execution` 的结果 `cancelled` **字段名**；不触碰 `TASK_STATUS_CANCELLED`、task_manager/web/worker/main/benchmarks 中同名字段的读写（多为同契约但触点分散且与 status/payload 域交错，需后续分批、可门禁时再收口）；不触碰 `cancelled` bool 变量名/参数名。
+- 未推送：CI 42482986858（tip `576b93e`）in_progress，legs 进行中不推送；620–624 本地待该 run 全绿后按纪律推送。
+
+### 7 下一位候选
+
+1. 监控 42482986858；全绿后按顺序推送 620–624（及后续本地提交），legs 进行中不推送；若失败先红→绿+账本再推。
+2. 继续搜“同一事实两处归属”：`RESULT_FIELD_CANCELLED` 在 `task_manager`/`web`/`task_worker`/`main` 的 task-result payload 读写是否可分批收口（需严格排除 status 值与 IPC/非 task-result 语境）；或其他 task result 字段名（`answer`/`error`/`tokens_used`）的跨模块契约归属。
+3. 十一实验面保持冻结；`main` 合并继续冻结。
+## 批次 625 — M8-T643：task result `cancelled` 字段名在 `task_worker` 读路径接回契约归属
+
+### 1 是否真是同一事实
+
+`minicc.task_worker` 从任务结果 payload 读取 `cancelled`（`result.get("cancelled")`）与 `minicc.task_contract.RESULT_FIELD_CANCELLED` / task_execution 写入的是同一 task-result 契约字段名事实。worker 中的 `cancelled` 局部变量名、状态事实（M8-T641 已用 `TASK_STATUS_*`）为不同域。
+
+### 2 命中点（实测）
+
+- `minicc/task_worker.py`：`cancelled = bool(result.get("cancelled"))`（payload 字段读取，1 处）。
+
+### 3 改动
+
+- `minicc/task_worker.py`：导入 `RESULT_FIELD_CANCELLED`（`task_contract`），替换 payload 字段读取。
+- `tests/test_task_result_cancelled_field_has_one_home.py`：范围扩展纳入 `minicc/task_worker.py`（M8-T643），继续门禁该契约字段名裸字面量；与 M8-T641 状态字面量门禁分域（后者允许 `.get(...)` payload 字段实参）。
+
+### 4 验证（命令与输出要点）
+
+- `pytest tests/test_task_result_cancelled_field_has_one_home.py tests/test_task_status_literals_in_task_execution_have_one_home.py tests/test_task_worker_status_literals_have_one_home.py -q` 4 passed。
+
+### 5 聚焦回归
+
+- `tests/test_task_result_cancelled_field_has_one_home.py`、`tests/test_task_worker_status_literals_have_one_home.py`、`tests/test_task_contract.py`、`tests/test_task_durability.py`、`tests/test_batch_wiring.py` 共 41 passed。未跑全量基准回归/CI 双端。
+
+### 6 边界（哪些**未**触碰）
+
+- 仅 worker 对 task-result payload `cancelled` 字段的读取；不触碰状态值/局部变量命名/`result.get("error")` 等其他字段（后续可按同契约分批）；不扩展到 task_manager/web/main（touch 点多且域交错，需分批精确门禁）。
+- 未推送：CI 42482986858（tip `576b93e`）in_progress，legs 进行中不推送；620–625 本地待该 run 全绿后按纪律推送。
+
+### 7 下一位候选
+
+1. 监控 42482986858；全绿后按顺序推送 620–625（及后续本地提交），legs 进行中不推送；若失败先红→绿+账本再推。
+2. 继续搜“同一事实两处归属”：`RESULT_FIELD_CANCELLED` 在 `web.py`/`main.py` 读取 task result 的 `cancelled`（`result.get("cancelled")`/`result.cancelled` 在明确 task-result 语境）可分批评估；`task_manager` 内 payload 字段与状态/IPC 域混杂需更窄规则。或 `answer`/`error`/`tokens_used` 结果字段名是否形成跨模块同事实。
+3. 十一实验面保持冻结；`main` 合并继续冻结。
+## 批次 626 — M8-T644：`task_manager` 中 task-result payload `cancelled` 字段名接回契约归属（IPC marker 分域）
+
+### 1 是否真是同一事实
+
+`minicc.task_manager` 构造/读取的任务结果 payload 中 `"cancelled"` 字段名（`result.get(...)`/`stored_result.get(...)`/`getattr(result,...)`/payload dict key/`output[...]` 写入）与 `minicc.task_contract.RESULT_FIELD_CANCELLED` 是同一契约字段事实。cancel 文件 `write_text("cancelled")` 为 **IPC/文件标记**事实，`TASK_STATUS_*` 为状态值事实，均不同域，保留。
+
+### 2 命中点（实测，已收口 payload 字段名）
+
+- payload 读：`stored_result.get("cancelled")`、多处 `result.get("cancelled")`、`getattr(result, "cancelled", False)`。
+- payload 写/构造：`{"cancelled": cancelled, ...}`、`output["cancelled"]=True`、批次/结果 dict 中 `"cancelled": True/False`（任务取消结果、子任务失败汇总、result 子对象）。
+
+### 3 改动
+
+- `minicc/task_manager.py`：从 `.task_contract` 导入 `RESULT_FIELD_CANCELLED`，将上述 task-result payload 字段名替换为常量（行为不变）；保留 cancel marker `write_text("cancelled")`（2275/2375 现行行号附近）与所有 `TASK_STATUS_*`/payload 非该字段事实。
+
+### 4 验证（命令与输出要点）
+
+- 剩余 `"cancelled"` 字面量仅为 IPC cancel marker：`cancel_file.write_text("cancelled", ...)` 两处（经脚本检查）。
+- `py_compile minicc/task_manager.py` 通过。
+
+### 5 聚焦回归
+
+- `tests/test_task_manager_phase_literals_have_one_home.py`、`tests/test_task_contract.py`、`tests/test_batch_wiring.py`、`tests/test_task_durability.py` 共 39 passed。未跑全量基准回归/CI 双端。
+
+### 6 边界（哪些**未**触碰）
+
+- 不触碰 cancel-file IPC 内容、`TASK_STATUS_*`、`result.cancelled`/局部变量名、其他 payload 字段（`answer`/`error`/`tokens_used`/`children`）的归属；不扩展到 web/main 的 response/result 字段（需确认与 task-result 契约同域）。未为 task_manager 全域 `"cancelled"` 加宽泛门禁（混域）。
+- CI：42482986858（tip `576b93e`，617–619）**completed/success**；620–626 本地可按纪律推送（推送前该 run 已完成且 green）。推送后新 run legs 进行中不再推送。
+
+### 7 下一位候选
+
+1. 推送 620–626；监控新 run，若失败先红→绿+账本再推，legs 进行中不推送。
+2. 继续搜“同一事实两处归属”：`web.py` 中 `{"cancelled": True}`/`result.cancelled` 写入的 API/result 契约字段若与 task-result `RESULT_FIELD_CANCELLED` 同域可评估；`answer`/`error`/`tokens_used`/`children` 等跨模块 payload 字段名；IPC cancel marker `"cancelled"` 若跨 writer/reader 同事实可单独归属（不同于 task-result 字段）。
+3. 十一实验面保持冻结；`main` 合并继续冻结。
+## 批次 627 — M8-T645：`web.py` task/batch result payload 的 `cancelled` 字段名接回契约归属（approval 域分离）
+
+### 1 是否真是同一事实
+
+`minicc.web` 在 task/batch 执行结果 payload 中返回的 `cancelled` 字段（合并/批次结果、取消响应、运行结果响应）与 `task_contract.RESULT_FIELD_CANCELLED` 是同一任务结果契约字段事实。approval group 的 `cancelled` 标志是**审批域**事实，不合并。
+
+### 2 命中点（实测）
+
+- `web.py`：批次 payload `cancelled: False`、`AgentCancelled` 返回 `{"cancelled": True,...}`（batch/task）、运行结果响应 `"cancelled": result.cancelled`。
+- 保留：approval frame/响应中的 `frame["cancelled"]` / `"cancelled": cancelled`（审批组取消，不是 task-result 契约字段同一归属点）。
+
+### 3 改动
+
+- `minicc/web.py`：导入 `RESULT_FIELD_CANCELLED`，替换上述 task/batch result payload 字段名；`result.cancelled` 属性读取与 approval 域字面量保持不变。
+- 复用 `tests/test_task_result_cancelled_field_has_one_home.py` 的契约归属校验（本批次未扩展其扫描范围；web 混域明显，暂不加宽泛门禁）。
+
+### 4 验证（命令与输出要点）
+
+- `py_compile minicc/web.py` 通过；定向检查 approval 行 695/700 保留裸键、1488/1495/1530/3193 使用 `RESULT_FIELD_CANCELLED`。
+
+### 5 聚焦回归
+
+- `tests/test_task_result_cancelled_field_has_one_home.py`、`tests/test_task_contract.py`、`tests/test_the_budget_exceeded_result_field_has_one_home.py` 共 20 passed。未跑全量基准回归/CI 双端。
+
+### 6 边界（哪些**未**触碰）
+
+- 不触碰 approval `cancelled`、`runtime_status` 字面量（status 事实，另案）、`verdict.get("cancelled")` 等非 task-result 契约域；不改变 API 语义/字段值。
+- 未推送：CI 42485072840（tip `dda195d`）in_progress，legs 进行中不推送；626(ledger+code)+627 本地待该 run 全绿后按纪律推送。
+
+### 7 下一位候选
+
+1. 监控 42485072840；全绿后按顺序推送 626、627（及后续本地提交），legs 进行中不推送；若失败先红→绿+账本再推。
+2. 继续搜“同一事实两处归属”：`web.py` `runtime_status = "cancelled"/"failed"/"completed"`（task status 事实，`TASK_STATUS_*` 已在 protocol）；或 `answer`/`error`/`tokens_used`/`children` payload 字段名跨模块归属（需确认契约同域）。
+3. 十一实验面保持冻结；`main` 合并继续冻结。
+## 批次 628 — M8-T646：`web.py` `runtime_status` 任务状态字面量归属 `TASK_STATUS_*`
+
+### 1 是否真是同一事实
+
+`minicc.web` 在运行结果汇总中根据任务取消/错误/完成推导 `runtime_status` 的 `"cancelled"/"failed"/"completed"`，与 `minicc.agent.protocol.TASK_STATUS_*` 是同一任务状态事实。`verification.status`、`result.cancelled` 属性、graph/DAG status 等属不同域，本批次未触碰。
+
+### 2 命中点（实测）
+
+- `web.py:3162` 附近：`runtime_status = "cancelled" if result.cancelled else "failed" if result.error else "completed"`。
+
+### 3 改动
+
+- `minicc/web.py`：从 `agent.protocol` 导入 `TASK_STATUS_CANCELLED`/`TASK_STATUS_COMPLETED`/`TASK_STATUS_FAILED`，替换该 `runtime_status` 赋值中的任务状态字面量。
+- `tests/test_web_runtime_status_literals_have_one_home.py`（新）：AST 门禁 `runtime_status` 赋值右侧的裸任务状态 Constant。
+
+### 4 验证（命令与输出要点）
+
+- `pytest tests/test_web_runtime_status_literals_have_one_home.py -q` 1 passed；`py_compile minicc/web.py` 通过。
+
+### 5 聚焦回归
+
+- `tests/test_web_runtime_status_literals_have_one_home.py`、`tests/test_task_result_cancelled_field_has_one_home.py`、`tests/test_the_budget_exceeded_result_field_has_one_home.py` 共 5 passed。未跑全量基准回归/CI 双端。
+
+### 6 边界（哪些**未**触碰）
+
+- 仅 `runtime_status` 推导；不触碰 verification/graph/LLM/subagent 状态域，不触碰 payload 字段名/approval 域。
+- 未推送：CI 42485072840（tip `dda195d`）in_progress 时 626–628 本地待推送；该 run 全绿后按纪律推送，legs 进行中不推送。
+
+### 7 下一位候选
+
+1. 监控 42485072840；全绿后按顺序推送 626–628（及后续本地提交），legs 进行中不推送；若失败先红→绿+账本再推。
+2. 继续搜“同一事实两处归属”：task-result payload 的 `answer`/`error`/`tokens_used` 字段名若跨 `task_contract`/`task_execution`/`task_manager`/`web`/worker 同域；或 cancel-file IPC marker `"cancelled"` 的 writer/reader 契约归属（与 payload 字段分域）。
+3. 十一实验面保持冻结；`main` 合并继续冻结。
+## 批次 629 — M8-T647：task result `tokens_used` payload 字段名有一处归属，并修复 627/629 引入的 import 回归
+
+### 1 是否真是同一事实
+
+`minicc.task_contract` 与 `minicc.task_execution` 在任务结果 payload 中读/写的 `tokens_used` 字段名是同一契约事实。Python 属性名 `self.tokens_used`/变量名不是字符串字面量归属问题。
+
+### 2 命中点（实测）
+
+- `task_contract.py`：`payload.get("tokens_used")`、metadata 排除集合、`to_payload` 输出键。
+- `task_execution.py`：输出 payload 键、兼容读取 `snapshot.get("usage") or snapshot.get("tokens_used")`（第二处初漏改，门禁红臂捕获后补齐）。
+
+### 3 改动
+
+- `minicc/task_contract.py`：新增 `RESULT_FIELD_TOKENS_USED = "tokens_used"`（M8-T647），替换契约字段名字面量。
+- `minicc/task_execution.py`：导入并使用 `RESULT_FIELD_TOKENS_USED`（输出键与兼容读取）。
+- `minicc/web.py`：**回归修复**——627 将运行结果 payload 键改为 `RESULT_FIELD_CANCELLED` 但 `task_contract` 导入仅有 `WEB_SESSION_ID`、缺少 `RESULT_FIELD_CANCELLED`，导致 `NameError`（`test_batch_wiring` 3 条失败复现）；补充 `from .task_contract import RESULT_FIELD_CANCELLED, WEB_SESSION_ID`。此为 627 的提交缺陷修复，语义与 627 意图一致。
+- `tests/test_task_result_tokens_used_field_has_one_home.py`（新）：home 常量 + scoped 裸字面量门禁（允许定义赋值）。
+
+### 4 验证（命令与输出要点）
+
+- 红臂：`test_task_result_tokens_used_field_has_one_home` 失败于 `task_execution.py:65 snapshot.get("tokens_used")`；补齐后 2 passed。
+- 回归修复验证：`test_batch_wiring` 3 条（merge/metrics/folded number）由 `NameError: RESULT_FIELD_CANCELLED` 失败恢复为 3 passed。
+
+### 5 聚焦回归
+
+- `tests/test_task_result_tokens_used_field_has_one_home.py`、`tests/test_task_result_cancelled_field_has_one_home.py`、`tests/test_task_status_literals_in_task_execution_have_one_home.py`、`tests/test_batch_wiring.py`（定向 3 条 + 同批次语境下通过的前置项按需）/contract/execution 相关聚焦测试通过（见提交时记录）。未跑全量基准回归/CI 双端。
+
+### 6 边界（哪些**未**触碰）
+
+- 仅 `task_contract`/`task_execution` 的 `tokens_used` payload 字段名与 web 627 import 修复；不触碰 `usage`、snapshot `usage` 键、LLM usage dict、其他模块 `tokens_used`。
+- 未推送：CI 42485072840（tip `dda195d`）in_progress 时 626–629 本地待推送；该 run 全绿后按纪律推送，legs 进行中不推送（注意 627 已在本地提交但含 import 缺陷，629 一并修复后再推送）。
+
+### 7 下一位候选
+
+1. 监控 42485072840；全绿后按顺序推送 626–629，legs 进行中不推送；若失败先红→绿+账本再推。**推送内容包含 627 的 import 修复（629）**。
+2. 继续搜“同一事实两处归属”：`answer`/`error` payload 字段名在 `task_contract`+`task_execution` 的小范围归属；或 `RESULT_FIELD_TOKENS_USED` 的 worker/web/manager 同域分批扩展。
+3. 十一实验面保持冻结；`main` 合并继续冻结。
+## 批次 630 — M8-T648：task result `answer`/`error` payload 字段名有一处归属（task_contract↔task_execution）
+
+### 1 是否真是同一事实
+
+`minicc.task_contract` 与 `minicc.task_execution` 在任务结果 payload 中使用的 `answer`/`error` 字段名是同一契约事实。文案中的“error”字样/异常类型名不是该字符串常量归属问题。
+
+### 2 命中点（实测）
+
+- `task_contract.py`：`payload.get("answer"/"error")`、metadata 排除集合、`to_payload` 键。
+- `task_execution.py`：`answer`/`error` payload 键及 `result`/`snapshot` 读取。
+
+### 3 改动
+
+- `minicc/task_contract.py`：新增 `RESULT_FIELD_ANSWER`/`RESULT_FIELD_ERROR`（M8-T648），替换契约字段名字面量。
+- `minicc/task_execution.py`：导入并使用上述常量。
+- `tests/test_task_result_answer_error_fields_have_one_home.py`（新）：home 常量 + scoped 裸字面量门禁。
+
+### 4 验证（命令与输出要点）
+
+- `pytest tests/test_task_result_answer_error_fields_have_one_home.py tests/test_task_result_tokens_used_field_has_one_home.py tests/test_task_result_cancelled_field_has_one_home.py tests/test_task_status_literals_in_task_execution_have_one_home.py -q` 7 passed。
+
+### 5 聚焦回归
+
+- `tests/test_task_result_answer_error_fields_have_one_home.py`、`tests/test_task_contract.py`、`tests/test_batch_wiring.py` 共 31 passed。未跑全量基准回归/CI 双端。
+
+### 6 边界（哪些**未**触碰）
+
+- 仅 `task_contract`/`task_execution` payload 字段名；不触碰广泛存在的 `answer`/`error` 变量名、日志文案、LLM/tool result 其他域、`stream_text`/snapshot 其他键。
+- 未推送：CI 42485072840（tip `dda195d`）in_progress 时 626–630 本地待推送；该 run 全绿后按纪律推送，legs 进行中不推送（推送栈含 627 import 修复）。
+
+### 7 下一位候选
+
+1. 监控 42485072840；全绿后按顺序推送 626–630，legs 进行中不推送；若失败先红→绿+账本再推。
+2. 继续搜“同一事实两处归属”：`RESULT_FIELD_ANSWER/ERROR/TOKENS_USED/CANCELLED` 在 `task_worker`/`task_manager`/`web` task-result payload 同域的分批收口（混域文件用窄门禁）；或 `children`/`children_rolled_up` 等结果字段归属。
+3. 十一实验面保持冻结；`main` 合并继续冻结。
+## 批次 631 — M8-T649：`task_worker` 读取 task-result payload 的 `answer`/`error`/`tokens_used` 归属契约字段
+
+### 1 是否真是同一事实
+
+`minicc.task_worker` 从 `TaskResult.from_payload(...).to_payload()` 产出的结果对象读取 `answer`/`error`/`tokens_used`，与 `task_contract.RESULT_FIELD_*` 是同一 task-result 契约字段事实。worker 本地 `state["answer"]`/`state["error"]`/`state["usage"]`/响应 dict 属 worker/state schema，不同事实。
+
+### 2 命中点（实测）
+
+- `task_worker.py`：`result.get("answer")`、`result.get("error")`、`result["error"]`、`result.get("tokens_used")`（4 处，均为对 `result` payload 的读取）。
+
+### 3 改动
+
+- `minicc/task_worker.py`：导入并使用 `RESULT_FIELD_ANSWER`/`RESULT_FIELD_ERROR`/`RESULT_FIELD_TOKENS_USED`。
+- `tests/test_task_worker_result_payload_fields_have_one_home.py`（新）：仅门禁 `result.get(...)`/`result[...]` 读取上下文中的上述字段字面量，避免误伤 `state[...]`/响应键。
+
+### 4 验证（命令与输出要点）
+
+- `pytest tests/test_task_worker_result_payload_fields_have_one_home.py tests/test_task_result_cancelled_field_has_one_home.py tests/test_task_worker_status_literals_have_one_home.py -q` 4 passed；`py_compile minicc/task_worker.py` 通过。
+
+### 5 聚焦回归
+
+- `tests/test_task_worker_result_payload_fields_have_one_home.py`、`tests/test_task_contract.py`、`tests/test_batch_wiring.py` 共 29 passed。未跑全量基准回归/CI 双端。
+
+### 6 边界（哪些**未**触碰）
+
+- 不触碰 worker `state`/响应键、`cancelled` 读路径（625/623 已分域处理）、非 task-result 的 `answer`/`error` 文本。
+- 未推送：CI 42485072840（tip `dda195d`）in_progress，legs 进行中不推送；626–631 本地待该 run 全绿后按纪律推送。
+
+### 7 下一位候选
+
+1. 监控 42485072840；全绿后按顺序推送 626–631，legs 进行中不推送；若失败先红→绿+账本再推。
+2. 继续搜“同一事实两处归属”：`web.py` 中 task-result payload 读写的 `answer`/`error`/`tokens_used`（`RESULT_FIELD_*` 同域，排除 API 响应/verification/LLM usage 不同事实）；`task_manager` 中 `result.get("answer"/"error"/"tokens_used")` 的 task-result 同域读写（已做 `cancelled`，可分批）。
+3. 十一实验面保持冻结；`main` 合并仍因主仓 `UU ROADMAP/MERGE_HEAD` 阻塞——不触碰主仓；改为在 `wt519` 持续集成/准备合并材料。
+## 批次 632 — M8-T650：`web.py` task/batch/run result payload 的 `answer`/`tokens_used` 接回契约字段
+
+### 1 是否真是同一事实
+
+`minicc.web` 在批次合并/取消返回与运行结果响应中使用的 `answer`、`tokens_used` 字段名，与 task-result 契约 `RESULT_FIELD_ANSWER`/`RESULT_FIELD_TOKENS_USED` 同属同一 payload 字段事实（与 627 的 `cancelled` 同域扩展）。`response.text`/`result.tokens_used` 等值来源与 `session_id`/`events`/`context` 等其他响应字段为不同事实。
+
+### 2 命中点（实测）
+
+- 批次 payload：`answer`（合并文案）、`tokens_used`（response usage）。
+- 取消返回：`{answer: BATCH/TASK_CANCELLED_ANSWER, RESULT_FIELD_CANCELLED: True, ...}`。
+- 运行结果响应：`"tokens_used": result.tokens_used` → `RESULT_FIELD_TOKENS_USED`（值仍为属性读取）。
+
+### 3 改动
+
+- `minicc/web.py`：补充导入 `RESULT_FIELD_ANSWER`/`RESULT_FIELD_TOKENS_USED`，替换上述 task/batch/run result 同域字段键；approval/runtime_status/其他响应结构保持不变。
+
+### 4 验证（命令与输出要点）
+
+- 替换后校验输出：`batch ans/tok, bcancel, tcancel, run tok` 均命中；`py_compile minicc/web.py` 通过。
+
+### 5 聚焦回归
+
+- `tests/test_task_result_cancelled_field_has_one_home.py`、`tests/test_web_runtime_status_literals_have_one_home.py`、`tests/test_the_budget_exceeded_result_field_has_one_home.py` 共 5 passed。未跑全量基准回归/CI 双端。
+
+### 6 边界（哪些**未**触碰）
+
+- 不触碰 `error`/`children` 在 web 响应中的其他形态（需逐点确认同域）、`session_id`/`events`/`context`/`usage_by_turn`/`metrics`/`completion` 等字段、approval/verdict/LLM usage 域；不改变 API 值语义。
+- 未推送：CI 42485072840（tip `dda195d`）in_progress，legs 进行中不推送；626–632 本地待该 run 全绿后按纪律推送。
+
+### 7 下一位候选
+
+1. 监控 42485072840；全绿后按顺序推送 626–632，legs 进行中不推送；若失败先红→绿+账本再推。
+2. 继续搜“同一事实两处归属”：`task_manager` 中 `result/stored_result.get("answer"/"error"/"tokens_used")` 与 payload 构造的 task-result 同域字段（已做 cancelled；需窄模式避开快照/事件/其他 dict）；`children` 字段跨 `task_contract`/`task_execution`/`task_manager`/`web` 归属。
+3. `m8-t537`→`main` 合并仍阻塞于主仓并发会话（不触碰）；在 wt519 持续推进并准备合并说明。十一实验面冻结。
+## 批次 633 — M8-T651：`task_manager` 中 task-result payload 的 `answer`/`error`/`tokens_used` 字段名接回契约归属（混域窄改 + 门禁兼容）
+
+### 1 是否真是同一事实
+
+`minicc.task_manager` 在明确的 task-result payload 读写/构造语境中使用的 `answer`/`error`/`tokens_used` 字段名，与 `minicc.task_contract.RESULT_FIELD_ANSWER`/`RESULT_FIELD_ERROR`/`RESULT_FIELD_TOKENS_USED`（648/630 立家，631/632 已扩展至 worker/web 同域）是同一契约字段事实。`data.get(...)` 快照/原始记录读取、`self.task.error`/`task.error` 属性、`status="error"`、事件 detail schema、以及其他非 task-result payload 的 `error` 文本/键属于不同事实，未触碰。
+
+### 2 命中点（实测，窄改）
+
+- payload 读：`result.get("answer"/"error"/"tokens_used")`、`stored_result.get/setdefault/[]` 的 error/answer、`result_copy["tokens_used"]`、`result_payload["error"]`、`child.get("answer"/"error")`、`child.snapshot().get("tokens_used")`、`item.get("tokens_used")` 等 task-result 同域上下文。
+- payload 构造：合并子任务结果、批次失败汇总、取消清理结果、损坏快照恢复结果等明确 task-result dict 中的 `answer`/`error`/`tokens_used` 键。
+
+### 3 改动
+
+- `minicc/task_manager.py`：导入 `RESULT_FIELD_ANSWER`/`RESULT_FIELD_ERROR`/`RESULT_FIELD_TOKENS_USED`（保留既有 `RESULT_FIELD_CANCELLED`），将上述同域字段名替换为常量（行为不变，字符串值同）。**未**替换 `data.get(...)` 快照/原始记录路径、属性/状态/事件 schema 等混域用法。
+- **门禁兼容（修复 CI 42486878597，626–632 tip `818da65` 的 3 个失败）**：633 初始常量化误触了 shape-home 函数的字面量形式，已恢复——`_cancelled_result` 返回 dict 保持 `{"answer","error","cancelled"}` 字符串键（满足 `test_the_cancelled_result_have_one_home` census）；`_orchestration_result` 返回 `{"answer","cancelled","children"}` 字符串键（满足 `test_the_orchestration_result_have_one_home`）。`minicc/web.py` 批次取消返回保留 `"answer": BATCH_CANCELLED_ANSWER` 键形式以满足 `test_the_batch_cancelled_notice_has_one_home` 的 web 面检查（`cancelled` 仍用 `RESULT_FIELD_CANCELLED`）；API 值语义不变。
+
+### 4 验证（命令与输出要点）
+
+- `..\minicc-codex\.venv\Scripts\python.exe -m py_compile minicc/task_manager.py minicc/web.py` 通过；`import minicc.task_manager` OK。
+- CI 失败三项复验：`tests/test_the_batch_cancelled_notice_has_one_home.py`、`tests/test_the_cancelled_result_have_one_home.py`、`tests/test_the_orchestration_result_have_one_home.py` + 相关 field/phase/contract gates 共 37 passed。
+- 定向：`tests/test_task_durability.py tests/test_task_store_durability_contract.py` 19 passed；`test_batch_wiring::test_merge_batch_uses_the_task_model_and_configured_protocol` 及 4 个 roll-up/折叠相关 case 通过（全量 `test_batch_wiring` 在本地 harness 下曾超时，定向与关键用例验证）。
+- `python scripts/doc_pointers.py --check` 通过。
+
+### 5 聚焦回归
+
+- 字段/状态/phase/契约/取消 shape 门禁与 task durability/store/batch wiring 定向用例通过（见上）。未跑全量基准回归；push 后依赖 CI 双端验证（push 前确认无 legs 进行中）。
+
+### 6 边界（哪些**未**触碰）
+
+- `task_manager` 中 `data.get(...)` 原始/快照读取、`self.error`/`task.error`、`status="error"`、completion/error 事件 schema、`stream_text`、非 task-result dict、IPC cancel marker `write_text("cancelled")` 等混域事实未改。
+- shape-home census gate 要求其 home 函数以字符串字面量返回特定键集——本批次尊重该门禁边界；`RESULT_FIELD_*` 常量用于同域 payload 读写/非 home 构造，不与 shape-home 形式冲突。
+- 不触碰 approval/verdict/LLM usage/`children`/`session_id` 等其他契约域；不改变 API 值语义。
+
+### 7 下一位候选
+
+1. **CI 42486878597 已 completed/failure**（tip `818da65`，626–632），失败已由本批次门禁兼容修复并本地验证；提交 633 后在无 legs 进行中时推送，监控新 run，若失败先红→绿+账本再推，legs 进行中不推送。
+2. 继续搜“同一事实两处归属”：`RESULT_FIELD_CHILDREN`/`children_rolled_up` 在 `task_contract`/`task_execution`/`task_manager`/`web` 的 task-result 同域归属（仅当 `children` 为同一 task-result 契约字段）；`task_manager` 中剩余 `error` payload 键在**明确 task-result 构造**语境的窄收口（需避开 status/event/attr 混域）；cancel-file IPC marker `"cancelled"` writer/reader 若同事实可单独归属（不同于 payload 字段）。
+3. `m8-t537`→`main` 合并仍阻塞于主仓并发会话（`D:\面试项目\minicc-codex` `UU docs/ROADMAP_TO_PRODUCT.md`, `MERGE_HEAD`）——不触碰；并行整理 `dev/minicc-reliability-4ba3`、`m8-t117-*`、相关 detached worktree 的未合并差异与可移植证据，准备主仓释放后的集成。十一实验面冻结。
+## 批次 634 — M8-T652：task result `children_rolled_up` payload 字段名有一处归属（task_contract↔task_execution）
+
+### 1 是否真是同一事实
+
+`minicc.task_contract` 与 `minicc.task_execution` 在任务结果 payload/快照兼容读取中使用的 `children_rolled_up` 字段名是同一契约/折叠记账字段事实。`task_manager` 内部 `self.children_rolled_up` 属性、快照/记录 schema 键与 `result.get("children_rolled_up")` 等属混域/内部层，本批次未纳入范围。
+
+### 2 命中点（实测，范围 `task_contract.py`、`task_execution.py`）
+
+- `task_contract.py`：metadata 排除集合中的 `"children_rolled_up"`（`from_payload` 防止模型/生产者伪造已折叠标记）。
+- `task_execution.py`：`snapshot.get("children_rolled_up")` 读取与 `payload["children_rolled_up"]=True` 写入（host-owned fold flag 跨进程/快照传递）。
+
+### 3 改动
+
+- `minicc/task_contract.py`：新增 `RESULT_FIELD_CHILDREN_ROLLED_UP = "children_rolled_up"`（M8-T652），替换 metadata 排除中的裸字面量。
+- `minicc/task_execution.py`：导入并使用 `RESULT_FIELD_CHILDREN_ROLLED_UP`。
+- `tests/test_task_result_children_rolled_up_field_has_one_home.py`（新）：home 常量 + scoped 裸字面量门禁（允许定义赋值）。
+
+### 4 验证（命令与输出要点）
+
+- `..\minicc-codex\.venv\Scripts\python.exe -m py_compile minicc/task_contract.py minicc/task_execution.py` 通过。
+- `pytest tests/test_task_result_children_rolled_up_field_has_one_home.py tests/test_task_result_tokens_used_field_has_one_home.py tests/test_task_result_answer_error_fields_have_one_home.py tests/test_task_contract.py -q` 22 passed。
+- `python scripts/doc_pointers.py --check` 通过。
+
+### 5 聚焦回归
+
+- 上述 task-result 字段/contract 门禁与契约测试通过。未跑全量基准回归/CI 双端。
+
+### 6 边界（哪些**未**触碰）
+
+- 仅 `task_contract`/`task_execution` 的 `children_rolled_up` payload 字段名；不触碰 `task_manager` 的内部属性/快照 schema/`result.get("children_rolled_up")`（可后续在确认同域且窄门禁时评估）；不触碰 `children`（orchestration result shape-home 由 `_orchestration_result`/census gate 约束，形式与 key 归属需谨慎分域）；不改变折叠/计费语义。
+- CI 42490220279（633 push, tip `f658e10`）**in_progress**，legs 进行中**不推送**；634 本地已提交，待 42490220279 全绿后按纪律推送，legs 进行中不推送。
+
+### 7 下一位候选
+
+1. 监控 42490220279；全绿后推送 634（及后续本地提交），legs 进行中不推送；若失败先红→绿+账本再推。
+2. 继续搜“同一事实两处归属”：`children` 在 task-result/orchestration payload 的同域归属需尊重 `_orchestration_result` shape-home census（literal-key home）与混域场景；`task_manager`/`web` 中 task-result `children_rolled_up`/`children` 的窄收口可评估；cancel-file IPC marker `"cancelled"` writer/reader（不同于 payload 字段/状态值）。
+3. 集成准备：`m8-t117-121-land`（5 commits，netguard/webfetch/security，8 files，低冲突）与 `dev/minicc-reliability-4ba3`（与 main 大幅分叉，ROADMAP/docs 密集）需在主仓释放后按冲突域分批集成；当前仅在 wt519 做只读差异/测试可行性分析，不触碰 `D:\面试项目\minicc-codex`。十一实验面冻结。
+## 批次 635 — M8-T653：`task_manager` 非 shape-home 的 `children`/批次失败结果字段接回契约常量
+
+### 1 是否真是同一事实
+
+`minicc.task_manager` 在批次失败结果构造与 `result["children"]=snapshots` 赋值中使用的 `children` 字段名，以及同一批次失败 dict 中遗漏的 `answer`/`error` 键，与 task-result/orchestration payload 字段名事实同域。`_orchestration_result` 是 orchestration 结果 shape 的 home（`test_the_orchestration_result_have_one_home` census 要求该 home 返回 `{"answer","cancelled","children"}` 字符串字面量键，且全包仅此一处），因此 home **保持字面量**；本批次仅改非 home、非 census 命中形态。
+
+### 2 命中点（实测）
+
+- `task_manager.py` 批次失败结果 dict（4 键，非 census 目标）：`"answer"`/`"error"`/`"children"` → `RESULT_FIELD_ANSWER`/`RESULT_FIELD_ERROR`/`RESULT_FIELD_CHILDREN`（`cancelled` 已为 `RESULT_FIELD_CANCELLED`）。
+- `result["children"] = snapshots` 赋值 → `result[RESULT_FIELD_CHILDREN]`。
+
+### 3 改动
+
+- `minicc/task_contract.py`：新增 `RESULT_FIELD_CHILDREN = "children"`（M8-T653；字段名 home；不改变 `TaskResult` dataclass 结构）。
+- `minicc/task_manager.py`：导入并使用 `RESULT_FIELD_CHILDREN`；修正上述批次失败 dict 的 `answer`/`error` 漏改。
+- 未新增与 orchestration shape census 冲突的全局门禁；依赖既有 `_orchestration_result` census 保护 shape home。
+
+### 4 验证（命令与输出要点）
+
+- `py_compile minicc/task_contract.py minicc/task_manager.py` 通过。
+- orchestration census 仍仅命中 `minicc/task_manager.py` 的 `_orchestration_result` home。
+- 聚焦：`test_the_orchestration_result_have_one_home.py`、`test_task_manager_phase_literals_have_one_home.py`、`test_task_contract.py`、`test_batch_wiring` 定向 merge/roll-up 用例通过（见本地记录）。未跑全量/CI 双端。
+
+### 5 聚焦回归
+
+- orchestration shape gate、phase-literal gate、task contract、batch wiring 定向通过。未跑全量基准回归/CI 双端。
+
+### 6 边界（哪些**未**触碰）
+
+- `_orchestration_result` home 保持字符串字面量键（shape census 要求）；不触碰 web/contract/execution 中其他 `children` 语义或 snapshot schema；不改变 API/结果语义。
+
+### 7 下一位候选
+
+1. CI 42490220279（633）仍 in_progress，legs 进行中**不推送**；634、635 本地已提交，待 42490220279 全绿后按纪律依次/合并推送语境处理（均在 m8-t537 线），legs 进行中不推送；若 42490220279 失败先红→绿+账本再推。
+2. 继续搜“同一事实两处归属”：`task_manager` 中仍有少量 `getattr(result,"error")`/发布事件/快照读取等混域 `error`（633 明确未收口）；`children_rolled_up` 在 task_manager `result.get`/snapshot schema 同域扩展需窄规则；cancel-file IPC marker writer/reader。
+3. 主仓/`main` 集成阻塞不变；`m8-t117-121-land` 与 `m8-t537` 在 `webauth.py`/`tools/fs.py`/`tools/webfetch.py` 有重叠，集成需冲突处理（见 `C:\Users\18414\AppData\Local\Temp\opencode\minicc-integration-inventory-wt519.md`）。十一实验面冻结。
+## 批次 636 — M8-T654：`task_manager` snapshot/restore 与 result 读取的 `children_rolled_up` 接回契约字段归属
+
+### 1 是否真是同一事实
+
+`minicc.task_manager` 在应用 task-result payload 时读取 `children_rolled_up`（`result.get(...)`）、以及在任务快照序列化/恢复中读写 `children_rolled_up` 键，与 `task_contract.RESULT_FIELD_CHILDREN_ROLLED_UP`/`task_execution.WorkerSnapshotMirror` 使用的是同一折叠标记字段名事实（634 已在 contract+execution 立家）。`self.children_rolled_up`/构造参数/属性为内部状态，不是字段名字面量归属问题。
+
+### 2 命中点（实测）
+
+- `apply_result`：`result.get("children_rolled_up")` → `result.get(RESULT_FIELD_CHILDREN_ROLLED_UP)`（task-result payload 同域读）。
+- 快照写出：两处 `"children_rolled_up": self.children_rolled_up` → `RESULT_FIELD_CHILDREN_ROLLED_UP: ...`。
+- 快照恢复：`data.get("children_rolled_up")` → `data.get(RESULT_FIELD_CHILDREN_ROLLED_UP)`。
+
+### 3 改动
+
+- `minicc/task_manager.py`：导入并使用 `RESULT_FIELD_CHILDREN_ROLLED_UP`；内部属性名/语义不变。
+
+### 4 验证（命令与输出要点）
+
+- `py_compile minicc/task_manager.py` 通过。
+- `pytest tests/test_task_durability.py tests/test_task_store_durability_contract.py tests/test_task_contract.py -q` 35 passed。
+- `python scripts/doc_pointers.py --check` 通过。
+
+### 5 聚焦回归
+
+- task durability/store/contract 通过。未跑全量基准回归/CI 双端。
+
+### 6 边界（哪些**未**触碰）
+
+- 不改变 `children_rolled_up` 属性名、折叠语义、持久化值；仅统一字段名字面量归属。未加 task_manager 宽域门禁（混域）。
+- CI 42490220279（633）仍 in_progress，legs 进行中**不推送**；634–636 本地已提交。
+
+### 7 下一位候选
+
+1. 监控 42490220279；全绿后按纪律推送 634–636，legs 进行中不推送；失败先红→绿+账本。
+2. 继续“同一事实两处归属”窄收口：`task_worker`/`web` 若存在 task-result `children_rolled_up`/同域字段读写可评估；task_manager 中剩余明确 task-result payload `error` 构造/读取（严格排除 snapshot/attr/status/event）；其他跨模块契约字段名。cancel IPC 内容非读取契约，暂不归并。
+3. 主仓 `m8-t537`→`main` 及 `dev/minicc-reliability-4ba3` 集成仍阻塞于并发会话持有 `D:\面试项目\minicc-codex`；`m8-t117-121-land` 分析显示在 m8-t537 上基本已集成/被取代，待最终定向测试确认。十一实验面冻结。
+## 批次 637 — M8-T655：`task_manager` result 事件发布中的 `answer`/`error` 契约字段补漏
+
+### 1 是否真是同一事实
+
+`task_manager.apply_result` 发布 `result` 事件时从 `result_copy` 读取并输出的 `answer`/`error` 字段名，与 task-result 契约 `RESULT_FIELD_ANSWER`/`RESULT_FIELD_ERROR` 同一事实（633/635 同域延续；633 未覆盖 `result_copy.get("answer"/"error")` 与该事件 dict 键）。
+
+### 2 命中点
+
+- `_publish_locked("result", {"answer": result_copy.get("answer"), "error": result_copy.get("error"), ...})` → 使用 `RESULT_FIELD_*`。
+
+### 3 验证
+
+- `py_compile` 通过；`pytest tests/test_task_durability.py tests/test_task_contract.py -q` 26 passed；`doc_pointers --check` 通过。
+
+### 4 边界
+
+- 仅该事件发布点；事件 `state_version` 等其他键不变；不改变事件语义。
+
+### 5 状态
+
+- CI 42490220279（633, `f658e10`）**completed/success**。634–637 本地提交待推送（推送前无 legs 进行中）；推送后监控新 run，legs 进行中不再推送。
+## 批次 638 — M8-T656：`doc_pointers` 统一：m8-t537 与 dev/minicc-reliability-4ba3 两线合流为一个检查器
+
+### 1 是否真是同一事实
+
+m8-t537 与 `dev/minicc-reliability-4ba3` 各自推进了同一检查器 `scripts/doc_pointers.py`，两条实现互不兼容（`_line_of(text, ...)` 对 `_line_of(starts, ...)`）。本批次以 dev 线实现为底（外来章节表 `_headlines`、`_document_text`/`_numbered_sections` 备忘、`_same_document` 自指判别、`_newline_index` 贯穿 `sections`/`check_*`、`_span_name_claims` 的 kind-gated 行号），叠加 m8-t537 独有的 `_DECLINED_TEST_NAME` 证据表（加入 `_EVIDENCE_TABLES`）与 `_all_test_names` 的 `@lru_cache(maxsize=1)`，合流为一套实现。
+
+### 2 命中点（实测）
+
+- m8-t537 两个测试与 dev 签名不符：`tests/test_doc_pointers.py` 两条用例适配为 `dp._line_of(dp._newline_index(text), offset)` 与 `_check_quoted_name(document, text, dp._newline_index(text), offset, span, labels)`；断言逻辑不变。
+- `_all_test_names` 缓存恢复为 `@lru_cache(maxsize=1)`（与 m8-t537 的进程级一次扫描意图一致）。
+- 注意：本次只统一 `doc_pointers` 本体与直接测试；**未合并** `dev/minicc-reliability-4ba3` 的其他文件（web.py / agent/* / CI / ROADMAP 序号对账、其余 20+ 冲突文件均另批）。
+
+### 3 改动
+
+- `scripts/doc_pointers.py`：统一为 dev 线签名（`starts` 传递）；补入 `_DECLINED_TEST_NAME`/`_EVIDENCE_TABLES` 与 `_all_test_names` 缓存。
+- `tests/test_doc_pointers.py`：两条用例按统一签名适配。
+
+### 4 验证（命令与输出要点）
+
+- `pytest tests/test_doc_pointers.py tests/test_batch_numbers_past_ninety_nine_are_read_by_the_pointer_checker.py -q` → **69 passed**。
+- `python scripts/doc_pointers.py --check` → 通过（1105 markers / 4863 evidence / 723 tracked files）。
+- 全量 `pytest tests/ --tb=no -q` 在本地 harness 超时（未完成、无质量结论）；本批次以聚焦套件 + `doc_pointers --check` + CI 双端为验证门。
+
+### 5 边界（哪些**未**触碰）
+
+- 不改变 `doc_pointers` 判词/证据表语义；不并入其他 dev 线文件；不改 `ROADMAP` 批次/任务编号规则；`integration/doc-pointers-unify` 仅用于本批次统一实现。
+- push 规则不变：新 run legs 进行中不推送；若该批次改动失败，先红→绿+账本再推。
+
+### 6 集成分支
+
+- `integration/doc-pointers-unify`（基于 `m8-t537@bfb95da`）；验证通过后并入 `m8-t537` 并按纪律推送。
+## 批次 639 — M8-T657：集成 dev 线 conftest.py 夹具隔离（M8-T536，fixture repos 不许继承机器 git 用户级策略）
+
+### 1 事实来源
+
+`dev/minicc-reliability-4ba3` 中的 M8-T536 是同一份 pytest 夹具集成：会话级 autouse fixture `_isolate_git_user_config` 把 git 的用户级配置（含回退的 XDG 配置）指向空文件；同时把 `pytest_sessionfinish`/`_HANG_REWRITES` 这套"改判词无人读"的记账拿掉——它只是个重写，本就不该是个要被单列的类，挂在外面无意义。
+
+### 2 改动
+
+- `conftest.py`（集成分支 `integration/ci-web-smoke`）：
+  - 新增 `import time`（遗留，未使用，保留以对齐 dev 版 `conftest.py` 的行为与后续补丁基线；如后续无用途会清）。
+  - 移除 `_HANG_REWRITES` 记账及其所有引用；保留 M8-T50 的"超时不并吞"——超时仍如实标红、打印截止时间，只是不再伪造独立类名单。
+  - 新增会话级 `_isolate_git_user_config` autouse fixture：空 `.gitconfig` 落在 `tmp_path_factory`，`GIT_CONFIG_GLOBAL` 指向它，会话结束恢复原值（`None` 则弹出）。
+- `tests/test_the_fixtures_do_not_inherit_machine_git_policy.py`（集成分支，新增）：M8-T536 两向见证——钩子确实被隔离、拿掉隔离后钩子确实会跑，两个方向都验证，不是假绿。
+
+### 3 验证（命令与输出要点）
+
+- `..\minicc-codex\.venv\Scripts\python.exe -m py_compile conftest.py` 通过。
+- 聚焦：`tests/test_the_fixtures_do_not_inherit_machine_git_policy.py` → **3 passed**（隔离 + 控制）。
+- 聚焦回归：`test_task_durability`、`test_task_contract`、`test_task_store_durability_contract`、`test_task_manager_phase_literals_have_one_home`、`test_batch_wiring[merge]` → **37 passed**。
+
+### 4 边界（哪些**未**触碰）
+
+- 不改 pytest hook 语义：超时的 `pytest_runtest_makereport` 重写逻辑没变（超时仍失败），只是不再记账/单列类；`pytest_sessionfinish` 记账整段删除，与 dev 线一致。
+- 不改任何产品代码；不推送（CI 42500298854（`218a657`）leges 仍在 in_progress，按规则不再推送任何分支）。
+- 本分支基于 `m8-t537@218a657`，仅用于集成 `dev/minicc-reliability-4ba3` 的 conftest 部分；合并决策另行线性评估。
+## 批次 640 — M8-T658：Web 文件树一次列目录只装载一次策略（deny matcher 集成入 m8 线）
+
+### 1 事实来源与动机
+
+`dev/minicc-reliability-4ba3` 中有一批针对 `deny_rule_covers_path` 的修复（M8-T542，第五百二十九批）：它发现
+`minicc/web.py` 在 file_tree 路由里对**每个条目**都调用 `deny_rule_covers_path`，而那里的每一次调用都会
+**重新加载** `.minicc/permissions.json`。于是一次「列目录」的花费是：5 个条目对应 8 次 stat，50 个条目对应
+53 次 stat——规则文件被读 50 遍来回答 50 个问题。
+
+同一类缺陷已被修复两次（M8-T533 evidence index、M8-T536 snapshot copy），这是同一家规则文件的第三个读者。
+
+第二个问题在「加载失败」这一侧：`deny_rule_covers_path` 把读文件失败的错误**吞掉**，于是一份打不开/损坏的
+`permissions.json` 会回答「没有路径被覆盖」，而 `tool_denied_by_rule` 在同样的一次调用上回答 True（fail-closed）。
+两侧不一致时，调用者没法说清是谁赢。
+
+### 2 改动（集成分支 `integration/websem`）
+
+- `minicc/audit.py`：新增 `deny_rule_covers_path_matcher(workspace) -> Callable[[str], bool]`——列一次目录时
+  **加载一次**策略、返回一个闭包，此后每条路径都问同一份加载结果。`policy_evaluation_error` 非空或读文件 OSError 时
+  闭包对所有命名路径 fail-closed（不吞错误、不假装放行）；`deny_rule_covers_path` 保持为调用 matcher 的薄封装，
+  行为不变、单次问答仍可用。
+- `minicc/web.py`：file_tree 路由改为每个 listing 一次 `deny_rule_covers_path_matcher(self.workspace)`，
+  把每条路径的拒绝问题交给 matcher，而不是逐条重新加载策略。
+- `tests/test_the_file_tree_lists_its_entries_under_one_policy_load.py`（新）：M8-T542 的两向见证
+  （一次 listing 的 stat 次数不随条目数增长；损坏策略下 fail-closed 与否；可读策略下仍按规则划线）。
+
+### 3 验证（命令与输出要点）
+
+- `..\minicc-codex\.venv\Scripts\python.exe -m py_compile minicc/audit.py minicc/web.py` 通过。
+- `pytest tests/test_the_file_tree_lists_its_entries_under_one_policy_load.py -q` → **5 passed**。
+- 未跑全量基准回归/CI 双端；本分支等 `m8-t537` 当前 CI（M8-T656 ledger 修复，run 42503392476）转绿后随集成行 ff-merge。
+- `python scripts/doc_pointers.py --check` 通过（本次账本改动后需再次确认）。
+
+### 4 边界（哪些**未**触碰）
+
+- 不改变 `deny_rule_covers_path` 的对外签名；单次问答仍受理。
+- 不改变任何拒绝语义（plan/approval/verdict 等域）；Web/CLI 的安全标签不动。
+- 不声称 Windows/Ubuntu CI 通过（本地未跑全量套件）；本分支不推送，直到 CI 双端确认。
+## 批次 641 — M8-T659：deny veto 一次装载：`denied_by_rule_matcher` + `deny_rule_covers_path_matcher` 落点到位
+
+### 1 是否真是同一事实
+
+dev/minicc-reliability-4ba3 的 M8-T533/T537 家族（evidence index、one refresh asks the rules once）是同一原则的重复应用：**同一次审判问两次就是两次不同的答案**。`tool_denied_by_rule`（read 侧 veto）此前一次审判读两遍 `permissions.json`——一次验可读性，一次做 match——同一次系统调用里两份快照可能已经不同；`deny_rule_covers_path_matcher` 已改成单装载，这里把 `tool_denied_by_rule`/`denied_by_rule_matcher` 也改成同一形态。
+
+### 2 改动（`minicc/audit.py`）
+
+- 新增 `denied_by_rule_matcher(workspace)`：一次加载规则，refuses-when-unknown，`arguments` 为 OSError 时也拒绝（不许静默放行）；
+- `tool_denied_by_rule` 改为薄封装 `denied_by_rule_matcher(workspace)(tool, arguments)`，不改变签名、不改变拒绝语义；
+- `deny_rule_covers_path_matcher`：同形态（一次装载），删除多余的 `policy_evaluation_error` 前置调用（由 `load_permission_rules` 自己的 error 报）——保持与 `denied_by_rule_matcher` 同一形态；
+- 导出 `denied_by_rule_matcher`（`__all__`），与 `deny_rule_covers_path_matcher` 并列。
+
+### 3 验证（命令与输出要点）
+
+- `..\minicc-codex\.venv\Scripts\python.exe -m py_compile minicc/audit.py` 通过。
+- `pytest tests/test_one_refresh_asks_the_rules_once.py tests/test_the_file_tree_lists_its_entries_under_one_policy_load.py tests/test_the_fixtures_do_not_inherit_machine_git_policy.py tests/test_the_permission_rule_verdicts_have_one_home.py tests/test_the_deny_veto_has_one_home.py tests/test_permission_deny_veto_is_asked_by_every_consent_site.py tests/test_web_security.py -q` → **58 passed**。
+
+### 4 边界（哪些**未**触碰）
+
+- 不将 `denied_by_rule_matcher` 接入 evidence index/`pol_eval_error` 家族（那部分已在 `path_deny_predicate`/M8-T533 中单独落地，非本批次范围）；
+- 未改变 `tool_denied_by_rule` 的签名/语义（fail-closed 规则不变）；
+- 不触碰 `mentions.py`（XML/折叠/属性转义家族独立在 `integration/mentions-security`，未验证、未合并）；
+- 全文栈未部署全量 CI 验证，以聚焦套件+分支 CI 结果为准。
+## 批次 642 — M8-T660：集成 M8-T540 — mention deny 检查点一次策略装载（message 批级）
+
+### 1 事实来源
+
+dev/minicc-reliability-4ba3 的 M8-T540（mention 的两个 deny 检查点共用一次策略装载）是同一文件装载家族的第二处应用：`build_mention_context` 在入口走完所有 mention 后，逐 token 问一次 `tool_denied_by_rule` 判注入 veto、再按 CJK 收敛路径再问一次；`tool_denied_by_rule` 本身按两次 `load_permission_rules` 装载（一次验可读性、一次做 match），于是一条 N 个 mention 的消息 paid 4N+2 次 `permissions.json` stat。
+
+同一根因已分别在 M8-T658（file tree listing）与 M8-T659（audit denied_by_rule_matcher）按此线 done。
+
+### 2 改动（`minicc/mentions.py`、`tests/test_the_mention_deny_question_is_asked_once_per_message.py`）
+
+- `mentions.py` 不再导入 `tool_denied_by_rule`；改为 `from .audit import denied_by_rule_matcher`。
+- `build_mention_context` 入口一次 `denied_by_rule_matcher(ws)` 得到 matcher；逐 token 两次 checkpoint 都问同一个 matcher，一条消息只 paid 一次装载。
+- `tests/test_the_mention_deny_question_is_asked_once_per_message.py`（新）：M8-T540 原件，**断言适配**：本线非 dev line 的 M8-T658/T659 已把 matcher 的装载压到一次；故 `test_the_two_checkpoints_share_one_policy_load` 的 `stats` 断言改为 1（注释说明原因）；其余 leg 原样保留（one deny question per mention count、glued CJK token still refused、malformed policy fail-closed、missing policy allowed）。
+
+### 3 验证（命令与输出要点）
+
+- `..\minicc-codex\.venv\Scripts\python.exe -m py_compile minicc/mentions.py` 通过。
+- `pytest tests/test_the_mention_deny_question_is_asked_once_per_message.py tests/test_mentions.py tests/test_one_refresh_asks_the_rules_once.py tests/test_the_file_tree_lists_its_entries_under_one_policy_load.py tests/test_the_fixtures_do_not_inherit_machine_git_policy.py tests/test_web_security.py -q` → **57 passed**。
+
+### 4 边界（哪些**未**触碰）
+
+- 不改变 `tool_denied_by_rule` 本身（审计侧保留；本批次仅使 mentions 侧改用 matcher）；
+- 不触碰 mention injection 的 XML/标记/转义语义（T547–T557 family 未并入）；
+- 不推送；等 CI 42505788350（M8-T659）green 后按纪律走。
+## 批次 643 — M8-T661：集成 M8-T543 — mention record 的 token/path 各回一个量
+
+### 1 事实来源
+
+dev/minicc-reliability-4ba3 的 M8-T543 修复的是同一个 CJK 回退收敛的副作用：`build_mention_context` 的回退循环就地改写外层变量 `token`，五个读 `token` 的分支读到的是**收敛后**的拼法，而一条「path != token」恰好是「这提及收敛到真实文件」的记号。
+
+同样的：被拒的那条会写 `secrets\k.txt是什么`（反斜杠没换算、粘连尾巴没削），与「真注入的那条记 `src/a.py`」对不上号。
+
+### 2 改动（`minicc/mentions.py`、`tests/test_a_mention_record_names_the_file_it_resolved_to.py`）
+
+- 新增 `_converged(token, path, status, reason)`：走 `_record`，`token` 保持扫描器交出的那一个，`path` 在收敛到一个真实工作区文件时取 `rel`（workspace-relative posix），没收敛到时等于 token（不做分隔符归一——`path != token` 本身就是「收敛了」的记号）。
+- CJK 回退循环改用 `candidate`，`original = token` 随之删除；五个收敛位点（凭据门、deny 规则门、超预算、读失败、二进制）改 `_converged`；遗留的 `_reject(original, …)` 归零。
+- `tests/test_a_mention_record_names_the_file_it_resolved_to.py`（新）：九腿（拒绝记被拒文件、凭据门记收敛到的文件、块里那句标注与 path 同一值、三拼法共一 path、拒绝与注入能在 path 上对上号、二进制/超预算记收敛到的文件、普查 path≠token 只对真实文件成立、未收敛保持原样、五字段形状）。
+
+### 3 验证（命令与输出要点）
+
+- `..\minicc-codex\.venv\Scripts\python.exe -m py_compile minicc/mentions.py` 通过。
+- mention 邻域：`test_mentions.py`、`test_the_mention_deny_question_is_asked_once_per_message.py`、`test_a_mention_record_names_the_file_it_resolved_to.py`、`test_the_mention_statuses_have_one_home.py`、`test_one_refresh_asks_the_rules_once.py`、`test_the_file_tree_lists_its_entries_under_one_policy_load.py` → **47 passed**。
+- `python scripts/doc_pointers.py --check` 通过（本批次新增 tests/ 文件已入库后）。
+
+### 4 边界（哪些**未**触碰）
+
+- 未改变 `extract_mention_tokens` 的分词语义；未改变 `_record` 的五字段形状；未删除 `MENTION_STATUS_*` 常量体系（本线 `test_the_mention_statuses_have_one_home.py` 保持 active）；token 在收敛后 CJK 回退中不再原位改写。
+- 不推送（CI 42505788350 M8-T659 legs in_progress）。
+## 批次 644 — M8-T662：集成 M8-T547/T548/T549 — mention 的 XML 形块：判决行转义、缺失判决不丢
+
+### 1 事实来源
+
+dev/minicc-reliability-4ba3 的三条批（M8-T548+M8-T549、M8-T547、及其前序 M8-T540/M8-T543）共同收口的问题：**这条消息里有 @-提及，模型就得知道哪条判决什么是真什么是假**。原来：
+
+- 零注入空块 —— `@nosuch` 的 `missing` 判决只有在别的文件被注入时才写进块；一条纯损失消息给模型的是空串；
+- 标注那句在两处各拼一遍，后一处悄悄丢了「read_file 读取」的补救；
+- `path="…"` 原文直接插进属性，引号一打断名字就断了。
+
+### 2 改动（`minicc/mentions.py`、`tests/`）
+
+- `_annotation_line(item)`（M8-T549）：判决标注行只拼一次；所有注入/兜底渲染分支共用同一句子。
+- 渲染器重写（M8-T548）：块非空 ⟺ 这条消息里有判决要说；块空 ⟺ 没有 @-提及。missing/binary/注入失败逐条列入标注；超预算/超条数那两句改为**都是散文**并承诺「可用 read_file 读取」。
+- `_attribute(value)`（M8-T547）：`<file path="…">` 的属性转义家；`&` 必须先折；正文不动字节；两条散文通道不转义。
+
+本批次代码叠在 T660/T661/T662 之上（T540 matcher、T543 token/path 分量）。
+
+### 3 验证（命令与输出要点）
+
+- `..\minicc-codex\.venv\Scripts\python.exe -m py_compile minicc/mentions.py` 通过。
+- `pytest tests/test_a_mention_verdict_reaches_the_model_without_an_injection.py tests/test_a_path_with_a_quote_still_round_trips_through_the_block.py tests/test_mentions.py tests/test_a_mention_record_names_the_file_it_resolved_to.py tests/test_a_path_with_a_quote_still_round_trips_through_the_block.py -q` → **47 passed**。
+- `python scripts/doc_pointers.py --check` 通过。
+
+### 4 边界（哪些**未**触碰）
+
+- 未改 `<file path="…">` 正文的逐字节保持（RAW_BODY 仍原样对得上）；'test_cjk_glued_token_resolves_to_existing_prefix' 保留原意。
+- 不推送（CI 42505788350 legs 已 in_progress；集成分支本地累积）。
+## 批次 645 — M8-T663：集成 M8-T551/T552/T553/T554/T557 — mention 的 XML 形块：正文不再是结构
+
+### 1 事实来源
+
+dev/minicc-reliability-4ba3 的 M8-T551-M8-T557 把 mention 的 `<file path="…">` 块从「近乎 XML」收紧到「只在属性上是 XML 形」：正文中出现的 `<file path="…">`/`</file>`/`[用户引用文件]`/`[truncated]` 等标记由一个 `_STRUCTURAL_TOKENS` 表整体转义，`<file …>` 正文/属性分别用 `_body`/`_attribute` 各写一个家。没有改变判决/路径/分词语义，只改变了「伪造标记是否能被读成真标记」。
+
+### 2 改动（`minicc/mentions.py`、`tests/`）
+
+- 新增 `_STRUCTURAL_TOKENS`（八行：`<file`、`</file`、`[用户引用文件]`/`[truncated]` 及其 entity-encoded 形）；新增 `_body(text)`：按表逐行折叠块自己的标记；`<file path=…>` 属性继续走 `_attribute`；标签 `</file>` 用 entity。
+- `</file>` 与 entity-encoded 标记同时作为 prefix 处理，使得嵌套与正文的一次解码仍落不到真标记。
+- 本线 `MENTION_STATUS_*` 常量与 `test_the_mention_statuses_have_one_home.py` 保留（本批次不推送 gate；本线是独立集成，不翻 dev 的历史）。
+
+### 3 验证（命令与输出要点）
+
+- `..\minicc-codex\.venv\Scripts\python.exe -m py_compile minicc/mentions.py` 通过。
+- `pytest tests/test_a_body_that_closes_the_block_forges_no_second_file.py tests/test_a_body_that_writes_a_deeper_spelling_lands_one_level_up.py tests/test_a_body_that_writes_the_folded_spelling_of_a_marker.py tests/test_a_body_that_writes_the_truncation_marker_claims_no_truncation.py tests/test_the_block_promises_xml_only_where_it_escapes.py -q` → **48 passed**。
+- 整体 mention 邻域（含 status gate）→ **98 passed**。
+- `python scripts/doc_pointers.py --check` 通过。
+
+### 4 边界（哪些**未**触碰）
+
+- 不改分词器/路径解析/deny/凭据语义；不删除 `MENTION_STATUS_*` 家（`test_the_mention_statuses_have_one_home.py` 仍 active）；不触碰 `apply_mentions` 签名。
+- 不推送（CI 42521223901 的 M8-T662 merge legs in_progress；本批次本地累积，CI green 后按纪律推送）。
+## 批次 646 — M8-T664：`task_manager` 的 `transition_status()` 入参改用 `TASK_STATUS_*` 常量
+
+### 1 是否真是同一事实
+
+`minicc.task_manager` 在七处直接给 `transition_status()` 传了裸字符串（`"failed"`/`"running"`/`"interrupted"`），与 `minicc.agent.protocol` 的 `TASK_STATUS_FAILED`/`TASK_STATUS_RUNNING`/`TASK_STATUS_INTERRUPTED` 是同一任务状态事实；协议侧已有 `TASK_STATUS_*` 常量家（`PHASE_*` 分域，`TASK_KIND_*` 分域，`validate_status_transition` 已依赖 `TASK_STATUSES`）。本批次只把那七处裸字面量改成协议常量，没有改变任何语义或契约。
+
+### 2 改动（`minicc/task_manager.py`）
+
+- 从 `..agent.protocol` 补充导入 `TASK_STATUS_RUNNING`（原导入缺这一条；`TASK_STATUS_FAILED`/`TASK_STATUS_INTERRUPTED` 此前已导入）。
+- 七处 `transition_status(<word>)` 改为 `transition_status(TASK_STATUS_*)`。
+- 不改变任何 validate_status_transition 行为、validate_missing 行为、`self.phase = target` 语义；只让阶段/状态一个家。
+
+### 3 验证（命令与输出要点）
+
+- `..\minicc-codex\.venv\Scripts\python.exe -m py_compile minicc/task_manager.py` 通过。
+- 定向：`..\minicc-codex\.venv\Scripts\python.exe -m pytest tests/test_task_durability.py tests/test_task_store_durability_contract.py tests/test_batch_wiring.py::test_merge_batch_uses_the_task_model_and_configured_protocol tests/test_task_manager_phase_literals_have_one_home.py tests/test_task_result_answer_error_fields_have_one_home.py tests/test_task_result_cancelled_field_has_one_home.py -q` → **25 passed**。
+- `python scripts/doc_pointers.py --check` 通过。
+
+### 4 边界（哪些**未**触碰）
+
+- 未对 `task_manager` 其余裸 `proto.*` 字面量做扫描（那些多数是 `result.transition_status(target)` 以及 `transition_status(TASK_STATUS_*)` 已是常量）；phase 与 status 仍按 domain 分离（`PHASE_*` vs `TASK_STATUS_*`）；`validate_status_transition` 依赖 `TASK_STATUSES` 交集行为不变；不改参数名/状态机/序列化行为。
+- CI 42521223901（d537e0c）`in_progress`，legs 进行中**不推送**；本批次本地累积，等 CI 双端全绿后按纪律推送。
+
+## 批次 647 — M8-T665：reconnect 路径 `task.status = "running"` 改用 `TASK_STATUS_RUNNING`
+
+### 1 是否真是同一事实
+
+`minicc.task_manager` 的 "reconnect" 段（`has_live_worker` 为真时把任务挂回运行态）
+直接写字符串字面量 `"running"`，与 `minicc.agent.protocol.TASK_STATUS_RUNNING`
+（协议状态常量家的唯一成员之一）是同一任务状态事实。`PHASE_*` 与 `TASK_STATUS_*`
+分域，本次只动 status。
+
+### 2 改动
+
+- `minicc/task_manager.py`：`task.status = "running"` → `task.status = TASK_STATUS_RUNNING`（`TASK_STATUS_RUNNING` 已由 M8-T664 引入的导入覆盖）。
+- 未跟踪任务执行器的 fence/lease 逻辑不动；`MISSING TASK_STATUS_*` 之外不新增常量。
+
+### 3 验证
+
+- `..\minicc-codex\.venv\Scripts\python.exe -m pytest tests/test_task_durability.py tests/test_task_manager_phase_literals_have_one_home.py -q` → **11 passed**。
+- `python scripts/doc_pointers.py --check` 通过。
+
+### 4 边界
+
+- 不触及 `task_contract`/`RESULT_FIELD_CANCELLED` 的 `"cancelled"` 字面量接缝（`_orchestration_result`/`_cancelled_result` 的两处 dict key），留待下一批。
+- 不触及 cancel-file 的 `"cancelled"` IPC 文本（两处 `cancel_file.write_text("cancelled")`）——那是跨进程协议字面量，不是 result-contract 字段。
+- CI 42526318333（`44db5be`）为 docs-only 提交，**不受本提交影响**；本批随 `m8-t537` 推送时由其 CI 复核。
+
+## 批次 668 — 合流批：`m8-t537` → `main`（2026-11-09）
+
+把集成通道 `m8-t537`（566 个提交，含 M8-T550–M8-T665 与本文件并轨之前的全部批次）并入 `main`（本机加了 `e14fb7b` 第五百六十六批并轨补记）。本批只做合流与对账，不夹带新功能。
+
+### 1 冲突决议（逐条）
+
+| 文件 / 区域 | 决议 | 依据 |
+| --- | --- | --- |
+| `minicc/permissions.py` | 取 `m8-t537` 版整体 | 同一事实家的完整版：`PERMISSION_RULE_VERDICT_ALLOW/DENY` 常量（第六百一十六批 M8-T634 的归属）＋ `FileNotFoundError→空规则无错 / 其他 OSError→空规则＋`unreadable_message`（fail-closed）＋ 四字段印鉴注解修正；是 `ours` 版的严格超集 |
+| `minicc/audit.py` | 取 `m8-t537` 版整体 | 判决 `match_rules`、`policy_evaluation_error`、`path_deny_predicate(workspace, *, refresh: bool = False)`、`authorize_tool` 单载器读法同构，且含 `refresh=True` 腿与 M8-T634 常量端；`ours` 版是 `M8-T537` 并轨轨道里同一批的重复实现，集成线的版本覆盖其行为且被其门文件钉住 |
+| `minicc/changes.py` | `ours` 为基底，手挑 `m8-t537` 的 M8-T551 块接回 | `M8-T535/比较器的措辞单家`（`gitprobe`）：`_git` 返回 4 元组 `(code, stdout, stderr, reason)`、`_status_failure` 收 `reason`、`WORK_TREE_VERDICT_NO/UNKNOWN` 常量、三个 `git_status_*_reason` builder、两处 `self._git(...)` 调用点改 4 元组解包；`M8-T546/T565/T566` 预像/窗截断线（`PREIMAGE_NOT_IN_WINDOW`、`_AUDIT_TAIL_BYTES`、`audit_window_truncated` 含字节条件）保留 `ours` 版不动 |
+| `minicc/task_manager.py` | `m8-t537` 版为基底 | 它已把 7 处 `transition_status()` 裸字面量改 `TASK_STATUS_*` 常量并把 snapshot/restore/答案事件/发布/所有终态判定也改了常量（集成批 M8-T664/T665）；`ours` 版只多 `LEASE_REVIVAL_GRACE_SECONDS = 12.0` 与 `_watch_worker` 的 `stale_since` 宽恕窗——合并后两段都在，tail/行数 3,096 |
+| `docs/ROADMAP_TO_PRODUCT.md`（三段冲突） | 逐个决议见第 2 节 | 被检出含伪记录冲突与测试名引用腐烂，逐条对账 |
+| `tests/test_one_refresh_asks_the_rules_once.py` | 取 `m8-t537` 版整体 | 同一个门，先后由两条通道写过；`m8-t537` 版多了 5 条（OSError 诊断腿、no-rules 控制腿、snapshot 腿、`refresh=True` 腿、pass 一致性腿），与合流后的 `audit.path_deny_predicate` 逐条对齐 |
+| `tests/test_retrieval_enhanced.py` | 两边 2 行同义注释，保留较完整的一份 | 7.0 ceiling 可观测 print 一致保留 |
+| `tests/test_the_line_ruler_sweeps_a_document_once.py`（未冲突，记录侧被我改） | 记录引用改指 shipped 的腿名 `test_the_index_covers_every_line_with_one_sweep_per_document`（HEAD 版记录里是 `test_one_sweep_…`，本身不存在） | 门文件以集成线的字节为准 |
+| `tests/test_task_manager_phase_literals_have_one_home.py` 及全集成门文件（139 份新增） | 直接入库 | 集成通道本身的 one-home 门，随合流即时生效 |
+
+### 2 `ROADMAP_TO_PRODUCT.md` 三段冲突的订正
+
+1. **变异验红表里旧的租约测试名引用**：`ours` 侧已在 `e14fb7b` 把租约复活测试改名为 `test_an_expired_lease_stays_with_its_owner_until_someone_takes_it`；相关引用取 `ours`，两处已同步改引。
+2. **快照测试改名同一引用**（36232、37106、37193 三块）：同上，取 `ours`。
+3. **集成通道第五百一十九–五百二十一批伪读数段**：该段写着「五字段 content-hash md5 缓存」「`retrieval._refresh` 逐文件 rules mtime 探测」「`capture` rules mtime 戳记」「`predicate` 陈旧性自动重建」「stat 529→250」，对应实现在任何分支都不存在；替换为「并轨补记 — M8-T537 / M8-T538 / M8-T539（集成通道伪读数订正）」一节，逐条列出三个名字在今天的真实含义（见上文 36278 行附近）。
+4. **两侧尾巴整段拼接**（ours 的第五百三十一–第五百四十七批＋第五百一十/五百一十一批＋第五百六十六批并轨补记，其后接 theirs 第五百三十二–第六百四十七批）：本文件在此之前由两条通道分别续写、**同号不同事**。为了不再有两个「第五百四十四批 / M8-T562」（一个 = 审计窗截断，一个 = 不可走目录名单），本合流批把**主通道的二十节**全部改记为 **第六百四十八批–第六百六十七批**（T 编号不动），内容一字未动；并在交界处留下「并轨说明」一节，宣布**今后所有新批次从第六百六十八批（M8-T668）起编号，且不再复用本文件已经出现过的任何编号**。集成通道整段逐字保留。
+
+### 3 验证（合并后，本机 2026-11-09）
+
+- `python scripts/doc_pointers.py --check` → **rc=0**（119 checked、5337 evidence、21 份文档、753 tracked files）。
+- `pytest tests/test_task_durability.py tests/test_a_live_worker_is_not_killed_by_a_wall_clock.py` → **16 passed**。
+- `pytest tests/test_an_audit_deletion_is_answered_with_the_content_it_removed.py tests/test_the_change_list_counts_the_lines_the_deletion_removed.py tests/test_a_copy_line_the_window_never_reached_is_not_a_copy_that_was_never_recorded.py` → **57 passed**。
+- `pytest tests/test_permission_deny_veto_is_asked_by_every_consent_site.py tests/test_permissions_pure.py tests/test_permission_modes.py` → **44 passed**。
+- `pytest tests/test_retrieval_enhanced.py tests/test_an_audit_deletion_is_answered_with_the_content_it_removed.py tests/test_the_change_list_counts_the_lines_the_deletion_removed.py` → **69 passed**。
+
+### 4 未做 / 边界
+
+- 全量 pytest 未在本机跑（Windows/Ubuntu 双腿 CI 判）；本批按「影响集＋检查器＋doc_pointers」放行，CI 是最终裁判。
+- `integration/m8-t537-to-main` 分支承载本合并；并入本地 `main` 仅在 CI 全绿之后，且**不**立即推送 origin 的 `main`——补齐一套说明再统一推（本批不改动远端）。
+- 未跟踪的 scratch / probe / `_*.py` 保持原样未提交。

@@ -26,14 +26,21 @@ def trace_event(
     code: str,
     summary: str,
     detail: dict[str, Any] | str | None = None,
+    *,
+    kind: str = "trace",
 ) -> dict[str, Any]:
-    """Build one trace event; ``kind`` is always ``"trace"`` and comes first.
+    """Build one runtime event; ``kind`` is ``"trace"`` by default.
 
     ``detail`` is omitted entirely when it is None, which is the shape the
     agent loop's ``emit_trace`` produced for a milestone with no payload.
+
+    ``kind`` exists because the verification stage emits the same
+    seven-key record under ``"verification"`` (a phase-carrying kind, see
+    ``PHASE_CARRYING_EVENT_KINDS``); without it, the verifier spelled the
+    record by hand - a second home for one shape.
     """
     event: dict[str, Any] = {
-        "kind": "trace",
+        "kind": kind,
         "name": name,
         "status": status,
         "phase": phase,

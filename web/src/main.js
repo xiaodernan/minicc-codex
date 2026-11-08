@@ -6,7 +6,7 @@ import { addImageFiles, cancelActiveTask, closePanel, exportChat, loadModelCatal
 import { applyTaskEvent, setTimelineDetails, syncLiveEvents, updateBoundTask, updateLiveTask } from "./core/api.js";
 import { t } from "./core/i18n.js";
 import { applyFocusMode, applyLocale, applyPaneLayout, finishStartupSplash, prepareStartupSplash, setFocusMode, setInspectorCollapsed, setLocale, setSidebarCollapsed, setStartupSplashError, setTheme } from "./core/locale.js";
-import { $, $$, runningTasks, runtime, sessionMarkup, state, taskBySession } from "./core/state.js";
+import { $, $$, runningTasks, runtime, sessionMarkup, state, taskBySession, REASONING_EFFORTS } from "./core/state.js";
 import { copyFilePreviewContent, looksLikeWorkspacePath, openFilePreview } from "./files/preview.js";
 import { applyIcons, icon, refreshIcons } from "./icons.js";
 import { handleFileTreeKeydown } from "./panels/index.js";
@@ -235,7 +235,7 @@ export function bindUI() {
     }
     if (event.target.id !== "reasoningEffortSelect") return;
     const value = event.target.value;
-    if (!["low", "mid", "high", "xhigh", "max", "ultra"].includes(value)) return;
+    if (!REASONING_EFFORTS.includes(value)) return;
     state.reasoningEffort = value;
     localStorage.setItem("minicc-reasoning", value);
     updateReasoningControl();

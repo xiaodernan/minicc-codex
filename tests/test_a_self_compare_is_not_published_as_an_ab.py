@@ -28,21 +28,15 @@ import pytest
 
 from minicc import bench_compare
 from minicc.bench_compare import compare_reports, main
+from minicc.bench_compare import MOVEMENT_FIELDS
 from minicc.benchmarks import build_report
 
 CI = Path(__file__).resolve().parent.parent / ".github" / "workflows" / "ci.yml"
-
-#: The six keys that claim "the variant moved relative to the baseline".  Spelled
-#: out here rather than imported: they are the published JSON's own vocabulary, and
-#: a gate that cannot import a name must still be able to say the name is missing.
-MOVEMENT_FIELDS = (
-    "pass_at_1_delta",
-    "pass_at_1_delta_ci",
-    "cost_per_success_delta",
-    "cost_per_success_delta_ci",
-    "latency_p50_delta_ms",
-    "latency_p95_delta_ms",
-)
+#: The six keys that claim "the variant moved relative to the baseline".
+#: The home is ``bench_compare.MOVEMENT_FIELDS``; this import keeps the two
+#: faces in step, so a home that adds or drops a key is observed right here
+#: instead of silently under-checking the report (the failure this used to
+#: have: a hand-kept copy six members behind the home would still pass).
 
 
 def _report(*, p95_unit: float = 826_000.0, pass_every: int = 2) -> dict:

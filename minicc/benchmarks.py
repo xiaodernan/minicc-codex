@@ -118,7 +118,8 @@ def _declared_grader_type(task: dict[str, Any]) -> str:
     return "command" if task.get("verify_command") else "ungraded"
 
 
-VACUOUS_ORACLE_POLICY = "allow"  # "allow" | "deny" | "require_case_count"
+VACUOUS_ORACLE_POLICIES = ("allow", "deny", "require_case_count")
+VACUOUS_ORACLE_POLICY = "allow"  # one of VACUOUS_ORACLE_POLICIES
 
 def _oracle_says_pass(row: dict[str, Any]) -> bool:
     """Did the objective grader re-run this row and pass it on real work?
@@ -145,7 +146,7 @@ def _oracle_says_pass(row: dict[str, Any]) -> bool:
         return _measurement(count) and count >= 1
     # vacuous oracle: no case_count
     policy = VACUOUS_ORACLE_POLICY
-    if policy not in ("allow", "deny", "require_case_count"):
+    if policy not in VACUOUS_ORACLE_POLICIES:
         # Unknown policy -> safe default (deny)
         return False
     if policy == "deny" or policy == "require_case_count":

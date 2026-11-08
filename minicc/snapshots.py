@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 import re
 import secrets
 import shutil
@@ -14,6 +13,11 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 
 from .atomic_file import replace_with_retry
 from .changes import INTERNAL_DIRS
+from .gitprobe import (
+    git_status_exit_reason,
+    git_status_timeout_reason,
+    git_status_unavailable_reason,
+)
 from typing import Any
 
 _SAFE_TASK_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,80}$")
@@ -25,6 +29,13 @@ _MANIFEST_LOCK = threading.RLock()
 MAX_SNAPSHOT_FILES = 400
 MAX_SNAPSHOT_FILE_BYTES = 16 * 1024 * 1024
 MAX_SNAPSHOT_TOTAL_BYTES = 64 * 1024 * 1024
+
+#: The workspace-snapshot manifest's format version. Written once (capture),
+#: read twice (before_write fallback, restore) — a manifest that mis-reads
+#: its own version wipes every touched file with a ``missing`` entry, so the
+#: number is one fact with one home. Legacy manifests (version < 2) get the
+#: legacy layout; anything new is written ``2`` until a real migration exists.
+WORKSPACE_SNAPSHOT_MANIFEST_VERSION = 2
 
 
 class SnapshotError(RuntimeError):
@@ -98,14 +109,13 @@ def _git_dirty_files(workspace: Path) -> tuple[list[str], str | None]:
             capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=20, check=False,
         )
     except subprocess.TimeoutExpired:
-        return [], "git status 超时（20 秒）：工作区可能太大，脏文件清单没有读出来"
+        return [], git_status_timeout_reason(20, "脏文件清单")
     except OSError as exc:
-        return [], f"git status 无法运行: {exc}"
+        return [], git_status_unavailable_reason(exc)
     if completed.returncode != 0:
         # git's own words are the actionable half (safe.directory, index.lock,
         # not a repository); the exit code alone would not tell a user where to look.
-        detail = (completed.stderr or "").strip().splitlines()
-        return [], f"git status 退出码 {completed.returncode}" + (f": {detail[0][:200]}" if detail else "")
+        return [], git_status_exit_reason(completed.returncode, completed.stderr)
     files: list[str] = []
     seen: set[str] = set()
     records = iter(completed.stdout.split("\0"))
@@ -206,6 +216,11 @@ def capture(workspace: Path, task_id: str) -> dict[str, Any]:
         sizes: dict[str, int] = {}
         used = 0
         dirty, dirty_error = _git_dirty_files(root)
+        # M8-T537: one rules snapshot for the whole copy pass - the deny side
+        # is a fact about the workspace, not about the file being copied.
+        from .audit import path_deny_predicate
+
+        denied_by_rules = path_deny_predicate(root)
         for rel in dirty:
             # M8-T350: the deny rules have to reach the **copy** too.  A
             # snapshot preserves the dirty files, so a path the user denied
@@ -215,7 +230,7 @@ def capture(workspace: Path, task_id: str) -> dict[str, Any]:
             # file the rule refused.  The pre-image of a denied path is not
             # needed either: the agent cannot change that path, so there is
             # nothing to roll back.
-            if _is_denied_by_rules(root, rel):
+            if denied_by_rules(rel):
                 skipped.append(rel)
                 reasons[rel] = "permissions.json deny 规则覆盖该路径，未保留前置镜像"
                 continue
@@ -234,7 +249,7 @@ def capture(workspace: Path, task_id: str) -> dict[str, Any]:
             digests[rel] = digest
             sizes[rel] = size
             used += size
-        manifest = {"version": 2, "task_id": task_id, "files": copied, "digests": digests, "sizes": sizes, "missing": missing, "skipped": skipped, "skipped_reasons": reasons, "workspace": str(root), "dirty_read_error": dirty_error}
+        manifest = {"version": WORKSPACE_SNAPSHOT_MANIFEST_VERSION, "task_id": task_id, "files": copied, "digests": digests, "sizes": sizes, "missing": missing, "skipped": skipped, "skipped_reasons": reasons, "workspace": str(root), "dirty_read_error": dirty_error}
         _save(dest, manifest)
         return _summary(manifest)
 
@@ -246,10 +261,13 @@ def _is_denied_by_rules(workspace: Path, rel: str) -> bool:
     (``audit.tool_denied_by_rule``) - the same question the agent loop asks
     for the model's own calls, so a path is either denied everywhere or
     nowhere.
-    """
-    from .audit import tool_denied_by_rule
 
-    return tool_denied_by_rule(workspace, "read_file", {"path": rel})
+    M8-T537: the single-shot form asks the same predicate once; a caller with
+    many paths (``capture``) builds the predicate once instead.
+    """
+    from .audit import path_deny_predicate
+
+    return path_deny_predicate(workspace)(rel)
 
 
 def _digest(path: Path) -> str | None:
@@ -302,7 +320,7 @@ class SnapshotJournal:
                     raise SnapshotError(f"文件在任务快照后被外部修改，拒绝覆盖: {rel}")
             if rel not in manifest["files"] and rel not in manifest.get("missing", []):
                 if target.is_file():
-                    source_root = self.dest / "files" if manifest.get("version") == 2 else self.dest
+                    source_root = self.dest / "files" if manifest.get("version") == WORKSPACE_SNAPSHOT_MANIFEST_VERSION else self.dest
                     backup = _within(source_root, rel)
                     used = sum(int(size) for size in manifest.get("sizes", {}).values())
                     digest, size = _copy_preimage(target, backup, used=used, count=len(manifest["files"]))
@@ -362,7 +380,7 @@ def restore(workspace: Path, task_id: str) -> dict[str, Any]:
     # had just added.
     with _MANIFEST_LOCK:
         manifest = _load(dest, root)
-        source_root = dest / "files" if manifest.get("version") == 2 else dest
+        source_root = dest / "files" if manifest.get("version") == WORKSPACE_SNAPSHOT_MANIFEST_VERSION else dest
         journal = manifest.get("touched")
         if journal is not None and not isinstance(journal, dict):
             raise SnapshotError("快照写入记录格式错误")
@@ -416,4 +434,4 @@ def exists(workspace: Path, task_id: str) -> bool:
         return False
 
 
-__all__ = ["SnapshotError", "SnapshotJournal", "capture", "exists", "restore", "snapshot_dir"]
+__all__ = ["SnapshotError", "SnapshotJournal", "WORKSPACE_SNAPSHOT_MANIFEST_VERSION", "capture", "exists", "restore", "snapshot_dir"]

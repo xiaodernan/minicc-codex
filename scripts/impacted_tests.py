@@ -99,10 +99,21 @@ def _parse(path: Path) -> ast.Module:
         raise UnreadableSource(f"cannot read {path}: {type(exc).__name__}: {exc}") from exc
 
 
+def _listed_sources(listings: Listings) -> list[Path]:
+    """The paths every source reader walks: the listed modules, then the tests.
+
+    One home so a reader that wants paths without trees gets *the same*
+    path list the tree reader parses - otherwise a future path-only reader
+    would walk a set silently different from the one the trees were read
+    from, and no gate would notice (第五百二十四批 §7 第 4 位).
+    """
+    return [*listings.modules.values(), *listings.tests]
+
+
 def _read_trees(listings: Listings | None = None) -> dict[Path, ast.Module]:
     """Every source this run walks, read once. Raises ``UnreadableSource`` on the first failure."""
     listings = _listings() if listings is None else listings
-    paths = list(listings.modules.values()) + list(listings.tests)
+    paths = _listed_sources(listings)
     return {path: _parse(path) for path in paths}
 
 

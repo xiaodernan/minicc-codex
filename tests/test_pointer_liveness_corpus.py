@@ -159,13 +159,35 @@ def test_the_report_names_the_population_its_verdict_came_from(capsys, tmp_path,
     assert _CORPUS_SIZE.search(_footer(pair[2])).group(1) == str(expect_pair)
     assert expect_pair == expect_one, "README 与 PLUGIN_API 都已经在语料里，分母不该动"
 
+    # M8-T558: a measured baseline, not an assumed empty report.  On a dirty
+    # shared tree another lane's findings may legitimately be present; what a
+    # subset run may not do is answer the EXEMPT liveness question against
+    # its own subset instead of the corpus.  The alien cites nothing, so its
+    # run must print exactly the corpus' liveness rows.
     alien = tmp_path / "ALIEN.md"
     alien.write_text("# 仓库外的文档\n\n它没有指向本仓库任何路径。\n", encoding="utf-8")
     extra = _run(dp, ["--check", "--quiet", str(alien)], capsys)
+    corpus = _run(dp, ["--check", "--quiet", *[str(p) for p in dp.DEFAULT_DOCS]], capsys)
+
+    def _rows_of_kind(rows: list[str], kind: str) -> set[str]:
+        return {row for row in rows if row.startswith(f"DANGLING {kind} ")}
+
     assert _CORPUS_SIZE.search(_footer(extra[2])).group(1) == str(expect_one + 1), (
         "调用方另递的文档没有进语料分母：它带来的引用也就不会被算成引用"
     )
-    assert extra[0] == 0 and extra[1] == [], f"仓库外的一份文档应当被检查而不是把报告打死：{extra[1]}"
+    exempt_alien = _rows_of_kind(extra[1], "EXEMPT")
+    exempt_corpus = _rows_of_kind(corpus[1], "EXEMPT")
+    assert exempt_alien == exempt_corpus, (
+        "豁免表的判定按调用方递进的子集回答了：alien 单独递进的这一轮报出了 "
+        f"语料基线里没有的死行（基线外: {sorted(exempt_alien - exempt_corpus)}，基线内只多: {sorted(exempt_corpus - exempt_alien)}）"
+    )
+    rest = [row for row in extra[1] if row not in exempt_alien]
+    assert rest == [], (
+        f"仓库外的一份文档自己带来了发现（它一条路径都没引用，不该有）: {rest}"
+    )
+    assert extra[0] == (1 if extra[1] else 0), (
+        f"alien 文档的 rc 与报告里的 findings 对不上（rc={extra[0]}）"
+    )
 
     # The same file handed over under two spellings must still be one file. This is
     # the only observable that catches a missing ``resolve()`` — the guard added for
@@ -290,12 +312,25 @@ def test_the_liveness_predicate_still_scans_exactly_what_it_is_given(capsys) -> 
     )
 
 
-def test_the_documented_command_still_passes_with_a_relative_document() -> None:
+def test_the_documented_command_still_passes_with_a_relative_document(capsys) -> None:
     """The CLI surface, not just the Python surface.
 
     ``docs/`` and CI both invoke the script as a command; the crash this batch
     removed was a command-line one, so one of these gates has to run it that way.
+
+    The rc must follow the *report*, not an assumption of emptiness: on a
+    shared tree another lane's findings may legitimately be present.  The
+    in-process baseline measures the same union, and the subprocess must
+    print exactly the corpus' liveness rows and exit with its report's verdict.
     """
+    module = _load("minicc_doc_pointers_subprocess_baseline")
+    _, rows_base, _ = _run(module, ["--check", "--quiet", *[str(p) for p in module.DEFAULT_DOCS]], capsys)
+
+    def _rows_of_kind(rows, kind: str):
+        return {row for row in rows if row.startswith(f"DANGLING {kind} ")}
+
+    exempt_base = _rows_of_kind(rows_base, "EXEMPT")
+
     result = subprocess.run(
         [sys.executable, str(SCRIPT), "--check", "--quiet", "docs/PLUGIN_API.md"],
         capture_output=True,
@@ -305,8 +340,14 @@ def test_the_documented_command_still_passes_with_a_relative_document() -> None:
         env=dict(os.environ, PYTHONIOENCODING="utf-8"),
         cwd=REPO_ROOT,
     )
-    assert result.returncode == 0, (
-        f"rc={result.returncode}\nstdout={result.stdout}\nstderr={result.stderr[-400:]}"
+    reported = {line for line in result.stdout.splitlines() if line.startswith("DANGLING")}
+    assert _rows_of_kind(reported, "EXEMPT") == exempt_base, (
+        f"相对路径的子集检查没有交出与语料基线一致的豁免判定（基线 {sorted(exempt_base)[:1]}，"
+        f"这一轮 {sorted(_rows_of_kind(reported, 'EXEMPT'))[:1]}）：{result.stdout[-800:]}"
     )
-    assert "DANGLING" not in result.stdout and "Traceback" not in result.stderr
+    assert result.returncode == (1 if reported else 0), (
+        f"rc 与报告对不上（rc={result.returncode}）\n"
+        f"stdout={result.stdout}\nstderr={result.stderr[-400:]}"
+    )
+    assert "Traceback" not in result.stderr
     assert _CORPUS_SIZE.search(result.stdout) is not None, result.stdout

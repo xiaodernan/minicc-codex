@@ -2,11 +2,22 @@
 import { BoundedMap, BoundedSet } from "./bounded-cache.js";
 import { SESSION_CACHE_PREFIX } from "./session-cache.js";
 
+// The reasoning-effort vocabulary, one home. The Python backend already owns
+// REASONING_EFFORTS (minicc/config.py); this is the same fact for the UI,
+// and frontend_reasoning_effort_one_home_smoke.mjs pins both spellings.
+export const REASONING_EFFORTS = ["low", "mid", "high", "xhigh", "max", "ultra"];
+
+// The permission-mode vocabulary, one home for the UI. The Python backend
+// already owns PERMISSION_MODES (minicc/audit.py); this is the same fact for
+// the workbench, and frontend_permission_mode_one_home_smoke.mjs pins both
+// spellings (plus the static data-mode buttons in index.html).
+export const PERMISSION_MODES = ["default", "plan", "acceptEdits", "yolo"];
+
 export const state = {
   sessionId: localStorage.getItem("minicc-session") || "interview-1",
   allowChanges: localStorage.getItem("minicc-allow") === "true",
   allowNetwork: localStorage.getItem("minicc-network") === "true",
-  permissionMode: ["default", "plan", "acceptEdits", "yolo"].includes(localStorage.getItem("minicc-permission-mode"))
+  permissionMode: PERMISSION_MODES.includes(localStorage.getItem("minicc-permission-mode"))
     ? localStorage.getItem("minicc-permission-mode")
     : "default",
   locale: localStorage.getItem("minicc-locale") || "zh",
@@ -20,7 +31,7 @@ export const state = {
   models: [],
   modelCatalogError: "",
   modelCatalogLoading: false,
-  reasoningEffort: ["low", "mid", "high", "xhigh", "max", "ultra"].includes(localStorage.getItem("minicc-reasoning")) ? localStorage.getItem("minicc-reasoning") : "high",
+  reasoningEffort: REASONING_EFFORTS.includes(localStorage.getItem("minicc-reasoning")) ? localStorage.getItem("minicc-reasoning") : "high",
   busy: false,
   submitting: false,
   focusMode: localStorage.getItem("minicc-focus-mode") === "true",
@@ -61,9 +72,14 @@ export function authQuery(url) {
   return `${url}${url.includes("?") ? "&" : "?"}token=${encodeURIComponent(token)}`;
 }
 
+// The inspector-tab vocabulary, one home for the UI. The three tab buttons
+// in index.html and the validator in chat/stream.js both mean exactly
+// these; frontend_inspector_tab_one_home_smoke.mjs pins both spellings.
+export const INSPECTOR_TABS = ["changes", "files", "verification"];
+
 export const runtime = {
   workspaceVersion: 0,
-  inspectorTab: "changes",
+  inspectorTab: INSPECTOR_TABS[0],
   initialMessageMarkup: "",
   sessionViewReady: false,
   renderedTaskListKey: "",
@@ -101,11 +117,12 @@ export const TASK_PHASES = new Set([
   "completed", "failed", "cancelled", "interrupted",
 ]);
 // The phases that mean "the task is still doing something" - the ones the
-// live-task element styles as in-flight.
-export const ACTIVE_TASK_PHASES = new Set([
-  "queued", "planning", "intake", "tool", "execution", "answering", "summarize",
-  "review", "verify", "repair", "permission", "merging",
-]);
+// live-task element styles as in-flight. Derived from the two facts that
+// already have names, exactly as ACTIVE_TASK_STATUSES is derived from
+// TASK_STATUSES - so a new in-flight phase is missed nowhere.
+export const ACTIVE_TASK_PHASES = new Set(
+  [...TASK_PHASES].filter((phase) => !TERMINAL_TASK_STATUSES.has(phase)),
+);
 // The phases that ended without an answer, so the task can be resumed.
 export const RESUMABLE_TASK_PHASES = new Set(["failed", "cancelled", "interrupted"]);
 // M8-T384: the todo checklist's vocabularies, mirroring ``TODO_STATUSES`` /
@@ -115,8 +132,12 @@ export const RESUMABLE_TASK_PHASES = new Set(["failed", "cancelled", "interrupte
 // must not be rendered as if it were legal.  One home per vocabulary.
 export const TODO_STATUSES = new Set(["pending", "in_progress", "completed"]);
 export const TODO_PRIORITIES = new Set(["high", "medium", "low"]);
-export const MAX_SESSION_VIEW_CHARS = 180_000;
-export const MAX_SEEN_EVENT_KEYS = 2048;
+// The session-view and event-retention caps live in their one homes
+// (session-cache.js owns the per-view markup cap; bounded-cache.js owns
+// the event-identity cap). Re-exported here so existing importers keep
+// working - new consumers should import from the homes.
+export { MAX_SESSION_VIEW_CHARS } from "./session-cache.js";
+export { MAX_SEEN_EVENT_KEYS } from "./bounded-cache.js";
 export const MAX_RENDERED_TIMELINE_EVENTS = 240;
 
 export const $ = (selector) => document.querySelector(selector);

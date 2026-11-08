@@ -40,9 +40,11 @@ from pathlib import Path
 
 from ..env_files import ENV_FILENAME
 from ..secret_suffixes import KEY_MATERIAL_SUFFIXES
+from ..tools.fs import SKIP_DIRS as _HIDDEN_DIRS
 
-
-SKIP_DIRS = {".git", ".venv", "venv", "node_modules", "__pycache__", "output", "tmp", "data", ".minicc", "dist", "build", "coverage"}
+# M8-T562: the evidence index's unwalkable set is the tools' own hidden-entry
+# policy plus its own four scan-noise names - one home, no second spelling.
+SKIP_DIRS = _HIDDEN_DIRS | {"output", "tmp", "data", "coverage"}
 TEXT_SUFFIXES = {".py", ".js", ".ts", ".tsx", ".jsx", ".mjs", ".cjs", ".css", ".html", ".json", ".md", ".yaml", ".yml", ".toml", ".go", ".rs", ".java", ".sql", ".vue", ".svelte"}
 SECRET_FILENAMES = {".env", ".env.local"}
 #: Basenames (casefolded, no suffix) that hold credentials rather than code.

@@ -51,14 +51,16 @@ from __future__ import annotations
 
 import argparse
 import ast
+import bisect
 import difflib
 import re
 import subprocess
 import sys
-from bisect import bisect_left
+from collections.abc import Iterable
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
+from typing import Protocol
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_DOCS = tuple(sorted((REPO_ROOT / "docs").glob("*.md"))) + (REPO_ROOT / "README.md",)
@@ -216,6 +218,16 @@ class Section:
 
 
 @dataclass(frozen=True, slots=True)
+class Headline:
+    """A heading and the text beneath it, without the line number a foreign answer never needs."""
+
+    offset: int
+    level: int
+    title: str
+    body: str
+
+
+@dataclass(frozen=True, slots=True)
 class Problem:
     kind: str
     document: str
@@ -237,36 +249,54 @@ class Stats:
     links_generated: int = 0
 
 
-def sections(text: str) -> list[Section]:
-    """Every heading with the span beneath it, until the next heading."""
+def _headlines(text: str) -> list[Headline]:
+    """Every heading with the span beneath it, until the next heading - and no line ruler.
+
+    The foreign reader asks only what a document *declares*; the line a heading sits on is a
+    property of the checked document's ruler.  Splitting the scan from the numbering is what
+    lets a named document be read without paying ``_newline_index`` / ``_line_of`` for every
+    heading it owns (M8-T560); ``sections`` is this list plus that one line each.
+    """
     found = list(_HEADING.finditer(text))
-    out: list[Section] = []
+    out: list[Headline] = []
     for index, match in enumerate(found):
         end = found[index + 1].start() if index + 1 < len(found) else len(text)
         out.append(
-            Section(
+            Headline(
+                offset=match.start(),
                 level=len(match.group(1)),
                 title=match.group(2).strip(),
-                line=_line_of(text, match.start()),
                 body=text[match.end() : end],
             )
         )
     return out
 
 
-def _newline_positions(text: str) -> tuple[int, ...]:
-    """Every newline offset in one sweep; uncached, so a lost cache shows up as sweeps."""
+def sections(text: str, starts: tuple[int, ...] | None = None) -> list[Section]:
+    """Every heading with the span beneath it, until the next heading.
+
+    ``starts`` is the newline index when the caller already bought one; built here otherwise.
+    """
+    starts = _newline_index(text) if starts is None else starts
+    out: list[Section] = []
+    for heading in _headlines(text):
+        out.append(Section(
+            level=heading.level,
+            title=heading.title,
+            line=_line_of(starts, heading.offset),
+            body=heading.body,
+        ))
+    return out
+
+
+def _newline_index(text: str) -> tuple[int, ...]:
+    """Every newline offset in ``text``; bought once per document by its caller."""
     return tuple(match.start() for match in re.finditer("\n", text))
 
 
-@lru_cache(maxsize=4)
-def _line_index(text: str) -> tuple[int, ...]:
-    """One document's sweep, kept while its line questions arrive."""
-    return _newline_positions(text)
-
-
-def _line_of(text: str, offset: int) -> int:
-    return bisect_left(_line_index(text), offset) + 1
+def _line_of(starts: tuple[int, ...], offset: int) -> int:
+    """1-based line of ``offset``, bisected over the index the caller bought."""
+    return bisect.bisect_right(starts, offset - 1) + 1
 
 
 def _numeral(word: str) -> int | None:
@@ -305,7 +335,15 @@ def _declared_number(title: str) -> int | None:
     return _numeral(match.group(1))
 
 
-def _numbered_headings(headings: list[Section]) -> dict[int, Section]:
+class _Numbered(Protocol):
+    """What the numbering rule reads: a level, a title, and the body the title owns."""
+
+    level: int
+    title: str
+    body: str
+
+
+def _numbered_headings(headings: Iterable[_Numbered]) -> dict[int, _Numbered]:
     """Map ``N`` to the level-2 heading that declares itself section N.
 
     Two spellings are in use here: the roadmap writes ``## 四、明确不做什么`` while
@@ -313,7 +351,7 @@ def _numbered_headings(headings: list[Section]) -> dict[int, Section]:
     says 「第8节」. Both have to be tied to their number before a section pointer means
     anything; a heading that declares no number cannot be pointed at.
     """
-    out: dict[int, Section] = {}
+    out: dict[int, _Numbered] = {}
     for section in headings:
         if section.level != 2:
             continue
@@ -361,14 +399,26 @@ def _enclosing_table(
 
 
 @lru_cache(maxsize=None)
-def _numbered_sections(path: Path) -> dict[int, Section]:
+def _document_text(path: Path) -> str:
+    """The bytes of a named document, read once per pass.
+
+    Every foreign question - the section table, the id registry - is answered from this one
+    read: the answer cannot be fresher than the pass, because the pass judges one snapshot.
+    """
+    return path.read_text(encoding="utf-8")
+
+
+@lru_cache(maxsize=None)
+def _numbered_sections(path: Path) -> dict[int, _Numbered]:
     """Read another document's section table the same way this document's is read.
 
     Memoised because a pointer may name the same file dozens of times, and because
     ``_numbered_headings`` is the *only* rule for what owns a number — a second,
-    hand-written notion of "does document X have a 第N节" is where drift starts.
+    hand-written notion of "does document X have a 第N节" is where drift starts.  The table
+    comes from ``_headlines`` over the one read: a foreign answer carries no line number, so
+    it buys no newline index either (M8-T560).
     """
-    return _numbered_headings(sections(path.read_text(encoding="utf-8")))
+    return _numbered_headings(_headlines(_document_text(path)))
 
 
 def _batch_label(match: "re.Match[str]") -> str:
@@ -465,17 +515,40 @@ def _named_documents(text: str, offset: int) -> list[Path]:
     return found
 
 
-def _cross_document_sections(text: str, offset: int, numeral: int) -> list[Section]:
+def _same_document(path: Path, document: Path) -> bool:
+    """Whether the named path *is* the document under check, not merely spelled alike.
+
+    The checker is handed the text it judges; the disk may already hold a different revision.
+    Answering a self-citation from disk would judge bytes the caller never asked about, so the
+    comparison is by resolved path and the caller's own table answers the question.
+    """
+    try:
+        return path.resolve() == document.resolve()
+    except OSError:
+        return False
+
+
+def _cross_document_sections(
+    document: Path,
+    numbered: dict[int, _Numbered],
+    text: str,
+    offset: int,
+    numeral: int,
+) -> list[_Numbered]:
     """Resolve ``第N节`` inside every document the sentence names explicitly.
 
     ``复核命令见审核文档第十二节`` cannot be checked: "审核文档" is not a file a
     tool can find, and it happens to be the one document whose 第十二节 does
     exist. ``见 docs/X.md 第N节`` is checkable, so that is the form the gate
-    accepts.
+    accepts.  A document that names *itself* is answered from the caller's table, not from
+    disk; every other named document is read through the one memoised door.
     """
-    found: list[Section] = []
+    found: list[_Numbered] = []
     for path in _named_documents(text, offset):
-        target = _numbered_headings(sections(path.read_text(encoding="utf-8"))).get(numeral)
+        if _same_document(path, document):
+            target = numbered.get(numeral)
+        else:
+            target = _numbered_sections(path).get(numeral)
         if target is not None:
             found.append(target)
     return found
@@ -620,7 +693,9 @@ def _span_documents(span: str) -> list[tuple[str, Path | None]]:
     return out
 
 
-def _span_name_claims(document: Path, text: str, offset: int, span: str) -> list[Problem]:
+def _span_name_claims(
+    document: Path, text: str, starts: tuple[int, ...], offset: int, span: str
+) -> list[Problem]:
     """Answer the bare file names a marker asserts, using the name rule that already exists.
 
     ``carried-by-link-reader`` and ``citation-without-locator`` are each a promise about who
@@ -630,7 +705,7 @@ def _span_name_claims(document: Path, text: str, offset: int, span: str) -> list
     reader only parses code spans, and the prose-path reader requires a slash. That is the
     same gap M8-T41 closed for names *inside* backticks, so the same resolver is reused.
     """
-    return _check_name_targets(document, text, offset, [("name", name) for name in _span_names(span)])
+    return _check_name_targets(document, text, starts, offset, [("name", name) for name in _span_names(span)])
 
 
 def _link_target(match: re.Match[str]) -> str:
@@ -783,7 +858,8 @@ def _declared_labels(text: str) -> list[tuple[int, int, str]]:
 
 
 def _check_quoted_name(
-    document: Path, text: str, offset: int, name: str, labels: list[tuple[int, int, str]]
+    document: Path, text: str, starts: tuple[int, ...], offset: int, name: str,
+    labels: list[tuple[int, int, str]],
 ) -> list[Problem]:
     """Answer a pointer that names its target 「X」 with a place-word in front.
 
@@ -795,7 +871,7 @@ def _check_quoted_name(
     """
     tail = _AFTER_MARKER.match(text, offset + (2 if text.startswith("参见", offset) else 1))
     direction = (tail.group(1) or "") if tail else ""
-    line = _line_of(text, offset)
+    line = _line_of(starts, offset)
     hits = [start for start, end, label in labels if name in label and not start <= offset < end]
     if direction.startswith("上"):
         hits = [start for start in hits if start < offset]
@@ -816,7 +892,8 @@ def _check_quoted_name(
 
 
 def _check_name_targets(
-    document: Path, text: str, offset: int, targets: list[tuple[str, str]]
+    document: Path, text: str, starts: tuple[int, ...], offset: int,
+    targets: list[tuple[str, str]],
 ) -> list[Problem]:
     """Resolve the file names a citation points at that no other reader parses.
 
@@ -826,12 +903,17 @@ def _check_name_targets(
     dozens of times, and demanding a unique match would only teach writers to type
     a directory. A name git ignores is a run's own output: still a citation, but
     judged the way the link reader judges products, not as a missing file.
+
+    Only a ``name`` target can be answered here, so a citation whose targets the kind
+    filter throws away admits nothing and is asked for no line number (M8-T556, judged
+    by ``test_a_line_number_is_asked_only_for_an_item_the_reader_admits.py``).
     """
-    line = _line_of(text, offset)
     problems: list[Problem] = []
-    for kind, span in targets:
-        if kind != "name":
-            continue
+    named = [span for kind, span in targets if kind == "name"]
+    if not named:
+        return problems
+    line = _line_of(starts, offset)
+    for span in named:
         ref = _NAME_REF.match(span)
         assert ref is not None, span  # _gap_targets only files what it matches
         path = ref.group("path")
@@ -864,7 +946,8 @@ def _check_name_targets(
 
 def check_pointers(document: Path, text: str) -> tuple[list[Problem], int, dict[str, int]]:
     """Return problems, the number of checked pointers, and the per-box counts."""
-    headings = sections(text)
+    starts = _newline_index(text)
+    headings = sections(text, starts)
     numbered = _numbered_headings(headings)
     batch_claims = _batch_claims(headings)
     subsections = _subsection_tables(headings)
@@ -875,20 +958,20 @@ def check_pointers(document: Path, text: str) -> tuple[list[Problem], int, dict[
     for offset, span, box, targets in _pointer_spans(text):
         boxes[box] += 1
         if box == BOX_CODE_NAME:
-            problems += _check_name_targets(document, text, offset, targets)
+            problems += _check_name_targets(document, text, starts, offset, targets)
             continue
         if box == BOX_QUOTED_NAME:
             # Counted in its own box and answered here; it is *not* added to the
             # ``checked`` headline total, which would make that integer no longer mean
             # "a locator-shaped target resolved" for every reader of the summary line.
-            problems += _check_quoted_name(document, text, offset, span, labels)
+            problems += _check_quoted_name(document, text, starts, offset, span, labels)
             continue
         if box in (BOX_LINK_TEXT, BOX_NO_LOCATOR):
             # The hand-off is only for the claim the other reader parses. A name written in
             # prose beside it stays this marker's business, and answering it here keeps the
             # box's meaning intact: 「carried-by-link-reader」 still says *the link* is
             # someone else's work, not that the whole span is.
-            problems += _span_name_claims(document, text, offset, span)
+            problems += _span_name_claims(document, text, starts, offset, span)
             continue
         if box != BOX_CHECKED:
             # Every non-checked box is counted and named in the summary: that is the
@@ -901,11 +984,11 @@ def check_pointers(document: Path, text: str) -> tuple[list[Problem], int, dict[
         appendices = list(_APPENDIX.finditer(span))
         ids = _ID.findall(span)
         checked += 1
-        line = _line_of(text, offset)
-        problems += _span_name_claims(document, text, offset, span)
+        line = _line_of(starts, offset)
+        problems += _span_name_claims(document, text, starts, offset, span)
         owners = _span_documents(span)
-        target: Section | None = None
-        remote: list[Section] = []
+        target: _Numbered | None = None
+        remote: list[_Numbered] = []
         ambiguous: list[Section] = []
         for sec in secs:
             numeral = _numeral(sec.group(1))
@@ -916,9 +999,13 @@ def check_pointers(document: Path, text: str) -> tuple[list[Problem], int, dict[
                 # different answer to a different question. Measured before the change: that
                 # false green and the control case (the section really is here) produced
                 # byte-identical readings, so nothing in the account could tell them apart.
-                hit: Section | None = None
+                hit: _Numbered | None = None
                 for _, path in owners:
-                    if path is not None and (section := _numbered_sections(path).get(numeral)) is not None:
+                    if path is None:
+                        continue
+                    section = (numbered.get(numeral) if _same_document(path, document)
+                               else _numbered_sections(path).get(numeral))
+                    if section is not None:
                         hit = section
                         break
                 if hit is not None:
@@ -941,7 +1028,10 @@ def check_pointers(document: Path, text: str) -> tuple[list[Problem], int, dict[
                 target = numbered.get(numeral)
             if target is not None:
                 continue
-            found = _cross_document_sections(text, offset, numeral) if numeral is not None else []
+            found = (
+                _cross_document_sections(document, numbered, text, offset, numeral)
+                if numeral is not None else []
+            )
             if found:
                 remote += found  # the sentence names the file that owns the section
                 continue
@@ -987,10 +1077,11 @@ def check_pointers(document: Path, text: str) -> tuple[list[Problem], int, dict[
             registry = _id_registry(scope)
             for section in remote:
                 registry |= _id_registry(f"## {section.title}\n{section.body}")
-            if target is None and not remote:
+            if target is None and not remote and ids:
                 # ``见 docs/X.md P0-1`` declares the id in the other file's heading.
                 for path in _named_documents(text, offset):
-                    registry |= _id_registry(path.read_text(encoding="utf-8"))
+                    scope_text = text if _same_document(path, document) else _document_text(path)
+                    registry |= _id_registry(scope_text)
             for identifier in ids:
                 if identifier in registry:
                     continue
@@ -1006,7 +1097,7 @@ def check_pointers(document: Path, text: str) -> tuple[list[Problem], int, dict[
             Problem(
                 "FENCE",
                 document.name,
-                _line_of(text, offset),
+                _line_of(starts, offset),
                 "这一行开了一个围栏，到文末都没有闭合；它之后的正文没有被当成代码削掉，"
                 "指针照判——但渲染器会把那一段整个吞进代码块",
             )
@@ -1060,6 +1151,7 @@ def check_links(document: Path, text: str) -> tuple[list[Problem], int, int]:
     reported as a dangling link. The cost is the accepted one: a broken link that only
     ever appears inside code is invisible here too.
     """
+    starts = _newline_index(text)
     problems: list[Problem] = []
     checked = 0
     generated = 0
@@ -1083,7 +1175,7 @@ def check_links(document: Path, text: str) -> tuple[list[Problem], int, int]:
             if here
             else f"链接目标 {target} 不存在"
         )
-        problems.append(Problem("LINK", document.name, _line_of(text, match.start()), detail))
+        problems.append(Problem("LINK", document.name, _line_of(starts, match.start()), detail))
     return problems, checked, generated
 
 
@@ -1308,12 +1400,12 @@ _DECLINED_PATH: dict[str, str] = {
 #: **not** in the package - which is the same sentence ``_RETIRED_TEST_NAME``
 #: cannot carry, because a retired name once shipped and these never did.
 _DECLINED_TEST_NAME: dict[str, str] = {
-    "test_every_emitter_reaches_the_home": "第五百一十四批（M8-T532）草案给这条腿起的名字；落地时"
-    "把名字改回出货名 `test_every_emitter_asks_the_home`——11 条在仓引用（含 "
+    "test_every_emitter_reaches_the_home": "第五百一十四批（M8-T532）草案给这条腿起的名字；落地的"
+    "把名字改回出货名 `test_every_emitter_asks_the_home`——1 条在仓引用（如"
     "`docs/ROADMAP_TO_PRODUCT.md:34821` 那条认账）指向它，而这条腿问的问题从未变过，变的只是什么算"
     "答案。这个拼法从未进入仓库，文档引它正是在记录这次「改名退回」",
     "test_the_provider_channel_switch_still_arrives_at_the_home": "第五百一十四批（M8-T532）写好又"
-    "删掉的一条腿：核对之后发现 `tests/test_the_channel_switched_event_has_one_home.py:43` 已把 "
+    "删掉的一条腿：核对之后发 `tests/test_the_channel_switched_event_has_one_home.py:43` 已把 "
     "`channel_switched_event(402)` 的七个键逐个钉死、`:88-89` 钉了两个提供者拿的是同一个对象、"
     "`:92-108` 钉了 `_switch_to_plan(402)` 发出来的就是那条——再加一条就是第二个家。这个拼法从未进入"
     "仓库，文档引它正是在记录这次删除",
@@ -1369,6 +1461,7 @@ def _test_definitions(path: Path) -> dict[str, int]:
     }
 
 
+@lru_cache(maxsize=1)
 def _all_test_names() -> dict[str, str]:
     """Every test function name under tracked ``tests/*.py``, mapped to its file.
 
@@ -1575,18 +1668,25 @@ def _evidence_shape(span: str) -> str | None:
 
 
 def check_evidence(document: Path, text: str) -> tuple[list[Problem], int]:
-    """Verify every file / line / attribute / test-name claim inside inline code."""
+    """Verify every file / line / attribute / test-name claim inside inline code.
+
+    A code span admits itself as a claim only through ``_evidence_shape``, and the line
+    number is asked after that: most spans in a document are plain names, and counting
+    newlines up to one of those answers a question nobody asked (M8-T556, judged by
+    ``test_a_line_number_is_asked_only_for_an_item_the_reader_admits.py``).
+    """
     relative = document.relative_to(REPO_ROOT).as_posix() if document.is_relative_to(REPO_ROOT) else document.name
     if relative in _OUT_OF_SCOPE_DOCS:
         return [], 0
+    starts = _newline_index(text)
     problems: list[Problem] = []
     names = _all_test_names()
     stems = {module.stem for module in (REPO_ROOT / "tests").glob("*.py") if _holds(f"tests/{module.name}")}
     checked = 0
     for offset, span in _code_spans(text):
-        line = _line_of(text, offset)
         if _evidence_shape(span) is None:
             continue
+        line = _line_of(starts, offset)
         checked += 1
         # An exemption is registered against the *citation as written*, so it has
         # to be consulted before any of the sub-checks. Reading it only in the
@@ -1754,6 +1854,8 @@ def main(argv: list[str] | None = None) -> int:
     # same reason ``ensure_utf8_output`` already gives for never letting a
     # printing problem become an exit-code problem.
     documents = [path.resolve() for path in args.documents]
+    _document_text.cache_clear()
+    _numbered_sections.cache_clear()
 
     problems: list[Problem] = []
     totals = {"pointers": 0, "markers": 0, "links": 0, "evidence": 0, "prose_paths": 0, "links_generated": 0}

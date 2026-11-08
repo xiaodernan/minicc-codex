@@ -32,7 +32,7 @@ import minicc.benchmarks as benchmarks
 from minicc.benchmarks import build_report, run_benchmark
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-NO_RESULT_KEYS = {"passed", "grader_type", "grading_refused", "refusal"}
+from minicc.bench_tasks import NO_RESULT_KEYS
 
 HOST_FAILURES = [
     pytest.param(subprocess.TimeoutExpired(cmd="verify", timeout=1), id="timeout"),

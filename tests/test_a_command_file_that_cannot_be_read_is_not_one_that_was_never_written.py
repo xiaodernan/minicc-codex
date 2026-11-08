@@ -339,7 +339,10 @@ def test_the_cli_one_shot_refuses_with_a_nonzero_exit(tmp_path: Path, monkeypatc
     monkeypatch.setattr(cli, "_turn", _recording_turn)
     monkeypatch.setattr(cli, "_interactive", _no_interactive)
     monkeypatch.setattr(cli, "OpenAICompatibleProvider", _CliProvider)
-    monkeypatch.setattr(cli, "cli_out", lambda *args: lines.append(" ".join(str(x) for x in args)))
+    monkeypatch.setattr(cli, "cli_out", lambda *args, **_kwargs: lines.append(" ".join(str(x) for x in args)))
+    # 解耦部署环境：CI 没有 MINICC_API_KEY，_load 会提前退出——测试要钉的是
+    # 「一条读不出来的命令不是一条没写过的命令」，不是配置加载。
+    monkeypatch.setenv("MINICC_API_KEY", "sk-test-key")
 
     code = cli.main(["--workspace", str(ws), "--no-stream", "/review 检查 src/x.py"])
     assert code == 1, f"a refused one-shot run must not report success: {lines}"
@@ -369,7 +372,7 @@ def test_the_repl_stops_calling_a_broken_file_an_unknown_command(tmp_path: Path,
         turns.append(str(prompt))
 
     monkeypatch.setattr("builtins.input", lambda *_a: next(asked))
-    monkeypatch.setattr(cli, "cli_out", lambda *args: lines.append(" ".join(str(x) for x in args)))
+    monkeypatch.setattr(cli, "cli_out", lambda *args, **_kwargs: lines.append(" ".join(str(x) for x in args)))
     monkeypatch.setattr(cli, "_turn", _recording_turn)
 
     config = types.SimpleNamespace(max_output_tokens=100)

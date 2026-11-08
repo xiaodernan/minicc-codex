@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import re
 import types
 from pathlib import Path
 
@@ -33,6 +34,18 @@ def test_web_consumes_the_same_objects() -> None:
 
     assert web.APPROVAL_DECISIONS is audit.APPROVAL_DECISIONS
     assert web.PERMITTING_APPROVAL_DECISIONS is audit.PERMITTING_APPROVAL_DECISIONS
+
+
+def test_the_js_home_matches_the_python_home() -> None:
+    """approvals.js spells the same three values, pinned here so neither face drifts."""
+    js = (REPO / "web" / "src" / "core" / "approvals.js").read_text(encoding="utf-8")
+    match = re.search(r"export const APPROVAL_DECISIONS = \[([^\]]+)\]", js)
+    assert match, "approvals.js must export APPROVAL_DECISIONS"
+    js_decisions = frozenset(re.findall(r'"([a-z]+)"', match.group(1)))
+    assert js_decisions == DECISIONS, (
+        "the JS and Python approval decision homes disagree: "
+        f"JS has {sorted(js_decisions)}, Python has {sorted(DECISIONS)}"
+    )
 
 
 def test_no_module_inlines_the_decisions() -> None:

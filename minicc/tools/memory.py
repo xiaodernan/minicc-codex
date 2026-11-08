@@ -41,7 +41,7 @@ from ..clock import utc_stamp
 from ..config import ConfigError, home_dir
 from ..sidecar_lock import hold_sidecar, sidecar_path_for
 from .registry import ToolError, ToolParamError, ToolResult, redact_text
-from .schemas import untrusted_tags
+from .schemas import TOOL_STATUS_OK, untrusted_tags
 
 # M8-T527: the standard library logger, the way ``minicc/tools/editor.py``
 # does it - ``minicc.logging_setup`` imports ``minicc.tools.registry``, so
@@ -70,20 +70,10 @@ ENTRY_RE = re.compile(
 )
 
 _APPEND_LOCK = threading.Lock()
-
-# M8-T527: the sidecar lock's budget.  The memory file is small and the
-# read-modify-write inside the lock is short, so the ceiling is the catalog's
-# 40 x 50ms = 2s: long enough for a neighbour that is mid-append, short
-# enough that a wedged one does not hang a tool call.
-_LOCK_ATTEMPTS = 40
-_LOCK_RETRY_DELAY = 0.05
-
-# M8-T527: the read side rides out the same transient refusal with the
-# repository's one answer for it (``minicc/atomic_file.py``).  A reader that
-# is refused must not answer "there are no memories".
-_READ_ATTEMPTS = 24
-_READ_RETRY_DELAY = 0.05
-
+# M8-T527: the sidecar lock's budget is the one home's default (40 attempts
+# at 50ms; a wedged neighbour costs 2s and the write is refused with a
+# diagnosis). Readers ride the same transient refusal with the one answer in
+# minicc/atomic_file.py — default 24 attempts at 50ms.
 
 @dataclass(frozen=True)
 class MemoryEntry:
@@ -156,7 +146,7 @@ class MemoryTools:
         silently says "none" is a wrong answer.
         """
         try:
-            text = read_text_with_retry(path, attempts=_READ_ATTEMPTS, delay=_READ_RETRY_DELAY)
+            text = read_text_with_retry(path)  # budget/delay are the one home's defaults
         except FileNotFoundError:
             # No file yet is not a failure: it is an empty memory file.
             return []
@@ -208,8 +198,6 @@ class MemoryTools:
         with _APPEND_LOCK:
             with hold_sidecar(
                 sidecar_path_for(path),
-                attempts=_LOCK_ATTEMPTS,
-                delay=_LOCK_RETRY_DELAY,
             ) as outcome:
                 if not outcome.held:
                     raise ToolError(
@@ -285,7 +273,7 @@ class MemoryTools:
         if changed or source_changed:
             summary += "；检测到疑似密钥，已脱敏后落盘"
         return ToolResult(
-            status="ok",
+            status=TOOL_STATUS_OK,
             summary=summary,
             output=entry.to_line(),
             data={"entry": entry.to_dict()},
@@ -301,7 +289,7 @@ class MemoryTools:
         if not matches:
             raise ToolError(f"未找到记忆 {memory_id!r}（用 memory_list 查看现有条目）")
         return ToolResult(
-            status="ok",
+            status=TOOL_STATUS_OK,
             summary=f"{len(matches)} 条记忆全文（id={memory_id}）",
             output="\n".join(entry.to_line() for entry in matches),
             data={"entries": [entry.to_dict() for entry in matches]},
@@ -328,7 +316,7 @@ class MemoryTools:
             for entry in entries
         ]
         return ToolResult(
-            status="ok",
+            status=TOOL_STATUS_OK,
             summary=(
                 f"{len(entries)} 条长期记忆（scope={'all' if scope is None else scope}, "
                 f"排序={reason}{', query=' + repr(query) if query.strip() else ''}）"

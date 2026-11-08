@@ -18,6 +18,12 @@ from ..config import TRUTHY
 from ..trace import trace_event
 
 
+# The completion judge's own "which events can certify a goal" judgment, one
+# home in minicc.agent.completion.  Imported lazily inside _select_citable_
+# evidence: llm must not pull the agent's import weight at module import time,
+# and the fake's whole point is to cite exactly what the real gate accepts.
+
+
 #: The one env var that switches a whole run to the deterministic fake provider.
 FAKE_PROVIDER_ENV = "MINICC_FAKE_PROVIDER"
 
@@ -101,14 +107,16 @@ class FakeProvider:
             return LLMResponse(content=decision, usage=_FAKE_USAGE["judge"])
         self._agent_turn += 1
         if self._agent_turn == 1:
+            from ..agent.protocol import PHASE_PLANNING, PROVIDER_RETRY_CODE
+
             for attempt in range(self._faults):
                 # Same payload shape as the real stream retry, so a log or
                 # event assertion written here describes the production trace.
                 self._emit(trace_event(
                     name="provider",
                     status="error",
-                    phase="planning",
-                    code="provider_retry",
+                    phase=PHASE_PLANNING,
+                    code=PROVIDER_RETRY_CODE,
                     summary=stream_retry_summary(attempt + 1),
                     detail=retry_detail(attempt + 1, 2),
                 ))
@@ -156,20 +164,15 @@ class FakeProvider:
             except (json.JSONDecodeError, TypeError):
                 packet = {}
             if isinstance(packet, dict):
+                from ..agent.completion import is_citable_evidence_item
+
                 for item in packet.get("verification_results", []):
                     if isinstance(item, dict) and item.get("id"):
                         return [str(item["id"])]
                 for item in packet.get("events", []):
                     if not isinstance(item, dict):
                         continue
-                    kind = item.get("kind")
-                    name = item.get("name")
-                    citable = (
-                        item.get("write")
-                        or kind == "verification"
-                        or item.get("status") == "error"
-                        or (kind != "trace" and name and name != "agent")
-                    )
+                    citable = is_citable_evidence_item(item)
                     if citable and item.get("id"):
                         return [str(item["id"])]
         # Fallback: any packet id at all (older prompts / parse misses).

@@ -17,6 +17,7 @@ from .tools.registry import redact_text
 
 from .config import unreadable_file_message, unwritable_file_message
 from .internal_paths import ALLOWLIST_NAME  # re-exported: the deny list reads it from here
+from .tools.names import TOOL_NAME_BASH
 
 _lock = threading.RLock()
 
@@ -242,7 +243,7 @@ def match_session_allowlist(
     name = str(tool or "").strip()
     if tool_rule_matches(name, rules["tools"]):
         return True
-    if name == "bash":
+    if name == TOOL_NAME_BASH:
         command, _ = redact_text(str((arguments or {}).get("command") or ""))
         command = command.strip()
         if command and any(

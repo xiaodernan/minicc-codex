@@ -35,7 +35,14 @@ def test_the_home_builds_the_event() -> None:
 
 
 def test_the_eight_keys_are_spelled_exactly_once_in_the_package() -> None:
-    """One literal, in the home - a second one is a second event shape."""
+    """Zero hand spellings outside the home, one shape inside it.
+
+    The T422 signature was ``FIELDS`` spelled exactly once (in the home).
+    Batch 566 gave the record one home in ``trace.py`` with a ``kind``
+    parameter, so the home now spells ``"kind": kind`` via the home instead
+    of a literal - and an 8-key ``FIELDS`` literal anywhere in the package,
+    inside the home included, is a hand-copied record again.
+    """
     offenders: list[str] = []
     for path in sorted(PACKAGE.rglob("*.py")):
         try:
@@ -53,9 +60,16 @@ def test_the_eight_keys_are_spelled_exactly_once_in_the_package() -> None:
             }
             if keys == FIELDS:
                 offenders.append(f"{relative}:{node.lineno}")
-    assert len(offenders) == 1 and offenders[0].startswith(HOME + ":"), (
+    assert offenders == [], (
         "the authorization event is spelled by hand outside its one "
         "home: " + ", ".join(offenders)
+    )
+    source = (REPO / HOME).read_text(encoding="utf-8")
+    assert 'kind="authorization"' in source, (
+        "the home no longer asks the trace home for the authorization kind"
+    )
+    assert 'event["authorization"] = authorization' in source, (
+        "the home stopped attaching its own flat extras"
     )
 
 

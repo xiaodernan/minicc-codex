@@ -29,7 +29,14 @@ RECORD_CLIP_NOTICE = "… [记录截断：以上只入库前 {kept} 字符，其
 #: iteration; one step per digit a count can gain or lose is more than the loop needs.
 _CLIP_NOTICE_STEPS = 8
 
-TOOL_RESULT_STATUSES = ("ok", "error", "denied", "cancelled", "timed_out")
+# M8-T618: individual tool result status constants (one home for ToolResult literals).
+TOOL_STATUS_OK = "ok"
+TOOL_STATUS_ERROR = "error"
+TOOL_STATUS_DENIED = "denied"
+TOOL_STATUS_CANCELLED = "cancelled"
+TOOL_STATUS_TIMED_OUT = "timed_out"
+
+TOOL_RESULT_STATUSES = (TOOL_STATUS_OK, TOOL_STATUS_ERROR, TOOL_STATUS_DENIED, TOOL_STATUS_CANCELLED, TOOL_STATUS_TIMED_OUT)
 #: The statuses that mean "this call did not do what it was asked to do".
 #:
 #: M8-T376: the agent loop asked this question **twice** and wrote the answer
@@ -44,7 +51,7 @@ TOOL_RESULT_STATUSES = ("ok", "error", "denied", "cancelled", "timed_out")
 #: else.  That is why the exclusion is spelled out here rather than left to
 #: whoever copies the list next.
 FAILED_TOOL_RESULT_STATUSES = frozenset(
-    status for status in TOOL_RESULT_STATUSES if status not in {"ok", "cancelled"}
+    status for status in TOOL_RESULT_STATUSES if status not in {TOOL_STATUS_OK, TOOL_STATUS_CANCELLED}
 )
 #: The statuses that mean "this call did not succeed" - the whole non-ok
 #: part of the vocabulary.
@@ -54,7 +61,7 @@ FAILED_TOOL_RESULT_STATUSES = frozenset(
 #: above (a cancelled call did not succeed, even though it is not a failure
 #: the model should retry), and it now has its own home.
 UNSUCCESSFUL_TOOL_RESULT_STATUSES = frozenset(
-    status for status in TOOL_RESULT_STATUSES if status != "ok"
+    status for status in TOOL_RESULT_STATUSES if status != TOOL_STATUS_OK
 )
 
 
@@ -225,7 +232,7 @@ def tagged(code: str, message: str) -> str:
 
 @dataclass
 class ToolResult:
-    status: str = "ok"  # ok | error | denied | cancelled | timed_out
+    status: str = TOOL_STATUS_OK  # ok | error | denied | cancelled | timed_out
     summary: str = ""
     output: str = ""
     head: str = ""

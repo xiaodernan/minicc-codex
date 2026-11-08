@@ -5,8 +5,16 @@ from __future__ import annotations
 import time
 from typing import Any
 
+from .agent.protocol import TASK_STATUS_CANCELLED, TASK_STATUS_INTERRUPTED
 from .task_store import TaskStore
-from .task_contract import TaskResult
+from .task_contract import (
+    RESULT_FIELD_ANSWER,
+    RESULT_FIELD_CANCELLED,
+    RESULT_FIELD_CHILDREN_ROLLED_UP,
+    RESULT_FIELD_ERROR,
+    RESULT_FIELD_TOKENS_USED,
+    TaskResult,
+)
 
 # M8-T391: the worker-metadata fields a snapshot carries across the
 # process boundary.  The mirror below copies them out of the snapshot and
@@ -61,7 +69,7 @@ class WorkerSnapshotMirror:
             else:
                 task.append_stream(window[self.last_offset - start:])
             self.last_offset = offset
-        usage = snapshot.get("usage") or snapshot.get("tokens_used")
+        usage = snapshot.get("usage") or snapshot.get(RESULT_FIELD_TOKENS_USED)
         if isinstance(usage, dict) and usage and usage != self.last_usage:
             task.update_usage(usage, cumulative=True)
             self.last_usage = dict(usage)
@@ -90,14 +98,14 @@ class WorkerSnapshotMirror:
         result = dict(snapshot.get("result") or {})
         payload = TaskResult.from_payload({
             **result,
-            "answer": str(result.get("answer") or snapshot.get("stream_text") or ""),
-            "error": str(snapshot.get("error") or result.get("error") or ("worker task was interrupted" if snapshot.get("status") == "interrupted" else "")),
-            "cancelled": snapshot.get("status") == "cancelled",
-            "tokens_used": dict(snapshot.get("usage") or snapshot.get("tokens_used") or {}),
+            RESULT_FIELD_ANSWER: str(result.get(RESULT_FIELD_ANSWER) or snapshot.get("stream_text") or ""),
+            RESULT_FIELD_ERROR: str(snapshot.get(RESULT_FIELD_ERROR) or result.get(RESULT_FIELD_ERROR) or ("worker task was interrupted" if snapshot.get("status") == TASK_STATUS_INTERRUPTED else "")),
+            RESULT_FIELD_CANCELLED: snapshot.get("status") == TASK_STATUS_CANCELLED,
+            RESULT_FIELD_TOKENS_USED: dict(snapshot.get("usage") or snapshot.get(RESULT_FIELD_TOKENS_USED) or {}),
         }).to_payload()
         # The fold flag is host-owned bookkeeping, so it travels from the
         # snapshot field rather than from the (model-authored) result body — and
         # only when set, otherwise the two executors would not normalise alike.
-        if snapshot.get("children_rolled_up"):
-            payload["children_rolled_up"] = True
+        if snapshot.get(RESULT_FIELD_CHILDREN_ROLLED_UP):
+            payload[RESULT_FIELD_CHILDREN_ROLLED_UP] = True
         return payload

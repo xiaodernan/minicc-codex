@@ -53,6 +53,7 @@ from ..tools.schemas import (
 )
 from ..hooks import HookRunner
 from ..trace import trace_event
+from .protocol import BUDGET_EXCEEDED_FIELD, PHASE_EXECUTION
 
 SUBAGENT_TOOL_NAME = "task"
 # Readonly evidence tools only. No network (parent research stays in the
@@ -82,8 +83,10 @@ SUBAGENT_TOOL_TIERS = {
 }
 # Permission modes that authorize a subagent to write without an interactive
 # approval prompt (a subagent cannot prompt the user mid-run).
-WRITABLE_PERMISSION_MODES = frozenset({"acceptEdits", "yolo"})
-EXEC_PERMISSION_MODES = frozenset({"yolo"})
+from ..audit import PERMISSION_MODE_ACCEPT_EDITS, PERMISSION_MODE_YOLO
+
+WRITABLE_PERMISSION_MODES = frozenset({PERMISSION_MODE_ACCEPT_EDITS, PERMISSION_MODE_YOLO})
+EXEC_PERMISSION_MODES = frozenset({PERMISSION_MODE_YOLO})
 DEFAULT_MAX_TURNS = 24
 DEFAULT_TIMEOUT_SECONDS = 600.0
 MAX_CONCURRENT_SUBAGENTS = 3
@@ -97,8 +100,6 @@ DEFAULT_MAX_DEPTH = 2
 #: 600s ``future.result``.
 WAIT_POLL_SECONDS = 0.25
 PROGRESS_EMIT_SECONDS = 5.0
-_TOOL_LOG = ("tool", "summary")
-
 _SUBAGENT_SLOTS = threading.BoundedSemaphore(MAX_CONCURRENT_SUBAGENTS)
 
 TaskToolProviderFactory = Callable[[], Any]
@@ -441,7 +442,7 @@ class _SubagentRunner:
 
         def lifecycle(code: str, status: str, summary: str, **detail: Any) -> None:
             event = trace_event(
-                name="subagent", status=status, phase="execution", code=code,
+                name="subagent", status=status, phase=PHASE_EXECUTION, code=code,
                 summary=summary,
             )
             event["parent_id"] = run_id
@@ -601,7 +602,7 @@ class _SubagentRunner:
                         f"{subagent_budget_exhausted_message(description)}（{exc}）",
                     ),
                     output=subagent_budget_failed_output(),
-                    data={"description": description, "tool_log": tool_log, "budget_exceeded": True},
+                    data={"description": description, "tool_log": tool_log, BUDGET_EXCEEDED_FIELD: True},
                     security_tags=untrusted_tags("subagent"),
                 )
         if timed_out:

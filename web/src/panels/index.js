@@ -5,7 +5,7 @@ import { attachmentMarkup, escapeHtml, executionTrailMarkup, formatBytes, format
 import { openPanel, openTaskInWorkspace } from "../chat/stream.js";
 import { isTerminalTask, updateLiveTask } from "../core/api.js";
 import { t } from "../core/i18n.js";
-import { $, $$, ACTIVE_TASK_STATUSES, AUTH_STORAGE_KEY, MAX_RENDERED_TIMELINE_EVENTS, MAX_SEEN_EVENT_KEYS, TASK_PHASES, TERMINAL_TASK_STATUSES, TODO_PRIORITIES, TODO_STATUSES, finalizedTaskIds, runningTasks, runtime, state, taskBySession, taskTimerHandles } from "../core/state.js";
+import { $, $$, ACTIVE_TASK_STATUSES, AUTH_STORAGE_KEY, MAX_RENDERED_TIMELINE_EVENTS, MAX_SEEN_EVENT_KEYS, PERMISSION_MODES, TASK_PHASES, TERMINAL_TASK_STATUSES, TODO_PRIORITIES, TODO_STATUSES, finalizedTaskIds, runningTasks, runtime, state, taskBySession, taskTimerHandles } from "../core/state.js";
 import { icon, refreshIcons } from "../icons.js";
 
 export function showToast(message) {
@@ -340,7 +340,10 @@ export function restoreSessionTask(sessionId) {
   setBusy(true);
 }
 
-export const PERMISSION_MODES = ["default", "plan", "acceptEdits", "yolo"];
+// The permission-mode vocabulary lives in core/state.js (same fact the
+// Python backend owns as PERMISSION_MODES); re-exported here because
+// main.js consumes it from this module's surface.
+export { PERMISSION_MODES };
 
 // Effective per-task permission flags for the selected mode. `plan` forces the
 // read-only flags, `yolo` implies both; `default`/`acceptEdits` honor the
@@ -1275,6 +1278,55 @@ export function traceLabel(event) {
          run_finished: "执行结束",
         stagnation_guard: "循环保护",
         max_turns: "轮次上限",
+        // M8-T556: every code the backend can mint has a name here or the
+        // timeline chip reads as "阶段事件". Pinned by
+        // tests/frontend_trace_code_one_home_smoke.mjs.
+        approval_requested: "需要批准",
+        approval_resolved: "批准已裁决",
+        background_limit_reached: "后台任务已达上限",
+        batch_resume: "批量恢复",
+        budget_exceeded: "预算超限",
+        cancel_requested: "已请求取消",
+        cancelled: "已取消",
+        completion_continue_capped: "完成评估续跑已达上限",
+        completion_judge_rejected: "完成评估被驳回",
+        completion_verdict_repeated: "完成评估判断重复",
+        dependency_aware_repair_scope: "依赖感知的修复范围",
+        detached_process_blocked: "后台进程被拦截",
+        empty_answer: "空答案",
+        hook_blocked_user_prompt: "钩子拦截了输入",
+        hook_executed: "钩子已执行",
+        mentions_resolved: "提及已解析",
+        nonterminal_turn: "未终结轮次",
+        nonterminal_turn_limit: "未终结轮次上限",
+        planner_dynamic_ready: "动态规划就绪",
+        planner_execution_finished: "规划执行完成",
+        planner_execution_skipped: "规划执行已跳过",
+        planner_execution_started: "规划执行开始",
+        planner_fixed_fallback: "固定规划回退",
+        planner_node_finished: "规划节点完成",
+        planner_node_provider_status: "规划节点模型状态",
+        planner_node_started: "规划节点开始",
+        planner_preflight_fallback: "规划预检回退",
+        planner_started: "规划开始",
+        planner_tool_out_of_scope: "规划工具越界",
+        protocol_guard: "协议保护",
+        protocol_repair: "协议修复",
+        provider_request_retry: "请求重试",
+        provider_transport_fallback: "传输回退",
+        repair_stage_provider: "修复阶段模型",
+        safe_readonly_checkpoint: "只读检查点恢复",
+        session_checkpoint: "会话检查点",
+        soft_budget_stopped: "软预算停止",
+        soft_budget_wrap_up: "软预算收尾",
+        task_model_fallback: "任务模型回退",
+        tool_authorized: "工具已授权",
+        tool_history_recovered: "工具历史已恢复",
+        verification_guard: "验证保护",
+        verification_required_before_finish: "收尾前需先验证",
+        verification_satisfied_by_inspection: "检查即视为已完成验证",
+        verification_waiver_refused_by_failed_read: "豁免被拒（读取失败）",
+        vision_context_restored: "视觉上下文已恢复",
         batch_started: "并行编排",
         auto_orchestration_triggered: "自动编排",
         orchestration_parent_resumed: "主 Agent 接管",
@@ -1325,6 +1377,55 @@ export function traceLabel(event) {
          run_finished: "Execution finished",
         stagnation_guard: "Loop guard",
         max_turns: "Turn limit",
+        // M8-T556: every code the backend can mint has a name here or the
+        // timeline chip reads as "Stage event". Pinned by
+        // tests/frontend_trace_code_one_home_smoke.mjs.
+        approval_requested: "Approval needed",
+        approval_resolved: "Approval resolved",
+        background_limit_reached: "Background task limit",
+        batch_resume: "Batch resume",
+        budget_exceeded: "Budget exceeded",
+        cancel_requested: "Cancel requested",
+        cancelled: "Cancelled",
+        completion_continue_capped: "Continue capped",
+        completion_judge_rejected: "Completion rejected",
+        completion_verdict_repeated: "Verdict repeated",
+        dependency_aware_repair_scope: "Dependency-aware repair scope",
+        detached_process_blocked: "Detached process blocked",
+        empty_answer: "Empty answer",
+        hook_blocked_user_prompt: "Hook blocked prompt",
+        hook_executed: "Hook executed",
+        mentions_resolved: "Mentions resolved",
+        nonterminal_turn: "Nonterminal turn",
+        nonterminal_turn_limit: "Nonterminal turn limit",
+        planner_dynamic_ready: "Planner ready",
+        planner_execution_finished: "Plan execution finished",
+        planner_execution_skipped: "Plan execution skipped",
+        planner_execution_started: "Plan execution started",
+        planner_fixed_fallback: "Fixed plan fallback",
+        planner_node_finished: "Plan node finished",
+        planner_node_provider_status: "Plan node status",
+        planner_node_started: "Plan node started",
+        planner_preflight_fallback: "Preflight fallback",
+        planner_started: "Planner started",
+        planner_tool_out_of_scope: "Plan tool out of scope",
+        protocol_guard: "Protocol guard",
+        protocol_repair: "Protocol repair",
+        provider_request_retry: "Request retry",
+        provider_transport_fallback: "Transport fallback",
+        repair_stage_provider: "Repair stage provider",
+        safe_readonly_checkpoint: "Read-only checkpoint",
+        session_checkpoint: "Session checkpoint",
+        soft_budget_stopped: "Soft budget stopped",
+        soft_budget_wrap_up: "Soft budget wrap up",
+        task_model_fallback: "Task model fallback",
+        tool_authorized: "Tool authorized",
+        tool_history_recovered: "Tool history recovered",
+        verification_guard: "Verification guard",
+        verification_required_before_finish: "Verify before finish",
+        verification_satisfied_by_inspection: "Verified by inspection",
+        verification_waiver_refused_by_failed_read: "Waiver refused",
+        vision_context_restored: "Vision context restored",
         batch_started: "Parallel orchestration",
         auto_orchestration_triggered: "Auto orchestration",
         orchestration_parent_resumed: "Parent agent resumed",
@@ -1377,7 +1478,7 @@ export function traceDetailPreview(event) {
     ? { turn: "轮次", previous_turn: "上一轮", tool_count: "工具", results: "结果", observed: "已观察", observations: "观察", constraints: "约束", failed_tools: "失败", verification_required: "需验证", recovery_inspection_required: "写入保护", assessment: "反馈", trigger: "触发", next_action: "下一步" }
     : { turn: "turn", previous_turn: "previous", tool_count: "tools", results: "results", observed: "observed", observations: "observations", constraints: "constraints", failed_tools: "failed", verification_required: "verify", recovery_inspection_required: "write guard", assessment: "assessment", trigger: "trigger", next_action: "next" };
   const parts = [];
-  for (const key of ["turn", "previous_turn", "tool_count", "results", "observed", "observations", "constraints", "failed_tools", "verification_required", "recovery_inspection_required", "assessment", "trigger", "next_action"]) {
+  for (const key of Object.keys(labels)) {
     const value = detail[key];
     if (value == null || value === "") continue;
     const compact = Array.isArray(value)
@@ -1413,13 +1514,12 @@ export function traceDetail(event, options = {}) {
   if (!options.omitText && typeof detail.text === "string" && detail.text) parts.push(detail.text);
   const labels = state.locale === "zh"
     ? {
-        turn: "轮次", previous_turn: "上一轮", tool_count: "工具数", tools: "工具", answer_chars: "回答字符", duration_ms: "耗时", duration_seconds: "耗时", count: "数量", names: "名称", statuses: "状态", max_turns: "轮次上限", turn_policy: "轮次策略", child_count: "子任务数", child: "子任务", failed: "失败数", retry: "重试", retry_limit: "重试上限", partial_chars: "已输出字符", error_type: "错误类型", requested: "请求", active: "实际", wire_value: "请求值", task_id: "任务", tokens: "tokens", automatic: "自动", complexity_score: "复杂度", complexity_threshold: "触发线", complexity_reasons: "触发原因", attempt: "评估次数", confidence: "置信度", rationale: "依据", missing: "缺失", next_action: "下一步", evidence: "证据", error: "错误", trigger: "触发原因", observed: "已观察", observations: "观察结果", constraints: "当前约束", basis: "判断依据", public_plan: "公开计划", results: "工具结果", structured_data: "结构化结果", new_information: "新信息", failed_tools: "失败工具", needs_repair: "需要修复", verification_required: "需要验证", assessment: "反馈判断", replan_trigger: "重规划触发", parallel_mode: "并行模式", max_concurrency: "并发度", dependency_shape: "依赖结构", merge_strategy: "合并策略", parallel_results: "并行结果", merge_basis: "合并依据", result_summary: "结果摘要", turns: "轮次", tool_calls: "工具调用"
+        turn: "轮次", previous_turn: "上一轮", tool_count: "工具数", tools: "工具", answer_chars: "回答字符", duration_ms: "耗时", duration_seconds: "耗时", count: "数量", names: "名称", statuses: "状态", max_turns: "轮次上限", turn_policy: "轮次策略", child_count: "子任务数", child: "子任务", failed: "失败数", retry: "重试", retry_limit: "重试上限", partial_chars: "已输出字符", error_type: "错误类型", requested: "请求", active: "实际", wire_value: "请求值", task_id: "任务", tokens: "tokens", automatic: "自动", complexity_score: "复杂度", complexity_threshold: "触发线", complexity_reasons: "触发原因", attempt: "评估次数", confidence: "置信度", rationale: "依据", missing: "缺失", next_action: "下一步", evidence: "证据", error: "错误", trigger: "触发原因", observed: "已观察", observations: "观察结果", constraints: "当前约束", basis: "判断依据", public_plan: "公开计划", results: "工具结果", structured_data: "结构化结果", new_information: "新信息", failed_tools: "失败工具", needs_repair: "需要修复", verification_required: "需要验证", recovery_inspection_required: "写入保护", assessment: "反馈判断", replan_trigger: "重规划触发", parallel_mode: "并行模式", max_concurrency: "并发度", dependency_shape: "依赖结构", merge_strategy: "合并策略", parallel_results: "并行结果", merge_basis: "合并依据", result_summary: "结果摘要", turns: "轮次", tool_calls: "工具调用"
       }
     : {
-        turn: "turn", previous_turn: "previous turn", tool_count: "tools", tools: "tools", answer_chars: "answer chars", duration_ms: "duration", duration_seconds: "duration", count: "count", names: "names", statuses: "statuses", max_turns: "turn limit", turn_policy: "turn policy", child_count: "children", child: "child", failed: "failed", retry: "retry", retry_limit: "retry limit", partial_chars: "partial chars", error_type: "error type", requested: "requested", active: "active", wire_value: "wire", task_id: "task", tokens: "tokens", automatic: "automatic", complexity_score: "complexity", complexity_threshold: "threshold", complexity_reasons: "reasons", attempt: "review attempt", confidence: "confidence", rationale: "rationale", missing: "missing", next_action: "next action", evidence: "evidence", error: "error", trigger: "trigger", observed: "observed", observations: "observations", constraints: "constraints", basis: "basis", public_plan: "public plan", results: "tool results", structured_data: "structured evidence", new_information: "new information", failed_tools: "failed tools", needs_repair: "needs repair", verification_required: "verification required", assessment: "assessment", replan_trigger: "re-plan trigger", parallel_mode: "parallel mode", max_concurrency: "concurrency", dependency_shape: "dependency shape", merge_strategy: "merge strategy", parallel_results: "parallel results", merge_basis: "merge basis", result_summary: "result summary", turns: "turns", tool_calls: "tool calls"
+        turn: "turn", previous_turn: "previous turn", tool_count: "tools", tools: "tools", answer_chars: "answer chars", duration_ms: "duration", duration_seconds: "duration", count: "count", names: "names", statuses: "statuses", max_turns: "turn limit", turn_policy: "turn policy", child_count: "children", child: "child", failed: "failed", retry: "retry", retry_limit: "retry limit", partial_chars: "partial chars", error_type: "error type", requested: "requested", active: "active", wire_value: "wire", task_id: "task", tokens: "tokens", automatic: "automatic", complexity_score: "complexity", complexity_threshold: "threshold", complexity_reasons: "reasons", attempt: "review attempt", confidence: "confidence", rationale: "rationale", missing: "missing", next_action: "next action", evidence: "evidence", error: "error", trigger: "trigger", observed: "observed", observations: "observations", constraints: "constraints", basis: "basis", public_plan: "public plan", results: "tool results", structured_data: "structured evidence", new_information: "new information", failed_tools: "failed tools", needs_repair: "needs repair", verification_required: "verification required", recovery_inspection_required: "write guard", assessment: "assessment", replan_trigger: "re-plan trigger", parallel_mode: "parallel mode", max_concurrency: "concurrency", dependency_shape: "dependency shape", merge_strategy: "merge strategy", parallel_results: "parallel results", merge_basis: "merge basis", result_summary: "result summary", turns: "turns", tool_calls: "tool calls"
       };
-  const keys = ["turn", "previous_turn", "tool_count", "tools", "answer_chars", "duration_ms", "duration_seconds", "count", "names", "statuses", "max_turns", "turn_policy", "child_count", "child", "failed", "retry", "retry_limit", "partial_chars", "error_type", "requested", "active", "wire_value", "task_id", "tokens", "automatic", "complexity_score", "complexity_threshold", "complexity_reasons", "attempt", "confidence", "rationale", "missing", "next_action", "evidence", "error", "trigger", "observed", "observations", "constraints", "basis", "public_plan", "results", "structured_data", "new_information", "failed_tools", "needs_repair", "verification_required", "assessment", "replan_trigger", "parallel_mode", "max_concurrency", "dependency_shape", "merge_strategy", "parallel_results", "merge_basis", "result_summary", "turns", "tool_calls"];
-  for (const key of keys) {
+  for (const key of Object.keys(labels)) {
     if (detail[key] == null) continue;
     parts.push(`${labels[key] || key}: ${detailValueText(detail[key])}`);
   }
@@ -1572,7 +1672,9 @@ export function toolEventHtml(event, animate = false, anchor = "", open = false)
     const traceClass = status === "error" ? "trace-error" : "trace-ok";
     const detail = traceDetail(event, { omitText: event.code === "model_update" });
     const publicText = event.code === "model_update" && typeof event.detail?.text === "string" ? event.detail.text : "";
-    const tracePhase = event.code === "run_finished" ? "review" : event.phase;
+    // M8-T565: the phase is the backend's answer; run_finished always arrives
+    // as "review", so no second copy of that decision lives here.
+    const tracePhase = event.phase;
     const isModelEvent = String(event.code || "") === "model_update";
     const summary = isModelEvent && event.code === "model_update"
       ? (state.locale === "zh" ? `行动说明 · 第 ${event.detail?.turn || ""} 轮` : `Action · turn ${event.detail?.turn || ""}`)

@@ -9,7 +9,6 @@ import inspect
 import os
 import sys
 import threading
-import time
 from typing import Any
 
 import pytest
@@ -34,6 +33,14 @@ _HAS_PYTEST_ASYNCIO = importlib.util.find_spec("pytest_asyncio") is not None
 # asserted from pytest's own measured duration, so the run keeps its report either way.
 
 DEFAULT_HANG_LIMIT_SECONDS = 900.0
+
+#: The tests this process rewrote from ``passed`` to ``failed`` for crossing the
+#: bound - the one named home for the hang class. The summary line files them
+#: under "failed" together with assertion verdicts, and that was the word batch
+#: 522 flagged as the hang class's homelessness. This list gives the rewrite a
+#: reader: session finish prints one named line, so a CI log sees the hang
+#: class without opening the report body to find who crossed.
+_HANG_REWRITES: list[tuple[str, float]] = []
 
 
 def hang_limit_seconds():
@@ -98,7 +105,58 @@ def pytest_runtest_makereport(item, call):
             + "s bound. Before this hook, a test that stopped returning stalled the whole"
             " run silently (M8-T45 boundary 3)."
         )
+        _HANG_REWRITES.append((item.nodeid, report.duration))
     return report
+
+
+def pytest_sessionfinish(session, exitstatus) -> None:
+    """Report the hang class on its own line; the summary files it with verdicts.
+
+    The rewrite in ``pytest_runtest_makereport`` is deliberate (a hung test must
+    not be swallowed), which is why the word "failed" cannot name the class
+    today. The class gets its own named line here instead - a reader for the
+    rewrite, so the word problem from M8-T522 is closed by giving the class a
+    listener instead of renaming pytest's outcome.
+    """
+    if not _HANG_REWRITES:
+        return
+    noun = "test" if len(_HANG_REWRITES) == 1 else "tests"
+    names = ", ".join(nodeid for nodeid, _ in _HANG_REWRITES)
+    sys.stderr.write(
+        f"\nMINICC_TEST_HANG_LIMIT: {len(_HANG_REWRITES)} {noun} crossed the hang bound"
+        f" (not a verdict): {names}\n"
+    )
+
+
+# --- M8-T536: fixture repos must not inherit the machine's git policy -------
+#
+# Measured in this repository: the machine-wide ``~/.gitconfig`` sets
+# ``core.hooksPath`` to a directory of real commit hooks, so every temporary
+# fixture repo that runs ``git commit`` runs - and pays for - policy that lives
+# outside the repository. The 300-file change-panel fixture took over ten
+# minutes; the roadmap recorded a 14-minute stall behind one ``git commit``.
+# A suite's verdict must not be decided by the machine it runs on, and the same
+# hook could reject a fixture commit outright with its secret scan.
+#
+# The session therefore points git's *user-global* config (and the XDG config
+# it falls back to) at an empty file. System config is deliberately left alone:
+# it carries platform defaults such as ``core.autocrlf``, not per-user policy.
+# ``tests/test_the_fixtures_do_not_inherit_machine_git_policy.py`` witnesses
+# the isolation both ways.
+
+@pytest.fixture(scope="session", autouse=True)
+def _isolate_git_user_config(tmp_path_factory):
+    empty = tmp_path_factory.mktemp("git-config-isolation") / "empty.gitconfig"
+    empty.write_text("", encoding="utf-8")
+    previous = os.environ.get("GIT_CONFIG_GLOBAL")
+    os.environ["GIT_CONFIG_GLOBAL"] = str(empty)
+    try:
+        yield str(empty)
+    finally:
+        if previous is None:
+            os.environ.pop("GIT_CONFIG_GLOBAL", None)
+        else:
+            os.environ["GIT_CONFIG_GLOBAL"] = previous
 
 
 def suite_python() -> str:

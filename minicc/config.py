@@ -16,7 +16,7 @@ import logging
 import math
 import os
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -48,6 +48,12 @@ SANDBOX_MODES = frozenset({"host", "docker", "auto"})
 # one fact each.  They live here now; every reader imports them.
 TOOL_MODES = frozenset({"auto", "native", "envelope"})
 LLM_PROTOCOLS = frozenset({"auto", "responses", "chat_completions"})
+# The named members of the home, for readers whose logic is pinned to one
+# member.  ``"auto"`` is intentionally left unnamed - it is shared by several
+# unrelated vocabularies (see the gate note in tests/ for why it is not
+# policed) - so only the two members that name one specific wire are named.
+LLM_PROTOCOL_RESPONSES = "responses"
+LLM_PROTOCOL_CHAT_COMPLETIONS = "chat_completions"
 PROVIDER_TYPES = frozenset({"auto", "openai", "anthropic"})
 TASK_EXECUTORS = frozenset({"thread", "process"})
 DEFAULT_SANDBOX_IMAGE = "python:3.11-slim"
@@ -889,7 +895,7 @@ def load_config(
         "MINICC_SOFT_MAX_DURATION_SECONDS", "soft_max_duration_seconds"
     )
     resolved_protocol = pick(None, "MINICC_LLM_PROTOCOL", "llm_protocol", DEFAULT_LLM_PROTOCOL).strip().lower()
-    aliases = {"chat": "chat_completions", "completions": "chat_completions", "response": "responses"}
+    aliases = {"chat": LLM_PROTOCOL_CHAT_COMPLETIONS, "completions": LLM_PROTOCOL_CHAT_COMPLETIONS, "response": LLM_PROTOCOL_RESPONSES}
     resolved_protocol = aliases.get(resolved_protocol, resolved_protocol)
     if resolved_protocol not in LLM_PROTOCOLS:
         raise ConfigError(

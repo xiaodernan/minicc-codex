@@ -37,7 +37,7 @@ from .config import unreadable_file_message, unrecognized_key_warning
 from .internal_paths import MCP_CONFIG_NAME
 from .jsonrpc import ERROR_METHOD_NOT_FOUND, JSONRPC_VERSION, method_not_found_message
 from .logging_setup import get_logger
-from .netguard import SCHEME_PREFIXES, BlockedAddressError, assert_public_http_url, redirect_limit_message
+from .netguard import SCHEME_PREFIXES, BlockedAddressError, REDIRECT_STATUSES, assert_public_http_url, redirect_limit_message
 from .tools.registry import (
     TOOL_NAME_BODY_CLASS,
     TOOL_NAME_MAX_CHARS,
@@ -750,7 +750,7 @@ class McpHttpClient:
                 # wrapper's close() walks that None: AttributeError, not a release.
                 if exc.fp is not None:
                     exc.close()
-                if exc.code in {301, 302, 303, 307, 308} and location:
+                if exc.code in REDIRECT_STATUSES and location:
                     target = urllib.parse.urljoin(current, location)
                     try:
                         assert_public_http_url(

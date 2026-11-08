@@ -9,6 +9,16 @@ on:
     - cron: "17 18 * * *"
   workflow_dispatch:
 
+# M8-T561: one run per (ref, event) at a time.  Push runs on the same
+# branch supersede each other, so the latest tree is the one that gets
+# the runner — the previous eight queued runs were each destined to
+# re-verify a tree that had already been replaced by a newer push.
+# Pull requests and the nightly real-key eval keep their own groups on
+# the same ref, so a push can never cancel a scheduled or PR run.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
 jobs:
   pytest:
     name: Python tests (${{ matrix.os }})
@@ -120,6 +130,21 @@ jobs:
           node --check tests/zombie_spawn_smoke.mjs
           node --check tests/frontend_phase_classes_smoke.mjs
           node --check tests/frontend_phase_one_home_smoke.mjs
+          node --check tests/frontend_trace_code_one_home_smoke.mjs
+          node --check tests/frontend_reasoning_effort_one_home_smoke.mjs
+          node --check tests/frontend_i18n_dict_one_home_smoke.mjs
+          node --check tests/frontend_trace_phase_one_home_smoke.mjs
+          node --check tests/frontend_permission_mode_one_home_smoke.mjs
+          node --check tests/frontend_web_session_id_one_home_smoke.mjs
+          node --check tests/frontend_context_window_one_home_smoke.mjs
+          node --check tests/frontend_trace_detail_one_home_smoke.mjs
+          node --check tests/frontend_inspector_tab_one_home_smoke.mjs
+          node --check tests/frontend_task_event_kinds_one_home_smoke.mjs
+          node --check tests/game_entity_registry_smoke.mjs
+          node --check tests/frontend_result_entry_caps_one_home_smoke.mjs
+          node --check tests/frontend_event_retention_one_home_smoke.mjs
+          node --check tests/frontend_approval_timeout_one_home_smoke.mjs
+          node --check tests/frontend_approval_frame_kinds_one_home_smoke.mjs
           npm run check:web
       - name: Install browser for focused UI contracts
         run: npx playwright install chromium --with-deps
@@ -129,6 +154,19 @@ jobs:
           npm run test:transport
           npm run test:lifecycle
           npm run test:phase
+          npm run test:trace
+          npm run test:effort
+          npm run test:i18n
+          npm run test:tracephase
+          npm run test:tracedetail
+          npm run test:inspector
+          npm run test:kinds
+          npm run test:entrycaps
+          npm run test:registry
+          npm run test:perm
+          npm run test:sessionid
+          npm run test:context
+          npm run test:eventretention
           npm run test:scale
 
   web-smoke:

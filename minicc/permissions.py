@@ -36,18 +36,27 @@ from .tools.registry import redact_text
 
 from .config import unreadable_file_message
 from .internal_paths import PERMISSIONS_NAME  # re-exported: the deny list reads it from here
+from .tools.names import TOOL_NAME_BASH
 
-_lock = threading.RLock()
-# (path, mtime_ns, size) -> (rules, error); file reads stay off the hot path.
-_cache: dict[str, tuple[tuple[int, int], tuple[dict[str, list[str]], str]]] = {}
-
+# M8-T634: permission rule verdict/side vocabulary (one home).
+# Distinct from hook decisions and user approval decisions.
+PERMISSION_RULE_VERDICT_ALLOW = "allow"
+PERMISSION_RULE_VERDICT_DENY = "deny"
 
 class PermissionConfigError(ValueError):
     """permissions.json is malformed at the schema level (non-fatal)."""
 
 
+_lock = threading.Lock()
+# str(path) -> (stamp, (rules, error)); file reads stay off the hot path.  The
+# stamp is the four-field witness (ino, mtime_ns, ctime_ns, size) - the
+# annotation used to claim the old two-field shape long after M8-T293 widened
+# it.
+_cache: dict[str, tuple[tuple[int, int, int, int], tuple[dict[str, list[str]], str]]] = {}
+
+
 def _empty_rules() -> dict[str, dict[str, list[str]]]:
-    return {"allow": empty_rule_side(), "deny": empty_rule_side()}
+    return {PERMISSION_RULE_VERDICT_ALLOW: empty_rule_side(), PERMISSION_RULE_VERDICT_DENY: empty_rule_side()}
 
 
 def _normalize_side(raw: object) -> dict[str, list[str]]:
@@ -71,14 +80,14 @@ def _validate(payload: object) -> tuple[dict[str, list[str]], str]:
     rules = _empty_rules()
     if not isinstance(payload, dict):
         raise PermissionConfigError("permissions.json 顶层必须是 JSON 对象")
-    unknown = set(payload) - {"allow", "deny", "permissions"}
+    unknown = set(payload) - {PERMISSION_RULE_VERDICT_ALLOW, PERMISSION_RULE_VERDICT_DENY, "permissions"}
     if unknown:
         raise PermissionConfigError(f"未知字段: {', '.join(sorted(unknown))}")
     body = payload.get("permissions") if isinstance(payload.get("permissions"), dict) else payload
     if not isinstance(body, dict):
         raise PermissionConfigError("permissions 必须是 JSON 对象")
-    rules["allow"] = _normalize_side(body.get("allow"))
-    rules["deny"] = _normalize_side(body.get("deny"))
+    rules[PERMISSION_RULE_VERDICT_ALLOW] = _normalize_side(body.get(PERMISSION_RULE_VERDICT_ALLOW))
+    rules[PERMISSION_RULE_VERDICT_DENY] = _normalize_side(body.get(PERMISSION_RULE_VERDICT_DENY))
     return rules, ""
 
 
@@ -92,7 +101,7 @@ def _match_patterns(tool: str, arguments: dict[str, Any] | None, side: dict[str,
     name = str(tool or "").strip()
     if tool_rule_matches(name, side["tools"]):
         return True
-    if name == "bash":
+    if name == TOOL_NAME_BASH:
         command, _ = redact_text(str((arguments or {}).get("command") or ""))
         command = command.strip()
         if command and any(
@@ -106,15 +115,32 @@ def _path(workspace: Path) -> Path:
     return Path(workspace) / ".minicc" / PERMISSIONS_NAME
 
 
+def _rules_unreadable_msg(exc: OSError) -> str:
+    """Return the unreadable-file error message for permission rules."""
+    return unreadable_file_message(PERMISSIONS_NAME, exc)
+
+
 def load_permission_rules(workspace: Path) -> tuple[dict[str, list[str]], str]:
-    """Return (rules, error). Missing file → empty rules, no error."""
+    """Return (rules, error). Missing file → empty rules, no error.
+
+    A file that is **there but cannot be read** is a different answer from a
+    file that is not there.  The old branch collapsed every ``OSError`` on the
+    stat into "no rules, no error", so a policy the process was not allowed to
+    look at silently stopped vetoing - the fail-open M8-T526 closed for a
+    malformed file, one syscall earlier.  No stamp means no cache entry: the
+    next caller gets a fresh observation instead of inheriting an answer that
+    was never read.
+    """
     path = _path(workspace)
     key = str(path)
     try:
         stat = path.stat()
-    except OSError:
+    except FileNotFoundError:
         _cache.pop(key, None)
         return _empty_rules(), ""
+    except OSError as exc:
+        _cache.pop(key, None)
+        return _empty_rules(), _rules_unreadable_msg(exc)
     # M8-T293: the stamp carries ``ino`` and ``ctime`` too, like every other
     # memo in this repository.  With only ``(mtime, size)`` an equal-length
     # rewrite of the rules file (``"secrets/*"`` -> ``"secretz/*"``) left the
@@ -134,7 +160,7 @@ def load_permission_rules(workspace: Path) -> tuple[dict[str, list[str]], str]:
             payload = json.loads(path.read_text(encoding="utf-8"))
             rules, _ = _validate(payload)
         except PermissionConfigError as exc:
-            # M8-T285: this comes **first** - it is a ``ValueError``, and the
+            # M8-T285: this comes ``first`` - it is a ``ValueError``, and the
             # decode clause below catches every ``ValueError``.
             error = f"{PERMISSIONS_NAME} 非法: {exc}"
         except (OSError, ValueError) as exc:
@@ -143,7 +169,7 @@ def load_permission_rules(workspace: Path) -> tuple[dict[str, list[str]], str]:
             # (hand-edited in a legacy code page) raised a bare
             # ``UnicodeDecodeError`` out of here - and this module's
             # contract says a malformed file is non-fatal.
-            error = unreadable_file_message(PERMISSIONS_NAME, exc)
+            error = _rules_unreadable_msg(exc)
         if error:
             rules = _empty_rules()
         entry = (rules, error)
@@ -154,7 +180,7 @@ def load_permission_rules(workspace: Path) -> tuple[dict[str, list[str]], str]:
 def match_rules(
     rules: dict[str, dict[str, list[str]]], tool: str, arguments: dict[str, Any] | None
 ) -> str | None:
-    """"deny" > "allow" > None, judged against rules already in hand.
+    """PERMISSION_RULE_VERDICT_DENY > PERMISSION_RULE_VERDICT_ALLOW > None, judged against rules already in hand.
 
     M8-T537: the verdict used to exist only behind ``match_permission_rule``,
     which loads the file itself - so every caller that also needed the
@@ -162,22 +188,24 @@ def match_rules(
     answer is a function of the rules, so it takes rules, not a workspace.
     """
     args = arguments if isinstance(arguments, dict) else {}
-    if _match_patterns(tool, args, rules["deny"]):
-        return "deny"
-    if _match_patterns(tool, args, rules["allow"]):
-        return "allow"
+    if _match_patterns(tool, args, rules[PERMISSION_RULE_VERDICT_DENY]):
+        return PERMISSION_RULE_VERDICT_DENY
+    if _match_patterns(tool, args, rules[PERMISSION_RULE_VERDICT_ALLOW]):
+        return PERMISSION_RULE_VERDICT_ALLOW
     return None
 
 
 def match_permission_rule(
     workspace: Path, tool: str, arguments: dict[str, Any] | None
 ) -> str | None:
-    """"deny" > "allow" > None. Deny always wins over allow."""
+    """PERMISSION_RULE_VERDICT_DENY > PERMISSION_RULE_VERDICT_ALLOW > None. Deny always wins over allow."""
     rules, _error = load_permission_rules(workspace)
     return match_rules(rules, tool, arguments)
 
 
 __all__ = [
+    "PERMISSION_RULE_VERDICT_ALLOW",
+    "PERMISSION_RULE_VERDICT_DENY",
     "PERMISSIONS_NAME",
     "PermissionConfigError",
     "load_permission_rules",

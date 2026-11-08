@@ -15,9 +15,12 @@ from typing import Any
 
 from .allowlist import match_session_allowlist, path_rule_matches
 from .internal_paths import PERMISSIONS_NAME
-from .permissions import load_permission_rules, match_permission_rule, match_rules
+from .permissions import PERMISSION_RULE_VERDICT_ALLOW, PERMISSION_RULE_VERDICT_DENY, load_permission_rules, match_rules
 from .tools.bash import is_readonly_command, split_command_argv
 from .tools.registry import AUTHORIZATION_RISKS
+from .trace import trace_event
+from .tools.names import TOOL_NAME_BASH
+
 
 
 # M3-T4: argv-aware network detection. The old substring blacklist missed
@@ -182,24 +185,12 @@ def tool_denied_by_rule(
     """
     if not workspace:
         return False
-    # M8-T537: this used to ask the file twice - ``policy_evaluation_error``
-    # and then ``match_permission_rule``, each of which loads the rules on its
-    # own.  Two loads are two chances to read two different files, and the
-    # second answer decided whether the path was refused.  One question, one
-    # load, both answers from it.
-    try:
-        rules, error = load_permission_rules(Path(workspace))
-    except OSError:
-        # A refusal we cannot read is not an allowance.
-        return True
-    if error:
-        # The rules are unknown, so nothing can be said about this call.
-        # Refusing is the only answer that keeps the promise above.
-        return True
-    return match_rules(rules, tool, arguments or {}) == "deny"
+    # One question, one load - the matcher is the same shape as the path
+    # matcher above: load once, refuse when the rules are unknown.
+    return denied_by_rule_matcher(workspace)(tool, arguments)
 
 
-def path_deny_predicate(workspace: Path | str | None) -> Callable[[str], bool]:
+def path_deny_predicate(workspace: Path | str | None, *, refresh: bool = False) -> Callable[[str], bool]:
     """A deny decision that holds for **one pass** over a workspace.
 
     M8-T537: a refresh asks the same rules file about every candidate path.
@@ -213,18 +204,37 @@ def path_deny_predicate(workspace: Path | str | None) -> Callable[[str], bool]:
     them once and judges every path in that pass by that snapshot.  The
     predicate keeps ``tool_denied_by_rule``'s answers: no workspace allows,
     an unreadable policy denies, and ``deny`` wins over ``allow``.
+
+    M8-T539: when ``refresh`` is true, the returned predicate re-reads the
+    rules file on every call (through ``load_permission_rules``, which uses
+    its cache stamp so an unchanged file costs only one ``stat``).  This lets
+    a caller that holds the predicate across refreshes detect when the rules
+    file has changed, instead of judging by a stale snapshot.
     """
     if not workspace:
         return lambda _rel: False
+    workspace = Path(workspace)
+
+    if refresh:
+        def denied(rel: str) -> bool:
+            try:
+                rules, error = load_permission_rules(workspace)
+            except OSError:
+                return True
+            if error:
+                return True
+            return match_rules(rules, "read_file", {"path": rel}) == PERMISSION_RULE_VERDICT_DENY
+        return denied
+
     try:
-        rules, error = load_permission_rules(Path(workspace))
+        rules, error = load_permission_rules(workspace)
     except OSError:
         return lambda _rel: True
     if error:
         return lambda _rel: True
 
     def denied(rel: str) -> bool:
-        return match_rules(rules, "read_file", {"path": rel}) == "deny"
+        return match_rules(rules, "read_file", {"path": rel}) == PERMISSION_RULE_VERDICT_DENY
 
     return denied
 
@@ -298,15 +308,25 @@ def path_rule_denies_call(
     workspace-wide ``git_diff`` and ``tree`` without asking, and the probe's
     results went straight into the conversation the model reads.  The rule now
     has one home, and every reader asks it.
+
+    M8-T538: loads the rules once and reuses them for both checks instead of
+    asking ``tool_denied_by_rule`` and then ``deny_rule_names_paths``,
+    each of which loads the file on its own.  One question, one load.
     """
     if not workspace:
         return False
     args = arguments if isinstance(arguments, dict) else {}
-    if tool_denied_by_rule(workspace, tool, args):
+    try:
+        rules, error = load_permission_rules(Path(workspace))
+    except OSError:
+        return True
+    if error:
+        return True
+    if match_rules(rules, tool, args) == PERMISSION_RULE_VERDICT_DENY:
         return True
     if str(tool or "") not in WORKSPACE_WIDE_READ_TOOLS:
         return False
-    return deny_rule_names_paths(workspace)
+    return bool(rules["deny"]["paths"])
 
 
 def _pattern_covers_container(pattern: str, rel: str) -> bool:
@@ -326,6 +346,87 @@ def _pattern_covers_container(pattern: str, rel: str) -> bool:
     return rel == head or rel.startswith(head + "/")
 
 
+def deny_rule_covers_path_matcher(workspace: Path | str | None) -> Callable[[str], bool]:
+    """Return "a deny rule covers this path" as a predicate, loading once.
+
+    M8-T542: two defects in one door.
+
+    * :func:`deny_rule_covers_path` read the rules file **per question**, so a
+      workspace listing (the Web file tree asks once per entry, up to
+      ``max_entries``) paid one stat of ``.minicc/permissions.json`` per entry.
+      Same shape as M8-T533 (evidence index) and M8-T536 (snapshot copy) - the
+      matcher loads the policy once and every path asks the same loaded rules.
+    * the old home **threw the load error away**, so a ``permissions.json``
+      that cannot be read answered "not covered" for the path the user had
+      named, while :func:`tool_denied_by_rule` answers True for the same call
+      (M8-T526).  Rules we cannot read are not rules that allow: the predicate
+      fails closed and both faces agree.
+
+    An absent workspace has no rules, so nothing is covered - the normal case.
+    """
+    if not workspace:
+        return lambda _rel_path: False
+
+    def every_named_path(rel_path: str) -> bool:
+        # The rules are unknown, so every path the caller *names* may be one of
+        # them.  The workspace root has no name to check.
+        return bool(str(rel_path or "").strip())
+
+    try:
+        rules, _error = load_permission_rules(Path(workspace))
+    except OSError:
+        return every_named_path
+    if _error:
+        return every_named_path
+
+    patterns = rules["deny"]["paths"]
+
+    def covers(rel_path: str) -> bool:
+        if not rel_path or not patterns:
+            return False
+        rel = str(rel_path).replace("\\", "/").strip()
+        if not rel:
+            return False
+        if path_rule_matches(rel, patterns):
+            return True
+        return any(_pattern_covers_container(pattern, rel) for pattern in patterns)
+
+    return covers
+
+
+def denied_by_rule_matcher(workspace: Path | str | None) -> Callable[[str, dict[str, Any] | None], bool]:
+    """Return the veto as a predicate, loading the policy **once**.
+
+    M8-T533: the evidence index asks this question about every candidate file.
+    ``tool_denied_by_rule`` loads the policy twice per call (once to see
+    whether it is readable, once to match), so one index refresh used to stat
+    ``.minicc/permissions.json`` twice per file.  A reader that asks many
+    times loads the loaded rules once and keeps asking the same verdict.
+
+    The fail-closed clauses are the ones above, evaluated at load time: no
+    workspace allows, an unreadable policy refuses every call, and an
+    ``OSError`` while matching is a refusal too.
+    """
+    if not workspace:
+        return lambda _tool, _arguments=None: False
+    try:
+        rules, _error = load_permission_rules(Path(workspace))
+    except OSError:
+        # The rules are unknown, so nothing can be said about any call.
+        return lambda _tool, _arguments=None: True
+    if _error:
+        return lambda _tool, _arguments=None: True
+
+    def denied(tool: str, arguments: dict[str, Any] | None = None) -> bool:
+        try:
+            return match_rules(rules, tool, arguments) == PERMISSION_RULE_VERDICT_DENY
+        except OSError:
+            # A refusal we cannot read is not an allowance.
+            return True
+
+    return denied
+
+
 def deny_rule_covers_path(workspace: Path | str | None, rel_path: str) -> bool:
     """True when the deny side covers this workspace-relative path.
 
@@ -338,34 +439,10 @@ def deny_rule_covers_path(workspace: Path | str | None, rel_path: str) -> bool:
     The verdict is asked per entry, and a container directory is covered too
     (see :func:`_pattern_covers_container`): the point is that a denied path
     is not *visible* through any surface, not that the panel dies.
-
-    M8-T555: and "cannot be evaluated" is not "does not cover".  A policy
-    that cannot be read leaves the rules unknown, so it covers every path -
-    the same answer the three siblings give (M8-T526).  Answering False here
-    turned an unknown veto into an allowance for any surface that asks this
-    home - the one home T337/T338/T344 established for new reads.
     """
     if not workspace or not rel_path:
         return False
-    try:
-        rules, error = load_permission_rules(Path(workspace))
-    except OSError:
-        return True
-    if error:
-        # M8-T555: a policy that cannot be evaluated does not deny **nothing**
-        # - the rules are unknown, so every path is still covered.  The three
-        # sibling predicates already refuse on this condition; this per-path
-        # home was the one that turned the unknown into "not denied".
-        return True
-    patterns = rules["deny"]["paths"]
-    if not patterns:
-        return False
-    rel = str(rel_path).replace("\\", "/").strip()
-    if not rel:
-        return False
-    if path_rule_matches(rel, patterns):
-        return True
-    return any(_pattern_covers_container(pattern, rel) for pattern in patterns)
+    return deny_rule_covers_path_matcher(workspace)(rel_path)
 
 
 # Task-level permission modes, aligned with Claude Code:
@@ -373,6 +450,12 @@ def deny_rule_covers_path(workspace: Path | str | None, rel_path: str) -> bool:
 # - plan:        research mode; writes and exec are denied outright.
 # - acceptEdits: file writes are auto-accepted; exec still needs authorization.
 # - yolo:        everything allowed for this task (implies both flags).
+# M8-T619: permission mode name vocabulary (one home).
+PERMISSION_MODE_DEFAULT = "default"
+PERMISSION_MODE_PLAN = "plan"
+PERMISSION_MODE_ACCEPT_EDITS = "acceptEdits"
+PERMISSION_MODE_YOLO = "yolo"
+
 PERMISSION_MODES = frozenset({"default", "plan", "acceptEdits", "yolo"})
 # lowercase aliases for wire/UI input (camelCase is accepted too)
 _PERMISSION_MODE_ALIASES = {
@@ -404,10 +487,41 @@ def normalize_permission_mode(value: object) -> str:
 APPROVAL_DECISIONS = frozenset({"allow", "always", "deny"})
 PERMITTING_APPROVAL_DECISIONS = frozenset({"allow", "always"})
 
+# M8-T611: the SSE frame kinds for the interactive approval wire contract.
+# These are the same fact consumed by the web frontend (approvals.js).
+APPROVAL_FRAME_REQUEST_KIND = "approval_request"
+APPROVAL_FRAME_RESOLVED_KIND = "approval_resolved"
+
 # M8-T518: the set of authorization codes that mean "task needs explicit
 # user approval for this call".  Shared by audit.py and web.py so both faces
 # agree on which codes trigger the interactive prompt.
-MISSING_TASK_AUTHORIZATIONS = frozenset({"missing_task_write", "missing_task_exec"})
+# M8-T624: missing-task authorization code vocabulary (one home).
+AUTHORIZATION_MISSING_TASK_WRITE = "missing_task_write"
+AUTHORIZATION_MISSING_TASK_EXEC = "missing_task_exec"
+AUTHORIZATION_MISSING_TASK_NETWORK = "missing_task_network"
+AUTHORIZATION_PERMISSION_RULE_ALLOW = "permission_rule_allow"
+AUTHORIZATION_PERMISSION_RULE_DENY = "permission_rule_deny"
+AUTHORIZATION_USER_DENIED = "user_denied"
+# M8-T626: authorization decision code vocabulary (one home).
+AUTHORIZATION_UNKNOWN_RISK = "unknown_risk"
+AUTHORIZATION_TASK_YOLO = "task_yolo"
+AUTHORIZATION_DEFAULT_READONLY = "default_readonly"
+AUTHORIZATION_PERMISSION_POLICY_UNREADABLE = "permission_policy_unreadable"
+AUTHORIZATION_SESSION_ALLOWLIST = "session_allowlist"
+AUTHORIZATION_TASK_NETWORK = "task_network"
+AUTHORIZATION_PLAN_MODE_WRITE = "plan_mode_write"
+AUTHORIZATION_TASK_WRITE = "task_write"
+AUTHORIZATION_PLAN_MODE_EXEC = "plan_mode_exec"
+AUTHORIZATION_SAFE_VERIFICATION = "safe_verification"
+AUTHORIZATION_TASK_EXEC = "task_exec"
+AUTHORIZATION_USER_APPROVED = "user_approved"
+
+# Network is handled separately and is intentionally not a member of
+# MISSING_TASK_AUTHORIZATIONS (web interactive-approval flow contract).
+MISSING_TASK_AUTHORIZATIONS = frozenset({
+    AUTHORIZATION_MISSING_TASK_WRITE,
+    AUTHORIZATION_MISSING_TASK_EXEC,
+})
 
 
 def authorization_event(
@@ -428,17 +542,24 @@ def authorization_event(
     authorization event the audit reader cannot join with the decision
     events around it, and ``kind``/``phase`` are exactly the two keys a
     copier is most tempted to drop as "boilerplate".
+
+    M8-T566: the base record now goes through the one home
+    (``minicc/trace.py``) with ``kind="authorization"``; this factory only
+    adds its own two flat keys.
     """
-    return {
-        "kind": "authorization",
-        "name": tool,
-        "status": status,
-        "phase": "permission",
-        "code": code,
-        "summary": summary,
-        "risk": risk,
-        "authorization": authorization,
-    }
+    from .agent.protocol import PHASE_PERMISSION
+
+    event = trace_event(
+        name=tool,
+        status=status,
+        phase=PHASE_PERMISSION,
+        code=code,
+        summary=summary,
+        kind="authorization",
+    )
+    event["risk"] = risk
+    event["authorization"] = authorization
+    return event
 
 
 @dataclass(frozen=True)
@@ -521,6 +642,12 @@ def _writes_outside_workspace(tool: str, arguments: dict[str, Any] | None) -> bo
     return scope == "user"
 
 
+# M8-T629: tool risk level vocabulary (one home).
+RISK_READONLY = "readonly"
+RISK_WRITE = "write"
+RISK_EXEC = "exec"
+
+
 def effective_risk(
     tool: str,
     risk: str | None,
@@ -535,7 +662,7 @@ def effective_risk(
     is not the whole story and every consumer has to ask this question the
     same way.
     """
-    if risk == "readonly" and _writes_outside_workspace(tool, arguments):
+    if risk == RISK_READONLY and _writes_outside_workspace(tool, arguments):
         return "write"
     return risk or "unknown"
 
@@ -580,14 +707,22 @@ def authorize_tool(
                 False,
                 risk or "unknown",
                 f"permissions.json 读不出来，先拒绝此操作（{policy_error}）",
-                "permission_policy_unreadable",
+                AUTHORIZATION_PERMISSION_POLICY_UNREADABLE,
             )
-        if match_rules(rules, tool, arguments) == "deny":
+        verdict = match_rules(rules, tool, arguments)
+        if verdict == PERMISSION_RULE_VERDICT_DENY:
             return AuthorizationDecision(
                 False,
                 risk or "unknown",
                 "permissions.json deny 规则拒绝",
-                "permission_rule_deny",
+                AUTHORIZATION_PERMISSION_RULE_DENY,
+            )
+        if verdict == PERMISSION_RULE_VERDICT_ALLOW:
+            return AuthorizationDecision(
+                True,
+                risk or "unknown",
+                "permissions.json allow 规则放行",
+                AUTHORIZATION_PERMISSION_RULE_ALLOW,
             )
     mode = normalize_permission_mode(permission_mode)
     declared = set(capabilities or ())
@@ -608,52 +743,52 @@ def authorize_tool(
                 True,
                 denied.risk,
                 "本会话 allowlist 已放行",
-                "session_allowlist",
+                AUTHORIZATION_SESSION_ALLOWLIST,
             )
         return denied
 
     if mode == "yolo":
-        if risk == "readonly" or tool in NETWORK_TOOL_NAMES:
-            return AuthorizationDecision(True, risk or "unknown", "任务为 yolo 模式，工具已放行", "task_yolo")
-        return AuthorizationDecision(True, risk or "unknown", "任务为 yolo 模式，写入与命令已放行", "task_yolo")
-    if network_tool and risk == "readonly":
+        if risk == RISK_READONLY or tool in NETWORK_TOOL_NAMES:
+            return AuthorizationDecision(True, risk or "unknown", "任务为 yolo 模式，工具已放行", AUTHORIZATION_TASK_YOLO)
+        return AuthorizationDecision(True, risk or "unknown", "任务为 yolo 模式，写入与命令已放行", AUTHORIZATION_TASK_YOLO)
+    if network_tool and risk == RISK_READONLY:
         if allow_network:
-            return AuthorizationDecision(True, "network_readonly", "本任务已明确授权联网查询", "task_network")
+            return AuthorizationDecision(True, "network_readonly", "本任务已明确授权联网查询", AUTHORIZATION_TASK_NETWORK)
         return _allowlist_override(
-            AuthorizationDecision(False, "network_readonly", "联网查询需要当前任务单独授权", "missing_task_network")
+            AuthorizationDecision(False, "network_readonly", "联网查询需要当前任务单独授权", AUTHORIZATION_MISSING_TASK_NETWORK)
         )
-    if risk == "readonly":
-        return AuthorizationDecision(True, "readonly", "只读工具已允许", "default_readonly")
-    if risk == "write":
+    if risk == RISK_READONLY:
+        return AuthorizationDecision(True, "readonly", "只读工具已允许", AUTHORIZATION_DEFAULT_READONLY)
+    if risk == RISK_WRITE:
         if mode == "plan":
-            return AuthorizationDecision(False, "write", "计划模式只允许只读工具，写入已拒绝", "plan_mode_write")
+            return AuthorizationDecision(False, "write", "计划模式只允许只读工具，写入已拒绝", AUTHORIZATION_PLAN_MODE_WRITE)
         if network_tool and not allow_network:
             return _allowlist_override(
-                AuthorizationDecision(False, "write", "该工具声明了联网能力，需要先获得本任务的联网授权", "missing_task_network")
+                AuthorizationDecision(False, "write", "该工具声明了联网能力，需要先获得本任务的联网授权", AUTHORIZATION_MISSING_TASK_NETWORK)
             )
         if mode == "acceptEdits" or allow_changes:
-            return AuthorizationDecision(True, "write", "本任务已明确授权写入", "task_write")
+            return AuthorizationDecision(True, "write", "本任务已明确授权写入", AUTHORIZATION_TASK_WRITE)
         return _allowlist_override(
-            AuthorizationDecision(False, "write", "写入工具需要当前任务明确授权", "missing_task_write")
+            AuthorizationDecision(False, "write", "写入工具需要当前任务明确授权", AUTHORIZATION_MISSING_TASK_WRITE)
         )
-    if risk == "exec":
+    if risk == RISK_EXEC:
         if mode == "plan":
-            return AuthorizationDecision(False, "exec", "计划模式只允许只读工具，命令已拒绝", "plan_mode_exec")
+            return AuthorizationDecision(False, "exec", "计划模式只允许只读工具，命令已拒绝", AUTHORIZATION_PLAN_MODE_EXEC)
         command = arguments.get("command", "")
         if command_uses_network(command) or network_tool:
             if allow_changes and allow_network:
-                return AuthorizationDecision(True, "network_exec", "本任务已明确授权网络命令", "task_network")
+                return AuthorizationDecision(True, "network_exec", "本任务已明确授权网络命令", AUTHORIZATION_TASK_NETWORK)
             return _allowlist_override(
-                AuthorizationDecision(False, "network_exec", "网络命令需要单独授权", "missing_task_network")
+                AuthorizationDecision(False, "network_exec", "网络命令需要单独授权", AUTHORIZATION_MISSING_TASK_NETWORK)
             )
-        if tool == "bash" and is_readonly_command(str(command)):
-            return AuthorizationDecision(True, "readonly_exec", "受限只读验证命令已允许", "safe_verification")
+        if tool == TOOL_NAME_BASH and is_readonly_command(str(command)):
+            return AuthorizationDecision(True, "readonly_exec", "受限只读验证命令已允许", AUTHORIZATION_SAFE_VERIFICATION)
         if allow_changes:
-            return AuthorizationDecision(True, "exec", "本任务已明确授权命令执行", "task_exec")
+            return AuthorizationDecision(True, "exec", "本任务已明确授权命令执行", AUTHORIZATION_TASK_EXEC)
         return _allowlist_override(
-            AuthorizationDecision(False, "exec", "命令执行需要当前任务明确授权", "missing_task_exec")
+            AuthorizationDecision(False, "exec", "命令执行需要当前任务明确授权", AUTHORIZATION_MISSING_TASK_EXEC)
         )
-    return AuthorizationDecision(False, "unknown", "未知工具风险，已拒绝执行", "unknown_risk")
+    return AuthorizationDecision(False, "unknown", "未知工具风险，已拒绝执行", AUTHORIZATION_UNKNOWN_RISK)
 
 
 @dataclass(frozen=True)
@@ -681,18 +816,18 @@ def interpret_authorization_decision(decision: AuthorizationDecision) -> Allowan
 
     # These authorizations are absolute denials on both faces.
     if decision.authorization in {
-        "plan_mode_write",
-        "plan_mode_exec",
-        "unknown_risk",
-        "permission_rule_deny",
-        "permission_policy_unreadable",
+        AUTHORIZATION_PLAN_MODE_WRITE,
+        AUTHORIZATION_PLAN_MODE_EXEC,
+        AUTHORIZATION_UNKNOWN_RISK,
+        AUTHORIZATION_PERMISSION_RULE_DENY,
+        AUTHORIZATION_PERMISSION_POLICY_UNREADABLE,
     }:
         return AllowanceResult(False, decision.reason, decision)
 
     # Missing network is a denial on CLI, but Web treats it as interactive
     # (the user might enable --allow-network).  Keep it as "needs interactive"
     # so Web can ask; CLI will deny because it has no async prompt.
-    if decision.authorization == "missing_task_network":
+    if decision.authorization == AUTHORIZATION_MISSING_TASK_NETWORK:
         return AllowanceResult(None, decision.reason, decision)
 
     # Missing write/exec: interactive on both faces.
@@ -705,9 +840,36 @@ def interpret_authorization_decision(decision: AuthorizationDecision) -> Allowan
 
 __all__ = [
     "APPROVAL_DECISIONS",
+    "APPROVAL_FRAME_REQUEST_KIND",
+    "APPROVAL_FRAME_RESOLVED_KIND",
     "MISSING_TASK_AUTHORIZATIONS",
+    "AUTHORIZATION_MISSING_TASK_EXEC",
+    "AUTHORIZATION_MISSING_TASK_NETWORK",
+    "AUTHORIZATION_MISSING_TASK_WRITE",
+    "AUTHORIZATION_PERMISSION_RULE_ALLOW",
+    "AUTHORIZATION_PERMISSION_RULE_DENY",
+    "AUTHORIZATION_USER_DENIED",
+    "RISK_EXEC",
+    "RISK_READONLY",
+    "RISK_WRITE",
+    "AUTHORIZATION_UNKNOWN_RISK",
+    "AUTHORIZATION_TASK_YOLO",
+    "AUTHORIZATION_DEFAULT_READONLY",
+    "AUTHORIZATION_PERMISSION_POLICY_UNREADABLE",
+    "AUTHORIZATION_SESSION_ALLOWLIST",
+    "AUTHORIZATION_TASK_NETWORK",
+    "AUTHORIZATION_PLAN_MODE_WRITE",
+    "AUTHORIZATION_TASK_WRITE",
+    "AUTHORIZATION_PLAN_MODE_EXEC",
+    "AUTHORIZATION_SAFE_VERIFICATION",
+    "AUTHORIZATION_TASK_EXEC",
+    "AUTHORIZATION_USER_APPROVED",
     "NETWORK_TOOL_NAMES",
     "PERMISSION_MODES",
+    "PERMISSION_MODE_ACCEPT_EDITS",
+    "PERMISSION_MODE_DEFAULT",
+    "PERMISSION_MODE_PLAN",
+    "PERMISSION_MODE_YOLO",
     "PERMITTING_APPROVAL_DECISIONS",
     "WORKSPACE_WIDE_READ_TOOLS",
     "AllowanceResult",
@@ -715,6 +877,8 @@ __all__ = [
     "authorize_tool",
     "command_uses_network",
     "deny_rule_covers_path",
+    "deny_rule_covers_path_matcher",
+    "denied_by_rule_matcher",
     "deny_rule_names_paths",
     "effective_risk",
     "interpret_authorization_decision",

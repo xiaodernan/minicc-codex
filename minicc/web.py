@@ -8,39 +8,23 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import base64
-import binascii
-from collections import deque
-import hashlib
-import inspect
 import json
-import math
-import mimetypes
-import re
 import threading
 import time
 import uuid
-from concurrent.futures import Future, ThreadPoolExecutor
-import dataclasses
-import os
-import sys
 from dataclasses import dataclass, field
-from types import SimpleNamespace
-from datetime import datetime, timezone
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Callable
-from urllib.parse import parse_qs, unquote, urlsplit
 
 try:  # httpx ships with the OpenAI SDK dependency; keep the import guarded.
     import httpx
 except ModuleNotFoundError:  # pragma: no cover - depends on the HTTP stack.
     httpx = None  # type: ignore[assignment]
 
-from .agent.graph import DAGPlan, PlanTask, aggregate_dag_tokens, build_coding_workflow, execute_dag, fixed_plan
+from .agent.graph import DAGPlan, PlanTask, aggregate_dag_tokens, build_coding_workflow, execute_dag
 from .agent.completion import CompletionDecision, judge_completion
 from .agent.loop import AgentCancelled, TurnResult, build_tool_feedback, chat_with_cancellation, run_agent, stamp_cancelled
-from .agent.orchestration import assess_complexity, build_auto_subtasks
+from .agent.orchestration import assess_complexity
 from .agent.verifier import NON_FAILURE_VERIFICATION_STATUSES
 from .agent.planner import (
     DEFAULT_ALLOWED_TOOLS,
@@ -52,19 +36,17 @@ from .agent.planner import (
     parse_planner_response,
 )
 from .agent.repair import repair_scope
-from .agent.retrieval import LocalEvidenceIndex, census_is_complete, census_notice, get_evidence_index
+from .agent.retrieval import census_is_complete, census_notice, get_evidence_index
 from .agent.subagent import DEFAULT_MAX_DEPTH, DEFAULT_MAX_TURNS, build_task_tool_spec
 from .webauth import (
     WebAuth,
     WebAuthError,
-    cors_origin,
     is_loopback_host,
     load_or_create_token,
     token_store_path,
 )
 from .agent.router import StageRouter
 from .route_wiring import (
-    _PROVIDER_FAMILY,
     _route_provider_spec,
     _route_turn_cap,
     _stage_cost_estimator,
@@ -73,32 +55,49 @@ from .route_wiring import (
 from .agent.state import AgentState, Budget, BudgetExceeded
 from .pricing import cost_usd as _pricing_cost_usd
 from .agent.protocol import (
+    TASK_STATUS_CANCELLED,
+    TASK_STATUS_COMPLETED,
+    TASK_STATUS_FAILED,
     BATCH_CANCELLED_ANSWER,
+    MODEL_LAST_OUTPUT_MARKER,
+    PHASE_EXECUTION,
+    PHASE_INTAKE,
+    PHASE_PERMISSION,
+    PHASE_PLANNING,
+    PHASE_REPAIR,
+    PHASE_REVIEW,
+    STAGE_ROUTE_CODE,
+    TASK_CANCELLED_ANSWER,
+    TASK_KIND_BATCH,
+    TASK_KIND_SUBTASK,
+    TASK_KIND_TASK,
+    VERIFICATION_GUARD_ERROR,
+    BUDGET_EXCEEDED_FIELD,
+    BUDGET_STAGE_SUBAGENT,
     budget_exceeded_error,
     budget_exceeded_event,
-    CancellationToken,
-    EventLog,
     incomplete_answer,
-    InvalidStatusTransition,
-    MODEL_LAST_OUTPUT_MARKER,
-    TASK_CANCELLED_ANSWER,
-    validate_status_transition,
-    VERIFICATION_GUARD_ERROR,
+    session_persist_required,
 )
 from .agent.rpc import RpcDispatcher
 from .agent.verifier import Verifier, VerificationResult
 from .agent.verification_plan import build_verification_plan, changed_paths_from_events
 from .audit import (
     APPROVAL_DECISIONS,
+    APPROVAL_FRAME_REQUEST_KIND,
+    APPROVAL_FRAME_RESOLVED_KIND,
     MISSING_TASK_AUTHORIZATIONS,
+    AUTHORIZATION_PERMISSION_RULE_ALLOW,
+    AUTHORIZATION_USER_APPROVED,
+    AUTHORIZATION_USER_DENIED,
+    PERMISSION_MODE_PLAN,
     PERMITTING_APPROVAL_DECISIONS,
     AuthorizationDecision,
     authorization_event,
     authorize_tool,
-    deny_rule_covers_path,
-    deny_rule_names_paths,
+    deny_rule_covers_path_matcher,
     effective_risk,
-    normalize_permission_mode,
+    path_rule_denies_call,
     tool_denied_by_rule,
 )
 from .changes import ChangeError, ChangeInspector
@@ -108,18 +107,24 @@ from .commands import (
     expand_slash_command,
     slash_command_read_refusal,
 )
-from .mentions import apply_mentions
+from .mentions import MENTION_STATUS_INJECTED, MENTION_STATUS_REJECTED, apply_mentions
 from .input_guard import require_text
 from .internal_paths import AUDIT_NAME, PERMISSIONS_NAME
-from .permissions import load_permission_rules, match_permission_rule
+from .permissions import load_permission_rules
 from .clock import utc_iso
 from .config import (
     ConfigError,
+    DEFAULT_COMPACT_THRESHOLD,
+    DEFAULT_CONTEXT_WINDOW_TOKENS,
     home_dir,
     load_config,
-    normalize_reasoning_effort,
     workspace_not_directory_message,
+    LLM_PROTOCOL_CHAT_COMPLETIONS,
+    LLM_PROTOCOL_RESPONSES,
 )
+# Re-export for the tests that read the task limits from minicc.web - the
+# home is minicc/config.py; this module just lends its surface.
+from .config import DEFAULT_TASK_COMPACTION_LIMIT, DEFAULT_TASK_EVENT_LIMIT, DEFAULT_TASK_QUEUE_LIMIT, DEFAULT_TASK_STREAM_LIMIT, DEFAULT_TASK_USAGE_LIMIT  # noqa: F401 - re-export for tests and AgentService
 from .allowlist import AllowlistError, add_session_rule, replace_session_rules, session_rules
 from .cli_io import cli_out
 from .hooks import HookRunner
@@ -139,32 +144,28 @@ from .llm.usage import add_usage_totals, cache_summary, estimated_usage
 from .mcp import McpError, McpManager, mcp_absent_status
 from .prompt import build_system_prompt
 from .sandbox import SandboxRunner
-from .session import SessionError, SessionStore, list_sessions
+from .session import SessionStore, list_sessions
 from .tools import Editor, ToolCall, ToolResult, build_registry
 from .tools.editor import AUDIT_LEVELS, audit_level, path_escaped_workspace
 from .trace import trace_event
 from .tools.registry import approval_preview, redact_text
+from .tools.names import TOOL_NAME_BASH
 from .task_store import TaskStore
 from .worktree import WorktreeError, WorktreeManager
 from .webserver import MiniccHTTPServer, MiniccRequestHandler  # noqa: F401 - re-export
 from .workspaces import WorkspaceCatalog, resolve_workspace_path
 
+from .task_contract import RESULT_FIELD_ANSWER, RESULT_FIELD_CANCELLED, RESULT_FIELD_TOKENS_USED, WEB_SESSION_ID
 from .task_manager import (  # noqa: F401 - re-export for tests and AgentService
     ACTIVE_TASK_STATUSES,
     CHANGE_INTENT_MARKERS,
     COMPLETION_WRITE_TOOLS,
-    DEFAULT_TASK_COMPACTION_LIMIT,
-    DEFAULT_TASK_EVENT_LIMIT,
-    DEFAULT_TASK_QUEUE_LIMIT,
-    DEFAULT_TASK_STREAM_LIMIT,
-    DEFAULT_TASK_USAGE_LIMIT,
     MAX_ATTACHMENT_BYTES,
     MAX_ATTACHMENT_TOTAL_BYTES,
     MAX_ATTACHMENTS,
     MAX_BATCH_TASKS,
     NO_CHANGE_MARKERS,
     TASK_SHUTDOWN_GRACE_SECONDS,
-    TASK_STREAM_INTERVAL,
     TERMINAL_TASK_STATUSES,
     TaskManager,
     TaskRecord,
@@ -293,7 +294,7 @@ def _evidence_trace_event(hits: list[Any], census: dict[str, Any]) -> dict[str, 
     return trace_event(
         name="retrieval",
         status="ok",
-        phase="planning",
+        phase=PHASE_PLANNING,
         code="local_evidence_index",
         summary=summary,
         detail={
@@ -631,21 +632,24 @@ class AgentService:
                 self._approval_groups[group.request_id] = group
                 self._approval_by_key[merge_key] = group.request_id
         if not merged and on_event is not None:
-            on_event({
-                "kind": "approval_request",
-                "name": tool,
-                "status": "pending",
-                "phase": "permission",
-                "code": "approval_requested",
-                "summary": f"等待用户批准 {tool}：{reason}",
-                "risk": risk,
-                "request_id": group.request_id,
-                "task_id": task_id,
-                "tool": tool,
-                "preview": preview,
-                "reason": reason,
-                "timeout_seconds": wait_seconds,
-            })
+            # M8-T566: the approval frames ride the one home; the flat
+            # keys are this frame's own payload.
+            frame = trace_event(
+                name=tool,
+                status="pending",
+                phase=PHASE_PERMISSION,
+                code="approval_requested",
+                summary=f"等待用户批准 {tool}：{reason}",
+                kind=APPROVAL_FRAME_REQUEST_KIND,
+            )
+            frame["risk"] = risk
+            frame["request_id"] = group.request_id
+            frame["task_id"] = task_id
+            frame["tool"] = tool
+            frame["preview"] = preview
+            frame["reason"] = reason
+            frame["timeout_seconds"] = wait_seconds
+            on_event(frame)
         deadline = time.monotonic() + max(0.0, wait_seconds)
         while not group.resolved:
             if cancel_event is not None and cancel_event.is_set():
@@ -675,23 +679,24 @@ class AgentService:
                 if waiter in group.waiters:
                     group.waiters.remove(waiter)
         if not merged and on_event is not None:
-            on_event({
-                "kind": "approval_resolved",
-                "name": tool,
-                "status": "ok" if decision in PERMITTING_APPROVAL_DECISIONS else "denied",
-                "phase": "permission",
-                "code": "approval_resolved",
-                "summary": (
+            frame = trace_event(
+                name=tool,
+                status="ok" if decision in PERMITTING_APPROVAL_DECISIONS else "denied",
+                phase=PHASE_PERMISSION,
+                code="approval_resolved",
+                summary=(
                     f"审批结果：{decision}"
                     + ("（超时自动拒绝）" if group_timed_out else "")
                     + ("（任务已取消）" if cancelled else "")
                 ),
-                "request_id": group.request_id,
-                "task_id": task_id,
-                "decision": decision,
-                "timed_out": group_timed_out,
-                "cancelled": cancelled,
-            })
+                kind=APPROVAL_FRAME_RESOLVED_KIND,
+            )
+            frame["request_id"] = group.request_id
+            frame["task_id"] = task_id
+            frame["decision"] = decision
+            frame["timed_out"] = group_timed_out
+            frame["cancelled"] = cancelled
+            on_event(frame)
         return {
             "decision": decision,
             "timed_out": group_timed_out,
@@ -961,7 +966,7 @@ class AgentService:
             "model": self.config.model,
             "endpoint": self.config.base_url,
             "sandbox": self.sandbox.status(),
-            "context_window_tokens": int(getattr(self.config, "context_window_tokens", 300_000)),
+            "context_window_tokens": int(getattr(self.config, "context_window_tokens", DEFAULT_CONTEXT_WINDOW_TOKENS)),
             "recent_workspaces": self.workspace_catalog.list(),
         }
 
@@ -1054,6 +1059,12 @@ class AgentService:
         max_entries = 2000
         entries: list[dict[str, Any]] = []
         truncated = False
+        # M8-T542: one policy load **per listing**.  The walk below asks the
+        # deny question for every entry (up to max_entries), and the old
+        # one-shot home read permissions.json on each answer - 5 entries
+        # cost 8 stats, 50 cost 53.  The verdict is the same one either way,
+        # so the listing takes the matcher that loads the rules once.
+        path_is_denied = deny_rule_covers_path_matcher(self.workspace)
 
         def walk(directory: Path, level: int) -> None:
             nonlocal truncated
@@ -1078,7 +1089,7 @@ class AgentService:
                 # own ``tree`` call was refused by the same rule.  A denied
                 # path is not visible through any surface; the rest of the
                 # workspace still is.
-                if deny_rule_covers_path(self.workspace, rel):
+                if path_is_denied(rel):
                     continue
                 if len(entries) >= max_entries:
                     truncated = True
@@ -1275,7 +1286,7 @@ class AgentService:
                 "default": "full" if self.config.yolo else "per_task",
                 "host_commands": self.sandbox.status().get("backend") == "host",
             },
-            "context_window_tokens": int(getattr(self.config, "context_window_tokens", 300_000)),
+            "context_window_tokens": int(getattr(self.config, "context_window_tokens", DEFAULT_CONTEXT_WINDOW_TOKENS)),
             "reasoning_effort": str(getattr(self.config, "reasoning_effort", "high")),
             "max_repair_attempts": int(getattr(self.config, "max_repair_attempts", 2)),
             "worktrees": worktrees,
@@ -1482,15 +1493,15 @@ class AgentService:
                     except BudgetExceeded as exc:
                         budget_exceeded = str(exc)
                 payload = {
-                    "answer": response.text or "并行子任务已完成，但合并器没有返回文字。",
-                    "cancelled": False,
-                    "tokens_used": dict(response.usage),
+                    RESULT_FIELD_ANSWER: response.text or "并行子任务已完成，但合并器没有返回文字。",
+                    RESULT_FIELD_CANCELLED: False,
+                    RESULT_FIELD_TOKENS_USED: dict(response.usage),
                 }
                 if budget_exceeded:
-                    payload["budget_exceeded"] = budget_exceeded
+                    payload[BUDGET_EXCEEDED_FIELD] = budget_exceeded
                 return payload
             except AgentCancelled:
-                return {"answer": BATCH_CANCELLED_ANSWER, "cancelled": True}
+                return {"answer": BATCH_CANCELLED_ANSWER, RESULT_FIELD_CANCELLED: True}
             finally:
                 await provider.close()
 
@@ -1508,7 +1519,7 @@ class AgentService:
         cancel_event: threading.Event | None = None,
     ) -> dict[str, Any]:
         message = require_text(payload.get("message"), "message")
-        session_id = str(payload.get("session_id") or "web-latest")
+        session_id = str(payload.get("session_id") or WEB_SESSION_ID)
         allow_changes, allow_network, _mode = _resolve_task_permissions(
             payload, yolo=self.config.yolo
         )
@@ -1525,7 +1536,7 @@ class AgentService:
                 # held) and can never be evicted, so a cancelled request
                 # with a fresh session id grows the table without limit.
                 self._release_session_lock_inflight(workspace, session_id)
-                return {"answer": TASK_CANCELLED_ANSWER, "cancelled": True, "session_id": session_id, "events": []}
+                return {RESULT_FIELD_ANSWER: TASK_CANCELLED_ANSWER, RESULT_FIELD_CANCELLED: True, "session_id": session_id, "events": []}
         # M8-T294: the lock has now been held, so it is safe to evict later.
         self._mark_session_lock_used(workspace, session_id)
         try:
@@ -1568,7 +1579,7 @@ class AgentService:
                 raise ValueError(refusal)
             expanded = message
         message = expanded
-        session_id = str(payload.get("session_id") or "web-latest")
+        session_id = str(payload.get("session_id") or WEB_SESSION_ID)
         # M8-T289: the fallback sink has to *collect* the approval frame as
         # well as log it.  It used to only log, so the ``approval_request``
         # frame - the one carrying the ``request_id`` the client needs in
@@ -1611,7 +1622,7 @@ class AgentService:
             )
         )
         store.save(messages)
-        if permission_mode == "plan":
+        if permission_mode == PERMISSION_MODE_PLAN:
             network_note = "联网搜索可用" if allow_network else "联网也不可用"
             messages.append(system_msg(
                 "[计划模式] 本任务是只读规划模式：文件写入与命令执行已被禁用，"
@@ -1684,8 +1695,8 @@ class AgentService:
                 soft_max_duration_seconds=getattr(self.config, "soft_max_duration_seconds", None),
             ),
         )
-        runtime_state.transition("intake", phase="intake")
-        runtime_state.transition("plan", phase="planning")
+        runtime_state.transition("intake", phase=PHASE_INTAKE)
+        runtime_state.transition("plan", phase=PHASE_PLANNING)
         verifier = Verifier()
         verification_results: list[dict[str, Any]] = []
         repair_attempts = 0
@@ -1701,11 +1712,11 @@ class AgentService:
         subagent_usage: dict[str, Any] = {}
         subagent_usage_rows: list[dict[str, Any]] = []
         complexity = assess_complexity(message, attachment_count=len(attachments))
-        task_kind = str(payload.get("task_kind") or "task")
+        task_kind = str(payload.get("task_kind") or TASK_KIND_TASK)
         planner_requested = (
             bool(payload.get("planner_requested"))
-            or task_kind == "batch"
-            or (task_kind != "subtask" and complexity.should_fan_out)
+            or task_kind == TASK_KIND_BATCH
+            or (task_kind != TASK_KIND_SUBTASK and complexity.should_fan_out)
         )
 
         def enter_runtime_node(node: str, phase: str) -> None:
@@ -1718,7 +1729,7 @@ class AgentService:
             image_event = trace_event(
                 name="agent",
                 status="ok",
-                phase="planning",
+                phase=PHASE_PLANNING,
                 code="image_attached",
                 summary=f"已接收 {len(attachments)} 张图片，作为视觉上下文发送给模型",
                 detail={"count": len(attachments), "names": [item["name"] for item in attachments]},
@@ -1728,15 +1739,15 @@ class AgentService:
                 on_event(image_event)
 
         if mention_records:
-            injected = [item for item in mention_records if item["status"] == "injected"]
-            rejected = [item for item in mention_records if item["status"] == "rejected"]
+            injected = [item for item in mention_records if item["status"] == MENTION_STATUS_INJECTED]
+            rejected = [item for item in mention_records if item["status"] == MENTION_STATUS_REJECTED]
             mention_summary = f"已按 @-提及注入 {len(injected)} 个文件内容"
             if rejected:
                 mention_summary += f"，拒绝 {len(rejected)} 个越界引用"
             mention_event = trace_event(
                 name="agent",
                 status="ok",
-                phase="planning",
+                phase=PHASE_PLANNING,
                 code="mentions_resolved",
                 summary=mention_summary,
                 detail={"records": mention_records},
@@ -1748,8 +1759,8 @@ class AgentService:
         route_event = trace_event(
             name="router",
             status="ok",
-            phase="planning",
-            code="stage_route",
+            phase=PHASE_PLANNING,
+            code=STAGE_ROUTE_CODE,
             summary="已应用规划阶段的模型与请求策略",
             detail=initial_route.to_dict(),
         )
@@ -1811,14 +1822,7 @@ class AgentService:
             events.append(dict(event))
             if on_event is not None:
                 on_event(events[-1])
-            if event.get("code") in {
-                "tool_round_finished",
-                "verification_required_before_finish",
-                "provider_stream_error",
-                "budget_exceeded",
-                "stagnation_guard",
-                "run_finished",
-            }:
+            if session_persist_required(event):
                 store.save(messages)
 
         def emit_decision(name: str, decision: AuthorizationDecision) -> bool:
@@ -1833,18 +1837,10 @@ class AgentService:
             # M7-T3: a declarative deny rule is an absolute veto, and it covers
             # read-only tools too, so denying a path like `.env` blocks reads.
             # M8-T477: that veto is asked **once**, inside
-            # ``audit.authorize_tool``.  This gate used to re-decide it by hand
-            # before calling the shared function, which gave the reason sentence
-            # and the ``permission_rule_deny`` authorization code a second home.
-            # A rename in the shared decision would then reach only the faces
-            # that went through it, and the web face would keep emitting the old
-            # wording for a refusal the CLI face had stopped naming - the
-            # operator greps one phrase and finds half the refusals.  The
-            # hand-built copy also reported the *effective* risk while the
-            # shared decision reports the risk it was handed, so two faces of
-            # one refusal could disagree about how dangerous the refused call
-            # was.  ``rule`` survives only for the allow branch below.
-            rule = match_permission_rule(workspace, name, call.arguments)
+            # ``audit.authorize_tool``.  One load now answers both the deny
+            # and allow questions - the caller no longer calls
+            # ``match_permission_rule`` separately and loads the rules a
+            # second time.
             decision = authorize_tool(
                 name,
                 risk,
@@ -1862,10 +1858,10 @@ class AgentService:
             ):
                 # An allow rule only skips the interactive prompt; it can never
                 # change plan/yolo/network semantics.
-                if rule == "allow":
+                if decision.authorization == AUTHORIZATION_PERMISSION_RULE_ALLOW:
                     return emit_decision(name, AuthorizationDecision(
                         True, decision.risk,
-                        "permissions.json allow 规则放行", "permission_rule_allow",
+                        decision.reason, AUTHORIZATION_PERMISSION_RULE_ALLOW,
                     ))
                 # No static rule covers the call → ask the user over the event
                 # stream, auto-deny on timeout/cancel (M7-T3).
@@ -1895,7 +1891,7 @@ class AgentService:
                             # CLI face already draws this line (M2-T3); this
                             # face now draws it too.
                             kwargs: dict[str, str] = {}
-                            if name == "bash":
+                            if name == TOOL_NAME_BASH:
                                 command = str(
                                     (call.arguments or {}).get("command") or ""
                                 ).strip()
@@ -1916,7 +1912,7 @@ class AgentService:
                     return emit_decision(name, AuthorizationDecision(
                         True, decision.risk,
                         "用户已批准" + ("（本会话记住）" if always else ""),
-                        "user_approved",
+                        AUTHORIZATION_USER_APPROVED,
                     ))
                 if verdict.get("cancelled"):
                     why = "任务已取消，审批自动拒绝"
@@ -1925,7 +1921,7 @@ class AgentService:
                 else:
                     why = "用户已拒绝"
                 return emit_decision(name, AuthorizationDecision(
-                    False, decision.risk, why, "user_denied",
+                    False, decision.risk, why, AUTHORIZATION_USER_DENIED,
                 ))
             return emit_decision(name, decision)
 
@@ -2013,7 +2009,7 @@ class AgentService:
                     # the same named budget_exceeded event the planner fold
                     # emits for its own overspend.
                     budget_event = budget_exceeded_event(
-                        "subagent", exc, usage, name="subagent", phase="execution",
+                        BUDGET_STAGE_SUBAGENT, exc, usage, name=BUDGET_STAGE_SUBAGENT, phase=PHASE_EXECUTION,
                     )
                     events.append(budget_event)
                     if on_event is not None:
@@ -2110,11 +2106,11 @@ class AgentService:
                     current_protocol = provider.protocol()
                     protocol_status = provider.protocol_status()
                     next_protocol = current_protocol
-                    if protocol_status.get("requested") == "auto" and current_protocol == "responses":
+                    if protocol_status.get("requested") == "auto" and current_protocol == LLM_PROTOCOL_RESPONSES:
                         # A transport failure after the response body starts is
                         # usually gateway-specific. Keep the retry atomic and
                         # use the older, broadly supported endpoint next.
-                        next_protocol = "chat_completions"
+                        next_protocol = LLM_PROTOCOL_CHAT_COMPLETIONS
                     await provider.close()
                     # M11-T4: recovery stays in the stage the run is in - a
                     # repair-stage provider must not resurrect as the
@@ -2136,7 +2132,7 @@ class AgentService:
                         events.append(trace_event(
                             name="provider",
                             status="ok",
-                            phase="planning",
+                            phase=PHASE_PLANNING,
                             code="task_model_fallback",
                             summary=f"多次恢复失败，切换到备用模型 {model_override}",
                             detail={"model": model_override, "index": index,
@@ -2171,7 +2167,7 @@ class AgentService:
                         event = trace_event(
                             name="planner",
                             status="ok",
-                            phase="planning",
+                            phase=PHASE_PLANNING,
                             code="planner_execution_skipped",
                             summary="动态计划包含非只读节点，未直接执行，交由主 Agent 按原有权限路径处理",
                             detail=skipped,
@@ -2184,7 +2180,7 @@ class AgentService:
                     started = trace_event(
                         name="planner",
                         status="ok",
-                        phase="planning",
+                        phase=PHASE_PLANNING,
                         code="planner_execution_started",
                         summary=f"已将验证后的只读计划接入 DAG 执行，共 {len(plan.tasks)} 个节点",
                         detail={
@@ -2228,7 +2224,7 @@ class AgentService:
                         started_event = trace_event(
                             name="planner",
                             status="ok",
-                            phase="planning",
+                            phase=PHASE_PLANNING,
                             code="planner_node_started",
                             summary=f"DAG 节点 {task.id} 开始执行",
                             detail={
@@ -2270,7 +2266,7 @@ class AgentService:
                             emit(trace_event(
                                 name="provider",
                                 status="ok",
-                                phase="planning",
+                                phase=PHASE_PLANNING,
                                 code="planner_node_provider_status",
                                 summary="计划节点模型连接状态已更新",
                                 detail=status,
@@ -2366,13 +2362,13 @@ class AgentService:
                                 node_registry,
                                 node_messages,
                                 max_turns=NODE_AGENT_MAX_TURNS,
-                                compact_threshold=int(getattr(self.config, "compact_threshold", 300_000)),
+                                compact_threshold=int(getattr(self.config, "compact_threshold", DEFAULT_COMPACT_THRESHOLD)),
                                 on_tool=node_tool,
                                 on_trace=node_trace,
                                 should_allow=node_allow,
                                 should_cancel=(cancel_event.is_set if cancel_event is not None else None),
                                 cancel_event=cancel_event,
-                                context_limit_tokens=int(getattr(self.config, "context_window_tokens", 300_000)),
+                                context_limit_tokens=int(getattr(self.config, "context_window_tokens", DEFAULT_CONTEXT_WINDOW_TOKENS)),
                                 # Reconnaissance is its own stage: the inspect
                                 # route's caps govern the node when configured,
                                 # the built-in constants remain the default.
@@ -2420,7 +2416,7 @@ class AgentService:
                         emit(trace_event(
                             name="planner",
                             status="error" if output.get("status") == "failed" else "ok",
-                            phase="planning",
+                            phase=PHASE_PLANNING,
                             code="planner_node_finished",
                             summary=f"DAG 节点 {task.id} 执行失败"
                             if output.get("status") == "failed"
@@ -2469,7 +2465,7 @@ class AgentService:
                             # the completion judge emits for its own overspend.
                             budget_event = budget_exceeded_event(
                                 "planner_dag", exc, token_totals,
-                                name="planner", phase="planning",
+                                name="planner", phase=PHASE_PLANNING,
                             )
                             events.append(budget_event)
                             if on_event is not None:
@@ -2477,7 +2473,7 @@ class AgentService:
                     finished = trace_event(
                         name="planner",
                         status="error" if dag_result.status == "failed" else "ok",
-                        phase="planning",
+                        phase=PHASE_PLANNING,
                         code="planner_execution_finished",
                         summary=f"只读 DAG 执行结束：完成 {len(dag_result.completed)} 个节点"
                         + (f"，失败 {len(dag_result.failed)} 个" if dag_result.failed else "")
@@ -2532,7 +2528,7 @@ class AgentService:
                     planner_started = trace_event(
                         name="planner",
                         status="ok",
-                        phase="planning",
+                        phase=PHASE_PLANNING,
                         code="planner_started",
                         summary="复杂任务已进入结构化规划预检，运行时仍保留最终控制权",
                         detail={
@@ -2580,7 +2576,7 @@ class AgentService:
                             )
                         except BudgetExceeded as exc:
                             budget_event = budget_exceeded_event(
-                                "planning", exc, usage, name="planner", phase="planning",
+                                "planning", exc, usage, name="planner", phase=PHASE_PLANNING,
                             )
                             events.append(budget_event)
                             if on_event is not None:
@@ -2611,7 +2607,7 @@ class AgentService:
                         event = trace_event(
                             name="planner",
                             status="ok",
-                            phase="planning",
+                            phase=PHASE_PLANNING,
                             code="planner_dynamic_ready",
                             summary=f"模型已生成受约束执行计划，共 {len(planner_result.plan.tasks)} 个节点",
                             detail=detail,
@@ -2631,7 +2627,7 @@ class AgentService:
                         event = trace_event(
                             name="planner",
                             status="error",
-                            phase="planning",
+                            phase=PHASE_PLANNING,
                             code="planner_preflight_fallback",
                             summary="模型计划未通过安全校验，已回退到固定执行模板",
                             detail=detail,
@@ -2663,7 +2659,7 @@ class AgentService:
                         # or the run would stop with no named cause in events.
                         budget_event = budget_exceeded_event(
                             "review", exc, usage,
-                            name="completion_judge", phase="review",
+                            name="completion_judge", phase=PHASE_REVIEW,
                         )
                         events.append(budget_event)
                         if on_event is not None:
@@ -2693,7 +2689,7 @@ class AgentService:
                         on_context=on_context,
                         on_compaction=on_compaction,
                         on_trace=on_trace,
-                        context_limit_tokens=int(getattr(self.config, "context_window_tokens", 300_000)),
+                        context_limit_tokens=int(getattr(self.config, "context_window_tokens", DEFAULT_CONTEXT_WINDOW_TOKENS)),
                         should_allow=should_allow,
                         should_cancel=(cancel_event.is_set if cancel_event is not None else None),
                         cancel_event=cancel_event,
@@ -2730,7 +2726,7 @@ class AgentService:
                         recovery_event = trace_event(
                             name="provider",
                             status="error",
-                            phase="planning",
+                            phase=PHASE_PLANNING,
                             code="task_provider_recovery",
                             summary=f"模型网关暂时不可用，已开始第 {provider_recoveries} 次安全恢复",
                             detail={
@@ -2763,7 +2759,7 @@ class AgentService:
                         recovery_event = trace_event(
                             name="repair",
                             status="error",
-                            phase="repair",
+                            phase=PHASE_REPAIR,
                             code="task_stagnation_recovery",
                             summary=f"检测到重复工具路径，已进入第 {agent_recoveries} 次错误恢复",
                             detail={
@@ -2804,7 +2800,7 @@ class AgentService:
                             )
                             verification = await asyncio.to_thread(
                                 verifier.run, workspace, plan=verification_plan,
-                                allow_project_scripts=allow_changes and permission_mode != "plan",
+                                allow_project_scripts=allow_changes and permission_mode != PERMISSION_MODE_PLAN,
                                 cancel_event=cancel_event,
                             )
                         except (ValueError, OSError) as exc:
@@ -2875,7 +2871,7 @@ class AgentService:
                                 switch_event = trace_event(
                                     name="repair",
                                     status="ok",
-                                    phase="repair",
+                                    phase=PHASE_REPAIR,
                                     code="repair_stage_provider",
                                     summary=f"验证失败，修复阶段切换到 repair 档模型 {repair_route.model}",
                                     detail={"model": repair_route.model, **repair_route.to_dict()},
@@ -2888,7 +2884,7 @@ class AgentService:
                             scope_event = trace_event(
                                 name="repair",
                                 status="ok",
-                                phase="repair",
+                                phase=PHASE_REPAIR,
                                 code="dependency_aware_repair_scope",
                                 summary=f"已将修复范围收敛到 {len(scope['repair_targets'])} 个有证据关联的文件",
                                 detail=scope,
@@ -2990,7 +2986,7 @@ class AgentService:
                             repeat_event = trace_event(
                                 name="completion_judge",
                                 status="error",
-                                phase="review",
+                                phase=PHASE_REVIEW,
                                 code="completion_verdict_repeated",
                                 summary="完成评估逐字重复上一轮要求且无新增活动，提前停止以免继续空转",
                                 detail={
@@ -3026,7 +3022,7 @@ class AgentService:
                             capped_event = trace_event(
                                 name="completion_judge",
                                 status="error",
-                                phase="review",
+                                phase=PHASE_REVIEW,
                                 code="completion_continue_capped",
                                 summary="完成评估多轮要求继续但未收敛，已停止以避免无限重跑",
                                 detail={
@@ -3070,7 +3066,7 @@ class AgentService:
                         rejected_event = trace_event(
                             name="completion_judge",
                             status="error",
-                            phase="review",
+                            phase=PHASE_REVIEW,
                             code="completion_judge_rejected",
                             summary="完成评估请求被确定性拒绝，重跑 agent 不会改变结论，已停止",
                             detail={"error": detail},
@@ -3085,7 +3081,7 @@ class AgentService:
                         retry_event = trace_event(
                             name="completion_judge",
                             status="error",
-                            phase="review",
+                            phase=PHASE_REVIEW,
                             code="completion_judge_retry",
                             summary="完成评估暂时不可用，已要求 agent 再次自检",
                             detail={"error": decision.error or "invalid response"},
@@ -3157,7 +3153,7 @@ class AgentService:
             and str(result.error).startswith("完成评估")
         )
         completion_guard = None
-        if str(payload.get("task_kind") or "") != "subtask" and completion_status != "complete":
+        if str(payload.get("task_kind") or "") != TASK_KIND_SUBTASK and completion_status != "complete":
             completion_guard = _completion_guard_message(
                 message,
                 result,
@@ -3172,7 +3168,7 @@ class AgentService:
                 f"{incomplete_answer(completion_guard)}。"
                 + (f"\n\n{MODEL_LAST_OUTPUT_MARKER}{original_answer}" if original_answer else "")
             )
-        runtime_status = "cancelled" if result.cancelled else "failed" if result.error else "completed"
+        runtime_status = TASK_STATUS_CANCELLED if result.cancelled else TASK_STATUS_FAILED if result.error else TASK_STATUS_COMPLETED
         runtime_state.finish(runtime_status, result.error)
         result.metrics = {
             **runtime_state.metrics(),
@@ -3195,7 +3191,7 @@ class AgentService:
             "turns": result.turns,
             "tool_calls_total": result.tool_calls_total,
             "denied_tools": result.denied_tools,
-            "tokens_used": result.tokens_used,
+            RESULT_FIELD_TOKENS_USED: result.tokens_used,
             "context": result.context,
             "usage_by_turn": result.usage_by_turn,
             "compaction_events": result.compaction_events,
@@ -3203,7 +3199,7 @@ class AgentService:
             "completion": dict(result.completion),
             "events": events,
             "session_id": session_id,
-            "cancelled": result.cancelled,
+            RESULT_FIELD_CANCELLED: result.cancelled,
             "completion_guard": completion_guard,
         }
 
@@ -3235,11 +3231,7 @@ class AgentService:
         # call was refused by that rule and the browser was not.  The path
         # axis does not depend on the tool name, so the path rules keep
         # reaching this route exactly as before.
-        denied = tool_denied_by_rule(self.workspace, "git_diff", arguments)
-        if not raw_path and not denied:
-            # A workspace-wide diff carries the content of every path.
-            denied = deny_rule_names_paths(self.workspace)
-        if denied:
+        if path_rule_denies_call(self.workspace, "git_diff", arguments):
             return {
                 "status": "error",
                 "summary": "permissions.json deny 规则拒绝了此差异视图",

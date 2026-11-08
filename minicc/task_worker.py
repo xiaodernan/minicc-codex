@@ -34,7 +34,12 @@ from .config import (
 from .agent.loop import AgentCancelled
 from .agent.protocol import (
     PHASE_CARRYING_EVENT_KINDS,
+    PHASE_PLANNING,
     TASK_CANCELLED_ERROR,
+    TASK_STATUS_CANCELLED,
+    TASK_STATUS_COMPLETED,
+    TASK_STATUS_FAILED,
+    TASK_STATUS_RUNNING,
 )
 from .logging_setup import get_logger, log_task_event, register_secret
 from .task_store import TaskStore
@@ -45,6 +50,10 @@ from .task_contract import (
     CONFIG_FILE_FLAG,
     CONFIG_JSON_FLAG,
     CONFIG_STDIN_FLAG,
+    RESULT_FIELD_ANSWER,
+    RESULT_FIELD_CANCELLED,
+    RESULT_FIELD_ERROR,
+    RESULT_FIELD_TOKENS_USED,
     FAKE_PROVIDER_FLAG,
     LEASE_OWNER_FLAG,
     MESSAGE_FLAG,
@@ -59,6 +68,7 @@ from .task_contract import (
     TaskRequest,
     TaskResult,
     WORKSPACE_FLAG,
+    WEB_SESSION_ID,
 )
 from .clock import utc_stamp
 from .llm.fake import FAKE_PROVIDER_ENV
@@ -277,7 +287,7 @@ def _run_owned_worker_inner(args: argparse.Namespace, workspace: Path, store: Ta
                 return
             stop_event.wait(CANCEL_POLL_SECONDS)
 
-    state: dict[str, Any] = {"status": "running", "phase": "planning", "stream": "", "stream_length": 0, "events": [], "events_truncated": 0, "usage": None, "answer": "", "error": "", "result": None}
+    state: dict[str, Any] = {"status": TASK_STATUS_RUNNING, "phase": PHASE_PLANNING, "stream": "", "stream_length": 0, "events": [], "events_truncated": 0, "usage": None, "answer": "", "error": "", "result": None}
     state_lock = threading.RLock()
     flush_lock = threading.Lock()
     created_at = time.time()
@@ -448,30 +458,30 @@ def _run_owned_worker_inner(args: argparse.Namespace, workspace: Path, store: Ta
         )
         result = TaskResult.from_payload(result).to_payload()
         with state_lock:
-            cancelled = bool(result.get("cancelled"))
-            state["status"] = "cancelled" if cancelled else "completed"
-            state["answer"] = str(result.get("answer") or "")
+            cancelled = bool(result.get(RESULT_FIELD_CANCELLED))
+            state["status"] = TASK_STATUS_CANCELLED if cancelled else TASK_STATUS_COMPLETED
+            state["answer"] = str(result.get(RESULT_FIELD_ANSWER) or "")
             state["result"] = dict(result)
             # A cancelled task may still carry an explanatory error string;
             # the cancelled status must win over it.
-            if result.get("error") and not cancelled:
-                state["status"] = "failed"
-                state["error"] = str(result["error"])[:500]
-            state["usage"] = dict(result.get("tokens_used") or {})
-        _final_flush("completed")
+            if result.get(RESULT_FIELD_ERROR) and not cancelled:
+                state["status"] = TASK_STATUS_FAILED
+                state["error"] = str(result[RESULT_FIELD_ERROR])[:500]
+            state["usage"] = dict(result.get(RESULT_FIELD_TOKENS_USED) or {})
+        _final_flush(TASK_STATUS_COMPLETED)
         return 0
     except AgentCancelled:
-        state["status"] = "cancelled"
+        state["status"] = TASK_STATUS_CANCELLED
         state["error"] = TASK_CANCELLED_ERROR
-        _final_flush("cancelled")
+        _final_flush(TASK_STATUS_CANCELLED)
         return 0
     except BaseException as exc:  # noqa: BLE001 - the worker owns its failure record
         LOG.error(
             "worker_failed task_id=%s error=%s", args.task_id, exc, exc_info=exc
         )
-        state["status"] = "failed"
+        state["status"] = TASK_STATUS_FAILED
         state["error"] = f"{type(exc).__name__}: {exc}"[:500]
-        _final_flush("failed")
+        _final_flush(TASK_STATUS_FAILED)
         return 1
     finally:
         LOG.info(
@@ -491,7 +501,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="minicc-task-worker", description="Run one minicc task in a detached process")
     parser.add_argument(WORKSPACE_FLAG, required=True)
     parser.add_argument(TASK_ID_FLAG, required=True)
-    parser.add_argument(SESSION_ID_FLAG, default="web-latest")
+    parser.add_argument(SESSION_ID_FLAG, default=WEB_SESSION_ID)
     parser.add_argument(MESSAGE_FLAG, required=True)
     parser.add_argument(STORE_PATH_FLAG, default=None, help="SQLite path; defaults to <workspace>/.minicc/tasks.sqlite3")
     parser.add_argument(CANCEL_FILE_FLAG, default=None, help="Poll this file; its creation cancels the task")

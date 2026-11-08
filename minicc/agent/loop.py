@@ -36,12 +36,15 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
 
+from ..config import DEFAULT_COMPACT_THRESHOLD, DEFAULT_CONTEXT_WINDOW_TOKENS
 from ..llm.base import LLMResponse, TERMINAL_FINISH_REASONS, assistant_msg, tool_call, tool_result_msg, user_msg
 from ..llm.envelope import EnvelopeParseError
 from ..llm.openai_provider import OpenAICompatibleProvider
 from ..llm.stream_merge import append_delta
 from ..llm.usage import add_usage_totals, cache_summary, estimated_usage
 from ..audit import (
+    RISK_READONLY,
+    RISK_WRITE,
     effective_risk,
     is_network_tool,
     path_rule_denies_call,
@@ -49,6 +52,9 @@ from ..audit import (
     tool_denied_by_rule,
 )
 from ..tools.schemas import (
+    TOOL_STATUS_OK,
+    TOOL_STATUS_DENIED,
+    TOOL_STATUS_ERROR,
     CODE_DENIED,
     CODE_DUPLICATE_TOOL_CALL,
     CODE_HOOK_DENIED,
@@ -64,8 +70,24 @@ from ..tools.schemas import (
     untrusted_tags,
 )
 from ..tools.registry import ToolRegistry, redact_text
-from ..gitprobe import work_tree_verdict
-from ..hooks import payloads_for_result, payloads_for_tool_call
+from ..gitprobe import (
+    WORK_TREE_VERDICT_NO,
+    WORK_TREE_VERDICT_UNKNOWN,
+    git_status_exit_reason,
+    git_status_timeout_reason,
+    git_status_unavailable_reason,
+    work_tree_verdict,
+)
+from ..hooks import (
+    HOOK_DECISION_ALLOW,
+    HOOK_DECISION_DENY,
+    HOOK_EVENT_POST_TOOL_USE,
+    HOOK_EVENT_PRE_TOOL_USE,
+    HOOK_EVENT_STOP,
+    HOOK_EVENT_USER_PROMPT_SUBMIT,
+    payloads_for_result,
+    payloads_for_tool_call,
+)
 from ..trace import trace_event
 from .context import (
     VISUAL_PART_TYPES,
@@ -77,7 +99,14 @@ from .context import (
     validate_tool_protocol,
 )
 from .protocol import (
+    BUDGET_EXCEEDED_CODE,
     MODEL_LAST_OUTPUT_MARKER,
+    PHASE_CANCELLED,
+    PHASE_FAILED,
+    PHASE_PLANNING,
+    PHASE_REVIEW,
+    PHASE_SUMMARIZE,
+    PHASE_TOOL,
     TASK_CANCELLED_ANSWER,
     TASK_CANCELLED_ERROR,
     VERIFICATION_GUARD_ANSWER,
@@ -85,7 +114,7 @@ from .protocol import (
     budget_exceeded_error,
     incomplete_answer,
 )
-from .state import AgentState, Budget, BudgetExceeded
+from .state import AgentState, Budget, BudgetExceeded, MAX_TRACE_EVENTS
 from .verification_plan import build_verification_plan
 from .tool_policy import (
     is_verification_evidence,
@@ -108,7 +137,6 @@ VERIFICATION_RETRY_LIMIT = 2
 SEARCH_FAILURE_LIMIT = 2
 PROTOCOL_REPAIR_LIMIT = 2
 RECOVERY_PROBE_TOOLS = ("git_status", "git_diff", "tree")
-MAX_RESULT_TRACE_EVENTS = 1024
 MAX_RESULT_USAGE_ENTRIES = 64
 MAX_RESULT_COMPACTION_ENTRIES = 64
 MAX_TOOL_CACHE_ENTRIES = 128
@@ -116,9 +144,10 @@ MAX_VISIBLE_MODEL_UPDATE_CHARS = 1200
 MAX_PUBLIC_TOOL_OBSERVATION_CHARS = 900
 MAX_PUBLIC_TOOL_DATA_CHARS = 2400
 VISION_CONTEXT_MARKER = "[持久视觉上下文]"
-# Inspection tools are not verification. Post-write evidence must come from
-# bash test/lint commands (see ``is_verification_evidence``).
-VERIFY_TOOL_NAMES = frozenset({"bash"})
+# M8-T56/M8-T58: post-write evidence must come from bash test/lint commands,
+# not from inspection calls.  The decision lives in
+# ``minicc/agent/tool_policy.py`` (``is_verification_evidence``); this module
+# carries no second copy of the whitelist.
 # M8-T388: the read-only tools whose use after a write counts as a
 # post-write inspection (M8-T58).  The loop records the fact and the
 # completion gate asks it; each used to spell the pair itself, and a
@@ -525,18 +554,15 @@ def _git_changed_paths(workspace: str | Path | None) -> tuple[list[str], str | N
             timeout=15,
         )
     except subprocess.TimeoutExpired:
-        return [], "git status 超时（15 秒）：工作区可能太大，改动清单没有读出来"
+        return [], git_status_timeout_reason(15, "改动清单")
     except (OSError, subprocess.SubprocessError) as exc:
-        return [], f"git status 无法运行: {exc}"
+        return [], git_status_unavailable_reason(exc)
     if result.returncode != 0:
         kind, detail = work_tree_verdict(workspace)
-        if kind == "no":
+        if kind == WORK_TREE_VERDICT_NO:
             return [], None
-        stderr = (result.stderr or "").strip().splitlines()
-        reason = f"git status 退出码 {result.returncode}"
-        if stderr:
-            reason += f": {stderr[0][:200]}"
-        if kind == "unknown":
+        reason = git_status_exit_reason(result.returncode, result.stderr or "")
+        if kind == WORK_TREE_VERDICT_UNKNOWN:
             reason += f"（且无法确认这是不是仓库：{detail}）"
         return [], reason
     changed: list[str] = []
@@ -618,7 +644,7 @@ async def run_agent(
     messages: list[dict[str, Any]],
     *,
     max_turns: int | None = None,
-    compact_threshold: int = 300_000,
+    compact_threshold: int = DEFAULT_COMPACT_THRESHOLD,
     on_stream: Callable[[str], None] | None = None,
     on_tool: Callable[[ToolCall, ToolResult], None] | None = None,
     on_usage: Callable[[dict[str, Any]], None] | None = None,
@@ -628,7 +654,7 @@ async def run_agent(
     should_allow: Callable[[str, ToolCall], bool] | None = None,
     should_cancel: Callable[[], bool] | None = None,
     cancel_event: threading.Event | None = None,
-    context_limit_tokens: int = 300_000,
+    context_limit_tokens: int = DEFAULT_CONTEXT_WINDOW_TOKENS,
     budget: Budget | None = None,
     cost_estimator: Callable[[dict[str, Any]], float] | None = None,
     runtime_state: AgentState | None = None,
@@ -712,7 +738,7 @@ async def run_agent(
     def emit_trace(
         summary: str,
         *,
-        phase: str = "planning",
+        phase: str = PHASE_PLANNING,
         status: str = "ok",
         code: str = "milestone",
         detail: dict[str, Any] | str | None = None,
@@ -722,8 +748,8 @@ async def run_agent(
             detail=detail,
         )
         result.trace_events.append(event)
-        if len(result.trace_events) > MAX_RESULT_TRACE_EVENTS:
-            del result.trace_events[: len(result.trace_events) - MAX_RESULT_TRACE_EVENTS]
+        if len(result.trace_events) > MAX_TRACE_EVENTS:
+            del result.trace_events[: len(result.trace_events) - MAX_TRACE_EVENTS]
         if runtime_state is not None:
             runtime_state.add_trace(event)
         if on_trace is not None:
@@ -764,9 +790,9 @@ async def run_agent(
         outcome = await asyncio.to_thread(hooks.run, event, payload)
         for entry in getattr(outcome, "outputs", []):
             emit_trace(
-                f"Hook {event} 执行完成（{entry.get('decision', 'allow')}）: {entry.get('command', '')}",
-                phase="tool",
-                status="error" if entry.get("decision") == "deny" else "ok",
+                f"Hook {event} 执行完成（{entry.get('decision', HOOK_DECISION_ALLOW)}）: {entry.get('command', '')}",
+                phase=PHASE_TOOL,
+                status="error" if entry.get("decision") == HOOK_DECISION_DENY else "ok",
                 code="hook_executed",
                 detail=dict(entry),
             )
@@ -810,7 +836,7 @@ async def run_agent(
         except BudgetExceeded as exc:
             result.error = budget_exceeded_error(exc)
             result.answer = incomplete_answer(result.error)
-            emit_trace(result.error, phase="failed", status="error", code="budget_exceeded")
+            emit_trace(result.error, phase=PHASE_FAILED, status="error", code=BUDGET_EXCEEDED_CODE)
             return []
 
         messages.append(assistant_msg(
@@ -850,7 +876,7 @@ async def run_agent(
             ))
         emit_trace(
             "已完成恢复诊断，下一轮将基于当前工作区证据重新选择路径",
-            phase="planning",
+            phase=PHASE_PLANNING,
             code="recovery_probe_finished",
             detail={
                 "attempt": attempt,
@@ -864,7 +890,7 @@ async def run_agent(
 
     emit_trace(
         "正在界定任务范围，准备检查工作区",
-        phase="planning",
+        phase=PHASE_PLANNING,
         code="run_started",
         detail={
             "max_turns": max_turns,
@@ -892,7 +918,7 @@ async def run_agent(
         protocol_status = dict(protocol_status_fn())
         emit_trace(
             f"模型调用协议：{protocol_status.get('active')}",
-            phase="planning",
+            phase=PHASE_PLANNING,
             code="provider_protocol",
             detail=protocol_status,
         )
@@ -901,10 +927,10 @@ async def run_agent(
         requested = str(status.get("requested") or "")
         active = str(status.get("active") or "")
         if requested:
-            effort_label = {"low": "低", "mid": "中", "high": "高", "xhigh": "极高", "max": "最高"}.get(requested, requested)
+            effort_label = {"low": "低", "mid": "中", "high": "高", "xhigh": "极高", "max": "最高", "ultra": "Ultra"}.get(requested, requested)
             emit_trace(
                 f"已启用{effort_label}推理强度；界面展示阶段摘要，不展示模型私有思维链",
-                phase="planning",
+                phase=PHASE_PLANNING,
                 code="reasoning_configured",
                 detail={
                     "requested": requested,
@@ -927,8 +953,8 @@ async def run_agent(
                         str(part.get("text", "")) for part in content if isinstance(part, dict)
                     )
                 break
-        outcome = await run_hook("UserPromptSubmit", {
-            "event": "UserPromptSubmit",
+        outcome = await run_hook(HOOK_EVENT_USER_PROMPT_SUBMIT, {
+            "event": HOOK_EVENT_USER_PROMPT_SUBMIT,
             "prompt": redact_text(prompt_text[:8000])[0],
         })
         if outcome is not None and outcome.denied:
@@ -937,7 +963,7 @@ async def run_agent(
             result.answer = f"任务未开始：被 UserPromptSubmit hook 阻止。{reason}"[:2000]
             emit_trace(
                 result.error,
-                phase="failed",
+                phase=PHASE_FAILED,
                 status="error",
                 code="hook_blocked_user_prompt",
                 detail={"reason": reason[:500]},
@@ -954,7 +980,7 @@ async def run_agent(
         except BudgetExceeded as exc:
             result.error = budget_exceeded_error(exc)
             result.answer = incomplete_answer(result.error)
-            emit_trace(result.error, phase="failed", status="error", code="budget_exceeded")
+            emit_trace(result.error, phase=PHASE_FAILED, status="error", code=BUDGET_EXCEEDED_CODE)
             break
         if runtime_budget.soft_limit_hit():
             if not soft_wrap_issued:
@@ -968,7 +994,7 @@ async def run_agent(
                 })
                 emit_trace(
                     "已达到软预算，要求模型先收束再停止",
-                    phase="planning",
+                    phase=PHASE_PLANNING,
                     code="soft_budget_wrap_up",
                     detail={
                         **_budget_snapshot(runtime_budget),
@@ -984,7 +1010,7 @@ async def run_agent(
                 )
                 emit_trace(
                     soft_budget_stopped_summary(),
-                    phase="summarize",
+                    phase=PHASE_SUMMARIZE,
                     code="soft_budget_stopped",
                     detail=_budget_snapshot(runtime_budget),
                 )
@@ -1015,7 +1041,7 @@ async def run_agent(
                 on_compaction(compaction)
             emit_trace(
                 f"上下文接近上限，已压缩 {compaction['estimated_before_tokens']} → {compaction['estimated_after_tokens']} tokens",
-                phase="planning",
+                phase=PHASE_PLANNING,
                 code="context_compacted",
             )
 
@@ -1024,7 +1050,7 @@ async def run_agent(
             restored_vision_contexts += restored_count
             emit_trace(
                 f"已从持久附件恢复 {restored_count} 张图片，继续进行视觉上下文验收",
-                phase="planning",
+                phase=PHASE_PLANNING,
                 code="vision_context_restored",
                 detail={"count": restored_count, "source": "persistent_task_attachment"},
             )
@@ -1054,7 +1080,7 @@ async def run_agent(
                 )
                 emit_trace(
                     "已收到工具结果，正在判断下一步并保持任务目标",
-                    phase="planning",
+                    phase=PHASE_PLANNING,
                     code="replan",
                     detail={
                         "turn": turn,
@@ -1078,7 +1104,7 @@ async def run_agent(
             protocol_repairs = 0
         except AgentCancelled:
             stamp_cancelled(result)
-            emit_trace("任务已取消，已中止模型请求", phase="cancelled", code="cancelled")
+            emit_trace("任务已取消，已中止模型请求", phase=PHASE_CANCELLED, code="cancelled")
             break
         except EnvelopeParseError as exc:
             if protocol_repairs < PROTOCOL_REPAIR_LIMIT:
@@ -1095,7 +1121,7 @@ async def run_agent(
                 })
                 emit_trace(
                     "模型工具协议无效，已请求模型修正并重试",
-                    phase="planning",
+                    phase=PHASE_PLANNING,
                     status="error",
                     code="protocol_repair",
                     detail={
@@ -1110,7 +1136,7 @@ async def run_agent(
             result.answer = incomplete_answer(result.error)
             emit_trace(
                 result.error,
-                phase="failed",
+                phase=PHASE_FAILED,
                 status="error",
                 code="protocol_guard",
                 detail={"retry_limit": PROTOCOL_REPAIR_LIMIT, "error_type": type(exc).__name__},
@@ -1119,12 +1145,12 @@ async def run_agent(
         except BudgetExceeded as exc:
             result.error = budget_exceeded_error(exc)
             result.answer = incomplete_answer(result.error)
-            emit_trace(result.error, phase="failed", status="error", code="budget_exceeded")
+            emit_trace(result.error, phase=PHASE_FAILED, status="error", code=BUDGET_EXCEEDED_CODE)
             break
         except Exception as exc:
             emit_trace(
                 "模型流中断，已保留当前输出并记录可恢复错误",
-                phase="failed",
+                phase=PHASE_FAILED,
                 status="error",
                 code="provider_stream_error",
                 detail={"error_type": type(exc).__name__, "partial_chars": len("".join(streamed_text))},
@@ -1140,7 +1166,7 @@ async def run_agent(
             if last_reasoning_status is not None and current_reasoning_status != last_reasoning_status:
                 emit_trace(
                     "当前网关不接受请求的推理参数，已自动降级并继续执行",
-                    phase="planning",
+                    phase=PHASE_PLANNING,
                     status="error",
                     code="reasoning_fallback",
                     detail={
@@ -1176,7 +1202,7 @@ async def run_agent(
         except BudgetExceeded as exc:
             result.error = budget_exceeded_error(exc)
             result.answer = incomplete_answer(result.error)
-            emit_trace(result.error, phase="failed", status="error", code="budget_exceeded")
+            emit_trace(result.error, phase=PHASE_FAILED, status="error", code=BUDGET_EXCEEDED_CODE)
             break
 
         # --- tool calls? execute and loop ---
@@ -1186,7 +1212,7 @@ async def run_agent(
             except BudgetExceeded as exc:
                 result.error = budget_exceeded_error(exc)
                 result.answer = incomplete_answer(result.error)
-                emit_trace(result.error, phase="failed", status="error", code="budget_exceeded")
+                emit_trace(result.error, phase=PHASE_FAILED, status="error", code=BUDGET_EXCEEDED_CODE)
                 break
             # M8-T341: the trace names the tools the way the dispatcher
             # named them - one home for a wire name (``tool_call_name``), so
@@ -1199,13 +1225,13 @@ async def run_agent(
             if visible_update:
                 emit_trace(
                     "模型给出了本轮可公开的行动说明，随后执行工具调用",
-                    phase="planning",
+                    phase=PHASE_PLANNING,
                     code="model_update",
                     detail={"turn": turn, "text": visible_update},
                 )
             emit_trace(
                 f"模型已完成本轮判断，正在执行可审计计划：{', '.join(tool_names)}",
-                phase="planning",
+                phase=PHASE_PLANNING,
                 code="model_decision",
                 detail={
                     "turn": turn,
@@ -1217,7 +1243,7 @@ async def run_agent(
             )
             emit_trace(
                 f"已生成执行计划，本轮准备调用 {len(response.tool_calls)} 个工具：{', '.join(tool_names)}",
-                phase="tool",
+                phase=PHASE_TOOL,
                 code="tool_round_started",
                 detail={"turn": turn, "tool_count": len(tool_names), "tools": tool_names},
             )
@@ -1281,7 +1307,7 @@ async def run_agent(
                 # question one step earlier: may this call change the
                 # workspace?
                 if recovery_inspection_required and (
-                    risk == "write" or predicts_workspace_write(tc.tool, tc.arguments)
+                    risk == RISK_WRITE or predicts_workspace_write(tc.tool, tc.arguments)
                 ):
                     immediate_results[index] = (
                         tc,
@@ -1338,8 +1364,8 @@ async def run_agent(
                     continue
                 if hooks_enabled:
                     hook_outcome = await run_hook(
-                        "PreToolUse",
-                        payloads_for_tool_call("PreToolUse", tc.tool, tc.arguments, risk=risk),
+                        HOOK_EVENT_PRE_TOOL_USE,
+                        payloads_for_tool_call(HOOK_EVENT_PRE_TOOL_USE, tc.tool, tc.arguments, risk=risk),
                     )
                     # A hook may only *deny*; it can never widen what the
                     # permission model already decided (M7-T1 contract).
@@ -1351,12 +1377,12 @@ async def run_agent(
                                 status="denied",
                                 summary=tagged(CODE_HOOK_DENIED, f"PreToolUse hook 拒绝了此操作 ({tc.tool})"),
                                 output=hook_outcome.denial_reason()[:2000],
-                                data={"hook": "PreToolUse"},
+                                data={"hook": HOOK_EVENT_PRE_TOOL_USE},
                                 security_tags=untrusted_tags(),
                             ),
                         )
                         continue
-                if risk == "readonly":
+                if risk == RISK_READONLY:
                     # M8-T307: the network question has two halves - the
                     # well-known names and the ``network`` **capability** a
                     # tool may declare.  The loop used to ask only the
@@ -1455,13 +1481,13 @@ async def run_agent(
                     continue
                 tc, tool_result = item
                 if (
-                    effective_risk(tc.tool, registry.risk_of(tc.tool), tc.arguments) == "readonly"
+                    effective_risk(tc.tool, registry.risk_of(tc.tool), tc.arguments) == RISK_READONLY
                     # M8-T307: a network answer is not reproducible, so it
                     # must not be cached and replayed as if it were a local
                     # read - and that holds for a tool that *declares* the
                     # network capability, not only for the two names.
                     and not is_network_tool(tc.tool, registry.capabilities_of(tc.tool))
-                    and tool_result.status == "ok"
+                    and tool_result.status == TOOL_STATUS_OK
                     and not (tool_result.data or {}).get("duplicate")
                 ):
                     cache_tool_result(
@@ -1473,15 +1499,15 @@ async def run_agent(
                     on_tool(tc, tool_result)
                 if (
                     hooks_enabled
-                    and tool_result.status != "denied"
+                    and tool_result.status != TOOL_STATUS_DENIED
                     and not (tool_result.data or {}).get("duplicate")
                     and not (tool_result.data or {}).get("cached")
                 ):
                     await run_hook(
-                        "PostToolUse",
+                        HOOK_EVENT_POST_TOOL_USE,
                         {
                             **payloads_for_tool_call(
-                                "PostToolUse", tc.tool, tc.arguments,
+                                HOOK_EVENT_POST_TOOL_USE, tc.tool, tc.arguments,
                                 # M8-T305: the risk the hook sees is the
                                 # risk the call **carries**, not the one the
                                 # tool declares - the same call must not look
@@ -1523,16 +1549,16 @@ async def run_agent(
                     search_call.tool, registry.capabilities_of(search_call.tool)
                 ):
                     continue
-                if search_result.status == "error":
+                if search_result.status == TOOL_STATUS_ERROR:
                     search_failures += 1
                     if search_failures == SEARCH_FAILURE_LIMIT:
                         emit_trace(
                             "联网工具连续失败，已打开熔断；后续将改换策略而不是原地重试",
-                            phase="planning",
+                            phase=PHASE_PLANNING,
                             status="error",
                             code="search_circuit_open",
                         )
-                elif search_result.status == "ok":
+                elif search_result.status == TOOL_STATUS_OK:
                     search_failures = 0
 
             successful_writes = any(
@@ -1550,7 +1576,7 @@ async def run_agent(
                     path = str((call.arguments or {}).get("path") or "")
                     if path:
                         changed_paths.add(path)
-                    elif call.tool == "bash":
+                    elif call.tool == TOOL_NAME_BASH:
                         # M8-T281: a bash write names no path, so the changed
                         # set stayed empty and the probe below answered "no
                         # runnable check" for a workspace that had plenty.
@@ -1572,13 +1598,13 @@ async def run_agent(
             # M8-T58: 写入之后的只读检视（read_file/git_diff）是「无检查工作区」
             # 里唯一可能取得的验证证据类别；逐轮记录，交付裁决时用。
             elif verification_required and any(
-                call.tool in INSPECTION_TOOL_NAMES and tool_result.status == "ok"
+                call.tool in INSPECTION_TOOL_NAMES and tool_result.status == TOOL_STATUS_OK
                 for call, tool_result in immediate_results.values()
             ):
                 post_write_inspection = True
             recovery_inspection_observed = any(
-                effective_risk(call.tool, registry.risk_of(call.tool), call.arguments) == "readonly"
-                and tool_result.status == "ok"
+                effective_risk(call.tool, registry.risk_of(call.tool), call.arguments) == RISK_READONLY
+                and tool_result.status == TOOL_STATUS_OK
                 and not (tool_result.data or {}).get("duplicate")
                 for call, tool_result in immediate_results.values()
             )
@@ -1587,15 +1613,15 @@ async def run_agent(
                 recovery_refusals = 0
                 emit_trace(
                     "恢复阶段已取得新的只读证据，解除临时写入保护",
-                    phase="planning",
+                    phase=PHASE_PLANNING,
                     code="recovery_inspection_passed",
                     detail=_turn_tools_detail(
                         turn,
                         immediate_results,
                         lambda call, tool_result: effective_risk(
                             call.tool, registry.risk_of(call.tool), call.arguments
-                        ) == "readonly"
-                        and tool_result.status == "ok"
+                        ) == RISK_READONLY
+                        and tool_result.status == TOOL_STATUS_OK
                         and not (tool_result.data or {}).get("duplicate"),
                     ),
                 )
@@ -1608,7 +1634,7 @@ async def run_agent(
                 verification_retries = 0
                 emit_trace(
                     "检测到工作区已修改，下一轮将检查 diff 并运行针对性验证",
-                    phase="planning",
+                    phase=PHASE_PLANNING,
                     code="verification_required",
                     detail={
                         "turn": turn,
@@ -1635,7 +1661,7 @@ async def run_agent(
                 verification_retries = 0
                 emit_trace(
                     "已收到修改后的验证证据，继续评估是否满足原始目标",
-                    phase="planning",
+                    phase=PHASE_PLANNING,
                     code="verification_observed",
                     detail=_turn_tools_detail(
                         turn,
@@ -1726,7 +1752,7 @@ async def run_agent(
             )
             emit_trace(
                 "工具结果已合并，继续检查是否需要修复或验证",
-                phase="planning",
+                phase=PHASE_PLANNING,
                 status="error" if failed_tools else "ok",
                 code="tool_round_finished",
                 detail={
@@ -1750,7 +1776,7 @@ async def run_agent(
             )
             emit_trace(
                 "自反馈已记录：观察结果已转成下一步约束",
-                phase="planning",
+                phase=PHASE_PLANNING,
                 status="error" if round_unproductive or failed_tools else "ok",
                 code="feedback_observed",
                 detail={
@@ -1789,7 +1815,7 @@ async def run_agent(
                     })
                     emit_trace(
                         "检测到重复或无效工具结果，已触发恢复诊断和重新规划",
-                        phase="planning",
+                        phase=PHASE_PLANNING,
                         code="stagnation_replan",
                         detail={
                             "attempt": stagnation_replans,
@@ -1806,7 +1832,7 @@ async def run_agent(
                 )
                 emit_trace(
                     result.error,
-                    phase="failed",
+                    phase=PHASE_FAILED,
                     status="error",
                     code="stagnation_guard",
                 )
@@ -1822,7 +1848,7 @@ async def run_agent(
                 nonterminal_repairs += 1
                 emit_trace(
                     f"模型轮次非正常结束（finish_reason={finish_reason}），不作为最终答案，要求重新作答",
-                    phase="planning",
+                    phase=PHASE_PLANNING,
                     status="error",
                     code="nonterminal_turn",
                     detail={"turn": turn, "finish_reason": finish_reason, "attempt": nonterminal_repairs},
@@ -1839,7 +1865,7 @@ async def run_agent(
             result.answer = incomplete_answer(result.error)
             emit_trace(
                 result.error,
-                phase="failed",
+                phase=PHASE_FAILED,
                 status="error",
                 code="nonterminal_turn_limit",
                 detail={"finish_reason": finish_reason, "retry_limit": STAGNATION_REPLAN_LIMIT},
@@ -1862,7 +1888,7 @@ async def run_agent(
                 })
                 emit_trace(
                     "模型尝试在恢复诊断完成前结束，已要求先取得只读证据",
-                    phase="planning",
+                    phase=PHASE_PLANNING,
                     status="error",
                     code="recovery_required_before_finish",
                     detail={"turn": turn, "attempt": recovery_refusals},
@@ -1872,7 +1898,7 @@ async def run_agent(
             result.answer = incomplete_answer(result.error)
             emit_trace(
                 result.error,
-                phase="failed",
+                phase=PHASE_FAILED,
                 status="error",
                 code="recovery_guard",
                 detail=_guard_detail(turn, STAGNATION_REPLAN_LIMIT),
@@ -1888,7 +1914,7 @@ async def run_agent(
                 result.answer = incomplete_answer(result.error)
                 emit_trace(
                     result.error,
-                    phase="failed",
+                    phase=PHASE_FAILED,
                     status="error",
                     code="empty_answer",
                     detail={"turn": turn, "tokens": runtime_budget.tokens},
@@ -1899,7 +1925,7 @@ async def run_agent(
             messages.append(assistant_msg(content=result.answer))
             emit_trace(
                 soft_budget_stopped_summary(),
-                phase="summarize",
+                phase=PHASE_SUMMARIZE,
                 code="soft_budget_stopped",
                 detail=_budget_snapshot(runtime_budget),
             )
@@ -1918,15 +1944,27 @@ async def run_agent(
                 if git_changed_error:
                     emit_trace(
                         "改动清单没有读出来，不能判断工作区有没有可运行的检查：检视回退不适用",
-                        phase="planning",
+                        phase=PHASE_PLANNING,
                         code="verification_waiver_refused_by_failed_read",
                         detail={"turn": turn, "reason": git_changed_error},
                     )
+                    # M8-T552: the refusal reason travels into the model's next
+                    # message - the trace alone left the model with only the
+                    # generic nudge, never knowing why the read failed.
+                    messages.append({
+                        "role": "user",
+                        "content": (
+                            "[执行器提示] 上次写入后的改动清单没有读出来（"
+                            f"{git_changed_error}），所以不能把它当成「没有可运行的检查」"
+                            "而豁免验证。先通过可信的方式重新取得改动清单"
+                            "（git status / read_file / git_diff），再决定下一步。"
+                        ),
+                    })
                 elif not _plan_has_runnable_check(workspace, sorted(changed_paths)):
                     verification_required = False
                     emit_trace(
                         "工作区没有可运行的客观检查，写入后的检视证据视为完成验证",
-                        phase="planning",
+                        phase=PHASE_PLANNING,
                         code="verification_satisfied_by_inspection",
                         detail={
                             "turn": turn,
@@ -1944,20 +1982,22 @@ async def run_agent(
                     })
                     emit_trace(
                         "模型尝试提前结束，已要求先完成修改后的验证",
-                        phase="planning",
+                        phase=PHASE_PLANNING,
                         status="error",
                         code="verification_required_before_finish",
                         detail={"turn": turn, "retry": verification_retries},
                     )
                     continue
-                result.error = VERIFICATION_GUARD_ERROR
+                result.error = VERIFICATION_GUARD_ERROR + (
+                    f"\n\n{git_changed_error}" if git_changed_error else ""
+                )
                 result.answer = (
                     incomplete_answer(VERIFICATION_GUARD_ANSWER)
                     + (f"\n\n{MODEL_LAST_OUTPUT_MARKER}{text}" if text else "")
                 )
                 emit_trace(
                     result.error,
-                    phase="failed",
+                    phase=PHASE_FAILED,
                     status="error",
                     code="verification_guard",
                     detail=_guard_detail(turn, VERIFICATION_RETRY_LIMIT),
@@ -1969,7 +2009,7 @@ async def run_agent(
             result.answer = incomplete_answer(result.error)
             emit_trace(
                 result.error,
-                phase="failed",
+                phase=PHASE_FAILED,
                 status="error",
                 code="empty_answer",
                 detail={"turn": turn, "finish_reason": finish_reason},
@@ -1981,7 +2021,7 @@ async def run_agent(
         messages.append(assistant_msg(content=result.answer))
         emit_trace(
             "执行结束，待验收",
-            phase="review",
+            phase=PHASE_REVIEW,
             code="run_finished",
             detail={
                 "turn": turn,
@@ -1994,15 +2034,15 @@ async def run_agent(
     else:
         result.error = f"Agent 达到最大执行轮次 {max_turns}，任务未完成"
         result.answer = incomplete_answer(result.error)
-        emit_trace("已达到最大执行轮次，停止继续调用工具", phase="failed", status="error", code="max_turns")
+        emit_trace("已达到最大执行轮次，停止继续调用工具", phase=PHASE_FAILED, status="error", code="max_turns")
 
     result.metrics = _run_metrics(
         result, runtime_budget,
         turns=result.turns, tool_calls=result.tool_calls_total,
     )
     if hooks_enabled:
-        await run_hook("Stop", {
-            "event": "Stop",
+        await run_hook(HOOK_EVENT_STOP, {
+            "event": HOOK_EVENT_STOP,
             "answer": redact_text((result.answer or "")[:4000])[0],
             "error": result.error or "",
             "metrics": dict(result.metrics),
@@ -2138,6 +2178,7 @@ def _is_unproductive_result(result: ToolResult) -> bool:
 
 
 from .tool_policy import CORE_WRITE_TOOLS
+from ..tools.names import TOOL_NAME_BASH
 
 # M6-T3: parallel write phase -------------------------------------------------
 

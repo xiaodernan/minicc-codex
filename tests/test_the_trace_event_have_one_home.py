@@ -32,6 +32,8 @@ EMITTERS = (
     "minicc/agent/loop.py",
     "minicc/agent/protocol.py",
     "minicc/agent/subagent.py",
+    "minicc/agent/verifier.py",
+    "minicc/audit.py",
     "minicc/llm/anthropic_provider.py",
     "minicc/llm/fake.py",
     "minicc/llm/openai_provider.py",
@@ -299,18 +301,25 @@ def test_the_walk_is_not_read_from_an_empty_graph() -> None:
 
 
 def test_the_record_is_spelled_exactly_once_in_the_package() -> None:
-    """One literal, in the home - a second one is a second shape.
+    """The count is zero outside the home, one shape inside it.
 
-    The count is exact (not "all inside the home") because the T396 lesson applies:
-    the loop's own six-key builder sat in a *different* module from the forty-six
-    seven-key literals, and both had to be caught.
+    The T396-era signature was ``"kind": "trace"`` appearing exactly once.
+    Batch 566 gave the home a ``kind`` parameter, so the home now spells
+    ``"kind": kind`` - and a literal ``"kind": "trace"`` *anywhere* in the
+    package is a hand-copied record again, including inside the home if
+    someone reverts it.
     """
     offenders: list[str] = []
     for path in sorted(PACKAGE.rglob("*.py")):
         relative = path.relative_to(REPO).as_posix()
         for node in _trace_dict_literals(path):
             offenders.append(f"{relative}:{node.lineno}")
-    assert len(offenders) == 1 and offenders[0].startswith(HOME_FILE + ":"), (
+    assert offenders == [], (
         "the trace event record is spelled by hand outside its one home: "
         + ", ".join(offenders)
+    )
+    source = (REPO / HOME_FILE).read_text(encoding="utf-8")
+    assert '"kind": kind' in source, (
+        "the one home no longer builds the record; check whether the kind "
+        "parameter regressed"
     )

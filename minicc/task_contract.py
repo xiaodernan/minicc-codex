@@ -6,12 +6,32 @@ permissions or drop inputs when moving a task between executors.
 
 from __future__ import annotations
 
+# M8-T642: task result contract field name (cross-module payload fact).
+# Distinct from TASK_STATUS_CANCELLED (status value).
+RESULT_FIELD_CANCELLED = "cancelled"
+# M8-T647: task result tokens field name (cross-module payload fact).
+RESULT_FIELD_TOKENS_USED = "tokens_used"
+# M8-T648: task result answer/error field names (cross-module payload fact).
+RESULT_FIELD_ANSWER = "answer"
+RESULT_FIELD_ERROR = "error"
+# M8-T652: task result children_rolled_up bookkeeping field name (cross-module payload fact).
+RESULT_FIELD_CHILDREN_ROLLED_UP = "children_rolled_up"
+# M8-T653: task result children field name (orchestration/batch payload fact; shape-home keeps literal key).
+RESULT_FIELD_CHILDREN = "children"
+
 from dataclasses import asdict, dataclass, field
 from typing import Any, Mapping
 
-from .audit import normalize_permission_mode
+from .audit import PERMISSION_MODE_PLAN, PERMISSION_MODE_YOLO, normalize_permission_mode
 
 TASK_SCHEMA_VERSION = 2
+
+#: The session id the web face calls the current session.  A task that
+#: arrives without a ``session_id`` rides here: the dataclass default, the
+#: payload fallback, the worker's argv default, web.py's two readers and the
+#: JS face all mean the same string, so it is spelled once and referenced
+#: everywhere else (the JS literal is pinned to it by a frontend gate).
+WEB_SESSION_ID = "web-latest"
 
 #: The worker argv contract: one spelling per flag, read by the launcher that
 #: builds the command line and by the parser that reads it back.  The two
@@ -54,9 +74,9 @@ def resolve_task_permissions(payload: Mapping[str, Any], *, yolo: bool = False) 
     # down, so the CLI face is the one that owes the alignment, not this
     # one.  Reverted here; recorded in the roadmap as an open question.
     network = bool(payload.get("allow_network"))
-    if mode == "yolo":
+    if mode == PERMISSION_MODE_YOLO:
         changes = network = True
-    elif mode == "plan":
+    elif mode == PERMISSION_MODE_PLAN:
         changes = False
     return changes, network, mode
 
@@ -65,7 +85,7 @@ def resolve_task_permissions(payload: Mapping[str, Any], *, yolo: bool = False) 
 class TaskRequest:
     message: str
     task_id: str = ""
-    session_id: str = "web-latest"
+    session_id: str = WEB_SESSION_ID
     workspace_path: str = ""
     allow_changes: bool = False
     allow_network: bool = False
@@ -89,7 +109,7 @@ class TaskRequest:
         return cls(
             message=message,
             task_id=str(payload.get("task_id") or ""),
-            session_id=str(payload.get("session_id") or "web-latest"),
+            session_id=str(payload.get("session_id") or WEB_SESSION_ID),
             workspace_path=str(payload.get("workspace_path") or ""),
             allow_changes=changes,
             allow_network=network,
@@ -117,11 +137,11 @@ class TaskResult:
 
     @classmethod
     def from_payload(cls, payload: Mapping[str, Any]) -> "TaskResult":
-        usage = payload.get("tokens_used")
+        usage = payload.get(RESULT_FIELD_TOKENS_USED)
         return cls(
-            answer=str(payload.get("answer") or ""),
-            error=str(payload.get("error") or ""),
-            cancelled=bool(payload.get("cancelled")),
+            answer=str(payload.get(RESULT_FIELD_ANSWER) or ""),
+            error=str(payload.get(RESULT_FIELD_ERROR) or ""),
+            cancelled=bool(payload.get(RESULT_FIELD_CANCELLED)),
             tokens_used=dict(usage) if isinstance(usage, dict) else {},
             metadata={
                 key: value
@@ -129,9 +149,9 @@ class TaskResult:
                 # ``children_rolled_up`` is host billing bookkeeping: a
                 # produced payload must not be able to claim the subtree was
                 # already folded and so skip the fold.
-                if key not in {"answer", "error", "cancelled", "tokens_used", "children_rolled_up"}
+                if key not in {RESULT_FIELD_ANSWER, RESULT_FIELD_ERROR, RESULT_FIELD_CANCELLED, RESULT_FIELD_TOKENS_USED, RESULT_FIELD_CHILDREN_ROLLED_UP}
             },
         )
 
     def to_payload(self) -> dict[str, Any]:
-        return {**self.metadata, "answer": self.answer, "error": self.error, "cancelled": self.cancelled, "tokens_used": dict(self.tokens_used)}
+        return {**self.metadata, RESULT_FIELD_ANSWER: self.answer, RESULT_FIELD_ERROR: self.error, RESULT_FIELD_CANCELLED: self.cancelled, RESULT_FIELD_TOKENS_USED: dict(self.tokens_used)}

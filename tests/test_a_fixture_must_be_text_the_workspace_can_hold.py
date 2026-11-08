@@ -40,7 +40,7 @@ BAD_FIXTURES = {
     "escaping key": {"sub/../escape.txt": "content"},
 }
 
-DOORS = ("v2", "behavior", "legacy")
+from tests._fixture_doors import DOORS
 
 
 def _v2_task(fixture: dict) -> dict:

@@ -53,7 +53,21 @@ from .tools.registry import redact_text
 
 LOG = get_logger("hook")
 
-HOOK_EVENTS = ("PreToolUse", "PostToolUse", "UserPromptSubmit", "Stop")
+# M8-T635: hook event name vocabulary (one home; hooks.py ↔ agent/loop.py).
+HOOK_EVENT_PRE_TOOL_USE = "PreToolUse"
+HOOK_EVENT_POST_TOOL_USE = "PostToolUse"
+HOOK_EVENT_USER_PROMPT_SUBMIT = "UserPromptSubmit"
+HOOK_EVENT_STOP = "Stop"
+HOOK_EVENTS = (
+    HOOK_EVENT_PRE_TOOL_USE,
+    HOOK_EVENT_POST_TOOL_USE,
+    HOOK_EVENT_USER_PROMPT_SUBMIT,
+    HOOK_EVENT_STOP,
+)
+
+# M8-T633: hook decision vocabulary (one home; distinct from permission decisions).
+HOOK_DECISION_ALLOW = "allow"
+HOOK_DECISION_DENY = "deny"
 DEFAULT_HOOK_TIMEOUT = 5.0
 MAX_HOOK_OUTPUT_CHARS = 2000
 #: M8-T330: how much of **one argument** a hook payload carries.  The value
@@ -77,8 +91,6 @@ HOOK_DENY_EXIT = 2
 #: the one default a user sees when a hook refuses without explaining.  One
 #: constant; every reader asks it.
 DEFAULT_DENY_REASON = "hook denied"
-
-_NAME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_-]{0,63}$")
 
 
 class HookConfigError(RuntimeError):
@@ -119,16 +131,16 @@ class HookSpec:
 class HookOutcome:
     """Result of running every hook registered for one event."""
 
-    decision: str = "allow"  # allow | deny
+    decision: str = HOOK_DECISION_ALLOW  # allow | deny
     outputs: list[dict[str, Any]] = field(default_factory=list)
 
     @property
     def denied(self) -> bool:
-        return self.decision == "deny"
+        return self.decision == HOOK_DECISION_DENY
 
     def denial_reason(self) -> str:
         for entry in self.outputs:
-            if entry.get("decision") == "deny":
+            if entry.get("decision") == HOOK_DECISION_DENY:
                 return str(entry.get("reason") or DEFAULT_DENY_REASON)
         return DEFAULT_DENY_REASON
 
@@ -190,7 +202,7 @@ def hook_entry(event: str, command: str) -> dict[str, Any]:
     missing field - and ``exit_code`` only joins the record later, on
     the path that actually ran the command.
     """
-    return {"event": event, "command": command, "decision": "allow", "reason": ""}
+    return {"event": event, "command": command, "decision": HOOK_DECISION_ALLOW, "reason": ""}
 
 
 class HookRunner:
@@ -278,7 +290,7 @@ class HookRunner:
                 if not (0 < timeout <= 60):
                     raise HookConfigError(f"hooks.{event}[{index}].timeout 需在 (0, 60] 秒")
                 on_failure = str(raw.get("on_failure", "continue")).strip().lower()
-                if on_failure not in {"continue", "deny"}:
+                if on_failure not in {"continue", HOOK_DECISION_DENY}:
                     raise HookConfigError(
                         f"hooks.{event}[{index}].on_failure 非法: {on_failure!r} (continue|deny)"
                     )
@@ -332,7 +344,7 @@ class HookRunner:
         for spec in self.specs:
             if spec.event != event:
                 continue
-            if event in {"PreToolUse", "PostToolUse"} and not spec.matches_tool(tool):
+            if event in {HOOK_EVENT_PRE_TOOL_USE, HOOK_EVENT_POST_TOOL_USE} and not spec.matches_tool(tool):
                 continue
             remaining = deadline - time.monotonic()
             if remaining <= 0:
@@ -356,8 +368,8 @@ class HookRunner:
                 entry.get("exit_code", "-"),
                 str(entry.get("reason") or "-")[:200],
             )
-            if entry["decision"] == "deny":
-                outcome.decision = "deny"
+            if entry["decision"] == HOOK_DECISION_DENY:
+                outcome.decision = HOOK_DECISION_DENY
         return outcome
 
     def _run_one(
@@ -373,10 +385,10 @@ class HookRunner:
         except HookConfigError as exc:
             # Same policy as the spawn, pipe and timeout failures below: this
             # method's decision vocabulary is allow|deny, and the only reader
-            # (agent/loop.py's outcome.denied) acts on "deny" — an unread
+            # (agent/loop.py's outcome.denied) acts on HOOK_DECISION_DENY — an unread
             # status here would let the tool through past on_failure=deny.
             entry.update(
-                decision="deny" if spec.on_failure == "deny" else "allow",
+                decision=HOOK_DECISION_DENY if spec.on_failure == HOOK_DECISION_DENY else HOOK_DECISION_ALLOW,
                 reason=str(exc),
             )
             return entry
@@ -406,7 +418,7 @@ class HookRunner:
                 )
         except OSError as exc:
             entry.update(
-                decision="deny" if spec.on_failure == "deny" else "allow",
+                decision=HOOK_DECISION_DENY if spec.on_failure == HOOK_DECISION_DENY else HOOK_DECISION_ALLOW,
                 reason=f"hook 启动失败: {exc}",
             )
             return entry
@@ -421,7 +433,7 @@ class HookRunner:
                 proc.kill()
                 stdout_raw, stderr_raw = "", ""
             entry.update(
-                decision="deny" if spec.on_failure == "deny" else "allow",
+                decision=HOOK_DECISION_DENY if spec.on_failure == HOOK_DECISION_DENY else HOOK_DECISION_ALLOW,
                 exit_code=proc.returncode,
                 timed_out=True,
                 stdout=redact_text(_cap((stdout_raw or "").strip()))[0],
@@ -432,7 +444,7 @@ class HookRunner:
         except OSError as exc:
             _kill_process_tree(proc)
             entry.update(
-                decision="deny" if spec.on_failure == "deny" else "allow",
+                decision=HOOK_DECISION_DENY if spec.on_failure == HOOK_DECISION_DENY else HOOK_DECISION_ALLOW,
                 reason=f"hook 执行失败: {exc}",
             )
             return entry
@@ -440,13 +452,13 @@ class HookRunner:
         stderr, _ = redact_text(_cap((stderr_raw or "").strip()))
         entry.update(exit_code=proc.returncode, stdout=stdout, stderr=stderr)
         if proc.returncode == 0:
-            entry["decision"] = "allow"
+            entry["decision"] = HOOK_DECISION_ALLOW
         elif proc.returncode == HOOK_DENY_EXIT:
-            entry.update(decision="deny", reason=stdout or stderr or DEFAULT_DENY_REASON)
+            entry.update(decision=HOOK_DECISION_DENY, reason=stdout or stderr or DEFAULT_DENY_REASON)
         else:
             # Non-zero, non-deny exit: failure strategy decides.
             entry.update(
-                decision="deny" if spec.on_failure == "deny" else "allow",
+                decision=HOOK_DECISION_DENY if spec.on_failure == HOOK_DECISION_DENY else HOOK_DECISION_ALLOW,
                 reason=(stderr or stdout or f"hook 退出码 {proc.returncode}"),
             )
         return entry
@@ -497,6 +509,10 @@ def payloads_for_result(result: Any) -> dict[str, Any]:
 
 
 __all__ = [
+    "HOOK_EVENT_POST_TOOL_USE",
+    "HOOK_EVENT_PRE_TOOL_USE",
+    "HOOK_EVENT_STOP",
+    "HOOK_EVENT_USER_PROMPT_SUBMIT",
     "HOOK_EVENTS",
     "HOOKS_FILENAME",
     "HookConfigError",

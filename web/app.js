@@ -1,5 +1,6 @@
 (() => {
   // web/src/core/bounded-cache.js
+  var MAX_SEEN_EVENT_KEYS = 2048;
   var BoundedMap = class extends Map {
     constructor(limit) {
       super();
@@ -28,9 +29,9 @@
   // web/src/core/session-cache.js
   var SESSION_CACHE_PREFIX = "minicc-session-view:";
   var INDEX_KEY = "minicc-session-cache-index-v1";
+  var MAX_SESSION_VIEW_CHARS = 18e4;
   var MAX_ENTRIES = 24;
   var MAX_TOTAL_CHARS = 12e5;
-  var MAX_ENTRY_CHARS = 18e4;
   function storeSessionMarkup(key, markup) {
     try {
       const storage = window.localStorage;
@@ -53,7 +54,7 @@
         return true;
       };
       const source = String(markup || "");
-      if (!source || source.length > MAX_ENTRY_CHARS) storage.removeItem(key);
+      if (!source || source.length > MAX_SESSION_VIEW_CHARS) storage.removeItem(key);
       else {
         while (order.length >= MAX_ENTRIES || total + source.length > MAX_TOTAL_CHARS) if (!evict()) break;
         while (true) {
@@ -75,11 +76,13 @@
   }
 
   // web/src/core/state.js
+  var REASONING_EFFORTS = ["low", "mid", "high", "xhigh", "max", "ultra"];
+  var PERMISSION_MODES = ["default", "plan", "acceptEdits", "yolo"];
   var state = {
     sessionId: localStorage.getItem("minicc-session") || "interview-1",
     allowChanges: localStorage.getItem("minicc-allow") === "true",
     allowNetwork: localStorage.getItem("minicc-network") === "true",
-    permissionMode: ["default", "plan", "acceptEdits", "yolo"].includes(localStorage.getItem("minicc-permission-mode")) ? localStorage.getItem("minicc-permission-mode") : "default",
+    permissionMode: PERMISSION_MODES.includes(localStorage.getItem("minicc-permission-mode")) ? localStorage.getItem("minicc-permission-mode") : "default",
     locale: localStorage.getItem("minicc-locale") || "zh",
     theme: ["light", "dark"].includes(localStorage.getItem("minicc-theme")) ? localStorage.getItem("minicc-theme") : "light",
     workspacePath: "",
@@ -89,7 +92,7 @@
     models: [],
     modelCatalogError: "",
     modelCatalogLoading: false,
-    reasoningEffort: ["low", "mid", "high", "xhigh", "max", "ultra"].includes(localStorage.getItem("minicc-reasoning")) ? localStorage.getItem("minicc-reasoning") : "high",
+    reasoningEffort: REASONING_EFFORTS.includes(localStorage.getItem("minicc-reasoning")) ? localStorage.getItem("minicc-reasoning") : "high",
     busy: false,
     submitting: false,
     focusMode: localStorage.getItem("minicc-focus-mode") === "true",
@@ -121,9 +124,10 @@
     if (!token || url.includes("token=")) return url;
     return `${url}${url.includes("?") ? "&" : "?"}token=${encodeURIComponent(token)}`;
   }
+  var INSPECTOR_TABS = ["changes", "files", "verification"];
   var runtime = {
     workspaceVersion: 0,
-    inspectorTab: "changes",
+    inspectorTab: INSPECTOR_TABS[0],
     initialMessageMarkup: "",
     sessionViewReady: false,
     renderedTaskListKey: "",
@@ -164,11 +168,12 @@
     "cancelled",
     "interrupted"
   ]);
+  var ACTIVE_TASK_PHASES = new Set(
+    [...TASK_PHASES].filter((phase) => !TERMINAL_TASK_STATUSES.has(phase))
+  );
   var RESUMABLE_TASK_PHASES = /* @__PURE__ */ new Set(["failed", "cancelled", "interrupted"]);
   var TODO_STATUSES = /* @__PURE__ */ new Set(["pending", "in_progress", "completed"]);
   var TODO_PRIORITIES = /* @__PURE__ */ new Set(["high", "medium", "low"]);
-  var MAX_SESSION_VIEW_CHARS = 18e4;
-  var MAX_SEEN_EVENT_KEYS = 2048;
   var MAX_RENDERED_TIMELINE_EVENTS = 240;
   var $ = (selector) => document.querySelector(selector);
   var $$ = (selector) => [...document.querySelectorAll(selector)];
@@ -918,6 +923,10 @@
       "game.running": "Battle",
       "game.paused": "Paused while this tab is hidden",
       "game.manualPaused": "Battle paused",
+      "game.waveClear": "Wave cleared, next incoming",
+      "game.victory": "The lawn is held!",
+      "game.noSun": "Not enough sun",
+      "game.recharging": "Card is recharging",
       "game.waveIncoming": "Reinforced wave incoming",
       "game.gameOver": "A zombie reached the house",
       "game.time": "Battle time",
@@ -1284,12 +1293,11 @@
   }
 
   // web/src/core/task-reducer.js
-  var LIMIT = 2048;
   var sequenceOf = (value) => Math.max(0, Number(value) || 0);
   var boundedAdd = (previous, value) => {
     const next = new Set(previous || []);
     if (value) next.add(value);
-    while (next.size > LIMIT) next.delete(next.values().next().value);
+    while (next.size > MAX_SEEN_EVENT_KEYS) next.delete(next.values().next().value);
     return next;
   };
   function reduceTaskEvent(binding, envelope) {
@@ -1307,7 +1315,7 @@
         const existing = events.findIndex((item) => event.event_id && item.event_id === event.event_id || event.item_id && item.item_id === event.item_id);
         if (existing < 0) events.push(event);
         else events[existing] = { ...events[existing], ...event };
-        data.events = events.slice(-2048);
+        data.events = events.slice(-MAX_SEEN_EVENT_KEYS);
         break;
       }
       case "stream_delta": {
@@ -1347,6 +1355,9 @@
   }
 
   // web/src/core/approvals.js
+  var APPROVAL_TIMEOUT_SECONDS = 60;
+  var APPROVAL_FRAME_REQUEST_KIND = "approval_request";
+  var APPROVAL_FRAME_RESOLVED_KIND = "approval_resolved";
   var APPROVAL_DECISIONS = ["allow", "always", "deny"];
   var pending2 = /* @__PURE__ */ new Map();
   var ticker = 0;
@@ -1410,7 +1421,7 @@
     node.className = "approval-card";
     node.setAttribute("role", "alertdialog");
     node.setAttribute("aria-label", t("approval.title"));
-    const timeoutSeconds = Number(event.timeout_seconds || 60) || 60;
+    const timeoutSeconds = Number(event.timeout_seconds) || APPROVAL_TIMEOUT_SECONDS;
     const buttons = APPROVAL_DECISIONS.map(
       (decision) => `<button type="button"${decision === "deny" ? ' class="approval-deny"' : ""} data-decision="${decision}">${escapeHtml(t(`approval.${decision}`))}</button>`
     ).join("");
@@ -1436,13 +1447,13 @@
   function syncApprovalRequests(events) {
     if (!Array.isArray(events)) return;
     const resolved = new Set(
-      events.filter((event) => event?.kind === "approval_resolved" && event.request_id).map((event) => event.request_id)
+      events.filter((event) => event?.kind === APPROVAL_FRAME_RESOLVED_KIND && event.request_id).map((event) => event.request_id)
     );
     for (const requestId of [...pending2.keys()]) {
       if (resolved.has(requestId)) removeCard(requestId);
     }
     for (const event of events) {
-      if (!event || event.kind !== "approval_request" || !event.request_id) continue;
+      if (!event || event.kind !== APPROVAL_FRAME_REQUEST_KIND || !event.request_id) continue;
       if (resolved.has(event.request_id) || pending2.has(event.request_id)) continue;
       if (event.stale === true) continue;
       addCard(event);
@@ -2017,7 +2028,7 @@
       state.contextWindowTokens = Number(info.context_window_tokens || state.contextWindowTokens || 3e5);
       if (!localStorage.getItem("minicc-model") && info.model) state.model = String(info.model);
       void loadModelCatalog({ quiet: true });
-      if (!localStorage.getItem("minicc-reasoning") && ["low", "mid", "high", "xhigh", "max", "ultra"].includes(info.reasoning_effort)) state.reasoningEffort = info.reasoning_effort;
+      if (!localStorage.getItem("minicc-reasoning") && REASONING_EFFORTS.includes(info.reasoning_effort)) state.reasoningEffort = info.reasoning_effort;
       updateReasoningControl();
       const name = info.name || "workspace";
       $("#workspaceName").textContent = name;
@@ -2312,7 +2323,7 @@
   }
   function openSettingsPanel() {
     const current = state.locale === "zh" ? "\u4E2D\u6587" : "English";
-    const effortMarkup = ["low", "mid", "high", "xhigh", "max", "ultra"].map((effort) => '<option value="' + effort + '" ' + (state.reasoningEffort === effort ? "selected" : "") + ">" + escapeHtml(t("reasoning." + effort)) + "</option>").join("");
+    const effortMarkup = REASONING_EFFORTS.map((effort) => '<option value="' + effort + '" ' + (state.reasoningEffort === effort ? "selected" : "") + ">" + escapeHtml(t("reasoning." + effort)) + "</option>").join("");
     const languageButtons = '<div class="settings-block"><span>' + t("panel.language") + "</span><strong>" + current + '</strong><div class="settings-locale"><button class="locale-option ' + (state.locale === "zh" ? "active" : "") + '" data-set-locale="zh">\u4E2D\u6587</button><button class="locale-option ' + (state.locale === "en" ? "active" : "") + '" data-set-locale="en">English</button></div></div>';
     const modelNote = state.modelCatalogError || (state.locale === "zh" ? "\u4ECE\u5F53\u524D\u7F51\u5173\u8BFB\u53D6\u53EF\u7528\u6A21\u578B\uFF1B\u65B0\u7684\u4EFB\u52A1\u4F1A\u4F7F\u7528\u6B64\u9009\u62E9\u3002" : "Loads models from the configured gateway; new tasks use this choice.");
     const modelBlock = `<div class="settings-block"><span>${t("panel.model")}</span><div class="settings-model"><select id="modelSelect" aria-label="${escapeHtml(t("panel.model"))}">${modelOptionsMarkup()}</select><button type="button" class="panel-secondary model-refresh" id="refreshModelCatalog" title="${escapeHtml(t("panel.modelRefresh"))}">\u21BB</button></div><small class="settings-note">${escapeHtml(modelNote)}</small></div>`;
@@ -2468,7 +2479,7 @@
     showToast(state.locale === "zh" ? "\u5BF9\u8BDD\u5DF2\u5BFC\u51FA" : "Chat exported");
   }
   function switchInspectorTab(tab) {
-    runtime.inspectorTab = ["changes", "files", "verification"].includes(tab) ? tab : "changes";
+    runtime.inspectorTab = INSPECTOR_TABS.includes(tab) ? tab : INSPECTOR_TABS[0];
     $$(".inspector-tab").forEach((item) => {
       const active = item.dataset.inspectorTab === runtime.inspectorTab;
       item.classList.toggle("active", active);
@@ -2874,7 +2885,6 @@
     if (sessionId === state.sessionId) state.activeTaskId = bindings[bindings.length - 1].taskId;
     setBusy(true);
   }
-  var PERMISSION_MODES = ["default", "plan", "acceptEdits", "yolo"];
   function effectiveTaskPermissions() {
     const mode = state.permissionMode;
     return {
@@ -3708,6 +3718,55 @@
       run_finished: "\u6267\u884C\u7ED3\u675F",
       stagnation_guard: "\u5FAA\u73AF\u4FDD\u62A4",
       max_turns: "\u8F6E\u6B21\u4E0A\u9650",
+      // M8-T556: every code the backend can mint has a name here or the
+      // timeline chip reads as "阶段事件". Pinned by
+      // tests/frontend_trace_code_one_home_smoke.mjs.
+      approval_requested: "\u9700\u8981\u6279\u51C6",
+      approval_resolved: "\u6279\u51C6\u5DF2\u88C1\u51B3",
+      background_limit_reached: "\u540E\u53F0\u4EFB\u52A1\u5DF2\u8FBE\u4E0A\u9650",
+      batch_resume: "\u6279\u91CF\u6062\u590D",
+      budget_exceeded: "\u9884\u7B97\u8D85\u9650",
+      cancel_requested: "\u5DF2\u8BF7\u6C42\u53D6\u6D88",
+      cancelled: "\u5DF2\u53D6\u6D88",
+      completion_continue_capped: "\u5B8C\u6210\u8BC4\u4F30\u7EED\u8DD1\u5DF2\u8FBE\u4E0A\u9650",
+      completion_judge_rejected: "\u5B8C\u6210\u8BC4\u4F30\u88AB\u9A73\u56DE",
+      completion_verdict_repeated: "\u5B8C\u6210\u8BC4\u4F30\u5224\u65AD\u91CD\u590D",
+      dependency_aware_repair_scope: "\u4F9D\u8D56\u611F\u77E5\u7684\u4FEE\u590D\u8303\u56F4",
+      detached_process_blocked: "\u540E\u53F0\u8FDB\u7A0B\u88AB\u62E6\u622A",
+      empty_answer: "\u7A7A\u7B54\u6848",
+      hook_blocked_user_prompt: "\u94A9\u5B50\u62E6\u622A\u4E86\u8F93\u5165",
+      hook_executed: "\u94A9\u5B50\u5DF2\u6267\u884C",
+      mentions_resolved: "\u63D0\u53CA\u5DF2\u89E3\u6790",
+      nonterminal_turn: "\u672A\u7EC8\u7ED3\u8F6E\u6B21",
+      nonterminal_turn_limit: "\u672A\u7EC8\u7ED3\u8F6E\u6B21\u4E0A\u9650",
+      planner_dynamic_ready: "\u52A8\u6001\u89C4\u5212\u5C31\u7EEA",
+      planner_execution_finished: "\u89C4\u5212\u6267\u884C\u5B8C\u6210",
+      planner_execution_skipped: "\u89C4\u5212\u6267\u884C\u5DF2\u8DF3\u8FC7",
+      planner_execution_started: "\u89C4\u5212\u6267\u884C\u5F00\u59CB",
+      planner_fixed_fallback: "\u56FA\u5B9A\u89C4\u5212\u56DE\u9000",
+      planner_node_finished: "\u89C4\u5212\u8282\u70B9\u5B8C\u6210",
+      planner_node_provider_status: "\u89C4\u5212\u8282\u70B9\u6A21\u578B\u72B6\u6001",
+      planner_node_started: "\u89C4\u5212\u8282\u70B9\u5F00\u59CB",
+      planner_preflight_fallback: "\u89C4\u5212\u9884\u68C0\u56DE\u9000",
+      planner_started: "\u89C4\u5212\u5F00\u59CB",
+      planner_tool_out_of_scope: "\u89C4\u5212\u5DE5\u5177\u8D8A\u754C",
+      protocol_guard: "\u534F\u8BAE\u4FDD\u62A4",
+      protocol_repair: "\u534F\u8BAE\u4FEE\u590D",
+      provider_request_retry: "\u8BF7\u6C42\u91CD\u8BD5",
+      provider_transport_fallback: "\u4F20\u8F93\u56DE\u9000",
+      repair_stage_provider: "\u4FEE\u590D\u9636\u6BB5\u6A21\u578B",
+      safe_readonly_checkpoint: "\u53EA\u8BFB\u68C0\u67E5\u70B9\u6062\u590D",
+      session_checkpoint: "\u4F1A\u8BDD\u68C0\u67E5\u70B9",
+      soft_budget_stopped: "\u8F6F\u9884\u7B97\u505C\u6B62",
+      soft_budget_wrap_up: "\u8F6F\u9884\u7B97\u6536\u5C3E",
+      task_model_fallback: "\u4EFB\u52A1\u6A21\u578B\u56DE\u9000",
+      tool_authorized: "\u5DE5\u5177\u5DF2\u6388\u6743",
+      tool_history_recovered: "\u5DE5\u5177\u5386\u53F2\u5DF2\u6062\u590D",
+      verification_guard: "\u9A8C\u8BC1\u4FDD\u62A4",
+      verification_required_before_finish: "\u6536\u5C3E\u524D\u9700\u5148\u9A8C\u8BC1",
+      verification_satisfied_by_inspection: "\u68C0\u67E5\u5373\u89C6\u4E3A\u5DF2\u5B8C\u6210\u9A8C\u8BC1",
+      verification_waiver_refused_by_failed_read: "\u8C41\u514D\u88AB\u62D2\uFF08\u8BFB\u53D6\u5931\u8D25\uFF09",
+      vision_context_restored: "\u89C6\u89C9\u4E0A\u4E0B\u6587\u5DF2\u6062\u590D",
       batch_started: "\u5E76\u884C\u7F16\u6392",
       auto_orchestration_triggered: "\u81EA\u52A8\u7F16\u6392",
       orchestration_parent_resumed: "\u4E3B Agent \u63A5\u7BA1",
@@ -3757,6 +3816,55 @@
       run_finished: "Execution finished",
       stagnation_guard: "Loop guard",
       max_turns: "Turn limit",
+      // M8-T556: every code the backend can mint has a name here or the
+      // timeline chip reads as "Stage event". Pinned by
+      // tests/frontend_trace_code_one_home_smoke.mjs.
+      approval_requested: "Approval needed",
+      approval_resolved: "Approval resolved",
+      background_limit_reached: "Background task limit",
+      batch_resume: "Batch resume",
+      budget_exceeded: "Budget exceeded",
+      cancel_requested: "Cancel requested",
+      cancelled: "Cancelled",
+      completion_continue_capped: "Continue capped",
+      completion_judge_rejected: "Completion rejected",
+      completion_verdict_repeated: "Verdict repeated",
+      dependency_aware_repair_scope: "Dependency-aware repair scope",
+      detached_process_blocked: "Detached process blocked",
+      empty_answer: "Empty answer",
+      hook_blocked_user_prompt: "Hook blocked prompt",
+      hook_executed: "Hook executed",
+      mentions_resolved: "Mentions resolved",
+      nonterminal_turn: "Nonterminal turn",
+      nonterminal_turn_limit: "Nonterminal turn limit",
+      planner_dynamic_ready: "Planner ready",
+      planner_execution_finished: "Plan execution finished",
+      planner_execution_skipped: "Plan execution skipped",
+      planner_execution_started: "Plan execution started",
+      planner_fixed_fallback: "Fixed plan fallback",
+      planner_node_finished: "Plan node finished",
+      planner_node_provider_status: "Plan node status",
+      planner_node_started: "Plan node started",
+      planner_preflight_fallback: "Preflight fallback",
+      planner_started: "Planner started",
+      planner_tool_out_of_scope: "Plan tool out of scope",
+      protocol_guard: "Protocol guard",
+      protocol_repair: "Protocol repair",
+      provider_request_retry: "Request retry",
+      provider_transport_fallback: "Transport fallback",
+      repair_stage_provider: "Repair stage provider",
+      safe_readonly_checkpoint: "Read-only checkpoint",
+      session_checkpoint: "Session checkpoint",
+      soft_budget_stopped: "Soft budget stopped",
+      soft_budget_wrap_up: "Soft budget wrap up",
+      task_model_fallback: "Task model fallback",
+      tool_authorized: "Tool authorized",
+      tool_history_recovered: "Tool history recovered",
+      verification_guard: "Verification guard",
+      verification_required_before_finish: "Verify before finish",
+      verification_satisfied_by_inspection: "Verified by inspection",
+      verification_waiver_refused_by_failed_read: "Waiver refused",
+      vision_context_restored: "Vision context restored",
       batch_started: "Parallel orchestration",
       auto_orchestration_triggered: "Auto orchestration",
       orchestration_parent_resumed: "Parent agent resumed",
@@ -3804,7 +3912,7 @@
     if (typeof detail !== "object" || Array.isArray(detail)) return detailValueText(detail, 96);
     const labels = state.locale === "zh" ? { turn: "\u8F6E\u6B21", previous_turn: "\u4E0A\u4E00\u8F6E", tool_count: "\u5DE5\u5177", results: "\u7ED3\u679C", observed: "\u5DF2\u89C2\u5BDF", observations: "\u89C2\u5BDF", constraints: "\u7EA6\u675F", failed_tools: "\u5931\u8D25", verification_required: "\u9700\u9A8C\u8BC1", recovery_inspection_required: "\u5199\u5165\u4FDD\u62A4", assessment: "\u53CD\u9988", trigger: "\u89E6\u53D1", next_action: "\u4E0B\u4E00\u6B65" } : { turn: "turn", previous_turn: "previous", tool_count: "tools", results: "results", observed: "observed", observations: "observations", constraints: "constraints", failed_tools: "failed", verification_required: "verify", recovery_inspection_required: "write guard", assessment: "assessment", trigger: "trigger", next_action: "next" };
     const parts = [];
-    for (const key of ["turn", "previous_turn", "tool_count", "results", "observed", "observations", "constraints", "failed_tools", "verification_required", "recovery_inspection_required", "assessment", "trigger", "next_action"]) {
+    for (const key of Object.keys(labels)) {
       const value = detail[key];
       if (value == null || value === "") continue;
       const compact = Array.isArray(value) ? state.locale === "zh" ? `${value.length} \u9879` : `${value.length} items` : detailValueText(value, 96);
@@ -3879,6 +3987,7 @@
       failed_tools: "\u5931\u8D25\u5DE5\u5177",
       needs_repair: "\u9700\u8981\u4FEE\u590D",
       verification_required: "\u9700\u8981\u9A8C\u8BC1",
+      recovery_inspection_required: "\u5199\u5165\u4FDD\u62A4",
       assessment: "\u53CD\u9988\u5224\u65AD",
       replan_trigger: "\u91CD\u89C4\u5212\u89E6\u53D1",
       parallel_mode: "\u5E76\u884C\u6A21\u5F0F",
@@ -3938,6 +4047,7 @@
       failed_tools: "failed tools",
       needs_repair: "needs repair",
       verification_required: "verification required",
+      recovery_inspection_required: "write guard",
       assessment: "assessment",
       replan_trigger: "re-plan trigger",
       parallel_mode: "parallel mode",
@@ -3950,8 +4060,7 @@
       turns: "turns",
       tool_calls: "tool calls"
     };
-    const keys = ["turn", "previous_turn", "tool_count", "tools", "answer_chars", "duration_ms", "duration_seconds", "count", "names", "statuses", "max_turns", "turn_policy", "child_count", "child", "failed", "retry", "retry_limit", "partial_chars", "error_type", "requested", "active", "wire_value", "task_id", "tokens", "automatic", "complexity_score", "complexity_threshold", "complexity_reasons", "attempt", "confidence", "rationale", "missing", "next_action", "evidence", "error", "trigger", "observed", "observations", "constraints", "basis", "public_plan", "results", "structured_data", "new_information", "failed_tools", "needs_repair", "verification_required", "assessment", "replan_trigger", "parallel_mode", "max_concurrency", "dependency_shape", "merge_strategy", "parallel_results", "merge_basis", "result_summary", "turns", "tool_calls"];
-    for (const key of keys) {
+    for (const key of Object.keys(labels)) {
       if (detail[key] == null) continue;
       parts.push(`${labels[key] || key}: ${detailValueText(detail[key])}`);
     }
@@ -4069,7 +4178,7 @@
       const traceClass = status === "error" ? "trace-error" : "trace-ok";
       const detail = traceDetail(event, { omitText: event.code === "model_update" });
       const publicText = event.code === "model_update" && typeof event.detail?.text === "string" ? event.detail.text : "";
-      const tracePhase = event.code === "run_finished" ? "review" : event.phase;
+      const tracePhase = event.phase;
       const isModelEvent = String(event.code || "") === "model_update";
       const summary = isModelEvent && event.code === "model_update" ? state.locale === "zh" ? `\u884C\u52A8\u8BF4\u660E \xB7 \u7B2C ${event.detail?.turn || ""} \u8F6E` : `Action \xB7 turn ${event.detail?.turn || ""}` : String(event.summary || traceLabel(event));
       const publicMarkup = publicText ? `<div class="trace-public-plan"><span>${escapeHtml(state.locale === "zh" ? "\u516C\u5F00\u884C\u52A8" : "Public action")}</span><div>${formatText(publicText)}</div></div>` : "";
@@ -5159,7 +5268,7 @@
       }
       if (event.target.id !== "reasoningEffortSelect") return;
       const value = event.target.value;
-      if (!["low", "mid", "high", "xhigh", "max", "ultra"].includes(value)) return;
+      if (!REASONING_EFFORTS.includes(value)) return;
       state.reasoningEffort = value;
       localStorage.setItem("minicc-reasoning", value);
       updateReasoningControl();

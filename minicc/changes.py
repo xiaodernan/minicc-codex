@@ -16,7 +16,14 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
-from .gitprobe import work_tree_verdict
+from .gitprobe import (
+    WORK_TREE_VERDICT_NO,
+    WORK_TREE_VERDICT_UNKNOWN,
+    git_status_exit_reason,
+    git_status_timeout_reason,
+    git_status_unavailable_reason,
+    work_tree_verdict,
+)
 from .internal_paths import AUDIT_NAME
 from .tools.editor import (
     _MUTATING_ACTIONS,
@@ -193,7 +200,14 @@ class ChangeInspector:
             raise ChangeError("路径超出工作区")
         return resolved
 
-    def _git(self, args: list[str]) -> tuple[int, str, str]:
+    def _git(self, args: list[str]) -> tuple[int, str, str, str | None]:
+        """Run one git command; answer ``(code, stdout, stderr, reason)``.
+
+        M8-T551: the failure is no longer collapsed into the exit-127
+        ``git unavailable`` sentinel - the reason travels with it, so a
+        timeout and an unrunnable git are two different answers, both
+        spoken by the one home (``gitprobe``).
+        """
         try:
             result = subprocess.run(
                 ["git", *args],
@@ -205,9 +219,11 @@ class ChangeInspector:
                 timeout=20,
                 shell=False,
             )
-        except (OSError, subprocess.TimeoutExpired):
-            return 127, "", "git unavailable"
-        return result.returncode, result.stdout, result.stderr
+        except subprocess.TimeoutExpired as exc:
+            return 127, "", "git unavailable", git_status_timeout_reason(20, "变更清单")
+        except (OSError, subprocess.SubprocessError) as exc:
+            return 127, "", "git unavailable", git_status_unavailable_reason(exc)
+        return result.returncode, result.stdout, result.stderr, None
 
     def _status_lines(self) -> tuple[list[str], str | None]:
         """Git's status records — and why, if the tree could not be read.
@@ -218,9 +234,9 @@ class ChangeInspector:
         read*; a workspace that is not a repository (or has no work tree)
         is still a readable, supported empty baseline.
         """
-        code, stdout, stderr = self._git(["status", "--porcelain=v1", "-z", "-uall"])
+        code, stdout, stderr, reason = self._git(["status", "--porcelain=v1", "-z", "-uall"])
         if code != 0:
-            return [], self._status_failure(code, stderr)
+            return [], self._status_failure(code, stderr, reason)
         # NUL records preserve spaces, Unicode and embedded newlines. A
         # rename/copy carries destination first and source as the next record.
         records = iter(stdout.split("\0"))
@@ -235,28 +251,23 @@ class ChangeInspector:
             output.append(raw)
         return output, None
 
-    def _status_failure(self, code: int, stderr: str) -> str | None:
-        """The reason a failed ``git status`` is a failed read, or ``None``.
+    def _status_failure(self, code: int, stderr: str, reason: str | None) -> str | None:
+        """Human-readable reason the change list could not be read, or None.
 
-        ``_git`` answers 127 / "git unavailable" for both an OSError and a
-        20-second timeout — git did not run at all.  Its own non-zero exits
-        are split by ``work_tree_verdict``: no repository is a fact about
-        the workspace (the module exists for workspaces with no commit, and
-        a workspace with no repository at all is the same kind of fact);
-        everything else is a tree we were not allowed to read.
+        M8-T551: the answer came from the failed invocation itself (an
+        unrunnable git or a timeout), and ``reason`` already says which - so
+        it is returned as-is instead of re-deriving from the exit-127
+        sentinel.
         """
-        if code == 127 and "git unavailable" in stderr:
-            return "git status 无法运行（20 秒超时或 PATH 里没有 git），变更清单没有读出来"
+        if reason is not None:
+            return reason
         kind, detail = work_tree_verdict(self.workspace)
-        if kind == "no":
+        if kind == WORK_TREE_VERDICT_NO:
             return None
-        reason = f"git status 退出码 {code}"
-        first = (stderr or "").strip().splitlines()
-        if first:
-            reason += f": {first[0][:200]}"
-        if kind == "unknown":
-            reason += f"（且无法确认这是不是仓库：{detail}）"
-        return reason
+        failure = git_status_exit_reason(code, stderr)
+        if kind == WORK_TREE_VERDICT_UNKNOWN:
+            failure += f"（且无法确认这是不是仓库：{detail}）"
+        return failure
 
     @staticmethod
     def _parse_status(raw: str) -> tuple[str, str]:
@@ -629,7 +640,7 @@ class ChangeInspector:
                 signature.append((item["raw"], None, None))
         # HEAD/index mutations invalidate even when the working file did not
         # change. rev-parse handles linked worktrees without assuming .git/.
-        code, head, _ = self._git(["rev-parse", "HEAD"])
+        code, head, _, _ = self._git(["rev-parse", "HEAD"])
         key = str(self.workspace)
         # M8-T563: a row may now be counted out of a backup copy, and neither
         # the copy nor the trail touches the deleted file's own stat.  Without
@@ -703,11 +714,11 @@ class ChangeInspector:
         return self._computed_files()[:_MAX_FILES]
 
     def _numstat(self) -> dict[str, tuple[int, int]]:
-        code, stdout, _ = self._git(["diff", "--numstat", "-z", "--find-renames", "HEAD", "--"])
+        code, stdout, _, _ = self._git(["diff", "--numstat", "-z", "--find-renames", "HEAD", "--"])
         if code != 0:
             # An unborn repository has no HEAD; staged additions still have
             # meaningful counts and untracked files are counted separately.
-            code, stdout, _ = self._git(["diff", "--cached", "--numstat", "-z", "--find-renames", "--"])
+            code, stdout, _, _ = self._git(["diff", "--cached", "--numstat", "-z", "--find-renames", "--"])
         result = {}
         if code == 0:
             records = iter(stdout.split("\0"))
@@ -722,7 +733,7 @@ class ChangeInspector:
         return result
 
     def _baseline(self, path: str) -> str:
-        code, stdout, _stderr = self._git(["show", f"HEAD:{path}"])
+        code, stdout, _stderr, _ = self._git(["show", f"HEAD:{path}"])
         return stdout if code == 0 else ""
 
     @staticmethod

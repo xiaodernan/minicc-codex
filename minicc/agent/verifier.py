@@ -14,9 +14,11 @@ from typing import Any, Callable
 from copy import deepcopy
 
 from ..tools.bash import run_bash
-from ..tools.schemas import ToolResult
+from ..tools.schemas import TOOL_STATUS_CANCELLED, TOOL_STATUS_OK, TOOL_STATUS_TIMED_OUT, ToolResult
 from ..tools.registry import redact_text
+from ..trace import trace_event  # the one home for the event record
 from .verification_plan import VerificationCommand, VerificationPlan, build_verification_plan, safe_verification_command, verification_state
+from .protocol import PHASE_VERIFY
 
 
 FAILED_TEST_RE = re.compile(r"(?m)^FAILED\s+([^\s]+)")
@@ -102,17 +104,21 @@ class VerificationResult:
             "cancelled": "验证已取消，后续检查未执行",
             "timed_out": f"验证超时: {self.command}",
         }.get(self.status, f"验证结束: {self.command}")
-        return {
-            "kind": "verification",
-            "name": "verifier",
-            "phase": "verify",
-            "status": status,
-            "code": code,
-            "summary": summary,
-            "command": self.command,
-            "write": False,
-            "detail": self.to_dict(),
-        }
+        # M8-T566: the verification event is the one record, asked for by
+        # kind — the flat extras stay flat (the completion gate reads
+        # event-wide), everything else goes through the one home.
+        event = trace_event(
+            name="verifier",
+            status=status,
+            phase=PHASE_VERIFY,
+            code=code,
+            summary=summary,
+            kind="verification",
+            detail=self.to_dict(),
+        )
+        event["command"] = self.command
+        event["write"] = False
+        return event
 
 
 Executor = Callable[[str, Path, int], ToolResult]
@@ -247,11 +253,11 @@ class Verifier:
         # output, fix it and run it again".  The model was then sent to
         # repair a command that had not failed at all, and the repair loop
         # kept re-running it until the cap.
-        if tool_result.status == "cancelled":
+        if tool_result.status == TOOL_STATUS_CANCELLED:
             status = "cancelled"
-        elif tool_result.status == "timed_out":
+        elif tool_result.status == TOOL_STATUS_TIMED_OUT:
             status = "timed_out"
-        elif tool_result.status == "ok" and tool_result.exit_code in (None, 0):
+        elif tool_result.status == TOOL_STATUS_OK and tool_result.exit_code in (None, 0):
             status = "passed"
         else:
             status = "failed"

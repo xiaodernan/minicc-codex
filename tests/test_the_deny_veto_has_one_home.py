@@ -88,8 +88,16 @@ def _enclosing_function(tree: ast.AST, target: ast.AST) -> str | None:
     return ".".join(reversed(names)) if names else None
 
 
+_CODE_CONST = "AUTHORIZATION_PERMISSION_RULE_DENY"
+
+
 def _decision_strings() -> list[tuple[str, int, str]]:
-    """Every string constant inside an ``AuthorizationDecision(...)`` call."""
+    """Every string constant inside an ``AuthorizationDecision(...)`` call.
+
+    The authorization code may be carried as a string literal or as the
+    named home constant (M8-T625); recognize the name form so the one-home
+    invariant survives constantization.
+    """
     found = []
     for path, tree in _trees():
         for node in ast.walk(tree):
@@ -102,6 +110,8 @@ def _decision_strings() -> list[tuple[str, int, str]]:
             for sub in ast.walk(node):
                 if isinstance(sub, ast.Constant) and isinstance(sub.value, str):
                     found.append((path.relative_to(REPO).as_posix(), sub.lineno, sub.value))
+                if isinstance(sub, ast.Name) and sub.id == _CODE_CONST:
+                    found.append((path.relative_to(REPO).as_posix(), sub.lineno, CODE))
     return found
 
 
@@ -119,7 +129,10 @@ def _decision_builders(code: str) -> list[tuple[str, str | None]]:
             texts = [a.value for a in node.args if isinstance(a, ast.Constant)]
             texts += [k.value.value for k in node.keywords
                       if k.arg == "authorization" and isinstance(k.value, ast.Constant)]
-            if code in texts:
+            names = [a.id for a in node.args if isinstance(a, ast.Name)]
+            names += [k.value.id for k in node.keywords
+                      if k.arg == "authorization" and isinstance(k.value, ast.Name)]
+            if code in texts or (code == CODE and _CODE_CONST in names):
                 found.append((path.relative_to(REPO).as_posix(), _enclosing_function(tree, node)))
     return found
 

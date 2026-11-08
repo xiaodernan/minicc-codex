@@ -28,6 +28,7 @@ from collections.abc import Callable
 from typing import Any
 from urllib.parse import urlparse
 
+
 try:
     import httpx
 except ModuleNotFoundError:  # OpenAI SDK adapters do not all expose httpx.
@@ -54,7 +55,7 @@ from tenacity import (
     stop_after_attempt,
 )
 
-from ..config import LLM_PROTOCOLS, REASONING_EFFORT_ALIASES, TOOL_MODES
+from ..config import LLM_PROTOCOL_CHAT_COMPLETIONS, LLM_PROTOCOL_RESPONSES, LLM_PROTOCOLS, REASONING_EFFORT_ALIASES, TOOL_MODES
 from .base import LLMResponse, is_nameless_tool_name, tool_call, unique_tool_call_id
 from ..tools.schemas import tool_call_name
 from ..trace import trace_event
@@ -266,7 +267,7 @@ def protocol_fallback_detail(exc: BaseException) -> dict[str, str]:
     the two traces stay comparable and a change to the reported protocol or
     error key lands once.
     """
-    return {"protocol": "chat_completions", "error_type": type(exc).__name__}
+    return {"protocol": LLM_PROTOCOL_CHAT_COMPLETIONS, "error_type": type(exc).__name__}
 
 
 def classify_provider_failure(exc: BaseException) -> bool | None:
@@ -550,7 +551,7 @@ class OpenAICompatibleProvider:
         self._max_retries = max(0, max_retries)
         if protocol not in LLM_PROTOCOLS:
             raise ValueError(f"protocol 非法: {protocol!r}")
-        self._protocol = "responses" if protocol in ("auto", "responses") else "chat_completions"
+        self._protocol = LLM_PROTOCOL_RESPONSES if protocol in ("auto", LLM_PROTOCOL_RESPONSES) else LLM_PROTOCOL_CHAT_COMPLETIONS
         self._protocol_locked = protocol != "auto"
         if tool_mode not in TOOL_MODES:
             raise ValueError(f"tool_mode 非法: {tool_mode!r}")
@@ -646,7 +647,7 @@ class OpenAICompatibleProvider:
         the plan retry inherits the same loop guards.
         """
         try:
-            if self._protocol == "responses":
+            if self._protocol == LLM_PROTOCOL_RESPONSES:
                 response = await self._responses_once(messages, tools, on_delta, use_native)
             else:
                 response = await self._chat_completions_once(messages, tools, on_delta, use_native)
@@ -661,7 +662,7 @@ class OpenAICompatibleProvider:
                 raise
             self._channel = "plan"
             self._emit_channel_switch(exc)
-            if self._protocol == "responses":
+            if self._protocol == LLM_PROTOCOL_RESPONSES:
                 response = await self._responses_once(messages, tools, on_delta, use_native)
             else:
                 response = await self._chat_completions_once(messages, tools, on_delta, use_native)
@@ -734,16 +735,16 @@ class OpenAICompatibleProvider:
             try:
                 return await self._attempt_once(messages, tools, on_delta, use_native)
             except Exception as exc:
-                if self._protocol == "responses" and not self._protocol_locked and self._looks_like_responses_rejection(exc):
-                    self._protocol = "chat_completions"
+                if self._protocol == LLM_PROTOCOL_RESPONSES and not self._protocol_locked and self._looks_like_responses_rejection(exc):
+                    self._protocol = LLM_PROTOCOL_CHAT_COMPLETIONS
                     self._emit_protocol_fallback(exc)
                     continue
                 if (
-                    self._protocol == "responses"
+                    self._protocol == LLM_PROTOCOL_RESPONSES
                     and not self._protocol_locked
                     and self._looks_like_responses_transport_failure(exc)
                 ):
-                    self._protocol = "chat_completions"
+                    self._protocol = LLM_PROTOCOL_CHAT_COMPLETIONS
                     self._emit_transport_protocol_fallback(exc)
                     continue
                 if not isinstance(exc, BadRequestError):
@@ -762,22 +763,26 @@ class OpenAICompatibleProvider:
         raise RuntimeError("模型协商失败：工具调用或推理参数无法降级")
 
     def _emit_protocol_fallback(self, exc: BaseException) -> None:
+        from ..agent.protocol import PHASE_PLANNING
+
         if self._on_status is not None:
             self._on_status(trace_event(
                 name="provider",
                 status="error",
-                phase="planning",
+                phase=PHASE_PLANNING,
                 code="provider_protocol_fallback",
                 summary="当前网关不支持 Responses API，已自动回退到 Chat Completions 并继续任务",
                 detail=protocol_fallback_detail(exc),
             ))
 
     def _emit_transport_protocol_fallback(self, exc: BaseException) -> None:
+        from ..agent.protocol import PHASE_PLANNING
+
         if self._on_status is not None:
             self._on_status(trace_event(
                 name="provider",
                 status="error",
-                phase="planning",
+                phase=PHASE_PLANNING,
                 code="provider_transport_fallback",
                 summary="Responses 连接在响应体阶段中断，已切换到 Chat Completions 继续任务",
                 detail=protocol_fallback_detail(exc),
@@ -951,7 +956,7 @@ class OpenAICompatibleProvider:
                 if emitted["chars"] == 0:
                     raise
                 raise ResponsesPartialError(
-                    stream_broke_message("responses", emitted["chars"], exc)
+                    stream_broke_message(LLM_PROTOCOL_RESPONSES, emitted["chars"], exc)
                 ) from exc
             finally:
                 await _close_stream(stream)
@@ -1099,6 +1104,8 @@ class OpenAICompatibleProvider:
         return await retryer(_attempt)
 
     def _emit_request_retry(self, retry_state: RetryCallState) -> None:
+        from ..agent.protocol import PHASE_PLANNING
+
         if self._on_status is None:
             return
         outcome = retry_state.outcome
@@ -1107,7 +1114,7 @@ class OpenAICompatibleProvider:
             self._on_status(trace_event(
                 name="provider",
                 status="error",
-                phase="planning",
+                phase=PHASE_PLANNING,
                 code="provider_request_retry",
                 summary=f"模型请求暂时失败，正在进行第 {retry_state.attempt_number + 1} 次尝试",
                 detail={
@@ -1127,6 +1134,7 @@ class OpenAICompatibleProvider:
         on_delta: Callable[[str], None],
         tools: list[dict[str, Any]] | None,
     ) -> LLMResponse:
+        from ..agent.protocol import PHASE_PLANNING, PROVIDER_RETRY_CODE
         request_kwargs = dict(kwargs, stream=True)
         request_kwargs.setdefault("stream_options", {"include_usage": True})
         committed_text = ""
@@ -1228,8 +1236,8 @@ class OpenAICompatibleProvider:
                     self._on_status(trace_event(
                         name="provider",
                         status="error",
-                        phase="planning",
-                        code="provider_retry",
+                        phase=PHASE_PLANNING,
+                        code=PROVIDER_RETRY_CODE,
                         summary=stream_retry_summary(attempt + 1),
                         detail=retry_detail(attempt + 1, self._max_retries + 1),
                     ))

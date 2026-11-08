@@ -816,7 +816,7 @@ def test_the_corpus_holds_arabic_pointers_and_the_tool_now_reads_every_one() -> 
     for document in dp.DEFAULT_DOCS:
         text = document.read_text(encoding="utf-8")
         for offset, span, box, _targets in dp._pointer_spans(text):
-            line = dp._line_of(text, offset)
+            line = dp._line_of(dp._newline_index(text), offset)
             if re.search(r"第\d+(?:节|批)", span):
                 arabic.append((document.name, line, span, box))
                 if box == dp.BOX_WORD:
@@ -1068,7 +1068,7 @@ def test_every_shipped_quoted_name_pointer_answers_for_itself() -> None:
             if box != dp.BOX_QUOTED_NAME:
                 continue
             tenants += 1
-            problems = dp._check_quoted_name(document, text, offset, span, labels)
+            problems = dp._check_quoted_name(document, text, dp._newline_index(text), offset, span, labels)
             assert problems == [], (document.name, span)
     assert tenants >= 1, f"引号命名箱只剩 {tenants} 条，这条门已经是空的"
 
@@ -1234,3 +1234,60 @@ def test_tracked_text_files_hold_no_bare_control_bytes() -> None:
     assert scan(b"a\x08b") == {8: 1}
     assert scan(b"del\x7f here") == {127: 1}
     assert scan(b"tab\tand\r\n and space are fine") == {}
+
+
+# --------------------------------------------------------------------------- #
+# M8-T559: the line-number question is asked only of spans that are location
+# claims at all (第五百二十六批 §7 第 3 位: 21,620 of the roadmap's 25,389
+# code spans are not evidence, and every one of them used to pay a line
+# question first).
+# --------------------------------------------------------------------------- #
+
+def test_a_span_that_is_not_a_location_claim_is_never_asked_where_it_lives(monkeypatch) -> None:
+    module = _load("minicc_doc_pointers_line_counter")
+    text = "# T\n\n" + "\n".join(f"说明见 `token_{index}`，与位置无关。" for index in range(40)) + "\n"
+    asked = []
+    original = module._line_of
+
+    def counting_line_of(doc_text, offset):
+        asked.append(offset)
+        return original(doc_text, offset)
+
+    monkeypatch.setattr(module, "_line_of", counting_line_of)
+    problems, checked = module.check_evidence(_ROADMAP, text)
+    assert checked == 0
+    assert problems == []
+    assert asked == [], (
+        f"the line-number question was asked for non-evidence spans: {asked}"
+    )
+
+    asked.clear()
+    text = "# T\n\n结论见 `tests/test_doc_pointers.py::test_a_citation_to_a_moved_test_says_where_it_lives`。\n"
+    problems, checked = module.check_evidence(_ROADMAP, text)
+    assert checked == 1
+    assert asked, "an evidence-shaped span was never even asked the line-number question"
+
+
+# --------------------------------------------------------------------------- #
+# M8-T560: the reader does not rebuild the suite's test-name map for every
+# document it checks (第五百二十六批 §7 第 4 位: the found-map was rebuilt
+# once per check_evidence call; a cited name is a fact a process cannot
+# make stale).
+# --------------------------------------------------------------------------- #
+
+def test_a_test_file_is_parsed_once_per_process() -> None:
+    module = _load("minicc_doc_pointers_definitions_cache")
+    target = REPO_ROOT / "tests" / "test_logging.py"
+    first = module._test_definitions(target)
+    second = module._test_definitions(target)
+    assert first is second, (
+        "the memoization of a test file's definitions is gone: a cited name is "
+        "a fact a process cannot make stale"
+    )
+
+
+def test_the_all_names_scan_is_answered_once_per_process() -> None:
+    module = _load("minicc_doc_pointers_names_cache")
+    first = module._all_test_names()
+    second = module._all_test_names()
+    assert first is second, "the suite's test-name map was rebuilt instead of answered from memory"
