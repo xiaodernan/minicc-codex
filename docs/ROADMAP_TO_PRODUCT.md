@@ -42394,3 +42394,27 @@ dev/minicc-reliability-4ba3 的 M8-T533/T537 家族（evidence index、one refre
 - 未改变 `tool_denied_by_rule` 的签名/语义（fail-closed 规则不变）；
 - 不触碰 `mentions.py`（XML/折叠/属性转义家族独立在 `integration/mentions-security`，未验证、未合并）；
 - 全文栈未部署全量 CI 验证，以聚焦套件+分支 CI 结果为准。
+## 批次 642 — M8-T660：集成 M8-T540 — mention deny 检查点一次策略装载（message 批级）
+
+### 1 事实来源
+
+dev/minicc-reliability-4ba3 的 M8-T540（mention 的两个 deny 检查点共用一次策略装载）是同一文件装载家族的第二处应用：`build_mention_context` 在入口走完所有 mention 后，逐 token 问一次 `tool_denied_by_rule` 判注入 veto、再按 CJK 收敛路径再问一次；`tool_denied_by_rule` 本身按两次 `load_permission_rules` 装载（一次验可读性、一次做 match），于是一条 N 个 mention 的消息 paid 4N+2 次 `permissions.json` stat。
+
+同一根因已分别在 M8-T658（file tree listing）与 M8-T659（audit denied_by_rule_matcher）按此线 done。
+
+### 2 改动（`minicc/mentions.py`、`tests/test_the_mention_deny_question_is_asked_once_per_message.py`）
+
+- `mentions.py` 不再导入 `tool_denied_by_rule`；改为 `from .audit import denied_by_rule_matcher`。
+- `build_mention_context` 入口一次 `denied_by_rule_matcher(ws)` 得到 matcher；逐 token 两次 checkpoint 都问同一个 matcher，一条消息只 paid 一次装载。
+- `tests/test_the_mention_deny_question_is_asked_once_per_message.py`（新）：M8-T540 原件，**断言适配**：本线非 dev line 的 M8-T658/T659 已把 matcher 的装载压到一次；故 `test_the_two_checkpoints_share_one_policy_load` 的 `stats` 断言改为 1（注释说明原因）；其余 leg 原样保留（one deny question per mention count、glued CJK token still refused、malformed policy fail-closed、missing policy allowed）。
+
+### 3 验证（命令与输出要点）
+
+- `..\minicc-codex\.venv\Scripts\python.exe -m py_compile minicc/mentions.py` 通过。
+- `pytest tests/test_the_mention_deny_question_is_asked_once_per_message.py tests/test_mentions.py tests/test_one_refresh_asks_the_rules_once.py tests/test_the_file_tree_lists_its_entries_under_one_policy_load.py tests/test_the_fixtures_do_not_inherit_machine_git_policy.py tests/test_web_security.py -q` → **57 passed**。
+
+### 4 边界（哪些**未**触碰）
+
+- 不改变 `tool_denied_by_rule` 本身（审计侧保留；本批次仅使 mentions 侧改用 matcher）；
+- 不触碰 mention injection 的 XML/标记/转义语义（T547–T557 family 未并入）；
+- 不推送；等 CI 42505788350（M8-T659）green 后按纪律走。

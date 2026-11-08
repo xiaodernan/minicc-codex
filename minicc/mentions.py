@@ -20,7 +20,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from .audit import tool_denied_by_rule
+from .audit import denied_by_rule_matcher
 from .tools.fs import _minicc_sensitive_kind
 from .tools.registry import redact_text
 
@@ -162,6 +162,12 @@ def build_mention_context(
     if not tokens:
         return "", records
     ws = workspace.resolve()
+    # M8-T540: the policy is loaded **once per message**.  Both checkpoints
+    # below ask the same question, and ``tool_denied_by_rule`` loads it twice
+    # per call - so a message with N mentions used to pay ``4N + 2`` stats of
+    # ``.minicc/permissions.json``.  The verdict a mention gets must not depend
+    # on which mention asked first, which is what the matcher's one load buys.
+    denied = denied_by_rule_matcher(ws)
     chunks: list[str] = []
     used = 0
     omitted: list[str] = []
@@ -184,7 +190,7 @@ def build_mention_context(
         # .minicc credential list - so a path that ``read_file`` refused
         # (``deny.paths``) was pasted into the model in full by an
         # ``@mention``.
-        if tool_denied_by_rule(ws, "read_file", {"path": token}):
+        if denied("read_file", {"path": token}):
             records.append(_reject(token, deny_rule_injection_refusal()))
             continue
         try:
@@ -227,7 +233,9 @@ def build_mention_context(
         # does not match the raw token once it carries a CJK tail
         # (``secrets/k.txt`` does not match ``secrets/k.txt是什么``), and the
         # walk converges onto the very file the rule names.
-        if tool_denied_by_rule(ws, "read_file", {"path": rel}):
+        # M8-T540: the second checkpoint asks the **same** matcher, so the
+        # re-check costs nothing extra.
+        if denied("read_file", {"path": rel}):
             records.append(_reject(original, deny_rule_injection_refusal()))
             continue
         remaining = min(max_chars_per_file, max_total_chars - used)
