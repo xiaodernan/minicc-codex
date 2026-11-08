@@ -20,7 +20,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from .audit import tool_denied_by_rule
+from .audit import denied_by_rule_matcher
 from .tools.fs import _minicc_sensitive_kind
 from .tools.registry import redact_text
 
@@ -113,6 +113,47 @@ def _reject(token: str, reason: str) -> dict[str, Any]:
     return _record(token, token, MENTION_STATUS_REJECTED, reason, False)
 
 
+def _converged(token: str, path: str, status: str, reason: str) -> dict[str, Any]:
+    """A verdict reached **after** the walk resolved to a real workspace file.
+
+    ``path`` is that file's workspace-relative posix path while ``token`` stays
+    the scanned spelling; ``_reject``/``_annotate`` are for the other side, where
+    there is no resolved path to report (M8-T543).
+    """
+    return _record(token, path, status, reason, False)
+
+
+def _attribute(value: str) -> str:
+    """The one escaping of a name interpolated into a ``path="..."`` attribute.
+
+    The block is XML-shaped evidence (M8-T547): the scanner keeps ``"``, ``&``,
+    ``<`` and ``>`` inside a token, and on the un-converged side the reported
+    path **is** that token.  Interpolated raw, a quote closes the attribute and
+    every reader - the model included - gets half the name.  File bodies and the
+    two note sentences are prose, not attributes, and stay byte-for-byte.
+    """
+    return (
+        value.replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;")
+    )
+
+
+def _annotation_line(item: dict[str, Any]) -> str:
+    """The one line the model reads about a mention that carried no content.
+
+    M8-T549: this sentence used to be spelled by hand in *both* rendering
+    branches, and the second copy silently dropped the ``read_file`` advice
+    that the first one gives - so whether the model was told how to recover
+    depended on whether some other file happened to be injected.
+    """
+    return (
+        f'<file path="{_attribute(item["path"])}"'
+        f' status="{item["status"]}">{item["reason"]}</file>'
+    )
+
+
 def credential_injection_refusal() -> str:
     """The one wording of the .minicc credential-file injection refusal.
 
@@ -162,11 +203,16 @@ def build_mention_context(
     if not tokens:
         return "", records
     ws = workspace.resolve()
+    # M8-T540: the policy is loaded **once per message**.  Both checkpoints
+    # below ask the same question, and ``tool_denied_by_rule`` loads it twice
+    # per call - so a message with N mentions used to pay ``4N + 2`` stats of
+    # ``.minicc/permissions.json``.  The verdict a mention gets must not depend
+    # on which mention asked first, which is what the matcher's one load buys.
+    denied = denied_by_rule_matcher(ws)
     chunks: list[str] = []
     used = 0
     omitted: list[str] = []
     for token in tokens:
-        original = token
         raw = Path(token.replace("\\", "/"))
         # "C:/..." is only absolute on Windows; match drive letters explicitly
         # so the rejection is identical on every platform.
@@ -184,7 +230,7 @@ def build_mention_context(
         # .minicc credential list - so a path that ``read_file`` refused
         # (``deny.paths``) was pasted into the model in full by an
         # ``@mention``.
-        if tool_denied_by_rule(ws, "read_file", {"path": token}):
+        if denied("read_file", {"path": token}):
             records.append(_reject(token, deny_rule_injection_refusal()))
             continue
         try:
@@ -198,18 +244,19 @@ def build_mention_context(
         # Hand-typed CJK text can glue onto the token (``@a.py是什么``); walk
         # the token back one character at a time to the longest prefix that
         # resolves to a real workspace file.
-        while not resolved.is_file() and token:
-            token = token[:-1]
-            if not token:
+        candidate = token
+        while not resolved.is_file() and candidate:
+            candidate = candidate[:-1]
+            if not candidate:
                 break
             try:
-                resolved = (ws / Path(token.replace("\\", "/"))).resolve()
+                resolved = (ws / Path(candidate.replace("\\", "/"))).resolve()
             except OSError:
                 break
             if not resolved.is_relative_to(ws):
                 break
-        if not token or not resolved.is_file():
-            records.append(_annotate(original, "missing", "工作区内没有这个文件"))
+        if not candidate or not resolved.is_file():
+            records.append(_annotate(token, "missing", "工作区内没有这个文件"))
             continue
         rel = resolved.relative_to(ws).as_posix()
         # M8-T65: 敏感门必须在**回退收敛后的真实路径**上重过一次。原始
@@ -218,7 +265,9 @@ def build_mention_context(
         # ——只查工作区边界不查敏感门，就是一条 bearer 外泄路径。
         walked_kind = _minicc_sensitive_kind(rel)
         if walked_kind == "deny":
-            records.append(_reject(original, credential_injection_refusal()))
+            records.append(
+                _converged(token, rel, MENTION_STATUS_REJECTED, credential_injection_refusal())
+            )
             continue
         if walked_kind == "redact":
             sensitive = "redact"
@@ -227,13 +276,17 @@ def build_mention_context(
         # does not match the raw token once it carries a CJK tail
         # (``secrets/k.txt`` does not match ``secrets/k.txt是什么``), and the
         # walk converges onto the very file the rule names.
-        if tool_denied_by_rule(ws, "read_file", {"path": rel}):
-            records.append(_reject(original, deny_rule_injection_refusal()))
+        # M8-T540: the second checkpoint asks the **same** matcher, so the
+        # re-check costs nothing extra.
+        if denied("read_file", {"path": rel}):
+            records.append(
+                _converged(token, rel, MENTION_STATUS_REJECTED, deny_rule_injection_refusal())
+            )
             continue
         remaining = min(max_chars_per_file, max_total_chars - used)
         if remaining <= 0:
             omitted.append(rel)
-            records.append(_annotate(token, MENTION_STATUS_OMITTED, "超出注入预算"))
+            records.append(_converged(token, rel, MENTION_STATUS_OMITTED, "超出注入预算"))
             continue
         try:
             # M8-T278: the 32 KB ceiling used to be applied *after* the read:
@@ -248,11 +301,11 @@ def build_mention_context(
             with resolved.open("rb") as handle:
                 data = handle.read(MENTION_READ_BYTES)
         except OSError:
-            records.append(_annotate(token, "missing", "文件读取失败"))
+            records.append(_converged(token, rel, "missing", "文件读取失败"))
             continue
         oversized = size > MENTION_READ_BYTES
         if b"\x00" in data:
-            records.append(_annotate(token, "binary", "二进制文件不注入内容"))
+            records.append(_converged(token, rel, "binary", "二进制文件不注入内容"))
             continue
         text = data.decode("utf-8", errors="ignore").replace("\r\n", "\n")
         if sensitive == "redact":
@@ -263,7 +316,9 @@ def build_mention_context(
             cut = text[:remaining].rfind("\n")
             text = text[:cut if cut > remaining // 2 else remaining]
             used += len(text)
-            chunks.append(f'<file path="{rel}">\n{text}\n[truncated]</file>')
+            chunks.append(
+                f'<file path="{_attribute(rel)}">\n{text}\n[truncated]</file>'
+            )
             # M8-T299: one record per mention.  The oversized branch used to
             # add an "omitted" record *and* fall through to the "injected"
             # one, so the same file was reported twice - and the "omitted"
@@ -275,10 +330,9 @@ def build_mention_context(
             ))
             continue
         used += len(text)
-        chunks.append(f'<file path="{rel}">\n{text}\n</file>')
+        chunks.append(f'<file path="{_attribute(rel)}">\n{text}\n</file>')
         records.append(_record(token, rel, MENTION_STATUS_INJECTED, "", False))
     injected = sum(1 for item in records if item["status"] == MENTION_STATUS_INJECTED)
-    rejected = sum(1 for item in records if item["status"] == MENTION_STATUS_REJECTED)
     # M8-T329: the mentions past the cap are named in the block too - a
     # silent drop reads exactly like a mention that was never written.
     dropped_note = ""
@@ -287,36 +341,37 @@ def build_mention_context(
             f"[truncated] 以下引用超出单次提及条数上限（最多 {MENTION_MAX_FILES} 条），"
             "未包含内容，可用 read_file 读取：" + "、".join(dropped)
         )
-    if injected:
+    # M8-T548: every verdict the pass reached gets a line, and it is built in
+    # one place.  ``missing`` and ``binary`` used to reach the block only when
+    # some *other* mention was injected successfully; a message that was pure
+    # loss - one unreadable file, one absent file - handed the model an empty
+    # block, which reads exactly like a mention that was never written.  That
+    # is the shape M8-T329 closed for the count channel.
+    annotations = [
+        _annotation_line(item)
+        for item in records
+        if item["status"] in {MENTION_STATUS_REJECTED, "missing", "binary"}
+    ]
+    notes: list[str] = []
+    if omitted:
+        notes.append(
+            "[truncated] 以下引用超出注入预算，未包含内容，可用 read_file 读取："
+            + "、".join(omitted)
+        )
+    if dropped_note:
+        notes.append(dropped_note)
+    # The block is empty exactly when there is nothing to say - not when the
+    # saying happened to land on the branch that had no injections.
+    if injected or annotations or notes:
         header = (
-            "[用户引用文件] 以下内容按 @-提及自动注入（路径相对工作区，超长部分已截断）；"
-            "需要完整内容时请用 read_file 工具重新读取。"
-        )
-        parts = [header, *chunks]
-        for item in records:
-            if item["status"] == MENTION_STATUS_REJECTED:
-                parts.append(f'<file path="{item["path"]}" status="{MENTION_STATUS_REJECTED}">{item["reason"]}</file>')
-            elif item["status"] in {"missing", "binary"}:
-                parts.append(f'<file path="{item["path"]}" status="{item["status"]}">{item["reason"]}</file>')
-        if omitted:
-            parts.append(
-                "[truncated] 以下引用超出注入预算，未包含内容，可用 read_file 读取：" + "、".join(omitted)
+            "[用户引用文件]"
+            if not injected
+            else (
+                "[用户引用文件] 以下内容按 @-提及自动注入（路径相对工作区，超长部分已截断）；"
+                "需要完整内容时请用 read_file 工具重新读取。"
             )
-        if dropped_note:
-            parts.append(dropped_note)
-        return "\n\n".join(parts), records
-    if rejected or omitted or dropped_note:
-        parts = ["[用户引用文件]"]
-        parts.extend(
-            f'<file path="{item["path"]}" status="{MENTION_STATUS_REJECTED}">{item["reason"]}</file>'
-            for item in records
-            if item["status"] == MENTION_STATUS_REJECTED
         )
-        if omitted:
-            parts.append("[truncated] 以下引用超出注入预算，未包含内容：" + "、".join(omitted))
-        if dropped_note:
-            parts.append(dropped_note)
-        return "\n\n".join(parts), records
+        return "\n\n".join([header, *chunks, *annotations, *notes]), records
     return "", records
 
 

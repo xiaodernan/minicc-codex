@@ -180,7 +180,11 @@ def test_missing_binary_are_annotated_without_content(tmp_path: Path) -> None:
     statuses = {item["status"] for item in records}
     assert statuses == {"missing", "binary"}
     assert "BINARYBODY" not in block
-    assert block == ""  # nothing injected, nothing rejected -> no block
+    # M8-T548: this case has always been *named* "are annotated"; the
+    # assertion pinned the opposite (an empty block) while the verdicts
+    # only reached the model when some other file got injected.
+    assert '<file path="nope.txt" status="missing">' in block, block
+    assert '<file path="blob.bin" status="binary">' in block, block
 
 
 def test_cjk_glued_token_resolves_to_existing_prefix(tmp_path: Path) -> None:

@@ -42394,3 +42394,79 @@ dev/minicc-reliability-4ba3 的 M8-T533/T537 家族（evidence index、one refre
 - 未改变 `tool_denied_by_rule` 的签名/语义（fail-closed 规则不变）；
 - 不触碰 `mentions.py`（XML/折叠/属性转义家族独立在 `integration/mentions-security`，未验证、未合并）；
 - 全文栈未部署全量 CI 验证，以聚焦套件+分支 CI 结果为准。
+## 批次 642 — M8-T660：集成 M8-T540 — mention deny 检查点一次策略装载（message 批级）
+
+### 1 事实来源
+
+dev/minicc-reliability-4ba3 的 M8-T540（mention 的两个 deny 检查点共用一次策略装载）是同一文件装载家族的第二处应用：`build_mention_context` 在入口走完所有 mention 后，逐 token 问一次 `tool_denied_by_rule` 判注入 veto、再按 CJK 收敛路径再问一次；`tool_denied_by_rule` 本身按两次 `load_permission_rules` 装载（一次验可读性、一次做 match），于是一条 N 个 mention 的消息 paid 4N+2 次 `permissions.json` stat。
+
+同一根因已分别在 M8-T658（file tree listing）与 M8-T659（audit denied_by_rule_matcher）按此线 done。
+
+### 2 改动（`minicc/mentions.py`、`tests/test_the_mention_deny_question_is_asked_once_per_message.py`）
+
+- `mentions.py` 不再导入 `tool_denied_by_rule`；改为 `from .audit import denied_by_rule_matcher`。
+- `build_mention_context` 入口一次 `denied_by_rule_matcher(ws)` 得到 matcher；逐 token 两次 checkpoint 都问同一个 matcher，一条消息只 paid 一次装载。
+- `tests/test_the_mention_deny_question_is_asked_once_per_message.py`（新）：M8-T540 原件，**断言适配**：本线非 dev line 的 M8-T658/T659 已把 matcher 的装载压到一次；故 `test_the_two_checkpoints_share_one_policy_load` 的 `stats` 断言改为 1（注释说明原因）；其余 leg 原样保留（one deny question per mention count、glued CJK token still refused、malformed policy fail-closed、missing policy allowed）。
+
+### 3 验证（命令与输出要点）
+
+- `..\minicc-codex\.venv\Scripts\python.exe -m py_compile minicc/mentions.py` 通过。
+- `pytest tests/test_the_mention_deny_question_is_asked_once_per_message.py tests/test_mentions.py tests/test_one_refresh_asks_the_rules_once.py tests/test_the_file_tree_lists_its_entries_under_one_policy_load.py tests/test_the_fixtures_do_not_inherit_machine_git_policy.py tests/test_web_security.py -q` → **57 passed**。
+
+### 4 边界（哪些**未**触碰）
+
+- 不改变 `tool_denied_by_rule` 本身（审计侧保留；本批次仅使 mentions 侧改用 matcher）；
+- 不触碰 mention injection 的 XML/标记/转义语义（T547–T557 family 未并入）；
+- 不推送；等 CI 42505788350（M8-T659）green 后按纪律走。
+## 批次 643 — M8-T661：集成 M8-T543 — mention record 的 token/path 各回一个量
+
+### 1 事实来源
+
+dev/minicc-reliability-4ba3 的 M8-T543 修复的是同一个 CJK 回退收敛的副作用：`build_mention_context` 的回退循环就地改写外层变量 `token`，五个读 `token` 的分支读到的是**收敛后**的拼法，而一条「path != token」恰好是「这提及收敛到真实文件」的记号。
+
+同样的：被拒的那条会写 `secrets\k.txt是什么`（反斜杠没换算、粘连尾巴没削），与「真注入的那条记 `src/a.py`」对不上号。
+
+### 2 改动（`minicc/mentions.py`、`tests/test_a_mention_record_names_the_file_it_resolved_to.py`）
+
+- 新增 `_converged(token, path, status, reason)`：走 `_record`，`token` 保持扫描器交出的那一个，`path` 在收敛到一个真实工作区文件时取 `rel`（workspace-relative posix），没收敛到时等于 token（不做分隔符归一——`path != token` 本身就是「收敛了」的记号）。
+- CJK 回退循环改用 `candidate`，`original = token` 随之删除；五个收敛位点（凭据门、deny 规则门、超预算、读失败、二进制）改 `_converged`；遗留的 `_reject(original, …)` 归零。
+- `tests/test_a_mention_record_names_the_file_it_resolved_to.py`（新）：九腿（拒绝记被拒文件、凭据门记收敛到的文件、块里那句标注与 path 同一值、三拼法共一 path、拒绝与注入能在 path 上对上号、二进制/超预算记收敛到的文件、普查 path≠token 只对真实文件成立、未收敛保持原样、五字段形状）。
+
+### 3 验证（命令与输出要点）
+
+- `..\minicc-codex\.venv\Scripts\python.exe -m py_compile minicc/mentions.py` 通过。
+- mention 邻域：`test_mentions.py`、`test_the_mention_deny_question_is_asked_once_per_message.py`、`test_a_mention_record_names_the_file_it_resolved_to.py`、`test_the_mention_statuses_have_one_home.py`、`test_one_refresh_asks_the_rules_once.py`、`test_the_file_tree_lists_its_entries_under_one_policy_load.py` → **47 passed**。
+- `python scripts/doc_pointers.py --check` 通过（本批次新增 tests/ 文件已入库后）。
+
+### 4 边界（哪些**未**触碰）
+
+- 未改变 `extract_mention_tokens` 的分词语义；未改变 `_record` 的五字段形状；未删除 `MENTION_STATUS_*` 常量体系（本线 `test_the_mention_statuses_have_one_home.py` 保持 active）；token 在收敛后 CJK 回退中不再原位改写。
+- 不推送（CI 42505788350 M8-T659 legs in_progress）。
+## 批次 644 — M8-T662：集成 M8-T547/T548/T549 — mention 的 XML 形块：判决行转义、缺失判决不丢
+
+### 1 事实来源
+
+dev/minicc-reliability-4ba3 的三条批（M8-T548+M8-T549、M8-T547、及其前序 M8-T540/M8-T543）共同收口的问题：**这条消息里有 @-提及，模型就得知道哪条判决什么是真什么是假**。原来：
+
+- 零注入空块 —— `@nosuch` 的 `missing` 判决只有在别的文件被注入时才写进块；一条纯损失消息给模型的是空串；
+- 标注那句在两处各拼一遍，后一处悄悄丢了「read_file 读取」的补救；
+- `path="…"` 原文直接插进属性，引号一打断名字就断了。
+
+### 2 改动（`minicc/mentions.py`、`tests/`）
+
+- `_annotation_line(item)`（M8-T549）：判决标注行只拼一次；所有注入/兜底渲染分支共用同一句子。
+- 渲染器重写（M8-T548）：块非空 ⟺ 这条消息里有判决要说；块空 ⟺ 没有 @-提及。missing/binary/注入失败逐条列入标注；超预算/超条数那两句改为**都是散文**并承诺「可用 read_file 读取」。
+- `_attribute(value)`（M8-T547）：`<file path="…">` 的属性转义家；`&` 必须先折；正文不动字节；两条散文通道不转义。
+
+本批次代码叠在 T660/T661/T662 之上（T540 matcher、T543 token/path 分量）。
+
+### 3 验证（命令与输出要点）
+
+- `..\minicc-codex\.venv\Scripts\python.exe -m py_compile minicc/mentions.py` 通过。
+- `pytest tests/test_a_mention_verdict_reaches_the_model_without_an_injection.py tests/test_a_path_with_a_quote_still_round_trips_through_the_block.py tests/test_mentions.py tests/test_a_mention_record_names_the_file_it_resolved_to.py tests/test_a_path_with_a_quote_still_round_trips_through_the_block.py -q` → **47 passed**。
+- `python scripts/doc_pointers.py --check` 通过。
+
+### 4 边界（哪些**未**触碰）
+
+- 未改 `<file path="…">` 正文的逐字节保持（RAW_BODY 仍原样对得上）；'test_cjk_glued_token_resolves_to_existing_prefix' 保留原意。
+- 不推送（CI 42505788350 legs 已 in_progress；集成分支本地累积）。
