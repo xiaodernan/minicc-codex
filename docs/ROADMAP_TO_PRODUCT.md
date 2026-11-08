@@ -42332,3 +42332,41 @@ m8-t537 与 `dev/minicc-reliability-4ba3` 各自推进了同一检查器 `script
 - 不改 pytest hook 语义：超时的 `pytest_runtest_makereport` 重写逻辑没变（超时仍失败），只是不再记账/单列类；`pytest_sessionfinish` 记账整段删除，与 dev 线一致。
 - 不改任何产品代码；不推送（CI 42500298854（`218a657`）leges 仍在 in_progress，按规则不再推送任何分支）。
 - 本分支基于 `m8-t537@218a657`，仅用于集成 `dev/minicc-reliability-4ba3` 的 conftest 部分；合并决策另行线性评估。
+## 批次 640 — M8-T658：Web 文件树一次列目录只装载一次策略（deny matcher 集成入 m8 线）
+
+### 1 事实来源与动机
+
+`dev/minicc-reliability-4ba3` 中有一批针对 `deny_rule_covers_path` 的修复（M8-T542，第五百二十九批）：它发现
+`minicc/web.py` 在 file_tree 路由里对**每个条目**都调用 `deny_rule_covers_path`，而那里的每一次调用都会
+**重新加载** `.minicc/permissions.json`。于是一次「列目录」的花费是：5 个条目对应 8 次 stat，50 个条目对应
+53 次 stat——规则文件被读 50 遍来回答 50 个问题。
+
+同一类缺陷已被修复两次（M8-T533 evidence index、M8-T536 snapshot copy），这是同一家规则文件的第三个读者。
+
+第二个问题在「加载失败」这一侧：`deny_rule_covers_path` 把读文件失败的错误**吞掉**，于是一份打不开/损坏的
+`permissions.json` 会回答「没有路径被覆盖」，而 `tool_denied_by_rule` 在同样的一次调用上回答 True（fail-closed）。
+两侧不一致时，调用者没法说清是谁赢。
+
+### 2 改动（集成分支 `integration/websem`）
+
+- `minicc/audit.py`：新增 `deny_rule_covers_path_matcher(workspace) -> Callable[[str], bool]`——列一次目录时
+  **加载一次**策略、返回一个闭包，此后每条路径都问同一份加载结果。`policy_evaluation_error` 非空或读文件 OSError 时
+  闭包对所有命名路径 fail-closed（不吞错误、不假装放行）；`deny_rule_covers_path` 保持为调用 matcher 的薄封装，
+  行为不变、单次问答仍可用。
+- `minicc/web.py`：file_tree 路由改为每个 listing 一次 `deny_rule_covers_path_matcher(self.workspace)`，
+  把每条路径的拒绝问题交给 matcher，而不是逐条重新加载策略。
+- `tests/test_the_file_tree_lists_its_entries_under_one_policy_load.py`（新）：M8-T542 的两向见证
+  （一次 listing 的 stat 次数不随条目数增长；损坏策略下 fail-closed 与否；可读策略下仍按规则划线）。
+
+### 3 验证（命令与输出要点）
+
+- `..\minicc-codex\.venv\Scripts\python.exe -m py_compile minicc/audit.py minicc/web.py` 通过。
+- `pytest tests/test_the_file_tree_lists_its_entries_under_one_policy_load.py -q` → **5 passed**。
+- 未跑全量基准回归/CI 双端；本分支等 `m8-t537` 当前 CI（M8-T656 ledger 修复，run 42503392476）转绿后随集成行 ff-merge。
+- `python scripts/doc_pointers.py --check` 通过（本次账本改动后需再次确认）。
+
+### 4 边界（哪些**未**触碰）
+
+- 不改变 `deny_rule_covers_path` 的对外签名；单次问答仍受理。
+- 不改变任何拒绝语义（plan/approval/verdict 等域）；Web/CLI 的安全标签不动。
+- 不声称 Windows/Ubuntu CI 通过（本地未跑全量套件）；本分支不推送，直到 CI 双端确认。
