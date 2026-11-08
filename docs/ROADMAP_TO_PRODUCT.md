@@ -42442,3 +42442,31 @@ dev/minicc-reliability-4ba3 的 M8-T543 修复的是同一个 CJK 回退收敛�
 
 - 未改变 `extract_mention_tokens` 的分词语义；未改变 `_record` 的五字段形状；未删除 `MENTION_STATUS_*` 常量体系（本线 `test_the_mention_statuses_have_one_home.py` 保持 active）；token 在收敛后 CJK 回退中不再原位改写。
 - 不推送（CI 42505788350 M8-T659 legs in_progress）。
+## 批次 644 — M8-T662：集成 M8-T547/T548/T549 — mention 的 XML 形块：判决行转义、缺失判决不丢
+
+### 1 事实来源
+
+dev/minicc-reliability-4ba3 的三条批（M8-T548+M8-T549、M8-T547、及其前序 M8-T540/M8-T543）共同收口的问题：**这条消息里有 @-提及，模型就得知道哪条判决什么是真什么是假**。原来：
+
+- 零注入空块 —— `@nosuch` 的 `missing` 判决只有在别的文件被注入时才写进块；一条纯损失消息给模型的是空串；
+- 标注那句在两处各拼一遍，后一处悄悄丢了「read_file 读取」的补救；
+- `path="…"` 原文直接插进属性，引号一打断名字就断了。
+
+### 2 改动（`minicc/mentions.py`、`tests/`）
+
+- `_annotation_line(item)`（M8-T549）：判决标注行只拼一次；所有注入/兜底渲染分支共用同一句子。
+- 渲染器重写（M8-T548）：块非空 ⟺ 这条消息里有判决要说；块空 ⟺ 没有 @-提及。missing/binary/注入失败逐条列入标注；超预算/超条数那两句改为**都是散文**并承诺「可用 read_file 读取」。
+- `_attribute(value)`（M8-T547）：`<file path="…">` 的属性转义家；`&` 必须先折；正文不动字节；两条散文通道不转义。
+
+本批次代码叠在 T660/T661/T662 之上（T540 matcher、T543 token/path 分量）。
+
+### 3 验证（命令与输出要点）
+
+- `..\minicc-codex\.venv\Scripts\python.exe -m py_compile minicc/mentions.py` 通过。
+- `pytest tests/test_a_mention_verdict_reaches_the_model_without_an_injection.py tests/test_a_path_with_a_quote_still_round_trips_through_the_block.py tests/test_mentions.py tests/test_a_mention_record_names_the_file_it_resolved_to.py tests/test_a_path_with_a_quote_still_round_trips_through_the_block.py -q` → **47 passed**。
+- `python scripts/doc_pointers.py --check` 通过。
+
+### 4 边界（哪些**未**触碰）
+
+- 未改 `<file path="…">` 正文的逐字节保持（RAW_BODY 仍原样对得上）；'test_cjk_glued_token_resolves_to_existing_prefix' 保留原意。
+- 不推送（CI 42505788350 legs 已 in_progress；集成分支本地累积）。
