@@ -398,12 +398,7 @@ PERMISSION_MODE_PLAN = "plan"
 PERMISSION_MODE_ACCEPT_EDITS = "acceptEdits"
 PERMISSION_MODE_YOLO = "yolo"
 
-PERMISSION_MODES = frozenset({
-    PERMISSION_MODE_DEFAULT,  # "default"
-    PERMISSION_MODE_PLAN,  # "plan"
-    PERMISSION_MODE_ACCEPT_EDITS,  # "acceptEdits"
-    PERMISSION_MODE_YOLO,  # "yolo"
-})
+PERMISSION_MODES = frozenset({"default", "plan", "acceptEdits", "yolo"})
 # lowercase aliases for wire/UI input (camelCase is accepted too)
 _PERMISSION_MODE_ALIASES = {
     "": "default",

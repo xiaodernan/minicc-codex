@@ -20,16 +20,17 @@ HOME_CONST_NAMES = {"TASK_KIND_TASK", "TASK_KIND_BATCH", "TASK_KIND_SUBTASK"}
 
 
 def test_the_home_defines_task_kind_constants() -> None:
-    import minicc.agent.protocol as p
+    from minicc.agent.protocol import (
+        TASK_KIND_BATCH,
+        TASK_KIND_SUBTASK,
+        TASK_KIND_TASK,
+        TASK_KINDS,
+    )
 
-    assert p.TASK_KIND_TASK == "task"
-    assert p.TASK_KIND_BATCH == "batch"
-    assert p.TASK_KIND_SUBTASK == "subtask"
-    assert p.TASK_KINDS == {
-        p.TASK_KIND_TASK,
-        p.TASK_KIND_BATCH,
-        p.TASK_KIND_SUBTASK,
-    }
+    assert TASK_KIND_TASK == "task"
+    assert TASK_KIND_BATCH == "batch"
+    assert TASK_KIND_SUBTASK == "subtask"
+    assert TASK_KINDS == {TASK_KIND_TASK, TASK_KIND_BATCH, TASK_KIND_SUBTASK}
 
 
 def test_no_bare_task_kind_literals_in_scoped_modules() -> None:
