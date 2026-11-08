@@ -83,6 +83,7 @@ from .context import (
     validate_tool_protocol,
 )
 from .protocol import (
+    BUDGET_EXCEEDED_CODE,
     MODEL_LAST_OUTPUT_MARKER,
     PHASE_CANCELLED,
     PHASE_FAILED,
@@ -819,7 +820,7 @@ async def run_agent(
         except BudgetExceeded as exc:
             result.error = budget_exceeded_error(exc)
             result.answer = incomplete_answer(result.error)
-            emit_trace(result.error, phase=PHASE_FAILED, status="error", code="budget_exceeded")
+            emit_trace(result.error, phase=PHASE_FAILED, status="error", code=BUDGET_EXCEEDED_CODE)
             return []
 
         messages.append(assistant_msg(
@@ -963,7 +964,7 @@ async def run_agent(
         except BudgetExceeded as exc:
             result.error = budget_exceeded_error(exc)
             result.answer = incomplete_answer(result.error)
-            emit_trace(result.error, phase=PHASE_FAILED, status="error", code="budget_exceeded")
+            emit_trace(result.error, phase=PHASE_FAILED, status="error", code=BUDGET_EXCEEDED_CODE)
             break
         if runtime_budget.soft_limit_hit():
             if not soft_wrap_issued:
@@ -1128,7 +1129,7 @@ async def run_agent(
         except BudgetExceeded as exc:
             result.error = budget_exceeded_error(exc)
             result.answer = incomplete_answer(result.error)
-            emit_trace(result.error, phase=PHASE_FAILED, status="error", code="budget_exceeded")
+            emit_trace(result.error, phase=PHASE_FAILED, status="error", code=BUDGET_EXCEEDED_CODE)
             break
         except Exception as exc:
             emit_trace(
@@ -1185,7 +1186,7 @@ async def run_agent(
         except BudgetExceeded as exc:
             result.error = budget_exceeded_error(exc)
             result.answer = incomplete_answer(result.error)
-            emit_trace(result.error, phase=PHASE_FAILED, status="error", code="budget_exceeded")
+            emit_trace(result.error, phase=PHASE_FAILED, status="error", code=BUDGET_EXCEEDED_CODE)
             break
 
         # --- tool calls? execute and loop ---
@@ -1195,7 +1196,7 @@ async def run_agent(
             except BudgetExceeded as exc:
                 result.error = budget_exceeded_error(exc)
                 result.answer = incomplete_answer(result.error)
-                emit_trace(result.error, phase=PHASE_FAILED, status="error", code="budget_exceeded")
+                emit_trace(result.error, phase=PHASE_FAILED, status="error", code=BUDGET_EXCEEDED_CODE)
                 break
             # M8-T341: the trace names the tools the way the dispatcher
             # named them - one home for a wire name (``tool_call_name``), so

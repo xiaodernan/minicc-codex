@@ -374,6 +374,9 @@ PROVIDER_RETRY_CODE = "provider_retry"  # code="provider_retry"
 # CLI (main.py) and web (web.py) mint the same event.
 STAGE_ROUTE_CODE = "stage_route"  # code="stage_route"
 
+# M8-T615: trace code for budget trips (helper, session-persist set, loop emitters).
+BUDGET_EXCEEDED_CODE = "budget_exceeded"  # code="budget_exceeded"
+
 
 def budget_exceeded_error(error: object) -> str:
     """The one error text for a budget trip."""
@@ -402,7 +405,7 @@ def budget_exceeded_event(
         name=name,
         status="error",
         phase=phase,
-        code="budget_exceeded",
+        code=BUDGET_EXCEEDED_CODE,
         summary=str(error),
         detail={
             "stage": stage,
@@ -421,7 +424,7 @@ SESSION_PERSIST_TRACE_CODES = frozenset({
     "tool_round_finished",
     "verification_required_before_finish",
     "provider_stream_error",
-    "budget_exceeded",
+    BUDGET_EXCEEDED_CODE,
     "stagnation_guard",
     "run_finished",
 })
@@ -486,6 +489,7 @@ __all__ = [
     "budget_exceeded_event",
     "PROVIDER_RETRY_CODE",
     "STAGE_ROUTE_CODE",
+    "BUDGET_EXCEEDED_CODE",
     "incomplete_answer",
     "validate_status_transition",
 ]
