@@ -44845,3 +44845,31 @@ Home 是 `task_contract`。cancel-file 的两处 `cancel_file.write_text("cancel
 - 不动 `"failed"` 计数键（metrics detail、非 result-contract 字段）。
 - 不动 cancel-file IPC 的裸字面量。
 - 本批附着在 `integration/m8-t537-to-main`（`d80e31d` 合流）之上，CI 42531499723 通过后推送。
+
+## 批次 670 — M8-T670：集成通道 M8-T550 mention 判决门补齐（c281903 的并轨落点）
+
+### 1 欠的是哪一条
+
+`dev/minicc-reliability-4ba3` 的 `c281903`（M8-T550：提及判决发射源与模型可见通道双向对账——名册⊆可达发射、每条判决恰落一个通道、词表按转发链派生）新增的门文件
+`tests/test_a_mention_verdict_reaches_the_model_without_an_injection.py`（+196 行 AST 可达性腿）从未进入任何一次合并——`m8-t537` 与本机 `main` 里只有该门的早期 186 行形态。本批把它补读进合流线，并修掉两条引用失实现的断腿。
+
+### 2 改动
+
+- `tests/test_a_mention_verdict_reaches_the_model_without_an_injection.py`：取 `c281903` 版本（382 行），AST 名册收集补两条求值规则：
+  - `_emitted_statuses`：新建 **模块常量表**（`NAME = "literal"`），调用点传入的常量名按
+    `module_constants` 求值（此前只认 `Constant` 与局部 `values.get(name)`，遇到
+    `MENTION_STATUS_OMITTED` 之类模块常量即答 `None` 并引爆 `assert`）。
+  - `_annotation_statuses`：不再 `ast.literal_eval` 注解集合字面量（`{MENTION_STATUS_REJECTED, "missing", "binary"}` 混用常量名与裸串，literal_eval 会炸），改常量折叠：逐成员取 `Constant str` 或模块常量名，其余成员直接点名报错（`unresolved annotation member`）。
+- `minicc/mentions.py` **一个字没动**（本批的红来自门的两条腿不认模块常量名与混合集合，不是产品代码错）。
+
+### 3 验证
+
+- `pytest tests/test_a_mention_verdict_reaches_the_model_without_an_injection.py -q` → **13 passed**（此前 2 failed / 11 passed，红在那两条腿）。
+- `python scripts/doc_pointers.py --check` → rc=0。
+
+### 4 边界
+
+- 不宣称 `dev/minicc-reliability-4ba3` 通道整体被并轨——本批只收 `c281903` 这条独有的提交；该通道其余内容已按
+  先前批次（KI-5xx 系列、M8-T551/554/559/560/562 与 mention 加固）逐文件对账入库。
+- 本批不修改 `MENTION_STATUS_*` 的归属及门（`test_the_mention_statuses_have_one_home.py`）。
+- CI 通过后随同合流批推送；未跟踪 scratch 文件维持原样。
