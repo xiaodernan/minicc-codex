@@ -40054,3 +40054,60 @@ authorization 的风险等级已经在日志里。
 1. 等 Windows 腿（tip 50438fc）跑完之后再推这批；连同批 582/583 一起，等一个完整周期；
 2. Authorization 的运维可见性——若需要，另一批把 authorization 的顶层 risk/authorization 以新字段或新行打进 task 日志；
 3. 十三个加载器裁定不变。
+
+## 第五百八十四批 — M8-T602 — 任务限制剩余三份默认值也只问 config 的家
+
+### 1 欠的是哪一条
+
+上一批（M8-T597）把 `DEFAULT_TASK_USAGE_LIMIT` / `DEFAULT_TASK_COMPACTION_LIMIT`
+两份 64 搬回了 `minicc/config.py`,但**同一类**的另外三对——`DEFAULT_TASK_EVENT_LIMIT = 768`、
+`DEFAULT_TASK_STREAM_LIMIT = 16_000`、`DEFAULT_TASK_QUEUE_LIMIT = 32`——依然在
+`config.py` 与 `task_manager.py` 各写一份;`task_worker.py` 问 config,`task_manager`
+消费自己的,`web.py` re-export task_manager 的,`task_manager` 从 config 问 usage/compaction,
+分体消费事件/流/队列三对——和上一批犯的是同一个病。
+
+### 2 量到的真相（实测）
+
+- `config.py` 的家:`DEFAULT_TASK_EVENT_LIMIT=768`(env `MINICC_TASK_EVENT_LIMIT`,夹 32-10000)、
+  `DEFAULT_TASK_STREAM_LIMIT=16_000`(env `MINICC_TASK_STREAM_LIMIT`,夹 512-100000)、
+  `DEFAULT_TASK_QUEUE_LIMIT=32`(env `MINICC_TASK_QUEUE_LIMIT`,夹 1-256)。
+- `task_manager.py` 的拷贝:768 / 16_000 / 32,一字不差。
+- 消费分裂:task_worker(问 config)、task_manager 消费自己(被本门点名)、web.py re-export task_manager 的。
+
+### 3 落地
+
+- `minicc/task_manager.py`:删三份拷贝;从 `.config` import 所有五个名字(EVENT/STREAM/QUEUE/USAGE/COMPACTION)。
+- `minicc/web.py`:re-export 块删除这三个名字;改成直接 `from .config import ... # noqa: F401`,
+  与上一批的 USAGE/COMPACTION 同一行。
+- `tests/test_the_task_limits_have_one_home.py`:扩展为五条共享门——
+  ① 五名常数在 config.py 恰好一次,值 == 768/16_000/32/64/64;
+  ② minicc/ 下任何别处不得定义这五名(AST Assign/AnnAssign);
+  ③ 家里五条 env 夹子都存在(`32-10000` / `512-100000` / `1-256` / `8-512` + 五个 env 名字)。
+  中途还出了一个粘了两行的事故(`LOG = get_logger` 与 `MAX_BATCH_TASKS` 粘在一起),
+  先修好再补门。关联的事故结论见 §6(禁一不留二)。
+
+### 4 见证（红先绿后）
+
+- 绿臂:新门 `3 passed`;`import minicc.task_manager` = import ok。
+- 红臂:stash 三文件 → 新门红,点名
+  `minicc/task_manager.py:107: DEFAULT_TASK_EVENT_LIMIT`, `:108: DEFAULT_TASK_STREAM_LIMIT`,
+  `:109: DEFAULT_TASK_QUEUE_LIMIT`;pop 后绿。
+- 插跑一次语法自检 + pytest 三条最小路径;文档指针 `exit=0`。
+
+### 5 聚焦回归
+
+- 见 §4;未跑全量套件（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 64 家的两个常数也被强调——上一批 M8-T597 的任务迁移被本批复用并通化为同一扇门;
+- 不声称 `web.py` 会删除更多 re-export——这批只动了这五条的 re-export 源;
+- 不声称 `task_worker.py` 的 import 改成引用——它本来就问 config,是正确的;
+- 不声称本机 CPU 上的全量套件为绿;
+- 不声称 CI 双腿都已绿:推送后腿会排队,最新 Windows 绿为 base。
+
+### 7 下一位候选
+
+1. **task-event `kind` 词表**(8 个值)——Python 发射方与 JS reducer 之间,没有 home;下一批主力做;
+2. 中文 effort 标签(Python 与 i18n `reasoning.*` zh 列)——两处,值不钉;
+3. 十三个加载器裁定不变。
