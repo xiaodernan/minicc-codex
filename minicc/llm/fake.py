@@ -78,8 +78,6 @@ class FakeProvider:
             return 0
 
     def _emit(self, payload: dict[str, Any]) -> None:
-        from ..agent.protocol import PHASE_PLANNING, PROVIDER_RETRY_CODE
-
         if self._on_status is None:
             return
         try:
@@ -109,6 +107,8 @@ class FakeProvider:
             return LLMResponse(content=decision, usage=_FAKE_USAGE["judge"])
         self._agent_turn += 1
         if self._agent_turn == 1:
+            from ..agent.protocol import PHASE_PLANNING, PROVIDER_RETRY_CODE
+
             for attempt in range(self._faults):
                 # Same payload shape as the real stream retry, so a log or
                 # event assertion written here describes the production trace.
