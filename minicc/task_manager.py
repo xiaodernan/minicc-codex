@@ -296,7 +296,11 @@ def _orchestration_result(
     cancellation) the caller cannot see - ``children`` is the only
     channel the merge verdict travels on.
     """
-    return {"answer": answer, "cancelled": cancelled, "children": snapshots}
+    return {
+        RESULT_FIELD_ANSWER: answer,
+        RESULT_FIELD_CANCELLED: cancelled,
+        RESULT_FIELD_CHILDREN: snapshots,
+    }
 
 
 def _cancelled_result(base: dict[str, Any]) -> dict[str, Any]:
@@ -316,9 +320,9 @@ def _cancelled_result(base: dict[str, Any]) -> dict[str, Any]:
     """
     return {
         **base,
-        "answer": TASK_CANCELLED_ANSWER,
-        "error": TASK_CANCELLED_ERROR,
-        "cancelled": True,
+        RESULT_FIELD_ANSWER: TASK_CANCELLED_ANSWER,
+        RESULT_FIELD_ERROR: TASK_CANCELLED_ERROR,
+        RESULT_FIELD_CANCELLED: True,
     }
 
 

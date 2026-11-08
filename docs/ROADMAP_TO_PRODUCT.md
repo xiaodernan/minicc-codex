@@ -44814,3 +44814,34 @@ dev/minicc-reliability-4ba3 的 M8-T551-M8-T557 把 mention 的 `<file path="…
 - 全量 pytest 未在本机跑（Windows/Ubuntu 双腿 CI 判）；本批按「影响集＋检查器＋doc_pointers」放行，CI 是最终裁判。
 - `integration/m8-t537-to-main` 分支承载本合并；并入本地 `main` 仅在 CI 全绿之后，且**不**立即推送 origin 的 `main`——补齐一套说明再统一推（本批不改动远端）。
 - 未跟踪的 scratch / probe / `_*.py` 保持原样未提交。
+
+## 批次 669 — M8-T666：`task_manager` 的 two `"cancelled"` 结果字段改走 `RESULT_FIELD_CANCELLED`
+
+### 1 欠的是哪一条
+
+`minicc.task_manager` 仍有两处裸 `"cancelled"` 结果字段字面量：`_orchestration_result`
+（批父结果记录、`_run_batch` 重用处）的 `"cancelled": cancelled`/ 同一字典的
+`"answer"`、`"children"`。与 `minicc.task_contract.RESULT_FIELD_CANCELLED`
+（`RESULT_FIELD_ANSWER`/`RESULT_FIELD_ERROR`/`RESULT_FIELD_CHILDREN`）是同一结果字段事实家，
+Home 是 `task_contract`。cancel-file 的两处 `cancel_file.write_text("cancelled", ...)`
+是主机↔worker 进程间的 on-disk 协议，**不动**。
+
+### 2 改动
+
+- `minicc/task_manager.py`：三处字典键改为 `RESULT_FIELD_ANSWER` / `RESULT_FIELD_CANCELLED` /
+  `RESULT_FIELD_CHILDREN` / `RESULT_FIELD_ERROR` 常量（`_orchestration_result`、
+  `_cancelled_result`）；metrics detail 里的 `"failed": sum(...)` 计数键不是结果字段，不动。
+- `tests/test_task_result_cancelled_field_has_one_home.py`：SCOPED 扩入 `minicc/task_manager.py`，
+  明确豁免 `cancel_file.write_text(...)` 条目（`_is_cancel_flag_ipc`：父节点必须是
+  `.write_text(...)` 调用——这是 IPC 不是 payload）。
+
+### 3 验证
+
+- `pytest tests/test_task_result_cancelled_field_has_one_home.py tests/test_batch_wiring.py::test_merge_batch_uses_the_task_model_and_configured_protocol tests/test_task_durability.py -q` → **13 passed**。
+- `python scripts/doc_pointers.py --check` → rc=0。
+
+### 4 边界
+
+- 不动 `"failed"` 计数键（metrics detail、非 result-contract 字段）。
+- 不动 cancel-file IPC 的裸字面量。
+- 本批附着在 `integration/m8-t537-to-main`（`d80e31d` 合流）之上，CI 42531499723 通过后推送。
