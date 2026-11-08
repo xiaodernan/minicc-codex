@@ -18,6 +18,7 @@ from ..tools.schemas import ToolResult
 from ..tools.registry import redact_text
 from ..trace import trace_event  # the one home for the event record
 from .verification_plan import VerificationCommand, VerificationPlan, build_verification_plan, safe_verification_command, verification_state
+from .protocol import PHASE_VERIFY
 
 
 FAILED_TEST_RE = re.compile(r"(?m)^FAILED\s+([^\s]+)")
@@ -109,7 +110,7 @@ class VerificationResult:
         event = trace_event(
             name="verifier",
             status=status,
-            phase="verify",
+            phase=PHASE_VERIFY,
             code=code,
             summary=summary,
             kind="verification",

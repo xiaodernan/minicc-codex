@@ -53,6 +53,7 @@ from ..tools.schemas import (
 )
 from ..hooks import HookRunner
 from ..trace import trace_event
+from .protocol import PHASE_EXECUTION
 
 SUBAGENT_TOOL_NAME = "task"
 # Readonly evidence tools only. No network (parent research stays in the
@@ -439,7 +440,7 @@ class _SubagentRunner:
 
         def lifecycle(code: str, status: str, summary: str, **detail: Any) -> None:
             event = trace_event(
-                name="subagent", status=status, phase="execution", code=code,
+                name="subagent", status=status, phase=PHASE_EXECUTION, code=code,
                 summary=summary,
             )
             event["parent_id"] = run_id

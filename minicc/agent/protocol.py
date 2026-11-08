@@ -70,6 +70,47 @@ TASK_UNSUCCESSFUL_STATUSES = frozenset({"failed", "interrupted"})
 #: **different phases** for the same event stream.
 PHASE_CARRYING_EVENT_KINDS = frozenset({"trace", "state", "verification"})
 
+# M8-T612: the task phase vocabulary.  Every ``phase=`` / ``"phase":`` value
+# emitted by the Python runtime and recognized by the web frontend is a
+# member of this set.  The JS home is ``web/src/core/state.js:TASK_PHASES``;
+# a cross-face gate pins the two to each other.  Individual constants avoid
+# bare string literals at 100+ call sites.
+PHASE_QUEUED = "queued"
+PHASE_PLANNING = "planning"
+PHASE_INTAKE = "intake"
+PHASE_TOOL = "tool"
+PHASE_EXECUTION = "execution"
+PHASE_ANSWERING = "answering"
+PHASE_SUMMARIZE = "summarize"
+PHASE_REVIEW = "review"
+PHASE_VERIFY = "verify"
+PHASE_REPAIR = "repair"
+PHASE_PERMISSION = "permission"
+PHASE_MERGING = "merging"
+PHASE_COMPLETED = "completed"
+PHASE_FAILED = "failed"
+PHASE_CANCELLED = "cancelled"
+PHASE_INTERRUPTED = "interrupted"
+
+TASK_PHASES = frozenset({
+    PHASE_QUEUED,
+    PHASE_PLANNING,
+    PHASE_INTAKE,
+    PHASE_TOOL,
+    PHASE_EXECUTION,
+    PHASE_ANSWERING,
+    PHASE_SUMMARIZE,
+    PHASE_REVIEW,
+    PHASE_VERIFY,
+    PHASE_REPAIR,
+    PHASE_PERMISSION,
+    PHASE_MERGING,
+    PHASE_COMPLETED,
+    PHASE_FAILED,
+    PHASE_CANCELLED,
+    PHASE_INTERRUPTED,
+})
+
 #: The kinds of task events this runtime emits on the task-event stream, and
 #: that the web face's reducer consumes.
 #:
@@ -404,7 +445,24 @@ __all__ = [
     "INCOMPLETE_ANSWER_PREFIX",
     "InvalidStatusTransition",
     "MODEL_LAST_OUTPUT_MARKER",
+    "PHASE_ANSWERING",
+    "PHASE_CANCELLED",
     "PHASE_CARRYING_EVENT_KINDS",
+    "PHASE_COMPLETED",
+    "PHASE_EXECUTION",
+    "PHASE_FAILED",
+    "PHASE_INTAKE",
+    "PHASE_INTERRUPTED",
+    "PHASE_MERGING",
+    "PHASE_PERMISSION",
+    "PHASE_PLANNING",
+    "PHASE_QUEUED",
+    "PHASE_REPAIR",
+    "PHASE_REVIEW",
+    "PHASE_SUMMARIZE",
+    "PHASE_TOOL",
+    "PHASE_VERIFY",
+    "TASK_PHASES",
     "TASK_EVENT_KINDS",
     "TASK_CANCELLED_ANSWER",
     "TASK_CANCELLED_ERROR",

@@ -11,7 +11,7 @@ from typing import Any, Callable, NoReturn
 
 from .agent.context import compact_with_checkpoint, message_chars
 from .agent.loop import TurnResult, build_tool_feedback, run_agent
-from .agent.protocol import budget_exceeded_event
+from .agent.protocol import PHASE_EXECUTION, PHASE_PLANNING, budget_exceeded_event
 from .agent.router import StageRouter, StageRoute
 from .agent.state import Budget, BudgetExceeded
 from .agent.subagent import DEFAULT_MAX_DEPTH, DEFAULT_MAX_TURNS, build_task_tool_spec
@@ -512,7 +512,7 @@ async def _turn(
             trace_event(
                 name="router",
                 status="ok",
-                phase="planning",
+                phase=PHASE_PLANNING,
                 code="stage_route",
                 summary="已应用规划阶段的模型与请求策略（CLI）",
                 detail=route.to_dict(),
@@ -1006,7 +1006,7 @@ def main(argv: list[str] | None = None) -> int:
         except BudgetExceeded as exc:
             log_task_event(
                 budget_exceeded_event(
-                    "subagent", exc, usage, name="subagent", phase="execution",
+                    "subagent", exc, usage, name="subagent", phase=PHASE_EXECUTION,
                 ),
                 task_id=session.path.stem if session else "cli",
             )

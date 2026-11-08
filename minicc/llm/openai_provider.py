@@ -27,6 +27,7 @@ import json
 from collections.abc import Callable
 from typing import Any
 from urllib.parse import urlparse
+from ..agent.protocol import PHASE_PLANNING
 
 try:
     import httpx
@@ -766,7 +767,7 @@ class OpenAICompatibleProvider:
             self._on_status(trace_event(
                 name="provider",
                 status="error",
-                phase="planning",
+                phase=PHASE_PLANNING,
                 code="provider_protocol_fallback",
                 summary="当前网关不支持 Responses API，已自动回退到 Chat Completions 并继续任务",
                 detail=protocol_fallback_detail(exc),
@@ -777,7 +778,7 @@ class OpenAICompatibleProvider:
             self._on_status(trace_event(
                 name="provider",
                 status="error",
-                phase="planning",
+                phase=PHASE_PLANNING,
                 code="provider_transport_fallback",
                 summary="Responses 连接在响应体阶段中断，已切换到 Chat Completions 继续任务",
                 detail=protocol_fallback_detail(exc),
@@ -1107,7 +1108,7 @@ class OpenAICompatibleProvider:
             self._on_status(trace_event(
                 name="provider",
                 status="error",
-                phase="planning",
+                phase=PHASE_PLANNING,
                 code="provider_request_retry",
                 summary=f"模型请求暂时失败，正在进行第 {retry_state.attempt_number + 1} 次尝试",
                 detail={
@@ -1228,7 +1229,7 @@ class OpenAICompatibleProvider:
                     self._on_status(trace_event(
                         name="provider",
                         status="error",
-                        phase="planning",
+                        phase=PHASE_PLANNING,
                         code="provider_retry",
                         summary=stream_retry_summary(attempt + 1),
                         detail=retry_detail(attempt + 1, self._max_retries + 1),

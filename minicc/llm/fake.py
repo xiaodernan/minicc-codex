@@ -16,6 +16,7 @@ from .base import LLMResponse, retry_detail, stream_retry_summary, tool_call
 from .usage import measured_usage
 from ..config import TRUTHY
 from ..trace import trace_event
+from ..agent.protocol import PHASE_PLANNING
 
 # The completion judge's own "which events can certify a goal" judgment, one
 # home in minicc.agent.completion.  Imported lazily inside _select_citable_
@@ -112,7 +113,7 @@ class FakeProvider:
                 self._emit(trace_event(
                     name="provider",
                     status="error",
-                    phase="planning",
+                    phase=PHASE_PLANNING,
                     code="provider_retry",
                     summary=stream_retry_summary(attempt + 1),
                     detail=retry_detail(attempt + 1, 2),

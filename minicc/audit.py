@@ -21,6 +21,7 @@ from .tools.registry import AUTHORIZATION_RISKS
 from .trace import trace_event
 
 
+
 # M3-T4: argv-aware network detection. The old substring blacklist missed
 # ``pip3 install``, ``apt-get install nginx``, ``ssh``, ``nc``, ``rsync`` and
 # matched inside unrelated text (``git log --grep="git clone"``).
@@ -456,10 +457,12 @@ def authorization_event(
     (``minicc/trace.py``) with ``kind="authorization"``; this factory only
     adds its own two flat keys.
     """
+    from .agent.protocol import PHASE_PERMISSION
+
     event = trace_event(
         name=tool,
         status=status,
-        phase="permission",
+        phase=PHASE_PERMISSION,
         code=code,
         summary=summary,
         kind="authorization",
