@@ -1238,7 +1238,7 @@ class TaskManager:
                     # Inspect the original durable lease before rewriting a
                     # running record as interrupted. The worker owns writes.
                     task.status = "running"
-                    task.phase = str(snapshot.get("phase") or "planning")
+                    task.phase = str(snapshot.get("phase") or PHASE_PLANNING)
                     task.error = None
                     self._detached_tasks.add(task.task_id)
                     self._session_active[self._session_key(task)] = task.task_id
@@ -1419,7 +1419,7 @@ class TaskManager:
                 if parent is None or parent.status in TERMINAL_TASK_STATUSES or parent.cancel_event.is_set():
                     return
                 parent.transition_status("running")
-                parent.set_phase("planning")
+                parent.set_phase(PHASE_PLANNING)
                 parent.started_at = parent.started_at or time.time()
                 assessment = parent.context.get("orchestration") if isinstance(parent.context, dict) else None
                 parent.add_event(trace_event(
@@ -1888,7 +1888,7 @@ class TaskManager:
                 evidence = self._build_auto_evidence(snapshots)
                 parent.orchestration_context = evidence
                 parent.execution_message = f"{parent.message}\n\n{evidence}"
-                parent.set_phase("planning")
+                parent.set_phase(PHASE_PLANNING)
                 parent.add_event(trace_event(
                     name="orchestrator",
                     status="ok",
@@ -1923,7 +1923,7 @@ class TaskManager:
                     "children": snapshots,
                 }
             elif hasattr(self.service, "merge_batch"):
-                parent.set_phase("merging")
+                parent.set_phase(PHASE_MERGING)
                 parent.add_event(trace_event(
                     name="orchestrator",
                     status="ok",
@@ -2002,7 +2002,7 @@ class TaskManager:
             parent.add_event(trace_event(
                 name="orchestrator",
                 status="error" if result.get("error") else "ok",
-                phase=PHASE_MERGING if parent.phase == "merging" else "planning",
+                phase=PHASE_MERGING if parent.phase == PHASE_MERGING else PHASE_PLANNING,
                 code="batch_finished",
                 summary="并行结果已整理，父任务即将交付",
                 detail={
@@ -2527,7 +2527,7 @@ class TaskManager:
                         task.transition_status("running")
                     except InvalidStatusTransition:
                         cancelled_before_start = True
-                    task.set_phase("planning")
+                    task.set_phase(PHASE_PLANNING)
                     if task.started_at is None:
                         task.started_at = time.time()
         except Exception as exc:  # noqa: BLE001 - admission errors must release the session slot

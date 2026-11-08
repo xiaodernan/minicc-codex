@@ -738,7 +738,7 @@ async def run_agent(
     def emit_trace(
         summary: str,
         *,
-        phase: str = "planning",
+        phase: str = PHASE_PLANNING,
         status: str = "ok",
         code: str = "milestone",
         detail: dict[str, Any] | str | None = None,
