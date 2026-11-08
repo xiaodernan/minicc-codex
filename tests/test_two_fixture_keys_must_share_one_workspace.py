@@ -38,7 +38,7 @@ COLLIDING: dict[str, dict[str, str]] = {
     "child-then-file": {"d/x": "one", "d": "two"},
     "deep-then-shallow": {"p/q/r": "1", "p/q": "2"},
 }
-DOORS = ("v2", "behavior", "legacy")
+from tests._fixture_doors import DOORS
 GOOD_LAYOUT = {"pkg/__init__.py": "", "pkg/mod.py": "x", "a.txt": "one"}
 
 

@@ -27,7 +27,7 @@ from minicc.llm.envelope import EnvelopeParseError
 from minicc.tools.editor import Editor
 from minicc.tools import build_registry
 from minicc.web import AgentService, _completion_guard_message
-from minicc.prompt import build_system_prompt
+from minicc.prompt import GUIDANCE_FILES, build_system_prompt
 
 
 def _completion_evidence_ids(messages) -> list[str]:
@@ -940,7 +940,7 @@ def test_project_guidance_is_loaded_as_non_policy_context(tmp_path: Path) -> Non
 
 @pytest.mark.parametrize(
     "relative",
-    ["AGENTS.md", "CLAUDE.md", "MINICC.md", ".minicc/instructions.md"],
+    list(GUIDANCE_FILES),
 )
 def test_guidance_file_variants_are_loaded(tmp_path: Path, relative: str) -> None:
     target = tmp_path / relative

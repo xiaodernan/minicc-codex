@@ -29,7 +29,7 @@ from minicc import bench_tasks, behavior_bench, benchmarks
 REPO = Path(__file__).resolve().parents[1]
 BACKSLASH = chr(92)
 
-DOORS = ("v2", "behavior", "legacy")
+from tests._fixture_doors import DOORS
 
 # Each shape names one location twice on a case-insensitive volume and two locations on a
 # case-sensitive one. All are added on top of a real shipped task's own fixture, so a refusal can

@@ -25,7 +25,7 @@ from pathlib import Path
 
 import pytest
 
-from minicc.hooks import HookConfigError, HookRunner
+from minicc.hooks import HOOK_EVENTS, HookConfigError, HookRunner
 
 
 def _write_hooks(workspace: Path, payload: object) -> None:
@@ -100,7 +100,7 @@ def test_valid_event_names_accepted(tmp_path: Path) -> None:
     assert runner.load_error is None
     assert len(runner.specs) == 4
     events = {spec.event for spec in runner.specs}
-    assert events == {"PreToolUse", "PostToolUse", "UserPromptSubmit", "Stop"}
+    assert events == set(HOOK_EVENTS)
 
 
 # ── Entry structure validation ─────────────────────────────────────────────
