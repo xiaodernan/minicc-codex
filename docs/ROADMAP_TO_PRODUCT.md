@@ -40321,3 +40321,65 @@ the exact same six spellings, written again by hand，谁都没钉住。
    `HOOK_EVENTS` 的 4 元组五份嵌套拷贝——四个事件都是 tests-fixture 类，一次性扫成一
    批，按 AST 门拼一条 `test_the_fixture_vocabularies_have_one_home_each.py` 收口；
 3. 十三个加载器裁定不变。
+
+## 第五百八十九批 — M8-T607 — fixture 词表家族各归一个家
+
+### 1 欠的是哪一条
+
+四条 fixture/测试词表在多处被手拼——DOORS `("v2", "behavior", "legacy")`（三个测试文件各一份）、
+GUIDANCE_FILES（`minicc/prompt.py` vs `test_core_agent.py` 的 parametrize）、
+HOOK_EVENTS（`minicc/hooks.py` vs `test_hooks_validation.py`）、GRADER_SCRIPTS
+（`minicc/bench_tasks.py` vs `test_grader_reads_only_named_keys.py` 的局部副本）。
+四条同途不同门,无人对账。门错一个抽屉看似平常,是 fixture 对账真正麻烦产生的根因。
+
+### 2 量到的真相（实测）
+
+- `DOORS = ("v2", "behavior", "legacy")` ↔ 3 处逐字相同（test_a_fixture_must_be_text_the_workspace_can_hold.py:43，test_two_fixture_keys_must_name_different_locations.py:32，test_two_fixture_keys_must_share_one_workspace.py:41）。
+- `GUIDANCE_FILES = ("AGENTS.md", "CLAUDE.md", "MINICC.md", ".minicc/instructions.md")` ↔ 1 处拷贝（test_core_agent.py:942-944，与 home 顺序一致）。
+- `HOOK_EVENTS = ("PreToolUse", "PostToolUse", "UserPromptSubmit", "Stop")` ↔ 1 处内嵌集（test_hooks_validation.py:103 `events == {...}`）。
+- `GRADER_SCRIPTS = {"file_contract": "_FILE_CONTRACT_GRADER", "command_contract": "_COMMAND_CONTRACT_GRADER"}` ↔ 1 处局部复写（test_grader_reads_only_named_keys.py:28，逐字相同）。
+
+### 3 落地
+
+- `tests/_fixture_doors.py`（新，共享测试专用 home）：`DOORS = ("v2", "behavior", "legacy")`，三处改 import。
+- `minicc/prompt.py`（未动）：`GUIDANCE_FILES` 家不动；`test_core_agent.py` 改成 `list(GUIDANCE_FILES)`。
+- `minicc/hooks.py`（未动）：`HOOK_EVENTS` 家不动；`test_hooks_validation.py` 改为 `from minicc.hooks import HOOK_EVENTS`，
+  `assert events == set(HOOK_EVENTS)`。
+- `minicc/bench_tasks.py`（未动）：`GRADER_SCRIPTS` 家不动；`test_grader_reads_only_named_keys.py` 改为
+  `from minicc.bench_tasks import GRADER_SCRIPTS as SCRIPTS`。
+- `tests/test_the_fixture_vocabularies_have_one_home_each.py`（新门，4 条）：
+  ① `tests._fixture_doors.DOORS == ("v2", "behavior", "legacy")`；
+  ② `tests.test_core_agent.GUIDANCE_FILES is minicc.prompt.GUIDANCE_FILES`；
+  ③ `tests.test_hooks_validation.HOOK_EVENTS is minicc.hooks.HOOK_EVENTS`；
+  ④ `tests.test_grader_reads_only_named_keys.SCRIPTS is minicc.bench_tasks.GRADER_SCRIPTS`。
+
+### 4 见证（红先绿后）
+
+- 绿臂：新门 4 passed；相关文件集合：`test_a_fixture_must_be_text_the_workspace_can_hold.py`
+  + `test_two_fixture_keys_must_name_different_locations.py` + `test_two_fixture_keys_must_share_one_workspace.py`
+  + `test_core_agent.py`（-k guidance_file_variants，4 passed）+ `test_hooks_validation.py` +
+  `test_grader_reads_only_named_keys.py` 共 88 passed。
+- 红臂：`git stash push` 六个跟踪文件 → 新门红，3 条断言红（GUIDANCE/HOOKS/SCRIPTS 点名）；
+  `git stash pop` 后复绿。
+- `docs-pointers` `exit=0`。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称凡是 `GRADER_TYPES` 也被统——`test_unusable_spec_is_refused_before_the_agent_runs.py:64` 已经做过之后的工作；
+  本批只把 SCRIPTS 一面钉住；
+- 不声称 DOORS 的内部语义（v2/legacy 的出生顺序、behavior 的奖励含义）被钉住——
+  本批只钉「是哪三个名字」，出生顺序与对应关系不动；
+- 不声称 bench_tasks 的 GRADER_SPEC_KEYS 类似映射被抽出统一——该映射只在一个测试出现，不算复制，
+  只记账但不动刀；
+- 不声称 CI 全绿：tip fa541ab 刚推，这一批就位时腿仍在途。
+
+### 7 下一位候选
+
+1. 推本批等首个 Windows 腿绿灯（tip 待推之后 ~20 分钟）；
+2. `（仓根）conftest.py` 中可能还有其它重复 fixture vocabulary（如 phase classes、todo statuses、
+   zombie path fixture 等），下一轮全量 AST 普查查找；
+3. 十三个加载器裁定不变。
