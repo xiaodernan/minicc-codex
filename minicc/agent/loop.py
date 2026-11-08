@@ -1567,7 +1567,7 @@ async def run_agent(
                     path = str((call.arguments or {}).get("path") or "")
                     if path:
                         changed_paths.add(path)
-                    elif call.tool == "bash":
+                    elif call.tool == TOOL_NAME_BASH:
                         # M8-T281: a bash write names no path, so the changed
                         # set stayed empty and the probe below answered "no
                         # runnable check" for a workspace that had plenty.
@@ -2169,6 +2169,7 @@ def _is_unproductive_result(result: ToolResult) -> bool:
 
 
 from .tool_policy import CORE_WRITE_TOOLS
+from ..tools.names import TOOL_NAME_BASH
 
 # M6-T3: parallel write phase -------------------------------------------------
 

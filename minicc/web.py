@@ -144,6 +144,7 @@ from .tools import Editor, ToolCall, ToolResult, build_registry
 from .tools.editor import AUDIT_LEVELS, audit_level, path_escaped_workspace
 from .trace import trace_event
 from .tools.registry import approval_preview, redact_text
+from .tools.names import TOOL_NAME_BASH
 from .task_store import TaskStore
 from .worktree import WorktreeError, WorktreeManager
 from .webserver import MiniccHTTPServer, MiniccRequestHandler  # noqa: F401 - re-export
@@ -1879,7 +1880,7 @@ class AgentService:
                             # CLI face already draws this line (M2-T3); this
                             # face now draws it too.
                             kwargs: dict[str, str] = {}
-                            if name == "bash":
+                            if name == TOOL_NAME_BASH:
                                 command = str(
                                     (call.arguments or {}).get("command") or ""
                                 ).strip()

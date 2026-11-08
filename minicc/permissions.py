@@ -36,6 +36,7 @@ from .tools.registry import redact_text
 
 from .config import unreadable_file_message
 from .internal_paths import PERMISSIONS_NAME  # re-exported: the deny list reads it from here
+from .tools.names import TOOL_NAME_BASH
 
 class PermissionConfigError(ValueError):
     """permissions.json is malformed at the schema level (non-fatal)."""
@@ -95,7 +96,7 @@ def _match_patterns(tool: str, arguments: dict[str, Any] | None, side: dict[str,
     name = str(tool or "").strip()
     if tool_rule_matches(name, side["tools"]):
         return True
-    if name == "bash":
+    if name == TOOL_NAME_BASH:
         command, _ = redact_text(str((arguments or {}).get("command") or ""))
         command = command.strip()
         if command and any(

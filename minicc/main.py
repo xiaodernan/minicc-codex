@@ -62,6 +62,7 @@ from .session import SessionError, SessionStore, list_sessions
 from .tools import Editor, ToolCall, ToolRegistry, ToolResult, approval_preview, build_registry
 from .tools.registry import AUTHORIZATION_RISKS
 from .trace import trace_event
+from .tools.names import TOOL_NAME_BASH
 
 
 class StreamWriter:
@@ -350,7 +351,7 @@ def _tool_preview(call: ToolCall) -> str:
     it.  One home for the preview: ``minicc.tools.approval_preview``.
     """
     preview = approval_preview(call.tool, call.arguments, limit=240)
-    if call.tool == "bash":
+    if call.tool == TOOL_NAME_BASH:
         return f"command={preview!r}"
     path = call.arguments.get("path")
     if path is not None:
@@ -448,7 +449,7 @@ def _permission_gate(
             if workspace is not None and session_id:
                 try:
                     kwargs: dict[str, str] = {}
-                    if name == "bash":
+                    if name == TOOL_NAME_BASH:
                         command = str(call.arguments.get("command") or "").strip()
                         if command:
                             kwargs["command"] = command

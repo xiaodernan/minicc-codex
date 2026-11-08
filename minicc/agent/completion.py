@@ -26,6 +26,7 @@ from ..tools.registry import redact_text
 from ..tools.schemas import tool_call_name
 from .tool_policy import is_verification_evidence
 from .verifier import UNUSABLE_VERIFICATION_STATUSES
+from ..tools.names import TOOL_NAME_BASH
 
 
 COMPLETION_STATUSES = frozenset({"complete", "continue", "blocked", "unknown"})
@@ -419,7 +420,7 @@ def _enforce_completion_evidence(
         # and the gate used to rebuild the arguments from the command alone,
         # which dropped the flag and let the background guard never fire.
         event_arguments = _event_arguments(event)
-        if event.get("name") == "bash" and is_verification_evidence(
+        if event.get("name") == TOOL_NAME_BASH and is_verification_evidence(
             "bash", event_arguments, "ok"
         ):
             record(command, str(event.get("status") or "unknown"))

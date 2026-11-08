@@ -19,6 +19,7 @@ from .permissions import load_permission_rules, match_rules
 from .tools.bash import is_readonly_command, split_command_argv
 from .tools.registry import AUTHORIZATION_RISKS
 from .trace import trace_event
+from .tools.names import TOOL_NAME_BASH
 
 
 
@@ -723,7 +724,7 @@ def authorize_tool(
             return _allowlist_override(
                 AuthorizationDecision(False, "network_exec", "网络命令需要单独授权", AUTHORIZATION_MISSING_TASK_NETWORK)
             )
-        if tool == "bash" and is_readonly_command(str(command)):
+        if tool == TOOL_NAME_BASH and is_readonly_command(str(command)):
             return AuthorizationDecision(True, "readonly_exec", "受限只读验证命令已允许", AUTHORIZATION_SAFE_VERIFICATION)
         if allow_changes:
             return AuthorizationDecision(True, "exec", "本任务已明确授权命令执行", AUTHORIZATION_TASK_EXEC)

@@ -16,6 +16,7 @@ from .check_commands import command_parts, checker_invocation
 from ..audit import tool_requires_authorization
 from ..tools.bash import split_command_argv
 from ..tools.schemas import TOOL_STATUS_OK
+from ..tools.names import TOOL_NAME_BASH
 
 # M4-T1: a workspace write is not only the four explicit write tools. An agent
 # that runs ``sed -i`` or ``python patch.py`` mutates the workspace just as much,
@@ -189,7 +190,7 @@ def is_workspace_write(tool: str, arguments: dict[str, Any] | None, status: str)
         return False
     if tool in WRITE_TOOL_NAMES:
         return True
-    if tool == "bash":
+    if tool == TOOL_NAME_BASH:
         return command_may_modify_workspace(str((arguments or {}).get("command") or ""))
     return False
 
@@ -210,7 +211,7 @@ def predicts_workspace_write(tool: str, arguments: dict[str, Any] | None) -> boo
     """
     if tool in WRITE_TOOL_NAMES:
         return True
-    if tool == "bash":
+    if tool == TOOL_NAME_BASH:
         return command_may_modify_workspace(str((arguments or {}).get("command") or ""))
     return False
 
@@ -229,7 +230,7 @@ def predicts_workspace_write(tool: str, arguments: dict[str, Any] | None) -> boo
 
 def is_verification_evidence(tool: str, arguments: dict[str, Any] | None, status: str) -> bool:
     """True when a successful tool call is actual verification, not inspection."""
-    if status != TOOL_STATUS_OK or tool != "bash":
+    if status != TOOL_STATUS_OK or tool != TOOL_NAME_BASH:
         return False
     args = arguments or {}
     # M8-T279: a backgrounded command is not verification.  Starting it
