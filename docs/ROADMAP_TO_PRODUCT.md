@@ -40111,3 +40111,63 @@ authorization 的风险等级已经在日志里。
 1. **task-event `kind` 词表**(8 个值)——Python 发射方与 JS reducer 之间,没有 home;下一批主力做;
 2. 中文 effort 标签(Python 与 i18n `reasoning.*` zh 列)——两处,值不钉;
 3. 十三个加载器裁定不变。
+
+## 第五百八十五批 — M8-T603 — task-event 的 8 个 kind 归家（Python 发射方 — JS reducer）
+
+### 1 欠的是哪一条
+
+「task-event 的 kind 有哪八个」——`timeline` / `stream_delta` / `state` / `status` /
+`usage` / `context` / `compaction` / `result`。它们是运行时 emit 方（Python）和前端
+reducer（JS）之间的 SSE 线协议——两个手拼的家：Python 12 个发射点逐个拼字面量；前端
+`web/src/core/task-reducer.js` 的 switch 八个 arm,**没有 default**——drifted 或新
+kind 在 UI 静默丢弃。对齐任务没有任何门拦,也没有谁提到它。
+
+### 2 量到的真相（实测）
+
+- 发射点 AST 普查：`_publish_locked("timeline"...)`……共 12 处显式字面量 + 1 处
+  `state.py` 属另一词表（agent trace `kind="state"`；不同事实，未触碰）。
+- JS reducer：8 arms,`case "timeline"`/`"stream_delta"`/`"state"`/`"status"`/`"usage"`/
+  `"context"`/`"compaction"`/`"result"`；全仓其余 .js 零 `case` 拼写同 kind（本批新门钉住）。
+
+### 3 落地
+
+- `minicc/agent/protocol.py`：新增 `TASK_EVENT_KINDS = frozenset({...})`（`#:` 说明 12→8 个发射点
+  与 reducer 的 8 arms 双拷的来历）；`__all__` 增加同名导出。
+- `tests/test_the_task_event_kinds_have_one_home.py`（新门，3 条）：
+  ① 家定义恰好 8 个名字；
+  ② `minicc/` 下任何 `_publish_locked(<字面量>, ...)` 的 kind 必须在家内（无发明者）；
+  ③ 普查到的 emit kinds 集合 == 家（无僵死成员、无旁漏）。
+- `tests/frontend_task_event_kinds_one_home_smoke.mjs`（新门，3 钉）：
+  ① 家定义 == 恰好这八个；
+  ② reducer 的 case arms == 家（正好，不是只要是 home 的子集就行）；
+  ③ `web/src` 下其它 .js 不许 spelling `case "<kind>"`（reducer 是唯一 switch）。
+- `package.json`：新增 `test:kinds`；CI js-check job 增加 `node --check` + `npm run test:kinds`。
+
+### 4 见证（红先绿后）
+
+- Python 门绿臂（3 passed）；注入 misspell：临时 `一个临时的 _tmp_kind_probe 探针模块` 的
+  `_publish_locked("future_kind")` → 两条断言各红，点名 `temp probe module:7`；删除后绿。
+- JS 门绿臂（M8-T603 ok）；红臂：reducer 改 `"timeline"` → `"tiimeline"` → 门红，
+  点名 `tiimeline`；`git checkout --` 恢复后绿。
+- 焦点回归（本地全绿）：`check:web`、`test:kinds`、`test:inspector`、`test:entrycaps`、
+  `test:eventretention`、`test:registry`、`test:todo`、`test:approval`、`test:phase`、
+  `test:trace`、`test:tracephase`、`test:tracedetail`、`test:i18n`、`test:effort`、`test:perm`、
+  `test:sessionid`、`test:context`、`test:scale`、`test:transport`。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 reducer 的 switch 增加 default arm——本批只钉住「不漏不发明」；加 default 是
+  batch 决策，应该独立做（而且 web 侧目前 *不应* 吞新 kind，反而是 fail-fast 的显示错位警示）；
+- 不声称 agent state machine 的 `TraceEvent.kind="state"` 也被这扇门管辖——它是
+  `PHASE_CARRYING_EVENT_KINDS` 的成员，不同事实；
+- 不声称 CI js-check 已跑——该 job 今日仍零次被调度。
+
+### 7 下一位候选
+
+1. 等这个 tip 的 Windows 腿跑完（push 后 ~20 分钟）——批 584+585 一并在场，批 584 已绿；
+2. 中文 effort 标签拼写对齐（Python `loop.py` 的内联标签表与 `STATE_ED_LABELS`/i18n `reasoning.{low,…,ultra}` 的 `zh` 列——两处独立维护，从未对照，drift 一条也能同时全绿）——下一个主力批；
+3. 十三个加载器裁定不变。
