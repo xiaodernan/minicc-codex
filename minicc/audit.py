@@ -449,6 +449,19 @@ AUTHORIZATION_MISSING_TASK_NETWORK = "missing_task_network"
 AUTHORIZATION_PERMISSION_RULE_ALLOW = "permission_rule_allow"
 AUTHORIZATION_PERMISSION_RULE_DENY = "permission_rule_deny"
 AUTHORIZATION_USER_DENIED = "user_denied"
+# M8-T626: authorization decision code vocabulary (one home).
+AUTHORIZATION_UNKNOWN_RISK = "unknown_risk"
+AUTHORIZATION_TASK_YOLO = "task_yolo"
+AUTHORIZATION_DEFAULT_READONLY = "default_readonly"
+AUTHORIZATION_PERMISSION_POLICY_UNREADABLE = "permission_policy_unreadable"
+AUTHORIZATION_SESSION_ALLOWLIST = "session_allowlist"
+AUTHORIZATION_TASK_NETWORK = "task_network"
+AUTHORIZATION_PLAN_MODE_WRITE = "plan_mode_write"
+AUTHORIZATION_TASK_WRITE = "task_write"
+AUTHORIZATION_PLAN_MODE_EXEC = "plan_mode_exec"
+AUTHORIZATION_SAFE_VERIFICATION = "safe_verification"
+AUTHORIZATION_TASK_EXEC = "task_exec"
+AUTHORIZATION_USER_APPROVED = "user_approved"
 
 # Network is handled separately and is intentionally not a member of
 # MISSING_TASK_AUTHORIZATIONS (web interactive-approval flow contract).
@@ -635,7 +648,7 @@ def authorize_tool(
                 False,
                 risk or "unknown",
                 f"permissions.json 读不出来，先拒绝此操作（{policy_error}）",
-                "permission_policy_unreadable",
+                AUTHORIZATION_PERMISSION_POLICY_UNREADABLE,
             )
         verdict = match_rules(rules, tool, arguments)
         if verdict == "deny":
@@ -671,52 +684,52 @@ def authorize_tool(
                 True,
                 denied.risk,
                 "本会话 allowlist 已放行",
-                "session_allowlist",
+                AUTHORIZATION_SESSION_ALLOWLIST,
             )
         return denied
 
     if mode == "yolo":
         if risk == "readonly" or tool in NETWORK_TOOL_NAMES:
-            return AuthorizationDecision(True, risk or "unknown", "任务为 yolo 模式，工具已放行", "task_yolo")
-        return AuthorizationDecision(True, risk or "unknown", "任务为 yolo 模式，写入与命令已放行", "task_yolo")
+            return AuthorizationDecision(True, risk or "unknown", "任务为 yolo 模式，工具已放行", AUTHORIZATION_TASK_YOLO)
+        return AuthorizationDecision(True, risk or "unknown", "任务为 yolo 模式，写入与命令已放行", AUTHORIZATION_TASK_YOLO)
     if network_tool and risk == "readonly":
         if allow_network:
-            return AuthorizationDecision(True, "network_readonly", "本任务已明确授权联网查询", "task_network")
+            return AuthorizationDecision(True, "network_readonly", "本任务已明确授权联网查询", AUTHORIZATION_TASK_NETWORK)
         return _allowlist_override(
             AuthorizationDecision(False, "network_readonly", "联网查询需要当前任务单独授权", AUTHORIZATION_MISSING_TASK_NETWORK)
         )
     if risk == "readonly":
-        return AuthorizationDecision(True, "readonly", "只读工具已允许", "default_readonly")
+        return AuthorizationDecision(True, "readonly", "只读工具已允许", AUTHORIZATION_DEFAULT_READONLY)
     if risk == "write":
         if mode == "plan":
-            return AuthorizationDecision(False, "write", "计划模式只允许只读工具，写入已拒绝", "plan_mode_write")
+            return AuthorizationDecision(False, "write", "计划模式只允许只读工具，写入已拒绝", AUTHORIZATION_PLAN_MODE_WRITE)
         if network_tool and not allow_network:
             return _allowlist_override(
                 AuthorizationDecision(False, "write", "该工具声明了联网能力，需要先获得本任务的联网授权", AUTHORIZATION_MISSING_TASK_NETWORK)
             )
         if mode == "acceptEdits" or allow_changes:
-            return AuthorizationDecision(True, "write", "本任务已明确授权写入", "task_write")
+            return AuthorizationDecision(True, "write", "本任务已明确授权写入", AUTHORIZATION_TASK_WRITE)
         return _allowlist_override(
             AuthorizationDecision(False, "write", "写入工具需要当前任务明确授权", AUTHORIZATION_MISSING_TASK_WRITE)
         )
     if risk == "exec":
         if mode == "plan":
-            return AuthorizationDecision(False, "exec", "计划模式只允许只读工具，命令已拒绝", "plan_mode_exec")
+            return AuthorizationDecision(False, "exec", "计划模式只允许只读工具，命令已拒绝", AUTHORIZATION_PLAN_MODE_EXEC)
         command = arguments.get("command", "")
         if command_uses_network(command) or network_tool:
             if allow_changes and allow_network:
-                return AuthorizationDecision(True, "network_exec", "本任务已明确授权网络命令", "task_network")
+                return AuthorizationDecision(True, "network_exec", "本任务已明确授权网络命令", AUTHORIZATION_TASK_NETWORK)
             return _allowlist_override(
                 AuthorizationDecision(False, "network_exec", "网络命令需要单独授权", AUTHORIZATION_MISSING_TASK_NETWORK)
             )
         if tool == "bash" and is_readonly_command(str(command)):
-            return AuthorizationDecision(True, "readonly_exec", "受限只读验证命令已允许", "safe_verification")
+            return AuthorizationDecision(True, "readonly_exec", "受限只读验证命令已允许", AUTHORIZATION_SAFE_VERIFICATION)
         if allow_changes:
-            return AuthorizationDecision(True, "exec", "本任务已明确授权命令执行", "task_exec")
+            return AuthorizationDecision(True, "exec", "本任务已明确授权命令执行", AUTHORIZATION_TASK_EXEC)
         return _allowlist_override(
             AuthorizationDecision(False, "exec", "命令执行需要当前任务明确授权", AUTHORIZATION_MISSING_TASK_EXEC)
         )
-    return AuthorizationDecision(False, "unknown", "未知工具风险，已拒绝执行", "unknown_risk")
+    return AuthorizationDecision(False, "unknown", "未知工具风险，已拒绝执行", AUTHORIZATION_UNKNOWN_RISK)
 
 
 @dataclass(frozen=True)
@@ -744,11 +757,11 @@ def interpret_authorization_decision(decision: AuthorizationDecision) -> Allowan
 
     # These authorizations are absolute denials on both faces.
     if decision.authorization in {
-        "plan_mode_write",
-        "plan_mode_exec",
-        "unknown_risk",
+        AUTHORIZATION_PLAN_MODE_WRITE,
+        AUTHORIZATION_PLAN_MODE_EXEC,
+        AUTHORIZATION_UNKNOWN_RISK,
         AUTHORIZATION_PERMISSION_RULE_DENY,
-        "permission_policy_unreadable",
+        AUTHORIZATION_PERMISSION_POLICY_UNREADABLE,
     }:
         return AllowanceResult(False, decision.reason, decision)
 
@@ -777,6 +790,18 @@ __all__ = [
     "AUTHORIZATION_PERMISSION_RULE_ALLOW",
     "AUTHORIZATION_PERMISSION_RULE_DENY",
     "AUTHORIZATION_USER_DENIED",
+    "AUTHORIZATION_UNKNOWN_RISK",
+    "AUTHORIZATION_TASK_YOLO",
+    "AUTHORIZATION_DEFAULT_READONLY",
+    "AUTHORIZATION_PERMISSION_POLICY_UNREADABLE",
+    "AUTHORIZATION_SESSION_ALLOWLIST",
+    "AUTHORIZATION_TASK_NETWORK",
+    "AUTHORIZATION_PLAN_MODE_WRITE",
+    "AUTHORIZATION_TASK_WRITE",
+    "AUTHORIZATION_PLAN_MODE_EXEC",
+    "AUTHORIZATION_SAFE_VERIFICATION",
+    "AUTHORIZATION_TASK_EXEC",
+    "AUTHORIZATION_USER_APPROVED",
     "NETWORK_TOOL_NAMES",
     "PERMISSION_MODES",
     "PERMISSION_MODE_ACCEPT_EDITS",

@@ -83,6 +83,7 @@ from .audit import (
     APPROVAL_FRAME_RESOLVED_KIND,
     MISSING_TASK_AUTHORIZATIONS,
     AUTHORIZATION_PERMISSION_RULE_ALLOW,
+    AUTHORIZATION_USER_APPROVED,
     AUTHORIZATION_USER_DENIED,
     PERMISSION_MODE_PLAN,
     PERMITTING_APPROVAL_DECISIONS,
@@ -1899,7 +1900,7 @@ class AgentService:
                     return emit_decision(name, AuthorizationDecision(
                         True, decision.risk,
                         "用户已批准" + ("（本会话记住）" if always else ""),
-                        "user_approved",
+                        AUTHORIZATION_USER_APPROVED,
                     ))
                 if verdict.get("cancelled"):
                     why = "任务已取消，审批自动拒绝"
