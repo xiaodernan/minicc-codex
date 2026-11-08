@@ -24,6 +24,16 @@ from .audit import tool_denied_by_rule
 from .tools.fs import _minicc_sensitive_kind
 from .tools.registry import redact_text
 
+# M8-T620: mention resolution status vocabulary (one home).
+MENTION_STATUS_INJECTED = "injected"
+MENTION_STATUS_REJECTED = "rejected"
+MENTION_STATUS_OMITTED = "omitted"
+MENTION_STATUSES = frozenset({
+    MENTION_STATUS_INJECTED,
+    MENTION_STATUS_REJECTED,
+    MENTION_STATUS_OMITTED,
+})
+
 # ``@`` tokens stop at whitespace *and* full-width punctuation (。、！？：);
 # otherwise a hand-typed Chinese sentence would glue onto the path. The
 # negative lookbehind keeps emails (``a@b``) out: an @ directly after an
@@ -41,6 +51,10 @@ __all__ = [
     "MENTION_MAX_CHARS_PER_FILE",
     "MENTION_MAX_FILES",
     "MENTION_MAX_TOTAL_CHARS",
+    "MENTION_STATUSES",
+    "MENTION_STATUS_INJECTED",
+    "MENTION_STATUS_OMITTED",
+    "MENTION_STATUS_REJECTED",
     "apply_mentions",
     "build_mention_context",
     "extract_mention_tokens",
@@ -96,7 +110,7 @@ def _record(
 
 
 def _reject(token: str, reason: str) -> dict[str, Any]:
-    return _record(token, token, "rejected", reason, False)
+    return _record(token, token, MENTION_STATUS_REJECTED, reason, False)
 
 
 def credential_injection_refusal() -> str:
@@ -142,7 +156,7 @@ def build_mention_context(
     for token in dropped:
         records.append(_annotate(
             token,
-            "omitted",
+            MENTION_STATUS_OMITTED,
             f"超出单次提及条数上限（最多 {MENTION_MAX_FILES} 条）",
         ))
     if not tokens:
@@ -219,7 +233,7 @@ def build_mention_context(
         remaining = min(max_chars_per_file, max_total_chars - used)
         if remaining <= 0:
             omitted.append(rel)
-            records.append(_annotate(token, "omitted", "超出注入预算"))
+            records.append(_annotate(token, MENTION_STATUS_OMITTED, "超出注入预算"))
             continue
         try:
             # M8-T278: the 32 KB ceiling used to be applied *after* the read:
@@ -256,15 +270,15 @@ def build_mention_context(
             # bucket says the content was **not** included, which was false:
             # a prefix was.
             records.append(_record(
-                token, rel, "injected",
+                token, rel, MENTION_STATUS_INJECTED,
                 "文件过大，仅注入开头片段" if oversized else "", True,
             ))
             continue
         used += len(text)
         chunks.append(f'<file path="{rel}">\n{text}\n</file>')
-        records.append(_record(token, rel, "injected", "", False))
-    injected = sum(1 for item in records if item["status"] == "injected")
-    rejected = sum(1 for item in records if item["status"] == "rejected")
+        records.append(_record(token, rel, MENTION_STATUS_INJECTED, "", False))
+    injected = sum(1 for item in records if item["status"] == MENTION_STATUS_INJECTED)
+    rejected = sum(1 for item in records if item["status"] == MENTION_STATUS_REJECTED)
     # M8-T329: the mentions past the cap are named in the block too - a
     # silent drop reads exactly like a mention that was never written.
     dropped_note = ""
@@ -280,8 +294,8 @@ def build_mention_context(
         )
         parts = [header, *chunks]
         for item in records:
-            if item["status"] == "rejected":
-                parts.append(f'<file path="{item["path"]}" status="rejected">{item["reason"]}</file>')
+            if item["status"] == MENTION_STATUS_REJECTED:
+                parts.append(f'<file path="{item["path"]}" status="{MENTION_STATUS_REJECTED}">{item["reason"]}</file>')
             elif item["status"] in {"missing", "binary"}:
                 parts.append(f'<file path="{item["path"]}" status="{item["status"]}">{item["reason"]}</file>')
         if omitted:
@@ -294,9 +308,9 @@ def build_mention_context(
     if rejected or omitted or dropped_note:
         parts = ["[用户引用文件]"]
         parts.extend(
-            f'<file path="{item["path"]}" status="rejected">{item["reason"]}</file>'
+            f'<file path="{item["path"]}" status="{MENTION_STATUS_REJECTED}">{item["reason"]}</file>'
             for item in records
-            if item["status"] == "rejected"
+            if item["status"] == MENTION_STATUS_REJECTED
         )
         if omitted:
             parts.append("[truncated] 以下引用超出注入预算，未包含内容：" + "、".join(omitted))

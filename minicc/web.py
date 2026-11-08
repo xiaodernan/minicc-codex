@@ -96,7 +96,7 @@ from .commands import (
     expand_slash_command,
     slash_command_read_refusal,
 )
-from .mentions import apply_mentions
+from .mentions import MENTION_STATUS_INJECTED, MENTION_STATUS_REJECTED, apply_mentions
 from .input_guard import require_text
 from .internal_paths import AUDIT_NAME, PERMISSIONS_NAME
 from .permissions import load_permission_rules
@@ -1721,8 +1721,8 @@ class AgentService:
                 on_event(image_event)
 
         if mention_records:
-            injected = [item for item in mention_records if item["status"] == "injected"]
-            rejected = [item for item in mention_records if item["status"] == "rejected"]
+            injected = [item for item in mention_records if item["status"] == MENTION_STATUS_INJECTED]
+            rejected = [item for item in mention_records if item["status"] == MENTION_STATUS_REJECTED]
             mention_summary = f"已按 @-提及注入 {len(injected)} 个文件内容"
             if rejected:
                 mention_summary += f"，拒绝 {len(rejected)} 个越界引用"
