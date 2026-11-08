@@ -42470,3 +42470,26 @@ dev/minicc-reliability-4ba3 的三条批（M8-T548+M8-T549、M8-T547、及其前
 
 - 未改 `<file path="…">` 正文的逐字节保持（RAW_BODY 仍原样对得上）；'test_cjk_glued_token_resolves_to_existing_prefix' 保留原意。
 - 不推送（CI 42505788350 legs 已 in_progress；集成分支本地累积）。
+## 批次 645 — M8-T663：集成 M8-T551/T552/T553/T554/T557 — mention 的 XML 形块：正文不再是结构
+
+### 1 事实来源
+
+dev/minicc-reliability-4ba3 的 M8-T551-M8-T557 把 mention 的 `<file path="…">` 块从「近乎 XML」收紧到「只在属性上是 XML 形」：正文中出现的 `<file path="…">`/`</file>`/`[用户引用文件]`/`[truncated]` 等标记由一个 `_STRUCTURAL_TOKENS` 表整体转义，`<file …>` 正文/属性分别用 `_body`/`_attribute` 各写一个家。没有改变判决/路径/分词语义，只改变了「伪造标记是否能被读成真标记」。
+
+### 2 改动（`minicc/mentions.py`、`tests/`）
+
+- 新增 `_STRUCTURAL_TOKENS`（八行：`<file`、`</file`、`[用户引用文件]`/`[truncated]` 及其 entity-encoded 形）；新增 `_body(text)`：按表逐行折叠块自己的标记；`<file path=…>` 属性继续走 `_attribute`；标签 `</file>` 用 entity。
+- `</file>` 与 entity-encoded 标记同时作为 prefix 处理，使得嵌套与正文的一次解码仍落不到真标记。
+- 本线 `MENTION_STATUS_*` 常量与 `test_the_mention_statuses_have_one_home.py` 保留（本批次不推送 gate；本线是独立集成，不翻 dev 的历史）。
+
+### 3 验证（命令与输出要点）
+
+- `..\minicc-codex\.venv\Scripts\python.exe -m py_compile minicc/mentions.py` 通过。
+- `pytest tests/test_a_body_that_closes_the_block_forges_no_second_file.py tests/test_a_body_that_writes_a_deeper_spelling_lands_one_level_up.py tests/test_a_body_that_writes_the_folded_spelling_of_a_marker.py tests/test_a_body_that_writes_the_truncation_marker_claims_no_truncation.py tests/test_the_block_promises_xml_only_where_it_escapes.py -q` → **48 passed**。
+- 整体 mention 邻域（含 status gate）→ **98 passed**。
+- `python scripts/doc_pointers.py --check` 通过。
+
+### 4 边界（哪些**未**触碰）
+
+- 不改分词器/路径解析/deny/凭据语义；不删除 `MENTION_STATUS_*` 家（`test_the_mention_statuses_have_one_home.py` 仍 active）；不触碰 `apply_mentions` 签名。
+- 不推送（CI 42521223901 的 M8-T662 merge legs in_progress；本批次本地累积，CI green 后按纪律推送）。

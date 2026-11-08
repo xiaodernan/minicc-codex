@@ -123,37 +123,6 @@ def _converged(token: str, path: str, status: str, reason: str) -> dict[str, Any
     return _record(token, path, status, reason, False)
 
 
-def _attribute(value: str) -> str:
-    """The one escaping of a name interpolated into a ``path="..."`` attribute.
-
-    The block is XML-shaped evidence (M8-T547): the scanner keeps ``"``, ``&``,
-    ``<`` and ``>`` inside a token, and on the un-converged side the reported
-    path **is** that token.  Interpolated raw, a quote closes the attribute and
-    every reader - the model included - gets half the name.  File bodies and the
-    two note sentences are prose, not attributes, and stay byte-for-byte.
-    """
-    return (
-        value.replace("&", "&amp;")
-        .replace("<", "&lt;")
-        .replace(">", "&gt;")
-        .replace('"', "&quot;")
-    )
-
-
-def _annotation_line(item: dict[str, Any]) -> str:
-    """The one line the model reads about a mention that carried no content.
-
-    M8-T549: this sentence used to be spelled by hand in *both* rendering
-    branches, and the second copy silently dropped the ``read_file`` advice
-    that the first one gives - so whether the model was told how to recover
-    depended on whether some other file happened to be injected.
-    """
-    return (
-        f'<file path="{_attribute(item["path"])}"'
-        f' status="{item["status"]}">{item["reason"]}</file>'
-    )
-
-
 def credential_injection_refusal() -> str:
     """The one wording of the .minicc credential-file injection refusal.
 
@@ -176,6 +145,79 @@ def deny_rule_injection_refusal() -> str:
 
 def _annotate(token: str, status: str, reason: str) -> dict[str, Any]:
     return _record(token, token, status, reason, False)
+
+
+def _attribute(value: str) -> str:
+    """The one escaping of a name interpolated into a ``path="..."`` attribute.
+
+    The ``<file ...>`` element is XML-shaped evidence (M8-T547): the scanner keeps
+    ``"``, ``&``, ``<`` and ``>`` inside a token, so a raw quote closes the attribute
+    and every reader gets half the name.  It is **not promised well-formed
+    XML** (M8-T557): only the attribute is escaped, so a body's bare ``&``/``<``
+    makes a strict reader reject it; bodies keep their bytes (M8-T554).
+    File bodies and the two note sentences are prose, not attributes.
+    """
+    return (
+        value.replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;")
+    )
+
+
+_STRUCTURAL_TOKENS = (
+    ("&lt;/file", "&amp;lt;/file"),
+    ("&lt;file", "&amp;lt;file"),
+    ("&#91;用户引用文件&#93;", "&amp;#91;用户引用文件&amp;#93;"),
+    ("&#91;truncated&#93;", "&amp;#91;truncated&amp;#93;"),
+    ("</file", "&lt;/file"),
+    ("<file", "&lt;file"),
+    ("[用户引用文件]", "&#91;用户引用文件&#93;"),
+    ("[truncated]", "&#91;truncated&#93;"),
+)
+
+
+def _body(text: str) -> str:
+    """Fold a file body's copies of the block's own markup (M8-T551, M8-T552).
+
+    The renderer delimits every injection with ``<file ...>`` / ``</file>``,
+    announces the block with ``[用户引用文件]``, and admits a short excerpt with
+    ``[truncated]``.  A body quoting one of those used to arrive as structure:
+    one ``</file>`` made the strict reader raise and the forgiving one discard
+    everything after it, while ``<file path="...">`` invented a file nobody had
+    read.  ``[truncated]`` is M8-T552: a body's own copy claimed an excerpt the
+    renderer never cut while the record still said ``truncated=False``.  Only
+    the tokens above fold, and only bodies fold, so ordinary code and the
+    renderer's own markers keep their bytes.  Both file tokens are prefixes:
+    folding a whole ``</file>`` leaves a body's ``</filepath>`` raw after its
+    ``<filepath`` opener became text - newer breakage than the forgery.
+
+    M8-T553 adds the four entity rows *first*: a file can write the folded
+    spelling itself, and a verbatim ``&#91;truncated&#93;`` then lands as exactly
+    the bytes the renderer uses for somebody's real marker -- back to a raw
+    marker after one decode.  A row may not eat the output of a row after it.
+    That identity reaches levels 0 and 1 only: past the table's reach one
+    decode lifts the body's copy exactly one level up -- never a raw marker,
+    never its own bytes (M8-T554, swept for levels 0-4 by
+    ``test_a_body_that_writes_a_deeper_spelling_lands_one_level_up.py``).
+    """
+    for token, escaped in _STRUCTURAL_TOKENS:
+        text = text.replace(token, escaped)
+    return text
+
+
+def _annotation_line(item: dict[str, Any]) -> str:
+    """The one line the model reads about a mention that carried no content.
+
+    M8-T549: this sentence used to be spelled by hand in *both* rendering
+    branches, and the second copy silently dropped the ``read_file`` advice
+    that the first one gives - so whether the model was told how to recover
+    depended on whether some other file happened to be injected.
+    """
+    return (
+        f'<file path="{_attribute(item["path"])}"'
+        f' status="{item["status"]}">{item["reason"]}</file>'
+    )
 
 
 def build_mention_context(
@@ -317,7 +359,7 @@ def build_mention_context(
             text = text[:cut if cut > remaining // 2 else remaining]
             used += len(text)
             chunks.append(
-                f'<file path="{_attribute(rel)}">\n{text}\n[truncated]</file>'
+                f'<file path="{_attribute(rel)}">\n{_body(text)}\n[truncated]</file>'
             )
             # M8-T299: one record per mention.  The oversized branch used to
             # add an "omitted" record *and* fall through to the "injected"
@@ -330,7 +372,7 @@ def build_mention_context(
             ))
             continue
         used += len(text)
-        chunks.append(f'<file path="{_attribute(rel)}">\n{text}\n</file>')
+        chunks.append(f'<file path="{_attribute(rel)}">\n{_body(text)}\n</file>')
         records.append(_record(token, rel, MENTION_STATUS_INJECTED, "", False))
     injected = sum(1 for item in records if item["status"] == MENTION_STATUS_INJECTED)
     # M8-T329: the mentions past the cap are named in the block too - a
