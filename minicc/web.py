@@ -63,6 +63,7 @@ from .agent.protocol import (
     PHASE_PLANNING,
     PHASE_REPAIR,
     PHASE_REVIEW,
+    STAGE_ROUTE_CODE,
     TASK_CANCELLED_ANSWER,
     VERIFICATION_GUARD_ERROR,
     budget_exceeded_error,
@@ -1740,7 +1741,7 @@ class AgentService:
             name="router",
             status="ok",
             phase=PHASE_PLANNING,
-            code="stage_route",
+            code=STAGE_ROUTE_CODE,
             summary="已应用规划阶段的模型与请求策略",
             detail=initial_route.to_dict(),
         )

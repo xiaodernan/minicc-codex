@@ -8,7 +8,7 @@ from typing import Any
 
 from ..trace import trace_event
 from .base import safe_int
-from ..agent.protocol import PHASE_PLANNING
+
 
 
 USAGE_TOKEN_KEYS = (
@@ -123,6 +123,8 @@ def channel_switched_event(status_code: Any, error_type: str | None = None) -> d
     if error_type is not None:
         detail["error_type"] = error_type
     detail["status_code"] = status_code
+    from ..agent.protocol import PHASE_PLANNING
+
     return trace_event(
         name="provider",
         status="ok",

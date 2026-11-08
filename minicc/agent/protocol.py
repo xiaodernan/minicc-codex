@@ -370,6 +370,10 @@ BUDGET_EXCEEDED_ERROR_PREFIX = "Agent 预算超限: "
 # Both provider implementations (openai_provider, fake) mint the same event.
 PROVIDER_RETRY_CODE = "provider_retry"
 
+# M8-T614: trace code emitted when a stage routes to a model/effort.
+# CLI (main.py) and web (web.py) mint the same event.
+STAGE_ROUTE_CODE = "stage_route"
+
 
 def budget_exceeded_error(error: object) -> str:
     """The one error text for a budget trip."""
@@ -481,6 +485,7 @@ __all__ = [
     "budget_exceeded_error",
     "budget_exceeded_event",
     "PROVIDER_RETRY_CODE",
+    "STAGE_ROUTE_CODE",
     "incomplete_answer",
     "validate_status_transition",
 ]

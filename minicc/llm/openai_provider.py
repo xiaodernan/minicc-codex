@@ -27,7 +27,7 @@ import json
 from collections.abc import Callable
 from typing import Any
 from urllib.parse import urlparse
-from ..agent.protocol import PHASE_PLANNING, PROVIDER_RETRY_CODE
+
 
 try:
     import httpx
@@ -763,6 +763,8 @@ class OpenAICompatibleProvider:
         raise RuntimeError("模型协商失败：工具调用或推理参数无法降级")
 
     def _emit_protocol_fallback(self, exc: BaseException) -> None:
+        from ..agent.protocol import PHASE_PLANNING
+
         if self._on_status is not None:
             self._on_status(trace_event(
                 name="provider",
@@ -774,6 +776,8 @@ class OpenAICompatibleProvider:
             ))
 
     def _emit_transport_protocol_fallback(self, exc: BaseException) -> None:
+        from ..agent.protocol import PHASE_PLANNING
+
         if self._on_status is not None:
             self._on_status(trace_event(
                 name="provider",
@@ -1100,6 +1104,8 @@ class OpenAICompatibleProvider:
         return await retryer(_attempt)
 
     def _emit_request_retry(self, retry_state: RetryCallState) -> None:
+        from ..agent.protocol import PHASE_PLANNING
+
         if self._on_status is None:
             return
         outcome = retry_state.outcome
@@ -1128,6 +1134,7 @@ class OpenAICompatibleProvider:
         on_delta: Callable[[str], None],
         tools: list[dict[str, Any]] | None,
     ) -> LLMResponse:
+        from ..agent.protocol import PHASE_PLANNING, PROVIDER_RETRY_CODE
         request_kwargs = dict(kwargs, stream=True)
         request_kwargs.setdefault("stream_options", {"include_usage": True})
         committed_text = ""

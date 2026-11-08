@@ -11,7 +11,7 @@ from typing import Any, Callable, NoReturn
 
 from .agent.context import compact_with_checkpoint, message_chars
 from .agent.loop import TurnResult, build_tool_feedback, run_agent
-from .agent.protocol import PHASE_EXECUTION, PHASE_PLANNING, budget_exceeded_event
+from .agent.protocol import PHASE_EXECUTION, PHASE_PLANNING, STAGE_ROUTE_CODE, budget_exceeded_event
 from .agent.router import StageRouter, StageRoute
 from .agent.state import Budget, BudgetExceeded
 from .agent.subagent import DEFAULT_MAX_DEPTH, DEFAULT_MAX_TURNS, build_task_tool_spec
@@ -513,7 +513,7 @@ async def _turn(
                 name="router",
                 status="ok",
                 phase=PHASE_PLANNING,
-                code="stage_route",
+                code=STAGE_ROUTE_CODE,
                 summary="已应用规划阶段的模型与请求策略（CLI）",
                 detail=route.to_dict(),
             ),
