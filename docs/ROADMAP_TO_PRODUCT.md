@@ -40600,3 +40600,69 @@ total 看不见这三个拷贝。
 2. 继续普查：SSE/task 帧中其他跨面 kind/字段是否存在“同事实两家”且可无歧义收敛
    （只收一问一答、生产代码两面都手拼的）。
 3. 十三个加载器裁定不变；`main` 合并阻塞不变（不触碰主 worktree 并发会话文件）。
+
+## 第五百九十四批 — M8-T612 — 任务 phase 词汇归一
+
+### 1 欠的是哪一条
+
+任务运行时在 Python 侧通过 `phase=` 关键字参数与 `"phase"` 字典键散落发出 14 种 phase
+字面量（`planning`/`permission`/`review`/`repair`/`execution`/`intake`/`tool`/`verify`/
+`summarize`/`answering`/`merging`/`cancelled`/`failed`/`interrupted`），共 100+ 处、11 个
+模块；Web 前端在 `state.js:TASK_PHASES` 另有一份 16 值词汇（还含 `queued`/`completed`）。
+同一事实两家（且 Python 侧 11 处分散），改名或增删成员无法被单点感知。
+
+### 2 量到的真相（实测）
+
+- `minicc/**/*.py`（不含 home）共 105 处裸 phase 字面量命中（`phase="..."` / `"phase": "..."`），
+  分布于 `agent/loop.py`、`agent/subagent.py`、`agent/verifier.py`、`audit.py`、
+  `llm/{fake,openai_provider,usage}.py`、`main.py`、`task_manager.py`、`task_worker.py`、`web.py`。
+- `web/src/core/state.js` 导出 16 成员 `TASK_PHASES`；Python 发射的 14 值是其子集。
+- Python 侧此前无 `TASK_PHASES`/`PHASE_*` home。
+
+### 3 落地
+
+- `minicc/agent/protocol.py`：新增 16 个 `PHASE_*` 常量与 `TASK_PHASES` frozenset（M8-T612），
+  加入 `__all__`；作为 phase 词汇唯一 Python 家。
+- 11 个模块的 105 处裸字面量改为引用 `PHASE_*` 常量；各模块按层级从 protocol 正确导入
+  （`agent/*` 用 `.protocol`，`llm/*` 用 `..agent.protocol`，顶层 `minicc/*` 用 `.agent.protocol`），
+  并合并进既有括号式 protocol 导入块。
+- `minicc/audit.py` 在使用点采用**惰性导入** `PHASE_PERMISSION`，规避 `audit → agent.protocol
+  → agent.__init__ → graph → tool_policy → audit` 的既有包初始化循环（模块级导入会触发该环）。
+- `tests/test_the_task_phases_have_one_home.py`（新门，3 条）：Python 家定义 16 值；
+  `minicc/` 内除 home 外不得出现已知 phase 的裸 `phase=`/`"phase":` 字面量；
+  `web/src/core/state.js:TASK_PHASES` 与 Python 家逐值一致。
+
+### 4 见证（红先绿后）
+
+- 红臂：修 home 定义缺失后，`test_no_bare_phase_literals_in_minicc_outside_home` 失败并列出
+  100+ 处 offender（覆盖 11 文件、14 个 phase 值）；home 定义/跨面一致性 2 条在家就位后绿。
+- 绿臂：替换+补全导入后 3/3 通过。
+
+### 5 聚焦回归
+
+- `tests/test_the_task_phases_have_one_home.py`、`test_the_phase_carrying_event_kinds_have_one_home.py`、
+  `test_permissions_approval.py`、`test_the_approval_frame_kinds_have_one_home.py`、
+  `test_a_synchronous_chat_run_must_be_able_to_ask_for_an_approval.py`、
+  `test_verifier_lifecycle.py`、`test_subagent_wiring.py`、`test_the_verification_event_has_one_home.py`、
+  `test_the_verification_statuses_have_one_home.py`、`test_the_subagent_verdicts_have_one_home.py`
+  共 80 passed（分批执行，均绿）。
+- `audit`/`llm.fake`/`agent.verifier` 导入烟测通过（`audit` 循环导入问题已以惰性导入修复）。
+- 未跑全量套件（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称“阶段”与“任务状态”的全部字符串都已归一——本批只处理 `phase` 语义的发射点；
+  `status=` / 终态字符串已有 `TASK_STATUSES`/`TERMINAL_TASK_STATUSES` 等既有家。
+- 不声称 gate 覆盖了动态拼装的 phase 值（当前运行时无此模式；若未来引入需另行防护）。
+- 不声称 Web 端消费侧除 `TASK_PHASES` 外的所有 phase 字符串字面量已归一（JS 侧以既有
+  `frontend_phase_one_home_smoke` 等约束，本批未扩展 JS 生产代码）。
+- `minicc/llm/*` 属包内 LLM 实现层（含 fake provider），纳入同一事实归一是合理的机械替换。
+- 不声称 CI 双腿在本批提交时已全绿——推送前须确认最新 tip 的 legs 不在运行且前序 tip 绿；
+  batch 593（`9679a7f`）CI run `42470220279` 已入队/运行中，须等待其完成且绿后再推本批。
+
+### 7 下一位候选
+
+1. 确认 run `42470220279`（批 593 tip）双腿全绿后再推本批（含 ledger）；若腿红，先红→绿修复并记账。
+2. 继续普查：同类“词汇/枚举值”在 Python 发射与 JS/协议消费间是否仍有手拼（只收一问一答、
+   生产代码可无歧义归一者）；关注 task `status` 在 Python 非 protocol 发射点的裸字面量残留。
+3. 十三个加载器裁定不变；`main` 合并阻塞不变（不触碰主 worktree 并发会话文件）。
