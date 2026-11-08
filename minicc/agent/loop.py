@@ -78,7 +78,16 @@ from ..gitprobe import (
     git_status_unavailable_reason,
     work_tree_verdict,
 )
-from ..hooks import HOOK_DECISION_ALLOW, HOOK_DECISION_DENY, payloads_for_result, payloads_for_tool_call
+from ..hooks import (
+    HOOK_DECISION_ALLOW,
+    HOOK_DECISION_DENY,
+    HOOK_EVENT_POST_TOOL_USE,
+    HOOK_EVENT_PRE_TOOL_USE,
+    HOOK_EVENT_STOP,
+    HOOK_EVENT_USER_PROMPT_SUBMIT,
+    payloads_for_result,
+    payloads_for_tool_call,
+)
 from ..trace import trace_event
 from .context import (
     VISUAL_PART_TYPES,
@@ -944,8 +953,8 @@ async def run_agent(
                         str(part.get("text", "")) for part in content if isinstance(part, dict)
                     )
                 break
-        outcome = await run_hook("UserPromptSubmit", {
-            "event": "UserPromptSubmit",
+        outcome = await run_hook(HOOK_EVENT_USER_PROMPT_SUBMIT, {
+            "event": HOOK_EVENT_USER_PROMPT_SUBMIT,
             "prompt": redact_text(prompt_text[:8000])[0],
         })
         if outcome is not None and outcome.denied:
@@ -1355,8 +1364,8 @@ async def run_agent(
                     continue
                 if hooks_enabled:
                     hook_outcome = await run_hook(
-                        "PreToolUse",
-                        payloads_for_tool_call("PreToolUse", tc.tool, tc.arguments, risk=risk),
+                        HOOK_EVENT_PRE_TOOL_USE,
+                        payloads_for_tool_call(HOOK_EVENT_PRE_TOOL_USE, tc.tool, tc.arguments, risk=risk),
                     )
                     # A hook may only *deny*; it can never widen what the
                     # permission model already decided (M7-T1 contract).
@@ -1368,7 +1377,7 @@ async def run_agent(
                                 status="denied",
                                 summary=tagged(CODE_HOOK_DENIED, f"PreToolUse hook 拒绝了此操作 ({tc.tool})"),
                                 output=hook_outcome.denial_reason()[:2000],
-                                data={"hook": "PreToolUse"},
+                                data={"hook": HOOK_EVENT_PRE_TOOL_USE},
                                 security_tags=untrusted_tags(),
                             ),
                         )
@@ -1495,10 +1504,10 @@ async def run_agent(
                     and not (tool_result.data or {}).get("cached")
                 ):
                     await run_hook(
-                        "PostToolUse",
+                        HOOK_EVENT_POST_TOOL_USE,
                         {
                             **payloads_for_tool_call(
-                                "PostToolUse", tc.tool, tc.arguments,
+                                HOOK_EVENT_POST_TOOL_USE, tc.tool, tc.arguments,
                                 # M8-T305: the risk the hook sees is the
                                 # risk the call **carries**, not the one the
                                 # tool declares - the same call must not look
@@ -2032,8 +2041,8 @@ async def run_agent(
         turns=result.turns, tool_calls=result.tool_calls_total,
     )
     if hooks_enabled:
-        await run_hook("Stop", {
-            "event": "Stop",
+        await run_hook(HOOK_EVENT_STOP, {
+            "event": HOOK_EVENT_STOP,
             "answer": redact_text((result.answer or "")[:4000])[0],
             "error": result.error or "",
             "metrics": dict(result.metrics),

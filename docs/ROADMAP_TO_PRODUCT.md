@@ -41555,3 +41555,38 @@ hook 执行域的决策值 `allow`/`deny` 由 `minicc.hooks` 产出（HookOutcom
 1. 监控 42479351486；全绿后按顺序推送 `2e59ff2`、614、615、616；若失败先红→绿+账本再推，legs 进行中不推送。
 2. 继续搜“同一事实两处归属”（可门禁、非 lookalike）：`hooks.py` 中 `on_failure` 策略值 `continue` 若在配置/校验与运行时同事实重复可评估（需与 hook decision 分域）；或其他 trace/event/契约字段、工具风险/网络标签脱节点（确认同事实后再动）。
 3. 十一实验面保持冻结；`main` 合并继续冻结。
+## 批次 617 — M8-T635：hook 事件名词汇（PreToolUse/PostToolUse/UserPromptSubmit/Stop）有一处归属（hooks→agent.loop）
+
+### 1 是否真是同一事实
+
+hook 事件身份 `PreToolUse`/`PostToolUse`/`UserPromptSubmit`/`Stop` 由 `minicc.hooks`（`HOOK_EVENTS`/事件分发与 tool-scope 判断）定义/使用，并由 `minicc.agent.loop` 在 `run_hook`、`payloads_for_tool_call`、trace/payload `event`/`hook` 字段中消费。裸字面量跨产出与消费重复同一 hook 事件事实；`HOOK_EVENTS` 集合改为引用单事件常量以保持同一归属。
+
+### 2 命中点（实测）
+
+- `minicc/hooks.py`：`HOOK_EVENTS` 定义原含 4 个裸字面量；tool-scope 判断 `event in {"PreToolUse","PostToolUse"}`。模块/函数文档字符串中的同名文本属于说明，不作为运行时事实门禁对象（门禁排除 docstring Constant）。
+- `minicc/agent/loop.py`：`run_hook`/`payloads_for_tool_call`/payload `event`/trace `data.hook` 共 9 处裸事件名字面量（`UserPromptSubmit`×2、`PreToolUse`×3、`PostToolUse`×2、`Stop`×2）。
+
+### 3 改动
+
+- `minicc/hooks.py`：新增 `HOOK_EVENT_PRE_TOOL_USE`/`HOOK_EVENT_POST_TOOL_USE`/`HOOK_EVENT_USER_PROMPT_SUBMIT`/`HOOK_EVENT_STOP`（M8-T635，一处归属）；`HOOK_EVENTS` 改为使用常量；tool-scope 集合使用常量；加入 `__all__`。
+- `minicc/agent/loop.py`：从 `..hooks` 导入 4 个事件常量，替换 hook 调用/载荷/trace 中的裸事件名字面量（行为不变）。
+- `tests/test_the_hook_event_names_have_one_home.py`（新）：红→绿门禁（home 导出/`HOOK_EVENTS` 值；范围 `hooks.py`/`agent/loop.py` 内裸事件 Constant，允许 `HOOK_EVENT_*` 定义赋值，排除 docstring）。
+
+### 4 验证（命令与输出要点）
+
+- 绿臂：`pytest tests/test_the_hook_event_names_have_one_home.py -q` 2 passed；`import minicc.hooks, minicc.agent.loop` 通过，`HOOK_EVENTS` 值不变。
+
+### 5 聚焦回归
+
+- `tests/test_the_hook_event_names_have_one_home.py`、`tests/test_the_hook_decisions_have_one_home.py`、`tests/test_hooks.py`、`tests/test_hooks_validation.py`、`tests/test_hook_launch_failure_honours_the_deny_policy.py`、`tests/test_the_hook_denied_default_has_one_home.py`、`tests/test_the_hook_entry_have_one_home.py`、`tests/test_a_hook_argument_is_redacted_before_it_is_cut.py`、`tests/test_a_set_of_hooks_shares_one_budget.py`、`tests/test_subagent_hooks_inheritance.py`、`tests/test_a_hook_must_not_hold_the_event_loop.py` 共 75 passed（`..\minicc-codex\.venv\Scripts\python.exe -m pytest ... -q`）。未跑全量基准回归/CI 双端。
+
+### 6 边界（哪些**未**触碰）
+
+- 仅约束 `hooks.py`/`agent/loop.py` 中 hook 事件身份词汇；不触碰 `on_failure` 策略值、hook 决策词汇（M8-T633）、hook 配置 schema/语义、事件载荷字段、测试中的同名字符串（若后续出现同事实脱节点可评估扩展）。
+- 未推送：CI 42481274789（tip `d956648`，616 批次）in_progress，legs 进行中不推送；616 已推送。
+
+### 7 下一位候选
+
+1. 监控 42481274789；全绿则当前本地仅 617 待后续按纪律推送；若失败先红→绿+账本再推，legs 进行中不推送。
+2. 继续搜“同一事实两处归属”：phase 字面量 `"planning"` 在 `agent/loop.py` 默认、`task_manager.set_phase`/快照恢复、`web.py` budget_exceeded_event stage 实参与 `PHASE_PLANNING` 同事实重复（需核对签名/序列化语义后再门禁）；或 `on_failure` 的 `continue` 策略值若跨模块成为同事实（当前仅 hooks.py）。
+3. 十一实验面保持冻结；`main` 合并继续冻结。

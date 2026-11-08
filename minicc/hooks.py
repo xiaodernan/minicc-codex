@@ -53,7 +53,17 @@ from .tools.registry import redact_text
 
 LOG = get_logger("hook")
 
-HOOK_EVENTS = ("PreToolUse", "PostToolUse", "UserPromptSubmit", "Stop")
+# M8-T635: hook event name vocabulary (one home; hooks.py ↔ agent/loop.py).
+HOOK_EVENT_PRE_TOOL_USE = "PreToolUse"
+HOOK_EVENT_POST_TOOL_USE = "PostToolUse"
+HOOK_EVENT_USER_PROMPT_SUBMIT = "UserPromptSubmit"
+HOOK_EVENT_STOP = "Stop"
+HOOK_EVENTS = (
+    HOOK_EVENT_PRE_TOOL_USE,
+    HOOK_EVENT_POST_TOOL_USE,
+    HOOK_EVENT_USER_PROMPT_SUBMIT,
+    HOOK_EVENT_STOP,
+)
 
 # M8-T633: hook decision vocabulary (one home; distinct from permission decisions).
 HOOK_DECISION_ALLOW = "allow"
@@ -334,7 +344,7 @@ class HookRunner:
         for spec in self.specs:
             if spec.event != event:
                 continue
-            if event in {"PreToolUse", "PostToolUse"} and not spec.matches_tool(tool):
+            if event in {HOOK_EVENT_PRE_TOOL_USE, HOOK_EVENT_POST_TOOL_USE} and not spec.matches_tool(tool):
                 continue
             remaining = deadline - time.monotonic()
             if remaining <= 0:
@@ -499,6 +509,10 @@ def payloads_for_result(result: Any) -> dict[str, Any]:
 
 
 __all__ = [
+    "HOOK_EVENT_POST_TOOL_USE",
+    "HOOK_EVENT_PRE_TOOL_USE",
+    "HOOK_EVENT_STOP",
+    "HOOK_EVENT_USER_PROMPT_SUBMIT",
     "HOOK_EVENTS",
     "HOOKS_FILENAME",
     "HookConfigError",
