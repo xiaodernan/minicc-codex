@@ -40265,3 +40265,59 @@ the exact same six spellings, written again by hand，谁都没钉住。
    fixture doors、VACUOUS_ORACLE_POLICY 三策略、Hook 事件 4 词表）——Python AST 门一次性
    钉住 `HOOK_EVENTS` 与测试复制，但都属低权范围（只收 Python 代码各搭次）；
 3. 十三个加载器裁定不变。
+
+## 第五百八十八批 — M8-T606 — refusal-verdict 四键也问了家
+
+### 1 欠的是哪一条
+
+「nobody judged this workspace」结论（grader 崩了/崩了进程/崩了 `set_result`）被口口相传——
+`minicc/bench_tasks.py` 的 `_no_result` 是这条事实的家，但四个测试文件各自手拼了一遍
+`{"passed", "grader_type", "grading_refused", "refusal"}`——四份重复，外加一份不带门的 home
+（nothing pinned the home's shape to the four tests reading it）。
+
+### 2 量到的真相（实测）
+
+- 4 个测试副本（逐字一致），分别位于：
+  - `tests/test_behavior_spec_that_checks_nothing_is_no_result.py`
+  - `tests/test_grader_cannot_run_is_no_result.py`
+  - `tests/test_grader_with_nothing_to_check_is_no_result.py`
+  - `tests/test_host_failure_is_not_a_verdict.py`
+- `minicc/bench_tasks.py` 中 `_no_result` 是唯一的**手拼的**现场（在构造器里）。
+
+### 3 落地
+
+- `minicc/bench_tasks.py`：新增具名常数 `NO_RESULT_KEYS = frozenset({"passed",
+  "grader_type", "grading_refused", "refusal"})`；家里 `_no_result` 的 base dict 断言自己恰好
+  等于这四键（不再拼一整个 dict literal）。
+- 四个测试文件：删除本地 `NO_RESULT_KEYS` 赋值；改为 `from minicc.bench_tasks import NO_RESULT_KEYS`。
+- `tests/test_the_graded_verdict_have_one_home.py`：新增 `REFUSAL_KEYS` 常数 + 新门条
+  `test_the_refusal_set_is_four_keys_in_the_home`——从家里 import `NO_RESULT_KEYS` 比对、
+  从家里调 `_no_result` 验证四键恰好在场且 `passed=None`、`grading_refused=True`。
+
+### 4 见证（红先绿后）
+
+- 绿臂：四份受影响的行为门整体 green（53 passed，含 refusal family + graded-verdict gate + 所有受影响的 no_result 测试）。
+- 红臂名册（待跑）：注入 `_no_result` 中间一次组装（例如多写一个 `"family": get"…"`），
+  此门立刻继红，并在四个 import-问家测试中也被点名。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 behavior_bench 的 grading_refusal_count 侧也被统一——只钉住渲染面/字典键面；
+- 不声称 `_no_result` 的可选字段 `case_count` / `exit_code` 也被钉——它们可以出现也可以缺，
+  仅四键的 base 被钉；
+- 不声称 Python 全仓 no_result 场景已经穷尽——只修复已发现的四处重复；
+- 不声称 CI 正在推进：tip 批 586 的 Python 腿仍在 run 42463039726in_progress。
+
+### 7 下一位候选
+
+1. 推本批之后等待 PyPI/CI 把批 586/587/588 一并绿（Windows/Ubuntu）；
+2. 批 587 的 MOVEMENT_FIELDS 门 + 批 588 的 refusal-keys 门在场，下一个候选事件：
+   `GUIDANCE_FILES` 四路径拷贝（`tests/test_core_agent.py:942-944` vs `minicc/prompt.py:8`）、
+   `DOORS = ("v2", "behavior", "legacy")` 三份测试副本（三份各自硬编码）、
+   `HOOK_EVENTS` 的 4 元组五份嵌套拷贝——四个事件都是 tests-fixture 类，一次性扫成一
+   批，按 AST 门拼一条 `test_the_fixture_vocabularies_have_one_home_each.py` 收口；
+3. 十三个加载器裁定不变。
