@@ -57,6 +57,7 @@ from .agent.protocol import (
     TASK_STATUS_INTERRUPTED,
     TASK_UNSUCCESSFUL_STATUSES,
     TERMINAL_TASK_STATUSES,
+    BUDGET_EXCEEDED_FIELD,
     budget_exceeded_event,
     validate_status_transition,
 )
@@ -1978,13 +1979,13 @@ class TaskManager:
                     # already reports for it.
                     with parent.lock:
                         parent.metrics["budget"] = merge_budget.snapshot()
-                if result.get("budget_exceeded"):
+                if result.get(BUDGET_EXCEEDED_FIELD):
                     # The spend already happened and its answer is real work,
                     # so the trip is witnessed with the same named event the
                     # planner/judge/DAG/subagent folds emit - never swallowed,
                     # never fatal to the delivered merge.
                     parent.add_event(budget_exceeded_event(
-                        "merge", result["budget_exceeded"],
+                        "merge", result[BUDGET_EXCEEDED_FIELD],
                         result.get("tokens_used"), name="orchestrator", phase=PHASE_MERGING,
                     ))
                 # The subtask fold is not done here any more: it belongs to

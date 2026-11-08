@@ -391,6 +391,9 @@ STAGE_ROUTE_CODE = "stage_route"  # code="stage_route"
 
 # M8-T615: trace code for budget trips (helper, session-persist set, loop emitters).
 BUDGET_EXCEEDED_CODE = "budget_exceeded"  # code="budget_exceeded"
+# M8-T632: result/payload field key for budget-exceeded flag (distinct fact
+# from BUDGET_EXCEEDED_CODE, the trace/event code, even when values match).
+BUDGET_EXCEEDED_FIELD = "budget_exceeded"
 
 
 def budget_exceeded_error(error: object) -> str:
@@ -511,6 +514,7 @@ __all__ = [
     "PROVIDER_RETRY_CODE",
     "STAGE_ROUTE_CODE",
     "BUDGET_EXCEEDED_CODE",
+    "BUDGET_EXCEEDED_FIELD",
     "incomplete_answer",
     "validate_status_transition",
 ]

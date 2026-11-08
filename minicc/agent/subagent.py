@@ -53,7 +53,7 @@ from ..tools.schemas import (
 )
 from ..hooks import HookRunner
 from ..trace import trace_event
-from .protocol import PHASE_EXECUTION
+from .protocol import BUDGET_EXCEEDED_FIELD, PHASE_EXECUTION
 
 SUBAGENT_TOOL_NAME = "task"
 # Readonly evidence tools only. No network (parent research stays in the
@@ -602,7 +602,7 @@ class _SubagentRunner:
                         f"{subagent_budget_exhausted_message(description)}（{exc}）",
                     ),
                     output=subagent_budget_failed_output(),
-                    data={"description": description, "tool_log": tool_log, "budget_exceeded": True},
+                    data={"description": description, "tool_log": tool_log, BUDGET_EXCEEDED_FIELD: True},
                     security_tags=untrusted_tags("subagent"),
                 )
         if timed_out:

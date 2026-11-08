@@ -41443,3 +41443,42 @@ CLI（`minicc/main.py`）与 Web 运行时（`minicc/web.py`）在记录阶段�
 1. 推送本地待推提交（`e2d1349` 609 ledger、610、611、612 code+ledger 含 613 修复、613 ledger）到 `origin/m8-t537`；监控新 CI run，legs 进行中不推送，若失败先红→绿修复并记账。
 2. 继续搜“同一事实两处归属”（可门禁、非 lookalike）：其他内置工具名跨模块 tool/name 比较脱节点的分批收敛；或 `network` 风险值与 `RISK_*` 同域归属（需确认同事实）。注意区分权限能力/注册名域。
 3. 十一实验面保持冻结；`main` 合并继续冻结（并发 worktree 冲突会话）。
+## 批次 614 — M8-T632：`budget_exceeded` 结果/载荷字段键有一处归属（与 trace code 分域）
+
+### 1 是否真是同一事实
+
+subagent/task_manager/web 在结果/载荷对象中使用 `"budget_exceeded"` 作为同一字段键传递“预算超限”标志/详情，是同一跨模块契约事实（字段名归属）。该字段**不同于** `BUDGET_EXCEEDED_CODE`（trace/event code，M8-T 已有归属）：二者是不同事实/契约域，仅当前字符串值相同，门禁与常量名明确分域，不合并。
+
+### 2 命中点（实测）
+
+- `minicc/agent/subagent.py`：预算耗尽 `ToolResult.data` 写入 `"budget_exceeded": True`。
+- `minicc/task_manager.py`：`result.get("budget_exceeded")` 判断并将 `result["budget_exceeded"]` 传给 `budget_exceeded_event(...)`。
+- `minicc/web.py`：合并/批次执行载荷写入 `payload["budget_exceeded"] = budget_exceeded`。
+- `minicc/agent/protocol.py`：已有 `BUDGET_EXCEEDED_CODE` 定义（trace code），缺字段键归属。
+
+### 3 改动
+
+- `minicc/agent/protocol.py`：新增 `BUDGET_EXCEEDED_FIELD = "budget_exceeded"`（M8-T632，结果/载荷字段键一处归属；注释标明与 `BUDGET_EXCEEDED_CODE` 分域），加入 `__all__`。
+- `minicc/agent/subagent.py`、`minicc/task_manager.py`、`minicc/web.py`：导入并使用 `BUDGET_EXCEEDED_FIELD` 替换字段键字面量（读/写/传递行为不变）。
+- `tests/test_the_budget_exceeded_result_field_has_one_home.py`（新）：红臂 2 项（home 缺常量；范围模块裸字段字面量；允许 `BUDGET_EXCEEDED_FIELD`/`BUDGET_EXCEEDED_CODE` 的定义赋值）→ 绿臂，并断言两常量值相等但语义分域（不同事实）。
+
+### 4 验证（命令与输出要点）
+
+- 红臂：`pytest tests/test_the_budget_exceeded_result_field_has_one_home.py -q` 2 failed（`AttributeError: BUDGET_EXCEEDED_FIELD`；subagent/task_manager/web 共 4 处）。
+- 绿臂：同门禁 2 passed。
+
+### 5 聚焦回归
+
+- `tests/test_the_budget_exceeded_code_has_one_home.py`、`tests/test_the_budget_exceeded_event_have_one_home.py`、`tests/test_the_budget_exceeded_result_field_has_one_home.py`、`tests/test_batch_wiring.py`、`tests/test_the_orchestration_result_have_one_home.py`、`tests/test_the_loop_budget_verdicts_have_one_home.py` 共 32 passed（`..\minicc-codex\.venv\Scripts\python.exe -m pytest ... -q`）。未跑全量基准回归/CI 双端。
+
+### 6 边界（哪些**未**触碰）
+
+- 仅约束上述 3 模块+home 中的 `budget_exceeded` **结果/载荷字段键**；`BUDGET_EXCEEDED_CODE`（trace/event code）定义保留且与字段键常量分离；不改变预算超限判定、事件构造、合并/子代理/web 载荷语义。
+- 未触碰其他可能使用同名字段的测试/模块（若后续出现同事实脱节点可扩展门禁）；未将 trace code 与字段键合并。
+- 未推送/未落 `main`：CI 42479351486（tip `f45e6bb`）in_progress；本地另有 `2e59ff2`（613 ledger）与 614 待推送，须待该 run 全绿（或失败修复）后按纪律推送，legs 进行中不推送。
+
+### 7 下一位候选
+
+1. 监控 42479351486；全绿后按顺序推送 `2e59ff2` + 614 提交；若失败先红→绿+账本再推，legs 进行中不推送。
+2. 继续搜“同一事实两处归属”（可门禁、非 lookalike）：hook 决策 `allow/deny` 词汇在 `hooks.py`（产出）与 `agent/loop.py`（消费）的同事实归属（需确认 home 与权限决策域分离）；或其他跨模块契约字段键/事件码脱节点。
+3. 十一实验面保持冻结；`main` 合并继续冻结。

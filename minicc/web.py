@@ -69,6 +69,7 @@ from .agent.protocol import (
     TASK_KIND_SUBTASK,
     TASK_KIND_TASK,
     VERIFICATION_GUARD_ERROR,
+    BUDGET_EXCEEDED_FIELD,
     budget_exceeded_error,
     budget_exceeded_event,
     incomplete_answer,
@@ -1487,7 +1488,7 @@ class AgentService:
                     "tokens_used": dict(response.usage),
                 }
                 if budget_exceeded:
-                    payload["budget_exceeded"] = budget_exceeded
+                    payload[BUDGET_EXCEEDED_FIELD] = budget_exceeded
                 return payload
             except AgentCancelled:
                 return {"answer": BATCH_CANCELLED_ANSWER, "cancelled": True}
