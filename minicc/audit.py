@@ -185,21 +185,9 @@ def tool_denied_by_rule(
     """
     if not workspace:
         return False
-    # M8-T537: this used to ask the file twice - ``policy_evaluation_error``
-    # and then ``match_permission_rule``, each of which loads the rules on its
-    # own.  Two loads are two chances to read two different files, and the
-    # second answer decided whether the path was refused.  One question, one
-    # load, both answers from it.
-    try:
-        rules, error = load_permission_rules(Path(workspace))
-    except OSError:
-        # A refusal we cannot read is not an allowance.
-        return True
-    if error:
-        # The rules are unknown, so nothing can be said about this call.
-        # Refusing is the only answer that keeps the promise above.
-        return True
-    return match_rules(rules, tool, arguments or {}) == PERMISSION_RULE_VERDICT_DENY
+    # One question, one load - the matcher is the same shape as the path
+    # matcher above: load once, refuse when the rules are unknown.
+    return denied_by_rule_matcher(workspace)(tool, arguments)
 
 
 def path_deny_predicate(workspace: Path | str | None, *, refresh: bool = False) -> Callable[[str], bool]:
@@ -385,10 +373,10 @@ def deny_rule_covers_path_matcher(workspace: Path | str | None) -> Callable[[str
         return bool(str(rel_path or "").strip())
 
     try:
-        if policy_evaluation_error(workspace):
-            return every_named_path
         rules, _error = load_permission_rules(Path(workspace))
     except OSError:
+        return every_named_path
+    if _error:
         return every_named_path
 
     patterns = rules["deny"]["paths"]
@@ -404,6 +392,39 @@ def deny_rule_covers_path_matcher(workspace: Path | str | None) -> Callable[[str
         return any(_pattern_covers_container(pattern, rel) for pattern in patterns)
 
     return covers
+
+
+def denied_by_rule_matcher(workspace: Path | str | None) -> Callable[[str, dict[str, Any] | None], bool]:
+    """Return the veto as a predicate, loading the policy **once**.
+
+    M8-T533: the evidence index asks this question about every candidate file.
+    ``tool_denied_by_rule`` loads the policy twice per call (once to see
+    whether it is readable, once to match), so one index refresh used to stat
+    ``.minicc/permissions.json`` twice per file.  A reader that asks many
+    times loads the loaded rules once and keeps asking the same verdict.
+
+    The fail-closed clauses are the ones above, evaluated at load time: no
+    workspace allows, an unreadable policy refuses every call, and an
+    ``OSError`` while matching is a refusal too.
+    """
+    if not workspace:
+        return lambda _tool, _arguments=None: False
+    try:
+        rules, _error = load_permission_rules(Path(workspace))
+    except OSError:
+        # The rules are unknown, so nothing can be said about any call.
+        return lambda _tool, _arguments=None: True
+    if _error:
+        return lambda _tool, _arguments=None: True
+
+    def denied(tool: str, arguments: dict[str, Any] | None = None) -> bool:
+        try:
+            return match_rules(rules, tool, arguments) == PERMISSION_RULE_VERDICT_DENY
+        except OSError:
+            # A refusal we cannot read is not an allowance.
+            return True
+
+    return denied
 
 
 def deny_rule_covers_path(workspace: Path | str | None, rel_path: str) -> bool:
@@ -856,6 +877,8 @@ __all__ = [
     "authorize_tool",
     "command_uses_network",
     "deny_rule_covers_path",
+    "deny_rule_covers_path_matcher",
+    "denied_by_rule_matcher",
     "deny_rule_names_paths",
     "effective_risk",
     "interpret_authorization_decision",

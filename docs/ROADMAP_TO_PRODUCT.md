@@ -42370,3 +42370,27 @@ m8-t537 与 `dev/minicc-reliability-4ba3` 各自推进了同一检查器 `script
 - 不改变 `deny_rule_covers_path` 的对外签名；单次问答仍受理。
 - 不改变任何拒绝语义（plan/approval/verdict 等域）；Web/CLI 的安全标签不动。
 - 不声称 Windows/Ubuntu CI 通过（本地未跑全量套件）；本分支不推送，直到 CI 双端确认。
+## 批次 641 — M8-T659：deny veto 一次装载：`denied_by_rule_matcher` + `deny_rule_covers_path_matcher` 落点到位
+
+### 1 是否真是同一事实
+
+dev/minicc-reliability-4ba3 的 M8-T533/T537 家族（evidence index、one refresh asks the rules once）是同一原则的重复应用：**同一次审判问两次就是两次不同的答案**。`tool_denied_by_rule`（read 侧 veto）此前一次审判读两遍 `permissions.json`——一次验可读性，一次做 match——同一次系统调用里两份快照可能已经不同；`deny_rule_covers_path_matcher` 已改成单装载，这里把 `tool_denied_by_rule`/`denied_by_rule_matcher` 也改成同一形态。
+
+### 2 改动（`minicc/audit.py`）
+
+- 新增 `denied_by_rule_matcher(workspace)`：一次加载规则，refuses-when-unknown，`arguments` 为 OSError 时也拒绝（不许静默放行）；
+- `tool_denied_by_rule` 改为薄封装 `denied_by_rule_matcher(workspace)(tool, arguments)`，不改变签名、不改变拒绝语义；
+- `deny_rule_covers_path_matcher`：同形态（一次装载），删除多余的 `policy_evaluation_error` 前置调用（由 `load_permission_rules` 自己的 error 报）——保持与 `denied_by_rule_matcher` 同一形态；
+- 导出 `denied_by_rule_matcher`（`__all__`），与 `deny_rule_covers_path_matcher` 并列。
+
+### 3 验证（命令与输出要点）
+
+- `..\minicc-codex\.venv\Scripts\python.exe -m py_compile minicc/audit.py` 通过。
+- `pytest tests/test_one_refresh_asks_the_rules_once.py tests/test_the_file_tree_lists_its_entries_under_one_policy_load.py tests/test_the_fixtures_do_not_inherit_machine_git_policy.py tests/test_the_permission_rule_verdicts_have_one_home.py tests/test_the_deny_veto_has_one_home.py tests/test_permission_deny_veto_is_asked_by_every_consent_site.py tests/test_web_security.py -q` → **58 passed**。
+
+### 4 边界（哪些**未**触碰）
+
+- 不将 `denied_by_rule_matcher` 接入 evidence index/`pol_eval_error` 家族（那部分已在 `path_deny_predicate`/M8-T533 中单独落地，非本批次范围）；
+- 未改变 `tool_denied_by_rule` 的签名/语义（fail-closed 规则不变）；
+- 不触碰 `mentions.py`（XML/折叠/属性转义家族独立在 `integration/mentions-security`，未验证、未合并）；
+- 全文栈未部署全量 CI 验证，以聚焦套件+分支 CI 结果为准。
