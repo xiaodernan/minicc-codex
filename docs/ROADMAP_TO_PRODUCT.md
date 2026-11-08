@@ -40818,3 +40818,55 @@ CLI（`minicc/main.py`）与 Web 运行时（`minicc/web.py`）在记录阶段�
 2. 继续普查 `minicc/` 内 `code="..."` 跨文件重复且可无歧义归一者（排除已由 smoke 的 EXTRA_DYNAMIC/
    特殊形态覆盖且语义不同的情况）。
 3. 十三个加载器裁定不变；`main` 合并阻塞不变。
+
+## 第五百九十八批 — M8-T616 — 任务生命周期状态比较归一（受限范围）
+
+### 1 欠的是哪一条
+
+`minicc/task_manager.py` 在 13 处将任务生命周期状态与裸字面量比较（`== "cancelled"` /
+`!= "interrupted"` / `== "completed"` / `== "failed"` 等）。`protocol.py` 已有
+`TASK_STATUSES`/`TERMINAL_TASK_STATUSES`/`TASK_UNSUCCESSFUL_STATUSES`，但缺少可用于比较的
+单值常量，导致生命周期模块手拼状态名。
+
+### 2 量到的真相（实测）
+
+- 门在 `task_manager.py`+`task_worker.py`（生命周期域）内检出 13 处 `Eq/NotEq` 对任务状态字面量的比较，
+  全部位于 `task_manager.py`。
+- `task_worker.py` 在该范围内 0 处。
+- 工具结果、校验结果、DAG 节点结果等域也使用 `status`/相近值但属不同事实——本批**不**触碰。
+
+### 3 落地
+
+- `minicc/agent/protocol.py`：新增 `TASK_STATUS_{QUEUED,RUNNING,COMPLETED,FAILED,CANCELLED,INTERRUPTED}`
+  （M8-T616），`TASK_STATUSES`/`TERMINAL_TASK_STATUSES`/`TASK_UNSUCCESSFUL_STATUSES` 改由常量构造，
+  并导出新常量。
+- `minicc/task_manager.py`：合并 protocol 导入并将 13 处比较改用 `TASK_STATUS_*`。
+- `tests/test_the_task_status_literals_have_one_home_in_lifecycle.py`（新门，2 条）：
+  home 导出 6 个常量且集合关系正确；`task_manager.py`/`task_worker.py` 内不得对 6 个任务状态做裸
+  `==`/`!=` 字面量比较（门限定域以避开 lookalike）。
+
+### 4 见证（红先绿后）
+
+- 红臂：13 处 offender 全在 `task_manager.py` 被点名。
+- 绿臂：2 passed。
+
+### 5 聚焦回归
+
+- `tests/test_the_task_status_literals_have_one_home_in_lifecycle.py`、
+  `test_the_missing_session_verdict_has_one_home.py`、`test_the_task_phases_have_one_home.py`
+  共 11 passed。未跑全量套件（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称所有 `status == "..."` 比较都已归一——仅覆盖**任务生命周期域**两个模块的 6 个任务状态；
+  工具/校验/DAG 等状态词汇是不同事实，刻意不合并。
+- 不声称 `task_manager.py` 内 `dict` 赋值形态的任务状态字面量（如 `"status": "cancelled"`）
+  已在本批替换——门当前只约束比较运算；赋值/构造形态可后续按同域扩展。
+- 不声称 CI 双腿在本批提交时已全绿——42471664961（594-596 tip）仍在跑；597、598 未推送。
+
+### 7 下一位候选
+
+1. 确认 run `42471664961` 双腿全绿后推送 597、598；若腿红先红→绿修复并记账。
+2. （可选）同域扩展：`task_manager.py`/`task_worker.py` 内任务状态的 `dict` 赋值字面量是否可安全归一
+   （需逐处确认语义确为任务生命周期状态）。
+3. 十三个加载器裁定不变；`main` 合并阻塞不变。
