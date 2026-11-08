@@ -42183,3 +42183,39 @@ hook 事件身份 `PreToolUse`/`PostToolUse`/`UserPromptSubmit`/`Stop` 由 `mini
 1. 监控 42490220279；全绿后推送 634（及后续本地提交），legs 进行中不推送；若失败先红→绿+账本再推。
 2. 继续搜“同一事实两处归属”：`children` 在 task-result/orchestration payload 的同域归属需尊重 `_orchestration_result` shape-home census（literal-key home）与混域场景；`task_manager`/`web` 中 task-result `children_rolled_up`/`children` 的窄收口可评估；cancel-file IPC marker `"cancelled"` writer/reader（不同于 payload 字段/状态值）。
 3. 集成准备：`m8-t117-121-land`（5 commits，netguard/webfetch/security，8 files，低冲突）与 `dev/minicc-reliability-4ba3`（与 main 大幅分叉，ROADMAP/docs 密集）需在主仓释放后按冲突域分批集成；当前仅在 wt519 做只读差异/测试可行性分析，不触碰 `D:\面试项目\minicc-codex`。十一实验面冻结。
+## 批次 635 — M8-T653：`task_manager` 非 shape-home 的 `children`/批次失败结果字段接回契约常量
+
+### 1 是否真是同一事实
+
+`minicc.task_manager` 在批次失败结果构造与 `result["children"]=snapshots` 赋值中使用的 `children` 字段名，以及同一批次失败 dict 中遗漏的 `answer`/`error` 键，与 task-result/orchestration payload 字段名事实同域。`_orchestration_result` 是 orchestration 结果 shape 的 home（`test_the_orchestration_result_have_one_home` census 要求该 home 返回 `{"answer","cancelled","children"}` 字符串字面量键，且全包仅此一处），因此 home **保持字面量**；本批次仅改非 home、非 census 命中形态。
+
+### 2 命中点（实测）
+
+- `task_manager.py` 批次失败结果 dict（4 键，非 census 目标）：`"answer"`/`"error"`/`"children"` → `RESULT_FIELD_ANSWER`/`RESULT_FIELD_ERROR`/`RESULT_FIELD_CHILDREN`（`cancelled` 已为 `RESULT_FIELD_CANCELLED`）。
+- `result["children"] = snapshots` 赋值 → `result[RESULT_FIELD_CHILDREN]`。
+
+### 3 改动
+
+- `minicc/task_contract.py`：新增 `RESULT_FIELD_CHILDREN = "children"`（M8-T653；字段名 home；不改变 `TaskResult` dataclass 结构）。
+- `minicc/task_manager.py`：导入并使用 `RESULT_FIELD_CHILDREN`；修正上述批次失败 dict 的 `answer`/`error` 漏改。
+- 未新增与 orchestration shape census 冲突的全局门禁；依赖既有 `_orchestration_result` census 保护 shape home。
+
+### 4 验证（命令与输出要点）
+
+- `py_compile minicc/task_contract.py minicc/task_manager.py` 通过。
+- orchestration census 仍仅命中 `minicc/task_manager.py` 的 `_orchestration_result` home。
+- 聚焦：`test_the_orchestration_result_have_one_home.py`、`test_task_manager_phase_literals_have_one_home.py`、`test_task_contract.py`、`test_batch_wiring` 定向 merge/roll-up 用例通过（见本地记录）。未跑全量/CI 双端。
+
+### 5 聚焦回归
+
+- orchestration shape gate、phase-literal gate、task contract、batch wiring 定向通过。未跑全量基准回归/CI 双端。
+
+### 6 边界（哪些**未**触碰）
+
+- `_orchestration_result` home 保持字符串字面量键（shape census 要求）；不触碰 web/contract/execution 中其他 `children` 语义或 snapshot schema；不改变 API/结果语义。
+
+### 7 下一位候选
+
+1. CI 42490220279（633）仍 in_progress，legs 进行中**不推送**；634、635 本地已提交，待 42490220279 全绿后按纪律依次/合并推送语境处理（均在 m8-t537 线），legs 进行中不推送；若 42490220279 失败先红→绿+账本再推。
+2. 继续搜“同一事实两处归属”：`task_manager` 中仍有少量 `getattr(result,"error")`/发布事件/快照读取等混域 `error`（633 明确未收口）；`children_rolled_up` 在 task_manager `result.get`/snapshot schema 同域扩展需窄规则；cancel-file IPC marker writer/reader。
+3. 主仓/`main` 集成阻塞不变；`m8-t117-121-land` 与 `m8-t537` 在 `webauth.py`/`tools/fs.py`/`tools/webfetch.py` 有重叠，集成需冲突处理（见 `C:\Users\18414\AppData\Local\Temp\opencode\minicc-integration-inventory-wt519.md`）。十一实验面冻结。

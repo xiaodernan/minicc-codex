@@ -81,6 +81,8 @@ from .task_store import TaskStore
 from .task_contract import (
     RESULT_FIELD_ANSWER,
     RESULT_FIELD_CANCELLED,
+    RESULT_FIELD_CHILDREN,
+    RESULT_FIELD_CHILDREN_ROLLED_UP,
     RESULT_FIELD_ERROR,
     RESULT_FIELD_TOKENS_USED,
     ALLOW_CHANGES_FLAG,
@@ -888,7 +890,7 @@ class TaskRecord:
                 # does. The worker-process mirror hands back a parent snapshot
                 # whose total already owns the subtree; trusting that declaration
                 # is what keeps a reconnect from folding a second time.
-                self.children_rolled_up = bool(result.get("children_rolled_up"))
+                self.children_rolled_up = bool(result.get(RESULT_FIELD_CHILDREN_ROLLED_UP))
             # An empty ``tokens_used`` is *absence of evidence*, not evidence of
             # zero: ``TaskResult.to_payload()`` always emits the key, so a
             # producer that never filled it in would otherwise erase every
@@ -1925,10 +1927,10 @@ class TaskManager:
                     if item.get("status") in TASK_UNSUCCESSFUL_STATUSES
                 )
                 result = {
-                    "answer": f"批量任务未完成：子任务 {failed_children} 没有成功结束。",
-                    "error": "一个或多个并行子任务失败或被中断",
+                    RESULT_FIELD_ANSWER: f"批量任务未完成：子任务 {failed_children} 没有成功结束。",
+                    RESULT_FIELD_ERROR: "一个或多个并行子任务失败或被中断",
                     RESULT_FIELD_CANCELLED: False,
-                    "children": snapshots,
+                    RESULT_FIELD_CHILDREN: snapshots,
                 }
             elif hasattr(self.service, "merge_batch"):
                 parent.set_phase(PHASE_MERGING)
@@ -2000,7 +2002,7 @@ class TaskManager:
                 # ``_roll_up_tokens``, which every terminal path below calls.
                 # Doing it in only one branch is how a failed merge lost its
                 # children's spend.
-                result["children"] = snapshots
+                result[RESULT_FIELD_CHILDREN] = snapshots
             else:
                 answer = "\n\n".join(
                     f"子任务 {index}: {item.get('answer') or item.get('error') or item.get('status')}"

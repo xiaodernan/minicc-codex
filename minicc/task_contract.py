@@ -16,6 +16,8 @@ RESULT_FIELD_ANSWER = "answer"
 RESULT_FIELD_ERROR = "error"
 # M8-T652: task result children_rolled_up bookkeeping field name (cross-module payload fact).
 RESULT_FIELD_CHILDREN_ROLLED_UP = "children_rolled_up"
+# M8-T653: task result children field name (orchestration/batch payload fact; shape-home keeps literal key).
+RESULT_FIELD_CHILDREN = "children"
 
 from dataclasses import asdict, dataclass, field
 from typing import Any, Mapping
