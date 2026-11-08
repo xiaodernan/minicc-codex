@@ -50,6 +50,7 @@ from ..audit import (
     tool_denied_by_rule,
 )
 from ..tools.schemas import (
+    TOOL_STATUS_OK,
     CODE_DENIED,
     CODE_DUPLICATE_TOOL_CALL,
     CODE_HOOK_DENIED,
@@ -1471,7 +1472,7 @@ async def run_agent(
                     # read - and that holds for a tool that *declares* the
                     # network capability, not only for the two names.
                     and not is_network_tool(tc.tool, registry.capabilities_of(tc.tool))
-                    and tool_result.status == "ok"
+                    and tool_result.status == TOOL_STATUS_OK
                     and not (tool_result.data or {}).get("duplicate")
                 ):
                     cache_tool_result(
@@ -1542,7 +1543,7 @@ async def run_agent(
                             status="error",
                             code="search_circuit_open",
                         )
-                elif search_result.status == "ok":
+                elif search_result.status == TOOL_STATUS_OK:
                     search_failures = 0
 
             successful_writes = any(
@@ -1582,13 +1583,13 @@ async def run_agent(
             # M8-T58: 写入之后的只读检视（read_file/git_diff）是「无检查工作区」
             # 里唯一可能取得的验证证据类别；逐轮记录，交付裁决时用。
             elif verification_required and any(
-                call.tool in INSPECTION_TOOL_NAMES and tool_result.status == "ok"
+                call.tool in INSPECTION_TOOL_NAMES and tool_result.status == TOOL_STATUS_OK
                 for call, tool_result in immediate_results.values()
             ):
                 post_write_inspection = True
             recovery_inspection_observed = any(
                 effective_risk(call.tool, registry.risk_of(call.tool), call.arguments) == "readonly"
-                and tool_result.status == "ok"
+                and tool_result.status == TOOL_STATUS_OK
                 and not (tool_result.data or {}).get("duplicate")
                 for call, tool_result in immediate_results.values()
             )
@@ -1605,7 +1606,7 @@ async def run_agent(
                         lambda call, tool_result: effective_risk(
                             call.tool, registry.risk_of(call.tool), call.arguments
                         ) == "readonly"
-                        and tool_result.status == "ok"
+                        and tool_result.status == TOOL_STATUS_OK
                         and not (tool_result.data or {}).get("duplicate"),
                     ),
                 )

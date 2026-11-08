@@ -14,7 +14,7 @@ from typing import Any, Callable
 from copy import deepcopy
 
 from ..tools.bash import run_bash
-from ..tools.schemas import ToolResult
+from ..tools.schemas import TOOL_STATUS_OK, ToolResult
 from ..tools.registry import redact_text
 from ..trace import trace_event  # the one home for the event record
 from .verification_plan import VerificationCommand, VerificationPlan, build_verification_plan, safe_verification_command, verification_state
@@ -257,7 +257,7 @@ class Verifier:
             status = "cancelled"
         elif tool_result.status == "timed_out":
             status = "timed_out"
-        elif tool_result.status == "ok" and tool_result.exit_code in (None, 0):
+        elif tool_result.status == TOOL_STATUS_OK and tool_result.exit_code in (None, 0):
             status = "passed"
         else:
             status = "failed"
