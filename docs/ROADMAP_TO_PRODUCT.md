@@ -40214,3 +40214,54 @@ UI 和 CLI 日志就描述了不同的名字,没有任何信号。
 1. 批 584/585 的 CI 绿灯回来确认后再推；
 2. 中文 effort 文案的所有关联面（`panel.reasoningNote` 里提到 low/medium/high 等 level 名）——判断是否独立事实，若不独立，标记 deferred；
 3. 十三个加载器裁定不变。
+
+## 第五百八十七批 — M8-T605 — MOVEMENT_FIELDS 六字段只有一个家
+
+### 1 欠的是哪一条
+
+`MOVEMENT_FIELDS` 是 bench 报告里「相比 baseline 的 variant 动了多少」的六字段词表——
+`bench_compare.py` 在 `MOVEMENT_FIELDS = (...)` 定义了它并用于 `_blank_movement`；
+`tests/test_a_self_compare_is_not_published_as_an_ab.py` 逐字复制了这六个名字——
+the exact same six spellings, written again by hand，谁都没钉住。
+如果 home 增加或删减字段，测试副本照样独立通过（因为它查的不是 home），
+"self-compare not published as an A/B" 这个最贴近用户发布判定的不变式因此失效。
+
+### 2 量到的真相（实测）
+
+- home：`minicc/bench_compare.py:328-335` 六元组。
+- 副本：`tests/test_a_self_compare_is_not_published_as_an_ab.py:38-45` 逐字一行六个名字写过，
+  那行注释写着「spelled out here rather than imported」——理由是「still able to say the name is missing」，
+  但 home 加减字段时，副本并不能报知（`a.get(key) is not None` 对任意六项都 pass）。
+
+### 3 落地
+
+- `tests/test_a_self_compare_is_not_published_as_an_ab.py`：
+  删除名为 `MOVEMENT_FIELDS` 的本地六元组；改成直接
+  `from minicc.bench_compare import MOVEMENT_FIELDS`；注释写明「home 加减字段时此处一切原样成立」。
+- `tests/test_the_movement_fields_have_one_home.py`（新门，2 条）：
+  ① home 必须恰好等于这六个 tuple；
+  ② `minicc/` 下任何其它模块不得定义同名 `MOVEMENT_FIELDS`。
+
+### 4 见证（红先绿后）
+
+- 绿臂（修后）：`bench_compare` 删除后 …
+  改后动作为 `git checkout -- minicc/bench_compare.py` 恢复；`test_the_movement_fields_have_one_home.py` + `test_a_self_compare_is_not_published_as_an_ab.py` = 13 passed。
+- 红臂（注入）：改 home 定义名 `MOVEMENT_FIELDS` → `MOVEMENT_FIELDS_` → 门红，ImportError 点名模块；恢复后绿。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（本机 CPU 不可靠）；本批不影响 runtime 代码，只动测试。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 `_blank_movement` 的归零/语义被统一——那是同一 module 内部的事，不动；
+- 不声称 bench_compare 被覆盖或压测——
+- 不声称 CI 双腿都已绿：当前候选 tip（批 586）的 Windows/Ubuntu 腿都在 run 42463039726 进程中——Ubuntu 上次成功（批 585 tip）正是本次 Windows/Ubuntu 双绿的前奏（findings 之一有意愿要 Ubuntu 跑起来）。
+
+### 7 下一位候选
+
+1. 批 586 的 tip 在 CI 上跑完前不再推送；若绿,下次推送批 587;
+2. 剩余 #8-#12 测试 fixture 类 duplicated vocabularies（{`("v2", "behavior", "legacy")` 三套
+   fixture doors、VACUOUS_ORACLE_POLICY 三策略、Hook 事件 4 词表）——Python AST 门一次性
+   钉住 `HOOK_EVENTS` 与测试复制，但都属低权范围（只收 Python 代码各搭次）；
+3. 十三个加载器裁定不变。
