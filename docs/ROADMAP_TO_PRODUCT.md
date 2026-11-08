@@ -41107,3 +41107,39 @@ CLI（`minicc/main.py`）与 Web 运行时（`minicc/web.py`）在记录阶段�
 1. 监控 42475362988；全绿后推送 604 并遵守 legs-in-progress 不推送纪律；若失败则先红→绿修复并记账。
 2. 继续搜“同一事实两处归属”（可门禁、非 lookalike）：`TOOL_STATUS_ERROR`/`denied`/`cancelled` 等在 agent 侧的 Compare 脱节点是否可同构收敛；或 `missing_task_network` 授权码字面量在 `audit.py`/`main.py` 归属（仅命名常量、不改 `MISSING_TASK_AUTHORIZATIONS` 集合语义）。
 3. 十一实验面保持冻结；`main` 合并继续冻结（并发 worktree 冲突会话）。
+## 批次 605 — M8-T623：agent 中 `*_result.status` 的非 ok 工具状态比较接回 schemas 归属（精确范围）
+
+### 1 是否真是同一事实
+
+工具结果状态（`error`/`denied`/`cancelled`/`timed_out`）已由 `minicc.tools.schemas` 的 `TOOL_STATUS_*` 归属（M8-T618）。`minicc.agent.loop`/`verifier` 在比较 `tool_result`/`search_result` 对象的 `.status` 时仍使用裸字面量，是同一事实（工具结果状态）的脱节点使用。验证器自身的验证状态（`VerificationResult.status`/本地验证结论）与工具结果状态同形但属不同事实，本批明确排除。
+
+### 2 命中点（实测，门禁范围内）
+
+- `minicc/agent/loop.py`：`tool_result.status != "denied"`、`search_result.status == "error"`（2 处，均为 `*_result.status`）。
+- `minicc/agent/verifier.py`：`tool_result.status == "cancelled"`、`tool_result.status == "timed_out"`（2 处）；同文件 `self.status`/`item.status`/本地验证 `status` 的 `"cancelled"/"timed_out"/"failed"` 比较为验证状态事实，未触碰。
+
+### 3 改动
+
+- `minicc/agent/loop.py`：schemas 导入增加 `TOOL_STATUS_DENIED`/`TOOL_STATUS_ERROR`；替换上述 2 处工具/搜索结果状态比较。
+- `minicc/agent/verifier.py`：schemas 导入增加 `TOOL_STATUS_CANCELLED`/`TOOL_STATUS_TIMED_OUT`；替换 `tool_result.status` 的 2 处比较，保留验证状态分支与映射字面量不变。
+- `tests/test_the_tool_result_nonok_statuses_have_one_home_in_agent.py`（新）：门禁仅检查 `ast.Compare` 且比较侧为 `<名称含 result 的变量>.status` 时的 `error/denied/cancelled/timed_out` 字面量，红→绿。
+
+### 4 验证（命令与输出要点）
+
+- 红臂：`pytest tests/test_the_tool_result_nonok_statuses_have_one_home_in_agent.py -q` 1 failed，列出 loop 2 + verifier 2 共 4 处。
+- 绿臂：同门禁 1 passed；`import minicc.agent.loop, minicc.agent.verifier` 通过。
+
+### 5 聚焦回归
+
+- `tests/test_the_tool_result_ok_status_has_one_home_in_agent.py`、`tests/test_the_tool_result_nonok_statuses_have_one_home_in_agent.py`、`tests/test_the_tool_result_statuses_have_one_home.py`、`tests/test_verifier_lifecycle.py`、`tests/test_the_loop_budget_verdicts_have_one_home.py` 共 22 passed（`..\minicc-codex\.venv\Scripts\python.exe -m pytest ... -q`）。未跑全量基准回归/CI 双端。
+
+### 6 边界（哪些**未**触碰）
+
+- 仅约束 loop/verifier 中 `*_result.status`（工具/搜索结果对象）的非 ok 工具状态 Compare；不触碰验证状态词汇（`self.status`/`VerificationResult.status`/本地验证映射）、任务/事件/其他域状态、其他 agent/web 模块中可能的工具状态脱节点（需独立判定是否同事实）。
+- 未推送/未落 `main`：CI 42475362988（tip 1d56505，含 601–603）仍 in_progress；本地 604–605 已提交/待提交，须待该 run 全绿或失败修复后按纪律推送，legs 进行中不推送。
+
+### 7 下一位候选
+
+1. 监控 42475362988；全绿后按顺序推送本地已提交批次（604、605）并遵守 legs-in-progress 不推送纪律；若失败则先红→绿修复并记账。
+2. 继续搜“同一事实两处归属”（可门禁、非 lookalike）：agent/web 其他位置 `*_result.status`/`ToolResult.status` 对工具状态字面量的 Compare 脱节点；或 `missing_task_network` 授权码名字面量在 `audit.py`/`main.py` 归属（仅常量化比较，不改 `MISSING_TASK_AUTHORIZATIONS` 成员语义，需门禁证明）。
+3. 十一实验面保持冻结；`main` 合并继续冻结（并发 worktree 冲突会话）。
