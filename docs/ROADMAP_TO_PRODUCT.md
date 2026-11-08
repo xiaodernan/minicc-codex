@@ -42074,3 +42074,37 @@ hook 事件身份 `PreToolUse`/`PostToolUse`/`UserPromptSubmit`/`Stop` 由 `mini
 1. 监控 42485072840；全绿后按顺序推送 626–631，legs 进行中不推送；若失败先红→绿+账本再推。
 2. 继续搜“同一事实两处归属”：`web.py` 中 task-result payload 读写的 `answer`/`error`/`tokens_used`（`RESULT_FIELD_*` 同域，排除 API 响应/verification/LLM usage 不同事实）；`task_manager` 中 `result.get("answer"/"error"/"tokens_used")` 的 task-result 同域读写（已做 `cancelled`，可分批）。
 3. 十一实验面保持冻结；`main` 合并仍因主仓 `UU ROADMAP/MERGE_HEAD` 阻塞——不触碰主仓；改为在 `wt519` 持续集成/准备合并材料。
+## 批次 632 — M8-T650：`web.py` task/batch/run result payload 的 `answer`/`tokens_used` 接回契约字段
+
+### 1 是否真是同一事实
+
+`minicc.web` 在批次合并/取消返回与运行结果响应中使用的 `answer`、`tokens_used` 字段名，与 task-result 契约 `RESULT_FIELD_ANSWER`/`RESULT_FIELD_TOKENS_USED` 同属同一 payload 字段事实（与 627 的 `cancelled` 同域扩展）。`response.text`/`result.tokens_used` 等值来源与 `session_id`/`events`/`context` 等其他响应字段为不同事实。
+
+### 2 命中点（实测）
+
+- 批次 payload：`answer`（合并文案）、`tokens_used`（response usage）。
+- 取消返回：`{answer: BATCH/TASK_CANCELLED_ANSWER, RESULT_FIELD_CANCELLED: True, ...}`。
+- 运行结果响应：`"tokens_used": result.tokens_used` → `RESULT_FIELD_TOKENS_USED`（值仍为属性读取）。
+
+### 3 改动
+
+- `minicc/web.py`：补充导入 `RESULT_FIELD_ANSWER`/`RESULT_FIELD_TOKENS_USED`，替换上述 task/batch/run result 同域字段键；approval/runtime_status/其他响应结构保持不变。
+
+### 4 验证（命令与输出要点）
+
+- 替换后校验输出：`batch ans/tok, bcancel, tcancel, run tok` 均命中；`py_compile minicc/web.py` 通过。
+
+### 5 聚焦回归
+
+- `tests/test_task_result_cancelled_field_has_one_home.py`、`tests/test_web_runtime_status_literals_have_one_home.py`、`tests/test_the_budget_exceeded_result_field_has_one_home.py` 共 5 passed。未跑全量基准回归/CI 双端。
+
+### 6 边界（哪些**未**触碰）
+
+- 不触碰 `error`/`children` 在 web 响应中的其他形态（需逐点确认同域）、`session_id`/`events`/`context`/`usage_by_turn`/`metrics`/`completion` 等字段、approval/verdict/LLM usage 域；不改变 API 值语义。
+- 未推送：CI 42485072840（tip `dda195d`）in_progress，legs 进行中不推送；626–632 本地待该 run 全绿后按纪律推送。
+
+### 7 下一位候选
+
+1. 监控 42485072840；全绿后按顺序推送 626–632，legs 进行中不推送；若失败先红→绿+账本再推。
+2. 继续搜“同一事实两处归属”：`task_manager` 中 `result/stored_result.get("answer"/"error"/"tokens_used")` 与 payload 构造的 task-result 同域字段（已做 cancelled；需窄模式避开快照/事件/其他 dict）；`children` 字段跨 `task_contract`/`task_execution`/`task_manager`/`web` 归属。
+3. `m8-t537`→`main` 合并仍阻塞于主仓并发会话（不触碰）；在 wt519 持续推进并准备合并说明。十一实验面冻结。

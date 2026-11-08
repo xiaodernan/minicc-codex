@@ -155,7 +155,7 @@ from .worktree import WorktreeError, WorktreeManager
 from .webserver import MiniccHTTPServer, MiniccRequestHandler  # noqa: F401 - re-export
 from .workspaces import WorkspaceCatalog, resolve_workspace_path
 
-from .task_contract import RESULT_FIELD_CANCELLED, WEB_SESSION_ID
+from .task_contract import RESULT_FIELD_ANSWER, RESULT_FIELD_CANCELLED, RESULT_FIELD_TOKENS_USED, WEB_SESSION_ID
 from .task_manager import (  # noqa: F401 - re-export for tests and AgentService
     ACTIVE_TASK_STATUSES,
     CHANGE_INTENT_MARKERS,
@@ -1487,15 +1487,15 @@ class AgentService:
                     except BudgetExceeded as exc:
                         budget_exceeded = str(exc)
                 payload = {
-                    "answer": response.text or "并行子任务已完成，但合并器没有返回文字。",
+                    RESULT_FIELD_ANSWER: response.text or "并行子任务已完成，但合并器没有返回文字。",
                     RESULT_FIELD_CANCELLED: False,
-                    "tokens_used": dict(response.usage),
+                    RESULT_FIELD_TOKENS_USED: dict(response.usage),
                 }
                 if budget_exceeded:
                     payload[BUDGET_EXCEEDED_FIELD] = budget_exceeded
                 return payload
             except AgentCancelled:
-                return {"answer": BATCH_CANCELLED_ANSWER, RESULT_FIELD_CANCELLED: True}
+                return {RESULT_FIELD_ANSWER: BATCH_CANCELLED_ANSWER, RESULT_FIELD_CANCELLED: True}
             finally:
                 await provider.close()
 
@@ -1530,7 +1530,7 @@ class AgentService:
                 # held) and can never be evicted, so a cancelled request
                 # with a fresh session id grows the table without limit.
                 self._release_session_lock_inflight(workspace, session_id)
-                return {"answer": TASK_CANCELLED_ANSWER, RESULT_FIELD_CANCELLED: True, "session_id": session_id, "events": []}
+                return {RESULT_FIELD_ANSWER: TASK_CANCELLED_ANSWER, RESULT_FIELD_CANCELLED: True, "session_id": session_id, "events": []}
         # M8-T294: the lock has now been held, so it is safe to evict later.
         self._mark_session_lock_used(workspace, session_id)
         try:
@@ -3185,7 +3185,7 @@ class AgentService:
             "turns": result.turns,
             "tool_calls_total": result.tool_calls_total,
             "denied_tools": result.denied_tools,
-            "tokens_used": result.tokens_used,
+            RESULT_FIELD_TOKENS_USED: result.tokens_used,
             "context": result.context,
             "usage_by_turn": result.usage_by_turn,
             "compaction_events": result.compaction_events,
