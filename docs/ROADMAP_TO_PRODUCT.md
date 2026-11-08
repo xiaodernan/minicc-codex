@@ -40534,3 +40534,69 @@ total 看不见这三个拷贝。
 1. CI 双腿仍跑批 591 tip——推这批会取消它（cancel-in-progress），等 leg 回来后再推；
 2. approval 帧的 flat key 对齐（`request_id`、`tool`/`preview`/`reason`）——两个测试 + 一页两个 hello-world 应覆盖；
 3. 十三个加载器裁定不变。
+
+## 第五百九十三批 — M8-T611 — approval 帧 kind 归一
+
+### 1 欠的是哪一条
+
+交互审批的 SSE 帧在 Python 侧（`minicc/web.py`）用裸字面量 `kind="approval_request"` /
+`kind="approval_resolved"` 发出，在 Web 侧（`web/src/core/approvals.js`）用裸字符串
+比较消费。两面表达的是同一条事实（审批等待/审批完成的帧类型），却各自手拼，任一侧改名
+另一侧静默失效。
+
+### 2 量到的真相（实测）
+
+- `minicc/web.py` 两处 `kind=` 裸字面量（request/resolved 发帧点）。
+- `web/src/core/approvals.js` 两处裸字符串比较（过滤 resolved、识别 request），另有注释提及。
+- `minicc/agent/protocol.py:TASK_EVENT_KINDS` 不含这两个 kind（审批帧是 web 传输事实，
+  非 task-reducer 事件种类），因此不并入 TASK_EVENT_KINDS。
+- 审批词汇的 Python 家已在 `minicc/audit.py`（`APPROVAL_DECISIONS` /
+  `PERMITTING_APPROVAL_DECISIONS`），帧 kind 归入同一模块最自然。
+
+### 3 落地
+
+- `minicc/audit.py`：新增 `APPROVAL_FRAME_REQUEST_KIND = "approval_request"`、
+  `APPROVAL_FRAME_RESOLVED_KIND = "approval_resolved"`，加入 `__all__`。
+- `minicc/web.py`：从 audit 导入两常量，发帧点改用常量（不再有裸 kind 字面量）。
+- `web/src/core/approvals.js`：导出同名常量，消费处改用常量；注释保留描述性提及。
+- `tests/test_the_approval_frame_kinds_have_one_home.py`（新门，3 条）：audit 家定义正确；
+  web.py 不得以 `kind=`/dict 形式裸拼两 kind；web.py 必须引用审计家常量名。
+- `tests/frontend_approval_frame_kinds_one_home_smoke.mjs`（新门）：JS 导出两常量且与
+  Python 家逐值一致；approvals.js 代码区（去注释/字符串、去常量定义行）无裸 kind 字面量。
+- `package.json` `test:approval`、`.github/workflows/ci.yml` js-check 补入新 smoke。
+- web bundle 重建（`app.js`/`asset-manifest`/`assets/`）。
+
+### 4 见证（红先绿后）
+
+- Python 门红臂：`ImportError`（家缺常量）+ `AssertionError` 点名 `web.py:621/670`
+  两处裸 `kind=`（3 failed）。
+- 前端 smoke 红臂：`approvals.js must export APPROVAL_FRAME_REQUEST_KIND`。
+- 绿臂：Python 门 3 passed；前端 smoke `M8-T611 ok`。
+
+### 5 聚焦回归
+
+- `tests/test_permissions_approval.py` + `test_a_synchronous_chat_run_must_be_able_to_ask_for_an_approval.py`
+  + `test_the_approval_decisions_have_one_home.py` + `test_the_approval_preview_is_redacted_on_every_face.py`
+  = 31 passed。
+- `npm run test:approval`（含 decisions/timeout/frame-kinds 三 smoke）全绿。
+- `check:web` / bundle 重建后干净。未跑全量套件（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 approval 帧的完整字段契约（`request_id`/`tool`/`preview`/`reason`/`risk`/
+  `decision`/`timed_out`/`cancelled` 等）已统一成一份共享 schema——本批只钉 kind；字段键
+  跨面消费面窄（JS 只读子集），全量 schema 化需单独评估。
+- 不声称 `approval_requested`/`approval_resolved` 这些 trace `code` 与帧 `kind` 合并
+  （同事件不同事实，命名已不同）。
+- 不声称 `panels/index.js` 里的 `approval_requested`/`approval_resolved` 标签键是同一事实
+  （那是 UI 文案键，不是帧 kind）。
+- 不声称 `build/lib/` 下的生成副本已同步（不触碰 build 产物）；`minicc/webserver.py`
+  注释提及未改（非代码事实）。
+- 不声称 CI 双腿在本批提交时已全绿——推送前须确认最新 tip 的 legs 不在运行且前序 tip 绿。
+
+### 7 下一位候选
+
+1. 确认 run 42468592322（批 592 tip）双腿全绿后再推本批；若腿红，先红→绿修复并记账再推。
+2. 继续普查：SSE/task 帧中其他跨面 kind/字段是否存在“同事实两家”且可无歧义收敛
+   （只收一问一答、生产代码两面都手拼的）。
+3. 十三个加载器裁定不变；`main` 合并阻塞不变（不触碰主 worktree 并发会话文件）。
