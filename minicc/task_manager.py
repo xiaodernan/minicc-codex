@@ -780,7 +780,7 @@ class TaskRecord:
                 ),
                 allow_terminal=True,
             )
-            validate_status_transition(self.status, "cancelled")
+            validate_status_transition(self.status, TASK_STATUS_CANCELLED)
             self.status = TASK_STATUS_CANCELLED
             self.phase = PHASE_CANCELLED
             self.state_version += 1
@@ -977,7 +977,7 @@ class TaskRecord:
             }
             if self.result:
                 result_payload = dict(self.result)
-                if self.status in {"cancelled", "interrupted"}:
+                if self.status in {TASK_STATUS_CANCELLED, TASK_STATUS_INTERRUPTED}:
                     result_payload.update(
                         answer=self.error or (TASK_CANCELLED_ANSWER if self.status == TASK_STATUS_CANCELLED else "服务重启时任务被中断。"),
                         error=self.error,
@@ -1472,7 +1472,7 @@ class TaskManager:
                     if parent.status not in TERMINAL_TASK_STATUSES:
                         try:
                             parent.transition_status(
-                                "cancelled" if parent.cancel_event.is_set() else "failed",
+                                TASK_STATUS_CANCELLED if parent.cancel_event.is_set() else TASK_STATUS_FAILED,
                                 error=TASK_CANCELLED_ERROR if parent.cancel_event.is_set() else f"批任务启动失败: {type(exc).__name__}: {exc}",
                                 reason=parent.cancel_event.reason if parent.cancel_event.is_set() else None,
                             )
@@ -2020,7 +2020,7 @@ class TaskManager:
             parent.apply_result(result)
             self._roll_up_tokens(parent)
             with parent.lock:
-                target = "cancelled" if result.get("cancelled") else "failed" if result.get("error") else "completed"
+                target = TASK_STATUS_CANCELLED if result.get("cancelled") else TASK_STATUS_FAILED if result.get("error") else TASK_STATUS_COMPLETED
                 if parent.status not in TERMINAL_TASK_STATUSES:
                     try:
                         parent.transition_status(target, error=str(result.get("error")) if result.get("error") else None)
@@ -2036,7 +2036,7 @@ class TaskManager:
                 if parent.status not in TERMINAL_TASK_STATUSES:
                     try:
                         parent.transition_status(
-                            "cancelled" if parent.cancel_event.is_set() else "failed",
+                            TASK_STATUS_CANCELLED if parent.cancel_event.is_set() else TASK_STATUS_FAILED,
                             error=TASK_CANCELLED_ERROR if parent.cancel_event.is_set() else f"批任务 watcher 失败: {type(exc).__name__}: {exc}",
                             reason=parent.cancel_event.reason if parent.cancel_event.is_set() else None,
                         )
@@ -2420,7 +2420,7 @@ class TaskManager:
             self._roll_up_tokens(task)
             if task.status not in TERMINAL_TASK_STATUSES:
                 task.transition_status(
-                    "cancelled" if result.get("cancelled") else "failed" if result.get("error") else "completed",
+                    TASK_STATUS_CANCELLED if result.get("cancelled") else TASK_STATUS_FAILED if result.get("error") else TASK_STATUS_COMPLETED,
                     error=str(result.get("error") or "") or None,
                 )
         except WorkerDetached:
@@ -2642,7 +2642,7 @@ class TaskManager:
                 cancelled = cancelled_by_user or bool(result.get("cancelled")) or task.status == TASK_STATUS_CANCELLED
                 failed = bool(result.get("error")) and not cancelled
                 if task.status not in TERMINAL_TASK_STATUSES:
-                    target = "cancelled" if cancelled else "failed" if failed else "completed"
+                    target = TASK_STATUS_CANCELLED if cancelled else TASK_STATUS_FAILED if failed else TASK_STATUS_COMPLETED
                     try:
                         task.transition_status(
                             target,
@@ -2682,7 +2682,7 @@ class TaskManager:
             self._roll_up_tokens(task)
             with task.lock:
                 if task.status not in TERMINAL_TASK_STATUSES:
-                    target = "cancelled" if task.cancel_event.is_set() else "failed"
+                    target = TASK_STATUS_CANCELLED if task.cancel_event.is_set() else TASK_STATUS_FAILED
                     try:
                         task.transition_status(
                             target,

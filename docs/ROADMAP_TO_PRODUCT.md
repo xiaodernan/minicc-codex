@@ -41731,3 +41731,39 @@ hook 事件身份 `PreToolUse`/`PostToolUse`/`UserPromptSubmit`/`Stop` 由 `mini
 1. 监控 42482986858；全绿后按顺序推送 620、621（及后续本地提交），legs 进行中不推送；若失败先红→绿+账本再推。
 2. 继续搜“同一事实两处归属”：其他跨模块重复的 budget stage/trace 合约字段（仅在同事实且多处出现时）；`task_contract`/`task_execution` 间 `cancelled` **payload 字段名**若确认为同一契约字段事实且需一处归属，可评估（区别于 `TASK_STATUS_CANCELLED` 值）。
 3. 十一实验面保持冻结；`main` 合并继续冻结。
+## 批次 622 — M8-T640：`task_manager` 中无歧义 task status 事实接回 `TASK_STATUS_*`（payload/IPC 分域）
+
+### 1 是否真是同一事实
+
+`minicc.task_manager` 中作为**任务状态**传给 `validate_status_transition`/`transition_status`、作为 `self.status` 集合判断、或作为终态 `target` 赋值的 `cancelled`/`failed`/`completed`/`interrupted`，与 `minicc.agent.protocol.TASK_STATUS_*` 是同一事实。同文件/同流程中的 `result.get("cancelled")`、`output["cancelled"]`、cancel 文件标记内容等属于 **payload 字段/IPC 协议/其他域事实**，字符串值可能相同但事实不同，明确不合并。
+
+### 2 命中点（实测，已收口的无歧义状态事实）
+
+- `validate_status_transition(self.status, "cancelled")`、`self.status in {"cancelled","interrupted"}`。
+- `parent.transition_status("cancelled"|...)`、`target = "cancelled"|"failed"|("completed")` 的任务终态选择（含 `task.cancel_event`/`cancelled_by_user`/`failed` 条件分支）。
+- 混合行 `target = "cancelled" if result.get("cancelled") else "failed" ... else "completed"`：仅替换 **target 状态值**；`result.get("cancelled")` payload 字段读取保留。
+
+### 3 改动
+
+- `minicc/task_manager.py`：将上述无歧义任务状态字面量替换为 `TASK_STATUS_CANCELLED`/`FAILED`/`COMPLETED`/`INTERRUPTED`（常量已导入；行为不变）。**未**替换 payload `cancelled` 字段键/读写、cancel marker 文件 `write_text("cancelled")`、及其他非任务状态域字面量。
+
+### 4 验证（命令与输出要点）
+
+- 定向检查：目标旧模式清除（`transition_status/validate_status_transition` 裸状态实参、状态目标三元/终态集合）；payload `result.get("cancelled")` 等保留。
+- `py_compile minicc/task_manager.py` 通过。
+
+### 5 聚焦回归
+
+- `tests/test_task_manager_phase_literals_have_one_home.py`、`tests/test_the_planning_phase_fact_has_one_home.py`、`tests/test_task_durability.py`、`tests/test_task_contract.py`、`tests/test_batch_wiring.py`、`tests/test_task_store_durability_contract.py` 共 49 passed（`..\minicc-codex\.venv\Scripts\python.exe -m pytest ... -q`，复用 620 回归集）。未跑全量基准回归/CI 双端。
+
+### 6 边界（哪些**未**触碰）
+
+- 未新增覆盖 `task_manager.py` 全域 `"cancelled"` 的门禁：该词在本模块同时存在任务状态、payload 字段、IPC marker 等不同事实，宽泛门禁易误并域；本批次以**可证明同事实**的定向替换为准。
+- 未触碰 `task_contract`/`task_execution` 的 payload `cancelled` 字段名归属（候选需单独确认契约字段同事实）；未触碰 task_worker/web/verifier/graph/benchmark/LLM 域。
+- 未推送：CI 42482986858（tip `576b93e`）in_progress，legs 进行中不推送；620–622 本地待该 run 全绿后按纪律推送，legs 进行中不推送。
+
+### 7 下一位候选
+
+1. 监控 42482986858；全绿后按顺序推送 620–622（及后续本地提交），legs 进行中不推送；若失败先红→绿+账本再推。
+2. 继续搜“同一事实两处归属”：`task_worker.py` 中 `state["status"] = "cancelled"/"completed"` 若确认是任务状态事实且可安全引用 `TASK_STATUS_*`（注意 worker 独立进程/导入面）；或 `task_contract`/`task_execution` 的 `cancelled` payload 字段名若建立独立契约常量归属（不与状态码混淆）。
+3. 十一实验面保持冻结；`main` 合并继续冻结。
