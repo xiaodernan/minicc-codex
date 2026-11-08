@@ -42418,3 +42418,27 @@ dev/minicc-reliability-4ba3 的 M8-T540（mention 的两个 deny 检查点共用
 - 不改变 `tool_denied_by_rule` 本身（审计侧保留；本批次仅使 mentions 侧改用 matcher）；
 - 不触碰 mention injection 的 XML/标记/转义语义（T547–T557 family 未并入）；
 - 不推送；等 CI 42505788350（M8-T659）green 后按纪律走。
+## 批次 643 — M8-T661：集成 M8-T543 — mention record 的 token/path 各回一个量
+
+### 1 事实来源
+
+dev/minicc-reliability-4ba3 的 M8-T543 修复的是同一个 CJK 回退收敛的副作用：`build_mention_context` 的回退循环就地改写外层变量 `token`，五个读 `token` 的分支读到的是**收敛后**的拼法，而一条「path != token」恰好是「这提及收敛到真实文件」的记号。
+
+同样的：被拒的那条会写 `secrets\k.txt是什么`（反斜杠没换算、粘连尾巴没削），与「真注入的那条记 `src/a.py`」对不上号。
+
+### 2 改动（`minicc/mentions.py`、`tests/test_a_mention_record_names_the_file_it_resolved_to.py`）
+
+- 新增 `_converged(token, path, status, reason)`：走 `_record`，`token` 保持扫描器交出的那一个，`path` 在收敛到一个真实工作区文件时取 `rel`（workspace-relative posix），没收敛到时等于 token（不做分隔符归一——`path != token` 本身就是「收敛了」的记号）。
+- CJK 回退循环改用 `candidate`，`original = token` 随之删除；五个收敛位点（凭据门、deny 规则门、超预算、读失败、二进制）改 `_converged`；遗留的 `_reject(original, …)` 归零。
+- `tests/test_a_mention_record_names_the_file_it_resolved_to.py`（新）：九腿（拒绝记被拒文件、凭据门记收敛到的文件、块里那句标注与 path 同一值、三拼法共一 path、拒绝与注入能在 path 上对上号、二进制/超预算记收敛到的文件、普查 path≠token 只对真实文件成立、未收敛保持原样、五字段形状）。
+
+### 3 验证（命令与输出要点）
+
+- `..\minicc-codex\.venv\Scripts\python.exe -m py_compile minicc/mentions.py` 通过。
+- mention 邻域：`test_mentions.py`、`test_the_mention_deny_question_is_asked_once_per_message.py`、`test_a_mention_record_names_the_file_it_resolved_to.py`、`test_the_mention_statuses_have_one_home.py`、`test_one_refresh_asks_the_rules_once.py`、`test_the_file_tree_lists_its_entries_under_one_policy_load.py` → **47 passed**。
+- `python scripts/doc_pointers.py --check` 通过（本批次新增 tests/ 文件已入库后）。
+
+### 4 边界（哪些**未**触碰）
+
+- 未改变 `extract_mention_tokens` 的分词语义；未改变 `_record` 的五字段形状；未删除 `MENTION_STATUS_*` 常量体系（本线 `test_the_mention_statuses_have_one_home.py` 保持 active）；token 在收敛后 CJK 回退中不再原位改写。
+- 不推送（CI 42505788350 M8-T659 legs in_progress）。
