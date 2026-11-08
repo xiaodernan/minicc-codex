@@ -41835,3 +41835,36 @@ hook 事件身份 `PreToolUse`/`PostToolUse`/`UserPromptSubmit`/`Stop` 由 `mini
 1. 监控 42482986858；全绿后按顺序推送 620–624（及后续本地提交），legs 进行中不推送；若失败先红→绿+账本再推。
 2. 继续搜“同一事实两处归属”：`RESULT_FIELD_CANCELLED` 在 `task_manager`/`web`/`task_worker`/`main` 的 task-result payload 读写是否可分批收口（需严格排除 status 值与 IPC/非 task-result 语境）；或其他 task result 字段名（`answer`/`error`/`tokens_used`）的跨模块契约归属。
 3. 十一实验面保持冻结；`main` 合并继续冻结。
+## 批次 625 — M8-T643：task result `cancelled` 字段名在 `task_worker` 读路径接回契约归属
+
+### 1 是否真是同一事实
+
+`minicc.task_worker` 从任务结果 payload 读取 `cancelled`（`result.get("cancelled")`）与 `minicc.task_contract.RESULT_FIELD_CANCELLED` / task_execution 写入的是同一 task-result 契约字段名事实。worker 中的 `cancelled` 局部变量名、状态事实（M8-T641 已用 `TASK_STATUS_*`）为不同域。
+
+### 2 命中点（实测）
+
+- `minicc/task_worker.py`：`cancelled = bool(result.get("cancelled"))`（payload 字段读取，1 处）。
+
+### 3 改动
+
+- `minicc/task_worker.py`：导入 `RESULT_FIELD_CANCELLED`（`task_contract`），替换 payload 字段读取。
+- `tests/test_task_result_cancelled_field_has_one_home.py`：范围扩展纳入 `minicc/task_worker.py`（M8-T643），继续门禁该契约字段名裸字面量；与 M8-T641 状态字面量门禁分域（后者允许 `.get(...)` payload 字段实参）。
+
+### 4 验证（命令与输出要点）
+
+- `pytest tests/test_task_result_cancelled_field_has_one_home.py tests/test_task_status_literals_in_task_execution_have_one_home.py tests/test_task_worker_status_literals_have_one_home.py -q` 4 passed。
+
+### 5 聚焦回归
+
+- `tests/test_task_result_cancelled_field_has_one_home.py`、`tests/test_task_worker_status_literals_have_one_home.py`、`tests/test_task_contract.py`、`tests/test_task_durability.py`、`tests/test_batch_wiring.py` 共 41 passed。未跑全量基准回归/CI 双端。
+
+### 6 边界（哪些**未**触碰）
+
+- 仅 worker 对 task-result payload `cancelled` 字段的读取；不触碰状态值/局部变量命名/`result.get("error")` 等其他字段（后续可按同契约分批）；不扩展到 task_manager/web/main（touch 点多且域交错，需分批精确门禁）。
+- 未推送：CI 42482986858（tip `576b93e`）in_progress，legs 进行中不推送；620–625 本地待该 run 全绿后按纪律推送。
+
+### 7 下一位候选
+
+1. 监控 42482986858；全绿后按顺序推送 620–625（及后续本地提交），legs 进行中不推送；若失败先红→绿+账本再推。
+2. 继续搜“同一事实两处归属”：`RESULT_FIELD_CANCELLED` 在 `web.py`/`main.py` 读取 task result 的 `cancelled`（`result.get("cancelled")`/`result.cancelled` 在明确 task-result 语境）可分批评估；`task_manager` 内 payload 字段与状态/IPC 域混杂需更窄规则。或 `answer`/`error`/`tokens_used` 结果字段名是否形成跨模块同事实。
+3. 十一实验面保持冻结；`main` 合并继续冻结。

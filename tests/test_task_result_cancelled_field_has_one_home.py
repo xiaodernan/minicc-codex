@@ -11,7 +11,11 @@ import ast
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
-SCOPED = {REPO / "minicc" / "task_contract.py", REPO / "minicc" / "task_execution.py"}
+SCOPED = {
+    REPO / "minicc" / "task_contract.py",
+    REPO / "minicc" / "task_execution.py",
+    REPO / "minicc" / "task_worker.py",
+}
 HOME = REPO / "minicc" / "task_contract.py"
 VAL = "cancelled"
 DEF_NAME = "RESULT_FIELD_CANCELLED"

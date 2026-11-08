@@ -50,6 +50,7 @@ from .task_contract import (
     CONFIG_FILE_FLAG,
     CONFIG_JSON_FLAG,
     CONFIG_STDIN_FLAG,
+    RESULT_FIELD_CANCELLED,
     FAKE_PROVIDER_FLAG,
     LEASE_OWNER_FLAG,
     MESSAGE_FLAG,
@@ -454,7 +455,7 @@ def _run_owned_worker_inner(args: argparse.Namespace, workspace: Path, store: Ta
         )
         result = TaskResult.from_payload(result).to_payload()
         with state_lock:
-            cancelled = bool(result.get("cancelled"))
+            cancelled = bool(result.get(RESULT_FIELD_CANCELLED))
             state["status"] = TASK_STATUS_CANCELLED if cancelled else TASK_STATUS_COMPLETED
             state["answer"] = str(result.get("answer") or "")
             state["result"] = dict(result)
