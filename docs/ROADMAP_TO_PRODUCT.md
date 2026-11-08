@@ -40716,3 +40716,57 @@ total 看不见这三个拷贝。
 2. 评估 `budget_exceeded` trace code（protocol 已有 helper/event 形态，loop 仍有裸字面量）
    与 `stage_route`（main/web 各一处）的归一方案，择一清晰者下一批落地。
 3. 十三个加载器裁定不变；`main` 合并阻塞不变。
+
+## 第五百九十六批 — M8-T614 — stage_route trace code 归一（含 LLM 惰性导入修复）
+
+### 1 欠的是哪一条
+
+CLI（`minicc/main.py`）与 Web 运行时（`minicc/web.py`）在记录阶段路由选模时各自手写
+`code="stage_route"`。两处表达同一事实（stage 路由 trace code），无共享 home。
+
+附带修复：M8-T612/M8-T613 为 `minicc/llm/{openai_provider,fake,usage}.py` 引入的
+`from ..agent.protocol import PHASE_* / PROVIDER_RETRY_CODE` **模块级**导入会触发
+`agent.__init__ → loop → openai_provider → usage` 的包初始化循环，导致
+`test_cli_stage_routing.py` 收集失败及 LLM 模块导入失败。本批一并改为方法内惰性导入。
+
+### 2 量到的真相（实测）
+
+- `minicc/main.py:516`、`minicc/web.py:1743` 各 1 处 `code="stage_route"` 裸字面量。
+- 循环导入复现：`pytest --collect-only tests/test_cli_stage_routing.py` 经
+  `llm.usage` 模块级导入 `agent.protocol` 触发上述循环（实测报错链已定位）。
+
+### 3 落地
+
+- `minicc/agent/protocol.py`：新增 `STAGE_ROUTE_CODE = "stage_route"`（M8-T614），加入 `__all__`。
+- `minicc/main.py`、`minicc/web.py`：导入并使用 `STAGE_ROUTE_CODE`（web 合并进既有括号式 protocol 导入）。
+- `minicc/llm/openai_provider.py`、`minicc/llm/fake.py`、`minicc/llm/usage.py`：将
+  `PHASE_PLANNING`/`PROVIDER_RETRY_CODE` 改为使用点惰性导入，消除模块级循环。
+- `tests/test_the_stage_route_code_has_one_home.py`（新门，2 条）：home 定义正确；
+  `minicc/` 内除 home 外不得裸写 `stage_route` code 字面量。
+
+### 4 见证（红先绿后）
+
+- 红臂：`ImportError`（home 缺常量）+ 2 处 offender（`main.py`、`web.py`）。
+- 绿臂：2 passed。`test_cli_stage_routing.py` 恢复可收集（16 tests collected）；
+  `import minicc.llm.openai_provider/fake` 通过。
+
+### 5 聚焦回归
+
+- `tests/test_the_stage_route_code_has_one_home.py`、`test_the_provider_retry_code_has_one_home.py`、
+  `test_the_task_phases_have_one_home.py`、`test_the_approval_frame_kinds_have_one_home.py`、
+  `test_cli_stage_routing.py --collect-only` 均通过（定向门+收集）。未跑全量套件（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 `budget_exceeded` 等其他 trace code 裸字面量已归一（loop 仍有 5 处，protocol 已有 helper 形态，需单独评估）。
+- 不声称包初始化循环在所有模块组合下已彻底消除——仅修复本批触发的 LLM→agent.protocol 链路。
+- 不声称 CI 双腿在本批提交时已全绿——推送前须确认 593 tip（run `42470220279`）全绿且无 legs 在跑；
+  本地 594/595/596 均未推送。
+
+### 7 下一位候选
+
+1. 确认 run `42470220279`（批 593 tip）双腿全绿后，依次推送本地 594→595→596（每次推送前确认无 legs 在跑；
+   实操上本地链已连续，可一次推送 tip 596，但需 593 绿且推送后关注新 run）。
+2. 评估 `budget_exceeded` trace code 归一（`minicc/agent/protocol.py` helper 已存在，
+   `minicc/agent/loop.py` 5 处裸 `code="budget_exceeded"` 可改用 home 常量）。
+3. 十三个加载器裁定不变；`main` 合并阻塞不变。
