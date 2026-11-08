@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Any, Mapping
 
-from .audit import normalize_permission_mode
+from .audit import PERMISSION_MODE_PLAN, PERMISSION_MODE_YOLO, normalize_permission_mode
 
 TASK_SCHEMA_VERSION = 2
 
@@ -61,9 +61,9 @@ def resolve_task_permissions(payload: Mapping[str, Any], *, yolo: bool = False) 
     # down, so the CLI face is the one that owes the alignment, not this
     # one.  Reverted here; recorded in the roadmap as an open question.
     network = bool(payload.get("allow_network"))
-    if mode == "yolo":
+    if mode == PERMISSION_MODE_YOLO:
         changes = network = True
-    elif mode == "plan":
+    elif mode == PERMISSION_MODE_PLAN:
         changes = False
     return changes, network, mode
 

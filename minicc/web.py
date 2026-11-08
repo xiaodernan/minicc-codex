@@ -79,6 +79,7 @@ from .audit import (
     APPROVAL_FRAME_REQUEST_KIND,
     APPROVAL_FRAME_RESOLVED_KIND,
     MISSING_TASK_AUTHORIZATIONS,
+    PERMISSION_MODE_PLAN,
     PERMITTING_APPROVAL_DECISIONS,
     AuthorizationDecision,
     authorization_event,
@@ -1603,7 +1604,7 @@ class AgentService:
             )
         )
         store.save(messages)
-        if permission_mode == "plan":
+        if permission_mode == PERMISSION_MODE_PLAN:
             network_note = "联网搜索可用" if allow_network else "联网也不可用"
             messages.append(system_msg(
                 "[计划模式] 本任务是只读规划模式：文件写入与命令执行已被禁用，"
@@ -2781,7 +2782,7 @@ class AgentService:
                             )
                             verification = await asyncio.to_thread(
                                 verifier.run, workspace, plan=verification_plan,
-                                allow_project_scripts=allow_changes and permission_mode != "plan",
+                                allow_project_scripts=allow_changes and permission_mode != PERMISSION_MODE_PLAN,
                                 cancel_event=cancel_event,
                             )
                         except (ValueError, OSError) as exc:

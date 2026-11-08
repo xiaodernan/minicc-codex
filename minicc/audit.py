@@ -392,7 +392,18 @@ def deny_rule_covers_path(workspace: Path | str | None, rel_path: str) -> bool:
 # - plan:        research mode; writes and exec are denied outright.
 # - acceptEdits: file writes are auto-accepted; exec still needs authorization.
 # - yolo:        everything allowed for this task (implies both flags).
-PERMISSION_MODES = frozenset({"default", "plan", "acceptEdits", "yolo"})
+# M8-T619: permission mode name vocabulary (one home).
+PERMISSION_MODE_DEFAULT = "default"
+PERMISSION_MODE_PLAN = "plan"
+PERMISSION_MODE_ACCEPT_EDITS = "acceptEdits"
+PERMISSION_MODE_YOLO = "yolo"
+
+PERMISSION_MODES = frozenset({
+    PERMISSION_MODE_DEFAULT,  # "default"
+    PERMISSION_MODE_PLAN,  # "plan"
+    PERMISSION_MODE_ACCEPT_EDITS,  # "acceptEdits"
+    PERMISSION_MODE_YOLO,  # "yolo"
+})
 # lowercase aliases for wire/UI input (camelCase is accepted too)
 _PERMISSION_MODE_ALIASES = {
     "": "default",
@@ -749,6 +760,10 @@ __all__ = [
     "MISSING_TASK_AUTHORIZATIONS",
     "NETWORK_TOOL_NAMES",
     "PERMISSION_MODES",
+    "PERMISSION_MODE_ACCEPT_EDITS",
+    "PERMISSION_MODE_DEFAULT",
+    "PERMISSION_MODE_PLAN",
+    "PERMISSION_MODE_YOLO",
     "PERMITTING_APPROVAL_DECISIONS",
     "WORKSPACE_WIDE_READ_TOOLS",
     "AllowanceResult",

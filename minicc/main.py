@@ -12,6 +12,7 @@ from typing import Any, Callable, NoReturn
 from .agent.context import compact_with_checkpoint, message_chars
 from .agent.loop import TurnResult, build_tool_feedback, run_agent
 from .agent.protocol import PHASE_EXECUTION, PHASE_PLANNING, STAGE_ROUTE_CODE, budget_exceeded_event
+from .audit import PERMISSION_MODE_PLAN
 from .agent.router import StageRouter, StageRoute
 from .agent.state import Budget, BudgetExceeded
 from .agent.subagent import DEFAULT_MAX_DEPTH, DEFAULT_MAX_TURNS, build_task_tool_spec
@@ -335,7 +336,7 @@ def _apply_cli_overrides(config: Config, args: argparse.Namespace) -> Config:
     # ``changes`` off), so the same configuration meant "read-only plan" on
     # the Web and "everything allowed" on the CLI.  ``plan`` is the safe
     # direction, so it wins.
-    if args.permission_mode == "plan" and config.yolo:
+    if args.permission_mode == PERMISSION_MODE_PLAN and config.yolo:
         updates["yolo"] = False
     return replace(config, **updates) if updates else config
 
@@ -498,7 +499,7 @@ async def _turn(
     fold_target: dict[str, Any] | None = None,
 ) -> TurnResult:
     messages.append(user_msg(prompt))
-    if permission_mode == "plan":
+    if permission_mode == PERMISSION_MODE_PLAN:
         messages.append(system_msg(
             "[计划模式] 本任务是只读规划模式：写入与命令工具会被拒绝。"
             "请完成调研后输出实施计划（目标、步骤、涉及文件、验证方式、风险）。"

@@ -59,7 +59,7 @@ from .agent.protocol import (
 )
 from .agent.subagent import WRITABLE_PERMISSION_MODES
 from .agent.tool_policy import WRITE_TOOL_NAMES
-from .audit import normalize_permission_mode
+from .audit import PERMISSION_MODE_PLAN, normalize_permission_mode
 from .clock import utc_iso
 from .config import DEFAULT_TASK_COMPACTION_LIMIT, DEFAULT_TASK_EVENT_LIMIT, DEFAULT_TASK_QUEUE_LIMIT, DEFAULT_TASK_STREAM_LIMIT, DEFAULT_TASK_USAGE_LIMIT, TRUTHY, normalize_model_name, normalize_reasoning_effort
 from .input_guard import require_text
@@ -2543,7 +2543,7 @@ class TaskManager:
         try:
             from .snapshots import capture as capture_workspace_snapshot
 
-            if task.permission_mode != "plan" and (task.allow_changes or task.permission_mode in WRITABLE_PERMISSION_MODES):
+            if task.permission_mode != PERMISSION_MODE_PLAN and (task.allow_changes or task.permission_mode in WRITABLE_PERMISSION_MODES):
                 task.checkpoint["workspace_snapshot"] = capture_workspace_snapshot(
                     Path(task.workspace_path),
                     task.task_id,
