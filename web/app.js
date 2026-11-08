@@ -168,6 +168,9 @@
     "cancelled",
     "interrupted"
   ]);
+  var ACTIVE_TASK_PHASES = new Set(
+    [...TASK_PHASES].filter((phase) => !TERMINAL_TASK_STATUSES.has(phase))
+  );
   var RESUMABLE_TASK_PHASES = /* @__PURE__ */ new Set(["failed", "cancelled", "interrupted"]);
   var TODO_STATUSES = /* @__PURE__ */ new Set(["pending", "in_progress", "completed"]);
   var TODO_PRIORITIES = /* @__PURE__ */ new Set(["high", "medium", "low"]);

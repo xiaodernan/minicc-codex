@@ -117,11 +117,12 @@ export const TASK_PHASES = new Set([
   "completed", "failed", "cancelled", "interrupted",
 ]);
 // The phases that mean "the task is still doing something" - the ones the
-// live-task element styles as in-flight.
-export const ACTIVE_TASK_PHASES = new Set([
-  "queued", "planning", "intake", "tool", "execution", "answering", "summarize",
-  "review", "verify", "repair", "permission", "merging",
-]);
+// live-task element styles as in-flight. Derived from the two facts that
+// already have names, exactly as ACTIVE_TASK_STATUSES is derived from
+// TASK_STATUSES - so a new in-flight phase is missed nowhere.
+export const ACTIVE_TASK_PHASES = new Set(
+  [...TASK_PHASES].filter((phase) => !TERMINAL_TASK_STATUSES.has(phase)),
+);
 // The phases that ended without an answer, so the task can be resumed.
 export const RESUMABLE_TASK_PHASES = new Set(["failed", "cancelled", "interrupted"]);
 // M8-T384: the todo checklist's vocabularies, mirroring ``TODO_STATUSES`` /

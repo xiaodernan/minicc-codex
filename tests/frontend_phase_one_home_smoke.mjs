@@ -70,6 +70,14 @@ for (const status of TERMINAL_STATUSES) {
   );
 }
 
+// M8-T608: the in-flight subset must be derived from the one home, not
+// re-listed beside it. (Same derivation as ACTIVE_TASK_STATUSES from
+// TASK_STATUSES.)
+assert(
+  /ACTIVE_TASK_PHASES\s*=\s*new Set\(\s*\[\s*\.\.\.TASK_PHASES\]\.filter\(\(phase\)\s*=>\s*!TERMINAL_TASK_STATUSES\.has\(phase\)\)/.test(stateSource),
+  "core/state.js must derive ACTIVE_TASK_PHASES from TASK_PHASES and TERMINAL_TASK_STATUSES",
+);
+
 // The phase list has one home too, and it must know every phase the
 // backend emits - otherwise that phase's class is never removed and the
 // user never sees its name.
