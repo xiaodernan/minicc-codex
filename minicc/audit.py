@@ -15,7 +15,7 @@ from typing import Any
 
 from .allowlist import match_session_allowlist, path_rule_matches
 from .internal_paths import PERMISSIONS_NAME
-from .permissions import load_permission_rules, match_rules
+from .permissions import PERMISSION_RULE_VERDICT_ALLOW, PERMISSION_RULE_VERDICT_DENY, load_permission_rules, match_rules
 from .tools.bash import is_readonly_command, split_command_argv
 from .tools.registry import AUTHORIZATION_RISKS
 from .trace import trace_event
@@ -199,7 +199,7 @@ def tool_denied_by_rule(
         # The rules are unknown, so nothing can be said about this call.
         # Refusing is the only answer that keeps the promise above.
         return True
-    return match_rules(rules, tool, arguments or {}) == "deny"
+    return match_rules(rules, tool, arguments or {}) == PERMISSION_RULE_VERDICT_DENY
 
 
 def path_deny_predicate(workspace: Path | str | None, *, refresh: bool = False) -> Callable[[str], bool]:
@@ -235,7 +235,7 @@ def path_deny_predicate(workspace: Path | str | None, *, refresh: bool = False) 
                 return True
             if error:
                 return True
-            return match_rules(rules, "read_file", {"path": rel}) == "deny"
+            return match_rules(rules, "read_file", {"path": rel}) == PERMISSION_RULE_VERDICT_DENY
         return denied
 
     try:
@@ -246,7 +246,7 @@ def path_deny_predicate(workspace: Path | str | None, *, refresh: bool = False) 
         return lambda _rel: True
 
     def denied(rel: str) -> bool:
-        return match_rules(rules, "read_file", {"path": rel}) == "deny"
+        return match_rules(rules, "read_file", {"path": rel}) == PERMISSION_RULE_VERDICT_DENY
 
     return denied
 
@@ -334,7 +334,7 @@ def path_rule_denies_call(
         return True
     if error:
         return True
-    if match_rules(rules, tool, args) == "deny":
+    if match_rules(rules, tool, args) == PERMISSION_RULE_VERDICT_DENY:
         return True
     if str(tool or "") not in WORKSPACE_WIDE_READ_TOOLS:
         return False
@@ -653,14 +653,14 @@ def authorize_tool(
                 AUTHORIZATION_PERMISSION_POLICY_UNREADABLE,
             )
         verdict = match_rules(rules, tool, arguments)
-        if verdict == "deny":
+        if verdict == PERMISSION_RULE_VERDICT_DENY:
             return AuthorizationDecision(
                 False,
                 risk or "unknown",
                 "permissions.json deny 规则拒绝",
                 AUTHORIZATION_PERMISSION_RULE_DENY,
             )
-        if verdict == "allow":
+        if verdict == PERMISSION_RULE_VERDICT_ALLOW:
             return AuthorizationDecision(
                 True,
                 risk or "unknown",

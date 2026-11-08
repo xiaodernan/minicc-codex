@@ -41519,3 +41519,39 @@ hook 执行域的决策值 `allow`/`deny` 由 `minicc.hooks` 产出（HookOutcom
 1. 监控 42479351486；全绿后按顺序推送 `2e59ff2`、614、615；若失败先红→绿+账本再推，legs 进行中不推送。
 2. 继续搜“同一事实两处归属”（可门禁、非 lookalike）：`hooks.py` 中 `on_failure` 策略值 `continue` 若在配置/校验与运行时同事实重复可评估（需与 hook decision 分域）；或其他 trace/event/契约字段的脱节点。
 3. 十一实验面保持冻结；`main` 合并继续冻结。
+## 批次 616 — M8-T634：permission rule verdict/side 词汇（allow/deny）有一处归属（permissions→audit 消费）
+
+### 1 是否真是同一事实
+
+`minicc.permissions` 产出规则匹配 verdict（`allow`/`deny`/`None`）并使用 `allow`/`deny` 作为规则侧键；`minicc.audit` 消费 `match_rules` verdict。裸字面量跨产出与消费重复同一 permission-rule 域事实。该事实**不同于** hook 决策域（`HOOK_DECISION_*`，M8-T633）、用户审批决策（`APPROVAL_DECISIONS`/`PERMITTING_APPROVAL_DECISIONS`，audit 中不同事实）、以及 `permission_rule_allow/deny` 等授权决策码（M8-T625/626 归属）。门禁仅覆盖 permission-rule verdict/side 上下文。
+
+### 2 命中点（实测）
+
+- `minicc/permissions.py`：`_empty_rules`/`_normalize`/规则加载/`match_rules`/`match_permission_rule` 返回与侧键、及文档字符串中的 verdict 词汇共 8 处 `allow`/`deny` 字面量（规则域）。
+- `minicc/audit.py`：`match_rules(...) == "deny"` 比较 4 处、`verdict == "deny"/"allow"` 比较 2 处（permission-rule verdict 上下文）。`APPROVAL_DECISIONS`/`PERMITTING_APPROVAL_DECISIONS` 与授权码字面量**明确排除**。
+
+### 3 改动
+
+- `minicc/permissions.py`：新增 `PERMISSION_RULE_VERDICT_ALLOW`/`PERMISSION_RULE_VERDICT_DENY`（M8-T634，一处归属；置于 `from __future__`/imports 之后，避免 616 初始编辑将常量插入文件顶部导致的 `SyntaxError`），加入 `__all__`；替换规则 verdict/side 相关字面量（行为不变）。清理 stale `__pycache__/permissions.cpython-311.pyc` 以消除导入歧义。
+- `minicc/audit.py`：从 `.permissions` 导入 verdict 常量；仅替换 `match_rules` verdict 比较与 permission-rule `verdict == allow/deny`（不触碰 `APPROVAL_DECISIONS`/`PERMITTING_APPROVAL_DECISIONS`、授权码、hook 域）。
+- `tests/test_the_permission_rule_verdicts_have_one_home.py`（新）：红臂 2 项（home 缺常量/导入失败 + 范围模块裸 verdict/side 字面量；审计侧按 verdict/`match_rules` 上下文过滤并排除 `APPROVAL*`/`permission_rule_`）→ 绿臂。
+
+### 4 验证（命令与输出要点）
+
+- 红臂：`pytest tests/test_the_permission_rule_verdicts_have_one_home.py -q` 1 failed, 1 passed（`permissions.py` 顶部常量导致 `from __future__` 位置 `SyntaxError`；审计/permissions 扫描按门禁范围命中）。
+- 修复后绿臂：同门禁 2 passed；`import minicc.permissions, minicc.audit` 通过（venv python）。
+
+### 5 聚焦回归
+
+- `tests/test_the_permission_rule_verdicts_have_one_home.py`、`tests/test_permissions_pure.py`、`tests/test_permissions_approval.py`、`tests/test_permissions_path_rules_share_the_allowlist_matcher.py`、`tests/test_the_permission_rule_authorization_codes_have_one_home.py`、`tests/test_the_deny_veto_has_one_home.py`、`tests/test_permission_deny_veto_is_asked_by_every_consent_site.py` 共 85 passed（`..\minicc-codex\.venv\Scripts\python.exe -m pytest ... -q`）。未跑全量基准回归/CI 双端。
+
+### 6 边界（哪些**未**触碰）
+
+- 仅约束 `permissions.py`/`audit.py` 中 permission-rule verdict/side（allow/deny）词汇；不触碰 `APPROVAL_DECISIONS`/`PERMITTING_APPROVAL_DECISIONS`、授权决策码、hook 决策、`ask`/`None` 语义、规则匹配顺序/deny-wins 逻辑。
+- 未推送/未落 `main`：CI 42479351486（tip `f45e6bb`）in_progress；本地 `2e59ff2`（613 ledger）+ 614 + 615 + 616 待推送，须待该 run 全绿（或失败修复）后按纪律推送，legs 进行中不推送。
+
+### 7 下一位候选
+
+1. 监控 42479351486；全绿后按顺序推送 `2e59ff2`、614、615、616；若失败先红→绿+账本再推，legs 进行中不推送。
+2. 继续搜“同一事实两处归属”（可门禁、非 lookalike）：`hooks.py` 中 `on_failure` 策略值 `continue` 若在配置/校验与运行时同事实重复可评估（需与 hook decision 分域）；或其他 trace/event/契约字段、工具风险/网络标签脱节点（确认同事实后再动）。
+3. 十一实验面保持冻结；`main` 合并继续冻结。

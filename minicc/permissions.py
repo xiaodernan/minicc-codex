@@ -38,6 +38,11 @@ from .config import unreadable_file_message
 from .internal_paths import PERMISSIONS_NAME  # re-exported: the deny list reads it from here
 from .tools.names import TOOL_NAME_BASH
 
+# M8-T634: permission rule verdict/side vocabulary (one home).
+# Distinct from hook decisions and user approval decisions.
+PERMISSION_RULE_VERDICT_ALLOW = "allow"
+PERMISSION_RULE_VERDICT_DENY = "deny"
+
 class PermissionConfigError(ValueError):
     """permissions.json is malformed at the schema level (non-fatal)."""
 
@@ -51,7 +56,7 @@ _cache: dict[str, tuple[tuple[int, int, int, int], tuple[dict[str, list[str]], s
 
 
 def _empty_rules() -> dict[str, dict[str, list[str]]]:
-    return {"allow": empty_rule_side(), "deny": empty_rule_side()}
+    return {PERMISSION_RULE_VERDICT_ALLOW: empty_rule_side(), PERMISSION_RULE_VERDICT_DENY: empty_rule_side()}
 
 
 def _normalize_side(raw: object) -> dict[str, list[str]]:
@@ -75,14 +80,14 @@ def _validate(payload: object) -> tuple[dict[str, list[str]], str]:
     rules = _empty_rules()
     if not isinstance(payload, dict):
         raise PermissionConfigError("permissions.json 顶层必须是 JSON 对象")
-    unknown = set(payload) - {"allow", "deny", "permissions"}
+    unknown = set(payload) - {PERMISSION_RULE_VERDICT_ALLOW, PERMISSION_RULE_VERDICT_DENY, "permissions"}
     if unknown:
         raise PermissionConfigError(f"未知字段: {', '.join(sorted(unknown))}")
     body = payload.get("permissions") if isinstance(payload.get("permissions"), dict) else payload
     if not isinstance(body, dict):
         raise PermissionConfigError("permissions 必须是 JSON 对象")
-    rules["allow"] = _normalize_side(body.get("allow"))
-    rules["deny"] = _normalize_side(body.get("deny"))
+    rules[PERMISSION_RULE_VERDICT_ALLOW] = _normalize_side(body.get(PERMISSION_RULE_VERDICT_ALLOW))
+    rules[PERMISSION_RULE_VERDICT_DENY] = _normalize_side(body.get(PERMISSION_RULE_VERDICT_DENY))
     return rules, ""
 
 
@@ -175,7 +180,7 @@ def load_permission_rules(workspace: Path) -> tuple[dict[str, list[str]], str]:
 def match_rules(
     rules: dict[str, dict[str, list[str]]], tool: str, arguments: dict[str, Any] | None
 ) -> str | None:
-    """"deny" > "allow" > None, judged against rules already in hand.
+    """PERMISSION_RULE_VERDICT_DENY > PERMISSION_RULE_VERDICT_ALLOW > None, judged against rules already in hand.
 
     M8-T537: the verdict used to exist only behind ``match_permission_rule``,
     which loads the file itself - so every caller that also needed the
@@ -183,22 +188,24 @@ def match_rules(
     answer is a function of the rules, so it takes rules, not a workspace.
     """
     args = arguments if isinstance(arguments, dict) else {}
-    if _match_patterns(tool, args, rules["deny"]):
-        return "deny"
-    if _match_patterns(tool, args, rules["allow"]):
-        return "allow"
+    if _match_patterns(tool, args, rules[PERMISSION_RULE_VERDICT_DENY]):
+        return PERMISSION_RULE_VERDICT_DENY
+    if _match_patterns(tool, args, rules[PERMISSION_RULE_VERDICT_ALLOW]):
+        return PERMISSION_RULE_VERDICT_ALLOW
     return None
 
 
 def match_permission_rule(
     workspace: Path, tool: str, arguments: dict[str, Any] | None
 ) -> str | None:
-    """"deny" > "allow" > None. Deny always wins over allow."""
+    """PERMISSION_RULE_VERDICT_DENY > PERMISSION_RULE_VERDICT_ALLOW > None. Deny always wins over allow."""
     rules, _error = load_permission_rules(workspace)
     return match_rules(rules, tool, arguments)
 
 
 __all__ = [
+    "PERMISSION_RULE_VERDICT_ALLOW",
+    "PERMISSION_RULE_VERDICT_DENY",
     "PERMISSIONS_NAME",
     "PermissionConfigError",
     "load_permission_rules",
