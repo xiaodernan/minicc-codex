@@ -25,18 +25,47 @@ def test_home_keeps_what_the_run_produced():
     assert stamped["cancelled"] is True
 
 
+def _result_field_values() -> dict[str, str]:
+    """Resolve the contract constant names to their values (one source: task_contract)."""
+    from minicc import task_contract
+
+    return {
+        value_name: getattr(task_contract, value_name)
+        for value_name in dir(task_contract)
+        if value_name.startswith("RESULT_FIELD_")
+    }
+
+
+def _resolve_dict_keys(node: ast.Dict, names: dict[str, str]) -> set[str]:
+    """The dict's key vocabulary, with contract constants resolved to their values.
+
+    M8-T672: the literal-only census missed the home the moment the home itself
+    switched to ``RESULT_FIELD_*`` constants - exactly the drift the contract
+    batch was built to cause and probe for.  The census asks the same question
+    of both spellings: which files spell the cancel-result three-key shape by
+    hand.  A contract-constant spelling counts the same.
+    """
+    values = set(names.values())
+    keys: set[str] = set()
+    for key in node.keys:
+        if isinstance(key, ast.Constant) and isinstance(key.value, str):
+            keys.add(key.value)
+        elif isinstance(key, ast.Name) and key.id in names:
+            keys.add(names[key.id])
+        elif isinstance(key, ast.Attribute) and key.attr in names:
+            keys.add(names[key.attr])
+    return keys
+
+
 def test_census_exactly_one_literal_and_it_is_the_home():
     target = {"answer", "cancelled", "error"}
+    names = _result_field_values()
     hits = []
     for path in sorted((REPO / "minicc").rglob("*.py")):
         tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
             if isinstance(node, ast.Dict):
-                keys = {
-                    key.value
-                    for key in node.keys
-                    if isinstance(key, ast.Constant) and isinstance(key.value, str)
-                }
+                keys = _resolve_dict_keys(node, names)
                 if keys == target:
                     hits.append((path.relative_to(REPO).as_posix(), node.lineno))
     assert len(hits) == 1, hits

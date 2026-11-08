@@ -44891,3 +44891,24 @@ Home 是 `task_contract`。cancel-file 的两处 `cancel_file.write_text("cancel
 
 - 不改门、不改语料判据 `_SIBLING_CITATIONS`；只改测试装载方式与一条文档里的表述。
 - Windows 腿红不红以 CI 复跑为准；本批推送后双腿重判。
+
+## 批次 672 — M8-T672 — 合流后双腿红（T666 引入）的归因与门修订
+
+`42533392212`（248d7cb，58be216 之上）Ubuntu 腿 `2 failed, 4662 passed`；两条红都直接来自本通道第六百六十九批 M8-T666（task_manager 的三键门）。逐条修：
+
+1. **`test_the_cancelled_result_have_one_home.py::test_census_exactly_one_literal_and_it_is_the_home`**——原门用字面量常量 `"cancelled"` 点名「恰好一处 Dict keys == {answer, cancelled, error}」。M8-T666 之后全包一字都不再手拼该字面量（home 也改用 `RESULT_FIELD_*`），门读到 0 → 红。取缔不了字面量的语义，取消掉门的"字面量"依赖：新 helper `_result_field_values()` 从 `minicc.task_contract` 反汇出 `RESULT_FIELD_*` 全家
+   （`dir()` 扫名、getattr 取值），`_resolve_dict_keys()` 把 Constant 与 `RESULT_FIELD_*` 的 Name/Attribute key 都解到取值后再比对键集；
+   门的语义保持为"这个三键形状恰好被手写/常量写的家构建一次"，不再关心字面量本身。
+2. **`test_the_orchestration_result_have_one_home.py::test_the_three_keys_are_spelled_exactly_once_in_the_package`**——同款修法（键集对比走同一 resolver，此处把 ANSWER/CANCELLED/CHILDREN/ERROR 四枚常量点名为 reader；`task_manager.py:1942` 的四键批失败 dict 因 `RESULT_FIELD_ERROR` 缺席解析曾被误计为三键形状，现因 TOKENS_USED 也在映射里而不再误映射）。
+
+### 2 验证
+
+- `pytest tests/test_the_cancelled_result_have_one_home.py tests/test_the_orchestration_result_have_one_home.py -q` → **7 passed**。
+- `python scripts/doc_pointers.py --check` → rc=0。
+
+### 3 边界
+
+- **未**回退 M8-T666 的改动；`task_manager.py` 维持常量拼写。
+- 门不扩权到其余文件（`task_contract.py`/`task_execution.py` 等内含多余的同键 dict 因 `TOKENS_USED` 等其它键参与而自然不计数 —— 那些 dict 也都不是"三键 home"的形状）。
+- 该红系 T666 自己引入、由门放行：门本身先前只认一种拼写，本批让门跟得上字面量的退场（门的语义一字未改，只是拼写来源从单一 Constant 扩展到 contract 常量）。
+- 随后推云重跑 CI 后再见红绿。
