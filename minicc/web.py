@@ -55,6 +55,9 @@ from .route_wiring import (
 from .agent.state import AgentState, Budget, BudgetExceeded
 from .pricing import cost_usd as _pricing_cost_usd
 from .agent.protocol import (
+    TASK_STATUS_CANCELLED,
+    TASK_STATUS_COMPLETED,
+    TASK_STATUS_FAILED,
     BATCH_CANCELLED_ANSWER,
     MODEL_LAST_OUTPUT_MARKER,
     PHASE_EXECUTION,
@@ -3159,7 +3162,7 @@ class AgentService:
                 f"{incomplete_answer(completion_guard)}。"
                 + (f"\n\n{MODEL_LAST_OUTPUT_MARKER}{original_answer}" if original_answer else "")
             )
-        runtime_status = "cancelled" if result.cancelled else "failed" if result.error else "completed"
+        runtime_status = TASK_STATUS_CANCELLED if result.cancelled else TASK_STATUS_FAILED if result.error else TASK_STATUS_COMPLETED
         runtime_state.finish(runtime_status, result.error)
         result.metrics = {
             **runtime_state.metrics(),

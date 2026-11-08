@@ -41936,3 +41936,36 @@ hook 事件身份 `PreToolUse`/`PostToolUse`/`UserPromptSubmit`/`Stop` 由 `mini
 1. 监控 42485072840；全绿后按顺序推送 626、627（及后续本地提交），legs 进行中不推送；若失败先红→绿+账本再推。
 2. 继续搜“同一事实两处归属”：`web.py` `runtime_status = "cancelled"/"failed"/"completed"`（task status 事实，`TASK_STATUS_*` 已在 protocol）；或 `answer`/`error`/`tokens_used`/`children` payload 字段名跨模块归属（需确认契约同域）。
 3. 十一实验面保持冻结；`main` 合并继续冻结。
+## 批次 628 — M8-T646：`web.py` `runtime_status` 任务状态字面量归属 `TASK_STATUS_*`
+
+### 1 是否真是同一事实
+
+`minicc.web` 在运行结果汇总中根据任务取消/错误/完成推导 `runtime_status` 的 `"cancelled"/"failed"/"completed"`，与 `minicc.agent.protocol.TASK_STATUS_*` 是同一任务状态事实。`verification.status`、`result.cancelled` 属性、graph/DAG status 等属不同域，本批次未触碰。
+
+### 2 命中点（实测）
+
+- `web.py:3162` 附近：`runtime_status = "cancelled" if result.cancelled else "failed" if result.error else "completed"`。
+
+### 3 改动
+
+- `minicc/web.py`：从 `agent.protocol` 导入 `TASK_STATUS_CANCELLED`/`TASK_STATUS_COMPLETED`/`TASK_STATUS_FAILED`，替换该 `runtime_status` 赋值中的任务状态字面量。
+- `tests/test_web_runtime_status_literals_have_one_home.py`（新）：AST 门禁 `runtime_status` 赋值右侧的裸任务状态 Constant。
+
+### 4 验证（命令与输出要点）
+
+- `pytest tests/test_web_runtime_status_literals_have_one_home.py -q` 1 passed；`py_compile minicc/web.py` 通过。
+
+### 5 聚焦回归
+
+- `tests/test_web_runtime_status_literals_have_one_home.py`、`tests/test_task_result_cancelled_field_has_one_home.py`、`tests/test_the_budget_exceeded_result_field_has_one_home.py` 共 5 passed。未跑全量基准回归/CI 双端。
+
+### 6 边界（哪些**未**触碰）
+
+- 仅 `runtime_status` 推导；不触碰 verification/graph/LLM/subagent 状态域，不触碰 payload 字段名/approval 域。
+- 未推送：CI 42485072840（tip `dda195d`）in_progress 时 626–628 本地待推送；该 run 全绿后按纪律推送，legs 进行中不推送。
+
+### 7 下一位候选
+
+1. 监控 42485072840；全绿后按顺序推送 626–628（及后续本地提交），legs 进行中不推送；若失败先红→绿+账本再推。
+2. 继续搜“同一事实两处归属”：task-result payload 的 `answer`/`error`/`tokens_used` 字段名若跨 `task_contract`/`task_execution`/`task_manager`/`web`/worker 同域；或 cancel-file IPC marker `"cancelled"` 的 writer/reader 契约归属（与 payload 字段分域）。
+3. 十一实验面保持冻结；`main` 合并继续冻结。
