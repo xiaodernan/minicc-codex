@@ -42493,3 +42493,25 @@ dev/minicc-reliability-4ba3 的 M8-T551-M8-T557 把 mention 的 `<file path="…
 
 - 不改分词器/路径解析/deny/凭据语义；不删除 `MENTION_STATUS_*` 家（`test_the_mention_statuses_have_one_home.py` 仍 active）；不触碰 `apply_mentions` 签名。
 - 不推送（CI 42521223901 的 M8-T662 merge legs in_progress；本批次本地累积，CI green 后按纪律推送）。
+## 批次 646 — M8-T664：`task_manager` 的 `transition_status()` 入参改用 `TASK_STATUS_*` 常量
+
+### 1 是否真是同一事实
+
+`minicc.task_manager` 在七处直接给 `transition_status()` 传了裸字符串（`"failed"`/`"running"`/`"interrupted"`），与 `minicc.agent.protocol` 的 `TASK_STATUS_FAILED`/`TASK_STATUS_RUNNING`/`TASK_STATUS_INTERRUPTED` 是同一任务状态事实；协议侧已有 `TASK_STATUS_*` 常量家（`PHASE_*` 分域，`TASK_KIND_*` 分域，`validate_status_transition` 已依赖 `TASK_STATUSES`）。本批次只把那七处裸字面量改成协议常量，没有改变任何语义或契约。
+
+### 2 改动（`minicc/task_manager.py`）
+
+- 从 `..agent.protocol` 补充导入 `TASK_STATUS_RUNNING`（原导入缺这一条；`TASK_STATUS_FAILED`/`TASK_STATUS_INTERRUPTED` 此前已导入）。
+- 七处 `transition_status(<word>)` 改为 `transition_status(TASK_STATUS_*)`。
+- 不改变任何 validate_status_transition 行为、validate_missing 行为、`self.phase = target` 语义；只让阶段/状态一个家。
+
+### 3 验证（命令与输出要点）
+
+- `..\minicc-codex\.venv\Scripts\python.exe -m py_compile minicc/task_manager.py` 通过。
+- 定向：`..\minicc-codex\.venv\Scripts\python.exe -m pytest tests/test_task_durability.py tests/test_task_store_durability_contract.py tests/test_batch_wiring.py::test_merge_batch_uses_the_task_model_and_configured_protocol tests/test_task_manager_phase_literals_have_one_home.py tests/test_task_result_answer_error_fields_have_one_home.py tests/test_task_result_cancelled_field_has_one_home.py -q` → **25 passed**。
+- `python scripts/doc_pointers.py --check` 通过。
+
+### 4 边界（哪些**未**触碰）
+
+- 未对 `task_manager` 其余裸 `proto.*` 字面量做扫描（那些多数是 `result.transition_status(target)` 以及 `transition_status(TASK_STATUS_*)` 已是常量）；phase 与 status 仍按 domain 分离（`PHASE_*` vs `TASK_STATUS_*`）；`validate_status_transition` 依赖 `TASK_STATUSES` 交集行为不变；不改参数名/状态机/序列化行为。
+- CI 42521223901（d537e0c）`in_progress`，legs 进行中**不推送**；本批次本地累积，等 CI 双端全绿后按纪律推送。

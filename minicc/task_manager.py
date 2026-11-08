@@ -56,6 +56,7 @@ from .agent.protocol import (
     PHASE_QUEUED,
     TASK_STATUS_QUEUED,
     TASK_STATUS_CANCELLED,
+    TASK_STATUS_RUNNING,
     TASK_STATUS_COMPLETED,
     TASK_STATUS_FAILED,
     TASK_STATUS_INTERRUPTED,
@@ -1337,7 +1338,7 @@ class TaskManager:
             if len(queue) >= self.queue_limit:
                 try:
                     task.transition_status(
-                        "failed",
+                        TASK_STATUS_FAILED,
                         error=f"会话任务队列已满（上限 {self.queue_limit}），请稍后再提交。",
                     )
                 except InvalidStatusTransition:
@@ -1401,7 +1402,7 @@ class TaskManager:
                     if task.status not in TERMINAL_TASK_STATUSES:
                         try:
                             task.transition_status(
-                                "failed",
+                                TASK_STATUS_FAILED,
                                 error=f"任务无法进入执行器: {type(exc).__name__}: {exc}",
                             )
                         except InvalidStatusTransition:
@@ -1428,7 +1429,7 @@ class TaskManager:
                 child_ids = self._batch_children_pending.pop(parent_id, [])
                 if parent is None or parent.status in TERMINAL_TASK_STATUSES or parent.cancel_event.is_set():
                     return
-                parent.transition_status("running")
+                parent.transition_status(TASK_STATUS_RUNNING)
                 parent.set_phase(PHASE_PLANNING)
                 parent.started_at = parent.started_at or time.time()
                 assessment = parent.context.get("orchestration") if isinstance(parent.context, dict) else None
@@ -2433,7 +2434,7 @@ class TaskManager:
             return
         except Exception as exc:
             if task.status not in TERMINAL_TASK_STATUSES:
-                task.transition_status("interrupted", error=str(exc))
+                task.transition_status(TASK_STATUS_INTERRUPTED, error=str(exc))
         finally:
             if not self._closing:
                 self._detached_tasks.discard(task.task_id)
@@ -2534,7 +2535,7 @@ class TaskManager:
                     cancelled_before_start = True
                 else:
                     try:
-                        task.transition_status("running")
+                        task.transition_status(TASK_STATUS_RUNNING)
                     except InvalidStatusTransition:
                         cancelled_before_start = True
                     task.set_phase(PHASE_PLANNING)
@@ -2545,7 +2546,7 @@ class TaskManager:
             with task.lock:
                 if task.status not in TERMINAL_TASK_STATUSES:
                     try:
-                        task.transition_status("failed", error=f"任务启动失败: {type(exc).__name__}: {exc}")
+                        task.transition_status(TASK_STATUS_FAILED, error=f"任务启动失败: {type(exc).__name__}: {exc}")
                     except InvalidStatusTransition:
                         pass
         if cancelled_before_start:
@@ -2572,7 +2573,7 @@ class TaskManager:
             with task.lock:
                 if task.status not in TERMINAL_TASK_STATUSES:
                     try:
-                        task.transition_status("failed", error=f"任务状态保存失败: {type(exc).__name__}: {exc}")
+                        task.transition_status(TASK_STATUS_FAILED, error=f"任务状态保存失败: {type(exc).__name__}: {exc}")
                     except InvalidStatusTransition:
                         pass
             self._release_session_slot(task)
