@@ -40954,3 +40954,46 @@ CLI（`minicc/main.py`）与 Web 运行时（`minicc/web.py`）在记录阶段�
 2. 新 tip Python/JS 若仍有失败，按日志红→绿修复并记账。
 3. 继续普查“同事实两家”（仅可无歧义归一、可门控、非 lookalike）；`TOOL_STATUS_*` 与校验/任务/DAG 状态保持分域。
 4. 十三个加载器裁定不变；`main` 合并阻塞不变（不触碰主 worktree 并发会话文件）。
+## 批次 601 — M8-T619：权限模式名字面量（许可域，对比/集合）有一处归属，无范围外扩
+
+### 1 是否真是同一事实
+
+`minicc.audit` 已拥有 `PERMISSION_MODES`/`normalize_permission_mode`（许可域模式词汇）；但 `default`/`plan`/`acceptEdits`/`yolo` 仍在路由/契约/子代理策略模块中以裸字面量参与比较或 frozenset 构造（`minicc/main.py`、`minicc/task_contract.py`、`minicc/task_manager.py`、`minicc/web.py`、`minicc/agent/subagent.py`）。这些是同一事实（许可模式名）的重复；其他域中同词（如非许可语境的 `plan`/`default`）属 lookalike，本批不触碰。
+
+### 2 命中点（实测）
+
+- `minicc/audit.py`：`PERMISSION_MODES` 为字符串字面量 frozenset，缺可直用的单值常量。
+- `minicc/task_contract.py`：`mode == "yolo"` / `mode == "plan"`（契约解析）。
+- `minicc/task_manager.py`：`task.permission_mode != "plan"`（任务路由/授权语境）。
+- `minicc/main.py`：`args.permission_mode == "plan"` / `permission_mode == "plan"`（CLI/运行前门控）。
+- `minicc/web.py`：`permission_mode == "plan"` / `permission_mode != "plan"`（Web 任务授权与脚本许可）。
+- `minicc/agent/subagent.py`：`WRITABLE_PERMISSION_MODES`/`EXEC_PERMISSION_MODES` 含裸 `"acceptEdits"`/`"yolo"`。
+
+### 3 改动
+
+- `minicc/audit.py`：新增 `PERMISSION_MODE_DEFAULT`/`PERMISSION_MODE_PLAN`/`PERMISSION_MODE_ACCEPT_EDITS`/`PERMISSION_MODE_YOLO`（M8-T619）；`PERMISSION_MODES` 由常量组成，并保留 `# "default"` 等可扫描注释以兼容 `tests/frontend_permission_mode_one_home_smoke.mjs` 对 Python home 的正则提取；`__all__` 导出新增常量。
+- `minicc/agent/subagent.py`：`WRITABLE_PERMISSION_MODES`/`EXEC_PERMISSION_MODES` 改用审计常量（从 `..audit` 导入）。
+- `minicc/task_contract.py`、`minicc/task_manager.py`、`minicc/main.py`、`minicc/web.py`：许可模式比较改用 `PERMISSION_MODE_PLAN`/相关常量（仅许可域比较点）。
+- `tests/test_the_permission_mode_names_have_one_home.py`（新）：红臂 2 项（home 缺单值常量；范围模块存在裸许可模式比较/字典/集合字面量）→ 绿臂。
+
+### 4 验证（命令与输出要点）
+
+- 红臂：`pytest tests/test_the_permission_mode_names_have_one_home.py -q` 2 failed（`AttributeError: PERMISSION_MODE_DEFAULT`；列出 main/task_contract/task_manager/web/subagent 裸字面量）。
+- 绿臂：同门禁 2 passed。
+- 前端兼容：`node --test tests/frontend_permission_mode_one_home_smoke.mjs` 1 passed（M8-T580，Python home 含可扫描注释后恢复）。
+
+### 5 聚焦回归
+
+- `tests/test_the_permission_mode_names_have_one_home.py`、`tests/test_permission_modes.py`、`tests/test_task_contract.py`、`tests/test_permissions_pure.py`、`tests/test_permissions_approval.py`、`tests/test_the_approval_decisions_have_one_home.py`、`tests/test_subagent_delegation.py`、`tests/test_subagent_wiring.py`、`tests/test_the_subagent_budget_verdict_has_one_home.py`、`tests/test_the_subagent_verdicts_have_one_home.py` 共 125 passed（`..\minicc-codex\.venv\Scripts\python.exe -m pytest ... -q`）；`node --test tests/frontend_permission_mode_one_home_smoke.mjs` 1 passed。未跑全量基准回归/CI 双端。
+
+### 6 边界（哪些**未**触碰）
+
+- 仅约束范围内许可域比较/集合字面量（main/task_contract/task_manager/web/agent/subagent）；不触碰其他域中同词 lookalike（如非许可语境 `plan`/`default`）、前端 `web/src`/`index.html` 模式词汇归属（已由 M8-T580 覆盖）、`normalize_permission_mode` 语义与 `PERMISSION_MODES` 成员集合。
+- `minicc/agent/subagent.py` 新增从 `..audit` 导入常量；`audit.py` 不反向导入子代理，无循环风险（实测 `import minicc.audit, minicc.agent.subagent, minicc.task_contract, minicc.task_manager, minicc.main, minicc.web` 通过）。
+- 未推送/未落 `main`：CI 42473678896（tip 88f3ad5）Python 双端仍 in_progress；本批本地就绪后须待该 run 全绿（或失败先修复）再推送，且推送后新 run legs 进行中不再推送。
+
+### 7 下一位候选
+
+1. 监控 42473678896；全绿后推送本批（601）并遵守 legs-in-progress 不推送纪律；若失败则先红→绿修复并记账。
+2. 继续搜“同一事实两处归属”（可门禁、非 lookalike）：优先跨模块裸字符串状态/类型/事件名与其已有 home 的脱节点。
+3. 十一实验面保持冻结；`main` 合并继续冻结（并发 worktree 冲突会话）。
