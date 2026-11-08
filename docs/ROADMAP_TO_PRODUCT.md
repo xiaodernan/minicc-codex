@@ -41660,3 +41660,39 @@ hook 事件身份 `PreToolUse`/`PostToolUse`/`UserPromptSubmit`/`Stop` 由 `mini
 1. 监控 42481274789；全绿后按顺序推送 617–619（及后续本地提交），legs 进行中不推送；若失败先红→绿+账本再推。
 2. 继续搜“同一事实两处归属”：`benchmarks.py` 中记录/条目 `status == "completed"` 若与 `TASK_STATUS_COMPLETED` 同属任务执行状态事实可评估（需确认 benchmark 状态词汇与任务状态同域）；或 `task_store`/恢复路径中的任务状态值比较。均需排除 verifier/LLM/graph 域。
 3. 十一实验面保持冻结；`main` 合并继续冻结。
+## 批次 620 — M8-T638：`task_manager` 中运行时 phase 字面量（及同块状态归属）接回 protocol 常量
+
+### 1 是否真是同一事实
+
+`minicc.task_manager` 在 `TaskRecord`/流式阶段/恢复路径中对 phase 字段赋值的 `queued`/`answering`/`cancelled`/`interrupted`/`failed`，与 `minicc.agent.protocol.PHASE_*` 是同一运行时 phase 事实。相邻修复块中 `status` 赋值使用的 `queued`/`cancelled`/`interrupted`/`failed` 与 `TASK_STATUS_*` 是同一任务状态事实（不同于 phase）；因常量已在 protocol 有归属且同处无歧义恢复/记录逻辑，一并改为常量以消除同事实裸字面量。`completion.status == "complete"` 等完成判定词汇是不同事实，未触碰。
+
+### 2 命中点（实测）
+
+- `TaskRecord`：`phase: str = "queued"`（phase 事实）；同次收口将 `status` 默认也接回 `TASK_STATUS_QUEUED`。
+- `append_stream`：`self.phase = "answering"`。
+- `set_cancelled`：`self.phase = "cancelled"`（phase）；同次收口 `self.status = TASK_STATUS_CANCELLED`。
+- `_repair_record`：缺失/未知/active 恢复分支中的 `phase = "interrupted"` 与 `status = "interrupted"`；修复终态块 `task.phase = "failed"`（及同块 `task.status` 归属 `TASK_STATUS_FAILED`）。
+
+### 3 改动
+
+- `minicc/task_manager.py`：补充导入 `PHASE_ANSWERING`/`PHASE_FAILED`/`PHASE_QUEUED`/`TASK_STATUS_QUEUED`；将上述 phase 事实接回 `PHASE_*`，并将同块无歧义任务状态事实接回 `TASK_STATUS_*`（行为不变）。
+- `tests/test_task_manager_phase_literals_have_one_home.py`（新）：门禁 `task_manager.py` 在 phase 上下文（`.phase`/`phase =`/`phase:`）中的裸 phase 值字面量；对与任务状态重叠的值仅在 phase 上下文判定，避免把 `TASK_STATUS_*` 事实误判。
+
+### 4 验证（命令与输出要点）
+
+- 绿臂：`pytest tests/test_the_planning_phase_fact_has_one_home.py tests/test_task_manager_phase_literals_have_one_home.py -q` 2 passed；`py_compile minicc/task_manager.py` 通过。
+
+### 5 聚焦回归
+
+- `tests/test_task_manager_phase_literals_have_one_home.py`、`tests/test_the_planning_phase_fact_has_one_home.py`、`tests/test_task_durability.py`、`tests/test_task_contract.py`、`tests/test_task_store_durability_contract.py`、`tests/test_batch_wiring.py` 共 49 passed（`..\minicc-codex\.venv\Scripts\python.exe -m pytest ... -q`）。未跑全量基准回归/CI 双端。
+
+### 6 边界（哪些**未**触碰）
+
+- 仅 `task_manager.py` 的 phase/恢复记录相关同事实归属；不改变状态机、恢复语义、事件/流式行为；不触碰 `completion.status == "complete"`、verifier/benchmark/graph/LLM 状态域；未扩展到其他模块中需逐条甄别 status/phase 域的字面量。
+- CI：42481274789（tip `d956648`）已 **completed/success**；本地 617–620 待按纪律推送（推送前无 legs 进行中）。推送后新 run legs 进行中不再推送。
+
+### 7 下一位候选
+
+1. 推送 617–620；监控新 run，若失败先红→绿+账本再推，legs 进行中不推送。
+2. 继续搜“同一事实两处归属”：`task_store`/其他任务域模块中 `snapshot.status`/`.status` 与 `TASK_STATUS_*` 的裸字面量（排除 dict key/schema 字段名、排除 verifier/graph/LLM/benchmark）；或 `benchmarks` 仅在确认与任务状态完全同域时再评估。
+3. 十一实验面保持冻结；`main` 合并继续冻结。

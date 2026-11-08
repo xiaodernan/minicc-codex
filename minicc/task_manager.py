@@ -51,6 +51,10 @@ from .agent.protocol import (
     TASK_KIND_BATCH,
     TASK_KIND_SUBTASK,
     TASK_KIND_TASK,
+    PHASE_ANSWERING,
+    PHASE_FAILED,
+    PHASE_QUEUED,
+    TASK_STATUS_QUEUED,
     TASK_STATUS_CANCELLED,
     TASK_STATUS_COMPLETED,
     TASK_STATUS_FAILED,
@@ -535,8 +539,8 @@ class TaskRecord:
     usage_limit: int = DEFAULT_TASK_USAGE_LIMIT
     compaction_limit: int = DEFAULT_TASK_COMPACTION_LIMIT
     created_at: float = field(default_factory=time.time)
-    status: str = "queued"
-    phase: str = "queued"
+    status: str = TASK_STATUS_QUEUED
+    phase: str = PHASE_QUEUED
     started_at: float | None = None
     finished_at: float | None = None
     events: list[dict[str, Any]] = field(default_factory=list)
@@ -684,7 +688,7 @@ class TaskRecord:
             delta = str(delta)
             self.stream_length += len(delta)
             self.stream_text = (self.stream_text + delta)[-self.stream_limit:]
-            self.phase = "answering"
+            self.phase = PHASE_ANSWERING
             self.state_version += 1
             self._publish_locked(
                 "stream_delta",
@@ -777,8 +781,8 @@ class TaskRecord:
                 allow_terminal=True,
             )
             validate_status_transition(self.status, "cancelled")
-            self.status = "cancelled"
-            self.phase = "cancelled"
+            self.status = TASK_STATUS_CANCELLED
+            self.phase = PHASE_CANCELLED
             self.state_version += 1
             self.finished_at = self.finished_at or time.time()
             self.error = TASK_CANCELLED_ERROR
@@ -1087,19 +1091,19 @@ class TaskRecord:
     @classmethod
     def from_snapshot(cls, data: dict[str, Any]) -> "TaskRecord":
         raw_status = data.get("status")
-        status = str(raw_status) if raw_status else "interrupted"
+        status = str(raw_status) if raw_status else TASK_STATUS_INTERRUPTED
         phase = str(data.get("phase") or status)
         error = data.get("error")
         if not raw_status:
-            phase = "interrupted"
+            phase = PHASE_INTERRUPTED
             error = "任务记录缺少终态，按中断处理，可重新运行。"
         elif status not in TERMINAL_TASK_STATUSES and status not in ACTIVE_TASK_STATUSES:
-            status = "interrupted"
-            phase = "interrupted"
+            status = TASK_STATUS_INTERRUPTED
+            phase = PHASE_INTERRUPTED
             error = f"未知任务状态 {raw_status!r}，按中断处理，可重新运行。"
         if status in ACTIVE_TASK_STATUSES:
-            status = "interrupted"
-            phase = "interrupted"
+            status = TASK_STATUS_INTERRUPTED
+            phase = PHASE_INTERRUPTED
             error = "服务重启时任务被中断，可重新运行。"
         task = cls(
             task_id=str(data.get("task_id") or f"task-restored-{uuid.uuid4().hex[:8]}"),
@@ -1161,8 +1165,8 @@ class TaskRecord:
             )
         ):
             repair_error = "历史任务没有成功修改工作区，旧记录的完成状态已更正为失败。"
-            task.status = "failed"
-            task.phase = "failed"
+            task.status = TASK_STATUS_FAILED
+            task.phase = PHASE_FAILED
             task.error = repair_error
             stored_result.setdefault("answer", str(data.get("answer") or data.get("stream_text") or ""))
             stored_result["error"] = repair_error
