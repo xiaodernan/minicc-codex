@@ -40911,3 +40911,46 @@ CLI（`minicc/main.py`）与 Web 运行时（`minicc/web.py`）在记录阶段�
    若意外绿则按序推送未推送提交（并确认无 legs 在跑）。
 2. 继续普查同域/跨面可无歧义归一的“同事实两家”。
 3. 十三个加载器裁定不变；`main` 合并阻塞不变。
+
+## 第六百批 — M8-T618 — minicc/tools 工具结果状态字面量归一（受限范围）
+
+### 1 欠的是哪一条
+
+`minicc/tools/` 下多处 `ToolResult(status="ok"/"error"/"denied"/"cancelled")` 以裸字面量构造（实测 29 处，分布于 bash/fs/git/memory/todo/web/webfetch/registry/__init__）。`minicc/tools/schemas.py` 已有 `TOOL_RESULT_STATUSES` 与失败/未成功子集，但缺少可直接用于构造的单值常量，导致工具实现手拼状态名；与生命周期/校验等域的 `status` 是不同事实，需限定范围。
+
+### 2 量到的真相（实测）
+
+- 门在 `minicc/tools/`（不含 `schemas.py`）检出 29 处 `ToolResult(status=<literal>)`：`bash.py` 10、`fs.py` 3、`git.py` 2、`memory.py` 3、`registry.py` 3、`todo.py` 2、`web.py` 1、`webfetch.py` 1、`__init__.py` 4（`ok`/`error`/`cancelled`/`denied`；无 `timed_out` 字面量构造）。
+- `schemas.py` 原仅导出 `TOOL_RESULT_STATUSES` 及派生 frozenset；`ToolResult.status` 默认值为裸 `"ok"`。
+- 批次初稿的机械替换曾生成 `from .schemas import (, ...` 破损导入（`bash.py`/`registry.py`）与孤儿续行，已修复。
+
+### 3 落地
+
+- `minicc/tools/schemas.py`：新增 `TOOL_STATUS_{OK,ERROR,DENIED,CANCELLED,TIMED_OUT}`（M8-T618），`TOOL_RESULT_STATUSES`/`FAILED_TOOL_RESULT_STATUSES`/`UNSUCCESSFUL_TOOL_RESULT_STATUSES` 改由常量构造，`ToolResult.status` 默认改用 `TOOL_STATUS_OK`。
+- `minicc/tools/{__init__,bash,fs,git,memory,registry,todo,web,webfetch}.py`：`ToolResult(status=...)` 字面量改用 `TOOL_STATUS_*` 并补全 `from .schemas import ...`；`bash.py` 同步修正 `run_process` 内工具状态的局部赋值（同一事实，非 `ToolResult(...)` 构造形态但与之配套）并导入 `TOOL_STATUS_TIMED_OUT`。
+- `tests/test_the_tool_result_statuses_have_one_home.py`（新门，2 条）：home 导出 5 个常量且 `TOOL_RESULT_STATUSES`/失败/未成功子集关系正确；`minicc/tools/` 内（除 `schemas.py`）`ToolResult(status=...)` 不得使用 5 个工具状态裸字面量。
+- 附带修复（为推送前红→绿）：`minicc/llm/fake.py` 将 `PHASE_PLANNING`/`PROVIDER_RETRY_CODE` 惰性导入移至 `chat()` 使用点（此前误置于 `_emit()` 导致 `NameError`，对应 42471664961 上 `test_logging`×2、`test_the_stream_retry_summary_has_one_home` 失败）。
+
+### 4 见证（红先绿后）
+
+- 红臂：home 常量/子集 1 条先绿后（实现 home 时）；构造门失败列出 29 处 offender（`bash/fs/git/memory/registry/todo/web/webfetch/__init__`）；修复破损导入前曾触发 `SyntaxError`/导入失败。
+- 绿臂：`test_the_tool_result_statuses_have_one_home.py` 2 passed。
+
+### 5 聚焦回归
+
+- `tests/test_the_tool_result_statuses_have_one_home.py`、`test_the_failed_tool_result_statuses_have_one_home.py`、`test_core_tools.py`、`test_memory.py`、`test_todo_tool.py`、`test_webfetch.py`、`test_webfetch_routes_its_page_through_the_head_tail_channel.py`、`test_the_todo_vocabularies_have_one_home.py`、`test_the_todo_tool_data_have_one_home.py`、`test_the_tool_result_msg_have_one_home.py`、`test_the_tool_call_have_one_home.py` 共 116 passed。
+- 针对 42471664961 的 Python 失败根因：`tests/test_logging.py`、`tests/test_the_stream_retry_summary_has_one_home.py` 共 32 passed（`fake.py` 作用域修复后）。
+- 未跑全量套件（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 门仅约束 `minicc/tools/` 下 `ToolResult(status=...)` 构造调用的 5 个工具状态字面量；不覆盖工具域外的 `status`（校验/DAG/任务生命周期等）也不覆盖 `minicc/tools/` 内非 `ToolResult(...)` 的所有字符串比较/赋值（除 `bash.run_process` 的同事实配套修正外）。
+- 不声称 `TOOL_STATUS_TIMED_OUT` 在所有工具实现的每种表达形态都已穷尽替换——当前无 `ToolResult(status="timed_out")` 裸字面量命中。
+- 不声称 42471664961 的 JS 失败已在远端修复——本地已含 `2d31aba`（phase smoke 可扫描修复），需推送后由新 run 验证；Python 双腿失败的 `PHASE_PLANNING` 根因已本地修复，推送后验证。
+
+### 7 下一位候选
+
+1. 推送本地提交（含 597–600、phase-smoke 修复、llm fake 作用域修复）触发新 CI；确认新 run 各 leg 全绿前不再推送。
+2. 新 tip Python/JS 若仍有失败，按日志红→绿修复并记账。
+3. 继续普查“同事实两家”（仅可无歧义归一、可门控、非 lookalike）；`TOOL_STATUS_*` 与校验/任务/DAG 状态保持分域。
+4. 十三个加载器裁定不变；`main` 合并阻塞不变（不触碰主 worktree 并发会话文件）。
