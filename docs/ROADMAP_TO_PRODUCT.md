@@ -42041,3 +42041,36 @@ hook 事件身份 `PreToolUse`/`PostToolUse`/`UserPromptSubmit`/`Stop` 由 `mini
 1. 监控 42485072840；全绿后按顺序推送 626–630，legs 进行中不推送；若失败先红→绿+账本再推。
 2. 继续搜“同一事实两处归属”：`RESULT_FIELD_ANSWER/ERROR/TOKENS_USED/CANCELLED` 在 `task_worker`/`task_manager`/`web` task-result payload 同域的分批收口（混域文件用窄门禁）；或 `children`/`children_rolled_up` 等结果字段归属。
 3. 十一实验面保持冻结；`main` 合并继续冻结。
+## 批次 631 — M8-T649：`task_worker` 读取 task-result payload 的 `answer`/`error`/`tokens_used` 归属契约字段
+
+### 1 是否真是同一事实
+
+`minicc.task_worker` 从 `TaskResult.from_payload(...).to_payload()` 产出的结果对象读取 `answer`/`error`/`tokens_used`，与 `task_contract.RESULT_FIELD_*` 是同一 task-result 契约字段事实。worker 本地 `state["answer"]`/`state["error"]`/`state["usage"]`/响应 dict 属 worker/state schema，不同事实。
+
+### 2 命中点（实测）
+
+- `task_worker.py`：`result.get("answer")`、`result.get("error")`、`result["error"]`、`result.get("tokens_used")`（4 处，均为对 `result` payload 的读取）。
+
+### 3 改动
+
+- `minicc/task_worker.py`：导入并使用 `RESULT_FIELD_ANSWER`/`RESULT_FIELD_ERROR`/`RESULT_FIELD_TOKENS_USED`。
+- `tests/test_task_worker_result_payload_fields_have_one_home.py`（新）：仅门禁 `result.get(...)`/`result[...]` 读取上下文中的上述字段字面量，避免误伤 `state[...]`/响应键。
+
+### 4 验证（命令与输出要点）
+
+- `pytest tests/test_task_worker_result_payload_fields_have_one_home.py tests/test_task_result_cancelled_field_has_one_home.py tests/test_task_worker_status_literals_have_one_home.py -q` 4 passed；`py_compile minicc/task_worker.py` 通过。
+
+### 5 聚焦回归
+
+- `tests/test_task_worker_result_payload_fields_have_one_home.py`、`tests/test_task_contract.py`、`tests/test_batch_wiring.py` 共 29 passed。未跑全量基准回归/CI 双端。
+
+### 6 边界（哪些**未**触碰）
+
+- 不触碰 worker `state`/响应键、`cancelled` 读路径（625/623 已分域处理）、非 task-result 的 `answer`/`error` 文本。
+- 未推送：CI 42485072840（tip `dda195d`）in_progress，legs 进行中不推送；626–631 本地待该 run 全绿后按纪律推送。
+
+### 7 下一位候选
+
+1. 监控 42485072840；全绿后按顺序推送 626–631，legs 进行中不推送；若失败先红→绿+账本再推。
+2. 继续搜“同一事实两处归属”：`web.py` 中 task-result payload 读写的 `answer`/`error`/`tokens_used`（`RESULT_FIELD_*` 同域，排除 API 响应/verification/LLM usage 不同事实）；`task_manager` 中 `result.get("answer"/"error"/"tokens_used")` 的 task-result 同域读写（已做 `cancelled`，可分批）。
+3. 十一实验面保持冻结；`main` 合并仍因主仓 `UU ROADMAP/MERGE_HEAD` 阻塞——不触碰主仓；改为在 `wt519` 持续集成/准备合并材料。

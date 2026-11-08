@@ -50,7 +50,10 @@ from .task_contract import (
     CONFIG_FILE_FLAG,
     CONFIG_JSON_FLAG,
     CONFIG_STDIN_FLAG,
+    RESULT_FIELD_ANSWER,
     RESULT_FIELD_CANCELLED,
+    RESULT_FIELD_ERROR,
+    RESULT_FIELD_TOKENS_USED,
     FAKE_PROVIDER_FLAG,
     LEASE_OWNER_FLAG,
     MESSAGE_FLAG,
@@ -457,14 +460,14 @@ def _run_owned_worker_inner(args: argparse.Namespace, workspace: Path, store: Ta
         with state_lock:
             cancelled = bool(result.get(RESULT_FIELD_CANCELLED))
             state["status"] = TASK_STATUS_CANCELLED if cancelled else TASK_STATUS_COMPLETED
-            state["answer"] = str(result.get("answer") or "")
+            state["answer"] = str(result.get(RESULT_FIELD_ANSWER) or "")
             state["result"] = dict(result)
             # A cancelled task may still carry an explanatory error string;
             # the cancelled status must win over it.
-            if result.get("error") and not cancelled:
+            if result.get(RESULT_FIELD_ERROR) and not cancelled:
                 state["status"] = TASK_STATUS_FAILED
-                state["error"] = str(result["error"])[:500]
-            state["usage"] = dict(result.get("tokens_used") or {})
+                state["error"] = str(result[RESULT_FIELD_ERROR])[:500]
+            state["usage"] = dict(result.get(RESULT_FIELD_TOKENS_USED) or {})
         _final_flush(TASK_STATUS_COMPLETED)
         return 0
     except AgentCancelled:
