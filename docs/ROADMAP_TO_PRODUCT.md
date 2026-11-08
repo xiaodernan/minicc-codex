@@ -40437,3 +40437,54 @@ HOOK_EVENTS（`minicc/hooks.py` vs `test_hooks_validation.py`）、GRADER_SCRIPT
    - `stage-routing config skeleton`（约 21 处测试里手拼同一份 config skeleton，可以用一个 fixture 合并）；
    - `six-key completion verdict` 的 fixture 拷贝（已有门钉住渲染/payload 的那几处，但零敲碎打的 `confidence=` 位字符串可能还有）；
 3. 十三个加载器裁定不变。
+
+## 第五百九十一批 — M8-T609 — retry budgets 家被问回了
+
+### 1 欠的是哪一条
+
+`atomic_file.py`（进程内）和 `sidecar_lock.py`（跨进程）是重试预算的两个 home——
+`DEFAULT_ATTEMPTS=24/40`、`DEFAULT_DELAY=0.05`。`workspaces.py`、`memory.py`、
+`session.py` 每个都把这两组默认值各抄了一份。注释说"one answer for the whole
+repository"，但手抄保证它在三个点不知道自己欠了什么：任何一次 home 自身的修
+total 看不见这三个拷贝。
+
+### 2 量到的真相（实测）
+
+- `workspaces._LOCK_ATTEMPTS = 40` / `_LOCK_RETRY_DELAY = 0.05` ↔ sidecar home 的默认值（through `hold_sidecar(attempts=..., delay=...)` 显式传）。
+- `tools/memory.py` 的 `_READ_ATTEMPTS = 24` / `_READ_RETRY_DELAY = 0.05` ↔ atomic_file home 默认值；`_LOCK_ATTEMPTS = 40` / `_LOCK_RETRY_DELAY = 0.05` ↔ sidecar home 默认值（显式传）。
+- `session.py`：`_READ_ATTEMPTS = 24` / `_READ_RETRY_DELAY = 0.05` ↔ atomic 默认；`_REPLACE_ATTEMPTS = 24` / `_REPLACE_RETRY_DELAY = 0.05` ↔ atomic 默认；`_LOCK_ATTEMPTS = 400` 是会话专属的**刻意**更大预算，**不**并入任何 home；`_LOCK_RETRY_DELAY = 0.05` 是 sidecar home 的默认值被抄。
+- 6 个自己资源的手抄修复成零个（改为直接调用家默认值/导入家具名）。
+
+### 3 落地
+
+- `minicc/workspaces.py`：删两个 `_LOCK_ATTEMPTS` / `_LOCK_RETRY_DELAY`，`hold_sidecar` 不再传它们（= home 默认值）。
+- `minicc/tools/memory.py`：删 _LOCK_ATTEMPTS/_LOCK_RETRY_DELAY/_READ_ATTEMPTS/_READ_RETRY_DELAY；三处改成不传。
+- `minicc/session.py`：import `DEFAULT_ATTEMPTS`/`DEFAULT_DELAY`（atomic_file）与 `SIDECAR_DEFAULT_DELAY`（sidecar_lock）；`_LOCK_ATTEMPTS = 400` 保留（刻意的会话预算）；其余四个 `_*` 改派生为家具名。
+- `tests/test_the_retry_budgets_have_one_home.py`（新门，3 条）：
+  ① `.05` 延迟字面量只允许出现在 atomic_file/sidecar_lock 两个 home；
+  ② 除两个 home 外无模块重新赋值这五名字（`DEFAULT_ATTEMPTS`, `_LOCK_ATTEMPTS`, `_LOCK_RETRY_DELAY`, `_READ_ATTEMPTS`, `_REPLACE_ATTEMPTS`）；
+  ③ `session.py` 的 `_LOCK_CHANGES` 派生式被钉住（== 400，与家里的具体数值对齐自家）。
+
+### 4 见证（红先绿后）
+
+- 绿臂：3 条新门全绿。
+- 红臂：stash 三 source 文件 → 新门红，点名 6 处（依然可以重现：memory.py:78/79/84、workspaces.py:42/43、session.py:87/94/103）；pop 后绿。
+- 焦点回归：`test_core_session.py` + `test_memory.py` + `test_session_concurrency.py` + `test_session_fork.py` + `test_session_format_version.py` + `test_session_rewind.py` + `test_the_memory_file_is_shared_so_it_must_be_locked.py` + `test_the_session_sidecar_lock_waits_no_longer_than_its_own_constants_promise.py` + `test_the_sessions_payload_have_one_home.py` + `test_workspaces_pure.py` + `test_the_memory_tool_declarations_match_their_validators.py` + `test_the_missing_session_verdict_has_one_home.py` + `test_the_session_persist_trace_codes_have_one_home.py` + `test_the_workspace_verdict_has_one_home.py` = 122 passed。
+
+### 5 聚焦回归
+
+- 见 §4；未跑全量套件（本机 CPU 不可靠）。
+
+### 6 边界（本批**不**声称）
+
+- 不声称 atomic_file 与 sidecar_lock 的 0.05 `DEFAULT_DELAY` 被统一成一个名字——两个 home 语义上不同（进程内 vs 跨进程），且都是 intentional 重叠，合并成一个 `_RETRY_DELAY` 把两种不同问题搓在一起跳；
+- 不声称 sidecar_lock 的面向自家的 `DEFAULT_ATTEMPTS=40` 被移除——这是 intentional 的跨进程预算（进程内 24 不够），不是复制；
+- 不声称 session 的 `_LOCK_ATTEMPTS = 400` 不是家的一部分——它是刻意的单一 site 40x 路径，与 home 无对应；它留在 session.py 是 informative 的、并被本门钉住数值；
+- 不声称 CI 双 legs 在本批提交时全绿——当前 tips 的 Windows/Ubuntu 腿正在 run 42465062669 收敛中。
+
+### 7 下一位候选
+
+1. 等本批 tip 被推后双腿绿再继续——若发现腿红，继续按这个模式一批一批推；
+2. 全仓未被门覆盖的「字面量同值不同事家」的语料——下一轮还会尽力做深层扫描——只欠两个策略维度：
+   a. 测试 fixture skeleton（特别是 `{enabled, tiers, stage_map, custom_models}` 在 6+ 文件，约 21 处拷贝）——T ere is enough depth there to be a batch; b. 找出还有没找完的「letters of the alphabet」这一路。
+3. 十三个加载器裁定不变。
