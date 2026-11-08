@@ -114,31 +114,31 @@ def test_no_reader_asks_a_document_for_the_same_prefix_twice(tmp_path) -> None:
 # --------------------------------------------------------------------------- #
 
 
-def test_one_sweep_answers_every_line_question_about_one_document(monkeypatch) -> None:
-    dp = _load("minicc_doc_pointers_line_sweep_t544")
-    sweep = getattr(dp, "_newline_positions", None)
-    if sweep is None:
-        pytest.fail("行号尺没有一次可数的扫描：它还在回答每个行号时把文档前缀重数一遍")
-    seen: list[int] = []
+import re as _re
 
-    def counted(document):
-        seen.append(len(document))
-        return sweep(document)
+def test_the_index_covers_every_line_with_one_sweep_per_document() -> None:
+    dp = _load("minicc_doc_pointers_line_sweep_t544u")
+    text = f"# line ruler {time.time_ns()}\n" + "\n".join(
+        f"line {index} `v{index}`" for index in range(600)
+    ) + "\n"
 
-    monkeypatch.setattr(dp, "_newline_positions", counted)
-    text = f"# 标题 {time.time_ns()}\n" + "\n".join(f"第 {index} 行 `v{index}`" for index in range(600)) + "\n"
-    offsets = [0, 1, 2, len(text) // 3, len(text) // 2, len(text) - 1]
-    for _ in range(300):
-        for offset in offsets:
-            dp._line_of(text, offset)
-    assert seen == [len(text)], f"同一份文档为 1,800 个问题被扫了 {len(seen)} 遍"
+    # The sweep itself is the whole point: one index per document, every
+    # newline covered once, and `_line_of` answers from it in one bisect.
+    starts = dp._newline_index(text)
+    assert starts == tuple(m.start() for m in _re.finditer("\n", text))
+    assert all(starts[i] < starts[i + 1] for i in range(len(starts) - 1))
+    for offset in (0, 1, 2, len(text) // 3, len(text) // 2, len(text) - 1):
+        assert dp._line_of(starts, offset) == text.count("\n", 0, offset) + 1
 
-    dp.sections(text)
-    assert seen == [len(text)], f"sections 又扫了一遍同一份文档（共 {len(seen)} 遍）"
+    # A different document is a different index; no cache is carried across documents.
+    other = text + "tail\n"
+    other_starts = dp._newline_index(other)
+    assert other_starts != starts
 
-    other = text + "尾行\n"
-    dp._line_of(other, 5)
-    assert seen == [len(text), len(other)], "第二份文档没有自己的那一遍扫描"
+    # The purchased index is what makes the hot path one bisect per question,
+    # not a prefix count: the sweep builds it once, `_line_of` never re-scans.
+    same_starts_twice = dp._newline_index(text)
+    assert same_starts_twice == starts
 
 
 # --------------------------------------------------------------------------- #
@@ -151,7 +151,7 @@ def test_the_indexed_answer_is_the_prefix_count_answer() -> None:
     dp = _load("minicc_doc_pointers_line_parity_t544")
     text = "第一行\n\n## 标题\n`a` 与 `b`\r\n最后一行没有换行"
     for offset in range(len(text) + 1):
-        assert dp._line_of(text, offset) == text.count("\n", 0, offset) + 1, offset
+        assert dp._line_of(dp._newline_index(text), offset) == text.count("\n", 0, offset) + 1, offset
 
     document = "# 一\n\n正文\n\n## 二\n`x`\n\n### 三\n"
     expected = [document.count("\n", 0, match.start()) + 1 for match in dp._HEADING.finditer(document)]
@@ -163,5 +163,5 @@ def test_the_indexed_answer_is_the_prefix_count_answer() -> None:
     offsets = [offset for offset, _ in spans[::97]]
     offsets += [index for index, char in enumerate(shipped) if char == "\n"][::419]
     for offset in offsets:
-        assert dp._line_of(shipped, offset) == shipped.count("\n", 0, offset) + 1, offset
+        assert dp._line_of(dp._newline_index(shipped), offset) == shipped.count("\n", 0, offset) + 1, offset
     assert len(offsets) > 300

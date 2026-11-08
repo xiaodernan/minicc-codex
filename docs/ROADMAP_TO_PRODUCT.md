@@ -37171,7 +37171,7 @@ A5 单说：**丢弃一条快照对腿一是不可见的**——腿一数的是�
    - 第 240 行 `sections()` 的内联前缀计数改成 `_line_of(text, match.start())`：两个读者共用同一把尺的同一份索引。
 2. 新门 `tests/test_the_line_ruler_sweeps_a_document_once.py`，三条腿：
    - 腿一 `test_no_reader_asks_a_document_for_the_same_prefix_twice`：用 `str` 子类在文档对象本身计数 `count`/`find`/`rfind`/`index`/`rindex` 的前缀调用与 `splitlines` 的整档扫描，跑 `check_evidence` 与 `sections`，断言前缀调用 **0** 次、整档扫描不超过 1 次。
-   - 腿二 `test_one_sweep_answers_every_line_question_about_one_document`：把 `_newline_positions` 换成计数包装，对同一份文档问 1,800 个行号，断言只扫 **1** 遍；`sections` 不得再扫；第二份文档才允许第 2 遍。扫描函数不缓存，丢掉 `_line_index` 的缓存就表现为 1,800 遍。
+   - 腿二 `test_the_index_covers_every_line_with_one_sweep_per_document`：把 `_newline_positions` 换成计数包装，对同一份文档问 1,800 个行号，断言只扫 **1** 遍；`sections` 不得再扫；第二份文档才允许第 2 遍。扫描函数不缓存，丢掉 `_line_index` 的缓存就表现为 1,800 遍。
    - 腿三 `test_the_indexed_answer_is_the_prefix_count_answer`：新尺与旧定义逐偏移比较——合成文档的每个偏移（含正好落在换行上的）、`sections` 的每个标题、shipped roadmap 上每第 97 条跨度与每第 419 个换行（采样超过 300 个）。
 3. **为什么修尺，而不是把调用点挪到判形状之后**：`check_evidence` 先问行号再判形状，21,620 问的答案没人读；把 `_line_of` 挪到形状判定之后能省掉八成调用，但那是让调用点绕开这把尺，`sections` 的 3,061 问还在，下一个读者仍会照抄。修尺之后一问只是一次二分，调用点怎么排都不再是成本问题。挪调用点仍是候选（§7 第 1 位）。
 

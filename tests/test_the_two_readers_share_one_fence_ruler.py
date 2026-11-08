@@ -242,7 +242,7 @@ def test_the_sibling_citations_keep_their_reader_and_their_line() -> None:
             for number, line in enumerate(text.splitlines(), start=1)
             if f"`{citation}`" in line
         )
-        reported = dp._line_of(text, offsets[citation])
+        reported = dp._line_of(dp._newline_index(text), offsets[citation])
         assert reported == written, f"{citation} 判在 {reported} 行，作者写的是 {written} 行"
 
 

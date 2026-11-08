@@ -68,7 +68,7 @@ def _old_reader(text: str) -> str:
 def _spans(text: str) -> list[tuple[int, str, str]]:
     """(line, span, box) for every marker the live reader harvests."""
     return [
-        (dp._line_of(text, offset), span, box)
+        (dp._line_of(dp._newline_index(text), offset), span, box)
         for offset, span, box, _targets in dp._pointer_spans(text)
     ]
 
@@ -229,7 +229,7 @@ def test_blanking_keeps_every_offset_and_every_line() -> None:
         assert set(masked[start:end]) <= {" ", "\n"}, repr(masked[start:end][:40])
         assert PROSE_MENTIONS[start:end].strip(), "栅口本身是空的？扫描范围不对"
     for offset, _span, _box, _t in dp._pointer_spans(PROSE_MENTIONS):
-        assert dp._line_of(masked, offset) == dp._line_of(PROSE_MENTIONS, offset), offset
+        assert dp._line_of(dp._newline_index(masked), offset) == dp._line_of(dp._newline_index(PROSE_MENTIONS), offset), offset
     for document in dp.DEFAULT_DOCS[:3]:
         text = document.read_text(encoding="utf-8")
         blanked = dp._mask_code(text)
