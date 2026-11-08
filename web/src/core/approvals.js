@@ -8,6 +8,11 @@
 // APPROVAL_TIMEOUT_SECONDS. The JS side keeps its own named constant, and a
 // gate pins the two faces to each other.
 export const APPROVAL_TIMEOUT_SECONDS = 60;
+
+// M8-T611: the SSE frame kinds for the interactive approval wire contract.
+// Same fact as minicc.audit.APPROVAL_FRAME_*_KIND; pinned by gate.
+export const APPROVAL_FRAME_REQUEST_KIND = "approval_request";
+export const APPROVAL_FRAME_RESOLVED_KIND = "approval_resolved";
 import { requestJson } from "./transport.js";
 import { t } from "./i18n.js";
 import { escapeHtml } from "../chat/markdown.js";
@@ -115,14 +120,14 @@ function addCard(event) {
 export function syncApprovalRequests(events) {
   if (!Array.isArray(events)) return;
   const resolved = new Set(
-    events.filter((event) => event?.kind === "approval_resolved" && event.request_id)
+    events.filter((event) => event?.kind === APPROVAL_FRAME_RESOLVED_KIND && event.request_id)
       .map((event) => event.request_id),
   );
   for (const requestId of [...pending.keys()]) {
     if (resolved.has(requestId)) removeCard(requestId);
   }
   for (const event of events) {
-    if (!event || event.kind !== "approval_request" || !event.request_id) continue;
+    if (!event || event.kind !== APPROVAL_FRAME_REQUEST_KIND || !event.request_id) continue;
     if (resolved.has(event.request_id) || pending.has(event.request_id)) continue;
     // Events replay from the task log; only surface prompts that could still
     // be waiting on the server side (the frame carries no emit timestamp, so

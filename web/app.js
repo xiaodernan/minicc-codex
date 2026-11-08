@@ -1356,6 +1356,8 @@
 
   // web/src/core/approvals.js
   var APPROVAL_TIMEOUT_SECONDS = 60;
+  var APPROVAL_FRAME_REQUEST_KIND = "approval_request";
+  var APPROVAL_FRAME_RESOLVED_KIND = "approval_resolved";
   var APPROVAL_DECISIONS = ["allow", "always", "deny"];
   var pending2 = /* @__PURE__ */ new Map();
   var ticker = 0;
@@ -1445,13 +1447,13 @@
   function syncApprovalRequests(events) {
     if (!Array.isArray(events)) return;
     const resolved = new Set(
-      events.filter((event) => event?.kind === "approval_resolved" && event.request_id).map((event) => event.request_id)
+      events.filter((event) => event?.kind === APPROVAL_FRAME_RESOLVED_KIND && event.request_id).map((event) => event.request_id)
     );
     for (const requestId of [...pending2.keys()]) {
       if (resolved.has(requestId)) removeCard(requestId);
     }
     for (const event of events) {
-      if (!event || event.kind !== "approval_request" || !event.request_id) continue;
+      if (!event || event.kind !== APPROVAL_FRAME_REQUEST_KIND || !event.request_id) continue;
       if (resolved.has(event.request_id) || pending2.has(event.request_id)) continue;
       if (event.stale === true) continue;
       addCard(event);

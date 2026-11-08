@@ -422,6 +422,11 @@ def normalize_permission_mode(value: object) -> str:
 APPROVAL_DECISIONS = frozenset({"allow", "always", "deny"})
 PERMITTING_APPROVAL_DECISIONS = frozenset({"allow", "always"})
 
+# M8-T611: the SSE frame kinds for the interactive approval wire contract.
+# These are the same fact consumed by the web frontend (approvals.js).
+APPROVAL_FRAME_REQUEST_KIND = "approval_request"
+APPROVAL_FRAME_RESOLVED_KIND = "approval_resolved"
+
 # M8-T518: the set of authorization codes that mean "task needs explicit
 # user approval for this call".  Shared by audit.py and web.py so both faces
 # agree on which codes trigger the interactive prompt.
@@ -736,6 +741,8 @@ def interpret_authorization_decision(decision: AuthorizationDecision) -> Allowan
 
 __all__ = [
     "APPROVAL_DECISIONS",
+    "APPROVAL_FRAME_REQUEST_KIND",
+    "APPROVAL_FRAME_RESOLVED_KIND",
     "MISSING_TASK_AUTHORIZATIONS",
     "NETWORK_TOOL_NAMES",
     "PERMISSION_MODES",

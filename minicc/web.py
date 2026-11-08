@@ -69,6 +69,8 @@ from .agent.verifier import Verifier, VerificationResult
 from .agent.verification_plan import build_verification_plan, changed_paths_from_events
 from .audit import (
     APPROVAL_DECISIONS,
+    APPROVAL_FRAME_REQUEST_KIND,
+    APPROVAL_FRAME_RESOLVED_KIND,
     MISSING_TASK_AUTHORIZATIONS,
     PERMITTING_APPROVAL_DECISIONS,
     AuthorizationDecision,
@@ -618,7 +620,7 @@ class AgentService:
                 phase="permission",
                 code="approval_requested",
                 summary=f"等待用户批准 {tool}：{reason}",
-                kind="approval_request",
+                kind=APPROVAL_FRAME_REQUEST_KIND,
             )
             frame["risk"] = risk
             frame["request_id"] = group.request_id
@@ -667,7 +669,7 @@ class AgentService:
                     + ("（超时自动拒绝）" if group_timed_out else "")
                     + ("（任务已取消）" if cancelled else "")
                 ),
-                kind="approval_resolved",
+                kind=APPROVAL_FRAME_RESOLVED_KIND,
             )
             frame["request_id"] = group.request_id
             frame["task_id"] = task_id
