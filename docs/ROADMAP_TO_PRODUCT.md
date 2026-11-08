@@ -41331,7 +41331,7 @@ CLI（`minicc/main.py`）与 Web 运行时（`minicc/web.py`）在记录阶段�
 1. 监控 42477151851；全绿后按顺序推送本地待推提交（`e2d1349` 609 ledger、610 code+ledger）并遵守 legs-in-progress 不推送纪律；若失败则先红→绿修复并记账。
 2. 继续搜“同一事实两处归属”（可门禁、非 lookalike）：其他 git/work-tree 状态码或 verdict 消费点；注意区分与工具结果/任务/验证状态的 lookalike。
 3. 十一实验面保持冻结；`main` 合并继续冻结（并发 worktree 冲突会话）。
-## 批次 611 — M8-T630：工具风险等级名（readonly/write/exec）在风险比较上下文有一处归属
+## 批次 611 — M8-T629：工具风险等级名（readonly/write/exec）在风险比较上下文有一处归属
 
 ### 1 是否真是同一事实
 
@@ -41366,4 +41366,42 @@ CLI（`minicc/main.py`）与 Web 运行时（`minicc/web.py`）在记录阶段�
 
 1. 监控 42477151851；全绿后按顺序推送本地待推提交并遵守 legs-in-progress 不推送纪律；若失败则先红→绿修复并记账。
 2. 继续搜“同一事实两处归属”（可门禁、非 lookalike）：工具注册表/授权决策中 `network` 风险值是否与同一风险词汇事实脱节（需确认与 `readonly/write/exec` 同域）；或其他 gateable 协议/状态脱节点。
+3. 十一实验面保持冻结；`main` 合并继续冻结（并发 worktree 冲突会话）。
+## 批次 612 — M8-T630：内置 `bash` 工具名在比较上下文有一处归属（names→跨模块）
+
+### 1 是否真是同一事实
+
+内置 shell 工具标识 `bash` 在授权、allowlist、permissions、CLI/web 分发、agent loop/policy/completion 等模块中以 `tool/name == "bash"` 形式重复比较，是同一事实（bash 工具名）的脱节点使用。
+
+### 2 命中点（实测）
+
+- `minicc/agent/completion.py`：验证证据事件名 `event.get("name") == "bash"`。
+- `minicc/agent/loop.py`、`minicc/agent/tool_policy.py`：`call.tool`/`tool` 与 `bash` 比较（含 `!=`）。
+- `minicc/allowlist.py`、`minicc/audit.py`、`minicc/main.py`、`minicc/permissions.py`、`minicc/web.py`：`name`/`tool` 与 `bash` 比较（共 11 处 tool/name 上下文）。
+
+### 3 改动
+
+- `minicc/tools/names.py`（新，叶子模块）：新增 `TOOL_NAME_BASH = "bash"`（M8-T630，一处归属）。
+- 上述 8 个模块：导入 `TOOL_NAME_BASH`，将 tool/name 上下文中的 `==/!= "bash"` 替换为常量比较。
+- `tests/test_the_bash_tool_name_has_one_home.py`（新）：红臂 2 项（home 缺常量；范围模块 tool/name 行存在裸 `"bash"` 字面量）→ 绿臂。
+
+### 4 验证（命令与输出要点）
+
+- 红臂：`pytest tests/test_the_bash_tool_name_has_one_home.py -q` 1 failed（1 passed 为 home 定义项在创建 home 后通过）列出 11 处（completion 1 + loop 1 + tool_policy 3 + allowlist 1 + audit 1 + main 2 + permissions 1 + web 1）。
+- 绿臂：同门禁 2 passed；`import minicc.tools.names, minicc.allowlist, minicc.permissions, minicc.audit, minicc.main, minicc.web, minicc.agent.loop, minicc.agent.tool_policy, minicc.agent.completion` 通过。
+
+### 5 聚焦回归
+
+- `tests/test_the_bash_tool_name_has_one_home.py`、`tests/test_permissions_pure.py`、`tests/test_the_loop_budget_verdicts_have_one_home.py` 等聚焦集合通过（含 612 门禁）；`from minicc.web import AgentService` 导入正常。未跑全量基准回归/CI 双端。
+
+### 6 边界（哪些**未**触碰）
+
+- 仅约束上述 8 模块中 tool/name 比较上下文的 `bash` 字面量；不触碰 bash 命令内容/参数字符串、工具注册 spec、`tools/bash.py` 实现、其他工具名（若后续为同事实可独立成批）。
+- 中途修复了自动插入导入导致 `web.py` 语法破坏并恢复（未改变语义）；`tool_policy.py` 中 `!= "bash"` 亦纳入替换。
+- 未推送/未落 `main`：CI 42477151851（tip 7efe612）**completed/failure**（3 项既有门禁兼容失败，见批次 613）；本地含 609 ledger、610、611、612 待推送，须在 613 修复后按纪律推送，legs 进行中不推送。
+
+### 7 下一位候选
+
+1. 落地批次 613（修复 CI 42477151851 的门禁兼容回归），全绿后推送 609 ledger + 610 + 611 + 612 + 613；监控新 CI run，legs 进行中不推送。
+2. 继续搜“同一事实两处归属”（可门禁、非 lookalike）：其他内置工具名（`read_file`/`write_file`/`edit_file`/`grep`/`git_*` 等）若在跨模块 tool/name 比较上下文形成同事实脱节点，可分批处理；注意与权限能力/风险/注册名域 lookalike 区分。
 3. 十一实验面保持冻结；`main` 合并继续冻结（并发 worktree 冲突会话）。

@@ -94,9 +94,9 @@ def test_the_write_tool_list_literal_exists_in_exactly_one_place() -> None:
             }
             if members == {"write_file", "edit_file", "worktree_create", "worktree_remove"}:
                 offenders.append(f"{path.relative_to(home.parent).as_posix()}:{node.lineno}")
-    assert offenders == [
-        "minicc/agent/tool_policy.py:29"
-    ], (
+    assert len(offenders) == 1 and offenders[0].startswith(
+        "minicc/agent/tool_policy.py:"
+    ), (
         "the write-tool list is written out by hand outside its one home "
         f"(minicc/agent/tool_policy.py): {offenders}"
     )
