@@ -40997,3 +40997,39 @@ CLI（`minicc/main.py`）与 Web 运行时（`minicc/web.py`）在记录阶段�
 1. 监控 42473678896；全绿后推送本批（601）并遵守 legs-in-progress 不推送纪律；若失败则先红→绿修复并记账。
 2. 继续搜“同一事实两处归属”（可门禁、非 lookalike）：优先跨模块裸字符串状态/类型/事件名与其已有 home 的脱节点。
 3. 十一实验面保持冻结；`main` 合并继续冻结（并发 worktree 冲突会话）。
+## 批次 602 — M8-T620：@-mention 解析状态词汇有一处归属（mentions↔web 消费），无范围外扩
+
+### 1 是否真是同一事实
+
+`@`-mention 记录携带 `status`（`injected`/`rejected`/`omitted`）。`minicc.mentions` 产出这些记录并在注入块中输出状态；`minicc.web` 按同一状态过滤注入/拒绝结果。裸字面量散落在产出与消费两端，是同一事实的两处归属；`mentions.py` 已是记录生产与注入格式的自然归属点。
+
+### 2 命中点（实测）
+
+- `minicc/mentions.py`：`_record`/`_annotate` 调用、列表注入、`item["status"] == ...` 比较及注入块 f-string 中使用 `"injected"`/`"rejected"`/`"omitted"` 裸字面量（11 处 AST 常量命中）。
+- `minicc/web.py`：`mention_records` 过滤使用 `item["status"] == "injected"` / `"rejected"`（2 处）。
+
+### 3 改动
+
+- `minicc/mentions.py`：新增 `MENTION_STATUS_INJECTED`/`MENTION_STATUS_REJECTED`/`MENTION_STATUS_OMITTED` 与 `MENTION_STATUSES`（M8-T620，一处归属），`__all__` 导出；替换记录产出、状态比较与注入块 `status` 属性字面量（同值语义，输出格式不变）。
+- `minicc/web.py`：从 `.mentions` 导入 `MENTION_STATUS_INJECTED`/`MENTION_STATUS_REJECTED`，替换 mention 记录过滤比较。
+- `tests/test_the_mention_statuses_have_one_home.py`（新）：红臂 2 项（home 缺常量；`mentions.py`/`web.py` 存在裸 mention 状态字面量，home 仅允许 `MENTION_STATUS_*` 定义处字面量）→ 绿臂。
+
+### 4 验证（命令与输出要点）
+
+- 红臂：`pytest tests/test_the_mention_statuses_have_one_home.py -q` 2 failed（`AttributeError: MENTION_STATUS_INJECTED`；列出 `minicc/mentions.py` 9 处 + `minicc/web.py` 2 处）。
+- 绿臂：同门禁 2 passed；`import minicc.mentions, minicc.web` 通过。
+
+### 5 聚焦回归
+
+- `tests/test_mentions.py`、`tests/test_mentions_budget.py`、`tests/test_mentions_pure.py`、`tests/test_the_mention_injection_verdicts_have_one_home.py`、`tests/test_the_mention_records_have_one_home.py`、`tests/test_the_mention_statuses_have_one_home.py`、`tests/test_a_mention_past_the_cap_is_named_not_dropped.py` 共 57 passed（`..\minicc-codex\.venv\Scripts\python.exe -m pytest ... -q`）。未跑全量基准回归/CI 双端。
+
+### 6 边界（哪些**未**触碰）
+
+- 仅约束 `minicc/mentions.py` + `minicc/web.py` 的 mention 记录状态词汇；不触碰其他域同词（若存在）、mention 截断/拒绝文案、注入块的其余 XML/文本格式（仅将 `status="rejected"` 属性值改为常量插值，运行时字符串相同）、mention 解析/安全/预算语义。
+- 未推送/未落 `main`：CI 42473678896（tip 88f3ad5，含已推送 597–600+修复）Python 双端仍 in_progress；本地另有 601（已提交未推）与 602（本批）待该 run 全绿或失败修复后再按纪律推送，legs 进行中不推送。
+
+### 7 下一位候选
+
+1. 监控 42473678896；全绿后按顺序推送本地已提交批次（601、602）并遵守 legs-in-progress 不推送纪律；若失败则先红→绿修复并记账。
+2. 继续搜“同一事实两处归属”（可门禁、非 lookalike）：如 `task_kind`（`batch`/`subtask`/`task`）在 `task_manager`/`web` 的比较与赋值是否同一事实且有自然归属；或 `missing_task_network` 授权码与 `MISSING_TASK_AUTHORIZATIONS` 集合/字面量归属（需先确认语义边界，避免改变行为）。
+3. 十一实验面保持冻结；`main` 合并继续冻结（并发 worktree 冲突会话）。
