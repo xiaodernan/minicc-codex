@@ -41180,3 +41180,39 @@ CLI（`minicc/main.py`）与 Web 运行时（`minicc/web.py`）在记录阶段�
 1. 监控 42475362988；全绿后按顺序推送本地已提交批次（604、605、606）并遵守 legs-in-progress 不推送纪律；若失败则先红→绿修复并记账。
 2. 继续搜“同一事实两处归属”（可门禁、非 lookalike）：`permission_rule_allow`/`permission_rule_deny` 等授权码名字是否跨模块裸字面量且有归属；或 agent `status="error"/"ok"` 作为事件状态字段值是否与某事件状态 home 脱节（需先区分事实域）。
 3. 十一实验面保持冻结；`main` 合并继续冻结（并发 worktree 冲突会话）。
+## 批次 607 — M8-T625：permission-rule/user-denied 授权码名字有一处归属（audit↔web）
+
+### 1 是否真是同一事实
+
+`permission_rule_allow`/`permission_rule_deny`/`user_denied` 是授权决策码名字，属于 `minicc.audit` 授权词汇。`audit.py` 在规则匹配/策略不可读兜底等路径产出 allow/deny 码；`web.py` 在交互审批流中识别 `permission_rule_allow` 并在用户拒绝时构造 `user_denied`。裸字面量跨模块重复同一事实。
+
+### 2 命中点（实测）
+
+- `minicc/audit.py`：`permission_rule_deny`/`permission_rule_allow` 出现在授权决策构造与授权码元组（3 处）。
+- `minicc/web.py`：`decision.authorization == "permission_rule_allow"`、决策构造传入 `"permission_rule_allow"`、用户拒绝构造 `"user_denied"`（3 处）。
+
+### 3 改动
+
+- `minicc/audit.py`：新增 `AUTHORIZATION_PERMISSION_RULE_ALLOW`/`AUTHORIZATION_PERMISSION_RULE_DENY`/`AUTHORIZATION_USER_DENIED`（M8-T625），`__all__` 导出；替换规则/兜底授权码字面量。
+- `minicc/web.py`：从 `.audit` 导入 allow/user_denied 常量，替换比较与构造字面量。
+- `tests/test_the_permission_rule_authorization_codes_have_one_home.py`（新）：红臂 2 项（home 缺常量；`audit.py`/`web.py` 裸字面量）→ 绿臂。
+
+### 4 验证（命令与输出要点）
+
+- 红臂：`pytest tests/test_the_permission_rule_authorization_codes_have_one_home.py -q` 2 failed，列出 audit 3 + web 3 共 6 处。
+- 绿臂：同门禁 2 passed；`import minicc.audit, minicc.web` 通过。
+
+### 5 聚焦回归
+
+- `tests/test_the_permission_rule_authorization_codes_have_one_home.py`、`tests/test_permissions_approval.py`、`tests/test_the_approval_decisions_have_one_home.py`、`tests/test_a_synchronous_chat_run_must_be_able_to_ask_for_an_approval.py` 共 30 passed（`..\minicc-codex\.venv\Scripts\python.exe -m pytest ... -q`）。未跑全量基准回归/CI 双端。
+
+### 6 边界（哪些**未**触碰）
+
+- 仅约束上述 3 个授权码名字在 `audit.py`/`web.py` 的归属；不触碰权限规则语义、审批超时/取消原因文案、`hook_denied`/`CODE_DENIED` 等其他码域（可能为不同事实）、web 审批流程分支逻辑。
+- 未推送/未落 `main`：CI 42475362988（tip 1d56505，含 601–603）仍 in_progress；本地 604–607 已提交/待提交，须待该 run 全绿或失败修复后按纪律推送，legs 进行中不推送。
+
+### 7 下一位候选
+
+1. 监控 42475362988；全绿后按顺序推送本地已提交批次（604–607）并遵守 legs-in-progress 不推送纪律；若失败则先红→绿修复并记账。
+2. 继续搜“同一事实两处归属”（可门禁、非 lookalike）：`budget_exceeded` 作为**同一载荷/结果字段名**（`task_manager`/`web`/`subagent` 的 dict key）是否应有归属（需确认与 `BUDGET_EXCEEDED_CODE` trace 码是同事实还是仅同形）；或其他授权码/事件码的脱节点。
+3. 十一实验面保持冻结；`main` 合并继续冻结（并发 worktree 冲突会话）。
