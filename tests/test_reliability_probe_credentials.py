@@ -26,7 +26,7 @@ _spec = importlib.util.spec_from_file_location(
     "reliability_probe_under_test", REPO_ROOT / "scripts" / "reliability_probe.py"
 )
 rp = importlib.util.module_from_spec(_spec)
-sys.modules["reliability_probe_under_test"] = rp
+sys.modules[_spec.name] = rp
 _spec.loader.exec_module(rp)
 
 from minicc.config import _parse_env_file  # noqa: E402

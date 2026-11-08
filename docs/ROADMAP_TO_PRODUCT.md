@@ -39500,9 +39500,7 @@ A1 红 10 条、A2 红 9 条，其中 8 条同名，剩下的几条正好把「�
 围栏内部**——一条被当成声明的引文；同一次测量还从语料里读出 **4 个空白跨度**（字节配对
 从一串反引号的中间起头，配出来的「跨度」是空的，但读者照样把它判了）。ROADMAP 第 1550 行
 在表格单元里写「逐 ```python``` 块」的那一格是重灾区：行锚定尺正确地不抹它，剩下的三个
-反引号被内联尺与相邻两条引用的开头错配，于是同行的
-`test_late_registration_never_silently_replaces_a_builtin` 与
-`test_override_is_explicit_and_leaves_an_audit_trail` 两条引用**从来没有过读者**。
+反引号被内联尺与相邻两条引用的开头错配，于是同行的 test_late_registration_never_silently_replaces_a_builtin 与 test_override_is_explicit_and_leaves_an_audit_trail 两条引用**从来没有过读者**。
 
 三把候选尺在同一语料、同一豁免名册上的对账（`D:/面试项目/mc-t470/probe_t521_ruler.py`，判决前冻结）：
 
@@ -44873,3 +44871,23 @@ Home 是 `task_contract`。cancel-file 的两处 `cancel_file.write_text("cancel
   先前批次（KI-5xx 系列、M8-T551/554/559/560/562 与 mention 加固）逐文件对账入库。
 - 本批不修改 `MENTION_STATUS_*` 的归属及门（`test_the_mention_statuses_have_one_home.py`）。
 - CI 通过后随同合流批推送；未跟踪 scratch 文件维持原样。
+
+## 批次 671 — 合流红修：CI 42531499723（d80e31d）双腿红的归因与订正
+
+### 1 归因与修复（双腿）
+
+`42531499723` Ubuntu 腿 `2 failed, 4659 passed in 786.59s`，Windows 腿未判完即定性为合流待修：
+
+1. **`test_a_module_is_registered_before_a_loader_executes_it::test_every_loader_registers_the_module_before_it_executes_it`**——`tests/test_reliability_probe_credentials.py` 用字面串 `"reliability_probe_under_test"` 注册模块再 `exec_module`；门（`_registers_first`）只认 `sys.modules[<spec>.name] = rp` 形态（slice 必须是 `Attribute.name`）——改成 `sys.modules[_spec.name] = rp`（与门自带的 `_load_by_path` 例句一致，模块名一字未变）。
+2. **`tests/test_the_two_readers_share_one_fence_ruler.py::test_the_sibling_citations_keep_their_reader_and_their_line`**——合并让 ROADMAP 第 39504 行（KI-609 记录，讨论的是同一对兄弟引用的不可读性）与第 1550 行（主通道早前登记的表格行）重复携带两个反引号的测试名，dp 的 code-span 索引 last-wins 报行 39504 而首次 backtick 出现 search 报告 1550——两处谁也没错，引用必须**只有一次**。本批把 KI-609 段里的两个测试名改为纯文本（该记录的语义不变：那两条引用「从来没有过读者」就是本批要说的），1550 行的引用恢复为唯一落点。
+
+### 2 验证
+
+- `pytest tests/test_reliability_probe_credentials.py tests/test_a_module_is_registered_before_a_loader_executes_it.py -q` → **11 passed**。
+- `pytest tests/test_the_two_readers_share_one_fence_ruler.py -q --durations=3` → **13 passed**（最慢一条 7.32s）。
+- `python scripts/doc_pointers.py --check` → rc=0。
+
+### 3 边界
+
+- 不改门、不改语料判据 `_SIBLING_CITATIONS`；只改测试装载方式与一条文档里的表述。
+- Windows 腿红不红以 CI 复跑为准；本批推送后双腿重判。
