@@ -103,7 +103,7 @@ from .config import (
 )
 # Re-export for the tests that read the task limits from minicc.web - the
 # home is minicc/config.py; this module just lends its surface.
-from .config import DEFAULT_TASK_COMPACTION_LIMIT, DEFAULT_TASK_USAGE_LIMIT  # noqa: F401 - re-export for tests and AgentService
+from .config import DEFAULT_TASK_COMPACTION_LIMIT, DEFAULT_TASK_EVENT_LIMIT, DEFAULT_TASK_QUEUE_LIMIT, DEFAULT_TASK_STREAM_LIMIT, DEFAULT_TASK_USAGE_LIMIT  # noqa: F401 - re-export for tests and AgentService
 from .allowlist import AllowlistError, add_session_rule, replace_session_rules, session_rules
 from .cli_io import cli_out
 from .hooks import HookRunner
@@ -138,9 +138,6 @@ from .task_manager import (  # noqa: F401 - re-export for tests and AgentService
     ACTIVE_TASK_STATUSES,
     CHANGE_INTENT_MARKERS,
     COMPLETION_WRITE_TOOLS,
-    DEFAULT_TASK_EVENT_LIMIT,
-    DEFAULT_TASK_QUEUE_LIMIT,
-    DEFAULT_TASK_STREAM_LIMIT,
     MAX_ATTACHMENT_BYTES,
     MAX_ATTACHMENT_TOTAL_BYTES,
     MAX_ATTACHMENTS,
