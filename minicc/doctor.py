@@ -14,7 +14,7 @@ import json
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable
+from typing import Callable
 
 from minicc.internal_paths import AUDIT_NAME, PERMISSIONS_NAME, TOKEN_FILE_NAME
 
@@ -37,8 +37,9 @@ def _run(fn: check_fn, workspace: Path) -> DoctorCheck:
     try:
         return fn(workspace)
     except Exception as exc:  # noqa: BLE001 — an unhandled probe is a fatal probe
+        probe_name = fn.__name__.removeprefix("check_")
         return DoctorCheck(
-            name=fn.__name__.removeprefix("check_"),
+            name=probe_name,
             severity="fatal",
             detail=f"{type(exc).__name__}: {exc}",
             fix_hint="fix the underlying error, then rerun --doctor",
@@ -196,11 +197,12 @@ def check_permissions_json(workspace: Path) -> DoctorCheck:
 
     try:
         _rules, error = load_permission_rules(workspace)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001 - a malformed policy must not crash the probe
+        detail = f"{PERMISSIONS_NAME} not parseable: {type(exc).__name__}: {exc}"
         return DoctorCheck(
             "permissions_json",
             "fatal",
-            f"{PERMISSIONS_NAME} not parseable: {type(exc).__name__}: {exc}",
+            detail,
             "validate the JSON; a malformed permissions.json disables the policy entirely",
         )
     if error:
