@@ -83,7 +83,11 @@ workspace_path/preview`，截断由 `X-Minicc-Tasks-Truncated` 头声明。网�
 
 落地：`ci.yml` 新增 `java-tests` job（Temurin 21 + Maven 缓存），范围判定用
 `git diff --quiet <base> HEAD -- minicc-cloud`：Python-only 的推送不付第二套工具链的时长，
-跳过时打 notice 而不是假装跑过。验收仍待一次真实触碰 `minicc-cloud/` 的推送读数。
+跳过时打 notice 而不是假装跑过。
+
+实测：T723 那次推送同时改了 `minicc-cloud/README.md`，CI run `42622752864` 整体
+**success（24m46s）**——`java-tests` 因此真实执行并绿；T714 之后那些只改 Python 的运行里
+该 job 记为跳过（notice 可见）。
 
 改动：新增独立 workflow job：JDK 21 + Maven 缓存，`mvn -B -q test`，只在该目录变化时触发。
 
