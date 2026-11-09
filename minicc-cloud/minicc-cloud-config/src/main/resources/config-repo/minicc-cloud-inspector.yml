@@ -1,0 +1,6 @@
+minicc:
+  cloud:
+    inspector:
+      # Inspector-specific overrides go below; the shared value stays in
+      # application.yml so it cannot drift between the gateway and the service.
+      max-changes: 200
