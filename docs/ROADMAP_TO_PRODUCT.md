@@ -44970,3 +44970,26 @@ Home 是 `task_contract`。cancel-file 的两处 `cancel_file.write_text("cancel
 - `task_manager.py` 的 `CHANGE_INTENT_MARKERS`（变更意图中英文关键词）里的 `implement` 不动——它是语料匹配词表、不是 stage 路由事实；改动会改变产品行为。
 - `planner.py` 里 `EXEC_PLANNER_TOOLS` 的 `{"bash"}` 不归一（属 tool 词表、不归本批）。
 - 工作流节点 id 的 `plan` / `summarize` / `merge` 等——不属 stage 词六枚，不改。
+
+## 批次 675 — M8-T675：`benchmarks` 的 task-result 状态比较走 `TASK_STATUS_*`
+
+### 1 欠的是哪一条
+
+`minicc/benchmarks.py` 仍按字面拼 task-result 状态（`"completed"` 8 处、`"interrupted"` 1 处、`"cancelled"` 3 处、`"failed"` 6 处）——这些与 `minicc.agent.protocol.TASK_STATUS_COMPLETED/INTERRUPTED/CANCELLED/FAILED` 是同一事实家。“claims complete”至 benchmark fixture 里的一行 `status`，走的还是 `TaskResult.from_payload` 的载荷。
+
+### 2 改动
+
+- `minicc/benchmarks.py`：新增 `from .agent.protocol import TASK_STATUS_CANCELLED, TASK_STATUS_COMPLETED, TASK_STATUS_FAILED, TASK_STATUS_INTERRUPTED`，以及 `from .task_contract import RESULT_FIELD_CANCELLED as OUTCOME_FIELD_CANCELLED`。
+- 18 处状态字面量改为协议常量；3 处读取 `outcome.get("cancelled")`（worker 结果载荷的字段键）改为 `OUTCOME_FIELD_CANCELLED`（`RESULT_FIELD_CANCELLED` 的转口，避免同词第三家）。
+- 跳过：`completion_status == "complete"` 的一行（completion 判词词表的实例，无独立常量成员；本批不拓词表）；`"passed"` 系列—— benchmark 自己的判决比对值，不入协议家族。
+
+### 3 验证
+
+- `pytest tests/test_benchmark_runner.py tests/test_metric_and_oracle_reach_report.py tests/test_no_field_is_invented_by_the_report_or_the_shell.py tests/test_refusal_is_visible_in_report.py -q` → **81 passed**。
+- `python scripts/doc_pointers.py --check` → rc=0。
+
+### 4 边界
+
+- 不动 `tests/` 侧及 benchmark fixture 的载荷形态；只是把协议侧的表比较点名。
+- `bench_compare.py` / `bench_tasks.py` 里的 `"passed"` 判决族属于 benchmark 自己的词表，不归 `VERIFICATION_STATUSES`（判决语义不同），本批不动。
+- CI 复判后才推下一条。

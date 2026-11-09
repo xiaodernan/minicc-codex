@@ -29,6 +29,13 @@ from .bench_tasks import LEGACY_SUITE_VERSION, grade_v2
 from . import pricing
 from .cli_io import cli_out
 from .llm.fake import fake_provider_active
+from .agent.protocol import (
+    TASK_STATUS_CANCELLED,
+    TASK_STATUS_COMPLETED,
+    TASK_STATUS_FAILED,
+    TASK_STATUS_INTERRUPTED,
+)
+from .task_contract import RESULT_FIELD_CANCELLED as OUTCOME_FIELD_CANCELLED
 
 
 DEFAULT_FIXTURES = Path(__file__).resolve().parent.parent / "benchmarks" / "tasks.json"
@@ -238,7 +245,7 @@ def build_report(tasks: list[dict[str, Any]], results: list[dict[str, Any]] | No
             "status": recorded.get("status", "not_run"),
             # Preserve the None/False distinction: None means the task has no
             # automated grader (no verify_command), False means it failed one.
-            "passed": (None if recorded.get("passed") is None else recorded.get("status") == "completed" and recorded.get("passed") is True) if recorded else None,
+            "passed": (None if recorded.get("passed") is None else recorded.get("status") == TASK_STATUS_COMPLETED and recorded.get("passed") is True) if recorded else None,
             "latency_ms": recorded.get("latency_ms") if _measurement(recorded.get("latency_ms")) else None,
             "execution_latency_ms": recorded.get("execution_latency_ms"),
             "grading_latency_ms": recorded.get("grading_latency_ms"),
@@ -249,7 +256,7 @@ def build_report(tasks: list[dict[str, Any]], results: list[dict[str, Any]] | No
             # the line without a writer; the row census guards the hole both ways.
             "usage": recorded.get("usage") if isinstance(recorded.get("usage"), dict) else None,
             "cost_usd": recorded.get("cost_usd") if _measurement(recorded.get("cost_usd")) else None,
-            "claimed_complete": recorded.get("claimed_complete", recorded.get("status") == "completed"),
+            "claimed_complete": recorded.get("claimed_complete", recorded.get("status") == TASK_STATUS_COMPLETED),
             # M8-T181: no invention. A row that carries a status but no
             # ``grader_type`` names nobody - the task spec says who *would*
             # judge it, which is not the same claim, and the report is the one
@@ -346,7 +353,7 @@ def build_report(tasks: list[dict[str, Any]], results: list[dict[str, Any]] | No
             # without verify_command report passed=None and must not dilute
             # the pass-rate denominator.
             "pass_at_1": acceptance_rate,
-            "execution_completion_rate": round(sum(row["status"] == "completed" for row in completed) / len(completed), 4) if completed else None,
+            "execution_completion_rate": round(sum(row["status"] == TASK_STATUS_COMPLETED for row in completed) / len(completed), 4) if completed else None,
             "grading_coverage": round(len(gradable) / len(completed), 4) if completed else (round(len(definition_gradable) / len(tasks), 4) if tasks else None),
             "gradable_task_count": len(gradable) if completed else len(definition_gradable),
             # A grader that could not judge is not a failed task and not an
@@ -829,7 +836,7 @@ def run_benchmark(
                 results = list(matching.values())
         except (OSError, json.JSONDecodeError):
             results = []
-    done_ids = {str(item.get("task_id")) for item in results if item.get("status") == "completed"}
+    done_ids = {str(item.get("task_id")) for item in results if item.get("status") == TASK_STATUS_COMPLETED}
     eval_state = tempfile.TemporaryDirectory(prefix="minicc-eval-state-")
     try:
         service = AgentService(workspace, config, task_store=TaskStore(Path(eval_state.name) / "tasks.sqlite3"))
@@ -849,7 +856,7 @@ def run_benchmark(
             worker: threading.Thread | None = None
             interrupted: BaseException | None = None
             outcome: dict[str, Any] = {}
-            entry: dict[str, Any] = {"task_id": task["id"], "status": "failed", "passed": None,
+            entry: dict[str, Any] = {"task_id": task["id"], "status": TASK_STATUS_FAILED, "passed": None,
                 "metadata": {**run_metadata, "suite_version": task.get("suite_version", LEGACY_SUITE_VERSION), "fixture_sha256": fixture_digest(task)}}
             # Which stage the host itself got to. ``prepare_fixture`` writes the
             # workspace this task is judged in, so an exception there means no
@@ -895,10 +902,10 @@ def run_benchmark(
                     raise outcome_box["error"]
                 outcome = outcome_box["outcome"]
             except TimeoutError:
-                entry["status"] = "failed"
+                entry["status"] = TASK_STATUS_FAILED
                 entry["error"] = f"task timeout > {task_timeout_seconds:g}s"
             except Exception as exc:  # noqa: BLE001 - one task must not kill the run
-                entry["status"] = "failed"
+                entry["status"] = TASK_STATUS_FAILED
                 if host_stage == "prepare":
                     # The host could not write the fixture, so no agent ran and
                     # no grader looked at anything: NO-RESULT, not a failure.
@@ -918,7 +925,7 @@ def run_benchmark(
                     if worker.is_alive():
                         abandoned_worker = worker
                 interrupted = exc
-                entry["status"] = "interrupted"
+                entry["status"] = TASK_STATUS_INTERRUPTED
                 # An interrupt is the operator's, not the agent's and not the
                 # host's: the row records how the run ended in `status`, but the
                 # verdict is NO-RESULT - nobody judged this workspace, and no
@@ -927,17 +934,17 @@ def run_benchmark(
                     _declared_grader_type(task), exc))
             else:
                 completion_status = (outcome.get("completion") or {}).get("status")
-                if outcome.get("cancelled"):
-                    entry["status"] = "cancelled"
+                if outcome.get(OUTCOME_FIELD_CANCELLED):
+                    entry["status"] = TASK_STATUS_CANCELLED
                 elif outcome.get("error"):
-                    entry["status"] = "failed"
+                    entry["status"] = TASK_STATUS_FAILED
                 elif completion_status is not None and completion_status != "complete":
                     entry["status"] = "incomplete"
                 else:
-                    entry["status"] = "completed"
+                    entry["status"] = TASK_STATUS_COMPLETED
                 entry["turns"] = int(outcome.get("turns") or 0)
                 entry["tool_calls"] = int(outcome.get("tool_calls_total") or 0)
-                entry["claimed_complete"] = not outcome.get("cancelled") and (completion_status == "complete" if completion_status is not None else not outcome.get("error"))
+                entry["claimed_complete"] = not outcome.get(OUTCOME_FIELD_CANCELLED) and (completion_status == "complete" if completion_status is not None else not outcome.get("error"))
                 entry["repair_attempts"] = (outcome.get("metrics") or {}).get("repair_attempts")
                 usage = outcome.get("tokens_used")
                 if isinstance(usage, dict):
@@ -947,7 +954,7 @@ def run_benchmark(
                     )
                 if outcome.get("error"):
                     entry["error"] = str(outcome["error"])[:200]
-                if entry["status"] != "completed":
+                if entry["status"] != TASK_STATUS_COMPLETED:
                     entry["review_rounds"] = _review_rounds(outcome.get("events") or ())
             entry["execution_latency_ms"] = round((time.monotonic() - started) * 1000, 1)
             grading_started = time.monotonic()
@@ -958,7 +965,7 @@ def run_benchmark(
             # directory and invent a reviewer false negative (M8-T107).
             refused = bool(entry.get("grading_refused"))
             if task.get("grader"):
-                if entry["status"] == "completed":
+                if entry["status"] == TASK_STATUS_COMPLETED:
                     attempted = "behavior"
                     try:
                         grader_type = (task.get("grader") or {}).get("type")
@@ -979,7 +986,7 @@ def run_benchmark(
                     oracle = _objective_oracle(task, task_workspace, grader_dir, worker)
                     if oracle:
                         entry["objective_oracle"] = oracle
-            elif verify_command and entry["status"] == "completed":
+            elif verify_command and entry["status"] == TASK_STATUS_COMPLETED:
                 try:
                     completed = _subprocess.run(
                         str(verify_command), cwd=str(task_workspace), shell=True,
