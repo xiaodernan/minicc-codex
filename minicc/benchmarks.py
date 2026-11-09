@@ -325,6 +325,12 @@ def build_report(tasks: list[dict[str, Any]], results: list[dict[str, Any]] | No
         task for task in tasks
         if isinstance(task.get("grader"), dict) or task.get("verify_command")
     ]
+    # M8-T541: the key carries two quantities; name which this report computes.
+    # "executed" is gradable_task_count / executed_count (the quantity the nightly
+    # gate hands a real run); "declared" is the definitional ratio over the suite
+    # (zero executed rows, e.g. a `--suite v2` skeleton with no --run). Both are
+    # rides-along so no consumer has to guess which one a report printed.
+    coverage_basis = "executed" if completed else ("declared" if tasks else None)
     # M8-T185: the acceptance rate is published under two names -
     # ``pass_at_1`` and ``acceptance_success_rate``, which
     # docs/BENCHMARK_EVALUATION.md lists as one metric with two spellings. Until
@@ -356,6 +362,9 @@ def build_report(tasks: list[dict[str, Any]], results: list[dict[str, Any]] | No
             "execution_completion_rate": round(sum(row["status"] == TASK_STATUS_COMPLETED for row in completed) / len(completed), 4) if completed else None,
             "grading_coverage": round(len(gradable) / len(completed), 4) if completed else (round(len(definition_gradable) / len(tasks), 4) if tasks else None),
             "gradable_task_count": len(gradable) if completed else len(definition_gradable),
+            # M8-T541: which denominator produced the row above. None means neither a
+            # suite declaration nor an executed row existed, so the coverage key is None.
+            "grading_coverage_basis": coverage_basis,
             # A grader that could not judge is not a failed task and not an
             # ungraded one either; without its own column a report reader only
             # sees the denominator shrink (M8-T80 wrote the field, nothing read it).
@@ -417,6 +426,7 @@ def build_report(tasks: list[dict[str, Any]], results: list[dict[str, Any]] | No
             "Token and cost metrics remain null when the provider does not expose usage or pricing.",
             "Tokens and cost per success include expenditure on failed attempts; missing measurements keep these metrics null.",
             "REFUSED means nobody judged this workspace: the grader declined (exit 2), could not be run, the host could not write the workspace, or the operator aborted the run; it is not a pass, a failure, or a task without a grader.",
+            "grading_coverage_basis names the quantity behind grading_coverage: 'declared' resolves gradable_task_count over fixture_count (suite with zero executed rows; executed_count is then 0), 'executed' resolves it over executed_count. A comparator that meets a declared-vs-executed pair treats it as different bases and refuses the comparison.",
             "Every executed row lands in exactly one of three verdicts: judged (gradable_task_count), refused (grading_refusal_count), or no grader at all (no_grader_count). grading_coverage is the judged share, so the two counts together say what the rest of the denominator is made of - a task with no grader and no verify_command was never going to be judged, which is a property of the suite, not of the run.",
             "reviewer_false_negative_count counts rows recorded failed whose objective grader, re-run only as a diagnostic, reports passed; it measures the reviewer, not the suite score. An oracle that reports zero cases checked nothing, so its pass does not count, and one that names no known grader is not trusted either.",
         ],
@@ -441,7 +451,7 @@ def markdown_report(report: dict[str, Any]) -> str:
     # a hand-written copy is a second owner of "which metrics exist" and silently
     # drops any key added to only one of the two places (M8-T86). The declared
     # reading order is honoured, then every remaining key is printed in sorted order.
-    preferred = ("execution_completion_rate", "grading_coverage", "gradable_task_count", "grading_refusal_count", "no_grader_count", "acceptance_success_rate", "false_completion_rate", "reviewer_false_negative_count", "infra_failure_count", "pass_at_1", "pass_at_1_ex_infra", "latency_p50_ms", "latency_p95_ms", "tokens_per_success", "cost_per_success_usd", "mean_repair_attempts", "token_usage_available", "cost_available")
+    preferred = ("execution_completion_rate", "grading_coverage", "grading_coverage_basis", "gradable_task_count", "grading_refusal_count", "no_grader_count", "acceptance_success_rate", "false_completion_rate", "reviewer_false_negative_count", "infra_failure_count", "pass_at_1", "pass_at_1_ex_infra", "latency_p50_ms", "latency_p95_ms", "tokens_per_success", "cost_per_success_usd", "mean_repair_attempts", "token_usage_available", "cost_available")
     for key in [k for k in preferred if k in metrics] + sorted(set(metrics) - set(preferred)):
         lines.append(f"| {key} | {value(metrics.get(key))} |")
     lines.extend(["", "| Task | Category | Status | Passed |", "| --- | --- | --- | --- |"])

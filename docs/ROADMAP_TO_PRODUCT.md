@@ -45700,3 +45700,31 @@ main 的 `web-smoke-mutation` CI 步骤此前只会答「冒烟退出非零」�
 - **冻的是本仓读者集合，不是并轨仓的宽面基线**——两个数字都是在这棵树上量出来的，不是抄的。
 - 名册只许变宽；新文档读者落地时必须同批扩大名册，否则门红。
 - 本批未动并轨仓的 479 行文件，也未改草稿 crate 任何门的行为。
+
+## 批次 701 — M8-T701：接手并轨：`grading_coverage` 的分母口径落单一键（T541 家族）
+
+并轨仓 `t544-plane`（05dfa9b）的 T541 记录钉住了本仓同一条现存事实：**一个键两个量**。`--suite v2`（无 `--run`）答 1.0，一条样本都没运行的报告满足了为运行写下的覆盖率下限；而 runner 打在同一个键上的又是已运行行的判通率。并轨仓已落地一代人，本仓同件移植：
+
+### 1 欠的是哪一条
+
+`benchmarks.py` 中 `build_report` 在无 executed 行时退回定义口径（`definition_gradable / len(tasks)`），在有已运行行时用执行口径——两个量共用一个键且报告不说明是哪一种；`bench_compare` 把两份报告并排印在同一行并按 variant 侧 `--gate` 判定；nightly 的 `grading_coverage>=0.9` 在假 provider 上答 1.0 且一条样本都没运行——门存在但从未守门。
+
+### 2 改动
+
+- **`minicc/benchmarks.py`**：`build_report` 现场算 `coverage_basis`（`executed`/`declared`/`None`），指标新增 `"grading_coverage_basis"`（`METRICS`-riding, 非门、不 thresholdable）；`markdown_report` 的字段顺序表把 `grading_coverage_basis` 钉在 `grading_coverage` 后面——值 `declared`/`executed`/`None` 直接印进表里；`notes` 新增一条 `grading_coverage_basis names the quantity behind …`（含 `gradable_task_count`/`executed_count is then 0`/`'declared'`/`'executed'` key 的读法）。
+- **`minicc/bench_compare.py`**：`compare_reports` 读出每侧 basis（缺省 = unknown）、新增顶层 `grading_coverage_comparable` 与一条 `口径不同…` note（declared/executed 两个基数各点一笔），两侧各落 `grading_coverage_basis`；`evaluate_gates` 对 `grading_coverage` 在 `comparable=False` 时答 actual=None + violated（fail-closed）；`render_delta_table` 的两侧覆盖率印出来带 `(declared)`/`(executed)`/`(unknown)` 前缀；`GATE_FLOORS["grading_coverage"]` 文全部更新为 `nightly >=0.9 - executed basis; … different bases …`（row edit only，`GATE_METRICS`/`set(FLOORS)==set(METRICS)` 不变）。
+- **`docs/BENCHMARK_EVALUATION.md`**：`grading_coverage` 行改写；新增 `grading_coverage_basis` 行。
+- **新 `tests/test_the_coverage_metric_names_which_share_it_reports.py`**（10 条腿，按并轨仓字节搬运——原 M8-T541 记录的口径验证）：declaration-only vs run report 两个基数、达成的不变式（分子/分母同一边）、路线图那次 v2 验收调用的实况、同口径不拒/异口径必拒、旧报告（无该键）比对 unknown 放行、门限台的口径文案与 ci.yml 对账、两个 key 不是门词表。
+
+### 3 验证
+
+- `pytest tests/test_the_coverage_metric_names_which_share_it_reports.py -q` → **10 passed**。
+- 回归家族：`tests/test_benchmark_runner.py tests/test_bench_compare.py tests/test_metric_and_oracle_reach_report.py tests/test_bench_tasks.py tests/test_behavior_bench.py tests/test_pricing.py tests/test_ci_hygiene.py tests/test_one_refresh_asks_the_rules_once.py` → **150 passed**。
+- `python scripts/doc_pointers.py --check` → rc=0。
+
+### 4 边界
+
+- **nightly 门的参数与周期一行未动**——没收紧没放松阈值，只是被对比的两份报告必须同口径。
+- 夜间的 `--gate grading_coverage>=0.9` 仍可被 declared pair 满足（两 declared = 同量）——这是设计，不是疏漏：self-compare 的两边是同一种东西，可判。
+- 没有引入新依赖；没有改 `parse_gate` 对未知指标的行为（`grading_coverage_basis>=1` 仍 raise ValueError 且消息含该键）。
+

@@ -25,7 +25,8 @@
 | 指标 | 含义 |
 |---|---|
 | `execution_completion_rate` | 执行流程正常结束的比例 |
-| `grading_coverage` | 已运行样本中具备评分结果的比例 |
+| `grading_coverage` | 判通率——按本报告 `grading_coverage_basis` 指明的分母：`executed`＝已运行行中判通的比例，`declared`＝suite 定义集里声明了评分器的比例（无 --run 的 v2 验收调用） |
+| `grading_coverage_basis` | 本报告 `grading_coverage` 采用的分母口径；跨口径的对比不被 `--gate` 判定（不同口径的报告不互比） |
 | `acceptance_success_rate` / `pass_at_1` | 有评分样本的独立验收通过率；不把未评分样本算成通过 |
 | `false_completion_rate` | 有评分样本中，宣称完成但验收失败的比例 |
 | `tokens_per_success` / `cost_per_success_usd` | 所有运行（包含失败）的开销除以成功数；任一运行缺测时为 `null` |

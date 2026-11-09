@@ -97,7 +97,7 @@ GATE_FLOORS: dict[str, str] = {
     "pass_at_1_ex_infra": "unfloored: pass_at_1 is the gated rate and keeps the frozen denominator (M8-T154)",
     "cost_per_success_usd": "unfloored: pricing is unavailable for the shipped provider, so it is null on every run so far",
     "latency_p95_ms": "nightly <=600000",
-    "grading_coverage": "nightly >=0.9",
+    "grading_coverage": "nightly >=0.9 - executed basis; a declared-vs-executed pair is not a coverage comparison (different bases)",
     # M8-T182: a refusal is never a legitimate outcome - the grader declined
     # (exit 2), could not be run, the host could not write the workspace, or the
     # operator aborted - so zero is the one floor that needs no characterisation.
@@ -362,6 +362,11 @@ def compare_reports(
     """
     base_rows, base_metrics = _normalize_rows(baseline)
     var_rows, var_metrics = _normalize_rows(variant)
+    # M8-T541: which coverage quantity each side reports. A report predating the
+    # key reads as unknown; a "declared" number beside an "executed" one is not
+    # a coverage comparison, and the comparator says so and refuses the gate.
+    base_basis = base_metrics.get("grading_coverage_basis")
+    var_basis = var_metrics.get("grading_coverage_basis")
     # M8-T159: the suite identity rides along from the report top level. A raw
     # results array predating M8-T159 carries none — it compares as "unknown"
     # rather than inventing a suite name.
@@ -389,6 +394,13 @@ def compare_reports(
         notes.append(
             f"套件不同：baseline 是 {base_suite}，variant 是 {var_suite}——两个任务 "
             "ID 空间不相交，对齐数与差值不具可比性。"
+        )
+    bases_comparable = base_basis is None or var_basis is None or base_basis == var_basis
+    if not bases_comparable:
+        notes.append(
+            f"口径不同：baseline 报告的是 {base_basis}，variant 是 {var_basis}——"
+            "declared（声明口径：fixture 定义集的判通率）与 executed（执行口径：已运行行的判通率）"
+            "并不是同一个量，此对 pair 不可互比，也不可被 grading_coverage 门槛判。"
         )
 
     pass_delta = (
@@ -480,6 +492,7 @@ def compare_reports(
             "latency_p50_ms": base_lat["p50"],
             "latency_p95_ms": base_lat["p95"],
             "grading_coverage": base_metrics.get("grading_coverage"),
+            "grading_coverage_basis": base_basis,
             # M8-T118: the two refusal-family counts ride along so --gate can
             # threshold them; a report that never computed them gates fail-closed.
             "grading_refusal_count": base_metrics.get("grading_refusal_count"),
@@ -500,6 +513,7 @@ def compare_reports(
             "latency_p50_ms": var_lat["p50"],
             "latency_p95_ms": var_lat["p95"],
             "grading_coverage": var_metrics.get("grading_coverage"),
+            "grading_coverage_basis": var_basis,
             "grading_refusal_count": var_metrics.get("grading_refusal_count"),
             "reviewer_false_negative_count": var_metrics.get("reviewer_false_negative_count"),
             # M8-T155: same ride-along as the baseline block.
@@ -509,6 +523,7 @@ def compare_reports(
             "false_completion_rate": var_metrics.get("false_completion_rate"),
         },
         "same_measurement": same_report,
+        "grading_coverage_comparable": bases_comparable,
         "pass_at_1_delta": pass_delta,
         "pass_at_1_delta_ci": pass_delta_ci,
         "cost_per_success_delta": cost_delta,
@@ -573,6 +588,10 @@ def evaluate_gates(comparison: dict[str, Any], gates: Sequence[str]) -> list[dic
     for spec in gates:
         gate = parse_gate(spec)
         actual = _gate_actual(variant, gate["metric"])
+        # M8-T541: a declared-vs-executed pair is not a comparison; the gate on the
+        # shared coverage key must answer with no actual instead of one of the two.
+        if gate["metric"] == "grading_coverage" and comparison.get("grading_coverage_comparable") is False:
+            actual = None
         holds = _gate_holds(actual, gate["op"], gate["threshold"])
         results.append({**gate, "actual": actual, "violated": not holds})
     return results
@@ -590,6 +609,12 @@ def _fmt_ci(ci: object, digits: int = 4) -> str:
     if not isinstance(ci, (list, tuple)) or len(ci) != 2:
         return "N/A"
     return f"[{_fmt(ci[0], digits)}, {_fmt(ci[1], digits)}]"
+
+
+def _basis_suffix(basis: object) -> str:
+    if basis in ("declared", "executed"):
+        return str(basis)
+    return "unknown"
 
 
 def render_delta_table(comparison: dict[str, Any], gates: Sequence[dict[str, Any]] = ()) -> str:
@@ -612,7 +637,7 @@ def render_delta_table(comparison: dict[str, Any], gates: Sequence[dict[str, Any
         f"| cost 差值 bootstrap 95% CI | — | — | {_fmt_ci(comparison['cost_per_success_delta_ci'], 6)} |",
         f"| latency_p50_ms | {_fmt(base['latency_p50_ms'], 1)} | {_fmt(var['latency_p50_ms'], 1)} | {_fmt(comparison['latency_p50_delta_ms'], 1)} |",
         f"| latency_p95_ms | {_fmt(base['latency_p95_ms'], 1)} | {_fmt(var['latency_p95_ms'], 1)} | {_fmt(comparison['latency_p95_delta_ms'], 1)} |",
-        f"| grading_coverage | {_fmt(base['grading_coverage'])} | {_fmt(var['grading_coverage'])} | — |",
+        f"| grading_coverage | {_fmt(base['grading_coverage'])} ({_basis_suffix(base.get('grading_coverage_basis'))}) | {_fmt(var['grading_coverage'])} ({_basis_suffix(var.get('grading_coverage_basis'))}) | — |",
     ]
     if comparison.get("categories"):
         lines.extend(["", "| Category | 任务 | pass@1 base | pass@1 var | 差值 |", "| --- | ---: | ---: | ---: | ---: |"])
