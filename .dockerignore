@@ -1,0 +1,36 @@
+# Only minicc/ and the three built jars are COPYed; keep the rest out of the
+# build context so a 160 MB checkout does not become a 160 MB daemon transfer.
+.git
+.github
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.venv
+__pycache__
+**/__pycache__
+*.pyc
+.coverage
+.coverage.*
+htmlcov
+coverage.xml
+.minicc
+node_modules
+**/node_modules
+output
+build
+dist
+*.egg-info
+*.sqlite3
+*.log
+docs
+tests
+benchmarks
+ide
+web
+scripts
+minicc-cloud/**/target/classes
+minicc-cloud/**/target/test-classes
+minicc-cloud/**/target/maven-*
+minicc-cloud/**/target/surefire-reports
+minicc-cloud/**/target/generated-*
+*.original
