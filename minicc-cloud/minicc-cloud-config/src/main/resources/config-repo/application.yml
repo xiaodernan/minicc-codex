@@ -8,3 +8,6 @@ minicc:
       timeout-seconds: 30
     gateway:
       connect-timeout-ms: 2000
+      # The one place the body limit is defined; the route filters carry only
+      # the placeholder's standalone fallback.
+      max-request-bytes: 1048576

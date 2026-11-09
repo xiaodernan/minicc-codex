@@ -114,6 +114,23 @@ class WorkspaceGuardTest {
                 .matches(exc -> statusOf(exc) == HttpStatus.FORBIDDEN);
     }
 
+    /**
+     * The roots arrive as configuration, so the case is built the way the
+     * service builds it: a MiniccProperties value, not a hand-rolled list.
+     */
+    @Test
+    void theConfiguredAllowedRootsDecideWhatIsInsideAndOutside() throws IOException {
+        Path allowed = Files.createDirectory(temp.resolve("allowed"));
+        Path outside = Files.createDirectory(temp.resolve("outside"));
+        WorkspaceGuard guard = new WorkspaceGuard(new MiniccProperties(
+                "python", temp.toString(), Duration.ofSeconds(5), List.of(allowed.toString())));
+
+        assertThat(guard.resolve(allowed.toString())).isEqualTo(allowed.toRealPath());
+        assertThatThrownBy(() -> guard.resolve(outside.toString()))
+                .isInstanceOf(ResponseStatusException.class)
+                .matches(exc -> statusOf(exc) == HttpStatus.FORBIDDEN);
+    }
+
     @Test
     void severalRootsAreEachHonoured() throws IOException {
         Path first = Files.createDirectory(temp.resolve("one"));

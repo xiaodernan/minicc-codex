@@ -29,6 +29,11 @@ spring:
               predicates:
                 - Path=/api/changes,/api/changes/**
               filters:
+                # Refuse an oversized body before the circuit breaker counts it,
+                # so one bad client cannot open the breaker for everyone.
+                - name: RequestSize
+                  args:
+                    maxSize: ${minicc.cloud.gateway.max-request-bytes:1048576}
                 - name: CircuitBreaker
                   args:
                     name: inspector-route
@@ -38,6 +43,9 @@ spring:
               predicates:
                 - Path=/api/tasks,/api/tasks/**
               filters:
+                - name: RequestSize
+                  args:
+                    maxSize: ${minicc.cloud.gateway.max-request-bytes:1048576}
                 - name: CircuitBreaker
                   args:
                     name: tasks-route

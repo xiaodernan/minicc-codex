@@ -28,6 +28,15 @@ public record BridgeResponse(
         String transportError,
         Duration elapsed) {
 
+    public BridgeResponse {
+        // Every failure leaves through failureReason(), which quotes stderr, so
+        // scrubbing in this constructor is the single choke point for both the
+        // HTTP body and the log line. stdout is left alone: it is data the
+        // caller parses, not a diagnostic, and rewriting it would corrupt it.
+        stderr = SecretRedactor.redact(stderr);
+        transportError = SecretRedactor.redact(transportError);
+    }
+
     public boolean succeeded() {
         return transportError == null && !timedOut && exitCode == 0;
     }

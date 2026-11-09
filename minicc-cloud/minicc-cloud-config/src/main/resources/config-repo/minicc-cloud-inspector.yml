@@ -1,4 +1,7 @@
 minicc:
+  allowed-roots:
+    # A boundary, not a default: a caller may name nothing outside these roots.
+    - /workspaces
   cloud:
     inspector:
       # Inspector-specific overrides go below; the shared value stays in

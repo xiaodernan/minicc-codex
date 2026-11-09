@@ -71,10 +71,10 @@ class GatewayRouteBindingTest {
     @Test
     void theRouteCarriesACircuitBreakerThatForwardsToTheFallback() {
         List<FilterDefinition> filters = inspectorRoute().getFilters();
-        assertThat(filters).hasSize(1);
-
-        FilterDefinition breaker = filters.get(0);
-        assertThat(breaker.getName()).isEqualTo("CircuitBreaker");
+        FilterDefinition breaker = filters.stream()
+                .filter(filter -> "CircuitBreaker".equals(filter.getName()))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("the inspector route lost its circuit breaker"));
         assertThat(breaker.getArgs().values())
                 .contains("inspector-route", "forward:/fallback/inspector");
     }
