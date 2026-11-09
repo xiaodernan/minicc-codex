@@ -443,27 +443,27 @@ def fixed_plan(name: str, *, task_count: int = 0) -> DAGPlan:
     """Build one of the bounded templates described in the roadmap."""
     if name == "inspect_summarize":
         tasks = (
-            PlanTask(STAGE_INSPECT, "readonly", allowed_tools=INSPECT_DAG_TOOLS),
-            PlanTask("summarize", "readonly", depends_on=(STAGE_INSPECT,)),
+            PlanTask(STAGE_INSPECT, DAG_KIND_READONLY, allowed_tools=INSPECT_DAG_TOOLS),
+            PlanTask("summarize", DAG_KIND_READONLY, depends_on=(STAGE_INSPECT,)),
         )
     elif name == "inspect_implement_verify":
         tasks = (
-            PlanTask(STAGE_INSPECT, "readonly", allowed_tools=INSPECT_DAG_TOOLS),
-            PlanTask(STAGE_IMPLEMENT, "write", depends_on=(STAGE_INSPECT,), allowed_tools=WRITE_DAG_TOOLS),
-            PlanTask(STAGE_VERIFY, "exec", depends_on=(STAGE_IMPLEMENT,), allowed_tools=VERIFY_DAG_TOOLS),
-            PlanTask("summarize", "readonly", depends_on=(STAGE_VERIFY,)),
+            PlanTask(STAGE_INSPECT, DAG_KIND_READONLY, allowed_tools=INSPECT_DAG_TOOLS),
+            PlanTask(STAGE_IMPLEMENT, DAG_KIND_WRITE, depends_on=(STAGE_INSPECT,), allowed_tools=WRITE_DAG_TOOLS),
+            PlanTask(STAGE_VERIFY, DAG_KIND_EXEC, depends_on=(STAGE_IMPLEMENT,), allowed_tools=VERIFY_DAG_TOOLS),
+            PlanTask("summarize", DAG_KIND_READONLY, depends_on=(STAGE_VERIFY,)),
         )
     elif name == "parallel_inspect":
         count = max(1, min(16, int(task_count)))
         scans = tuple(
-            PlanTask(f"inspect-{index}", "readonly", allowed_tools=INSPECT_DAG_TOOLS)
+            PlanTask(f"inspect-{index}", DAG_KIND_READONLY, allowed_tools=INSPECT_DAG_TOOLS)
             for index in range(1, count + 1)
         )
         tasks = scans + (
-            PlanTask("merge", "readonly", depends_on=tuple(task.id for task in scans)),
-            PlanTask(STAGE_IMPLEMENT, "write", depends_on=("merge",), allowed_tools=WRITE_DAG_TOOLS),
-            PlanTask(STAGE_VERIFY, "exec", depends_on=(STAGE_IMPLEMENT,), allowed_tools=VERIFY_DAG_TOOLS),
-            PlanTask("summarize", "readonly", depends_on=(STAGE_VERIFY,)),
+            PlanTask("merge", DAG_KIND_READONLY, depends_on=tuple(task.id for task in scans)),
+            PlanTask(STAGE_IMPLEMENT, DAG_KIND_WRITE, depends_on=("merge",), allowed_tools=WRITE_DAG_TOOLS),
+            PlanTask(STAGE_VERIFY, DAG_KIND_EXEC, depends_on=(STAGE_IMPLEMENT,), allowed_tools=VERIFY_DAG_TOOLS),
+            PlanTask("summarize", DAG_KIND_READONLY, depends_on=(STAGE_VERIFY,)),
         )
     else:
         raise GraphValidationError(f"未知固定模板: {name}")

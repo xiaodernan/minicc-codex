@@ -44993,3 +44993,30 @@ Home 是 `task_contract`。cancel-file 的两处 `cancel_file.write_text("cancel
 - 不动 `tests/` 侧及 benchmark fixture 的载荷形态；只是把协议侧的表比较点名。
 - `bench_compare.py` / `bench_tasks.py` 里的 `"passed"` 判决族属于 benchmark 自己的词表，不归 `VERIFICATION_STATUSES`（判决语义不同），本批不动。
 - CI 复判后才推下一条。
+
+## 批次 676 — M8-T676：DAG 节点 kind 词汇归一个家（`DAG_KIND_*`）
+
+### 1 欠的是哪一条
+
+`graph.py` 早已有 `READONLY_DAG_KINDS = {"readonly", "review", "merge"}`，`planner.py` 又手拼一份 `PLANNER_KINDS = {"readonly", "write", "exec", "review", "merge"}`；固定工作流的 kind 入参（`PlanTask(name, "readonly"/"write"/"exec", ...)`）和 `PLANNER_KIND_TOOLS` 的键同词共散落在两模块的 15 处。同一存在事实——"节点以什么 kind 被 执行、被谁准入"——`readonly`/`write`/`exec`/`review`/`merge` 五枚都没常量。
+
+### 2 改动
+
+- `minicc/agent/graph.py`：新增 **DAG_KIND_READONLY / DAG_KIND_WRITE / DAG_KIND_EXEC / DAG_KIND_REVIEW / DAG_KIND_MERGE** 与 **DAG_KINDS**；`READONLY_DAG_KINDS` 改写为常量组成；`build_coding_workflow` 固定模板内 9 处节点 kind 入参改走常量；`__all__` 导出新常量。
+- `minicc/agent/planner.py`：`PLANNER_KINDS = DAG_KINDS`、`PLANNER_KIND_TOOLS` 的五个键改走 `DAG_KIND_*`；validator 的默认 kind（`item.get("kind") or ...`）改走 `DAG_KIND_READONLY`。
+- 新门 `tests/test_the_dag_node_kinds_have_one_home.py`：
+  1. home 必须定义五枚常量 + `DAG_KINDS`；`READONLY_DAG_KINDS` 必须恰是 readonly/review/merge 三枚；
+  2. planner 的 `PLANNER_KINDS` 必须与 `DAG_KINDS` 相等，且五种 kind 都出现在 `PLANNER_KIND_TOOLS`；
+  3. 两个模块里五枚词以 Constant 出现在 DAG_KIND_ 定义行、prose、以及 `PlanTask(name, ...)` 的**首位置（任务 id）**和 `depends_on` 关键字参数（任务 id 引用）之外的，逐条报红。
+
+### 3 验证
+
+- `pytest tests/test_the_dag_node_kinds_have_one_home.py -q` → **3 passed**。
+- `pytest tests/test_core_agent.py tests/test_the_planner_may_only_promise_what_the_executor_can_run.py tests/test_the_plan_node_tool_lists_have_one_home.py -q` → **60 passed**。
+- `python scripts/doc_pointers.py --check` → rc=0。
+
+### 4 边界
+
+- 不动 `READONLY_PLANNER_TOOLS` / `WRITE_PLANNER_TOOLS` / `EXEC_PLANNER_TOOLS` 之名（它们是**重新导出别名**，指向 graph 的 home；保留是因为测试与文档引用了同名名字）。
+- 工作流里的节点实例 id（`"plan"`、`"summarize"`、`"merge"`——其中 `merge` 恰好与 kind 同词）属于**任务 id fact**，不是 kind 词义，门专门豁免 PlanTask 首位置与 `depends_on` 里的同名字符串。
+- `EXEC_PLANNER_TOOLS` 里的 `"bash"` 是 tool fact，不入本批。

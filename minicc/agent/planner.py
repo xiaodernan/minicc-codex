@@ -139,7 +139,7 @@ def validate_dynamic_plan(raw: object, *, policy: PlannerPolicy | None = None) -
         if not isinstance(item, dict):
             raise GraphValidationError("动态计划节点必须是对象")
         task_id = str(item.get("id") or "")
-        kind = str(item.get("kind") or "readonly")
+        kind = str(item.get("kind") or DAG_KIND_READONLY)
         if not _ID_RE.fullmatch(task_id):
             raise GraphValidationError(f"动态计划节点 id 非法: {task_id!r}")
         if kind not in PLANNER_KINDS:
