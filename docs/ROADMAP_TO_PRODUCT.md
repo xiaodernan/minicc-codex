@@ -45585,3 +45585,33 @@ reliability probe: FAIL — --doctor exits non-zero on a fresh tree
 - **不改 `_load()` 的 key 校验**——无 key 运行 REPL 依然要 `exit 2`，这是对的；改的是**凭据无关命令不再被 key 阻挡**。
 - `--json` **只**与 doctor 家族搭配；其余命令保持人读输出，避免格式矩阵爆炸。
 - Doctor 的成本纪律不变：不调网络、不改磁盘、不加载模型；分发顺序换位，成本模型不动。
+
+## 批次 697 — docs/OPERATIONS.md：把 doctor/setup/health/doctor 面的纪律写成一份运维手册
+
+### 1 欠的是哪一条
+
+批次 686–696 一连串的 doctor / setup / `--json` / 凭据无关分发 / web 双端点，每批都在自己的账本段落里讲清楚了自己的「为什么」，但读者要拼出一份「这台机器到底能不能跑 minicc、出了问题先看什么」的答案，需要翻十个账本节段。`README.md` 只适合放产品介绍，`ROADMAP_TO_PRODUCT.md` 只适合放批次史——都不是运维参考手册的形状。
+
+### 2 改动
+
+新增 **`docs/OPERATIONS.md`**（不膨胀 README、不蹭账本）：
+
+1. 从空目录到可跑的五步（含凭据无关分发的边界说明）；
+2. 人可读 / 机器可读两种 doctor 输出的使用场景 + `--json` 无 `--doctor` → exit 2 的用法错误契约；
+3. Web 双端点分工：`/api/health` 是 liveness-only，`/api/doctor` 是 bearer-token 守门的诊断（而不是把探测挂在 health 上）——含诊断端点自身故障的退回形状；
+4. CI 中的跑法（M1 reliability probe + setup→doctor roundtrip + 凭据扫描的口径，以及「pristine tree 上 `--doctor` 失败 = 分发顺序」这一条在批次 696 的归因）；
+5. `.minicc/` 磁盘纪律（不纳入提交、不整删、doctor 只有读与建+删 probe 两种操作）；
+6. doctor 不是修复器 / 不是测试运行器 / 不是网络探测；
+7. 相关文件索引（八个 doctor 探测落点的七个文件）。
+
+本手册的每条 path 引用都经 `python scripts/doc_pointers.py --check docs/OPERATIONS.md` 验证（9 条 evidence pointer，0 悬空、0 路径越界）。
+
+### 3 验证
+
+- `doc_pointers --check docs/OPERATIONS.md` → 无 DANGLING；全 corpus 复核见提交。
+- 本批次仅新增文档，不变行为；无测试改动。
+
+### 4 边界
+
+- 手册**不**承诺任何 SKU/部署拓扑；它只描述本仓库现有代码的运维面。
+- 不新增任何 doc↔doc 的「见文档 §N」形式引用——手册自己用路径引用，不依赖编号锚点。
