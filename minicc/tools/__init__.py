@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING
 
+from ..config import SANDBOX_MODE_HOST
 from .bash import (
     kill_background_shell,
     poll_background_shell,
@@ -155,7 +156,7 @@ def build_registry(
         cmd = str(args["command"])
         timeout = int(args.get("timeout", 120))
         if bool(args.get("run_in_background", False)):
-            if sandbox.status().get("backend") != "host":
+            if sandbox.status().get("backend") != SANDBOX_MODE_HOST:
                 return ToolResult(
                     status=TOOL_STATUS_ERROR,
                     summary=tagged(

@@ -8,7 +8,14 @@ import sys
 import threading
 from pathlib import Path
 
-from .config import DEFAULT_SANDBOX_IMAGE, SANDBOX_MODES
+from .config import (
+    DEFAULT_SANDBOX_IMAGE,
+    SANDBOX_BACKEND_UNAVAILABLE,
+    SANDBOX_MODE_AUTO,
+    SANDBOX_MODE_DOCKER,
+    SANDBOX_MODE_HOST,
+    SANDBOX_MODES,
+)
 from .tools.bash import run_bash, run_process
 from .tools.schemas import CODE_SANDBOX_UNAVAILABLE, ToolResult, tagged
 
@@ -21,7 +28,7 @@ SANDBOX_MEMORY_LIMIT = "512m"
 class SandboxRunner:
     """Run host commands by default, or explicit Docker isolation when enabled."""
 
-    def __init__(self, mode: str = "host", image: str = DEFAULT_SANDBOX_IMAGE) -> None:
+    def __init__(self, mode: str = SANDBOX_MODE_HOST, image: str = DEFAULT_SANDBOX_IMAGE) -> None:
         if mode not in SANDBOX_MODES:
             raise ValueError(f"sandbox mode 非法: {mode!r}")
         self.mode = mode
@@ -33,16 +40,16 @@ class SandboxRunner:
 
     def status(self) -> dict[str, object]:
         available = self.docker_available
-        if self.mode == "docker":
-            backend = "docker" if available else "unavailable"
+        if self.mode == SANDBOX_MODE_DOCKER:
+            backend = SANDBOX_MODE_DOCKER if available else SANDBOX_BACKEND_UNAVAILABLE
         else:
-            backend = "docker" if self.mode == "auto" and available else "host"
+            backend = SANDBOX_MODE_DOCKER if self.mode == SANDBOX_MODE_AUTO and available else SANDBOX_MODE_HOST
         return {
             "mode": self.mode,
             "backend": backend,
             "docker_available": available,
             "image": self.image,
-            "isolated": backend == "docker",
+            "isolated": backend == SANDBOX_MODE_DOCKER,
         }
 
     def run(
@@ -53,17 +60,17 @@ class SandboxRunner:
         cancel_event: threading.Event | None = None,
     ) -> ToolResult:
         backend = self.status()["backend"]
-        if backend == "unavailable":
+        if backend == SANDBOX_BACKEND_UNAVAILABLE:
             return ToolResult(
                 status="error",
                 summary=tagged(CODE_SANDBOX_UNAVAILABLE, "Docker 不可用；未回退到宿主机执行"),
                 security_tags=["sandbox_unavailable"],
             )
-        if backend != "docker":
+        if backend != SANDBOX_MODE_DOCKER:
             return run_bash(command, workspace, timeout=timeout, cancel_event=cancel_event)
 
         args = [
-            "docker", "run", "--rm", "--network", "none", "--cap-drop", "ALL",
+            SANDBOX_MODE_DOCKER, "run", "--rm", "--network", "none", "--cap-drop", "ALL",
             "--security-opt", "no-new-privileges", "--pids-limit", "256",
             "--memory", SANDBOX_MEMORY_LIMIT,
             "--read-only", "--tmpfs", "/tmp", "-v", f"{workspace.resolve()}:/workspace:rw",

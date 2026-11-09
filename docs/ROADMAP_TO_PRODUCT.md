@@ -45060,3 +45060,31 @@ Ubuntu 腿 `1 failed, 4667 passed`：`tests/test_the_package_does_not_import_wha
 
 - `lifecycle` 的第二个参数（事件 status）属于第三个词表（事件状态、被 `trace_event` 消费），不入本批。
 - 不把 `security_tags` 或其它 ToolResult 关键字扩门。
+
+## 批次 679 — M8-T679：sandbox 模式词表收口（`SANDBOX_MODE_*` / `SANDBOX_BACKEND_UNAVAILABLE`）
+
+### 1 欠的是哪一条
+
+`SANDBOX_MODES`（`minicc/config.py`）只有一个消费者（validator）：sandbox.py 里 `"host"`、`"docker"`、`"auto"`、`"unavailable"` 一共十处手拼，tools/web 各一处把 `"backend"` 答回 `"host"`。`sandbox`-backend 的「docker 被配置但不可用」那一行也只有词没有名——同一生命周期事实，谁答、回什么，没人管。
+
+### 2 改动
+
+- `minicc/config.py`：新增 **SANDBOX_MODE_HOST / SANDBOX_MODE_DOCKER / SANDBOX_MODE_AUTO / SANDBOX_BACKEND_UNAVAILABLE**，`SANDBOX_MODES` 改写为常量组成（本批仍三枚）。
+- `minicc/sandbox.py`：`__init__` 默认参数、`mode` 判定、`backend = ... if available...`、`"isolated"` 判定、`SANDBOX docker run` argv 的入口词与 `unavailable` 分支全部走常量。
+- `minicc/tools/__init__.py`：`sandbox.status().get("backend") != SANDBOX_MODE_HOST`。
+- `minicc/web.py`：`self.sandbox.status().get("backend") == SANDBOX_MODE_HOST`。
+- 新门 `tests/test_the_sandbox_modes_have_one_home.py`：
+  1. home 必须定义四枚常量且 `SANDBOX_MODES` 为三模式 frozenset，`DEFAULT_SANDBOX_MODE == SANDBOX_MODE_AUTO`；
+  2. `minicc/{config,sandbox,tools/__init__,web}.py` 不得再出现 host/docker/unavailable 的 bare literal（prose 豁免；`shutil.which("docker")` 是「探测可执行档」的独立事实，专设豁免臂）。
+
+### 3 验证
+
+- `pytest tests/test_the_sandbox_modes_have_one_home.py -q` → **2 passed**。
+- `pytest tests/test_core_agent.py tests/test_route_wiring_pure.py -q` → **65 passed**。
+- `python scripts/doc_pointers.py --check` → rc=0。
+
+### 4 边界
+
+- `SANDBOX_BACKEND_UNAVAILABLE = "unavailable"` 不是模式（不是 `SANDBOX_MODES` 成员）；它只是 `status()` 的答语，共存于 sandbox.py 一家。其它文件的 `"auto"`（protocol / tool_mode / provider / orchestration 的缺省词）属于其它家族，不进本批。
+- `shutil.which("docker")` 保持字面——可执行档存在性探针，是独立事实；门专设豁免臂点名接住。
+- `SANDBOX docker run` 的 argv 第一项改走 `SANDBOX_MODE_DOCKER`——它本来就是 docker 模式被执行时的词，同一事实同一家——而执行后续的 `"run"`、`"--rm"`、`"--network"`、`"none"`、`"--cap-drop"`、`"ALL"` 是 CLI 选项本身，不入词表。

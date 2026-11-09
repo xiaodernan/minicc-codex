@@ -115,6 +115,7 @@ from .clock import utc_iso
 from .config import (
     STAGE_INSPECT,
     STAGE_PLANNING,
+    SANDBOX_MODE_HOST,
     STAGE_REPAIR,
     STAGE_REVIEW,
     STAGE_VERIFY,
@@ -1289,7 +1290,7 @@ class AgentService:
             "mcp": self.mcp.status() if self.mcp else mcp_absent_status(self.mcp_error),
             "permissions": {
                 "default": "full" if self.config.yolo else "per_task",
-                "host_commands": self.sandbox.status().get("backend") == "host",
+                "host_commands": self.sandbox.status().get("backend") == SANDBOX_MODE_HOST,
             },
             "context_window_tokens": int(getattr(self.config, "context_window_tokens", DEFAULT_CONTEXT_WINDOW_TOKENS)),
             "reasoning_effort": str(getattr(self.config, "reasoning_effort", "high")),

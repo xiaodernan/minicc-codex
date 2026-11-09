@@ -42,7 +42,12 @@ DEFAULT_TASK_RECOVERY_RETRIES = 2
 DEFAULT_MAX_DURATION_SECONDS: float | None = None
 DEFAULT_MAX_TOOL_CALLS: int | None = None
 DEFAULT_SANDBOX_MODE = "auto"
-SANDBOX_MODES = frozenset({"host", "docker", "auto"})
+SANDBOX_MODE_HOST = "host"
+SANDBOX_MODE_DOCKER = "docker"
+SANDBOX_MODE_AUTO = "auto"
+#: the resolved backend third answer - docker is configured but not runnable
+SANDBOX_BACKEND_UNAVAILABLE = "unavailable"
+SANDBOX_MODES = frozenset({SANDBOX_MODE_HOST, SANDBOX_MODE_DOCKER, SANDBOX_MODE_AUTO})
 # M8-T383: the switch vocabularies below were inline literals at each reader
 # (config validation, provider constructor, CLI choices) - three homes for
 # one fact each.  They live here now; every reader imports them.
