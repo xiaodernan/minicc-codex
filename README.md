@@ -262,6 +262,8 @@ MINICC_REASONING_EFFORT=high
 
 `minicc --setup` 为新工作区创建 `.minicc/` 骨架：写出一份默认 `permissions.json`（deny `.env` / `.env.local` / `secrets/` / `secrets/**` / `.ssh` / `.aws`） 与一份按 0o600 权限写的 `web_token.json`。幂等——已存在的 `permissions.json` 与 `web_token.json` 都不覆盖。完成后立刻 `minicc --doctor` 即可看到一切绿。
 
+`--doctor` / `--doctor-strict` / `--setup` 不需要 `MINICC_API_KEY` / `MINICC_BASE_URL`——它们在配置解析之前分发，装好一个空目录就能用。`minicc --doctor --json` 输出机器可读 JSON（`{"ok":…, "warn":…, "fatal":…, "checks":[…]}`），没有 `--doctor` 前缀时 `--json` 是用法错误（exit 2）。
+
 离线评测和审计导出：
 
 ```powershell

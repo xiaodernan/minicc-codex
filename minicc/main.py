@@ -261,6 +261,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--setup", action="store_true", help="创建 .minicc/ 骨架（permissions.json + web_token.json）并退出")
     parser.add_argument("--doctor", action="store_true", help="运行工作区自检并退出（不调网络、不跑模型）")
     parser.add_argument("--doctor-strict", action="store_true", help="同 --doctor，但 warning 也按 fatal 处理（CI 风险守门）")
+    parser.add_argument("--json", action="store_true", help="与 --doctor / --doctor-strict 搭配：输出机器可读 JSON")
     parser.add_argument("--version", action="version", version=f"minicc {minicc_version()}")
     return parser
 
@@ -833,6 +834,9 @@ def _warn_unrun_prompt(prompt: list[str], flag: str) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
+    if getattr(args, "json", False) and not (args.doctor or getattr(args, "doctor_strict", False)):
+        cli_out("error: --json 仅与 --doctor / --doctor-strict 搭配使用")
+        return 2
     # M7-T4: resolve the workspace before loading config so the project
     # layer (<workspace>/.minicc/config.json) participates in resolution.
     workspace = args.workspace.expanduser().resolve()
@@ -842,6 +846,26 @@ def main(argv: list[str] | None = None) -> int:
     if args.list_sessions:
         _warn_unrun_prompt(args.prompt, "--list-sessions")
         return _print_sessions(workspace)
+
+    # M7-T4: `--setup` and `--doctor` are credential-free by contract: they
+    # scaffold and inspect the workspace and must work on a fresh machine with
+    # no .env at all.  They need nothing from `_load()`, so dispatch them
+    # before the config resolution that would otherwise demand an API key.
+    if args.setup:
+        from .setup import setup_workspace
+
+        report = setup_workspace(workspace)
+        cli_out(report.message)
+        return report.exit_code
+
+    if args.doctor or getattr(args, "doctor_strict", False):
+        from .doctor import format_report, run_doctor
+
+        report = run_doctor(workspace)
+        cli_out(format_report(report, json_out=bool(getattr(args, "json", False))))
+        if getattr(args, "doctor_strict", False):
+            return 0 if (report.fatal == 0 and report.warn == 0) else 1
+        return report.exit_code
 
     if args.fork_from:
         raw_point = str(args.fork_from).strip()
@@ -875,22 +899,6 @@ def main(argv: list[str] | None = None) -> int:
         cli_out(config.describe())
         cli_out(f"workspace={workspace}")
         return 0
-
-    if args.setup:
-        from .setup import setup_workspace
-
-        report = setup_workspace(workspace)
-        cli_out(report.message)
-        return report.exit_code
-
-    if args.doctor or getattr(args, "doctor_strict", False):
-        from .doctor import format_report, run_doctor
-
-        report = run_doctor(workspace)
-        cli_out(format_report(report))
-        if getattr(args, "doctor_strict", False):
-            return 0 if (report.fatal == 0 and report.warn == 0) else 1
-        return report.exit_code
 
     editor = Editor(workspace, audit_path=workspace / ".minicc" / AUDIT_NAME)
     # M8-T138 (M5 recheck): the CLI must see workspace MCP servers exactly

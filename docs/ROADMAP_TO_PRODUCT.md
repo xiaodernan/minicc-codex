@@ -45537,3 +45537,51 @@ Ubuntu 腿 `4704 passed, 3 failed`，全部落在 `tests/test_doctor_strict.py`�
 - **不弱化任何 gate**——红的根因是测试没有真正抵达被测代码，不是产品分支行为变化；修的是测试写法。
 - 不改 `minicc/main.py` 的 `MINICC_API_KEY` 前置校验——它是对的（无 key 的一次性运行本来就不该静默进入 REPL）。
 - 不 push 直至当前 legs 跑完；push 前再复核。
+
+## 批次 696 — M8-T696：`--doctor --json` 落地 + `--doctor`/`--setup` 上升为凭据无关分发（CI 42573232858 M1 probe 红修）
+
+CI run 42573232858（3479ead）的 **M1 reliability probe** 腿红了：
+
+```
+reliability probe: --doctor on a pristine tree answers:
+reliability probe: FAIL — --doctor exits non-zero on a fresh tree
+```
+
+### 1 归因 + 顺带发现的两个缺口
+
+**M1 probe 红**：CI runner 上没有 `MINICC_API_KEY` / `MINICC_BASE_URL`，也没有 `.env`。而 `minicc --doctor` 在 `main()` 里位于 `config = _load(args, workspace)` **之后**——无 key 时 `_load()` 变 `_fatal(...)` → `exit 2`，`--doctor` 根本走不到 doctor 代码。诊断命令必须在一台全新机器上开箱可用，否则装机自检是空谈；批次 694 引入的 roundtrip 恰好就是为这个盲点而生。
+
+另外两个同源缺口（同次提交收口）：
+
+2. `--json` 从未被注册为 CLI flag，但 `minicc/doctor.py` 的 docstring 和 README 都声称「`--json` 输出机器可读格式」——claim 与代码不符。
+3. README 声称两格式输出，实际也没通 `format_report(json_out=True)` 的通路。
+
+### 2 改动
+
+- `minicc/main.py`：
+  - 注册 `--json`（`store_true`，语义：`--doctor` / `--doctor-strict` 的输出格式切换）；单独给 `--json` 而不带 `--doctor*` 时，打印用法错误、`return 2`。
+  - doctor 分发顺序**提前**：`--setup`、`--doctor`/`--doctor-strict` 在 `_load()` 之前 dispatch（因为它们**不调网络、不加载模型**）；`--print-config`、Editor、REPL 等仍保留在 `_load()` 之后。
+  - doctor 分发把 `json_out=True` 传给 `format_report()`。
+  - 顺带剔除因重排而留下的重复 dispatch 块（`--setup` / `--doctor` 旧位置的残留）。
+- `minicc/doctor.py` 行为不变（`--json` 复用现有 `format_report(json_out=True)`）。
+- README：`--doctor` / `--setup` 不需要 key + `--json` 用法补充一段。
+- 新门 `tests/test_doctor_json.py`（4 条）：
+  - `--doctor --json`（**delenv MINICC_API_KEY/BASE_URL**）→ 可解析 JSON、键集合 `{ok,warn,fatal,checks}`、每 check 至少含 `name/severity/detail`；
+  - `--doctor-strict --json` 在全新 tmp 目录 `rc == 1` 且 `warn > 0`、`fatal == 0`；
+  - `--json` 无 `--doctor` → exit 2 + 提示提及 `--json`；
+  - `--doctor` 在无 key 的 clean env 中可用（`minicc doctor` 打印 + 不含 "MINICC_API_KEY"）。
+
+### 3 验证
+
+- `pytest tests/test_doctor_json.py tests/test_doctor_strict.py tests/test_doctor.py tests/test_setup_doctor_smoke.py tests/test_cli_stage_routing.py -q` → **40 passed, 1 skipped**。
+- 全新空临时目录实测（无 key、无 .env）：
+  - `minicc --doctor --workspace <tmp>` → 打印报告，`exit 0`；
+  - `minicc --doctor-strict --json --workspace <tmp>` → 机器可读 JSON（`warn: 4`），`exit 1`。
+- `python -m py_compile minicc/main.py` 通过。
+- `python scripts/doc_pointers.py --check` → rc=0（详见提交）。
+
+### 4 边界
+
+- **不改 `_load()` 的 key 校验**——无 key 运行 REPL 依然要 `exit 2`，这是对的；改的是**凭据无关命令不再被 key 阻挡**。
+- `--json` **只**与 doctor 家族搭配；其余命令保持人读输出，避免格式矩阵爆炸。
+- Doctor 的成本纪律不变：不调网络、不改磁盘、不加载模型；分发顺序换位，成本模型不动。
