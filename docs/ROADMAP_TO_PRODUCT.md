@@ -45447,3 +45447,29 @@ Ubuntu + Windows 双腿 `4 failed, 4697 passed, 5 skipped`：
 
 - 不改 `empty_rule_side()` 的定义，它已经是"rule 三分类"的 home。`DEFAULT_PERMISSIONS` 给 `deny` 填 paths，给 `allow` 留 `empty_rule_side()` 的空骨架，零概念漂移。
 - 不引入新 dep、不动 web face 的任何一处。
+
+## 批次 693 — M8-T693：`minicc --doctor-strict`：warning 也算红
+
+### 1 欠的是哪一条
+
+批 M8-T686 交付的 `--doctor` 用「warning-only」语义：**有 warn 还是 0 退出码**。开发者在本地跑 `--doctor` 很随意，CI 也只看 exit code。把 stderr 搬到 CI gate 上不稳定，看起来绿的实际上「全是 warning」的可疑库经常得以幸存。运维圈子里需要一个「CI 守门员」旗号：只要任何 warning 立刻非零退出。
+
+### 2 改动
+
+- `minicc/main.py`：新增 **`--doctor-strict`** 旗号；在 `--doctor` 之后叠加一个收紧：`return 0 if (report.fatal == 0 and report.warn == 0) else 1`。继续遵循 `--doctor` 的不调网络、不跑模型、不改磁盘的纪律。
+- 新门 `tests/test_doctor_strict.py`：
+  - 平铺无骨架的 tmp 目录：`--doctor-strict` → `rc == 1`；
+  - POSIX-only：mode 0o644 的 token 在 Linux 会被 doctor 报 fatal → `--doctor-strict` → `rc == 1`。
+  - Windows 上 mode-bit 看不成细事实，门跳过这一条。
+
+### 3 验证
+
+- `pytest tests/test_doctor_strict.py -q` → **1 passed, 1 skipped**。
+- `python -m minicc.main --doctor-strict` 实测：本地 `warn=2 fatal=0`，`exit 1`，**严格守起门来了**。
+- `python scripts/doc_pointers.py --check` → rc=0。
+
+### 4 边界
+
+- **Windows 下 `--doctor-strict` 不回退到 fatal** —— 因为 Windows 的 POSIX 权限位根本不承载水汽；strict 只是把「有 warning」的事价出去，并不试图在 Windows 上面变现。
+- **`/doctor` 不是严格模式**——它只是诊断打印；strict 模式 feature 专为 CI 设计，用于周期性守护。
+- 严格模式不引入新依赖、不调 subprocess、不读 `.minicc/` 任何其他文件。

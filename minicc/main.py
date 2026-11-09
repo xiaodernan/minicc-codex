@@ -260,6 +260,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--print-config", action="store_true", help="打印解析后的配置并退出")
     parser.add_argument("--setup", action="store_true", help="创建 .minicc/ 骨架（permissions.json + web_token.json）并退出")
     parser.add_argument("--doctor", action="store_true", help="运行工作区自检并退出（不调网络、不跑模型）")
+    parser.add_argument("--doctor-strict", action="store_true", help="同 --doctor，但 warning 也按 fatal 处理（CI 风险守门）")
     parser.add_argument("--version", action="version", version=f"minicc {minicc_version()}")
     return parser
 
@@ -882,11 +883,13 @@ def main(argv: list[str] | None = None) -> int:
         cli_out(report.message)
         return report.exit_code
 
-    if args.doctor:
+    if args.doctor or getattr(args, "doctor_strict", False):
         from .doctor import format_report, run_doctor
 
         report = run_doctor(workspace)
         cli_out(format_report(report))
+        if getattr(args, "doctor_strict", False):
+            return 0 if (report.fatal == 0 and report.warn == 0) else 1
         return report.exit_code
 
     editor = Editor(workspace, audit_path=workspace / ".minicc" / AUDIT_NAME)
