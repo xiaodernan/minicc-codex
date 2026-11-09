@@ -15,6 +15,12 @@ from typing import Any
 
 from .graph import (
     DAGPlan,
+    DAG_KIND_EXEC,
+    DAG_KINDS,
+    DAG_KIND_MERGE,
+    DAG_KIND_READONLY,
+    DAG_KIND_REVIEW,
+    DAG_KIND_WRITE,
     GraphValidationError,
     PlanTask,
     READONLY_DAG_TOOLS,
@@ -49,13 +55,13 @@ READONLY_PLANNER_TOOLS = READONLY_DAG_TOOLS
 WRITE_PLANNER_TOOLS = WRITE_DAG_TOOLS
 EXEC_PLANNER_TOOLS = READONLY_PLANNER_TOOLS | frozenset({"bash"})
 
-PLANNER_KINDS = frozenset({"readonly", "write", "exec", "review", "merge"})
+PLANNER_KINDS = DAG_KINDS
 PLANNER_KIND_TOOLS = {
-    "readonly": READONLY_PLANNER_TOOLS,
-    "review": READONLY_PLANNER_TOOLS,
-    "write": WRITE_PLANNER_TOOLS,
-    "exec": EXEC_PLANNER_TOOLS,
-    "merge": READONLY_PLANNER_TOOLS,
+    DAG_KIND_READONLY: READONLY_PLANNER_TOOLS,
+    DAG_KIND_REVIEW: READONLY_PLANNER_TOOLS,
+    DAG_KIND_WRITE: WRITE_PLANNER_TOOLS,
+    DAG_KIND_EXEC: EXEC_PLANNER_TOOLS,
+    DAG_KIND_MERGE: READONLY_PLANNER_TOOLS,
 }
 
 #: The ceiling is the union of the kinds: a tool no kind may use is not

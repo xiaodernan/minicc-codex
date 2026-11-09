@@ -10,6 +10,14 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
+from ..config import (
+    STAGE_IMPLEMENT,
+    STAGE_INSPECT,
+    STAGE_PLANNING,
+    STAGE_REPAIR,
+    STAGE_REVIEW,
+    STAGE_VERIFY,
+)
 from ..pricing import price_for as _published_price
 
 
@@ -180,7 +188,7 @@ class StageRouter:
         if not self._is_stage_routing_enabled():
             return self._legacy_route(stage)
 
-        stage = str(stage or "planning")
+        stage = str(stage or STAGE_PLANNING)
         tier_name = self._get_stage_tier(stage)
         model = self._select_model_for_tier(tier_name)
         cost_limit = self._get_cost_limit(stage)
@@ -217,8 +225,8 @@ class StageRouter:
 
     def _legacy_route(self, stage: str) -> StageRoute:
         """Original behavior: same model, adjusted timeout."""
-        stage = str(stage or "planning")
-        factors = {"inspect": 0.75, "planning": 0.9, "implement": 1.0, "verify": 0.7, "repair": 1.0, "review": 0.8}
+        stage = str(stage or STAGE_PLANNING)
+        factors = {STAGE_INSPECT: 0.75, STAGE_PLANNING: 0.9, STAGE_IMPLEMENT: 1.0, STAGE_VERIFY: 0.7, STAGE_REPAIR: 1.0, STAGE_REVIEW: 0.8}
         factor = factors.get(stage, 1.0)
         return StageRoute(
             stage=stage,
@@ -231,12 +239,12 @@ class StageRouter:
     def _get_stage_tier(self, stage: str) -> str:
         stage_map = self.stage_routing_config.get("stage_map", {})
         default_map = {
-            "planning": "balanced",
-            "inspect": "fast",
-            "implement": "balanced",
-            "verify": "fast",
-            "repair": "reasoning",
-            "review": "balanced",
+            STAGE_PLANNING: "balanced",
+            STAGE_INSPECT: "fast",
+            STAGE_IMPLEMENT: "balanced",
+            STAGE_VERIFY: "fast",
+            STAGE_REPAIR: "reasoning",
+            STAGE_REVIEW: "balanced",
         }
         return stage_map.get(stage, default_map.get(stage, "balanced"))
 
@@ -305,7 +313,7 @@ class StageRouter:
         return cost_limits.get(stage)
 
     def _get_stage_timeout(self, stage: str) -> float:
-        factors = {"inspect": 0.75, "planning": 0.9, "implement": 1.0, "verify": 0.7, "repair": 1.0, "review": 0.8}
+        factors = {STAGE_INSPECT: 0.75, STAGE_PLANNING: 0.9, STAGE_IMPLEMENT: 1.0, STAGE_VERIFY: 0.7, STAGE_REPAIR: 1.0, STAGE_REVIEW: 0.8}
         factor = factors.get(stage, 1.0)
         return round(self.timeout * factor, 1)
 

@@ -44936,3 +44936,37 @@ Home 是 `task_contract`。cancel-file 的两处 `cancel_file.write_text("cancel
 - "ok" 判词（固定工作流里 edge 的成功线标签、`SUCCESS_STATUSES` 的 `"ok"` 等）是**路由判据**、不是生命周期事实，本批不入库。
 - `FAILED_NODE_STATUSES` 的 `"error"` 是路由开词表、半开（"a node that answers with a status nobody registered is read as failure" 在 M8-T328/T403 的设计内），不入生命周期家。
 - 不动 `verifier.py` 的验证词汇、`completion.py` 的 `COMPLETION_STATUSES`、`snapshots.py` 的 `"skipped"` 文件计数——同形异义的四个独立词表（不碰）。
+
+## 批次 674 — M8-T674：六个 stage 名单在产品里归一个家，以及 DAG kind 的同族收口
+
+### 1 欠的是哪一条
+
+`STAGE_NAMES`（`minicc/config.py`）当年只有一条用途——stage_routing 校验时报「阶段名不存在」。它既没有 split 成可被 `route()` 的常量，**也没有任何产品侧消费者**；于是 `router.py`、`main.py`、`web.py`、`graph.py` 各自手拼六个阶段名，约 45 处。同一个「哪个 stage」在这四个文件里是四种字面写法，与 `STAGE_NAMES` 之间没有任何程序性绑定。
+同族的"节点 kind"词汇也在两家手写：`graph.py` 立 `READONLY_DAG_KINDS = {"readonly", "review", "merge"}`，`planner.py` 再立 `PLANNER_KINDS = {"readonly", "write", "exec", "review", "merge"}` —— 字典 `PLANNER_KIND_TOOLS` 的键同在。
+
+### 2 改动
+
+- `minicc/config.py`：新增 **`STAGE_INSPECT / STAGE_PLANNING / STAGE_IMPLEMENT / STAGE_VERIFY / STAGE_REPAIR / STAGE_REVIEW`**，`STAGE_NAMES` 改写为 `frozenset({STAGE_INSPECT, …})`。
+- `minicc/agent/router.py`：`factors`、`default_map`、`默认 stage（planning）`、`factors.get` 共 18 处字面量改走常量；router 的 StageRouter docstring（JSON 示例，受 `test_stage_routing_config_reaches_the_router.py::test_the_documented_example_is_accepted_by_the_validator` 约束必须是**纯 JSON 文档**）恢复为字面写法——文档不受代码常量管辖。
+- `minicc/main.py`：4 处 `_stage_cost_estimator` / `stage_router.route` 改走常量。
+- `minicc/web.py`：`stage_router.route("…")` 4 处、`_stage_cost_estimator(...)` 3 处、`current_stage["name"] = "repair"` 与比较 2 处、`enter_runtime_node(...)` 2 处、`trace_event(name="repair")` 3 处、`budget_exceeded_event("planning"/"review", …)` 2 处、`repair_route` 条件一处——全部改走常量。
+- `minicc/agent/graph.py`：固定工作流（`build_coding_workflow`）的 phase 参数与 node id（inspect/implement/verify/repair/planning 共六枚）全部改走 `STAGE_*`；**工作流内部的节点 id 常驻**这两家的词表。
+- `minicc/agent/graph.py`：新增 **`DAG_KIND_READONLY / DAG_KIND_WRITE / DAG_KIND_EXEC / DAG_KIND_REVIEW / DAG_KIND_MERGE` 与 `DAG_KINDS`**，`READONLY_DAG_KINDS` 改为常量组成；**`planner.py` 随之改用 `DAG_KINDS`，不再另外手拼**。
+- 新门 `tests/test_the_stage_names_have_one_home_in_the_product_too.py`：
+  1. home 必须定义六枚常量且 `STAGE_NAMES` 正是它们的 frozenset；
+  2. `minicc/` 下除 home 外所有 `.py` 文件不得出现六枚词作为裸 `Constant`（豁免：prose/docstring、protocol 的 `PHASE_*` 赋值、DAG kind 常量（`KIND_TARGETS`）、`CHANGE_INTENT_MARKERS`（变更意图匹配器，含字面 `implement`，行为不变））。
+- `tests/test_stage_routing_config_reaches_the_router.py`：`_dict_keys_named` 的字面量点名对 router 字典键**改名常量求值**（`_STAGE_VALUES` 反汇 `dir(config_module)` 中 `STAGE_*`）——与第六百六十七批同思路：家跟得上字面量的退场。
+
+### 3 验证
+
+- `pytest tests/test_the_stage_names_have_one_home_in_the_product_too.py tests/test_the_stage_names_have_one_home_in_the_tests_too.py -q` → **4 passed**。
+- `pytest tests/test_stage_routing_config_reaches_the_router.py -q` → **58 passed**。
+- `pytest tests/test_core_agent.py tests/test_an_unknown_terminal_status_is_not_a_success.py tests/test_the_failed_node_statuses_have_one_home.py tests/test_the_dag_node_statuses_have_one_home.py tests/test_the_planner_may_only_promise_what_the_executor_can_run.py tests/test_the_plan_node_tool_lists_have_one_home.py tests/test_cli_stage_routing.py tests/test_route_wiring_pure.py tests/test_router.py tests/test_stage_route_enforcement.py -q` → **175 passed**。
+- `python scripts/doc_pointers.py --check` → rc=0。
+
+### 4 边界
+
+- StageRouter docstring 的 JSON 示例**故意**保留字面 stage 名——它是读者逐行安装的配置示例，`test_stage_routing_config_reaches_the_router.py` 把它当 JSON 解析，替换会毁掉一条门。
+- `task_manager.py` 的 `CHANGE_INTENT_MARKERS`（变更意图中英文关键词）里的 `implement` 不动——它是语料匹配词表、不是 stage 路由事实；改动会改变产品行为。
+- `planner.py` 里 `EXEC_PLANNER_TOOLS` 的 `{"bash"}` 不归一（属 tool 词表、不归本批）。
+- 工作流节点 id 的 `plan` / `summarize` / `merge` 等——不属 stage 词六枚，不改。

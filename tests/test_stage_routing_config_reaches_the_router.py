@@ -625,6 +625,21 @@ def test_the_custom_model_field_mirror_equals_the_routers_own_list() -> None:
     )
 
 
+_STAGE_VALUES = {
+    name: getattr(config_module, name)
+    for name in dir(config_module)
+    if name.startswith("STAGE_") and isinstance(getattr(config_module, name), str)
+}
+
+
+def _resolve_key(key: ast.AST) -> str | None:
+    if isinstance(key, ast.Constant) and isinstance(key.value, str):
+        return key.value
+    if isinstance(key, ast.Name):
+        return _STAGE_VALUES.get(key.id)
+    return None
+
+
 def _dict_keys_named(tree: ast.AST, names: set[str]) -> dict[str, list[str]]:
     found: dict[str, list[str]] = {}
     for node in ast.walk(tree):
@@ -636,9 +651,10 @@ def _dict_keys_named(tree: ast.AST, names: set[str]) -> dict[str, list[str]]:
             and isinstance(node.value, ast.Dict)
         ):
             keys = [
-                key.value
+                value
                 for key in node.value.keys
-                if isinstance(key, ast.Constant) and isinstance(key.value, str)
+                for value in [_resolve_key(key)]
+                if value is not None
             ]
             found.setdefault(node.targets[0].id, []).extend(keys)
     return found

@@ -27,6 +27,9 @@ from .config import (
     SANDBOX_MODES,
     TASK_EXECUTORS,
     TOOL_MODES,
+    STAGE_INSPECT,
+    STAGE_PLANNING,
+    STAGE_REVIEW,
     Config,
     ConfigError,
     load_config,
@@ -529,7 +532,7 @@ async def _turn(
             soft_max_duration_seconds=getattr(config, "soft_max_duration_seconds", None),
         )
         budget = replace(budget, max_tool_calls=config.max_tool_calls)
-        cost_estimator = _stage_cost_estimator(stage_router, "planning")
+        cost_estimator = _stage_cost_estimator(stage_router, STAGE_PLANNING)
     else:
         budget = Budget(
             max_turns=config.max_turns,
@@ -901,12 +904,12 @@ def main(argv: list[str] | None = None) -> int:
         fallback_models=tuple(getattr(config, "fallback_models", ()) or ()),
         stage_routing_config=getattr(config, "stage_routing", None),
     )
-    planning_route = stage_router.route("planning")
+    planning_route = stage_router.route(STAGE_PLANNING)
     # M11-T8: the task subagent is an inspect-tier consumer on the CLI too -
     # the same tier the web surface's recon nodes ride. Its route and
     # credential are resolved with the planning ones so a missing credential
     # refuses the run at startup, never mid-turn when a subagent first runs.
-    inspect_route = stage_router.route("inspect")
+    inspect_route = stage_router.route(STAGE_INSPECT)
     try:
         provider_spec = _route_provider_spec(stage_router, planning_route.model, config)
         inspect_spec = _route_provider_spec(stage_router, inspect_route.model, config)
@@ -1027,7 +1030,7 @@ def main(argv: list[str] | None = None) -> int:
         max_turns=_route_turn_cap(inspect_route, default=DEFAULT_MAX_TURNS),
         max_cost_usd=inspect_route.max_cost_usd,
         cost_estimator=(
-            _stage_cost_estimator(stage_router, "inspect")
+            _stage_cost_estimator(stage_router, STAGE_INSPECT)
             if stage_router.routing_enabled()
             else None
         ),

@@ -127,7 +127,13 @@ class ConfigError(RuntimeError):
 # tests/test_stage_routing_config_reaches_the_router.py pins each mirror against
 # the router in both directions.
 STAGE_TIER_NAMES = frozenset({"fast", "balanced", "reasoning"})
-STAGE_NAMES = frozenset({"inspect", "planning", "implement", "verify", "repair", "review"})
+STAGE_INSPECT = "inspect"
+STAGE_PLANNING = "planning"
+STAGE_IMPLEMENT = "implement"
+STAGE_VERIFY = "verify"
+STAGE_REPAIR = "repair"
+STAGE_REVIEW = "review"
+STAGE_NAMES = frozenset({STAGE_INSPECT, STAGE_PLANNING, STAGE_IMPLEMENT, STAGE_VERIFY, STAGE_REPAIR, STAGE_REVIEW})
 # Keys the router indexes.  A key outside this set has no reader, so accepting it
 # would be the same self-deception as ``{"max_truns": 40}`` - which this resolver
 # reports instead of tolerating.

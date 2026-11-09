@@ -20,6 +20,13 @@ import inspect
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable
 
+from ..config import (
+    STAGE_IMPLEMENT,
+    STAGE_INSPECT,
+    STAGE_PLANNING,
+    STAGE_REPAIR,
+    STAGE_VERIFY,
+)
 from .state import AgentState, Budget, BudgetExceeded
 
 
@@ -27,10 +34,17 @@ class GraphValidationError(ValueError):
     """A graph or plan violates its structural limits."""
 
 
+# The node-kind vocabulary of the DAG: one home, planner and executor ask it.
+DAG_KIND_READONLY = "readonly"
+DAG_KIND_WRITE = "write"
+DAG_KIND_EXEC = "exec"
+DAG_KIND_REVIEW = "review"
+DAG_KIND_MERGE = "merge"
+DAG_KINDS = frozenset({DAG_KIND_READONLY, DAG_KIND_WRITE, DAG_KIND_EXEC, DAG_KIND_REVIEW, DAG_KIND_MERGE})
 # The execute_dag readonly boundary (module docstring). Single source of truth:
 # task_manager._is_bounded_readonly_plan imports these names so the web face's
 # skip-early check and the executor's hard reject can never drift apart.
-READONLY_DAG_KINDS = frozenset({"readonly", "review", "merge"})
+READONLY_DAG_KINDS = frozenset({DAG_KIND_READONLY, DAG_KIND_REVIEW, DAG_KIND_MERGE})
 READONLY_DAG_TOOLS = frozenset({"read_file", "grep", "git_status", "git_diff"})
 
 # M8-T377: the tool lists the **fixed templates** grant to their nodes.  The
@@ -405,22 +419,22 @@ def build_coding_workflow() -> StateGraph:
     graph = StateGraph("coding", entry="intake")
     for node, phase, retries in (
         ("intake", "intake", 0),
-        ("plan", "planning", 0),
-        ("inspect", "inspect", 0),
-        ("implement", "implement", 0),
-        ("verify", "verify", 2),
-        ("repair", "repair", 2),
+        ("plan", STAGE_PLANNING, 0),
+        (STAGE_INSPECT, STAGE_INSPECT, 0),
+        (STAGE_IMPLEMENT, STAGE_IMPLEMENT, 0),
+        (STAGE_VERIFY, STAGE_VERIFY, 2),
+        (STAGE_REPAIR, STAGE_REPAIR, 2),
         ("summarize", "summarize", 0),
     ):
         graph.add_node(GraphNode(node, phase, max_retries=retries))
     graph.add_edge("intake", "plan")
-    graph.add_edge("plan", "inspect")
-    graph.add_edge("inspect", "implement")
-    graph.add_edge("implement", "verify")
-    graph.add_edge("verify", "summarize", "ok")
-    graph.add_edge("verify", "repair", NODE_STATUS_FAILED)
-    graph.add_edge("repair", "verify", "ok")
-    graph.add_edge("repair", "summarize", NODE_STATUS_FAILED)
+    graph.add_edge("plan", STAGE_INSPECT)
+    graph.add_edge(STAGE_INSPECT, STAGE_IMPLEMENT)
+    graph.add_edge(STAGE_IMPLEMENT, STAGE_VERIFY)
+    graph.add_edge(STAGE_VERIFY, "summarize", "ok")
+    graph.add_edge(STAGE_VERIFY, STAGE_REPAIR, NODE_STATUS_FAILED)
+    graph.add_edge(STAGE_REPAIR, STAGE_VERIFY, "ok")
+    graph.add_edge(STAGE_REPAIR, "summarize", NODE_STATUS_FAILED)
     graph.validate()
     return graph
 
@@ -429,15 +443,15 @@ def fixed_plan(name: str, *, task_count: int = 0) -> DAGPlan:
     """Build one of the bounded templates described in the roadmap."""
     if name == "inspect_summarize":
         tasks = (
-            PlanTask("inspect", "readonly", allowed_tools=INSPECT_DAG_TOOLS),
-            PlanTask("summarize", "readonly", depends_on=("inspect",)),
+            PlanTask(STAGE_INSPECT, "readonly", allowed_tools=INSPECT_DAG_TOOLS),
+            PlanTask("summarize", "readonly", depends_on=(STAGE_INSPECT,)),
         )
     elif name == "inspect_implement_verify":
         tasks = (
-            PlanTask("inspect", "readonly", allowed_tools=INSPECT_DAG_TOOLS),
-            PlanTask("implement", "write", depends_on=("inspect",), allowed_tools=WRITE_DAG_TOOLS),
-            PlanTask("verify", "exec", depends_on=("implement",), allowed_tools=VERIFY_DAG_TOOLS),
-            PlanTask("summarize", "readonly", depends_on=("verify",)),
+            PlanTask(STAGE_INSPECT, "readonly", allowed_tools=INSPECT_DAG_TOOLS),
+            PlanTask(STAGE_IMPLEMENT, "write", depends_on=(STAGE_INSPECT,), allowed_tools=WRITE_DAG_TOOLS),
+            PlanTask(STAGE_VERIFY, "exec", depends_on=(STAGE_IMPLEMENT,), allowed_tools=VERIFY_DAG_TOOLS),
+            PlanTask("summarize", "readonly", depends_on=(STAGE_VERIFY,)),
         )
     elif name == "parallel_inspect":
         count = max(1, min(16, int(task_count)))
@@ -447,9 +461,9 @@ def fixed_plan(name: str, *, task_count: int = 0) -> DAGPlan:
         )
         tasks = scans + (
             PlanTask("merge", "readonly", depends_on=tuple(task.id for task in scans)),
-            PlanTask("implement", "write", depends_on=("merge",), allowed_tools=WRITE_DAG_TOOLS),
-            PlanTask("verify", "exec", depends_on=("implement",), allowed_tools=VERIFY_DAG_TOOLS),
-            PlanTask("summarize", "readonly", depends_on=("verify",)),
+            PlanTask(STAGE_IMPLEMENT, "write", depends_on=("merge",), allowed_tools=WRITE_DAG_TOOLS),
+            PlanTask(STAGE_VERIFY, "exec", depends_on=(STAGE_IMPLEMENT,), allowed_tools=VERIFY_DAG_TOOLS),
+            PlanTask("summarize", "readonly", depends_on=(STAGE_VERIFY,)),
         )
     else:
         raise GraphValidationError(f"未知固定模板: {name}")
@@ -489,6 +503,12 @@ def aggregate_dag_tokens(outputs: dict[str, Any]) -> dict[str, int]:
 
 __all__ = [
     "DAGPlan",
+    "DAG_KIND_EXEC",
+    "DAG_KIND_MERGE",
+    "DAG_KIND_READONLY",
+    "DAG_KIND_REVIEW",
+    "DAG_KINDS",
+    "DAG_KIND_WRITE",
     "NODE_STATUS_COMPLETED",
     "NODE_STATUS_FAILED",
     "NODE_STATUS_RUNNING",

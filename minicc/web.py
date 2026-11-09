@@ -113,6 +113,11 @@ from .internal_paths import AUDIT_NAME, PERMISSIONS_NAME
 from .permissions import load_permission_rules
 from .clock import utc_iso
 from .config import (
+    STAGE_INSPECT,
+    STAGE_PLANNING,
+    STAGE_REPAIR,
+    STAGE_REVIEW,
+    STAGE_VERIFY,
     ConfigError,
     DEFAULT_COMPACT_THRESHOLD,
     DEFAULT_CONTEXT_WINDOW_TOKENS,
@@ -1416,7 +1421,7 @@ class AgentService:
             stage_routing_config=getattr(self.config, "stage_routing", None),
         )
         budget = _stage_route_budget(
-            stage_router.route("planning"),
+            stage_router.route(STAGE_PLANNING),
             default_max_turns=getattr(self.config, "max_turns", None),
             default_max_duration_seconds=None,
             soft_max_tokens=getattr(self.config, "soft_max_tokens", None),
@@ -1662,17 +1667,17 @@ class AgentService:
             # is the behavior every existing deployment already has.
             stage_routing_config=getattr(self.config, "stage_routing", None),
         )
-        initial_route = stage_router.route("planning")
+        initial_route = stage_router.route(STAGE_PLANNING)
         # M11-T3: resolved once, with the planning route, because the run's
         # shape depends on them (repair-cycle cap, judge provider). route()
         # is a pure config read, so resolving early is the same as resolving
         # late - only clearer about when the run's shape is fixed.
-        repair_route = stage_router.route("repair")
-        review_route = stage_router.route("review")
+        repair_route = stage_router.route(STAGE_REPAIR)
+        review_route = stage_router.route(STAGE_REVIEW)
         # M11-T8: the Task tool's readonly subagent is an inspect-tier
         # consumer, resolved with the other routes so its credential is
         # prechecked with them.
-        inspect_route = stage_router.route("inspect")
+        inspect_route = stage_router.route(STAGE_INSPECT)
         # M11-T5: a routed model that demands another wire family must be
         # buildable before anything runs. A missing per-model credential
         # refuses the run here - never as the deployment key POSTed to
@@ -1991,7 +1996,7 @@ class AgentService:
             # run provider (if the repair route picked a different model) and
             # re-prices every charged turn - a stage that only relabels the
             # event is not a stage.
-            current_stage = {"name": "planning"}
+            current_stage = {"name": STAGE_PLANNING}
             # Bounded Task subagent: registered per task so the model can
             # spawn readonly research sub-runs; restricted registry keeps it
             # non-recursive. Sub-tool calls inherit parent permission gating
@@ -2042,7 +2047,7 @@ class AgentService:
                     max_turns=_route_turn_cap(inspect_route, default=DEFAULT_MAX_TURNS),
                     max_cost_usd=inspect_route.max_cost_usd,
                     cost_estimator=(
-                        _stage_cost_estimator(stage_router, "inspect")
+                        _stage_cost_estimator(stage_router, STAGE_INSPECT)
                         if stage_router.routing_enabled()
                         else None
                     ),
@@ -2115,7 +2120,7 @@ class AgentService:
                     # M11-T4: recovery stays in the stage the run is in - a
                     # repair-stage provider must not resurrect as the
                     # planning model.
-                    route = repair_route if current_stage["name"] == "repair" else initial_route
+                    route = repair_route if current_stage["name"] == STAGE_REPAIR else initial_route
                     fallback_models = tuple(route.fallback_models or ())
                     # Seeded with the routed model, not None: a recovery must
                     # not silently drop back to the primary model while stage
@@ -2350,7 +2355,7 @@ class AgentService:
                         try:
                             # Reconnaissance is its own stage: it takes the
                             # inspect route's timeout, model and effort.
-                            inspect_route = stage_router.route("inspect")
+                            inspect_route = stage_router.route(STAGE_INSPECT)
                             node_provider = make_provider(
                                 timeout=inspect_route.timeout,
                                 status_callback=node_status,
@@ -2379,7 +2384,7 @@ class AgentService:
                                     soft_max_tokens=getattr(self.config, "soft_max_tokens", None),
                                     soft_max_duration_seconds=getattr(self.config, "soft_max_duration_seconds", None),
                                 ),
-                                cost_estimator=_stage_cost_estimator(stage_router, "inspect"),
+                                cost_estimator=_stage_cost_estimator(stage_router, STAGE_INSPECT),
                                 vision_context=vision_context,
                                 hooks=hook_runner,
                                 # M8-T293: the node agent needs the workspace
@@ -2572,11 +2577,11 @@ class AgentService:
                         try:
                             runtime_state.budget.record_usage(usage)
                             runtime_state.budget.record_cost(
-                                _stage_cost_estimator(stage_router, "planning")(usage)
+                                _stage_cost_estimator(stage_router, STAGE_PLANNING)(usage)
                             )
                         except BudgetExceeded as exc:
                             budget_event = budget_exceeded_event(
-                                "planning", exc, usage, name="planner", phase=PHASE_PLANNING,
+                                STAGE_PLANNING, exc, usage, name="planner", phase=PHASE_PLANNING,
                             )
                             events.append(budget_event)
                             if on_event is not None:
@@ -2649,7 +2654,7 @@ class AgentService:
                         # on the run budget's stage ceiling - the judge has no
                         # budget lifecycle of its own.
                         runtime_state.budget.record_cost(
-                            _stage_cost_estimator(stage_router, "review")(usage)
+                            _stage_cost_estimator(stage_router, STAGE_REVIEW)(usage)
                         )
                     except BudgetExceeded as exc:
                         target.error = budget_exceeded_error(exc)
@@ -2658,7 +2663,7 @@ class AgentService:
                         # the loop; a judge-side trip must be just as visible,
                         # or the run would stop with no named cause in events.
                         budget_event = budget_exceeded_event(
-                            "review", exc, usage,
+                            STAGE_REVIEW, exc, usage,
                             name="completion_judge", phase=PHASE_REVIEW,
                         )
                         events.append(budget_event)
@@ -2673,7 +2678,7 @@ class AgentService:
                     return True
 
                 while True:
-                    enter_runtime_node("inspect" if repair_attempts == 0 else "repair", "inspect" if repair_attempts == 0 else "repair")
+                    enter_runtime_node(STAGE_INSPECT if repair_attempts == 0 else STAGE_REPAIR, STAGE_INSPECT if repair_attempts == 0 else STAGE_REPAIR)
                     current = await run_agent(
                         provider,
                         registry,
@@ -2757,7 +2762,7 @@ class AgentService:
                             break
                         agent_recoveries += 1
                         recovery_event = trace_event(
-                            name="repair",
+                            name=STAGE_REPAIR,
                             status="error",
                             phase=PHASE_REPAIR,
                             code="task_stagnation_recovery",
@@ -2793,7 +2798,7 @@ class AgentService:
 
                     verification = None
                     if writes:
-                        enter_runtime_node("verify", "verify")
+                        enter_runtime_node(STAGE_VERIFY, STAGE_VERIFY)
                         try:
                             verification_plan = await asyncio.to_thread(
                                 build_verification_plan, workspace, changed_paths_from_events(events)
@@ -2869,7 +2874,7 @@ class AgentService:
                                     reasoning_effort_override=repair_route.reasoning_effort,
                                 )
                                 switch_event = trace_event(
-                                    name="repair",
+                                    name=STAGE_REPAIR,
                                     status="ok",
                                     phase=PHASE_REPAIR,
                                     code="repair_stage_provider",
@@ -2879,10 +2884,10 @@ class AgentService:
                                 events.append(switch_event)
                                 if on_event is not None:
                                     on_event(switch_event)
-                            current_stage["name"] = "repair"
+                            current_stage["name"] = STAGE_REPAIR
                             scope = repair_scope(events, verification_data)
                             scope_event = trace_event(
-                                name="repair",
+                                name=STAGE_REPAIR,
                                 status="ok",
                                 phase=PHASE_REPAIR,
                                 code="dependency_aware_repair_scope",
@@ -2917,7 +2922,7 @@ class AgentService:
                             break
 
                     completion_review_attempt += 1
-                    enter_runtime_node("review", "review")
+                    enter_runtime_node(STAGE_REVIEW, STAGE_REVIEW)
                     decision = await judge_completion(
                         review_provider,
                         task=message,
