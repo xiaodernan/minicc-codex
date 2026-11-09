@@ -45933,3 +45933,32 @@ mutation not attributed: the smoke failed with PRODUCT_PATH_NO_TERMINAL_STATE, n
 - **stats 不是 doctor**：缺的是检查合伙、不是健康度评分；`.minicc/` 不完整或有坏行也不会让 `--stats` 非零退出（容错，它是 inventory，不是 verdict）。
 - **不写任何东西**：读 `.minicc/`，零触碰 `audit.jsonl` / `web_token.json` / `permissions.json`；未调用 `TaskStore.upsert` 或任何 write API。
 - **只与 doctor/strict/stats 搭配走 `--json`**——其余命令保持人读输出不撒网。
+
+## 批次 710 — M8-T710：benchmarks v2 套件扩容（24→28 条）+ 新 fixture 引擎对齐
+
+### 1 欠的是哪一条
+
+v2 套件是「写能力」唯一硬锚点（M4 里程碑的 acceptance 口径：24 条任务 + hidden grader）。里面没有「JSON roundtrip」「跨文件 rename symbol」「测试失败要动配置而不改测试」这类真实工程面**行为**——这些形态评测得真实，宝石才能扩。
+
+### 2 改动
+
+`benchmarks/tasks.v2.json`（合法 compact JSON，礼貌留换行）新增四条：
+
+| id | category | grader | prompt 撮要 |
+| --- | --- | --- | --- |
+| `v2-json-roundtrip` | write | file_contract / `json_equals` | 往空骨架 `data.json` 填 `{"name":"minicc","tags":["cli","agent"]}` |
+| `v2-rename-symbol` | multi-file | file_contract | a.py + b.py 内 `old_name(` 改名为 `new_name(`，并断言 `not_contains old_name` 于两文件 |
+| `v2-config-fix-command` | test-fix | command_contract / `pytest test_sample.py` exit 0 | `config.json` 缺 `api_key`，测试依赖它；只改配置、不碰测试 |
+| `v2-single-file-notes` | write | file_contract / `contains` + `equals` | 创建 `notes.txt`，内容只有一行 `TODO: clean caches` |
+
+### 3 验证
+
+- `python -c "from minicc import bench_tasks; print(len(bench_tasks.v2_tasks()))"` → **28**。
+- `pytest tests/test_bench_tasks.py tests/test_benchmark_runner.py -q` → **36 passed**。
+- 类别分布 write 14 / multi-file 7 / test-fix 7；grader 分布 file_contract 20 / command_contract 8——全部与 `test_bench_tasks.py` 的断言门限兼容（schema/唯一 id/根仓逃逸/命令标记）。
+
+### 4 边界
+
+- `suite_version` 仍为 `v2-1`（新增只算扩容，不改判，不重划基线）。
+- 不在 fake provider 下强断言 pass@1（它不会写任何文件）——这批任务的判定依赖真实 agent 或 seed 文件覆盖的手动对照；对 v2 自动 nightly 语义不生影响。
+- 不改动任何既有任务的 prompt、fixture 或 grader；既有数值 baseline 仍有效。
