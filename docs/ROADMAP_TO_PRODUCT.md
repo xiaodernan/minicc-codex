@@ -45833,3 +45833,30 @@ mutation not attributed: the smoke failed with PRODUCT_PATH_NO_TERMINAL_STATE, n
 
 - 若一个任务横竖都到不了终态，240s 后门照样红——只是不会强迫一个正常退避周期撞 90s 硬边界。
 - 该环境变量是逃生舱口，不影响本仓默认预算 240s；引入本变更不改变任何断言语气。
+
+## 批次 706 — M8-T706：仓库收口 — 15 个 stale worktree 与 20 条本地分支入档
+
+### 1 欠的是哪一条
+
+并轨线合并收口后，磁盘上遗留了 **43 个 worktree** 与 **23 条本地分支**：许多引用同一份已丢弃的历史切片、其中大量 detached 指针指向 42be4e3 基线附近的预集成状态。没有任何门会为「不该留的旧物还在」画红，所以它们永远不被动手——而每一个新会话都要重新接一遍「这是不是脏的」的人肉判断。
+
+### 2 清查口径（先取证、再动手）
+
+- 对每个 worktree：`git status --porcelain`（dirty 计数与清单）+ `git rev-list --count main..<HEAD>`。
+- 对每个分支：`git branch --merged main` 与 `git cherry main <branch>`（patch-id 等值判定）双向核对。
+- 删除策略：**只有全零或 patch-absorbed** 的才碰；dirty 的一律不动；backup 分支按既往决定不动。
+
+### 3 处置
+
+- **移除 15 个 worktree**（全部 0-ahead、0-dirty，均为可从 `main` 或对象存储重新 `git worktree add` 还原的残件）：`wt363f / wt517 / wt517par / wt518 / wt519 / wt520 / wt520f / wt521b / wt521e / wt521f / wt528a / wt528f / wt528g / wtfence519 / wtws319`。
+- **删除 9 条全并入 main 的本地分支**（`git branch -d`）：`integration/m8-t537-to-main`、`integration/mentions-security`、`integration/mentions-xml-hardening`、`integration/mentions-xml-hardening3`、`integration/same-fact-mining`、`integration/websem`、`m8-rebase-on-0cb8007`、`m8-t537`、`tmp/int-doc-pointers2`。
+- **删除 11 条 patch-absorbed 分支**（`git cherry` 全部为 `-`；残件 `+` 逐条比对均为 ROADMAP 记录文本或在本仓有等值落点）：`integration/ci-web-smoke`、`integration/task-status-home`、`m8-t117-121-land`、`m8-t117-ipv6-unspecified-not-loopback`、`m8-t118-metacharset`、`m8-t121-netguard-multicast-belt`、`m8-t122-netguard-reserved-belt`、`m8-t123-allowlist-scope`、`m8-t124-allowlist-brackets`、`m8-t125-allowlist-dotdot`、`m8-t127-deny-veto-every-site`。
+- 本次保留：`backup/local-line-batches70-75`（既往决定）、`dev/minicc-reliability-4ba3`（51 个真未合并提交，内容需另外重建）、`main`。
+- **个别点核对为 `+` 的六处实际内容归属**：glob skipdirs 门（本仓已有 `tests/test_glob_does_not_hide_files_named_like_skipdirs.py`）、T117 已退休、stage-routing 门测试（本仓有 `tests/test_stage_routing_config_reaches_the_router.py`）、ROADMAP 残留记录（归类为文档账本残件）。
+- 未删除、未触碰：任何 dirty worktree（共 26 个），任何其他会话的文件。
+
+### 4 边界
+
+- 本地分支删除不影响远程 `origin/*`（全部保留，属于共享泳道）。
+- 删除不删除对象；只要 refs 曾被 push/记录，对象在 reflog+gc 之前可恢复。
+- 本批不改产品代码、不进改动范围、不影响测试。
