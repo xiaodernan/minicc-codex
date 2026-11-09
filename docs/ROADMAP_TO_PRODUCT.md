@@ -45153,3 +45153,29 @@ Ubuntu 腿：`1 failed, 4673 passed`：
 
 - 不改 `HOMES`、不改成员表；`config.py` 维持常量拼写。
 - 本门的 `"element is Name not in constants → None"` 是故意的：它允许用户将来写出混合常量集合，只解不了的成员不会把整组带上误判；真正的五switch 词表字面量仍能按成员精确命中。
+
+## 批次 683 — M8-T683：《一个事实一个家》——minicc-codex 的同一事实自律法
+
+### 1 为什么需要这份文档
+
+六百五十批以来，「同一个事实，只许一个家」一直是这个仓库的核心纪律，但只**存在于** `docs/ROADMAP_TO_PRODUCT.md` 的合流纪录、代码里的常量和 tests 里的门里——缺少一份能把整个方法论讲给下一位读者听的文档。合流落地后，正是补它的时机：案例齐全（mentions/XML、task_memory、deny-once、sandbox、stage、switch vocabularies……），教训明确（编号撞车、EOL 换行、doc_pointers 命中、census 门解常量），证据都在本仓库里。
+
+### 2 这份文档说了什么
+
+- 公理：同一事实只许一个家（家 = 定义点 + 读者 + 门三件套）。
+- 理由：合流前两条通道怎么漂移的（mention、stage、sandbox、deletion-preimage、task status……）。
+- 词表索引（当前家→门，共 18 类）。
+- 门的标准形状（三条腿、为什么必须机械可检查）。
+- 合流红修速查（第一批到第 682 批的顺序：红先绿后、推送后才 CI、`doc_pointers --check` 必须 rc=0、批号自增）。
+- 反模式（手拼字面量、注释代替语义、fetched-省事、盗读者等）。
+- 新人路线（从哪批读起、`--check` 能给出什么）。
+- 这个体系的边界（lexical 相同不等于同一事实；门宁可宽也不可窄；census 门解常量不是失败是红灯）。
+
+### 3 验证
+
+- `python scripts/doc_pointers.py --check` → rc=0。
+- 本批仅文档，无代码行为变更。
+
+### 4 边界
+
+- 本文不是**进程**文体：不替代 `README.md`、不重命中任何现有文件、不设任何新门——门仍以各 `tests/test_*_have_one_home*.py` 为准；本文引用其中真实文件名，CI 会按 `doc_pointers` 的规则逐字对账。
