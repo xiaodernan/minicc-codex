@@ -1,0 +1,6 @@
+minicc:
+  cloud:
+    tasks:
+      # Service-specific override; the shared keys stay in application.yml so
+      # the gateway and the service cannot drift apart.
+      max-limit: 100

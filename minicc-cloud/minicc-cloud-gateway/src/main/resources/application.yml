@@ -33,6 +33,18 @@ spring:
                   args:
                     name: inspector-route
                     fallbackUri: forward:/fallback/inspector
+            - id: tasks
+              uri: lb://minicc-cloud-tasks
+              predicates:
+                - Path=/api/tasks,/api/tasks/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: tasks-route
+                    # The existing fallback answers 503 with a reason, never an
+                    # empty array, which is the point for a read the gateway
+                    # could not perform.
+                    fallbackUri: forward:/fallback/inspector
 
 eureka:
   client:
@@ -59,8 +71,17 @@ resilience4j:
         failure-rate-threshold: 50
         wait-duration-in-open-state: 10s
         permitted-number-of-calls-in-half-open-state: 2
+      tasks-route:
+        register-health-indicator: true
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 2
   timelimiter:
     instances:
       inspector-route:
+        timeout-duration: ${minicc.cloud.gateway.response-timeout-seconds:40}s
+        cancel-running-future: true
+      tasks-route:
         timeout-duration: ${minicc.cloud.gateway.response-timeout-seconds:40}s
         cancel-running-future: true

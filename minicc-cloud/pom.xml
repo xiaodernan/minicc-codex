@@ -30,6 +30,7 @@
     <module>minicc-cloud-registry</module>
     <module>minicc-cloud-config</module>
     <module>minicc-cloud-inspector</module>
+    <module>minicc-cloud-tasks</module>
     <module>minicc-cloud-gateway</module>
   </modules>
 

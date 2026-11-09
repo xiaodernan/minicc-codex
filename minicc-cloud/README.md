@@ -12,6 +12,7 @@ calls the Python tools through one bridge. It does not re-implement the engine.
 | `minicc-cloud-registry` | 8761 | Eureka server |
 | `minicc-cloud-config` | 8888 | Spring Cloud Config Server (native profile) serving `config-repo/` |
 | `minicc-cloud-inspector` | 8081 | read-only workspace change service; refuses paths outside `MINICC_ALLOWEDROOTS` |
+| `minicc-cloud-tasks` | 8082 | read-only task history from the Python engine's SQLite store; never writes, never fakes an empty answer |
 | `minicc-cloud-gateway` | 8080 | Spring Cloud Gateway: `lb://` routes, Resilience4j circuit breaker, `/fallback` |
 
 One fact, one home: the gateway's HTTP timeout and the expert circuit breaker's
@@ -24,7 +25,7 @@ standalone fallbacks, not a second source of truth.
 
 ```bash
 cd minicc-cloud
-mvn -B test                 # five modules, no network needed
+mvn -B test                 # six modules, no network needed
 mvn -DskipTests package
 docker compose build
 docker compose up

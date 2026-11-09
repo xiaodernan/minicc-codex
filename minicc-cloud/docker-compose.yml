@@ -55,6 +55,32 @@ services:
       retries: 30
       start_period: 25s
 
+  tasks:
+    build:
+      context: ..
+      dockerfile: minicc-cloud/minicc-cloud-tasks/Dockerfile
+    image: minicc-cloud-tasks:0.1.0
+    ports:
+      - "8082:8082"
+    environment:
+      EUREKA_ZONE: http://registry:8761/eureka/
+      CONFIG_SERVER: http://config:8888
+      MINICC_STATE: /state
+    volumes:
+      # Read-only: the task service never writes; the Python engine owns it.
+      - ${MINICC_STATE:-../.minicc}:/state:ro
+    depends_on:
+      registry:
+        condition: service_healthy
+      config:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8082"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 25s
+
   gateway:
     build:
       context: ..

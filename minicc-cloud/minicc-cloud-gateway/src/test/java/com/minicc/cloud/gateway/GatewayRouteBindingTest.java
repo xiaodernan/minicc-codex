@@ -38,11 +38,13 @@ class GatewayRouteBindingTest {
     @Autowired private WebTestClient client;
 
     @Test
-    void theYamlBindsExactlyOneRouteToTheInspectorByServiceName() {
+    void theYamlBindsTheInspectorRouteToItsServiceName() {
         List<RouteDefinition> routes = properties.getRoutes();
-        assertThat(routes).hasSize(1);
+        assertThat(routes)
+                .extracting(RouteDefinition::getId)
+                .containsExactly("inspector-changes", "tasks");
 
-        RouteDefinition route = routes.get(0);
+        RouteDefinition route = inspectorRoute();
         assertThat(route.getId()).isEqualTo("inspector-changes");
         assertThat(route.getUri().toString()).isEqualTo("lb://minicc-cloud-inspector");
     }
@@ -59,7 +61,7 @@ class GatewayRouteBindingTest {
 
     @Test
     void theRouteMatchesThePathsTheInspectorServes() {
-        List<PredicateDefinition> predicates = properties.getRoutes().get(0).getPredicates();
+        List<PredicateDefinition> predicates = inspectorRoute().getPredicates();
         assertThat(predicates).hasSize(1);
         assertThat(predicates.get(0).getName()).isEqualTo("Path");
         assertThat(predicates.get(0).getArgs().values())
@@ -68,7 +70,7 @@ class GatewayRouteBindingTest {
 
     @Test
     void theRouteCarriesACircuitBreakerThatForwardsToTheFallback() {
-        List<FilterDefinition> filters = properties.getRoutes().get(0).getFilters();
+        List<FilterDefinition> filters = inspectorRoute().getFilters();
         assertThat(filters).hasSize(1);
 
         FilterDefinition breaker = filters.get(0);
@@ -107,6 +109,13 @@ class GatewayRouteBindingTest {
                 .exchange()
                 .expectStatus()
                 .isNotFound();
+    }
+
+    private RouteDefinition inspectorRoute() {
+        return properties.getRoutes().stream()
+                .filter(route -> "inspector-changes".equals(route.getId()))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("the inspector route is missing"));
     }
 
     @SuppressWarnings("unchecked")
