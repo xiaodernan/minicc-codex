@@ -48,6 +48,8 @@ from ..tools.schemas import (
     CODE_ERROR,
     CODE_TIMEOUT,
     ToolResult,
+    TOOL_STATUS_CANCELLED,
+    TOOL_STATUS_TIMED_OUT,
     tagged,
     untrusted_tags,
 )
@@ -557,7 +559,7 @@ class _SubagentRunner:
                 thread.join(timeout=15.0)
                 lifecycle("subagent_cancelled", "cancelled", subagent_cancelled_message(description))
                 return ToolResult(
-                    status="cancelled",
+                    status=TOOL_STATUS_CANCELLED,
                     summary=tagged(CODE_CANCELLED, subagent_cancelled_message(description)),
                     security_tags=untrusted_tags("subagent"),
                 )
@@ -582,7 +584,7 @@ class _SubagentRunner:
                 thread.join(timeout=15.0)
                 lifecycle("subagent_cancelled", "cancelled", subagent_cancelled_message(description))
                 return ToolResult(
-                    status="cancelled",
+                    status=TOOL_STATUS_CANCELLED,
                     summary=tagged(CODE_CANCELLED, subagent_cancelled_message(description)),
                     security_tags=untrusted_tags("subagent"),
                 )
@@ -613,7 +615,7 @@ class _SubagentRunner:
                 subagent_timeout_message(self.timeout_seconds, description),
             )
             return ToolResult(
-                status="timed_out",
+                status=TOOL_STATUS_TIMED_OUT,
                 summary=tagged(CODE_TIMEOUT, subagent_timeout_message(self.timeout_seconds, description)),
                 output="子代理超时被终止。请缩小调研范围后重试，或直接使用只读工具分步完成。",
                 data={"description": description, "tool_log": tool_log, "timed_out": True},

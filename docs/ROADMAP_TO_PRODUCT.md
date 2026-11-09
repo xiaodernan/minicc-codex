@@ -45039,3 +45039,24 @@ Ubuntu 腿 `1 failed, 4667 passed`：`tests/test_the_package_does_not_import_wha
 
 - 不动 T674 的其余改动；不把 `D:\面试项目\minicc-codex-scratch\` 加进仓。
 - 等 42542048808 双腿落幕后推云复验。
+
+## 批次 678 — M8-T678：subagent 的 ToolResult 状态接回 `TOOL_STATUS_*`，且门的构造位被封死
+
+### 1 欠的是哪一条
+
+`minicc/agent/subagent.py` 的三次 `ToolResult(status="cancelled" / status="timed_out", ...)` 是 schemas 域（`minicc/tools/schemas.py` 的 `TOOL_STATUS_CANCELLED` / `TOOL_STATUS_TIMED_OUT`），`test_the_tool_result_nonok_statuses_have_one_home_in_agent.py` 当初只钉住了**比较**（`Compare`) 中校验 `<*_result>.status` 的 sites，构造侧 `ToolResult(status=...)` 整体在册外——所以字面量无人看管。
+
+### 2 改动
+
+- `minicc/agent/subagent.py`：引入 `TOOL_STATUS_CANCELLED`、`TOOL_STATUS_TIMED_OUT`（从 `..tools.schemas`），3 处 `status=` 裸字面量改走常量。`lifecycle(...)` 的第二个参数——`trace_event(status=...)` 的子代理事件 status（"ok"/"error"/"cancelled" 的事件词表）——与"工具结果事实"不是同一事实，本批不动（归到以后批次的 event-status 家）。
+- `tests/test_the_tool_result_nonok_statuses_have_one_home_in_agent.py`：SCOPED 依然是 `loop.py`/`verifier.py`（比较位）；**新增第二条腿**（`test_no_bare_tool_result_status_literals_on_tool_result_calls_in_core_agent_modules`）：对 `minicc/agent/` 与 `minicc/tools/` 下所有 `.py`，凡 `ToolResult(status=<Constant>)` 且该常量属于 `{"error","denied","cancelled","timed_out"}`——报红。
+
+### 3 验证
+
+- `pytest tests/test_the_tool_result_nonok_statuses_have_one_home_in_agent.py tests/test_subagent_wiring.py tests/test_core_agent.py -q` → **61 passed**。
+- `python scripts/doc_pointers.py --check` → rc=0。
+
+### 4 边界
+
+- `lifecycle` 的第二个参数（事件 status）属于第三个词表（事件状态、被 `trace_event` 消费），不入本批。
+- 不把 `security_tags` 或其它 ToolResult 关键字扩门。
