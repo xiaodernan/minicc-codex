@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import sys
 from dataclasses import replace
 from pathlib import Path
@@ -262,7 +263,16 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--doctor", action="store_true", help="运行工作区自检并退出（不调网络、不跑模型）")
     parser.add_argument("--doctor-strict", action="store_true", help="同 --doctor，但 warning 也按 fatal 处理（CI 风险守门）")
     parser.add_argument("--stats", action="store_true", help="只读打印工作区现状清单（不调网络、不跑模型）")
-    parser.add_argument("--json", action="store_true", help="与 --doctor / --doctor-strict / --stats 搭配：输出机器可读 JSON")
+    parser.add_argument(
+        "--capabilities",
+        action="store_true",
+        help="打印注册表里的工具能力清单（JSON）并退出（不调网络、不跑模型）",
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="与 --doctor / --doctor-strict / --stats / --capabilities 搭配：输出机器可读 JSON",
+    )
     parser.add_argument("--version", action="version", version=f"minicc {minicc_version()}")
     return parser
 
@@ -833,11 +843,34 @@ def _warn_unrun_prompt(prompt: list[str], flag: str) -> None:
     cli_out("要执行它，请在目标分支上重新提交，例如 minicc --resume --session-id <分支名> <任务>")
 
 
+def _capabilities(workspace: Path) -> dict[str, Any]:
+    """注册表本身就是能力清单，命令里不再手写第二份名单。
+
+    手写的目录会与注册表漂移：注册了新工具而目录没跟上，机器读到的能力
+    就比模型实际能调用的少；反过来则会承诺一个不存在的工具。这里按
+    ``build_registry`` 的产物逐项导出，name 与 description 都直接取自
+    ``ToolSpec``。不传 ``mcp_manager`` 是刻意的：MCP 工具按工作区配置
+    动态发现，发现过程会拉起外部进程，而 ``--capabilities`` 必须只读、
+    离线、可被 Java 侧当作静态目录调用。
+    """
+    registry = build_registry(Editor(workspace))
+    tools = [
+        {"name": name, "description": registry.spec(name).description}
+        for name in registry.names()
+    ]
+    return {"count": len(tools), "tools": tools}
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
-    informational = bool(args.doctor or getattr(args, "doctor_strict", False) or getattr(args, "stats", False))
+    informational = bool(
+        args.doctor
+        or getattr(args, "doctor_strict", False)
+        or getattr(args, "stats", False)
+        or getattr(args, "capabilities", False)
+    )
     if getattr(args, "json", False) and not informational:
-        cli_out("error: --json 仅与 --doctor / --doctor-strict / --stats 搭配使用")
+        cli_out("error: --json 仅与 --doctor / --doctor-strict / --stats / --capabilities 搭配使用")
         return 2
     # M7-T4: resolve the workspace before loading config so the project
     # layer (<workspace>/.minicc/config.json) participates in resolution.
@@ -874,6 +907,13 @@ def main(argv: list[str] | None = None) -> int:
 
         report = gather(workspace)
         cli_out(format_stats(report, json_out=bool(getattr(args, "json", False))))
+        return 0
+
+    # 能力目录在配置解析之前处理：它只读注册表，不该因为机器上没有 API key
+    # 就失败。--json 不改变形状——本来就只有一个 JSON 对象，包成两层会让
+    # 调用方多拆一次。
+    if getattr(args, "capabilities", False):
+        cli_out(json.dumps(_capabilities(workspace), ensure_ascii=False))
         return 0
 
     if args.fork_from:

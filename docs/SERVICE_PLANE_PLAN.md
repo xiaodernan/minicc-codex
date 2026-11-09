@@ -109,15 +109,20 @@ workspace_path/preview`，截断由 `X-Minicc-Tasks-Truncated` 头声明。网�
 `mvn -B test` 全绿（7 模块 74 用例，0 失败 1 跳过）。网关 413 用 WebTestClient 真打出来，
 不是只断言路由定义。脱敏正则初版对 1 MiB 单行 stderr 有灾难性回溯，已改为行首/空白锚定。
 
-### P5 集大成：能力目录
+### P5 集大成：能力目录（已完成，M8-T729）
 
 目标：把 `minicc` 的能力（变更检查、证据门、任务历史、评测读数）收成一份机器可读目录，
 由服务面暴露，供 UI 与外部调用方发现。
 
-改动：`minicc-cloud-inspector` 增加 `/api/capabilities`；条目来自 Python 侧注册表，
-不手写第二份名单。
+落地：Python 侧新增 `--capabilities`（`minicc.main`，打印 JSON 后退出 0，刻意不加载 MCP
+管理器——发现会拉起外部进程，目录必须只读离线）；条目直接来自 `build_registry`，没有第二份
+名单。Java 侧 `/api/capabilities` 只做转发与形状校验：子进程失败、超时、输出不是合法 JSON
+分别映射到 503 并在 body 里说明是哪一种，绝不返回空的 `tools` 冒充「没有能力」。
 
-验收：目录条目数与 Python 注册表逐条相等；新增一个能力不改 Java 代码就能出现在目录里。
+实测：`minicc --capabilities --json` 输出 `count=23`，与注册表键集合逐条相等（新测试
+`tests/test_capabilities_names_every_registered_tool.py` 断言）；Python 侧
+32 passed；`mvn -B test` EXIT=0。换一个 stub 脚本把 payload 换掉，端点跟着变——Java 里
+没有任何工具名或数量。
 
 ## 四、再往后可以做什么（保证永远有下一步）
 

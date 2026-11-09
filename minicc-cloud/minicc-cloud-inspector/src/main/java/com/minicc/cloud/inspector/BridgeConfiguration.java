@@ -1,5 +1,6 @@
 package com.minicc.cloud.inspector;
 
+import com.minicc.cloud.bridge.CapabilitiesClient;
 import com.minicc.cloud.bridge.ChangeInspectorClient;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig;
@@ -14,6 +15,12 @@ public class BridgeConfiguration {
     @Bean
     ChangeInspectorClient changeInspectorClient(MiniccProperties properties) {
         return new ChangeInspectorClient(
+                Path.of(properties.python()), Path.of(properties.repo()), properties.budget());
+    }
+
+    @Bean
+    CapabilitiesClient capabilitiesClient(MiniccProperties properties) {
+        return new CapabilitiesClient(
                 Path.of(properties.python()), Path.of(properties.repo()), properties.budget());
     }
 
