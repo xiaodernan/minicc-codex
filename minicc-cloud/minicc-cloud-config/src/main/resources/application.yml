@@ -1,0 +1,24 @@
+server:
+  port: 8888
+
+spring:
+  application:
+    name: minicc-cloud-config
+  profiles:
+    # Native = "serve files that are already on disk".  A git backend would put
+    # a second history next to the one this repository already keeps.
+    active: native
+  cloud:
+    config:
+      server:
+        native:
+          # File first (a deployment may mount an override), classpath second
+          # (the defaults this jar was built with).  Missing directories are
+          # not an error: the classpath copy always exists.
+          search-locations: file:./config-repo/,classpath:/config-repo/
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

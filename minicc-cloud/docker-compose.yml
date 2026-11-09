@@ -17,6 +17,20 @@ services:
       retries: 30
       start_period: 20s
 
+  config:
+    build:
+      context: ..
+      dockerfile: minicc-cloud/minicc-cloud-config/Dockerfile
+    image: minicc-cloud-config:0.1.0
+    ports:
+      - "8888:8888"
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8888"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 20s
+
   inspector:
     build:
       context: ..
@@ -24,12 +38,15 @@ services:
     image: minicc-cloud-inspector:0.1.0
     environment:
       EUREKA_ZONE: http://registry:8761/eureka/
+      CONFIG_SERVER: http://config:8888
       MINICC_ALLOWEDROOTS: /workspaces
     volumes:
       # Read-only: the inspector only ever reads. Point this at a git checkout.
       - ${MINICC_WORKSPACE:-..}:/workspaces/target:ro
     depends_on:
       registry:
+        condition: service_healthy
+      config:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8081"]
@@ -47,6 +64,9 @@ services:
       - "8080:8080"
     environment:
       EUREKA_ZONE: http://registry:8761/eureka/
+      CONFIG_SERVER: http://config:8888
     depends_on:
       inspector:
+        condition: service_healthy
+      config:
         condition: service_healthy

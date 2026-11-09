@@ -4,6 +4,11 @@ server:
 spring:
   application:
     name: minicc-cloud-inspector
+  config:
+    # Optional so the module's own tests and a standalone run still start;
+    # when the config server answers, its `minicc.cloud.inspector.*` keys are
+    # additive, not a replacement for the locals below.
+    import: optional:configserver:${CONFIG_SERVER:http://localhost:8888}
 
 eureka:
   client:

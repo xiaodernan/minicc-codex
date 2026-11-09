@@ -1,0 +1,5 @@
+minicc:
+  cloud:
+    gateway:
+      # One number, read by the gateway's response timeout and circuit breaker.
+      response-timeout-seconds: 40

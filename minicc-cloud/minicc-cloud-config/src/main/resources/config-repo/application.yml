@@ -1,0 +1,10 @@
+# Shared defaults. Every service reads this file before its own name-specific
+# one, so a key that must agree across services belongs here and nowhere else.
+minicc:
+  cloud:
+    inspector:
+      # The Python change inspector answers within this budget; the gateway's
+      # own response timeout is derived from it rather than guessed twice.
+      timeout-seconds: 30
+    gateway:
+      connect-timeout-ms: 2000

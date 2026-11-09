@@ -4,6 +4,11 @@ server:
 spring:
   application:
     name: minicc-cloud-gateway
+  config:
+    # `optional:` is the point: a gateway started without the config server
+    # (unit tests, a laptop) keeps the values below instead of refusing to
+    # start.  When the server is up, its files win.
+    import: optional:configserver:${CONFIG_SERVER:http://localhost:8888}
   cloud:
     # Measured from spring-cloud-gateway-server-4.3.5's own
     # spring-configuration-metadata.json: since 4.2 the reactive server's keys
