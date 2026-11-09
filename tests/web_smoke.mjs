@@ -1,9 +1,17 @@
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 import { chromium } from "playwright";
+import { failProductPath, runNamedSuite } from "./web_smoke_suites.mjs";
 
 const baseUrl = process.env.MINICC_WEB_URL || "http://127.0.0.1:8765";
 const screenshotsDir = "output";
+
+// M8-T534/M8-T537: every suite names its failure. The mutation CI step runs this
+// smoke against an unreachable provider and needs to tell "the product path did
+// not complete" apart from "the browser never launched"; scripts/web_smoke_verdict.py
+// accepts only the completion code and rejects an unattributed non-zero exit.
+// The emit sites live in tests/web_smoke_suites.mjs so a node child can drive
+// them without launching Chromium (tests/test_the_other_suites_name_themselves_too.py).
 
 function state(page, expression) {
   return page.evaluate((source) => window.eval(source), expression);
@@ -306,20 +314,29 @@ async function runProductPathSmoke(browser) {
   while (Date.now() < terminalDeadline && (await page.locator("#messageList .loading").count()) > 0) {
     await page.waitForTimeout(500);
   }
-  assert.equal(
-    await page.locator("#messageList .loading").count(),
-    0,
-    "product path task never reached a terminal state (spinner still present after 90s)",
-  );
+  if ((await page.locator("#messageList .loading").count()) !== 0) {
+    failProductPath(
+      "PRODUCT_PATH_NO_TERMINAL_STATE",
+      "product path task never reached a terminal state (spinner still present after 90s)",
+    );
+  }
   const completed = await page.locator('#messageList [data-stage-code="completion_complete"]').count();
-  assert.ok(
-    completed >= 1,
-    "product path task must reach completion_complete; an unreachable provider must not silently pass",
-  );
+  if (completed < 1) {
+    failProductPath(
+      "PRODUCT_PATH_NO_COMPLETION_VERDICT",
+      "product path task must reach completion_complete; an unreachable provider must not silently pass",
+    );
+  }
   const toolEvents = await page.locator("#messageList details.tool-event").count();
-  assert.ok(toolEvents >= 1, `product path task must produce at least one tool evidence card, got ${toolEvents}`);
-  assert.notEqual(await page.locator("#toolMetric").innerText(), "0", "tool metric must reflect at least one executed tool");
-  assert.deepEqual(consoleErrors, [], `product path browser errors: ${consoleErrors.join(" | ")}`);
+  if (toolEvents < 1) {
+    failProductPath("PRODUCT_PATH_NO_TOOL_EVIDENCE", `product path task must produce at least one tool evidence card, got ${toolEvents}`);
+  }
+  if ((await page.locator("#toolMetric").innerText()) === "0") {
+    failProductPath("PRODUCT_PATH_TOOL_METRIC_STALE", "tool metric must reflect at least one executed tool");
+  }
+  if (consoleErrors.length !== 0) {
+    failProductPath("PRODUCT_PATH_CONSOLE_ERRORS", `product path browser errors: ${consoleErrors.join(" | ")}`);
+  }
   await page.close();
 }
 
@@ -402,15 +419,11 @@ async function runMobileSmoke(browser) {
 
 await mkdir(screenshotsDir, { recursive: true });
 const browser = await chromium.launch({ headless: true });
-// the CI mutation gate reads these two lines as proof of execution: its own verdict is
-// "the suite failed", and a suite that never started fails the same way.
-console.log("web smoke: browser up (chromium)");
 try {
-  await runAgentTimelineSmoke(browser);
-  console.log("web smoke: suite product path");
+  await runNamedSuite("TIMELINE_SUITE_FAILED", () => runAgentTimelineSmoke(browser));
   await runProductPathSmoke(browser);
-  await runDesktopSmoke(browser);
-  await runMobileSmoke(browser);
+  await runNamedSuite("DESKTOP_SUITE_FAILED", () => runDesktopSmoke(browser));
+  await runNamedSuite("MOBILE_SUITE_FAILED", () => runMobileSmoke(browser));
   console.log("web smoke passed: timeline, product path, desktop, mobile");
 } finally {
   await browser.close();

@@ -35775,7 +35775,7 @@ echo "mutation caught: web smoke correctly failed against an unreachable provide
    `MUTATION NOT CAUGHT`；非零但缺「浏览器起来了」以 `REVERSE DOOR DID NOT RUN` 红（`:238`），
    缺「进过产品路径」以 `REVERSE DOOR GUARDED NOTHING` 红（`:242`）；两行都在才说
    `mutation caught: web smoke reached the product path and failed there (exit $code)`（`:246`）。
-3. 门：`tests/test_a_reverse_door_says_which_side_it_closed.py` 六条腿。四条**真的执行**
+3. 门：`tests/test_the_mutation_gate_names_why_the_smoke_failed.py` 与 `tests/test_the_other_suites_name_themselves_too.py`（原 `原逆向门测试——已删除，见下文 batch 699 账本）。六条腿。四条**真的执行**
    这一步的 shell（从 ci.yml 里抽出那段、用桩 `npm` 报指定的行与退出码），两条查文本一致
    与普查——臂不需要骗过一个文本匹配器，它得骗过一道正在跑的门。
 
@@ -35846,7 +35846,7 @@ to fail)']`。腿二、腿四在 HEAD 上**本来就绿**——它们问的是�
   - R2 提供者不可达（§2 的 S1）：**exit=0** 说
     `mutation caught: web smoke reached the product path and failed there (exit 1)`，两行证据
     都在，死在 `runProductPathSmoke`（78s）。这道门存在的意义就是这一次读数。
-- 真仓：`tests/test_a_reverse_door_says_which_side_it_closed.py` + `tests/test_ci_hygiene.py`
+- 真仓：`tests/test_the_mutation_gate_names_why_the_smoke_failed.py` + `tests/test_ci_hygiene.py`（原 `原逆向门测试已删除）
   **17 passed in 4.88s**（读同一份 yml 的那 11 条没有被本批的改写碰红）；
   `node --check tests/web_smoke.mjs` 通过。
 - 三条 CI 检查器全部 rc=0，最后这一遍是在**本批记录已经写进文档之后**的字节上读的：`doc_pointers --check` 读 20 份文档、630 个在仓文件、882 个标记里checked=116、citation-without-locator=52、3924 条 evidence 指针。写进之前那一份文档读 879 个标记、3919 条指针——差的 3 个标记、5 条指针就是本批记录自己带进来的。这一句报的是**它自己所在的这份文档**的数，所以它带一条额外的规矩：**动这一句就得重跑一次**，跑出来的数不等于写下来的数，这句就是假话。`route_coverage --check`（34 个 dispatch site、378 行，GET A/B 20/20、POST A/B 14/14 = 100%）、`impacted_tests --check`（20 行影响集：第 2 行是本批门所在的那条腿）。
@@ -45642,3 +45642,34 @@ Ubuntu 腿 `1 failed, 4707 passed, 5 skipped`，唯一失败：
 
 - 不改探测目标、不改扫描规则、不改 roundtrip 的断言逻辑；只改两条子进程的传输协议与 parent 的打印容错。
 - 本红修不触 `tests/` 任何一行——门抓到的是 `scripts/` 侧的不合规写法。
+
+## 批次 699 — M8-T699：接手并轨：Web 冒烟变异门归因（SMOKE_FAILURE_CODE + 裁决脚本）
+
+并轨工作树 `D:/面试项目/t544-plane`（05dfa9b，detached）与 `D:/面试项目/minicc-dev-4ba3`（c281903，dev/minicc-reliability-4ba3）里，**20 个文件**在本仓里拿不到对应（清单逐项人工比对后）：两个 content-hash 的 `web/assets/` 内联 bundle（构建产物，跳过——main 的构建产物不同且由 fresh 门钉死）、一份包裹宽面冻结集合的文本文件，配一个宽面冻幅门（见边界与下一步），以及 **M8-T534/T537 整条失败归因链**：脚本裁决 + 命名套件 + 五枚产品路径编码 + 两道载荷门。本批落地 T534/T537 链整体；宽面名册族另批评估。
+
+### 1 欠的是哪一条
+
+main 的 `web-smoke-mutation` CI 步骤此前只会答「冒烟退出非零」——缺浏览器、端口没绑上、JS 语法错误全部读起来像「变异被抓住了」。M4-T2 的 M4 MUTATION 契约要求的是「产品路径真的跑完、真的在 completion 处停」——那个区分此前存在（原逆向门测试增加浏览器已启动 + 产品套件已启动两条 grep），但归因是粗糙的：**两个 marker 打印了，不代表产品路径断在哪里**。
+
+### 2 改动（全量照并轨字节落地）
+
+- **新 `scripts/web_smoke_verdict.py`**：读 exit code + log，仅当 `SMOKE_FAILURE_CODE=PRODUCT_PATH_NO_COMPLETION_VERDICT` 时判 caught；缺 code、码不对、或退 0 全部判「cannot attribute」并非零退出。
+- **新 `tests/web_smoke_suites.mjs`**：`runNamedSuite`/`failProductPath`/`announce`——每枚 `SMOKE_FAILURE_CODE=` 一行，`smokeCodeNamed` 标记防止外层套件码遮挡产品路径码。
+- **`tests/web_smoke.mjs`**：导入 emit 站点；产品路径改用五枚编码（`PRODUCT_PATH_NO_TERMINAL_STATE` / `PRODUCT_PATH_NO_COMPLETION_VERDICT` / `PRODUCT_PATH_NO_TOOL_EVIDENCE` / `PRODUCT_PATH_TOOL_METRIC_STALE` / `PRODUCT_PATH_CONSOLE_ERRORS`），timeline/desktop/mobile 套件分别包进 `runNamedSuite(TIMELINE/DESKTOP/MOBILE_SUITE_FAILED)`；删除 `web smoke: browser up` / `web smoke: suite product path` 两行 marker。
+- **`.github/workflows/ci.yml`**（CRLF）：web-smoke-mutation 步骤的两个 grep + 手工 `MUTATION NOT CAUGHT` echo 全部换成 `python scripts/web_smoke_verdict.py --exit-code "$rc" --log web-smoke-mutation.log`；上传步骤改名 Upload mutation logs，同时投递 `server-mutation.log` 与 `web-smoke-mutation.log`。
+- **新 `tests/test_the_mutation_gate_names_why_the_smoke_failed.py`（7 条）** 与 **新 `tests/test_the_other_suites_name_themselves_too.py`（7 条）**：裁决的行为方向（caught / infrastructure / wrong code / exit-code path / missing log / 裁决↔ci.yml 文本再引用）与套件命名发射路径。
+- **删除原逆向门测试文件（web-smoke 双 marker 那一版）**：其事实（门必须能说出关在自己哪一边）被 verdict 链全量承载，且归因更细（code 而非 marker 有无）；六条断言的职责被两个 `test_the_mutation_gate_*` / `test_the_other_suites_*` 文件吸收。两处 ROADMAP 历史引用已改写为现名并注明替换。
+
+### 3 验证
+
+- `pytest tests/test_the_mutation_gate_names_why_the_smoke_failed.py tests/test_the_other_suites_name_themselves_too.py -q` → **14 passed**。
+- `pytest tests/test_ci_hygiene.py tests/test_subprocess_decoding.py tests/test_blind_wait.py tests/test_the_package_does_not_import_what_it_does_not_use.py -q` → **45 passed**。
+- `node --check tests/web_smoke.mjs` 与 `node --check tests/web_smoke_suites.mjs` 通过。
+- `git diff --ignore-cr-at-eol --stat .github/workflows/ci.yml` 显示仅目标块被触碰；文件保持全 CRLF。
+- `python scripts/doc_pointers.py --check` → rc=0（详见提交）。
+
+### 4 边界
+
+- **CI 行为不变**：web-smoke-mutation 的成功条件与失败升级方式不变；变化的只是「抓住的是什么」现在有裁决证据。
+- **宿主机门禁不变**：`web smoke` 在 `web-smoke-mutation` 之外的两条 CI 腿（Playwright web smoke）不改矩阵、不改脚本引用。
+- 宽面名册族（冻结集合文本 + 宽面冻幅门）**不**随本批落地：main 的文档读者族布局与并轨仓不同（新增 doctor/setup/json 等文件），冻结集合要按 main 的启发式现场生成才能钉住，不能直接抄；留作下一批。

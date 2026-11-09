@@ -262,32 +262,22 @@ jobs:
         run: |
           set +e
           npm run test:web > web-smoke-mutation.log 2>&1
-          code=$?
+          rc=$?
           set -e
           cat web-smoke-mutation.log
-          if [ "$code" -eq 0 ]; then
-            echo "MUTATION NOT CAUGHT: web smoke passed against an unreachable provider"
-            exit 1
-          fi
-          # one bit cannot tell "the chain broke where it should" from "the smoke never
-          # ran": a renamed script, an unhurried browser or a suite-1 assert all exit 1.
-          # the smoke says where it got to; no evidence means the gate is broken, not
-          # that the mutation was caught.
-          grep -q "web smoke: browser up" web-smoke-mutation.log || {
-            echo "REVERSE DOOR DID NOT RUN: the smoke exited $code without launching a browser"
-            exit 1
-          }
-          grep -q "web smoke: suite product path" web-smoke-mutation.log || {
-            echo "REVERSE DOOR GUARDED NOTHING: the smoke exited $code before reaching the product path"
-            exit 1
-          }
-          echo "mutation caught: web smoke reached the product path and failed there (exit $code)"
-      - name: Upload mutation server log
+          # exit status alone cannot tell "the chain broke where it should" from an
+          # infrastructure failure (chromium missing, server never bound, syntax error):
+          # the smoke names its own failure code, and the verdict accepts only the
+          # product-path completion code. Anything else is reported as unattributed.
+          python scripts/web_smoke_verdict.py --exit-code "$rc" --log web-smoke-mutation.log
+      - name: Upload mutation logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: server-mutation-log
-          path: server-mutation.log
+          name: mutation-logs
+          path: |
+            server-mutation.log
+            web-smoke-mutation.log
 
   # M4-T8 PR eval gate: fast (<15m), fake provider, no real key, no real cost.
   # The fake provider cannot solve content graders (pass_at_1 is 0 by design),
