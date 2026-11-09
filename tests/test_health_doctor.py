@@ -66,6 +66,9 @@ class _Server:
         self.server.shutdown()
         self.server.server_close()
         self.thread.join(timeout=5)
+        assert not self.thread.is_alive(), (
+            "the test HTTP server thread never stopped after shutdown(); it can still answer on its socket"
+        )
 
 
 @pytest.fixture()

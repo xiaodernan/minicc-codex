@@ -45420,3 +45420,30 @@ Ubuntu 腿：`test_broad_silent_handlers_state_a_reason_mutation.py::test_the_th
 - **liveness 与诊断分开的铁律**：health 的成本上限是 O(常数)，不允许按包大小增长；任何探测都必须进 `/api/doctor`。
 - **`/api/doctor` 不是 open 端点**——它比 `/api/health` 多暴露一整套环境信息；未认证的 caller 只能看到 401。
 - 本批不动函数分支结尾处任何已有的更细的断言；`/api/health` 的载荷形状不变回 `M8-T537` 时代的样子，所有以 `GET /api/health` 为前置的测试继续通过。
+
+## 批次 692 — M8-T692：CI 42565434029（848b742）四红订正
+
+Ubuntu + Windows 双腿 `4 failed, 4697 passed, 5 skipped`：
+
+### 1 归因与处置
+
+1. **`tests/test_join_liveness.py::test_every_thread_join_in_the_suite_is_followed_by_a_liveness_read`** — 第 687 批写的 `tests/test_health_doctor.py::_Server.shutdown` 用 `self.thread.join(timeout=5)` 但没有在 join 之后 `assert not self.thread.is_alive()`。CI 红在这条门。Fix：关掉 server 后 `join()` 必加 `assert not is_alive()` 且明示「它不能再答请求」。
+2. **`tests/test_blind_wait.py::test_both_census_gates_answer_the_same_from_any_directory`** — 与 (1) 同一处：census 门也点到了同一行（join 后未读回）。Fix 同上。
+3. **`tests/test_logging.py::test_only_cli_io_writes_stdout_through_print`** — 第 688 批 `setup.py::main()` 用了裸 `print()`，禁用。Fix：`cli_out(report.message)`。
+4. **`tests/test_the_rule_categories_have_one_home.py::test_no_module_spells_the_categories`** — 第 688 批把 `paths/tools/commands` 三个分类裸写在 `DEFAULT_PERMISSIONS` 字典字面量里。Fix：从 `minicc.allowlist.empty_rule_side()` 取，`deny` 只附加 `paths` 的 denylist；`allow` 全空。
+
+### 2 改动
+
+- `minicc/setup.py`： `DEFAULT_PERMISSIONS` 定义改为从 `minicc.allowlist.empty_rule_side()` 派生；`main()` 的 `print` 改走 `cli_out`。
+- `tests/test_health_doctor.py`：`_Server.shutdown()` 的 `join()` 之后加 `assert not self.thread.is_alive()`。
+
+### 3 验证
+
+- `pytest tests/test_logging.py::test_only_cli_io_writes_stdout_through_print tests/test_the_rule_categories_have_one_home.py tests/test_blind_wait.py::test_both_census_gates_answer_the_same_from_any_directory tests/test_join_liveness.py::test_every_thread_join_in_the_suite_is_followed_by_a_liveness_read -q` → **7 passed**。
+- `pytest tests/test_setup_workspace.py tests/test_setup_doctor_smoke.py tests/test_health_doctor.py -q` → **11 passed, 1 skipped**。
+- `python scripts/doc_pointers.py --check` → rc=0。
+
+### 4 边界
+
+- 不改 `empty_rule_side()` 的定义，它已经是"rule 三分类"的 home。`DEFAULT_PERMISSIONS` 给 `deny` 填 paths，给 `allow` 留 `empty_rule_side()` 的空骨架，零概念漂移。
+- 不引入新 dep、不动 web face 的任何一处。

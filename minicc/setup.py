@@ -19,15 +19,15 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+from minicc.allowlist import empty_rule_side
 from minicc.internal_paths import PERMISSIONS_NAME, TOKEN_FILE_NAME
 
 DEFAULT_PERMISSIONS: dict[str, dict[str, list[str]]] = {
     "deny": {
+        **empty_rule_side(),
         "paths": [".env", ".env.local", "secrets", "secrets/**", ".ssh", ".aws"],
-        "tools": [],
-        "commands": [],
     },
-    "allow": {"paths": [], "tools": [], "commands": []},
+    "allow": empty_rule_side(),
 }
 
 
@@ -115,6 +115,8 @@ def setup_workspace(workspace: Path | str | None = None) -> SetupReport:
 def main() -> int:
     import argparse
 
+    from .cli_io import cli_out
+
     parser = argparse.ArgumentParser(
         prog="minicc --setup",
         description="为工作区创建 .minicc/ 骨架（permissions.json + web_token.json）。",
@@ -122,7 +124,7 @@ def main() -> int:
     parser.add_argument("workspace", nargs="?", default=Path.cwd(), type=Path)
     args = parser.parse_args()
     report = setup_workspace(args.workspace)
-    print(report.message)
+    cli_out(report.message)
     return report.exit_code
 
 
