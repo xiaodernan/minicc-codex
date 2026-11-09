@@ -45108,3 +45108,25 @@ Ubuntu 腿 `1 failed, 4667 passed`：`tests/test_the_package_does_not_import_wha
 ### 4 边界
 
 - `completion.py` 的 `"continue"`（completion verdict 词表）是另一家、不动；`web.py` 里 hand-spelled 的 `on_failure` 引用（如 `branch()`）—— 本批未观测到裸字面；若有手拼——属消费者侧接线，另一独立的门面。
+
+## 批次 681 — M8-T681：`INTEGRATION_STRATEGY.md` 从路线图回填为验收回填文档
+
+### 1 欠的是哪一条
+
+`docs/INTEGRATION_STRATEGY.md` 描述的是一次已经完成的合并前状态：「下一批合并要回答什么」「按哪个顺序推进」「验收清单」——全部停留在 2026-11 上旬、动词时态为将来时。文档读者现在打开它，以为这些还在排队；实际上合并已收官（`36b20cf` 起）且 CI 全绿。
+
+### 2 改动
+
+- `docs/INTEGRATION_STRATEGY.md`：本文重写为**落地后回填**：
+  - 每道动作逐项映射到最终落点（`dbc2656` → `m8-t537@c3ad1ec`；668 合流批冲突决议全表、并轨补记、伪记录撤下与批次改记为第六百四十八–六百六十七批；快进推上 origin/main；CI `42536933250` 双腿绿）；
+  - 学到的三件事显式写下（同号不同事的编号碰撞、L519–521 伪读数处置、行号漂移撞红、EOL 换行守卫）——否则下一轮并轨还会踩；
+  - 仍然 open 的项写明（backup/local-line-batches70-75 不合、旧 worktree 不动、minicc-codex-scratch 字节原样搬迁未删）。
+
+### 3 验证
+
+- `python scripts/doc_pointers.py --check` → rc=0。
+- 本批仅文档、不变行为；无测试改动。
+
+### 4 边界
+
+- 不删任何 worktree，不导出 `scratch/`，不出远端分支。整份原文件保留在 git 历史里，决策以回填为更新点。
