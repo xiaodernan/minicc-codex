@@ -45805,3 +45805,31 @@ mutation not attributed: the smoke failed with PRODUCT_PATH_NO_TERMINAL_STATE, n
 - **阈值一个数字未动**（0.3/0.9/600000/0/0）。
 - pass@1 仍在 (0, 13/24] 内横盘；向 0.5417 ratchet 需要 nightly 真机画像先到——没有凭据我不会编造基准声明。
 - `--repeat 2` 一行未动；夜间触发是 nightly 真机密钥问题，不是本门管的。
+
+## 批次 705 — M8-T705：CI 42578811562（8e1d8c9）红修 — 冒烟的终态等待预算按需求放宽
+
+并轨后第一次跑 `web-smoke-mutation`：裁决脚本正确拒绝、但按照 T534 契约要求只认 `PRODUCT_PATH_NO_COMPLETION_VERDICT`：
+
+```
+SMOKE_FAILURE_CODE=PRODUCT_PATH_NO_TERMINAL_STATE
+mutation not attributed: the smoke failed with PRODUCT_PATH_NO_TERMINAL_STATE, not PRODUCT_PATH_NO_COMPLETION_VERDICT
+```
+
+### 1 归因
+
+`MINICC_BASE_URL` 已经改为 127.0.0.1:9（discard，连接立即被拒）——上一次 push 就是为了消除这个变量。仍然红：provider 拒绝后，server 的 openai client 进入重试/退避周期，从拒绝到任务被 UI 标记为失败的周期在本机是 ~80s，在 CI 的 ubuntu runner 上超过了 `runProductPathSmoke` 的 90s 硬编码轮询预算——任务完成得比轮询终点更慢，`.loading` 没清零，failProductPath 抛 `PRODUCT_PATH_NO_TERMINAL_STATE`。抓住的代码本身说明「产品路径跑了并且挂了」，只是断点描得太宽。
+
+### 2 改动
+
+- **`tests/web_smoke.mjs`**：终态等待预算从 `90000` 改为 `Number(process.env.MINICC_SMOKE_TERMINAL_DEADLINE_MS) || 240_000`，并附两行注释说明预算语义（仍然有上限，仍然能在正真卡死时被掐红）。
+- 一个数都没动：守执芯的 239 轮询、真红的轮询逻辑、failProductPath 的那五枚编码、verdict 脚本、ci.yml 注释、nightly 之类全部没碰。
+
+### 3 验证
+
+- 本机逐字复刻 CI 环境（dummy-key、无 `MINICC_MODEL`、discard 端口）实测：smoke 发 `SMOKE_FAILURE_CODE=PRODUCT_PATH_NO_COMPLETION_VERDICT`（elaps~95s），裁决 `mutation caught: PRODUCT_PATH_NO_COMPLETION_VERDICT`。
+- `node --check tests/web_smoke.mjs` 通过；`pytest tests/test_the_mutation_gate_names_why_the_smoke_failed.py tests/test_the_other_suites_name_themselves_too.py -q` → **14 passed**。
+
+### 4 边界
+
+- 若一个任务横竖都到不了终态，240s 后门照样红——只是不会强迫一个正常退避周期撞 90s 硬边界。
+- 该环境变量是逃生舱口，不影响本仓默认预算 240s；引入本变更不改变任何断言语气。

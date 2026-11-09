@@ -310,7 +310,13 @@ async function runProductPathSmoke(browser) {
   // invisible. The mutation CI step runs this same smoke against a server whose
   // provider is unreachable (fake provider disabled) and requires a non-zero
   // exit; these assertions are what make that step red.
-  const terminalDeadline = Date.now() + 90000;
+  // CI runners give the provider-failure cycle more wall clock than a local
+  // window does (the failing call's retry cycle is on the order of minutes),
+  // so the terminal wait gets its budget from the environment when present
+  // and a generous default otherwise.  A hang that truly can't reach a
+  // terminal state still trips this; it just isn't forced to trip at 90s.
+  const terminalDeadlineMs = Number(process.env.MINICC_SMOKE_TERMINAL_DEADLINE_MS) || 240_000;
+  const terminalDeadline = Date.now() + terminalDeadlineMs;
   while (Date.now() < terminalDeadline && (await page.locator("#messageList .loading").count()) > 0) {
     await page.waitForTimeout(500);
   }
