@@ -174,6 +174,16 @@ def check_web_token_permissions(workspace: Path) -> DoctorCheck:
             f"cannot stat {TOKEN_FILE_NAME}: {exc}",
             "check permissions on .minicc/web_token.json",
         )
+    # Windows doesn't enforce POSIX mode bits — stat() returns some mode
+    # for every file, so we cannot distinguish "0o600" from "0o666" reliably,
+    # and the user cannot act on what they set.  Warn, don't fail.
+    if sys.platform == "win32":
+        return DoctorCheck(
+            "web_token_permissions",
+            "warn",
+            f"mode {mode:o} (not enforced on Windows)",
+            "rotate the token if a leak is suspected; the filesystem cannot express 0o600 here",
+        )
     if mode & 0o077:
         return DoctorCheck(
             "web_token_permissions",

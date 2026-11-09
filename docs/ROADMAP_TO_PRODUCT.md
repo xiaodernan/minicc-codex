@@ -45368,3 +45368,27 @@ Ubuntu 腿：`test_broad_silent_handlers_state_a_reason_mutation.py::test_the_th
 
 - **不改任何 gate**——不需要动 `SILENT_BODIES`/`_is_silent_broad`/`_is_return_swallow` 的定义，它们是底线，新写代码要够格念。
 - 两个 broad except 的处境各自不变，只是 body 拆成两行——语义零变化。
+
+## 批次 690 — M8-T690：doctor 在 Windows 不再假阳性，setup→doctor 链路钉住
+
+### 1 欠的是哪一条
+
+批 M8-T686 交付的 doctor 把 `web_token.json` 的 `0o077` 权限位判定写到 Linux 语义里，于是 Windows 上**每个** token 都会被判为 fatal——装出来工作区在全新机器上 `--doctor` 直接红，而用户没有任何能把该位关掉的工具（Windows 不支持 POSIX 权限位语义，git 也不能帮你 chmod 它）。首次体验因此被诊断工具搞砸。
+
+### 2 改动
+
+- `minicc/doctor.py::check_web_token_permissions`：Windows (`sys.platform == "win32"`) 退到 `"warn"`，detail 写 `"mode {mode:o} (not enforced on Windows)"`，`fix_hint` 指向「rotate if leak suspected」。不再报 fatal——doctor 在 Windows 上仍然严谨（permissions.json / module compile / audit-log 损坏 仍 fatal），只是不擅自否定 Windows 的 ACL 语义。
+- 新门 `tests/test_setup_doctor_smoke.py`（3 条）：
+  - 在临时空间依次 `setup_workspace → run_doctor`，断言 `fatal == 0`（Windows 上 token mode 报 warn，非 fatal）；
+  - `minicc_dir_writable == "ok"`、`permissions_json == "ok"`，setup 真落到的那两个文件；
+  - setup 幂等性再钉一次（smoke-level，互补单元门）。
+- Windows 本地示例（0.2.0、已有 0666 token、无 permissions.json）：输出从 `ok=6 warn=1 fatal=1` 改为 `ok=6 warn=2 fatal=0`，`exit 0`。
+
+### 3 验证
+
+- `pytest tests/test_setup_doctor_smoke.py tests/test_doctor.py -q` → **19 passed, 1 skipped**（POSIX mode 门在 Windows skip）。
+
+### 4 边界
+
+- Linux 行为不变：`chmod 644 token` → doctor 在 Linux 仍报 fatal，`fix_hint` 指明 `chmod 600`。
+- Windows ACL：尽管 stat 只能给任意 0666，doctor 不再把它误读为漏洞；如泄漏疑云，用户自己 `"rotate the token"` 跟新 hash 走——doctor 只报它能说明白的事。
