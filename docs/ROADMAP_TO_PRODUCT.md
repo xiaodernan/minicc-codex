@@ -45130,3 +45130,26 @@ Ubuntu 腿 `1 failed, 4667 passed`：`tests/test_the_package_does_not_import_wha
 ### 4 边界
 
 - 不删任何 worktree，不导出 `scratch/`，不出远端分支。整份原文件保留在 git 历史里，决策以回填为更新点。
+
+## 批次 682 — M8-T682：CI 42546976219（a10abec..2898b9b）红修 — `test_the_switch_vocabularies_have_one_home.py` 的解常量求值
+
+Ubuntu 腿：`1 failed, 4673 passed`：
+
+`test_the_switch_vocabularies_have_one_home.py::test_the_home_itself_declares_each_vocabulary_exactly_once` 报 `minicc/config.py spells SANDBOX_MODES 0 times`。第六百七十九批把 `SANDBOX_MODES = frozenset({"host", "docker", "auto"})` 改写成 `frozenset({SANDBOX_MODE_HOST, SANDBOX_MODE_DOCKER, SANDBOX_MODE_AUTO})` 之后，这个门的字面量常量点名（element.value is Constant str）**恰好一个都数不到了**——门按「字面量常量」点名，@T679 已经把字面量换成名字。
+
+### 2 改动
+
+- `tests/test_the_switch_vocabularies_have_one_home.py`：抽公共 helper：
+  - `_module_constants(tree)`：把模块级 `NAME = "literal"` 反汇成 `{NAME: literal}`；
+  - `_element_value(element, constants)`：`Constant` 直接取值，`Name` 过 `_module_constants` 解析，其余一律 `None`（按 `len(elements) != len(node.elts)` 失败关门——无法解出成员就不当作 switch 声明，不产生既可疑又既压的假阳性）。
+  - 两个扫描点（`test_no_module_inlines_a_switch_vocabulary` 与 `test_the_home_itself_declares_each_vocabulary_exactly_once`）都改走它；`named subsets` 一腿不变（它读的是已导入的值，不是语法树）。
+
+### 3 验证
+
+- `pytest tests/test_the_switch_vocabularies_have_one_home.py -q` → **5 passed**。
+- `python scripts/doc_pointers.py --check` → rc=0。
+
+### 4 边界
+
+- 不改 `HOMES`、不改成员表；`config.py` 维持常量拼写。
+- 本门的 `"element is Name not in constants → None"` 是故意的：它允许用户将来写出混合常量集合，只解不了的成员不会把整组带上误判；真正的五switch 词表字面量仍能按成员精确命中。

@@ -36,6 +36,34 @@ SUBSETS = {
 }
 
 
+def _module_constants(tree: ast.Module) -> dict[str, str]:
+    """Module-level string-constant assignments resolved by name.
+
+    The home may now spell a vocabulary as ``frozenset({CONSTANT, ...})``;
+    the gate reads it the same way either spelling would be read by a human.
+    """
+    values: dict[str, str] = {}
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Assign):
+            continue
+        if len(node.targets) != 1:
+            continue
+        target = node.targets[0]
+        if not (isinstance(target, ast.Name) and isinstance(node.value, ast.Constant)
+                and isinstance(node.value.value, str)):
+            continue
+        values[target.id] = node.value.value
+    return values
+
+
+def _element_value(element: ast.AST, module_constants: dict[str, str]):
+    if isinstance(element, ast.Constant) and isinstance(element.value, str):
+        return element.value
+    if isinstance(element, ast.Name) and element.id in module_constants:
+        return module_constants[element.id]
+    return None
+
+
 def _home_value(name: str):
     module_name, _, _ = HOMES[name]
     return getattr(importlib.import_module(module_name), name)
@@ -79,14 +107,12 @@ def test_no_module_inlines_a_switch_vocabulary() -> None:
         except (OSError, SyntaxError, ValueError):
             continue
         relative = path.relative_to(REPO).as_posix()
+        module_constants = _module_constants(tree)
         for node in ast.walk(tree):
             if not isinstance(node, ast.Set | ast.Tuple):
                 continue
-            elements = frozenset(
-                element.value
-                for element in node.elts
-                if isinstance(element, ast.Constant) and isinstance(element.value, str)
-            )
+            elements = frozenset(_element_value(element, module_constants)
+                                 for element in node.elts)
             if len(node.elts) < 2 or len(elements) != len(node.elts):
                 continue
             for name, (_, home_file, members) in HOMES.items():
@@ -112,14 +138,12 @@ def test_the_home_itself_declares_each_vocabulary_exactly_once() -> None:
         path = REPO / home_file
         tree = ast.parse(path.read_text(encoding="utf-8"))
         hits = 0
+        module_constants = _module_constants(tree)
         for node in ast.walk(tree):
             if not isinstance(node, ast.Set | ast.Tuple):
                 continue
-            elements = frozenset(
-                element.value
-                for element in node.elts
-                if isinstance(element, ast.Constant) and isinstance(element.value, str)
-            )
+            elements = frozenset(_element_value(element, module_constants)
+                                 for element in node.elts)
             if elements == frozenset(members) and len(node.elts) == len(members):
                 hits += 1
         assert hits == 1, f"{home_file} spells {name} {hits} times (declaration is 1)"
