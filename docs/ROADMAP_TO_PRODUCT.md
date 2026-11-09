@@ -45756,3 +45756,24 @@ mutation not attributed: the smoke failed with PRODUCT_PATH_NO_TERMINAL_STATE, n
 - 未触 `doctor/`、`setup/` 等任何产品代码——本批修的是 **CI 环境不可判定**，不是代码缺陷。
 - 不改 `web smoke`（非 mutation）腿——它用 `MINICC_FAKE_PROVIDER: "1"` 注入 fake 快路径，base_url 在其体系里是死的，保持不变。
 - 如果 CI 将来在某 runner 上 `.loading` 仍不清零，裁决仍会拒绝（红）——那是该 runner 的网络行为问题，门不放松。
+
+## 批次 703 — M8-T703：接手并轨：套件文件句柄不许留给回收器（T531 家族）
+
+并轨仓（t544-plane 批册，M8-T531）的铁律测试搬到本仓：**任何 `open(...)` 的结果不得在创建它的同一表达式里被消费**——表达式结束没人持有句柄，只能等 GC；回收发生在**下一个**测试里，`ResourceWarning` 走一个通道、`FileIO` 的 unraisable 走另一个通道，同一个泄漏被记两次账且两次都不落在漏它的那个门上。
+
+### 1 改动
+
+- 新 `tests/test_the_file_handles_are_closed.py`（3 条腿）：
+  - 结构腿：walk `minicc/`/`scripts/`/`tests/` 三棵树（下限 500 个 .py 文件）断言 `open(...).read()`/`open(...)[0]` 形态为空；
+  - 机制腿：子进程 `-W error::ResourceWarning` + `gc.collect()` 比对当场消费（必报 unclosed file）与 `read_text` idiom（必须 silent）；
+  - 探测器自检腿：点名"当场消费"，放过"with 字句"和"握着 close 的手"。
+
+### 2 验证
+
+- 本仓实测：结构腿 walked ≥500 ✓，offender 为空；child witness 两侧同时成立 → **3 passed**。
+
+### 3 边界
+
+- 本批未改任何源文件——本仓现有代码正好全部满足该门（零 offender）。
+- 门粒度：只管 `open` 名字本身，不猜工厂（`io.open`, `Path.open` 的别名）；那是另一件事。
+- 本批按并轨仓字节搬运，内容与行号一字未动。
