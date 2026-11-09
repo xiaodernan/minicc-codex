@@ -45392,3 +45392,31 @@ Ubuntu 腿：`test_broad_silent_handlers_state_a_reason_mutation.py::test_the_th
 
 - Linux 行为不变：`chmod 644 token` → doctor 在 Linux 仍报 fatal，`fix_hint` 指明 `chmod 600`。
 - Windows ACL：尽管 stat 只能给任意 0666，doctor 不再把它误读为漏洞；如泄漏疑云，用户自己 `"rotate the token"` 跟新 hash 走——doctor 只报它能说明白的事。
+
+## 批次 691 — M8-T691：`/api/health` 只作 liveness；诊断住进 `/api/doctor`（需认证）
+
+### 1 欠的是哪一条
+
+第 687 批把 `run_doctor()` 的全量探测挂到 `/api/health` 后，`tests/test_http_route_inventory.py::test_every_post_route_answers_or_refuses_with_a_code` 在 coverage runner 下因为探测耗时过大而从几秒变成稳定 30s 超时。Liveness 路径所有健康度探针都会每秒轮询它，挂上全量 `py_compile`（每分钟重新扫整个包）是错误形状。更关键的是， `/api/health` 按设计必须**任何 token 都能读**（load balancer / k8s 探针未必有凭据），诊断信息本身含环境细节（Python 版本、模块计数、git work tree、token 是否被滥用），只应发给已认证的查看者。
+
+### 2 改动
+
+- `minicc/webserver.py`：
+  - `/api/health` 回退为纯 `{ok: true, service: "minicc"}`（与 M8-T537 之前的 liveness 契约逐字一致）。
+  - 新增 `/api/doctor`（走 `_authorized()`，不是 health 那种未认证）：`run_doctor(workspace) → format_report(json_out=True)`；崩派自 `doctor_runner` 也兜住，不传播 500。
+- `tests/test_health_doctor.py`：两条用例（liveness 形状 + `/api/doctor` 必要键）。
+- README 把 `/doctor` 段重写为"两个端点"的叙述。
+
+### 3 验证
+
+- `pytest tests/test_health_doctor.py -q` → **2 passed**。
+- `pytest tests/test_http_route_inventory.py -q` → **12 passed**。
+- `pytest tests/test_route_wiring_pure.py tests/test_the_stage_route_code_has_one_home.py -q` → **22 passed**。
+- `python -m py_compile minicc/webserver.py` 通过。
+- `python scripts/doc_pointers.py --check` → rc=0。
+
+### 4 边界
+
+- **liveness 与诊断分开的铁律**：health 的成本上限是 O(常数)，不允许按包大小增长；任何探测都必须进 `/api/doctor`。
+- **`/api/doctor` 不是 open 端点**——它比 `/api/health` 多暴露一整套环境信息；未认证的 caller 只能看到 401。
+- 本批不动函数分支结尾处任何已有的更细的断言；`/api/health` 的载荷形状不变回 `M8-T537` 时代的样子，所有以 `GET /api/health` 为前置的测试继续通过。

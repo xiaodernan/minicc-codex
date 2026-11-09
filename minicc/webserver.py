@@ -315,12 +315,24 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
         parsed = urlsplit(self.path)
         path = parsed.path
         if path == "/api/health":
+            self._json({"ok": True, "service": "minicc"})
+            return
+        if path.startswith("/api/"):
+            # Health stays open; every other API route requires the token when
+            # auth is enabled. EventSource passes its token via query.
+            if not self._authorized(parse_qs(parsed.query)):
+                self._deny_auth()
+                return
+        if path == "/api/workspace":
+            self._json(self.server.service.workspace_info())
+            return
+        if path == "/api/doctor":
             from .doctor import format_report, run_doctor
             try:
                 report = run_doctor(self.server.service.workspace)
-                doctor_payload: Any = json.loads(format_report(report, json_out=True))
-            except Exception as exc:  # noqa: BLE001 — doctor  itself must not crash the liveness endpoint
-                doctor_payload = {
+                payload: Any = json.loads(format_report(report, json_out=True))
+            except Exception as exc:  # noqa: BLE001 — the doctor endpoint must not crash the dispatcher
+                payload = {
                     "ok": 0,
                     "warn": 0,
                     "fatal": 1,
@@ -333,16 +345,7 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
                         }
                     ],
                 }
-            self._json({"ok": True, "service": "minicc", "doctor": doctor_payload})
-            return
-        if path.startswith("/api/"):
-            # Health stays open; every other API route requires the token when
-            # auth is enabled. EventSource passes its token via query.
-            if not self._authorized(parse_qs(parsed.query)):
-                self._deny_auth()
-                return
-        if path == "/api/workspace":
-            self._json(self.server.service.workspace_info())
+            self._json(payload)
             return
         if path == "/api/models":
             self._json(self.server.service.list_models())

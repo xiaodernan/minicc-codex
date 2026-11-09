@@ -1,4 +1,4 @@
-"""M8-T686 — /api/health carries the doctor report alongside liveness."""
+"""M8-T687 — /api/health (liveness) and /api/doctor (diagnostic)."""
 
 from __future__ import annotations
 
@@ -77,14 +77,26 @@ def workspace_server(tmp_path):
         server.shutdown()
 
 
-def test_health_carries_doctor_report(workspace_server):
-    with urllib.request.urlopen(f"{workspace_server.url}/api/health", timeout=5) as resp:
-        payload = json.loads(resp.read())
+def _get(url: str) -> dict:
+    with urllib.request.urlopen(url, timeout=5) as resp:
+        return json.loads(resp.read())
 
+
+def test_health_is_liveness_only(workspace_server):
+    payload = _get(f"{workspace_server.url}/api/health")
     assert payload["ok"] is True
     assert payload["service"] == "minicc"
-    doctor = payload["doctor"]
-    assert isinstance(doctor, dict)
-    assert set(doctor) == {"ok", "warn", "fatal", "checks"}
-    assert isinstance(doctor["checks"], list)
-    assert any(c.get("name") == "python_version" for c in doctor["checks"])
+    # /api/health is the liveness signal only; /api/doctor is the diagnostic sibling.
+    assert "doctor" not in payload
+
+
+def test_doctor_returns_full_check_set(workspace_server):
+    payload = _get(f"{workspace_server.url}/api/doctor")
+    assert set(payload) == {"ok", "warn", "fatal", "checks"}
+    assert isinstance(payload["checks"], list)
+    names = [c.get("name") for c in payload["checks"]]
+    assert "python_version" in names
+    assert "module_compiles" in names
+    # A well-formed check entry has name/severity/detail.
+    for check in payload["checks"]:
+        assert set(check) >= {"name", "severity", "detail"}
