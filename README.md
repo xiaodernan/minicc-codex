@@ -260,6 +260,8 @@ MINICC_REASONING_EFFORT=high
 
 `minicc --doctor` 在不进入模型、不访问网络的前提下跑一轮工作区自检（Python 版本、安装自检、`.minicc/` 写权限、审计日志最新行能解析、Web token 权限位、`permissions.json` 能否解析、git work tree）。失败即退出非零，可在 CI 串入，输出两种格式（人读 / `--json`）。
 
+`minicc --setup` 为新工作区创建 `.minicc/` 骨架：写出一份默认 `permissions.json`（deny `.env` / `.env.local` / `secrets/` / `secrets/**` / `.ssh` / `.aws`） 与一份按 0o600 权限写的 `web_token.json`。幂等——已存在的 `permissions.json` 与 `web_token.json` 都不覆盖。完成后立刻 `minicc --doctor` 即可看到一切绿。
+
 离线评测和审计导出：
 
 ```powershell

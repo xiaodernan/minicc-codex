@@ -45305,3 +45305,37 @@ Ubuntu 腿：`test_a_section_citation_is_answered_by_the_section_it_lives_under.
 - **liveness 不代理诊断**——健康端点的 `ok: true` 只表示服务活着；`doctor` 子树独立读出，便于一个 URL、一个进程、一行日志拿到两份信息。
 - **不引入任何新的非决策面**——`/api/health` 仍是唯一未认证端点；`POST /api/*`、`PUT/PATCH/DELETE` 仍是 token 守门；`open` 端点不新增。
 - 不动 Web 前端的 `health` 调用路径。
+
+## 批次 688 — M8-T688：`minicc --setup`：为工作区创建 `.minicc/` 骨架
+
+### 1 欠的是哪一条
+
+`minicc --doctor`（批 M8-T686）答「这个工作区健康吗」，但没人答「一个全新目录要怎样变得健康」。对首装用户，装好一个空目录后第一步该做什么，目前只能靠 README 逐字抄：手写 `.minicc/`、手写一份 permissions、手写 token。这是首装体验的缺口，也是 CI 复现干净工作区的缺口。
+
+### 2 改动
+
+- 新模块 **`minicc/setup.py`**（`setup_workspace`）：
+  - 创建 `<ws>/.minicc/permissions.json`（若缺失；`deny` 写入 `.env` / `.env.local` / `secrets` / `secrets/**` / `.ssh` / `.aws`；**绝不覆盖**）
+  - 创建 `<ws>/.minicc/web_token.json`（若缺失；URL-safe 随机 token；`os.chmod(0o600)`，Windows 下提示但跳过 chmod；**绝不覆盖**）
+  - 创建 `<ws>/.minicc/` 本身（若缺失）
+  - 任何一步失败：返回 `exit_code=1`、不部分写入；幂等：重复跑结果不变
+  - `import minicc.setup` —— 零副作用（无副作用模块 import）
+  - `python -m minicc.setup` 直接可跑
+- **`minicc/main.py`** 新增 `--setup`：跑 `setup_workspace(workspace)` → `cli_out(report.message)` → `sys.exit(report.exit_code)`。位于 `--print-config` 之后。
+- **新门 `tests/test_setup_workspace.py`**（7 条）：
+  - 空目录装配成功（permissions deny 表至少含 `.env`）、重复调用幂等、permissions/token 不被覆盖、空目录可写、Linux 权限位为 0o600（POSIX 才跑）
+- README 新增 `--setup` 说明（与 `--doctor` 配对）。
+
+### 3 验证
+
+- `pytest tests/test_setup_workspace.py -q` → **6 passed, 1 skipped**。
+- `python -m minicc.main --setup` 实测：在临时目录写出骨架成功，第二次跑零变更，permissions deny 表含全部六个条目。
+- `pytest tests/test_doctor.py tests/test_cli_stage_routing.py tests/test_project_config.py tests/test_setup_workspace.py -q` → **83 passed**。
+- `python -m py_compile minicc/setup.py minicc/main.py` 通过。
+- `python scripts/doc_pointers.py --check` → rc=0。
+
+### 4 边界
+
+- **绝不覆盖**已存在 permissions.json / web_token.json —— 哪怕它们写错了，也是用户权限范围；setup 是「让你有一个工作区」，不是「修复你现有的配置」。
+- **不跑任何 probe** —— setup 不健康检查；跑完 setup 再跑 `--doctor` 是一条可以分开的产品流程。
+- **不碰 token 内容** —— 写入的是 `secrets.token_urlsafe(48) + "\n"`，权限位为 0o600（Linux）/best-effort（Windows），不打印 token 本体到屏幕主体输出之外的任何日志里（仅提示「where is the token」的路径，不打印值）。

@@ -258,6 +258,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--new-session-id", metavar="NAME", help="--fork-from 生成的新会话名（可选，默认自动命名）")
     parser.add_argument("--session-id", default="latest", help="会话名称，默认 latest")
     parser.add_argument("--print-config", action="store_true", help="打印解析后的配置并退出")
+    parser.add_argument("--setup", action="store_true", help="创建 .minicc/ 骨架（permissions.json + web_token.json）并退出")
     parser.add_argument("--doctor", action="store_true", help="运行工作区自检并退出（不调网络、不跑模型）")
     parser.add_argument("--version", action="version", version=f"minicc {minicc_version()}")
     return parser
@@ -873,6 +874,13 @@ def main(argv: list[str] | None = None) -> int:
         cli_out(config.describe())
         cli_out(f"workspace={workspace}")
         return 0
+
+    if args.setup:
+        from .setup import setup_workspace
+
+        report = setup_workspace(workspace)
+        cli_out(report.message)
+        return report.exit_code
 
     if args.doctor:
         from .doctor import format_report, run_doctor
