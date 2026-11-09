@@ -355,8 +355,13 @@ class SessionStore:
     def list_snapshots(self) -> list[dict[str, Any]]:
         """List task snapshots for this session (reads from task index)."""
         from .task_store import TaskStore
-        store = TaskStore(self.workspace)
-        return store.list_by_session(self.session_id)
+        db = self.workspace / ".minicc" / "tasks.sqlite3"
+        # M8-T716: ``exists`` not ``is_file`` - a directory where the store belongs
+        # is a failure to report, not an empty session.  An absent store stays
+        # absent: asking the cost once created a 61,440-byte file at this path.
+        if not db.exists():
+            return []
+        return TaskStore(db).list_by_session(self.session_id)
 
     # -- message-level event tree (M8-T2) ------------------------------------
 

@@ -46108,3 +46108,103 @@ main 的工作树上留着四个未提交文件。逐字节量过之后，它们
   移到 `C:\Users\18414\.qoder-cn\scratch\live_probes\` 保管，不进版本库。
 - **下一位候选**：行号引用「够得着但够错」——尺子只验在范围内，不验那一行是否含有
   被点名的符号。本批六枚引用里两枚够错而两个读者全绿，是这条缺口的实测见证。
+## 批次 716 — M8-T716：并轨集大成（二）：/cost 从来读不到一份快照——库路径当成了工作区，方法还不存在
+
+### 1 欠的是哪一条
+
+`SessionStore.list_snapshots()` 把 `self.workspace` 本身当成库路径交给 `TaskStore`，
+而 `TaskStore` 上根本没有 `list_by_session` 这个方法。于是 `/cost` 永远读不到任何快照。
+
+实测（`probe716b.py`，跑在 live main 上，问一个还不存在的工作区
+`…/brand-new-workspace` 的成本）：
+
+```
+before: exists=False
+raised AttributeError: 'TaskStore' object has no attribute 'list_by_session'
+after: exists=True is_file=True is_dir=False
+size=61440 head=b'SQLite format 3\x00'
+parent entries=['brand-new-workspace']
+```
+
+两件事都欠，而且第二件比第一件重：
+
+1. **读不到答案**——一次成本提问抛 `AttributeError`，调用方拿不到任何快照。
+2. **读的动作有写副作用**——那个「将来要当工作区目录用的名字」被写成了一份
+   61,440 字节的 SQLite 文件（`is_file=True`、`is_dir=False`、头 16 字节是
+   `SQLite format 3\x00`）。此后再也建不出那个目录：一次只读提问把 workspace
+   的位置永久占掉了。这正是读失败 campaign 的同形缺陷——只不过这次不是
+   「把失败答成没有数据」，而是「把提问答成一次写入」。
+
+### 2 改动
+
+- **`minicc/session.py:list_snapshots`**：库路径改成
+  `workspace / ".minicc" / "tasks.sqlite3"`；判据用 `exists()` 而不是
+  `is_file()`——库位置上是个目录时那是要报的失败，不是一个空会话；库不存在
+  就返回 `[]`，并且**不建库**。
+- **`minicc/task_store.py:list_by_session`**（新增）：按 `created_at ASC` 取行，
+  在 Python 侧过滤 `session_id`，坏行跳过，payload 里的 `task_id` 被脱敏时从
+  主键回填（与 `load` 同口径）。
+- **一处有意偏离移植源**：backup 分支那份用 SQL `json_extract` 过滤会话。
+  实测本机 SQLite 3.39.4 / Python 3.11.1 上，一条 torn payload 会让
+  `json_extract` **抛** `OperationalError: malformed JSON`（不是返回 NULL），
+  整次查询失败，把本来读得回来的行一起赔掉。所以改成 Python 侧
+  `json.loads` + `try/except` 跳过坏行。**A4 臂专门守这条偏离**：把移植源的
+  `json_extract` 写法搬回来，E4 立刻红。
+- 字节级拼接，两份文件各自的行尾保持纯净：`session.py` 纯 CRLF
+  31,466 → **31,788**（698 CRLF / 698 LF），`task_store.py` 纯 LF
+  21,069 → **22,112**（0 CRLF / 446 LF）。
+
+### 3 验证
+
+- **红 → 绿**（`red716.py`：把两份源码换回 HEAD 字节跑门，再逐字节还原）：
+  HEAD `session.py` 31,466 sha `5ed647f866f646f6`、`task_store.py` 21,069
+  sha `06344d37c0b07f85` → 门 **rc=1，6 failed, 3 passed in 4.30s**；
+  还原后 sha `1e4329619800e865` / `2044a7d4c15506af` 双双 **MATCHED**
+  → 门 **rc=0，9 passed in 3.03s**。
+- **臂 7/7**（`arms716.log`，七处锚点预检 count 均为 1）：
+  `D0_control rc=0 reds=[]`；
+  `A1_wrong_path` → {E1, E6}；`A2_is_file_not_exists` → {C3}；
+  `A3_no_absent_guard` → {E2}；`A4_ported_json_extract` → {E4}；
+  `A5_no_session_filter` → {E6}；`A6_newest_first` → {E3}；
+  `A7_no_id_repair` → {E5}。每臂 `restore=MATCHED counts=True`
+  （rc≠0 且红格恰等于瞄准格）；`D9_after rc=0 reds=[]`。
+- **焦点 lane**（51 份）：**91 passed in 22.19s**，三尺 `rc=[0, 0, 0]`。
+- **全量围栏**（`fence716.log`）：**rc=1，4 failed, 4775 passed, 13 skipped
+  in 1477.95s (0:24:37)**。四条逐一归因，不含糊：
+  1. `test_a_gate_is_only_a_gate_once_it_is_in_the_repo` —— 本批新门还没
+     `git add`。这条门正是在说这件事；入册后消失（见下）。
+  2. `test_a_module_is_registered_before_a_loader_executes_it` —— **main 自带**：
+     `git show main:tests/test_the_mutation_gate_names_why_the_smoke_failed.py`
+     第 39 行、`git show main:tests/test_the_other_suites_name_themselves_too.py`
+     第 51 行都是裸 `exec_module`，没有 `sys.modules` 注册。
+  3. `test_the_wide_face_keeps_every_file_and_document_reader` —— **main 自带**：
+     `git show main:tests/fence_rosters/wide.txt` 只有 9 行，且不含
+     `test_a_foreign_section_is_answered_without_a_line_ruler.py`。
+  4. `test_installed_console_scripts_run_from_a_real_install` —— **main 自带**：
+     `ModuleNotFoundError: No module named 'openai'`，此前已在 main 上单独
+     复现（rc=1，41.69s）。
+- **归因后复量**（`verify716.py`，把新门 `git add` 之后）：
+  **2 failed, 17 passed in 8.60s**——剩下的两条正是上面的 2、3；
+  三尺 `rc=[0, 0, 0]`；`doc_pointers` 报
+  `checked 120 of 1231 「见」 markers … 5547 evidence pointers …
+  23 documents … 783 tracked files`（入册前 782，多的正是本批这份门）。
+  这份记录本身落盘后再量一次：`checked 120 of 1235 markers …
+  5551 evidence pointers … 23 documents … 783 tracked files`，**rc=0**
+  ——markers 1231→1235、evidence 5547→5551 是本批记录自己带进来的引用
+  （转述尺子输出时那枚「见」也算一枚 marker，所以数字写成汉字才是不动点）；
+  派生数跟着动是对的，不是尺子松了。
+- 上面 2、3 两条由 sibling **批次 717** 在 `consolidation/read-failure-chain`
+  上修好（`fix717.py` 八处，锚点预检 count==1），其焦点复量
+  **58 passed in 20.98s**，`lane=0 rulers=[0, 0, 0]`。
+
+### 4 边界
+
+- 不动 `TaskStore` 的写路径（`upsert` / `load` / `get`），不动任何阈值。
+- **一条诚实的空过**：C3（库路径是个目录）在修前根本走不到那一步，所以它是
+  空过的绿。它守的是修后 `exists()` vs `is_file()` 这个选择，`A2` 臂证明它
+  咬得住。不把它算进「红先绿后」的见证里。
+- `list_by_session` 目前**吞掉坏行而不报数**。「吞掉一行」和「没有这一行」
+  在 `/cost` 的总额上仍然是同一个答案——这条缺口留给下一批（候选：坏行计数
+  随答案一起出去，null 与 0 分开）。
+- 全量围栏 `rc=1` 不掩盖：本批只消掉自己那条红，main 自带的三条红分别由
+  批次 717（两条家规）与 packaging 候选（`openai` 那条）接手。

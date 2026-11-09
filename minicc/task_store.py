@@ -220,6 +220,27 @@ class TaskStore:
                 output.append(value)
         return output
 
+    def list_by_session(self, session_id: str) -> list[dict[str, Any]]:
+        """One session's snapshots, oldest first (the ``/cost`` accumulator)."""
+        # M8-T716: filtered here rather than with json_extract - on SQLite 3.39.4
+        # a torn payload makes that raise, costing every readable row its answer.
+        with self._lock, self._connect() as connection:
+            rows = connection.execute(
+                "SELECT task_id, payload FROM tasks ORDER BY created_at ASC"
+            ).fetchall()
+        output: list[dict[str, Any]] = []
+        for row in rows:
+            try:
+                value = json.loads(row["payload"])
+            except (TypeError, json.JSONDecodeError):
+                continue
+            if not isinstance(value, dict) or value.get("session_id") != session_id:
+                continue
+            if not value.get("task_id") or REDACTED_LLM_API_KEY in str(value.get("task_id")):
+                value["task_id"] = str(row["task_id"])
+            output.append(value)
+        return output
+
     def get(self, task_id: str) -> dict[str, Any] | None:
         """Load one snapshot by id (worker-process progress polling)."""
         with self._lock, self._connect() as connection:
