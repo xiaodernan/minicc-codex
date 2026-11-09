@@ -1,0 +1,52 @@
+# Build context is the checkout root, so the inspector image can COPY minicc/.
+# Run `mvn -DskipTests package` in minicc-cloud before `docker compose build`.
+name: minicc-cloud
+
+services:
+  registry:
+    build:
+      context: ..
+      dockerfile: minicc-cloud/minicc-cloud-registry/Dockerfile
+    image: minicc-cloud-registry:0.1.0
+    ports:
+      - "8761:8761"
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8761"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 20s
+
+  inspector:
+    build:
+      context: ..
+      dockerfile: minicc-cloud/minicc-cloud-inspector/Dockerfile
+    image: minicc-cloud-inspector:0.1.0
+    environment:
+      EUREKA_ZONE: http://registry:8761/eureka/
+      MINICC_ALLOWEDROOTS: /workspaces
+    volumes:
+      # Read-only: the inspector only ever reads. Point this at a git checkout.
+      - ${MINICC_WORKSPACE:-..}:/workspaces/target:ro
+    depends_on:
+      registry:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8081"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 25s
+
+  gateway:
+    build:
+      context: ..
+      dockerfile: minicc-cloud/minicc-cloud-gateway/Dockerfile
+    image: minicc-cloud-gateway:0.1.0
+    ports:
+      - "8080:8080"
+    environment:
+      EUREKA_ZONE: http://registry:8761/eureka/
+    depends_on:
+      inspector:
+        condition: service_healthy

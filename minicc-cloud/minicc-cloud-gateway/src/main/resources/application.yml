@@ -1,0 +1,59 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: minicc-cloud-gateway
+  cloud:
+    # Measured from spring-cloud-gateway-server-4.3.5's own
+    # spring-configuration-metadata.json: since 4.2 the reactive server's keys
+    # live under .server.webflux, not directly under spring.cloud.gateway.
+    gateway:
+      server:
+        webflux:
+          httpclient:
+            connect-timeout: 2000
+            # Longer than the inspector's 30s Python budget: a timeout here
+            # would discard an answer the inspector was still able to produce.
+            response-timeout: 40s
+          routes:
+            - id: inspector-changes
+              uri: lb://minicc-cloud-inspector
+              predicates:
+                - Path=/api/changes,/api/changes/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: inspector-route
+                    fallbackUri: forward:/fallback/inspector
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_ZONE:http://localhost:8761/eureka/}
+  instance:
+    prefer-ip-address: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,gateway,circuitbreakers,circuitbreakerevents
+  endpoint:
+    health:
+      show-details: when-authorized
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      inspector-route:
+        register-health-indicator: true
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 2
+  timelimiter:
+    instances:
+      inspector-route:
+        timeout-duration: 40s
+        cancel-running-future: true

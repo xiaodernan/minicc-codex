@@ -1,0 +1,35 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: minicc-cloud-inspector
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_ZONE:http://localhost:8761/eureka/}
+  instance:
+    prefer-ip-address: true
+
+minicc:
+  python: ${MINICC_PYTHON:python}
+  repo: ${MINICC_REPO:${user.dir}}
+  budget: 30s
+  # Empty means the repo above is the only root a caller may name.
+  allowed-roots: []
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,circuitbreakers,circuitbreakerevents
+  endpoint:
+    health:
+      show-details: when-authorized
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      minicc-python:
+        register-health-indicator: true
