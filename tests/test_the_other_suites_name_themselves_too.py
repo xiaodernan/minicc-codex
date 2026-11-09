@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import importlib.util
 import re
+import sys
 import subprocess
 from pathlib import Path
 
@@ -48,6 +49,9 @@ def _node(script: str) -> subprocess.CompletedProcess:
 def _module():
     spec = importlib.util.spec_from_file_location("web_smoke_verdict", VERDICT)
     module = importlib.util.module_from_spec(spec)
+    # M8-T722: same defect as the mutation gate's loader - a module executed
+    # without a ``sys.modules`` entry cannot resolve its own annotations.
+    sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
 

@@ -36,6 +36,11 @@ CI = REPO_ROOT / ".github" / "workflows" / "ci.yml"
 def _module():
     spec = importlib.util.spec_from_file_location("web_smoke_verdict", VERDICT)
     module = importlib.util.module_from_spec(spec)
+    # M8-T722: register before executing.  A module executed without a
+    # ``sys.modules`` entry cannot resolve its own annotations lazily, and
+    # ``tests/test_a_module_is_registered_before_a_loader_executes_it.py``
+    # charges every loader that skips this line.
+    sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
 
