@@ -45274,3 +45274,34 @@ Ubuntu 腿：`test_a_section_citation_is_answered_by_the_section_it_lives_under.
 - **不修任何东西**——doctor 只读；任何会写文件的「修复」(`chmod 600` 等) 都只在 `fix_hint` 里提示，不动手；用户自己动作。
 - 本地工作区有 0666 的 `web_token.json` 是用户的 pre-existing 状态，不是本批次造成的，也不该被本批次改动。
 - `/doctor` 没有进 `/help` 列表，它是 CLI 参数，不是 REPL slash command；不动 CLI 面的用户暴露面。
+
+## 批次 687 — M8-T687：`/api/health` 同时携带 `minicc --doctor` 报告
+
+### 1 欠的是哪一条
+
+合流后，「web 服务运行着」与「这个工作区是不是真的能跑 minicc」是两个不同的问题。headless 部署（k8s liveness probe、灰度探针、`health` 轮询）把前者当做 HTTP 200，但从 HTTP 状态本身看不到 `python < 3.11`、`permissions.json` 写错、`.minicc/` 不可写、token 权限位 0666 这些故障。运维需要一次轮询拿到两个答案。
+
+### 2 改动
+
+- `minicc/webserver.py`：`GET /api/health` 在原有响应基础上扩展：
+  ```json
+  {"ok": true, "service": "minicc",
+   "doctor": {"ok": N, "warn": M, "fatal": K, "checks": [...]}}
+  ```
+  - liveness 保持 200；
+  - doctor 子树的结构就是 `minicc --doctor --json` 的 `checks`，可以 JSON 直读；
+  - `run_doctor` 本身抛异常时退回 `{ok:0, warn:0, fatal:1, checks:[{name:"doctor_runner", ...}]}`，不把 liveness 打成 500。
+- 新门 `tests/test_health_doctor.py`：真启 HTTPServer，验证 `/api/health` 的 `doctor` 键形状、子树必要键（`ok/warn/fatal/checks`）、至少含 `python_version` 探测项。
+
+### 3 验证
+
+- `pytest tests/test_doctor.py tests/test_health_doctor.py tests/test_http_surface.py tests/test_http_route_inventory.py tests/test_web_security.py tests/test_webauth_validation.py tests/test_file_tree_api.py tests/test_logging.py -q` → **174 passed, 5 skipped**。
+- `python -m py_compile minicc/doctor.py minicc/main.py minicc/webserver.py` 通过。
+- `python scripts/doc_pointers.py --check` → rc=0（详见提交）。
+
+### 4 边界
+
+- **不改 HTTP status code**——`/api/health` 在有 `doctor.fatal>0` 时仍返回 200，否则 load balancer 会把一个「跑着但当前工作区有故障」的实例判死。readiness 由 `doctor.fatal` 派生。
+- **liveness 不代理诊断**——健康端点的 `ok: true` 只表示服务活着；`doctor` 子树独立读出，便于一个 URL、一个进程、一行日志拿到两份信息。
+- **不引入任何新的非决策面**——`/api/health` 仍是唯一未认证端点；`POST /api/*`、`PUT/PATCH/DELETE` 仍是 token 守门；`open` 端点不新增。
+- 不动 Web 前端的 `health` 调用路径。

@@ -315,7 +315,25 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
         parsed = urlsplit(self.path)
         path = parsed.path
         if path == "/api/health":
-            self._json({"ok": True, "service": "minicc"})
+            from .doctor import format_report, run_doctor
+            try:
+                report = run_doctor(self.server.service.workspace)
+                doctor_payload: Any = json.loads(format_report(report, json_out=True))
+            except Exception as exc:  # noqa: BLE001 — doctor  itself must not crash the liveness endpoint
+                doctor_payload = {
+                    "ok": 0,
+                    "warn": 0,
+                    "fatal": 1,
+                    "checks": [
+                        {
+                            "name": "doctor_runner",
+                            "severity": "fatal",
+                            "detail": f"{type(exc).__name__}: {exc}",
+                            "fix_hint": "rerun `minicc --doctor`",
+                        }
+                    ],
+                }
+            self._json({"ok": True, "service": "minicc", "doctor": doctor_payload})
             return
         if path.startswith("/api/"):
             # Health stays open; every other API route requires the token when
