@@ -17,10 +17,12 @@ spring:
       server:
         webflux:
           httpclient:
-            connect-timeout: 2000
-            # Longer than the inspector's 30s Python budget: a timeout here
+            connect-timeout: ${minicc.cloud.gateway.connect-timeout-ms:2000}
+            # Longer than the inspector's Python budget: a timeout here
             # would discard an answer the inspector was still able to produce.
-            response-timeout: 40s
+            # The number comes from the config server (P1); the literal below
+            # is the standalone fallback, not a second source of truth.
+            response-timeout: ${minicc.cloud.gateway.response-timeout-seconds:40}s
           routes:
             - id: inspector-changes
               uri: lb://minicc-cloud-inspector
@@ -60,5 +62,5 @@ resilience4j:
   timelimiter:
     instances:
       inspector-route:
-        timeout-duration: 40s
+        timeout-duration: ${minicc.cloud.gateway.response-timeout-seconds:40}s
         cancel-running-future: true

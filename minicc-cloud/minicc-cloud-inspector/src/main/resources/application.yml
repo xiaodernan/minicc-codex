@@ -20,7 +20,8 @@ eureka:
 minicc:
   python: ${MINICC_PYTHON:python}
   repo: ${MINICC_REPO:${user.dir}}
-  budget: 30s
+  # The one budget the gateway's response timeout is derived from (P1).
+  budget: ${minicc.cloud.inspector.timeout-seconds:30}s
   # Empty means the repo above is the only root a caller may name.
   allowed-roots: []
 
