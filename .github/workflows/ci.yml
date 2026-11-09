@@ -423,3 +423,40 @@ jobs:
             output/nightly-v2.md
             output/nightly-compare.json
             output/nightly-junit.xml
+
+  # P3 of docs/SERVICE_PLANE_PLAN.md: the service plane is Java, and until this
+  # job existed `mvn test` ran only on the machine that wrote the code. The job
+  # is scoped to the directory it tests - a Python-only push must not pay for a
+  # second toolchain - and that scope-check is the thing to fix first if this
+  # job ever reports "passed" without having run mvn.
+  java-tests:
+    name: Service plane tests (mvn)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Decide whether the service plane changed
+        id: scope
+        run: |
+          base="${{ github.event.before }}"
+          if [ -z "$base" ] || ! git cat-file -e "$base^{commit}" 2>/dev/null; then
+            base="$(git rev-parse HEAD^ 2>/dev/null || echo '')"
+          fi
+          if [ -z "$base" ] || ! git diff --quiet "$base" HEAD -- minicc-cloud; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Service plane tests skipped::no file under minicc-cloud/ changed in this push, so mvn test was not run."
+          fi
+      - uses: actions/setup-java@v4
+        if: steps.scope.outputs.changed == 'true'
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - name: Run service plane tests
+        if: steps.scope.outputs.changed == 'true'
+        working-directory: minicc-cloud
+        run: mvn -B -q test
