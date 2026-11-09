@@ -95,16 +95,19 @@ workspace_path/preview`，截断由 `X-Minicc-Tasks-Truncated` 头声明。网�
 
 扩展：镜像构建留到发布流程，CI 只验证可构建。
 
-### P4 边界与凭据
+### P4 边界与凭据（已完成，M8-T727）
 
 目标：服务面不能成为绕过 Python 权限模型的旁路。
 
-改动：检查服务的允许根目录从环境变量改为配置中心下发；网关增加请求大小与路径白名单；
-桥接层对 Python 侧 stderr 做脱敏后再回传。
+落地：凭据脱敏放在 `BridgeResponse` 的紧凑构造器里——每一次失败都经 `failureReason()`
+引用 stderr，所以这里是唯一咽喉，调用方无法忘记、也无法各写一份；stdout 不动（那是要解析的
+数据，改写会破坏它）。检查服务的 `minicc.allowed-roots` 由 `config-repo` 下发，本地只剩
+`${MINICC_ALLOWEDROOTS:}` 空默认；网关两条路由挂 `RequestSize`，上限读共享键
+`minicc.cloud.gateway.max-request-bytes`（1 MiB）。
 
-验收：越界路径 403；超限请求 413；回传体里不出现任何形如密钥的串（用产品自己的脱敏词表断言）。
-
-扩展：mTLS 只在多机部署时才有意义，单机 compose 下不做。
+实测：红证是 `Expecting actual: "MINICC_API_KEY=sk-..." to contain: "[redacted]"`；加上脱敏后
+`mvn -B test` 全绿（7 模块 74 用例，0 失败 1 跳过）。网关 413 用 WebTestClient 真打出来，
+不是只断言路由定义。脱敏正则初版对 1 MiB 单行 stderr 有灾难性回溯，已改为行首/空白锚定。
 
 ### P5 集大成：能力目录
 
