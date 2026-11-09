@@ -68,6 +68,11 @@ HOOK_EVENTS = (
 # M8-T633: hook decision vocabulary (one home; distinct from permission decisions).
 HOOK_DECISION_ALLOW = "allow"
 HOOK_DECISION_DENY = "deny"
+# M8-T680: hook failure-action vocabulary (one home; continue | deny).
+# ``HOOK_FAILURE_DENY`` shares the decision-family word on purpose: a
+# hook whose own failure mode is ``deny`` is deciding the same way.
+HOOK_FAILURE_CONTINUE = "continue"
+HOOK_FAILURE_ACTIONS = frozenset({HOOK_FAILURE_CONTINUE, HOOK_DECISION_DENY})
 DEFAULT_HOOK_TIMEOUT = 5.0
 MAX_HOOK_OUTPUT_CHARS = 2000
 #: M8-T330: how much of **one argument** a hook payload carries.  The value
@@ -115,7 +120,7 @@ class HookSpec:
     command: str
     matcher: str = ""  # regex against the tool name (tool events only)
     timeout: float = DEFAULT_HOOK_TIMEOUT
-    on_failure: str = "continue"  # continue | deny
+    on_failure: str = HOOK_FAILURE_CONTINUE  # continue | deny
     env: dict[str, str] = field(default_factory=dict)
 
     def matches_tool(self, tool: str) -> bool:
@@ -289,8 +294,8 @@ class HookRunner:
                     ) from exc
                 if not (0 < timeout <= 60):
                     raise HookConfigError(f"hooks.{event}[{index}].timeout 需在 (0, 60] 秒")
-                on_failure = str(raw.get("on_failure", "continue")).strip().lower()
-                if on_failure not in {"continue", HOOK_DECISION_DENY}:
+                on_failure = str(raw.get("on_failure", HOOK_FAILURE_CONTINUE)).strip().lower()
+                if on_failure not in HOOK_FAILURE_ACTIONS:
                     raise HookConfigError(
                         f"hooks.{event}[{index}].on_failure 非法: {on_failure!r} (continue|deny)"
                     )

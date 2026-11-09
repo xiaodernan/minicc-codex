@@ -45088,3 +45088,23 @@ Ubuntu 腿 `1 failed, 4667 passed`：`tests/test_the_package_does_not_import_wha
 - `SANDBOX_BACKEND_UNAVAILABLE = "unavailable"` 不是模式（不是 `SANDBOX_MODES` 成员）；它只是 `status()` 的答语，共存于 sandbox.py 一家。其它文件的 `"auto"`（protocol / tool_mode / provider / orchestration 的缺省词）属于其它家族，不进本批。
 - `shutil.which("docker")` 保持字面——可执行档存在性探针，是独立事实；门专设豁免臂点名接住。
 - `SANDBOX docker run` 的 argv 第一项改走 `SANDBOX_MODE_DOCKER`——它本来就是 docker 模式被执行时的词，同一事实同一家——而执行后续的 `"run"`、`"--rm"`、`"--network"`、`"none"`、`"--cap-drop"`、`"ALL"` 是 CLI 选项本身，不入词表。
+
+## 批次 680 — M8-T680：hook failure-action 词表归一个家（`HOOK_FAILURE_CONTINUE` / `HOOK_FAILURE_ACTIONS`）
+
+### 1 欠的是哪一条
+
+`minicc/hooks.py` 的 `HookSpec.on_failure`（hook 执行失败时当语：`"continue"` 继续 / `"deny"` 拒绝）—— `"deny"` 复用 `HOOK_DECISION_DENY`，`"continue"` 只有裸字面（文档字符串之外两处：数据类默认值、`on_failure` 的解析校验）。与本包内"completion verdict 家族的"`continue`"是**同词异义**（不同模块、不同事实、不同消费者）。
+
+### 2 改动
+
+- `minicc/hooks.py`：新增 **`HOOK_FAILURE_CONTINUE`**、**`HOOK_FAILURE_ACTIONS = frozenset({HOOK_FAILURE_CONTINUE, HOOK_DECISION_DENY})`**；`HookSpec.on_failure` 默认值、`raw.get("on_failure", ...)` 回退值接改；解析校验 `if on_failure not in HOOK_FAILURE_ACTIONS`。
+- 新门 `tests/test_the_hook_failure_actions_have_one_home.py`：home 必须定义常量＋`HOOK_FAILURE_ACTIONS == {"continue", "deny"}`；全文件裸 `"continue"` 字面只剩 prose（hooks.py 的 docstring JSON 例子是用户手册，保留字面为好）。
+
+### 3 验证
+
+- `pytest tests/test_the_hook_failure_actions_have_one_home.py tests/test_hooks.py -q` → **2 passed**；含全部 hook 门 → **61 passed**。
+- `python scripts/doc_pointers.py --check` → rc=0。
+
+### 4 边界
+
+- `completion.py` 的 `"continue"`（completion verdict 词表）是另一家、不动；`web.py` 里 hand-spelled 的 `on_failure` 引用（如 `branch()`）—— 本批未观测到裸字面；若有手拼——属消费者侧接线，另一独立的门面。
