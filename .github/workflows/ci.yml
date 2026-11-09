@@ -246,7 +246,11 @@ jobs:
       - name: Start minicc web server with unreachable provider
         env:
           MINICC_API_KEY: dummy-key-for-smoke
-          MINICC_BASE_URL: https://example.invalid/v1
+          # 127.0.0.1:9 (discard port) refuses connections deterministically; an
+          # unresolvable name is at the mercy of the runner's DNS proxy, which
+          # was observed to swallow the request and turn the smoke's terminal
+          # wait into a fixed 90s hang instead of a completion-stage failure.
+          MINICC_BASE_URL: http://127.0.0.1:9/v1
         run: |
           python -m minicc.web --workspace . --port 8766 > server-mutation.log 2>&1 &
           for i in $(seq 1 30); do

@@ -45728,3 +45728,31 @@ main 的 `web-smoke-mutation` CI 步骤此前只会答「冒烟退出非零」�
 - 夜间的 `--gate grading_coverage>=0.9` 仍可被 declared pair 满足（两 declared = 同量）——这是设计，不是疏漏：self-compare 的两边是同一种东西，可判。
 - 没有引入新依赖；没有改 `parse_gate` 对未知指标的行为（`grading_coverage_basis>=1` 仍 raise ValueError 且消息含该键）。
 
+## 批次 702 — M8-T702：CI 42577439404（20ee970）红修 — web-smoke-mutation 的 provider 环境不可判定
+
+并轨落地 T534/T537 归因链后，`web-smoke-mutation` 腿红了：
+
+```
+SMOKE_FAILURE_CODE=PRODUCT_PATH_NO_TERMINAL_STATE
+mutation not attributed: the smoke failed with PRODUCT_PATH_NO_TERMINAL_STATE, not PRODUCT_PATH_NO_COMPLETION_VERDICT
+```
+
+### 1 归因
+
+`MINICC_BASE_URL: https://example.invalid/v1` 在本 runner 上经 DNS 代理解析成**连接能挂上的地址**（或解析后请求被吞），于是 `runProductPathSmoke` 的 90s 轮询循环永远等不到 `.loading` 清零——任务永远到不了 terminal state。冒烟在此环境中**必然**发 `PRODUCT_PATH_NO_TERMINAL_STATE`；而裁决脚本按 T534 契约要求只接受 `PRODUCT_PATH_NO_COMPLETION_VERDICT` → 门对一个**可复现、代理不可控**的故障模式永久红。劫持 URL 不是「失败的产品」能论证的事——它从未进到 completion 断言。
+
+### 2 改动
+
+- **`.github/workflows/ci.yml`**（CRLF，仅目标 job）：mutation 腿的 `MINICC_BASE_URL` 改为 `http://127.0.0.1:9/v1`——discard 端口，连接**确定性**立即被拒，代理/DNS 变量被隔离。完成路径按「provider 失败 → 任务标记失败 → 完成断言失败」→ `SMOKE_FAILURE_CODE=PRODUCT_PATH_NO_COMPLETION_VERDICT`。
+- 进度不作词——没碰 `scripts/web_smoke_verdict.py`、没碰 `tests/web_smoke*.mjs`、没放松任何门。
+
+### 3 验证
+
+- 本机复刻 CI 环境（server port 8767、provider 127.0.0.1:9）实测 smoke → emit `SMOKE_FAILURE_CODE=PRODUCT_PATH_NO_COMPLETION_VERDICT`；`scripts/web_smoke_verdict.py --exit-code 1 --log` → **mutation caught: PRODUCT_PATH_NO_COMPLETION_VERDICT**, rc 0。
+- `pytest tests/test_the_mutation_gate_names_why_the_smoke_failed.py tests/test_the_other_suites_name_themselves_too.py tests/test_ci_hygiene.py -q` → **25 passed**。
+
+### 4 边界
+
+- 未触 `doctor/`、`setup/` 等任何产品代码——本批修的是 **CI 环境不可判定**，不是代码缺陷。
+- 不改 `web smoke`（非 mutation）腿——它用 `MINICC_FAKE_PROVIDER: "1"` 注入 fake 快路径，base_url 在其体系里是死的，保持不变。
+- 如果 CI 将来在某 runner 上 `.loading` 仍不清零，裁决仍会拒绝（红）——那是该 runner 的网络行为问题，门不放松。
