@@ -219,7 +219,16 @@ def capture(workspace: Path, task_id: str) -> dict[str, Any]:
         # M8-T537: one rules snapshot for the whole copy pass - the deny side
         # is a fact about the workspace, not about the file being copied.
         from .audit import path_deny_predicate
+        from .internal_paths import PERMISSIONS_NAME
+        from .permissions import load_permission_rules
 
+        # M8-T536: the skip reason has to tell a policy that cannot be read
+        # apart from a rule the user actually wrote, so the capture reads the
+        # policy once up front to classify the refusal.
+        try:
+            _rules_for_reason, _policy_error = load_permission_rules(root)
+        except OSError as _exc:  # a permission issue is a finding, not a crash
+            _policy_error = f"无法读取: {_exc}"
         denied_by_rules = path_deny_predicate(root)
         for rel in dirty:
             # M8-T350: the deny rules have to reach the **copy** too.  A
@@ -232,7 +241,10 @@ def capture(workspace: Path, task_id: str) -> dict[str, Any]:
             # nothing to roll back.
             if denied_by_rules(rel):
                 skipped.append(rel)
-                reasons[rel] = "permissions.json deny 规则覆盖该路径，未保留前置镜像"
+                if _policy_error:
+                    reasons[rel] = f"{PERMISSIONS_NAME} 无法读取: {_policy_error}"[:240]
+                else:
+                    reasons[rel] = f"{PERMISSIONS_NAME} deny 规则覆盖该路径，未保留前置镜像"
                 continue
             try:
                 src = _within(root, rel)

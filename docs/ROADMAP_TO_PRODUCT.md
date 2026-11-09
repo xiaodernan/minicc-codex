@@ -46030,3 +46030,27 @@ M4 基线已在 `docs/BENCHMARK_EVALUATION.md`（826 s，表格行钉死），ni
 
 - 本批不动任何阈值数字；M6-4 的 15% 是 M4 冻结标准，此处只给它一个读者，不改标准。
 - 外来章节门不改 `doc_pointers.py` 一行；它只记录现有行为的边界。
+
+## 批次 713 — M8-T713：接手并轨（T536 家族）：快照复制一次装载 deny 裁决 + 无法读取的策略不洒香水
+
+### 1 欠的是哪一条
+
+并轨仓的 T536 记录钉住了 main 里同样的一处漏洞：`snapshots.capture` 一次处理工作流里会逐文件问 `permissions.json`（旧实现两次 stat/次），且**策略读不出来时，跳过理由会伪装成「一条真的拒绝规则」**——用户看见「deny 规则覆盖该路径」，其实是 `permissions.json` 本身坏了。
+
+### 2 改动
+
+- **`minicc/snapshots.py`**：deny 分支前一次性读取策略（`load_permission_rules(root)`），拿到 `(_rules_for_reason, _policy_error)`；deny 时若 `_policy_error` 不空 → `"{PERMISSIONS_NAME} 无法读取: {_policy_error}"`（截 240）；否则保留原拒绝句（向后兼容）。
+- **新 `tests/test_the_snapshot_deny_question_is_asked_once_per_capture.py`**（2 条腿，并轨仓字节搬运）：
+  1. deny 问题不随文件数增长（同一策略装载一次，5 个与 50 个脏文件的 stats 相等）——本仓走的通路是 `path_deny_predicate(root)` 单例，实测绿；
+  2. 策略损坏（`{not json`）时三份文件全被拒、skipped_reasons 每处都含 `无法读取` + 文件名、且不落副本——证明错误不会泄漏 pre-image。
+
+### 3 验证
+
+- `pytest tests/test_snapshots.py tests/test_snapshots_pure.py tests/test_a_failed_terminal_write_must_not_lose_the_snapshot.py tests/test_a_snapshot_that_could_not_read_the_tree_is_not_a_clean_tree.py tests/test_the_snapshot_escape_verdict_has_one_home.py tests/test_the_snapshot_copy_must_not_smuggle_a_denied_path.py tests/test_two_fixture_keys_must_share_one_workspace.py -q` → **106 passed**。
+- `pytest tests/test_the_snapshot_deny_question_is_asked_once_per_capture.py -q` → **2 passed**。
+
+### 4 边界
+
+- **未动拒绝语义**：拒绝永远是跳过 + reason；能不能回滚、目录结构、manifest shape 一律不变。
+- **只做策略读一次的拆分**：`denied_by_rules` 仍单例加载；多读的一次是为了把「理由」分类，不付三次账。
+- `PERMISSIONS_NAME` 不再裸拼——用 `minicc.internal_paths` 的那一份。
