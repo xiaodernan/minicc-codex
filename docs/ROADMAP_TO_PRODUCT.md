@@ -45860,3 +45860,22 @@ mutation not attributed: the smoke failed with PRODUCT_PATH_NO_TERMINAL_STATE, n
 - 本地分支删除不影响远程 `origin/*`（全部保留，属于共享泳道）。
 - 删除不删除对象；只要 refs 曾被 push/记录，对象在 reflog+gc 之前可恢复。
 - 本批不改产品代码、不进改动范围、不影响测试。
+
+## 批次 707 — M8-T707：README evidence 快照对账（22→23、5,421→5,508、759→776）
+
+### 1 欠的是哪一条
+
+批次 684 对账 README 的数字后，doc corpus 继续长：`docs/OPERATIONS.md`（批 697）落地、`scripts/doc_pointers.py --check` 通过新增文件带来新的 evidence 指针。README 面向读者的数字快照离婚两代——读者看到的不是 HEAD 的函数。
+
+### 2 改动
+
+- `README.md`：「全仓 22 个文档共 5,421 条断言」→「全仓 23 个文档共 5,508 条断言」；「当前 759 个被跟踪文件」→「当前 776 个被跟踪文件」。
+
+### 3 验证
+
+- `python scripts/doc_pointers.py --check`：**23 corpus documents**, **5,508 evidence pointers**, **776 tracked files**（footer 实测）。
+- `pytest tests/test_readme_install_run_claims.py tests/test_project_config.py -q` → **41 passed**。
+
+### 4 边界
+
+- 数字按批维护即可——`doc_pointers` 的 footer 永远是它的出处；每批 doc 落地后这串数字都会再漂移，此批不为此引入日常守门双写。
