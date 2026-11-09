@@ -45902,3 +45902,34 @@ mutation not attributed: the smoke failed with PRODUCT_PATH_NO_TERMINAL_STATE, n
 - 不引入任何 `--system-site-packages` 的兜底 mock、不给本机装 openai 进全局——改全局系统 python 只会把「套件红」从今天推到将来。
 - 不在 CI 动作脚本里跳过 packaging 门；它本来就在 CI 上跑（干净的 `pip install -e ".[dev]"` 环境）。
 - 本批只写账本，不改代码。
+
+## 批次 709 — M8-T709：`minicc --stats` — 工作区现状只读清单
+
+### 1 欠的是哪一条
+
+批 686–705 把「工作区健不健康」讲透了；但「这个工作区现在**装了什么**」——审计日志多少行、任务 store 中按状态分布、会话数与消息数、`.minicc/` 占多少字节——目前只能靠 `--print-config` 看配置、或者手写 `ls`。运维和排查指令脚本需要一个**一次命令拿全的状态快照**，且不需要进入模型/网络/权限流程。
+
+### 2 改动
+
+- 新模块 **`minicc/stats.py`**：
+  - `_audit_stats` — 读 `<ws>/.minicc/audit.jsonl`：是否存在、行数、最后一条的 `event`/`type`/`kind`（坏行报 `<unparseable audit line>`），文件不可读报 inline 错误；
+  - `_task_stats` — 用 `TaskStore.load(limit=10_000)` 按 `status` 计数（queued/running/completed/failed/cancelled/interrupted + `other`），sqlite3 不可读报 inline 错误；
+  - `_session_stats` — 复用 `session.list_sessions()`：会话数 + messages 总和；
+  - `_disk_bytes` — `os.walk(.minicc/)` 的文件字节数（OSError 逐文件容忍）。
+  - `gather(workspace) → dict` 全键稳定，`format_stats(report, json_out=...)` 两种格式。
+- **`minicc/main.py`**：`--stats` 旗标（人可读）与 `--json` 搭配扩展（`--json` 只与 doctor 家族或 `--stats` 搭配；其余报 exit 2）。
+- **新 `tests/test_stats.py`**（6 条）：空工作区骨架 / 审计行+last_event / 审计坏行 / tasks 状态计数 / `main(["--stats", "--json"])` 的 API_KEY 缺失兼容与形状 / `--json` 无搭配 → exit 2。
+- README 增 `--stats` 段与 `--json` 说明。
+
+### 3 验证
+
+- `pytest tests/test_stats.py -q` → **6 passed**。
+- 全新空 tmp 实测：`minicc --stats`、`--stats --json`、无 key 的 `--stats --json` 三种都 rc=0 且内容完整（见提交证据）。
+- `python -m py_compile minicc/main.py minicc/stats.py` 通过。
+- `python scripts/doc_pointers.py --check` → rc=0。
+
+### 4 边界
+
+- **stats 不是 doctor**：缺的是检查合伙、不是健康度评分；`.minicc/` 不完整或有坏行也不会让 `--stats` 非零退出（容错，它是 inventory，不是 verdict）。
+- **不写任何东西**：读 `.minicc/`，零触碰 `audit.jsonl` / `web_token.json` / `permissions.json`；未调用 `TaskStore.upsert` 或任何 write API。
+- **只与 doctor/strict/stats 搭配走 `--json`**——其余命令保持人读输出不撒网。

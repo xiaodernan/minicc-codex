@@ -261,7 +261,8 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--setup", action="store_true", help="创建 .minicc/ 骨架（permissions.json + web_token.json）并退出")
     parser.add_argument("--doctor", action="store_true", help="运行工作区自检并退出（不调网络、不跑模型）")
     parser.add_argument("--doctor-strict", action="store_true", help="同 --doctor，但 warning 也按 fatal 处理（CI 风险守门）")
-    parser.add_argument("--json", action="store_true", help="与 --doctor / --doctor-strict 搭配：输出机器可读 JSON")
+    parser.add_argument("--stats", action="store_true", help="只读打印工作区现状清单（不调网络、不跑模型）")
+    parser.add_argument("--json", action="store_true", help="与 --doctor / --doctor-strict / --stats 搭配：输出机器可读 JSON")
     parser.add_argument("--version", action="version", version=f"minicc {minicc_version()}")
     return parser
 
@@ -834,8 +835,9 @@ def _warn_unrun_prompt(prompt: list[str], flag: str) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
-    if getattr(args, "json", False) and not (args.doctor or getattr(args, "doctor_strict", False)):
-        cli_out("error: --json 仅与 --doctor / --doctor-strict 搭配使用")
+    informational = bool(args.doctor or getattr(args, "doctor_strict", False) or getattr(args, "stats", False))
+    if getattr(args, "json", False) and not informational:
+        cli_out("error: --json 仅与 --doctor / --doctor-strict / --stats 搭配使用")
         return 2
     # M7-T4: resolve the workspace before loading config so the project
     # layer (<workspace>/.minicc/config.json) participates in resolution.
@@ -866,6 +868,13 @@ def main(argv: list[str] | None = None) -> int:
         if getattr(args, "doctor_strict", False):
             return 0 if (report.fatal == 0 and report.warn == 0) else 1
         return report.exit_code
+
+    if getattr(args, "stats", False):
+        from .stats import format_stats, gather
+
+        report = gather(workspace)
+        cli_out(format_stats(report, json_out=bool(getattr(args, "json", False))))
+        return 0
 
     if args.fork_from:
         raw_point = str(args.fork_from).strip()

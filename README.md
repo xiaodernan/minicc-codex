@@ -260,9 +260,11 @@ MINICC_REASONING_EFFORT=high
 
 `minicc --doctor` 在不进入模型、不访问网络的前提下跑一轮工作区自检（Python 版本、安装自检、`.minicc/` 写权限、审计日志最新行能解析、Web token 权限位、`permissions.json` 能否解析、git work tree）。失败即退出非零，可在 CI 串入；输出两种格式（人读 / `--json`）。`--doctor-strict` 把 warning 也计入失败，供 CI 当严格守门员。`GET /api/health` 提供最小 liveness `{ok: true, service: "minicc"}`（不依赖探测），逐份的诊断在 `GET /api/doctor`（与 `/api/*` 同样需要 bearer token）。
 
+`minicc --stats` 打印当前工作区的只读现状清单（`.minicc/` 是否在、审计日志行数与最后一条 event、`tasks.sqlite3` 中按状态计数、会话数与消息总数、`.minicc/` 占用字节数）——CLI 与 `--stats --json`（机器可读）两种形态，无需 `MINICC_API_KEY`。
+
 `minicc --setup` 为新工作区创建 `.minicc/` 骨架：写出一份默认 `permissions.json`（deny `.env` / `.env.local` / `secrets/` / `secrets/**` / `.ssh` / `.aws`） 与一份按 0o600 权限写的 `web_token.json`。幂等——已存在的 `permissions.json` 与 `web_token.json` 都不覆盖。完成后立刻 `minicc --doctor` 即可看到一切绿。
 
-`--doctor` / `--doctor-strict` / `--setup` 不需要 `MINICC_API_KEY` / `MINICC_BASE_URL`——它们在配置解析之前分发，装好一个空目录就能用。`minicc --doctor --json` 输出机器可读 JSON（`{"ok":…, "warn":…, "fatal":…, "checks":[…]}`），没有 `--doctor` 前缀时 `--json` 是用法错误（exit 2）。
+`--doctor` / `--doctor-strict` / `--setup` / `--stats` 不需要 `MINICC_API_KEY` / `MINICC_BASE_URL`——它们在配置解析之前分发，装好一个空目录就能用。`minicc --doctor --json`（或 `--stats --json`）输出机器可读 JSON，没有 `--doctor` 或 `--stats` 前缀时 `--json` 是用法错误（exit 2）。
 
 离线评测和审计导出：
 
