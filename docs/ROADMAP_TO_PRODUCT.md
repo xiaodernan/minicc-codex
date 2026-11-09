@@ -45879,3 +45879,26 @@ mutation not attributed: the smoke failed with PRODUCT_PATH_NO_TERMINAL_STATE, n
 ### 4 边界
 
 - 数字按批维护即可——`doc_pointers` 的 footer 永远是它的出处；每批 doc 落地后这串数字都会再漂移，此批不为此引入日常守门双写。
+
+## 批次 708 — M8-T708：全量本地套件的三种失败归因 — 套件定义下的环境差，不动代码
+
+跑完（`pytest tests/ -q --tb=no`，~54 分钟）：**3 failed, 4713 passed, 10 skipped**。
+
+### 1 归因
+
+1. **`tests/test_packaging.py::test_installed_console_scripts_run_from_a_real_install`** — 从当前 HEAD 复现：fresh venv + `--system-site-packages` 站到一个**裸** Python（global 3.11.1 未装 openai），`minicc --version` 触发 `ModuleNotFoundError: No module named 'openai'`。本机的系统解释器是仓库主工作树所用的**相同 type** 解释器，但 CI 的 `actions/setup-python` 装好 `pip install -e ".[dev]"` 后系统 site-packages 有 openai——门在 CI 上从未红（近期 completed Linux/Windows legs 里打包门都没出声）。**这不是仓库缺陷，是跑套件的人本地系统 python 没装 openai**，不改。
+2. **`test_the_package_does_not_define_what_the_repo_never_uses.py::test_no_constant_is_defined_without_any_repository_reference`** — 套件启动于 T694 落地那一刻（比本批次各修复早几小时），打开编辑器时的文件快照是**过渡树**（当时 `_t541_*.py` 临时脚本在根目录、`_mut_probe1.py` 等临时文件已被移走但 census 与门具用的文件是旧配置）。
+3. **`test_the_package_does_not_import_what_it_does_not_use.py::test_no_module_scope_import_is_unreferenced`** — 同上：M8-T688 时代 `minicc/doctor.py` 里 `typing.Any` 未引用的那条曾经存在（第 689 批分拆为两条 body 短路后门转绿），套件开机快照里装着旧 doc；两道门在本仓新树上复跑 → **2 passed**。
+
+### 2 核验
+
+- 本仓新树复跑三条失败原点：
+  - `pytest tests/test_packaging.py::test_installed_console_scripts_run_from_a_real_install -q` → 仍红（环境差；CI-only，详见上一节）；
+  - `pytest tests/test_the_package_does_not_define_what_the_repo_never_uses.py tests/test_the_package_does_not_import_what_it_does_not_use.py -q` → **2 passed**。
+- 本批次两批之前的全绿证明仍有效：M8-T689 修后两门在当前树上的新产物都在（witness：T699/T700/T702/T703/T704/T705/T706/T707 各验证段落点了名），603 条 `test_*.py` 全量约 4700 例中只有这一条环境差红。
+
+### 3 边界
+
+- 不引入任何 `--system-site-packages` 的兜底 mock、不给本机装 openai 进全局——改全局系统 python 只会把「套件红」从今天推到将来。
+- 不在 CI 动作脚本里跳过 packaging 门；它本来就在 CI 上跑（干净的 `pip install -e ".[dev]"` 环境）。
+- 本批只写账本，不改代码。
