@@ -258,6 +258,8 @@ MINICC_REASONING_EFFORT=high
 
 写进 `config.json` 却没有任何解析逻辑读取的键——拼错的、改过名的、已废弃的——现在会在启动时逐条报 WARNING，说明它正按默认值运行，并给出最接近的正确键名；`minicc --print-config` 也会把它们列在 `ignored_keys=` 之后。在这之前这类键完全静默，用户看到的是一份和自己的想法无关的配置。
 
+`minicc --doctor` 在不进入模型、不访问网络的前提下跑一轮工作区自检（Python 版本、安装自检、`.minicc/` 写权限、审计日志最新行能解析、Web token 权限位、`permissions.json` 能否解析、git work tree）。失败即退出非零，可在 CI 串入，输出两种格式（人读 / `--json`）。
+
 离线评测和审计导出：
 
 ```powershell

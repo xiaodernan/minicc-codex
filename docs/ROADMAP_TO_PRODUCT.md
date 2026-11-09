@@ -45224,3 +45224,53 @@ Ubuntu 腿：`test_a_section_citation_is_answered_by_the_section_it_lives_under.
 
 - 不回退 M8-T683 的任何内容点；只改标题形状。
 - 本批只处理 CI 点名的那一条；而那条动了整文件 9 个 H2，没动正文、没动代码。
+
+## 批次 686 — M8-T686：`minicc --doctor` 工作区自检
+
+### 1 欠的是哪一条
+
+`python -m minicc.main --print-config` 已经能打印配置，但没有「环境本身到底健康不健康」的回答：装没装错包、.minicc 写不写得动、审计日志有没有撕裂、token 权限位对不对、`permissions.json` 能不能读。装错一个 wheel、装错一个文件，`--print-config` 仍然答「看起来像那么回事」。这个缺口对首装用户和 CI 都是隐蔽的边界条件。
+
+### 2 改动
+
+- 新模块 **`minicc/doctor.py`**：8 个固定探测，每个返回冻结的 `DoctorCheck`（`name` / `severity` ∈ {ok,warn,fatal} / `detail` / `fix_hint`）：
+  1. `check_python_version` — ≥3.11（exit 非零 = fatal）
+  2. `check_minicc_import` — `import minicc` + 版本字符串
+  3. `check_minicc_compiles` — 全量 `py_compile` `minicc/` 下每一个 `*.py`（`__pycache__` 除外）
+  4. `check_minicc_dir_writable` — `.minicc/` 可建、可写、可删一个 probe 文件
+  5. `check_audit_log` — 如果 `.minicc/audit.jsonl` 在，就读最后一行必须是合法 JSON；缺文件=warning，坏行=fatal
+  6. `check_web_token_permissions` — `web_token.json`（若存在）权限位必须是 0o600；其他位 = fatal，Windows  également
+  7. `check_permissions_json` — `permissions.json`（若存在）必须能被 `load_permission_rules` 解析且无 error（坏 = fatal），缺文件 = warning
+  8. `check_git_worktree` — `gitprobe.work_tree_verdict` 答 `yes` 才是真绿；`no/unknown` = warning（不是 git work tree 也能跑，只是没有 benchmarks / 变更清单）
+- **`minicc/main.py`** 新增 `--doctor` 开关：跑完 `run_doctor()` → 打印 `format_report()` → 非零 fatal 直接 `return 1`。位置在 `--print-config` 之后、Editor 创建之前——诊断不应依赖 agent 状态。
+- **新门 `tests/test_doctor.py`**（17 细项）：
+  - 8 个探测的阳性路径（模块可编译、`.minicc/` 可写、JSON 可解析、git work tree 等）
+  - 阴性路径：`.minicc/` 是普通文件（fatal）、audit 坏行（fatal）、token 0666 mode（fatal）、`permissions.json` 非法 JSON（fatal）
+  - `--doctor` 退出码约定（仅 fatal 触发 1）
+  - `format_report(…, json_out=True)` 可 JSON 反序列化、形状固定
+  - `run_doctor(tmp_path)` 形状冻结（`ok + warn + fatal == len(checks)`）
+
+### 3 验证
+
+- `pytest tests/test_doctor.py -q` → **16 passed, 1 skipped**（`POSIX mode bits` 在 Windows skip）。
+- `pytest tests/test_cli_stage_routing.py tests/test_project_config.py tests/test_doctor.py -q` → **62 passed**。
+- `python -m minicc.main --doctor` 实测输出（本地是 0.2.0、有 0666 的 `.minicc/web_token.json` 和没有 `permissions.json`）：
+  ```
+  [ok] python_version: python 3.11.1
+  [ok] minicc_import: import ok — 0.2.0
+  [ok] module_compiles: 89 modules compiled
+  [ok] minicc_dir_writable: .minicc/ writable
+  [ok] audit_log: last audit record is valid JSON
+  [fail] web_token_permissions: web_token.json is mode 0666; bearer token must be readable only by the owner
+  [warn] permissions_json: no permissions.json; all calls follow the default mode
+  [ok] git_worktree: inside a git work tree
+  exit=1
+  ```
+  本机未去动 `.minicc/web_token.json`（不是我拥有的文件），它把「当前是坏的」如实报出来正是 doctor 应当做的事。
+
+### 4 边界
+
+- **不调网络、不加载模型、不跑 `pytest`。** 它只回答「当前这个目录能不能拿来跑 minicc」。
+- **不修任何东西**——doctor 只读；任何会写文件的「修复」(`chmod 600` 等) 都只在 `fix_hint` 里提示，不动手；用户自己动作。
+- 本地工作区有 0666 的 `web_token.json` 是用户的 pre-existing 状态，不是本批次造成的，也不该被本批次改动。
+- `/doctor` 没有进 `/help` 列表，它是 CLI 参数，不是 REPL slash command；不动 CLI 面的用户暴露面。

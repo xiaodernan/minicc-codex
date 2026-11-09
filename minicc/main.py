@@ -258,6 +258,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--new-session-id", metavar="NAME", help="--fork-from 生成的新会话名（可选，默认自动命名）")
     parser.add_argument("--session-id", default="latest", help="会话名称，默认 latest")
     parser.add_argument("--print-config", action="store_true", help="打印解析后的配置并退出")
+    parser.add_argument("--doctor", action="store_true", help="运行工作区自检并退出（不调网络、不跑模型）")
     parser.add_argument("--version", action="version", version=f"minicc {minicc_version()}")
     return parser
 
@@ -872,6 +873,13 @@ def main(argv: list[str] | None = None) -> int:
         cli_out(config.describe())
         cli_out(f"workspace={workspace}")
         return 0
+
+    if args.doctor:
+        from .doctor import format_report, run_doctor
+
+        report = run_doctor(workspace)
+        cli_out(format_report(report))
+        return report.exit_code
 
     editor = Editor(workspace, audit_path=workspace / ".minicc" / AUDIT_NAME)
     # M8-T138 (M5 recheck): the CLI must see workspace MCP servers exactly
