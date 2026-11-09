@@ -34,6 +34,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import subprocess
 import sys
@@ -216,7 +217,9 @@ def setup_doctor_roundtrip() -> int:
             [sys.executable, "-m", "minicc.setup", str(tmp_path)],
             cwd=str(REPO_ROOT),
             capture_output=True,
-            text=True,
+            encoding="utf-8",
+            errors="replace",
+            env={**os.environ, "PYTHONIOENCODING": "utf-8"},
         )
         if setup.returncode != 0:
             print(f"reliability probe: --setup failed (exit {setup.returncode})")
@@ -227,7 +230,9 @@ def setup_doctor_roundtrip() -> int:
             [sys.executable, "-m", "minicc.main", "--doctor"],
             cwd=str(tmp_path),
             capture_output=True,
-            text=True,
+            encoding="utf-8",
+            errors="replace",
+            env={**os.environ, "PYTHONIOENCODING": "utf-8"},
         )
         print("reliability probe: --doctor on a pristine tree answers:")
         print(doctor.stdout)
@@ -240,6 +245,12 @@ def setup_doctor_roundtrip() -> int:
 
 def main() -> int:
     parser = argparse.ArgumentParser(prog="reliability_probe")
+    try:
+        # The child CLI prints UTF-8; this parent must not crash printing it
+        # into a non-UTF-8 console locale.
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except AttributeError:
+        pass  # sys.stdout is not a TextIOWrapper on every host (CPython ok)
     parser.add_argument(
         "--credential-path",
         action="append",

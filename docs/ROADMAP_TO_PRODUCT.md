@@ -45615,3 +45615,30 @@ reliability probe: FAIL — --doctor exits non-zero on a fresh tree
 
 - 手册**不**承诺任何 SKU/部署拓扑；它只描述本仓库现有代码的运维面。
 - 不新增任何 doc↔doc 的「见文档 §N」形式引用——手册自己用路径引用，不依赖编号锚点。
+
+## 批次 698 — M8-T698：CI 42573232858（3479ead）Ubuntu 红修：`reliability_probe.py` 的 text-mode 子进程捕获
+
+Ubuntu 腿 `1 failed, 4707 passed, 5 skipped`，唯一失败：
+
+- `tests/test_subprocess_decoding.py::test_no_text_mode_capture_asks_for_a_strict_decoder` — 点名 `scripts/reliability_probe.py:215` 与 `:226`：M8-T694 给 `setup_doctor_roundtrip()` 写的两条 `subprocess.run(..., capture_output=True, text=True)` 缺 `encoding=`/`errors=`。
+
+### 1 同一个根因上长出的第二个错
+
+改成 `encoding="utf-8", errors="replace"` 后本地实测打印 crash：子进程（GBK 控制台）输出的 UTF-8 字节经 parent 的 UTF-8 严格解码器变成 `�`，`print('�')` 对 GBK stdout 直接 `UnicodeEncodeError`。所以红修必须一次做对，而不是只满足门的字面形式：
+
+- 两条子进程调用都带 `env={**os.environ, "PYTHONIOENCODING": "utf-8"}`：child 固定说 UTF-8，不受控制台 locale 干扰；
+- `main()` 开头 `sys.stdout.reconfigure(encoding="utf-8", errors="replace")`（`AttributeError` 兜底）：parent 打印 child 输出时不再因个别不可编码字符崩溃。
+
+### 2 改动
+
+- `scripts/reliability_probe.py`：三处（两条子进程 `env=`/`encoding=`，`main()` 开头 stdout reconfigure，新增 `import os`）。
+
+### 3 验证
+
+- `pytest tests/test_subprocess_decoding.py tests/test_blind_wait.py -q` → **33 passed**。
+- `python scripts/reliability_probe.py`（venv python）实测端到端通过：M1 九目标 → setup/doctor pristine roundtrip → 凭据扫描，最终 `reliability probe: PASS`。
+
+### 4 边界
+
+- 不改探测目标、不改扫描规则、不改 roundtrip 的断言逻辑；只改两条子进程的传输协议与 parent 的打印容错。
+- 本红修不触 `tests/` 任何一行——门抓到的是 `scripts/` 侧的不合规写法。
