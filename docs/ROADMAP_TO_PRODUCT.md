@@ -45200,3 +45200,27 @@ Ubuntu 腿：`1 failed, 4673 passed`：
 
 - 「22 个文档」与「5,421 条断言」会随未来批次继续漂——这不是缺陷，精度按批维护即可；
 - 工作区 EOL 已归一为 LF，README 全文未动其它字节。
+
+## 批次 685 — M8-T685：CI 42557508097（59e3da9）红修 — `ONE_FACT_ONE_HOME.md` 的 H2 形状
+
+Ubuntu 腿：`test_a_section_citation_is_answered_by_the_section_it_lives_under.py::test_the_relaxed_declaration_shape_moves_no_document_level_section_key`：
+
+`ONE_FACT_ONE_HOME.md：放宽声明形状挪动了文档级编号表，旧读法 [] 新读法 [1..9]`
+
+### 1 归因
+
+第六百八十三批新增的 `ONE_FACT_ONE_HOME.md` 九个 H2 全用阿拉伯数字+空格（`## 1 一条公理` 这样），正是宽松声明形状刚扩宽命中的形状——文档级编号表会在本文件里"出现一套旧规则下不会存在的键"。该测试守的正是「漏报形状不可挪动既有文档的文档级编号表」这根线；受害的文档是我们刚加的这份。
+
+### 2 改动
+
+- `docs/ONE_FACT_ONE_HOME.md`：九个 H2 改为语料惯用的数词形式（`## 一、一条公理` 至 `## 九、验收 —— 这个家学得怎么样`），正文不动。宽松形状被 doc 指针继续接受（正文无变更）；严格形状也能答。
+
+### 3 验证
+
+- `pytest tests/test_a_section_citation_is_answered_by_the_section_it_lives_under.py -q` → **9 passed**。
+- `python scripts/doc_pointers.py --check` → rc=0。
+
+### 4 边界
+
+- 不回退 M8-T683 的任何内容点；只改标题形状。
+- 本批只处理 CI 点名的那一条；而那条动了整文件 9 个 H2，没动正文、没动代码。
