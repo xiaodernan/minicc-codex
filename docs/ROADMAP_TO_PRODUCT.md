@@ -1799,7 +1799,7 @@ C 格是本批最想要的一格：只往那份**干净检出**里种四个 giti
           _QUOTED_STALE_PATH 2/5、_RETIRED_PATH 2/11、_DECLINED_PATH 1/2
 ```
 
-为什么它们零命中：不带斜杠的裸文件名在判据里**不构成定位符断言**（那是 M8-T37 自己为 `loop.py` 立的规则），所以这五个键从来没被咨询的机会。**这里学到的判据值得单独记**：豁免键有两种角色——**挡红的**（删掉 `minicc/web_static` → 恰好 2 条红）和**准入的**（删掉 `.minicc/` → 一条红都不产生，只是清单从 782 缩水）。只按"删掉会不会变红"量活性，第二种键永远量不到，所以 `exemption_usage()`（`scripts/doc_pointers.py:826`）量的是"这条键实际答上了几条引用"，命中 0 就是死行。测试里三种情形分开断言：陈旧（没人引用）→ 只有陈旧那条红；被引用但不可达（只写路径前缀、没有文件）→ 只有死行那条红；正常 → 无红。
+为什么它们零命中：不带斜杠的裸文件名在判据里**不构成定位符断言**（那是 M8-T37 自己为 `loop.py` 立的规则），所以这五个键从来没被咨询的机会。**这里学到的判据值得单独记**：豁免键有两种角色——**挡红的**（删掉 `minicc/web_static` → 恰好 2 条红）和**准入的**（删掉 `.minicc/` → 一条红都不产生，只是清单从 782 缩水）。只按"删掉会不会变红"量活性，第二种键永远量不到，所以 `exemption_usage()`（`scripts/doc_pointers.py:1756`）量的是"这条键实际答上了几条引用"，命中 0 就是死行。测试里三种情形分开断言：陈旧（没人引用）→ 只有陈旧那条红；被引用但不可达（只写路径前缀、没有文件）→ 只有死行那条红；正常 → 无红。
 
 **门是活的（四条变异，基线 sha256 `405dc6168fb3`，逐条字节还原并复验）**：
 
@@ -35460,10 +35460,10 @@ worker-argv 那条断言的是 import 字符串——**量具读不了，不是�
   报陈旧、`hits == 0` 报死行；改完 `doc_pointers --check` 读 **rc=0**，`exemption_usage`
   在 20 份文档、24 条豁免行里读出**两条新行各命中 1 次、死行 0 条**。
   这张表的存在理由与 `_RETIRED_TEST_NAME` 自己被立起来时写的那句是同一句
-  （`scripts/doc_pointers.py:1259-1260`）：
+  （`scripts/doc_pointers.py:1372-1373`）：
   **量具读不出一种真话时，作者只剩两条路——把记录改成假的，或者一直红**。第九十九批
   （M8-T113）为「改过名的腿」立了那张表，本批为「从未出货的腿」补上它缺的那一格
-  （`scripts/doc_pointers.py:1298`）。
+  （`scripts/doc_pointers.py:1402`）。
 
 ### 4 见证
 
@@ -36374,8 +36374,8 @@ sha256，读数 `arms_536.txt`）：
    - `:124` `_block_of` 的包含判据按构造已知：10 在内、19 在内、20 不在、9 不在、
      空表不在。
 3. 为什么下界是「每份 2 次」而不是 1 次：`_code_spans`
-   （`scripts/doc_pointers.py:1405`）自己先调 `_blank_fences`（:516），后者调
-   `_fence_blocks`（:481）——那一配是证据读者的眼睛，删不掉；本批只删掉腿上**按跨度**
+   （`scripts/doc_pointers.py:1510`）自己先调 `_blank_fences`（:601），后者调
+   `_fence_blocks`（:566）——那一配是证据读者的眼睛，删不掉；本批只删掉腿上**按跨度**
    多出来的那 26,807 次。门的上界因此写成 `≤ 2 × 文档数`：将来若 `_code_spans` 接受
    外部传入的区间，门只会更绿，不会假红。
 
@@ -46054,3 +46054,57 @@ M4 基线已在 `docs/BENCHMARK_EVALUATION.md`（826 s，表格行钉死），ni
 - **未动拒绝语义**：拒绝永远是跳过 + reason；能不能回滚、目录结构、manifest shape 一律不变。
 - **只做策略读一次的拆分**：`denied_by_rules` 仍单例加载；多读的一次是为了把「理由」分类，不付三次账。
 - `PERMISSIONS_NAME` 不再裸拼——用 `minicc.internal_paths` 的那一份。
+## 批次 714 — M8-T714：接手并轨（续）：把另一条 lane 没做完的引用改瞄做完，并撤掉三份纯行尾 churn
+
+### 1 欠的是哪一条
+
+main 的工作树上留着四个未提交文件。逐字节量过之后，它们不是同一件事：
+
+- `tests/test_broad_silent_handlers_state_a_reason.py`（110 行）、
+  `tests/test_silence_must_state_its_reason.py`（108 行）、
+  `tests/test_web_assets_are_fresh.py`（158 行）：`git diff --stat` 报 **380/380**，
+  但把两侧都归一到 LF 之后**逐字节相等**——整份改动只是 LF→CRLF，一个语义字符也没动。
+  本仓没有 `.gitattributes`，`core.autocrlf=false`，这三份在 HEAD 里是 LF。
+- `docs/ROADMAP_TO_PRODUCT.md`：**4 处真改动**，都是往 `scripts/doc_pointers.py`
+  的行号引用改瞄（`:826`→`:1756`、`:1259-1260`→`:1372-1373`、`:1298`→`:1402`、
+  `:516`→`:601`）。四处逐一核对落点，全部命中它点名的那个定义。
+
+欠的是**同一段里剩下的两枚**：第 36377–36378 行那段讲「为什么下界是每份 2 次」，
+它点名的调用链是 `_code_spans` → `_blank_fences` → `_fence_blocks`。lane 改对了
+中间那一枚（`:601`），两头还指着旧行号：`:1405` 落在一条注释字符串上，`:481` 落在
+`return f"## {section.title}\n{section.body}"` 上。
+
+### 2 改动
+
+- **三份门文件归一回 LF**：内容按构造与 HEAD 逐字节相同（脚本里先断言
+  `norm == head.replace(b"\r\n", b"\n")` 再写），于是 `git status` 上这三份消失。
+  这不是撤销谁的工作——量过才知道那里没有工作。
+- **`docs/ROADMAP_TO_PRODUCT.md`**：保留 lane 自己的四处改瞄，补上它漏的两处：
+  `scripts/doc_pointers.py:1405` → **`:1510`**（`def _code_spans`），
+  `_fence_blocks`（`:481`）→ **（`:566`）**（`def _fence_blocks`）。
+  改瞄之前先在源码里把那条链读实：`_code_spans` 的 `:1516` 是
+  `blanked = _blank_fences(text)`，`_blank_fences` 的 `:614` 是
+  `for start, end in _fence_blocks(text)[0]:`——段落声称的调用关系成立，改的只是行号。
+
+### 3 验证
+
+- `python -X utf8 scripts/doc_pointers.py --check` → **rc=0**，
+  `checked 120 of 1230 「见」 markers … 5537 evidence pointers … 23 documents … 782 tracked files`。
+- `python -X utf8 -W error -m pytest -q -rs tests/test_doc_pointers.py` → **61 passed in 69.14s**。
+- 三份归一后的门：`pytest -q -rs` 三份 → **13 passed in 3.43s**。
+- **臂（诚实记账）**：把 roadmap 换回 HEAD 的字节再跑指针尺 → **rc=0**，与改后同答；
+  逐字节还原后 sha256 `d71ef26bd005db59` **MATCHED**。也就是说**这两个读者都不咬这六枚引用**：
+  `:1405` 与 `:481` 都在 1,916 行的范围内，尺子问的是「够不够得着」，不是「够着的那一行
+  是不是它点名的那个东西」。本批因此**没有红先绿后**——它是一次实测过的文档订正，
+  不是一次被门逼出来的修法。那条判据缺口留给下一批（§4）。
+
+### 4 边界
+
+- 不动任何阈值、不动 `scripts/doc_pointers.py` 一行、不动三份门的判据。
+- `docs/ROADMAP_TO_PRODUCT.md:17325` 的 `tests/test_doc_pointers.py:270` **不是**陈旧引用：
+  它落在 `env=dict(os.environ, PYTHONIOENCODING="utf-8")` 上，而那一段声称的正是
+  「本仓既有的拼写」——落点与声称相符，本批不改它。
+- 三个未跟踪的 `_m64_checkall.py` / `_m64_consts.py` / `_t561_num3.py` 是一次性探针，
+  移到 `C:\Users\18414\.qoder-cn\scratch\live_probes\` 保管，不进版本库。
+- **下一位候选**：行号引用「够得着但够错」——尺子只验在范围内，不验那一行是否含有
+  被点名的符号。本批六枚引用里两枚够错而两个读者全绿，是这条缺口的实测见证。
