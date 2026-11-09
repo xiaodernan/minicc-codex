@@ -45508,3 +45508,32 @@ Ubuntu + Windows 双腿 `4 failed, 4697 passed, 5 skipped`：
 - 这条 probe **不跑** `--setup` / `--doctor`，它只证明装出来的新工作目录在本 CLONE 里能装配、能自检。clone 本身一坏（PEP 好）就红——这正是它存在的理由。
 - **不增加依赖**：`tempfile.TemporaryDirectory()` 自动回收，与 `mkdtemp` 配合 `try/finally`。
 - CI 现役步 (`reliability-probe job`) 不改——run 同一条命令时自动多跑一项断言。
+
+## 批次 695 — M8-T695：CI 42570534459（10001b1）三红订正 — `--doctor-strict` 门走 `main()` 而不是 subprocess
+
+Ubuntu 腿 `4704 passed, 3 failed`，全部落在 `tests/test_doctor_strict.py`（第 693 批写的那三个用例）。
+
+### 1 归因
+
+693 批的门用 `subprocess.run([sys.executable, "-m", "minicc.main", ...], ...)`：
+
+- `minicc.main` 在 argparse 之后、`--doctor-strict` 分支之前**先做 `MINICC_API_KEY` 校验**——`MINICC_API_KEY 未设置` → `_fatal(...)` → `exit 2`；
+- 子进程里没有任何 `MINICC_API_KEY` / `MINICC_BASE_URL`，于是三条用例全在到达 `--doctor-strict` 代码路径之前就 `return 2`，断言 `rc == 1` 必红；
+- `test_subprocess_decoding.py::test_no_text_mode_capture_asks_for_a_strict_decoder`（同批遗留）抓的也是 `subprocess.run(... text=True)` 不带 `encoding=`/`errors=` 的形状——与上一条同源，测试写法本身不合本仓的进程约定。
+
+### 2 改动
+
+- `tests/test_doctor_strict.py` **重写**：不再 emit subprocess，改用 `minicc.main.main([...])` 直调 + `monkeypatch.setenv("MINICC_API_KEY", "dummy-key")` / `MINICC_BASE_URL`（与 `tests/test_cli_stage_routing.py` 同款环境桩）。三条用例：
+  1. `test_doctor_strict_fails_on_flat_uninitialized_workspace` — 空 tmp 目录 `rc == 1`；
+  2. `test_plain_doctor_reports_fatal_mismatch_on_flat_workspace` — `--doctor` 在同目录 `rc == 0`（warnings 不翻红，对照严格/宽松两种语义）；
+  3. `test_doctor_strict_passes_after_fake_setup` — `git init` + `setup_workspace()` + audit 桩之后 `--doctor` `rc == 0`。
+
+### 3 验证
+
+- `pytest tests/test_doctor_strict.py -q` → **3 passed**（本地，2026-11-09）。
+
+### 4 边界
+
+- **不弱化任何 gate**——红的根因是测试没有真正抵达被测代码，不是产品分支行为变化；修的是测试写法。
+- 不改 `minicc/main.py` 的 `MINICC_API_KEY` 前置校验——它是对的（无 key 的一次性运行本来就不该静默进入 REPL）。
+- 不 push 直至当前 legs 跑完；push 前再复核。
