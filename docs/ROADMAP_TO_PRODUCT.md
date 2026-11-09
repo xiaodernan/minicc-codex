@@ -45777,3 +45777,31 @@ mutation not attributed: the smoke failed with PRODUCT_PATH_NO_TERMINAL_STATE, n
 - 本批未改任何源文件——本仓现有代码正好全部满足该门（零 offender）。
 - 门粒度：只管 `open` 名字本身，不猜工厂（`io.open`, `Path.open` 的别名）；那是另一件事。
 - 本批按并轨仓字节搬运，内容与行号一字未动。
+
+## 批次 704 — M8-T704：接手并轨：nightly 的五条绝对门有数值读者（T539 家族）
+
+并轨仓（t544-plane 批册，M8-T539）的铁律门：**GATE_FLOORS 与 ci.yml 里 `--gate` 的两个数值必须逐项一致**——否则任意一侧可以漂移而没人响应；pass@1 的下限必须 >0（零门=零信息量）且不高于已测过的三张优秀实验得分画像（13/24/22/24/24/24），否则 nightly 红得没有人能认账；两侧「Accuracy not yet characterised」的空泛声明必须被「13/24」这种有出处的说法替换。
+
+### 1 欠的是哪一条
+
+本仓同时为 nightly 钉了五条 `--gate` 的 TOML 形态（ci.yml: 402-406）和 bench_compare 的 `GATE_FLOORS` 表；`tests/test_ci_hygiene.py` 只读**存在性**、不读**数值一致性**——`pass_at_1>=0.3` 可以默默漂移成 `0.4` 而五扇门都不响。
+
+### 2 改动
+
+- **`.github/workflows/ci.yml`**（CRLF，仅 nightly step）：注释里「accuracy is not yet characterized」换成三张画像（13/24, 22/24, 24/24）；
+- **`minicc/bench_compare.py`**：`GATE_FLOORS["pass_at_1"]` 注释改写为「nightly >=0.3 - deliberately conservative under three clean full-suite portraits (13/24 = 0.5417, …)」；
+- **新 `tests/test_the_nightly_floor_values_have_a_reader.py`**（7 条腿，按并轨仓字节搬运）：
+  1. 注册表与 workflow 逐项相等（双向缺一不可）；
+  2. pass@1 下限落在 (0, 13/24]；
+  3. 两侧注释都不许声称 "not yet characterised" 而必须点名 13/24；
+  4–7. 四个 mutant 臂（漂移/高于画像/零门/陈旧注释）各自必须红，门自己没有瞎掉。
+
+### 3 验证
+
+- `pytest tests/test_the_nightly_floor_values_have_a_reader.py tests/test_ci_hygiene.py tests/test_bench_compare.py -q` → **51 passed**。
+
+### 4 边界
+
+- **阈值一个数字未动**（0.3/0.9/600000/0/0）。
+- pass@1 仍在 (0, 13/24] 内横盘；向 0.5417 ratchet 需要 nightly 真机画像先到——没有凭据我不会编造基准声明。
+- `--repeat 2` 一行未动；夜间触发是 nightly 真机密钥问题，不是本门管的。

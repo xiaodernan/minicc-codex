@@ -90,7 +90,7 @@ GATE_METRICS = frozenset({
 #: unavailable; no reading justifies a number) is not checkable here and stays
 #: prose, which is why it is not in that table rather than being left implicit.
 GATE_FLOORS: dict[str, str] = {
-    "pass_at_1": "nightly >=0.3 - deliberately conservative; real-model v2 accuracy is not yet characterised",
+    "pass_at_1": "nightly >=0.3 - deliberately conservative under three clean full-suite portraits (13/24 = 0.5417, 22/24, 24/24)",
     # M8-T154/M8-T155: pass_at_1 is the gated rate and keeps its frozen
     # denominator; this one exists to explain a pass@1 that infra dragged down,
     # so a floor on it would be a second name for a gate that already exists.
