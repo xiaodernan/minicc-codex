@@ -44912,3 +44912,27 @@ Home 是 `task_contract`。cancel-file 的两处 `cancel_file.write_text("cancel
 - 门不扩权到其余文件（`task_contract.py`/`task_execution.py` 等内含多余的同键 dict 因 `TOKENS_USED` 等其它键参与而自然不计数 —— 那些 dict 也都不是"三键 home"的形状）。
 - 该红系 T666 自己引入、由门放行：门本身先前只认一种拼写，本批让门跟得上字面量的退场（门的语义一字未改，只是拼写来源从单一 Constant 扩展到 contract 常量）。
 - 随后推云重跑 CI 后再见红绿。
+
+## 批次 673 — M8-T673：DAG 节点生命周期四态归一个家（`NODE_STATUS_*`）
+
+### 1 欠的是哪一条
+
+`minicc/agent/graph.py` 里 DAG 节点生命周期四个词（`running / completed / failed / skipped`）散落在 11 处：`DAGResult(status=...)`、`outputs[*]["status"]`、`AgentState.finish()` 的两个失败印章、`state.finish("completed")`、execute_dag 的 wave 收口和 `build_coding_workflow` 两处 edge 标签。`SUCCESS_STATUSES` / `FAILED_NODE_STATUSES` 早就是一个家（M8-T328 / M8-T403），这四个"生命周期事实"却没有常量。
+
+### 2 改动
+
+- `minicc/agent/graph.py`：新增 **`NODE_STATUS_RUNNING / NODE_STATUS_COMPLETED / NODE_STATUS_FAILED / NODE_STATUS_SKIPPED`** 与 **`NODE_STATUSES`** 常量；`state.finish()` 两处、`DAGResult.status` 两处、outputs 四处、wave 判定一处、`build_coding_workflow` 两处边标签全部改用常量；`SUCCESS_STATUSES` / `FAILED_NODE_STATUSES` 内部改成同一名字的常量引用（`frozenset({"ok","done","success", NODE_STATUS_COMPLETED, "passed"})`、`frozenset({NODE_STATUS_FAILED, "error"})`，判词家的元素集合语义不变）；`__all__` 导出新常量。
+- 新增门 `tests/test_the_dag_node_statuses_have_one_home.py`：home 必须定义四个常量＋`NODE_STATUSES`；全 `graph.py` 里四个词以 `Constant` 出现在 NODE_STATUS_ 定义行以外（含 docstring prose 豁免）的，逐条报红。
+- 新增求值路径在 `tests/test_the_failed_node_statuses_have_one_home.py`：M8-T403 的 "恰好一处内联 `{"failed","error"}`" 门原按字面量点名，现改成**常量求值**匹配（`minicc.agent.graph.NODE_STATUS_*` 直接导入反汇），保持"一家、一处"语义。
+
+### 3 验证
+
+- `pytest tests/test_the_dag_node_statuses_have_one_home.py tests/test_the_failed_node_statuses_have_one_home.py -q` → **5 passed**。
+- `pytest tests/test_core_agent.py tests/test_an_unknown_terminal_status_is_not_a_success.py tests/test_the_plan_node_tool_lists_have_one_home.py tests/test_the_planner_may_only_promise_what_the_executor_can_run.py tests/test_the_negative_retry_verdict_has_one_home.py -q` → **68 passed**。
+- `python scripts/doc_pointers.py --check` → rc=0。
+
+### 4 边界
+
+- "ok" 判词（固定工作流里 edge 的成功线标签、`SUCCESS_STATUSES` 的 `"ok"` 等）是**路由判据**、不是生命周期事实，本批不入库。
+- `FAILED_NODE_STATUSES` 的 `"error"` 是路由开词表、半开（"a node that answers with a status nobody registered is read as failure" 在 M8-T328/T403 的设计内），不入生命周期家。
+- 不动 `verifier.py` 的验证词汇、`completion.py` 的 `COMPLETION_STATUSES`、`snapshots.py` 的 `"skipped"` 文件计数——同形异义的四个独立词表（不碰）。

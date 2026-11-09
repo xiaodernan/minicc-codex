@@ -10,6 +10,12 @@ PACKAGE = REPO / "minicc"
 HOME = "minicc/agent/graph.py"
 
 FAILED = frozenset({"failed", "error"})
+from minicc.agent import graph as _graph
+
+_NODE_STATUS_VALUES = {
+    name: getattr(_graph, name)
+    for name in ("NODE_STATUS_RUNNING", "NODE_STATUS_COMPLETED", "NODE_STATUS_FAILED", "NODE_STATUS_SKIPPED")
+}
 
 
 def test_the_home_exists_in_graph() -> None:
@@ -34,11 +40,12 @@ def test_no_module_inlines_the_failed_statuses() -> None:
         for node in ast.walk(tree):
             if not isinstance(node, ast.Set | ast.Tuple | ast.List):
                 continue
-            elements = frozenset(
-                element.value
-                for element in node.elts
-                if isinstance(element, ast.Constant) and isinstance(element.value, str)
-            )
+            elements = frozenset()
+            for element in node.elts:
+                if isinstance(element, ast.Constant) and isinstance(element.value, str):
+                    elements = elements | {element.value}
+                elif isinstance(element, ast.Name) and element.id in _NODE_STATUS_VALUES:
+                    elements = elements | {_NODE_STATUS_VALUES[element.id]}
             if len(node.elts) >= 2 and elements == FAILED:
                 offenders.append(f"{relative}:{node.lineno}")
     assert len(offenders) == 1 and offenders[0].startswith(HOME + ":"), (

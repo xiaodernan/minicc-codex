@@ -77,16 +77,33 @@ class NodeResult:
 
 NodeHandler = Callable[[AgentState], NodeResult | Awaitable[NodeResult]]
 
+#: M8-T673: the four words a DAG node's lifecycle is allowed to carry, one home.
+#: ``state.finish(<const>)``, ``DAGResult.status`` and every
+#: ``outputs[*]["status"]`` write the same fact on the same axis: ``running`` is the
+#: in-flight rail, ``skipped`` means the DAG refused to start the node (an unmet
+#: dependency, distinct from a node that ran), ``completed``/``failed`` are the two
+#: terminal rails.  Callers outside this module that read node statuses take their
+#: spellings from here, not from hand-written strings.
+NODE_STATUS_RUNNING = "running"
+NODE_STATUS_COMPLETED = "completed"
+NODE_STATUS_FAILED = "failed"
+NODE_STATUS_SKIPPED = "skipped"
+NODE_STATUSES = frozenset({
+    NODE_STATUS_RUNNING,
+    NODE_STATUS_COMPLETED,
+    NODE_STATUS_FAILED,
+    NODE_STATUS_SKIPPED,
+})
 #: M8-T328: the statuses that mean "this node did its job".  Every other
 #: terminal status is a failure - the vocabulary is open, so a status the
 #: graph does not know about must not be read as a success.
-SUCCESS_STATUSES = frozenset({"ok", "done", "success", "completed", "passed"})
+SUCCESS_STATUSES = frozenset({"ok", "done", "success", NODE_STATUS_COMPLETED, "passed"})
 #: M8-T403: the statuses that explicitly mean "this node failed". The
 #: whitelist above and this blacklist leave a third kind - a status in
 #: neither - which M8-T328 handles as "not a success". Two readers asked the
 #: blacklist question (the router and the node runner) and each spelled the
 #: two names out.
-FAILED_NODE_STATUSES = frozenset({"failed", "error"})
+FAILED_NODE_STATUSES = frozenset({NODE_STATUS_FAILED, "error"})
 
 
 def negative_retries_message(name: str) -> str:
@@ -180,9 +197,9 @@ class StateGraph:
             target = outcome.next_node or self.next_node(current, condition)
             if target is None:
                 if condition in FAILED_NODE_STATUSES:
-                    state.finish("failed", outcome.error)
+                    state.finish(NODE_STATUS_FAILED, outcome.error)
                 elif condition in SUCCESS_STATUSES:
-                    state.finish("completed")
+                    state.finish(NODE_STATUS_COMPLETED)
                 else:
                     # M8-T328: a terminal status that is neither a success
                     # nor a known failure must not be reported as a success.
@@ -191,7 +208,7 @@ class StateGraph:
                     # used to end the graph as **completed** - the run
                     # certified itself on the strength of a refusal.
                     state.finish(
-                        "failed",
+                        NODE_STATUS_FAILED,
                         outcome.error or f"节点 {current} 以状态 {condition} 结束",
                     )
                 return state
@@ -316,7 +333,7 @@ async def execute_dag(
     task_map = {task.id: task for task in plan.tasks}
     plan_order = {task.id: index for index, task in enumerate(plan.tasks)}
     pending = set(task_map)
-    result = DAGResult(status="running")
+    result = DAGResult(status=NODE_STATUS_RUNNING)
     while pending:
         blocked = sorted([
             task_id
@@ -326,7 +343,7 @@ async def execute_dag(
         for task_id in blocked:
             pending.remove(task_id)
             result.skipped.append(task_id)
-            result.outputs[task_id] = {"status": "skipped", "reason": "dependency_failed"}
+            result.outputs[task_id] = {"status": NODE_STATUS_SKIPPED, "reason": "dependency_failed"}
 
         ready = sorted([
             task_map[task_id]
@@ -358,15 +375,15 @@ async def execute_dag(
                     output = await raw if inspect.isawaitable(raw) else raw
                     if not isinstance(output, dict):
                         output = {"value": output}
-                    if output.get("status", "completed") in FAILED_NODE_STATUSES:
+                    if output.get("status", NODE_STATUS_COMPLETED) in FAILED_NODE_STATUSES:
                         failed_output = dict(output)
                         raise RuntimeError(str(output.get("error") or output.get("status")))
-                    return task, {**output, "status": "completed"}, attempts
+                    return task, {**output, "status": NODE_STATUS_COMPLETED}, attempts
                 except Exception as exc:  # noqa: BLE001 - node failure is data
                     if attempts > task.max_retries:
                         return task, {
                             **(failed_output or {}),
-                            "status": "failed",
+                            "status": NODE_STATUS_FAILED,
                             "error": str((failed_output or {}).get("error") or f"{type(exc).__name__}: {exc}"),
                         }, attempts
 
@@ -375,11 +392,11 @@ async def execute_dag(
             pending.remove(task.id)
             result.outputs[task.id] = output
             result.attempts[task.id] = attempts
-            if output.get("status") == "completed":
+            if output.get("status") == NODE_STATUS_COMPLETED:
                 result.completed.append(task.id)
             else:
                 result.failed.append(task.id)
-    result.status = "failed" if result.failed else "completed"
+    result.status = NODE_STATUS_FAILED if result.failed else NODE_STATUS_COMPLETED
     return result
 
 
@@ -401,9 +418,9 @@ def build_coding_workflow() -> StateGraph:
     graph.add_edge("inspect", "implement")
     graph.add_edge("implement", "verify")
     graph.add_edge("verify", "summarize", "ok")
-    graph.add_edge("verify", "repair", "failed")
+    graph.add_edge("verify", "repair", NODE_STATUS_FAILED)
     graph.add_edge("repair", "verify", "ok")
-    graph.add_edge("repair", "summarize", "failed")
+    graph.add_edge("repair", "summarize", NODE_STATUS_FAILED)
     graph.validate()
     return graph
 
@@ -472,6 +489,11 @@ def aggregate_dag_tokens(outputs: dict[str, Any]) -> dict[str, int]:
 
 __all__ = [
     "DAGPlan",
+    "NODE_STATUS_COMPLETED",
+    "NODE_STATUS_FAILED",
+    "NODE_STATUS_RUNNING",
+    "NODE_STATUS_SKIPPED",
+    "NODE_STATUSES",
     "DAGResult",
     "GraphEdge",
     "GraphNode",
