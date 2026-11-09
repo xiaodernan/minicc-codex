@@ -83,7 +83,7 @@ def _fence_ranges(text: str) -> list[tuple[int, int]]:
     M8-T540: this used to be ``_block_of(text, offset)``, which rebuilt the whole
     document's fence ruler *per span*.  On the shipped documents that is 24,071
     pairings of a 2.9 MB corpus for one leg; the M8-T536 run took 1423.6s, crossed
-    ``conftest.py:36``'s 900s bound, and the hook at ``conftest.py:87`` rewrote a
+    ``conftest.py:35``'s 900s bound, and the hook at ``conftest.py:87`` rewrote a
     passing call report into ``failed``.  A fence ruler is a property of the
     document, so it is built once and asked per span.
     """

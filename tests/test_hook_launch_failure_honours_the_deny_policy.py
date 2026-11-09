@@ -5,7 +5,7 @@ failure, pipe failure, timeout — plus the two exit-code branches. Three of the
 failure paths resolved the hook's ``on_failure`` policy; the bad-env-key path
 instead stamped ``decision="error"``.  That spelling has no reader: the only
 thing the agent loop consults is ``HookOutcome.denied``, which is
-``self.decision == "deny"`` (``minicc/agent/loop.py:1069``), so a
+``self.decision == HOOK_DECISION_DENY`` (``minicc/hooks.py:143``), so a
 ``PreToolUse`` hook whose config carried ``"on_failure": "deny"`` and an env key
 like ``MY-VAR`` silently allowed the tool call, and the trace line printed
 ``status="ok"`` because only ``decision == "deny"`` maps to an error status.

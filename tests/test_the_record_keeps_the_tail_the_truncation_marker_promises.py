@@ -10,7 +10,7 @@ Measured on the main tree before this batch (read-only probes, in-process + AST 
 Three coupled failures, all of them a number copied instead of read:
 
 1. ``tests/test_mcp_stdio.py:140`` asserted ``len(result.output) <= 6000`` on the one
-   field ``_content_to_tool_result`` (``minicc/mcp.py:67``) never fills, so it was true
+   field ``_content_to_tool_result`` (``minicc/mcp.py:120``) never fills, so it was true
    for a server answer of any length; ``:141``/``:142`` and
    ``tests/test_background_shell.py:373`` bounded the same budget with hand-typed
    2000/4000/7000, and ``HEAD_CHARS``/``TAIL_CHARS`` had no mention anywhere in

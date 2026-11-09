@@ -45962,3 +45962,42 @@ v2 套件是「写能力」唯一硬锚点（M4 里程碑的 acceptance 口径�
 - `suite_version` 仍为 `v2-1`（新增只算扩容，不改判，不重划基线）。
 - 不在 fake provider 下强断言 pass@1（它不会写任何文件）——这批任务的判定依赖真实 agent 或 seed 文件覆盖的手动对照；对 v2 自动 nightly 语义不生影响。
 - 不改动任何既有任务的 prompt、fixture 或 grader；既有数值 baseline 仍有效。
+
+## 批次 711 — M8-T711：接手并轨：测试 docstring 的行号引用门（T558 家族）
+
+沿用批次 562 的并轨家族（指针门读文档，但**没有人读测试侧**——每条测试若自称指过树，那行必须还能被人读"）。本批为本仓落地同一道门，并顺手**修掉四条主仓自己就红了的引用**。
+
+### 1 欠的是哪一条
+
+main 上 96 条 test docstring 引用里，四条指向 blank line 或外行：
+
+| 门点亮的病例 | 本批修法 |
+| --- | --- |
+| `tests/test_hook_launch_failure_honours_the_deny_policy.py` 引用 `minicc/agent/loop.py:1069` 静默行 | 换成 `minicc/hooks.py:143`（HookOutcome.denied 的 @property 家） |
+| `tests/test_the_record_keeps_the_tail_the_truncation_marker_promises.py` 引用 `minicc/mcp.py:67` 空行 | 换成 `minicc/mcp.py:120`（`def _content_to_tool_result`） |
+| `tests/test_the_session_sidecar_lock_waits_no_longer_than_its_own_constants_promise.py` 引用 `main.py:97` 空行 | 换成 `main.py:63`（SessionError import） |
+| `tests/test_the_two_readers_share_one_fence_ruler.py` 引用 `conftest.py:36` 空行 | 换成 `conftest.py:35`（DEFAULT_HANG_LIMIT_SECONDS = 900.0） |
+
+括号里的字句全部按改后读数改写，不会留下新的真空。
+
+### 2 改动
+
+- **新 `tests/test_a_line_a_test_docstring_cites_can_be_read.py`**（6 条腿，并轨仓字节搬运 + 本仓重算锚定数）：
+  1. 全部测试 docstring 引用必须可读（路径解析 → 行在界内 → 该行非空）；
+  2. census 下限 ≥ 45（本仓实测 96）；
+  3. 十对 re-aimed 引用被钉子钉死（token 必须还在那一行）；
+  4. roster 钉的对必须是 corpus 里真的有人写下的引用；
+  5–6. 探测器 synthetic 两面（点名一条空行 / 一个超界 / 一个悬空，同时放过一条可读的）。
+- 上一节表里的四处引用修复（docstring-only，零代码改动）。
+- 名册行上的 ten 对需要与本仓实际 docstring 完全一致——`minicc/mcp.py:52/69/730`、`minicc/agent/completion.py:23/342/394`、`minicc/agent/verifier.py:62`、`minicc/task_manager.py:995`、`minicc/web.py:1498`、`tests/test_mcp_http.py:134`。
+
+### 3 验证
+
+- `pytest tests/test_a_line_a_test_docstring_cites_can_be_read.py -q` → **6 passed**。
+- 相关回归：`tests/test_hook_launch_failure_honours_the_deny_policy.py tests/test_the_record_keeps_the_tail_the_truncation_marker_promises.py tests/test_the_session_sidecar_lock_waits_no_longer_than_its_own_constants_promise.py tests/test_the_two_readers_share_one_fence_ruler.py tests/test_mcp_config_value_types.py tests/test_the_verification_statuses_have_one_home.py tests/test_the_trace_event_have_one_home.py tests/test_event_durability_contract.py -q` → **73 passed**。
+
+### 4 边界
+
+- 本批不动任何源代码逻辑；**门自己的 REFRESH 只是 docstring**，CI 不会因为这四条引用改动而撒娇。
+- 门对真空的检测不依赖「该行写了什么」型的语义认——不写断言里的任何句子。
+- 新测试文件里出现 path:line 的引用也会被它管；我自己不从此写无依据的引用。
