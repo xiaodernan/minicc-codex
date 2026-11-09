@@ -45020,3 +45020,22 @@ Home 是 `task_contract`。cancel-file 的两处 `cancel_file.write_text("cancel
 - 不动 `READONLY_PLANNER_TOOLS` / `WRITE_PLANNER_TOOLS` / `EXEC_PLANNER_TOOLS` 之名（它们是**重新导出别名**，指向 graph 的 home；保留是因为测试与文档引用了同名名字）。
 - 工作流里的节点实例 id（`"plan"`、`"summarize"`、`"merge"`——其中 `merge` 恰好与 kind 同词）属于**任务 id fact**，不是 kind 词义，门专门豁免 PlanTask 首位置与 `depends_on` 里的同名字符串。
 - `EXEC_PLANNER_TOOLS` 里的 `"bash"` 是 tool fact，不入本批。
+
+## 批次 677 — M8-T677：CI 42542048808（3d22cdb）红修 — `main.py` 的死 STAGE_REVIEW
+
+Ubuntu 腿 `1 failed, 4667 passed`：`tests/test_the_package_does_not_import_what_it_does_not_use.py::test_no_module_scope_import_is_unreferenced` 报 `minicc/main.py:23: STAGE_REVIEW` — 第六百七十四批把「STAGE_* 集中到 home」时给 `main.py` 加的三条导入，只用到两条（`STAGE_PLANNING` 与 `STAGE_INSPECT`；`main.py` 本就没有一个 `route("review")` 调用点）。该门明确要求：未引用的模块级导入必须是 re-export 才允许留着。
+
+### 2 改动
+
+- `minicc/main.py`：从 `.config` 导入删去 `STAGE_REVIEW`，行宽不变。
+- 另一处本地红同时出：`_m8t537_measure.py`（上一会话停在半路的测量脚本）被按包成员扫描出 `os`/`time` 未引用。本次**搬移至 `D:\面试项目\minicc-codex-scratch\`**（全部 `_*` 与 `scratch/` 下未跟踪文件、含 `.pytest_tmp_t536/537`），仓库树只剩工作中的字节，一个字节没删。
+
+### 3 验证
+
+- `pytest tests/test_the_package_does_not_import_what_it_does_not_use.py tests/test_cli_stage_routing.py tests/test_route_wiring_pure.py -q` → **35 passed**。
+- `python scripts/doc_pointers.py --check` → rc=0。
+
+### 4 边界
+
+- 不动 T674 的其余改动；不把 `D:\面试项目\minicc-codex-scratch\` 加进仓。
+- 等 42542048808 双腿落幕后推云复验。
