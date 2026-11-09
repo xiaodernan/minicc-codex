@@ -45473,3 +45473,38 @@ Ubuntu + Windows 双腿 `4 failed, 4697 passed, 5 skipped`：
 - **Windows 下 `--doctor-strict` 不回退到 fatal** —— 因为 Windows 的 POSIX 权限位根本不承载水汽；strict 只是把「有 warning」的事价出去，并不试图在 Windows 上面变现。
 - **`/doctor` 不是严格模式**——它只是诊断打印；strict 模式 feature 专为 CI 设计，用于周期性守护。
 - 严格模式不引入新依赖、不调 subprocess、不读 `.minicc/` 任何其他文件。
+
+## 批次 694 — M8-T694：M1 reliability probe 增加 `--setup` → `--doctor` 端到端守门
+
+### 1 欠的是哪一条
+
+`scripts/reliability_probe.py` 是 one-shot。之前的工作绿于"M1 目标全绿"+"凭据扫描无泄漏"——但**从没人验证过**「一个全新工作区 `python -m minicc --setup` 之后 `python -m minicc --doctor` 真的 ok」。就算装错 Wheel、doctor 在某些 Windows 上默认 fatal、`.minicc/` 创建失败——这三种装后回归都会被一个正常开发者的 CI 漏掉。这个 probe 因此**没有证地可信**。
+
+### 2 改动
+
+- `scripts/reliability_probe.py`：新增 **`setup_doctor_roundtrip()`** 端到端腿，串在 M1 目标与凭据扫之间：
+  1. `tempfile.TemporaryDirectory()` 建一个空目录；
+  2. `python -m minicc.setup <tmp>` — 断言 `returncode == 0`；
+  3. `python -m minicc.main --doctor` — 断言 `returncode == 0`；
+  4. 打印 doctor 的完整输出（供 CI log 真看见时落盘）。
+- `Tempfile` 自动清理，不动工作区也不动 `.minicc/` 任何真实数据。
+
+### 3 验证
+
+- `python scripts/reliability_probe.py` 实测输出：
+
+  ```
+  reliability probe: 9 M1 targets under D:\面试项目\minicc-codex
+  reliability probe: --doctor on a pristine tree answers:
+  minicc doctor — ok=5 warn=3 fatal=0
+  ...
+  reliability probe: PASS (M1 defects stay fixed; no un-published credential shapes in state)
+  ```
+  Exit 0、roundtrip 段位 within --doctor 输出、import paths OK。
+- `python -m py_compile scripts/reliability_probe.py` 通过。
+
+### 4 边界
+
+- 这条 probe **不跑** `--setup` / `--doctor`，它只证明装出来的新工作目录在本 CLONE 里能装配、能自检。clone 本身一坏（PEP 好）就红——这正是它存在的理由。
+- **不增加依赖**：`tempfile.TemporaryDirectory()` 自动回收，与 `mkdtemp` 配合 `try/finally`。
+- CI 现役步 (`reliability-probe job`) 不改——run 同一条命令时自动多跑一项断言。

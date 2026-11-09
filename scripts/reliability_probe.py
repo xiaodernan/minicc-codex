@@ -37,6 +37,7 @@ import argparse
 import re
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -201,6 +202,42 @@ def credential_phase(targets: list[Path]) -> int:
     return 0
 
 
+def setup_doctor_roundtrip() -> int:
+    """End-to-end: ``minicc --setup`` + ``minicc --doctor`` on a pristine tree.
+
+    This is the gate that catches the class where ``--doctor`` reports a
+    permanent fatal on every freshly-installed copy (e.g. a POSIX-mode-bits
+    check that fires on every Windows machine, or a module that fails to
+    import from a stale wheel).
+    """
+    with tempfile.TemporaryDirectory(prefix="minicc-setup-probe-") as tmp:
+        tmp_path = Path(tmp)
+        setup = subprocess.run(
+            [sys.executable, "-m", "minicc.setup", str(tmp_path)],
+            cwd=str(REPO_ROOT),
+            capture_output=True,
+            text=True,
+        )
+        if setup.returncode != 0:
+            print(f"reliability probe: --setup failed (exit {setup.returncode})")
+            print(setup.stdout)
+            print(setup.stderr)
+            return 1
+        doctor = subprocess.run(
+            [sys.executable, "-m", "minicc.main", "--doctor"],
+            cwd=str(tmp_path),
+            capture_output=True,
+            text=True,
+        )
+        print("reliability probe: --doctor on a pristine tree answers:")
+        print(doctor.stdout)
+        if doctor.returncode != 0:
+            print("reliability probe: FAIL — --doctor exits non-zero on a fresh tree")
+            print(doctor.stderr)
+            return 1
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(prog="reliability_probe")
     parser.add_argument(
@@ -220,6 +257,10 @@ def main() -> int:
     if result.returncode != 0:
         print(f"reliability probe: FAIL (exit {result.returncode}) — an M1 defect regressed")
         return result.returncode
+
+    roundtrip = setup_doctor_roundtrip()
+    if roundtrip != 0:
+        return roundtrip
 
     targets = [Path(raw) for raw in (args.credential_path or [REPO_ROOT / ".minicc"])]
     return credential_phase(targets)
