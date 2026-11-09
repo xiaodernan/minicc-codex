@@ -125,6 +125,15 @@ COVERED_BY: dict[str, str] = {
     "pass_at_1_ex_infra": "pass_at_1",
 }
 
+#: M6-4: "P95 may not degrade past the M4 baseline by more than 15%". The M4
+#: reading the standard was written against is latency_p95_ms = 826s, pinned
+#: in docs/BENCHMARK_EVALUATION.md (which the gate in
+#: tests/test_the_m6_4_degradation_standard_has_a_reader.py reads instead of
+#: retyping it). The nightly's absolute floor enforces the standard; the
+#: constant exists so a gate can read it rather than retype it.
+M6_4_TOLERANCE = 0.15
+M6_4_METRIC = "latency_p95_ms"
+
 
 def _is_number(value: object) -> bool:
     return type(value) in (int, float) and math.isfinite(value)

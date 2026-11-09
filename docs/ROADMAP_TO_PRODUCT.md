@@ -46001,3 +46001,32 @@ main 上 96 条 test docstring 引用里，四条指向 blank line 或外行：
 - 本批不动任何源代码逻辑；**门自己的 REFRESH 只是 docstring**，CI 不会因为这四条引用改动而撒娇。
 - 门对真空的检测不依赖「该行写了什么」型的语义认——不写断言里的任何句子。
 - 新测试文件里出现 path:line 的引用也会被它管；我自己不从此写无依据的引用。
+
+## 批次 712 — M8-T712：接手并轨（续）：foreign-section 门 + M6-4 退化标准门
+
+并轨仓 `minicc-dev-4ba3`（同世系，五百余批的文档读者世系）两波内容的诚实移植。
+
+### 1 外来章节回答门（M8-T560 家族）
+
+main 的 `scripts/doc_pointers.py` 同文脉——`_cross_document_sections`/`_numbered_sections`/`_headlines`/`_numbered_headings`/`_document_text`/`_id_registry`/`_same_document`/`check_pointers` 全部在位。该谱门测量「对一份指向其他文档的指针，读者一遍都不该按行号整档编号」这条铁律：`_numbered_sections` 走 `_document_text` 一次性读文件、`_headlines` 不付行号、`check_pointers` 不直接 read_text。
+
+**新 `tests/test_a_foreign_section_is_answered_without_a_line_ruler.py`**（8 条腿，本仓零改动直搬）：census 断言每扇门调用形状（FORBIDDEN/REQUIRED 双向）+ 手工抄本（hand-copy 灭绝）+ 自引对 + 无 id span 不打开文档 + 三引对账 + 整档语料通过。**8 passed**。
+
+### 2 M6-4 退化标准门（P95 ≤ M4 baseline × 1.15）
+
+M4 基线已在 `docs/BENCHMARK_EVALUATION.md`（826 s，表格行钉死），nightly 的 `latency_p95_ms<=600000` 是现有门——但这个容差门限**没有读者**：一个门转松到 1h 也没人响应。
+
+- `minicc/bench_compare.py` 新增 `M6_4_TOLERANCE = 0.15` 与 `M6_4_METRIC = "latency_p95_ms"`（不动 `GATE_METRICS`、不动 `GATE_FLOORS`、不动任何数值——只为标准内容建个名字）；
+- **新 `tests/test_the_m6_4_degradation_standard_has_a_reader.py`**（4 条腿，逐字搬运）：基线行恰一条且 == 826 s；nightly p95 门必须 ≤ 949 900 ms；两个合成工作流（松掉 1 000 000 ms / 删掉 p95 门）都必须红；`M6_4_TOLERANCE == 0.15` 且 `latency_p95_ms` 在 `GATE_METRICS` 中且 `GATE_FLOORS` 行以 `nightly` 开始。
+
+**4 passed。**
+
+### 3 验证
+
+- `pytest tests/test_a_foreign_section_is_answered_without_a_line_ruler.py tests/test_the_m6_4_degradation_standard_has_a_reader.py -q` → **12 passed**。
+- `python scripts/doc_pointers.py --check` → rc=0。
+
+### 4 边界
+
+- 本批不动任何阈值数字；M6-4 的 15% 是 M4 冻结标准，此处只给它一个读者，不改标准。
+- 外来章节门不改 `doc_pointers.py` 一行；它只记录现有行为的边界。
