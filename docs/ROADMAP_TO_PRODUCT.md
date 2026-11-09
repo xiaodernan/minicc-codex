@@ -45179,3 +45179,24 @@ Ubuntu 腿：`1 failed, 4673 passed`：
 ### 4 边界
 
 - 本文不是**进程**文体：不替代 `README.md`、不重命中任何现有文件、不设任何新门——门仍以各 `tests/test_*_have_one_home*.py` 为准；本文引用其中真实文件名，CI 会按 `doc_pointers` 的规则逐字对账。
+
+## 批次 684 — M8-T684：README 数字对账（19→22、813→5,421、228→759）
+
+### 1 欠的是哪一条
+
+`docs/ONE_FACT_ONE_HOME.md`（批 683）落地后，README 里陈述的门与跟踪对象数停留陈旧：「全仓 19 个文档共 813 条断言」、「当前 228 个被跟踪文件」。今天真实计数：22 份文档（`docs/INTEGRATION_STRATEGY.md` 与 `docs/ONE_FACT_ONE_HOME.md` 都新增）、共 5,421 条 evidence 指针、759 个 tracked files（`git ls-files | wc -l`）、`checked 120 of 1218`、22 documents。README 面向读者的数字快照已经离婚两代了。
+
+### 2 改动
+
+- `README.md`：「全仓 19 个文档共 813 条断言」→「全仓 22 个文档共 5,421 条断言」；「当前 228 个被跟踪文件」→「当前 759 个被跟踪文件」。
+
+### 3 验证
+
+- `git ls-files | wc -l` → `759`。
+- `python scripts/doc_pointers.py --check` → 末行 `checked 120 of 1218 见 markers (checked=120 ... carried-by-evidence-reader=7 ...), 23 links (2 of them into git-ignored generated output) and 5421 evidence pointers (93 path claims sit outside code spans) in 22 documents ..., over 759 tracked files`。
+- 本批仅文档，无代码行为变更。
+
+### 4 边界
+
+- 「22 个文档」与「5,421 条断言」会随未来批次继续漂——这不是缺陷，精度按批维护即可；
+- 工作区 EOL 已归一为 LF，README 全文未动其它字节。
