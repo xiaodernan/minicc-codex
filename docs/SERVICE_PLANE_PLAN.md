@@ -47,7 +47,7 @@
 
 每一阶段都以「一条命令能判红绿」结尾；没有读数的阶段不算完成。
 
-### P1 配置与可观测（下一步）
+### P1 配置与可观测（已完成，M8-T721）
 
 目标：配置中心成为唯一数字来源，服务不再各自写死预算。
 
@@ -59,9 +59,15 @@
 
 扩展：配置变更推送（Spring Cloud Bus）留到有第二个实例时再做，单实例下轮询没有收益。
 
-### P2 只读任务服务（Task Service）
+### P2 只读任务服务（Task Service）（已完成，M8-T724）
 
 目标：把「看一个工作区现在是什么状态」变成可水平扩展的只读服务。
+
+落地：`minicc-cloud-tasks`，8082。JDBC URL 固定 `mode=ro`，每条连接再执行
+`PRAGMA query_only=ON` 兜底；库文件不存在返回 503 并写明路径（不返回空数组装成「没有任务」）；
+未知 id 返回 404；损坏快照返回 500 并说明是快照损坏；列表只回 `task_id/status/created_at/
+workspace_path/preview`，截断由 `X-Minicc-Tasks-Truncated` 头声明。网关新增 `/api/tasks/**`
+路由与 `tasks-route` 熔断。
 
 改动：新增 `minicc-cloud-tasks`，暴露工作区清单、任务快照只读视图；数据来源是 Python 侧
 `minicc --stats` 与 `task_store` 的只读查询，不做任何写入。
@@ -71,9 +77,13 @@
 
 扩展：只读视图稳定后，再讨论「提交任务」——那需要先复刻 Python 侧的权限与审计语义。
 
-### P3 Java 侧进入 CI
+### P3 Java 侧进入 CI（已完成，M8-T723）
 
 目标：服务面不再靠人手跑 `mvn test`。
+
+落地：`ci.yml` 新增 `java-tests` job（Temurin 21 + Maven 缓存），范围判定用
+`git diff --quiet <base> HEAD -- minicc-cloud`：Python-only 的推送不付第二套工具链的时长，
+跳过时打 notice 而不是假装跑过。验收仍待一次真实触碰 `minicc-cloud/` 的推送读数。
 
 改动：新增独立 workflow job：JDK 21 + Maven 缓存，`mvn -B -q test`，只在该目录变化时触发。
 
