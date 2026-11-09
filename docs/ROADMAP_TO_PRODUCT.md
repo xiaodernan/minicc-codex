@@ -45673,3 +45673,30 @@ main 的 `web-smoke-mutation` CI 步骤此前只会答「冒烟退出非零」�
 - **CI 行为不变**：web-smoke-mutation 的成功条件与失败升级方式不变；变化的只是「抓住的是什么」现在有裁决证据。
 - **宿主机门禁不变**：`web smoke` 在 `web-smoke-mutation` 之外的两条 CI 腿（Playwright web smoke）不改矩阵、不改脚本引用。
 - 宽面名册族（冻结集合文本 + 宽面冻幅门）**不**随本批落地：main 的文档读者族布局与并轨仓不同（新增 doctor/setup/json 等文件），冻结集合要按 main 的启发式现场生成才能钉住，不能直接抄；留作下一批。
+
+## 批次 700 — M8-T700：接手并轨：宽面冻幅门在本仓的重算落地（T562 家族）
+
+并轨仓 `t544-plane`（05dfa9b）的 M8-T562 门冻的是**那棵树**的 542 宽面基线（479 行）；本仓是另一条集成世系，读者集合不同，直接抄会留下「与事实不符的冻幅」。本批按本仓现场重算、同语义落地：
+
+### 1 欠的是哪一条
+
+两个问题：（a）并轨仓的 479 行冻幅跟本仓毫无关系，搬运即伪；（b）本仓缺「文档读者只许变宽、删了要点名」这条钉子——`docs/` 里新增一个结构读者（新门）时，它可以静悄悄带走本仓文档普查的一部分覆盖面，没有任何红会亮。
+
+### 2 改动
+
+- **新 `tests/fence_rosters/wide.txt`**（9 行，已排序）：冻结本仓当前文档读者 census——`DEFAULT_DOCS` 八份（含 `tests/test_doc_pointers.py`、`tests/test_a_batch_number_claimed_by_two_headings_is_not_answered_by_order.py` 等）与 `rglob("*.md")` 一份（`tests/test_no_document_quotes_a_content_addressed_bundle.py`），外加一个只提不读的 pin（`tests/test_one_document_is_one_fence_ruler_build.py`，`monkeypatch.setattr(dp, "DEFAULT_DOCS", …)` 的**字符串参数**，不进读者 census）。
+- **新 `tests/test_the_wide_face_keeps_every_file_and_document_reader.py`**（3 条腿，门形状与 T562 一致，原注释改为本仓出处）：
+  - 名册里每名是已跟踪的测试模块、排序、唯一；WIDE_FLOOR=9；
+  - 本仓**每个**结构文档读者都在名册里（两个 WITNESS 对照住 AST 谓词）READER_FLOOR=8；
+  - 只提不读不是读者（synthetic 七例 + MENTION_ONLY pin）。
+
+### 3 验证
+
+- `pytest tests/test_the_wide_face_keeps_every_file_and_document_reader.py -q` → **3 passed**。
+- 名册已 `git add`（门要求名册自身被跟踪）。
+
+### 4 边界
+
+- **冻的是本仓读者集合，不是并轨仓的宽面基线**——两个数字都是在这棵树上量出来的，不是抄的。
+- 名册只许变宽；新文档读者落地时必须同批扩大名册，否则门红。
+- 本批未动并轨仓的 479 行文件，也未改草稿 crate 任何门的行为。
