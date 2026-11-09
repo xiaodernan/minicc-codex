@@ -180,10 +180,11 @@ def test_a_copy_line_past_the_line_cap_is_read_not_answered_as_never_recorded(
 def test_a_record_split_by_the_byte_boundary_is_not_a_record_that_was_never_written(
     tmp_path: Path,
 ) -> None:
-    """E5：尾窗的起点落在 `backup` 行**中间**——那条记录谁也没读完。
+    """E5：尾窗的起点落在 `backup` 行**中间**——第五百五十六批把这条记录读了回来。
 
-    读者把开头那一行残片当已知残缺丢掉（`minicc/changes.py:400-401`），它不计进
-    `audit_unreadable_lines`，于是这一格既没有「读不出的一行」，也没有副本名。
+    第五百五十五批在这一格答 `not-in-window`：那时读者把开头那一行残片当已知残缺
+    丢掉。这一格被切的是**文件的第一条**记录，它的头就在字节 0，回扫够得着，
+    于是整条读回来、副本配得上、截断的说法跟着收回——窗外一个字节也没剩下。
     """
     workspace = _workspace(tmp_path, "split", {"notes.md": BODY})
     _deleted(workspace)
@@ -199,8 +200,46 @@ def test_a_record_split_by_the_byte_boundary_is_not_a_record_that_was_never_writ
     assert size == target, (size, target)
     unread = size - _AUDIT_TAIL_BYTES
     assert 0 < unread < len(json.dumps(backup, ensure_ascii=False).encode("utf-8")) + 1, unread
+    assert _bytes_outside(workspace) > 0, size
     summary = ChangeInspector(workspace).summary()
     assert summary["audit_unreadable_lines"] == 0, summary
+    assert summary["audit_records_split"] == 0, summary
+    assert summary["audit_bytes_unread"] == 0, summary
+    assert summary["audit_window_truncated"] is False, summary
+    assert summary["files"][0]["deletion_preimage"] == "copy", summary["files"]
+
+
+def test_a_split_beyond_the_recovery_reach_still_says_the_window_never_reached_it(
+    tmp_path: Path,
+) -> None:
+    """E5b：同一条被切开的记录，头在回扫上限之外——那个词还得留着。
+
+    `backup` 行整个在窗外，窗口的起点落在一条大 `read` 记录的 detail 里，而它自己
+    的头离起点比 `_AUDIT_RECOVERY_BYTES` 还远。回扫够不着，残片照旧丢掉、记一条
+    split，截断照旧披露，预像照旧答 `not-in-window`——不是 `not-recorded`。
+    """
+    workspace = _workspace(tmp_path, "beyond", {"notes.md": BODY})
+    _deleted(workspace)
+    backup, delete = _pair(workspace, "notes.md")
+    reach = getattr(changes_module, "_AUDIT_RECOVERY_BYTES", 65_536)
+    inside = reach + 4096
+    pad = {"action": "read", "path": "notes.md", "detail": "", "n": 0}
+    # size - TAIL - (backup line + its newline) == inside: the cut sits this far
+    # into the pad record, so the back-scan of `reach` bytes stays inside it.
+    width = inside + _AUDIT_TAIL_BYTES - len(json.dumps(delete, ensure_ascii=False).encode("utf-8")) - 2
+    width -= len(json.dumps(pad, ensure_ascii=False).encode("utf-8"))
+    assert width > 0, width
+    pad["detail"] = "p" * width
+    _write_trail(workspace, [backup, pad, delete])
+    size = _trail(workspace).stat().st_size
+    start = size - _AUDIT_TAIL_BYTES
+    head_of_pad = len(json.dumps(backup, ensure_ascii=False).encode("utf-8")) + 1
+    assert start - head_of_pad == inside, (start, head_of_pad, inside)
+    assert start - head_of_pad > reach, (start, head_of_pad, reach)
+    summary = ChangeInspector(workspace).summary()
+    assert summary["audit_unreadable_lines"] == 0, summary
+    assert summary["audit_records_split"] == 1, summary
+    assert summary["audit_bytes_unread"] == start, summary
     assert summary["audit_window_truncated"] is True, summary
     assert summary["files"][0]["deletion_preimage"] == "not-in-window", summary["files"]
 
