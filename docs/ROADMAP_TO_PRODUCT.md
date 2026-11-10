@@ -46555,3 +46555,22 @@ Ubuntu 腿 `1 failed, 4781 passed, 5 skipped`，唯一红：
 
 - python scripts/doc_pointers.py --check → rc=0。
 - 入口文档指向 tracked 文件。
+## 批次 746 — M8-T746：CI red 门改写为匹配装配签名（而非单一 token）
+
+### 1 归因
+
+批 744 的"脚本污染本仓账本"门 red——不是因为再次出现了污染，而是因为门太宽了。**批次 744 自己的文字里就提到 `import sys`、`p = Path(...)`、`entry =`**（它正是在描述那个失败模式），于是"不许把这三个 token 当字面量写进账本"的门把描述问题的文字当成了问题本身。任何一个账本条目描述这类失败模式都会触发自己的门。
+
+### 2 改动
+
+- `tests/test_roadmap_does_not_contain_helper_script_source.py`：`_FRAGMENTS` 改为 `_ASSEMBLY_SIGNATURES`，只匹配装配签名——`p = Path('docs/ROADMAP_TO_PRODUCT.md')`、双引号变体、`entry =` 后跟裸换行，而不再匹配单独的 `import sys` 字面量。
+
+### 3 验证
+
+- `pytest tests/test_roadmap_does_not_contain_helper_script_source.py -q` → **1 passed**。
+- 批 744 的账本正文原字未动。
+
+### 4 边界
+
+- 门仍然挡住装配签名（即污染本体），只是放过描述它的文字。
+- 批 744 ledger 不动。
