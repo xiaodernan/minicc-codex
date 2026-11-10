@@ -47096,3 +47096,25 @@ T770 让服务面有了第七个模块与第三条路由，但两处文档残留
 
 - 不改任何代码/配置；不改 P5、P6 的落地文字。
 - 账本自证的"两条/六个"历史叙述保持不动。
+## 批次 772 — M8-T772：tool_policy 两个安全谓词的 47 条用例
+
+### 1 欠的是哪一条
+
+`minicc/agent/tool_policy.py` 是"这条 bash 命令会不会写工作区"与"这次调用算不算验证证据"的唯一家（M8-T279/303/322/323/324），零同名测试（模块→测试映射发现）。`is_verification_evidence` 是"验证过了"的通行证，`command_may_modify_workspace` 是"是否必须走验证"的门——两个谓词都在绕过组合拳。
+
+### 2 改动
+
+- 新增 `tests/test_tool_policy_write_predicates.py`（47 条用例）：
+  - 词汇钉住：`CORE_WRITE_TOOLS`、`WRITE_TOOL_NAMES`（含 worktree create/remove）、`NODE_PACKAGE_MANAGERS`；
+  - `command_may_modify_workspace`：重定向无视程序、`sed -i`、`npx tsc`（无 `--noEmit`）、`npm run format`/`lint:fix` 脚本名分类（`format:check` 不是写）、`python -c` inline code 是写、`-m`/`--check` 不是写、git 写类子命令；
+  - `is_verification_evidence`：背景执行不算数、组合拳（`&&`）不算数、`--collect-only` 不算数、`ruff check` vs `ruff check --fix`、`ruff format --check`、`node --check`、`pnpm test`/`test:unit` 计分、`pnpm format` 不计分；
+  - `is_workspace_write`（status=ok 门槛）与 `predicts_workspace_write`（无 status 问"可能"）。
+
+### 3 验证
+
+- `pytest tests/test_tool_policy_write_predicates.py -q` → **47 passed**。
+
+### 4 边界
+
+- 不改 tool_policy.py 任何一行。
+- `-c` 与 `-m` 的区别按模块现状钉住（inline code 是写、`python -m pytest` 不是写）。
