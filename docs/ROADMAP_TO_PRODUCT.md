@@ -46309,3 +46309,21 @@ CI run 42655989951（HEAD=38a2111，两腿：Ubuntu failure / Windows failure）
 - 本批不改任何代码/管道；只加一本运维书。
 - 探针用的 `tasks.db` 是人造测试数据，不接触真实 `.minicc/`。
 - 引用只指向本仓已有的文件；未验证的行为不承诺。
+## 批次 734 — M8-T734：README 将静态指引指向新的运维手册
+
+### 1 欠的是哪一条
+
+M8-T733 落地的运维手册有实测内容（tasks 探针启动、curl 实录、环境变量契约），但 README 只列规划与架构，没有运维手册链接——用户读不到起手命令。
+
+### 2 改动
+
+- `README.md` 服务面段：`细节见 docs/SERVICE_PLANE_PLAN.md 与 minicc-cloud/README.md。` → `细节见 docs/SERVICE_PLANE_PLAN.md（规划）、minicc-cloud/README.md（架构）、docs/SERVICE_PLANE_OPERATOR.md（运维手册）`。
+
+### 3 验证
+
+- README 段落保持 tight-fit（新增若干 CJK 字符，链接全部指向 tracked 文件）。
+- `python scripts/doc_pointers.py --check` → rc=0。
+
+### 4 边界
+
+- 只加一句链接，不动其他行。
