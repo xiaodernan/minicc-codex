@@ -47135,3 +47135,27 @@ T770 让服务面有了第七个模块与第三条路由，但两处文档残留
 ### 4 边界
 
 - 不改实现；不测 `logs` 通道（`logging_setup` 已由 M8-T762 单测覆盖）。
+## 批次 774 — M8-T774：T570 移植到 main 现役 web 架构 — countLabel + 重建资产
+
+### 1 欠的是哪一条
+
+并轨审计发现归档分支 `archive/read-failure-chain-t566-t574` 的 T570（第五百五十二批）修了"面板把读不出来的计数印成 +0"——但 main 的 UI 重写早已不能用它的"整文件替换"打法。**功能缺口仍在**：`web/src/files/preview.js` 的预览头与 `web/src/chat/stream.js` 的清单/行/徽标，全都 `Number(x || 0)`/`compactNumber(x || 0)`（`null || 0` ≡ `0`），把"没读出来"与"改了 0 行"印成同一个 `+0`。
+
+### 2 改动
+
+- `web/src/core/i18n.js`：zh/en 各加 `"changes.uncounted": "数不出" / "not counted"`。
+- `web/src/chat/stream.js`：新增 `export function countLabel(value, compact = false)`（`!Number.isFinite(value)` → 统一答 `changes.uncounted`；其余走原有数字格式）；`changeFileRow`、`renderChanges` 的 summary 与 badge 三处取数改用它。
+- `web/src/files/preview.js`：预览头 `+N`/`-N` 改走 `countLabel`（import 自 stream.js）。
+- `tests/test_the_panel_does_not_print_a_missing_count_as_zero.py`：移植/采用归档分支的见证测试（13 用例），main 现役架构下直接绿。
+- **重新构建**：`npm run build:web`（web/app.js、404 个模块 bundle；游戏 bundle 同源未变）+ `npm run check:web` → **up to date（419361 chars）**，`web/assets` clean（3 referenced）。
+
+### 3 验证
+
+- `pytest tests/test_the_panel_does_not_print_a_missing_count_as_zero.py -q` → **13 passed**。
+- `npm run check:web` → up to date；`tests/test_web_assets_are_fresh.py`、`test_web_assets_are_fresh_mutation.py` → **13 passed**。
+
+### 4 边界
+
+- bundle 与 manifest 哈希随之更新（删除旧 app bundle，新增新 app bundle）。
+- 不动 `game.js`（无关改动）。
+- 归档分支其余 T570 冲突 hunk 复用不了的行为**未**改（main 架构与该分支不共享）。

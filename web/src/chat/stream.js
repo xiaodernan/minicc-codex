@@ -419,11 +419,19 @@ export function changeStatusLabel(status) {
   return t(`changes.${status}`) || status;
 }
 
+export function countLabel(value, compact = false) {
+  // M8-T570: a count the workbench could not read arrives as null (M8-T569 blanks
+  // the totals the same way). ``x || 0`` turned that into "+0" - the same sentence
+  // as "this file changed by zero lines".  One predicate, one word, one home here.
+  if (!Number.isFinite(value)) return t("changes.uncounted");
+  return compact ? compactNumber(value) : String(value);
+}
+
 export function changeFileRow(item) {
   const path = String(item.path || "");
   const status = String(item.status || "clean");
-  const additions = Number(item.additions || 0);
-  const deletions = Number(item.deletions || 0);
+  const additions = countLabel(item.additions);
+  const deletions = countLabel(item.deletions);
   return `<button class="file-row file-row-${escapeHtml(status)}" data-file="${escapeHtml(path)}" data-open-diff="${escapeHtml(path)}"><span class="file-type ${fileType(path)}">${escapeHtml(fileType(path).toUpperCase())}</span><span><strong>${escapeHtml(path)}</strong><small>${escapeHtml(changeStatusLabel(status))} · <span class="diff-add">+${additions}</span> <span class="diff-del">-${deletions}</span></small></span><i data-lucide="chevron-right"></i></button>`;
 }
 
@@ -436,13 +444,13 @@ export function renderChanges(data) {
     fileList.innerHTML = paths.map((path) => changeFileRow(changed.get(path) || { path, status: "clean" })).join("");
   }
   const summary = $("#changeSummary");
-  if (summary) summary.innerHTML = `<span class="diff-add">+ ${compactNumber(data?.additions || 0)}</span><span class="diff-del">- ${compactNumber(data?.deletions || 0)}</span>`;
+  if (summary) summary.innerHTML = `<span class="diff-add">+ ${countLabel(data?.additions, true)}</span><span class="diff-del">- ${countLabel(data?.deletions, true)}</span>`;
   const tabCount = $("#changeTabCount");
   if (tabCount) tabCount.textContent = String(files.length);
   const changeList = $("#changeList");
   if (changeList) {
     changeList.innerHTML = files.length
-      ? files.map((item) => `<button class="change-item change-item-button" data-open-diff="${escapeHtml(item.path)}"><span class="change-bar ${item.status === "added" ? "added" : item.status === "deleted" ? "deleted" : "changed"}"></span><span><strong>${escapeHtml(item.path)}</strong><small>${escapeHtml(changeStatusLabel(item.status))} · <span class="diff-add">+${Number(item.additions || 0)}</span> <span class="diff-del">-${Number(item.deletions || 0)}</span></small></span><span class="change-time">${escapeHtml(t("changes.now"))}</span></button>`).join("")
+      ? files.map((item) => `<button class="change-item change-item-button" data-open-diff="${escapeHtml(item.path)}"><span class="change-bar ${item.status === "added" ? "added" : item.status === "deleted" ? "deleted" : "changed"}"></span><span><strong>${escapeHtml(item.path)}</strong><small>${escapeHtml(changeStatusLabel(item.status))} · <span class="diff-add">+${countLabel(item.additions)}</span> <span class="diff-del">-${countLabel(item.deletions)}</span></small></span><span class="change-time">${escapeHtml(t("changes.now"))}</span></button>`).join("")
       : `<div class="change-item"><span class="change-bar muted"></span><span><strong>${escapeHtml(t("changes.clean"))}</strong><small>${escapeHtml(t("changes.cleanHint"))}</small></span><span class="change-time">--</span></div>`;
   }
   refreshIcons();

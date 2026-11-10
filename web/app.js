@@ -638,6 +638,7 @@
       "changes.deleted": "\u5DF2\u5220\u9664",
       "changes.renamed": "\u5DF2\u91CD\u547D\u540D",
       "changes.openDiff": "\u67E5\u770B diff",
+      "changes.uncounted": "\u6570\u4E0D\u51FA",
       "auth.title": "\u8BBF\u95EE\u9A8C\u8BC1",
       "auth.hint": "\u6B64\u670D\u52A1\u5DF2\u542F\u7528 token \u8BA4\u8BC1\u3002\u8BF7\u8F93\u5165 minicc-web \u542F\u52A8\u65F6\u663E\u793A\u3001\u6216\u4FDD\u5B58\u5728\u5DE5\u4F5C\u533A .minicc/web_token.json \u4E2D\u7684\u8BBF\u95EE token\u3002",
       "auth.tokenLabel": "\u8BBF\u95EE token",
@@ -1025,6 +1026,7 @@
       "changes.deleted": "Deleted",
       "changes.renamed": "Renamed",
       "changes.openDiff": "Open diff",
+      "changes.uncounted": "not counted",
       "auth.title": "Access verification",
       "auth.hint": "This service requires a token. Paste the token printed by minicc-web on startup, or stored in .minicc/web_token.json.",
       "auth.tokenLabel": "Access token",
@@ -2091,11 +2093,15 @@
   function changeStatusLabel(status) {
     return t(`changes.${status}`) || status;
   }
+  function countLabel(value, compact = false) {
+    if (!Number.isFinite(value)) return t("changes.uncounted");
+    return compact ? compactNumber(value) : String(value);
+  }
   function changeFileRow(item) {
     const path = String(item.path || "");
     const status = String(item.status || "clean");
-    const additions = Number(item.additions || 0);
-    const deletions = Number(item.deletions || 0);
+    const additions = countLabel(item.additions);
+    const deletions = countLabel(item.deletions);
     return `<button class="file-row file-row-${escapeHtml(status)}" data-file="${escapeHtml(path)}" data-open-diff="${escapeHtml(path)}"><span class="file-type ${fileType(path)}">${escapeHtml(fileType(path).toUpperCase())}</span><span><strong>${escapeHtml(path)}</strong><small>${escapeHtml(changeStatusLabel(status))} \xB7 <span class="diff-add">+${additions}</span> <span class="diff-del">-${deletions}</span></small></span><i data-lucide="chevron-right"></i></button>`;
   }
   function renderChanges(data) {
@@ -2107,12 +2113,12 @@
       fileList.innerHTML = paths.map((path) => changeFileRow(changed.get(path) || { path, status: "clean" })).join("");
     }
     const summary = $("#changeSummary");
-    if (summary) summary.innerHTML = `<span class="diff-add">+ ${compactNumber(data?.additions || 0)}</span><span class="diff-del">- ${compactNumber(data?.deletions || 0)}</span>`;
+    if (summary) summary.innerHTML = `<span class="diff-add">+ ${countLabel(data?.additions, true)}</span><span class="diff-del">- ${countLabel(data?.deletions, true)}</span>`;
     const tabCount = $("#changeTabCount");
     if (tabCount) tabCount.textContent = String(files.length);
     const changeList = $("#changeList");
     if (changeList) {
-      changeList.innerHTML = files.length ? files.map((item) => `<button class="change-item change-item-button" data-open-diff="${escapeHtml(item.path)}"><span class="change-bar ${item.status === "added" ? "added" : item.status === "deleted" ? "deleted" : "changed"}"></span><span><strong>${escapeHtml(item.path)}</strong><small>${escapeHtml(changeStatusLabel(item.status))} \xB7 <span class="diff-add">+${Number(item.additions || 0)}</span> <span class="diff-del">-${Number(item.deletions || 0)}</span></small></span><span class="change-time">${escapeHtml(t("changes.now"))}</span></button>`).join("") : `<div class="change-item"><span class="change-bar muted"></span><span><strong>${escapeHtml(t("changes.clean"))}</strong><small>${escapeHtml(t("changes.cleanHint"))}</small></span><span class="change-time">--</span></div>`;
+      changeList.innerHTML = files.length ? files.map((item) => `<button class="change-item change-item-button" data-open-diff="${escapeHtml(item.path)}"><span class="change-bar ${item.status === "added" ? "added" : item.status === "deleted" ? "deleted" : "changed"}"></span><span><strong>${escapeHtml(item.path)}</strong><small>${escapeHtml(changeStatusLabel(item.status))} \xB7 <span class="diff-add">+${countLabel(item.additions)}</span> <span class="diff-del">-${countLabel(item.deletions)}</span></small></span><span class="change-time">${escapeHtml(t("changes.now"))}</span></button>`).join("") : `<div class="change-item"><span class="change-bar muted"></span><span><strong>${escapeHtml(t("changes.clean"))}</strong><small>${escapeHtml(t("changes.cleanHint"))}</small></span><span class="change-time">--</span></div>`;
     }
     refreshIcons();
   }
@@ -4969,8 +4975,8 @@
         requestJson(`/api/file?path=${encodeURIComponent(path)}`).catch((error) => ({ content: "", error: error.message }))
       ]);
       if (stale()) return;
-      const additions = Number(diff.additions || 0);
-      const deletions = Number(diff.deletions || 0);
+      const additions = countLabel(diff.additions);
+      const deletions = countLabel(diff.deletions);
       const diffRows = renderUnifiedDiffRows(diff.patch);
       const diffBody = diffRows || `<span class="diff-row diff-empty"><span class="diff-code">${escapeHtml(t("diff.empty"))}</span></span>`;
       const fileHead = `<div class="diff-file-head"><span class="diff-file-path">${icon("file-code-2")}<strong>${escapeHtml(path)}</strong></span><span class="diff-file-badges"><span class="diff-badge diff-badge-status">${escapeHtml(changeStatusLabel(diff.status || "modified"))}</span><span class="diff-badge diff-badge-add">+${additions}</span><span class="diff-badge diff-badge-del">-${deletions}</span></span></div>`;

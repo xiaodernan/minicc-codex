@@ -1,6 +1,6 @@
 // ES module source for the minicc workbench. Bundled by scripts/build-web.mjs.
 import { escapeHtml } from "../chat/markdown.js";
-import { beginPanelRequest, changeStatusLabel, openPanel } from "../chat/stream.js";
+import { beginPanelRequest, changeStatusLabel, countLabel, openPanel } from "../chat/stream.js";
 import { requestJson } from "../core/transport.js";
 import { t } from "../core/i18n.js";
 import { $, runtime, state } from "../core/state.js";
@@ -123,8 +123,8 @@ export async function openFilePreview(path) {
       requestJson(`/api/file?path=${encodeURIComponent(path)}`).catch((error) => ({ content: "", error: error.message })),
     ]);
     if (stale()) return;
-    const additions = Number(diff.additions || 0);
-    const deletions = Number(diff.deletions || 0);
+    const additions = countLabel(diff.additions);
+    const deletions = countLabel(diff.deletions);
     const diffRows = renderUnifiedDiffRows(diff.patch);
     const diffBody = diffRows || `<span class="diff-row diff-empty"><span class="diff-code">${escapeHtml(t("diff.empty"))}</span></span>`;
     const fileHead = `<div class="diff-file-head"><span class="diff-file-path">${icon("file-code-2")}<strong>${escapeHtml(path)}</strong></span><span class="diff-file-badges"><span class="diff-badge diff-badge-status">${escapeHtml(changeStatusLabel(diff.status || "modified"))}</span><span class="diff-badge diff-badge-add">+${additions}</span><span class="diff-badge diff-badge-del">-${deletions}</span></span></div>`;
