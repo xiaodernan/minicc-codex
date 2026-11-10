@@ -46640,3 +46640,16 @@ Ubuntu 腿 `1 failed, 4781 passed, 5 skipped`，唯一红：
 ### 3 验证
 
 - `python scripts/doc_pointers.py --check` → rc=0。
+## 批次 751 — M8-T751：FIRST_HOUR 末尾加导航段（INDEX/服务面）
+
+### 1 欠的是哪一条
+
+[FIRST_HOUR.md](FIRST_HOUR.md) 第一次拿手册的人读完装上 minicc 后不知道下一步该去看哪里——除 README 和 CHANGELOG 外，INDEX 和服务面运维也都没提。
+
+### 2 改动
+
+- `docs/FIRST_HOUR.md` 末尾"下一步"节加 `docs/INDEX.md`（门户）与 `docs/SERVICE_PLANE_OPERATOR.md`（服务面）。
+
+### 3 验证
+
+- `python scripts/doc_pointers.py --check` → rc=0。
