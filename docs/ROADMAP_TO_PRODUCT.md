@@ -46398,11 +46398,7 @@ README 已承诺 `--version --json` 打印 `{"name":"minicc","version":...}`，�
 
 - `--version` 不执行任何 doctor / setup / 任何外部网络 / 负载配置文件。
 - JSON 键集固定为 `{name, version}`；不加入 build metadata、commit sha（那是 `--doctor --json` 的事）。
-import sys
-from pathlib import Path
-sys.stdout.reconfigure(encoding='utf-8', errors='replace')
-p = Path('docs/ROADMAP_TO_PRODUCT.md')
-entry = '''
+
 ## 批次 738 — M8-T738：OPERATIONS 补 `--version --json` capability 说明
 
 ### 1 欠的是哪一条
@@ -46417,10 +46413,6 @@ entry = '''
 
 - `python scripts/doc_pointers.py --check` → rc=0。
 - 不改任何代码/命令实现；纯文档对齐。
-'''
-with open(p, 'a', encoding='utf-8', newline='\n') as fh:
-    fh.write(entry.lstrip('\n'))
-print('ok')
 
 ## 批次 739 — M8-T739：CI 红修 — MCP client identity 同形异名（并轨接受）
 
