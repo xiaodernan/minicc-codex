@@ -46841,3 +46841,24 @@ T756 双腿 Python 都红了，唯一失败：
 
 - 不改 `static_assets.py` 任何一行。
 - 不测 `web_root()`/`ide_root()` 的真实安装布局（属集成面）。
+## 批次 761 — M8-T761：CHANGELOG 上界推进至 T760 + 新落成清单
+
+### 1 欠的是哪一条
+
+CHANGELOG 的上界还停在 T744；批 745–760 的改动（CHANGELOG 合流描述、INDEX 门、CONTRIBUTING/SECURITY、CLI_REFERENCE、服务面网关事实档、模块级单测补齐、README 交互命令门）没有回流进"合流关键落地"节——自合流面在扩大，变更志却没跟上。
+
+### 2 改动
+
+- `docs/CHANGELOG.md`：
+  - 上界 `M8-T686 → M8-T760`；
+  - "本轮合流关键落地"追加两条：docs 索引门 + 新落成文档清单（`CLI_REFERENCE`/`CONTRIBUTING`/`SECURITY.md`/PR 模板/`SERVICE_PLANE_GATEWAY.md`）及模块级单测补齐条目；
+  - "入口文档"清单补 `CLI_REFERENCE.md`、`CONTRIBUTING.md`、根级 `SECURITY.md`。
+
+### 3 验证
+
+- `python scripts/doc_pointers.py --check` → rc=0。
+
+### 4 边界
+
+- 不改任何已合流 M 里程碑的叙述。
+- 不改版本号——`minicc/__init__.py::__version__` 仍是唯一版本号家。
