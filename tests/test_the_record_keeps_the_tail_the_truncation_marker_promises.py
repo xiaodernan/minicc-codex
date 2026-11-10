@@ -3,7 +3,7 @@
 Measured on the main tree before this batch (read-only probes, in-process + AST walks):
 
     composed render() width, budget-full MCP result: 6049 chars ("MCP srv/big")
-    minicc/main.py:109 stored render()[:6000]        -> 49 tail bytes dropped
+    minicc/main.py:143 stored render()[:6000]        -> 49 tail bytes dropped
     len(ToolResult.output) for a 500k-char answer:   0  (the flattener never writes it)
     channel-length bounds in tests/ written as digits: 4
 
@@ -15,7 +15,7 @@ Three coupled failures, all of them a number copied instead of read:
    ``tests/test_background_shell.py:373`` bounded the same budget with hand-typed
    2000/4000/7000, and ``HEAD_CHARS``/``TAIL_CHARS`` had no mention anywhere in
    ``tests/``.
-2. ``minicc/main.py:109`` clipped that composition to 6000 - below the width
+2. ``minicc/main.py:143`` clipped that composition to 6000 - below the width
    ``render()`` itself produces - and ``/expand`` (``minicc/main.py:154``) prints
    exactly the stored string. What the operator reads still said
    「保留头 2000 + 尾 4000 字符」 while holding 3951 of those tail characters.

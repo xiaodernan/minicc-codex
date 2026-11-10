@@ -46208,3 +46208,34 @@ parent entries=['brand-new-workspace']
   随答案一起出去，null 与 0 分开）。
 - 全量围栏 `rc=1` 不掩盖：本批只消掉自己那条红，main 自带的三条红分别由
   批次 717（两条家规）与 packaging 候选（`openai` 那条）接手。
+
+## 批次 730 — M8-T730：CI 42655989951（38a2111）红修 — 文档引用指针过期
+
+CI run 42655989951（HEAD=38a2111，两腿：Ubuntu failure / Windows failure）失败于：
+
+- `tests/test_a_line_a_test_docstring_cites_can_be_read.py::test_every_citation_lands_on_a_line_a_reader_can_read`：
+  `minicc/main.py:109` 现在是空行（第 109 行被 `CliView` 占成了"模式切换"行），与
+  两处 test docstring 期望的「`record_text(6000)`」不符——`minicc/main.py:143`
+  才是 `"output": result.record_text(6000),`。出问题的文件是：
+  - `tests/test_the_raw_record_announces_the_bytes_its_ceiling_dropped.py:6`
+  - `tests/test_the_record_keeps_the_tail_the_truncation_marker_promises.py:6` 与 `:18`
+
+### 1 归因
+
+- 引用者自身按「代码处于 `minicc/main.py:109` 行」落笔；而 iCloud merge `87147e5` 把 `record_text(6000)` 下移至 `:143`（+34 行 CliView、会话恢复、`_shorten` 等被加进 `main.py`），指向未同步。
+- 门的设计正是要在 splice 之后红：行号陈旧 ≠ 真相失效，是同一事实漂移的前兆。
+
+### 2 改动
+
+- 两个测试文档字符串里的 `minicc/main.py:109` → `:143`(各 1/2 处，3 处一共）。 `_shorten(value, limit=180)` 等 CliView helper 周边代码不动。
+- 新测试 `test_a_line_a_test_docstring_cites_can_be_read.py`（T558）自动捕捉此处陈旧。
+
+### 3 验证
+
+- `pytest tests/test_a_line_a_test_docstring_cites_can_be_read.py -q` → **6 passed**。
+- `pytest tests/test_the_raw_record_announces_the_bytes_its_ceiling_dropped.py tests/test_the_record_keeps_the_tail_the_truncation_marker_promises.py -q` → **18 passed**。
+
+### 4 边界
+
+- 不 —— 主动删改任何门；本批重新锚定一枚引用到真实那一行。
+- 不新增/删除 docstring 条目；只修行号，不手边重排。

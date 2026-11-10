@@ -3,7 +3,7 @@
 Measured on the pre-fix tree by read-only probes (real handlers in-process, real CLI
 record reopened from disk, ceilings read off the shipped source by AST):
 
-    shipped ceilings passed to record_text():      minicc/main.py:109 = 6000,
+    shipped ceilings passed to record_text():      minicc/main.py:143 = 6000,
                                                    minicc/web.py:1498 / :1988 = 8000
     memory_list with the default limit=20:         render() = 11 295 chars
     -> stored at 6000, the record dropped 5 295   -> the stored text contained 「5295」 0 times
