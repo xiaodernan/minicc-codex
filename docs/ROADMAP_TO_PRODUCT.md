@@ -46371,3 +46371,30 @@ README 回写一行「发布节奏与版本号」指向 CHANGELOG。
 
 - 不写死散落在各文档里同名的相互矛盾的出处；每个事实给出主要出处。
 - 不改既有文档章节结构；只在 README 追加一行指针。
+
+## 批次 737 — M8-T737：`minicc --version --json` 落地；`--version` 改 flag-style
+
+### 1 欠的是哪一条
+
+README 已承诺 `--version --json` 打印 `{"name":"minicc","version":...}`，但 `--version` 一直是 argparse 的 `action="version"`——解析期直接退出，`--json` 永远看不到。CHANGELOG 也未落实。版本门（test_cleanup_version）钉住的是旧的解析期退出语义，需要同步适配。
+
+### 2 改动
+
+- `minicc/main.py`：`--version` 改为 `action="store_true"`；`main()` 先处理 `args.version`：
+  - 无 `--json`：`cli_out(f"minicc {minicc_version()}")` 、return 0；
+  - `--json`：`cli_out(json.dumps({"name": "minicc", "version": __version__}, ensure_ascii=False))` 、return 0；
+  - `--json` 才算信息命令：`informational` 扩展含 version，已不需单列。
+  - 新增 `_json` 局部 import；不改变 `__init__.py::__version__` 单一事实家。
+- `tests/test_cleanup_version.py`：两条门适配新语义 — `test_cli_version_action_derives_from_the_single_source`（改了实现，保留了名字）断言 dest 和 `minicc_version()` 派生；原 `pytest.raises(SystemExit)` 换成 `main(["--version"]) == 0`；新增 `test_cli_version_flag_with_json_prints_json`。
+- `README.md`：版本段同步列出 JSON 输出行。
+
+### 3 验证
+
+- `minicc --version` → `minicc 0.2.0` exit 0；`minicc --version --json` / `minicc --json --version` → `{"name": "minicc", "version": "0.2.0"}` exit 0。
+- `pytest tests/test_cleanup_version.py -q` → **25 passed**。
+- `pytest tests/test_project_config.py tests/test_readme_capability_claims.py tests/test_readme_install_run_claims.py tests/test_slash_commands.py -q` → **60 passed**。
+
+### 4 边界
+
+- `--version` 不执行任何 doctor / setup / 任何外部网络 / 负载配置文件。
+- JSON 键集固定为 `{name, version}`；不加入 build metadata、commit sha（那是 `--doctor --json` 的事）。

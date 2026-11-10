@@ -273,7 +273,11 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help="与 --doctor / --doctor-strict / --stats / --capabilities 搭配：输出机器可读 JSON",
     )
-    parser.add_argument("--version", action="version", version=f"minicc {minicc_version()}")
+    parser.add_argument(
+        "--version",
+        action="store_true",
+        help="打印版本并退出；与 --json 搭配输出 {\"name\": \"minicc\", \"version\": ...}",
+    )
     return parser
 
 
@@ -868,6 +872,15 @@ def _capabilities(workspace: Path) -> dict[str, Any]:
 
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
+    if getattr(args, "version", False):
+        import json as _json
+        from . import __version__
+        if getattr(args, "json", False):
+            cli_out(_json.dumps({"name": "minicc", "version": __version__}, ensure_ascii=False))
+            return 0
+        cli_out(f"minicc {minicc_version()}")
+        return 0
+
     informational = bool(
         args.doctor
         or getattr(args, "doctor_strict", False)

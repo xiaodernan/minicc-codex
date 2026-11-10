@@ -158,7 +158,8 @@ D:\envs\minicc-clean\Scripts\python.exe -c "import minicc.static_assets as s; pr
 ```
 
 版本号只有一个来源：`minicc/__init__.py.__version__`。`pyproject.toml`（动态读取）、
-`minicc --version`、MCP `clientInfo`、构建出的 wheel/sdist 文件名以及 `ide/vscode/package.json`
+`minicc --version`（打印 `minicc 0.2.0`）、`minicc --version --json`（输出 `{"name": "minicc", "version": "0.2.0"}`）、MCP
+`clientInfo`、构建出的 wheel/sdist 文件名以及 `ide/vscode/package.json`
 都必须与它一致，`tests/test_packaging.py` 会逐项比对。
 
 Docker 执行模式（可选）：

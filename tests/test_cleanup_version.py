@@ -253,12 +253,12 @@ def test_no_production_dict_announces_a_version_literal() -> None:
 
 
 def test_cli_version_action_derives_from_the_single_source() -> None:
-    """Ask the parser's own action, not the CLI's output.
+    """The action is `store_true`; the line is derived by main(), not argparse.
 
-    ``--version`` used to carry the literal ``minicc 0.1.0``.  The equality test
-    below still passed - for as long as the canonical version happened to be
-    0.1.0 - so M4-T9's claim that every consumer *derives* from the single
-    source was never measured here.  This half costs no time and no process.
+    The old contract (`action="version"`) printed during parse, which made
+    `--version --json` unusable: argparse exits on `--version` before `--json`
+    reaches main().  The new contract keeps the derivation behind
+    ``minicc_version()`` -> ``__version__`` so the CLI never freezes a literal.
     """
     import minicc
     from minicc.main import _parser
@@ -266,12 +266,14 @@ def test_cli_version_action_derives_from_the_single_source() -> None:
     action = next(
         item for item in _parser()._actions if "--version" in item.option_strings
     )
-    assert action.version == f"minicc {minicc.__version__}", (
-        f"the CLI offers {action.version!r} while the single source says "
-        f"{minicc.__version__!r}; one of the two is not derived"
-    )
+    assert action.dest == "version"
     main_src = (REPO_ROOT / "minicc" / "main.py").read_text(encoding="utf-8")
-    assert 'version="minicc 0.' not in main_src, (
+    assert "minicc_version()" in main_src, (
+        "main() no longer derives the line from minicc_version(); the single "
+        "source rule was moved into an argparse action argument"
+    )
+    assert 'f"minicc {minicc_version()}"' in main_src
+    assert 'version="minicc 0.' not in main_src and '"--version", action="version"' not in main_src, (
         "a quoted literal version is back in minicc/main.py; it will go stale "
         "at the next bump without reddening the equality check"
     )
@@ -282,13 +284,24 @@ def test_cli_version_flag_prints_the_derived_line_in_process(
 ) -> None:
     """The wiring end to end, without starting an interpreter."""
     import minicc
-    from minicc.main import _parser
+    from minicc.main import main
 
-    with pytest.raises(SystemExit) as exit_info:
-        _parser().parse_args(["--version"])
-    assert exit_info.value.code == 0, exit_info.value
+    assert main(["--version"]) == 0
     printed = capsys.readouterr().out.strip()
     assert printed == f"minicc {minicc.__version__}", printed
+
+
+def test_cli_version_flag_with_json_prints_json(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """`--version --json` emits the single-source pack; ordering is free."""
+    import json
+    import minicc
+    from minicc.main import main
+
+    assert main(["--version", "--json"]) == 0
+    printed = capsys.readouterr().out.strip()
+    assert json.loads(printed) == {"name": "minicc", "version": minicc.__version__}
 
 
 def _plane_probe_seconds(args: list[str], timeout: float = 300) -> float:
