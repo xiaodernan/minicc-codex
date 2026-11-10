@@ -46239,3 +46239,26 @@ CI run 42655989951（HEAD=38a2111，两腿：Ubuntu failure / Windows failure）
 
 - 不 —— 主动删改任何门；本批重新锚定一枚引用到真实那一行。
 - 不新增/删除 docstring 条目；只修行号，不手边重排。
+
+## 批次 731 — M8-T731：REPL 增加 `/doctor` slash 命令
+
+### 1 欠的是哪一条
+
+`minicc --doctor`（批 686）跑工作区自检，需要离开 REPL（回车 → 失败 → 再进）才能再次调用。批 694 给 `--doctor` 之上加了 M1 reliability probe；648 批给 `--stats`；`/cost`、`/status` 已经在 REPL 里。仍差一道显而易见的手势：在对话里直接用 `/doctor` 自检。
+
+### 2 改动
+
+- `BUILTIN_HELP_LINE` 新增 `/doctor`（在 `/cost` 之后、`/exit` 之前）；
+- `minicc/main.py` 的 `_interactive` 增加分支：`if prompt == "/doctor":` 懒导入 `minicc.doctor.{format_report,run_doctor}`，打印一次报告（不调网络、不加载模型、不离开 REPL）；
+- README「交互命令」行把 `/doctor` 写在 `/cost` 之后；
+- `tests/test_slash_commands.py::test_builtin_help_line_covers_every_dispatched_command` 的 expected 集合加上 `/doctor`，继续钉"`/help` 列出*所有* REPL 实际分发的命令"。
+
+### 3 验证
+
+- `pytest tests/test_slash_commands.py -q` → **11 passed**。
+- `python -m py_compile minicc/main.py` 通过。
+
+### 4 边界
+
+- `/doctor` 只打印报告、不接管 REPL、不改写上下文、不执行任何 probe 之外的网络/磁盘动作。
+- 它不与 `.minicc/` 之外的任何文件做出写入；不调 `--doctor-strict` 也不暴露独立严格模式（REPL 内的诊断永远是非阻断的）。

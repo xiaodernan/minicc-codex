@@ -256,6 +256,7 @@ def test_builtin_help_line_covers_every_dispatched_command() -> None:
         "/expand [n]",
         "/clear",
         "/cost",
+        "/doctor",
         "/exit",
     ]
     missing = [name for name in expected if name not in BUILTIN_HELP_LINE]

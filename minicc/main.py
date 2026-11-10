@@ -612,7 +612,7 @@ async def _turn(
 BUILTIN_HELP_LINE = (
     "/help  /tools  /status  /view  "
     "/compact (压缩上下文)  /collapse (折叠工具输出)  /expand [n]  "
-    "/clear  /cost  /exit"
+    "/clear  /cost  /doctor  /exit"
 )
 
 
@@ -700,6 +700,11 @@ async def _interactive(
         if prompt == "/view":
             if view is not None:
                 view.show()
+            continue
+        if prompt == "/doctor":
+            from .doctor import format_report, run_doctor
+
+            cli_out(format_report(run_doctor(workspace or Path.cwd())))
             continue
         if prompt == "/cost":
             if session is not None:
