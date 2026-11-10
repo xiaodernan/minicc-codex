@@ -46802,3 +46802,23 @@ T756 双腿 Python 都红了，唯一失败：
 
 - 不写任何旗标的"效果承诺"——本文是**索引**，语义一律指向 OPERATIONS.md / README。
 - `--help` 原文里的中文由源码决定，docs 不替换为英文。
+## 批次 759 — M8-T759：README 交互命令与保留名册一致的门
+
+### 1 欠的是哪一条
+
+`minicc/commands.py::RESERVED_COMMAND_NAMES`（12 个：help/tools/status/view/compact/collapse/expand/clear/exit/quit/cost/doctor）是 slash 命令的保留家。README 的"交互命令"行列 11 个，漏了 `/quit`（`/exit` 的别名，REPL 中处理）。两家各自漂移，没门问。
+
+### 2 改动
+
+- `README.md` 交互命令行补 `/quit`（注明 `/exit` 的别名）。
+- 新增 `tests/test_readme_interaction_commands_match_the_reserved_roster.py`：README 交互命令行点名的每个保留名必须出现在 RESERVED_COMMAND_NAMES，反之亦然——两向互见。
+
+### 3 验证
+
+- `pytest tests/test_readme_interaction_commands_match_the_reserved_roster.py -q` → **2 passed**。
+- `python scripts/doc_pointers.py --check` → rc=0。
+
+### 4 边界
+
+- 门只管这一行的互见性，不校验每个命令的语义。
+- 不改 commands.py 任何一行。

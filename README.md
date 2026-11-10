@@ -43,7 +43,7 @@
 - 任务可靠性基线：SQLite 历史、只读检查点 digest 校验、任务级联网授权、脱敏审计导出和离线 30 条评测 fixture。
 - Web 体验：亮色/暗色主题持久化、阶段摘要与工具轮次折叠、长输出边界、仅在用户已接近底部时自动跟随，避免阅读历史时跳屏。
 - 支持 `AGENTS.md`、`CLAUDE.md`、`MINICC.md` 或 `.minicc/instructions.md` 项目指导文件；内容只作为工作约定，不能覆盖系统指令和权限边界。
-- 交互命令：`/help`、`/tools`、`/status`、`/view`、`/cost`、`/doctor`、`/compact`、`/collapse`、`/expand [n]`、`/clear`、`/exit`。
+- 交互命令：`/help`、`/tools`、`/status`、`/view`、`/cost`、`/doctor`、`/compact`、`/collapse`、`/expand [n]`、`/clear`、`/exit`、`/quit`（`/exit` 的别名）。
 - CLI 旗标总表：`docs/CLI_REFERENCE.md` — 连接/安全/上下文/会话/自检全量旗标，以 `--help` 实录为准。
 - 首小时手册：`docs/FIRST_HOUR.md`（按装→setup→doctor→stats→version→首次进模型的顺序给出实测输出）。
 - 发布节奏与版本号：`minicc/__init__.py::__version__` 是唯一版本号家；v0.2.0 汇总见 `docs/CHANGELOG.md`。
