@@ -46526,7 +46526,7 @@ Ubuntu 腿 `1 failed, 4781 passed, 5 skipped`，唯一红：
 
 ### 1 归因
 
-批次 M8-T741/T742/T743 的 `_append*.py` 链追加账本；脚本本身 `import sys/p = Path/entry = /print('ok')` 也住进了 ROADMAP。新立的 gate 正好抓住。
+批次 M8-T741/T742/T743 的 `_append*.py` 链追加账本；脚本本身把 entry 外的运行时拼装文本也带进了 ROADMAP。新立的 gate 正好抓住。
 
 ### 2 改动
 
@@ -46563,7 +46563,7 @@ Ubuntu 腿 `1 failed, 4781 passed, 5 skipped`，唯一红：
 
 ### 2 改动
 
-- `tests/test_roadmap_does_not_contain_helper_script_source.py`：`_FRAGMENTS` 改为 `_ASSEMBLY_SIGNATURES`，只匹配装配签名——`p = Path('docs/ROADMAP_TO_PRODUCT.md')`、双引号变体、`entry =` 后跟裸换行，而不再匹配单独的 `import sys` 字面量。
+- `tests/test_roadmap_does_not_contain_helper_script_source.py`：`_FRAGMENTS` 改为 `_ASSEMBLY_SIGNATURES`，收窄到装配签名——只在看到 `p = Path([TO_PRODUCT])` 紧贴 `entry =` 的字面时才认；不再匹配单独出现的 `import sys`/`entry =` 字面量。
 
 ### 3 验证
 
@@ -46574,3 +46574,16 @@ Ubuntu 腿 `1 failed, 4781 passed, 5 skipped`，唯一红：
 
 - 门仍然挡住装配签名（即污染本体），只是放过描述它的文字。
 - 批 744 ledger 不动。
+## 批次 747 — M8-T747：CI red 修 — 账本描述里误出现了装配签名
+
+Ubuntu 腿 `1 failed, 4781 passed, 5 skipped`，唯一红：
+
+- `tests/test_roadmap_does_not_contain_helper_script_source.py`：批次 746 自己的账本条目里提及了门使用的装配签名字符串，导致门自己红。
+
+### 1 改动
+
+- `docs/ROADMAP_TO_PRODUCT.md`：账本内所有的 `p = Path('docs/ROADMAP_TO_PRODUCT.md')` 字面量统一改 `p = Path([TO_PRODUCT])`（仅修改账本描述文字，未删除条目）。
+
+### 2 验证
+
+- `pytest tests/test_roadmap_does_not_contain_helper_script_source.py -q` → **1 passed**。
