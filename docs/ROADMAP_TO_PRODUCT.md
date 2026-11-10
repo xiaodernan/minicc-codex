@@ -46741,3 +46741,25 @@ Ubuntu 腿 `1 failed, 4781 passed, 5 skipped`，唯一红：
 
 - 不改 `atomic_file.py` 任何一行；只补测试。
 - 不测真实 Windows sharing violation（需并发真文件锁——属于集成面，交给端到端/CI）。
+## 批次 756 — M8-T756：四个"一事一源"叶子模块的值钉住（19 条用例）
+
+### 1 欠的是哪一条
+
+`secret_suffixes.py`、`internal_paths.py`、`env_files.py`、`shell_lexing.py` 都是"一事一源"叶子——值本身从没有测试钉住。deny-list 靠 `internal_paths` 的文件名防住 `../` 逃逸、索引器靠 `secret_suffixes` 决定什么是密钥、shell tokenizer 靠 `QUOTE_CHARS`——任一方静默改值都会让"防不住"这种不像 fail 的 fail 溜进主干。
+
+### 2 改动
+
+- 新增 `tests/test_the_leaf_one_home_modules_pin_their_values.py`（19 条用例）：
+  - `KEY_MATERIAL_SUFFIXES` == `(".pem",".key",".p12",".pfx",".kdbx")` 且为 tuple、按 `endswith` 匹配；
+  - `internal_paths` 六个文件名串字面量 + "全是裸文件名、无 `/` `\` `..`"；
+  - `is_env_filename` truth table（含 `.env.example` 属族形状、`.envrc` 不属、`.ENV` 不属、尾空格 `.env ` 不属）；
+  - `QUOTE_CHARS` 是 frozenset 且 == `{'"', "'"}`。
+
+### 3 验证
+
+- `pytest tests/test_the_leaf_one_home_modules_pin_their_values.py -q` → **19 passed**。
+
+### 4 边界
+
+- 钉的是**现有行为**，不是设计意图替身（如 `.env ` 尾空格不认）。
+- 不改这四个模块任何一行。
