@@ -5,7 +5,8 @@
 ## 开箱
 
 - [FIRST_HOUR.md](FIRST_HOUR.md) —— 装到第一次成功。按 `--setup` → `--doctor` → `--stats` → `--capabilities` → `--version` → 首次进模型的顺序展开，每步实测。
-- [CHANGELOG.md](CHANGELOG.md) —— 2026-09-20 至今合流记录；M1..M8 的落成面、批次 686–742、已知边界（CI-only packaging 门、nightly 跳过）。
+- [CHANGELOG.md](CHANGELOG.md) —— 2026-09-20 至今合流记录；M1..M8 的落成面、已知边界（CI-only packaging 门、nightly 跳过）。
+- [ROADMAP_TO_PRODUCT.md](ROADMAP_TO_PRODUCT.md) —— 合流批次账本（批次 601→748）：每批欠的哪一条、改动、验证、边界，`git log` 之外的叙事证据。
 
 ## 运行与自检
 
@@ -35,6 +36,8 @@
 
 - [AUDIT_2026-09-20.md](AUDIT_2026-09-20.md) —— 2026-09-20 整体审核：发现的事实 + 修法 + 见证。
 - [PROJECT_REVIEW_2026-09-18.md](PROJECT_REVIEW_2026-09-18.md) —— 2026-09-18 阶段性复盘。
+- [DEEP_OPTIMIZATION_PLAN.md](DEEP_OPTIMIZATION_PLAN.md) —— 2026-09-18 起草的全自动优化实施计划（A1..CE2：各落一件具体事；状态列全部落齐）。
+- [OPTIMIZATION_DELIVERY_2026-09-18.md](OPTIMIZATION_DELIVERY_2026-09-18.md) —— 上述优化方案的收官说明：范围、冲突挑选纪律（不 reset/stash/覆盖别人改的）。
 - [BACKEND_OPTIMIZATION_DELIVERY.md](BACKEND_OPTIMIZATION_DELIVERY.md) —— 后端优化交付记录。
 - [FRONTEND_HARDENING_DELIVERY.md](FRONTEND_HARDENING_DELIVERY.md) —— 前端/UI 加固交付记录。
 - [SECURITY_CHECKLIST.md](SECURITY_CHECKLIST.md) —— 安全清单（密钥、出站网、组件权限）。

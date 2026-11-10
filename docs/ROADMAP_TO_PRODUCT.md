@@ -46653,3 +46653,24 @@ Ubuntu 腿 `1 failed, 4781 passed, 5 skipped`，唯一红：
 ### 3 验证
 
 - `python scripts/doc_pointers.py --check` → rc=0。
+## 批次 752 — M8-T752：INDEX 增补缺失的三篇文档（ROADMAP_TO_PRODUCT / DEEP_OPTIMIZATION_PLAN / OPTIMIZATION_DELIVERY_2026-09-18）
+
+### 1 欠的是哪一条
+
+刚落成的 `docs/INDEX.md` 是全部 docs 的门户，但被人眼漏了：`docs/ROADMAP_TO_PRODUCT.md`（合流批次账本）、`docs/DEEP_OPTIMIZATION_PLAN.md`、`docs/OPTIMIZATION_DELIVERY_2026-09-18.md` 没有进索引——新门户反而不是真正的目录。
+
+### 2 改动
+
+- `docs/INDEX.md`：开箱节加 `[ROADMAP_TO_PRODUCT.md]`；审计节加 `[DEEP_OPTIMIZATION_PLAN.md]`、`[OPTIMIZATION_DELIVERY_2026-09-18.md]`；CHANGELOG 的批次范围改为“已知边界”描述。
+- 新增 `tests/test_docs_index_enumerates_every_docs_md.py`：断言 `docs/*.md` 中每一篇（INDEX.md 自身除外）都在 INDEX.md 正文中被点名；门不看章节归属，只问存在性。
+
+### 3 验证
+
+- `pytest tests/test_docs_index_enumerates_every_docs_md.py -q` → **1 passed**。
+- `python scripts/doc_pointers.py --check` → rc=0。
+- 枚举逻辑本地审计：`docs/*.md` 共 29 篇，全部被 INDEX 点名。
+
+### 4 边界
+
+- 本批不自动发现新目录下的 `*.md`（刻意不禁子目录：此门只管 `docs/` 顶层）。
+- 门按 basename 子串匹配；如果有同名文件分散到子目录，不在此门范围。
