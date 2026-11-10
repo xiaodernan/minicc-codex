@@ -126,4 +126,4 @@ minicc "list the files in the current directory and count them"
 
 ---
 
-下一步：读 `docs/OPERATIONS.md`（参数详解与排障表）→ 读 `README.md`（所有能力的总清单）→ 读 `docs/CHANGELOG.md`（本次合流的批次清单与已知边界）。完整索引：[docs/INDEX.md](INDEX.md)。服务面部署：[docs/SERVICE_PLANE_OPERATOR.md](SERVICE_PLANE_OPERATOR.md)。
+下一步：读 [docs/CLI_REFERENCE.md](CLI_REFERENCE.md)（全部旗标，实录）→ 读 `docs/OPERATIONS.md`（参数详解与排障表）→ 读 `README.md`（所有能力的总清单）→ 读 `docs/CHANGELOG.md`（本次合流的批次清单与已知边界）。完整索引：[docs/INDEX.md](INDEX.md)。服务面部署：[docs/SERVICE_PLANE_OPERATOR.md](SERVICE_PLANE_OPERATOR.md)。

@@ -12,6 +12,7 @@
 ## 运行与自检
 
 - [OPERATIONS.md](OPERATIONS.md) —— 运维和自检手册：`--setup`、`--doctor`、`--doctor-strict`、`--stats`、`--version --json` 的语义与退出码契约，网络访问前提，状态目录规则，`--json` 各 flavor 的键形状。
+- [CLI_REFERENCE.md](CLI_REFERENCE.md) —— 全部命令行旗标按分类（连接/安全/上下文/会话/自检）列出，以 `--help` 实际输出为准。
 - [BENCHMARK_EVALUATION.md](BENCHMARK_EVALUATION.md) —— 评测面：任务套件结构、grading_coverage 的两个自报口径、nightly 绝对门的环境变量。
 
 ## 在线接口与服务面

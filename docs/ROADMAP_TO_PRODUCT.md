@@ -46782,3 +46782,23 @@ T756 双腿 Python 都红了，唯一失败：
 ### 4 边界
 
 - 不放宽宽面尺寸；roster 是 admit-by-batch 的清单，本批只 admit 已知红的见证。
+## 批次 757 — M8-T757：CLI_REFERENCE — 旗标总表
+
+### 1 欠的是哪一条
+
+旗标是 CLI 的全部外表面，却没有一份"照着就能对上"的总表：`--base-url`、`--reasoning-effort`、`--sandbox`、`--fork-from`、`--list-sessions` 等 27 个旗标连运维文档都未收录（grep 审计），新读者只能靠翻源码。
+
+### 2 改动
+
+- 新增 **`docs/CLI_REFERENCE.md`**：旗标按连接/模型、安全姿态、上下文与压缩、会话与 fork、自检与输出 五组列出，并附 `minicc --help` usage 原文；引用 [OPERATIONS.md](OPERATIONS.md) 负责语义与退出码、README 负责环境变量。
+- `docs/INDEX.md` 运行与自检节登记；`README.md` 能力清单加一行；`docs/FIRST_HOUR.md` 的"下一步"链首加入本索引。
+
+### 3 验证
+
+- `python scripts/doc_pointers.py --check` → rc=0。
+- `pytest tests/test_docs_index_enumerates_every_docs_md.py -q` → **1 passed**（新文档已在索引）。
+
+### 4 边界
+
+- 不写任何旗标的"效果承诺"——本文是**索引**，语义一律指向 OPERATIONS.md / README。
+- `--help` 原文里的中文由源码决定，docs 不替换为英文。
