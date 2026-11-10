@@ -47076,3 +47076,23 @@ CHANGELOG 的上界还停在 T744；批 745–760 的改动（CHANGELOG 合流�
 - 不迁 Eureka 生产配置；CI 仍是 `mvn -B test`。
 - 8087 是本仓默认值，环境变量 `SERVER_PORT` 仍是逃生通道；与 `caesura-client`（别的项目，未动）解耦。
 - docker-compose 未实机起（本机端口 8080–8090 几乎全占）；编排按"健康依赖链 + /dev/tcp"格式与 inspector/tasks 一致。
+## 批次 771 — M8-T771：PLAN/OPERATOR 文本追赶三条路由 / 七个模块
+
+### 1 欠的是哪一条
+
+T770 让服务面有了第七个模块与第三条路由，但两处文档残留"两条路由/六个模块"：`docs/SERVICE_PLANE_OPERATOR.md` 的开篇说明（`mvn -B test` 覆盖**六个模块**→ 七个）、网关参考条目（**两条**路由 → 三条）；`docs/SERVICE_PLANE_PLAN.md` P4 的描述（P6 后共三条，参数不变）加入澄清句——子条目如实反映 P4 当时的两条交付、P6 后的三条现状。
+
+### 2 改动
+
+- `docs/SERVICE_PLANE_OPERATOR.md`：开篇模块数、网关条目改三条路由、`/fallback/insights` 说明。
+- `docs/SERVICE_PLANE_PLAN.md`：P4 落地句加括注（P4 两条 / P6 后共三条）。
+
+### 3 验证
+
+- `python scripts/doc_pointers.py --check` → rc=0。
+- `rg '两条|六个模块'` 之后，残留均有语境限定（P4 历史/其他不相关句照旧）。
+
+### 4 边界
+
+- 不改任何代码/配置；不改 P5、P6 的落地文字。
+- 账本自证的"两条/六个"历史叙述保持不动。

@@ -104,8 +104,7 @@ workspace_path/preview`，截断由 `X-Minicc-Tasks-Truncated` 头声明。网�
 落地：凭据脱敏放在 `BridgeResponse` 的紧凑构造器里——每一次失败都经 `failureReason()`
 引用 stderr，所以这里是唯一咽喉，调用方无法忘记、也无法各写一份；stdout 不动（那是要解析的
 数据，改写会破坏它）。检查服务的 `minicc.allowed-roots` 由 `config-repo` 下发，本地只剩
-`${MINICC_ALLOWEDROOTS:}` 空默认；网关两条路由挂 `RequestSize`，上限读共享键
-`minicc.cloud.gateway.max-request-bytes`（1 MiB）。
+`${MINICC_ALLOWEDROOTS:}` 空默认；网关 `inspector-changes`/`tasks` 两条路由挂 `RequestSize`，上限读共享键 `minicc.cloud.gateway.max-request-bytes`（1 MiB）（P6 增 `insights` 后共三条，参数同）。
 
 实测：红证是 `Expecting actual: "MINICC_API_KEY=sk-..." to contain: "[redacted]"`；加上脱敏后
 `mvn -B test` 全绿（7 模块 74 用例，0 失败 1 跳过）。网关 413 用 WebTestClient 真打出来，

@@ -18,7 +18,7 @@
 | `minicc-cloud-gateway` | 8080 | 路由 + Resilience4j 熔断，`/api/changes`、`/api/tasks*`、`/api/insights/*` |
 | `minicc-cloud-bridge` | —（库） | 生命周期管理 Python 子进程，凭据脱敏 |
 
-服务面不重写 Python 引擎；桥接层是唯一缝隙。`mvn -B test` 覆盖六个模块；CI 的 `Service plane tests (mvn)` 只在 `minicc-cloud/**` 改动时触发。
+服务面不重写 Python 引擎；桥接层是唯一缝隙。`mvn -B test` 覆盖七个模块；CI 的 `Service plane tests (mvn)` 只在 `minicc-cloud/**` 改动时触发。
 
 ## 2. 验证 tasks 服务：standalone 模式
 
@@ -162,7 +162,7 @@ docker compose -f minicc-cloud/docker-compose.yml config --quiet   # rc=0 无错
 
 - `minicc-cloud/README.md`
 - `minicc-cloud/minicc-cloud-config/src/main/resources/config-repo/application.yml`（共享配置）
-- [`docs/SERVICE_PLANE_GATEWAY.md`](SERVICE_PLANE_GATEWAY.md) — 网关两条路由、breaker 参数、暴露的 actuator 端点（本地验证用）
+- [`docs/SERVICE_PLANE_GATEWAY.md`](SERVICE_PLANE_GATEWAY.md) — 网关三条路由、breaker 参数、暴露的 actuator 端点（本地验证用）
 - `docs/SERVICE_PLANE_PLAN.md`（规划）、`docs/SERVICE_PLANE_OPERATOR.md`（本文）
 - 合流账本：`docs/ROADMAP_TO_PRODUCT.md`
 - 运行/构建 CI：`.github/workflows/ci.yml`
