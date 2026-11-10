@@ -46541,3 +46541,17 @@ Ubuntu 腿 `1 failed, 4781 passed, 5 skipped`，唯一红：
 
 - 本批对 Helper-pattern 的根因不治（helper 脚本不改进）——靠门锁住后果。
 - 账本正文原样保留（M8-T741/T742/T743 批的叙述一字未动）。
+## 批次 745 — M8-T745：CHANGELOG 合流上界推进至 T744
+
+### 1 欠的是哪一条
+
+批次 740 的 CHANGELOG 上界还停在 T739；批 741–744 的 FIRST_HOUR/INDEX/OPERATIONS/CI 清理全部落地，变更志没有追。
+
+### 2 改动
+
+- docs/CHANGELOG.md：上界 M8-T686 → M8-T744；新增 “首小时手册、运维手册、互联门户、服务面运维手册合流完成” 子条目；入口文档清单更新为 README.md、docs/INDEX.md、docs/ONE_FACT_ONE_HOME.md、docs/SERVICE_PLANE_PLAN.md、docs/FIRST_HOUR.md。
+
+### 3 验证
+
+- python scripts/doc_pointers.py --check → rc=0。
+- 入口文档指向 tracked 文件。
