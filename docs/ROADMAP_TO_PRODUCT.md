@@ -46457,11 +46457,7 @@ Ubuntu 腿 `1 failed, 4780 passed, 5 skipped`，唯一红：
 ### 4 边界
 
 - 不改 CHANGELOG 任何其他行。
-import sys
-from pathlib import Path
-sys.stdout.reconfigure(encoding='utf-8', errors='replace')
-p = Path('docs/ROADMAP_TO_PRODUCT.md')
-entry = '''
+
 ## 批次 741 — M8-T741：首小时手册 FIRST_HOUR.md
 
 ### 1 欠的是哪一条
@@ -46483,15 +46479,7 @@ entry = '''
 
 - 只提 doctor/stats/version 读侧；provider 真实入站路径面向带 key 的人。
 - FIRST_HOUR.md 不是 README 的替代品——它是 M8-T721-T740 之上"开箱到第一次成功"的那一公里。
-'''
-with open(p, 'a', encoding='utf-8', newline='\n') as fh:
-    fh.write(entry.lstrip('\n'))
-print('ok')
-import sys
-from pathlib import Path
-sys.stdout.reconfigure(encoding='utf-8', errors='replace')
-p = Path('docs/ROADMAP_TO_PRODUCT.md')
-entry = '''
+
 ## 批次 742 — M8-T742：`docs/INDEX.md` — 所有文档的互联门户
 
 ### 1 欠的是哪一条
@@ -46515,12 +46503,7 @@ entry = '''
 '''
 with open(p, 'a', encoding='utf-8', newline='\n') as fh:
     fh.write(entry.lstrip('\n'))
-print('ok')
-import sys
-from pathlib import Path
-sys.stdout.reconfigure(encoding='utf-8', errors='replace')
-p = Path('docs/ROADMAP_TO_PRODUCT.md')
-entry = '''
+
 ## 批次 743 — M8-T743：README 接上 INDEX.md
 
 ### 1 欠的是哪一条
@@ -46535,7 +46518,26 @@ Index 建成但 README 仍不提它——读者从根目录进直接看 README�
 
 - `python scripts/doc_pointers.py --check` → rc=0。
 - README 任何原文未动；新增一行。
-'''
-with open(p, 'a', encoding='utf-8', newline='\n') as fh:
-    fh.write(entry.lstrip('\n'))
-print('ok')
+## 批次 744 — M8-T744：CI 42758935185（f4faa61）红修 — ROADMAP 中 3 处 `_append*.py` 污染清理
+
+Ubuntu 腿 `1 failed, 4781 passed, 5 skipped`，唯一红：
+
+- `tests/test_roadmap_does_not_contain_helper_script_source.py::test_roadmap_ends_with_readable_markdown_not_script_code` — `docs/ROADMAP_TO_PRODUCT.md` 尾部围绕批次 741/742/743 的三个区块被 `_append*.py` 辅助脚本把自身源码也带进来。
+
+### 1 归因
+
+批次 M8-T741/T742/T743 的 `_append*.py` 链追加账本；脚本本身 `import sys/p = Path/entry = /print('ok')` 也住进了 ROADMAP。新立的 gate 正好抓住。
+
+### 2 改动
+
+- `docs/ROADMAP_TO_PRODUCT.md`：用两轮 regex 把 `import sys… print('ok')` 三块 wrapper 连同正文提取，保留账本正文的部分；更细的片段清理彻底到门自检通过。
+
+### 3 验证
+
+- `pytest tests/test_roadmap_does_not_contain_helper_script_source.py -q` → **1 passed**。
+- `python scripts/doc_pointers.py --check` → rc=0。
+
+### 4 边界
+
+- 本批对 Helper-pattern 的根因不治（helper 脚本不改进）——靠门锁住后果。
+- 账本正文原样保留（M8-T741/T742/T743 批的叙述一字未动）。
