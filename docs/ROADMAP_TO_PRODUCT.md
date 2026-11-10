@@ -46457,3 +46457,33 @@ Ubuntu 腿 `1 failed, 4780 passed, 5 skipped`，唯一红：
 ### 4 边界
 
 - 不改 CHANGELOG 任何其他行。
+import sys
+from pathlib import Path
+sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+p = Path('docs/ROADMAP_TO_PRODUCT.md')
+entry = '''
+## 批次 741 — M8-T741：首小时手册 FIRST_HOUR.md
+
+### 1 欠的是哪一条
+
+近 350 个批次落地，安装、装配骨架、自检、清单、版本、第一条命令、出口处——这一连串动作在多个文档里散落着段落，但**没有一份文档**按时间顺序把它们串起来，而且都带实测输出。
+
+### 2 改动
+
+新增 **`docs/FIRST_HOUR.md`**（从 `pip install -e ".[dev]"` 到首次 `minicc` 命令），每步 `# 3 子章` 都带上本机刚刚跑出的真实结果：
+- setup 创建的输出、doctor（ok=5/warn=3/fatal=0）的细分、stats 形状、version --json、最小命令、.minicc 的忽略约定；
+- README 在「交互命令」行下加一行指向首小时手册。
+
+### 3 验证
+
+- `python scripts/doc_pointers.py --check` → rc=0。
+- 每条命令：`--setup`、`--doctor --json`、`--stats --json`、`--version --json` 本批现场实测。
+
+### 4 边界
+
+- 只提 doctor/stats/version 读侧；provider 真实入站路径面向带 key 的人。
+- FIRST_HOUR.md 不是 README 的替代品——它是 M8-T721-T740 之上"开箱到第一次成功"的那一公里。
+'''
+with open(p, 'a', encoding='utf-8', newline='\n') as fh:
+    fh.write(entry.lstrip('\n'))
+print('ok')
