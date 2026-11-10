@@ -46582,8 +46582,11 @@ Ubuntu 腿 `1 failed, 4781 passed, 5 skipped`，唯一红：
 
 ### 1 改动
 
-- `docs/ROADMAP_TO_PRODUCT.md`：账本内所有的 `p = Path('docs/ROADMAP_TO_PRODUCT.md')` 字面量统一改 `p = Path([TO_PRODUCT])`（仅修改账本描述文字，未删除条目）。
+- `docs/ROADMAP_TO_PRODUCT.md`：账本内所有的 `Path(<ROADMAP>)` 字面量统一改 `p = Path([TO_PRODUCT])`（仅修改账本描述文字，未删除条目）。
 
 ### 2 验证
 
 - `pytest tests/test_roadmap_does_not_contain_helper_script_source.py -q` → **1 passed**。
+## 批次 747b — M8-T747b：ledger 用同款装配签名又串一次（修复）
+
+批 747 的条目文本误用了与 gate 相同形状的子串；本批把它改为 `<ROADMAP>` 占位，门重现通过。
