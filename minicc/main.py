@@ -874,9 +874,9 @@ def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     if getattr(args, "version", False):
         import json as _json
-        from . import __version__
+        from . import __app_name, __version__
         if getattr(args, "json", False):
-            cli_out(_json.dumps({"name": "minicc", "version": __version__}, ensure_ascii=False))
+            cli_out(_json.dumps({"name": __app_name, "version": __version__}, ensure_ascii=False))
             return 0
         cli_out(f"minicc {minicc_version()}")
         return 0

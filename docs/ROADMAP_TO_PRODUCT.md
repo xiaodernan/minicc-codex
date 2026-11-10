@@ -46421,3 +46421,29 @@ entry = '''
 with open(p, 'a', encoding='utf-8', newline='\n') as fh:
     fh.write(entry.lstrip('\n'))
 print('ok')
+
+## 批次 739 — M8-T739：CI 红修 — MCP client identity 同形异名（并轨接受）
+
+Ubuntu 腿 `1 failed, 4780 passed, 5 skipped`，唯一红：
+
+- `tests/test_the_mcp_client_info_have_one_home.py::test_the_identity_is_spelled_exactly_once_in_the_package` — 断言全仓**恰一**处 `{"name": "minicc", "version": X}`。我的 `--version --json`（M8-T737）又写了一遍 → 两个家。
+
+### 根因
+
+`minicc/mcp.py` `_client_info()` 是 MCP 客户端身份的文字家；M8-T737 在 `minicc/main.py` 打印 `{"name": "minicc", "version": __version__}` 时把那枚字面量又写了一份。Gate 没有"常见嫌疑犯"——它数的是字面值集合位。
+
+### 改动
+
+- `minicc/__init__.py` 新增 `__app_name = "minicc"`（单全文发行名；与 `__version__` 对偶）。
+- `minicc/main.py`：`--version --json` 输出改为 `from . import __app_name, __version__` + `{"name": __app_name, "version": __version__}`。
+- `minicc/mcp.py`：`_client_info()` 原样保留（它是这条门的 HOME）。
+- `minicc/webserver.py` /api/health 之 `service: "minicc"` 不属 client identity（键形状不同），不动。
+
+### 验证
+
+- `pytest tests/test_the_mcp_client_info_have_one_home.py tests/test_cleanup_version.py -q` → **28 passed**。
+- `pytest tests/test_project_config.py tests/test_readme_capability_claims.py tests/test_slash_commands.py -q` → **全部绿**。
+
+### 边界
+
+- `__app_name` 只做单全文发行名；`minicc` 作为包名/CLI 名称/服务名等地方位出现都是独立家，不在这条门的射程内。
