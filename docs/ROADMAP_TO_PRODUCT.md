@@ -46694,3 +46694,24 @@ Ubuntu 腿 `1 failed, 4781 passed, 5 skipped`，唯一红：
 
 - 不重写既有门的文字说明；CONTRIBUTING 只串编排，不替代 `ONE_FACT_ONE_HOME.md` / `CHANGELOG.md` / `ROADMAP_TO_PRODUCT.md`。
 - 本文所述的三门 md-only，不涉及服务面或 Web 冒烟。
+## 批次 754 — M8-T754：根级 SECURITY.md + .github/PULL_REQUEST_TEMPLATE.md
+
+### 1 欠的是哪一条
+
+- GitHub 约定的 `SECURITY.md` 不存在——安全边界（权限门、web token、审计、digest）散落 README / OPERATIONS / FIRST_HOUR，新读者不知道从哪进。
+- PR 没有模板——CI 十余个 leg 的纪律（doc_pointers、两道 docs 门、账本格式、CI-only packaging 门）只存在于人脑里。
+
+### 2 改动
+
+- 新增根级 `SECURITY.md`：支持版本、私密报告通道、已实现的安全边界（deny 凭据文件 / web_token / 审计 / digest）、已知限制（权限门 opt-in、127.0.0.1、跨重启无实时镜像），链接 `docs/SECURITY_CHECKLIST.md`。
+- 新增 `.github/PULL_REQUEST_TEMPLATE.md`：PR 本地必跑门清单、ledger 纪律、CI-only 门说明、不放宽门的纪律。
+
+### 3 验证
+
+- `python scripts/doc_pointers.py --check` → rc=0（根 SECURITY.md 与 PR 模板不在 docs/ 扫描面，但其引用的 docs 路径仍被验证）。
+- GitHub 约定路径 `.github/PULL_REQUEST_TEMPLATE.md`。
+
+### 4 边界
+
+- 不改 `docs/SECURITY_CHECKLIST.md` 任何内容——SECURITY.md 只是它的 GitHub 入口。
+- 模板是清单不是门禁；门仍由 CI 执行。
