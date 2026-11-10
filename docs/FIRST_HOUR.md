@@ -1,5 +1,7 @@
 # minicc 首小时手册
 
+> 全局索引：[INDEX.md](INDEX.md)。
+
 目标：装完到能在一次真实任务里交付，路径上每一步都可以复制粘贴运行；每步的输出都把**实际**结果写下来（不是营销话术）。
 
 本文只面向第一次用的人。自检的参数语义请看 [`OPERATIONS.md`](OPERATIONS.md)；`minicc --print-config` 的原理见 [`README.md`](../README.md)；服务面（registry/gateway/inspector/tasks）见 [`docs/SERVICE_PLANE_PLAN.md`](SERVICE_PLANE_PLAN.md)。

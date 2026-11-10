@@ -1,5 +1,7 @@
 # minicc-cloud 服务面运维手册
 
+> 全局索引：[INDEX.md](INDEX.md)。
+
 这份文档讲一件事：**怎么把服务面运行起来、它到底答了什么、验证依据是什么。**
 
 以下命令都在本仓库 `main@393b4f7`（含 M8-T721..T731 合流；M8-T732 README 服务面指针）上实测；输出原文来自实机 curl/Invoke-WebRequest。

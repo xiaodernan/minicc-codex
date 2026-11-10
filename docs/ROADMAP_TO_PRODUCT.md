@@ -46487,3 +46487,32 @@ entry = '''
 with open(p, 'a', encoding='utf-8', newline='\n') as fh:
     fh.write(entry.lstrip('\n'))
 print('ok')
+import sys
+from pathlib import Path
+sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+p = Path('docs/ROADMAP_TO_PRODUCT.md')
+entry = '''
+## 批次 742 — M8-T742：`docs/INDEX.md` — 所有文档的互联门户
+
+### 1 欠的是哪一条
+
+频道 24 篇文档几乎全是孤岛（本机扫描：26 篇里仅 13 条内部边，多数两两无链接）。新读者从一篇入口进不去其余任何一篇——无论 [`CHANGELOG.md`](CHANGELOG.md)、`FIRST_HOUR.md` 还是 `OPERATIONS.md` 都缺乏 "See also" 锚。
+
+### 2 改动
+
+- 新增 **`docs/INDEX.md`**：按入门 → 运行 → 服务面 → 功能 → 审计/方法论 分类，串起全 26 篇文档（包含首小时手册、服务面、pl ugin API、SpecProof、M1..M8 路线图、One Fact One Home 方法论），并提供 4 条「阅读路径建议」（首次/部署/扩展/审计）。
+- 在 FIRST_HOUR、OPERATIONS、CHANGELOG、SERVICE_PLANE_OPERATOR 四篇首屏加上 `[INDEX.md](INDEX.md)` 一行 See also，消除孤岛。
+
+### 3 验证
+
+- `python scripts/doc_pointers.py --check` → rc=0。
+- 本地链接审计：所有 24 篇文档现在都至少有一条来自 INDEX 或 INDEX 所及的反向引用。
+
+### 4 边界
+
+- INDEX 不重写任何文档内容，只做导航。
+- 再加文档时在 INDEX 里也要登记一行——本批不做自动派生，靠人工。
+'''
+with open(p, 'a', encoding='utf-8', newline='\n') as fh:
+    fh.write(entry.lstrip('\n'))
+print('ok')
