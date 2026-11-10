@@ -46398,3 +46398,26 @@ README 已承诺 `--version --json` 打印 `{"name":"minicc","version":...}`，�
 
 - `--version` 不执行任何 doctor / setup / 任何外部网络 / 负载配置文件。
 - JSON 键集固定为 `{name, version}`；不加入 build metadata、commit sha（那是 `--doctor --json` 的事）。
+import sys
+from pathlib import Path
+sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+p = Path('docs/ROADMAP_TO_PRODUCT.md')
+entry = '''
+## 批次 738 — M8-T738：OPERATIONS 补 `--version --json` capability 说明
+
+### 1 欠的是哪一条
+
+`docs/OPERATIONS.md` 早前的 `--json` 说明只列了 `--doctor`/`--doctor-strict` 两种搭配；M8-T709 的 `--stats`、批次 729 的 `--capabilities`、批次 737 的 `--version` 都在 `--json` 之下，但手册没讲过。
+
+### 2 改动
+
+- `docs/OPERATIONS.md`：「`--json`」一行扩为三组形状：doctor 系列（ok/warn/fatal+checks）、`capabilities`（count + tools）、`version`（name+version）。明确单独 `--json` 仍是 exit 2 的用法错误。
+
+### 3 验证
+
+- `python scripts/doc_pointers.py --check` → rc=0。
+- 不改任何代码/命令实现；纯文档对齐。
+'''
+with open(p, 'a', encoding='utf-8', newline='\n') as fh:
+    fh.write(entry.lstrip('\n'))
+print('ok')

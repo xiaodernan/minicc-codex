@@ -20,7 +20,7 @@ minicc --doctor-strict --workspace <目录>   # CI 守门：warning 也算红
 
 `--doctor` / `--doctor-strict` / `--setup` 在配置解析（`_load()`）之前分发：它们不需要 `MINICC_API_KEY` 与 `MINICC_BASE_URL`，也不访问网络。其余命令（REPL、`--print-config`、 Editor 创建、`--fork-from` 之外的一切）仍然按旧规则解析配置。
 
-`--json` 只与 `--doctor` / `--doctor-strict` 搭配；单独给 `--json` 是用法错误（exit 2）。JSON 形状：`{"ok":…, "warn":…, "fatal":…, "checks":[{"name","severity","detail","fix_hint"}]}`。
+`--json` 只与 `--doctor` / `--doctor-strict` / `--stats` / `--capabilities` / `--version` 搭配；单独给 `--json` 是用法错误（exit 2）。JSON 形状：诊断系列为 `{"ok":…, "warn":…, "fatal":…, "checks":[{"name","severity","detail","fix_hint"}]}`，`--capabilities` 为 `{"count":N,"tools":[{"name","description"}]}`，`--version` 为 `{"name":"minicc","version":"<semver>"}`。`--doctor` 不输出 JSON，除非你要它的 `checks` 数组。
 
 退出码契约：
 
