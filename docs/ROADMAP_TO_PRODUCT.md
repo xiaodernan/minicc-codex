@@ -46262,3 +46262,22 @@ CI run 42655989951（HEAD=38a2111，两腿：Ubuntu failure / Windows failure）
 
 - `/doctor` 只打印报告、不接管 REPL、不改写上下文、不执行任何 probe 之外的网络/磁盘动作。
 - 它不与 `.minicc/` 之外的任何文件做出写入；不调 `--doctor-strict` 也不暴露独立严格模式（REPL 内的诊断永远是非阻断的）。
+
+## 批次 732 — M8-T732：README 指向服务面（Spring Cloud 五模块）与 SERVICE_PLANE_PLAN 的位置
+
+### 1 欠的是哪一条
+
+服务面已经成网（`minicc-cloud/` 六模块、mvn 守门、CI 腿绿、`SERVICE_PLANE_PLAN.md` 落地），但 README 作为新读者的首页从未提及它——保持了旧项目的样子。装好的人不会自然知道 `cd minicc-cloud && mvn -B test` 可用。
+
+### 2 改动
+
+- `README.md`：在 `--stats` 段后新增「服务面」段，点名五模块（`registry`/`gateway`/`inspector`/`tasks`/`config`）的职责、桥接方向（经 `minicc-cloud-bridge` 调 Python 引擎，不重写）以及入口文档 `docs/SERVICE_PLANE_PLAN.md` 与 `minicc-cloud/README.md`。
+
+### 3 验证
+
+- `python scripts/doc_pointers.py --check` → rc=0。
+- README 新段长 160 字符左右，字段均为真实路径（`docs/SERVICE_PLANE_PLAN.md`、`minicc-cloud/README.md`）。
+
+### 4 边界
+
+- 本批只加指针，不改模块或构建；Java 面不动。
