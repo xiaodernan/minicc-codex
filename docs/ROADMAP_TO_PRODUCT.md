@@ -46763,3 +46763,22 @@ Ubuntu 腿 `1 failed, 4781 passed, 5 skipped`，唯一红：
 
 - 钉的是**现有行为**，不是设计意图替身（如 `.env ` 尾空格不认）。
 - 不改这四个模块任何一行。
+## 批次 758 — M8-T758：CI 红修 — wide-face 门（新见证测试须入册）
+
+T756 双腿 Python 都红了，唯一失败：
+
+- `tests/test_the_wide_face_keeps_every_file_and_document_reader.py::test_every_document_reader_is_inside_the_wide_baseline` — `tests/test_docs_index_enumerates_every_docs_md.py -> ['glob("*.md")']` 不在 `tests/fence_rosters/wide.txt`。批 752 立此见证时未入册，门按设计发难（"a new reader widens the face in its own batch"）。
+
+### 1 改动
+
+- `tests/fence_rosters/wide.txt`：追加一行 `tests/test_docs_index_enumerates_every_docs_md.py`（排序插入）。
+- 本条目就是"本批次"——见证测试入册按门的本意，不削门。
+
+### 2 验证
+
+- `pytest tests/test_the_wide_face_keeps_every_file_and_document_reader.py -q` → **3 passed**。
+- `python scripts/doc_pointers.py --check` → rc=0。
+
+### 4 边界
+
+- 不放宽宽面尺寸；roster 是 admit-by-batch 的清单，本批只 admit 已知红的见证。
