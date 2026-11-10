@@ -47118,3 +47118,20 @@ T770 让服务面有了第七个模块与第三条路由，但两处文档残留
 
 - 不改 tool_policy.py 任何一行。
 - `-c` 与 `-m` 的区别按模块现状钉住（inline code 是写、`python -m pytest` 不是写）。
+## 批次 773 — M8-T773：input_guard + cli_io 的 7 条用例
+
+### 1 欠的是哪一条
+
+`minicc/input_guard.py::require_text` 是十处曾手抄"字段不能为空"的唯一家——JSON 数字绝不许变成会话 id、全空白绝不许当名字；`minicc/cli_io.py` 是整个 minicc 里唯一的 stdout 出口（M8-T5）。两个模块零同名测试（模块→测试映射发现）。
+
+### 2 改动
+
+- 新增 `tests/test_input_guard_and_cli_io.py`（7 条用例）：`require_text` 剥离/blank 拒绝/None 拒绝/非 str 拒绝（含 JSON 数字 42）/错误消息点名字段；`cli_out` 默认 sep=' '/end='\n'、自定 sep/end、写入 `file=` 参数而不占 stdout。
+
+### 3 验证
+
+- `pytest tests/test_input_guard_and_cli_io.py -q` → **7 passed**。
+
+### 4 边界
+
+- 不改实现；不测 `logs` 通道（`logging_setup` 已由 M8-T762 单测覆盖）。
