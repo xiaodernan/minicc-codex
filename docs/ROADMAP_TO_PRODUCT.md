@@ -46447,3 +46447,26 @@ Ubuntu 腿 `1 failed, 4780 passed, 5 skipped`，唯一红：
 ### 边界
 
 - `__app_name` 只做单全文发行名；`minicc` 作为包名/CLI 名称/服务名等地方位出现都是独立家，不在这条门的射程内。
+import sys
+from pathlib import Path
+sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+p = Path('docs/ROADMAP_TO_PRODUCT.md')
+entry = '''
+## 批次 740 — M8-T740：CHANGELOG 批次上界推进至 T739
+
+### 1 欠的是哪一条
+
+批次 736 落地 CHANGELOG 时合流范围写的是「M8-T686 → M8-T735」；批 737–739 持续在跑，上界已过期。
+
+### 2 改动
+
+- `docs/CHANGELOG.md`：批次上界改为 `M8-T686 → M8-T739`。
+
+### 3 验证
+
+- `python scripts/doc_pointers.py --check` → rc=0。
+- 单文件两行改动、无代码风险。
+'''
+with open(p, 'a', encoding='utf-8', newline='\n') as fh:
+    fh.write(entry.lstrip('\n'))
+print('ok')
