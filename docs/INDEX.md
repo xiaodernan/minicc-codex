@@ -7,6 +7,7 @@
 - [FIRST_HOUR.md](FIRST_HOUR.md) —— 装到第一次成功。按 `--setup` → `--doctor` → `--stats` → `--capabilities` → `--version` → 首次进模型的顺序展开，每步实测。
 - [CHANGELOG.md](CHANGELOG.md) —— 2026-09-20 至今合流记录；M1..M8 的落成面、已知边界（CI-only packaging 门、nightly 跳过）。
 - [ROADMAP_TO_PRODUCT.md](ROADMAP_TO_PRODUCT.md) —— 合流批次账本（批次 601→748）：每批欠的哪一条、改动、验证、边界，`git log` 之外的叙事证据。
+- [CONTRIBUTING.md](CONTRIBUTING.md) —— 贡献者流程：环境准备、三道必跑门、批次账本格式、One Fact One Home 方法。
 
 ## 运行与自检
 

@@ -46674,3 +46674,23 @@ Ubuntu 腿 `1 failed, 4781 passed, 5 skipped`，唯一红：
 
 - 本批不自动发现新目录下的 `*.md`（刻意不禁子目录：此门只管 `docs/` 顶层）。
 - 门按 basename 子串匹配；如果有同名文件分散到子目录，不在此门范围。
+## 批次 753 — M8-T753：CONTRIBUTING.md — 贡献者流程文档
+
+### 1 欠的是哪一条
+
+近 750 批的合流流程（门、账本、推送纪律、One Fact One Home）分布在 CHANGELOG、ROADMAP、多篇 docs 里，**没有一份以"我是新来的贡献者"视角串起来的步骤说明**。靠人记的流程不是流程。
+
+### 2 改动
+
+- 新增 **`docs/CONTRIBUTING.md`**：环境准备、三道必跑门（`doc_pointers --check` + 两道 docs 门）、完整套件跑法、批次账本格式、推送纪律（candidate 失败数=0、无 in-progress 才推）、One Fact One Home、新建文档三件事。
+- `docs/INDEX.md` 开箱节登记 CONTRIBUTING；`README.md` 能力清单加一行指向它。
+
+### 3 验证
+
+- `python scripts/doc_pointers.py --check` → rc=0。
+- `pytest tests/test_docs_index_enumerates_every_docs_md.py -q` → **1 passed**。
+
+### 4 边界
+
+- 不重写既有门的文字说明；CONTRIBUTING 只串编排，不替代 `ONE_FACT_ONE_HOME.md` / `CHANGELOG.md` / `ROADMAP_TO_PRODUCT.md`。
+- 本文所述的三门 md-only，不涉及服务面或 Web 冒烟。
