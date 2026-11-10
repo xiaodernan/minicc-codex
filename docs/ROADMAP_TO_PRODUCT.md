@@ -46447,11 +46447,7 @@ Ubuntu 腿 `1 failed, 4780 passed, 5 skipped`，唯一红：
 ### 边界
 
 - `__app_name` 只做单全文发行名；`minicc` 作为包名/CLI 名称/服务名等地方位出现都是独立家，不在这条门的射程内。
-import sys
-from pathlib import Path
-sys.stdout.reconfigure(encoding='utf-8', errors='replace')
-p = Path('docs/ROADMAP_TO_PRODUCT.md')
-entry = '''
+
 ## 批次 740 — M8-T740：CHANGELOG 批次上界推进至 T739
 
 ### 1 欠的是哪一条
@@ -46460,13 +46456,12 @@ entry = '''
 
 ### 2 改动
 
-- `docs/CHANGELOG.md`：批次上界改为 `M8-T686 → M8-T739`。
+- `docs/CHANGELOG.md`：批次上界改为 `M8-T686 → M8-T739`。同时本批清除了 `_append*.py` 系列辅助脚本把自身源文拼进 ROADMAP 的行（这是上一批误把脚本当数据读而忘了一句 `entry =` 没执行的后果）。
 
 ### 3 验证
 
 - `python scripts/doc_pointers.py --check` → rc=0。
-- 单文件两行改动、无代码风险。
-'''
-with open(p, 'a', encoding='utf-8', newline='\n') as fh:
-    fh.write(entry.lstrip('\n'))
-print('ok')
+
+### 4 边界
+
+- 不改 CHANGELOG 任何其他行。
