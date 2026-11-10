@@ -16,6 +16,7 @@
 
 - [SERVICE_PLANE_PLAN.md](SERVICE_PLANE_PLAN.md) —— 服务面规划（P1..P5），registry / config / inspector / tasks 五模块的角色与边界。
 - [SERVICE_PLANE_OPERATOR.md](SERVICE_PLANE_OPERATOR.md) —— 服务面运维：standalone 启 tasks、SQLite 只读、curl 实录（含 999-limit 被钳后的 `X-Minicc-Tasks-Limit: 100`）、Compose。
+- [SERVICE_PLANE_GATEWAY.md](SERVICE_PLANE_GATEWAY.md) —— 网关路由与 Resilience4j 配置的事实档（路由行、breaker 参数、暴露的 actuator 端点）。
 - [AGENT_LLM_ROADMAP.md](AGENT_LLM_ROADMAP.md) —— 引擎与模型的长期路线（Provider / tool 模式）。
 - [AGENT_RESEARCH.md](AGENT_RESEARCH.md) —— 外部调研与参考来源。
 - [REFERENCE_ARCHITECTURE.md](REFERENCE_ARCHITECTURE.md) —— 参考架构梳理。

@@ -46627,3 +46627,16 @@ Ubuntu 腿 `1 failed, 4781 passed, 5 skipped`，唯一红：
 
 - 本批不改任何 Java 配置；只印事实。
 - 管理面端点按 `management.endpoint.health.show-details: when-authorized` 暴露；正文不写未发布的行为。
+## 批次 750 — M8-T750：INDEX.md 增补 SERVICE_PLANE_GATEWAY 行
+
+### 1 欠的是哪一条
+
+刚出炉的 `docs/SERVICE_PLANE_GATEWAY.md` 没有出现在 [INDEX](INDEX.md) 的"在线接口与服务面"小节，索引不是真正的目录。
+
+### 2 改动
+
+- `docs/INDEX.md` 在线接口节加入 `[SERVICE_PLANE_GATEWAY.md]`。
+
+### 3 验证
+
+- `python scripts/doc_pointers.py --check` → rc=0。
