@@ -53,6 +53,18 @@ spring:
                     # empty array, which is the point for a read the gateway
                     # could not perform.
                     fallbackUri: forward:/fallback/inspector
+            - id: insights
+              uri: lb://minicc-cloud-insights
+              predicates:
+                - Path=/api/insights,/api/insights/**
+              filters:
+                - name: RequestSize
+                  args:
+                    maxSize: ${minicc.cloud.gateway.max-request-bytes:1048576}
+                - name: CircuitBreaker
+                  args:
+                    name: insights-route
+                    fallbackUri: forward:/fallback/insights
 
 eureka:
   client:
@@ -85,11 +97,20 @@ resilience4j:
         failure-rate-threshold: 50
         wait-duration-in-open-state: 10s
         permitted-number-of-calls-in-half-open-state: 2
+      insights-route:
+        register-health-indicator: true
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 2
   timelimiter:
     instances:
       inspector-route:
         timeout-duration: ${minicc.cloud.gateway.response-timeout-seconds:40}s
         cancel-running-future: true
       tasks-route:
+        timeout-duration: ${minicc.cloud.gateway.response-timeout-seconds:40}s
+        cancel-running-future: true
+      insights-route:
         timeout-duration: ${minicc.cloud.gateway.response-timeout-seconds:40}s
         cancel-running-future: true

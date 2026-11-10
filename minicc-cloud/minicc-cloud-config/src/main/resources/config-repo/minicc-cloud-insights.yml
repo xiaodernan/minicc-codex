@@ -1,0 +1,7 @@
+minicc:
+  cloud:
+    insights:
+      # Service-specific override; the shared keys stay in application.yml so
+      # the gateway and the service cannot drift apart.
+      max-scan-rows: 10000
+      max-audit-lines: 100000

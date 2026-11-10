@@ -13,6 +13,7 @@ calls the Python tools through one bridge. It does not re-implement the engine.
 | `minicc-cloud-config` | 8888 | Spring Cloud Config Server (native profile) serving `config-repo/` |
 | `minicc-cloud-inspector` | 8081 | read-only workspace change service; refuses paths outside `MINICC_ALLOWEDROOTS` |
 | `minicc-cloud-tasks` | 8082 | read-only task history from the Python engine's SQLite store; never writes, never fakes an empty answer |
+| `minicc-cloud-insights` | 8087 | read-only aggregate summary (task totals + per-status, audit line count); capped scans, never writes |
 | `minicc-cloud-gateway` | 8080 | Spring Cloud Gateway: `lb://` routes, Resilience4j circuit breaker, `/fallback` |
 
 One fact, one home: the gateway's HTTP timeout and the expert circuit breaker's
@@ -25,7 +26,7 @@ standalone fallbacks, not a second source of truth.
 
 ```bash
 cd minicc-cloud
-mvn -B test                 # six modules, no network needed
+mvn -B test                 # seven modules, no network needed
 mvn -DskipTests package
 docker compose build
 docker compose up
@@ -34,6 +35,7 @@ docker compose up
 ```bash
 curl localhost:8888/minicc-cloud-gateway/default     # what the config server serves
 curl localhost:8080/api/changes?workspace=/workspaces/target
+curl localhost:8080/api/insights/summary             # gateway -> insights
 ```
 
 ## Why Java here at all

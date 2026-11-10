@@ -14,7 +14,8 @@
 | `minicc-cloud-config` | 8888 | Config Server（native），`config-repo/` 下的共享/服务专属 yml |
 | `minicc-cloud-inspector` | 8081 | 只读工作区诊断：`/api/changes`、`/api/capabilities` |
 | `minicc-cloud-tasks` | 8082 | 只读任务历史（SQLite `tasks.sqlite3`），`db` 来自 `MINICC_STATE` |
-| `minicc-cloud-gateway` | 8080 | 路由 + Resilience4j 熔断，`/api/changes`、`/api/tasks*` |
+| `minicc-cloud-insights` | 8087 | 只读聚合洞察：`/api/insights/summary`（任务总数/分状态、audit 行数），`db`/`audit` 来自 `MINICC_STATE` |
+| `minicc-cloud-gateway` | 8080 | 路由 + Resilience4j 熔断，`/api/changes`、`/api/tasks*`、`/api/insights/*` |
 | `minicc-cloud-bridge` | —（库） | 生命周期管理 Python 子进程，凭据脱敏 |
 
 服务面不重写 Python 引擎；桥接层是唯一缝隙。`mvn -B test` 覆盖六个模块；CI 的 `Service plane tests (mvn)` 只在 `minicc-cloud/**` 改动时触发。
@@ -78,6 +79,27 @@ X-Minicc-Tasks-Limit: 100
 
 响应头 `X-Minicc-Tasks-Truncated: true` 表明被截断；`X-Minicc-Tasks-Limit: 100` 表明生效天花板来自 Config Server 的 `minicc-cloud-tasks.yml`（`spring.cloud.config.import: optional:configserver:${CONFIG_SERVER:...}`），本地 standalone 时由 `MINICC_TASKS_MAX_LIMIT` 环境变量或 `100` 兑底。
 
+### insights（8087 实测，2026-11-10）
+
+探针库：`/probe` 下 `tasks.sqlite3`（3 行：completed×2、queued×1）+ `audit.jsonl`（3 行）。不接触真实 `.minicc/`。
+
+```text
+GET http://127.0.0.1:8087/api/insights/summary
+
+HTTP 200
+{"generated_at":"2026-11-10T12:50:49.921375800Z","tasks":{"present":true,"total":3,
+ "by_status":{"queued":1,"completed":2},"scan_truncated":false,
+ "min_created_at":1.76272E9,"max_created_at":1.7627202E9,"workspace":null},
+ "audit":{"present":true,"lines":3,"truncated":false,"capped_at":100000}}
+
+GET http://127.0.0.1:8087/api/insights/summary?workspace=/other
+
+HTTP 200
+{… "total":1, "by_status":{"completed":1}, "workspace":"/other"} …
+```
+
+总数走 `COUNT(*)`（不截断），分状态计数超过 `MINICC_INSIGHTS_MAX_SCAN_ROWS` 时返回 `scan_truncated: true`；audit 超过 `MINICC_INSIGHTS_MAX_AUDIT_LINES` 时 `truncated: true`。未设 audit 或文件不存在时 `audit.present: false`——**不视为故障**（首小时没有审计是正常状态）；文件不可读才是 503。
+
 ## 4. 环境变量契约
 
 ### tasks（`minicc-cloud-tasks`）
@@ -86,6 +108,16 @@ X-Minicc-Tasks-Limit: 100
 | --- | --- | --- |
 | `MINICC_STATE` | `../.minicc` | `tasks.sqlite3` 所在目录 |
 | `MINICC_TASKS_MAX_LIMIT` | `100` | 客户端 `limit` 服务端天花板（standalone） |
+| `CONFIG_SERVER` | `http://localhost:8888` | 可选；未启动时按 standalone |
+| `EUREKA_ZONE` | `http://localhost:8761/eureka/` | 可选；未启动 `Registration failed` 警告后 standalone |
+
+### insights（`minicc-cloud-insights`）
+
+| 变量 | 默认值 | 作用 |
+| --- | --- | --- |
+| `MINICC_STATE` | `../.minicc` | `tasks.sqlite3` / `audit.jsonl` 所在目录 |
+| `MINICC_INSIGHTS_MAX_SCAN_ROWS` | `10000` | 分状态计数的扫描天花板（standalone），`COUNT(*)` 总数不受此限 |
+| `MINICC_INSIGHTS_MAX_AUDIT_LINES` | `100000` | audit 行数计数的硬上限（standalone），超限返回 `truncated: true` |
 | `CONFIG_SERVER` | `http://localhost:8888` | 可选；未启动时按 standalone |
 | `EUREKA_ZONE` | `http://localhost:8761/eureka/` | 可选；未启动 `Registration failed` 警告后 standalone |
 

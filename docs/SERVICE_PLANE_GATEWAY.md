@@ -8,32 +8,33 @@
 - Eureka: `${EUREKA_ZONE:http://localhost:8761/eureka/}`（CI / 本机测试可关闭注册 Discovery client，网关仍可启动）；
 - Config server: `${CONFIG_SERVER:http://localhost:8888}`，`optional:configserver:`——未拉起 config server 时使用本文件底部的值作为独立 fallback，不是第二事实家。
 
-## 2. 路由（两条）
+## 2. 路由（三条）
 
 | id | uri | predicates | filters |
 | --- | --- | --- | --- |
 | `inspector-changes` | `lb://minicc-cloud-inspector` | `Path=/api/changes,/api/changes/**` | RequestSize(`minicc.cloud.gateway.max-request-bytes:1048576`)、CircuitBreaker(`inspector-route`, fallback `/fallback/inspector`) |
 | `tasks` | `lb://minicc-cloud-tasks` | `Path=/api/tasks,/api/tasks/**` | RequestSize(`minicc.cloud.gateway.max-request-bytes:1048576`)、CircuitBreaker(`tasks-route`, fallback `/fallback/inspector`) |
+| `insights` | `lb://minicc-cloud-insights` | `Path=/api/insights,/api/insights/**` | RequestSize(`minicc.cloud.gateway.max-request-bytes:1048576`)、CircuitBreaker(`insights-route`, fallback `/fallback/insights`) |
 
-**没有 `/api/doctor`、`/api/capabilities`、`/api/models`** ——网关只代理两个后端，不直接转发给 Python；要拿诊断请直连 `minicc-web`（`/api/doctor`）。
+**没有 `/api/doctor`、`/api/capabilities`、`/api/models`** ——网关只代理三个后端，不直接转发给 Python；要拿诊断请直连 `minicc-web`（`/api/doctor`）。`/fallback/insights` 与 `/fallback/inspector` 都返回 503 + `{"error": …, "reason": …}`，绝不把"洞察服务/摘要不可用"伪装成 200 空数据。
 
 ## 3. Resilience4j
 
-两条 circuit breaker 参数相同，只是名字不同：
+三条 circuit breaker 参数相同，只是名字不同（`inspector-route`、`tasks-route`、`insights-route`）：
 
 - `sliding-window-size: 10`, `failure-rate-threshold: 50`(%)，
 - `wait-duration-in-open-state: 10s`，
 - `permitted-number-of-calls-in-half-open-state: 2`，
 - `register-health-indicator: true` —— 暴露给 Actuator health。
 
-`timelimiter` 对两条 route 都是 `${minicc.cloud.gateway.response-timeout-seconds:40}s`，`cancel-running-future: true`。
+`timelimiter` 对三条 route 都是 `${minicc.cloud.gateway.response-timeout-seconds:40}s`，`cancel-running-future: true`。
 
 ## 4. 管理面端点
 
 `management.endpoints.web.exposure.include`：`health,info,metrics,gateway,circuitbreakers,circuitbreakerevents`。
 
-- `GET/actuator/gateway/routes` 列出定义中的两条路由；
-- `GET/actuator/circuitbreakers` 和 `/circuitbreakerevents` 给出两条 breaker 状态；
+- `GET/actuator/gateway/routes` 列出定义中的三条路由；
+- `GET/actuator/circuitbreakers` 和 `/circuitbreakerevents` 给出三条 breaker 状态；
 - `GET/actuator/health` 是 liveness；`show-details: when-authorized`——只在带 bearer token 时给详情。
 
 ## 5. 不要做的事

@@ -47048,3 +47048,31 @@ CHANGELOG 的上界还停在 T744；批 745–760 的改动（CHANGELOG 合流�
 - 第一次编辑用 PowerShell `WriteAllText` 写了 UTF-8 BOM，javac 报 `\ufeff` 非法，`mvn test` 挂红——**本身就成为一次"不许照此法再来"的现场**：BOM 已被剥掉、`git diff` 复核仅 5 个文件、每处仅一行改名。
 - 不改 Java 逻辑、配置键名 `minicc.cloud.tasks.db` 保持不变（env 覆盖仍是逃生通道）。
 - 探针剧本不变。
+## 批次 770 — M8-T770：Spring Cloud 新服务 `minicc-cloud-insights`（只读聚合洞察）落地
+
+### 1 欠的是哪一条
+
+用户明确授权"在项目里面加一些 Spring Cloud 微服务的元素"。现状六个模块（bridge/registry/config/inspector/tasks/gateway），服务面缺一个"引擎现在长什么样"的一次性答案——Python `minicc --stats --json` 有这个形状的数据，但只能 CLI 消费，没有 HTTP 服务版。
+
+### 2 落地
+
+- **新模块 `minicc-cloud-insights`**（**8087**——本机 8083 已被另一个项目的 listener 占用（`caesura-client`，未动其进程）；Eureka Client + 可选 `configserver` 导入（`minicc.cloud.insights.*`，`config-repo/minicc-cloud-insights.yml`）：
+  - `GET /api/insights/summary[?workspace=]` → `{"generated_at":…, "tasks":{"present":true,"total":N（COUNT(*)，exact）,"by_status":{…}（capped `max-scan-rows`，默认 10000）,"scan_truncated":false,"min/max_created_at":…,"workspace":…},"audit":{"present":…,"lines":N,"truncated":…,"capped_at":100000}}`；
+  - 只读优先（`mode=ro` + `PRAGMA query_only=ON`）；不可解析快照 → 500 并点名 `task_id`；缺 DB → 503；audit 缺失 → `present:false`（不是故障）；audit 不可读 → 503。
+- **网关**：`insights` 路由（`Path=/api/insights,/api/insights/**`）+ `insights-route` Resilience4j（与另两条同参）+ 独立 `/fallback/insights`（503+reason）；`GatewayRouteBindingTest` 同步加 binding 断言（三条路由、URI、Path 谓词、breaker 名、fallback URI）。
+- **配置**：`config-repo/minicc-cloud-insights.yml` 随罐下发；`repo/application.yml` 有 `optional:` 导入兜底，与 tasks 一致。
+- **编排**：docker-compose 加 insights 服务（六服务健康依赖链）；`gateway` 新增 `depends_on: insights`。
+- **文档**：`minicc-cloud/README.md`（七个模块 + curl 计数）、`docs/SERVICE_PLANE_OPERATOR.md`（端口表 8087 + insights 实录（真跑））、`docs/SERVICE_PLANE_GATEWAY.md`（三条路由 + 三个 breaker + `/fallback/insights` 说明）、`docs/SERVICE_PLANE_PLAN.md`（当前状态表增 insights 行 + P6 章节）、`README.md`（能力清单增 insights 行）、`docs/CHANGELOG.md`（M8-T686 → M8-T770 + 新合成条目）。
+- **未做**：`/api/insights/history`（滚动快照镜像）与 Config Bus 热刷新——plan P6 记录为扩展方向。
+
+### 3 验证
+
+- `mvn -B test`（8 模块）→ **BUILD SUCCESS**；insights 12/12，网关 17/17（含新 insights binding 断言）。
+- **真跑探针**（不碰真实 `.minicc/`，JDK 25）：`GET /api/insights/summary` → `total:3, by_status:{"queued":1,"completed":2}, audit.lines:3`；`?workspace=/other` → `total:1, workspace:"/other"`；`actuator/health` → 200。验证完进程已停。
+
+### 4 边界
+
+- 不改 Python 一行；Java 不重写任务逻辑（仅读）。
+- 不迁 Eureka 生产配置；CI 仍是 `mvn -B test`。
+- 8087 是本仓默认值，环境变量 `SERVER_PORT` 仍是逃生通道；与 `caesura-client`（别的项目，未动）解耦。
+- docker-compose 未实机起（本机端口 8080–8090 几乎全占）；编排按"健康依赖链 + /dev/tcp"格式与 inspector/tasks 一致。

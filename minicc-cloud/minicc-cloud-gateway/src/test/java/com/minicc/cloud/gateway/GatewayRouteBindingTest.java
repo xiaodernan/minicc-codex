@@ -42,11 +42,29 @@ class GatewayRouteBindingTest {
         List<RouteDefinition> routes = properties.getRoutes();
         assertThat(routes)
                 .extracting(RouteDefinition::getId)
-                .containsExactly("inspector-changes", "tasks");
+                .containsExactly("inspector-changes", "tasks", "insights");
 
         RouteDefinition route = inspectorRoute();
         assertThat(route.getId()).isEqualTo("inspector-changes");
         assertThat(route.getUri().toString()).isEqualTo("lb://minicc-cloud-inspector");
+    }
+
+    @Test
+    void theYamlBindsTheInsightsRouteToItsServiceNameAndFallback() {
+        RouteDefinition route = properties.getRoutes().stream()
+                .filter(candidate -> "insights".equals(candidate.getId()))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("the insights route is missing"));
+        assertThat(route.getUri().toString()).isEqualTo("lb://minicc-cloud-insights");
+        assertThat(route.getPredicates()).hasSize(1);
+        assertThat(route.getPredicates().get(0).getArgs().values())
+                .contains("/api/insights", "/api/insights/**");
+        FilterDefinition breaker = route.getFilters().stream()
+                .filter(filter -> "CircuitBreaker".equals(filter.getName()))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("the insights route lost its circuit breaker"));
+        assertThat(breaker.getArgs().values())
+                .contains("insights-route", "forward:/fallback/insights");
     }
 
     @Test

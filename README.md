@@ -268,7 +268,7 @@ MINICC_REASONING_EFFORT=high
 
 `minicc --stats` 打印当前工作区的只读现状清单（`.minicc/` 是否在、审计日志行数与最后一条 event、`tasks.sqlite3` 中按状态计数、会话数与消息总数、`.minicc/` 占用字节数）——CLI 与 `--stats --json`（机器可读）两种形态，无需 `MINICC_API_KEY`。
 
-服务面（`minicc-cloud/`）把 `minicc` 引擎包装进 Spring Cloud 结构：`registry`（Eureka）承载服务发现、`gateway`（Spring Cloud Gateway，`lb://` 路由 + Resilience4j 熔断）将请求路由到只读的 `inspector`（经 `minicc-cloud-bridge` 桥接 Python 引擎，不重写引擎）与 `tasks`（SQLite 只读快照）、`config`（Spring Cloud Config Server，native 仓库）供配置；全部模块以 `mvn -B test` 守门。细节见 `docs/SERVICE_PLANE_PLAN.md`（规划）、`minicc-cloud/README.md`（架构）、`docs/SERVICE_PLANE_OPERATOR.md`（运维手册）。
+服务面（`minicc-cloud/`）把 `minicc` 引擎包装进 Spring Cloud 结构：`registry`（Eureka）承载服务发现、`gateway`（Spring Cloud Gateway，`lb://` 路由 + Resilience4j 熔断）将请求路由到只读的 `inspector`（经 `minicc-cloud-bridge` 桥接 Python 引擎，不重写引擎）、`tasks`（SQLite 只读快照）与 `insights`（8087，只读聚合洞察：任务分状态 + audit 行数，近似 `--stats` 的服务版）、`config`（Spring Cloud Config Server，native 仓库）供配置；全部模块以 `mvn -B test` 守门。细节见 `docs/SERVICE_PLANE_PLAN.md`（规划）、`minicc-cloud/README.md`（架构）、`docs/SERVICE_PLANE_OPERATOR.md`（运维手册）。
 
 
 `minicc --setup` 为新工作区创建 `.minicc/` 骨架：写出一份默认 `permissions.json`（deny `.env` / `.env.local` / `secrets/` / `secrets/**` / `.ssh` / `.aws`） 与一份按 0o600 权限写的 `web_token.json`。幂等——已存在的 `permissions.json` 与 `web_token.json` 都不覆盖。完成后立刻 `minicc --doctor` 即可看到一切绿。

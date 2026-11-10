@@ -25,4 +25,13 @@ public class FallbackController {
                         "reason", "the change inspector could not be reached, so nothing is known "
                                 + "about this workspace; this is not an empty change list")));
     }
+
+    @RequestMapping("/fallback/insights")
+    public Mono<ResponseEntity<Map<String, Object>>> insights() {
+        return Mono.just(ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(Map.of(
+                        "error", "insights-unavailable",
+                        "reason", "the insights service could not be reached, so no aggregate is known "
+                                + "about the engine's state; this is not an empty task list")));
+    }
 }

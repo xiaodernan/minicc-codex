@@ -19,7 +19,7 @@
    `config-repo/application.yml`；服务自身不再复制同一批数字。
 3. **可离线验证**：所有模块的测试都不需要外网、不需要真实注册中心（`mvn test` 在空环境全绿）。
 
-## 二、当前状态（2026-11-09 实测）
+## 二、当前状态（2026-11-09 实测；2026-11-10 增补 insights）
 
 | 项 | 状态 | 证据 |
 | --- | --- | --- |
@@ -27,9 +27,11 @@
 | `minicc-cloud-registry` | Eureka Server，8761 | 单类应用 + `application.yml` |
 | `minicc-cloud-config` | Config Server（native），8888 | 共享 `config-repo/application.yml` + 每服务一份；网关与检查服务 `optional:` 导入 |
 | `minicc-cloud-inspector` | 只读变更服务，8081 | 工作区守卫 + 桥接失败建议（`BridgeFailureAdvice`） |
-| `minicc-cloud-gateway` | Spring Cloud Gateway，8080 | `lb://` 路由 + Resilience4j 熔断 + 回退端点 |
-| 编排 | `docker-compose.yml` 四服务 | registry → config → inspector → gateway 的健康依赖链 |
-| Java 测试 | 全绿 | `mvn -B test` 退出码 0（bridge/gateway/config/inspector 四模块） |
+| `minicc-cloud-tasks` | 只读任务历史，8082 | 挂载真实 `.minicc/` 只读；文件名 API 默认对齐 Python 的 `tasks.sqlite3`（2026-11-10 漂移修） |
+| `minicc-cloud-insights` | 只读聚合洞察，8087 | P6，2026-11-10 新增：总数 exact、分状态 capped、audit 行数 capped；docker-compose 已接入 |
+| `minicc-cloud-gateway` | Spring Cloud Gateway，8080 | `lb://` 路由（含 `/api/insights/**`）+ Resilience4j 熔断 + 回退端点 |
+| 编排 | `docker-compose.yml` 六服务 | registry → config → inspector/tasks/insights → gateway 健康依赖链 |
+| Java 测试 | 全绿 | `mvn -B test` 退出码 0（2026-11-10 实测：8 模块全绿，insights 12/12） |
 | Python 侧 | 不受影响 | 服务面只新增文件；`tests/fence_rosters/wide.txt` 已按门要求加宽 |
 
 分支与工作树处置（同日实测）：
@@ -123,6 +125,16 @@ workspace_path/preview`，截断由 `X-Minicc-Tasks-Truncated` 头声明。网�
 `tests/test_capabilities_names_every_registered_tool.py` 断言）；Python 侧
 32 passed；`mvn -B test` EXIT=0。换一个 stub 脚本把 payload 换掉，端点跟着变——Java 里
 没有任何工具名或数量。
+
+### P6 只读聚合洞察（已完成，M8-T770）
+
+目标：给 UI/外部调用方一个"引擎现在长什么样"的一次性答案——任务分状态、审计条数——不需要 Python CLI、不落 Java 一行写逻辑。
+
+落地：新模块 `minicc-cloud-insights`（**8087**——本机 8083 已被另一个项目的 listener 占用，未动其进程；8083 曾是它的初值）。Eureka Client + 可选 `configserver`（共享处不复制数字；`minicc.cloud.insights.*` 落在 `config-repo/minicc-cloud-insights.yml`）。读 `tasks.sqlite3`（`mode=ro` + `PRAGMA query_only=ON`）：总数 exact（`COUNT(*)`）、分状态计数 capped 于 `max-scan-rows`（默认 10000）、`MIN/MAX(created_at)` 两个时间戳；`audit.jsonl` 行数 capped 于 `max-audit-lines`（默认 100000）。`audit.jsonl` 缺失 → `present: false`（不视为故障，首小时常态）；存在但不可读 → 503。不可解析的快照 → 500 并点名坏快照的 `task_id`（与 tasks 服务同款语法）。网关 `/api/insights/**` 路由 + `insights-route` Resilience4j breaker + 独立 `/fallback/insights`（503+reason）。docker-compose 接入（六服务健康链）。Python 侧不感知。
+
+实测：`mvn -B test` 全绿（8 模块；insights 12/12）。standalone 真跑探针（不碰真实 `.minicc/`，JDK 25）：`GET /api/insights/summary` → `{"tasks":{"total":3,"by_status":{"queued":1,"completed":2},"scan_truncated":false,...},"audit":{"present":true,"lines":3,...}}`；`?workspace=/other` → `total:1`；`actuator/health` 200。
+
+扩展：insights 滚动快照镜像（`/api/insights/history`）+ Config Bus 热刷新上限；过一遍 bridge 的 memory budget 验证insights 对大库 SQL 的行为。
 
 ## 四、再往后可以做什么（保证永远有下一步）
 

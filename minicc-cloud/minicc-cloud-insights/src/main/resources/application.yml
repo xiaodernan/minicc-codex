@@ -1,0 +1,37 @@
+server:
+  port: 8087
+
+spring:
+  application:
+    name: minicc-cloud-insights
+  config:
+    # Same optional stance as tasks: standalone keeps the values below; when
+    # the config server answers, its `minicc.cloud.insights.*` keys are additive.
+    import: optional:configserver:${CONFIG_SERVER:http://localhost:8888}
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_ZONE:http://localhost:8761/eureka/}
+  instance:
+    prefer-ip-address: true
+
+minicc:
+  cloud:
+    insights:
+      # The Python engine owns both files; this service only ever opens them read-only.
+      db: ${MINICC_STATE:../.minicc}/tasks.sqlite3
+      audit: ${MINICC_STATE:../.minicc}/audit.jsonl
+      # Counting a whole audit into the body of a request is never the job;
+      # the cap says "the number is a lower bound".
+      max-scan-rows: ${MINICC_INSIGHTS_MAX_SCAN_ROWS:10000}
+      max-audit-lines: ${MINICC_INSIGHTS_MAX_AUDIT_LINES:100000}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: when-authorized
