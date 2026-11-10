@@ -46715,3 +46715,29 @@ Ubuntu 腿 `1 failed, 4781 passed, 5 skipped`，唯一红：
 
 - 不改 `docs/SECURITY_CHECKLIST.md` 任何内容——SECURITY.md 只是它的 GitHub 入口。
 - 模板是清单不是门禁；门仍由 CI 执行。
+## 批次 755 — M8-T755：atomic_file 重试逻辑的八条用例（模块清单发现零同名测试）
+
+### 1 欠的是哪一条
+
+模块→测试映射审计（91 个模块，585 个测试文件）发现 `minicc/atomic_file.py` ——仓库里"Windows 共享冲突 ride-out"的唯一回答 `replace_with_retry` / `read_text_with_retry`——零同名测试。它是 session checkpoint、web token 读写、workspace 目录三个 call site 共同依赖的底层原语，却没有任何单元测试锁住它的契约。
+
+### 2 改动
+
+- 新增 `tests/test_atomic_file_rides_out_sharing_violations.py`（8 条用例）：
+  - 第一次就成功 → 只调用一次底层原语；
+  - 前 N 次 `PermissionError` 后成功 → 总调用 N+1 次；
+  - 预算耗尽 → 恰好 `attempts` 次调用并抛出最后一次 `PermissionError`；
+  - callable delay 按次数调用（`[0, 1]`）；
+  - read_text 三态对应；
+  - 默认预算 `DEFAULT_ATTEMPTS == 24`、`DEFAULT_DELAY == 0.05`（公共形状，session checkpoint 相同）。
+- 用 `tmp_path` + `monkeypatch` 注入假 `os.replace` / `Path.read_text`，不动真实文件系统，也不依赖真实共享冲突。
+
+### 3 验证
+
+- `pytest tests/test_atomic_file_rides_out_sharing_violations.py -q` → **8 passed**。
+- `python scripts/doc_pointers.py --check` → rc=0（不新增 docs 引用）。
+
+### 4 边界
+
+- 不改 `atomic_file.py` 任何一行；只补测试。
+- 不测真实 Windows sharing violation（需并发真文件锁——属于集成面，交给端到端/CI）。
