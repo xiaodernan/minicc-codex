@@ -46957,3 +46957,24 @@ CHANGELOG 的上界还停在 T744；批 745–760 的改动（CHANGELOG 合流�
 
 - 不测 `FsTools` 与 `Editor` 的集成（handler 集成测试属另一道面）。
 - `_escapes_workspace` 依赖真实文件系统与 resolve() 语义，交给端到端/CI 冒烟。
+## 批次 766 — M8-T766：agent/check_commands.py 命令切分与身份归一的 16 条用例
+
+### 1 欠的是哪一条
+
+`minicc/agent/check_commands.py` 是验证命令的"切成 argv"和"显示变体归一"的唯一家（M8-T389 共享 `PYTHON_TEST_RUNNERS`），零同名测试（模块→测试映射发现）。
+
+### 2 改动
+
+- 新增 `tests/test_check_commands_invocation_identity.py`（16 条用例）：
+  - `command_parts`：引号/反斜杠转义/未闭合引号/空引号参数/`hi|cat` 不当 shell 管道；
+  - `checker_invocation`：`python|PYTHONPATH-style` `-I|-B|-m|pytest|unittest` 前缀、`.exe` 去尾、非 `-m` 的 python → `("", [])`；
+  - `verification_identity`：`pytest -q` ≡ `python -m pytest -q`（归一到 `("pytest","tests/x.py")`）、`./` 与 `.\` 前缀去除、仅 verbosity 标志被剔除、非测试 runner 回退到 argv 分词。
+
+### 3 验证
+
+- `pytest tests/test_check_commands_invocation_identity.py -q` → **16 passed**。
+
+### 4 边界
+
+- 不测 `verification_plan` 的手指印与缓存（另一道模块、更大的面）。
+- 不改 check_commands.py 任何一行。
