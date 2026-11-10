@@ -46516,3 +46516,26 @@ entry = '''
 with open(p, 'a', encoding='utf-8', newline='\n') as fh:
     fh.write(entry.lstrip('\n'))
 print('ok')
+import sys
+from pathlib import Path
+sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+p = Path('docs/ROADMAP_TO_PRODUCT.md')
+entry = '''
+## 批次 743 — M8-T743：README 接上 INDEX.md
+
+### 1 欠的是哪一条
+
+Index 建成但 README 仍不提它——读者从根目录进直接看 README，但永远不会知道 `docs/INDEX.md`。
+
+### 2 改动
+
+- `README.md`：在「当前能力」中指向 `docs/INDEX.md`（"文档索引：按首次 → 运维 → 部署 → 扩展 → 审计分组的阅读路径"）。
+
+### 3 验证
+
+- `python scripts/doc_pointers.py --check` → rc=0。
+- README 任何原文未动；新增一行。
+'''
+with open(p, 'a', encoding='utf-8', newline='\n') as fh:
+    fh.write(entry.lstrip('\n'))
+print('ok')

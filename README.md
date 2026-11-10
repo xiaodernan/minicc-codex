@@ -46,6 +46,7 @@
 - 交互命令：`/help`、`/tools`、`/status`、`/view`、`/cost`、`/doctor`、`/compact`、`/collapse`、`/expand [n]`、`/clear`、`/exit`。
 - 首小时手册：`docs/FIRST_HOUR.md`（按装→setup→doctor→stats→version→首次进模型的顺序给出实测输出）。
 - 发布节奏与版本号：`minicc/__init__.py::__version__` 是唯一版本号家；v0.2.0 汇总见 `docs/CHANGELOG.md`。
+- 文档索引：`docs/INDEX.md` — 按「首次 → 运维 → 部署 → 扩展 → 审计」分组的阅读路径。
 - CLI 阅读位置：工具输出默认只显示人类可读摘要；`/expand [n]` 按需查看单条原始结果，`--verbose-tools` 可启动时展开。`--session-id interview-1` 会保存脱敏的阅读锚点和最近工具索引，`--resume` 恢复会话与显示偏好。
 
 运行与数据策略：
