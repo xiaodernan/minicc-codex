@@ -46822,3 +46822,22 @@ T756 双腿 Python 都红了，唯一失败：
 
 - 门只管这一行的互见性，不校验每个命令的语义。
 - 不改 commands.py 任何一行。
+## 批次 760 — M8-T760：static_assets 响应契约的 10 条用例
+
+### 1 欠的是哪一条
+
+`minicc/static_assets.py` 是浏览器静态资产的唯一出口，零同名测试（模块→测试映射审计发现）。它承载 `Cache-Control: immutable` 一年长缓存（正确性强依赖 ETag 稳定），`X-Content-Type-Options: nosniff`、gzip、内容寻址改写、遍历防护——全是密集、确定性、可细测的逻辑。
+
+### 2 改动
+
+- 新增 `tests/test_static_assets_response_contract.py`（10 条用例）：缺文件/遍历逃逸、`.js` Content-Type、ETag 稳定 + 算法形状、1KB 以上文本 gzip、小文件不 gzip、`assets/<name>.<16-hex>.js|css` → immutable、普通资产 → `no-cache`、manifest 改写 HTML 里资产名、安全头（nosniff、Vary）。
+- 全部用 `tmp_path` 造资产树；不碰真实 `web/`。
+
+### 3 验证
+
+- `pytest tests/test_static_assets_response_contract.py -q` → **10 passed**。
+
+### 4 边界
+
+- 不改 `static_assets.py` 任何一行。
+- 不测 `web_root()`/`ide_root()` 的真实安装布局（属集成面）。
