@@ -46281,3 +46281,31 @@ CI run 42655989951（HEAD=38a2111，两腿：Ubuntu failure / Windows failure）
 ### 4 边界
 
 - 本批只加指针，不改模块或构建；Java 面不动。
+
+## 批次 733 — M8-T733：服务面运维手册 — `docs/SERVICE_PLANE_OPERATOR.md`
+
+### 1 欠的是哪一条
+
+`docs/SERVICE_PLANE_PLAN.md` 讲规划，`minicc-cloud/README.md` 讲架构，`docs/ROADMAP_TO_PRODUCT.md` 讲批次——**没有一份文档**把「本机怎么把它跑起来看一眼、哪些变量影响什么、返回了什么、能读什么」直白写出来。新机器上的人只能靠 mvn 反复撞。
+
+### 2 改动
+
+新增 **`docs/SERVICE_PLANE_OPERATOR.md`**（逐项实测，不是抄手册）：
+
+1. 拓扑表 + 端口 + 六个模块的守门方式（`mvn -B test` + CI Service plane tests）；
+2. standalone 验证 recipe：造探针 `tasks.db` → `mvn spring-boot:run` → `Started TasksApplication in … seconds`（JVM 25 实测，~4s）；
+3. 三种 curl 实录（200 列表 / 详情 / `limit=999` 被钳：`X-Minicc-Tasks-Truncated: true`，`X-Minicc-Tasks-Limit: 100`）；
+4. 三张环境变量契约表（tasks / inspector / gateway）；
+5. 故障排查五条（`TaskStoreUnavailableException`、404、limit 钳制、Registration failed standalone、allowed-roots）；
+6. `docker compose config --quiet` 实测 → rc=0。
+
+### 3 验证
+
+- 全部 curl 实测输出原文落地；所有引用路径存在（`minicc-cloud/README.md`、`docs/ROADMAP_TO_PRODUCT.md`、`.github/workflows/ci.yml`）。
+- `python scripts/doc_pointers.py --check` → rc=0。
+
+### 4 边界
+
+- 本批不改任何代码/管道；只加一本运维书。
+- 探针用的 `tasks.db` 是人造测试数据，不接触真实 `.minicc/`。
+- 引用只指向本仓已有的文件；未验证的行为不承诺。
