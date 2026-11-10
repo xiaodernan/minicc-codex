@@ -130,5 +130,7 @@ docker compose -f minicc-cloud/docker-compose.yml config --quiet   # rc=0 无错
 
 - `minicc-cloud/README.md`
 - `minicc-cloud/minicc-cloud-config/src/main/resources/config-repo/application.yml`（共享配置）
+- [`docs/SERVICE_PLANE_GATEWAY.md`](SERVICE_PLANE_GATEWAY.md) — 网关两条路由、breaker 参数、暴露的 actuator 端点（本地验证用）
+- `docs/SERVICE_PLANE_PLAN.md`（规划）、`docs/SERVICE_PLANE_OPERATOR.md`（本文）
 - 合流账本：`docs/ROADMAP_TO_PRODUCT.md`
 - 运行/构建 CI：`.github/workflows/ci.yml`

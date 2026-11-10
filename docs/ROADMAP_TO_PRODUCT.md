@@ -46603,3 +46603,27 @@ Ubuntu 腿 `1 failed, 4781 passed, 5 skipped`，唯一红：
 ### 3 验证
 
 - `pytest tests/test_roadmap_does_not_contain_helper_script_source.py -q` → **1 passed**。
+## 批次 749 — M8-T749：SERVICE_PLANE_GATEWAY — 网关路由/breaker 事实档
+
+### 1 欠的是哪一条
+
+运维文档 `docs/SERVICE_PLANE_OPERATOR.md` 讲启动、端到端探查、故障五条，但**没说清楚网关到底转发到了哪一条路由、breaker 凭什么跳、管理面暴露了什么**。阅读 `minicc-cloud-gateway/src/main/resources/application.yml` 才能知道的事实，应当也印在书里。
+
+### 2 改动
+
+- 新增 **`docs/SERVICE_PLANE_GATEWAY.md`**：
+  - 路由两条（`inspector-changes`/`tasks`）及 predicate / filter（RequestSize 先于 CircuitBreaker）；
+  - Resilience4j 参数（`sliding-window-size:10`、`failure-rate-threshold:50%`、`wait-duration-in-open-state:10s`、`permitted-number-of-calls-in-half-open-state:2`）；
+  - `management.endpoints.web.exposure.include`：`health,info,metrics,gateway,circuitbreakers,circuitbreakerevents`；
+  - "不要做的事"：不要把 Doctor/Setup/Stats 通过网关暴露为 HTTP 面s；
+- `docs/SERVICE_PLANE_OPERATOR.md` 增加入口链接。
+
+### 3 验证
+
+- `python scripts/doc_pointers.py --check` → rc=0。
+- 所有声明字面匹配 `minicc-cloud-gateway/src/main/resources/application.yml` 原文。
+
+### 4 边界
+
+- 本批不改任何 Java 配置；只印事实。
+- 管理面端点按 `management.endpoint.health.show-details: when-authorized` 暴露；正文不写未发布的行为。
