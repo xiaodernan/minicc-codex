@@ -46934,3 +46934,26 @@ CHANGELOG 的上界还停在 T744；批 745–760 的改动（CHANGELOG 合流�
 
 - 不改 schemas.py 任何一行。
 - 不测 `ToolResult` 与执行器的集成（"handlers must route it through redact_text…" 属端到端面）。
+## 批次 765 — M8-T765：tools/fs.py 守卫规则的 35 条用例
+
+### 1 欠的是哪一条
+
+`minicc/tools/fs.py` 是"agent 看不到/不能直接动的文件"门的集中处，零同名测试（模块→测试映射发现）。`permissions.json`、`web_token.json`、`allowlist.json`、`mcp.json` 脱敏——都是安全规则而不是风格规则；任何漂移要么让 agent 读了不该读的、要么让界面上出现没脱敏的 token。
+
+### 2 改动
+
+- 新增 `tests/test_fs_deny_rules.py`（35 条用例）：
+  - `_minicc_relative_parts` 归一化：`..` collapse（M8-T266 回归形状 `.minicc/x/../web_token.json` → `("web_token.json",)`）、大小写、Windows 反斜杠；
+  - `_minicc_sensitive_kind`：deny（五文件 + worker/*.config.json）、redact（mcp.json）、None（不涉敏子路径）；
+  - `_redact_mcp_headers`：headers 全脱敏、BOM 容忍、不可解析 → `ToolError`；
+  - `_is_sensitive_path`：`.env` 族、`.env.example`  carve-out、key material 后缀、敏感裸名。
+
+### 3 验证
+
+- `pytest tests/test_fs_deny_rules.py -q` → **35 passed**。
+- `python scripts/doc_pointers.py --check` → rc=0。
+
+### 4 边界
+
+- 不测 `FsTools` 与 `Editor` 的集成（handler 集成测试属另一道面）。
+- `_escapes_workspace` 依赖真实文件系统与 resolve() 语义，交给端到端/CI 冒烟。
