@@ -46978,3 +46978,51 @@ CHANGELOG 的上界还停在 T744；批 745–760 的改动（CHANGELOG 合流�
 
 - 不测 `verification_plan` 的手指印与缓存（另一道模块、更大的面）。
 - 不改 check_commands.py 任何一行。
+## 批次 767 — M8-T767：llm/base.py 线缆形状与 one-home 助手的 15 条用例
+
+### 1 欠的是哪一条
+
+`minicc/llm/base.py` 是 LLM 线缆形状的家（M1-T4 / M8-T356 / M8-T359…），零同名测试（模块→测试映射发现）。它承载着"M1-T4：非终局 finish_reason 不许当正常终局"的白名单，以及"M8-T335：无名工具调用＝模型噪声"的判据。
+
+### 2 改动
+
+- 新增 `tests/test_llm_base_wire_contracts.py`（15 条用例）：
+  - `TERMINAL_FINISH_REASONS` == `{stop, tool_calls}`；
+  - `safe_int` / `as_dict` 容错（坏 framing 不杀整轮）；
+  - `unique_tool_call_id`：空 → fallback、重复 → `-dup2`/`-dup3`（M8-T356 的唯一家）；
+  - `tool_call` 嵌套 shape；`image_part`；`retry_detail`/`stream_retry_summary` 的占位符替换；
+  - `stream_broke_message` 的句子形状；`is_nameless_tool_name` 只命中空白；
+  - `LLMResponse` `text` 属性 + 默认；`assistant_msg` 缺 content 不带键；`user/system/tool_result` shapes。
+
+### 3 验证
+
+- `pytest tests/test_llm_base_wire_contracts.py -q` → **15 passed**。
+
+### 4 边界
+
+- 不测 provider wire 转换（OpenAI/Anthropic 端到端属另一道面）。
+- 不改 base.py 任何一行。
+## 批次 768 — M8-T768：agent/test_selection.py 相关测试选取的 7 条用例
+
+### 1 欠的是哪一条
+
+`minicc/agent/test_selection.py` 是"改动一个模块，该跑哪些测试"的唯一家，零同名测试（模块→测试映射发现）。它的承诺分三件：选对（import 求交）、不漏（M8-T551 不可读文件按相关保留）、不误（非 `.py` 变更一空集）。
+
+### 2 改动
+
+- 新增 `tests/test_test_selection_heuristic.py`（7 条用例）：
+  - `is_test_filename` 真值表；
+  - 同名 `test_<stem>.py` 必选（tests/ 布局）；
+  - `import minicc.bar` / `from minicc.baz import thing` 两种导入形式均可选中相关测试；无关 import 不入选；
+  - 语法坏的测试文件按 M8-T551 保留（不被静默丢弃）；
+  - 非 `.py` 变更 → `[]`；改动的测试文件自身入选。
+
+### 3 验证
+
+- `pytest tests/test_test_selection_heuristic.py -q` → **7 passed**。
+- 用 `tmp_path` 构造假 workspace；`ast` 层导入，不执行代码。
+
+### 4 边界
+
+- 不测 `_SCAN_LIMIT=500` 的超限异常（需 500+ 文件，收益低于成本）。
+- 不改 test_selection.py 任何一行。
