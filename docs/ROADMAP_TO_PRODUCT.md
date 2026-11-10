@@ -46885,3 +46885,52 @@ CHANGELOG 的上界还停在 T744；批 745–760 的改动（CHANGELOG 合流�
 
 - 注册密钥的全局状态进程内残留是预期行为；测试用唯一值。
 - 不测 `configure_logging` 的 handler 装配（端到端面，交给集成测试）；不测 git 大量特性，只验证探测三态与原因句。
+## 批次 763 — M8-T763：stream_merge 方言契约的 15 条用例
+
+### 1 欠的是哪一条
+
+`minicc/llm/stream_merge.py` 是流式文本组装的唯一家，零同名测试（模块→测试映射发现）。它承载 P0-1 的回归承诺："7." + "7.7" → "7.7.7"（增量 byte-for-byte，不去重），只有连续两段整前缀重复 + 增长（`CUMULATIVE_STREAK = 2`）才把流重解释为累积快照。
+
+### 2 改动
+
+- 新增 `tests/test_stream_merge_dialects.py`（15 条用例）：
+  - `append_delta` 空/非空三态；
+  - `CUMULATIVE_STREAK == 2`；
+  - 增量方言：byte-for-byte、单次重复不截断（"7.7.7" 文档例）；
+  - 快照方言：`aa/aab/aabc` 序列触发重解释、`latched_now` 只在那一 feed 置位、重解释后整快照为真；
+  - `merge_retry_snapshot` 四种重叠形状（无前缀/无当前/扩展/重叠/不重叠）。
+
+### 3 验证
+
+- `pytest tests/test_stream_merge_dialects.py -q` → **15 passed**。
+
+### 4 边界
+
+- 不改一行实现；只钉住 docstring 承诺的行为。
+- 不做端到端流式集成（provider 级覆盖另一道测试面）。
+
+---
+
+## 批次 764 — M8-T764：schemas 工具协议形状的 15 条用例
+
+### 1 欠的是哪一条
+
+`minicc/tools/schemas.py` 是工具调用/结果线缆形状的家，零同名测试（模块→测试映射发现）。它的派生集推导（M8-T376）里有幽灵成员 `failed` 的教训——`FAILED_TOOL_RESULT_STATUSES` 必须从词汇推导、不能手抄。
+
+### 2 改动
+
+- 新增 `tests/test_schemas_tool_call_contract.py`（15 条用例）：
+  - `TOOL_RESULT_STATUSES` 顺序；`FAILED_TOOL_RESULT_STATUSES` == {error, denied, timed_out}；`UNSUCCESSFUL_TOOL_RESULT_STATUSES` == {error, denied, cancelled, timed_out}；
+  - `tagged()`、`untrusted_tags()` 每次新列表；
+  - `tool_call_name` 修剪、`ToolCall.from_openai` 容错（坏 JSON → `{}` + `parse_error`；单引号字面量接受）；
+  - `normalized_tool_calls` 只洗名字；
+  - `_clip_raw` 停在天花板并写出 total/dropped 计数句；`record_text` 短/长输出两态；`render()` 空结果/含头尾的形状与 2000/4000 预算广告句。
+
+### 3 验证
+
+- `pytest tests/test_schemas_tool_call_contract.py -q` → **15 passed**。
+
+### 4 边界
+
+- 不改 schemas.py 任何一行。
+- 不测 `ToolResult` 与执行器的集成（"handlers must route it through redact_text…" 属端到端面）。
