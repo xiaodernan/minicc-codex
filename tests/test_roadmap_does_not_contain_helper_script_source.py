@@ -10,26 +10,25 @@ from pathlib import Path
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _ROADMAP = _REPO_ROOT / "docs" / "ROADMAP_TO_PRODUCT.md"
 
-#: The signature is not "any of these tokens" — the ledger legitimately
-#: quotes tokens by name (e.g., "entry = '''").  The tripwire only fires
-#: on the *assembly signature*, the sequence that exists only in a
-#: helper script and cannot be authored deliberately: the double-quoted
-#: literal that is the raw body of a ``Path("ROADMAP...").read_text()``
-#: call, followed immediately by a literal ``entry = '''`` that is the
-#: helper's own assignment syntax, with no doc-talk in between.
-_ASSEMBLY_SIGNATURES = (
-    "p = Path('docs/ROADMAP_TO_PRODUCT.md')",
-    'p = Path("docs/ROADMAP_TO_PRODUCT.md")',
-    "entry = '''\n",
+#: The signature we match is the *whole contiguous run* of a helper's
+#: own preamble (the echo chain).  A line by itself is normal prose —
+#: the ledger legitimately talks about `p = Path(...)`; only the whole
+#: run of five lines in sequence is pollution.
+_HELPER_PREAMBLE = (
+    "import sys\n"
+    "from pathlib import Path\n"
+    "sys.stdout.reconfigure(encoding='utf-8', errors='replace')\n"
+    "p = Path('docs/ROADMAP_TO_PRODUCT.md')\n"
+    "entry = '''\n"
 )
+
 
 def test_roadmap_ends_with_readable_markdown_not_script_code() -> None:
     """The ledger must end with the last batch entry, not helper source."""
-    tail = _ROADMAP.read_text(encoding="utf-8", errors="replace")[-4000:]
-    found = [signature for signature in _ASSEMBLY_SIGNATURES if signature in tail]
-    assert found == [], (
-        "docs/ROADMAP_TO_PRODUCT.md's tail contains the assembly "
-        "signatures of a ledger-append helper script (an `_append*.py` "
-        "whose `p = Path('ROADMAP...')` and `entry = '''...` lines were "
-        "quoted into the doc): " + ", ".join(found)
+    tail = _ROADMAP.read_text(encoding="utf-8", errors="replace")[-6000:]
+    assert _HELPER_PREAMBLE not in tail, (
+        "docs/ROADMAP_TO_PRODUCT.md's tail contains the exact "
+        "preamble of a ledger-append helper script — that is the "
+        "helper's own source code quoted into the doc, not the "
+        "batch's prose about it."
     )

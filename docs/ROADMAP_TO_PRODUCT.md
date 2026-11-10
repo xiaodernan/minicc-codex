@@ -46590,3 +46590,16 @@ Ubuntu 腿 `1 failed, 4781 passed, 5 skipped`，唯一红：
 ## 批次 747b — M8-T747b：ledger 用同款装配签名又串一次（修复）
 
 批 747 的条目文本误用了与 gate 相同形状的子串；本批把它改为 `<ROADMAP>` 占位，门重现通过。
+## 批次 748 — M8-T748：test_roadmap gate 改写为"整段预装"匹配
+
+### 1 欠的是哪一条
+
+批 746/747 一连两次因 gate 不够严格 red（宽谱到匹配到正文被描述的句子、连续上两轮）。**目的不是禁 `import sys` 字母——而是禁 helper 本体的原生前导**。
+
+### 2 改动
+
+- `test_roadmap_does_not_contain_helper_script_source.py`：`_ASSEMBLY_SIGNATURES` 换成 `_HELPER_PREAMBLE` 5 行原生序列（含路径、含 `entry =`）；tail 窗口扩大到 6000 字节；文案解释一"单行出现是普通文字，五行连续出现就是门自检的真正污染"。
+
+### 3 验证
+
+- `pytest tests/test_roadmap_does_not_contain_helper_script_source.py -q` → **1 passed**。
