@@ -46327,3 +46327,22 @@ M8-T733 落地的运维手册有实测内容（tasks 探针启动、curl 实录�
 ### 4 边界
 
 - 只加一句链接，不动其他行。
+
+## 批次 735 — M8-T735：保留 `cost`/`doctor` 两个内置命令名，避免自定义 .md 影子化内置
+
+### 1 欠的是哪一条
+
+`minicc/commands.py::RESERVED_COMMAND_NAMES` 是 ".md custom command may not shadow a builtin REPL command" 的单一源——`/help` · `/tools` · `/status` · `/view` · `/compact` · `/collapse` · `/expand` · `/clear` · `/exit` · `/quit` 已在保留位；但 M8-T687 落地的 `/cost` 与批次 731 的 `/doctor` 却仍在保留位之外。一个 `.minicc/commands/doctor.md` 就会让用户输 `/doctor` 时走到自定义模板展开，而不是自检。
+
+### 2 改动
+
+- `minicc/commands.py`：`RESERVED_COMMAND_NAMES` 加 `cost`、`doctor`。
+
+### 3 验证
+
+- `pytest tests/test_slash_commands.py tests/test_the_package_does_not_import_what_it_does_not_use.py -q` → **12 passed**。
+
+### 4 边界
+
+- 不改任何展开路径（`expand_slash_command`、`RESERVED_COMMAND_NAMES` 语义不变）；
+- 不把 `/doctor` 专门排除出自定义——自定义名只能避开内置名，内置名不可替换。

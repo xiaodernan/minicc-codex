@@ -31,7 +31,7 @@ MAX_COMMAND_BODY_CHARS = 16_000
 MAX_SKILL_DESCRIPTION_CHARS = 400
 RESERVED_COMMAND_NAMES = frozenset({
     "help", "tools", "status", "view", "compact", "collapse", "expand",
-    "clear", "exit", "quit",
+    "clear", "exit", "quit", "cost", "doctor",
 })
 _NAME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_-]{0,63}$")
 _POSITIONAL_RE = re.compile(r"\$\[?[1-9]\]?")
