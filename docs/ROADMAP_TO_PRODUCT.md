@@ -46346,3 +46346,28 @@ M8-T733 落地的运维手册有实测内容（tasks 探针启动、curl 实录�
 
 - 不改任何展开路径（`expand_slash_command`、`RESERVED_COMMAND_NAMES` 语义不变）；
 - 不把 `/doctor` 专门排除出自定义——自定义名只能避开内置名，内置名不可替换。
+## 批次 736 — M8-T736：`docs/CHANGELOG.md` 落地 — 汇总 2026-09-20 至 2026-11-10 的完整合流
+
+### 1 欠的是哪一条
+
+734+ 批合流落到 `main`、六个工作树并入、20 个本地分支被删、服务面五模块、`--doctor` 系列命令全部交付——**没有任何一处**对新读者讲"本仓现在是什么、合流了哪些、有哪些已知边界"。README 是特性清单，不擅长叙事；`docs/ROADMAP_TO_PRODUCT.md` 是批次账本，不擅长总结。
+
+### 2 改动
+
+新增 **`docs/CHANGELOG.md`**：
+- M1..M8 按"主题 / 落地重点"逐里程碑汇总（引用证据不重述原文）；
+- 本轮合流批次 M8-T686 → M8-T735 的具体交付面（doctor/stats/REPL-doctor/服务面/指针门/宽面名册/句柄门/M6-4 退化读者/快照 deny-once/cost·doctor 保留字/README 服务面/运维手册）；
+- 已知边界（packaging 门 Windows CI-only、nightly skip、SSE 孤儿镜像未实现）；
+- 版本号单一事实家声明（`minicc/__init__.py::__version__`）。
+
+README 回写一行「发布节奏与版本号」指向 CHANGELOG。
+
+### 3 验证
+
+- `python scripts/doc_pointers.py --check` → rc=0。
+- 引用路径全部 tracked：`benchmarks/tasks.v2.json`、`scripts/reliability_probe.py`、`minicc/doctor.py`、`minicc/setup.py`、`minicc/stats.py`、`docs/SERVICE_PLANE_PLAN.md`、`docs/SERVICE_PLANE_OPERATOR.md`、`docs/ONE_FACT_ONE_HOME.md`、`docs/ROADMAP_TO_PRODUCT.md`、`minicc/commands.py`。
+
+### 4 边界
+
+- 不写死散落在各文档里同名的相互矛盾的出处；每个事实给出主要出处。
+- 不改既有文档章节结构；只在 README 追加一行指针。
