@@ -22,7 +22,7 @@ minicc:
     tasks:
       # The Python engine owns this file (`TaskStore` in minicc/task_store.py);
       # this service only ever opens it read-only.
-      db: ${MINICC_STATE:../.minicc}/tasks.db
+      db: ${MINICC_STATE:../.minicc}/tasks.sqlite3
       # Standalone fallback, not a second source of truth: the served value
       # lives in the config server's minicc-cloud-tasks.yml.
       max-limit: ${MINICC_TASKS_MAX_LIMIT:100}

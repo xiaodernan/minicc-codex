@@ -13,7 +13,7 @@
 | `minicc-cloud-registry` | 8761 | Eureka 服务发现 |
 | `minicc-cloud-config` | 8888 | Config Server（native），`config-repo/` 下的共享/服务专属 yml |
 | `minicc-cloud-inspector` | 8081 | 只读工作区诊断：`/api/changes`、`/api/capabilities` |
-| `minicc-cloud-tasks` | 8082 | 只读任务历史（SQLite `tasks.db`），`db` 来自 `MINICC_STATE` |
+| `minicc-cloud-tasks` | 8082 | 只读任务历史（SQLite `tasks.sqlite3`），`db` 来自 `MINICC_STATE` |
 | `minicc-cloud-gateway` | 8080 | 路由 + Resilience4j 熔断，`/api/changes`、`/api/tasks*` |
 | `minicc-cloud-bridge` | —（库） | 生命周期管理 Python 子进程，凭据脱敏 |
 
@@ -24,12 +24,12 @@
 以下步骤已逐步跑通；被测环境为 JDK 25 + Maven 3.9，全部在本机对话中执行：
 
 ```powershell
-# 1. 造一个探针用的 tasks.db（绝不读写真实 .minicc/）
+# 1. 造一个探针用的 tasks.sqlite3（绝不读写真实 .minicc/）
 python - <<'PY'
 import sqlite3, json, pathlib
 root = pathlib.Path(r'C:\path\to\probe')
 root.mkdir(parents=True, exist_ok=True)
-db = root / 'tasks.db'
+db = root / 'tasks.sqlite3'
 conn = sqlite3.connect(str(db))
 conn.execute('CREATE TABLE IF NOT EXISTS tasks (task_id TEXT PRIMARY KEY, created_at DOUBLE, workspace_path TEXT, payload TEXT)')
 payload = {'task_id': 't-demo-1', 'status': 'completed', 'preview': 'demo task', 'created_at': 1762720000.0}
@@ -44,7 +44,7 @@ set MINICC_STATE=C:\path\to\probe
 mvn spring-boot:run
 ```
 
-启动日志出现 `Started TasksApplication in ... seconds` 即可。容器读取 `${MINICC_STATE}/tasks.db`（表 `tasks`：`task_id TEXT PRIMARY KEY, created_at DOUBLE, workspace_path TEXT, payload TEXT`）；`mode=ro` 打开。
+启动日志出现 `Started TasksApplication in ... seconds` 即可。容器读取 `${MINICC_STATE}/tasks.sqlite3`（表 `tasks`：`task_id TEXT PRIMARY KEY, created_at DOUBLE, workspace_path TEXT, payload TEXT`）；`mode=ro` 打开。
 
 ## 3. 三种调用实录
 
@@ -84,7 +84,7 @@ X-Minicc-Tasks-Limit: 100
 
 | 变量 | 默认值 | 作用 |
 | --- | --- | --- |
-| `MINICC_STATE` | `../.minicc` | `tasks.db` 所在目录 |
+| `MINICC_STATE` | `../.minicc` | `tasks.sqlite3` 所在目录 |
 | `MINICC_TASKS_MAX_LIMIT` | `100` | 客户端 `limit` 服务端天花板（standalone） |
 | `CONFIG_SERVER` | `http://localhost:8888` | 可选；未启动时按 standalone |
 | `EUREKA_ZONE` | `http://localhost:8761/eureka/` | 可选；未启动 `Registration failed` 警告后 standalone |
@@ -108,7 +108,7 @@ X-Minicc-Tasks-Limit: 100
 ## 5. 故障排查
 
 - Q：`TaskStoreUnavailableException` →「任务库读取失败」
-  A：`MINICC_STATE` 没指到 `tasks.db` 目录，或文件不存在/损坏。建文件或修正 `MINICC_STATE`。
+  A：`MINICC_STATE` 没指到 `tasks.sqlite3` 目录，或文件不存在/损坏。建文件或修正 `MINICC_STATE`。
 - Q：curl 返回 404
   A：`{taskId}` 不在库里。任务 ID 由 Python 引擎在 `minicc/task_manager.py` 生成，手填必 404。
 - Q：`limit` 被静默钳到 100

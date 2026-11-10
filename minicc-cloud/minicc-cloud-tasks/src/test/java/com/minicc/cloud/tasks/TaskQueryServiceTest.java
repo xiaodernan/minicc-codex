@@ -103,7 +103,7 @@ class TaskQueryServiceTest {
 
     @Test
     void aMissingDatabaseIsReportedWithItsPath() {
-        Path missing = temp.resolve("no-such-directory").resolve("tasks.db");
+        Path missing = temp.resolve("no-such-directory").resolve("tasks.sqlite3");
         TasksProperties absent = new TasksProperties(missing.toString(), 100);
         TaskService reader = new TaskService(new TaskStore(absent), absent, new ObjectMapper());
 

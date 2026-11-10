@@ -47026,3 +47026,25 @@ CHANGELOG 的上界还停在 T744；批 745–760 的改动（CHANGELOG 合流�
 
 - 不测 `_SCAN_LIMIT=500` 的超限异常（需 500+ 文件，收益低于成本）。
 - 不改 test_selection.py 任何一行。
+## 批次 769 — M8-T769：真实漂移修 — Java tasks 服务默认读 `tasks.db`，Python 写的是 `tasks.sqlite3`
+
+### 1 欠的是哪一条
+
+并轨审计发现：Java 的 `minicc-cloud-tasks` 默认读 `${MINICC_STATE:../.minicc}/tasks.db`；但 Python 引擎唯一写入的是 `<workspace>/.minicc/tasks.sqlite3`（`session.py`、`stats.py`、`task_manager.py`、`task_store.py` 均为 `tasks.sqlite3`）。compose `tasks` 服务挂载真实 `.minicc/`（只读），默认永远 503，哪怕权限全开、文件本就存在。这是"一事一源"违规落在运行时配置里。
+
+### 2 改动
+
+- `minicc-cloud/minicc-cloud-tasks/src/main/resources/application.yml`：默认 `db: ${MINICC_STATE:../.minicc}/tasks.sqlite3`。
+- 测试 fixture 与"缺文件"用例：`tasks.db` → `tasks.sqlite3`（文件名一致，避免两手拼写）。
+- `docs/SERVICE_PLANE_OPERATOR.md`：端口表、探针剧本、MINICC_STATE 行、故障排查 A 同步改名。
+- `docs/ROADMAP_TO_PRODUCT.md` 历史批次叙述**未改动**（账本只追加、不改写）。
+
+### 3 验证
+
+- `mvn -B -pl minicc-cloud-tasks -am test` → **BUILD SUCCESS**，14 个用例全绿（fixture 不吃默认值，env 属性注入）。
+
+### 4 边界与事故记录
+
+- 第一次编辑用 PowerShell `WriteAllText` 写了 UTF-8 BOM，javac 报 `\ufeff` 非法，`mvn test` 挂红——**本身就成为一次"不许照此法再来"的现场**：BOM 已被剥掉、`git diff` 复核仅 5 个文件、每处仅一行改名。
+- 不改 Java 逻辑、配置键名 `minicc.cloud.tasks.db` 保持不变（env 覆盖仍是逃生通道）。
+- 探针剧本不变。

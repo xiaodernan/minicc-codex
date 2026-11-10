@@ -93,7 +93,7 @@ class TaskControllerTest {
 
     @Test
     void aMissingDatabaseIsA503ThatNamesThePathAndNeverAnEmptyArray() throws Exception {
-        Path missing = temp.resolve("nowhere").resolve("tasks.db");
+        Path missing = temp.resolve("nowhere").resolve("tasks.sqlite3");
         MockMvc absent = mvcFor(missing, 2);
 
         MvcResult result = absent.perform(get("/api/tasks"))

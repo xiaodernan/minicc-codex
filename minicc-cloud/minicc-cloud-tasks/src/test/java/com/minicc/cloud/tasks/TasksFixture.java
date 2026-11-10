@@ -21,7 +21,7 @@ final class TasksFixture {
     }
 
     static Path database(Path directory) {
-        Path db = directory.resolve("tasks.db");
+        Path db = directory.resolve("tasks.sqlite3");
         try (Connection connection = DriverManager.getConnection("jdbc:sqlite:" + db);
                 Statement statement = connection.createStatement()) {
             statement.execute("""
