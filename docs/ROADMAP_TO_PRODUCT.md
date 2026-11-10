@@ -46862,3 +46862,26 @@ CHANGELOG 的上界还停在 T744；批 745–760 的改动（CHANGELOG 合流�
 
 - 不改任何已合流 M 里程碑的叙述。
 - 不改版本号——`minicc/__init__.py::__version__` 仍是唯一版本号家。
+## 批次 762 — M8-T762：gitprobe + logging_setup 两个"零同名测试"模块补齐（21 条用例）
+
+### 1 欠的是哪一条
+
+模块→测试映射审计发现两个安全/判定敏感、确定性强的模块零同名测试：
+
+- `minicc/gitprobe.py` —— "目录是不是 git 工作树"的唯一家 + `git status` 失败原因句三个构造器（跨 change-view / agent loop / snapshot 共享）。
+- `minicc/logging_setup.py` —— "日志只许去 stderr、密钥必须脱敏"的唯一家；最易静默失败（配错了不报错、密钥没脱日志照常转）也是安全敏感路径。
+
+### 2 改动
+
+- 新增 `tests/test_gitprobe_verdicts_and_reason_words.py`（10 条用例）：verdict 词汇常量（`yes`/`no`/`unknown`）；临时 `git init` 仓库（根/子目录）→ `yes`；普通目录 → `no`；`subprocess.run` 抛异常 → `unknown`；`git_status_unavailable_reason(None/exc)` 携带超时秒数与主语；`timeout_reason` 携带秒数；`exit_reason` 只带 stderr 第一行。
+- 新增 `tests/test_logging_setup_contract.py`（11 条用例）：`resolve_level` 的宽松输入、注册密钥掩码（`[REDACTED:credential]`、word-shaped 值只匹配独立位置——钉住 M8-T520 的签名）、"`[REDACTED:credential]` 原样不生长"；`describe_event` 的 shape、detail 键 allowlist、summary 截断。
+
+### 3 验证
+
+- `pytest tests/test_gitprobe_verdicts_and_reason_words.py tests/test_logging_setup_contract.py -q` → **21 passed**。
+- `python scripts/doc_pointers.py --check` → rc=0。
+
+### 4 边界
+
+- 注册密钥的全局状态进程内残留是预期行为；测试用唯一值。
+- 不测 `configure_logging` 的 handler 装配（端到端面，交给集成测试）；不测 git 大量特性，只验证探测三态与原因句。
