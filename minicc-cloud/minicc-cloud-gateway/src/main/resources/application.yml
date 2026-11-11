@@ -82,6 +82,19 @@ management:
     health:
       show-details: when-authorized
 
+spring:
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+      lettuce:
+        shutdown-timeout: 200ms
+  cache:
+    type: redis
+    cache-names: gateway-routes
+    redis:
+      time-to-live: 60s
+
 resilience4j:
   circuitbreaker:
     instances:
