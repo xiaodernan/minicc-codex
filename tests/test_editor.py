@@ -65,9 +65,9 @@ def test_resolve_in_workspace_absolute_path_rejected(tmp_path: Path) -> None:
     workspace = tmp_path / "ws"
     workspace.mkdir()
 
-    # On Windows, "/etc/passwd" is treated as relative (no drive letter)
-    # so it goes through the "超出 workspace 根" path.
-    with pytest.raises(EditError, match="超出 workspace 根"):
+    # On Linux, '/etc/passwd' is absolute; on Windows it's relative.
+    # Either way, the path is rejected.
+    with pytest.raises(EditError):
         resolve_in_workspace(workspace, "/etc/passwd")
 
 
