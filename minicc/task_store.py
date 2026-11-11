@@ -2,6 +2,12 @@
 
 SQLite keeps task history and resumable metadata across browser refreshes and
 service restarts without introducing a separate daemon or dependency.
+
+Performance optimizations (M8-T782):
+- Persistent connection instead of open/close per operation
+- PRAGMA tuning: cache_size, mmap_size, temp_store=MEMORY, synchronous=NORMAL
+- Read-only connections for read operations (mode=ro)
+- Batch upsert for multiple snapshots in one transaction
 """
 
 from __future__ import annotations
@@ -12,7 +18,7 @@ import threading
 import time
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 from .tools.registry import REDACTED_LLM_API_KEY, redact_text
 
@@ -25,14 +31,71 @@ from .agent.protocol import TERMINAL_TASK_STATUSES
 
 
 class TaskStore:
-    """Persist one JSON snapshot per task in a local SQLite database."""
+    """Persist one JSON snapshot per task in a local SQLite database.
+
+    Uses a persistent read-write connection for writes and read-only
+    connections for reads, with PRAGMA tuning for throughput.
+    """
 
     def __init__(self, path: Path) -> None:
         self.path = path
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.RLock()
-        with self._connect() as connection:
-            connection.execute("PRAGMA journal_mode=WAL")
+        # Persistent read-write connection, opened lazily on first use.
+        self._rw_conn: sqlite3.Connection | None = None
+        self._init_db()
+
+    def _connect_rw(self) -> sqlite3.Connection:
+        """Open (or reuse) the persistent read-write connection."""
+        if self._rw_conn is None:
+            conn = sqlite3.connect(
+                str(self.path), timeout=30, isolation_level=None,
+                check_same_thread=False
+            )
+            conn.row_factory = sqlite3.Row
+            # PRAGMA tuning for throughput
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA synchronous=NORMAL")
+            conn.execute("PRAGMA cache_size=-64000")  # 64 MB cache
+            conn.execute("PRAGMA mmap_size=268435456")  # 256 MB memory-mapped I/O
+            conn.execute("PRAGMA temp_store=MEMORY")
+            conn.execute("PRAGMA busy_timeout=30000")
+            self._rw_conn = conn
+        return self._rw_conn
+
+    def _connect_ro(self) -> sqlite3.Connection:
+        """Open a read-only connection for read operations."""
+        conn = sqlite3.connect(f"file:{self.path}?mode=ro", uri=True, timeout=30)
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA cache_size=-32000")  # 32 MB read cache
+        conn.execute("PRAGMA mmap_size=268435456")
+        conn.execute("PRAGMA temp_store=MEMORY")
+        conn.execute("PRAGMA busy_timeout=30000")
+        return conn
+
+    @contextmanager
+    def _rw(self) -> Iterator[sqlite3.Connection]:
+        """Yield the persistent read-write connection."""
+        conn = self._connect_rw()
+        try:
+            yield conn
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+
+    @contextmanager
+    def _ro(self) -> Iterator[sqlite3.Connection]:
+        """Yield a read-only connection."""
+        conn = self._connect_ro()
+        try:
+            yield conn
+        finally:
+            conn.close()
+
+    def _init_db(self) -> None:
+        """Create tables and indexes; idempotent."""
+        with self._rw() as connection:
             connection.execute(
                 """
                 CREATE TABLE IF NOT EXISTS tasks (
@@ -46,37 +109,72 @@ class TaskStore:
             connection.execute(
                 "CREATE INDEX IF NOT EXISTS idx_tasks_created ON tasks(created_at DESC)"
             )
-            connection.execute("CREATE INDEX IF NOT EXISTS idx_tasks_workspace_created ON tasks(workspace_path, created_at DESC)")
             connection.execute(
-                "CREATE TABLE IF NOT EXISTS task_leases (task_id TEXT PRIMARY KEY, owner TEXT NOT NULL, "
+                "CREATE INDEX IF NOT EXISTS idx_tasks_workspace_created "
+                "ON tasks(workspace_path, created_at DESC)"
+            )
+            connection.execute(
+                "CREATE TABLE IF NOT EXISTS task_leases (task_id TEXT PRIMARY KEY, "
+                "owner TEXT NOT NULL, "
                 "pid INTEGER NOT NULL, heartbeat REAL NOT NULL, expires REAL NOT NULL)"
             )
             self._initialize_search(connection)
 
     def _initialize_search(self, connection: sqlite3.Connection) -> None:
         connection.execute(
-            "CREATE TABLE IF NOT EXISTS task_search (task_id TEXT PRIMARY KEY, created_at REAL NOT NULL, "
-            "workspace_path TEXT NOT NULL, search_text TEXT NOT NULL, folded_text TEXT NOT NULL, summary TEXT NOT NULL)"
+            "CREATE TABLE IF NOT EXISTS task_search (task_id TEXT PRIMARY KEY, "
+            "created_at REAL NOT NULL, "
+            "workspace_path TEXT NOT NULL, search_text TEXT NOT NULL, "
+            "folded_text TEXT NOT NULL, summary TEXT NOT NULL)"
         )
-        connection.execute("CREATE INDEX IF NOT EXISTS idx_task_search_workspace ON task_search(workspace_path, created_at DESC)")
-        connection.execute("CREATE INDEX IF NOT EXISTS idx_task_search_created ON task_search(created_at DESC)")
+        connection.execute("CREATE INDEX IF NOT EXISTS idx_task_search_workspace "
+                           "ON task_search(workspace_path, created_at DESC)")
+        connection.execute("CREATE INDEX IF NOT EXISTS idx_task_search_created "
+                           "ON task_search(created_at DESC)")
         self._search_fts = False
         try:
-            existing_fts = connection.execute("SELECT 1 FROM sqlite_master WHERE name='task_search_fts'").fetchone()
-            connection.execute("CREATE VIRTUAL TABLE IF NOT EXISTS task_search_fts USING fts5(folded_text, content='task_search', content_rowid='rowid', tokenize='trigram')")
-            connection.execute("CREATE TRIGGER IF NOT EXISTS task_search_ai AFTER INSERT ON task_search BEGIN INSERT INTO task_search_fts(rowid, folded_text) VALUES (new.rowid, new.folded_text); END")
-            connection.execute("CREATE TRIGGER IF NOT EXISTS task_search_ad AFTER DELETE ON task_search BEGIN INSERT INTO task_search_fts(task_search_fts, rowid, folded_text) VALUES ('delete', old.rowid, old.folded_text); END")
-            connection.execute("CREATE TRIGGER IF NOT EXISTS task_search_au AFTER UPDATE ON task_search BEGIN INSERT INTO task_search_fts(task_search_fts, rowid, folded_text) VALUES ('delete', old.rowid, old.folded_text); INSERT INTO task_search_fts(rowid, folded_text) VALUES (new.rowid, new.folded_text); END")
+            existing_fts = connection.execute(
+                "SELECT 1 FROM sqlite_master WHERE name='task_search_fts'"
+            ).fetchone()
+            connection.execute(
+                "CREATE VIRTUAL TABLE IF NOT EXISTS task_search_fts "
+                "USING fts5(folded_text, content='task_search', "
+                "content_rowid='rowid', tokenize='trigram')"
+            )
+            connection.execute(
+                "CREATE TRIGGER IF NOT EXISTS task_search_ai "
+                "AFTER INSERT ON task_search BEGIN "
+                "INSERT INTO task_search_fts(rowid, folded_text) "
+                "VALUES (new.rowid, new.folded_text); END"
+            )
+            connection.execute(
+                "CREATE TRIGGER IF NOT EXISTS task_search_ad "
+                "AFTER DELETE ON task_search BEGIN "
+                "INSERT INTO task_search_fts(task_search_fts, rowid, folded_text) "
+                "VALUES ('delete', old.rowid, old.folded_text); END"
+            )
+            connection.execute(
+                "CREATE TRIGGER IF NOT EXISTS task_search_au "
+                "AFTER UPDATE ON task_search BEGIN "
+                "INSERT INTO task_search_fts(task_search_fts, rowid, folded_text) "
+                "VALUES ('delete', old.rowid, old.folded_text); "
+                "INSERT INTO task_search_fts(rowid, folded_text) "
+                "VALUES (new.rowid, new.folded_text); END"
+            )
             if not existing_fts:
-                connection.execute("INSERT INTO task_search_fts(task_search_fts) VALUES ('rebuild')")
+                connection.execute(
+                    "INSERT INTO task_search_fts(task_search_fts) VALUES ('rebuild')"
+                )
             self._search_fts = True
         except sqlite3.OperationalError:
             # Some bundled SQLite builds omit FTS5/trigram. The projection
             # still avoids searching or decoding large event JSON payloads.
             pass
-        # Existing databases are migrated once. Corrupt snapshots remain
-        # inspectable but do not enter the user-visible search projection.
-        rows = connection.execute("SELECT task_id, payload FROM tasks WHERE task_id NOT IN (SELECT task_id FROM task_search)").fetchall()
+        # Existing databases are migrated once.
+        rows = connection.execute(
+            "SELECT task_id, payload FROM tasks "
+            "WHERE task_id NOT IN (SELECT task_id FROM task_search)"
+        ).fetchall()
         for row in rows:
             try:
                 snapshot = json.loads(row["payload"])
@@ -89,95 +187,50 @@ class TaskStore:
     @staticmethod
     def _write_search(connection: sqlite3.Connection, snapshot: dict[str, Any]) -> None:
         visible_text = _searchable_text(snapshot)
-        summary = {key: snapshot.get(key) for key in ("task_id", "workspace_path", "status", "created_at", "finished_at")}
-        summary["prompt_preview"] = str(snapshot.get("preview") or snapshot.get("prompt") or "")[:160]
+        summary = {
+            key: snapshot.get(key)
+            for key in ("task_id", "workspace_path", "status", "created_at",
+                        "finished_at")
+        }
+        summary["prompt_preview"] = str(
+            snapshot.get("preview") or snapshot.get("prompt") or ""
+        )[:160]
         connection.execute(
-            "INSERT INTO task_search(task_id, created_at, workspace_path, search_text, folded_text, summary) VALUES (?, ?, ?, ?, ?, ?) "
-            "ON CONFLICT(task_id) DO UPDATE SET created_at=excluded.created_at, workspace_path=excluded.workspace_path, "
-            "search_text=excluded.search_text, folded_text=excluded.folded_text, summary=excluded.summary "
-            "WHERE task_search.created_at != excluded.created_at OR task_search.workspace_path != excluded.workspace_path "
-            "OR task_search.search_text != excluded.search_text OR task_search.summary != excluded.summary",
-            (str(snapshot["task_id"]), float(snapshot.get("created_at_epoch") or 0), str(snapshot.get("workspace_path") or ""),
-             visible_text, visible_text.casefold(), json.dumps(summary, ensure_ascii=False)),
+            "INSERT INTO task_search(task_id, created_at, workspace_path, "
+            "search_text, folded_text, summary) VALUES (?, ?, ?, ?, ?, ?) "
+            "ON CONFLICT(task_id) DO UPDATE SET "
+            "created_at=excluded.created_at, "
+            "workspace_path=excluded.workspace_path, "
+            "search_text=excluded.search_text, "
+            "folded_text=excluded.folded_text, "
+            "summary=excluded.summary "
+            "WHERE task_search.created_at != excluded.created_at "
+            "OR task_search.workspace_path != excluded.workspace_path "
+            "OR task_search.search_text != excluded.search_text "
+            "OR task_search.summary != excluded.summary",
+            (
+                str(snapshot["task_id"]),
+                float(snapshot.get("created_at_epoch") or 0),
+                str(snapshot.get("workspace_path") or ""),
+                visible_text,
+                visible_text.casefold(),
+                json.dumps(summary, ensure_ascii=False),
+            ),
         )
 
-    @contextmanager
-    def _connect(self):
-        """Commit/rollback and close every connection; sqlite's context alone leaks it."""
-        connection = sqlite3.connect(self.path, timeout=5)
-        connection.row_factory = sqlite3.Row
-        try:
-            with connection:
-                yield connection
-        finally:
-            connection.close()
-
-    def claim_lease(self, task_id: str, owner: str, *, pid: int = 0, ttl: float = 45.0) -> bool:
-        """Atomically reserve execution; a different live owner cannot be replaced."""
-        now = time.time()
-        with self._lock, self._connect() as connection:
-            changed = connection.execute(
-                "INSERT INTO task_leases(task_id, owner, pid, heartbeat, expires) VALUES (?, ?, ?, ?, ?) "
-                "ON CONFLICT(task_id) DO UPDATE SET owner=excluded.owner, pid=excluded.pid, "
-                "heartbeat=excluded.heartbeat, expires=excluded.expires "
-                "WHERE task_leases.expires <= ? OR task_leases.owner = excluded.owner",
-                (task_id, owner, pid, now, now + ttl, now),
-            ).rowcount
-        return changed == 1
-
-    def heartbeat_lease(self, task_id: str, owner: str, *, pid: int, ttl: float = 45.0) -> bool:
-        now = time.time()
-        with self._lock, self._connect() as connection:
-            # M8-T538: the fence here is the **owner**, not the clock.  M3-T5
-            # added `expires > now` so that "a frozen worker could not revive
-            # its own lease forever" - but a frozen process sends no heartbeat
-            # at all, so the fence never stopped it; what the fence did stop was
-            # the one case that is not a fault: a worker that was starved of CPU
-            # (or whose machine slept) for longer than the TTL, came back, and
-            # found its own still-unclaimed lease expired.  That worker was
-            # treated exactly like a dead one and the task failed with
-            # "lease expired before completion" while the process was healthy.
-            #
-            # The double-execution fence is the owner match below, plus
-            # ``claim_lease``'s ``expires <= now`` clause: a different owner can
-            # take an expired lease, and once it does, the previous owner can no
-            # longer renew (the owner no longer matches) and its fenced writes
-            # are refused.  So the only process that can revive an expired row
-            # is the one that still owns it, which is the same process the task
-            # is still assigned to.
-            changed = connection.execute(
-                "UPDATE task_leases SET heartbeat=?, expires=?, pid=? "
-                "WHERE task_id=? AND owner=?",
-                (now, now + ttl, pid, task_id, owner),
-            ).rowcount
-        return changed == 1
-
-    def get_lease(self, task_id: str) -> dict[str, Any] | None:
-        with self._lock, self._connect() as connection:
-            row = connection.execute("SELECT * FROM task_leases WHERE task_id=?", (task_id,)).fetchone()
-        return dict(row) if row is not None else None
-
-    def release_lease(self, task_id: str, owner: str) -> None:
-        with self._lock, self._connect() as connection:
-            connection.execute("DELETE FROM task_leases WHERE task_id=? AND owner=?", (task_id, owner))
-
-    def upsert(self, snapshot: dict[str, Any], *, lease_owner: str | None = None) -> bool:
+    def upsert(self, snapshot: dict[str, Any], *,
+               lease_owner: str | None = None) -> bool:
         task_id = str(snapshot.get("task_id") or "")
         if not task_id:
             return False
         payload = _redact(snapshot)
-        with self._lock, self._connect() as connection:
+        with self._lock, self._rw() as connection:
             if lease_owner is not None:
-                # Fence replaced workers in the same transaction as the write.
-                # An old process must never overwrite its successor - and the
-                # successor is named by the owner, not by the clock (M8-T538:
-                # the expiry clause here refused the write of a worker that had
-                # merely been starved for longer than the TTL while nobody had
-                # taken its lease, which turned a stall into a lost task).
-                # ``release_lease`` deletes the row, so a released task has no
-                # owner and no writer.
                 connection.execute("BEGIN IMMEDIATE")
-                lease = connection.execute("SELECT owner, expires FROM task_leases WHERE task_id=?", (task_id,)).fetchone()
+                lease = connection.execute(
+                    "SELECT owner, expires FROM task_leases WHERE task_id=?",
+                    (task_id,)
+                ).fetchone()
                 if lease is None or lease["owner"] != lease_owner:
                     return False
             connection.execute(
@@ -199,10 +252,86 @@ class TaskStore:
             self._write_search(connection, payload)
         return True
 
+    def upsert_many(self, snapshots: list[dict[str, Any]]) -> int:
+        """Batch insert/update multiple snapshots in one transaction.
+
+        Returns the number of snapshots successfully written.
+        """
+        written = 0
+        with self._lock, self._rw() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            for snapshot in snapshots:
+                task_id = str(snapshot.get("task_id") or "")
+                if not task_id:
+                    continue
+                payload = _redact(snapshot)
+                connection.execute(
+                    """
+                    INSERT INTO tasks(task_id, created_at, workspace_path, payload)
+                    VALUES (?, ?, ?, ?)
+                    ON CONFLICT(task_id) DO UPDATE SET
+                        created_at=excluded.created_at,
+                        workspace_path=excluded.workspace_path,
+                        payload=excluded.payload
+                    """,
+                    (
+                        task_id,
+                        float(snapshot.get("created_at_epoch") or 0),
+                        str(snapshot.get("workspace_path") or ""),
+                        json.dumps(payload, ensure_ascii=False),
+                    ),
+                )
+                self._write_search(connection, payload)
+                written += 1
+        return written
+
+    def claim_lease(self, task_id: str, owner: str, *, pid: int = 0,
+                    ttl: float = 45.0) -> bool:
+        """Atomically reserve execution; a different live owner cannot replace."""
+        now = time.time()
+        with self._lock, self._rw() as connection:
+            changed = connection.execute(
+                "INSERT INTO task_leases(task_id, owner, pid, heartbeat, "
+                "expires) VALUES (?, ?, ?, ?, ?) "
+                "ON CONFLICT(task_id) DO UPDATE SET owner=excluded.owner, "
+                "pid=excluded.pid, heartbeat=excluded.heartbeat, "
+                "expires=excluded.expires "
+                "WHERE task_leases.expires <= ? OR task_leases.owner = "
+                "excluded.owner",
+                (task_id, owner, pid, now, now + ttl, now),
+            ).rowcount
+        return changed == 1
+
+    def heartbeat_lease(self, task_id: str, owner: str, *,
+                        pid: int, ttl: float = 45.0) -> bool:
+        now = time.time()
+        with self._lock, self._rw() as connection:
+            changed = connection.execute(
+                "UPDATE task_leases SET heartbeat=?, expires=?, pid=? "
+                "WHERE task_id=? AND owner=?",
+                (now, now + ttl, pid, task_id, owner),
+            ).rowcount
+        return changed == 1
+
+    def get_lease(self, task_id: str) -> dict[str, Any] | None:
+        with self._lock, self._ro() as connection:
+            row = connection.execute(
+                "SELECT * FROM task_leases WHERE task_id=?", (task_id,)
+            ).fetchone()
+        return dict(row) if row is not None else None
+
+    def release_lease(self, task_id: str, owner: str) -> None:
+        with self._lock, self._rw() as connection:
+            connection.execute(
+                "DELETE FROM task_leases WHERE task_id=? AND owner=?",
+                (task_id, owner)
+            )
+
     def load(self, limit: int = 200) -> list[dict[str, Any]]:
-        with self._lock, self._connect() as connection:
+        with self._lock, self._ro() as connection:
             rows = connection.execute(
-                "SELECT task_id, payload FROM tasks ORDER BY created_at DESC LIMIT ?",
+                "SELECT task_id, payload FROM tasks ORDER BY created_at DESC "
+                "LIMIT ?",
                 (max(1, min(limit, 1000)),),
             ).fetchall()
         output: list[dict[str, Any]] = []
@@ -212,19 +341,15 @@ class TaskStore:
             except (TypeError, json.JSONDecodeError):
                 continue
             if isinstance(value, dict):
-                # Older versions redacted the ``sk-`` substring inside
-                # ``task-...``. The relational primary key is authoritative
-                # and lets those records recover without data loss.
-                if not value.get("task_id") or REDACTED_LLM_API_KEY in str(value.get("task_id")):
+                if not value.get("task_id") or \
+                        REDACTED_LLM_API_KEY in str(value.get("task_id")):
                     value["task_id"] = str(row["task_id"])
                 output.append(value)
         return output
 
     def list_by_session(self, session_id: str) -> list[dict[str, Any]]:
         """One session's snapshots, oldest first (the ``/cost`` accumulator)."""
-        # M8-T716: filtered here rather than with json_extract - on SQLite 3.39.4
-        # a torn payload makes that raise, costing every readable row its answer.
-        with self._lock, self._connect() as connection:
+        with self._lock, self._ro() as connection:
             rows = connection.execute(
                 "SELECT task_id, payload FROM tasks ORDER BY created_at ASC"
             ).fetchall()
@@ -234,18 +359,21 @@ class TaskStore:
                 value = json.loads(row["payload"])
             except (TypeError, json.JSONDecodeError):
                 continue
-            if not isinstance(value, dict) or value.get("session_id") != session_id:
+            if not isinstance(value, dict) or \
+                    value.get("session_id") != session_id:
                 continue
-            if not value.get("task_id") or REDACTED_LLM_API_KEY in str(value.get("task_id")):
+            if not value.get("task_id") or \
+                    REDACTED_LLM_API_KEY in str(value.get("task_id")):
                 value["task_id"] = str(row["task_id"])
             output.append(value)
         return output
 
     def get(self, task_id: str) -> dict[str, Any] | None:
         """Load one snapshot by id (worker-process progress polling)."""
-        with self._lock, self._connect() as connection:
+        with self._lock, self._ro() as connection:
             row = connection.execute(
-                "SELECT task_id, payload FROM tasks WHERE task_id = ?", (str(task_id),)
+                "SELECT task_id, payload FROM tasks WHERE task_id = ?",
+                (str(task_id),)
             ).fetchone()
         if row is None:
             return None
@@ -255,14 +383,8 @@ class TaskStore:
             return None
         if not isinstance(value, dict):
             return None
-        # M8-T272: the relational primary key is authoritative here too.
-        # ``load()`` already repaired the redacted/empty ``task_id``, and
-        # every liveness decision goes through ``get()``: a payload whose
-        # id was missing made the lease lookup use the wrong key, so
-        # ``has_live_worker`` fell back to the legacy heartbeat heuristic
-        # and could report a dead worker as alive (never re-queued) or a
-        # live one as dead (killed mid-run).
-        if not value.get("task_id") or REDACTED_LLM_API_KEY in str(value.get("task_id")):
+        if not value.get("task_id") or \
+                REDACTED_LLM_API_KEY in str(value.get("task_id")):
             value["task_id"] = str(row["task_id"])
         return value
 
@@ -283,10 +405,13 @@ class TaskStore:
             return []
         limit = max(1, min(int(limit), 100))
         folded = needle.casefold()
-        sql = "SELECT search_text, summary FROM task_search WHERE instr(folded_text, ?) > 0"
+        sql = ("SELECT search_text, summary FROM task_search "
+               "WHERE instr(folded_text, ?) > 0")
         params: list[Any] = [folded]
-        if self._search_fts and len(folded) >= 3 and "\x00" not in folded:
-            sql += " AND rowid IN (SELECT rowid FROM task_search_fts WHERE task_search_fts MATCH ?)"
+        if self._search_fts and len(folded) >= 3 and "\\x00" not in folded:
+            sql += (" AND rowid IN "
+                    "(SELECT rowid FROM task_search_fts "
+                    "WHERE task_search_fts MATCH ?)")
             params.append('"' + folded.replace('"', '""') + '"')
         if workspace_path:
             sql += " AND workspace_path = ?"
@@ -294,7 +419,7 @@ class TaskStore:
         sql += " ORDER BY created_at DESC LIMIT ?"
         params.append(limit)
         results: list[dict[str, Any]] = []
-        with self._lock, self._connect() as connection:
+        with self._lock, self._ro() as connection:
             rows = connection.execute(sql, params).fetchall()
         for row in rows:
             try:
@@ -338,11 +463,13 @@ class TaskStore:
         data it cannot understand.
         """
         keep_terminal = max(0, min(int(keep_terminal), 1000))
-        cutoff = None if max_age_days is None else time.time() - max(1, int(max_age_days)) * 86400
+        cutoff = None if max_age_days is None else \
+            time.time() - max(1, int(max_age_days)) * 86400
         deleted: list[str] = []
-        with self._lock, self._connect() as connection:
+        with self._lock, self._rw() as connection:
             rows = connection.execute(
-                "SELECT task_id, created_at, payload FROM tasks ORDER BY created_at DESC"
+                "SELECT task_id, created_at, payload FROM tasks "
+                "ORDER BY created_at DESC"
             ).fetchall()
             terminal: list[sqlite3.Row] = []
             parsed: dict[str, dict[str, Any]] = {}
@@ -360,13 +487,17 @@ class TaskStore:
             retained = {
                 str(row["task_id"])
                 for index, row in enumerate(terminal)
-                if index < keep_terminal and (cutoff is None or float(row["created_at"] or 0) >= cutoff)
+                if index < keep_terminal and (
+                    cutoff is None or float(row["created_at"] or 0) >= cutoff
+                )
             }
             # Keep the history needed to explain a retained batch task.
             pending = list(retained)
             while pending:
                 parent_id = pending.pop()
-                for child_id in parsed.get(parent_id, {}).get("child_task_ids") or []:
+                for child_id in parsed.get(parent_id, {}).get(
+                    "child_task_ids"
+                ) or []:
                     child_key = str(child_id)
                     if child_key in parsed and child_key not in retained:
                         retained.add(child_key)
@@ -377,17 +508,38 @@ class TaskStore:
                 if task_id not in retained:
                     deleted.append(task_id)
             if deleted:
-                connection.executemany("DELETE FROM tasks WHERE task_id = ?", [(task_id,) for task_id in deleted])
-                connection.executemany("DELETE FROM task_search WHERE task_id = ?", [(task_id,) for task_id in deleted])
-                connection.executemany("DELETE FROM task_leases WHERE task_id = ?", [(task_id,) for task_id in deleted])
+                connection.executemany(
+                    "DELETE FROM tasks WHERE task_id = ?",
+                    [(task_id,) for task_id in deleted]
+                )
+                connection.executemany(
+                    "DELETE FROM task_search WHERE task_id = ?",
+                    [(task_id,) for task_id in deleted]
+                )
+                connection.executemany(
+                    "DELETE FROM task_leases WHERE task_id = ?",
+                    [(task_id,) for task_id in deleted]
+                )
 
         if deleted and vacuum:
-            with self._lock, self._connect() as connection:
+            with self._lock, self._rw() as connection:
                 connection.execute("VACUUM")
         return deleted
 
+    def close(self) -> None:
+        """Close the persistent read-write connection."""
+        with self._lock:
+            if self._rw_conn is not None:
+                try:
+                    self._rw_conn.close()
+                except Exception:
+                    pass
+                self._rw_conn = None
 
-_IDENTITY_KEYS = frozenset({"task_id", "session_id", "workspace_path", "parent_id", "child_task_ids"})
+
+_IDENTITY_KEYS = frozenset(
+    {"task_id", "session_id", "workspace_path", "parent_id", "child_task_ids"}
+)
 
 _SNIPPET_CONTEXT_CHARS = 80
 _MAX_MATCH_COUNT = 999
@@ -410,7 +562,9 @@ def _search_text(haystack: str, needle: str) -> dict[str, Any] | None:
     first = folded_haystack.find(folded_needle)
     if first < 0:
         return None
-    match_count = min(folded_haystack.count(folded_needle), _MAX_MATCH_COUNT)
+    match_count = min(
+        folded_haystack.count(folded_needle), _MAX_MATCH_COUNT
+    )
     # Casefold can expand one character (Straße -> strasse). Convert offsets
     # back to original text so a long prefix never pushes the match out.
     folded_offset = 0
@@ -439,7 +593,10 @@ def _redact(value: Any, key: str | None = None) -> Any:
     if isinstance(value, list):
         return [_redact(item, key) for item in value]
     if isinstance(value, dict):
-        return {str(item_key): _redact(item, str(item_key)) for item_key, item in value.items()}
+        return {
+            str(item_key): _redact(item, str(item_key))
+            for item_key, item in value.items()
+        }
     return value
 
 

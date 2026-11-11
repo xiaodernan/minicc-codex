@@ -47363,3 +47363,29 @@ M8-T779 合入后 CI 红了：`test_a_fact_may_have_only_one_home.py::test_no_mo
 - 不改变任何现有 DOM 结构或交互逻辑，仅追加类名与 CSS 变量
 - 旧类名保持不变，向后兼容
 - 游戏模块（`game.js`）不受影响
+## 批次 782 — M8-T782：数据库性能优化 — TaskStore 持久连接与 PRAGMA 调优
+
+### 1 欠的是哪一条
+
+minicc/task_store.py 每次操作都打开/关闭 SQLite 连接，频繁创建/销毁连接开销大；缺少 PRAGMA 调优（cache_size、mmap_size、temp_store、synchronous）；读操作没有使用只读连接；没有批量写入接口。这些在高并发或大规模任务场景下会成为瓶颈。
+
+### 2 改动
+
+- minicc/task_store.py：
+  - 持久读写连接（_rw_conn，懒加载），替代每次操作 open/close
+  - PRAGMA 调优：journal_mode=WAL、synchronous=NORMAL、cache_size=-64000、mmap_size=268435456、temp_store=MEMORY、busy_timeout=30000
+  - 读操作使用只读连接（mode=ro），减少锁竞争
+  - 新增 upsert_many() 批量写入接口，多个快照在一个事务中提交
+  - 新增 close() 方法显式关闭连接
+  - 保留所有原有方法签名（claim_lease/heartbeat_lease/get_lease/release_lease/upsert/load/list_by_session/get/search/prune）
+
+### 3 验证
+
+- pytest tests/test_task_store_durability_contract.py tests/test_task_durability.py -q -> 全绿（19 passed）
+- python scripts/doc_pointers.py --check -> rc=0
+
+### 4 边界
+
+- 持久连接使用 check_same_thread=False，配合 threading.RLock 保证线程安全
+- 只读连接每次打开/关闭，避免跨线程共享问题
+- 不改变任何对外 API 签名
