@@ -6,17 +6,33 @@ import hashlib
 import json
 import mimetypes
 import re
-import threading
-from collections import OrderedDict
 from pathlib import Path
+from typing import Any
+
+from .redis_cache import default_cache
 
 #: The cache is keyed by the **content** (its ETag), not by the file's
 #: timestamps: an equal-length in-place rewrite that does not advance the
 #: mtime leaves every timestamp field unchanged, and the URL is
 #: content-addressed with ``Cache-Control: immutable`` - so a stale entry
 #: would have been kept for a year.  The tuple is ``(path, etag, gzip?)``.
-_CACHE: OrderedDict[tuple[str, str, bool], tuple[bytes, str]] = OrderedDict()
-_LOCK = threading.Lock()
+#
+# M8-T292: the cache is keyed by the **content**, not by the file's
+# timestamps.  A key of ``(mtime, size)`` (or even the fuller
+# ``(ino, mtime, ctime, size)``) cannot see an equal-length in-place
+# rewrite that does not advance ``st_mtime_ns`` - and on Windows the
+# ``ctime`` is the *creation* time, so no timestamp field changes at
+# all.  The consequence was the **old bytes with the old ETag**, and
+# the URL is content-addressed with ``Cache-Control: immutable``, so the
+# browser would not have asked again for a year.
+#
+# The file is read on every request either way (the ETag has to come
+# from the current bytes); what the cache saves is the gzip work.  The
+# gzip payload is stored in RedisCache so it is shared across web-server
+# processes; when Redis is unavailable the module falls back to a small
+# in-process OrderedDict inside RedisCache itself.
+_ASSET_CACHE = default_cache  # namespace "default", keyed by (path, etag, gzip)
+_CACHE_CAP = 32
 
 _PACKAGE_ROOT = Path(__file__).resolve().parent
 _CHECKOUT_ROOT = _PACKAGE_ROOT.parent
@@ -84,16 +100,11 @@ def asset_response(root: Path, relative: str, *, accept_gzip: bool = False) -> t
         content = text.encode("utf-8")
     etag = '"' + hashlib.sha256(content).hexdigest()[:24] + '"'
     key = (str(target), etag, compressed)
-    with _LOCK:
-        cached = _CACHE.get(key)
+    cached = _ASSET_CACHE.get(key)
     if cached is None:
         payload = gzip.compress(content, compresslevel=6, mtime=0) if compressed else content
         cached = (payload, etag)
-        with _LOCK:
-            _CACHE[key] = cached
-            _CACHE.move_to_end(key)
-            while len(_CACHE) > 32:
-                _CACHE.popitem(last=False)
+        _ASSET_CACHE.set(key, cached)
     content = cached[0]
     content_type = "text/javascript" if target.suffix == ".js" else mimetypes.guess_type(target.name)[0] or "application/octet-stream"
     if textual:

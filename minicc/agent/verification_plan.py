@@ -1,24 +1,23 @@
 """Select explicit, bounded checks from changed files and project configuration."""
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 import os
-import threading
 import re
-from collections import OrderedDict
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 from ..env_files import is_env_filename
 from ..secret_suffixes import KEY_MATERIAL_SUFFIXES
+from ..redis_cache import RedisCache
 from ..tools.fs import SKIP_DIRS  # the "no signal for the fingerprint" set is
                                   # the tools' own hidden-entry policy
 from .check_commands import PYTHON_TEST_RUNNERS, command_parts, checker_invocation
 from .test_selection import relevant_python_tests
 
-_DIGEST_CACHE: OrderedDict[str, tuple[tuple[int, int, int], bytes]] = OrderedDict()
-_DIGEST_LOCK = threading.Lock()
+_DIGEST_CACHE = RedisCache(namespace="digest", ttl=3600)
 
 
 def _file_digest(path: Path, *, use_cache: bool = True) -> bytes:
@@ -45,19 +44,17 @@ def _file_digest(path: Path, *, use_cache: bool = True) -> bytes:
     signature = (stat.st_ino, stat.st_mtime_ns, stat.st_ctime_ns, stat.st_size)
     key = str(path)
     if use_cache:
-        with _DIGEST_LOCK:
-            cached = _DIGEST_CACHE.get(key)
-            if cached and cached[0] == signature:
-                _DIGEST_CACHE.move_to_end(key)
-                return cached[1]
+        cached = _DIGEST_CACHE.get(key)
+        if cached is not None:
+            cached_sig = tuple(cached[0]) if isinstance(cached[0], list) else cached[0]
+            cached_digest = base64.b64decode(cached[1]) if isinstance(cached[1], str) else cached[1]
+            if cached_sig == signature:
+                return cached_digest
     value = hashlib.sha256(path.read_bytes()).digest()
     after = path.stat()
     if (after.st_ino, after.st_mtime_ns, after.st_ctime_ns, after.st_size) != signature:
         raise OSError("verification input changed while hashing")
-    with _DIGEST_LOCK:
-        _DIGEST_CACHE[key] = (signature, value)
-        while len(_DIGEST_CACHE) > 4096:
-            _DIGEST_CACHE.popitem(last=False)
+    _DIGEST_CACHE.set(key, [list(signature), base64.b64encode(value).decode("ascii")])
     return value
 
 

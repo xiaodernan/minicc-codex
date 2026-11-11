@@ -47180,3 +47180,29 @@ T770 让服务面有了第七个模块与第三条路由，但两处文档残留
 ### 4 边界
 
 - 这是 cherry-pick 合并过程中的副作用修复；归档分支本身的历史不改。
+## 批次 776 — M8-T776：Redis 分布式缓存层 + 静态资产/摘要缓存接入
+
+### 1 欠的是哪一条
+
+minicc 的 Web 面与验证循环各自可派出短生命周期的 worker 进程，但原有缓存全是进程内 `OrderedDict`（`static_assets` 的 gzip payload、``verification_plan`` 的文件摘要）。每个 worker 都要重新压缩、重新哈希已经算过的结果，跨进程无法共享。用户明确授权引入 Redis 等缓存基础设施，且“一事一源”要求缓存逻辑只有一个家。
+
+### 2 改动
+
+- 新增 **`minicc/redis_cache.py`**：Redis 优先、进程内 LRU 降级的分布式缓存。
+  - 通过 ``REDIS_URL`` 连接 Redis，失败或未安装 `redis` 包时自动回退本地 `OrderedDict` LRU（上限可配）。
+  - 每个公共方法都吞后端异常，Redis 抽风不拖慢调用者，只丢失跨进程共享。
+  - 支持命名空间隔离、TTL、JSON 序列化、`get_set` 取-or-存。
+- `pyproject.toml`：新增可选依赖组 `redis`（``redis>=5.0.0``）。
+- `minicc/static_assets.py`：gzip payload 缓存从进程内 `OrderedDict` 迁为 `RedisCache`（命名空间 `default`），跨 Web 进程共享压缩结果。
+- `minicc/agent/verification_plan.py`：文件摘要缓存从进程内 `OrderedDict` 迁为 `RedisCache`（命名空间 `digest`，TTL 1 小时），签名（st_ino/mtime/ctime/size）变化时自动失效。
+- 新增 `tests/test_redis_cache.py`（10 用例）：设/取/删/清、TTL 过期、命名空间隔离、LRU 上限、线程安全、后端异常不抛。
+
+### 3 验证
+
+- `pytest tests/test_redis_cache.py tests/test_static_assets_response_contract.py tests/test_atomic_file_rides_out_sharing_violations.py -q` → 全绿。
+- `python scripts/doc_pointers.py --check` → rc=0（未新增 docs 引用）。
+
+### 4 边界
+
+- `redis` 为可选依赖，未安装时完全降级为本地缓存，不影响现有部署。
+- 不改任何对外 API 签名；缓存键/值格式为内部实现，可随时替换。
