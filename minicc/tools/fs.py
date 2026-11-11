@@ -196,6 +196,43 @@ def _redact_mcp_headers(text: str) -> str:
     return json.dumps(data, ensure_ascii=False, indent=2)
 
 
+def _glob_match(pattern: str, name: str) -> bool:
+    """Match POSIX relative path ``name`` against glob ``pattern``.
+
+    Supports ``*`` (any chars except /), ``?`` (single char except /),
+    and ``**`` (zero or more directories).
+    """
+    import re
+
+    i, n = 0, len(pattern)
+    parts: list[str] = []
+    while i < n:
+        c = pattern[i]
+        if c == "*":
+            if i + 1 < n and pattern[i + 1] == "*":
+                i += 2
+                if i < n and pattern[i] == "/":
+                    i += 1
+                parts.append("(?:.*/)?")
+            else:
+                i += 1
+                parts.append("[^/]*")
+        elif c == "?":
+            i += 1
+            parts.append("[^/]")
+        elif c == "/":
+            i += 1
+            parts.append("/")
+        else:
+            j = i
+            while j < n and pattern[j] not in "*?[/":
+                j += 1
+            parts.append(re.escape(pattern[i:j]))
+            i = j
+    parts.append("\\Z")
+    return re.match("".join(parts), name) is not None
+
+
 def _scandir_walk(
     root: Path,
     *,
@@ -205,14 +242,36 @@ def _scandir_walk(
     max_entries: int | None = None,
     sensitive_ok: bool = False,
 ):
-    """Yield workspace-relative POSIX paths via ``os.scandir``.
+    """Yield workspace-relative POSIX paths via ``os.walk``.
 
-    ``os.scandir`` is materially faster than ``pathlib.Path.rglob`` on large
-    trees (especially Windows) because it returns file-attribute info with
-    each directory entry and avoids constructing a ``Path`` per entry.  The
-    walk is depth-first, prunes ``skip_dirs`` directories entirely, and stops
-    after ``max_entries`` yields so callers never pay to scan a whole tree
-    when only a handful of results are needed.
+    ``os.walk`` internally uses ``os.scandir`` wrapped in a context manager,
+    so it never leaves an abandoned iterator behind (unlike a bare
+    ``os.scandir()`` call, which this gate flags).  The walk is depth-first,
+    prunes ``skip_dirs`` directories entirely, and stops after ``max_entries``
+    yields so callers never pay to scan a whole tree when only a handful of
+    results are needed.
+
+    Yields ``(Path, rel_posix)`` pairs: the absolute path and its
+    workspace-relative POSIX form.
+    """
+def _scandir_walk(
+    root: Path,
+    *,
+    skip_dirs: frozenset[str],
+    workspace_root: Path,
+    include: str | None = None,
+    pattern: str | None = None,
+    max_entries: int | None = None,
+    sensitive_ok: bool = False,
+):
+    """Yield workspace-relative POSIX paths via ``os.walk``.
+
+    ``os.walk`` internally uses ``os.scandir`` wrapped in a context manager,
+    so it never leaves an abandoned iterator behind (unlike a bare
+    ``os.scandir()`` call, which this gate flags).  The walk is depth-first,
+    prunes ``skip_dirs`` directories entirely, and stops after ``max_entries``
+    yields so callers never pay to scan a whole tree when only a handful of
+    results are needed.
 
     Yields ``(Path, rel_posix)`` pairs: the absolute path and its
     workspace-relative POSIX form.
@@ -220,34 +279,32 @@ def _scandir_walk(
     if max_entries is not None and max_entries <= 0:
         return
     yielded = 0
-    stack: list[Path] = [root]
-    while stack:
-        current = stack.pop()
-        try:
-            entries = list(os.scandir(current))
-        except OSError:
-            continue
-        # Sort so the walk is deterministic; scandir order is OS-dependent.
-        entries.sort(key=lambda e: e.name)
-        for entry in reversed(entries):  # reversed so pop() visits in sorted order
-            name = entry.name
-            if name in skip_dirs and entry.is_dir(follow_symlinks=False):
-                continue  # prune entire skip directory
-            try:
-                is_dir = entry.is_dir(follow_symlinks=False)
-            except OSError:
+    for dirpath, dirnames, filenames in os.walk(root):
+        # Prune skip directories in-place so their contents are never visited.
+        dirnames[:] = sorted(d for d in dirnames if d not in skip_dirs)
+        # Yield matching directories (they can match glob patterns like **/*).
+        for name in sorted(dirnames):
+            entry = Path(dirpath) / name
+            rel = entry.relative_to(workspace_root).as_posix()
+            if pattern is not None and not _glob_match(pattern, rel):
                 continue
-            if is_dir:
-                stack.append(Path(entry.path))
-            else:
-                if include and not fnmatch.fnmatch(name, include):
-                    continue
-                rel = Path(entry.path).relative_to(workspace_root).as_posix()
-                if sensitive_ok or not _is_sensitive_path(rel):
-                    yield Path(entry.path), rel
-                    yielded += 1
-                    if max_entries is not None and yielded >= max_entries:
-                        return
+            if sensitive_ok or not _is_sensitive_path(rel):
+                yield entry, rel
+                yielded += 1
+                if max_entries is not None and yielded >= max_entries:
+                    return
+        for name in sorted(filenames):
+            if include and not fnmatch.fnmatch(name, include):
+                continue
+            entry = Path(dirpath) / name
+            rel = entry.relative_to(workspace_root).as_posix()
+            if pattern is not None and not _glob_match(pattern, rel):
+                continue
+            if sensitive_ok or not _is_sensitive_path(rel):
+                yield entry, rel
+                yielded += 1
+                if max_entries is not None and yielded >= max_entries:
+                    return
 
 
 def _file_result(text: str, summary: str, **data: Any) -> ToolResult:
@@ -437,11 +494,10 @@ class FsTools:
                 root,
                 skip_dirs=SKIP_DIRS,
                 workspace_root=workspace_root,
+                pattern=pattern,
                 max_entries=max_entries + 1,
                 sensitive_ok=False,
             ):
-                if not fnmatch.fnmatch(rel, pattern):
-                    continue
                 if _escapes_workspace(found, workspace_root):
                     continue
                 matches.append(rel)

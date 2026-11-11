@@ -47272,3 +47272,36 @@ M8-T776 合入后 CI 红了 13 个用例，全部源自新增的 `minicc/redis_c
 ### 4 边界
 
 - `__setitem__` 不支持 TTL（调用 `set(key, value)` 使用实例默认 TTL）；如需 TTL 请用 `.set()`。
+## 批次 779 — M8-T779：CI 红修 — fs.py 遍历 + redis_cache 门禁修
+
+### 1 欠的是哪一条
+
+M8-T778 推送后 CI 仍红了多个用例，全部源自 M8-T776/T778 的新代码：
+
+1. `test_resource_hygiene.py`：`minicc/tools/fs.py` 中直接调用 `os.scandir()`（未用 `with` 包装），违反仓库“`os.scandir` 必须作为上下文管理器使用”的门禁；
+2. `test_glob_does_not_hide_files_named_like_skipdirs.py`：`glob` 用 `fnmatch.fnmatch` 匹配 `**/*` 模式，而 `fnmatch` 不支持 `**` 递归通配符，导致顶层文件（如 `build`）和目录（如 `src`）被漏掉；
+3. `test_blind_wait.py`：`time.sleep(0.1)` 缺少 `# wait-claim:` 声明注释。
+
+### 2 改动
+
+- `minicc/tools/fs.py`：
+  - 将 `_scandir_walk` 从 `os.scandir()` 重写为 `os.walk()`（后者在内部用 `with` 包装 `os.scandir`，满足门禁）；
+  - 新增 `_glob_match()`：支持 `**`（零或多个目录）、`*`（除斜杠外任意字符）、`?`（单字符）的 glob 匹配；
+  - `glob` 和 `grep` 均使用 `_scandir_walk` + `_glob_match`，保持提前终止和 `max_entries` 上限；
+  - `glob` 现在也产出匹配模式的目录（如 `src`），与 `pathlib.Path.rglob` 行为一致。
+- `tests/test_redis_cache.py`：
+  - `time.sleep()` 增加 `# wait-claim:` 声明注释；
+  - `t.join()` 后增加 `assert not t.is_alive()`。
+- `minicc/redis_cache.py`：
+  - 新增 `__getitem__`/`__setitem__`/`__delitem__`/`__contains__`（dict-like 接口），供 `verification_plan.py` 的旧测试直接下标访问 `_DIGEST_CACHE`；
+  - 新增 `_json_safe`/`_json_unsafe`：`bytes` 值通过 `{"__minicc_bytes__": base64}` 封装进 JSON，读取时还原。
+
+### 3 验证
+
+- `pytest tests/test_glob_does_not_hide_files_named_like_skipdirs.py tests/test_resource_hygiene.py tests/test_redis_cache.py tests/test_static_assets_response_contract.py tests/test_atomic_file_rides_out_sharing_violations.py tests/test_optimization_core.py -q` → 全绿。
+- `python scripts/doc_pointers.py --check` → rc=0。
+
+### 4 边界
+
+- `_scandir_walk` 使用 `os.walk()`，对大型树的性能与 `os.scandir` 版本相当（`os.walk` 内部同样使用 `os.scandir`，只是加了上下文管理器）；
+- `_glob_match` 对 `**`、`*`、`?` 及字面字符均支持，与 `pathlib.Path.rglob` 行为一致。
