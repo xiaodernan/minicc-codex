@@ -47323,3 +47323,43 @@ M8-T779 合入后 CI 红了：`test_a_fact_may_have_only_one_home.py::test_no_mo
 ### 4 边界
 
 - 不改函数行为，只删除重复定义。
+## 批次 781 — M8-T781：前端美观大幅提升 — Glassmorphism、深度与动效
+
+### 1 欠的是哪一条
+
+前端 UI 功能完备但视觉平淡：配色单一、缺乏层次感、组件没有悬停反馈、没有玻璃拟毛效果、没有加载骨架、没有 toast 提示。用户交互体验缺乏“精致感”，与“登峰造极”的前端魅力目标相去甚远。
+
+### 2 改动
+
+- `web/styles.css`：追加现代设计系统：
+  - 新配色变量（深空靛青主色、珊瑚/薄荷/琥珀/玫瑰/紫罗兰辅助色）
+  - 玻璃拟毛变量（`--glass`、`--glass-border`、`--glass-blur`）
+  - 阴影变量（`--shadow-sm` 到 `--shadow-xl`）、圆角变量（`--radius-sm` 到 `--radius-lg`）
+  - 过渡变量（`--transition-fast/base/spring`）
+  - 新组件：`.glass`、`.glass-raised`、`.glass-card`（玻璃卡片）
+  - 新动画：`fade-in`、`fade-in-scale`、`slide-up`、`pulse-soft`、`shimmer`
+  - 骨架屏：`.skeleton`、`.skeleton-text`、`.skeleton-avatar`、`.skeleton-button`
+  - 现代按钮：`.btn`（`btn-primary`/`btn-secondary`/`btn-ghost`/`btn-icon`/`btn-sm/md/lg`）
+  - 卡片：`.card`（`card.padded`、`card.hover-lift`、`.card-header/body/footer`）
+  - 徽章：`.badge`（`badge-coral/mint/blue/amber/rose/purple/outline`）
+  - 输入：`.input`（焦点环、悬停反馈）
+  - 消息气泡：用户/助手气泡圆角渐变、渐变色
+  - 工具事件：`.tool-event`（悬停抬升、完成/失败颜色）
+  - 作曲器：`.composer-shell`（玻璃卡片）
+  - 空状态：`.empty-state`
+  - Toast：`.toast`（`success`/`error`/`warning`）
+  - 响应式断点（900px/640px）、`prefers-reduced-motion` 支持
+- `web/index.html`：在侧栏、检查器、作曲器、变更摘要等关键元素上添加 `glass-raised`、`glass-card`、`card`、`badge`、`btn-primary` 等类
+- `web/assets/styles.*.css`：重新构建资源包
+
+### 3 验证
+
+- `npm run build:web` → 构建成功
+- `npm run check:web` → 资源最新，无残留
+- `pytest tests/test_web_assets_are_fresh.py tests/test_web_assets_are_fresh_mutation.py -q` → 全绿（资源指纹与 manifest 匹配）
+
+### 4 边界
+
+- 不改变任何现有 DOM 结构或交互逻辑，仅追加类名与 CSS 变量
+- 旧类名保持不变，向后兼容
+- 游戏模块（`game.js`）不受影响

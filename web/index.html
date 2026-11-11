@@ -42,9 +42,9 @@
       <div class="codex-window-actions" aria-hidden="true" tabindex="-1"><span></span><span></span><span></span></div>
     </header>
     <div class="app-shell">
-      <aside class="sidebar" id="sidebar">
+      <aside class="sidebar glass-raised" id="sidebar">
         <div class="brand-row">
-          <div class="brand-mark">m<span>·</span></div>
+          <div class="brand-mark glass">m<span>·</span></div>
           <div class="codex-brand-copy">
             <div class="brand-name">minicc</div>
             <div class="brand-caption" data-i18n="brand.caption">本地智能工作台</div>
@@ -56,13 +56,13 @@
           </button>
         </div>
 
-        <button class="new-task-button" id="newTaskButton" data-i18n-title="newTask.title">
+        <button class="new-task-button btn-primary btn-md" id="newTaskButton" data-i18n-title="newTask.title">
           <i data-lucide="plus"></i>
           <span data-i18n="newTask.label">新任务</span>
           <kbd>⌘ N</kbd>
         </button>
 
-        <div class="sidebar-search">
+        <div class="sidebar-search glass">
           <i data-lucide="search"></i>
           <input id="threadSearch" type="search" placeholder="搜索任务" aria-label="搜索任务" data-i18n-placeholder="search.placeholder" data-i18n-aria="search.placeholder" />
           <kbd>/</kbd>
@@ -142,7 +142,7 @@
         </section>
 
         <section class="composer-wrap">
-          <div class="composer-shell" id="composerShell">
+          <div class="composer-shell glass-card" id="composerShell">
             <div class="composer-topline"><span class="composer-context"><i data-lucide="scan-line"></i> <span data-i18n="composer.workingIn">工作目录</span> <strong id="composerWorkspace">minicc-codex</strong></span><span class="context-count" id="contextCount" data-i18n="context.empty">0 / 300k 上下文</span></div>
             <form id="chatForm">
               <textarea id="promptInput" rows="2" placeholder="让 minicc 检查、构建或验证..." aria-label="输入任务" data-i18n-placeholder="composer.placeholder" data-i18n-aria="composer.inputLabel"></textarea>
@@ -196,7 +196,7 @@
         </section>
       </main>
 
-      <aside class="inspector" id="inspector">
+      <aside class="inspector glass-raised" id="inspector">
         <div class="inspector-header"><div><span class="eyebrow" data-i18n="workspace">工作区</span><h2>minicc-codex</h2></div><button class="icon-button tiny" id="inspectorClose" aria-label="关闭检查器" title="关闭检查器" data-i18n-aria="inspector.close" data-i18n-title="inspector.close"><i data-lucide="panel-right-close"></i></button></div>
         <div class="inspector-tabs" role="tablist" aria-label="工作区检查器">
           <button id="tabChanges" class="inspector-tab active" role="tab" aria-selected="true" aria-controls="changesSection" data-inspector-tab="changes"><span data-i18n="inspector.changes">变更</span> <span id="changeTabCount">0</span></button>
@@ -204,12 +204,12 @@
           <button id="tabVerification" class="inspector-tab" role="tab" aria-selected="false" aria-controls="verificationSection" tabindex="-1" data-inspector-tab="verification" data-i18n="inspector.verification">验证</button>
         </div>
 
-        <section class="inspector-section" id="overviewSection" hidden>
+        <section class="inspector-section card padded" id="overviewSection" hidden>
           <div class="section-heading"><span data-i18n="inspector.pulse">项目状态</span><span class="pulse-label"><i data-lucide="activity"></i> <span data-i18n="inspector.live">实时</span></span></div>
-          <div class="pulse-card"><div class="pulse-main"><strong id="pulseStatus" data-i18n="inspector.ready">就绪</strong><span data-i18n="inspector.standingBy">Agent 正在等待</span></div><div class="pulse-ring"><i data-lucide="radio"></i></div><div class="pulse-metrics"><div><span data-i18n="inspector.turns">轮次</span><strong id="turnMetric">0</strong></div><div><span data-i18n="inspector.tools">工具</span><strong id="toolMetric">0</strong></div><div><span data-i18n="inspector.tokens">Tokens</span><strong id="tokenMetric">0</strong></div><div><span data-i18n="inspector.context">上下文</span><strong id="contextMetric">0/300k</strong></div></div><div class="pulse-compaction"><span><span data-i18n="inspector.compactions">自动压缩</span> <strong id="compactionMetric">0</strong></span><span><span data-i18n="inspector.cache">缓存命中</span> <strong id="cacheMetric">未统计</strong></span></div></div>
+          <div class="pulse-card card padded"><div class="pulse-main"><strong id="pulseStatus" data-i18n="inspector.ready">就绪</strong><span data-i18n="inspector.standingBy">Agent 正在等待</span></div><div class="pulse-ring"><i data-lucide="radio"></i></div><div class="pulse-metrics"><div><span data-i18n="inspector.turns">轮次</span><strong id="turnMetric">0</strong></div><div><span data-i18n="inspector.tools">工具</span><strong id="toolMetric">0</strong></div><div><span data-i18n="inspector.tokens">Tokens</span><strong id="tokenMetric">0</strong></div><div><span data-i18n="inspector.context">上下文</span><strong id="contextMetric">0/300k</strong></div></div><div class="pulse-compaction"><span><span data-i18n="inspector.compactions">自动压缩</span> <strong id="compactionMetric">0</strong></span><span><span data-i18n="inspector.cache">缓存命中</span> <strong id="cacheMetric">未统计</strong></span></div></div>
         </section>
 
-        <section class="inspector-section todo-section" id="todoSection" hidden>
+        <section class="inspector-section card padded" id="todoSection" hidden>
           <div class="section-heading">
             <button type="button" class="todo-section-toggle" id="todoSectionToggle" aria-expanded="true" aria-controls="todoListBody" data-i18n-aria="todo.toggle">
               <i data-lucide="list-checks"></i>
@@ -223,7 +223,7 @@
 
         <section id="filesSection" hidden><button id="refreshFiles" type="button" aria-label="刷新工作区"></button><div id="fileList"></div></section>
 
-        <section class="inspector-section" id="fileTreeSection" role="tabpanel" aria-labelledby="tabFiles" hidden>
+        <section class="inspector-section card padded" id="fileTreeSection" role="tabpanel" aria-labelledby="tabFiles" hidden>
           <div class="section-heading">
             <span data-i18n="files.tree">文件树</span>
             <button class="icon-button tiny" id="refreshFileTree" aria-label="刷新文件" title="刷新文件" data-i18n-aria="files.refresh" data-i18n-title="files.refresh"><i data-lucide="refresh-cw"></i></button>
@@ -233,12 +233,12 @@
           </div>
         </section>
 
-        <section class="inspector-section changes-section" id="changesSection" role="tabpanel" aria-labelledby="tabChanges">
-          <div class="section-heading"><span data-i18n="changes.latest">最近改动</span><span class="change-count" id="changeSummary"><span class="diff-add">+ 0</span><span class="diff-del">- 0</span></span></div>
+        <section class="inspector-section card padded changes-section" id="changesSection" role="tabpanel" aria-labelledby="tabChanges">
+          <div class="section-heading"><span data-i18n="changes.latest">最近改动</span><span class="change-count badge badge-outline" id="changeSummary"><span class="diff-add">+ 0</span><span class="diff-del">- 0</span></span></div>
           <div id="changeList"><div class="change-item"><span class="change-bar muted"></span><span><strong data-i18n="changes.clean">等待变更</strong><small data-i18n="changes.cleanHint">运行任务后会在这里同步</small></span><span class="change-time">--</span></div></div>
         </section>
 
-        <section class="inspector-section" id="verificationSection" role="tabpanel" aria-labelledby="tabVerification" hidden><div class="section-heading" data-i18n="inspector.verification">验证</div><div id="verificationList" class="verification-list" aria-live="polite"></div></section>
+        <section class="inspector-section card padded" id="verificationSection" role="tabpanel" aria-labelledby="tabVerification" hidden><div class="section-heading" data-i18n="inspector.verification">验证</div><div id="verificationList" class="verification-list" aria-live="polite"></div></section>
         <div class="inspector-footer"><div class="footer-lock"><i data-lucide="shield-check"></i><span><strong data-i18n="protected.title">受保护工作区</strong><small data-i18n="protected.subtitle">每个任务单独授权写入</small></span></div><span class="mono">READY</span></div>
       </aside>
     </div>
