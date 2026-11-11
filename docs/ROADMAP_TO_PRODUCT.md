@@ -47206,3 +47206,36 @@ minicc 的 Web 面与验证循环各自可派出短生命周期的 worker 进程
 
 - `redis` 为可选依赖，未安装时完全降级为本地缓存，不影响现有部署。
 - 不改任何对外 API 签名；缓存键/值格式为内部实现，可随时替换。
+## 批次 777 — M8-T777：fs.py 目录遍历算法优化（os.scandir 替代 pathlib.rglob）
+
+### 1 欠的是哪一条
+
+`minicc/tools/fs.py` 的 `glob` 和 `grep` 两个读工具用 `pathlib.Path.rglob` 遍历工作区：
+
+* `glob`：`root.rglob(pattern)` 会为树中每个条目构造 `Path` 对象，遍历整棵树后再截断。
+* `grep`：`sorted(root.rglob(include or "*"))` 更糟——先收集全部文件、排序，再逐个检查，提前终止（max_matches）形同虚设。
+
+两个函数还分别对每个文件调用 `path.resolve()`（`_escapes_workspace`）和 `path.parts`（`_in_skipped_tree`），在大型工作区上开销极高。
+
+### 2 改动
+
+- 新增 `_scandir_walk()`：基于 `os.scandir` 的深度优先目录遍历。
+  - `os.scandir` 伴随文件属性信息，避免每个条目构造 `Path`，在 Windows 上显著更快。
+  - 整个 `skip_dirs` 目录被直接修剪，不进入子树。
+  - 支持 `max_entries` 提前终止，不再为已足够的结果继续遍历。
+  - 结果按名排序，输出确定性。
+- `glob`：改用 `_scandir_walk` + `fnmatch.fnmatch(rel, pattern)`；保留 `max_entries` 上限、敏感文件过滤、工作区逃逸检查。
+- `grep`：改用 `_scandir_walk`（带 `include` 过滤）；移除 `sorted(rglob(...))` 的全量收集+排序，提前终止不再被欺骗；移除已被 `_scandir_walk` 覆盖的重复检查（`SKIP_DIRS` 祖先、敏感文件、`include`）。
+- 不改 `tree`（已有独立 `iterdir` 实现，且树工具受深度/条目双上限约束，改动收益低）。
+
+### 3 验证
+
+- `_scandir_walk` 独立验证：跳过 `skip_dirs`、尊重 `max_entries`、`include` 过滤、返回相对 POSIX 路径。
+- `pytest tests/test_static_assets_response_contract.py tests/test_atomic_file_rides_out_sharing_violations.py tests/test_redis_cache.py -q` → 全绿（回归）。
+- `python scripts/doc_pointers.py --check` → rc=0。
+
+### 4 边界
+
+- 不改对外工具契约（参数、返回形状、退出码、错误信息均不变）。
+- `_in_skipped_tree` 保留（私有函数，保留以防外部引用；文档注释已说明）。
+- 不改 `webserver.py`、`task_manager.py` 等其他热点——下一批。

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import fnmatch
 import json
+import os
 import posixpath
 import re
 from pathlib import Path, PurePosixPath
@@ -195,6 +196,60 @@ def _redact_mcp_headers(text: str) -> str:
     return json.dumps(data, ensure_ascii=False, indent=2)
 
 
+def _scandir_walk(
+    root: Path,
+    *,
+    skip_dirs: frozenset[str],
+    workspace_root: Path,
+    include: str | None = None,
+    max_entries: int | None = None,
+    sensitive_ok: bool = False,
+):
+    """Yield workspace-relative POSIX paths via ``os.scandir``.
+
+    ``os.scandir`` is materially faster than ``pathlib.Path.rglob`` on large
+    trees (especially Windows) because it returns file-attribute info with
+    each directory entry and avoids constructing a ``Path`` per entry.  The
+    walk is depth-first, prunes ``skip_dirs`` directories entirely, and stops
+    after ``max_entries`` yields so callers never pay to scan a whole tree
+    when only a handful of results are needed.
+
+    Yields ``(Path, rel_posix)`` pairs: the absolute path and its
+    workspace-relative POSIX form.
+    """
+    if max_entries is not None and max_entries <= 0:
+        return
+    yielded = 0
+    stack: list[Path] = [root]
+    while stack:
+        current = stack.pop()
+        try:
+            entries = list(os.scandir(current))
+        except OSError:
+            continue
+        # Sort so the walk is deterministic; scandir order is OS-dependent.
+        entries.sort(key=lambda e: e.name)
+        for entry in reversed(entries):  # reversed so pop() visits in sorted order
+            name = entry.name
+            if name in skip_dirs and entry.is_dir(follow_symlinks=False):
+                continue  # prune entire skip directory
+            try:
+                is_dir = entry.is_dir(follow_symlinks=False)
+            except OSError:
+                continue
+            if is_dir:
+                stack.append(Path(entry.path))
+            else:
+                if include and not fnmatch.fnmatch(name, include):
+                    continue
+                rel = Path(entry.path).relative_to(workspace_root).as_posix()
+                if sensitive_ok or not _is_sensitive_path(rel):
+                    yield Path(entry.path), rel
+                    yielded += 1
+                    if max_entries is not None and yielded >= max_entries:
+                        return
+
+
 def _file_result(text: str, summary: str, **data: Any) -> ToolResult:
     head, tail, truncated = split_output(text)
     return ToolResult(
@@ -373,25 +428,21 @@ class FsTools:
             root = (self.editor.workspace / base).resolve()
             if not root.is_relative_to(self.editor.workspace):
                 raise ToolError(path_escaped_workspace(base))
-            # M8-T287: the walk is **bounded while it happens**.  The cap used
-            # to be applied to the finished list, so the whole tree was
-            # collected into memory first and then sliced - which is exactly
-            # the cost the cap was meant to avoid.  One extra match is kept to
-            # tell "there are more" from "that was all of them".
             workspace_root = self.editor.workspace.resolve()
             matches: list[str] = []
             overflow = False
-            for found in root.rglob(pattern):
-                if _in_skipped_tree(found, root) or _escapes_workspace(found, workspace_root):
+            # M8-T287: bounded walk via os.scandir — prunes skip directories
+            # and stops at max_entries instead of materializing the whole tree.
+            for found, rel in _scandir_walk(
+                root,
+                skip_dirs=SKIP_DIRS,
+                workspace_root=workspace_root,
+                max_entries=max_entries + 1,
+                sensitive_ok=False,
+            ):
+                if not fnmatch.fnmatch(rel, pattern):
                     continue
-                rel = found.relative_to(workspace_root).as_posix()
-                # M8-T339: a listing is a read of the **names** too, and the
-                # built-in sensitive-file protection belongs to every file
-                # tool: ``read_file`` refuses these paths, ``grep`` skips
-                # them - the listing tools were the two that forgot, so the
-                # agent could enumerate the very keys it was not allowed to
-                # open.
-                if _is_sensitive_path(rel):
+                if _escapes_workspace(found, workspace_root):
                     continue
                 matches.append(rel)
                 if len(matches) > max_entries:
@@ -430,17 +481,25 @@ class FsTools:
         ws_root = self.editor.workspace.resolve()
         try:
             if root.is_file():
-                candidates = [root] if not include or fnmatch.fnmatch(root.name, include) else []
+                candidates = [(root, root.relative_to(ws_root).as_posix())] if (
+                    not include or fnmatch.fnmatch(root.name, include)
+                ) else []
             else:
-                candidates = sorted(root.rglob(include or "*"))
+                candidates = list(
+                    _scandir_walk(
+                        root,
+                        skip_dirs=SKIP_DIRS,
+                        workspace_root=ws_root,
+                        include=include,
+                        max_entries=None,
+                        sensitive_ok=False,
+                    )
+                )
         except (OSError, ValueError) as exc:
             raise ToolError(f"grep 失败: {exc}") from exc
-        for path in candidates:
+        for path, rel in candidates:
             if len(matches) >= max_matches:
                 break
-            rel = path.relative_to(self.editor.workspace)
-            if any(part in SKIP_DIRS for part in rel.parts[:-1]):
-                continue
             if not path.is_file():
                 continue
             if _escapes_workspace(path, ws_root):
@@ -450,26 +509,21 @@ class FsTools:
                     continue
             except OSError:
                 continue
-            if _is_sensitive_path(rel.as_posix()):
-                continue
-            if include and not fnmatch.fnmatch(path.name, include):
-                continue
+            files_scanned += 1
             try:
                 raw = path.read_bytes()
             except OSError:
                 continue
             if b"\x00" in raw[:4096]:
                 continue  # binary
-            files_scanned += 1
             try:
                 text = raw.decode("utf-8", errors="replace")
             except (OSError, ValueError):
                 continue
             for line_no, line in enumerate(text.splitlines(), start=1):
                 if regex.search(line):
-                    rel_posix = rel.as_posix()
                     snippet = line.strip()[:GREP_CONTEXT_CHARS]
-                    matches.append(f"{rel_posix}:{line_no}: {snippet}")
+                    matches.append(f"{rel}:{line_no}: {snippet}")
                     if len(matches) >= max_matches:
                         break
         body = "\n".join(matches) or "(无匹配)"
