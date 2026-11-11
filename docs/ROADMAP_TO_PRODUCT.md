@@ -47305,3 +47305,21 @@ M8-T778 推送后 CI 仍红了多个用例，全部源自 M8-T776/T778 的新代
 
 - `_scandir_walk` 使用 `os.walk()`，对大型树的性能与 `os.scandir` 版本相当（`os.walk` 内部同样使用 `os.scandir`，只是加了上下文管理器）；
 - `_glob_match` 对 `**`、`*`、`?` 及字面字符均支持，与 `pathlib.Path.rglob` 行为一致。
+## 批次 780 — M8-T780：CI 红修 — fs.py 重复定义 _scandir_walk
+
+### 1 欠的是哪一条
+
+M8-T779 合入后 CI 红了：`test_a_fact_may_have_only_one_home.py::test_no_module_defines_the_same_top_level_name_twice` 报 `_scandir_walk` 在 `minicc/tools/fs.py` 中被定义两次（第 236 行和第 257 行）。M8-T779 的编辑把新版 `_scandir_walk` 插入到了旧版定义的中间，导致旧版的签名+docstring 残留。
+
+### 2 改动
+
+- `minicc/tools/fs.py`：删除第一份残留的不完整 `_scandir_walk` 定义（只有签名和 docstring，没有函数体），保留第二份完整实现（使用 `os.walk`，支持 `pattern` 参数）。
+
+### 3 验证
+
+- `pytest tests/test_glob_does_not_hide_files_named_like_skipdirs.py tests/test_resource_hygiene.py -q` → 全绿。
+- `python scripts/doc_pointers.py --check` → rc=0。
+
+### 4 边界
+
+- 不改函数行为，只删除重复定义。

@@ -239,27 +239,6 @@ def _scandir_walk(
     skip_dirs: frozenset[str],
     workspace_root: Path,
     include: str | None = None,
-    max_entries: int | None = None,
-    sensitive_ok: bool = False,
-):
-    """Yield workspace-relative POSIX paths via ``os.walk``.
-
-    ``os.walk`` internally uses ``os.scandir`` wrapped in a context manager,
-    so it never leaves an abandoned iterator behind (unlike a bare
-    ``os.scandir()`` call, which this gate flags).  The walk is depth-first,
-    prunes ``skip_dirs`` directories entirely, and stops after ``max_entries``
-    yields so callers never pay to scan a whole tree when only a handful of
-    results are needed.
-
-    Yields ``(Path, rel_posix)`` pairs: the absolute path and its
-    workspace-relative POSIX form.
-    """
-def _scandir_walk(
-    root: Path,
-    *,
-    skip_dirs: frozenset[str],
-    workspace_root: Path,
-    include: str | None = None,
     pattern: str | None = None,
     max_entries: int | None = None,
     sensitive_ok: bool = False,
