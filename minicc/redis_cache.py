@@ -26,6 +26,7 @@ makes ``pip install -e ".[dev]`` pull the driver.
 
 from __future__ import annotations
 
+import base64
 import json
 import os
 import threading
@@ -35,7 +36,6 @@ from typing import Any
 
 _REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
 _REDIS_KEY_PREFIX = os.environ.get("MINICC_REDIS_PREFIX", "minicc:")
-_REDIS_TTL = float(os.environ.get("MINICC_REDIS_TTL_SECONDS", "3600"))
 _LOCAL_CAP = int(os.environ.get("MINICC_REDIS_LOCAL_CAP", "4096"))
 
 
@@ -52,7 +52,7 @@ try:  # pragma: no cover - import guard
     import redis as _redis  # type: ignore[import-not-found]
 
     _HAS_REDIS = True
-except Exception:  # redis not installed
+except Exception:  # noqa: BLE001 - redis not installed; local fallback handles it
     _redis = None  # type: ignore[assignment]
 
 
@@ -64,7 +64,7 @@ def _redis_client() -> Any:
         client = _redis.Redis.from_url(_REDIS_URL, socket_connect_timeout=0.25, socket_timeout=0.25)
         client.ping()
         return client
-    except Exception:
+    except Exception:  # noqa: BLE001 - Redis unreachable; local fallback handles it
         return None
 
 
@@ -141,7 +141,7 @@ class RedisCache:
                 raw = client.get(self._key(key))
                 if raw is not None:
                     return json.loads(raw.decode("utf-8"))
-            except Exception:
+            except Exception:  # noqa: BLE001 - Redis get failed; local fallback handles it
                 pass
         return _local_get(self._key(key))
 
@@ -157,7 +157,7 @@ class RedisCache:
                 else:
                     client.set(self._key(key), payload)
                 return
-            except Exception:
+            except Exception:  # noqa: BLE001 - Redis set failed; local fallback handles it
                 pass
         _local_set(self._key(key), value, effective_ttl)
 
@@ -167,7 +167,7 @@ class RedisCache:
             try:
                 client.delete(self._key(key))
                 return
-            except Exception:
+            except Exception:  # noqa: BLE001 - Redis delete failed; local fallback handles it
                 pass
         _local_delete(self._key(key))
 
@@ -178,7 +178,7 @@ class RedisCache:
                 for k in client.scan_iter(f"{_REDIS_KEY_PREFIX}{self.namespace}:*"):
                     client.delete(k)
                 return
-            except Exception:
+            except Exception:  # noqa: BLE001 - Redis scan/delete failed; local fallback handles it
                 pass
         with _LOCAL_LOCK:
             for k in list(_LOCAL):
@@ -192,6 +192,71 @@ class RedisCache:
             return cached
         self.set(key, default, ttl)
         return default
+
+    # --- dict-like access (for tests and callers that expect []
+    #     semantics) ------------------------------------------------
+
+    def __getitem__(self, key: str) -> Any:
+        value = self.get(key)
+        if value is None:
+            raise KeyError(key)
+        return _json_unsafe(value)
+
+    def __setitem__(self, key: str, value: Any) -> None:
+        self.set(key, _json_safe(value))
+
+    def __delitem__(self, key: str) -> None:
+        self.delete(key)
+
+    def __contains__(self, key: str) -> bool:
+        return self.get(key) is not None
+
+
+# --- JSON-safe value transformation (bytes → base64 marker dict) ---
+
+
+def _json_safe(value: Any) -> Any:
+    """Convert ``value`` to a JSON-serializable form, wrapping bytes."""
+    if isinstance(value, bytes):
+        return {"__minicc_bytes__": base64.b64encode(value).decode("ascii")}
+    if isinstance(value, dict):
+        return {k: _json_safe(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe(v) for v in value]
+    return value
+
+
+def _json_unsafe(value: Any) -> Any:
+    """Reverse ``_json_safe``: restore bytes from marker dicts."""
+    if (
+        isinstance(value, dict)
+        and len(value) == 1
+        and "__minicc_bytes__" in value
+    ):
+        return base64.b64decode(value["__minicc_bytes__"])
+    if isinstance(value, dict):
+        return {k: _json_unsafe(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_json_unsafe(v) for v in value]
+    return value
+
+    # --- dict-like access (for tests and callers that expect []
+    #     semantics) ------------------------------------------------
+
+    def __getitem__(self, key: str) -> Any:
+        value = self.get(key)
+        if value is None:
+            raise KeyError(key)
+        return value
+
+    def __setitem__(self, key: str, value: Any) -> None:
+        self.set(key, value)
+
+    def __delitem__(self, key: str) -> None:
+        self.delete(key)
+
+    def __contains__(self, key: str) -> bool:
+        return self.get(key) is not None
 
 
 #: Process-wide default cache.  Namespaces isolate unrelated concerns

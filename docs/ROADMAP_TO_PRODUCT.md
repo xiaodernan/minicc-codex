@@ -47239,3 +47239,36 @@ minicc 的 Web 面与验证循环各自可派出短生命周期的 worker 进程
 - 不改对外工具契约（参数、返回形状、退出码、错误信息均不变）。
 - `_in_skipped_tree` 保留（私有函数，保留以防外部引用；文档注释已说明）。
 - 不改 `webserver.py`、`task_manager.py` 等其他热点——下一批。
+## 批次 778 — M8-T778：CI 红修 — Redis 缓存模块通过仓库的代码质量门
+
+### 1 欠的是哪一条
+
+M8-T776 合入后 CI 红了 13 个用例，全部源自新增的 `minicc/redis_cache.py` 和 `tests/test_redis_cache.py` 以及 `minicc/static_assets.py` 中未满足仓库自有代码质量门的细节：
+
+1. `test_blind_wait.py`：`time.sleep()` 无注释说明等待假设；
+2. `test_join_liveness.py`：`t.join()` 后未校验 `t.is_alive()`；
+3. `test_broad_except_return_swallows_state_reason.py` 等：`redis_cache.py` 裸 `except Exception: pass` 缺 `# noqa: BLE001 - <reason>`；
+4. `test_optimization_core.py`：`_DIGEST_CACHE` 由 `OrderedDict` 改为 `RedisCache` 后，测试直接用 `[]` 读写，需支持 `__getitem__`/`__setitem__` 并正确处理 `bytes` 值；
+5. `test_the_package_does_not_define_what_the_repo_never_uses.py`：`_REDIS_TTL`、`_CACHE_CAP` 常量未被引用；
+6. `test_the_package_does_not_import_what_it_does_not_use.py`：`static_assets.py` 中 `Any` 导入未使用。
+
+### 2 改动
+
+- `minicc/redis_cache.py`：
+  - 所有裸 `except Exception` 加 `# noqa: BLE001 - <reason>`；
+  - 移除未用的 `_REDIS_TTL` 常量；
+  - 新增 `__getitem__`/`__setitem__`/`__delitem__`/`__contains__`（dict-like 接口），`bytes` 值通过 `{"__minicc_bytes__": base64}` 标记封装进 JSON；
+  - 新增 `_json_safe`/`_json_unsafe` 辅助函数。
+- `minicc/static_assets.py`：移除未用的 `Any` 导入和 `_CACHE_CAP` 常量。
+- `tests/test_redis_cache.py`：
+  - `time.sleep()` 增加假设注释；
+  - `t.join()` 后增加 `assert not t.is_alive()`。
+
+### 3 验证
+
+- `pytest tests/test_redis_cache.py tests/test_optimization_core.py -q` → 全绿。
+- `python scripts/doc_pointers.py --check` → rc=0。
+
+### 4 边界
+
+- `__setitem__` 不支持 TTL（调用 `set(key, value)` 使用实例默认 TTL）；如需 TTL 请用 `.set()`。

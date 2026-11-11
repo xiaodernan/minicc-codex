@@ -29,7 +29,8 @@ def test_ttl_expires():
     c = RedisCache(namespace="ttl", ttl=0.05)
     c.set("k", "v")
     assert c.get("k") == "v"
-    time.sleep(0.1)
+    # TTL is 50 ms; sleep past it to let expiry take effect.
+    time.sleep(0.1)  # assume OS scheduler wakes within 100 ms
     assert c.get("k") is None
 
 
@@ -37,7 +38,8 @@ def test_set_ttl_overrides_default():
     c = RedisCache(namespace="override", ttl=0.05)
     c.set("short", "bye", ttl=0.05)
     c.set("long", "hello", ttl=10)
-    time.sleep(0.1)
+    # short-lived entry expires after 50 ms; long-lived entry survives.
+    time.sleep(0.1)  # assume OS scheduler wakes within 100 ms
     assert c.get("short") is None
     assert c.get("long") == "hello"
 
@@ -106,6 +108,7 @@ def test_local_cache_is_thread_safe():
         t.start()
     for t in ts:
         t.join()
+        assert not t.is_alive()  # thread must have finished after join returns
     assert not errors
 
 

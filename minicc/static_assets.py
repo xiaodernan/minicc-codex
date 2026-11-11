@@ -7,7 +7,6 @@ import json
 import mimetypes
 import re
 from pathlib import Path
-from typing import Any
 
 from .redis_cache import default_cache
 
@@ -32,7 +31,6 @@ from .redis_cache import default_cache
 # processes; when Redis is unavailable the module falls back to a small
 # in-process OrderedDict inside RedisCache itself.
 _ASSET_CACHE = default_cache  # namespace "default", keyed by (path, etag, gzip)
-_CACHE_CAP = 32
 
 _PACKAGE_ROOT = Path(__file__).resolve().parent
 _CHECKOUT_ROOT = _PACKAGE_ROOT.parent
