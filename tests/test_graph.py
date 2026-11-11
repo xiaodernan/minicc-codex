@@ -273,7 +273,6 @@ def test_state_graph_can_transition() -> None:
     graph.add_node(GraphNode(name="b", phase="verify"))
     graph.add_edge("a", "b", condition="ok")
     assert graph.can_transition("a", "b", condition="ok") is True
-    # condition="*" matches only edges with condition="*", not wildcard
     assert graph.can_transition("a", "b", condition="*") is False
     assert graph.can_transition("a", "b", condition="error") is False
     assert graph.can_transition("b", "a", condition="ok") is False
