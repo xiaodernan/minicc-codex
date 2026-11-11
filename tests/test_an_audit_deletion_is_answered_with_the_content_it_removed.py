@@ -1,8 +1,8 @@
 """M8-T562（第五百四十四批）：审计说文件没了，备份里那份内容还没人读。
 
 第五百四十三批让面板说出「这个文件被删掉了」，但它说不出**删掉了什么**：
-`diff` 的 `before` 只问 HEAD（`minicc/changes.py:564` 的 `_baseline`），
-`after` 对一个不在的文件答 `""`（`minicc/changes.py:569` 的 `_text`），于是
+`diff` 的 `before` 只问 HEAD（`minicc/changes.py:787` 的 `_baseline`），
+`after` 对一个不在的文件答 `""`（`minicc/changes.py:792` 的 `_text`），于是
 `additions`/`deletions` 双双为 0、补丁 0 字节——探针 probe_562 实测 E1/E10：
 `deleted` 一格 `patch_len=0`。
 

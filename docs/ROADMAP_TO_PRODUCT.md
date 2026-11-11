@@ -47159,3 +47159,24 @@ T770 让服务面有了第七个模块与第三条路由，但两处文档残留
 - bundle 与 manifest 哈希随之更新（删除旧 app bundle，新增新 app bundle）。
 - 不动 `game.js`（无关改动）。
 - 归档分支其余 T570 冲突 hunk 复用不了的行为**未**改（main 架构与该分支不共享）。
+## 批次 775 — M8-T775：引用行修 — 把 cherry-picked 归档测试的过时行号指回当前代码
+
+### 1 欠的是哪一条
+
+把 `archive/read-failure-chain-t566-t574` 的 T567–T574 批次 cherry-pick 到 `scratch/audit-chain` 后，文档门 `tests/test_a_line_a_test_docstring_cites_can_be_read.py` 抓住两处过时行号：
+
+- `test_an_audit_deletion_is_answered_with_the_content_it_removed.py` 引用 `minicc/changes.py:564`（`_baseline`）和 `:569`（`_text`）——当前代码里这两行是空行，`_baseline` 已移到 787，`_text` 移到 792。
+- `test_the_clean_shortcut_waits_for_a_trail_it_only_read_part_of.py` 引用 `:863～:870`（补丁空不空的条件）——当前这段在 890～892（`else self._baseline(...)`）。
+
+### 2 改动
+
+- 两处测试文档字符串里的行号改为当前非空行（`:787`、`:792`、`:890～:892`）。
+- 不改测试逻辑，不改 `minicc/changes.py`。
+
+### 3 验证
+
+- `pytest tests/test_a_line_a_test_docstring_cites_can_be_read.py -q` → **6 passed**。
+
+### 4 边界
+
+- 这是 cherry-pick 合并过程中的副作用修复；归档分支本身的历史不改。
