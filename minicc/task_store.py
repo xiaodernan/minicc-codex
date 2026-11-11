@@ -84,6 +84,9 @@ class TaskStore:
             conn.rollback()
             raise
 
+    # Alias for backward compatibility with existing callers
+    _connect = _rw
+
     @contextmanager
     def _ro(self) -> Iterator[sqlite3.Connection]:
         """Yield a read-only connection."""
@@ -532,7 +535,7 @@ class TaskStore:
             if self._rw_conn is not None:
                 try:
                     self._rw_conn.close()
-                except Exception:
+                except Exception:  # noqa: BLE001 - close() best-effort, ignore errors
                     pass
                 self._rw_conn = None
 
