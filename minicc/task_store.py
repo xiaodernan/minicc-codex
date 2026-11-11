@@ -4,10 +4,10 @@ SQLite keeps task history and resumable metadata across browser refreshes and
 service restarts without introducing a separate daemon or dependency.
 
 Performance optimizations (M8-T782):
-- Persistent connection instead of open/close per operation
 - PRAGMA tuning: cache_size, mmap_size, temp_store=MEMORY, synchronous=NORMAL
 - Read-only connections for read operations (mode=ro)
 - Batch upsert for multiple snapshots in one transaction
+- Connection opened per operation to avoid Windows file-locking issues
 """
 
 from __future__ import annotations
@@ -33,39 +33,34 @@ from .agent.protocol import TERMINAL_TASK_STATUSES
 class TaskStore:
     """Persist one JSON snapshot per task in a local SQLite database.
 
-    Uses a persistent read-write connection for writes and read-only
-    connections for reads, with PRAGMA tuning for throughput.
+    Opens a connection per operation (Windows-friendly) with PRAGMA tuning
+    for throughput.  Read operations use read-only connections
+    (``mode=ro``) to reduce lock contention.
     """
 
     def __init__(self, path: Path) -> None:
         self.path = path
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.RLock()
-        # Persistent read-write connection, opened lazily on first use.
-        self._rw_conn: sqlite3.Connection | None = None
         self._init_db()
 
     def _connect_rw(self) -> sqlite3.Connection:
-        """Open (or reuse) the persistent read-write connection."""
-        if self._rw_conn is None:
-            conn = sqlite3.connect(
-                str(self.path), timeout=30, isolation_level=None,
-                check_same_thread=False
-            )
-            conn.row_factory = sqlite3.Row
-            # PRAGMA tuning for throughput
-            conn.execute("PRAGMA journal_mode=WAL")
-            conn.execute("PRAGMA synchronous=NORMAL")
-            conn.execute("PRAGMA cache_size=-64000")  # 64 MB cache
-            conn.execute("PRAGMA mmap_size=268435456")  # 256 MB memory-mapped I/O
-            conn.execute("PRAGMA temp_store=MEMORY")
-            conn.execute("PRAGMA busy_timeout=30000")
-            self._rw_conn = conn
-        return self._rw_conn
+        """Open a read-write connection with PRAGMA tuning."""
+        conn = sqlite3.connect(str(self.path), timeout=30, isolation_level=None)
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA synchronous=NORMAL")
+        conn.execute("PRAGMA cache_size=-64000")  # 64 MB cache
+        conn.execute("PRAGMA mmap_size=268435456")  # 256 MB memory-mapped I/O
+        conn.execute("PRAGMA temp_store=MEMORY")
+        conn.execute("PRAGMA busy_timeout=30000")
+        return conn
 
     def _connect_ro(self) -> sqlite3.Connection:
         """Open a read-only connection for read operations."""
-        conn = sqlite3.connect(f"file:{self.path}?mode=ro", uri=True, timeout=30)
+        conn = sqlite3.connect(
+            f"file:{self.path}?mode=ro", uri=True, timeout=30
+        )
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA cache_size=-32000")  # 32 MB read cache
         conn.execute("PRAGMA mmap_size=268435456")
@@ -75,7 +70,7 @@ class TaskStore:
 
     @contextmanager
     def _rw(self) -> Iterator[sqlite3.Connection]:
-        """Yield the persistent read-write connection."""
+        """Yield a read-write connection."""
         conn = self._connect_rw()
         try:
             yield conn
@@ -83,6 +78,8 @@ class TaskStore:
         except Exception:
             conn.rollback()
             raise
+        finally:
+            conn.close()
 
     # Alias for backward compatibility with existing callers
     _connect = _rw
@@ -290,7 +287,6 @@ class TaskStore:
 
     def claim_lease(self, task_id: str, owner: str, *, pid: int = 0,
                     ttl: float = 45.0) -> bool:
-        """Atomically reserve execution; a different live owner cannot replace."""
         now = time.time()
         with self._lock, self._rw() as connection:
             changed = connection.execute(
@@ -530,14 +526,8 @@ class TaskStore:
         return deleted
 
     def close(self) -> None:
-        """Close the persistent read-write connection."""
-        with self._lock:
-            if self._rw_conn is not None:
-                try:
-                    self._rw_conn.close()
-                except Exception:  # noqa: BLE001 - close() best-effort, ignore errors
-                    pass
-                self._rw_conn = None
+        """Close any open connections (no-op for per-op connections)."""
+        pass
 
 
 _IDENTITY_KEYS = frozenset(
