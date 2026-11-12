@@ -78,7 +78,9 @@ try {
   await page.waitForFunction(() => !document.querySelector('[data-skill="timeStop"]').disabled);
   await page.locator('[data-skill="timeStop"]').click();
   const timeStopAtActivation = await page.evaluate(() => ({ x: window.__gameUpgradeProbe.game.zombies[0]?.x, hp: window.__gameUpgradeProbe.game.zombies[0]?.hp }));
-  await page.waitForTimeout(140);
+  // The impact is created synchronously inside the skill; poll instead of a fixed
+  // sleep so slow CI frames cannot observe the array before the effect lands.
+  await page.waitForFunction(() => window.__gameUpgradeProbe.game.impacts.length > 0, { timeout: 5000 });
   const timeStopAfter = await page.evaluate(() => ({
     energy: window.__gameUpgradeProbe.game.energy,
     cooldown: window.__gameUpgradeProbe.game.skillCooldowns.timeStop,
