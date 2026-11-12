@@ -47482,3 +47482,40 @@ Reasoning 模型偶尔夹 `{"type":"function_call","name":null}`——fake provi
 - 未删除任何分支/worktree（证据完整性优先；保留作测量/对照）。
 - `origin/main` 落后本地 2 提交（T817/T820），未推送远端（SSH 外部动作不擅为）。
 - tag 与文档均未触碰并轨会话的未提交改动（tool_policy/audit/tools/git/test_webauth 等）。
+
+
+## 批次 826 — M8-T826：Spring Cloud 网关缓存键闭环 + fanout 失效总线 + 全模块离线全绿
+
+### 1 欠的是哪一条
+
+用户要求"消息队列的合理运用""各种缓存的合理运用""Spring Cloud 微服务元素"。审计 `minicc-cloud-gateway` 的 Redis 缓存 + RabbitMQ 失效链发现三处半成品/缺陷：
+
+1. **网关起不来**：`application.yml` 有两个顶层 `spring:` 块，SnakeYAML 报 `found duplicate key spring`（line 85），ApplicationContext 直接加载失败——gateway 17 个测试**全红**，standalone 网关无法启动，而 `docs` 却声称"`mvn test` 空环境全绿/gateway 17/17"。
+2. **失效静默失手**：`@Cacheable(key="'inspector:status'")` 写入，但 `CacheInvalidationListener` 用原始 `route` header 调 `cache.evict(route)`；下游自然发服务名 `"inspector"`，evict 的是从未存过的 key，缓存带 60s TTL 继续供 stale 数据，无人能测见。且**全仓无任何发布者**（`grep convertAndSend` 为空）——队列只有消费者。
+3. **死常量**：`ROUTE_REFRESH_EXCHANGE` 只定义、无 exchange/binding，且按队列名 publish 在生产多副本下只会失效一个网关实例，其余仍 stale。
+
+### 2 改动
+
+- `application.yml` 合并两个 `spring:` 块为单一树（路由 + redis/cache/rabbitmq 同在）；`ShippedYamlHasOneSpringTreeTest`（2 条，纯文本扫描、不加载上下文）钉住"顶层键不重复 + 合并没丢路由/缓存键"。
+- `src/test/resources/application.properties`（**不同扩展名**，避免同名 `application.yml` 遮蔽主配置的路由）离线隔离 `spring.rabbitmq.listener.simple.auto-startup=false` 等；生产默认仍连 broker。
+- `CacheKeys.java`：缓存键唯一家，`forService()` 把服务名/规范键统一解析，未知服务返回 null（防 typo 误清）。
+- `CachedRouteController`：`@Cacheable` 改用 `CacheKeys` 常量，不再自带字面量副本。
+- `CacheInvalidationPublisher.java`（新增，补齐缺失的发布半环）：只接受已知服务，发「服务名 + route header=规范键」。
+- `CacheInvalidationListener`：`resolveEvictKey()` 纯函数统一经 `CacheKeys` 解析，未知服务不 evict、`*`/空目标才 clear。
+- `RabbitMqConfig`：补 `FanoutExchange` + `Binding`，publisher 发到 `route.refresh` fanout exchange；每个网关副本的队列都收到失效，集群语义正确。
+- `ShippedCacheKeysAgreeTest`（8 条，mock、无 broker）：写入键=发布键=evict 键、未知服务不误清、fanout 拓扑、发布→消费端到端用同一 key。
+- `docs/SERVICE_PLANE_GATEWAY.md` §6 记录键唯一家 / fanout / 离线隔离 / 历史缺陷。
+
+### 3 验证
+
+- 修复前：`mvn -o -q -pl minicc-cloud-gateway -am test` → **17 errors**（`found duplicate key spring`）；合并 yml 后改报 **17 errors（RabbitMQ ACCESS_REFUSED）**；加离线隔离后 → 上下文加载、**8 测试失败/0 error**（路由 `[]`，因同名 test yml 遮蔽）；改用不同扩展名 properties + `mvn clean` 清 target 残留 → gateway **19/19 绿**。
+- 加缓存键闭环 + fanout 后：`mvn -o -q -pl minicc-cloud-gateway -am clean test` → **27/27 绿**（6+2+8+8+2+1）。
+- 全 8 模块 `mvn -o clean test`（加环前）→ **rc=0，93 测试全绿**（bridge 17/config 2/inspector 29/tasks 14/insights 12/gateway 19；registry 纯 Eureka 无测试）。
+- 变异：把 `resolveEvictKey` 改回原始 `cache.evict(route)`，闭环门立即红（写入键≠evict 键）。
+
+### 4 边界
+
+- 不改任何下游服务代码；publisher 是规范入口，其它语言可按同形状（payload=服务名，header route=规范键）自行发布。
+- fanout 交换是新增拓扑，需要 broker 上存在（`RabbitMqConfig` 声明，容器启动时自动建）；单副本也兼容。
+- 测试隔离只作用于 test classpath，生产 `application.yml` 的 Redis/RabbitMQ 绑定不变。
+- 与并轨会话并发：其 T823/T824 已把本批的 yml 修复、YAML 门、隔离 properties 先后入库；本批在其之上补完缓存键闭环与 fanout，无覆盖对方改动。

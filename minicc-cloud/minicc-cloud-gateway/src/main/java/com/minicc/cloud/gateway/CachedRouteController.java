@@ -28,7 +28,10 @@ public class CachedRouteController {
     }
 
     @GetMapping("/inspector/status")
-    @Cacheable(value = "gateway-routes", key = "'inspector:status'")
+    // M8-T826: the key comes from CacheKeys' literals. SpEL needs a compile-time
+    // constant, so the literals live there and this annotation is their mirror;
+    // ShippedCacheKeysAgreeTest pins that the two never drift apart.
+    @Cacheable(value = CacheKeys.CACHE_NAME, key = "'" + CacheKeys.INSPECTOR_STATUS + "'")
     public Mono<ResponseEntity<Map<String, Object>>> inspectorStatus() {
         return Mono.just(ResponseEntity.ok(Map.of(
                 "service", "inspector",
@@ -37,7 +40,7 @@ public class CachedRouteController {
     }
 
     @GetMapping("/insights/summary")
-    @Cacheable(value = "gateway-routes", key = "'insights:summary'")
+    @Cacheable(value = CacheKeys.CACHE_NAME, key = "'" + CacheKeys.INSIGHTS_SUMMARY + "'")
     public Mono<ResponseEntity<Map<String, Object>>> insightsSummary() {
         return Mono.just(ResponseEntity.ok(Map.of(
                 "service", "insights",
