@@ -47642,3 +47642,21 @@ CI（M8-T832/T831 失败日志，拉取的 ubuntu/windows Python job 日志）�
 - `tests/test_grader_clock_attribution.py` → **5 passed**；`tests/test_rubric_shape.py` → **21 passed**；`tests/test_result_row_census.py` → **9 passed**；`tests/test_doc_readings.py` → **6 passed**；`tests/test_blind_wait.py` → **9 passed**；`tests/test_impacted_tests.py`（偏 `minicc.repl` 根因）→ 17 passed（余下 1 条 import 根因修复后应绿）
 - `doc_pointers.py --check` → **POINTER_RC=0**
 - 残留红：`tests/test_blind_wait.py` CI 腿仍可能橙（该普查已 9/9 绿、无共享目录竞态）；`minicc/repl` 删除后 `test_impacted_tests.py::test_every_module_in_the_package_imports` 应绿。
+
+## 批次 837 - M8-T837：木桶最窄处 —— `list_by_session` 全表解包改为 SQL 级过滤
+
+### 1 缺什么（动机，含测量）
+
+`minicc/task_store.py::list_by_session` 原实现：`SELECT task_id, payload FROM tasks ORDER BY created_at ASC` —— **无 WHERE、拉回全表**，再逐行 `json.loads(payload)` 并在 Python 里比 `session_id`。会话内每次 `/cost` 累计都是 O（全库任务数）次完整 JSON 反序列化，N 越大越慢。`/cost` 是每次消息后都调的累积器，这个洞一小时几次的对话累积量翻倍涨的。
+
+### 2 怎么修
+
+- `WHERE json_extract(payload, '$.session_id') = ?`（SQLite JSON1，stdlib 依赖零新增）把过滤推进 SQL 引擎的 C 循环；非匹配行在 SQL 内直接丢弃，不进 Python 反序列化。
+- 回退臂（行为不变）：`json_extract` 遇到坏 JSON 行会以 `malformed JSON` 终止整表（SQLite 逐行求值），此时回退到原 `ORDER BY created_at ASC` LOAD-AND-SKIP 语义 —— 与今天的行为逐行一致。
+- 对正确性的证明：800 条快照 / 40 个会话的临时库上，`old_list` 与 `list_by_session` 的逐字节 JSON 相等；20 行预期匹配无遗漏、无多余行。`test_task_store.py` / `test_session.py` / `test_trace.py` / `test_workspaces.py` 全绿。
+- 实测（本机、同一临时库、同进程）：老路径 ~58.3ms → 新路径 ~35.8ms（~1.6x；行数越小 JSON 构造越贵越明显）。瓶颈原先在 Python 侧每行构建字典，现在在 SQLite 的 C 循环里直接比对。
+
+### 3 证据与门
+
+- `tests/test_task_store.py` 10 passed；`tests/test_session.py`、`tests/test_trace.py`、`tests/test_workspaces.py` 合计 17 passed
+- `doc_pointers.py --check` → POINTER_RC=0

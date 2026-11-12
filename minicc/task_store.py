@@ -347,11 +347,27 @@ class TaskStore:
         return output
 
     def list_by_session(self, session_id: str) -> list[dict[str, Any]]:
-        """One session's snapshots, oldest first (the ``/cost`` accumulator)."""
+        """One session's snapshots, oldest first (the ``/cost`` accumulator).
+
+        The session id lives inside the payload JSON, so an in-SQL filter
+        narrows the scan to rows whose payload names this session instead of
+        loading and parsing every task in the database - measured, the Python
+        loop paid a full ``json.loads`` per row on every call. A payload that
+        fails to parse makes ``json_extract`` abort the statement, so the
+        fallback keeps the old load-and-skip semantics for a corrupt store.
+        """
         with self._lock, self._ro() as connection:
-            rows = connection.execute(
-                "SELECT task_id, payload FROM tasks ORDER BY created_at ASC"
-            ).fetchall()
+            try:
+                rows = connection.execute(
+                    "SELECT task_id, payload FROM tasks "
+                    "WHERE json_extract(payload, '$.session_id') = ? "
+                    "ORDER BY created_at ASC",
+                    (str(session_id),),
+                ).fetchall()
+            except sqlite3.DatabaseError:
+                rows = connection.execute(
+                    "SELECT task_id, payload FROM tasks ORDER BY created_at ASC"
+                ).fetchall()
         output: list[dict[str, Any]] = []
         for row in rows:
             try:
