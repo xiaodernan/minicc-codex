@@ -20462,7 +20462,7 @@ env=dict(os.environ, PYTHONIOENCODING="utf-8"),
 
 ### 2 落地
 
-`minicc/tools/fs.py` 的 `glob`：**边走边停**。收集到 `MAX_GLOB_RESULTS + 1` 个就停下，多出来的那个只用来判断"还有更多"，所以目录树剩下��部分根本不会被遍历。
+`minicc/tools/fs.py` 的 `glob`：**边走边停**。收集到 `MAX_GLOB_RESULTS + 1` 个就停下，多出来的那个只用来判断"还有更多"，所以目录树剩下的部分根本不会被遍历。
 
 ### 3 变异验证
 
@@ -20924,7 +20924,7 @@ M8-T294 是本批最值得记住的：`current` 这一个值同时当了**缓存
 
 | 位置 | 改法 |
 | --- | --- |
-| `minicc/agent/verifier.py` | 状态集合加上 `timed_out`；`_run_one` 单独映射它，并给它一句**专属**提示（"没有产生测试结论；请缩小检查范围或提高超时"），不再退化��"修复失败测试" |
+| `minicc/agent/verifier.py` | 状态集合加上 `timed_out`；`_run_one` 单独映射它，并给它一句**专属**提示（"没有产生测试结论；请缩小检查范围或提高超时"），不再退化成"修复失败测试" |
 | `minicc/agent/verifier.py` | 聚合时 `cancelled > failed > timed_out > blocked > passed` |
 | `minicc/agent/verifier.py` | `to_event()` 加上 `verification_timed_out` 事件码 |
 | `minicc/web.py` | `timed_out` **不进 repair 循环**：运行无法被认证，所以以"验证超时"收尾，但模型不会被派去修一个没失败的命令 |
@@ -21883,7 +21883,7 @@ if target is None:
 
 `tests/test_a_mention_past_the_cap_is_named_not_dropped.py`（5 条）：上限仍然
 生效（公开契约不变）；第 11 条**有名有姓**（记录 + 注入块说明）；上限内的提及照旧
-注入；没有超出的时��**不**多嘴。
+注入；没有超出的时刻**不**多嘴。
 
 ### 5 一条教训
 
@@ -21907,7 +21907,7 @@ if target is None:
 | --- | --- | --- | --- |
 | M8-T330a | `hooks.py` | hook 入参**先截断后脱敏**（`redact_text(text[:4000])`）：① 跨界的密钥只剩**半截** → 脱敏模式匹配不上 → **半截凭据进了 hook 的 stdin**；② 没人说值被截断过 → `PreToolUse`（用户自备的**否决层**）对着一个**前缀**推理，却以为看到了全部 | 先脱敏、再截断、并且**标记**截断（`[truncated]`） |
 | M8-T330b | `agent/rpc.py`、`output_style.py` | 新日志器用**裸** `logging.getLogger("minicc.x")`：它是 "minicc" 的子日志器，但**没有配置**它 → 没有 handler 带脱敏过滤器、`propagate` 仍是 True → 记录**绕过脱敏**走到根 handler，而 `LOG.exception` 带的是**完整 traceback** | 改用仓库自己的 `logging_setup.get_logger()` |
-| M8-T331a | `agent/verifier.py` | 聚合退出码在"**没有结论**"时写成 **0**——在证据链里 0 = **成功**，而同一行���状态写着 `blocked` → 交给裁决 LLM 的一行**自相矛盾** | 没有结论就是 `None`（0 是成功，不能借用） |
+| M8-T331a | `agent/verifier.py` | 聚合退出码在"**没有结论**"时写成 **0**——在证据链里 0 = **成功**，而同一行的状态写着 `blocked` → 交给裁决 LLM 的一行**自相矛盾** | 没有结论就是 `None`（0 是成功，不能借用） |
 | M8-T331b | `agent/context.py` | `tool_round_walk` 容忍"不是对象的消息"，校验器却直接对它 `.get(...)` → 抛**裸 `AttributeError`**，而这个函数的承诺是"在网络 I/O 之前拒掉非法轮次" | 非对象的消息 → `ValueError`（它承诺的那一种） |
 | M8-T331c | `snapshots.py` | `capture()` 是同一份 manifest 的**第五个**写者，却是**唯一**在模块锁之外的；它写的 manifest **从零开始**（没有 `touched` 键）→ 与 journal 交错时会把对方刚写的条目**整段抹掉** | `capture()` 也进 `_MANIFEST_LOCK` |
 
@@ -47761,7 +47761,7 @@ M8-T832 记录的 ubuntu 失败（2026-11-12 12:20）：`53 failed, 5504 passed`
 
 - `minicc-cloud-bridge` 新增 `CommandRunner` 接缝（客户端只提问，不决定并发）与 `GovernedRunner`：
   - **服务级进程预算**：`minicc.max-processes`，未设时 `min(8, max(2, 核数))`。`BridgeConfiguration` 只建一个、两个客户端共用——per-client 配额会让上限乘以客户端数。
-  - **同命令合并**：并发同 argv 的调用共享一次子进程；合并键用长度前缀编码（`["a","b"]` 与 `["a b"]` 不撞键）。只覆盖并发窗口，顺序的下一次调用一定重新执行——是合并，不是缓存。
+  - **同命令合并**：并发同 argv 的调用共享一次子进程；合并键用长度前缀编码（`["a","b"]` 与 `["a\u0000b"]` 不撞键）。只覆盖并发窗口，顺序的下一次调用一定重新执行——是合并，不是缓存。
   - **配额耗尽有话说**：等不到槽位时返回带原因的失败，绝不返回空结果（空变更列表读作「工作区干净」）。
   - 失败的 leader 从去重表移除，不拒绝后来的调用者。
 - `MiniccBridge`：含 `"` 的 `-c` 脚本改走 stdin（`python -X utf8 -`），绕开命令行引号层；`-` 与 `-c` 同样占据 `argv[0]`，调用方 `sys.argv[1:]` 不变。无引号的脚本保持原路径，行为逐字节不变。
@@ -47776,7 +47776,7 @@ M8-T832 记录的 ubuntu 失败（2026-11-12 12:20）：`53 failed, 5504 passed`
 - 变异臂（每条都被对应门抓住，过程中纠正了两条无效变异/假测试）：
   - 取消同命令合并 → `BridgedBurstTest` + `GovernedRunnerTest` 红（8 个调用者变成 8 个解释器）。
   - 取消进程预算（把配额建成 1024 的哨兵）→ `GovernedRunnerTest` 红 2 条（峰值 >2、饱和不再报原因）。第一次写成非阻塞 `tryAcquire(1)`，`catch (InterruptedException)` 因此不可达而编译失败——变异本身无效，已换能编译的哨兵。
-  - 合并键退化为第一个参数 → `GovernedRunnerTest` 红（`["a","b"]` 被当成 `["a b"]`）。
+  - 合并键退化为第一个参数 → `GovernedRunnerTest` 红（`["a","b"]` 被当成 `["a\u0000b"]`）。
   - 双引号脚本回到命令行 → `BridgeScriptDeliveryTest` + `BridgedBurstTest` 红。第一次只有后者红：投递测试的引号由 `json.dumps` 在运行时生成、脚本源码里没有 `"`，等于没测到那条路径；把引号写进脚本源码后才真正有牙齿。
 
 ### 4 边界
@@ -47822,3 +47822,34 @@ M8-T832 记录的 ubuntu 失败（2026-11-12 12:20）：`53 failed, 5504 passed`
 - 只收窄读工具（`status`/`diff`/`summary`），不改 `commit`：它提交的是暂存区，而 `stage` 已经限定在 `-- .`，且 `git_commit` 是 human-only 工具。
 - 子目录工作区里 `git log` 一类"仓库历史"仍以仓库为单位（当前没有 `git_log` 工具；未来新增时按同一条规则处理）。
 - 非 Git 仓库的工作区：`--show-prefix` 失败返回空串 → 不加限定 → 与原来一样由 `git status` 自己报错，错误信息不变。
+
+
+## 批次 843 - M8-T843：账本被自己写坏成二进制——清 2 个 NUL、9 处历史乱码，并加文档完整性门
+
+### 1 缺什么（动机）
+
+T842 收尾核查工作区时，`grep -oE "^## 批次 [0-9]+" docs/ROADMAP_TO_PRODUCT.md` 只回了两行 716/730，并打出 `Binary file docs/ROADMAP_TO_PRODUCT.md matches`。也就是说：**账本还在，但 grep 拒绝打印它**。逐字节排查后确认 2 个真正的 NUL 字节，位置在 T841 那段解释合并键的括号里——`["a","b"]` 与 `["a` + NUL + `b"]` 不撞键。写账本时那串转义经过 JSON/heredoc/Python 三层，最终落盘成了真 NUL，而不是想写的字面量。
+
+后果不是排版问题：`grep`、`rg`、部分编辑器与 diff 工具会把整份 3.8 MB 的账本当二进制，历史检索、批次号核对、"这句有没有被写过"全部失效。同一份文件里还躺着 9 个 U+FFFD（历史批次留下的真乱码，如"目录树剩下??部分"、"不再退化??"修复失败测试""、"没有超出的时??**不**多嘴"、"而同一行???状态写着"），以及 1 个孤立的 CRLF。
+
+### 2 处置
+
+- 把 2 个 NUL 还原成字面量 `\u0000`（6 个 ASCII 字符），用 `bytes([92])` 构造，不再经过任何转义层。
+- 修掉 4 处共 9 个 U+FFFD：`剩下的部分`、`退化成"修复失败测试"`、`时刻**不**多嘴`、`同一行的状态写着`。
+- 保留 2 个 U+FFFD：它们出现在讨论编码的批次正文里，是**故意引用**那个替换字符本身（`print('` + U+FFFD + `')` 对 GBK stdout 抛 `UnicodeEncodeError`），删掉会让那段论证失去对象。
+- 唯一的 CRLF 归一为 LF（全文其余为 LF）。
+- 新增 `tests/test_no_shipped_document_carries_a_nul_byte.py`（3 门）：`docs/**/*.md` 与 `README.md` 一律无 NUL；全部能被严格 UTF-8 解码；U+FFFD 只有 2 个预算、且必须落在含 `UnicodeEncodeError` 的上下文窗口里（防止用"数量没超"掩盖新乱码）。
+
+### 3 证据与门
+
+- 修复前：`NUL=2`、`U+FFFD=11`、`CRLF=1`，`grep -c "^## 批次"` 报二进制并只列到 730。
+- 修复后：`NUL=0`、`U+FFFD=2`（两处均为正当引用）、`CRLF=0`；`grep -c "^## 批次"` → **162**，尾部批次 840/841/842 正常可见；账本 diff 恰为 `7/7`。
+- `pytest tests/test_no_shipped_document_carries_a_nul_byte.py -q` → **3 passed**。
+- 变异臂：往账本尾部注入 1 个 NUL → 第 1 条精确报红；注入 1 个 U+FFFD → 第 3 条精确报红；恢复后 3 passed。
+
+### 4 边界
+
+- 不把 U+FFFD 一律禁掉：正文可以讨论它，门用"预算 + 上下文锚"区分"引用"与"损坏"。
+- 不改其它文档的 CRLF 风格：`docs/` 下另有 8 份历史文档本就是 CRLF，本批只归一账本里那个孤立的 CRLF。
+- 写这一批的账本时同一个陷阱又触发了一次：描述里那串转义在本层再次变成真 NUL（1 个）。新门当场报红、按同样办法修掉——它在落地的当天就证明了价值。
+- 教训写进项目记忆：写含转义序列的文本时用 `chr(0)`/`bytes([92])` 构造，落盘后立刻用 `grep -c` 验证文件仍是文本。
