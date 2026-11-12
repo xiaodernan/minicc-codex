@@ -104,7 +104,13 @@ def asset_response(root: Path, relative: str, *, accept_gzip: bool = False) -> t
         cached = (payload, etag)
         _ASSET_CACHE.set(key, cached)
     content = cached[0]
-    content_type = "text/javascript" if target.suffix == ".js" else mimetypes.guess_type(target.name)[0] or "application/octet-stream"
+    content_type = (
+        "font/ttf" if target.suffix == ".ttf"
+        else "font/woff2" if target.suffix == ".woff2"
+        else "font/woff" if target.suffix == ".woff"
+        else "text/javascript" if target.suffix == ".js"
+        else mimetypes.guess_type(target.name)[0] or "application/octet-stream"
+    )
     if textual:
         content_type += "; charset=utf-8"
     immutable = bool(re.fullmatch(r"assets/[a-zA-Z0-9_-]+\.[a-f0-9]{16}\.(?:js|css)", requested))

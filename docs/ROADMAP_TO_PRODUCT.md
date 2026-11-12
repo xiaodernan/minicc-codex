@@ -48262,3 +48262,45 @@ Tests run: 35, Failures: 0, Errors: 0, Skipped: 1   → BUILD SUCCESS
 - **没**在 CI workflow 上加 RabbitMQ service（与 M8-T852 live-Redis 同策略：opt-in，不增加 CI 依赖）。
 - 测试不启动 Spring ApplicationContext（不触发 RabbitAdmin 的 afterPropertiesSet 连接 broker）；
   它直接连 broker，缺省时零连接尝试。
+
+## 批次 858 - M8-T858：vendored Manrope / DM Mono — 设计系统要求的字型第一次真的上线
+
+### 1 缺什么（动机）
+
+`web/styles.css` 全仓引用 `Manrope` 做正文、`DM Mono` 做等宽（指标/代码/kbd），
+但仓里**没有** `@font-face`、没有 `web/fonts/`、没有任何 `woff2/ttf`——
+浏览器在每台机器上都静默回退到 `Segoe UI` / 默认等宽。
+设计系统的排版从未在用户的屏幕上真正渲染过。
+
+### 2 怎么做
+
+- `web/fonts/` 新增 6 个 OFL-1.1 许可字体 + 两份许可全文
+  （`manrope-{400,500,600,700}.ttf` ≈ 57.5 KB×4，`dm-mono-{400,500}.ttf` ≈ 45 KB×2，共 ~575 KB）；
+  `OFL-Manrope.txt` / `OFL-DMMono.txt` 含 Reserved Font Name 声明，许可合规。
+- `styles.css` 头部新增 6 条 `@font-face`（`font-display: swap`，不阻断首屏）；
+  字体走 `/fonts/<name>.ttf` 静态路由（本机文件系统直出，无 CDN，与「local-first」一致）。
+- `minicc/static_assets.py` 的 `asset_response` 给字体扩展名显式映射
+  `font/ttf` / `font/woff2` / `font/woff`（此前所有字体回退到 `application/octet-stream`）。
+- `web/index.html` 增加两条 `rel="preload"`（Manrope-400、DM Mono-400，`crossorigin`），
+  关键字体先于 CSS 解码、不等首次样式计算。
+
+### 3 实测证据
+
+```text
+$ curl http://127.0.0.1:8765/fonts/manrope-400.ttf
+HTTP/1.1 200 | Content-Type: font/ttf | 96200 bytes
+
+$ python http.client：先 GET 再 If-None-Match == ETag
+first: 200 "ed335894f8d954263675f7e4" 96200
+second: 304 b''                       # 字体可复用 304，不重复 96 KB
+
+npm run test:web                        → web smoke passed (timeline, product path, desktop, mobile)
+npm run test:optimization               → readyMs 905/893/603/739 (light+dark × 桌面1440+手机390)，对比文本对比度全过
+npm run build:web && npm run check:web  → bundles up to date; web/assets clean
+pytest tests/test_optimization_core.py tests/test_web_assets_are_fresh*          → 23 passed
+```
+
+### 4 边界
+
+- TTF（非 woff2）：各约 96 KB / 45 KB，对本地优先场景足够；字体文件为静态资产，不进 asset-manifest 指纹（既有 `immutable assets/` 规则不适用，字体靠 ETag 304 复用）。
+- 未改任何字重/字号使用点——纯「补上缺的字体」。

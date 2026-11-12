@@ -1,3 +1,54 @@
+/* ── Fonts ───────────────────────────────────────────────────────────────────
+ * Manrope (UI text) and DM Mono (code/metrics) are vendored under web/fonts/
+ * (OFL-1.1, see OFL-Manrope.txt / OFL-DMMono.txt). The design system asks for
+ * them by name; without a local @font-face every machine silently fell back to
+ * Segoe UI / a default mono — the typography never actually shipped. Both use
+ * font-display: swap so a slow font never blocks first paint, and both are
+ * served from the same content-addressed assets pipeline as everything else.
+ */
+@font-face {
+  font-family: 'Manrope';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/fonts/manrope-400.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'Manrope';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(/fonts/manrope-500.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'Manrope';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(/fonts/manrope-600.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'Manrope';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url(/fonts/manrope-700.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'DM Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/fonts/dm-mono-400.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'DM Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(/fonts/dm-mono-500.ttf) format('truetype');
+}
+
 /* ── Palette ────────────────────────────────────────────────────────────────
  * One palette per theme, declared once. A second `:root` block anywhere in this
  * file would not extend this one — it would replace it token by token, which is
