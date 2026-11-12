@@ -47853,3 +47853,94 @@ T842 收尾核查工作区时，`grep -oE "^## 批次 [0-9]+" docs/ROADMAP_TO_PR
 - 不改其它文档的 CRLF 风格：`docs/` 下另有 8 份历史文档本就是 CRLF，本批只归一账本里那个孤立的 CRLF。
 - 写这一批的账本时同一个陷阱又触发了一次：描述里那串转义在本层再次变成真 NUL（1 个）。新门当场报红、按同样办法修掉——它在落地的当天就证明了价值。
 - 教训写进项目记忆：写含转义序列的文本时用 `chr(0)`/`bytes([92])` 构造，落盘后立刻用 `grep -c` 验证文件仍是文本。
+
+## 批次 844 - M8-T844：键盘焦点有九处画不出任何指示器——焦点环三个家、三种答案，还全都输给了选择器权重
+
+### 1 缺什么（动机）
+
+先做静态核查，再上浏览器。静态那一步就已经不对了：`web/styles.css` 里 `*:focus-visible` 被声明**两次**（第 108 行 `outline-offset: 2px`，第 1403 行 `3px`）——同一件事，两种答案。而 `web/styles-enhancements.css` 因为加载更晚，第三次声明 `*:focus-visible`，用的是 `--blue`。于是"焦点环是什么颜色"的最终答案由**文件加载顺序**决定，不由任何一位作者决定。
+
+比重复更严重的是抑制。九类控件身上写着 `outline: 0` / `outline: none`：
+
+- 五条带 `:focus-visible` 却不重画：`.task-row`、`.workspace-row`、`.change-item-button`、`.global-search-result`、`.auth-form input`；
+- 另外七条是**基础规则**：`.sidebar-search input`、`.batch-field`、`.workspace-form input`、`.worktree-form input`、`.settings-effort select`、`.settings-model select`、`.game-difficulty select`。它们的右端复合选择器权重是 `(0,1,1)`，通用规则是 `(0,1,0)`——**通用规则永远赢不了**，无论写在文件哪个位置。
+
+键盘用户按 Tab 走到这些位置时，屏幕上什么都不会动。鼠标用户一辈子看不到这个缺陷，所以它能一直躺着。
+
+### 2 处置
+
+- 焦点环收成一组令牌，放进唯一的 `:root` 调色板：`--focus-ring-color / -width / -offset`，再加两个合成值 `--focus-ring`（外扩）与 `--focus-ring-inset`（内嵌）。`--focus-ring-color: var(--coral)` 让深浅两套主题各取自己的珊瑚色，而不必把颜色写第二遍。
+- 删掉 `styles.css` 的两条重复声明，末尾那条 `*:focus-visible` 成为唯一的标准环；`styles-enhancements.css` 里那份换成一段说明——写清"这里若再声明一次，不是叠加，是替换"。
+- 五条 `:focus-visible` 抑制：能自己画的补 `box-shadow: var(--focus-ring[-inset])`（`.change-item-button` 用 inset，它在侧栏滚动容器里，外扩环会被裁）；`.task-row`、`.workspace-row`、`.global-search-result` 直接删掉 `outline: 0`，让标准环生效。
+- 七条基础规则抑制：六条直接删掉 `outline: 0`。剩下三条是"框内无边框输入"（`.sidebar-search input`、`.composer-shell textarea`、`.global-search-box input`），环画在裸控件上会飘在框里，所以改为画在容器上：新增 `.sidebar-search:focus-within`，把 `.composer-shell:focus-within` 从 `--coral-soft`（深色下几乎与背景同色，等于没画）换成标准环，`global-search-box` 同理；`.settings-rewind .rewind-form:focus-within input` 一并补环。
+- 三处"把环委托给容器"写进测试里的 `DELEGATED_RINGS` 表，并逐条验证容器确实在画环、且委托条目不许失效。表是承诺，不是注释。
+- 顺手删掉 `.input` 整块死样式：全仓库没有任何元素用 `class="input"`，而它的 `.input:focus` 正是一条 `outline: none`。
+- 新增 `tests/test_no_focus_stop_goes_dark.py`（8 门）；CSS 读取器抽到 `tests/_css_rules.py` 共享，避免两个门各写一份解析器——那正是这一批在治的病。
+
+### 3 证据与门
+
+- 门清单：环只在 `:root` 有一个家；`*:focus-visible` 只出现一次且引用令牌；任何抑制环的规则必须自己画环，或出现在委托表里（两个样式表各一条参数化）；委托表里每个容器必须真的在画环；委托表不许有失效条目；深/浅主题下环色对 `--surface`、`--surface-raised`、`--sidebar` 的对比度 ≥ 3:1（WCAG 1.4.11）。
+- `pytest tests/test_no_focus_stop_goes_dark.py -q` → **8 passed**。
+- 变异臂六条，每条只被对应那条断言抓住：
+
+| 变异 | 内容 | 抓住它的断言 |
+| --- | --- | --- |
+| M1 | 往 enhancements 塞回蓝色 `*:focus-visible` | `test_the_universal_rule_appears_once_and_uses_the_ring` |
+| M2 | 给 `.task-row:focus-visible` 加回 `outline: 0` | `test_no_rule_silences_a_focus_stop[styles.css]` |
+| M3 | 给 `.workspace-form input` 加回 `outline: 0` | `test_no_rule_silences_a_focus_stop[styles.css]` |
+| M4 | `--focus-ring-color` 改成 `#2b2b30`（贴近背景） | `test_the_ring_is_visible_against_the_surface_it_sits_on[dark]` |
+| M5 | `.global-search-box:focus-within` 只改边色不画环 | `test_every_delegated_ring_names_a_rule_that_actually_paints` |
+| M6 | enhancements 里再定义 `--focus-ring-width` | `test_the_ring_has_exactly_one_home` |
+
+- 真实浏览器验收（Chromium，`page.route` 直接从 `web/` 供文件，不起服务）：深/浅两套主题各 Tab 走过 **37 个焦点停靠点，0 个画不出指示器**。探针落在 `output/focus-stops.json`。
+- M2 与 M3 落在同一条断言上不是巧合：它们是不变量的两个入口（`:focus-visible` 规则不重画 / 基础规则靠权重压过通用规则）。所以只写一条断言、两个入口，而不是两条会互相重叠的断言——重叠的断言会让"哪个修复坏了"变得说不清。
+
+### 4 边界
+
+- 不动配色本身：这一批只保证"焦点可见"，颜色是否好看属于 T845。
+- 没有一刀切禁掉 `outline: 0`：三处"框内无边框输入"靠 `:focus-within` 在容器上画环，这是刻意委托，写进表里接受检查。
+- 不把浏览器探针固化成常驻门：它需要 Playwright 与 Chromium，而 Python 门已经把"有没有环"这条不变量钉死了。探针的价值是证明静态推理与真实渲染一致——这一次一致。
+- 只覆盖 Tab 顺序能到达的 37 个位置。拖拽区、hover-only 控件不在焦点可访问性范围内，本批不处理。
+
+## 批次 845 - M8-T845：同一份样式表里两套调色板，后一套静默替换前一套 20 个颜色——合并成每主题一个家
+
+### 1 缺什么（动机）
+
+T844 的浏览器探针读 computed style，`--coral` 是 `rgb(251, 146, 60)`。而 `web/styles.css` 第 13 行明明写着 `--coral: #f28d6d`。两个值都不算错——它们是同一个文件里的两套调色板。
+
+文件开头是一套暖色编辑风调色板（`:root` + `:root[data-theme="light"]`，25 / 19 个令牌）。1900 行之后又来一套，注释自己写着 `/* ── CSS variables: modern palette, glass, depth ── */`，重定义了深色 25 个里的 **20 个**、浅色 19 个里的 **18 个**。
+
+于是文件前 46 行描述的颜色，产品一个都没画过。改第一套的人改的是注释；改第二套的人以为自己只加了点玻璃与阴影。T844 的对比度门也因此测的是**死调色板**：它断言 `#f28d6d` 对 `#202023` 的比例，而屏幕上根本没有这两个颜色。门是绿的，量的是不存在的世界。
+
+### 2 处置
+
+- 把后一套（真正生效那套）整体搬到文件开头替换前一套，并删掉它原来的位置。移动，不重写——重写就会带进新的手误。
+- 用脚本做，并把"等价"变成可执行判据：先从原文算出生效调色板（同选择器按源码顺序 last-wins），搬完再从新文件算一遍，**要求逐令牌完全相等**，同时要求每个选择器只剩一个块、顶层块数量恰好减 2。
+- 第一次跑就红：我把 T844 新加的 5 个 `--focus-ring*` 令牌写在了旧块里，块一删，对比立刻报 `DRIFTED` 并逐条列出丢掉的令牌。脚本改成按名字把 `--focus-ring*` 迁移过去，再跑 → `41 tokens, identical` / `30 tokens, identical`，每主题各剩 1 个块。
+- 新增 `tests/test_the_palette_has_one_home.py`（5 门）。
+
+### 3 证据与门
+
+- 门清单：每个主题的调色板只声明一次；**颜色令牌必须深浅两侧都声明**（否则浅色主题静默继承深色，看起来像渲染抖动）；组件规则不许重新声明调色板令牌；两个样式表里每个 `var(--x)` 都必须有声明，且"由 JS 运行时写入"的豁免名单必须真的能在 JS 里找到写入点。
+- `pytest tests/test_the_palette_has_one_home.py -q` → **5 passed**。
+- 变异臂五条，全部精确命中：
+
+| 变异 | 内容 | 抓住它的断言 |
+| --- | --- | --- |
+| P1 | 再插入一个 `:root { --coral: #f28d6d; }` | `test_each_theme_declares_its_palette_once[dark]` |
+| P2 | 从浅色调色板删掉 `--blue` | `test_light_mode_never_inherits_a_dark_colour` |
+| P3 | `.send-button` 里写 `--coral: #ff0000` | `test_no_component_re_answers_a_palette_token` |
+| P4 | `.send-button` 读 `var(--coral-unset)` | `test_the_palette_covers_the_roles_components_ask_for` |
+| P5 | `game.js` 里 `--seed-cooldown` 的写入点改名 | `test_the_palette_covers_the_roles_components_ask_for` |
+
+- P5 顺手抓出了门自己的漏洞：`--seed-cooldown` 是 `--seed-cooldown-unused` 的**前缀**，我原来用 `token in source` 判断"JS 是否写了它"，子串命中让 P5 全绿。改成令牌边界正则（`(?![\w-])`）后才红。变异臂的价值有一半在这儿——它测的不只是代码，也测门。
+- P1 起初还连带打红 `test_light_mode_never_inherits_a_dark_colour`：那条门读的是"第一个 `:root` 块"，插一个新的就换了解析对象。改成读**生效调色板**（按源码顺序折叠）后，P1 只红一条。理由写进 `_css_rules.effective_palette` 的注释：读取调色板的门必须容忍重复，因为禁止重复是另一条门的职责——否则一处结构损坏会同时打红所有门，反而看不出是谁发现的。
+- 等价性证据（合并前后各跑一次真实浏览器，Chromium）：深色 `--coral` rgb(251,146,60)、`--surface` rgb(30,41,59)、`--text` rgb(248,250,252)、`--sidebar` rgb(15,23,42)、`--mint` rgb(52,211,153)、`--blue` rgb(96,165,250)；浅色 rgb(234,88,12) / rgb(255,255,255) / rgb(15,23,42) / rgb(241,245,249) / rgb(16,185,129) / rgb(37,99,235)。逐项与合并前相同——视觉零变化。
+- `node scripts/build-web.mjs` 重建内容哈希资产（styles 从 `94f96e52…` 变 `fafda81c…`，剪掉 1 个陈旧 bundle），随后 `--check` 通过、`web/assets is clean (3 referenced bundle(s))`。
+
+### 4 边界
+
+- 不判断哪套调色板"更好看"。后一套是线上实际渲染的那套，本批只让它成为唯一的一套；审美判断不属于修缺陷。
+- 不重构那 54 个 `:root[…]` 作用域规则（如 `:root[data-theme="light"] .diff-preview`）：它们覆盖的是具体组件，不是调色板。`test_no_component_re_answers_a_palette_token` 只针对调色板令牌。
+- `--radius`、`--transition-*`、`--focus-ring-*` 这类非颜色令牌允许只在 `:root` 声明（两主题共用），门只对颜色令牌要求双侧声明。
+- 没有把合并写成"新调色板"。合并后 41 个深色令牌、30 个浅色令牌，比旧块多出的 16 / 11 个是第二套新增的 `--rose*`、`--purple*`、`--glass*`、`--shadow-sm/md/lg/xl`——它们本来就在生效，现在只是搬到了该在的位置。

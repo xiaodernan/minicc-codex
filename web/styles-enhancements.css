@@ -233,11 +233,12 @@
   transition: opacity 0.2s ease;
 }
 
-/* ---- Focus rings for accessibility ---- */
-*:focus-visible {
-  outline: 2px solid var(--blue, #9cb7f0);
-  outline-offset: 2px;
-}
+/* ---- Focus rings for accessibility ----
+ * Deliberately empty: the ring is owned by `*:focus-visible` in styles.css.
+ * This file loads *after* styles.css, so a second `*:focus-visible` here would
+ * not "add" a ring — it would silently replace the one colour, width and offset
+ * every focus stop already uses (M8-T844).
+ */
 
 /* ---- Scrollbar styling ---- */
 ::-webkit-scrollbar {
