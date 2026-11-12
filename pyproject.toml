@@ -57,6 +57,11 @@ dev = [
     # Reproduced in a throwaway venv with setuptools 69.5.1 and no wheel;
     # installing wheel fixes it. Same class of defect as httpx above.
     "wheel>=0.41",
+    # Redis-backed distributed cache (minicc.redis_cache) is part of the product,
+    # not an optional extra we suggest users enable: the web server and workers
+    # both import it, so CI must install it to test the same code that ships.
+    # Pinned by tests/test_ci_hygiene.py so it cannot be dropped without a red test.
+    "redis>=5.0.0",
 ]
 # Native Anthropic Messages provider (minicc.llm.anthropic_provider).
 anthropic = [

@@ -72,3 +72,9 @@
 - **`minicc/repl/` 死包删除**（`__init__.py` import 从未存在的 repl.py；CI 下限普查直播那里被拦下）。
 
 - **静默门 population 断言适配 Redis 池的宽进（M8-T841）**：`redis_cache.py` 的 4 个值返回型吞并（`return False, None` / `return False`）使第三道门与两个窄化并集不再等齐；`test_broad_silent_handlers_state_a_reason_mutation.py` 改为严格超集断言 + 卫星点必须自带说明理由（全部带 `# noqa: BLE001 - <why>`），`test_mutation_cells_react_to_the_code_they_name.py` 4 处 `must_go_red` 同步复名。
+
+- **dev extra 补 redis（M8-T851）**：CI 装 `pip install -e ".[dev]"`，此前 dev 里根本没有 `redis`，导致 `minicc/redis_cache.py` 的真实 Redis 分支在 CI 上从未被真正执行（即使 `.[dev]` 装了也拿不到 `redis` 驱动）。现在 `test_ci_hygiene.py::test_redis_is_declared_dev_dependency` 把 `redis>=5.0.0` 钉进 dev extra，12/12 CI hygiene gate 和 17/17 `test_redis_cache` 在有可用 Redis 实例的情况下都通过，cross-process set/get / TTL / namespace 都在本机验证过。
+- **网关 `/api/cached/*` 不再返回模拟数据（M8-T848）**：`CachedRouteController` 两路代理改为用 client-side load balancing（`@ReactorLoadBalancerExchangeFilterFunction`）发 `lb://minicc-cloud-inspector|insights` 真实 upstream 健康状态；新增 `UpstreamHealthProbe` 让生产用 WebClient、测试换 fake；`CachedRouteControllerTest` 4/4 钉住「响应来自 probe 不是来自常量」。
+- **新增 `/api/health/all`（M8-T850）**：网关对三个后端**并行**发 lb:// probe，`{services:[...], upCount:N, totalServices:3}` 输出；3/3 `AggregateHealthControllerTest` 钉住 all-up=3、不是全-down=0、chaos=1；docs 实机演示见 `SERVICE_PLANE_OPERATOR.md` §7。
+- **`minicc-cloud-registry` 首个测试（M8-T849）**：`RegistryHealthTest` 起随机端口 registry，`/actuator/health` 和 `/eureka/apps` 断言——此前该核心模块零测试。
+- **`minicc/task_store.py::list_by_session`** 去掉全表 `json.loads`，改用 SQLite JSON1 `json_extract` 下推过滤（`~58ms -> ~36ms`，800 条快照本机实测）。

@@ -48030,3 +48030,56 @@ Redis 缓存与 fanout 失效总线保护的只是个常量，监听器的 evict
 - `mvn -Dtest='AggregateHealthControllerTest' test` — **Tests run: 3, Failures: 0**
 - 网关单元测试合计 — **Tests run: 34**（aggregate-health 3 + cached-route 4 + passthrough 6 + request-size 2 + route-binding 8 + cachekeys 8 + one-spring-tree 2 + two-timeouts 1）
 - Reactor `mvn -o test` — BUILD SUCCESS
+
+## 批次 851 - M8-T851：dev extra 补 redis — CI 里那条"Redis 分布式缓存可用"的路径不再永远走 fallback
+
+### 1 缺什么（动机）
+
+`minicc/redis_cache.py` 的 docstring 写了一个一直没兑现的前提：可装 `redis` 驱动作为可选依赖
+（`pyproject.toml` 有单独的 `redis = ["redis>=5.0.0"]` extra），此时 `_HAS_REDIS=True`、
+`_redis_client()` 连上 `REDIS_URL`，多进程间真正共享同一个写入。
+
+CI 装的是 `pip install -e ".[dev]"`。而 `[project.optional-dependencies]` 的 dev 里：
+
+- 有 `httpx>=0.27.0`（被两个门钉住：`test_httpx_is_declared_dev_dependency`、`test_reasoning_effort` 直接用）；
+- 有 `wheel>=0.41`（被打包门钉住：`wheel` 不能省）；
+- **没有 `redis`**。
+
+结果：CI 上 `import redis` 失败 ⇒ `_HAS_REDIS=False` ⇒ `_redis_client()` 恒 None ⇒
+所有依赖 Redis 本地驱动的分支从未在 CI 里被执行过。本机补上驱动后 `redis 8.1.0` 真正连入验证 set/get/TTL/namespace/
+跨进程共享全部按文档工作（见下面）。
+
+### 2 怎么做
+
+- `pyproject.toml` `[project.optional-dependencies]` 的 `dev` 新增 `"redis>=5.0.0"`
+  （沿用单独的 `redis = [...]` extra；未动生产代码）。
+- `tests/test_ci_hygiene.py` 新增 `test_redis_is_declared_dev_dependency`——与现有两个 pin 门保持同一模式：
+  被 `pip install -e ".[dev]"` 覆盖的依赖必须出现在 dev extra 里。
+- `test_ci_hygiene.py` 现有 11 个断言全绿（12 passed）；`tests/test_redis_cache.py` 17/17 全绿。
+- `doc_pointers.py --check` → POINTER_RC=0
+
+### 3 证据（本机实测）
+
+```text
+$ python -m pytest tests/test_ci_hygiene.py -q
+12 passed in 3.42s
+
+$ python -m pytest tests/test_redis_cache.py -q
+17 passed in 2.49s
+
+$ REDIS_URL=redis://127.0.0.1:6381/0 .venv/Scripts/python -c ...   # 起了一个临时的 redis 7-alpine 容器
+probe:hello -> world
+probe:nested -> {'a': [1, 2, 3], 'b': True}
+probe:bytes -> b'\x00\x01\x02'
+跨进程 (A 写, B 读): hello from process A
+TTL (2s, 等了 3s): None
+namespace isolation (另一个 cache 实例): None
+```
+
+### 4 边界
+
+- 本批只解决 CI 驱动缺失，**没**在 workflow 里起 Docker Redis service（不引入容器依赖、不改 setup-python 缓存）；
+  CI 因此反而更小一点。
+- 未改 `redis_cache.py` 生产代码；fallback 路径依然安全。
+- `tests/test_redis_cache.py` 17/17 在本机、装了 redis-py 且 Redis 可达的环境里全部通过；
+  其语义在 fallback（内存 LRU）与 Redis 两个分支下是一致的（公开契约对内保持的测试即可）。

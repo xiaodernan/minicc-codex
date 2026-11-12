@@ -65,6 +65,18 @@ def test_wheel_is_declared_because_packaging_builds_in_process():
     assert any(entry.split("[")[0].strip().lower().startswith("wheel") for entry in dev), dev
 
 
+def test_redis_is_declared_dev_dependency() -> None:
+    """CI installs the dev extra; redis_cache ships in the web surface.
+
+    The module falls back to an in-process LRU when the driver is missing, so a
+    missing dependency does not fail the build - but it means the Redis branch
+    never executes against the real client in CI, and the distributed-cache
+    claim rides on a fallback no one exercised. Declared and pinned.
+    """
+    dev = _pyproject()["project"]["optional-dependencies"]["dev"]
+    assert any(entry.split("[")[0].strip().lower().startswith("redis") for entry in dev), dev
+
+
 def test_pytest_addopts_reports_summary_not_quiet():
     addopts = _pyproject()["tool"]["pytest"]["ini_options"]["addopts"]
     assert "-ra" in addopts
