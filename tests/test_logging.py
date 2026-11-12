@@ -347,6 +347,36 @@ def test_metrics_endpoint_reconciles_with_task_snapshots(
         live.shutdown()
 
 
+def test_metrics_payload_carries_redis_cache_topology(tmp_path: Path) -> None:
+    """The one payload that answers "does this process have a live Redis?" must answer it.
+
+    That field is the only signal a dashboard / operator can read from the
+    web surface; the old per-service debug log always said "local fallback"
+    because nothing ever logged a connect attempt. M8-T853 ships the counters
+    and this gate pins that the field is reachable and typed.
+    """
+    live = _LiveServer(tmp_path)
+    try:
+        _run_task(live.service, tmp_path, "trigger metrics path")
+        status, payload = live.get("/api/metrics")
+        assert status == 200
+        assert "redis_cache" in payload
+        cache_view = payload["redis_cache"]
+        assert isinstance(cache_view, dict)
+        for field in (
+            "gets", "shared_hits", "shared_misses", "fallback_reads",
+            "sets", "sets_shared", "sets_local",
+            "deletes", "clears",
+            "live_backend", "local_units", "local_capacity",
+        ):
+            assert field in cache_view, f"/api/metrics missing redis_cache[{field!r}]"
+        assert isinstance(cache_view["live_backend"], bool)
+        assert isinstance(cache_view["local_capacity"], int) and cache_view["local_capacity"] > 0
+        assert isinstance(cache_view["gets"], int) and cache_view["gets"] >= 0
+    finally:
+        live.shutdown()
+
+
 def test_metrics_answers_unknown_cost_as_unknown_in_every_field(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
