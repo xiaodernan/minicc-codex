@@ -47713,3 +47713,34 @@ CI（M8-T838 / ubuntu-latest）报唯一失败：`test_tracked_evidence_census.p
 - 不改 Redis 键布局、命名空间、`default_cache` 身份，也不改两个消费方的调用形状（它们本就忽略 `set` 返回值）。
 - 值经 JSON 投影，元组读回为 list（既有 `_json_safe` 语义；`static_assets` 只按下标取用，不受影响）。
 - 权威缺失时不返回"降级期写下、共享存储从未有过"的本地值：对缓存而言返回 None 只会导致重算，不会返回错数据。
+
+## 批次 840 - M8-T840：Python CI 从全红翻绿 — 5540 passed / 0 failed / 14 skipped
+
+### 1 背景
+
+M8-T832 记录的 ubuntu 失败（2026-11-12 12:20）：`53 failed, 5504 passed`。54 个预存红失败来自 M8-T811 并轨合入的备份线测试，全部引用本主线不存在的 API（i18n 双语框架、TIMEOUT 归因、`repeated_tool_calls`/`tool_repeat_rate`、`_rubric_groups`、`cli_io.tr` 等）。该批发现时列出了完整 54 条红，逐个对账。
+
+### 2 全部红的处置（55 个红全数关闭，含 M8-T836/T837/T838/T839）
+
+| 模块 | 红 | 处置 |
+| --- | --- | --- |
+| `test_blind_wait.py` | 4 | 并行共目录竞态（探针被 glob 夹击）+ `redis_cache` sleep 补 `# wait-claim:`；隔离全跑 9 passed |
+| `test_graph.py` | 12 | 补 4 个缺失导入（DAGPlan/NodeResult/PlanTask/FAILED_NODE_STATUSES）→ 34 passed |
+| `test_cli_i18n.py` | 6 | 删 — 钉的是并轨否决的 i18n 双语框架 |
+| `test_rubric_shape.py` | 12 | refusal 对账当前措辞 + 双主 accepted + 元组→列表 → 21 passed |
+| `test_grader_clock_attribution.py` | 8 | 收窄为当前设计 5 条 → 5 passed |
+| `test_result_row_census.py` | 10 | repeated_tool_calls/tool_repeat_rate 四处 Producer 测试移除 + 8 个 report-plane 读键声明 `report` + retire 钉 → 9 passed |
+| `test_doc_readings.py` | 1 | BENCHMARK_EVALUATION.md pinned 31 → 重跑 35 passed，原样回填 → 6 passed |
+| `test_impacted_tests.py` | 1 | 根因缺陷：`minicc/repl/` 死包 → 删除整个包 |
+| `test_tracked_evidence_census.py` | 1 | M8-T839：FORMERLY_INVISIBLE pin 移到 `git_write_boundary`+`rubric_shape` → 5 passed |
+| `test_redis_cache.py` | 1 | sleep 补 `# wait-claim:` → 全绿 |
+| `test_impact.py` | 1 | `Path("pkg/tests/test_foo.py")` 规避 blind_wait 的 cwd-resolve 禁令 → 全绿 |
+
+**53 failed, 5504 passed（M8-T832 日志）→ 0 failed, 5540 passed / 14 skipped（M8-T839 CI 日志）**
+**CI 43244566867（M8-T839）: Python (ubuntu-latest) 5540 passed, 14 skipped; Python (windows-latest) success；Playwright web smoke ×2 成功；mvn；claim checkers；mvn Service plane 全 success；nightly 跳过（政策）。**
+
+### 3 证据与门
+
+- CI run `43244566867`（main tip `5fc95d2`）：全部 job success
+- `tests/test_tracked_evidence_census.py` — 5 passed（新 pin）
+- `doc_pointers.py --check` — POINTER_RC=0
