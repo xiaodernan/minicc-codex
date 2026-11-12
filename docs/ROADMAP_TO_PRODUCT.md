@@ -47944,3 +47944,38 @@ T844 的浏览器探针读 computed style，`--coral` 是 `rgb(251, 146, 60)`。
 - 不重构那 54 个 `:root[…]` 作用域规则（如 `:root[data-theme="light"] .diff-preview`）：它们覆盖的是具体组件，不是调色板。`test_no_component_re_answers_a_palette_token` 只针对调色板令牌。
 - `--radius`、`--transition-*`、`--focus-ring-*` 这类非颜色令牌允许只在 `:root` 声明（两主题共用），门只对颜色令牌要求双侧声明。
 - 没有把合并写成"新调色板"。合并后 41 个深色令牌、30 个浅色令牌，比旧块多出的 16 / 11 个是第二套新增的 `--rose*`、`--purple*`、`--glass*`、`--shadow-sm/md/lg/xl`——它们本来就在生效，现在只是搬到了该在的位置。
+
+## 批次 848 - M8-T848：网关 cached-route 从「派生模拟」改为「client-side LB 上游探活」
+
+### 1 缺什么（动机）
+
+路由 `/api/cached/inspector/status`、`/api/cached/insights/summary` 用过一批假的
+`Map.of("cached", true, ...)` 回答 —— 60s TTL 里每次 miss 都返回**同一个常量**，
+Redis 缓存与 fanout 失效总线保护的只是个常量，监听器的 evict、配置改动、服务上下线，
+对外都看不出任何差别。`docs/PERFORMANCE.md` 早就把这条登记为未做的工作单。
+
+### 2 怎么做（client-side load balancing，不写死 host:port）
+
+- 新类 `UpstreamHealth`（record `UpstreamHealth(String status)`）、`UpstreamHealthProbe`
+  （接口：`Mono<UpstreamHealth> probe(String service)`）、`HttpUpstreamHealthProbe`
+  （生产实现：`WebClient`
+  挂 `ReactorLoadBalancerExchangeFilterFunction`，用 `lb://<service>/actuator/health`
+  走 client-side LB，解 Eureka 注册表里的实例；未知/连不上 → `"UNKNOWN"`，同样是
+  `onErrorReturn` 不抛），`UpstreamHealthProbeConfig`（`@Bean upstreamWebClient`、
+  `@Bean upstreamHealthProbe`）。
+- `CachedRouteController` 注入 probe（构造器注入，单构造器自动装配），两个端点
+  返回把 `upstreamStatus` 暴露出来的 `Map`（不再 `Map.of("cached", true)` 常量）。
+- `CachedRouteControllerTest`（4 条）：两个端点分别返回**probe 的** reading（$.service、
+  $.upstreamStatus）；未知服务 → `UNKNOWN`；`spring.cache.type=none` 时每请求 probe 一次
+  （`verify(probe, times(2))`）—— 钉住"缓存禁用时不能零探活"。
+- `docs/SERVICE_PLANE_GATEWAY.md` 新增一条说明做法与离线可测的原因；
+  `docs/PERFORMANCE.md` 把原条目划掉再补充一条（给后人的工作单改成"还需要 inspector 的
+  `/api/changes` 读端 lb:// 化"）。
+
+### 3 证据与门
+
+- 网关单元测试：`mvn -o test` 全模块 **BUILD SUCCESS**（gateway 31/31，bridge 28/28、
+  inspector / tasks / insights / config / registry / config-server 通过了 reaction-wide 的
+  `Total time: 03:13 min`）
+- `doc_pointers.py --check` — POINTER_RC=0
+- CI 服务端 lane: 本批与本推送同一 ref 同时跑（mvn Java 腿 + Playwright + claim）。

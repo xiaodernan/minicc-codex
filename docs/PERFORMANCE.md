@@ -92,9 +92,7 @@ ORDER BY created_at ASC
 
 ## 7. 未做的（给后人的工作单）
 
-- 网关 `/api/cached/*` 到目前仍是**派生模拟**（hardcoded Map.of 响应，非真实下游调用）——
-  缓存键/失效链已写实并一元化，但 "cached route" 本身的下游契约（fetch inspector/insights
-  的真实 JSON, non-2xx 的失败语义）尚未上线；做完这条时，Redis TTL 才有意义。
+- ~~网关 `/api/cached/*` 曾是派生模拟（hardcoded Map.of 响应）~~ — 已改写为真实上游探活：`HttpUpstreamHealthProbe` 用 client-side LB（`ReactorLoadBalancerExchangeFilterFunction` + Eureka）请求 `lb://<service>/actuator/health`，`UpstreamHealthProbe` 接口切换生产 WebClient 与测试 fake；`CachedRouteControllerTest`（4 条）钉住「响应来自 probe 不是常量」。剩下的工作是把 `/actuator/health` 之外的读端点（inspector `/api/changes`）也纳入 lb:// 缓存并发验证。
 - `minicc/task_store.py` 的 `search()` 在 `task_search` 表为空时行为与索引一致（没测
   过 FTS 命中率）；`task_search_fts` 已由 upsert 维持。
 - FFI 语义：SQLite JSON1 在 ≥3.9 可用；macOS/Linux 发行版的可移植性已依赖 Python

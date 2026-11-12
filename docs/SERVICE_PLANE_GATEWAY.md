@@ -50,6 +50,7 @@
 - **发布端** `CacheInvalidationPublisher.invalidate(service)`：只接受已知服务，发「服务名 payload + `route` header = 规范键」的消息。
 - **fanout 交换**：消息发到 `minicc.gateway.route.refresh`（fanout），绑定 `minicc.gateway.cache.invalidate` 队列。生产有多个网关副本，若直接按队列名 publish，只有抢到的那个副本 evict、其余仍读 stale；fanout 让**每个副本**都失效。`RabbitMqConfig` 声明 exchange + binding，不再是孤立常量。
 - **离线可测**：`src/test/resources/application.properties` 用不同扩展名覆盖 `spring.rabbitmq.listener.simple.auto-startup=false` 等（同名 `application.yml` 会遮蔽掉主配置的 3 条路由，故不用）；生产默认仍连 broker。`ShippedCacheKeysAgreeTest`（8 条）用 mock 钉住「写入键 = 发布键 = evict 键」与 fanout 拓扑，`ShippedYamlHasOneSpringTreeTest`（2 条）钉住 YAML 无重复顶层键。
+- **缓存的值不再模拟（M8-T848）**：`CachedRouteController` 原来只 `Map.of(...)` 写死 `cached: true`，60s TTL 本质是"过期后重新拿一个同样的常量"，失效总线的消息也清不了真东西。现在每次 miss 走 `UpstreamHealthProbe`（`HttpUpstreamHealthProbe`）用 **client-side LB** 解 `lb://<service>/actuator/health` 的真实状态码（`UP`/`DOWN`/`UNKNOWN`），控制器把结果落 `Map` 响应。接口 `UpstreamHealthProbe` 让生产用 bean、测试换 fake，无需真起 broker/inspector；`CachedRouteControllerTest`（4 条）钉住「响应来自 probe、不是来自常量」，以及 `spring.cache.type=none` 下每个请求各自 probe 一次。
 
 > 一并修掉的历史缺陷：`application.yml` 曾有两个顶层 `spring:` 块，SnakeYAML 直接报 `found duplicate key spring`，网关**上下文根本加载不了**（17 个测试全红）；现合并为单一 `spring:` 树，3 条路由 + redis/cache/rabbitmq 全在同一键下。全 8 模块 `mvn -o clean test` 空环境 93→101 测试全绿。
 
