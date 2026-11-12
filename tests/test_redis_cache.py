@@ -10,6 +10,7 @@ Tests for:
 
 from __future__ import annotations
 
+import os
 import time
 
 import pytest
@@ -19,6 +20,7 @@ from minicc.redis_cache import (
     _now,
     _json_safe,
     _json_unsafe,
+    RedisCache,
     default_cache,
 )
 
@@ -144,3 +146,34 @@ def test_redis_key_prefix() -> None:
     from minicc.redis_cache import _REDIS_KEY_PREFIX
     assert isinstance(_REDIS_KEY_PREFIX, str)
     assert len(_REDIS_KEY_PREFIX) > 0
+
+
+# ============================================================================
+# Live Redis (opt-in via env var) - the one place we exercise a real server
+# ============================================================================
+
+def test_redis_live_backend_roundtrip(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Opt-in live Redis check (skipped by default).
+
+    The fallback is fine for CI, but we want proof that the wire path works
+    against a real Redis. Set ``MINICC_TEST_REDIS_URL`` (e.g.
+    ``redis://127.0.0.1:6381/0``) to run it; otherwise skip.
+    """
+    url = os.environ.get("MINICC_TEST_REDIS_URL", "").strip()
+    if not url:
+        pytest.skip("MINICC_TEST_REDIS_URL not set; skipping live Redis round trip")
+
+    import minicc.redis_cache as redis_cache
+
+    monkeypatch.setattr(redis_cache, "_REDIS_URL", url)
+    redis_cache._reset_client_cache()
+
+    probe = RedisCache("itest_probe")
+    try:
+        assert probe.set("roundtrip", {"k": [1, 2]}, ttl=30) is True
+        assert probe.get("roundtrip") == {"k": [1, 2]}
+        assert "roundtrip" not in RedisCache("itest_other")
+    finally:
+        probe.delete("roundtrip")
+        redis_cache._reset_client_cache()
+        monkeypatch.undo()

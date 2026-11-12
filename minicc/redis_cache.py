@@ -233,7 +233,9 @@ class RedisCache:
             if payload is not None:
                 try:
                     if effective_ttl is not None:
-                        client.setex(self._key(key), int(effective_ttl), payload)
+                        # redis-py deprecated ``setex`` in 2.6.12 (2013); ``set(..., ex=)``
+                        # is the current spelling and avoids the deprecation warning.
+                        client.set(self._key(key), payload, ex=int(effective_ttl))
                     else:
                         client.set(self._key(key), payload)
                     return True

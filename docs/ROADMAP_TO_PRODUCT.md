@@ -48083,3 +48083,43 @@ namespace isolation (另一个 cache 实例): None
 - 未改 `redis_cache.py` 生产代码；fallback 路径依然安全。
 - `tests/test_redis_cache.py` 17/17 在本机、装了 redis-py 且 Redis 可达的环境里全部通过；
   其语义在 fallback（内存 LRU）与 Redis 两个分支下是一致的（公开契约对内保持的测试即可）。
+
+## 批次 852 - M8-T852：Redis 实机化回归 — 修 setex deprecation，新增 opt-in live-path 测试
+
+### 1 缺什么（动机）
+
+`minicc/redis_cache.py` 直到上一批才开始在 CI 里被覆盖；`.[dev]` 里加上 `redis>=5.0.0` 之后，
+本地第一轮跑 `pytest tests/test_redis_cache.py`（M8-T851 之后，已装 driver）立刻暴露一条真回归：
+
+```text
+tests/test_redis_cache.py::test_redis_live_backend_roundtrip
+  D:\面试项目\minicc-codex\minicc\redis_cache.py:236: DeprecationWarning: Call to deprecated setex. (Use 'set' instead.)
+```
+
+`client.setex(key, int(ttl), payload)` —— redis-py 在 2.6.12（2013 年）就 deprecated `setex` 并改走
+`set(key, value, ex=seconds)`。本仓库连续多个版本就这么装着；没有任何测试跑到过它（① driver 不装，
+② `test_redis_cache.py` 此前 17 条 test 全在 LRU fallback 上）。现在的 `.[dev]` 装了 driver、`MINICC_TEST_REDIS_URL`
+也给出了一个 opt-in 的回放口，立刻看到红。
+
+### 2 怎么修
+
+- `minicc/redis_cache.py` 把 `client.setex(...)` 换成 `client.set(key, value, ex=seconds)`，加了一行注释写下年份/原因；
+- `tests/test_redis_cache.py` 新增 `test_redis_live_backend_roundtrip`——通过 `MINICC_TEST_REDIS_URL` 环境变量 opt-in：
+
+  ```text
+  $ MINICC_TEST_REDIS_URL=redis://127.0.0.1:6382/0 pytest tests/test_redis_cache.py -q
+  18 passed in 3.88s
+  ```
+
+  没设该变量时依然 17 passed / 1 skipped。
+
+  测试里 `monkeypatch` `_REDIS_URL`，再 `_reset_client_cache()`，`RedisCache("itest_probe")` 写入、读回、`cross-namespace` 隔离、
+  在测试结束时 `delete` 并重置客户端——不污染任何共享 Redis。
+
+### 3 边界
+
+- **没**在 CI workflow 上加 Redis service；新的 opt-in 测试本地可跑也可用
+  `MINICC_TEST_REDIS_URL=...` 指向开发自己的 Redis。
+- 测试的全名依赖 `redis_cache._reset_client_cache()`（已公开给楼层替换测试用，不是新家），
+  没有新增生产 API。
+- `pyproject.toml` 不改（本批已在 batch 851 里把 redis 进 dev extra 了）。
