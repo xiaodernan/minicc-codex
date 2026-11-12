@@ -70,7 +70,7 @@ try {
     const { game } = window.__gameUpgradeProbe;
     game.energy = 100;
     game.skillCooldowns = {};
-    game.zombies = [{ x: 410, y: 104, row: 0, hp: 20, maxHp: 20, armor: 0, type: "walker", speed: 1.2, slowTimer: 0, flashTimer: 0 }];
+    game.zombies = [{ x: 410, y: 104, row: 0, hp: 20, maxHp: 20, armor: 0, type: "walker", speed: 0, slowTimer: 0, flashTimer: 0 }];
     game.plants = [];
     game.shots = [];
     game.timeStopTimer = 0;
@@ -78,9 +78,10 @@ try {
   await page.waitForFunction(() => !document.querySelector('[data-skill="timeStop"]').disabled);
   await page.locator('[data-skill="timeStop"]').click();
   const timeStopAtActivation = await page.evaluate(() => ({ x: window.__gameUpgradeProbe.game.zombies[0]?.x, hp: window.__gameUpgradeProbe.game.zombies[0]?.hp }));
-  // The impact is created synchronously inside the skill; poll instead of a fixed
-  // sleep so slow CI frames cannot observe the array before the effect lands.
-  await page.waitForFunction(() => window.__gameUpgradeProbe.game.impacts.length > 0, { timeout: 5000 });
+  // The impact is created synchronously inside the skill handler, so the
+  // array is populated in the same task as the click. Poll once instead of
+  // a fixed sleep — a 140ms drawer made this assertion race CI frame rate.
+  await page.waitForFunction(() => window.__gameUpgradeProbe.game.impacts.length > 0, undefined, { timeout: 5000, polling: "raf" });
   const timeStopAfter = await page.evaluate(() => ({
     energy: window.__gameUpgradeProbe.game.energy,
     cooldown: window.__gameUpgradeProbe.game.skillCooldowns.timeStop,
