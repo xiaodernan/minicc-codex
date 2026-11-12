@@ -55,6 +55,7 @@ __all__ = [
     "grade_file_contract",
     "grade_command_contract",
     "grade_v2",
+    "BEHAVIOR_GRADER_TYPES",
 ]
 
 SUITE_VERSION = "v2-1"
@@ -65,6 +66,10 @@ SUITE_VERSION = "v2-1"
 LEGACY_SUITE_VERSION = "legacy-1"
 SUITE_VERSIONS = frozenset({SUITE_VERSION, LEGACY_SUITE_VERSION})
 GRADER_TYPES = frozenset({"file_contract", "command_contract"})
+# The behavior grader's declared types. This is the one home for the pair
+# the behavior loader and the benchmark dispatch both consult; ``behavior_bench``
+# imports the constant from here.
+BEHAVIOR_GRADER_TYPES = frozenset({"python_behavior", "answer_rubric"})
 DEFAULT_TASKS_V2 = Path(__file__).resolve().parent.parent / "benchmarks" / "tasks.v2.json"
 # M8-T349: the hidden grader directory's name has **one** home
 # (``tools.fs``).  This module used to keep its own copy, while
@@ -889,3 +894,4 @@ def grade_v2(
     if kind == "command_contract":
         return grade_command_contract(task, workspace, grader_dir=grader_dir)
     return ungraded_verdict()
+

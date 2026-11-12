@@ -102,9 +102,10 @@ sys.stdout.write("MINICC_BEHAVIOR_COMPLETE:" + str(len(data["cases"]) + len(data
 RUBRIC_SPEC_KEYS = frozenset({"required_any"})
 
 
-#: Grader types this module's script understands. Reconciled by the gate against the types
-#: ``grade_behavior`` actually dispatches on, so the list cannot be hand-kept.
-BEHAVIOR_GRADER_TYPES = frozenset({"python_behavior", "answer_rubric"})
+#: Grader types this module's script understands. The one home is
+#: ``bench_tasks.BEHAVIOR_GRADER_TYPES`` (the declared-label vocabulary's owner);
+#: keeping the name importable here preserves the existing public surface.
+BEHAVIOR_GRADER_TYPES = bench_tasks.BEHAVIOR_GRADER_TYPES
 
 
 def _json_roundtrips(value: object) -> bool:

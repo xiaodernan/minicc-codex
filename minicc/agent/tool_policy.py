@@ -28,7 +28,7 @@ from ..tools.names import TOOL_NAME_BASH
 # SUBAGENT_WRITE_TOOLS, and the full WRITE_TOOL_NAMES.
 CORE_WRITE_TOOLS = frozenset({"write_file", "edit_file"})
 
-WRITE_TOOL_NAMES = frozenset({"write_file", "edit_file", "worktree_create", "worktree_remove"})
+WRITE_TOOL_NAMES = frozenset({"write_file", "edit_file", "worktree_create", "worktree_remove", "git_stage", "git_commit"})
 
 # M8-T390: the Node package managers.  Both questions below ask it -
 # "does this command mutate the workspace" and "does this command count

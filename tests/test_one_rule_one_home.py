@@ -92,7 +92,7 @@ def test_the_write_tool_list_literal_exists_in_exactly_one_place() -> None:
                 for element in node.elts
                 if isinstance(element, ast.Constant) and isinstance(element.value, str)
             }
-            if members == {"write_file", "edit_file", "worktree_create", "worktree_remove"}:
+            if members == {"write_file", "edit_file", "worktree_create", "worktree_remove", "git_stage", "git_commit"}:
                 offenders.append(f"{path.relative_to(home.parent).as_posix()}:{node.lineno}")
     assert len(offenders) == 1 and offenders[0].startswith(
         "minicc/agent/tool_policy.py:"

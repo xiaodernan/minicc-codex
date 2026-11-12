@@ -1,4 +1,9 @@
-"""Read-only Git inspection tools for the coding-agent loop."""
+"""Git tools for the coding-agent loop.
+
+Read-only tools: status, diff, summary, merge_precheck.
+Write tools (human-triggered only): stage, commit.
+Push/PR are explicitly not provided (per roadmap non-goal).
+"""
 
 from __future__ import annotations
 
@@ -174,6 +179,50 @@ class GitTools:
             data=data,
             security_tags=untrusted_tags(),
         )
+
+    def stage(self, args: dict[str, object]) -> ToolResult:
+        """Stage files for commit (git add). Human-triggered only.
+
+        Args:
+            paths: List of file paths to stage. Empty list stages all changes.
+        """
+        paths = args.get("paths")
+        if paths is None:
+            paths = []
+        if not isinstance(paths, list):
+            raise ToolError("paths 必须是数组")
+        validated: list[str] = []
+        for raw in paths:
+            if not isinstance(raw, str):
+                raise ToolError("paths 元素必须是字符串")
+            candidate = raw.strip()
+            if not candidate:
+                raise ToolError("paths 元素不能为空")
+            validated.append(_safe_relative(self.workspace, candidate))
+        command = ["add", "--"]
+        if validated:
+            command.extend(validated)
+        else:
+            command.append(".")
+        return self._run(command)
+
+    def commit(self, args: dict[str, object]) -> ToolResult:
+        """Create a commit from staged changes (git commit). Human-triggered only.
+
+        Hooks run exactly as they do for a human ``git commit``: ``--no-verify``
+        is deliberately absent, because pre-commit is where a repository puts
+        its secret scanner and conflict-marker gate, and a human approving the
+        commit is not approving a bypass of that gate.
+        """
+        message = str(args.get("message") or "").strip()
+        if not message:
+            raise ToolError("message 不能为空")
+        allow_empty = bool(args.get("allow_empty"))
+        command = ["commit"]
+        if allow_empty:
+            command.append("--allow-empty")
+        command.extend(["-m", message])
+        return self._run(command)
 
     def _capture(self, args: list[str]) -> str:
         try:

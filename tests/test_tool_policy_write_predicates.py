@@ -21,7 +21,7 @@ def test_core_write_tools():
 
 def test_write_tool_names_include_worktree_ops():
     assert tp.WRITE_TOOL_NAMES == frozenset(
-        {"write_file", "edit_file", "worktree_create", "worktree_remove"}
+        {"write_file", "edit_file", "worktree_create", "worktree_remove", "git_stage", "git_commit"}
     )
 
 

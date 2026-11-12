@@ -92,6 +92,13 @@ _PYTHON_NETWORK_MODULES = frozenset({"pip", "pip3", "uv", "poetry", "conda"})
 
 NETWORK_TOOL_NAMES = frozenset({"web_search", "webfetch"})
 
+# M8-T817: tools whose whole purpose is a commit or a stage. Nothing any
+# task flag grants - yolo, acceptEdits, allow_changes, the sandbox - may
+# pre-authorize them, because a commit is a judgment a human signs for.
+# The only door is the interactive approval prompt's "always" answer,
+# which lands in the session allowlist.
+HUMAN_ONLY_TOOLS = frozenset({"git_stage", "git_commit"})
+
 
 def tool_requires_authorization(
     tool: str,
@@ -515,6 +522,7 @@ AUTHORIZATION_PLAN_MODE_EXEC = "plan_mode_exec"
 AUTHORIZATION_SAFE_VERIFICATION = "safe_verification"
 AUTHORIZATION_TASK_EXEC = "task_exec"
 AUTHORIZATION_USER_APPROVED = "user_approved"
+AUTHORIZATION_HUMAN_ONLY_TOOL = "human_only_tool"
 
 # Network is handled separately and is intentionally not a member of
 # MISSING_TASK_AUTHORIZATIONS (web interactive-approval flow contract).
@@ -747,6 +755,14 @@ def authorize_tool(
             )
         return denied
 
+    if tool in HUMAN_ONLY_TOOLS and mode != "plan":
+        denied = AuthorizationDecision(
+            False,
+            risk or "unknown",
+            "git_stage/git_commit 只能由人类在会话中授权；yolo / allow_changes / acceptEdits 都不放行",
+            AUTHORIZATION_HUMAN_ONLY_TOOL,
+        )
+        return _allowlist_override(denied)
     if mode == "yolo":
         if risk == RISK_READONLY or tool in NETWORK_TOOL_NAMES:
             return AuthorizationDecision(True, risk or "unknown", "任务为 yolo 模式，工具已放行", AUTHORIZATION_TASK_YOLO)
@@ -864,6 +880,8 @@ __all__ = [
     "AUTHORIZATION_SAFE_VERIFICATION",
     "AUTHORIZATION_TASK_EXEC",
     "AUTHORIZATION_USER_APPROVED",
+    "AUTHORIZATION_HUMAN_ONLY_TOOL",
+    "HUMAN_ONLY_TOOLS",
     "NETWORK_TOOL_NAMES",
     "PERMISSION_MODES",
     "PERMISSION_MODE_ACCEPT_EDITS",

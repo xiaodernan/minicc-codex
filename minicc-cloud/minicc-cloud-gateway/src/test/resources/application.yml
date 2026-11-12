@@ -1,0 +1,23 @@
+# M8-T822: offline test isolation for the gateway.
+#
+# The shipped gateway binds a @RabbitListener (cache invalidation) and a
+# Redis-backed cache. Neither broker exists in a clean CI runner or an empty
+# laptop, so an unisolated ApplicationContext dies at startup with
+# "ACCESS_REFUSED" from RabbitMQ — which is why all 17 gateway tests errored
+# while the project doc claimed "mvn test green in an empty environment".
+#
+# Test-classpath resources take precedence over the main application.yml. These
+# overrides let the context load so the route/config contracts can be asserted
+# without external middleware. Production values stay in the main file; the
+# listener still starts normally when a broker is present (auto-startup default).
+spring:
+  rabbitmq:
+    listener:
+      simple:
+        auto-startup: false
+  cache:
+    type: none
+  data:
+    redis:
+      repositories:
+        enabled: false

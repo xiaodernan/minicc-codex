@@ -65,24 +65,11 @@ spring:
                   args:
                     name: insights-route
                     fallbackUri: forward:/fallback/insights
-
-eureka:
-  client:
-    service-url:
-      defaultZone: ${EUREKA_ZONE:http://localhost:8761/eureka/}
-  instance:
-    prefer-ip-address: true
-
-management:
-  endpoints:
-    web:
-      exposure:
-        include: health,info,metrics,gateway,circuitbreakers,circuitbreakerevents
-  endpoint:
-    health:
-      show-details: when-authorized
-
-spring:
+  # M8-T822: these three keys used to live under a SECOND top-level `spring:`
+  # block (formerly line 85). SnakeYAML rejects a duplicate top-level key, so
+  # the gateway ApplicationContext failed to load at all ("found duplicate key
+  # spring") — 17 tests red and a standalone gateway that could not start.
+  # They are one `spring:` tree now; One Fact One Home for config, too.
   data:
     redis:
       host: ${SPRING_DATA_REDIS_HOST:localhost}
@@ -103,6 +90,22 @@ spring:
       simple:
         prefetch: 1
         acknowledge-mode: manual
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_ZONE:http://localhost:8761/eureka/}
+  instance:
+    prefer-ip-address: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,gateway,circuitbreakers,circuitbreakerevents
+  endpoint:
+    health:
+      show-details: when-authorized
 
 resilience4j:
   circuitbreaker:
