@@ -70,20 +70,18 @@ DECLARED_PLANES: dict[str, frozenset[str]] = {
     "passed": frozenset({"report", "compare"}),
     "refusal": frozenset({"report"}),
     "repair_attempts": frozenset({"report"}),
-    "repeated_tool_calls": frozenset({"report"}),
     "status": frozenset({"report", "compare"}),
     "task_id": frozenset({"report", "compare"}),
     "tool_calls": frozenset({"report"}),
     "usage": frozenset({"report"}),
-    "agent_code_timed_out": frozenset({"doc"}),
-    "case_count": frozenset({"doc"}),
-    "cleanup_error": frozenset({"doc"}),
-    "error": frozenset({"doc"}),
-    "exit_code": frozenset({"doc"}),
-    "objective_oracle": frozenset({"doc"}),
-    "retained_workspace": frozenset({"doc"}),
-    "review_rounds": frozenset({"doc"}),
-    "turns": frozenset({"doc"}),
+    "case_count": frozenset({"report"}),
+    "cleanup_error": frozenset({"report"}),
+    "error": frozenset({"report"}),
+    "exit_code": frozenset({"report"}),
+    "objective_oracle": frozenset({"report"}),
+    "retained_workspace": frozenset({"report"}),
+    "review_rounds": frozenset({"report"}),
+    "turns": frozenset({"report"}),
 }
 
 # The comparator accepts two row shapes the runner never writes: a report row
@@ -314,143 +312,16 @@ def test_the_census_notices_a_reader_without_a_writer() -> None:
 # --- the defect this batch fixed, behaviourally ------------------------------
 
 
-def test_a_duplicate_call_in_one_batch_is_counted(tmp_path: Path) -> None:
-    from minicc.agent.loop import run_agent
-    from minicc.llm.base import LLMResponse
-    from minicc.tools import build_registry
-    from minicc.tools.editor import Editor
+# --- the retired repeat metric (M8-T118) and its census interaction --------
 
-    (tmp_path / "hello.txt").write_text("hello\n", encoding="utf-8")
-    arguments = json.dumps({"path": "hello.txt"})
+def test_the_retired_repeat_metric_has_no_producer_and_no_report_key(tmp_path, monkeypatch) -> None:
+    """M8-T118 retired ``repeated_tool_calls`` / ``tool_repeat_rate`` entirely.
 
-    class FakeProvider:
-        def __init__(self) -> None:
-            self.calls = 0
-
-        async def chat(self, messages, tools, on_delta=None):
-            self.calls += 1
-            if self.calls == 1:
-                return LLMResponse(tool_calls=[
-                    {"id": "first", "type": "function", "function": {"name": "read_file", "arguments": arguments}},
-                    {"id": "second", "type": "function", "function": {"name": "read_file", "arguments": arguments}},
-                ])
-            return LLMResponse(content="完成")
-
-    result = asyncio.run(run_agent(
-        FakeProvider(), build_registry(Editor(tmp_path)),
-        [{"role": "user", "content": "看看 hello.txt"}],
-        max_turns=4, should_allow=lambda *_: True,
-    ))
-    assert result.tool_calls_total == 2
-    assert result.repeated_tool_calls == 1
-    assert result.metrics["repeated_tool_calls"] == 1
-
-
-def test_a_cached_repeat_across_turns_is_counted(tmp_path: Path) -> None:
-    from minicc.agent.loop import run_agent
-    from minicc.llm.base import LLMResponse
-    from minicc.tools import build_registry
-    from minicc.tools.editor import Editor
-
-    (tmp_path / "hello.txt").write_text("hello\n", encoding="utf-8")
-    arguments = json.dumps({"path": "hello.txt"})
-
-    class FakeProvider:
-        def __init__(self) -> None:
-            self.calls = 0
-
-        async def chat(self, messages, tools, on_delta=None):
-            self.calls += 1
-            if self.calls <= 2:
-                return LLMResponse(tool_calls=[
-                    {"id": f"c{self.calls}", "type": "function", "function": {"name": "read_file", "arguments": arguments}},
-                ])
-            return LLMResponse(content="完成")
-
-    result = asyncio.run(run_agent(
-        FakeProvider(), build_registry(Editor(tmp_path)),
-        [{"role": "user", "content": "看看 hello.txt"}],
-        max_turns=4, should_allow=lambda *_: True,
-    ))
-    assert result.repeated_tool_calls == 1
-
-
-def test_a_resumed_run_keeps_the_repeats_it_already_counted() -> None:
-    from minicc.agent.loop import TurnResult
-    from minicc.task_manager import _merge_turn_results
-
-    merged = _merge_turn_results(
-        TurnResult(answer="first", tool_calls_total=5, repeated_tool_calls=2),
-        TurnResult(answer="second", tool_calls_total=3, repeated_tool_calls=1),
-    )
-    assert (merged.tool_calls_total, merged.repeated_tool_calls) == (8, 3)
-
-
-def test_the_row_carries_the_count_into_the_metric_it_was_always_printed_for(tmp_path, monkeypatch) -> None:
-    from minicc import benchmarks
-
-    class Service:
-        def __init__(self, *args, **kwargs) -> None:
-            pass
-
-        def _chat_locked(self, payload, **kwargs):
-            return {
-                "answer": "ok", "turns": 4, "tool_calls_total": 8,
-                "metrics": {"repair_attempts": 0, "repeated_tool_calls": 2},
-                "completion": {"status": "complete"},
-            }
-
-        def shutdown(self) -> None:
-            pass
-
-    monkeypatch.setattr("minicc.web.AgentService", Service)
-    monkeypatch.setattr(
-        "minicc.config.load_config",
-        lambda *args, **kwargs: SimpleNamespace(yolo=False, model="test-model", max_concurrent_tasks=1),
-    )
-    tasks = [{"id": "t1", "category": "edit", "prompt": "p"}]
-    rows = benchmarks.run_benchmark(tasks, workspace=tmp_path)
-    assert rows[0]["repeated_tool_calls"] == 2
-    report = benchmarks.build_report(tasks, rows)
-    assert report["metrics"]["tool_repeat_rate"] == 0.25
-
-
-def test_a_row_whose_repeats_beat_its_calls_is_refused_not_published(tmp_path, monkeypatch) -> None:
-    from minicc import benchmarks
-
-    class Service:
-        def __init__(self, *args, **kwargs) -> None:
-            pass
-
-        def _chat_locked(self, payload, **kwargs):
-            return {
-                "answer": "ok", "turns": 1, "tool_calls_total": 1,
-                "metrics": {"repeated_tool_calls": 4},
-                "completion": {"status": "complete"},
-            }
-
-        def shutdown(self) -> None:
-            pass
-
-    monkeypatch.setattr("minicc.web.AgentService", Service)
-    monkeypatch.setattr(
-        "minicc.config.load_config",
-        lambda *args, **kwargs: SimpleNamespace(yolo=False, model="test-model", max_concurrent_tasks=1),
-    )
-    tasks = [{"id": "t1", "category": "edit", "prompt": "p"}]
-    rows = benchmarks.run_benchmark(tasks, workspace=tmp_path)
-    assert rows[0]["repeated_tool_calls"] == 4 and rows[0]["tool_calls"] == 1
-    report = benchmarks.build_report(tasks, rows)
-    assert report["metrics"]["tool_repeat_rate"] is None
-
-
-def test_an_outcome_that_never_measured_repeats_leaves_the_key_absent(tmp_path, monkeypatch) -> None:
-    """A missing measurement must stay missing.
-
-    The archived report on disk (`output/evaluation-full.json`) carries rows with
-    ``repeated_tool_calls: null`` and prints ``tool_repeat_rate 0.0``: that
-    era's aggregator summed an empty set and divided it by the total call count.
-    Writing 0 for "we did not measure" would rebuild exactly that.
+    The archived report on disk carries rows with ``repeated_tool_calls: null``
+    and prints ``tool_repeat_rate 0.0`` - the emptied set was summed and the
+    zero re-published. The retirement pins that the row never carries the key
+    again and the report never prints the metric at all, so a missing writer
+    cannot become a fabricated zero.
     """
     from minicc import benchmarks
 
@@ -477,12 +348,12 @@ def test_an_outcome_that_never_measured_repeats_leaves_the_key_absent(tmp_path, 
     rows = benchmarks.run_benchmark(tasks, workspace=tmp_path)
     assert "repeated_tool_calls" not in rows[0]
     report = benchmarks.build_report(tasks, rows)
-    assert report["metrics"]["tool_repeat_rate"] is None
+    assert "tool_repeat_rate" not in report["metrics"]
 
 
-def test_a_row_without_a_count_cannot_become_a_zero_rate() -> None:
+def test_a_row_that_never_measured_repeats_cannot_become_a_zero_rate() -> None:
     from minicc.benchmarks import build_report
 
     rows = [{"task_id": "t", "status": "completed", "passed": True, "tool_calls": 4}]
     report = build_report([{"id": "t", "category": "c"}], rows)
-    assert report["metrics"]["tool_repeat_rate"] is None
+    assert "tool_repeat_rate" not in report["metrics"]

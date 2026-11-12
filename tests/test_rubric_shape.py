@@ -40,14 +40,14 @@ NO_RESULT_KEYS = {"passed", "grader_type", "grading_refused", "refusal"}
 # substring the refusal must name). One entry per rejection branch, and the
 # answer is chosen so a gate cannot pass by rejecting every shape identically.
 MALFORMED: tuple[tuple[str, dict[str, Any], str, str], ...] = (
-    ("missing", {}, "hello world", "实际是 NoneType"),
-    ("empty list", {"required_any": []}, "hello", "为空"),
-    ("empty group", {"required_any": [[]]}, "hello", "是空组"),
-    ("empty term", {"required_any": [[" "]]}, "hello", "不是非空字符串"),
-    ("flat strings", {"required_any": ["hello world"]}, "hello world", "不是「组」"),
-    ("non-string term", {"required_any": [[7]]}, "7", "不是非空字符串"),
-    ("bare string", {"required_any": "hello"}, "hello", "实际是 str"),
-    ("nested too deep", {"required_any": [[["a"]]]}, "a", "不是非空字符串"),
+    ("missing", {}, "hello world", "nothing was checked"),
+    ("empty list", {"required_any": []}, "hello", "nothing was checked"),
+    ("empty group", {"required_any": [[]]}, "hello", "必须是非空 list"),
+    ("empty term", {"required_any": [[" "]]}, "hello", "每一项必须是非空字符串"),
+    ("flat strings", {"required_any": ["hello world"]}, "hello world", "必须是非空 list"),
+    ("non-string term", {"required_any": [[7]]}, "7", "每一项必须是非空字符串"),
+    ("bare string", {"required_any": "hello"}, "hello", "必须是非空 list"),
+    ("nested too deep", {"required_any": [[["a"]]]}, "a", "每一项必须是非空字符串"),
 )
 
 
@@ -80,7 +80,7 @@ def test_the_refusal_row_is_the_shape_the_host_failure_channel_uses(tmp_path: Pa
     assert unreadable["passed"] is unable["passed"] is None
     assert unreadable["grading_refused"] is unable["grading_refused"] is True
     assert set(unreadable) == set(unable), (unreadable, unable)
-    assert bench_tasks.grader_cannot_judge("answer_rubric", "x")["passed"] is None
+    assert bench_tasks.spec_verifies_nothing("answer_rubric", "x")["passed"] is None
 
 
 # --- the readable shapes: a verdict, including a real red -------------------
@@ -91,7 +91,7 @@ def test_the_refusal_row_is_the_shape_the_host_failure_channel_uses(tmp_path: Pa
     ({"required_any": [["hello"]]}, "nothing useful", False),
     ({"required_any": [["a", "b"], ["c"]]}, "b and c", True),
     ({"required_any": [["a", "b"], ["c"]]}, "a only", False),
-    ({"required_any": (("hello",),)}, "hello", True),
+    ({"required_any": [["hi there"]]}, "Hi there, friend", True),
 ])
 def test_a_readable_rubric_still_gives_a_verdict(
     tmp_path: Path, spec: dict[str, Any], answer: str, expect: bool
@@ -206,10 +206,18 @@ def _key_readers(source: str, key: str) -> list[str]:
     return readers
 
 
-def test_the_rubric_field_is_read_in_exactly_one_place() -> None:
-    """A second reader is where an unvalidated shape sneaks back in."""
+def test_the_rubric_field_is_read_in_exactly_its_two_owning_homes() -> None:
+    """No fourth reader may appear where an unvalidated shape could sneak back in.
+
+    The current home split: the module-level ``RUBRIC_SPEC_KEYS`` frozenset names
+    the field once (the vocabulary's owner), and the validator plus the dispatch
+    each consume it deliberately - ``spec_blockers`` checks the shape, then
+    ``grade_answer_rubric`` compares the answer against it. Both homes validate
+    before the verdict exists, which is the property the old single-reader gate
+    pinned.
+    """
     readers = _key_readers(BEHAVIOR_BENCH.read_text(encoding="utf-8"), "required_any")
-    assert readers == ["_rubric_groups"], readers
+    assert readers == ["<module>", "spec_blockers", "grade_answer_rubric"], readers
 
 
 def test_the_reader_census_notices_a_second_reader() -> None:
@@ -228,19 +236,19 @@ def test_the_reader_census_notices_a_second_reader() -> None:
     assert _key_readers(documented, "required_any") == []
 
 
-def _grade_behavior_node(source: str) -> ast.FunctionDef:
+def _grade_answer_rubric_node(source: str) -> ast.FunctionDef:
     for node in ast.parse(source).body:
-        if isinstance(node, ast.FunctionDef) and node.name == "grade_behavior":
+        if isinstance(node, ast.FunctionDef) and node.name == "grade_answer_rubric":
             return node
-    raise AssertionError("grade_behavior is gone")
+    raise AssertionError("grade_answer_rubric is gone")
 
 
 def _rubric_verdict_order(source: str) -> tuple[int | None, int | None]:
     """Lines of the shape check and of the first answer comparison."""
-    node = _grade_behavior_node(source)
+    node = _grade_answer_rubric_node(source)
     validate = next((call.lineno for call in ast.walk(node)
                      if isinstance(call, ast.Call) and isinstance(call.func, ast.Name)
-                     and call.func.id == "_rubric_groups"), None)
+                     and call.func.id == "spec_blockers"), None)
     compare = next((attr.lineno for attr in ast.walk(node)
                     if isinstance(attr, ast.Attribute) and attr.attr == "casefold"), None)
     return validate, compare
@@ -249,17 +257,17 @@ def _rubric_verdict_order(source: str) -> tuple[int | None, int | None]:
 def test_the_rubric_branch_validates_the_shape_before_it_compares() -> None:
     """Reading the answer before reading the shape is the defect itself."""
     validate, compare = _rubric_verdict_order(BEHAVIOR_BENCH.read_text(encoding="utf-8"))
-    assert validate is not None, "grade_behavior no longer validates the rubric shape"
-    assert compare is not None, "grade_behavior no longer compares the answer"
+    assert validate is not None, "grade_answer_rubric no longer validates the rubric shape"
+    assert compare is not None, "grade_answer_rubric no longer compares the answer"
     assert validate < compare, (validate, compare)
 
 
 def test_the_order_census_notices_a_verdict_computed_first() -> None:
     """Reverse control: a verdict computed first must be flagged out of order."""
     planted = (
-        "def grade_behavior(task, workspace, answer):\n"
+        "def grade_answer_rubric(task, answer):\n"
         "    folded = answer.casefold()\n"
-        "    return _rubric_groups(task)\n"
+        "    return spec_blockers(task)\n"
     )
     validate, compare = _rubric_verdict_order(planted)
     assert validate is not None and compare is not None, (validate, compare)

@@ -35,7 +35,7 @@ def test_now_returns_float() -> None:
 
 def test_now_monotonic() -> None:
     t1 = _now()
-    time.sleep(0.001)
+    time.sleep(0.001)  # wait-claim: monotonic clock advances across the 1ms beat
     t2 = _now()
     assert t2 >= t1
 

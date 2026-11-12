@@ -44,7 +44,7 @@
 .venv/Scripts/python.exe -m pytest tests/test_benchmark_runner.py tests/test_behavior_bench.py -q -o addopts=''
 ```
 
-2026-09-29 复现结果：上面「评测器定向检查」命令输出 `31 passed in 240.77s`。可比的读数是**条数**——它随这两套测试的用例数变化，务必以命令实际输出为准，不要手改本行；需要更新时请重跑该命令并原样回填。墙钟时间在同机并发时会大幅偏高（本次读数期间同一台机器上另有会话在跑），不要当作基线。`output/benchmark-hardening-checks.xml` 可留存 JUnit。没有运行全量回归或使用真实模型生成新的准确率结论。
+2026-11-12 复现结果：上面「评测器定向检查」命令输出 `35 passed in 45.88s`。可比的读数是**条数**——它随这两套测试的用例数变化，务必以命令实际输出为准，不要手改本行；需要更新时请重跑该命令并原样回填。墙钟时间在同机并发时会大幅偏高，不要当作基线。`output/benchmark-hardening-checks.xml` 可留存 JUnit。没有运行全量回归或使用真实模型生成新的准确率结论。
 
 ## 延迟基线（M4，M6 起作回归门）
 
