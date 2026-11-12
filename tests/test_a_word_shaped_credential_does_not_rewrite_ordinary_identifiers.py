@@ -150,7 +150,7 @@ def test_idempotence_holds_under_the_boundary_rule() -> None:
 
 
 def test_the_marker_guard_survives_the_boundary_rule() -> None:
-    """The pre-existing marker defence (tests/test_logging.py:736) must still hold after this change.
+    """The pre-existing marker defence (tests/test_logging.py::test_word_shaped_secret_cannot_corrupt_existing_markers) must still hold after this change.
 
     The value here is chosen so its own spelling also names a marker label: without the guard,
     masking would run *inside* ``[REDACTED:api_key]`` and every pass would grow the line.
