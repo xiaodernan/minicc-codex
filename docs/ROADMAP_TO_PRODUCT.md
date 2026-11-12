@@ -48002,3 +48002,31 @@ Redis 缓存与 fanout 失效总线保护的只是个常量，监听器的 evict
 
 - `mvn -o test` → **BUILD SUCCESS**，Tests run: 2, Failures: 0
 - 全 reactor 其他模块零影响；网关、bridge 保持 31 / 28 绿
+
+## 批次 850 - M8-T850：聚合健康端点 `/api/health/all` — 一个 endpoint 看全三个后端的 lb:// 健康
+
+### 1 缺什么（动机）
+
+网关有一条 `/fallback` 能救一条断的路由，却没有一个全量视图：操作者想确认
+"整个 minicc-cloud 现在 3 个服务分别 UP/DOWN/UNKNOWN"时，得挨个打 `/actuator/health`
+（还得先连 Eureka 才能知道别名）。这不是 gateway 出了事，而是缺少"service discovery at work"
+的那一声问候。
+
+### 2 怎么做
+
+- `AggregateHealthController`（`/api/health/all`）：对三个固定后端
+  `minicc-cloud-inspector` / `minicc-cloud-tasks` / `minicc-cloud-insights` 用 WebFlux `Flux`
+  **并行** probe — `lb://<service>/actuator/health` 走 Eureka 解析 + client-side LB，同一服务
+  两个实例不会出现两条记录。
+- 输出 `{"services": [{"service": "minicc-cloud-inspector", "upstreamStatus": "UP"}, ...],
+  "upCount": N, "totalServices": 3}` — 计数只认 `== "UP"`，DOWN 与 UNKNOWN 都算非-UP，
+  避免把"UNKNOWN 也当好"。
+- `AggregateHealthControllerTest`（3 条）：全 UP → `upCount=3`；一个 DOWN 一个 UNKNOWN →
+  `upCount=1`；全 DOWN → `upCount=0`。故障列表只认 MockService 返回值，无需启 broker。
+- 上游 Bean `UpstreamHealthProbe` 复用 M8-T848 的现成实现与 fake。
+
+### 3 证据与门
+
+- `mvn -Dtest='AggregateHealthControllerTest' test` — **Tests run: 3, Failures: 0**
+- 网关单元测试合计 — **Tests run: 34**（aggregate-health 3 + cached-route 4 + passthrough 6 + request-size 2 + route-binding 8 + cachekeys 8 + one-spring-tree 2 + two-timeouts 1）
+- Reactor `mvn -o test` — BUILD SUCCESS
