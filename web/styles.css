@@ -1948,7 +1948,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 
   --muted: #94a3b8;
 
-  --quiet: #64748b;
+  --quiet: #94a3b8;
 
   --coral: #fb923c;
 
@@ -2030,7 +2030,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 
   --muted: #64748b;
 
-  --quiet: #94a3b8;
+  --quiet: #475569;
 
   --coral: #ea580c;
 
@@ -2615,8 +2615,6 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 @media (max-width: 640px) {
 
   .app-shell { grid-template-columns: minmax(0, 1fr); }
-
-  .sidebar, .inspector { display: none !important; }
 
   .chat-inner { padding: 20px 20px 26px; }
 
