@@ -1,5 +1,7 @@
 package com.minicc.cloud.gateway;
 
+import java.time.Duration;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.client.loadbalancer.reactive.ReactorLoadBalancerExchangeFilterFunction;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -12,6 +14,9 @@ import org.springframework.web.reactive.function.client.WebClient;
  */
 @Configuration
 public class UpstreamHealthProbeConfig {
+    @Value("${minicc.cloud.gateway.probe-timeout-ms:2000}")
+    long probeTimeoutMs;
+
     @Bean
     public WebClient upstreamWebClient(ReactorLoadBalancerExchangeFilterFunction loadBalancerExchangeFilter) {
         return WebClient.builder().filter(loadBalancerExchangeFilter).build();
@@ -19,6 +24,6 @@ public class UpstreamHealthProbeConfig {
 
     @Bean
     public UpstreamHealthProbe upstreamHealthProbe(WebClient upstreamWebClient) {
-        return new HttpUpstreamHealthProbe(upstreamWebClient);
+        return new HttpUpstreamHealthProbe(upstreamWebClient, Duration.ofMillis(probeTimeoutMs));
     }
 }

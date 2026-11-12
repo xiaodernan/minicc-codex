@@ -48339,3 +48339,32 @@ npm run test:web          → web smoke passed (timeline, product path, desktop,
 npm run test:optimization → 390/1440 × light/dark readyMs 901–1946，contrast 全过，overflow: false
 npm run build:web && check:web → up to date; assets clean
 ```
+
+## 批次 860 - M8-T860：网关探活 bounded timeout — 卡死的上游不许拖住 /api/health/all
+
+### 1 缺什么（动机）
+
+`HttpUpstreamHealthProbe`（M8-T848 引入，cached-route 与 `/api/health/all` 共用）此前**没有任何
+超时上限**：WebFlux 默认路径上一个 hung 的上游会让每个下游等到它为止，聚合答案退化为
+「最慢的那个后端说了算」——而 aggregate 本来就是为"快速回答全集健康"而存在的。
+
+### 2 怎么做
+
+- `HttpUpstreamHealthProbe`：新增 `Duration timeout` 字段，构造提供两种入口（默认 2s；或显式 Duration）；
+  `.timeout(timeout)` 在 `map(...)` 之后、`onErrorReturn` 之前；hung 上游 → Reactor `TimeoutException`
+  → 被 `onErrorReturn(UNKNOWN)` 吃掉，聚合端点永远能答完。
+- `UpstreamHealthProbeConfig`：`@Value("${minicc.cloud.gateway.probe-timeout-ms:2000}")` 注入时限，
+  默认 2s；环境变量 `MINICC_GATEWAY_PROBE_TIMEOUT_MS` 可覆盖（Spring relaxed binding）。
+- `ProbeTimeoutTest`（3 条）：用 `WebClient` + `Mono.never()` 的 exchange 函数模拟永不返回的上游，
+  断言在 150ms 窗口内 resolve 为 `UNKNOWN`；并补两条非超时用例（默认窗口=2s、上游抛错也只是 UNKNOWN）。
+
+### 3 证据
+
+- `mvn -o -Dtest='ProbeTimeoutTest' test` → **Tests run: 3, Failures: 0**（150ms 用例实测 <2s 完成）
+- 网关全量 `mvn -o test` → **Tests run: 38, Failures: 0, BUILD SUCCESS**（含既有 35 条无损伤）
+- 未触碰被 lb:// 与 `/api/health/all` 共享的 bean 接口名与缓存键（`ShippedCacheKeysAgreeTest` 8/8 绿）
+
+### 4 边界
+
+- 默认 2s 对 `/actuator/health` 绰绰有余；若上游健康体确实慢，operator 可调大
+  `MINICC_GATEWAY_PROBE_TIMEOUT_MS`；设太小只会得到更多 UNKNOWN，不会得到错误 "UP"。
