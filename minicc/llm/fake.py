@@ -52,6 +52,8 @@ _FAKE_USAGE: dict[str, dict[str, Any]] = {
 }
 
 
+_CITABLE_EVIDENCE_MARKER = re.compile(r"^执行证据（[^）]*）：\n", re.MULTILINE)
+
 class FakeProvider:
     """One-shot assistant reply; planner/judge calls get a complete JSON.
 
@@ -145,7 +147,7 @@ class FakeProvider:
     def _select_citable_evidence(messages) -> list[str]:
         """Return one evidence id the completion judge is allowed to cite."""
 
-        marker = re.compile(r"^执行证据（[^）]*）：\n", re.MULTILINE)
+        marker = _CITABLE_EVIDENCE_MARKER
         prompt_text = ""
         for message in messages if isinstance(messages, list) else []:
             content = message.get("content") if isinstance(message, dict) else None

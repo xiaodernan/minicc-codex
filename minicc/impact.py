@@ -61,13 +61,18 @@ def _python_imports(text: str) -> _Parsed:
     return _Parsed(tuple(imports), dynamic, test_definitions=test_definitions)
 
 
+# Hoisted out of _js_tokens: this lexer runs once per JS module in a scan, and
+# compiling the pattern each call was pure waste. The character class is
+# ASCII-only by construction (re.ASCII), so case-insensitivity is untouched.
+_JS_LEXER_RE = re.compile(r"//[^\n]*|/\*[\s\S]*?\*/|`(?:\\[\s\S]|[^`\\])*`|'(?:\\[\s\S]|[^'\\])*'|\"(?:\\[\s\S]|[^\"\\])*\"|[A-Za-z_$][\w$]*|[^\s]", re.ASCII)
+
 def _js_tokens(text: str) -> list[tuple[str, str]]:
     """Small lexer: retain literal strings but discard comments/templates.
 
     This deliberately avoids executing JS or loading a compiler from a repo.
     Unsupported syntax and computed imports remain an explicit limitation.
     """
-    pattern = re.compile(r"//[^\n]*|/\*[\s\S]*?\*/|`(?:\\[\s\S]|[^`\\])*`|'(?:\\[\s\S]|[^'\\])*'|\"(?:\\[\s\S]|[^\"\\])*\"|[A-Za-z_$][\w$]*|[^\s]", re.ASCII)
+    pattern = _JS_LEXER_RE
     tokens = []
     for match in pattern.finditer(text):
         token = match.group()
