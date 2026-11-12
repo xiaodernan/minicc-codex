@@ -158,7 +158,51 @@ docker compose -f minicc-cloud/docker-compose.yml config --quiet   # rc=0 无错
 
 仅解析，不构建。真正启动：`mvn -DskipTests package -f minicc-cloud/pom.xml` → `docker compose -f minicc-cloud/docker-compose.yml build && up`。
 
-## 7. 相关文件
+## 7. 聚合健康面与 lb://（实测 2026-11-13，M8-T850）
+
+`/api/health/all` 是网关给出的单一全景端点。下面是 2026-11-13 在本机实测的完整链路：
+registry 起 8761、insights 起 8087（已注册为 Eureka `MINICC-CLOUD-INSIGHTS` 实例），网关起 8411
+（8080 被 Docker 占，改用 `SERVER_PORT=8411`），`/api/health/all` 回答：
+
+```json
+{"totalServices":3,"upCount":1,
+ "services":[
+   {"upstreamStatus":"UNKNOWN","service":"minicc-cloud-inspector"},
+   {"upstreamStatus":"UNKNOWN","service":"minicc-cloud-tasks"},
+   {"upstreamStatus":"UP","service":"minicc-cloud-insights"}]}
+```
+
+驱动此结果的命令（执行序）—— 本例是在本机真实运行的，不是 mock：
+
+```powershell
+# 1. registry stand-alone
+set SERVER_PORT=18761                       # 8761 被占时改用 18761
+java -jar minicc-cloud-registry-0.1.0.jar   # nothing - it will block
+# 验证
+curl http://127.0.0.1:18761/actuator/health     # {"status":"UP","groups":["liveness","readiness"]}
+curl -H 'Accept: application/json' http://127.0.0.1:18761/eureka/apps
+# -> {"applications":{"versions__delta":"1","apps__hashcode":"","application":[]}}
+
+# 2. insights stand-alone
+set MINICC_STATE=D:\path\to\.minicc
+set SERVER_PORT=8087
+java -jar minicc-cloud-insights-0.1.0.jar
+
+# 3. gateway on another port, pointed at the registry
+set SERVER_PORT=8411
+set SPRING_RABBITMQ_LISTENER_SIMPLE_AUTO_STARTUP=false   # no local broker; drop the listener
+set EUREKA_ZONE=http://127.0.0.1:18761/eureka/           # or the default 8761 when free
+java -jar minicc-cloud-gateway-0.1.0.jar
+
+# 4. the answer
+curl http://127.0.0.1:8411/api/health/all
+```
+
+结论：registry discovered MINICC-CLOUD-INSIGHTS and MINICC-CLOUD-GATEWAY (instance 1), tasks and
+inspector were not started (hence `UNKNOWN`),
+and the aggregate endpoint counted exactly the one that answered (`upCount: 1`) — 不把"没人知道"报成 UP。
+
+## 8. 相关文件
 
 - `minicc-cloud/README.md`
 - `minicc-cloud/minicc-cloud-config/src/main/resources/config-repo/application.yml`（共享配置）
