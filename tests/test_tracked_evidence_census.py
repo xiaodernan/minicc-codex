@@ -81,9 +81,16 @@ def test_every_module_this_repo_keeps_is_tracked() -> None:
 
 
 def test_the_evidence_reader_resolves_every_test_module() -> None:
-    """The consequence: a citation of one of them is DANGLING EVIDENCE."""
-    names = doc_pointers._all_test_names()
-    assert len(names) >= 1000, f"the reader index went blind: {len(names)}"
+    """The consequence: a citation of one of them is DANGLING EVIDENCE.
+
+    A test name may be defined by many modules (the ``*_have_one_home.py``
+    family deliberately reuses names). What makes a module citable is that it
+    owns at least one name the reader indexed -- *not* that a name belongs to
+    it alone. An untracked module owns no indexed name (``_holds`` filtered it
+    out), so it is still reported here and by the tracked-files census above.
+    """
+    owners = doc_pointers._test_owner_index()
+    assert len(owners) >= 1000, f"the reader index went blind: {len(owners)}"
     unseen: list[str] = []
     for module in sorted((REPO_ROOT / "tests").glob("test_*.py")):
         label = f"tests/{module.name}"
@@ -91,21 +98,21 @@ def test_the_evidence_reader_resolves_every_test_module() -> None:
             unseen.append(f"{label} (path does not resolve)")
             continue
         own = doc_pointers._test_definitions(module)
-        if own and not any(names.get(name) == module.name for name in own):
-            unseen.append(f"{label} (no test name maps back to it)")
+        if own and not any(module.name in owners.get(name, set()) for name in own):
+            unseen.append(f"{label} (owns no test name the reader indexed)")
     assert unseen == [], f"modules the evidence reader cannot cite: {unseen}"
 
 
 def test_the_two_modules_this_batch_promoted_stay_visible() -> None:
     """Named offender pin: the rule above must keep reporting *these* files."""
-    names = doc_pointers._all_test_names()
+    owners = doc_pointers._test_owner_index()
     for label in FORMERLY_INVISIBLE:
         module = REPO_ROOT / label
         assert module.exists(), f"{label} disappeared; the pin cannot be re-derived"
         assert doc_pointers._resolve_path(label) is not None, label
         own = doc_pointers._test_definitions(module)
         assert own, f"{label} defines no tests any more"
-        assert any(names.get(name) == module.name for name in own), label
+        assert any(module.name in owners.get(name, set()) for name in own), label
 
 
 # --- reverse controls -------------------------------------------------------

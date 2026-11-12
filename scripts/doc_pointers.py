@@ -1462,20 +1462,38 @@ def _test_definitions(path: Path) -> dict[str, int]:
 
 
 @lru_cache(maxsize=1)
-def _all_test_names() -> dict[str, str]:
-    """Every test function name under tracked ``tests/*.py``, mapped to its file.
+def _test_owner_index() -> dict[str, set[str]]:
+    """Every test name -> *all* tracked ``tests/*.py`` modules that define it.
+
+    The project deliberately reuses generic test names across modules (the
+    ``*_have_one_home.py`` family shares names like ``test_both_exits_ask_the_home``).
+    A name is therefore not owned by exactly one file. This index keeps every
+    owner so a citation of any module resolves; ``_all_test_names`` is the
+    one-owner projection used only for membership questions.
 
     An untracked test module is excluded for the same reason an untracked source
     file is: citing a test that only exists on this machine is a citation that
     resolves in neither a fresh clone nor CI.
     """
-    found: dict[str, str] = {}
+    owners: dict[str, set[str]] = {}
     for module in sorted((REPO_ROOT / "tests").glob("*.py")):
         if not _holds(f"tests/{module.name}"):
             continue
         for name in _test_definitions(module):
-            found.setdefault(name, module.name)
-    return found
+            owners.setdefault(name, set()).add(module.name)
+    return owners
+
+
+@lru_cache(maxsize=1)
+def _all_test_names() -> dict[str, str]:
+    """One-owner projection of :func:`_test_owner_index` (name -> first file).
+
+    Consumers only ask "is this name a test / is this name spelled anywhere"
+    (``span in names``, ``list(names)`` for fuzzy hints). The representative
+    owner is deterministic (lexicographically first) but carries no exclusivity
+    claim; consumers that need "does this module own a name" must use the index.
+    """
+    return {name: sorted(files)[0] for name, files in _test_owner_index().items()}
 
 
 def _resolve_path(rel: str) -> Path | None:

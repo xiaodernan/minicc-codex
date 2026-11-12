@@ -47527,12 +47527,12 @@ Reasoning 模型偶尔夹 `{"type":"function_call","name":null}`——fake provi
 
 ### 1 欠的是哪一条
 
-用户要求“大幅提升前端的美观程度，使前端的魅力程度登峰造极”。审计 `web/styles.css` 发现一处**此前从未被察觉的底层缺陷**：该文件是 UTF-8 / UTF-16LE 混合编码——前 `155310` 字节是正常 UTF-8，从 `/* ==== glassmorphism ... */` 注释起突然变为 UTF-16LE，全文含 `13413` 个 NUL 字节，UTF-8 解码在 byte `155554` 抛 `invalid start byte`。而 `scripts/build-web.mjs` 用 `readFileSync(path, "utf8")` 读取，把这些 NUL 与非法字节**静默替换为 U+FFFD** 后交给 esbuild 压缩，产物 `styles.a7a2efa3975c0aba.css` 里 T781/T814 落盘的 glassmorphism、`.toast`、`prefers-reduced-motion` 增强规则被整体吞掉。后果：账本声称“已完成”的前端美化在真实浏览器里**一次都没渲染过**，`.glass-card` 的 `backdrop-filter` 计算值为 `none`——所谓“登峰造极”此前一直建立在坏编码之上。这是比“再写新样式”更优先的欠账。
+用户要求“大幅提升前端的美观程度，使前端的魅力程度登峰造极”。审计 `web/styles.css` 发现一处**此前从未被察觉的底层缺陷**：该文件是 UTF-8 / UTF-16LE 混合编码——前 `155310` 字节是正常 UTF-8，从 `/* ==== glassmorphism ... */` 注释起突然变为 UTF-16LE，全文含 `13413` 个 NUL 字节，UTF-8 解码在 byte `155554` 抛 `invalid start byte`。而 `scripts/build-web.mjs` 用 `readFileSync(path, "utf8")` 读取，把这些 NUL 与非法字节**静默替换为 U+FFFD** 后交给 esbuild 压缩，产出的 CSS 里 T781/T814 落盘的 glassmorphism、`.toast`、`prefers-reduced-motion` 增强规则被整体吞掉。后果：账本声称“已完成”的前端美化在真实浏览器里**一次都没渲染过**，`.glass-card` 的 `backdrop-filter` 计算值为 `none`——所谓“登峰造极”此前一直建立在坏编码之上。这是比“再写新样式”更优先的欠账。
 
 ### 2 改动
 
 - `web/styles.css`：把 UTF-8 段与 UTF-16LE 段分别解码后无损拼接为纯 UTF-8；修复 `鈥?`→`—`、88 处 `鈹€`→`─` 注释 mojibake（覆盖 22 行注释）。终态 `nul=0`、`U+FFFD=0`、`鈹=0`、花括号 `1622/1622` 平衡。**未改动任何设计令牌、选择器或 DOM**，只让已写好的增强首次真正进入产物。
-- `web/assets/styles.ae8f50423d188902.css`（新，`139830` bytes，纯 UTF-8，`1601/1601` 花括号）+ `web/asset-manifest.json` 重指；删除旧哈希 `web/assets/styles.a7a2efa3975c0aba.css`。
+- `web/assets/` 下新产物（纯 UTF-8，`1601/1601` 花括号，`139830` bytes）+ `web/asset-manifest.json` 把逻辑键 `/styles.css` 重指到它；旧内容哈希产物随重构清理删除（内容寻址资产不作证据锚，故此处只记逻辑键与新字节数）。
 - `scripts/build-web.mjs`：新增 `assertUtf8Text(path)`——`new TextDecoder("utf-8", { fatal: true })` 严格解码 + NUL 字节检测 + U+FFFD 检测，manifest 构建循环里对 `styles.css` 真实调用；坏编码直接 `throw`，使 `npm run check:web` 变红。
 - `tests/test_the_stylesheet_is_not_mixed_encoding.py`（新增，3 门）：遍历 `web/*.css` 与 `web/vendor/*.css` 断言纯 UTF-8 / 无 NUL / 无 U+FFFD；主 CSS 含 `glassmorphism` 与 `.toast` 且花括号平衡；manifest 引用 bundle 干净，且 `build-web.mjs` 确含并真实使用 `assertUtf8Text` / `NUL byte` / `TextDecoder("utf-8", {fatal:true})` 守门。
 
@@ -47548,3 +47548,35 @@ Reasoning 模型偶尔夹 `{"type":"function_call","name":null}`——fake provi
 - 只修编码 + 加构建守门，不新增视觉设计、不改 DOM；“新增”的观感来自让 T781/T814 已落盘的增强**首次真正渲染**。
 - 验证脚本与截图位于 gitignore 的 `output/`，仅作本地证据、不入库；入库的是可复跑的 Python 门与构建期门，任何机器 `pytest` + `npm run check:web` 均可复现。Playwright 未引入运行时依赖，`package.json` 不变。
 - 与并轨会话并发：其 `4a732a2`（T827）用于 workspace catalog 测试，本批顺延 T828；本次 `git status` 的 6 个改动全部属本批前端文件域，未触碰对方任何未提交内容。
+
+
+## 批次 831 - M8-T831：证据读者修一名多属误判，7 个合法测试模块重获可引用性
+
+### 1 欠的是哪一条
+
+用户要求“继续长期做……自己制定新的计划开发新内容”。接手并轨会话的 CI 红面时发现 `tests/test_tracked_evidence_census.py::test_the_evidence_reader_resolves_every_test_module` 失败：`modules the evidence reader cannot cite: ['tests/test_shell_lexing.py', 'test_the_max_results_param_have_one_home.py', 'test_the_rewind_result_have_one_home.py', 'test_the_run_metrics_have_one_home.py', 'test_the_search_result_have_one_home.py', 'test_the_tool_call_have_one_home.py', 'test_the_tree_entry_have_one_home.py']`。这 7 个模块都 tracked、各有 2–5 个有效测试、彼此无依赖——**它们没有缺陷**。真缺陷在证据读者 `scripts/doc_pointers.py::_all_test_names`：它用 `found.setdefault(name, module.name)` 把每个测试名只归给字母序第一个模块，而项目里 `*_have_one_home.py` 家族**故意跨模块复用通用测试名**（如 `test_both_exits_ask_the_home` 出现在 4 个模块、`test_the_home_builds_the_record` 出现在 6 个）。于是后到的同名模块“没有一个名字映射回自己”，被误判为孤儿。实测：全库 **81 个测试名一名多属**（4695 个名字里）；7 个模块的 `mapped-back-to-self` 全是 `0/N`。这是读者把“测试名→模块”当一对一的错误假设，会让这 7 个模块的任何证据引用变成 DANGLING EVIDENCE，并拖垮 CI。
+
+### 2 改动（One Fact One Home：owner 关系只存一份）
+
+- `scripts/doc_pointers.py`：新增 `_test_owner_index() -> dict[str, set[str]]`（测试名→**所有**定义它的 tracked 模块，`_holds` 过滤保持不变），让 `_all_test_names()` 从它派生为“一名一主”投影（`{name: sorted(files)[0]}`）。全库对 `_all_test_names` 的用法只有 `span in names` / `list(names)` 模糊提示——**从不读 value 的唯一性**，故投影语义不变、零回归面；真正需要“某模块是否拥有某名”的消费方改用索引。
+- `tests/test_tracked_evidence_census.py`：`test_the_evidence_reader_resolves_every_test_module` 与 `test_the_two_modules_this_batch_promoted_stay_visible` 的判据从 `names.get(name) == module.name`（要求独占）改为 `module.name in owners.get(name, set())`（要求“拥有至少一个被索引的名字”）。
+
+### 3 验证
+
+- 修复前：census 门 `1 failed, 69 passed`（411s），7 模块被误判；一名多属索引实测 `shared names=81 / total=4695`。
+- 修复后：`pytest tests/test_tracked_evidence_census.py -q` → **5 passed**；7 模块逐个 `citable=True`。
+- **变异臂（证明门没被改废，仍有牙齿）**：反向控制复刻门内判定——(a) 重名的两个 owner 都能引用；(b) 定义了测试但不在任何 owner 的 `orphan.py` → `not citable`（等价未跟踪/被索引抹掉）；(c) 测试名全不在索引的 `orphan2.py` → `not citable`（本机独有）；(d) 无测试模块跳过。四项全过，输出 `REVERSE CONTROL PASS`。
+- 门全组（`test_doc_pointers` / `test_docs_index_enumerates_every_docs_md` / `test_no_document_quotes_a_content_addressed_bundle` / `test_tracked_evidence_census`）复跑读数见下方最终校验。
+
+### 4 边界
+
+- 只改证据读者的 owner 索引与 census 门的判据，不改任何测试、测试名或生产代码；81 个一名多属的合法复用模式得到正确支持。
+- `test_every_module_this_repo_keeps_is_tracked` 这一道“磁盘模块必须 tracked”的牙齿完全保留；未跟踪孤儿仍会被两处同时抓出。
+- 与并轨会话并发：本批只动 `scripts/doc_pointers.py` 与 `tests/test_tracked_evidence_census.py` 两个文件域，未触碰其 `tests/game_upgrade_smoke.mjs` 改动与 `_pw3*`/`_trace_attack.js` 等临时探针。
+
+### 5 接手并轨 T828 账本的两处悬空引用（CI 收尾）
+
+- 本批复跑文档门全组时发现并轨会话代提交的 T828 账本里，两行把**已删除的旧内容哈希 bundle**写成了证据锚：一处带 `web/assets/` 路径（`doc_pointers.py --check` 报 `DANGLING EVIDENCE`，`test_shipped_documents_have_no_dangling_references` 红），一处是裸哈希名（`test_no_document_quotes_a_content_addressed_bundle` 红），并连带把反向控制门 `test_floors_fire_when_the_extractor_goes_blind` 的 `assert [kind] == ["INVENTORY"]` 污染成混有 EVIDENCE。
+- 修法：两行都改为只记**逻辑键 `/styles.css` + 新产物的字节数/花括号平衡**，不再点名任何内容寻址文件名（内容寻址资产本就不该作证据锚）。用纯字节替换逐行改，保留原 CRLF 行尾，历史 159 个 CRLF 一个未动。
+- 复跑：`test_shipped_documents_have_no_dangling_references` + `test_no_document_quotes_a_content_addressed_bundle` → **2 passed**；`test_floors_fire_when_the_extractor_goes_blind` → **1 passed**；`doc_pointers.py --check` → `POINTER_RC=0`、旧哈希残留 `0`。
+
