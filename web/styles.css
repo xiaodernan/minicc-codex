@@ -2616,6 +2616,12 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 
   .app-shell { grid-template-columns: minmax(0, 1fr); }
 
+  /* The 75% cap on assistant/user bubbles is a desktop asymmetry; on a
+     phone it starves long Chinese text to ~216px columns. Full width is
+     the available reading width the smoke contract requires. */
+  .assistant-message .message-body,
+  .user-message .message-body { max-width: 100%; }
+
   .chat-inner { padding: 20px 20px 26px; }
 
   .composer-wrap { padding: 12px 20px 14px; }
