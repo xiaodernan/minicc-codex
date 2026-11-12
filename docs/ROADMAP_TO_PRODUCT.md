@@ -47519,3 +47519,32 @@ Reasoning 模型偶尔夹 `{"type":"function_call","name":null}`——fake provi
 - fanout 交换是新增拓扑，需要 broker 上存在（`RabbitMqConfig` 声明，容器启动时自动建）；单副本也兼容。
 - 测试隔离只作用于 test classpath，生产 `application.yml` 的 Redis/RabbitMQ 绑定不变。
 - 与并轨会话并发：其 T823/T824 已把本批的 yml 修复、YAML 门、隔离 properties 先后入库；本批在其之上补完缓存键闭环与 fanout，无覆盖对方改动。
+
+
+## 批次 828 - M8-T828：前端混合编码缺陷修复 + 构建期编码守门 + 真实浏览器双主题验收
+
+> 编号说明：批次号 T827 已由并轨会话用于 `minicc/workspaces.py` 的 workspace catalog 测试（提交 `4a732a2`），本批顺延为 T828；两者文件域不重叠，无覆盖。
+
+### 1 欠的是哪一条
+
+用户要求“大幅提升前端的美观程度，使前端的魅力程度登峰造极”。审计 `web/styles.css` 发现一处**此前从未被察觉的底层缺陷**：该文件是 UTF-8 / UTF-16LE 混合编码——前 `155310` 字节是正常 UTF-8，从 `/* ==== glassmorphism ... */` 注释起突然变为 UTF-16LE，全文含 `13413` 个 NUL 字节，UTF-8 解码在 byte `155554` 抛 `invalid start byte`。而 `scripts/build-web.mjs` 用 `readFileSync(path, "utf8")` 读取，把这些 NUL 与非法字节**静默替换为 U+FFFD** 后交给 esbuild 压缩，产物 `styles.a7a2efa3975c0aba.css` 里 T781/T814 落盘的 glassmorphism、`.toast`、`prefers-reduced-motion` 增强规则被整体吞掉。后果：账本声称“已完成”的前端美化在真实浏览器里**一次都没渲染过**，`.glass-card` 的 `backdrop-filter` 计算值为 `none`——所谓“登峰造极”此前一直建立在坏编码之上。这是比“再写新样式”更优先的欠账。
+
+### 2 改动
+
+- `web/styles.css`：把 UTF-8 段与 UTF-16LE 段分别解码后无损拼接为纯 UTF-8；修复 `鈥?`→`—`、88 处 `鈹€`→`─` 注释 mojibake（覆盖 22 行注释）。终态 `nul=0`、`U+FFFD=0`、`鈹=0`、花括号 `1622/1622` 平衡。**未改动任何设计令牌、选择器或 DOM**，只让已写好的增强首次真正进入产物。
+- `web/assets/styles.ae8f50423d188902.css`（新，`139830` bytes，纯 UTF-8，`1601/1601` 花括号）+ `web/asset-manifest.json` 重指；删除旧哈希 `web/assets/styles.a7a2efa3975c0aba.css`。
+- `scripts/build-web.mjs`：新增 `assertUtf8Text(path)`——`new TextDecoder("utf-8", { fatal: true })` 严格解码 + NUL 字节检测 + U+FFFD 检测，manifest 构建循环里对 `styles.css` 真实调用；坏编码直接 `throw`，使 `npm run check:web` 变红。
+- `tests/test_the_stylesheet_is_not_mixed_encoding.py`（新增，3 门）：遍历 `web/*.css` 与 `web/vendor/*.css` 断言纯 UTF-8 / 无 NUL / 无 U+FFFD；主 CSS 含 `glassmorphism` 与 `.toast` 且花括号平衡；manifest 引用 bundle 干净，且 `build-web.mjs` 确含并真实使用 `assertUtf8Text` / `NUL byte` / `TextDecoder("utf-8", {fatal:true})` 守门。
+
+### 3 验证
+
+- 修复前：整文件 UTF-8 decode 在 byte `155554` 失败、`nul_count=13413`；旧 bundle 内 `backdrop-filter` / `.toast` 均不存在。
+- 修复后：`pytest tests/test_the_stylesheet_is_not_mixed_encoding.py tests/test_web_assets_are_fresh.py -q` → **8 passed**；`npm run check:web` → rc=0，`web/assets is clean (3 referenced bundle(s))`；字节级复验 `styles.css` `nul=0 / utf8_ok=True / braces 1622/1622`、bundle `nul=0 / utf8_ok=True / braces 1601/1601`。
+- 变异臂（守门有牙齿，非装饰）：把混合编码 CSS 复位后，`npm run check:web` 明确报 `web/styles.css contains a NUL byte at offset 155310`（rc=1），pytest 报 `UnicodeDecodeError: invalid start byte at position 155554`；恢复干净 CSS 后两者转绿。
+- **真实浏览器（Playwright Chromium 1440x900，manifest-aware 静态服务加载真实构建产物）**：`output/verify_glass.mjs` 断言 `.glass-card` 计算值 `backdrop-filter: blur(12px)`、`.toast` 规则存在、`1425` 条 CSS 规则解析、`PAGE_ERRORS []`。进阶 `output/verify_workbench.mjs` 补最小 `/api/*` mock 并把启动 splash 推到 `data-state="ready"` 终态，截取**主工作台浅色/深色双主题**：5 个玻璃元素计算值生效（侧栏/检查器 `blur(20px) saturate(1.8)`、brand/search `blur(20px)`、composer `blur(12px)`），`--glass-blur` 从浅色 `20px` 切到深色 `16px`，双主题均 `1425` 规则 / 0 page error；人工复核 `output/workbench_light.png`、`output/workbench_dark.png`：布局（侧栏/引导三卡/composer/检查器）完整、深色对比度良好、无错位或渲染缺陷。
+
+### 4 边界
+
+- 只修编码 + 加构建守门，不新增视觉设计、不改 DOM；“新增”的观感来自让 T781/T814 已落盘的增强**首次真正渲染**。
+- 验证脚本与截图位于 gitignore 的 `output/`，仅作本地证据、不入库；入库的是可复跑的 Python 门与构建期门，任何机器 `pytest` + `npm run check:web` 均可复现。Playwright 未引入运行时依赖，`package.json` 不变。
+- 与并轨会话并发：其 `4a732a2`（T827）用于 workspace catalog 测试，本批顺延 T828；本次 `git status` 的 6 个改动全部属本批前端文件域，未触碰对方任何未提交内容。

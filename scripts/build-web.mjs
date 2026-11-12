@@ -6,6 +6,7 @@
 // Usage: node scripts/build-web.mjs [--check]
 
 import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { TextDecoder } from "node:util";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
@@ -59,6 +60,29 @@ function writeIfNeeded(path, content) {
   return true;
 }
 
+// M8-T827: a stylesheet once shipped half UTF-8 / half UTF-16LE. PowerShell's
+// WriteAllText defaults to UTF-16 on Windows, so appending a block produced NUL-
+// interleaved bytes; readFileSync(...,"utf8") silently turned every one of them
+// into U+FFFD, esbuild happily minified the replacements, and the shipped bundle
+// served garbage for the entire glassmorphism/toast section — while --check
+// stayed green because the garbage was stable. Read source files as raw bytes
+// and refuse mixed/broken encoding before they can enter a content-hashed asset.
+function assertUtf8Text(path) {
+  const bytes = readFileSync(path);
+  const nul = bytes.indexOf(0);
+  if (nul !== -1) {
+    throw new Error(
+      `${path} contains a NUL byte at offset ${nul} — likely UTF-16 text appended to a UTF-8 file ` +
+      `(PowerShell WriteAllText writes UTF-16 by default). Rewrite it as UTF-8 without BOM.`);
+  }
+  // fatal decoder: any invalid UTF-8 sequence is an error, not a U+FFFD replacement.
+  const text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  if (text.includes("\ufffd")) {
+    throw new Error(`${path} contains a U+FFFD replacement character — it is not valid UTF-8 source.`);
+  }
+  return text;
+}
+
 const app = await bundle(join(srcDir, "main.js"), join(outDir, "app.js"));
 const game = await bundle(join(srcDir, "game.js"), join(outDir, "game.js"));
 const appOk = writeIfNeeded(join(outDir, "app.js"), app);
@@ -76,7 +100,7 @@ const manifest = {};
 for (const [name, source, loader] of [
   ["app.js", app, "js"],
   ["game.js", game, "js"],
-  ["styles.css", readFileSync(join(outDir, "styles.css"), "utf8"), "css"],
+  ["styles.css", assertUtf8Text(join(outDir, "styles.css")), "css"],
 ]) {
   const { code } = await transform(source, { loader, minify: true, target: "es2020", legalComments: "none" });
   const hash = createHash("sha256").update(code).digest("hex").slice(0, 16);
