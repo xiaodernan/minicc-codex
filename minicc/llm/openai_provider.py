@@ -1050,13 +1050,22 @@ class OpenAICompatibleProvider:
         for index, item in enumerate(output):
             item_type = str(_read_field(item, "type", ""))
             if item_type == "function_call":
-                name = str(_read_field(item, "name", ""))
-                if is_nameless_tool_name(name):
+                # M8-T820: ask the one-home predicate about the **raw** value
+                # before stringifying.  A real gateway (wkapi.pro /v1,
+                # gpt-6-sol) sometimes emits ``name: null``; ``str(None)``
+                # is the literal ``"None"`` - a non-empty string that sails
+                # past ``is_nameless_tool_name`` and becomes a paid
+                # ``[UNKNOWN_TOOL] 'None'`` + ``[DUPLICATE_TOOL_CALL]`` pair.
+                # The predicate already knows ``None`` is nameless; give it
+                # the None instead of laundering it into a fake tool name.
+                raw_name = _read_field(item, "name", "")
+                if is_nameless_tool_name(raw_name):
                     # M8-T335: the rule M8-T334 settled on the two
                     # chat-completions paths also binds here - a "function
                     # call" that names no tool is noise, not a call for a
                     # tool the registry does not have.
                     continue
+                name = str(raw_name)
                 calls.append(tool_call(
                     _unique_tool_call_id(
                         str(_read_field(item, "call_id", "") or _read_field(item, "id", "")),

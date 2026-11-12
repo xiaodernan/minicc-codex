@@ -47389,3 +47389,62 @@ minicc/task_store.py 每次操作都打开/关闭 SQLite 连接，频繁创建/�
 - 持久连接使用 check_same_thread=False，配合 threading.RLock 保证线程安全
 - 只读连接每次打开/关闭，避免跨线程共享问题
 - 不改变任何对外 API 签名
+
+
+## 批次 783 — M8-T820：真实大模型 API（wkapi.pro /v1 gpt-6-sol）端到端跑通，并修掉它照出的 `name: null` 伪工具调用
+
+### 1 欠的是哪一条
+
+用户提供了真实大模型 API（`MINICC_BASE_URL=https://wkapi.pro/v1`、`MINICC_MODEL=gpt-6-sol`、
+`MINICC_API_KEY` 存于被 gitignore 的 `.env`），要求"一定使用这个进行测试改善项目"。
+此前全部 provider 门都用 fake provider——它从不发畸形 wire，因此有一整类**只有真实网关
+才照得出来**的缺陷从未被测过。本批次第一次把 minicc 真正接到真实 `responses` 协议上跑任务。
+
+### 2 真实 API 实测读数（不涉密钥）
+
+- `GET /v1/models` → `gpt-6-sol` / `gpt-6-astra` / `gpt-5.6-sol` / `gpt-5.6-terra`，`supported_endpoint_types=["openai"]`。
+- `POST /v1/chat/completions`（`{"model":"gpt-6-sol",...}`）→ 200，`choices[0].message.content="通了"`，
+  `usage.total_tokens=110`（含 `completion_tokens_details.reasoning_tokens=22`）。请求路径带 `/v1`。
+- `minicc --print-config` → `model=gpt-6-sol endpoint=https://wkapi.pro/v1 protocol=responses reasoning=max key=set`。
+- **端到端工具任务**（`minicc.main`，`--workspace build/live_probe --yolo`）：让模型调用 `read_file`
+  读探针文件并复述 → `[tool] read_file · data.txt · digest …` → `assistant> PROJECT_VERSION 的值是 2.4.1`，
+  `usage.total_tokens=14282`。模型调用→原生 tool calls→工具执行→usage 计费整条链真实跑通。
+- 另一轮让模型读含 `SECRET_CODE=` 的文件，模型**主动拒绝**读取/回显疑似凭据——安全边界在真实模型上成立。
+
+### 3 真实 wire 照出的缺陷
+
+带工具跑时日志出现 `[tool] None · [UNKNOWN_TOOL] 未知工具 'None'` 与
+`[DUPLICATE_TOOL_CALL]` 两条**付费死轮**。根因在 `minicc/llm/openai_provider.py::_responses_to_response`：
+
+```python
+name = str(_read_field(item, "name", ""))   # name 是 JSON null 时 → str(None) == "None"
+if is_nameless_tool_name(name): continue     # 谓词收到 "None"（非空），放行
+```
+
+谓词 `is_nameless_tool_name` 本已答 `None → True`（M8-T335），但 `str()` 先把 `None` 洗成了
+字符串字面量 `"None"`，绕过空名过滤，loop 派发一个不存在的工具。真实 wire 证据
+（`build/wire_probe.py` 直连 `responses.create`）：正常时 `name='read_file'`（str），
+Reasoning 模型偶尔夹 `{"type":"function_call","name":null}`——fake provider 从不发这个形状。
+
+### 4 改动
+
+- `minicc/llm/openai_provider.py`：把 `str()` 挪到空名判断**之后**——先拿原始值问谓词，
+  再 `str()` 用于工具名。缺字段/空串/空白/`null` 四种"没有目标"形状现在同一答案：丢弃。
+- `tests/test_a_null_tool_name_on_the_responses_wire_is_noise.py`（新增，3 条门）：
+  `name: null` 单独/夹带有名调用/四种无名拼写。红在改前、绿在改后。
+
+### 5 验证
+
+- 改前：`pytest tests/test_a_null_tool_name_on_the_responses_wire_is_noise.py -q` → **3 failed**（复现缺陷）。
+- 改后：新门 + `test_a_call_without_a_name_is_noise_on_every_wire.py` +
+  `test_both_wire_paths_read_one_malformed_answer_the_same_way.py` + `test_llm_base_wire_contracts.py`
+  → **28 passed**。
+- **变异臂**：把谓词参数改回 `str(raw_name)` → 新门 **3 failed（MATCHED）**；还原 → **3 passed**。
+
+### 6 边界
+
+- 真实 key 只在被 gitignore 的 `.env`，未进任何被跟踪文件、未进日志/文档/测试。
+- 端到端真实调用共 4 次（models / chat completions / 2 次 minicc 任务 / 1 次 wire 探针），均为低推理档。
+- chat-completions 与 Anthropic 两条路径用原始值问谓词，无 `str()` 包裹，本就安全，未改。
+- 不改 fake provider、不改 loop 派发；修复收敛在"wire 值变成工具名"的唯一边界。
+- `build/wire_probe.py` 与 `build/live_probe*` 在被 gitignore 的 `build/`，诊断完即删。
