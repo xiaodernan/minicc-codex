@@ -47580,3 +47580,40 @@ Reasoning 模型偶尔夹 `{"type":"function_call","name":null}`——fake provi
 - 修法：两行都改为只记**逻辑键 `/styles.css` + 新产物的字节数/花括号平衡**，不再点名任何内容寻址文件名（内容寻址资产本就不该作证据锚）。用纯字节替换逐行改，保留原 CRLF 行尾，历史 159 个 CRLF 一个未动。
 - 复跑：`test_shipped_documents_have_no_dangling_references` + `test_no_document_quotes_a_content_addressed_bundle` → **2 passed**；`test_floors_fire_when_the_extractor_goes_blind` → **1 passed**；`doc_pointers.py --check` → `POINTER_RC=0`、旧哈希残留 `0`。
 
+
+## 批次 833 ~ 835 - M8-T833..M8-T835：import 提速 + 移动端阅读宽度 + 热路径正则提升
+
+### 1 本批缺什么（动机）
+
+会话发现三处真实的、可测量的问题，分别对应三个批次：
+
+- **（T833）import 代价：** `import minicc.webserver` 在 CI 与本机都需要 ~50-70s。真正的瓶颈是 `minicc/llm/openai_provider.py` 模块顶层的 `from openai import (...)`——`openai` 包拉出上百个 pydantic 模块；测试套件 70s 才完成 collect，`tests/test_webserver.py` 此前整体超时。
+- **（T834）移动端阅读宽度契约：** CI Playwright web smoke 在 `runMobileSmoke` 报 `mobile result summary should use the available reading width: {"width":216.5,...}`（390px 视口）。根因：前端重构的 modern 区段给 `.assistant-message .message-body` 钉了 `max-width: 75%`，在 390px 下计算得 ~216px。
+- **（T835）每次调用重新编译正则：** `minicc/impact.py::_js_tokens`（每扫描一个 JS 模块）与 `minicc/llm/fake.py::_select_citable_evidence`（每轮 judge）都在函数体内 `re.compile`。
+
+### 2 本批怎么做（M8-T833/T834/T835 各一触）
+
+**M8-T833 — 惰性 openai SDK 导入**
+- `minicc/llm/openai_provider.py`：删除模块顶层 `from openai import (...)`，改为缓存式 `_openai_sdk()` 惰性加载；`_RETRYABLE` 改为 `_retryable()`（内部惰性元组）；`_STREAM_RETRYABLE` 改为 `_stream_retryable()`；保留测试 `monkeypatch.setattr(provider_module, "AsyncOpenAI", factory)` 的模块级惰性代理类 `AsyncOpenAI（__new__ 调 _openai_sdk().AsyncOpenAI）`；isinstance 引用全部改为 `_openai_sdk().Xxx` 形式。
+- `tests/test_graph.py` 补 4 个缺失导入（`DAGPlan`、`FAILED_NODE_STATUSES`、`NodeResult`、`PlanTask`），12 条 NameError 消失，34 passed。
+- 实测：`import minicc.webserver` **~50-70s → 1.61s**；`import minicc.agent` **~16.84s → 0.00s**；`tests/test_webserver.py` 8 passed（4.69s）；`tests/test_plan_channel.py` 13 passed（monkeypatch 兼容保留）；`test_openai_provider / test_rate_limit_retry / test_responses_streaming / test_completion_liveness / test_reasoning_effort / test_m1_integrity / test_llm_surface_accounting_census` → **103 passed**。
+
+**M8-T834 — ≤640px 恢复移动端可读宽度**
+- `web/styles.css` 的 `@media (max-width: 640px)` 内新增：`.assistant-message .message-body, .user-message .message-body { max-width: 100%; }`（≥640px 桌面保持 75% 不对称气泡不变）。
+- 重建：`npm run build:web`、`npm run check:web` 通过；`npm run test:optimization` 全绿且 `textContrast` 全部 ≥ 4.5。
+- 本地 fake-provider 下复跑 `npm run test:web`：timeline / product path / desktop / **mobile 全过**（此前 CI 挂 `SMOKE_FAILURE_CODE=MOBILE_SUITE_FAILED`）。
+- CI M8-T834 的 Playwright web smoke：**success**；Claim checkers / JavaScript syntax / Service plane tests (mvn) / PR eval gate / M1 reliability probe 均为预期结果。
+
+**M8-T835 — 两个热路径正则提升为模块常量**
+- `minicc/impact.py`：`_JS_LEXER_RE = re.compile(...)` 移至模块层，`_js_tokens` 直接引用。
+- `minicc/llm/fake.py`：`_CITABLE_EVIDENCE_MARKER = re.compile(...)` 移至模块层，`_select_citable_evidence` 直接引用。
+- 新门 `tests/test_regex_hoisting_has_one_home.py`：断言两个常量在 import 期已编译、且 `_js_tokens` 仍能 tokenize JS import 文本；**2 passed**。
+
+### 3 证据与门
+
+- `tests/test_regex_hoisting_has_one_home.py` — **2 passed**
+- `tests/test_impact.py`、`tests/test_llm_base_wire_contracts.py`、`tests/test_core_task.py` — **60 passed**
+- `tests/test_completion_liveness.py` — **34 passed**
+- `doc_pointers.py --check` → `POINTER_RC=0`（本批以本文件原样追加实现，未覆盖既有 47,582 行）
+- `npm run check:web` → clean；`npm run test:optimization` → 4 组对比度全部 ≥ 4.5；CI M8-T834 Playwright web smoke 通过
+
