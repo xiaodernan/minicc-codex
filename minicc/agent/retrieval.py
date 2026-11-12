@@ -416,7 +416,7 @@ class LocalEvidenceIndex:
         self,
         workspace: Path,
         *,
-        max_files: int = 1200,
+        max_files: int = 2500,
         max_bytes: int = 900_000,
         refresh_interval: float = 1.0,
         max_directories: int | None = None,

@@ -54,7 +54,6 @@ from .route_wiring import (
 )
 from .agent.state import AgentState, Budget, BudgetExceeded
 from .pricing import cost_usd as _pricing_cost_usd
-from .redis_cache import stats as redis_stats
 from .agent.protocol import (
     TASK_STATUS_CANCELLED,
     TASK_STATUS_COMPLETED,
@@ -3317,6 +3316,7 @@ class AgentService:
         each task's own snapshot fields" above a fact rather than a hope.
         """
         rows = self.tasks.list(limit=max(1, min(limit, 2000)), workspace_path=workspace_path)
+        from .redis_cache import stats as _redis_stats
         roots = [row for row in rows if not row.get("parent_id")]
         subtask_rows = len(rows) - len(roots)
         usage: dict[str, int] = {}
@@ -3384,7 +3384,7 @@ class AgentService:
             # priced at all there is no number to be partial about.
             "cost_is_partial": bool(priced_tasks and unpriced_tasks),
             "by_model": by_model,
-            "redis_cache": redis_stats(),
+            "redis_cache": _redis_stats(),
             "duration_seconds": {
                 "total": round(sum(durations), 3),
                 "average": round(sum(durations) / len(durations), 3) if durations else 0.0,

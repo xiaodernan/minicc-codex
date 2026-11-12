@@ -43,8 +43,10 @@ class _Wire:
     def get(self, key: str) -> object | None:
         return self.data.get(key)
 
-    def set(self, key: str, value: object) -> None:
+    def set(self, key: str, value: object, ex: int | None = None) -> None:
         self.data[key] = value
+        if ex is not None:
+            self.ttls[key] = ex
 
     def setex(self, key: str, ttl: int, value: object) -> None:
         self.data[key] = value
