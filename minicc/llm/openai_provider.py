@@ -37,17 +37,58 @@ try:
     import httpcore
 except ModuleNotFoundError:  # pragma: no cover - depends on the HTTP stack.
     httpcore = None  # type: ignore[assignment]
-from openai import (
-    APIConnectionError,
-    APIError,
-    APITimeoutError,
-    AsyncOpenAI,
-    BadRequestError,
-    ConflictError,
-    InternalServerError,
-    NotFoundError,
-    RateLimitError,
-)
+
+# The OpenAI SDK pulls in a very large module tree (hundreds of pydantic
+# types); importing it eagerly made every importer -- including the
+# web server and the test suite -- pay tens of seconds on start-up.
+# Everything below is imported on first use instead.
+_openai_sdk_cache = None
+
+
+def _openai_sdk():
+    global _openai_sdk_cache
+    if _openai_sdk_cache is None:
+        from openai import (
+            APIConnectionError,
+            APIError,
+            APITimeoutError,
+            AsyncOpenAI,
+            BadRequestError,
+            ConflictError,
+            InternalServerError,
+            NotFoundError,
+            RateLimitError,
+        )
+
+        class _Sdk:
+            pass
+
+        sdk = _Sdk()
+        sdk.APIConnectionError = APIConnectionError  # type: ignore[attr-defined]
+        sdk.APIError = APIError  # type: ignore[attr-defined]
+        sdk.APITimeoutError = APITimeoutError  # type: ignore[attr-defined]
+        sdk.AsyncOpenAI = AsyncOpenAI  # type: ignore[attr-defined]
+        sdk.BadRequestError = BadRequestError  # type: ignore[attr-defined]
+        sdk.ConflictError = ConflictError  # type: ignore[attr-defined]
+        sdk.InternalServerError = InternalServerError  # type: ignore[attr-defined]
+        sdk.NotFoundError = NotFoundError  # type: ignore[attr-defined]
+        sdk.RateLimitError = RateLimitError  # type: ignore[attr-defined]
+        _openai_sdk_cache = sdk
+    return _openai_sdk_cache
+
+
+class AsyncOpenAI:
+    """Lazy proxy for the real AsyncOpenAI.
+
+    Keeps ``module.AsyncOpenAI(...)`` usable -- the test suite injects a
+    factory via ``monkeypatch.setattr(provider_module, "AsyncOpenAI", factory)``
+    -- while deferring the multi-megabyte ``openai`` import to first use.
+    """
+
+    def __new__(cls, *args, **kwargs):  # noqa: D102
+        return _openai_sdk().AsyncOpenAI(*args, **kwargs)
+
+
 from tenacity import (
     AsyncRetrying,
     RetryCallState,
@@ -72,32 +113,46 @@ from .usage import (
     token_count,
 )
 
-_RETRYABLE = (
-    RateLimitError,
-    ConflictError,
-    InternalServerError,
-    APITimeoutError,
-    APIConnectionError,
-)
+_retryable_cache = None
 
-_HTTPX_STREAM_RETRYABLE = (
-    (
-        httpx.RemoteProtocolError,
-        httpx.ReadError,
-        httpx.ReadTimeout,
-        httpx.ConnectError,
-        httpx.WriteError,
-        httpx.PoolTimeout,
-    )
-    if httpx is not None
-    else ()
-)
-_HTTPCORE_STREAM_RETRYABLE = tuple(
-    getattr(httpcore, name)
-    for name in ("RemoteProtocolError", "ReadError", "ReadTimeout", "ConnectError", "WriteError", "PoolTimeout")
-    if httpcore is not None and hasattr(httpcore, name)
-)
-_STREAM_RETRYABLE = _RETRYABLE + _HTTPX_STREAM_RETRYABLE + _HTTPCORE_STREAM_RETRYABLE
+
+def _retryable() -> tuple[type[BaseException], ...]:
+    global _retryable_cache
+    if _retryable_cache is None:
+        sdk = _openai_sdk()
+        _retryable_cache = (
+            sdk.RateLimitError,
+            sdk.ConflictError,
+            sdk.InternalServerError,
+            sdk.APITimeoutError,
+            sdk.APIConnectionError,
+        )
+    return _retryable_cache
+
+_stream_retryable_cache = None
+
+
+def _stream_retryable() -> tuple[type[BaseException], ...]:
+    global _stream_retryable_cache
+    if _stream_retryable_cache is None:
+        sdk = _openai_sdk()
+        http_part = ()
+        if httpx is not None:
+            http_part = (
+                httpx.RemoteProtocolError,
+                httpx.ReadError,
+                httpx.ReadTimeout,
+                httpx.ConnectError,
+                httpx.WriteError,
+                httpx.PoolTimeout,
+            )
+        httpcore_part = tuple(
+            getattr(httpcore, name)
+            for name in ("RemoteProtocolError", "ReadError", "ReadTimeout", "ConnectError", "WriteError", "PoolTimeout")
+            if httpcore is not None and hasattr(httpcore, name)
+        )
+        _stream_retryable_cache = _retryable() + http_part + httpcore_part
+    return _stream_retryable_cache
 _BUILTIN_STREAM_RETRYABLE = (ConnectionError, TimeoutError)
 _MALFORMED_RESPONSE_HINTS = (
     "expecting value",
@@ -172,7 +227,7 @@ class ResponsesPartialError(RuntimeError):
 
 def _is_retryable(exc: BaseException) -> bool:
     return (
-        isinstance(exc, _RETRYABLE)
+        isinstance(exc, _retryable())
         or isinstance(exc, _BUILTIN_STREAM_RETRYABLE)
         or _is_gateway_event_source_error(exc)
         or _is_malformed_response_error(exc)
@@ -216,7 +271,7 @@ def _is_stream_retryable(exc: BaseException) -> bool:
     """The gateway can fail while an already-open chunked body is read."""
     if isinstance(exc, StreamProtocolError):
         return False
-    if isinstance(exc, _STREAM_RETRYABLE) or isinstance(exc, _BUILTIN_STREAM_RETRYABLE):
+    if isinstance(exc, _stream_retryable()) or isinstance(exc, _BUILTIN_STREAM_RETRYABLE):
         return True
     # A few compatible gateways leak the transport error as a generic SDK
     # exception while the response body is being consumed.
@@ -283,7 +338,7 @@ def classify_provider_failure(exc: BaseException) -> bool | None:
     """
     if _is_retryable(exc) or _is_stream_retryable(exc):
         return True
-    if isinstance(exc, APIError):
+    if isinstance(exc, _openai_sdk().APIError):
         return False
     if httpx is not None and isinstance(exc, httpx.HTTPError):
         return False
@@ -337,7 +392,7 @@ _RATE_LIMIT_BACKOFF_BASE_SECONDS = 15.0
 
 
 def _is_rate_limit(exc: BaseException) -> bool:
-    if isinstance(exc, RateLimitError):
+    if isinstance(exc, _openai_sdk().RateLimitError):
         return True
     text = _exception_text(exc).lower()
     return "429" in text and any(
@@ -747,7 +802,7 @@ class OpenAICompatibleProvider:
                     self._protocol = LLM_PROTOCOL_CHAT_COMPLETIONS
                     self._emit_transport_protocol_fallback(exc)
                     continue
-                if not isinstance(exc, BadRequestError):
+                if not isinstance(exc, _openai_sdk().BadRequestError):
                     raise
                 if use_native and self._looks_like_tools_rejection(exc):
                     self._mode = "envelope"
@@ -790,7 +845,7 @@ class OpenAICompatibleProvider:
 
     @staticmethod
     def _looks_like_responses_rejection(exc: BaseException) -> bool:
-        if isinstance(exc, NotFoundError):
+        if isinstance(exc, _openai_sdk().NotFoundError):
             return True
         text = str(exc).lower()
         return any(marker in text for marker in (
@@ -1164,7 +1219,7 @@ class OpenAICompatibleProvider:
                 # Retry that negotiation independently from transport retries.
                 try:
                     stream = await self._create(request_kwargs)
-                except BadRequestError as exc:
+                except _openai_sdk().BadRequestError as exc:
                     detail = str(exc).lower()
                     if "stream_options" not in detail and "include_usage" not in detail:
                         raise
