@@ -47,6 +47,10 @@
 - [SPECPROOF_ASSESSMENT.md](SPECPROOF_ASSESSMENT.md) —— 对 SpecProof 参考副本的评估。
 - [ONE_FACT_ONE_HOME.md](ONE_FACT_ONE_HOME.md) —— 一事一源方法：术语、字段、类名的唯一家原则。
 
+## 性能与测量
+
+- [PERFORMANCE.md](PERFORMANCE.md) —— 实测过的性能改进与资源治理决策（import 时间、SQLite JSON1 过滤、impact BFS、网关 Redis 缓存、前端对比度门与内容寻址产物）；未经复测的不默认完成。
+
 ## 阅读路径建议
 
 首次：[FIRST_HOUR.md](FIRST_HOUR.md) → [CHANGELOG.md](CHANGELOG.md) → [OPERATIONS.md](OPERATIONS.md)。
