@@ -54,9 +54,12 @@ ORDER BY created_at ASC
 ### 4.1 网关 Redis 缓存（service plane）
 
 `minicc-cloud-gateway` 的 `/api/cached/inspector/status` 与 `/api/cached/insights/summary`
-用 Redis（`spring.cache.type: redis`，TTL 60s，`cache-names: gateway-routes`）做读缓存；
+用 Redis（`spring.cache.type: redis`，TTL 60s，`cache-names: gateway-routes`）做读缓存，
+另有 `/api/cached/inspector/changes?workspace=<abs>`（String 直存，30s 上游预算）；
 `CacheKeys.forService()` 是**一元化**键主人，fanout 消息把一份 invalidate 送给
-**每个**绑定副本。全 8 模块 `mvn test` 101 个用例全绿（离线隔离：
+**每个**绑定副本。实机 2026-11-13：TTL 复用命中（2199ms→74ms、changes 4.7s→64ms）。
+`CacheKeys` 现在 split keys by shape：status/summary 定向驱逐、changes 只随 TTL 过期
+（按 workspace 键，无法按服务定向驱逐，刻意取舍）。全 8 模块 `mvn -o test` reactor 全绿（离线隔离：
 `test/resources/application.properties` 覆盖 broker 自动启动）。
 
 ### 4.2 Python 侧进程内缓存（M8-T853 新增 cache-topology 信号）
@@ -93,7 +96,7 @@ ORDER BY created_at ASC
 
 ## 7. 未做的（给后人的工作单）
 
-- ~~网关 `/api/cached/*` 曾是派生模拟（hardcoded Map.of 响应）~~ — 已改写为真实上游探活：`HttpUpstreamHealthProbe` 用 client-side LB（`ReactorLoadBalancerExchangeFilterFunction` + Eureka）请求 `lb://<service>/actuator/health`，`UpstreamHealthProbe` 接口切换生产 WebClient 与测试 fake；`CachedRouteControllerTest`（4 条）钉住「响应来自 probe 不是常量」。剩下的工作是把 `/actuator/health` 之外的读端点（inspector `/api/changes`）也纳入 lb:// 缓存并发验证。
+- ~~网关 `/api/cached/*` 曾是派生模拟（hardcoded Map.of 响应）~~ — 已改写为真实上游探活 + 真实缓存：`/api/cached/inspector/status`、`/api/cached/insights/summary`（lb:// 上游探活 + Redis 60s），`/api/cached/inspector/changes?workspace=<abs>`（inspector 的 Python 变更清单，String 直存）。M8-T861 还修掉一处无人发现的生产级缺陷：缓存的 `Mono<ResponseEntity<Map>>` 里 `ResponseEntity` 不可序列化，真 Redis 上每次 cache 写都会炸（全靠 `spring.cache.type=none` 的测试掩盖）。剩余：把 eviction bus 扩成按服务驱逐全部键（需 Redis 模式删除）或逐服务发布。
 - `minicc/task_store.py` 的 `search()` 在 `task_search` 表为空时行为与索引一致（没测
   过 FTS 命中率）；`task_search_fts` 已由 upsert 维持。
 - FFI 语义：SQLite JSON1 在 ≥3.9 可用；macOS/Linux 发行版的可移植性已依赖 Python

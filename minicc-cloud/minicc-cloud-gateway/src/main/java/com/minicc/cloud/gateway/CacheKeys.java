@@ -29,6 +29,8 @@ public final class CacheKeys {
     /** Canonical keys — the exact strings @Cacheable stores under. */
     public static final String INSPECTOR_STATUS = "inspector:status";
     public static final String INSIGHTS_SUMMARY = "insights:summary";
+    /** Prefix for per-workspace changes payloads; TTL-bounded, not eviction-targeted. */
+    public static final String INSPECTOR_CHANGES = "inspector:changes";
 
     private static final Map<String, String> BY_SERVICE = Map.of(
             "inspector", INSPECTOR_STATUS,

@@ -48368,3 +48368,60 @@ npm run build:web && check:web → up to date; assets clean
 
 - 默认 2s 对 `/actuator/health` 绰绰有余；若上游健康体确实慢，operator 可调大
   `MINICC_GATEWAY_PROBE_TIMEOUT_MS`；设太小只会得到更多 UNKNOWN，不会得到错误 "UP"。
+
+## 批次 861 - M8-T861：缓存的真实生产化 — ResponseEntity 不可序列化 → 服务边界缓存，changes 读端 lb:// 化，inspector 独立启动修复
+
+### 1 缺什么（动机）
+
+M8-T848 让 cached-route 走真 probe，但 `@Cacheable` 挂在控制器上，缓存的是 `Mono<ResponseEntity<Map>>`——
+**`ResponseEntity` 不实现 `Serializable`**，真 Redis（`spring.cache.type: redis`，Boot 默认 JDK 序列化器）上
+**每次 cache 写都会抛 `NotSerializableException`**。整个系统靠 `spring.cache.type=none` 的测试掩盖着——
+与 M8-T832 时期"Redis 驱动从未被安装"同一类沉默的生产缺陷，这次是序列化形状的问题。
+验证（本机所有 spring-web 版本 6.1.1..6.2.19 的 jar 均不含 `java/io/Serializable`）：ResponseEntity 非序列化 Record。
+
+同时：inspector `/api/changes` —— 用户可用的"git status"读端点——此前完全没有缓存；
+且 inspector **从未被独立 boot 过**：一旦 `mvn -DskipTests package` 出 jar 起机，上下文就死。
+
+### 2 怎么做
+
+1. **服务边界 @Cacheable**：新增 `CachedStatusService`（返回 plain Map / String，全 Serializable），
+   `@Cacheable(value=gateway-routes, key=CacheKeys.INSPECTOR_STATUS/INSIGHTS_SUMMARY/INSPECTOR_CHANGES)`。
+   控制器退化为薄适配器（`.map(ResponseEntity::ok)`）。`ShippedCacheKeysAgreeTest` 取证对象从
+   controller 改成 service（pin 的"@Cacheable 一家+controller 无注解无键"规则原样保留）。
+2. **changes 读端点**：`InspectorChangesProbe`（接口）+ `HttpInspectorChangesProbe`（`lb://minicc-cloud-inspector/api/changes`，
+   WebClient 参数编码，35s 上限对齐 Python 子进程 30s 预算）；`/api/cached/inspector/changes?workspace=<abs>`；
+   响应体为原始 JSON String，按 `inspector:changes:<workspace>` 进 Redis（60s TTL；eviction bus 不覆盖这些键，TTL 兜底，刻意取舍）。
+3. **序列化门**：`CachedPayloadRoundTripTest`（3 条）——用 `JdkSerializationRedisSerializer` 对
+   `CachedStatusService.statusPayload(...)` 与 changes body 做"写入→读回→逐字段断言"。
+4. **inspector 修复**：`MiniccProperties` compact 构造器标注 `@ConstructorBinding`（双构造器歧义）→ 独立启动
+   立即通过（实机 8081 被占故改用 18081，`/actuator/health` UP，`/api/changes?workspace=%D%3A%2F…` 返回真实 git 清单）。
+
+### 3 实机证据（2026-11-13，registry@18761 + inspector@18081 + 一次性 Redis 7 + gateway@8411，JDK 25）
+
+```text
+$ curl :8411/api/health/all
+{"upCount":1,"totalServices":3,"services":[ ...inspector UP... ]}     # insights/tasks 未起，UNKNOWN
+
+$ curl :8411/api/cached/inspector/status   (首次)
+{"service":"inspector","upstreamStatus":"UP"}    time: 2.20s
+$ docker exec redis redis-cli KEYS 'gateway-routes*'
+gateway-routes::inspector:status                       # 首调即写入 — 之前根本写不进
+
+$ curl :8411/api/cached/inspector/status   (二次)
+时间: 74ms (vs 2199ms)，TTL 从 32893→24761ms 线性下降（未重写，缓存命中）
+
+$ curl :8411/api/cached/inspector/changes?workspace=D%3A%2F…minicc-codex   (首调)
+{"partial":true,"reasons":["the audit trail was cut by the byte window",...],"summary":{...}}   time: 4.7s
+$ docker exec redis KEYS '*changes*'
+gateway-routes::inspector:changes:D:/面试项目/minicc-codex
+
+$ curl 同上                                     (二次)
+time: 64ms (vs 4684ms)，同上 TTL 线性下降        # Python bridge 路径缓存有效
+
+mvn -o test（reactor）                            BUILD SUCCESS（8 模块，含 inspector 新代码）
+```
+
+### 4 边界
+
+- `inspector:changes:*` 不参与定向驱逐（一个 workspace 一个键、Redis wildcard 删除需额外 RedisTemplate），60s TTL 兜底。
+- 默认路由（非 cached）不受影响；`X-Minicc-Cache` 标头未引入（命中/未命中对调用方不可见——只见于计时/Redis 键）。

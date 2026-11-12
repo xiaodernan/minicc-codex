@@ -28,31 +28,41 @@ import org.springframework.cache.CacheManager;
  * all — the queue had a consumer only.
  *
  * <p>These are plain unit tests (no Spring context, no broker): they read the
- * shipped controller source for the {@code @Cacheable} literals and assert the
- * one home {@link CacheKeys} agrees with them, then exercise publish → consume
- * with mocks to prove the whole loop resolves to the identical key.
+ * shipped service source (the {@code @Cacheable} home — M8-T861 moved the
+ * annotations out of the controller) for the literals and assert the one home
+ * {@link CacheKeys} agrees, then exercise publish → consume with mocks to prove
+ * the whole loop resolves to the identical key.
  */
 class ShippedCacheKeysAgreeTest {
 
+    private static final Path SERVICE = Path.of(
+            "src", "main", "java", "com", "minicc", "cloud", "gateway",
+            "CachedStatusService.java");
     private static final Path CONTROLLER = Path.of(
             "src", "main", "java", "com", "minicc", "cloud", "gateway",
             "CachedRouteController.java");
 
-    private String controllerSource() throws Exception {
-        return Files.readString(CONTROLLER, StandardCharsets.UTF_8);
+    private String serviceSource() throws Exception {
+        return Files.readString(SERVICE, StandardCharsets.UTF_8);
     }
 
     @Test
     void theCacheableLiteralsComeFromTheOneHome() throws Exception {
-        String source = controllerSource();
-        // The controller no longer carries a second copy of the key literal: it
-        // references CacheKeys.INSPECTOR_STATUS / INSIGHTS_SUMMARY.
+        String source = serviceSource();
+        // The annotations sit on the service boundary now; it references
+        // CacheKeys.INSPECTOR_STATUS / INSIGHTS_SUMMARY and carries no copy.
         assertThat(source).contains("CacheKeys.INSPECTOR_STATUS");
         assertThat(source).contains("CacheKeys.INSIGHTS_SUMMARY");
         assertThat(source).doesNotContain("\"inspector:status\"");
         assertThat(source).doesNotContain("\"insights:summary\"");
         assertThat(CacheKeys.INSPECTOR_STATUS).isEqualTo("inspector:status");
         assertThat(CacheKeys.INSIGHTS_SUMMARY).isEqualTo("insights:summary");
+
+        String controller = Files.readString(CONTROLLER, StandardCharsets.UTF_8);
+        // The controller must not re-declare the keys or the annotations.
+        assertThat(controller).doesNotContain("@Cacheable");
+        assertThat(controller).doesNotContain("\"inspector:status\"");
+        assertThat(controller).doesNotContain("\"insights:summary\"");
     }
 
     @Test

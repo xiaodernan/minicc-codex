@@ -17,6 +17,9 @@ public class UpstreamHealthProbeConfig {
     @Value("${minicc.cloud.gateway.probe-timeout-ms:2000}")
     long probeTimeoutMs;
 
+    @Value("${minicc.cloud.gateway.changes-timeout-ms:35000}")
+    long changesTimeoutMs;
+
     @Bean
     public WebClient upstreamWebClient(ReactorLoadBalancerExchangeFilterFunction loadBalancerExchangeFilter) {
         return WebClient.builder().filter(loadBalancerExchangeFilter).build();
@@ -25,5 +28,10 @@ public class UpstreamHealthProbeConfig {
     @Bean
     public UpstreamHealthProbe upstreamHealthProbe(WebClient upstreamWebClient) {
         return new HttpUpstreamHealthProbe(upstreamWebClient, Duration.ofMillis(probeTimeoutMs));
+    }
+
+    @Bean
+    public InspectorChangesProbe inspectorChangesProbe(WebClient upstreamWebClient) {
+        return new HttpInspectorChangesProbe(upstreamWebClient, Duration.ofMillis(changesTimeoutMs));
     }
 }

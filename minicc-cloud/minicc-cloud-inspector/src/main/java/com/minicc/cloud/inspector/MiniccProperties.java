@@ -21,6 +21,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public record MiniccProperties(String python, String repo, Duration budget, List<String> allowedRoots,
                                Integer maxProcesses) {
 
+    @org.springframework.boot.context.properties.bind.ConstructorBinding
     public MiniccProperties {
         if (python == null || python.isBlank()) {
             python = "python";
