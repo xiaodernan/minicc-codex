@@ -36,6 +36,7 @@
 
 ## 审计、评测与方法论
 
+- [CONSOLIDATION_REPORT.md](CONSOLIDATION_REPORT.md) —— 分支/worktree 集大成审计：7 个历史分支逐提交判定、23 个测量平面处置、7 个 `consolidated/*` tag 的归并证据。
 - [AUDIT_2026-09-20.md](AUDIT_2026-09-20.md) —— 2026-09-20 整体审核：发现的事实 + 修法 + 见证。
 - [PROJECT_REVIEW_2026-09-18.md](PROJECT_REVIEW_2026-09-18.md) —— 2026-09-18 阶段性复盘。
 - [DEEP_OPTIMIZATION_PLAN.md](DEEP_OPTIMIZATION_PLAN.md) —— 2026-09-18 起草的全自动优化实施计划（A1..CE2：各落一件具体事；状态列全部落齐）。

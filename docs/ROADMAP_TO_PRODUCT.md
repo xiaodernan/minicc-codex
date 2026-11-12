@@ -47448,3 +47448,37 @@ Reasoning 模型偶尔夹 `{"type":"function_call","name":null}`——fake provi
 - chat-completions 与 Anthropic 两条路径用原始值问谓词，无 `str()` 包裹，本就安全，未改。
 - 不改 fake provider、不改 loop 派发；修复收敛在"wire 值变成工具名"的唯一边界。
 - `build/wire_probe.py` 与 `build/live_probe*` 在被 gitignore 的 `build/`，诊断完即删。
+
+
+## 批次 784 — M8-T821：分支/worktree 集大成审计与归档（7 tag）
+
+### 1 欠的是哪一条
+
+用户要求"把多个工作分支、各种 worktree 合并起来，综合集大成，汇集所有内容到一个主分支"。
+仓库有 7 个历史分支 + 23 个测量平面 worktree，其中 `archive` 有 3 个、`backup` 有 2 个、
+`consolidation/read-failure` 有 1 个 patch-id 独有提交，另有一个无共同祖先的 dev 独立平面。
+盲目 `git merge` 会引入重复/冲突/回退，必须先逐提交证明"内容到底进没进 main"。
+
+### 2 改动
+
+- **逐提交审计**（只读：patch-id 差集 + 真实 diff + main 工作树符号核对）：6 个 `+` 提交里
+  4 个 `ALREADY_IN_MAIN`（且 2 个是更强演进：`PREIMAGE_NOT_IN_WINDOW` → byte-only+recovery；
+  `countLabel` 由 T774 按现役 web 架构重写），1 个 `OBSOLETE`（`sampling_enabled` 无消费者，
+  `INTEGRATION_STRATEGY.md` 早有"不合"判据），1 个主体作废（backup 整条线被 main 自有 batches 取代）。
+  dev 独立平面 51 提交经车道接管逐项覆盖，`t544-plane` 的 43 提交对生产文件 diff 为空。
+- **7 个 annotated tag**（`consolidated/*`）固化归并结论，各带逐分支判据 message。
+- 新增 `docs/CONSOLIDATION_REPORT.md`：逐分支/worktree 处置表、方法可复现命令、边界；
+  `docs/INDEX.md` 索引加条目。
+
+### 3 验证
+
+- `git tag -n1 'consolidated/*'` → 7 个 tag 齐全，message 含判据。
+- `git cherry -v main <branch>` → feature/cost-snapshot/i18n-sampling 均 0 独有。
+- `git diff --name-only main...05dfa9b | grep -E '^minicc/|^web/src/'` → 空（t544 平面零生产差异）。
+- `git merge-base main dev/minicc-reliability-4ba3` → 退出码 1（无共同祖先，佐证不整树合并）。
+
+### 4 边界
+
+- 未删除任何分支/worktree（证据完整性优先；保留作测量/对照）。
+- `origin/main` 落后本地 2 提交（T817/T820），未推送远端（SSH 外部动作不擅为）。
+- tag 与文档均未触碰并轨会话的未提交改动（tool_policy/audit/tools/git/test_webauth 等）。
