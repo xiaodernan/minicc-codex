@@ -1,0 +1,295 @@
+/* ============================================================================
+   minicc Frontend Enhancements — Glassmorphism, animations, micro-interactions
+   Load after styles.css to build on the existing design system.
+   ============================================================================ */
+
+/* ---- Enhanced glassmorphism ---- */
+.glass-raised {
+  background: rgba(30, 30, 34, 0.72);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+}
+
+.glass-card {
+  background: rgba(42, 42, 47, 0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius);
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease;
+}
+
+.glass-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+[data-theme="light"] .glass-raised {
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .glass-card {
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+/* ---- Animated gradient background ---- */
+.app-shell::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(circle at 15% 20%, rgba(99, 102, 241, 0.12) 0%, transparent 40%),
+    radial-gradient(circle at 85% 80%, rgba(16, 185, 129, 0.1) 0%, transparent 40%),
+    radial-gradient(circle at 50% 0%, rgba(236, 72, 153, 0.08) 0%, transparent 30%);
+  background-attachment: fixed;
+}
+
+[data-theme="light"] .app-shell::before {
+  background:
+    radial-gradient(circle at 15% 20%, rgba(99, 102, 241, 0.06) 0%, transparent 40%),
+    radial-gradient(circle at 85% 80%, rgba(16, 185, 129, 0.05) 0%, transparent 40%),
+    radial-gradient(circle at 50% 0%, rgba(236, 72, 153, 0.04) 0%, transparent 30%);
+}
+
+/* ---- Smooth page transitions ---- */
+* {
+  scroll-behavior: smooth;
+}
+
+.startup-splash {
+  transition: opacity 0.6s cubic-bezier(0.23, 1, 0.32, 1), transform 0.6s ease;
+}
+
+.startup-splash[data-state="ready"] {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ---- Message bubbles with entrance animation ---- */
+.message-body {
+  animation: messageFadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes messageFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ---- Stream panel glow effect ---- */
+.stream-panel {
+  position: relative;
+  overflow: hidden;
+}
+
+.stream-panel::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(156, 183, 240, 0.04),
+    transparent
+  );
+  transition: left 0.6s ease;
+  pointer-events: none;
+}
+
+.stream-panel.streaming::after {
+  left: 100%;
+}
+
+/* ---- Button enhancements ---- */
+.btn-primary {
+  position: relative;
+  overflow: hidden;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.btn-primary::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.2),
+    transparent
+  );
+  transition: left 0.5s ease;
+}
+
+.btn-primary:hover::before {
+  left: 100%;
+}
+
+.btn-primary:active {
+  transform: scale(0.97);
+}
+
+/* ---- Sidebar brand glow ---- */
+.brand-mark {
+  position: relative;
+  overflow: hidden;
+}
+
+.brand-mark::after {
+  content: "";
+  position: absolute;
+  inset: -50%;
+  background: conic-gradient(
+    from 0deg,
+    transparent,
+    var(--mint, #8cd7bd),
+    var(--blue, #9cb7f0),
+    transparent
+  );
+  animation: brandRotate 4s linear infinite;
+  opacity: 0.6;
+}
+
+@keyframes brandRotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* ---- Toast notifications ---- */
+.toast {
+  animation: toastSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes toastSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.toast-success { border-left: 4px solid var(--mint, #8cd7bd); }
+.toast-error { border-left: 4px solid var(--coral, #f28d6d); }
+.toast-warning { border-left: 4px solid var(--amber, #e6c279); }
+
+/* ---- Skeleton loading states ---- */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--surface-soft),
+    var(--line-bright),
+    var(--surface-soft)
+  );
+  background-size: 200% 100%;
+  animation: skeletonPulse 1.4s ease infinite;
+  border-radius: 4px;
+}
+
+@keyframes skeletonPulse {
+  0% { background-position: 200% 0%; }
+  100% { background-position: -200% 0%; }
+}
+
+/* ---- File tree hover effect ---- */
+.tree-entry {
+  transition: background 0.15s ease, padding-left 0.15s ease;
+}
+
+.tree-entry:hover {
+  background: var(--line-bright);
+  padding-left: 8px;
+}
+
+/* ---- Code block copy button ---- */
+.code-block {
+  position: relative;
+}
+
+.code-block:hover .copy-btn {
+  opacity: 1;
+}
+
+.copy-btn {
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+/* ---- Focus rings for accessibility ---- */
+*:focus-visible {
+  outline: 2px solid var(--blue, #9cb7f0);
+  outline-offset: 2px;
+}
+
+/* ---- Scrollbar styling ---- */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(156, 183, 240, 0.2);
+  border-radius: 5px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(156, 183, 240, 0.4);
+}
+
+[data-theme="light"] ::-webkit-scrollbar-thumb {
+  background: rgba(53, 95, 190, 0.2);
+}
+
+[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
+  background: rgba(53, 95, 190, 0.5);
+}
+
+/* ---- Selection highlight ---- */
+::selection {
+  background: rgba(156, 183, 240, 0.3);
+  color: inherit;
+}
+
+/* ---- Responsive refinements ---- */
+@media (max-width: 640px) {
+  .app-shell {
+    padding: 8px;
+  }
+  .glass-card {
+    border-radius: 6px;
+  }
+}
+
+/* ---- Reduced motion ---- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
