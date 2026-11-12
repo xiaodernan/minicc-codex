@@ -7,6 +7,7 @@ tests/test_capabilities_names_every_registered_tool.py
 tests/test_doc_pointers.py
 tests/test_docs_index_enumerates_every_docs_md.py
 tests/test_no_document_quotes_a_content_addressed_bundle.py
+tests/test_no_shipped_document_carries_a_nul_byte.py
 tests/test_one_document_is_one_fence_ruler_build.py
 tests/test_pointer_liveness_corpus.py
 tests/test_the_two_readers_share_one_fence_ruler.py
