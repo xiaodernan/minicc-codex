@@ -19,6 +19,13 @@ Every public method swallows backend errors and degrades to the local
 fallback: a Redis outage slows nothing down, it only loses cross-process
 sharing.  The module never raises, so callers never need to wrap it.
 
+Reads treat a *negative* answer from Redis as authoritative: when the shared
+store says "absent", the local copy is not consulted, so a value deleted or
+evicted in another process cannot be resurrected out of this process's stale
+LRU.  The local copy answers only when the driver is unreachable.  Writes
+report whether they reached the shared store, so a value that could not cross
+the wire is visible as ``False`` instead of silently staying local.
+
 Configuration is purely environmental — no pyproject change is required
 to *use* the module; declaring ``redis`` in optional-dependencies merely
 makes ``pip install -e ".[dev]`` pull the driver.
@@ -57,7 +64,11 @@ except Exception:  # noqa: BLE001 - redis not installed; local fallback handles 
 
 
 def _redis_client() -> Any:
-    """Best-effort Redis client; None when it cannot be reached or imported."""
+    """Probe once and return a live Redis client; None when it cannot be reached.
+
+    This is the only place a connection is attempted, so the timeout budget and
+    the "is it up?" question each have exactly one home.
+    """
     if not _HAS_REDIS or _redis is None:  # type: ignore[truthy-bool]
         return None
     try:
@@ -66,6 +77,42 @@ def _redis_client() -> Any:
         return client
     except Exception:  # noqa: BLE001 - Redis unreachable; local fallback handles it
         return None
+
+
+# One client — and therefore one connection pool — per process.  Building a
+# client per RedisCache instance multiplied pools by the number of namespaces
+# (digest, default, …) and paid a fresh handshake for each.  A failed probe is
+# remembered for a short window rather than forever, so a Redis that starts
+# after the first request is picked up without restarting the agent.
+_CLIENT_LOCK = threading.Lock()
+_CLIENT: Any = None
+_CLIENT_DEAD_UNTIL = 0.0
+_CLIENT_RETRY_SECONDS = float(os.environ.get("MINICC_REDIS_RETRY_SECONDS", "15"))
+
+
+def _shared_client() -> Any:
+    """The process-wide client, or None while the retry window is open."""
+    global _CLIENT, _CLIENT_DEAD_UNTIL
+    now = _now()
+    with _CLIENT_LOCK:
+        if _CLIENT is not None:
+            return _CLIENT
+        if now < _CLIENT_DEAD_UNTIL:
+            return None
+        client = _redis_client()
+        if client is None:
+            _CLIENT_DEAD_UNTIL = now + _CLIENT_RETRY_SECONDS
+            return None
+        _CLIENT = client
+        return client
+
+
+def _reset_client_cache() -> None:
+    """Forget the memoised client; the seam tests use to swap a backend."""
+    global _CLIENT, _CLIENT_DEAD_UNTIL
+    with _CLIENT_LOCK:
+        _CLIENT = None
+        _CLIENT_DEAD_UNTIL = 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -111,11 +158,17 @@ def _local_delete(key: str) -> None:
 
 
 class RedisCache:
-    """Distributed cache: Redis when available, in-process LRU otherwise.
+    """Distributed cache: Redis is the one truth, the local LRU is the degraded copy.
+
+    Read semantics are the part that matters.  A *negative* answer from the
+    shared store is authoritative: when Redis says "absent", the local copy is
+    not consulted, so a value evicted (or deleted) in another process cannot be
+    resurrected out of this process's stale LRU.  Only a transport failure -
+    no client, or the driver raised - lets the local copy answer.
 
     Every method is safe to call on a cold instance; construction never
-    connects.  The first operation lazily probes Redis and caches the
-    client object, so later calls skip the handshake.
+    connects.  Writes return whether the value actually reached the shared
+    store, which turns "silently not shared" into an observable fact.
     """
 
     def __init__(self, namespace: str = "default", ttl: float | None = None) -> None:
@@ -127,63 +180,95 @@ class RedisCache:
     def _redis(self) -> Any:
         if not self._client_probed:
             self._client_probed = True
-            self._client = _redis_client()
+            self._client = _shared_client()
         return self._client
 
-    def _key(self, key: str) -> str:
+    def _key(self, key: Any) -> str:
         return f"{_REDIS_KEY_PREFIX}{self.namespace}:{key}"
+
+    def _shared_get(self, key: str) -> tuple[bool, Any]:
+        """Return ``(answered, value)``: did the shared store give a verdict?
+
+        ``answered`` is True for both a hit and an authoritative miss.  It is
+        False only when no backend is reachable, which is the single case where
+        the local copy is allowed to speak.
+        """
+        client = self._redis()
+        if client is None:
+            return False, None
+        try:
+            raw = client.get(self._key(key))
+        except Exception:  # noqa: BLE001 - transport failure; degrade to local
+            return False, None
+        if raw is None:
+            return True, None
+        try:
+            return True, _decode(raw)
+        except Exception:  # noqa: BLE001 - unreadable payload is a miss, never a crash
+            return True, None
 
     def get(self, key: str) -> Any | None:
         """Return the cached value, or None when absent/expired."""
-        client = self._redis()
-        if client is not None:
-            try:
-                raw = client.get(self._key(key))
-                if raw is not None:
-                    return json.loads(raw.decode("utf-8"))
-            except Exception:  # noqa: BLE001 - Redis get failed; local fallback handles it
-                pass
+        answered, value = self._shared_get(key)
+        if answered:
+            return value
         return _local_get(self._key(key))
 
-    def set(self, key: str, value: Any, ttl: float | None = None) -> None:
-        """Store ``value`` under ``key`` with an optional TTL in seconds."""
+    def set(self, key: str, value: Any, ttl: float | None = None) -> bool:
+        """Store ``value`` under ``key``; return True when it is shared.
+
+        The local copy is written only when the value did not reach the shared
+        store.  Mirroring every shared write would double the resident bytes of
+        a payload cache (the asset cache holds compressed blobs) and would put a
+        copy in this process that no other process can invalidate.
+        """
         effective_ttl = self.ttl if ttl is None else ttl
         client = self._redis()
         if client is not None:
+            payload: bytes | None = None
             try:
-                payload = json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
-                if effective_ttl is not None:
-                    client.setex(self._key(key), int(effective_ttl), payload)
-                else:
-                    client.set(self._key(key), payload)
-                return
-            except Exception:  # noqa: BLE001 - Redis set failed; local fallback handles it
-                pass
+                payload = _encode(value)
+            except Exception:  # noqa: BLE001 - value cannot cross the wire; local stands
+                payload = None
+            if payload is not None:
+                try:
+                    if effective_ttl is not None:
+                        client.setex(self._key(key), int(effective_ttl), payload)
+                    else:
+                        client.set(self._key(key), payload)
+                    return True
+                except Exception:  # noqa: BLE001 - Redis write failed; local copy stands
+                    pass
         _local_set(self._key(key), value, effective_ttl)
+        return False
 
-    def delete(self, key: str) -> None:
-        client = self._redis()
-        if client is not None:
-            try:
-                client.delete(self._key(key))
-                return
-            except Exception:  # noqa: BLE001 - Redis delete failed; local fallback handles it
-                pass
+    def delete(self, key: str) -> bool:
+        """Drop ``key`` from both backends; never leave a resurrectable copy."""
         _local_delete(self._key(key))
-
-    def clear(self) -> None:
         client = self._redis()
-        if client is not None:
-            try:
-                for k in client.scan_iter(f"{_REDIS_KEY_PREFIX}{self.namespace}:*"):
-                    client.delete(k)
-                return
-            except Exception:  # noqa: BLE001 - Redis scan/delete failed; local fallback handles it
-                pass
+        if client is None:
+            return False
+        try:
+            client.delete(self._key(key))
+            return True
+        except Exception:  # noqa: BLE001 - Redis delete failed; local already gone
+            return False
+
+    def clear(self) -> bool:
+        """Drop the whole namespace from both backends."""
         with _LOCAL_LOCK:
             for k in list(_LOCAL):
                 if k.startswith(f"{_REDIS_KEY_PREFIX}{self.namespace}:"):
                     _LOCAL.pop(k, None)
+        client = self._redis()
+        if client is None:
+            return False
+        try:
+            for k in client.scan_iter(f"{_REDIS_KEY_PREFIX}{self.namespace}:*"):
+                client.delete(k)
+            return True
+        except Exception:  # noqa: BLE001 - Redis clear failed; local already gone
+            return False
 
     def get_set(self, key: str, default: Any, ttl: float | None = None) -> Any:
         """Fetch-or-compute: return cached value or store ``default``."""
@@ -200,10 +285,10 @@ class RedisCache:
         value = self.get(key)
         if value is None:
             raise KeyError(key)
-        return _json_unsafe(value)
+        return value
 
     def __setitem__(self, key: str, value: Any) -> None:
-        self.set(key, _json_safe(value))
+        self.set(key, value)
 
     def __delitem__(self, key: str) -> None:
         self.delete(key)
@@ -240,23 +325,31 @@ def _json_unsafe(value: Any) -> Any:
         return [_json_unsafe(v) for v in value]
     return value
 
-    # --- dict-like access (for tests and callers that expect []
-    #     semantics) ------------------------------------------------
 
-    def __getitem__(self, key: str) -> Any:
-        value = self.get(key)
-        if value is None:
-            raise KeyError(key)
-        return value
+# --- The one wire codec -----------------------------------------------------
+#
+# Both write paths (``set`` and ``[]=``) and both read paths (``get`` and
+# ``[]``) go through these two functions.  Before this, ``set`` serialised with
+# a bare ``json.dumps`` while ``__setitem__`` used ``_json_safe`` and ``get``
+# decoded with a bare ``json.loads``: bytes written through one path came back
+# as a marker dict through the other, and gzip payloads (the module's own
+# stated use case) could not be written at all.
 
-    def __setitem__(self, key: str, value: Any) -> None:
-        self.set(key, value)
 
-    def __delitem__(self, key: str) -> None:
-        self.delete(key)
+def _encode(value: Any) -> bytes:
+    """Project ``value`` onto the wire form shared by every writer."""
+    projected = _json_safe(value)
+    return json.dumps(projected, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
 
-    def __contains__(self, key: str) -> bool:
-        return self.get(key) is not None
+
+def _decode(raw: bytes | str) -> Any:
+    """Inverse of ``_encode``: restore bytes wrapped by ``_json_safe``.
+
+    Accepts ``str`` as well: ``decode_responses=True`` clients hand back text,
+    and treating that as an unreadable payload would turn every hit into a miss.
+    """
+    text = raw.decode("utf-8") if isinstance(raw, bytes) else raw
+    return _json_unsafe(json.loads(text))
 
 
 #: Process-wide default cache.  Namespaces isolate unrelated concerns

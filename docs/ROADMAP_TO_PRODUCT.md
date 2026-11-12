@@ -47677,3 +47677,39 @@ CI（M8-T838 / ubuntu-latest）报唯一失败：`test_tracked_evidence_census.p
 
 - `tests/test_tracked_evidence_census.py` — 5 passed
 - `doc_pointers.py --check` — POINTER_RC=0（本批门前全绿）
+
+
+## 批次 840 - M8-T840：Redis 缓存分支首次被测试覆盖，修五处静默缺陷（一份真值、一种线上编码）
+
+### 1 缺什么（动机）
+
+`minicc/redis_cache.py` 的 docstring 声称 "values are shared across every process that talks to the same instance, so a gzip payload or SHA-256 digest computed once is reused everywhere"，`minicc/static_assets.py` 第 30-33 行的注释同样声称 gzip payload 存进 RedisCache 是为了跨 web-server 进程共享。但 `redis` 驱动不在默认环境里（`ModuleNotFoundError: No module named 'redis'`），5 个既有测试全部只跑本地 fallback 分支——**Redis 分支从未被任何测试执行过**。用内存假后端首次真正执行该分支后，五处缺陷同时暴露：
+
+1. `set()` 用裸 `json.dumps(value)`，没有 `_json_safe` 投影。gzip 字节（模块自己点名的用例）与 `(payload, etag)` 元组（`static_assets.py` 实际写入的形状）都在 `TypeError` 处被 `except Exception: pass` 吞掉，Redis 写被放弃、值只留在本进程，而 `set()` 照常返回——**跨进程共享对最需要它的两种载荷静默失效**。实测 `set()` 之后共享存储里 `{}`。
+2. `__setitem__` 经 `_json_safe` 写，`get()` 却用裸 `json.loads` 读：`cache[k] = b"x"` 之后 `cache.get(k)` 给出 `{'__minicc_bytes__': 'eA=='}` 而不是 `b"x"`。
+3. Redis 的**权威缺失**直接落到本地副本：另一进程删掉或逐出的值，会被本进程过期的 LRU 复活。实测 `get("stale") == 'stale-value'`。
+4. `delete()` 在 Redis 成功后立刻 `return`，不清本地，于是已删除的值在下次读时复活。
+5. `_json_unsafe` 的 `return` 之后还躺着 4 个不可达的 dunder 定义，读代码时会误以为有第二套 dict 语义。
+
+附带两处工程债：每个 `RedisCache` 实例各自 `Redis.from_url(...)` 加一次 `ping()`，命名空间越多连接池越多；探测失败被永久记住，进程启动之后才起来的 Redis 永远接不上。
+
+### 2 处置（一份真值、一种线上编码）
+
+- `_encode` / `_decode` 成为唯一的线上编解码（`_json_safe` + 紧凑 JSON + UTF-8；`_decode` 同时接受 bytes 与 str，以免 `decode_responses=True` 的客户端把每次命中都当成 miss）。`set`、`[]=`、`get`、`[]` 四条路径全部走它。
+- 读语义：`_shared_get` 返回 `(answered, value)`。共享存储给出判定（命中或**权威缺失**）时直接采信，只有驱动不可达才读本地。本地副本**只在写不进共享存储时**才产生，因此本进程不可能持有一份"只有它能失效"的共享值——跨进程失效这个分布式缓存的老问题被结构性消除，而不是靠标记补救。`set`/`delete`/`clear` 返回 bool，明确"是否真的共享、是否真的清掉"。
+- `delete` / `clear` 同时作用于两个后端；`_LOCAL` 回到两元组，去掉多余状态。
+- 进程级单一客户端 `_shared_client()`（一把锁、一个连接池），探测失败只记忆 `MINICC_REDIS_RETRY_SECONDS`（默认 15 秒），窗口过后重探——启动之后才有 Redis 也能自愈。
+- 删除 `_json_unsafe` 之后那 4 个不可达的 dunder。
+
+### 3 证据与门
+
+- 新增 `tests/test_the_redis_cache_shares_one_truth.py`（14 门，全部用内存假后端驱动真实的 Redis 分支，不需要驱动或服务器）：gzip 载荷跨"进程"可读且解压一致、两条写路径读回同一类型、编解码嵌套 bytes 往返、权威缺失不回落、delete 不留复活副本、clear 只清本命名空间、不可编码值如实报告而不伪装命中、共享值不镜像进本地 L1、驱动挂掉时降级可读写、TTL 以整秒到达 `setex`、进程内共享同一客户端、失败探测按窗口重试、模块无不可达 dunder。
+- `pytest tests/test_the_redis_cache_shares_one_truth.py tests/test_redis_cache.py tests/test_static_assets.py tests/test_static_assets_response_contract.py tests/test_verification_plan.py -q` → **69 passed**。
+- 变异臂（每条变异都被**对应那条**断言抓住，不是撒网）：线上编码绕过 `_json_safe` → 3 failed（gzip 跨进程、类型一致、编解码往返）；权威缺失当"未作答" → 2 failed；`delete` 不删本地 → 1 failed；每次写都镜像本地 L1 → 1 failed。恢复后 14 passed。
+- 变异臂同时纠正了一条假测试：`delete` 用例起初在共享写之后断言，而共享写已不再产生本地副本，故变异 3 未被抓住；改成显式构造"降级期写入的本地副本"后才真正有牙齿。
+
+### 4 边界
+
+- 不改 Redis 键布局、命名空间、`default_cache` 身份，也不改两个消费方的调用形状（它们本就忽略 `set` 返回值）。
+- 值经 JSON 投影，元组读回为 list（既有 `_json_safe` 语义；`static_assets` 只按下标取用，不受影响）。
+- 权威缺失时不返回"降级期写下、共享存储从未有过"的本地值：对缓存而言返回 None 只会导致重算，不会返回错数据。
