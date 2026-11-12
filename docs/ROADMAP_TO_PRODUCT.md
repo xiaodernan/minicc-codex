@@ -48151,3 +48151,43 @@ Redis 是分布式共享态，topology 的事实不交给 `set()-return-bool` �
 - 实机：启 6382 端口的 `redis:7-alpine` 容器，`MINICC_TEST_REDIS_URL=redis://127.0.0.1:6382/0 pytest tests/test_redis_cache.py` → **21 passed**（live set/get + stats 活检均过）
 - `web.py` 的默认 `/api/metrics` 负载在任意测试中都不再 crash（`redis_cache` 字段是附加值，不是替换任何现有键）
 - `doc_pointers.py --check` → POINTER_RC=0
+
+## 批次 854 - M8-T854：修 M8-T853 的连带红（_Wire.set、docstring 引用、lazy import、evidence 预算横竖越线）
+
+### 1 动机
+
+`M8-T853`（"Redis cache topology stats in /api/metrics"）自己没有上 CI 验证——它停在推送前
+本地过了 `pytest tests/test_*redis*.py`和 `test_webserver.py` 就提交了。CI ubuntu 下暴露两条：
+
+- `_Wire.set` 在 `tests/test_the_redis_cache_shares_one_truth.py` 上只接受 `set(key, value)`，
+  而我把 `setex` 换成 `set(... ex=)` 后，wire stand-in 方法签名跟不上 —— `ttls` 字典根本没填，
+  `KeyError: 'minicc:ttl:inherits'` 立刻暴露；
+- `minicc/web.py:1498` docstring 引用了一条本来对得上的行，我加 `from .redis_cache import stats as redis_stats`
+  后整个文件往下平移 1 行，docstring 就无法再定位 `budget.record_cost`；
+- **改用 lazy import**：把 `redis_stats()` 的导入挪到 `metrics()` 函数内，wire 的无状态依赖（不引入 import-time redis_cache side-effect）work pattern preserved。
+
+第三条 CI 线里承受不住容量的暗礁：
+
+- `tests/test_index_census.py` 要求 repo 自己 ≤80% 的 `file_limit`，而新到一批 Java 文件后
+  `962 / 1200 = 80.2%`，直接顶穿；把 `LocalEvidenceIndex.__init__` 的 `max_files` 默认抬为 `2500`。
+
+### 2 怎么做（分别处理，返回约束）
+
+1. **_Wire.set 对接 redis-py 4+/7 行为**
+   - 方法由 `set(self, key, value)` 改为 `set(self, key, value, ex: int | None = None)`——匹配真实签名。
+   - 行为与 `minicc/redis_cache.py` 完全一致：给定 `ex` 时写入 `ttls[key] = ex`，otherwise 不设 TTL。
+2. **Lazy import 切换**
+   - 移除 web.py 模块级对 `.redis_cache` 的 import（避免推移任何下行号，docstring 引用仍然指向 `budget.record_cost` 行）。
+   - 在 `AgentService.metrics()` 内部一次性 import 并直接调用 `stats()`，调用频率=一次 / API call=1，无需复用。
+3. **evidence 预算上调**
+   - `max_files: int = 1200` → `2500`。`LocalEvidenceIndex` 暴露 `file_limit` = 这个默认值，`test_index_census` (`used < 0.8`) 现在为 `962/2500 ≈ 38.5%`，安全。
+
+### 3 证据
+
+- 本地 python test 三个失败的模块全绿：
+  - `test_the_redis_cache_shares_one_truth.py` → **14 passed**（原来 `KeyError`）
+  - `test_a_line_a_test_docstring_cites_can_be_read.py` → **6 passed**
+  - `test_index_census.py` → **11 passed**（原来 `used=0.80166` 红）
+- `pytest tests/test_redis_cache.py tests/test_index_census.py tests/test_a_line_a_test_docstring_cites_can_be_read.py tests/test_the_redis_cache_shares_one_truth.py` → **68 passed, 2 skipped**
+- M8-T853 的 live test (`MINICC_TEST_REDIS_URL`) 在 redis 7-alpine 上仍通过（跨进程隔离重复验证）
+- `doc_pointers.py --check` → POINTER_RC=0
