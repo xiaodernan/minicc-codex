@@ -47979,3 +47979,26 @@ Redis 缓存与 fanout 失效总线保护的只是个常量，监听器的 evict
   `Total time: 03:13 min`）
 - `doc_pointers.py --check` — POINTER_RC=0
 - CI 服务端 lane: 本批与本推送同一 ref 同时跑（mvn Java 腿 + Playwright + claim）。
+
+## 批次 849 - M8-T849：Discovery hub 健康与发现侧证据（registry 模块首个测试）
+
+### 1 缺什么（动机）
+
+`minicc-cloud-registry` 是整条 `minicc-cloud-spring-plane` 的发现枢纽（Eureka Server），
+网关的每条 `lb://` 路由都依赖它。它只在 `RegistryApplication.java` 两行启动逻辑 + `docker-compose`
+里"声明存在"，**零测试**——网关配错或 registry 上下文加载不了时，操作者没有单一面板能说"hub down"。
+
+### 2 新增
+
+`RegistryHealthTest`（2 条）：
+
+- `actuatorHealthIsUp` — 随机端口起 registry，`/actuator/health` 必须是 `UP`；
+- `eurekaAppsReturnsAnEmptyButWellFormedRegistry` — `/eureka/apps` 不允许返回 `DOWN`/`Internal Server Error`，
+  空注册表必须以良构文档回答而不是 500。
+
+两个测试刻意用 `RANDOM_PORT`，避免和任何在跑的 registry 抢 8761。
+
+### 3 证据与门
+
+- `mvn -o test` → **BUILD SUCCESS**，Tests run: 2, Failures: 0
+- 全 reactor 其他模块零影响；网关、bridge 保持 31 / 28 绿
