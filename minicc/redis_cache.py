@@ -122,6 +122,46 @@ def _reset_client_cache() -> None:
 _LOCAL: OrderedDict[str, tuple[Any, float | None]] = OrderedDict()
 _LOCAL_LOCK = threading.RLock()
 
+# Operator-facing counters for the Redis cache.  A process that quietly
+# fell back to its LRU because REDIS_URL points at a dead host is making
+# different decisions than one speaking to a live Redis, and until now
+# nothing could tell the two apart.  Every counter here is a plain int
+# guarded by one lock; callers never see an inconsistent snapshot, and a
+# test never needs to wait for a flush.
+_STATS_LOCK = threading.Lock()
+_STATS: dict[str, int] = {
+    "gets": 0,
+    "shared_hits": 0,
+    "shared_misses": 0,
+    "fallback_reads": 0,
+    "sets": 0,
+    "sets_shared": 0,
+    "sets_local": 0,
+    "deletes": 0,
+    "clears": 0,
+}
+
+
+def _record(key: str) -> None:
+    with _STATS_LOCK:
+        _STATS[key] = _STATS.get(key, 0) + 1
+
+
+def stats() -> dict[str, Any]:
+    """Snapshot of the process-wide cache counters.
+
+    ``live_backend`` answers the one operator question nobody could read off
+    the wire: is a live Redis reachable *right now*?  ``used_units`` counts
+    the local LRU's resident units, so a growth curve is visible without
+    reading the module globals.
+    """
+    with _STATS_LOCK:
+        snap = dict(_STATS)
+    snap["live_backend"] = _shared_client() is not None
+    snap["local_units"] = len(_LOCAL)
+    snap["local_capacity"] = _LOCAL_CAP
+    return snap
+
 
 def _local_get(key: str) -> Any | None:
     with _LOCAL_LOCK:
@@ -209,9 +249,15 @@ class RedisCache:
 
     def get(self, key: str) -> Any | None:
         """Return the cached value, or None when absent/expired."""
+        _record("gets")
         answered, value = self._shared_get(key)
         if answered:
+            if value is None:
+                _record("shared_misses")
+            else:
+                _record("shared_hits")
             return value
+        _record("fallback_reads")
         return _local_get(self._key(key))
 
     def set(self, key: str, value: Any, ttl: float | None = None) -> bool:
@@ -224,6 +270,7 @@ class RedisCache:
         """
         effective_ttl = self.ttl if ttl is None else ttl
         client = self._redis()
+        _record("sets")
         if client is not None:
             payload: bytes | None = None
             try:
@@ -238,14 +285,17 @@ class RedisCache:
                         client.set(self._key(key), payload, ex=int(effective_ttl))
                     else:
                         client.set(self._key(key), payload)
+                    _record("sets_shared")
                     return True
                 except Exception:  # noqa: BLE001 - Redis write failed; local copy stands
                     pass
         _local_set(self._key(key), value, effective_ttl)
+        _record("sets_local")
         return False
 
     def delete(self, key: str) -> bool:
         """Drop ``key`` from both backends; never leave a resurrectable copy."""
+        _record("deletes")
         _local_delete(self._key(key))
         client = self._redis()
         if client is None:
@@ -258,6 +308,7 @@ class RedisCache:
 
     def clear(self) -> bool:
         """Drop the whole namespace from both backends."""
+        _record("clears")
         with _LOCAL_LOCK:
             for k in list(_LOCAL):
                 if k.startswith(f"{_REDIS_KEY_PREFIX}{self.namespace}:"):

@@ -177,3 +177,73 @@ def test_redis_live_backend_roundtrip(monkeypatch: pytest.MonkeyPatch) -> None:
         probe.delete("roundtrip")
         redis_cache._reset_client_cache()
         monkeypatch.undo()
+
+
+# ============================================================================
+# stats() - operator-facing counters
+# ============================================================================
+
+def test_stats_snapshot_shape() -> None:
+    """The operator hinged fields exist and have the right types."""
+    from minicc import redis_cache as redis_cache_module
+
+    s = redis_cache_module.stats()
+    # The original counters the operator reads:
+    for key in ("gets", "shared_hits", "shared_misses", "fallback_reads",
+                "sets", "sets_shared", "sets_local",
+                "deletes", "clears"):
+        assert key in s, f"stats() missing {key!r}"
+        assert isinstance(s[key], int)
+    assert isinstance(s["live_backend"], bool)
+    assert isinstance(s["local_units"], int)
+    assert isinstance(s["local_capacity"], int)
+    assert s["local_capacity"] == _LOCAL_CAP
+
+
+def test_stats_increment_on_local_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
+    """When no shared backend is reachable, local get/set must be counted."""
+    import minicc.redis_cache as redis_cache_module
+
+    # Force the shared backend to look unreachable both before and after.
+    monkeypatch.setattr(redis_cache_module, "_shared_client", lambda: None)
+
+    baseline = redis_cache_module.stats()
+    cache = RedisCache("itest_stats_fallback")
+    assert cache.set("probe-counter", "x", ttl=60) is False
+    assert cache.get("probe-counter") == "x"
+    assert cache.get("probe-nonexistent-key") is None
+    cache.delete("probe-counter")
+
+    after = redis_cache_module.stats()
+    assert after["sets"] == baseline["sets"] + 1
+    assert after["sets_local"] == baseline["sets_local"] + 1
+    assert after["gets"] == baseline["gets"] + 2
+    assert after["fallback_reads"] == baseline["fallback_reads"] + 2
+    assert after["deletes"] == baseline["deletes"] + 1
+
+
+def test_stats_live_path_increments(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Opt-in live-Redis path: shared get hits increment the hit counter."""
+    url = os.environ.get("MINICC_TEST_REDIS_URL", "").strip()
+    if not url:
+        pytest.skip("MINICC_TEST_REDIS_URL not set; skipping live-Redis stats check")
+
+    import minicc.redis_cache as redis_cache_module
+
+    monkeypatch.setattr(redis_cache_module, "_REDIS_URL", url)
+    redis_cache_module._reset_client_cache()
+
+    baseline = redis_cache_module.stats()
+    cache = RedisCache("itest_stats_live")
+    try:
+        cache.set("stats-probe", {"v": 1}, ttl=30)
+        assert cache.get("stats-probe") == {"v": 1}
+    finally:
+        cache.delete("stats-probe")
+        redis_cache_module._reset_client_cache()
+        monkeypatch.undo()
+
+    after = redis_cache_module.stats()
+    assert after["sets_shared"] >= baseline["sets_shared"] + 1
+    assert after["shared_hits"] >= baseline["shared_hits"] + 1
+    assert after["deletes"] >= baseline["deletes"] + 1

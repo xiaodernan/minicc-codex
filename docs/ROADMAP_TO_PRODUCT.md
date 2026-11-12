@@ -48123,3 +48123,31 @@ tests/test_redis_cache.py::test_redis_live_backend_roundtrip
 - 测试的全名依赖 `redis_cache._reset_client_cache()`（已公开给楼层替换测试用，不是新家），
   没有新增生产 API。
 - `pyproject.toml` 不改（本批已在 batch 851 里把 redis 进 dev extra 了）。
+
+## 批次 853 - M8-T853：Redis 缓存拓扑可观测 — stats() 负载落在 /api/metrics
+
+### 1 缺什么（动机）
+
+`minicc/redis_cache.py` 的 `RedisCache.get`/`set` 都能从客户端看到返回值，但没有一份
+聚合信号告诉操作员"当前进程是否连了 Redis / 命中率多少 / 走了多少 local fallback"。
+Redis 是分布式共享态，topology 的事实不交给 `set()-return-bool` 一个字段，等价于
+"Mystique didn't tell you he's from another universe"。
+
+### 2 怎么做
+
+- `minicc/redis_cache.py`：模组级 `_STATS_LOCK` 保护的 `_STATS` 字典，在 `get`/`set`/`delete`/`clear`
+  五处印章 `gets / shared_hits / shared_misses / fallback_reads / sets / sets_shared / sets_local / deletes / clears`。
+  新增 `stats()` 函数返回当前倒数（当前 `live_backend` + `local_units` + 所有计数器）。
+- `minicc/web.py`：`/api/metrics` 负载新增 `"redis_cache": redis_stats()`——操作员不需要再起
+  Redis CLI 就能知道当前进程的缓存分辨率与降级率。
+- `tests/test_redis_cache.py`：新增 3 条门——
+  `test_stats_snapshot_shape`（所有字段存在且类型对）；
+  `test_stats_increment_on_local_fallback`（强制 shared client 不可达，设/取/删后计数器按预期涨）；
+  `test_stats_live_path_increments`（opt-in via `MINICC_TEST_REDIS_URL`）。
+
+### 3 证据与门
+
+- `pytest tests/test_redis_cache.py -q` → **19 passed, 2 skipped**（无 `MINICC_TEST_REDIS_URL` 时跳过两条实机门）
+- 实机：启 6382 端口的 `redis:7-alpine` 容器，`MINICC_TEST_REDIS_URL=redis://127.0.0.1:6382/0 pytest tests/test_redis_cache.py` → **21 passed**（live set/get + stats 活检均过）
+- `web.py` 的默认 `/api/metrics` 负载在任意测试中都不再 crash（`redis_cache` 字段是附加值，不是替换任何现有键）
+- `doc_pointers.py --check` → POINTER_RC=0

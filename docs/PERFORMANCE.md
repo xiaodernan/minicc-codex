@@ -59,12 +59,13 @@ ORDER BY created_at ASC
 **每个**绑定副本。全 8 模块 `mvn test` 101 个用例全绿（离线隔离：
 `test/resources/application.properties` 覆盖 broker 自动启动）。
 
-### 4.2 Python 侧进程内缓存
+### 4.2 Python 侧进程内缓存（M8-T853 新增 cache-topology 信号）
 
 `minicc/redis_cache.py`：`REDIS_URL` 不可用/未装 redis 包时自动回退进程内
 `OrderedDict` LRU（线程安全、上限可配），不产生部署依赖；测试
 `tests/test_redis_cache.py` 钉住设/取/删/清、TTL 过期、命名空间隔离、线程安全、
-后端异常不抛。
+后端异常不抛。**M8-T853 新增 `stats()`**：模组级共享的计数器分布在 `RedisCache.get`/`set`/`delete`/`clear` 五个关卡，返回 `{"gets":..,"hits":..,"misses":..,"sets":..,"sets_shared":..,"sets_local":..,"deletes":..,"clears":..,"live_backend":bool,"local_units":int}`；这一负载通过 `/api/metrics` 的 `redis_cache` 字段暴露，操作员可从此分辨「共享命中」与「本地降级命中」两种状态——此前 cache 的**唯一可靠对外信号是 `set()` 的返回值**。
+
 
 ## 5. 前端体积与对比度
 

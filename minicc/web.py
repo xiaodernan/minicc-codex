@@ -54,6 +54,7 @@ from .route_wiring import (
 )
 from .agent.state import AgentState, Budget, BudgetExceeded
 from .pricing import cost_usd as _pricing_cost_usd
+from .redis_cache import stats as redis_stats
 from .agent.protocol import (
     TASK_STATUS_CANCELLED,
     TASK_STATUS_COMPLETED,
@@ -3383,6 +3384,7 @@ class AgentService:
             # priced at all there is no number to be partial about.
             "cost_is_partial": bool(priced_tasks and unpriced_tasks),
             "by_model": by_model,
+            "redis_cache": redis_stats(),
             "duration_seconds": {
                 "total": round(sum(durations), 3),
                 "average": round(sum(durations) / len(durations), 3) if durations else 0.0,
