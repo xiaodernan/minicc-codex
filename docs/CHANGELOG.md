@@ -78,3 +78,14 @@
 - **新增 `/api/health/all`（M8-T850）**：网关对三个后端**并行**发 lb:// probe，`{services:[...], upCount:N, totalServices:3}` 输出；3/3 `AggregateHealthControllerTest` 钉住 all-up=3、不是全-down=0、chaos=1；docs 实机演示见 `SERVICE_PLANE_OPERATOR.md` §7。
 - **`minicc-cloud-registry` 首个测试（M8-T849）**：`RegistryHealthTest` 起随机端口 registry，`/actuator/health` 和 `/eureka/apps` 断言——此前该核心模块零测试。
 - **`minicc/task_store.py::list_by_session`** 去掉全表 `json.loads`，改用 SQLite JSON1 `json_extract` 下推过滤（`~58ms -> ~36ms`，800 条快照本机实测）。
+
+# 2026-11-13（Redis 实机化 + 消息队列 + 字型上线轮）
+
+- **`minicc/redis_cache.py` 修掉 redis-py 自 2.6.12（2013）就 deprecated 的 `setex`**（M8-T852）：改 `set(key, value, ex=seconds)`；新增 opt-in 实机门 `tests/test_redis_cache.py::test_redis_live_backend_roundtrip`（`MINICC_TEST_REDIS_URL` 不设则 skip）；本机 7-alpine 容器实测跨进程 set/get、TTL 过期、namespace 隔离全过。
+- **`/api/metrics` 新增 `redis_cache` 拓扑段**（M8-T853）：`gets/hits/misses/fallback/sets_shared/sets_local/deletes/clears` 计数器 + `live_backend` + `local_units`——操作员从 web 面板一眼看出"这个进程到底是不是在真 Redis 上跑"；`tests/test_logging.py::test_metrics_payload_carries_redis_cache_topology` 钉住字段与类型。
+- **M8-T853 的连带红修**（M8-T854/T855/T856/T857）：修 `_Wire` mock 的 `set` 签名对接 redis-py 4+；`minicc/web.py` 改成 lazy import（行号引用归位）；evidence index 上限 1200→2500（仓库膨胀后 80% 线被顶穿）；`tests/test_logging.py` 引用改按名不按行；一次意外 CRLF 事故的回滚（全 LF 归一）。
+- **网关缓存失效总线的实机 AMQP 回环**（M8-T857）：`CacheInvalidationRoundTripLiveTest`——用 throwaway auto-delete 队列 bind 到 `minicc.gateway.route.refresh` fanout exchange，断言消息穿过去且 header `route` = 规范键；缺省 skip，`MINICC_TEST_RABBIT_URI` 提供时真 broker 全过（本机 rabbitmq:3-alpine 验证）。
+- **vendored Manrope + DM Mono（OFL-1.1）**（M8-T858）：设计系统一直以来按名引用却从未打包的字型（`web/fonts/`，573 KB TTF + 许可全文），`index.html` 预载，`static_assets.py` 字体扩展名显式 `font/ttf` content-type；`npm run test:web` / `test:optimization` / `check:web` 全绿；字体 ETag 304 复用已验证。
+- **分支/worktree 并轨审计**（M8-T856）：逐条取证所有未合入 ref（`consolidation/*`、`archive/*`、`backup/*`、`dev/minicc-reliability-4ba3`、`origin/m8-t537`、`origin/integration/*`）——全部为主线已吸收的旧世系或同号不同事的备份线；**无任何可安全合入 main 的世系**，审计结论写入 ledger，`wt*`/`plane*` 目录只读不动。
+- **网关 cached-route 真上游化 + 聚合健康面**（M8-T848/T849/T850）：`/api/cached/*` 从常量 `Map.of` 改为 lb:// 真探活上游 `/actuator/health`；新增 `/api/health/all`（并行探三个后端）；`minicc-cloud-registry` 首个测试（health + eureka/apps）；operator 手册 §7 实机记录完整命令链路。
+- **真实大模型端到端**（早前）：`gpt-6-sol` 通过 wkapi.pro/v1 跑通 `--doctor`、provider chat、`minicc --yolo`（用户提供的真实 API，只用于该验证）。
