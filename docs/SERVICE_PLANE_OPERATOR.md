@@ -202,7 +202,29 @@ curl http://127.0.0.1:8411/api/health/all
 inspector were not started (hence `UNKNOWN`),
 and the aggregate endpoint counted exactly the one that answered (`upCount: 1`) — 不把"没人知道"报成 UP。
 
-## 8. 相关文件
+## 8. opt-in 实机集成探针（本机练习，不进 CI）
+
+三个环境变量控制"跑真 broker / 真 server"的测试；不设则自动 skip，CI 不受影响：
+
+| 环境变量 | 测试 | 需要的东西 | 验证什么 |
+| --- | --- | --- | --- |
+| `MINICC_TEST_REDIS_URL` | `tests/test_redis_cache.py::test_redis_live_backend_roundtrip`（Python）<br>`tests/test_redis_cache.py::test_stats_live_path_increments` | 一个 Redis（`redis:7-alpine` 即可） | minicc 的分布式缓存跨进程 set/get、TTL 过期、namespace 隔离、`stats()` 计数器活增量 |
+| `MINICC_TEST_RABBIT_URI` | `CacheInvalidationRoundTripLiveTest`（网关） | 一个 RabbitMQ（`rabbitmq:3-alpine` 即可） | 缓存失效消息真正穿过 `minicc.gateway.route.refresh` fanout exchange：body=服务名、header `route`=规范键 |
+
+探针步骤示例（本机）：
+
+```powershell
+docker run -d --name minicc-rabbit-probe -p 5673:5672 rabbitmq:3-alpine
+$env:MINICC_TEST_RABBIT_URI = 'amqp://guest:guest@127.0.0.1:5673'   # 注意：无尾部斜杠；vhost 缺省 "/"
+mvn -Dtest='CacheInvalidationRoundTripLiveTest' test                # Tests run: 1, Skipped: 0
+Remove-Item Env:MINICC_TEST_RABBIT_URI
+docker stop minicc-rabbit-probe; docker rm minicc-rabbit-probe
+```
+
+探针测试与其他测试的区别：它们直接连 broker（不启动 Spring ApplicationContext，不触发
+`RabbitAdmin` 的 `afterPropertiesSet` 在缺 broker 时拖垮上下文），所以不设变量时零连接尝试、零副作用。
+
+## 9. 相关文件
 
 - `minicc-cloud/README.md`
 - `minicc-cloud/minicc-cloud-config/src/main/resources/config-repo/application.yml`（共享配置）

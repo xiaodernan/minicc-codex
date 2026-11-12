@@ -48221,3 +48221,44 @@ ref 取证到「是否有 main 没有的内容」再定性，避免把两年前�
 **没有任何可安全合入 main 的世系。** 本仓并轨最终状态：main 是唯一集大成分支，`M8-T844..M8-T856`
 全部直接落在 `main`；其他 ref 保留在远端作历史证据。继续可做的集大成方向是
 "在 main 上扩容"，而不是再合旧分支。
+
+## 批次 857 - M8-T857：网关缓存失效总线的活 AMQP 回环 — 真 broker 上验证 fanout + `route` header
+
+### 1 缺什么（动机）
+
+`CacheInvalidationPublisher` → `FanoutExchange` → `minicc.gateway.cache.invalidate` → `CacheInvalidationListener`
+这条消息总线，此前全靠 `ShippedCacheKeysAgreeTest`（mock）验证「键一致」，**从未在真 broker 上跑过**。
+而 M8-T826 的教训自己说明了——mock 会绿，但 fanout 的交换类型错了、header 序列化错了、
+binding 丢了等等全在真 broker 才能看见（你不会因为 mock 里没有 broker 就不犯这些错）。
+
+### 2 怎么做
+
+- 新增 `CacheInvalidationRoundTripLiveTest`（1 条，opt-in 通过 `MINICC_TEST_RABBIT_URI`，
+  缺省跳过，与 `MINICC_TEST_REDIS_URL` 同模式）：
+  - `AssumeTrue` 缺 URI 时直接 skip；
+  - 用 `CachingConnectionFactory.setUri(...)` + `RabbitAdmin` 声明同名 `minicc.gateway.route.refresh`
+    `FanoutExchange`（durable），并声明一个**throwaway auto-delete** 队列（UUID 命名）bind 到它——
+    不碰生产队列、随用随销；
+  - `CacheInvalidationPublisher.invalidate("inspector")` 发出消息，
+    断言 header `route == inspector:status`（`CacheKeys.INSPECTOR_STATUS`）、body == `"inspector"`；
+  - 末尾 `deleteQueue` + `factory.destroy()`，不污染 broker。
+
+### 3 实测结果
+
+本机临时 `rabbitmq:3-alpine` 容器（宿主 5673 端口，测完已停并删除）：
+
+```text
+MINICC_TEST_RABBIT_URI=amqp://guest:guest@127.0.0.1:5673 mvn -o -Dtest='CacheInvalidationRoundTripLiveTest' test
+Tests run: 1, Failures: 0, Errors: 0, Skipped: 0
+
+ 默认（无该环境变量）：Tests run: 1, Skipped: 1，CI 安全、无 broker 也能跑测试套件。
+
+$ mvn -o test
+Tests run: 35, Failures: 0, Errors: 0, Skipped: 1   → BUILD SUCCESS
+```
+
+### 4 边界
+
+- **没**在 CI workflow 上加 RabbitMQ service（与 M8-T852 live-Redis 同策略：opt-in，不增加 CI 依赖）。
+- 测试不启动 Spring ApplicationContext（不触发 RabbitAdmin 的 afterPropertiesSet 连接 broker）；
+  它直接连 broker，缺省时零连接尝试。
