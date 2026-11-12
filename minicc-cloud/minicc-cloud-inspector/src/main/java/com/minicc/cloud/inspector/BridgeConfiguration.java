@@ -2,6 +2,9 @@ package com.minicc.cloud.inspector;
 
 import com.minicc.cloud.bridge.CapabilitiesClient;
 import com.minicc.cloud.bridge.ChangeInspectorClient;
+import com.minicc.cloud.bridge.CommandRunner;
+import com.minicc.cloud.bridge.GovernedRunner;
+import com.minicc.cloud.bridge.MiniccBridge;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig;
 import java.nio.file.Path;
@@ -12,16 +15,31 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class BridgeConfiguration {
 
+    /**
+     * One governed boundary per service, shared by every client.
+     *
+     * <p>The process budget belongs to the host, not to a client: a per-client
+     * allowance would multiply the number of interpreters a burst can start,
+     * which is the very cost this exists to cap. The wait is the inspection
+     * budget plus a small margin, so a caller that queues behind a slow child is
+     * told the boundary is saturated a little after that child would have timed
+     * out on its own.
+     */
     @Bean
-    ChangeInspectorClient changeInspectorClient(MiniccProperties properties) {
-        return new ChangeInspectorClient(
+    CommandRunner miniccCommands(MiniccProperties properties) {
+        MiniccBridge bridge = new MiniccBridge(
                 Path.of(properties.python()), Path.of(properties.repo()), properties.budget());
+        return new GovernedRunner(bridge, properties.maxProcesses(), properties.budget().plusSeconds(5));
     }
 
     @Bean
-    CapabilitiesClient capabilitiesClient(MiniccProperties properties) {
-        return new CapabilitiesClient(
-                Path.of(properties.python()), Path.of(properties.repo()), properties.budget());
+    ChangeInspectorClient changeInspectorClient(CommandRunner commands) {
+        return new ChangeInspectorClient(commands);
+    }
+
+    @Bean
+    CapabilitiesClient capabilitiesClient(CommandRunner commands) {
+        return new CapabilitiesClient(commands);
     }
 
     /**

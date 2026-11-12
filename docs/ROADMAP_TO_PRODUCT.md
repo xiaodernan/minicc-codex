@@ -47744,3 +47744,46 @@ M8-T832 记录的 ubuntu 失败（2026-11-12 12:20）：`53 failed, 5504 passed`
 - CI run `43244566867`（main tip `5fc95d2`）：全部 job success
 - `tests/test_tracked_evidence_census.py` — 5 passed（新 pin）
 - `doc_pointers.py --check` — POINTER_RC=0
+
+
+## 批次 841 - M8-T841：检查服务的进程预算与同命令合并，顺带修 Windows 命令行吃掉双引号的静默损坏
+
+### 1 缺什么（动机）
+
+`minicc-cloud-inspector` 的每个请求都要起一个 Python 子进程：`ChangeController` → `ChangeService` → 熔断器 → `ChangeInspectorClient` → `MiniccBridge.run`。三层保护（`WorkspaceGuard`、Resilience4j、超时预算）都在保证「失败要有原因」，但没有一层管「同时能起几个」和「同一个问题要不要问两遍」：
+
+- 突发 N 个 HTTP 请求 → N 个解释器同时抢同一批核心（本机 `python -c` 冷启动约 0.15–0.35 秒，再加工作区扫描）。核心数不变时，这只是把每个请求都拖慢。
+- 一个页面并发轮询两个面板问同一个问题时，每个面板各付一次子进程。
+
+两处都不是「会不会错」，而是「错得看不出来」的性能债。写这批的验收测试时又撞到一个更严重的边界缺陷：Windows 上 JDK 给子进程参数加引号，却**不转义参数内部的双引号**，MSVCRT 因此提前结束引号段。最小探针实测：Java 字符串 `print('{"ok": true}')` 到达子进程时是 `print('{ok: true}')` —— 退出码 0、stdout 看着合理、执行的已经是另一个程序。`ChangeInspectorClient` 的两个内联脚本恰好只用单引号，这个洞才一直没被踩到；任何未来带 `"` 的 `-c` 载荷都会静默跑错。
+
+### 2 处置
+
+- `minicc-cloud-bridge` 新增 `CommandRunner` 接缝（客户端只提问，不决定并发）与 `GovernedRunner`：
+  - **服务级进程预算**：`minicc.max-processes`，未设时 `min(8, max(2, 核数))`。`BridgeConfiguration` 只建一个、两个客户端共用——per-client 配额会让上限乘以客户端数。
+  - **同命令合并**：并发同 argv 的调用共享一次子进程；合并键用长度前缀编码（`["a","b"]` 与 `["a b"]` 不撞键）。只覆盖并发窗口，顺序的下一次调用一定重新执行——是合并，不是缓存。
+  - **配额耗尽有话说**：等不到槽位时返回带原因的失败，绝不返回空结果（空变更列表读作「工作区干净」）。
+  - 失败的 leader 从去重表移除，不拒绝后来的调用者。
+- `MiniccBridge`：含 `"` 的 `-c` 脚本改走 stdin（`python -X utf8 -`），绕开命令行引号层；`-` 与 `-c` 同样占据 `argv[0]`，调用方 `sys.argv[1:]` 不变。无引号的脚本保持原路径，行为逐字节不变。
+- `MiniccProperties` 增加 `maxProcesses`（保留四参构造器，既有调用点不动）；`BridgeConfiguration` 装配治理器；`docs/SERVICE_PLANE_PLAN.md` 新增 P7 并更新「再往后」里那条已被本批覆盖的待办。
+
+### 3 证据与门
+
+- `GovernedRunnerTest`（7 门）：8 个调用者共享 1 次执行且都拿到同一答案（跟随者被逐个观察到阻塞在 `get()` 上，不靠「跑得快」蒙混）、不同命令不共享、含分隔符的参数不撞键、6 并发峰值恰为 2、拿不到配额时报原因而不是空结果、失败的 leader 不留在去重表、非法配额/等待时间拒绝构造。
+- `BridgedBurstTest`（真实 Python 子进程，每次启动向 trail 追加一行）：8 个并发调用者 → **1** 行；随后一次独立调用 → **2** 行（合并≠缓存）。
+- `BridgeScriptDeliveryTest`（3 门）：源码里带双引号的脚本逐字节到达（`{"ok": true}` 完整）、`argv` 下标不变、无引号脚本走原路径、非 `-c` 参数不被重新解释。
+- `mvn -o -q clean test`（8 模块）→ **112 tests, 0 failures, 0 errors, 1 skipped**，`MAVEN_RC=0`；行尾还原后 bridge 模块复跑 `RC=0`。
+- 变异臂（每条都被对应门抓住，过程中纠正了两条无效变异/假测试）：
+  - 取消同命令合并 → `BridgedBurstTest` + `GovernedRunnerTest` 红（8 个调用者变成 8 个解释器）。
+  - 取消进程预算（把配额建成 1024 的哨兵）→ `GovernedRunnerTest` 红 2 条（峰值 >2、饱和不再报原因）。第一次写成非阻塞 `tryAcquire(1)`，`catch (InterruptedException)` 因此不可达而编译失败——变异本身无效，已换能编译的哨兵。
+  - 合并键退化为第一个参数 → `GovernedRunnerTest` 红（`["a","b"]` 被当成 `["a b"]`）。
+  - 双引号脚本回到命令行 → `BridgeScriptDeliveryTest` + `BridgedBurstTest` 红。第一次只有后者红：投递测试的引号由 `json.dumps` 在运行时生成、脚本源码里没有 `"`，等于没测到那条路径；把引号写进脚本源码后才真正有牙齿。
+
+### 4 边界
+
+- 不做结果缓存：变更列表随工作区变化，任何 TTL 都会返回陈旧的「干净」结论。合并只覆盖并发窗口。
+- 不改网关路由、Eureka 注册、熔断器语义；配额是进程内预算，多副本各有各的预算（与「CPU 是每台机器的事实」一致）。
+- Windows 路径不允许含 `"`、POSIX 不经过引号层，所以「参数含引号」不是本边界的真实载荷；修的是脚本体这一条真实路径，并在测试里写明这个边界。
+- 本批用 Python 批量改写 Java 文件时踩到 Windows 的行尾陷阱（`Path.write_text` 会把 `
+` 翻成 `
+`），导致三个文件一度整文件改写；已按 HEAD 的纯 LF 还原，最终 diff 为语义规模（`54/3`、`8/3`、`7/2`）。

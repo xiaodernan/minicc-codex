@@ -3,6 +3,7 @@ package com.minicc.cloud.bridge;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -14,14 +15,18 @@ import java.util.concurrent.TimeUnit;
 /**
  * Runs the minicc Python tooling as a child process and reports what came back.
  *
- * <p>Two rules come straight from the Python side's read-failure batches. The
+ * <p>Three rules come straight from the Python side's read-failure batches. The
  * child's stdout and stderr are drained on separate threads, because a child
  * that fills the stderr pipe while the parent only reads stdout blocks forever
  * and the budget then reports a timeout for a program that was merely unheard.
  * And a pipe that could not be read whole is a transport error naming the half,
  * never a silently shorter string that the caller would parse as a small answer.
+ * A {@code -c} script whose body contains a double quote travels over stdin
+ * instead of the command line, because Windows reconstitutes a child's command
+ * line and drops the quote - which silently turns the script into a different
+ * program (M8-T841).
  */
-public final class MiniccBridge {
+public final class MiniccBridge implements CommandRunner {
 
     private final Path python;
     private final Path repo;
@@ -34,12 +39,29 @@ public final class MiniccBridge {
     }
 
     /** Runs {@code python -X utf8 <args>} with the repo as the working directory. */
+    @Override
     public BridgeResponse run(List<String> args) {
+        byte[] scriptOnStdin = null;
+        List<String> effective = args;
+        if (needsStdin(args)) {
+            // A "-c <script>" whose body contains a double quote cannot travel on
+            // a Windows command line: the JDK quotes the argument but does not
+            // escape the quote inside it, so MSVCRT closes the quoted run early
+            // and the child executes a different program. Measured, not assumed:
+            // print('{"ok": true}') arrives as print('{ok: true}'). On stdin the
+            // script has no quoting layer at all. "-" and "-c" both occupy
+            // argv[0], so every caller's sys.argv[1:] is unchanged.
+            scriptOnStdin = args.get(1).getBytes(StandardCharsets.UTF_8);
+            effective = new ArrayList<>();
+            effective.add("-");
+            effective.addAll(args.subList(2, args.size()));
+        }
+
         List<String> command = new ArrayList<>();
         command.add(python.toString());
         command.add("-X");
         command.add("utf8");
-        command.addAll(args);
+        command.addAll(effective);
 
         ProcessBuilder builder = new ProcessBuilder(command);
         builder.directory(repo.toFile());
@@ -64,6 +86,9 @@ public final class MiniccBridge {
         Drain stderr = new Drain(process.getErrorStream(), "stderr");
         Thread outThread = Thread.ofPlatform().daemon(true).name("minicc-stdout").start(stdout);
         Thread errThread = Thread.ofPlatform().daemon(true).name("minicc-stderr").start(stderr);
+        if (scriptOnStdin != null) {
+            feed(process, scriptOnStdin);
+        }
 
         boolean finished;
         try {
@@ -95,6 +120,32 @@ public final class MiniccBridge {
 
     private static Duration elapsed(long startedNanos) {
         return Duration.ofNanos(System.nanoTime() - startedNanos);
+    }
+
+    /**
+     * True for {@code ["-c", script, ...]} whose script contains a double quote.
+     *
+     * <p>Every other shape keeps its exact current execution path; only a payload
+     * that provably cannot survive the Windows command line is rerouted.
+     */
+    private static boolean needsStdin(List<String> args) {
+        return args.size() >= 2 && "-c".equals(args.get(0)) && args.get(1).indexOf('"') >= 0;
+    }
+
+    /**
+     * Hands the script to the child over its stdin pipe.
+     *
+     * <p>A child that exited before reading is not a bridge failure: its exit
+     * code and stderr already explain what happened, and reporting a broken pipe
+     * here would replace that reason with a less useful one.
+     */
+    private static void feed(Process process, byte[] body) {
+        try (OutputStream stdin = process.getOutputStream()) {
+            stdin.write(body);
+            stdin.flush();
+        } catch (IOException ignored) {
+            // The child stopped reading; its own exit status carries the reason.
+        }
     }
 
     private static void join(Thread... threads) {

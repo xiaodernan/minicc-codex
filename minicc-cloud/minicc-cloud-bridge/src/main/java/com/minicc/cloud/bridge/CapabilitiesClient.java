@@ -28,11 +28,16 @@ public final class CapabilitiesClient {
 
     private static final int SNIPPET = 2000;
 
-    private final MiniccBridge bridge;
+    private final CommandRunner bridge;
     private final ObjectMapper mapper = new ObjectMapper();
 
+    public CapabilitiesClient(CommandRunner bridge) {
+        this.bridge = bridge;
+    }
+
+    /** Convenience for a caller that owns the boundary directly: tests, CLIs. */
     public CapabilitiesClient(Path python, Path repo, Duration budget) {
-        this.bridge = new MiniccBridge(python, repo, budget);
+        this(new MiniccBridge(python, repo, budget));
     }
 
     public JsonNode capabilities() {

@@ -13,9 +13,13 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * @param allowedRoots directories a caller may name as a workspace; empty means
  *                     the repo alone. This is the boundary that stops an HTTP
  *                     caller from reading arbitrary directories off the host.
+ * @param maxProcesses how many Python children this service may run at once.
+ *                     Unset means the host decides: two, or one per core up to
+ *                     eight. It is a service-wide budget, not a per-client one.
  */
 @ConfigurationProperties(prefix = "minicc")
-public record MiniccProperties(String python, String repo, Duration budget, List<String> allowedRoots) {
+public record MiniccProperties(String python, String repo, Duration budget, List<String> allowedRoots,
+                               Integer maxProcesses) {
 
     public MiniccProperties {
         if (python == null || python.isBlank()) {
@@ -30,5 +34,16 @@ public record MiniccProperties(String python, String repo, Duration budget, List
         if (allowedRoots == null) {
             allowedRoots = List.of();
         }
+        if (maxProcesses == null || maxProcesses < 1) {
+            maxProcesses = Math.min(8, Math.max(2, Runtime.getRuntime().availableProcessors()));
+        }
+    }
+
+    /**
+     * Four-argument form for callers that do not care about the process budget:
+     * the canonical constructor's default (the host's capacity) applies.
+     */
+    public MiniccProperties(String python, String repo, Duration budget, List<String> allowedRoots) {
+        this(python, repo, budget, allowedRoots, null);
     }
 }

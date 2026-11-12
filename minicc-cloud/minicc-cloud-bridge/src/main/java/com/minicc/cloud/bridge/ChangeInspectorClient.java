@@ -31,13 +31,18 @@ public final class ChangeInspectorClient {
 
     private static final int SNIPPET = 2000;
 
-    private final MiniccBridge bridge;
+    private final CommandRunner bridge;
     private final ObjectMapper mapper;
 
-    public ChangeInspectorClient(Path python, Path repo, Duration budget) {
-        this.bridge = new MiniccBridge(python, repo, budget);
+    public ChangeInspectorClient(CommandRunner bridge) {
+        this.bridge = bridge;
         this.mapper = new ObjectMapper()
                 .setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE);
+    }
+
+    /** Convenience for a caller that owns the boundary directly: tests, CLIs. */
+    public ChangeInspectorClient(Path python, Path repo, Duration budget) {
+        this(new MiniccBridge(python, repo, budget));
     }
 
     /** The whole-workspace summary. Never empty on a failed read. */
