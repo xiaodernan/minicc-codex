@@ -48304,3 +48304,38 @@ pytest tests/test_optimization_core.py tests/test_web_assets_are_fresh*         
 
 - TTF（非 woff2）：各约 96 KB / 45 KB，对本地优先场景足够；字体文件为静态资产，不进 asset-manifest 指纹（既有 `immutable assets/` 规则不适用，字体靠 ETag 304 复用）。
 - 未改任何字重/字号使用点——纯「补上缺的字体」。
+
+## 批次 859 - M8-T859：canonical workbench 的 body 字型一行修复 — Manrope 真的全局生效
+
+### 1 缺什么（动机）
+
+M8-T858 补齐了 `@font-face` 与 `web/fonts/` 后，实机 `document.fonts.check()` 显示：
+
+```text
+body 计算字体: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif   ← 不是 Manrope
+Manrope 400/500 未加载（700 碰巧被某处 bold 命中而加载）
+```
+
+根因：`styles.css` 的「Canonical workbench surface」块（行 1472，该节强制覆盖 body，
+注释写着 "Themes change tokens, never layout"）把 body 字体写成
+`"Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif` —— 为了 CJK 回退
+把 Manrope 整个丢了。CJK 补全本意是好的，但**替换而不是追加**。
+
+### 2 怎么改
+
+`font-family: "Manrope", "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;`
+—— Manrope 先接管拉丁字形，PingFang/YaHei 按字形缺失回落接管 CJK（浏览器按 glyph 回落，无需子集）。
+
+### 3 验证
+
+```text
+$ 浏览器实测（http://127.0.0.1:8765/ ，真 CSS 加载后）
+bodyFont:  "Manrope, \"Segoe UI\", \"PingFang SC\", \"Microsoft YaHei\", sans-serif"
+manrope400/500/700: true / true / true
+dmMono400/500:     true / true
+h1Font:            同上（标题继承）
+
+npm run test:web          → web smoke passed (timeline, product path, desktop, mobile)
+npm run test:optimization → 390/1440 × light/dark readyMs 901–1946，contrast 全过，overflow: false
+npm run build:web && check:web → up to date; assets clean
+```
