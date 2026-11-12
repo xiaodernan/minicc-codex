@@ -109,6 +109,38 @@ minicc "list the files in the current directory and count them"
 
 注意：这里**没有** `--print-config`——先把 `minicc.config.example` 复制成 `.env` 比读 README 快得多。`--api-key` 与 `.env` 的优先级：命令行 > `.env` > `os.environ`。
 
+### 6.1 用真实模型端到端冒烟（2026-11-13 本机用 gpt-6-sol 实测）
+
+仓库维护方提供了一个真实上游（`https://wkapi.pro/v1`，模型 `gpt-6-sol`）用于验证；以下三条路径均真跑通过，
+照复制即可（把密钥放进**不入库**的 `.env`，不要提交）：
+
+```bash
+# 1. 模型→本机直连通道
+export MINICC_API_KEY="sk-<你的轮换密钥>"
+export MINICC_BASE_URL="https://wkapi.pro/v1"   # 带 /v1，不要漏
+export MINICC_MODEL="gpt-6-sol"
+export MINICC_REASONING_EFFORT="high"            # 或 max（视上游支持）
+
+# 2. 自检（不调网络，不需要 key 也行，主要验证依赖与工作区）
+minicc --doctor --workspace .
+# 实测 ok=6 warn=2 fatal=0（warn：web_token Windows 模式位提醒 + permissions.json 未配置）
+
+# 3. 真实任务（只读）
+minicc "list the files in the current directory and count them"
+# 实测：agent 真实调用 gpt-6-sol，给出文件清单与计数，无异常退出
+
+# 4. Web 面板（真实对话）
+minicc-web --workspace . --port 8765
+curl http://127.0.0.1:8765/api/health     # {"ok": true, "service": "minicc"}
+```
+
+边界：`MINICC_*` 只影响本机环境变量 / `.env`；该上游走 **responses 协议**（`gpt-6-sol` 归类为
+reasoning 模型，`reasoning_effort` 高档位长思考链）。Web 端聊天与 agent 工具循环全程真实计费计分，
+`--stats` / `/api/metrics` 会把这些回合的 `tokens_used` 计进 `tasks_by_channel` 与 `by_model`。
+
+如果你只想在 **CI 里**跑模型相关测试，不要放真实 key——仓库的 provider 契约测试用的是
+`MINICC_FAKE_PROVIDER=1`（确定性内存假 provider），nightly 才碰真实 key。
+
 ## 7. 交付
 
 `minicc` 退出后 `.minicc/web_token.json` 可能已生成（仅用于 Web 界面；首次用 `minicc-web` 时自动）。minicc 自己的 `.gitignore` 已经包含了 `.minicc/`；你在别的 git 仓里跑 `minicc` 时，顺手再加一行到 `~/.gitignore_global` 或本仓 `.git/info/exclude` 即可：
