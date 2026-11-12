@@ -47660,3 +47660,20 @@ CI（M8-T832/T831 失败日志，拉取的 ubuntu/windows Python job 日志）�
 
 - `tests/test_task_store.py` 10 passed；`tests/test_session.py`、`tests/test_trace.py`、`tests/test_workspaces.py` 合计 17 passed
 - `doc_pointers.py --check` → POINTER_RC=0
+
+## 批次 839 - M8-T839：跟踪证据普查 pin 对账 — M8-T836 删的 i18n 套件从 pin 移除
+
+### 1 缺什么（动机）
+
+CI（M8-T838 / ubuntu-latest）报唯一失败：`test_tracked_evidence_census.py::test_the_two_modules_this_batch_promoted_stay_visible` —— "tests/test_cli_i18n.py disappeared; the pin cannot be re-derived"。M8-T836 把钉了已并轨否决的 i18n 双语框架的 `test_cli_i18n.py` 删除，而这个 M8-T90 证据普查门把它写进了 `FORMERLY_INVISIBLE`（"此次晋升时的两只模块，按名钉住"），于是整个模块消失后门无法重新推导。`test_git_write_boundary.py`（另一只晋升的模块）还在。
+
+### 2 处置
+
+- `FORMERLY_INVISIBLE` 从 `("tests/test_cli_i18n.py", "tests/test_git_write_boundary.py")` 改为 `("tests/test_git_write_boundary.py", "tests/test_rubric_shape.py")`：两只从 M8-T811 晋升、当前仍在、当前可入证据读者的模块。
+- 文件 docstring 记录 i18n 套件随 M8-T836 退役的事实与 pin 的替换，不把删除遗忘为证据。
+- 本地 `pytest tests/test_tracked_evidence_census.py` → **5 passed**（含逆向控制）。
+
+### 3 证据与门
+
+- `tests/test_tracked_evidence_census.py` — 5 passed
+- `doc_pointers.py --check` — POINTER_RC=0（本批门前全绿）

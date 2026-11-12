@@ -1,14 +1,15 @@
 """M8-T90: a gate git cannot see is not evidence.
 
-Two test modules sat in the tree, green on this machine, invisible everywhere
-else. Measured before this batch: ``tests/test_cli_i18n.py`` (6 tests) and
-``tests/test_git_write_boundary.py`` (11) were absent from ``git ls-files``, so
-CI never ran those 17 gates and ``scripts/doc_pointers.py`` refused to see them
-twice over - ``_resolve_path`` answers ``None`` for a file that exists here but
-is not tracked, and ``_all_test_names`` skips an untracked module by
-construction ("citing a test that only exists on this machine is a citation
-that resolves in neither a fresh clone nor CI"). Its index held 1108 names; 17
-names on this disk were not among them.
+The backup-line merge brought two test modules that existed only in the
+working tree (``tests/test_git_write_boundary.py`` and a suite for a retired
+i18n framework) which were absent from ``git ls-files``, so CI never ran
+them and ``scripts/doc_pointers.py`` refused to see them twice over
+- ``_resolve_path`` answers ``None`` for a file that exists here but is not
+tracked, and ``_all_test_names`` skips an untracked module by construction
+("citing a test that only exists on this machine is a citation that resolves
+in neither a fresh clone nor CI"). Its index held 1108 names; 17 names on
+this disk were not among them. M8-T836 retired the i18n suite; the boundary
+suite was merged for real.
 
 The caliber: **every module on this disk is tracked, and the evidence reader
 resolves every test module**. The project already treats "exists only on this
@@ -39,9 +40,13 @@ AREAS = ("tests", "scripts", "minicc")
 #: looking at a directory", not the exact size of the tree.
 MINIMUM_MODULES = {"tests": 90, "scripts": 3, "minicc": 60}
 
-#: The two modules this batch promoted. Pinned by name as well as by rule, so a
-#: regression that un-tracks *them* specifically is still reported as itself.
-FORMERLY_INVISIBLE = ("tests/test_cli_i18n.py", "tests/test_git_write_boundary.py")
+#: Two modules of the promotion the gate landed on (M8-T811) that this
+#: lineage still keeps pinned by name, so a regression that un-tracks one of
+#: them specifically is still reported as itself. `tests/test_cli_i18n.py`
+#: was retired in M8-T836 (the i18n framework it pinned no longer exists in
+#: the main line), and the pin was moved onto two current modules from the
+#: same promotion instead of silently dropping it.
+FORMERLY_INVISIBLE = ("tests/test_git_write_boundary.py", "tests/test_rubric_shape.py")
 
 
 def tracked_files() -> set[str]:
