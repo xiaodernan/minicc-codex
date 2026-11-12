@@ -158,8 +158,8 @@
   background: conic-gradient(
     from 0deg,
     transparent,
-    var(--mint, #8cd7bd),
-    var(--blue, #9cb7f0),
+    var(--mint),
+    var(--blue),
     transparent
   );
   animation: brandRotate 4s linear infinite;
@@ -187,9 +187,9 @@
   }
 }
 
-.toast-success { border-left: 4px solid var(--mint, #8cd7bd); }
-.toast-error { border-left: 4px solid var(--coral, #f28d6d); }
-.toast-warning { border-left: 4px solid var(--amber, #e6c279); }
+.toast-success { border-left: 4px solid var(--mint); }
+.toast-error { border-left: 4px solid var(--coral); }
+.toast-warning { border-left: 4px solid var(--amber); }
 
 /* ---- Skeleton loading states ---- */
 .skeleton {
