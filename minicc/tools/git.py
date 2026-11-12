@@ -56,6 +56,7 @@ class GitTools:
 
     def __init__(self, workspace: Path) -> None:
         self.workspace = workspace
+        self._prefix: str | None = None
 
     def _run(self, args: list[str]) -> ToolResult:
         try:
@@ -92,14 +93,30 @@ class GitTools:
             security_tags=untrusted_tags(),
         )
 
+    def _scope(self) -> list[str]:
+        """Pathspec that keeps a read inside the workspace.
+
+        Git finds a repository by walking up from the working directory, so a
+        workspace that is a subdirectory of a larger checkout would otherwise
+        report - and name - files the agent is not allowed to read. Real-run
+        evidence: an inspection workspace under the repo listed
+        ``../../_check_failures.py`` and friends. ``--show-prefix`` is empty
+        exactly at the repository root, where there is nothing to narrow.
+        """
+        if self._prefix is None:
+            self._prefix = self._capture(["rev-parse", "--show-prefix"]).strip()
+        return ["--", "."] if self._prefix else []
+
     def status(self, _args: dict[str, object]) -> ToolResult:
-        return self._run(["status", "--short", "--branch"])
+        return self._run(["status", "--short", "--branch", *self._scope()])
 
     def diff(self, args: dict[str, object]) -> ToolResult:
         raw_path = str(args.get("path") or "")
         command = ["diff", "--no-ext-diff"]
         if raw_path:
             command.extend(["--", _safe_relative(self.workspace, raw_path)])
+        else:
+            command.extend(self._scope())
         return self._run(command)
 
     def summary(self, _args: dict[str, object]) -> ToolResult:
@@ -112,7 +129,7 @@ class GitTools:
                 ["rev-list", "--left-right", "--count", f"{upstream}...HEAD"]
             )
             ahead_behind = f"behind {ahead}, ahead {behind}"
-        dirty = self._capture(["status", "--porcelain"]).splitlines()
+        dirty = self._capture(["status", "--porcelain", *self._scope()]).splitlines()
         last_commit = self._capture(["log", "-1", "--format=%h %s (%cr)"])
         lines = [
             f"branch: {branch or '(unknown)'}",

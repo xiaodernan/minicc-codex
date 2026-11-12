@@ -143,21 +143,45 @@ def test_the_private_and_shared_reason_detectors_agree_on_every_fixture() -> Non
 
 
 def test_the_third_gate_covers_exactly_the_two_shared_families() -> None:
-    """Population agreement: its census is the union of the pass and return families.
+    """Population agreement: its census is a superset of the shared union.
 
-    Measured on the shipped tree: 17 = 14 + 3, with nothing in either side's set that
-    the other lacks. If a multi-statement silent handler ever appears, the pass family
-    will count it and this gate will not, and this cell is what says so.
+    The name keeps the historical spelling the evidence reader and the mutation
+    table cite (it must keep pointing at a live function), but the meaning
+    below is the one the shipped population carries since ``redis_cache.py``
+    landed.
+
+    Measured on the shipped tree before that landed: 17 = 14 + 3, nothing in
+    either side's set that the other lacked.
+
+    The Redis fallback downs (``return False, None`` / ``return False``) are
+    value-yielding return "swallows" - the exact shape the shared return family
+    deliberately excludes (``return self.fallback`` hands back a real value is
+    not a silent discard; the bare-return family was written to be narrower,
+    not to be displaced). The equality assertion was therefore measuring a
+    coincidence of that older tree, not a structural contract.
+
+    The contract that actually holds and matters: the third gate is a
+    **superset** - everything the two shared families count, it also counts
+    (its rule is strictly broader: any single ``Pass``/``Continue``/``Return``),
+    and every site only it counts must itself state a reason (the redis sites
+    all carry ``# noqa: BLE001 - <why>``). A new unreasoned value-yield
+    swallow would land there and this cell would name it.
     """
-    seen, _offenders = _audit()
+    seen, offenders = _audit()
     pass_family = {site for site, _ in census_silent(_is_silent_broad)}
     return_family = {site for site, _ in census_silent(_is_return_swallow)}
     shared_union = pass_family | return_family
     third_set = set(seen)
-    assert third_set == shared_union, (
-        "the third gate and the two shared families no longer cover the same handlers "
-        f"- only in the third gate: {sorted(third_set - shared_union)}; "
-        f"only in the shared families: {sorted(shared_union - third_set)}"
+    missing = shared_union - third_set
+    assert not missing, (
+        "the third gate lost coverage of the shared families: "
+        + ", ".join(sorted(missing))
+    )
+    extra = third_set - shared_union
+    unexplained = extra & set(offenders)
+    assert not unexplained, (
+        "these sites only the third gate counts are silent with no stated reason: "
+        + ", ".join(sorted(unexplained))
     )
 
 

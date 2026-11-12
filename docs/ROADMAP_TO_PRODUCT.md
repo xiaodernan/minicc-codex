@@ -47787,3 +47787,38 @@ M8-T832 记录的 ubuntu 失败（2026-11-12 12:20）：`53 failed, 5504 passed`
 - 本批用 Python 批量改写 Java 文件时踩到 Windows 的行尾陷阱（`Path.write_text` 会把 `
 ` 翻成 `
 `），导致三个文件一度整文件改写；已按 HEAD 的纯 LF 还原，最终 diff 为语义规模（`54/3`、`8/3`、`7/2`）。
+
+
+## 批次 842 - M8-T842：git 读工具不再越出工作区（真实 API 跑出来的边界缺陷）
+
+### 1 缺什么（动机）
+
+用真实大模型（`gpt-6-sol`，`/v1`，`protocol=responses`）跑一次端到端工具链复核：工作区是仓库子目录 `output/realapi/`，任务只有「读 `data.txt`，把版本号写进 `report.md`」。任务本身成功（8 次工具调用、26,322 tokens、无 `UNKNOWN_TOOL`/`DUPLICATE_TOOL_CALL`），但 `git_status` 的输出把**工作区之外**的文件名一并读了回来：
+
+```text
+## main...origin/main [ahead 1]
+?? ../../_check_failures.py
+?? ../../_ci_ub_840.txt
+?? ../../_get_ubuntu.py
+```
+
+原因是 Git 的语义：它从当前目录向上找仓库。`GitTools.status()` 直接跑 `git status --short --branch`，`summary()` 跑 `git status --porcelain`，`diff()` 无路径时跑 `git diff`——三者都继承了这个"向上找"的行为，于是「查看工作区 Git 状态」实际回答的是「查看包含工作区的那个仓库的状态」。这不是安全洞（读到的仍然只是路径名），但它与工具描述和 `resolve_in_workspace` 的边界契约矛盾：同一个 agent 能看见这些名字、却读不到这些文件。
+
+### 2 处置
+
+- `GitTools` 新增 `_scope()`：用 `git rev-parse --show-prefix` 判断工作区是否在仓库根（根上返回空串，子目录返回 `sub/dir/`），非根时返回 `["--", "."]`。前缀在实例内缓存一次，不重复起 git。
+- `status()` / `diff()`（调用方未指定路径时）/ `summary()` 的 dirty 计数都带上这个 pathspec：`git status --short --branch -- .`、`git diff --no-ext-diff -- .`、`git status --porcelain -- .`。
+- 仓库根上的工作区不加任何限定，行为逐字节不变；`diff` 带显式路径时仍走原有的 `_safe_relative` 校验；`stage` 无参本来就用 `git add -- .`，已正确限定，未改。
+
+### 3 证据与门
+
+- 新增 `tests/test_the_git_reads_stay_inside_the_workspace.py`（4 门）：子目录工作区里 `status` 只出现 `inside.txt`、不出现容器的 `outside.txt`；`summary` 的 dirty 计数只算工作区自己的 1 个；`diff` 不显示容器内的改动；仓库根工作区仍能看到整棵树（证明没有把正常用法一起收窄）。
+- `pytest tests/test_the_git_reads_stay_inside_the_workspace.py tests/test_git_workflow.py tests/test_git_write_boundary.py -q` → **22 passed**。
+- 变异臂：把 `_scope()` 改成永远返回 `[]`（即旧行为），前三条精确报红、根目录那条保持绿——门既有牙齿又只针对这条规则。
+- 行尾陷阱复现并规避：`minicc/tools/git.py` 在仓库里是 CRLF（与多数文件不同），批量改写脚本必须先探测原行尾再还原，否则会整文件重写。本次按此处理，最终 diff 为 `19/2`。
+
+### 4 边界
+
+- 只收窄读工具（`status`/`diff`/`summary`），不改 `commit`：它提交的是暂存区，而 `stage` 已经限定在 `-- .`，且 `git_commit` 是 human-only 工具。
+- 子目录工作区里 `git log` 一类"仓库历史"仍以仓库为单位（当前没有 `git_log` 工具；未来新增时按同一条规则处理）。
+- 非 Git 仓库的工作区：`--show-prefix` 失败返回空串 → 不加限定 → 与原来一样由 `git status` 自己报错，错误信息不变。
