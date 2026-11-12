@@ -48191,3 +48191,33 @@ Redis 是分布式共享态，topology 的事实不交给 `set()-return-bool` �
 - `pytest tests/test_redis_cache.py tests/test_index_census.py tests/test_a_line_a_test_docstring_cites_can_be_read.py tests/test_the_redis_cache_shares_one_truth.py` → **68 passed, 2 skipped**
 - M8-T853 的 live test (`MINICC_TEST_REDIS_URL`) 在 redis 7-alpine 上仍通过（跨进程隔离重复验证）
 - `doc_pointers.py --check` → POINTER_RC=0
+
+## 批次 856 - M8-T856：worktree/分支并轨审计 — 51 条旁系世系逐条取证；三条无一可再被动合入
+
+### 1 动机
+
+仓内有 `D:\面试项目\wt*` 一批 detached worktree、`minicc-codex` 内 8 个分支 + origin 上
+2 个 integration ref——用户长期授权「把这些需求列成一个计划……合并起来」。本批把每个未合并
+ref 取证到「是否有 main 没有的内容」再定性，避免把两年前的同名批次倒回来。
+
+### 2 逐条取证结论（`git cherry main <ref>` + 逐条 grep 验证）
+
+| ref | `main..ref` 提交数 | `git cherry +/*` | 定性 |
+| --- | --- | --- | --- |
+| `consolidation/cost-snapshot-chain` | 0 | 0 | 已入 main（树形等同） |
+| `consolidation/i18n-sampling-chain` | 0 | 0 | 已入 main |
+| `scratch/audit-chain` | 0 | 0 | 已入 main |
+| `origin/m8-t537`、`origin/integration/m8-t537-to-main` | 0 patch-id | 0 | integration 并轨后整批入 main（ledger 960 行已记） |
+| `feature/minicc-cloud` | 0 | 0 | 已入 main（feature/minicc-cloud 工作树在主线落点） |
+| `archive/read-failure-chain-t566-t574` | 14 | 3 | 3 条未中 patch-id 逐条验证已在 main：`not-in-window` 于 `minicc/changes.py:88`、`git_status_exit_reason` 于 `:22/:270`、`countLabel` 于 `web/src/chat/stream.js:422`/`preview.js:3`、`test_a_copy_line_the_window_never_reached...py` 在 main 存在且含 `encoding="utf-8", errors="surrogateescape"`（line 355-356）。保持为历史档案。 |
+| `consolidation/read-failure-chain` (`ca872c98`) | 1 | 1 | 其"干净检出"语义经 m8-t537 并轨入了 main；祖先不共享但实质等同；不再重合并 |
+| `dev/minicc-reliability-4ba3` / `origin/dev/minicc-reliability-4ba3`（同一 `c281903`） | 51 | 51 | 这 51 条是 integration 并轨前的本地世系，T 编号重写为 main 的 M8-T550–M8-T665 并逐字保留（ledger 39788 行记载）；`git diff main <ref>` 为 519 files / +44,579 / -88,175——直接合入会回滚主应用最新工作。等同已入主线。 |
+| `backup/local-line-batches70-75` | 2 | 2 | 作者本人标注：本地世系与 origin/main 同号不同事，不能并轨；其唯一独有内容（`sampling_enabled` / `MINICC_SAMPLING_ENABLED` 配置旋钮）在 main 无任何消费者（grep `sampling_enabled` 全仓 0 命中），且 ledger 47476 行已记载为 OBSOLETE（MCP sampling 显式延后，安全模型未设计）；整体保持备份定位，不合入 |
+
+工作树 `D:\面试项目\wt*` / `D:\面试项目\minicc-dev-4ba3` / `plane*`：未改动、未删除——上述取证只读了它们的 git 数据，**不碰工作目录内容**。
+
+### 3 结论
+
+**没有任何可安全合入 main 的世系。** 本仓并轨最终状态：main 是唯一集大成分支，`M8-T844..M8-T856`
+全部直接落在 `main`；其他 ref 保留在远端作历史证据。继续可做的集大成方向是
+"在 main 上扩容"，而不是再合旧分支。
