@@ -28,7 +28,7 @@ public class CachedRouteController {
     }
 
     @GetMapping("/inspector/status")
-    @Cacheable(value = "gateway-routes", key = "'inspector:' + #root.target.getClass().getSimpleName()")
+    @Cacheable(value = "gateway-routes", key = "'inspector:status'")
     public Mono<ResponseEntity<Map<String, Object>>> inspectorStatus() {
         return Mono.just(ResponseEntity.ok(Map.of(
                 "service", "inspector",
@@ -37,7 +37,7 @@ public class CachedRouteController {
     }
 
     @GetMapping("/insights/summary")
-    @Cacheable(value = "gateway-routes", key = "'insights:' + #root.target.getClass().getSimpleName()")
+    @Cacheable(value = "gateway-routes", key = "'insights:summary'")
     public Mono<ResponseEntity<Map<String, Object>>> insightsSummary() {
         return Mono.just(ResponseEntity.ok(Map.of(
                 "service", "insights",
