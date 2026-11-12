@@ -1349,6 +1349,11 @@ _RETIRED_PATH: dict[str, str] = {
     "minicc/repl": "第二百零七批（M8-T179）删除的死包：唯一的文件是从第一个 MVP 提交起就 "
     "`from .repl import Repl`，而 `minicc/repl/repl.py` 在 git 全史里从未存在——包不可导入、"
     "无引用、无测试，下限普查（每个模块都能 import）第一下就撞见它。文档引这个名字正是在记录这次删除",
+    "minicc/repl/__init__.py": "第二百零七批记录的同一次删除：__init__ 是死包里唯一的文件，"
+    "M8-T836 实删。文档提及它正是在记录删除，不是在声明它存在",
+    "tests/test_cli_i18n.py": "M8-T836 并轨对账：该测试钉的是已并轨否决的 i18n 双语框架"
+    "（minicc/cli_io.py 的 tr/_MESSAGES/get_locale），随 M8-T836 一并删除。文档引它记录的是删除，"
+    "不是声称它还存在",
     "web/app.min.js": "M4-T9 退役的压缩产物：`tests/test_cleanup_version.py::test_app_min_js_retired` 断言它不再存在、"
     "build-web.mjs 不再产出它。文档每一处引用都在描述这次删除",
     "web/src/01-core-state": "GAP 第十波记录的是当时的 9 个有序分片；`a97bf13` 把同一批代码重组为 "

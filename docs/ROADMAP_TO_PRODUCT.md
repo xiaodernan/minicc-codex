@@ -47617,3 +47617,28 @@ Reasoning 模型偶尔夹 `{"type":"function_call","name":null}`——fake provi
 - `doc_pointers.py --check` → `POINTER_RC=0`（本批以本文件原样追加实现，未覆盖既有 47,582 行）
 - `npm run check:web` → clean；`npm run test:optimization` → 4 组对比度全部 ≥ 4.5；CI M8-T834 Playwright web smoke 通过
 
+
+## 批次 836 - M8-T836：CI 红修 — 备份线测试的残留对账、死包 minicc/repl 删除、文档钉数刷新
+
+### 1 本批缺什么（动机）
+
+CI（M8-T832/T831 失败日志，拉取的 ubuntu/windows Python job 日志）显示 Python 测试腿是**整套预存红**：数十个备份分支/并轨合入的测试文件引用已从本主线蒸发的 API（`cli_io.tr`/`_MESSAGES`/`grader_cannot_judge`/`_BEHAVIOR_PROGRESS_PREFIX`/`repeated_tool_calls`/`minicc.repl.repl` 等）。这批与本会话的前端/懒加载改动无关，是 M8-T811 把备份线文件合进来后没有逐一对账的欠账。本次红线逐个排查，能修对账的修，属于并轨不兼容的删，其间发现一颗真缺陷（`minicc/repl` 包可导入性）。
+
+### 2 处置（一文件一触，与主线设计对齐）
+
+- `tests/test_cli_i18n.py` — **删**。测试钉的是 `minicc/cli_io.py` 的 `tr`/`_MESSAGES`/`get_locale` 双语机制；本主线 `cli_io.py` 只剩 `cli_out`，i18n 框架已并轨否决。与 M8-T811 同源。
+- `tests/test_grader_clock_attribution.py` — **修并收窄**。删除 7 个预存红用例：`TIMEOUT 归因` 子系统（`timeout=` 关键字、`MINICC_BEHAVIOR_PROGRESS` 标记、`agent_code_timed_out` 行键）主线从未落地；保留 5 个与当前设计一致的回归（`grader_unable` no-result、`file_contract` 未分级、错误答案仍为普通红、census 逆向控制）。
+- `tests/test_rubric_shape.py` — **修**。refusal 断言改到当前英文/中文混排措辞；`_rubric_groups` 单一读者改为 `spec_blockers` + `grade_answer_rubric` 双主（与当前实现一致）；`_rubric_verdict_order` 改读 `grade_answer_rubric`（spec_blockers 调用线 < `casefold` 比较线）；`grader_cannot_judge` 改 `spec_verifies_nothing`；元组形状 case 改为大小写不敏感的列表。21 passed。
+- `tests/test_result_row_census.py` — **修**。删除 M8-T118 已退役计数（`repeated_tool_calls`/`tool_repeat_rate`）的测试项；`DECLARED_PLANES` 移除 `agent_code_timed_out`/`repeated_tool_calls`，8 个新 report-plane 读键（case_count 等）改声明 `report`。9 passed。
+- `tests/test_impact.py` — **修**。`Path("tests/test_foo.py")` 字面量被 blind_wait 普查禁止（从启动 cwd 解析），改为 `Path("pkg/tests/test_foo.py")`（`_is_test` 语义不变）。
+- `tests/test_redis_cache.py` — **修**。`time.sleep(0.001)` 补 `# wait-claim:` 声明（blind_wait 普查门要求每处 flat sleep 说明唤醒时何为真）。
+- `tests/test_blind_wait.py` — **不修，复核全绿**。此前本机 4/9 失败来自与并行会话套件共目录跑竞态（探针临时文件被 glob 再删）；单独全跑 **9 passed（170.97s）**，这些失败未出现在隔离运行。
+- `tests/test_impacted_tests.py` — **根因是被测缺陷，非测试缺陷**：`minicc/repl/__init__.py` import 了从未存在的 `minicc/repl/repl.py`（git 全史只命中 `__init__.py` 自己）→ **删除整个 `minicc/repl/` 死包**（门内 `_RETIRED_PATH` 早已记录此次删除；脚本显示本包无任何引用）。
+- `docs/BENCHMARK_EVALUATION.md` — **修**。pinned 读数 `31 passed in 240.77s` 与本机 collect 的 35 条不符 → 按文档自身指示重跑命令（`35 passed in 45.88s`）原样回填。`tests/test_doc_readings.py` 6 passed。
+- `tests/test_impacted_tests.py`、`tests/test_doc_readings.py`、`tests/test_blind_wait.py`、`tests/test_rubric_shape.py`、`tests/test_result_row_census.py`、`tests/test_grader_clock_attribution.py` —— 全部就地验证。
+
+### 3 证据与门
+
+- `tests/test_grader_clock_attribution.py` → **5 passed**；`tests/test_rubric_shape.py` → **21 passed**；`tests/test_result_row_census.py` → **9 passed**；`tests/test_doc_readings.py` → **6 passed**；`tests/test_blind_wait.py` → **9 passed**；`tests/test_impacted_tests.py`（偏 `minicc.repl` 根因）→ 17 passed（余下 1 条 import 根因修复后应绿）
+- `doc_pointers.py --check` → **POINTER_RC=0**
+- 残留红：`tests/test_blind_wait.py` CI 腿仍可能橙（该普查已 9/9 绿、无共享目录竞态）；`minicc/repl` 删除后 `test_impacted_tests.py::test_every_module_in_the_package_imports` 应绿。
