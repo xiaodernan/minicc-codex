@@ -1469,7 +1469,7 @@ button { color: inherit; }
 
 /* Canonical workbench surface. Themes change tokens, never layout. */
 html { --app-height: 100dvh; --viewport-top: 0px; }
-body { position: fixed; inset: var(--viewport-top) 0 auto; display: flex; flex-direction: column; height: var(--app-height); max-height: var(--app-height); font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; }
+body { position: fixed; inset: var(--viewport-top) 0 auto; display: flex; flex-direction: column; height: var(--app-height); max-height: var(--app-height); font-family: "Manrope", "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; }
 [hidden] { display: none !important; }
 .codex-menubar { display: flex; align-items: center; justify-content: space-between; height: 36px; flex: 0 0 36px; padding: 0 14px; background: var(--sidebar); border-bottom: 1px solid var(--line); color: var(--muted); }
 .codex-menubar-left, .codex-menu-links { display: flex; align-items: center; gap: 12px; }
