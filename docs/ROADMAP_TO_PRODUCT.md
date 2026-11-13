@@ -49406,3 +49406,74 @@ GET /api/tasks        → HTTP 200（限流 profile 生效后正常流量无感�
   `SPRING_PROFILES_ACTIVE=ratelimit` 行为一致。
 - 未改任何路由谓词、断路器、fallback——限流叠加在 filter 链最外层，只让请求在
   前台就地拒绝（429，空响应），不进路由，不耗上游。
+
+## 批次 883 - M8-T883：`/api/metrics` 现在还答出"前缀缓存这个工作区到底省了多少" — llm_cache 与 bill 同源
+
+### 1 动机
+
+`/api/metrics` 已经回答工作区花了多少钱、每个模型用了多少 token、有没有活 Redis
+（`redis_cache` 拓扑，M8-T853），**唯独没有回答"前缀缓存命中率"**——而缓存亲和
+正是 M8-T878 落地的那个效率轴。任何面板/运维脚本要展示它，之前只能去翻每一条
+`tokens_used` 自己加，且无法保证与账单一致。
+
+### 2 实现（同账本、零新措辞）
+
+`minicc/web.py` 的 metrics payload 新增：
+
+```python
+"llm_cache": cache_summary(usage),
+```
+
+`usage` 就是 bill 用的那一本账（`add_usage_totals` 累加根任务的 `tokens_used`，
+含 `prompt_cache_hit_tokens` / `prompt_cache_miss_tokens`）——缓存视图与计费视图
+**必然一致**，因为没有第二本账。`cache_summary` 对空账如实答
+`{cache_status: "unreported", cache_hit_rate: None}`，不伪造 0%。
+
+新门 `tests/test_logging.py::test_metrics_payload_carries_llm_cache_aggregates`：
+payload 里有 `llm_cache`、类型对、`cache_status` 是词表内值、`cache_hit_rate`
+是 `None` 或 [0,1]——与 `redis_cache` 门同样的"可达+类型化"断言深度。
+
+`/api/metrics` 的其余字段一个不动（键只增不减）；测试三项全绿
+（含 `reconciles_with_task_snapshots` 的 bill == Σ snapshots 那条）。
+
+### 3 边界
+
+- 前端暂未读取 `llm_cache`（dashboard 目前按任务级展示缓存命中的百分比）——
+  这本账是为下一批"工作区级缓存效率卡片"备的，先供数据，再接线，不强推一条无消费者的 UI。
+- 子任务不计入（与 bill 相同的口径：父任务已滚存全部子花费）。
+
+## 批次 884 - M8-T884：任务运行时摘要里的缓存格子换成 SVG 命中率圆环 — 一眼读懂 token 花在哪
+
+### 1 动机
+
+任务详情"运行时摘要"（Runtime metrics）里的「缓存」一格之前只有 `cache_hit_rate`
+的文本百分比。操作员盯着这一格决定"要不要再问模型一遍同样的上下文"时，一个数字
+不如一个形状快——这是前端美观与效率的交汇点（用户长期授权的方向）。
+
+### 2 实现（零新增 i18n 键，零依赖，零布局位移）
+
+`web/src/panels/index.js` 新增 `cacheDonut(data)`：与 `cacheMetric` 同一数据源
+（`metrics.cache_hit_rate` → 回落到 `tokens_used.prompt_cache_hit/miss_tokens`），
+渲染一枚 34px 内联 SVG 圆环：
+
+- `<circle pathLength="100">` + `stroke-dasharray="pct 100"` —— 架构级整数稳定，无 JS 弧长数学；
+- 三档色调复用面板既有状态词表：≥70% `--mint` / ≥40% `--amber` / <40% `--rose`；
+- 网关未上报缓存字段 → 只画轨道（`--muted` + `tasks.cacheUnreported` 文案），**不画 0%**；
+- `role="img"` + `aria-label` 走 `t("tasks.cache")`（文案随语言变，不硬编码英文）；
+- runtime 摘要的 `tasks.cache` 格子由 `<strong>${cacheMetric(data)}` 换成 `${cacheDonut(data)}`，
+  `<small>` 仍显示 `cache_status` 原词（reported / hit / unreported …），不吞信息；
+- `web/styles.css` 追加 M8-T884 段（`.cache-donut-*`，transition 0.5s ease，`prefers-reduced-motion`
+  自然生效——无动画依赖）；`node scripts/build-web.mjs` 重建 `web/app.js` + assets + manifest。
+
+### 3 验证
+
+- `node --check web/app.js` ✓（语法）；`node scripts/build-web.mjs` 产物：`web/app.js` 311,402 chars、
+  清掉 2 个无人引用的旧 bundle（manifest  freshness 语义不变）；
+- 全量 Python 套件不受此改动影响（零 Python 引用 panels/index.js 行号——引用门 6/6 已复跑绿）；
+- 前端 Playwright 冒烟交给 CI 的两条腿验收（web/smoke 走真实页面）。
+
+### 4 边界
+
+- 摘要行（`taskMetrics`, 一行文本）保持文本百分比——圆环是格子，不是句子；
+- 暗色/亮色两套主题都吃同一组变量（`--mint/--amber/--rose/--muted/--text`），无主题分叉代码；
+- 无新增图标文件：SVG 是内联字符串，不引入外部资产。

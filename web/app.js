@@ -3553,6 +3553,22 @@
     if (status === "reported" || status === "reported_zero") return t("tasks.cacheReported");
     return t("tasks.cacheUnreported");
   }
+  function cacheDonut(data) {
+    const metrics = data?.metrics && typeof data.metrics === "object" ? data.metrics : {};
+    const tokens = data?.tokens_used && typeof data.tokens_used === "object" ? data.tokens_used : {};
+    let rate = typeof metrics.cache_hit_rate === "number" ? metrics.cache_hit_rate : NaN;
+    if (!Number.isFinite(rate)) {
+      const hit = Number(tokens.prompt_cache_hit_tokens);
+      const miss = Number(tokens.prompt_cache_miss_tokens);
+      if (Number.isFinite(hit) && Number.isFinite(miss) && hit + miss > 0) rate = hit / (hit + miss);
+    }
+    if (!Number.isFinite(rate)) {
+      return `<span class="cache-donut cache-donut-unreported" role="img" aria-label="${escapeHtml(t("tasks.cache"))}"><svg viewBox="0 0 42 42" aria-hidden="true"><circle class="cache-donut-track" cx="21" cy="21" r="15.9155" pathLength="100" /></svg><em>${escapeHtml(t("tasks.cacheUnreported"))}</em></span>`;
+    }
+    const pct = Math.max(0, Math.min(100, Math.round(rate * 100)));
+    const tone = rate >= 0.7 ? "good" : rate >= 0.4 ? "mid" : "low";
+    return `<span class="cache-donut cache-donut-${tone}" role="img" aria-label="${escapeHtml(t("tasks.cache"))} ${pct}%"><svg viewBox="0 0 42 42" aria-hidden="true"><circle class="cache-donut-track" cx="21" cy="21" r="15.9155" pathLength="100" /><circle class="cache-donut-arc" cx="21" cy="21" r="15.9155" pathLength="100" stroke-dasharray="${pct} 100" /></svg><b>${pct}%</b></span>`;
+  }
   function isCurrentTaskScope(data) {
     if (!data?.task_id) return true;
     if (String(data.session_id || "") !== String(state.sessionId || "")) return false;
@@ -3591,7 +3607,7 @@
     if (!metrics || typeof metrics !== "object" || !metrics.workflow && !metrics.verification_runs && !metrics.trace_events) return "";
     const budget = metrics.budget && typeof metrics.budget === "object" ? metrics.budget : {};
     const duration = formatDuration(metrics.duration_seconds || 0);
-    return `<div><div class="panel-section-title">${escapeHtml(t("tasks.runtime"))}</div><div class="status-grid"><div><span>${escapeHtml(t("tasks.workflow"))}</span><strong>${escapeHtml(String(metrics.workflow || "coding"))}</strong><small>${escapeHtml(String(metrics.phase || data.phase || ""))}</small></div><div><span>${escapeHtml(t("tasks.repairs"))}</span><strong>${escapeHtml(String(metrics.repair_attempts || 0))}</strong><small>${escapeHtml(duration)}</small></div><div><span>${escapeHtml(t("tasks.verifications"))}</span><strong>${escapeHtml(String(metrics.verification_runs || 0))}</strong><small>${escapeHtml(String(metrics.verification_status || ""))}</small></div><div><span>${escapeHtml(t("tasks.cache"))}</span><strong>${escapeHtml(cacheMetric(data))}</strong><small>${escapeHtml(String(metrics.cache_status || ""))}</small></div><div><span>${escapeHtml(t("tasks.traces"))}</span><strong>${escapeHtml(String(metrics.trace_events || 0))}</strong><small>${escapeHtml(`${budget.turns || 0} turns \xB7 ${budget.tool_calls || 0} tools`)}</small></div></div></div>`;
+    return `<div><div class="panel-section-title">${escapeHtml(t("tasks.runtime"))}</div><div class="status-grid"><div><span>${escapeHtml(t("tasks.workflow"))}</span><strong>${escapeHtml(String(metrics.workflow || "coding"))}</strong><small>${escapeHtml(String(metrics.phase || data.phase || ""))}</small></div><div><span>${escapeHtml(t("tasks.repairs"))}</span><strong>${escapeHtml(String(metrics.repair_attempts || 0))}</strong><small>${escapeHtml(duration)}</small></div><div><span>${escapeHtml(t("tasks.verifications"))}</span><strong>${escapeHtml(String(metrics.verification_runs || 0))}</strong><small>${escapeHtml(String(metrics.verification_status || ""))}</small></div><div><span>${escapeHtml(t("tasks.cache"))}</span><strong>${cacheDonut(data)}</strong><small>${escapeHtml(String(metrics.cache_status || ""))}</small></div><div><span>${escapeHtml(t("tasks.traces"))}</span><strong>${escapeHtml(String(metrics.trace_events || 0))}</strong><small>${escapeHtml(`${budget.turns || 0} turns \xB7 ${budget.tool_calls || 0} tools`)}</small></div></div></div>`;
   }
   function updateInspectorMetrics(data) {
     if (!data) return;

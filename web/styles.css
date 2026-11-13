@@ -2772,4 +2772,47 @@ pre code { background: #0f172a; padding: 12px; display: block; overflow-x: auto;
 .toast.error { border-left-color: var(--rose); }
 
 .toast.warning { border-left-color: var(--amber); }
-
+/* ---- prefix-cache donut (M8-T884) ---------------------------------------
+   The ring in the task runtime grid: minutes to read, zero layout shift.
+   Palette rides the status vocabulary (mint/amber/rose); the unreported
+   state renders a hollow track only — never a fabricated zero. */
+.cache-donut {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  line-height: 1;
+}
+.cache-donut svg {
+  width: 34px;
+  height: 34px;
+  transform: rotate(-90deg);
+  display: block;
+}
+.cache-donut circle {
+  fill: none;
+  stroke-width: 5.2;
+}
+.cache-donut-track {
+  stroke: color-mix(in srgb, currentColor 11%, transparent);
+}
+.cache-donut-arc {
+  stroke: currentColor;
+  stroke-linecap: round;
+  transition: stroke-dasharray 0.5s ease, stroke 0.5s ease;
+}
+.cache-donut-good { color: var(--mint); }
+.cache-donut-mid { color: var(--amber); }
+.cache-donut-low { color: var(--rose); }
+.cache-donut-unreported { color: var(--muted); }
+.cache-donut b {
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+.cache-donut-unreported em {
+  font-size: 10.5px;
+  font-style: normal;
+  color: var(--muted);
+  max-width: 90px;
+}

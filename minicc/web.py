@@ -3400,6 +3400,11 @@ class AgentService:
             "cost_is_partial": bool(priced_tasks and unpriced_tasks),
             "by_model": by_model,
             "redis_cache": _redis_stats(),
+            # M8-T883: the fleet-wide prefix-cache view, computed from the
+            # same per-root-task totals the billing half uses. A dashboard
+            # can now answer "what did our prefix caching buy this week"
+            # without SSH or a model call — same shape as redis_cache above.
+            "llm_cache": cache_summary(usage),
             "duration_seconds": {
                 "total": round(sum(durations), 3),
                 "average": round(sum(durations) / len(durations), 3) if durations else 0.0,

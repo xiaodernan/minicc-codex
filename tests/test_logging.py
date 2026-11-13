@@ -347,6 +347,35 @@ def test_metrics_endpoint_reconciles_with_task_snapshots(
         live.shutdown()
 
 
+def test_metrics_payload_carries_llm_cache_aggregates(tmp_path: Path) -> None:
+    """The one payload that aggregates a workspace's tasks must answer what the
+    prefix cache bought across those same tasks — same accounting as the bill.
+
+    Built from the same per-root-task totals (`add_usage_totals(usage, ...)`),
+    so a dashboard cannot read a cache hit rate that disagrees with the
+    tokens it was billed for. Gate shape mirrors `redis_cache`: pinned
+    fields, typed values, no assumptions about which providers report
+    counters (unreported stays an honest `None`, never a fabricated 0%).
+    """
+    live = _LiveServer(tmp_path)
+    try:
+        _run_task(live.service, tmp_path, "trigger metrics path")
+        status, payload = live.get("/api/metrics")
+        assert status == 200
+        view = payload.get("llm_cache")
+        assert isinstance(view, dict), "/api/metrics missing llm_cache"
+        assert isinstance(view.get("cache_status"), str)
+        assert "cache_hit_rate" in view
+        rate = view["cache_hit_rate"]
+        assert rate is None or (isinstance(rate, float) and 0.0 <= rate <= 1.0)
+        for field in ("cache_status",):
+            assert view[field] in {
+                "unreported", "reported", "hit", "miss", "reported_zero", "partial",
+            }
+    finally:
+        live.shutdown()
+
+
 def test_metrics_payload_carries_redis_cache_topology(tmp_path: Path) -> None:
     """The one payload that answers "does this process have a live Redis?" must answer it.
 
