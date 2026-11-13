@@ -30,6 +30,13 @@
       <groupId>org.springframework.cloud</groupId>
       <artifactId>spring-cloud-starter-loadbalancer</artifactId>
     </dependency>
+    <!-- Replaces the LoadBalancer's in-memory default cache with Caffeine —
+         the default is explicitly development-only; Caffeine gives the same
+         shape with proper eviction and measured statistics. -->
+    <dependency>
+      <groupId>com.github.ben-manes.caffeine</groupId>
+      <artifactId>caffeine</artifactId>
+    </dependency>
     <dependency>
       <groupId>org.springframework.cloud</groupId>
       <artifactId>spring-cloud-starter-circuitbreaker-reactor-resilience4j</artifactId>

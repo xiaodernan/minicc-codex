@@ -13,6 +13,14 @@ spring:
     # Measured from spring-cloud-gateway-server-4.3.5's own
     # spring-configuration-metadata.json: since 4.2 the reactive server's keys
     # live under .server.webflux, not directly under spring.cloud.gateway.
+    # LoadBalancer cache: Caffeine replaces the development-only in-memory
+    # default; 30s TTL reflects the 30s Eureka lease renewal window — an
+    # instance considered dead by a 30s-stale cache is very likely actually gone.
+    loadbalancer:
+      cache:
+        enabled: true
+        ttl: ${minicc.cloud.gateway.loadbalancer-cache-ttl:30s}
+        capacity: ${minicc.cloud.gateway.loadbalancer-cache-capacity:256}
     gateway:
       server:
         webflux:

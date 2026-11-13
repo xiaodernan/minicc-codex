@@ -48808,3 +48808,55 @@ $ mvn -o test 全网关 — 47 passed, 0 failures
 
 - `fetchedAtMs` 是毫秒级 epoch，跨 JVM 解析时客户端自算 `now() - fetchedAtMs` 不依赖时区。
 - payload 形状兼容外部消费者（新增键；旧解析门读不到不影响）。
+
+## 批次 870 - M8-T870：Caffeine 替换 Spring Cloud LoadBalancer 的开发期默认缓存
+
+### 1 背景
+
+网关注册到 Registry、Eureka 侧 LB 解析 `lb://` 时，
+Spring 启动时刻打：
+
+```text
+WARN ... LoadBalancer is currently working with the default cache. While this
+cache implementation is useful for development and tests, it's recommended to use
+Caffeine cache in production. You can switch to using Caffeine cache, by adding
+and org.springframework.cache.caffeine.CaffeineCacheManager to the classpath.
+```
+
+——网关是在"测试" gradle 之下跑生产的。Spring 5.3 的 LoadBalancer 默认
+使用 ConcurrentHashMap-based 缓存，`ServiceInstanceListSupplier` 在 lookup 高密度场景下
+（`/api/health/all` 组合 poll 相当于每请求三次 BL 查）没有真正的冷热分层、没有驱逐、
+没有统计。
+
+### 2 怎么做
+
+`minicc-cloud-gateway/pom.xml` 加 `com.github.ben-manes.caffeine:caffeine`（transitive of
+`spring-cloud-starter-loadbalancer` 没带上，需显式）。`application.yml` 的 `spring.cloud` 下
+声明 `loadbalancer.cache.enabled=true`、`loadbalancer.cache.ttl=30s`、`capacity=256`——
+30s 与 Eureka 30s 心跳续期同相（一个会话内没人会同时"未刷新仍被服务"又"抬表去被驱逐"，
+LB cache 衰减率为"比 Eureka 续比一点慢一拍"）。
+
+TTL 与容量都通过 `${minicc.cloud.gateway.loadbalancer-cache-ttl:30s}` 双向放行，
+独立可调。
+
+### 3 验证
+
+```text
+$ mvn -o package -DskipTests → BUILD SUCCESS
+$ mvn -o test                → 47 passed, 0 failures
+$ registry 18765 + gateway 8411（无 configserver、无 rabbitmq listener） →
+    /actuator/info: {"build":{"artifact":"minicc-cloud-gateway",...}}
+    日志：grep INFO —— 无 "LoadBalancer is currently working with the default cache"
+    Eureka 心跳状态：200 OK；register status：204 OK；aggregates 访问不再 UNKNOWN
+
+mvn -o test: GatewayRouteBindingTest 8/8、AggregateHealthControllerTest 3/3、
+            ShippedYamlHasOneSpringTreeTest 2/2（YAML cache 键不冲突）、
+            BuildInfoResourceTest 2/2 (artifact/version/time 五键)、
+            ProbeTimeoutTest 3/3
+```
+
+### 4 边界
+
+- 本批次未改 loadbalancer 行为语义————`lb://` 路由、Eureka 注册、cache 键、
+  30s 超时全部与之前相等。只是换了缓存器的具体实现。
+- 没有引入新的响应头或 API————`/actuator/info` 还是原来的 `build` 贡献。
