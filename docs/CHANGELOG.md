@@ -114,3 +114,5 @@
 - **Spring Cloud LoadBalancer — 换 Caffeine（M8-T870）**：网关启动时"This cache implementation is useful for development and tests"的 WARN 彻底消失；`lb://` 上游 lookup 的实例集合现在走 Caffeine（真的 LRU+并行驱逐）；`loadbalancer.cache.enabled/ttl/capacity` 全部参数化（`minicc.cloud.gateway.loadbalancer-cache-ttl:30s`、`capacity=256`）。
 
 - **Spring Cloud LoadBalancer health-check 参数化（M8-T871）**：`spring.cloud.loadbalancer.health-check.path.default=/actuator/health` + `interval=10s`——上层 Eureka 的 UP/DOWN tag 不再是唯一真理（依赖 30s heartbeat），LB 现在每 10s 直接探活，剔除真死 instance；compose 全栈实测 3/3 UP、`/actuator/health` UP、cached routes roundtrip 正常。
+
+- **compose RabbitMQ cookie 显式固化（M8-T872）**：`docker-compose.yml` 的 `rabbitmq` 服务补 `RABBITMQ_ERLANG_COOKIE=minicc-compose-secret-key`——`docker compose up -d` 在 Docker Desktop / WSL2 下不再以 EACCES 静默崩溃；本地一次拉起全栈 → `/api/health/all` 3/3 UP、cached routes Redis 命中持续生效。

@@ -191,7 +191,10 @@ $ curl http://127.0.0.1:18080/api/cached/inspector/status   # Redis 真写真读
 
 **几个本机实测教训（都是踩出来的）**：
 - 端口被占就换一个：上面 16379/55672/18080 都是为避开 `docker.backend` / `wslrelay` 选的。
-- `rabbitmq:3-management-alpine` 在这里永远 `.erlang.cookie: eacces`（容器 uid 不匹配）；`rabbitmq:3-alpine` 正常——composer 已改用它。
+- `rabbitmq:3-management-alpine` 在这里永远 `.erlang.cookie: eacces`（容器 uid 不匹配）；
+  `rabbitmq:3-alpine` 正常——composer 已改用它。**同时**：`.erlang.cookie` EACCES 在 Docker Desktop /
+  WSL2 下还会因 root-owned 不可读而整体起不动 —— compose 现在显式声明 `RABBITMQ_ERLANG_COOKIE=minicc-compose-secret-key`，
+  任何本地 `docker compose up` 都能一次拉起，不再遇到"镜像能拉但 sandbox 起不来"的沉默失败。
 - inspector 若基于 jammy 的 Python（3.10），`minicc/clock.py` 的 `datetime.UTC` 直接 ImportError（需要 **Python ≥ 3.11**）；compose 已改用 `eclipse-temurin:21-jre-noble`（Ubuntu 24.04，自带 Python 3.12）。
 - Eureka registry 在每次容器 recreate 后短暂列出 DOWN 残留（例如 `MINICC-CLOUD-INSPECTOR -> [DOWN, UP]`）；这是**正常的服务端真实状态**（上次跑挂的实例还没被驱逐），LB 会按 UP 过滤，约 90s 后 Registry 自然驱逐。
 - 一个大 repo（本仓，>100 MB / NTFS bind-mount）上 `git status` 可超过 120 秒：放宽 `MINICC_CLOUD_INSPECTOR_TIMEOUTSECONDS` / `MINICC_GIT_STATUS_TIMEOUT_SECONDS` 才能用，或在原生 Linux 上跑（那本来就是推荐方式）。

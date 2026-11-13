@@ -48904,3 +48904,44 @@ $ curl http://127.0.0.1:18080/actuator/health
   tag 选，加上健康检查后过滤掉当前 404/503 的实例；加上之后 **即使 Docker 网络抖动**，
   gateway 也不会一次 proxy 到死 instance。
 - 未影响 Caffeine cache、cached route 或 probe-timeout 语义。
+
+## 批次 872 - M8-T872：compose 里 RabbitMQ EACCES 的真根因修复
+
+### 1 起因
+
+上一轮 `docker compose up` 失败：`rabbitmq:3-alpine` 仍然 `get_disk_free_space terminated: file_descriptor error` → `Kernel pid terminated (application_controller) ({"application_start_failure,rabbitmq_prelaunch,{{shutdown,...eacces"`.
+
+抓日志：`Error when reading /var/lib/rabbitmq/.erlang.cookie: eacces` ——
+用 `docker run -it --rm -e RABBITMQ_ERLANG_COOKIE=miniccsecretcookie rabbitmq:3-alpine` 现象消失：启动正常、`Time to start RabbitMQ: 14973 ms`、4 插件全启动。
+
+根因不是用户 uid，而是 `/var/lib/rabbitmq/.erlang.cookie` 的初始生成权限与可读性
+在 Docker Desktop / WSL2 的文件系统模型下会整体尝试失败——`RABBITMQ_ERLANG_COOKIE` 设了自定义值后
+cookie 文件使用新 umask 生成，读写正常。
+
+### 2 改动
+
+`minicc-cloud/docker-compose.yml`：`rabbitmq` 服务多一条 env `RABBITMQ_ERLANG_COOKIE: minicc-compose-secret-key`（`RABBITMQ_DEFAULT_USER/PASS` 已是 guest/guest，与 Dockerfile 同标准）。`docker compose up -d` → 所有 8 容器 `Healthy`；网关 `/api/health/all` → `{"upCount":3,"totalServices":3}`、`/actuator/health` → `{"status":"UP"}`；cached 路由 `gateway-routes::inspector:status` 和 `insights:summary` 都写入 Redis。
+
+### 3 验证
+
+```text
+$ docker compose up -d
+Container minicc-cloud-rabbitmq-1 Healthy ... all 8 healthy
+
+$ curl http://127.0.0.1:18182/api/health/all
+{"upCount":3,"totalServices":3,...}
+
+$ curl http://127.0.0.1:18182/actuator/health
+{"status":"UP"}
+
+$ docker exec minicc-cloud-redis-1 redis-cli KEYS 'gateway-routes*'
+1) "gateway-routes::insights:summary"
+2) "gateway-routes::inspector:status"
+```
+
+### 4 边界
+
+- compose local secret `RABBITMQ_ERLANG_COOKIE=minicc-compose-secret-key` 不是真正的 secret——它是
+  "Minicc rabbit 默认身份"的预设值，与 `guest/guest` 同级，仅用于单人本地验证。若有人部署到生产，
+  必须显式覆盖（`docker compose run rabbitmq env RABBITMQ_ERLANG_COOKIE=$(openssl rand -hex 24)`）；
+  现状可接受——compose 文件本身已包含 `MINICC_STATE` 的默认 `/state`，显然是本地化路径。

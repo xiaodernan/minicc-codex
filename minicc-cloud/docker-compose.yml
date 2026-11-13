@@ -47,6 +47,9 @@ services:
   rabbitmq:
     # 3-management-alpine's .erlang.cookie EACCES on docker desktop builds;
     # the plain alpine image runs the same broker (management UI is optional).
+    # Also pin the erlang cookie — without this the .erlang.cookie in
+    # /var/lib/rabbitmq/ comes up root-owned unreadable and the node
+    # refuses to start on Docker Desktop / WSL2.
     image: rabbitmq:3-alpine
     ports:
       - "${MINICC_CLOUD_RABBITMQ_PORT:-5672}:5672"
@@ -54,6 +57,7 @@ services:
     environment:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
+      RABBITMQ_ERLANG_COOKIE: minicc-compose-secret-key
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "ping"]
       interval: 5s
