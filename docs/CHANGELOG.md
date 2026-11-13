@@ -186,3 +186,5 @@
 - **DOM id 契约门（M8-T905）**：#pulseMemory 式幽灵 id 整类封死——脚本里每个字面 `$("#id")`/`getElementById("id")` 引用必须有家（index.html 定义、JS 模板创建、或 `.id=` 惰性创建），基线 174 引用 / 0 幽灵一次绿；门自反验证自己看得见 pulseMemory 那个形状、不误报 approvals.js 的运行时创建。
 
 - **data-i18n 契约门（M8-T906）**：HTML 声明的 182 个 i18n 键必须双语言在列——首扫的 5 个"幽灵键"其实是裸键扫描盲区（字典头部 `recentTasks: "最近任务"` 形态），重复补键被 one_home 门的重复检测拦下，门正则对齐后一次绿；lifecycle 真实浏览器冒烟首绿，T903 waitForFunction 签名修复实测有效。
+
+- **`/api/digest` 工作区知识事实包（M8-T905）**：一个只读、离线的端点——分支、HEAD、upstream 漂移、脏文件数、提交总数、最老提交时间、年鉴/更新日志的批次与行数（本仓：1417 commits / 228 个批次标题 / 50359 行 roadmap / 1024 tracked files / 694 测试文件）。非 git 工作区回答 200 + `is_git: false`（绝不抛错），路由清单门自动探测。`minicc/digest.py` 是与 web 层无关的纯函数模块，年鉴后续章节直接引用它说话。

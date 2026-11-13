@@ -400,6 +400,11 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
                 )
             )
             return
+        if path == "/api/digest":
+            # M8-T905: the read-only workspace fact pack. Never fails the
+            # gate - a non-git workspace answers 200 with is_git: false.
+            self._json(self.server.service.digest())
+            return
         if path == "/api/tasks":
             query = parse_qs(parsed.query)
             raw_limit = (query.get("limit") or ["100"])[0]

@@ -50373,3 +50373,56 @@ T899 的火花线只活在任务详情弹窗（事后）。任务运行中，检
 
 ### 边界
 - 门只看字面声明；动态拼接 `data-i18n="prefix." + x` 不在视野。字典键数 475 与 one_home 门同步。
+
+## 批次 905 - M8-T905：`/api/digest` — 一个端点回答"这个仓库到底是什么"
+
+### 1 为什么
+
+`/api/metrics` 回答任务花了多少。但年鉴（M8-T898）想说的是"这是什么项目"时，
+它现场能拉到的只有 metrics/tasks/stats——**仓库自身的事实**（分支、提交数、批次数、
+文件/测试数量、最老提交时间）在服务端根本不存在。这一批把它们做成只读、离线、
+绝不抛错的 `/api/digest`，年鉴后续章节可以拿真实数字说话，不必编。
+
+### 2 做了什么
+
+- **新增 `minicc/digest.py`** — `build_digest(workspace) -> dict`：
+  - `git rev-parse --is-inside-work-tree` → `is_git`（非仓库目录直接降级，**绝不抛错**）
+  - `branch`（--abbrev-ref HEAD）、`head_short`（--short HEAD）
+  - `upstream_ahead` / `upstream_behind`（`rev-list --left-right --count @{upstream}...HEAD`，
+    无 upstream 时退化为 `null`，不抛错）
+  - `dirty_entries`（`status --porcelain -uall` 计行数）、`total_commits`（`rev-list --count HEAD`）
+  - `first_commit_at`（**不用** `git log --reverse -1`——git 的 `-1` 在 reverse 之前生效，
+    拿到的是 HEAD 而不是 root；改为 `rev-list --max-parents=0 HEAD` + `show -s --format=%cI`
+    逐根读取，本仓库实测返回 2026-08-24T03:15:33+08:00 与 `git log --reverse` 首行一致）
+  - `roadmap_batches`（`docs/ROADMAP_TO_PRODUCT.md` 中以 `## 批次` 开头的行数，本仓 228）、
+    `roadmap_lines`（50359）、`changelog_lines`（186）
+  - `tracked_files` / `test_files`（`git ls-files` 计行数；test 计 tests/ 下 .py|.mjs，本仓 1024 / 694）
+  - schema `minicc.digest.v1`；只读、无网络、不碰 `.minicc`、不写任何文件；git 超时 5s。
+- **`minicc/web.py`** — `AgentService.digest()`：本地 import `.digest.build_digest`（与 metrics 的
+  redis_stats 同模式），非 git 工作区返回 `is_git: false`。
+- **`minicc/webserver.py`** — `GET /api/digest` 路由（无参，200 + JSON）。路由清单门
+  `tests/test_http_route_inventory.py` 会自动探测它（空参、临时非 git 仓库 → 200，code 形状恒合格）。
+- **`tests/test_workspace_digest.py`**（新增，5 条）：
+  - 真 git 仓库（init + 2 commit）：branch=main、total_commits=2、head_short 非空、
+    first_commit_at 非空、tracked_files=2、dirty_entries 随 untracked 文件变 1
+  - 无 git 的纯目录：`is_git=false`、所有 git 字段 null、**不抛错**
+  - roadmap/changelog 计数：临时 docs/ 里藏 3 个 `## 批次` 标题 + 1 个伪标题 → 3；lines 口径钉住
+  - `git ls-files` 的 test_files 计数口径（.py + .mjs 计入，普通文件不计）
+  - 不存在的 workspace 路径：不抛错
+
+### 3 实测（本仓真实输出）
+
+`is_git=true, branch=main, ahead=3/behind=0, dirty_entries=11, total_commits=1417,`
+`first_commit_at=2026-08-24T03:15:33+08:00, roadmap_batches=228, roadmap_lines=50359,`
+`changelog_lines=186, tracked_files=1024, test_files=694`
+
+### 4 验证
+
+- `pytest tests/test_workspace_digest.py` → **5 passed**
+- `pytest tests/test_http_route_inventory.py` → **12 passed**（新 GET 路由全量探测通过）
+- `pytest tests/test_logging.py` → **28 passed**
+
+### 5 文件
+
+`minicc/digest.py`（新增）、`minicc/web.py`、`minicc/webserver.py`、
+`tests/test_workspace_digest.py`（新增）

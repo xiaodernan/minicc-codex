@@ -3412,6 +3412,20 @@ class AgentService:
             },
         }
 
+    def digest(self) -> dict[str, Any]:
+        """The read-only workspace fact pack for ``/api/digest``.
+
+        M8-T905: ``/api/metrics`` answers what the tasks cost; the digest
+        answers what this place *is* — branch, HEAD, upstream drift, dirty
+        entries, commit/batch/test/file counts read from git and the
+        repository's own documents. Never raises; non-git workspaces degrade
+        to ``is_git: false`` with ``null`` fields so the route inventory
+        gate can probe it against any directory.
+        """
+        from .digest import build_digest
+
+        return build_digest(self.workspace)
+
     def shutdown(self) -> None:
         # Unblock any agent threads parked on an approval prompt first, so
         # task workers can drain instead of hitting the 60s auto-deny.
