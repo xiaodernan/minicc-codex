@@ -140,3 +140,5 @@
 - **任务运行时摘要里的前缀缓存圆环（M8-T884）**：任务详情的 Runtime metrics「缓存」格子从纯文本百分比升级为内联 SVG 圆环（`pathLength=100`，三档 --mint/--amber/--rose 色调，网关未上报时只画轨道不伪造 0%，`aria-label` 随语言走）。`web/styles.css` 新增 M8-T884 段；构建产物（`web/app.js`、assets、manifest）同一提交内重建，2 个无引用旧 bundle 已清理。
 
 - **Pulse 卡也画前缀缓存圆环（M8-T885）**：常驻屏幕的 `.pulse-card`（agent 工作时余光扫到的那张）里 `#cacheMetric` 从"未统计"文本升级为 26px 内联 SVG 圆环，与 Runtime 摘要同一实现（`cacheDonut(data, px)`）；`aria-label` 随语言走，未上报只画轨道。
+
+- **网关 429 被拒计数进入 `/actuator/metrics`（M8-T886）**：新 `RateLimitMetricsFilter` 在过滤器链完成后仅对 `429` 递增 Micrometer counter `gateway.rate_limited{route}`——限流从"行为"升级为"信号"，Prometheus/curl 都能直接抓到按路由的拒绝数；零决策变更、零新依赖。门：`RateLimitMetricsFilterTest` 3 项。

@@ -49510,3 +49510,39 @@ Pulse 卡（`.pulse-card`，常驻屏幕、agent 工作时一直在那里）里�
 - Pulse 卡没有 `<strong>` 包裹的百分比文字——圆环自带 `<b>NN%</b>`，信息密度相同；
 - 未上报时 Pulse 卡只画轨道 + "未统计"文案，不伪造 0%；
 - 暗/亮两套主题共用同一组变量，零主题分叉。
+
+## 批次 886 - M8-T886：429 被拒计数直接进 `/actuator/metrics` — 限流终于从"行为"变成"信号"
+
+### 1 动机
+
+M8-T882 让网关按 IP 做 Redis 令牌桶限流（120 并发：52 通 / 67 拒 / 1 个 503）。
+但拒绝本身不留下**可聚合的痕迹**——curl 看到一串 429，运维的仪表盘却得不到
+"过去 10 分钟按路由被拒了多少"。限流从行为升级为信号：每一次 429 都应该计数，
+路由作为维度标签，任何 Prometheus 抓取或 curl `/actuator/metrics/gateway.rate_limited`
+都能读出来。
+
+### 2 实现
+
+新 `RateLimitMetricsFilter`（GlobalFilter，`Ordered.LOWEST_PRECEDENCE`）：
+
+- 过滤器链**之后**读响应状态，仅在 `429 TOO_MANY_REQUESTS` 时
+  `registry.counter("gateway.rate_limited", "route", routeId).increment()`；
+- 路由 id 取 `GATEWAY_ROUTE_ATTR`（Route 实例的 `getId()`），缺失降级 `unknown`；
+- 不改变任何决策、不拦截任何请求、不加第二个依赖——Micrometer 是 spring-boot-actuator
+  自带的；`/actuator/metrics` 暴露面 compose 里本来就有（gateway 服务 `metrics` 在）。
+
+新门 `RateLimitMetricsFilterTest` 3 项（`SimpleMeterRegistry` 直驱 fake chain）：
+429+路由→计数 1；200→计数器不存在；429 无路由上下文→`route=unknown` 桶。
+
+### 3 验证
+
+- `mvn -o -pl minicc-cloud-gateway test` → **全模块 BUILD SUCCESS**（IpKeyResolverTest 2、
+  RateLimitProfileTest 3、RateLimitMetricsFilterTest 3，加上既有套件全绿）；
+- 未改任何路由谓词、filter 顺序、compose、CI 面。
+
+### 4 边界
+
+- 计数在**响应后**发生：并发下计数有极小延迟（无阻塞，只是 fromRunnable），不计丢失；
+- 标签基数是路由数（个位数），不产生高基数膨胀；IP 不作为标签（那是高基数反例）；
+- 429 的成因（本限流器 vs 别的 429 来源）不区分——ingress 上 429 只有这一个来源；
+  未来若引入第二种 429 源，counter 会按 route 之外再需要一个 `source` 标签，那是下一批。
