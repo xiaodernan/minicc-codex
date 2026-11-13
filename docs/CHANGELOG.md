@@ -93,3 +93,9 @@
 - **网关缓存修掉一个"没人能看见的"生产缺陷（M8-T861）**：网关 `/api/cached/*` 在 `spring.cache.type=redis` 下每次 cache 写都会炸（缓存的 `Mono<ResponseEntity<Map>>` 里 `ResponseEntity` 不可序列化）；`CachedStatusService` 作为 @Cacheable 边界，缓存纯 Map/String（JDK 可序列化），`CachedPayloadRoundTripTest` 钉住真序列化往返；新增 `/api/cached/inspector/changes?workspace=<abs>`（lb://→inspector→Python bridge，String 直存）；inspector `MiniccProperties` 双构造器歧义 → `@ConstructorBinding`，该模块此前从未独立 boot。实机证据见 `docs/SERVICE_PLANE_GATEWAY.md` §6 与账本 861 批。
 - **网关探活增加可中断超时（M8-T860）**：`/api/health/all` 的每个上游 probe 现在有硬上限（默认 2s，`MINICC_GATEWAY_PROBE_TIMEOUT_MS` 覆盖）——卡死的上游显示 UNKNOWN，不再拖住聚合答案。
 - **真实模型端到端（2026-11-13 复核）**：`gpt-6-sol`（wkapi.pro/v1，reasoning_effort=high）跑 `minicc "list the files in the current directory and count them"`：先在 Windows 上 `find/awk` 失败，agent 自我修正改用 PowerShell，**18 个顶层文件答对**；`minicc --doctor` 6 ok / 0 fatal。完整 runbook 见 `docs/FIRST_HOUR.md` §6.1。
+
+- **Docker Compose 全栈实测跑通（M8-T862）**：registry/config/redis/rabbitmq/inspector/tasks/insights/gateway 八容器一次性 healthy；gateway `/api/health/all` 稳定 3/3 UP；`/api/changes?workspace=/workspaces/target` 200（Probe repo +6/-4）；缓存失效 fanout 总线实广播 → Redis 键真删除。
+- **配置/依赖两个"无人看见"的缺陷**：gateway 缺 `spring-cloud-starter-loadbalancer`（此前所有 lb:// 调用在运行时必炸，单测照样绿）；inspector 基于 jammy 的 Python 3.10 导入不了 `datetime.UTC`（`minicc/clock.py` 需要 3.11+，100% 503）——Dockerfile 改 noble（Python 3.12）。
+- **`MINICC_GIT_STATUS_TIMEOUT_SECONDS`（minicc/changes.py）**：git status 的内层 20s 硬上限可被慢 FS 放宽（默认 20s 不变；非法值降级为 20s，模块 import 不抛）。compose 透传。
+- **Compose 参数化端口**（向后兼容：缺省值与默认一致），并记录本机实测（全部端口被其他项目占用时如本机样子）。
+- **门面化的诊断修复**：`minicc/changes.py`/`gitprobe.py` 的 git 超时话术已串成 `git_status_timeout_reason(n, subject)`；`agent/loop.py`(15s) 与 `snapshots.py`(20s) 也经过盘点。

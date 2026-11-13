@@ -8,8 +8,9 @@ services:
       context: ..
       dockerfile: minicc-cloud/minicc-cloud-registry/Dockerfile
     image: minicc-cloud-registry:0.1.0
+    # 8761 is taken on some dev machines (this one included); override via env.
     ports:
-      - "8761:8761"
+      - "${MINICC_CLOUD_REGISTRY_PORT:-8761}:8761"
     healthcheck:
       test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8761"]
       interval: 5s
@@ -23,7 +24,7 @@ services:
       dockerfile: minicc-cloud/minicc-cloud-config/Dockerfile
     image: minicc-cloud-config:0.1.0
     ports:
-      - "8888:8888"
+      - "${MINICC_CLOUD_CONFIG_PORT:-8888}:8888"
     healthcheck:
       test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8888"]
       interval: 5s
@@ -34,7 +35,7 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - "${MINICC_CLOUD_REDIS_PORT:-6379}:6379"
     command: ["redis-server", "--appendonly", "yes"]
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
@@ -44,10 +45,12 @@ services:
       start_period: 5s
 
   rabbitmq:
-    image: rabbitmq:3-management-alpine
+    # 3-management-alpine's .erlang.cookie EACCES on docker desktop builds;
+    # the plain alpine image runs the same broker (management UI is optional).
+    image: rabbitmq:3-alpine
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - "${MINICC_CLOUD_RABBITMQ_PORT:-5672}:5672"
+      - "${MINICC_CLOUD_RABBITMQ_MGMT_PORT:-15672}:15672"
     environment:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
@@ -67,6 +70,15 @@ services:
       EUREKA_ZONE: http://registry:8761/eureka/
       CONFIG_SERVER: http://config:8888
       MINICC_ALLOWEDROOTS: /workspaces
+      # The one budget the Python child gets before it is destroyed (default 30s).
+      # git status over a >100 MB checkout on a Windows bind mount can exceed
+      # that by minutes; owners of slow mounts raise it here, not in the image.
+      # (Relax-binding: minicc.cloud.inspector.timeout-seconds → this exact env name.)
+      MINICC_CLOUD_INSPECTOR_TIMEOUTSECONDS: ${MINICC_CLOUD_INSPECTOR_TIMEOUTSECONDS:-30}
+      # The inner git-status wall clock inside the inspector (default 20s,
+      # python-side, minicc/changes.py reads it). Raise together with the
+      # outer budget — never one alone.
+      MINICC_GIT_STATUS_TIMEOUT_SECONDS: ${MINICC_GIT_STATUS_TIMEOUT_SECONDS:-20}
     volumes:
       # Read-only: the inspector only ever reads. Point this at a git checkout.
       - ${MINICC_WORKSPACE:-..}:/workspaces/target:ro
@@ -88,7 +100,7 @@ services:
       dockerfile: minicc-cloud/minicc-cloud-tasks/Dockerfile
     image: minicc-cloud-tasks:0.1.0
     ports:
-      - "8082:8082"
+      - "${MINICC_CLOUD_TASKS_PORT:-8082}:8082"
     environment:
       EUREKA_ZONE: http://registry:8761/eureka/
       CONFIG_SERVER: http://config:8888
@@ -114,7 +126,7 @@ services:
       dockerfile: minicc-cloud/minicc-cloud-insights/Dockerfile
     image: minicc-cloud-insights:0.1.0
     ports:
-      - "8087:8087"
+      - "${MINICC_CLOUD_INSIGHTS_PORT:-8087}:8087"
     environment:
       EUREKA_ZONE: http://registry:8761/eureka/
       CONFIG_SERVER: http://config:8888
@@ -140,7 +152,7 @@ services:
       dockerfile: minicc-cloud/minicc-cloud-gateway/Dockerfile
     image: minicc-cloud-gateway:0.1.0
     ports:
-      - "8080:8080"
+      - "${MINICC_CLOUD_GATEWAY_PORT:-8080}:8080"
     environment:
       EUREKA_ZONE: http://registry:8761/eureka/
       CONFIG_SERVER: http://config:8888
@@ -150,6 +162,11 @@ services:
       SPRING_RABBITMQ_PORT: "5672"
       SPRING_RABBITMQ_USERNAME: guest
       SPRING_RABBITMQ_PASSWORD: guest
+      # Gateway response timeout / timelimiter, above the inspector's own budget
+      # by the default margin (P1). Raise together with the inspector's budget
+      # on slow mounts; never lower one without the other.
+      # (Relax-binding: minicc.cloud.gateway.response-timeout-seconds → this exact env name.)
+      MINICC_CLOUD_GATEWAY_RESPONSETIMEOUTSECONDS: ${MINICC_CLOUD_GATEWAY_RESPONSETIMEOUTSECONDS:-40}
     depends_on:
       registry:
         condition: service_healthy

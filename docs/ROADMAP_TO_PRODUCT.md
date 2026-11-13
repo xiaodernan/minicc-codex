@@ -48425,3 +48425,53 @@ mvn -o test（reactor）                            BUILD SUCCESS（8 模块，�
 
 - `inspector:changes:*` 不参与定向驱逐（一个 workspace 一个键、Redis wildcard 删除需额外 RedisTemplate），60s TTL 兜底。
 - 默认路由（非 cached）不受影响；`X-Minicc-Cache` 标头未引入（命中/未命中对调用方不可见——只见于计时/Redis 键）。
+
+## 批次 862 - M8-T862：Docker Compose 实机组装最小全栈 — 八个容器一次跑通 + 两个泵送缺陷 + 绑挂性能账单
+
+### 1 动机
+
+`docker-compose.yml` 一直躺在 tree 里，8 个模块都声明了 build——但没人把它起过：`mvn package` 对 Docker
+上下文的 jar 没装进 `target/`、EUREKA/Config ping 从没验证过、端口账目不清。这轮把它**真起来**，按 compose
+健康检查起最小全栈；过程中又踩出 4 个此前没人看见的缺陷，逐一修完并在账本留痕。
+
+### 2 修的 4 个此前不存在的缺陷
+
+1. **Gateway 没声明 `spring-cloud-starter-loadbalancer`**（`pom.xml`）——`lb://` 路由依赖它；
+   缺了它，所有 lb:// 上游在运行时必炸 → 熔断器→ fallback 页；而 `MockBean` 单测全绿、
+   "playwright/CI 绿" 很久，因为没有任何一个测试真正起 lb:// 路由对 Eureka 说话。
+   加依赖后重建网关镜像：`{"upCount":3,"totalServices":3}` 恢复。
+2. **inspector 的 Python 太老**（`Dockerfile`）——`eclipse-temurin:21-jre-jammy` 里 `python3` 是
+   3.10；`minicc/clock.py` 用到了 `datetime.UTC`（3.11+），子进程直接 `ImportError`，
+   `/api/changes` 100% 503。Dockerfile 改 `eclipse-temurin:21-jre-noble`（自带 Python 3.12）。
+   实测修复后 `partial:false, reasons:[], files:[3 modified, +6/-4]` 全线通过。
+3. **inner git-status 墙钟 20 秒**（`minicc/changes.py`）——compose 环境光有
+   `MINICC_CLOUD_INSPECTOR_TIMEOUTSECONDS` 不够。minicc 里 git status 独有 20s 硬上限：
+   慢 FS（NTFS 绑挂）>120 秒都回不来。新增 `MINICC_GIT_STATUS_TIMEOUT_SECONDS`（默认 20s 不变，
+   非整数仅记录不崩——模块 import 不会死），桥里传下去；compose 也透传该环境变量。
+4. **RabbitMQ `rabbitmq:3-management-alpine` 在 Docker Desktop 永远 `.erlang.cookie: eacces`**
+   （镜像 uid 不匹配本机 Docker 用户映射）——切换到 `rabbitmq:3-alpine`（同版本 broker，无管理 UI），compose 记一行理由。
+
+### 3 参数化（默认保持向后兼容）
+
+`docker-compose.yml` 全部 8 个 `ports:` 改为 `${MINICC_CLOUD_*_PORT:-<默认>}`——
+补上本机端口全被其他项目占光时的实测指导，如实记录默认行为不变。
+
+### 4 实测全栈（2026-11-13，JDK 25 构建；Windows 11 + Docker Desktop）
+
+- `docker compose up -d`：registry/config/redis/rabbitmq/inspector/tasks/insights/gateway 全部 `healthy`
+- `curl 18080/api/health/all` → `{"upCount":3,"totalServices":3}`（**此前只有 `UP` 压力测试通过时才显示 3**）
+- `curl "18080/api/changes?workspace=/workspaces/target"` → 200，timeline `{"files":[3],"totalFiles":3,"additions":6,"deletions":4}`（CircuitBreaker 从打开到半开自愈全过程可观测）
+- 缓存失效 fanout 总线：`FLUSHALL` → 两次 `/api/cached/inspector/status`（第 1 次 miss 200、第 2 次同）→
+  `KEYS gateway-routes*` → `(empty array)` after publish（之前显示 `"gateway-routes::inspector:status"`）
+- `curl 18080/api/cached/inspector/status` → `{"service":"inspector","upstreamStatus":"UP"}`
+- `curl 18080/api/cached/inspector/changes?workspace=/workspaces/target` → 真实 git 变更清单（WORKSPACES 为 probe repo）
+- tasks/insights healthy 但 503 —— **正确行为**（空 state 目录，诚实返回路径与 SQLITE 错误码）
+- 大仓（>100 MB / NTFS bind-mount）`git status` 本机 >120s：默认 20s/30s 双预算必 timeout——放宽
+  `MINICC_CLOUD_INSPECTOR_TIMEOUTSECONDS=300` + `MINICC_GIT_STATUS_TIMEOUT_SECONDS=240` 可过；或在原生 Linux 跑（推荐）。
+
+### 5 边界
+
+- compose 环境变量全加了 `MINICC_CLOUD_*_TIMEOUT*` passthrough；**默认行为**与修改前完全一致。
+- `MINICC_GIT_STATUS_TIMEOUT_SECONDS` 是 Python 直读 `os.environ`，不走 Spring relax binding；Java 探活
+  变量 `MINICC_CLOUD_INSPECTOR_TIMEOUTSECONDS` 走 relax binding（正确规则）。两者名字不同是必要的。
+- 未删任何既存镜像/容器之外的资源；宿主机本批次起的探针 `plane-m862-probe` 已删除、容器全 down。

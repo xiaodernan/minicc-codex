@@ -4,7 +4,11 @@
 # import and construct with openai, rich, tenacity, prompt_toolkit, httpx and
 # anthropic all blocked at the meta-path finder. The change inspector is stdlib
 # plus git, so the image carries python3 and git and nothing else.
-FROM eclipse-temurin:21-jre-jammy
+#
+# noble, not jammy: the shipped minicc code requires Python >= 3.11
+# (minicc/clock.py imports datetime.UTC — 3.11+). jammy's python3 is 3.10 and
+# the bridge subprocess dies on ImportError before git even runs.
+FROM eclipse-temurin:21-jre-noble
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends python3 git ca-certificates \

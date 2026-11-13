@@ -150,13 +150,54 @@ HTTP 200
 - Q：inspector 返回空数组
   A：只读 `ALLOWEDROOTS` 外路径无法诊断；设置 `MINICC_ALLOWEDROOTS` 白名单，或改挂 `/workspaces/target:ro`。
 
-## 6. Full stack
+## 6. Full stack（Docker Compose，实测 2026-11-13，M8-T862）
+
+八个容器：`minicc-cloud-{registry,config,inspector,tasks,insights,gateway}` + Redis 7-alpine + RabbitMQ 3-alpine。compose 已参数化端口（缺省即默认 8761/8888/6379/5672/15672/8080/8082/8087，**本机这几个端口全被其他项目占了，实测用下面的值覆盖**）：
 
 ```powershell
-docker compose -f minicc-cloud/docker-compose.yml config --quiet   # rc=0 无错
+set MINICC_CLOUD_REGISTRY_PORT=18762
+set MINICC_CLOUD_CONFIG_PORT=18888
+set MINICC_CLOUD_REDIS_PORT=16379
+set MINICC_CLOUD_RABBITMQ_PORT=55672
+set MINICC_CLOUD_GATEWAY_PORT=18080
+# 可选：慢挂载（Windows→Docker bind）时同时放宽两个 Python/Java 预算
+set MINICC_CLOUD_INSPECTOR_TIMEOUTSECONDS=300
+set MINICC_CLOUD_GATEWAY_RESPONSETIMEOUTSECONDS=300
+set MINICC_GIT_STATUS_TIMEOUT_SECONDS=240
+mvn -DskipTests package -f minicc-cloud/pom.xml
+docker compose -f minicc-cloud/docker-compose.yml build        # ~6 分钟
+docker compose -f minicc-cloud/docker-compose.yml up -d
 ```
 
-仅解析，不构建。真正启动：`mvn -DskipTests package -f minicc-cloud/pom.xml` → `docker compose -f minicc-cloud/docker-compose.yml build && up`。
+实测（2026-11-13）全部 **healthy**：registry/config/redis/rabbitmq/inspector/tasks/insights/gateway。
+
+```text
+$ curl http://127.0.0.1:18080/api/health/all
+{"upCount":3,"totalServices":3,"services":[
+  {"upstreamStatus":"UP","service":"minicc-cloud-insights"},
+  {"upstreamStatus":"UP","service":"minicc-cloud-inspector"},
+  {"upstreamStatus":"UP","service":"minicc-cloud-tasks"}]}
+
+$ curl "http://127.0.0.1:18080/api/changes?workspace=/workspaces/target"   # 挂载 mini probe repo
+{"partial":false,"reasons":[],"summary":{"files":[...3 files...],"totalFiles":3,
+ "additions":6,"deletions":4}}        http 200, time 1.85s（CircuitBreaker 半开自愈后）
+
+$ curl http://127.0.0.1:18080/api/cached/inspector/status   # Redis 真写真读
+{"service":"inspector","upstreamStatus":"UP"}
+# 扑过 fanout 失效消息后：docker exec minicc-cloud-redis-1 redis-cli KEYS 'gateway-routes*'
+# → 失效前 "gateway-routes::inspector:status"
+# → 失效后 (empty array)     —— 热缓存被真正 fanout 清掉了
+```
+
+**几个本机实测教训（都是踩出来的）**：
+- 端口被占就换一个：上面 16379/55672/18080 都是为避开 `docker.backend` / `wslrelay` 选的。
+- `rabbitmq:3-management-alpine` 在这里永远 `.erlang.cookie: eacces`（容器 uid 不匹配）；`rabbitmq:3-alpine` 正常——composer 已改用它。
+- inspector 若基于 jammy 的 Python（3.10），`minicc/clock.py` 的 `datetime.UTC` 直接 ImportError（需要 **Python ≥ 3.11**）；compose 已改用 `eclipse-temurin:21-jre-noble`（Ubuntu 24.04，自带 Python 3.12）。
+- Eureka registry 在每次容器 recreate 后短暂列出 DOWN 残留（例如 `MINICC-CLOUD-INSPECTOR -> [DOWN, UP]`）；这是**正常的服务端真实状态**（上次跑挂的实例还没被驱逐），LB 会按 UP 过滤，约 90s 后 Registry 自然驱逐。
+- 一个大 repo（本仓，>100 MB / NTFS bind-mount）上 `git status` 可超过 120 秒：放宽 `MINICC_CLOUD_INSPECTOR_TIMEOUTSECONDS` / `MINICC_GIT_STATUS_TIMEOUT_SECONDS` 才能用，或在原生 Linux 上跑（那本来就是推荐方式）。
+- tasks / insights 是**有效地 healthy 但 503**：DB（`.minicc/tasks.sqlite3`）在全新工作区是空的；两服务都把 503 + 原因返回("洞察库读取失败 ... [SQLITE_CANTOPEN]" / "任务库读取失败")，不是崩了——这是诚实契约。
+
+仅解析不启动：`docker compose -f minicc-cloud/docker-compose.yml config --quiet`（rc=0 无错）。已验证。
 
 ## 7. 聚合健康面与 lb://（实测 2026-11-13，M8-T850）
 

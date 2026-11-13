@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import difflib
 import json
+import os
 import subprocess
 import threading
 from collections import OrderedDict
@@ -58,6 +59,16 @@ _MAX_FILES = 120
 #: set is the editor's own - two copies of "did this change the workspace"
 #: are two answers waiting to diverge.
 _CHANGING_AUDIT_ACTIONS = _MUTATING_ACTIONS
+
+#: Wall-clock budget for the single `git status` read every inspector runs.
+#: 20s covers a native-FS checkout; a Windows/Docker bind-mount of a >100 MB
+#: tree can exceed it by minutes, so operators of slow mounts set
+#: ``MINICC_GIT_STATUS_TIMEOUT_SECONDS`` (an integer, default 20, clamped to
+#: >=1) — the same variable the Python<->Java budget handoff derives from.
+try:
+    _GIT_STATUS_TIMEOUT: int = max(1, int(os.environ.get("MINICC_GIT_STATUS_TIMEOUT_SECONDS", "20") or "20"))
+except ValueError:
+    _GIT_STATUS_TIMEOUT = 20
 #: M8-T550: bytes of the audit tail that are read.  M8-T567: the cut lands
 #: mid-record only when it has to - a first line that parses is a record, and
 #: the old "by construction" assumption dropped a whole record whenever the
@@ -219,11 +230,11 @@ class ChangeInspector:
                 text=True,
                 encoding="utf-8",
                 errors="replace",
-                timeout=20,
+                timeout=_GIT_STATUS_TIMEOUT,
                 shell=False,
             )
         except subprocess.TimeoutExpired as exc:
-            return 127, "", "git unavailable", git_status_timeout_reason(20, "变更清单")
+            return 127, "", "git unavailable", git_status_timeout_reason(_GIT_STATUS_TIMEOUT, "变更清单")
         except (OSError, subprocess.SubprocessError) as exc:
             return 127, "", "git unavailable", git_status_unavailable_reason(exc)
         return result.returncode, result.stdout, result.stderr, None
