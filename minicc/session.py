@@ -36,7 +36,7 @@ from .sidecar_lock import (
     hold_sidecar,
     DEFAULT_DELAY as SIDECAR_DEFAULT_DELAY,
 )
-from .tools.registry import redact_text
+from .tools.registry import redact_message, redact_text
 
 try:  # Windows
     import msvcrt
@@ -662,16 +662,10 @@ class SessionStore:
 
     @staticmethod
     def _redacted_message(message: dict[str, Any]) -> dict[str, Any]:
-        def clean(value: Any) -> Any:
-            if isinstance(value, str):
-                return redact_text(value)[0]
-            if isinstance(value, list):
-                return [clean(item) for item in value]
-            if isinstance(value, dict):
-                return {str(key): clean(item) for key, item in value.items()}
-            return value
-
-        return clean(message)
+        # M8-T907: one home for the recursive shape (tools.registry), shared
+        # with the provider's send-boundary sanitizer so a shipped byte and
+        # a stored byte can never disagree again.
+        return redact_message(message)
 
 
 def _non_negative_int(value: Any) -> int:

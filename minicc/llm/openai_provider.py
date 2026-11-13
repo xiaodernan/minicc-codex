@@ -112,6 +112,7 @@ from .usage import (
     channel_status_payload,
     channel_switched_event,
     measured_usage,
+    prefix_fingerprint,
     token_count,
 )
 
@@ -329,6 +330,20 @@ def protocol_fallback_detail(exc: BaseException) -> dict[str, str]:
     error key lands once.
     """
     return {"protocol": LLM_PROTOCOL_CHAT_COMPLETIONS, "error_type": type(exc).__name__}
+
+
+def redact_outbound_messages(messages: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
+    """Sanitize every message before it leaves the process (M8-T907).
+
+    One home for the send-boundary shape: every dict/list/string is rebuilt
+    through ``redact_message`` so the shipped bytes and the session store's
+    bytes agree, the caller's live list is never touched, and a suspected
+    secret is replaced before it reaches the gateway rather than only when
+    it reaches the disk.
+    """
+    from ..tools.registry import redact_message
+
+    return [redact_message(item) for item in (messages or [])]
 
 
 def classify_provider_failure(exc: BaseException) -> bool | None:
@@ -725,12 +740,28 @@ class OpenAICompatibleProvider:
         The flip lives here rather than in the negotiation loop above so a
         quota death cannot be mistaken for a protocol/tool fallback, and so
         the plan retry inherits the same loop guards.
+
+        M8-T907: the outbound copy is sanitized before it leaves the
+        process. The session store sanitizes at save time; a store-only
+        redaction meant the disk history diverged from the bytes shipped
+        one turn earlier and the gateway's prefix cache died from the first
+        redacted message onward. Sanitizing at the send boundary makes the
+        shipped shape and the stored shape byte-identical - and a secret
+        never reaches the gateway at all. The caller's list is never
+        mutated: the copy rides this attempt only.
         """
+        outbound = redact_outbound_messages(messages)
         try:
             if self._protocol == LLM_PROTOCOL_RESPONSES:
-                response = await self._responses_once(messages, tools, on_delta, use_native)
+                response = await self._responses_once(outbound, tools, on_delta, use_native)
             else:
-                response = await self._chat_completions_once(messages, tools, on_delta, use_native)
+                response = await self._chat_completions_once(outbound, tools, on_delta, use_native)
+            # M8-T907: ship the prefix shape with the usage record so a dead
+            # prefix cache is diagnosable from the task snapshot alone. The
+            # fingerprint reads the sanitized shape - the bytes that actually
+            # left the process.
+            if isinstance(response.usage, dict):
+                response.usage.update(prefix_fingerprint(outbound, tools))
             self._record_channel_usage(response)
             return response
         except Exception as exc:
@@ -743,9 +774,11 @@ class OpenAICompatibleProvider:
             self._channel = "plan"
             self._emit_channel_switch(exc)
             if self._protocol == LLM_PROTOCOL_RESPONSES:
-                response = await self._responses_once(messages, tools, on_delta, use_native)
+                response = await self._responses_once(outbound, tools, on_delta, use_native)
             else:
-                response = await self._chat_completions_once(messages, tools, on_delta, use_native)
+                response = await self._chat_completions_once(outbound, tools, on_delta, use_native)
+            if isinstance(response.usage, dict):
+                response.usage.update(prefix_fingerprint(outbound, tools))
             self._record_channel_usage(response)
             return response
 

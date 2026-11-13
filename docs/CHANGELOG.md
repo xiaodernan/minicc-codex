@@ -190,3 +190,5 @@
 - **`/api/digest` 工作区知识事实包（M8-T905）**：一个只读、离线的端点——分支、HEAD、upstream 漂移、脏文件数、提交总数、最老提交时间、年鉴/更新日志的批次与行数（本仓：1417 commits / 228 个批次标题 / 50359 行 roadmap / 1024 tracked files / 694 测试文件）。非 git 工作区回答 200 + `is_git: false`（绝不抛错），路由清单门自动探测。`minicc/digest.py` 是与 web 层无关的纯函数模块，年鉴后续章节直接引用它说话。
 
 - **平面第一扇「机队拓扑」窗（M8-T906）**：`GET /api/insights/fleet`——Eureka 现在被读出"谁在、谁倒了"：服务名排序、实例数、每个实例的 host/port/uri/真实 UP/DOWN（非 Eureka 后端报 `UNKNOWN`）。注册表读不通 → 503 `registry-unavailable` + 原因，绝不伪造一个空集群；单个应用读不通 → 整体拒绝，不给半个机队；零实例的服务照样显示出来。网关零改动可达（`lb://` + 既有 `insights-route` 熔断）。`mvn -pl minicc-cloud-insights test`：19/19 绿。
+
+- **前缀指纹链 + 发送边界脱敏（M8-T907）**：每请求随 usage 携带 system/msgs/tools 指纹与 64 窗口逐条累积链——"缓存为什么不命中"从猜测变成读数（第一条分歧消息直接可见）。发送边界与存储统一脱敏（redact_message 单家，provider 出站重建副本、活列表不动），磁盘 8 处 [REDACTED] 与发送字节的不对称消除，凭据不再出进程。真实网关三重实测：任务内命中 97.6-97.7%；链对比证明前缀逐字节稳定后，跨任务冷启动 1792 定案为上游 1 槽缓存被 judge 轮挤占的结构性约束。

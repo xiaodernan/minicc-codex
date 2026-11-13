@@ -231,6 +231,29 @@ def redact_text(text: str) -> tuple[str, bool]:
     return text, changed
 
 
+def redact_message(message: Any) -> Any:
+    """Apply ``redact_text`` recursively to one outbound message.
+
+    M8-T907: the session store has always sanitized at **save** time, which
+    meant the disk history diverged from the bytes actually sent upstream -
+    a digest redacted on disk but shipped verbatim one turn earlier kills
+    the gateway's prefix cache from that message onward (measured: a task
+    whose second turn should have extended the first turn's 51k-token
+    prefix read ``hit=0`` while the same shape with a shorter history hit
+    94.6%).  Shipping the sanitized shape is the fix: the request path and
+    the store now see byte-identical history, secrets stop reaching the
+    model gateway at all, and the session's own redaction stays idempotent
+    on already-clean input.
+    """
+    if isinstance(message, str):
+        return redact_text(message)[0]
+    if isinstance(message, list):
+        return [redact_message(item) for item in message]
+    if isinstance(message, dict):
+        return {str(key): redact_message(item) for key, item in message.items()}
+    return message
+
+
 def approval_preview(
     tool: str,
     arguments: dict[str, Any] | None,

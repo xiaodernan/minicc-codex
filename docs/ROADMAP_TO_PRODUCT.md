@@ -50474,3 +50474,23 @@ Eureka 只被当作 lb:// 的元数据来源消费，从没被读出"拓扑"。�
 
 （ROADMAP 中 `web/assets/*` 旧 bundle 名替换为 `web/app.js`/`web/styles.css` 的引用修正一并入库——
 并行通道同一目的的独立修复，已验证 `doc_pointers --check` rc=0。）
+
+## 批次 907 - M8-T907：前缀指纹链 + 发送边界脱敏 —— 缓存诊断从猜测变成读数
+
+### 缺什么
+- 真实网关实测：同线程连续任务，T1.turn1 命中 55040/56397（97.6%），T2.turn0 却 hit=0/1792——"为什么不命中"完全不可诊断。磁盘会话里 8 处 [REDACTED] 与发送字节不符（store 在 save 时脱敏、请求发的是原文）是另一个确定性缺陷。
+
+### 处置
+- **prefix_fingerprint**（minicc/llm/usage.py）：每请求随 usage 记录携带 system_fp/msgs_fp/tools_fp/n_msgs + **逐条累积指纹链**（64 窗口封顶）——两个请求的共享前缀长度直接可比：第一条分歧消息即前缀漂移点，无需请求日志。
+- **发送边界脱敏**（M8-T907 核心）：`redact_message` 单家在 tools/registry.py；provider `_attempt_once` 出站前重建消息副本（redact_outbound_messages，调用方的活列表不动）；session 的 save 侧委托同一函数——**发送字节 = 存储字节，凭据根本不出进程**，redact 幂等性由测试钉死。
+- 两个调用路径（Responses/chat）与 plan 通道切换路径全部统一；指纹读脱敏后的出站形状（真正离开进程的字节）。
+
+### 证据与门
+- `tests/test_prefix_fingerprint_ships_with_usage.py`（7 测试）：确定性、单字节漂移可见、system/tools 漂移各自成键、链扩展不动尾部、形状/空输入降级、provider 双路径接线。
+- `tests/test_send_boundary_redaction_is_idempotent.py`（6 测试）：凭据出站前掩码、活列表不变、幂等（发送形状在"原文进/掩码版进"下逐字节一致）、session 单家委托、provider 双路径出站+指纹读出站、非字符串标量。
+- session/redact 家族回归 38 绿；流族回归 8 绿。
+- **真实网关三重实测**：修复后任务内命中 55040/56397=97.6%、56704/58066=97.7%（修复前对照任务 94.6%，同样健康）；链对比 T1.turn1(n102) vs T2.turn0(n105) **61 格累积指纹全等、零分歧**——前缀逐字节稳定，而上游对紧邻请求命中 55k、被 judge 轮隔开的请求只命中 1792。
+
+### 定案与边界
+- **跨任务冷启动命中 1792 是上游 1 槽 prompt 缓存的结构性约束**：completion_judge 轮（独立 12-27k 前缀）插在两个任务的 agent 请求之间，把 agent 前缀挤出上游唯一的缓存槽。证据链：每次"紧邻上一 agent 请求"的调用命中 94-99%，每次被 judge 隔开的调用命中 1792。我们侧前缀已逐字节稳定（链指纹证明），残余优化空间在上游调度（judge 换独立模型/通道）——记为后续可选项，不在本轮动架构。
+- chain 窗口 64 与 SSE reducer 的 usage 窗口同形状；usage 记录体积 +~1KB/轮，快照 usage_limit 截断照常工作。

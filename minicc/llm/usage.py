@@ -26,6 +26,11 @@ CACHE_TOKEN_KEYS = (
     "prompt_cache_write_tokens",
 )
 
+#: The per-message running fingerprint chain rides the usage record; like
+#: the SSE reducer's 64-entry window it keeps a bounded shape no matter how
+#: long the conversation grows.
+FINGERPRINT_CHAIN_CAP = 64
+
 
 def measured_usage(
     prompt_tokens: int, completion_tokens: int, total_tokens: int | None = None
@@ -145,6 +150,55 @@ def _number(value: Any) -> int | float | None:
     return None
 
 
+def prefix_fingerprint(
+    messages: Iterable[Mapping[str, Any]] | None,
+    tools: Iterable[Mapping[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Fingerprint the exact prefix shape one request sends upstream.
+
+    M8-T907: the gateway's prefix cache pays or refuses on **byte-stable
+    prefixes** - one drifting byte anywhere in the system message, the tool
+    schemas, or the accumulated history and the whole prefix dies while the
+    usage counters still read ``hit=0`` with no visible cause.  This ships
+    the shape with every usage record so cache misses become diagnosable:
+    consecutive turns of one task should share ``tools_fp`` and extend
+    ``msgs_fp``'s lineage; a task whose ``system_fp`` moves between turns is
+    rebuilding its prompt per turn and will never cache across turns.
+
+    ``chain`` carries the running fingerprint after **each** message, so two
+    requests' shared prefix length is directly readable: the first index
+    where their chains disagree is the first drifting message - no request
+    logging needed. ``chain`` is capped (like the reducer's 64-entry
+    usage window) to keep the usage record bounded.
+
+    Values are 12-hex slices of SHA-256 over a canonical JSON dump - stable
+    across processes for the same logical content, cheap to compute even at
+    six-figure prompt sizes.
+    """
+    import hashlib
+    import json as _json
+
+    def _digest(value: Any) -> str:
+        payload = _json.dumps(value, ensure_ascii=False, sort_keys=True, default=str)
+        return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:12]
+
+    rows = [item for item in (messages or ()) if isinstance(item, Mapping)]
+    system = rows[0] if rows else {}
+    chain: list[str] = []
+    running = hashlib.sha256()
+    for item in rows:
+        running = running.copy()
+        running.update(_digest(item).encode("utf-8"))
+        chain.append(running.hexdigest()[:12])
+    return {
+        "system_fp": _digest(system),
+        "msgs_fp": _digest(rows),
+        "tools_fp": _digest(list(tools or [])),
+        "n_msgs": len(rows),
+        "chain": chain[-FINGERPRINT_CHAIN_CAP:],
+    }
+
+
 def token_count(value: Any, default: int | None = None) -> int | None:
     """Read a token counter a gateway may have sent malformed.
 
@@ -252,6 +306,7 @@ __all__ = [
     "CACHE_TOKEN_KEYS",
     "CHANNEL_SWITCHED_CODE",
     "CHANNEL_SWITCHED_SUMMARY",
+    "FINGERPRINT_CHAIN_CAP",
     "USAGE_TOKEN_KEYS",
     "add_usage_totals",
     "aggregate_cache_summary",
@@ -259,4 +314,5 @@ __all__ = [
     "channel_counter",
     "channel_status_payload",
     "channel_switched_event",
+    "prefix_fingerprint",
 ]
