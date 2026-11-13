@@ -48511,7 +48511,7 @@ accessibility 1.00   best-practices 1.00   SEO 1.00   failures: []
 npm run test:web          → web smoke passed (timeline, product path, desktop, mobile)
 npm run test:optimization → readyMs 887–1634 (light/dark × 1440/390)，textContrast 5.67–17.85，overflow: false
 npm run build:web && npm run check:web → up to date; assets clean
-npm test                  → CI 见 green @ 推送 ref 后消
+npm test                  → CI runs green on the corresponding pushed commit
 ```
 
 ### 4 边界
