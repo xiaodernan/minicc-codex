@@ -162,3 +162,13 @@
 - **模板库上线（M8-T896）**：侧边栏新增「模板库」，8 张精选卡片（项目扫描 / 跑测试并修好 / 安全审查 / 生成 README / 中文注释英文化 / 依赖体检 / 现代化建议 / 冒烟检查），一键将策划好的高质量 prompt 填入 composer 并 focus。`Ctrl/⌘+K` 面板同步新增 `templates` 条目。零新后端、零新图标，文案双语全量。
 
 - **全量套件红灯清零（M8-T897）**：`test_installed_console_scripts_run_from_a_real_install` 本轮红了——根因是 fresh venv 用 `--system-site-packages` 继承的是**本仓库 .venv 对应的 base** site-packages，不是本仓库 .venv 的（含 tenacity 的那一份）。修复：向探针 venv 显式注入本仓库 `.venv/Lib/site-packages`（纯离线注入，不装任何东西、不削弱 anti-vacuity 门）。另外 4 个"红"是本轮长跑的 `_pytest_full_888.log`、`gateway869_*.log`、`server_*.log` 等仓库根 log 触发清理门——删干净即转绿；4 个已 PASS 复测通过。仓库根现无任何运行产物滞留。
+
+- **工具调用流式进度（M8-T897）**：三面实测（真实网关同前缀双端点对比）定案"缓存命中率低 + 显示非流"两大抱怨——命中率是上报假象（chat/completions 永不回 `prompt_tokens_details`，Responses 如实回 72.3%），非流感的根因是 `_create_responses_stream` 只转发 `output_text.delta`，规划轮（工具调用轮）全程静默。新增 `provider_tool_call_start` / `provider_tool_call_progress`（0.5s 节流）/ `provider_reasoning_progress` 三个状态通道事件，答案流字节干净。真实 E2E：stream_delta 1→13，agent 命中率 83.7%。
+
+- **任务坞实时工具条（M8-T898）**：规划轮期间任务坞 chip 实时显示 `◌ read_file · N 字符`（流光扫过），`function_call_arguments.done` 冻结为 mint 对勾 ✓；推理进度同样上 chip。门测试钉住 UI 正则与 Python 发射端三码的跨语言契约 + i18n.js/index.html 的 CRLF 行尾守护。真实浏览器探针目检通过。
+
+- **逐次调用缓存命中火花线（M8-T899）**：`usage_by_turn` 早已双路累积却无人渲染——新纯模块 `cache-series.js`（null 档诚实降级、24 柱封顶）+ `runtimeMetricsMarkup` 单渲染点，任务详情弹窗与检查器同时获得逐柱视图（`#1 agent 98%` / `#3 judge 73%`）。node 冒烟直接 import 纯模块做真单元断言，并首次让 node（原生 CRLF）与 Python（universal newlines）两种读者同框。
+
+- **chat/completions 流式补齐同契约（M8-T900）**："非流感"按协议对称修完——工具调用 name/arguments 分片、`reasoning_content` 分片在 chat 流里同样上状态通道（三态 start/progress/done，答案流零污染）。T898 chip 在 chat 协议下零前端改动即生效。流族回归 42 绿。
+
+- **帮助面板快捷键表追上真实键位（M8-T901）**：唯一速查屏漏了 Ctrl/⌘K（面板）与 Ctrl/⌘L（账本）——补全至 8 条且中英同序；新增 `?` 全局键（与 `/` 同输入框守卫）打开帮助，速查表自举可发现。门测试双向对账 handler↔表格。
