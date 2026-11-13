@@ -2,7 +2,7 @@ import { requestJson } from "./core/transport.js";
 import { openArcade } from "./core/arcade.js";
 // ES module source for the minicc workbench. Bundled by scripts/build-web.mjs.
 import { escapeHtml, loadTaskHistory, persistSessionView, renderSession, renderTaskHistory, sessionViewKey } from "./chat/markdown.js";
-import { addImageFiles, cancelActiveTask, closePanel, exportChat, loadModelCatalog, loadWorkspace, openActivityPanel, openBatchPanel, openHelpPanel, openLedgerPanel, openOptionsPanel, openPanel, openPromoPanel, openSettingsPanel, openTaskDetail, openTaskInWorkspace, openTaskListPanel, openWorkspacesPanel, renderAttachmentTray, resetTask, restoreTaskSnapshot, rewindToUserIndex, runDemoFlow, sendMessage, switchInspectorTab, togglePanelFullscreen, watchTask } from "./chat/stream.js";
+import { addImageFiles, cancelActiveTask, closePanel, exportChat, loadModelCatalog, loadWorkspace, openActivityPanel, openBatchPanel, openHelpPanel, openLedgerPanel, openOptionsPanel, openPanel, openPromoPanel, openPulseStage, openSettingsPanel, openTaskDetail, openTaskInWorkspace, openTaskListPanel, openWorkspacesPanel, renderAttachmentTray, resetTask, restoreTaskSnapshot, rewindToUserIndex, runDemoFlow, sendMessage, switchInspectorTab, togglePanelFullscreen, watchTask } from "./chat/stream.js";
 import { applyTaskEvent, setTimelineDetails, syncLiveEvents, updateBoundTask, updateLiveTask } from "./core/api.js";
 import { t } from "./core/i18n.js";
 import { applyFocusMode, applyLocale, applyPaneLayout, finishStartupSplash, prepareStartupSplash, setFocusMode, setInspectorCollapsed, setLocale, setSidebarCollapsed, setStartupSplashError, setTheme } from "./core/locale.js";
@@ -60,6 +60,10 @@ export function bindUI() {
   document.querySelectorAll(".seed-card").forEach((card) => card.addEventListener("click", () => window.selectPlant?.(card)));
   window.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
+      if ($("#pulseStage")?.getAttribute("aria-hidden") === "false") {
+        $("#pulseStage").setAttribute("aria-hidden", "true");
+        return;
+      }
       const arcade = window.game;
       if ($("#gameModal")?.classList.contains("show") && (arcade?.selected || arcade?.shovel)) {
         window.clearPlantSelection?.();
@@ -202,6 +206,7 @@ export function bindUI() {
     else if (view === "workspaces") openWorkspacesPanel();
     else if (view === "promo") openPromoPanel();
     else if (view === "activity") openActivityPanel();
+    else if (view === "pulse") openPulseStage();
     else if (view === "ledger") openLedgerPanel();
     else if (view === "arcade") openArcade().catch((error) => showToast(error.message));
     else closePanel();

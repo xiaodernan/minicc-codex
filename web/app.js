@@ -699,7 +699,28 @@
       "ledger.redisTitle": "\u7F13\u5B58\u540E\u7AEF",
       "ledger.redisLocal": "\u672C\u5730 LRU\uFF08Redis \u672A\u542F\u7528\uFF09",
       "ledger.redisLive": "Redis \u5B9E\u65F6\u540E\u7AEF",
-      "ledger.costPartial": "\u90E8\u5206\u6A21\u578B\u672A\u5B9A\u4EF7\uFF0C\u603B\u989D\u6309 0 \u4F30\u7B97"
+      "ledger.costPartial": "\u90E8\u5206\u6A21\u578B\u672A\u5B9A\u4EF7\uFF0C\u603B\u989D\u6309 0 \u4F30\u7B97",
+      "pulse.title": "\u5DE5\u4F5C\u533A\u8109\u640F",
+      "pulse.subtitle": "\u5B9E\u65F6\u8BFB\u6570 \xB7 \u6BCF\u4E2A\u6570\u5B57\u6765\u81EA\u771F\u5B9E\u4EFB\u52A1",
+      "pulse.archive": "\u4EFB\u52A1\u6863\u6848",
+      "pulse.hitRing": "\u547D\u4E2D\u7387",
+      "pulse.ctxRing": "\u4E0A\u4E0B\u6587\u5360\u6BD4",
+      "pulse.doneRing": "\u5B8C\u6210\u7387",
+      "pulse.identity": "\u5DE5\u4F5C\u533A\u8EAB\u4EFD\u8BC1",
+      "pulse.model": "\u6A21\u578B",
+      "pulse.gateway": "\u7F51\u5173",
+      "pulse.effort": "\u63A8\u7406\u5F3A\u5EA6",
+      "pulse.turns": "\u8F6E\u6B21",
+      "pulse.cost": "\u6210\u672C",
+      "pulse.memory": "\u4F1A\u8BDD\u6570",
+      "pulse.messages": "\u6D88\u606F",
+      "pulse.audit": "\u5BA1\u8BA1\u884C",
+      "pulse.hit": "\u7F13\u5B58\u547D\u4E2D",
+      "pulse.miss": "\u7F13\u5B58\u672A\u547D\u4E2D",
+      "pulse.total": "\u603B Tokens",
+      "pulse.connected": "\u5DF2\u8FDE\u63A5",
+      "pulse.disconnected": "\u672A\u8FDE\u63A5",
+      "pulse.epoch": "\u4EFB\u52A1\u65F6\u95F4\u8F74"
     },
     en: {
       "restore.partial": "Restored safe files; kept later edits or unavailable files",
@@ -1140,7 +1161,28 @@
       "ledger.redisTitle": "Cache backend",
       "ledger.redisLocal": "Local LRU (Redis not live)",
       "ledger.redisLive": "Redis live backend",
-      "ledger.costPartial": "Some models unpriced; estimate is a floor"
+      "ledger.costPartial": "Some models unpriced; estimate is a floor",
+      "pulse.title": "Workspace pulse",
+      "pulse.subtitle": "Live counters \xB7 every number from real tasks",
+      "pulse.archive": "Task archive",
+      "pulse.hitRing": "Hit rate",
+      "pulse.ctxRing": "Context usage",
+      "pulse.doneRing": "Completion rate",
+      "pulse.identity": "Workspace card",
+      "pulse.model": "Model",
+      "pulse.gateway": "Gateway",
+      "pulse.effort": "Reasoning effort",
+      "pulse.turns": "Turns",
+      "pulse.cost": "Cost",
+      "pulse.memory": "Sessions",
+      "pulse.messages": "Messages",
+      "pulse.audit": "Audit lines",
+      "pulse.hit": "cache hit",
+      "pulse.miss": "cache miss",
+      "pulse.total": "Total tokens",
+      "pulse.connected": "connected",
+      "pulse.disconnected": "disconnected",
+      "pulse.epoch": "Task timeline"
     }
   };
   function t(key) {
@@ -1401,6 +1443,51 @@
     const active = dialogs.at(-1);
     if (entry.previousFocus?.isConnected && !entry.previousFocus.closest("[inert]")) entry.previousFocus.focus({ preventScroll: true });
     else if (active) focusDialog(active);
+  }
+
+  // web/src/core/notify.js
+  var TOGGLE_KEY = "minicc-notifications";
+  var TERMINAL_TITLES = { completed: "notify.completed", failed: "notify.failed", cancelled: "notify.cancelled", interrupted: "notify.cancelled" };
+  function supported() {
+    return typeof window.Notification === "function";
+  }
+  function notificationsEnabled() {
+    return localStorage.getItem(TOGGLE_KEY) === "true";
+  }
+  function notificationsBlocked() {
+    return supported() && window.Notification.permission === "denied";
+  }
+  async function setNotificationsEnabled(enabled) {
+    localStorage.setItem(TOGGLE_KEY, enabled ? "true" : "false");
+    if (!enabled) return true;
+    if (!supported()) return false;
+    if (window.Notification.permission === "granted") return true;
+    if (window.Notification.permission === "denied") return false;
+    try {
+      const permission = await window.Notification.requestPermission();
+      if (permission === "granted") return true;
+    } catch {
+    }
+    return false;
+  }
+  function notifyTaskFinished(task) {
+    if (!notificationsEnabled() || !document.hidden || !supported()) return;
+    if (window.Notification.permission !== "granted") return;
+    const status = String(task?.status || "");
+    const titleKey = TERMINAL_TITLES[status];
+    if (!titleKey) return;
+    const title = `minicc \xB7 ${t(titleKey)}`;
+    const body = String(task?.prompt || task?.preview || task?.task_id || "").slice(0, 160);
+    try {
+      const notice = new window.Notification(title, { body, tag: `minicc-task-${task?.task_id || ""}`, silent: false });
+      notice.onclick = () => {
+        window.focus();
+        if (task?.task_id) window.dispatchEvent(new CustomEvent("minicc-open-task", { detail: { taskId: task.task_id } }));
+        notice.close();
+      };
+      window.setTimeout(() => notice.close(), 12e3);
+    } catch {
+    }
   }
 
   // web/src/core/task-reducer.js
@@ -1797,6 +1884,7 @@
       cacheSessionView(binding.sessionId, holder.innerHTML, binding.workspacePath);
     }
     if (finalData.status !== "completed") showToast(finalData.error || (finalData.status === "cancelled" ? "\u4EFB\u52A1\u5DF2\u53D6\u6D88" : "\u4EFB\u52A1\u5931\u8D25"));
+    notifyTaskFinished(finalData);
     scheduleChangesRefresh();
     refreshFileTreeSoon();
     await loadTaskHistory();
@@ -2406,20 +2494,128 @@
       const redisLabel = data?.redis_cache?.live_backend ? t("ledger.redisLive") : t("ledger.redisLocal");
       const redisClass = data?.redis_cache?.live_backend ? "led-redis-live" : "led-redis-local";
       const body = `<div class="ledger-view">
+
       <div class="led-hero"><div class="led-hero-number">${compactNumber(totalTokens)}</div><div class="led-hero-label">${t("ledger.tokens")}</div></div>
+
       <div class="led-stat-row">
+
         <div class="led-stat"><div class="led-stat-label">${t("ledger.hitRate")}</div><div class="led-stat-donut">${cacheDonut(donutData, 52)}</div><div class="led-stat-sub">${hitRatePct !== null ? `${hitRatePct}%` : t("tasks.cacheUnreported")} \xB7 ${t("ledger.cacheHits")} ${compactNumber(hit)} \xB7 ${t("ledger.cacheMiss")} ${compactNumber(miss)} \xB7 ${t("ledger.cacheWrite")} ${compactNumber(writes)}</div></div>
+
         <div class="led-stat"><div class="led-stat-label">${t("ledger.cost")}</div><div class="led-stat-big">${Number.isFinite(cost) ? `$${cost.toFixed(4)}` : '<span class="led-unpriced">$\u2014</span>'}</div><div class="led-stat-sub">${unpriced}/${priced + unpriced} ${state.locale === "zh" ? "\u4E2A\u4EFB\u52A1\u5B9A\u4EF7" : "tasks priced"} \xB7 ${llm.cache_status || ""}</div></div>
+
         <div class="led-stat"><div class="led-stat-label">${t("ledger.redisTitle")}</div><div class="led-stat-big ${redisClass}">${redisLabel}</div><div class="led-stat-sub">${data?.redis_cache ? `gets ${data.redis_cache.gets || 0} \xB7 sets ${data.redis_cache.sets || 0} \xB7 local ${data.redis_cache.local_units || 0}/${data.redis_cache.local_capacity || 0}` : "\u2014"}</div></div>
+
       </div>
+
       ${statusRows.length ? `<div class="led-section"><div class="panel-section-title">${t("ledger.status")}</div><div class="led-status-bar">${statusRows.map(([key, label2, color]) => `<div class="led-status-seg" style="flex:${Number(statusMap[key] || 0)} 1 0;background:${color};" title="${escapeHtml(label2)}: ${escapeHtml(String(statusMap[key]))}">${escapeHtml(String(statusMap[key]))}</div>`).join("")}</div><div class="led-status-legend">${statusRows.map(([key, label2]) => `<span class="led-status-dot" style="--status-dot:${statusRows.find((r) => r[0] === key)[2]}"></span>${escapeHtml(label2)} <strong>${escapeHtml(String(statusMap[key]))}</strong>`).join("")}</div></div>` : ""}
+
       ${hasModels ? `<div class="led-section"><div class="panel-section-title">${t("ledger.models")}</div><table class="led-table"><thead><tr><th>model</th><th class="led-num">tokens</th><th class="led-num">hit/miss</th><th class="led-num">${t("ledger.tasks")}</th><th class="led-num">$</th></tr></thead><tbody>${modelRows}${totalRow}</tbody></table></div>` : `<div class="empty-panel">${t("ledger.noMetrics")}</div>`}
+
     </div>`;
       openPanel(t("ledger.overview"), body, { wide: true });
     } catch (error) {
       if (!current()) return;
       openPanel(t("ledger.overview"), `<div class="error-panel">${escapeHtml(error.message)}</div>`);
     }
+  }
+  async function openPulseStage() {
+    const modal = $("#pulseStage");
+    if (!modal) return;
+    modal.setAttribute("aria-hidden", "false");
+    const close = $("#pulseStageClose");
+    if (close) close.onclick = () => {
+      modal.setAttribute("aria-hidden", "true");
+    };
+    const fetchAll = async () => {
+      try {
+        const [metrics, tasksData, stats] = await Promise.all([
+          requestJson("/api/metrics"),
+          requestJson("/api/tasks?limit=12").catch(() => ({ tasks: [] })),
+          requestJson("/api/stats").catch(() => null)
+        ]);
+        const usage = metrics && typeof metrics.usage === "object" && metrics.usage || {};
+        const llm = metrics && typeof metrics.llm_cache === "object" && metrics.llm_cache || {};
+        const models = metrics && typeof metrics.by_model === "object" && metrics.by_model || {};
+        const statusMap = metrics && typeof metrics.tasks_by_status === "object" && metrics.tasks_by_status || {};
+        const tasks = Array.isArray(tasksData?.tasks) ? tasksData.tasks : [];
+        const workspacePath = state.workspacePath || String(metrics?.workspace_path || "");
+        const memoryCount = Number(stats?.sessions?.count ?? stats?.llm_cache?.tasks_with_usage ?? 0);
+        const auditLines = Number(stats?.audit?.lines ?? 0);
+        const messages = Number(stats?.sessions?.messages ?? 0);
+        const modelTokens = Object.values(models).reduce((acc, b) => acc + Number(b?.tokens?.total_tokens || 0), 0);
+        const totalTokens = Number(usage.total_tokens || modelTokens || 0);
+        const hit = Number(usage.prompt_cache_hit_tokens || 0);
+        const miss = Number(usage.prompt_cache_miss_tokens || 0);
+        const hitRate = hit + miss > 0 ? Math.round(hit / (hit + miss) * 100) : null;
+        const completed = Number(statusMap.completed || 0);
+        const interrupted = Number(statusMap.interrupted || 0);
+        const failed = Number(statusMap.failed || 0);
+        const cancelled = Number(statusMap.cancelled || 0);
+        const totalTasks = completed + interrupted + failed + cancelled;
+        const doneRate = totalTasks > 0 ? Math.round(completed / totalTasks * 100) : null;
+        const topModel = Object.entries(models).sort((a, b) => Number(b[1]?.tasks || 0) - Number(a[1]?.tasks || 0))[0]?.[0] || "\u2014";
+        const latestCtx = tasks.length ? tasks[0] : null;
+        const ctxLimit = Number(latestCtx?.context?.limit_tokens || state.contextWindowTokens || 3e5);
+        const ctxTokens = Number(latestCtx?.context?.tokens || 0);
+        const ctxRate = ctxLimit > 0 ? Math.min(100, Math.round(ctxTokens / ctxLimit * 100)) : null;
+        $("#pulseIdentityPath").textContent = workspacePath || "\u2014";
+        $("#pulseModel").textContent = topModel;
+        $("#pulseGateway").textContent = String(usedModelConfig()?.gateway || "wkapi.pro");
+        $("#pulseEffort").textContent = String(state.reasoningEffort || "high");
+        $("#pulseMemory").textContent = String(memoryCount || 0);
+        $("#pulseAudit").textContent = String(auditLines || 0);
+        $("#pulseTurns").textContent = String(messages || 0);
+        $("#pulseCost").textContent = typeof metrics?.cost_usd === "number" && Number.isFinite(metrics.cost_usd) ? `$${metrics.cost_usd.toFixed(4)}` : state.locale === "zh" ? "\u672A\u8BA1\u4EF7" : "unpriced";
+        const setRing = (selector, pct, caption) => {
+          const arc = document.querySelector(`.${selector}`);
+          const valueEl = document.querySelector(`#${selector === "pulse-ring-hit" ? "pulseHitValue" : selector === "pulse-ring-ctx" ? "pulseCtxValue" : "pulseDoneValue"}`);
+          const captionEl = document.querySelector(`#${selector === "pulse-ring-hit" ? "pulseHitCaption" : selector === "pulse-ring-ctx" ? "pulseCtxCaption" : "pulseDoneCaption"}`);
+          const circumference = 2 * Math.PI * 50;
+          const offset = circumference - Math.max(0, Math.min(100, Number(pct || 0))) / 100 * circumference;
+          if (arc) arc.setAttribute("stroke-dashoffset", String(offset));
+          if (valueEl) valueEl.textContent = pct == null ? "\u2014" : `${pct}%`;
+          if (captionEl) captionEl.textContent = caption;
+        };
+        setRing("pulse-ring-hit", hitRate, hitRate == null ? state.locale === "zh" ? "\u672A\u8FD4\u56DE\u7F13\u5B58\u8BA1\u6570" : "no cache counters yet" : `${compactNumber(hit)} / ${compactNumber(hit + miss)} ${state.locale === "zh" ? "\u547D\u4E2D" : "hits"}`);
+        setRing("pulse-ring-ctx", ctxRate, ctxRate == null ? "\u2014" : `${compactNumber(ctxTokens)} / ${compactNumber(ctxLimit)} ${state.locale === "zh" ? "tokens" : "tokens"}`);
+        setRing("pulse-ring-done", doneRate, `${completed} ${state.locale === "zh" ? "\u5DF2\u5B8C\u6210" : "done"} \xB7 ${failed} ${state.locale === "zh" ? "\u5931\u8D25" : "failed"} \xB7 ${cancelled + interrupted} ${state.locale === "zh" ? "\u4E2D\u65AD/\u53D6\u6D88" : "interrupted"}`);
+        const archive = $("#pulseArchiveList");
+        const countEl = $("#pulseArchiveCount");
+        if (archive) {
+          if (!tasks.length) {
+            archive.innerHTML = `<div class="pulse-archive-empty">${escapeHtml(state.locale === "zh" ? "\u8FD8\u6CA1\u6709\u4EFB\u52A1\u8BB0\u5F55" : "No tasks yet")}</div>`;
+          } else {
+            archive.innerHTML = tasks.map((task) => {
+              const tokens = Number(task?.tokens_used?.total_tokens || task?.metrics?.budget?.tokens || 0);
+              const st = String(task?.status || "");
+              const id = String(task?.task_id || "");
+              return `<button type="button" class="pulse-archive-row" data-open-task="${escapeHtml(id)}" data-status="${escapeHtml(st)}"><span class="pulse-archive-status"></span><strong>${escapeHtml(String(task?.preview || task?.prompt || id).slice(0, 72))}</strong><small>${escapeHtml(st)}</small><span class="pulse-archive-tokens">${compactNumber(tokens)}</span></button>`;
+            }).join("");
+          }
+        }
+        if (countEl) countEl.textContent = String(tasks.length);
+        const pill = $("#pulseStatusPill");
+        if (pill) {
+          pill.classList.remove("offline");
+          $("#pulseStatusLabel").textContent = state.locale === "zh" ? "\u5DF2\u8FDE\u63A5" : "connected";
+        }
+      } catch (error) {
+        const pill = $("#pulseStatusPill");
+        if (pill) {
+          pill.classList.add("offline");
+          $("#pulseStatusLabel").textContent = state.locale === "zh" ? "\u672A\u8FDE\u63A5" : "offline";
+        }
+        const archive = $("#pulseArchiveList");
+        if (archive) archive.innerHTML = `<div class="pulse-archive-empty">${escapeHtml(state.locale === "zh" ? "\u8BFB\u53D6\u5931\u8D25\uFF1A" : "Failed to load: ")}${escapeHtml(error.message)}</div>`;
+      }
+    };
+    fetchAll();
+  }
+  function usedModelConfig() {
+    if (typeof state.modelCatalog === "object" && state.modelCatalog) {
+      return state.modelCatalog;
+    }
+    return { gateway: "wkapi.pro" };
   }
   async function openActivityPanel() {
     const current = beginPanelRequest(t("tasks.center"));
@@ -2498,10 +2694,21 @@
     const modelBlock = `<div class="settings-block"><span>${t("panel.model")}</span><div class="settings-model"><select id="modelSelect" aria-label="${escapeHtml(t("panel.model"))}">${modelOptionsMarkup()}</select><button type="button" class="panel-secondary model-refresh" id="refreshModelCatalog" title="${escapeHtml(t("panel.modelRefresh"))}">\u21BB</button></div><small class="settings-note">${escapeHtml(modelNote)}</small></div>`;
     const reasoningBlock = '<div class="settings-block"><span>' + t("panel.reasoning") + '</span><div class="settings-effort"><select id="reasoningEffortSelect" aria-label="' + escapeHtml(t("panel.reasoning")) + '">' + effortMarkup + '</select></div><small class="settings-note">' + escapeHtml(t("panel.reasoningNote")) + "</small></div>";
     const sandboxBlock = '<div class="settings-block"><span>' + t("panel.sandbox") + "</span><strong>" + (state.locale === "zh" ? "\u89C1\u5DE5\u4F5C\u533A\u9762\u677F" : "See Workspaces") + "</strong></div>";
+    const notifyOn = notificationsEnabled();
+    const notifyBlock = '<div class="settings-block"><span>' + t("notify.enable") + '</span><div class="settings-locale"><button class="locale-option notify-toggle ' + (notifyOn ? "active" : "") + '" data-notify="on" type="button">' + t("notify.on") + '</button><button class="locale-option notify-toggle ' + (notifyOn ? "" : "active") + '" data-notify="off" type="button">' + t("notify.off") + '</button></div><small class="settings-note">' + escapeHtml(t("notify.enableHint")) + "</small></div>";
     const rewindBlock = '<div class="settings-block settings-rewind"><span>' + escapeHtml(t("rewind.advanced")) + '</span><form id="rewindForm" class="rewind-form"><label class="rewind-label"><span>' + escapeHtml(t("rewind.keepLabel")) + '</span><input id="rewindKeep" type="number" min="1" value="3" required aria-label="' + escapeHtml(t("rewind.keepLabel")) + '" /></label><button class="send-button rewind-button" type="submit">' + escapeHtml(t("rewind.action")) + '</button></form><small class="settings-note">' + escapeHtml(t("rewind.hint")) + "</small></div>";
     const allowlistBlock = '<div class="settings-block" id="allowlistEditor"><span>' + escapeHtml(t("allowlist.title")) + '</span><small class="settings-note">' + escapeHtml(t("allowlist.hint")) + '</small><form id="allowlistForm" class="allowlist-form"><label><span>' + escapeHtml(t("allowlist.commands")) + '</span><textarea id="allowlistCommands" rows="3"></textarea></label><label><span>' + escapeHtml(t("allowlist.paths")) + '</span><textarea id="allowlistPaths" rows="3"></textarea></label><label><span>' + escapeHtml(t("allowlist.tools")) + '</span><textarea id="allowlistTools" rows="2"></textarea></label><button class="send-button" type="submit">' + escapeHtml(t("allowlist.save")) + "</button></form></div>";
-    openPanel(t("panel.settings"), languageButtons + modelBlock + reasoningBlock + sandboxBlock + rewindBlock + allowlistBlock);
+    openPanel(t("panel.settings"), languageButtons + modelBlock + reasoningBlock + sandboxBlock + notifyBlock + rewindBlock + allowlistBlock);
     bindAllowlistEditor();
+    document.querySelectorAll(".notify-toggle").forEach((button) => {
+      button.addEventListener("click", async () => {
+        const want = button.dataset.notify === "on";
+        const ok = await setNotificationsEnabled(want);
+        const active = want && ok;
+        if (want && !ok) showToast(notificationsBlocked() ? t("notify.denied") : t("notify.unsupported"));
+        document.querySelectorAll(".notify-toggle").forEach((node) => node.classList.toggle("active", node.dataset.notify === "on" === active));
+      });
+    });
     const rewindForm = $("#rewindForm");
     if (rewindForm) {
       rewindForm.addEventListener("submit", async (event) => {
@@ -2607,27 +2814,49 @@
     const metricMarkup = promo.metrics.map((metric) => `<span>${escapeHtml(metric)}</span>`).join("");
     const diffMarkup = promo.diff.map(([marker, line]) => `<span class="promo-diff-line ${marker === "+" ? "add" : marker === "-" ? "del" : "context"}"><b>${escapeHtml(marker)}</b>${escapeHtml(line)}</span>`).join("");
     openPanel(promo.panel, `<article class="promo-page">
+
     <section class="promo-hero">
+
       <div class="promo-hero-copy">
+
         <span class="promo-kicker"><span class="eyebrow-line"></span>${escapeHtml(promo.kicker)}</span>
+
         <h3>${escapeHtml(promo.title)}<br><em>${escapeHtml(promo.accent)}</em></h3>
+
         <p>${escapeHtml(promo.description)}</p>
+
         <div class="promo-actions"><button class="panel-primary promo-cta" data-panel-action="new-task">${escapeHtml(promo.cta)} ${icon("arrow-up-right")}</button><span class="mono">${escapeHtml(promo.ctaNote)}</span></div>
+
         <div class="promo-proof"><span class="proof-avatars"><b>m</b><b>\u2713</b><b>\u2318</b></span><span><strong>${escapeHtml(promo.proofTitle)}</strong><small>${escapeHtml(promo.proofBody)}</small></span></div>
+
       </div>
+
       <div class="promo-hero-preview" aria-label="${escapeHtml(promo.previewLabel)}">
+
         <div class="promo-preview-head"><span class="terminal-dot coral"></span><span class="terminal-dot amber"></span><span class="terminal-dot mint"></span><span class="mono">${escapeHtml(promo.previewLabel)}</span><span class="console-live"><i></i> ${escapeHtml(promo.live)}</span></div>
+
         <div class="promo-preview-task"><span class="promo-preview-icon">${icon("sparkles")}</span><span><strong>${escapeHtml(promo.taskLabel)}</strong><small>${escapeHtml(promo.taskMeta)}</small></span><span class="promo-preview-check">${icon("radio")}</span></div>
+
         <div class="promo-metrics">${metricMarkup}</div>
+
         <div class="promo-phase-list">${phaseMarkup}</div>
+
         <div class="promo-diff"><div><span class="mono">${escapeHtml(promo.diffLabel)}</span><span class="promo-diff-state">\u25CF LIVE</span></div><pre>${diffMarkup}</pre></div>
+
       </div>
+
     </section>
+
     <section class="promo-section">
+
       <div class="promo-section-head"><span class="promo-kicker">${escapeHtml(promo.sectionKicker)}</span><h4>${escapeHtml(promo.sectionTitle)}</h4><p>${escapeHtml(promo.sectionBody)}</p></div>
+
       <div class="promo-grid">${capabilityMarkup}</div>
+
     </section>
+
     <section class="promo-bottom"><div><span class="promo-kicker">${escapeHtml(promo.bottomKicker)}</span><h4>${escapeHtml(promo.bottomTitle)} <em>${escapeHtml(promo.bottomAccent)}</em></h4><p>${escapeHtml(promo.bottomBody)}</p></div><button class="panel-secondary promo-cta" data-panel-action="new-task">${escapeHtml(promo.bottomCta)} ${icon("arrow-right")}</button></section>
+
   </article>`);
   }
   function openOptionsPanel() {
@@ -5412,6 +5641,10 @@
     document.querySelectorAll(".seed-card").forEach((card) => card.addEventListener("click", () => window.selectPlant?.(card)));
     window.addEventListener("keydown", (event) => {
       if (event.key === "Escape") {
+        if ($("#pulseStage")?.getAttribute("aria-hidden") === "false") {
+          $("#pulseStage").setAttribute("aria-hidden", "true");
+          return;
+        }
         const arcade = window.game;
         if ($("#gameModal")?.classList.contains("show") && (arcade?.selected || arcade?.shovel)) {
           window.clearPlantSelection?.();
@@ -5592,6 +5825,7 @@
       } else if (view === "workspaces") openWorkspacesPanel();
       else if (view === "promo") openPromoPanel();
       else if (view === "activity") openActivityPanel();
+      else if (view === "pulse") openPulseStage();
       else if (view === "ledger") openLedgerPanel();
       else if (view === "arcade") openArcade().catch((error) => showToast(error.message));
       else closePanel();
