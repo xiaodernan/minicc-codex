@@ -49917,3 +49917,54 @@ Redis 拓扑、任务计数，但没有任何面向用户的界面把它们摊�
 
 - 合成按 sRGB 直算（WCAG 公式同域）；`color-mix` 仅支持 `in srgb` 两参形式，其余背景写法回落旧路径。
 - pulse 在制品其余部分（2277 行 stream.js 重写）按用户授权原样接手提交，未逐行审读其业务逻辑——门是护栏，不是审读的替代。
+
+## 批次 897 - M8-T897：工具调用流式进度 — 规划轮不再静默（"显示非流"的根因修正）
+
+### 缺什么
+
+用户报"调用 API 缓存命中率低、一直显示非流"。三面实测定案：
+
+1. **缓存命中率"低"是上报结构假象**。同一前缀、同一密钥、同一模型（gpt-6-sol @ wkapi.pro/v1）：
+   chat/completions 端点非流 25.4s → 流式 3.4s（7.5 倍加速，缓存实际在工作），但
+   `prompt_tokens_details` 一律 `null`——网关在 chat/completions 形态下根本不上报缓存明细；
+   **Responses 端点**则如实回 `input_tokens_details.cached_tokens`（首查 0 → 次查 515/712 = 72.3%）。
+   项目主链路已是 Responses 协议，前端缓存环对 null 已有灰态"未上报"（不造假 0%）。命中率数字本身：
+   真实端到端任务聚合 42.4%（2 轮冷启）→ 83.7%（3 轮 + 网关暖缓存）——命中是真实的，显示是诚实的。
+2. **"非流感"的真根因**：规划轮（工具调用轮）的 Responses 流里，网关发的是
+   `response.output_item.added`（function_call）与 `response.function_call_arguments.delta`，
+   而 `_create_responses_stream` 只转发 `response.output_text.delta`——整个规划轮零可见事件，
+   SSE 全程只有最后答案那 1 个 delta。
+3. 探针数据：工具调用轮实测事件类型表确认网关还发 `function_call_arguments.done`；
+   reasoning 摘要 delta（`response.reasoning_*`）本网关不发，但别的网关会发——值得兼容。
+
+### 处置
+
+- `_create_responses_stream` 事件循环扩容：`output_item.added`（function_call）→
+  `provider_tool_call_start`（工具名）；`function_call_arguments.delta` → 节流 0.5s 的
+  `provider_tool_call_progress`（累计参数字符数）；`function_call_arguments.done` → 带全量字符数的
+  收尾进度；`reasoning_summary_text.delta` / `reasoning_text.delta` → 节流的
+  `provider_reasoning_progress`。全部走状态通道（`_emit_provider_progress`，status=ok、
+  失败静默），**绝不碰 on_delta**——答案流保持字节干净，参数 JSON 不进对话。
+- 前端 traceLabel 双语表补三个码：工具调用生成 / 工具参数流式 / 推理进行中（en 同步）。
+- 测试：`test_tool_call_progress_rides_status_channel_not_answer_stream`（答案流零污染 +
+  start/progress/done 三态断言）、`test_reasoning_summary_progress_throttled_and_answer_clean`
+  （推理 delta 计数上状态通道、答案文本照常 on_delta）。
+- 并轨会话在 tests/test_packaging.py 留了一个真修复（打包探针 venv 的 PYTHONPATH 指回仓库
+  site-packages，离线解析 wheel 依赖）但整文件重写成 CRLF——按本仓行尾公约还原为 LF 后收编。
+
+### 证据与门
+
+- 真实端到端（gpt-6-sol @ wkapi.pro/v1，read_file 工具轮）：SSE 里
+  `provider_tool_call_start` ×1（"正在生成工具调用 read_file"）+ `provider_tool_call_progress` ×2，
+  `stream_delta` 从 1 → 13；任务 44.7s 完成，agent 聚合命中率 83.7%
+  （hit 14,208 / miss 2,765 / write 2,261）。
+- 三道门：`pytest tests/test_responses_streaming.py -q` 6 绿；`scripts/doc_pointers.py --check` 绿；
+  `npm run check:web` 绿（web/app.js 467,921 字节，3 个内容寻址包干净）。
+
+### 边界
+
+- 进度节流间隔 0.5s 是常数（`PROVIDER_PROGRESS_INTERVAL`），不做成配置——先让行为正确，
+  有人真需要再调。
+- chat/completions 协议下工具调用进度不转发（该端点没有等价的事件粒度）；
+  envelope 模式维持原子路径不动。
+- 网关不发 reasoning 摘要时该通道自然零事件，前端无空卡片。

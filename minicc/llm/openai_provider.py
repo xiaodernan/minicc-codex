@@ -25,6 +25,7 @@ import asyncio
 import hashlib
 import inspect
 import json
+import time
 from collections.abc import Callable
 from typing import Any
 from urllib.parse import urlparse
@@ -155,6 +156,10 @@ def _stream_retryable() -> tuple[type[BaseException], ...]:
         _stream_retryable_cache = _retryable() + http_part + httpcore_part
     return _stream_retryable_cache
 _BUILTIN_STREAM_RETRYABLE = (ConnectionError, TimeoutError)
+# M8-T897: tool-call/reasoning progress rides the status channel at most
+# twice a second - enough to keep the workbench visibly alive during a
+# multi-second planning turn, cheap enough not to flood the task timeline.
+PROVIDER_PROGRESS_INTERVAL = 0.5
 _MALFORMED_RESPONSE_HINTS = (
     "expecting value",
     "expecting property name enclosed",
@@ -1009,6 +1014,13 @@ class OpenAICompatibleProvider:
 
         async def _attempt() -> LLMResponse:
             emitted["chars"] = 0
+            # M8-T897: planning turns emit function calls, not text - without
+            # this bookkeeping the model turn is radio silence for tens of
+            # seconds and the workbench reads as "not streaming".  Tool-call
+            # progress rides the status channel (trace events), never
+            # on_delta, so the answer stream stays byte-clean.
+            tool_progress = {"tool": "", "chars": 0, "last": 0.0, "announced": False}
+            reasoning_progress = {"chars": 0, "last": 0.0}
             stream_kwargs = dict(kwargs)
             stream_kwargs["stream"] = True
             stream = await self._active_client().responses.create(**stream_kwargs)
@@ -1021,6 +1033,51 @@ class OpenAICompatibleProvider:
                         if delta:
                             emitted["chars"] += len(delta)
                             on_delta(delta)
+                    elif event_type == "response.output_item.added":
+                        item = getattr(event, "item", None)
+                        if item is not None and str(getattr(item, "type", "") or "") == "function_call":
+                            tool_progress["tool"] = str(getattr(item, "name", "") or "")
+                            tool_progress["chars"] = 0
+                            tool_progress["announced"] = True
+                            self._emit_provider_progress(
+                                "provider_tool_call_start",
+                                f"正在生成工具调用 {tool_progress['tool']}" if tool_progress["tool"] else "正在生成工具调用",
+                                {"tool": tool_progress["tool"]},
+                            )
+                    elif event_type == "response.function_call_arguments.delta":
+                        delta = str(getattr(event, "delta", "") or "")
+                        if delta:
+                            tool_progress["chars"] += len(delta)
+                            now = time.monotonic()
+                            if now - tool_progress["last"] >= PROVIDER_PROGRESS_INTERVAL:
+                                tool_progress["last"] = now
+                                self._emit_provider_progress(
+                                    "provider_tool_call_progress",
+                                    f"工具参数流式生成中 · {tool_progress['tool'] or '?'} · {tool_progress['chars']} 字符",
+                                    {"tool": tool_progress["tool"], "chars": tool_progress["chars"]},
+                                )
+                    elif event_type == "response.function_call_arguments.done":
+                        if tool_progress["announced"] and tool_progress["chars"]:
+                            self._emit_provider_progress(
+                                "provider_tool_call_progress",
+                                f"工具调用已成形 · {tool_progress['tool'] or '?'} · {tool_progress['chars']} 字符",
+                                {"tool": tool_progress["tool"], "chars": tool_progress["chars"], "done": True},
+                            )
+                    elif event_type in {
+                        "response.reasoning_summary_text.delta",
+                        "response.reasoning_text.delta",
+                    }:
+                        delta = str(getattr(event, "delta", "") or "")
+                        if delta:
+                            reasoning_progress["chars"] += len(delta)
+                            now = time.monotonic()
+                            if now - reasoning_progress["last"] >= PROVIDER_PROGRESS_INTERVAL:
+                                reasoning_progress["last"] = now
+                                self._emit_provider_progress(
+                                    "provider_reasoning_progress",
+                                    f"推理进行中 · {reasoning_progress['chars']} 字符",
+                                    {"chars": reasoning_progress["chars"]},
+                                )
                     elif event_type in {"response.completed", "response.incomplete", "response.failed"}:
                         final = getattr(event, "response", None)
                 if final is None:
@@ -1188,6 +1245,33 @@ class OpenAICompatibleProvider:
             return await self._active_client().chat.completions.create(**kwargs)
 
         return await retryer(_attempt)
+
+    def _emit_provider_progress(self, code: str, summary: str, detail: dict[str, Any]) -> None:
+        """One throttled planning-turn progress event on the status channel.
+
+        M8-T897: the responses stream answers a tool-call turn with
+        ``function_call_arguments.delta`` events that carry no answer text -
+        before this channel existed the workbench sat silent for the whole
+        planning turn and read as a non-streaming gateway.  Progress must
+        never fail the turn, so every failure path stays silent.
+        """
+        if self._on_status is None:
+            return
+        try:
+            from ..agent.protocol import PHASE_PLANNING
+
+            self._on_status(trace_event(
+                name="provider",
+                status="ok",
+                phase=PHASE_PLANNING,
+                code=code,
+                summary=summary,
+                detail=detail,
+            ))
+        except Exception:
+            # Progress reporting must never turn a streaming model turn
+            # into a task failure - same contract as _emit_request_retry.
+            return
 
     def _emit_request_retry(self, retry_state: RetryCallState) -> None:
         from ..agent.protocol import PHASE_PLANNING

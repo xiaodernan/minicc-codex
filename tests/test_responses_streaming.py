@@ -169,3 +169,87 @@ async def test_atomic_path_unchanged_without_delta_callback() -> None:
     await provider.close()
     assert response.text == "一次性返回"
     assert len(calls) == 1
+
+
+def _completed_tool_response() -> SimpleNamespace:
+    return SimpleNamespace(
+        id="resp-tool-1",
+        status="completed",
+        model="test-model",
+        output=[
+            SimpleNamespace(
+                type="function_call",
+                name="ls",
+                call_id="call-1",
+                arguments='{"path": "."}',
+            ),
+        ],
+        usage=SimpleNamespace(
+            input_tokens=100,
+            output_tokens=20,
+            input_tokens_details=SimpleNamespace(cached_tokens=0),
+        ),
+    )
+
+
+@pytest.mark.asyncio()
+async def test_tool_call_progress_rides_status_channel_not_answer_stream() -> None:
+    """M8-T897: planning turns stream tool-call progress, answer stays clean."""
+    provider = _provider()
+    events = [
+        SimpleNamespace(
+            type="response.output_item.added",
+            item=SimpleNamespace(type="function_call", name="ls", call_id="call-1"),
+        ),
+        SimpleNamespace(type="response.function_call_arguments.delta", delta='{"'),
+        SimpleNamespace(type="response.function_call_arguments.delta", delta='path"'),
+        SimpleNamespace(type="response.function_call_arguments.done", arguments='{"path": "."}'),
+        SimpleNamespace(type="response.completed", response=_completed_tool_response()),
+    ]
+    calls: list[dict] = []
+    provider._client = SimpleNamespace(responses=FakeResponsesAPI(events, calls))
+    traces: list[dict] = []
+    provider._on_status = traces.append
+    deltas: list[str] = []
+    response = await provider.chat(
+        [{"role": "user", "content": "list files"}],
+        tools=[{"type": "function", "function": {"name": "ls", "description": "list", "parameters": {"type": "object", "properties": {}}}}],
+        on_delta=deltas.append,
+    )
+    await provider.close()
+    # The answer stream never saw tool-call JSON fragments.
+    assert deltas == []
+    # The status channel announced the forming call and its progress.
+    codes = [str(t.get("code")) for t in traces]
+    assert "provider_tool_call_start" in codes
+    assert "provider_tool_call_progress" in codes
+    start = next(t for t in traces if t.get("code") == "provider_tool_call_start")
+    assert start["detail"]["tool"] == "ls"
+    done = [t for t in traces if t.get("code") == "provider_tool_call_progress" and t["detail"].get("done")]
+    assert done and done[-1]["detail"]["chars"] == len('{"path"')
+    assert response.tool_calls and response.tool_calls[0]["function"]["name"] == "ls"
+
+
+@pytest.mark.asyncio()
+async def test_reasoning_summary_progress_throttled_and_answer_clean() -> None:
+    """M8-T897: reasoning-summary deltas (gateways that emit them) count
+    progress on the status channel without touching the answer stream."""
+    provider = _provider()
+    events = [
+        SimpleNamespace(type="response.reasoning_summary_text.delta", delta="想"),
+        SimpleNamespace(type="response.reasoning_summary_text.delta", delta="考"),
+        SimpleNamespace(type="response.reasoning_text.delta", delta="更深"),
+        SimpleNamespace(type="response.output_text.delta", delta="答案"),
+        SimpleNamespace(type="response.completed", response=_completed_response("答案")),
+    ]
+    calls: list[dict] = []
+    provider._client = SimpleNamespace(responses=FakeResponsesAPI(events, calls))
+    traces: list[dict] = []
+    provider._on_status = traces.append
+    deltas: list[str] = []
+    response = await provider.chat([{"role": "user", "content": "hi"}], on_delta=deltas.append)
+    await provider.close()
+    codes = [str(t.get("code")) for t in traces]
+    assert codes.count("provider_reasoning_progress") >= 1
+    assert deltas == ["答案"]
+    assert response.text == "答案"
