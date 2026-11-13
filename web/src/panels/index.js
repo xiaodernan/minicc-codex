@@ -1,4 +1,5 @@
 import { requestJson } from "../core/transport.js";
+import { cacheTurnSeries, cacheTurnTone } from "../core/cache-series.js";
 import { activateDialog, deactivateDialog } from "../core/dialog.js";
 // ES module source for the minicc workbench. Bundled by scripts/build-web.mjs.
 import { attachmentMarkup, escapeHtml, executionTrailMarkup, formatBytes, formatLightText, formatText, persistSessionView, renderSession } from "../chat/markdown.js";
@@ -1122,6 +1123,28 @@ export function cacheDonut(data, px = 34) {
   return `<span class="cache-donut cache-donut-${tone}" role="img" aria-label="${escapeHtml(t("tasks.cache"))} ${pct}%"${style}><svg viewBox="0 0 42 42" aria-hidden="true"><circle class="cache-donut-track" cx="21" cy="21" r="15.9155" pathLength="100" /><circle class="cache-donut-arc" cx="21" cy="21" r="15.9155" pathLength="100" stroke-dasharray="${pct} 100" /></svg><b>${pct}%</b></span>`;
 }
 
+// M8-T899: one bar per model call, straight from usage_by_turn. Call #1
+// pays full price, the calls after it ride the prefix cache - the story
+// the aggregate ring averages away.
+export function cacheTurnSparkline(usageByTurn) {
+  const series = cacheTurnSeries(usageByTurn);
+  if (!series.length) return "";
+  const W = 12;
+  const GAP = 3;
+  const H = 34;
+  const bars = series.map((point, i) => {
+    const tone = cacheTurnTone(point.rate);
+    const height = point.rate == null ? 3 : Math.max(3, Math.round(point.rate * H));
+    const x = i * (W + GAP);
+    const y = H - height;
+    const pct = point.rate == null ? "—" : `${Math.round(point.rate * 100)}%`;
+    const title = `#${i + 1} ${point.kind} · ${pct} · ${compactNumber(point.hit)}/${compactNumber(point.miss)}`;
+    return `<rect x="${x}" y="${y}" width="${W}" height="${height}" rx="2" class="cache-series-bar cache-series-${tone}"><title>${escapeHtml(title)}</title></rect>`;
+  }).join("");
+  const width = series.length * (W + GAP) - GAP;
+  return `<div class="cache-series"><span class="cache-series-label">${escapeHtml(t("ledger.perCallTitle"))}</span><svg viewBox="0 0 ${width} ${H}" role="img" aria-label="${escapeHtml(t("ledger.perCallTitle"))}">${bars}</svg></div>`;
+}
+
 export function isCurrentTaskScope(data) {
   if (!data?.task_id) return true;
   if (String(data.session_id || "") !== String(state.sessionId || "")) return false;
@@ -1164,7 +1187,8 @@ export function runtimeMetricsMarkup(data) {
   if (!metrics || typeof metrics !== "object" || (!metrics.workflow && !metrics.verification_runs && !metrics.trace_events)) return "";
   const budget = metrics.budget && typeof metrics.budget === "object" ? metrics.budget : {};
   const duration = formatDuration(metrics.duration_seconds || 0);
-  return `<div><div class="panel-section-title">${escapeHtml(t("tasks.runtime"))}</div><div class="status-grid"><div><span>${escapeHtml(t("tasks.workflow"))}</span><strong>${escapeHtml(String(metrics.workflow || "coding"))}</strong><small>${escapeHtml(String(metrics.phase || data.phase || ""))}</small></div><div><span>${escapeHtml(t("tasks.repairs"))}</span><strong>${escapeHtml(String(metrics.repair_attempts || 0))}</strong><small>${escapeHtml(duration)}</small></div><div><span>${escapeHtml(t("tasks.verifications"))}</span><strong>${escapeHtml(String(metrics.verification_runs || 0))}</strong><small>${escapeHtml(String(metrics.verification_status || ""))}</small></div><div><span>${escapeHtml(t("tasks.cache"))}</span><strong>${cacheDonut(data)}</strong><small>${escapeHtml(String(metrics.cache_status || ""))}</small></div><div><span>${escapeHtml(t("tasks.traces"))}</span><strong>${escapeHtml(String(metrics.trace_events || 0))}</strong><small>${escapeHtml(`${budget.turns || 0} turns · ${budget.tool_calls || 0} tools`)}</small></div></div></div>`;
+  const series = cacheTurnSparkline(data?.usage_by_turn);
+  return `<div><div class="panel-section-title">${escapeHtml(t("tasks.runtime"))}</div><div class="status-grid"><div><span>${escapeHtml(t("tasks.workflow"))}</span><strong>${escapeHtml(String(metrics.workflow || "coding"))}</strong><small>${escapeHtml(String(metrics.phase || data.phase || ""))}</small></div><div><span>${escapeHtml(t("tasks.repairs"))}</span><strong>${escapeHtml(String(metrics.repair_attempts || 0))}</strong><small>${escapeHtml(duration)}</small></div><div><span>${escapeHtml(t("tasks.verifications"))}</span><strong>${escapeHtml(String(metrics.verification_runs || 0))}</strong><small>${escapeHtml(String(metrics.verification_status || ""))}</small></div><div><span>${escapeHtml(t("tasks.cache"))}</span><strong>${cacheDonut(data)}</strong><small>${escapeHtml(String(metrics.cache_status || ""))}</small></div><div><span>${escapeHtml(t("tasks.traces"))}</span><strong>${escapeHtml(String(metrics.trace_events || 0))}</strong><small>${escapeHtml(`${budget.turns || 0} turns · ${budget.tool_calls || 0} tools`)}</small></div></div>${series}</div>`;
 }
 
 export function updateInspectorMetrics(data) {

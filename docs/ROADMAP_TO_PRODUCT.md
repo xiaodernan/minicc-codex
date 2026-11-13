@@ -50006,3 +50006,41 @@ T897 把工具调用进度送上了状态通道，但它在 UI 里只是时间�
   （120ms 轮询没赶上），长参数调用（>500 字符）才稳定可见——这是事件粒度的物理，
   不是 bug。
 - 反向扫描 O(最新)，事件列表封顶 MAX_SEEN_EVENT_KEYS，无额外内存代价。
+
+## 批次 899 - M8-T899：逐次调用缓存命中火花线 — usage_by_turn 第一次有了脸
+
+### 缺什么
+
+`usage_by_turn` 在两处被勤勤恳恳地累积（SSE reducer 的 `usage` 分支封顶 64 条、
+任务快照逐任务携带），但没有任何 UI 消费它——缓存口径只剩一个聚合环，冷启动的
+第一轮把均值拖低后，用户看到的就是"命中率一般"。逐次调用的真实故事（第 1 次全价、
+后续骑前缀缓存、completion_judge 独立上下文）被平均掉了。
+
+### 处置
+
+- 新纯模块 `web/src/core/cache-series.js`：`cacheTurnSeries(usageByTurn, cap=24)`——
+  剔除零 prompt 条目、hit+miss 缺失时 rate 为 null（安静短柱，绝不造假 0%）、
+  尾部 24 条封顶；`cacheTurnTone` 四档着色（mint ≥70%、amber ≥40%、rose <40%、quiet）。
+- `cacheTurnSparkline` 渲染内联 SVG 柱，每柱 title 自带 `#n kind · 百分比 · hit/miss`；
+  挂进 `runtimeMetricsMarkup` 单点——任务详情弹窗与检查器运行时指标同时获得，无第二渲染家。
+- i18n `ledger.perCallTitle` 双语；样式四档色齐 + reduced-motion 无关（纯静态 SVG）。
+- CI/包：`npm run test:cacheseries`（node 直接 import 纯模块做真单元断言：rate 序列、
+  kind 透传、null 档、封顶），`.github/workflows/ci.yml` 补 node --check 与执行两行。
+- 冒烟测试里 i18n 列解析前先 `\r\n → \n` 归一化——CRLF-native 文件在 node 的
+  readFile 里保持原样，而 Python 门用 universal newlines，两种读者首次同框。
+
+### 证据与门
+
+- 真实浏览器探针（Playwright @ 8791，真实任务 task-86139722aac3）：活动面板 →
+  任务详情按钮（data-open-detail 委托）→ 弹窗内火花线 3 柱全 mint：
+  `#1 agent · 98% · 7.3k/144`、`#2 agent · 95% · 7.2k/371`、
+  `#3 completion_judge · 73% · 4.9k/1.8k`；截图 `output/sparkline_taskdetail.png` 目检通过
+  （缓存环 89% 与逐柱呼应）。
+- `npm run test:cacheseries` PASS；`npm run check:web` 绿（web/app.js 472,088 字节）；
+  ci.yml YAML 解析通过。
+
+### 边界
+
+- 网关不上报 hit/miss 时该柱是 quiet 短柱——诚实降级，与缓存环的"未上报"灰态同一口径。
+- 列表端点（/api/tasks?limit=N）是轻投影不带 usage_by_turn，详情弹窗走单任务端点才拿得到
+  ——火花线只活在详情与运行时指标里，列表视图不渲染空块。

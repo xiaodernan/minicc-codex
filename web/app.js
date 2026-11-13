@@ -703,6 +703,7 @@
       "ledger.redisTitle": "\u7F13\u5B58\u540E\u7AEF",
       "ledger.redisLocal": "\u672C\u5730 LRU\uFF08Redis \u672A\u542F\u7528\uFF09",
       "ledger.redisLive": "Redis \u5B9E\u65F6\u540E\u7AEF",
+      "ledger.perCallTitle": "\u9010\u6B21\u8C03\u7528\u7F13\u5B58\u547D\u4E2D",
       "ledger.costPartial": "\u90E8\u5206\u6A21\u578B\u672A\u5B9A\u4EF7\uFF0C\u603B\u989D\u6309 0 \u4F30\u7B97",
       "pulse.title": "\u5DE5\u4F5C\u533A\u8109\u640F",
       "pulse.subtitle": "\u5B9E\u65F6\u8BFB\u6570 \xB7 \u6BCF\u4E2A\u6570\u5B57\u6765\u81EA\u771F\u5B9E\u4EFB\u52A1",
@@ -1171,6 +1172,7 @@
       "ledger.redisTitle": "Cache backend",
       "ledger.redisLocal": "Local LRU (Redis not live)",
       "ledger.redisLive": "Redis live backend",
+      "ledger.perCallTitle": "Per-call cache hits",
       "ledger.costPartial": "Some models unpriced; estimate is a floor",
       "pulse.title": "Workspace pulse",
       "pulse.subtitle": "Live counters \xB7 every number from real tasks",
@@ -1378,6 +1380,38 @@
   }
   function refreshIcons(root = document) {
     applyIcons(root);
+  }
+
+  // web/src/core/cache-series.js
+  var CAP = 24;
+  function cacheTurnSeries(usageByTurn, cap = CAP) {
+    const rows = Array.isArray(usageByTurn) ? usageByTurn : [];
+    const parsed = [];
+    for (const row of rows) {
+      if (!row || typeof row !== "object") continue;
+      const prompt = Number(row.prompt_tokens) || 0;
+      if (prompt <= 0) continue;
+      const hit = Number(row.prompt_cache_hit_tokens) || 0;
+      const miss = Number(row.prompt_cache_miss_tokens) || 0;
+      const write = Number(row.prompt_cache_write_tokens) || 0;
+      const base = hit + miss > 0 ? hit + miss : 0;
+      const rate = base > 0 ? Math.min(1, hit / base) : null;
+      parsed.push({
+        kind: String(row.kind || "agent"),
+        prompt,
+        hit,
+        miss,
+        write,
+        rate
+      });
+    }
+    return parsed.slice(-cap);
+  }
+  function cacheTurnTone(rate) {
+    if (rate == null || !Number.isFinite(rate)) return "quiet";
+    if (rate >= 0.7) return "mint";
+    if (rate >= 0.4) return "amber";
+    return "rose";
   }
 
   // web/src/core/dialog.js
@@ -4052,6 +4086,24 @@
     const tone = rate >= 0.7 ? "good" : rate >= 0.4 ? "mid" : "low";
     return `<span class="cache-donut cache-donut-${tone}" role="img" aria-label="${escapeHtml(t("tasks.cache"))} ${pct}%"${style}><svg viewBox="0 0 42 42" aria-hidden="true"><circle class="cache-donut-track" cx="21" cy="21" r="15.9155" pathLength="100" /><circle class="cache-donut-arc" cx="21" cy="21" r="15.9155" pathLength="100" stroke-dasharray="${pct} 100" /></svg><b>${pct}%</b></span>`;
   }
+  function cacheTurnSparkline(usageByTurn) {
+    const series = cacheTurnSeries(usageByTurn);
+    if (!series.length) return "";
+    const W = 12;
+    const GAP = 3;
+    const H = 34;
+    const bars = series.map((point, i) => {
+      const tone = cacheTurnTone(point.rate);
+      const height = point.rate == null ? 3 : Math.max(3, Math.round(point.rate * H));
+      const x = i * (W + GAP);
+      const y = H - height;
+      const pct = point.rate == null ? "\u2014" : `${Math.round(point.rate * 100)}%`;
+      const title = `#${i + 1} ${point.kind} \xB7 ${pct} \xB7 ${compactNumber(point.hit)}/${compactNumber(point.miss)}`;
+      return `<rect x="${x}" y="${y}" width="${W}" height="${height}" rx="2" class="cache-series-bar cache-series-${tone}"><title>${escapeHtml(title)}</title></rect>`;
+    }).join("");
+    const width = series.length * (W + GAP) - GAP;
+    return `<div class="cache-series"><span class="cache-series-label">${escapeHtml(t("ledger.perCallTitle"))}</span><svg viewBox="0 0 ${width} ${H}" role="img" aria-label="${escapeHtml(t("ledger.perCallTitle"))}">${bars}</svg></div>`;
+  }
   function isCurrentTaskScope(data) {
     if (!data?.task_id) return true;
     if (String(data.session_id || "") !== String(state.sessionId || "")) return false;
@@ -4090,7 +4142,8 @@
     if (!metrics || typeof metrics !== "object" || !metrics.workflow && !metrics.verification_runs && !metrics.trace_events) return "";
     const budget = metrics.budget && typeof metrics.budget === "object" ? metrics.budget : {};
     const duration = formatDuration(metrics.duration_seconds || 0);
-    return `<div><div class="panel-section-title">${escapeHtml(t("tasks.runtime"))}</div><div class="status-grid"><div><span>${escapeHtml(t("tasks.workflow"))}</span><strong>${escapeHtml(String(metrics.workflow || "coding"))}</strong><small>${escapeHtml(String(metrics.phase || data.phase || ""))}</small></div><div><span>${escapeHtml(t("tasks.repairs"))}</span><strong>${escapeHtml(String(metrics.repair_attempts || 0))}</strong><small>${escapeHtml(duration)}</small></div><div><span>${escapeHtml(t("tasks.verifications"))}</span><strong>${escapeHtml(String(metrics.verification_runs || 0))}</strong><small>${escapeHtml(String(metrics.verification_status || ""))}</small></div><div><span>${escapeHtml(t("tasks.cache"))}</span><strong>${cacheDonut(data)}</strong><small>${escapeHtml(String(metrics.cache_status || ""))}</small></div><div><span>${escapeHtml(t("tasks.traces"))}</span><strong>${escapeHtml(String(metrics.trace_events || 0))}</strong><small>${escapeHtml(`${budget.turns || 0} turns \xB7 ${budget.tool_calls || 0} tools`)}</small></div></div></div>`;
+    const series = cacheTurnSparkline(data?.usage_by_turn);
+    return `<div><div class="panel-section-title">${escapeHtml(t("tasks.runtime"))}</div><div class="status-grid"><div><span>${escapeHtml(t("tasks.workflow"))}</span><strong>${escapeHtml(String(metrics.workflow || "coding"))}</strong><small>${escapeHtml(String(metrics.phase || data.phase || ""))}</small></div><div><span>${escapeHtml(t("tasks.repairs"))}</span><strong>${escapeHtml(String(metrics.repair_attempts || 0))}</strong><small>${escapeHtml(duration)}</small></div><div><span>${escapeHtml(t("tasks.verifications"))}</span><strong>${escapeHtml(String(metrics.verification_runs || 0))}</strong><small>${escapeHtml(String(metrics.verification_status || ""))}</small></div><div><span>${escapeHtml(t("tasks.cache"))}</span><strong>${cacheDonut(data)}</strong><small>${escapeHtml(String(metrics.cache_status || ""))}</small></div><div><span>${escapeHtml(t("tasks.traces"))}</span><strong>${escapeHtml(String(metrics.trace_events || 0))}</strong><small>${escapeHtml(`${budget.turns || 0} turns \xB7 ${budget.tool_calls || 0} tools`)}</small></div></div>${series}</div>`;
   }
   function updateInspectorMetrics(data) {
     if (!data) return;

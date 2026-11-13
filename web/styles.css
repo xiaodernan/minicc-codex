@@ -532,6 +532,16 @@ button { color: inherit; }
 @keyframes toolstream-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .toolstream-chip:not([data-done])::after, .toolstream-chip:not([data-done]) svg { animation: none; } }
 
+/* M8-T899: per-call cache-hit sparkline — one bar per model call, fed by
+   usage_by_turn. Mint rides the prefix cache; rose pays full price. */
+.cache-series { align-items: flex-end; display: flex; gap: 10px; margin-top: 10px; max-width: 420px; }
+.cache-series-label { color: var(--quiet); flex: 0 0 auto; font: 11px "DM Mono", Consolas, monospace; padding-bottom: 2px; }
+.cache-series svg { flex: 0 1 auto; height: 34px; min-width: 0; }
+.cache-series-bar.cache-series-mint { fill: var(--mint); }
+.cache-series-bar.cache-series-amber { fill: var(--amber); }
+.cache-series-bar.cache-series-rose { fill: var(--rose); }
+.cache-series-bar.cache-series-quiet { fill: var(--line-bright); }
+
 .inspector { border-left: 1px solid var(--line); display: flex; flex-direction: column; overflow-y: auto; overscroll-behavior: contain; padding: 17px 15px 13px; scrollbar-color: var(--line-bright) transparent; scrollbar-width: thin; }
 .inspector::-webkit-scrollbar { width: 8px; }
 .inspector::-webkit-scrollbar-thumb { background: var(--line-bright); border-radius: 8px; }

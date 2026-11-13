@@ -143,6 +143,7 @@ jobs:
           node --check tests/game_entity_registry_smoke.mjs
           node --check tests/frontend_result_entry_caps_one_home_smoke.mjs
           node --check tests/frontend_event_retention_one_home_smoke.mjs
+          node --check tests/frontend_cache_series_one_home_smoke.mjs
           node --check tests/frontend_approval_timeout_one_home_smoke.mjs
           node --check tests/frontend_approval_frame_kinds_one_home_smoke.mjs
           npm run check:web
@@ -167,6 +168,7 @@ jobs:
           npm run test:sessionid
           npm run test:context
           npm run test:eventretention
+          npm run test:cacheseries
           npm run test:scale
 
   web-smoke:
