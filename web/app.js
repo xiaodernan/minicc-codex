@@ -4364,6 +4364,14 @@
     $("#cacheMetric").innerHTML = cacheDonut(data, 26);
     $("#compactionMetric").textContent = String(data.compaction_events?.length || 0);
     $("#contextCount").textContent = taskMetrics(data);
+    const slot = $("#pulseCacheSeries");
+    if (slot) {
+      const markup = cacheTurnSparkline(data.usage_by_turn);
+      if (slot.innerHTML !== markup) {
+        slot.innerHTML = markup;
+        slot.hidden = !markup;
+      }
+    }
   }
   var TOOL_STREAM_CODES = /^(provider_tool_call_start|provider_tool_call_progress|provider_reasoning_progress)$/;
   function latestToolStreamEvent(data) {

@@ -541,6 +541,9 @@ button { color: inherit; }
 .cache-series-bar.cache-series-amber { fill: var(--amber); }
 .cache-series-bar.cache-series-rose { fill: var(--rose); }
 .cache-series-bar.cache-series-quiet { fill: var(--line-bright); }
+/* M8-T902: the pulse card's live instance — same bars, tighter fit. */
+.pulse-cache-series .cache-series { margin-top: 6px; }
+.pulse-cache-series[hidden] { display: none; }
 
 .inspector { border-left: 1px solid var(--line); display: flex; flex-direction: column; overflow-y: auto; overscroll-behavior: contain; padding: 17px 15px 13px; scrollbar-color: var(--line-bright) transparent; scrollbar-width: thin; }
 .inspector::-webkit-scrollbar { width: 8px; }

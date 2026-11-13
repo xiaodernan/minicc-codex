@@ -51,8 +51,10 @@ assert.equal(cacheTurnSeries(many).length, 24, "series capped at 24 bars");
 // --- one render home -------------------------------------------------------
 
 const panels = await readFile(PANELS, "utf8");
-assert.equal(panels.split("cacheTurnSparkline(").length - 1, 2, "one definition + exactly one call site inside runtimeMetricsMarkup");
-assert.match(panels, /cacheTurnSparkline\(data\?\.usage_by_turn\)/, "runtimeMetricsMarkup is the render home");
+assert.equal(panels.split("cacheTurnSparkline(").length - 1, 3, "one definition + two call sites (task detail via runtimeMetricsMarkup, pulse card live slot)");
+assert.match(panels, /cacheTurnSparkline\(data\?\.usage_by_turn\)/, "runtimeMetricsMarkup is the task-detail render home");
+assert.match(panels, /cacheTurnSparkline\(data\.usage_by_turn\)/, "updateInspectorMetrics feeds the pulse card live slot");
+assert.match(panels, /slot\.innerHTML !== markup/, "the live slot repaints only when the series actually changed");
 assert.equal(panels.split("cacheTurnSeries(").length - 1, 1, "the pure module is called exactly once (inside cacheTurnSparkline)");
 
 const reducer = await readFile(REDUCER, "utf8");

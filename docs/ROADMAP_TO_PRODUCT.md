@@ -50179,3 +50179,43 @@ _emit_provider_progress(
 - `node tests/frontend_trace_code_one_home_smoke.mjs` → **M8-T556 ok**（96 minted codes 全有中英文标签）
 - `git diff --stat`：65 行（原 3190 行行尾噪声已归位 LF）
 - 再次验证 line endings：current CRLF=0, LF=1595（与 HEAD 一致）
+
+## 批次 902 - M8-T902：脉搏卡新增「逐次调用缓存火花线」—— 通话中看见第 1 次调用全价、后续调用逐次命中
+
+### 1 为什么
+
+逐次调用缓存火花线已经出现在「缓存账本」的面板里，但它那里只有任务**完成后**才能打开。
+任务运行中的那一刻，用量事件是经 SSE 流式到达的——`updateInspectorMetrics` 每个 usage 事件都会重绘
+`#tokenMetric` / `#cacheMetric` / `#compactionMetric`，却把火花线排除在外。用户看到的依然是
+"非流感"：缓存命中率要么没有数字、要么有数字却没有形状。这一批让脉搏卡本身也长出这根火花线。
+
+### 2 做了什么
+
+- `web/index.html` — 脉搏卡底部新增 `<div class="pulse-cache-series" id="pulseCacheSeries" hidden>`，
+  放在 `.pulse-compaction` 之后；`pulse-card` 内顺序与既有 `#cacheMetric` 一致。
+- `web/src/panels/index.js` — `updateInspectorMetrics` 末尾新增：
+  `const slot = $("#pulseCacheSeries");` — 有 `#pulseCacheSeries` 才绘制；
+  `cacheTurnSparkline(data.usage_by_turn)` 取与完成态账本**同一个渲染函数**；
+  `slot.innerHTML !== markup` 字符串比对防止 dock 高频重绘时无意义地重排火花线；
+  没有数据时 `slot.hidden = true`，卡片不留空洞。
+- `web/styles.css` — `.pulse-cache-series .cache-series { margin-top: 6px }`（贴紧 pulse-compaction）
+  与 `.pulse-cache-series[hidden] { display: none }` 的兜底。
+- `tests/frontend_cache_series_one_home_smoke.mjs` — 门测试从 "定义 1 次 + 调用 1 次" 扩宽为
+  "定义 1 次 + 调用 2 次"：`runtimeMetricsMarkup`（任务详情模态）与 `updateInspectorMetrics`（任务运行中
+  脉搏卡）两处；新增对 `slot.innerHTML !== markup` 守卫与 `cacheTurnSparkline(data.usage_by_turn)`
+  无 `?` 写法的断言，防止回退。
+- 重建前端 bundle：`web/app.js` / `web/asset-manifest.json` / `web/assets/app.3375e565c2b0050d.js` /
+  `web/assets/styles.0a12e503a54bbd03.css`（`scripts/build-web.mjs` 稳定可复现，同 hash 两次构建一致）。
+
+### 3 验证
+
+- `node tests/frontend_cache_series_one_home_smoke.mjs` → `cache-series smoke: PASS`（exit 0）
+- `node scripts/build-web.mjs` 二次运行后 `git status` 不再变化（hash 稳定）
+- 端到端行为：控制台每个 `usage` SSE 事件触发 `updateInspectorMetrics` → 火花线即时重绘；
+  首个 usage 事件（全价）可见，前缀缓存生效后条形由左到右逐步转绿。
+
+### 4 文件
+
+`web/index.html`、`web/src/panels/index.js`、`web/styles.css`、
+`tests/frontend_cache_series_one_home_smoke.mjs`、`web/app.js`、`web/asset-manifest.json`、
+`web/assets/app.3375e565c2b0050d.js`、`web/assets/styles.0a12e503a54bbd03.css`

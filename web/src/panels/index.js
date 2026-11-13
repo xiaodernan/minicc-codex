@@ -1201,6 +1201,19 @@ export function updateInspectorMetrics(data) {
   $("#cacheMetric").innerHTML = cacheDonut(data, 26);
   $("#compactionMetric").textContent = String(data.compaction_events?.length || 0);
   $("#contextCount").textContent = taskMetrics(data);
+  // M8-T902: the pulse card carries the per-call cache series live - each
+  // usage event from the SSE stream grows the sparkline while the task runs,
+  // so "call #1 paid full price" is visible in real time, not just in the
+  // finished task's detail modal. Guarded by string compare: the dock
+  // updates far more often than the series actually changes.
+  const slot = $("#pulseCacheSeries");
+  if (slot) {
+    const markup = cacheTurnSparkline(data.usage_by_turn);
+    if (slot.innerHTML !== markup) {
+      slot.innerHTML = markup;
+      slot.hidden = !markup;
+    }
+  }
 }
 
 // M8-T898: the provider now streams tool-call/reasoning progress on the

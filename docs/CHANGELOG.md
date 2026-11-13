@@ -174,3 +174,5 @@
 - **帮助面板快捷键表追上真实键位（M8-T901）**：唯一速查屏漏了 Ctrl/⌘K（面板）与 Ctrl/⌘L（账本）——补全至 8 条且中英同序；新增 `?` 全局键（与 `/` 同输入框守卫）打开帮助，速查表自举可发现。门测试双向对账 handler↔表格。
 
 - **「年鉴」上线（M8-T898）**：侧边栏新增「年鉴」入口——全屏博物馆级展板，五个章节（序章 + 5 章）以真实仓库事实为锚：缓存命中率中的仪表盘、任务总数、tokens 数来自 `/api/metrics`；没有数据时显示 `—`。左侧 rail 导航，每章 6 种不同的版式（lede / stepper / instrument / quote / list / mixed），纯 CSS + SVG 场景，零外部图片。Cmd/⌘+K 命令面板也可达。欢迎每次 commit 后关掉 index.html 再开浏览器，观察序章到第五章如何讲述同一个故事。
+
+- **脉搏卡实时火花线（M8-T902）**：任务**运行中**，每个 `usage` SSE 事件都会经 `updateInspectorMetrics` 重绘脉搏卡的 token/缓存数字——现在火花线也跟着重绘：每根条形代表一次实际模型调用，第 1 次调用全价付费、前缀缓存生效后逐次转绿，现场可见。实现收敛在既有 `cacheTurnSparkline` 渲染函数（任务详情模态与脉搏卡同一渲染路径），靠字符串比对 `slot.innerHTML !== markup` 防止 dock 高频重绘的无意义 DOM 写入；无数据时自动隐藏。门测试 `frontend_cache_series_one_home_smoke.mjs` 扩宽为 2 个调用点并锁住该守卫。
