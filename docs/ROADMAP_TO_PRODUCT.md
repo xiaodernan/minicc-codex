@@ -48559,3 +48559,51 @@ INSERT 直接抛错——**即使那一行以后永不会被任何查询读到**
   剩余代价就是本次测到的 ~440ms/call（本仓任务行数量级，且 /cost 消费是人工路径）。
 - 唯一不换容忍度的出路是 materialize `session_id` 列——那是 schema migration，需要
   backup+单次 transaction 读校验，本批不做。
+
+## 批次 865 - M8-T865：证据索引的 walk 改成 scandir 直扫 — 消去每条目的对偶探测，
+##                     门也随之精化为"每个目录恰好一次遍历"
+
+### 1 动机
+
+`LocalEvidenceIndex._files()` 用 `os.walk` 收集候选；它把每个 entry 过 `pathlib`，
+×2 次探测/条（`is_symlink` d_type 在文件系统 list 处已答过，事后 `Path.is_symlink()`
+再问一次 lstat；`Path(directory) / name` 每候选一个 `_parse_args` 分配）。然后 `_refresh`
+又对**被接受的文件**做 `path.stat()` 做签名键——同一个 inode 被 stat 问了两次（签名 +
+`is_file` 未问过——is_file 由 scandir d_type 免费回答过）。
+
+### 2 怎么做
+
+新增模块级 `_scandir_walk(root)`：`os.scandir` 直取目录项，`entry.is_dir/is_file/is_symlink`
+由 `d_type` 回答（Windows 目录遍历返属性，零额外 syscall；DT_UNKNOWN 文件系统自动回退
+lstat，语义不变）。`_files()` 其余逻辑逐行对称保留：SKIP_DIRS 剪枝、. 前缀、.minicc 剪枝、
+hidden-dir 剪枝、dirs 的 `is_symlink` 剔除 + `{"docs","tests","benchmarks","scripts"}`
+优先级下沉排序、stop_early、guidance-first、secret-filename 剔除、`sorted(files, key=name)`
+升序、TEXT_SUFFIXES 白名单——下沉顺序、预算耗尽行为、所有 census 语义与旧实现一致。
+
+测试桩升级（`tests/test_retrieval_enhanced.py`）：`os.scandir` 计入 instrument；
+"tree is walked once" 改成**每个目录恰好一次 scandir**：`small=26`、`big=`（含 cwd 自身）
+严格对齐 `directories_walked`；`walk == 0` 显式 pin 新形态；
+`test_the_call_counter_is_the_same_number_on_every_rebuild`、`test_refreshing...`、
+`test_searching...` 同同步。
+
+### 3 证据
+
+```text
+$ cProfile 仅作取证（同一棵树、同一台机）:
+  is_symlink 消失   (d_type 回答，无 lstat 探测)
+  Path.stat counts  2064 -> 966+ (open 期 per-file signature stat 保留)
+  last_build_ms: 冷盘首访抖动大，warm 之后本机实测 5.0-9.6s（不锁断言）
+
+$ cd minicc-codex && python -m pytest tests/test_retrieval_enhanced.py \
+    tests/test_index_census.py tests/test_retrieval_eval.py -q
+43 passed
+```
+
+**诚实边界**：墙钟受 NTFS 页缓存影响巨大，前后对比没有确定性；syscall 数量的减少
+是**确定性的**，且在慢 FS（NFS / 9p / bind mount）上更有意义。墙钟数字不作为前后断言。
+
+### 4 没做的
+
+- 没并行化文件读取：磁盘是这活儿的地板，线程在 pagecache 命中时只会更吵
+- 没碰 `path_deny_predicate` / redaction：安全开销不放在 perf trade 里
+- 墙钟不作断言：两个样例都是 NTFS 暖缓存下的噪声带

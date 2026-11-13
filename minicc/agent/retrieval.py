@@ -411,6 +411,31 @@ def _is_denied_by_rules(workspace: Path, rel: str) -> bool:
     return path_deny_predicate(workspace)(rel)
 
 
+def _scandir_walk(root):
+    """Yield ``(directory, dirs, files)`` tuples like ``os.walk(followlinks=False)``.
+
+    ``os.walk`` resolves every entry through ``pathlib`` and the caller then
+    re-probes each one with ``Path.is_file`` / ``Path.is_symlink`` — roughly
+    two extra syscalls per entry on Windows (one ``stat`` + one ``lstat``).
+    ``os.scandir`` hands us the directory entry's attributes for free, so the
+    filter loop never pays for them again; symlinked *files* are surfaced the
+    same way and filtered by the same predicates afterwards.
+
+    Descent order is left to the caller's in-place ``dirs`` mutation, exactly
+    like ``os.walk``, so the budget-exhaustion semantics are unchanged.
+    """
+    try:
+        with os.scandir(root) as iterator:
+            entries = list(iterator)
+    except OSError:
+        return
+    dirs = [entry for entry in entries if entry.is_dir(follow_symlinks=False)]
+    files = [entry for entry in entries if entry.is_file(follow_symlinks=False)]
+    yield str(root), dirs, files
+    for entry in dirs:
+        yield from _scandir_walk(entry.path)
+
+
 class LocalEvidenceIndex:
     def __init__(
         self,
@@ -659,22 +684,29 @@ class LocalEvidenceIndex:
         stopped_early = False
         # Prune before descent: cached browsers, git objects and dependencies
         # must never consume the source-file budget. Prefer code over archives.
-        for directory, dirs, files in os.walk(self.workspace, followlinks=False):
+        for directory, dirs, files in _scandir_walk(self.workspace):
             if directories >= self.max_directories:
                 stopped_early = True
                 break
             directories += 1
             dirs[:] = sorted(
-                (name for name in dirs if name.casefold() not in SKIP_DIRS and not name.startswith(".")
-                 and not (Path(directory) / name).is_symlink()),
-                key=lambda name: (name.casefold() in {"docs", "tests", "benchmarks", "scripts"}, name.casefold()),
+                (entry for entry in dirs
+                 if entry.name.casefold() not in SKIP_DIRS and not entry.name.startswith(".")
+                 and not entry.is_symlink()),
+                key=lambda entry: (entry.name.casefold() in {"docs", "tests", "benchmarks", "scripts"},
+                                   entry.name.casefold()),
             )
-            for name in sorted(files):
-                path = Path(directory) / name
-                if name.startswith(".") or path.suffix.casefold() not in TEXT_SUFFIXES or path.is_symlink():
+            for entry in sorted(files, key=lambda entry: entry.name):
+                name = entry.name
+                if (
+                    name.startswith(".")
+                    or os.path.splitext(name)[1].casefold() not in TEXT_SUFFIXES
+                    or entry.is_symlink()
+                ):
                     continue
                 if is_secret_filename(name):
                     continue
+                path = Path(directory) / name
                 rel = path.relative_to(self.workspace).as_posix()
                 if rel.casefold() in GUIDANCE_PATHS:
                     continue
