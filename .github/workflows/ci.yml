@@ -171,6 +171,7 @@ jobs:
           npm run test:eventretention
           npm run test:cacheseries
           npm run test:helpshortcuts
+          npm run test:timeline
           npm run test:scale
 
   web-smoke:

@@ -178,3 +178,5 @@
 - **脉搏卡实时火花线（M8-T902）**：任务**运行中**，每个 `usage` SSE 事件都会经 `updateInspectorMetrics` 重绘脉搏卡的 token/缓存数字——现在火花线也跟着重绘：每根条形代表一次实际模型调用，第 1 次调用全价付费、前缀缓存生效后逐次转绿，现场可见。实现收敛在既有 `cacheTurnSparkline` 渲染函数（任务详情模态与脉搏卡同一渲染路径），靠字符串比对 `slot.innerHTML !== markup` 防止 dock 高频重绘的无意义 DOM 写入；无数据时自动隐藏。门测试 `frontend_cache_series_one_home_smoke.mjs` 扩宽为 2 个调用点并锁住该守卫。
 
 - **弹窗焦点确定性 + 模板详情 i18n 收口（M8-T903）**：并轨会话收编——弹窗打开时先把背景焦点元素显式 blur 再置 inert（inert 下一帧的 blur 会静默取消此前发出的 focus()，模态前两次聚焦空转、只能靠 220ms 重试兜底）；模板详情视图的「返回/发送」按钮从硬编码 fallback 收进 i18n 字典（zh/en 472 键对齐）；两处 Playwright `waitForFunction` 把 options 当 arg 的签名错位补上 `undefined` 占位。
+
+- **脉搏卡新增「任务时间轴」（M8-T904）**：任务档案是列表、账本是汇总，年鉴是叙事——时间轴是第四个视角：把最近 12 个任务画成 oldest→newest 的柱状条带，高度按 tokens 的 log1p 对数比例（12% 下限，巨型任务不会压扁小任务），色调沿用档案的状态语汇（完成 mint / 失败 rose / 取消-中断 amber / 运行中 pulse 呼吸）。悬浮看任务名·tokens，点击直接打开任务。纯计算核心 `taskTimelineSeries` 与渲染 `taskTimelineMarkup` 分离、可直接被门测试 import；无任务时显示 `pulse.timelineEmpty`。同时本批携带了对话框 visibility 转场聚焦竞态的根治（`.show` 立即翻转 visibility）。`test:timeline` 已接入 JS syntax 腿。

@@ -16,6 +16,7 @@
  "test:eventretention": "node tests/frontend_event_retention_one_home_smoke.mjs",
  "test:cacheseries": "node tests/frontend_cache_series_one_home_smoke.mjs",
  "test:helpshortcuts": "node tests/frontend_help_shortcuts_one_home_smoke.mjs",
+    "test:timeline": "node tests/frontend_timeline_one_home_smoke.mjs",
  "test:perm": "node tests/frontend_permission_mode_one_home_smoke.mjs",
     "test:i18n": "node tests/frontend_i18n_dict_one_home_smoke.mjs",
     "test:tracephase": "node tests/frontend_trace_phase_one_home_smoke.mjs",

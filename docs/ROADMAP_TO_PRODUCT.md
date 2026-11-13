@@ -50265,3 +50265,58 @@ T899 的火花线只活在任务详情弹窗（事后）。任务运行中，检
 
 ### 边界
 - dialog 焦点修复无独立浏览器探针（并轨会话原样收编）；lifecycle/game 冒烟需要真实浏览器，留给下一轮真实网关 E2E 顺带覆盖。
+
+## 批次 904 - M8-T904：脉搏卡新增「任务时间轴」—— 一个任务一根柱状条，高度按 tokens 的对数刻度，色调按任务状态
+
+> 本批次除时间轴本身外，还携带了两个并行通道遗留在工作区、未提交的前端正确性修复（见 §4）。
+
+### 1 为什么
+
+脉搏卡已经出示了兑现率、上下文占比、缓存命中——但**「这些任务按历史长什么样」**没有一块屏。
+任务档案是列表，账本是汇总，时间轴是第三种视角：时间维度上的分布。
+
+### 2 做了什么（时间轴）
+
+- `web/src/core/timeline-series.js`（新增）— 纯计算核心：`taskTimelineSeries(tasks, limit)`
+  按 `started_at/completed_at` 排序取最近 N 个任务，tokens 走 `Math.log10(tokens+1)` 归一化到
+  高度百分比，状态映射色调（completed=mint / failed=rose / cancelled|interrupted=amber / 其余存活态=pulse / 空=quiet）。
+  输入按 /api/tasks 的新到旧序截前 12，reverse 后画成 oldest→newest；tokens 取自
+  \	ask.tokens_used.total_tokens ?? task.metrics.budget.tokens\；点击柱状条复用既有 \data-open-task\ 打开任务。
+  `taskTimelineMarkup` 输出每根柱状条的 `<button>` + 悬浮 tip（任务名、状态、tokens、耗时）。
+- `web/index.html` — 脉搏右栏「任务档案」上方新增 `pulse-epoch-shell` 卡片：
+  标题文案 `pulse.epoch`，右侧角标 `#pulseTimelineCount`（任务总数）。
+- `web/src/chat/stream.js` — `openPulseStage()` 渲染完三环后，用真实任务数组填充
+  `#pulseTimeline`；任务为空时显示 `pulse.timelineEmpty`。
+- `web/styles.css` — `.pulse-timeline*` 全套样式：柱状条 96px 轨道、log 高度变量 `--tl-h`、
+  四种 tone、hover/focus 上浮 5%、`prefers-reduced-motion` 关闭 pulse 呼吸动画。
+- `web/src/core/i18n.js` — zh/en 新增 `pulse.timelineOld` / `pulse.timelineNew` /
+  `pulse.timelineEmpty`（两端同序）。
+- `tests/frontend_timeline_one_home_smoke.mjs`（新增）— 门测试：序列生成、log 刻度、
+  12 根截断、空态、渲染契约（`taskTimelineSeries`/`taskTimelineMarkup` 的唯一渲染家落在 openPulseStage）。
+- `package.json` + `.github/workflows/ci.yml` — `npm run test:timeline` 接入 JS syntax 腿的语法检查段。
+- 重建前端 bundle：`web/app.js` / `web/asset-manifest.json` / `web/assets/*`。
+
+### 3 验证
+
+- `node tests/frontend_timeline_one_home_smoke.mjs` → `timeline smoke: PASS`（exit 0）
+- `npm run check:web` → up to date（bundle 与 src 一致）
+- 全部 21 个 `npm run test:*` 语法/协议门绿；`npm run test:lifecycle` ×5 全过。
+- `test:timeline` 同时已被 CI JS syntax 腿接住（`npm run test:timeline` 一行）。
+
+### 4 携带的工作区遗留（并行通道 consolidation，参照 M8-T903 的协议）
+
+- **styles.css 对话框可见性竞态修复**：`.panel-modal` 基础态 `transition: visibility .2s ease`
+  使 `.show` 的 `visibility: visible` 离散点落在 0.2s 转场的 ~50% 处——打开瞬间子树仍不可见、
+  Chromium 拒绝 focus()，对话框的 Sync/rAF 两次聚焦静默失败，只能靠 220ms 重试兜底（且偶发 60s 超时）。
+  今改为 `.show` 立即翻转 visibility（opacity 仍然淡入），关闭方向保留 .2s 延迟；`visibility`
+  不再挡子树聚焦。已实测 `activeElement === #panelExpand` 即时锚定，`test:lifecycle` 5/5。
+
+### 5 文件
+
+`web/src/core/timeline-series.js`、`tests/frontend_timeline_one_home_smoke.mjs`、
+`web/index.html`、`web/src/chat/stream.js`、`web/src/core/i18n.js`、`web/styles.css`、
+`package.json`、`.github/workflows/ci.yml`、
+`web/app.js`、`web/asset-manifest.json`、`web/assets/app.3823a080e697c4a6.js`、
+`web/assets/styles.87a8d2d14e19fdae.css`
+
+（`tests/frontend_timeline_probe.mjs` 是开发期探针，未跟踪、未入库。）

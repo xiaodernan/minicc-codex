@@ -732,7 +732,10 @@
       "almanac.title": "\u5E74\u9274",
       "nav.almanac": "\u5E74\u9274",
       "panel.canvas": "\u8FD4\u56DE",
-      "send": "\u53D1\u9001"
+      "send": "\u53D1\u9001",
+      "pulse.timelineOld": "\u8F83\u65E9",
+      "pulse.timelineNew": "\u6700\u65B0",
+      "pulse.timelineEmpty": "\u8FD8\u6CA1\u6709\u53EF\u753B\u7684\u65F6\u95F4\u8F74"
     },
     en: {
       "restore.partial": "Restored safe files; kept later edits or unavailable files",
@@ -1206,7 +1209,10 @@
       "almanac.title": "Almanac",
       "nav.almanac": "Almanac",
       "panel.canvas": "Back",
-      "send": "Send"
+      "send": "Send",
+      "pulse.timelineOld": "older",
+      "pulse.timelineNew": "latest",
+      "pulse.timelineEmpty": "No timeline yet"
     }
   };
   function t(key) {
@@ -1546,6 +1552,68 @@
       window.setTimeout(() => notice.close(), 12e3);
     } catch {
     }
+  }
+
+  // web/src/core/timeline-series.js
+  function taskTimelineTone(status) {
+    const s = String(status || "");
+    if (s === "completed") return "mint";
+    if (s === "failed") return "rose";
+    if (s === "cancelled" || s === "interrupted") return "amber";
+    if (s) return "pulse";
+    return "quiet";
+  }
+  function taskTimelineHeight(tokens, maxTokens) {
+    const t2 = Number(tokens) || 0;
+    const max = Number(maxTokens) || 0;
+    if (t2 <= 0 || max <= 0) return 0;
+    const ratio = Math.log1p(t2) / Math.log1p(max);
+    return Math.round((0.12 + 0.88 * Math.max(0, Math.min(1, ratio))) * 100);
+  }
+  function compactTokens(value) {
+    const n = Number(value) || 0;
+    if (n <= 0) return "0";
+    if (n >= 1e6) return `${(n / 1e6).toFixed(1).replace(/\.0$/, "")}M`;
+    if (n >= 1e3) return `${(n / 1e3).toFixed(1).replace(/\.0$/, "")}k`;
+    return String(n);
+  }
+  function taskTimelineSeries(tasks, cap = 12) {
+    const rows = Array.isArray(tasks) ? tasks : [];
+    const parsed = [];
+    for (const task of rows) {
+      if (!task || typeof task !== "object") continue;
+      const tokens = Number(task?.tokens_used?.total_tokens ?? task?.metrics?.budget?.tokens ?? 0) || 0;
+      parsed.push({
+        id: String(task.task_id || ""),
+        status: String(task.status || ""),
+        tone: taskTimelineTone(task.status),
+        tokens,
+        cost: Number(task.cost_usd) || 0,
+        duration: Number(task.duration_seconds) || 0,
+        preview: String(task.preview || task.task_id || "").slice(0, 60),
+        created: Number(task.created_at_epoch) || 0
+      });
+    }
+    const capped = parsed.slice(0, cap).reverse();
+    const maxTokens = capped.reduce((acc, item) => Math.max(acc, item.tokens), 0);
+    return capped.map((item) => ({ ...item, height: taskTimelineHeight(item.tokens, maxTokens) }));
+  }
+  function taskTimelineMarkup(series, labels) {
+    const lb = labels && typeof labels === "object" ? labels : {};
+    const empty = String(lb.empty || "");
+    if (!Array.isArray(series) || !series.length) {
+      return empty ? `<div class="pulse-timeline-empty">${empty}</div>` : "";
+    }
+    const nodes = series.map((item) => {
+      const tipTitle = item.preview.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+      const tokensLabel = item.tokens > 0 ? `${compactTokens(item.tokens)} ${String(lb.tokensUnit || "tokens")}` : String(lb.noTokens || "");
+      const tip = [tipTitle, tokensLabel].filter(Boolean).join(" \xB7 ");
+      const created = item.created > 0 ? ` title="${new Date(item.created * 1e3).toISOString()}"` : "";
+      const taskId = item.id.replace(/"/g, "&quot;");
+      return `<button type="button" class="pulse-timeline-node" data-tone="${item.tone}" data-open-task="${taskId}" style="--tl-h:${item.height}%"${created} aria-label="${tip}"><span class="pulse-timeline-bar"></span><span class="pulse-timeline-tip">${tip}</span></button>`;
+    }).join("");
+    const axis = lb.old || lb.new ? `<div class="pulse-timeline-axis"><span>${String(lb.old || "")}</span><span>${String(lb.new || "")}</span></div>` : "";
+    return `<div class="pulse-timeline-track">${nodes}</div>${axis}`;
   }
 
   // web/src/core/task-reducer.js
@@ -2840,6 +2908,19 @@
         setRing("pulse-ring-hit", hitRate, hitRate == null ? state.locale === "zh" ? "\u672A\u8FD4\u56DE\u7F13\u5B58\u8BA1\u6570" : "no cache counters yet" : `${compactNumber(hit)} / ${compactNumber(hit + miss)} ${state.locale === "zh" ? "\u547D\u4E2D" : "hits"}`);
         setRing("pulse-ring-ctx", ctxRate, ctxRate == null ? "\u2014" : `${compactNumber(ctxTokens)} / ${compactNumber(ctxLimit)} ${state.locale === "zh" ? "tokens" : "tokens"}`);
         setRing("pulse-ring-done", doneRate, `${completed} ${state.locale === "zh" ? "\u5DF2\u5B8C\u6210" : "done"} \xB7 ${failed} ${state.locale === "zh" ? "\u5931\u8D25" : "failed"} \xB7 ${cancelled + interrupted} ${state.locale === "zh" ? "\u4E2D\u65AD/\u53D6\u6D88" : "interrupted"}`);
+        const timeline = $("#pulseTimeline");
+        const timelineCount = $("#pulseTimelineCount");
+        if (timeline) {
+          const series = taskTimelineSeries(tasks, 12);
+          timeline.innerHTML = taskTimelineMarkup(series, {
+            empty: t("pulse.timelineEmpty"),
+            old: t("pulse.timelineOld"),
+            new: t("pulse.timelineNew"),
+            tokensUnit: "tokens",
+            noTokens: state.locale === "zh" ? "\u672A\u8BB0\u5F55 tokens" : "no tokens recorded"
+          });
+        }
+        if (timelineCount) timelineCount.textContent = String(tasks.length);
         const archive = $("#pulseArchiveList");
         const countEl = $("#pulseArchiveCount");
         if (archive) {

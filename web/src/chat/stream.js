@@ -7,6 +7,7 @@ import { notificationsBlocked, notificationsEnabled, setNotificationsEnabled } f
 import { openArcade } from "../core/arcade.js";
 
 import { captureViewScope, isViewScopeCurrent } from "../core/scope.js";
+import { taskTimelineMarkup, taskTimelineSeries } from "../core/timeline-series.js";
 
 // ES module source for the minicc workbench. Bundled by scripts/build-web.mjs.
 
@@ -1410,6 +1411,20 @@ export async function openPulseStage() {
       setRing("pulse-ring-hit", hitRate, hitRate == null ? (state.locale === "zh" ? "未返回缓存计数" : "no cache counters yet") : `${compactNumber(hit)} / ${compactNumber(hit + miss)} ${state.locale === "zh" ? "命中" : "hits"}`);
       setRing("pulse-ring-ctx", ctxRate, ctxRate == null ? "—" : `${compactNumber(ctxTokens)} / ${compactNumber(ctxLimit)} ${state.locale === "zh" ? "tokens" : "tokens"}`);
       setRing("pulse-ring-done", doneRate, `${completed} ${state.locale === "zh" ? "已完成" : "done"} · ${failed} ${state.locale === "zh" ? "失败" : "failed"} · ${cancelled + interrupted} ${state.locale === "zh" ? "中断/取消" : "interrupted"}`);
+
+      const timeline = $("#pulseTimeline");
+      const timelineCount = $("#pulseTimelineCount");
+      if (timeline) {
+        const series = taskTimelineSeries(tasks, 12);
+        timeline.innerHTML = taskTimelineMarkup(series, {
+          empty: t("pulse.timelineEmpty"),
+          old: t("pulse.timelineOld"),
+          new: t("pulse.timelineNew"),
+          tokensUnit: "tokens",
+          noTokens: state.locale === "zh" ? "未记录 tokens" : "no tokens recorded",
+        });
+      }
+      if (timelineCount) timelineCount.textContent = String(tasks.length);
 
       const archive = $("#pulseArchiveList");
       const countEl = $("#pulseArchiveCount");
