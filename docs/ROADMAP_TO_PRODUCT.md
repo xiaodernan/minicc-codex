@@ -48518,3 +48518,44 @@ npm test                  → CI 见 green @ 推送 ref 后消
 
 - color-contrast 的失败证据记录在案：三对文字在一致渲染下均 ≥4.5（Playwright 门 + AA
   逐对门 test_every_colour_pair_clears_aa），以实测复核为准，未改动任何 palette 变量。
+
+## 批次 864 - M8-T864：SQLite 表达式索引的死胡同 — 记录 + 实测回滚，保留耐久性契约
+
+### 1 动机
+
+`list_by_session`（`/cost` 累计器、CLI resume）按 `json_extract(payload, '$.session_id') = ?`
+过滤 —— 全表扫 + 每行 json_extract，每次都重新做。假设照例缺一个组合表达式索引会显著变快。
+本批做了这条优化，然后**诚实撤回**。
+
+### 2 做了什么 + 实测结论
+
+建合成库（6000 行、30 会话、每条约 5 KB payload，Windows 本机），`EXPLAIN QUERY PLAN` 从
+
+```text
+SCAN tasks USING INDEX idx_tasks_created          ← 前
+SEARCH tasks USING INDEX idx_tasks_session_created (<expr>=?)   ← 后
+```
+
+墙钟 `list_by_session('session-07')`（avg of 5）：**438.6 ms → 46.5 ms（9.44×）**；
+行数/脏读不变。
+
+然后跑受影响的套件：`tests/test_task_store_durability_contract.py::test_corrupt_payload_does_not_break_load_or_get`
+**FAILED**：
+
+```text
+conn.execute(INSERT INTO tasks ... 畸形 JSON 手改的 payload)
+→ sqlite3.OperationalError: malformed JSON
+```
+
+机制：表达式索引在**每次写入**求值 `json_extract(payload, '$.session_id')`；畸形 JSON 让
+INSERT 直接抛错——**即使那一行以后永不会被任何查询读到**。旧路径：INSERT 容忍畸形行，
+查询时 `json_extract` 抛 → `except sqlite3.DatabaseError` → 全表回退（加载并跳行），行为一致。
+换句话说，这个索引把"容忍畸形"从写的路径也强加了进去——与本仓 durability 契约冲突。
+
+### 3 结论
+
+- 已 **revert**（`git diff minicc/task_store.py` 为空），33 条受影响测试全绿。
+- 在不破坏"畸形 payload 容错"的前提下，SQLite 表达式索引不是可行的加速路径；可接受的
+  剩余代价就是本次测到的 ~440ms/call（本仓任务行数量级，且 /cost 消费是人工路径）。
+- 唯一不换容忍度的出路是 materialize `session_id` 列——那是 schema migration，需要
+  backup+单次 transaction 读校验，本批不做。
