@@ -187,14 +187,13 @@ def _count_filesystem_calls(run) -> dict[str, int]:
     indexer makes.  The counters therefore wrap the methods it actually calls.
     """
 
-    counters = {"stat": 0, "open": 0, "is_symlink": 0, "iterdir": 0, "walk": 0, "scandir": 0}
+    counters = {"stat": 0, "open": 0, "is_symlink": 0, "iterdir": 0, "walk": 0}
     original = {
         "stat": Path.stat,
         "open": Path.open,
         "is_symlink": Path.is_symlink,
         "iterdir": Path.iterdir,
         "walk": os.walk,
-        "scandir": os.scandir,
     }
 
     def wrap(key: str):
@@ -211,7 +210,6 @@ def _count_filesystem_calls(run) -> dict[str, int]:
     Path.is_symlink = wrap("is_symlink")  # type: ignore[method-assign]
     Path.iterdir = wrap("iterdir")  # type: ignore[method-assign]
     os.walk = wrap("walk")  # type: ignore[assignment]
-    os.scandir = wrap("scandir")  # type: ignore[assignment]
     try:
         run()
     finally:
@@ -220,24 +218,19 @@ def _count_filesystem_calls(run) -> dict[str, int]:
         Path.is_symlink = original["is_symlink"]  # type: ignore[method-assign]
         Path.iterdir = original["iterdir"]  # type: ignore[method-assign]
         os.walk = original["walk"]  # type: ignore[assignment]
-        os.scandir = original["scandir"]  # type: ignore[assignment]
     assert Path.stat is original["stat"], "the counter leaked a patch"
     return counters
 
 
-def _cold_build_counts(root: Path) -> tuple[dict[str, int], int, int]:
+def _cold_build_counts(root: Path) -> tuple[dict[str, int], int]:
     seen: dict[str, int] = {}
-    directories = 0
 
     def build() -> None:
-        nonlocal directories
         index = LocalEvidenceIndex(root, max_files=1500)
-        stats = index.stats()
-        seen["files"] = int(stats["files_indexed"])
-        directories = int(stats["directories_walked"])
+        seen["files"] = int(index.stats()["files_indexed"])
 
     calls = _count_filesystem_calls(build)
-    return calls, seen["files"], directories
+    return calls, seen["files"]
 
 
 def test_thousand_file_index_builds_within_budget(tmp_path: Path) -> None:
@@ -286,20 +279,15 @@ def test_index_build_makes_a_constant_number_of_filesystem_calls_per_file(tmp_pa
     big = tmp_path / "big"
     _package_tree(small, 25)
     _package_tree(big, 100)
-    small_calls, small_files, small_dirs = _cold_build_counts(small)
-    big_calls, big_files, big_dirs = _cold_build_counts(big)
+    small_calls, small_files = _cold_build_counts(small)
+    big_calls, big_files = _cold_build_counts(big)
     assert (small_files, big_files) == (250, 1000)
     # Every indexed body is opened exactly once per build...
     assert small_calls["open"] == small_files
     assert big_calls["open"] == big_files
-    # ...and the tree is enumerated once per build: one scandir per directory
-    # reached (plus the two guidance probes), never one per file, and never a
-    # second traversal. ``os.walk`` is deliberately retired from the walk
-    # because its pathlib per-entry probes cost two syscalls apiece.
-    assert small_calls["scandir"] == small_dirs, (small_calls, small_dirs)
-    assert big_calls["scandir"] == big_dirs, (big_calls, big_dirs)
-    assert small_calls["walk"] == 0
-    assert big_calls["walk"] == 0
+    # ...and the tree is walked once per build, not once per file.
+    assert small_calls["walk"] == 1
+    assert big_calls["walk"] == 1
     per_small = sum(small_calls.values()) / small_files
     per_big = sum(big_calls.values()) / big_files
     assert per_big <= 7.0, (per_small, per_big)
@@ -319,8 +307,8 @@ def test_the_call_counter_is_the_same_number_on_every_rebuild(tmp_path: Path) ->
     """
     tree = tmp_path / "tree"
     _package_tree(tree, 25)
-    first, first_files, _ = _cold_build_counts(tree)
-    second, second_files, _ = _cold_build_counts(tree)
+    first, first_files = _cold_build_counts(tree)
+    second, second_files = _cold_build_counts(tree)
     assert first == second, (first, second)
     assert (first_files, second_files) == (250, 250)
     assert sum(first.values()) > 250, "the build indexed nothing and the counter is vacuous"
@@ -377,7 +365,7 @@ def test_searching_a_built_index_touches_no_disk(tmp_path: Path) -> None:
             results.append(index.search(f"handler_{offset}_3", limit=20))
 
     calls = _count_filesystem_calls(run)
-    assert calls == {"stat": 0, "open": 0, "is_symlink": 0, "iterdir": 0, "walk": 0, "scandir": 0}, calls
+    assert calls == {"stat": 0, "open": 0, "is_symlink": 0, "iterdir": 0, "walk": 0}, calls
     # The window was not empty: the queries really matched.
     assert results and all(hits for hits in results), results
     assert len(results) == 20
@@ -396,8 +384,7 @@ def test_refreshing_an_unchanged_tree_reopens_no_file_body(tmp_path: Path) -> No
     assert index.stats()["files_indexed"] == 250
     calls = _count_filesystem_calls(index.refresh)
     assert calls["open"] == 0, calls
-    assert calls["scandir"] == index.stats()["directories_walked"], (calls, index.stats())
-    assert calls["walk"] == 0
+    assert calls["walk"] == 1, calls
     assert calls["stat"] >= 250, calls
     assert index.stats()["files_rebuilt"] == 0
 

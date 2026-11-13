@@ -48607,3 +48607,55 @@ $ cd minicc-codex && python -m pytest tests/test_retrieval_enhanced.py \
 - 没并行化文件读取：磁盘是这活儿的地板，线程在 pagecache 命中时只会更吵
 - 没碰 `path_deny_predicate` / redaction：安全开销不放在 perf trade 里
 - 墙钟不作断言：两个样例都是 NTFS 暖缓存下的噪声带
+
+## 批次 866 - M8-T866：M8-T865 的 scandir 改走 revert — 该架构约束优先于微优化
+
+### 1 起因
+
+M8-T865 把 `LocalEvidenceIndex._files()` 从 `os.walk` 改写为直接 `os.scandir`
+（`_scandir_walk`），并在 `tests/test_retrieval_enhanced.py` 精化仪表为"每个目录恰好一次 ScandirIterator 计数"。ubuntu CI 在 `tests/test_resource_hygiene.py::test_project_code_never_opens_a_scandir_iterator`
+**失败**：
+
+```text
+Offenders: ['minicc/agent/retrieval.py:428']
+```
+
+### 2 该门为何不可被绕过
+
+`tests/test_resource_hygiene.py` 的第一条规则（原文）：
+
+> ``minicc/`` and ``scripts/`` never call ``os.scandir`` - the only API that raises
+> "unclosed scandir iterator" directly.
+
+它存在的理由：pytest 的会话结束清扫因 `_pytest.pathlib` 自己泄漏了一个 `os.scandir()`
+而在 `-W error` 下误报红；只有整个 `minicc/` + `scripts/` 谁也不调 `os.scandir`，
+那个豁免才不是"把我们的泄漏也藏起来"。规则是一刀切——包括 `with os.scandir(...) as it`
+也被禁（`_scandir_calls` 对任何 `func.attr == "scandir"` 的 Call 都算）；没有例外口子，
+这是刻意的。改测试以放行 = 改自己的考试卷，不做。
+
+### 3 怎么收回
+
+`git checkout HEAD~1 -- minicc/agent/retrieval.py tests/test_retrieval_enhanced.py`
+恢复 M8-T865 之前的实现。**验证**：
+
+```text
+python -m pytest tests/test_retrieval_enhanced.py tests/test_index_census.py -q
+35 passed
+```
+
+### 4 留下了什么 / 没留下什么
+
+- **M8-T865 的记录留在前一节**：假设驱动的动机（每个 inode 被探多次 lstat）、
+  census 口径的 small=26 目录断言、以及"43 passed"**都是真发生过的**——
+  若将来 `test_resource_hygiene.py` 的规则 1 改为"只允许 with 作用域 scandir"，
+  那次改动可以直接恢复，骨架还在（`_scandir_walk` 的实现与当时那批
+  doc_pointers / 仪表升级全部保留在提交 `e4ee06c` 的 diff 里）。
+- `minicc/agent/retrieval.py` 与 `tests/test_retrieval_enhanced.py` 回到 baseline：
+  `_files()` 的 walk 口径、early-stop、SKIP_DIRS、guidance-first、stop_early 与
+  原实现逐字一致（零功能变化）。
+- 墙钟上无领先也无落后。
+
+### 5 该记住什么
+
+优化签一行 `os.scandir` 能回避约 966 次 lstat，但仓里写明的"never scan"就是"never"——
+反正 CI 也不比人过。**当优化说"合"、安全门说"不得"时，听安全门。**
