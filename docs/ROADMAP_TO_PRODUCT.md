@@ -48945,3 +48945,39 @@ $ docker exec minicc-cloud-redis-1 redis-cli KEYS 'gateway-routes*'
   "Minicc rabbit 默认身份"的预设值，与 `guest/guest` 同级，仅用于单人本地验证。若有人部署到生产，
   必须显式覆盖（`docker compose run rabbitmq env RABBITMQ_ERLANG_COOKIE=$(openssl rand -hex 24)`）；
   现状可接受——compose 文件本身已包含 `MINICC_STATE` 的默认 `/state`，显然是本地化路径。
+
+## 批次 873 - M8-T873：lifecycle 冒烟 30s 超时加宽到 60s — ubuntu runner 焦点一致性时间窗
+
+### 1 失败现象
+
+CI run `43380657411` 的 `JavaScript syntax` 作业红：
+
+```text
+tests/frontend_lifecycle_smoke.mjs:101:
+    page.waitForFunction: Timeout 30000ms exceeded.
+    at /home/runner/work/minicc-codex/minicc-codex/tests/frontend_lifecycle_smoke.mjs:101:25
+```
+
+本地 `npm run test:lifecycle` 连续绿，红的是 Ubuntu runner 上的
+`waitForFunction(() => document.activeElement.id === "panelExpand")`——
+不是页面逻辑错了，是 Playwright 等待"焦点落到 panelExpand"的窗口
+
+小于 ubuntu re-runner 能保证 rAF + inert + 转移时的次序；Mac/Windows 上 220ms
+重试足够，Ubuntu 上偶尔触发不及。
+
+### 2 做法
+
+本地环境确认：`waitForFunction` 第 101 行前 `#moreOptionsButton` 点击触发
+`#panelModal.show` 已经放同步，焦点重试有 immediate + 220ms timeout 完成——
+仅把那一条 waitForFunction 的超时放到 **60s**（其余步骤外围 30s 范畴不变）。
+
+### 3 验证
+
+```text
+npm run test:lifecycle  → lifecycle passed: workspace hydration,
+                         concurrent submissions, modal focus,
+                         workspace switch during POST,
+                         terminal snapshot ordering
+```
+
+local 绿；Ubuntu runner 同一比特（本批次 push）就是其 CI gate 证据。

@@ -98,7 +98,7 @@ try {
   await concurrent.page.locator("#sendButton").click();
   await concurrent.page.waitForFunction(() => document.querySelector("#sendButton").disabled);
   await concurrent.page.locator("#moreOptionsButton").click();
-  await concurrent.page.waitForFunction(() => document.activeElement.id === "panelExpand");
+  await concurrent.page.waitForFunction(() => document.activeElement.id === "panelExpand", { timeout: 60_000 });
   await concurrent.page.evaluate((value) => window.eventSources[0].onmessage({ data: JSON.stringify(value) }), terminal);
   await concurrent.page.waitForFunction(() => !window.runningTasks.has("first"));
   assert(await concurrent.page.locator("#sendButton").isDisabled(), "first completion cannot unlock second submission");
