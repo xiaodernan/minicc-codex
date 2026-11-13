@@ -130,3 +130,5 @@
 - **恢复尝试不再殃及任务余生的流式（M8-T879）**：web 任务主循环原先在一次瞬态网关故障后把该任务之后所有回合都钉成原子（`provider_recoveries > 0 ⇒ on_stream=None`），恢复完成的修复回合也不再逐步显示——用户看到的"一直显示非流"在此闭环。原子重放现在只活到恢复尝试结束为止；完成的尝试即安全地板，repair 回合（verification 失败进入）照常流式。新门 `tests/test_the_recovery_attempt_is_the_only_atomic_turn.py` 用真实任务循环钉住：恢复答案一个字都不上屏，修复答案完整上屏。
 
 - **GAP 文档缓存亲和结论订正（M8-T880）**：`docs/GAP_ANALYSIS_AND_ROADMAP.md:175` 中"客户端无法修复"已按 M8-T878 实测订正——`prompt_cache_key` 是客户端修复，wkapi.pro 热缓存 0% → ~98.4%；历史核查事实保留不动。
+
+- **M8-T880 行尾事故修复（M8-T881）**：`docs/GAP_ANALYSIS_AND_ROADMAP.md` 之前被误改为 CRLF（整文件 476 行 diff）；已整体回退到 LF 基底并逐字拼回唯一应变的一行——订正缓存亲和判断的那行保持不变，diff 恢复为单行。

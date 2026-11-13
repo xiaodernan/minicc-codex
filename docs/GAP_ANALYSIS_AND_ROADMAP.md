@@ -172,7 +172,7 @@
 ### 第七波（流式与缓存专项）
 
 - **Responses 协议流式显示修复（用户反馈）**：原实现 Responses 路径故意原子化（非流式），UI 在整轮结束才显示文本。新增 `_create_responses_stream`：`stream=true` 消费 `response.output_text.delta` 实时推送 UI、从 `response.completed` 取结构化最终结果（工具调用/usage 不受影响）；重试仅在首个 delta 之前发生，流中断在已输出后抛 `ResponsesPartialError` 交由任务级恢复以非流式重放，避免用户看到重复文本。真实网关验证：2 个 delta 实时到达、最终文本/usage 正确。`tests/test_responses_streaming.py` 4 项（增量送达/中断不重放/首 delta 前可重试/原子路径回归）。
-- **缓存率核查（用户反馈）**：真实数据核查结论——usage 解析已正确映射网关 `input_tokens_details.cached_tokens`（OpenAI 风格）→ `prompt_cache_hit_tokens`；实测网关缓存对稳定前缀（system+tools，约 3.6k tokens）命中 82.4%。评测中出现的 0%/45% 波动为网关侧上游轮换（缓存亲和性）问题。2026-11-13 更新（M8-T878）："客户端无法修复"的判断已过时——所有发往 `/v1` 的请求现在携带 `prompt_cache_key`（`MINICC_PROMPT_CACHE_KEY` 可覆盖，缺省按 `sha256(base_url|model)` 派生），wkapi.pro 上 `gpt-6-sol` 同前缀热缓存命中从 0% → ~98.4%（agentic tools 回合 80.9%），CLI `[usage]` 行如实显示 hit/miss/pct。网关侧上游分片轮换造成的偶发全冷仍在（客户端无法强制亲和），minicc 侧前缀字节级稳定（append-only 消息 + 固定工具顺序 + 固定系统提示）。
+- **缓存率核查（用户反馈）**：真实数据核查结论——usage 解析已正确映射网关 `input_tokens_details.cached_tokens`（OpenAI 风格）→ `prompt_cache_hit_tokens`；实测网关缓存对稳定前缀（system+tools，约 3.6k tokens）命中 82.4%。评测中出现的 0%/45% 波动为网关侧上游轮换（缓存亲和性）问题。2026-11-13 更新（M8-T878）：“客户端无法修复”的判断已过时——所有发往 `/v1` 的请求现在携带 `prompt_cache_key`（`MINICC_PROMPT_CACHE_KEY` 可覆盖，缺省按 `sha256(base_url|model)` 派生），wkapi.pro 上 `gpt-6-sol` 同前缀热缓存命中从 0% → ~98.4%（agentic tools 回合 80.9%），CLI `[usage]` 行如实显示 hit/miss/pct。网关侧上游分片轮换造成的偶发全冷仍在（客户端无法强制亲和），minicc 侧前缀字节级稳定（append-only 消息 + 固定工具顺序 + 固定系统提示）。
 - 测试基线：236 全绿。
 
 ### 第八波（前端视觉升级，用户反馈）

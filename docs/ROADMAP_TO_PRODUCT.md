@@ -49325,3 +49325,32 @@ delta 推给了 UI，原子重试避免文字重复）——**这个设计没问
 
 - 纯文档订正，零代码、零测式。
 - 未重写历史行：原"82.4%""append-only 前缀"等结论原样保留，只在其后追加更新段。
+
+## 批次 881 - M8-T881：M8-T880 的行尾事故修复 — 整文件 CRLF 翻转回退为 LF
+
+### 1 事故经过
+
+M8-T880（GAP 文档缓存亲和判断订正）提交时 `docs/GAP_ANALYSIS_AND_ROADMAP.md`
+被整文件改为 CRLF（238 行全量 +/-，内容只有应有的 1 行改动）。原因是编辑路径把
+LF 目标写成了 CRLF——与 `minicc.config.example` 上次同源的事故。`doc_pointers`
+只关心引用解析，拦不住行尾翻转，CI 也不会红，但整文件 diff 会污染 `git log -L`
+与逐行追溯，不可接受。
+
+### 2 修复
+
+以 `a3286c0~1` 的 LF 版本为基底，逐字拼回应当存在的唯一一行（缓存亲和判断订正），
+写回 LF 的 `docs/GAP_ANALYSIS_AND_ROADMAP.md`。修后：
+
+```text
+git diff a3286c0~1 -- docs/GAP_ANALYSIS_AND_ROADMAP.md   # 仅 1 行（172 行区段）
+blob 内 CRLF = 0（a3286c0 中为 238）
+```
+
+`docs/ROADMAP_TO_PRODUCT.md`、`docs/CHANGELOG.md`、`minicc.config.example`、
+Python 源码与测试文件逐一复查，均为 LF（本 session 其余编辑未受影响）。
+
+### 3 教训（写进 ledger 供后人）
+
+文档订正走"整文件读-改-写"的路径时必须显式钉死 LF（`newline="\n"`）；
+编辑器工具在仓库内引入 CRLF 的案例已有两次（minicc.config.example 首提交前已手工修回）。
+以后 `git diff --stat` 发现整文件行数异常翻倍/翻红时，先怀疑行尾，再提交。
