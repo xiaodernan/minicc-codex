@@ -12,6 +12,12 @@ from minicc.stats import gather
 from minicc.task_store import TaskStore
 
 
+@pytest.fixture(autouse=True)
+def _isolated_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """Stats must read a scratch home store, never the developer's real one."""
+    monkeypatch.setenv("MINICC_HOME", str(tmp_path / "home"))
+
+
 def _snap(task_id: str, status: str) -> dict:
     return {
         "task_id": task_id,
@@ -86,6 +92,7 @@ def test_stats_task_counts(tmp_path: Path) -> None:
 def test_stats_llm_cache_aggregates_snapshots(tmp_path: Path) -> None:
     state = tmp_path / ".minicc"
     state.mkdir()
+    # The workspace store only: this asserts the local half of the merged view.
     store = TaskStore(state / "tasks.sqlite3")
     snap_hit = _snap("t9", "completed")
     snap_hit["tokens_used"] = {"prompt_cache_hit_tokens": 9000, "prompt_cache_miss_tokens": 1000}
@@ -105,6 +112,36 @@ def test_stats_llm_cache_aggregates_snapshots(tmp_path: Path) -> None:
     assert llm["hit_tokens"] == 14000
     assert llm["miss_tokens"] == 13000
     assert llm["hit_rate"] == round(14000 / 27000, 4)
+
+
+def test_stats_llm_cache_merges_home_store_scoped_to_workspace(tmp_path: Path) -> None:
+    state = tmp_path / ".minicc"
+    state.mkdir()
+    local = TaskStore(state / "tasks.sqlite3")
+    local_snap = _snap("t-local", "completed")
+    local_snap["tokens_used"] = {"prompt_cache_hit_tokens": 1000, "prompt_cache_miss_tokens": 1000}
+    local.upsert(local_snap)
+    home_dir = tmp_path / "home"
+    home_dir.mkdir(parents=True)
+    home = TaskStore(home_dir / "tasks.sqlite3")
+    mine = _snap("t-home-mine", "completed")
+    mine["tokens_used"] = {"prompt_cache_hit_tokens": 9000, "prompt_cache_miss_tokens": 0}
+    mine["workspace_path"] = str(tmp_path)
+    other = _snap("t-home-other", "completed")
+    other["tokens_used"] = {"prompt_cache_hit_tokens": 50000, "prompt_cache_miss_tokens": 1}
+    other["workspace_path"] = "C:/somewhere/else"
+    home.upsert(mine)
+    home.upsert(other)
+    report = gather(tmp_path)
+    llm = report["llm_cache"]
+    assert llm["present"] is True
+    assert llm["source"] == {"workspace": 1, "home": 1}
+    # The other workspace's 50k hit tokens must NOT leak into this workspace's account
+    assert llm["hit_tokens"] == 10000
+    assert llm["miss_tokens"] == 1000
+    assert llm["hit_rate"] == 0.9091
+    assert report["tasks"]["source"] == {"workspace": 1, "home": 1}
+    assert report["tasks"]["total"] == 2
 
 
 def test_stats_cli_json_round_trip(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:

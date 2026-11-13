@@ -49652,3 +49652,54 @@ M8-T878/T879/T883/T887 把前缀缓存修到 0% → ~98%，并把账本搬上 CL
 
 - 不发真实请求验证网关缓存（doctor 的宪法：永远不碰网络）——布线判断是诚实的上限；
 - 未上报暗示不伪造"缓存必然 98%"——detail 只陈述布线事实。
+
+## 批次 890 - M8-T890：`--stats` 看不见 web 工作台任务 → 本地/家目录两本账合并、按工作区作用域汇总
+
+### 1 实锤
+
+`minicc --stats --workspace .` 曾答："tasks: 0 total"，而同一时刻 web 工作台
+（`/api/tasks`）明明存着这台机器上的真实任务。两者都是真的——语料库"本地 vs 家目录"
+分裂：
+
+- CLI 工作区任务 → `<workspace>/.minicc/tasks.sqlite3`（`stats` 读的就是这个）；
+- web 工作台任务 → **全局** `~/.minicc/tasks.sqlite3`（`web.py` 经 `home_dir()` 写），
+  行内带 `workspace_path` 可筛选回工作区。
+
+后果比难看更糟：M8-T883/T887 刚交付的缓存账本在 CLI 上永远是空的（`no cache
+counters in stored tasks`）——不是数据不存在，是读错了账本。
+
+### 2 修复（合并、作用域、不伪造）
+
+`minicc/stats.py`：
+- 新 `_workspace_rows(workspace, state)`：读本地 store + **家目录 store 中按
+  `workspace_path` 归一化匹配的行**（Windows/Posix 分隔符两侧 resolve 归一）；
+  两本账来源计数（`source: {workspace, home}`）如实披露；读失败走
+  `error: "workspace:"/"home:<type>"`，不抛、不隐瞒；
+- `_task_stats` / `_llm_cache_stats` 都走合并行——本地/家两笔合一，前缀缓存
+  按**全量根因语料**汇总（与 `/api/metrics` 同口径：先累计后相除）；
+- 输出新增 `[workspace W / home H]` 来源条，`tasks.total` 反映两本账；
+- `--stats` 输出如实显示两处数字；`--json` 相应段含 `source` 键（纯新增，兼容旧消费者）。
+
+### 3 实机验活
+
+本仓库：
+
+```text
+tasks: 13 total (completed=7 failed=2 interrupted=4 queued=0 running=0) other=0 [workspace 0 / home 13]
+llm cache: 8 tasks, hit rate 41.0% (hit 800032, miss 1150181)
+```
+
+（正好印证：24 行里有 8 行带缓存计数、其中本 workspace 的 8 行全部计入；其余两个
+workspace 的行被正确隔离。）
+
+### 4 测试
+
+`tests/test_stats.py`：
+- autouse `_isolated_home`——所有 stats 测试从隔离的假 home 读，一台开发机的
+  真实 `~/.minicc` 再也不能悄悄决定什么；
+- 新门 `test_stats_llm_cache_merges_home_store_scoped_to_workspace`：本地 1 + 家 2
+  （其中 1 行另一个 workspace）→ 合计 2、命中率 0.9091、**隔壁 workspace 的
+  50k 命中令牌一个字节都不许计入**；
+- `test_stats_cli_json_round_trip` 键集不变（`source` 在段内，是加法项）。
+
+8/8 绿；引用门 6/6 绿。

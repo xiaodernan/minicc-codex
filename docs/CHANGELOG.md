@@ -148,3 +148,5 @@
 - **429 计数器的装配顺序修复（M8-T888）**：T886 上线的 `RateLimitMetricsFilter` 放在 `LOWEST_PRECEDENCE`，而 Redis 限流器答 429 时不再调用下游链——计数器实测一条都没记（`/actuator/metrics/gateway.rate_limited` 返回 404，全栈实测暴露）。已改为 `HIGHEST_PRECEDENCE`（wrap 整个链），并把 `getOrder() == HIGHEST_PRECEDENCE` 钉进测试；实机验证：60 并发 → 40×200 / 20×429，`actuator/metrics/gateway.rate_limited{route=tasks}` COUNT = 20.0。
 
 - **`minicc --doctor` 新增前缀缓存探针（M8-T889）**：`llm_cache_affinity` 在不碰网络的前提下回答"这台节点的缓存亲和接没接上"——`MINICC_PROMPT_CACHE_KEY` 显式键 vs gateway+model 派生键，无 LLM 端点时如实 warn 而非 fatal。`test_doctor.py` 三态门 3 项。
+
+- **`minicc --stats` 的任务账合并修复（M8-T890）**：修掉了"CLI 任务计数恒为 0"这一真丢账——工作区任务住在两个 store（`<ws>/.minicc/tasks.sqlite3` 与全局 `~/.minicc/tasks.sqlite3` 且行内带 `workspace_path`），`--stats` 现在合并并按工作区作用域汇总：本仓库实测 `tasks: 13 total … [workspace 0 / home 13]`、`llm cache: 8 tasks, hit rate 41.0%`（修前直接说"no cache counters"）。隔壁 workspace 的命中令牌零字节流入本仓库账本，来源拆分（`source`）随 json 输出。

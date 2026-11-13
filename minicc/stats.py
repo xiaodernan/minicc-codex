@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from minicc.agent.protocol import TASK_STATUSES
+from minicc.config import home_dir
 from minicc.internal_paths import AUDIT_NAME
 from minicc.session import list_sessions
 from minicc.task_store import TaskStore
@@ -47,18 +48,61 @@ def _audit_stats(state: Path) -> dict[str, Any]:
     return {"present": True, "lines": len(lines), "last_event": last_event}
 
 
-def _task_stats(state: Path) -> dict[str, Any]:
-    db = state / "tasks.sqlite3"
-    out: dict[str, Any] = {"present": db.is_file(), "total": 0,
-                           "by_status": {status: 0 for status in sorted(TASK_STATUSES)}, "other": 0}
-    if not db.is_file():
-        return out
+def _store_rows(db_path: Path) -> tuple[list[dict[str, Any]], str | None]:
     try:
-        store = TaskStore(db)
-        rows = store.load(limit=10_000)
+        rows = TaskStore(db_path).load(limit=10_000)
+        return [row for row in rows if isinstance(row, dict)], None
     except Exception as exc:  # noqa: BLE001 — inventory reports the failure inline
-        detail = f"{type(exc).__name__}"
-        return {**out, "error": detail}
+        return [], f"{type(exc).__name__}"
+
+
+def _normalized_workspace_path(value: Any) -> str | None:
+    try:
+        return Path(str(value)).resolve().as_posix().lower() if value else None
+    except (OSError, ValueError):
+        return None
+
+
+def _workspace_rows(workspace: Path, state: Path) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Merge the workspace store and the shared home store, workspace-scoped.
+
+    The web workbench and CLI both persist tasks — the workbench writes to the
+    *home* store (``~/.minicc/tasks.sqlite3``), the workspace store holds only
+    workspace-local snapshots. An inventory that reads just one of them
+    reports "0 tasks" for a workspace with a hundred. The home rows are
+    filtered to this workspace's path, so the merged view stays per-workspace.
+    """
+    source = {"workspace": 0, "home": 0}
+    error: str | None = None
+    rows: list[dict[str, Any]] = []
+    state_db = state / "tasks.sqlite3"
+    if state_db.is_file():
+        state_rows, state_err = _store_rows(state_db)
+        if state_err:
+            error = f"workspace:{state_err}"
+        rows += state_rows
+        source["workspace"] = len(state_rows)
+    try:
+        home_db = home_dir() / "tasks.sqlite3"
+    except Exception:
+        home_db = None
+    if home_db is not None and home_db.is_file():
+        home_rows, home_err = _store_rows(home_db)
+        if home_err:
+            error = f"home:{home_err}"
+        key = _normalized_workspace_path(workspace)
+        picked = [
+            row for row in home_rows
+            if _normalized_workspace_path(row.get("workspace_path")) == key
+        ]
+        rows += picked
+        source["home"] = len(picked)
+    return rows, {"source": source, "error": error}
+
+
+def _task_stats(state: Path, workspace: Path | None = None) -> dict[str, Any]:
+    root = Path(workspace) if workspace is not None else Path.cwd()
+    rows, meta = _workspace_rows(root, state)
     counts = {status: 0 for status in sorted(TASK_STATUSES)}
     other = 0
     for row in rows:
@@ -67,10 +111,14 @@ def _task_stats(state: Path) -> dict[str, Any]:
             counts[status] += 1
         else:
             other += 1
-    out["total"] = len(rows)
-    out["by_status"] = counts
-    out["other"] = other
-    return out
+    return {
+        "present": (state / "tasks.sqlite3").is_file() or bool(meta["source"]["home"]),
+        "total": len(rows),
+        "by_status": counts,
+        "other": other,
+        "source": meta["source"],
+        "error": meta["error"],
+    }
 
 
 def _session_stats(root: Path) -> dict[str, Any]:
@@ -83,21 +131,18 @@ def _session_stats(root: Path) -> dict[str, Any]:
     return {"count": len(sessions), "messages": total_messages}
 
 
-def _llm_cache_stats(state: Path) -> dict[str, Any]:
-    """Aggregate prompt-cache counters across stored task snapshots.
+def _llm_cache_stats(state: Path, workspace: Path | None = None) -> dict[str, Any]:
+    """Aggregate prompt-cache counters across task snapshots.
 
-    Only rows carrying both counters contribute; everything else is treated
-    as unreported, never as a zero. The rate is the same hit/(hit+miss) the
-    web metrics payload uses, summed before dividing.
+    Reads the workspace store and the workspace-matched rows of the shared
+    home store (the web-workbench path) — the merged total, summed before
+    dividing, exactly as the web metrics payload does it. Rows missing a
+    counter contribute nothing; no 0% is ever fabricated.
     """
-    db = state / "tasks.sqlite3"
-    if not db.is_file():
-        return {"present": False}
-    try:
-        store = TaskStore(db)
-        rows = store.load(limit=10_000)
-    except Exception as exc:  # noqa: BLE001 — inventory reports the failure inline
-        return {"present": True, "error": f"{type(exc).__name__}"}
+    root = Path(workspace) if workspace is not None else Path.cwd()
+    rows, meta = _workspace_rows(root, state)
+    if not (state / "tasks.sqlite3").is_file() and not meta["source"]["home"] and not meta["error"]:
+        return {"present": False, "source": meta["source"]}
     hit = 0
     miss = 0
     reported = 0
@@ -117,13 +162,18 @@ def _llm_cache_stats(state: Path) -> dict[str, Any]:
         miss += int(m)
         reported += 1
     rate = round(hit / (hit + miss), 4) if hit + miss else None
-    return {
+    error = meta["error"]
+    out: dict[str, Any] = {
         "present": True,
         "tasks_with_usage": reported,
         "hit_tokens": hit,
         "miss_tokens": miss,
         "hit_rate": rate,
+        "source": meta["source"],
     }
+    if error:
+        out["error"] = error
+    return out
 
 
 def _disk_bytes(path: Path) -> int:
@@ -156,11 +206,11 @@ def gather(workspace: Path | str | None = None) -> dict[str, Any]:
         "workspace": root.as_posix(),
         "state_dir_present": state_exists,
         "audit": _audit_stats(state),
-        "tasks": _task_stats(state),
+        "tasks": _task_stats(state, root),
         "sessions": _session_stats(root),
         "disk_bytes": _disk_bytes(state) if state_exists else 0,
         "cache": _cache_stats(),
-        "llm_cache": _llm_cache_stats(state) if state_exists else {"present": False},
+        "llm_cache": _llm_cache_stats(state, root),
     }
 
 
@@ -178,8 +228,10 @@ def format_stats(report: dict[str, Any], *, json_out: bool = False) -> str:
 
     tasks = report["tasks"]
     if tasks["present"]:
+        source = tasks.get("source") or {}
+        src = f" [workspace {source.get('workspace', 0)} / home {source.get('home', 0)}]"
         counts = " ".join(f"{s}={n}" for s, n in tasks["by_status"].items())
-        lines.append(f"tasks: {tasks['total']} total ({counts}) other={tasks['other']}")
+        lines.append(f"tasks: {tasks['total']} total ({counts}) other={tasks['other']}{src}")
         if tasks.get("error"):
             lines.append(f"tasks store: unreadable ({tasks['error']})")
     else:
