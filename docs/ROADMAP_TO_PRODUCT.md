@@ -50319,7 +50319,7 @@ T899 的火花线只活在任务详情弹窗（事后）。任务运行中，检
 `web/app.js`、`web/asset-manifest.json`、`web/assets/app.3823a080e697c4a6.js`、
 `web/assets/styles.87a8d2d14e19fdae.css`
 
-（开发期探针未入库。）
+（`tests/frontend_timeline_probe.mjs` 随本批入库：依赖 8899 端口活服务器与真实任务历史，手动重跑用，不进 CI。）
 
 ## 批次 904 - M8-T904：脉搏卡任务时间轴 —— 「任务时间轴」占位键终于有了脸，还顺手修好了三个圆环
 
