@@ -49237,3 +49237,67 @@ run 7-8: 0.0（网关切换上游分片，客户端无法强制亲和，属网�
 - Chat Completions 流式线路在本代理上 cached_tokens 仍不上报；想看缓存统计，Responses 协议可见性最好。
 - envelope 工具模式（网关拒绝原生 tools 后降级）必然非流式——这不是本批次的回归，是既有降级设计；
   用户日志中 `[tool …] read_file` 表明其网关原生 tools 可用，本次未触发该降级。
+
+## 批次 879 - M8-T879：一次瞬态网关故障不再让任务余下所有回合"显示非流" — 恢复=原子，恢复后=照旧流式
+
+### 1 用户观察到的问题
+
+用户反馈："一直显示非流，好像显示流的时候缓存命中率好的多"。
+M8-T878 修掉了缓存那一半（`prompt_cache_key`，网关上 0% → ~98% 热命中，
+且 `[usage]` 行现在显示 cache_hit/miss/pct）。本批修另一半：非流显示。
+
+### 2 根因（代码、不是体感）
+
+`minicc/web.py` 的任务主循环有一个恢复锁：
+
+```python
+on_stream=on_stream if provider_recoveries == 0 else None
+```
+
+一次瞬态网关故障（如流中断）→ `provider_recoveries` 变 1 → **该任务之后所有回合
+都原子重放（无 on_delta）**。恢复尝试本身必须原子（被中断的那一轮可能已经把
+delta 推给了 UI，原子重试避免文字重复）——**这个设计没问题**；
+问题是锁永远不放，恢复完成后的修复回合（verification 失败进入 repair）也
+被钉成原子。一个瞬态 hiccup，整个任务再也不显示增量输出。
+
+### 3 修复（改的最小边界）
+
+`minicc/web.py`：
+- 新增 `recovery_atomic = False`（与 `provider_recoveries = 0` 同级）；
+  `execute()` 内 `nonlocal` 同步；
+- 每次 `run_agent` 返回后（merge 处）把 `recovery_atomic = False`——
+  完成的尝试就是安全地板，任何 delta 都已是过去式；
+- 仅在瞬态错误恢复分支（`provider_recoveries += 1`）把 `recovery_atomic = True`；
+- 调用点改为 `on_stream=None if recovery_atomic else on_stream`，
+  注释写明"只有恢复尝试原子，恢复后的回合照常流式"。
+
+### 4 门（真实行为，不是源码扫描）
+
+`tests/test_the_recovery_attempt_is_the_only_atomic_turn.py`：
+
+伪 provider：turn 1 `write_file` → turn 2 抛
+`stream disconnected … Connection error.`（瞬态判定成立）；
+恢复 provider 复读 `write_file` + 只读 `read_file`、再作答；
+伪 Verifier 第一次 fail（强制 repair 回合）、第二次 pass；
+伪 judge 读 `str(messages)` 里的 packet id 作证（`_evidence_packet` 紧凑序列化，
+裸 token 扫描不被转义影响）。
+
+断言（`allow_changes` 真实路径）：
+- `stream_deltas` 拼接 == `"修复行内容"`——**恢复行内容一个字都没流过**；
+  repair 回合的答案完整送达 UI；
+- provider #0 两回合都是流式启动（证明首回合 on_delta 本来就接线）；
+- `metrics.provider_recoveries == 1`；
+- completion 判定 `complete`（证据 `event-…` + `verification-…` 被引证）。
+
+修前（旧锁）该门必红：repair 回合 `on_delta=None`，deltas == `[]`。
+
+`test_core_task.py::test_task_recovers_after_transient_provider_failure` 等 32 项、
+`test_a_line_a_test_docstring_cites_can_be_read.py` 6 项（re-aimed web.py 行号钉）全部转绿。
+
+### 5 边界（诚实声明）
+
+- 同步 `_chat_locked`（无 SSE sink 的调用路径，包括测试与 CLI 子进程）本就没有
+  `on_stream`——该锁只影响带 SSE 的 web 任务；本批修的是 web 流式通道的余生。
+- 恢复尝试本身仍然原子，这是必要约束，不在本批放宽。
+- `verify → repair` 回合现在会流式；若网关又在 repair 中断，再次进入原子恢复，
+  语义与首次恢复一致。

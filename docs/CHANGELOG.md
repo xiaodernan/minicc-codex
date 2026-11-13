@@ -126,3 +126,5 @@
 - **所有 Spring Cloud 模块都上 `/actuator/info` build-info（M8-T876 + M8-T877）**：registry、inspector、tasks、insights、gateway 五个 Java 服务现在统一从 `spring-boot-maven-plugin:build-info` 产出 `META-INF/build-info.properties`，`/actuator/info` 对任一服务都能看到 artifact/group/version/time——运维一组 curl 就知道部署了哪次工件；目标绑 `generate-resources` 阶段保证 `target/classes`、打包 jar、在 compose 全栈一起跑时都能读到。
 
 - **OpenAI 兼容网关前缀缓存亲和落地（M8-T878）**：所有发往 `/v1` 的线路（Responses / Chat Completions）现在都携带 `prompt_cache_key`——显式 `MINICC_PROMPT_CACHE_KEY` 优先，否则按 `sha256(base_url|model)` 派生不透明键（不泄露工作区路径，跨进程稳定）。实测 wkapi.pro 上 `gpt-6-sol` 连续同前缀请求：热缓存命中从 0% → **98.4%**（agentic tools 回合 80.9%）；CLI `[usage]` 行现在在网关有上报时追加 `cache_hit_tokens / cache_miss_tokens / cache_hit_pct`，缓存效率当场可见。
+
+- **恢复尝试不再殃及任务余生的流式（M8-T879）**：web 任务主循环原先在一次瞬态网关故障后把该任务之后所有回合都钉成原子（`provider_recoveries > 0 ⇒ on_stream=None`），恢复完成的修复回合也不再逐步显示——用户看到的"一直显示非流"在此闭环。原子重放现在只活到恢复尝试结束为止；完成的尝试即安全地板，repair 回合（verification 失败进入）照常流式。新门 `tests/test_the_recovery_attempt_is_the_only_atomic_turn.py` 用真实任务循环钉住：恢复答案一个字都不上屏，修复答案完整上屏。

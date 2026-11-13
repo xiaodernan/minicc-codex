@@ -4,7 +4,7 @@ Measured on the pre-fix tree by read-only probes (real handlers in-process, real
 record reopened from disk, ceilings read off the shipped source by AST):
 
     shipped ceilings passed to record_text():      minicc/main.py:143 = 6000,
-                                                   minicc/web.py:1797 / :2302 = 8000
+                                                   minicc/web.py:1804 / :2310 = 8000
     memory_list with the default limit=20:         render() = 11 295 chars
     -> stored at 6000, the record dropped 5 295   -> the stored text contained 「5295」 0 times
     todo_read at MAX_TODOS x MAX_CONTENT_CHARS:    render() = 28 977 -> stored 6000
@@ -16,7 +16,7 @@ observation clip (``minicc/agent/loop.py:336``) appends 「…」, the structure
 (``minicc/agent/loop.py:340``) rewrites the payload with ``"truncated": True``, and
 ``_public_data`` (``minicc/agent/loop.py:306``) prints 「其余 N 项已省略」.  A record that
 went through ``[:ceiling]`` carries neither: the last line is a half-sentence of filler,
-and ``minicc/web.py:1821`` still writes ``"truncated": bool(result.truncated)`` - false,
+and ``minicc/web.py:1828`` still writes ``"truncated": bool(result.truncated)`` - false,
 because the handler never truncated - beside a body that lost 48% of itself.  The model
 side is unbounded (``minicc/agent/loop.py:599``, ``:1171`` send ``render()`` verbatim), so
 the record is a strictly lossier copy of what was already sent, silently.

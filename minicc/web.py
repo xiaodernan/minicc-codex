@@ -1710,6 +1710,13 @@ class AgentService:
         repair_attempts = 0
         provider_recoveries = 0
         agent_recoveries = 0
+        # M8-T879: the atomic-replay fix applies to the *recovery attempt*
+        # only. Provider recovery runs non-streaming because the interrupted
+        # attempt may already have delivered deltas to the UI; later turns
+        # (e.g. a repair round after a failed verification) stream again.
+        # The old latch made the whole task atomic after one transient
+        # hiccup — forever.
+        recovery_atomic = False
         planner_result: Any | None = None
         planner_usage: dict[str, Any] = {}
         planner_policy: PlannerPolicy | None = None
@@ -1937,6 +1944,7 @@ class AgentService:
             quiet_loop_teardown()
             nonlocal planner_result, planner_usage, planner_policy, planner_execution
             nonlocal repair_attempts, provider_recoveries, agent_recoveries
+            nonlocal recovery_atomic
 
             def make_provider(
                 *,
@@ -2688,10 +2696,11 @@ class AgentService:
                         messages,
                         max_turns=self.config.max_turns,
                         compact_threshold=self.config.compact_threshold,
-                        # A recovery attempt is deliberately non-streaming: an
-                        # interrupted stream may have already reached the UI,
-                        # so an atomic retry avoids duplicated visible text.
-                        on_stream=on_stream if provider_recoveries == 0 else None,
+                        # M8-T879: only the recovery attempt is atomic — an
+                        # interrupted stream may already have reached the UI,
+                        # so its retry replays without streaming. Turns after
+                        # the recovery streams like any other turn.
+                        on_stream=None if recovery_atomic else on_stream,
                         on_tool=on_tool,
                         on_usage=on_usage,
                         on_context=on_context,
@@ -2715,6 +2724,9 @@ class AgentService:
                         workspace=workspace,
                     )
                     aggregate = _merge_turn_results(aggregate, current)
+                    recovery_atomic = False
+                    # A completed attempt is safe ground: any deltas it did
+                    # not deliver are gone, not pending.
                     writes = any(event.get("write") for event in events if isinstance(event, dict))
                     if current.cancelled:
                         break
@@ -2730,6 +2742,7 @@ class AgentService:
                             aggregate.answer = incomplete_answer(aggregate.error)
                             break
                         provider_recoveries += 1
+                        recovery_atomic = True
                         recovery_protocol = await recreate_provider_after_failure()
                         recovery_event = trace_event(
                             name="provider",
