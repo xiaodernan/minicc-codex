@@ -50125,3 +50125,30 @@ repo 根不应堆运行产物，全删。
 ### 边界
 
 - 行内双语 rows 数组是该面板既有形态（help.* i18n 键只覆盖标题），保持一致不重造。
+
+## 批次 898 - M8-T898：工作区年鉴 — 一块屏幕回答"这个项目到底在做什么"
+
+### 1 为什么
+
+宣传页面向访客，Pulse 管体征，Ledger 管账本。**年鉴**回答最难的一个问题："minicc 是什么？"
+——不是 README 里的几段话，而是**可在界面里翻阅的五个章节**。
+
+### 2 做了什么
+
+- 侧边栏新增「年鉴」入口（`book-open` 图标），与模板库同级；
+- 命令面板（Ctrl/⌘+K）新增「almanac / 打开年鉴」条目；
+- 全屏年鉴浮层（`almanac-shell`）：
+  - 左栏章节目录（序章 + 5 个章节：01/02/03/04/05）；
+  - 每章正文（四种正文体裁：正文/代码卡/instrument 仪表盘/aphorism）；
+  - 纯 CSS 编排的 `almanac-canvas`，支持 `prefers-reduced-motion`；
+- 正文用到的关键事实全部真实：任务数、tokens、缓存命中率从
+  `/api/metrics` 现场读取；无 metrics 时用降级措辞。
+- i18n：中英双语言全量 key（`almanac.*` + `nav.almanac` + `palette.cmd.almanac`）。
+
+### 3 文件
+
+- `web/src/panels/almanac.js`（新增）
+- `web/styles.css` — 追加 almanac-shell 段
+- `web/index.html` — 侧边栏新增「年鉴」入口
+- `web/src/main.js` — nav handler
+- `web/src/core/i18n.js` — zh/en 全量 key

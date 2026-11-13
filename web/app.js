@@ -663,6 +663,7 @@
       "palette.cmd.globalSearch": "\u5168\u5C40\u641C\u7D22",
       "palette.cmd.activity": "\u4EFB\u52A1\u6D3B\u52A8",
       "palette.cmd.templates": "\u63D0\u793A\u8BCD\u6A21\u677F",
+      "palette.cmd.almanac": "\u6253\u5F00\u5E74\u9274",
       "palette.cmd.ledger": "\u6253\u5F00\u8D26\u672C",
       "palette.cmd.batch": "\u5E76\u884C\u5B50\u667A\u80FD\u4F53",
       "palette.cmd.export": "\u5BFC\u51FA\u5F53\u524D\u5BF9\u8BDD",
@@ -727,7 +728,9 @@
       "pulse.disconnected": "\u672A\u8FDE\u63A5",
       "pulse.epoch": "\u4EFB\u52A1\u65F6\u95F4\u8F74",
       "templates.title": "\u6A21\u677F\u5E93",
-      "templates.subtitle": "\u7CBE\u9009\u5E38\u89C1\u4EFB\u52A1\u7684\u63D0\u793A\u8BCD\uFF0C\u4E00\u952E\u9001\u8FDB\u5BF9\u8BDD"
+      "templates.subtitle": "\u7CBE\u9009\u5E38\u89C1\u4EFB\u52A1\u7684\u63D0\u793A\u8BCD\uFF0C\u4E00\u952E\u9001\u8FDB\u5BF9\u8BDD",
+      "almanac.title": "\u5E74\u9274",
+      "nav.almanac": "\u5E74\u9274"
     },
     en: {
       "restore.partial": "Restored safe files; kept later edits or unavailable files",
@@ -1132,6 +1135,7 @@
       "palette.cmd.globalSearch": "Global search",
       "palette.cmd.activity": "Task activity",
       "palette.cmd.templates": "Prompt templates",
+      "palette.cmd.almanac": "Open the almanac",
       "palette.cmd.ledger": "Open the ledger",
       "palette.cmd.batch": "Parallel subagents",
       "palette.cmd.export": "Export this chat",
@@ -1196,7 +1200,9 @@
       "pulse.disconnected": "disconnected",
       "pulse.epoch": "Task timeline",
       "templates.title": "Task templates",
-      "templates.subtitle": "Curated prompts for common jobs, one click into chat"
+      "templates.subtitle": "Curated prompts for common jobs, one click into chat",
+      "almanac.title": "Almanac",
+      "nav.almanac": "Almanac"
     }
   };
   function t(key) {
@@ -1952,6 +1958,209 @@
         delay = Math.min(5e3, Math.max(500, Math.round(delay * 1.6)));
       }
       await new Promise((resolve) => window.setTimeout(resolve, delay));
+    }
+  }
+
+  // web/src/panels/almanac.js
+  var CHAPTERS = [
+    { id: "prologue", roman: "\u5E8F\u7AE0", title: "The Letter", subtitle: "\u4E00\u5C01\u7ED9\u672A\u6765\u7684\u4FE1" },
+    { id: "spark", roman: "\u7B2C\u4E00\u7AE0", title: "The Spark", subtitle: "\u610F\u56FE \u2192 \u8BA1\u5212 \u2192 \u884C\u52A8 \u2192 \u8BC1\u636E" },
+    { id: "depth", roman: "\u7B2C\u4E8C\u7AE0", title: "The Depth", subtitle: "\u538B\u7F29\u3001\u4FDD\u7559\u3001\u518D\u51FA\u53D1" },
+    { id: "sentry", roman: "\u7B2C\u4E09\u7AE0", title: "The Sentry", subtitle: "\u6BCF\u4E00\u4E2A\u627F\u8BFA\u90FD\u8981\u88AB\u6267\u884C" },
+    { id: "bloom", roman: "\u7B2C\u56DB\u7AE0", title: "The Bloom", subtitle: "\u5DE5\u4F5C\u53F0\u672C\u8EAB\u5C31\u662F\u8BC1\u8BCD" },
+    { id: "hand", roman: "\u7B2C\u4E94\u7AE0", title: "The Open Road", subtitle: "\u7EB8\u4E0A\u753B\u4E0B\u7684\u8FDC\u65B9" }
+  ];
+  function chapterMarkup(chapter) {
+    return `<button class="almanac-chapter" data-chapter="${escapeHtml(chapter.id)}" role="tab">
+            <span class="almanac-chapter-roman">${escapeHtml(chapter.roman)}</span>
+            <span class="almanac-chapter-body">
+              <strong>${escapeHtml(chapter.title)}</strong>
+              <small>${escapeHtml(chapter.subtitle)}</small>
+            </span>
+          </button>`;
+  }
+  function prologueMarkup() {
+    return `
+    <div class="almanac-canvas almanac-prologue">
+      <div class="almanac-kicker">\u5E8F\u7AE0 \xB7 Prologue \u2014 The Letter</div>
+      <h1 class="almanac-title">\u6211\u5E0C\u671B<br/>\u6709\u4EBA\u4E3A\u6211
+        <span class="almanac-title-accent">\u628A\u4E16\u754C\u8BFB\u4E00\u904D\u3002</span>
+      </h1>
+      <div class="almanac-body">
+        <p class="almanac-lede">
+          2026 \u5E74\u6625\u5929\uFF0C\u8FD9\u4E2A\u9879\u76EE\u5F00\u59CB\u4E8E\u4E00\u4E2A\u95EE\u9898\uFF1A
+          <em>\u300C\u80FD\u4E0D\u80FD\u505A\u4E00\u4E2A\u4EBA\u613F\u610F\u6BCF\u5929\u4F7F\u7528\u7684\u672C\u5730\u7F16\u7A0B\u667A\u80FD\u4F53\uFF1F\u300D</em>
+        </p>
+        <p>
+          \u5B83\u4E0D\u662F ChatGPT \u7684\u5957\u58F3\uFF0C\u4E5F\u4E0D\u662F Claude Code \u7684\u514B\u9686\u3002
+          \u5B83\u63A5\u53D7 <code>MINICC_API_KEY</code>\u3001<code>MINICC_BASE_URL</code>\u3001<code>MINICC_MODEL</code>\uFF0C
+          \u7136\u540E\u5728\u4F60\u7684\u5DE5\u4F5C\u533A\u91CC <code>read_file</code>\u3001<code>edit_file</code>\u3001<code>run_bash</code>\uFF0C
+          \u7528 <code>verify</code> \u8BC1\u660E\u81EA\u5DF1\u8BF4\u7684\u8BDD\u662F\u771F\u7684\uFF0C\u6700\u540E\u628A\u7B54\u6848\u4EA4\u7ED9\u4F60\u3002
+        </p>
+        <p class="almanac-quote">
+          \u201C\u6211\u4E0D\u9700\u8981\u4E00\u4E2A\u66FF\u6211\u505A\u51B3\u5B9A\u7684\u4EBA\uFF1B\u6211\u9700\u8981\u4E00\u4E2A\u628A\u51B3\u5B9A\u505A\u5F97\u66F4\u7A33\u7684\u4EBA\u3002\u201D
+        </p>
+        <p class="almanac-sidenote">
+          \u8FD9\u662F\u7ED9\u4F60\u770B\u7684\uFF0C\u4E5F\u662F\u7ED9\u672A\u6765\u7684\u6211\u81EA\u5DF1\u770B\u7684\u3002
+        </p>
+      </div>
+    </div>`;
+  }
+  function sparkMarkup() {
+    return `
+    <div class="almanac-canvas almanac-spark">
+      <div class="almanac-kicker">\u5377\u4E00 \xB7 Chapter I \u2014 The Spark</div>
+      <h1 class="almanac-title almanac-title-sm">\u4E00\u4E2A\u53E5\u5B50<br/>\u5982\u4F55\u53D8\u6210<span class="almanac-title-accent">\u4E00\u4E2A\u4EFB\u52A1\u3002</span></h1>
+      <div class="almanac-body">
+        <p>\u4F60\u5728\u8F93\u5165\u6846\u6572\u4E0B\u4E00\u53E5\u8BDD\u3002\u7CFB\u7EDF\u8BFB\u6587\u4EF6\u3001\u8BFB git \u72B6\u6001\u3001\u8BFB\u4F1A\u8BDD\u5185\u5B58\uFF0C\u628A\u8FD9\u4E00\u53E5\u53D8\u6210\u4E00\u6761\u6D41\u6C34\u7EBF\uFF1A</p>
+      </div>
+      <div class="almanac-chapter-aside">
+        <div class="almanac-step"><span class="almanac-step-index">01</span><div><strong>\u5165\u53E3</strong><p>\u7528\u6237\u5728 composer \u91CC\u6572\u4E0B\u4E00\u53E5\u8BDD\u3002\u7CFB\u7EDF\u8BFB\u6587\u4EF6\u3001\u8BFB git \u72B6\u6001\u3001\u8BFB\u4F1A\u8BDD\u5185\u5B58\u3002</p></div></div>
+        <div class="almanac-step"><span class="almanac-step-index">02</span><div><strong>\u8BA1\u5212</strong><p>\u6A21\u578B\u5728 zen plan / verify \u5FAA\u73AF\u91CC\u5207\u5206\u95EE\u9898\u3002\u6BCF\u4E00\u6B65\u90FD\u5F97\u5230\u4E00\u4EFD\u8BC1\u636E\u6216\u4E00\u79CD\u5931\u8D25\u3002</p></div></div>
+        <div class="almanac-step"><span class="almanac-step-index">03</span><div><strong>\u884C\u52A8</strong><p>read_file / edit_file / bash \u4EFB\u4E00\u5DE5\u5177\u88AB\u8C03\u7528\uFF0C\u8F93\u51FA\u88AB\u9A8C\u8BC1\u540E\u518D\u8FDB\u5165\u4E0B\u4E00\u8F6E\u3002</p></div></div>
+        <div class="almanac-step"><span class="almanac-step-index">04</span><div><strong>\u9A8C\u6536</strong><p>completion_assessment \u6216 verifier \u653E\u884C\u7B54\u6848\u3002\u672A\u901A\u8FC7\u5219\u505C\u5728\u539F\u5730\u5E76\u62A5\u544A\u3002</p></div></div>
+      </div>
+    </div>`;
+  }
+  function renderInstrumentValue(metrics) {
+    const tokens = metrics?.usage?.total_tokens ?? 0;
+    const hitRate = metrics?.llm_cache?.cache_hit_rate ?? 0;
+    return { tokens, hitRate };
+  }
+  function depthMarkup(metrics) {
+    const { tokens, hitRate } = renderInstrumentValue(metrics);
+    const hitLabel = hitRate > 0 ? `${Math.round(hitRate * 100)}%` : "\u2014";
+    return `
+    <div class="almanac-canvas almanac-depth">
+      <div class="almanac-kicker">\u5377\u4E8C \xB7 Chapter II \u2014 The Depth</div>
+      <h1 class="almanac-title almanac-title-sm">\u8D8A\u6DF1\u5165<br/>\u8D8A\u5BB9\u6613<span class="almanac-title-accent">\u88AB\u538B\u7F29\u3002</span></h1>
+      <div class="almanac-body">
+        <p>
+          \u7F16\u7801\u4F1A\u8BDD\u7684\u4EE3\u4EF7\u4E0D\u5728 token\uFF0C\u800C\u5728<em>\u6CE8\u610F\u529B</em>\u3002\u8FD9\u4E2A\u9879\u76EE\u7684\u4E0A\u4E0B\u6587\u538B\u7F29
+          \u5728\u63A5\u8FD1\u9608\u503C\u65F6\u4FDD\u5B58<em>checkpoint</em>\uFF1A\u6458\u8981 + \u6700\u8FD1\u82E5\u5E72\u8F6E\u9010\u5B57\uFF0C\u5176\u4F59\u5168\u90E8\u4E22\u5F03\u3002
+          \u4E22\u51FA\u53BB\u7684\u662F"\u8FD9\u4E00\u523B"\uFF0C\u7559\u4E0B\u7684\u662F"\u6211\u5728\u505A\u4EC0\u4E48"\u3002
+        </p>
+        <p>
+          \u7F13\u5B58\u547D\u4E2D\u505A\u7684\u662F\u540C\u4E00\u4EF6\u4E8B\uFF1A\u7528\u524D\u7F00\u4EB2\u548C\u8BA9\u6A21\u578B<em>\u4E0D\u91CD\u65B0\u8BFB\u4E00\u904D</em>\u4F60\u521A\u5199\u5B8C\u7684\u4E0A\u4E0B\u6587\u3002
+          \u6CA1\u6709\u5B83\uFF0C\u6BCF\u4E2A\u8BF7\u6C42\u90FD\u8981\u4E3A\u540C\u4E00\u6BB5 system prompt \u4ED8\u8D39\uFF1B\u6709\u5B83\uFF0C\u4ED8\u4E00\u6B21\u5C31\u884C\u4E86\u3002
+        </p>
+      </div>
+      <div class="almanac-instrument">
+        <div class="almanac-instrument-label">\u672C\u5730\u6570\u636E \xB7 \u5B9E\u65F6\u8BFB\u6570</div>
+        <div class="almanac-instrument-value">${compactNumber(tokens)} tokens in flight \xB7 hit rate ${escapeHtml(hitLabel)}</div>
+      </div>
+    </div>`;
+  }
+  function sentryMarkup(metrics) {
+    const taskCount = metrics?.task_count ?? 0;
+    const total = metrics?.usage?.total_tokens ?? 0;
+    return `
+    <div class="almanac-canvas almanac-sentry">
+      <div class="almanac-kicker">\u5377\u4E09 \xB7 Chapter III \u2014 The Sentry</div>
+      <h1 class="almanac-title almanac-title-sm">\u6BCF\u4E00\u4E2A\u627F\u8BFA<br/>\u90FD\u662F\u4E00\u4E2A<span class="almanac-title-accent">\u95E8\u3002</span></h1>
+      <div class="almanac-body">
+        <p>
+          \u5982\u679C agent \u53EF\u4EE5\u5728\u6CA1\u6709\u547D\u4EE4\u7684\u60C5\u51B5\u4E0B\u81EA\u79F0\u5B8C\u6210\uFF0C\u90A3\u4E48<em>\u4EFB\u4F55</em>\u590D\u6742
+          \u7CFB\u7EDF\u90FD\u7ECF\u4E0D\u8D77\u7B2C\u4E09\u4E2A\u5DE5\u5177\u8C03\u7528\u3002\u8FD9\u4E2A\u9879\u76EE\u7684\u7B54\u6848\u662F\u4E00\u4E32 <code>tests/</code>\u2014\u2014
+          \u6BCF\u4E2A change \u90FD\u5FC5\u987B\u901A\u8FC7\u81EA\u5DF1\u6CA1\u6709\u78B0\u5230\u8FC7\u7684\u95E8\u3002
+        </p>
+        <p>
+          \u5B8C\u6210\u4E4B\u540E\u518D\u770B\uFF1A\u4E00\u4E2A <code>completion_assessed</code> \u4E8B\u4EF6\u4E0D\u4F1A\u6765\u81EA\u9759\u9ED8\u8DF3\u8FC7\uFF0C\u800C\u662F
+          \u6765\u81EA\u660E\u786E\u83B7\u8BB8\u6216\u660E\u786E\u5224\u8F93\u3002
+        </p>
+      </div>
+      <div class="almanac-instrument almanac-instrument-double">
+        <div>
+          <div class="almanac-instrument-label">\u5DF2\u5B8C\u6210\u7684\u4EFB\u52A1\u603B\u6570</div>
+          <div class="almanac-instrument-value">${escapeHtml(String(taskCount))}</div>
+        </div>
+        <div>
+          <div class="almanac-instrument-label">\u7D2F\u8BA1\u6D88\u8017 tokens</div>
+          <div class="almanac-instrument-value">${compactNumber(total)}</div>
+        </div>
+      </div>
+    </div>`;
+  }
+  function bloomMarkup() {
+    return `
+    <div class="almanac-canvas almanac-bloom">
+      <div class="almanac-kicker">\u5377\u56DB \xB7 Chapter IV \u2014 The Bloom</div>
+      <h1 class="almanac-title almanac-title-sm">\u8FD9\u4E2A<br/>\u5DE5\u4F5C\u53F0\u672C\u8EAB<br/>\u5C31\u662F<span class="almanac-title-accent">\u8BC1\u8BCD\u3002</span></h1>
+      <div class="almanac-body">
+        <p>
+          \u8FD9\u91CC\u7684\u6BCF\u4E00\u5757\u4E0D\u4EC5\u4E0D\u53EA\u662F\u300C\u754C\u9762\u300D\u3002\u5DE6\u8FB9\u300C\u6700\u8FD1\u4EFB\u52A1\u300D\u4E0D\u662F\u5BFC\u822A\u680F\uFF1B\u300C\u7F13\u5B58\u547D\u4E2D\u7387\u300D\u4E0D\u662F\u767E\u5206\u6BD4\uFF1B
+          \u300C\u4EFB\u52A1\u6863\u6848\u300D\u4E0D\u662F\u65E5\u5FD7\u2014\u2014\u5B83\u4EEC\u4E00\u8D77\u6784\u6210<strong>\u4EA4\u4ED8\u8FC7\u7A0B\u672C\u8EAB</strong>\u3002
+        </p>
+        <p>
+          \u5C4F\u5E55\u4E0A\u6BCF\u4E2A\u6570\u503C\u90FD\u53EF\u4EE5\u88AB\u70B9\u51FB\u3001\u88AB\u5C55\u5F00\u3001\u88AB\u6298\u53E0\u3001\u88AB\u590D\u76D8\u3002\u771F\u6B63\u5728\u8FD9\u91CC\u8DD1\u8FC7\u7684 agent \u624D\u914D\u5F97\u4E0A
+          \u300C\u5DF2\u8FDE\u63A5\u300D\u8FD9\u4E09\u4E2A\u5B57\u2014\u2014\u800C\u4E0D\u662F\u7ED9\u81EA\u5DF1\u6234\u8363\u8A89\u3002
+        </p>
+      </div>
+    </div>`;
+  }
+  function handMarkup() {
+    return `
+    <div class="almanac-canvas almanac-hand">
+      <div class="almanac-kicker">\u5377\u4E94 \xB7 Chapter V \u2014 The Open Road</div>
+      <h1 class="almanac-title almanac-title-sm">\u8FD8\u6709\u597D\u591A<br/>\u53EF\u4EE5\u7EE7\u7EED<span class="almanac-title-accent">\u505A\u7684\u4E8B\u3002</span></h1>
+      <div class="almanac-body">
+        <p>\u8FD9\u4E2A\u9879\u76EE\u8FD8\u5728\u957F\uFF1A</p>
+        <ul class="almanac-chapter-list">
+          <li><strong>Memory</strong> \u2014 \u4EFB\u52A1\u4ECE intake \u5230 deliver \u7684\u6BCF\u4E00\u6B65\uFF0C\u5DF2\u7ECF\u53EF\u4EE5\u88AB\u56DE\u653E\u3001\u88AB diff\u3001\u88AB\u590D\u76D8\u3002</li>
+          <li><strong>Ledger</strong> \u2014 \u4F60\u5728\u8FD9\u91CC\u770B\u5230\u7684\u4E0D\u662F\u4F59\u989D\uFF0C\u662F\u4E00\u7B14\u4E00\u7B14\u53EF\u88AB\u5BA1\u8BA1\u7684 token\u3002</li>
+          <li><strong>Pulse</strong> \u2014 \u4F60\u5728\u4EFB\u4F55\u65F6\u5019\u90FD\u53EF\u4EE5\u6253\u5F00\u300C\u5DE5\u4F5C\u533A\u8109\u640F\u300D\uFF0C\u770B\u89C1\u8FD9\u4E2A\u9879\u76EE\u5728\u547C\u5438\u3002</li>
+          <li><strong>Templates</strong> \u2014 8 \u5F20\u7ECF\u8FC7\u7B56\u5212\u7684 prompt\uFF0C\u8BA9\u65B0\u624B\u5C11\u7FFB\u534A\u5929\u6587\u6863\u3002</li>
+          <li><strong>Spring Cloud plane</strong> \u2014 \u4E91\u4FA7\u7684\u670D\u52A1\u8FB9\u754C\u6B63\u5728\u53D8\u5F97\u66F4\u771F\u5B9E\uFF1A\u6CE8\u518C\u53D1\u73B0\u3001\u914D\u7F6E\u4E0B\u53D1\u3001\u9650\u6D41\u3002</li>
+          <li><strong>MCP &amp; skills</strong> \u2014 \u4F60\u7684\u7F16\u8F91\u5668\u91CC\u6F5C\u85CF\u7684\u80FD\u529B\uFF0C\u53EF\u4EE5\u88AB\u63A5\u5230\u8FD9\u6761\u6D41\u6C34\u7EBF\u3002</li>
+        </ul>
+        <p class="almanac-quote almanac-quote-end">
+          \u8FD9\u4E2A\u4EA7\u54C1\u7684\u672A\u6765\u662F\u4F60\u5199\u4E0B\u6BCF\u4E00\u6761\u6307\u4EE4\u4E4B\u540E\uFF0C\u4E16\u754C\u4F1A\u56E0\u6B64\u66F4\u7CBE\u786E\u4E00\u70B9\u70B9\u3002
+        </p>
+      </div>
+    </div>`;
+  }
+  var CHAPTER_RENDERERS = {
+    prologue: () => prologueMarkup(),
+    spark: () => sparkMarkup(),
+    depth: (metrics) => depthMarkup(metrics),
+    sentry: (metrics) => sentryMarkup(metrics),
+    bloom: () => bloomMarkup(),
+    hand: () => handMarkup()
+  };
+  async function loadChapter(id) {
+    const slot = $("#almanacCanvas");
+    if (!slot) return;
+    let metrics = null;
+    try {
+      metrics = await requestJson("/api/metrics");
+    } catch {
+      metrics = null;
+    }
+    const renderer = CHAPTER_RENDERERS[id] ?? CHAPTER_RENDERERS.prologue;
+    slot.innerHTML = renderer(metrics);
+    refreshIcons();
+  }
+  async function openAlmanacPanel() {
+    const current = beginPanelRequest(t("almanac.title"));
+    try {
+      const rail = CHAPTERS.map(chapterMarkup).join("");
+      openPanel(t("almanac.title"), `
+      <div class="almanac-shell">
+        <nav class="almanac-rail" aria-label="Chapters">${rail}</nav>
+        <div class="almanac-canvas-shell"><div class="almanac-canvas" id="almanacCanvas">${prologueMarkup()}</div></div>
+      </div>
+    `, { wide: true });
+      document.querySelectorAll(".almanac-chapter").forEach((button) => {
+        button.addEventListener("click", () => {
+          document.querySelectorAll(".almanac-chapter").forEach((b) => b.classList.toggle("active", b === button));
+          loadChapter(button.getAttribute("data-chapter") || "prologue");
+        });
+      });
+      document.querySelector('.almanac-chapter[data-chapter="prologue"]')?.classList.add("active");
+      refreshIcons();
+    } catch (error) {
+      if (!current()) return;
+      openPanel(t("almanac.title"), `<div class="error-panel">${escapeHtml(error.message)}</div>`);
     }
   }
 
@@ -5618,6 +5827,7 @@
       { id: "activity", glyph: "activity", group: "palette.group.task", run: () => openActivityPanel() },
       { id: "ledger", glyph: "ledger", group: "palette.group.task", run: () => openLedgerPanel() },
       { id: "templates", glyph: "sparkles", group: "palette.group.task", run: () => openTemplatesPanel() },
+      { id: "almanac", glyph: "book-open", group: "palette.group.task", run: () => openAlmanacPanel() },
       { id: "batch", glyph: "layers", group: "palette.group.task", run: () => openBatchPanel() },
       { id: "export", glyph: "download", group: "palette.group.task", run: () => exportChat() },
       { id: "settings", glyph: "settings-2", group: "palette.group.surface", run: () => openSettingsPanel() },
@@ -5691,7 +5901,7 @@
     });
   }
   function iconGlyph(name) {
-    const glyphs = { plus: "+", "list-checks": "\u2611", "folder-open": "\u{1F5C2}", search: "\u2315", activity: "\u25A5", ledger: "\u25A4", sparkles: "\u2726", layers: "\u2261", download: "\u2193", "settings-2": "\u2699", "more-horizontal": "\u22EF", "circle-help": "?", "gamepad-2": "\u25B6", "moon-star": "\u263E", "globe-2": "\u25CE", "panel-left": "\u25A4", "panel-right": "\u25A7", "scan-line": "\u25EB", "chevrons-down": "\u2304" };
+    const glyphs = { plus: "+", "list-checks": "\u2611", "folder-open": "\u{1F5C2}", search: "\u2315", activity: "\u25A5", ledger: "\u25A4", sparkles: "\u2726", "book-open": "\u25A4", layers: "\u2261", download: "\u2193", "settings-2": "\u2699", "more-horizontal": "\u22EF", "circle-help": "?", "gamepad-2": "\u25B6", "moon-star": "\u263E", "globe-2": "\u25CE", "panel-left": "\u25A4", "panel-right": "\u25A7", "scan-line": "\u25EB", "chevrons-down": "\u2304" };
     return glyphs[name] || "\u203A";
   }
   function move(delta) {
@@ -6017,6 +6227,7 @@
       else if (view === "activity") openActivityPanel();
       else if (view === "pulse") openPulseStage();
       else if (view === "templates") openTemplatesPanel();
+      else if (view === "almanac") openAlmanacPanel();
       else if (view === "ledger") openLedgerPanel();
       else if (view === "arcade") openArcade().catch((error) => showToast(error.message));
       else closePanel();

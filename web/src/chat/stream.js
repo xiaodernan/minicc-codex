@@ -2275,3 +2275,6 @@ export function openHelpPanel() {
 
 }
 
+import { openAlmanacPanel } from "../panels/almanac.js";
+export { openAlmanacPanel };
+
