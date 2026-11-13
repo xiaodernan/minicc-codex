@@ -50512,3 +50512,28 @@ Eureka 只被当作 lb:// 的元数据来源消费，从没被读出"拓扑"。�
 
 ### 边界
 - 指纹条只显示三 fp + 命中率；64 窗口链不进 UI（数据体量与可读性取舍——链对比留在快照/测试层）。
+
+## 批次 909 - M8-T909：闭合 T905 以来 CI 的两个 Python 红 — doctor 不再回显变量名；palette 门要求的 --tl-h 获得声明
+
+### 1 背景
+
+M8-T907/T908（并行会话）落地后，CI 的 Python leg 对 T905 提交剩下两个确定性红（另有 4 个是 T905/T906 已修的悬空文档引用）：
+
+- `tests/test_doctor_json.py::test_doctor_works_without_credentials`：全新无 key 机器上 `--doctor` 的输出不得出现变量名。
+  `check_llm_cache_affinity` 在 `ConfigError` 分支把异常文本整个回显（`MINICC_API_KEY 未设置…`），
+  输出违反该约定。现在无 key / 配置不可读统一回答
+  `no LLM endpoint configured; prefix-cache affinity not observable`，hint 指向 .env 配置方式。
+  本机以 `MINICC_HOME=<空目录>` 沙箱实测输出零 `MINICC_API_KEY` / `MINICC_BASE_URL` 字样。
+- `tests/test_the_palette_has_one_home.py::test_the_palette_covers_the_roles_components_ask_for`：
+  `.pulse-timeline-bar` 读 `var(--tl-h, 12%)`，而 `--tl-h` 只以 JS 内联 `style="--tl-h:…"` 写入——CSS 门
+  不认 JS 内联声明。现在组件规则自带 `--tl-h: 12%` 默认声明（内联逐节点覆盖语义不变）。
+
+### 2 验证
+
+- `pytest tests/test_doctor_json.py` → 4 passed
+- 沙箱 doctor（空 HOME + 空 MINICC_HOME，无 .env/无 key）输出零变量名、rc=0
+- palette 门所列 `--tl-h` 现已出现在样式表声明集（`tests/test_the_palette_has_one_home.py` 对应断言通过）
+
+### 3 文件
+
+`minicc/doctor.py`、`web/styles.css`（`--tl-h` 默认声明已随 8dc6db9 入库）、本台账与 changelog

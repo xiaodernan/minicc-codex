@@ -277,12 +277,16 @@ def check_llm_cache_affinity(workspace: Path) -> DoctorCheck:
 
     try:
         config = load_config(workspace=workspace)
-    except ConfigError as error:
+    except ConfigError:
+        # The missing-key case is exactly "no LLM endpoint configured" — answer
+        # it with that same warn. Echoing the error text would print the
+        # variable's name, which the fresh-machine diagnostic contract forbids;
+        # operators who need the cause get it from the reported config error.
         return DoctorCheck(
             "llm_cache_affinity",
             "warn",
-            f"configuration unreadable; prefix-cache affinity not observable ({error})",
-            "fix the configuration error reported above, then rerun minicc --doctor",
+            "no LLM endpoint configured; prefix-cache affinity not observable",
+            "configure the model endpoint in .env or minicc.config.example to see the cache wiring answer",
         )
     has_key = bool(config.api_key.strip()) or bool(config.plan_api_key.strip())
     base = config.base_url.strip()
