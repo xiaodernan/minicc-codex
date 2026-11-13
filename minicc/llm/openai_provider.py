@@ -1320,6 +1320,13 @@ class OpenAICompatibleProvider:
             finish_reason = "stop"
             stream_completed = False
             model_name = self.model
+            # M8-T900: same progress contract as the Responses path (T897) -
+            # planning turns must be visibly alive on every protocol, with
+            # the answer stream untouched.
+            tool_stream_chars = 0
+            tool_stream_last = 0.0
+            reasoning_stream_chars = 0
+            reasoning_stream_last = 0.0
             try:
                 # Some gateways reject stream_options but support streaming.
                 # Retry that negotiation independently from transport retries.
@@ -1374,6 +1381,15 @@ class OpenAICompatibleProvider:
                             committed_reasoning, _ = merge_retry_snapshot(
                                 committed_reasoning, merged_reasoning
                             )
+                        reasoning_stream_chars += len(str(reasoning))
+                        now = time.monotonic()
+                        if now - reasoning_stream_last >= PROVIDER_PROGRESS_INTERVAL:
+                            reasoning_stream_last = now
+                            self._emit_provider_progress(
+                                "provider_reasoning_progress",
+                                f"推理进行中 · {reasoning_stream_chars} 字符",
+                                {"chars": reasoning_stream_chars},
+                            )
                     for tc in getattr(delta, "tool_calls", None) or ():
                         index = getattr(tc, "index", 0) or 0
                         slot = tool_acc.setdefault(
@@ -1384,12 +1400,38 @@ class OpenAICompatibleProvider:
                         function = getattr(tc, "function", None)
                         if function is not None:
                             if getattr(function, "name", None):
-                                slot["name"] = slot["name"] + str(function.name)
+                                incoming = str(function.name)
+                                if not slot["name"]:
+                                    slot["name"] = incoming
+                                    self._emit_provider_progress(
+                                        "provider_tool_call_start",
+                                        f"正在生成工具调用 {incoming}",
+                                        {"tool": incoming},
+                                    )
+                                else:
+                                    slot["name"] = slot["name"] + incoming
                             if getattr(function, "arguments", None):
-                                slot["arguments"] = slot["arguments"] + str(function.arguments)
+                                fragment = str(function.arguments)
+                                slot["arguments"] = slot["arguments"] + fragment
+                                tool_stream_chars += len(fragment)
+                                now = time.monotonic()
+                                if now - tool_stream_last >= PROVIDER_PROGRESS_INTERVAL:
+                                    tool_stream_last = now
+                                    self._emit_provider_progress(
+                                        "provider_tool_call_progress",
+                                        f"工具参数流式生成中 · {slot['name'] or '?'} · {tool_stream_chars} 字符",
+                                        {"tool": slot["name"], "chars": tool_stream_chars},
+                                    )
 
                 if not stream_completed:
                     raise StreamProtocolError("stream ended before completion")
+                if tool_stream_chars:
+                    names = [str(slot.get("name") or "") for slot in tool_acc.values() if slot.get("name")]
+                    self._emit_provider_progress(
+                        "provider_tool_call_progress",
+                        f"工具调用已成形 · {', '.join(names) or '?'} · {tool_stream_chars} 字符",
+                        {"tool": names[0] if len(names) == 1 else ",".join(names), "chars": tool_stream_chars, "done": True},
+                    )
                 response = LLMResponse(
                     content=committed_text or None,
                     reasoning_content=committed_reasoning or None,

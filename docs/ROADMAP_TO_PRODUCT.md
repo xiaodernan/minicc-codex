@@ -50044,3 +50044,32 @@ T897 把工具调用进度送上了状态通道，但它在 UI 里只是时间�
 - 网关不上报 hit/miss 时该柱是 quiet 短柱——诚实降级，与缓存环的"未上报"灰态同一口径。
 - 列表端点（/api/tasks?limit=N）是轻投影不带 usage_by_turn，详情弹窗走单任务端点才拿得到
   ——火花线只活在详情与运行时指标里，列表视图不渲染空块。
+
+## 批次 900 - M8-T900：chat/completions 流式路径补齐同一进度契约 — "非流感"按协议对称修完
+
+### 缺什么
+
+T897 只修了 Responses 流。chat/completions 流（`_create_stream`）同样只在
+`delta.content` 里转发文本——工具调用轮的 name/arguments 分片被静默吞进 `tool_acc`，
+reasoning_content 分片同样无声。网关只支持 chat 协议时，工作台读起来还是死的。
+
+### 处置
+
+- `_create_stream` 事件循环补齐与 T897 完全对称的三个事件：首个 name 分片 →
+  `provider_tool_call_start`；arguments 分片 → 0.5s 节流 `provider_tool_call_progress`
+  （累计字符数）；流正常收束后 → 带 `done: True` 的成形事件（多调用并列名）。
+  `delta.reasoning_content` → 节流 `provider_reasoning_progress`。全部走
+  `_emit_provider_progress`，答案流零污染，节流常数与 Responses 路径共用
+  `PROVIDER_PROGRESS_INTERVAL` 单一来源。
+- 测试 `tests/test_chat_stream_progress.py` 两条：工具调用三片段 → start/progress/done
+  三态 + `on_delta` 空列表断言；reasoning 分片计数上通道 + 答案照常直达。
+
+### 证据与门
+
+- `pytest tests/test_chat_stream_progress.py -q` 2 绿（首次直绿）；
+  流族回归五文件 42 绿（responses/chat/merge/plan_channel/subagent）。
+
+### 边界
+
+- 状态通道事件码与前端 T898 chip 完全同名——chat 协议下 chip 无需任何前端改动即生效。
+- envelope 模式的原子路径依旧不动（那是有意的协议机器形态）。
