@@ -50494,3 +50494,21 @@ Eureka 只被当作 lb:// 的元数据来源消费，从没被读出"拓扑"。�
 ### 定案与边界
 - **跨任务冷启动命中 1792 是上游 1 槽 prompt 缓存的结构性约束**：completion_judge 轮（独立 12-27k 前缀）插在两个任务的 agent 请求之间，把 agent 前缀挤出上游唯一的缓存槽。证据链：每次"紧邻上一 agent 请求"的调用命中 94-99%，每次被 judge 隔开的调用命中 1792。我们侧前缀已逐字节稳定（链指纹证明），残余优化空间在上游调度（judge 换独立模型/通道）——记为后续可选项，不在本轮动架构。
 - chain 窗口 64 与 SSE reducer 的 usage 窗口同形状；usage 记录体积 +~1KB/轮，快照 usage_limit 截断照常工作。
+
+## 批次 908 - M8-T908：任务详情的前缀指纹条 —— T907 的诊断数据有了脸
+
+### 缺什么
+- T907 把 system/msgs/tools 指纹写进 usage_by_turn，但只有 curl 快照才能读——"这轮为什么没命中"仍要手动翻 JSON。
+
+### 处置
+- 新纯模块 `web/src/core/prefix-strip.js`：`prefixRows`（无指纹的旧快照行诚实丢弃、12 行封顶、指纹截 8 hex）+ `prefixStripMarkup`（每行 #序号 · sys · msgs · tools · 命中百分比，四档着色沿用缓存语汇 mint/amber/rose/quiet）。
+- 单渲染点：`runtimeMetricsMarkup` 在缓存火花线之后挂指纹条——任务详情弹窗与检查器同享。命中标签复用既有 `ledger.cacheHits` 键（零新键、无硬编码三元）。
+- 样式 `.prefix-strip-*`（等宽小字、横向滚动、三档着色）。
+
+### 证据与门
+- `tests/frontend_prefix_strip_one_home_smoke.mjs`：真 import 断言（旧快照丢弃、截断、12 封顶、着色规则）+ 单渲染点 + 复用键无硬编码 + i18n 两列 + 样式。
+- 真实浏览器探针 `tests/frontend_prefix_strip_probe.mjs`：data-open-detail 委托打开真实 T907 任务详情，3 行指纹渲染（#1 3% rose / #2 98% mint / #3 40% amber），sys 88352327 与链诊断实测吻合；截图目检。探针顺带钉死路径事实：详情走 data-open-detail（data-open-task 是切工作区）、委托容器是 #panelBody。
+- node 门全家绿（i18n 475 键、timeline、cache-series）；python 契约门 4 绿。
+
+### 边界
+- 指纹条只显示三 fp + 命中率；64 窗口链不进 UI（数据体量与可读性取舍——链对比留在快照/测试层）。

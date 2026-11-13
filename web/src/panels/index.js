@@ -1,5 +1,6 @@
 import { requestJson } from "../core/transport.js";
 import { cacheTurnSeries, cacheTurnTone } from "../core/cache-series.js";
+import { prefixRows, prefixStripMarkup } from "../core/prefix-strip.js";
 import { activateDialog, deactivateDialog } from "../core/dialog.js";
 // ES module source for the minicc workbench. Bundled by scripts/build-web.mjs.
 import { attachmentMarkup, escapeHtml, executionTrailMarkup, formatBytes, formatLightText, formatText, persistSessionView, renderSession } from "../chat/markdown.js";
@@ -1188,7 +1189,12 @@ export function runtimeMetricsMarkup(data) {
   const budget = metrics.budget && typeof metrics.budget === "object" ? metrics.budget : {};
   const duration = formatDuration(metrics.duration_seconds || 0);
   const series = cacheTurnSparkline(data?.usage_by_turn);
-  return `<div><div class="panel-section-title">${escapeHtml(t("tasks.runtime"))}</div><div class="status-grid"><div><span>${escapeHtml(t("tasks.workflow"))}</span><strong>${escapeHtml(String(metrics.workflow || "coding"))}</strong><small>${escapeHtml(String(metrics.phase || data.phase || ""))}</small></div><div><span>${escapeHtml(t("tasks.repairs"))}</span><strong>${escapeHtml(String(metrics.repair_attempts || 0))}</strong><small>${escapeHtml(duration)}</small></div><div><span>${escapeHtml(t("tasks.verifications"))}</span><strong>${escapeHtml(String(metrics.verification_runs || 0))}</strong><small>${escapeHtml(String(metrics.verification_status || ""))}</small></div><div><span>${escapeHtml(t("tasks.cache"))}</span><strong>${cacheDonut(data)}</strong><small>${escapeHtml(String(metrics.cache_status || ""))}</small></div><div><span>${escapeHtml(t("tasks.traces"))}</span><strong>${escapeHtml(String(metrics.trace_events || 0))}</strong><small>${escapeHtml(`${budget.turns || 0} turns · ${budget.tool_calls || 0} tools`)}</small></div></div>${series}</div>`;
+  // M8-T908: the fingerprint strip rides the sparkline - per-turn
+  // system/msgs/tools fingerprints make a cache mystery readable straight
+  // from the task detail (sys moved = prompt rebuilt, tools moved = schema
+  // drift, msgs rewrote = history replaced). Old snapshots render nothing.
+  const fingerprints = prefixStripMarkup(prefixRows(data?.usage_by_turn), { hitLabel: t("ledger.cacheHits") });
+  return `<div><div class="panel-section-title">${escapeHtml(t("tasks.runtime"))}</div><div class="status-grid"><div><span>${escapeHtml(t("tasks.workflow"))}</span><strong>${escapeHtml(String(metrics.workflow || "coding"))}</strong><small>${escapeHtml(String(metrics.phase || data.phase || ""))}</small></div><div><span>${escapeHtml(t("tasks.repairs"))}</span><strong>${escapeHtml(String(metrics.repair_attempts || 0))}</strong><small>${escapeHtml(duration)}</small></div><div><span>${escapeHtml(t("tasks.verifications"))}</span><strong>${escapeHtml(String(metrics.verification_runs || 0))}</strong><small>${escapeHtml(String(metrics.verification_status || ""))}</small></div><div><span>${escapeHtml(t("tasks.cache"))}</span><strong>${cacheDonut(data)}</strong><small>${escapeHtml(String(metrics.cache_status || ""))}</small></div><div><span>${escapeHtml(t("tasks.traces"))}</span><strong>${escapeHtml(String(metrics.trace_events || 0))}</strong><small>${escapeHtml(`${budget.turns || 0} turns · ${budget.tool_calls || 0} tools`)}</small></div></div>${series}${fingerprints}</div>`;
 }
 
 export function updateInspectorMetrics(data) {

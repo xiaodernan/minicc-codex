@@ -1430,6 +1430,48 @@
     return "rose";
   }
 
+  // web/src/core/prefix-strip.js
+  var CAP2 = 12;
+  function short(value) {
+    const s = String(value || "");
+    return s ? s.slice(0, 8) : null;
+  }
+  function prefixRows(usageByTurn, cap = CAP2) {
+    const rows = Array.isArray(usageByTurn) ? usageByTurn : [];
+    const out = [];
+    for (const row of rows) {
+      if (!row || typeof row !== "object") continue;
+      const sys = short(row.system_fp);
+      const msgs = short(row.msgs_fp);
+      const tools = short(row.tools_fp);
+      if (!sys && !msgs && !tools) continue;
+      out.push({
+        sys,
+        msgs,
+        tools,
+        hit: Number(row.prompt_cache_hit_tokens) || 0,
+        prompt: Number(row.prompt_tokens) || 0
+      });
+    }
+    return out.slice(-cap);
+  }
+  function prefixStripMarkup(rows, labels) {
+    const lb = labels && typeof labels === "object" ? labels : {};
+    if (!Array.isArray(rows) || !rows.length) return "";
+    const cells = rows.map((row, index) => {
+      const rate = row.prompt > 0 ? Math.round(row.hit / row.prompt * 100) : null;
+      const tone = rate == null ? "quiet" : rate >= 70 ? "mint" : rate >= 40 ? "amber" : "rose";
+      const fields = [
+        `<i>sys</i>${row.sys || "\u2014"}`,
+        `<i>msgs</i>${row.msgs || "\u2014"}`,
+        `<i>tools</i>${row.tools || "\u2014"}`,
+        `<i>${String(lb.hitLabel || "hit")}</i><b data-tone="${tone}">${rate == null ? "\u2014" : `${rate}%`}</b>`
+      ].join("");
+      return `<div class="prefix-strip-row"><span class="prefix-strip-n">#${index + 1}</span>${fields}</div>`;
+    }).join("");
+    return `<div class="prefix-strip">${cells}</div>`;
+  }
+
   // web/src/core/dialog.js
   var dialogs = [];
   var background = /* @__PURE__ */ new Map();
@@ -4440,7 +4482,8 @@
     const budget = metrics.budget && typeof metrics.budget === "object" ? metrics.budget : {};
     const duration = formatDuration(metrics.duration_seconds || 0);
     const series = cacheTurnSparkline(data?.usage_by_turn);
-    return `<div><div class="panel-section-title">${escapeHtml(t("tasks.runtime"))}</div><div class="status-grid"><div><span>${escapeHtml(t("tasks.workflow"))}</span><strong>${escapeHtml(String(metrics.workflow || "coding"))}</strong><small>${escapeHtml(String(metrics.phase || data.phase || ""))}</small></div><div><span>${escapeHtml(t("tasks.repairs"))}</span><strong>${escapeHtml(String(metrics.repair_attempts || 0))}</strong><small>${escapeHtml(duration)}</small></div><div><span>${escapeHtml(t("tasks.verifications"))}</span><strong>${escapeHtml(String(metrics.verification_runs || 0))}</strong><small>${escapeHtml(String(metrics.verification_status || ""))}</small></div><div><span>${escapeHtml(t("tasks.cache"))}</span><strong>${cacheDonut(data)}</strong><small>${escapeHtml(String(metrics.cache_status || ""))}</small></div><div><span>${escapeHtml(t("tasks.traces"))}</span><strong>${escapeHtml(String(metrics.trace_events || 0))}</strong><small>${escapeHtml(`${budget.turns || 0} turns \xB7 ${budget.tool_calls || 0} tools`)}</small></div></div>${series}</div>`;
+    const fingerprints = prefixStripMarkup(prefixRows(data?.usage_by_turn), { hitLabel: t("ledger.cacheHits") });
+    return `<div><div class="panel-section-title">${escapeHtml(t("tasks.runtime"))}</div><div class="status-grid"><div><span>${escapeHtml(t("tasks.workflow"))}</span><strong>${escapeHtml(String(metrics.workflow || "coding"))}</strong><small>${escapeHtml(String(metrics.phase || data.phase || ""))}</small></div><div><span>${escapeHtml(t("tasks.repairs"))}</span><strong>${escapeHtml(String(metrics.repair_attempts || 0))}</strong><small>${escapeHtml(duration)}</small></div><div><span>${escapeHtml(t("tasks.verifications"))}</span><strong>${escapeHtml(String(metrics.verification_runs || 0))}</strong><small>${escapeHtml(String(metrics.verification_status || ""))}</small></div><div><span>${escapeHtml(t("tasks.cache"))}</span><strong>${cacheDonut(data)}</strong><small>${escapeHtml(String(metrics.cache_status || ""))}</small></div><div><span>${escapeHtml(t("tasks.traces"))}</span><strong>${escapeHtml(String(metrics.trace_events || 0))}</strong><small>${escapeHtml(`${budget.turns || 0} turns \xB7 ${budget.tool_calls || 0} tools`)}</small></div></div>${series}${fingerprints}</div>`;
   }
   function updateInspectorMetrics(data) {
     if (!data) return;

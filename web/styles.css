@@ -3569,7 +3569,7 @@ pre code { background: #0f172a; padding: 12px; display: block; overflow-x: auto;
 .pulse-timeline { min-height: 96px; }
 .pulse-timeline-track { display: flex; align-items: stretch; gap: 6px; height: 96px; padding: 0 2px; }
 .pulse-timeline-node { position: relative; flex: 1 1 0; min-width: 0; display: flex; align-items: flex-end; justify-content: center; background: none; border: 0; padding: 0; cursor: pointer; }
-.pulse-timeline-bar { display: block; width: min(14px, 62%); height: var(--tl-h, 12%); border-radius: 7px 7px 3px 3px; background: var(--muted); opacity: .8; transition: height .45s var(--ease), opacity .18s ease, transform .18s ease; }
+.pulse-timeline-bar { --tl-h: 12%; display: block; width: min(14px, 62%); height: var(--tl-h, 12%); border-radius: 7px 7px 3px 3px; background: var(--muted); opacity: .8; transition: height .45s var(--ease), opacity .18s ease, transform .18s ease; }
 .pulse-timeline-node[data-tone="mint"] .pulse-timeline-bar { background: var(--mint); }
 .pulse-timeline-node[data-tone="rose"] .pulse-timeline-bar { background: var(--rose); }
 .pulse-timeline-node[data-tone="amber"] .pulse-timeline-bar { background: var(--amber); }
@@ -3581,3 +3581,13 @@ pre code { background: #0f172a; padding: 12px; display: block; overflow-x: auto;
 .pulse-timeline-empty { padding: 20px 0; font-size: 12px; color: var(--muted); text-align: center; }
 @keyframes pulse-timeline-breath { 0%, 100% { opacity: .5; } 50% { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .pulse-timeline-node[data-tone="pulse"] .pulse-timeline-bar { animation: none; } }
+
+/* M8-T908: the prefix fingerprint strip - per-turn system/msgs/tools reads under the cache sparkline. */
+.prefix-strip { margin-top: 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 8px 10px; display: flex; flex-direction: column; gap: 4px; overflow-x: auto; }
+.prefix-strip-row { display: flex; align-items: center; gap: 10px; font-family: var(--font-mono); font-size: 10.5px; color: var(--muted); white-space: nowrap; }
+.prefix-strip-row .prefix-strip-n { color: var(--text); opacity: .7; min-width: 26px; }
+.prefix-strip-row i { font-style: normal; opacity: .65; margin-right: 4px; }
+.prefix-strip-row b { font-weight: 600; color: var(--muted); }
+.prefix-strip-row b[data-tone="mint"] { color: var(--mint); }
+.prefix-strip-row b[data-tone="amber"] { color: var(--amber); }
+.prefix-strip-row b[data-tone="rose"] { color: var(--rose); }

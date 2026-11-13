@@ -172,6 +172,7 @@ jobs:
           npm run test:cacheseries
           npm run test:helpshortcuts
           npm run test:timeline
+          npm run test:prefixstrip
           npm run test:scale
 
   web-smoke:
