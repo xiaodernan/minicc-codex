@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.route.Route;
 import org.springframework.cloud.gateway.support.ServerWebExchangeUtils;
+import org.springframework.core.Ordered;
 import org.springframework.http.HttpStatus;
 import org.springframework.mock.web.server.MockServerWebExchange;
 import org.springframework.mock.http.server.reactive.MockServerHttpRequest;
@@ -24,6 +25,16 @@ class RateLimitMetricsFilterTest {
 
     private final SimpleMeterRegistry registry = new SimpleMeterRegistry();
     private final RateLimitMetricsFilter filter = new RateLimitMetricsFilter(registry);
+
+    @Test
+    void theFilterWrapsTheWholeChain() {
+        // The outermost position is load-bearing: the Redis rate limiter
+        // answers 429 without calling further down the chain, so a filter
+        // ordered after it would never see a single rejection — the
+        // metrics would ship as a dead counter that only passes its own
+        // unit test. Live-verified at /actuator/metrics/gateway.rate_limited.
+        assertThat(filter.getOrder()).isEqualTo(Ordered.HIGHEST_PRECEDENCE);
+    }
 
     @Test
     void aRefusedRequestIncrementsTheCounterForItsRoute() {

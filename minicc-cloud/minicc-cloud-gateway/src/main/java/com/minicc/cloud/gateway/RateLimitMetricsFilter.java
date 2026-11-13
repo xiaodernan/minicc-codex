@@ -24,6 +24,14 @@ import reactor.core.publisher.Mono;
  * route id. It changes no decision — least-precedence, after everything —
  * and costs one status-code read per request.</p>
  *
+ * <p>M8-T886 first shipped this at {@code LOWEST_PRECEDENCE} and the counter
+ * never moved: the Redis rate limiter answers 429 <em>without calling the
+ * rest of the chain</em>, so a filter ordered after it is skipped exactly
+ * when there is something to count. Wrapping the whole chain at the
+ * outermost position sees the final response regardless of where the 429
+ * was minted. Least-precedence is what made it invisible; outermost is
+ * what makes it a signal.</p>
+ *
  * <p>Actuator exposure is already configured ({@code metrics}); the counter
  * answers at {@code /actuator/metrics/gateway.rate_limited}.</p>
  */
@@ -59,6 +67,6 @@ public class RateLimitMetricsFilter implements GlobalFilter, Ordered {
 
     @Override
     public int getOrder() {
-        return Ordered.LOWEST_PRECEDENCE;
+        return Ordered.HIGHEST_PRECEDENCE;
     }
 }

@@ -49581,3 +49581,46 @@ CLI 清单）上只有 redis 拓扑（M8-T874）、任务/会话/审计计数—
 - CLI 单发运行不存任务快照（只进 `.minicc/tasks.sqlite3` 的是 web/任务路径），
   这本账天然反映任务流量——与 `--stats` 其余计数同源；
 - 传输丢失/计数异常行被跳过而非推断——诚实弱证据优于虚假精确。
+
+## 批次 888 - M8-T888：T886 的 429 计数器实测不工作 — 位置修正 + 实机验证
+
+### 1 事故复盘（诚实记录）
+
+M8-T886 上了 `RateLimitMetricsFilter`，单测 3 项全绿，`mvn` 全绿。但把全栈起起来
+打真实 429 后，`/actuator/metrics/gateway.rate_limited` 返回 **404**：
+**计数器一条都没记**。
+
+根因：过滤器放在 `Ordered.LOWEST_PRECEDENCE`。Redis 限流器（`RequestRateLimiter`）
+对超限请求**直接答 429、不再调 chain.filter**——排在它后面的过滤器在这条路径上
+根本不会被执行。单测是"直接调 filter、fake chain 自己设 429"，抓不到这个装配顺序问题。
+
+这是本会话第二次"单测绿而装配红"（首次是 web.py 的恢复锁 `provider_recoveries`）——
+教训与 T878/T879 的处理一致：**上真实栈验证**。
+
+### 2 修复
+
+- 过滤器移到 `Ordered.HIGHEST_PRECEDENCE`：wrap 整个链，无论 429 由链上哪一环铸造，
+  外延的 `then` 都能读最终 status；
+- 测试增补 `theFilterWrapsTheWholeChain`：钉住 `getOrder() == HIGHEST_PRECEDENCE`——
+  装配顺序作为契约留在测试里；
+- javadoc 写明这一层的来历与原因。
+
+### 3 实机验活（Docker Desktop，全栈 HEALTHY）
+
+```text
+60 并发 × GET /api/tasks → {200: 40, 429: 20}
+GET /actuator/metrics/gateway.rate_limited
+{"name":"gateway.rate_limited",
+ "measurements":[{"statistic":"COUNT","value":20.0}],
+ "availableTags":[{"tag":"route","values":["tasks"]}]}
+```
+
+`mvn -o -pl minicc-cloud-gateway test` → **全模块 BUILD SUCCESS**
+（`RateLimitMetricsFilterTest` 4/4）。
+
+### 4 边界
+
+- T886 中"gateway.rate_limited 已上线"的说法按本批订正为"装配后才可观测"；
+  行为变更（429 本身的来源、路由、限额）零改动；
+- 503→fallback 路径不计数（不是限流器拒绝，是断路器语义——两者归属不同，混流会让
+  仪表盘失去分辨率）。
