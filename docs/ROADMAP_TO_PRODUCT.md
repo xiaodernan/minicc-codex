@@ -49078,3 +49078,35 @@ $ curl http://127.0.0.1:18087/api/insights/disk
 
 - `free_bytes == Long.MIN_VALUE` 表示"无法获取"；正数是真实剩余字节；`file_store` 在此平台为空串（Windows file store 名称不提供）。
 - gateway lb:// 代理 `insights` 路由时 /disk 自动跟着走——无需额外路由配置。
+
+## 批次 876 - M8-T876：config-server 也上 `/actuator/info` build-info — Spring Cloud config 服务不再是黑盒
+
+### 1 缺什么（动机）
+
+M8-T868 把 build-info 推进 gateway 后，`/actuator/info` 能看 artifact/版本/时间——
+**但 config server 原样返回 `{}`**，操作员想知道 config server 自身"是哪次构建"还是要 SSH。
+
+### 2 做法
+
+镜像 Gateway 的做法：
+
+- `minicc-cloud-config/pom.xml` 的 `spring-boot-maven-plugin` 绑同相 `generate-build-info` execution；
+- 新 `ConfigServerBuildInfoTest.java`：断言 `META-INF/build-info.properties` 负载 `build.artifact=minicc-cloud-config` / `build.group=com.minicc.cloud` / `build.version=0.1.0`（1 条测试）。
+- 没有改 `config-repo/` 源，也没有动 managed jar 的 `search-locations`；只有 build-time 元数据变更。
+
+### 3 验证
+
+```text
+mvn -o test
+Tests run: 3, Failures: 0, Errors: 0, Skipped: 0          # ConfigServerBuildInfoTest 1/1 + ConfigServerServesTheShippedRepoTest 2/2
+
+实机启动 minicc-cloud-config 后：
+$ curl http://localhost:8888/actuator/info
+{"build":{"artifact":"minicc-cloud-config","name":"minicc-cloud-config",
+         "time":"...","version":"0.1.0","group":"com.minicc.cloud"}}
+```
+
+### 4 边界
+
+- actuator `info` 路径已经在 config-server 的 `management.endpoints.web.exposure.include` 里 (`health,info`)；本批零修改。
+- build-info.properties 随 jar 一起打包，CI 的 mvn clean test 已经亲到——与 M8-T868 同模式。

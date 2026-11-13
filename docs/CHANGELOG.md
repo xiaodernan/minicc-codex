@@ -120,3 +120,5 @@
 - **`--stats` 现在带 cache 拓扑（M8-T874）**：`minicc --stats` 现状面板多一行 `cache: live|local`——CLI 就能一眼看到"明明配了 `REDIS_URL`，到底生效没有"，对应 Web 面板的 `/api/metrics.redis_cache`；`--json` 输出亦多一个 `cache` 子树；现有 `--stats` 读端点不变，新增 key 仅追加。
 
 - **insights `/api/insights/disk` 落地（M8-T875）**：新只读端点给出 `.minicc/` 整体字节/文件数/SQLite 字节数、可用卷余额——运维一组 `curl http://.../api/insights/disk` 就能回答"占了多少空间、还剩多少"；honor 既有 `InsightsFailureAdvice`（DB 缺 → 503，不可读 → 500）；`DiskProbeTest` 2 条钉住两个分支。
+
+- **config-server build-info 落地（M8-T876）**：`/actuator/info` 不再是黑盒——`META-INF/build-info.properties` 由 `spring-boot-maven-plugin:build-info` 在 generate-resources 阶段产出，实时暴露 artifact/group/version/time；`ConfigServerBuildInfoTest` 钉住键集合。
