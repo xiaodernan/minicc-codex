@@ -23,6 +23,13 @@ public class InsightsFailureAdvice {
                 .body(new ErrorBody("insights-store-unavailable", exc.getMessage()));
     }
 
+    @ExceptionHandler(RegistryUnavailableException.class)
+    public ResponseEntity<ErrorBody> registryUnavailable(RegistryUnavailableException exc) {
+        // A blind registry is not an empty fleet - same rule as the store.
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(new ErrorBody("registry-unavailable", exc.getMessage()));
+    }
+
     @ExceptionHandler(CorruptSnapshotException.class)
     public ResponseEntity<ErrorBody> corrupt(CorruptSnapshotException exc) {
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)

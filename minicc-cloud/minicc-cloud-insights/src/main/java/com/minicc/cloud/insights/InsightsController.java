@@ -11,10 +11,12 @@ public class InsightsController {
 
     private final InsightsService service;
     private final DiskProbe disk;
+    private final FleetService fleet;
 
-    public InsightsController(InsightsService service, DiskProbe disk) {
+    public InsightsController(InsightsService service, DiskProbe disk, FleetService fleet) {
         this.service = service;
         this.disk = disk;
+        this.fleet = fleet;
     }
 
     @GetMapping("/summary")
@@ -25,5 +27,10 @@ public class InsightsController {
     @GetMapping("/disk")
     public DiskProbe.DiskSummary disk() {
         return disk.probe();
+    }
+
+    @GetMapping("/fleet")
+    public FleetResponse fleet() {
+        return fleet.fleet();
     }
 }

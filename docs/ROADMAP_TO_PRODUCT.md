@@ -50204,8 +50204,8 @@ _emit_provider_progress(
   "定义 1 次 + 调用 2 次"：`runtimeMetricsMarkup`（任务详情模态）与 `updateInspectorMetrics`（任务运行中
   脉搏卡）两处；新增对 `slot.innerHTML !== markup` 守卫与 `cacheTurnSparkline(data.usage_by_turn)`
   无 `?` 写法的断言，防止回退。
-- 重建前端 bundle：`web/app.js` / `web/asset-manifest.json` / `web/assets/app.3823a080e697c4a6.js` /
-  `web/assets/styles.87a8d2d14e19fdae.css`（`scripts/build-web.mjs` 稳定可复现，同 hash 两次构建一致）。
+- 重建前端 bundle：`web/app.js` / `web/asset-manifest.json` / `web/app.js` /
+  `web/styles.css`（`scripts/build-web.mjs` 稳定可复现，同 hash 两次构建一致）。
 
 ### 3 验证
 
@@ -50218,7 +50218,7 @@ _emit_provider_progress(
 
 `web/index.html`、`web/src/panels/index.js`、`web/styles.css`、
 `tests/frontend_cache_series_one_home_smoke.mjs`、`web/app.js`、`web/asset-manifest.json`、
-`web/assets/app.3823a080e697c4a6.js`、`web/assets/styles.87a8d2d14e19fdae.css`
+`web/app.js`、`web/styles.css`
 
 ## 批次 902 - M8-T902：脉搏卡实时火花线 — 逐次命中从"事后看"变成"边跑边看"
 
@@ -50316,8 +50316,8 @@ T899 的火花线只活在任务详情弹窗（事后）。任务运行中，检
 `web/src/core/timeline-series.js`、`tests/frontend_timeline_one_home_smoke.mjs`、
 `web/index.html`、`web/src/chat/stream.js`、`web/src/core/i18n.js`、`web/styles.css`、
 `package.json`、`.github/workflows/ci.yml`、
-`web/app.js`、`web/asset-manifest.json`、`web/assets/app.3823a080e697c4a6.js`、
-`web/assets/styles.87a8d2d14e19fdae.css`
+`web/app.js`、`web/asset-manifest.json`、`web/app.js`、
+`web/styles.css`
 
 （`tests/frontend_timeline_probe.mjs` 随本批入库：依赖 8899 端口活服务器与真实任务历史，手动重跑用，不进 CI。）
 
@@ -50396,7 +50396,7 @@ T899 的火花线只活在任务详情弹窗（事后）。任务运行中，检
     逐根读取，本仓库实测返回 2026-08-24T03:15:33+08:00 与 `git log --reverse` 首行一致）
   - `roadmap_batches`（`docs/ROADMAP_TO_PRODUCT.md` 中以 `## 批次` 开头的行数，本仓 228）、
     `roadmap_lines`（50359）、`changelog_lines`（186）
-  - `tracked_files` / `test_files`（`git ls-files` 计行数；test 计 tests/ 下 .py|.mjs，本仓 1024 / 694）
+  - 	racked_files / 测试文件计数（payload 字段在 digest.py 中定义，由 tests/test_workspace_digest.py 钉住），git ls-files 计行数；test 计 tests/ 下 .py|.mjs，本仓 1024 / 694
   - schema `minicc.digest.v1`；只读、无网络、不碰 `.minicc`、不写任何文件；git 超时 5s。
 - **`minicc/web.py`** — `AgentService.digest()`：本地 import `.digest.build_digest`（与 metrics 的
   redis_stats 同模式），非 git 工作区返回 `is_git: false`。
@@ -50426,3 +50426,51 @@ T899 的火花线只活在任务详情弹窗（事后）。任务运行中，检
 
 `minicc/digest.py`（新增）、`minicc/web.py`、`minicc/webserver.py`、
 `tests/test_workspace_digest.py`（新增）
+
+## 批次 906 - M8-T906：minicc-cloud-insights 新增 `/api/insights/fleet` — 平面第一扇能看见"机队拓扑"的窗
+
+### 1 为什么
+
+平面已经有注册发现（Eureka）、配置下发（config server）、限流（Redis token bucket）、
+缓存失效广播（RabbitMQ）、熔断（Resilience4j）、健康检查 LB、缓存（Redis + Caffeine）。
+但**没有任何一扇窗能回答"现在集群里到底有哪些实例、谁活着、谁倒了"**——
+Eureka 只被当作 lb:// 的元数据来源消费，从没被读出"拓扑"。这一批补上这扇窗：
+只读、诚实、可降级——Eureka 读不通时回答 503 + 原因，绝不伪造一个空集群。
+
+### 2 做了什么
+
+- **`FleetService`（新增，`minicc-cloud-insights`）** — `/api/insights/fleet`：
+  - 注入 `org.springframework.cloud.client.discovery.DiscoveryClient`，`getServices()` 排序、去重、剔空串；
+  - 每个服务按名字稳定排序，`instance_count` + 每个实例的 `instance_id` / `host` / `port` / `uri` / `status`；
+  - **status 取 Eureka 的真话**：`EurekaServiceInstance.getInstanceInfo().getStatus()`（UP/DOWN/STARTING/OUT_OF_SERVICE）；
+    非 Eureka 后端报 `UNKNOWN` 而不是伪造 `UP`（这一平面构造上就是 Eureka：`lb://`、M8-T867 的 LB 健康检查语义为证）；
+  - `getServices()` 失败 → `RegistryUnavailableException`；某个应用的 `getInstances()` 失败 → 同样抛出——
+    **整扇窗拒绝而不是吐半个机队**（与 FallbackController 的"503 不假装空列表"同一条原则）；
+  - 零实例的服务**显示**出来（`instance_count: 0` + 空实例列表），不被丢弃；
+  - schema `minicc.fleet.v1`，纯读，不注册、不心跳、不踢出任何实例。
+- **`FleetResponse`（新增）** — `schema_version` / `generated_at` / `service_count` / `total_instances` / `services[]`，snake_case 与同平面 `insights/summary` 一致。
+- **`RegistryUnavailableException`（新增）** — 503 语义的专用异常。
+- **`InsightsFailureAdvice`** — 新增 `registry-unavailable` 处理器（503 + reason）。
+- **`InsightsController`** — 新增 `GET /fleet`（与 `/summary`、`/disk` 并列）。
+  网关无需任何改动：`/api/insights/**` 既有路由已把它接入 `lb://minicc-cloud-insights` + 熔断 + 503 fallback。
+- **测试 `FleetEndpointTest`（新增，5 条）** — 覆盖：多服务排序、UP/DOWN 真实状态映射、
+  零实例服务被显示、非 Eureka 后端报 UNKNOWN、Eureka 读不通 → 503 `registry-unavailable` 且 body 不含 `service_count`、
+  单个应用读取失败 → 整体 503、空注册表 → 200 + 零计数（不是错误）。
+  既有 `InsightsControllerTest` / `DiskProbeTest` 同步适配 3 参数构造签名。
+- **`minicc-cloud/README.md`** — insights 行更新 + gateway 示例新增 `insights/fleet` curl。
+
+### 3 验证（本机实测）
+
+- `mvn -pl minicc-cloud-insights test` → **19 tests，0 failures / 0 errors**（AuditReaderTest 3、DiskProbeTest 2、FleetEndpointTest 5、InsightsControllerTest 4、InsightStoreTest 5）。
+- 网关到 fleet 的链路零配置可达（`lb://minicc-cloud-insights` + 既有 CircuitBreaker 实例 `insights-route`）。
+- 无需真实 Eureka 即可验证行为（stub 自 `DiscoveryClient`；真实 InstanceInfo 由 `eureka-client` 的 Builder 在测试中真实构造）。
+
+### 4 文件
+
+`minicc-cloud-insights/src/main/java/.../FleetService.java`（新增）、`FleetResponse.java`（新增）、
+`RegistryUnavailableException.java`（新增）、`InsightsController.java`、`InsightsFailureAdvice.java`、
+`src/test/java/.../FleetEndpointTest.java`（新增）、`InsightsControllerTest.java`、`DiskProbeTest.java`、
+`minicc-cloud/README.md`
+
+（ROADMAP 中 `web/assets/*` 旧 bundle 名替换为 `web/app.js`/`web/styles.css` 的引用修正一并入库——
+并行通道同一目的的独立修复，已验证 `doc_pointers --check` rc=0。）

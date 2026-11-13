@@ -188,3 +188,5 @@
 - **data-i18n 契约门（M8-T906）**：HTML 声明的 182 个 i18n 键必须双语言在列——首扫的 5 个"幽灵键"其实是裸键扫描盲区（字典头部 `recentTasks: "最近任务"` 形态），重复补键被 one_home 门的重复检测拦下，门正则对齐后一次绿；lifecycle 真实浏览器冒烟首绿，T903 waitForFunction 签名修复实测有效。
 
 - **`/api/digest` 工作区知识事实包（M8-T905）**：一个只读、离线的端点——分支、HEAD、upstream 漂移、脏文件数、提交总数、最老提交时间、年鉴/更新日志的批次与行数（本仓：1417 commits / 228 个批次标题 / 50359 行 roadmap / 1024 tracked files / 694 测试文件）。非 git 工作区回答 200 + `is_git: false`（绝不抛错），路由清单门自动探测。`minicc/digest.py` 是与 web 层无关的纯函数模块，年鉴后续章节直接引用它说话。
+
+- **平面第一扇「机队拓扑」窗（M8-T906）**：`GET /api/insights/fleet`——Eureka 现在被读出"谁在、谁倒了"：服务名排序、实例数、每个实例的 host/port/uri/真实 UP/DOWN（非 Eureka 后端报 `UNKNOWN`）。注册表读不通 → 503 `registry-unavailable` + 原因，绝不伪造一个空集群；单个应用读不通 → 整体拒绝，不给半个机队；零实例的服务照样显示出来。网关零改动可达（`lb://` + 既有 `insights-route` 熔断）。`mvn -pl minicc-cloud-insights test`：19/19 绿。

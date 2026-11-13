@@ -12,6 +12,7 @@ import java.nio.file.Path;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import java.util.List;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -79,7 +80,24 @@ class DiskProbeTest {
         DiskProbe probe = new DiskProbe(properties);
         InsightsService service =
                 new InsightsService(new InsightStore(properties), new AuditReader(properties));
-        return MockMvcBuilders.standaloneSetup(new InsightsController(service, probe))
+        final org.springframework.cloud.client.discovery.DiscoveryClient registry =
+                new org.springframework.cloud.client.discovery.DiscoveryClient() {
+                    @Override
+                    public List<String> getServices() {
+                        return List.of();
+                    }
+
+                    @Override
+                    public List<org.springframework.cloud.client.ServiceInstance> getInstances(String serviceId) {
+                        return List.of();
+                    }
+
+                    @Override
+                    public String description() {
+                        return "test registry";
+                    }
+                };
+        return MockMvcBuilders.standaloneSetup(new InsightsController(service, probe, new FleetService(registry)))
                 .setControllerAdvice(new InsightsFailureAdvice())
                 .build();
     }

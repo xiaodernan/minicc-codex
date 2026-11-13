@@ -11,6 +11,9 @@ import java.nio.file.Path;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import java.util.List;
+import org.springframework.cloud.client.ServiceInstance;
+import org.springframework.cloud.client.discovery.DiscoveryClient;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -94,7 +97,23 @@ class InsightsControllerTest {
                 new InsightsProperties(database.toString(), auditFile.toString(), 1000, 100);
         InsightsService service =
                 new InsightsService(new InsightStore(properties), new AuditReader(properties));
-        return MockMvcBuilders.standaloneSetup(new InsightsController(service, new DiskProbe(properties)))
+        final DiscoveryClient registry = new DiscoveryClient() {
+            @Override
+            public List<String> getServices() {
+                return List.of();
+            }
+
+            @Override
+            public List<ServiceInstance> getInstances(String serviceId) {
+                return List.of();
+            }
+
+            @Override
+            public String description() {
+                return "test registry";
+            }
+        };
+        return MockMvcBuilders.standaloneSetup(new InsightsController(service, new DiskProbe(properties), new FleetService(registry)))
                 .setControllerAdvice(new InsightsFailureAdvice())
                 .build();
     }
