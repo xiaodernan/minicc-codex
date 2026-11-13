@@ -56,6 +56,7 @@
 - **注**：`/api/cached/inspector/changes` 的响应体可能包含工作区内变更清单——只对本机信任边界内暴露；若部署到非回环，需要适配网关的认证（同 `/fallback` 语义）。
 - **聚合健康面 `/api/health/all`（M8-T850）**：`AggregateHealthController` 用 **同一个** `UpstreamHealthProbe`，对 `minicc-cloud-inspector` / `minicc-cloud-tasks` / `minicc-cloud-insights` 三个服务**并行**（WebFlux `Flux`）探活，产出 `{"services":[...], "upCount":N, "totalServices":3}`——运维一个 endpoint 看全三个后端的 `lb://` 健康；一个服务显示 DOWN，谁知道分也算得到。`AggregateHealthControllerTest`（3 条）钉住"all-up=3 / 一坏+一 unknown=1 / all-down=0"。
 - **探活 bounded timeout（M8-T860）**：`HttpUpstreamHealthProbe` 的每个上游探活有硬上限——默认 **2s**（`minicc.cloud.gateway.probe-timeout-ms`，环境变量 `MINICC_GATEWAY_PROBE_TIMEOUT_MS` 覆盖），`.timeout()` 之后接 `onErrorReturn(UNKNOWN)`；一个卡死的上游不会拖住聚合答案。`ProbeTimeoutTest`（3 条）钉住「永不返回的上游在窗口内 resolve 为 UNKNOWN」。
+- **Spring Cloud LoadBalancer health check（M8-T871）**：`spring.cloud.loadbalancer.health-check.path.default=/actuator/health` + `interval=10s` ——Eureka 注册表的 UP tag 只能停在「上一次心跳成功」上；真正的 `/actuator/health` 才是当前状态。LB 现在每 10 秒直接打每个候选实例，一旦 /health 失败就过滤出服务列表——不等 Eureka 续约（默认 30s），也不等 60s Caffeine 缓存刷新。实测（2026-11-13，compose 全栈）：tasks/inspector/insights 全部 3/3 UP、`/actuator/health` UP、cached routes roundtrip 正常（Redis `gateway-routes::inspector:status` + `gateway-routes::insights:summary` 写入；删除实例也被 LB 自动剔除——health check 过滤掉死实例后的下一次 poll/answer 仍然活下来）。
 
 
 > 一并修掉的历史缺陷：`application.yml` 曾有两个顶层 `spring:` 块，SnakeYAML 直接报 `found duplicate key spring`，网关**上下文根本加载不了**（17 个测试全红）；现合并为单一 `spring:` 树，3 条路由 + redis/cache/rabbitmq 全在同一键下。全 8 模块 `mvn -o clean test` 空环境 93→101 测试全绿。

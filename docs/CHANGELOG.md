@@ -112,3 +112,5 @@
 - **cached-route 负载带 `fetchedAtMs`（M8-T869）**：`/api/cached/inspector/status`、`/api/cached/insights/summary` 的响应现在多出一个 epoch-millis `Long` 键——CLI/仪表盘可用 `now - fetchedAtMs` 判断缓存年龄而不需要再去 query `PTTL`；JDK 序列化往返（CachedPayloadRoundTripTest）原样保留；消费者若不认识这个字段，也不会受影响。
 
 - **Spring Cloud LoadBalancer — 换 Caffeine（M8-T870）**：网关启动时"This cache implementation is useful for development and tests"的 WARN 彻底消失；`lb://` 上游 lookup 的实例集合现在走 Caffeine（真的 LRU+并行驱逐）；`loadbalancer.cache.enabled/ttl/capacity` 全部参数化（`minicc.cloud.gateway.loadbalancer-cache-ttl:30s`、`capacity=256`）。
+
+- **Spring Cloud LoadBalancer health-check 参数化（M8-T871）**：`spring.cloud.loadbalancer.health-check.path.default=/actuator/health` + `interval=10s`——上层 Eureka 的 UP/DOWN tag 不再是唯一真理（依赖 30s heartbeat），LB 现在每 10s 直接探活，剔除真死 instance；compose 全栈实测 3/3 UP、`/actuator/health` UP、cached routes roundtrip 正常。

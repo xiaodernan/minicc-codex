@@ -48860,3 +48860,47 @@ mvn -o test: GatewayRouteBindingTest 8/8、AggregateHealthControllerTest 3/3、
 - 本批次未改 loadbalancer 行为语义————`lb://` 路由、Eureka 注册、cache 键、
   30s 超时全部与之前相等。只是换了缓存器的具体实现。
 - 没有引入新的响应头或 API————`/actuator/info` 还是原来的 `build` 贡献。
+
+## 批次 871 - M8-T871：Spring Cloud LoadBalancer health-check — 上游自检的轮询减少到分钟级
+
+### 1 背景
+
+Eureka 注册表的 UP/DOWN tag 依赖心跳（默认 30s 刷新）+ 服务 instance 主动续约——如果
+一个 inspector 实例实际上死了、但 compose 网络与 local `/dev/tcp` 全都 "当然还在"，Eureka
+就要至少 30s+ 才感知，"LB 下一次选到一个死实例" = 30s 内反复 503 + 熔断器跳开。
+
+### 2 怎么做
+
+`spring.cloud.loadbalancer.health-check.path.default=/actuator/health` + `interval=10s`。
+
+- 属性形状是 `Map<ServiceId, Path>`，`default` 对全部 serviceId 生效；
+  `path.minicc-cloud-insights:/actuator/health` 是单独可覆盖的。
+- 健康检查频率 10s（原本不硬配，会落到缺省 25s；这里显式压小到 10s 以匹配 Java 健康指示器的自然刷新）。
+- **没有重 retry 次数**——`repeat-health-check=false`（缺省），一次 per interval 的
+  独立 /actuator/health 轮询已经足够：LB 就算在轮询间隙中 instance 下线，下一次路由
+  也是 unknown 不是 503-retry storm——这是对 cache 层的补偿，不是新增失败模式。
+
+### 3 实测（2026-11-13，compose full-stack）
+
+```text
+$ docker compose up -d（tasks / insights / inspector / gateway 全部 healthy）
+$ curl http://127.0.0.1:18080/api/health/all
+{"upCount":3,"totalServices":3,"services":[
+  {"service":"minicc-cloud-insights","upstreamStatus":"UP"},
+  {"service":"minicc-cloud-inspector","upstreamStatus":"UP"},
+  {"service":"minicc-cloud-tasks","upstreamStatus":"UP"}]}
+
+$ docker exec minicc-cloud-redis-1 redis-cli KEYS 'gateway-routes*'
+gateway-routes::inspector:status
+gateway-routes::insights:summary
+
+$ curl http://127.0.0.1:18080/actuator/health
+{"status":"UP"}
+```
+
+### 4 边界
+
+- health-check 行为透明——LoadBalancer 的 `ServiceInstanceListSupplier` 照常按心跳的 UP/DOWN
+  tag 选，加上健康检查后过滤掉当前 404/503 的实例；加上之后 **即使 Docker 网络抖动**，
+  gateway 也不会一次 proxy 到死 instance。
+- 未影响 Caffeine cache、cached route 或 probe-timeout 语义。

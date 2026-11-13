@@ -16,7 +16,16 @@ spring:
     # LoadBalancer cache: Caffeine replaces the development-only in-memory
     # default; 30s TTL reflects the 30s Eureka lease renewal window — an
     # instance considered dead by a 30s-stale cache is very likely actually gone.
+    # Health check: poll each candidate instance directly before trusting
+    # Eureka's cached UP tag. A service whose /actuator/health starts failing
+    # should stop receiving lb:// traffic within one poll interval even if
+    # Eureka hasn't demoted it yet. `path.default` applies to every serviceId;
+    # a per-service override would look like `path.minicc-cloud-insights: /health`.
     loadbalancer:
+      health-check:
+        interval: 10s
+        path:
+          default: /actuator/health
       cache:
         enabled: true
         ttl: ${minicc.cloud.gateway.loadbalancer-cache-ttl:30s}
