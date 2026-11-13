@@ -49765,7 +49765,8 @@ M8-T885 写了 `.cache-donut[style*="--donut"] svg { width: var(--donut); height
 ### 3 验证
 
 - `node --check web/app.js` ✓；产物重建（`web/app.js` 311,491 chars 不变，
-  `web/assets/styles.da55e3e3a9da701a.css` 接任，Hero 段 6 处关键帧命中）；
+  `web/styles.css` 构建出的内容寻址 CSS 接任（哈希随源码滚动，不在此引用），
+  Hero 段 6 处关键帧命中）；
 - 色槽沿用暗/亮双主题同名 token（coral/coral-soft/surface/text）零分叉；
 - 面板首屏即空状态——CI 的 Playwright 双腿顺便验收。
 
@@ -49830,3 +49831,60 @@ Redis 拓扑、任务计数，但没有任何面向用户的界面把它们摊�
 - 无 live 流时巨环降级为"—"而非 0%；
 - Esc 与 gameModal/panel 共用关闭路径；Pulse 焦点陷阱复用 activateDialog？
   本版使用 aria-hidden 语义关闭 + 显式关闭按钮。
+
+## 批次 895 - M8-T895：Ctrl+K 命令面板 + 任务完成桌面通知 — 顺手揪出 doctor 缓存探针与产品各说各话
+
+### 1 缺什么
+
+- 工作台没有任何一处"键盘起手式"：18 个入口（面板/主题/语言/专注/导出…）全部要鼠标点。现代工具的第一生产力键 Ctrl+K 不存在。
+- 任务完成只在页面内的 toast 提一句：切去别的窗口干活就永远错过。
+- `minicc --doctor` 的 `llm_cache_affinity` 探针（M8-T889）直接读 `os.environ`，而 `.env` 只被 config 层加载——在端点活得好好的仓库里，doctor 报"no LLM endpoint configured"，医生和病人各说各话（本机实测复现：`--print-config` 显示 endpoint=https://wkapi.pro/v1 key=set，同一秒 doctor 报 warn）。
+- 顺带被既有门抓住的欠账：`--dot`（stream.js 内联写入）未进运行时豁免清单、`--font-mono` 有 var() 引用却无声明家。
+
+### 2 处置
+
+- **命令面板** `web/src/core/command-palette.js`：17 条命令注册为数据；打分式子序列搜索（子串直击 + 词首加权 + 连续段加分，非前缀过滤）；↑↓/Enter/Esc；combobox→listbox + `aria-activedescendant`；焦点生命周期复用 `core/dialog.js`（inert 背景 + 焦点归还）。Ctrl/Cmd+K 开关、Esc 由 dialog 层接管。
+- **桌面通知** `web/src/core/notify.js`：唯一家（权限态 + 开关 + 终态钩）。只在 `document.hidden` 且已授权时发；点击 → focus + `minicc-open-task` 事件 → `openTaskInWorkspace`。刻意零 stream/panels 导入——api.js 在两者之下，循环导入会在初始化中途跑对方的顶层。钩点唯一：`completeTask`（终态唯一家）。设置面板加 zh/en 双语开关块。
+- **doctor 探针同源化**：`check_llm_cache_affinity` 改走 `load_config(workspace=...)`（.env/env/project/user 唯一优先级家），ConfigError 也归为 warn 并直说"affinity 不可观测"。本机实测：`[ok] llm_cache_affinity: prompt_cache_key = derived from gateway+model (automatic)`。
+- **调色板欠账**：`--dot` 进 RUNTIME_TOKENS 豁免（豁免靠 JS 写入断言撑腰）；`--font-mono` 在 `:root` 唯一声明（值 = 原fallback，零行为变化）。
+- 并轨会话把自己的 T893/T894 提交扫走了本批进行中的文件——api.js/stream.js 通知接线被其版本覆盖丢失，本批重放（CRLF/LF 各按原样）。
+
+### 3 证据与门
+
+- 新门 `tests/test_the_command_palette_answers_its_own_keys.py` 4 条：请求键双语齐全 / 构造键族恰为声明集（钉死 `split(".")[1]`→`palette.group.group` 这个首版真 bug）/ combobox-listbox 契约 / 通知钩子恰一次且在终态唯一家。
+- 变异臂 6 条全部精确命中（`output/mutate_t895.py`）：M1 构造键缺失、M1b 字面键缺失、M2 错段重建、M3 combobox 契约破坏、M4 钩子出逃、M5 钩子重复——每条被对应那条断言抓住，无撒网红。
+- doctor 门更新：warn 用例隔离 HOME/CWD（config 层会读真 .env——这正是修复的意义）；新增 `.env` 可见性回归测试（无进程环境变量、仅盘上 .env → 必须读成 ok）。`tests/test_doctor.py` 20 passed。
+- 浏览器实测（`output/palette_probe.mjs`，manifest-aware 静态服务 + 真键鼠）：Ctrl+K 开 → 18 条；"english" 过滤 → 1 条；Enter → locale 翻转生效；"wks" 子序列 → 3 条；Esc 关；设置面板通知开关在位。连跑 3 次 + 沉降等待后 2 次全绿（首开竞态根因是闪屏 420ms 收尾定时器抢焦点，探针沉降 600ms 后消除）。
+- 前端四门（AA 对比度 / 焦点环 / 调色板唯一家 / 资产新鲜）29 passed；`npm run check:web` 干净。
+
+### 4 边界
+
+- 面板命令表是数据：新增入口 = 加一行 `{ id, glyph, group, run }` + 双语键，搜索/焦点/a11y 自动继承。
+- 通知不做声音自定义、不做点击深链以外的前端队列；`Notification` 不可用浏览器静默降级为 toast 提示。
+- product-path web smoke（真实 LLM 90s 预算）本机出现"spinner 超时"——手发真实 API 最小任务（"只回答一个词：OK"）另行验证端到端；面板/通知不触聊天路径。
+
+## 批次 896 - M8-T896：模板库 — 常见任务的经过验证的 prompt 一键到手
+
+### 1 动机
+
+每次面对陌生代码库，用户都要手写"请阅读 README 和 package.json 列出项目概览"
+之类的 prompt。这不只是敲字问题，更是认知成本——用户不知道能不能得到高质量回答，
+于是放弃了。
+
+### 2 做了什么
+
+- 侧边栏新增「模板库」入口（标签 i18n：模板库 / Task templates），`data-view="templates"`；
+- 8 张卡片（项目扫描 / 跑测试并修好 / 安全审查变更 / 生成 README / 中文注释英文化 /
+  依赖升级体检 / 代码现代化建议 / 关键路径冒烟），覆盖最常见的开发 / 维护场景；
+- 每张卡：简洁标题 + 一句话说明 + icon（使用工作区已有图标，零新图标资产）；
+- 点击卡片 → 展开完整 prompt 预览（原始 \n 保留、可复制）→
+  「把这段发送给 Agent」一键填入 composer 并 `focus` + 触发 `input` 事件（与真人输入等效）；
+  → 自动关闭面板并把舞台交还给用户。
+- 命令面板（Ctrl/⌘+K）新增"templates"条目，与侧栏入口同一语义；
+- i18n：双语全量（中文标题/说明 / 英文 title/subtitle）。
+
+### 3 边界
+
+- 纯静态策划，零运行时计算、零后端调用；模板内容只改 src/chat/stream.js 的一个数组；
+- 模板不会写任何文件、不会跑任何命令；只喂进 composer；
+- 条目顺序以"新项目最常用的先"为准：扫描 → 修 → 审 → 文档 → 翻译 → 依赖 → 现代化 → 冒烟。

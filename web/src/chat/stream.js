@@ -1,677 +1,1351 @@
-import { requestJson } from "../core/transport.js";
-import { activateDialog, deactivateDialog } from "../core/dialog.js";
-import { notificationsBlocked, notificationsEnabled, setNotificationsEnabled } from "../core/notify.js";
-import { openArcade } from "../core/arcade.js";
-import { captureViewScope, isViewScopeCurrent } from "../core/scope.js";
-// ES module source for the minicc workbench. Bundled by scripts/build-web.mjs.
-import { attachmentMarkup, cacheTaskDetail, escapeHtml, executionTrailMarkup, formatText, loadTaskHistory, persistSessionView, renderSession, sessionViewKey } from "./markdown.js";
-import { applyTaskEvent, completeTask, finishLiveTask, isTerminalTask, pollTask, updateBoundTask, updateLiveTask } from "../core/api.js";
-import { t } from "../core/i18n.js";
-import { $, $$, ACTIVE_TASK_STATUSES, authHeaders, authQuery, INSPECTOR_TABS, renderedHistoryKeys, RESUMABLE_TASK_PHASES, runtime, runningTasks, sessionMarkup, state, taskBySession, taskDetailLoads, taskDetailsById, taskEventSources, taskHistoryBySession, taskHistoryListBySession, taskWatchers, REASONING_EFFORTS } from "../core/state.js";
-import { icon, refreshIcons } from "../icons.js";
-import { addAssistantMessage, addLoadingMessage, addUserMessage, bindRunningTask, cacheDonut, closeMentionPopover, compactNumber, effectiveTaskPermissions, eventSequence, eventTimelineMarkup, formatDuration, isCurrentTaskScope, isSessionBusy, phaseLabel, refreshFileTree, refreshFileTreeSoon, runtimeMetricsMarkup, sessionTaskBindings, setBusy, setConnection, setSession, setTaskTransportStatus, showAuthModal, showToast, taskDuration, taskMetrics, taskSessionKey, updateReasoningControl, updateTaskDock } from "../panels/index.js";
-
-export function streamTask(taskId) {
-  const binding = runningTasks.get(taskId);
-  const loadingId = binding?.loadingId || "";
-  if (!window.EventSource) return pollTask(taskId);
-  return new Promise((resolve, reject) => {
-    let source = null;
-    let settled = false;
-    let fallbackStarted = false;
-    let receivedSnapshot = false;
-    let reconnectAttempts = 0;
-    let reconnectTimer = 0;
-    let snapshotTimer = 0;
-    const sourceKey = loadingId || taskId;
-    const maxReconnectAttempts = 6;
-    setTaskTransportStatus(taskId, "connecting");
-
-    const closeSource = () => {
-      if (source) source.close();
-      source = null;
-      taskEventSources.delete(sourceKey);
-      window.clearTimeout(reconnectTimer);
-      window.clearTimeout(snapshotTimer);
-    };
-
-    const fallback = () => {
-      if (settled || fallbackStarted) return;
-      fallbackStarted = true;
-      setTaskTransportStatus(taskId, "polling");
-      closeSource();
-      pollTask(taskId).then(resolve, reject);
-    };
-
-    const finish = async (data) => {
-      if (settled || !isTerminalTask(data)) return;
-      settled = true;
-      closeSource();
-      try {
-        // The terminal event contains enough state to render immediately, but
-        // one final snapshot also carries the complete answer/result payload.
-        const latest = await requestJson(`/api/tasks/${encodeURIComponent(taskId)}`, {}, 12000);
-        // A lagging snapshot must not regress the terminal event to running.
-        const terminal = isTerminalTask(latest) ? latest : data;
-        updateBoundTask(taskId, terminal);
-        resolve(await completeTask(loadingId, terminal));
-      } catch {
-        resolve(await completeTask(loadingId, data));
-      }
-    };
-
-    const handleSnapshot = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        receivedSnapshot = true;
-        reconnectAttempts = 0;
-        const latest = updateBoundTask(taskId, data);
-        if (isTerminalTask(latest || data)) finish(latest || data);
-      } catch {
-        // A malformed frame is ignored; the connection error/retry path still
-        // has a chance to recover the task from its durable snapshot.
-      }
-    };
-
-    const handleTaskEvent = (event) => {
-      try {
-        const data = applyTaskEvent(taskId, JSON.parse(event.data));
-        if (data) {
-          reconnectAttempts = 0;
-          if (isTerminalTask(data)) finish(data);
-        }
-      } catch {
-        // The next replay or a polling fallback can still restore the state.
-      }
-    };
-
-    const checkLatestAfterError = () => {
-      if (settled || fallbackStarted) return;
-      closeSource();
-      requestJson(`/api/tasks/${encodeURIComponent(taskId)}`, {}, 8000)
-        .then((latest) => {
-          if (settled) return;
-          const current = updateBoundTask(taskId, latest);
-          if (isTerminalTask(current || latest)) {
-            finish(current || latest);
-            return;
-          }
-          scheduleReconnect();
-        })
-        .catch(() => scheduleReconnect());
-    };
-
-    const scheduleReconnect = () => {
-      if (settled || fallbackStarted) return;
-      closeSource();
-      setTaskTransportStatus(taskId, "reconnecting");
-      reconnectAttempts += 1;
-      if (reconnectAttempts > maxReconnectAttempts) {
-        fallback();
-        return;
-      }
-      const delay = Math.min(6000, 500 * (2 ** (reconnectAttempts - 1)));
-      reconnectTimer = window.setTimeout(connect, delay);
-    };
-
-    function connect() {
-      if (settled || fallbackStarted) return;
-      const cursor = eventSequence(binding?.cursor || binding?.data?.event_cursor);
-      source = new EventSource(authQuery(`/api/tasks/${encodeURIComponent(taskId)}/events?after=${cursor}`));
-      taskEventSources.set(sourceKey, source);
-      source.onmessage = handleSnapshot;
-      source.addEventListener("task_event", handleTaskEvent);
-      source.addEventListener("resync", handleSnapshot);
-      source.onerror = checkLatestAfterError;
-      window.clearTimeout(snapshotTimer);
-      if (!receivedSnapshot && cursor === 0) {
-        snapshotTimer = window.setTimeout(() => {
-          if (!receivedSnapshot) scheduleReconnect();
-        }, 3500);
-      }
-    }
-
-    connect();
-  });
-}
-
-export function watchTask(taskId) {
-  const existing = taskWatchers.get(taskId);
-  if (existing) return existing;
-  const watcher = streamTask(taskId);
-  taskWatchers.set(taskId, watcher);
-  watcher.then(
-    () => { if (taskWatchers.get(taskId) === watcher) taskWatchers.delete(taskId); },
-    () => { if (taskWatchers.get(taskId) === watcher) taskWatchers.delete(taskId); },
-  );
-  return watcher;
-}
-
-export async function cancelActiveTask() {
-  const taskIds = sessionTaskBindings(state.sessionId).map((binding) => binding.taskId);
-  const fallback = taskBySession.get(taskSessionKey(state.sessionId)) || null;
-  if (!taskIds.length && fallback) taskIds.push(fallback);
-  if (!taskIds.length) return;
-  try {
-    await Promise.all(taskIds.map((taskId) => requestJson(`/api/tasks/${encodeURIComponent(taskId)}/cancel`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" })));
-    showToast(state.locale === "zh" ? "已请求取消任务" : "Cancellation requested");
-  } catch (error) {
-    showToast(error.message);
-  }
-}
-
-export function renderAttachmentTray() {
-  const tray = $("#attachmentTray");
-  if (!tray) return;
-  tray.hidden = state.attachments.length === 0;
-  tray.innerHTML = attachmentMarkup(state.attachments, "attachment-tray-items");
-  refreshIcons();
-}
-
-export function readImageFile(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error(`无法读取图片：${file.name}`));
-    reader.onload = () => resolve(String(reader.result || ""));
-    reader.readAsDataURL(file);
-  });
-}
-
-export async function addImageFiles(fileList) {
-  const files = [...(fileList || [])].filter((file) => String(file.type || "").startsWith("image/"));
-  if (!files.length) return;
-  const remaining = Math.max(0, 4 - state.attachments.length);
-  if (!remaining) {
-    showToast(state.locale === "zh" ? "最多添加 4 张图片" : "Up to 4 images per task");
-    return;
-  }
-  for (const file of files.slice(0, remaining)) {
-    if (file.size > 6 * 1024 * 1024) {
-      showToast(state.locale === "zh" ? `${file.name} 超过 6MB` : `${file.name} is larger than 6MB`);
-      continue;
-    }
-    try {
-      const dataUrl = await readImageFile(file);
-      state.attachments.push({
-        id: `image-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-        name: file.name,
-        mime_type: file.type || "image/png",
-        size_bytes: file.size,
-        data_url: dataUrl,
-      });
-    } catch (error) {
-      showToast(error.message);
-    }
-  }
-  renderAttachmentTray();
-}
-
-export function clearAttachments() {
-  state.attachments = [];
-  const input = $("#imageInput");
-  if (input) input.value = "";
-  renderAttachmentTray();
-}
-
-export async function sendMessage(event) {
-  event?.preventDefault();
-  const input = $("#promptInput");
-  const queuedAttachments = state.attachments.map((item) => ({ ...item }));
-  const message = input.value.trim() || (queuedAttachments.length ? (state.locale === "zh" ? "请分析我上传的图片。" : "Analyze the images I uploaded.") : "");
-  const sessionId = state.sessionId;
-  const workspacePath = state.workspacePath;
-  if ((!message && !queuedAttachments.length) || state.submitting) return;
-  const submission = {};
-  runtime.submission = submission;
-  const releaseSubmission = () => {
-    if (runtime.submission !== submission) return;
-    runtime.submission = null;
-    state.submitting = false;
-    setBusy(isSessionBusy(state.sessionId));
-  };
-  const isCurrentScope = () => state.sessionId === sessionId && state.workspacePath === workspacePath;
-  state.submitting = true;
-  setBusy(true);
-  input.value = "";
-  closeMentionPopover();
-  clearAttachments();
-  addUserMessage(message, queuedAttachments);
-  const loadingId = addLoadingMessage();
-  const permissions = effectiveTaskPermissions();
-  let taskCreated = false;
-  try {
-    const task = await requestJson("/api/tasks", {
-     method: "POST",
-     headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message, model: state.model, attachments: queuedAttachments.map(({ name, mime_type, data_url }) => ({ name, mime_type, data_url })), session_id: sessionId, permission_mode: permissions.mode, allow_changes: permissions.allowChanges, allow_network: permissions.allowNetwork, reasoning_effort: state.reasoningEffort, workspace_path: workspacePath }),
-    });
-    taskCreated = true;
-    bindRunningTask(task, loadingId, sessionId);
-    releaseSubmission();
-    if (isCurrentScope()) state.activeTaskId = task.task_id;
-    updateTaskDock(task);
-    await loadTaskHistory();
-    await watchTask(task.task_id);
-  } catch (error) {
-    finishLiveTask(loadingId);
-    document.getElementById(loadingId)?.remove();
-    if (isCurrentScope()) {
-      addAssistantMessage({ error: error.message });
-      // M7-T5: a task that was never created must not swallow the prompt.
-      // Restore only into the same session and never over newer input.
-      if (!taskCreated) {
-        if (input && !input.value.trim()) input.value = message;
-        if (!state.attachments.length && queuedAttachments.length) state.attachments = queuedAttachments;
-        renderAttachmentTray();
-        const restoreHint = state.locale === "zh" ? "（输入与附件已恢复到编辑器）" : " (your text and attachments were restored)";
-        showToast(`${error.message}${restoreHint}`);
-      } else {
-        showToast(error.message);
-      }
-    }
-    setConnection(false, "API error");
-  } finally {
-    releaseSubmission();
-    if (isCurrentScope()) {
-      if (!sessionTaskBindings(sessionId, workspacePath).length) state.activeTaskId = null;
-      setBusy(isSessionBusy(state.sessionId));
-    }
-  }
-}
-
-export function resetTask() {
-  const next = `task-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-  state.activeTaskId = null;
-  state.lastTask = null;
-  taskHistoryBySession.delete(next);
-  taskHistoryListBySession.delete(next);
-  renderedHistoryKeys.delete(next);
-  setSession(next);
-  const dock = $("#taskDock");
-  if (dock) {
-    dock.hidden = true;
-    dock.removeAttribute("data-status");
-  }
-  showToast(state.locale === "zh" ? "已创建新任务" : "New task created");
-}
-
-export function runDemoFlow() {
-  if (isSessionBusy(state.sessionId)) return;
-  const steps = state.locale === "zh"
-    ? [
-        { phase: "planning", stream: "收到任务：检查一个小功能并给出结果。", event: { kind: "trace", code: "model_update", phase: "planning", summary: "模型给出了本轮可公开的行动说明", detail: { turn: 1, text: "我会先读取 README.md，再定位测试入口并运行针对性验证，最后汇总可确认的结果。" } } },
-        { phase: "tool", stream: "read_file · 读取 README.md", event: { name: "read_file", status: "ok", summary: "读取 README.md" } },
-        { phase: "tool", stream: "grep · 搜索测试入口", event: { name: "grep", status: "ok", summary: "搜索测试入口" } },
-        { phase: "planning", stream: "根据已读取内容调整验证范围", event: { kind: "trace", code: "replan", phase: "planning", summary: "重新规划", detail: { turn: 1, text: "已定位测试入口，下一步只运行与目标功能相关的测试，避免无关耗时。" } } },
-        { phase: "tool", stream: "bash · 运行 pytest -q", event: { name: "bash", status: "ok", summary: "运行 pytest -q" } },
-        { phase: "answering", stream: "整理验证结果与剩余风险", event: { kind: "trace", code: "tool_round_finished", phase: "answering", summary: "结果汇总：已完成 3 次工具调用，验证通过", detail: { turn: 1, tool_count: 3, tools: ["read_file", "grep", "bash"] } } },
-        { phase: "answering", stream: "完成评估：任务目标已满足", event: { kind: "trace", code: "completion_complete", phase: "answering", summary: "完成评估通过", detail: { confidence: "高", evidence: "文档已读取，测试已通过" } } },
-      ]
-    : [
-        { phase: "planning", stream: "Task received: inspect a small feature and report back.", event: { kind: "trace", code: "model_update", phase: "planning", summary: "The model provided a public action update", detail: { turn: 1, text: "I will read README.md, locate the test entry points, run focused validation, then summarize confirmed results." } } },
-        { phase: "tool", stream: "read_file · reading README.md", event: { name: "read_file", status: "ok", summary: "Reading README.md" } },
-        { phase: "tool", stream: "grep · locating test entry points", event: { name: "grep", status: "ok", summary: "Locating test entry points" } },
-        { phase: "planning", stream: "Refining the verification scope", event: { kind: "trace", code: "replan", phase: "planning", summary: "Re-plan", detail: { turn: 1, text: "The relevant tests are located, so I will run focused validation and avoid unrelated work." } } },
-        { phase: "tool", stream: "bash · running pytest -q", event: { name: "bash", status: "ok", summary: "Running pytest -q" } },
-        { phase: "answering", stream: "Summarizing verification and remaining risks", event: { kind: "trace", code: "tool_round_finished", phase: "answering", summary: "Results merged: 3 tool calls completed and validation passed", detail: { turn: 1, tool_count: 3, tools: ["read_file", "grep", "bash"] } } },
-        { phase: "answering", stream: "Completion review: objective is met", event: { kind: "trace", code: "completion_complete", phase: "answering", summary: "Completion accepted", detail: { confidence: "high", evidence: "Documentation read and tests passed" } } },
-      ];
-  const loadingId = addLoadingMessage();
-  setBusy(true);
-  let index = 0;
-  const tick = () => {
-    const item = steps[index];
-    if (!item) {
-      finishLiveTask(loadingId);
-      const loading = document.getElementById(loadingId);
-      loading?.remove();
-      addAssistantMessage({
-        answer: state.locale === "zh" ? "演示完成：规划 → 工具调用 → 测试验证 → 总结。真实任务会在这里连接本地 API 和模型。" : "Demo complete: plan → tools → tests → summary. Real tasks connect to the local API and model here.",
-        events: steps.map((step) => step.event),
-        turns: 1, tool_calls_total: 3, tokens_used: { total_tokens: 420 }, context: { tokens: 420, limit_tokens: state.contextWindowTokens },
-      });
-      setBusy(false);
-      return;
-    }
-    updateLiveTask(loadingId, { status: "running", phase: item.phase, stream_text: item.stream, events: steps.slice(0, index + 1).map((step) => step.event) });
-    index += 1;
-    window.setTimeout(tick, 850);
-  };
-  tick();
-}
-
-export async function loadWorkspace() {
-  const version = ++runtime.workspaceVersion;
-  try {
-    const info = await requestJson("/api/workspace", {}, 10000);
-    if (version !== runtime.workspaceVersion) return false;
-    const previousPath = state.workspacePath;
-    if (previousPath && info.path && previousPath !== info.path) persistSessionView();
-    state.workspaceInfo = info;
-    state.workspacePath = info.path || state.workspacePath;
-    state.contextWindowTokens = Number(info.context_window_tokens || state.contextWindowTokens || 300000);
-    if (!localStorage.getItem("minicc-model") && info.model) state.model = String(info.model);
-    void loadModelCatalog({ quiet: true });
-    if (!localStorage.getItem("minicc-reasoning") && REASONING_EFFORTS.includes(info.reasoning_effort)) state.reasoningEffort = info.reasoning_effort;
-    updateReasoningControl();
-    const name = info.name || "workspace";
-    $("#workspaceName").textContent = name;
-    $("#topWorkspace").textContent = name;
-    $("#composerWorkspace").textContent = name;
-    $(".inspector-header h2").textContent = name;
-    setConnection(true);
-    if (previousPath && previousPath !== state.workspacePath) {
-      sessionMarkup.clear();
-      taskDetailsById.clear();
-      taskDetailLoads.clear();
-      taskHistoryBySession.clear();
-      taskHistoryListBySession.clear();
-      renderedHistoryKeys.clear();
-      setSession(state.sessionId);
-    }
-    // Only metadata belongs to startup. Panels settle independently.
-    const historyReady = loadTaskHistory();
-    void loadChanges();
-    // The file tree is workspace-scoped: reload it on the initial load, on
-    // workspace switches, and whenever the workspace view is refreshed.
-    refreshFileTree();
-    void (async () => { try {
-      const workspacePath = state.workspacePath;
-      const loadedTasks = await historyReady;
-      if (version !== runtime.workspaceVersion || workspacePath !== state.workspacePath) return;
-      const tasks = Array.isArray(loadedTasks) ? loadedTasks : [];
-      const activeTasks = tasks.filter((item) => ACTIVE_TASK_STATUSES.has(item.status));
-      for (const task of [...activeTasks].reverse()) {
-        if (runningTasks.has(task.task_id)) continue;
-        const sessionId = String(task.session_id || task.task_id);
-        const loadingId = `loading-${task.task_id}`;
-        if (sessionId === state.sessionId) addLoadingMessage(loadingId, task, { scrollToLatest: false });
-        bindRunningTask(task, loadingId, sessionId);
-        watchTask(task.task_id).catch((error) => showToast(error.message));
-      }
-      const active = activeTasks.find((item) => isCurrentTaskScope(item));
-      if (active) updateTaskDock(active);
-      else {
-        $("#taskDock").hidden = true;
-        state.lastTask = null;
-        state.activeTaskId = null;
-      }
-    } catch {
-      // The workspace remains usable when the durable task index is unavailable.
-    } })();
-    return true;
-  } catch {
-    if (version !== runtime.workspaceVersion) return false;
-    setConnection(false, "Offline");
-    return false;
-  }
-}
-
-export function fileType(path) {
-  const extension = String(path).split(".").pop()?.toLowerCase();
-  if (extension === "py") return "py";
-  if (["css", "scss"].includes(extension)) return "css";
-  if (["md", "txt"].includes(extension)) return "md";
-  if (["js", "ts", "tsx", "jsx"].includes(extension)) return "js";
-  return "file";
-}
-
-export function changeStatusLabel(status) {
-  return t(`changes.${status}`) || status;
-}
-
-export function countLabel(value, compact = false) {
-  // M8-T570: a count the workbench could not read arrives as null (M8-T569 blanks
-  // the totals the same way). ``x || 0`` turned that into "+0" - the same sentence
-  // as "this file changed by zero lines".  One predicate, one word, one home here.
-  if (!Number.isFinite(value)) return t("changes.uncounted");
-  return compact ? compactNumber(value) : String(value);
-}
-
-export function changeFileRow(item) {
-  const path = String(item.path || "");
-  const status = String(item.status || "clean");
-  const additions = countLabel(item.additions);
-  const deletions = countLabel(item.deletions);
-  return `<button class="file-row file-row-${escapeHtml(status)}" data-file="${escapeHtml(path)}" data-open-diff="${escapeHtml(path)}"><span class="file-type ${fileType(path)}">${escapeHtml(fileType(path).toUpperCase())}</span><span><strong>${escapeHtml(path)}</strong><small>${escapeHtml(changeStatusLabel(status))} · <span class="diff-add">+${additions}</span> <span class="diff-del">-${deletions}</span></small></span><i data-lucide="chevron-right"></i></button>`;
-}
-
-export function renderChanges(data) {
-  const files = Array.isArray(data?.files) ? data.files : [];
-  const changed = new Map(files.map((item) => [String(item.path), item]));
-  const paths = files.map((item) => String(item.path));
-  const fileList = $("#fileList");
-  if (fileList) {
-    fileList.innerHTML = paths.map((path) => changeFileRow(changed.get(path) || { path, status: "clean" })).join("");
-  }
-  const summary = $("#changeSummary");
-  if (summary) summary.innerHTML = `<span class="diff-add">+ ${countLabel(data?.additions, true)}</span><span class="diff-del">- ${countLabel(data?.deletions, true)}</span>`;
-  const tabCount = $("#changeTabCount");
-  if (tabCount) tabCount.textContent = String(files.length);
-  const changeList = $("#changeList");
-  if (changeList) {
-    changeList.innerHTML = files.length
-      ? files.map((item) => `<button class="change-item change-item-button" data-open-diff="${escapeHtml(item.path)}"><span class="change-bar ${item.status === "added" ? "added" : item.status === "deleted" ? "deleted" : "changed"}"></span><span><strong>${escapeHtml(item.path)}</strong><small>${escapeHtml(changeStatusLabel(item.status))} · <span class="diff-add">+${countLabel(item.additions)}</span> <span class="diff-del">-${countLabel(item.deletions)}</span></small></span><span class="change-time">${escapeHtml(t("changes.now"))}</span></button>`).join("")
-      : `<div class="change-item"><span class="change-bar muted"></span><span><strong>${escapeHtml(t("changes.clean"))}</strong><small>${escapeHtml(t("changes.cleanHint"))}</small></span><span class="change-time">--</span></div>`;
-  }
-  refreshIcons();
-}
-
-export async function loadChanges() {
-  if (!state.workspacePath) return;
-  const request = runtime.changesRequest = (runtime.changesRequest || 0) + 1;
-  const path = state.workspacePath;
-  const version = runtime.workspaceVersion;
-  $("#changesSection")?.setAttribute("aria-busy", "true");
-  try {
-    const data = await requestJson("/api/changes", {}, 12000);
-    if (path !== state.workspacePath || version !== runtime.workspaceVersion || request !== runtime.changesRequest) return;
-    state.changes = data;
-    renderChanges(data);
-  } catch {
-    if (path !== state.workspacePath || version !== runtime.workspaceVersion || request !== runtime.changesRequest) return;
-    $("#changeList").innerHTML = `<div class="file-tree-status">${escapeHtml(state.locale === "zh" ? "暂时无法读取变更。可在更多选项中刷新工作区。" : "Changes are unavailable. Refresh the workspace from More options.")}</div>`;
-  } finally {
-    if (path === state.workspacePath && version === runtime.workspaceVersion && request === runtime.changesRequest) $("#changesSection")?.setAttribute("aria-busy", "false");
-  }
-}
-
-export function openPanel(title, body, options = {}) {
-  runtime.panelVersion = (runtime.panelVersion || 0) + 1;
-  $("#panelTitle").textContent = title;
-  $("#panelBody").innerHTML = body;
-  const modal = $("#panelModal");
-  modal.classList.toggle("promo-modal", body.includes("promo-page"));
-  modal.classList.toggle("immersive-modal", Boolean(options.immersive));
-  modal.classList.toggle("wide-modal", Boolean(options.wide));
-  modal.classList.remove("fullscreen");
-  const expand = $("#panelExpand");
-  if (expand) {
-    expand.hidden = false;
-    expand.title = "展开全屏";
-    expand.setAttribute("aria-label", "展开全屏");
-    expand.innerHTML = icon("maximize-2");
-  }
-  modal.classList.add("show");
-  modal.setAttribute("aria-hidden", "false");
-  refreshIcons();
-  activateDialog(modal, { onEscape: closePanel });
-}
-
-export function beginPanelRequest(title) {
-  openPanel(title, `<div class="empty-panel" role="status">${escapeHtml(state.locale === "zh" ? "正在加载…" : "Loading…")}</div>`);
-  const version = runtime.panelVersion;
-  return () => version === runtime.panelVersion && $("#panelModal").classList.contains("show");
-}
-
-export function closePanel() {
-  runtime.panelVersion = (runtime.panelVersion || 0) + 1;
-  deactivateDialog($("#panelModal"));
-  const active = document.activeElement;
-  if (active instanceof HTMLElement && $("#panelModal").contains(active)) active.blur();
-  $("#panelModal").classList.remove("show");
-  $("#panelModal").classList.remove("promo-modal");
-  $("#panelModal").classList.remove("immersive-modal", "wide-modal", "fullscreen");
-  $("#panelModal").setAttribute("aria-hidden", "true");
-  window.scrollTo(0, 0);
-}
-
-export function togglePanelFullscreen() {
-  const modal = $("#panelModal");
-  const fullscreen = modal.classList.toggle("fullscreen");
-  const button = $("#panelExpand");
-  if (!button) return;
-  button.title = fullscreen ? "退出全屏" : "展开全屏";
-  button.setAttribute("aria-label", button.title);
-  button.innerHTML = icon(fullscreen ? "minimize-2" : "maximize-2");
-  refreshIcons();
-}
-
-export function taskRow(task) {
-  const statusClass = task.status === "completed" ? "success" : task.status === "failed" ? "error" : ["cancelled", "interrupted"].includes(task.status) ? "cancelled" : task.status === "queued" ? "queued" : "running";
-  const cancel = ACTIVE_TASK_STATUSES.has(task.status) ? `<button class="panel-icon-action" data-cancel-task="${escapeHtml(task.task_id)}" title="${t("cancel")}">${icon("square")}</button>` : "";
-  const resume = RESUMABLE_TASK_PHASES.has(task.status) ? `<button class="panel-icon-action" data-resume-task="${escapeHtml(task.task_id)}" title="${t("tasks.resume")}">${icon("rotate-ccw")}</button>` : "";
-  const phase = phaseLabel(task);
-  const streamSize = Number(task.stream_length || String(task.stream_text || "").length);
-  const detail = `${phase} · ${formatDuration(taskDuration(task))} · ${streamSize} chars · ${taskMetrics(task)}`;
-  const children = task.child_task_ids?.length ? ` · ${task.child_task_ids.length} ${t("tasks.children")}` : "";
-  const workspace = task.workspace_path ? task.workspace_path.split(/[\\/]/).filter(Boolean).pop() : "workspace";
-  const details = `<button class="panel-icon-action" data-open-detail="${escapeHtml(task.task_id)}" title="${escapeHtml(t("tasks.detail"))}" aria-label="${escapeHtml(t("tasks.detail"))}">${icon("maximize-2")}</button>`;
-  const restore = task.task_id ? `<button class="panel-icon-action" data-restore-task="${escapeHtml(task.task_id)}" title="${escapeHtml(t("restore.action"))}" aria-label="${escapeHtml(t("restore.action"))}">${icon("rotate-ccw")}</button>` : "";
-  return `<div class="task-row" data-open-task="${escapeHtml(task.task_id)}" tabindex="0"><span class="task-state ${statusClass}"></span><div><strong>${escapeHtml(task.task_kind === "batch" ? `${task.task_id} · ${t("tasks.children")}` : task.task_id)}</strong><small>${escapeHtml(workspace)} · ${escapeHtml(detail)}${children}</small></div><div class="task-row-actions">${details}${restore}${resume}${cancel}</div></div>`;
-}
-
-export async function openTaskInWorkspace(taskId) {
-  try {
-    const task = await requestJson(`/api/tasks/${encodeURIComponent(taskId)}`);
-    cacheTaskDetail(task);
-    const targetWorkspace = String(task.workspace_path || "");
-    if (targetWorkspace && state.workspacePath && targetWorkspace.replaceAll("\\", "/").toLowerCase() !== state.workspacePath.replaceAll("\\", "/").toLowerCase()) {
-      await requestJson("/api/workspace/select", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ path: targetWorkspace }) });
-      await loadWorkspace();
-    }
-    const sessionId = String(task.session_id || task.task_id);
-    taskHistoryBySession.set(sessionId, task);
-    const historyItems = taskHistoryListBySession.get(sessionId) || [];
-    const mergedHistory = historyItems.some((item) => item.task_id === task.task_id)
-      ? historyItems.map((item) => item.task_id === task.task_id ? task : item)
-      : [task, ...historyItems];
-    taskHistoryListBySession.set(sessionId, mergedHistory.sort((left, right) => Number(right.created_at_epoch || 0) - Number(left.created_at_epoch || 0)));
-    closePanel();
-    setSession(sessionId);
-    state.activeTaskId = task.task_id;
-    updateTaskDock(task);
-    if (isTerminalTask(task)) {
-      state.activeTaskId = null;
-      setBusy(false);
-    } else if (!runningTasks.has(task.task_id)) {
-      const loadingId = `loading-${task.task_id}`;
-      addLoadingMessage(loadingId, task);
-      bindRunningTask(task, loadingId, sessionId);
-      setBusy(true);
-      watchTask(task.task_id).catch((error) => showToast(error.message));
-    } else {
-      const binding = runningTasks.get(task.task_id);
-      if (binding && !document.getElementById(binding.loadingId)) addLoadingMessage(binding.loadingId, binding.data);
-      setBusy(true);
-    }
-    showToast(state.locale === "zh" ? "已打开任务会话" : "Task session opened");
-  } catch (error) {
-    showToast(error.message);
-  }
-}
-
-export async function openTaskDetail(taskId) {
-  const current = beginPanelRequest(t("tasks.open"));
-  try {
-    const task = await requestJson(`/api/tasks/${encodeURIComponent(taskId)}`);
-    if (!current()) return;
-    const events = Array.isArray(task.events) ? eventTimelineMarkup(task.events) : "";
-    const execution = executionTrailMarkup(events, task.events || []);
-    const children = Array.isArray(task.child_task_ids) && task.child_task_ids.length
-      ? `<div class="task-detail-children">${task.child_task_ids.map((child) => `<button class="panel-session" data-open-task="${escapeHtml(child)}">${escapeHtml(child)}</button>`).join("")}</div>`
-      : "";
-    const resume = RESUMABLE_TASK_PHASES.has(task.status)
-      ? `<button class="panel-primary" data-resume-task="${escapeHtml(task.task_id)}">${t("tasks.resume")}</button>`
-      : "";
-    const restore = `<button class="panel-secondary" data-restore-task="${escapeHtml(task.task_id)}">${icon("rotate-ccw")} ${escapeHtml(t("restore.action"))}</button>`;
-    const attachments = attachmentMarkup(task.attachments || []);
-    openPanel(`${t("tasks.open")} · ${task.task_id}`, `<div class="task-detail"><div class="task-detail-status"><span class="task-state ${task.status === "completed" ? "success" : RESUMABLE_TASK_PHASES.has(task.status) ? "cancelled" : "running"}"></span><strong>${escapeHtml(phaseLabel(task))}</strong><span>${escapeHtml(taskMetrics(task))}</span></div><div class="task-detail-actions task-detail-top-actions"><button class="panel-secondary" data-open-task="${escapeHtml(task.task_id)}">${icon("arrow-up-right")} ${escapeHtml(t("tasks.openSession"))}</button>${restore}</div>${runtimeMetricsMarkup(task)}<div class="panel-section-title">${t("workspace.current")}</div><code class="task-detail-path">${escapeHtml(task.workspace_path || "")}</code><div class="panel-section-title">Prompt</div><div class="task-detail-prompt">${formatText(task.prompt || task.preview || "")}</div>${attachments ? `<div class="panel-section-title">Images</div>${attachments}` : ""}<div class="panel-section-title">Response</div><div class="task-detail-answer">${formatText(task.answer || task.stream_text || task.error || "")}</div>${execution ? `<div class="panel-section-title">Tools & stage trace</div>${execution}` : ""}${children}${resume ? `<div class="task-detail-actions">${resume}</div>` : ""}</div>`, { immersive: true });
-  } catch (error) {
-    if (!current()) return;
-    openPanel(t("tasks.open"), `<div class="error-panel">${escapeHtml(error.message)}</div>`);
-  }
-}
-
-export function openBatchPanel() {
-  const taskFields = [1, 2, 3].map((index) => `<label class="batch-field"><span>${escapeHtml(t("batch.task"))} ${index}</span><textarea name="task" rows="3" placeholder="${escapeHtml(state.locale === "zh" ? "例如：检查后端测试并总结风险" : "For example: inspect backend tests and summarize risks")}"></textarea></label>`).join("");
-  openPanel(t("panel.batch"), `<form class="batch-form" id="batchForm"><div class="batch-heading"><span class="eyebrow">${escapeHtml(t("batch.title"))}</span><h3>${escapeHtml(t("batch.title"))}</h3><p>${escapeHtml(t("batch.subtitle"))}</p></div><div class="batch-fields">${taskFields}</div><label class="batch-field"><span>${escapeHtml(t("batch.context"))}</span><textarea name="shared_context" rows="3" placeholder="${escapeHtml(t("batch.note"))}"></textarea></label><div class="task-detail-actions"><button class="panel-primary" type="submit">${icon("play")} ${escapeHtml(t("batch.run"))}</button></div></form>`, { wide: true });
-}
-
-export async function openLedgerPanel() {
-  const current = beginPanelRequest(t("ledger.overview"));
-  try {
-    const data = await requestJson("/api/metrics");
-    if (!current()) return;
-    const usage = (data && typeof data.usage === "object" && data.usage) || {};
-    const llm = (data && typeof data.llm_cache === "object" && data.llm_cache) || {};
-    const models = (data && typeof data.by_model === "object" && data.by_model) || {};
-    const statusMap = (data && typeof data.tasks_by_status === "object" && data.tasks_by_status) || {};
-    const priced = Number(data?.priced_tasks || 0);
-    const unpriced = Number(data?.unpriced_tasks || 0);
-    const cost = typeof data?.cost_usd === "number" ? data.cost_usd : NaN;
-    const hit = Number(usage.prompt_cache_hit_tokens || 0);
-    const miss = Number(usage.prompt_cache_miss_tokens || 0);
-    const writes = Number(usage.prompt_cache_write_tokens || 0);
-    const totalTokens = Number(usage.total_tokens || 0);
-    const hitRatePct = hit + miss > 0 ? Math.round((hit / (hit + miss)) * 100) : null;
-
-    const donutData = {
-      tokens_used: { prompt_cache_hit_tokens: hit, prompt_cache_miss_tokens: miss },
-      metrics: { cache_status: llm.cache_status || "unreported" },
-    };
-
-    const statusRows = [
-      ["completed", t("phase.completed"), "var(--mint)"],
-      ["failed", t("phase.failed"), "var(--rose)"],
-      ["interrupted", t("phase.interrupted"), "var(--amber)"],
-      ["cancelled", t("phase.cancelled"), "var(--muted)"],
-    ].filter(([key]) => Number(statusMap[key] || 0) > 0);
-
-    const maxStatus = Math.max(1, ...statusRows.map(([key]) => Number(statusMap[key] || 0)));
-
-    const modelRows = Object.entries(models)
-      .sort((a, b) => Number(b[1]?.tasks || 0) - Number(a[1]?.tasks || 0))
-      .map(([name, bucket]) => {
-        const bt = bucket?.tokens || {};
-        const tokens = Number(bt.total_tokens || 0);
-        const costStr = typeof bucket?.cost_usd === "number" ? `$${Number(bucket.cost_usd).toFixed(4)}` : '<span class="led-unpriced">—</span>';
-        return `<tr><td><code>${escapeHtml(name)}</code></td><td class="led-num">${compactNumber(tokens)}</td><td class="led-num">${compactNumber(Number(bt.prompt_cache_hit_tokens || 0))} / ${compactNumber(Number(bt.prompt_cache_miss_tokens || 0))}</td><td class="led-num">${escapeHtml(String(bucket.tasks || 0))}</td><td class="led-num">${costStr}</td></tr>`;
-      }).join("");
-
-    const hasModels = Object.keys(models).length > 0;
-    const totalRow = `<tr class="led-total-row"><td>${t("ledger.overview")}</td><td class="led-num">${compactNumber(totalTokens)}</td><td class="led-num">${compactNumber(hit)} / ${compactNumber(miss)}</td><td class="led-num"></td><td class="led-num">${Number.isFinite(cost) ? `$${cost.toFixed(4)}` : `<span class="led-unpriced">${t("ledger.unpriced")}</span>`}</td></tr>`;
-
-    const redisLabel = data?.redis_cache?.live_backend ? t("ledger.redisLive") : t("ledger.redisLocal");
-    const redisClass = data?.redis_cache?.live_backend ? "led-redis-live" : "led-redis-local";
-
-    const body = `<div class="ledger-view">
-      <div class="led-hero"><div class="led-hero-number">${compactNumber(totalTokens)}</div><div class="led-hero-label">${t("ledger.tokens")}</div></div>
-      <div class="led-stat-row">
-        <div class="led-stat"><div class="led-stat-label">${t("ledger.hitRate")}</div><div class="led-stat-donut">${cacheDonut(donutData, 52)}</div><div class="led-stat-sub">${hitRatePct !== null ? `${hitRatePct}%` : t("tasks.cacheUnreported")} · ${t("ledger.cacheHits")} ${compactNumber(hit)} · ${t("ledger.cacheMiss")} ${compactNumber(miss)} · ${t("ledger.cacheWrite")} ${compactNumber(writes)}</div></div>
-        <div class="led-stat"><div class="led-stat-label">${t("ledger.cost")}</div><div class="led-stat-big">${Number.isFinite(cost) ? `$${cost.toFixed(4)}` : '<span class="led-unpriced">$—</span>'}</div><div class="led-stat-sub">${unpriced}/${priced + unpriced} ${state.locale === "zh" ? "个任务定价" : "tasks priced"} · ${llm.cache_status || ""}</div></div>
-        <div class="led-stat"><div class="led-stat-label">${t("ledger.redisTitle")}</div><div class="led-stat-big ${redisClass}">${redisLabel}</div><div class="led-stat-sub">${data?.redis_cache ? `gets ${data.redis_cache.gets || 0} · sets ${data.redis_cache.sets || 0} · local ${data.redis_cache.local_units || 0}/${data.redis_cache.local_capacity || 0}` : "—"}</div></div>
-      </div>
-      ${statusRows.length ? `<div class="led-section"><div class="panel-section-title">${t("ledger.status")}</div><div class="led-status-bar">${statusRows.map(([key, label, color]) => `<div class="led-status-seg" style="flex:${Number(statusMap[key] || 0)} 1 0;background:${color};" title="${escapeHtml(label)}: ${escapeHtml(String(statusMap[key]))}">${escapeHtml(String(statusMap[key]))}</div>`).join("")}</div><div class="led-status-legend">${statusRows.map(([key, label]) => `<span class="led-status-dot" style="--status-dot:${statusRows.find(r => r[0] === key)[2]}"></span>${escapeHtml(label)} <strong>${escapeHtml(String(statusMap[key]))}</strong>`).join("")}</div></div>` : ""}
-      ${hasModels ? `<div class="led-section"><div class="panel-section-title">${t("ledger.models")}</div><table class="led-table"><thead><tr><th>model</th><th class="led-num">tokens</th><th class="led-num">hit/miss</th><th class="led-num">${t("ledger.tasks")}</th><th class="led-num">$</th></tr></thead><tbody>${modelRows}${totalRow}</tbody></table></div>` : `<div class="empty-panel">${t("ledger.noMetrics")}</div>`}
-    </div>`;
-    openPanel(t("ledger.overview"), body, { wide: true });
-  } catch (error) {
-    if (!current()) return;
-    openPanel(t("ledger.overview"), `<div class="error-panel">${escapeHtml(error.message)}</div>`);
-  }
-}
-
+import { requestJson } from "../core/transport.js";
+
+import { activateDialog, deactivateDialog } from "../core/dialog.js";
+
+import { notificationsBlocked, notificationsEnabled, setNotificationsEnabled } from "../core/notify.js";
+
+import { openArcade } from "../core/arcade.js";
+
+import { captureViewScope, isViewScopeCurrent } from "../core/scope.js";
+
+// ES module source for the minicc workbench. Bundled by scripts/build-web.mjs.
+
+import { attachmentMarkup, cacheTaskDetail, escapeHtml, executionTrailMarkup, formatText, loadTaskHistory, persistSessionView, renderSession, sessionViewKey } from "./markdown.js";
+
+import { applyTaskEvent, completeTask, finishLiveTask, isTerminalTask, pollTask, updateBoundTask, updateLiveTask } from "../core/api.js";
+
+import { t } from "../core/i18n.js";
+
+import { $, $$, ACTIVE_TASK_STATUSES, authHeaders, authQuery, INSPECTOR_TABS, renderedHistoryKeys, RESUMABLE_TASK_PHASES, runtime, runningTasks, sessionMarkup, state, taskBySession, taskDetailLoads, taskDetailsById, taskEventSources, taskHistoryBySession, taskHistoryListBySession, taskWatchers, REASONING_EFFORTS } from "../core/state.js";
+
+import { icon, refreshIcons } from "../icons.js";
+
+import { addAssistantMessage, addLoadingMessage, addUserMessage, bindRunningTask, cacheDonut, closeMentionPopover, compactNumber, effectiveTaskPermissions, eventSequence, eventTimelineMarkup, formatDuration, isCurrentTaskScope, isSessionBusy, phaseLabel, refreshFileTree, refreshFileTreeSoon, runtimeMetricsMarkup, sessionTaskBindings, setBusy, setConnection, setSession, setTaskTransportStatus, showAuthModal, showToast, taskDuration, taskMetrics, taskSessionKey, updateReasoningControl, updateTaskDock } from "../panels/index.js";
+
+
+
+export function streamTask(taskId) {
+
+  const binding = runningTasks.get(taskId);
+
+  const loadingId = binding?.loadingId || "";
+
+  if (!window.EventSource) return pollTask(taskId);
+
+  return new Promise((resolve, reject) => {
+
+    let source = null;
+
+    let settled = false;
+
+    let fallbackStarted = false;
+
+    let receivedSnapshot = false;
+
+    let reconnectAttempts = 0;
+
+    let reconnectTimer = 0;
+
+    let snapshotTimer = 0;
+
+    const sourceKey = loadingId || taskId;
+
+    const maxReconnectAttempts = 6;
+
+    setTaskTransportStatus(taskId, "connecting");
+
+
+
+    const closeSource = () => {
+
+      if (source) source.close();
+
+      source = null;
+
+      taskEventSources.delete(sourceKey);
+
+      window.clearTimeout(reconnectTimer);
+
+      window.clearTimeout(snapshotTimer);
+
+    };
+
+
+
+    const fallback = () => {
+
+      if (settled || fallbackStarted) return;
+
+      fallbackStarted = true;
+
+      setTaskTransportStatus(taskId, "polling");
+
+      closeSource();
+
+      pollTask(taskId).then(resolve, reject);
+
+    };
+
+
+
+    const finish = async (data) => {
+
+      if (settled || !isTerminalTask(data)) return;
+
+      settled = true;
+
+      closeSource();
+
+      try {
+
+        // The terminal event contains enough state to render immediately, but
+
+        // one final snapshot also carries the complete answer/result payload.
+
+        const latest = await requestJson(`/api/tasks/${encodeURIComponent(taskId)}`, {}, 12000);
+
+        // A lagging snapshot must not regress the terminal event to running.
+
+        const terminal = isTerminalTask(latest) ? latest : data;
+
+        updateBoundTask(taskId, terminal);
+
+        resolve(await completeTask(loadingId, terminal));
+
+      } catch {
+
+        resolve(await completeTask(loadingId, data));
+
+      }
+
+    };
+
+
+
+    const handleSnapshot = (event) => {
+
+      try {
+
+        const data = JSON.parse(event.data);
+
+        receivedSnapshot = true;
+
+        reconnectAttempts = 0;
+
+        const latest = updateBoundTask(taskId, data);
+
+        if (isTerminalTask(latest || data)) finish(latest || data);
+
+      } catch {
+
+        // A malformed frame is ignored; the connection error/retry path still
+
+        // has a chance to recover the task from its durable snapshot.
+
+      }
+
+    };
+
+
+
+    const handleTaskEvent = (event) => {
+
+      try {
+
+        const data = applyTaskEvent(taskId, JSON.parse(event.data));
+
+        if (data) {
+
+          reconnectAttempts = 0;
+
+          if (isTerminalTask(data)) finish(data);
+
+        }
+
+      } catch {
+
+        // The next replay or a polling fallback can still restore the state.
+
+      }
+
+    };
+
+
+
+    const checkLatestAfterError = () => {
+
+      if (settled || fallbackStarted) return;
+
+      closeSource();
+
+      requestJson(`/api/tasks/${encodeURIComponent(taskId)}`, {}, 8000)
+
+        .then((latest) => {
+
+          if (settled) return;
+
+          const current = updateBoundTask(taskId, latest);
+
+          if (isTerminalTask(current || latest)) {
+
+            finish(current || latest);
+
+            return;
+
+          }
+
+          scheduleReconnect();
+
+        })
+
+        .catch(() => scheduleReconnect());
+
+    };
+
+
+
+    const scheduleReconnect = () => {
+
+      if (settled || fallbackStarted) return;
+
+      closeSource();
+
+      setTaskTransportStatus(taskId, "reconnecting");
+
+      reconnectAttempts += 1;
+
+      if (reconnectAttempts > maxReconnectAttempts) {
+
+        fallback();
+
+        return;
+
+      }
+
+      const delay = Math.min(6000, 500 * (2 ** (reconnectAttempts - 1)));
+
+      reconnectTimer = window.setTimeout(connect, delay);
+
+    };
+
+
+
+    function connect() {
+
+      if (settled || fallbackStarted) return;
+
+      const cursor = eventSequence(binding?.cursor || binding?.data?.event_cursor);
+
+      source = new EventSource(authQuery(`/api/tasks/${encodeURIComponent(taskId)}/events?after=${cursor}`));
+
+      taskEventSources.set(sourceKey, source);
+
+      source.onmessage = handleSnapshot;
+
+      source.addEventListener("task_event", handleTaskEvent);
+
+      source.addEventListener("resync", handleSnapshot);
+
+      source.onerror = checkLatestAfterError;
+
+      window.clearTimeout(snapshotTimer);
+
+      if (!receivedSnapshot && cursor === 0) {
+
+        snapshotTimer = window.setTimeout(() => {
+
+          if (!receivedSnapshot) scheduleReconnect();
+
+        }, 3500);
+
+      }
+
+    }
+
+
+
+    connect();
+
+  });
+
+}
+
+
+
+export function watchTask(taskId) {
+
+  const existing = taskWatchers.get(taskId);
+
+  if (existing) return existing;
+
+  const watcher = streamTask(taskId);
+
+  taskWatchers.set(taskId, watcher);
+
+  watcher.then(
+
+    () => { if (taskWatchers.get(taskId) === watcher) taskWatchers.delete(taskId); },
+
+    () => { if (taskWatchers.get(taskId) === watcher) taskWatchers.delete(taskId); },
+
+  );
+
+  return watcher;
+
+}
+
+
+
+export async function cancelActiveTask() {
+
+  const taskIds = sessionTaskBindings(state.sessionId).map((binding) => binding.taskId);
+
+  const fallback = taskBySession.get(taskSessionKey(state.sessionId)) || null;
+
+  if (!taskIds.length && fallback) taskIds.push(fallback);
+
+  if (!taskIds.length) return;
+
+  try {
+
+    await Promise.all(taskIds.map((taskId) => requestJson(`/api/tasks/${encodeURIComponent(taskId)}/cancel`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" })));
+
+    showToast(state.locale === "zh" ? "已请求取消任务" : "Cancellation requested");
+
+  } catch (error) {
+
+    showToast(error.message);
+
+  }
+
+}
+
+
+
+export function renderAttachmentTray() {
+
+  const tray = $("#attachmentTray");
+
+  if (!tray) return;
+
+  tray.hidden = state.attachments.length === 0;
+
+  tray.innerHTML = attachmentMarkup(state.attachments, "attachment-tray-items");
+
+  refreshIcons();
+
+}
+
+
+
+export function readImageFile(file) {
+
+  return new Promise((resolve, reject) => {
+
+    const reader = new FileReader();
+
+    reader.onerror = () => reject(new Error(`无法读取图片：${file.name}`));
+
+    reader.onload = () => resolve(String(reader.result || ""));
+
+    reader.readAsDataURL(file);
+
+  });
+
+}
+
+
+
+export async function addImageFiles(fileList) {
+
+  const files = [...(fileList || [])].filter((file) => String(file.type || "").startsWith("image/"));
+
+  if (!files.length) return;
+
+  const remaining = Math.max(0, 4 - state.attachments.length);
+
+  if (!remaining) {
+
+    showToast(state.locale === "zh" ? "最多添加 4 张图片" : "Up to 4 images per task");
+
+    return;
+
+  }
+
+  for (const file of files.slice(0, remaining)) {
+
+    if (file.size > 6 * 1024 * 1024) {
+
+      showToast(state.locale === "zh" ? `${file.name} 超过 6MB` : `${file.name} is larger than 6MB`);
+
+      continue;
+
+    }
+
+    try {
+
+      const dataUrl = await readImageFile(file);
+
+      state.attachments.push({
+
+        id: `image-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+
+        name: file.name,
+
+        mime_type: file.type || "image/png",
+
+        size_bytes: file.size,
+
+        data_url: dataUrl,
+
+      });
+
+    } catch (error) {
+
+      showToast(error.message);
+
+    }
+
+  }
+
+  renderAttachmentTray();
+
+}
+
+
+
+export function clearAttachments() {
+
+  state.attachments = [];
+
+  const input = $("#imageInput");
+
+  if (input) input.value = "";
+
+  renderAttachmentTray();
+
+}
+
+
+
+export async function sendMessage(event) {
+
+  event?.preventDefault();
+
+  const input = $("#promptInput");
+
+  const queuedAttachments = state.attachments.map((item) => ({ ...item }));
+
+  const message = input.value.trim() || (queuedAttachments.length ? (state.locale === "zh" ? "请分析我上传的图片。" : "Analyze the images I uploaded.") : "");
+
+  const sessionId = state.sessionId;
+
+  const workspacePath = state.workspacePath;
+
+  if ((!message && !queuedAttachments.length) || state.submitting) return;
+
+  const submission = {};
+
+  runtime.submission = submission;
+
+  const releaseSubmission = () => {
+
+    if (runtime.submission !== submission) return;
+
+    runtime.submission = null;
+
+    state.submitting = false;
+
+    setBusy(isSessionBusy(state.sessionId));
+
+  };
+
+  const isCurrentScope = () => state.sessionId === sessionId && state.workspacePath === workspacePath;
+
+  state.submitting = true;
+
+  setBusy(true);
+
+  input.value = "";
+
+  closeMentionPopover();
+
+  clearAttachments();
+
+  addUserMessage(message, queuedAttachments);
+
+  const loadingId = addLoadingMessage();
+
+  const permissions = effectiveTaskPermissions();
+
+  let taskCreated = false;
+
+  try {
+
+    const task = await requestJson("/api/tasks", {
+
+     method: "POST",
+
+     headers: { "Content-Type": "application/json" },
+
+      body: JSON.stringify({ message, model: state.model, attachments: queuedAttachments.map(({ name, mime_type, data_url }) => ({ name, mime_type, data_url })), session_id: sessionId, permission_mode: permissions.mode, allow_changes: permissions.allowChanges, allow_network: permissions.allowNetwork, reasoning_effort: state.reasoningEffort, workspace_path: workspacePath }),
+
+    });
+
+    taskCreated = true;
+
+    bindRunningTask(task, loadingId, sessionId);
+
+    releaseSubmission();
+
+    if (isCurrentScope()) state.activeTaskId = task.task_id;
+
+    updateTaskDock(task);
+
+    await loadTaskHistory();
+
+    await watchTask(task.task_id);
+
+  } catch (error) {
+
+    finishLiveTask(loadingId);
+
+    document.getElementById(loadingId)?.remove();
+
+    if (isCurrentScope()) {
+
+      addAssistantMessage({ error: error.message });
+
+      // M7-T5: a task that was never created must not swallow the prompt.
+
+      // Restore only into the same session and never over newer input.
+
+      if (!taskCreated) {
+
+        if (input && !input.value.trim()) input.value = message;
+
+        if (!state.attachments.length && queuedAttachments.length) state.attachments = queuedAttachments;
+
+        renderAttachmentTray();
+
+        const restoreHint = state.locale === "zh" ? "（输入与附件已恢复到编辑器）" : " (your text and attachments were restored)";
+
+        showToast(`${error.message}${restoreHint}`);
+
+      } else {
+
+        showToast(error.message);
+
+      }
+
+    }
+
+    setConnection(false, "API error");
+
+  } finally {
+
+    releaseSubmission();
+
+    if (isCurrentScope()) {
+
+      if (!sessionTaskBindings(sessionId, workspacePath).length) state.activeTaskId = null;
+
+      setBusy(isSessionBusy(state.sessionId));
+
+    }
+
+  }
+
+}
+
+
+
+export function resetTask() {
+
+  const next = `task-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+
+  state.activeTaskId = null;
+
+  state.lastTask = null;
+
+  taskHistoryBySession.delete(next);
+
+  taskHistoryListBySession.delete(next);
+
+  renderedHistoryKeys.delete(next);
+
+  setSession(next);
+
+  const dock = $("#taskDock");
+
+  if (dock) {
+
+    dock.hidden = true;
+
+    dock.removeAttribute("data-status");
+
+  }
+
+  showToast(state.locale === "zh" ? "已创建新任务" : "New task created");
+
+}
+
+
+
+export function runDemoFlow() {
+
+  if (isSessionBusy(state.sessionId)) return;
+
+  const steps = state.locale === "zh"
+
+    ? [
+
+        { phase: "planning", stream: "收到任务：检查一个小功能并给出结果。", event: { kind: "trace", code: "model_update", phase: "planning", summary: "模型给出了本轮可公开的行动说明", detail: { turn: 1, text: "我会先读取 README.md，再定位测试入口并运行针对性验证，最后汇总可确认的结果。" } } },
+
+        { phase: "tool", stream: "read_file · 读取 README.md", event: { name: "read_file", status: "ok", summary: "读取 README.md" } },
+
+        { phase: "tool", stream: "grep · 搜索测试入口", event: { name: "grep", status: "ok", summary: "搜索测试入口" } },
+
+        { phase: "planning", stream: "根据已读取内容调整验证范围", event: { kind: "trace", code: "replan", phase: "planning", summary: "重新规划", detail: { turn: 1, text: "已定位测试入口，下一步只运行与目标功能相关的测试，避免无关耗时。" } } },
+
+        { phase: "tool", stream: "bash · 运行 pytest -q", event: { name: "bash", status: "ok", summary: "运行 pytest -q" } },
+
+        { phase: "answering", stream: "整理验证结果与剩余风险", event: { kind: "trace", code: "tool_round_finished", phase: "answering", summary: "结果汇总：已完成 3 次工具调用，验证通过", detail: { turn: 1, tool_count: 3, tools: ["read_file", "grep", "bash"] } } },
+
+        { phase: "answering", stream: "完成评估：任务目标已满足", event: { kind: "trace", code: "completion_complete", phase: "answering", summary: "完成评估通过", detail: { confidence: "高", evidence: "文档已读取，测试已通过" } } },
+
+      ]
+
+    : [
+
+        { phase: "planning", stream: "Task received: inspect a small feature and report back.", event: { kind: "trace", code: "model_update", phase: "planning", summary: "The model provided a public action update", detail: { turn: 1, text: "I will read README.md, locate the test entry points, run focused validation, then summarize confirmed results." } } },
+
+        { phase: "tool", stream: "read_file · reading README.md", event: { name: "read_file", status: "ok", summary: "Reading README.md" } },
+
+        { phase: "tool", stream: "grep · locating test entry points", event: { name: "grep", status: "ok", summary: "Locating test entry points" } },
+
+        { phase: "planning", stream: "Refining the verification scope", event: { kind: "trace", code: "replan", phase: "planning", summary: "Re-plan", detail: { turn: 1, text: "The relevant tests are located, so I will run focused validation and avoid unrelated work." } } },
+
+        { phase: "tool", stream: "bash · running pytest -q", event: { name: "bash", status: "ok", summary: "Running pytest -q" } },
+
+        { phase: "answering", stream: "Summarizing verification and remaining risks", event: { kind: "trace", code: "tool_round_finished", phase: "answering", summary: "Results merged: 3 tool calls completed and validation passed", detail: { turn: 1, tool_count: 3, tools: ["read_file", "grep", "bash"] } } },
+
+        { phase: "answering", stream: "Completion review: objective is met", event: { kind: "trace", code: "completion_complete", phase: "answering", summary: "Completion accepted", detail: { confidence: "high", evidence: "Documentation read and tests passed" } } },
+
+      ];
+
+  const loadingId = addLoadingMessage();
+
+  setBusy(true);
+
+  let index = 0;
+
+  const tick = () => {
+
+    const item = steps[index];
+
+    if (!item) {
+
+      finishLiveTask(loadingId);
+
+      const loading = document.getElementById(loadingId);
+
+      loading?.remove();
+
+      addAssistantMessage({
+
+        answer: state.locale === "zh" ? "演示完成：规划 → 工具调用 → 测试验证 → 总结。真实任务会在这里连接本地 API 和模型。" : "Demo complete: plan → tools → tests → summary. Real tasks connect to the local API and model here.",
+
+        events: steps.map((step) => step.event),
+
+        turns: 1, tool_calls_total: 3, tokens_used: { total_tokens: 420 }, context: { tokens: 420, limit_tokens: state.contextWindowTokens },
+
+      });
+
+      setBusy(false);
+
+      return;
+
+    }
+
+    updateLiveTask(loadingId, { status: "running", phase: item.phase, stream_text: item.stream, events: steps.slice(0, index + 1).map((step) => step.event) });
+
+    index += 1;
+
+    window.setTimeout(tick, 850);
+
+  };
+
+  tick();
+
+}
+
+
+
+export async function loadWorkspace() {
+
+  const version = ++runtime.workspaceVersion;
+
+  try {
+
+    const info = await requestJson("/api/workspace", {}, 10000);
+
+    if (version !== runtime.workspaceVersion) return false;
+
+    const previousPath = state.workspacePath;
+
+    if (previousPath && info.path && previousPath !== info.path) persistSessionView();
+
+    state.workspaceInfo = info;
+
+    state.workspacePath = info.path || state.workspacePath;
+
+    state.contextWindowTokens = Number(info.context_window_tokens || state.contextWindowTokens || 300000);
+
+    if (!localStorage.getItem("minicc-model") && info.model) state.model = String(info.model);
+
+    void loadModelCatalog({ quiet: true });
+
+    if (!localStorage.getItem("minicc-reasoning") && REASONING_EFFORTS.includes(info.reasoning_effort)) state.reasoningEffort = info.reasoning_effort;
+
+    updateReasoningControl();
+
+    const name = info.name || "workspace";
+
+    $("#workspaceName").textContent = name;
+
+    $("#topWorkspace").textContent = name;
+
+    $("#composerWorkspace").textContent = name;
+
+    $(".inspector-header h2").textContent = name;
+
+    setConnection(true);
+
+    if (previousPath && previousPath !== state.workspacePath) {
+
+      sessionMarkup.clear();
+
+      taskDetailsById.clear();
+
+      taskDetailLoads.clear();
+
+      taskHistoryBySession.clear();
+
+      taskHistoryListBySession.clear();
+
+      renderedHistoryKeys.clear();
+
+      setSession(state.sessionId);
+
+    }
+
+    // Only metadata belongs to startup. Panels settle independently.
+
+    const historyReady = loadTaskHistory();
+
+    void loadChanges();
+
+    // The file tree is workspace-scoped: reload it on the initial load, on
+
+    // workspace switches, and whenever the workspace view is refreshed.
+
+    refreshFileTree();
+
+    void (async () => { try {
+
+      const workspacePath = state.workspacePath;
+
+      const loadedTasks = await historyReady;
+
+      if (version !== runtime.workspaceVersion || workspacePath !== state.workspacePath) return;
+
+      const tasks = Array.isArray(loadedTasks) ? loadedTasks : [];
+
+      const activeTasks = tasks.filter((item) => ACTIVE_TASK_STATUSES.has(item.status));
+
+      for (const task of [...activeTasks].reverse()) {
+
+        if (runningTasks.has(task.task_id)) continue;
+
+        const sessionId = String(task.session_id || task.task_id);
+
+        const loadingId = `loading-${task.task_id}`;
+
+        if (sessionId === state.sessionId) addLoadingMessage(loadingId, task, { scrollToLatest: false });
+
+        bindRunningTask(task, loadingId, sessionId);
+
+        watchTask(task.task_id).catch((error) => showToast(error.message));
+
+      }
+
+      const active = activeTasks.find((item) => isCurrentTaskScope(item));
+
+      if (active) updateTaskDock(active);
+
+      else {
+
+        $("#taskDock").hidden = true;
+
+        state.lastTask = null;
+
+        state.activeTaskId = null;
+
+      }
+
+    } catch {
+
+      // The workspace remains usable when the durable task index is unavailable.
+
+    } })();
+
+    return true;
+
+  } catch {
+
+    if (version !== runtime.workspaceVersion) return false;
+
+    setConnection(false, "Offline");
+
+    return false;
+
+  }
+
+}
+
+
+
+export function fileType(path) {
+
+  const extension = String(path).split(".").pop()?.toLowerCase();
+
+  if (extension === "py") return "py";
+
+  if (["css", "scss"].includes(extension)) return "css";
+
+  if (["md", "txt"].includes(extension)) return "md";
+
+  if (["js", "ts", "tsx", "jsx"].includes(extension)) return "js";
+
+  return "file";
+
+}
+
+
+
+export function changeStatusLabel(status) {
+
+  return t(`changes.${status}`) || status;
+
+}
+
+
+
+export function countLabel(value, compact = false) {
+
+  // M8-T570: a count the workbench could not read arrives as null (M8-T569 blanks
+
+  // the totals the same way). ``x || 0`` turned that into "+0" - the same sentence
+
+  // as "this file changed by zero lines".  One predicate, one word, one home here.
+
+  if (!Number.isFinite(value)) return t("changes.uncounted");
+
+  return compact ? compactNumber(value) : String(value);
+
+}
+
+
+
+export function changeFileRow(item) {
+
+  const path = String(item.path || "");
+
+  const status = String(item.status || "clean");
+
+  const additions = countLabel(item.additions);
+
+  const deletions = countLabel(item.deletions);
+
+  return `<button class="file-row file-row-${escapeHtml(status)}" data-file="${escapeHtml(path)}" data-open-diff="${escapeHtml(path)}"><span class="file-type ${fileType(path)}">${escapeHtml(fileType(path).toUpperCase())}</span><span><strong>${escapeHtml(path)}</strong><small>${escapeHtml(changeStatusLabel(status))} · <span class="diff-add">+${additions}</span> <span class="diff-del">-${deletions}</span></small></span><i data-lucide="chevron-right"></i></button>`;
+
+}
+
+
+
+export function renderChanges(data) {
+
+  const files = Array.isArray(data?.files) ? data.files : [];
+
+  const changed = new Map(files.map((item) => [String(item.path), item]));
+
+  const paths = files.map((item) => String(item.path));
+
+  const fileList = $("#fileList");
+
+  if (fileList) {
+
+    fileList.innerHTML = paths.map((path) => changeFileRow(changed.get(path) || { path, status: "clean" })).join("");
+
+  }
+
+  const summary = $("#changeSummary");
+
+  if (summary) summary.innerHTML = `<span class="diff-add">+ ${countLabel(data?.additions, true)}</span><span class="diff-del">- ${countLabel(data?.deletions, true)}</span>`;
+
+  const tabCount = $("#changeTabCount");
+
+  if (tabCount) tabCount.textContent = String(files.length);
+
+  const changeList = $("#changeList");
+
+  if (changeList) {
+
+    changeList.innerHTML = files.length
+
+      ? files.map((item) => `<button class="change-item change-item-button" data-open-diff="${escapeHtml(item.path)}"><span class="change-bar ${item.status === "added" ? "added" : item.status === "deleted" ? "deleted" : "changed"}"></span><span><strong>${escapeHtml(item.path)}</strong><small>${escapeHtml(changeStatusLabel(item.status))} · <span class="diff-add">+${countLabel(item.additions)}</span> <span class="diff-del">-${countLabel(item.deletions)}</span></small></span><span class="change-time">${escapeHtml(t("changes.now"))}</span></button>`).join("")
+
+      : `<div class="change-item"><span class="change-bar muted"></span><span><strong>${escapeHtml(t("changes.clean"))}</strong><small>${escapeHtml(t("changes.cleanHint"))}</small></span><span class="change-time">--</span></div>`;
+
+  }
+
+  refreshIcons();
+
+}
+
+
+
+export async function loadChanges() {
+
+  if (!state.workspacePath) return;
+
+  const request = runtime.changesRequest = (runtime.changesRequest || 0) + 1;
+
+  const path = state.workspacePath;
+
+  const version = runtime.workspaceVersion;
+
+  $("#changesSection")?.setAttribute("aria-busy", "true");
+
+  try {
+
+    const data = await requestJson("/api/changes", {}, 12000);
+
+    if (path !== state.workspacePath || version !== runtime.workspaceVersion || request !== runtime.changesRequest) return;
+
+    state.changes = data;
+
+    renderChanges(data);
+
+  } catch {
+
+    if (path !== state.workspacePath || version !== runtime.workspaceVersion || request !== runtime.changesRequest) return;
+
+    $("#changeList").innerHTML = `<div class="file-tree-status">${escapeHtml(state.locale === "zh" ? "暂时无法读取变更。可在更多选项中刷新工作区。" : "Changes are unavailable. Refresh the workspace from More options.")}</div>`;
+
+  } finally {
+
+    if (path === state.workspacePath && version === runtime.workspaceVersion && request === runtime.changesRequest) $("#changesSection")?.setAttribute("aria-busy", "false");
+
+  }
+
+}
+
+
+
+export function openPanel(title, body, options = {}) {
+
+  runtime.panelVersion = (runtime.panelVersion || 0) + 1;
+
+  $("#panelTitle").textContent = title;
+
+  $("#panelBody").innerHTML = body;
+
+  const modal = $("#panelModal");
+
+  modal.classList.toggle("promo-modal", body.includes("promo-page"));
+
+  modal.classList.toggle("immersive-modal", Boolean(options.immersive));
+
+  modal.classList.toggle("wide-modal", Boolean(options.wide));
+
+  modal.classList.remove("fullscreen");
+
+  const expand = $("#panelExpand");
+
+  if (expand) {
+
+    expand.hidden = false;
+
+    expand.title = "展开全屏";
+
+    expand.setAttribute("aria-label", "展开全屏");
+
+    expand.innerHTML = icon("maximize-2");
+
+  }
+
+  modal.classList.add("show");
+
+  modal.setAttribute("aria-hidden", "false");
+
+  refreshIcons();
+
+  activateDialog(modal, { onEscape: closePanel });
+
+}
+
+
+
+export function beginPanelRequest(title) {
+
+  openPanel(title, `<div class="empty-panel" role="status">${escapeHtml(state.locale === "zh" ? "正在加载…" : "Loading…")}</div>`);
+
+  const version = runtime.panelVersion;
+
+  return () => version === runtime.panelVersion && $("#panelModal").classList.contains("show");
+
+}
+
+
+
+export function closePanel() {
+
+  runtime.panelVersion = (runtime.panelVersion || 0) + 1;
+
+  deactivateDialog($("#panelModal"));
+
+  const active = document.activeElement;
+
+  if (active instanceof HTMLElement && $("#panelModal").contains(active)) active.blur();
+
+  $("#panelModal").classList.remove("show");
+
+  $("#panelModal").classList.remove("promo-modal");
+
+  $("#panelModal").classList.remove("immersive-modal", "wide-modal", "fullscreen");
+
+  $("#panelModal").setAttribute("aria-hidden", "true");
+
+  window.scrollTo(0, 0);
+
+}
+
+
+
+export function togglePanelFullscreen() {
+
+  const modal = $("#panelModal");
+
+  const fullscreen = modal.classList.toggle("fullscreen");
+
+  const button = $("#panelExpand");
+
+  if (!button) return;
+
+  button.title = fullscreen ? "退出全屏" : "展开全屏";
+
+  button.setAttribute("aria-label", button.title);
+
+  button.innerHTML = icon(fullscreen ? "minimize-2" : "maximize-2");
+
+  refreshIcons();
+
+}
+
+
+
+export function taskRow(task) {
+
+  const statusClass = task.status === "completed" ? "success" : task.status === "failed" ? "error" : ["cancelled", "interrupted"].includes(task.status) ? "cancelled" : task.status === "queued" ? "queued" : "running";
+
+  const cancel = ACTIVE_TASK_STATUSES.has(task.status) ? `<button class="panel-icon-action" data-cancel-task="${escapeHtml(task.task_id)}" title="${t("cancel")}">${icon("square")}</button>` : "";
+
+  const resume = RESUMABLE_TASK_PHASES.has(task.status) ? `<button class="panel-icon-action" data-resume-task="${escapeHtml(task.task_id)}" title="${t("tasks.resume")}">${icon("rotate-ccw")}</button>` : "";
+
+  const phase = phaseLabel(task);
+
+  const streamSize = Number(task.stream_length || String(task.stream_text || "").length);
+
+  const detail = `${phase} · ${formatDuration(taskDuration(task))} · ${streamSize} chars · ${taskMetrics(task)}`;
+
+  const children = task.child_task_ids?.length ? ` · ${task.child_task_ids.length} ${t("tasks.children")}` : "";
+
+  const workspace = task.workspace_path ? task.workspace_path.split(/[\\/]/).filter(Boolean).pop() : "workspace";
+
+  const details = `<button class="panel-icon-action" data-open-detail="${escapeHtml(task.task_id)}" title="${escapeHtml(t("tasks.detail"))}" aria-label="${escapeHtml(t("tasks.detail"))}">${icon("maximize-2")}</button>`;
+
+  const restore = task.task_id ? `<button class="panel-icon-action" data-restore-task="${escapeHtml(task.task_id)}" title="${escapeHtml(t("restore.action"))}" aria-label="${escapeHtml(t("restore.action"))}">${icon("rotate-ccw")}</button>` : "";
+
+  return `<div class="task-row" data-open-task="${escapeHtml(task.task_id)}" tabindex="0"><span class="task-state ${statusClass}"></span><div><strong>${escapeHtml(task.task_kind === "batch" ? `${task.task_id} · ${t("tasks.children")}` : task.task_id)}</strong><small>${escapeHtml(workspace)} · ${escapeHtml(detail)}${children}</small></div><div class="task-row-actions">${details}${restore}${resume}${cancel}</div></div>`;
+
+}
+
+
+
+export async function openTaskInWorkspace(taskId) {
+
+  try {
+
+    const task = await requestJson(`/api/tasks/${encodeURIComponent(taskId)}`);
+
+    cacheTaskDetail(task);
+
+    const targetWorkspace = String(task.workspace_path || "");
+
+    if (targetWorkspace && state.workspacePath && targetWorkspace.replaceAll("\\", "/").toLowerCase() !== state.workspacePath.replaceAll("\\", "/").toLowerCase()) {
+
+      await requestJson("/api/workspace/select", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ path: targetWorkspace }) });
+
+      await loadWorkspace();
+
+    }
+
+    const sessionId = String(task.session_id || task.task_id);
+
+    taskHistoryBySession.set(sessionId, task);
+
+    const historyItems = taskHistoryListBySession.get(sessionId) || [];
+
+    const mergedHistory = historyItems.some((item) => item.task_id === task.task_id)
+
+      ? historyItems.map((item) => item.task_id === task.task_id ? task : item)
+
+      : [task, ...historyItems];
+
+    taskHistoryListBySession.set(sessionId, mergedHistory.sort((left, right) => Number(right.created_at_epoch || 0) - Number(left.created_at_epoch || 0)));
+
+    closePanel();
+
+    setSession(sessionId);
+
+    state.activeTaskId = task.task_id;
+
+    updateTaskDock(task);
+
+    if (isTerminalTask(task)) {
+
+      state.activeTaskId = null;
+
+      setBusy(false);
+
+    } else if (!runningTasks.has(task.task_id)) {
+
+      const loadingId = `loading-${task.task_id}`;
+
+      addLoadingMessage(loadingId, task);
+
+      bindRunningTask(task, loadingId, sessionId);
+
+      setBusy(true);
+
+      watchTask(task.task_id).catch((error) => showToast(error.message));
+
+    } else {
+
+      const binding = runningTasks.get(task.task_id);
+
+      if (binding && !document.getElementById(binding.loadingId)) addLoadingMessage(binding.loadingId, binding.data);
+
+      setBusy(true);
+
+    }
+
+    showToast(state.locale === "zh" ? "已打开任务会话" : "Task session opened");
+
+  } catch (error) {
+
+    showToast(error.message);
+
+  }
+
+}
+
+
+
+export async function openTaskDetail(taskId) {
+
+  const current = beginPanelRequest(t("tasks.open"));
+
+  try {
+
+    const task = await requestJson(`/api/tasks/${encodeURIComponent(taskId)}`);
+
+    if (!current()) return;
+
+    const events = Array.isArray(task.events) ? eventTimelineMarkup(task.events) : "";
+
+    const execution = executionTrailMarkup(events, task.events || []);
+
+    const children = Array.isArray(task.child_task_ids) && task.child_task_ids.length
+
+      ? `<div class="task-detail-children">${task.child_task_ids.map((child) => `<button class="panel-session" data-open-task="${escapeHtml(child)}">${escapeHtml(child)}</button>`).join("")}</div>`
+
+      : "";
+
+    const resume = RESUMABLE_TASK_PHASES.has(task.status)
+
+      ? `<button class="panel-primary" data-resume-task="${escapeHtml(task.task_id)}">${t("tasks.resume")}</button>`
+
+      : "";
+
+    const restore = `<button class="panel-secondary" data-restore-task="${escapeHtml(task.task_id)}">${icon("rotate-ccw")} ${escapeHtml(t("restore.action"))}</button>`;
+
+    const attachments = attachmentMarkup(task.attachments || []);
+
+    openPanel(`${t("tasks.open")} · ${task.task_id}`, `<div class="task-detail"><div class="task-detail-status"><span class="task-state ${task.status === "completed" ? "success" : RESUMABLE_TASK_PHASES.has(task.status) ? "cancelled" : "running"}"></span><strong>${escapeHtml(phaseLabel(task))}</strong><span>${escapeHtml(taskMetrics(task))}</span></div><div class="task-detail-actions task-detail-top-actions"><button class="panel-secondary" data-open-task="${escapeHtml(task.task_id)}">${icon("arrow-up-right")} ${escapeHtml(t("tasks.openSession"))}</button>${restore}</div>${runtimeMetricsMarkup(task)}<div class="panel-section-title">${t("workspace.current")}</div><code class="task-detail-path">${escapeHtml(task.workspace_path || "")}</code><div class="panel-section-title">Prompt</div><div class="task-detail-prompt">${formatText(task.prompt || task.preview || "")}</div>${attachments ? `<div class="panel-section-title">Images</div>${attachments}` : ""}<div class="panel-section-title">Response</div><div class="task-detail-answer">${formatText(task.answer || task.stream_text || task.error || "")}</div>${execution ? `<div class="panel-section-title">Tools & stage trace</div>${execution}` : ""}${children}${resume ? `<div class="task-detail-actions">${resume}</div>` : ""}</div>`, { immersive: true });
+
+  } catch (error) {
+
+    if (!current()) return;
+
+    openPanel(t("tasks.open"), `<div class="error-panel">${escapeHtml(error.message)}</div>`);
+
+  }
+
+}
+
+
+
+export function openBatchPanel() {
+
+  const taskFields = [1, 2, 3].map((index) => `<label class="batch-field"><span>${escapeHtml(t("batch.task"))} ${index}</span><textarea name="task" rows="3" placeholder="${escapeHtml(state.locale === "zh" ? "例如：检查后端测试并总结风险" : "For example: inspect backend tests and summarize risks")}"></textarea></label>`).join("");
+
+  openPanel(t("panel.batch"), `<form class="batch-form" id="batchForm"><div class="batch-heading"><span class="eyebrow">${escapeHtml(t("batch.title"))}</span><h3>${escapeHtml(t("batch.title"))}</h3><p>${escapeHtml(t("batch.subtitle"))}</p></div><div class="batch-fields">${taskFields}</div><label class="batch-field"><span>${escapeHtml(t("batch.context"))}</span><textarea name="shared_context" rows="3" placeholder="${escapeHtml(t("batch.note"))}"></textarea></label><div class="task-detail-actions"><button class="panel-primary" type="submit">${icon("play")} ${escapeHtml(t("batch.run"))}</button></div></form>`, { wide: true });
+
+}
+
+
+
+export async function openLedgerPanel() {
+
+  const current = beginPanelRequest(t("ledger.overview"));
+
+  try {
+
+    const data = await requestJson("/api/metrics");
+
+    if (!current()) return;
+
+    const usage = (data && typeof data.usage === "object" && data.usage) || {};
+
+    const llm = (data && typeof data.llm_cache === "object" && data.llm_cache) || {};
+
+    const models = (data && typeof data.by_model === "object" && data.by_model) || {};
+
+    const statusMap = (data && typeof data.tasks_by_status === "object" && data.tasks_by_status) || {};
+
+    const priced = Number(data?.priced_tasks || 0);
+
+    const unpriced = Number(data?.unpriced_tasks || 0);
+
+    const cost = typeof data?.cost_usd === "number" ? data.cost_usd : NaN;
+
+    const hit = Number(usage.prompt_cache_hit_tokens || 0);
+
+    const miss = Number(usage.prompt_cache_miss_tokens || 0);
+
+    const writes = Number(usage.prompt_cache_write_tokens || 0);
+
+    const totalTokens = Number(usage.total_tokens || 0);
+
+    const hitRatePct = hit + miss > 0 ? Math.round((hit / (hit + miss)) * 100) : null;
+
+
+
+    const donutData = {
+
+      tokens_used: { prompt_cache_hit_tokens: hit, prompt_cache_miss_tokens: miss },
+
+      metrics: { cache_status: llm.cache_status || "unreported" },
+
+    };
+
+
+
+    const statusRows = [
+
+      ["completed", t("phase.completed"), "var(--mint)"],
+
+      ["failed", t("phase.failed"), "var(--rose)"],
+
+      ["interrupted", t("phase.interrupted"), "var(--amber)"],
+
+      ["cancelled", t("phase.cancelled"), "var(--muted)"],
+
+    ].filter(([key]) => Number(statusMap[key] || 0) > 0);
+
+
+
+    const maxStatus = Math.max(1, ...statusRows.map(([key]) => Number(statusMap[key] || 0)));
+
+
+
+    const modelRows = Object.entries(models)
+
+      .sort((a, b) => Number(b[1]?.tasks || 0) - Number(a[1]?.tasks || 0))
+
+      .map(([name, bucket]) => {
+
+        const bt = bucket?.tokens || {};
+
+        const tokens = Number(bt.total_tokens || 0);
+
+        const costStr = typeof bucket?.cost_usd === "number" ? `$${Number(bucket.cost_usd).toFixed(4)}` : '<span class="led-unpriced">—</span>';
+
+        return `<tr><td><code>${escapeHtml(name)}</code></td><td class="led-num">${compactNumber(tokens)}</td><td class="led-num">${compactNumber(Number(bt.prompt_cache_hit_tokens || 0))} / ${compactNumber(Number(bt.prompt_cache_miss_tokens || 0))}</td><td class="led-num">${escapeHtml(String(bucket.tasks || 0))}</td><td class="led-num">${costStr}</td></tr>`;
+
+      }).join("");
+
+
+
+    const hasModels = Object.keys(models).length > 0;
+
+    const totalRow = `<tr class="led-total-row"><td>${t("ledger.overview")}</td><td class="led-num">${compactNumber(totalTokens)}</td><td class="led-num">${compactNumber(hit)} / ${compactNumber(miss)}</td><td class="led-num"></td><td class="led-num">${Number.isFinite(cost) ? `$${cost.toFixed(4)}` : `<span class="led-unpriced">${t("ledger.unpriced")}</span>`}</td></tr>`;
+
+
+
+    const redisLabel = data?.redis_cache?.live_backend ? t("ledger.redisLive") : t("ledger.redisLocal");
+
+    const redisClass = data?.redis_cache?.live_backend ? "led-redis-live" : "led-redis-local";
+
+
+
+    const body = `<div class="ledger-view">
+
+      <div class="led-hero"><div class="led-hero-number">${compactNumber(totalTokens)}</div><div class="led-hero-label">${t("ledger.tokens")}</div></div>
+
+      <div class="led-stat-row">
+
+        <div class="led-stat"><div class="led-stat-label">${t("ledger.hitRate")}</div><div class="led-stat-donut">${cacheDonut(donutData, 52)}</div><div class="led-stat-sub">${hitRatePct !== null ? `${hitRatePct}%` : t("tasks.cacheUnreported")} · ${t("ledger.cacheHits")} ${compactNumber(hit)} · ${t("ledger.cacheMiss")} ${compactNumber(miss)} · ${t("ledger.cacheWrite")} ${compactNumber(writes)}</div></div>
+
+        <div class="led-stat"><div class="led-stat-label">${t("ledger.cost")}</div><div class="led-stat-big">${Number.isFinite(cost) ? `$${cost.toFixed(4)}` : '<span class="led-unpriced">$—</span>'}</div><div class="led-stat-sub">${unpriced}/${priced + unpriced} ${state.locale === "zh" ? "个任务定价" : "tasks priced"} · ${llm.cache_status || ""}</div></div>
+
+        <div class="led-stat"><div class="led-stat-label">${t("ledger.redisTitle")}</div><div class="led-stat-big ${redisClass}">${redisLabel}</div><div class="led-stat-sub">${data?.redis_cache ? `gets ${data.redis_cache.gets || 0} · sets ${data.redis_cache.sets || 0} · local ${data.redis_cache.local_units || 0}/${data.redis_cache.local_capacity || 0}` : "—"}</div></div>
+
+      </div>
+
+      ${statusRows.length ? `<div class="led-section"><div class="panel-section-title">${t("ledger.status")}</div><div class="led-status-bar">${statusRows.map(([key, label, color]) => `<div class="led-status-seg" style="flex:${Number(statusMap[key] || 0)} 1 0;background:${color};" title="${escapeHtml(label)}: ${escapeHtml(String(statusMap[key]))}">${escapeHtml(String(statusMap[key]))}</div>`).join("")}</div><div class="led-status-legend">${statusRows.map(([key, label]) => `<span class="led-status-dot" style="--status-dot:${statusRows.find(r => r[0] === key)[2]}"></span>${escapeHtml(label)} <strong>${escapeHtml(String(statusMap[key]))}</strong>`).join("")}</div></div>` : ""}
+
+      ${hasModels ? `<div class="led-section"><div class="panel-section-title">${t("ledger.models")}</div><table class="led-table"><thead><tr><th>model</th><th class="led-num">tokens</th><th class="led-num">hit/miss</th><th class="led-num">${t("ledger.tasks")}</th><th class="led-num">$</th></tr></thead><tbody>${modelRows}${totalRow}</tbody></table></div>` : `<div class="empty-panel">${t("ledger.noMetrics")}</div>`}
+
+    </div>`;
+
+    openPanel(t("ledger.overview"), body, { wide: true });
+
+  } catch (error) {
+
+    if (!current()) return;
+
+    openPanel(t("ledger.overview"), `<div class="error-panel">${escapeHtml(error.message)}</div>`);
+
+  }
+
+}
+
+
+
 export async function openPulseStage() {
   const modal = $("#pulseStage");
   if (!modal) return;
@@ -779,366 +1453,825 @@ function usedModelConfig() {
   return { gateway: "wkapi.pro" };
 }
 
-export async function openActivityPanel() {
-  const current = beginPanelRequest(t("tasks.center"));
-  try {
-    const data = await requestJson("/api/tasks?limit=200");
-    if (!current()) return;
-    const tasks = Array.isArray(data.tasks) ? data.tasks : [];
-    openPanel(t("tasks.center"), `<div class="panel-toolbar"><span>${tasks.length} ${state.locale === "zh" ? "个任务" : "tasks"}</span><button class="panel-text-action" data-panel-action="activity">${t("panel.refresh")}</button></div><div class="task-filters"><span class="filter-chip active">${t("tasks.allWorkspaces")}</span><span class="filter-chip">${escapeHtml(state.workspacePath ? state.workspacePath.split(/[\\/]/).filter(Boolean).pop() : "workspace")}</span></div><div class="task-list">${tasks.length ? tasks.map(taskRow).join("") : `<div class="empty-panel">${t("tasks.noHistory")}</div>`}</div>`);
-  } catch (error) {
-    if (!current()) return;
-    openPanel(t("tasks.center"), `<div class="error-panel">${escapeHtml(error.message)}</div>`);
-  }
-}
-
-export async function openWorkspacesPanel() {
-  const current = beginPanelRequest(t("panel.workspaces"));
-  try {
-    const info = await requestJson("/api/workspace");
-    if (!current()) return;
-    const worktrees = Array.isArray(info.worktrees) ? info.worktrees : [];
-    const sandbox = info.sandbox || {};
-    const mcp = info.mcp || {};
-    const recent = Array.isArray(info.recent_workspaces) ? info.recent_workspaces : [];
-    const recentRows = recent.length ? recent.map((item) => `<button class="workspace-row ${item.path === info.path ? "active" : ""}" data-select-workspace="${escapeHtml(item.path)}"><span class="workspace-row-icon">${icon(item.path === info.path ? "radio" : "folder")}</span><span><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.path)}</small></span>${item.path === info.path ? `<em>ACTIVE</em>` : ""}</button>`).join("") : `<div class="empty-panel">${t("panel.noWorktrees")}</div>`;
-    const rows = worktrees.map((item) => `<div class="worktree-row"><div><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.branch || "detached")} · ${escapeHtml(item.path)}</small></div>${item.managed ? `<button class="panel-icon-action" data-remove-worktree="${escapeHtml(item.name)}" title="${t("panel.close")}">${icon("trash-2")}</button>` : ""}</div>`).join("");
-    const sandboxLabel = sandbox.isolated ? t("panel.isolated") : sandbox.backend === "unavailable" ? t("connection.offline") : t("panel.hostProcess");
-    openPanel(t("panel.workspaces"), `<div class="workspace-switcher"><div class="panel-section-title">${t("workspace.current")}</div><code class="workspace-current-path">${escapeHtml(info.path)}</code><form class="workspace-form" id="workspaceSelectForm"><label>${t("workspace.path")}<input id="workspacePathInput" name="path" required value="${escapeHtml(info.path)}" placeholder="${t("workspace.selectHint")}" /></label><button class="panel-primary" type="submit">${t("workspace.open")}</button></form><small class="workspace-hint">${t("workspace.selectHint")}</small><div class="panel-section-title">${t("workspace.recent")}</div><div class="workspace-list">${recentRows}</div></div><div class="status-grid"><div><span>${t("panel.sandbox")}</span><strong>${escapeHtml(String(sandbox.backend || "host"))}</strong><small>${sandboxLabel}</small></div><div><span>${t("panel.mcp")}</span><strong>${escapeHtml(String(mcp.configured || 0))}</strong><small>${t("panel.servers")}</small></div></div><div class="panel-section-title">${t("panel.createWorktree")}</div><form class="worktree-form" id="worktreeForm"><input id="worktreeName" name="name" required maxlength="64" placeholder="${t("panel.name")}" /><input id="worktreeBranch" name="branch" maxlength="128" placeholder="${t("panel.branch")}" /><button class="panel-primary" type="submit">${t("panel.create")}</button></form><div class="panel-section-title">${t("panel.gitWorktrees")}</div><div class="worktree-list">${rows || `<div class="empty-panel">${t("panel.noWorktrees")}</div>`}</div>`);
-  } catch (error) {
-    if (!current()) return;
-    openPanel(t("panel.workspaces"), `<div class="error-panel">${escapeHtml(error.message)}</div>`);
-  }
-}
-
-function modelOptionsMarkup() {
-  const current = state.model || "";
-  const models = Array.isArray(state.models) ? [...state.models] : [];
-  if (current && !models.some((item) => String(item?.id || "") === current)) models.unshift({ id: current });
-  if (!models.length) return `<option value="${escapeHtml(current)}">${escapeHtml(current || (state.locale === "zh" ? "未加载模型" : "No model loaded"))}</option>`;
-  models.sort((left, right) => {
-    const a = String(left?.id || "");
-    const b = String(right?.id || "");
-    return (a === current ? -1 : b === current ? 1 : a.localeCompare(b));
-  });
-  return models.map((item) => {
-    const id = String(item?.id || "");
-    const context = item?.context_length ? ` · ${item.context_length.toLocaleString()} ctx` : "";
-    return `<option value="${escapeHtml(id)}" ${id === current ? "selected" : ""}>${escapeHtml(id + context)}</option>`;
-  }).join("");
-}
-
-export async function loadModelCatalog({ quiet = false } = {}) {
-  state.modelCatalogLoading = true;
-  try {
-    const data = await requestJson("/api/models", {}, 20000);
-    const models = Array.isArray(data.models) ? data.models.filter((item) => item && item.id).map((item) => typeof item === "string" ? { id: item } : item) : [];
-    state.models = models;
-    state.modelCatalogError = String(data.error || "");
-    if (!localStorage.getItem("minicc-model") && data.default_model) state.model = String(data.default_model);
-    const select = $("#modelSelect");
-    if (select) {
-      select.innerHTML = modelOptionsMarkup();
-      select.value = state.model;
-    }
-    if (!quiet && state.modelCatalogError) showToast(state.modelCatalogError);
-    return data;
-  } catch (error) {
-    state.modelCatalogError = error.message;
-    if (!quiet) showToast(error.message);
-    return null;
-  } finally {
-    state.modelCatalogLoading = false;
-  }
-}
-
-export function openSettingsPanel() {
-  const current = state.locale === "zh" ? "中文" : "English";
-  const effortMarkup = REASONING_EFFORTS.map((effort) => "<option value=\"" + effort + "\" " + (state.reasoningEffort === effort ? "selected" : "") + ">" + escapeHtml(t("reasoning." + effort)) + "</option>").join("");
-  const languageButtons = "<div class=\"settings-block\"><span>" + t("panel.language") + "</span><strong>" + current + "</strong><div class=\"settings-locale\"><button class=\"locale-option " + (state.locale === "zh" ? "active" : "") + "\" data-set-locale=\"zh\">中文</button><button class=\"locale-option " + (state.locale === "en" ? "active" : "") + "\" data-set-locale=\"en\">English</button></div></div>";
-  const modelNote = state.modelCatalogError || (state.locale === "zh" ? "从当前网关读取可用模型；新的任务会使用此选择。" : "Loads models from the configured gateway; new tasks use this choice.");
-  const modelBlock = `<div class="settings-block"><span>${t("panel.model")}</span><div class="settings-model"><select id="modelSelect" aria-label="${escapeHtml(t("panel.model"))}">${modelOptionsMarkup()}</select><button type="button" class="panel-secondary model-refresh" id="refreshModelCatalog" title="${escapeHtml(t("panel.modelRefresh"))}">↻</button></div><small class="settings-note">${escapeHtml(modelNote)}</small></div>`;
-  const reasoningBlock = "<div class=\"settings-block\"><span>" + t("panel.reasoning") + "</span><div class=\"settings-effort\"><select id=\"reasoningEffortSelect\" aria-label=\"" + escapeHtml(t("panel.reasoning")) + "\">" + effortMarkup + "</select></div><small class=\"settings-note\">" + escapeHtml(t("panel.reasoningNote")) + "</small></div>";
-  const sandboxBlock = "<div class=\"settings-block\"><span>" + t("panel.sandbox") + "</span><strong>" + (state.locale === "zh" ? "见工作区面板" : "See Workspaces") + "</strong></div>";
-  const notifyOn = notificationsEnabled();
-  const notifyBlock = "<div class=\"settings-block\"><span>" + t("notify.enable") + "</span><div class=\"settings-locale\"><button class=\"locale-option notify-toggle " + (notifyOn ? "active" : "") + "\" data-notify=\"on\" type=\"button\">" + t("notify.on") + "</button><button class=\"locale-option notify-toggle " + (notifyOn ? "" : "active") + "\" data-notify=\"off\" type=\"button\">" + t("notify.off") + "</button></div><small class=\"settings-note\">" + escapeHtml(t("notify.enableHint")) + "</small></div>";
-
-  const rewindBlock = "<div class=\"settings-block settings-rewind\"><span>" + escapeHtml(t("rewind.advanced")) + "</span><form id=\"rewindForm\" class=\"rewind-form\"><label class=\"rewind-label\"><span>" + escapeHtml(t("rewind.keepLabel")) + "</span><input id=\"rewindKeep\" type=\"number\" min=\"1\" value=\"3\" required aria-label=\"" + escapeHtml(t("rewind.keepLabel")) + "\" /></label><button class=\"send-button rewind-button\" type=\"submit\">" + escapeHtml(t("rewind.action")) + "</button></form><small class=\"settings-note\">" + escapeHtml(t("rewind.hint")) + "</small></div>";
-  const allowlistBlock = "<div class=\"settings-block\" id=\"allowlistEditor\"><span>" + escapeHtml(t("allowlist.title")) + "</span><small class=\"settings-note\">" + escapeHtml(t("allowlist.hint")) + "</small><form id=\"allowlistForm\" class=\"allowlist-form\"><label><span>" + escapeHtml(t("allowlist.commands")) + "</span><textarea id=\"allowlistCommands\" rows=\"3\"></textarea></label><label><span>" + escapeHtml(t("allowlist.paths")) + "</span><textarea id=\"allowlistPaths\" rows=\"3\"></textarea></label><label><span>" + escapeHtml(t("allowlist.tools")) + "</span><textarea id=\"allowlistTools\" rows=\"2\"></textarea></label><button class=\"send-button\" type=\"submit\">" + escapeHtml(t("allowlist.save")) + "</button></form></div>";
-  openPanel(t("panel.settings"), languageButtons + modelBlock + reasoningBlock + sandboxBlock + notifyBlock + rewindBlock + allowlistBlock);
-  bindAllowlistEditor();
-  document.querySelectorAll(".notify-toggle").forEach((button) => {
-    button.addEventListener("click", async () => {
-      const want = button.dataset.notify === "on";
-      const ok = await setNotificationsEnabled(want);
-      const active = want && ok;
-      if (want && !ok) showToast(notificationsBlocked() ? t("notify.denied") : t("notify.unsupported"));
-      document.querySelectorAll(".notify-toggle").forEach((node) => node.classList.toggle("active", (node.dataset.notify === "on") === active));
-    });
-  });
-  const rewindForm = $("#rewindForm");
-  if (rewindForm) {
-    rewindForm.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      const keepInput = $("#rewindKeep");
-      if (!(keepInput instanceof HTMLInputElement)) return;
-      const keepMessages = Number(keepInput.value || 0);
-      if (!Number.isFinite(keepMessages) || keepMessages < 1) {
-        showToast(t("rewind.fail"));
-        return;
-      }
-      try {
-        const outcome = await requestJson("/api/sessions/rewind", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ session_id: state.sessionId, keep_messages: keepMessages }),
-        }, 20000);
-        closePanel();
-        showToast(`${t("rewind.done")} -${outcome.removed || 0}`);
-        setSession(state.sessionId);
-      } catch (error) {
-        showToast(`${t("rewind.fail")}: ${error.message}`);
-      }
-    });
-  }
-}
-
-export function openPromoPanel() {
-  const promo = state.locale === "zh"
-    ? {
-        panel: "minicc · Agent 工作台",
-        kicker: "LOCAL AGENT / INTERVIEW BUILD",
-        title: "从一句话，",
-        accent: "到一份可验证的交付。",
-        description: "minicc 把规划、工具调用、文件改动和测试验证放在同一条可追溯路径里。你看到的是证据，不是黑盒里的猜测。",
-        cta: "开始新任务",
-        ctaNote: "LOCAL FIRST · SSE STREAM",
-        proofTitle: "从第一行代码到最后一次验证",
-        proofBody: "一个工作区 · 一条可追溯路径",
-        previewLabel: "agent / live",
-        live: "RUNNING",
-        taskLabel: "强化版宣传页",
-        taskMeta: "workspace · minicc-codex",
-        metrics: ["SSE 实时", "00:14", "72% context"],
-        phases: [
-          ["01", "理解需求", "拆解目标与验收标准", "check", "done"],
-          ["02", "修改工作区", "写入前先检查当前 diff", "loader-circle", "active"],
-          ["03", "验证交付", "测试结果和剩余风险可复盘", "circle-dashed", ""],
-        ],
-        diffLabel: "live diff / web/styles.css",
-        diff: [["+", "--agent-accent: coral;"], ["+", "--stream-mode: live;"], ["-", "--status: waiting;"], [" ", "/* verified by pytest */"]],
-        sectionKicker: "WHY MINICC",
-        sectionTitle: "少一点猜测，多一点确定。",
-        sectionBody: "为真实的工程协作设计：先收集上下文，再执行动作，最后用验证结果闭环。",
-        capabilities: [
-          ["scan-search", "看得见过程", "阶段摘要、工具调用、流式回答和上下文用量实时呈现，复杂任务不会突然失去方向。"],
-          ["layers-3", "并行而不互相阻塞", "独立会话使用独立任务槽位；批量任务可并行执行，完成后再合并结果。"],
-          ["git-compare", "改动可审查", "文件列表和红绿 diff 直接联动，点击文件即可查看变更与当前内容。"],
-          ["shield-check", "本地优先", "工作区、权限、取消、重试和审计都由本地 harness 负责，模型只负责判断。"],
-        ],
-        bottomKicker: "READY WHEN YOU ARE",
-        bottomTitle: "下一次提交，",
-        bottomAccent: "从一句话开始。",
-        bottomBody: "切换中文或 English，打开一个真实工作区，立即体验完整循环。",
-        bottomCta: "进入工作台",
-      }
-    : {
-        panel: "minicc · Agent workspace",
-        kicker: "LOCAL AGENT / INTERVIEW BUILD",
-        title: "From one prompt,",
-        accent: "to a delivery you can verify.",
-        description: "minicc puts planning, tool calls, file changes, and verification on one traceable path. You see evidence, not a black box guessing in the dark.",
-        cta: "Start a new task",
-        ctaNote: "LOCAL FIRST · SSE STREAM",
-        proofTitle: "From the first line to the final check",
-        proofBody: "One workspace · One traceable path",
-        previewLabel: "agent / live",
-        live: "RUNNING",
-        taskLabel: "Harden the promo page",
-        taskMeta: "workspace · minicc-codex",
-        metrics: ["SSE live", "00:14", "72% context"],
-        phases: [
-          ["01", "Understand the request", "Turn intent into acceptance criteria", "check", "done"],
-          ["02", "Change the workspace", "Inspect the diff before writing", "loader-circle", "active"],
-          ["03", "Verify the delivery", "Keep tests and remaining risk visible", "circle-dashed", ""],
-        ],
-        diffLabel: "live diff / web/styles.css",
-        diff: [["+", "--agent-accent: coral;"], ["+", "--stream-mode: live;"], ["-", "--status: waiting;"], [" ", "/* verified by pytest */"]],
-        sectionKicker: "WHY MINICC",
-        sectionTitle: "Less guessing. More certainty.",
-        sectionBody: "Built for real engineering work: gather context, take action, then close the loop with verification.",
-        capabilities: [
-          ["scan-search", "See the work", "Phase summaries, tool calls, streamed answers, and context usage stay visible through long tasks."],
-          ["layers-3", "Parallel without blocking", "Independent sessions get independent task slots; batch work runs in parallel and merges at the end."],
-          ["git-compare", "Review every change", "The file list and red-green diff stay linked. Open a file to inspect its patch and current content."],
-          ["shield-check", "Local first", "The local harness owns workspace, permissions, cancellation, retries, and audit trails. The model owns judgment."],
-        ],
-        bottomKicker: "READY WHEN YOU ARE",
-        bottomTitle: "Your next commit,",
-        bottomAccent: "starts with a sentence.",
-        bottomBody: "Switch between Chinese and English, open a real workspace, and run the full loop.",
-        bottomCta: "Open workspace",
-      };
-  const phaseMarkup = promo.phases.map(([number, title, detail, iconName, status]) => `<div class="promo-phase ${status}"><span>${escapeHtml(number)}</span><div><strong>${escapeHtml(title)}</strong><small>${escapeHtml(detail)}</small></div><i data-lucide="${iconName}"></i></div>`).join("");
-  const capabilityMarkup = promo.capabilities.map(([iconName, title, detail], index) => `<article class="promo-card"><span class="promo-number">0${index + 1}</span><i data-lucide="${iconName}"></i><strong>${escapeHtml(title)}</strong><span>${escapeHtml(detail)}</span></article>`).join("");
-  const metricMarkup = promo.metrics.map((metric) => `<span>${escapeHtml(metric)}</span>`).join("");
-  const diffMarkup = promo.diff.map(([marker, line]) => `<span class="promo-diff-line ${marker === "+" ? "add" : marker === "-" ? "del" : "context"}"><b>${escapeHtml(marker)}</b>${escapeHtml(line)}</span>`).join("");
-  openPanel(promo.panel, `<article class="promo-page">
-    <section class="promo-hero">
-      <div class="promo-hero-copy">
-        <span class="promo-kicker"><span class="eyebrow-line"></span>${escapeHtml(promo.kicker)}</span>
-        <h3>${escapeHtml(promo.title)}<br><em>${escapeHtml(promo.accent)}</em></h3>
-        <p>${escapeHtml(promo.description)}</p>
-        <div class="promo-actions"><button class="panel-primary promo-cta" data-panel-action="new-task">${escapeHtml(promo.cta)} ${icon("arrow-up-right")}</button><span class="mono">${escapeHtml(promo.ctaNote)}</span></div>
-        <div class="promo-proof"><span class="proof-avatars"><b>m</b><b>✓</b><b>⌘</b></span><span><strong>${escapeHtml(promo.proofTitle)}</strong><small>${escapeHtml(promo.proofBody)}</small></span></div>
-      </div>
-      <div class="promo-hero-preview" aria-label="${escapeHtml(promo.previewLabel)}">
-        <div class="promo-preview-head"><span class="terminal-dot coral"></span><span class="terminal-dot amber"></span><span class="terminal-dot mint"></span><span class="mono">${escapeHtml(promo.previewLabel)}</span><span class="console-live"><i></i> ${escapeHtml(promo.live)}</span></div>
-        <div class="promo-preview-task"><span class="promo-preview-icon">${icon("sparkles")}</span><span><strong>${escapeHtml(promo.taskLabel)}</strong><small>${escapeHtml(promo.taskMeta)}</small></span><span class="promo-preview-check">${icon("radio")}</span></div>
-        <div class="promo-metrics">${metricMarkup}</div>
-        <div class="promo-phase-list">${phaseMarkup}</div>
-        <div class="promo-diff"><div><span class="mono">${escapeHtml(promo.diffLabel)}</span><span class="promo-diff-state">● LIVE</span></div><pre>${diffMarkup}</pre></div>
-      </div>
-    </section>
-    <section class="promo-section">
-      <div class="promo-section-head"><span class="promo-kicker">${escapeHtml(promo.sectionKicker)}</span><h4>${escapeHtml(promo.sectionTitle)}</h4><p>${escapeHtml(promo.sectionBody)}</p></div>
-      <div class="promo-grid">${capabilityMarkup}</div>
-    </section>
-    <section class="promo-bottom"><div><span class="promo-kicker">${escapeHtml(promo.bottomKicker)}</span><h4>${escapeHtml(promo.bottomTitle)} <em>${escapeHtml(promo.bottomAccent)}</em></h4><p>${escapeHtml(promo.bottomBody)}</p></div><button class="panel-secondary promo-cta" data-panel-action="new-task">${escapeHtml(promo.bottomCta)} ${icon("arrow-right")}</button></section>
-  </article>`);
-}
-
-export function openOptionsPanel() {
-  openPanel(t("panel.options"), `<div class="options-list"><button class="panel-command" data-panel-action="clear"><span>${icon("eraser")}</span>${t("panel.clear")}</button><button class="panel-command" data-panel-action="export"><span>${icon("download")}</span>${t("panel.export")}</button><button class="panel-command" data-panel-action="reload"><span>${icon("refresh-cw")}</span>${t("panel.reload")}</button></div>`);
-}
-
-export function openTaskListPanel() {
-  const items = $$(".thread-item").map((item) => `<button class="panel-session" data-switch-session="${escapeHtml(item.dataset.session)}"><strong>${escapeHtml(item.querySelector("strong")?.textContent || item.dataset.session)}</strong><small>${escapeHtml(item.querySelector("small")?.textContent || "")}</small></button>`).join("");
-  openPanel(t("recentTasks"), `<div class="panel-session-list">${items}</div>`);
-}
-
-export function exportChat() {
-  const text = $("#messageList").innerText;
-  const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = `${state.sessionId}.txt`;
-  link.click();
-  URL.revokeObjectURL(link.href);
-  showToast(state.locale === "zh" ? "对话已导出" : "Chat exported");
-}
-
-export function switchInspectorTab(tab) {
-  runtime.inspectorTab = INSPECTOR_TABS.includes(tab) ? tab : INSPECTOR_TABS[0];
-  $$(".inspector-tab").forEach((item) => {
-    const active = item.dataset.inspectorTab === runtime.inspectorTab;
-    item.classList.toggle("active", active);
-    item.setAttribute("aria-selected", String(active));
-    item.tabIndex = active ? 0 : -1;
-  });
-  $("#overviewSection").hidden = runtime.inspectorTab !== "verification";
-  $("#changesSection").hidden = runtime.inspectorTab !== "changes";
-  $("#fileTreeSection").hidden = runtime.inspectorTab !== "files";
-  $("#filesSection").hidden = true;
-  $("#verificationSection").hidden = runtime.inspectorTab !== "verification";
-}
-
-export async function rewindToUserIndex(userIndex) {
-  const index = Number(userIndex);
-  if (!Number.isFinite(index) || index < 1) {
-    showToast(t("rewind.fail"));
-    return;
-  }
-  const scope = captureViewScope();
-  try {
-    const outcome = await requestJson("/api/sessions/rewind", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ session_id: scope.sessionId, user_index: index }),
-    }, 20000);
-    showToast(`${t("rewind.done")} #${outcome.user_index || index}`);
-    const cacheKey = sessionViewKey(scope.sessionId, scope.workspacePath);
-    sessionMarkup.delete(cacheKey);
-    try { localStorage.removeItem(cacheKey); } catch { /* ignore quota */ }
-    if (isViewScopeCurrent(scope)) {
-      await loadTaskHistory();
-      if (isViewScopeCurrent(scope)) renderSession(scope.sessionId);
-    }
-  } catch (error) {
-    showToast(`${t("rewind.fail")}: ${error.message}`);
-  }
-}
-
-export async function restoreTaskSnapshot(taskId) {
-  if (!taskId) return;
-  try {
-    const result = await requestJson("/api/workspace/restore", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ task_id: taskId }),
-    }, 20000);
-    const unresolved = [...(result.conflicts || []), ...(result.skipped || [])];
-    showToast(unresolved.length ? `${t("restore.partial")}: ${unresolved.slice(0, 3).join(", ")}${unresolved.length > 3 ? "…" : ""}` : t("restore.done"));
-    loadChanges();
-    refreshFileTreeSoon();
-  } catch (error) {
-    showToast(`${t("restore.fail")}: ${error.message}`);
-  }
-}
-
-export function parseAllowlistLines(value) {
-  return String(value || "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
-}
-
-export async function bindAllowlistEditor() {
-  const host = $("#allowlistEditor");
-  const form = $("#allowlistForm");
-  if (!host || !form) return;
-  const fill = (id, items) => {
-    const field = document.getElementById(id);
-    if (field) field.value = (Array.isArray(items) ? items : []).join("\n");
-  };
-  try {
-    const data = await requestJson(`/api/allowlist?session_id=${encodeURIComponent(state.sessionId)}`);
-    fill("allowlistCommands", data.commands);
-    fill("allowlistPaths", data.paths);
-    fill("allowlistTools", data.tools);
-  } catch (error) {
-    const message = String(error.message || "");
-    if (/404|not found/i.test(message)) {
-      host.innerHTML = `<span>${escapeHtml(t("allowlist.title"))}</span><small class="settings-note">${escapeHtml(t("allowlist.soon"))}</small>`;
-      return;
-    }
-    host.insertAdjacentHTML("beforeend", `<small class="settings-note">${escapeHtml(message)}</small>`);
-  }
-  form.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    try {
-      await requestJson("/api/allowlist", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          session_id: state.sessionId,
-          commands: parseAllowlistLines($("#allowlistCommands")?.value),
-          paths: parseAllowlistLines($("#allowlistPaths")?.value),
-          tools: parseAllowlistLines($("#allowlistTools")?.value),
-        }),
-      });
-      showToast(state.locale === "zh" ? "允许列表已保存" : "Allowlist saved");
-    } catch (error) {
-      showToast(error.message);
-    }
-  });
-}
-
-export function openHelpPanel() {
-  const rows = state.locale === "zh"
-    ? [["发送任务", "Enter"], ["换行", "Shift+Enter"], ["新任务", "Ctrl/⌘ N"], ["搜索任务", "/"], ["关闭面板 / 小游戏", "Esc"]]
-    : [["Send task", "Enter"], ["Newline", "Shift+Enter"], ["New task", "Ctrl/⌘ N"], ["Search tasks", "/"], ["Close panel / game", "Esc"]];
-  const list = rows.map(([label, key]) => `<div class="help-shortcut"><span>${escapeHtml(label)}</span><kbd>${escapeHtml(key)}</kbd></div>`).join("");
-  openPanel(t("help.title"), `<div class="help-panel"><div class="panel-section-title">${escapeHtml(t("help.shortcuts"))}</div>${list}<div class="panel-section-title">${escapeHtml(t("help.arcade"))}</div><button type="button" class="panel-command" id="helpArcadeButton"><span>${icon("gamepad-2")}</span>${escapeHtml(t("help.arcade"))}</button></div>`);
-  $("#helpArcadeButton")?.addEventListener("click", () => {
-    closePanel();
-    openArcade().catch((error) => showToast(error.message));
-  });
-}
+export function openTemplatesPanel() {
+  const zh = state.locale === "zh";
+  // Curated by what actually matters for a local-first agent workspace:
+  // project discovery, quality, git, translation, dependency, docs.
+  // Each prompt runs directly inside the same chat — no migration,
+  // no new backend, no guardrails to learn.
+  const cards = [
+    {
+      icon: "file-search-2",
+      title: zh ? "项目扫描" : "Project Scan",
+      subtitle: zh ? "读入口文档、架构与命令，输出一页项目概览" : "Read entrypoint docs, architecture, and commands for a one-page overview",
+      prompt: zh
+        ? "请阅读当前工作区的 README、package.json 或 pyproject.toml、AGENTS.md / CLAUDE.md / MINICC.md 以及主要的构建脚本，然后输出一页项目概览：这个仓库做什么、技术栈是什么、怎么构建、怎么测试、从哪里开始读起。不要用工具修改任何文件。"
+        : "Read the workspace's README, package.json or pyproject.toml, AGENTS.md / CLAUDE.md / MINICC.md, and the main build scripts. Then output a one-page project overview: what this repo does, its tech stack, how to build, how to test, and where to start reading. Do not edit any files.",
+    },
+    {
+      icon: "shield-check",
+      title: zh ? "跑测试并修好" : "Run tests & fix",
+      subtitle: zh ? "自动发现测试命令，运行并修复失败，验证通过" : "Discover the test runner, run it, fix failures, verify green",
+      prompt: zh
+        ? "请发现当前仓库的测试命令（参考 package.json / pyproject.toml / Makefile 中的 test 段，不要修改它们），运行测试，分析失败原因，逐一修复直到全部通过。如果发现测试本身有问题，也修好测试；不要跳过任何断言。最后汇报本次改动涉及的每个文件、每个失败以及修复方式。"
+        : "Discover the test command for this repo (look at the test section of package.json / pyproject.toml / Makefile; do not edit those files). Run the tests, analyze the failures, fix them one by one until green. If a test itself is wrong, fix the test too; don't skip any assertion. Report each file involved, each failure, and how you fixed it.",
+    },
+    {
+      icon: "git-compare",
+      title: zh ? "安全审查变更" : "Review Diff Safely",
+      subtitle: zh ? "审查当前未提交改动：回归风险、漏改、边界条件" : "Review uncommitted changes: regression risk, missing edits, edge cases",
+      prompt: zh
+        ? "请使用 git diff 审查当前未提交的改动，重点关注：① 是否破坏现有 API / 类型签名 / 序列化格式；② 是否遗漏了应该同步更新的调用处；③ 边界条件（空值、负数、超大输入）是否覆盖；④ 测试是否同步加了。输出审查结论：通过 / 需修改（附文件+行号）/ 风险接受。"
+        : "Review the current uncommitted diff with git diff. Focus on: (1) whether it breaks existing APIs, type signatures, or serialization formats; (2) call sites that should be updated but weren't; (3) boundary conditions (null, negative, very large input); (4) tests that were added/updated. Output a verdict: approve / needs changes (with file+line) / risk-accepted.",
+    },
+    {
+      icon: "book-open",
+      title: zh ? "生成 README" : "Write README",
+      subtitle: zh ? "按仓库结构写出清晰的新 READMOR" : "Write a clear README from this repo's structure",
+      prompt: zh
+        ? "请根据当前仓库的目录结构、源码注释、构建/测试入口和依赖清单，生成一份面向新贡献者的 README：① 这个项目是什么、解决什么问题；② 环境要求；③ 快速开始（安装、构建、测试）；④ 项目结构地图（目录 → 用途 + 关键文件）；⑤ 常见任务（示例：新增功能、跑单测）。只读取文件、不要修改任何东西。"
+        : "Based on the repo's directory structure, source-code docstrings, build/test entry points, and dependency manifest, generate a README for new contributors: (1) what this project is and what problem it solves, (2) prerequisites, (3) quickstart (install, build, test), (4) structure map (directory → purpose + key files), (5) common tasks (example: add a feature, run the focused test). Read only, do not edit files.",
+    },
+    {
+      icon: "globe-2",
+      title: zh ? "中文注释英文化" : "Translate Comments EN",
+      subtitle: zh ? "把源码中的中文注释 / 文档字符串翻译为英文" : "Translate Chinese comments / docstrings to English",
+      prompt: zh
+        ? "请扫描当前仓库中所有源文件，把所有中文注释（含文档字符串与行尾注释）翻译成地道英文，只改注释不改代码逻辑与字符串。不要翻译用户界面文案（那些已经是双语了）。翻译后保持文件格式不变，并汇报改动的文件清单和翻译条数。"
+        : "Scan every source file in the workspace; translate every Chinese comment (including docstrings and end-of-line comments) into fluent English. Change only comments — never code logic or string literals. Do not translate UI strings (those are already bilingual). Preserve file formatting and report the files changed and number of comments translated.",
+    },
+    {
+      icon: "refresh-cw",
+      title: zh ? "依赖升级体检" : "Dependency Check",
+      subtitle: zh ? "列出过期依赖、安全提醒、升级影响评估" : "List outdated deps, security notes, and upgrade impact",
+      prompt: zh
+        ? "请检查当前仓库的依赖清单，列出：① 过期的依赖（区分 major / minor / patch）；② 已知安全漏洞或弃用警告；③ 建议升级顺序（哪些先升、哪些可以延后）。不要实际修改清单。最后输出一份「依赖体检」报告。"
+        : "Check this repo's dependency manifest and report: (1) outdated dependencies, by major/minor/patch, (2) known security advisories or deprecation warnings, (3) a recommended upgrade order (which go first and which can wait). Do not modify the manifest. Output a dependency health-check report.",
+    },
+    {
+      icon: "sparkles",
+      title: zh ? "代码现代化建议" : "Modernize Code",
+      subtitle: zh ? "发现可以精简 / 现代化的代码片段" : "Find code that can be tightened or modernized",
+      prompt: zh
+        ? "请通读当前仓库的核心模块，找出（1）重复代码、（2）可被现代语言特性取代的写法（比如 3 元链 / 老式字符串拼接）、（3）未使用的导入、（4）可以提取成函数的长函数体、（5）类型可以更精确的地方。列出每个发现的文件+行号+简要建议。不要直接改动代码，先给我评估报告。"
+        : "Read the core modules of this repo and find: (1) duplicated code, (2) constructs replaceable by modern language features (ternary chains, legacy string building), (3) unused imports, (4) long function bodies that can be extracted, (5) spots where types could be narrower. List each finding with file+line+brief suggestion. Do not edit code yet; give me an assessment first.",
+    },
+    {
+      icon: "list-checks",
+      title: zh ? "运行关键路径冒烟" : "Smoke Key Path",
+      subtitle: zh ? "验证主流程能跑通：编辑 → 保存 → 验证" : "Smoke the golden path: edit → save → verify",
+      prompt: zh
+        ? "请不要改任何文件。帮我执行「可用性冒烟检查」：按顺序确认 (a) 仓库结构健全（package.json / pyproject.toml / 构建配置存在）；(b) 能 import / require 核心包；(c) 测试命令能被发现且可执行；(d) 构建产物可复现。最后输出一页冒烟检查清单和「下一步建议」。"
+        : "Do not edit any files. Run a usability smoke check: (a) repo layout is sane (manifests/build configs exist), (b) the core package imports cleanly, (c) the test runner is discoverable and executable, (d) the build is reproducible. Output a one-page checklist and a 'next steps' recommendation.",
+    },
+  ];
+  const zhCards = cards;
+  const paletteMarkup = `<div class="templates-grid">${zhCards.map((card, idx) => `<button class="template-card" data-template-index="${idx}" type="button"><span class="template-icon">${icon(card.icon)}</span><strong>${escapeHtml(card.title)}</strong><span class="template-sub">${escapeHtml(card.subtitle)}</span></button>`).join("")}</div><div class="templates-detail" id="templatesDetail" hidden></div>`;
+  openPanel(t("templates.title"), paletteMarkup);
+  const buttons = document.querySelectorAll("[data-template-index]");
+  buttons.forEach((btn) => btn.addEventListener("click", () => {
+    const idx = Number(btn.dataset.templateIndex);
+    if (!Number.isFinite(idx) || !cards[idx]) return;
+    const card = cards[idx];
+    const detail = document.querySelector("#templatesDetail");
+    if (!detail) return;
+    detail.innerHTML = `<div class="template-detail-header"><button class="panel-text-action" id="templatesBackToGrid">${icon("arrow-left")} ${t("panel.canvas") || (state.locale === "zh" ? "返回" : "Back")}</button><div class="template-detail-body"><div class="template-detail-kicker">${escapeHtml(card.title)}</div><h4>${escapeHtml(card.subtitle)}</h4><pre class="template-prompt">${escapeHtml(card.prompt)}</pre><button class="panel-primary" id="templatesUsePrompt">${icon("send")} ${t("send")}</button></div></div>`;
+    detail.hidden = false;
+    detail.querySelector("#templatesBackToGrid")?.addEventListener("click", () => { detail.hidden = true; });
+    detail.querySelector("#templatesUsePrompt")?.addEventListener("click", () => {
+      const input = $("#promptInput");
+      if (input) {
+        input.value = card.prompt;
+        input.focus();
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        closePanel();
+      }
+    });
+  }));
+}
+
+export async function openActivityPanel() {
+  const current = beginPanelRequest(t("tasks.center"));
+
+  try {
+
+    const data = await requestJson("/api/tasks?limit=200");
+
+    if (!current()) return;
+
+    const tasks = Array.isArray(data.tasks) ? data.tasks : [];
+
+    openPanel(t("tasks.center"), `<div class="panel-toolbar"><span>${tasks.length} ${state.locale === "zh" ? "个任务" : "tasks"}</span><button class="panel-text-action" data-panel-action="activity">${t("panel.refresh")}</button></div><div class="task-filters"><span class="filter-chip active">${t("tasks.allWorkspaces")}</span><span class="filter-chip">${escapeHtml(state.workspacePath ? state.workspacePath.split(/[\\/]/).filter(Boolean).pop() : "workspace")}</span></div><div class="task-list">${tasks.length ? tasks.map(taskRow).join("") : `<div class="empty-panel">${t("tasks.noHistory")}</div>`}</div>`);
+
+  } catch (error) {
+
+    if (!current()) return;
+
+    openPanel(t("tasks.center"), `<div class="error-panel">${escapeHtml(error.message)}</div>`);
+
+  }
+
+}
+
+
+
+export async function openWorkspacesPanel() {
+
+  const current = beginPanelRequest(t("panel.workspaces"));
+
+  try {
+
+    const info = await requestJson("/api/workspace");
+
+    if (!current()) return;
+
+    const worktrees = Array.isArray(info.worktrees) ? info.worktrees : [];
+
+    const sandbox = info.sandbox || {};
+
+    const mcp = info.mcp || {};
+
+    const recent = Array.isArray(info.recent_workspaces) ? info.recent_workspaces : [];
+
+    const recentRows = recent.length ? recent.map((item) => `<button class="workspace-row ${item.path === info.path ? "active" : ""}" data-select-workspace="${escapeHtml(item.path)}"><span class="workspace-row-icon">${icon(item.path === info.path ? "radio" : "folder")}</span><span><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.path)}</small></span>${item.path === info.path ? `<em>ACTIVE</em>` : ""}</button>`).join("") : `<div class="empty-panel">${t("panel.noWorktrees")}</div>`;
+
+    const rows = worktrees.map((item) => `<div class="worktree-row"><div><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.branch || "detached")} · ${escapeHtml(item.path)}</small></div>${item.managed ? `<button class="panel-icon-action" data-remove-worktree="${escapeHtml(item.name)}" title="${t("panel.close")}">${icon("trash-2")}</button>` : ""}</div>`).join("");
+
+    const sandboxLabel = sandbox.isolated ? t("panel.isolated") : sandbox.backend === "unavailable" ? t("connection.offline") : t("panel.hostProcess");
+
+    openPanel(t("panel.workspaces"), `<div class="workspace-switcher"><div class="panel-section-title">${t("workspace.current")}</div><code class="workspace-current-path">${escapeHtml(info.path)}</code><form class="workspace-form" id="workspaceSelectForm"><label>${t("workspace.path")}<input id="workspacePathInput" name="path" required value="${escapeHtml(info.path)}" placeholder="${t("workspace.selectHint")}" /></label><button class="panel-primary" type="submit">${t("workspace.open")}</button></form><small class="workspace-hint">${t("workspace.selectHint")}</small><div class="panel-section-title">${t("workspace.recent")}</div><div class="workspace-list">${recentRows}</div></div><div class="status-grid"><div><span>${t("panel.sandbox")}</span><strong>${escapeHtml(String(sandbox.backend || "host"))}</strong><small>${sandboxLabel}</small></div><div><span>${t("panel.mcp")}</span><strong>${escapeHtml(String(mcp.configured || 0))}</strong><small>${t("panel.servers")}</small></div></div><div class="panel-section-title">${t("panel.createWorktree")}</div><form class="worktree-form" id="worktreeForm"><input id="worktreeName" name="name" required maxlength="64" placeholder="${t("panel.name")}" /><input id="worktreeBranch" name="branch" maxlength="128" placeholder="${t("panel.branch")}" /><button class="panel-primary" type="submit">${t("panel.create")}</button></form><div class="panel-section-title">${t("panel.gitWorktrees")}</div><div class="worktree-list">${rows || `<div class="empty-panel">${t("panel.noWorktrees")}</div>`}</div>`);
+
+  } catch (error) {
+
+    if (!current()) return;
+
+    openPanel(t("panel.workspaces"), `<div class="error-panel">${escapeHtml(error.message)}</div>`);
+
+  }
+
+}
+
+
+
+function modelOptionsMarkup() {
+
+  const current = state.model || "";
+
+  const models = Array.isArray(state.models) ? [...state.models] : [];
+
+  if (current && !models.some((item) => String(item?.id || "") === current)) models.unshift({ id: current });
+
+  if (!models.length) return `<option value="${escapeHtml(current)}">${escapeHtml(current || (state.locale === "zh" ? "未加载模型" : "No model loaded"))}</option>`;
+
+  models.sort((left, right) => {
+
+    const a = String(left?.id || "");
+
+    const b = String(right?.id || "");
+
+    return (a === current ? -1 : b === current ? 1 : a.localeCompare(b));
+
+  });
+
+  return models.map((item) => {
+
+    const id = String(item?.id || "");
+
+    const context = item?.context_length ? ` · ${item.context_length.toLocaleString()} ctx` : "";
+
+    return `<option value="${escapeHtml(id)}" ${id === current ? "selected" : ""}>${escapeHtml(id + context)}</option>`;
+
+  }).join("");
+
+}
+
+
+
+export async function loadModelCatalog({ quiet = false } = {}) {
+
+  state.modelCatalogLoading = true;
+
+  try {
+
+    const data = await requestJson("/api/models", {}, 20000);
+
+    const models = Array.isArray(data.models) ? data.models.filter((item) => item && item.id).map((item) => typeof item === "string" ? { id: item } : item) : [];
+
+    state.models = models;
+
+    state.modelCatalogError = String(data.error || "");
+
+    if (!localStorage.getItem("minicc-model") && data.default_model) state.model = String(data.default_model);
+
+    const select = $("#modelSelect");
+
+    if (select) {
+
+      select.innerHTML = modelOptionsMarkup();
+
+      select.value = state.model;
+
+    }
+
+    if (!quiet && state.modelCatalogError) showToast(state.modelCatalogError);
+
+    return data;
+
+  } catch (error) {
+
+    state.modelCatalogError = error.message;
+
+    if (!quiet) showToast(error.message);
+
+    return null;
+
+  } finally {
+
+    state.modelCatalogLoading = false;
+
+  }
+
+}
+
+
+
+export function openSettingsPanel() {
+
+  const current = state.locale === "zh" ? "中文" : "English";
+
+  const effortMarkup = REASONING_EFFORTS.map((effort) => "<option value=\"" + effort + "\" " + (state.reasoningEffort === effort ? "selected" : "") + ">" + escapeHtml(t("reasoning." + effort)) + "</option>").join("");
+
+  const languageButtons = "<div class=\"settings-block\"><span>" + t("panel.language") + "</span><strong>" + current + "</strong><div class=\"settings-locale\"><button class=\"locale-option " + (state.locale === "zh" ? "active" : "") + "\" data-set-locale=\"zh\">中文</button><button class=\"locale-option " + (state.locale === "en" ? "active" : "") + "\" data-set-locale=\"en\">English</button></div></div>";
+
+  const modelNote = state.modelCatalogError || (state.locale === "zh" ? "从当前网关读取可用模型；新的任务会使用此选择。" : "Loads models from the configured gateway; new tasks use this choice.");
+
+  const modelBlock = `<div class="settings-block"><span>${t("panel.model")}</span><div class="settings-model"><select id="modelSelect" aria-label="${escapeHtml(t("panel.model"))}">${modelOptionsMarkup()}</select><button type="button" class="panel-secondary model-refresh" id="refreshModelCatalog" title="${escapeHtml(t("panel.modelRefresh"))}">↻</button></div><small class="settings-note">${escapeHtml(modelNote)}</small></div>`;
+
+  const reasoningBlock = "<div class=\"settings-block\"><span>" + t("panel.reasoning") + "</span><div class=\"settings-effort\"><select id=\"reasoningEffortSelect\" aria-label=\"" + escapeHtml(t("panel.reasoning")) + "\">" + effortMarkup + "</select></div><small class=\"settings-note\">" + escapeHtml(t("panel.reasoningNote")) + "</small></div>";
+
+  const sandboxBlock = "<div class=\"settings-block\"><span>" + t("panel.sandbox") + "</span><strong>" + (state.locale === "zh" ? "见工作区面板" : "See Workspaces") + "</strong></div>";
+
+  const notifyOn = notificationsEnabled();
+
+  const notifyBlock = "<div class=\"settings-block\"><span>" + t("notify.enable") + "</span><div class=\"settings-locale\"><button class=\"locale-option notify-toggle " + (notifyOn ? "active" : "") + "\" data-notify=\"on\" type=\"button\">" + t("notify.on") + "</button><button class=\"locale-option notify-toggle " + (notifyOn ? "" : "active") + "\" data-notify=\"off\" type=\"button\">" + t("notify.off") + "</button></div><small class=\"settings-note\">" + escapeHtml(t("notify.enableHint")) + "</small></div>";
+
+
+
+  const rewindBlock = "<div class=\"settings-block settings-rewind\"><span>" + escapeHtml(t("rewind.advanced")) + "</span><form id=\"rewindForm\" class=\"rewind-form\"><label class=\"rewind-label\"><span>" + escapeHtml(t("rewind.keepLabel")) + "</span><input id=\"rewindKeep\" type=\"number\" min=\"1\" value=\"3\" required aria-label=\"" + escapeHtml(t("rewind.keepLabel")) + "\" /></label><button class=\"send-button rewind-button\" type=\"submit\">" + escapeHtml(t("rewind.action")) + "</button></form><small class=\"settings-note\">" + escapeHtml(t("rewind.hint")) + "</small></div>";
+
+  const allowlistBlock = "<div class=\"settings-block\" id=\"allowlistEditor\"><span>" + escapeHtml(t("allowlist.title")) + "</span><small class=\"settings-note\">" + escapeHtml(t("allowlist.hint")) + "</small><form id=\"allowlistForm\" class=\"allowlist-form\"><label><span>" + escapeHtml(t("allowlist.commands")) + "</span><textarea id=\"allowlistCommands\" rows=\"3\"></textarea></label><label><span>" + escapeHtml(t("allowlist.paths")) + "</span><textarea id=\"allowlistPaths\" rows=\"3\"></textarea></label><label><span>" + escapeHtml(t("allowlist.tools")) + "</span><textarea id=\"allowlistTools\" rows=\"2\"></textarea></label><button class=\"send-button\" type=\"submit\">" + escapeHtml(t("allowlist.save")) + "</button></form></div>";
+
+  openPanel(t("panel.settings"), languageButtons + modelBlock + reasoningBlock + sandboxBlock + notifyBlock + rewindBlock + allowlistBlock);
+
+  bindAllowlistEditor();
+
+  document.querySelectorAll(".notify-toggle").forEach((button) => {
+
+    button.addEventListener("click", async () => {
+
+      const want = button.dataset.notify === "on";
+
+      const ok = await setNotificationsEnabled(want);
+
+      const active = want && ok;
+
+      if (want && !ok) showToast(notificationsBlocked() ? t("notify.denied") : t("notify.unsupported"));
+
+      document.querySelectorAll(".notify-toggle").forEach((node) => node.classList.toggle("active", (node.dataset.notify === "on") === active));
+
+    });
+
+  });
+
+  const rewindForm = $("#rewindForm");
+
+  if (rewindForm) {
+
+    rewindForm.addEventListener("submit", async (event) => {
+
+      event.preventDefault();
+
+      const keepInput = $("#rewindKeep");
+
+      if (!(keepInput instanceof HTMLInputElement)) return;
+
+      const keepMessages = Number(keepInput.value || 0);
+
+      if (!Number.isFinite(keepMessages) || keepMessages < 1) {
+
+        showToast(t("rewind.fail"));
+
+        return;
+
+      }
+
+      try {
+
+        const outcome = await requestJson("/api/sessions/rewind", {
+
+          method: "POST",
+
+          headers: { "Content-Type": "application/json" },
+
+          body: JSON.stringify({ session_id: state.sessionId, keep_messages: keepMessages }),
+
+        }, 20000);
+
+        closePanel();
+
+        showToast(`${t("rewind.done")} -${outcome.removed || 0}`);
+
+        setSession(state.sessionId);
+
+      } catch (error) {
+
+        showToast(`${t("rewind.fail")}: ${error.message}`);
+
+      }
+
+    });
+
+  }
+
+}
+
+
+
+export function openPromoPanel() {
+
+  const promo = state.locale === "zh"
+
+    ? {
+
+        panel: "minicc · Agent 工作台",
+
+        kicker: "LOCAL AGENT / INTERVIEW BUILD",
+
+        title: "从一句话，",
+
+        accent: "到一份可验证的交付。",
+
+        description: "minicc 把规划、工具调用、文件改动和测试验证放在同一条可追溯路径里。你看到的是证据，不是黑盒里的猜测。",
+
+        cta: "开始新任务",
+
+        ctaNote: "LOCAL FIRST · SSE STREAM",
+
+        proofTitle: "从第一行代码到最后一次验证",
+
+        proofBody: "一个工作区 · 一条可追溯路径",
+
+        previewLabel: "agent / live",
+
+        live: "RUNNING",
+
+        taskLabel: "强化版宣传页",
+
+        taskMeta: "workspace · minicc-codex",
+
+        metrics: ["SSE 实时", "00:14", "72% context"],
+
+        phases: [
+
+          ["01", "理解需求", "拆解目标与验收标准", "check", "done"],
+
+          ["02", "修改工作区", "写入前先检查当前 diff", "loader-circle", "active"],
+
+          ["03", "验证交付", "测试结果和剩余风险可复盘", "circle-dashed", ""],
+
+        ],
+
+        diffLabel: "live diff / web/styles.css",
+
+        diff: [["+", "--agent-accent: coral;"], ["+", "--stream-mode: live;"], ["-", "--status: waiting;"], [" ", "/* verified by pytest */"]],
+
+        sectionKicker: "WHY MINICC",
+
+        sectionTitle: "少一点猜测，多一点确定。",
+
+        sectionBody: "为真实的工程协作设计：先收集上下文，再执行动作，最后用验证结果闭环。",
+
+        capabilities: [
+
+          ["scan-search", "看得见过程", "阶段摘要、工具调用、流式回答和上下文用量实时呈现，复杂任务不会突然失去方向。"],
+
+          ["layers-3", "并行而不互相阻塞", "独立会话使用独立任务槽位；批量任务可并行执行，完成后再合并结果。"],
+
+          ["git-compare", "改动可审查", "文件列表和红绿 diff 直接联动，点击文件即可查看变更与当前内容。"],
+
+          ["shield-check", "本地优先", "工作区、权限、取消、重试和审计都由本地 harness 负责，模型只负责判断。"],
+
+        ],
+
+        bottomKicker: "READY WHEN YOU ARE",
+
+        bottomTitle: "下一次提交，",
+
+        bottomAccent: "从一句话开始。",
+
+        bottomBody: "切换中文或 English，打开一个真实工作区，立即体验完整循环。",
+
+        bottomCta: "进入工作台",
+
+      }
+
+    : {
+
+        panel: "minicc · Agent workspace",
+
+        kicker: "LOCAL AGENT / INTERVIEW BUILD",
+
+        title: "From one prompt,",
+
+        accent: "to a delivery you can verify.",
+
+        description: "minicc puts planning, tool calls, file changes, and verification on one traceable path. You see evidence, not a black box guessing in the dark.",
+
+        cta: "Start a new task",
+
+        ctaNote: "LOCAL FIRST · SSE STREAM",
+
+        proofTitle: "From the first line to the final check",
+
+        proofBody: "One workspace · One traceable path",
+
+        previewLabel: "agent / live",
+
+        live: "RUNNING",
+
+        taskLabel: "Harden the promo page",
+
+        taskMeta: "workspace · minicc-codex",
+
+        metrics: ["SSE live", "00:14", "72% context"],
+
+        phases: [
+
+          ["01", "Understand the request", "Turn intent into acceptance criteria", "check", "done"],
+
+          ["02", "Change the workspace", "Inspect the diff before writing", "loader-circle", "active"],
+
+          ["03", "Verify the delivery", "Keep tests and remaining risk visible", "circle-dashed", ""],
+
+        ],
+
+        diffLabel: "live diff / web/styles.css",
+
+        diff: [["+", "--agent-accent: coral;"], ["+", "--stream-mode: live;"], ["-", "--status: waiting;"], [" ", "/* verified by pytest */"]],
+
+        sectionKicker: "WHY MINICC",
+
+        sectionTitle: "Less guessing. More certainty.",
+
+        sectionBody: "Built for real engineering work: gather context, take action, then close the loop with verification.",
+
+        capabilities: [
+
+          ["scan-search", "See the work", "Phase summaries, tool calls, streamed answers, and context usage stay visible through long tasks."],
+
+          ["layers-3", "Parallel without blocking", "Independent sessions get independent task slots; batch work runs in parallel and merges at the end."],
+
+          ["git-compare", "Review every change", "The file list and red-green diff stay linked. Open a file to inspect its patch and current content."],
+
+          ["shield-check", "Local first", "The local harness owns workspace, permissions, cancellation, retries, and audit trails. The model owns judgment."],
+
+        ],
+
+        bottomKicker: "READY WHEN YOU ARE",
+
+        bottomTitle: "Your next commit,",
+
+        bottomAccent: "starts with a sentence.",
+
+        bottomBody: "Switch between Chinese and English, open a real workspace, and run the full loop.",
+
+        bottomCta: "Open workspace",
+
+      };
+
+  const phaseMarkup = promo.phases.map(([number, title, detail, iconName, status]) => `<div class="promo-phase ${status}"><span>${escapeHtml(number)}</span><div><strong>${escapeHtml(title)}</strong><small>${escapeHtml(detail)}</small></div><i data-lucide="${iconName}"></i></div>`).join("");
+
+  const capabilityMarkup = promo.capabilities.map(([iconName, title, detail], index) => `<article class="promo-card"><span class="promo-number">0${index + 1}</span><i data-lucide="${iconName}"></i><strong>${escapeHtml(title)}</strong><span>${escapeHtml(detail)}</span></article>`).join("");
+
+  const metricMarkup = promo.metrics.map((metric) => `<span>${escapeHtml(metric)}</span>`).join("");
+
+  const diffMarkup = promo.diff.map(([marker, line]) => `<span class="promo-diff-line ${marker === "+" ? "add" : marker === "-" ? "del" : "context"}"><b>${escapeHtml(marker)}</b>${escapeHtml(line)}</span>`).join("");
+
+  openPanel(promo.panel, `<article class="promo-page">
+
+    <section class="promo-hero">
+
+      <div class="promo-hero-copy">
+
+        <span class="promo-kicker"><span class="eyebrow-line"></span>${escapeHtml(promo.kicker)}</span>
+
+        <h3>${escapeHtml(promo.title)}<br><em>${escapeHtml(promo.accent)}</em></h3>
+
+        <p>${escapeHtml(promo.description)}</p>
+
+        <div class="promo-actions"><button class="panel-primary promo-cta" data-panel-action="new-task">${escapeHtml(promo.cta)} ${icon("arrow-up-right")}</button><span class="mono">${escapeHtml(promo.ctaNote)}</span></div>
+
+        <div class="promo-proof"><span class="proof-avatars"><b>m</b><b>✓</b><b>⌘</b></span><span><strong>${escapeHtml(promo.proofTitle)}</strong><small>${escapeHtml(promo.proofBody)}</small></span></div>
+
+      </div>
+
+      <div class="promo-hero-preview" aria-label="${escapeHtml(promo.previewLabel)}">
+
+        <div class="promo-preview-head"><span class="terminal-dot coral"></span><span class="terminal-dot amber"></span><span class="terminal-dot mint"></span><span class="mono">${escapeHtml(promo.previewLabel)}</span><span class="console-live"><i></i> ${escapeHtml(promo.live)}</span></div>
+
+        <div class="promo-preview-task"><span class="promo-preview-icon">${icon("sparkles")}</span><span><strong>${escapeHtml(promo.taskLabel)}</strong><small>${escapeHtml(promo.taskMeta)}</small></span><span class="promo-preview-check">${icon("radio")}</span></div>
+
+        <div class="promo-metrics">${metricMarkup}</div>
+
+        <div class="promo-phase-list">${phaseMarkup}</div>
+
+        <div class="promo-diff"><div><span class="mono">${escapeHtml(promo.diffLabel)}</span><span class="promo-diff-state">● LIVE</span></div><pre>${diffMarkup}</pre></div>
+
+      </div>
+
+    </section>
+
+    <section class="promo-section">
+
+      <div class="promo-section-head"><span class="promo-kicker">${escapeHtml(promo.sectionKicker)}</span><h4>${escapeHtml(promo.sectionTitle)}</h4><p>${escapeHtml(promo.sectionBody)}</p></div>
+
+      <div class="promo-grid">${capabilityMarkup}</div>
+
+    </section>
+
+    <section class="promo-bottom"><div><span class="promo-kicker">${escapeHtml(promo.bottomKicker)}</span><h4>${escapeHtml(promo.bottomTitle)} <em>${escapeHtml(promo.bottomAccent)}</em></h4><p>${escapeHtml(promo.bottomBody)}</p></div><button class="panel-secondary promo-cta" data-panel-action="new-task">${escapeHtml(promo.bottomCta)} ${icon("arrow-right")}</button></section>
+
+  </article>`);
+
+}
+
+
+
+export function openOptionsPanel() {
+
+  openPanel(t("panel.options"), `<div class="options-list"><button class="panel-command" data-panel-action="clear"><span>${icon("eraser")}</span>${t("panel.clear")}</button><button class="panel-command" data-panel-action="export"><span>${icon("download")}</span>${t("panel.export")}</button><button class="panel-command" data-panel-action="reload"><span>${icon("refresh-cw")}</span>${t("panel.reload")}</button></div>`);
+
+}
+
+
+
+export function openTaskListPanel() {
+
+  const items = $$(".thread-item").map((item) => `<button class="panel-session" data-switch-session="${escapeHtml(item.dataset.session)}"><strong>${escapeHtml(item.querySelector("strong")?.textContent || item.dataset.session)}</strong><small>${escapeHtml(item.querySelector("small")?.textContent || "")}</small></button>`).join("");
+
+  openPanel(t("recentTasks"), `<div class="panel-session-list">${items}</div>`);
+
+}
+
+
+
+export function exportChat() {
+
+  const text = $("#messageList").innerText;
+
+  const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+
+  const link = document.createElement("a");
+
+  link.href = URL.createObjectURL(blob);
+
+  link.download = `${state.sessionId}.txt`;
+
+  link.click();
+
+  URL.revokeObjectURL(link.href);
+
+  showToast(state.locale === "zh" ? "对话已导出" : "Chat exported");
+
+}
+
+
+
+export function switchInspectorTab(tab) {
+
+  runtime.inspectorTab = INSPECTOR_TABS.includes(tab) ? tab : INSPECTOR_TABS[0];
+
+  $$(".inspector-tab").forEach((item) => {
+
+    const active = item.dataset.inspectorTab === runtime.inspectorTab;
+
+    item.classList.toggle("active", active);
+
+    item.setAttribute("aria-selected", String(active));
+
+    item.tabIndex = active ? 0 : -1;
+
+  });
+
+  $("#overviewSection").hidden = runtime.inspectorTab !== "verification";
+
+  $("#changesSection").hidden = runtime.inspectorTab !== "changes";
+
+  $("#fileTreeSection").hidden = runtime.inspectorTab !== "files";
+
+  $("#filesSection").hidden = true;
+
+  $("#verificationSection").hidden = runtime.inspectorTab !== "verification";
+
+}
+
+
+
+export async function rewindToUserIndex(userIndex) {
+
+  const index = Number(userIndex);
+
+  if (!Number.isFinite(index) || index < 1) {
+
+    showToast(t("rewind.fail"));
+
+    return;
+
+  }
+
+  const scope = captureViewScope();
+
+  try {
+
+    const outcome = await requestJson("/api/sessions/rewind", {
+
+      method: "POST",
+
+      headers: { "Content-Type": "application/json" },
+
+      body: JSON.stringify({ session_id: scope.sessionId, user_index: index }),
+
+    }, 20000);
+
+    showToast(`${t("rewind.done")} #${outcome.user_index || index}`);
+
+    const cacheKey = sessionViewKey(scope.sessionId, scope.workspacePath);
+
+    sessionMarkup.delete(cacheKey);
+
+    try { localStorage.removeItem(cacheKey); } catch { /* ignore quota */ }
+
+    if (isViewScopeCurrent(scope)) {
+
+      await loadTaskHistory();
+
+      if (isViewScopeCurrent(scope)) renderSession(scope.sessionId);
+
+    }
+
+  } catch (error) {
+
+    showToast(`${t("rewind.fail")}: ${error.message}`);
+
+  }
+
+}
+
+
+
+export async function restoreTaskSnapshot(taskId) {
+
+  if (!taskId) return;
+
+  try {
+
+    const result = await requestJson("/api/workspace/restore", {
+
+      method: "POST",
+
+      headers: { "Content-Type": "application/json" },
+
+      body: JSON.stringify({ task_id: taskId }),
+
+    }, 20000);
+
+    const unresolved = [...(result.conflicts || []), ...(result.skipped || [])];
+
+    showToast(unresolved.length ? `${t("restore.partial")}: ${unresolved.slice(0, 3).join(", ")}${unresolved.length > 3 ? "…" : ""}` : t("restore.done"));
+
+    loadChanges();
+
+    refreshFileTreeSoon();
+
+  } catch (error) {
+
+    showToast(`${t("restore.fail")}: ${error.message}`);
+
+  }
+
+}
+
+
+
+export function parseAllowlistLines(value) {
+
+  return String(value || "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+
+}
+
+
+
+export async function bindAllowlistEditor() {
+
+  const host = $("#allowlistEditor");
+
+  const form = $("#allowlistForm");
+
+  if (!host || !form) return;
+
+  const fill = (id, items) => {
+
+    const field = document.getElementById(id);
+
+    if (field) field.value = (Array.isArray(items) ? items : []).join("\n");
+
+  };
+
+  try {
+
+    const data = await requestJson(`/api/allowlist?session_id=${encodeURIComponent(state.sessionId)}`);
+
+    fill("allowlistCommands", data.commands);
+
+    fill("allowlistPaths", data.paths);
+
+    fill("allowlistTools", data.tools);
+
+  } catch (error) {
+
+    const message = String(error.message || "");
+
+    if (/404|not found/i.test(message)) {
+
+      host.innerHTML = `<span>${escapeHtml(t("allowlist.title"))}</span><small class="settings-note">${escapeHtml(t("allowlist.soon"))}</small>`;
+
+      return;
+
+    }
+
+    host.insertAdjacentHTML("beforeend", `<small class="settings-note">${escapeHtml(message)}</small>`);
+
+  }
+
+  form.addEventListener("submit", async (event) => {
+
+    event.preventDefault();
+
+    try {
+
+      await requestJson("/api/allowlist", {
+
+        method: "POST",
+
+        headers: { "Content-Type": "application/json" },
+
+        body: JSON.stringify({
+
+          session_id: state.sessionId,
+
+          commands: parseAllowlistLines($("#allowlistCommands")?.value),
+
+          paths: parseAllowlistLines($("#allowlistPaths")?.value),
+
+          tools: parseAllowlistLines($("#allowlistTools")?.value),
+
+        }),
+
+      });
+
+      showToast(state.locale === "zh" ? "允许列表已保存" : "Allowlist saved");
+
+    } catch (error) {
+
+      showToast(error.message);
+
+    }
+
+  });
+
+}
+
+
+
+export function openHelpPanel() {
+
+  const rows = state.locale === "zh"
+
+    ? [["发送任务", "Enter"], ["换行", "Shift+Enter"], ["新任务", "Ctrl/⌘ N"], ["搜索任务", "/"], ["关闭面板 / 小游戏", "Esc"]]
+
+    : [["Send task", "Enter"], ["Newline", "Shift+Enter"], ["New task", "Ctrl/⌘ N"], ["Search tasks", "/"], ["Close panel / game", "Esc"]];
+
+  const list = rows.map(([label, key]) => `<div class="help-shortcut"><span>${escapeHtml(label)}</span><kbd>${escapeHtml(key)}</kbd></div>`).join("");
+
+  openPanel(t("help.title"), `<div class="help-panel"><div class="panel-section-title">${escapeHtml(t("help.shortcuts"))}</div>${list}<div class="panel-section-title">${escapeHtml(t("help.arcade"))}</div><button type="button" class="panel-command" id="helpArcadeButton"><span>${icon("gamepad-2")}</span>${escapeHtml(t("help.arcade"))}</button></div>`);
+
+  $("#helpArcadeButton")?.addEventListener("click", () => {
+
+    closePanel();
+
+    openArcade().catch((error) => showToast(error.message));
+
+  });
+
+}
+

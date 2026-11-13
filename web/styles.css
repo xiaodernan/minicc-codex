@@ -3302,3 +3302,67 @@ pre code { background: #0f172a; padding: 12px; display: block; overflow-x: auto;
   padding: 2px 5px;
   align-self: center;
 }
+/* ---- task template gallery (M8-T896) ----
+   A curated list of ready-made prompts. Each card runs the prompt into the
+   composer on click — the agent does the rest, live. */
+.templates-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 10px;
+  padding: 4px;
+}
+.template-card {
+  display: grid;
+  gap: 6px;
+  align-content: start;
+  padding: 14px 14px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color .18s ease, transform .18s ease, background .18s ease;
+  min-height: 112px;
+}
+.template-card:hover {
+  border-color: color-mix(in srgb, var(--coral) 55%, var(--line));
+  transform: translateY(-2px);
+  background: color-mix(in srgb, var(--coral-soft) 60%, var(--surface));
+}
+.template-icon {
+  width: 30px; height: 30px;
+  display: grid; place-items: center;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--coral) 12%, transparent);
+  color: var(--coral);
+}
+.template-icon svg { width: 17px; height: 17px; }
+.template-card strong { color: var(--text); font-size: 13.5px; letter-spacing: .01em; }
+.template-sub { color: var(--muted); font-size: 11px; line-height: 1.5; }
+
+.templates-detail {
+  padding: 4px;
+  animation: templates-fade .22s ease-out;
+}
+@keyframes templates-fade {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+.template-detail-header { display: grid; gap: 14px; }
+.template-detail-body { display: grid; gap: 12px; }
+.template-detail-kicker { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--coral); font-weight: 600; }
+.template-detail-body h4 { margin: 0; font-size: 16px; line-height: 1.4; color: var(--text); }
+.template-prompt {
+  white-space: pre-wrap;
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);
+  font-size: 12px;
+  line-height: 1.65;
+  color: var(--text);
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  max-height: 280px;
+  overflow: auto;
+  margin: 0;
+}

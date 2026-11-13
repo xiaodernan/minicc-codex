@@ -6,7 +6,7 @@ import { activateDialog, deactivateDialog } from "./dialog.js";
 import { t } from "./i18n.js";
 import { setFocusMode, setInspectorCollapsed, setLocale, setSidebarCollapsed, setTheme } from "./locale.js";
 import { openArcade } from "./arcade.js";
-import { exportChat, openActivityPanel, openBatchPanel, openHelpPanel, openLedgerPanel, openOptionsPanel, openSettingsPanel, openTaskListPanel, openWorkspacesPanel, resetTask } from "../chat/stream.js";
+import { exportChat, openActivityPanel, openBatchPanel, openHelpPanel, openLedgerPanel, openOptionsPanel, openSettingsPanel, openTaskListPanel, openTemplatesPanel, openWorkspacesPanel, resetTask } from "../chat/stream.js";
 import { openGlobalSearchPanel, scrollChat, showToast } from "../panels/index.js";
 import { $, state } from "./state.js";
 
@@ -31,6 +31,7 @@ function commands() {
     { id: "globalSearch", glyph: "search", group: "palette.group.task", run: () => openGlobalSearchPanel() },
     { id: "activity", glyph: "activity", group: "palette.group.task", run: () => openActivityPanel() },
     { id: "ledger", glyph: "ledger", group: "palette.group.task", run: () => openLedgerPanel() },
+    { id: "templates", glyph: "sparkles", group: "palette.group.task", run: () => openTemplatesPanel() },
     { id: "batch", glyph: "layers", group: "palette.group.task", run: () => openBatchPanel() },
     { id: "export", glyph: "download", group: "palette.group.task", run: () => exportChat() },
     { id: "settings", glyph: "settings-2", group: "palette.group.surface", run: () => openSettingsPanel() },
@@ -115,7 +116,7 @@ function render() {
 function iconGlyph(name) {
   // The local glyph table owns fallback characters; lucide SVGs need a refresh
   // pass the palette renders synchronously, so text glyphs keep zero-latency.
-  const glyphs = { plus: "+", "list-checks": "☑", "folder-open": "🗂", search: "⌕", activity: "▥", ledger: "▤", layers: "≡", download: "↓", "settings-2": "⚙", "more-horizontal": "⋯", "circle-help": "?", "gamepad-2": "▶", "moon-star": "☾", "globe-2": "◎", "panel-left": "▤", "panel-right": "▧", "scan-line": "◫", "chevrons-down": "⌄" };
+  const glyphs = { plus: "+", "list-checks": "☑", "folder-open": "🗂", search: "⌕", activity: "▥", ledger: "▤", sparkles: "✦", layers: "≡", download: "↓", "settings-2": "⚙", "more-horizontal": "⋯", "circle-help": "?", "gamepad-2": "▶", "moon-star": "☾", "globe-2": "◎", "panel-left": "▤", "panel-right": "▧", "scan-line": "◫", "chevrons-down": "⌄" };
   return glyphs[name] || "›";
 }
 
