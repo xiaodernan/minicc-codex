@@ -8,6 +8,7 @@ import { cacheTaskDetail, cacheSessionView, cachedSessionView, escapeHtml, forma
 import { loadChanges } from "../chat/stream.js";
 import { t } from "./i18n.js";
 import { $, MAX_RENDERED_TIMELINE_EVENTS, TASK_PHASES, TERMINAL_TASK_STATUSES, finalizedTaskIds, liveStreamStates, runningTasks, runtime, state, taskBySession, taskEventSources } from "./state.js";
+import { notifyTaskFinished } from "./notify.js";
 import { refreshIcons } from "../icons.js";
 import { addAssistantMessage, addLoadingMessage, applyTaskSnapshot, assistantMessageMarkup, captureChatPosition, compactNumber, eventTimelineMarkup, isCurrentTaskScope, isFocusedTask, liveTaskMarkup, phaseClass, phaseLabel, refreshFileTreeSoon, restoreChatPosition, sessionTaskBindings, setBusy, setTaskTransportStatus, showToast, stopTaskTimer, streamTail, syncTodoPanelFromEvents, taskMetrics, taskSessionKey, updateTaskDock, updateTaskDuration } from "../panels/index.js";
 
@@ -222,6 +223,7 @@ export async function completeTask(loadingId, data) {
     cacheSessionView(binding.sessionId, holder.innerHTML, binding.workspacePath);
   }
   if (finalData.status !== "completed") showToast(finalData.error || (finalData.status === "cancelled" ? "任务已取消" : "任务失败"));
+  notifyTaskFinished(finalData);
   scheduleChangesRefresh();
   refreshFileTreeSoon(); // task finished: workspace files may have changed
   await loadTaskHistory();

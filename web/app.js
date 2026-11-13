@@ -659,6 +659,7 @@
       "palette.cmd.workspaces": "\u6253\u5F00\u5DE5\u4F5C\u533A",
       "palette.cmd.globalSearch": "\u5168\u5C40\u641C\u7D22",
       "palette.cmd.activity": "\u4EFB\u52A1\u6D3B\u52A8",
+      "palette.cmd.templates": "\u63D0\u793A\u8BCD\u6A21\u677F",
       "palette.cmd.ledger": "\u6253\u5F00\u8D26\u672C",
       "palette.cmd.batch": "\u5E76\u884C\u5B50\u667A\u80FD\u4F53",
       "palette.cmd.export": "\u5BFC\u51FA\u5F53\u524D\u5BF9\u8BDD",
@@ -1123,6 +1124,7 @@
       "palette.cmd.workspaces": "Open workspaces",
       "palette.cmd.globalSearch": "Global search",
       "palette.cmd.activity": "Task activity",
+      "palette.cmd.templates": "Prompt templates",
       "palette.cmd.ledger": "Open the ledger",
       "palette.cmd.batch": "Parallel subagents",
       "palette.cmd.export": "Export this chat",
@@ -1451,6 +1453,7 @@
 
   // web/src/core/notify.js
   var TOGGLE_KEY = "minicc-notifications";
+  var TERMINAL_TITLES = { completed: "notify.completed", failed: "notify.failed", cancelled: "notify.cancelled", interrupted: "notify.cancelled" };
   function supported() {
     return typeof window.Notification === "function";
   }
@@ -1472,6 +1475,25 @@
     } catch {
     }
     return false;
+  }
+  function notifyTaskFinished(task) {
+    if (!notificationsEnabled() || !document.hidden || !supported()) return;
+    if (window.Notification.permission !== "granted") return;
+    const status = String(task?.status || "");
+    const titleKey = TERMINAL_TITLES[status];
+    if (!titleKey) return;
+    const title = `minicc \xB7 ${t(titleKey)}`;
+    const body = String(task?.prompt || task?.preview || task?.task_id || "").slice(0, 160);
+    try {
+      const notice = new window.Notification(title, { body, tag: `minicc-task-${task?.task_id || ""}`, silent: false });
+      notice.onclick = () => {
+        window.focus();
+        if (task?.task_id) window.dispatchEvent(new CustomEvent("minicc-open-task", { detail: { taskId: task.task_id } }));
+        notice.close();
+      };
+      window.setTimeout(() => notice.close(), 12e3);
+    } catch {
+    }
   }
 
   // web/src/core/task-reducer.js
@@ -1868,6 +1890,7 @@
       cacheSessionView(binding.sessionId, holder.innerHTML, binding.workspacePath);
     }
     if (finalData.status !== "completed") showToast(finalData.error || (finalData.status === "cancelled" ? "\u4EFB\u52A1\u5DF2\u53D6\u6D88" : "\u4EFB\u52A1\u5931\u8D25"));
+    notifyTaskFinished(finalData);
     scheduleChangesRefresh();
     refreshFileTreeSoon();
     await loadTaskHistory();
