@@ -229,7 +229,7 @@ try {
     const game = window.__gameUpgradeProbe?.game;
     return Boolean(game?.running && !game.paused);
   });
-  await page.waitForFunction(() => (window.__gameUpgradeProbe?.game?.renderStats?.frames || 0) >= 30, { timeout: 8000 });
+  await page.waitForFunction(() => (window.__gameUpgradeProbe?.game?.renderStats?.frames || 0) >= 30, undefined, { timeout: 8000 });
   const runtimeResult = await page.evaluate(() => {
     const stats = window.__gameUpgradeProbe.game.renderStats;
     return { frames: stats.frames, fps: stats.fps, maxFrameMs: stats.maxFrameMs, longFrames: stats.longFrames, indexRebuilds: stats.indexRebuilds };

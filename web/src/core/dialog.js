@@ -36,6 +36,14 @@ export function activateDialog(modal, options = {}) {
     entry = { modal, previousFocus: document.activeElement, ...options };
     dialogs.push(entry);
   } else Object.assign(entry, options);
+  // Blur the background element BEFORE making the background inert. The inert
+  // change blurs the focused element on the browser's next frame, and that
+  // pending blur silently cancels any focus() issued before it flushes - which
+  // is why the modal's first two focus attempts were no-ops and the dialog
+  // only worked by the 220ms retry. Blurring here makes the modal focus below
+  // land deterministically; previousFocus is already captured above.
+  const previous = document.activeElement;
+  if (previous instanceof HTMLElement && !modal.contains(previous)) previous.blur();
   if (!listening) {
     listening = true;
     document.addEventListener('keydown', (event) => {

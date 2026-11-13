@@ -730,7 +730,9 @@
       "templates.title": "\u6A21\u677F\u5E93",
       "templates.subtitle": "\u7CBE\u9009\u5E38\u89C1\u4EFB\u52A1\u7684\u63D0\u793A\u8BCD\uFF0C\u4E00\u952E\u9001\u8FDB\u5BF9\u8BDD",
       "almanac.title": "\u5E74\u9274",
-      "nav.almanac": "\u5E74\u9274"
+      "nav.almanac": "\u5E74\u9274",
+      "panel.canvas": "\u8FD4\u56DE",
+      "send": "\u53D1\u9001"
     },
     en: {
       "restore.partial": "Restored safe files; kept later edits or unavailable files",
@@ -1202,7 +1204,9 @@
       "templates.title": "Task templates",
       "templates.subtitle": "Curated prompts for common jobs, one click into chat",
       "almanac.title": "Almanac",
-      "nav.almanac": "Almanac"
+      "nav.almanac": "Almanac",
+      "panel.canvas": "Back",
+      "send": "Send"
     }
   };
   function t(key) {
@@ -1453,6 +1457,8 @@
       entry = { modal, previousFocus: document.activeElement, ...options };
       dialogs.push(entry);
     } else Object.assign(entry, options);
+    const previous = document.activeElement;
+    if (previous instanceof HTMLElement && !modal.contains(previous)) previous.blur();
     if (!listening) {
       listening = true;
       document.addEventListener("keydown", (event) => {

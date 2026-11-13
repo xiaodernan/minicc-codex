@@ -50246,3 +50246,22 @@ T899 的火花线只活在任务详情弹窗（事后）。任务运行中，检
 
 - 脉搏卡在检查器"验证"标签下（既有布局），sparkline 跟随该标签可见性，不改变标签逻辑。
 - 槽位与详情弹窗共用同一渲染函数，无第二份实现。
+
+## 批次 903 - M8-T903：弹窗焦点确定性 + 模板详情 i18n 收口 — 并轨会话收编
+
+### 缺什么
+- 并轨会话在同一检出目录留下一批未提交收尾工作：`web/src/core/dialog.js` 焦点生命周期重写、模板详情视图两个硬编码 fallback（返回/发送按钮）、两个 Playwright 冒烟的 `waitForFunction` 签名错位。
+
+### 处置
+- **dialog.js 焦点确定性**：inert 切换会在下一帧吞掉焦点元素的 blur，进而静默取消此前发出的 `focus()`——弹窗前两次聚焦因此空转，只能靠 220ms 重试兜底。现在打开弹窗时先把背景焦点元素显式 `blur()` 再置 inert，模态内聚焦确定性落地；220ms 重试保留为布局过渡期的兜底而非主路径。
+- **模板详情 i18n**：`panel.canvas` / `send` 两键入列（中英同列，共 472 键对齐），`stream.js` 模板详情视图的硬编码 fallback 消失。
+- **冒烟签名**：`waitForFunction(fn, { timeout })` 把 options 当成了 arg——补 `undefined` 占位（lifecycle 并发用例 + game 帧率用例各一处）。
+
+### 证据与门
+- `npm run check:web` 绿（487205 chars，assets 干净，bundle 按源重建为 app.e5e2a83adca988e7.js）。
+- `tests/frontend_i18n_dict_one_home_smoke.mjs` 绿（zh/en 472 键、179 处字面 t() 全解析）。
+- `scripts/doc_pointers.py --check` rc=0。
+- node --check 三个改动源文件全过。
+
+### 边界
+- dialog 焦点修复无独立浏览器探针（并轨会话原样收编）；lifecycle/game 冒烟需要真实浏览器，留给下一轮真实网关 E2E 顺带覆盖。
