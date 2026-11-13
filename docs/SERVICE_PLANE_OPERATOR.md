@@ -265,7 +265,32 @@ docker stop minicc-rabbit-probe; docker rm minicc-rabbit-probe
 探针测试与其他测试的区别：它们直接连 broker（不启动 Spring ApplicationContext，不触发
 `RabbitAdmin` 的 `afterPropertiesSet` 在缺 broker 时拖垮上下文），所以不设变量时零连接尝试、零副作用。
 
-## 9. 相关文件
+## 9. `fetchedAtMs` 与 /actuator/info build 消息（M8-T868/T869）
+
+两个常见问号与它们的答案隔一个字段就到了，不用再起 Redis CLI：
+
+**Q：`/api/cached/inspector/status` 答出来的 `UP` 到底是 live 的还是旧的？**
+缓存 60s TTL 命中时，负载形如：
+
+```json
+{"service":"inspector","upstreamStatus":"UP","fetchedAtMs":1795490012734}
+```
+
+`fetchedAtMs`（`Long`，epoch millis）是**这条缓存被生成的时刻**。当前 epoch 减它就是本条命中的
+年龄——你可以不重探上游、不解析 `PTTL` 直接判断"还能信多久"。
+
+**Q：网关这台机跑的到底是*哪次构建*？**
+
+```text
+GET /actuator/info → {"build":{"artifact":"minicc-cloud-gateway","name":"minicc-cloud-gateway",
+                            "time":"2026-11-13T04:56:33.309Z","version":"0.1.0","group":"com.minicc.cloud"}}
+```
+
+artifact/group/version/time 五键由 `spring-boot-maven-plugin` 的 `build-info` goal 产出，
+`META-INF/build-info.properties` 被 Actuator `BuildInfoEndpoint` 自动暴露。测试
+`BuildInfoResourceTest` 钉住键集合与格式——build 脚本若停了键校验会红。
+
+## 10. 相关文件
 
 - `minicc-cloud/README.md`
 - `minicc-cloud/minicc-cloud-config/src/main/resources/config-repo/application.yml`（共享配置）
