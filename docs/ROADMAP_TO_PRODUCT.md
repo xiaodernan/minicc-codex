@@ -49477,3 +49477,36 @@ payload 里有 `llm_cache`、类型对、`cache_status` 是词表内值、`cache
 - 摘要行（`taskMetrics`, 一行文本）保持文本百分比——圆环是格子，不是句子；
 - 暗色/亮色两套主题都吃同一组变量（`--mint/--amber/--rose/--muted/--text`），无主题分叉代码；
 - 无新增图标文件：SVG 是内联字符串，不引入外部资产。
+
+## 批次 885 - M8-T885：Pulse 卡（常驻屏幕那张）也画上前缀缓存圆环 — 任务盯着看的地方就是缓存命中率
+
+### 1 动机
+
+M8-T884 把圆环放进了任务详情的 Runtime 摘要格——但那一格只有盯着任务详情时才看得见。
+Pulse 卡（`.pulse-card`，常驻屏幕、agent 工作时一直在那里）里有一条 compaction 行
+（`前缀缓存 <strong id="cacheMetric">未统计</strong>`），是操作员余光真正扫到的位置。
+把同一枚圆环缩小（26px）嵌进去，缓存命中率从此一直在眼前。
+
+### 2 实现
+
+- `cacheDonut(data, px = 34)`：新增可选尺寸参数（默认 34 与 Runtime 格一致），
+  `px != 34` 时在 span 上写 `style="--donut:26px"`，SVG 尺寸走 CSS `var(--donut)`；
+  圆弧/轨道/三档色/未上报轨道语义全部复用 T884 实现，零重复逻辑；
+- `#cacheMetric` 从 `textContent` 换成 `innerHTML`，Pulse 卡显示 26px 圆环；
+- `web/styles.css` 增补 `.cache-donut[style*="--donut"] svg` 一条规则；
+- bundle 重建（`web/app.js` 311,491 chars），manifest 随之更新，2 个悬空旧 bundle 清理；
+- 摘要行（`taskMetrics` 一行文本）保持不动——Pulse 卡是格子、Runtime 格是格子，只有
+  单行摘要继续用文本，不产生"两个圆环互相打架"的视觉。
+
+### 3 验证
+
+- `node --check web/app.js` ✓；app.js 中 `$("#cacheMetric").innerHTML = cacheDonut(data, 26)`
+  现场确认存在；`--donut` 规则已落进 styles.css；
+- T884 的 Runtime 格（`cacheDonut(data)` 默认 34px）路径未动，两个消费点同一实现；
+- Python 引用门 6/6 已复跑绿（panels/index.js 行号无强钉）。
+
+### 4 边界
+
+- Pulse 卡没有 `<strong>` 包裹的百分比文字——圆环自带 `<b>NN%</b>`，信息密度相同；
+- 未上报时 Pulse 卡只画轨道 + "未统计"文案，不伪造 0%；
+- 暗/亮两套主题共用同一组变量，零主题分叉。

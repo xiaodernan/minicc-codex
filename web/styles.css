@@ -2816,3 +2816,7 @@ pre code { background: #0f172a; padding: 12px; display: block; overflow-x: auto;
   color: var(--muted);
   max-width: 90px;
 }
+.cache-donut[style*="--donut"] svg {
+  width: var(--donut);
+  height: var(--donut);
+}

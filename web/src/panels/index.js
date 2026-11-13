@@ -1102,7 +1102,9 @@ export function cacheMetric(data) {
 // paying for it every turn. The ring renders it with the panel's own
 // status palette (mint/amber/rose) and stays muted when the gateway
 // simply doesn't report counters — silence, not a fabricated zero.
-export function cacheDonut(data) {
+// `px` shrinks the ring for the compact pulse strip; the runtime grid
+// keeps the default 34.
+export function cacheDonut(data, px = 34) {
   const metrics = data?.metrics && typeof data.metrics === "object" ? data.metrics : {};
   const tokens = data?.tokens_used && typeof data.tokens_used === "object" ? data.tokens_used : {};
   let rate = typeof metrics.cache_hit_rate === "number" ? metrics.cache_hit_rate : NaN;
@@ -1111,12 +1113,13 @@ export function cacheDonut(data) {
     const miss = Number(tokens.prompt_cache_miss_tokens);
     if (Number.isFinite(hit) && Number.isFinite(miss) && hit + miss > 0) rate = hit / (hit + miss);
   }
+  const style = px !== 34 ? ` style="--donut:${px}px"` : "";
   if (!Number.isFinite(rate)) {
-    return `<span class="cache-donut cache-donut-unreported" role="img" aria-label="${escapeHtml(t("tasks.cache"))}"><svg viewBox="0 0 42 42" aria-hidden="true"><circle class="cache-donut-track" cx="21" cy="21" r="15.9155" pathLength="100" /></svg><em>${escapeHtml(t("tasks.cacheUnreported"))}</em></span>`;
+    return `<span class="cache-donut cache-donut-unreported" role="img" aria-label="${escapeHtml(t("tasks.cache"))}"${style}><svg viewBox="0 0 42 42" aria-hidden="true"><circle class="cache-donut-track" cx="21" cy="21" r="15.9155" pathLength="100" /></svg><em>${escapeHtml(t("tasks.cacheUnreported"))}</em></span>`;
   }
   const pct = Math.max(0, Math.min(100, Math.round(rate * 100)));
   const tone = rate >= 0.7 ? "good" : rate >= 0.4 ? "mid" : "low";
-  return `<span class="cache-donut cache-donut-${tone}" role="img" aria-label="${escapeHtml(t("tasks.cache"))} ${pct}%"><svg viewBox="0 0 42 42" aria-hidden="true"><circle class="cache-donut-track" cx="21" cy="21" r="15.9155" pathLength="100" /><circle class="cache-donut-arc" cx="21" cy="21" r="15.9155" pathLength="100" stroke-dasharray="${pct} 100" /></svg><b>${pct}%</b></span>`;
+  return `<span class="cache-donut cache-donut-${tone}" role="img" aria-label="${escapeHtml(t("tasks.cache"))} ${pct}%"${style}><svg viewBox="0 0 42 42" aria-hidden="true"><circle class="cache-donut-track" cx="21" cy="21" r="15.9155" pathLength="100" /><circle class="cache-donut-arc" cx="21" cy="21" r="15.9155" pathLength="100" stroke-dasharray="${pct} 100" /></svg><b>${pct}%</b></span>`;
 }
 
 export function isCurrentTaskScope(data) {
@@ -1171,7 +1174,7 @@ export function updateInspectorMetrics(data) {
   const limit = Number(data.context?.limit_tokens || state.contextWindowTokens || 300000);
   $("#tokenMetric").textContent = compactNumber(tokens);
   $("#contextMetric").textContent = `${compactNumber(context)}/${compactNumber(limit)}`;
-  $("#cacheMetric").textContent = cacheMetric(data);
+  $("#cacheMetric").innerHTML = cacheDonut(data, 26);
   $("#compactionMetric").textContent = String(data.compaction_events?.length || 0);
   $("#contextCount").textContent = taskMetrics(data);
 }

@@ -138,3 +138,5 @@
 - **`/api/metrics` 答出前缀缓存账本（M8-T883）**：payload 新增 `llm_cache`（`cache_summary` 由 bill 用的同一本账算出）——面板/运维脚本终于不用自己对账就能看到工作区级缓存命中率；`unreported` 保持诚实的 `null` 而非伪造的 0%。`llm_cache` 与 `redis_cache` 并列为操作员可读的两个缓存面。
 
 - **任务运行时摘要里的前缀缓存圆环（M8-T884）**：任务详情的 Runtime metrics「缓存」格子从纯文本百分比升级为内联 SVG 圆环（`pathLength=100`，三档 --mint/--amber/--rose 色调，网关未上报时只画轨道不伪造 0%，`aria-label` 随语言走）。`web/styles.css` 新增 M8-T884 段；构建产物（`web/app.js`、assets、manifest）同一提交内重建，2 个无引用旧 bundle 已清理。
+
+- **Pulse 卡也画前缀缓存圆环（M8-T885）**：常驻屏幕的 `.pulse-card`（agent 工作时余光扫到的那张）里 `#cacheMetric` 从"未统计"文本升级为 26px 内联 SVG 圆环，与 Runtime 摘要同一实现（`cacheDonut(data, px)`）；`aria-label` 随语言走，未上报只画轨道。
