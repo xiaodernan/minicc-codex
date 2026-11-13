@@ -46,6 +46,16 @@
       <plugin>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-maven-plugin</artifactId>
+        <executions>
+          <!-- Emits META-INF/build-info.properties → /actuator/info stays live; same shape as gateway. -->
+          <execution>
+            <id>generate-build-info</id>
+            <phase>generate-resources</phase>
+            <goals>
+              <goal>build-info</goal>
+            </goals>
+          </execution>
+        </executions>
       </plugin>
     </plugins>
   </build>

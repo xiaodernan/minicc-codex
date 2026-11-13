@@ -122,3 +122,5 @@
 - **insights `/api/insights/disk` 落地（M8-T875）**：新只读端点给出 `.minicc/` 整体字节/文件数/SQLite 字节数、可用卷余额——运维一组 `curl http://.../api/insights/disk` 就能回答"占了多少空间、还剩多少"；honor 既有 `InsightsFailureAdvice`（DB 缺 → 503，不可读 → 500）；`DiskProbeTest` 2 条钉住两个分支。
 
 - **config-server build-info 落地（M8-T876）**：`/actuator/info` 不再是黑盒——`META-INF/build-info.properties` 由 `spring-boot-maven-plugin:build-info` 在 generate-resources 阶段产出，实时暴露 artifact/group/version/time；`ConfigServerBuildInfoTest` 钉住键集合。
+
+- **所有 Spring Cloud 模块都上 `/actuator/info` build-info（M8-T876 + M8-T877）**：registry、inspector、tasks、insights、gateway 五个 Java 服务现在统一从 `spring-boot-maven-plugin:build-info` 产出 `META-INF/build-info.properties`，`/actuator/info` 对任一服务都能看到 artifact/group/version/time——运维一组 curl 就知道部署了哪次工件；目标绑 `generate-resources` 阶段保证 `target/classes`、打包 jar、在 compose 全栈一起跑时都能读到。

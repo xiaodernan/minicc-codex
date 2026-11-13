@@ -49110,3 +49110,51 @@ $ curl http://localhost:8888/actuator/info
 
 - actuator `info` 路径已经在 config-server 的 `management.endpoints.web.exposure.include` 里 (`health,info`)；本批零修改。
 - build-info.properties 随 jar 一起打包，CI 的 mvn clean test 已经亲到——与 M8-T868 同模式。
+
+## 批次 877 - M8-T877：所有后端服务都上 `/actuator/info` build-info — 不再是 gateway 的特供
+
+### 1 动机
+
+M8-T876 把 build-info 推进 config-server，验证目标只是：在 Spring Cloud 工具集里
+"每个 jar 都能自报家门"。既然能用，就应该**统一**——inspector / tasks / insights / registry
+也用同样的目标让 `/actuator/info` 工作，运维一组 curl 就能知道四套环境分别是哪次工件、哪次
+构建、哪次部署，不必 SSH。
+
+四个服务在 `<plugins>` 里的 `spring-boot-maven-plugin` 早就绑好，缺的是 `build-info` execution。
+
+### 2 做法
+
+四个 pom.xml 各加一个 execution：
+
+```xml
+<executions>
+  <execution>
+    <id>generate-build-info</id>
+    <phase>generate-resources</phase>
+    <goals><goal>build-info</goal></goals>
+  </execution>
+</executions>
+```
+
+与 gateway / config-server 完全同名共用一套 `BuildInfoMavenPlugin`，目标句按 generate-resources 绑定，
+`target/classes/META-INF/build-info.properties` 产出即可被 `/actuator/info` 暴糜。
+
+`mvn -o clean package -DskipTests` → **BUILD SUCCESS**。
+
+### 3 实机验活（四个服务全部 standalone）
+
+```text
+TARGET JAR | BUILD INFO ARTIFACT
+minicc-cloud-registry:  {"artifact":"minicc-cloud-registry", "group":"com.minicc.cloud", "version":"0.1.0", ...}
+minicc-cloud-inspector:{"artifact":"minicc-cloud-inspector","group":"com.minicc.cloud", "version":"0.1.0", ...}
+minicc-cloud-tasks:    {"artifact":"minicc-cloud-tasks",    "group":"com.minicc.cloud", "version":"0.1.0", ...}
+minicc-cloud-insights: {"artifact":"minicc-cloud-insights", "group":"com.minicc.cloud", "version":"0.1.0", ...}
+```
+
+四个 `GET /actuator/info` 都在 2025 之后报出 `artifact/group/version/time`，build time 一致。
+
+### 4 边界
+
+- 纯构建层扩展，零运行时改动。
+- 各 jar 内 `target/classes/META-INF/build-info.properties` 全部产出成功（已 `zipfile` 检查）。
+- 不引入任何新的 actuator endpoint，不动 yml。
