@@ -50219,3 +50219,30 @@ _emit_provider_progress(
 `web/index.html`、`web/src/panels/index.js`、`web/styles.css`、
 `tests/frontend_cache_series_one_home_smoke.mjs`、`web/app.js`、`web/asset-manifest.json`、
 `web/assets/app.3375e565c2b0050d.js`、`web/assets/styles.0a12e503a54bbd03.css`
+
+## 批次 902 - M8-T902：脉搏卡实时火花线 — 逐次命中从"事后看"变成"边跑边看"
+
+### 缺什么
+
+T899 的火花线只活在任务详情弹窗（事后）。任务运行中，检查器"项目状态"脉搏卡只有
+聚合数字——第一柱（必然全价的冷启动）长出来的那一刻，才是"缓存确实在骑前缀"最有说服力的瞬间。
+
+### 处置
+
+- 脉搏卡新增 `#pulseCacheSeries` 槽位，`updateInspectorMetrics` 每个 SSE 事件注入
+  `cacheTurnSparkline(data.usage_by_turn)`——`usage_by_turn` 随 usage 事件实时生长，
+  火花线跟着长。字符串比对守卫：坞更新频率远高于序列变化，不重绘不抖动。
+- 冒烟测试同步更新：两个调用点（详情弹窗 + 脉搏卡实时槽）、变更守卫断言。
+
+### 证据与门
+
+- 真实浏览器探针（验证标签页 + 真实任务）：火花线随任务生长——规划轮 1 柱（97%）→
+  验收 2 柱 → 完成 3 柱（聚合 67%）；另一轮首柱 rose（冷启 0%——"第 1 次调用付全价"
+  的诚实语义着色）。
+- `npm run test:cacheseries` PASS；`npm run check:web` 绿（web/app.js 486,953 字节）；
+  index.html CRLF 保持 423 行全 CRLF。
+
+### 边界
+
+- 脉搏卡在检查器"验证"标签下（既有布局），sparkline 跟随该标签可见性，不改变标签逻辑。
+- 槽位与详情弹窗共用同一渲染函数，无第二份实现。
