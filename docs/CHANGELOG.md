@@ -184,3 +184,5 @@
 - **脉搏卡任务时间轴（M8-T904）**：`pulse.epoch` 占位键终于落地——任务档案上方一条时间轴，每任务一根柱：左老右新、log 尺度定高（百万 token 巨任务压不扁 2k 小跑）、completed=mint / failed=rose / cancelled=amber / 运行中呼吸脉冲、零 token 任务 8% stub（跑过就是跑过）。悬停出 tooltip，点击走既有 data-open-task 委托直达任务详情。探针顺带揪出并修好潜伏 bug：`#pulseMemory` 自 T895 起就不存在，fetchAll 每次踩 null 落 catch——命中率/上下文/完成率三个圆环与任务档案其实一直是坏的，如今首次真正读数（57% 命中、46% 完成、12 条档案）。
 
 - **DOM id 契约门（M8-T905）**：#pulseMemory 式幽灵 id 整类封死——脚本里每个字面 `$("#id")`/`getElementById("id")` 引用必须有家（index.html 定义、JS 模板创建、或 `.id=` 惰性创建），基线 174 引用 / 0 幽灵一次绿；门自反验证自己看得见 pulseMemory 那个形状、不误报 approvals.js 的运行时创建。
+
+- **data-i18n 契约门（M8-T906）**：HTML 声明的 182 个 i18n 键必须双语言在列——首扫的 5 个"幽灵键"其实是裸键扫描盲区（字典头部 `recentTasks: "最近任务"` 形态），重复补键被 one_home 门的重复检测拦下，门正则对齐后一次绿；lifecycle 真实浏览器冒烟首绿，T903 waitForFunction 签名修复实测有效。

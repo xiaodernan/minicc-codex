@@ -50357,3 +50357,19 @@ T899 的火花线只活在任务详情弹窗（事后）。任务运行中，检
 
 ### 边界
 - 动态选择器（`$("#" + var)`）天然不在正则视野内；跨 iframe / Shadow DOM 的 id 也不在此门职责内（仓库尚无此形态）。
+
+## 批次 906 - M8-T906：data-i18n 契约门 + 裸键扫描教训
+
+### 缺什么
+- `data-i18n`/`data-i18n-aria`/`data-i18n-placeholder`/`data-i18n-title` 在 HTML 里声明 182 个键，但没有门保证它们都在 i18n 字典里——缺键时 apply-skip 静默保留中文原文，切英文的用户看到半翻译界面，无人报错。
+
+### 处置
+- 新门 `tests/test_web_data_i18n_keys_resolve.py`：HTML + JS 源里声明的每个 data-i18n 键必须在 zh/en 两列同时存在。
+- 首扫报 5 个"幽灵键"（recentTasks/workspace/agentSession/live/language）——差点照单补键。真相：它们在字典头部以**裸键**形式存在（`recentTasks: "最近任务"`），带引号扫描正则看不见裸键、制造了假幽灵。已补的重复键撤回（one_home 门的重复检测当场拦住——两道门互为防线）。
+- 门正则对齐 node one_home 门的形态（分隔符 + 引号键或裸键 + 冒号），自反测试钉住五个裸键必须被看见。
+
+### 证据与门
+- data-i18n 门 2 passed；DOM id 门 2 passed；i18n one_home 475 键对齐 / 182 字面 t() 全解析；timeline/cache-series/help-shortcuts/lifecycle 冒烟全绿（lifecycle 首次真实浏览器跑绿——T903 的 waitForFunction 签名修复实测有效）；bundle 干净。
+
+### 边界
+- 门只看字面声明；动态拼接 `data-i18n="prefix." + x` 不在视野。字典键数 475 与 one_home 门同步。
