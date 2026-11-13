@@ -2821,3 +2821,83 @@ pre code { background: #0f172a; padding: 12px; display: block; overflow-x: auto;
   width: var(--donut);
   height: var(--donut);
 }
+/* ---- empty-session hero elevation (M8-T892) ----
+   A workbench's first impression: halo orbiting the mark, a sheened title,
+   and a mark that breathes. All additive — markup, i18n and JS untouched. */
+.empty-mark {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  justify-content: center;
+  align-items: center;
+  border-radius: 18px;
+  background: linear-gradient(145deg, var(--coral-soft), color-mix(in srgb, var(--coral-soft) 72%, var(--surface)));
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--coral) 35%, transparent),
+    0 22px 46px -18px color-mix(in srgb, var(--coral) 40%, transparent),
+    0 2px 0 color-mix(in srgb, var(--coral) 30%, transparent);
+  animation: empty-mark-float 5.6s ease-in-out infinite;
+}
+.empty-mark::after {
+  content: "";
+  position: absolute;
+  inset: -8px;
+  border-radius: 24px;
+  background: conic-gradient(from 0deg,
+    transparent 0 68%,
+    color-mix(in srgb, var(--coral) 60%, transparent) 74%,
+    color-mix(in srgb, var(--coral) 18%, transparent) 80%,
+    transparent 88% 100%);
+  opacity: .9;
+  z-index: -1;
+  pointer-events: none;
+  animation: empty-halo-spin 7s linear infinite;
+}
+.empty-mark svg {
+  width: 30px;
+  height: 30px;
+  animation: empty-mark-pulse 3.4s ease-in-out infinite;
+}
+@keyframes empty-mark-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-7px); }
+}
+@keyframes empty-halo-spin {
+  to { transform: rotate(1turn); }
+}
+@keyframes empty-mark-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(.92); opacity: .84; }
+}
+.empty-session > strong {
+  background: linear-gradient(100deg,
+    var(--text) 12%,
+    color-mix(in srgb, var(--coral) 55%, var(--text)) 52%,
+    var(--text) 88%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: empty-title-sheen 6s ease-in-out infinite;
+}
+@keyframes empty-title-sheen {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+.empty-actions button {
+  transition: transform .22s cubic-bezier(.34, 1.56, .64, 1),
+    border-color .22s ease, background .22s ease,
+    box-shadow .22s ease;
+}
+.empty-actions button:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 18px 40px -18px color-mix(in srgb, var(--coral) 35%, rgba(0, 0, 0, .5));
+}
+@media (prefers-reduced-motion: reduce) {
+  .empty-mark,
+  .empty-mark::after,
+  .empty-mark svg,
+  .empty-session > strong {
+    animation: none;
+  }
+}

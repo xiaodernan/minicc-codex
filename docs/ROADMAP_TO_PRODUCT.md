@@ -49743,3 +49743,35 @@ M8-T885 写了 `.cache-donut[style*="--donut"] svg { width: var(--donut); height
 仓库的"每一枚 CSS 变量必须有一个声明它的家"是人写给工具看的宪法；视觉批次里
 新加一个 var() 引用前，先跑 `pytest tests/test_the_palette_has_one_home.py`，
 而不是推上去等双腿告诉你。
+
+## 批次 892 - M8-T892：空状态 hero 升华 — 轨道光环、渐变标题、浮沉 mark、呼吸动效
+
+### 1 动机
+
+用户要求前端美观程度登峰造极。空状态是工作区第一眼——目前只有平铺 icon +
+纯色标题 + 三张静态卡。零改动逻辑、零依赖、零 i18n 的前提下把它升华。
+
+### 2 实现（纯 CSS 追加层 `web/styles.css` 新段，`M8-T892` 尾部）
+
+- `.empty-mark` → 圆角方块 + coral 双辉光（内环 35% / 外投影 40%）+
+  **`::after` conic-gradient 28% 光环绕行**（7s 线性，`z-index:-1` 贴到 mark 下
+  露边）+ svg 呼吸（scale + opacity，3.4s）；
+- `.empty-session > strong` → 渐变金句 `background-clip: text`，6s sheen；
+- `.empty-actions button` → 弹性 cubic-bezier(.34, 1.56, .64, 1) hover 抬升 + 珊瑚光影；
+- `prefers-reduced-motion: reduce` 全部动画归零。
+
+零 JS、零 DOM、零 i18n 键——markdown.js 与 start chips 点击流逐字未动。
+
+### 3 验证
+
+- `node --check web/app.js` ✓；产物重建（`web/app.js` 311,491 chars 不变，
+  `web/assets/styles.c51b9736abad8019.css` 接任，Hero 段 6 处关键帧命中）；
+- 色槽沿用暗/亮双主题同名 token（coral/coral-soft/surface/text）零分叉；
+- 面板首屏即空状态——CI 的 Playwright 双腿顺便验收。
+
+### 4 边界
+
+- 零行为变更：开始 chips 走原有 `data-start-action` → composer 注入原提示词 →
+  用户看到的仍是完全相同的 agent 回路；
+- 动画仅 transform/opacity/background-position——无合成器重绘；
+- 光晕为 `z-index:-1`，mark 上方零遮挡。

@@ -152,3 +152,5 @@
 - **`minicc --stats` 的任务账合并修复（M8-T890）**：修掉了"CLI 任务计数恒为 0"这一真丢账——工作区任务住在两个 store（`<ws>/.minicc/tasks.sqlite3` 与全局 `~/.minicc/tasks.sqlite3` 且行内带 `workspace_path`），`--stats` 现在合并并按工作区作用域汇总：本仓库实测 `tasks: 13 total … [workspace 0 / home 13]`、`llm cache: 8 tasks, hit rate 41.0%`（修前直接说"no cache counters"）。隔壁 workspace 的命中令牌零字节流入本仓库账本，来源拆分（`source`）随 json 输出。
 
 - **脉冲卡圆环引发双腿 Python CI 红的修复（M8-T891）**：T885 的 `var(--donut)` 从未在样式表里声明——`test_the_palette_has_one_home` 的"每个变量必须有声明的家"门双腿齐红。修复：`.cache-donut { --donut: 34px; }` 声明即家（内联 26px 仍覆盖）；产物重建；门 5/5 绿。
+
+- **空状态 hero 升华（M8-T892）**：工作区第一眼从"平铺 icon + 静态卡"变成专业级 hero——64px 圆角 mark 双辉光 + `conic-gradient` 环绕光环、呼吸缩放、标题渐变 sheen（6s 往复）、start chips 弹性悬停、`prefers-reduced-motion` 全部静止。零 JS/DOM/i18n 改动，仅 CSS 追加层 + 产物重建。
