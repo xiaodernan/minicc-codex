@@ -31,8 +31,14 @@ class CachedPayloadRoundTripTest {
         Map<String, Object> restoredInspector = roundTrip(serializer, inspector);
         Map<String, Object> restoredInsights = roundTrip(serializer, insights);
 
-        assertThat(restoredInspector).containsEntry("service", "inspector").containsEntry("upstreamStatus", "UP");
-        assertThat(restoredInsights).containsEntry("service", "insights").containsEntry("upstreamStatus", "DOWN");
+        assertThat(restoredInspector)
+                .containsEntry("service", "inspector")
+                .containsEntry("upstreamStatus", "UP")
+                .containsEntry("fetchedAtMs", inspector.get("fetchedAtMs"));
+        assertThat(restoredInsights)
+                .containsEntry("service", "insights")
+                .containsEntry("upstreamStatus", "DOWN")
+                .containsEntry("fetchedAtMs", insights.get("fetchedAtMs"));
     }
 
     @Test

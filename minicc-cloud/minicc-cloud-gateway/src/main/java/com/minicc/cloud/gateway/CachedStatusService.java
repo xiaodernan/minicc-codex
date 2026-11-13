@@ -32,6 +32,9 @@ public class CachedStatusService {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("service", service);
         payload.put("upstreamStatus", upstreamStatus);
+        // Observability: a cached hit carries the acquisition time — the caller can
+        // compute how stale the reading it is about to render, no cache probe needed.
+        payload.put("fetchedAtMs", System.currentTimeMillis());
         return payload;
     }
 

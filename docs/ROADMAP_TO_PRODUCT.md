@@ -48773,3 +48773,38 @@ $ registry (SERVER_PORT=18765) + gateway (SERVER_PORT=8411, SPRING_RABBITMQ_LIST
 
 - Actuator 路径是否被暴露仍由配置走：standalone gateway 的 application.yml `include: health,info,metrics,...` 永远包含 info；生产请在网侧保留 `info`。
 - `build.time` 是构建时刻，**不是**发行时间——发行时间记录在 `CHANGELOG.md`，这五个键是产物自验用。
+
+## 批次 869 - M8-T869：cached-route 负载带 "fetchedAtMs" — 调用者一眼能算出缓存年龄
+
+### 1 缺什么（动机）
+
+`/api/cached/inspector/status`、`/api/cached/insights/summary` 走的 Redis 缓存被 60s TTL
+设死；运维与 CLI 现在要额外起一次 `redis-cli PTTL gateway-routes::inspector:status`
+才能分辨"这个 UP 是实时的还是十五秒前的"。缓存为什么存在（避免每次都要扫一整棵树的
+Python 子进程）、却没法回答"多久前刷新的"——这个问题要让调用方能自己算。
+
+### 2 怎么做
+
+`CachedStatusService.statusPayload(...)` 多放一个键：`fetchedAtMs`（Long，
+`System.currentTimeMillis()`）。
+
+- 缓存命中时 `fetchedAtMs` 是写入时刻；未命中时被重写——两条路径都用同一结构。
+- CLI 客户端显示 `age = now - fetchedAtMs` 就能答"这个 UP 是活的"——不重探上游、
+  不解析 Redis INFO、不去 RO 读自己服务的配置。
+- payload 里放**只有 Long 不是日期**————`System.currentTimeMillis()` 是 epoch
+  millis；避免时区、避免时间格式问题、反序化 0 歧义。
+
+### 3 验证
+
+```text
+$ mvn -o -q -Dtest='CachedPayloadRoundTripTest,CachedRouteControllerTest' test
+CachedPayloadRoundTripTest: 3 passed  → fetchedAtMs 键在 JDK 序列化往返后保留原值
+CachedRouteControllerTest: 8 passed   → $.fetchedAtMs 存在且是数量类型（long）
+
+$ mvn -o test 全网关 — 47 passed, 0 failures
+```
+
+### 4 边界
+
+- `fetchedAtMs` 是毫秒级 epoch，跨 JVM 解析时客户端自算 `now() - fetchedAtMs` 不依赖时区。
+- payload 形状兼容外部消费者（新增键；旧解析门读不到不影响）。

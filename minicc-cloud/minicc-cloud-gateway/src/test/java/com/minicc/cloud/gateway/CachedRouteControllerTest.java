@@ -118,6 +118,8 @@ class CachedRouteControllerTest {
         // a non-serializable payload breaks the real Redis path.
         Map<String, Object> payload = CachedStatusService.statusPayload("inspector", "UP");
         assertThat(payload).containsEntry("service", "inspector").containsEntry("upstreamStatus", "UP");
+        assertThat(payload).containsKey("fetchedAtMs");
+        assertThat(payload.get("fetchedAtMs")).isInstanceOf(Long.class);
         assertThat(payload).isInstanceOf(java.io.Serializable.class);
         payload.values().forEach(v -> assertThat(v).isInstanceOf(java.io.Serializable.class));
     }
