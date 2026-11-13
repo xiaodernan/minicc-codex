@@ -2,13 +2,14 @@ import { requestJson } from "./core/transport.js";
 import { openArcade } from "./core/arcade.js";
 // ES module source for the minicc workbench. Bundled by scripts/build-web.mjs.
 import { escapeHtml, loadTaskHistory, persistSessionView, renderSession, renderTaskHistory, sessionViewKey } from "./chat/markdown.js";
-import { addImageFiles, cancelActiveTask, closePanel, exportChat, loadModelCatalog, loadWorkspace, openActivityPanel, openBatchPanel, openHelpPanel, openOptionsPanel, openPanel, openPromoPanel, openSettingsPanel, openTaskDetail, openTaskInWorkspace, openTaskListPanel, openWorkspacesPanel, renderAttachmentTray, resetTask, restoreTaskSnapshot, rewindToUserIndex, runDemoFlow, sendMessage, switchInspectorTab, togglePanelFullscreen, watchTask } from "./chat/stream.js";
+import { addImageFiles, cancelActiveTask, closePanel, exportChat, loadModelCatalog, loadWorkspace, openActivityPanel, openBatchPanel, openHelpPanel, openLedgerPanel, openOptionsPanel, openPanel, openPromoPanel, openSettingsPanel, openTaskDetail, openTaskInWorkspace, openTaskListPanel, openWorkspacesPanel, renderAttachmentTray, resetTask, restoreTaskSnapshot, rewindToUserIndex, runDemoFlow, sendMessage, switchInspectorTab, togglePanelFullscreen, watchTask } from "./chat/stream.js";
 import { applyTaskEvent, setTimelineDetails, syncLiveEvents, updateBoundTask, updateLiveTask } from "./core/api.js";
 import { t } from "./core/i18n.js";
 import { applyFocusMode, applyLocale, applyPaneLayout, finishStartupSplash, prepareStartupSplash, setFocusMode, setInspectorCollapsed, setLocale, setSidebarCollapsed, setStartupSplashError, setTheme } from "./core/locale.js";
 import { $, $$, runningTasks, runtime, sessionMarkup, state, taskBySession, REASONING_EFFORTS } from "./core/state.js";
 import { copyFilePreviewContent, looksLikeWorkspacePath, openFilePreview } from "./files/preview.js";
 import { applyIcons, icon, refreshIcons } from "./icons.js";
+import { bindCommandPalette, closeCommandPalette, openCommandPalette } from "./core/command-palette.js";
 import { handleFileTreeKeydown } from "./panels/index.js";
 import { PERMISSION_MODES, addAssistantMessage, addLoadingMessage, addUserMessage, applyMentionOption, assistantMessageMarkup, bindRunningTask, closeMentionPopover, effectiveTaskPermissions, eventTimelineMarkup, handleMentionKeydown, mentionState, openGlobalSearchPanel, refreshFileTree, scrollChat, setBusy, setPermissionMode, setSession, showAuthModal, showToast, stopTaskTimer, submitAuthToken, taskSessionKey, toggleFileDir, toggleTodoSection, updateChatFollowState, updateMentionPopover, updateMode, updateReasoningControl, updateTaskDock, visibleAgentEvents } from "./panels/index.js";
 
@@ -45,6 +46,11 @@ export function bindUI() {
   $("#gameVolume")?.addEventListener("input", (event) => window.setGameVolume?.(event.target.value));
   document.addEventListener("visibilitychange", () => window.setGamePaused?.(document.hidden));
   $("#gameModal")?.addEventListener("click", (event) => { if (event.target.id === "gameModal") window.closeGame?.(); });
+  bindCommandPalette();
+  window.addEventListener("minicc-open-task", (event) => {
+    const taskId = event.detail?.taskId;
+    if (taskId) openTaskInWorkspace(taskId).catch((error) => showToast(error.message));
+  });
   $("#gameCanvas")?.addEventListener("click", (event) => {
     if (window.collectSun?.(event)) return;
     window.plantAt?.(event);
@@ -62,6 +68,15 @@ export function bindUI() {
       } else { window.closeGame?.(); closePanel(); }
     }
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "n") { event.preventDefault(); resetTask(); }
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+      event.preventDefault();
+      if ($("#paletteModal")?.classList.contains("show")) closeCommandPalette();
+      else openCommandPalette();
+    }
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "l") {
+      event.preventDefault();
+      openLedgerPanel();
+    }
     if (event.key === "/" && document.activeElement?.tagName !== "TEXTAREA" && document.activeElement?.tagName !== "INPUT") { event.preventDefault(); $("#threadSearch").focus(); }
   });
   $("#allowChanges").addEventListener("change", (event) => {
@@ -187,6 +202,7 @@ export function bindUI() {
     else if (view === "workspaces") openWorkspacesPanel();
     else if (view === "promo") openPromoPanel();
     else if (view === "activity") openActivityPanel();
+    else if (view === "ledger") openLedgerPanel();
     else if (view === "arcade") openArcade().catch((error) => showToast(error.message));
     else closePanel();
   }));

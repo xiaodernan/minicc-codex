@@ -154,3 +154,5 @@
 - **脉冲卡圆环引发双腿 Python CI 红的修复（M8-T891）**：T885 的 `var(--donut)` 从未在样式表里声明——`test_the_palette_has_one_home` 的"每个变量必须有声明的家"门双腿齐红。修复：`.cache-donut { --donut: 34px; }` 声明即家（内联 26px 仍覆盖）；产物重建；门 5/5 绿。
 
 - **空状态 hero 升华（M8-T892）**：工作区第一眼从"平铺 icon + 静态卡"变成专业级 hero——64px 圆角 mark 双辉光 + `conic-gradient` 环绕光环、呼吸缩放、标题渐变 sheen（6s 往复）、start chips 弹性悬停、`prefers-reduced-motion` 全部静止。零 JS/DOM/i18n 改动，仅 CSS 追加层 + 产物重建。
+
+- **「账本」面板上线（M8-T893）**：侧边栏新增「账本」入口（Ctrl/⌘+L），整屏摊开工作区账单——总 token 金句数字、缓存命中率 52px 圆环（hit/miss/write 拆分）、估算成本（诚实标注未定价任务）、缓存后端（Redis 实时 / 本地 LRU）、任务状态 segmented bar（已完成/失败/中断/取消 比例 + 图例）、按模型分解表（tokens / hit / miss / 任务数 / 成本，含合计行）。零新后端端点——完全复用 `/api/metrics`。命令面板一行「ledger」与 `Alt+L` 同入口；i18n 双语全量。

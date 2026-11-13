@@ -10,7 +10,7 @@ export const I18N = {
 
     "brand.caption": "本地智能工作台", "newTask.label": "新任务", "newTask.title": "创建一个新任务",
     "search.placeholder": "搜索任务", "search.global": "全局搜索", "search.globalPlaceholder": "搜索全部会话历史…", "search.hint": "输入关键词，在所有工作区的任务历史中查找。", "search.searching": "搜索中…", "search.noResults": "没有匹配的历史记录", "search.matches": "处匹配",
-    "nav.main": "主导航", "nav.tasks": "任务", "nav.workspaces": "工作区", "nav.promo": "宣传页", "nav.activity": "活动", "nav.arcade": "小游戏",
+    "nav.main": "主导航", "nav.tasks": "任务", "nav.workspaces": "工作区", "nav.promo": "宣传页", "nav.activity": "活动", "nav.ledger": "账本", "nav.arcade": "小游戏",
     language: "界面语言", "tasks.more": "更多任务", "workspace.connected": "本地服务已连接", "profile.label": "当前模式",
     "inspector.toggle": "切换检查器", "inspector.close": "关闭检查器", "focus.enter": "专注阅读", "focus.exit": "退出专注阅读", "options.open": "更多选项", "composer.inputLabel": "输入任务",
     "composer.allowChanges": "允许当前任务修改文件或执行命令", "composer.allowNetwork": "允许当前任务联网搜索", "cancel.title": "取消任务", "send.title": "发送任务", "files.refresh": "刷新文件",
@@ -53,6 +53,13 @@ export const I18N = {
     "changes.agentCore": "Agent 核心", "changes.webWorkspace": "Web 工作台", "changes.specproof": "Specproof 评估", "changes.filesChanged": "修改 6 个文件", "changes.filesAdded": "新增 3 个文件", "changes.assessmentAdded": "已添加评估", "changes.now": "现在", "changes.minute": "1 分钟前", "changes.clean": "等待变更", "changes.cleanHint": "运行任务后会在这里同步", "changes.modified": "已修改", "changes.added": "已新增", "changes.deleted": "已删除", "changes.renamed": "已重命名", "changes.openDiff": "查看 diff", "changes.uncounted": "数不出",
     "auth.title": "访问验证", "auth.hint": "此服务已启用 token 认证。请输入 minicc-web 启动时显示、或保存在工作区 .minicc/web_token.json 中的访问 token。", "auth.tokenLabel": "访问 token", "auth.submit": "保存并重试",
     "diff.empty": "当前没有可显示的差异。", "diff.previewAria": "统一差异视图", "diff.oldLine": "旧行号", "diff.newLine": "新行号",
+    "palette.title": "命令面板", "palette.placeholder": "搜索命令…", "palette.hint": "↑↓ 选择 · Enter 执行 · Esc 关闭", "palette.empty": "没有匹配的命令",
+    "palette.group.task": "任务", "palette.group.surface": "界面",
+    "palette.cmd.newTask": "新任务", "palette.cmd.taskCenter": "打开任务中心", "palette.cmd.workspaces": "打开工作区", "palette.cmd.globalSearch": "全局搜索", "palette.cmd.activity": "任务活动", "palette.cmd.ledger": "打开账本", "palette.cmd.batch": "并行子智能体", "palette.cmd.export": "导出当前对话", "palette.cmd.settings": "设置", "palette.cmd.options": "更多选项", "palette.cmd.help": "帮助", "palette.cmd.arcade": "小游戏", "palette.cmd.sidebar": "收起或展开侧栏", "palette.cmd.inspector": "收起或展开检查器", "palette.cmd.focus": "专注阅读", "palette.cmd.jumpLatest": "跳到最新输出",
+    "palette.toDark": "切换到深色主题", "palette.toLight": "切换到浅色主题",
+    "notify.enable": "桌面通知", "notify.enableHint": "任务结束时即使浏览器在后台也提醒你（需授权通知权限）。", "notify.on": "已开启", "notify.off": "已关闭", "notify.denied": "浏览器已拒绝通知权限，请在站点设置里放行", "notify.unsupported": "此浏览器不支持桌面通知",
+    "notify.completed": "任务完成", "notify.failed": "任务失败", "notify.cancelled": "任务已取消", "notify.clickToOpen": "点击查看任务",
+    "ledger.overview": "总览", "ledger.tokens": "Tokens", "ledger.hitRate": "缓存命中率", "ledger.cost": "估算总成本", "ledger.savings": "本周期缓存节省", "ledger.models": "模型分解", "ledger.status": "状态分布", "ledger.channel": "通道分布", "ledger.tasks": "任务数", "ledger.noMetrics": "这个工作区还没有可测量的任务", "ledger.unpriced": "模型单价未注册，成本按 0 估算", "ledger.cacheHits": "命中", "ledger.cacheMiss": "未命中", "ledger.cacheWrite": "写缓存", "ledger.redisTitle": "缓存后端", "ledger.redisLocal": "本地 LRU（Redis 未启用）", "ledger.redisLive": "Redis 实时后端", "ledger.costPartial": "部分模型未定价，总额按 0 估算",
   },
   en: {
     "restore.partial": "Restored safe files; kept later edits or unavailable files",
@@ -62,7 +69,7 @@ export const I18N = {
 
     "brand.caption": "LOCAL AGENT STUDIO", "newTask.label": "New task", "newTask.title": "Create a new task",
     "search.placeholder": "Search tasks", "search.global": "Global search", "search.globalPlaceholder": "Search all session history...", "search.hint": "Type a keyword to search task history across workspaces.", "search.searching": "Searching...", "search.noResults": "No matching history", "search.matches": "matches",
-    "nav.main": "Main navigation", "nav.tasks": "Tasks", "nav.workspaces": "Workspaces", "nav.promo": "Promo", "nav.activity": "Activity", "nav.arcade": "Arcade",
+    "nav.main": "Main navigation", "nav.tasks": "Tasks", "nav.workspaces": "Workspaces", "nav.promo": "Promo", "nav.activity": "Activity", "nav.ledger": "Ledger", "nav.arcade": "Arcade",
     language: "Language", "tasks.more": "More tasks", "workspace.connected": "Local service connected", "profile.label": "Current mode",
     "inspector.toggle": "Toggle inspector", "inspector.close": "Close inspector", "focus.enter": "Focus reading", "focus.exit": "Exit focus reading", "options.open": "More options", "composer.inputLabel": "Task input",
     "composer.allowChanges": "Allow this task to modify files or run commands", "composer.allowNetwork": "Allow this task to search the web", "cancel.title": "Cancel task", "send.title": "Send task", "files.refresh": "Refresh files",
@@ -105,6 +112,13 @@ export const I18N = {
     "changes.agentCore": "Agent core", "changes.webWorkspace": "Web workspace", "changes.specproof": "Specproof review", "changes.filesChanged": "6 files changed", "changes.filesAdded": "3 files added", "changes.assessmentAdded": "assessment added", "changes.now": "now", "changes.minute": "1m", "changes.clean": "Waiting for changes", "changes.cleanHint": "Changes will sync here after a task runs", "changes.modified": "Modified", "changes.added": "Added", "changes.deleted": "Deleted", "changes.renamed": "Renamed", "changes.openDiff": "Open diff", "changes.uncounted": "not counted",
     "auth.title": "Access verification", "auth.hint": "This service requires a token. Paste the token printed by minicc-web on startup, or stored in .minicc/web_token.json.", "auth.tokenLabel": "Access token", "auth.submit": "Save and retry",
     "diff.empty": "No diff to display.", "diff.previewAria": "Unified diff view", "diff.oldLine": "Old line", "diff.newLine": "New line",
+    "palette.title": "Command palette", "palette.placeholder": "Type a command…", "palette.hint": "↑↓ navigate · Enter run · Esc close", "palette.empty": "No matching command",
+    "palette.group.task": "Tasks", "palette.group.surface": "Surface",
+    "palette.cmd.newTask": "New task", "palette.cmd.taskCenter": "Open task center", "palette.cmd.workspaces": "Open workspaces", "palette.cmd.globalSearch": "Global search", "palette.cmd.activity": "Task activity", "palette.cmd.ledger": "Open the ledger", "palette.cmd.batch": "Parallel subagents", "palette.cmd.export": "Export this chat", "palette.cmd.settings": "Settings", "palette.cmd.options": "More options", "palette.cmd.help": "Help", "palette.cmd.arcade": "Arcade", "palette.cmd.sidebar": "Toggle sidebar", "palette.cmd.inspector": "Toggle inspector", "palette.cmd.focus": "Focus reading", "palette.cmd.jumpLatest": "Jump to latest output",
+    "palette.toDark": "Switch to dark theme", "palette.toLight": "Switch to light theme",
+    "notify.enable": "Desktop notifications", "notify.enableHint": "Get notified when a task finishes, even with the tab in the background (requires permission).", "notify.on": "On", "notify.off": "Off", "notify.denied": "Notification permission was denied; allow it in site settings", "notify.unsupported": "This browser does not support notifications",
+    "notify.completed": "Task completed", "notify.failed": "Task failed", "notify.cancelled": "Task cancelled", "notify.clickToOpen": "Click to open the task",
+    "ledger.overview": "Overview", "ledger.tokens": "Tokens", "ledger.hitRate": "Cache hit rate", "ledger.cost": "Estimated total cost", "ledger.savings": "Cache savings this cycle", "ledger.models": "Model split", "ledger.status": "Status split", "ledger.channel": "Channel split", "ledger.tasks": "Tasks", "ledger.noMetrics": "No measurable tasks yet", "ledger.unpriced": "Model pricing not registered; cost estimated at 0", "ledger.cacheHits": "hits", "ledger.cacheMiss": "misses", "ledger.cacheWrite": "writes", "ledger.redisTitle": "Cache backend", "ledger.redisLocal": "Local LRU (Redis not live)", "ledger.redisLive": "Redis live backend", "ledger.costPartial": "Some models unpriced; estimate is a floor",
   },
 };
 

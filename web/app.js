@@ -291,6 +291,7 @@
       "nav.workspaces": "\u5DE5\u4F5C\u533A",
       "nav.promo": "\u5BA3\u4F20\u9875",
       "nav.activity": "\u6D3B\u52A8",
+      "nav.ledger": "\u8D26\u672C",
       "nav.arcade": "\u5C0F\u6E38\u620F",
       language: "\u754C\u9762\u8BED\u8A00",
       "tasks.more": "\u66F4\u591A\u4EFB\u52A1",
@@ -646,7 +647,59 @@
       "diff.empty": "\u5F53\u524D\u6CA1\u6709\u53EF\u663E\u793A\u7684\u5DEE\u5F02\u3002",
       "diff.previewAria": "\u7EDF\u4E00\u5DEE\u5F02\u89C6\u56FE",
       "diff.oldLine": "\u65E7\u884C\u53F7",
-      "diff.newLine": "\u65B0\u884C\u53F7"
+      "diff.newLine": "\u65B0\u884C\u53F7",
+      "palette.title": "\u547D\u4EE4\u9762\u677F",
+      "palette.placeholder": "\u641C\u7D22\u547D\u4EE4\u2026",
+      "palette.hint": "\u2191\u2193 \u9009\u62E9 \xB7 Enter \u6267\u884C \xB7 Esc \u5173\u95ED",
+      "palette.empty": "\u6CA1\u6709\u5339\u914D\u7684\u547D\u4EE4",
+      "palette.group.task": "\u4EFB\u52A1",
+      "palette.group.surface": "\u754C\u9762",
+      "palette.cmd.newTask": "\u65B0\u4EFB\u52A1",
+      "palette.cmd.taskCenter": "\u6253\u5F00\u4EFB\u52A1\u4E2D\u5FC3",
+      "palette.cmd.workspaces": "\u6253\u5F00\u5DE5\u4F5C\u533A",
+      "palette.cmd.globalSearch": "\u5168\u5C40\u641C\u7D22",
+      "palette.cmd.activity": "\u4EFB\u52A1\u6D3B\u52A8",
+      "palette.cmd.ledger": "\u6253\u5F00\u8D26\u672C",
+      "palette.cmd.batch": "\u5E76\u884C\u5B50\u667A\u80FD\u4F53",
+      "palette.cmd.export": "\u5BFC\u51FA\u5F53\u524D\u5BF9\u8BDD",
+      "palette.cmd.settings": "\u8BBE\u7F6E",
+      "palette.cmd.options": "\u66F4\u591A\u9009\u9879",
+      "palette.cmd.help": "\u5E2E\u52A9",
+      "palette.cmd.arcade": "\u5C0F\u6E38\u620F",
+      "palette.cmd.sidebar": "\u6536\u8D77\u6216\u5C55\u5F00\u4FA7\u680F",
+      "palette.cmd.inspector": "\u6536\u8D77\u6216\u5C55\u5F00\u68C0\u67E5\u5668",
+      "palette.cmd.focus": "\u4E13\u6CE8\u9605\u8BFB",
+      "palette.cmd.jumpLatest": "\u8DF3\u5230\u6700\u65B0\u8F93\u51FA",
+      "palette.toDark": "\u5207\u6362\u5230\u6DF1\u8272\u4E3B\u9898",
+      "palette.toLight": "\u5207\u6362\u5230\u6D45\u8272\u4E3B\u9898",
+      "notify.enable": "\u684C\u9762\u901A\u77E5",
+      "notify.enableHint": "\u4EFB\u52A1\u7ED3\u675F\u65F6\u5373\u4F7F\u6D4F\u89C8\u5668\u5728\u540E\u53F0\u4E5F\u63D0\u9192\u4F60\uFF08\u9700\u6388\u6743\u901A\u77E5\u6743\u9650\uFF09\u3002",
+      "notify.on": "\u5DF2\u5F00\u542F",
+      "notify.off": "\u5DF2\u5173\u95ED",
+      "notify.denied": "\u6D4F\u89C8\u5668\u5DF2\u62D2\u7EDD\u901A\u77E5\u6743\u9650\uFF0C\u8BF7\u5728\u7AD9\u70B9\u8BBE\u7F6E\u91CC\u653E\u884C",
+      "notify.unsupported": "\u6B64\u6D4F\u89C8\u5668\u4E0D\u652F\u6301\u684C\u9762\u901A\u77E5",
+      "notify.completed": "\u4EFB\u52A1\u5B8C\u6210",
+      "notify.failed": "\u4EFB\u52A1\u5931\u8D25",
+      "notify.cancelled": "\u4EFB\u52A1\u5DF2\u53D6\u6D88",
+      "notify.clickToOpen": "\u70B9\u51FB\u67E5\u770B\u4EFB\u52A1",
+      "ledger.overview": "\u603B\u89C8",
+      "ledger.tokens": "Tokens",
+      "ledger.hitRate": "\u7F13\u5B58\u547D\u4E2D\u7387",
+      "ledger.cost": "\u4F30\u7B97\u603B\u6210\u672C",
+      "ledger.savings": "\u672C\u5468\u671F\u7F13\u5B58\u8282\u7701",
+      "ledger.models": "\u6A21\u578B\u5206\u89E3",
+      "ledger.status": "\u72B6\u6001\u5206\u5E03",
+      "ledger.channel": "\u901A\u9053\u5206\u5E03",
+      "ledger.tasks": "\u4EFB\u52A1\u6570",
+      "ledger.noMetrics": "\u8FD9\u4E2A\u5DE5\u4F5C\u533A\u8FD8\u6CA1\u6709\u53EF\u6D4B\u91CF\u7684\u4EFB\u52A1",
+      "ledger.unpriced": "\u6A21\u578B\u5355\u4EF7\u672A\u6CE8\u518C\uFF0C\u6210\u672C\u6309 0 \u4F30\u7B97",
+      "ledger.cacheHits": "\u547D\u4E2D",
+      "ledger.cacheMiss": "\u672A\u547D\u4E2D",
+      "ledger.cacheWrite": "\u5199\u7F13\u5B58",
+      "ledger.redisTitle": "\u7F13\u5B58\u540E\u7AEF",
+      "ledger.redisLocal": "\u672C\u5730 LRU\uFF08Redis \u672A\u542F\u7528\uFF09",
+      "ledger.redisLive": "Redis \u5B9E\u65F6\u540E\u7AEF",
+      "ledger.costPartial": "\u90E8\u5206\u6A21\u578B\u672A\u5B9A\u4EF7\uFF0C\u603B\u989D\u6309 0 \u4F30\u7B97"
     },
     en: {
       "restore.partial": "Restored safe files; kept later edits or unavailable files",
@@ -679,6 +732,7 @@
       "nav.workspaces": "Workspaces",
       "nav.promo": "Promo",
       "nav.activity": "Activity",
+      "nav.ledger": "Ledger",
       "nav.arcade": "Arcade",
       language: "Language",
       "tasks.more": "More tasks",
@@ -1034,7 +1088,59 @@
       "diff.empty": "No diff to display.",
       "diff.previewAria": "Unified diff view",
       "diff.oldLine": "Old line",
-      "diff.newLine": "New line"
+      "diff.newLine": "New line",
+      "palette.title": "Command palette",
+      "palette.placeholder": "Type a command\u2026",
+      "palette.hint": "\u2191\u2193 navigate \xB7 Enter run \xB7 Esc close",
+      "palette.empty": "No matching command",
+      "palette.group.task": "Tasks",
+      "palette.group.surface": "Surface",
+      "palette.cmd.newTask": "New task",
+      "palette.cmd.taskCenter": "Open task center",
+      "palette.cmd.workspaces": "Open workspaces",
+      "palette.cmd.globalSearch": "Global search",
+      "palette.cmd.activity": "Task activity",
+      "palette.cmd.ledger": "Open the ledger",
+      "palette.cmd.batch": "Parallel subagents",
+      "palette.cmd.export": "Export this chat",
+      "palette.cmd.settings": "Settings",
+      "palette.cmd.options": "More options",
+      "palette.cmd.help": "Help",
+      "palette.cmd.arcade": "Arcade",
+      "palette.cmd.sidebar": "Toggle sidebar",
+      "palette.cmd.inspector": "Toggle inspector",
+      "palette.cmd.focus": "Focus reading",
+      "palette.cmd.jumpLatest": "Jump to latest output",
+      "palette.toDark": "Switch to dark theme",
+      "palette.toLight": "Switch to light theme",
+      "notify.enable": "Desktop notifications",
+      "notify.enableHint": "Get notified when a task finishes, even with the tab in the background (requires permission).",
+      "notify.on": "On",
+      "notify.off": "Off",
+      "notify.denied": "Notification permission was denied; allow it in site settings",
+      "notify.unsupported": "This browser does not support notifications",
+      "notify.completed": "Task completed",
+      "notify.failed": "Task failed",
+      "notify.cancelled": "Task cancelled",
+      "notify.clickToOpen": "Click to open the task",
+      "ledger.overview": "Overview",
+      "ledger.tokens": "Tokens",
+      "ledger.hitRate": "Cache hit rate",
+      "ledger.cost": "Estimated total cost",
+      "ledger.savings": "Cache savings this cycle",
+      "ledger.models": "Model split",
+      "ledger.status": "Status split",
+      "ledger.channel": "Channel split",
+      "ledger.tasks": "Tasks",
+      "ledger.noMetrics": "No measurable tasks yet",
+      "ledger.unpriced": "Model pricing not registered; cost estimated at 0",
+      "ledger.cacheHits": "hits",
+      "ledger.cacheMiss": "misses",
+      "ledger.cacheWrite": "writes",
+      "ledger.redisTitle": "Cache backend",
+      "ledger.redisLocal": "Local LRU (Redis not live)",
+      "ledger.redisLive": "Redis live backend",
+      "ledger.costPartial": "Some models unpriced; estimate is a floor"
     }
   };
   function t(key) {
@@ -1079,6 +1185,7 @@
     x: "\xD7",
     "scan-line": "\u2301",
     route: "\u2301",
+    command: "\u2318",
     "scan-search": "\u2315",
     play: "\u25B6",
     paperclip: "\u2307",
@@ -1151,6 +1258,7 @@
     "chevrons-down": '<path d="m7 13 5 5 5-5"/><path d="m7 6 5 5 5-5"/>',
     "chevrons-up": '<path d="m17 11-5-5-5 5"/><path d="m17 18-5-5-5 5"/>',
     sparkles: '<path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/>',
+    ledger: '<path d="M6 3h12a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"/><path d="M9 7h6"/><path d="M9 12h6"/><path d="M9 17h4"/>',
     "alert-triangle": '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
     "alert-circle": '<circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/>',
     check: '<path d="M20 6 9 17l-5-5"/>',
@@ -1161,6 +1269,7 @@
     "layers-3": '<path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 12.6-8.57 3.91a2 2 0 0 1-1.66 0L3.2 12.6"/><path d="m22 17.6-8.57 3.91a2 2 0 0 1-1.66 0L3.2 17.6"/>',
     image: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>',
     x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+    command: '<path d="M15 6v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3"/>',
     "scan-line": '<path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 12h10"/>',
     route: '<circle cx="6" cy="19" r="3"/><path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15"/><circle cx="18" cy="5" r="3"/>',
     "scan-search": '<path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><circle cx="12" cy="12" r="3"/><path d="m16 16-1.9-1.9"/>',
@@ -1392,8 +1501,8 @@
         removeCard(requestId);
         continue;
       }
-      const label = entry.node.querySelector("[data-approval-count]");
-      if (label) label.textContent = `${Math.ceil((entry.deadline - now) / 1e3)}${t("approval.expire")}`;
+      const label2 = entry.node.querySelector("[data-approval-count]");
+      if (label2) label2.textContent = `${Math.ceil((entry.deadline - now) / 1e3)}${t("approval.expire")}`;
     }
     if (!pending2.size && ticker) {
       window.clearInterval(ticker);
@@ -2258,6 +2367,60 @@
     const taskFields = [1, 2, 3].map((index) => `<label class="batch-field"><span>${escapeHtml(t("batch.task"))} ${index}</span><textarea name="task" rows="3" placeholder="${escapeHtml(state.locale === "zh" ? "\u4F8B\u5982\uFF1A\u68C0\u67E5\u540E\u7AEF\u6D4B\u8BD5\u5E76\u603B\u7ED3\u98CE\u9669" : "For example: inspect backend tests and summarize risks")}"></textarea></label>`).join("");
     openPanel(t("panel.batch"), `<form class="batch-form" id="batchForm"><div class="batch-heading"><span class="eyebrow">${escapeHtml(t("batch.title"))}</span><h3>${escapeHtml(t("batch.title"))}</h3><p>${escapeHtml(t("batch.subtitle"))}</p></div><div class="batch-fields">${taskFields}</div><label class="batch-field"><span>${escapeHtml(t("batch.context"))}</span><textarea name="shared_context" rows="3" placeholder="${escapeHtml(t("batch.note"))}"></textarea></label><div class="task-detail-actions"><button class="panel-primary" type="submit">${icon("play")} ${escapeHtml(t("batch.run"))}</button></div></form>`, { wide: true });
   }
+  async function openLedgerPanel() {
+    const current = beginPanelRequest(t("ledger.overview"));
+    try {
+      const data = await requestJson("/api/metrics");
+      if (!current()) return;
+      const usage = data && typeof data.usage === "object" && data.usage || {};
+      const llm = data && typeof data.llm_cache === "object" && data.llm_cache || {};
+      const models = data && typeof data.by_model === "object" && data.by_model || {};
+      const statusMap = data && typeof data.tasks_by_status === "object" && data.tasks_by_status || {};
+      const priced = Number(data?.priced_tasks || 0);
+      const unpriced = Number(data?.unpriced_tasks || 0);
+      const cost = typeof data?.cost_usd === "number" ? data.cost_usd : NaN;
+      const hit = Number(usage.prompt_cache_hit_tokens || 0);
+      const miss = Number(usage.prompt_cache_miss_tokens || 0);
+      const writes = Number(usage.prompt_cache_write_tokens || 0);
+      const totalTokens = Number(usage.total_tokens || 0);
+      const hitRatePct = hit + miss > 0 ? Math.round(hit / (hit + miss) * 100) : null;
+      const donutData = {
+        tokens_used: { prompt_cache_hit_tokens: hit, prompt_cache_miss_tokens: miss },
+        metrics: { cache_status: llm.cache_status || "unreported" }
+      };
+      const statusRows = [
+        ["completed", t("phase.completed"), "var(--mint)"],
+        ["failed", t("phase.failed"), "var(--rose)"],
+        ["interrupted", t("phase.interrupted"), "var(--amber)"],
+        ["cancelled", t("phase.cancelled"), "var(--muted)"]
+      ].filter(([key]) => Number(statusMap[key] || 0) > 0);
+      const maxStatus = Math.max(1, ...statusRows.map(([key]) => Number(statusMap[key] || 0)));
+      const modelRows = Object.entries(models).sort((a, b) => Number(b[1]?.tasks || 0) - Number(a[1]?.tasks || 0)).map(([name, bucket]) => {
+        const bt = bucket?.tokens || {};
+        const tokens = Number(bt.total_tokens || 0);
+        const costStr = typeof bucket?.cost_usd === "number" ? `$${Number(bucket.cost_usd).toFixed(4)}` : '<span class="led-unpriced">\u2014</span>';
+        return `<tr><td><code>${escapeHtml(name)}</code></td><td class="led-num">${compactNumber(tokens)}</td><td class="led-num">${compactNumber(Number(bt.prompt_cache_hit_tokens || 0))} / ${compactNumber(Number(bt.prompt_cache_miss_tokens || 0))}</td><td class="led-num">${escapeHtml(String(bucket.tasks || 0))}</td><td class="led-num">${costStr}</td></tr>`;
+      }).join("");
+      const hasModels = Object.keys(models).length > 0;
+      const totalRow = `<tr class="led-total-row"><td>${t("ledger.overview")}</td><td class="led-num">${compactNumber(totalTokens)}</td><td class="led-num">${compactNumber(hit)} / ${compactNumber(miss)}</td><td class="led-num"></td><td class="led-num">${Number.isFinite(cost) ? `$${cost.toFixed(4)}` : `<span class="led-unpriced">${t("ledger.unpriced")}</span>`}</td></tr>`;
+      const redisLabel = data?.redis_cache?.live_backend ? t("ledger.redisLive") : t("ledger.redisLocal");
+      const redisClass = data?.redis_cache?.live_backend ? "led-redis-live" : "led-redis-local";
+      const body = `<div class="ledger-view">
+      <div class="led-hero"><div class="led-hero-number">${compactNumber(totalTokens)}</div><div class="led-hero-label">${t("ledger.tokens")}</div></div>
+      <div class="led-stat-row">
+        <div class="led-stat"><div class="led-stat-label">${t("ledger.hitRate")}</div><div class="led-stat-donut">${cacheDonut(donutData, 52)}</div><div class="led-stat-sub">${hitRatePct !== null ? `${hitRatePct}%` : t("tasks.cacheUnreported")} \xB7 ${t("ledger.cacheHits")} ${compactNumber(hit)} \xB7 ${t("ledger.cacheMiss")} ${compactNumber(miss)} \xB7 ${t("ledger.cacheWrite")} ${compactNumber(writes)}</div></div>
+        <div class="led-stat"><div class="led-stat-label">${t("ledger.cost")}</div><div class="led-stat-big">${Number.isFinite(cost) ? `$${cost.toFixed(4)}` : '<span class="led-unpriced">$\u2014</span>'}</div><div class="led-stat-sub">${unpriced}/${priced + unpriced} ${state.locale === "zh" ? "\u4E2A\u4EFB\u52A1\u5B9A\u4EF7" : "tasks priced"} \xB7 ${llm.cache_status || ""}</div></div>
+        <div class="led-stat"><div class="led-stat-label">${t("ledger.redisTitle")}</div><div class="led-stat-big ${redisClass}">${redisLabel}</div><div class="led-stat-sub">${data?.redis_cache ? `gets ${data.redis_cache.gets || 0} \xB7 sets ${data.redis_cache.sets || 0} \xB7 local ${data.redis_cache.local_units || 0}/${data.redis_cache.local_capacity || 0}` : "\u2014"}</div></div>
+      </div>
+      ${statusRows.length ? `<div class="led-section"><div class="panel-section-title">${t("ledger.status")}</div><div class="led-status-bar">${statusRows.map(([key, label2, color]) => `<div class="led-status-seg" style="flex:${Number(statusMap[key] || 0)} 1 0;background:${color};" title="${escapeHtml(label2)}: ${escapeHtml(String(statusMap[key]))}">${escapeHtml(String(statusMap[key]))}</div>`).join("")}</div><div class="led-status-legend">${statusRows.map(([key, label2]) => `<span class="led-status-dot" style="--status-dot:${statusRows.find((r) => r[0] === key)[2]}"></span>${escapeHtml(label2)} <strong>${escapeHtml(String(statusMap[key]))}</strong>`).join("")}</div></div>` : ""}
+      ${hasModels ? `<div class="led-section"><div class="panel-section-title">${t("ledger.models")}</div><table class="led-table"><thead><tr><th>model</th><th class="led-num">tokens</th><th class="led-num">hit/miss</th><th class="led-num">${t("ledger.tasks")}</th><th class="led-num">$</th></tr></thead><tbody>${modelRows}${totalRow}</tbody></table></div>` : `<div class="empty-panel">${t("ledger.noMetrics")}</div>`}
+    </div>`;
+      openPanel(t("ledger.overview"), body, { wide: true });
+    } catch (error) {
+      if (!current()) return;
+      openPanel(t("ledger.overview"), `<div class="error-panel">${escapeHtml(error.message)}</div>`);
+    }
+  }
   async function openActivityPanel() {
     const current = beginPanelRequest(t("tasks.center"));
     try {
@@ -2587,7 +2750,7 @@
   }
   function openHelpPanel() {
     const rows = state.locale === "zh" ? [["\u53D1\u9001\u4EFB\u52A1", "Enter"], ["\u6362\u884C", "Shift+Enter"], ["\u65B0\u4EFB\u52A1", "Ctrl/\u2318 N"], ["\u641C\u7D22\u4EFB\u52A1", "/"], ["\u5173\u95ED\u9762\u677F / \u5C0F\u6E38\u620F", "Esc"]] : [["Send task", "Enter"], ["Newline", "Shift+Enter"], ["New task", "Ctrl/\u2318 N"], ["Search tasks", "/"], ["Close panel / game", "Esc"]];
-    const list = rows.map(([label, key]) => `<div class="help-shortcut"><span>${escapeHtml(label)}</span><kbd>${escapeHtml(key)}</kbd></div>`).join("");
+    const list = rows.map(([label2, key]) => `<div class="help-shortcut"><span>${escapeHtml(label2)}</span><kbd>${escapeHtml(key)}</kbd></div>`).join("");
     openPanel(t("help.title"), `<div class="help-panel"><div class="panel-section-title">${escapeHtml(t("help.shortcuts"))}</div>${list}<div class="panel-section-title">${escapeHtml(t("help.arcade"))}</div><button type="button" class="panel-command" id="helpArcadeButton"><span>${icon("gamepad-2")}</span>${escapeHtml(t("help.arcade"))}</button></div>`);
     $("#helpArcadeButton")?.addEventListener("click", () => {
       closePanel();
@@ -2671,11 +2834,11 @@
     area.scrollTo({ top: area.scrollHeight, behavior });
     window.requestAnimationFrame(updateChatFollowState);
   }
-  function setConnection(connected, label = connected ? "Connected" : "Offline") {
+  function setConnection(connected, label2 = connected ? "Connected" : "Offline") {
     state.connection = connected;
     const status = $("#connectionStatus");
     status.classList.toggle("offline", !connected);
-    const translated = label === "Connected" ? t("connection.connected") : label === "Offline" ? t("connection.offline") : label;
+    const translated = label2 === "Connected" ? t("connection.connected") : label2 === "Offline" ? t("connection.offline") : label2;
     status.innerHTML = `<span class="status-pulse"></span><span>${escapeHtml(translated)}</span>`;
   }
   function setTaskTransportStatus(taskId, mode) {
@@ -2706,9 +2869,9 @@
     if (value) value.textContent = t("reasoning." + state.reasoningEffort);
     const button = $("#reasoningButton");
     if (button) {
-      const label = t("panel.reasoning") + ": " + t("reasoning." + state.reasoningEffort);
-      button.title = label;
-      button.setAttribute("aria-label", label);
+      const label2 = t("panel.reasoning") + ": " + t("reasoning." + state.reasoningEffort);
+      button.title = label2;
+      button.setAttribute("aria-label", label2);
     }
   }
   function setSession(sessionId) {
@@ -2916,8 +3079,8 @@
     const zh = state.locale === "zh";
     const write = effective.mode === "acceptEdits" || effective.allowChanges;
     const command = effective.allowChanges;
-    const label = $("#modeLabel");
-    if (label) label.textContent = t("capability.executeToggle");
+    const label2 = $("#modeLabel");
+    if (label2) label2.textContent = t("capability.executeToggle");
     const summary = zh ? `\u6587\u4EF6\uFF1A${write ? "\u53EF\u5199" : "\u53EA\u8BFB"} \xB7 \u547D\u4EE4\uFF1A${command ? "\u5141\u8BB8" : "\u4EC5\u5B89\u5168\u68C0\u67E5"} \xB7 \u8054\u7F51\uFF1A${effective.allowNetwork ? "\u5141\u8BB8" : "\u5173\u95ED"}` : `Files: ${write ? "write" : "read"} \xB7 Commands: ${command ? "enabled" : "safe checks"} \xB7 Network: ${effective.allowNetwork ? "on" : "off"}`;
     $("#permissionHint").textContent = summary;
     $("#permissionSummary").textContent = summary;
@@ -3294,9 +3457,9 @@
     const options = mentionState.options;
     const isCommand = mentionState.mode === "command";
     const body = options.length ? options.map((item, index) => {
-      const label = isCommand ? `/${item.name}` : item.path;
+      const label2 = isCommand ? `/${item.name}` : item.path;
       const detail = isCommand ? `${item.description || ""}${item.scope === "project" ? " \xB7 project" : ""}` : formatBytes(item.size);
-      return `<button type="button" class="mention-option${index === mentionState.active ? " active" : ""}" role="option" aria-selected="${index === mentionState.active ? "true" : "false"}" data-mention-index="${index}" aria-label="${escapeHtml(label)}"><span class="mention-path">${escapeHtml(label)}</span><small class="mention-size">${escapeHtml(detail)}</small></button>`;
+      return `<button type="button" class="mention-option${index === mentionState.active ? " active" : ""}" role="option" aria-selected="${index === mentionState.active ? "true" : "false"}" data-mention-index="${index}" aria-label="${escapeHtml(label2)}"><span class="mention-path">${escapeHtml(label2)}</span><small class="mention-size">${escapeHtml(detail)}</small></button>`;
     }).join("") : `<div class="mention-empty">${escapeHtml(isCommand ? t("at.commandEmpty") : t("at.empty"))}</div>`;
     popover.innerHTML = `${body}<div class="mention-hint" aria-hidden="true">${escapeHtml(t("at.hint"))}</div>`;
     popover.hidden = false;
@@ -3643,11 +3806,11 @@
   }
   function updateSessionStatus(data) {
     const badge = $("#sessionLiveBadge");
-    const label = $("#sessionLiveLabel");
-    if (!badge || !label) return;
+    const label2 = $("#sessionLiveLabel");
+    if (!badge || !label2) return;
     badge.hidden = !data;
     if (!data) {
-      label.textContent = t("inspector.ready");
+      label2.textContent = t("inspector.ready");
       return;
     }
     const status = String(data?.status || "running").toLowerCase();
@@ -3655,7 +3818,7 @@
     badge.dataset.status = terminal ? status : ACTIVE_TASK_STATUSES.has(status) ? status : "running";
     badge.classList.toggle("terminal", terminal);
     badge.classList.toggle("queued", status === "queued");
-    label.textContent = terminal || status === "queued" ? phaseLabel(data) : t("live");
+    label2.textContent = terminal || status === "queued" ? phaseLabel(data) : t("live");
   }
   function liveTaskMarkup(data) {
     const streamText = String(data.stream_text || "");
@@ -3924,10 +4087,10 @@
     return raw.length > limit ? `${raw.slice(0, limit).trimEnd()}
 \u2026 ${state.locale === "zh" ? "\u8BE6\u60C5\u5DF2\u622A\u65AD" : "details truncated"} \u2026` : raw;
   }
-  function structuredDetailMarkup(detail, label = state.locale === "zh" ? "\u67E5\u770B\u7ED3\u6784\u5316\u4F9D\u636E" : "View structured evidence") {
+  function structuredDetailMarkup(detail, label2 = state.locale === "zh" ? "\u67E5\u770B\u7ED3\u6784\u5316\u4F9D\u636E" : "View structured evidence") {
     if (detail == null || typeof detail === "object" && !Object.keys(detail).length) return "";
     const raw = detailJson(detail);
-    return `<details class="event-detail"><summary>${escapeHtml(label)}<small>${escapeHtml(state.locale === "zh" ? "\u70B9\u51FB\u5C55\u5F00" : "click to expand")}</small></summary><pre>${escapeHtml(raw)}</pre></details>`;
+    return `<details class="event-detail"><summary>${escapeHtml(label2)}<small>${escapeHtml(state.locale === "zh" ? "\u70B9\u51FB\u5C55\u5F00" : "click to expand")}</small></summary><pre>${escapeHtml(raw)}</pre></details>`;
   }
   function traceDetailPreview(event) {
     const detail = event?.detail;
@@ -3946,13 +4109,13 @@
   function traceEvidenceMarkup(event, detailText, evidenceMarkup) {
     if (detailText == null && !evidenceMarkup) return "";
     const labels = state.locale === "zh" ? { feedback_observed: "\u67E5\u770B\u81EA\u53CD\u9988\u8BE6\u60C5", tool_round_finished: "\u67E5\u770B\u7ED3\u679C\u6C47\u603B\u8BE6\u60C5", replan: "\u67E5\u770B\u91CD\u65B0\u89C4\u5212\u8BE6\u60C5", model_decision: "\u67E5\u770B\u6A21\u578B\u51B3\u7B56\u8BE6\u60C5" } : { feedback_observed: "View self-feedback", tool_round_finished: "View merged results", replan: "View re-plan", model_decision: "View model decision" };
-    const label = labels[String(event?.code || "")] || (state.locale === "zh" ? "\u67E5\u770B\u9636\u6BB5\u8BE6\u60C5" : "View stage details");
+    const label2 = labels[String(event?.code || "")] || (state.locale === "zh" ? "\u67E5\u770B\u9636\u6BB5\u8BE6\u60C5" : "View stage details");
     const preview = traceDetailPreview(event);
     const readable = detailText ? `<div class="trace-detail">${escapeHtml(detailText)}</div>` : "";
-    return `<details class="trace-evidence"><summary><span>${escapeHtml(label)}</span><small>${escapeHtml(preview)}</small><span class="trace-evidence-chevron">${icon("chevron-down")}</span></summary><div class="trace-evidence-body">${readable}${evidenceMarkup || ""}</div></details>`;
+    return `<details class="trace-evidence"><summary><span>${escapeHtml(label2)}</span><small>${escapeHtml(preview)}</small><span class="trace-evidence-chevron">${icon("chevron-down")}</span></summary><div class="trace-evidence-body">${readable}${evidenceMarkup || ""}</div></details>`;
   }
-  function toolResultFoldMarkup(label, content) {
-    return `<details class="tool-result-fold"><summary><span>${escapeHtml(label)}</span><small>${escapeHtml(state.locale === "zh" ? "\u70B9\u51FB\u5C55\u5F00" : "click to expand")}</small><span class="tool-result-fold-chevron">${icon("chevron-down")}</span></summary><div class="tool-result-fold-body">${content}</div></details>`;
+  function toolResultFoldMarkup(label2, content) {
+    return `<details class="tool-result-fold"><summary><span>${escapeHtml(label2)}</span><small>${escapeHtml(state.locale === "zh" ? "\u70B9\u51FB\u5C55\u5F00" : "click to expand")}</small><span class="tool-result-fold-chevron">${icon("chevron-down")}</span></summary><div class="tool-result-fold-body">${content}</div></details>`;
   }
   function traceDetail(event, options = {}) {
     const detail = event?.detail;
@@ -4443,9 +4606,9 @@
             const token = tokenOf(tokenOrHref);
             const href = safeMarkdownUrl(String(token ? token.href : tokenOrHref || ""));
             const title = token ? token.title : titleOrTitle;
-            const label = token ? typeof this?.parser?.parseInline === "function" ? this.parser.parseInline(token.tokens || []) : escapeHtml(token.text || "") : escapeHtml(text ?? "");
-            if (!href) return label;
-            return `<a href="${escapeHtml(href)}"${title ? ` title="${escapeHtml(title)}"` : ""} target="_blank" rel="noreferrer noopener">${label}</a>`;
+            const label2 = token ? typeof this?.parser?.parseInline === "function" ? this.parser.parseInline(token.tokens || []) : escapeHtml(token.text || "") : escapeHtml(text ?? "");
+            if (!href) return label2;
+            return `<a href="${escapeHtml(href)}"${title ? ` title="${escapeHtml(title)}"` : ""} target="_blank" rel="noreferrer noopener">${label2}</a>`;
           },
           image(tokenOrHref, titleOrTitle, text) {
             const token = tokenOf(tokenOrHref);
@@ -4775,9 +4938,9 @@
     const button = $("#themeButton");
     if (!button) return;
     const isLight = state.theme === "light";
-    const label = isLight ? state.locale === "zh" ? "\u5207\u6362\u5230\u6697\u8272\u6A21\u5F0F" : "Switch to dark mode" : state.locale === "zh" ? "\u5207\u6362\u5230\u4EAE\u8272\u6A21\u5F0F" : "Switch to light mode";
-    button.setAttribute("aria-label", label);
-    button.title = label;
+    const label2 = isLight ? state.locale === "zh" ? "\u5207\u6362\u5230\u6697\u8272\u6A21\u5F0F" : "Switch to dark mode" : state.locale === "zh" ? "\u5207\u6362\u5230\u4EAE\u8272\u6A21\u5F0F" : "Switch to light mode";
+    button.setAttribute("aria-label", label2);
+    button.title = label2;
     button.innerHTML = icon(isLight ? "moon" : "sun");
     refreshIcons();
   }
@@ -5020,6 +5183,183 @@
     }
   }
 
+  // web/src/core/command-palette.js
+  var listNode = null;
+  var inputNode = null;
+  var activeIndex = 0;
+  var filtered = [];
+  var optionBaseId = "paletteOption";
+  function label(id, fallback) {
+    const translated = t(id);
+    return translated === id ? fallback : translated;
+  }
+  function commands() {
+    const zh = state.locale === "zh";
+    const themeTarget = state.theme === "dark" ? label("palette.toLight", "Switch to light theme") : label("palette.toDark", "Switch to dark theme");
+    return [
+      { id: "newTask", glyph: "plus", group: "palette.group.task", run: () => resetTask() },
+      { id: "taskCenter", glyph: "list-checks", group: "palette.group.task", run: () => openTaskListPanel() },
+      { id: "workspaces", glyph: "folder-open", group: "palette.group.task", run: () => openWorkspacesPanel() },
+      { id: "globalSearch", glyph: "search", group: "palette.group.task", run: () => openGlobalSearchPanel() },
+      { id: "activity", glyph: "activity", group: "palette.group.task", run: () => openActivityPanel() },
+      { id: "ledger", glyph: "ledger", group: "palette.group.task", run: () => openLedgerPanel() },
+      { id: "batch", glyph: "layers", group: "palette.group.task", run: () => openBatchPanel() },
+      { id: "export", glyph: "download", group: "palette.group.task", run: () => exportChat() },
+      { id: "settings", glyph: "settings-2", group: "palette.group.surface", run: () => openSettingsPanel() },
+      { id: "options", glyph: "more-horizontal", group: "palette.group.surface", run: () => openOptionsPanel() },
+      { id: "help", glyph: "circle-help", group: "palette.group.surface", run: () => openHelpPanel() },
+      { id: "arcade", glyph: "gamepad-2", group: "palette.group.surface", run: () => openArcade() },
+      { id: "theme", glyph: "moon-star", group: "palette.group.surface", labelOverride: themeTarget, run: () => setTheme(state.theme === "dark" ? "light" : "dark") },
+      { id: "locale", glyph: "globe-2", group: "palette.group.surface", labelOverride: zh ? "Switch to English" : "\u5207\u6362\u5230\u4E2D\u6587", run: () => setLocale(zh ? "en" : "zh") },
+      { id: "sidebar", glyph: "panel-left", group: "palette.group.surface", run: () => setSidebarCollapsed(!state.sidebarCollapsed) },
+      { id: "inspector", glyph: "panel-right", group: "palette.group.surface", run: () => setInspectorCollapsed(!state.inspectorCollapsed) },
+      { id: "focus", glyph: "scan-line", group: "palette.group.surface", run: () => setFocusMode(!state.focusMode) },
+      { id: "jumpLatest", glyph: "chevrons-down", group: "palette.group.surface", run: () => scrollChat("auto", true) }
+    ].map((item) => ({
+      ...item,
+      label: item.labelOverride || label(`palette.cmd.${item.id}`, item.id),
+      hint: label(`palette.group.${item.group.split(".").pop()}`, item.group)
+    }));
+  }
+  function score(query, command) {
+    const haystack = `${command.label} ${command.hint}`.toLowerCase();
+    const needle = query.toLowerCase();
+    const direct = haystack.indexOf(needle);
+    if (direct >= 0) {
+      const wordStart = direct === 0 || /\s/.test(haystack[direct - 1]);
+      return 100 - direct * 0.5 + (wordStart ? 20 : 0);
+    }
+    let index = -1;
+    let runs = 0;
+    let consecutive = 0;
+    for (const char of needle) {
+      const found = haystack.indexOf(char, index + 1);
+      if (found < 0) return -1;
+      consecutive = found === index + 1 ? consecutive + 1 : 0;
+      runs += consecutive;
+      index = found;
+    }
+    return 60 - index * 0.2 + runs * 2;
+  }
+  function render() {
+    const query = inputNode.value.trim();
+    const all = commands();
+    filtered = query ? all.map((command) => ({ command, points: score(query, command) })).filter((entry) => entry.points >= 0).sort((a, b) => b.points - a.points).map((entry) => entry.command) : all;
+    listNode.innerHTML = "";
+    if (!filtered.length) {
+      const empty = document.createElement("li");
+      empty.className = "palette-empty";
+      empty.textContent = t("palette.empty");
+      listNode.append(empty);
+      return;
+    }
+    activeIndex = Math.min(activeIndex, filtered.length - 1);
+    filtered.forEach((command, index) => {
+      const item = document.createElement("li");
+      item.id = `${optionBaseId}-${index}`;
+      item.className = "palette-option";
+      item.setAttribute("role", "option");
+      item.dataset.index = String(index);
+      const mark = document.createElement("span");
+      mark.className = "palette-glyph";
+      mark.setAttribute("aria-hidden", "true");
+      mark.textContent = iconGlyph(command.glyph);
+      const text = document.createElement("span");
+      text.className = "palette-label";
+      text.textContent = command.label;
+      const group = document.createElement("span");
+      group.className = "palette-group";
+      group.textContent = command.hint;
+      item.append(mark, text, group);
+      if (index === activeIndex) item.setAttribute("aria-selected", "true");
+      listNode.append(item);
+    });
+  }
+  function iconGlyph(name) {
+    const glyphs = { plus: "+", "list-checks": "\u2611", "folder-open": "\u{1F5C2}", search: "\u2315", activity: "\u25A5", ledger: "\u25A4", layers: "\u2261", download: "\u2193", "settings-2": "\u2699", "more-horizontal": "\u22EF", "circle-help": "?", "gamepad-2": "\u25B6", "moon-star": "\u263E", "globe-2": "\u25CE", "panel-left": "\u25A4", "panel-right": "\u25A7", "scan-line": "\u25EB", "chevrons-down": "\u2304" };
+    return glyphs[name] || "\u203A";
+  }
+  function move(delta) {
+    if (!filtered.length) return;
+    const next = (activeIndex + delta + filtered.length) % filtered.length;
+    setActive(next);
+  }
+  function setActive(index) {
+    activeIndex = index;
+    for (const node of listNode.children) {
+      if (node.getAttribute("role") !== "option") continue;
+      const current = Number(node.dataset.index) === index;
+      node.classList.toggle("active", current);
+      if (current) {
+        node.setAttribute("aria-selected", "true");
+        node.scrollIntoView({ block: "nearest" });
+        inputNode.setAttribute("aria-activedescendant", node.id);
+      } else node.removeAttribute("aria-selected");
+    }
+  }
+  function activate(index) {
+    const command = filtered[index];
+    if (!command) return;
+    closeCommandPalette();
+    try {
+      command.run();
+    } catch (error) {
+      showToast(error?.message || String(error));
+    }
+  }
+  function openCommandPalette() {
+    const modal = $("#paletteModal");
+    inputNode = $("#paletteInput");
+    listNode = $("#paletteList");
+    activeIndex = 0;
+    inputNode.value = "";
+    modal.classList.add("show");
+    modal.setAttribute("aria-hidden", "false");
+    render();
+    setActive(activeIndex);
+    activateDialog(modal, { initialFocus: "#paletteInput", onEscape: closeCommandPalette });
+    inputNode.focus({ preventScroll: true });
+    inputNode.oninput = () => {
+      activeIndex = 0;
+      render();
+      setActive(activeIndex);
+    };
+    inputNode.onkeydown = (event) => {
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        move(1);
+      } else if (event.key === "ArrowUp") {
+        event.preventDefault();
+        move(-1);
+      } else if (event.key === "Enter") {
+        event.preventDefault();
+        activate(activeIndex);
+      }
+    };
+    listNode.onclick = (event) => {
+      const option = event.target.closest('[role="option"]');
+      if (option) activate(Number(option.dataset.index));
+    };
+    listNode.onpointermove = (event) => {
+      const option = event.target.closest('[role="option"]');
+      if (option && Number(option.dataset.index) !== activeIndex) setActive(Number(option.dataset.index));
+    };
+  }
+  function closeCommandPalette() {
+    const modal = $("#paletteModal");
+    if (!modal.classList.contains("show")) return;
+    deactivateDialog(modal);
+    modal.classList.remove("show");
+    modal.setAttribute("aria-hidden", "true");
+    inputNode?.blur();
+  }
+  function bindCommandPalette() {
+    $("#paletteClose").addEventListener("click", closeCommandPalette);
+    $("#paletteModal").addEventListener("pointerdown", (event) => {
+      if (event.target.id === "paletteModal") closeCommandPalette();
+    });
+  }
+
   // web/src/main.js
   function bindUI() {
     window.addEventListener("minicc-auth-required", showAuthModal);
@@ -5058,6 +5398,11 @@
     $("#gameModal")?.addEventListener("click", (event) => {
       if (event.target.id === "gameModal") window.closeGame?.();
     });
+    bindCommandPalette();
+    window.addEventListener("minicc-open-task", (event) => {
+      const taskId = event.detail?.taskId;
+      if (taskId) openTaskInWorkspace(taskId).catch((error) => showToast(error.message));
+    });
     $("#gameCanvas")?.addEventListener("click", (event) => {
       if (window.collectSun?.(event)) return;
       window.plantAt?.(event);
@@ -5080,6 +5425,15 @@
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "n") {
         event.preventDefault();
         resetTask();
+      }
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        if ($("#paletteModal")?.classList.contains("show")) closeCommandPalette();
+        else openCommandPalette();
+      }
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "l") {
+        event.preventDefault();
+        openLedgerPanel();
       }
       if (event.key === "/" && document.activeElement?.tagName !== "TEXTAREA" && document.activeElement?.tagName !== "INPUT") {
         event.preventDefault();
@@ -5238,6 +5592,7 @@
       } else if (view === "workspaces") openWorkspacesPanel();
       else if (view === "promo") openPromoPanel();
       else if (view === "activity") openActivityPanel();
+      else if (view === "ledger") openLedgerPanel();
       else if (view === "arcade") openArcade().catch((error) => showToast(error.message));
       else closePanel();
     }));

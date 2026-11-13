@@ -135,6 +135,7 @@
   --focus-ring-offset: 2px;
   --focus-ring: 0 0 0 var(--focus-ring-width) var(--focus-ring-color);
   --focus-ring-inset: inset 0 0 0 var(--focus-ring-width) var(--focus-ring-color);
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
 
@@ -2901,3 +2902,188 @@ pre code { background: #0f172a; padding: 12px; display: block; overflow-x: auto;
     animation: none;
   }
 }
+
+/* ── M8-T893 · Command palette (Ctrl/Cmd+K) ───────────────────────────
+   One search box that reaches every surface. Colors ride the shared
+   tokens; the input paints the one focus ring; options must clear AA. */
+
+.palette-modal { align-items: flex-start; padding-top: 12vh; }
+
+.palette-card { background: var(--surface); border: 1px solid var(--line-bright); border-radius: 12px; box-shadow: var(--shadow); display: flex; flex-direction: column; max-height: min(560px, calc(100vh - 96px)); max-width: calc(100vw - 32px); overflow: hidden; width: min(560px, 92vw); }
+
+.palette-header { align-items: center; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; padding: 12px 16px 10px; }
+.palette-title { font-size: 13px; margin: 0; }
+
+.palette-search { align-items: center; border-bottom: 1px solid var(--line); color: var(--quiet); display: flex; gap: 9px; padding: 10px 16px; }
+.palette-search svg { flex: 0 0 auto; height: 15px; width: 15px; }
+.palette-search input { background: transparent; border: 0; color: var(--text); flex: 1 1 auto; font: 500 14px Manrope, "PingFang SC", sans-serif; min-width: 0; }
+.palette-search input:focus-visible { border-color: var(--focus-ring-color); outline: 0; box-shadow: var(--focus-ring-inset); border-radius: 6px; }
+.palette-search input::placeholder { color: var(--quiet); }
+
+.palette-list { list-style: none; margin: 0; max-height: 320px; overflow-y: auto; padding: 6px; }
+.palette-option { align-items: center; border-radius: 7px; color: var(--text); cursor: pointer; display: flex; gap: 10px; padding: 9px 10px; }
+.palette-option.active { background: var(--coral-soft); color: var(--text); }
+.palette-option.active .palette-label { font-weight: 700; }
+.palette-glyph { align-items: center; background: var(--surface-soft); border: 1px solid var(--line); border-radius: 6px; color: var(--coral); display: flex; flex: 0 0 auto; font-size: 12px; height: 24px; justify-content: center; width: 24px; }
+.palette-label { flex: 1 1 auto; font-size: 13px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.palette-group { color: var(--muted); flex: 0 0 auto; font-size: 11px; }
+.palette-empty { color: var(--muted); font-size: 13px; padding: 18px 12px; text-align: center; }
+
+.palette-footer { align-items: center; border-top: 1px solid var(--line); color: var(--muted); display: flex; font-size: 11px; gap: 6px; justify-content: flex-end; padding: 8px 14px; }
+.palette-footer kbd { background: var(--surface-soft); border: 1px solid var(--line); border-radius: 4px; font: 600 10px "DM Mono", Consolas, monospace; padding: 1px 5px; }
+/* ---- ledger: the workspace's bill of materials, laid bare (M8-T893) ----
+   Three-row grid: hero counter → metric tiles → status bar → model table.
+   Palette matches the task panel; every card speaks the same dialect. */
+.ledger-view {
+  display: grid;
+  gap: 18px;
+  padding: 18px;
+}
+.led-hero {
+  display: grid;
+  place-items: center;
+  gap: 6px;
+  padding: 22px 16px 18px;
+  border-radius: var(--radius);
+  background:
+    radial-gradient(110% 130% at 50% -10%,
+      color-mix(in srgb, var(--coral) 20%, transparent) 0%,
+      transparent 65%),
+    var(--surface);
+  border: 1px solid var(--line-bright);
+}
+.led-hero-number {
+  font-size: 42px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  background: linear-gradient(180deg, var(--text) 28%, color-mix(in srgb, var(--coral) 52%, var(--text)) 78%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  line-height: 1.05;
+}
+.led-hero-label {
+  font-size: 12px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.led-stat-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+.led-stat {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  padding: 14px;
+  border-radius: var(--radius);
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  min-height: 112px;
+}
+.led-stat-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.led-stat-donut {
+  display: flex;
+  justify-content: center;
+  padding: 2px 0;
+}
+.led-stat-big {
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+.led-stat-sub {
+  font-size: 11.5px;
+  color: var(--muted);
+  line-height: 1.55;
+}
+.led-unpriced {
+  color: var(--quiet);
+  font-size: 11px;
+}
+.led-redis-live {
+  color: var(--mint);
+}
+.led-redis-local {
+  color: var(--amber);
+}
+
+.led-section {
+  display: grid;
+  gap: 10px;
+}
+
+.led-status-bar {
+  display: flex;
+  gap: 3px;
+  height: 26px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--surface-soft);
+}
+.led-status-seg {
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.led-status-seg:only-child { flex: 1 1 100% !important; }
+.led-status-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.led-status-dot {
+  --status-dot: var(--muted);
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: 6px;
+  vertical-align: -1px;
+  background: var(--status-dot);
+}
+.led-status-legend strong { color: var(--text); }
+
+.led-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.led-table th,
+.led-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: middle;
+}
+.led-table th {
+  font-size: 10.5px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 600;
+  background: var(--surface-soft);
+}
+.led-table td code {
+  font-size: 12px;
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);
+  color: var(--text);
+}
+.led-table tr:last-child td { border-bottom: none; }
+.led-num { text-align: right; font-variant-numeric: tabular-nums; }
+.led-total-row td { font-weight: 700; color: var(--text); border-top: 1px solid var(--line-bright); }

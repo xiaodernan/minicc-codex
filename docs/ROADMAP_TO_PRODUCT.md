@@ -49775,3 +49775,33 @@ M8-T885 写了 `.cache-donut[style*="--donut"] svg { width: var(--donut); height
   用户看到的仍是完全相同的 agent 回路；
 - 动画仅 transform/opacity/background-position——无合成器重绘；
 - 光晕为 `z-index:-1`，mark 上方零遮挡。
+
+## 批次 894 - M8-T893：「账本」面板 — 侧边栏新入口，整屏摊开工作区账单
+
+### 1 为什么
+
+`/api/metrics` 早已答出 workspace 级的 prompt_cache_hit 率、按模型计 token、
+Redis 拓扑、任务计数，但没有任何面向用户的界面把它们摊开——操作员想知道"这个项目花了多少
+钱、命中率是多少、哪个模型最贵"，得自己 curl 再心算。
+
+### 2 做了什么
+
+- 侧边栏主导航「任务 / 工作区 / 活动 / **账本**」四块等重；
+- 账本面板（`openLedgerPanel`，正文走广模态 `{wide:true}`）：
+  - **Hero 计数器**：总 tokens 渐变金句数字（`background-clip: text`）；
+  - **三张指标卡**：缓存命中率（52px 圆环 `cacheDonut` + hit/miss/write 拆分）、
+    估算总成本（`cost_usd`，含 `priced/unpriced` 诚实标注）、缓存后端（Redis 实时 /
+    本地 LRU）；
+  - **状态分布条**：segmented bar 按 task 状态（已完成/失败/被重启中断/取消）的宽
+    比例色块 + 图例；
+  - **模型分解表**：按模型 tokens / cache hit/miss / 任务数 / 成本（含一行"总览"合计行）；
+- Ctrl/⌘+L 打开（与 Ctrl/⌘+N 新任务、Ctrl/⌘+K 命令面板并存），命令面板里也有一行
+  「ledger / 打开账本」；
+- 键盘可到达、Escape 关闭、dialog 生命周期共用 `activateDialog/deactivateDialog`。
+
+### 3 边界
+
+- 零新后端——`openLedgerPanel` 只读 `/api/metrics`，与 `/api/tasks` 完全同源；
+- 无计数时 `ledger.noMetrics` 空态，不报空值、不伪造非零成本；成本 0 显示"单价未注册"；
+- 桌面端与移动侧栏两种布局共用 CSS 变量，无主题分叉；
+- 仍是纯前端——所有数据真实来自现有 API，无模拟、无占位。

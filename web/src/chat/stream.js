@@ -8,7 +8,7 @@ import { applyTaskEvent, completeTask, finishLiveTask, isTerminalTask, pollTask,
 import { t } from "../core/i18n.js";
 import { $, $$, ACTIVE_TASK_STATUSES, authHeaders, authQuery, INSPECTOR_TABS, renderedHistoryKeys, RESUMABLE_TASK_PHASES, runtime, runningTasks, sessionMarkup, state, taskBySession, taskDetailLoads, taskDetailsById, taskEventSources, taskHistoryBySession, taskHistoryListBySession, taskWatchers, REASONING_EFFORTS } from "../core/state.js";
 import { icon, refreshIcons } from "../icons.js";
-import { addAssistantMessage, addLoadingMessage, addUserMessage, bindRunningTask, closeMentionPopover, compactNumber, effectiveTaskPermissions, eventSequence, eventTimelineMarkup, formatDuration, isCurrentTaskScope, isSessionBusy, phaseLabel, refreshFileTree, refreshFileTreeSoon, runtimeMetricsMarkup, sessionTaskBindings, setBusy, setConnection, setSession, setTaskTransportStatus, showAuthModal, showToast, taskDuration, taskMetrics, taskSessionKey, updateReasoningControl, updateTaskDock } from "../panels/index.js";
+import { addAssistantMessage, addLoadingMessage, addUserMessage, bindRunningTask, cacheDonut, closeMentionPopover, compactNumber, effectiveTaskPermissions, eventSequence, eventTimelineMarkup, formatDuration, isCurrentTaskScope, isSessionBusy, phaseLabel, refreshFileTree, refreshFileTreeSoon, runtimeMetricsMarkup, sessionTaskBindings, setBusy, setConnection, setSession, setTaskTransportStatus, showAuthModal, showToast, taskDuration, taskMetrics, taskSessionKey, updateReasoningControl, updateTaskDock } from "../panels/index.js";
 
 export function streamTask(taskId) {
   const binding = runningTasks.get(taskId);
@@ -605,6 +605,70 @@ export async function openTaskDetail(taskId) {
 export function openBatchPanel() {
   const taskFields = [1, 2, 3].map((index) => `<label class="batch-field"><span>${escapeHtml(t("batch.task"))} ${index}</span><textarea name="task" rows="3" placeholder="${escapeHtml(state.locale === "zh" ? "例如：检查后端测试并总结风险" : "For example: inspect backend tests and summarize risks")}"></textarea></label>`).join("");
   openPanel(t("panel.batch"), `<form class="batch-form" id="batchForm"><div class="batch-heading"><span class="eyebrow">${escapeHtml(t("batch.title"))}</span><h3>${escapeHtml(t("batch.title"))}</h3><p>${escapeHtml(t("batch.subtitle"))}</p></div><div class="batch-fields">${taskFields}</div><label class="batch-field"><span>${escapeHtml(t("batch.context"))}</span><textarea name="shared_context" rows="3" placeholder="${escapeHtml(t("batch.note"))}"></textarea></label><div class="task-detail-actions"><button class="panel-primary" type="submit">${icon("play")} ${escapeHtml(t("batch.run"))}</button></div></form>`, { wide: true });
+}
+
+export async function openLedgerPanel() {
+  const current = beginPanelRequest(t("ledger.overview"));
+  try {
+    const data = await requestJson("/api/metrics");
+    if (!current()) return;
+    const usage = (data && typeof data.usage === "object" && data.usage) || {};
+    const llm = (data && typeof data.llm_cache === "object" && data.llm_cache) || {};
+    const models = (data && typeof data.by_model === "object" && data.by_model) || {};
+    const statusMap = (data && typeof data.tasks_by_status === "object" && data.tasks_by_status) || {};
+    const priced = Number(data?.priced_tasks || 0);
+    const unpriced = Number(data?.unpriced_tasks || 0);
+    const cost = typeof data?.cost_usd === "number" ? data.cost_usd : NaN;
+    const hit = Number(usage.prompt_cache_hit_tokens || 0);
+    const miss = Number(usage.prompt_cache_miss_tokens || 0);
+    const writes = Number(usage.prompt_cache_write_tokens || 0);
+    const totalTokens = Number(usage.total_tokens || 0);
+    const hitRatePct = hit + miss > 0 ? Math.round((hit / (hit + miss)) * 100) : null;
+
+    const donutData = {
+      tokens_used: { prompt_cache_hit_tokens: hit, prompt_cache_miss_tokens: miss },
+      metrics: { cache_status: llm.cache_status || "unreported" },
+    };
+
+    const statusRows = [
+      ["completed", t("phase.completed"), "var(--mint)"],
+      ["failed", t("phase.failed"), "var(--rose)"],
+      ["interrupted", t("phase.interrupted"), "var(--amber)"],
+      ["cancelled", t("phase.cancelled"), "var(--muted)"],
+    ].filter(([key]) => Number(statusMap[key] || 0) > 0);
+
+    const maxStatus = Math.max(1, ...statusRows.map(([key]) => Number(statusMap[key] || 0)));
+
+    const modelRows = Object.entries(models)
+      .sort((a, b) => Number(b[1]?.tasks || 0) - Number(a[1]?.tasks || 0))
+      .map(([name, bucket]) => {
+        const bt = bucket?.tokens || {};
+        const tokens = Number(bt.total_tokens || 0);
+        const costStr = typeof bucket?.cost_usd === "number" ? `$${Number(bucket.cost_usd).toFixed(4)}` : '<span class="led-unpriced">—</span>';
+        return `<tr><td><code>${escapeHtml(name)}</code></td><td class="led-num">${compactNumber(tokens)}</td><td class="led-num">${compactNumber(Number(bt.prompt_cache_hit_tokens || 0))} / ${compactNumber(Number(bt.prompt_cache_miss_tokens || 0))}</td><td class="led-num">${escapeHtml(String(bucket.tasks || 0))}</td><td class="led-num">${costStr}</td></tr>`;
+      }).join("");
+
+    const hasModels = Object.keys(models).length > 0;
+    const totalRow = `<tr class="led-total-row"><td>${t("ledger.overview")}</td><td class="led-num">${compactNumber(totalTokens)}</td><td class="led-num">${compactNumber(hit)} / ${compactNumber(miss)}</td><td class="led-num"></td><td class="led-num">${Number.isFinite(cost) ? `$${cost.toFixed(4)}` : `<span class="led-unpriced">${t("ledger.unpriced")}</span>`}</td></tr>`;
+
+    const redisLabel = data?.redis_cache?.live_backend ? t("ledger.redisLive") : t("ledger.redisLocal");
+    const redisClass = data?.redis_cache?.live_backend ? "led-redis-live" : "led-redis-local";
+
+    const body = `<div class="ledger-view">
+      <div class="led-hero"><div class="led-hero-number">${compactNumber(totalTokens)}</div><div class="led-hero-label">${t("ledger.tokens")}</div></div>
+      <div class="led-stat-row">
+        <div class="led-stat"><div class="led-stat-label">${t("ledger.hitRate")}</div><div class="led-stat-donut">${cacheDonut(donutData, 52)}</div><div class="led-stat-sub">${hitRatePct !== null ? `${hitRatePct}%` : t("tasks.cacheUnreported")} · ${t("ledger.cacheHits")} ${compactNumber(hit)} · ${t("ledger.cacheMiss")} ${compactNumber(miss)} · ${t("ledger.cacheWrite")} ${compactNumber(writes)}</div></div>
+        <div class="led-stat"><div class="led-stat-label">${t("ledger.cost")}</div><div class="led-stat-big">${Number.isFinite(cost) ? `$${cost.toFixed(4)}` : '<span class="led-unpriced">$—</span>'}</div><div class="led-stat-sub">${unpriced}/${priced + unpriced} ${state.locale === "zh" ? "个任务定价" : "tasks priced"} · ${llm.cache_status || ""}</div></div>
+        <div class="led-stat"><div class="led-stat-label">${t("ledger.redisTitle")}</div><div class="led-stat-big ${redisClass}">${redisLabel}</div><div class="led-stat-sub">${data?.redis_cache ? `gets ${data.redis_cache.gets || 0} · sets ${data.redis_cache.sets || 0} · local ${data.redis_cache.local_units || 0}/${data.redis_cache.local_capacity || 0}` : "—"}</div></div>
+      </div>
+      ${statusRows.length ? `<div class="led-section"><div class="panel-section-title">${t("ledger.status")}</div><div class="led-status-bar">${statusRows.map(([key, label, color]) => `<div class="led-status-seg" style="flex:${Number(statusMap[key] || 0)} 1 0;background:${color};" title="${escapeHtml(label)}: ${escapeHtml(String(statusMap[key]))}">${escapeHtml(String(statusMap[key]))}</div>`).join("")}</div><div class="led-status-legend">${statusRows.map(([key, label]) => `<span class="led-status-dot" style="--status-dot:${statusRows.find(r => r[0] === key)[2]}"></span>${escapeHtml(label)} <strong>${escapeHtml(String(statusMap[key]))}</strong>`).join("")}</div></div>` : ""}
+      ${hasModels ? `<div class="led-section"><div class="panel-section-title">${t("ledger.models")}</div><table class="led-table"><thead><tr><th>model</th><th class="led-num">tokens</th><th class="led-num">hit/miss</th><th class="led-num">${t("ledger.tasks")}</th><th class="led-num">$</th></tr></thead><tbody>${modelRows}${totalRow}</tbody></table></div>` : `<div class="empty-panel">${t("ledger.noMetrics")}</div>`}
+    </div>`;
+    openPanel(t("ledger.overview"), body, { wide: true });
+  } catch (error) {
+    if (!current()) return;
+    openPanel(t("ledger.overview"), `<div class="error-panel">${escapeHtml(error.message)}</div>`);
+  }
 }
 
 export async function openActivityPanel() {
