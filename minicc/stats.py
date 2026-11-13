@@ -95,6 +95,16 @@ def _disk_bytes(path: Path) -> int:
     return total
 
 
+def _cache_stats() -> dict[str, Any]:
+    """The Python-side distributed cache view: shared backend vs local LRU fallback."""
+    try:
+        from minicc.redis_cache import stats
+        return stats()
+    except Exception as exc:  # noqa: BLE001 — inventory reports the failure inline
+        return {"live_backend": None, "local_units": None,
+                "local_capacity": None, "error": f"{type(exc).__name__}: {exc}"}
+
+
 def gather(workspace: Path | str | None = None) -> dict[str, Any]:
     root = Path(workspace) if workspace is not None else Path.cwd()
     state = root / ".minicc"
@@ -106,6 +116,7 @@ def gather(workspace: Path | str | None = None) -> dict[str, Any]:
         "tasks": _task_stats(state),
         "sessions": _session_stats(root),
         "disk_bytes": _disk_bytes(state) if state_exists else 0,
+        "cache": _cache_stats(),
     }
 
 
@@ -137,4 +148,16 @@ def format_stats(report: dict[str, Any], *, json_out: bool = False) -> str:
         lines.append("sessions: unreadable")
     else:
         lines.append(f"sessions: {sessions['count']} stored, {sessions['messages']} messages")
+
+    cache = report.get("cache") or {}
+    if cache.get("error"):
+        lines.append(f"cache: {cache['error']}")
+    else:
+        live = "live" if cache.get("live_backend") else "local"
+        units = cache.get("local_units")
+        capacity = cache.get("local_capacity")
+        if cache.get("live_backend") is None:
+            lines.append("cache: unavailable")
+        else:
+            lines.append(f"cache: {live} (local units {units}/{capacity}, gets={cache.get('gets',0)}, sets_shared={cache.get('sets_shared',0)}, sets_local={cache.get('sets_local',0)})")
     return "\n".join(lines)

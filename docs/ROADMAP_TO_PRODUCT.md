@@ -48981,3 +48981,56 @@ npm run test:lifecycle  → lifecycle passed: workspace hydration,
 ```
 
 local 绿；Ubuntu runner 同一比特（本批次 push）就是其 CI gate 证据。
+
+## 批次 874 - M8-T874：minicc --stats 现在带 cache 拓扑 — 分布式缓存一眼可见、Redis 在线与否直接报
+
+### 1 缺什么（动机）
+
+M8-T853 后，`/api/metrics.redis_cache` 暴露了 `live_backend/shared_hits` 这类计数器，
+但 **CLI** `--stats`（现状面板）却完全不透露 cache 侧线——"明明配了 `REDIS_URL`、
+到底生效没有"要人去看日志或 `redis-cli PTTL` 才知道。
+
+### 2 怎么做
+
+`minicc/stats.py`：新增 `_cache_stats()`：
+
+```python
+{"live_backend": bool|None, "local_units": int|None, "local_capacity": int|None,
+ "error": str? (when import/stats call fails), "gets"|"sets"|"sets_shared"|"sets_local"|
+ "shared_hits"|"shared_misses"|"fallback_reads"|"deletes"|"clears"}
+```
+
+`gather()` 现在返回 `cache: + dict[% sofar]`；
+`format_stats()`：`cache: local (local units 0/4096, gets=0, ...)` 或
+`cache: live (local units 3/4096, gets=12, sets_shared=4, sets_local=7)`，
+故障时 `cache: <type>: <reason>`。
+
+### 3 实测
+
+```text
+$ minicc --stats --workspace .
+state: present (.minicc/, 278449012 bytes)
+...
+cache: local (local units 0/4096, gets=0, sets_shared=0, sets_local=0)
+
+$ minicc --stats --json --workspace . | python -c '...'
+cache: {'gets': 0, 'shared_hits': 0, 'shared_misses': 0,
+        'sets': 0, 'sets_shared': 0, 'sets_local': 0,
+        'deletes': 0, 'clears': 0, 'local_capacity': 4096, ...}
+```
+
+### 4 验证
+
+```text
+pytest tests/test_stats.py           6 passed (含空配置 rc=0、缺键 rc=2 两种场景)
+pytest tests/test_redis_cache.py     17 passed, 2 skipped (live gate skipped unless env)
+pytest test_session_concurrency.py test_session.py test_task_store.py
+      test_the_permission_rules_cache_must_see_a_replaced_file.py
+      test_the_redis_cache_shares_one_truth.py
+                                      65 passed
+```
+
+### 5 边界
+
+- `cache` 是 extra 字段：没有 Redis / 没有 redis_cache 模块的场景下，
+  `gather()` 不抛异常、`format_stats()` 打印 "cache: unavailable"；现有 `--stats` 读者契约不变。

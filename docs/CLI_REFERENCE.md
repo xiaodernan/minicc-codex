@@ -62,7 +62,7 @@
 | --- | --- |
 | `--setup` | 创建 `.minicc/` 骨架（permissions.json + web_token.json）；只写缺失、不覆盖 |
 | `--doctor` / `--doctor-strict` | 自检；strict 使 warn 也算 fatal |
-| `--stats` | 现状清单（state/audit/tasks/sessions） |
+| `--stats` | 现状清单（state/audit/tasks/sessions + cache 的 live_backend/LRU 用量/inflight 盘点数据结构） |
 | `--capabilities` | 注册的工具与能力清单（JSON） |
 | `--print-config` | 打印生效配置（脱敏） |
 | `--version` | 版本号；`--json` 输出 `{"name": "minicc", "version": ...}` |

@@ -96,6 +96,7 @@ def test_stats_cli_json_round_trip(tmp_path: Path, monkeypatch: pytest.MonkeyPat
         "tasks",
         "sessions",
         "disk_bytes",
+        "cache",
     }
     assert payload["state_dir_present"] is False
 
