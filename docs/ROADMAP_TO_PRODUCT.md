@@ -49765,7 +49765,7 @@ M8-T885 写了 `.cache-donut[style*="--donut"] svg { width: var(--donut); height
 ### 3 验证
 
 - `node --check web/app.js` ✓；产物重建（`web/app.js` 311,491 chars 不变，
-  `web/assets/styles.c51b9736abad8019.css` 接任，Hero 段 6 处关键帧命中）；
+  `web/assets/styles.da55e3e3a9da701a.css` 接任，Hero 段 6 处关键帧命中）；
 - 色槽沿用暗/亮双主题同名 token（coral/coral-soft/surface/text）零分叉；
 - 面板首屏即空状态——CI 的 Playwright 双腿顺便验收。
 
