@@ -3591,3 +3591,9 @@ pre code { background: #0f172a; padding: 12px; display: block; overflow-x: auto;
 .prefix-strip-row b[data-tone="mint"] { color: var(--mint); }
 .prefix-strip-row b[data-tone="amber"] { color: var(--amber); }
 .prefix-strip-row b[data-tone="rose"] { color: var(--rose); }
+
+/* M8-T910: the almanac prologue's digest instrument — real repo facts read from /api/digest. */
+.almanac-instrument-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px 22px; max-width: 560px; margin-top: 4px; }
+.almanac-instrument-grid > div { display: grid; gap: 5px; align-content: start; }
+@media (max-width: 900px) { .almanac-instrument-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: none; } }
+@media (max-width: 560px) { .almanac-instrument-grid { grid-template-columns: 1fr; } }

@@ -50537,3 +50537,32 @@ M8-T907/T908（并行会话）落地后，CI 的 Python leg 对 T905 提交剩�
 ### 3 文件
 
 `minicc/doctor.py`、`web/styles.css`（`--tl-h` 默认声明已随 8dc6db9 入库）、本台账与 changelog
+
+## 批次 910 - M8-T910：「年鉴」序章获得"仓库考古仪器"—— 打开年鉴即见 main 分支、提交总数、第一笔提交、批次手稿数
+
+### 1 为什么
+
+M8-T898 的年鉴序章问的是"这个世界是什么"——却只有文字。M8-T905 的 `/api/digest` 恰好能用**仓库自身的数字**
+回答它：分支、HEAD、提交总数、最老一次提交、roadmap 的批次手稿数、跟踪/测试文件数。
+这一批把那块仪表装进序章——用户第一眼看见的不是形容词，而是一台运转中的活仪器。
+
+### 2 做了什么
+
+- `web/src/panels/almanac.js` — 序章新增 `digestInstrumentMarkup(digest)`：
+  - 只有在 `/api/digest` 应答且 `is_git === true` 时才渲染（缺端点/失败/非 git 仓库 → 整块不渲染，**不伪造数字**）；
+  - 六格读数：分支·branch@HEAD、提交总数、第一笔提交日期、批次手稿章数（`roadmap_batches`）、跟踪文件、测试文件；
+  - `dirty_entries > 0` 时附一句注脚（"这个博物馆还在施工中"）——脏工作树本身也是这个项目的真实面貌；
+  - `openAlmanacPanel` 打开后异步预取 `/api/digest`，序章静默替换为带仪表的版本；切换章节时只重渲当次按需（`loadChapter` 同打 metrics+digest 两个端点）。
+- `web/styles.css` — `.almanac-instrument-grid`：3/2/1 栏响应式网格（900px/560px 两级降级），复用 `.almanac-instrument*` 现有原子类。
+- 重建 bundle 并实测：真实浏览器探针（本机 chromium headless + route 拦截 stub 仿真）点击侧边栏「年鉴」后——
+  仪表渲染出真实 `main @ 63cdb1b / 1423 commits / 2026-08-24 / 234 章 / 1036 tracked / 700 tests`，三项关键值均在 DOM 中验证通过。
+
+### 3 验证
+
+- `npm run check:web` → up to date；`node --check web/app.js` ✓
+- JS 冒烟全绿：`test:i18n` / `test:lifecycle` / `test:timeline` / `test:cacheseries` / `test:trace` / `test:scale` + `prefix-strip smoke: PASS`
+- 真实浏览器探针：点击「年鉴」→ `.almanac-instrument-grid` 渲染，branch/commits/batches 三项真值在 DOM 中命中
+
+### 4 文件
+
+`web/src/panels/almanac.js`、`web/styles.css`、`web/app.js`、`web/asset-manifest.json`、content-addressed bundle（源即上述两个，hash 随重建漂移）

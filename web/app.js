@@ -2096,7 +2096,26 @@
             </span>
           </button>`;
   }
-  function prologueMarkup() {
+  var digestCache = null;
+  var currentChapter = "prologue";
+  function digestInstrumentMarkup(digest) {
+    if (!digest || digest.is_git !== true) return "";
+    const date = String(digest.first_commit_at || "").slice(0, 10);
+    const dirty = Number(digest.dirty_entries);
+    const branch = `${digest.branch ?? "\u2014"}${digest.head_short ? ` @ ${digest.head_short}` : ""}`;
+    const cells = [
+      { label: "\u5206\u652F \xB7 Branch", value: escapeHtml(branch) },
+      { label: "\u63D0\u4EA4\u603B\u6570 \xB7 Commits", value: digest.total_commits != null ? String(digest.total_commits) : "\u2014" },
+      { label: "\u7B2C\u4E00\u7B14\u63D0\u4EA4 \xB7 First", value: date || "\u2014" },
+      { label: "\u6279\u6B21\u624B\u7A3F \xB7 Batches", value: digest.roadmap_batches != null ? `${digest.roadmap_batches} \u7AE0` : "\u2014" },
+      { label: "\u8DDF\u8E2A\u6587\u4EF6 \xB7 Tracked files", value: digest.tracked_files != null ? String(digest.tracked_files) : "\u2014" },
+      { label: "\u6D4B\u8BD5\u6587\u4EF6 \xB7 Tests", value: digest.test_files != null ? String(digest.test_files) : "\u2014" }
+    ];
+    const grid = cells.map((cell) => `<div><div class="almanac-instrument-label">${escapeHtml(cell.label)}</div><div class="almanac-instrument-value">${cell.value}</div></div>`).join("");
+    const note = Number.isFinite(dirty) && dirty > 0 ? `<div class="almanac-sidenote">\u5DE5\u4F5C\u6811\u91CC\u8FD8\u6709 ${dirty} \u5904\u672A\u63D0\u4EA4\u6539\u52A8\u2014\u2014\u8FD9\u4E2A\u535A\u7269\u9986\u8FD8\u5728\u65BD\u5DE5\u4E2D\u3002</div>` : "";
+    return `<div class="almanac-instrument almanac-instrument-grid">${grid}</div>${note}`;
+  }
+  function prologueMarkup(digest) {
     return `
     <div class="almanac-canvas almanac-prologue">
       <div class="almanac-kicker">\u5E8F\u7AE0 \xB7 Prologue \u2014 The Letter</div>
@@ -2118,9 +2137,10 @@
           \u201C\u6211\u4E0D\u9700\u8981\u4E00\u4E2A\u66FF\u6211\u505A\u51B3\u5B9A\u7684\u4EBA\uFF1B\u6211\u9700\u8981\u4E00\u4E2A\u628A\u51B3\u5B9A\u505A\u5F97\u66F4\u7A33\u7684\u4EBA\u3002\u201D
         </p>
         <p class="almanac-sidenote">
-          \u8FD9\u662F\u7ED9\u4F60\u770B\u7684\uFF0C\u4E5F\u662F\u7ED9\u672A\u6765\u7684\u6211\u81EA\u5DF1\u770B\u7684\u3002
+          \u8FD9\u662F\u7ED9\u4F60\u7684\u4EA7\u54C1\u505A\u7684\u540C\u4E00\u4E2A\u95EE\u9898\uFF0C\u4F5C\u4E3A\u5750\u6807\u3002
         </p>
       </div>
+      ${digestInstrumentMarkup(digest)}
     </div>`;
   }
   function sparkMarkup() {
@@ -2237,7 +2257,7 @@
     </div>`;
   }
   var CHAPTER_RENDERERS = {
-    prologue: () => prologueMarkup(),
+    prologue: () => prologueMarkup(digestCache),
     spark: () => sparkMarkup(),
     depth: (metrics) => depthMarkup(metrics),
     sentry: (metrics) => sentryMarkup(metrics),
@@ -2247,12 +2267,11 @@
   async function loadChapter(id) {
     const slot = $("#almanacCanvas");
     if (!slot) return;
-    let metrics = null;
-    try {
-      metrics = await requestJson("/api/metrics");
-    } catch {
-      metrics = null;
-    }
+    const [metrics, digest] = await Promise.all([
+      requestJson("/api/metrics").catch(() => null),
+      requestJson("/api/digest").catch(() => null)
+    ]);
+    digestCache = digest;
     const renderer = CHAPTER_RENDERERS[id] ?? CHAPTER_RENDERERS.prologue;
     slot.innerHTML = renderer(metrics);
     refreshIcons();
@@ -2264,17 +2283,27 @@
       openPanel(t("almanac.title"), `
       <div class="almanac-shell">
         <nav class="almanac-rail" aria-label="Chapters">${rail}</nav>
-        <div class="almanac-canvas-shell"><div class="almanac-canvas" id="almanacCanvas">${prologueMarkup()}</div></div>
+        <div class="almanac-canvas-shell"><div class="almanac-canvas" id="almanacCanvas">${prologueMarkup(digestCache)}</div></div>
       </div>
     `, { wide: true });
       document.querySelectorAll(".almanac-chapter").forEach((button) => {
         button.addEventListener("click", () => {
           document.querySelectorAll(".almanac-chapter").forEach((b) => b.classList.toggle("active", b === button));
-          loadChapter(button.getAttribute("data-chapter") || "prologue");
+          currentChapter = button.getAttribute("data-chapter") || "prologue";
+          loadChapter(currentChapter);
         });
       });
       document.querySelector('.almanac-chapter[data-chapter="prologue"]')?.classList.add("active");
       refreshIcons();
+      requestJson("/api/digest").then((digest) => {
+        digestCache = digest;
+        if (currentChapter !== "prologue") return;
+        const slot = $("#almanacCanvas");
+        if (!slot) return;
+        slot.innerHTML = prologueMarkup(digestCache);
+        refreshIcons();
+      }).catch(() => {
+      });
     } catch (error) {
       if (!current()) return;
       openPanel(t("almanac.title"), `<div class="error-panel">${escapeHtml(error.message)}</div>`);

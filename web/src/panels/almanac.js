@@ -35,7 +35,32 @@ function chapterMarkup(chapter) {
           </button>`;
 }
 
-function prologueMarkup() {
+let digestCache = null;
+let currentChapter = "prologue";
+
+function digestInstrumentMarkup(digest) {
+  if (!digest || digest.is_git !== true) return "";
+  const date = String(digest.first_commit_at || "").slice(0, 10);
+  const dirty = Number(digest.dirty_entries);
+  const branch = `${digest.branch ?? "—"}${digest.head_short ? ` @ ${digest.head_short}` : ""}`;
+  const cells = [
+    { label: "分支 · Branch", value: escapeHtml(branch) },
+    { label: "提交总数 · Commits", value: digest.total_commits != null ? String(digest.total_commits) : "—" },
+    { label: "第一笔提交 · First", value: date || "—" },
+    { label: "批次手稿 · Batches", value: digest.roadmap_batches != null ? `${digest.roadmap_batches} 章` : "—" },
+    { label: "跟踪文件 · Tracked files", value: digest.tracked_files != null ? String(digest.tracked_files) : "—" },
+    { label: "测试文件 · Tests", value: digest.test_files != null ? String(digest.test_files) : "—" },
+  ];
+  const grid = cells
+    .map((cell) => `<div><div class="almanac-instrument-label">${escapeHtml(cell.label)}</div><div class="almanac-instrument-value">${cell.value}</div></div>`)
+    .join("");
+  const note = Number.isFinite(dirty) && dirty > 0
+    ? `<div class="almanac-sidenote">工作树里还有 ${dirty} 处未提交改动——这个博物馆还在施工中。</div>`
+    : "";
+  return `<div class="almanac-instrument almanac-instrument-grid">${grid}</div>${note}`;
+}
+
+function prologueMarkup(digest) {
   return `
     <div class="almanac-canvas almanac-prologue">
       <div class="almanac-kicker">序章 · Prologue — The Letter</div>
@@ -57,9 +82,10 @@ function prologueMarkup() {
           “我不需要一个替我做决定的人；我需要一个把决定做得更稳的人。”
         </p>
         <p class="almanac-sidenote">
-          这是给你看的，也是给未来的我自己看的。
+          这是给你的产品做的同一个问题，作为坐标。
         </p>
       </div>
+      ${digestInstrumentMarkup(digest)}
     </div>`;
 }
 
@@ -183,7 +209,7 @@ function handMarkup() {
 }
 
 const CHAPTER_RENDERERS = {
-  prologue: () => prologueMarkup(),
+  prologue: () => prologueMarkup(digestCache),
   spark: () => sparkMarkup(),
   depth: (metrics) => depthMarkup(metrics),
   sentry: (metrics) => sentryMarkup(metrics),
@@ -194,12 +220,11 @@ const CHAPTER_RENDERERS = {
 async function loadChapter(id) {
   const slot = $("#almanacCanvas");
   if (!slot) return;
-  let metrics = null;
-  try {
-    metrics = await requestJson("/api/metrics");
-  } catch {
-    metrics = null;
-  }
+  const [metrics, digest] = await Promise.all([
+    requestJson("/api/metrics").catch(() => null),
+    requestJson("/api/digest").catch(() => null),
+  ]);
+  digestCache = digest;
   const renderer = CHAPTER_RENDERERS[id] ?? CHAPTER_RENDERERS.prologue;
   slot.innerHTML = renderer(metrics);
   refreshIcons();
@@ -212,17 +237,28 @@ export async function openAlmanacPanel() {
     openPanel(t("almanac.title"), `
       <div class="almanac-shell">
         <nav class="almanac-rail" aria-label="Chapters">${rail}</nav>
-        <div class="almanac-canvas-shell"><div class="almanac-canvas" id="almanacCanvas">${prologueMarkup()}</div></div>
+        <div class="almanac-canvas-shell"><div class="almanac-canvas" id="almanacCanvas">${prologueMarkup(digestCache)}</div></div>
       </div>
     `, { wide: true });
     document.querySelectorAll(".almanac-chapter").forEach((button) => {
       button.addEventListener("click", () => {
         document.querySelectorAll(".almanac-chapter").forEach((b) => b.classList.toggle("active", b === button));
-        loadChapter(button.getAttribute("data-chapter") || "prologue");
+        currentChapter = button.getAttribute("data-chapter") || "prologue";
+        loadChapter(currentChapter);
       });
     });
     document.querySelector('.almanac-chapter[data-chapter="prologue"]')?.classList.add("active");
     refreshIcons();
+    requestJson("/api/digest")
+      .then((digest) => {
+        digestCache = digest;
+        if (currentChapter !== "prologue") return;
+        const slot = $("#almanacCanvas");
+        if (!slot) return;
+        slot.innerHTML = prologueMarkup(digestCache);
+        refreshIcons();
+      })
+      .catch(() => {});
   } catch (error) {
     if (!current()) return;
     openPanel(t("almanac.title"), `<div class="error-panel">${escapeHtml(error.message)}</div>`);
