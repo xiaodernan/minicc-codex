@@ -136,6 +136,7 @@
   --focus-ring: 0 0 0 var(--focus-ring-width) var(--focus-ring-color);
   --focus-ring-inset: inset 0 0 0 var(--focus-ring-width) var(--focus-ring-color);
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 
@@ -3333,7 +3334,7 @@ pre code { background: #0f172a; padding: 12px; display: block; overflow-x: auto;
   width: 30px; height: 30px;
   display: grid; place-items: center;
   border-radius: 8px;
-  background: color-mix(in srgb, var(--coral) 12%, transparent);
+  background: color-mix(in srgb, var(--coral) 8%, transparent);
   color: var(--coral);
 }
 .template-icon svg { width: 17px; height: 17px; }

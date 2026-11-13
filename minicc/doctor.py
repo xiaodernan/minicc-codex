@@ -258,7 +258,7 @@ def check_git_worktree(workspace: Path) -> DoctorCheck:
     return DoctorCheck("git_worktree", "ok", "inside a git work tree")
 
 
-def check_llm_cache_affinity(_workspace: Path) -> DoctorCheck:
+def check_llm_cache_affinity(workspace: Path) -> DoctorCheck:
     """Is the prefix-cache affinity wired? Never touches the network.
 
     The operator question this answers: "does a warm turn re-read the same
@@ -266,14 +266,27 @@ def check_llm_cache_affinity(_workspace: Path) -> DoctorCheck:
     wiring: an endpoint or key present and which key is in flight (explicit
     override vs. the derived default). Absence of credentials is a warn, not
     a fatal — the workspace is allowed to be unconfigured for LLM calls.
-    """
-    import os
 
-    has_key = bool(os.environ.get("MINICC_API_KEY", "").strip()) or bool(
-        os.environ.get("MINICC_PLAN_API_KEY", "").strip()
-    )
-    base = os.environ.get("MINICC_BASE_URL", "").strip()
-    explicit = bool(os.environ.get("MINICC_PROMPT_CACHE_KEY", "").strip())
+    M8-T896: the wiring must be read through ``load_config`` — the one home
+    of the .env/env/project/user precedence — not raw ``os.environ``. The
+    first build probed the process environment directly and answered "no LLM
+    endpoint configured" on a workspace whose .env a real turn was using at
+    that very moment; the doctor disagreed with the product it doctors.
+    """
+    from minicc.config import ConfigError, load_config
+
+    try:
+        config = load_config(workspace=workspace)
+    except ConfigError as error:
+        return DoctorCheck(
+            "llm_cache_affinity",
+            "warn",
+            f"configuration unreadable; prefix-cache affinity not observable ({error})",
+            "fix the configuration error reported above, then rerun minicc --doctor",
+        )
+    has_key = bool(config.api_key.strip()) or bool(config.plan_api_key.strip())
+    base = config.base_url.strip()
+    explicit = bool(config.prompt_cache_key.strip())
     if not (has_key or base):
         return DoctorCheck(
             "llm_cache_affinity",

@@ -63,15 +63,74 @@ def _token(value: str | None) -> str | None:
 
 
 def _declared_pairs() -> set[tuple[str, str, str]]:
-    """(foreground, background, selector) for every rule that sets both."""
+    """(foreground, background-value, selector) for every rule that sets both."""
     pairs = set()
     for sheet in SHEETS:
         for selector, decls in rules_as_dicts(sheet):
             foreground = _token(decls.get("color"))
-            background = _token(decls.get("background") or decls.get("background-color"))
-            if foreground and background:
+            background = decls.get("background") or decls.get("background-color")
+            if foreground and background and _background_sources(background):
                 pairs.add((foreground, background, selector))
     return pairs
+
+
+_MIX_RE = re.compile(
+    r"color-mix\(\s*in srgb\s*,\s*(var\(\s*--[\w-]+\s*\))\s+([\d.]+)%\s*,"
+    r"\s*(transparent|var\(\s*--[\w-]+\s*\))\s*\)"
+)
+_VAR_RE = re.compile(r"var\(\s*(--[\w-]+)\s*\)")
+
+
+def _background_sources(value: str) -> list[tuple[str, float, str | None]]:
+    """Colour sources a background paints, in paint order (first = topmost).
+
+    ``color-mix(in srgb, var(--x) 13%, transparent)`` is ``--x`` at alpha .13 —
+    a wash over whatever sits beneath, not a solid ``--x``. Treating it as solid
+    made the gate answer "coral on coral" for a 12% tinted icon chip. Plain
+    ``var()`` sources paint opaque; a two-variable mix paints the lerp.
+    """
+    sources: list[tuple[str, float, str | None]] = []
+    consumed: list[tuple[int, int]] = []
+    for match in _MIX_RE.finditer(value):
+        token = _VAR_RE.search(match.group(1)).group(1)
+        other = None
+        if match.group(3) != "transparent":
+            other_match = _VAR_RE.search(match.group(3))
+            other = other_match.group(1) if other_match else None
+        sources.append((token, float(match.group(2)) / 100.0, other))
+        consumed.append(match.span())
+
+    def inside(pos: int) -> bool:
+        return any(start <= pos < end for start, end in consumed)
+
+    for match in _VAR_RE.finditer(value):
+        if not inside(match.start()):
+            sources.append((match.group(1), 1.0, None))
+    return sources
+
+
+def _composite(palette: dict[str, str], sources: list[tuple[str, float, str | None]]) -> str | None:
+    """Blend the source stack over ``--surface``; None when nothing resolves."""
+    def channels(value: str) -> tuple[int, int, int] | None:
+        if not value.startswith("#") or len(value) != 7:
+            return None
+        return tuple(int(value[i:i + 2], 16) for i in (1, 3, 5))
+
+    base = channels(resolve("--surface", palette))
+    if base is None:
+        return None
+    for token, alpha, other in reversed(sources):
+        top = channels(resolve(token, palette))
+        if top is None:
+            continue
+        if other is None:
+            base = tuple(round(alpha * t + (1 - alpha) * b) for t, b in zip(top, base))
+        else:
+            bottom = channels(resolve(other, palette))
+            if bottom is None:
+                continue
+            base = tuple(round(alpha * t + (1 - alpha) * b) for t, b in zip(top, bottom))
+    return "#%02x%02x%02x" % base
 
 
 def _hexes(palette: dict[str, str], one: str, other: str) -> tuple[str, str] | None:
@@ -94,14 +153,15 @@ def test_declared_foreground_and_background_pairs_clear_aa(theme: str) -> None:
     palette = _palette(theme)
     failures = []
     for foreground, background, selector in _declared_pairs():
-        if background in SURFACE_TOKENS:
+        if background.strip() in {f"var({token})" for token in SURFACE_TOKENS}:
             continue
-        resolved = _hexes(palette, foreground, background)
-        if resolved is None:
+        foreground_hex = resolve(foreground, palette)
+        composite = _composite(palette, _background_sources(background))
+        if not foreground_hex.startswith("#") or composite is None:
             continue
-        ratio = contrast(*resolved)
+        ratio = contrast(foreground_hex, composite)
         if ratio < AA:
-            failures.append((round(ratio, 2), foreground, background, selector))
+            failures.append((round(ratio, 2), foreground, _background_sources(background)[0][0], selector))
     failures.sort()
     assert not failures, (
         f"{theme} theme has {len(failures)} text-on-tint pair(s) below {AA}:1 —\n"

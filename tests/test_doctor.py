@@ -47,13 +47,46 @@ def test_llm_cache_affinity_reports_derived_key_when_unset(monkeypatch: pytest.M
     assert "derived" in result.detail
 
 
-def test_llm_cache_affinity_warns_without_llm_configuration(monkeypatch: pytest.MonkeyPatch) -> None:
+def _isolated_home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
+    """A workspace whose .env, project config and user config are all empty."""
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("USERPROFILE", str(home))
+    return tmp_path
+
+
+def test_llm_cache_affinity_warns_without_llm_configuration(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.delenv("MINICC_API_KEY", raising=False)
     monkeypatch.delenv("MINICC_PLAN_API_KEY", raising=False)
     monkeypatch.delenv("MINICC_BASE_URL", raising=False)
-    result = check_llm_cache_affinity(Path("."))
+    _isolated_home(monkeypatch, tmp_path)
+    monkeypatch.chdir(tmp_path)  # load_config reads .env from the CWD, not the workspace
+    result = check_llm_cache_affinity(tmp_path)
     assert result.severity == "warn"
-    assert "no LLM endpoint" in result.detail
+    # With nothing configured load_config raises before the endpoint question,
+    # so the probe either names the missing key (ConfigError) or the missing
+    # endpoint (clean config with empty values); both must stay a warn that
+    # says the affinity question cannot be answered here.
+    assert "prefix-cache affinity not observable" in result.detail
+
+
+def test_llm_cache_affinity_sees_a_dotenv_the_product_would_use(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """M8-T896: the probe must answer through the config layer, not os.environ.
+
+    The first build read the process environment directly and warned "no LLM
+    endpoint configured" while sitting in a repo whose .env a real turn was
+    using at that very moment — the doctor disagreed with the product it
+    doctors. A .env on disk (no process env vars at all) must read as ok.
+    """
+    for name in ("MINICC_API_KEY", "MINICC_PLAN_API_KEY", "MINICC_BASE_URL", "MINICC_PROMPT_CACHE_KEY"):
+        monkeypatch.delenv(name, raising=False)
+    _isolated_home(monkeypatch, tmp_path)
+    (tmp_path / ".env").write_text("MINICC_API_KEY=sk-test\nMINICC_BASE_URL=https://gateway.test/v1\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    result = check_llm_cache_affinity(tmp_path)
+    assert result.severity == "ok", result.detail
+    assert "derived" in result.detail
 
 
 def test_python_version_is_ok_on_installed_python() -> None:

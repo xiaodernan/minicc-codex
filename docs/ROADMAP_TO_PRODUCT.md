@@ -49888,3 +49888,32 @@ Redis 拓扑、任务计数，但没有任何面向用户的界面把它们摊�
 - 纯静态策划，零运行时计算、零后端调用；模板内容只改 src/chat/stream.js 的一个数组；
 - 模板不会写任何文件、不会跑任何命令；只喂进 composer；
 - 条目顺序以"新项目最常用的先"为准：扫描 → 修 → 审 → 文档 → 翻译 → 依赖 → 现代化 → 冒烟。
+
+## 批次 896 - M8-T896：接手并轨会话 pulse 在制品 — doctor 探针同源化 + AA 门升级为 alpha 合成
+
+### 1 缺什么
+
+- 并轨会话在同一个检出目录里推进 pulse 在制品（stream.js 重写、workbench pulse 视图），但留下三处违例：`--ease` 被 var() 引用却无声明家；`.template-icon` 用 `--coral 12%` 洗色垫 `--coral` 文字，浅色实测 4.35:1（AA 之下）；`.pulse-stage` 的 radial-gradient + color-mix 背景让 AA 门把 13% 洗色当纯珊瑚读出 2.16:1 假警报。
+- `minicc --doctor` 的 `llm_cache_affinity`（M8-T889）直读 `os.environ`，而 `.env` 属 config 层——在端点活着的仓库里 doctor 报"no LLM endpoint"，与产品各说各话（本机实测：`--print-config` endpoint=https://wkapi.pro/v1 key=set，同一秒 doctor warn）。
+- `docs/ROADMAP_TO_PRODUCT.md` 一处证据引用了已被重建剪除的内容寻址 CSS 哈希（T893-fix 又见），doc_pointers 报 DANGLING。
+
+### 2 处置
+
+- doctor 探针改走 `load_config(workspace=...)`（.env/env/project/user 唯一优先级家）；ConfigError 归 warn 并直说"affinity 不可观测"。实测：`[ok] llm_cache_affinity: prompt_cache_key = derived from gateway+model (automatic)`。
+- AA 门从"取第一个 var()"升级为**背景源栈 alpha 合成**：解析 `color-mix(in srgb, var(--x) P%, transparent)` 为 (x, P/100) 洗色、双色混合为 lerp、纯 var 为不透明层；按声明顺序（首层最上）自底向上 over `--surface` 合成后与前景算对比度。渐变 stops 不再误当纯色。
+- `.template-icon` 洗色 12%→8%（合成实测 4.62:1，AA 达标，视觉几乎无差）；`--ease: cubic-bezier(0.4,0,0.2,1)` 进 `:root` 唯一家。
+- 悬空引用改为逻辑键表述（"构建出的内容寻址 CSS 接任，哈希随源码滚动，不在此引用"）。
+- 通知接线被并轨提交吸收丢失后重放（api.js `completeTask` 钩 + stream.js 设置块，CRLF/LF 各按原样还原）。
+
+### 3 证据与门
+
+- `tests/test_doctor.py` 20 passed（warn 用例隔离 HOME+CWD——config 层会读真 .env，这正是修复的意义；新增"盘上 .env 无进程变量 → 必须读成 ok"回归）。
+- AA 门两主题 + palette 唯一家 + 焦点环共 20 passed；`npm run check:web` 收敛干净。
+- 变异臂 3 条精确命中（`output/mutate_t896.py`）：M1 tint 回 12% → 浅色红；M2 合成器无视 alpha → 双主题红；M3 --ease 摘除 → 唯一家红。
+- 真实 API 端到端（`gpt-6-sol`，web → agent → 回答）：`/api/chat` 发"只回答一个词：OK"，54.8s 返回 answer="OK"——product-path smoke 的 90s spinner 超时是真实模型轮次耗时（最简任务即 55s），非回归。
+- 面板探针 5 次连跑全绿（沉降等待 600ms 消除闪屏 420ms 收尾抢焦点竞态）。
+
+### 4 边界
+
+- 合成按 sRGB 直算（WCAG 公式同域）；`color-mix` 仅支持 `in srgb` 两参形式，其余背景写法回落旧路径。
+- pulse 在制品其余部分（2277 行 stream.js 重写）按用户授权原样接手提交，未逐行审读其业务逻辑——门是护栏，不是审读的替代。
