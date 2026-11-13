@@ -22,6 +22,7 @@ assistant tool_calls collapse to their text content.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import inspect
 import json
 from collections.abc import Callable
@@ -598,10 +599,17 @@ class OpenAICompatibleProvider:
         sdk_client: Any = None,
         plan_base_url: str = "",
         plan_api_key: str = "",
+        prompt_cache_key: str = "",
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.model = model
         self.timeout = timeout
+        # M8-T878: explicit cache-affinity key, or one derived from the
+        # gateway+model pair.  Gateways with several upstream shards (the
+        # common OpenAI-compatible proxy shape) route similar requests to the
+        # same shard by this key; without it the same 22k-token system prompt
+        # can land on a cold shard on every call.  Empty means "derive".
+        self._prompt_cache_key = str(prompt_cache_key or "").strip()[:64]
         self._api_key = api_key
         self._max_retries = max(0, max_retries)
         if protocol not in LLM_PROTOCOLS:
@@ -645,6 +653,18 @@ class OpenAICompatibleProvider:
 
     def _has_plan_channel(self) -> bool:
         return bool(getattr(self, "_plan_base_url", "")) and bool(getattr(self, "_plan_api_key", ""))
+
+    def _effective_prompt_cache_key(self) -> str:
+        """Stable affinity key for the gateway's upstream prefix cache.
+
+        The derived default is a salted hash of gateway+model — opaque and
+        free of workspace paths, but stable across processes so a warm cache
+        survives restarts.  An explicit MINICC_PROMPT_CACHE_KEY always wins.
+        """
+        if self._prompt_cache_key:
+            return self._prompt_cache_key
+        digest = hashlib.sha256(f"{self.base_url}|{self.model}".encode("utf-8")).hexdigest()[:16]
+        return f"minicc-{digest}"
 
     @property
     def active_channel(self) -> str:
@@ -895,6 +915,7 @@ class OpenAICompatibleProvider:
             "model": self.model,
             "messages": None,  # set below
             "timeout": self.timeout,
+            "prompt_cache_key": self._effective_prompt_cache_key(),
         }
         if use_native and tools:
             wire = messages
@@ -933,6 +954,7 @@ class OpenAICompatibleProvider:
             "input": self._to_responses_input(messages, tools if not use_native else None),
             "store": False,
             "timeout": self.timeout,
+            "prompt_cache_key": self._effective_prompt_cache_key(),
         }
         if use_native and tools:
             kwargs["tools"] = self._to_responses_tools(tools)

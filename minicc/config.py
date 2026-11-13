@@ -606,6 +606,9 @@ class Config:
     timeout: float = DEFAULT_TIMEOUT
     llm_protocol: str = DEFAULT_LLM_PROTOCOL  # auto | responses | chat_completions
     provider_retries: int = DEFAULT_PROVIDER_RETRIES
+    # M8-T878: stable prefix-cache affinity key forwarded as OpenAI's
+    # prompt_cache_key. Empty derives one from gateway+model.
+    prompt_cache_key: str = ""
     task_recovery_retries: int = DEFAULT_TASK_RECOVERY_RETRIES
     max_duration_seconds: float | None = DEFAULT_MAX_DURATION_SECONDS
     max_tool_calls: int | None = DEFAULT_MAX_TOOL_CALLS
@@ -912,6 +915,11 @@ def load_config(
         raise ConfigError(
             f"MINICC_LLM_PROTOCOL 非法: {resolved_protocol!r} (auto|responses|chat_completions)"
         )
+    # M8-T878: prompt_cache_key is a hint, not a credential — an empty value
+    # derives one from the gateway+model pair instead of sending nothing.
+    resolved_prompt_cache_key = pick(
+        None, "MINICC_PROMPT_CACHE_KEY", "prompt_cache_key", ""
+    ).strip()[:64]
     raw_provider_retries = pick(None, "MINICC_PROVIDER_RETRIES", "provider_retries", str(DEFAULT_PROVIDER_RETRIES))
     try:
         provider_retries = max(0, min(8, int(raw_provider_retries)))
@@ -1092,6 +1100,7 @@ def load_config(
         max_turns=max_turns,
         llm_protocol=resolved_protocol,
         provider_retries=provider_retries,
+        prompt_cache_key=resolved_prompt_cache_key,
         task_recovery_retries=task_recovery_retries,
         yolo=resolved_yolo,
         compact_threshold=compact_threshold,

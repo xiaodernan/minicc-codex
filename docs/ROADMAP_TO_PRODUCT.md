@@ -49158,3 +49158,82 @@ minicc-cloud-insights: {"artifact":"minicc-cloud-insights", "group":"com.minicc.
 - 纯构建层扩展，零运行时改动。
 - 各 jar 内 `target/classes/META-INF/build-info.properties` 全部产出成功（已 `zipfile` 检查）。
 - 不引入任何新的 actuator endpoint，不动 yml。
+
+## 批次 878 - M8-T878：OpenAI 兼容网关的缓存命中率从 0% 拽到 ~98% — prompt_cache_key 落地 + 缓存可见性
+
+### 1 用户观察到的问题
+
+用户反馈："调用我的 OpenAI 大模型 API 时缓存命中率这么低，而且一直显示非流；
+显示流的时候缓存命中率好的多，肯定是调用方法出了问题"。
+
+### 2 根因（实测，不猜）
+
+用真实网关 `https://wkapi.pro/v1`（模型 `gpt-6-sol`，key 与任务相同）做矩阵实测，
+同一条稳定前缀连续调用：
+
+| 线路 | 流式 | 非流式 |
+| --- | --- | --- |
+| Responses（minicc 默认） | `cached_tokens=0` **3/3 全冷** | `cached_tokens=6792` |
+| Chat Completions | `cached_tokens=None`（代理不上报） | `None` → 1115 摇摆 |
+
+responses 线路字节级相同的 ~22k-token 前缀在无 `prompt_cache_key` 时逐次落到冷分片——
+网关侧做上游轮换/亲和分片，没有客户端亲和键就等于每次换机器。
+
+带上 `prompt_cache_key` 后（同前缀、同 key、连续 3 次）：
+
+| 线路 | 无 key | 有 key（第 2、3 次） |
+| --- | --- | --- |
+| responses non-stream | input=9532, cached=0 | input=5156, cached=4950 (**96.0%**) |
+| responses stream | input=9532, cached=0 | input=5156, cached=4800/4900 (**93~95%**) |
+| chat stream | cached=9344/None 摇摆 | cached=4800/4850/4950 (**93~96%**) |
+
+说明：
+1. minicc 之前**不发 `prompt_cache_key`**——这是缓存命中率低的实质性原因（0%），不是幻觉；
+2. Chat Completions 流式在该代理上本就不上报 cached_tokens，缓存"显示不好看"也有这一层原因；
+3. `[usage]` 行只打印 `total_tokens=`，操作员**看不到**缓存命中情况——"命中率低"的感知有一半来自不可见；
+4. `prompt_cache_retention=24h|in_memory` 代理都接受，但默认不启用（改默认没有可测收益）。
+
+### 3 修复（真实接线）
+
+- `minicc/config.py:610-611` 新增 `prompt_cache_key: str = ""`；
+  `:918-921` 读取 `MINICC_PROMPT_CACHE_KEY` / config.json `prompt_cache_key`（上限 64 字符）；
+- `minicc/llm/openai_provider.py:602,612` 构造参数（默认 `""`，历史构造点零影响）；
+  `:657-669` `_effective_prompt_cache_key()`：显式 key 优先，否则派生
+  `minicc-<sha256(base_url|model)[:16]>`（不泄露工作区路径、跨进程稳定）；
+  `:918`（Responses）与 `:957`（Chat Completions）两个线路的请求都带上；
+- `minicc/main.py:1060,1084` 与 `minicc/web.py:1371,1397` 四个 OpenAICompatibleProvider
+  构造点全部接线；`minicc.config.example` 补 `#MINICC_PROMPT_CACHE_KEY=`；
+- CLI `[usage]` 行（`minicc/main.py:606-616`）在网关有上报时追加
+  `cache_hit_tokens=… cache_miss_tokens=… cache_hit_pct=…`（`total_tokens=` 前缀保持不变）。
+
+### 4 实测（修复后，真实网关，8 次连续 `minicc --yolo "Reply with exactly the single word ack."`）
+
+```text
+run 1:  total_tokens=7157 cache_hit_tokens=7040 miss=112  hit_pct=98.4
+run 2-6: 同上 98.4（连续命中）
+run 7-8: 0.0（网关切换上游分片，客户端无法强制亲和，属网关行为）
+```
+
+真实 agentic 回合（读取 README.md 后回答，tools 原生模式）：
+
+```text
+[usage] total_tokens=17442 cache_hit_tokens=14080 cache_miss_tokens=3330 cache_hit_pct=80.9
+```
+
+结论：同一前缀热度下缓存命中率从 0% → ~98.4%（tools 回合 80.9%），且操作员当场可见。
+
+### 5 测试
+
+- `tests/test_prompt_cache_key.py` 7 项：派生键稳定/不透明/随模型变化、显式键上限 64、
+  env 旋钮进 config、默认空值派生、Responses 线路请求带 key（fake SDK 捕获 kwargs）、
+  Chat Completions 线路请求带 key、CLI `[usage]` 行包含 cache_hit_tokens/cache_miss_tokens/cache_hit_pct。
+- `test_config_surface` / `test_core_llm` / `test_responses_streaming` / `test_project_config`
+  / `test_output_style` 全绿（112 项，含 config 文档化门禁）。
+
+### 6 边界（诚实声明）
+
+- 网关侧上游分片轮换仍会造成偶发全冷（实测 runs 7-8）；`prompt_cache_key` 是亲和提示不是锁，
+  客户端无法再压得更低。
+- Chat Completions 流式线路在本代理上 cached_tokens 仍不上报；想看缓存统计，Responses 协议可见性最好。
+- envelope 工具模式（网关拒绝原生 tools 后降级）必然非流式——这不是本批次的回归，是既有降级设计；
+  用户日志中 `[tool …] read_file` 表明其网关原生 tools 可用，本次未触发该降级。

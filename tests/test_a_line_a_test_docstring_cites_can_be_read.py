@@ -25,7 +25,7 @@ REPO = Path(__file__).resolve().parents[1]
 TESTS = REPO / "tests"
 
 #: The citation form: a path with a code suffix, a colon, and the first line
-#: of the cited run.  ``minicc/web.py:1498``/``:1988`` (a bare ``:NNN`` tail)
+#: of the cited run.  ``minicc/web.py:1797``/``:2302`` (a bare ``:NNN`` tail)
 #: is not a second citation -- it inherits the path.
 CITATION = re.compile(r"([A-Za-z0-9_./-]+\.(?:py|md|mjs|js|ts|tsx|json|ya?ml))[:：](\d+)")
 
@@ -40,7 +40,7 @@ REPAIRED = (
     ("minicc/agent/completion.py", 342, "text = re.sub"),
     ("minicc/agent/completion.py", 394, "完成评估与最新客观验证结果冲突"),
     ("minicc/task_manager.py", 995, "dict(self.result)"),
-    ("minicc/web.py", 1498, "budget.record_cost"),
+    ("minicc/web.py", 1797, "record_text(8000)"),
     ("tests/test_mcp_http.py", 134, "load_mcp_config(tmp_path)"),
 )
 

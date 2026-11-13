@@ -124,3 +124,5 @@
 - **config-server build-info 落地（M8-T876）**：`/actuator/info` 不再是黑盒——`META-INF/build-info.properties` 由 `spring-boot-maven-plugin:build-info` 在 generate-resources 阶段产出，实时暴露 artifact/group/version/time；`ConfigServerBuildInfoTest` 钉住键集合。
 
 - **所有 Spring Cloud 模块都上 `/actuator/info` build-info（M8-T876 + M8-T877）**：registry、inspector、tasks、insights、gateway 五个 Java 服务现在统一从 `spring-boot-maven-plugin:build-info` 产出 `META-INF/build-info.properties`，`/actuator/info` 对任一服务都能看到 artifact/group/version/time——运维一组 curl 就知道部署了哪次工件；目标绑 `generate-resources` 阶段保证 `target/classes`、打包 jar、在 compose 全栈一起跑时都能读到。
+
+- **OpenAI 兼容网关前缀缓存亲和落地（M8-T878）**：所有发往 `/v1` 的线路（Responses / Chat Completions）现在都携带 `prompt_cache_key`——显式 `MINICC_PROMPT_CACHE_KEY` 优先，否则按 `sha256(base_url|model)` 派生不透明键（不泄露工作区路径，跨进程稳定）。实测 wkapi.pro 上 `gpt-6-sol` 连续同前缀请求：热缓存命中从 0% → **98.4%**（agentic tools 回合 80.9%）；CLI `[usage]` 行现在在网关有上报时追加 `cache_hit_tokens / cache_miss_tokens / cache_hit_pct`，缓存效率当场可见。

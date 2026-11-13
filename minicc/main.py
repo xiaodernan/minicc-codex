@@ -603,7 +603,18 @@ async def _turn(
     else:
         cli_out()
     if result.tokens_used.get("total_tokens"):
-        cli_out(f"[usage] total_tokens={result.tokens_used['total_tokens']}")
+        usage_line = f"[usage] total_tokens={result.tokens_used['total_tokens']}"
+        # M8-T878: surface prefix-cache counters so cache affinity is visible
+        # in the terminal instead of only inside the structured log.
+        hit = result.tokens_used.get("prompt_cache_hit_tokens")
+        miss = result.tokens_used.get("prompt_cache_miss_tokens")
+        if hit is not None:
+            usage_line += f" cache_hit_tokens={hit}"
+        if miss is not None:
+            usage_line += f" cache_miss_tokens={miss}"
+        if hit is not None and miss is not None and (hit + miss) > 0:
+            usage_line += f" cache_hit_pct={round(100.0 * hit / (hit + miss), 1)}"
+        cli_out(usage_line)
     if view is not None:
         view.record_answer()
     if session is not None:
@@ -1046,6 +1057,7 @@ def main(argv: list[str] | None = None) -> int:
                 tool_mode=config.tool_mode,
                 protocol=config.llm_protocol,
                 reasoning_effort=effort,
+                prompt_cache_key=str(getattr(config, "prompt_cache_key", "") or ""),
             )
         if str(getattr(config, "provider_type", "openai")) == "anthropic":
             from .llm.anthropic_provider import AnthropicProvider
@@ -1069,6 +1081,7 @@ def main(argv: list[str] | None = None) -> int:
             tool_mode=config.tool_mode,
             protocol=config.llm_protocol,
             reasoning_effort=effort,
+            prompt_cache_key=str(getattr(config, "prompt_cache_key", "") or ""),
         )
 
     provider = _build_provider(model=cli_model, timeout=cli_timeout, effort=cli_effort, spec=provider_spec)

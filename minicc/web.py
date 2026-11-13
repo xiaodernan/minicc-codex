@@ -1368,6 +1368,7 @@ class AgentService:
                 reasoning_effort=str(
                     reasoning_effort or getattr(self.config, "reasoning_effort", "high")
                 ),
+                prompt_cache_key=str(getattr(self.config, "prompt_cache_key", "") or ""),
                 on_status=status_callback,
             )
         if str(getattr(self.config, "provider_type", "openai")) == "anthropic":
@@ -1393,6 +1394,7 @@ class AgentService:
             reasoning_effort=str(
                 reasoning_effort or getattr(self.config, "reasoning_effort", "high")
             ),
+            prompt_cache_key=str(getattr(self.config, "prompt_cache_key", "") or ""),
             on_status=status_callback,
         )
 

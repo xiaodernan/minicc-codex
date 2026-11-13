@@ -44,6 +44,11 @@ MINICC_REASONING_EFFORT=high
 # when a compatible gateway does not implement /responses.
 #MINICC_LLM_PROTOCOL=auto
 
+# Stable prefix-cache affinity key sent as OpenAI's prompt_cache_key. Gateways
+# with several upstream shards route similar requests to the same shard by this
+# key; leaving it empty derives one from gateway+model.
+#MINICC_PROMPT_CACHE_KEY=
+
 # Retries for transient gateway/network failures, including event-source loss.
 #MINICC_PROVIDER_RETRIES=4
 

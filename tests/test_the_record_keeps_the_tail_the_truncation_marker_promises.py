@@ -19,7 +19,7 @@ Three coupled failures, all of them a number copied instead of read:
    ``render()`` itself produces - and ``/expand`` (``minicc/main.py:154``) prints
    exactly the stored string. What the operator reads still said
    「保留头 2000 + 尾 4000 字符」 while holding 3951 of those tail characters.
-3. ``minicc/web.py:1498``/``:1988`` clip at 8000, which only stays honest while the
+3. ``minicc/web.py:1797``/``:2302`` clip at 8000, which only stays honest while the
    summary is under ~1962 chars. The MCP summary is ``f"MCP {server}/{tool}"`` and the
    tool name comes from the server's own ``tools/list``: ``_unique_tool_name`` caps the
    *registry* name at ``minicc/mcp.py:730``, the summary at ``minicc/mcp.py:69`` never
