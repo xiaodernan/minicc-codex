@@ -182,3 +182,5 @@
 - **脉搏卡新增「任务时间轴」（M8-T904）**：任务档案是列表、账本是汇总，年鉴是叙事——时间轴是第四个视角：把最近 12 个任务画成 oldest→newest 的柱状条带，高度按 tokens 的 log1p 对数比例（12% 下限，巨型任务不会压扁小任务），色调沿用档案的状态语汇（完成 mint / 失败 rose / 取消-中断 amber / 运行中 pulse 呼吸）。悬浮看任务名·tokens，点击直接打开任务。纯计算核心 `taskTimelineSeries` 与渲染 `taskTimelineMarkup` 分离、可直接被门测试 import；无任务时显示 `pulse.timelineEmpty`。同时本批携带了对话框 visibility 转场聚焦竞态的根治（`.show` 立即翻转 visibility）。`test:timeline` 已接入 JS syntax 腿。
 
 - **脉搏卡任务时间轴（M8-T904）**：`pulse.epoch` 占位键终于落地——任务档案上方一条时间轴，每任务一根柱：左老右新、log 尺度定高（百万 token 巨任务压不扁 2k 小跑）、completed=mint / failed=rose / cancelled=amber / 运行中呼吸脉冲、零 token 任务 8% stub（跑过就是跑过）。悬停出 tooltip，点击走既有 data-open-task 委托直达任务详情。探针顺带揪出并修好潜伏 bug：`#pulseMemory` 自 T895 起就不存在，fetchAll 每次踩 null 落 catch——命中率/上下文/完成率三个圆环与任务档案其实一直是坏的，如今首次真正读数（57% 命中、46% 完成、12 条档案）。
+
+- **DOM id 契约门（M8-T905）**：#pulseMemory 式幽灵 id 整类封死——脚本里每个字面 `$("#id")`/`getElementById("id")` 引用必须有家（index.html 定义、JS 模板创建、或 `.id=` 惰性创建），基线 174 引用 / 0 幽灵一次绿；门自反验证自己看得见 pulseMemory 那个形状、不误报 approvals.js 的运行时创建。
