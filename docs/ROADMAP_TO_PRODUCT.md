@@ -50152,3 +50152,30 @@ repo 根不应堆运行产物，全删。
 - `web/index.html` — 侧边栏新增「年鉴」入口
 - `web/src/main.js` — nav handler
 - `web/src/core/i18n.js` — zh/en 全量 key
+
+## 批次 899 - M8-T899：JavaScript 语法 CI 红 → 绿 — `_emit_provider_progress` 调用签名改为关键字参数，前端 smoke 门看得清楚了
+
+### 1 背景
+
+M8-T897 的 CI（run 43488515122）两条 Python 腿在跑（status in_progress/cancelled），但 **JavaScript syntax** 腿直接失败——报错来自 `tests/frontend_trace_code_one_home_smoke.mjs`："these labels name no code anyone mints (backend or the frontend itself): provider_reasoning_progress, provider_tool_call_progress, provider_tool_call_start"。
+
+这个 smoke 用 `code="..."` 正则扫描后端 Python 源，判断哪些 code 被 `minted`。问题：后端通过 `_emit_provider_progress("literal", summary, detail)` 位置调用，第二参数是 f-string、第三参数是 dict，代码字面量在第一个位置参数里——正则 `code=\s*["']` **看不到**。
+
+### 2 修复
+
+把 9 个 `_emit_provider_progress("literal", ...)` 调用改成关键字参数形式：
+```python
+_emit_provider_progress(
+    code="provider_tool_call_start",
+    summary=...,
+    detail={"tool": incoming, "chars": tool_stream_chars},
+)
+```
+9 处调用、全部统一为 keyword 形式；烟测试的 `test_the_toolstream_chip_answers_its_own_keys.py` 的后端正则也同步调整为匹配 `code="..."` 与 `code="..."` 两种风格（保留兼容）。
+
+### 3 验证
+
+- `pytest tests/test_responses_streaming.py tests/test_chat_stream_progress.py tests/test_the_toolstream_chip_answers_its_own_keys.py` → **14 passed**
+- `node tests/frontend_trace_code_one_home_smoke.mjs` → **M8-T556 ok**（96 minted codes 全有中英文标签）
+- `git diff --stat`：65 行（原 3190 行行尾噪声已归位 LF）
+- 再次验证 line endings：current CRLF=0, LF=1595（与 HEAD 一致）

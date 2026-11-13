@@ -1040,10 +1040,10 @@ class OpenAICompatibleProvider:
                             tool_progress["chars"] = 0
                             tool_progress["announced"] = True
                             self._emit_provider_progress(
-                                "provider_tool_call_start",
-                                f"正在生成工具调用 {tool_progress['tool']}" if tool_progress["tool"] else "正在生成工具调用",
-                                {"tool": tool_progress["tool"]},
-                            )
+                                code="provider_tool_call_start",
+                                summary=f"正在生成工具调用 {tool_progress['tool']}" if tool_progress["tool"] else "正在生成工具调用",
+                                detail={"tool": tool_progress["tool"]},
+                                )
                     elif event_type == "response.function_call_arguments.delta":
                         delta = str(getattr(event, "delta", "") or "")
                         if delta:
@@ -1052,17 +1052,17 @@ class OpenAICompatibleProvider:
                             if now - tool_progress["last"] >= PROVIDER_PROGRESS_INTERVAL:
                                 tool_progress["last"] = now
                                 self._emit_provider_progress(
-                                    "provider_tool_call_progress",
-                                    f"工具参数流式生成中 · {tool_progress['tool'] or '?'} · {tool_progress['chars']} 字符",
-                                    {"tool": tool_progress["tool"], "chars": tool_progress["chars"]},
-                                )
+                                    code="provider_tool_call_progress",
+                                    summary=f"工具参数流式生成中 · {tool_progress['tool'] or '?'} · {tool_progress['chars']} 字符",
+                                    detail={"tool": tool_progress["tool"], "chars": tool_progress["chars"]},
+                                    )
                     elif event_type == "response.function_call_arguments.done":
                         if tool_progress["announced"] and tool_progress["chars"]:
                             self._emit_provider_progress(
-                                "provider_tool_call_progress",
-                                f"工具调用已成形 · {tool_progress['tool'] or '?'} · {tool_progress['chars']} 字符",
-                                {"tool": tool_progress["tool"], "chars": tool_progress["chars"], "done": True},
-                            )
+                                code="provider_tool_call_progress",
+                                summary=f"工具调用已成形 · {tool_progress['tool'] or '?'} · {tool_progress['chars']} 字符",
+                                detail={"tool": tool_progress["tool"], "chars": tool_progress["chars"], "done": True},
+                                )
                     elif event_type in {
                         "response.reasoning_summary_text.delta",
                         "response.reasoning_text.delta",
@@ -1074,10 +1074,10 @@ class OpenAICompatibleProvider:
                             if now - reasoning_progress["last"] >= PROVIDER_PROGRESS_INTERVAL:
                                 reasoning_progress["last"] = now
                                 self._emit_provider_progress(
-                                    "provider_reasoning_progress",
-                                    f"推理进行中 · {reasoning_progress['chars']} 字符",
-                                    {"chars": reasoning_progress["chars"]},
-                                )
+                                    code="provider_reasoning_progress",
+                                    summary=f"推理进行中 · {reasoning_progress['chars']} 字符",
+                                    detail={"chars": reasoning_progress["chars"]},
+                                    )
                     elif event_type in {"response.completed", "response.incomplete", "response.failed"}:
                         final = getattr(event, "response", None)
                 if final is None:
@@ -1386,10 +1386,10 @@ class OpenAICompatibleProvider:
                         if now - reasoning_stream_last >= PROVIDER_PROGRESS_INTERVAL:
                             reasoning_stream_last = now
                             self._emit_provider_progress(
-                                "provider_reasoning_progress",
-                                f"推理进行中 · {reasoning_stream_chars} 字符",
-                                {"chars": reasoning_stream_chars},
-                            )
+                                code="provider_reasoning_progress",
+                                summary=f"推理进行中 · {reasoning_stream_chars} 字符",
+                                detail={"chars": reasoning_stream_chars},
+                                )
                     for tc in getattr(delta, "tool_calls", None) or ():
                         index = getattr(tc, "index", 0) or 0
                         slot = tool_acc.setdefault(
@@ -1404,10 +1404,10 @@ class OpenAICompatibleProvider:
                                 if not slot["name"]:
                                     slot["name"] = incoming
                                     self._emit_provider_progress(
-                                        "provider_tool_call_start",
-                                        f"正在生成工具调用 {incoming}",
-                                        {"tool": incoming},
-                                    )
+                                        code="provider_tool_call_start",
+                                        summary=f"正在生成工具调用 {incoming}",
+                                        detail={"tool": incoming},
+                                        )
                                 else:
                                     slot["name"] = slot["name"] + incoming
                             if getattr(function, "arguments", None):
@@ -1418,20 +1418,20 @@ class OpenAICompatibleProvider:
                                 if now - tool_stream_last >= PROVIDER_PROGRESS_INTERVAL:
                                     tool_stream_last = now
                                     self._emit_provider_progress(
-                                        "provider_tool_call_progress",
-                                        f"工具参数流式生成中 · {slot['name'] or '?'} · {tool_stream_chars} 字符",
-                                        {"tool": slot["name"], "chars": tool_stream_chars},
-                                    )
+                                        code="provider_tool_call_progress",
+                                        summary=f"工具参数流式生成中 · {slot['name'] or '?'} · {tool_stream_chars} 字符",
+                                        detail={"tool": slot["name"], "chars": tool_stream_chars},
+                                        )
 
                 if not stream_completed:
                     raise StreamProtocolError("stream ended before completion")
                 if tool_stream_chars:
                     names = [str(slot.get("name") or "") for slot in tool_acc.values() if slot.get("name")]
                     self._emit_provider_progress(
-                        "provider_tool_call_progress",
-                        f"工具调用已成形 · {', '.join(names) or '?'} · {tool_stream_chars} 字符",
-                        {"tool": names[0] if len(names) == 1 else ",".join(names), "chars": tool_stream_chars, "done": True},
-                    )
+                        code="provider_tool_call_progress",
+                        summary=f"工具调用已成形 · {', '.join(names) or '?'} · {tool_stream_chars} 字符",
+                        detail={"tool": names[0] if len(names) == 1 else ",".join(names), "chars": tool_stream_chars, "done": True},
+                        )
                 response = LLMResponse(
                     content=committed_text or None,
                     reasoning_content=committed_reasoning or None,

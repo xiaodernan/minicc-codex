@@ -69,7 +69,7 @@ def test_the_ui_codes_and_the_emitter_codes_name_the_same_three() -> None:
     missing_in_ui = CHIP_CODES - ui_codes
     assert not missing_in_ui, f"chip would never fire: UI lacks {sorted(missing_in_ui)}"
     provider = PROVIDER.read_text(encoding="utf-8")
-    emitted = set(re.findall(r'_emit_provider_progress\(\s*"([a-z_]+)"', provider))
+    emitted = set(re.findall(r'_emit_provider_progress\(\s*(?:code=\s*)?"([a-z_]+)"', provider))
     missing_in_backend = CHIP_CODES - emitted
     assert not missing_in_backend, f"backend stopped emitting {sorted(missing_in_backend)}"
     assert ui_codes & CHIP_CODES <= emitted | CHIP_CODES

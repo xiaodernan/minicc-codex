@@ -172,3 +172,5 @@
 - **chat/completions 流式补齐同契约（M8-T900）**："非流感"按协议对称修完——工具调用 name/arguments 分片、`reasoning_content` 分片在 chat 流里同样上状态通道（三态 start/progress/done，答案流零污染）。T898 chip 在 chat 协议下零前端改动即生效。流族回归 42 绿。
 
 - **帮助面板快捷键表追上真实键位（M8-T901）**：唯一速查屏漏了 Ctrl/⌘K（面板）与 Ctrl/⌘L（账本）——补全至 8 条且中英同序；新增 `?` 全局键（与 `/` 同输入框守卫）打开帮助，速查表自举可发现。门测试双向对账 handler↔表格。
+
+- **「年鉴」上线（M8-T898）**：侧边栏新增「年鉴」入口——全屏博物馆级展板，五个章节（序章 + 5 章）以真实仓库事实为锚：缓存命中率中的仪表盘、任务总数、tokens 数来自 `/api/metrics`；没有数据时显示 `—`。左侧 rail 导航，每章 6 种不同的版式（lede / stepper / instrument / quote / list / mixed），纯 CSS + SVG 场景，零外部图片。Cmd/⌘+K 命令面板也可达。欢迎每次 commit 后关掉 index.html 再开浏览器，观察序章到第五章如何讲述同一个故事。
