@@ -146,3 +146,5 @@
 - **`minicc --stats` 显示前缀缓存命中率（M8-T887）**：`llm_cache` 段从 `tasks.sqlite3` 快照聚合 `prompt_cache_hit/miss_tokens`（未上报行不计数，绝不伪造 0），`--stats` 输出一行 `hit rate NN.N%`，`--json` 多一段 `llm_cache`——运维裸跑 CLI 也能看见这本账。新门 `test_stats_llm_cache_aggregates_snapshots`（3/4 快照参与聚合，键集被钉住）。
 
 - **429 计数器的装配顺序修复（M8-T888）**：T886 上线的 `RateLimitMetricsFilter` 放在 `LOWEST_PRECEDENCE`，而 Redis 限流器答 429 时不再调用下游链——计数器实测一条都没记（`/actuator/metrics/gateway.rate_limited` 返回 404，全栈实测暴露）。已改为 `HIGHEST_PRECEDENCE`（wrap 整个链），并把 `getOrder() == HIGHEST_PRECEDENCE` 钉进测试；实机验证：60 并发 → 40×200 / 20×429，`actuator/metrics/gateway.rate_limited{route=tasks}` COUNT = 20.0。
+
+- **`minicc --doctor` 新增前缀缓存探针（M8-T889）**：`llm_cache_affinity` 在不碰网络的前提下回答"这台节点的缓存亲和接没接上"——`MINICC_PROMPT_CACHE_KEY` 显式键 vs gateway+model 派生键，无 LLM 端点时如实 warn 而非 fatal。`test_doctor.py` 三态门 3 项。

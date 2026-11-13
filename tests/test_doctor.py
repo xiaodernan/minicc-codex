@@ -17,6 +17,7 @@ from minicc.doctor import (
     DoctorReport,
     check_audit_log,
     check_git_worktree,
+    check_llm_cache_affinity,
     check_minicc_compiles,
     check_minicc_dir_writable,
     check_minicc_import,
@@ -27,6 +28,32 @@ from minicc.doctor import (
     run_doctor,
 )
 from minicc.internal_paths import AUDIT_NAME, PERMISSIONS_NAME, TOKEN_FILE_NAME
+
+
+def test_llm_cache_affinity_is_ok_with_explicit_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("MINICC_API_KEY", "sk-test")
+    monkeypatch.setenv("MINICC_BASE_URL", "https://gateway.test/v1")
+    monkeypatch.setenv("MINICC_PROMPT_CACHE_KEY", "tenant-key")
+    result = check_llm_cache_affinity(Path("."))
+    assert result.severity == "ok"
+    assert "explicit" in result.detail
+
+
+def test_llm_cache_affinity_reports_derived_key_when_unset(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("MINICC_API_KEY", "sk-test")
+    monkeypatch.delenv("MINICC_PROMPT_CACHE_KEY", raising=False)
+    result = check_llm_cache_affinity(Path("."))
+    assert result.severity == "ok"
+    assert "derived" in result.detail
+
+
+def test_llm_cache_affinity_warns_without_llm_configuration(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("MINICC_API_KEY", raising=False)
+    monkeypatch.delenv("MINICC_PLAN_API_KEY", raising=False)
+    monkeypatch.delenv("MINICC_BASE_URL", raising=False)
+    result = check_llm_cache_affinity(Path("."))
+    assert result.severity == "warn"
+    assert "no LLM endpoint" in result.detail
 
 
 def test_python_version_is_ok_on_installed_python() -> None:

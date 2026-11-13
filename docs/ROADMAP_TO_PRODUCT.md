@@ -49624,3 +49624,31 @@ GET /actuator/metrics/gateway.rate_limited
   行为变更（429 本身的来源、路由、限额）零改动；
 - 503→fallback 路径不计数（不是限流器拒绝，是断路器语义——两者归属不同，混流会让
   仪表盘失去分辨率）。
+
+## 批次 889 - M8-T889：`minicc --doctor` 多一条前缀缓存探针 — 运维一机自查缓存布线
+
+### 1 动机
+
+M8-T878/T879/T883/T887 把前缀缓存修到 0% → ~98%，并把账本搬上 CLI 与 `/api/metrics`。
+但裸跑 `--doctor` 的运维仍看不到"这个节点上缓存亲和到底接没接上"。这是
+"代码修了、操作员看不见"的老毛病在诊断面上的翻版。
+
+### 2 实现
+
+新探针 `check_llm_cache_affinity`（零网络、零副作用）：
+
+- 有 `MINICC_API_KEY`/`MINICC_PLAN_API_KEY` 或 `MINICC_BASE_URL` → ok，
+  detail 说明 `prompt_cache_key` 是 **explicit**（`MINICC_PROMPT_CACHE_KEY`）还是
+  **derived**（gateway+model 自动派生）——命令行一行就知道缓存布线在不在；
+- 无 LLM 端点配置 → **warn**（不是 fatal：允许节点无凭据）：提示去 `.env` /
+  `minicc.config.example` 配置以观察缓存布线；
+- `CHECKS` 元组尾部追加（先有的探针顺序不动），`--doctor`/`--doctor --json`/
+  `--doctor-strict` 全部自动纳入。
+
+新门 `tests/test_doctor.py` 3 项（explicit/derived/warn 三态 + 既有 `test_doctor`
+套件 31 项全绿；`test_doctor_returns_full_check_set` 按子集断言，新增探针不破坏）。
+
+### 3 边界
+
+- 不发真实请求验证网关缓存（doctor 的宪法：永远不碰网络）——布线判断是诚实的上限；
+- 未上报暗示不伪造"缓存必然 98%"——detail 只陈述布线事实。

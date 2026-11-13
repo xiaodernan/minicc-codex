@@ -258,6 +258,37 @@ def check_git_worktree(workspace: Path) -> DoctorCheck:
     return DoctorCheck("git_worktree", "ok", "inside a git work tree")
 
 
+def check_llm_cache_affinity(_workspace: Path) -> DoctorCheck:
+    """Is the prefix-cache affinity wired? Never touches the network.
+
+    The operator question this answers: "does a warm turn re-read the same
+    shard?" The gateway can't be probed offline, so the honest answer is the
+    wiring: an endpoint or key present and which key is in flight (explicit
+    override vs. the derived default). Absence of credentials is a warn, not
+    a fatal — the workspace is allowed to be unconfigured for LLM calls.
+    """
+    import os
+
+    has_key = bool(os.environ.get("MINICC_API_KEY", "").strip()) or bool(
+        os.environ.get("MINICC_PLAN_API_KEY", "").strip()
+    )
+    base = os.environ.get("MINICC_BASE_URL", "").strip()
+    explicit = bool(os.environ.get("MINICC_PROMPT_CACHE_KEY", "").strip())
+    if not (has_key or base):
+        return DoctorCheck(
+            "llm_cache_affinity",
+            "warn",
+            "no LLM endpoint configured; prefix-cache affinity not observable",
+            "configure the model endpoint in .env or minicc.config.example to see the cache wiring answer",
+        )
+    detail = (
+        "prefix cache: prompt_cache_key = explicit (MINICC_PROMPT_CACHE_KEY)"
+        if explicit
+        else "prefix cache: prompt_cache_key = derived from gateway+model (automatic)"
+    )
+    return DoctorCheck("llm_cache_affinity", "ok", detail)
+
+
 CHECKS = (
     check_python_version,
     check_minicc_import,
@@ -267,6 +298,7 @@ CHECKS = (
     check_web_token_permissions,
     check_permissions_json,
     check_git_worktree,
+    check_llm_cache_affinity,
 )
 
 
