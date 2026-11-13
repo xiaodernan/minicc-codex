@@ -49546,3 +49546,38 @@ M8-T882 让网关按 IP 做 Redis 令牌桶限流（120 并发：52 通 / 67 拒
 - 标签基数是路由数（个位数），不产生高基数膨胀；IP 不作为标签（那是高基数反例）；
 - 429 的成因（本限流器 vs 别的 429 来源）不区分——ingress 上 429 只有这一个来源；
   未来若引入第二种 429 源，counter 会按 route 之外再需要一个 `source` 标签，那是下一批。
+
+## 批次 887 - M8-T887：`minicc --stats` 答出前缀缓存命中率 — 命令行侧也能看见这本账
+
+### 1 动机
+
+M8-T883 让 `/api/metrics` 答出工作区级前缀缓存命中率，但 `--stats`（运维裸跑的
+CLI 清单）上只有 redis 拓扑（M8-T874）、任务/会话/审计计数——缓存账本看不见。
+同一本账在终端里也该能答。
+
+### 2 实现
+
+`minicc/stats.py` 新增 `_llm_cache_stats(state)`：自己读 `tasks.sqlite3` 快照
+（`limit=10_000`），只计**两项计数都在且 hit+miss>0** 的行——缺项一律算未上报，
+绝不伪造 0；`rate = hit / (hit + miss)` 与 `/api/metrics` 同口径。
+
+- `gather()` 增加 `llm_cache` 段（`present / tasks_with_usage / hit_tokens /
+  miss_tokens / hit_rate`；未读出错误如实带 `error` 类型名，不抛）；
+- `format_stats` 追加一行：`llm cache: N tasks, hit rate NN.N% (hit H, miss M)`；
+  无计数字段如实说 `no cache counters in stored tasks`，不编造；
+- `--stats --json` 收录 `llm_cache` 段（`test_stats_cli_json_round_trip` 同步钉住键集）。
+
+新门 `tests/test_stats.py::test_stats_llm_cache_aggregates_snapshots`：
+9000/1000 + 5000/5000 + 0/7000 + 未上报一行 → `tasks_with_usage == 3`、
+`hit == 14000`、`miss == 13000`、`rate == 14000/27000`。
+
+### 3 验证
+
+- `tests/test_stats.py` 7/7 绿（含新门 + JSON 键集钉）；
+- 引用门 6/6 绿（stats.py 行号零钉、测试零行号引用）。
+
+### 4 边界
+
+- CLI 单发运行不存任务快照（只进 `.minicc/tasks.sqlite3` 的是 web/任务路径），
+  这本账天然反映任务流量——与 `--stats` 其余计数同源；
+- 传输丢失/计数异常行被跳过而非推断——诚实弱证据优于虚假精确。

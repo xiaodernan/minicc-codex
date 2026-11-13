@@ -83,6 +83,49 @@ def _session_stats(root: Path) -> dict[str, Any]:
     return {"count": len(sessions), "messages": total_messages}
 
 
+def _llm_cache_stats(state: Path) -> dict[str, Any]:
+    """Aggregate prompt-cache counters across stored task snapshots.
+
+    Only rows carrying both counters contribute; everything else is treated
+    as unreported, never as a zero. The rate is the same hit/(hit+miss) the
+    web metrics payload uses, summed before dividing.
+    """
+    db = state / "tasks.sqlite3"
+    if not db.is_file():
+        return {"present": False}
+    try:
+        store = TaskStore(db)
+        rows = store.load(limit=10_000)
+    except Exception as exc:  # noqa: BLE001 — inventory reports the failure inline
+        return {"present": True, "error": f"{type(exc).__name__}"}
+    hit = 0
+    miss = 0
+    reported = 0
+    for row in rows:
+        usage = row.get("tokens_used") if isinstance(row, dict) else None
+        if not isinstance(usage, dict):
+            continue
+        h = usage.get("prompt_cache_hit_tokens")
+        m = usage.get("prompt_cache_miss_tokens")
+        if isinstance(h, bool) or isinstance(m, bool):
+            continue
+        if not isinstance(h, (int, float)) or not isinstance(m, (int, float)):
+            continue
+        if h + m <= 0:
+            continue
+        hit += int(h)
+        miss += int(m)
+        reported += 1
+    rate = round(hit / (hit + miss), 4) if hit + miss else None
+    return {
+        "present": True,
+        "tasks_with_usage": reported,
+        "hit_tokens": hit,
+        "miss_tokens": miss,
+        "hit_rate": rate,
+    }
+
+
 def _disk_bytes(path: Path) -> int:
     total = 0
     for dirpath, _dirs, files in os.walk(path):
@@ -117,6 +160,7 @@ def gather(workspace: Path | str | None = None) -> dict[str, Any]:
         "sessions": _session_stats(root),
         "disk_bytes": _disk_bytes(state) if state_exists else 0,
         "cache": _cache_stats(),
+        "llm_cache": _llm_cache_stats(state) if state_exists else {"present": False},
     }
 
 
@@ -148,6 +192,21 @@ def format_stats(report: dict[str, Any], *, json_out: bool = False) -> str:
         lines.append("sessions: unreadable")
     else:
         lines.append(f"sessions: {sessions['count']} stored, {sessions['messages']} messages")
+
+    llm = report.get("llm_cache") or {}
+    if llm.get("error"):
+        lines.append(f"llm cache: store unreadable ({llm['error']})")
+    elif not llm.get("present"):
+        lines.append("llm cache: absent")
+    elif not llm.get("tasks_with_usage"):
+        lines.append("llm cache: no cache counters in stored tasks")
+    else:
+        rate = llm.get("hit_rate")
+        rate_text = f"{rate * 100:.1f}%" if isinstance(rate, (int, float)) else "n/a"
+        lines.append(
+            f"llm cache: {llm['tasks_with_usage']} tasks, hit rate {rate_text} "
+            f"(hit {llm['hit_tokens']}, miss {llm['miss_tokens']})"
+        )
 
     cache = report.get("cache") or {}
     if cache.get("error"):

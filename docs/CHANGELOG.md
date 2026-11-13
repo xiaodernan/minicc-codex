@@ -142,3 +142,5 @@
 - **Pulse 卡也画前缀缓存圆环（M8-T885）**：常驻屏幕的 `.pulse-card`（agent 工作时余光扫到的那张）里 `#cacheMetric` 从"未统计"文本升级为 26px 内联 SVG 圆环，与 Runtime 摘要同一实现（`cacheDonut(data, px)`）；`aria-label` 随语言走，未上报只画轨道。
 
 - **网关 429 被拒计数进入 `/actuator/metrics`（M8-T886）**：新 `RateLimitMetricsFilter` 在过滤器链完成后仅对 `429` 递增 Micrometer counter `gateway.rate_limited{route}`——限流从"行为"升级为"信号"，Prometheus/curl 都能直接抓到按路由的拒绝数；零决策变更、零新依赖。门：`RateLimitMetricsFilterTest` 3 项。
+
+- **`minicc --stats` 显示前缀缓存命中率（M8-T887）**：`llm_cache` 段从 `tasks.sqlite3` 快照聚合 `prompt_cache_hit/miss_tokens`（未上报行不计数，绝不伪造 0），`--stats` 输出一行 `hit rate NN.N%`，`--json` 多一段 `llm_cache`——运维裸跑 CLI 也能看见这本账。新门 `test_stats_llm_cache_aggregates_snapshots`（3/4 快照参与聚合，键集被钉住）。

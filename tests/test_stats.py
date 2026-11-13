@@ -83,6 +83,30 @@ def test_stats_task_counts(tmp_path: Path) -> None:
     assert tasks["other"] == 0
 
 
+def test_stats_llm_cache_aggregates_snapshots(tmp_path: Path) -> None:
+    state = tmp_path / ".minicc"
+    state.mkdir()
+    store = TaskStore(state / "tasks.sqlite3")
+    snap_hit = _snap("t9", "completed")
+    snap_hit["tokens_used"] = {"prompt_cache_hit_tokens": 9000, "prompt_cache_miss_tokens": 1000}
+    snap_hit2 = _snap("t10", "completed")
+    snap_hit2["tokens_used"] = {"prompt_cache_hit_tokens": 5000, "prompt_cache_miss_tokens": 5000}
+    snap_cold = _snap("t11", "completed")
+    snap_cold["tokens_used"] = {"prompt_cache_hit_tokens": 0, "prompt_cache_miss_tokens": 7000}
+    snap_unreported = _snap("t12", "completed")
+    store.upsert(snap_hit)
+    store.upsert(snap_hit2)
+    store.upsert(snap_cold)
+    store.upsert(snap_unreported)
+    report = gather(tmp_path)
+    llm = report["llm_cache"]
+    assert llm["present"] is True
+    assert llm["tasks_with_usage"] == 3  # the unreported snapshot contributes nothing
+    assert llm["hit_tokens"] == 14000
+    assert llm["miss_tokens"] == 13000
+    assert llm["hit_rate"] == round(14000 / 27000, 4)
+
+
 def test_stats_cli_json_round_trip(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
     monkeypatch.delenv("MINICC_API_KEY", raising=False)
     monkeypatch.delenv("MINICC_BASE_URL", raising=False)
@@ -97,6 +121,7 @@ def test_stats_cli_json_round_trip(tmp_path: Path, monkeypatch: pytest.MonkeyPat
         "sessions",
         "disk_bytes",
         "cache",
+        "llm_cache",
     }
     assert payload["state_dir_present"] is False
 
