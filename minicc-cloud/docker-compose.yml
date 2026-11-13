@@ -166,6 +166,9 @@ services:
       SPRING_RABBITMQ_PORT: "5672"
       SPRING_RABBITMQ_USERNAME: guest
       SPRING_RABBITMQ_PASSWORD: guest
+      # Opt in to the Redis token bucket (20 rps refill, 40 burst, per-IP).
+      # Override with MINICC_GATEWAY_RATE_LIMIT_REPLENISH / _BURST / _REQUESTED.
+      SPRING_PROFILES_ACTIVE: ratelimit
       # Gateway response timeout / timelimiter, above the inspector's own budget
       # by the default margin (P1). Raise together with the inspector's budget
       # on slow mounts; never lower one without the other.

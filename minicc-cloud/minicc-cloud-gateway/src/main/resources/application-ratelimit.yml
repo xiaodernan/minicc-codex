@@ -1,0 +1,24 @@
+# Token-bucket rate limiting, opt-in through the `ratelimit` profile.
+#
+# Why a separate profile: the shipped gateway has to boot without a Redis
+# token bucket enforcement in unit tests and on a bare laptop. Activating the
+# profile (SPRING_PROFILES_ACTIVE=ratelimit, or compose) turns on a
+# `default-filters` entry applied to every route; nothing else in the
+# configuration changes.
+#
+# Defaults: 20 tokens/s refill, 40-token burst, one token per request.
+# Env knobs (relax-binding): MINICC_GATEWAY_RATE_LIMIT_REPLENISH /
+# _BURST / _REQUESTED — raise the burst for trusted-LAN deployments,
+# never lower replenish below the rate your own health probes need.
+spring:
+  cloud:
+    gateway:
+      server:
+        webflux:
+          default-filters:
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: ${MINICC_GATEWAY_RATE_LIMIT_REPLENISH:20}
+                redis-rate-limiter.burstCapacity: ${MINICC_GATEWAY_RATE_LIMIT_BURST:40}
+                redis-rate-limiter.requestedTokens: ${MINICC_GATEWAY_RATE_LIMIT_REQUESTED:1}
+                key-resolver: "#{@ipKeyResolver}"

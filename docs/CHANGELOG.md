@@ -132,3 +132,5 @@
 - **GAP 文档缓存亲和结论订正（M8-T880）**：`docs/GAP_ANALYSIS_AND_ROADMAP.md:175` 中"客户端无法修复"已按 M8-T878 实测订正——`prompt_cache_key` 是客户端修复，wkapi.pro 热缓存 0% → ~98.4%；历史核查事实保留不动。
 
 - **M8-T880 行尾事故修复（M8-T881）**：`docs/GAP_ANALYSIS_AND_ROADMAP.md` 之前被误改为 CRLF（整文件 476 行 diff）；已整体回退到 LF 基底并逐字拼回唯一应变的一行——订正缓存亲和判断的那行保持不变，diff 恢复为单行。
+
+- **网关按 IP 的 Redis 令牌桶限流（M8-T882）**：`SPRING_PROFILES_ACTIVE=ratelimit` 时，Spring Cloud Gateway 的 `default-filters` 增加 `RequestRateLimiter`（Redis 令牌桶，默认 20 tok/s 回填 + 40 burst，每 IP 一个桶）；未激活零变化。全栈实机验证：120 并发下 52 通行/67 被 429/1 次 503（上游打满时的带因回退），桶回填后恢复 200。新增 `IpKeyResolver`（无 IP 降级 `unknown` 共享桶）、`application-ratelimit.yml`（`MINICC_GATEWAY_RATE_LIMIT_*` 可调）、两个门测试 + compose 激活钩。

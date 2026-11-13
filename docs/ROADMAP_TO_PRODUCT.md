@@ -49354,3 +49354,55 @@ Python 源码与测试文件逐一复查，均为 LF（本 session 其余编辑�
 文档订正走"整文件读-改-写"的路径时必须显式钉死 LF（`newline="\n"`）；
 编辑器工具在仓库内引入 CRLF 的案例已有两次（minicc.config.example 首提交前已手工修回）。
 以后 `git diff --stat` 发现整文件行数异常翻倍/翻红时，先怀疑行尾，再提交。
+
+## 批次 882 - M8-T882：网关上了按 IP 的 Redis 令牌桶限流 — 一个客户端耗尽 LLM 预算的路径被堵住
+
+### 1 动机
+
+用户授权的两条长期主线之一："注意 redis 的运用 …… 计网知识的运用"。网关有 CircuitBreaker、
+RequestSize、LB 缓存、lb 健康检查，独缺**下游限流**——一个疯狂客户端（或脚本循环）可以
+把网关后面的 inspector/tasks 与它们驱动的 LLM 预算全部吃光，断路器管不了这件事
+（它管的是失败率，不是速率）。
+
+### 2 实现（Spring Cloud Gateway 官方件 + Redis，两个依赖零手写 Lua）
+
+- `minicc-cloud-gateway/pom.xml`：新增 `spring-boot-starter-data-redis-reactive`
+  （RequestRateLimiter 的 RedisRateLimiter 跑在响应式 Lettuce 上；阻塞版保留给缓存路径）；
+- 新 `IpKeyResolver.java`（`@Component("ipKeyResolver")`）：`KeyResolver` 实现，键 = 调用方
+  IP；无 socket 地址时降级到 `"unknown"` 共享桶而不是抛 NPE 断链；
+- 新 `application-ratelimit.yml`：仅 `ratelimit` profile 激活时，往 `default-filters`
+  声明 `RequestRateLimiter`（replenishRate=${20}, burstCapacity=40, requestedTokens=1，
+  `key-resolver: "#{@ipKeyResolver}"`）。旋钮：`MINICC_GATEWAY_RATE_LIMIT_REPLENISH/_BURST/_REQUESTED`。
+  未激活 = 零行为变化（CI 虚拟机与裸机冒烟不受限流影响）；
+- `docker-compose.yml` 的 gateway 服务：`SPRING_PROFILES_ACTIVE=ratelimit`（host 口
+  env 覆盖已有：`MINICC_CLOUD_RABBITMQ_PORT` 等本机端口冲突时用 env，不改默认值）；
+- 新测试（纯文本门，无 Spring 上下文）`RateLimitProfileTest`：profile 声明了 RequestRateLimiter +
+  两个 replenish/burst 旋钮 + `#{@ipKeyResolver}`、bean 名一致性、compose 真的激活了 profile；
+  `IpKeyResolverTest` 2 项：正常 IP / 空地址降级；
+  网关模块 `mvn -o -pl minicc-cloud-gateway test` → **全绿**（含新 5 项）。
+
+### 3 实机验活（Docker Desktop，全栈 HEALTHY）
+
+本机端口被其它项目占用，宿主口全部走 env 偏移（registry 18761 / config 28888 /
+redis 26379 / rabbit 25672 / gateway 18080 / tasks 28082 / insights 28087）——
+**只动环境变量，不碰其它项目的进程与容器**。
+
+```text
+docker compose up -d  →  全栈 8 服务 HEALTHY，gateway 注册到 Eureka
+GET /api/tasks        → HTTP 200（限流 profile 生效后正常流量无感）
+
+120 并发 × GET /api/tasks：
+  200: 52    429: 67    503: 1（上游被打满时的一次带因回退，符合 fallback 语义）
+等待 ~3s 后再 GET /api/tasks → HTTP 200（桶回填 20 tok/s，符合预期）
+```
+
+修前：同样的 120 并发是 120× 200。修后：超限一律 429（RequestRateLimiter 的标准拒绝语义，空响应）。
+
+### 4 边界
+
+- 限流键 = 源 IP：能防"脚本循环打爆 LLM 预算"，防不了共享出口 IP 后面的多个
+  恶意客户端（NAT 场景）——那是下一层（每用户 key / 认证后的 token 计费），不在本批。
+- compose 里启用、CI 不启用（CI 不跑 compose）；裸 `docker compose up` 与
+  `SPRING_PROFILES_ACTIVE=ratelimit` 行为一致。
+- 未改任何路由谓词、断路器、fallback——限流叠加在 filter 链最外层，只让请求在
+  前台就地拒绝（429，空响应），不进路由，不耗上游。
