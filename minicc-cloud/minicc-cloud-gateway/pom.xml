@@ -63,6 +63,19 @@
       <plugin>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-maven-plugin</artifactId>
+        <executions>
+          <!-- Emits META-INF/build-info.properties holding artifact/version/time so
+               Spring Boot Actuator can serve them at /actuator/info. Phase set early on
+               purpose so the unit tests can verify the emitted bytes — the build
+               info is an operator-visible contract, not a cosmetic extra. -->
+          <execution>
+            <id>generate-build-info</id>
+            <phase>generate-resources</phase>
+            <goals>
+              <goal>build-info</goal>
+            </goals>
+          </execution>
+        </executions>
       </plugin>
     </plugins>
   </build>

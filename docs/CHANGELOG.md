@@ -104,3 +104,7 @@
 - **SQLite 表达式索引尝试与回滚（M8-T864）**：`list_by_session` 值得索引（438→46ms，9.4×）；但表达式索引逼写路径也容忍畸形 JSON —— 与 durability 契约冲突（`tests/test_task_store_durability_contract.py::test_corrupt_payload_does_not_break_load_or_get` 实锤失败），**已回滚**，实测结论与证据入账本。
 
 - **Bridge 边界 transient-retry（M8-T867）**：`GovernedRunner` 新增 5 参构造器（`maxAttempts`/`retryDelay`），delegate 抛 volatile 异常时带短退避重试（默认 3 次 / 150ms），"提前断开"不再让整个 inspector 变 503；接线到 inspector `BridgeConfiguration`，knobs 落 `application.yml` + config-server `config-repo/minicc-cloud-inspector.yml`（`MINICC_CLOUD_BRIDGE_MAXATTEMPTS` / `MINICC_CLOUD_BRIDGE_RETRYDELAYMS`）；`GovernedRunnerRetryTest` 5 条钉住 volatile/回收/换手/非零退出码不重试/permits 不泄漏。
+
+- **Actuator `/actuator/info` 首次上线 build 信息（M8-T868）**：gateway 的 `spring-boot-maven-plugin` 绑 `build-info`（phase=generate-resources），
+  `META-INF/build-info.properties` 产出 artifact/group/version/time；运维现在能 `GET /actuator/info` 看到
+  `{"build":{"artifact":"minicc-cloud-gateway","version":"0.1.0","time":"2026-11-13T04:56:33.309Z",...}}` 而不需要 SSH；`BuildInfoResourceTest` 2 条钉住键集合。

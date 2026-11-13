@@ -48729,3 +48729,47 @@ mvn -o test（reactor）
 BUILD SUCCESS — bridge 34/34 (GovernedRunnerTest 8 + GovernedRunnerRetryTest 5)、
 inspector 29/29、tasks 14/14、insights 12/12、gateway 45/45、registry 2/2、config 2/2
 ```
+
+## 批次 868 - M8-T868：Spring Cloud 应用信息上 Actuator 端点 — `/actuator/info` 暴露 build 信息
+
+### 1 缺什么（动机）
+
+之前 `/actuator/info` 就算 ``expose: info`` 也返回 `{}`——没有 contribution。
+Spring Cloud 微服务里"哪个 artifact、哪个 build time"是运维最常见的"我到底跑的是什么"——
+没有它，回滚组根本分不清"上周那构建的网关在 prod 上到底有没有滚过去"。
+
+### 2 怎么做
+
+`minicc-cloud-gateway/pom.xml` 的 `spring-boot-maven-plugin` 绑 `<execution>`
+`build-info` 目标、`phase=generate-resources`（早于 test，存在且可被 surefire 验证）—
+Spring Boot 默认会把这 `target/classes/META-INF/build-info.properties` 自动 contribution 到
+`/actuator/info`（Actuator 内置 `BuildInfoEndpoint`），不需要额外的 bean。
+
+`BuildInfoResourceTest`（2 条，钉住工件对不对）：artifact=minicc-cloud-gateway、group=com.minicc.cloud、
+version=0.1.0、build.time 在 2026 之后且被 `\\:` 导义正常解出来；name、time、artifact 五个键齐全。
+
+### 3 实测证据
+
+```text
+$ mvn -o clean test-compile  → build-info 存在：
+  build.artifact=minicc-cloud-gateway
+  build.group=com.minicc.cloud
+  build.name=minicc-cloud-gateway
+  build.time=2026-11-13T04:48:01.085Z
+  build.version=0.1.0          (surefire 现在看到)
+
+$ mvn -o test → 47/47 绿（BuildInfoResourceTest 2/2）
+
+实机：
+$ registry (SERVER_PORT=18765) + gateway (SERVER_PORT=8411, SPRING_RABBITMQ_LISTENER_SIMPLE_AUTO_STARTUP=false)
+  + redis 6385 →  /actuator/info →
+  {"build":{"artifact":"minicc-cloud-gateway","name":"minicc-cloud-gateway",
+            "time":"2026-11-13T04:56:33.309Z","version":"0.1.0","group":"com.minicc.cloud"}}
+```
+
+这回不加任何管理 controller、不改 application.yml、不加资料—— Spring 自身机制一条线上去。
+
+### 4 边界
+
+- Actuator 路径是否被暴露仍由配置走：standalone gateway 的 application.yml `include: health,info,metrics,...` 永远包含 info；生产请在网侧保留 `info`。
+- `build.time` 是构建时刻，**不是**发行时间——发行时间记录在 `CHANGELOG.md`，这五个键是产物自验用。
