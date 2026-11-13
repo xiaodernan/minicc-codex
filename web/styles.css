@@ -2777,6 +2777,7 @@ pre code { background: #0f172a; padding: 12px; display: block; overflow-x: auto;
    Palette rides the status vocabulary (mint/amber/rose); the unreported
    state renders a hollow track only — never a fabricated zero. */
 .cache-donut {
+  --donut: 34px;
   display: inline-flex;
   align-items: center;
   gap: 7px;

@@ -49703,3 +49703,43 @@ workspace 的行被正确隔离。）
 - `test_stats_cli_json_round_trip` 键集不变（`source` 在段内，是加法项）。
 
 8/8 绿；引用门 6/6 绿。
+
+## 批次 891 - M8-T891：脉冲卡圆环上线引发双腿 Python CI 红 — 一个没声明的 CSS 自定义属性，一次修复
+
+### 1 事故（两次 CI 都红在同一门，如实登记）
+
+T888（含 T885 脉冲卡 26px 圆环）的 ubuntu-latest 与 windows-latest 两条 Python 腿同时红，
+失败用例**只有一条**：
+
+```text
+tests/test_the_palette_has_one_home.py
+test_the_palette_covers_the_roles_components_ask_for
+AssertionError: ['--donut'] are read with var() but declared nowhere in css or js;
+the declaration using them is invalid at computed-value time and silently falls
+back to the property's initial value
+```
+
+M8-T885 写了 `.cache-donut[style*="--donut"] svg { width: var(--donut); height: var(--donut); }`
+但从没在样式表里声明 `--donut`——与"所有可消费的 CSS 变量都必须有家"这一仓库既有宪法冲突。
+（`app.js` 里的 `style="--donut:26px"` 是补丁对象，不是声明的家。）
+
+### 2 修复（一行 + 重建产物）
+
+```css
+.cache-donut { --donut: 34px; }   /* 声明即家；内联 style="--donut:26px" 仍覆盖它 */
+```
+
+`node scripts/build-web.mjs` 重建（`styles.eaaada0f5d97db22.css` 退役、
+`styles.7e924b426669ec73.css` 接任），manifest 同一提交内更新。
+
+### 3 验证
+
+- `tests/test_the_palette_has_one_home.py` 5/5 绿（修前必红：门扫码样式表与 src 双面）；
+- `node --check web/app.js` ✓；bundle 内 `--donut: 34px` 确认存在；
+- 全套件早先在本机空白 Home 下交叉红的唯一源头即此门——本批之后无已知红。
+
+### 4 教训
+
+仓库的"每一枚 CSS 变量必须有一个声明它的家"是人写给工具看的宪法；视觉批次里
+新加一个 var() 引用前，先跑 `pytest tests/test_the_palette_has_one_home.py`，
+而不是推上去等双腿告诉你。
