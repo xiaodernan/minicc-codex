@@ -102,3 +102,5 @@
 
 - **Lighthouse 三项满分（M8-T863）**：`browser.lighthouse` 真实 Chromium 审计修复：accessibility 0.96 → **1.00**、best-practices **1.00**、SEO 0.75 → **1.00**；`meta-description`（中英双语）+ 双 `theme-color`（light/dark media）+ 首屏 pre-paint 主题脚本（消除先 dark 后 light 的闪烁）+ `#profileButton` 无障碍名与可见文本对齐（`当前模式` → 由可见文本「面试模式 仅本地」派生）+ 头像 `aria-hidden`；`applyTheme` 现在同步**全部** theme-color meta。
 - **SQLite 表达式索引尝试与回滚（M8-T864）**：`list_by_session` 值得索引（438→46ms，9.4×）；但表达式索引逼写路径也容忍畸形 JSON —— 与 durability 契约冲突（`tests/test_task_store_durability_contract.py::test_corrupt_payload_does_not_break_load_or_get` 实锤失败），**已回滚**，实测结论与证据入账本。
+
+- **Bridge 边界 transient-retry（M8-T867）**：`GovernedRunner` 新增 5 参构造器（`maxAttempts`/`retryDelay`），delegate 抛 volatile 异常时带短退避重试（默认 3 次 / 150ms），"提前断开"不再让整个 inspector 变 503；接线到 inspector `BridgeConfiguration`，knobs 落 `application.yml` + config-server `config-repo/minicc-cloud-inspector.yml`（`MINICC_CLOUD_BRIDGE_MAXATTEMPTS` / `MINICC_CLOUD_BRIDGE_RETRYDELAYMS`）；`GovernedRunnerRetryTest` 5 条钉住 volatile/回收/换手/非零退出码不重试/permits 不泄漏。

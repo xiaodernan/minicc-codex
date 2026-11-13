@@ -25,6 +25,13 @@ minicc:
   # The boundary is delivered by the config server; the empty default keeps a
   # standalone run working, where empty means the repo above is the only root.
   allowed-roots: ${MINICC_ALLOWEDROOTS:}
+  cloud:
+    bridge:
+      # Governed shelf: 3 = 1 attempt + 2 transient retries before the bridge
+      # reports failure. Raise on flaky children, never below 1.
+      max-attempts: ${MINICC_CLOUD_BRIDGE_MAXATTEMPTS:3}
+      # Delay between retries; pure backoff, not wait-for-availability.
+      retry-delay-ms: ${MINICC_CLOUD_BRIDGE_RETRYDELAYMS:150}
 
 management:
   endpoints:

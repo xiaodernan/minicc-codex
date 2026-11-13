@@ -7,3 +7,9 @@ minicc:
       # Inspector-specific overrides go below; the shared value stays in
       # application.yml so it cannot drift between the gateway and the service.
       max-changes: 200
+      # The bridge's transient-retry knobs (M8-T867): a volatile Python child
+      # gets this many attempts + this delay, then failure surfaces. Standalone
+      # runs use the application.yml default (3 / 150 ms).
+      bridge:
+        max-attempts: 3
+        retry-delay-ms: 150

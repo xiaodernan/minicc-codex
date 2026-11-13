@@ -48659,3 +48659,73 @@ python -m pytest tests/test_retrieval_enhanced.py tests/test_index_census.py -q
 
 优化签一行 `os.scandir` 能回避约 966 次 lstat，但仓里写明的"never scan"就是"never"——
 反正 CI 也不比人过。**当优化说"合"、安全门说"不得"时，听安全门。**
+
+## 批次 867 - M8-T867：Bridge 边界加 transient-retry — 易冻的 Python 子进程不再把整个桥拍翻
+
+### 1 动机
+
+`GovernedRunner`（`minicc-cloud-bridge`）在 delegate 抛 `RuntimeException` 时直接
+向上抛——volatile 异常（OOM 被 SIGKILL、pipe 提前断开、流读不完整）让整个
+调用者退化为一次 /api/changes 的 503，而桥里只有 `maxAttempts=1` 的"一击即败"。
+`MiniccBridge` 本身几乎从不抛诊断异常——所有真实失败（非零退出、超时、interrupted、
+broken pipe、无法启动）都压进 `BridgeResponse(exitCode, ...)` 里，**不会用异常暴露诊断**；
+所以真正沿异常路径传上来的，都是 retry-worthy 的波动——重试不会掩盖任何诊断。
+当前零退避的语义等于让偶发断开把 bridge 降级为"整个不可用"。
+
+### 2 怎么做
+
+`GovernedRunner` 拆两个构造器：
+
+- 4 参 `GovernedRunner(delegate, permits, maxWait)` — 向后兼容，默认
+  maxAttempts=3、retryDelay=150ms（`DEFAULT_MAX_ATTEMPTS`/`DEFAULT_RETRY_DELAY` 常量公开）；
+- 5 参扩展构造器 `(delegate, permits, maxWait, maxAttempts, retryDelay)` —
+  宿主把 knobs 显式下发。
+
+修改 `runBounded`：
+
+```java
+for (int attempt = 1; ; attempt++) {
+    acquire permit (在循环头部)
+    try {
+        try { return delegate.run(args); } finally { permits.release(); }
+    } catch (RuntimeException exc) {
+        // bridge 从不抛真实诊断的异常——非零退出 / 超时 / broken pipe 全压
+        // 进 BridgeResponse，异常只属于 volatile 波动
+        if (attempt >= maxAttempts) { throw exc; }
+        sleep(retryDelay);
+    }
+}
+```
+
+两个边界写死：`delegate.run(...)` 成功 → 直接返回（零额外开销）；
+volatile 再易冻的 child 重试是最多 maxAttempts 次，末次抛真实异常出去，**persistent
+失败以最后一次异常成像，不会静默吞掉**。
+
+重试只在 leader 上走（followers 共享 leader 的答案），followers 不会被放大重试。
+
+### 3 接线
+
+`BridgeConfiguration.miniccCommands(...)` 用 `@Value` 注入：
+
+- `minicc.cloud.bridge.max-attempts=3` 默认、`minicc.cloud.bridge.retry-delay-ms=150` 默认
+- inspector standalone `application.yml` 与 config-server `config-repo/minicc-cloud-inspector.yml`
+  双落地；env `MINICC_CLOUD_BRIDGE_MAXATTEMPTS` / `MINICC_CLOUD_BRIDGE_RETRYDELAYMS` 放行
+
+### 4 测试
+
+`GovernedRunnerRetryTest`（5 条）：volatile（第 3 次抛 permanent）→ 最终抛原异常、attempt=3；
+first-fail-then-ok → 200 OK retries 成功；ok delegate → 1 次；bridge-level BridgeResponse
+(non-zero) → 不重试；volatile + 重试耗尽 + permits 泄漏防护 → `freeSlots() == 2` 保持。
+
+`GovernedRunnerTest` 的旧测试 `aFailedCommandDoesNotStayInTheDedupeMap` 按重试语义拆成：
+- `aTransientFailureIsRetriedInsteadOfFailingTheCaller`（flaky 1 抛 + 后续 OK）
+- `aPermanentFailureDoesNotStayInTheDedupeMap`（重试耗尽后异常外抛 + inFlight 归零）
+— 注释很清楚地说了为什么改。
+
+### 5 验证
+
+```text
+mvn -o test（reactor）
+BUILD SUCCESS — bridge 34/34 (GovernedRunnerTest 8 + GovernedRunnerRetryTest 5)、
+inspector 29/29、tasks 14/14、insights 12/12、gateway 45/45、registry 2/2、config 2/2
+```

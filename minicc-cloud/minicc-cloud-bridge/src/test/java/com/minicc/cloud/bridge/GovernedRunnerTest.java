@@ -154,21 +154,43 @@ class GovernedRunnerTest {
     }
 
     @Test
-    void aFailedCommandDoesNotStayInTheDedupeMap() {
+    void aTransientFailureIsRetriedInsteadOfFailingTheCaller() {
         AtomicInteger runs = new AtomicInteger();
         CommandRunner flaky = args -> {
             if (runs.incrementAndGet() == 1) {
+                // A volatile once-off: pipe closed before we drained it, the child
+                // OOM-killed, a truncated readback. Not a real diagnosis — retry.
                 throw new IllegalStateException("the first child died");
             }
             return ok("second");
         };
         GovernedRunner runner = new GovernedRunner(flaky, 2, Duration.ofSeconds(1));
 
+        BridgeResponse retried = runner.run(List.of("-c", "x"));
+
+        assertThat(retried.stdout()).isEqualTo("second");
+        assertThat(runner.inFlight()).isZero();
+        assertThat(runs.get()).isEqualTo(2);
+    }
+
+    @Test
+    void aPermanentFailureDoesNotStayInTheDedupeMap() {
+        AtomicInteger runs = new AtomicInteger();
+        CommandRunner alwaysDies = args -> {
+            runs.incrementAndGet();
+            throw new IllegalStateException("always dies");
+        };
+        // Two attempts total: the second attempt exhausts the budget and the
+        // exception surfaces to the caller; the dedupe map must not keep a
+        // poisoned marker afterwards.
+        GovernedRunner runner = new GovernedRunner(alwaysDies, 2, Duration.ofSeconds(1),
+                2, Duration.ofMillis(1));
+
         assertThatThrownBy(() -> runner.run(List.of("-c", "x")))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("the first child died");
+                .hasMessageContaining("always dies");
         assertThat(runner.inFlight()).isZero();
-        assertThat(runner.run(List.of("-c", "x")).stdout()).isEqualTo("second");
+        assertThat(runs.get()).isEqualTo(2);
     }
 
     @Test

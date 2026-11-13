@@ -39,6 +39,19 @@ public final class GovernedRunner implements CommandRunner {
      *                  the boundary is saturated
      */
     public GovernedRunner(CommandRunner delegate, int permits, Duration maxWait) {
+        this(delegate, permits, maxWait, DEFAULT_MAX_ATTEMPTS, DEFAULT_RETRY_DELAY);
+    }
+
+    /**
+     * Extended constructor:  limits how many times a transient delegate failure is retried.
+     *
+     * <p>A volatile subprocess (Python child that crashes, OOM-killed, or the pipe
+     * closes) must not permanently take the bridge offline: the boundary retries up to
+     * {@code maxAttempts} attempts in total before the caller sees a failure, always
+     * preserving {@code permits} for the actual child processes.
+     */
+    public GovernedRunner(CommandRunner delegate, int permits, Duration maxWait,
+                          int maxAttempts, Duration retryDelay) {
         if (delegate == null) {
             throw new IllegalArgumentException("a delegate is required");
         }
@@ -48,9 +61,17 @@ public final class GovernedRunner implements CommandRunner {
         if (maxWait == null || maxWait.isNegative() || maxWait.isZero()) {
             throw new IllegalArgumentException("a positive wait is required, got " + maxWait);
         }
+        if (maxAttempts < 1) {
+            throw new IllegalArgumentException("at least one attempt is required, got " + maxAttempts);
+        }
+        if (retryDelay == null || retryDelay.isNegative()) {
+            throw new IllegalArgumentException("a non-negative retry delay is required");
+        }
         this.delegate = delegate;
         this.permits = new Semaphore(permits);
         this.maxWait = maxWait;
+        this.maxAttempts = maxAttempts;
+        this.retryDelay = retryDelay;
     }
 
     @Override
@@ -85,22 +106,51 @@ public final class GovernedRunner implements CommandRunner {
         return permits.availablePermits();
     }
 
+    /** Default attempts for a volatile transient delegate failure (3 = 1 + 2 retries). */
+    public static final int DEFAULT_MAX_ATTEMPTS = 3;
+    public static final Duration DEFAULT_RETRY_DELAY = Duration.ofMillis(150);
+
+    private final int maxAttempts;
+    private final Duration retryDelay;
+
     private BridgeResponse runBounded(List<String> args) {
-        boolean acquired;
+        for (int attempt = 1; ; attempt++) {
+            boolean acquired;
+            try {
+                acquired = permits.tryAcquire(maxWait.toMillis(), TimeUnit.MILLISECONDS);
+            } catch (InterruptedException exc) {
+                Thread.currentThread().interrupt();
+                return failure("interrupted while waiting for a free process slot");
+            }
+            if (!acquired) {
+                return failure("no process slot became free within " + maxWait
+                        + "; every slot was busy with another inspection");
+            }
+            try {
+                try {
+                    return delegate.run(args);
+                } finally {
+                    permits.release();
+                }
+            } catch (RuntimeException exc) {
+                // The MiniccBridge surfaces real child failures (non-zero exit,
+                // timeout, interrupt, broken pipe) inside BridgeResponse, never as
+                // an exception. Only the volatile, retry-worthy exceptions escape
+                // — even so, the last attempt always runs to completion and surfaces
+                // any persistent failure rather than masking it.
+                if (attempt >= maxAttempts) {
+                    throw exc;
+                }
+                sleep(retryDelay);
+            }
+        }
+    }
+
+    private void sleep(Duration d) {
         try {
-            acquired = permits.tryAcquire(maxWait.toMillis(), TimeUnit.MILLISECONDS);
+            Thread.sleep(d.toMillis());
         } catch (InterruptedException exc) {
             Thread.currentThread().interrupt();
-            return failure("interrupted while waiting for a free process slot");
-        }
-        if (!acquired) {
-            return failure("no process slot became free within " + maxWait
-                    + "; every slot was busy with another inspection");
-        }
-        try {
-            return delegate.run(args);
-        } finally {
-            permits.release();
         }
     }
 

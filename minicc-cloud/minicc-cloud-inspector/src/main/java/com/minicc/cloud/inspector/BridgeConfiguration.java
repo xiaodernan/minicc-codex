@@ -26,10 +26,13 @@ public class BridgeConfiguration {
      * out on its own.
      */
     @Bean
-    CommandRunner miniccCommands(MiniccProperties properties) {
+    CommandRunner miniccCommands(MiniccProperties properties,
+            @org.springframework.beans.factory.annotation.Value("${minicc.cloud.bridge.max-attempts:3}") int maxAttempts,
+            @org.springframework.beans.factory.annotation.Value("${minicc.cloud.bridge.retry-delay-ms:150}") long retryDelayMs) {
         MiniccBridge bridge = new MiniccBridge(
                 Path.of(properties.python()), Path.of(properties.repo()), properties.budget());
-        return new GovernedRunner(bridge, properties.maxProcesses(), properties.budget().plusSeconds(5));
+        return new GovernedRunner(bridge, properties.maxProcesses(), properties.budget().plusSeconds(5),
+                maxAttempts, Duration.ofMillis(retryDelayMs));
     }
 
     @Bean
