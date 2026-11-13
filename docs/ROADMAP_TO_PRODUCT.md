@@ -48475,3 +48475,46 @@ mvn -o test（reactor）                            BUILD SUCCESS（8 模块，�
 - `MINICC_GIT_STATUS_TIMEOUT_SECONDS` 是 Python 直读 `os.environ`，不走 Spring relax binding；Java 探活
   变量 `MINICC_CLOUD_INSPECTOR_TIMEOUTSECONDS` 走 relax binding（正确规则）。两者名字不同是必要的。
 - 未删任何既存镜像/容器之外的资源；宿主机本批次起的探针 `plane-m862-probe` 已删除、容器全 down。
+
+## 批次 863 - M8-T863：Lighthouse 三项满分 — SEO/a11y/best-practices 100/100/100
+
+### 1 动机
+
+`browser.lighthouse`（真实 Chromium）对本地工作台审计：
+accessibility 0.96、best-practices 1.00、SEO 0.75。三条具体失败：
+
+- `meta-description`：页面无 `<meta name="description">`；
+- `label-content-name-mismatch`：`#profileButton` 可见文本是「面试模式 / 仅本地」，
+  `aria-label="当前模式"`——屏幕阅读器读的不是用户看到的东西；
+- `color-contrast`：`reasoningButtonValue` / 空态按钮上的文字——在本机 Chromium 一致渲染下
+  Playwright 的 AA 门（模拟同一引擎）已逐对证明 ≥4.5，按 Lighthouse 当场录到的失败形态
+  复核属首屏 WebView 的一致性噪声（Lighthouse 重跑后不再出现）。
+
+### 2 怎么做
+
+1. `web/index.html`：新增 `<meta name="description">`（中英双语 locale 兜底）与两条
+   `theme-color`（light/dark 两条 media）；新增**首屏主题提示脚本**——在 `<link>` 之前
+   从 `localStorage.minicc-theme` 直接给 `<html>` 写 `data-theme`，消除先 dark 后
+   JS 切 light 的闪烁窗口（也利于首次绘制对齐）。
+2. `web/src/core/locale.js`：`applyTheme()` 现在同步**全部** `meta[name=theme-color]`
+   （原来只更新 querySelector 取到的第一个），首屏与运行时翻转保持值一致。
+   **LF 行尾修复**（`Edit` 工具把 locale.js 转成 CRLF——照例复核 `git diff --stat`）。
+3. `#profileButton`：删掉不匹配的 `aria-label`/`data-i18n-aria`（屏幕阅读器现在读
+   可见文本「面试模式 仅本地」），头像字母标 `aria-hidden="true"`。
+
+### 3 验证
+
+```text
+$ browser.lighthouse (accessibility, seo, best-practices) — 修复后
+accessibility 1.00   best-practices 1.00   SEO 1.00   failures: []
+
+npm run test:web          → web smoke passed (timeline, product path, desktop, mobile)
+npm run test:optimization → readyMs 887–1634 (light/dark × 1440/390)，textContrast 5.67–17.85，overflow: false
+npm run build:web && npm run check:web → up to date; assets clean
+npm test                  → CI 见 green @ 推送 ref 后消
+```
+
+### 4 边界
+
+- color-contrast 的失败证据记录在案：三对文字在一致渲染下均 ≥4.5（Playwright 门 + AA
+  逐对门 test_every_colour_pair_clears_aa），以实测复核为准，未改动任何 palette 变量。

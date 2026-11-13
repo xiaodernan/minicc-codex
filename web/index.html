@@ -3,7 +3,20 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
-    <meta name="theme-color" content="#eef7fb" />
+    <meta name="theme-color" content="#eef7fb" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#111214" media="(prefers-color-scheme: dark)" />
+    <meta name="description" content="minicc — 本地优先的智能编码工作台：在你的仓库里读代码、跑工具、审批式改文件，全程本机、凭据不落盘、每一步可审计。 minicc is a local-first coding workbench: it reads your repo, runs tools and edits under approval — everything stays on your machine and stays auditable." />
+    <script>
+      // Apply the persisted theme before first paint so the page never flashes
+      // through the base palette. Runs synchronously, no module imports, no I/O
+      // outside localStorage; a corrupt value just falls back to the default.
+      try {
+        var miniccTheme = window.localStorage.getItem("minicc-theme");
+        if (miniccTheme === "light" || miniccTheme === "dark") {
+          document.documentElement.dataset.theme = miniccTheme;
+        }
+      } catch (e) { /* private mode / storage disabled: default theme applies */ }
+    </script>
     <title>minicc / Workspace</title>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="preload" href="/fonts/manrope-400.ttf" as="font" type="font/ttf" crossorigin />
@@ -88,8 +101,8 @@
             <div class="workspace-mini-copy"><span data-i18n="workspace">工作区</span><strong id="workspaceName">minicc-codex</strong></div>
             <span class="online-dot" title="本地服务已连接" data-i18n-title="workspace.connected"></span>
           </div>
-          <button class="profile-row" id="profileButton" aria-label="当前模式" data-i18n-aria="profile.label">
-            <span class="avatar user-avatar">Y</span>
+          <button class="profile-row" id="profileButton">
+            <span class="avatar user-avatar" aria-hidden="true">Y</span>
             <span class="profile-copy"><strong data-i18n="profile.mode">面试模式</strong><small data-i18n="profile.local">仅本地</small></span>
             <i data-lucide="settings-2"></i>
           </button>

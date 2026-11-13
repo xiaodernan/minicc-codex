@@ -4749,7 +4749,12 @@
     document.documentElement.dataset.theme = state.theme;
     syncHljsTheme();
     const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.content = state.theme === "light" ? "#f6f7f9" : "#111214";
+    if (meta) {
+      const themeColor = state.theme === "light" ? "#f6f7f9" : "#111214";
+      document.querySelectorAll('meta[name="theme-color"]').forEach((tag) => {
+        tag.setAttribute("content", themeColor);
+      });
+    }
     const button = $("#themeButton");
     if (!button) return;
     const isLight = state.theme === "light";
