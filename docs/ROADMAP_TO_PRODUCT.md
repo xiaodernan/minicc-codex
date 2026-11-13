@@ -50204,8 +50204,8 @@ _emit_provider_progress(
   "定义 1 次 + 调用 2 次"：`runtimeMetricsMarkup`（任务详情模态）与 `updateInspectorMetrics`（任务运行中
   脉搏卡）两处；新增对 `slot.innerHTML !== markup` 守卫与 `cacheTurnSparkline(data.usage_by_turn)`
   无 `?` 写法的断言，防止回退。
-- 重建前端 bundle：`web/app.js` / `web/asset-manifest.json` / `web/assets/app.3375e565c2b0050d.js` /
-  `web/assets/styles.0a12e503a54bbd03.css`（`scripts/build-web.mjs` 稳定可复现，同 hash 两次构建一致）。
+- 重建前端 bundle：`web/app.js` / `web/asset-manifest.json` / `web/assets/app.3823a080e697c4a6.js` /
+  `web/assets/styles.87a8d2d14e19fdae.css`（`scripts/build-web.mjs` 稳定可复现，同 hash 两次构建一致）。
 
 ### 3 验证
 
@@ -50218,7 +50218,7 @@ _emit_provider_progress(
 
 `web/index.html`、`web/src/panels/index.js`、`web/styles.css`、
 `tests/frontend_cache_series_one_home_smoke.mjs`、`web/app.js`、`web/asset-manifest.json`、
-`web/assets/app.3375e565c2b0050d.js`、`web/assets/styles.0a12e503a54bbd03.css`
+`web/assets/app.3823a080e697c4a6.js`、`web/assets/styles.87a8d2d14e19fdae.css`
 
 ## 批次 902 - M8-T902：脉搏卡实时火花线 — 逐次命中从"事后看"变成"边跑边看"
 
@@ -50319,4 +50319,25 @@ T899 的火花线只活在任务详情弹窗（事后）。任务运行中，检
 `web/app.js`、`web/asset-manifest.json`、`web/assets/app.3823a080e697c4a6.js`、
 `web/assets/styles.87a8d2d14e19fdae.css`
 
-（`tests/frontend_timeline_probe.mjs` 是开发期探针，未跟踪、未入库。）
+（开发期探针未入库。）
+
+## 批次 904 - M8-T904：脉搏卡任务时间轴 —— 「任务时间轴」占位键终于有了脸，还顺手修好了三个圆环
+
+### 缺什么
+- `pulse.epoch`（任务时间轴）在 T895 就进了 i18n 字典，但没有任何渲染代码——又一个"数据有、脸没有"的占位。档案行回答"跑过什么"，回答不了"什么时候、多大、结局如何"。
+- 浏览器探针顺带揪出潜伏 bug：`#pulseMemory` 元素从 T895 起就不存在于 index.html，`openPulseStage` 的 fetchAll 每次都在这里踩 null 抛错落地 catch——**命中率/上下文/完成率三个圆环和任务档案一直是坏的**（T902 火花线走 SSE 的 updateInspectorMetrics 路径才看起来正常）。
+
+### 处置
+- 新纯模块 `web/src/core/timeline-series.js`（无 DOM 无 state import）：`taskTimelineSeries`（新→旧输入翻转为旧→左新→右，12 节点封顶）、`taskTimelineTone`（completed=mint / failed=rose / cancelled+interrupted=amber / 活着=pulse / 空=quiet）、`taskTimelineHeight`（log1p 尺度——百万 token 巨任务不会把 2k 小任务压扁；小任务 12% 地板、零 token 任务 8% stub——跑过就是跑过，沉默才是撒谎）、`taskTimelineMarkup`（tooltip 转义、data-open-task 挂既有 body 委托、无标签无 markup）。
+- `openPulseStage` 单渲染点：任务档案之前画时间轴，labels 全部走字面 `t()` 引用（新键 pulse.timelineOld/New/Empty 双语同列，472→475 键）。
+- `#pulseMemory` 补上家：kicker 从纯标题改为 `<span>标题</span><strong id="pulseMemory">—</strong>`（与档案计数 kicker 同构）——三个圆环和档案区自 fetchAll 修复起恢复读数。
+- 样式：`.pulse-timeline-*`（柱体呼吸动画、hover 放大 + tooltip、轴端标签、reduced-motion 关呼吸）。
+
+### 证据与门
+- `tests/frontend_timeline_one_home_smoke.mjs`：真 import 纯模块断言（tone 映射、log 高度地板/stub、翻转次序、12 封顶、转义防 XSS、诚实空态）+ 单渲染点 + i18n 双列（CRLF 归一化读）+ 槽位 + 样式含 reduced-motion。
+- `tests/frontend_timeline_probe.mjs`（真浏览器）：12 节点全渲染（10 mint + 3 amber，零 token 节点 8% stub）、每节点带 task id、轴标签在、节点点击经 data-open-task 委托路由到任务详情、截图目检（悬停 tooltip 恰好入镜）。
+- `npm run check:web` 绿、`scripts/doc_pointers.py --check` rc=0、package.json/CI 双清单挂 `test:timeline`。
+
+### 边界
+- 时间轴均匀分布（等距节点），不做真实时间比例——12 个任务的跨度可能差几个数量级，等距可读性优先。
+- 探针依赖 8899 端口的活服务器与真实任务历史，留在 tests/ 供手动重跑，不进 CI。

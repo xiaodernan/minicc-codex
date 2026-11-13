@@ -35,7 +35,7 @@ const zero = taskTimelineHeight(0, 1_000_000);
 assert.equal(big, 100, "the max task fills the track");
 assert.ok(small >= 12, "12% floor keeps tiny runs visible");
 assert.ok(small < big, "log scale keeps the ordering");
-assert.equal(zero, 0, "zero tokens gets a zero height");
+assert.equal(zero, 8, "zero tokens still renders an 8% stub - a run happened, silence would lie");
 assert.ok(taskTimelineHeight(2_000, 0) === 0, "no max, no height");
 
 assert.equal(compactTokens(0), "0");

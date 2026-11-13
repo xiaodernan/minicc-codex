@@ -180,3 +180,5 @@
 - **弹窗焦点确定性 + 模板详情 i18n 收口（M8-T903）**：并轨会话收编——弹窗打开时先把背景焦点元素显式 blur 再置 inert（inert 下一帧的 blur 会静默取消此前发出的 focus()，模态前两次聚焦空转、只能靠 220ms 重试兜底）；模板详情视图的「返回/发送」按钮从硬编码 fallback 收进 i18n 字典（zh/en 472 键对齐）；两处 Playwright `waitForFunction` 把 options 当 arg 的签名错位补上 `undefined` 占位。
 
 - **脉搏卡新增「任务时间轴」（M8-T904）**：任务档案是列表、账本是汇总，年鉴是叙事——时间轴是第四个视角：把最近 12 个任务画成 oldest→newest 的柱状条带，高度按 tokens 的 log1p 对数比例（12% 下限，巨型任务不会压扁小任务），色调沿用档案的状态语汇（完成 mint / 失败 rose / 取消-中断 amber / 运行中 pulse 呼吸）。悬浮看任务名·tokens，点击直接打开任务。纯计算核心 `taskTimelineSeries` 与渲染 `taskTimelineMarkup` 分离、可直接被门测试 import；无任务时显示 `pulse.timelineEmpty`。同时本批携带了对话框 visibility 转场聚焦竞态的根治（`.show` 立即翻转 visibility）。`test:timeline` 已接入 JS syntax 腿。
+
+- **脉搏卡任务时间轴（M8-T904）**：`pulse.epoch` 占位键终于落地——任务档案上方一条时间轴，每任务一根柱：左老右新、log 尺度定高（百万 token 巨任务压不扁 2k 小跑）、completed=mint / failed=rose / cancelled=amber / 运行中呼吸脉冲、零 token 任务 8% stub（跑过就是跑过）。悬停出 tooltip，点击走既有 data-open-task 委托直达任务详情。探针顺带揪出并修好潜伏 bug：`#pulseMemory` 自 T895 起就不存在，fetchAll 每次踩 null 落 catch——命中率/上下文/完成率三个圆环与任务档案其实一直是坏的，如今首次真正读数（57% 命中、46% 完成、12 条档案）。

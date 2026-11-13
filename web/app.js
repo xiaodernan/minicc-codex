@@ -1566,7 +1566,8 @@
   function taskTimelineHeight(tokens, maxTokens) {
     const t2 = Number(tokens) || 0;
     const max = Number(maxTokens) || 0;
-    if (t2 <= 0 || max <= 0) return 0;
+    if (max <= 0) return 0;
+    if (t2 <= 0) return 8;
     const ratio = Math.log1p(t2) / Math.log1p(max);
     return Math.round((0.12 + 0.88 * Math.max(0, Math.min(1, ratio))) * 100);
   }

@@ -25,10 +25,11 @@ export function taskTimelineTone(status) {
 export function taskTimelineHeight(tokens, maxTokens) {
   const t = Number(tokens) || 0;
   const max = Number(maxTokens) || 0;
-  if (t <= 0 || max <= 0) return 0;
+  if (max <= 0) return 0;
+  if (t <= 0) return 8; // a zero-token run still happened - show a stub, not silence
   const ratio = Math.log1p(t) / Math.log1p(max);
-  // 12% floor keeps zero-token tasks visible as stubs instead of vanishing;
-  // the log scale keeps a 1M-token giant from flattening a 2k-token run.
+  // 12% floor keeps tiny runs visible; the log scale keeps a 1M-token giant
+  // from flattening a 2k-token run.
   return Math.round((0.12 + 0.88 * Math.max(0, Math.min(1, ratio))) * 100);
 }
 
