@@ -518,6 +518,20 @@ button { color: inherit; }
 .task-dock-open { background: transparent; border: 1px solid var(--line); border-radius: 5px; color: var(--muted); cursor: pointer; flex: 0 0 auto; font-size: 12px; padding: 5px 8px; }
 .task-dock-open:hover { background: var(--surface-raised); border-color: var(--line-bright); color: var(--text); }
 
+/* M8-T898: live tool-call/reasoning chip fed by the provider status channel.
+   The shimmer sweep runs only while the call is still forming; data-done
+   freezes it into a quiet confirmation. */
+.toolstream-chip { align-items: center; background: var(--surface-raised); border: 1px solid var(--line); border-radius: 999px; color: var(--muted); display: inline-flex; flex: 0 0 auto; font: 11px "DM Mono", Consolas, monospace; gap: 5px; max-width: 260px; overflow: hidden; padding: 3px 9px; position: relative; white-space: nowrap; }
+.toolstream-chip svg { color: var(--coral); flex: 0 0 auto; height: 12px; width: 12px; }
+.toolstream-chip span { overflow: hidden; text-overflow: ellipsis; }
+.toolstream-chip:not([data-done])::after { animation: toolstream-sweep 1.6s var(--ease, ease) infinite; background: linear-gradient(100deg, transparent 20%, color-mix(in srgb, var(--coral) 14%, transparent) 50%, transparent 80%); content: ""; inset: 0; position: absolute; }
+.toolstream-chip[data-done] { border-color: color-mix(in srgb, var(--mint) 45%, var(--line)); color: var(--text); }
+.toolstream-chip[data-done] svg { color: var(--mint); }
+.toolstream-chip:not([data-done]) svg { animation: toolstream-spin 1.2s linear infinite; }
+@keyframes toolstream-sweep { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+@keyframes toolstream-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .toolstream-chip:not([data-done])::after, .toolstream-chip:not([data-done]) svg { animation: none; } }
+
 .inspector { border-left: 1px solid var(--line); display: flex; flex-direction: column; overflow-y: auto; overscroll-behavior: contain; padding: 17px 15px 13px; scrollbar-color: var(--line-bright) transparent; scrollbar-width: thin; }
 .inspector::-webkit-scrollbar { width: 8px; }
 .inspector::-webkit-scrollbar-thumb { background: var(--line-bright); border-radius: 8px; }

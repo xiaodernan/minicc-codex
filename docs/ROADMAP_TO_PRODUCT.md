@@ -49968,3 +49968,41 @@ Redis 拓扑、任务计数，但没有任何面向用户的界面把它们摊�
 - chat/completions 协议下工具调用进度不转发（该端点没有等价的事件粒度）；
   envelope 模式维持原子路径不动。
 - 网关不发 reasoning 摘要时该通道自然零事件，前端无空卡片。
+
+## 批次 898 - M8-T898：任务坞实时工具条 — T897 的状态通道长出可见的身体
+
+### 缺什么
+
+T897 把工具调用进度送上了状态通道，但它在 UI 里只是时间线上一张普通 trace 卡片——
+规划轮进行中，任务坞顶栏（用户视线锚点）仍然只有静态的"正在规划"。进度事件有一个
+专属的、一眼可读的展示位才完整。
+
+### 处置
+
+- 任务坞新增 `#taskDockToolStream` 圆角 chip：反向扫描最近一条
+  `provider_tool_call_*` / `provider_reasoning_progress` 事件，运行中任务渲染
+  `◌ read_file · 128 字符`（旋转 loader + 0.5Hz 流光扫过），`function_call_arguments.done`
+  到达后冻结为 `✓ read_file · 43 字符`（mint 对勾、边框染 mint）；推理进度渲染
+  `✦ 推理中 · N 字符`。任务终态或后续无关 trace 到达即隐没。
+- `updateToolStreamChip` 挂进 `updateTaskDock` 单点；i18n 三键
+  （`stream.toolForming` / `stream.reasoningForming` / `stream.charsUnit`）双语齐备；
+  `prefers-reduced-motion` 下动画全停。
+- 门测试 `test_the_toolstream_chip_answers_its_own_keys.py` 六条：双语键齐、chip 请求键
+  恰等于声明键、UI 正则与 Python 发射端三码对账（跨语言契约）、chip 元素/查询/调用点
+  各一处、样式带 done 态与 reduced-motion、**i18n.js 与 index.html 的 CRLF 行尾守护**
+  （两个 CRLF-native 文件这次差点被工具重写，钉住）。
+
+### 证据与门
+
+- 真实浏览器探针（Playwright @ 127.0.0.1:8791，真实 gpt-6-sol 任务）：chip 捕获
+  done 态 `read_file · 43 字符`，截图 `output/toolstream_done.png` 目检通过
+  （mint 对勾、圆角 pill、与标题/计时器间距协调）。
+- `pytest tests/test_the_toolstream_chip_answers_its_own_keys.py -q` 6 绿；
+  `npm run check:web` 绿（web/app.js 469,745 字节，assets 干净）。
+
+### 边界
+
+- chip 只读状态通道，不碰答案流；forming 态在 43 字符级别的参数流里一闪而过
+  （120ms 轮询没赶上），长参数调用（>500 字符）才稳定可见——这是事件粒度的物理，
+  不是 bug。
+- 反向扫描 O(最新)，事件列表封顶 MAX_SEEN_EVENT_KEYS，无额外内存代价。

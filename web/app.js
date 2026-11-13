@@ -415,6 +415,9 @@
       "stream.connected": "\u5B9E\u65F6\u8FDE\u63A5",
       "stream.reconnecting": "\u5B9E\u65F6\u8FDE\u63A5\u4E2D\u65AD\uFF0C\u6B63\u5728\u91CD\u8FDE",
       "stream.polling": "\u5B9E\u65F6\u8FDE\u63A5\u4E0D\u53EF\u7528\uFF0C\u6B63\u5728\u8F6E\u8BE2",
+      "stream.toolForming": "\u751F\u6210\u4E2D",
+      "stream.reasoningForming": "\u63A8\u7406\u4E2D",
+      "stream.charsUnit": "\u5B57\u7B26",
       "tasks.center": "\u4EFB\u52A1\u4E2D\u5FC3",
       "tasks.open": "\u6253\u5F00\u4EFB\u52A1",
       "tasks.resume": "\u91CD\u65B0\u8FD0\u884C",
@@ -880,6 +883,9 @@
       "stream.connected": "Live connection",
       "stream.reconnecting": "Live connection interrupted, reconnecting",
       "stream.polling": "Live connection unavailable, polling",
+      "stream.toolForming": "forming",
+      "stream.reasoningForming": "reasoning",
+      "stream.charsUnit": "chars",
       "tasks.center": "Task center",
       "tasks.open": "Open task",
       "tasks.resume": "Run again",
@@ -4097,6 +4103,41 @@
     $("#compactionMetric").textContent = String(data.compaction_events?.length || 0);
     $("#contextCount").textContent = taskMetrics(data);
   }
+  var TOOL_STREAM_CODES = /^(provider_tool_call_start|provider_tool_call_progress|provider_reasoning_progress)$/;
+  function latestToolStreamEvent(data) {
+    if (!ACTIVE_TASK_STATUSES.has(String(data?.status || ""))) return null;
+    const events = Array.isArray(data?.events) ? data.events : [];
+    for (let i = events.length - 1; i >= 0; i -= 1) {
+      const ev = events[i];
+      if (TOOL_STREAM_CODES.test(String(ev?.code || ""))) return ev;
+    }
+    return null;
+  }
+  function updateToolStreamChip(data) {
+    const chip = $("#taskDockToolStream");
+    if (!chip) return;
+    const ev = latestToolStreamEvent(data);
+    if (!ev) {
+      chip.hidden = true;
+      chip.removeAttribute("data-done");
+      return;
+    }
+    const detail = ev.detail && typeof ev.detail === "object" ? ev.detail : {};
+    const chars = Number(detail.chars) || 0;
+    const unit = escapeHtml(t("stream.charsUnit"));
+    if (String(ev.code) === "provider_reasoning_progress") {
+      chip.hidden = false;
+      chip.removeAttribute("data-done");
+      chip.innerHTML = `${icon("sparkles")}<span>${escapeHtml(t("stream.reasoningForming"))} \xB7 ${chars} ${unit}</span>`;
+      return;
+    }
+    const tool = escapeHtml(String(detail.tool || t("stream.toolForming")));
+    const done = Boolean(detail.done);
+    chip.hidden = false;
+    if (done) chip.setAttribute("data-done", "");
+    else chip.removeAttribute("data-done");
+    chip.innerHTML = `${icon(done ? "check" : "loader-circle")}<span>${tool} \xB7 ${chars} ${unit}</span>`;
+  }
   function updateTaskDock(data) {
     if (!data || !isFocusedTask(data)) return;
     renderVerification(data);
@@ -4111,6 +4152,7 @@
     $("#taskDockMetrics").textContent = taskMetrics(data);
     $("#taskDockCompactions").textContent = `${data.compaction_events?.length || 0} ${t("tasks.compacted")}`;
     $("#taskDockTimer").textContent = formatDuration(taskDuration(data));
+    updateToolStreamChip(data);
     updateInspectorMetrics(data);
     if (String(data.session_id || "") === state.sessionId && (!data.workspace_path || !state.workspacePath || taskSessionKey(data.session_id, data.workspace_path) === taskSessionKey(state.sessionId, state.workspacePath))) {
       updateSessionStatus(data);

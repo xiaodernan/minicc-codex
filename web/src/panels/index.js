@@ -1179,6 +1179,49 @@ export function updateInspectorMetrics(data) {
   $("#contextCount").textContent = taskMetrics(data);
 }
 
+// M8-T898: the provider now streams tool-call/reasoning progress on the
+// status channel (see M8-T897) - this chip makes it visible in the task
+// dock while a planning turn runs: `◌ read_file · 128 字符` with a pulse
+// that stops the moment the arguments are complete. Reverse-scan keeps it
+// O(latest); an unrelated later trace simply blanks the chip.
+const TOOL_STREAM_CODES = /^(provider_tool_call_start|provider_tool_call_progress|provider_reasoning_progress)$/;
+
+function latestToolStreamEvent(data) {
+  if (!ACTIVE_TASK_STATUSES.has(String(data?.status || ""))) return null;
+  const events = Array.isArray(data?.events) ? data.events : [];
+  for (let i = events.length - 1; i >= 0; i -= 1) {
+    const ev = events[i];
+    if (TOOL_STREAM_CODES.test(String(ev?.code || ""))) return ev;
+  }
+  return null;
+}
+
+export function updateToolStreamChip(data) {
+  const chip = $("#taskDockToolStream");
+  if (!chip) return;
+  const ev = latestToolStreamEvent(data);
+  if (!ev) {
+    chip.hidden = true;
+    chip.removeAttribute("data-done");
+    return;
+  }
+  const detail = ev.detail && typeof ev.detail === "object" ? ev.detail : {};
+  const chars = Number(detail.chars) || 0;
+  const unit = escapeHtml(t("stream.charsUnit"));
+  if (String(ev.code) === "provider_reasoning_progress") {
+    chip.hidden = false;
+    chip.removeAttribute("data-done");
+    chip.innerHTML = `${icon("sparkles")}<span>${escapeHtml(t("stream.reasoningForming"))} · ${chars} ${unit}</span>`;
+    return;
+  }
+  const tool = escapeHtml(String(detail.tool || t("stream.toolForming")));
+  const done = Boolean(detail.done);
+  chip.hidden = false;
+  if (done) chip.setAttribute("data-done", "");
+  else chip.removeAttribute("data-done");
+  chip.innerHTML = `${icon(done ? "check" : "loader-circle")}<span>${tool} · ${chars} ${unit}</span>`;
+}
+
 export function updateTaskDock(data) {
   if (!data || !isFocusedTask(data)) return;
   renderVerification(data);
@@ -1193,6 +1236,7 @@ export function updateTaskDock(data) {
   $("#taskDockMetrics").textContent = taskMetrics(data);
   $("#taskDockCompactions").textContent = `${data.compaction_events?.length || 0} ${t("tasks.compacted")}`;
   $("#taskDockTimer").textContent = formatDuration(taskDuration(data));
+  updateToolStreamChip(data);
   updateInspectorMetrics(data);
   if (String(data.session_id || "") === state.sessionId && (!data.workspace_path || !state.workspacePath || taskSessionKey(data.session_id, data.workspace_path) === taskSessionKey(state.sessionId, state.workspacePath))) {
     updateSessionStatus(data);
