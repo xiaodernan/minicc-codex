@@ -94,7 +94,7 @@ class InsightsControllerTest {
                 new InsightsProperties(database.toString(), auditFile.toString(), 1000, 100);
         InsightsService service =
                 new InsightsService(new InsightStore(properties), new AuditReader(properties));
-        return MockMvcBuilders.standaloneSetup(new InsightsController(service))
+        return MockMvcBuilders.standaloneSetup(new InsightsController(service, new DiskProbe(properties)))
                 .setControllerAdvice(new InsightsFailureAdvice())
                 .build();
     }

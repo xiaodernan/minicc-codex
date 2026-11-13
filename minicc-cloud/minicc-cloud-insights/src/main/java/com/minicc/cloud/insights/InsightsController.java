@@ -10,13 +10,20 @@ import org.springframework.web.bind.annotation.RestController;
 public class InsightsController {
 
     private final InsightsService service;
+    private final DiskProbe disk;
 
-    public InsightsController(InsightsService service) {
+    public InsightsController(InsightsService service, DiskProbe disk) {
         this.service = service;
+        this.disk = disk;
     }
 
     @GetMapping("/summary")
     public SummaryResponse summary(@RequestParam(required = false) String workspace) {
         return service.summarize(workspace);
+    }
+
+    @GetMapping("/disk")
+    public DiskProbe.DiskSummary disk() {
+        return disk.probe();
     }
 }

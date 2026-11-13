@@ -49034,3 +49034,47 @@ pytest test_session_concurrency.py test_session.py test_task_store.py
 
 - `cache` 是 extra 字段：没有 Redis / 没有 redis_cache 模块的场景下，
   `gather()` 不抛异常、`format_stats()` 打印 "cache: unavailable"；现有 `--stats` 读者契约不变。
+
+## 批次 875 - M8-T875：insights 新增 `/api/insights/disk` — 磁盘字节探针
+
+### 1 缺什么（动机）
+
+`/api/insights/summary` 告诉你"tasks 有 N 个、audit 有 M 行"——
+但"`.minicc/` 占了多少空间"、"任务为什么总慢"、"磁盘满了吗"这些运维第一直觉问题它给不出。
+
+`/api/insights/disk` 给出 exactly 这些东西，**contents 不转储、出错时不假报 state_present=true**：
+
+- `state_present`（bool）— `.minicc/` 目录是否存在（不存在 = 整体没建过，不是故障）；
+- `database` — 任务 SQLite 文件 PRESENT + 路径 + 字节数（**不转储 contents**）；
+- `state` — `.minicc/` 树的文件数、目录数、总字节数（`Files.walk` 统计，read-only）；
+- `volume.free_bytes` — 文件系统卷上还剩多少可用空间（Windows 网络盘/不支持 usable space → `Long.MIN_VALUE`，**不是**错误）。
+
+### 2 做法
+
+新文件 `DiskProbe.java`（@Component）：接受 `InsightsProperties`，把 `db` 路径的父目录作 `stateDir`，`Files.walk()` 计数 bytes/file_count/directory_count；`Files.getFileStore(stateDir).getUsableSpace()` 尽力取 free_bytes。
+
+`/api/insights/disk` 走 `@GetMapping`（no param）；seam 稳定复用现成 `InsightsFailureAdvice`（DB 不存在 → 503，不可读 → 500）。
+
+### 3 测试
+
+`DiskProbeTest`（2 条）：present DB + nested sessions/transcript.jsonl → file_count≥2、directory_count≥1、bytes≥DB 文件；缺失状态树 → `state_present=false`、`database.present=false`、不抛错仍 200。`InsightsControllerTest` 升级为 2 参构造。
+
+### 4 实机证据
+
+```text
+$ mvn -o package                       → BUILD SUCCESS, 14/14
+
+$ MINICC_STATE=<repo>/.minicc java -jar target/minicc-cloud-insights-0.1.0.jar --server.port=18087
+
+$ curl http://127.0.0.1:18087/api/insights/disk
+{"generated_at":"2026-11-13T07:31:03.620014200Z",
+ "state_present":true,
+ "database":{"present":true,"path":"...\\.minicc\\tasks.sqlite3","bytes":61440},
+ "state":{"path":"...\\.minicc","file_count":7979,"directory_count":2220,"bytes":278449012},
+ "volume":{"free_bytes":166116184064,"file_store":""}}
+```
+
+### 5 边界
+
+- `free_bytes == Long.MIN_VALUE` 表示"无法获取"；正数是真实剩余字节；`file_store` 在此平台为空串（Windows file store 名称不提供）。
+- gateway lb:// 代理 `insights` 路由时 /disk 自动跟着走——无需额外路由配置。

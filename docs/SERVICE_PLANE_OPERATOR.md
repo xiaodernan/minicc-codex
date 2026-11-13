@@ -100,6 +100,23 @@ HTTP 200
 
 总数走 `COUNT(*)`（不截断），分状态计数超过 `MINICC_INSIGHTS_MAX_SCAN_ROWS` 时返回 `scan_truncated: true`；audit 超过 `MINICC_INSIGHTS_MAX_AUDIT_LINES` 时 `truncated: true`。未设 audit 或文件不存在时 `audit.present: false`——**不视为故障**（首小时没有审计是正常状态）；文件不可读才是 503。
 
+### `/api/insights/disk`（2026-11-13 起）
+
+磁盘/字节级探测，**contents 不转储**、**错误不假报 UP**：
+
+```text
+GET http://127.0.0.1:8087/api/insights/disk
+{"generated_at":"2026-11-13T07:31:03.620014200Z",
+ "state_present":true,
+ "database":{"present":true,"path":"<state>/tasks.sqlite3","bytes":61440},
+ "state":{"path":"<state>","file_count":7979,"directory_count":2220,
+          "bytes":278449012},
+ "volume":{"free_bytes":166116184064,"file_store":""}}
+```
+
+参数全来自 `MINICC_STATE`（或其缺省），零额外配置；**`free_bytes == Long.MIN_VALUE` 是"无法探测文件系统卷"，不是错误**——Windows 网络盘/fs 不支持
+usable space 时会出现。
+
 ## 4. 环境变量契约
 
 ### tasks（`minicc-cloud-tasks`）
