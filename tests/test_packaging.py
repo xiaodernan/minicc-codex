@@ -280,9 +280,18 @@ def test_installed_console_scripts_run_from_a_real_install(tmp_path: Path, wheel
     venv_python = venv.joinpath("Scripts", "python.exe") if os.name == "nt" else venv.joinpath("bin", "python")
     created = _build(["-m", "venv", "--system-site-packages", str(venv)], REPO, timeout=300)
     assert created.returncode == 0, created.stdout[-2000:] + created.stderr[-2000:]
+    # --system-site-packages inherits the *base* interpreter's site-packages
+    # (the one this repo's .venv was itself created from), which is not
+    # guaranteed to hold the wheel's declared runtime deps — the repo's own
+    # venv does, and it is the only place guaranteed to be available offline
+    # in every contributor's environment. Point the probe venv at it with
+    # PYTHONPATH so the wheel's imports resolve without installing anything.
+    probe_env = os.environ.copy()
+    site_packages = Path(sys.executable).resolve().parent.parent.joinpath("Lib", "site-packages")
+    probe_env["PYTHONPATH"] = str(site_packages) + (os.pathsep + probe_env["PYTHONPATH"] if probe_env.get("PYTHONPATH") else "")
     installed = subprocess.run(
         [str(venv_python), "-m", "pip", "install", "--no-deps", "--no-index", str(wheel), "--quiet"],
-        cwd=str(tmp_path), capture_output=True, text=True, errors="replace", timeout=600,
+        cwd=str(tmp_path), capture_output=True, text=True, errors="replace", timeout=600, env=probe_env,
     )
     assert installed.returncode == 0, installed.stdout[-2000:] + installed.stderr[-2000:]
 
@@ -290,7 +299,7 @@ def test_installed_console_scripts_run_from_a_real_install(tmp_path: Path, wheel
     # checkout the test process itself imported.
     origin = subprocess.run(
         [str(venv_python), "-c", "import minicc; print(minicc.__file__)"],
-        cwd=str(tmp_path), capture_output=True, text=True, errors="replace", timeout=120,
+        cwd=str(tmp_path), capture_output=True, text=True, errors="replace", timeout=120, env=probe_env,
     )
     assert origin.returncode == 0, origin.stderr[-2000:]
     module_path = Path(origin.stdout.strip()).resolve()
@@ -301,7 +310,8 @@ def test_installed_console_scripts_run_from_a_real_install(tmp_path: Path, wheel
     scripts = _scripts_dir(venv)
     cli = scripts / ("minicc.exe" if os.name == "nt" else "minicc")
     version = subprocess.run(
-        [str(cli), "--version"], cwd=str(tmp_path), capture_output=True, text=True, errors="replace", timeout=120
+        [str(cli), "--version"], cwd=str(tmp_path), capture_output=True, text=True, errors="replace", timeout=120,
+        env=probe_env,
     )
     assert version.returncode == 0, version.stdout + version.stderr[-2000:]
     assert f"minicc {__version__}" in version.stdout, version.stdout
@@ -321,7 +331,7 @@ def test_installed_console_scripts_run_from_a_real_install(tmp_path: Path, wheel
         # artifact - the wrappers, the packaged payload, a server serving them - not
         # about where a key comes from, so it brings its own.
         env={
-            **os.environ,
+            **probe_env,
             "MINICC_API_KEY": "dummy-key-for-packaging-gate",
             "MINICC_BASE_URL": "https://example.invalid/v1",
             "MINICC_MODEL": "test-model",

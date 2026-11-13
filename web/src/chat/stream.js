@@ -2257,9 +2257,9 @@ export function openHelpPanel() {
 
   const rows = state.locale === "zh"
 
-    ? [["发送任务", "Enter"], ["换行", "Shift+Enter"], ["新任务", "Ctrl/⌘ N"], ["搜索任务", "/"], ["关闭面板 / 小游戏", "Esc"]]
+    ? [["发送任务", "Enter"], ["换行", "Shift+Enter"], ["新任务", "Ctrl/⌘ N"], ["命令面板", "Ctrl/⌘ K"], ["账本总览", "Ctrl/⌘ L"], ["搜索任务", "/"], ["快捷键速查", "?"], ["关闭面板 / 小游戏", "Esc"]]
 
-    : [["Send task", "Enter"], ["Newline", "Shift+Enter"], ["New task", "Ctrl/⌘ N"], ["Search tasks", "/"], ["Close panel / game", "Esc"]];
+    : [["Send task", "Enter"], ["Newline", "Shift+Enter"], ["New task", "Ctrl/⌘ N"], ["Command palette", "Ctrl/⌘ K"], ["Ledger overview", "Ctrl/⌘ L"], ["Search tasks", "/"], ["Shortcut reference", "?"], ["Close panel / game", "Esc"]];
 
   const list = rows.map(([label, key]) => `<div class="help-shortcut"><span>${escapeHtml(label)}</span><kbd>${escapeHtml(key)}</kbd></div>`).join("");
 

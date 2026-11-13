@@ -3102,7 +3102,7 @@
     });
   }
   function openHelpPanel() {
-    const rows = state.locale === "zh" ? [["\u53D1\u9001\u4EFB\u52A1", "Enter"], ["\u6362\u884C", "Shift+Enter"], ["\u65B0\u4EFB\u52A1", "Ctrl/\u2318 N"], ["\u641C\u7D22\u4EFB\u52A1", "/"], ["\u5173\u95ED\u9762\u677F / \u5C0F\u6E38\u620F", "Esc"]] : [["Send task", "Enter"], ["Newline", "Shift+Enter"], ["New task", "Ctrl/\u2318 N"], ["Search tasks", "/"], ["Close panel / game", "Esc"]];
+    const rows = state.locale === "zh" ? [["\u53D1\u9001\u4EFB\u52A1", "Enter"], ["\u6362\u884C", "Shift+Enter"], ["\u65B0\u4EFB\u52A1", "Ctrl/\u2318 N"], ["\u547D\u4EE4\u9762\u677F", "Ctrl/\u2318 K"], ["\u8D26\u672C\u603B\u89C8", "Ctrl/\u2318 L"], ["\u641C\u7D22\u4EFB\u52A1", "/"], ["\u5FEB\u6377\u952E\u901F\u67E5", "?"], ["\u5173\u95ED\u9762\u677F / \u5C0F\u6E38\u620F", "Esc"]] : [["Send task", "Enter"], ["Newline", "Shift+Enter"], ["New task", "Ctrl/\u2318 N"], ["Command palette", "Ctrl/\u2318 K"], ["Ledger overview", "Ctrl/\u2318 L"], ["Search tasks", "/"], ["Shortcut reference", "?"], ["Close panel / game", "Esc"]];
     const list = rows.map(([label2, key]) => `<div class="help-shortcut"><span>${escapeHtml(label2)}</span><kbd>${escapeHtml(key)}</kbd></div>`).join("");
     openPanel(t("help.title"), `<div class="help-panel"><div class="panel-section-title">${escapeHtml(t("help.shortcuts"))}</div>${list}<div class="panel-section-title">${escapeHtml(t("help.arcade"))}</div><button type="button" class="panel-command" id="helpArcadeButton"><span>${icon("gamepad-2")}</span>${escapeHtml(t("help.arcade"))}</button></div>`);
     $("#helpArcadeButton")?.addEventListener("click", () => {
@@ -5857,6 +5857,10 @@
       if (event.key === "/" && document.activeElement?.tagName !== "TEXTAREA" && document.activeElement?.tagName !== "INPUT") {
         event.preventDefault();
         $("#threadSearch").focus();
+      }
+      if (event.key === "?" && document.activeElement?.tagName !== "TEXTAREA" && document.activeElement?.tagName !== "INPUT") {
+        event.preventDefault();
+        openHelpPanel();
       }
     });
     $("#allowChanges").addEventListener("change", (event) => {

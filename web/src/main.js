@@ -82,6 +82,9 @@ export function bindUI() {
       openLedgerPanel();
     }
     if (event.key === "/" && document.activeElement?.tagName !== "TEXTAREA" && document.activeElement?.tagName !== "INPUT") { event.preventDefault(); $("#threadSearch").focus(); }
+    // M8-T901: "?" (shift+/) outside an input opens the help panel - the
+    // discoverability answer to "what else can this thing do".
+    if (event.key === "?" && document.activeElement?.tagName !== "TEXTAREA" && document.activeElement?.tagName !== "INPUT") { event.preventDefault(); openHelpPanel(); }
   });
   $("#allowChanges").addEventListener("change", (event) => {
     state.allowChanges = event.target.checked;

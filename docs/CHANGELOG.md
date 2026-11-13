@@ -160,3 +160,5 @@
 - **工作区脉搏上线（M8-T895）**：侧边栏新增「脉搏」，全屏三栏面板（工作区身份证 / 三枚 SVG 巨环 / 最近 12 个任务档案）；纯读 `/api/metrics` + `/api/tasks` + `/api/stats`，零新后端。缓存命中率 / 上下文占比 / 完成率 动画环即展即弃；Esc 关闭；断线时状态 pill 红色兜底。
 
 - **模板库上线（M8-T896）**：侧边栏新增「模板库」，8 张精选卡片（项目扫描 / 跑测试并修好 / 安全审查 / 生成 README / 中文注释英文化 / 依赖体检 / 现代化建议 / 冒烟检查），一键将策划好的高质量 prompt 填入 composer 并 focus。`Ctrl/⌘+K` 面板同步新增 `templates` 条目。零新后端、零新图标，文案双语全量。
+
+- **全量套件红灯清零（M8-T897）**：`test_installed_console_scripts_run_from_a_real_install` 本轮红了——根因是 fresh venv 用 `--system-site-packages` 继承的是**本仓库 .venv 对应的 base** site-packages，不是本仓库 .venv 的（含 tenacity 的那一份）。修复：向探针 venv 显式注入本仓库 `.venv/Lib/site-packages`（纯离线注入，不装任何东西、不削弱 anti-vacuity 门）。另外 4 个"红"是本轮长跑的 `_pytest_full_888.log`、`gateway869_*.log`、`server_*.log` 等仓库根 log 触发清理门——删干净即转绿；4 个已 PASS 复测通过。仓库根现无任何运行产物滞留。
