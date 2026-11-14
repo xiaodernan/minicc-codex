@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-14T17:00:18.789Z",
+  "generated_at": "2026-11-14T17:05:47.458Z",
   "branch": "main",
-  "head": "2759254",
-  "total_commits": 1481,
+  "head": "c1326ab",
+  "total_commits": 1483,
   "recent_commits": [
+    {
+      "short": "c1326ab",
+      "at": "2026-11-15T01:04:34+08:00",
+      "subject": "M8-T950: /api/stats disk scan is TTL-cached (120s, was a full 322MB walk per poll) and the absent-store test is hermetic (pinned to tmp_path); README catch-up ("
+    },
+    {
+      "short": "8ec0f9c",
+      "at": "2026-11-14T17:00:19Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "2759254",
       "at": "2026-11-15T00:58:26+08:00",
@@ -19,22 +29,12 @@
       "short": "b43044b",
       "at": "2026-11-14T23:51:06+08:00",
       "subject": "M8-T948: arcade chapter - complete wave targets by hard difficulty, economy math, tactic notes (magnetshroom / squash / polejump) + bilingual parity"
-    },
-    {
-      "short": "460af86",
-      "at": "2026-11-14T15:33:27Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "d9998d8",
-      "at": "2026-11-14T23:32:53+08:00",
-      "subject": "M8-T947: the Quiet Room - manual chapter 8, the project's own creed in both languages: no sponsor / no proprietary wisdom / no theatrical agent / no THE PLAN / "
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 269,
+  "roadmap_batches": 270,
   "changelog_entries": 1,
-  "roadmap_lines": 51581,
+  "roadmap_lines": 51600,
   "tracked_files": 1050,
   "test_files": 702,
   "almanac_chapters": 9,
