@@ -3,6 +3,7 @@ import { requestJson } from "../core/transport.js";
 import { activateDialog, deactivateDialog } from "../core/dialog.js";
 
 import { notificationsBlocked, notificationsEnabled, setNotificationsEnabled } from "../core/notify.js";
+import { initWheelToggle, wheelInverted, setWheelInverted } from "../core/wheel-invert.js";
 
 import { openArcade } from "../core/arcade.js";
 
@@ -1730,17 +1731,21 @@ export function openSettingsPanel() {
 
   const notifyBlock = "<div class=\"settings-block\"><span>" + t("notify.enable") + "</span><div class=\"settings-locale\"><button class=\"locale-option notify-toggle " + (notifyOn ? "active" : "") + "\" data-notify=\"on\" type=\"button\">" + t("notify.on") + "</button><button class=\"locale-option notify-toggle " + (notifyOn ? "" : "active") + "\" data-notify=\"off\" type=\"button\">" + t("notify.off") + "</button></div><small class=\"settings-note\">" + escapeHtml(t("notify.enableHint")) + "</small></div>";
 
+  const wheelOn = wheelInverted();
+  const wheelBlock = "<div class=\"settings-block\"><span>" + t("scroll.title") + "</span><div class=\"settings-locale\"><button class=\"locale-option wheel-invert " + (wheelOn ? "active" : "") + "\" data-invert=\"on\" type=\"button\">" + t("scroll.invertOn") + "</button><button class=\"locale-option wheel-invert " + (wheelOn ? "" : "active") + "\" data-invert=\"off\" type=\"button\">" + t("scroll.invertOff") + "</button></div><small class=\"settings-note\">" + escapeHtml(t("scroll.invertHint")) + "</small></div>";
+
 
 
   const rewindBlock = "<div class=\"settings-block settings-rewind\"><span>" + escapeHtml(t("rewind.advanced")) + "</span><form id=\"rewindForm\" class=\"rewind-form\"><label class=\"rewind-label\"><span>" + escapeHtml(t("rewind.keepLabel")) + "</span><input id=\"rewindKeep\" type=\"number\" min=\"1\" value=\"3\" required aria-label=\"" + escapeHtml(t("rewind.keepLabel")) + "\" /></label><button class=\"send-button rewind-button\" type=\"submit\">" + escapeHtml(t("rewind.action")) + "</button></form><small class=\"settings-note\">" + escapeHtml(t("rewind.hint")) + "</small></div>";
 
   const allowlistBlock = "<div class=\"settings-block\" id=\"allowlistEditor\"><span>" + escapeHtml(t("allowlist.title")) + "</span><small class=\"settings-note\">" + escapeHtml(t("allowlist.hint")) + "</small><form id=\"allowlistForm\" class=\"allowlist-form\"><label><span>" + escapeHtml(t("allowlist.commands")) + "</span><textarea id=\"allowlistCommands\" rows=\"3\"></textarea></label><label><span>" + escapeHtml(t("allowlist.paths")) + "</span><textarea id=\"allowlistPaths\" rows=\"3\"></textarea></label><label><span>" + escapeHtml(t("allowlist.tools")) + "</span><textarea id=\"allowlistTools\" rows=\"2\"></textarea></label><button class=\"send-button\" type=\"submit\">" + escapeHtml(t("allowlist.save")) + "</button></form></div>";
 
-  openPanel(t("panel.settings"), languageButtons + modelBlock + reasoningBlock + sandboxBlock + notifyBlock + rewindBlock + allowlistBlock);
+  openPanel(t("panel.settings"), languageButtons + modelBlock + reasoningBlock + sandboxBlock + notifyBlock + wheelBlock + rewindBlock + allowlistBlock);
 
   bindAllowlistEditor();
 
-  document.querySelectorAll(".notify-toggle").forEach((button) => {
+  const notifyToggles = () => document.querySelectorAll(".notify-toggle");
+  notifyToggles().forEach((button) => {
 
     button.addEventListener("click", async () => {
 
@@ -1752,10 +1757,18 @@ export function openSettingsPanel() {
 
       if (want && !ok) showToast(notificationsBlocked() ? t("notify.denied") : t("notify.unsupported"));
 
-      document.querySelectorAll(".notify-toggle").forEach((node) => node.classList.toggle("active", (node.dataset.notify === "on") === active));
+      notifyToggles().forEach((node) => node.classList.toggle("active", (node.dataset.notify === "on") === active));
 
     });
 
+  });
+
+  document.querySelectorAll(".wheel-invert").forEach((button) => {
+    button.addEventListener("click", () => {
+      const want = button.dataset.invert === "on";
+      setWheelInverted(want);
+      document.querySelectorAll(".wheel-invert").forEach((node) => node.classList.toggle("active", (node.dataset.invert === "on") === wheelInverted()));
+    });
   });
 
   const rewindForm = $("#rewindForm");

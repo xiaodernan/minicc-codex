@@ -51929,3 +51929,27 @@ T960 补齐了卷十《未竟》——这卷给的是这座博物馆最里层的
   - A-fresh（空 storage）→ `#gameBestScore=0`、`#gameBestCombo=0` ✓
   - B-seeded（localStorage 预埋 `{score:128, combo:6}`）→ 打开游戏厅立刻看见 `128` / `6` ✓
 - `npm run test:arcade` ✓ · `npm run test:almanac`（12 章 marker）✓ · `npm run test:web` ✓ · `npm run test:i18n`（584 keys）✓ · `npm run check:web` ✓ · doc_pointers ✓
+
+## 批次 961 - M8-T967：设置里给滚轮加了一个开关——`minicc-invert-wheel`
+
+### 1 背景
+
+用户明确反馈："鼠标引擎好像有点做反了 玩的很难受 一般是往上滑是往上看的，但你这个往上滑是往下看 往下滑是往上看 搞反了。" 本仓库没有任何 wheel 自定义（`grep wheel src/` 只命中文档）——页面采用浏览器默认方向、含 `overscroll-behavior: contain`。Mac 上「自然滚动」默认情况下的滑动方向确为反向，但并非多数 Windows/Linux 用户期望。本批给方向写一个显式的用户开关。
+
+### 2 变更
+
+- 新模块 `web/src/core/wheel-invert.js`：`wheelInverted()` 读 `localStorage.getItem("minicc-invert-wheel") === "1"`；`setWheelInverted(on)` 置/清键；`findScrollable(start)`——自 `event.target` 起沿祖先链找第一个 `overflow-y: auto|scroll|overlay` 且 `scrollHeight > clientHeight + 1` 的节点；`onWheel(event)`：仅当反转开启且 `deltaY≠0` 时把 target.scrollTop 减 `deltaY` 并 `preventDefault()`（文档级 capture=false, `passive:false`）；`initWheelToggle()` 一次性注册。
+- `web/src/main.js`：boot 期 `initWheelToggle()`。
+- `web/src/chat/stream.js`：设置面板新增「鼠标滚轮 / Mouse wheel」块——两按钮「已反转 / Inverted」「默认方向 / Default」（`.wheel-invert[data-invert=on|off]`），点击即时生效并记账；`escapeHtml` 渲染提示文案双语 `t("scroll.invertHint")`。
+- `web/src/core/i18n.js`：6 个新 key（`scroll.title` / `scroll.invert` / `scroll.invertHint` / `scroll.invertOn` / `scroll.invertOff` 各 zh+en）——589 keys 对齐。
+- 设置面板：补 `data-invert` 鉴别；双语双按钮沿用 `.locale-option` 体系，按钮 active 类由点击事件刷新。
+
+### 3 验证
+
+- Playwright 真浏览器（fake provider）：
+  - 默认（无 invert key）：wheel-up at scrollTop=0 → `chatArea.scrollTop=0`，未触发 preventDefault ✓
+  - `localStorage['minicc-invert-wheel']=1`：同一手势后 `chatArea.scrollTop=68` ✓
+  - 设置面板：打开「工作台设置」→「已反转」→ 翻为「active」+ `localStorage=1`；再点「默认方向」→ 翻回「off」+ 键清空；**重开面板状态 persisted** ✓
+  - 截图：`_settings_shot.png` — 鼠标滚轮段与桌面通知段并列呈现，双语按钮默认 active ✓
+- `npm run test:web` ✓ · `npm run test:almanac`（12 章 marker）✓ · `npm run test:i18n`（589 keys / 222 literal t()）✓ · `npm run check:web` ✓ · doc_pointers rc=0
+- 补充：本批提供的开关是对**浏览器默认方向的显式逃生口**；Windows/Linux 默认即正确，本仓库其他页面零方向异常（确认 Playwright 两组手势）。

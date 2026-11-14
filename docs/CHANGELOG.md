@@ -300,3 +300,5 @@
 - **年鉴卷十一「回声 / The Echo」，M8-T965**：`web/src/panels/almanac.js` 新增第十二卷——「三根看不见的弦，都在响」。git / audit.jsonl / 缓存三根弦各自按音区记事，却共用一个屋顶；EN 中英逐字对应；仪器盘「仓库呼吸 / 批次回响 / 审计回声」全实时数字；三枚紫边卡片揭示缓存亲和（Redis / LRU 现状）、RabbitMQ 失效风暴、Git 审计闭环；almanac smoke 12 章全绿、rail 12 条。
 
 - **游戏厅最佳纪录，M8-T966**：`web/src/game.js` 把每场最好的击退（score）与最高连击（combo）写入 `localStorage:minicc-game-best`；HUD 增加「最佳/Best」与「连击/Combo」两格（`#gameBestScore` `#gameBestCombo`），`initGame` 与 `finishGame` 都刷新；跨会话永远保留真实历史（`{score: 128, combo: 6}` seeded 立得 `128/6`）；i18n 584 keys；web/arcade/almanac/i18n smoke 全绿 ✓
+
+- **鼠标滚轮方向可切换，M8-T967**：新增「鼠标滚轮 / Mouse wheel」设置块（`.wheel-invert[data-invert=on|off]`）——Windows/Linux 默认方向不变；切到「已反转」后与 Mac 自然滚动一致（`localStorage['minicc-invert-wheel']=1`），捕获 wheel 反算 `deltaY` 后写入 `.chat-area`/`.panel-body`/任何 `overflow:auto` 的祖先，`preventDefault` 仅在非默认时生效；跨面板重开可还原。i18n 589 keys；web/almanac/i18n smoke 全绿 ✓
