@@ -3412,6 +3412,18 @@ class AgentService:
             },
         }
 
+    def roadmap(self) -> dict[str, Any]:
+        """The read-only ledger fact pack for ``/api/roadmap``.
+
+        M8-T940: digest counts this document (batches/lines); the Archive
+        answers it as content — every batch heading parsed once per request,
+        grouped by hundred-epoch into eras. Never raises; a missing or odd
+        document answers 200 with an empty archive.
+        """
+        from .roadmap_archive import build_roadmap_archive
+
+        return build_roadmap_archive(self.workspace / "docs" / "ROADMAP_TO_PRODUCT.md")
+
     def digest(self) -> dict[str, Any]:
         """The read-only workspace fact pack for ``/api/digest``.
 

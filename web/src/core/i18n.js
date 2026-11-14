@@ -134,6 +134,9 @@ export const I18N = {
     "nav.journal": "日志",
     "journal.title": "日志",
     "palette.cmd.journal": "打开工程日志",
+    "nav.archive": "档案馆",
+    "archive.title": "档案馆",
+    "palette.cmd.archive": "打开档案馆",
 
   },
   en: {
@@ -268,6 +271,9 @@ export const I18N = {
     "nav.journal": "Journal",
     "journal.title": "Journal",
     "palette.cmd.journal": "Open the journal",
+    "nav.archive": "Archive",
+    "archive.title": "Archive",
+    "palette.cmd.archive": "Open the archive",
 
   },
 };

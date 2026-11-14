@@ -2298,4 +2298,6 @@ import { openAxiomsPanel } from "../panels/axioms.js";
 export { openAxiomsPanel };
 import { openJournalPanel } from "../panels/journal.js";
 export { openJournalPanel };
+import { openArchivePanel } from "../panels/archive.js";
+export { openArchivePanel };
 

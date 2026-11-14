@@ -51328,3 +51328,37 @@ rebase 报 `CONFLICT (content): Merge conflict in docs/latest.json`**——
 
 - `node scripts/update-latest-json.mjs` → module_count=12，生成 `docs/latest.json` ✓
 - 展示页 inline script 改为读 `d.module_count ?? d.feature_surface.length`（保留兜底）
+
+## 批次 935 - M8-T940：第十三板块「档案馆 · The Archive」与只读 /api/roadmap
+
+### 1 背景
+
+ROADMAP_TO_PRODUCT.md 是这个项目自己的史书，258 个批次号，但没有任何 UI 呈现它。
+本批次给它一个博物馆的入口：一个只读、可搜索、只展示真实事实的终端。
+
+### 2 变更
+
+- 新增 `minicc/roadmap_archive.py`：逐行解析 `## 批次 NNN — M8-TNNN：标题`，
+  产出 `minicc.roadmap-archive.v1` 事实包（total/entries/eras），缺失即空，多重虚线/冒号全兼容。
+- `minicc/web.py`：Service 层 `roadmap()`；`minicc/webserver.py`：`GET /api/roadmap` 路由。
+- `tests/test_http_surface.py::test_get_roadmap_answers_the_archive` —— 路由契约
+  （is_roadmap/total/entries ids/eras 结构全部钉住）。
+- 新增 `web/src/panels/archive.js`：第十三板块。博物馆时间轴布局：
+  四个世纪的 era 分组（600/700/800/900）· 逐条批次号 + M8-Txxxx 徽标 + 原样标题 ·
+  顶部搜索框现场过滤（不反向请求后端）· 中文/英文两套整齐文案。
+- `web/index.html` 侧边新增「档案馆」入口；i18n：`nav.archive` / `archive.title` / `palette.cmd.archive` ×2
+  （571 keys parity / 216 literal t() 全可解析）。
+- 洞悉如实记录：本文件早于 601 批的记录并未采用本章节格式（早期走里程碑/进度日志形式），
+  本馆从第 601 批起还原，不伪造完整度；说明页脚已在 UI 上注明。
+
+### 3 验证
+
+- 真浏览器（假 provider）：zh 257 条渲染（含 era 4 个）、en 零 CJK、关键字过滤"M8-T9"→39 命中、零 pageerror ✓
+- `/api/roadmap` 200，257 entries / 4 eras，schema `minicc.roadmap-archive.v1` ✓
+- `pytest -k roadmap` → 1 passed（路由契约通过）
+- `npm run test:i18n` → 571 keys ✓ · `npm run build:web` ✓
+
+### 4 遗留
+
+- 本馆展示的是启发式解析后的标题原文，不做归一化改写；章节内容本身不复刻——全内容仍以
+  ROADMAP_TO_PRODUCT.md 为权威（一显示、一来源，无漂移）。

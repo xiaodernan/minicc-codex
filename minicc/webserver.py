@@ -405,6 +405,11 @@ class MiniccRequestHandler(BaseHTTPRequestHandler):
             # gate - a non-git workspace answers 200 with is_git: false.
             self._json(self.server.service.digest())
             return
+        if path == "/api/roadmap":
+            # M8-T940: the ledger, parsed - every batch heading, verbatim,
+            # bounded titles, grouped into hundred-epoch eras.
+            self._json(self.server.service.roadmap())
+            return
         if path == "/api/stats":
             # M8-T922: the pulse panel's stats channel, finally real.
             self._json(self.server.service.stats())

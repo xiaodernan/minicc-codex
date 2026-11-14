@@ -710,6 +710,32 @@ def test_get_stats_answers_the_operational_inventory(live: _LiveServer) -> None:
     assert "llm_cache" in payload
 
 
+def test_get_roadmap_answers_the_archive(live: _LiveServer, tmp_path: Path) -> None:
+    """M8-T940: /api/roadmap answers the ledger as content - every batch
+    heading, verbatim title, grouped into hundred-epoch eras."""
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "ROADMAP_TO_PRODUCT.md").write_text(
+        "# roadmap\n\n"
+        "## 批次 900 — M8-T900：一个能力落地\nbody\n"
+        "## 批次 942 — M8-T942：第二个能力落地，更长一点的标题\nbody\n"
+        "## 批次 1002 — 合流批：m8-t537 → main\nbody\n",
+        encoding="utf-8",
+    )
+    status, _, body = _request(f"{live.url}/api/roadmap", method="GET")
+    assert status == 200
+    payload = json.loads(body)
+    assert payload["schema_version"] == "minicc.roadmap-archive.v1"
+    assert payload["is_roadmap"] is True
+    assert payload["total"] == 3
+    ids = [entry["id"] for entry in payload["entries"]]
+    assert ids[:2] == ["M8-T900", "M8-T942"]
+    assert payload["eras"] == [
+        {"from": 900, "to": 999, "count": 2},
+        {"from": 1000, "to": 1099, "count": 1},
+    ]
+
+
 def test_get_models_returns_local_catalog_without_network(live: _LiveServer) -> None:
     status, _, body = _request(f"{live.url}/api/models", method="GET")
     assert status == 200

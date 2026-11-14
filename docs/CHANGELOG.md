@@ -248,3 +248,5 @@
 - **展示页自动同步 bot 第二次修复，M8-T938**：`git pull --rebase` 自身撞上 `docs/latest.json` 的合并冲突（bot 的提交与远程并发 refresh 同文件）——现在 rebase 冲突时先 `node scripts/update-latest-json.mjs` 重新生成（latest.json 是 bot 自己的产物，可由工作树内内容随时重建），`git -c core.editor=true rebase --continue` 收尾。这样 bot 对自己的产物拥有完整裁量权，不再需要人工介入。
 
 - **展示页事实包覆盖十二模块 + 特性数实时渲染，M8-T939**：`scripts/update-latest-json.mjs` 的 `feature_surface` 改为真实十二个模块，新增 `module_count: 12`；展示页 minicc 卡片的"特性面"由硬编码 `13 项` 改为读事实包现场渲染（`ml-features` ← `d.module_count ?? d.feature_surface.length`）；事实包继续每次含 docs 的 push 自动刷新。
+
+- **第十三板块「档案馆」 + 只读 /api/roadmap，M8-T940**：`minicc/roadmap_archive.py` 解析 `## 批次` 章节（双划线/全半角冒号兼容），`Service.roadmap()` + `GET /api/roadmap` 路由（`test_get_roadmap_answers_the_archive` 已钉契约，route_coverage 绿）。面板按世纪分 4 组、257 条手绘时间轴、⌘K 可搜、现场过滤；章节名字原样如实展示；页脚注明"本馆从第 601 批起还原，早期以里程碑/进度日志形式存在，不伪造完整度"。en 实测零 CJK。顺手记录本轮真实 API 测量：cold 0% → warm **98.3%**（wkapi.pro 同模型同提示词三轮一致）。
