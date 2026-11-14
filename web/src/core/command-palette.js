@@ -6,7 +6,7 @@ import { activateDialog, deactivateDialog } from "./dialog.js";
 import { t } from "./i18n.js";
 import { setFocusMode, setInspectorCollapsed, setLocale, setSidebarCollapsed, setTheme } from "./locale.js";
 import { openArcade } from "./arcade.js";
-import { exportChat, openActivityPanel, openAlmanacPanel, openArchivePanel, openAxiomsPanel, openJournalPanel, openManualPanel, openBatchPanel, openHelpPanel, openLedgerPanel, openOptionsPanel, openSettingsPanel, openTaskListPanel, openTemplatesPanel, openWorkspacesPanel, resetTask } from "../chat/stream.js";
+import { exportChat, openActivityPanel, openAlmanacPanel, openArchivePanel, openAxiomsPanel, openJournalPanel, openManualPanel, openRecentPanel, openBatchPanel, openHelpPanel, openLedgerPanel, openOptionsPanel, openSettingsPanel, openTaskListPanel, openTemplatesPanel, openWorkspacesPanel, resetTask } from "../chat/stream.js";
 import { openGlobalSearchPanel, scrollChat, showToast } from "../panels/index.js";
 import { startTour } from "../panels/onboarding.js";
 import { $, state } from "./state.js";
@@ -39,6 +39,7 @@ function commands() {
     { id: "journal", glyph: "notebook-pen", group: "palette.group.task", run: () => openJournalPanel() },
     { id: "archive", glyph: "archive", group: "palette.group.task", run: () => openArchivePanel() },
     { id: "tour", glyph: "sparkles", group: "palette.group.surface", run: () => startTour() },
+    { id: "recent", glyph: "newspaper", group: "palette.group.task", run: () => openRecentPanel() },
     { id: "batch", glyph: "layers", group: "palette.group.task", run: () => openBatchPanel() },
     { id: "export", glyph: "download", group: "palette.group.task", run: () => exportChat() },
     { id: "settings", glyph: "settings-2", group: "palette.group.surface", run: () => openSettingsPanel() },

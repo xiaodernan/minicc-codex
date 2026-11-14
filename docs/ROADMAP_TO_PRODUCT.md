@@ -51398,3 +51398,36 @@ ROADMAP_TO_PRODUCT.md 是这个项目自己的史书，258 个批次号，但没
 ### 4 遗留
 
 - 演练只面向首访；老用户不想看可跳过并记忆；⌘K 随时重开不依赖用户状态。
+
+## 批次 937 - M8-T942：第十四板块「近况」——这个项目自己的更新日志
+
+### 1 背景
+
+十二个面板都在讲"这是什么"。缺一个讲"最近干了什么"。本批次补上最后一块叙事拼图：
+一个只读、跟着仓库走、零后端改动的发布流。
+
+### 2 变更
+
+- 新增 `web/src/panels/recent.js`：第十四板块「近况」。
+  开板即从 `/api/roadmap` 现拉最近十五批（259 章总表里最新的一屏），
+  标题**原样摘抄**（user data，不改写、不翻译）；最新一条 mint 描边高亮；
+  `batch` 号等宽、`M8-Txxxx` 徽标；页脚按钮直接跳转档案馆（全部章节）。
+- `web/index.html` 侧边新增「近况」入口（newspaper 图标 + UPD 徽标）；
+  i18n：`nav.recent` / `recent.title` / `palette.cmd.recent` ×2（575 keys parity / 217 literal t() 全可解析）；
+  palette 命令、nav 路由、Ctrl/⌘K 可搜。
+- bundle 重建（app.js 503777 chars）。
+
+### 3 验证
+
+- 真浏览器（zh / en 各一次，假 provider）：
+  - 15 行条目渲染 ✓（拿到了最新 #260/M8-T941 开的 row + mint fresh highlight）
+  - meta 条目：259 批 / 702 测试文件 / main @ aa8c591 ✓
+  - 点击页脚"打开档案馆"→ `.archive-shell` 出现 ✓
+  - en chrome（Kicker/footer/meta/nav）**零 CJK**（章节标题为仓库用户数据，原样呈现）✓
+  - 零 pageerror ✓
+- `npm run test:i18n` → 575 keys ×2，217 literal t() 全可解析 ✓
+
+### 4 遗留
+
+- 这一屏不是"周刊"，而是本周都在烧的真相：每次打开都是最新的。
+  一切编者的话都来自 ROADMAP_TO_PRODUCT.md——一显示、一来源，无漂移。

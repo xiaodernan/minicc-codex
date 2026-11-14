@@ -2300,4 +2300,6 @@ import { openJournalPanel } from "../panels/journal.js";
 export { openJournalPanel };
 import { openArchivePanel } from "../panels/archive.js";
 export { openArchivePanel };
+import { openRecentPanel } from "../panels/recent.js";
+export { openRecentPanel };
 

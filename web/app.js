@@ -832,7 +832,10 @@
       "nav.archive": "\u6863\u6848\u9986",
       "archive.title": "\u6863\u6848\u9986",
       "palette.cmd.archive": "\u6253\u5F00\u6863\u6848\u9986",
-      "palette.cmd.tour": "\u4E0A\u624B\u6F14\u7EC3"
+      "palette.cmd.tour": "\u4E0A\u624B\u6F14\u7EC3",
+      "nav.recent": "\u8FD1\u51B5",
+      "recent.title": "\u8FD1\u51B5",
+      "palette.cmd.recent": "\u6253\u5F00\u8FD1\u51B5"
     },
     en: {
       "restore.partial": "Restored safe files; kept later edits or unavailable files",
@@ -1406,7 +1409,10 @@
       "nav.archive": "Archive",
       "archive.title": "Archive",
       "palette.cmd.archive": "Open the archive",
-      "palette.cmd.tour": "Start the tour"
+      "palette.cmd.tour": "Start the tour",
+      "nav.recent": "Recent",
+      "recent.title": "Recent",
+      "palette.cmd.recent": "Open recent"
     }
   };
   function t(key) {
@@ -2213,8 +2219,8 @@
     const binding = runningTasks.get(taskId) || { taskId, sessionId: state.sessionId, workspacePath: state.workspacePath, loadingId };
     finishLiveTask(binding.loadingId || loadingId);
     stopTaskTimer(taskId);
-    const zh6 = state.locale === "zh";
-    const finalData = data.status === "completed" ? data : { ...data, answer: data.answer || data.error || (data.status === "cancelled" ? zh6 ? "\u4EFB\u52A1\u5DF2\u53D6\u6D88\u3002" : "Task cancelled." : zh6 ? "\u4EFB\u52A1\u5931\u8D25\u3002" : "Task failed.") };
+    const zh7 = state.locale === "zh";
+    const finalData = data.status === "completed" ? data : { ...data, answer: data.answer || data.error || (data.status === "cancelled" ? zh7 ? "\u4EFB\u52A1\u5DF2\u53D6\u6D88\u3002" : "Task cancelled." : zh7 ? "\u4EFB\u52A1\u5931\u8D25\u3002" : "Task failed.") };
     cacheTaskDetail(finalData);
     runningTasks.delete(taskId);
     if (taskBySession.get(taskSessionKey(binding.sessionId, binding.workspacePath)) === taskId) taskBySession.delete(taskSessionKey(binding.sessionId, binding.workspacePath));
@@ -2976,10 +2982,10 @@
     limits: { zh: zhLimits, en: enLimits }
   };
   function chapterMarkup2(chapter) {
-    const zh6 = state.locale === "zh";
-    const title = zh6 ? chapter.titleZh : chapter.title;
+    const zh7 = state.locale === "zh";
+    const title = zh7 ? chapter.titleZh : chapter.title;
     return `<button class="manual-chapter" data-chapter="${escapeHtml(chapter.id)}" role="tab">
-            <span class="manual-chapter-roman">${escapeHtml(zh6 ? chapter.roman : chapter.romanEn)}</span>
+            <span class="manual-chapter-roman">${escapeHtml(zh7 ? chapter.roman : chapter.romanEn)}</span>
             <span class="manual-chapter-body"><strong>${escapeHtml(title)}</strong></span>
           </button>`;
   }
@@ -2990,11 +2996,11 @@
     const slot = $("#manualCanvas");
     const chapter = CHAPTERS2.find((c) => c.id === id) ?? CHAPTERS2[0];
     if (!slot) return;
-    const zh6 = state.locale === "zh";
-    const body = (zh6 ? BODIES[chapter.id].zh : BODIES[chapter.id].en)();
+    const zh7 = state.locale === "zh";
+    const body = (zh7 ? BODIES[chapter.id].zh : BODIES[chapter.id].en)();
     slot.innerHTML = `
     <div class="manual-canvas-inner">
-      <div class="manual-kicker">${zh6 ? `\u7B2C${chapter.roman}\u7AE0` : `Chapter ${chapter.romanEn}`} \xB7 ${escapeHtml(chapter.title)}</div>
+      <div class="manual-kicker">${zh7 ? `\u7B2C${chapter.roman}\u7AE0` : `Chapter ${chapter.romanEn}`} \xB7 ${escapeHtml(chapter.title)}</div>
       <h1 class="manual-title">${escapeHtml(chapterTitle(chapter))}</h1>
       <div class="manual-body">${body}</div>
     </div>`;
@@ -3005,7 +3011,7 @@
     refreshIcons();
   }
   async function openManualPanel() {
-    const zh6 = state.locale === "zh";
+    const zh7 = state.locale === "zh";
     const current = beginPanelRequest(t("manual.title"));
     try {
       const rail = CHAPTERS2.map(chapterMarkup2).join("");
@@ -3365,6 +3371,55 @@
     } catch (error) {
       if (!current()) return;
       openPanel(t("archive.title"), `<div class="error-panel">${escapeHtml(error.message)}</div>`);
+    }
+  }
+
+  // web/src/panels/recent.js
+  var zh5 = () => state.locale === "zh";
+  var LIMIT = 15;
+  function entryRow2(entry, index) {
+    const tag = entry.id ? `<span class="recent-tag">${escapeHtml(entry.id)}</span>` : "";
+    const fresh = index === 0 ? " recent-entry-fresh" : "";
+    return `<li class="recent-entry${fresh}"><span class="recent-batch">#${escapeHtml(String(entry.batch))}</span>${tag}<span class="recent-title">${escapeHtml(entry.title)}</span></li>`;
+  }
+  function render2(digest, roadmap) {
+    const isZh = zh5();
+    const entries = Array.isArray(roadmap?.entries) ? roadmap.entries : [];
+    const newest = [...entries].sort((a, b) => (b.batch || 0) - (a.batch || 0)).slice(0, LIMIT);
+    const total = roadmap?.total ?? entries.length;
+    const tests = digest?.test_files != null ? String(digest.test_files) : "\u2014";
+    const head = digest?.head_short ? `main @ ${digest.head_short}` : "main";
+    const branch = digest?.branch ? `${digest.branch}${digest.head_short ? ` @ ${digest.head_short}` : ""}` : "\u2014";
+    const rows = newest.map((entry, index) => entryRow2(entry, index)).join("");
+    return `
+    <div class="recent-canvas">
+      <div class="recent-kicker">${escapeHtml(isZh ? "\u8FD1\u51B5 \xB7 \u6700\u8FD1\u4EA4\u4ED8" : "Recent deliveries")}</div>
+      <h1 class="recent-title-top">${isZh ? "\u6700\u65B0" : "The last"}<span class="recent-title-accent"> ${escapeHtml(String(newest.length))} ${isZh ? "\u6279" : "batches"}</span>${isZh ? "\uFF0C\u73B0\u573A\u8BFB\u53D6" : ", read live"}</h1>
+      <div class="recent-meta">
+        <span class="recent-meta-item"><strong>${escapeHtml(String(total))}</strong> ${escapeHtml(isZh ? "\u6279\u6B21" : "batches")}</span>
+        <span class="recent-meta-item"><strong>${escapeHtml(tests)}</strong> ${escapeHtml(isZh ? "\u4E2A\u6D4B\u8BD5\u6587\u4EF6" : "test files")}</span>
+        <span class="recent-meta-item"><strong>${escapeHtml(branch)}</strong></span>
+      </div>
+      <ol class="recent-list">${rows || `<li class="recent-empty">${escapeHtml(isZh ? "\uFF08\u6863\u6848\u9986\u7A7A\u7A7A\u5982\u4E5F\uFF09" : "(the archive is empty)")}</li>`}</ol>
+      <div class="recent-foot">
+        <p>${escapeHtml(isZh ? "\u7AE0\u8282\u539F\u6587 /api/roadmap \u73B0\u8BFB\u53D6\uFF0C\u5185\u5BB9\u4E0D\u52A0\u6539\u9020\u3002" : "Chapter titles are verbatim from /api/roadmap \u2014 never rewritten.")}</p>
+        <button type="button" class="recent-footer-button" id="recentOpenArchive">${escapeHtml(isZh ? `\u6253\u5F00\u6863\u6848\u9986\uFF0C\u770B\u5168\u90E8 ${total} \u7AE0 \u2192` : `Open the Archive, all ${total} chapters \u2192`)}</button>
+      </div>
+    </div>`;
+  }
+  async function openRecentPanel() {
+    const current = beginPanelRequest(t("recent.title"));
+    try {
+      const [digest, roadmap] = await Promise.all([
+        requestJson("/api/digest").catch(() => null),
+        requestJson("/api/roadmap").catch(() => null)
+      ]);
+      openPanel(t("recent.title"), render2(digest, roadmap), { wide: true });
+      $("#recentOpenArchive")?.addEventListener("click", () => openArchivePanel());
+      refreshIcons();
+    } catch (error) {
+      if (!current()) return;
+      openPanel(t("recent.title"), `<div class="error-panel">${escapeHtml(error.message)}</div>`);
     }
   }
 
@@ -4090,55 +4145,55 @@
     return { gateway: "wkapi.pro" };
   }
   function openTemplatesPanel() {
-    const zh6 = state.locale === "zh";
+    const zh7 = state.locale === "zh";
     const cards = [
       {
         icon: "file-search-2",
-        title: zh6 ? "\u9879\u76EE\u626B\u63CF" : "Project Scan",
-        subtitle: zh6 ? "\u8BFB\u5165\u53E3\u6587\u6863\u3001\u67B6\u6784\u4E0E\u547D\u4EE4\uFF0C\u8F93\u51FA\u4E00\u9875\u9879\u76EE\u6982\u89C8" : "Read entrypoint docs, architecture, and commands for a one-page overview",
-        prompt: zh6 ? "\u8BF7\u9605\u8BFB\u5F53\u524D\u5DE5\u4F5C\u533A\u7684 README\u3001package.json \u6216 pyproject.toml\u3001AGENTS.md / CLAUDE.md / MINICC.md \u4EE5\u53CA\u4E3B\u8981\u7684\u6784\u5EFA\u811A\u672C\uFF0C\u7136\u540E\u8F93\u51FA\u4E00\u9875\u9879\u76EE\u6982\u89C8\uFF1A\u8FD9\u4E2A\u4ED3\u5E93\u505A\u4EC0\u4E48\u3001\u6280\u672F\u6808\u662F\u4EC0\u4E48\u3001\u600E\u4E48\u6784\u5EFA\u3001\u600E\u4E48\u6D4B\u8BD5\u3001\u4ECE\u54EA\u91CC\u5F00\u59CB\u8BFB\u8D77\u3002\u4E0D\u8981\u7528\u5DE5\u5177\u4FEE\u6539\u4EFB\u4F55\u6587\u4EF6\u3002" : "Read the workspace's README, package.json or pyproject.toml, AGENTS.md / CLAUDE.md / MINICC.md, and the main build scripts. Then output a one-page project overview: what this repo does, its tech stack, how to build, how to test, and where to start reading. Do not edit any files."
+        title: zh7 ? "\u9879\u76EE\u626B\u63CF" : "Project Scan",
+        subtitle: zh7 ? "\u8BFB\u5165\u53E3\u6587\u6863\u3001\u67B6\u6784\u4E0E\u547D\u4EE4\uFF0C\u8F93\u51FA\u4E00\u9875\u9879\u76EE\u6982\u89C8" : "Read entrypoint docs, architecture, and commands for a one-page overview",
+        prompt: zh7 ? "\u8BF7\u9605\u8BFB\u5F53\u524D\u5DE5\u4F5C\u533A\u7684 README\u3001package.json \u6216 pyproject.toml\u3001AGENTS.md / CLAUDE.md / MINICC.md \u4EE5\u53CA\u4E3B\u8981\u7684\u6784\u5EFA\u811A\u672C\uFF0C\u7136\u540E\u8F93\u51FA\u4E00\u9875\u9879\u76EE\u6982\u89C8\uFF1A\u8FD9\u4E2A\u4ED3\u5E93\u505A\u4EC0\u4E48\u3001\u6280\u672F\u6808\u662F\u4EC0\u4E48\u3001\u600E\u4E48\u6784\u5EFA\u3001\u600E\u4E48\u6D4B\u8BD5\u3001\u4ECE\u54EA\u91CC\u5F00\u59CB\u8BFB\u8D77\u3002\u4E0D\u8981\u7528\u5DE5\u5177\u4FEE\u6539\u4EFB\u4F55\u6587\u4EF6\u3002" : "Read the workspace's README, package.json or pyproject.toml, AGENTS.md / CLAUDE.md / MINICC.md, and the main build scripts. Then output a one-page project overview: what this repo does, its tech stack, how to build, how to test, and where to start reading. Do not edit any files."
       },
       {
         icon: "shield-check",
-        title: zh6 ? "\u8DD1\u6D4B\u8BD5\u5E76\u4FEE\u597D" : "Run tests & fix",
-        subtitle: zh6 ? "\u81EA\u52A8\u53D1\u73B0\u6D4B\u8BD5\u547D\u4EE4\uFF0C\u8FD0\u884C\u5E76\u4FEE\u590D\u5931\u8D25\uFF0C\u9A8C\u8BC1\u901A\u8FC7" : "Discover the test runner, run it, fix failures, verify green",
-        prompt: zh6 ? "\u8BF7\u53D1\u73B0\u5F53\u524D\u4ED3\u5E93\u7684\u6D4B\u8BD5\u547D\u4EE4\uFF08\u53C2\u8003 package.json / pyproject.toml / Makefile \u4E2D\u7684 test \u6BB5\uFF0C\u4E0D\u8981\u4FEE\u6539\u5B83\u4EEC\uFF09\uFF0C\u8FD0\u884C\u6D4B\u8BD5\uFF0C\u5206\u6790\u5931\u8D25\u539F\u56E0\uFF0C\u9010\u4E00\u4FEE\u590D\u76F4\u5230\u5168\u90E8\u901A\u8FC7\u3002\u5982\u679C\u53D1\u73B0\u6D4B\u8BD5\u672C\u8EAB\u6709\u95EE\u9898\uFF0C\u4E5F\u4FEE\u597D\u6D4B\u8BD5\uFF1B\u4E0D\u8981\u8DF3\u8FC7\u4EFB\u4F55\u65AD\u8A00\u3002\u6700\u540E\u6C47\u62A5\u672C\u6B21\u6539\u52A8\u6D89\u53CA\u7684\u6BCF\u4E2A\u6587\u4EF6\u3001\u6BCF\u4E2A\u5931\u8D25\u4EE5\u53CA\u4FEE\u590D\u65B9\u5F0F\u3002" : "Discover the test command for this repo (look at the test section of package.json / pyproject.toml / Makefile; do not edit those files). Run the tests, analyze the failures, fix them one by one until green. If a test itself is wrong, fix the test too; don't skip any assertion. Report each file involved, each failure, and how you fixed it."
+        title: zh7 ? "\u8DD1\u6D4B\u8BD5\u5E76\u4FEE\u597D" : "Run tests & fix",
+        subtitle: zh7 ? "\u81EA\u52A8\u53D1\u73B0\u6D4B\u8BD5\u547D\u4EE4\uFF0C\u8FD0\u884C\u5E76\u4FEE\u590D\u5931\u8D25\uFF0C\u9A8C\u8BC1\u901A\u8FC7" : "Discover the test runner, run it, fix failures, verify green",
+        prompt: zh7 ? "\u8BF7\u53D1\u73B0\u5F53\u524D\u4ED3\u5E93\u7684\u6D4B\u8BD5\u547D\u4EE4\uFF08\u53C2\u8003 package.json / pyproject.toml / Makefile \u4E2D\u7684 test \u6BB5\uFF0C\u4E0D\u8981\u4FEE\u6539\u5B83\u4EEC\uFF09\uFF0C\u8FD0\u884C\u6D4B\u8BD5\uFF0C\u5206\u6790\u5931\u8D25\u539F\u56E0\uFF0C\u9010\u4E00\u4FEE\u590D\u76F4\u5230\u5168\u90E8\u901A\u8FC7\u3002\u5982\u679C\u53D1\u73B0\u6D4B\u8BD5\u672C\u8EAB\u6709\u95EE\u9898\uFF0C\u4E5F\u4FEE\u597D\u6D4B\u8BD5\uFF1B\u4E0D\u8981\u8DF3\u8FC7\u4EFB\u4F55\u65AD\u8A00\u3002\u6700\u540E\u6C47\u62A5\u672C\u6B21\u6539\u52A8\u6D89\u53CA\u7684\u6BCF\u4E2A\u6587\u4EF6\u3001\u6BCF\u4E2A\u5931\u8D25\u4EE5\u53CA\u4FEE\u590D\u65B9\u5F0F\u3002" : "Discover the test command for this repo (look at the test section of package.json / pyproject.toml / Makefile; do not edit those files). Run the tests, analyze the failures, fix them one by one until green. If a test itself is wrong, fix the test too; don't skip any assertion. Report each file involved, each failure, and how you fixed it."
       },
       {
         icon: "git-compare",
-        title: zh6 ? "\u5B89\u5168\u5BA1\u67E5\u53D8\u66F4" : "Review Diff Safely",
-        subtitle: zh6 ? "\u5BA1\u67E5\u5F53\u524D\u672A\u63D0\u4EA4\u6539\u52A8\uFF1A\u56DE\u5F52\u98CE\u9669\u3001\u6F0F\u6539\u3001\u8FB9\u754C\u6761\u4EF6" : "Review uncommitted changes: regression risk, missing edits, edge cases",
-        prompt: zh6 ? "\u8BF7\u4F7F\u7528 git diff \u5BA1\u67E5\u5F53\u524D\u672A\u63D0\u4EA4\u7684\u6539\u52A8\uFF0C\u91CD\u70B9\u5173\u6CE8\uFF1A\u2460 \u662F\u5426\u7834\u574F\u73B0\u6709 API / \u7C7B\u578B\u7B7E\u540D / \u5E8F\u5217\u5316\u683C\u5F0F\uFF1B\u2461 \u662F\u5426\u9057\u6F0F\u4E86\u5E94\u8BE5\u540C\u6B65\u66F4\u65B0\u7684\u8C03\u7528\u5904\uFF1B\u2462 \u8FB9\u754C\u6761\u4EF6\uFF08\u7A7A\u503C\u3001\u8D1F\u6570\u3001\u8D85\u5927\u8F93\u5165\uFF09\u662F\u5426\u8986\u76D6\uFF1B\u2463 \u6D4B\u8BD5\u662F\u5426\u540C\u6B65\u52A0\u4E86\u3002\u8F93\u51FA\u5BA1\u67E5\u7ED3\u8BBA\uFF1A\u901A\u8FC7 / \u9700\u4FEE\u6539\uFF08\u9644\u6587\u4EF6+\u884C\u53F7\uFF09/ \u98CE\u9669\u63A5\u53D7\u3002" : "Review the current uncommitted diff with git diff. Focus on: (1) whether it breaks existing APIs, type signatures, or serialization formats; (2) call sites that should be updated but weren't; (3) boundary conditions (null, negative, very large input); (4) tests that were added/updated. Output a verdict: approve / needs changes (with file+line) / risk-accepted."
+        title: zh7 ? "\u5B89\u5168\u5BA1\u67E5\u53D8\u66F4" : "Review Diff Safely",
+        subtitle: zh7 ? "\u5BA1\u67E5\u5F53\u524D\u672A\u63D0\u4EA4\u6539\u52A8\uFF1A\u56DE\u5F52\u98CE\u9669\u3001\u6F0F\u6539\u3001\u8FB9\u754C\u6761\u4EF6" : "Review uncommitted changes: regression risk, missing edits, edge cases",
+        prompt: zh7 ? "\u8BF7\u4F7F\u7528 git diff \u5BA1\u67E5\u5F53\u524D\u672A\u63D0\u4EA4\u7684\u6539\u52A8\uFF0C\u91CD\u70B9\u5173\u6CE8\uFF1A\u2460 \u662F\u5426\u7834\u574F\u73B0\u6709 API / \u7C7B\u578B\u7B7E\u540D / \u5E8F\u5217\u5316\u683C\u5F0F\uFF1B\u2461 \u662F\u5426\u9057\u6F0F\u4E86\u5E94\u8BE5\u540C\u6B65\u66F4\u65B0\u7684\u8C03\u7528\u5904\uFF1B\u2462 \u8FB9\u754C\u6761\u4EF6\uFF08\u7A7A\u503C\u3001\u8D1F\u6570\u3001\u8D85\u5927\u8F93\u5165\uFF09\u662F\u5426\u8986\u76D6\uFF1B\u2463 \u6D4B\u8BD5\u662F\u5426\u540C\u6B65\u52A0\u4E86\u3002\u8F93\u51FA\u5BA1\u67E5\u7ED3\u8BBA\uFF1A\u901A\u8FC7 / \u9700\u4FEE\u6539\uFF08\u9644\u6587\u4EF6+\u884C\u53F7\uFF09/ \u98CE\u9669\u63A5\u53D7\u3002" : "Review the current uncommitted diff with git diff. Focus on: (1) whether it breaks existing APIs, type signatures, or serialization formats; (2) call sites that should be updated but weren't; (3) boundary conditions (null, negative, very large input); (4) tests that were added/updated. Output a verdict: approve / needs changes (with file+line) / risk-accepted."
       },
       {
         icon: "book-open",
-        title: zh6 ? "\u751F\u6210 README" : "Write README",
-        subtitle: zh6 ? "\u6309\u4ED3\u5E93\u7ED3\u6784\u5199\u51FA\u6E05\u6670\u7684\u65B0 READMOR" : "Write a clear README from this repo's structure",
-        prompt: zh6 ? "\u8BF7\u6839\u636E\u5F53\u524D\u4ED3\u5E93\u7684\u76EE\u5F55\u7ED3\u6784\u3001\u6E90\u7801\u6CE8\u91CA\u3001\u6784\u5EFA/\u6D4B\u8BD5\u5165\u53E3\u548C\u4F9D\u8D56\u6E05\u5355\uFF0C\u751F\u6210\u4E00\u4EFD\u9762\u5411\u65B0\u8D21\u732E\u8005\u7684 README\uFF1A\u2460 \u8FD9\u4E2A\u9879\u76EE\u662F\u4EC0\u4E48\u3001\u89E3\u51B3\u4EC0\u4E48\u95EE\u9898\uFF1B\u2461 \u73AF\u5883\u8981\u6C42\uFF1B\u2462 \u5FEB\u901F\u5F00\u59CB\uFF08\u5B89\u88C5\u3001\u6784\u5EFA\u3001\u6D4B\u8BD5\uFF09\uFF1B\u2463 \u9879\u76EE\u7ED3\u6784\u5730\u56FE\uFF08\u76EE\u5F55 \u2192 \u7528\u9014 + \u5173\u952E\u6587\u4EF6\uFF09\uFF1B\u2464 \u5E38\u89C1\u4EFB\u52A1\uFF08\u793A\u4F8B\uFF1A\u65B0\u589E\u529F\u80FD\u3001\u8DD1\u5355\u6D4B\uFF09\u3002\u53EA\u8BFB\u53D6\u6587\u4EF6\u3001\u4E0D\u8981\u4FEE\u6539\u4EFB\u4F55\u4E1C\u897F\u3002" : "Based on the repo's directory structure, source-code docstrings, build/test entry points, and dependency manifest, generate a README for new contributors: (1) what this project is and what problem it solves, (2) prerequisites, (3) quickstart (install, build, test), (4) structure map (directory \u2192 purpose + key files), (5) common tasks (example: add a feature, run the focused test). Read only, do not edit files."
+        title: zh7 ? "\u751F\u6210 README" : "Write README",
+        subtitle: zh7 ? "\u6309\u4ED3\u5E93\u7ED3\u6784\u5199\u51FA\u6E05\u6670\u7684\u65B0 READMOR" : "Write a clear README from this repo's structure",
+        prompt: zh7 ? "\u8BF7\u6839\u636E\u5F53\u524D\u4ED3\u5E93\u7684\u76EE\u5F55\u7ED3\u6784\u3001\u6E90\u7801\u6CE8\u91CA\u3001\u6784\u5EFA/\u6D4B\u8BD5\u5165\u53E3\u548C\u4F9D\u8D56\u6E05\u5355\uFF0C\u751F\u6210\u4E00\u4EFD\u9762\u5411\u65B0\u8D21\u732E\u8005\u7684 README\uFF1A\u2460 \u8FD9\u4E2A\u9879\u76EE\u662F\u4EC0\u4E48\u3001\u89E3\u51B3\u4EC0\u4E48\u95EE\u9898\uFF1B\u2461 \u73AF\u5883\u8981\u6C42\uFF1B\u2462 \u5FEB\u901F\u5F00\u59CB\uFF08\u5B89\u88C5\u3001\u6784\u5EFA\u3001\u6D4B\u8BD5\uFF09\uFF1B\u2463 \u9879\u76EE\u7ED3\u6784\u5730\u56FE\uFF08\u76EE\u5F55 \u2192 \u7528\u9014 + \u5173\u952E\u6587\u4EF6\uFF09\uFF1B\u2464 \u5E38\u89C1\u4EFB\u52A1\uFF08\u793A\u4F8B\uFF1A\u65B0\u589E\u529F\u80FD\u3001\u8DD1\u5355\u6D4B\uFF09\u3002\u53EA\u8BFB\u53D6\u6587\u4EF6\u3001\u4E0D\u8981\u4FEE\u6539\u4EFB\u4F55\u4E1C\u897F\u3002" : "Based on the repo's directory structure, source-code docstrings, build/test entry points, and dependency manifest, generate a README for new contributors: (1) what this project is and what problem it solves, (2) prerequisites, (3) quickstart (install, build, test), (4) structure map (directory \u2192 purpose + key files), (5) common tasks (example: add a feature, run the focused test). Read only, do not edit files."
       },
       {
         icon: "globe-2",
-        title: zh6 ? "\u4E2D\u6587\u6CE8\u91CA\u82F1\u6587\u5316" : "Translate Comments EN",
-        subtitle: zh6 ? "\u628A\u6E90\u7801\u4E2D\u7684\u4E2D\u6587\u6CE8\u91CA / \u6587\u6863\u5B57\u7B26\u4E32\u7FFB\u8BD1\u4E3A\u82F1\u6587" : "Translate Chinese comments / docstrings to English",
-        prompt: zh6 ? "\u8BF7\u626B\u63CF\u5F53\u524D\u4ED3\u5E93\u4E2D\u6240\u6709\u6E90\u6587\u4EF6\uFF0C\u628A\u6240\u6709\u4E2D\u6587\u6CE8\u91CA\uFF08\u542B\u6587\u6863\u5B57\u7B26\u4E32\u4E0E\u884C\u5C3E\u6CE8\u91CA\uFF09\u7FFB\u8BD1\u6210\u5730\u9053\u82F1\u6587\uFF0C\u53EA\u6539\u6CE8\u91CA\u4E0D\u6539\u4EE3\u7801\u903B\u8F91\u4E0E\u5B57\u7B26\u4E32\u3002\u4E0D\u8981\u7FFB\u8BD1\u7528\u6237\u754C\u9762\u6587\u6848\uFF08\u90A3\u4E9B\u5DF2\u7ECF\u662F\u53CC\u8BED\u4E86\uFF09\u3002\u7FFB\u8BD1\u540E\u4FDD\u6301\u6587\u4EF6\u683C\u5F0F\u4E0D\u53D8\uFF0C\u5E76\u6C47\u62A5\u6539\u52A8\u7684\u6587\u4EF6\u6E05\u5355\u548C\u7FFB\u8BD1\u6761\u6570\u3002" : "Scan every source file in the workspace; translate every Chinese comment (including docstrings and end-of-line comments) into fluent English. Change only comments \u2014 never code logic or string literals. Do not translate UI strings (those are already bilingual). Preserve file formatting and report the files changed and number of comments translated."
+        title: zh7 ? "\u4E2D\u6587\u6CE8\u91CA\u82F1\u6587\u5316" : "Translate Comments EN",
+        subtitle: zh7 ? "\u628A\u6E90\u7801\u4E2D\u7684\u4E2D\u6587\u6CE8\u91CA / \u6587\u6863\u5B57\u7B26\u4E32\u7FFB\u8BD1\u4E3A\u82F1\u6587" : "Translate Chinese comments / docstrings to English",
+        prompt: zh7 ? "\u8BF7\u626B\u63CF\u5F53\u524D\u4ED3\u5E93\u4E2D\u6240\u6709\u6E90\u6587\u4EF6\uFF0C\u628A\u6240\u6709\u4E2D\u6587\u6CE8\u91CA\uFF08\u542B\u6587\u6863\u5B57\u7B26\u4E32\u4E0E\u884C\u5C3E\u6CE8\u91CA\uFF09\u7FFB\u8BD1\u6210\u5730\u9053\u82F1\u6587\uFF0C\u53EA\u6539\u6CE8\u91CA\u4E0D\u6539\u4EE3\u7801\u903B\u8F91\u4E0E\u5B57\u7B26\u4E32\u3002\u4E0D\u8981\u7FFB\u8BD1\u7528\u6237\u754C\u9762\u6587\u6848\uFF08\u90A3\u4E9B\u5DF2\u7ECF\u662F\u53CC\u8BED\u4E86\uFF09\u3002\u7FFB\u8BD1\u540E\u4FDD\u6301\u6587\u4EF6\u683C\u5F0F\u4E0D\u53D8\uFF0C\u5E76\u6C47\u62A5\u6539\u52A8\u7684\u6587\u4EF6\u6E05\u5355\u548C\u7FFB\u8BD1\u6761\u6570\u3002" : "Scan every source file in the workspace; translate every Chinese comment (including docstrings and end-of-line comments) into fluent English. Change only comments \u2014 never code logic or string literals. Do not translate UI strings (those are already bilingual). Preserve file formatting and report the files changed and number of comments translated."
       },
       {
         icon: "refresh-cw",
-        title: zh6 ? "\u4F9D\u8D56\u5347\u7EA7\u4F53\u68C0" : "Dependency Check",
-        subtitle: zh6 ? "\u5217\u51FA\u8FC7\u671F\u4F9D\u8D56\u3001\u5B89\u5168\u63D0\u9192\u3001\u5347\u7EA7\u5F71\u54CD\u8BC4\u4F30" : "List outdated deps, security notes, and upgrade impact",
-        prompt: zh6 ? "\u8BF7\u68C0\u67E5\u5F53\u524D\u4ED3\u5E93\u7684\u4F9D\u8D56\u6E05\u5355\uFF0C\u5217\u51FA\uFF1A\u2460 \u8FC7\u671F\u7684\u4F9D\u8D56\uFF08\u533A\u5206 major / minor / patch\uFF09\uFF1B\u2461 \u5DF2\u77E5\u5B89\u5168\u6F0F\u6D1E\u6216\u5F03\u7528\u8B66\u544A\uFF1B\u2462 \u5EFA\u8BAE\u5347\u7EA7\u987A\u5E8F\uFF08\u54EA\u4E9B\u5148\u5347\u3001\u54EA\u4E9B\u53EF\u4EE5\u5EF6\u540E\uFF09\u3002\u4E0D\u8981\u5B9E\u9645\u4FEE\u6539\u6E05\u5355\u3002\u6700\u540E\u8F93\u51FA\u4E00\u4EFD\u300C\u4F9D\u8D56\u4F53\u68C0\u300D\u62A5\u544A\u3002" : "Check this repo's dependency manifest and report: (1) outdated dependencies, by major/minor/patch, (2) known security advisories or deprecation warnings, (3) a recommended upgrade order (which go first and which can wait). Do not modify the manifest. Output a dependency health-check report."
+        title: zh7 ? "\u4F9D\u8D56\u5347\u7EA7\u4F53\u68C0" : "Dependency Check",
+        subtitle: zh7 ? "\u5217\u51FA\u8FC7\u671F\u4F9D\u8D56\u3001\u5B89\u5168\u63D0\u9192\u3001\u5347\u7EA7\u5F71\u54CD\u8BC4\u4F30" : "List outdated deps, security notes, and upgrade impact",
+        prompt: zh7 ? "\u8BF7\u68C0\u67E5\u5F53\u524D\u4ED3\u5E93\u7684\u4F9D\u8D56\u6E05\u5355\uFF0C\u5217\u51FA\uFF1A\u2460 \u8FC7\u671F\u7684\u4F9D\u8D56\uFF08\u533A\u5206 major / minor / patch\uFF09\uFF1B\u2461 \u5DF2\u77E5\u5B89\u5168\u6F0F\u6D1E\u6216\u5F03\u7528\u8B66\u544A\uFF1B\u2462 \u5EFA\u8BAE\u5347\u7EA7\u987A\u5E8F\uFF08\u54EA\u4E9B\u5148\u5347\u3001\u54EA\u4E9B\u53EF\u4EE5\u5EF6\u540E\uFF09\u3002\u4E0D\u8981\u5B9E\u9645\u4FEE\u6539\u6E05\u5355\u3002\u6700\u540E\u8F93\u51FA\u4E00\u4EFD\u300C\u4F9D\u8D56\u4F53\u68C0\u300D\u62A5\u544A\u3002" : "Check this repo's dependency manifest and report: (1) outdated dependencies, by major/minor/patch, (2) known security advisories or deprecation warnings, (3) a recommended upgrade order (which go first and which can wait). Do not modify the manifest. Output a dependency health-check report."
       },
       {
         icon: "sparkles",
-        title: zh6 ? "\u4EE3\u7801\u73B0\u4EE3\u5316\u5EFA\u8BAE" : "Modernize Code",
-        subtitle: zh6 ? "\u53D1\u73B0\u53EF\u4EE5\u7CBE\u7B80 / \u73B0\u4EE3\u5316\u7684\u4EE3\u7801\u7247\u6BB5" : "Find code that can be tightened or modernized",
-        prompt: zh6 ? "\u8BF7\u901A\u8BFB\u5F53\u524D\u4ED3\u5E93\u7684\u6838\u5FC3\u6A21\u5757\uFF0C\u627E\u51FA\uFF081\uFF09\u91CD\u590D\u4EE3\u7801\u3001\uFF082\uFF09\u53EF\u88AB\u73B0\u4EE3\u8BED\u8A00\u7279\u6027\u53D6\u4EE3\u7684\u5199\u6CD5\uFF08\u6BD4\u5982 3 \u5143\u94FE / \u8001\u5F0F\u5B57\u7B26\u4E32\u62FC\u63A5\uFF09\u3001\uFF083\uFF09\u672A\u4F7F\u7528\u7684\u5BFC\u5165\u3001\uFF084\uFF09\u53EF\u4EE5\u63D0\u53D6\u6210\u51FD\u6570\u7684\u957F\u51FD\u6570\u4F53\u3001\uFF085\uFF09\u7C7B\u578B\u53EF\u4EE5\u66F4\u7CBE\u786E\u7684\u5730\u65B9\u3002\u5217\u51FA\u6BCF\u4E2A\u53D1\u73B0\u7684\u6587\u4EF6+\u884C\u53F7+\u7B80\u8981\u5EFA\u8BAE\u3002\u4E0D\u8981\u76F4\u63A5\u6539\u52A8\u4EE3\u7801\uFF0C\u5148\u7ED9\u6211\u8BC4\u4F30\u62A5\u544A\u3002" : "Read the core modules of this repo and find: (1) duplicated code, (2) constructs replaceable by modern language features (ternary chains, legacy string building), (3) unused imports, (4) long function bodies that can be extracted, (5) spots where types could be narrower. List each finding with file+line+brief suggestion. Do not edit code yet; give me an assessment first."
+        title: zh7 ? "\u4EE3\u7801\u73B0\u4EE3\u5316\u5EFA\u8BAE" : "Modernize Code",
+        subtitle: zh7 ? "\u53D1\u73B0\u53EF\u4EE5\u7CBE\u7B80 / \u73B0\u4EE3\u5316\u7684\u4EE3\u7801\u7247\u6BB5" : "Find code that can be tightened or modernized",
+        prompt: zh7 ? "\u8BF7\u901A\u8BFB\u5F53\u524D\u4ED3\u5E93\u7684\u6838\u5FC3\u6A21\u5757\uFF0C\u627E\u51FA\uFF081\uFF09\u91CD\u590D\u4EE3\u7801\u3001\uFF082\uFF09\u53EF\u88AB\u73B0\u4EE3\u8BED\u8A00\u7279\u6027\u53D6\u4EE3\u7684\u5199\u6CD5\uFF08\u6BD4\u5982 3 \u5143\u94FE / \u8001\u5F0F\u5B57\u7B26\u4E32\u62FC\u63A5\uFF09\u3001\uFF083\uFF09\u672A\u4F7F\u7528\u7684\u5BFC\u5165\u3001\uFF084\uFF09\u53EF\u4EE5\u63D0\u53D6\u6210\u51FD\u6570\u7684\u957F\u51FD\u6570\u4F53\u3001\uFF085\uFF09\u7C7B\u578B\u53EF\u4EE5\u66F4\u7CBE\u786E\u7684\u5730\u65B9\u3002\u5217\u51FA\u6BCF\u4E2A\u53D1\u73B0\u7684\u6587\u4EF6+\u884C\u53F7+\u7B80\u8981\u5EFA\u8BAE\u3002\u4E0D\u8981\u76F4\u63A5\u6539\u52A8\u4EE3\u7801\uFF0C\u5148\u7ED9\u6211\u8BC4\u4F30\u62A5\u544A\u3002" : "Read the core modules of this repo and find: (1) duplicated code, (2) constructs replaceable by modern language features (ternary chains, legacy string building), (3) unused imports, (4) long function bodies that can be extracted, (5) spots where types could be narrower. List each finding with file+line+brief suggestion. Do not edit code yet; give me an assessment first."
       },
       {
         icon: "list-checks",
-        title: zh6 ? "\u8FD0\u884C\u5173\u952E\u8DEF\u5F84\u5192\u70DF" : "Smoke Key Path",
-        subtitle: zh6 ? "\u9A8C\u8BC1\u4E3B\u6D41\u7A0B\u80FD\u8DD1\u901A\uFF1A\u7F16\u8F91 \u2192 \u4FDD\u5B58 \u2192 \u9A8C\u8BC1" : "Smoke the golden path: edit \u2192 save \u2192 verify",
-        prompt: zh6 ? "\u8BF7\u4E0D\u8981\u6539\u4EFB\u4F55\u6587\u4EF6\u3002\u5E2E\u6211\u6267\u884C\u300C\u53EF\u7528\u6027\u5192\u70DF\u68C0\u67E5\u300D\uFF1A\u6309\u987A\u5E8F\u786E\u8BA4 (a) \u4ED3\u5E93\u7ED3\u6784\u5065\u5168\uFF08package.json / pyproject.toml / \u6784\u5EFA\u914D\u7F6E\u5B58\u5728\uFF09\uFF1B(b) \u80FD import / require \u6838\u5FC3\u5305\uFF1B(c) \u6D4B\u8BD5\u547D\u4EE4\u80FD\u88AB\u53D1\u73B0\u4E14\u53EF\u6267\u884C\uFF1B(d) \u6784\u5EFA\u4EA7\u7269\u53EF\u590D\u73B0\u3002\u6700\u540E\u8F93\u51FA\u4E00\u9875\u5192\u70DF\u68C0\u67E5\u6E05\u5355\u548C\u300C\u4E0B\u4E00\u6B65\u5EFA\u8BAE\u300D\u3002" : "Do not edit any files. Run a usability smoke check: (a) repo layout is sane (manifests/build configs exist), (b) the core package imports cleanly, (c) the test runner is discoverable and executable, (d) the build is reproducible. Output a one-page checklist and a 'next steps' recommendation."
+        title: zh7 ? "\u8FD0\u884C\u5173\u952E\u8DEF\u5F84\u5192\u70DF" : "Smoke Key Path",
+        subtitle: zh7 ? "\u9A8C\u8BC1\u4E3B\u6D41\u7A0B\u80FD\u8DD1\u901A\uFF1A\u7F16\u8F91 \u2192 \u4FDD\u5B58 \u2192 \u9A8C\u8BC1" : "Smoke the golden path: edit \u2192 save \u2192 verify",
+        prompt: zh7 ? "\u8BF7\u4E0D\u8981\u6539\u4EFB\u4F55\u6587\u4EF6\u3002\u5E2E\u6211\u6267\u884C\u300C\u53EF\u7528\u6027\u5192\u70DF\u68C0\u67E5\u300D\uFF1A\u6309\u987A\u5E8F\u786E\u8BA4 (a) \u4ED3\u5E93\u7ED3\u6784\u5065\u5168\uFF08package.json / pyproject.toml / \u6784\u5EFA\u914D\u7F6E\u5B58\u5728\uFF09\uFF1B(b) \u80FD import / require \u6838\u5FC3\u5305\uFF1B(c) \u6D4B\u8BD5\u547D\u4EE4\u80FD\u88AB\u53D1\u73B0\u4E14\u53EF\u6267\u884C\uFF1B(d) \u6784\u5EFA\u4EA7\u7269\u53EF\u590D\u73B0\u3002\u6700\u540E\u8F93\u51FA\u4E00\u9875\u5192\u70DF\u68C0\u67E5\u6E05\u5355\u548C\u300C\u4E0B\u4E00\u6B65\u5EFA\u8BAE\u300D\u3002" : "Do not edit any files. Run a usability smoke check: (a) repo layout is sane (manifests/build configs exist), (b) the core package imports cleanly, (c) the test runner is discoverable and executable, (d) the build is reproducible. Output a one-page checklist and a 'next steps' recommendation."
       }
     ];
     const zhCards = cards;
@@ -4855,12 +4910,12 @@
       networkCheckbox.disabled = state.permissionMode === "yolo";
       networkCheckbox.closest(".safe-toggle")?.classList.toggle("locked", networkCheckbox.disabled);
     }
-    const zh6 = state.locale === "zh";
+    const zh7 = state.locale === "zh";
     const write = effective.mode === "acceptEdits" || effective.allowChanges;
     const command = effective.allowChanges;
     const label2 = $("#modeLabel");
     if (label2) label2.textContent = t("capability.executeToggle");
-    const summary = zh6 ? `\u6587\u4EF6\uFF1A${write ? "\u53EF\u5199" : "\u53EA\u8BFB"} \xB7 \u547D\u4EE4\uFF1A${command ? "\u5141\u8BB8" : "\u4EC5\u5B89\u5168\u68C0\u67E5"} \xB7 \u8054\u7F51\uFF1A${effective.allowNetwork ? "\u5141\u8BB8" : "\u5173\u95ED"}` : `Files: ${write ? "write" : "read"} \xB7 Commands: ${command ? "enabled" : "safe checks"} \xB7 Network: ${effective.allowNetwork ? "on" : "off"}`;
+    const summary = zh7 ? `\u6587\u4EF6\uFF1A${write ? "\u53EF\u5199" : "\u53EA\u8BFB"} \xB7 \u547D\u4EE4\uFF1A${command ? "\u5141\u8BB8" : "\u4EC5\u5B89\u5168\u68C0\u67E5"} \xB7 \u8054\u7F51\uFF1A${effective.allowNetwork ? "\u5141\u8BB8" : "\u5173\u95ED"}` : `Files: ${write ? "write" : "read"} \xB7 Commands: ${command ? "enabled" : "safe checks"} \xB7 Network: ${effective.allowNetwork ? "on" : "off"}`;
     $("#permissionHint").textContent = summary;
     $("#permissionSummary").textContent = summary;
     $("#modeBadge").textContent = t(`perm.${effective.mode}`);
@@ -5332,15 +5387,15 @@
     const epoch = Date.parse(String(value || ""));
     if (!Number.isFinite(epoch)) return "--";
     const seconds = Math.max(0, Math.round((Date.now() - epoch) / 1e3));
-    const zh6 = state.locale === "zh";
-    if (seconds < 60) return zh6 ? "\u521A\u521A" : "just now";
+    const zh7 = state.locale === "zh";
+    if (seconds < 60) return zh7 ? "\u521A\u521A" : "just now";
     const minutes = Math.round(seconds / 60);
-    if (minutes < 60) return zh6 ? `${minutes} \u5206\u949F\u524D` : `${minutes}m ago`;
+    if (minutes < 60) return zh7 ? `${minutes} \u5206\u949F\u524D` : `${minutes}m ago`;
     const hours = Math.round(minutes / 60);
-    if (hours < 24) return zh6 ? `${hours} \u5C0F\u65F6\u524D` : `${hours}h ago`;
+    if (hours < 24) return zh7 ? `${hours} \u5C0F\u65F6\u524D` : `${hours}h ago`;
     const days = Math.round(hours / 24);
-    if (days < 30) return zh6 ? `${days} \u5929\u524D` : `${days}d ago`;
-    return new Date(epoch).toLocaleDateString(zh6 ? "zh-CN" : "en-US");
+    if (days < 30) return zh7 ? `${days} \u5929\u524D` : `${days}d ago`;
+    return new Date(epoch).toLocaleDateString(zh7 ? "zh-CN" : "en-US");
   }
   function highlightSearchText(text, query) {
     const escaped = escapeHtml(String(text || ""));
@@ -5556,9 +5611,9 @@
     const target = $("#verificationList");
     if (!target) return;
     const events = (data?.events || []).filter((event) => /verification_|completion_assessed/.test(event.code || ""));
-    const zh6 = state.locale === "zh";
+    const zh7 = state.locale === "zh";
     if (!events.length) {
-      target.innerHTML = `<div class="verification-empty">${icon("shield-check")}<strong>${zh6 ? "\u5C1A\u65E0\u9A8C\u8BC1\u8BC1\u636E" : "No verification evidence yet"}</strong><span>${zh6 ? "\u4EFB\u52A1\u6267\u884C\u7684\u68C0\u67E5\u548C\u5B8C\u6210\u8BC4\u4F30\u4F1A\u663E\u793A\u5728\u8FD9\u91CC\u3002" : "Checks and completion assessments will appear here."}</span></div>`;
+      target.innerHTML = `<div class="verification-empty">${icon("shield-check")}<strong>${zh7 ? "\u5C1A\u65E0\u9A8C\u8BC1\u8BC1\u636E" : "No verification evidence yet"}</strong><span>${zh7 ? "\u4EFB\u52A1\u6267\u884C\u7684\u68C0\u67E5\u548C\u5B8C\u6210\u8BC4\u4F30\u4F1A\u663E\u793A\u5728\u8FD9\u91CC\u3002" : "Checks and completion assessments will appear here."}</span></div>`;
       return;
     }
     target.innerHTML = events.slice(-12).reverse().map((event) => `<details class="verification-card" data-status="${escapeHtml(event.status || "pending")}"><summary>${icon(event.status === "error" ? "alert-circle" : "list-checks")}<span>${escapeHtml(event.summary || traceLabel(event))}</span></summary><pre>${escapeHtml(JSON.stringify(event.detail || {}, null, 2))}</pre></details>`).join("");
@@ -6778,7 +6833,7 @@
 
   // web/src/panels/onboarding.js
   var SEEN_KEY = "minicc-tour-v1";
-  var zh5 = () => state.locale === "zh";
+  var zh6 = () => state.locale === "zh";
   var STEPS = [
     {
       id: "welcome",
@@ -6847,7 +6902,7 @@
   function renderStep(index) {
     const { overlay, card } = $overlayParts();
     const step = STEPS[index];
-    const local = zh5() ? step.zh : step.en;
+    const local = zh6() ? step.zh : step.en;
     const rect = rectFor(step.anchor);
     positionSpotlight(rect);
     card.querySelector(".tour-step").textContent = local.kicker;
@@ -6856,10 +6911,10 @@
     const back2 = card.querySelector(".tour-back");
     const next2 = card.querySelector(".tour-next");
     back2.hidden = index === 0;
-    back2.textContent = zh5() ? "\u4E0A\u4E00\u6B65" : "Back";
-    next2.textContent = index === STEPS.length - 1 ? zh5() ? "\u5F00\u59CB\u5E72\u6D3B" : "Start building" : zh5() ? "\u4E0B\u4E00\u6B65" : "Next";
+    back2.textContent = zh6() ? "\u4E0A\u4E00\u6B65" : "Back";
+    next2.textContent = index === STEPS.length - 1 ? zh6() ? "\u5F00\u59CB\u5E72\u6D3B" : "Start building" : zh6() ? "\u4E0B\u4E00\u6B65" : "Next";
     const skip = card.querySelector(".tour-skip");
-    skip.textContent = zh5() ? "\u8DF3\u8FC7" : "Skip tour";
+    skip.textContent = zh6() ? "\u8DF3\u8FC7" : "Skip tour";
     refreshIcons();
   }
   function teardown(outcome) {
@@ -6875,7 +6930,7 @@
         localStorage.setItem(SEEN_KEY, "done");
       } catch {
       }
-      showToast(zh5() ? "\u8F9B\u82E6\u4E86\u2014\u2014\u53BB\u505A\u70B9\u771F\u4E8B\u5427" : "You're ready \u2014 go build something real");
+      showToast(zh6() ? "\u8F9B\u82E6\u4E86\u2014\u2014\u53BB\u505A\u70B9\u771F\u4E8B\u5427" : "You're ready \u2014 go build something real");
     } else if (outcome === "skipped") {
       try {
         localStorage.setItem(SEEN_KEY, "skipped");
@@ -6929,7 +6984,7 @@
     overlay.innerHTML = `
     <div class="tour-dim"></div>
     <div class="tour-spot" hidden></div>
-    <div class="tour-card" role="dialog" aria-modal="true" aria-label="${escapeHtmlAttr(zh5() ? "\u4E0A\u624B\u6F14\u7EC3" : "Product tour")}">
+    <div class="tour-card" role="dialog" aria-modal="true" aria-label="${escapeHtmlAttr(zh6() ? "\u4E0A\u624B\u6F14\u7EC3" : "Product tour")}">
       <div class="tour-step"></div>
       <h3 class="tour-title"></h3>
       <p class="tour-body"></p>
@@ -6964,7 +7019,7 @@
     button.type = "button";
     button.id = "tourOffer";
     button.className = "tour-offer";
-    button.innerHTML = `<i data-lucide="sparkles"></i><span>${escapeHtmlAttr(zh5() ? "\u7B2C\u4E00\u6B21\u6765\uFF1F2 \u5206\u949F\u5E26\u4F60\u8FC7\u4E00\u904D" : "First visit? Two minutes, I've got you")}</span>`;
+    button.innerHTML = `<i data-lucide="sparkles"></i><span>${escapeHtmlAttr(zh6() ? "\u7B2C\u4E00\u6B21\u6765\uFF1F2 \u5206\u949F\u5E26\u4F60\u8FC7\u4E00\u904D" : "First visit? Two minutes, I've got you")}</span>`;
     document.body.append(button);
     button.addEventListener("click", () => {
       button.remove();
@@ -7042,15 +7097,15 @@
     const sidebarButton = $("#sidebarOpen");
     const inspectorButton = $("#inspectorToggle");
     if (sidebarButton && desktop) {
-      const zh6 = state.locale === "zh";
-      sidebarButton.setAttribute("aria-label", state.sidebarCollapsed ? zh6 ? "\u6253\u5F00\u4FA7\u680F" : "Open sidebar" : zh6 ? "\u6536\u8D77\u4FA7\u680F" : "Collapse sidebar");
-      sidebarButton.title = state.sidebarCollapsed ? zh6 ? "\u6253\u5F00\u4FA7\u680F" : "Open sidebar" : zh6 ? "\u6536\u8D77\u4FA7\u680F" : "Collapse sidebar";
+      const zh7 = state.locale === "zh";
+      sidebarButton.setAttribute("aria-label", state.sidebarCollapsed ? zh7 ? "\u6253\u5F00\u4FA7\u680F" : "Open sidebar" : zh7 ? "\u6536\u8D77\u4FA7\u680F" : "Collapse sidebar");
+      sidebarButton.title = state.sidebarCollapsed ? zh7 ? "\u6253\u5F00\u4FA7\u680F" : "Open sidebar" : zh7 ? "\u6536\u8D77\u4FA7\u680F" : "Collapse sidebar";
       sidebarButton.innerHTML = icon(state.sidebarCollapsed ? "panel-left-open" : "panel-left-close");
     }
     if (inspectorButton && desktop) {
-      const zh6 = state.locale === "zh";
-      inspectorButton.setAttribute("aria-label", state.inspectorCollapsed ? zh6 ? "\u6253\u5F00\u68C0\u67E5\u5668" : "Open inspector" : zh6 ? "\u6536\u8D77\u68C0\u67E5\u5668" : "Collapse inspector");
-      inspectorButton.title = state.inspectorCollapsed ? zh6 ? "\u6253\u5F00\u68C0\u67E5\u5668" : "Open inspector" : zh6 ? "\u6536\u8D77\u68C0\u67E5\u5668" : "Collapse inspector";
+      const zh7 = state.locale === "zh";
+      inspectorButton.setAttribute("aria-label", state.inspectorCollapsed ? zh7 ? "\u6253\u5F00\u68C0\u67E5\u5668" : "Open inspector" : zh7 ? "\u6536\u8D77\u68C0\u67E5\u5668" : "Collapse inspector");
+      inspectorButton.title = state.inspectorCollapsed ? zh7 ? "\u6253\u5F00\u68C0\u67E5\u5668" : "Open inspector" : zh7 ? "\u6536\u8D77\u68C0\u67E5\u5668" : "Collapse inspector";
       inspectorButton.innerHTML = icon(state.inspectorCollapsed ? "panel-right-open" : "panel-right-close");
     }
     refreshIcons();
@@ -7270,7 +7325,7 @@
     return translated === id ? fallback : translated;
   }
   function commands() {
-    const zh6 = state.locale === "zh";
+    const zh7 = state.locale === "zh";
     const themeTarget = state.theme === "dark" ? label("palette.toLight", "Switch to light theme") : label("palette.toDark", "Switch to dark theme");
     return [
       { id: "newTask", glyph: "plus", group: "palette.group.task", run: () => resetTask() },
@@ -7286,6 +7341,7 @@
       { id: "journal", glyph: "notebook-pen", group: "palette.group.task", run: () => openJournalPanel() },
       { id: "archive", glyph: "archive", group: "palette.group.task", run: () => openArchivePanel() },
       { id: "tour", glyph: "sparkles", group: "palette.group.surface", run: () => startTour() },
+      { id: "recent", glyph: "newspaper", group: "palette.group.task", run: () => openRecentPanel() },
       { id: "batch", glyph: "layers", group: "palette.group.task", run: () => openBatchPanel() },
       { id: "export", glyph: "download", group: "palette.group.task", run: () => exportChat() },
       { id: "settings", glyph: "settings-2", group: "palette.group.surface", run: () => openSettingsPanel() },
@@ -7293,7 +7349,7 @@
       { id: "help", glyph: "circle-help", group: "palette.group.surface", run: () => openHelpPanel() },
       { id: "arcade", glyph: "gamepad-2", group: "palette.group.surface", run: () => openArcade() },
       { id: "theme", glyph: "moon-star", group: "palette.group.surface", labelOverride: themeTarget, run: () => setTheme(state.theme === "dark" ? "light" : "dark") },
-      { id: "locale", glyph: "globe-2", group: "palette.group.surface", labelOverride: zh6 ? "\u5207\u6362\u5230\u82F1\u6587" : "Switch to Chinese", run: () => setLocale(zh6 ? "en" : "zh") },
+      { id: "locale", glyph: "globe-2", group: "palette.group.surface", labelOverride: zh7 ? "\u5207\u6362\u5230\u82F1\u6587" : "Switch to Chinese", run: () => setLocale(zh7 ? "en" : "zh") },
       { id: "sidebar", glyph: "panel-left", group: "palette.group.surface", run: () => setSidebarCollapsed(!state.sidebarCollapsed) },
       { id: "inspector", glyph: "panel-right", group: "palette.group.surface", run: () => setInspectorCollapsed(!state.inspectorCollapsed) },
       { id: "focus", glyph: "scan-line", group: "palette.group.surface", run: () => setFocusMode(!state.focusMode) },
@@ -7324,7 +7380,7 @@
     }
     return 60 - index * 0.2 + runs * 2;
   }
-  function render2() {
+  function render3() {
     const query = inputNode.value.trim();
     const all = commands();
     filtered = query ? all.map((command) => ({ command, points: score(query, command) })).filter((entry) => entry.points >= 0).sort((a, b) => b.points - a.points).map((entry) => entry.command) : all;
@@ -7398,13 +7454,13 @@
     inputNode.value = "";
     modal.classList.add("show");
     modal.setAttribute("aria-hidden", "false");
-    render2();
+    render3();
     setActive(activeIndex);
     activateDialog(modal, { initialFocus: "#paletteInput", onEscape: closeCommandPalette });
     inputNode.focus({ preventScroll: true });
     inputNode.oninput = () => {
       activeIndex = 0;
-      render2();
+      render3();
       setActive(activeIndex);
     };
     inputNode.onkeydown = (event) => {
@@ -7849,6 +7905,7 @@
       else if (view === "axioms") openAxiomsPanel();
       else if (view === "journal") openJournalPanel();
       else if (view === "archive") openArchivePanel();
+      else if (view === "recent") openRecentPanel();
       else if (view === "manual") openManualPanel();
       else if (view === "ledger") openLedgerPanel();
       else if (view === "arcade") openArcade().catch((error) => showToast(error.message));

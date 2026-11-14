@@ -2,7 +2,7 @@ import { requestJson } from "./core/transport.js";
 import { openArcade } from "./core/arcade.js";
 // ES module source for the minicc workbench. Bundled by scripts/build-web.mjs.
 import { escapeHtml, loadTaskHistory, persistSessionView, renderSession, renderTaskHistory, sessionViewKey } from "./chat/markdown.js";
-import { addImageFiles, cancelActiveTask, closePanel, exportChat, loadModelCatalog, loadWorkspace, openActivityPanel, openAlmanacPanel, openArchivePanel, openAxiomsPanel, openJournalPanel, openManualPanel, openBatchPanel, openHelpPanel, openLedgerPanel, openOptionsPanel, openPanel, openPromoPanel, openPulseStage, openSettingsPanel, openTaskDetail, openTaskInWorkspace, openTaskListPanel, openTemplatesPanel, openWorkspacesPanel, renderAttachmentTray, resetTask, restoreTaskSnapshot, rewindToUserIndex, runDemoFlow, sendMessage, switchInspectorTab, togglePanelFullscreen, watchTask } from "./chat/stream.js";
+import { addImageFiles, cancelActiveTask, closePanel, exportChat, loadModelCatalog, loadWorkspace, openActivityPanel, openAlmanacPanel, openArchivePanel, openAxiomsPanel, openJournalPanel, openRecentPanel, openManualPanel, openBatchPanel, openHelpPanel, openLedgerPanel, openOptionsPanel, openPanel, openPromoPanel, openPulseStage, openSettingsPanel, openTaskDetail, openTaskInWorkspace, openTaskListPanel, openTemplatesPanel, openWorkspacesPanel, renderAttachmentTray, resetTask, restoreTaskSnapshot, rewindToUserIndex, runDemoFlow, sendMessage, switchInspectorTab, togglePanelFullscreen, watchTask } from "./chat/stream.js";
 import { startTour, maybeOfferTour } from "./panels/onboarding.js";
 import { applyTaskEvent, setTimelineDetails, syncLiveEvents, updateBoundTask, updateLiveTask } from "./core/api.js";
 import { t } from "./core/i18n.js";
@@ -218,6 +218,7 @@ export function bindUI() {
     else if (view === "axioms") openAxiomsPanel();
     else if (view === "journal") openJournalPanel();
     else if (view === "archive") openArchivePanel();
+    else if (view === "recent") openRecentPanel();
     else if (view === "manual") openManualPanel();
     else if (view === "ledger") openLedgerPanel();
     else if (view === "arcade") openArcade().catch((error) => showToast(error.message));

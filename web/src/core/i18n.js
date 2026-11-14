@@ -138,6 +138,9 @@ export const I18N = {
     "archive.title": "档案馆",
     "palette.cmd.archive": "打开档案馆",
     "palette.cmd.tour": "上手演练",
+    "nav.recent": "近况",
+    "recent.title": "近况",
+    "palette.cmd.recent": "打开近况",
 
   },
   en: {
@@ -276,6 +279,9 @@ export const I18N = {
     "archive.title": "Archive",
     "palette.cmd.archive": "Open the archive",
     "palette.cmd.tour": "Start the tour",
+    "nav.recent": "Recent",
+    "recent.title": "Recent",
+    "palette.cmd.recent": "Open recent",
 
   },
 };
