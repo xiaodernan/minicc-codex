@@ -3597,3 +3597,24 @@ pre code { background: #0f172a; padding: 12px; display: block; overflow-x: auto;
 .almanac-instrument-grid > div { display: grid; gap: 5px; align-content: start; }
 @media (max-width: 900px) { .almanac-instrument-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: none; } }
 @media (max-width: 560px) { .almanac-instrument-grid { grid-template-columns: 1fr; } }
+
+/* M8-T911: almanac chapter VI — the gate ledger. */
+.almanac-gate-list { display: grid; gap: 8px; list-style: none; padding: 0; margin: 14px 0 18px; max-width: 640px; }
+.almanac-gate-list li {
+  display: grid;
+  grid-template-columns: 150px 1fr;
+  align-items: baseline;
+  gap: 14px;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--mint);
+  border-radius: 10px;
+  background: var(--surface-soft);
+}
+.almanac-gate-list strong { color: var(--text); font-size: 12.5px; letter-spacing: .02em; }
+.almanac-gate-list span { color: var(--muted); font-size: 12px; line-height: 1.55; }
+.almanac-gate .almanac-instrument-double { grid-template-columns: repeat(3, auto); gap: 14px 34px; }
+@media (max-width: 760px) {
+  .almanac-gate-list li { grid-template-columns: 1fr; gap: 2px; }
+  .almanac-gate .almanac-instrument-double { grid-template-columns: 1fr; }
+}

@@ -23,6 +23,7 @@ const CHAPTERS = [
   { id: "sentry", roman: "第三章", title: "The Sentry", subtitle: "每一个承诺都要被执行" },
   { id: "bloom", roman: "第四章", title: "The Bloom", subtitle: "工作台本身就是证词" },
   { id: "hand", roman: "第五章", title: "The Open Road", subtitle: "纸上画下的远方" },
+  { id: "gate", roman: "卷六", title: "The Gate", subtitle: "每一道门都点了头" },
 ];
 
 function chapterMarkup(chapter) {
@@ -208,6 +209,54 @@ function handMarkup() {
     </div>`;
 }
 
+function gateMarkup(digest) {
+  const commits = digest && digest.is_git === true && digest.total_commits != null ? String(digest.total_commits) : "—";
+  const tests = digest && digest.is_git === true && digest.test_files != null ? String(digest.test_files) : "—";
+  const batches = digest && digest.is_git === true && digest.roadmap_batches != null ? `${digest.roadmap_batches} 章` : "—";
+  const rows = [
+    ["Python 双平台", "ubuntu-latest + windows-latest · 每推送一次全量跑，两个操作系统各自判卷"],
+    ["Claim checkers", "doc pointers（悬空证据零容忍）· route coverage · impact floor（每个模块都要被测试够得着）"],
+    ["JavaScript syntax", "21 个语法/协议门 · 任一条不过，这扇门就不算过"],
+    ["Service plane", "mvn · 7 个 Spring Cloud 模块 · 网关 / 注册 / 配置 / 任务 / 洞察 / 巡检 / 桥接"],
+    ["Playwright ×2", "真浏览器 · 含「不可达提供方必须失败」——门本身也被门守着"],
+  ].map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("");
+  return `
+    <div class="almanac-canvas almanac-gate">
+      <div class="almanac-kicker">卷六 · Chapter VI — The Gate</div>
+      <h1 class="almanac-title almanac-title-sm">不是写完了，<br/>是被<span class="almanac-title-accent">全部批准了。</span></h1>
+      <div class="almanac-body">
+        <p>
+          这个项目最安静、也最诚实的角色是 CI。每一次提交都要经过同一排门：
+          双平台全量测试、文档门禁、路由覆盖率与模块引用面、21 个 JS 协议门、
+          Spring Cloud plane 的 mvn 套件、真浏览器 ×2。
+        </p>
+        <p>
+          任何一道门红了，这扇门就没有意义。它从不说谎，因为它从不被允许说谎：
+          断言失败的数字、悬空的证据指针、被漏掉的路由、失踪的引用面——每一个
+          都让红灯亮起来，而不是记在心里。
+        </p>
+      </div>
+      <div class="almanac-instrument almanac-instrument-double">
+        <div>
+          <div class="almanac-instrument-label">门放过的提交数</div>
+          <div class="almanac-instrument-value">${escapeHtml(commits)}</div>
+        </div>
+        <div>
+          <div class="almanac-instrument-label">门 · 测试文件</div>
+          <div class="almanac-instrument-value">${escapeHtml(tests)}</div>
+        </div>
+        <div>
+          <div class="almanac-instrument-label">门的文献 · 批次手稿</div>
+          <div class="almanac-instrument-value">${escapeHtml(batches)}</div>
+        </div>
+      </div>
+      <ul class="almanac-gate-list">${rows}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        这个项目的完成标准不是「做完了」，而是「所有的门都点了头」。
+      </p>
+    </div>`;
+}
+
 const CHAPTER_RENDERERS = {
   prologue: () => prologueMarkup(digestCache),
   spark: () => sparkMarkup(),
@@ -215,6 +264,7 @@ const CHAPTER_RENDERERS = {
   sentry: (metrics) => sentryMarkup(metrics),
   bloom: () => bloomMarkup(),
   hand: () => handMarkup(),
+  gate: () => gateMarkup(digestCache),
 };
 
 async function loadChapter(id) {

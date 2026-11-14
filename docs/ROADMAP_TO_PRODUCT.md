@@ -50566,3 +50566,33 @@ M8-T898 的年鉴序章问的是"这个世界是什么"——却只有文字。M
 ### 4 文件
 
 `web/src/panels/almanac.js`、`web/styles.css`、`web/app.js`、`web/asset-manifest.json`、content-addressed bundle（源即上述两个，hash 随重建漂移）
+
+## 批次 911 - M8-T911：「年鉴」新增第六卷《The Gate · 门神》— 用真实仓库证据叙事 CI 这一角色
+
+### 1 为什么
+
+年鉴前五卷讲的是产品（Spark / Depth / Sentry / Bloom / Open Road）。这个项目还欠一个视角：
+**CI 本身就是故事的主角**——它不在代码里，却在每一个 diff 上盖章。它说不谎、它不回答
+"大概"、它的承诺是可证伪的。这一章把它写进年鉴，数字全部来自 `/api/digest`，不许编。
+
+### 2 做了什么
+
+- `web/src/panels/almanac.js` — 新增章节 `gate`（卷六 · The Gate，副题「每一道门都点了头」）：
+  - 序章 + 六章 rail 全部可见（点击即切换，`currentChapter` 跟踪确保 digest 预取只回填序章）；
+  - 正文讲述这一角色：双平台全量、文档门禁、路由覆盖率与引用面、21 个 JS 协议门、
+    Spring Cloud plane 的 mvn 套件、真浏览器 ×2——每一道门红了就不算过；
+  - 仪器读数（全部取自 `/api/digest`，非 git/缺端点时显示 `—`）：门放过的提交数、
+    门 · 测试文件数、门的文献 · 批次手稿章数；
+  - 结尾铭文：「这个项目的完成标准不是『做完了』，而是『所有的门都点了头』」。
+- `web/styles.css` — `.almanac-gate-list`（左侧 mint 色条 + 等宽两列行）、
+  `.almanac-gate .almanac-instrument-double` 改三列；760px 以下全部单列；纯现有 token，零新自定义属性。
+
+### 3 验证（真实浏览器探针，chromium headless）
+
+- 点击侧边栏「年鉴」→ rail 7 章全部出现（序章 → 卷六）
+- 点击「The Gate」→ 正文、三格仪器（**1424 提交 / 700 测试文件 / 235 章手稿**，真实读数）、
+  五行门禁清单逐行渲染，控制台零 pageerror
+
+### 4 文件
+
+`web/src/panels/almanac.js`、`web/styles.css`、`web/app.js`、`web/asset-manifest.json`、content-addressed bundle

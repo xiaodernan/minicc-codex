@@ -2085,7 +2085,8 @@
     { id: "depth", roman: "\u7B2C\u4E8C\u7AE0", title: "The Depth", subtitle: "\u538B\u7F29\u3001\u4FDD\u7559\u3001\u518D\u51FA\u53D1" },
     { id: "sentry", roman: "\u7B2C\u4E09\u7AE0", title: "The Sentry", subtitle: "\u6BCF\u4E00\u4E2A\u627F\u8BFA\u90FD\u8981\u88AB\u6267\u884C" },
     { id: "bloom", roman: "\u7B2C\u56DB\u7AE0", title: "The Bloom", subtitle: "\u5DE5\u4F5C\u53F0\u672C\u8EAB\u5C31\u662F\u8BC1\u8BCD" },
-    { id: "hand", roman: "\u7B2C\u4E94\u7AE0", title: "The Open Road", subtitle: "\u7EB8\u4E0A\u753B\u4E0B\u7684\u8FDC\u65B9" }
+    { id: "hand", roman: "\u7B2C\u4E94\u7AE0", title: "The Open Road", subtitle: "\u7EB8\u4E0A\u753B\u4E0B\u7684\u8FDC\u65B9" },
+    { id: "gate", roman: "\u5377\u516D", title: "The Gate", subtitle: "\u6BCF\u4E00\u9053\u95E8\u90FD\u70B9\u4E86\u5934" }
   ];
   function chapterMarkup(chapter) {
     return `<button class="almanac-chapter" data-chapter="${escapeHtml(chapter.id)}" role="tab">
@@ -2256,13 +2257,61 @@
       </div>
     </div>`;
   }
+  function gateMarkup(digest) {
+    const commits = digest && digest.is_git === true && digest.total_commits != null ? String(digest.total_commits) : "\u2014";
+    const tests = digest && digest.is_git === true && digest.test_files != null ? String(digest.test_files) : "\u2014";
+    const batches = digest && digest.is_git === true && digest.roadmap_batches != null ? `${digest.roadmap_batches} \u7AE0` : "\u2014";
+    const rows = [
+      ["Python \u53CC\u5E73\u53F0", "ubuntu-latest + windows-latest \xB7 \u6BCF\u63A8\u9001\u4E00\u6B21\u5168\u91CF\u8DD1\uFF0C\u4E24\u4E2A\u64CD\u4F5C\u7CFB\u7EDF\u5404\u81EA\u5224\u5377"],
+      ["Claim checkers", "doc pointers\uFF08\u60AC\u7A7A\u8BC1\u636E\u96F6\u5BB9\u5FCD\uFF09\xB7 route coverage \xB7 impact floor\uFF08\u6BCF\u4E2A\u6A21\u5757\u90FD\u8981\u88AB\u6D4B\u8BD5\u591F\u5F97\u7740\uFF09"],
+      ["JavaScript syntax", "21 \u4E2A\u8BED\u6CD5/\u534F\u8BAE\u95E8 \xB7 \u4EFB\u4E00\u6761\u4E0D\u8FC7\uFF0C\u8FD9\u6247\u95E8\u5C31\u4E0D\u7B97\u8FC7"],
+      ["Service plane", "mvn \xB7 7 \u4E2A Spring Cloud \u6A21\u5757 \xB7 \u7F51\u5173 / \u6CE8\u518C / \u914D\u7F6E / \u4EFB\u52A1 / \u6D1E\u5BDF / \u5DE1\u68C0 / \u6865\u63A5"],
+      ["Playwright \xD72", "\u771F\u6D4F\u89C8\u5668 \xB7 \u542B\u300C\u4E0D\u53EF\u8FBE\u63D0\u4F9B\u65B9\u5FC5\u987B\u5931\u8D25\u300D\u2014\u2014\u95E8\u672C\u8EAB\u4E5F\u88AB\u95E8\u5B88\u7740"]
+    ].map(([strong, span]) => `<li><strong>${escapeHtml(strong)}</strong><span>${escapeHtml(span)}</span></li>`).join("");
+    return `
+    <div class="almanac-canvas almanac-gate">
+      <div class="almanac-kicker">\u5377\u516D \xB7 Chapter VI \u2014 The Gate</div>
+      <h1 class="almanac-title almanac-title-sm">\u4E0D\u662F\u5199\u5B8C\u4E86\uFF0C<br/>\u662F\u88AB<span class="almanac-title-accent">\u5168\u90E8\u6279\u51C6\u4E86\u3002</span></h1>
+      <div class="almanac-body">
+        <p>
+          \u8FD9\u4E2A\u9879\u76EE\u6700\u5B89\u9759\u3001\u4E5F\u6700\u8BDA\u5B9E\u7684\u89D2\u8272\u662F CI\u3002\u6BCF\u4E00\u6B21\u63D0\u4EA4\u90FD\u8981\u7ECF\u8FC7\u540C\u4E00\u6392\u95E8\uFF1A
+          \u53CC\u5E73\u53F0\u5168\u91CF\u6D4B\u8BD5\u3001\u6587\u6863\u95E8\u7981\u3001\u8DEF\u7531\u8986\u76D6\u7387\u4E0E\u6A21\u5757\u5F15\u7528\u9762\u300121 \u4E2A JS \u534F\u8BAE\u95E8\u3001
+          Spring Cloud plane \u7684 mvn \u5957\u4EF6\u3001\u771F\u6D4F\u89C8\u5668 \xD72\u3002
+        </p>
+        <p>
+          \u4EFB\u4F55\u4E00\u9053\u95E8\u7EA2\u4E86\uFF0C\u8FD9\u6247\u95E8\u5C31\u6CA1\u6709\u610F\u4E49\u3002\u5B83\u4ECE\u4E0D\u8BF4\u8C0E\uFF0C\u56E0\u4E3A\u5B83\u4ECE\u4E0D\u88AB\u5141\u8BB8\u8BF4\u8C0E\uFF1A
+          \u65AD\u8A00\u5931\u8D25\u7684\u6570\u5B57\u3001\u60AC\u7A7A\u7684\u8BC1\u636E\u6307\u9488\u3001\u88AB\u6F0F\u6389\u7684\u8DEF\u7531\u3001\u5931\u8E2A\u7684\u5F15\u7528\u9762\u2014\u2014\u6BCF\u4E00\u4E2A
+          \u90FD\u8BA9\u7EA2\u706F\u4EAE\u8D77\u6765\uFF0C\u800C\u4E0D\u662F\u8BB0\u5728\u5FC3\u91CC\u3002
+        </p>
+      </div>
+      <div class="almanac-instrument almanac-instrument-double">
+        <div>
+          <div class="almanac-instrument-label">\u95E8\u653E\u8FC7\u7684\u63D0\u4EA4\u6570</div>
+          <div class="almanac-instrument-value">${escapeHtml(commits)}</div>
+        </div>
+        <div>
+          <div class="almanac-instrument-label">\u95E8 \xB7 \u6D4B\u8BD5\u6587\u4EF6</div>
+          <div class="almanac-instrument-value">${escapeHtml(tests)}</div>
+        </div>
+        <div>
+          <div class="almanac-instrument-label">\u95E8\u7684\u6587\u732E \xB7 \u6279\u6B21\u624B\u7A3F</div>
+          <div class="almanac-instrument-value">${escapeHtml(batches)}</div>
+        </div>
+      </div>
+      <ul class="almanac-gate-list">${rows}</ul>
+      <p class="almanac-quote almanac-quote-end">
+        \u8FD9\u4E2A\u9879\u76EE\u7684\u5B8C\u6210\u6807\u51C6\u4E0D\u662F\u300C\u505A\u5B8C\u4E86\u300D\uFF0C\u800C\u662F\u300C\u6240\u6709\u7684\u95E8\u90FD\u70B9\u4E86\u5934\u300D\u3002
+      </p>
+    </div>`;
+  }
   var CHAPTER_RENDERERS = {
     prologue: () => prologueMarkup(digestCache),
     spark: () => sparkMarkup(),
     depth: (metrics) => depthMarkup(metrics),
     sentry: (metrics) => sentryMarkup(metrics),
     bloom: () => bloomMarkup(),
-    hand: () => handMarkup()
+    hand: () => handMarkup(),
+    gate: () => gateMarkup(digestCache)
   };
   async function loadChapter(id) {
     const slot = $("#almanacCanvas");
