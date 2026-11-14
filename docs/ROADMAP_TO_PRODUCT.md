@@ -52101,3 +52101,32 @@ M8-T971 / M8-T973 的 CI（run 43642454665 / 随后以相同内容入 main）在
 ### 4 边界
 
 CI 全量 5,653 项（windows）/ 5,650 项（ubuntu）中除上述 3 项外全绿。`test_the_package_does_not_define_what_the_repo_never_uses.py` 本机 300s 超时未能本地完整复现，但缺陷点（`_DOC_FILE` 未被引用）已删除，按 CI 口径再验。当前 main 的 CI 状态一律以 `gh run` 实况为准：本批 push 后的 run 若仍有环境红灯（例如 runner 形势/偶发超时），不会被声称「已绿」。
+
+## 批次 967 - M8-T975：「问仓库」上线 —— RAG 从端点到产品面，外加中文 BM25 修字
+
+### 1 背景
+
+M8-T971（`/api/rag/search`，BM25 检索）与 M8-T973（`/api/rag/query`，真 key 真跑）落的是端点；本批把它做成用户真能用起来的面板，并在真实 E2E 里逮住一个让中文用户空手而归的召回缺陷。
+
+### 2 做了什么
+
+- **新面板「问仓库 / Ask the Docs」**：`web/src/panels/askdocs.js` —— 侧边栏新入口（「档案馆」下方，file-search-2 图标），Ctrl/⌘K 搜「问仓库」同入口；输入问题、选 k（2/4/6/8）、按「提问」后经 shared transport 调 `/api/rag/query`；渲染模型名与端点（不含 key）、逐条可展开的 sources（file / BM25 score / 原文摘录）、用量条（网关如实回传的 prompt/completion/total，`chat/completions` 无 cached_tokens，不伪造）；模型不可达时显示真实错误而非编造答案；错误与空答案两种诚实退化态都接了样式。
+- **中文 BM25 修字**：旧分词 `[A-Za-z0-9_\u4e00-\u9fff]{2,}` 把整句中文当成单一巨型 token，「为什么缓存命中率看起来很低？」检索**空**。双语化：拉丁/数字整段保留，CJK 以**二元字组**索引。复测（本机，wkapi.pro 语料）：为什么缓存命中率看起来很低 → CACHE_AFFINITY_MATRIX.md 25.69 / ROADMAP_TO_PRODUCT.md 22.03 命中，答案引用原文作答；「怎么跑压力测试？」→ LOAD_TESTING.md 第 2 名。
+- **命令面板/侧栏/i18n/手册接线**：command palette `askdocs`（file-search-2 glyph）、main.js `view === "askdocs"` 路由、stream.js 转发、`nav.askdocs`/`askdocs.title`/`palette.cmd.askdocs` zh/en、手册第十章「问仓库 / Ask the Repo」（双语，写明 k、用量字段、key 不进 prompt、BM25 是关键词检索不是语义召回）、README 双语说明书 九→十章 + 新增面板条目。
+- **styles.css** 追加 `.askdocs-*`（bronze kicker、amber 渐变标题、mono usage pill、sources 折叠细节、≤900px 自适应）。
+- **`tests/frontend_askdocs_one_home_smoke.mjs`**：面板接线一源断言（panel→stream→main→sidebar→palette→i18n zh/en 各两份→manual 第十章）。`package.json` `test:askdocs` 入 CI（ci.yml syntax job 追加一行）；`web/index.html` CRLF 保持、i18n.js/ci.yml/package.json CRLF 保持。
+- **regression test**：`test_chinese_sentence_without_spaces_finds_docs` 固化今天修掉的问题。
+
+### 3 验证
+
+- Playwright headless 真浏览器 E2E（真 wkapi.pro · gpt-6-sol）：侧栏点击「问仓库」→ 中文提问「为什么缓存命中率看起来很低？」→ `/api/rag/query` HTTP 200 → 模型以 `[文档1]缓存命中率显示产物` 引用作答（CACHE_AFFINITY_MATRIX[1,2]，ROADMAP[3,4]，score 25.69/24.29/22.03/21.87）；usage 提示 19426 / 补全 139 / 合计 19565；无 JS 错误。截图 output/askdocs_live_zh.png 存档。
+- `pytest tests/test_rag_bm25_index.py` → **8 passed**（+1 新回归）；`tests/test_http_surface.py` → **83 passed**；Route Coverage **GET 26/26 · POST 14/14 = 100%**；`doc_pointers` rc=0。
+- `npm run build:web` 后 `check:web` 干净；stale 资产被 build 剪除并重新生成（manifest 指向 `app.f09ba8df7d5247d8.js` / `styles.523d112103a67b2b.css`）。
+- 面板功能级冒烟：`node tests/frontend_askdocs_one_home_smoke.mjs` → exit 0（locale 未切换时先默认 zh 验证）。
+
+### 4 边界
+
+- BM25 仍是关键词检索，不是语义召回；对「为什么……」类中文问题本批靠大二元组已能命中，但同义改写仍可能漏检。
+- 索引为进程内单例，首搜约 2.5s（二元组后 token 数约 ×1.8）；命中缓存后 <0.1s。可后续引入 CJK 停用词/index 摘要化继续压延迟。
+- 真 E2E 走 wkapi.pro 真 key——每跑一次消耗一次 prompt（约 19k tokens）。面板本身不运行任何模型，仅转发用户主动提交的问题。
+- 未做 deep_merge/语义去重、未做 embedding 索引（embedding 是下一阶段候选，不在本批）。

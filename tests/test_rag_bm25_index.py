@@ -31,6 +31,18 @@ def test_cache_phrase_finds_changelog() -> None:
     assert "缓存" in joined
 
 
+def test_chinese_sentence_without_spaces_finds_docs() -> None:
+    """M8-T975 regression: a natural Chinese question (no spaces, one CJK
+    run) must retrieve docs. Before the bigram tokenizer, the whole run
+    scored as a single giant token and the index came back empty — which
+    made /api/rag/query useless for the primary language of the docs."""
+    idx = BM25Index()
+    results = idx.search("为什么缓存命中率看起来很低", limit=5)
+    assert results, "CJK sentences without spaces must not return nothing"
+    joined = " ".join(item["chunk"] for item in results)
+    assert "缓存" in joined
+
+
 def test_unknown_terms_return_nothing() -> None:
     idx = BM25Index()
     assert idx.search("xyznonexistentthing", limit=3) == []

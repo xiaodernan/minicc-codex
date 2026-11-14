@@ -2313,6 +2313,8 @@ import { openJournalPanel } from "../panels/journal.js";
 export { openJournalPanel };
 import { openArchivePanel } from "../panels/archive.js";
 export { openArchivePanel };
+import { openAskDocsPanel } from "../panels/askdocs.js";
+export { openAskDocsPanel };
 import { openRecentPanel } from "../panels/recent.js";
 import { SHORTCUT_GROUPS } from "../cheat-sheet-data.js";
 export { openRecentPanel };

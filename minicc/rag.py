@@ -6,10 +6,13 @@ right now". This module is smaller, simpler, and symmetric to what a RAG
 ("/api/rag/search") caller needs: a ranked list of documentation chunks
 relevant to a free-form query.
 
-The implementation is deliberately textbook BM25 (k1=1.2, b=0.75) over its
-chunks. No embeddings, no model, no network. It is honest about what it is:
-a lexical retriever. It will find "缓存命中率 低" faster than semantic RAG can
-ever hope to, because the project uses the exact phrase in the docs.
+Tokenization is bilingual by construction: latin/digit runs are kept whole,
+CJK runs are emitted as bigrams (a Chinese sentence has no spaces; scoring
+the run as one giant token matches nothing — M8-T975 measured exactly that
+on the wkapi.pro lane and fixed it here). The implementation is
+deliberately textbook BM25 (k1=1.2, b=0.75) over its chunks. No embeddings,
+no model, no network. It will find "缓存命中率 低" faster than semantic RAG
+can ever hope to, because the project uses the exact phrase in the docs.
 """
 
 from __future__ import annotations
@@ -25,11 +28,27 @@ _ROOT_FILES = (
     Path(__file__).resolve().parent.parent / "CONTRIBUTING.md",
 )
 
-_TOKEN_RE = re.compile(r"[A-Za-z0-9_\u4e00-\u9fff]{2,}")
+# Two token families. Latin/digit runs are kept whole (prefix_cache_key is
+# one token — our readers write it that way). CJK runs are emitted as
+# bigrams, because a Chinese sentence arrives without spaces: the run
+# "为什么缓存命中率看起来很低" is one regex match, and scoring it as a
+# single giant token matches nothing — which is why the askdocs panel
+# used to come back empty for the primary language of this repo's docs.
+_TOKEN_RE = re.compile(r"[A-Za-z0-9_]{2,}|[\u4e00-\u9fff]+")
 
 
 def _tokens(text: str) -> list[str]:
-    return _TOKEN_RE.findall(text.lower())
+    tokens: list[str] = []
+    for match in _TOKEN_RE.finditer(text.lower()):
+        token = match.group()
+        if token[0] >= "\u4e00":
+            if len(token) <= 1:
+                tokens.append(token)
+            else:
+                tokens.extend(token[i : i + 2] for i in range(len(token) - 1))
+        else:
+            tokens.append(token)
+    return tokens
 
 
 def _chunk_markdown(text: str, *, chunk_chars: int = 800) -> list[str]:

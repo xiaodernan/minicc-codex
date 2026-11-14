@@ -6,7 +6,7 @@ import { activateDialog, deactivateDialog } from "./dialog.js";
 import { t } from "./i18n.js";
 import { setFocusMode, setInspectorCollapsed, setLocale, setSidebarCollapsed, setTheme } from "./locale.js";
 import { openArcade } from "./arcade.js";
-import { exportChat, openActivityPanel, openAlmanacPanel, openArchivePanel, openAxiomsPanel, openJournalPanel, openManualPanel, openRecentPanel, openBatchPanel, openHelpPanel, openLedgerPanel, openOptionsPanel, openSettingsPanel, openTaskListPanel, openTemplatesPanel, openWorkspacesPanel, resetTask } from "../chat/stream.js";
+import { exportChat, openActivityPanel, openAlmanacPanel, openArchivePanel, openAskDocsPanel, openAxiomsPanel, openJournalPanel, openManualPanel, openRecentPanel, openBatchPanel, openHelpPanel, openLedgerPanel, openOptionsPanel, openSettingsPanel, openTaskListPanel, openTemplatesPanel, openWorkspacesPanel, resetTask } from "../chat/stream.js";
 import { openGlobalSearchPanel, scrollChat, showToast } from "../panels/index.js";
 import { startTour } from "../panels/onboarding.js";
 import { $, state } from "./state.js";
@@ -38,6 +38,7 @@ function commands() {
     { id: "axioms", glyph: "scroll-text", group: "palette.group.task", run: () => openAxiomsPanel() },
     { id: "journal", glyph: "notebook-pen", group: "palette.group.task", run: () => openJournalPanel() },
     { id: "archive", glyph: "archive", group: "palette.group.task", run: () => openArchivePanel() },
+    { id: "askdocs", glyph: "file-search-2", group: "palette.group.task", run: () => openAskDocsPanel() },
     { id: "tour", glyph: "sparkles", group: "palette.group.surface", run: () => startTour() },
     { id: "recent", glyph: "newspaper", group: "palette.group.task", run: () => openRecentPanel() },
     { id: "batch", glyph: "layers", group: "palette.group.task", run: () => openBatchPanel() },
@@ -124,7 +125,7 @@ function render() {
 function iconGlyph(name) {
   // The local glyph table owns fallback characters; lucide SVGs need a refresh
   // pass the palette renders synchronously, so text glyphs keep zero-latency.
-  const glyphs = { plus: "+", "list-checks": "☑", "folder-open": "🗂", search: "⌕", activity: "▥", ledger: "▤", sparkles: "✦", "book-open": "▤", layers: "≡", download: "↓", "settings-2": "⚙", "more-horizontal": "⋯", "circle-help": "?", "gamepad-2": "▶", "moon-star": "☾", "globe-2": "◎", "panel-left": "▤", "panel-right": "▧", "scan-line": "◫", "chevrons-down": "⌄" };
+  const glyphs = { plus: "+", "list-checks": "☑", "folder-open": "🗂", search: "⌕", activity: "▥", ledger: "▤", sparkles: "✦", "book-open": "▤", layers: "≡", download: "↓", "settings-2": "⚙", "more-horizontal": "⋯", "circle-help": "?", "gamepad-2": "▶", "moon-star": "☾", "globe-2": "◎", "panel-left": "▤", "panel-right": "▧", "scan-line": "◫", "chevrons-down": "⌄", "file-search-2": "⌕" };
   return glyphs[name] || "›";
 }
 

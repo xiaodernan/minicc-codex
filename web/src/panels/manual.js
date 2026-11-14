@@ -23,6 +23,7 @@ const CHAPTERS = [
   { id: "limits", roman: "七", romanEn: "7", title: "Honest Limits", titleZh: "边界与范围" },
   { id: "vault", roman: "八", romanEn: "8", title: "Keys & Vault", titleZh: "密钥与金库" },
   { id: "philosophy", roman: "九", romanEn: "9", title: "The Quiet Room", titleZh: "安静的房间" },
+  { id: "askdocs", roman: "十", romanEn: "10", title: "Ask the Repo", titleZh: "问仓库" },
 ];
 
 function zhStart() {
@@ -296,6 +297,40 @@ function enLimits() {
   `;
 }
 
+function zhAskDocs() {
+  return `
+    <p class="manual-lede">「问仓库」是把 RAG 真跑给你看的一扇窗：它先用 BM25（Okapi, k1=1.2, b=0.75）从本仓库的 <code>docs/</code> + <code>README.md</code> + <code>CONTRIBUTING.md</code> 里取 top-k 段落，再让你配置好的模型——只读着这些段落回答，不让它凭空编。</p>
+    <ol class="manual-list">
+      <li><strong>打开</strong> — 侧边栏「问仓库」（档案馆旁边），或按 <code>Ctrl/⌘K</code> 输入「问仓库」。</li>
+      <li><strong>提问</strong> — 用中文或英文问一个具体的问题。比如「为什么缓存命中率看起来很低？」「怎么跑压力测试？」选好引用来源数 k（2 / 4 / 6 / 8），按「提问」。</li>
+      <li><strong>读答案</strong> — 答案只来自检索到的段落；顶部显示模型名与端点；<strong>引用来源</strong>逐条展开，可见段落文件名、BM25 分数与原文摘录；<strong>用量</strong>条显示网关回传的 prompt / completion / total tokens。</li>
+      <li><strong>没答上</strong> — 如果 docs 里没有相关内容，模型会直接说「没有直接答案」，来源列表为空。换个关键词，或先在 docs/ 里确认有没有相应章节。</li>
+      <li><strong>没 key</strong> — 检索本身在进程内完成；回答这一步调用你配置好的模型，因此仍需要 <code>MINICC_API_KEY</code> / <code>MINICC_BASE_URL</code> / <code>MINICC_MODEL</code>（与对话同一套 env）。没有 key 时，这里显示真实错误，而不是一段编造的回答。</li>
+    </ol>
+    <div class="manual-callout">
+      <strong>诚实的事</strong>
+      <p>BM25 是关键词检索，不是语义召回：它对精确措辞极强（「缓存命中率」一击直中），对同义改写一般。<code>chat/completions</code> 不回传 <code>cached_tokens</code>，所以用量条只显示网关如实给出的字段，不伪造命中率。api_key 不进 prompt、不被回显。</p>
+    </div>
+  `;
+}
+
+function enAskDocs() {
+  return `
+    <p class="manual-lede">Ask the Repo is RAG actually running, with the receipts shown. It first runs BM25 (Okapi, k1=1.2, b=0.75) over this repo's <code>docs/</code> + <code>README.md</code> + <code>CONTRIBUTING.md</code>, takes the top-k passages, then asks your configured model to answer from those passages alone.</p>
+    <ol class="manual-list">
+      <li><strong>Open</strong> — the “Ask the Docs” sidebar button (next to the Archive), or press <code>Ctrl/⌘K</code> and type “ask”.</li>
+      <li><strong>Ask</strong> — type a concrete question in Chinese or English, e.g. “Why does the cache hit rate look so low?” or “How do I run the load test?” Pick k (2 / 4 / 6 / 8) and press Ask.</li>
+      <li><strong>Read</strong> — the answer comes only from the retrieved passages; the meta line shows the model and endpoint; each <strong>source</strong> expands to the file name, the BM25 score and the verbatim excerpt; the <strong>usage</strong> pill shows exactly what the gateway reported (prompt / completion / total tokens).</li>
+      <li><strong>No answer</strong> — if docs do not cover it, the model says so and the source list is empty. Rephrase, or check docs/ for a chapter first.</li>
+      <li><strong>No key</strong> — retrieval runs entirely in-process; the answer step calls your configured model, so it still needs <code>MINICC_API_KEY</code> / <code>MINICC_BASE_URL</code> / <code>MINICC_MODEL</code> (same env as chat). Without one, the real error is shown, not a fabricated answer.</li>
+    </ol>
+    <div class="manual-callout">
+      <strong>The honest part</strong>
+      <p>BM25 is lexical, not semantic: it is excellent at exact phrases (“缓存命中率” lands dead-center) and average at paraphrase. <code>chat/completions</code> never carries <code>cached_tokens</code>, so the usage pill reports only the fields the gateway really gives — no invented hit rate. The api_key never enters the prompt nor is echoed.</p>
+    </div>
+  `;
+}
+
 const BODIES = {
   start: { zh: zhStart, en: enStart },
   workbench: { zh: zhWorkbench, en: enWorkbench },
@@ -306,6 +341,7 @@ const BODIES = {
   limits: { zh: zhLimits, en: enLimits },
   vault: { zh: zhVault, en: enVault },
   philosophy: { zh: zhPhilosophy, en: enPhilosophy },
+  askdocs: { zh: zhAskDocs, en: enAskDocs },
 };
 
 function chapterMarkup(chapter) {
