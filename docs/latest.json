@@ -1,10 +1,25 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-14T17:54:03.358Z",
+  "generated_at": "2026-11-14T18:02:53.375Z",
   "branch": "main",
-  "head": "93e1b78",
-  "total_commits": 1496,
+  "head": "7ccdf97",
+  "total_commits": 1499,
   "recent_commits": [
+    {
+      "short": "7ccdf97",
+      "at": "2026-11-15T02:02:28+08:00",
+      "subject": "M8-T956: almanac volume X The Unfinished - the wing is still under construction; live commits instrument (commits/chapters/HEAD) plus the six newest shipments r"
+    },
+    {
+      "short": "9842116",
+      "at": "2026-11-15T01:54:58+08:00",
+      "subject": "M8-T955b: manual (workbench chapter) documents the flame chip in both languages"
+    },
+    {
+      "short": "bfa18c3",
+      "at": "2026-11-14T17:54:03Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "93e1b78",
       "at": "2026-11-15T01:53:44+08:00",
@@ -14,30 +29,15 @@
       "short": "e389b6e",
       "at": "2026-11-14T17:45:46Z",
       "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "e323ed3",
-      "at": "2026-11-15T01:45:28+08:00",
-      "subject": "M8-T954b: README cache-affinity line points at the measured matrix doc"
-    },
-    {
-      "short": "8e50416",
-      "at": "2026-11-14T17:44:57Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "d898da0",
-      "at": "2026-11-15T01:44:38+08:00",
-      "subject": "M8-T954: cache affinity matrix measured 2026-11-15 - Responses both modes report cached_tokens (94.5->100%), chat/completions silent on stream-without-key, both"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 275,
+  "roadmap_batches": 276,
   "changelog_entries": 1,
-  "roadmap_lines": 51712,
+  "roadmap_lines": 51735,
   "tracked_files": 1052,
   "test_files": 702,
-  "almanac_chapters": 10,
+  "almanac_chapters": 11,
   "module_count": 14,
   "feature_surface": [
     "workbench",
