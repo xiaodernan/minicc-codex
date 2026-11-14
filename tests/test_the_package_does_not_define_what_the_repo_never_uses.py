@@ -42,7 +42,7 @@ def _all_py_files() -> list[pathlib.Path]:
         for path in iterable:
             if not path.is_file():
                 continue
-            if any(part in ("node_modules", "build", ".git") for part in path.parts):
+            if any(part in ("node_modules", "build", ".git", ".venv", ".mypy_cache", ".pytest_cache", ".ruff_cache", "dist", "output", ".playwright-cli") for part in path.parts):
                 continue
             resolved = path.resolve()
             if resolved not in seen:

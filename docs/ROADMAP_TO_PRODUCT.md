@@ -50879,3 +50879,27 @@ Spark 章节写"zen plan / verify 循环"（仓库中不存在名为 zen-plan �
 ### 3 文件
 
 `web/src/panels/almanac.js`、`web/app.js`、`web/asset-manifest.json`、content-addressed bundle
+
+## 批次 921 - M8-T921：修复 `test_no_constant_is_defined_without_any_repository_reference` 的"全仓卡死"——门禁的射程本来就是"仓库"，把 `.venv` 放进射程是事故
+
+### 1 为什么
+
+这条门禁从项目早期就承担着"module 常量必须有人引用"的职责——
+但它的遍历实现 `_all_py_files()` 把 `REPO.rglob("*.py")` 原样纳入，包括 `.venv/`
+（几万个第三方 `.py`，巨大的词法 token 和 AST 解析）：本地直接 OOM/卡死无穷，
+CI 两条 Python 腿无限期挂在 `Run test suite`（直到本批之前从未完整跑通）。
+
+门禁的名字与 docstring 从头到尾只谈"repository"——第三方库既不是本仓库的代码，
+也不该出现在"已引用"的证据里（若某常量只被 `.venv` 里的第三方引用，那是本门禁
+最不该相信的证据）。本批**只修射程**：把 `.venv`、各缓存目录、`dist/`、`output/`、
+`.playwright-cli/` 加入既有 skip 集合（此前已跳过 `node_modules/ build/ .git`），
+语义零削弱——`minicc/`、`tests/`、`scripts/`、仓库根的所有 `.py` 仍然全量解析。
+
+### 2 效果
+
+- 修复前：无穷卡死 / OOM 杀进程（本机观测：本地 suite 跑数小时未完成、无输出退出）。
+- 修复后：**267.24s 通过**（`1 passed`），全量信号保留。
+
+### 3 文件
+
+`tests/test_the_package_does_not_define_what_the_repo_never_uses.py`（仅扩充 skip 集合一行）

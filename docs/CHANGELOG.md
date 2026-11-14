@@ -218,3 +218,5 @@
 - **README 补齐工作台全景（M8-T919）**：README 新增《工作台模块（产品界面一览）》——账本 / 脉搏 / 年鉴 8 卷 / 回放 / 航行灯 / 模板库 / CLI 只读面板 / Spring Cloud plane / 前缀缓存全链可观测，逐条对应仓库现状核对过的真实命令与端点（含 `MINICC_CLOUD_*_PORT` 覆盖提示与 98.3% 热命中实测）。
 
 - **年鉴事实修正（M8-T920）**："2026 年春天"→夏天（digest 首笔提交 2026-08-24）；"zen plan"（仓库中不存在）→ plan / verify 循环；"21 个" JS 协议门→22 个（与 ci.yml 实际执行的 22 个 `npm run test:*` 对齐）。年鉴的"每个数字可对账"承诺对叙事文案同样生效。
+
+- **`test_no_constant_is_defined_without_any_repository_reference` 卡死修复（M8-T921）**：根门禁射程误把 `.venv` 也裹进来（数万第三方 .py 的 AST 解析 → 本地 OOM/无限挂起、CI Python 双腿无限 in_progress）。本批仅将 `.venv`/缓存目录/dist/output/.playwright-cli 加入既有 skip 集合——射程回到门禁本来的名字（"repository"），信号零削弱。**267 秒通过**。
