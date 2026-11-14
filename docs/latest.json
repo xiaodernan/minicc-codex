@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-14T17:45:46.291Z",
+  "generated_at": "2026-11-14T17:54:03.358Z",
   "branch": "main",
-  "head": "e323ed3",
-  "total_commits": 1494,
+  "head": "93e1b78",
+  "total_commits": 1496,
   "recent_commits": [
+    {
+      "short": "93e1b78",
+      "at": "2026-11-15T01:53:44+08:00",
+      "subject": "M8-T955: the flame chip - daily streak counter for completed tasks (localStorage, zero network, per-calendar-day +1, two-day gap resets), flame icon added, bili"
+    },
+    {
+      "short": "e389b6e",
+      "at": "2026-11-14T17:45:46Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "e323ed3",
       "at": "2026-11-15T01:45:28+08:00",
@@ -19,23 +29,13 @@
       "short": "d898da0",
       "at": "2026-11-15T01:44:38+08:00",
       "subject": "M8-T954: cache affinity matrix measured 2026-11-15 - Responses both modes report cached_tokens (94.5->100%), chat/completions silent on stream-without-key, both"
-    },
-    {
-      "short": "ff2b240",
-      "at": "2026-11-14T17:25:55Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "99e13cb",
-      "at": "2026-11-15T01:25:36+08:00",
-      "subject": "M8-T953: derive almanac_chapters from the yearbook rail (was hardcoded 9 - now counts CHAPTERS entries, 10)"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 274,
+  "roadmap_batches": 275,
   "changelog_entries": 1,
-  "roadmap_lines": 51691,
-  "tracked_files": 1051,
+  "roadmap_lines": 51712,
+  "tracked_files": 1052,
   "test_files": 702,
   "almanac_chapters": 10,
   "module_count": 14,
