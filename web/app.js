@@ -2839,6 +2839,9 @@
       <div><kbd>/</kbd><span>\u641C\u7D22\u4EFB\u52A1</span></div>
       <div><kbd>?</kbd><span>\u5FEB\u6377\u952E\u901F\u67E5</span></div>
       <div><kbd>Esc</kbd><span>\u5173\u95ED\u9762\u677F / \u5C0F\u6E38\u620F</span></div>
+      <div><kbd>1-9</kbd><span>\u9009\u690D\u7269\uFF08\u6E38\u620F\u6253\u5F00\u65F6\uFF09</span></div>
+      <div><kbd>P</kbd><span>\u6682\u505C / \u7EE7\u7EED\uFF08\u6E38\u620F\uFF09</span></div>
+      <div><kbd>E</kbd><span>\u94F2\u5B50\uFF08\u6E38\u620F\uFF09</span></div>
     </div>
     <p class="manual-footnote">\u547D\u4EE4\u9762\u677F\u91CC\u8FD8\u6709\u66F4\u591A\uFF1A\u5207\u6362\u4E3B\u9898\u3001\u6253\u5F00\u5E74\u9274\u3001\u6253\u5F00\u56DE\u653E\u3001\u5BFC\u51FA\u5F53\u524D\u5BF9\u8BDD\u3001\u6062\u590D\u4EFB\u52A1\u5FEB\u7167\u7B49\u2014\u2014\u5168\u90E8\u53EF\u4EE5\u7528\u9F20\u6807\u6216\u952E\u76D8\u64CD\u4F5C\u3002</p>
   `;
@@ -2854,6 +2857,9 @@
       <div><kbd>/</kbd><span>Search tasks</span></div>
       <div><kbd>?</kbd><span>Shortcut reference</span></div>
       <div><kbd>Esc</kbd><span>Close panel / game</span></div>
+      <div><kbd>1-9</kbd><span>Pick seed (game open)</span></div>
+      <div><kbd>P</kbd><span>Pause / resume (game)</span></div>
+      <div><kbd>E</kbd><span>Shovel (game)</span></div>
     </div>
     <p class="manual-footnote">The command palette carries more: theme toggle, open the almanac, open replay, export the conversation, restore a task snapshot \u2014 every action keyboard or mouse operable.</p>
   `;
@@ -4162,7 +4168,7 @@
     });
   }
   function openHelpPanel() {
-    const rows = state.locale === "zh" ? [["\u53D1\u9001\u4EFB\u52A1", "Enter"], ["\u6362\u884C", "Shift+Enter"], ["\u65B0\u4EFB\u52A1", "Ctrl/\u2318 N"], ["\u547D\u4EE4\u9762\u677F", "Ctrl/\u2318 K"], ["\u8D26\u672C\u603B\u89C8", "Ctrl/\u2318 L"], ["\u641C\u7D22\u4EFB\u52A1", "/"], ["\u5FEB\u6377\u952E\u901F\u67E5", "?"], ["\u5173\u95ED\u9762\u677F / \u5C0F\u6E38\u620F", "Esc"]] : [["Send task", "Enter"], ["Newline", "Shift+Enter"], ["New task", "Ctrl/\u2318 N"], ["Command palette", "Ctrl/\u2318 K"], ["Ledger overview", "Ctrl/\u2318 L"], ["Search tasks", "/"], ["Shortcut reference", "?"], ["Close panel / game", "Esc"]];
+    const rows = state.locale === "zh" ? [["\u53D1\u9001\u4EFB\u52A1", "Enter"], ["\u6362\u884C", "Shift+Enter"], ["\u65B0\u4EFB\u52A1", "Ctrl/\u2318 N"], ["\u547D\u4EE4\u9762\u677F", "Ctrl/\u2318 K"], ["\u8D26\u672C\u603B\u89C8", "Ctrl/\u2318 L"], ["\u641C\u7D22\u4EFB\u52A1", "/"], ["\u5FEB\u6377\u952E\u901F\u67E5", "?"], ["\u5173\u95ED\u9762\u677F / \u5C0F\u6E38\u620F", "Esc"], ["\u9009\u690D\u7269\uFF08\u6E38\u620F\u6253\u5F00\uFF09", "1-9"], ["\u6682\u505C / \u7EE7\u7EED", "P"], ["\u94F2\u5B50", "E"]] : [["Send task", "Enter"], ["Newline", "Shift+Enter"], ["New task", "Ctrl/\u2318 N"], ["Command palette", "Ctrl/\u2318 K"], ["Ledger overview", "Ctrl/\u2318 L"], ["Search tasks", "/"], ["Shortcut reference", "?"], ["Close panel / game", "Esc"], ["Pick seed (game)", "1-9"], ["Pause / resume", "P"], ["Shovel", "E"]];
     const list = rows.map(([label2, key]) => `<div class="help-shortcut"><span>${escapeHtml(label2)}</span><kbd>${escapeHtml(key)}</kbd></div>`).join("");
     openPanel(t("help.title"), `<div class="help-panel"><div class="panel-section-title">${escapeHtml(t("help.shortcuts"))}</div>${list}<div class="panel-section-title">${escapeHtml(t("help.arcade"))}</div><button type="button" class="panel-command" id="helpArcadeButton"><span>${icon("gamepad-2")}</span>${escapeHtml(t("help.arcade"))}</button></div>`);
     $("#helpArcadeButton")?.addEventListener("click", () => {

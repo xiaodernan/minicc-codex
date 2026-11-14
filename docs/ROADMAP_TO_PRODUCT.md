@@ -51170,3 +51170,21 @@ roadmap 的并轨结论与 M8-T924 时一致，但现在有完整的文件级清
 - fake-provider 服务器上 `npm run test:almanac` →
   "almanac smoke passed: 9 chapters render fully bilingual, no mixed-language prose"
 - `python scripts/doc_pointers.py --check` → rc 0
+
+## 批次 929 - M8-T933：帮助面板与说明书快捷键页对齐 arcade 键盘操作
+
+### 1 背景
+
+M8-T930 给 arcade 加了键盘操作（1-9 选卡 / P 暂停 / E 铲子）之后，帮助面板的快捷键清单和说明书的
+「命令与快捷键」章节都没有跟上——新功能不可发现就是不存在。
+
+### 2 变更
+
+- `web/src/chat/stream.js`：帮助面板（? 键）快捷键清单新增 3 行：
+  `1-9` 选植物（游戏打开时）/ `P` 暂停 · 继续 / `E` 铲子（中英双语）。
+- `web/src/panels/manual.js`：说明书「四、命令与快捷键」章节新增同样 3 行，中英双语。
+- bundle 重建（app.js 462060 chars）。
+
+### 3 验证
+
+- `npm run build:web` ✓、`check:web` ✓、`node --check` ✓

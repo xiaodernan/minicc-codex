@@ -234,3 +234,5 @@
 - **分支并轨文件级复核，M8-T931**：逐一比对 dev/minicc-reliability-4ba3 / feature/minicc-cloud / consolidation/* / backup / archive / scratch / origin/integration/m8-t537-to-main / origin/m8-t537 与 main 的 src 级面——全部为领先关系；唯一“缺失”的 11 个文件是 8 个 hashed 构建产物（main 重新构建）+ 3 个早期 test 草稿（已被 main 的 fence/line ruler 套件覆盖）。结论同 M8-T924：没有任何分支携带 main 缺失的功能内容，不以形式合并倒退。
 
 - **almanac 双语回归门，M8-T932**：新增 `tests/almanac_smoke.mjs`——真浏览器逐章验证 almanac 九章：en 模式零 CJK、zh 模式必须渲染中文；`test:almanac` 入 `test:arcade`（game+codex+zombie+almanac）+ ci.yml syntax job 的 `node --check`；fake provider 服务器上本地通过。全内容双语不再是"修了就算"，而是每次 CI 强制验证。
+
+- **快捷键清单与 arcade 键盘操作对齐，M8-T933**：帮助面板（? 键）和说明书「命令与快捷键」章节新增 `1-9` 选植物 / `P` 暂停 · 继续 / `E` 铲子——和 M8-T930 的实现一致，中英双语；bundle 重建。
