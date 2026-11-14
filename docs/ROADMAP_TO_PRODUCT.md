@@ -51226,3 +51226,20 @@ M8-T930 给 arcade 加了键盘操作（1-9 选卡 / P 暂停 / E 铲子）之�
 
 - 铁律文本是仓库静态事实陈述；若未来某条 claim 被证伪（例如门禁失效），
   应把相应铁律降级或改写，并保留本章节的账本包。
+
+## 批次 931 - M8-T935：展示页自动更新 Bot 的竞速修复
+
+### 1 问题
+
+`.github/workflows/update-latest.yml` 的 `git push` 不带 rebase：
+当两个提交在同一秒到达 main，bot 的 `chore(latest)` 提交会被 non-fast-forward 拒绝
+（13:24 那次失败现场：bot 已建好 6ca561d 却推不上去）。展示页事实包因此无法被可靠刷新。
+
+### 2 变更
+
+- `.github/workflows/update-latest.yml`：bot 推送前 `git fetch origin main` + `git pull --rebase origin main`，
+  消除机器人自己和 push 的竞速；仍然按"有大提升才刷新"（paths 过滤）节奏更新，不改展示页的更新频率策略。
+
+### 3 验证
+
+- 下一次 main 推送会走一遍完整的 bot 流程，日志可见 `From … ! [rejected]` 消失。
