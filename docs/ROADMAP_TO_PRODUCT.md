@@ -50807,3 +50807,34 @@ M8-T914 是一场在本机打响的实弹演习：120 并发、25×200、60×429
 ### 4 文件
 
 `web/src/panels/almanac.js`、`web/styles.css`、`web/app.js`、`web/asset-manifest.json`、content-addressed bundle
+
+## 批次 918 - M8-T918：全链路真实实弹 E2E — web UI → 真实网关 → 回放/航行灯/年鉴仪表，一次会话全绿
+
+### 1 为什么
+
+单元门钉住"每一块"，却不会告诉"它们一起工作"。M8-T912（回放）、M8-T916（航行灯）、
+M8-T905/T913（digest 端点/CLI）、M8-T910（年鉴仪表）都在各自的探针里通过——
+这一批回答最后一个问题：**它们在同一场真实任务里同时工作吗？**
+
+### 2 做了什么（不是新功能，而是全链验证，记录在册）
+
+启动真 `minicc-web`（`MINICC_HOME=<临时沙箱>`，127.0.0.1:8899，真实 `wkapi.pro/v1` + `gpt-6-sol`，
+low effort），chromium headless 走完用户路径：
+
+| 环节 | 结果 |
+| --- | --- |
+| 启动 | `/api/health` → `{"ok": true}` |
+| 真实任务 | "读一下 README.md，用一句话说明这个项目是做什么的。" → **46.8s 后 completed=1** |
+| 航行灯 | `缓存 31.7% · 任务 1 · main @ c63c554`，tone=low（新沙箱 + 仓库状态漂移使前缀冷，数字与网关事实一致） |
+| 回放 | 任务详情 →「回放整个任务」→ 罩层播放 (2/20 行可见，tokens 累加 16k) → scrub 到底 → 完成蜡封亮起 → Esc 关闭 |
+| 年鉴仪表 | 序章读数：`main @ c63c554 / 1431 commits / 2026-08-24 / 242 章 / 1038 tracked / 701 tests` |
+| digest HTTP 与 CLI 同 schema | `/api/digest` → `{branch: main, total_commits: 1431, roadmap_batches: 242}` |
+
+### 3 观察（如实，不是缺陷）
+
+- **31.7% 命中**：system prompt 嵌入工作区动态摘要，本次运行在 HEAD 迁移后首开，前缀随之漂移，命中只覆盖工具 schema 部分（约 2.7k token）——与 31.7% 精确吻合。这是"prompt 包含工作区事实"的预期行为：仓库不变时命中回到 ~98%（M8-T879 实测同键热命中 17024/17440 = 98.3%）。
+- **新沙箱 = 新任务索引**，航行灯与 digest 的计数从 0 长出，UI 全程不伪造任何数字。
+
+### 4 清理
+
+web 服务进程已停、minicc-e2e-home 已删除、probe 脚本已删除。仓库未留任何 E2E 残留或临时文件。

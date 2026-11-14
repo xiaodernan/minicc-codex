@@ -212,3 +212,5 @@
 - **「航行灯 · Running Light」上线（M8-T916）**：侧边栏底部常驻一枚环境读数——「缓存 98.3% · 任务 1426 · main @ 2e8dfb1」，mint/amber/rose/quiet 四档色温（high 态 mint 呼吸），数据与账本/脉搏同源（`/api/metrics` + `/api/digest`），45/60s 轮询（页面隐藏时暂停），点击直达账本总览。端点不可用时静默降级为 `—`，绝不伪造数字。i18n 双语全量；真实浏览器探针验证渲染与点击联动零 pageerror。
 
 - **年鉴第八卷《The Witness · 笔录不说谎》（M8-T917）**：审计日志进入叙事——三格仪表全部取自 `/api/stats` 现场读数（审计 1463 行 / 115 会话 / 2385 消息），五行证词清单讲清"被写下的都能被读回去"的纪律：provider_retry 是网关的耐心、completion_assessed 绝不来自静默跳过、approval_requested 是越权边缘、密钥永不落盘。rail 现共 9 章。
+
+- **全链路真实实弹 E2E（M8-T918）**：真 `minicc-web` + 真 `wkapi.pro/v1` 下，chromium 走完用户路径——46.8s 完成真实任务（README 单句摘要）→ 航行灯如实显示 `缓存 31.7% · 任务 1`（新沙箱 + 仓库漂移的前缀冷启动，与网关事实吻合）→ 回放完整播放并亮蜡封 → 年鉴仪表现场读数（1431 commits / 242 章 / 701 测试）→ `/api/digest` 与 CLI/JSON 同 schema。单元门之外，整体闭环首次被一份实弹证据钉住。
