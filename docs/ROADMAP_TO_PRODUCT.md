@@ -50671,3 +50671,48 @@ M8-T905 让 `/api/digest` 回答"这是什么仓库"，但 CLI 发烧友（和 C
 ### 5 文件
 
 `minicc/digest.py`、`minicc/main.py`、`tests/test_digest_cli.py`
+
+## 批次 914 - M8-T914：planes 上线弹窗——全平面真实冒烟（Eureka / LB / 限流 / 熔断 / 恢复回环），rabbitmq 3-alpine → 4.0-alpine
+
+### 1 为什么
+
+plane 的每一片都被单测钉住，但"注册中心 + 配置 + 网关 + 限流 + 熔断 + 回退 + 恢复"这个
+**整体**从没在真环境里被端到端触摸过——直到今天。docker compose 从未在此机拉起。
+这一批：修好唯一挡路的地基（rabbitmq 镜像），然后把整条链路真跑一遍，数字落账。
+
+### 2 做了什么
+
+- **`minicc-cloud/docker-compose.yml`** — `rabbitmq:3-alpine` → `rabbitmq:4.0-alpine`。
+  3-alpine 在 Docker Desktop 4.99 / WSL2 上必死：容器内 `.erlang.cookie` 被宿主机文件
+  系统以 root-owned + eacces 呈上（`RABBITMQ_ERLANG_COOKIE` 环境变量无法补救既存的坏 cookie），
+  `rabbitmq_prelaunch` 启动即崩。4.0-alpine 与本机已在跑的 specproof-rabbitmq 同族，
+  启动即 healthy。（若之后上游修复 cookie 问题，版本可按需回退——改动只有镜像名一行。）
+
+### 3 真实冒烟（替代端口，绝不碰仓库外的容器与项目）
+
+全部服务以 `MINICC_CLOUD_*_PORT` 覆盖到 *18761/18080/18082/18087/18888/16379/15673/25673*，
+`docker compose up -d` → 全部 healthy（registry / config / redis / rabbitmq / inspector / tasks / insights / gateway）。
+
+实测链路与数字：
+
+| 环节 | 结果 |
+| --- | --- |
+| Eureka 注册 | `MINICC-CLOUD-INSIGHTS / INSPECTOR / TASKS / GATEWAY` 四注册全部 UP |
+| 网关 → lb://insights | `GET :18080/api/insights/fleet` → **200**，四实例 UP（M8-T906 的端到端兑现） |
+| Redis token bucket | 响应头 `X-RateLimit-Burst-Capacity: 40 / Replenish-Rate: 20` 在场 |
+| 并发风暴 | 120 请求 @ 895ms → **25×200 / 60×429 / 35×503** |
+| 限流计数 | `/actuator/metrics/gateway.rate_limited` → `COUNT 60`，tag `route=insights`（M8-T888 修复兑现） |
+| 熔断 open | `insights-route` state **OPEN**，`notPermittedCalls=31`（负载下快速失败，不拖死自己） |
+| 回退诚实性 | 503 body：`{"error":"insights-unavailable","reason":"the insights service could not be reached… this is not an empty task list"}` |
+| 半开 → 全关 | 等 15s → 6×200 → `insights-route` state **CLOSED**，`notPermittedCalls: 0`，`failedCalls: 0` |
+
+### 4 边界与如实记录
+
+- 5433/5672/6379/8080/8761 已被仓库外的 `careeros-*` / `specproof-*` 容器占用，本次冒烟
+  **全程使用覆盖端口**，未触碰任何非本仓库容器；验收后 `docker compose down` 清理完毕。
+- 限流按 20 rps 回填，顺序调用 ~5 rps 永远不 trip——正确行为，非缺陷；并发风暴才是正确的探针。
+- 503 们不是"服务死了"，是熔断器按设计快速失败；回退体明确拒绝冒充空数据。
+
+### 5 文件
+
+`minicc-cloud/docker-compose.yml`（一行：镜像名）

@@ -204,3 +204,5 @@
 - **「回放 · Replay the Run」上线（M8-T912）**：任务详情新增「回放整个任务」，全屏电影席按事件顺序逐行浮现——事件流可暂停/倍速（1×/2×/4×）/拖拽 scrub、tokens 侧栏累加动画、通关蜡封落字。事件与聊天时间轴同一可见性口径（`compactModelUpdateEvents`），老快照诚实空态，零新后端。真实浏览器探针通关（0→逐行→scrub 10/10→返回详情→Esc 关闭，零 pageerror）。
 
 - **`minicc --digest` CLI 上线（M8-T913）**：仓库考古学读数不再只是 HTTP 端点——`minicc --digest` 输出 branch@HEAD / upstream 漂移 / 提交数 / 首次提交 / tracked/test 文件 / roadmap 批次与行数；`--digest --json` 与 `/api/digest` 同 schema（`minicc.digest.v1`）。非 git 目录诚实降级。新增 4 条 CLI 用例 + digest 套件 9 绿。
+
+- **Plane 真实环境冒烟 + rabbitmq 4.0-alpine（M8-T914）**：docker-compose 从未在本机拉起——`rabbitmq:3-alpine` 在 Docker Desktop/WSL2 必崩（`.erlang.cookie` eacces），改用与本机在跑同族验证过的 `rabbitmq:4.0-alpine`。随后全平面替代端口真机验收：四个服务 UP、网关经 `lb://` 打通 `/api/insights/fleet`（M8-T906 端到端兑现）、120 并发 → 25×200/60×429/35×503、`gateway.rate_limited{route=insights}` 计数 60（M8-T888 兑现）、熔断 open→honest 503 fallback→半开→CLOSED 完整回环。5672/6379/8080/8761 全部避开（careeros/specproof 占用），验收后 `compose down` 清场。

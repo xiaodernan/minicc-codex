@@ -50,7 +50,7 @@ services:
     # Also pin the erlang cookie — without this the .erlang.cookie in
     # /var/lib/rabbitmq/ comes up root-owned unreadable and the node
     # refuses to start on Docker Desktop / WSL2.
-    image: rabbitmq:3-alpine
+    image: rabbitmq:4.0-alpine
     ports:
       - "${MINICC_CLOUD_RABBITMQ_PORT:-5672}:5672"
       - "${MINICC_CLOUD_RABBITMQ_MGMT_PORT:-15672}:15672"
