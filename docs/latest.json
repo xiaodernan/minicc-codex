@@ -1,13 +1,40 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-14T14:40:27.196Z",
+  "generated_at": "2026-11-14T14:48:39.270Z",
   "branch": "main",
-  "head": "c6d1301",
-  "total_commits": 1470,
+  "head": "6fa121d",
+  "total_commits": 1472,
+  "recent_commits": [
+    {
+      "short": "6fa121d",
+      "at": "2026-11-14T22:46:58+08:00",
+      "subject": "M8-T945: fact pack carries 5 latest commits (short/at/subject); showcase minicc card renders them live for visitors"
+    },
+    {
+      "short": "2a0f62a",
+      "at": "2026-11-14T14:40:27Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
+    {
+      "short": "c6d1301",
+      "at": "2026-11-14T22:37:56+08:00",
+      "subject": "M8-T944: empty canvas rebuilt - the first thing every user sees now orbits, breathes, and offers three real first tasks in both languages (msg-list delegation; "
+    },
+    {
+      "short": "101dc36",
+      "at": "2026-11-14T14:37:10Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
+    {
+      "short": "21e6f4c",
+      "at": "2026-11-14T14:28:41Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    }
+  ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 264,
+  "roadmap_batches": 265,
   "changelog_entries": 1,
-  "roadmap_lines": 51479,
+  "roadmap_lines": 51496,
   "tracked_files": 1049,
   "test_files": 702,
   "almanac_chapters": 9,
