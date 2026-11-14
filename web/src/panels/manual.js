@@ -20,6 +20,7 @@ const CHAPTERS = [
   { id: "arcade", roman: "五", romanEn: "5", title: "Playbook", titleZh: "游戏厅教程" },
   { id: "trouble", roman: "六", romanEn: "6", title: "Troubleshooting", titleZh: "排错" },
   { id: "limits", roman: "七", romanEn: "7", title: "Honest Limits", titleZh: "边界与范围" },
+  { id: "philosophy", roman: "八", romanEn: "8", title: "The Quiet Room", titleZh: "安静的房间" },
 ];
 
 function zhStart() {
@@ -190,6 +191,33 @@ function enArcade() {
   `;
 }
 
+function zhPhilosophy() {
+  return `
+    <p class="manual-lede">这个房间为什么这样被造——</p>
+    <div class="manual-arcade">
+      <div><span class="arcade-label">这里没有甲方</span><p>如果你期待的是一个每天把你哄进结账页的产品，这个地方不是。minicc 记住自己的本分：<strong>被打开、被使用、被关掉</strong>——下一次再见面时它还是原始的那个你。</p></div>
+      <div><span class="arcade-label">这里没有专有算法</span><p>这里没有 model card 来自营销文档，没有 spawned-agent farm 来自媒体稿。每个门类、每个面板、每个提示，都是这个仓库里可以读的代码——你可以读完每一行，你不可以假装它不是这么写的。</p></div>
+      <div><span class="arcade-label">这里没有情绪化智能体</span><p>这里的模型不会对你撒谎、不会替你喝彩，也不会推销自己。它会告诉你它完成了什么、它没有完成什么，以及它需要哪份文件来证明自己。</p></div>
+      <div><span class="arcade-label">这里没有 "THE PLAN"</span><p>你看到的每一块都被现场验证过：缓存命中率来自 <code>/api/metrics</code>、变更来自 git、提交数来自 git、日志行数来自 <code>audit.jsonl</code>。这里不允许任何一个数字不接地气。</p></div>
+      <div><span class="arcade-label">这里的一切都会回来</span><p>当门红了、CI 红了、测试红了——这里不提供安慰，但会递上证据。你永远可以停在门前说：在你说「完成」之前，我看过这份报告。</p></div>
+    </div>
+    <p class="manual-footnote">《安静的房间》——这是人为挑选的词。这个项目不会大声话，但它会把每件事写下来，包括它自己。</p>
+  `;
+}
+
+function enPhilosophy() {
+  return `
+    <p class="manual-lede">Why this room was built this way —</p>
+    <div class="manual-arcade">
+      <div><span class="arcade-label">No sponsor</span><p>If you are expecting a product that flatters you into the checkout page, this is not it. minicc remembers its one responsibility: be opened, be used, be closed — and be the same repo when we meet again.</p></div>
+      <div><span class="arcade-label">No proprietary wisdom</span><p>No model card lifted from a marketing page, no spawned-agent farm from a press release. Every surface here is code that lives in this repository — readable, auditable, and honest about being exactly what it is.</p></div>
+      <div><span class="arcade-label">No theatrical agent</span><p>The model will not lie to you, over-sell you, or wave a ribbon in your face. It shows what it finished, what it did not, and which file it would need in order to prove the rest.</p></div>
+      <div><span class="arcade-label">No “the plan”</span><p>Every number here answers to reality: cache hit rates from <code>/api/metrics</code>, file counts from git, commits from git, log lines from <code>audit.jsonl</code>. Nothing floats, nothing pretends.</p></div>
+      <div><span class="arcade-label">Everything here has receipts</span><p>When the gates go red, this room does not offer comfort — it offers evidence. You can always stop at the door and say: before you said done, I saw the report.</p></div>
+    </div>
+    <p class="manual-footnote">The Quiet Room — the word is chosen on purpose. This project will not shout, but it will put everything in writing, including itself.</p>
+  `;
+}
 function zhTrouble() {
   return `
     <div class="manual-trouble">
@@ -252,6 +280,7 @@ const BODIES = {
   arcade: { zh: zhArcade, en: enArcade },
   trouble: { zh: zhTrouble, en: enTrouble },
   limits: { zh: zhLimits, en: enLimits },
+  philosophy: { zh: zhPhilosophy, en: enPhilosophy },
 };
 
 function chapterMarkup(chapter) {

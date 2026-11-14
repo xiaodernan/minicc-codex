@@ -262,3 +262,5 @@
 - **事实包带最近提交 + 展示页最近提交条，M8-T945**：`scripts/update-latest-json.mjs` 新增 `recent_commits`（5 条最新，schema 保持 `minicc.latest.v1`，新增不破）；`xiaodernan.github.io` 的 minicc 卡片新增 `.minicc-latest-commits` 渲染器，按事实包实时渲染（5 行 coral 等宽 short + 原始 subject）——访客每次进卡片看到最新的开发故事，不再只有数字。
 
 - **任务完成庆祝彩带，M8-T946**：新增 `web/src/celebration.js`——26 枚彩色火花从气泡中心向外飞散（`prefers-reduced-motion` 完全不渲染）；`addAssistantMessage` 只在 live + `status==='completed'` 的路径上触发，restore / 失败 / 非当前任务路径不变。首次证明“做完一件事给用户一个让人需要太久的呼气”。
+
+- **说明书第八章「安静的房间 / The Quiet Room」，M8-T947**：说明书扩展为 8 章——这一章讲「为什么这间屋子这样被造」：没有甲方 / 没有专有智慧 / 没有表演型智能体 / 没有「THE PLAN」/ 每件事都会回来。中文版与英文版同故事，铁证入后证据：命令行、沙箱、门电路、`/api/stats` 现场数值、缓存命中率——没有不可检验的领袖性短语。真浏览器 zh/en 验证（en chrome 零 CJK，rail 8 项完整）。

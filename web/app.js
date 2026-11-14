@@ -2770,7 +2770,8 @@
     { id: "keys", roman: "\u56DB", romanEn: "4", title: "Commands & Shortcuts", titleZh: "\u547D\u4EE4\u4E0E\u5FEB\u6377\u952E" },
     { id: "arcade", roman: "\u4E94", romanEn: "5", title: "Playbook", titleZh: "\u6E38\u620F\u5385\u6559\u7A0B" },
     { id: "trouble", roman: "\u516D", romanEn: "6", title: "Troubleshooting", titleZh: "\u6392\u9519" },
-    { id: "limits", roman: "\u4E03", romanEn: "7", title: "Honest Limits", titleZh: "\u8FB9\u754C\u4E0E\u8303\u56F4" }
+    { id: "limits", roman: "\u4E03", romanEn: "7", title: "Honest Limits", titleZh: "\u8FB9\u754C\u4E0E\u8303\u56F4" },
+    { id: "philosophy", roman: "\u516B", romanEn: "8", title: "The Quiet Room", titleZh: "\u5B89\u9759\u7684\u623F\u95F4" }
   ];
   function zhStart() {
     return `
@@ -2930,6 +2931,32 @@
     <p class="manual-footnote">Game code lives in <code>web/game.js</code> \u2014 pure frontend, no server round-trip whatsoever.</p>
   `;
   }
+  function zhPhilosophy() {
+    return `
+    <p class="manual-lede">\u8FD9\u4E2A\u623F\u95F4\u4E3A\u4EC0\u4E48\u8FD9\u6837\u88AB\u9020\u2014\u2014</p>
+    <div class="manual-arcade">
+      <div><span class="arcade-label">\u8FD9\u91CC\u6CA1\u6709\u7532\u65B9</span><p>\u5982\u679C\u4F60\u671F\u5F85\u7684\u662F\u4E00\u4E2A\u6BCF\u5929\u628A\u4F60\u54C4\u8FDB\u7ED3\u8D26\u9875\u7684\u4EA7\u54C1\uFF0C\u8FD9\u4E2A\u5730\u65B9\u4E0D\u662F\u3002minicc \u8BB0\u4F4F\u81EA\u5DF1\u7684\u672C\u5206\uFF1A<strong>\u88AB\u6253\u5F00\u3001\u88AB\u4F7F\u7528\u3001\u88AB\u5173\u6389</strong>\u2014\u2014\u4E0B\u4E00\u6B21\u518D\u89C1\u9762\u65F6\u5B83\u8FD8\u662F\u539F\u59CB\u7684\u90A3\u4E2A\u4F60\u3002</p></div>
+      <div><span class="arcade-label">\u8FD9\u91CC\u6CA1\u6709\u4E13\u6709\u7B97\u6CD5</span><p>\u8FD9\u91CC\u6CA1\u6709 model card \u6765\u81EA\u8425\u9500\u6587\u6863\uFF0C\u6CA1\u6709 spawned-agent farm \u6765\u81EA\u5A92\u4F53\u7A3F\u3002\u6BCF\u4E2A\u95E8\u7C7B\u3001\u6BCF\u4E2A\u9762\u677F\u3001\u6BCF\u4E2A\u63D0\u793A\uFF0C\u90FD\u662F\u8FD9\u4E2A\u4ED3\u5E93\u91CC\u53EF\u4EE5\u8BFB\u7684\u4EE3\u7801\u2014\u2014\u4F60\u53EF\u4EE5\u8BFB\u5B8C\u6BCF\u4E00\u884C\uFF0C\u4F60\u4E0D\u53EF\u4EE5\u5047\u88C5\u5B83\u4E0D\u662F\u8FD9\u4E48\u5199\u7684\u3002</p></div>
+      <div><span class="arcade-label">\u8FD9\u91CC\u6CA1\u6709\u60C5\u7EEA\u5316\u667A\u80FD\u4F53</span><p>\u8FD9\u91CC\u7684\u6A21\u578B\u4E0D\u4F1A\u5BF9\u4F60\u6492\u8C0E\u3001\u4E0D\u4F1A\u66FF\u4F60\u559D\u5F69\uFF0C\u4E5F\u4E0D\u4F1A\u63A8\u9500\u81EA\u5DF1\u3002\u5B83\u4F1A\u544A\u8BC9\u4F60\u5B83\u5B8C\u6210\u4E86\u4EC0\u4E48\u3001\u5B83\u6CA1\u6709\u5B8C\u6210\u4EC0\u4E48\uFF0C\u4EE5\u53CA\u5B83\u9700\u8981\u54EA\u4EFD\u6587\u4EF6\u6765\u8BC1\u660E\u81EA\u5DF1\u3002</p></div>
+      <div><span class="arcade-label">\u8FD9\u91CC\u6CA1\u6709 "THE PLAN"</span><p>\u4F60\u770B\u5230\u7684\u6BCF\u4E00\u5757\u90FD\u88AB\u73B0\u573A\u9A8C\u8BC1\u8FC7\uFF1A\u7F13\u5B58\u547D\u4E2D\u7387\u6765\u81EA <code>/api/metrics</code>\u3001\u53D8\u66F4\u6765\u81EA git\u3001\u63D0\u4EA4\u6570\u6765\u81EA git\u3001\u65E5\u5FD7\u884C\u6570\u6765\u81EA <code>audit.jsonl</code>\u3002\u8FD9\u91CC\u4E0D\u5141\u8BB8\u4EFB\u4F55\u4E00\u4E2A\u6570\u5B57\u4E0D\u63A5\u5730\u6C14\u3002</p></div>
+      <div><span class="arcade-label">\u8FD9\u91CC\u7684\u4E00\u5207\u90FD\u4F1A\u56DE\u6765</span><p>\u5F53\u95E8\u7EA2\u4E86\u3001CI \u7EA2\u4E86\u3001\u6D4B\u8BD5\u7EA2\u4E86\u2014\u2014\u8FD9\u91CC\u4E0D\u63D0\u4F9B\u5B89\u6170\uFF0C\u4F46\u4F1A\u9012\u4E0A\u8BC1\u636E\u3002\u4F60\u6C38\u8FDC\u53EF\u4EE5\u505C\u5728\u95E8\u524D\u8BF4\uFF1A\u5728\u4F60\u8BF4\u300C\u5B8C\u6210\u300D\u4E4B\u524D\uFF0C\u6211\u770B\u8FC7\u8FD9\u4EFD\u62A5\u544A\u3002</p></div>
+    </div>
+    <p class="manual-footnote">\u300A\u5B89\u9759\u7684\u623F\u95F4\u300B\u2014\u2014\u8FD9\u662F\u4EBA\u4E3A\u6311\u9009\u7684\u8BCD\u3002\u8FD9\u4E2A\u9879\u76EE\u4E0D\u4F1A\u5927\u58F0\u8BDD\uFF0C\u4F46\u5B83\u4F1A\u628A\u6BCF\u4EF6\u4E8B\u5199\u4E0B\u6765\uFF0C\u5305\u62EC\u5B83\u81EA\u5DF1\u3002</p>
+  `;
+  }
+  function enPhilosophy() {
+    return `
+    <p class="manual-lede">Why this room was built this way \u2014</p>
+    <div class="manual-arcade">
+      <div><span class="arcade-label">No sponsor</span><p>If you are expecting a product that flatters you into the checkout page, this is not it. minicc remembers its one responsibility: be opened, be used, be closed \u2014 and be the same repo when we meet again.</p></div>
+      <div><span class="arcade-label">No proprietary wisdom</span><p>No model card lifted from a marketing page, no spawned-agent farm from a press release. Every surface here is code that lives in this repository \u2014 readable, auditable, and honest about being exactly what it is.</p></div>
+      <div><span class="arcade-label">No theatrical agent</span><p>The model will not lie to you, over-sell you, or wave a ribbon in your face. It shows what it finished, what it did not, and which file it would need in order to prove the rest.</p></div>
+      <div><span class="arcade-label">No \u201Cthe plan\u201D</span><p>Every number here answers to reality: cache hit rates from <code>/api/metrics</code>, file counts from git, commits from git, log lines from <code>audit.jsonl</code>. Nothing floats, nothing pretends.</p></div>
+      <div><span class="arcade-label">Everything here has receipts</span><p>When the gates go red, this room does not offer comfort \u2014 it offers evidence. You can always stop at the door and say: before you said done, I saw the report.</p></div>
+    </div>
+    <p class="manual-footnote">The Quiet Room \u2014 the word is chosen on purpose. This project will not shout, but it will put everything in writing, including itself.</p>
+  `;
+  }
   function zhTrouble() {
     return `
     <div class="manual-trouble">
@@ -2987,7 +3014,8 @@
     keys: { zh: zhKeys, en: enKeys },
     arcade: { zh: zhArcade, en: enArcade },
     trouble: { zh: zhTrouble, en: enTrouble },
-    limits: { zh: zhLimits, en: enLimits }
+    limits: { zh: zhLimits, en: enLimits },
+    philosophy: { zh: zhPhilosophy, en: enPhilosophy }
   };
   function chapterMarkup2(chapter) {
     const zh7 = state.locale === "zh";

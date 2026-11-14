@@ -51514,3 +51514,23 @@ ROADMAP_TO_PRODUCT.md 是这个项目自己的史书，258 个批次号，但没
 - `npm run test:web` → web smoke passed，product path 完好 ✓
 - `npm run test:i18n` → 579 keys / 218 literal t() 全可解析 ✓
 - 不干扰恢复路径（`loadingId` 不传=false）：不触发庆祝 ✓
+
+## 批次 942 - M8-T947：手册第八章「安静的房间」——为什么这间屋子这样被造
+
+### 1 背景
+
+说明书讲了「怎么用」、「什么时候」、「哪些能力限」。还缺一条「为什么」——为什么这个项目坚持本地、不讲姿、递上证据不递上安慰。它是这个仓库自己的信条，放在最后一章压轴。
+
+### 2 变更
+
+- `web/src/panels/manual.js`：说明书新增第八章「The Quiet Room / 安静的房间」——中文版与英文版同故事，五个信条段：没有甲方 / 没有专有智慧 / 没有表演型智能体 / 没有「 THE PLAN」/ 每件事都会回来——它们落在哪：命令行、路由、沙箱、门电路、/api/stats 现场数值、缓存命中率——诚实可见，没有不可检验的领袖性短语。
+- 章节 id = `philosophy`，顺序排为第八条；rail 自动拓到 8 项。
+- 没有新增 dict key — 章节正文用 HTML 直接携带；减零驱散。
+
+### 3 验证
+
+- fake provider Playwright 双语言：
+  - zh：「安静的房间」标题，中文渲染，CJK chars present；
+  - en：「The Quiet Room」标题，CJK **零**；rail 条目数 = 8 ✓
+- `npm run test:i18n` → 579 keys ×2 对齐，218 literal t() 全可解析 ✓
+- bundle 重建 · check:web ✓ · 8 章中文序号完整（一到八）✓
