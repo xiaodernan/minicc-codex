@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-14T15:52:45.718Z",
+  "generated_at": "2026-11-14T17:00:18.789Z",
   "branch": "main",
-  "head": "b43044b",
-  "total_commits": 1479,
+  "head": "2759254",
+  "total_commits": 1481,
   "recent_commits": [
+    {
+      "short": "2759254",
+      "at": "2026-11-15T00:58:26+08:00",
+      "subject": "M8-T949: almanac volume IX The Craft + two-phase chapter switching (was frozen on /api/stats) + palette gate real fix (8 JS-written runtime tokens exempted, dea"
+    },
+    {
+      "short": "4a010c7",
+      "at": "2026-11-14T15:52:46Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "b43044b",
       "at": "2026-11-14T23:51:06+08:00",
@@ -19,22 +29,12 @@
       "short": "d9998d8",
       "at": "2026-11-14T23:32:53+08:00",
       "subject": "M8-T947: the Quiet Room - manual chapter 8, the project's own creed in both languages: no sponsor / no proprietary wisdom / no theatrical agent / no THE PLAN / "
-    },
-    {
-      "short": "d6e4b7e",
-      "at": "2026-11-14T15:22:54Z",
-      "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "cd6232b",
-      "at": "2026-11-14T23:12:24+08:00",
-      "subject": "M8-T946b: re-point the optimization smoke at the rebuilt empty canvas - the obsolete data-start-action selector kept the JS gate red for a full run"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 268,
+  "roadmap_batches": 269,
   "changelog_entries": 1,
-  "roadmap_lines": 51558,
+  "roadmap_lines": 51581,
   "tracked_files": 1050,
   "test_files": 702,
   "almanac_chapters": 9,
