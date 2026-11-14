@@ -314,7 +314,7 @@ minicc 不只是 CLI——工作台本身也是一个被认真打磨的产品：
 - **模板库** — 8 张策划好的 prompt（项目体检 / 测试修复 / 安全审查 / 依赖现代化 / …），一键送进对话
 - **CLI 只读面板** — `minicc --digest`（仓库考古学读数）、`--digest --json`（与 `/api/digest` 同 schema）、`minicc --stats`（工作区现状）
 - **Spring Cloud plane（`minicc-cloud/`）** — Eureka 注册发现、配置下发、网关 `lb://` + RequestSize + Resilience4j 熔断、Redis token bucket 限流（`SPRING_PROFILES_ACTIVE=ratelimit`）、RabbitMQ 缓存失效广播、Micrometer `gateway.rate_limited{route}` 计数；`docker compose -f minicc-cloud/docker-compose.yml up -d` 可起全套（端口被占用时用 `MINICC_CLOUD_*_PORT` 覆盖）
-- **前缀缓存全链路可观测** — `prefix_fingerprint` 指纹链（system/msgs/tools 三个指纹逐轮演化）+ 任务详情「前缀指纹条」；`[usage]` 行直接显示 `cache_hit_pct`；`MINICC_PROMPT_CACHE_KEY` 可显式指定，缺省按 gateway+model 派生（wkapi.pro 实测热命中 **98.3%**）
+- **前缀缓存全链路可观测** — `prefix_fingerprint` 指纹链（system/msgs/tools 三个指纹逐轮演化）+ 任务详情「前缀指纹条」；`[usage]` 行直接显示 `cache_hit_pct`；`MINICC_PROMPT_CACHE_KEY` 可显式指定，缺省按 gateway+model 派生（wkapi.pro 实测热命中 **98.3%**；2026-11-15 逐格复核见 [docs/CACHE_AFFINITY_MATRIX.md](docs/CACHE_AFFINITY_MATRIX.md)）
 
 cs/SPECPROOF_ASSESSMENT.md)。当前判断是：复用其工程边界思想和小块算法有价值，直接搬整个平台没有价值，复杂度会把一个本地 agent 变成分布式验收产品。
 
