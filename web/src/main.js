@@ -458,6 +458,24 @@ export function bindUI() {
     if (item.dataset.taskId) openTaskInWorkspace(item.dataset.taskId);
     else setSession(item.dataset.session);
   });
+  // The sidebar's top search input is a shorthand for the global search panel:
+  // Enter opens it with the query prefilled, Escape just blurs.
+  $("#threadSearch")?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      const query = event.target.value.trim();
+      if (query) openGlobalSearchPanel(query);
+    } else if (event.key === "Escape") {
+      event.target.value = "";
+      event.target.blur();
+    }
+  });
+  $("#threadSearch")?.addEventListener("input", (event) => {
+    // keep the top input live: mirror what the global panel would show so
+    // power users don't have to leave the home view for a quick scan
+    if (event.target.value.trim()) event.target.classList.add("is-active");
+    else event.target.classList.remove("is-active");
+  });
   const authForm = $("#authForm");
   if (authForm) authForm.addEventListener("submit", submitAuthToken);
 }

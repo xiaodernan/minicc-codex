@@ -51812,3 +51812,24 @@ M8-T951 的 60s TTL 让「第二次及以后」的 digest 几乎免费，但第�
 
 - Playwright 真浏览器（fake provider）：模块轨 9 章完整；`vault` 章 zh 中文零干扰、en 零 CJK；kicker 文案 zh/en 逐字对账 ✓
 - `npm run test:web`（product path）✓ · `npm run test:almanac`（11 章 marker 断言，无混语）✓ · `npm run test:i18n`（583/219）✓ · `npm run check:web` ✓ · doc_pointers rc=0 ✓
+
+## 批次 956 - M8-T962：侧栏顶部搜索框终于不是摆设——接入全局搜索面板；矮屏自适应一整套
+
+### 1 背景
+
+侧边栏顶端的「搜索任务」输入框（带有 `/` 快捷键提示）一直没有 handler——用户按下 `/`、打入关键词、回车，什么都不会发生；同一频段下面还有一个死掉但隐蔽的 `#threadSearch` handler，返回值与全局搜索面板已接入但从未被旧人的口吻唤醒过。同时在 1440×960 的真实观感里，侧栏整体超出视口约 152px（brand 58 + 按钮 38 + 搜索 34 + 主导航 448 + 标签 24 + 筛选 32 + 列表 156 + 底部 215）——「最近任务」前的最后几项与工作区卡永远卷起来。
+
+### 2 变更
+
+- `web/src/main.js`：`.sidebar-search input#threadSearch`（顶部输入框）——`Enter` → `openGlobalSearchPanel(query)`（seedQuery + 自动 debounce 搜索）；`Escape` 清空失焦；input class `is-active` 记账。
+- `web/src/panels/index.js`：`openGlobalSearchPanel(seedQuery = "")` —— 打开后若给了 seed，预填 `#globalSearchInput` 并立即排队 `scheduleGlobalSearch()`（300ms debounce 后真跑 `/api/history/search`）。
+- `web/styles.css`（追加 compact block）：`@media (max-height: 1020px)`——品牌行（gap 8→8、padding-bottom 16→6、mark 46→30px）/ 新建任务按钮（38→30px）/ 侧边栏搜索框（34→28）/ 主导航行（36→30、gap 收窄到 1px）/ 小节标签 margin 20→8px / 筛选＋列表最小高度 112px / `.sidebar-bottom` 及火苗 pill 内边距收窄；**整个侧栏在 960px 视口全部可见**（at 760px 以下仍可纵向滚动）
+- `web/src/main.js` 中早已被移除的死掉 `#threadSearch` 分支在此批曾被误判为「删除」——本批仅保留新语义（全局搜索 shorthand，不是任务行筛选）；原有 M8-T960 的 sidebar 「最近任务」筛选框职能不变。
+
+### 3 验证
+
+- Playwright 真浏览器桩：
+  - 顶部输入框聚焦 + 键入 `README` + `Enter` → 全局搜索面板打开、输入框预填 `README`、~300ms 返回真实结果（2 条「读一下 README.md…」+/tmp 命中次数 chip + 命中片段 + `/api/history/search?q=README&limit=30` 200）✓
+  - `Escape` 在侧边栏输入 → 清空为 `""` ✓；`Enter` 之后焦点落于面板内输入框 ✓；`Escape` 关闭面板 ✓（`aria-hidden=true`、`.show` 移除）
+- 布局探针：960px 视口下侧栏底部 y=769，整体落在视口内；760px 以下保留纵向滚动 ✓
+- `npm run test:web`（product path 2/3 通过；首例一次瞬时超时后两次连续绿，疑似一次性跨进程启动抖动）✓ · `npm run test:almanac`（11 章 marker 断言）✓ · `npm run test:i18n`（583/219）✓ · `npm run check:web` ✓ · doc_pointers rc=0

@@ -986,11 +986,15 @@ export function scheduleGlobalSearch() {
   globalSearchTimer = window.setTimeout(() => runGlobalSearch(query), GLOBAL_SEARCH_DEBOUNCE);
 }
 
-export function openGlobalSearchPanel() {
+export function openGlobalSearchPanel(seedQuery = "") {
   window.clearTimeout(globalSearchTimer);
   globalSearchToken += 1;
   openPanel(t("search.global"), `<div class="global-search-panel"><div class="global-search-box">${icon("search")}<input id="globalSearchInput" type="search" placeholder="${escapeHtml(t("search.globalPlaceholder"))}" aria-label="${escapeHtml(t("search.global"))}" autocomplete="off" /></div><div class="global-search-results" id="globalSearchResults" aria-live="polite"><div class="empty-panel">${escapeHtml(t("search.hint"))}</div></div></div>`);
   const input = $("#globalSearchInput");
+  if (input && seedQuery) {
+    input.value = seedQuery;
+    scheduleGlobalSearch();
+  }
   input?.addEventListener("input", scheduleGlobalSearch);
   input?.focus();
 }

@@ -290,3 +290,5 @@
 - **任务筛选（/），M8-T960**：侧边栏「最近任务」上方新增筛选输入（`/` 全局聚焦、不抢面板与输入区）——160ms 防抖实时筛选、Enter 直达首个匹配项、Esc 清空失焦；零网络往返；历史轮询重绘时由 MutationObserver 自动重刷。**附带修复被真实浏览器戳出的布局 bug**：`.thread-list` 在 32px 筛选行挤压下塌缩到 `min-height: 0` → 改 `min-height: 156px` + sidebar 纵向可滚动，24 行历史恢复正常交互。删除死掉的 `#threadSearch` handler；i18n 583 keys；web/almanac/i18n smoke 全绿。
 
 - **说明书第九章「密钥与金库 / Keys & Vault」，M8-T961**：`web/src/panels/manual.js` 新增——凭据的完整旅程七则（`.env` 位置/`--doctor` 的 `prefix cache:` 行/同 `MINICC_PROMPT_CACHE_KEY` 换家不冷/`[usage]` 的 `cache_hit_pct` 与脉搏逐 turn 火花线/`cost_is_partial` 与按模型分解成本/Anthropic cache_control 断点/`.minicc/` 归档）。中英逐字对应；**顺带修掉「zh 模式下 canvas kicker 仍是英文大写标题」的混杂漏洞**——现在 zh：`第九章 · 安静的房间`，全轨 9 章 zh/en 零混杂（Playwright 逐章验证）。README 说明书 8→9 章。
+
+- **侧栏顶部搜索框接入全局搜索 + 矮屏自适应，M8-T962**：`.sidebar-search input#threadSearch`（`/` 聚焦、目前零 handler 的顶部输入框）——`Enter` 直接打开 `openGlobalSearchPanel(seedQuery)` 并预填 + 排队 `/api/history/search`（真实命中片段、匹配次数 chip、Esc 清空）；`Escape` 清空失焦。**新增 `@media (max-height: 1020px)` compact 侧栏**（品牌 46→30 / 新建任务 38→30 / 主导航 36→30 / 小节间距全线收窄 / 侧栏整体 960px 视口完整可见）。侧栏顶部搜索框不再是摆设；矮屏不让路。

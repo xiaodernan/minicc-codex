@@ -5768,11 +5768,15 @@
     }
     globalSearchTimer = window.setTimeout(() => runGlobalSearch(query), GLOBAL_SEARCH_DEBOUNCE);
   }
-  function openGlobalSearchPanel() {
+  function openGlobalSearchPanel(seedQuery = "") {
     window.clearTimeout(globalSearchTimer);
     globalSearchToken += 1;
     openPanel(t("search.global"), `<div class="global-search-panel"><div class="global-search-box">${icon("search")}<input id="globalSearchInput" type="search" placeholder="${escapeHtml(t("search.globalPlaceholder"))}" aria-label="${escapeHtml(t("search.global"))}" autocomplete="off" /></div><div class="global-search-results" id="globalSearchResults" aria-live="polite"><div class="empty-panel">${escapeHtml(t("search.hint"))}</div></div></div>`);
     const input = $("#globalSearchInput");
+    if (input && seedQuery) {
+      input.value = seedQuery;
+      scheduleGlobalSearch();
+    }
     input?.addEventListener("input", scheduleGlobalSearch);
     input?.focus();
   }
@@ -8600,6 +8604,20 @@
       if (!item) return;
       if (item.dataset.taskId) openTaskInWorkspace(item.dataset.taskId);
       else setSession(item.dataset.session);
+    });
+    $("#threadSearch")?.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        const query = event.target.value.trim();
+        if (query) openGlobalSearchPanel(query);
+      } else if (event.key === "Escape") {
+        event.target.value = "";
+        event.target.blur();
+      }
+    });
+    $("#threadSearch")?.addEventListener("input", (event) => {
+      if (event.target.value.trim()) event.target.classList.add("is-active");
+      else event.target.classList.remove("is-active");
     });
     const authForm = $("#authForm");
     if (authForm) authForm.addEventListener("submit", submitAuthToken);
