@@ -128,6 +128,9 @@ export const I18N = {
     "game.frame": "帧",
     "game.longFrame": "长帧",
     "game.objects": "对象",
+    "nav.axioms": "铁律",
+    "axioms.title": "铁律",
+    "palette.cmd.axioms": "打开铁律",
 
   },
   en: {
@@ -256,6 +259,9 @@ export const I18N = {
     "game.frame": "frame",
     "game.longFrame": "long frames",
     "game.objects": "objects",
+    "nav.axioms": "Axioms",
+    "axioms.title": "Axioms",
+    "palette.cmd.axioms": "Open the Axioms",
 
   },
 };

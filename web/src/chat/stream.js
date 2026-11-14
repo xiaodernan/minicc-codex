@@ -2294,4 +2294,6 @@ import { openAlmanacPanel } from "../panels/almanac.js";
 export { openAlmanacPanel };
 import { openManualPanel } from "../panels/manual.js";
 export { openManualPanel };
+import { openAxiomsPanel } from "../panels/axioms.js";
+export { openAxiomsPanel };
 

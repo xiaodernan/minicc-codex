@@ -51188,3 +51188,41 @@ M8-T930 给 arcade 加了键盘操作（1-9 选卡 / P 暂停 / E 铲子）之�
 ### 3 验证
 
 - `npm run build:web` ✓、`check:web` ✓、`node --check` ✓
+
+## 批次 930 - M8-T934：铁律 —— 第十一板块，十条由仓库自己写下的铁律
+
+### 1 背景
+
+说明书解决了"怎么用"，年鉴解决了"这是什么"。用户要求项目继续拓宽边界，本批次补上
+「这份代码为什么这样写」——十条铁律，每条都有证据指向本仓库里的真实文件（先收据后结论）。
+
+### 2 变更
+
+- 新增 `web/src/panels/axioms.js`：十板块中的第十一模块「铁律 · Axioms」。
+  铁律总览轨 + 逐条卷轴画布：本地优先 / 先证据后结论 / 门从不说谎 / 缓存不是优化是成本认知 /
+  全内容双语 / 用户数据不是产品文案 / 每一次变更都有批次号 / 失败必须被看见 /
+  工具调用有完整签名 / 承诺必须被执行。
+  每条 = 中英两套整段 + 一张"证据收据"卡片（真实文件路径 + 该文件证明了什么），
+  全部来自仓库现存证据（webserver.py、accuracy_contracts.py、doc_pointers.py、almanac_smoke.mjs、
+  CHANGELOG、m1_integrity.py 等），无虚饰 claim。
+- `web/src/main.js`：nav 委派 `axioms`；`web/src/chat/stream.js` 再导出 `openAxiomsPanel`。
+- `web/index.html`：侧边新增「铁律」入口（scroll-text 图标）。
+- `web/src/core/i18n.js`：新增 `nav.axioms` / `axioms.title` / `palette.cmd.axioms` 三键 ×2 语言
+  （565 keys，zh/en 严格 parity，214 literal t() refs 全可解析）。
+- `web/src/core/command-palette.js`：⌘K / Ctrl+K 可搜 Axioms。
+- `web/styles.css`：`.axioms-*` — 铜版印记风（amber 双细线 proof 卡 + 号码章 + 移动端横向滚动轨 + reduced-motion）。
+- bundle 重建（app.js 477212 chars）；check:web ✓。
+
+### 3 验证
+
+- 真浏览器（zh 与 en 各一次）：
+  - `.nav-item[data-view="axioms"]` → 全部 10 条逐一点开
+    → **zh 渲染中文，en 零 CJK；零 pageerror** ✓
+  - 命令面板直接搜索 `axioms`（en）命中 / zh 搜索「铁律」命中
+- `npm run test:i18n` → 565 keys ×2，214 literal t() 全解析。
+- `npm run build:web` ✓ · `node --check web/app.js` ✓
+
+### 4 遗留
+
+- 铁律文本是仓库静态事实陈述；若未来某条 claim 被证伪（例如门禁失效），
+  应把相应铁律降级或改写，并保留本章节的账本包。

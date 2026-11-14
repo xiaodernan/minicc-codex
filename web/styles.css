@@ -4075,3 +4075,129 @@ pre code { background: #0f172a; padding: 12px; display: block; overflow-x: auto;
 @media (prefers-reduced-motion: reduce) {
   .manual-chapter { transition: none; }
 }
+
+/* ============================================================
+   Axioms — the ten ironclad rules. Museum-plaque look on ink:
+   brass rail, stamped numerals, wax-seal proof cards.
+   ============================================================ */
+
+.axioms-shell { display: grid; grid-template-columns: 240px 1fr; min-height: 520px; max-height: 80vh; }
+.axioms-rail {
+  display: grid;
+  gap: 3px;
+  align-content: start;
+  padding: 18px 12px;
+  border-right: 1px solid var(--line);
+  background: color-mix(in srgb, var(--ink) 78%, var(--amber) 6%);
+}
+.axioms-chapter {
+  display: grid;
+  grid-template-columns: 44px 1fr;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  color: var(--muted);
+  text-align: left;
+  cursor: pointer;
+  transition: background .18s ease, color .18s ease, border-color .18s ease;
+}
+.axioms-chapter:hover { background: var(--surface-soft); color: var(--text); }
+.axioms-chapter.active {
+  background: color-mix(in srgb, var(--amber-soft) 40%, var(--surface-raised));
+  border-color: color-mix(in srgb, var(--amber) 40%, var(--line-bright));
+  color: var(--text);
+}
+.axioms-chapter-roman {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--amber);
+  letter-spacing: .04em;
+}
+.axioms-chapter-body strong { font-size: 12.5px; line-height: 1.35; letter-spacing: -0.01em; }
+
+.axioms-canvas-shell { position: relative; overflow: auto; background: var(--ink); }
+.axioms-canvas {
+  padding: 34px 40px 40px;
+  min-height: 440px;
+  background: radial-gradient(1100px 520px at 25% -10%, color-mix(in srgb, var(--amber) 12%, transparent) 0%, transparent 55%),
+              radial-gradient(700px 500px at 110% 120%, color-mix(in srgb, var(--amber) 7%, transparent) 0%, transparent 55%);
+}
+.axioms-kicker {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .22em;
+  text-transform: uppercase;
+  color: var(--amber);
+  margin-bottom: 10px;
+}
+.axioms-title {
+  margin: 0 0 18px;
+  font-size: clamp(28px, 4.4vw, 46px);
+  font-weight: 760;
+  letter-spacing: -0.035em;
+  line-height: 1.08;
+  color: var(--text);
+  max-width: 620px;
+}
+.axioms-title-accent {
+  display: inline;
+  background: linear-gradient(150deg, var(--amber) 0%, color-mix(in srgb, var(--amber) 60%, #fff3d6) 45%, var(--amber) 100%);
+  background-size: 180% 100%;
+  -webkit-background-clip: text; background-clip: text;
+  color: transparent;
+  animation: axioms-sheen 7s ease-in-out infinite;
+}
+@keyframes axioms-sheen {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+.axioms-body { display: grid; gap: 18px; max-width: 720px; }
+.axioms-lede { font-size: 15.5px; line-height: 1.72; color: var(--quiet); margin: 0; }
+
+.axioms-proof {
+  display: grid;
+  gap: 6px;
+  padding: 14px 16px 12px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--amber) 30%, var(--line));
+  border-style: double;
+  border-width: 3px;
+  background: color-mix(in srgb, var(--amber-soft) 30%, var(--surface-soft));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--amber) 8%, transparent);
+}
+.axioms-proof-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .24em;
+  text-transform: uppercase;
+  color: var(--amber);
+}
+.axioms-proof-line {
+  margin: 0;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--quiet);
+  word-break: break-word;
+}
+.axioms-proof-foot {
+  font-size: 11px;
+  color: var(--muted);
+  border-top: 1px solid var(--line);
+  padding-top: 8px;
+  margin-top: 2px;
+}
+
+@media (max-width: 900px) {
+  .axioms-shell { grid-template-columns: 1fr; }
+  .axioms-rail { grid-auto-flow: column; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--line); padding: 12px; }
+  .axioms-chapter { grid-template-columns: 1fr; padding: 8px 12px; }
+  .axioms-chapter-roman { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .axioms-title-accent { animation: none; }
+}
