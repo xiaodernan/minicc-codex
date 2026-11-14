@@ -51303,3 +51303,28 @@ rebase 报 `CONFLICT (content): Merge conflict in docs/latest.json`**——
 ### 3 验证
 
 - 下一个有 docs 变更的主干推送会驱动一次完整的 bot 流程，预期无冲突标记、无人工介入。
+
+## 批次 934 - M8-T939：展示页事实包覆盖十二模块 + 特性数实时渲染
+
+### 1 背景
+
+展示页（xiaodernan.github.io minicc-codex 卡片）的"特性面"此前是硬编码 `13 项 · 两语对账`，
+而 `docs/latest.json` 的 `feature_surface` 列表也早已落后于真实产品面（没列 Axioms、Journal；
+"manual" 是展示页早期的拼法）。用户要求展示每次打开都看到最新成果：特性面数字必须是事实，
+不是文案。
+
+### 2 变更
+
+- `scripts/update-latest-json.mjs`：`feature_surface` 改为真实十二个模块
+  （workbench / ledger / pulse / almanac / templates / manual / axioms / journal / replay /
+  running-light / spring-cloud-plane / redis-cache / cached-first-call / cli-digest / api-digest），
+  并新增 `module_count: 12`。
+- 展示页 `xiaodernan.github.io` 的 minicc 卡片特性数改由事实包现场渲染
+  （`ml-features` ← `d.feature_surface.length`），不再硬编码 `13 项`。
+  （提交 `a62b4ad` / `7119c5e`，独立仓。）
+- 事实包本身随时由每次含 docs 的 push + update-latest workflow 刷新。
+
+### 3 验证
+
+- `node scripts/update-latest-json.mjs` → module_count=12，生成 `docs/latest.json` ✓
+- 展示页 inline script 改为读 `d.module_count ?? d.feature_surface.length`（保留兜底）
