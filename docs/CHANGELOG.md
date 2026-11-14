@@ -256,3 +256,5 @@
 - **第十四板块「近况」，M8-T942**：新增 `web/src/panels/recent.js`——侧边「近况」（newspaper + UPD 徽标），开板即现场拉 `/api/roadmap` 展示最近十五批：`#批次` 等宽号 + `M8-Txxxx` 徽标 + 原样标题，最新一条 mint 描边高亮；页脚一键跳档案馆。README 模块清单新增近况条目；⌘K 可搜；真浏览器 zh/en 双侧验证（15 行渲染 / meta 259 批 / 702 测试文件 / archive 跳转 / en chrome 零 CJK（章节标题为仓库用户数据，原样呈现））。
 
 - **展示页事实包追上 14 个模块，M8-T943**：`scripts/update-latest-json.mjs` 的 `module_count: 14`，`feature_surface` 增加 `archive` 与 `recent`（17 项）；展示页 minicc 卡片说明已同步为「侧边十四块」；事实包随每次含 docs 的 push 自动刷新。
+
+- **空台焕新（M8-T944）**：`web/src/chat/markdown.js` 的 `emptySessionMarkup()` 重做——环形轨道（orbit）+ 碑记 M 徽标 + 涟漪微动 + 三枚一键 pills（读 README / 跑测试 / 审 diff，中英同版，i18n 双语），按钮 click 即填入 composer；`web/index.html` 静态占位空台同步；M8-T892 时代 `.empty-mark` / `.empty-actions` 死规则清理；空台 chip 绑定改为 `#messageList` 委托；Playwright zh/en 双路验证渲染与填入。

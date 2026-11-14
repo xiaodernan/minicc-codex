@@ -240,7 +240,14 @@ export function cachedSessionView(sessionId, workspacePath = state.workspacePath
 }
 
 export function emptySessionMarkup() {
-  return `<div class="empty-session"><span class="empty-mark" aria-hidden="true">${icon("sparkles")}</span><strong>${escapeHtml(t("session.emptyTitle"))}</strong><span>${escapeHtml(t("session.emptyHint"))}</span><div class="empty-actions">${["explore", "fix", "verify"].map((key) => `<button type="button" data-start-action="${key}"><strong>${escapeHtml(t(`start.${key}`))}</strong><span>${escapeHtml(t(`start.${key}Hint`))}</span>${icon("arrow-up-right")}</button>`).join("")}</div></div>`;
+  const zh = state.locale === "zh";
+  const aria = escapeHtml(t("session.emptyChipsAria"));
+  const chips = [
+    { icon: "scan-search", zh: "session.emptyChip1", en: "session.emptyChip1", promptZh: "读一下 README.md，告诉我这个项目是干嘛的", promptEn: "Read README.md and tell me what this project is" },
+    { icon: "check-circle", zh: "session.emptyChip2", en: "session.emptyChip2", promptZh: "运行全部测试并报告失败项及根因", promptEn: "Run the full test suite and report failures with root causes" },
+    { icon: "git-compare", zh: "session.emptyChip3", en: "session.emptyChip3", promptZh: "审查 git diff，指出可能的回归并给出修复建议", promptEn: "Review the current git diff and flag regressions with fixes" },
+  ].map((chip) => `<button type="button" class="empty-chip" data-empty-prompt-zh="${escapeHtml(chip.promptZh)}" data-empty-prompt-en="${escapeHtml(chip.promptEn)}">${icon(chip.icon)}<span>${escapeHtml(t(chip.zh))}</span></button>`).join("");
+  return `<div class="empty-session"><div class="empty-orbit" aria-hidden="true"><svg class="empty-glyph" viewBox="0 0 96 96" fill="none"><circle class="empty-glyph-ring" cx="48" cy="48" r="34" stroke="currentColor" stroke-opacity=".18" stroke-width="1" stroke-dasharray="2 6"/><circle class="empty-glyph-ring empty-glyph-ring-slow" cx="48" cy="48" r="22" stroke="currentColor" stroke-opacity=".35" stroke-width="1"/><path class="empty-glyph-m" d="M30 58 L40 34 L48 50 L56 34 L66 58" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/><circle class="empty-glyph-dot" cx="48" cy="66" r="2.6" fill="currentColor"/></svg></div><strong class="empty-session-title">${escapeHtml(t("session.emptyTitle"))}</strong><span class="empty-session-hint">${escapeHtml(t("session.emptyHint"))}</span><div class="empty-chips" role="group" aria-label="${aria}">${chips}</div></div>`;
 }
 
 export function presetMessageMarkup(sessionId) {

@@ -171,6 +171,16 @@ export function bindUI() {
     if (target) openFilePreview(target.dataset.openDiff);
   });
   $("#messageList").addEventListener("click", (event) => {
+    const chip = event.target.closest(".empty-chip[data-empty-prompt-zh]");
+    if (chip) {
+      const prompt = state.locale === "zh" ? chip.dataset.emptyPromptZh : chip.dataset.emptyPromptEn;
+      if (prompt) {
+        $("#promptInput").value = prompt;
+        $("#promptInput").focus();
+        $("#promptInput").dispatchEvent(new Event("input", { bubbles: true }));
+      }
+      return;
+    }
     const start = event.target.closest("[data-start-action]");
     if (start) {
       $("#promptInput").value = t(`start.${start.dataset.startAction}Prompt`);

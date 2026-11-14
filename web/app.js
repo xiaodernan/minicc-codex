@@ -835,7 +835,11 @@
       "palette.cmd.tour": "\u4E0A\u624B\u6F14\u7EC3",
       "nav.recent": "\u8FD1\u51B5",
       "recent.title": "\u8FD1\u51B5",
-      "palette.cmd.recent": "\u6253\u5F00\u8FD1\u51B5"
+      "palette.cmd.recent": "\u6253\u5F00\u8FD1\u51B5",
+      "session.emptyChipsAria": "\u63A8\u8350\u4EFB\u52A1",
+      "session.emptyChip1": "\u8BFB README \u5E76\u544A\u8BC9\u6211\u5B83\u662F\u505A\u4EC0\u4E48\u7684",
+      "session.emptyChip2": "\u8DD1\u6D4B\u8BD5\u5E76\u62A5\u544A\uFF1A\u54EA\u6302\u4E86\u3001\u4E3A\u4EC0\u4E48",
+      "session.emptyChip3": "\u5BA1\u67E5 git diff\uFF0C\u6307\u51FA\u56DE\u5F52\u98CE\u9669"
     },
     en: {
       "restore.partial": "Restored safe files; kept later edits or unavailable files",
@@ -1412,7 +1416,11 @@
       "palette.cmd.tour": "Start the tour",
       "nav.recent": "Recent",
       "recent.title": "Recent",
-      "palette.cmd.recent": "Open recent"
+      "palette.cmd.recent": "Open recent",
+      "session.emptyChipsAria": "Suggested tasks",
+      "session.emptyChip1": "Read the README and tell me what this is",
+      "session.emptyChip2": "Run the test suite and report failures",
+      "session.emptyChip3": "Review the diff and flag regressions"
     }
   };
   function t(key) {
@@ -6642,7 +6650,14 @@
     return null;
   }
   function emptySessionMarkup() {
-    return `<div class="empty-session"><span class="empty-mark" aria-hidden="true">${icon("sparkles")}</span><strong>${escapeHtml(t("session.emptyTitle"))}</strong><span>${escapeHtml(t("session.emptyHint"))}</span><div class="empty-actions">${["explore", "fix", "verify"].map((key) => `<button type="button" data-start-action="${key}"><strong>${escapeHtml(t(`start.${key}`))}</strong><span>${escapeHtml(t(`start.${key}Hint`))}</span>${icon("arrow-up-right")}</button>`).join("")}</div></div>`;
+    const zh7 = state.locale === "zh";
+    const aria = escapeHtml(t("session.emptyChipsAria"));
+    const chips = [
+      { icon: "scan-search", zh: "session.emptyChip1", en: "session.emptyChip1", promptZh: "\u8BFB\u4E00\u4E0B README.md\uFF0C\u544A\u8BC9\u6211\u8FD9\u4E2A\u9879\u76EE\u662F\u5E72\u561B\u7684", promptEn: "Read README.md and tell me what this project is" },
+      { icon: "check-circle", zh: "session.emptyChip2", en: "session.emptyChip2", promptZh: "\u8FD0\u884C\u5168\u90E8\u6D4B\u8BD5\u5E76\u62A5\u544A\u5931\u8D25\u9879\u53CA\u6839\u56E0", promptEn: "Run the full test suite and report failures with root causes" },
+      { icon: "git-compare", zh: "session.emptyChip3", en: "session.emptyChip3", promptZh: "\u5BA1\u67E5 git diff\uFF0C\u6307\u51FA\u53EF\u80FD\u7684\u56DE\u5F52\u5E76\u7ED9\u51FA\u4FEE\u590D\u5EFA\u8BAE", promptEn: "Review the current git diff and flag regressions with fixes" }
+    ].map((chip) => `<button type="button" class="empty-chip" data-empty-prompt-zh="${escapeHtml(chip.promptZh)}" data-empty-prompt-en="${escapeHtml(chip.promptEn)}">${icon(chip.icon)}<span>${escapeHtml(t(chip.zh))}</span></button>`).join("");
+    return `<div class="empty-session"><div class="empty-orbit" aria-hidden="true"><svg class="empty-glyph" viewBox="0 0 96 96" fill="none"><circle class="empty-glyph-ring" cx="48" cy="48" r="34" stroke="currentColor" stroke-opacity=".18" stroke-width="1" stroke-dasharray="2 6"/><circle class="empty-glyph-ring empty-glyph-ring-slow" cx="48" cy="48" r="22" stroke="currentColor" stroke-opacity=".35" stroke-width="1"/><path class="empty-glyph-m" d="M30 58 L40 34 L48 50 L56 34 L66 58" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/><circle class="empty-glyph-dot" cx="48" cy="66" r="2.6" fill="currentColor"/></svg></div><strong class="empty-session-title">${escapeHtml(t("session.emptyTitle"))}</strong><span class="empty-session-hint">${escapeHtml(t("session.emptyHint"))}</span><div class="empty-chips" role="group" aria-label="${aria}">${chips}</div></div>`;
   }
   function presetMessageMarkup(sessionId) {
     return emptySessionMarkup();
@@ -7857,6 +7872,16 @@
       if (target) openFilePreview(target.dataset.openDiff);
     });
     $("#messageList").addEventListener("click", (event) => {
+      const chip = event.target.closest(".empty-chip[data-empty-prompt-zh]");
+      if (chip) {
+        const prompt = state.locale === "zh" ? chip.dataset.emptyPromptZh : chip.dataset.emptyPromptEn;
+        if (prompt) {
+          $("#promptInput").value = prompt;
+          $("#promptInput").focus();
+          $("#promptInput").dispatchEvent(new Event("input", { bubbles: true }));
+        }
+        return;
+      }
       const start = event.target.closest("[data-start-action]");
       if (start) {
         $("#promptInput").value = t(`start.${start.dataset.startAction}Prompt`);

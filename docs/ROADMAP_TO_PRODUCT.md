@@ -51449,3 +51449,30 @@ ROADMAP_TO_PRODUCT.md 是这个项目自己的史书，258 个批次号，但没
 
 - `node scripts/update-latest-json.mjs` → module_count=14，事实包含 archive/recent ✓
 - update-latest workflow 会在含 docs 的推送中自动刷新事实包（headline/feature_surface 与现在一致）。
+
+## 批次 939 - M8-T944：空台焕新——工作台的第一眼
+
+### 1 背景
+
+「空白会话」是用户打开工作台 100% 会看到的画面。老的空台只有一句文案、无引导、无层次，
+和 glamorous 两个字离得很远。本批次把它重做成博物馆级深空画布。
+
+### 2 变更
+
+- `web/src/chat/markdown.js` 的 `emptySessionMarkup()` 是**唯一真正渲染空台**的源——
+  之前的静态标记只是一个占位，JS 启动即覆写。现在两边同步：
+  环形轨道（orbit）+ 碑记 M 徽标 + 渐进涟漪 + 三条任务 pills（真实 i18n 双语，点按即填入 composer）。
+- `web/index.html` 静态占位空台换成同一版 DOM（JS 接管时一致呈现）。
+- 新 CSS `.empty-orbit` / `.empty-glyph` / `.empty-session-title` / `.empty-session-hint` / `.empty-chips` / `.empty-chip`
+  + reduced-motion 降级；删除 M8-T892 时代留下的 `.empty-mark` / `.empty-actions` 死规则（以及 M8-T893 相关残留）。
+  标题渐变 sheen 规则得以保留（现在作用于 `.empty-session > strong`，观感成立）。
+- `main.js` 的空台 chip 事件改用 `#messageList` 委托（不受 JS 重写 #messageList DOM 影响），不再用 boot 时绑定。
+
+### 3 验证
+
+- Playwright 真浏览器（假 provider，zh 与 en 各一次）：
+  - 「发送一条任务开始」+ 三枚 pills 渲染 ✓（按钮 click → composer 填好回车即发）
+  - en：「Send a task to begin」+ chrome 零 CJK ✓
+  - 新 orbit SVG 渲染、Google Fonts 未被触碰、reduced-motion 已降级 ✓
+- bundle 重建（app.js 506407 chars / game.js 不变）、check:web ✓
+- `npm run test:i18n` → 583 keys ×2 对齐，217 literal t() 全可解析 ✓

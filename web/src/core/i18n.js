@@ -141,6 +141,10 @@ export const I18N = {
     "nav.recent": "近况",
     "recent.title": "近况",
     "palette.cmd.recent": "打开近况",
+    "session.emptyChipsAria": "推荐任务",
+    "session.emptyChip1": "读 README 并告诉我它是做什么的",
+    "session.emptyChip2": "跑测试并报告：哪挂了、为什么",
+    "session.emptyChip3": "审查 git diff，指出回归风险",
 
   },
   en: {
@@ -282,6 +286,10 @@ export const I18N = {
     "nav.recent": "Recent",
     "recent.title": "Recent",
     "palette.cmd.recent": "Open recent",
+    "session.emptyChipsAria": "Suggested tasks",
+    "session.emptyChip1": "Read the README and tell me what this is",
+    "session.emptyChip2": "Run the test suite and report failures",
+    "session.emptyChip3": "Review the diff and flag regressions",
 
   },
 };
