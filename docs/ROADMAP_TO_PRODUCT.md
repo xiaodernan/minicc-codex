@@ -52276,3 +52276,25 @@ M8-T979/980 把只读事实包缓存做好了，但「c=50 下会不会垮」此
 - workspace 陈旧 10s 内不变、stats/digest 30s 内不变：实测正确性被 30s TTL 接受。
 - 没有声称 51 以上也健康；GIL 未被解决，只被绕开。aiohttp/uvloop 或子进程池是登记的下一步。
 - 未动任何代码：本批仅数据 + 文档（`docs/LOAD_TESTING.md` 第六次刷新）。
+
+## 批次 975 - M8-T983：说明书第十一章「压测与容量 / Load & Capacity」——手册里也有压测实操
+
+### 1 背景
+
+M8-T979–982 把只读 HTTP 面压到了 50-way 全通量零错；但用户守着这本手册学习项目，压测那一章还没有。本批把已实测的事实写进说明书第十一章。
+
+### 2 做了什么
+
+- `web/src/panels/manual.js` 新增 chapter id `load`（roman 十一 / 11，title「压测与容量」/ “Load & Capacity”），正文双语：
+  - 先讲 local-first 模型（用户数就是这一台机器）；
+  - `node scripts/load-test.mjs http://127.0.0.1:8765 50 15000` 的实操；
+  - 六个只读路径、实测 2026-11-15 数字（c=50 / 20s / 2,490 次 200 / 0 错误 / p50≈160–200ms）；
+  - 三道防线（`minicc-prefetch` 线程、`AgentService._memo_http` single-flight（TTL 30/10s）、`MiniccHTTPServer.request_queue_size=128`）；
+  - 仍崩在何处：GIL（延迟而非正确性）；`--no-prefetch` 退出；numbers differ on your tree；拒绝伪造 SLA/承诺。
+- README 说明书章节枚举更新为**十一章**并加入新章节名。
+- 校验：npm rebuild 通过、`check:web` 干净、`doc_pointers` rc=0；Playwright 双 locale 实测——zh 11 章、kicker「第十一章 · 压测与容量」、CJK✓；en 11 章、kicker「Chapter 11 · Load & Capacity」、CJK✗；截图 `output/manual_ch11_{zh,en}.png`。
+
+### 3 验证
+
+- `tests/frontend_askdocs_one_home_smoke.mjs` 与 zh/en 独立渲染路径各自跑通（11 章 rail 全显）。
+- 未混语；样式与既有 manual 一致；未动锁定文件。

@@ -328,3 +328,5 @@
 - **RAG 通道 prompt_cache_key 落地（M8-T981）**：`minicc/rag.py::answer` 自派生 `minicc-<sha256(base_url|model)[:16]>` 的 affinity key（显式 `MINICC_PROMPT_CACHE_KEY` 优先）；`usage` 如实解析 `prompt_tokens_details.cached_tokens`；「问仓库」用量条新增「缓存命中 N（P%）」；真 key 同题两连问实测 **19082/19085 = 99.98%**（此前该键不可见）；CACHE_AFFINITY_MATRIX.md 刷新。
 
 - **50-way 全通量实测（M8-T982）**：`c=50 × 20s`，6 条只读路径各 415 次 200，**零错误、零非 200**（2,490 响应）；p50 ≈ 160-207ms（GIL 调度，非处理逻辑）；workspace 陈旧 10s 受控；`docs/LOAD_TESTING.md` 刷新第六次。本批无代码变更。
+
+- **说明书第十一章「压测与容量 / Load & Capacity」上线（M8-T983）**：双语手册第十一章——local-first 模型、load-test 实操、六只读路径实测数字（c=50/2,490×200/0 错/p50≈160–200ms）、三道防线（prefetch / single-flight memo / backlog 128）、仍受 GIL 限制的诚实边界；Playwright 双 locale 截图验证；manual 计数更新至十一章。

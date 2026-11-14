@@ -24,6 +24,7 @@ const CHAPTERS = [
   { id: "vault", roman: "八", romanEn: "8", title: "Keys & Vault", titleZh: "密钥与金库" },
   { id: "philosophy", roman: "九", romanEn: "9", title: "The Quiet Room", titleZh: "安静的房间" },
   { id: "askdocs", roman: "十", romanEn: "10", title: "Ask the Repo", titleZh: "问仓库" },
+  { id: "load", roman: "十一", romanEn: "11", title: "Load & Capacity", titleZh: "压测与容量" },
 ];
 
 function zhStart() {
@@ -331,6 +332,40 @@ function enAskDocs() {
   `;
 }
 
+function zhLoad() {
+  return `
+    <p class="manual-lede">这本书不光会问，它也会扛。这里教你亲手撞一遍：50 个并发、2 秒钟内两千四百多个请求、整机不倒。</p>
+    <ol class="manual-list">
+      <li><strong>先理解模型</strong> — minicc 是 local-first 工作台，不是多租户云：「用户数」就是你这一台机器，「大数据量」就是这棵文件树。它的吞吐能力写给本地个人用途，不是写给 SaaS。</li>
+      <li><strong>怎么压测</strong> — 先起实例 <code>minicc web --workspace .</code>，再跑 <code>node scripts/load-test.mjs http://127.0.0.1:8765 50 15000</code>（20–50 路并发；末参数是压测时长毫秒；mock llm 反而更容易失真，请打真环境）。</li>
+      <li><strong>读懂数字</strong> — 六个只读路径：<code>/api/health</code>、<code>/api/metrics</code>、<code>/api/digest</code>、<code>/api/stats</code>、<code>/api/roadmap</code>、<code>/api/workspace</code>。本机实测（2026-11-15）：c=50、20s 内、**2,490 次响应、0 错误**；p50 ≈ 160–200ms。</li>
+      <li><strong>为什么没崩</strong> — 三道防线同时生效：启动后台预取（<code>minicc-prefetch</code> 线程，<code>--no-prefetch</code> 可退出）、<code>AgentService._memo_http</code> single-flight 记忆（TTL 边界不再 N 路同时重建，TTL=30s / workspace=10s）、<code>MiniccHTTPServer.request_queue_size=128</code>（内核丢 SYN 的根治）。</li>
+      <li><strong>还会崩在哪里</strong> — GIL 还在：50 路以上共鸣时，这是延迟（不是正确性）的主要来源。登记的下一步是 aiohttp / uvloop 或进程池——不伪造承诺。</li>
+    </ol>
+    <div class="manual-callout">
+      <strong>诚实的事</strong>
+      <p>「预取」可用 <code>--no-prefetch</code> 关闭；注册发现不到新集群就会看到 503——不要用它当监控面（用 <code>--doctor</code>）。Redis 实时缓存会报 <code>redisLive</code>；代理 shard 亲和性不在客户端射程内。数字会随你的树尺寸变得不同，不要抄我的数。</p>
+    </div>
+  `;
+}
+
+function enLoad() {
+  return `
+    <p class="manual-lede">This book doesn't only ask, it holds. Here is how to crash the door yourself: 50 concurrent workers, twenty seconds, two thousand round trips — and the house still standing.</p>
+    <ol class="manual-list">
+      <li><strong>Understand the model first</strong> — minicc is a local-first workbench, not a multi-tenant SaaS: your user count is this machine, your "big data" is this file tree. Its throughput is honest at local-personal scale, not at fleet scale.</li>
+      <li><strong>How to load</strong> — start an instance <code>minicc web --workspace .</code>, then run <code>node scripts/load-test.mjs http://127.0.0.1:8765 50 15000</code> (20–50-way concurrency; the last argument is the window in ms).</li>
+      <li><strong>Read the numbers</strong> — six read-only paths: <code>/api/health</code>, <code>/api/metrics</code>, <code>/api/digest</code>, <code>/api/stats</code>, <code>/api/roadmap</code>, <code>/api/workspace</code>. Measured on this box (2026-11-15): c=50, 20-second window — **2,490 responses, zero errors**, p50 ≈ 160–200 ms.</li>
+      <li><strong>Why it didn't fall</strong> — three defenses working together: boot-time prefetch (<code>minicc-prefetch</code> thread, <code>--no-prefetch</code> to exit), single-flight memoization in <code>AgentService._memo_http</code> (the TTL boundary can no longer stampede N rebuilds; TTL is 30s for packs, 10s for workspace), and <code>MiniccHTTPServer.request_queue_size = 128</code> (the kernel-dropped-SYN root cause).</li>
+      <li><strong>Where it still can fall</strong> — the GIL remains: above ~50-way the tax is latency, not correctness. aiohttp/uvloop or a process pool is the recorded next step — no fake promises.</li>
+    </ol>
+    <div class="manual-callout">
+      <strong>The honest part</strong>
+      <p>The prefetch is optional (<code>--no-prefetch</code>); Redis reports as live backend when the local LRU joins the pool; proxy shard affinity is outside the client's reach. Numbers differ on your tree — do not copy mine.</p>
+    </div>
+  `;
+}
+
 const BODIES = {
   start: { zh: zhStart, en: enStart },
   workbench: { zh: zhWorkbench, en: enWorkbench },
@@ -342,6 +377,7 @@ const BODIES = {
   vault: { zh: zhVault, en: enVault },
   philosophy: { zh: zhPhilosophy, en: enPhilosophy },
   askdocs: { zh: zhAskDocs, en: enAskDocs },
+  load: { zh: zhLoad, en: enLoad },
 };
 
 function chapterMarkup(chapter) {

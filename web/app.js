@@ -3167,7 +3167,8 @@
     { id: "limits", roman: "\u4E03", romanEn: "7", title: "Honest Limits", titleZh: "\u8FB9\u754C\u4E0E\u8303\u56F4" },
     { id: "vault", roman: "\u516B", romanEn: "8", title: "Keys & Vault", titleZh: "\u5BC6\u94A5\u4E0E\u91D1\u5E93" },
     { id: "philosophy", roman: "\u4E5D", romanEn: "9", title: "The Quiet Room", titleZh: "\u5B89\u9759\u7684\u623F\u95F4" },
-    { id: "askdocs", roman: "\u5341", romanEn: "10", title: "Ask the Repo", titleZh: "\u95EE\u4ED3\u5E93" }
+    { id: "askdocs", roman: "\u5341", romanEn: "10", title: "Ask the Repo", titleZh: "\u95EE\u4ED3\u5E93" },
+    { id: "load", roman: "\u5341\u4E00", romanEn: "11", title: "Load & Capacity", titleZh: "\u538B\u6D4B\u4E0E\u5BB9\u91CF" }
   ];
   function zhStart() {
     return `
@@ -3453,6 +3454,38 @@
     </div>
   `;
   }
+  function zhLoad() {
+    return `
+    <p class="manual-lede">\u8FD9\u672C\u4E66\u4E0D\u5149\u4F1A\u95EE\uFF0C\u5B83\u4E5F\u4F1A\u625B\u3002\u8FD9\u91CC\u6559\u4F60\u4EB2\u624B\u649E\u4E00\u904D\uFF1A50 \u4E2A\u5E76\u53D1\u30012 \u79D2\u949F\u5185\u4E24\u5343\u56DB\u767E\u591A\u4E2A\u8BF7\u6C42\u3001\u6574\u673A\u4E0D\u5012\u3002</p>
+    <ol class="manual-list">
+      <li><strong>\u5148\u7406\u89E3\u6A21\u578B</strong> \u2014 minicc \u662F local-first \u5DE5\u4F5C\u53F0\uFF0C\u4E0D\u662F\u591A\u79DF\u6237\u4E91\uFF1A\u300C\u7528\u6237\u6570\u300D\u5C31\u662F\u4F60\u8FD9\u4E00\u53F0\u673A\u5668\uFF0C\u300C\u5927\u6570\u636E\u91CF\u300D\u5C31\u662F\u8FD9\u68F5\u6587\u4EF6\u6811\u3002\u5B83\u7684\u541E\u5410\u80FD\u529B\u5199\u7ED9\u672C\u5730\u4E2A\u4EBA\u7528\u9014\uFF0C\u4E0D\u662F\u5199\u7ED9 SaaS\u3002</li>
+      <li><strong>\u600E\u4E48\u538B\u6D4B</strong> \u2014 \u5148\u8D77\u5B9E\u4F8B <code>minicc web --workspace .</code>\uFF0C\u518D\u8DD1 <code>node scripts/load-test.mjs http://127.0.0.1:8765 50 15000</code>\uFF0820\u201350 \u8DEF\u5E76\u53D1\uFF1B\u672B\u53C2\u6570\u662F\u538B\u6D4B\u65F6\u957F\u6BEB\u79D2\uFF1Bmock llm \u53CD\u800C\u66F4\u5BB9\u6613\u5931\u771F\uFF0C\u8BF7\u6253\u771F\u73AF\u5883\uFF09\u3002</li>
+      <li><strong>\u8BFB\u61C2\u6570\u5B57</strong> \u2014 \u516D\u4E2A\u53EA\u8BFB\u8DEF\u5F84\uFF1A<code>/api/health</code>\u3001<code>/api/metrics</code>\u3001<code>/api/digest</code>\u3001<code>/api/stats</code>\u3001<code>/api/roadmap</code>\u3001<code>/api/workspace</code>\u3002\u672C\u673A\u5B9E\u6D4B\uFF082026-11-15\uFF09\uFF1Ac=50\u300120s \u5185\u3001**2,490 \u6B21\u54CD\u5E94\u30010 \u9519\u8BEF**\uFF1Bp50 \u2248 160\u2013200ms\u3002</li>
+      <li><strong>\u4E3A\u4EC0\u4E48\u6CA1\u5D29</strong> \u2014 \u4E09\u9053\u9632\u7EBF\u540C\u65F6\u751F\u6548\uFF1A\u542F\u52A8\u540E\u53F0\u9884\u53D6\uFF08<code>minicc-prefetch</code> \u7EBF\u7A0B\uFF0C<code>--no-prefetch</code> \u53EF\u9000\u51FA\uFF09\u3001<code>AgentService._memo_http</code> single-flight \u8BB0\u5FC6\uFF08TTL \u8FB9\u754C\u4E0D\u518D N \u8DEF\u540C\u65F6\u91CD\u5EFA\uFF0CTTL=30s / workspace=10s\uFF09\u3001<code>MiniccHTTPServer.request_queue_size=128</code>\uFF08\u5185\u6838\u4E22 SYN \u7684\u6839\u6CBB\uFF09\u3002</li>
+      <li><strong>\u8FD8\u4F1A\u5D29\u5728\u54EA\u91CC</strong> \u2014 GIL \u8FD8\u5728\uFF1A50 \u8DEF\u4EE5\u4E0A\u5171\u9E23\u65F6\uFF0C\u8FD9\u662F\u5EF6\u8FDF\uFF08\u4E0D\u662F\u6B63\u786E\u6027\uFF09\u7684\u4E3B\u8981\u6765\u6E90\u3002\u767B\u8BB0\u7684\u4E0B\u4E00\u6B65\u662F aiohttp / uvloop \u6216\u8FDB\u7A0B\u6C60\u2014\u2014\u4E0D\u4F2A\u9020\u627F\u8BFA\u3002</li>
+    </ol>
+    <div class="manual-callout">
+      <strong>\u8BDA\u5B9E\u7684\u4E8B</strong>
+      <p>\u300C\u9884\u53D6\u300D\u53EF\u7528 <code>--no-prefetch</code> \u5173\u95ED\uFF1B\u6CE8\u518C\u53D1\u73B0\u4E0D\u5230\u65B0\u96C6\u7FA4\u5C31\u4F1A\u770B\u5230 503\u2014\u2014\u4E0D\u8981\u7528\u5B83\u5F53\u76D1\u63A7\u9762\uFF08\u7528 <code>--doctor</code>\uFF09\u3002Redis \u5B9E\u65F6\u7F13\u5B58\u4F1A\u62A5 <code>redisLive</code>\uFF1B\u4EE3\u7406 shard \u4EB2\u548C\u6027\u4E0D\u5728\u5BA2\u6237\u7AEF\u5C04\u7A0B\u5185\u3002\u6570\u5B57\u4F1A\u968F\u4F60\u7684\u6811\u5C3A\u5BF8\u53D8\u5F97\u4E0D\u540C\uFF0C\u4E0D\u8981\u6284\u6211\u7684\u6570\u3002</p>
+    </div>
+  `;
+  }
+  function enLoad() {
+    return `
+    <p class="manual-lede">This book doesn't only ask, it holds. Here is how to crash the door yourself: 50 concurrent workers, twenty seconds, two thousand round trips \u2014 and the house still standing.</p>
+    <ol class="manual-list">
+      <li><strong>Understand the model first</strong> \u2014 minicc is a local-first workbench, not a multi-tenant SaaS: your user count is this machine, your "big data" is this file tree. Its throughput is honest at local-personal scale, not at fleet scale.</li>
+      <li><strong>How to load</strong> \u2014 start an instance <code>minicc web --workspace .</code>, then run <code>node scripts/load-test.mjs http://127.0.0.1:8765 50 15000</code> (20\u201350-way concurrency; the last argument is the window in ms).</li>
+      <li><strong>Read the numbers</strong> \u2014 six read-only paths: <code>/api/health</code>, <code>/api/metrics</code>, <code>/api/digest</code>, <code>/api/stats</code>, <code>/api/roadmap</code>, <code>/api/workspace</code>. Measured on this box (2026-11-15): c=50, 20-second window \u2014 **2,490 responses, zero errors**, p50 \u2248 160\u2013200 ms.</li>
+      <li><strong>Why it didn't fall</strong> \u2014 three defenses working together: boot-time prefetch (<code>minicc-prefetch</code> thread, <code>--no-prefetch</code> to exit), single-flight memoization in <code>AgentService._memo_http</code> (the TTL boundary can no longer stampede N rebuilds; TTL is 30s for packs, 10s for workspace), and <code>MiniccHTTPServer.request_queue_size = 128</code> (the kernel-dropped-SYN root cause).</li>
+      <li><strong>Where it still can fall</strong> \u2014 the GIL remains: above ~50-way the tax is latency, not correctness. aiohttp/uvloop or a process pool is the recorded next step \u2014 no fake promises.</li>
+    </ol>
+    <div class="manual-callout">
+      <strong>The honest part</strong>
+      <p>The prefetch is optional (<code>--no-prefetch</code>); Redis reports as live backend when the local LRU joins the pool; proxy shard affinity is outside the client's reach. Numbers differ on your tree \u2014 do not copy mine.</p>
+    </div>
+  `;
+  }
   var BODIES = {
     start: { zh: zhStart, en: enStart },
     workbench: { zh: zhWorkbench, en: enWorkbench },
@@ -3463,7 +3496,8 @@
     limits: { zh: zhLimits, en: enLimits },
     vault: { zh: zhVault, en: enVault },
     philosophy: { zh: zhPhilosophy, en: enPhilosophy },
-    askdocs: { zh: zhAskDocs, en: enAskDocs }
+    askdocs: { zh: zhAskDocs, en: enAskDocs },
+    load: { zh: zhLoad, en: enLoad }
   };
   function chapterMarkup2(chapter) {
     const zh8 = state.locale === "zh";
