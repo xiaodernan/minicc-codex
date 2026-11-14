@@ -1,0 +1,38 @@
+name: Update docs/latest.json
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/ROADMAP_TO_PRODUCT.md"
+      - "docs/CHANGELOG.md"
+      - "README.md"
+      - "scripts/update-latest-json.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Regenerate latest.json
+        run: node scripts/update-latest-json.mjs
+      - name: Commit if changed
+        run: |
+          if ! git diff --quiet -- docs/latest.json; then
+            git config user.name "minicc-bot"
+            git config user.email "minicc-bot@users.noreply.github.com"
+            git add docs/latest.json
+            git commit -m "chore(latest): refresh showcase fact pack"
+            git push
+          else
+            echo "latest.json unchanged"
+          fi

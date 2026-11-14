@@ -2292,4 +2292,6 @@ export function openHelpPanel() {
 
 import { openAlmanacPanel } from "../panels/almanac.js";
 export { openAlmanacPanel };
+import { openManualPanel } from "../panels/manual.js";
+export { openManualPanel };
 

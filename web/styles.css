@@ -3872,3 +3872,177 @@ pre code { background: #0f172a; padding: 12px; display: block; overflow-x: auto;
 .running-light-text i { color: var(--quiet); font-style: normal; }
 .running-light-branch { color: var(--quiet); font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace); font-size: 10px; margin-left: auto; max-width: 96px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (prefers-reduced-motion: reduce) { .running-light[data-tone="high"] .running-light-dot { animation: none; } }
+/* ============================================================
+   The manual — pocket book. Reader-first, dense with keyboard hints.
+   ============================================================ */
+.manual-shell {
+  display: grid;
+  grid-template-columns: 250px 1fr;
+  min-height: 560px;
+  max-height: 82vh;
+}
+.manual-rail {
+  display: grid;
+  gap: 3px;
+  align-content: start;
+  padding: 16px 12px;
+  border-right: 1px solid var(--line);
+  background: color-mix(in srgb, var(--ink) 64%, var(--surface));
+}
+.manual-chapter {
+  display: grid;
+  grid-template-columns: 44px 1fr;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 10px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+  text-align: left;
+  cursor: pointer;
+  transition: background .18s ease, color .18s ease, border-color .18s ease;
+}
+.manual-chapter:hover { background: var(--surface-soft); color: var(--text); }
+.manual-chapter.active {
+  background: var(--surface-raised);
+  color: var(--text);
+  border-color: var(--line-bright);
+}
+.manual-chapter-roman {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--coral);
+  letter-spacing: .1em;
+}
+.manual-chapter-body strong { color: inherit; font-size: 12.5px; line-height: 1.45; letter-spacing: .005em; }
+
+.manual-canvas-shell {
+  overflow: auto;
+  background: radial-gradient(880px 560px at 12% -8%, color-mix(in srgb, var(--coral) 14%, transparent) 0%, transparent 58%), var(--ink);
+}
+.manual-canvas { padding: 32px 44px 44px; min-height: 480px; }
+.manual-canvas-inner { max-width: 780px; }
+.manual-kicker {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--coral);
+  margin-bottom: 14px;
+}
+.manual-title {
+  margin: 0 0 18px;
+  font-size: clamp(28px, 4vw, 46px);
+  font-weight: 720;
+  letter-spacing: -0.035em;
+  line-height: 1.1;
+  color: var(--text);
+}
+.manual-body { display: grid; gap: 14px; }
+.manual-lede { margin: 0; color: var(--text); font-size: 15px; line-height: 1.75; }
+.manual-body p, .manual-body li { color: var(--quiet); font-size: 13.5px; line-height: 1.78; }
+.manual-body code, .manual-footnote code {
+  font-size: 12.5px;
+  background: color-mix(in srgb, var(--coral-soft) 65%, transparent);
+  color: var(--coral);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);
+}
+.manual-list { display: grid; gap: 10px; padding-left: 22px; margin: 0; }
+.manual-list li strong { color: var(--text); }
+.manual-footnote { margin: 0; color: var(--muted) !important; font-size: 12px !important; }
+
+.manual-grid-list { display: grid; gap: 10px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.manual-grid-list > div {
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--surface-soft);
+}
+.manual-grid-list strong { color: var(--text); font-size: 13px; }
+.manual-grid-list span { color: var(--muted); font-size: 12px; line-height: 1.6; }
+
+.manual-chapter-list { display: grid; gap: 8px; padding: 0; margin: 0; list-style: none; }
+.manual-chapter-list li {
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--surface-soft);
+  line-height: 1.65;
+}
+.manual-chapter-list strong { color: var(--text); }
+
+.manual-keys { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.manual-keys > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--surface-soft);
+}
+.manual-keys kbd {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--line-bright);
+  background: var(--surface-raised);
+  color: var(--text);
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);
+  font-size: 11px;
+}
+.manual-keys span { color: var(--quiet); font-size: 12px; }
+
+.manual-arcade { display: grid; gap: 10px; }
+.manual-arcade > div {
+  display: grid;
+  grid-template-columns: 96px 1fr;
+  gap: 14px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--surface-soft);
+}
+.arcade-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--coral);
+  padding-top: 3px;
+}
+.manual-arcade p { margin: 0; }
+
+.manual-trouble { display: grid; gap: 10px; }
+.manual-trouble > div {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 16px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--surface-soft);
+}
+.manual-trouble strong { color: var(--text); font-size: 12.5px; }
+.manual-trouble span { color: var(--quiet); font-size: 12.5px; line-height: 1.65; }
+
+@media (max-width: 1180px) {
+  .manual-shell { grid-template-columns: 1fr; max-height: none; }
+  .manual-rail { grid-auto-flow: column; overflow-x: auto; padding: 12px 10px; gap: 6px; }
+  .manual-chapter { min-width: 190px; }
+  .manual-canvas { padding: 22px 18px 28px; }
+  .manual-grid-list, .manual-keys, .manual-arcade > div, .manual-trouble > div { grid-template-columns: 1fr; }
+}
+@media (max-width: 760px) {
+  .manual-chapter-body { display: none; }
+  .manual-title { font-size: 24px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .manual-chapter { transition: none; }
+}

@@ -664,6 +664,7 @@
       "palette.cmd.activity": "\u4EFB\u52A1\u6D3B\u52A8",
       "palette.cmd.templates": "\u63D0\u793A\u8BCD\u6A21\u677F",
       "palette.cmd.almanac": "\u6253\u5F00\u5E74\u9274",
+      "palette.cmd.manual": "\u6253\u5F00\u8BF4\u660E\u4E66",
       "palette.cmd.ledger": "\u6253\u5F00\u8D26\u672C",
       "palette.cmd.batch": "\u5E76\u884C\u5B50\u667A\u80FD\u4F53",
       "palette.cmd.export": "\u5BFC\u51FA\u5F53\u524D\u5BF9\u8BDD",
@@ -731,6 +732,8 @@
       "templates.subtitle": "\u7CBE\u9009\u5E38\u89C1\u4EFB\u52A1\u7684\u63D0\u793A\u8BCD\uFF0C\u4E00\u952E\u9001\u8FDB\u5BF9\u8BDD",
       "almanac.title": "\u5E74\u9274",
       "nav.almanac": "\u5E74\u9274",
+      "manual.title": "\u8BF4\u660E\u4E66",
+      "nav.manual": "\u8BF4\u660E\u4E66",
       "panel.canvas": "\u8FD4\u56DE",
       "send": "\u53D1\u9001",
       "light.title": "\u822A\u884C\u706F \xB7 \u70B9\u51FB\u6253\u5F00\u8D26\u672C",
@@ -1156,6 +1159,7 @@
       "palette.cmd.activity": "Task activity",
       "palette.cmd.templates": "Prompt templates",
       "palette.cmd.almanac": "Open the almanac",
+      "palette.cmd.manual": "Open the manual",
       "palette.cmd.ledger": "Open the ledger",
       "palette.cmd.batch": "Parallel subagents",
       "palette.cmd.export": "Export this chat",
@@ -1223,6 +1227,8 @@
       "templates.subtitle": "Curated prompts for common jobs, one click into chat",
       "almanac.title": "Almanac",
       "nav.almanac": "Almanac",
+      "manual.title": "Manual",
+      "nav.manual": "Manual",
       "panel.canvas": "Back",
       "send": "Send",
       "light.title": "Running light \xB7 open the ledger",
@@ -2489,6 +2495,258 @@
     } catch (error) {
       if (!current()) return;
       openPanel(t("almanac.title"), `<div class="error-panel">${escapeHtml(error.message)}</div>`);
+    }
+  }
+
+  // web/src/panels/manual.js
+  var CHAPTERS2 = [
+    { id: "start", roman: "\u4E00", title: "Quick Start", titleZh: "\u4E94\u5206\u949F\u4E0A\u624B" },
+    { id: "workbench", roman: "\u4E8C", title: "The Workbench", titleZh: "\u5DE5\u4F5C\u53F0\u5BFC\u89C8" },
+    { id: "modules", roman: "\u4E09", title: "The Modules", titleZh: "\u4E03\u4E2A\u6A21\u5757\uFF0C\u4E00\u4E2A\u4E16\u754C" },
+    { id: "keys", roman: "\u56DB", title: "Commands & Shortcuts", titleZh: "\u547D\u4EE4\u4E0E\u5FEB\u6377\u952E" },
+    { id: "arcade", roman: "\u4E94", title: "Playbook", titleZh: "\u6E38\u620F\u5385\u6559\u7A0B" },
+    { id: "trouble", roman: "\u516D", title: "Troubleshooting", titleZh: "\u6392\u9519" },
+    { id: "limits", roman: "\u4E03", title: "Honest Limits", titleZh: "\u8FB9\u754C\u4E0E\u8303\u56F4" }
+  ];
+  function zhStart() {
+    return `
+    <p class="manual-lede">\u4E00\u4E2A\u672C\u5730\u4F18\u5148\u7684\u7F16\u7A0B\u667A\u80FD\u4F53\u2014\u2014\u5B83\u63A5\u53D7 <code>MINICC_API_KEY</code>\u3001<code>MINICC_BASE_URL</code>\u3001<code>MINICC_MODEL</code>\uFF0C\u7136\u540E\u5728\u4F60\u7684\u5DE5\u4F5C\u533A\u91CC\u771F\u6B63\u8BFB\u5199\u3001\u8FD0\u884C\u3001\u9A8C\u8BC1\uFF0C\u6700\u540E\u628A\u8BC1\u636E\u4EA4\u56DE\u7ED9\u4F60\u3002</p>
+    <ol class="manual-list">
+      <li><strong>\u4E94\u5206\u949F</strong>\uFF1A\u590D\u5236 <code>minicc.config.example</code> \u4E3A <code>.env</code>\uFF0C\u586B\u5165\u4E09\u4E2A\u73AF\u5883\u53D8\u91CF\uFF08\u4EFB\u4F55 OpenAI \u517C\u5BB9\u7684\u7F51\u5173\u90FD\u53EF\u4EE5\uFF0C\u5305\u62EC\u4F60\u7684\u79C1\u6709\u4EE3\u7406\uFF09\u3002</li>
+      <li>\u542F\u52A8\u5DE5\u4F5C\u53F0\uFF1A<code>minicc-web --workspace /\u4F60\u7684\u9879\u76EE\u8DEF\u5F84</code></li>
+      <li>\u6253\u5F00 <code>http://127.0.0.1:8765/</code>\uFF0C\u5728\u8F93\u5165\u6846\u91CC\u76F4\u63A5\u8BF4\u4EBA\u8BDD\u2014\u2014\u6BD4\u5982\u300C\u8BFB\u4E00\u4E0B README.md \u7136\u540E\u544A\u8BC9\u6211\u8FD9\u4E2A\u9879\u76EE\u662F\u5E72\u561B\u7684\u300D\u3002</li>
+      <li>\u770B\u89C1 <em>\u5DF2\u8FDE\u63A5</em> \u4E0E <em>\u4EFB\u52A1\u5B9E\u65F6\u6D41</em> \u5373\u8868\u793A\u4E00\u5207\u6B63\u5E38\u3002\u56DE\u7B54\u5B8C\u6BD5\u540E\u70B9\u5F00\u4EFB\u52A1\u8BE6\u60C5\uFF0C\u91CC\u9762\u6709\u5168\u90E8\u5DE5\u5177\u8C03\u7528\u4E0E\u9A8C\u8BC1\u7ED3\u679C\u3002</li>
+    </ol>
+    <p>\u547D\u4EE4\u884C\u91CC\u4E5F\u80FD\u76F4\u63A5\u7528\uFF1A<code>minicc "\u8BFB README \u5E76\u603B\u7ED3"</code>\uFF0C\u6216 <code>minicc --stats</code> \u770B\u5DE5\u4F5C\u533A\u4F53\u5F81\u3002</p>
+  `;
+  }
+  function enStart() {
+    return `
+    <p class="manual-lede">A local-first coding agent. Give it <code>MINICC_API_KEY</code>, <code>MINICC_BASE_URL</code> and <code>MINICC_MODEL</code>, and it reads, edits, runs and verifies \u2014 then hands you the evidence.</p>
+    <ol class="manual-list">
+      <li><strong>Five minutes</strong>: copy <code>minicc.config.example</code> to <code>.env</code>, fill the three variables (any OpenAI-compatible gateway works, including your private proxy).</li>
+      <li>Start the workbench: <code>minicc-web --workspace /path/to/your/project</code></li>
+      <li>Open <code>http://127.0.0.1:8765/</code> and say what you want \u2014 e.g. \u201CRead README.md and tell me what this project does.\u201D</li>
+      <li><em>Connected</em> + a live task stream means everything is working. Open the task detail afterwards for the full tool-call and verification record.</li>
+    </ol>
+    <p>CLI works too: <code>minicc "Read README and summarize it"</code>, or <code>minicc --stats</code> for an operational inventory.</p>
+  `;
+  }
+  function zhWorkbench() {
+    return `
+    <p class="manual-lede">\u4E09\u680F\u5E03\u5C40\uFF1A<strong>\u5DE6\u680F</strong> \u662F\u4EFB\u52A1\u5BFC\u822A\u4E0E\u5206\u652F\uFF0C<strong>\u4E2D\u680F</strong> \u662F\u5BF9\u8BDD\u4E0E\u5DE5\u4F5C\u6D41\uFF0C<strong>\u53F3\u680F</strong> \u662F\u9A8C\u8BC1\u4E0E\u5BA1\u8BA1\u8BC1\u636E\u3002</p>
+    <div class="manual-grid-list">
+      <div><strong>\u8F93\u5165\u6846</strong><span>\u76F4\u63A5\u8BF4\u4EBA\u8BDD\uFF1B\u591A\u4EFB\u52A1\u4F1A\u81EA\u52A8\u7F16\u6392\uFF0C\u4E00\u4E2A\u53E5\u5B50\u91CC\u7684\u591A\u4EF6\u4E8B\u4F1A\u88AB\u62C6\u6210\u7236\u5B50\u4EFB\u52A1\u3002</span></div>
+      <div><strong>\u4EFB\u52A1\u8BE6\u60C5</strong><span>\u70B9\u5F00\u4EFB\u610F\u4EFB\u52A1\uFF1A\u5DE5\u5177\u8C03\u7528\u3001\u9010\u8F6E turn\u3001\u7F13\u5B58\u547D\u4E2D\u7387\u706B\u82B1\u7EBF\u3001\u9010\u6B21\u8C03\u7528\u7684\u7CFB\u7EDF/\u6D88\u606F/\u5DE5\u5177\u6307\u7EB9\u5168\u90E8\u53EF\u89C1\u3002</span></div>
+      <div><strong>\u56DE\u653E\u5E2D</strong><span>\u4EFB\u52A1\u8BE6\u60C5\u9876\u90E8\u300C\u56DE\u653E\u6574\u4E2A\u4EFB\u52A1\u300D\u628A\u4E00\u6B21\u4EA4\u4ED8\u6309\u4E8B\u4EF6\u987A\u5E8F\u5B8C\u6574\u91CD\u64AD\u2014\u2014\u50CF\u770B\u4E00\u573A\u7535\u5F71\u3002</span></div>
+      <div><strong>\u6743\u9650\u6A21\u5F0F</strong><span>\u666E\u901A\u6A21\u5F0F\u9ED8\u8BA4\u5199\u5165\u524D\u8BE2\u95EE\uFF1Byolo \u6A21\u5F0F\u5168\u81EA\u52A8\uFF0C\u4F46\u5DE5\u5177\u540D\u3001\u8DEF\u5F84\u4E0E\u547D\u4EE4\u4ECD\u7136\u5199\u5165\u5BA1\u8BA1\u65E5\u5FD7\u3002</span></div>
+      <div><strong>\u4F1A\u8BDD\u89C6\u56FE</strong><span>\u540C\u4E00 session \u5185\u53EF\u4EE5\u5206\u652F\u3001diff\u3001\u56DE\u6EDA\u2014\u2014\u89C6\u56FE\u4E0E\u5DE5\u4F5C\u533A\u72B6\u6001\u7ED1\u5B9A\uFF0C\u5207\u6362\u4E0D\u4F1A\u8BEF\u8BFB\u65E7\u5BF9\u8BDD\u3002</span></div>
+      <div><strong>\u5BA1\u8BA1\u9762\u677F</strong><span>\u6BCF\u4E00\u6761\u5DE5\u5177\u8C03\u7528\u90FD\u4EE5 info/notice/warning \u843D\u76D8\u5E76\u8131\u654F\uFF0Capi_key \u6C38\u8FDC\u4E0D\u4F1A\u51FA\u73B0\u5728\u65E5\u5FD7\u91CC\u3002</span></div>
+    </div>
+  `;
+  }
+  function enWorkbench() {
+    return `
+    <p class="manual-lede">Three columns: <strong>left</strong> is the task navigator, <strong>middle</strong> is the conversation and work flow, <strong>right</strong> is the verification and audit evidence.</p>
+    <div class="manual-grid-list">
+      <div><strong>Composer</strong><span>Just say it. A sentence naming multiple things becomes a parent task with auto-orchestrated children.</span></div>
+      <div><strong>Task detail</strong><span>Any task: tool calls, turns, the per-turn cache-hit sparkline, per-call system/messages/tools fingerprints \u2014 all inspectable.</span></div>
+      <div><strong>Replay</strong><span>\u201CReplay the whole task\u201D from the detail top replays the delivery as an ordered event film \u2014 scrub it like a player.</span></div>
+      <div><strong>Permissions</strong><span>Default mode asks before writes; yolo mode runs autonomously \u2014 tool name, path and command always land in the audit log.</span></div>
+      <div><strong>Session views</strong><span>Branch, diff and roll back inside a session; view state is bound to the workspace so you never read a stale conversation.</span></div>
+      <div><strong>Audit panel</strong><span>Every tool call is logged with a level and a redacted payload \u2014 api_key never appears in the log.</span></div>
+    </div>
+  `;
+  }
+  function zhModules() {
+    return `
+    <p class="manual-lede">\u5DE5\u4F5C\u53F0\u4E4B\u4E0A\u6709\u4E00\u6574\u5957\u968F\u5904\u53EF\u8FBE\u7684\u6A21\u5757\u2014\u2014\u5B83\u4EEC\u4E0D\u662F\u5B64\u5C9B\uFF0C\u800C\u662F\u540C\u4E00\u4EFD\u8BC1\u636E\u7684\u4E0D\u540C\u89C6\u89D2\u3002</p>
+    <ul class="manual-chapter-list">
+      <li><strong>\u8D26\u672C \xB7 Ledger</strong> \u2014 \u2318L \u6253\u5F00\uFF1A\u603B token \u91D1\u53E5\u3001\u7F13\u5B58\u547D\u4E2D\u7387\u5706\u73AF\uFF08hit/miss/write \u62C6\u5206\uFF09\u3001\u6210\u672C\u4E0E\u672A\u5B9A\u4EF7\u6807\u6CE8\u3001\u6A21\u578B\u5206\u89E3\u8868\u3001\u72B6\u6001 segmented bar\u3002\u4E00\u5207\u6570\u5B57\u6765\u81EA\u771F\u5B9E\u4EFB\u52A1\u5FEB\u7167\u3002</li>
+      <li><strong>\u8109\u640F \xB7 Pulse</strong> \u2014 \u4E09\u73AF\uFF08\u547D\u4E2D\u7387/\u4E0A\u4E0B\u6587\u5360\u6BD4/\u5B8C\u6210\u7387\uFF09+ \u6700\u8FD1 12 \u4E2A\u4EFB\u52A1\u6863\u6848 + \u9010\u6B21\u8C03\u7528\u7F13\u5B58\u706B\u82B1\u7EBF\uFF1B\u5B9E\u65F6\u589E\u957F\uFF0C\u5173\u4E86\u518D\u5F00\u4E5F\u8BFB\u6570\u3002</li>
+      <li><strong>\u5E74\u9274 \xB7 Almanac</strong> \u2014 \u4FA7\u8FB9\u680F\u300C\u5E74\u9274\u300D\uFF1A\u4E5D\u5377\u535A\u7269\u9986\u7EA7\u53D9\u4E8B\uFF0C\u628A\u8FD9\u4E2A\u4EA7\u54C1\u7684\u8BBE\u8BA1\u51B3\u7B56\u6309\u7AE0\u8BB2\u8FF0\uFF0C\u6BCF\u5377\u6570\u636E\u5168\u90E8\u6765\u81EA /api/digest\u3001/api/stats \u4E0E git \u81EA\u8EAB\u3002</li>
+      <li><strong>\u6A21\u677F\u5E93 \xB7 Templates</strong> \u2014 8 \u5F20\u7B56\u5C55\u8FC7\u7684\u5E38\u89C1\u4EFB\u52A1\u63D0\u793A\u8BCD\uFF08\u9879\u76EE\u626B\u63CF / \u6D4B\u8BD5\u4FEE\u590D / \u5B89\u5168\u68C0\u67E5 / README / \u7FFB\u8BD1 / \u4F9D\u8D56 / \u73B0\u4EE3\u5316 / \u5192\u70DF\uFF09\uFF0C\u4E00\u952E\u9001\u8FDB\u5BF9\u8BDD\u3002</li>
+      <li><strong>\u56DE\u653E \xB7 Replay</strong> \u2014 \u4EFB\u52A1\u8BE6\u60C5\u5185\u300C\u56DE\u653E\u6574\u4E2A\u4EFB\u52A1\u300D\uFF0C\u6309\u4E8B\u4EF6\u987A\u5E8F\u64AD\u653E\uFF1A\u64AD\u653E/\u6682\u505C\u3001scrub \u8FDB\u5EA6\u6761\u30011\xD7/2\xD7/4\xD7 \u53D8\u901F\u3001tokens \u65C1\u8DEF\u7D2F\u52A0\u3002</li>
+      <li><strong>\u822A\u884C\u706F \xB7 Running light</strong> \u2014 \u4FA7\u8FB9\u680F\u5E38\u9A7B\u4E00\u679A\u5C0F\u706F\uFF1A\u7F13\u5B58\u547D\u4E2D\u7387 \xD7 \u4EFB\u52A1\u6570 \xD7 \u5206\u652F @ HEAD\uFF0C\u56DB\u8272\u6E29\uFF1B\u70B9\u51FB\u76F4\u8FBE\u8D26\u672C\u3002</li>
+      <li><strong>\u5C0F\u6E38\u620F \xB7 Arcade</strong> \u2014 \u4FA7\u8FB9\u680F\u300C\u5C0F\u6E38\u620F\u300D\u8FDB\u5165\u5854\u9632\u690D\u7269\u5927\u6218\u50F5\u5C38\u7CFB\u5217\uFF1Bbuild \u5728 <code>web/game.js</code>\uFF0C\u7EAF\u79BB\u7EBF\uFF0C\u79BB\u7EBF\u4E5F\u80FD\u73A9\u3002</li>
+    </ul>
+  `;
+  }
+  function enModules() {
+    return `
+    <p class="manual-lede">The workbench ships a whole set of always-available modules \u2014 not islands, but different views of the same evidence.</p>
+    <ul class="manual-chapter-list">
+      <li><strong>Ledger</strong> \u2014 \u2318L opens it: headline token count, cache-hit donut (hit/miss/write), cost with unpriced-callouts, model breakdown, status segmented bar. Every number comes from real task snapshots.</li>
+      <li><strong>Pulse</strong> \u2014 three rings (hit rate / context usage / done rate) + last 12 task archive + per-call cache sparkline; live growth, re-opens with fresh numbers.</li>
+      <li><strong>Almanac</strong> \u2014 sidebar entry: a museum-grade narrative in nine chapters, every figure sourced from /api/digest, /api/stats and git itself.</li>
+      <li><strong>Templates</strong> \u2014 8 curated prompts for common jobs (project scan / test+fix / safety / README / translation / deps / modernize / smoke), one click into chat.</li>
+      <li><strong>Replay</strong> \u2014 \u201CReplay this task\u201D from the detail view, plays event-by-event: play/pause, scrubber, 1\xD7/2\xD7/4\xD7 speed, side-mounted token counter.</li>
+      <li><strong>Running light</strong> \u2014 an always-on sidebar dot: cache hit rate \xD7 tasks \xD7 branch @ HEAD, four tones; click to open the ledger.</li>
+      <li><strong>Arcade</strong> \u2014 sidebar entry \u201CArcade\u201D opens a Plants-vs-Zombies-style tower defense; pure offline, playable with the network down.</li>
+    </ul>
+  `;
+  }
+  function zhKeys() {
+    return `
+    <div class="manual-keys">
+      <div><kbd>Enter</kbd><span>\u53D1\u9001\u4EFB\u52A1</span></div>
+      <div><kbd>Shift+Enter</kbd><span>\u6362\u884C</span></div>
+      <div><kbd>Ctrl / \u2318 N</kbd><span>\u65B0\u4EFB\u52A1</span></div>
+      <div><kbd>Ctrl / \u2318 K</kbd><span>\u547D\u4EE4\u9762\u677F</span></div>
+      <div><kbd>Ctrl / \u2318 L</kbd><span>\u8D26\u672C\u603B\u89C8</span></div>
+      <div><kbd>/</kbd><span>\u641C\u7D22\u4EFB\u52A1</span></div>
+      <div><kbd>?</kbd><span>\u5FEB\u6377\u952E\u901F\u67E5</span></div>
+      <div><kbd>Esc</kbd><span>\u5173\u95ED\u9762\u677F / \u5C0F\u6E38\u620F</span></div>
+    </div>
+    <p class="manual-footnote">\u547D\u4EE4\u9762\u677F\u91CC\u8FD8\u6709\u66F4\u591A\uFF1A\u5207\u6362\u4E3B\u9898\u3001\u6253\u5F00\u5E74\u9274\u3001\u6253\u5F00\u56DE\u653E\u3001\u5BFC\u51FA\u5F53\u524D\u5BF9\u8BDD\u3001\u6062\u590D\u4EFB\u52A1\u5FEB\u7167\u7B49\u2014\u2014\u5168\u90E8\u53EF\u4EE5\u7528\u9F20\u6807\u6216\u952E\u76D8\u64CD\u4F5C\u3002</p>
+  `;
+  }
+  function enKeys() {
+    return `
+    <div class="manual-keys">
+      <div><kbd>Enter</kbd><span>Send the task</span></div>
+      <div><kbd>Shift+Enter</kbd><span>New line</span></div>
+      <div><kbd>Ctrl / \u2318 N</kbd><span>New task</span></div>
+      <div><kbd>Ctrl / \u2318 K</kbd><span>Command palette</span></div>
+      <div><kbd>Ctrl / \u2318 L</kbd><span>Ledger overview</span></div>
+      <div><kbd>/</kbd><span>Search tasks</span></div>
+      <div><kbd>?</kbd><span>Shortcut reference</span></div>
+      <div><kbd>Esc</kbd><span>Close panel / game</span></div>
+    </div>
+    <p class="manual-footnote">The command palette carries more: theme toggle, open the almanac, open replay, export the conversation, restore a task snapshot \u2014 every action keyboard or mouse operable.</p>
+  `;
+  }
+  function zhArcade() {
+    return `
+    <p class="manual-lede">\u300C\u6E38\u620F\u5385\u300D\u662F\u5DE5\u4F5C\u53F0\u81EA\u5E26\u7684\u771F\xB7\u6E38\u620F\u2014\u2014\u4E0D\u662F demo\uFF0C\u4E0D\u662F\u5360\u4F4D\u7B26\u3002\u690D\u7269\u5BF9\u50F5\u5C38\uFF0C\u5854\u9632\u7C7B\u578B\u3002</p>
+    <div class="manual-arcade">
+      <div><span class="arcade-label">\u73A9\u6CD5</span><p>\u628A\u690D\u7269\u79CD\u5728\u7A7A\u5730\u4E0A\uFF0C\u7528\u592A\u9633\u80FD\u62B5\u5FA1\u50F5\u5C38\u7684\u8FDB\u653B\u3002\u673A\u5236\u662F\u6807\u51C6\u7684\u5854\u9632\uFF1A\u9633\u5149\u3001\u6210\u672C\u3001\u51B7\u5374\u3001\u51FB\u6740\u3001\u9632\u5B88\u8DEF\u7EBF\u3002</p></div>
+      <div><span class="arcade-label">\u56DB\u79CD\u6280\u80FD</span><p>Pulse\uFF0825 \u9633\u5149\uFF0C7 \u79D2\u51B7\u5374\uFF09\u3001Sun\uFF0835 \u9633\u5149\uFF09\u3001Rally\uFF0845 \u9633\u5149\uFF0C14 \u79D2\uFF09\u3001Time Stop\uFF0855 \u9633\u5149\uFF0C18 \u79D2\uFF09\u2014\u2014\u6BCF\u79CD\u6280\u80FD\u53EA\u5BF9\u7279\u5B9A\u5C40\u9762\u6709\u6548\u3002</p></div>
+      <div><span class="arcade-label">\u56FE\u9274</span><p>\u6E38\u620F\u5185\u7F6E\u690D\u7269/\u50F5\u5C38\u56FE\u9274\u2014\u2014peashooter\u3001sunflower\u3001wall-nut\u3001cherry bomb\u3001gatling pea\u3001jalapeno\u3001magnetshroom\u2026\u2026\u6BCF\u79CD\u690D\u7269\u90FD\u6709\u5C5E\u6027\u4E0E special \u63CF\u8FF0\uFF0C\u7EC8\u6781\u5173\u5361\u662F\u300C\u5DE8\u4EBA\u50F5\u5C38\u300D\u3002</p></div>
+      <div><span class="arcade-label">\u600E\u4E48\u8FDB\u6E38\u620F</span><p>\u4FA7\u8FB9\u680F\u300C\u5C0F\u6E38\u620F\u300D\u6216\u8005\u547D\u4EE4\u9762\u677F\u641C\u300CArcade/\u6E38\u620F\u5385\u300D\uFF0C\u6309 <code>Enter</code> \u5373\u73A9\u3002\u79BB\u7EBF\u53EF\u73A9\uFF0C\u968F\u65F6\u6309 <code>Esc</code> \u8FD4\u56DE\u5DE5\u4F5C\u53F0\u3002</p></div>
+    </div>
+    <p class="manual-footnote">\u6E38\u620F\u6570\u636E\u5168\u90E8\u4FDD\u5B58\u5728\u4F60\u7684\u6D4F\u89C8\u5668\u91CC\uFF1B\u5173\u95ED\u5DE5\u4F5C\u53F0\u4E0D\u4F1A\u4E22\u5931\u8FDB\u5EA6\u3002</p>
+  `;
+  }
+  function enArcade() {
+    return `
+    <p class="manual-lede">The Arcade is a real game baked into the workbench \u2014 not a demo, not a placeholder. Plants versus Zombies, tower-defense genre.</p>
+    <div class="manual-arcade">
+      <div><span class="arcade-label">How to play</span><p>Plant your units on the lawn and hold the line. Sun, cost, cooldown, kills, lanes \u2014 classic tower defense.</p></div>
+      <div><span class="arcade-label">Four skills</span><p>Pulse (25 sun, 7s cooldown), Sun (35 sun), Rally (45 sun, 14s), Time Stop (55 sun, 18s) \u2014 each is situational, none is generic.</p></div>
+      <div><span class="arcade-label">The codex</span><p>In-game plant and zombie codex \u2014 peashooter, sunflower, wall-nut, cherry bomb, gatling pea, jalapeno, magnetshroom \u2026 each with stats and a special. The final wave is the gargantuar.</p></div>
+      <div><span class="arcade-label">How to open</span><p>Sidebar \xAB Arcade \xBB or type \u201CArcade\u201D in the command palette, then <code>Enter</code>. Plays offline; <code>Esc</code> returns to the workbench.</p></div>
+    </div>
+    <p class="manual-footnote">Everything stays in your browser; closing the workbench never loses your progress.</p>
+  `;
+  }
+  function zhTrouble() {
+    return `
+    <div class="manual-trouble">
+      <div><strong>\u6211\u770B\u5230\u300C\u672A\u8FDE\u63A5\u300D</strong><span>\u68C0\u67E5 <code>MINICC_API_KEY</code>/<code>MINICC_BASE_URL</code>\uFF0C\u6216\u8DD1 <code>minicc --doctor</code>\u2014\u2014\u5176\u4E2D\u4E00\u9879\u4F1A\u7ED9\u4F60\u5199\u660E\u662F\u5BC6\u94A5\u3001\u662F\u7F51\u7EDC\u8FD8\u662F\u8BC1\u4E66\u3002</span></div>
+      <div><strong>\u7F13\u5B58\u547D\u4E2D\u7387\u4F4E</strong><span>\u4E0D\u662F bug\uFF0C\u662F\u524D\u7F00\u4EB2\u548C\uFF1A\u5E26\u4E0A <code>MINICC_PROMPT_CACHE_KEY</code>\uFF08\u6216\u8BA9\u81EA\u52A8\u6D3E\u751F\u751F\u6548\uFF09\u5C31\u80FD\u62FF\u5230 90%+ \u7684\u70ED\u547D\u4E2D\u7387\u3002\u663E\u793A\u6D41/\u975E\u6D41\u90FD\u6709\u7F13\u5B58\uFF1B\u6CE8\u610F\u975E\u6D41\u7EBF (chat/completions) \u5728\u90E8\u5206\u7F51\u5173\u4E0D\u4E0A\u62A5 <code>cached_tokens</code>\u3002</span></div>
+      <div><strong>\u4EFB\u52A1\u5361\u4F4F</strong><span>Ctrl/\u2318+C \u5728\u7EC8\u7AEF\u91CC\uFF0C\u6216\u5DE5\u4F5C\u53F0\u300C\u91CD\u7F6E\u300D\u6309\u94AE\u3002\u6062\u590D\u673A\u5236\u4F1A\u628A\u4E0A\u4E0B\u6587\u538B\u7F29\u6210 checkpoint\uFF0C\u4EFB\u52A1\u53EF\u4EE5\u7EED\u4E0A\uFF0C\u4E0D\u4F1A\u4E22\u5931\u5DF2\u5B8C\u6210\u7684\u5199\u5165\u6587\u4EF6\u3002</span></div>
+      <div><strong>\u5DE5\u4F5C\u533A\u4E0D\u53EF\u5199</strong><span>\u9ED8\u8BA4\u672C\u5730\u6C99\u7BB1\u9700\u8981\u5199\u6743\u9650\u3002\u4F60\u4E5F\u53EF\u4EE5\u9009 process \u6216 docker \u6A21\u5F0F\uFF08<code>MINICC_SANDBOX</code>\uFF09\u3002</span></div>
+      <div><strong>SSE \u65AD\u5F00</strong><span>\u5173\u6389\u4EE3\u7406\u91CC\u7684 request body \u7F13\u51B2\uFF08Spring Cloud plane \u91CC\u5BF9\u5E94 <code>X-Accel-Buffering: no</code>\uFF09\u3002\u672C\u5730\u76F4\u8FDE\u4E0D\u4F1A\u9047\u5230\u3002</span></div>
+      <div><strong>/api/stats \u8FD4\u56DE\u9519\u8BEF</strong><span>\u771F\u5B9E\u6D4F\u89C8\u5668\u91CC\u6253\u5F00\u63A7\u5236\u53F0\uFF1B\u5982\u679C HTTP \u72B6\u6001\u662F 503\uFF0C<code>minicc --doctor</code> \u4F1A\u544A\u8BC9\u4F60\u54EA\u4E2A\u540E\u7AEF\u6389\u7EBF\u3002</span></div>
+    </div>
+  `;
+  }
+  function enTrouble() {
+    return `
+    <div class="manual-trouble">
+      <div><strong>I see \u201CDisconnected\u201D</strong><span>Check <code>MINICC_API_KEY</code>/<code>MINICC_BASE_URL</code>, or run <code>minicc --doctor</code> \u2014 it tells you whether it is the key, the network or the certificate.</span></div>
+      <div><strong>Cache hit rate looks low</strong><span>Not a bug \u2014 prefix affinity. Set <code>MINICC_PROMPT_CACHE_KEY</code> (or let the auto-derived key ride) and you will see 90%+ warm hits. Streaming or not does not matter; note chat/completions on some gateways never reports <code>cached_tokens</code>.</span></div>
+      <div><strong>Task appears stuck</strong><span>Ctrl/\u2318+C in the terminal, or the Reset button in the workbench. The recovery path compacts a checkpoint \u2014 completed writes survive, the context continues.</span></div>
+      <div><strong>Workspace not writable</strong><span>The default local sandbox needs write permission. You can also pick process or docker mode (<code>MINICC_SANDBOX</code>).</span></div>
+      <div><strong>SSE drops</strong><span>Disable request-body buffering in your proxy (<code>X-Accel-Buffering: no</code> on the Spring Cloud plane). Direct local connections do not hit this.</span></div>
+      <div><strong>/api/stats returns an error</strong><span>Open devtools; if you see 503, <code>minicc --doctor</code> tells you which backend fell over.</span></div>
+    </div>
+  `;
+  }
+  function zhLimits() {
+    return `
+    <p class="manual-lede">\u8BDA\u5B9E\u7684\u8FB9\u754C\u2014\u2014\u54EA\u4E9B\u627F\u8BFA\u505A\u4E86\u3001\u54EA\u4E9B\u6CA1\u505A\uFF0C\u4EE5\u53CA\u4E3A\u4EC0\u4E48\u3002</p>
+    <ul class="manual-chapter-list">
+      <li><strong>\u6A21\u578B\u9009\u62E9</strong> \u2014 \u4F60\u53EF\u4EE5\u7528\u4EFB\u610F OpenAI \u517C\u5BB9\u7684\u7F51\u5173\uFF08\u5305\u62EC wkapi.pro/v1 \u4E0E\u4F60\u7684\u79C1\u6709\u4EE3\u7406\uFF09\u3002Anthropic \u4E5F\u80FD\u8D70\uFF08<code>MINICC_PROVIDER_TYPE=anthropic</code>\uFF09\uFF0C\u4F46 token \u8BA1\u4EF7\u53EA\u6709 OpenAI \u5F62\u72B6\u7684\u8D26\u672C\u3002</li>
+      <li><strong>\u56FE\u50CF</strong> \u2014 \u9644\u56FE\u4E0E\u56FE\u751F\u56FE\u53EF\u4EE5\u9001\u7ED9\u6A21\u578B\uFF0C\u4F46\u4E0D\u80FD\u8BA9\u6A21\u578B\u300C\u770B\u300D\u2014\u2014\u89C6\u89C9\u80FD\u529B\u5B8C\u5168\u53D6\u51B3\u4E8E\u4F60\u9009\u7684\u6A21\u578B\u3002</li>
+      <li><strong>\u7F51\u7EDC\u8BBF\u95EE</strong> \u2014 \u9ED8\u8BA4\u6C99\u7BB1\u4E0D\u76F4\u63A5\u64CD\u4F5C\u5916\u7F51\u3002\u5DE5\u5177\u5C42\u6709\u5E38\u7528 HTTP \u5BA2\u6237\u7AEF\uFF0C\u4F46\u7F51\u5173\u7EA7\u8054\u3001\u957F\u8F6E\u8BE2\u4E0E websocket \u4E0D\u4F1A\u81EA\u52A8\u751F\u6548\u3002</li>
+      <li><strong>\u8FDC\u7A0B\u5DE5\u4F5C\u533A</strong> \u2014 \u672C\u5730\u4F18\u5148\u3002\u8FDC\u7A0B\u4ED3\u5E93\u73B0\u5728\u53EA\u80FD\u7528 <code>git clone</code> \u4E4B\u540E\u672C\u5730\u6253\u5F00\u3002</li>
+      <li><strong>\u6E38\u620F</strong> \u2014 \u7EAF\u524D\u7AEF\uFF08<code>web/game.js</code>\uFF09\uFF0C\u6CA1\u6709\u4E91\u5B58\u6863\uFF1B\u6E05\u7F13\u5B58\u7B49\u4E8E\u91CD\u5F00\u3002</li>
+      <li><strong>\u63D2\u4EF6</strong> \u2014 MCP \u5DE5\u5177\u53EF\u4EE5\u6302\u4E0A\u6765\uFF1B\u793E\u533A\u63D2\u4EF6\u5E02\u573A\u5C1A\u672A\u5B58\u5728\u3002</li>
+    </ul>
+  `;
+  }
+  function enLimits() {
+    return `
+    <p class="manual-lede">Honest limits \u2014 what is shipped, what is not, and why.</p>
+    <ul class="manual-chapter-list">
+      <li><strong>Model choice</strong> \u2014 any OpenAI-compatible gateway (including wkapi.pro/v1 and your private proxy). Anthropic works too (<code>MINICC_PROVIDER_TYPE=anthropic</code>), but token pricing is only registered for the OpenAI shape.</li>
+      <li><strong>Images</strong> \u2014 you can attach images, but whether the model can see them depends on the model you pick, not on us.</li>
+      <li><strong>Network access</strong> \u2014 the default sandbox does not touch the outside world. The tool layer ships a conservative HTTP client; long-polling and websockets do not auto-engage.</li>
+      <li><strong>Remote workspaces</strong> \u2014 local-first. A remote repo is usable after <code>git clone</code>, then opened locally.</li>
+      <li><strong>Arcade</strong> \u2014 front-end-only (<code>web/game.js</code>), no cloud save; clearing the browser cache starts over.</li>
+      <li><strong>Plugins</strong> \u2014 MCP tools can be mounted; there is no community marketplace yet.</li>
+    </ul>
+  `;
+  }
+  var BODIES = {
+    start: { zh: zhStart, en: enStart },
+    workbench: { zh: zhWorkbench, en: enWorkbench },
+    modules: { zh: zhModules, en: enModules },
+    keys: { zh: zhKeys, en: enKeys },
+    arcade: { zh: zhArcade, en: enArcade },
+    trouble: { zh: zhTrouble, en: enTrouble },
+    limits: { zh: zhLimits, en: enLimits }
+  };
+  function chapterMarkup2(chapter) {
+    const zh = state.locale === "zh";
+    const title = zh ? chapter.titleZh : chapter.title;
+    return `<button class="manual-chapter" data-chapter="${escapeHtml(chapter.id)}" role="tab">
+            <span class="manual-chapter-roman">${escapeHtml(chapter.roman)}</span>
+            <span class="manual-chapter-body"><strong>${escapeHtml(title)}</strong></span>
+          </button>`;
+  }
+  function chapterTitle(chapter) {
+    return state.locale === "zh" ? chapter.titleZh : chapter.title;
+  }
+  function renderChapter(id) {
+    const slot = $("#manualCanvas");
+    const chapter = CHAPTERS2.find((c) => c.id === id) ?? CHAPTERS2[0];
+    if (!slot) return;
+    const zh = state.locale === "zh";
+    const body = (zh ? BODIES[chapter.id].zh : BODIES[chapter.id].en)();
+    slot.innerHTML = `
+    <div class="manual-canvas-inner">
+      <div class="manual-kicker">${zh ? `\u7B2C${chapter.roman}\u7AE0` : `Chapter ${chapter.roman}`} \xB7 ${escapeHtml(chapter.title)}</div>
+      <h1 class="manual-title">${escapeHtml(chapterTitle(chapter))}</h1>
+      <div class="manual-body">${body}</div>
+    </div>`;
+    refreshIcons();
+  }
+  async function openManualPanel() {
+    const zh = state.locale === "zh";
+    const current = beginPanelRequest(t("manual.title"));
+    try {
+      const rail = CHAPTERS2.map(chapterMarkup2).join("");
+      openPanel(t("manual.title"), `
+      <div class="manual-shell">
+        <nav class="manual-rail" aria-label="${escapeHtml(t("manual.title"))}">${rail}</nav>
+        <div class="manual-canvas-shell"><div class="manual-canvas" id="manualCanvas"></div></div>
+      </div>
+    `, { wide: true, immersive: true });
+      renderChapter("start");
+      document.querySelectorAll(".manual-chapter").forEach((button) => {
+        button.addEventListener("click", () => {
+          document.querySelectorAll(".manual-chapter").forEach((b) => b.classList.toggle("active", b === button));
+          renderChapter(button.getAttribute("data-chapter") || "start");
+        });
+      });
+      document.querySelector('.manual-chapter[data-chapter="start"]')?.classList.add("active");
+      refreshIcons();
+    } catch (error) {
+      if (!current()) return;
+      openPanel(t("manual.title"), `<div class="error-panel">${escapeHtml(error.message)}</div>`);
     }
   }
 
@@ -6206,6 +6464,7 @@
       { id: "ledger", glyph: "ledger", group: "palette.group.task", run: () => openLedgerPanel() },
       { id: "templates", glyph: "sparkles", group: "palette.group.task", run: () => openTemplatesPanel() },
       { id: "almanac", glyph: "book-open", group: "palette.group.task", run: () => openAlmanacPanel() },
+      { id: "manual", glyph: "book-open-text", group: "palette.group.task", run: () => openManualPanel() },
       { id: "batch", glyph: "layers", group: "palette.group.task", run: () => openBatchPanel() },
       { id: "export", glyph: "download", group: "palette.group.task", run: () => exportChat() },
       { id: "settings", glyph: "settings-2", group: "palette.group.surface", run: () => openSettingsPanel() },
@@ -6766,6 +7025,7 @@
       else if (view === "pulse") openPulseStage();
       else if (view === "templates") openTemplatesPanel();
       else if (view === "almanac") openAlmanacPanel();
+      else if (view === "manual") openManualPanel();
       else if (view === "ledger") openLedgerPanel();
       else if (view === "arcade") openArcade().catch((error) => showToast(error.message));
       else closePanel();

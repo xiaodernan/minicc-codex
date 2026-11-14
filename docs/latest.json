@@ -1,0 +1,30 @@
+{
+  "schema_version": "minicc.latest.v1",
+  "generated_at": "2026-11-14T10:19:05.127Z",
+  "branch": "main",
+  "head": "c4001d7",
+  "total_commits": 1438,
+  "first_commit_at": "2026-08-24",
+  "roadmap_batches": 249,
+  "changelog_entries": 1,
+  "roadmap_lines": 51003,
+  "tracked_files": 1038,
+  "test_files": 701,
+  "almanac_chapters": 9,
+  "feature_surface": [
+    "workbench",
+    "ledger",
+    "pulse",
+    "almanac",
+    "templates",
+    "replay",
+    "running-light",
+    "spring-cloud-plane",
+    "redis-cache",
+    "cached-first-call",
+    "cli-digest",
+    "api-digest",
+    "manual"
+  ],
+  "headline": "minicc-codex - a local-first coding workbench where the model, the tools, and the gates all answer to you."
+}
