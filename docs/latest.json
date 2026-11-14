@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-14T20:02:36.844Z",
+  "generated_at": "2026-11-14T20:19:22.663Z",
   "branch": "main",
-  "head": "e9c6d63",
-  "total_commits": 1516,
+  "head": "5225518",
+  "total_commits": 1518,
   "recent_commits": [
+    {
+      "short": "5225518",
+      "at": "2026-11-15T04:18:50+08:00",
+      "subject": "M8-T966: arcade Hall of Fame - personal bests for score and combo persist across sessions (localStorage 'minicc-game-best'), rendered in the HUD next to the liv"
+    },
+    {
+      "short": "755c69b",
+      "at": "2026-11-14T20:02:37Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "e9c6d63",
       "at": "2026-11-15T04:02:15+08:00",
@@ -19,22 +29,12 @@
       "short": "8fa4789",
       "at": "2026-11-15T03:45:33+08:00",
       "subject": "M8-T964: the '?' shortcut panel - grouped, sourced from one cheat-sheet-data home (manual chapter 4 now renders from it too), fully styled for the first time (."
-    },
-    {
-      "short": "9a5bbb5",
-      "at": "2026-11-15T03:34:59+08:00",
-      "subject": "M8-T963b: INDEX.md now lists CACHE_AFFINITY_MATRIX.md - CI's every-doc-is-reachable gate caught the omission; both OS runners now have zero failures from it"
-    },
-    {
-      "short": "4c3acf7",
-      "at": "2026-11-14T19:33:55Z",
-      "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 284,
+  "roadmap_batches": 285,
   "changelog_entries": 1,
-  "roadmap_lines": 51911,
+  "roadmap_lines": 51932,
   "tracked_files": 1054,
   "test_files": 702,
   "almanac_chapters": 12,
