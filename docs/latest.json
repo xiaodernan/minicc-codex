@@ -1,10 +1,20 @@
 {
   "schema_version": "minicc.latest.v1",
-  "generated_at": "2026-11-14T15:22:54.682Z",
+  "generated_at": "2026-11-14T15:33:27.180Z",
   "branch": "main",
-  "head": "cd6232b",
-  "total_commits": 1475,
+  "head": "d9998d8",
+  "total_commits": 1477,
   "recent_commits": [
+    {
+      "short": "d9998d8",
+      "at": "2026-11-14T23:32:53+08:00",
+      "subject": "M8-T947: the Quiet Room - manual chapter 8, the project's own creed in both languages: no sponsor / no proprietary wisdom / no theatrical agent / no THE PLAN / "
+    },
+    {
+      "short": "d6e4b7e",
+      "at": "2026-11-14T15:22:54Z",
+      "subject": "chore(latest): refresh showcase fact pack"
+    },
     {
       "short": "cd6232b",
       "at": "2026-11-14T23:12:24+08:00",
@@ -19,22 +29,12 @@
       "short": "5654253",
       "at": "2026-11-14T14:48:39Z",
       "subject": "chore(latest): refresh showcase fact pack"
-    },
-    {
-      "short": "6fa121d",
-      "at": "2026-11-14T22:46:58+08:00",
-      "subject": "M8-T945: fact pack carries 5 latest commits (short/at/subject); showcase minicc card renders them live for visitors"
-    },
-    {
-      "short": "2a0f62a",
-      "at": "2026-11-14T14:40:27Z",
-      "subject": "chore(latest): refresh showcase fact pack"
     }
   ],
   "first_commit_at": "2026-08-24",
-  "roadmap_batches": 266,
+  "roadmap_batches": 267,
   "changelog_entries": 1,
-  "roadmap_lines": 51517,
+  "roadmap_lines": 51537,
   "tracked_files": 1050,
   "test_files": 702,
   "almanac_chapters": 9,
