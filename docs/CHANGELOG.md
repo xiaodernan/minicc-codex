@@ -254,3 +254,5 @@
 - **上手演练（Onboarding tour），M8-T941**：新用户两分钟产品演练——首次到访右下角长出"第一次来？"按钮，6 步（welcome → 侧边控台 → 输入框 → 演示流程 → 年鉴 → 完成）zh/en 全双语；聚光灯 + 呼吸光晕高亮 + 下沉叙事卡；Esc 随时退出；⌘K 搜 `tour` 随时重开；完成即记忆，不再占右下角。README 模块清单新增上手演练条目；真浏览器 zh/en 双侧验证（offer 出现 → 6 步 → minicc-tour-v1=done → 刷新不再出现）。
 
 - **第十四板块「近况」，M8-T942**：新增 `web/src/panels/recent.js`——侧边「近况」（newspaper + UPD 徽标），开板即现场拉 `/api/roadmap` 展示最近十五批：`#批次` 等宽号 + `M8-Txxxx` 徽标 + 原样标题，最新一条 mint 描边高亮；页脚一键跳档案馆。README 模块清单新增近况条目；⌘K 可搜；真浏览器 zh/en 双侧验证（15 行渲染 / meta 259 批 / 702 测试文件 / archive 跳转 / en chrome 零 CJK（章节标题为仓库用户数据，原样呈现））。
+
+- **展示页事实包追上 14 个模块，M8-T943**：`scripts/update-latest-json.mjs` 的 `module_count: 14`，`feature_surface` 增加 `archive` 与 `recent`（17 项）；展示页 minicc 卡片说明已同步为「侧边十四块」；事实包随每次含 docs 的 push 自动刷新。

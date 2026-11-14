@@ -60,7 +60,7 @@ const payload = {
   tracked_files: trackedFiles,
   test_files: testFiles,
   almanac_chapters: 9,
-  module_count: 12,
+  module_count: 14,
   feature_surface: [
     "workbench",
     "ledger",
@@ -70,6 +70,8 @@ const payload = {
     "manual",
     "axioms",
     "journal",
+    "archive",
+    "recent",
     "replay",
     "running-light",
     "spring-cloud-plane",

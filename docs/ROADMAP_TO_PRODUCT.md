@@ -51431,3 +51431,21 @@ ROADMAP_TO_PRODUCT.md 是这个项目自己的史书，258 个批次号，但没
 
 - 这一屏不是"周刊"，而是本周都在烧的真相：每次打开都是最新的。
   一切编者的话都来自 ROADMAP_TO_PRODUCT.md——一显示、一来源，无漂移。
+
+## 批次 938 - M8-T943：展示页事实包追上 14 个模块
+
+### 1 背景
+
+侧边栏已经长到 14 块（任务/工作区/活动/账本/模板/说明书/年鉴/铁律/日志/档案馆/近况/脉搏/宣传页/小游戏），
+而 `docs/latest.json` 的 feature_surface 还停在 12，module_count 12。展示页访客看到的不该少一块。
+
+### 2 变更
+
+- `scripts/update-latest-json.mjs`：`module_count: 14`；`feature_surface` 增加
+  `archive` 与 `recent`（更新到当下 17 项事实列表）。
+- 展示页 minicc 卡片说明文案已推送为「侧边十四块…」（pages 6fa3a60 / fdc1bc9）。
+
+### 3 验证
+
+- `node scripts/update-latest-json.mjs` → module_count=14，事实包含 archive/recent ✓
+- update-latest workflow 会在含 docs 的推送中自动刷新事实包（headline/feature_surface 与现在一致）。
