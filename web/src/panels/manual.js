@@ -101,6 +101,7 @@ function zhModules() {
       <li><strong>模板库 · Templates</strong> — 8 张策展过的常见任务提示词（项目扫描 / 测试修复 / 安全检查 / README / 翻译 / 依赖 / 现代化 / 冒烟），一键送进对话。</li>
       <li><strong>回放 · Replay</strong> — 任务详情内「回放整个任务」，按事件顺序播放：播放/暂停、scrub 进度条、1×/2×/4× 变速、tokens 旁路累加。</li>
       <li><strong>航行灯 · Running light</strong> — 侧边栏常驻一枚小灯：缓存命中率 × 任务数 × 分支 @ HEAD，四色温；点击直达账本。</li>
+      <li><strong>火苗 · The flame</strong> — 连续完成任务的天数：一天 ≥1 次真实任务即点亮一次，金焰色呼吸光晕置于侧边栏；两天没完成就从头计算。全部本地保存，不出网。</li>
       <li><strong>小游戏 · Arcade</strong> — 侧边栏「小游戏」进入塔防植物大战僵尸系列；build 在 <code>web/game.js</code>，纯离线，离线也能玩。</li>
     </ul>
   `;
@@ -116,6 +117,7 @@ function enModules() {
       <li><strong>Templates</strong> — 8 curated prompts for common jobs (project scan / test+fix / safety / README / translation / deps / modernize / smoke), one click into chat.</li>
       <li><strong>Replay</strong> — “Replay this task” from the detail view, plays event-by-event: play/pause, scrubber, 1×/2×/4× speed, side-mounted token counter.</li>
       <li><strong>Running light</strong> — an always-on sidebar dot: cache hit rate × tasks × branch @ HEAD, four tones; click to open the ledger.</li>
+      <li><strong>The flame</strong> — days in a row with at least one completed task: one flame per calendar day, breathing gold in the sidebar; two misses restart the count. Local-only, never leaves this machine.</li>
       <li><strong>Arcade</strong> — sidebar entry “Arcade” opens a Plants-vs-Zombies-style tower defense; pure offline, playable with the network down.</li>
     </ul>
   `;

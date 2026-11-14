@@ -2933,6 +2933,7 @@
       <li><strong>\u6A21\u677F\u5E93 \xB7 Templates</strong> \u2014 8 \u5F20\u7B56\u5C55\u8FC7\u7684\u5E38\u89C1\u4EFB\u52A1\u63D0\u793A\u8BCD\uFF08\u9879\u76EE\u626B\u63CF / \u6D4B\u8BD5\u4FEE\u590D / \u5B89\u5168\u68C0\u67E5 / README / \u7FFB\u8BD1 / \u4F9D\u8D56 / \u73B0\u4EE3\u5316 / \u5192\u70DF\uFF09\uFF0C\u4E00\u952E\u9001\u8FDB\u5BF9\u8BDD\u3002</li>
       <li><strong>\u56DE\u653E \xB7 Replay</strong> \u2014 \u4EFB\u52A1\u8BE6\u60C5\u5185\u300C\u56DE\u653E\u6574\u4E2A\u4EFB\u52A1\u300D\uFF0C\u6309\u4E8B\u4EF6\u987A\u5E8F\u64AD\u653E\uFF1A\u64AD\u653E/\u6682\u505C\u3001scrub \u8FDB\u5EA6\u6761\u30011\xD7/2\xD7/4\xD7 \u53D8\u901F\u3001tokens \u65C1\u8DEF\u7D2F\u52A0\u3002</li>
       <li><strong>\u822A\u884C\u706F \xB7 Running light</strong> \u2014 \u4FA7\u8FB9\u680F\u5E38\u9A7B\u4E00\u679A\u5C0F\u706F\uFF1A\u7F13\u5B58\u547D\u4E2D\u7387 \xD7 \u4EFB\u52A1\u6570 \xD7 \u5206\u652F @ HEAD\uFF0C\u56DB\u8272\u6E29\uFF1B\u70B9\u51FB\u76F4\u8FBE\u8D26\u672C\u3002</li>
+      <li><strong>\u706B\u82D7 \xB7 The flame</strong> \u2014 \u8FDE\u7EED\u5B8C\u6210\u4EFB\u52A1\u7684\u5929\u6570\uFF1A\u4E00\u5929 \u22651 \u6B21\u771F\u5B9E\u4EFB\u52A1\u5373\u70B9\u4EAE\u4E00\u6B21\uFF0C\u91D1\u7130\u8272\u547C\u5438\u5149\u6655\u7F6E\u4E8E\u4FA7\u8FB9\u680F\uFF1B\u4E24\u5929\u6CA1\u5B8C\u6210\u5C31\u4ECE\u5934\u8BA1\u7B97\u3002\u5168\u90E8\u672C\u5730\u4FDD\u5B58\uFF0C\u4E0D\u51FA\u7F51\u3002</li>
       <li><strong>\u5C0F\u6E38\u620F \xB7 Arcade</strong> \u2014 \u4FA7\u8FB9\u680F\u300C\u5C0F\u6E38\u620F\u300D\u8FDB\u5165\u5854\u9632\u690D\u7269\u5927\u6218\u50F5\u5C38\u7CFB\u5217\uFF1Bbuild \u5728 <code>web/game.js</code>\uFF0C\u7EAF\u79BB\u7EBF\uFF0C\u79BB\u7EBF\u4E5F\u80FD\u73A9\u3002</li>
     </ul>
   `;
@@ -2947,6 +2948,7 @@
       <li><strong>Templates</strong> \u2014 8 curated prompts for common jobs (project scan / test+fix / safety / README / translation / deps / modernize / smoke), one click into chat.</li>
       <li><strong>Replay</strong> \u2014 \u201CReplay this task\u201D from the detail view, plays event-by-event: play/pause, scrubber, 1\xD7/2\xD7/4\xD7 speed, side-mounted token counter.</li>
       <li><strong>Running light</strong> \u2014 an always-on sidebar dot: cache hit rate \xD7 tasks \xD7 branch @ HEAD, four tones; click to open the ledger.</li>
+      <li><strong>The flame</strong> \u2014 days in a row with at least one completed task: one flame per calendar day, breathing gold in the sidebar; two misses restart the count. Local-only, never leaves this machine.</li>
       <li><strong>Arcade</strong> \u2014 sidebar entry \u201CArcade\u201D opens a Plants-vs-Zombies-style tower defense; pure offline, playable with the network down.</li>
     </ul>
   `;
