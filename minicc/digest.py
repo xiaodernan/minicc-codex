@@ -63,6 +63,37 @@ def _count_batch_headings(path: Path) -> int | None:
     return sum(1 for line in text.splitlines() if line.startswith("## 批次"))
 
 
+def format_digest(report: dict[str, Any], *, json_out: bool = False) -> str:
+    """Human-readable rendering of :func:`build_digest` (or JSON passthrough)."""
+    if json_out:
+        import json
+
+        return json.dumps(report, ensure_ascii=False)
+
+    def field(value: Any) -> str:
+        return "—" if value is None else str(value)
+
+    lines = [f"minicc digest · workspace {report.get('workspace')}"]
+    lines.append("repository: git" if report.get("is_git") else "repository: not a git work tree")
+    if report.get("is_git"):
+        lines.append(f"branch: {field(report.get('branch'))}{' @ ' + str(report['head_short']) if report.get('head_short') else ''}")
+        ahead = report.get("upstream_ahead")
+        behind = report.get("upstream_behind")
+        lines.append(
+            f"upstream: {('ahead ' + str(ahead)) if ahead is not None else 'upstream not configured'}"
+            + (f" · behind {behind}" if behind is not None else "")
+        )
+        lines.append(f"dirty entries: {field(report.get('dirty_entries'))}")
+        lines.append(f"commits: {field(report.get('total_commits'))}")
+        lines.append(f"first commit: {field(report.get('first_commit_at'))}")
+        lines.append(f"tracked files: {field(report.get('tracked_files'))}")
+        lines.append(f"test files: {field(report.get('test_files'))}")
+    lines.append(f"roadmap batches: {field(report.get('roadmap_batches'))}")
+    lines.append(f"roadmap lines: {field(report.get('roadmap_lines'))}")
+    lines.append(f"changelog lines: {field(report.get('changelog_lines'))}")
+    return "\n".join(lines)
+
+
 def build_digest(workspace: Path | str) -> dict[str, Any]:
     """The read-only fact pack for ``/api/digest`` and the Almanac panel."""
     root = Path(workspace)

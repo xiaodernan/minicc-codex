@@ -202,3 +202,5 @@
 - **年鉴第六卷《The Gate · 门神》（M8-T911）**：年鉴新增一章——CI 从角色黑名单里走进叙事中心。双平台全量、文档门禁（悬空证据零容忍）、路由覆盖率 + 引用面、21 个 JS 协议门、plane 的 mvn ×7 模块、真浏览器 ×2，每一道门都不允许说谎。三格仪器全部取自 `/api/digest` 真实读数（1424 提交 / 700 测试文件 / 235 章手稿），rail 共 7 章。
 
 - **「回放 · Replay the Run」上线（M8-T912）**：任务详情新增「回放整个任务」，全屏电影席按事件顺序逐行浮现——事件流可暂停/倍速（1×/2×/4×）/拖拽 scrub、tokens 侧栏累加动画、通关蜡封落字。事件与聊天时间轴同一可见性口径（`compactModelUpdateEvents`），老快照诚实空态，零新后端。真实浏览器探针通关（0→逐行→scrub 10/10→返回详情→Esc 关闭，零 pageerror）。
+
+- **`minicc --digest` CLI 上线（M8-T913）**：仓库考古学读数不再只是 HTTP 端点——`minicc --digest` 输出 branch@HEAD / upstream 漂移 / 提交数 / 首次提交 / tracked/test 文件 / roadmap 批次与行数；`--digest --json` 与 `/api/digest` 同 schema（`minicc.digest.v1`）。非 git 目录诚实降级。新增 4 条 CLI 用例 + digest 套件 9 绿。

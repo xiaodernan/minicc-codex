@@ -50637,3 +50637,37 @@ M8-T898 的年鉴序章问的是"这个世界是什么"——却只有文字。M
 
 `web/src/panels/replay.js`（新增）、`web/src/chat/stream.js`、`web/src/main.js`、`web/src/core/i18n.js`、
 `web/styles.css`、`web/app.js`、`web/asset-manifest.json`、content-addressed bundle
+
+## 批次 913 - M8-T913：`minicc --digest` — 把仓库考古学读数搬上 CLI
+
+### 1 为什么
+
+M8-T905 让 `/api/digest` 回答"这是什么仓库"，但 CLI 发烧友（和 CI 操作员）不开 web 工作台
+也有同样的疑问。`--stats` 已是只读清单的样板，这一批给 CLI 补上对称的一等入口。
+
+### 2 做了什么
+
+- **`minicc/digest.py`** — 新增 `format_digest(report, *, json_out=False)`：
+  文本模式输出与 doctor/stats 同族的对齐行（repository / branch@HEAD / upstream ahead|behind /
+  dirty entries / commits / first commit / tracked / test files / roadmap batches|lines / changelog lines）；
+  JSON 模式逐字透传 digest payload（与 `/api/digest` 同 schema `minicc.digest.v1`）。
+- **`minicc/main.py`** — `--digest` 与 `--stats` 并列：加入 `informational` 组（`--json` 可用、错误提示同步更新）、
+  在 credential-free 分派区（`--doctor` 之后、`--stats` 之前后均可）直接返回 0；不触网、不跑模型。
+- **`tests/test_digest_cli.py`（新增，4 条）** — 普通目录降级（无 git 事实、不报错、JSON schema 仍完整、rc=0）、
+  真 git 仓库（branch=main / commits=1 / 无 roadmap 时手稿数显示 `—`）、JSON 模式与 HTTP schema 对齐、
+  隔离 MINICC_HOME（测试绝不读开发者真实环境）。
+
+### 3 实测（本机真实仓库）
+
+`minicc --digest` → `repository: git / branch: main @ b01a117 / upstream: ahead 0 · behind 0 /`
+`commits: 1426 / first commit: 2026-08-24T03:15:33+08:00 / tracked files: 1037 / test files: 700 /`
+`roadmap batches: 237 / changelog lines: 204`；`--json` 与 HTTP 端点同字段。
+
+### 4 验证
+
+- `pytest tests/test_digest_cli.py` → **4 passed**（连同 test_workspace_digest 一起 9 passed）
+- `pytest tests/test_stats.py` → **8 passed**（CLI 分派未破坏既有只读清单）
+
+### 5 文件
+
+`minicc/digest.py`、`minicc/main.py`、`tests/test_digest_cli.py`

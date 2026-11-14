@@ -263,6 +263,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--doctor", action="store_true", help="运行工作区自检并退出（不调网络、不跑模型）")
     parser.add_argument("--doctor-strict", action="store_true", help="同 --doctor，但 warning 也按 fatal 处理（CI 风险守门）")
     parser.add_argument("--stats", action="store_true", help="只读打印工作区现状清单（不调网络、不跑模型）")
+    parser.add_argument("--digest", action="store_true", help="只读打印工作区的仓库考古学读数：分支 / 提交 / 首次提交 / 批次手稿（不调网络、不跑模型）")
     parser.add_argument(
         "--capabilities",
         action="store_true",
@@ -897,9 +898,10 @@ def main(argv: list[str] | None = None) -> int:
         or getattr(args, "doctor_strict", False)
         or getattr(args, "stats", False)
         or getattr(args, "capabilities", False)
+        or getattr(args, "digest", False)
     )
     if getattr(args, "json", False) and not informational:
-        cli_out("error: --json 仅与 --doctor / --doctor-strict / --stats / --capabilities 搭配使用")
+        cli_out("error: --json 仅与 --doctor / --doctor-strict / --stats / --capabilities / --digest 搭配使用")
         return 2
     # M7-T4: resolve the workspace before loading config so the project
     # layer (<workspace>/.minicc/config.json) participates in resolution.
@@ -936,6 +938,13 @@ def main(argv: list[str] | None = None) -> int:
 
         report = gather(workspace)
         cli_out(format_stats(report, json_out=bool(getattr(args, "json", False))))
+        return 0
+
+    if getattr(args, "digest", False):
+        from .digest import build_digest, format_digest
+
+        report = build_digest(workspace)
+        cli_out(format_digest(report, json_out=bool(getattr(args, "json", False))))
         return 0
 
     # 能力目录在配置解析之前处理：它只读注册表，不该因为机器上没有 API key
