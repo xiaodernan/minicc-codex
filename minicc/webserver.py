@@ -110,6 +110,15 @@ def error_code_for(exc: BaseException | None) -> str:
 class MiniccHTTPServer(ThreadingHTTPServer):
     allow_reuse_address = True
     daemon_threads = True
+    # socketserver.TCPServer's default is 5. Under a 20-client burst the
+    # listen backlog fills before the next accept() lands and the kernel
+    # refuses the SYN — the client gets a zero-status connection reset
+    # instead of a queued reply, and the load test records it as an
+    # error with no status. Slow-request coalescing already lives one
+    # layer below (stats/digest/roadmap are per-PID memoized); the
+    # backlog is the one queue nothing else covers — raise it so bursts
+    # wait in line instead of dying at the door.
+    request_queue_size = 128
 
     def __init__(
         self,

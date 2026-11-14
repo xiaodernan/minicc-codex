@@ -61,3 +61,48 @@ paths concurrency=8 duration_ms=12000
 
 - `M8-T968` — per-workspace disk-bytes lock coalesces concurrent cold walks (docs/ROADMAP_TO_PRODUCT.md batch, commit message references this file).
 - `M8-T969` — `scripts/load-test.mjs` fires the 6 read-only endpoints with `CONCURRENCY` workers for `DURATION`; reports `n / errors / p50 / p95 / p99 / max`.
+
+
+## Update 2026-11-15 (M8-T979) — boot prefetch, single-flight memo, backlog 128
+
+Three changes landed together after a repeat 20-way cold run still showed
+connection-refused bursts and 30+ s stats tails:
+
+1. `minicc/webserver.py::MiniccHTTPServer.request_queue_size = 128` (was the
+   `socketserver` default of 5). The listen backlog is the one queue nothing
+   else covers; slow-request coalescing already lives below it.
+2. `minicc/web.py::serve()` now kicks a daemon `minicc-prefetch` thread at
+   startup that calls `roadmap()`, `digest()`, `stats()` once while the
+   user is opening the browser. Cold stats/digest cost lands before first
+   paint, not on first click. `--no-prefetch` opts out for constrained
+   environments.
+3. `AgentService._memo_http` now *single-flights* its TTL rebuilds (a sibling
+   may have rebuilt the value while we queued on the lock — reuse it), and
+   the TTL moved 5s → 30s. The TTL boundary can no longer thundering-herd
+   into N cold walks.
+
+Measured (this machine, this repo, c=20, 15 s window, warm caches after boot
+prefetch):
+
+```
+paths concurrency=20 duration_ms=15000
+                  /api/health      n=   119 errors=   0  p50=3.65    p95=100.99  p99=138.22
+                  /api/metrics     n=   119 errors=   0  p50=7.70    p95=73.90   p99=89.81
+                  /api/digest      n=   119 errors=   0  p50=3.90    p95=1096.64 p99=1113.67
+                  /api/stats       n=   119 errors=   0  p50=4.20    p95=44.67   p99=89.48
+                  /api/roadmap     n=   119 errors=   0  p50=4.11    p95=116.18  p99=130.84
+                  /api/workspace   n=   119 errors=   0  p50=2382.83 p95=3253.25 p99=3268.37
+```
+
+Every path answers 200 with zero connection resets. The one remaining slow
+path is `/api/workspace` (p50 ≈ 2.4 s), which re-reads the workspace tree
+per call and is not memoized — flagged as the next target, deliberately not
+shipped in the same batch. Before this change, the same c=20 burst on a
+cold server answered **7/20 health, 11/20 metrics, 13/20 digest, 18/20
+stats** (`minicc-web` Python-GIL contention + default backlog). After:
+119/119, 0 errors.
+
+Caveat kept honest: the previous 5 s TTL run at c=20 errored only before the
+backlog raise; warm-cache runs were already clean. The wins stack, none of
+them is claiming the GIL went away — it just stopped mattering for the
+read-only fact packs.

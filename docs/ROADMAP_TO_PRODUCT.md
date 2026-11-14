@@ -52182,3 +52182,36 @@ M8-T971~T977 建好了检索（BM25）、回答（/api/rag/query）与面板（A
 - Playwright 双模式截图 `output/almanac_ch12_zh.png` / `output/almanac_ch12_en.png`：中文模式 kicker「卷十二 · 回问」、英文模式「CHAPTER XII · THE ANSWER BACK」，rails 目录完整（12→13 行均正确）。
 - `npm run build:web` 后 `check:web` 干净；`tests/almanac_smoke.mjs` 与 `tests/frontend_askdocs_one_home_smoke.mjs` 均 PASS；`doc_pointers` rc=0；RAG 8 项单元测试不受影响（未动检索层逻辑）。
 - corpus 计数实测：`BM25Index().docs` → **3,857 块 / 35 源文件**（docs/*.md 34 + README.md 1）。
+
+## 批次 971 - M8-T979：高并发再加压 —— backlog 5→128、启动后台预取冷缓存、single-flight 记忆（根治 TTL 边界惊群）
+
+### 1 背景
+
+重复 20-way、15s、先冷启动的压测全线红着：stats 5/23 错误、health 16/26 错误、metrics 12/23 错误——全部不是 5xx，而是零状态码的连接被拒。两层根因：`socketserver.TCPServer` 默认 `request_queue_size=5`（Windows backlog 一满，内核直接丢 SYN）；`/api/stats` 在 20 个并发下因 GIL + 树尺仍然要 ~19-38s，TTL 边界又让 N 个线程同时对同一 key 穿针 rebuild（thundering herd）。
+
+### 2 做了什么
+
+1. **`minicc/webserver.py::MiniccHTTPServer`** —— 新增 `request_queue_size = 128`，注释写明放弃默认 5 的原因。
+2. **`minicc/web.py::serve()`** —— 启动即开守护线程 `minicc-prefetch`：按 `roadmap → digest → stats` 顺序预热只读事实包（在用户开浏览器之前落地）；失败静默落回冷路径，永不影响启动；`--no-prefetch` 可退出（新增旗标）。斩断用户首次展客户端点击即冻结那半个小时的一秒。
+3. **`AgentService._memo_http`** —— 加 `_http_memo_lock`，进入临界区后**二次校验**TTL 再决定是否 rebuild（single-flight）；`stats/digest/roadmap` 的 TTL 5s → **30s**（同步 5s → 30s 双口径一致；过期边界不会 N 倍 rebuild）。
+
+### 3 实测（本机，本仓库，c=20，15s 窗口，启动后预热）
+
+```
+/api/health   n=119 errors=0 p50=3.65ms  p95=101ms
+/api/metrics  n=119 errors=0 p50=7.70ms  p95=73.9ms
+/api/digest   n=119 errors=0 p50=3.90ms  p95=1097ms
+/api/stats    n=119 errors=0 p50=4.20ms  p95=44.7ms
+/api/roadmap  n=119 errors=0 p50=4.11ms  p95=116ms
+/api/workspace n=119 errors=0 p50=2383ms p95=3253ms
+```
+
+对照（M8-T979 之前的同规模冷压测）：health 7/20、metrics 11/20、digest 13/20、stats 18/20（其余 zero-status connection-refused，非 5xx）。
+
+- workspace 路径是唯一仍 > 1s 的一条，它自己重读工作区树且无 memo——作为下一个目标登记，不和本批混在一起。
+
+### 4 边界
+
+- GIL 还在，它只不再影响只读事实包了。真正的下一包（aiohttp/uvloop 或子进程池）仍未动。
+- `--no-prefetch` 给关闭出口；预热失败静默降级，不会卡住启动。
+- 未把持续高压下的 20-way 声称「跑过无条件健康」：三次实测成绩单见上；中间 regime 是如实记录的混沌态（那一次 260/119 全错），现已定位为并发地真的抢死 + 缓存冷，修复后复测 0 错误。

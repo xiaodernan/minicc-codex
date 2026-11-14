@@ -453,8 +453,11 @@ class AgentService:
         # M8-T969b: tiny per-process memo for the read-only fact packs the
         # web UI polls (stats/digest/roadmap). 5 seconds is short enough
         # that no panel becomes stale and long enough to kill the burst
-        # of concurrent cold calls a refresh can trigger.
+        # of concurrent cold calls a refresh can trigger. M8-T979 adds the
+        # single-flight lock around check+rebuild so the TTL boundary
+        # cannot thundering-herd into N simultaneous rebuilds.
         self._http_memo: dict[str, tuple[float, dict[str, Any]]] = {}
+        self._http_memo_lock = threading.Lock()
         # M8-T5: the provider key must never reach a log line, and it does not
         # always match a known secret shape, so register the exact value.
         register_secret(getattr(config, "api_key", ""))
@@ -3422,9 +3425,17 @@ class AgentService:
         hit = self._http_memo.get(key)
         if hit is not None and now - hit[0] < ttl_seconds:
             return hit[1]
-        value = builder()
-        self._http_memo[key] = (now, value)
-        return value
+        with self._http_memo_lock:
+            # Single-flight: a sibling may have rebuilt this while we were
+            # queuing on the lock — reuse it instead of walking the tree
+            # again. The TTL boundary can no longer trigger N cold rebuilds.
+            now = time.monotonic()
+            hit = self._http_memo.get(key)
+            if hit is not None and now - hit[0] < ttl_seconds:
+                return hit[1]
+            value = builder()
+            self._http_memo[key] = (now, value)
+            return value
 
     def roadmap(self) -> dict[str, Any]:
         """The read-only ledger fact pack for ``/api/roadmap``.
@@ -3436,7 +3447,7 @@ class AgentService:
         """
         from .roadmap_archive import build_roadmap_archive
 
-        return self._memo_http("roadmap", 5.0, lambda: build_roadmap_archive(self.workspace / "docs" / "ROADMAP_TO_PRODUCT.md"))
+        return self._memo_http("roadmap", 30.0, lambda: build_roadmap_archive(self.workspace / "docs" / "ROADMAP_TO_PRODUCT.md"))
 
     def digest(self) -> dict[str, Any]:
         """The read-only workspace fact pack for ``/api/digest``.
@@ -3450,7 +3461,7 @@ class AgentService:
         """
         from .digest import build_digest
 
-        return self._memo_http("digest", 5.0, lambda: build_digest(self.workspace))
+        return self._memo_http("digest", 30.0, lambda: build_digest(self.workspace))
 
     def stats(self) -> dict[str, Any]:
         """The read-only operational inventory for ``/api/stats``.
@@ -3465,7 +3476,7 @@ class AgentService:
         """
         from .stats import gather
 
-        return self._memo_http("stats", 5.0, lambda: gather(self.workspace))
+        return self._memo_http("stats", 30.0, lambda: gather(self.workspace))
 
     def shutdown(self) -> None:
         # Unblock any agent threads parked on an approval prompt first, so
@@ -3492,6 +3503,11 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="即使绑定非回环地址也关闭 token 认证（不推荐，仅限隔离网络）",
     )
+    parser.add_argument(
+        "--no-prefetch",
+        action="store_true",
+        help="不在后台预取 stats/digest 冷缓存（默认预取，首次请求免等待）",
+    )
     args = parser.parse_args(argv)
     configure_logging()
     workspace = args.workspace.expanduser().resolve()
@@ -3512,6 +3528,23 @@ def main(argv: list[str] | None = None) -> int:
     register_secret(token)
     service = AgentService(workspace, config)
     server = MiniccHTTPServer((args.host, args.port), service, auth=auth)
+    if not getattr(args, "no_prefetch", False):
+        # M8-T979: the read-only packs (stats/digest/roadmap) pay one cold
+        # walk over the workspace tree on first hit. Kick that same walk in
+        # a daemon thread at startup; by the time the first browser request
+        # lands, the TTL caches are warm. Failures degrade silently to the
+        # cold path — never a boot loop — and stay best-effort by design.
+        def _prefetch() -> None:
+            for name in ("roadmap", "digest", "stats"):
+                fn = getattr(service, name, None)
+                if fn is None:
+                    continue
+                try:
+                    fn()
+                except Exception:  # noqa: BLE001 - prefetch is best-effort; the route falls back to the cold walk
+                    continue
+
+        threading.Thread(target=_prefetch, name="minicc-prefetch", daemon=True).start()
     cli_out(f"minicc web: http://{args.host}:{args.port}/")
     cli_out(f"workspace: {workspace}")
     if required:
