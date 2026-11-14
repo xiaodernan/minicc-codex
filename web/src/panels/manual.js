@@ -26,12 +26,13 @@ function zhStart() {
   return `
     <p class="manual-lede">一个本地优先的编程智能体——它接受 <code>MINICC_API_KEY</code>、<code>MINICC_BASE_URL</code>、<code>MINICC_MODEL</code>，然后在你的工作区里真正读写、运行、验证，最后把证据交回给你。</p>
     <ol class="manual-list">
-      <li><strong>五分钟</strong>：复制 <code>minicc.config.example</code> 为 <code>.env</code>，填入三个环境变量（任何 OpenAI 兼容的网关都可以，包括你的私有代理）。</li>
-      <li>启动工作台：<code>minicc-web --workspace /你的项目路径</code></li>
-      <li>打开 <code>http://127.0.0.1:8765/</code>，在输入框里直接说人话——比如「读一下 README.md 然后告诉我这个项目是干嘛的」。</li>
-      <li>看见 <em>已连接</em> 与 <em>任务实时流</em> 即表示一切正常。回答完毕后点开任务详情，里面有全部工具调用与验证结果。</li>
+      <li><strong>第一步：配置</strong> 复制 <code>minicc.config.example</code> 为 <code>.env</code>，填入三个环境变量：<code>MINICC_API_KEY</code>、<code>MINICC_BASE_URL</code>、<code>MINICC_MODEL</code>（任何 OpenAI 兼容的网关都可以，包括你的私有代理）。</li>
+      <li><strong>第二步：启动</strong> <code>minicc-web --workspace /你的项目路径</code>，打开 <code>http://127.0.0.1:8765/</code>。</li>
+      <li><strong>第三步：发第一个任务</strong> 在输入框里说人话——比如「读一下 README.md 并告诉我这个项目是干嘛的」。多任务会自动拆成父子任务。</li>
+      <li><strong>第四步：看连接</strong> 底部状态栏出现 <em>已连接</em>、任务流开始滚动，说明模型与本地工具都通了。回答出来后点开任务详情，里面有全部工具调用、逐轮缓存命中率、完成验收记录。</li>
+      <li><strong>第五步：回放</strong> 任务详情顶部点「回放整个任务」，按事件顺序重演一次交付过程——像看一场电影，支持暂停、拖拽进度、1×/2×/4× 倍速。</li>
     </ol>
-    <p>命令行里也能直接用：<code>minicc "读 README 并总结"</code>，或 <code>minicc --stats</code> 看工作区体征。</p>
+    <p>不想打开浏览器？命令行也能直接用：<code>minicc "读 README 并总结"</code>，或 <code>minicc --stats</code> 看工作区体征。</p>
   `;
 }
 
@@ -39,12 +40,13 @@ function enStart() {
   return `
     <p class="manual-lede">A local-first coding agent. Give it <code>MINICC_API_KEY</code>, <code>MINICC_BASE_URL</code> and <code>MINICC_MODEL</code>, and it reads, edits, runs and verifies — then hands you the evidence.</p>
     <ol class="manual-list">
-      <li><strong>Five minutes</strong>: copy <code>minicc.config.example</code> to <code>.env</code>, fill the three variables (any OpenAI-compatible gateway works, including your private proxy).</li>
-      <li>Start the workbench: <code>minicc-web --workspace /path/to/your/project</code></li>
-      <li>Open <code>http://127.0.0.1:8765/</code> and say what you want — e.g. “Read README.md and tell me what this project does.”</li>
-      <li><em>Connected</em> + a live task stream means everything is working. Open the task detail afterwards for the full tool-call and verification record.</li>
+      <li><strong>Step 1 — Configure</strong> copy <code>minicc.config.example</code> to <code>.env</code> and fill three variables: <code>MINICC_API_KEY</code>, <code>MINICC_BASE_URL</code>, <code>MINICC_MODEL</code> (any OpenAI-compatible gateway works, including your private proxy).</li>
+      <li><strong>Step 2 — Start</strong> run <code>minicc-web --workspace /path/to/your/project</code>, open <code>http://127.0.0.1:8765/</code>.</li>
+      <li><strong>Step 3 — Send your first task</strong> type a sentence in the composer — e.g. “Read README.md and tell me what this project does.” Multi-part sentences are auto-split into parent and child tasks.</li>
+      <li><strong>Step 4 — Watch it connect</strong> the status bar shows <em>Connected</em> and the task stream starts scrolling. When the answer arrives, open the task detail to see every tool call, per-turn cache hit rate, and the completion verdict.</li>
+      <li><strong>Step 5 — Replay it</strong> from the task detail top, click “Replay the whole task” to replay the delivery event by event — pause, scrub the progress bar, 1×/2×/4× speed.</li>
     </ol>
-    <p>CLI works too: <code>minicc "Read README and summarize it"</code>, or <code>minicc --stats</code> for an operational inventory.</p>
+    <p>Prefer the CLI? <code>minicc "Read README and summarize it"</code>, or <code>minicc --stats</code> for an operational inventory.</p>
   `;
 }
 
@@ -140,27 +142,29 @@ function enKeys() {
 
 function zhArcade() {
   return `
-    <p class="manual-lede">「游戏厅」是工作台自带的真·游戏——不是 demo，不是占位符。植物对僵尸，塔防类型。</p>
+    <p class="manual-lede">「游戏厅」是工作台自带的真·游戏——不是 demo，不是占位符。植物对僵尸，塔防类型，纯前端，离线可玩。</p>
     <div class="manual-arcade">
-      <div><span class="arcade-label">玩法</span><p>把植物种在空地上，用太阳能抵御僵尸的进攻。机制是标准的塔防：阳光、成本、冷却、击杀、防守路线。</p></div>
-      <div><span class="arcade-label">四种技能</span><p>Pulse（25 阳光，7 秒冷却）、Sun（35 阳光）、Rally（45 阳光，14 秒）、Time Stop（55 阳光，18 秒）——每种技能只对特定局面有效。</p></div>
-      <div><span class="arcade-label">图鉴</span><p>游戏内置植物/僵尸图鉴——peashooter、sunflower、wall-nut、cherry bomb、gatling pea、jalapeno、magnetshroom……每种植物都有属性与 special 描述，终极关卡是「巨人僵尸」。</p></div>
-      <div><span class="arcade-label">怎么进游戏</span><p>侧边栏「小游戏」或者命令面板搜「Arcade/游戏厅」，按 <code>Enter</code> 即玩。离线可玩，随时按 <code>Esc</code> 返回工作台。</p></div>
+      <div><span class="arcade-label">怎么进</span><p>侧边栏「小游戏」或者命令面板搜「Arcade/游戏厅」，按 <code>Enter</code> 即玩。随时按 <code>Esc</code> 返回工作台。</p></div>
+      <div><span class="arcade-label">核心机制</span><p>种植物抵御僵尸进攻。阳光是资源，种植需要阳光值；每种植物有攻击/防御/特殊能力；僵尸从右向左推进，触碰到你的基地则失败。</p></div>
+      <div><span class="arcade-label">四种技能</span><p>Pulse（25 阳光，7 秒冷却）、Sun（35 阳光，立即回能）、Rally（45 阳光，14 秒冷却）、Time Stop（55 阳光，18 秒冷却）——每种技能只对特定局面有效，合理攒阳光比盲目种植更重要。</p></div>
+      <div><span class="arcade-label">图鉴</span><p>游戏内置植物/僵尸图鉴——peashooter、sunflower、wall-nut、cherry bomb、gatling pea、jalapeno、magnetshroom……每种植物都有属性与 special 描述；终极关卡是「巨人僵尸」。</p></div>
+      <div><span class="arcade-label">数据</span><p>游戏数据全部保存在你的浏览器里；关闭工作台不会丢失进度，清浏览器缓存会重置。</p></div>
     </div>
-    <p class="manual-footnote">游戏数据全部保存在你的浏览器里；关闭工作台不会丢失进度。</p>
+    <p class="manual-footnote">游戏代码在 <code>web/game.js</code>，纯前端，没有任何服务端交互。</p>
   `;
 }
 
 function enArcade() {
   return `
-    <p class="manual-lede">The Arcade is a real game baked into the workbench — not a demo, not a placeholder. Plants versus Zombies, tower-defense genre.</p>
+    <p class="manual-lede">The Arcade is a real game baked into the workbench — not a demo, not a placeholder. Plants versus Zombies, tower-defense genre, pure frontend, offline-playable.</p>
     <div class="manual-arcade">
-      <div><span class="arcade-label">How to play</span><p>Plant your units on the lawn and hold the line. Sun, cost, cooldown, kills, lanes — classic tower defense.</p></div>
-      <div><span class="arcade-label">Four skills</span><p>Pulse (25 sun, 7s cooldown), Sun (35 sun), Rally (45 sun, 14s), Time Stop (55 sun, 18s) — each is situational, none is generic.</p></div>
+      <div><span class="arcade-label">How to open</span><p>Sidebar entry « Arcade » or type “Arcade” in the command palette, then <code>Enter</code>. Plays offline; <code>Esc</code> returns to the workbench.</p></div>
+      <div><span class="arcade-label">Core loop</span><p>Plant units on the lawn and hold the line against zombies. Sun is the resource; planting costs sun; every plant has attack/defense/special traits; zombies push from right to left — reaching your base means failure.</p></div>
+      <div><span class="arcade-label">Four skills</span><p>Pulse (25 sun, 7s cooldown), Sun (35 sun, instant refill), Rally (45 sun, 14s cooldown), Time Stop (55 sun, 18s cooldown) — each skill is situational, none is generic; hoarding sun beats mindless planting.</p></div>
       <div><span class="arcade-label">The codex</span><p>In-game plant and zombie codex — peashooter, sunflower, wall-nut, cherry bomb, gatling pea, jalapeno, magnetshroom … each with stats and a special. The final wave is the gargantuar.</p></div>
-      <div><span class="arcade-label">How to open</span><p>Sidebar « Arcade » or type “Arcade” in the command palette, then <code>Enter</code>. Plays offline; <code>Esc</code> returns to the workbench.</p></div>
+      <div><span class="arcade-label">Data</span><p>All game state lives in your browser; closing the workbench never loses progress, clearing browser cache resets it.</p></div>
     </div>
-    <p class="manual-footnote">Everything stays in your browser; closing the workbench never loses your progress.</p>
+    <p class="manual-footnote">Game code lives in <code>web/game.js</code> — pure frontend, no server round-trip whatsoever.</p>
   `;
 }
 

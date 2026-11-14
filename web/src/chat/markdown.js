@@ -256,7 +256,7 @@ export function executionTrailMarkup(eventMarkup, events) {
 
 export function taskHistoryMarkup(task) {
   const prompt = task.prompt || task.preview || "";
-  const answer = task.answer || task.error || "任务没有返回可交付文字。";
+  const answer = task.answer || task.error || (state.locale === "zh" ? "任务没有返回可交付文字。" : "No answer yet, waiting for model response.");
   const rawStream = !task.answer && task.stream_text ? rawOutputMarkup(task.stream_text) : "";
   const events = Array.isArray(task.events) ? eventTimelineMarkup(task.events) : "";
   const taskAnchor = escapeHtml(`task-${task.task_id || task.created_at || prompt.slice(0, 40)}`);
