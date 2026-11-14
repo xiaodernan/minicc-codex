@@ -51117,3 +51117,34 @@ M8-T925 ~ M8-T928 顺序落地了说明书与初版 i18n，但中途出了两次
 
 - `1-9` 按 DOM 顺序选卡（前 9 张：豌豆射手、向日葵、坚果、双射、樱桃、寒冰、火焰、双倍、玉米投手），
   不是语义编号；手册措辞用了"按 DOM 顺序"提醒。
+
+## 批次 927 - M8-T931：分支并轨再次用文件级证据核对（没有可并轨的内容）
+
+### 1 问题
+
+用户持续要求把项目的多个工作分支 / worktree 合并进主分支，汇集所有内容。
+此前的整理已经做过一次并有 ROADMAP 记录，本批次重新逐分支做了文件级核查。
+
+### 2 变更
+
+- `git diff --name-status main <branch>` 逐一比对 `dev/minicc-reliability-4ba3`、
+  `feature/minicc-cloud`、`consolidation/cost-snapshot-chain`、`consolidation/i18n-sampling-chain`、`consolidation/read-failure-chain`、
+  `backup/local-line-batches70-75`、`archive/read-failure-chain-t566-t574`、`scratch/audit-chain`、
+  `origin/integration/m8-t537-to-main`、`origin/m8-t537`：
+  - src 级差异全部为"main 有而分支没有"（main 领先）；
+  - 分支里"main 没有"的文件仅 11 个：8 个 `minicc-cloud` 对比下的 hashed bundle（构建产物，main 重新构建即可）、
+    3 个 `web/assets/*.js/css` hashed bundle（同类）、5 个 `test_*.py` 草稿（doc_pointers **fence/line ruler** 系列
+    的早期形态，已被 main 更晚的套件覆盖：`test_the_line_ruler_sweeps_a_document_once.py` /
+    `test_the_two_readers_share_one_fence_ruler.py` / `test_a_foreign_section_is_answered_without_a_line_ruler.py` /
+    `test_a_prose_mention_of_a_fence_opens_no_block.py` / `test_doc_pointers.py`）；
+  - 全部 27 个 detached-HEAD worktree 均已在此前核对为内容已被 main 重新实现并接收。
+
+**结论：没有任何分支/worktree 携带 main 缺失的功能内容；并轨任务在文件级上已完成。
+不合并不相关图（无共同祖先）的历史线，不为了"形式合并"而倒退。**
+
+roadmap 的并轨结论与 M8-T924 时一致，但现在有完整的文件级清单作为证据。
+
+### 3 验证
+
+- `git diff --name-status` 清单与此账本列出的 11 个文件一一对应；src 无遗漏文件。
+- doc_pointers 不改动任何可引用面——零风险。
