@@ -2270,15 +2270,15 @@ export async function bindAllowlistEditor() {
 
 export function openHelpPanel() {
 
-  const rows = state.locale === "zh"
+  const zh = state.locale === "zh";
 
-    ? [["发送任务", "Enter"], ["换行", "Shift+Enter"], ["新任务", "Ctrl/⌘ N"], ["命令面板", "Ctrl/⌘ K"], ["账本总览", "Ctrl/⌘ L"], ["搜索任务", "/"], ["快捷键速查", "?"], ["关闭面板 / 小游戏", "Esc"], ["选植物（游戏打开）", "1-9"], ["暂停 / 继续", "P"], ["铲子", "E"]]
+  const list = SHORTCUT_GROUPS.map((group) => `
+    <div class="help-group">
+      <div class="help-group-title">${escapeHtml(zh ? group.zh : group.en)}</div>
+      ${group.rows.map(([labelZh, labelEn, key]) => `<div class="help-shortcut"><span>${escapeHtml(zh ? labelZh : labelEn)}</span><kbd>${escapeHtml(key)}</kbd></div>`).join("")}
+    </div>`).join("");
 
-    : [["Send task", "Enter"], ["Newline", "Shift+Enter"], ["New task", "Ctrl/⌘ N"], ["Command palette", "Ctrl/⌘ K"], ["Ledger overview", "Ctrl/⌘ L"], ["Search tasks", "/"], ["Shortcut reference", "?"], ["Close panel / game", "Esc"], ["Pick seed (game)", "1-9"], ["Pause / resume", "P"], ["Shovel", "E"]];
-
-  const list = rows.map(([label, key]) => `<div class="help-shortcut"><span>${escapeHtml(label)}</span><kbd>${escapeHtml(key)}</kbd></div>`).join("");
-
-  openPanel(t("help.title"), `<div class="help-panel"><div class="panel-section-title">${escapeHtml(t("help.shortcuts"))}</div>${list}<div class="panel-section-title">${escapeHtml(t("help.arcade"))}</div><button type="button" class="panel-command" id="helpArcadeButton"><span>${icon("gamepad-2")}</span>${escapeHtml(t("help.arcade"))}</button></div>`);
+  openPanel(t("help.title"), `<div class="help-panel"><div class="help-groups">${list}</div><div class="panel-section-title">${escapeHtml(t("help.arcade"))}</div><button type="button" class="panel-command" id="helpArcadeButton"><span>${icon("gamepad-2")}</span>${escapeHtml(t("help.arcade"))}</button></div>`);
 
   $("#helpArcadeButton")?.addEventListener("click", () => {
 
@@ -2301,5 +2301,6 @@ export { openJournalPanel };
 import { openArchivePanel } from "../panels/archive.js";
 export { openArchivePanel };
 import { openRecentPanel } from "../panels/recent.js";
+import { SHORTCUT_GROUPS } from "../cheat-sheet-data.js";
 export { openRecentPanel };
 

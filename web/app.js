@@ -2908,6 +2908,54 @@
     }
   }
 
+  // web/src/cheat-sheet-data.js
+  var SHORTCUT_GROUPS = [
+    {
+      id: "compose",
+      zh: "\u64B0\u5199",
+      en: "Compose",
+      rows: [
+        ["\u53D1\u9001\u4EFB\u52A1", "Send the task", "Enter"],
+        ["\u6362\u884C", "New line", "Shift+Enter"],
+        ["\u63D0\u53CA\u6587\u4EF6", "Mention a file", "@"],
+        ["\u659C\u6760\u547D\u4EE4", "Slash command", "/"]
+      ]
+    },
+    {
+      id: "navigation",
+      zh: "\u9010\u884C\u5BFC\u822A",
+      en: "Line by line",
+      rows: [
+        ["\u4E0A / \u4E0B / \u5DE6 / \u53F3\u952E\u5BFC\u822A", "Navigate with arrow keys", "\u2190 \u2191 \u2192 \u2193"],
+        ["\u5C55\u5F00 / \u6536\u8D77\u6811\u8282\u70B9", "Expand or collapse a tree node", "\u2192 / \u2190"],
+        ["\u9996\u884C / \u672B\u884C", "First / last row", "Home / End"]
+      ]
+    },
+    {
+      id: "global",
+      zh: "\u5168\u5C40",
+      en: "Global",
+      rows: [
+        ["\u65B0\u4EFB\u52A1", "New task", "Ctrl / \u2318 N"],
+        ["\u547D\u4EE4\u9762\u677F", "Command palette", "Ctrl / \u2318 K"],
+        ["\u8D26\u672C\u603B\u89C8", "Ledger overview", "Ctrl / \u2318 L"],
+        ["\u641C\u7D22\u4EFB\u52A1", "Search tasks", "/"],
+        ["\u5FEB\u6377\u952E\u901F\u67E5", "Shortcut reference", "?"],
+        ["\u5173\u95ED\u9762\u677F / \u5C0F\u6E38\u620F", "Close panel / game", "Esc"]
+      ]
+    },
+    {
+      id: "arcade",
+      zh: "\u6E38\u620F",
+      en: "Arcade",
+      rows: [
+        ["\u9009\u690D\u7269", "Pick a seed", "1-9"],
+        ["\u6682\u505C / \u7EE7\u7EED", "Pause / resume", "P"],
+        ["\u94F2\u5B50", "Shovel", "E"]
+      ]
+    }
+  ];
+
   // web/src/panels/manual.js
   var CHAPTERS2 = [
     { id: "start", roman: "\u4E00", romanEn: "1", title: "Quick Start", titleZh: "\u4E94\u5206\u949F\u4E0A\u624B" },
@@ -3015,37 +3063,19 @@
   `;
   }
   function zhKeys() {
+    const rows = SHORTCUT_GROUPS.flatMap((group) => group.rows.map(([zh7, _en, key]) => `<div><kbd>${escapeHtml(key)}</kbd><span>${escapeHtml(zh7)}</span></div>`)).join("\n      ");
     return `
     <div class="manual-keys">
-      <div><kbd>Enter</kbd><span>\u53D1\u9001\u4EFB\u52A1</span></div>
-      <div><kbd>Shift+Enter</kbd><span>\u6362\u884C</span></div>
-      <div><kbd>Ctrl / \u2318 N</kbd><span>\u65B0\u4EFB\u52A1</span></div>
-      <div><kbd>Ctrl / \u2318 K</kbd><span>\u547D\u4EE4\u9762\u677F</span></div>
-      <div><kbd>Ctrl / \u2318 L</kbd><span>\u8D26\u672C\u603B\u89C8</span></div>
-      <div><kbd>/</kbd><span>\u641C\u7D22\u4EFB\u52A1</span></div>
-      <div><kbd>?</kbd><span>\u5FEB\u6377\u952E\u901F\u67E5</span></div>
-      <div><kbd>Esc</kbd><span>\u5173\u95ED\u9762\u677F / \u5C0F\u6E38\u620F</span></div>
-      <div><kbd>1-9</kbd><span>\u9009\u690D\u7269\uFF08\u6E38\u620F\u6253\u5F00\u65F6\uFF09</span></div>
-      <div><kbd>P</kbd><span>\u6682\u505C / \u7EE7\u7EED\uFF08\u6E38\u620F\uFF09</span></div>
-      <div><kbd>E</kbd><span>\u94F2\u5B50\uFF08\u6E38\u620F\uFF09</span></div>
+      ${rows}
     </div>
     <p class="manual-footnote">\u547D\u4EE4\u9762\u677F\u91CC\u8FD8\u6709\u66F4\u591A\uFF1A\u5207\u6362\u4E3B\u9898\u3001\u6253\u5F00\u5E74\u9274\u3001\u6253\u5F00\u56DE\u653E\u3001\u5BFC\u51FA\u5F53\u524D\u5BF9\u8BDD\u3001\u6062\u590D\u4EFB\u52A1\u5FEB\u7167\u7B49\u2014\u2014\u5168\u90E8\u53EF\u4EE5\u7528\u9F20\u6807\u6216\u952E\u76D8\u64CD\u4F5C\u3002</p>
   `;
   }
   function enKeys() {
+    const rows = SHORTCUT_GROUPS.flatMap((group) => group.rows.map(([_zh, en, key]) => `<div><kbd>${escapeHtml(key)}</kbd><span>${escapeHtml(en)}</span></div>`)).join("\n      ");
     return `
     <div class="manual-keys">
-      <div><kbd>Enter</kbd><span>Send the task</span></div>
-      <div><kbd>Shift+Enter</kbd><span>New line</span></div>
-      <div><kbd>Ctrl / \u2318 N</kbd><span>New task</span></div>
-      <div><kbd>Ctrl / \u2318 K</kbd><span>Command palette</span></div>
-      <div><kbd>Ctrl / \u2318 L</kbd><span>Ledger overview</span></div>
-      <div><kbd>/</kbd><span>Search tasks</span></div>
-      <div><kbd>?</kbd><span>Shortcut reference</span></div>
-      <div><kbd>Esc</kbd><span>Close panel / game</span></div>
-      <div><kbd>1-9</kbd><span>Pick seed (game open)</span></div>
-      <div><kbd>P</kbd><span>Pause / resume (game)</span></div>
-      <div><kbd>E</kbd><span>Shovel (game)</span></div>
+      ${rows}
     </div>
     <p class="manual-footnote">The command palette carries more: theme toggle, open the almanac, open replay, export the conversation, restore a task snapshot \u2014 every action keyboard or mouse operable.</p>
   `;
@@ -4803,9 +4833,13 @@
     });
   }
   function openHelpPanel() {
-    const rows = state.locale === "zh" ? [["\u53D1\u9001\u4EFB\u52A1", "Enter"], ["\u6362\u884C", "Shift+Enter"], ["\u65B0\u4EFB\u52A1", "Ctrl/\u2318 N"], ["\u547D\u4EE4\u9762\u677F", "Ctrl/\u2318 K"], ["\u8D26\u672C\u603B\u89C8", "Ctrl/\u2318 L"], ["\u641C\u7D22\u4EFB\u52A1", "/"], ["\u5FEB\u6377\u952E\u901F\u67E5", "?"], ["\u5173\u95ED\u9762\u677F / \u5C0F\u6E38\u620F", "Esc"], ["\u9009\u690D\u7269\uFF08\u6E38\u620F\u6253\u5F00\uFF09", "1-9"], ["\u6682\u505C / \u7EE7\u7EED", "P"], ["\u94F2\u5B50", "E"]] : [["Send task", "Enter"], ["Newline", "Shift+Enter"], ["New task", "Ctrl/\u2318 N"], ["Command palette", "Ctrl/\u2318 K"], ["Ledger overview", "Ctrl/\u2318 L"], ["Search tasks", "/"], ["Shortcut reference", "?"], ["Close panel / game", "Esc"], ["Pick seed (game)", "1-9"], ["Pause / resume", "P"], ["Shovel", "E"]];
-    const list = rows.map(([label2, key]) => `<div class="help-shortcut"><span>${escapeHtml(label2)}</span><kbd>${escapeHtml(key)}</kbd></div>`).join("");
-    openPanel(t("help.title"), `<div class="help-panel"><div class="panel-section-title">${escapeHtml(t("help.shortcuts"))}</div>${list}<div class="panel-section-title">${escapeHtml(t("help.arcade"))}</div><button type="button" class="panel-command" id="helpArcadeButton"><span>${icon("gamepad-2")}</span>${escapeHtml(t("help.arcade"))}</button></div>`);
+    const zh7 = state.locale === "zh";
+    const list = SHORTCUT_GROUPS.map((group) => `
+    <div class="help-group">
+      <div class="help-group-title">${escapeHtml(zh7 ? group.zh : group.en)}</div>
+      ${group.rows.map(([labelZh, labelEn, key]) => `<div class="help-shortcut"><span>${escapeHtml(zh7 ? labelZh : labelEn)}</span><kbd>${escapeHtml(key)}</kbd></div>`).join("")}
+    </div>`).join("");
+    openPanel(t("help.title"), `<div class="help-panel"><div class="help-groups">${list}</div><div class="panel-section-title">${escapeHtml(t("help.arcade"))}</div><button type="button" class="panel-command" id="helpArcadeButton"><span>${icon("gamepad-2")}</span>${escapeHtml(t("help.arcade"))}</button></div>`);
     $("#helpArcadeButton")?.addEventListener("click", () => {
       closePanel();
       openArcade().catch((error) => showToast(error.message));

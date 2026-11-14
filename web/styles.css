@@ -4775,3 +4775,49 @@ pre code { background: #0f172a; padding: 12px; display: block; overflow-x: auto;
   .workspace-mini { padding: 0 5px; }
   .profile-row { padding: 5px 6px; }
 }
+
+/* ============================================================
+   The "?" shortcut panel — keyboard reference at a glance.
+   ============================================================ */
+
+.help-panel { max-width: 660px; margin: 0 auto; }
+.help-groups { display: grid; gap: 14px; }
+@media (min-width: 860px) { .help-groups { grid-template-columns: 1fr 1fr; } }
+.help-group {
+  display: grid;
+  align-content: start;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--surface-soft);
+}
+.help-group-title {
+  padding: 8px 14px;
+  font-family: "DM Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 10px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--muted);
+  border-bottom: 1px solid var(--line);
+  background: rgba(255, 255, 255, .025);
+}
+.help-shortcut {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 14px;
+}
+.help-shortcut + .help-shortcut { border-top: 1px solid color-mix(in srgb, var(--line) 55%, transparent); }
+.help-shortcut span { color: var(--text); font-size: 12.5px; line-height: 1.5; }
+.help-shortcut kbd {
+  font-family: "DM Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 10.5px;
+  color: var(--amber);
+  background: color-mix(in srgb, var(--amber) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--amber) 26%, transparent);
+  border-radius: 5px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+.help-panel .panel-command { display: inline-flex; align-items: center; gap: 8px; }

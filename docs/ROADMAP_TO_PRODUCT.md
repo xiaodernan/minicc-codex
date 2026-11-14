@@ -51865,3 +51865,24 @@ M8-T951 的 60s TTL 让「第二次及以后」的 digest 几乎免费，但第�
 ### 5 清理
 
 - minicc-rmq（5673/15673）与 minicc-redis（6385）验证用完后 `docker rm -f` —— 不触碰 careeros/specproof 等任何运行中环境；未留登记在任何 docker 状态文件内。
+
+## 批次 958 - M8-T964：`?` 快捷键速查——同源、分组、真有内容、CSS终于补上
+
+### 1 背景
+
+`openHelpPanel()` 存在：`?` 键能弹出一个「快捷键速查」窗口，但里面 11 行键位没有任何 CSS——字体、按键胶囊、分组全部缺失（从未有过 `.help-panel` 类）。更严重的问题是它与说明书第四章「命令与快捷键」全是**两份各自维护**的内容，三天后必然分叉宣布不存在的键、或者漏掉真实的键。
+
+### 2 变更
+
+- 新增 `web/src/cheat-sheet-data.js`：**SHORTCUT_GROUPS 唯一家**——4 组结构化数据（撰写 / 逐行导航 / 全局 / 游戏），每条 [zh, en, key] 三元组；`shortcutRows()` 导出平面列表。说明书第四章与 `?` 面板现在从同一来源渲染，双频道永远一致。
+- `web/src/chat/stream.js::openHelpPanel`：改为从 `SHORTCUT_GROUPS` 分组渲染，每组一个 `.help-group`，右对齐 kbd 胶囊；保留「小游戏」按钮 + Esc 关闭经由 `activateDialog`。
+- `web/src/panels/manual.js`：删除内联两份复制的键位表，`zhKeys/enKeys` 均从 SHORTCUT_GROUPS 生成；说明书与 `?` 面板永远不会讲两套。
+- `web/styles.css`：**补齐 `.help-panel` 全部缺失规则**——两栏分组网格（≥860px 起并列、以下堆叠）、键位胶囊（amber 描边 + 半透明底）、组标题小写宽字距 DM Mono；`.help-shortcut span` 实用字体大小 12.5px。
+- README：说明书条目下追加「快捷键速查（?）」段落。
+
+### 3 验证
+
+- 真浏览器 zh/en 双模式（fake provider）：`?` → `帮助面板显示：title=帮助/Help、分组数 4、行数 16 条、kbd 16 个`；zh 第一行：「发送任务 · Enter」✓ en：「Send the task · Enter」✓
+- 说明书第四章经由 Playwright 双端打开未混语、manifest 正常 ✓
+- `npm run test:web` ✓ · `npm run test:almanac`（11 章）✓ · `npm run test:i18n` ✓ · `npm run check:web` ✓ · doc_pointers rc=0
+- 视觉验收：真实浏览器截图确认 4 组双栏呈列、键位胶囊（amber 描边）齐全、面板宽 660px、关闭按钮可见、无 overflow ✓

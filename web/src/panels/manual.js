@@ -11,6 +11,7 @@ import { t } from "../core/i18n.js";
 import { icon, refreshIcons } from "../icons.js";
 import { escapeHtml } from "../chat/markdown.js";
 import { openPanel, beginPanelRequest, closePanel } from "../chat/stream.js";
+import { SHORTCUT_GROUPS } from "../cheat-sheet-data.js";
 
 const CHAPTERS = [
   { id: "start", roman: "一", romanEn: "1", title: "Quick Start", titleZh: "五分钟上手" },
@@ -125,38 +126,22 @@ function enModules() {
 }
 
 function zhKeys() {
+  const rows = SHORTCUT_GROUPS.flatMap((group) =>
+    group.rows.map(([zh, _en, key]) => `<div><kbd>${escapeHtml(key)}</kbd><span>${escapeHtml(zh)}</span></div>`)).join("\n      ");
   return `
     <div class="manual-keys">
-      <div><kbd>Enter</kbd><span>发送任务</span></div>
-      <div><kbd>Shift+Enter</kbd><span>换行</span></div>
-      <div><kbd>Ctrl / ⌘ N</kbd><span>新任务</span></div>
-      <div><kbd>Ctrl / ⌘ K</kbd><span>命令面板</span></div>
-      <div><kbd>Ctrl / ⌘ L</kbd><span>账本总览</span></div>
-      <div><kbd>/</kbd><span>搜索任务</span></div>
-      <div><kbd>?</kbd><span>快捷键速查</span></div>
-      <div><kbd>Esc</kbd><span>关闭面板 / 小游戏</span></div>
-      <div><kbd>1-9</kbd><span>选植物（游戏打开时）</span></div>
-      <div><kbd>P</kbd><span>暂停 / 继续（游戏）</span></div>
-      <div><kbd>E</kbd><span>铲子（游戏）</span></div>
+      ${rows}
     </div>
     <p class="manual-footnote">命令面板里还有更多：切换主题、打开年鉴、打开回放、导出当前对话、恢复任务快照等——全部可以用鼠标或键盘操作。</p>
   `;
 }
 
 function enKeys() {
+  const rows = SHORTCUT_GROUPS.flatMap((group) =>
+    group.rows.map(([_zh, en, key]) => `<div><kbd>${escapeHtml(key)}</kbd><span>${escapeHtml(en)}</span></div>`)).join("\n      ");
   return `
     <div class="manual-keys">
-      <div><kbd>Enter</kbd><span>Send the task</span></div>
-      <div><kbd>Shift+Enter</kbd><span>New line</span></div>
-      <div><kbd>Ctrl / ⌘ N</kbd><span>New task</span></div>
-      <div><kbd>Ctrl / ⌘ K</kbd><span>Command palette</span></div>
-      <div><kbd>Ctrl / ⌘ L</kbd><span>Ledger overview</span></div>
-      <div><kbd>/</kbd><span>Search tasks</span></div>
-      <div><kbd>?</kbd><span>Shortcut reference</span></div>
-      <div><kbd>Esc</kbd><span>Close panel / game</span></div>
-      <div><kbd>1-9</kbd><span>Pick seed (game open)</span></div>
-      <div><kbd>P</kbd><span>Pause / resume (game)</span></div>
-      <div><kbd>E</kbd><span>Shovel (game)</span></div>
+      ${rows}
     </div>
     <p class="manual-footnote">The command palette carries more: theme toggle, open the almanac, open replay, export the conversation, restore a task snapshot — every action keyboard or mouse operable.</p>
   `;
